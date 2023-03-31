@@ -9,9 +9,9 @@ import (
 	"github.com/alphabill-org/alphabill/internal/crypto"
 	p "github.com/alphabill-org/alphabill/internal/network/protocol"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
-	"github.com/alphabill-org/alphabill/internal/rootvalidator/consensus"
-	"github.com/alphabill-org/alphabill/internal/rootvalidator/partitions"
-	"github.com/alphabill-org/alphabill/internal/rootvalidator/unicitytree"
+	"github.com/alphabill-org/alphabill/internal/rootchain/consensus"
+	"github.com/alphabill-org/alphabill/internal/rootchain/partitions"
+	"github.com/alphabill-org/alphabill/internal/rootchain/unicitytree"
 	"github.com/alphabill-org/alphabill/internal/util"
 	"golang.org/x/exp/maps"
 )

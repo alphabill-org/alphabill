@@ -99,7 +99,7 @@ func (x *RootGenesis) Verify() error {
 		}
 		// make sure all root validators have signed the UC Seal
 		if len(p.Certificate.UnicitySeal.Signatures) != len(x.Root.RootValidators) {
-			return fmt.Errorf("partition %X UC Seal is not signed by all root validators",
+			return fmt.Errorf("partition %X UC Seal is not signed by all root nodes",
 				p.SystemDescriptionRecord.SystemIdentifier)
 		}
 	}

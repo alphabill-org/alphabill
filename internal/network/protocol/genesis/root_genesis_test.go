@@ -56,7 +56,7 @@ func TestRootGenesis_IsValid(t *testing.T) {
 			wantErr: ErrRootGenesisRecordIsNil.Error(),
 		},
 		{
-			name: "invalid root validator info",
+			name: "invalid root node info",
 			args: args{
 				verifier: verifier,
 			},

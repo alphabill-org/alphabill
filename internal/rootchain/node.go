@@ -1,4 +1,4 @@
-package rootvalidator
+package rootchain
 
 import (
 	"context"
@@ -10,8 +10,8 @@ import (
 	proto "github.com/alphabill-org/alphabill/internal/network/protocol"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/certification"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/handshake"
-	"github.com/alphabill-org/alphabill/internal/rootvalidator/consensus"
-	"github.com/alphabill-org/alphabill/internal/rootvalidator/partitions"
+	"github.com/alphabill-org/alphabill/internal/rootchain/consensus"
+	"github.com/alphabill-org/alphabill/internal/rootchain/partitions"
 	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/libp2p/go-libp2p/core/peer"
 )
@@ -37,7 +37,7 @@ type (
 	}
 )
 
-// New creates a new instance of the root validator node
+// New creates a new instance of the root chain node
 func New(
 	host *network.Peer,
 	pNet PartitionNet,
@@ -50,7 +50,7 @@ func New(
 	if pNet == nil {
 		return nil, fmt.Errorf("network is nil")
 	}
-	logger.Info("Starting root validator. PeerId=%v; Addresses=%v", host.LogID(), host.MultiAddresses())
+	logger.Info("Starting root node. PeerId=%v; Addresses=%v", host.LogID(), host.MultiAddresses())
 	node := &Node{
 		peer:             host,
 		partitions:       ps,
@@ -78,11 +78,11 @@ func (v *Node) loop(ctx context.Context) {
 	for {
 		select {
 		case <-ctx.Done():
-			logger.Info("%v exiting root validator main loop", v.peer.LogID())
+			logger.Info("%v exiting root node main loop", v.peer.LogID())
 			return
 		case msg, ok := <-v.net.ReceivedChannel():
 			if !ok {
-				logger.Warning("%v partition received channel closed, exiting root validator main loop", v.peer.LogID())
+				logger.Warning("%v partition received channel closed, exiting root node main loop", v.peer.LogID())
 				return
 			}
 			if msg.Message == nil {
@@ -235,7 +235,7 @@ func (v *Node) handleConsensus(ctx context.Context) {
 	for {
 		select {
 		case <-ctx.Done():
-			logger.Info("%v exiting root validator consensus result handler", v.peer.LogID())
+			logger.Info("%v exiting root consensus result handler", v.peer.LogID())
 			return
 		case uc, ok := <-v.consensusManager.CertificationResult():
 			if !ok {

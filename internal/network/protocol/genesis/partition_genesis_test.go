@@ -172,7 +172,7 @@ func TestPartitionGenesis_IsValid(t *testing.T) {
 				RootValidators: []*PublicKeyInfo{{NodeIdentifier: "1", SigningPublicKey: pubKey, EncryptionPublicKey: nil}},
 				Keys:           []*PublicKeyInfo{keyInfo},
 			},
-			wantErrStr: "invalid root validator public key info",
+			wantErrStr: "invalid root node public key info",
 		},
 		{
 			name: "encryption key is invalid",

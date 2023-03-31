@@ -16,7 +16,7 @@ var (
 	ErrUnicitySealPreviousHashIsNil = errors.New("previous hash is nil")
 	ErrInvalidBlockNumber           = errors.New("invalid block number")
 	ErrUnicitySealSignatureIsNil    = errors.New("no signatures")
-	ErrRootValidatorInfoMissing     = errors.New("root validator info is missing")
+	ErrRootValidatorInfoMissing     = errors.New("root node info is missing")
 	ErrUnknownSigner                = errors.New("unknown signer")
 )
 

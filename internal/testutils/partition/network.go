@@ -13,10 +13,10 @@ import (
 	"github.com/alphabill-org/alphabill/internal/network"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/internal/partition"
-	"github.com/alphabill-org/alphabill/internal/rootvalidator"
-	"github.com/alphabill-org/alphabill/internal/rootvalidator/consensus/monolithic"
-	rootgenesis "github.com/alphabill-org/alphabill/internal/rootvalidator/genesis"
-	"github.com/alphabill-org/alphabill/internal/rootvalidator/partitions"
+	"github.com/alphabill-org/alphabill/internal/rootchain"
+	"github.com/alphabill-org/alphabill/internal/rootchain/consensus/monolithic"
+	rootgenesis "github.com/alphabill-org/alphabill/internal/rootchain/genesis"
+	"github.com/alphabill-org/alphabill/internal/rootchain/partitions"
 	"github.com/alphabill-org/alphabill/internal/testutils/net"
 	testevent "github.com/alphabill-org/alphabill/internal/testutils/partition/event"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
@@ -26,7 +26,7 @@ import (
 
 // AlphabillPartition for integration tests
 type AlphabillPartition struct {
-	RootNode     *rootvalidator.Node
+	RootNode     *rootchain.Node
 	Nodes        []*partition.Node
 	ctxCancel    context.CancelFunc
 	ctx          context.Context
@@ -142,7 +142,7 @@ func NewNetwork(partitionNodes int, txSystemProvider func(trustBase map[string]c
 	if err != nil {
 		return nil, fmt.Errorf("consensus manager initialization failed, %w", err)
 	}
-	rootNode, err := rootvalidator.New(partitionHost, rootNet, partitionStore, cm)
+	rootNode, err := rootchain.New(partitionHost, rootNet, partitionStore, cm)
 	if err != nil {
 		return nil, err
 	}

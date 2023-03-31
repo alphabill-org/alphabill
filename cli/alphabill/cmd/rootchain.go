@@ -10,10 +10,10 @@ import (
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/network"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
-	"github.com/alphabill-org/alphabill/internal/rootvalidator"
-	"github.com/alphabill-org/alphabill/internal/rootvalidator/consensus"
-	"github.com/alphabill-org/alphabill/internal/rootvalidator/consensus/monolithic"
-	"github.com/alphabill-org/alphabill/internal/rootvalidator/partitions"
+	"github.com/alphabill-org/alphabill/internal/rootchain"
+	"github.com/alphabill-org/alphabill/internal/rootchain/consensus"
+	"github.com/alphabill-org/alphabill/internal/rootchain/consensus/monolithic"
+	"github.com/alphabill-org/alphabill/internal/rootchain/partitions"
 	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/spf13/cobra"
@@ -24,10 +24,10 @@ const defaultNetworkTimeout = 300 * time.Millisecond
 type validatorConfig struct {
 	Base *baseConfiguration
 
-	// path to rootvalidator chain key file
+	// path to rootchain chain key file
 	KeyFile string
 
-	// path to rootvalidator-genesis.json file
+	// path to rootchain-genesis.json file
 	GenesisFile string
 
 	// partition validator node address (libp2p multiaddress format)
@@ -36,7 +36,7 @@ type validatorConfig struct {
 	// Root validator node address (libp2p multiaddress format)
 	RootListener string
 
-	// root validator addresses
+	// root node addresses
 	Validators map[string]string
 
 	// path to Bolt storage file
@@ -46,25 +46,25 @@ type validatorConfig struct {
 	MaxRequests uint
 }
 
-// newRootNodeCmd creates a new cobra command for root validator chain
+// newRootNodeCmd creates a new cobra command for root chain node
 func newRootNodeCmd(baseConfig *baseConfiguration) *cobra.Command {
 	config := &validatorConfig{
 		Base: baseConfig,
 	}
 	var cmd = &cobra.Command{
 		Use:   "root",
-		Short: "Starts a root validator node",
+		Short: "Starts a root chain node",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return defaultValidatorRunFunc(cmd.Context(), config)
 		},
 	}
 
-	cmd.Flags().StringVarP(&config.KeyFile, keyFileCmdFlag, "k", "", "path to root validator validator key file  (default $AB_HOME/rootchain/"+defaultKeysFileName+")")
+	cmd.Flags().StringVarP(&config.KeyFile, keyFileCmdFlag, "k", "", "path to node validator key file  (default $AB_HOME/rootchain/"+defaultKeysFileName+")")
 	cmd.Flags().StringVarP(&config.GenesisFile, "genesis-file", "g", "", "path to root-genesis.json file (default $AB_HOME/rootchain/"+rootGenesisFileName+")")
 	cmd.Flags().StringVarP(&config.StoragePath, "db", "f", "", "persistent store path (default: $AB_HOME/rootchain/)")
 	cmd.Flags().StringVar(&config.PartitionListener, "partition-listener", "/ip4/127.0.0.1/tcp/26662", "validator address in libp2p multiaddress-format")
 	cmd.Flags().StringVar(&config.RootListener, "root-listener", "/ip4/127.0.0.1/tcp/29666", "validator address in libp2p multiaddress-format")
-	cmd.Flags().StringToStringVarP(&config.Validators, "peers", "p", nil, "a map of root validator identifiers and addresses. must contain all genesis validator addresses")
+	cmd.Flags().StringToStringVarP(&config.Validators, "peers", "p", nil, "a map of root node identifiers and addresses. must contain all genesis validator addresses")
 	cmd.Flags().UintVar(&config.MaxRequests, "max-requests", 1000, "request buffer capacity")
 	return cmd
 }
@@ -95,7 +95,7 @@ func (c *validatorConfig) getKeyFilePath() string {
 func defaultValidatorRunFunc(ctx context.Context, config *validatorConfig) error {
 	rootGenesis, err := util.ReadJsonFile(config.getGenesisFilePath(), &genesis.RootGenesis{})
 	if err != nil {
-		return fmt.Errorf("failed to open root validator genesis file %s, %w", config.getGenesisFilePath(), err)
+		return fmt.Errorf("failed to open root node genesis file %s, %w", config.getGenesisFilePath(), err)
 	}
 	keys, err := LoadKeys(config.getKeyFilePath(), false, false)
 	if err != nil {
@@ -116,7 +116,7 @@ func defaultValidatorRunFunc(ctx context.Context, config *validatorConfig) error
 	}
 	ver, err := keys.SigningPrivateKey.Verifier()
 	if err != nil {
-		return fmt.Errorf("invalid root validator sign key error, %w", err)
+		return fmt.Errorf("invalid root node sign key error, %w", err)
 	}
 	if verifyKeyPresentInGenesis(prtHost, rootGenesis.Root, ver) != nil {
 		return fmt.Errorf("error root node key not found in genesis file")
@@ -135,7 +135,7 @@ func defaultValidatorRunFunc(ctx context.Context, config *validatorConfig) error
 	if err != nil {
 		return fmt.Errorf("failed initiate monolithic consensus manager: %w", err)
 	}
-	node, err := rootvalidator.New(
+	node, err := rootchain.New(
 		prtHost,
 		partitionNet,
 		partitionCfg,
@@ -180,15 +180,15 @@ func (c *validatorConfig) getPeerAddress(identifier string) (string, error) {
 func verifyKeyPresentInGenesis(peer *network.Peer, rg *genesis.GenesisRootRecord, ver abcrypto.Verifier) error {
 	nodeInfo := rg.FindPubKeyById(peer.ID().String())
 	if nodeInfo == nil {
-		return fmt.Errorf("invalid root validator encode key")
+		return fmt.Errorf("invalid root node encode key")
 	}
 	signPubKeyBytes, err := ver.MarshalPublicKey()
 	if err != nil {
-		return fmt.Errorf("invalid root validator sign key, cannot start")
+		return fmt.Errorf("invalid root node sign key, cannot start")
 	}
 	// verify that the same public key is present in the genesis file
 	if !bytes.Equal(signPubKeyBytes, nodeInfo.SigningPublicKey) {
-		return fmt.Errorf("invalid root validator sign key, expected %X, got %X", signPubKeyBytes, nodeInfo.SigningPublicKey)
+		return fmt.Errorf("invalid root node sign key, expected %X, got %X", signPubKeyBytes, nodeInfo.SigningPublicKey)
 	}
 	return nil
 }

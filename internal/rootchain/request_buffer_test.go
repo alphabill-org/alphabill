@@ -1,4 +1,4 @@
-package rootvalidator
+package rootchain
 
 import (
 	"testing"
@@ -7,7 +7,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/crypto"
 	p "github.com/alphabill-org/alphabill/internal/network/protocol"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/certification"
-	"github.com/alphabill-org/alphabill/internal/rootvalidator/partitions"
+	"github.com/alphabill-org/alphabill/internal/rootchain/partitions"
 	"github.com/stretchr/testify/require"
 )
 

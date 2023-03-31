@@ -11,7 +11,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/keyvaluedb/memorydb"
 	"github.com/alphabill-org/alphabill/internal/network"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
-	rootgenesis "github.com/alphabill-org/alphabill/internal/rootvalidator/genesis"
+	rootgenesis "github.com/alphabill-org/alphabill/internal/rootchain/genesis"
 	testnetwork "github.com/alphabill-org/alphabill/internal/testutils/network"
 	test "github.com/alphabill-org/alphabill/internal/testutils/peer"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"

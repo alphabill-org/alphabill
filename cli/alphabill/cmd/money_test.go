@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
-	rootgenesis "github.com/alphabill-org/alphabill/internal/rootvalidator/genesis"
+	rootgenesis "github.com/alphabill-org/alphabill/internal/rootchain/genesis"
 	"github.com/alphabill-org/alphabill/internal/rpc/alphabill"
 	"github.com/alphabill-org/alphabill/internal/script"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"

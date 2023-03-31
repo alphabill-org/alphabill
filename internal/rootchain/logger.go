@@ -1,4 +1,4 @@
-package rootvalidator
+package rootchain
 
 import log "github.com/alphabill-org/alphabill/pkg/logger"
 

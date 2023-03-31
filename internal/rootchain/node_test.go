@@ -1,4 +1,4 @@
-package rootvalidator
+package rootchain
 
 import (
 	"fmt"
@@ -10,11 +10,11 @@ import (
 	p "github.com/alphabill-org/alphabill/internal/network/protocol"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/handshake"
-	"github.com/alphabill-org/alphabill/internal/rootvalidator/consensus"
-	"github.com/alphabill-org/alphabill/internal/rootvalidator/consensus/monolithic"
-	rootgenesis "github.com/alphabill-org/alphabill/internal/rootvalidator/genesis"
-	"github.com/alphabill-org/alphabill/internal/rootvalidator/partitions"
-	"github.com/alphabill-org/alphabill/internal/rootvalidator/testutils"
+	"github.com/alphabill-org/alphabill/internal/rootchain/consensus"
+	"github.com/alphabill-org/alphabill/internal/rootchain/consensus/monolithic"
+	rootgenesis "github.com/alphabill-org/alphabill/internal/rootchain/genesis"
+	"github.com/alphabill-org/alphabill/internal/rootchain/partitions"
+	"github.com/alphabill-org/alphabill/internal/rootchain/testutils"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	testnetwork "github.com/alphabill-org/alphabill/internal/testutils/network"
 	"github.com/stretchr/testify/require"

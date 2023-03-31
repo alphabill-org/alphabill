@@ -11,7 +11,7 @@ var ErrPartitionGenesisIsNil = errors.New("partition genesis is nil")
 var ErrRootChainEncryptionKeyMissing = errors.New("root encryption public key is missing")
 var ErrKeysAreMissing = errors.New("partition keys are missing")
 var ErrKeyIsNil = errors.New("key is nil")
-var ErrMissingRootValidators = errors.New("Missing root validators")
+var ErrMissingRootValidators = errors.New("Missing root nodes")
 var ErrPartitionUnicityCertificateIsNil = errors.New("partition unicity certificate is nil")
 
 func (x *PartitionGenesis) FindRootPubKeyInfoById(id string) *PublicKeyInfo {
@@ -41,13 +41,13 @@ func (x *PartitionGenesis) IsValid(verifiers map[string]crypto.Verifier, hashAlg
 	for _, node := range x.RootValidators {
 		err := node.IsValid()
 		if err != nil {
-			return errors.Wrap(err, "invalid root validator public key info")
+			return errors.Wrap(err, "invalid root node public key info")
 		}
 	}
 	// make sure it is a list of unique node ids and keys
 	err := ValidatorInfoUnique(x.RootValidators)
 	if err != nil {
-		return errors.Wrap(err, "invalid root validator list")
+		return errors.Wrap(err, "invalid root node list")
 	}
 	// check partition validator public info is valid
 	for _, keyInfo := range x.Keys {
@@ -78,7 +78,7 @@ func (x *PartitionGenesis) IsValid(verifiers map[string]crypto.Verifier, hashAlg
 	}
 	// UC Seal must be signed by all validators
 	if len(x.RootValidators) != len(x.Certificate.UnicitySeal.Signatures) {
-		return errors.New("Unicity Certificate is not signed by all root validators")
+		return errors.New("Unicity Certificate is not signed by all root nodes")
 	}
 	return nil
 }

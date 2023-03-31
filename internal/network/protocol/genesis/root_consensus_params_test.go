@@ -281,7 +281,7 @@ func TestVerify_VerifierIsNil(t *testing.T) {
 		Signatures:          map[string][]byte{"test": {0, 0}},
 	}
 	err := x.Verify(nil)
-	require.ErrorContains(t, err, "missing root validator public info")
+	require.ErrorContains(t, err, "missing root node public info")
 }
 
 func TestConsensusParams_Nil(t *testing.T) {

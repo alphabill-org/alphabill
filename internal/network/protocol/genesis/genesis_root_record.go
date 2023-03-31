@@ -6,13 +6,13 @@ import (
 )
 
 var (
-	ErrRootValidatorsSize = errors.New("registered root validators do not match consensus total root nodes")
+	ErrRootValidatorsSize = errors.New("registered root nodes do not match consensus total root nodes")
 	ErrGenesisRootIssNil  = errors.New("root genesis record is nil")
-	ErrNoRootValidators   = errors.New("no root validators set")
+	ErrNoRootValidators   = errors.New("root nodes not set")
 	ErrConsensusIsNil     = errors.New("consensus is nil")
 )
 
-// IsValid only validates Consensus structure and that it signed by the listed root validators
+// IsValid only validates Consensus structure and that it signed by the listed root nodes
 func (x *GenesisRootRecord) IsValid() error {
 	if x == nil {
 		return ErrGenesisRootIssNil

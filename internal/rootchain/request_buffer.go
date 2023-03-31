@@ -1,4 +1,4 @@
-package rootvalidator
+package rootchain
 
 import (
 	"bytes"
@@ -8,7 +8,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/certificates"
 	p "github.com/alphabill-org/alphabill/internal/network/protocol"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/certification"
-	"github.com/alphabill-org/alphabill/internal/rootvalidator/partitions"
+	"github.com/alphabill-org/alphabill/internal/rootchain/partitions"
 )
 
 type CertRequestBuffer struct {

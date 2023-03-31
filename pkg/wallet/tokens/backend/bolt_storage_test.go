@@ -1,6 +1,7 @@
 package twb
 
 import (
+	"fmt"
 	"math"
 	"math/rand"
 	"path/filepath"
@@ -49,6 +50,10 @@ func Test_storage(t *testing.T) {
 
 	t.Run("save token", func(t *testing.T) {
 		testSaveToken(t, db)
+	})
+
+	t.Run("remove token", func(t *testing.T) {
+		testRemoveToken(t, db)
 	})
 }
 
@@ -138,6 +143,27 @@ func testSaveToken(t *testing.T, db *storage) {
 	proofFromDB, err := db.GetTxProof(UnitID(token.ID), token.TxHash)
 	require.NoError(t, err)
 	require.Equal(t, proof, proofFromDB)
+}
+
+func testRemoveToken(t *testing.T, db *storage) {
+	err := db.RemoveToken(nil)
+	require.ErrorIs(t, err, errRecordNotFound)
+	require.EqualError(t, err, `failed to read token data token-unit[]: not found`)
+
+	err = db.RemoveToken(test.RandomBytes(32))
+	require.ErrorIs(t, err, errRecordNotFound)
+
+	owner := script.PredicatePayToPublicKeyHashDefault(test.RandomBytes(32))
+	token := randomToken(owner, Fungible)
+	require.NoError(t, db.SaveToken(token, &Proof{BlockNumber: 1}))
+
+	// remove token
+	require.NoError(t, db.RemoveToken(token.ID))
+
+	// second attempt should fail
+	err = db.RemoveToken(token.ID)
+	require.ErrorIs(t, err, errRecordNotFound)
+	require.EqualError(t, err, fmt.Sprintf("failed to read token data token-unit[%X]: not found", token.ID))
 }
 
 func testBlockNumber(t *testing.T, db *storage) {

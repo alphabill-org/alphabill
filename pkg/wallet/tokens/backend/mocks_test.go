@@ -79,6 +79,7 @@ func randomTx(t *testing.T, attr proto.Message) *txsystem.Transaction {
 type mockABClient struct {
 	getBlocks       func(ctx context.Context, blockNumber, blockCount uint64) (*alphabill.GetBlocksResponse, error)
 	sendTransaction func(ctx context.Context, tx *txsystem.Transaction) (*txsystem.TransactionResponse, error)
+	maxBlockNumber  func(ctx context.Context) (bn uint64, rn uint64, err error)
 }
 
 func (abc *mockABClient) SendTransaction(ctx context.Context, tx *txsystem.Transaction) (*txsystem.TransactionResponse, error) {
@@ -93,6 +94,13 @@ func (abc *mockABClient) GetBlocks(ctx context.Context, blockNumber, blockCount 
 		return abc.getBlocks(ctx, blockNumber, blockCount)
 	}
 	return nil, fmt.Errorf("unexpected mockABClient.GetBlocks(%d, %d) call", blockNumber, blockCount)
+}
+
+func (abc *mockABClient) GetMaxBlockNumber(ctx context.Context) (uint64, uint64, error) { // latest persisted block number, latest round number
+	if abc.maxBlockNumber != nil {
+		return abc.maxBlockNumber(ctx)
+	}
+	return 0, 0, fmt.Errorf("unexpected mockABClient.GetMaxBlockNumber call")
 }
 
 type mockCfg struct {

@@ -47,8 +47,8 @@ func TestRootValidatorInvalidRootKey_CannotBeStartedInvalidDBDir(t *testing.T) {
 	require.ErrorContains(t, err, "no such file or directory")
 }
 
-func validMonolithicRootValidatorConfig(dbDir string) *validatorConfig {
-	conf := &validatorConfig{
+func validMonolithicRootValidatorConfig(dbDir string) *rootNodeConfig {
+	conf := &rootNodeConfig{
 		Base: &baseConfiguration{
 			HomeDir:    alphabillHomeDir(),
 			CfgFile:    filepath.Join(alphabillHomeDir(), defaultConfigFile),

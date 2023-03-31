@@ -21,7 +21,7 @@ import (
 
 const defaultNetworkTimeout = 300 * time.Millisecond
 
-type validatorConfig struct {
+type rootNodeConfig struct {
 	Base *baseConfiguration
 
 	// path to rootchain chain key file
@@ -48,7 +48,7 @@ type validatorConfig struct {
 
 // newRootNodeCmd creates a new cobra command for root chain node
 func newRootNodeCmd(baseConfig *baseConfiguration) *cobra.Command {
-	config := &validatorConfig{
+	config := &rootNodeConfig{
 		Base: baseConfig,
 	}
 	var cmd = &cobra.Command{
@@ -71,28 +71,28 @@ func newRootNodeCmd(baseConfig *baseConfiguration) *cobra.Command {
 
 // getGenesisFilePath returns genesis file path if provided, otherwise $AB_HOME/rootchain/root-genesis.json
 // Must be called after $AB_HOME is initialized in base command PersistentPreRunE function.
-func (c *validatorConfig) getGenesisFilePath() string {
+func (c *rootNodeConfig) getGenesisFilePath() string {
 	if c.GenesisFile != "" {
 		return c.GenesisFile
 	}
 	return filepath.Join(c.Base.defaultRootGenesisDir(), rootGenesisFileName)
 }
 
-func (c *validatorConfig) getStoragePath() string {
+func (c *rootNodeConfig) getStoragePath() string {
 	if c.StoragePath != "" {
 		return c.StoragePath
 	}
 	return c.Base.defaultRootGenesisDir()
 }
 
-func (c *validatorConfig) getKeyFilePath() string {
+func (c *rootNodeConfig) getKeyFilePath() string {
 	if c.KeyFile != "" {
 		return c.KeyFile
 	}
 	return filepath.Join(c.Base.defaultRootGenesisDir(), defaultKeysFileName)
 }
 
-func defaultValidatorRunFunc(ctx context.Context, config *validatorConfig) error {
+func defaultValidatorRunFunc(ctx context.Context, config *rootNodeConfig) error {
 	rootGenesis, err := util.ReadJsonFile(config.getGenesisFilePath(), &genesis.RootGenesis{})
 	if err != nil {
 		return fmt.Errorf("failed to open root node genesis file %s, %w", config.getGenesisFilePath(), err)
@@ -169,7 +169,7 @@ func createHost(address string, encPrivate crypto.PrivKey) (*network.Peer, error
 	return network.NewPeer(conf)
 }
 
-func (c *validatorConfig) getPeerAddress(identifier string) (string, error) {
+func (c *rootNodeConfig) getPeerAddress(identifier string) (string, error) {
 	address, f := c.Validators[identifier]
 	if !f {
 		return "", fmt.Errorf("address for node %v not found", identifier)

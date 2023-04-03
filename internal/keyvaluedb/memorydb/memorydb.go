@@ -2,17 +2,10 @@ package memorydb
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
-	"reflect"
 	"sync"
 
 	"github.com/alphabill-org/alphabill/internal/keyvaluedb"
-)
-
-var (
-	errInvalidKey = errors.New("invalid key")
-	errValueIsNil = errors.New("value is nil")
 )
 
 type (
@@ -23,33 +16,10 @@ type (
 		db      map[string][]byte
 		encoder EncodeFn
 		decoder DecodeFn
+		limit   int
 		lock    sync.RWMutex
 	}
 )
-
-func checkKey(key []byte) error {
-	if len(key) == 0 {
-		return errInvalidKey
-	}
-	return nil
-}
-
-func checkValue(val any) error {
-	if reflect.ValueOf(val).Kind() == reflect.Ptr && reflect.ValueOf(val).IsNil() {
-		return errValueIsNil
-	}
-	return nil
-}
-
-func checkKeyAndValue(key []byte, val any) error {
-	if err := checkKey(key); err != nil {
-		return err
-	}
-	if err := checkValue(val); err != nil {
-		return err
-	}
-	return nil
-}
 
 // New creates a new mock key value db that currently uses map as storage.
 // NB! map is probably not the best solution and should be replaced with binary search tree
@@ -58,6 +28,16 @@ func New() *MemoryDB {
 		db:      make(map[string][]byte),
 		encoder: json.Marshal,
 		decoder: json.Unmarshal,
+	}
+}
+
+// NewWithLimiter can be used to test disk full scenarios
+func NewWithLimiter(limit int) *MemoryDB {
+	return &MemoryDB{
+		db:      make(map[string][]byte),
+		encoder: json.Marshal,
+		decoder: json.Unmarshal,
+		limit:   limit,
 	}
 }
 
@@ -77,7 +57,7 @@ func (db *MemoryDB) Read(key []byte, value any) (bool, error) {
 	db.lock.RLock()
 	defer db.lock.RUnlock()
 
-	if err := checkKeyAndValue(key, value); err != nil {
+	if err := keyvaluedb.CheckKeyAndValue(key, value); err != nil {
 		return false, err
 	}
 	if data, ok := db.db[string(key)]; ok {
@@ -90,12 +70,15 @@ func (db *MemoryDB) Read(key []byte, value any) (bool, error) {
 func (db *MemoryDB) Write(key []byte, value any) error {
 	db.lock.Lock()
 	defer db.lock.Unlock()
-	if err := checkKeyAndValue(key, value); err != nil {
+	if err := keyvaluedb.CheckKeyAndValue(key, value); err != nil {
 		return err
 	}
 	b, err := db.encoder(value)
 	if err != nil {
 		return err
+	}
+	if db.limit > 0 && len(db.db) >= db.limit {
+		return fmt.Errorf("write failed, disk is full")
 	}
 	db.db[string(key)] = b
 	return nil
@@ -105,7 +88,7 @@ func (db *MemoryDB) Write(key []byte, value any) error {
 func (db *MemoryDB) Delete(key []byte) error {
 	db.lock.Lock()
 	defer db.lock.Unlock()
-	if err := checkKey(key); err != nil {
+	if err := keyvaluedb.CheckKey(key); err != nil {
 		return err
 	}
 	delete(db.db, string(key))
@@ -142,9 +125,15 @@ func (db *MemoryDB) Find(key []byte) keyvaluedb.Iterator {
 func (db *MemoryDB) StartTx() (keyvaluedb.DBTransaction, error) {
 	db.lock.RLock()
 	defer db.lock.RUnlock()
-	tx, err := NewMapTx(db, db.encoder)
+	tx, err := NewMapTx(db)
 	if err != nil {
 		return nil, fmt.Errorf("failed to start Bolt tx, %w", err)
 	}
 	return tx, nil
+}
+
+func (db *MemoryDB) SetLimit(limit int) {
+	db.lock.RLock()
+	defer db.lock.RUnlock()
+	db.limit = limit
 }

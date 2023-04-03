@@ -3,6 +3,7 @@ package boltdb
 import (
 	"fmt"
 
+	"github.com/alphabill-org/alphabill/internal/keyvaluedb"
 	bolt "go.etcd.io/bbolt"
 )
 
@@ -29,6 +30,9 @@ func NewBoltTx(db *bolt.DB, bucket []byte, e EncodeFn) (*Tx, error) {
 }
 
 func (t *Tx) Write(key []byte, value any) error {
+	if err := keyvaluedb.CheckKeyAndValue(key, value); err != nil {
+		return err
+	}
 	b, err := t.enc(value)
 	if err != nil {
 		return err
@@ -37,6 +41,9 @@ func (t *Tx) Write(key []byte, value any) error {
 }
 
 func (t *Tx) Delete(key []byte) error {
+	if err := keyvaluedb.CheckKey(key); err != nil {
+		return err
+	}
 	return t.b.Delete(key)
 }
 

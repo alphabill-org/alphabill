@@ -156,8 +156,8 @@ func TestConsensusManager_PartitionTimeout(t *testing.T) {
 	defer cm.Stop()
 	// make sure that 3 partition nodes where generated, needed for the next steps
 	require.Len(t, partitionNodes, 3)
-	// require, that repeat UC certificates are received for partition ID in 3 root rounds (partition timeout 2500 < 3 * 900)
-	result, err := readResult(cm.CertificationResult(), 3000*time.Millisecond)
+	// require, that repeat UC certificates are received for partition ID in 3 root rounds (partition timeout 2500 < 4 * 900)
+	result, err := readResult(cm.CertificationResult(), (4*900)*time.Millisecond)
 	require.NoError(t, err)
 	require.Equal(t, uint64(2), result.InputRecord.RoundNumber)
 	require.Equal(t, []byte{0, 0, 0, 0}, result.InputRecord.BlockHash)

@@ -452,6 +452,74 @@ func TestNode_RecoverReceivesInvalidBlock(t *testing.T) {
 	require.Equal(t, normal, tp.partition.status)
 }
 
+func TestNode_RecoverySimulateStorageFails(t *testing.T) {
+	// simulate storage error on two items stored in DB
+	db := memorydb.NewWithLimiter(2)
+	// used to generate test blocks
+	system := &testtxsystem.CounterTxSystem{}
+	tp := SetupNewSingleNodePartition(t, &testtxsystem.CounterTxSystem{}, WithBlockStore(db))
+	genesisBlock := &block.Block{
+		SystemIdentifier:   tp.nodeDeps.genesis.SystemDescriptionRecord.SystemIdentifier,
+		NodeIdentifier:     "genesis",
+		Transactions:       []*txsystem.Transaction{},
+		UnicityCertificate: tp.nodeDeps.genesis.GetCertificate(),
+	}
+	StartSingleNodePartition(t, tp)
+	defer tp.Close()
+
+	newBlock2 := createNewBlockOutsideNode(t, tp, system, genesisBlock)
+	newBlock3 := createNewBlockOutsideNode(t, tp, system, newBlock2)
+	newBlock4 := createNewBlockOutsideNode(t, tp, system, newBlock3)
+
+	// prepare proposal, send "newer" UC, revert state and start recovery
+	tp.SubmitUnicityCertificate(newBlock4.UnicityCertificate)
+
+	ContainsError(t, tp, ErrNodeDoesNotHaveLatestBlock.Error())
+	require.Equal(t, recovering, tp.partition.status)
+	testevent.ContainsEvent(t, tp.eh, event.RecoveryStarted)
+
+	// make sure replication request is sent
+	reqs := tp.mockNet.SentMessages(network.ProtocolLedgerReplicationReq)
+	require.Equal(t, 1, len(reqs))
+	require.IsType(t, reqs[0].Message, &replication.LedgerReplicationRequest{})
+	tp.mockNet.ResetSentMessages(network.ProtocolLedgerReplicationReq)
+	// send all missing blocks
+	tp.mockNet.Receive(network.ReceivedMessage{
+		From:     reqs[0].ID,
+		Protocol: network.ProtocolLedgerReplicationResp,
+		Message: &replication.LedgerReplicationResponse{
+			Status: replication.LedgerReplicationResponse_OK,
+			Blocks: []*block.Block{newBlock2, newBlock3, newBlock4},
+		},
+	})
+	// wait for message to be processed
+	require.Eventually(t, func() bool { return len(tp.mockNet.MessageCh) == 0 }, 1*time.Second, 10*time.Millisecond)
+	// still recovering
+	require.Equal(t, recovering, tp.partition.status)
+	// db failed to persist block 3 because disk is full, block 3 is asked again in a loop
+	reqs = tp.mockNet.SentMessages(network.ProtocolLedgerReplicationReq)
+	require.Equal(t, 1, len(reqs))
+	require.IsType(t, reqs[0].Message, &replication.LedgerReplicationRequest{})
+	msg := reqs[0].Message.(*replication.LedgerReplicationRequest)
+	require.Equal(t, uint64(3), msg.BeginBlockNumber)
+	// reset limit, simulate new disk space made
+	db.SetLimit(0)
+	tp.mockNet.ResetSentMessages(network.ProtocolLedgerReplicationReq)
+	// send all missing blocks 3, 4 and make sure that node now recovers
+	tp.mockNet.Receive(network.ReceivedMessage{
+		From:     reqs[0].ID,
+		Protocol: network.ProtocolLedgerReplicationResp,
+		Message: &replication.LedgerReplicationResponse{
+			Status: replication.LedgerReplicationResponse_OK,
+			Blocks: []*block.Block{newBlock3, newBlock4},
+		},
+	})
+	// wait for message to be processed
+	testevent.ContainsEvent(t, tp.eh, event.RecoveryFinished)
+	// all is normal
+	require.Equal(t, normal, tp.partition.status)
+}
+
 func TestNode_RecoveryThrowRocksAtNode(t *testing.T) {
 	tp := NewSingleNodePartition(t, &testtxsystem.CounterTxSystem{})
 	defer tp.Close()
@@ -530,7 +598,7 @@ func TestNode_RecoveryThrowRocksAtNode(t *testing.T) {
 		},
 	})
 	// wait for message to be processed
-	testevent.ContainsEvent(t, tp.eh, event.RecoveryStarted)
+	testevent.ContainsEvent(t, tp.eh, event.RecoveryFinished)
 	// all is normal
 	require.Equal(t, normal, tp.partition.status)
 }

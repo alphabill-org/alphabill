@@ -14,6 +14,10 @@ import (
 )
 
 const (
+	totalNodesCmdFlag      = "total-nodes"
+	consensusTmoCmdFlag    = "consensus-timeout"
+	quorumThresholdCmdFlag = "quorum-threshold"
+
 	partitionRecordFile = "partition-node-genesis-file"
 	rootGenesisFileName = "root-genesis.json"
 )
@@ -69,13 +73,13 @@ func newGenesisCmd(config *rootGenesisConfig) *cobra.Command {
 	cmd.Flags().StringSliceVarP(&config.PartitionNodeGenesisFiles, partitionRecordFile, "p", []string{}, "path to partition node genesis files")
 	cmd.Flags().StringVarP(&config.OutputDir, "output-dir", "o", "", "path to output directory (default: $AB_HOME/rootchain)")
 	// Consensus params
-	cmd.Flags().Uint32Var(&config.TotalNodes, "total-nodes", 1, "total number of root nodes")
-	cmd.Flags().MarkHidden("total-nodes")
+	cmd.Flags().Uint32Var(&config.TotalNodes, totalNodesCmdFlag, 1, "total number of root nodes")
+	cmd.Flags().MarkHidden(totalNodesCmdFlag)
 	cmd.Flags().Uint32Var(&config.BlockRateMs, "block-rate", genesis.DefaultBlockRateMs, "Unicity Certificate rate")
-	cmd.Flags().Uint32Var(&config.ConsensusTimeoutMs, "consensus-timeout", genesis.DefaultConsensusTimeout, "time to vote for timeout in round (only distributed root chain)")
-	cmd.Flags().MarkHidden("consensus-timeout")
-	cmd.Flags().Uint32Var(&config.QuorumThreshold, "quorum-threshold", 0, "define higher quorum threshold instead of calculated default")
-	cmd.Flags().MarkHidden("quorum-threshold")
+	cmd.Flags().Uint32Var(&config.ConsensusTimeoutMs, consensusTmoCmdFlag, genesis.DefaultConsensusTimeout, "time to vote for timeout in round (only distributed root chain)")
+	cmd.Flags().MarkHidden(consensusTmoCmdFlag)
+	cmd.Flags().Uint32Var(&config.QuorumThreshold, quorumThresholdCmdFlag, 0, "define higher quorum threshold instead of calculated default")
+	cmd.Flags().MarkHidden(quorumThresholdCmdFlag)
 	cmd.Flags().StringVar(&config.HashAlgorithm, "hash-algorithm", "SHA-256", "Hash algorithm to be used")
 
 	err := cmd.MarkFlagRequired(partitionRecordFile)

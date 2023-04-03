@@ -389,15 +389,12 @@ func (w *Wallet) CollectDust(ctx context.Context, accountNumber uint64, tokenTyp
 }
 
 func (w *Wallet) collectDust(ctx context.Context, acc *account.AccountKey, allowedTokenTypes []twb.TokenTypeID, invariantPredicateArgs []*PredicateInput) error {
-	tokensByTypes, err := w.getTokensForDC(ctx, acc, allowedTokenTypes)
+	tokensByTypes, err := w.getTokensForDC(ctx, acc.PubKey, allowedTokenTypes)
 	if err != nil {
 		return err
 	}
 
 	for _, v := range tokensByTypes {
-		if len(v) < 2 { // not interested if tokens count is less than two
-			continue
-		}
 		// first token to be joined into
 		targetToken := v[0]
 		burnBatch := &txSubmissionBatch{
@@ -456,9 +453,9 @@ func (w *Wallet) collectDust(ctx context.Context, acc *account.AccountKey, allow
 	return nil
 }
 
-func (w *Wallet) getTokensForDC(ctx context.Context, acc *account.AccountKey, allowedTokenTypes []twb.TokenTypeID) (map[string][]*twb.TokenUnit, error) {
+func (w *Wallet) getTokensForDC(ctx context.Context, key twb.PubKey, allowedTokenTypes []twb.TokenTypeID) (map[string][]*twb.TokenUnit, error) {
 	// find tokens to join
-	allTokens, err := w.getTokens(ctx, twb.Fungible, acc.PubKey)
+	allTokens, err := w.getTokens(ctx, twb.Fungible, key)
 	if err != nil {
 		return nil, err
 	}
@@ -478,6 +475,11 @@ func (w *Wallet) getTokensForDC(ctx context.Context, acc *account.AccountKey, al
 			}
 		}
 		tokensByTypes[tokenTypeStr] = append(tokenz, tok)
+	}
+	for k, v := range tokensByTypes {
+		if len(v) < 2 { // not interested if tokens count is less than two
+			delete(tokensByTypes, k)
+		}
 	}
 	return tokensByTypes, nil
 }

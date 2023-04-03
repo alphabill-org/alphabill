@@ -16,8 +16,8 @@ import (
 const defaultBucket = "default"
 
 var (
-	ErrInvalidKey = errors.New("invalid key")
-	ErrValueIsNil = errors.New("value is nil")
+	errInvalidKey = errors.New("invalid key")
+	errValueIsNil = errors.New("value is nil")
 )
 
 type (
@@ -34,14 +34,14 @@ type (
 
 func checkKey(key []byte) error {
 	if len(key) == 0 {
-		return ErrInvalidKey
+		return errInvalidKey
 	}
 	return nil
 }
 
 func checkValue(val any) error {
 	if reflect.ValueOf(val).Kind() == reflect.Ptr && reflect.ValueOf(val).IsNil() {
-		return ErrValueIsNil
+		return errValueIsNil
 	}
 	return nil
 }

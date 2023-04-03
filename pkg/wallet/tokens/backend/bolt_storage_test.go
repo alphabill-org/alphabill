@@ -157,8 +157,16 @@ func testRemoveToken(t *testing.T, db *storage) {
 	token := randomToken(owner, Fungible)
 	require.NoError(t, db.SaveToken(token, &Proof{BlockNumber: 1}))
 
+	tokenFromDB, err := db.GetToken(token.ID)
+	require.NoError(t, err)
+	require.NotNil(t, tokenFromDB)
+
 	// remove token
 	require.NoError(t, db.RemoveToken(token.ID))
+
+	tokenFromDB, err = db.GetToken(token.ID)
+	require.ErrorIs(t, err, errRecordNotFound)
+	require.Nil(t, tokenFromDB)
 
 	// second attempt should fail
 	err = db.RemoveToken(token.ID)

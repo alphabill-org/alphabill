@@ -376,11 +376,11 @@ func (w *Wallet) CollectDust(ctx context.Context, accountNumber uint64, tokenTyp
 		}
 	}
 	if singleKey {
-		return w.collectDust(ctx, accountNumber, tokenTypes, invariantPredicateArgs)
+		return w.collectDust(ctx, keys[0], tokenTypes, invariantPredicateArgs)
 	}
 	// TODO: rewrite with goroutines?
-	for idx := range keys {
-		err := w.collectDust(ctx, uint64(idx+1), tokenTypes, invariantPredicateArgs)
+	for _, key := range keys {
+		err = w.collectDust(ctx, key, tokenTypes, invariantPredicateArgs)
 		if err != nil {
 			return err
 		}
@@ -388,37 +388,14 @@ func (w *Wallet) CollectDust(ctx context.Context, accountNumber uint64, tokenTyp
 	return nil
 }
 
-func (w *Wallet) collectDust(ctx context.Context, accountNumber uint64, allowedTokenTypes []twb.TokenTypeID, invariantPredicateArgs []*PredicateInput) error {
-	acc, err := w.am.GetAccountKey(accountNumber - 1)
+func (w *Wallet) collectDust(ctx context.Context, acc *account.AccountKey, allowedTokenTypes []twb.TokenTypeID, invariantPredicateArgs []*PredicateInput) error {
+	tokensByTypes, err := w.getTokensForDC(ctx, acc, allowedTokenTypes)
 	if err != nil {
 		return err
-	}
-	// find tokens to join
-	allTokens, err := w.getTokens(ctx, twb.Fungible, acc.PubKey)
-	if err != nil {
-		return err
-	}
-	// group tokens by type
-	var tokensByTypes = make(map[string][]*twb.TokenUnit, len(allowedTokenTypes))
-	for _, tokenType := range allowedTokenTypes {
-		tokensByTypes[string(tokenType)] = make([]*twb.TokenUnit, 0)
-	}
-	for _, tok := range allTokens {
-		tokenTypeStr := string(tok.TypeID)
-		tokenz, found := tokensByTypes[tokenTypeStr]
-		if !found {
-			if len(allowedTokenTypes) == 0 {
-				tokenz = make([]*twb.TokenUnit, 0, 1)
-			} else {
-				continue
-			}
-		}
-		tokensByTypes[tokenTypeStr] = append(tokenz, tok)
 	}
 
-	for k, v := range tokensByTypes {
+	for _, v := range tokensByTypes {
 		if len(v) < 2 { // not interested if tokens count is less than two
-			delete(tokensByTypes, k)
 			continue
 		}
 		// first token to be joined into
@@ -477,6 +454,32 @@ func (w *Wallet) collectDust(ctx context.Context, accountNumber uint64, allowedT
 		}
 	}
 	return nil
+}
+
+func (w *Wallet) getTokensForDC(ctx context.Context, acc *account.AccountKey, allowedTokenTypes []twb.TokenTypeID) (map[string][]*twb.TokenUnit, error) {
+	// find tokens to join
+	allTokens, err := w.getTokens(ctx, twb.Fungible, acc.PubKey)
+	if err != nil {
+		return nil, err
+	}
+	// group tokens by type
+	var tokensByTypes = make(map[string][]*twb.TokenUnit, len(allowedTokenTypes))
+	for _, tokenType := range allowedTokenTypes {
+		tokensByTypes[string(tokenType)] = make([]*twb.TokenUnit, 0)
+	}
+	for _, tok := range allTokens {
+		tokenTypeStr := string(tok.TypeID)
+		tokenz, found := tokensByTypes[tokenTypeStr]
+		if !found {
+			if len(allowedTokenTypes) == 0 {
+				tokenz = make([]*twb.TokenUnit, 0, 1)
+			} else {
+				continue
+			}
+		}
+		tokensByTypes[tokenTypeStr] = append(tokenz, tok)
+	}
+	return tokensByTypes, nil
 }
 
 func (w *Wallet) getRoundNumber(ctx context.Context) (uint64, error) {

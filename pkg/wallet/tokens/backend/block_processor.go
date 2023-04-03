@@ -173,11 +173,11 @@ func (p *blockProcessor) processTx(inTx *txsystem.Transaction, b *block.Block) e
 		joinedToken.Amount += burnedValue
 		joinedToken.TxHash = txHash
 		if err = p.saveToken(joinedToken, proof); err != nil {
-			return err
+			return fmt.Errorf("failed to save joined token: %w", err)
 		}
 		for _, burnedID := range burnedTokensToRemove {
 			if err = p.store.RemoveToken(burnedID); err != nil {
-				return err
+				return fmt.Errorf("failed to remove burned token %X: %w", burnedID, err)
 			}
 		}
 		return nil

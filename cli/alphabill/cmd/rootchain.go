@@ -19,7 +19,10 @@ import (
 	"github.com/spf13/cobra"
 )
 
-const defaultNetworkTimeout = 300 * time.Millisecond
+const (
+	rootPortCmdFlag       = "root-listener"
+	defaultNetworkTimeout = 300 * time.Millisecond
+)
 
 type rootNodeConfig struct {
 	Base *baseConfiguration
@@ -63,7 +66,8 @@ func newRootNodeCmd(baseConfig *baseConfiguration) *cobra.Command {
 	cmd.Flags().StringVarP(&config.GenesisFile, "genesis-file", "g", "", "path to root-genesis.json file (default $AB_HOME/rootchain/"+rootGenesisFileName+")")
 	cmd.Flags().StringVarP(&config.StoragePath, "db", "f", "", "persistent store path (default: $AB_HOME/rootchain/)")
 	cmd.Flags().StringVar(&config.PartitionListener, "partition-listener", "/ip4/127.0.0.1/tcp/26662", "validator address in libp2p multiaddress-format")
-	cmd.Flags().StringVar(&config.RootListener, "root-listener", "/ip4/127.0.0.1/tcp/29666", "validator address in libp2p multiaddress-format")
+	cmd.Flags().StringVar(&config.RootListener, rootPortCmdFlag, "/ip4/127.0.0.1/tcp/29666", "validator address in libp2p multiaddress-format")
+	cmd.Flags().MarkHidden(rootPortCmdFlag)
 	cmd.Flags().StringToStringVarP(&config.Validators, "peers", "p", nil, "a map of root node identifiers and addresses. must contain all genesis validator addresses")
 	cmd.Flags().UintVar(&config.MaxRequests, "max-requests", 1000, "request buffer capacity")
 	return cmd

@@ -164,6 +164,7 @@ type mockStorage struct {
 	setBlockNumber   func(blockNumber uint64) error
 	saveTokenType    func(data *TokenUnitType, proof *Proof) error
 	saveToken        func(data *TokenUnit, proof *Proof) error
+	removeToken      func(id TokenID) error
 	getToken         func(id TokenID) (*TokenUnit, error)
 	queryTokens      func(kind Kind, owner Predicate, startKey TokenID, count int) ([]*TokenUnit, TokenID, error)
 	getTokenType     func(id TokenTypeID) (*TokenUnitType, error)
@@ -221,6 +222,13 @@ func (ms *mockStorage) SaveToken(data *TokenUnit, proof *Proof) error {
 		return ms.saveToken(data, proof)
 	}
 	return fmt.Errorf("unexpected SaveToken call")
+}
+
+func (ms *mockStorage) RemoveToken(id TokenID) error {
+	if ms.removeToken != nil {
+		return ms.removeToken(id)
+	}
+	return fmt.Errorf("unexpected RemoveToken(%x) call", id)
 }
 
 func (ms *mockStorage) GetToken(id TokenID) (*TokenUnit, error) {

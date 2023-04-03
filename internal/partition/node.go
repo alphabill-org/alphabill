@@ -930,10 +930,12 @@ func (n *Node) handleLedgerReplicationResponse(lr *replication.LedgerReplication
 		}
 		state, err = n.applyBlockTransactions(b.GetRoundNumber(), b.Transactions)
 		if err != nil {
-			return fmt.Errorf("block %v apply transactions failed, %w", roundNo, err)
+			err = fmt.Errorf("block %v apply transactions failed, %w", roundNo, err)
+			break
 		}
 		if err = verifyTxSystemState(state, b.UnicityCertificate.InputRecord); err != nil {
-			return fmt.Errorf("block %v, state mismatch, %w", roundNo, err)
+			err = fmt.Errorf("block %v, state mismatch, %w", roundNo, err)
+			break
 		}
 		// update DB and last block
 		if err = n.finalizeBlock(b); err != nil {

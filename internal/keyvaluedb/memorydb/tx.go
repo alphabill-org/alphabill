@@ -12,7 +12,7 @@ type Tx struct {
 }
 
 func copyMap[K comparable, V any](m map[K]V) map[K]V {
-	result := make(map[K]V)
+	result := make(map[K]V, len(m))
 	for k, v := range m {
 		result[k] = v
 	}
@@ -32,6 +32,12 @@ func NewMapTx(m *MemoryDB) (*Tx, error) {
 	}, nil
 }
 
+func (t *Tx) copyOnWrite() {
+	t.mem.lock.Lock()
+	defer t.mem.lock.Unlock()
+	t.db = copyMap(t.mem.db)
+}
+
 func (t *Tx) Write(key []byte, value any) error {
 	if err := keyvaluedb.CheckKeyAndValue(key, value); err != nil {
 		return err
@@ -42,7 +48,7 @@ func (t *Tx) Write(key []byte, value any) error {
 	}
 	// copy on write
 	if t.db == nil {
-		t.db = copyMap(t.mem.db)
+		t.copyOnWrite()
 	}
 	if t.mem.limit > 0 && len(t.db) >= t.mem.limit {
 		return fmt.Errorf("write failed, disk is full")
@@ -57,7 +63,7 @@ func (t *Tx) Delete(key []byte) error {
 	}
 	// copy on write
 	if t.db == nil {
-		t.db = copyMap(t.mem.db)
+		t.copyOnWrite()
 	}
 	delete(t.db, string(key))
 	return nil

@@ -159,7 +159,7 @@ func testRemoveToken(t *testing.T, db *storage) {
 
 	tokenFromDB, err := db.GetToken(token.ID)
 	require.NoError(t, err)
-	require.NotNil(t, tokenFromDB)
+	require.Equal(t, token, tokenFromDB)
 
 	// remove token
 	require.NoError(t, db.RemoveToken(token.ID))

@@ -361,22 +361,17 @@ func (w *Wallet) UpdateNFTData(ctx context.Context, accountNumber uint64, tokenI
 func (w *Wallet) CollectDust(ctx context.Context, accountNumber uint64, tokenTypes []twb.TokenTypeID, invariantPredicateArgs []*PredicateInput) error {
 	var keys []*account.AccountKey
 	var err error
-	singleKey := false
 	if accountNumber > AllAccounts {
 		key, err := w.am.GetAccountKey(accountNumber - 1)
 		if err != nil {
 			return err
 		}
 		keys = append(keys, key)
-		singleKey = true
 	} else {
 		keys, err = w.am.GetAccountKeys()
 		if err != nil {
 			return err
 		}
-	}
-	if singleKey {
-		return w.collectDust(ctx, keys[0], tokenTypes, invariantPredicateArgs)
 	}
 	// TODO: rewrite with goroutines?
 	for _, key := range keys {

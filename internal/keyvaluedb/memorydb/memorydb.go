@@ -140,8 +140,6 @@ func (db *MemoryDB) Find(key []byte) keyvaluedb.Iterator {
 }
 
 func (db *MemoryDB) StartTx() (keyvaluedb.DBTransaction, error) {
-	db.lock.RLock()
-	defer db.lock.RUnlock()
 	tx, err := NewMapTx(db, db.encoder)
 	if err != nil {
 		return nil, fmt.Errorf("failed to start Bolt tx, %w", err)

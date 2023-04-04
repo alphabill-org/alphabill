@@ -12,6 +12,7 @@ type (
 	EncodeFn func(v any) ([]byte, error)
 	DecodeFn func(data []byte, v any) error
 
+	// MemoryDB is meant to be used as mockup for unit and integration tests where needed, not in production
 	MemoryDB struct {
 		db      map[string][]byte
 		encoder EncodeFn
@@ -21,7 +22,7 @@ type (
 	}
 )
 
-// New creates a new mock key value db that currently uses map as storage.
+// New creates a new mock key value db that currently uses map as storage
 // NB! map is probably not the best solution and should be replaced with binary search tree
 func New() *MemoryDB {
 	return &MemoryDB{

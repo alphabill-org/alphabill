@@ -28,7 +28,7 @@ type DBTx interface {
 type KeyValueDB interface {
 	Reader
 	Writer
-	Iteratee
+	Iterable
 	DBTx
 }
 
@@ -64,8 +64,8 @@ type ReverseIterator interface {
 	Close() error
 }
 
-// Iteratee wraps the NewIterator methods of a backing data store.
-type Iteratee interface {
+// Iterable wraps the NewIterator methods of a backing data store.
+type Iterable interface {
 	// First creates a binary-alphabetical forward iterator starting with first item.
 	// If the DB is empty the returned iterator returned is not valid (it.Valid() == false)
 	// NB! when done iterator MUST be released with Close() or next DB operation will result in deadlock

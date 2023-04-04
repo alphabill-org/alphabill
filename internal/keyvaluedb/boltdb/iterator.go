@@ -9,7 +9,7 @@ import (
 type (
 	Itr struct {
 		tx      *bolt.Tx
-		it      *bolt.Cursor
+		cursor  *bolt.Cursor
 		decoder DecodeFn
 		key     []byte
 		value   []byte
@@ -20,9 +20,9 @@ func (it *Itr) Close() error {
 	if it.tx == nil {
 		return nil
 	}
-	// it seems error is only returned if already closed
+	// cursor seems error is only returned if already closed
 	err := it.tx.Rollback()
-	// release iterator, so it cannot be closed twice - hence this should never return error
+	// release iterator, so cursor cannot be closed twice - hence this should never return error
 	it.tx = nil
 	it.key = nil
 	it.value = nil
@@ -41,13 +41,13 @@ func (it *Itr) Next() {
 	if !it.Valid() {
 		return
 	}
-	it.key, it.value = it.it.Next()
+	it.key, it.value = it.cursor.Next()
 }
 func (it *Itr) Prev() {
 	if !it.Valid() {
 		return
 	}
-	it.key, it.value = it.it.Prev()
+	it.key, it.value = it.cursor.Prev()
 }
 
 func (it *Itr) Valid() bool {
@@ -57,6 +57,7 @@ func (it *Itr) Valid() bool {
 func (it *Itr) Key() []byte {
 	return it.key
 }
+
 func (it *Itr) Value(v any) error {
 	if !it.Valid() {
 		return fmt.Errorf("iterator invalid")
@@ -75,25 +76,25 @@ func newIterator(db *bolt.DB, bucket []byte, d DecodeFn) (*Itr, error) {
 	b := tx.Bucket(bucket)
 	return &Itr{
 		tx:      tx,
-		it:      b.Cursor(),
+		cursor:  b.Cursor(),
 		decoder: d,
 	}, nil
 }
 
 func (it *Itr) first() {
 	if it.tx != nil {
-		it.key, it.value = it.it.First()
+		it.key, it.value = it.cursor.First()
 	}
 }
 
 func (it *Itr) last() {
 	if it.tx != nil {
-		it.key, it.value = it.it.Last()
+		it.key, it.value = it.cursor.Last()
 	}
 }
 
 func (it *Itr) seek(key []byte) {
 	if it.tx != nil {
-		it.key, it.value = it.it.Seek(key)
+		it.key, it.value = it.cursor.Seek(key)
 	}
 }

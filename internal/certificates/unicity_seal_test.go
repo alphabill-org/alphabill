@@ -34,7 +34,7 @@ func TestUnicitySeal_IsValid(t *testing.T) {
 			verifier: nil,
 			wantErr:  ErrRootValidatorInfoMissing,
 		},
-		// todo: PreviousHash should be removed, it is not compatible with DRC and not used for anything anyway
+		// todo: AB-871 PreviousHash should be removed, it is not compatible with DRC and not used for anything anyway
 		/*
 			{
 				name: "PreviousHash is nil",

@@ -58,7 +58,7 @@ func newRootNodeCmd(baseConfig *baseConfiguration) *cobra.Command {
 		Use:   "root",
 		Short: "Starts a root chain node",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return defaultValidatorRunFunc(cmd.Context(), config)
+			return defaultRootNodeRunFunc(cmd.Context(), config)
 		},
 	}
 
@@ -96,7 +96,7 @@ func (c *rootNodeConfig) getKeyFilePath() string {
 	return filepath.Join(c.Base.defaultRootGenesisDir(), defaultKeysFileName)
 }
 
-func defaultValidatorRunFunc(ctx context.Context, config *rootNodeConfig) error {
+func defaultRootNodeRunFunc(ctx context.Context, config *rootNodeConfig) error {
 	rootGenesis, err := util.ReadJsonFile(config.getGenesisFilePath(), &genesis.RootGenesis{})
 	if err != nil {
 		return fmt.Errorf("failed to open root node genesis file %s, %w", config.getGenesisFilePath(), err)

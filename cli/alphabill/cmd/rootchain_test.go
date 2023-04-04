@@ -17,7 +17,7 @@ func TestRootChainCanBeStarted(t *testing.T) {
 	defer func() { require.NoError(t, os.RemoveAll(dbDir)) }()
 	g, ctx := errgroup.WithContext(ctx)
 
-	g.Go(func() error { return defaultValidatorRunFunc(ctx, validMonolithicRootValidatorConfig(dbDir)) })
+	g.Go(func() error { return defaultRootNodeRunFunc(ctx, validMonolithicRootValidatorConfig(dbDir)) })
 
 	g.Go(func() error {
 		// give rootchain some time to start up (should try to sens message it to verify it is up!)
@@ -32,18 +32,16 @@ func TestRootChainCanBeStarted(t *testing.T) {
 }
 
 func TestRootValidatorInvalidRootKey_CannotBeStartedInvalidKeyFile(t *testing.T) {
-	dbDir := t.TempDir()
-	defer func() { require.NoError(t, os.RemoveAll(dbDir)) }()
 	conf := validMonolithicRootValidatorConfig("")
 	conf.KeyFile = "testdata/invalid-root-key.json"
 
-	err := defaultValidatorRunFunc(context.Background(), conf)
+	err := defaultRootNodeRunFunc(context.Background(), conf)
 	require.ErrorContains(t, err, "error root node key not found in genesis file")
 }
 
 func TestRootValidatorInvalidRootKey_CannotBeStartedInvalidDBDir(t *testing.T) {
 	conf := validMonolithicRootValidatorConfig("/foobar/doesnotexist3454/")
-	err := defaultValidatorRunFunc(context.Background(), conf)
+	err := defaultRootNodeRunFunc(context.Background(), conf)
 	require.ErrorContains(t, err, "no such file or directory")
 }
 

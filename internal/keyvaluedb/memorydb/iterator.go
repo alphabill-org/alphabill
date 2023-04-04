@@ -53,6 +53,7 @@ func (it *Itr) Key() []byte {
 	}
 	return it.keys[it.index]
 }
+
 func (it *Itr) Value(v any) error {
 	if !it.Valid() {
 		return fmt.Errorf("iterator invalid")

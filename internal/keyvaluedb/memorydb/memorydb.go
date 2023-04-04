@@ -14,11 +14,11 @@ type (
 
 	// MemoryDB is meant to be used as mockup for unit and integration tests where needed, not in production
 	MemoryDB struct {
-		db      map[string][]byte
-		encoder EncodeFn
-		decoder DecodeFn
-		limit   int
-		lock    sync.RWMutex
+		db       map[string][]byte
+		encoder  EncodeFn
+		decoder  DecodeFn
+		writeErr error
+		lock     sync.RWMutex
 	}
 )
 
@@ -29,16 +29,6 @@ func New() *MemoryDB {
 		db:      make(map[string][]byte),
 		encoder: json.Marshal,
 		decoder: json.Unmarshal,
-	}
-}
-
-// NewWithLimit can be used to test disk full scenarios
-func NewWithLimit(limit int) *MemoryDB {
-	return &MemoryDB{
-		db:      make(map[string][]byte),
-		encoder: json.Marshal,
-		decoder: json.Unmarshal,
-		limit:   limit,
 	}
 }
 
@@ -78,8 +68,8 @@ func (db *MemoryDB) Write(key []byte, value any) error {
 	if err != nil {
 		return err
 	}
-	if db.limit > 0 && len(db.db) >= db.limit {
-		return fmt.Errorf("write failed, disk is full")
+	if db.writeErr != nil {
+		return db.writeErr
 	}
 	db.db[string(key)] = b
 	return nil
@@ -131,8 +121,8 @@ func (db *MemoryDB) StartTx() (keyvaluedb.DBTransaction, error) {
 	return tx, nil
 }
 
-func (db *MemoryDB) SetLimit(limit int) {
+func (db *MemoryDB) MockWriteError(err error) {
 	db.lock.RLock()
 	defer db.lock.RUnlock()
-	db.limit = limit
+	db.writeErr = err
 }

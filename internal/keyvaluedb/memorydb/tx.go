@@ -33,8 +33,6 @@ func NewMapTx(m *MemoryDB) (*Tx, error) {
 }
 
 func (t *Tx) copyOnWrite() {
-	t.mem.lock.Lock()
-	defer t.mem.lock.Unlock()
 	t.db = copyMap(t.mem.db)
 }
 
@@ -42,6 +40,8 @@ func (t *Tx) Write(key []byte, value any) error {
 	if err := keyvaluedb.CheckKeyAndValue(key, value); err != nil {
 		return err
 	}
+	t.mem.lock.Lock()
+	defer t.mem.lock.Unlock()
 	b, err := t.mem.encoder(value)
 	if err != nil {
 		return err
@@ -50,8 +50,8 @@ func (t *Tx) Write(key []byte, value any) error {
 	if t.db == nil {
 		t.copyOnWrite()
 	}
-	if t.mem.limit > 0 && len(t.db) >= t.mem.limit {
-		return fmt.Errorf("write failed, disk is full")
+	if t.mem.writeErr != nil {
+		return t.mem.writeErr
 	}
 	t.db[string(key)] = b
 	return nil
@@ -61,6 +61,8 @@ func (t *Tx) Delete(key []byte) error {
 	if err := keyvaluedb.CheckKey(key); err != nil {
 		return err
 	}
+	t.mem.lock.Lock()
+	defer t.mem.lock.Unlock()
 	// copy on write
 	if t.db == nil {
 		t.copyOnWrite()

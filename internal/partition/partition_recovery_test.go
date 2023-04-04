@@ -2,6 +2,7 @@ package partition
 
 import (
 	gocrypto "crypto"
+	"fmt"
 	"testing"
 	"time"
 
@@ -455,7 +456,7 @@ func TestNode_RecoverReceivesInvalidBlock(t *testing.T) {
 
 func TestNode_RecoverySimulateStorageFails(t *testing.T) {
 	// simulate storage error on two items stored in DB
-	db := memorydb.NewWithLimit(2)
+	db := memorydb.New()
 	// used to generate test blocks
 	system := &testtxsystem.CounterTxSystem{}
 	tp := SetupNewSingleNodePartition(t, &testtxsystem.CounterTxSystem{}, WithBlockStore(db))
@@ -478,7 +479,6 @@ func TestNode_RecoverySimulateStorageFails(t *testing.T) {
 	ContainsError(t, tp, ErrNodeDoesNotHaveLatestBlock.Error())
 	require.Equal(t, recovering, tp.partition.status)
 	testevent.ContainsEvent(t, tp.eh, event.RecoveryStarted)
-
 	// make sure replication request is sent
 	reqs := tp.mockNet.SentMessages(network.ProtocolLedgerReplicationReq)
 	require.Equal(t, 1, len(reqs))
@@ -490,21 +490,37 @@ func TestNode_RecoverySimulateStorageFails(t *testing.T) {
 		Protocol: network.ProtocolLedgerReplicationResp,
 		Message: &replication.LedgerReplicationResponse{
 			Status: replication.LedgerReplicationResponse_OK,
-			Blocks: []*block.Block{newBlock2, newBlock3, newBlock4},
+			Blocks: []*block.Block{newBlock2},
 		},
 	})
 	// wait for message to be processed
 	require.Eventually(t, func() bool { return len(tp.mockNet.MessageCh) == 0 }, 1*time.Second, 10*time.Millisecond)
 	// still recovering
 	require.Equal(t, recovering, tp.partition.status)
+	reqs = tp.mockNet.SentMessages(network.ProtocolLedgerReplicationReq)
+	require.Equal(t, 1, len(reqs))
+	require.IsType(t, reqs[0].Message, &replication.LedgerReplicationRequest{})
+	tp.mockNet.ResetSentMessages(network.ProtocolLedgerReplicationReq)
+	// send blocks 3, 4, but set error first
+	db.MockWriteError(fmt.Errorf("disk is full"))
+	tp.mockNet.Receive(network.ReceivedMessage{
+		From:     reqs[0].ID,
+		Protocol: network.ProtocolLedgerReplicationResp,
+		Message: &replication.LedgerReplicationResponse{
+			Status: replication.LedgerReplicationResponse_OK,
+			Blocks: []*block.Block{newBlock3, newBlock4},
+		},
+	})
+	// wait for message to be processed
+	require.Eventually(t, func() bool { return len(tp.mockNet.MessageCh) == 0 }, 1*time.Second, 10*time.Millisecond)
 	// db failed to persist block 3 because disk is full, block 3 is asked again in a loop
 	reqs = tp.mockNet.SentMessages(network.ProtocolLedgerReplicationReq)
 	require.Equal(t, 1, len(reqs))
 	require.IsType(t, reqs[0].Message, &replication.LedgerReplicationRequest{})
 	msg := reqs[0].Message.(*replication.LedgerReplicationRequest)
 	require.Equal(t, uint64(3), msg.BeginBlockNumber)
-	// reset limit, simulate new disk space made
-	db.SetLimit(0)
+	// clear error and make sure node still recovers
+	db.MockWriteError(nil)
 	tp.mockNet.ResetSentMessages(network.ProtocolLedgerReplicationReq)
 	// send all missing blocks 3, 4 and make sure that node now recovers
 	tp.mockNet.Receive(network.ReceivedMessage{
@@ -523,7 +539,7 @@ func TestNode_RecoverySimulateStorageFails(t *testing.T) {
 
 func TestNode_CertificationRequestNotSentWhenProposalStoreFails(t *testing.T) {
 	// simulate storage error on two items stored in DB
-	db := memorydb.NewWithLimit(0)
+	db := memorydb.New()
 	// used to generate test blocks
 	system := &testtxsystem.CounterTxSystem{}
 	tp := SetupNewSingleNodePartition(t, &testtxsystem.CounterTxSystem{}, WithBlockStore(db))
@@ -542,8 +558,8 @@ func TestNode_CertificationRequestNotSentWhenProposalStoreFails(t *testing.T) {
 	tp.SubmitUnicityCertificate(genesisBlock.UnicityCertificate)
 	newBlock2 := createNewBlockOutsideNode(t, tp, system, genesisBlock)
 	require.Len(t, newBlock2.Transactions, 1)
-	// set limit so that next store will fail
-	db.SetLimit(1)
+	// mock error situation, every next write will fail with error
+	db.MockWriteError(fmt.Errorf("disk full"))
 	require.NoError(t, tp.SubmitTx(newBlock2.Transactions[0]))
 	require.Eventually(t, func() bool {
 		events := tp.eh.GetEvents()
@@ -573,8 +589,8 @@ func TestNode_CertificationRequestNotSentWhenProposalStoreFails(t *testing.T) {
 	reqs := tp.mockNet.SentMessages(network.ProtocolLedgerReplicationReq)
 	require.Equal(t, 1, len(reqs))
 	require.IsType(t, reqs[0].Message, &replication.LedgerReplicationRequest{})
-	// reset limit and submit block
-	db.SetLimit(0)
+	// reset error
+	db.MockWriteError(nil)
 	tp.mockNet.Receive(network.ReceivedMessage{
 		From:     reqs[0].ID,
 		Protocol: network.ProtocolLedgerReplicationResp,

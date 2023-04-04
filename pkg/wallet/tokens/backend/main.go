@@ -32,6 +32,7 @@ type Configuration interface {
 type ABClient interface {
 	SendTransaction(ctx context.Context, tx *txsystem.Transaction) (*txsystem.TransactionResponse, error)
 	GetBlocks(ctx context.Context, blockNumber, blockCount uint64) (*alphabill.GetBlocksResponse, error)
+	GetMaxBlockNumber(ctx context.Context) (uint64, uint64, error) // latest persisted block number, latest round number
 }
 
 type Storage interface {
@@ -45,6 +46,7 @@ type Storage interface {
 	QueryTokenType(kind Kind, creator PubKey, startKey TokenTypeID, count int) ([]*TokenUnitType, TokenTypeID, error)
 
 	SaveToken(data *TokenUnit, proof *Proof) error
+	RemoveToken(id TokenID) error
 	GetToken(id TokenID) (*TokenUnit, error)
 	QueryTokens(kind Kind, owner Predicate, startKey TokenID, count int) ([]*TokenUnit, TokenID, error)
 
@@ -93,10 +95,10 @@ func Run(ctx context.Context, cfg Configuration) error {
 
 	g.Go(func() error {
 		api := &restAPI{
-			db:              db,
-			convertTx:       txs.ConvertTx,
-			sendTransaction: abc.SendTransaction,
-			logErr:          cfg.Logger().Error,
+			db:        db,
+			ab:        abc,
+			convertTx: txs.ConvertTx,
+			logErr:    cfg.Logger().Error,
 		}
 		return httpsrv.Run(ctx, cfg.HttpServer(api.endpoints()), httpsrv.Listener(cfg.Listener()), httpsrv.ShutdownTimeout(5*time.Second))
 	})

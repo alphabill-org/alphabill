@@ -3,15 +3,13 @@ package cmd
 import (
 	"fmt"
 	"os"
-	"path"
+	"path/filepath"
 
-	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/errors"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 	moneytx "github.com/alphabill-org/alphabill/internal/txsystem/money"
 	backendmoney "github.com/alphabill-org/alphabill/pkg/wallet/backend/money"
 	moneyclient "github.com/alphabill-org/alphabill/pkg/wallet/backend/money/client"
-	"github.com/alphabill-org/alphabill/pkg/wallet/money"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/spf13/cobra"
 )
@@ -235,40 +233,14 @@ func writeBillsToFile(outputDir string, bills ...*moneytx.Bill) (string, error) 
 
 // getOutputFile returns filename either bill-<bill-id-hex>.json or bills.json
 func getOutputFile(outputDir string, bills []*moneytx.Bill) (string, error) {
-	if len(bills) == 0 {
+	switch len(bills) {
+	case 0:
 		return "", errors.New("no bills to export")
-	} else if len(bills) == 1 {
+	case 1:
 		billId := bills[0].GetId()
 		filename := "bill-" + hexutil.Encode(billId[:]) + ".json"
-		return path.Join(outputDir, filename), nil
-	} else {
-		return path.Join(outputDir, "bills.json"), nil
+		return filepath.Join(outputDir, filename), nil
+	default:
+		return filepath.Join(outputDir, "bills.json"), nil
 	}
-}
-
-func newBillsDTO(bills ...*money.Bill) *moneytx.Bills {
-	var billsDTO []*moneytx.Bill
-	for _, b := range bills {
-		billsDTO = append(billsDTO, b.ToProto())
-	}
-	return &moneytx.Bills{Bills: billsDTO}
-}
-
-func (t *TrustBase) verify() error {
-	if len(t.RootValidators) == 0 {
-		return errors.New("missing trust base key info")
-	}
-	for _, rv := range t.RootValidators {
-		if len(rv.SigningPublicKey) == 0 {
-			return errors.New("missing trust base signing public key")
-		}
-		if len(rv.NodeIdentifier) == 0 {
-			return errors.New("missing trust base node identifier")
-		}
-	}
-	return nil
-}
-
-func (t *TrustBase) toVerifiers() (map[string]abcrypto.Verifier, error) {
-	return genesis.NewValidatorTrustBase(t.RootValidators)
 }

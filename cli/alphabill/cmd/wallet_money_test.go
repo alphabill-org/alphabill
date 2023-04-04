@@ -94,6 +94,18 @@ func TestWalletCreateCmd_encrypt(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func TestWalletCreateCmd_invalidSeed(t *testing.T) {
+	outputWriter := &testConsoleWriter{}
+	consoleWriter = outputWriter
+	homeDir := setupTestHomeDir(t, "wallet-test")
+
+	cmd := New()
+	cmd.baseCmd.SetArgs(strings.Split("wallet create -s --wallet-location "+homeDir, " "))
+	err := cmd.addAndExecuteCommand(context.Background())
+	require.EqualError(t, err, `invalid value "--wallet-location" for flag "seed" (mnemonic)`)
+	require.False(t, util.FileExists(filepath.Join(homeDir, "wallet", "accounts.db")))
+}
+
 func TestWalletGetBalanceCmd(t *testing.T) {
 	homedir := createNewTestWallet(t)
 	mockServer, addr := mockBackendCalls(&backendMockReturnConf{balance: 15 * 1e8})

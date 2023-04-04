@@ -6,14 +6,11 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/alphabill-org/alphabill/internal/async"
-	"github.com/alphabill-org/alphabill/internal/async/future"
 	"github.com/alphabill-org/alphabill/internal/errors"
 	"github.com/alphabill-org/alphabill/internal/network"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/internal/rootchain"
 	"github.com/alphabill-org/alphabill/internal/rootchain/store"
-	"github.com/alphabill-org/alphabill/internal/starter"
 	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/spf13/cobra"
@@ -119,14 +116,10 @@ func defaultRootChainRunFunc(ctx context.Context, config *rootChainConfig) error
 	if err != nil {
 		return errors.Wrapf(err, "rootchain failed to start: %v", err)
 	}
-	// use StartAndWait for SIGTERM hook
-	return starter.StartAndWait(ctx, "rootchain", func(ctx context.Context) {
-		async.MakeWorker("rootchain shutdown hook", func(ctx context.Context) future.Value {
-			<-ctx.Done()
-			rc.Close()
-			return nil
-		}).Start(ctx)
-	})
+
+	<-ctx.Done()
+	rc.Close()
+	return ctx.Err()
 }
 
 func createPeer(config *rootChainConfig, encPrivate crypto.PrivKey) (*network.Peer, error) {

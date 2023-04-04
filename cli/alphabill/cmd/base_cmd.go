@@ -3,8 +3,7 @@ package cmd
 import (
 	"context"
 	"fmt"
-	"os"
-	"path"
+	"path/filepath"
 	"strings"
 
 	"github.com/alphabill-org/alphabill/internal/errors"
@@ -34,8 +33,8 @@ func (a *alphabillApp) WithOpts(opts interface{}) *alphabillApp {
 }
 
 // Execute adds all child commands and runs the application
-func (a *alphabillApp) Execute(ctx context.Context) {
-	cobra.CheckErr(a.addAndExecuteCommand(ctx))
+func (a *alphabillApp) Execute(ctx context.Context) error {
+	return a.addAndExecuteCommand(ctx)
 }
 
 func (a *alphabillApp) addAndExecuteCommand(ctx context.Context) error {
@@ -59,15 +58,16 @@ func newBaseCmd() (*cobra.Command, *baseConfiguration) {
 	config := &baseConfiguration{}
 	// baseCmd represents the base command when called without any subcommands
 	var baseCmd = &cobra.Command{
-		Use:   "alphabill",
-		Short: "The alphabill CLI",
-		Long:  `The alphabill CLI includes commands for all different parts of the system: shard, core, wallet etc.`,
+		Use:           "alphabill",
+		Short:         "The alphabill CLI",
+		Long:          `The alphabill CLI includes commands for all different parts of the system: shard, core, wallet etc.`,
+		SilenceErrors: true,
+		SilenceUsage:  true,
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 			// You can bind cobra and viper in a few locations, but PersistencePreRunE on the base command works well
 			// If subcommand does not define PersistentPreRunE, the one from base cmd is used.
-			err := initializeConfig(cmd, config)
-			if err != nil {
-				return err
+			if err := initializeConfig(cmd, config); err != nil {
+				return fmt.Errorf("failed to initialize configuration: %w", err)
 			}
 			initializeLogger(config)
 			return nil
@@ -119,13 +119,12 @@ func initializeConfig(cmd *cobra.Command, config *baseConfiguration) error {
 
 func initializeLogger(config *baseConfiguration) {
 	loggerConfigFile := config.LogCfgFile
-	if !strings.HasPrefix(config.LogCfgFile, string(os.PathSeparator)) {
+	if !filepath.IsAbs(loggerConfigFile) {
 		// Logger config file URL is using relative path
-		loggerConfigFile = path.Join(config.HomeDir, config.LogCfgFile)
+		loggerConfigFile = filepath.Join(config.HomeDir, config.LogCfgFile)
 	}
 
-	err := logger.UpdateGlobalConfigFromFile(loggerConfigFile)
-	if err != nil {
+	if err := logger.UpdateGlobalConfigFromFile(loggerConfigFile); err != nil {
 		if errors.ErrorCausedBy(err, errors.ErrFileNotFound) {
 			// In a common case when the config file is not found, the error message is made shorter. Not to spam the log.
 			log.Debug("The logger configuration file (%s) not found", loggerConfigFile)

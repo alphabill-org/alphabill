@@ -3,7 +3,7 @@ package cmd
 import (
 	"fmt"
 	"os"
-	"path"
+	"path/filepath"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -53,26 +53,22 @@ func (r *baseConfiguration) initConfigFileLocation() {
 
 	// Home dir is loaded from command line argument. If it's not set, then from env. If that's not set, then default is used.
 	if r.HomeDir == "" {
-		homeFromEnv := os.Getenv(envKey(keyHome))
-		if homeFromEnv == "" {
+		r.HomeDir = os.Getenv(envKey(keyHome))
+		if r.HomeDir == "" {
 			r.HomeDir = alphabillHomeDir()
-		} else {
-			r.HomeDir = homeFromEnv
 		}
 	}
 
 	// Config file name is loaded from command line argument. If it's not set, then from env. If that's not set, then default is used.
 	if r.CfgFile == "" {
-		cfgFileFromEnv := os.Getenv(envKey(keyConfig))
-		if cfgFileFromEnv == "" {
+		r.CfgFile = os.Getenv(envKey(keyConfig))
+		if r.CfgFile == "" {
 			r.CfgFile = defaultConfigFile
-		} else {
-			r.CfgFile = cfgFileFromEnv
 		}
 	}
-	if !strings.HasPrefix(r.CfgFile, string(os.PathSeparator)) {
+	if !filepath.IsAbs(r.CfgFile) {
 		// Config file name is using relative path
-		r.CfgFile = path.Join(r.HomeDir, r.CfgFile)
+		r.CfgFile = filepath.Join(r.HomeDir, r.CfgFile)
 	}
 }
 
@@ -82,7 +78,7 @@ func (r *baseConfiguration) configFileExists() bool {
 }
 
 func (r *baseConfiguration) defaultRootGenesisDir() string {
-	return path.Join(r.HomeDir, defaultRootChainDir)
+	return filepath.Join(r.HomeDir, defaultRootChainDir)
 }
 
 func envKey(key string) string {
@@ -94,5 +90,5 @@ func alphabillHomeDir() string {
 	if err != nil {
 		panic("default user home dir not defined")
 	}
-	return path.Join(dir, defaultAlphabillDir)
+	return filepath.Join(dir, defaultAlphabillDir)
 }

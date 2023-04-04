@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net/http"
 	"path/filepath"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -138,7 +139,8 @@ func Test_Run_API(t *testing.T) {
 	logger, err := log.New(log.DEBUG, nil)
 	require.NoError(t, err)
 
-	syncing := make(chan *txsystem.Transaction)
+	var currentRoundNumber atomic.Uint64
+	syncing := make(chan *txsystem.Transaction, 1)
 	// only AB backend is mocked, rest is "real"
 	cfg := &mockCfg{
 		log:    logger,
@@ -151,18 +153,22 @@ func Test_Run_API(t *testing.T) {
 			getBlocks: func(ctx context.Context, blockNumber, blockCount uint64) (*alphabill.GetBlocksResponse, error) {
 				select {
 				case tx := <-syncing:
+					currentRoundNumber.Add(1)
 					return &alphabill.GetBlocksResponse{
 						MaxBlockNumber: blockNumber,
 						Blocks: []*block.Block{{
 							SystemIdentifier:   tx.SystemId,
 							Transactions:       []*txsystem.Transaction{tx},
-							UnicityCertificate: &certificates.UnicityCertificate{InputRecord: &certificates.InputRecord{RoundNumber: blockNumber}},
+							UnicityCertificate: &certificates.UnicityCertificate{InputRecord: &certificates.InputRecord{RoundNumber: currentRoundNumber.Load()}},
 						}},
 					}, nil
 				default:
 					// signal "no new blocks"
-					return &alphabill.GetBlocksResponse{MaxBlockNumber: blockNumber}, nil
+					return &alphabill.GetBlocksResponse{MaxBlockNumber: blockNumber, MaxRoundNumber: currentRoundNumber.Load()}, nil
 				}
+			},
+			maxBlockNumber: func(ctx context.Context) (bn uint64, rn uint64, err error) {
+				return 0, currentRoundNumber.Load(), nil
 			},
 		},
 	}

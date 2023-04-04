@@ -26,7 +26,6 @@ import (
 )
 
 type dataSource interface {
-	GetBlockNumber() (uint64, error)
 	GetTokenType(id TokenTypeID) (*TokenUnitType, error)
 	QueryTokenType(kind Kind, creator PubKey, startKey TokenTypeID, count int) ([]*TokenUnitType, TokenTypeID, error)
 	GetToken(id TokenID) (*TokenUnit, error)
@@ -35,11 +34,16 @@ type dataSource interface {
 	GetTxProof(unitID UnitID, txHash TxHash) (*Proof, error)
 }
 
+type abClient interface {
+	SendTransaction(ctx context.Context, tx *txsystem.Transaction) (*txsystem.TransactionResponse, error)
+	GetMaxBlockNumber(ctx context.Context) (uint64, uint64, error) // latest persisted block number, latest round number
+}
+
 type restAPI struct {
-	db              dataSource
-	sendTransaction func(context.Context, *txsystem.Transaction) (*txsystem.TransactionResponse, error)
-	convertTx       func(tx *txsystem.Transaction) (txsystem.GenericTransaction, error)
-	logErr          func(a ...any)
+	db        dataSource
+	ab        abClient
+	convertTx func(tx *txsystem.Transaction) (txsystem.GenericTransaction, error)
+	logErr    func(a ...any)
 }
 
 const maxResponseItems = 100
@@ -197,7 +201,7 @@ func (api *restAPI) typeHierarchy(w http.ResponseWriter, r *http.Request) {
 }
 
 func (api *restAPI) getRoundNumber(w http.ResponseWriter, r *http.Request) {
-	rn, err := api.db.GetBlockNumber()
+	_, rn, err := api.ab.GetMaxBlockNumber(r.Context())
 	if err != nil {
 		api.writeErrorResponse(w, err)
 		return
@@ -287,7 +291,7 @@ func (api *restAPI) saveTx(ctx context.Context, tx *txsystem.Transaction, owner 
 		}
 	}
 
-	rsp, err := api.sendTransaction(ctx, tx)
+	rsp, err := api.ab.SendTransaction(ctx, tx)
 	if err != nil {
 		return fmt.Errorf("failed to forward tx: %w", err)
 	}

@@ -57,7 +57,7 @@ func TestMoneyBackendCLI(t *testing.T) {
 		ctx, cancelFunc := context.WithCancel(context.Background())
 		t.Cleanup(cancelFunc)
 		err = cmd.addAndExecuteCommand(ctx)
-		require.NoError(t, err)
+		require.ErrorIs(t, err, context.Canceled)
 	}()
 
 	// wait for wallet-backend to index the transaction by verifying balance

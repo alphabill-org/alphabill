@@ -4,7 +4,7 @@ import (
 	gocrypto "crypto"
 	"fmt"
 	"os"
-	"path"
+	"path/filepath"
 	"testing"
 
 	"github.com/alphabill-org/alphabill/internal/certificates"
@@ -117,7 +117,7 @@ func testBadNextRound(t *testing.T, rs *BoltStore) {
 }
 
 func createBoltRootStore(t *testing.T) *BoltStore {
-	dbFile := path.Join(os.TempDir(), BoltRootChainStoreFileName)
+	dbFile := filepath.Join(os.TempDir(), BoltRootChainStoreFileName)
 	t.Cleanup(func() {
 		err := os.Remove(dbFile)
 		if err != nil {

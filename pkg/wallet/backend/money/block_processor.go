@@ -1,6 +1,7 @@
 package money
 
 import (
+	"context"
 	"crypto"
 	"fmt"
 
@@ -23,7 +24,7 @@ func NewBlockProcessor(store BillStore, txConverter block.TxConverter) *BlockPro
 	return &BlockProcessor{store: store, TxConverter: txConverter}
 }
 
-func (p *BlockProcessor) ProcessBlock(b *block.Block) error {
+func (p *BlockProcessor) ProcessBlock(_ context.Context, b *block.Block) error {
 	roundNumber := b.UnicityCertificate.InputRecord.RoundNumber
 	wlog.Info("processing block: ", roundNumber)
 	return p.store.WithTransaction(func(dbTx BillStoreTx) error {

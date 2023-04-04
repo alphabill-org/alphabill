@@ -240,22 +240,12 @@ func TestVdClient_ListAllBlocksWithTx(t *testing.T) {
 	}, test.WaitDuration, test.WaitTick)
 }
 
-func (a *abClientMock) SendTransaction(ctx context.Context, tx *txsystem.Transaction) (*txsystem.TransactionResponse, error) {
-	fmt.Printf("Recording incoming tx: %s\n", tx)
+func (a *abClientMock) SendTransaction(ctx context.Context, tx *txsystem.Transaction) error {
 	a.tx = tx
-	var resp txsystem.TransactionResponse
 	if a.fail {
-		resp = txsystem.TransactionResponse{
-			Ok:      false,
-			Message: "boom",
-		}
-	} else {
-		resp = txsystem.TransactionResponse{
-			Ok:      true,
-			Message: "",
-		}
+		return fmt.Errorf("boom")
 	}
-	return &resp, nil
+	return nil
 }
 
 func (a *abClientMock) GetBlock(ctx context.Context, n uint64) (*block.Block, error) {
@@ -272,8 +262,7 @@ func (a *abClientMock) GetBlocks(ctx context.Context, blockNumber, blockCount ui
 	return &alphabill.GetBlocksResponse{MaxBlockNumber: a.maxBlock, Blocks: []*block.Block{a.block(blockNumber)}}, nil
 }
 
-func (a *abClientMock) GetMaxBlockNumber(ctx context.Context) (uint64, uint64, error) {
-	fmt.Printf("GetMaxBlockNumber: %v\n", a.maxBlock)
+func (a *abClientMock) GetRoundNumber(ctx context.Context) (uint64, error) {
 	if a.incrementBlock {
 		defer func() {
 			a.maxBlock++
@@ -282,7 +271,7 @@ func (a *abClientMock) GetMaxBlockNumber(ctx context.Context) (uint64, uint64, e
 			}
 		}()
 	}
-	return a.maxBlock, a.maxRoundNumber, nil
+	return a.maxRoundNumber, nil
 }
 
 func (a *abClientMock) Shutdown() error {

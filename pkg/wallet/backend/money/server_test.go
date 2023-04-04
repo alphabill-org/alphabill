@@ -328,20 +328,17 @@ func TestProofRequest_ProofDoesNotExist(t *testing.T) {
 }
 
 func TestBlockHeightRequest_Ok(t *testing.T) {
-	blockNumber := uint64(100)
 	roundNumber := uint64(150)
 	alphabillClient := clientmock.NewMockAlphabillClient(
-		clientmock.WithMaxBlockNumber(blockNumber),
 		clientmock.WithMaxRoundNumber(roundNumber),
 	)
 	service := newWalletBackend(t, withABClient(alphabillClient))
 	port := startServer(t, service)
 
-	res := &BlockHeightResponse{}
-	httpRes := testhttp.DoGet(t, fmt.Sprintf("http://localhost:%d/api/v1/block-height", port), res)
+	res := &RoundNumberResponse{}
+	httpRes := testhttp.DoGet(t, fmt.Sprintf("http://localhost:%d/api/v1/round-number", port), res)
 	require.Equal(t, http.StatusOK, httpRes.StatusCode)
-	require.EqualValues(t, blockNumber, res.BlockHeight)
-	require.EqualValues(t, roundNumber, res.LastRoundNumber)
+	require.EqualValues(t, roundNumber, res.RoundNumber)
 }
 
 func TestInvalidUrl_NotFound(t *testing.T) {

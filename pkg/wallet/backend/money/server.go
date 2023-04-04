@@ -25,7 +25,7 @@ type (
 	WalletBackendService interface {
 		GetBills(ownerCondition []byte) ([]*Bill, error)
 		GetBill(unitID []byte) (*Bill, error)
-		GetMaxBlockNumber(ctx context.Context) (uint64, uint64, error)
+		GetRoundNumber(ctx context.Context) (uint64, error)
 	}
 
 	GenericWalletBackendHttpServer struct {

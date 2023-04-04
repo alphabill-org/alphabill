@@ -33,7 +33,7 @@ func TestRaceConditions(t *testing.T) {
 	wg := sync.WaitGroup{}
 	wg.Add(1)
 	go func() {
-		_, _ = abclient.SendTransaction(context.Background(), createRandomTx())
+		_ = abclient.SendTransaction(context.Background(), createRandomTx())
 		wg.Done()
 	}()
 
@@ -45,7 +45,7 @@ func TestRaceConditions(t *testing.T) {
 
 	wg.Add(1)
 	go func() {
-		_, _, _ = abclient.GetMaxBlockNumber(context.Background())
+		_, _ = abclient.GetRoundNumber(context.Background())
 		wg.Done()
 	}()
 

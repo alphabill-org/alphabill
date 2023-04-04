@@ -35,8 +35,8 @@ type dataSource interface {
 }
 
 type abClient interface {
-	SendTransaction(ctx context.Context, tx *txsystem.Transaction) (*txsystem.TransactionResponse, error)
-	GetMaxBlockNumber(ctx context.Context) (uint64, uint64, error) // latest persisted block number, latest round number
+	SendTransaction(ctx context.Context, tx *txsystem.Transaction) error
+	GetRoundNumber(ctx context.Context) (uint64, error)
 }
 
 type restAPI struct {
@@ -201,7 +201,7 @@ func (api *restAPI) typeHierarchy(w http.ResponseWriter, r *http.Request) {
 }
 
 func (api *restAPI) getRoundNumber(w http.ResponseWriter, r *http.Request) {
-	_, rn, err := api.ab.GetMaxBlockNumber(r.Context())
+	rn, err := api.ab.GetRoundNumber(r.Context())
 	if err != nil {
 		api.writeErrorResponse(w, err)
 		return
@@ -291,12 +291,8 @@ func (api *restAPI) saveTx(ctx context.Context, tx *txsystem.Transaction, owner 
 		}
 	}
 
-	rsp, err := api.ab.SendTransaction(ctx, tx)
-	if err != nil {
+	if err := api.ab.SendTransaction(ctx, tx); err != nil {
 		return fmt.Errorf("failed to forward tx: %w", err)
-	}
-	if !rsp.GetOk() {
-		return fmt.Errorf("transaction was not accepted: %s", rsp.GetMessage())
 	}
 	return nil
 }

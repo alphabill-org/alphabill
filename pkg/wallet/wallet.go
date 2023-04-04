@@ -3,6 +3,7 @@ package wallet
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"time"
 
@@ -96,9 +97,9 @@ func (w *Wallet) Sync(ctx context.Context, lastBlockNumber uint64) error {
 	return w.syncLedger(ctx, lastBlockNumber, true)
 }
 
-// GetMaxBlockNumber queries the node for latest block and round number
-func (w *Wallet) GetMaxBlockNumber(ctx context.Context) (uint64, uint64, error) {
-	return w.AlphabillClient.GetMaxBlockNumber(ctx)
+// GetRoundNumber queries the node for latest round number
+func (w *Wallet) GetRoundNumber(ctx context.Context) (uint64, error) {
+	return w.AlphabillClient.GetRoundNumber(ctx)
 }
 
 // SendTransaction broadcasts transaction to configured node.
@@ -181,7 +182,7 @@ func (w *Wallet) fetchBlocksForever(ctx context.Context, lastBlockNumber uint64,
 }
 
 func (w *Wallet) fetchBlocksUntilMaxBlock(ctx context.Context, lastBlockNumber uint64, ch chan<- *block.Block) error {
-	maxBlockNumber, _, err := w.GetMaxBlockNumber(ctx)
+	maxBlockNumber, err := w.GetRoundNumber(ctx)
 	if err != nil {
 		return err
 	}
@@ -238,31 +239,21 @@ func (w *Wallet) processBlocks(ch <-chan *block.Block) error {
 
 func (w *Wallet) sendTx(ctx context.Context, tx *txsystem.Transaction, maxRetries int) error {
 	for failedTries := 0; failedTries < maxRetries; failedTries++ {
-		// node side error is included in both res.Message and err.Error(),
-		// we use res.Message here to check if tx passed
-		res, err := w.AlphabillClient.SendTransaction(ctx, tx)
-		if res == nil && err == nil {
-			return errors.New("send transaction returned nil response with nil error")
+		err := w.AlphabillClient.SendTransaction(ctx, tx)
+		if err == nil {
+			return nil
 		}
-		if res != nil {
-			if res.Ok {
-				return nil
+		// error message can also contain stacktrace when node returns aberror, so we check prefix instead of exact match
+		if strings.HasPrefix(err.Error(), txBufferFullErrMsg) {
+			log.Debug("tx buffer full, waiting 1s to retry...")
+			select {
+			case <-time.After(time.Second):
+				continue
+			case <-ctx.Done():
+				return ErrTxRetryCanceled
 			}
-			// res.Message can also contain stacktrace when node returns aberror, so we check prefix instead of exact match
-			if strings.HasPrefix(res.Message, txBufferFullErrMsg) {
-				log.Debug("tx buffer full, waiting 1s to retry...")
-				select {
-				case <-time.After(time.Second):
-					continue
-				case <-ctx.Done():
-					return ErrTxRetryCanceled
-				}
-			}
-			return errors.New("transaction returned error code: " + res.Message)
 		}
-		if err != nil {
-			return err
-		}
+		return fmt.Errorf("failed to send transaction: %w", err)
 	}
 	return ErrFailedToBroadcastTx
 }

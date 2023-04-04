@@ -153,9 +153,9 @@ func (w *WalletBackend) GetBill(unitID []byte) (*Bill, error) {
 	return w.store.Do().GetBill(unitID)
 }
 
-// GetMaxBlockNumber returns latest persisted block number and latest round number.
-func (w *WalletBackend) GetMaxBlockNumber(ctx context.Context) (uint64, uint64, error) {
-	return w.genericWallet.GetMaxBlockNumber(ctx)
+// GetRoundNumber returns latest round number.
+func (w *WalletBackend) GetRoundNumber(ctx context.Context) (uint64, error) {
+	return w.genericWallet.GetRoundNumber(ctx)
 }
 
 func (b *Bill) toProto() *moneytx.Bill {

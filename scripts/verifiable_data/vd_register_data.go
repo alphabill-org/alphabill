@@ -10,6 +10,7 @@ import (
 	"github.com/holiman/uint256"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/protobuf/types/known/emptypb"
 )
 
 /*
@@ -57,11 +58,11 @@ func main() {
 		}
 	}()
 	txClient := alphabill.NewAlphabillServiceClient(conn)
-	blockNr, err := txClient.GetMaxBlockNo(ctx, &alphabill.GetMaxBlockNoRequest{})
+	blockNr, err := txClient.GetRoundNumber(ctx, &emptypb.Empty{})
 	if err != nil {
 		log.Fatal(err)
 	}
-	absoluteTimeout := blockNr.BlockNo + *timeout
+	absoluteTimeout := blockNr.RoundNumber + *timeout
 
 	// create tx
 	tx, err := createRegisterDataTx(dataId, absoluteTimeout)
@@ -70,15 +71,10 @@ func main() {
 	}
 
 	// send tx
-	txResponse, err := txClient.ProcessTransaction(ctx, tx)
-	if err != nil {
+	if _, err := txClient.ProcessTransaction(ctx, tx); err != nil {
 		log.Fatal(err)
 	}
-	if txResponse.Ok {
-		log.Println("successfully sent transaction")
-	} else {
-		log.Fatalf("faild to send transaction %v", txResponse.Message)
-	}
+	log.Println("successfully sent transaction")
 }
 
 func createRegisterDataTx(hash []byte, timeout uint64) (*txsystem.Transaction, error) {

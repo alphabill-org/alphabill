@@ -146,9 +146,9 @@ func Test_Run_API(t *testing.T) {
 		log:    logger,
 		dbFile: filepath.Join(t.TempDir(), "tokens.db"),
 		abc: &mockABClient{
-			sendTransaction: func(ctx context.Context, tx *txsystem.Transaction) (*txsystem.TransactionResponse, error) {
+			sendTransaction: func(ctx context.Context, tx *txsystem.Transaction) error {
 				syncing <- tx
-				return &txsystem.TransactionResponse{Ok: true}, nil
+				return nil
 			},
 			getBlocks: func(ctx context.Context, blockNumber, blockCount uint64) (*alphabill.GetBlocksResponse, error) {
 				select {
@@ -167,8 +167,8 @@ func Test_Run_API(t *testing.T) {
 					return &alphabill.GetBlocksResponse{MaxBlockNumber: blockNumber, MaxRoundNumber: currentRoundNumber.Load()}, nil
 				}
 			},
-			maxBlockNumber: func(ctx context.Context) (bn uint64, rn uint64, err error) {
-				return 0, currentRoundNumber.Load(), nil
+			roundNumber: func(ctx context.Context) (uint64, error) {
+				return currentRoundNumber.Load(), nil
 			},
 		},
 	}

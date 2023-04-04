@@ -1,6 +1,7 @@
 package unicitytree
 
 import (
+	"fmt"
 	"hash"
 
 	"github.com/alphabill-org/alphabill/internal/certificates"
@@ -56,7 +57,9 @@ func (u *UnicityTree) GetCertificate(systemIdentifier []byte) (*certificates.Uni
 	if err != nil {
 		return nil, err
 	}
-
+	if data == nil {
+		return nil, fmt.Errorf("certificate for system id %X not found", systemIdentifier)
+	}
 	leafData, ok := data.(*Data)
 	if !ok {
 		return nil, errors.New("invalid data type, unicity tree leaf node is not of type *Data")
@@ -78,6 +81,9 @@ func (u *UnicityTree) GetIR(systemIdentifier []byte) (*certificates.InputRecord,
 	_, data, err := u.smt.GetAuthPath(systemIdentifier)
 	if err != nil {
 		return nil, err
+	}
+	if data == nil {
+		return nil, fmt.Errorf("ir for system id %X not found", systemIdentifier)
 	}
 	leafData, ok := data.(*Data)
 	if !ok {

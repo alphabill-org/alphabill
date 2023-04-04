@@ -16,6 +16,7 @@ import (
 	moneytesttx "github.com/alphabill-org/alphabill/internal/testutils/transaction/money"
 	testtxsystem "github.com/alphabill-org/alphabill/internal/testutils/txsystem"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
+	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/proto"
 )
@@ -512,6 +513,74 @@ func TestNode_RecoverySimulateStorageFails(t *testing.T) {
 		Message: &replication.LedgerReplicationResponse{
 			Status: replication.LedgerReplicationResponse_OK,
 			Blocks: []*block.Block{newBlock3, newBlock4},
+		},
+	})
+	// wait for message to be processed
+	testevent.ContainsEvent(t, tp.eh, event.RecoveryFinished)
+	// all is normal
+	require.Equal(t, normal, tp.partition.status)
+}
+
+func TestNode_CertificationRequestNotSentWhenProposalStoreFails(t *testing.T) {
+	// simulate storage error on two items stored in DB
+	db := memorydb.NewWithLimit(0)
+	// used to generate test blocks
+	system := &testtxsystem.CounterTxSystem{}
+	tp := SetupNewSingleNodePartition(t, &testtxsystem.CounterTxSystem{}, WithBlockStore(db))
+	genesisBlock := &block.Block{
+		SystemIdentifier:   tp.nodeDeps.genesis.SystemDescriptionRecord.SystemIdentifier,
+		NodeIdentifier:     "genesis",
+		Transactions:       []*txsystem.Transaction{},
+		UnicityCertificate: tp.nodeDeps.genesis.GetCertificate(),
+	}
+	StartSingleNodePartition(t, tp)
+	defer tp.Close()
+	// node sends a handshake to root and subscribes to UC messages
+	require.Eventually(t, RequestReceived(tp, network.ProtocolHandshake), 200*time.Millisecond, test.WaitTick)
+	tp.mockNet.ResetSentMessages(network.ProtocolHandshake)
+	// root responds with genesis
+	tp.SubmitUnicityCertificate(genesisBlock.UnicityCertificate)
+	newBlock2 := createNewBlockOutsideNode(t, tp, system, genesisBlock)
+	require.Len(t, newBlock2.Transactions, 1)
+	// set limit so that next store will fail
+	db.SetLimit(1)
+	require.NoError(t, tp.SubmitTx(newBlock2.Transactions[0]))
+	require.Eventually(t, func() bool {
+		events := tp.eh.GetEvents()
+		for _, e := range events {
+			if e.EventType == event.TransactionProcessed {
+				return true
+			}
+		}
+		return false
+	}, test.WaitDuration, test.WaitTick)
+	// submit T1 timeout
+	// bad solution, but easiest for now
+	tp.partition.handleT1TimeoutEvent()
+	// no block certification request is sent
+	require.Len(t, tp.mockNet.SentMessages(network.ProtocolBlockCertification), 0)
+	// make no certification request is sent, proposal is not stored
+	var pr block.PendingBlockProposal
+	found, err := db.Read(util.Uint32ToBytes(proposalKey), &pr)
+	require.NoError(t, err)
+	require.False(t, found)
+	tp.SubmitUnicityCertificate(newBlock2.UnicityCertificate)
+	ContainsError(t, tp, ErrNodeDoesNotHaveLatestBlock.Error())
+	require.Equal(t, recovering, tp.partition.status)
+	// block is requested from other nodes
+	testevent.ContainsEvent(t, tp.eh, event.RecoveryStarted)
+	// make sure replication request is sent
+	reqs := tp.mockNet.SentMessages(network.ProtocolLedgerReplicationReq)
+	require.Equal(t, 1, len(reqs))
+	require.IsType(t, reqs[0].Message, &replication.LedgerReplicationRequest{})
+	// reset limit and submit block
+	db.SetLimit(0)
+	tp.mockNet.Receive(network.ReceivedMessage{
+		From:     reqs[0].ID,
+		Protocol: network.ProtocolLedgerReplicationResp,
+		Message: &replication.LedgerReplicationResponse{
+			Status: replication.LedgerReplicationResponse_OK,
+			Blocks: []*block.Block{newBlock2},
 		},
 	})
 	// wait for message to be processed

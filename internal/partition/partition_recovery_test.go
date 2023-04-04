@@ -454,7 +454,7 @@ func TestNode_RecoverReceivesInvalidBlock(t *testing.T) {
 
 func TestNode_RecoverySimulateStorageFails(t *testing.T) {
 	// simulate storage error on two items stored in DB
-	db := memorydb.NewWithLimiter(2)
+	db := memorydb.NewWithLimit(2)
 	// used to generate test blocks
 	system := &testtxsystem.CounterTxSystem{}
 	tp := SetupNewSingleNodePartition(t, &testtxsystem.CounterTxSystem{}, WithBlockStore(db))

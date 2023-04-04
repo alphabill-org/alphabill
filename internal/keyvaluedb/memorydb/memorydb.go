@@ -32,8 +32,8 @@ func New() *MemoryDB {
 	}
 }
 
-// NewWithLimiter can be used to test disk full scenarios
-func NewWithLimiter(limit int) *MemoryDB {
+// NewWithLimit can be used to test disk full scenarios
+func NewWithLimit(limit int) *MemoryDB {
 	return &MemoryDB{
 		db:      make(map[string][]byte),
 		encoder: json.Marshal,

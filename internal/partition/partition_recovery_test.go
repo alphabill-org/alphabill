@@ -454,7 +454,7 @@ func TestNode_RecoverReceivesInvalidBlock(t *testing.T) {
 	require.Equal(t, normal, tp.partition.status)
 }
 
-func TestNode_RecoverySimulateStorageFails(t *testing.T) {
+func TestNode_RecoverySimulateStorageFailsOnRecovery(t *testing.T) {
 	// simulate storage error on two items stored in DB
 	db := memorydb.New()
 	// used to generate test blocks
@@ -529,6 +529,77 @@ func TestNode_RecoverySimulateStorageFails(t *testing.T) {
 		Message: &replication.LedgerReplicationResponse{
 			Status: replication.LedgerReplicationResponse_OK,
 			Blocks: []*block.Block{newBlock3, newBlock4},
+		},
+	})
+	// wait for message to be processed
+	testevent.ContainsEvent(t, tp.eh, event.RecoveryFinished)
+	// all is normal
+	require.Equal(t, normal, tp.partition.status)
+}
+
+func TestNode_RecoverySimulateStorageFailsDuringBlockFinalizationOnUC(t *testing.T) {
+	// simulate storage error on two items stored in DB
+	db := memorydb.New()
+	// used to generate test blocks
+	system := &testtxsystem.CounterTxSystem{}
+	tp := SetupNewSingleNodePartition(t, &testtxsystem.CounterTxSystem{}, WithBlockStore(db))
+	genesisBlock := &block.Block{
+		SystemIdentifier:   tp.nodeDeps.genesis.SystemDescriptionRecord.SystemIdentifier,
+		NodeIdentifier:     "genesis",
+		Transactions:       []*txsystem.Transaction{},
+		UnicityCertificate: tp.nodeDeps.genesis.GetCertificate(),
+	}
+	StartSingleNodePartition(t, tp)
+	defer tp.Close()
+	// node sends a handshake to root and subscribes to UC messages
+	require.Eventually(t, RequestReceived(tp, network.ProtocolHandshake), 200*time.Millisecond, test.WaitTick)
+	tp.mockNet.ResetSentMessages(network.ProtocolHandshake)
+	// root responds with genesis
+	tp.SubmitUnicityCertificate(genesisBlock.UnicityCertificate)
+	newBlock2 := createNewBlockOutsideNode(t, tp, system, genesisBlock)
+	require.Len(t, newBlock2.Transactions, 1)
+	// submit transaction
+	require.NoError(t, tp.SubmitTx(newBlock2.Transactions[0]))
+	require.Eventually(t, func() bool {
+		events := tp.eh.GetEvents()
+		for _, e := range events {
+			if e.EventType == event.TransactionProcessed {
+				return true
+			}
+		}
+		return false
+	}, test.WaitDuration, test.WaitTick)
+	// simulate T1 timeout
+	// bad solution, but easiest for now
+	tp.partition.handleT1TimeoutEvent()
+	// block proposal is sent
+	require.Eventually(t, func() bool {
+		return len(tp.mockNet.SentMessages(network.ProtocolBlockCertification)) == 1
+	}, test.WaitDuration, test.WaitTick, "block certification request not found")
+	// set DB in error state
+	db.MockWriteError(fmt.Errorf("disk is full"))
+	// submit UC status from root
+	tp.SubmitUnicityCertificate(newBlock2.UnicityCertificate)
+	// block is requested from other nodes
+	testevent.ContainsEvent(t, tp.eh, event.RecoveryStarted)
+	// expect store fails and node enters recovery
+	require.Equal(t, recovering, tp.partition.status)
+	// make sure replication request is sent
+	reqs := tp.mockNet.SentMessages(network.ProtocolLedgerReplicationReq)
+	require.Equal(t, 1, len(reqs))
+	require.IsType(t, reqs[0].Message, &replication.LedgerReplicationRequest{})
+	msg := reqs[0].Message.(*replication.LedgerReplicationRequest)
+	require.NotNil(t, msg)
+	// make sure block 2 is asked
+	require.Equal(t, uint64(2), msg.BeginBlockNumber)
+	// reset error
+	db.MockWriteError(nil)
+	tp.mockNet.Receive(network.ReceivedMessage{
+		From:     reqs[0].ID,
+		Protocol: network.ProtocolLedgerReplicationResp,
+		Message: &replication.LedgerReplicationResponse{
+			Status: replication.LedgerReplicationResponse_OK,
+			Blocks: []*block.Block{newBlock2},
 		},
 	})
 	// wait for message to be processed

@@ -32,8 +32,6 @@ func TestRootChainCanBeStarted(t *testing.T) {
 }
 
 func TestRootValidatorInvalidRootKey_CannotBeStartedInvalidKeyFile(t *testing.T) {
-	dbDir := t.TempDir()
-	defer func() { require.NoError(t, os.RemoveAll(dbDir)) }()
 	conf := validMonolithicRootValidatorConfig("")
 	conf.KeyFile = "testdata/invalid-root-key.json"
 

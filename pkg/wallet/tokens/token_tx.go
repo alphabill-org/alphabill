@@ -89,7 +89,6 @@ func preparePredicateSignatures(am account.Manager, args []*PredicateInput, gtx 
 }
 
 func (w *Wallet) newToken(ctx context.Context, accNr uint64, attrs MintAttr, tokenId twb.TokenID, mintPredicateArgs []*PredicateInput) (twb.TokenID, error) {
-	var keyHash []byte
 	if accNr < 1 {
 		return nil, fmt.Errorf("invalid account number: %d", accNr)
 	}
@@ -97,8 +96,6 @@ func (w *Wallet) newToken(ctx context.Context, accNr uint64, attrs MintAttr, tok
 	if err != nil {
 		return nil, err
 	}
-	keyHash = key.PubKeyHash.Sha256
-	attrs.SetBearer(bearerPredicateFromHash(keyHash))
 
 	sub, err := w.prepareTx(ctx, twb.UnitID(tokenId), attrs, key, func(tx *txsystem.Transaction, gtx txsystem.GenericTransaction) error {
 		signatures, err := preparePredicateSignatures(w.am, mintPredicateArgs, gtx)
@@ -258,7 +255,7 @@ func (t *txSubmissionBatch) confirmUnitsTx(ctx context.Context) error {
 	}
 }
 
-func signTx(gtx txsystem.GenericTransaction, ac *account.AccountKey) (ttxs.Predicate, error) {
+func signTx(gtx txsystem.GenericTransaction, ac *account.AccountKey) (twb.Predicate, error) {
 	if ac == nil {
 		return script.PredicateArgumentEmpty(), nil
 	}
@@ -294,14 +291,14 @@ func newNonFungibleTransferTxAttrs(token *twb.TokenUnit, receiverPubKey []byte) 
 	}
 }
 
-func bearerPredicateFromHash(receiverPubKeyHash []byte) ttxs.Predicate {
+func bearerPredicateFromHash(receiverPubKeyHash []byte) twb.Predicate {
 	if receiverPubKeyHash != nil {
 		return script.PredicatePayToPublicKeyHashDefault(receiverPubKeyHash)
 	}
 	return script.PredicateAlwaysTrue()
 }
 
-func bearerPredicateFromPubKey(receiverPubKey twb.PubKey) ttxs.Predicate {
+func bearerPredicateFromPubKey(receiverPubKey twb.PubKey) twb.Predicate {
 	var h []byte
 	if receiverPubKey != nil {
 		h = hash.Sum256(receiverPubKey)

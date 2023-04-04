@@ -332,27 +332,16 @@ func TestMintFungibleToken(t *testing.T) {
 	require.NoError(t, err)
 
 	tests := []struct {
-		name          string
-		accNr         uint64
-		validateOwner func(t *testing.T, accNr uint64, tok *ttxs.MintFungibleTokenAttributes)
+		name  string
+		accNr uint64
 	}{
 		{
 			name:  "pub key bearer predicate, account 1",
 			accNr: uint64(1),
-			validateOwner: func(t *testing.T, accNr uint64, tok *ttxs.MintFungibleTokenAttributes) {
-				key, err := tw.am.GetAccountKey(accNr - 1)
-				require.NoError(t, err)
-				require.Equal(t, script.PredicatePayToPublicKeyHashDefault(key.PubKeyHash.Sha256), tok.Bearer)
-			},
 		},
 		{
 			name:  "pub key bearer predicate, account 2",
 			accNr: uint64(2),
-			validateOwner: func(t *testing.T, accNr uint64, tok *ttxs.MintFungibleTokenAttributes) {
-				key, err := tw.am.GetAccountKey(accNr - 1)
-				require.NoError(t, err)
-				require.Equal(t, script.PredicatePayToPublicKeyHashDefault(key.PubKeyHash.Sha256), tok.Bearer)
-			},
 		},
 	}
 
@@ -360,7 +349,9 @@ func TestMintFungibleToken(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			typeId := test.RandomBytes(32)
 			amount := uint64(100)
-			_, err := tw.NewFungibleToken(context.Background(), tt.accNr, typeId, amount, nil)
+			key, err := tw.am.GetAccountKey(tt.accNr - 1)
+			require.NoError(t, err)
+			_, err = tw.NewFungibleToken(context.Background(), tt.accNr, typeId, amount, bearerPredicateFromHash(key.PubKeyHash.Sha256), nil)
 			require.NoError(t, err)
 			tx := recTxs[len(recTxs)-1]
 			newToken := &ttxs.MintFungibleTokenAttributes{}
@@ -369,7 +360,7 @@ func TestMintFungibleToken(t *testing.T) {
 			require.Len(t, tx.UnitId, 32)
 			require.Equal(t, typeId, newToken.Type)
 			require.Equal(t, amount, newToken.Value)
-			tt.validateOwner(t, tt.accNr, newToken)
+			require.Equal(t, script.PredicatePayToPublicKeyHashDefault(key.PubKeyHash.Sha256), newToken.Bearer)
 		})
 	}
 }
@@ -567,15 +558,18 @@ func TestMintNFT(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			key, err := tw.am.GetAccountKey(tt.accNr - 1)
+			require.NoError(t, err)
 			typeId := []byte{1}
 			a := &ttxs.MintNonFungibleTokenAttributes{
+				Bearer:                           bearerPredicateFromHash(key.PubKeyHash.Sha256),
 				NftType:                          typeId,
 				Uri:                              "https://alphabill.org",
 				Data:                             nil,
 				DataUpdatePredicate:              script.PredicateAlwaysTrue(),
 				TokenCreationPredicateSignatures: nil,
 			}
-			_, err := tw.NewNFT(context.Background(), tt.accNr, a, tt.tokenID, nil)
+			_, err = tw.NewNFT(context.Background(), tt.accNr, a, tt.tokenID, nil)
 			require.NoError(t, err)
 			tx := recTxs[len(recTxs)-1]
 			newToken := &ttxs.MintNonFungibleTokenAttributes{}

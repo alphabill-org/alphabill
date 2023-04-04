@@ -24,6 +24,7 @@ const (
 	cmdFlagSybTypeClause              = "subtype-clause"
 	cmdFlagSybTypeClauseInput         = "subtype-input"
 	cmdFlagMintClause                 = "mint-clause"
+	cmdFlagBearerClause               = "bearer-clause"
 	cmdFlagMintClauseInput            = "mint-input"
 	cmdFlagInheritBearerClause        = "inherit-bearer-clause"
 	cmdFlagInheritBearerClauseInput   = "inherit-bearer-input"
@@ -258,6 +259,7 @@ func tokenCmdNewTokenFungible(config *walletConfig) *cobra.Command {
 			return execTokenCmdNewTokenFungible(cmd, config)
 		},
 	}
+	cmd.Flags().String(cmdFlagBearerClause, predicatePtpkh, "predicate that defines the ownership of this fungible token, values <true|false|ptpkh>, defaults to 'ptpkh' (optional)")
 	cmd.Flags().String(cmdFlagAmount, "", "amount, must be bigger than 0 and is interpreted according to token type precision (decimals)")
 	err := cmd.MarkFlagRequired(cmdFlagAmount)
 	if err != nil {
@@ -281,6 +283,7 @@ func execTokenCmdNewTokenFungible(cmd *cobra.Command, config *walletConfig) erro
 	if err != nil {
 		return err
 	}
+	am := tw.GetAccountManager()
 	defer tw.Shutdown()
 
 	amountStr, err := cmd.Flags().GetString(cmdFlagAmount)
@@ -291,7 +294,7 @@ func execTokenCmdNewTokenFungible(cmd *cobra.Command, config *walletConfig) erro
 	if err != nil {
 		return err
 	}
-	ci, err := readPredicateInput(cmd, cmdFlagMintClauseInput, tw.GetAccountManager())
+	ci, err := readPredicateInput(cmd, cmdFlagMintClauseInput, am)
 	if err != nil {
 		return err
 	}
@@ -307,8 +310,11 @@ func execTokenCmdNewTokenFungible(cmd *cobra.Command, config *walletConfig) erro
 	if amount == 0 {
 		return fmt.Errorf("invalid parameter \"%s\" for \"--amount\": 0 is not valid amount", amountStr)
 	}
-
-	id, err := tw.NewFungibleToken(cmd.Context(), accountNumber, typeId, amount, ci)
+	bearerPredicate, err := parsePredicateClauseCmd(cmd, cmdFlagBearerClause, am)
+	if err != nil {
+		return err
+	}
+	id, err := tw.NewFungibleToken(cmd.Context(), accountNumber, typeId, amount, bearerPredicate, ci)
 	if err != nil {
 		return err
 	}
@@ -325,6 +331,7 @@ func tokenCmdNewTokenNonFungible(config *walletConfig) *cobra.Command {
 			return execTokenCmdNewTokenNonFungible(cmd, config)
 		},
 	}
+	cmd.Flags().String(cmdFlagBearerClause, predicatePtpkh, "predicate that defines the ownership of this non-fungible token, values <true|false|ptpkh>, defaults to 'ptpkh' (optional)")
 	cmd.Flags().BytesHex(cmdFlagType, nil, "type unit identifier (hex)")
 	err := cmd.MarkFlagRequired(cmdFlagType)
 	if err != nil {
@@ -373,12 +380,16 @@ func execTokenCmdNewTokenNonFungible(cmd *cobra.Command, config *walletConfig) e
 	if err != nil {
 		return err
 	}
+	bearerPredicate, err := parsePredicateClauseCmd(cmd, cmdFlagBearerClause, am)
+	if err != nil {
+		return err
+	}
 	dataUpdatePredicate, err := parsePredicateClauseCmd(cmd, cmdFlagTokenDataUpdateClause, am)
 	if err != nil {
 		return err
 	}
 	a := &ttxs.MintNonFungibleTokenAttributes{
-		Bearer:                           nil, // will be set in the wallet
+		Bearer:                           bearerPredicate,
 		NftType:                          typeId,
 		Uri:                              uri,
 		Data:                             data,

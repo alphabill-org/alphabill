@@ -65,6 +65,11 @@ func TestNFTs_Integration(t *testing.T) {
 	// transfer back
 	execTokensCmd(t, homedirW2, fmt.Sprintf("send non-fungible -r %s --token-identifier %X --address 0x%X -k 1", backendUrl, nftID, w1key.PubKey))
 	ensureTokenIndexed(t, ctx, client, w1key.PubKey, nftID)
+	// mint nft from w1 and set the owner to w2
+	nftID2 := randomID(t)
+	verifyStdout(t, execTokensCmd(t, homedirW2, fmt.Sprintf("list non-fungible -r %s", backendUrl)), "No tokens")
+	execTokensCmd(t, homedirW1, fmt.Sprintf("new non-fungible  -r %s --type %X --bearer-clause ptpkh:0x%X --token-identifier %X", backendUrl, typeID, w2key.PubKeyHash.Sha256, nftID2))
+	verifyStdout(t, execTokensCmd(t, homedirW2, fmt.Sprintf("list non-fungible -r %s", backendUrl)), fmt.Sprintf("ID='%X'", nftID2))
 }
 
 func TestNFTDataUpdateCmd_Integration(t *testing.T) {

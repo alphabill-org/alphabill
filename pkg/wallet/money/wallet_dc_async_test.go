@@ -4,23 +4,30 @@ import (
 	"context"
 	"testing"
 
+	"github.com/alphabill-org/alphabill/pkg/wallet/account"
+
+	"github.com/alphabill-org/alphabill/internal/util"
+
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
 )
 
 func TestDcJobWithExistingDcBills(t *testing.T) {
 	// wallet contains 2 dc bills with the same nonce that have timed out
-	w, _ := CreateTestWallet(t, nil)
-	k, _ := w.am.GetAccountKey(0)
-	bills := []*Bill{addDcBill(t, w, k, uint256.NewInt(1), 1, dcTimeoutBlockCount), addDcBill(t, w, k, uint256.NewInt(1), 2, dcTimeoutBlockCount)}
+	am, err := account.NewManager(t.TempDir(), "", true)
+	require.NoError(t, err)
+	_ = am.CreateKeys("")
+	k, _ := am.GetAccountKey(0)
+	bills := []*Bill{addDcBill(t, k, uint256.NewInt(1), util.Uint256ToBytes(uint256.NewInt(1)), 1, dcTimeoutBlockCount), addDcBill(t, k, uint256.NewInt(2), util.Uint256ToBytes(uint256.NewInt(1)), 2, dcTimeoutBlockCount)}
 	nonce := calculateDcNonce(bills)
 	billsList := createBillListJsonResponse(bills)
-	proofList := createBlockProofJsonResponse(t, bills, nonce, 0, dcTimeoutBlockCount)
-	w, mockClient := CreateTestWallet(t, &backendMockReturnConf{balance: 3, customBillList: billsList, proofList: proofList})
+	proofList := createBlockProofJsonResponse(t, bills, nonce, 0, dcTimeoutBlockCount, k)
+	proofList = append(proofList, createBlockProofJsonResponse(t, bills, nonce, 0, dcTimeoutBlockCount, k)...)
+	w, mockClient := CreateTestWalletWithManager(t, &backendMockReturnConf{balance: 3, customBillList: billsList, proofList: proofList}, am)
 	mockClient.SetMaxBlockNumber(100)
 
 	// when dust collector runs
-	err := w.collectDust(context.Background(), false, 0)
+	err = w.collectDust(context.Background(), false, 0)
 	require.NoError(t, err)
 
 	// then swap tx is broadcast
@@ -39,19 +46,21 @@ func TestDcJobWithExistingDcBills(t *testing.T) {
 
 func TestDcJobWithExistingDcAndNonDcBills(t *testing.T) {
 	// wallet contains timed out dc bill and normal bill
-	w, _ := CreateTestWallet(t, nil)
-	k, _ := w.am.GetAccountKey(0)
+	am, err := account.NewManager(t.TempDir(), "", true)
+	require.NoError(t, err)
+	_ = am.CreateKeys("")
+	k, _ := am.GetAccountKey(0)
 	bill := addBill(1)
-	dc := addDcBill(t, w, k, uint256.NewInt(1), 2, dcTimeoutBlockCount)
+	dc := addDcBill(t, k, uint256.NewInt(1), util.Uint256ToBytes(uint256.NewInt(1)), 2, dcTimeoutBlockCount)
 	nonce := calculateDcNonce([]*Bill{bill, dc})
 	billsList := createBillListJsonResponse([]*Bill{bill, dc})
-	proofList := createBlockProofJsonResponse(t, []*Bill{bill, dc}, nonce, 0, dcTimeoutBlockCount)
+	proofList := createBlockProofJsonResponse(t, []*Bill{bill, dc}, nonce, 0, dcTimeoutBlockCount, k)
 
-	w, mockClient := CreateTestWallet(t, &backendMockReturnConf{balance: 3, customBillList: billsList, proofList: proofList})
+	w, mockClient := CreateTestWalletWithManager(t, &backendMockReturnConf{balance: 3, customBillList: billsList, proofList: proofList}, am)
 	mockClient.SetMaxBlockNumber(100)
 
 	// when dust collector runs
-	err := w.collectDust(context.Background(), false, 0)
+	err = w.collectDust(context.Background(), false, 0)
 	require.NoError(t, err)
 
 	// then swap tx is sent for the timed out dc bill
@@ -72,7 +81,7 @@ func TestDcJobWithExistingNonDcBills(t *testing.T) {
 	// wallet contains 2 non dc bills
 	bills := []*Bill{addBill(1), addBill(2)}
 	billsList := createBillListJsonResponse(bills)
-	proofList := createBlockProofJsonResponse(t, bills, nil, 0, dcTimeoutBlockCount)
+	proofList := createBlockProofJsonResponse(t, bills, nil, 0, dcTimeoutBlockCount, nil)
 
 	w, mockClient := CreateTestWallet(t, &backendMockReturnConf{balance: 3, customBillList: billsList, proofList: proofList})
 	mockClient.SetMaxBlockNumber(100)
@@ -92,16 +101,18 @@ func TestDcJobWithExistingNonDcBills(t *testing.T) {
 
 func TestDcJobSendsSwapsIfDcBillTimeoutHasBeenReached(t *testing.T) {
 	// wallet contains 2 dc bills that both have timed out
-	w, _ := CreateTestWallet(t, nil)
-	k, _ := w.am.GetAccountKey(0)
-	bills := []*Bill{addDcBill(t, w, k, uint256.NewInt(1), 1, dcTimeoutBlockCount), addDcBill(t, w, k, uint256.NewInt(1), 2, dcTimeoutBlockCount)}
+	am, err := account.NewManager(t.TempDir(), "", true)
+	require.NoError(t, err)
+	_ = am.CreateKeys("")
+	k, _ := am.GetAccountKey(0)
+	bills := []*Bill{addDcBill(t, k, uint256.NewInt(1), util.Uint256ToBytes(uint256.NewInt(1)), 1, dcTimeoutBlockCount), addDcBill(t, k, uint256.NewInt(2), util.Uint256ToBytes(uint256.NewInt(1)), 2, dcTimeoutBlockCount)}
 	nonce := calculateDcNonce(bills)
 	billsList := createBillListJsonResponse(bills)
-	proofList := createBlockProofJsonResponse(t, bills, nonce, 0, dcTimeoutBlockCount)
-	w, mockClient := CreateTestWallet(t, &backendMockReturnConf{balance: 3, customBillList: billsList, proofList: proofList})
+	proofList := createBlockProofJsonResponse(t, bills, nonce, 0, dcTimeoutBlockCount, k)
+	w, mockClient := CreateTestWalletWithManager(t, &backendMockReturnConf{balance: 3, customBillList: billsList, proofList: proofList}, am)
 
 	// when dust collector runs
-	err := w.collectDust(context.Background(), false, 0)
+	err = w.collectDust(context.Background(), false, 0)
 	require.NoError(t, err)
 
 	// then 2 swap txs must be broadcast

@@ -77,6 +77,7 @@ func (wg *dcWaitGroup) UpdateTimeout(dcNonce []byte, timeout uint64) {
 	swap, exists := wg.swaps[key]
 	if exists {
 		swap.timeout = timeout
+		wg.swaps[key] = swap
 	}
 }
 

@@ -28,10 +28,11 @@ import (
 )
 
 const (
-	dcTimeoutBlockCount     = 10
-	swapTimeoutBlockCount   = 60
-	txTimeoutBlockCount     = 100
-	dustBillDeletionTimeout = 65536
+	dcTimeoutBlockCount       = 10
+	swapTimeoutBlockCount     = 60
+	txTimeoutBlockCount       = 100
+	maxBillsForDustCollection = 100
+	dustBillDeletionTimeout   = 65536
 )
 
 var (
@@ -230,6 +231,10 @@ func (w *Wallet) collectDust(ctx context.Context, blocking bool, accountIndex ui
 		log.Info("Account ", accountIndex, " has less than 2 bills, skipping dust collection")
 		return nil
 	}
+	if len(billResponse.Bills) > maxBillsForDustCollection {
+		log.Info("Account ", accountIndex, " has more than ", maxBillsForDustCollection, " bills, dust collection will take only the first ", maxBillsForDustCollection, " bills")
+		billResponse.Bills = billResponse.Bills[0:maxBillsForDustCollection]
+	}
 	var bills []*Bill
 	for _, b := range billResponse.Bills {
 		proof, err := w.restClient.GetProof(b.Id)
@@ -250,11 +255,16 @@ func (w *Wallet) collectDust(ctx context.Context, blocking bool, accountIndex ui
 					return err
 				}
 				expectedSwaps = append(expectedSwaps, expectedSwap{dcNonce: v.dcNonce, timeout: swapTimeout, dcSum: v.valueSum})
+				w.dcWg.AddExpectedSwaps(expectedSwaps)
 			} else {
 				// expecting to receive swap during dcTimeout
 				expectedSwaps = append(expectedSwaps, expectedSwap{dcNonce: v.dcNonce, timeout: v.dcTimeout, dcSum: v.valueSum})
+				w.dcWg.AddExpectedSwaps(expectedSwaps)
+				err = w.doSwap(ctx, accountIndex)
+				if err != nil {
+					return err
+				}
 			}
-			w.dcWg.AddExpectedSwaps(expectedSwaps)
 		}
 	} else {
 		k, err := w.am.GetAccountKey(accountIndex)
@@ -286,9 +296,12 @@ func (w *Wallet) collectDust(ctx context.Context, blocking bool, accountIndex ui
 		}
 	}
 
-	err = w.confirmSwap(ctx)
-	if err != nil {
-		log.Error("failed to confirm swap tx", err)
+	if blocking {
+		err = w.confirmSwap(ctx)
+		if err != nil {
+			log.Error("failed to confirm swap tx", err)
+			return err
+		}
 	}
 
 	log.Info("finished waiting for blocking collect dust on account=", accountIndex)
@@ -324,7 +337,7 @@ func (w *Wallet) doSwap(ctx context.Context, accountIndex uint64) error {
 			}
 			for _, v := range dcBillGroups {
 				s := w.dcWg.getExpectedSwap(v.dcNonce)
-				if roundNr >= v.dcTimeout || v.valueSum >= s.dcSum {
+				if s.dcNonce != nil && roundNr >= v.dcTimeout || v.valueSum >= s.dcSum {
 					swapTimeout := roundNr + swapTimeoutBlockCount
 					billIds := getBillIds(v.dcBills)
 					err = w.swapDcBills(v.dcBills, v.dcNonce, billIds, swapTimeout, accountIndex)
@@ -358,6 +371,9 @@ func (w *Wallet) confirmSwap(ctx context.Context) error {
 	log.Info("waiting for swap confirmation(s)...")
 	swapTimeout := roundNr + swapTimeoutBlockCount
 	for blockNumber <= swapTimeout {
+		if len(w.dcWg.swaps) == 0 {
+			return nil
+		}
 		b, err := w.AlphabillClient.GetBlock(ctx, blockNumber)
 		if err != nil {
 			return err
@@ -545,5 +561,13 @@ func convertBills(billsList []*backendmoney.ListBillVM) ([]*Bill, error) {
 }
 
 func convertBill(b *moneytx.Bill) *Bill {
-	return &Bill{Id: util.BytesToUint256(b.Id), Value: b.Value, TxHash: b.TxHash, IsDcBill: b.IsDcBill, DcNonce: b.TxProof.Tx.UnitId, BlockProof: &BlockProof{Tx: b.TxProof.Tx, Proof: b.TxProof.Proof, BlockNumber: b.TxProof.BlockNumber}}
+	if b.IsDcBill {
+		attrs := &moneytx.TransferDCOrder{}
+		err := b.TxProof.Tx.TransactionAttributes.UnmarshalTo(attrs)
+		if err != nil {
+			return nil
+		}
+		return &Bill{Id: util.BytesToUint256(b.Id), Value: b.Value, TxHash: b.TxHash, IsDcBill: b.IsDcBill, DcNonce: attrs.Nonce, DcTimeout: b.TxProof.Tx.Timeout, BlockProof: &BlockProof{Tx: b.TxProof.Tx, Proof: b.TxProof.Proof, BlockNumber: b.TxProof.BlockNumber}}
+	}
+	return &Bill{Id: util.BytesToUint256(b.Id), Value: b.Value, TxHash: b.TxHash, IsDcBill: b.IsDcBill, BlockProof: &BlockProof{Tx: b.TxProof.Tx, Proof: b.TxProof.Proof, BlockNumber: b.TxProof.BlockNumber}}
 }

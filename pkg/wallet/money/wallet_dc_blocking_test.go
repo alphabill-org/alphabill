@@ -141,16 +141,21 @@ func TestBlockingDcWaitingForSwapTimesOut(t *testing.T) {
 	proofList = append(proofList, createBlockProofJsonResponse(t, dcBills, nonce, 0, dcTimeoutBlockCount, k)...)
 
 	w, mockClient := CreateTestWalletWithManager(t, &backendMockReturnConf{balance: 3, customBillList: billsList, proofList: proofList}, am)
-	// fill empty blocks until timeout
-	for i := 0; i < swapTimeoutBlockCount+1; i++ {
-		mockClient.SetBlock(&block.Block{Transactions: []*txsystem.Transaction{}, UnicityCertificate: &certificates.UnicityCertificate{InputRecord: &certificates.InputRecord{RoundNumber: uint64(i)}}})
-	}
 
 	// when blocking dust collector runs
 	_ = runBlockingDc(t, w)
 
 	// wait for confirmation
 	waitForExpectedSwap(w)
+
+	mockClient.SetMaxRoundNumber(swapTimeoutBlockCount + 1)
+
+	// wait for confirmation
+	waitForCondition(func() bool {
+		w.dcWg.mu.Lock()
+		defer w.dcWg.mu.Unlock()
+		return len(w.dcWg.swaps) == 0
+	})
 
 	// and dc + swap txs should be sent
 	require.Len(t, mockClient.GetRecordedTransactions(), 3)

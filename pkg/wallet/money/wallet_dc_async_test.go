@@ -79,19 +79,25 @@ func TestDcJobWithExistingDcAndNonDcBills(t *testing.T) {
 
 func TestDcJobWithExistingNonDcBills(t *testing.T) {
 	// wallet contains 2 non dc bills
+	am, err := account.NewManager(t.TempDir(), "", true)
+	require.NoError(t, err)
+	_ = am.CreateKeys("")
+	k, _ := am.GetAccountKey(0)
+	dcBills := []*Bill{addDcBill(t, k, uint256.NewInt(1), util.Uint256ToBytes(uint256.NewInt(1)), 1, dcTimeoutBlockCount), addDcBill(t, k, uint256.NewInt(2), util.Uint256ToBytes(uint256.NewInt(1)), 2, dcTimeoutBlockCount)}
+	nonce := calculateDcNonce(dcBills)
 	bills := []*Bill{addBill(1), addBill(2)}
 	billsList := createBillListJsonResponse(bills)
 	proofList := createBlockProofJsonResponse(t, bills, nil, 0, dcTimeoutBlockCount, nil)
-
+	proofList = append(proofList, createBlockProofJsonResponse(t, dcBills, nonce, 0, dcTimeoutBlockCount, k)...)
 	w, mockClient := CreateTestWallet(t, &backendMockReturnConf{balance: 3, customBillList: billsList, proofList: proofList})
 	mockClient.SetMaxBlockNumber(100)
 
 	// when dust collector runs
-	err := w.collectDust(context.Background(), false, 0)
+	err = w.collectDust(context.Background(), false, 0)
 	require.NoError(t, err)
 
-	// then dust txs are broadcast
-	require.Len(t, mockClient.GetRecordedTransactions(), 2)
+	// then dust txs are broadcast (plus swap)
+	require.Len(t, mockClient.GetRecordedTransactions(), 3)
 
 	// and nonces are equal
 	dcTx0 := parseDcTx(t, mockClient.GetRecordedTransactions()[0])

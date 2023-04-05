@@ -11,8 +11,6 @@ import (
 
 	moneytx "github.com/alphabill-org/alphabill/internal/txsystem/money"
 
-	"github.com/holiman/uint256"
-
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"golang.org/x/sync/errgroup"
 
@@ -260,7 +258,7 @@ func (w *Wallet) collectDust(ctx context.Context, blocking bool, accountIndex ui
 				// expecting to receive swap during dcTimeout
 				expectedSwaps = append(expectedSwaps, expectedSwap{dcNonce: v.dcNonce, timeout: v.dcTimeout, dcSum: v.valueSum})
 				w.dcWg.AddExpectedSwaps(expectedSwaps)
-				err = w.doSwap(ctx, accountIndex)
+				err = w.doSwap(ctx, accountIndex, v.dcTimeout)
 				if err != nil {
 					return err
 				}
@@ -290,15 +288,13 @@ func (w *Wallet) collectDust(ctx context.Context, blocking bool, accountIndex ui
 		expectedSwaps = append(expectedSwaps, expectedSwap{dcNonce: dcNonce, timeout: dcTimeout, dcSum: dcValueSum})
 		w.dcWg.AddExpectedSwaps(expectedSwaps)
 
-		err = w.doSwap(ctx, accountIndex)
-		if err != nil {
+		if err = w.doSwap(ctx, accountIndex, dcTimeout); err != nil {
 			return err
 		}
 	}
 
 	if blocking {
-		err = w.confirmSwap(ctx)
-		if err != nil {
+		if err = w.confirmSwap(ctx); err != nil {
 			log.Error("failed to confirm swap tx", err)
 			return err
 		}
@@ -309,14 +305,17 @@ func (w *Wallet) collectDust(ctx context.Context, blocking bool, accountIndex ui
 	return nil
 }
 
-func (w *Wallet) doSwap(ctx context.Context, accountIndex uint64) error {
+func (w *Wallet) doSwap(ctx context.Context, accountIndex, timeout uint64) error {
+	_, roundNr, err := w.GetMaxBlockNumber(ctx)
+	if err != nil {
+		return err
+	}
 	pubKey, err := w.am.GetPublicKey(accountIndex)
 	if err != nil {
 		return err
 	}
 	log.Info("waiting for swap confirmation(s)...")
-	attempt := 0
-	for attempt <= swapTimeoutBlockCount {
+	for roundNr <= timeout+1 {
 		billResponse, err := w.restClient.ListBills(pubKey)
 		if err != nil {
 			return err
@@ -331,12 +330,8 @@ func (w *Wallet) doSwap(ctx context.Context, accountIndex uint64) error {
 		}
 		dcBillGroups := groupDcBills(bills)
 		if len(dcBillGroups) > 0 {
-			_, roundNr, err := w.GetMaxBlockNumber(ctx)
-			if err != nil {
-				return err
-			}
-			for _, v := range dcBillGroups {
-				s := w.dcWg.getExpectedSwap(v.dcNonce)
+			for k, v := range dcBillGroups {
+				s := w.dcWg.getExpectedSwap(k)
 				if s.dcNonce != nil && roundNr >= v.dcTimeout || v.valueSum >= s.dcSum {
 					swapTimeout := roundNr + swapTimeoutBlockCount
 					billIds := getBillIds(v.dcBills)
@@ -349,10 +344,13 @@ func (w *Wallet) doSwap(ctx context.Context, accountIndex uint64) error {
 				}
 			}
 		}
-		timer := time.NewTimer(100 * time.Millisecond)
+		timer := time.NewTimer(500 * time.Millisecond)
 		select {
 		case <-timer.C:
-			attempt += 1
+			_, roundNr, err = w.GetMaxBlockNumber(ctx)
+			if err != nil {
+				return err
+			}
 			continue
 		case <-ctx.Done():
 			timer.Stop()
@@ -367,35 +365,41 @@ func (w *Wallet) confirmSwap(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	blockNumber := roundNr
 	log.Info("waiting for swap confirmation(s)...")
 	swapTimeout := roundNr + swapTimeoutBlockCount
-	for blockNumber <= swapTimeout {
+	for roundNr <= swapTimeout {
+		println(roundNr)
 		if len(w.dcWg.swaps) == 0 {
 			return nil
 		}
-		b, err := w.AlphabillClient.GetBlock(ctx, blockNumber)
+		b, err := w.AlphabillClient.GetBlock(ctx, roundNr)
 		if err != nil {
 			return err
 		}
-		if b == nil {
-			// wait for some time before retrying to fetch new block
-			timer := time.NewTimer(100 * time.Millisecond)
-			select {
-			case <-timer.C:
-				continue
-			case <-ctx.Done():
-				timer.Stop()
+		if b != nil {
+			for _, tx := range b.Transactions {
+				err = w.dcWg.DecrementSwaps(string(tx.UnitId), roundNr)
+				if err != nil {
+					return err
+				}
+			}
+			if len(w.dcWg.swaps) == 0 {
 				return nil
 			}
 		}
-		for _, tx := range b.Transactions {
-			err = w.dcWg.DecrementSwaps(util.BytesToUint256(tx.UnitId), blockNumber)
+		// wait for some time before retrying to fetch new block
+		timer := time.NewTimer(500 * time.Millisecond)
+		select {
+		case <-timer.C:
+			_, roundNr, err = w.GetMaxBlockNumber(ctx)
 			if err != nil {
 				return err
 			}
+			continue
+		case <-ctx.Done():
+			timer.Stop()
+			return nil
 		}
-		blockNumber += 1
 	}
 	w.dcWg.ResetWaitGroup()
 
@@ -518,11 +522,11 @@ func calculateDcNonce(bills []*Bill) []byte {
 }
 
 // groupDcBills groups bills together by dc nonce
-func groupDcBills(bills []*Bill) map[uint256.Int]*dcBillGroup {
-	m := map[uint256.Int]*dcBillGroup{}
+func groupDcBills(bills []*Bill) map[string]*dcBillGroup {
+	m := map[string]*dcBillGroup{}
 	for _, b := range bills {
 		if b.IsDcBill {
-			k := *uint256.NewInt(0).SetBytes(b.DcNonce)
+			k := string(b.DcNonce)
 			billContainer, exists := m[k]
 			if !exists {
 				billContainer = &dcBillGroup{}

@@ -35,40 +35,56 @@ func TestDustCollectionWontRunForSingleBill(t *testing.T) {
 
 func TestDustCollectionMaxBillCount(t *testing.T) {
 	// create wallet with max allowed bills for dc + 1
+	tempNonce := uint256.NewInt(1)
+	nonceBytes := util.Uint256ToBytes(tempNonce)
+	am, err := account.NewManager(t.TempDir(), "", true)
+	require.NoError(t, err)
+	_ = am.CreateKeys("")
+	k, _ := am.GetAccountKey(0)
 	bills := make([]*Bill, maxBillsForDustCollection+1)
+	dcBills := make([]*Bill, maxBillsForDustCollection+1)
 	for i := 0; i < maxBillsForDustCollection+1; i++ {
 		bills[i] = addBill(uint64(i))
+		dcBills[i] = addDcBill(t, k, uint256.NewInt(uint64(i)), nonceBytes, uint64(i), dcTimeoutBlockCount)
 	}
 	billsList := createBillListJsonResponse(bills)
 	proofList := createBlockProofJsonResponse(t, bills, nil, 0, dcTimeoutBlockCount, nil)
+	proofList = append(proofList, createBlockProofJsonResponse(t, dcBills, nonceBytes, 0, dcTimeoutBlockCount, k)...)
 
 	w, mockClient := CreateTestWallet(t, &backendMockReturnConf{customBillList: billsList, proofList: proofList})
 
 	// when dc runs
-	err := w.collectDust(context.Background(), false, 0)
+	err = w.collectDust(context.Background(), false, 0)
 	require.NoError(t, err)
 
-	// then dc tx count should be equal to max allowed bills for dc
-	require.Len(t, mockClient.GetRecordedTransactions(), maxBillsForDustCollection)
+	// then dc tx count should be equal to max allowed bills for dc plus 1 for the swap
+	require.Len(t, mockClient.GetRecordedTransactions(), maxBillsForDustCollection+1)
 }
 
 func TestBasicDustCollection(t *testing.T) {
 	// create wallet with 2 normal bills
+	tempNonce := uint256.NewInt(1)
+	nonceBytes := util.Uint256ToBytes(tempNonce)
+	am, err := account.NewManager(t.TempDir(), "", true)
+	require.NoError(t, err)
+	_ = am.CreateKeys("")
+	k, _ := am.GetAccountKey(0)
+	dcBills := []*Bill{addDcBill(t, k, uint256.NewInt(1), nonceBytes, 1, dcTimeoutBlockCount), addDcBill(t, k, uint256.NewInt(2), nonceBytes, 2, dcTimeoutBlockCount)}
 	bills := []*Bill{addBill(1), addBill(2)}
 	billsList := createBillListJsonResponse(bills)
 	proofList := createBlockProofJsonResponse(t, bills, nil, 0, dcTimeoutBlockCount, nil)
+	proofList = append(proofList, createBlockProofJsonResponse(t, dcBills, nonceBytes, 0, dcTimeoutBlockCount, k)...)
 	expectedDcNonce := calculateDcNonce(bills)
 
-	w, mockClient := CreateTestWallet(t, &backendMockReturnConf{balance: 3, customBillList: billsList, proofList: proofList})
-	k, _ := w.am.GetAccountKey(0)
+	w, mockClient := CreateTestWalletWithManager(t, &backendMockReturnConf{balance: 3, customBillList: billsList, proofList: proofList}, am)
 
 	// when dc runs
-	err := w.collectDust(context.Background(), false, 0)
+	err = w.collectDust(context.Background(), false, 0)
 	require.NoError(t, err)
 
-	// then two dc txs are broadcast
-	require.Len(t, mockClient.GetRecordedTransactions(), 2)
-	for i, tx := range mockClient.GetRecordedTransactions() {
+	// then two dc txs are broadcast plus one swap
+	require.Len(t, mockClient.GetRecordedTransactions(), 3)
+	for i, tx := range mockClient.GetRecordedTransactions()[0:2] {
 		dcTx := parseDcTx(t, tx)
 		require.NotNil(t, dcTx)
 		require.EqualValues(t, expectedDcNonce, dcTx.Nonce)
@@ -79,7 +95,7 @@ func TestBasicDustCollection(t *testing.T) {
 
 	// and expected swap is added to dc wait group
 	require.Len(t, w.dcWg.swaps, 1)
-	swap := w.dcWg.swaps[*util.BytesToUint256(expectedDcNonce)]
+	swap := w.dcWg.swaps[string(expectedDcNonce)]
 	require.EqualValues(t, expectedDcNonce, swap.dcNonce)
 	require.EqualValues(t, 3, swap.dcSum)
 	require.EqualValues(t, dcTimeoutBlockCount, swap.timeout)
@@ -119,7 +135,7 @@ func TestDustCollectionWithSwap(t *testing.T) {
 
 	// and expected swap is updated with swap timeout
 	require.Len(t, w.dcWg.swaps, 1)
-	swap := w.dcWg.swaps[*util.BytesToUint256(expectedDcNonce)]
+	swap := w.dcWg.swaps[string(expectedDcNonce)]
 	require.EqualValues(t, expectedDcNonce, swap.dcNonce)
 	require.EqualValues(t, 3, swap.dcSum)
 	require.EqualValues(t, swapTimeoutBlockCount, swap.timeout)
@@ -129,13 +145,14 @@ func TestSwapWithExistingDCBillsBeforeDCTimeout(t *testing.T) {
 	// create wallet with 2 dc bills
 	roundNr := uint64(5)
 	tempNonce := uint256.NewInt(1)
+	nonceBytes := util.Uint256ToBytes(tempNonce)
 	am, err := account.NewManager(t.TempDir(), "", true)
 	require.NoError(t, err)
 	_ = am.CreateKeys("")
 	k, _ := am.GetAccountKey(0)
-	bills := []*Bill{addDcBill(t, k, tempNonce, util.Uint256ToBytes(tempNonce), 1, dcTimeoutBlockCount), addDcBill(t, k, tempNonce, util.Uint256ToBytes(tempNonce), 2, dcTimeoutBlockCount)}
+	bills := []*Bill{addDcBill(t, k, tempNonce, nonceBytes, 1, dcTimeoutBlockCount), addDcBill(t, k, tempNonce, nonceBytes, 2, dcTimeoutBlockCount)}
 	billsList := createBillListJsonResponse(bills)
-	proofList := createBlockProofJsonResponse(t, bills, util.Uint256ToBytes(tempNonce), 0, dcTimeoutBlockCount, k)
+	proofList := createBlockProofJsonResponse(t, bills, nonceBytes, 0, dcTimeoutBlockCount, k)
 	w, mockClient := CreateTestWalletWithManager(t, &backendMockReturnConf{balance: 3, customBillList: billsList, proofList: proofList}, am)
 	// set specific round number
 	mockClient.SetMaxRoundNumber(roundNr)
@@ -148,15 +165,15 @@ func TestSwapWithExistingDCBillsBeforeDCTimeout(t *testing.T) {
 	require.Len(t, mockClient.GetRecordedTransactions(), 1)
 	txSwap := parseSwapTx(t, mockClient.GetRecordedTransactions()[0])
 	require.EqualValues(t, 3, txSwap.TargetValue)
-	require.EqualValues(t, [][]byte{util.Uint256ToBytes(tempNonce), util.Uint256ToBytes(tempNonce)}, txSwap.BillIdentifiers)
+	require.EqualValues(t, [][]byte{nonceBytes, nonceBytes}, txSwap.BillIdentifiers)
 	require.EqualValues(t, script.PredicatePayToPublicKeyHashDefault(k.PubKeyHash.Sha256), txSwap.OwnerCondition)
 	require.Len(t, txSwap.DcTransfers, 2)
 	require.Len(t, txSwap.Proofs, 2)
 
 	// and expected swap is updated with swap timeout + round number
 	require.Len(t, w.dcWg.swaps, 1)
-	swap := w.dcWg.swaps[*tempNonce]
-	require.EqualValues(t, util.Uint256ToBytes(tempNonce), swap.dcNonce)
+	swap := w.dcWg.swaps[string(nonceBytes)]
+	require.EqualValues(t, nonceBytes, swap.dcNonce)
 	require.EqualValues(t, 3, swap.dcSum)
 	require.EqualValues(t, swapTimeoutBlockCount+roundNr, swap.timeout)
 }
@@ -164,13 +181,14 @@ func TestSwapWithExistingDCBillsBeforeDCTimeout(t *testing.T) {
 func TestSwapWithExistingExpiredDCBills(t *testing.T) {
 	// create wallet with 2 timed out dc bills
 	tempNonce := uint256.NewInt(1)
+	nonceBytes := util.Uint256ToBytes(tempNonce)
 	am, err := account.NewManager(t.TempDir(), "", true)
 	require.NoError(t, err)
 	_ = am.CreateKeys("")
 	k, _ := am.GetAccountKey(0)
-	bills := []*Bill{addDcBill(t, k, tempNonce, util.Uint256ToBytes(tempNonce), 1, 0), addDcBill(t, k, tempNonce, util.Uint256ToBytes(tempNonce), 2, 0)}
+	bills := []*Bill{addDcBill(t, k, tempNonce, nonceBytes, 1, 0), addDcBill(t, k, tempNonce, nonceBytes, 2, 0)}
 	billsList := createBillListJsonResponse(bills)
-	proofList := createBlockProofJsonResponse(t, bills, util.Uint256ToBytes(tempNonce), 0, 0, k)
+	proofList := createBlockProofJsonResponse(t, bills, nonceBytes, 0, 0, k)
 	w, mockClient := CreateTestWalletWithManager(t, &backendMockReturnConf{balance: 3, customBillList: billsList, proofList: proofList}, am)
 
 	// when dc runs
@@ -181,15 +199,15 @@ func TestSwapWithExistingExpiredDCBills(t *testing.T) {
 	require.Len(t, mockClient.GetRecordedTransactions(), 1)
 	txSwap := parseSwapTx(t, mockClient.GetRecordedTransactions()[0])
 	require.EqualValues(t, 3, txSwap.TargetValue)
-	require.EqualValues(t, [][]byte{util.Uint256ToBytes(tempNonce), util.Uint256ToBytes(tempNonce)}, txSwap.BillIdentifiers)
+	require.EqualValues(t, [][]byte{nonceBytes, nonceBytes}, txSwap.BillIdentifiers)
 	require.EqualValues(t, script.PredicatePayToPublicKeyHashDefault(k.PubKeyHash.Sha256), txSwap.OwnerCondition)
 	require.Len(t, txSwap.DcTransfers, 2)
 	require.Len(t, txSwap.Proofs, 2)
 
 	// and expected swap is updated with swap timeout
 	require.Len(t, w.dcWg.swaps, 1)
-	swap := w.dcWg.swaps[*tempNonce]
-	require.EqualValues(t, util.Uint256ToBytes(tempNonce), swap.dcNonce)
+	swap := w.dcWg.swaps[string(nonceBytes)]
+	require.EqualValues(t, nonceBytes, swap.dcNonce)
 	require.EqualValues(t, 3, swap.dcSum)
 	require.EqualValues(t, swapTimeoutBlockCount, swap.timeout)
 }

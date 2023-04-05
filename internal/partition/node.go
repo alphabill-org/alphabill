@@ -577,6 +577,8 @@ func (n *Node) handleBlockProposal(prop *blockproposal.BlockProposal) error {
 
 func (n *Node) updateLUC(uc *certificates.UnicityCertificate) {
 	if n.luc != nil && uc.GetRoundNumber() <= n.luc.GetRoundNumber() {
+		logger.Debug("Update LUC, received UC ignored already have latest, LUC round %v received UC round %v",
+			n.luc.GetRoundNumber(), uc.GetRoundNumber())
 		return
 	}
 	n.luc = uc

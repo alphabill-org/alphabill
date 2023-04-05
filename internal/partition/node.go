@@ -596,7 +596,7 @@ func (n *Node) startNewRound(uc *certificates.UnicityCertificate) {
 	n.pendingBlockProposal = nil
 	// not a fatal issue, but log anyway
 	if err := n.blockStore.Delete(util.Uint32ToBytes(proposalKey)); err != nil {
-		logger.Debug("DB delete failed, %v", err)
+		logger.Debug("DB proposal delete failed, %v", err)
 	}
 	n.leaderSelector.UpdateLeader(uc)
 	n.startHandleOrForwardTransactions()

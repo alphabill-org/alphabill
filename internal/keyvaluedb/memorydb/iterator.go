@@ -32,9 +32,6 @@ func (it *Itr) Next() {
 		return
 	}
 	it.index++
-	if it.index >= len(it.keys) {
-		it.index = -1
-	}
 }
 func (it *Itr) Prev() {
 	if !it.Valid() {

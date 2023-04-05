@@ -260,7 +260,7 @@ func (v *Node) onCertificationResult(certificate *certificates.UnicityCertificat
 	for _, node := range subscribed {
 		if err := v.sendResponse(node, certificate); err != nil {
 			logger.Warning("%v send failed, %v", v.peer.String(), err)
+			v.subscription.SubscriberError(sysID, node)
 		}
-		v.subscription.SubscriberError(sysID, node)
 	}
 }

@@ -95,10 +95,10 @@ func (w *Wallet) NewNonFungibleType(ctx context.Context, accNr uint64, attrs *to
 	return w.newType(ctx, accNr, attrs, typeId, subtypePredicateArgs)
 }
 
-func (w *Wallet) NewFungibleToken(ctx context.Context, accNr uint64, typeId twb.TokenTypeID, amount uint64, mintPredicateArgs []*PredicateInput) (twb.TokenID, error) {
+func (w *Wallet) NewFungibleToken(ctx context.Context, accNr uint64, typeId twb.TokenTypeID, amount uint64, bearerPredicate twb.Predicate, mintPredicateArgs []*PredicateInput) (twb.TokenID, error) {
 	log.Info("Creating new fungible token")
 	attrs := &tokens.MintFungibleTokenAttributes{
-		Bearer:                           nil,
+		Bearer:                           bearerPredicate,
 		Type:                             typeId,
 		Value:                            amount,
 		TokenCreationPredicateSignatures: nil,

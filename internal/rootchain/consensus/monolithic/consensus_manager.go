@@ -84,10 +84,11 @@ func NewMonolithicConsensusManager(selfStr string, rg *genesis.RootGenesis, part
 		signer:       signer,
 		trustBase:    map[string]crypto.Verifier{selfStr: verifier},
 	}
-	var ctx context.Context
-	ctx, consensusManager.ctxCancel = context.WithCancel(context.Background())
-	go consensusManager.loop(ctx)
 	return consensusManager, nil
+}
+
+func (x *ConsensusManager) Start(ctx context.Context) {
+	go x.loop(ctx)
 }
 
 func (x *ConsensusManager) RequestCertification() chan<- consensus.IRChangeRequest {
@@ -96,11 +97,6 @@ func (x *ConsensusManager) RequestCertification() chan<- consensus.IRChangeReque
 
 func (x *ConsensusManager) CertificationResult() <-chan certificates.UnicityCertificate {
 	return x.certResultCh
-}
-
-func (x *ConsensusManager) Stop() {
-	x.ticker.Stop()
-	x.ctxCancel()
 }
 
 func (x *ConsensusManager) GetLatestUnicityCertificate(id p.SystemIdentifier) (*certificates.UnicityCertificate, error) {

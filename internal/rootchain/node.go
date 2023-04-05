@@ -59,18 +59,15 @@ func New(
 		net:              pNet,
 		consensusManager: cm,
 	}
-	var ctx context.Context
-	ctx, node.ctxCancel = context.WithCancel(context.Background())
-	// Start receiving messages from partition nodes
-	go node.loop(ctx)
-	// Start handling certification responses
-	go node.handleConsensus(ctx)
 	return node, nil
 }
 
-func (v *Node) Close() {
-	v.consensusManager.Stop()
-	v.ctxCancel()
+func (v *Node) Start(ctx context.Context) {
+	v.consensusManager.Start(ctx)
+	// Start receiving messages from partition nodes
+	go v.loop(ctx)
+	// Start handling certification responses
+	go v.handleConsensus(ctx)
 }
 
 // loop handles messages from different goroutines.

@@ -331,7 +331,7 @@ func addDcBill(t *testing.T, k *account.AccountKey, id *uint256.Int, nonce []byt
 }
 
 func verifyBlockHeight(t *testing.T, w *Wallet, blockHeight uint64) {
-	actualBlockHeight, _, err := w.AlphabillClient.GetMaxBlockNumber(context.Background())
+	actualBlockHeight, err := w.AlphabillClient.GetRoundNumber(context.Background())
 	require.NoError(t, err)
 	require.Equal(t, blockHeight, actualBlockHeight)
 }

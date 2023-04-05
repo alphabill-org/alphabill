@@ -99,14 +99,12 @@ func TestRunTokensNode(t *testing.T) {
 			DataUpdatePredicate:      script.PredicateAlwaysTrue(),
 		}))
 
-		response, err := rpcClient.ProcessTransaction(ctx, tx, grpc.WaitForReady(true))
+		_, err = rpcClient.ProcessTransaction(ctx, tx, grpc.WaitForReady(true))
 		require.NoError(t, err)
-		require.True(t, response.Ok, "Successful response ok should be true")
 
 		// failing case
 		tx.SystemId = []byte{1, 0, 0, 0} // incorrect system id
-		response, err = rpcClient.ProcessTransaction(ctx, tx, grpc.WaitForReady(true))
-		require.ErrorContains(t, err, "system identifier is invalid")
-		require.Nil(t, response, "expected nil response in case of error")
+		_, err = rpcClient.ProcessTransaction(ctx, tx, grpc.WaitForReady(true))
+		require.ErrorContains(t, err, "invalid transaction system identifier")
 	})
 }

@@ -14,14 +14,15 @@ import (
 	"github.com/alphabill-org/alphabill/pkg/wallet/log"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/protobuf/types/known/emptypb"
 )
 
 // ABClient manages connection to alphabill node and implements RPC methods
 type ABClient interface {
-	SendTransaction(ctx context.Context, tx *txsystem.Transaction) (*txsystem.TransactionResponse, error)
+	SendTransaction(ctx context.Context, tx *txsystem.Transaction) error
 	GetBlock(ctx context.Context, blockNumber uint64) (*block.Block, error)
 	GetBlocks(ctx context.Context, blockNumber, blockCount uint64) (*alphabill.GetBlocksResponse, error)
-	GetMaxBlockNumber(ctx context.Context) (uint64, uint64, error) // latest persisted block number, latest round number
+	GetRoundNumber(ctx context.Context) (uint64, error)
 	Shutdown() error
 }
 
@@ -44,14 +45,15 @@ func New(config AlphabillClientConfig) *AlphabillClient {
 	return &AlphabillClient{config: config}
 }
 
-func (c *AlphabillClient) SendTransaction(ctx context.Context, tx *txsystem.Transaction) (*txsystem.TransactionResponse, error) {
+func (c *AlphabillClient) SendTransaction(ctx context.Context, tx *txsystem.Transaction) error {
 	defer trackExecutionTime(time.Now(), "sending transaction")
 
 	if err := c.connect(); err != nil {
-		return nil, err
+		return err
 	}
 
-	return c.client.ProcessTransaction(ctx, tx)
+	_, err := c.client.ProcessTransaction(ctx, tx)
+	return err
 }
 
 func (c *AlphabillClient) GetBlock(ctx context.Context, blockNumber uint64) (*block.Block, error) {
@@ -64,9 +66,6 @@ func (c *AlphabillClient) GetBlock(ctx context.Context, blockNumber uint64) (*bl
 	res, err := c.client.GetBlock(ctx, &alphabill.GetBlockRequest{BlockNo: blockNumber})
 	if err != nil {
 		return nil, err
-	}
-	if res.ErrorMessage != "" {
-		return nil, errors.New(res.ErrorMessage)
 	}
 	return res.Block, nil
 }
@@ -89,27 +88,21 @@ func (c *AlphabillClient) GetBlocks(ctx context.Context, blockNumber uint64, blo
 	if err != nil {
 		return nil, err
 	}
-	if res.ErrorMessage != "" {
-		return nil, errors.New(res.ErrorMessage)
-	}
 	return res, nil
 }
 
-func (c *AlphabillClient) GetMaxBlockNumber(ctx context.Context) (uint64, uint64, error) {
-	defer trackExecutionTime(time.Now(), "fetching max block number")
+func (c *AlphabillClient) GetRoundNumber(ctx context.Context) (uint64, error) {
+	defer trackExecutionTime(time.Now(), "fetching round number")
 
 	if err := c.connect(); err != nil {
-		return 0, 0, err
+		return 0, err
 	}
 
-	res, err := c.client.GetMaxBlockNo(ctx, &alphabill.GetMaxBlockNoRequest{})
+	res, err := c.client.GetRoundNumber(ctx, &emptypb.Empty{})
 	if err != nil {
-		return 0, 0, err
+		return 0, err
 	}
-	if res.ErrorMessage != "" {
-		return 0, 0, errors.New(res.ErrorMessage)
-	}
-	return res.BlockNo, res.MaxRoundNumber, nil
+	return res.RoundNumber, nil
 }
 
 func (c *AlphabillClient) Shutdown() error {

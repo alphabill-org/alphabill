@@ -17,6 +17,7 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/anypb"
+	"google.golang.org/protobuf/types/known/emptypb"
 )
 
 /*
@@ -69,11 +70,11 @@ func main() {
 		}
 	}()
 	txClient := alphabill.NewAlphabillServiceClient(conn)
-	res, err := txClient.GetMaxBlockNo(ctx, &alphabill.GetMaxBlockNoRequest{})
+	res, err := txClient.GetRoundNumber(ctx, &emptypb.Empty{})
 	if err != nil {
 		log.Fatal(err)
 	}
-	absoluteTimeout := res.BlockNo + *timeout
+	absoluteTimeout := res.RoundNumber + *timeout
 
 	// create tx
 	tx, err := createTransferTx(pubKey, billId, *billValue, absoluteTimeout)
@@ -82,15 +83,10 @@ func main() {
 	}
 
 	// send tx
-	txResponse, err := txClient.ProcessTransaction(ctx, tx)
-	if err != nil {
+	if _, err := txClient.ProcessTransaction(ctx, tx); err != nil {
 		log.Fatal(err)
 	}
-	if txResponse.Ok {
-		log.Println("successfully sent transaction")
-	} else {
-		log.Fatalf("failed to send transaction %v", txResponse.Message)
-	}
+	log.Println("successfully sent transaction")
 }
 
 func createTransferTx(pubKey []byte, billId []byte, billValue uint64, timeout uint64) (*txsystem.Transaction, error) {

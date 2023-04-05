@@ -101,7 +101,7 @@ func (v *VDClient) FetchBlockWithHash(hash []byte, blockNumber uint64) error {
 func (v *VDClient) ListAllBlocksWithTx() error {
 	defer v.shutdown()
 	log.Info("Fetching blocks...")
-	maxBlockNumber, _, err := v.abClient.GetMaxBlockNumber(context.Background())
+	maxBlockNumber, err := v.abClient.GetRoundNumber(context.Background())
 	if err != nil {
 		return err
 	}
@@ -121,7 +121,7 @@ func (v *VDClient) registerHashTx(ctx context.Context, hash []byte) error {
 		return err
 	}
 
-	_, currentRoundNumber, err := v.abClient.GetMaxBlockNumber(ctx)
+	currentRoundNumber, err := v.abClient.GetRoundNumber(ctx)
 	if err != nil {
 		return err
 	}
@@ -132,12 +132,9 @@ func (v *VDClient) registerHashTx(ctx context.Context, hash []byte) error {
 	if err != nil {
 		return err
 	}
-	resp, err := v.abClient.SendTransaction(ctx, tx)
-	if err != nil {
-		return err
-	}
-	if !resp.GetOk() {
-		return fmt.Errorf("error while submitting the hash: %s", resp.GetMessage())
+
+	if err := v.abClient.SendTransaction(ctx, tx); err != nil {
+		return fmt.Errorf("error while submitting the hash: %w", err)
 	}
 	log.Info("Hash successfully submitted, timeout block: ", timeout)
 

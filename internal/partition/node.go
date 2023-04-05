@@ -449,7 +449,7 @@ func (n *Node) handleTxMessage(m network.ReceivedMessage) error {
 }
 
 func (n *Node) handleOrForwardTransaction(tx txsystem.GenericTransaction) bool {
-	rn := n.luc.InputRecord.RoundNumber + 1
+	rn := n.getCurrentRound()
 	if err := n.txValidator.Validate(tx, rn); err != nil {
 		logger.Warning("Received invalid transaction: %v", err)
 		return true
@@ -531,17 +531,17 @@ func (n *Node) handleBlockProposal(prop *blockproposal.BlockProposal) error {
 	// verify proposal unicity certificate, must not be older than latest seen received by the node
 	uc := prop.UnicityCertificate
 	// UC must be newer than the last one seen
-	if uc.InputRecord.RoundNumber < n.luc.InputRecord.RoundNumber {
+	if uc.GetRoundNumber() < n.luc.GetRoundNumber() {
 		return fmt.Errorf("received UC is older, uc round %v, luc round %v",
-			uc.InputRecord.RoundNumber, n.luc.InputRecord.RoundNumber)
+			uc.GetRoundNumber(), n.luc.GetRoundNumber())
 	}
 	expectedLeader := n.leaderSelector.LeaderFunc(uc)
 	if expectedLeader == UnknownLeader || prop.NodeIdentifier != expectedLeader.String() {
 		return fmt.Errorf("invalid node identifier. leader from UC: %v, request leader: %v", expectedLeader, prop.NodeIdentifier)
 	}
-	if uc.InputRecord.RoundNumber > n.luc.InputRecord.RoundNumber {
+	if uc.GetRoundNumber() > n.luc.GetRoundNumber() {
 		// either the other node received it faster from root or there must be some issue with root communication?
-		logger.Debug("Received newer UC round nr %v via block proposal, LUC round %v", uc.InputRecord.RoundNumber, n.luc.InputRecord.RoundNumber)
+		logger.Debug("Received newer UC round nr %v via block proposal, LUC round %v", uc.GetRoundNumber(), n.luc.GetRoundNumber())
 		// just to be sure, subscribe to root chain again, this may result in a duplicate UC received
 		n.sendHandshake()
 		if err = n.handleUnicityCertificate(uc); err != nil {
@@ -557,7 +557,7 @@ func (n *Node) handleBlockProposal(prop *blockproposal.BlockProposal) error {
 	if !bytes.Equal(prevHash, txState.Root()) {
 		return fmt.Errorf("tx system start state mismatch error, expected: %X, got: %X", txState.Root(), prevHash)
 	}
-	n.transactionSystem.BeginBlock(n.luc.InputRecord.RoundNumber + 1)
+	n.transactionSystem.BeginBlock(n.getCurrentRound())
 	for _, tx := range prop.Transactions {
 		genTx, err := n.transactionSystem.ConvertTx(tx)
 		if err != nil {
@@ -575,11 +575,11 @@ func (n *Node) handleBlockProposal(prop *blockproposal.BlockProposal) error {
 }
 
 func (n *Node) updateLUC(uc *certificates.UnicityCertificate) {
-	if n.luc != nil && uc.InputRecord.RoundNumber <= n.luc.InputRecord.RoundNumber {
+	if n.luc != nil && uc.GetRoundNumber() <= n.luc.GetRoundNumber() {
 		return
 	}
 	n.luc = uc
-	logger.Debug("Updated LUC, round: %v", n.luc.InputRecord.RoundNumber)
+	logger.Debug("Updated LUC, round: %v", n.luc.GetRoundNumber())
 	n.sendEvent(event.LatestUnicityCertificateUpdated, uc)
 }
 
@@ -609,14 +609,14 @@ func (n *Node) startRecovery(uc *certificates.UnicityCertificate) {
 	n.updateLUC(uc)
 	if n.status == recovering {
 		// already recovering, but if uc is newer than luc, let's update luc
-		logger.Debug("Recovery already in progress, recovering to %v", n.luc.InputRecord.RoundNumber)
+		logger.Debug("Recovery already in progress, recovering to %v", n.luc.GetRoundNumber())
 		return
 	}
 	// starting recovery
 	n.revertState()
 	n.status = recovering
 	n.stopForwardingOrHandlingTransactions()
-	logger.Debug("Entering recovery state, recover node up to %v", n.luc.InputRecord.RoundNumber)
+	logger.Debug("Entering recovery state, recover node up to %v", n.luc.GetRoundNumber())
 	fromBlockNr := n.lastStoredBlock.UnicityCertificate.InputRecord.RoundNumber + 1
 	n.sendEvent(event.RecoveryStarted, fromBlockNr)
 	n.sendLedgerReplicationRequest(fromBlockNr)
@@ -1053,7 +1053,7 @@ func (n *Node) sendCertificationRequest() error {
 	summary := state.Summary()
 
 	pendingProposal := &block.GenericPendingBlockProposal{
-		RoundNumber:  n.luc.InputRecord.RoundNumber + 1,
+		RoundNumber:  n.getCurrentRound(),
 		PrevHash:     prevStateHash,
 		StateHash:    stateHash,
 		Transactions: n.proposedTransactions,
@@ -1102,7 +1102,7 @@ func (n *Node) SubmitTx(tx *txsystem.Transaction) error {
 	if err != nil {
 		return err
 	}
-	rn := n.luc.InputRecord.RoundNumber + 1
+	rn := n.getCurrentRound()
 	if err != nil {
 		return err
 	}

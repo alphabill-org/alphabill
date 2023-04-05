@@ -240,7 +240,7 @@ func (x *ConsensusManager) generateUnicityCertificates(round uint64) (map[p.Syst
 		logger.Info("Round %v, no IR changes", round)
 		// persist new round
 		if err := x.stateStore.Update(round, nil); err != nil {
-			return nil, fmt.Errorf("round %v failed to persist new root state, %w", round, err)
+			return nil, fmt.Errorf("round %v failed to persist new root round, %w", round, err)
 		}
 		return nil, nil
 	}

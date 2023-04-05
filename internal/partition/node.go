@@ -535,7 +535,7 @@ func (n *Node) handleBlockProposal(prop *blockproposal.BlockProposal) error {
 		return fmt.Errorf("received UC is older, uc round %v, luc round %v",
 			uc.InputRecord.RoundNumber, n.luc.InputRecord.RoundNumber)
 	}
-	expectedLeader := n.leaderSelector.LeaderFromUnicitySeal(uc)
+	expectedLeader := n.leaderSelector.LeaderFunc(uc)
 	if expectedLeader == UnknownLeader || prop.NodeIdentifier != expectedLeader.String() {
 		return fmt.Errorf("invalid node identifier. leader from UC: %v, request leader: %v", expectedLeader, prop.NodeIdentifier)
 	}

@@ -240,7 +240,7 @@ func TestGetGenesisBlock(t *testing.T) {
 type mockLeaderSelector struct {
 }
 
-func (m mockLeaderSelector) LeaderFromUnicitySeal(uc *certificates.UnicityCertificate) peer.ID {
+func (m mockLeaderSelector) LeaderFunc(uc *certificates.UnicityCertificate) peer.ID {
 	return ""
 }
 

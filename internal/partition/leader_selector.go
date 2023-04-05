@@ -7,7 +7,6 @@ import (
 
 	"github.com/alphabill-org/alphabill/internal/certificates"
 	"github.com/alphabill-org/alphabill/internal/network"
-	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/holiman/uint256"
 	"github.com/libp2p/go-libp2p/core/peer"
 )
@@ -20,8 +19,8 @@ const (
 
 type (
 	LeaderSelector interface {
-		UpdateLeader(seal *certificates.UnicityCertificate)
-		LeaderFromUnicitySeal(seal *certificates.UnicityCertificate) peer.ID
+		UpdateLeader(uc *certificates.UnicityCertificate)
+		LeaderFunc(uc *certificates.UnicityCertificate) peer.ID
 		IsCurrentNodeLeader() bool
 		GetLeaderID() peer.ID
 		SelfID() peer.ID
@@ -68,21 +67,20 @@ func (l *DefaultLeaderSelector) GetLeaderID() peer.ID {
 func (l *DefaultLeaderSelector) UpdateLeader(uc *certificates.UnicityCertificate) {
 	l.mutex.Lock()
 	defer l.mutex.Unlock()
-	l.leader = l.LeaderFromUnicitySeal(uc)
+	l.leader = l.LeaderFunc(uc)
 	logger.Debug("Leader set to '%v'", l.leader)
 }
 
-func (l *DefaultLeaderSelector) LeaderFromUnicitySeal(uc *certificates.UnicityCertificate) peer.ID {
+// LeaderFunc calculates new leader from Unicity Certificate
+// For details see Yellowpaper Algorithm 1 "State and Initialization" - "function leaderfunc(uc)" description
+func (l *DefaultLeaderSelector) LeaderFunc(uc *certificates.UnicityCertificate) peer.ID {
 	// We don't need the lock because we don't change the state of the struct.
 	if uc == nil {
 		return UnknownLeader
 	}
 	peerCount := uint64(len(l.self.Configuration().PersistentPeers))
 	hasher := crypto.SHA256.New()
-	hasher.Write(util.Uint64ToBytes(uc.UnicitySeal.RootChainRoundNumber))
-	hasher.Write(uc.UnicitySeal.Hash)
-	hasher.Write(l.systemIdentifier)
-	hasher.Write(uc.InputRecord.Bytes())
+	hasher.Write(uc.Bytes())
 	hash := hasher.Sum(nil)
 	x := uint256.NewInt(0).SetBytes(hash)
 	i := uint256.NewInt(0)

@@ -274,7 +274,7 @@ func newFungibleTransferTxAttrs(token *twb.TokenUnit, receiverPubKey []byte) *tt
 	log.Info(fmt.Sprintf("Creating transfer with bl=%X", token.TxHash))
 	return &ttxs.TransferFungibleTokenAttributes{
 		Type:                         token.TypeID,
-		NewBearer:                    bearerPredicateFromPubKey(receiverPubKey),
+		NewBearer:                    BearerPredicateFromPubKey(receiverPubKey),
 		Value:                        token.Amount,
 		Backlink:                     token.TxHash,
 		InvariantPredicateSignatures: nil,
@@ -285,7 +285,7 @@ func newNonFungibleTransferTxAttrs(token *twb.TokenUnit, receiverPubKey []byte) 
 	log.Info(fmt.Sprintf("Creating NFT transfer with bl=%X", token.TxHash))
 	return &ttxs.TransferNonFungibleTokenAttributes{
 		NftType:                      token.TypeID,
-		NewBearer:                    bearerPredicateFromPubKey(receiverPubKey),
+		NewBearer:                    BearerPredicateFromPubKey(receiverPubKey),
 		Backlink:                     token.TxHash,
 		InvariantPredicateSignatures: nil,
 	}
@@ -298,7 +298,7 @@ func bearerPredicateFromHash(receiverPubKeyHash []byte) twb.Predicate {
 	return script.PredicateAlwaysTrue()
 }
 
-func bearerPredicateFromPubKey(receiverPubKey twb.PubKey) twb.Predicate {
+func BearerPredicateFromPubKey(receiverPubKey twb.PubKey) twb.Predicate {
 	var h []byte
 	if receiverPubKey != nil {
 		h = hash.Sum256(receiverPubKey)
@@ -310,7 +310,7 @@ func newSplitTxAttrs(token *twb.TokenUnit, amount uint64, receiverPubKey []byte)
 	log.Info(fmt.Sprintf("Creating split with bl=%X, new value=%v", token.TxHash, amount))
 	return &ttxs.SplitFungibleTokenAttributes{
 		Type:                         token.TypeID,
-		NewBearer:                    bearerPredicateFromPubKey(receiverPubKey),
+		NewBearer:                    BearerPredicateFromPubKey(receiverPubKey),
 		TargetValue:                  amount,
 		RemainingValue:               token.Amount - amount,
 		Backlink:                     token.TxHash,

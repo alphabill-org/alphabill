@@ -148,7 +148,6 @@ func (x *ConsensusManager) onIRChangeReq(req *consensus.IRChangeRequest) error {
 			return fmt.Errorf("error invalid quorum proof, no requests")
 		}
 		newInputRecord = req.Requests[0].InputRecord
-		break
 	case consensus.QuorumNotPossible:
 		luc, err := x.stateStore.GetCertificate(req.SystemIdentifier)
 		if err != nil {
@@ -156,7 +155,6 @@ func (x *ConsensusManager) onIRChangeReq(req *consensus.IRChangeRequest) error {
 		}
 		// repeat UC, ignore error here as we found the luc, and it cannot be nil
 		newInputRecord, _ = certificates.NewRepeatInputRecord(luc.InputRecord)
-		break
 	default:
 		return fmt.Errorf("invalid certfification reason %v", req.Reason)
 	}

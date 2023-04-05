@@ -1005,7 +1005,7 @@ func (n *Node) sendLedgerReplicationRequest(startingBlockNr uint64) {
 		// log every failed attempt?
 		logger.Debug("Error sending ledger replication request: %s", err)
 	}
-	if requestSent == false {
+	if !requestSent {
 		logger.Warning("Error sending ledger replication request, all peers down")
 		return
 	}

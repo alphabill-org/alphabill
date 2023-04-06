@@ -8,10 +8,10 @@ import (
 
 	"github.com/alphabill-org/alphabill/internal/certificates"
 	"github.com/alphabill-org/alphabill/internal/crypto"
+	"github.com/alphabill-org/alphabill/internal/keyvaluedb/memorydb"
 	"github.com/alphabill-org/alphabill/internal/network"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
-	"github.com/alphabill-org/alphabill/internal/partition/store"
-	"github.com/alphabill-org/alphabill/internal/rootchain"
+	rootgenesis "github.com/alphabill-org/alphabill/internal/rootchain/genesis"
 	testnetwork "github.com/alphabill-org/alphabill/internal/testutils/network"
 	test "github.com/alphabill-org/alphabill/internal/testutils/peer"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
@@ -105,7 +105,7 @@ func TestLoadConfigurationWithDefaultValues_Ok(t *testing.T) {
 func TestLoadConfigurationWithOptions_Ok(t *testing.T) {
 	p := test.CreatePeer(t)
 	signer, verifier := testsig.CreateSignerAndVerifier(t)
-	blockStore := &store.InMemoryBlockStore{}
+	blockStore := memorydb.New()
 	selector := &mockLeaderSelector{}
 	ctx := context.Background()
 	t1Timeout := 250 * time.Millisecond
@@ -131,9 +131,9 @@ func createPartitionGenesis(t *testing.T, nodeSigningKey crypto.Signer, nodeEncr
 	_, encPubKey := testsig.CreateSignerAndVerifier(t)
 	rootPubKeyBytes, err := encPubKey.MarshalPublicKey()
 	require.NoError(t, err)
-	pr, err := rootchain.NewPartitionRecordFromNodes([]*genesis.PartitionNode{pn})
+	pr, err := rootgenesis.NewPartitionRecordFromNodes([]*genesis.PartitionNode{pn})
 	require.NoError(t, err)
-	_, pg, err := rootchain.NewRootGenesis("test", rootSigner, rootPubKeyBytes, pr)
+	_, pg, err := rootgenesis.NewRootGenesis("test", rootSigner, rootPubKeyBytes, pr)
 	require.NoError(t, err)
 	return pg[0]
 }
@@ -225,7 +225,7 @@ func TestGetPublicKey_NotFound(t *testing.T) {
 	conf, err := loadAndValidateConfiguration(p, signer, pg, &testtxsystem.CounterTxSystem{}, testnetwork.NewMockNetwork())
 	require.NoError(t, err)
 	_, err = conf.GetSigningPublicKey("1")
-	require.ErrorContains(t, err, "public key with node id 1 not found")
+	require.ErrorContains(t, err, "public key for id 1 not found")
 }
 
 func TestGetGenesisBlock(t *testing.T) {
@@ -240,11 +240,11 @@ func TestGetGenesisBlock(t *testing.T) {
 type mockLeaderSelector struct {
 }
 
-func (m mockLeaderSelector) LeaderFromUnicitySeal(seal *certificates.UnicitySeal) peer.ID {
+func (m mockLeaderSelector) LeaderFunc(uc *certificates.UnicityCertificate) peer.ID {
 	return ""
 }
 
-func (m mockLeaderSelector) UpdateLeader(*certificates.UnicitySeal) {
+func (m mockLeaderSelector) UpdateLeader(*certificates.UnicityCertificate) {
 }
 
 func (m mockLeaderSelector) IsCurrentNodeLeader() bool {

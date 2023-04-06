@@ -6,7 +6,6 @@ option go_package = "github.com/alphabill-org/alphabill/internal/network/protoco
 message BlockCertificationRequest {
   bytes system_identifier = 1;
   string node_identifier = 2;
-  uint64 root_round_number = 3;
-  InputRecord input_record = 4;
-  bytes signature = 5;
+  InputRecord input_record = 3;
+  bytes signature = 4;
 }

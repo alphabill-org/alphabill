@@ -9,6 +9,7 @@ import (
 
 type MockNet struct {
 	mutex        sync.Mutex
+	err          error
 	MessageCh    chan network.ReceivedMessage
 	sentMessages map[string][]PeerMessage
 }
@@ -28,6 +29,10 @@ func NewMockNetwork() *MockNet {
 func (m *MockNet) Send(msg network.OutputMessage, receivers []peer.ID) error {
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
+	// mock send error
+	if m.err != nil {
+		return m.err
+	}
 	messages := m.sentMessages[msg.Protocol]
 	for _, r := range receivers {
 		messages = append(messages, PeerMessage{
@@ -37,6 +42,10 @@ func (m *MockNet) Send(msg network.OutputMessage, receivers []peer.ID) error {
 	}
 	m.sentMessages[msg.Protocol] = messages
 	return nil
+}
+
+func (m *MockNet) SetErrorState(err error) {
+	m.err = err
 }
 
 func (m *MockNet) SentMessages(protocol string) []PeerMessage {

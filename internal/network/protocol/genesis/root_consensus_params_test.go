@@ -2,7 +2,6 @@ package genesis
 
 import (
 	gocrypto "crypto"
-	"strings"
 	"testing"
 
 	"github.com/alphabill-org/alphabill/internal/crypto"
@@ -19,14 +18,11 @@ const (
 )
 
 func TestConsensusParams_HashSignaturesAreIgnored(t *testing.T) {
-	testConsensusTimeout := consensusTimeout
-	testQuorum := quorum
-
 	x := &ConsensusParams{
 		TotalRootValidators: totalNodes,
 		BlockRateMs:         blockRate,
-		ConsensusTimeoutMs:  &testConsensusTimeout,
-		QuorumThreshold:     &testQuorum,
+		ConsensusTimeoutMs:  consensusTimeout,
+		QuorumThreshold:     quorum,
 		HashAlgorithm:       uint32(gocrypto.SHA256),
 		Signatures:          make(map[string][]byte),
 	}
@@ -40,99 +36,24 @@ func TestConsensusParams_HashSignaturesAreIgnored(t *testing.T) {
 
 // Probably too pointless, maybe remove
 func TestConsensusParams_HashFieldsIncluded(t *testing.T) {
-	testConsensusTimeout := consensusTimeout
-	testQuorum := quorum
-
 	x := &ConsensusParams{
 		TotalRootValidators: 4,
 		BlockRateMs:         blockRate,
-		ConsensusTimeoutMs:  &testConsensusTimeout,
-		QuorumThreshold:     &testQuorum,
+		ConsensusTimeoutMs:  consensusTimeout,
+		QuorumThreshold:     quorum,
 		HashAlgorithm:       hashAlgo,
-		Signatures:          make(map[string][]byte),
+		Signatures:          map[string][]byte{},
 	}
-	// calc hash
-	cBytes := x.Bytes()
-
-	type fields struct {
-		TotalRootValidators uint32
-		BlockRateMs         uint32
-		ConsensusTimeoutMs  uint32
-		QuorumThreshold     uint32
-		HashAlgorithm       uint32
-		Signatures          map[string][]byte
+	// serialized form
+	serialized := []byte{
+		0, 0, 0, 4, // total 4 nodes as uint32
+		0, 0, 0x03, 0x84, // block rate 900 as uint32
+		0, 0, 0x27, 0x10, // local timeout 10000 as uint32
+		0, 0, 0, 3, // quorum 3 as uint32
+		0, 0, 0, 5, // hash algorithm SHA256 as uint32
 	}
-	tests := []struct {
-		name   string
-		refB   []byte
-		fields fields
-	}{
-		{
-			name: "Different total nodes",
-			refB: cBytes,
-			fields: fields{
-				TotalRootValidators: 1,
-				BlockRateMs:         blockRate,
-				ConsensusTimeoutMs:  consensusTimeout,
-				QuorumThreshold:     quorum,
-				HashAlgorithm:       hashAlgo},
-		},
-		{
-			name: "Different block rate",
-			refB: cBytes,
-			fields: fields{
-				TotalRootValidators: totalNodes,
-				BlockRateMs:         1000,
-				ConsensusTimeoutMs:  consensusTimeout,
-				QuorumThreshold:     quorum,
-				HashAlgorithm:       hashAlgo},
-		},
-		{
-			name: "Different consensus timeout",
-			refB: cBytes,
-			fields: fields{
-				TotalRootValidators: totalNodes,
-				BlockRateMs:         blockRate,
-				ConsensusTimeoutMs:  5000,
-				QuorumThreshold:     quorum,
-				HashAlgorithm:       hashAlgo},
-		},
-		{
-			name: "Different quorum",
-			refB: cBytes,
-			fields: fields{
-				TotalRootValidators: totalNodes,
-				BlockRateMs:         blockRate,
-				ConsensusTimeoutMs:  consensusTimeout,
-				QuorumThreshold:     4,
-				HashAlgorithm:       hashAlgo},
-		},
-		{
-			name: "Different hash",
-			refB: cBytes,
-			fields: fields{
-				TotalRootValidators: totalNodes,
-				BlockRateMs:         blockRate,
-				ConsensusTimeoutMs:  consensusTimeout,
-				QuorumThreshold:     quorum,
-				HashAlgorithm:       1,
-			},
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			x := &ConsensusParams{
-				TotalRootValidators: tt.fields.TotalRootValidators,
-				BlockRateMs:         tt.fields.BlockRateMs,
-				ConsensusTimeoutMs:  &tt.fields.ConsensusTimeoutMs,
-				QuorumThreshold:     &tt.fields.QuorumThreshold,
-				HashAlgorithm:       tt.fields.HashAlgorithm,
-				Signatures:          tt.fields.Signatures,
-			}
-			// require hash not equal
-			require.NotEqual(t, cBytes, x.Bytes())
-		})
-	}
+	// require hash not equal
+	require.Equal(t, serialized, x.Bytes())
 }
 
 func TestConsensusParams_IsValid(t *testing.T) {
@@ -157,17 +78,7 @@ func TestConsensusParams_IsValid(t *testing.T) {
 				ConsensusTimeoutMs:  consensusTimeout,
 				QuorumThreshold:     quorum,
 				HashAlgorithm:       hashAlgo},
-			wantErr: ErrInvalidNumberOfRootValidators,
-		},
-		{
-			name: "Total root nodes 3",
-			fields: fields{
-				TotalRootValidators: 3,
-				BlockRateMs:         blockRate,
-				ConsensusTimeoutMs:  consensusTimeout,
-				QuorumThreshold:     quorum,
-				HashAlgorithm:       hashAlgo},
-			wantErr: ErrInvalidNumberOfRootValidators,
+			wantErr: ErrInvalidNumberOfRootValidators.Error(),
 		},
 		{
 			name: "Unknown hash algorithm",
@@ -177,7 +88,7 @@ func TestConsensusParams_IsValid(t *testing.T) {
 				ConsensusTimeoutMs:  consensusTimeout,
 				QuorumThreshold:     quorum,
 				HashAlgorithm:       666},
-			wantErr: ErrUnknownHashAlgorithm,
+			wantErr: ErrUnknownHashAlgorithm.Error(),
 		},
 		{
 			name: "Quorum too low",
@@ -187,7 +98,7 @@ func TestConsensusParams_IsValid(t *testing.T) {
 				ConsensusTimeoutMs:  consensusTimeout,
 				QuorumThreshold:     1,
 				HashAlgorithm:       hashAlgo},
-			wantErr: ErrInvalidQuorumThreshold,
+			wantErr: "quorum threshold set too low 1, must be at least 3",
 		},
 		{
 			name: "Quorum too high",
@@ -195,9 +106,9 @@ func TestConsensusParams_IsValid(t *testing.T) {
 				TotalRootValidators: totalNodes,
 				BlockRateMs:         blockRate,
 				ConsensusTimeoutMs:  consensusTimeout,
-				QuorumThreshold:     1,
+				QuorumThreshold:     totalNodes + 1,
 				HashAlgorithm:       hashAlgo},
-			wantErr: ErrInvalidQuorumThreshold,
+			wantErr: "quorum threshold set higher 5 than number of validators in root chain 4",
 		},
 		{
 			name: "Invalid consensus timeout",
@@ -207,7 +118,7 @@ func TestConsensusParams_IsValid(t *testing.T) {
 				ConsensusTimeoutMs:  blockRate - 1,
 				QuorumThreshold:     quorum,
 				HashAlgorithm:       hashAlgo},
-			wantErr: ErrInvalidConsensusTimeout,
+			wantErr: ErrInvalidConsensusTimeout.Error(),
 		},
 		{
 			name: "Invalid block rate",
@@ -217,7 +128,7 @@ func TestConsensusParams_IsValid(t *testing.T) {
 				ConsensusTimeoutMs:  consensusTimeout,
 				QuorumThreshold:     quorum,
 				HashAlgorithm:       hashAlgo},
-			wantErr: ErrBlockRateTooSmall,
+			wantErr: ErrBlockRateTooSmall.Error(),
 		},
 	}
 	for _, tt := range tests {
@@ -225,8 +136,8 @@ func TestConsensusParams_IsValid(t *testing.T) {
 			x := &ConsensusParams{
 				TotalRootValidators: tt.fields.TotalRootValidators,
 				BlockRateMs:         tt.fields.BlockRateMs,
-				ConsensusTimeoutMs:  &tt.fields.ConsensusTimeoutMs,
-				QuorumThreshold:     &tt.fields.QuorumThreshold,
+				ConsensusTimeoutMs:  tt.fields.ConsensusTimeoutMs,
+				QuorumThreshold:     tt.fields.QuorumThreshold,
 				HashAlgorithm:       tt.fields.HashAlgorithm,
 				Signatures:          tt.fields.Signatures,
 			}
@@ -253,12 +164,27 @@ func TestGetMinQuorumThreshold(t *testing.T) {
 		{
 			name: "total number 2",
 			args: args{totalRootValidators: 2},
-			want: 0,
+			want: 2,
 		},
 		{
 			name: "total number 4",
 			args: args{totalRootValidators: 4},
 			want: 3,
+		},
+		{
+			name: "total number 7",
+			args: args{totalRootValidators: 7},
+			want: 5,
+		},
+		{
+			name: "total number 10",
+			args: args{totalRootValidators: 10},
+			want: 7,
+		},
+		{
+			name: "total number 30",
+			args: args{totalRootValidators: 30},
+			want: 21,
 		},
 	}
 	for _, tt := range tests {
@@ -275,8 +201,8 @@ func TestConsensusSignAndVerify_Ok(t *testing.T) {
 	x := &ConsensusParams{
 		TotalRootValidators: 4,
 		BlockRateMs:         blockRate,
-		ConsensusTimeoutMs:  nil,
-		QuorumThreshold:     nil,
+		ConsensusTimeoutMs:  DefaultConsensusTimeout,
+		QuorumThreshold:     GetMinQuorumThreshold(4),
 		HashAlgorithm:       hashAlgo,
 	}
 	err := x.Sign("test", signer)
@@ -291,14 +217,14 @@ func TestConsensusVerify_SignatureIsNil(t *testing.T) {
 	x := &ConsensusParams{
 		TotalRootValidators: 4,
 		BlockRateMs:         blockRate,
-		ConsensusTimeoutMs:  nil,
-		QuorumThreshold:     nil,
+		ConsensusTimeoutMs:  DefaultConsensusTimeout,
+		QuorumThreshold:     GetMinQuorumThreshold(4),
 		HashAlgorithm:       hashAlgo,
 		Signatures:          nil,
 	}
 	verifiers := map[string]crypto.Verifier{"test": ver}
 	err := x.Verify(verifiers)
-	require.ErrorContains(t, err, ErrConsensusNotSigned)
+	require.ErrorContains(t, err, "consensus parameters is not signed by all validators")
 }
 
 func TestConsensusIsValid_InvalidSignature(t *testing.T) {
@@ -306,8 +232,8 @@ func TestConsensusIsValid_InvalidSignature(t *testing.T) {
 	x := &ConsensusParams{
 		TotalRootValidators: 4,
 		BlockRateMs:         blockRate,
-		ConsensusTimeoutMs:  nil,
-		QuorumThreshold:     nil,
+		ConsensusTimeoutMs:  DefaultConsensusTimeout,
+		QuorumThreshold:     GetMinQuorumThreshold(4),
 		HashAlgorithm:       hashAlgo,
 		Signatures:          map[string][]byte{"test": {0, 0}},
 	}
@@ -315,7 +241,7 @@ func TestConsensusIsValid_InvalidSignature(t *testing.T) {
 	verifiers := map[string]crypto.Verifier{"test": verifier}
 
 	err := x.Verify(verifiers)
-	require.True(t, strings.Contains(err.Error(), "invalid consensus signature"))
+	require.ErrorContains(t, err, "consensus parameters signature verification error")
 }
 
 func TestConsensusVerify_UnknownSigner(t *testing.T) {
@@ -323,33 +249,48 @@ func TestConsensusVerify_UnknownSigner(t *testing.T) {
 	x := &ConsensusParams{
 		TotalRootValidators: 4,
 		BlockRateMs:         blockRate,
-		ConsensusTimeoutMs:  nil,
-		QuorumThreshold:     nil,
+		ConsensusTimeoutMs:  DefaultConsensusTimeout,
+		QuorumThreshold:     GetMinQuorumThreshold(4),
 		HashAlgorithm:       hashAlgo,
 		Signatures:          map[string][]byte{"test": {0, 0}},
 	}
 	verifiers := map[string]crypto.Verifier{"t": ver}
 	err := x.Verify(verifiers)
-	require.ErrorContains(t, err, "Consensus signed by unknown validator:")
+	require.ErrorContains(t, err, "consensus parameters signed by unknown validator:")
 }
 
 func TestSign_SignerIsNil(t *testing.T) {
 	x := &ConsensusParams{
 		TotalRootValidators: 4,
 		BlockRateMs:         blockRate,
+		ConsensusTimeoutMs:  DefaultConsensusTimeout,
+		QuorumThreshold:     GetMinQuorumThreshold(4),
 		HashAlgorithm:       hashAlgo,
 	}
 	err := x.Sign("test", nil)
-	require.ErrorContains(t, err, ErrSignerIsNil)
+	require.ErrorContains(t, err, ErrSignerIsNil.Error())
 }
 
 func TestVerify_VerifierIsNil(t *testing.T) {
 	x := &ConsensusParams{
 		TotalRootValidators: 4,
 		BlockRateMs:         blockRate,
+		ConsensusTimeoutMs:  DefaultConsensusTimeout,
+		QuorumThreshold:     GetMinQuorumThreshold(4),
 		HashAlgorithm:       hashAlgo,
 		Signatures:          map[string][]byte{"test": {0, 0}},
 	}
 	err := x.Verify(nil)
-	require.ErrorContains(t, err, ErrRootValidatorInfoMissing)
+	require.ErrorContains(t, err, "missing root node public info")
+}
+
+func TestConsensusParams_Nil(t *testing.T) {
+	var x *ConsensusParams = nil
+	require.ErrorIs(t, x.IsValid(), ErrConsensusParamsIsNil)
+	require.Empty(t, x.Bytes())
+	sig, ver := testsig.CreateSignerAndVerifier(t)
+	require.ErrorIs(t, x.Sign("1", sig), ErrConsensusParamsIsNil)
+	tb := map[string]crypto.Verifier{"1": ver}
+	require.ErrorIs(t, x.Verify(tb), ErrConsensusParamsIsNil)
+
 }

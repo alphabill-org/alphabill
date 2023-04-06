@@ -13,6 +13,11 @@ import (
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 )
 
+var (
+	ErrSystemIdentifierIsNil = errors.New("system identifier is nil")
+	ErrStrTxIsNil            = "transaction is nil"
+)
+
 type (
 
 	// TxValidator is used to validate generic transactions (e.g. timeouts, system identifiers, etc.). This validator

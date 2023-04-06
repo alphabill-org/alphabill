@@ -52,6 +52,29 @@ func TestGenesisRootRecord_FindPubKeyById(t *testing.T) {
 	}
 }
 
+func TestGenesisRootRecord_FindPubKeyById_Nil(t *testing.T) {
+	var rg *GenesisRootRecord = nil
+	require.Nil(t, rg.FindPubKeyById("test"))
+	pubKeyInfo := make([]*PublicKeyInfo, totalNodes)
+	for i := range pubKeyInfo {
+		_, verifier := testsig.CreateSignerAndVerifier(t)
+		pubKey, err := verifier.MarshalPublicKey()
+		require.NoError(t, err)
+		pubKeyInfo[i] = &PublicKeyInfo{NodeIdentifier: fmt.Sprint(i), SigningPublicKey: pubKey, EncryptionPublicKey: pubKey}
+	}
+	rg = &GenesisRootRecord{
+		RootValidators: pubKeyInfo,
+	}
+	require.NotNil(t, rg.FindPubKeyById("1"))
+	require.Nil(t, rg.FindPubKeyById("5"))
+}
+
+func TestGenesisRootRecord_IsValid_Nil(t *testing.T) {
+	var rg *GenesisRootRecord = nil
+	err := rg.IsValid()
+	require.ErrorIs(t, err, ErrGenesisRootIssNil)
+}
+
 func TestGenesisRootRecord_IsValid(t *testing.T) {
 	signer, verifier := testsig.CreateSignerAndVerifier(t)
 	_, verifier2 := testsig.CreateSignerAndVerifier(t)
@@ -60,8 +83,8 @@ func TestGenesisRootRecord_IsValid(t *testing.T) {
 	consensus := &ConsensusParams{
 		TotalRootValidators: totalNodes,
 		BlockRateMs:         blockRate,
-		ConsensusTimeoutMs:  nil,
-		QuorumThreshold:     nil,
+		ConsensusTimeoutMs:  DefaultConsensusTimeout,
+		QuorumThreshold:     GetMinQuorumThreshold(totalNodes),
 		HashAlgorithm:       hashAlgo,
 	}
 	err = consensus.Sign("test", signer)
@@ -83,21 +106,38 @@ func TestGenesisRootRecord_IsValid(t *testing.T) {
 				RootValidators: nil,
 				Consensus:      consensus,
 			},
-			wantErr: ErrNoRootValidators,
+			wantErr: ErrNoRootValidators.Error(),
 		},
 		{
 			name: "Consensus nil",
 			fields: fields{
 				RootValidators: []*PublicKeyInfo{{NodeIdentifier: "test", SigningPublicKey: pubKey, EncryptionPublicKey: pubKey}},
 				Consensus:      nil},
-			wantErr: ErrConsensusIsNil,
+			wantErr: ErrConsensusIsNil.Error(),
+		},
+		{
+			name: "Consensus not valid",
+			fields: fields{
+				RootValidators: []*PublicKeyInfo{{NodeIdentifier: "test", SigningPublicKey: pubKey, EncryptionPublicKey: pubKey}},
+				Consensus: &ConsensusParams{
+					TotalRootValidators: totalNodes,
+					BlockRateMs:         0,
+					ConsensusTimeoutMs:  DefaultConsensusTimeout,
+					QuorumThreshold:     GetMinQuorumThreshold(totalNodes),
+					HashAlgorithm:       hashAlgo}},
+			wantErr: "block rate too small",
 		},
 		{
 			name: "Not signed by validator",
 			fields: fields{
 				RootValidators: []*PublicKeyInfo{{NodeIdentifier: "test", SigningPublicKey: pubKey, EncryptionPublicKey: pubKey}},
-				Consensus:      &ConsensusParams{TotalRootValidators: totalNodes, BlockRateMs: blockRate, HashAlgorithm: hashAlgo}},
-			wantErr: ErrConsensusNotSigned,
+				Consensus: &ConsensusParams{
+					TotalRootValidators: totalNodes,
+					BlockRateMs:         blockRate,
+					ConsensusTimeoutMs:  DefaultConsensusTimeout,
+					QuorumThreshold:     GetMinQuorumThreshold(totalNodes),
+					HashAlgorithm:       hashAlgo}},
+			wantErr: "consensus parameters is not signed by all validators",
 		},
 		{
 			name: "Not signed by all validators",
@@ -107,14 +147,26 @@ func TestGenesisRootRecord_IsValid(t *testing.T) {
 					{NodeIdentifier: "xxx", SigningPublicKey: pubKey2, EncryptionPublicKey: pubKey2},
 				},
 				Consensus: consensus},
-			wantErr: ErrConsensusIsNotSignedByAll,
+			wantErr: "consensus parameters is not signed by all validators",
+		},
+		{
+			name: "Duplicate validators",
+			fields: fields{
+				RootValidators: []*PublicKeyInfo{
+					{NodeIdentifier: "test", SigningPublicKey: pubKey, EncryptionPublicKey: pubKey},
+					{NodeIdentifier: "test", SigningPublicKey: pubKey, EncryptionPublicKey: pubKey},
+					{NodeIdentifier: "test", SigningPublicKey: pubKey, EncryptionPublicKey: pubKey},
+					{NodeIdentifier: "test", SigningPublicKey: pubKey, EncryptionPublicKey: pubKey},
+				},
+				Consensus: consensus},
+			wantErr: "duplicated node id: test",
 		},
 		{
 			name: "Unknown validator",
 			fields: fields{
 				RootValidators: []*PublicKeyInfo{{NodeIdentifier: "t", SigningPublicKey: pubKey, EncryptionPublicKey: pubKey}},
 				Consensus:      consensus},
-			wantErr: "Consensus signed by unknown validator:",
+			wantErr: "consensus parameters signed by unknown validator:",
 		},
 	}
 	for _, tt := range tests {
@@ -134,8 +186,8 @@ func TestGenesisRootRecord_IsValidMissingPublicKeyInfo(t *testing.T) {
 	consensus := &ConsensusParams{
 		TotalRootValidators: totalNodes,
 		BlockRateMs:         blockRate,
-		ConsensusTimeoutMs:  nil,
-		QuorumThreshold:     nil,
+		ConsensusTimeoutMs:  DefaultConsensusTimeout,
+		QuorumThreshold:     GetMinQuorumThreshold(totalNodes),
 		HashAlgorithm:       hashAlgo,
 	}
 	err := consensus.Sign("test1", signer)
@@ -147,7 +199,13 @@ func TestGenesisRootRecord_IsValidMissingPublicKeyInfo(t *testing.T) {
 		RootValidators: []*PublicKeyInfo{{NodeIdentifier: "test", SigningPublicKey: pubKey, EncryptionPublicKey: pubKey}},
 		Consensus:      consensus,
 	}
-	require.ErrorContains(t, x.IsValid(), "Consensus signed by unknown validator")
+	require.ErrorContains(t, x.IsValid(), "consensus parameters signed by unknown validator")
+}
+
+func TestGenesisRootRecord_Verify_Nil(t *testing.T) {
+	var rg *GenesisRootRecord = nil
+	err := rg.Verify()
+	require.ErrorIs(t, err, ErrGenesisRootIssNil)
 }
 
 // Must be signed by total root validators as specified by consensus structure
@@ -155,8 +213,8 @@ func TestGenesisRootRecord_VerifyOk(t *testing.T) {
 	consensus := &ConsensusParams{
 		TotalRootValidators: totalNodes,
 		BlockRateMs:         blockRate,
-		ConsensusTimeoutMs:  nil,
-		QuorumThreshold:     nil,
+		ConsensusTimeoutMs:  DefaultConsensusTimeout,
+		QuorumThreshold:     GetMinQuorumThreshold(totalNodes),
 		HashAlgorithm:       hashAlgo,
 	}
 	pubKeyInfo := make([]*PublicKeyInfo, totalNodes)
@@ -179,8 +237,8 @@ func TestGenesisRootRecord_Verify(t *testing.T) {
 	consensus := &ConsensusParams{
 		TotalRootValidators: totalNodes + 1,
 		BlockRateMs:         blockRate,
-		ConsensusTimeoutMs:  nil,
-		QuorumThreshold:     nil,
+		ConsensusTimeoutMs:  DefaultConsensusTimeout,
+		QuorumThreshold:     GetMinQuorumThreshold(totalNodes + 1),
 		HashAlgorithm:       hashAlgo,
 	}
 	pubKeyInfo := make([]*PublicKeyInfo, totalNodes)
@@ -208,21 +266,21 @@ func TestGenesisRootRecord_Verify(t *testing.T) {
 				RootValidators: nil,
 				Consensus:      consensus,
 			},
-			wantErr: ErrNoRootValidators,
+			wantErr: ErrNoRootValidators.Error(),
 		},
 		{
 			name: "Consensus nil",
 			fields: fields{
 				RootValidators: pubKeyInfo,
 				Consensus:      nil},
-			wantErr: ErrConsensusIsNil,
+			wantErr: ErrConsensusIsNil.Error(),
 		},
 		{
 			name: "Consensus total validators does not match public keys",
 			fields: fields{
 				RootValidators: pubKeyInfo,
 				Consensus:      consensus},
-			wantErr: ErrRootValidatorsSize,
+			wantErr: ErrRootValidatorsSize.Error(),
 		},
 	}
 	for _, tt := range tests {

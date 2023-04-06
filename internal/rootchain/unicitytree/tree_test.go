@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/alphabill-org/alphabill/internal/smt"
+	"google.golang.org/protobuf/proto"
 
 	"github.com/alphabill-org/alphabill/internal/certificates"
 
@@ -55,6 +56,9 @@ func TestGetCertificate_Ok(t *testing.T) {
 
 	root, err := smt.CalculatePathRoot(cert.SiblingHashes, dataHash, key, crypto.SHA256)
 	require.Equal(t, unicityTree.GetRootHash(), root)
+	ir, err := unicityTree.GetIR(key)
+	require.NoError(t, err)
+	require.True(t, proto.Equal(ir, data[0].InputRecord))
 }
 
 func TestGetCertificate_InvalidKey(t *testing.T) {
@@ -70,4 +74,21 @@ func TestGetCertificate_InvalidKey(t *testing.T) {
 
 	require.Nil(t, cert)
 	require.ErrorIs(t, err, ErrInvalidSystemIdentifierLength)
+}
+
+func TestGetCertificate_KeyNotFound(t *testing.T) {
+	unicityTree, err := New(sha256.New(), []*Data{
+		{
+			SystemIdentifier:            []byte{1, 2, 3, 1},
+			InputRecord:                 inputRecord,
+			SystemDescriptionRecordHash: []byte{1, 2, 3, 4},
+		},
+	})
+	require.NoError(t, err)
+	cert, err := unicityTree.GetCertificate([]byte{0, 0, 0, 0})
+	require.Nil(t, cert)
+	require.ErrorContains(t, err, "certificate for system id 00000000 not found")
+	ir, err := unicityTree.GetIR([]byte{0, 0, 0, 0})
+	require.ErrorContains(t, err, "ir for system id 00000000 not found")
+	require.Nil(t, ir)
 }

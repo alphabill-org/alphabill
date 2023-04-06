@@ -5,14 +5,14 @@
   "block_certification_request": {
     "system_identifier": "AAAAAQ==",
     "node_identifier": "16Uiu2HAmGJRSYgrPS5pim41T8dGd6pNzhWm37xQLXJKJyugaoUDt",
-    "root_round_number": 1,
     "input_record": {
       "previous_hash": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
       "hash": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
-      "block_hash": "msBwL/isEaTnJ90o7nZI6QrFR32tOdtjpqToCJzXn+4=",
-      "summary_value": "AAAAAAAAAAA="
+      "block_hash": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+      "summary_value": "AAAAAAAAAAA=",
+      "round_number": 1
     },
-    "signature": "eG91SWtOvIvqSJYuOV0Jv4hcbO2YEHBz3rC5k2mppaRsg6VRZnw4pd+TOazKaGxejeE5DtiBzFSJkuIZ0iQiJwA="
+    "signature": "slVlmPHmFA8pcjI1ea5S82malhLDKDKSMzZvg8F6lBcs+C+rgLbQ0qoBC18kcAAkMNmYJI9HI5UiRX3Vo0BYSgE="
   },
   "t2timeout": 2500
 }

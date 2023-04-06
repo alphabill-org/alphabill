@@ -5,7 +5,6 @@ import (
 	"testing"
 
 	"github.com/alphabill-org/alphabill/internal/certificates"
-
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 
 	"github.com/alphabill-org/alphabill/internal/crypto"
@@ -13,7 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestRootGenesis_IsValid1(t *testing.T) {
+func TestRootGenesis_IsValid(t *testing.T) {
 	signer, verifier := testsig.CreateSignerAndVerifier(t)
 	pubKey, err := verifier.MarshalPublicKey()
 	require.NoError(t, err)
@@ -24,9 +23,9 @@ func TestRootGenesis_IsValid1(t *testing.T) {
 	}
 	rootConsensus := &ConsensusParams{
 		TotalRootValidators: 1,
-		BlockRateMs:         900,
-		ConsensusTimeoutMs:  nil,
-		QuorumThreshold:     nil,
+		BlockRateMs:         MinBlockRateMs,
+		ConsensusTimeoutMs:  DefaultConsensusTimeout,
+		QuorumThreshold:     GetMinQuorumThreshold(1),
 		HashAlgorithm:       uint32(gocrypto.SHA256),
 		Signatures:          make(map[string][]byte),
 	}
@@ -47,12 +46,17 @@ func TestRootGenesis_IsValid1(t *testing.T) {
 		wantErr string
 	}{
 		{
-			name:    "verifier is nil",
-			args:    args{verifier: nil},
-			wantErr: ErrVerifierIsNil,
+			name: "root is nil",
+			args: args{
+				verifier: verifier,
+			},
+			fields: fields{
+				Root: nil,
+			},
+			wantErr: ErrRootGenesisRecordIsNil.Error(),
 		},
 		{
-			name: "invalid root validator info",
+			name: "invalid root node info",
 			args: args{
 				verifier: verifier,
 			},
@@ -61,7 +65,7 @@ func TestRootGenesis_IsValid1(t *testing.T) {
 					RootValidators: []*PublicKeyInfo{{NodeIdentifier: "111", SigningPublicKey: nil, EncryptionPublicKey: nil}},
 					Consensus:      rootConsensus},
 			},
-			wantErr: ErrPubKeyInfoSigningKeyIsInvalid,
+			wantErr: ErrPubKeyInfoSigningKeyIsInvalid.Error(),
 		},
 		{
 			name: "partitions not found",
@@ -75,7 +79,7 @@ func TestRootGenesis_IsValid1(t *testing.T) {
 				},
 				Partitions: nil,
 			},
-			wantErr: ErrPartitionsNotFound,
+			wantErr: ErrPartitionsNotFound.Error(),
 		},
 		{
 			name: "genesis partition record is nil",
@@ -123,7 +127,7 @@ func TestRootGenesis_IsValid1(t *testing.T) {
 				Root:       tt.fields.Root,
 				Partitions: tt.fields.Partitions,
 			}
-			err := x.IsValid("1", tt.args.verifier)
+			err := x.IsValid()
 			require.ErrorContains(t, err, tt.wantErr)
 		})
 	}
@@ -131,8 +135,14 @@ func TestRootGenesis_IsValid1(t *testing.T) {
 
 func TestRootGenesis_IsValid_Nil(t *testing.T) {
 	var rg *RootGenesis = nil
-	err := rg.IsValid("", nil)
-	require.ErrorContains(t, err, ErrRootGenesisIsNil)
+	err := rg.IsValid()
+	require.ErrorContains(t, err, ErrRootGenesisIsNil.Error())
+}
+
+func TestRootGenesis_Verify_Nil(t *testing.T) {
+	var rg *RootGenesis = nil
+	err := rg.Verify()
+	require.ErrorContains(t, err, ErrRootGenesisIsNil.Error())
 }
 
 func TestRootGenesis(t *testing.T) {
@@ -140,22 +150,41 @@ func TestRootGenesis(t *testing.T) {
 	_, encryptionPubKey := testsig.CreateSignerAndVerifier(t)
 	hash := []byte{2}
 	node := createPartitionNode(t, nodeIdentifier, signingKey, encryptionPubKey)
+	consensus := &ConsensusParams{
+		TotalRootValidators: 1,
+		BlockRateMs:         MinBlockRateMs,
+		ConsensusTimeoutMs:  MinConsensusTimeout,
+		QuorumThreshold:     GetMinQuorumThreshold(1),
+		HashAlgorithm:       uint32(gocrypto.SHA256),
+	}
+	// create root node
+	rSigner, rVerifier := testsig.CreateSignerAndVerifier(t)
+	rVerifyPubKey, err := rVerifier.MarshalPublicKey()
+	require.NoError(t, err)
+	_, rEncryption := testsig.CreateSignerAndVerifier(t)
+	rEncPubKey, err := rEncryption.MarshalPublicKey()
+	require.NoError(t, err)
+	rootID := "root"
+	// create root record
+	unicitySeal := &certificates.UnicitySeal{
+		RootChainRoundNumber: 2,
+		Hash:                 hash,
+	}
+	unicitySeal.Sign(rootID, rSigner)
 	rg := &RootGenesis{
 		Partitions: []*GenesisPartitionRecord{
 			{
 				Nodes: []*PartitionNode{node},
 				Certificate: &certificates.UnicityCertificate{
-					UnicitySeal: &certificates.UnicitySeal{
-						RootChainRoundNumber: 1,
-						Hash:                 hash,
-					},
+					InputRecord: &certificates.InputRecord{},
+					UnicitySeal: unicitySeal,
 				},
 				SystemDescriptionRecord: systemDescription,
 			},
 		},
 	}
 	require.Equal(t, hash, rg.GetRoundHash())
-	require.Equal(t, uint64(1), rg.GetRoundNumber())
+	require.Equal(t, uint64(2), rg.GetRoundNumber())
 	require.Equal(t, 1, len(rg.GetPartitionRecords()))
 	require.Equal(t,
 		&PartitionRecord{
@@ -164,4 +193,46 @@ func TestRootGenesis(t *testing.T) {
 		},
 		rg.GetPartitionRecords()[0],
 	)
+	require.ErrorIs(t, rg.Verify(), ErrRootGenesisRecordIsNil)
+	// add root record
+	rg.Root = &GenesisRootRecord{
+		RootValidators: []*PublicKeyInfo{
+			{NodeIdentifier: rootID, SigningPublicKey: rVerifyPubKey, EncryptionPublicKey: rEncPubKey},
+		},
+		Consensus: consensus,
+	}
+	require.ErrorContains(t, rg.Verify(), "root genesis record error: consensus parameters is not signed by all validators")
+	// sign consensus
+	consensus.Sign(rootID, rSigner)
+	rg.Root.Consensus = consensus
+	require.ErrorContains(t, rg.Verify(), "root genesis partition record 0 error:")
+	// no partitions
+	rgNoPartitions := &RootGenesis{
+		Root:       rg.Root,
+		Partitions: []*GenesisPartitionRecord{},
+	}
+	require.ErrorIs(t, rgNoPartitions.Verify(), ErrPartitionsNotFound)
+	// duplicate partition
+	rgDuplicatePartitions := &RootGenesis{
+		Root: rg.Root,
+		Partitions: []*GenesisPartitionRecord{
+			{
+				Nodes: []*PartitionNode{node},
+				Certificate: &certificates.UnicityCertificate{
+					InputRecord: &certificates.InputRecord{},
+					UnicitySeal: unicitySeal,
+				},
+				SystemDescriptionRecord: systemDescription,
+			},
+			{
+				Nodes: []*PartitionNode{node},
+				Certificate: &certificates.UnicityCertificate{
+					InputRecord: &certificates.InputRecord{},
+					UnicitySeal: unicitySeal,
+				},
+				SystemDescriptionRecord: systemDescription,
+			},
+		},
+	}
+	require.ErrorContains(t, rgDuplicatePartitions.Verify(), "root genesis duplicate partition error")
 }

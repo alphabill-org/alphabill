@@ -80,7 +80,7 @@ func (x *GenericBlock) ToProtobuf() *Block {
 		ShardIdentifier:    x.ShardIdentifier,
 		PreviousBlockHash:  x.PreviousBlockHash,
 		NodeIdentifier:     x.NodeIdentifier,
-		Transactions:       genericTxsToProtobuf(x.Transactions),
+		Transactions:       GenericTxsToProtobuf(x.Transactions),
 		UnicityCertificate: x.UnicityCertificate,
 	}
 }
@@ -189,7 +189,7 @@ func (x *GenericBlock) extractTransactions(unitID []byte, hashAlgorithm crypto.H
 	return primaryTx, secondaryTxs
 }
 
-func genericTxsToProtobuf(src []txsystem.GenericTransaction) []*txsystem.Transaction {
+func GenericTxsToProtobuf(src []txsystem.GenericTransaction) []*txsystem.Transaction {
 	dst := make([]*txsystem.Transaction, len(src))
 	for i, tx := range src {
 		dst[i] = tx.ToProtoBuf()
@@ -197,7 +197,7 @@ func genericTxsToProtobuf(src []txsystem.GenericTransaction) []*txsystem.Transac
 	return dst
 }
 
-func protobufTxsToGeneric(src []*txsystem.Transaction, txConverter TxConverter) ([]txsystem.GenericTransaction, error) {
+func ProtobufTxsToGeneric(src []*txsystem.Transaction, txConverter TxConverter) ([]txsystem.GenericTransaction, error) {
 	dst := make([]txsystem.GenericTransaction, len(src))
 	var err error
 	for i, tx := range src {

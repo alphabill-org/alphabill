@@ -1,7 +1,6 @@
 package certification
 
 import (
-	"strings"
 	"testing"
 
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
@@ -20,7 +19,6 @@ func TestBlockCertificationRequest_IsValid_VerifierIsNil(t *testing.T) {
 	p1 := &BlockCertificationRequest{
 		SystemIdentifier: []byte{0, 0, 0, 0},
 		NodeIdentifier:   "1",
-		RootRoundNumber:  0,
 		InputRecord:      &certificates.InputRecord{},
 	}
 	require.ErrorIs(t, p1.IsValid(nil), ErrVerifierIsNil)
@@ -31,7 +29,6 @@ func TestBlockCertificationRequest_IsValid_InvalidSystemIdentifier(t *testing.T)
 	p1 := &BlockCertificationRequest{
 		SystemIdentifier: []byte{0},
 		NodeIdentifier:   "11",
-		RootRoundNumber:  0,
 		InputRecord:      &certificates.InputRecord{},
 	}
 	require.ErrorIs(t, p1.IsValid(verifier), ErrInvalidSystemIdentifierLength)
@@ -42,7 +39,6 @@ func TestBlockCertificationRequest_IsValid_EmptyNodeIdentifier(t *testing.T) {
 	p1 := &BlockCertificationRequest{
 		SystemIdentifier: []byte{0, 0, 0, 0},
 		NodeIdentifier:   "",
-		RootRoundNumber:  0,
 		InputRecord:      &certificates.InputRecord{},
 	}
 	require.ErrorIs(t, p1.IsValid(verifier), ErrEmptyNodeIdentifier)
@@ -53,7 +49,6 @@ func TestBlockCertificationRequest_IsValid_InvalidInputRecord(t *testing.T) {
 	p1 := &BlockCertificationRequest{
 		SystemIdentifier: []byte{0, 0, 0, 0},
 		NodeIdentifier:   "1",
-		RootRoundNumber:  0,
 		InputRecord:      nil,
 	}
 	require.ErrorIs(t, p1.IsValid(verifier), certificates.ErrInputRecordIsNil)
@@ -64,18 +59,18 @@ func TestBlockCertificationRequest_IsValid_InvalidSignature(t *testing.T) {
 	p1 := &BlockCertificationRequest{
 		SystemIdentifier: []byte{0, 0, 0, 0},
 		NodeIdentifier:   "1",
-		RootRoundNumber:  0,
 		InputRecord: &certificates.InputRecord{
 			PreviousHash: []byte{},
 			Hash:         []byte{},
 			BlockHash:    []byte{},
 			SummaryValue: []byte{},
+			RoundNumber:  1,
 		},
 		Signature: make([]byte, 64),
 	}
 	err := p1.IsValid(verifier)
 	require.Error(t, err)
-	require.True(t, strings.Contains(err.Error(), "signature verify failed"))
+	require.ErrorContains(t, err, "signature verification failed")
 }
 
 func TestBlockCertificationRequest_ValidRequest(t *testing.T) {
@@ -83,12 +78,12 @@ func TestBlockCertificationRequest_ValidRequest(t *testing.T) {
 	p1 := &BlockCertificationRequest{
 		SystemIdentifier: []byte{0, 0, 0, 0},
 		NodeIdentifier:   "1",
-		RootRoundNumber:  0,
 		InputRecord: &certificates.InputRecord{
 			PreviousHash: []byte{},
 			Hash:         []byte{},
 			BlockHash:    []byte{},
 			SummaryValue: []byte{},
+			RoundNumber:  1,
 		},
 	}
 	err := p1.Sign(signer)

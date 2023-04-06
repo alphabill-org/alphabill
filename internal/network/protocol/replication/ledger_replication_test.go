@@ -17,7 +17,7 @@ func TestLedgerReplicationResponse_Pretty_okEmpty(t *testing.T) {
 	res := r.Pretty()
 	require.Contains(t, res, "status")
 	require.NotContains(t, res, "message")
-	require.NotContains(t, res, "blocks")
+	require.Contains(t, res, "0 blocks")
 }
 
 func TestLedgerReplicationResponse_Pretty_okWithBlocks(t *testing.T) {
@@ -36,7 +36,7 @@ func TestLedgerReplicationResponse_Pretty_okWithBlocks(t *testing.T) {
 	res := r.Pretty()
 	require.Contains(t, res, "status")
 	require.NotContains(t, res, "message")
-	require.Contains(t, res, "blocks 1..2")
+	require.Contains(t, res, "2 blocks")
 }
 
 func TestLedgerReplicationResponse_Pretty_error(t *testing.T) {
@@ -48,5 +48,5 @@ func TestLedgerReplicationResponse_Pretty_error(t *testing.T) {
 	res := r.Pretty()
 	require.Contains(t, res, "status")
 	require.Contains(t, res, "message:")
-	require.NotContains(t, res, "blocks")
+	require.Contains(t, res, "1 blocks")
 }

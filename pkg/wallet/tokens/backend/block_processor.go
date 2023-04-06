@@ -29,7 +29,7 @@ func (p *blockProcessor) ProcessBlock(ctx context.Context, b *block.Block) error
 	// block numbers must not be sequential (gaps might appear as empty block are not stored
 	// and sent) but must be in ascending order
 	if lastBlockNumber >= b.UnicityCertificate.InputRecord.RoundNumber {
-		return fmt.Errorf("invalid block order: last processed block is %d, received block %d as next to process", lastBlockNumber, b.UnicityCertificate.InputRecord.RoundNumber)
+		return fmt.Errorf("invalid block, received block %d, current wallet block %d", b.UnicityCertificate.InputRecord.RoundNumber, lastBlockNumber)
 	}
 
 	for _, tx := range b.Transactions {

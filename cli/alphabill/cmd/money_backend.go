@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 
@@ -28,15 +29,13 @@ type moneyBackendConfig struct {
 }
 
 func (c *moneyBackendConfig) GetDbFile() (string, error) {
-	var dbFile string
-	if c.DbFile != "" {
-		dbFile = c.DbFile
-	} else {
+	dbFile := c.DbFile
+	if dbFile == "" {
 		dbFile = filepath.Join(c.Base.HomeDir, moneyBackendHomeDir, indexer.BoltBillStoreFileName)
 	}
 	err := os.MkdirAll(filepath.Dir(dbFile), 0700) // -rwx------
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("failed to create directory for database file: %w", err)
 	}
 	return dbFile, nil
 }

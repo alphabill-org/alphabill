@@ -1,6 +1,7 @@
 package money
 
 import (
+	"context"
 	"testing"
 
 	"github.com/alphabill-org/alphabill/internal/block"
@@ -50,7 +51,7 @@ func TestGenericBlockProcessor_EachTxTypeCanBeProcessed(t *testing.T) {
 	bp := NewBlockProcessor(store, NewTxConverter(moneySystemID))
 
 	// process transactions
-	err = bp.ProcessBlock(b)
+	err = bp.ProcessBlock(context.Background(), b)
 	require.NoError(t, err)
 
 	// verify bills exist

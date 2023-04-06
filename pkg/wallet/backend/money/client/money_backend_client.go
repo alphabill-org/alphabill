@@ -26,7 +26,7 @@ const (
 	BalancePath     = "api/v1/balance"
 	ListBillsPath   = "api/v1/list-bills"
 	ProofPath       = "api/v1/proof"
-	BlockHeightPath = "api/v1/block-height"
+	BlockHeightPath = "api/v1/round-number"
 
 	balanceUrlFormat     = "%v/%v?pubkey=%v&includedcbills=%v"
 	listBillsUrlFormat   = "%v/%v?pubkey=%v"
@@ -141,12 +141,12 @@ func (c *MoneyBackendClient) GetBlockHeight() (uint64, error) {
 	if err != nil {
 		return 0, fmt.Errorf("failed to read GetBlockHeight response: %w", err)
 	}
-	var responseObject money.BlockHeightResponse
+	var responseObject money.RoundNumberResponse
 	err = json.Unmarshal(responseData, &responseObject)
 	if err != nil {
 		return 0, fmt.Errorf("failed to unmarshall GetBlockHeight response data: %w", err)
 	}
-	return responseObject.BlockHeight, nil
+	return responseObject.RoundNumber, nil
 }
 
 func (c *MoneyBackendClient) retrieveBills(pubKey []byte, offset int) (*money.ListBillsResponse, error) {

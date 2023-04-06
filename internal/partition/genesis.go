@@ -16,7 +16,7 @@ import (
 
 var ErrSignerIsNil = errors.New("signer is nil")
 var ErrEncryptionPubKeyIsNil = errors.New("encryption public key is nil")
-var ErrInvalidSystemIdentifier = errors.New("system identifier is invalid")
+var errInvalidSystemIdentifier = errors.New("invalid transaction system identifier")
 
 type (
 	genesisConf struct {
@@ -43,7 +43,7 @@ func (c *genesisConf) isValid() error {
 		return ErrEncryptionPubKeyIsNil
 	}
 	if len(c.systemIdentifier) == 0 {
-		return ErrInvalidSystemIdentifier
+		return errInvalidSystemIdentifier
 	}
 	return nil
 }

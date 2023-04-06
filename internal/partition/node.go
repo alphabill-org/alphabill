@@ -778,17 +778,18 @@ func (n *Node) handleT1TimeoutEvent() {
 		return
 	}
 	logger.Info("Handling T1 timeout")
-	if n.leaderSelector.IsCurrentNodeLeader() {
-		logger.Debug("Current node is the leader.")
-		if err := n.sendBlockProposal(); err != nil {
-			logger.Warning("Failed to send BlockProposal: %v", err)
-			return
-		}
-		if err := n.sendCertificationRequest(); err != nil {
-			logger.Warning("Failed to send certification request: %v", err)
-		}
-	} else {
+	// if node is not leader, then do not do anything
+	if !n.leaderSelector.IsCurrentNodeLeader() {
 		logger.Debug("Current node is not the leader.")
+		return
+	}
+	logger.Debug("Current node is the leader.")
+	if err := n.sendBlockProposal(); err != nil {
+		logger.Warning("Failed to send BlockProposal: %v", err)
+		return
+	}
+	if err := n.sendCertificationRequest(); err != nil {
+		logger.Warning("Failed to send certification request: %v", err)
 	}
 }
 

@@ -1,14 +1,13 @@
 package memorydb
 
 import (
-	"encoding/json"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 )
 
 func TestMemDBTx_Nil(t *testing.T) {
-	tx, err := NewMapTx(nil, json.Marshal)
+	tx, err := NewMapTx(nil)
 	require.Error(t, err)
 	require.Nil(t, tx)
 }

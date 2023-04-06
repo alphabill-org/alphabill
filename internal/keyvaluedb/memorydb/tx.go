@@ -1,20 +1,25 @@
 package memorydb
 
-import "fmt"
+import (
+	"fmt"
 
-type writeTx struct {
-	key    string
-	value  []byte
-	delete bool
-}
+	"github.com/alphabill-org/alphabill/internal/keyvaluedb"
+)
 
 type Tx struct {
 	mem *MemoryDB
-	txs []*writeTx
-	enc EncodeFn
+	db  map[string][]byte
 }
 
-func NewMapTx(m *MemoryDB, e EncodeFn) (*Tx, error) {
+func copyMap[K comparable, V any](m map[K]V) map[K]V {
+	result := make(map[K]V, len(m))
+	for k, v := range m {
+		result[k] = v
+	}
+	return result
+}
+
+func NewMapTx(m *MemoryDB) (*Tx, error) {
 	if m == nil {
 		return nil, fmt.Errorf("momory db is nil")
 	}
@@ -23,22 +28,46 @@ func NewMapTx(m *MemoryDB, e EncodeFn) (*Tx, error) {
 	}
 	return &Tx{
 		mem: m,
-		txs: []*writeTx{},
-		enc: e,
+		db:  nil,
 	}, nil
 }
 
+func (t *Tx) copyOnWrite() {
+	t.db = copyMap(t.mem.db)
+}
+
 func (t *Tx) Write(key []byte, value any) error {
-	b, err := t.enc(value)
+	if err := keyvaluedb.CheckKeyAndValue(key, value); err != nil {
+		return err
+	}
+	t.mem.lock.Lock()
+	defer t.mem.lock.Unlock()
+	b, err := t.mem.encoder(value)
 	if err != nil {
 		return err
 	}
-	t.txs = append(t.txs, &writeTx{key: string(key), value: b})
+	// copy on write
+	if t.db == nil {
+		t.copyOnWrite()
+	}
+	if t.mem.writeErr != nil {
+		return t.mem.writeErr
+	}
+	t.db[string(key)] = b
 	return nil
 }
 
 func (t *Tx) Delete(key []byte) error {
-	t.txs = append(t.txs, &writeTx{key: string(key), delete: true})
+	if err := keyvaluedb.CheckKey(key); err != nil {
+		return err
+	}
+	t.mem.lock.Lock()
+	defer t.mem.lock.Unlock()
+	// copy on write
+	if t.db == nil {
+		t.copyOnWrite()
+	}
+	delete(t.db, string(key))
 	return nil
 }
 
@@ -49,12 +78,7 @@ func (t *Tx) Rollback() error {
 func (t *Tx) Commit() error {
 	t.mem.lock.Lock()
 	defer t.mem.lock.Unlock()
-	for _, tx := range t.txs {
-		if tx.delete == true {
-			delete(t.mem.db, tx.key)
-		} else {
-			t.mem.db[tx.key] = tx.value
-		}
-	}
+	t.mem.db = t.db
+	t.db = nil
 	return nil
 }

@@ -34,13 +34,13 @@ var partitionInputRecord = &certificates.InputRecord{
 	RoundNumber:  1,
 }
 
-func readResult(ch <-chan certificates.UnicityCertificate, timeout time.Duration) (*certificates.UnicityCertificate, error) {
+func readResult(ch <-chan *certificates.UnicityCertificate, timeout time.Duration) (*certificates.UnicityCertificate, error) {
 	select {
 	case result, ok := <-ch:
 		if !ok {
 			return nil, fmt.Errorf("failed to read from channel")
 		}
-		return &result, nil
+		return result, nil
 	case <-time.After(timeout):
 		return nil, fmt.Errorf("timeout")
 	}

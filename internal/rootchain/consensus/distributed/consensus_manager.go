@@ -44,7 +44,7 @@ type (
 		ctx            context.Context
 		ctxCancel      context.CancelFunc
 		certReqCh      chan consensus.IRChangeRequest
-		certResultCh   chan certificates.UnicityCertificate
+		certResultCh   chan *certificates.UnicityCertificate
 		params         *consensus.Parameters
 		peer           *network.Peer
 		timers         *timer.Timers
@@ -104,7 +104,7 @@ func NewDistributedAbConsensusManager(host *network.Peer, rg *genesis.RootGenesi
 	}
 	consensusManager := &ConsensusManager{
 		certReqCh:      make(chan consensus.IRChangeRequest),
-		certResultCh:   make(chan certificates.UnicityCertificate),
+		certResultCh:   make(chan *certificates.UnicityCertificate),
 		params:         cParams,
 		peer:           host,
 		timers:         timer.NewTimers(),
@@ -129,7 +129,7 @@ func (x *ConsensusManager) RequestCertification() chan<- consensus.IRChangeReque
 	return x.certReqCh
 }
 
-func (x *ConsensusManager) CertificationResult() <-chan certificates.UnicityCertificate {
+func (x *ConsensusManager) CertificationResult() <-chan *certificates.UnicityCertificate {
 	return x.certResultCh
 }
 
@@ -585,7 +585,7 @@ func (x *ConsensusManager) processQC(qc *atomic_broadcast.QuorumCert) {
 		return
 	}
 	for _, uc := range certs {
-		x.certResultCh <- *uc
+		x.certResultCh <- uc
 	}
 	x.pacemaker.AdvanceRoundQC(qc)
 	// progress is made, restart timeout (move to pacemaker)

@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"context"
-	"os"
 	"path/filepath"
 	"testing"
 	"time"
@@ -14,7 +13,6 @@ import (
 func TestRootChainCanBeStarted(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	dbDir := t.TempDir()
-	defer func() { require.NoError(t, os.RemoveAll(dbDir)) }()
 	g, ctx := errgroup.WithContext(ctx)
 
 	g.Go(func() error { return defaultRootNodeRunFunc(ctx, validMonolithicRootValidatorConfig(dbDir)) })

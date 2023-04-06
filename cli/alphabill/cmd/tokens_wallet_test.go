@@ -437,7 +437,7 @@ func startTokensPartition(t *testing.T) (*testpartition.AlphabillPartition, stri
 	require.NotNil(t, tokensState)
 	network, err := testpartition.NewNetwork(1,
 		func(tb map[string]abcrypto.Verifier) txsystem.TransactionSystem {
-			system, err := tokens.New(tokens.WithState(tokensState))
+			system, err := tokens.New(tokens.WithState(tokensState), tokens.WithTrustBase(tb))
 			require.NoError(t, err)
 			return system
 		}, tokens.DefaultTokenTxSystemIdentifier)
@@ -472,8 +472,7 @@ func startTokensBackend(t *testing.T, nodeAddr string) (srvUri string, restApi *
 	}()
 
 	require.Eventually(t, func() bool {
-		rn, err := restApi.GetRoundNumber(ctx)
-		require.NoError(t, err)
+		rn, _ := restApi.GetRoundNumber(ctx)
 		return rn > 0
 	}, test.WaitDuration, test.WaitTick)
 
@@ -511,7 +510,7 @@ func doExecTokensCmd(homedir string, command string) (*testConsoleWriter, error)
 	consoleWriter = outputWriter
 
 	cmd := New()
-	args := "wallet token --log-level DEBUG --home " + homedir + " " + command // + " -l " + homedir + " "
+	args := "wallet token --log-level DEBUG --home " + homedir + " " + command
 	cmd.baseCmd.SetArgs(strings.Split(args, " "))
 
 	return outputWriter, cmd.addAndExecuteCommand(context.Background())

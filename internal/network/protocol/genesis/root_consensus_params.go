@@ -29,9 +29,7 @@ const (
 	DefaultConsensusTimeout = 10000
 )
 
-// GetMinQuorumThreshold calculated minimal quorum threshold from total number of validators
-// Returns 0 if threshold cannot be calculated. Either because it is a monolithic root chain
-// or there are less than MinDistributedRootValidators in total
+// GetMinQuorumThreshold calculates minimal quorum threshold from total number of validators
 func GetMinQuorumThreshold(totalRootValidators uint32) uint32 {
 	// must be over 2/3
 	// +1 to round up and avoid using floats

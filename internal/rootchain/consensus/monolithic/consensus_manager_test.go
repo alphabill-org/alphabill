@@ -3,7 +3,6 @@ package monolithic
 import (
 	gocrypto "crypto"
 	"fmt"
-	"os"
 	"testing"
 	"time"
 
@@ -148,10 +147,7 @@ func TestConsensusManager_NormalOperation(t *testing.T) {
 
 // this will run long, cut timeouts or find a way to manipulate timeouts
 func TestConsensusManager_PartitionTimeout(t *testing.T) {
-	dir, err := os.MkdirTemp("", "bolt*")
-	defer func() {
-		require.NoError(t, os.RemoveAll(dir))
-	}()
+	dir := t.TempDir()
 	cm, rootNode, partitionNodes, rg := initConsensusManager(t, dir)
 	defer cm.Stop()
 	// make sure that 3 partition nodes where generated, needed for the next steps

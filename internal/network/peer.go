@@ -139,7 +139,8 @@ func (p *Peer) ID() peer.ID {
 	return p.host.ID()
 }
 
-func (p *Peer) LogID() string {
+// String returns short representation of node id
+func (p *Peer) String() string {
 	id := p.ID().String()
 	if len(id) <= 10 {
 		return fmt.Sprintf("NodeID:%s", id)

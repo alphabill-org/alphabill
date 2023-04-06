@@ -148,7 +148,6 @@ func (x *ConsensusManager) onIRChangeReq(req *consensus.IRChangeRequest) error {
 			return fmt.Errorf("error invalid quorum proof, no requests")
 		}
 		newInputRecord = req.Requests[0].InputRecord
-		break
 	case consensus.QuorumNotPossible:
 		luc, err := x.stateStore.GetCertificate(req.SystemIdentifier)
 		if err != nil {
@@ -156,7 +155,6 @@ func (x *ConsensusManager) onIRChangeReq(req *consensus.IRChangeRequest) error {
 		}
 		// repeat UC, ignore error here as we found the luc, and it cannot be nil
 		newInputRecord, _ = certificates.NewRepeatInputRecord(luc.InputRecord)
-		break
 	default:
 		return fmt.Errorf("invalid certfification reason %v", req.Reason)
 	}
@@ -180,18 +178,6 @@ func (x *ConsensusManager) onT3Timeout() {
 	newRound := x.round + 1
 	// evaluate timeouts and add repeat UC requests if timeout
 	if err := x.checkT2Timeout(newRound); err != nil {
-		return
-	}
-	// if no new consensus or timeouts then skip the round
-	if len(x.changes) == 0 {
-		logger.Info("Round %v, no IR changes", newRound)
-		// persist new round
-		if err := x.stateStore.Update(newRound, nil); err != nil {
-			logger.Warning("Round %d failed to persist new root state, %v", newRound, err)
-			return
-		}
-		// update local cache for round number
-		x.round = newRound
 		return
 	}
 	certs, err := x.generateUnicityCertificates(newRound)
@@ -249,6 +235,15 @@ func getMergeInputRecords(currentIR, changed map[p.SystemIdentifier]*certificate
 
 // generateUnicityCertificates generates certificates for all changed input records in round
 func (x *ConsensusManager) generateUnicityCertificates(round uint64) (map[p.SystemIdentifier]*certificates.UnicityCertificate, error) {
+	// if no new consensus or timeouts then skip the round
+	if len(x.changes) == 0 {
+		logger.Info("Round %v, no IR changes", round)
+		// persist new round
+		if err := x.stateStore.Update(round, nil); err != nil {
+			return nil, fmt.Errorf("round %v failed to persist new root round, %w", round, err)
+		}
+		return nil, nil
+	}
 	// log all changes for this round
 	logger.Info("Round %v, certify changes for partitions %X", round, maps.Keys(x.changes))
 	// merge changed and unchanged input records and create unicity tree from the whole set

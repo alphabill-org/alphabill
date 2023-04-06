@@ -231,3 +231,29 @@ func TestWalletCreateFungibleTokenTypeAndTokenAndSendCmd_IntegrationTest(t *test
 	execTokensCmdWithError(t, homedir, fmt.Sprintf("send fungible -r %s --type %X --amount a.00 --address 0x%X -k 1", backendUrl, typeID, w2key.PubKey), fmt.Sprintf("invalid amount string"))
 	execTokensCmdWithError(t, homedir, fmt.Sprintf("send fungible -r %s --type %X --amount 1.1111 --address 0x%X -k 1", backendUrl, typeID, w2key.PubKey), fmt.Sprintf("invalid precision"))
 }
+
+func TestFungibleTokens_CollectDust_Integration(t *testing.T) {
+	_, nodeDialUrl := startTokensPartition(t)
+	require.NoError(t, wlog.InitStdoutLogger(wlog.INFO))
+
+	backendUrl, _, _ := startTokensBackend(t, nodeDialUrl)
+
+	w1, homedir := createNewTokenWallet(t, backendUrl)
+	require.NotNil(t, w1)
+	w1.Shutdown()
+
+	typeID1 := randomID(t)
+	symbol1 := "AB"
+	execTokensCmd(t, homedir, fmt.Sprintf("new-type fungible --symbol %s -r %s --type %X --decimals 0", symbol1, backendUrl, typeID1))
+	verifyStdout(t, execTokensCmd(t, homedir, fmt.Sprintf("list-types fungible -r %s", backendUrl)), "symbol=AB (fungible)")
+	// mint tokens
+	execTokensCmd(t, homedir, fmt.Sprintf("new fungible -r %s --type %X --amount 300", backendUrl, typeID1))
+	execTokensCmd(t, homedir, fmt.Sprintf("new fungible -r %s --type %X --amount 700", backendUrl, typeID1))
+	execTokensCmd(t, homedir, fmt.Sprintf("new fungible -r %s --type %X --amount 1000", backendUrl, typeID1))
+	//check w1
+	verifyStdout(t, execTokensCmd(t, homedir, fmt.Sprintf("list fungible -r %s", backendUrl)), "amount='300'", "amount='700'", "amount='1000'")
+	// DC
+	execTokensCmd(t, homedir, fmt.Sprintf("collect-dust -r %s", backendUrl))
+
+	verifyStdout(t, execTokensCmd(t, homedir, fmt.Sprintf("list fungible -r %s", backendUrl)), "amount='2000'")
+}

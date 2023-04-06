@@ -5,19 +5,21 @@ import (
 	"encoding/json"
 	"io/ioutil"
 	"net/http"
-	"testing"
 
-	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
 )
 
-func DoGet(t *testing.T, url string, response interface{}) *http.Response {
+func DoGet(url string, response interface{}) (*http.Response, error) {
 	httpRes, resBytes, err := doGet(url)
-	require.NoError(t, err)
+	if err != nil {
+		return nil, err
+	}
 	err = json.NewDecoder(bytes.NewReader(resBytes)).Decode(response)
-	require.NoError(t, err)
-	return httpRes
+	if err != nil {
+		return nil, err
+	}
+	return httpRes, nil
 }
 
 func DoGetProto(url string, response proto.Message) (*http.Response, error) {

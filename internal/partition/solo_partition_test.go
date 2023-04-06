@@ -341,7 +341,7 @@ func (l *TestLeaderSelector) GetLeaderID() peer.ID {
 	return l.leader
 }
 
-func (l *TestLeaderSelector) LeaderFromUnicitySeal(seal *certificates.UnicityCertificate) peer.ID {
+func (l *TestLeaderSelector) LeaderFunc(seal *certificates.UnicityCertificate) peer.ID {
 	if seal == nil {
 		return ""
 	}

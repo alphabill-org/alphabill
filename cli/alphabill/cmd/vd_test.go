@@ -104,15 +104,13 @@ func TestRunVD(t *testing.T) {
 			SystemId:              []byte{0, 0, 0, 1},
 		}
 
-		response, err := rpcClient.ProcessTransaction(ctx, tx, grpc.WaitForReady(true))
+		_, err = rpcClient.ProcessTransaction(ctx, tx, grpc.WaitForReady(true))
 		require.NoError(t, err)
-		require.True(t, response.Ok, "Successful response ok should be true")
 
 		// failing case
 		tx.SystemId = []byte{0, 0, 0, 0} // incorrect system id
-		response, err = rpcClient.ProcessTransaction(ctx, tx, grpc.WaitForReady(true))
+		_, err = rpcClient.ProcessTransaction(ctx, tx, grpc.WaitForReady(true))
 		require.ErrorContains(t, err, "transaction has invalid system identifier")
-		require.Nil(t, response, "expected nil response in case of error")
 
 		// Close the app
 		ctxCancel()

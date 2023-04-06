@@ -190,7 +190,7 @@ func TestDecodeHexOrEmpty(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.input, func(t *testing.T) {
-			res, err := decodeHexOrEmpty(tt.input)
+			res, err := DecodeHexOrEmpty(tt.input)
 			if tt.err != "" {
 				require.ErrorContains(t, err, tt.err)
 			} else {

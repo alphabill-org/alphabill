@@ -51,23 +51,6 @@ const docTemplate = `{
                 }
             }
         },
-        "/block-height": {
-            "get": {
-                "produces": [
-                    "application/json"
-                ],
-                "summary": "Money partition's latest block number",
-                "operationId": "4",
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/money.BlockHeightResponse"
-                        }
-                    }
-                }
-            }
-        },
         "/list-bills": {
             "get": {
                 "produces": [
@@ -155,6 +138,23 @@ const docTemplate = `{
                     },
                     "500": {
                         "description": "Internal Server Error"
+                    }
+                }
+            }
+        },
+        "/round-number": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "summary": "Money partition's latest block number",
+                "operationId": "4",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/money.RoundNumberResponse"
+                        }
                     }
                 }
             }
@@ -447,18 +447,6 @@ const docTemplate = `{
                 }
             }
         },
-        "money.BlockHeightResponse": {
-            "type": "object",
-            "properties": {
-                "blockHeight": {
-                    "type": "string",
-                    "example": "0"
-                },
-                "lastRoundNumber": {
-                    "type": "integer"
-                }
-            }
-        },
         "money.ErrorResponse": {
             "type": "object",
             "properties": {
@@ -502,6 +490,15 @@ const docTemplate = `{
                 "total": {
                     "type": "integer",
                     "example": 1
+                }
+            }
+        },
+        "money.RoundNumberResponse": {
+            "type": "object",
+            "properties": {
+                "roundNumber": {
+                    "type": "string",
+                    "example": "0"
                 }
             }
         },

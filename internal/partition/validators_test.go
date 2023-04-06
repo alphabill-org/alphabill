@@ -192,14 +192,14 @@ func TestDefaultTxValidator_ValidateNotOk(t *testing.T) {
 			tx:                       moneytesttx.RandomGenericBillTransfer(t), // default systemID is 0000
 			latestBlockNumber:        10,
 			expectedSystemIdentifier: []byte{1, 2, 3, 4},
-			errStr:                   "invalid system identifier, expected 01020304, got 00000000",
+			errStr:                   "expected 01020304, got 00000000: invalid transaction system identifier",
 		},
 		{
 			name:                     "expired transaction",
 			tx:                       moneytesttx.RandomGenericBillTransfer(t), // default timeout is 10
 			latestBlockNumber:        11,
 			expectedSystemIdentifier: []byte{0, 0, 0, 0},
-			errStr:                   "transaction timeout must be greater than latest block number: transaction timeout 10, latest blockNumber: 11",
+			errStr:                   "transaction has timed out: transaction timeout round is 10, current round is 11",
 		},
 	}
 	for _, tt := range tests {

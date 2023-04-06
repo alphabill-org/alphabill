@@ -258,7 +258,39 @@ func TestRootValidatorTest_SimulateNetCommunicationHandshake(t *testing.T) {
 		NodeIdentifier:   partitionNodes[1].Peer.ID().String(),
 	}
 	testutils.MockValidatorNetReceives(t, mockNet, partitionNodes[0].Peer.ID(), network.ProtocolHandshake, h)
-	// no drama, make sure it is received and does not crash or anything, this message should be removed someday
+	// make sure certificate is sent in return
+	testutils.MockAwaitMessage[*certificates.UnicityCertificate](t, mockNet, network.ProtocolUnicityCertificates)
+	// make sure that the node is subscribed
+	subscribed := rootValidator.subscription.Get(p.SystemIdentifier(partitionID))
+	require.Len(t, subscribed, 1)
+	require.Equal(t, partitionNodes[1].Peer.ID().String(), subscribed[0])
+	// set network in error state
+	mockNet.SetErrorState(fmt.Errorf("failed to dial"))
+	// simulate root response, which will fail to send due to network error
+	// create certification request
+	newIR := &certificates.InputRecord{
+		PreviousHash: rg.Partitions[0].Nodes[0].BlockCertificationRequest.InputRecord.Hash,
+		Hash:         test.RandomBytes(32),
+		BlockHash:    test.RandomBytes(32),
+		SummaryValue: rg.Partitions[0].Nodes[0].BlockCertificationRequest.InputRecord.SummaryValue,
+		RoundNumber:  2,
+	}
+	uc := &certificates.UnicityCertificate{
+		InputRecord: newIR,
+		UnicityTreeCertificate: &certificates.UnicityTreeCertificate{
+			SystemIdentifier: partitionID,
+		},
+		UnicitySeal: &certificates.UnicitySeal{},
+	}
+	rootValidator.onCertificationResult(uc)
+	rootValidator.onCertificationResult(uc)
+	// two send errors, but node is still subscribed
+	subscribed = rootValidator.subscription.Get(p.SystemIdentifier(partitionID))
+	require.Len(t, subscribed, 1)
+	rootValidator.onCertificationResult(uc)
+	// on third error subscription is cleared
+	subscribed = rootValidator.subscription.Get(p.SystemIdentifier(partitionID))
+	require.Len(t, subscribed, 0)
 }
 
 func TestRootValidatorTest_SimulateNetCommunicationInvalidReqRoundNumber(t *testing.T) {

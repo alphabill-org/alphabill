@@ -676,7 +676,7 @@ func TestNode_CertificationRequestNotSentWhenProposalStoreFails(t *testing.T) {
 	require.Equal(t, normal, tp.partition.status)
 }
 
-func TestNode_RecoveryThrowRocksAtNode(t *testing.T) {
+func TestNode_RecoverySendInvalidLedgerReplicationReplies(t *testing.T) {
 	tp := NewSingleNodePartition(t, &testtxsystem.CounterTxSystem{})
 	defer tp.Close()
 	genesisBlock := tp.GetLatestBlock(t)
@@ -788,7 +788,6 @@ func TestNode_RespondToReplicationRequest(t *testing.T) {
 	require.Equal(t, uint64(4), latestBlockNumber-genesisBlockNumber)
 
 	//send replication request, it will hit tx replication limit
-	//peer := "16Uiu2HAm826WzV3ZDwtEA93VJVxMPSvyrVUK7ArifTmhr3CwLzMj"
 	tp.mockNet.Receive(network.ReceivedMessage{
 		From:     "from-test",
 		Protocol: network.ProtocolLedgerReplicationReq,

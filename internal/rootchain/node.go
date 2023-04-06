@@ -50,7 +50,7 @@ func New(
 	if pNet == nil {
 		return nil, fmt.Errorf("network is nil")
 	}
-	logger.Info("Starting root node. PeerId=%v; Addresses=%v", host.LogID(), host.MultiAddresses())
+	logger.Info("Starting root node. PeerId=%v; Addresses=%v", host.String(), host.MultiAddresses())
 	node := &Node{
 		peer:             host,
 		partitions:       ps,
@@ -78,22 +78,22 @@ func (v *Node) loop(ctx context.Context) {
 	for {
 		select {
 		case <-ctx.Done():
-			logger.Info("%v exiting root node main loop", v.peer.LogID())
+			logger.Info("%v exiting root node main loop", v.peer.String())
 			return
 		case msg, ok := <-v.net.ReceivedChannel():
 			if !ok {
-				logger.Warning("%v partition received channel closed, exiting root node main loop", v.peer.LogID())
+				logger.Warning("%v partition received channel closed, exiting root node main loop", v.peer.String())
 				return
 			}
 			if msg.Message == nil {
-				logger.Warning("%v received partition message is nil", v.peer.LogID())
+				logger.Warning("%v received partition message is nil", v.peer.String())
 				return
 			}
 			switch msg.Protocol {
 			case network.ProtocolBlockCertification:
 				req, correctType := msg.Message.(*certification.BlockCertificationRequest)
 				if !correctType {
-					logger.Warning("%v type %T not supported", v.peer.LogID(), msg.Message)
+					logger.Warning("%v type %T not supported", v.peer.String(), msg.Message)
 					return
 				}
 				util.WriteTraceJsonLog(logger, fmt.Sprintf("Certification Request from %s", msg.From), req)
@@ -102,14 +102,14 @@ func (v *Node) loop(ctx context.Context) {
 			case network.ProtocolHandshake:
 				req, correctType := msg.Message.(*handshake.Handshake)
 				if !correctType {
-					logger.Warning("%v type %T not supported", v.peer.LogID(), msg.Message)
+					logger.Warning("%v type %T not supported", v.peer.String(), msg.Message)
 					return
 				}
 				util.WriteTraceJsonLog(logger, fmt.Sprintf("Handshake from %s", msg.From), req)
 				v.onHandshake(req)
 				break
 			default:
-				logger.Warning("%v protocol %s not supported.", v.peer.LogID(), msg.Protocol)
+				logger.Warning("%v protocol %s not supported.", v.peer.String(), msg.Protocol)
 				break
 			}
 		}
@@ -123,7 +123,7 @@ func (v *Node) sendResponse(nodeID string, uc *certificates.UnicityCertificate) 
 		return err
 	}
 	logger.Debug("%v sending unicity certificate to partition %X node '%s', IR Hash: %X, Block Hash: %X",
-		v.peer.LogID(), uc.UnicityTreeCertificate.SystemIdentifier, nodeID, uc.InputRecord.Hash, uc.InputRecord.BlockHash)
+		v.peer.String(), uc.UnicityTreeCertificate.SystemIdentifier, nodeID, uc.InputRecord.Hash, uc.InputRecord.BlockHash)
 	return v.net.Send(
 		network.OutputMessage{
 			Protocol: network.ProtocolUnicityCertificates,
@@ -135,19 +135,19 @@ func (v *Node) sendResponse(nodeID string, uc *certificates.UnicityCertificate) 
 
 func (v *Node) onHandshake(req *handshake.Handshake) {
 	if err := req.IsValid(); err != nil {
-		logger.Warning("%v handshake error, invalid handshake request, %v", v.peer.LogID(), err)
+		logger.Warning("%v handshake error, invalid handshake request, %v", v.peer.String(), err)
 		return
 	}
 	// process
 	sysID := proto.SystemIdentifier(req.SystemIdentifier)
 	latestUnicityCertificate, err := v.consensusManager.GetLatestUnicityCertificate(sysID)
 	if err != nil {
-		logger.Warning("%v handshake error, partition %X certificate read failed, %v", v.peer.LogID(), sysID.Bytes(), err)
+		logger.Warning("%v handshake error, partition %X certificate read failed, %v", v.peer.String(), sysID.Bytes(), err)
 		return
 	}
 	v.subscription.Subscribe(proto.SystemIdentifier(req.SystemIdentifier), req.NodeIdentifier)
 	if err = v.sendResponse(req.NodeIdentifier, latestUnicityCertificate); err != nil {
-		logger.Warning("%v handshake error, failed to send response, %v", v.peer.LogID(), err)
+		logger.Warning("%v handshake error, failed to send response, %v", v.peer.String(), err)
 		return
 	}
 }
@@ -156,34 +156,34 @@ func (v *Node) onHandshake(req *handshake.Handshake) {
 // Partition nodes can only extend the stored/certified state
 func (v *Node) onBlockCertificationRequest(req *certification.BlockCertificationRequest) {
 	if req.SystemIdentifier == nil {
-		logger.Warning("%v invalid block certification request system id is nil, rejected", v.peer.LogID())
+		logger.Warning("%v invalid block certification request system id is nil, rejected", v.peer.String())
 		return
 	}
 	sysID := proto.SystemIdentifier(req.SystemIdentifier)
 	_, ver, err := v.partitions.GetInfo(sysID)
 	if err != nil {
 		logger.Warning("%v block certification request from %X node %v rejected: %v",
-			v.peer.LogID(), req.SystemIdentifier, req.NodeIdentifier, err)
+			v.peer.String(), req.SystemIdentifier, req.NodeIdentifier, err)
 		return
 	}
 	if err = ver.Verify(req.NodeIdentifier, req); err != nil {
 		logger.Warning("%v block certification request from %X node %v rejected: %v",
-			v.peer.LogID(), req.SystemIdentifier, req.NodeIdentifier, err)
+			v.peer.String(), req.SystemIdentifier, req.NodeIdentifier, err)
 		return
 	}
 	latestUnicityCertificate, err := v.consensusManager.GetLatestUnicityCertificate(sysID)
 	if err != nil {
 		logger.Warning("%v block certification request from %X node %v rejected, failed to read last certified state %v",
-			v.peer.LogID(), req.SystemIdentifier, req.NodeIdentifier, err)
+			v.peer.String(), req.SystemIdentifier, req.NodeIdentifier, err)
 		return
 	}
 	v.subscription.Subscribe(sysID, req.NodeIdentifier)
 	err = consensus.CheckBlockCertificationRequest(req, latestUnicityCertificate)
 	if err != nil {
 		logger.Warning("%v block certification request from %X node %v invalid, %v",
-			v.peer.LogID(), req.SystemIdentifier, req.NodeIdentifier, err)
+			v.peer.String(), req.SystemIdentifier, req.NodeIdentifier, err)
 		if err = v.sendResponse(req.NodeIdentifier, latestUnicityCertificate); err != nil {
-			logger.Warning("%v send failed, %v", v.peer.LogID(), err)
+			logger.Warning("%v send failed, %v", v.peer.String(), err)
 		}
 		return
 	}
@@ -192,14 +192,14 @@ func (v *Node) onBlockCertificationRequest(req *certification.BlockCertification
 		// stale request buffer, but no need to add extra proof
 		if err = v.incomingRequests.Add(req); err != nil {
 			logger.Warning("%v stale block certification request from %X node %v could not be stored, %v",
-				v.peer.LogID(), err.Error())
+				v.peer.String(), err.Error())
 		}
 		return
 	}
 
 	if err = v.incomingRequests.Add(req); err != nil {
 		logger.Warning("%v block certification request from %X node %v could not be stored, %v",
-			v.peer.LogID(), err.Error())
+			v.peer.String(), err.Error())
 		return
 	}
 	// There has to be at least one node in the partition, otherwise we could not have verified the request
@@ -207,7 +207,7 @@ func (v *Node) onBlockCertificationRequest(req *certification.BlockCertification
 	// In case of quorum or no quorum possible forward the IR change request to consensus manager
 	if ir != nil {
 		logger.Debug("%v partition %X reached consensus, new InputHash: %X",
-			v.peer.LogID(), sysID.Bytes(), ir.Hash)
+			v.peer.String(), sysID.Bytes(), ir.Hash)
 		requests := v.incomingRequests.GetRequests(sysID)
 		v.consensusManager.RequestCertification() <- consensus.IRChangeRequest{
 			SystemIdentifier: sysID,
@@ -218,7 +218,7 @@ func (v *Node) onBlockCertificationRequest(req *certification.BlockCertification
 	}
 	if !consensusPossible {
 		logger.Debug("%v partition %X consensus not possible, repeat UC",
-			v.peer.LogID(), sysID.Bytes())
+			v.peer.String(), sysID.Bytes())
 		// add all requests to prove that no consensus is possible
 		requests := v.incomingRequests.GetRequests(sysID)
 		v.consensusManager.RequestCertification() <- consensus.IRChangeRequest{
@@ -235,11 +235,11 @@ func (v *Node) handleConsensus(ctx context.Context) {
 	for {
 		select {
 		case <-ctx.Done():
-			logger.Info("%v exiting root consensus result handler", v.peer.LogID())
+			logger.Info("%v exiting root consensus result handler", v.peer.String())
 			return
 		case uc, ok := <-v.consensusManager.CertificationResult():
 			if !ok {
-				logger.Warning("%v consensus channel closed, exiting loop", v.peer.LogID())
+				logger.Warning("%v consensus channel closed, exiting loop", v.peer.String())
 				return
 			}
 			v.onCertificationResult(&uc)
@@ -259,8 +259,8 @@ func (v *Node) onCertificationResult(certificate *certificates.UnicityCertificat
 	// send response to all registered nodes
 	for _, node := range subscribed {
 		if err := v.sendResponse(node, certificate); err != nil {
-			logger.Warning("%v send failed, %v", v.peer.LogID(), err)
+			logger.Warning("%v send failed, %v", v.peer.String(), err)
+			v.subscription.SubscriberError(sysID, node)
 		}
-		v.subscription.SubscriberError(sysID, node)
 	}
 }

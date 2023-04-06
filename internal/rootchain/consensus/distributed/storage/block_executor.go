@@ -263,7 +263,8 @@ func (x *ExecutedBlock) GenerateCertificates(commitQc *atomic_broadcast.QuorumCe
 	ucs := map[protocol.SystemIdentifier]*certificates.UnicityCertificate{}
 	// copy parent certificates and extract changed certificates from this round
 	for _, sysID := range x.Changed {
-		utCert, err := ut.GetCertificate(sysID)
+		var utCert *certificates.UnicityTreeCertificate
+		utCert, err = ut.GetCertificate(sysID)
 		if err != nil {
 			// this should never happen. if it does then exit with panic because we cannot generate
 			// unicity tree certificates.

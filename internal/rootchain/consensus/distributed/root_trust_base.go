@@ -130,8 +130,8 @@ func (r *RootTrustBase) checkNumberOfSignatures(signatures map[string][]byte) er
 }
 
 func (r *RootTrustBase) GetVerifier(nodeID peer.ID) (crypto.Verifier, error) {
-	ver, exists := r.nodeToPubkeyMap[string(nodeID)]
-	if exists == false {
+	ver, found := r.nodeToPubkeyMap[string(nodeID)]
+	if !found {
 		return nil, fmt.Errorf("no public key exist for node id %v", nodeID.String())
 	}
 	return ver, nil

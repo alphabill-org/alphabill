@@ -67,7 +67,7 @@ func (x *IRChangeReqVerifier) VerifyIRChangeReq(round uint64, irChReq *atomic_br
 	ucs := x.state.GetCertificates()
 	// verify certification Request
 	luc, found := ucs[sysID]
-	if found == false {
+	if !found {
 		return nil, errors.Errorf("ir change request verification error, partition %X last certificate not found", sysID)
 	}
 	if round < luc.UnicitySeal.RootRoundInfo.RoundNumber {

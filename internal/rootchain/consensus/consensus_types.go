@@ -16,7 +16,7 @@ type (
 		// RequestCertification returns channel where to send certification requests with proof of quorum or no-quorum
 		RequestCertification() chan<- IRChangeRequest
 		// CertificationResult read the channel to receive certification results
-		CertificationResult() <-chan certificates.UnicityCertificate
+		CertificationResult() <-chan *certificates.UnicityCertificate
 		// GetLatestUnicityCertificate get the latest certification for partition (maybe should/can be removed)
 		GetLatestUnicityCertificate(id protocol.SystemIdentifier) (*certificates.UnicityCertificate, error)
 		// Run consensus algorithm

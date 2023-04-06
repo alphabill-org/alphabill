@@ -21,14 +21,6 @@ var req1 = &certification.BlockCertificationRequest{
 	InputRecord: IR1,
 }
 
-var req2 = &certification.BlockCertificationRequest{
-	InputRecord: IR2,
-}
-
-var req3 = &certification.BlockCertificationRequest{
-	InputRecord: IR3,
-}
-
 // Test internals
 func Test_requestStore_add(t *testing.T) {
 	rs := newRequestStore()

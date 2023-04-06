@@ -31,7 +31,7 @@ type (
 		peer             *network.Peer // p2p network host for partition
 		partitions       partitions.PartitionConfiguration
 		incomingRequests *CertRequestBuffer
-		subscription     Subscriptions
+		subscription     *Subscriptions
 		net              PartitionNet
 		consensusManager consensus.Manager
 	}

@@ -8,7 +8,7 @@ import (
 
 func TestNewSubscriptionsEmpty(t *testing.T) {
 	subscriptions := NewSubscriptions()
-	require.NotNil(t, &subscriptions)
+	require.NotNil(t, subscriptions)
 	// no panic
 	subscriptions.SubscriberError("foo", "1")
 	require.Len(t, subscriptions.subs, 0)
@@ -18,7 +18,7 @@ func TestNewSubscriptionsEmpty(t *testing.T) {
 
 func TestNewSubscriptions(t *testing.T) {
 	subscriptions := NewSubscriptions()
-	require.NotNil(t, &subscriptions)
+	require.NotNil(t, subscriptions)
 	subscriptions.Subscribe("foo", "1")
 	subscriptions.Subscribe("foo", "2")
 	subscriptions.Subscribe("bar", "1")
@@ -36,7 +36,7 @@ func TestNewSubscriptions(t *testing.T) {
 
 func TestExpiredSubscriptions(t *testing.T) {
 	subscriptions := NewSubscriptions()
-	require.NotNil(t, &subscriptions)
+	require.NotNil(t, subscriptions)
 	subscriptions.Subscribe("foo", "1")
 	subscriptions.Subscribe("foo", "2")
 	// subscription is removed on errorCount number of send errors
@@ -49,7 +49,7 @@ func TestExpiredSubscriptions(t *testing.T) {
 
 func TestSubscriptionRefresh(t *testing.T) {
 	subscriptions := NewSubscriptions()
-	require.NotNil(t, &subscriptions)
+	require.NotNil(t, subscriptions)
 	subscriptions.Subscribe("foo", "1")
 	subscriptions.Subscribe("foo", "2")
 	// subscription is removed on errorCount number of send errors

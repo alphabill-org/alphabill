@@ -2,6 +2,7 @@ package distributed
 
 import (
 	"bytes"
+	"context"
 	gocrypto "crypto"
 	"fmt"
 	"testing"
@@ -14,10 +15,10 @@ import (
 	"github.com/alphabill-org/alphabill/internal/network/protocol/atomic_broadcast"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/certification"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
-	"github.com/alphabill-org/alphabill/internal/rootvalidator/consensus"
-	rootgenesis "github.com/alphabill-org/alphabill/internal/rootvalidator/genesis"
-	"github.com/alphabill-org/alphabill/internal/rootvalidator/partitions"
-	"github.com/alphabill-org/alphabill/internal/rootvalidator/testutils"
+	"github.com/alphabill-org/alphabill/internal/rootchain/consensus"
+	rootgenesis "github.com/alphabill-org/alphabill/internal/rootchain/genesis"
+	"github.com/alphabill-org/alphabill/internal/rootchain/partitions"
+	"github.com/alphabill-org/alphabill/internal/rootchain/testutils"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	testnetwork "github.com/alphabill-org/alphabill/internal/testutils/network"
 	"github.com/stretchr/testify/require"
@@ -63,7 +64,10 @@ func initConsensusManager(t *testing.T, net RootNet) (*ConsensusManager, *testut
 func TestNewConsensusManager_Ok(t *testing.T) {
 	mockNet := testnetwork.NewMockNetwork()
 	cm, root, partitionNodes, rg := initConsensusManager(t, mockNet)
-	defer cm.Stop()
+	ctx, ctxCancel := context.WithCancel(context.Background())
+	defer ctxCancel()
+	go func() { require.ErrorIs(t, cm.Run(ctx), context.Canceled) }()
+
 	require.Len(t, partitionNodes, 3)
 	require.NotNil(t, cm)
 	require.NotNil(t, root)
@@ -73,7 +77,10 @@ func TestNewConsensusManager_Ok(t *testing.T) {
 func TestIRChangeRequestFromPartition(t *testing.T) {
 	mockNet := testnetwork.NewMockNetwork()
 	cm, _, partitionNodes, rg := initConsensusManager(t, mockNet)
-	defer cm.Stop()
+	ctx, ctxCancel := context.WithCancel(context.Background())
+	defer ctxCancel()
+	go func() { require.ErrorIs(t, cm.Run(ctx), context.Canceled) }()
+
 	requests := make([]*certification.BlockCertificationRequest, 2)
 	newIR := &certificates.InputRecord{
 		PreviousHash: rg.Partitions[0].Nodes[0].BlockCertificationRequest.InputRecord.Hash,
@@ -105,7 +112,10 @@ func TestIRChangeRequestFromRootValidator_RootTimeoutOnFirstRound(t *testing.T) 
 
 	mockNet := testnetwork.NewMockNetwork()
 	cm, rootNode, _, _ := initConsensusManager(t, mockNet)
-	defer cm.Stop()
+	ctx, ctxCancel := context.WithCancel(context.Background())
+	defer ctxCancel()
+	go func() { require.ErrorIs(t, cm.Run(ctx), context.Canceled) }()
+
 	// Await proposal
 	lastProposalMsg = testutils.MockAwaitMessage[*atomic_broadcast.ProposalMsg](t, mockNet, network.ProtocolRootProposal)
 	require.Equal(t, uint64(2), lastProposalMsg.Block.Round)
@@ -148,7 +158,10 @@ func TestIRChangeRequestFromRootValidator_RootTimeout(t *testing.T) {
 
 	mockNet := testnetwork.NewMockNetwork()
 	cm, rootNode, partitionNodes, rg := initConsensusManager(t, mockNet)
-	defer cm.Stop()
+	ctx, ctxCancel := context.WithCancel(context.Background())
+	defer ctxCancel()
+	go func() { require.ErrorIs(t, cm.Run(ctx), context.Canceled) }()
+
 	// generate mock requests from partitions
 	requests := make([]*certification.BlockCertificationRequest, 2)
 	newIR := &certificates.InputRecord{
@@ -298,7 +311,10 @@ func TestIRChangeRequestFromRootValidator(t *testing.T) {
 
 	mockNet := testnetwork.NewMockNetwork()
 	cm, rootNode, partitionNodes, rg := initConsensusManager(t, mockNet)
-	defer cm.Stop()
+	ctx, ctxCancel := context.WithCancel(context.Background())
+	defer ctxCancel()
+	go func() { require.ErrorIs(t, cm.Run(ctx), context.Canceled) }()
+
 	// generate mock requests from partitions
 	requests := make([]*certification.BlockCertificationRequest, 2)
 	newIR := &certificates.InputRecord{
@@ -364,7 +380,10 @@ func TestPartitionTimeoutFromRootValidator(t *testing.T) {
 
 	mockNet := testnetwork.NewMockNetwork()
 	cm, rootNode, _, rg := initConsensusManager(t, mockNet)
-	defer cm.Stop()
+	ctx, ctxCancel := context.WithCancel(context.Background())
+	defer ctxCancel()
+	go func() { require.ErrorIs(t, cm.Run(ctx), context.Canceled) }()
+
 	roundNo := uint64(1) // 1 is genesis
 	// run a loop of 11 rounds to produce a root chain timeout
 	for i := 0; i < int(rg.Partitions[0].SystemDescriptionRecord.T2Timeout/(rg.Root.Consensus.BlockRateMs/2)); i++ {
@@ -421,7 +440,10 @@ func TestPartitionTimeoutFromRootValidator(t *testing.T) {
 func TestGetCertificates(t *testing.T) {
 	mockNet := testnetwork.NewMockNetwork()
 	cm, rootNode, partitionNodes, rg := initConsensusManager(t, mockNet)
-	defer cm.Stop()
+	ctx, ctxCancel := context.WithCancel(context.Background())
+	defer ctxCancel()
+	go func() { require.ErrorIs(t, cm.Run(ctx), context.Canceled) }()
+
 	getCertsMsg := &atomic_broadcast.GetCertificates{
 		NodeId: partitionNodes[0].Peer.ID().String(),
 	}
@@ -435,7 +457,10 @@ func TestGetCertificates(t *testing.T) {
 func TestGetState(t *testing.T) {
 	mockNet := testnetwork.NewMockNetwork()
 	cm, rootNode, partitionNodes, _ := initConsensusManager(t, mockNet)
-	defer cm.Stop()
+	ctx, ctxCancel := context.WithCancel(context.Background())
+	defer ctxCancel()
+	go func() { require.ErrorIs(t, cm.Run(ctx), context.Canceled) }()
+
 	getStateMsg := &atomic_broadcast.GetStateMsg{
 		NodeId: partitionNodes[0].Peer.ID().String(),
 	}

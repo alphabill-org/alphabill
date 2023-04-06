@@ -6,7 +6,7 @@ import (
 	p "github.com/alphabill-org/alphabill/internal/network/protocol"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/atomic_broadcast"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/certification"
-	"github.com/alphabill-org/alphabill/internal/rootvalidator/consensus/distributed/storage"
+	"github.com/alphabill-org/alphabill/internal/rootchain/consensus/distributed/storage"
 	"github.com/stretchr/testify/require"
 
 	"github.com/alphabill-org/alphabill/internal/certificates"

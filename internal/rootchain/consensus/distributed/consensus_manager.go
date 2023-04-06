@@ -12,10 +12,10 @@ import (
 	p "github.com/alphabill-org/alphabill/internal/network/protocol"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/atomic_broadcast"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
-	"github.com/alphabill-org/alphabill/internal/rootvalidator/consensus"
-	"github.com/alphabill-org/alphabill/internal/rootvalidator/consensus/distributed/leader"
-	"github.com/alphabill-org/alphabill/internal/rootvalidator/consensus/distributed/storage"
-	"github.com/alphabill-org/alphabill/internal/rootvalidator/partitions"
+	"github.com/alphabill-org/alphabill/internal/rootchain/consensus"
+	"github.com/alphabill-org/alphabill/internal/rootchain/consensus/distributed/leader"
+	"github.com/alphabill-org/alphabill/internal/rootchain/consensus/distributed/storage"
+	"github.com/alphabill-org/alphabill/internal/rootchain/partitions"
 	"github.com/alphabill-org/alphabill/internal/timer"
 	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/libp2p/go-libp2p/core/peer"
@@ -122,8 +122,6 @@ func NewDistributedAbConsensusManager(host *network.Peer, rg *genesis.RootGenesi
 		voteBuffer:     []*atomic_broadcast.VoteMsg{},
 	}
 	consensusManager.ctx, consensusManager.ctxCancel = context.WithCancel(context.Background())
-	// start
-	consensusManager.start()
 	return consensusManager, nil
 }
 
@@ -158,25 +156,24 @@ func (x *ConsensusManager) start() {
 		logger.Info("%v round %v root node started, waiting for proposal from leader %v",
 			x.peer.String(), currentRound, x.leaderSelector.GetLeaderForRound(currentRound).String())
 	}
-	go x.loop()
 }
 
-func (x *ConsensusManager) Stop() {
-	x.timers.WaitClose()
-	x.ctxCancel()
+func (x *ConsensusManager) Run(ctx context.Context) error {
+	x.start()
+	return x.loop(ctx)
 }
 
-func (x *ConsensusManager) loop() {
+func (x *ConsensusManager) loop(ctx context.Context) error {
 	for {
 		select {
-		case <-x.ctx.Done():
+		case <-ctx.Done():
 			logger.Info("%v exiting distributed consensus manager main loop", x.peer.String())
-			return
+			return ctx.Err()
 		case msg, ok := <-x.net.ReceivedChannel():
 			if !ok {
 				logger.Warning("%v root network received channel closed, exiting distributed consensus main loop",
 					x.peer.String())
-				return
+				return fmt.Errorf("exit drc consensus, network channel closed")
 			}
 			if msg.Message == nil {
 				logger.Warning("%v root network received message is nil", x.peer.String())
@@ -253,14 +250,14 @@ func (x *ConsensusManager) loop() {
 		case req, ok := <-x.certReqCh:
 			if !ok {
 				logger.Warning("%v certification channel closed, exiting distributed consensus main loop", x.peer.String())
-				return
+				return fmt.Errorf("exit drc consensus, certification channel closed")
 			}
 			x.onPartitionIRChangeReq(&req)
 		// handle timeouts
 		case nt, ok := <-x.timers.C:
 			if !ok {
 				logger.Warning("%v timers channel closed, exiting main loop", x.peer.String())
-				return
+				return fmt.Errorf("exit drc consensus, timer channel closed")
 			}
 			if nt == nil {
 				logger.Warning("%v root timer channel received nil timer", x.peer.String())

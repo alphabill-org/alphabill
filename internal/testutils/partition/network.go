@@ -14,7 +14,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/internal/partition"
 	"github.com/alphabill-org/alphabill/internal/rootchain"
-	"github.com/alphabill-org/alphabill/internal/rootchain/consensus/monolithic"
+	"github.com/alphabill-org/alphabill/internal/rootchain/consensus/distributed"
 	rootgenesis "github.com/alphabill-org/alphabill/internal/rootchain/genesis"
 	"github.com/alphabill-org/alphabill/internal/rootchain/partitions"
 	"github.com/alphabill-org/alphabill/internal/testutils/net"
@@ -26,7 +26,7 @@ import (
 
 // AlphabillPartition for integration tests
 type AlphabillPartition struct {
-	RootNode     *rootchain.Node
+	RootNodes    []*rootchain.Node
 	Nodes        []*partition.Node
 	ctxCancel    context.CancelFunc
 	ctx          context.Context
@@ -34,7 +34,7 @@ type AlphabillPartition struct {
 	EventHandler *testevent.TestEventHandler
 }
 
-const rootValidatorNodes = 1
+const rootValidatorNodes = 3
 
 // NewNetwork creates the AlphabillPartition for integration tests. It starts partition nodes with given
 // transaction system and a root chain.
@@ -125,32 +125,41 @@ func NewNetwork(partitionNodes int, txSystemProvider func(trustBase map[string]c
 		return nil, err
 	}
 	// start root chain nodes
-	partitionHost, err := network.NewPeer(&network.PeerConfiguration{
-		Address: "/ip4/127.0.0.1/tcp/0",
-	})
-	rootNet, err := network.NewLibP2PRootChainNetwork(partitionHost, 100, 300*time.Millisecond)
-	if err != nil {
-		return nil, err
-	}
-	// Initiate partition store
-	partitionStore, err := partitions.NewPartitionStoreFromGenesis(rootGenesis.Partitions)
-	if err != nil {
-		return nil, fmt.Errorf("failed to extract partition info from genesis, %w", err)
-	}
-	// Create monolithic consensus manager
-	cm, err := monolithic.NewMonolithicConsensusManager(rootPeers[0].ID().String(), rootGenesis, partitionStore, rootSigners[0])
-	if err != nil {
-		return nil, fmt.Errorf("consensus manager initialization failed, %w", err)
-	}
-	rootNode, err := rootchain.New(partitionHost, rootNet, partitionStore, cm)
-	if err != nil {
-		return nil, err
+	rootNodes := make([]*rootchain.Node, rootValidatorNodes)
+	rootPartitionHots := make([]*network.Peer, rootValidatorNodes)
+	for i := 0; i < rootValidatorNodes; i++ {
+		partitionHost, err := network.NewPeer(&network.PeerConfiguration{
+			Address: "/ip4/127.0.0.1/tcp/0",
+		})
+		rootPartitionHots[i] = partitionHost
+		rootNet, err := network.NewLibP2PRootChainNetwork(partitionHost, 100, 300*time.Millisecond)
+		if err != nil {
+			return nil, err
+		}
+		rootConsensusNet, err := network.NewLibP2RootConsensusNetwork(rootPeers[i], 100, 300*time.Millisecond)
+		// Initiate partition store
+		partitionStore, err := partitions.NewPartitionStoreFromGenesis(rootGenesis.Partitions)
+		if err != nil {
+			return nil, fmt.Errorf("failed to extract partition info from genesis, %w", err)
+		}
+		// Create distributed consensus manager
+		cm, err := distributed.NewDistributedAbConsensusManager(rootPeers[i], rootGenesis, partitionStore, rootConsensusNet, rootSigners[i])
+		if err != nil {
+			return nil, fmt.Errorf("consensus manager initialization failed, %w", err)
+		}
+		rn, err := rootchain.New(partitionHost, rootNet, partitionStore, cm)
+		if err != nil {
+			return nil, err
+		}
+		rootNodes[i] = rn
 	}
 
 	partitionGenesis := partitionGenesisFiles[0]
 	ctx, ctxCancel := context.WithCancel(context.Background())
-	// start root
-	go rootNode.Start(ctx)
+	// start root nodes
+	for _, rn := range rootNodes {
+		go rn.Start(ctx)
+	}
 	// start Nodes
 	var nodes = make([]*partition.Node, partitionNodes)
 	eh := &testevent.TestEventHandler{}
@@ -172,7 +181,7 @@ func NewNetwork(partitionNodes int, txSystemProvider func(trustBase map[string]c
 			partitionGenesis,
 			pn,
 			partition.WithContext(ctx),
-			partition.WithRootAddressAndIdentifier(partitionHost.MultiAddresses()[0], partitionHost.ID()),
+			partition.WithRootAddressAndIdentifier(rootPartitionHots[0].MultiAddresses()[0], rootPartitionHots[0].ID()),
 			partition.WithEventHandler(eh.HandleEvent, 100),
 		)
 		if err != nil {
@@ -187,7 +196,7 @@ func NewNetwork(partitionNodes int, txSystemProvider func(trustBase map[string]c
 		return nil, err
 	}
 	return &AlphabillPartition{
-		RootNode:     rootNode,
+		RootNodes:    rootNodes,
 		Nodes:        nodes,
 		ctx:          ctx,
 		ctxCancel:    ctxCancel,

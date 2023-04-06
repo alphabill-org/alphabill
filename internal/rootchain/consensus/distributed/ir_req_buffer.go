@@ -7,7 +7,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/certificates"
 	"github.com/alphabill-org/alphabill/internal/network/protocol"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/atomic_broadcast"
-	"github.com/alphabill-org/alphabill/internal/rootvalidator/consensus/distributed/storage"
+	"github.com/alphabill-org/alphabill/internal/rootchain/consensus/distributed/storage"
 	"github.com/alphabill-org/alphabill/internal/util"
 )
 

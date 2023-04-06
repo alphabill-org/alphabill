@@ -12,6 +12,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/handshake"
 	"github.com/alphabill-org/alphabill/internal/rootchain/consensus"
+	"github.com/alphabill-org/alphabill/internal/rootchain/consensus/distributed"
 	"github.com/alphabill-org/alphabill/internal/rootchain/consensus/monolithic"
 	rootgenesis "github.com/alphabill-org/alphabill/internal/rootchain/genesis"
 	"github.com/alphabill-org/alphabill/internal/rootchain/partitions"
@@ -117,33 +118,31 @@ func TestRootValidatorTest_ConstructWithMonolithicManager(t *testing.T) {
 	require.NotNil(t, validator)
 }
 
-/*
-	func TestRootValidatorTest_ConstructWithDistributedManager(t *testing.T) {
-		_, partitionRecord := testutils.CreatePartitionNodesAndPartitionRecord(t, partitionInputRecord, partitionID, 3)
-		node := testutils.NewTestNode(t)
-		verifier := node.Verifier
-		rootPubKeyBytes, err := verifier.MarshalPublicKey()
-		require.NoError(t, err)
-		id := node.Peer.ID()
-		rootGenesis, _, err := rootgenesis.NewRootGenesis(id.String(), node.Signer, rootPubKeyBytes, []*genesis.PartitionRecord{partitionRecord})
-		require.NoError(t, err)
-		partitionNetMock := testnetwork.NewMockNetwork()
-		rootHost := testutils.NewTestNode(t)
-		rootNetMock := testnetwork.NewMockNetwork()
-		partitionStore, err := partitions.NewPartitionStoreFromGenesis(rootGenesis.Partitions)
-		require.NoError(t, err)
-		cm, err := distributed.NewDistributedAbConsensusManager(rootHost.Peer,
-			rootGenesis,
-			partitionStore,
-			rootNetMock,
-			rootHost.Signer)
-		require.NoError(t, err)
-		validator, err := NewRootValidatorNode(node.Peer, partitionNetMock, partitionStore, cm)
-		require.NoError(t, err)
-		require.NotNil(t, validator)
-		defer validator.Close()
-	}
-*/
+func TestRootValidatorTest_ConstructWithDistributedManager(t *testing.T) {
+	_, partitionRecord := testutils.CreatePartitionNodesAndPartitionRecord(t, partitionInputRecord, partitionID, 3)
+	node := testutils.NewTestNode(t)
+	verifier := node.Verifier
+	rootPubKeyBytes, err := verifier.MarshalPublicKey()
+	require.NoError(t, err)
+	id := node.Peer.ID()
+	rootGenesis, _, err := rootgenesis.NewRootGenesis(id.String(), node.Signer, rootPubKeyBytes, []*genesis.PartitionRecord{partitionRecord})
+	require.NoError(t, err)
+	partitionNetMock := testnetwork.NewMockNetwork()
+	rootHost := testutils.NewTestNode(t)
+	rootNetMock := testnetwork.NewMockNetwork()
+	partitionStore, err := partitions.NewPartitionStoreFromGenesis(rootGenesis.Partitions)
+	require.NoError(t, err)
+	cm, err := distributed.NewDistributedAbConsensusManager(rootHost.Peer,
+		rootGenesis,
+		partitionStore,
+		rootNetMock,
+		rootHost.Signer)
+	require.NoError(t, err)
+	validator, err := New(node.Peer, partitionNetMock, partitionStore, cm)
+	require.NoError(t, err)
+	require.NotNil(t, validator)
+}
+
 func TestRootValidatorTest_CertificationReqRejected(t *testing.T) {
 	mockNet := testnetwork.NewMockNetwork()
 	rootValidator, _, partitionNodes, rg := initRootValidator(t, mockNet)

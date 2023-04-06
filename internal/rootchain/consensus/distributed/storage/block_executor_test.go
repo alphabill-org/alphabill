@@ -8,8 +8,8 @@ import (
 	"github.com/alphabill-org/alphabill/internal/network/protocol/atomic_broadcast"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/certification"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
-	rootgenesis "github.com/alphabill-org/alphabill/internal/rootvalidator/genesis"
-	"github.com/alphabill-org/alphabill/internal/rootvalidator/testutils"
+	rootgenesis "github.com/alphabill-org/alphabill/internal/rootchain/genesis"
+	"github.com/alphabill-org/alphabill/internal/rootchain/testutils"
 	"github.com/stretchr/testify/require"
 )
 

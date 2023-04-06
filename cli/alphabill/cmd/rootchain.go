@@ -13,6 +13,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/internal/rootchain"
 	"github.com/alphabill-org/alphabill/internal/rootchain/consensus"
+	"github.com/alphabill-org/alphabill/internal/rootchain/consensus/distributed"
 	"github.com/alphabill-org/alphabill/internal/rootchain/consensus/monolithic"
 	"github.com/alphabill-org/alphabill/internal/rootchain/partitions"
 	"github.com/alphabill-org/alphabill/internal/util"
@@ -141,27 +142,24 @@ func defaultRootNodeRunFunc(ctx context.Context, config *rootNodeConfig) error {
 			keys.SigningPrivateKey,
 			consensus.WithPersistentStoragePath(config.getStoragePath()))
 	} else {
-		/*
-			// Initiate Root validator network
-			var rootHost *network.Peer
-			rootHost, err = loadRootNetworkConfiguration(keys, rootGenesis.Root.RootValidators, config)
-			if err != nil {
-				return fmt.Errorf("failed to create root validator host, %w", err)
-			}
-			var rootNet *network.LibP2PNetwork
-			rootNet, err = network.NewLibP2RootConsensusNetwork(rootHost, config.MaxRequests, defaultNetworkTimeout)
-			if err != nil {
-				return fmt.Errorf("failed initiate root validator validator network, %w", err)
-			}
-			// Create distributed consensus manager function
-			cm, err = distributed.NewDistributedAbConsensusManager(rootHost,
-				rootGenesis,
-				partitionCfg,
-				rootNet,
-				keys.SigningPrivateKey,
-				consensus.WithPersistentStoragePath(config.getStoragePath()))
-		*/
-		return fmt.Errorf("not yet implemented")
+		// Initiate Root validator network
+		var rootHost *network.Peer
+		rootHost, err = loadRootNetworkConfiguration(keys, rootGenesis.Root.RootValidators, config)
+		if err != nil {
+			return fmt.Errorf("failed to create root node host, %w", err)
+		}
+		var rootNet *network.LibP2PNetwork
+		rootNet, err = network.NewLibP2RootConsensusNetwork(rootHost, config.MaxRequests, defaultNetworkTimeout)
+		if err != nil {
+			return fmt.Errorf("failed initiate root network, %w", err)
+		}
+		// Create distributed consensus manager function
+		cm, err = distributed.NewDistributedAbConsensusManager(rootHost,
+			rootGenesis,
+			partitionCfg,
+			rootNet,
+			keys.SigningPrivateKey,
+			consensus.WithPersistentStoragePath(config.getStoragePath()))
 	}
 	if err != nil {
 		return fmt.Errorf("failed initiate monolithic consensus manager: %w", err)

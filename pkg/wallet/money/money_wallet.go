@@ -344,16 +344,14 @@ func (w *Wallet) doSwap(ctx context.Context, accountIndex, timeout uint64) error
 				}
 			}
 		}
-		timer := time.NewTimer(500 * time.Millisecond)
 		select {
-		case <-timer.C:
+		case <-time.After(500 * time.Millisecond):
 			roundNr, err = w.GetRoundNumber(ctx)
 			if err != nil {
 				return err
 			}
 			continue
 		case <-ctx.Done():
-			timer.Stop()
 			return nil
 		}
 	}
@@ -386,17 +384,15 @@ func (w *Wallet) confirmSwap(ctx context.Context) error {
 				return nil
 			}
 		}
-		// wait for some time before retrying to fetch new block
-		timer := time.NewTimer(500 * time.Millisecond)
 		select {
-		case <-timer.C:
+		// wait for some time before retrying to fetch new block
+		case <-time.After(500 * time.Millisecond):
 			roundNr, err = w.GetRoundNumber(ctx)
 			if err != nil {
 				return err
 			}
 			continue
 		case <-ctx.Done():
-			timer.Stop()
 			return nil
 		}
 	}

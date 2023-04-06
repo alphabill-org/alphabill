@@ -139,7 +139,7 @@ func TestNode_NodeStartWithRecoverStateFromDB(t *testing.T) {
 	tp := SetupNewSingleNodePartition(t, &testtxsystem.CounterTxSystem{}, WithBlockStore(db))
 	genesisBlock := &block.Block{
 		SystemIdentifier:   tp.nodeDeps.genesis.SystemDescriptionRecord.SystemIdentifier,
-		NodeIdentifier:     "genesis",
+		NodeIdentifier:     "test",
 		Transactions:       []*txsystem.Transaction{},
 		UnicityCertificate: tp.nodeDeps.genesis.GetCertificate(),
 	}

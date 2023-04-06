@@ -37,14 +37,14 @@ func NewPartitionTrustBase(tb map[string]crypto.Verifier) PartitionTrustBase {
 }
 
 // GetQuorum calculates and returns minimum number of nodes required for a quorum
-func (v TrustBase) GetQuorum() uint64 {
+func (v *TrustBase) GetQuorum() uint64 {
 	// Partition quorum is currently set to 50%, meaning at least
 	// +1 to round up and avoid using floats
 	return uint64(len(v.PartitionTrustBase)/2) + 1
 }
 
 // GetTotalNodes returns total number of registered validator nodes
-func (v TrustBase) GetTotalNodes() uint64 {
+func (v *TrustBase) GetTotalNodes() uint64 {
 	return uint64(len(v.PartitionTrustBase))
 }
 

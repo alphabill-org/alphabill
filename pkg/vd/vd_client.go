@@ -20,7 +20,6 @@ import (
 type (
 	VDClient struct {
 		abClient client.ABClient
-		wallet   *wallet.Wallet
 		// synchronizes with ledger until the block is found where tx has been added to
 		syncToBlock   bool
 		timeoutDelta  uint64
@@ -102,7 +101,7 @@ func (v *VDClient) FetchBlockWithHash(hash []byte, blockNumber uint64) error {
 func (v *VDClient) ListAllBlocksWithTx() error {
 	defer v.shutdown()
 	log.Info("Fetching blocks...")
-	maxBlockNumber, _, err := v.abClient.GetMaxBlockNumber(context.Background())
+	maxBlockNumber, err := v.abClient.GetRoundNumber(context.Background())
 	if err != nil {
 		return err
 	}
@@ -122,7 +121,7 @@ func (v *VDClient) registerHashTx(ctx context.Context, hash []byte) error {
 		return err
 	}
 
-	_, currentRoundNumber, err := v.abClient.GetMaxBlockNumber(ctx)
+	currentRoundNumber, err := v.abClient.GetRoundNumber(ctx)
 	if err != nil {
 		return err
 	}
@@ -133,12 +132,9 @@ func (v *VDClient) registerHashTx(ctx context.Context, hash []byte) error {
 	if err != nil {
 		return err
 	}
-	resp, err := v.abClient.SendTransaction(ctx, tx)
-	if err != nil {
-		return err
-	}
-	if !resp.GetOk() {
-		return fmt.Errorf("error while submitting the hash: %s", resp.GetMessage())
+
+	if err := v.abClient.SendTransaction(ctx, tx); err != nil {
+		return fmt.Errorf("error while submitting the hash: %w", err)
 	}
 	log.Info("Hash successfully submitted, timeout block: ", timeout)
 
@@ -149,11 +145,17 @@ func (v *VDClient) registerHashTx(ctx context.Context, hash []byte) error {
 }
 
 func (v *VDClient) sync(currentBlock uint64, timeout uint64, hash []byte) error {
-	v.wallet = wallet.New().
-		SetBlockProcessor(v.prepareProcessor(timeout, hash)).
-		SetABClient(v.abClient).
-		Build()
-	return v.wallet.Sync(v.ctx, currentBlock)
+	wallet := wallet.New().SetABClient(v.abClient).Build()
+
+	ctx, cancel := context.WithCancel(v.ctx)
+	syncDone := func() {
+		cancel()
+		wallet.Shutdown()
+	}
+
+	wallet.BlockProcessor = v.prepareProcessor(timeout, hash, syncDone)
+
+	return wallet.Sync(ctx, currentBlock)
 }
 
 type VDBlockProcessor func(b *block.Block) error
@@ -162,12 +164,12 @@ func (p VDBlockProcessor) ProcessBlock(b *block.Block) error {
 	return p(b)
 }
 
-func (v *VDClient) prepareProcessor(timeout uint64, hash []byte) VDBlockProcessor {
+func (v *VDClient) prepareProcessor(timeout uint64, hash []byte, syncDone func()) VDBlockProcessor {
 	return func(b *block.Block) error {
 		log.Debug("Fetched block #", b.UnicityCertificate.InputRecord.RoundNumber, ", tx count: ", len(b.GetTransactions()))
 		if b.UnicityCertificate.InputRecord.RoundNumber > timeout {
 			log.Info("Block timeout reached")
-			v.shutdown()
+			syncDone()
 			return nil
 		}
 		for _, tx := range b.GetTransactions() {
@@ -180,7 +182,7 @@ func (v *VDClient) prepareProcessor(timeout uint64, hash []byte) VDBlockProcesso
 						log.Info("Invoking block callback")
 						v.blockCallback(&VDBlock{blockNumber: b.UnicityCertificate.InputRecord.RoundNumber})
 					}
-					v.shutdown()
+					syncDone()
 					break
 				}
 			} else {
@@ -193,9 +195,6 @@ func (v *VDClient) prepareProcessor(timeout uint64, hash []byte) VDBlockProcesso
 
 func (v *VDClient) shutdown() {
 	log.Info("Shutting down")
-	if v.wallet != nil {
-		v.wallet.Shutdown()
-	}
 	err := v.abClient.Shutdown()
 	if err != nil {
 		log.Error(err)

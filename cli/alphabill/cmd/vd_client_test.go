@@ -3,15 +3,14 @@ package cmd
 import (
 	"context"
 	"fmt"
-	"path"
+	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
 	"time"
 
-	"github.com/alphabill-org/alphabill/internal/async"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
-	rootgenesis "github.com/alphabill-org/alphabill/internal/rootvalidator/genesis"
+	rootgenesis "github.com/alphabill-org/alphabill/internal/rootchain/genesis"
 	"github.com/alphabill-org/alphabill/internal/testutils/net"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	testtime "github.com/alphabill-org/alphabill/internal/testutils/time"
@@ -21,9 +20,9 @@ import (
 
 func TestVD_UseClientForTx(t *testing.T) {
 	homeDirVD := setupTestHomeDir(t, "vd")
-	keysFileLocation := path.Join(homeDirVD, defaultKeysFileName)
-	nodeGenesisFileLocation := path.Join(homeDirVD, nodeGenesisFileName)
-	partitionGenesisFileLocation := path.Join(homeDirVD, "partition-genesis.json")
+	keysFileLocation := filepath.Join(homeDirVD, defaultKeysFileName)
+	nodeGenesisFileLocation := filepath.Join(homeDirVD, nodeGenesisFileName)
+	partitionGenesisFileLocation := filepath.Join(homeDirVD, "partition-genesis.json")
 	testtime.MustRunInTime(t, 20*time.Second, func() {
 		freePort, err := net.GetFreePort()
 		require.NoError(t, err)
@@ -31,8 +30,7 @@ func TestVD_UseClientForTx(t *testing.T) {
 		dialAddr := fmt.Sprintf("localhost:%v", freePort)
 
 		appStoppedWg := sync.WaitGroup{}
-		ctx, _ := async.WithWaitGroup(context.Background())
-		ctx, ctxCancel := context.WithCancel(ctx)
+		ctx, ctxCancel := context.WithCancel(context.Background())
 
 		// generate node genesis
 		cmd := New()
@@ -65,7 +63,7 @@ func TestVD_UseClientForTx(t *testing.T) {
 			cmd.baseCmd.SetArgs(strings.Split(args, " "))
 
 			err := cmd.addAndExecuteCommand(ctx)
-			require.NoError(t, err)
+			require.ErrorIs(t, err, context.Canceled)
 			appStoppedWg.Done()
 		}()
 

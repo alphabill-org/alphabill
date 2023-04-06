@@ -150,13 +150,13 @@ func (x *ConsensusManager) start() {
 	// Am I the leader?
 	currentRound := x.pacemaker.GetCurrentRound()
 	if x.leaderSelector.GetLeaderForRound(currentRound) == x.peer.ID() {
-		logger.Info("%v round %v root node started as leader, waiting to propose", x.peer.LogID(), currentRound)
+		logger.Info("%v round %v root node started as leader, waiting to propose", x.peer.String(), currentRound)
 		// on start wait a bit before making a proposal
 		x.waitPropose = true
 		x.timers.Start(blockRateID, x.params.BlockRateMs)
 	} else {
 		logger.Info("%v round %v root node started, waiting for proposal from leader %v",
-			x.peer.LogID(), currentRound, x.leaderSelector.GetLeaderForRound(currentRound).String())
+			x.peer.String(), currentRound, x.leaderSelector.GetLeaderForRound(currentRound).String())
 	}
 	go x.loop()
 }
@@ -170,23 +170,23 @@ func (x *ConsensusManager) loop() {
 	for {
 		select {
 		case <-x.ctx.Done():
-			logger.Info("%v exiting distributed consensus manager main loop", x.peer.LogID())
+			logger.Info("%v exiting distributed consensus manager main loop", x.peer.String())
 			return
 		case msg, ok := <-x.net.ReceivedChannel():
 			if !ok {
 				logger.Warning("%v root network received channel closed, exiting distributed consensus main loop",
-					x.peer.LogID())
+					x.peer.String())
 				return
 			}
 			if msg.Message == nil {
-				logger.Warning("%v root network received message is nil", x.peer.LogID())
+				logger.Warning("%v root network received message is nil", x.peer.String())
 				continue
 			}
 			switch msg.Protocol {
 			case network.ProtocolRootIrChangeReq:
 				req, correctType := msg.Message.(*atomic_broadcast.IRChangeReqMsg)
 				if !correctType {
-					logger.Warning("%v type %T not supported", x.peer.LogID(), msg.Message)
+					logger.Warning("%v type %T not supported", x.peer.String(), msg.Message)
 					continue
 				}
 				util.WriteTraceJsonLog(logger, fmt.Sprintf("IR Change Request from %v", msg.From), req)
@@ -194,7 +194,7 @@ func (x *ConsensusManager) loop() {
 			case network.ProtocolRootProposal:
 				req, correctType := msg.Message.(*atomic_broadcast.ProposalMsg)
 				if !correctType {
-					logger.Warning("%v type %T not supported", x.peer.LogID(), msg.Message)
+					logger.Warning("%v type %T not supported", x.peer.String(), msg.Message)
 					continue
 				}
 				util.WriteTraceJsonLog(logger, fmt.Sprintf("Proposal from %v", msg.From), req)
@@ -202,7 +202,7 @@ func (x *ConsensusManager) loop() {
 			case network.ProtocolRootVote:
 				req, correctType := msg.Message.(*atomic_broadcast.VoteMsg)
 				if !correctType {
-					logger.Warning("%v type %T not supported", x.peer.LogID(), msg.Message)
+					logger.Warning("%v type %T not supported", x.peer.String(), msg.Message)
 					continue
 				}
 				util.WriteTraceJsonLog(logger, fmt.Sprintf("Vote from %v", msg.From), req)
@@ -210,7 +210,7 @@ func (x *ConsensusManager) loop() {
 			case network.ProtocolRootTimeout:
 				req, correctType := msg.Message.(*atomic_broadcast.TimeoutMsg)
 				if !correctType {
-					logger.Warning("%v type %T not supported", x.peer.LogID(), msg.Message)
+					logger.Warning("%v type %T not supported", x.peer.String(), msg.Message)
 					continue
 				}
 				util.WriteTraceJsonLog(logger, fmt.Sprintf("Timeout vote from %v", msg.From), req)
@@ -248,22 +248,22 @@ func (x *ConsensusManager) loop() {
 				util.WriteTraceJsonLog(logger, fmt.Sprintf("Received recovery response from %v", msg.From), req)
 				x.onStateResponse(req)
 			default:
-				logger.Warning("%v unknown protocol req %s from %v", x.peer.LogID(), msg.Protocol, msg.From)
+				logger.Warning("%v unknown protocol req %s from %v", x.peer.String(), msg.Protocol, msg.From)
 			}
 		case req, ok := <-x.certReqCh:
 			if !ok {
-				logger.Warning("%v certification channel closed, exiting distributed consensus main loop", x.peer.LogID())
+				logger.Warning("%v certification channel closed, exiting distributed consensus main loop", x.peer.String())
 				return
 			}
 			x.onPartitionIRChangeReq(&req)
 		// handle timeouts
 		case nt, ok := <-x.timers.C:
 			if !ok {
-				logger.Warning("%v timers channel closed, exiting main loop", x.peer.LogID())
+				logger.Warning("%v timers channel closed, exiting main loop", x.peer.String())
 				return
 			}
 			if nt == nil {
-				logger.Warning("%v root timer channel received nil timer", x.peer.LogID())
+				logger.Warning("%v root timer channel received nil timer", x.peer.String())
 				continue
 			}
 			timerID := nt.Name()
@@ -274,7 +274,7 @@ func (x *ConsensusManager) loop() {
 				// throttling, make a proposal
 				x.processNewRoundEvent()
 			default:
-				logger.Warning("%v unknown timer %v", x.peer.LogID(), timerID)
+				logger.Warning("%v unknown timer %v", x.peer.String(), timerID)
 			}
 		}
 	}
@@ -286,7 +286,7 @@ func (x *ConsensusManager) onLocalTimeout() {
 	// always restart timer, time might be adjusted in case a new round is started
 	// to account for throttling
 	defer x.timers.Restart(localTimeoutID)
-	logger.Info("%v round %v local timeout", x.peer.LogID(), x.pacemaker.GetCurrentRound())
+	logger.Info("%v round %v local timeout", x.peer.String(), x.pacemaker.GetCurrentRound())
 	// Has the validator voted in this round, if true send the same vote
 	// maybe less than quorum of nodes where operational the last time
 	timeoutVoteMsg := x.pacemaker.GetTimeoutVote()
@@ -296,7 +296,7 @@ func (x *ConsensusManager) onLocalTimeout() {
 			x.pacemaker.GetCurrentRound(), 0, x.blockStore.GetHighQc()), x.peer.ID().String())
 		// sign
 		if err := x.safety.SignTimeout(timeoutVoteMsg, x.pacemaker.LastRoundTC()); err != nil {
-			logger.Warning("%v local timeout error, %v", x.peer.LogID(), err)
+			logger.Warning("%v local timeout error, %v", x.peer.String(), err)
 			return
 		}
 		// Record vote
@@ -309,13 +309,13 @@ func (x *ConsensusManager) onLocalTimeout() {
 		id, _ := validator.GetID()
 		receivers[i] = id
 	}
-	logger.Trace("%v round %v broadcasting timeout vote", x.peer.LogID(), x.pacemaker.GetCurrentRound())
+	logger.Trace("%v round %v broadcasting timeout vote", x.peer.String(), x.pacemaker.GetCurrentRound())
 	if err := x.net.Send(
 		network.OutputMessage{
 			Protocol: network.ProtocolRootTimeout,
 			Message:  timeoutVoteMsg,
 		}, receivers); err != nil {
-		logger.Warning("%v failed to forward ir change message: %v", x.peer.LogID(), err)
+		logger.Warning("%v failed to forward ir change message: %v", x.peer.String(), err)
 	}
 }
 
@@ -323,7 +323,7 @@ func (x *ConsensusManager) onLocalTimeout() {
 // partition communication when either partition reaches consensus or cannot reach consensus.
 func (x *ConsensusManager) onPartitionIRChangeReq(req *consensus.IRChangeRequest) {
 	logger.Debug("%v round %v, IR change request from partition",
-		x.peer.LogID(), x.pacemaker.GetCurrentRound())
+		x.peer.String(), x.pacemaker.GetCurrentRound())
 	reason := atomic_broadcast.IRChangeReqMsg_QUORUM
 	if req.Reason == consensus.QuorumNotPossible {
 		reason = atomic_broadcast.IRChangeReqMsg_QUORUM_NOT_POSSIBLE
@@ -342,14 +342,14 @@ func (x *ConsensusManager) onPartitionIRChangeReq(req *consensus.IRChangeRequest
 	}
 	// route the IR change to the next root chain leader
 	logger.Debug("%v round %v forwarding IR change request to next leader in round %v - %v",
-		x.peer.LogID(), x.pacemaker.GetCurrentRound(), nextRound, nextLeader.String())
+		x.peer.String(), x.pacemaker.GetCurrentRound(), nextRound, nextLeader.String())
 	err := x.net.Send(
 		network.OutputMessage{
 			Protocol: network.ProtocolRootIrChangeReq,
 			Message:  irReq,
 		}, []peer.ID{nextLeader})
 	if err != nil {
-		logger.Warning("%v failed to forward IR Change request: %v", x.peer.LogID(), err)
+		logger.Warning("%v failed to forward IR Change request: %v", x.peer.String(), err)
 	}
 }
 
@@ -360,23 +360,23 @@ func (x *ConsensusManager) onIRChange(irChange *atomic_broadcast.IRChangeReqMsg)
 	// if the node is either next leader or leader now, but has not yet proposed then buffer the request
 	if (x.leaderSelector.GetLeaderForRound(x.pacemaker.GetCurrentRound()) == x.peer.ID() && x.waitPropose) ||
 		(nextLeader == x.peer.ID()) {
-		logger.Debug("%v round %v IR change request received", x.peer.LogID(), x.pacemaker.GetCurrentRound())
+		logger.Debug("%v round %v IR change request received", x.peer.String(), x.pacemaker.GetCurrentRound())
 		// Verify and buffer and wait for opportunity to make the next proposal
 		if err := x.irReqBuffer.Add(x.pacemaker.GetCurrentRound(), irChange, x.irReqVerifier); err != nil {
-			logger.Warning("%v IR change request from partition %X error: %v", x.peer.LogID(), irChange.SystemIdentifier, err)
+			logger.Warning("%v IR change request from partition %X error: %v", x.peer.String(), irChange.SystemIdentifier, err)
 		}
 		return
 	}
 	// todo: AB-549 add max hop count or some sort of TTL?
 	// either this a completely lots message or because of race we just proposed, try to forward again to the next leader
 	logger.Warning("%v is not leader in next round %v, IR change req forwarded again %v",
-		x.peer.LogID(), x.pacemaker.GetCurrentRound()+1, nextLeader.String())
+		x.peer.String(), x.pacemaker.GetCurrentRound()+1, nextLeader.String())
 	if err := x.net.Send(
 		network.OutputMessage{
 			Protocol: network.ProtocolRootIrChangeReq,
 			Message:  irChange,
 		}, []peer.ID{nextLeader}); err != nil {
-		logger.Warning("%v failed to forward ir chang message: %v", x.peer.LogID(), err)
+		logger.Warning("%v failed to forward ir chang message: %v", x.peer.String(), err)
 	}
 }
 
@@ -385,22 +385,22 @@ func (x *ConsensusManager) onVoteMsg(vote *atomic_broadcast.VoteMsg) {
 	// verify signature on vote
 	err := vote.Verify(x.trustBase.GetQuorumThreshold(), x.trustBase.GetVerifiers())
 	if err != nil {
-		logger.Warning("%v vote verify failed: %v", x.peer.LogID(), err)
+		logger.Warning("%v vote verify failed: %v", x.peer.String(), err)
 	}
 	if vote.VoteInfo.RoundNumber < x.pacemaker.GetCurrentRound() {
 		logger.Warning("%v round %v stale vote, validator %v is behind vote for round %v, ignored",
-			x.peer.LogID(), x.pacemaker.GetCurrentRound(), vote.Author, vote.VoteInfo.RoundNumber)
+			x.peer.String(), x.pacemaker.GetCurrentRound(), vote.Author, vote.VoteInfo.RoundNumber)
 		return
 	}
 	logger.Trace("%v round %v received vote for round %v from %v",
-		x.peer.LogID(), x.pacemaker.GetCurrentRound(), vote.VoteInfo.RoundNumber, vote.Author)
+		x.peer.String(), x.pacemaker.GetCurrentRound(), vote.VoteInfo.RoundNumber, vote.Author)
 	// if a vote is received for the next round and this node is going to be the leader in
 	// the round after this, then buffer vote, it was just received before the proposal
 	if vote.VoteInfo.RoundNumber == x.pacemaker.GetCurrentRound()+1 &&
 		x.leaderSelector.GetLeaderForRound(x.pacemaker.GetCurrentRound()+2) == x.peer.ID() {
 		// vote received before proposal, buffer
 		logger.Debug("%v round %v received vote for round %v before proposal, buffering vote",
-			x.peer.LogID(), x.pacemaker.GetCurrentRound(), vote.VoteInfo.RoundNumber)
+			x.peer.String(), x.pacemaker.GetCurrentRound(), vote.VoteInfo.RoundNumber)
 		x.voteBuffer = append(x.voteBuffer, vote)
 		return
 	}
@@ -413,12 +413,12 @@ func (x *ConsensusManager) onVoteMsg(vote *atomic_broadcast.VoteMsg) {
 		// this might also be a stale vote, since when we have quorum the round is advanced and the node becomes
 		// the new leader in the current view/round
 		logger.Warning("%v received vote, validator is not leader in next round %v, vote ignored",
-			x.peer.LogID(), nextRound)
+			x.peer.String(), nextRound)
 		return
 	}
 	// SyncState, compare last handled QC
 	if x.checkRecoveryNeeded(vote.HighQc) {
-		logger.Error("%v vote handling, recovery not yet implemented", x.peer.LogID())
+		logger.Error("%v vote handling, recovery not yet implemented", x.peer.String())
 		// todo: AB-320 try to recover
 		return
 	}
@@ -426,10 +426,10 @@ func (x *ConsensusManager) onVoteMsg(vote *atomic_broadcast.VoteMsg) {
 	qc := x.pacemaker.RegisterVote(vote, x.trustBase)
 	if qc == nil {
 		logger.Trace("%v round %v processed vote for round %v, no quorum yet",
-			x.peer.LogID(), x.pacemaker.GetCurrentRound(), vote.VoteInfo.RoundNumber)
+			x.peer.String(), x.pacemaker.GetCurrentRound(), vote.VoteInfo.RoundNumber)
 		return
 	}
-	logger.Debug("%v round %v quorum achieved", x.peer.LogID(), vote.VoteInfo.RoundNumber)
+	logger.Debug("%v round %v quorum achieved", x.peer.String(), vote.VoteInfo.RoundNumber)
 	// since the root chain must not run faster than block-rate, calculate
 	// time from last proposal and see if we need to wait
 	slowDownTime := x.pacemaker.CalcTimeTilNextProposal(x.pacemaker.GetCurrentRound() + 1)
@@ -437,7 +437,7 @@ func (x *ConsensusManager) onVoteMsg(vote *atomic_broadcast.VoteMsg) {
 	x.processQC(qc)
 	if slowDownTime > 0 {
 		logger.Trace("%v round %v node %v wait %v before proposing",
-			x.peer.LogID(), x.pacemaker.GetCurrentRound(), x.peer.ID().String(), slowDownTime)
+			x.peer.String(), x.pacemaker.GetCurrentRound(), x.peer.ID().String(), slowDownTime)
 		x.waitPropose = true
 		x.timers.Start(blockRateID, slowDownTime)
 		return
@@ -453,29 +453,29 @@ func (x *ConsensusManager) onTimeoutMsg(vote *atomic_broadcast.TimeoutMsg) {
 	// verify signature on vote
 	err := vote.Verify(x.trustBase.GetQuorumThreshold(), x.trustBase.GetVerifiers())
 	if err != nil {
-		logger.Warning("%v timeout vote verify failed: %v", x.peer.LogID(), err)
+		logger.Warning("%v timeout vote verify failed: %v", x.peer.String(), err)
 	}
 	// stale drop
 	if vote.Timeout.Round < x.pacemaker.GetCurrentRound() {
 		logger.Trace("%v round %v stale timeout vote, validator %v voted for timeout in round %v, ignored",
-			x.peer.LogID(), x.pacemaker.GetCurrentRound(), vote.Author, vote.Timeout.Round)
+			x.peer.String(), x.pacemaker.GetCurrentRound(), vote.Author, vote.Timeout.Round)
 		return
 	}
 	// Node voted timeout, proceed
 	logger.Trace("%v round %v received timout vote for round %v from %v",
-		x.peer.LogID(), x.pacemaker.GetCurrentRound(), vote.Timeout.Round, vote.Author)
+		x.peer.String(), x.pacemaker.GetCurrentRound(), vote.Timeout.Round, vote.Author)
 	// SyncState, compare last handled QC
 	if x.checkRecoveryNeeded(vote.Timeout.HighQc) {
-		logger.Error("%v timeout vote, recovery not yet implemented", x.peer.LogID())
+		logger.Error("%v timeout vote, recovery not yet implemented", x.peer.String())
 		// todo: AB-320 try to recover
 	}
 	tc := x.pacemaker.RegisterTimeoutVote(vote, x.trustBase)
 	if tc == nil {
 		logger.Trace("%v round %v processed timeout vote for round %v, no quorum yet",
-			x.peer.LogID(), x.pacemaker.GetCurrentRound(), vote.Timeout.Round)
+			x.peer.String(), x.pacemaker.GetCurrentRound(), vote.Timeout.Round)
 		return
 	}
-	logger.Debug("%v round %v timeout quorum achieved", x.peer.LogID(), vote.Timeout.Round)
+	logger.Debug("%v round %v timeout quorum achieved", x.peer.String(), vote.Timeout.Round)
 	// process timeout certificate to advance to next the view/round
 	x.processTC(tc)
 	// if this node is the leader in this round then issue a proposal
@@ -484,7 +484,7 @@ func (x *ConsensusManager) onTimeoutMsg(vote *atomic_broadcast.TimeoutMsg) {
 		x.processNewRoundEvent()
 	} else {
 		logger.Trace("%v round %v, new leader is %v, waiting for proposal",
-			x.peer.LogID(), x.pacemaker.GetCurrentRound(), l.String())
+			x.peer.String(), x.pacemaker.GetCurrentRound(), l.String())
 	}
 }
 
@@ -495,11 +495,11 @@ func (x *ConsensusManager) checkRecoveryNeeded(qc *atomic_broadcast.QuorumCert) 
 	rootHash, err := x.blockStore.GetBlockRootHash(qc.VoteInfo.RoundNumber)
 	if err != nil {
 		logger.Warning("%v round %v unknown block in round %v, recover",
-			x.peer.LogID(), qc.VoteInfo.RoundNumber)
+			x.peer.String(), qc.VoteInfo.RoundNumber)
 	}
 	if !bytes.Equal(qc.VoteInfo.CurrentRootHash, rootHash) {
 		logger.Warning("%v round %v state is different expected %X, local %X, recover state",
-			x.peer.LogID(), qc.VoteInfo.RoundNumber, qc.VoteInfo.CurrentRootHash, rootHash)
+			x.peer.String(), qc.VoteInfo.RoundNumber, qc.VoteInfo.CurrentRootHash, rootHash)
 		return true
 	}
 	return false
@@ -511,25 +511,25 @@ func (x *ConsensusManager) onProposalMsg(proposal *atomic_broadcast.ProposalMsg)
 	// verify signature on proposal (does not verify partition request signatures)
 	err := proposal.Verify(x.trustBase.GetQuorumThreshold(), x.trustBase.GetVerifiers())
 	if err != nil {
-		logger.Warning("%v invalid Proposal message, verify failed: %v", x.peer.LogID(), err)
+		logger.Warning("%v invalid Proposal message, verify failed: %v", x.peer.String(), err)
 	}
 	// stale drop
 	if proposal.Block.Round < x.pacemaker.GetCurrentRound() {
 		logger.Debug("%v round %v stale proposal, validator %v is behind and proposed round %v, ignored",
-			x.peer.LogID(), x.pacemaker.GetCurrentRound(), proposal.Block.Author, proposal.Block.Round)
+			x.peer.String(), x.pacemaker.GetCurrentRound(), proposal.Block.Author, proposal.Block.Round)
 		return
 	}
 	logger.Trace("%v round %v received proposal message from %v",
-		x.peer.LogID(), x.pacemaker.GetCurrentRound(), proposal.Block.Author)
+		x.peer.String(), x.pacemaker.GetCurrentRound(), proposal.Block.Author)
 	// Is from valid leader
 	if x.leaderSelector.GetLeaderForRound(proposal.Block.Round).String() != proposal.Block.Author {
 		logger.Warning("%v proposal author %v is not a valid leader for round %v, ignoring proposal",
-			x.peer.LogID(), proposal.Block.Author, proposal.Block.Round)
+			x.peer.String(), proposal.Block.Author, proposal.Block.Round)
 		return
 	}
 	// Check current state against new QC
 	if x.checkRecoveryNeeded(proposal.Block.Qc) {
-		logger.Error("%v Proposal handling, recovery not yet implemented", x.peer.LogID())
+		logger.Error("%v Proposal handling, recovery not yet implemented", x.peer.String())
 		// todo: AB-320 try to recover
 		return
 	}
@@ -541,7 +541,7 @@ func (x *ConsensusManager) onProposalMsg(proposal *atomic_broadcast.ProposalMsg)
 	execStateId, err := x.blockStore.Add(proposal.Block, x.irReqVerifier)
 	if err != nil {
 		// wait for timeout, if others make progress this node will need to recover
-		logger.Warning("%v failed to execute proposal: %v", x.peer.LogID(), err.Error())
+		logger.Warning("%v failed to execute proposal: %v", x.peer.String(), err.Error())
 		// cannot send vote, so just return and wait for local timeout or new proposal (and try to recover then)
 		return
 	}
@@ -549,21 +549,21 @@ func (x *ConsensusManager) onProposalMsg(proposal *atomic_broadcast.ProposalMsg)
 	voteMsg, err := x.safety.MakeVote(proposal.Block, execStateId, x.blockStore.GetHighQc(), x.pacemaker.LastRoundTC())
 	if err != nil {
 		// wait for timeout, if others make progress this node will need to recover
-		logger.Warning("%v failed to sign vote, vote not sent: %v", x.peer.LogID(), err.Error())
+		logger.Warning("%v failed to sign vote, vote not sent: %v", x.peer.String(), err.Error())
 		return
 	}
 
 	x.pacemaker.SetVoted(voteMsg)
 	// send vote to the next leader
 	nextLeader := x.leaderSelector.GetLeaderForRound(x.pacemaker.GetCurrentRound() + 1)
-	logger.Trace("%v sending vote to next leader %v", x.peer.LogID(), nextLeader.String())
+	logger.Trace("%v sending vote to next leader %v", x.peer.String(), nextLeader.String())
 	err = x.net.Send(
 		network.OutputMessage{
 			Protocol: network.ProtocolRootVote,
 			Message:  voteMsg,
 		}, []peer.ID{nextLeader})
 	if err != nil {
-		logger.Warning("%v failed to send vote message: %v", x.peer.LogID(), err)
+		logger.Warning("%v failed to send vote message: %v", x.peer.String(), err)
 	}
 	// process vote buffer
 	if len(x.voteBuffer) > 0 {
@@ -584,7 +584,7 @@ func (x *ConsensusManager) processQC(qc *atomic_broadcast.QuorumCert) {
 	certs, err := x.blockStore.ProcessQc(qc)
 	if err != nil {
 		// todo: recovery
-		logger.Warning("%v round %v process qc error %v, try to  recover", x.peer.LogID(), x.pacemaker.GetCurrentRound(), err)
+		logger.Warning("%v round %v process qc error %v, try to  recover", x.peer.String(), x.pacemaker.GetCurrentRound(), err)
 		return
 	}
 	for _, uc := range certs {
@@ -601,7 +601,7 @@ func (x *ConsensusManager) processTC(tc *atomic_broadcast.TimeoutCert) {
 		return
 	}
 	if err := x.blockStore.ProcessTc(tc); err != nil {
-		logger.Warning("%v failed to handle timeout certificate: %v", x.peer.LogID(), err)
+		logger.Warning("%v failed to handle timeout certificate: %v", x.peer.String(), err)
 	}
 	x.pacemaker.AdvanceRoundTC(tc)
 }
@@ -615,10 +615,10 @@ func (x *ConsensusManager) processNewRoundEvent() {
 	x.timers.Restart(localTimeoutID)
 	round := x.pacemaker.GetCurrentRound()
 	if x.leaderSelector.GetLeaderForRound(round) != x.peer.ID() {
-		logger.Info("%v round %v new round start, not leader awaiting proposal", x.peer.LogID(), round)
+		logger.Info("%v round %v new round start, not leader awaiting proposal", x.peer.String(), round)
 		return
 	}
-	logger.Info("%v round %v new round start, node is leader", x.peer.LogID(), x.pacemaker.GetCurrentRound())
+	logger.Info("%v round %v new round start, node is leader", x.peer.String(), x.pacemaker.GetCurrentRound())
 	proposalMsg := &atomic_broadcast.ProposalMsg{
 		Block: &atomic_broadcast.BlockData{
 			Author:    x.peer.ID().String(),
@@ -632,7 +632,7 @@ func (x *ConsensusManager) processNewRoundEvent() {
 	}
 	// safety makes simple sanity checks and signs if everything is ok
 	if err := x.safety.SignProposal(proposalMsg); err != nil {
-		logger.Warning("%v failed to send proposal message, message signing failed: %v", x.peer.LogID(), err)
+		logger.Warning("%v failed to send proposal message, message signing failed: %v", x.peer.String(), err)
 	}
 	// broadcast proposal message (also to self)
 	receivers := make([]peer.ID, len(x.leaderSelector.GetRootNodes()))
@@ -640,18 +640,18 @@ func (x *ConsensusManager) processNewRoundEvent() {
 		id, _ := validator.GetID()
 		receivers[i] = id
 	}
-	logger.Trace("%v broadcasting proposal msg", x.peer.LogID())
+	logger.Trace("%v broadcasting proposal msg", x.peer.String())
 	if err := x.net.Send(
 		network.OutputMessage{
 			Protocol: network.ProtocolRootProposal,
 			Message:  proposalMsg}, receivers); err != nil {
-		logger.Warning("%v failed to send proposal message, network error: %v", x.peer.LogID(), err)
+		logger.Warning("%v failed to send proposal message, network error: %v", x.peer.String(), err)
 	}
 }
 
 func (x *ConsensusManager) onCertificateReq(req *atomic_broadcast.GetCertificates) {
 	logger.Trace("%v round %v certificate request from %v",
-		x.peer.LogID(), x.pacemaker.GetCurrentRound(), req.NodeId)
+		x.peer.String(), x.pacemaker.GetCurrentRound(), req.NodeId)
 	certs := x.blockStore.GetCertificates()
 	payload := make([]*certificates.UnicityCertificate, 0, len(certs))
 	for _, c := range certs {
@@ -667,7 +667,7 @@ func (x *ConsensusManager) onCertificateReq(req *atomic_broadcast.GetCertificate
 		network.OutputMessage{
 			Protocol: network.ProtocolRootCertResp,
 			Message:  respMsg}, []peer.ID{peerID}); err != nil {
-		logger.Warning("%v failed to send certificates response message, network error: %v", x.peer.LogID(), err)
+		logger.Warning("%v failed to send certificates response message, network error: %v", x.peer.String(), err)
 	}
 }
 
@@ -684,7 +684,7 @@ func (x *ConsensusManager) onCertificateResp(certs []*certificates.UnicityCertif
 
 func (x *ConsensusManager) onStateReq(req *atomic_broadcast.GetStateMsg) {
 	logger.Trace("%v round %v received state request from %v",
-		x.peer.LogID(), x.pacemaker.GetCurrentRound(), req.NodeId)
+		x.peer.String(), x.pacemaker.GetCurrentRound(), req.NodeId)
 	committedBlock := x.blockStore.GetRoot()
 	pendingBlocks := x.blockStore.GetPendingBlocks()
 	pending := make([]*atomic_broadcast.RecoveryBlock, len(pendingBlocks))
@@ -714,13 +714,13 @@ func (x *ConsensusManager) onStateReq(req *atomic_broadcast.GetStateMsg) {
 		network.OutputMessage{
 			Protocol: network.ProtocolRootStateResp,
 			Message:  respMsg}, []peer.ID{peerID}); err != nil {
-		logger.Warning("%v failed to send state response message, network error: %v", x.peer.LogID(), err)
+		logger.Warning("%v failed to send state response message, network error: %v", x.peer.String(), err)
 	}
 }
 
 func (x *ConsensusManager) onStateResponse(req *atomic_broadcast.StateMsg) {
 	logger.Trace("%v round %v received state response",
-		x.peer.LogID(), x.pacemaker.GetCurrentRound())
+		x.peer.String(), x.pacemaker.GetCurrentRound())
 	if err := x.blockStore.RecoverState(req.CommittedHead, req.BlockNode, x.irReqVerifier); err != nil {
 		logger.Warning("state response failed, %v", err)
 	}

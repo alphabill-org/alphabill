@@ -10,13 +10,13 @@ import (
 )
 
 var (
-	ErrPrevBlockHashIsNil       = errors.New("previous block hash is nil")
-	ErrBlockProposerIdIsMissing = errors.New("block proposer node identifier is missing")
-	ErrTransactionsIsNil        = errors.New("transactions is nil")
-	ErrSystemIdIsNil            = errors.New("system identifier is nil")
+	errPrevBlockHashIsNil       = errors.New("previous block hash is nil")
+	errBlockProposerIdIsMissing = errors.New("block proposer node identifier is missing")
+	errTransactionsIsNil        = errors.New("transactions is nil")
+	errSystemIdIsNil            = errors.New("system identifier is nil")
 )
 
-type CertificateValidator interface {
+type UCValidator interface {
 	Validate(uc *certificates.UnicityCertificate) error
 }
 
@@ -55,24 +55,24 @@ func (x *Block) GetRoundNumber() uint64 {
 	return 0
 }
 
-func (x *Block) IsValid(v CertificateValidator) error {
+func (x *Block) IsValid(v UCValidator) error {
 	if x == nil {
 		return ErrBlockIsNil
 	}
-	if x.SystemIdentifier == nil {
-		return ErrSystemIdIsNil
+	if len(x.SystemIdentifier) != 4 {
+		return errSystemIdIsNil
 	}
 	// skip shard identifier for now, it is not used
 	if x.PreviousBlockHash == nil {
-		return ErrPrevBlockHashIsNil
+		return errPrevBlockHashIsNil
 	}
 	/* Todo: AB-845, currently this field is never set
 	if len(x.NodeIdentifier) == 0 {
-		return ErrBlockProposerIdIsMissing
+		return errBlockProposerIdIsMissing
 	}
 	*/
 	if x.Transactions == nil {
-		return ErrTransactionsIsNil
+		return errTransactionsIsNil
 	}
 	if x.UnicityCertificate == nil {
 		return ErrUCIsNil

@@ -9,7 +9,7 @@ import (
 type (
 	Itr struct {
 		tx      *bolt.Tx
-		it      *bolt.Cursor
+		cursor  *bolt.Cursor
 		decoder DecodeFn
 		key     []byte
 		value   []byte
@@ -17,17 +17,16 @@ type (
 )
 
 func (it *Itr) Close() error {
-	if it.tx != nil {
-		// it seems error is only returned if already closed
-		err := it.tx.Rollback()
-		// release iterator, so it cannot be closed twice - hence this should never return error
-		it.tx = nil
-		it.key = nil
-		it.value = nil
-		return err
-	} else {
+	if it.tx == nil {
 		return nil
 	}
+	// cursor seems error is only returned if already closed
+	err := it.tx.Rollback()
+	// release iterator, so cursor cannot be closed twice - hence this should never return error
+	it.tx = nil
+	it.key = nil
+	it.value = nil
+	return err
 }
 
 func NewIterator(db *bolt.DB, bucket []byte, d DecodeFn) *Itr {
@@ -42,25 +41,26 @@ func (it *Itr) Next() {
 	if !it.Valid() {
 		return
 	}
-	it.key, it.value = it.it.Next()
+	it.key, it.value = it.cursor.Next()
 }
 func (it *Itr) Prev() {
 	if !it.Valid() {
 		return
 	}
-	it.key, it.value = it.it.Prev()
+	it.key, it.value = it.cursor.Prev()
 }
 
 func (it *Itr) Valid() bool {
-	return !(it.key == nil)
+	return it.key != nil
 }
 
 func (it *Itr) Key() []byte {
 	return it.key
 }
+
 func (it *Itr) Value(v any) error {
 	if !it.Valid() {
-		fmt.Errorf("iterator invalid")
+		return fmt.Errorf("iterator invalid")
 	}
 	return it.decoder(it.value, v)
 }
@@ -76,25 +76,25 @@ func newIterator(db *bolt.DB, bucket []byte, d DecodeFn) (*Itr, error) {
 	b := tx.Bucket(bucket)
 	return &Itr{
 		tx:      tx,
-		it:      b.Cursor(),
+		cursor:  b.Cursor(),
 		decoder: d,
 	}, nil
 }
 
 func (it *Itr) first() {
 	if it.tx != nil {
-		it.key, it.value = it.it.First()
+		it.key, it.value = it.cursor.First()
 	}
 }
 
 func (it *Itr) last() {
 	if it.tx != nil {
-		it.key, it.value = it.it.Last()
+		it.key, it.value = it.cursor.Last()
 	}
 }
 
 func (it *Itr) seek(key []byte) {
 	if it.tx != nil {
-		it.key, it.value = it.it.Seek(key)
+		it.key, it.value = it.cursor.Seek(key)
 	}
 }

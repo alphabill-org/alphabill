@@ -3,55 +3,26 @@ package memorydb
 import (
 	"encoding/json"
 	"fmt"
-	"reflect"
 	"sync"
 
-	"github.com/alphabill-org/alphabill/internal/errors"
 	"github.com/alphabill-org/alphabill/internal/keyvaluedb"
-)
-
-var (
-	ErrInvalidKey = errors.New("invalid key")
-	ErrValueIsNil = errors.New("value is nil")
 )
 
 type (
 	EncodeFn func(v any) ([]byte, error)
 	DecodeFn func(data []byte, v any) error
 
+	// MemoryDB is meant to be used as mockup for unit and integration tests where needed, not in production
 	MemoryDB struct {
-		db      map[string][]byte
-		encoder EncodeFn
-		decoder DecodeFn
-		lock    sync.RWMutex
+		db       map[string][]byte
+		encoder  EncodeFn
+		decoder  DecodeFn
+		writeErr error
+		lock     sync.RWMutex
 	}
 )
 
-func checkKey(key []byte) error {
-	if len(key) == 0 {
-		return ErrInvalidKey
-	}
-	return nil
-}
-
-func checkValue(val any) error {
-	if reflect.ValueOf(val).Kind() == reflect.Ptr && reflect.ValueOf(val).IsNil() {
-		return ErrValueIsNil
-	}
-	return nil
-}
-
-func checkKeyAndValue(key []byte, val any) error {
-	if err := checkKey(key); err != nil {
-		return err
-	}
-	if err := checkValue(val); err != nil {
-		return err
-	}
-	return nil
-}
-
-// New creates a new mock key value db that currently uses map as storage.
+// New creates a new mock key value db that currently uses map as storage
 // NB! map is probably not the best solution and should be replaced with binary search tree
 func New() *MemoryDB {
 	return &MemoryDB{
@@ -77,7 +48,7 @@ func (db *MemoryDB) Read(key []byte, value any) (bool, error) {
 	db.lock.RLock()
 	defer db.lock.RUnlock()
 
-	if err := checkKeyAndValue(key, value); err != nil {
+	if err := keyvaluedb.CheckKeyAndValue(key, value); err != nil {
 		return false, err
 	}
 	if data, ok := db.db[string(key)]; ok {
@@ -90,12 +61,15 @@ func (db *MemoryDB) Read(key []byte, value any) (bool, error) {
 func (db *MemoryDB) Write(key []byte, value any) error {
 	db.lock.Lock()
 	defer db.lock.Unlock()
-	if err := checkKeyAndValue(key, value); err != nil {
+	if err := keyvaluedb.CheckKeyAndValue(key, value); err != nil {
 		return err
 	}
 	b, err := db.encoder(value)
 	if err != nil {
 		return err
+	}
+	if db.writeErr != nil {
+		return db.writeErr
 	}
 	db.db[string(key)] = b
 	return nil
@@ -105,7 +79,7 @@ func (db *MemoryDB) Write(key []byte, value any) error {
 func (db *MemoryDB) Delete(key []byte) error {
 	db.lock.Lock()
 	defer db.lock.Unlock()
-	if err := checkKey(key); err != nil {
+	if err := keyvaluedb.CheckKey(key); err != nil {
 		return err
 	}
 	delete(db.db, string(key))
@@ -140,11 +114,15 @@ func (db *MemoryDB) Find(key []byte) keyvaluedb.Iterator {
 }
 
 func (db *MemoryDB) StartTx() (keyvaluedb.DBTransaction, error) {
-	db.lock.RLock()
-	defer db.lock.RUnlock()
-	tx, err := NewMapTx(db, db.encoder)
+	tx, err := NewMapTx(db)
 	if err != nil {
 		return nil, fmt.Errorf("failed to start Bolt tx, %w", err)
 	}
 	return tx, nil
+}
+
+func (db *MemoryDB) MockWriteError(err error) {
+	db.lock.RLock()
+	defer db.lock.RUnlock()
+	db.writeErr = err
 }

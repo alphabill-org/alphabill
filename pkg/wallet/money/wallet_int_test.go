@@ -50,12 +50,21 @@ func TestCollectDustTimeoutReached(t *testing.T) {
 	serverService := testserver.NewTestAlphabillServiceServer()
 	server, _ := testserver.StartServer(serverService)
 	t.Cleanup(server.GracefulStop)
-	restAddr, wb, _ := startRestServer(t, addr)
+
+	restAddr := "localhost:9545"
 	// start wallet backend
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	t.Cleanup(cancelFunc)
 	go func() {
-		wb.StartProcess(ctx)
+		err := money.CreateAndRun(ctx,
+			&money.Config{
+				ABMoneySystemIdentifier: []byte{0, 0, 0, 0},
+				AlphabillUrl:            addr,
+				ServerAddr:              restAddr,
+				DbFile:                  filepath.Join(t.TempDir(), money.BoltBillStoreFileName),
+				ListBillsPageLimit:      100,
+			})
+		require.ErrorIs(t, err, context.Canceled)
 	}()
 
 	// setup wallet
@@ -132,12 +141,21 @@ func TestCollectDustInMultiAccountWallet(t *testing.T) {
 	network := startAlphabillPartition(t, initialBill)
 	addr := "localhost:9544"
 	startRPCServer(t, network, addr)
-	restAddr, wb, _ := startRestServer(t, addr)
+
+	restAddr := "localhost:9545"
 	// start wallet backend
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	t.Cleanup(cancelFunc)
 	go func() {
-		wb.StartProcess(ctx)
+		err := money.CreateAndRun(ctx,
+			&money.Config{
+				ABMoneySystemIdentifier: []byte{0, 0, 0, 0},
+				AlphabillUrl:            addr,
+				ServerAddr:              restAddr,
+				DbFile:                  filepath.Join(t.TempDir(), money.BoltBillStoreFileName),
+				ListBillsPageLimit:      100,
+			})
+		require.ErrorIs(t, err, context.Canceled)
 	}()
 
 	// setup wallet with multiple keys
@@ -201,7 +219,6 @@ func sendToAccount(t *testing.T, w *Wallet, accountIndexTo uint64) {
 	_, err = w.Send(context.Background(), SendCmd{ReceiverPubKey: receiverPubkey, Amount: 1})
 	require.NoError(t, err)
 	require.Eventually(t, func() bool {
-		_ = w.SyncToMaxBlockNumber(context.Background(), dcTimeoutBlockCount)
 		balance, _ := w.GetBalance(GetBalanceCmd{AccountIndex: accountIndexTo})
 		return balance > prevBalance
 	}, test.WaitDuration, time.Second)
@@ -241,18 +258,6 @@ func startRPCServer(t *testing.T, network *testpartition.AlphabillPartition, add
 	}()
 }
 
-func startRestServer(t *testing.T, rpcAddr string) (string, *money.WalletBackend, *money.BoltBillStore) {
-	addr := "localhost:9545"
-	w, s := createWalletBackend(t, rpcAddr)
-	server := money.NewHttpServer(addr, 100, w)
-	err := server.Start()
-	require.NoError(t, err)
-	t.Cleanup(func() {
-		_ = server.Shutdown(context.Background())
-	})
-	return addr, w, s
-}
-
 func initRPCServer(node *partition.Node) (*grpc.Server, error) {
 	grpcServer := grpc.NewServer()
 	rpcServer, err := rpc.NewGRPCServer(node)
@@ -281,12 +286,4 @@ func createInitialBillTransferTx(pubKey []byte, billId *uint256.Int, billValue u
 		return nil, err
 	}
 	return tx, nil
-}
-
-func createWalletBackend(t *testing.T, addr string) (*money.WalletBackend, *money.BoltBillStore) {
-	dbFile := filepath.Join(t.TempDir(), money.BoltBillStoreFileName)
-	storage, _ := money.NewBoltBillStore(dbFile)
-	bp := money.NewBlockProcessor(storage, money.NewTxConverter([]byte{0, 0, 0, 0}))
-	genericWallet := wallet.New().SetBlockProcessor(bp).SetABClient(client.New(client.AlphabillClientConfig{Uri: addr})).Build()
-	return money.New(genericWallet, storage), storage
 }

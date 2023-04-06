@@ -18,7 +18,7 @@ type Writer interface {
 
 // DBTx interface for database transactions
 // NB! all transactions MUST be completed by either calling Commit() or Rollback() which releases
-// the transaction. Multiple parallel transactions are not possible and result in deadlock.
+// the transaction.  Only one read-write transaction is allowed at a time.
 type DBTx interface {
 	StartTx() (DBTransaction, error)
 }
@@ -28,7 +28,7 @@ type DBTx interface {
 type KeyValueDB interface {
 	Reader
 	Writer
-	Iteratee
+	Iterable
 	DBTx
 }
 
@@ -64,8 +64,8 @@ type ReverseIterator interface {
 	Close() error
 }
 
-// Iteratee wraps the NewIterator methods of a backing data store.
-type Iteratee interface {
+// Iterable wraps the NewIterator methods of a backing data store.
+type Iterable interface {
 	// First creates a binary-alphabetical forward iterator starting with first item.
 	// If the DB is empty the returned iterator returned is not valid (it.Valid() == false)
 	// NB! when done iterator MUST be released with Close() or next DB operation will result in deadlock

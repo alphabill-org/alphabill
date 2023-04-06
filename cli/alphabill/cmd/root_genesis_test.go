@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"path"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -16,7 +16,7 @@ func TestGenerateGenesisFiles(t *testing.T) {
 	conf := &rootGenesisConfig{
 		Base: &baseConfiguration{
 			HomeDir:    alphabillHomeDir(),
-			CfgFile:    path.Join(alphabillHomeDir(), defaultConfigFile),
+			CfgFile:    filepath.Join(alphabillHomeDir(), defaultConfigFile),
 			LogCfgFile: defaultLoggerConfigFile,
 		},
 		PartitionNodeGenesisFiles: []string{"testdata/partition-node-genesis-1.json"},
@@ -33,11 +33,11 @@ func TestGenerateGenesisFiles(t *testing.T) {
 	require.NoError(t, err)
 
 	expectedRGFile, _ := os.ReadFile("testdata/expected/root-genesis.json")
-	actualRGFile, _ := os.ReadFile(path.Join(outputDir, "root-genesis.json"))
+	actualRGFile, _ := os.ReadFile(filepath.Join(outputDir, "root-genesis.json"))
 	require.EqualValues(t, expectedRGFile, actualRGFile)
 
 	expectedPGFile1, _ := os.ReadFile("testdata/expected/partition-genesis-1.json")
-	actualPGFile1, _ := os.ReadFile(path.Join(outputDir, "partition-genesis-1.json"))
+	actualPGFile1, _ := os.ReadFile(filepath.Join(outputDir, "partition-genesis-1.json"))
 	require.EqualValues(t, expectedPGFile1, actualPGFile1)
 }
 
@@ -48,7 +48,7 @@ func TestRootGenesis_KeyFileNotFound(t *testing.T) {
 	cmd.baseCmd.SetArgs(strings.Split(args, " "))
 	err := cmd.addAndExecuteCommand(context.Background())
 
-	s := path.Join(homeDir, defaultRootChainDir, defaultKeysFileName)
+	s := filepath.Join(homeDir, defaultRootChainDir, defaultKeysFileName)
 	require.ErrorContains(t, err, fmt.Sprintf("failed to read root chain keys from file '%s'", s))
 }
 
@@ -59,9 +59,7 @@ func TestRootGenesis_ForceKeyGeneration(t *testing.T) {
 	cmd.baseCmd.SetArgs(strings.Split(args, " "))
 	err := cmd.addAndExecuteCommand(context.Background())
 	require.NoError(t, err)
-
-	kf := path.Join(homeDir, defaultRootChainDir, defaultKeysFileName)
-	require.FileExists(t, kf)
+	require.FileExists(t, filepath.Join(homeDir, defaultRootChainDir, defaultKeysFileName))
 }
 
 func TestGenerateGenesisFiles_InvalidPartitionSignature(t *testing.T) {
@@ -69,7 +67,7 @@ func TestGenerateGenesisFiles_InvalidPartitionSignature(t *testing.T) {
 	conf := &rootGenesisConfig{
 		Base: &baseConfiguration{
 			HomeDir:    alphabillHomeDir(),
-			CfgFile:    path.Join(alphabillHomeDir(), defaultConfigFile),
+			CfgFile:    filepath.Join(alphabillHomeDir(), defaultConfigFile),
 			LogCfgFile: defaultLoggerConfigFile,
 		},
 		PartitionNodeGenesisFiles: []string{"testdata/partition-record-1-invalid-sig.json"},
@@ -83,7 +81,7 @@ func TestGenerateGenesisFiles_InvalidPartitionSignature(t *testing.T) {
 }
 
 func setupTestDir(t *testing.T, dirName string) string {
-	outputDir := path.Join(os.TempDir(), dirName)
+	outputDir := filepath.Join(os.TempDir(), dirName)
 	_ = os.RemoveAll(outputDir)
 	_ = os.MkdirAll(outputDir, 0700) // -rwx------
 	t.Cleanup(func() {

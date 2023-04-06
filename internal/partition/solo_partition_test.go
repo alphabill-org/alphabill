@@ -20,10 +20,9 @@ import (
 	"github.com/alphabill-org/alphabill/internal/network/protocol/certification"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/internal/partition/event"
-	"github.com/alphabill-org/alphabill/internal/rootvalidator/consensus"
-	rstore "github.com/alphabill-org/alphabill/internal/rootvalidator/consensus/monolithic"
-	rootgenesis "github.com/alphabill-org/alphabill/internal/rootvalidator/genesis"
-	"github.com/alphabill-org/alphabill/internal/rootvalidator/unicitytree"
+	"github.com/alphabill-org/alphabill/internal/rootchain/consensus"
+	rootgenesis "github.com/alphabill-org/alphabill/internal/rootchain/genesis"
+	"github.com/alphabill-org/alphabill/internal/rootchain/unicitytree"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	testnetwork "github.com/alphabill-org/alphabill/internal/testutils/network"
 	testevent "github.com/alphabill-org/alphabill/internal/testutils/partition/event"
@@ -44,7 +43,8 @@ type SingleNodePartition struct {
 	store      keyvaluedb.KeyValueDB
 	partition  *Node
 	nodeDeps   *partitionStartupDependencies
-	rootState  rstore.RootState
+	rootRound  uint64
+	certs      map[p.SystemIdentifier]*certificates.UnicityCertificate
 	rootSigner crypto.Signer
 	mockNet    *testnetwork.MockNet
 	eh         *testevent.TestEventHandler
@@ -67,7 +67,7 @@ func (t *AlwaysValidBlockProposalValidator) Validate(*blockproposal.BlockProposa
 	return nil
 }
 
-func NewSingleNodePartition(t *testing.T, txSystem txsystem.TransactionSystem, nodeOptions ...NodeOption) *SingleNodePartition {
+func SetupNewSingleNodePartition(t *testing.T, txSystem txsystem.TransactionSystem, nodeOptions ...NodeOption) *SingleNodePartition {
 	peer := createPeer(t)
 	key, err := peer.PublicKey()
 	require.NoError(t, err)
@@ -105,14 +105,7 @@ func NewSingleNodePartition(t *testing.T, txSystem txsystem.TransactionSystem, n
 	for _, partition := range rootGenesis.Partitions {
 		certs[partition.GetSystemIdentifierString()] = partition.Certificate
 	}
-	rootState := rstore.RootState{
-		Round:        rootGenesis.GetRoundNumber(),
-		RootHash:     rootGenesis.GetRoundHash(),
-		Certificates: certs,
-	}
-	/*	rc, err := rootchain.NewState(rootGenesis, "test", rootSigner, rstore.NewInMemStateStore(gocrypto.SHA256))
-		require.NoError(t, err)
-	*/
+
 	net := testnetwork.NewMockNetwork()
 	eh := &testevent.TestEventHandler{}
 
@@ -128,16 +121,23 @@ func NewSingleNodePartition(t *testing.T, txSystem txsystem.TransactionSystem, n
 
 	partition := &SingleNodePartition{
 		nodeDeps:   deps,
-		rootState:  rootState,
+		rootRound:  rootGenesis.GetRoundNumber(),
+		certs:      certs,
 		rootSigner: rootSigner,
 		mockNet:    net,
 		eh:         eh,
 	}
+	return partition
+}
 
+func StartSingleNodePartition(t *testing.T, p *SingleNodePartition) {
 	// partition node
-	err = partition.StartNode()
-	require.NoError(t, err)
+	require.NoError(t, p.StartNode())
+}
 
+func NewSingleNodePartition(t *testing.T, txSystem txsystem.TransactionSystem, nodeOptions ...NodeOption) *SingleNodePartition {
+	partition := SetupNewSingleNodePartition(t, txSystem, nodeOptions...)
+	StartSingleNodePartition(t, partition)
 	return partition
 }
 
@@ -210,10 +210,10 @@ func (sn *SingleNodePartition) SubmitBlockProposal(prop *blockproposal.BlockProp
 }
 
 func (sn *SingleNodePartition) CreateUnicityCertificate(ir *certificates.InputRecord, roundNumber uint64) (*certificates.UnicityCertificate, error) {
-	id := sn.nodeConf.GetSystemIdentifier()
-	sdrHash := sn.nodeConf.genesis.SystemDescriptionRecord.Hash(gocrypto.SHA256)
+	sdr := sn.nodeDeps.genesis.SystemDescriptionRecord
+	sdrHash := sdr.Hash(gocrypto.SHA256)
 	data := []*unicitytree.Data{{
-		SystemIdentifier:            id,
+		SystemIdentifier:            sdr.SystemIdentifier,
 		InputRecord:                 ir,
 		SystemDescriptionRecordHash: sdrHash,
 	},
@@ -227,7 +227,7 @@ func (sn *SingleNodePartition) CreateUnicityCertificate(ir *certificates.InputRe
 	if err != nil {
 		return nil, err
 	}
-	cert, err := ut.GetCertificate(id)
+	cert, err := ut.GetCertificate(sdr.SystemIdentifier)
 	if err != nil {
 		// this should never happen. if it does then exit with panic because we cannot generate
 		// unicity tree certificates.
@@ -292,16 +292,15 @@ func (sn *SingleNodePartition) SubmitUC(t *testing.T, uc *certificates.UnicityCe
 func (sn *SingleNodePartition) IssueBlockUC(t *testing.T) *certificates.UnicityCertificate {
 	req := sn.mockNet.SentMessages(network.ProtocolBlockCertification)[0].Message.(*certification.BlockCertificationRequest)
 	sn.mockNet.ResetSentMessages(network.ProtocolBlockCertification)
-	luc, found := sn.rootState.Certificates[p.SystemIdentifier(req.SystemIdentifier)]
+	luc, found := sn.certs[p.SystemIdentifier(req.SystemIdentifier)]
 	require.True(t, found)
 	err := consensus.CheckBlockCertificationRequest(req, luc)
 	require.NoError(t, err)
-	uc, err := sn.CreateUnicityCertificate(req.InputRecord, sn.rootState.Round+1)
+	uc, err := sn.CreateUnicityCertificate(req.InputRecord, sn.rootRound+1)
 	require.NoError(t, err)
 	// update state
-	sn.rootState.Round = uc.UnicitySeal.RootRoundInfo.RoundNumber
-	sn.rootState.RootHash = uc.UnicitySeal.CommitInfo.RootHash
-	sn.rootState.Certificates[p.SystemIdentifier(req.SystemIdentifier)] = uc
+	sn.rootRound = uc.UnicitySeal.RootRoundInfo.RoundNumber
+	sn.certs[p.SystemIdentifier(req.SystemIdentifier)] = uc
 	return uc
 }
 
@@ -336,7 +335,7 @@ func (l *TestLeaderSelector) IsCurrentNodeLeader() bool {
 	return l.leader == l.SelfID()
 }
 
-func (l *TestLeaderSelector) UpdateLeader(seal *certificates.UnicitySeal) {
+func (l *TestLeaderSelector) UpdateLeader(seal *certificates.UnicityCertificate) {
 	l.mutex.Lock()
 	defer l.mutex.Unlock()
 	if seal == nil {
@@ -352,7 +351,7 @@ func (l *TestLeaderSelector) GetLeaderID() peer.ID {
 	return l.leader
 }
 
-func (l *TestLeaderSelector) LeaderFromUnicitySeal(seal *certificates.UnicitySeal) peer.ID {
+func (l *TestLeaderSelector) LeaderFunc(seal *certificates.UnicityCertificate) peer.ID {
 	if seal == nil {
 		return ""
 	}

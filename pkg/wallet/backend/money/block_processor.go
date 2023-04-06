@@ -1,6 +1,7 @@
 package money
 
 import (
+	"context"
 	"crypto"
 	"fmt"
 
@@ -23,7 +24,7 @@ func NewBlockProcessor(store BillStore, txConverter block.TxConverter) *BlockPro
 	return &BlockProcessor{store: store, TxConverter: txConverter}
 }
 
-func (p *BlockProcessor) ProcessBlock(b *block.Block) error {
+func (p *BlockProcessor) ProcessBlock(_ context.Context, b *block.Block) error {
 	roundNumber := b.UnicityCertificate.InputRecord.RoundNumber
 	wlog.Info("processing block: ", roundNumber)
 	return p.store.WithTransaction(func(dbTx BillStoreTx) error {
@@ -31,19 +32,16 @@ func (p *BlockProcessor) ProcessBlock(b *block.Block) error {
 		if err != nil {
 			return err
 		}
-		// TODO: AB-505 block numbers are not sequential any more, gaps might appear as empty block are not stored and sent
 		if lastBlockNumber >= roundNumber {
-			return fmt.Errorf("invalid block number. Received blockNumber %d current wallet blockNumber %d", b.UnicityCertificate.InputRecord.RoundNumber, lastBlockNumber)
+			return fmt.Errorf("invalid block number. Received blockNumber %d current wallet blockNumber %d", roundNumber, lastBlockNumber)
 		}
 		for _, tx := range b.Transactions {
-			err = p.processTx(tx, b, dbTx)
-			if err != nil {
-				return err
+			if err := p.processTx(tx, b, dbTx); err != nil {
+				return fmt.Errorf("failed to process transaction: %w", err)
 			}
 		}
-		err = dbTx.DeleteExpiredBills(roundNumber)
-		if err != nil {
-			return err
+		if err := dbTx.DeleteExpiredBills(roundNumber); err != nil {
+			return fmt.Errorf("failed to delete expired bills: %w", err)
 		}
 		return dbTx.SetBlockNumber(roundNumber)
 	})

@@ -3,7 +3,7 @@ package cmd
 import (
 	"context"
 	"fmt"
-	"path"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -12,7 +12,7 @@ import (
 
 func TestIdentifier_KeysNotFound(t *testing.T) {
 	dir := setupTestHomeDir(t, "identifier")
-	file := path.Join(dir, defaultKeysFileName)
+	file := filepath.Join(dir, defaultKeysFileName)
 	cmd := New()
 	args := "identifier -k" + file
 	cmd.baseCmd.SetArgs(strings.Split(args, " "))
@@ -22,7 +22,7 @@ func TestIdentifier_KeysNotFound(t *testing.T) {
 
 func TestIdentifier_Ok(t *testing.T) {
 	dir := setupTestHomeDir(t, "identifier")
-	file := path.Join(dir, defaultKeysFileName)
+	file := filepath.Join(dir, defaultKeysFileName)
 
 	_, err := LoadKeys(file, true, false)
 	require.NoError(t, err)

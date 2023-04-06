@@ -103,7 +103,8 @@ func Test_Run(t *testing.T) {
 					Blocks: []*block.Block{
 						{UnicityCertificate: &certificates.UnicityCertificate{InputRecord: &certificates.InputRecord{RoundNumber: blockNumber}}},
 					},
-					MaxBlockNumber: blockNumber + batchSize,
+					MaxBlockNumber:      blockNumber + batchSize,
+					BatchMaxBlockNumber: blockNumber,
 				}, nil
 			}
 			return nil, expErr
@@ -141,7 +142,8 @@ func Test_Run(t *testing.T) {
 				Blocks: []*block.Block{
 					{UnicityCertificate: &certificates.UnicityCertificate{InputRecord: &certificates.InputRecord{RoundNumber: blockNumber}}},
 				},
-				MaxBlockNumber: blockNumber + batchSize, //always signal there is one more batch
+				MaxBlockNumber:      blockNumber + batchSize, //always signal there is one more batch
+				BatchMaxBlockNumber: blockNumber,
 			}, nil
 		}
 
@@ -179,7 +181,7 @@ func Test_Run(t *testing.T) {
 			if n == 4 {
 				// there have been 3 iterations, do not generate new blocks
 				// signal "no more blocks right now" by setting MaxBlockNumber == blockNumber
-				return &alphabill.GetBlocksResponse{MaxBlockNumber: blockNumber}, nil
+				return &alphabill.GetBlocksResponse{MaxBlockNumber: blockNumber, BatchMaxBlockNumber: blockNumber}, nil
 			}
 			// ignore batchSize and send number of blocks based on which iteration it is
 			var b []*block.Block
@@ -189,15 +191,16 @@ func Test_Run(t *testing.T) {
 				})
 			}
 			return &alphabill.GetBlocksResponse{
-				Blocks:         b,
-				MaxBlockNumber: blockNumber + uint64(len(b)) + batchSize, // signal there is one more batch
+				Blocks:              b,
+				MaxBlockNumber:      blockNumber + uint64(len(b)) + batchSize, // signal there is one more batch
+				BatchMaxBlockNumber: blockNumber + uint64(len(b)),
 			}, nil
 		}
 
 		var lastBN uint64
 		processor := func(ctx context.Context, b *block.Block) error {
 			cbn := atomic.LoadUint64(&lastBN)
-			if cbn != 0 && cbn+1 != b.UnicityCertificate.InputRecord.RoundNumber {
+			if cbn >= b.UnicityCertificate.InputRecord.RoundNumber {
 				return fmt.Errorf("unexpected block order: last %d current %d", cbn, b.UnicityCertificate.InputRecord.RoundNumber)
 			}
 			atomic.StoreUint64(&lastBN, b.UnicityCertificate.InputRecord.RoundNumber)
@@ -235,15 +238,16 @@ func Test_Run(t *testing.T) {
 				})
 			}
 			return &alphabill.GetBlocksResponse{
-				Blocks:         b,
-				MaxBlockNumber: blockNumber + uint64(len(b)) + batchSize, // signal there is one more batch
+				Blocks:              b,
+				MaxBlockNumber:      blockNumber + uint64(len(b)) + batchSize, // signal there is one more batch
+				BatchMaxBlockNumber: blockNumber + uint64(len(b)),
 			}, nil
 		}
 
 		var lastBN uint64
 		processor := func(ctx context.Context, b *block.Block) error {
 			cbn := atomic.LoadUint64(&lastBN)
-			if cbn != 0 && cbn+1 != b.UnicityCertificate.InputRecord.RoundNumber {
+			if cbn >= b.UnicityCertificate.InputRecord.RoundNumber {
 				return fmt.Errorf("unexpected block order: last %d current %d", cbn, b.UnicityCertificate.InputRecord.RoundNumber)
 			}
 			atomic.StoreUint64(&lastBN, b.UnicityCertificate.InputRecord.RoundNumber)
@@ -336,7 +340,7 @@ func Test_fetchBlocks(t *testing.T) {
 				cancel()
 			}
 			// always respond that the latest block is 3
-			return &alphabill.GetBlocksResponse{MaxBlockNumber: 3}, nil
+			return &alphabill.GetBlocksResponse{MaxBlockNumber: 3, BatchMaxBlockNumber: 3}, nil
 		}
 
 		blocks := make(chan *block.Block)
@@ -375,7 +379,8 @@ func Test_fetchBlocks(t *testing.T) {
 				Blocks: []*block.Block{
 					{UnicityCertificate: &certificates.UnicityCertificate{InputRecord: &certificates.InputRecord{RoundNumber: blockNumber}}},
 				},
-				MaxBlockNumber: 4,
+				MaxBlockNumber:      4,
+				BatchMaxBlockNumber: blockNumber,
 			}, nil
 		}
 

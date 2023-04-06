@@ -10,6 +10,7 @@ import (
 	"sort"
 	"time"
 
+	"github.com/alphabill-org/alphabill/internal/block"
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/hash"
 	"github.com/alphabill-org/alphabill/internal/script"
@@ -28,6 +29,7 @@ type (
 		txHash    twb.TxHash
 		tx        *txsystem.Transaction
 		confirmed bool
+		txProof   *block.BlockProof
 	}
 
 	txSubmissionBatch struct {
@@ -246,6 +248,7 @@ func (t *txSubmissionBatch) confirmUnitsTx(ctx context.Context) error {
 			if proof != nil {
 				log.Debug(fmt.Sprintf("UnitID=%X is confirmed", sub.id))
 				sub.confirmed = true
+				sub.txProof = proof.Proof
 			}
 			unconfirmed = unconfirmed || !sub.confirmed
 		}
@@ -318,6 +321,17 @@ func newSplitTxAttrs(token *twb.TokenUnit, amount uint64, receiverPubKey []byte)
 		RemainingValue:               token.Amount - amount,
 		Backlink:                     token.TxHash,
 		InvariantPredicateSignatures: [][]byte{script.PredicateArgumentEmpty()},
+	}
+}
+
+func newBurnTxAttrs(token *twb.TokenUnit, targetStateHash []byte) *ttxs.BurnFungibleTokenAttributes {
+	log.Info(fmt.Sprintf("Creating burn tx of unit=%X with bl=%X, new value=%v", token.ID, token.TxHash, token.Amount))
+	return &ttxs.BurnFungibleTokenAttributes{
+		Type:                         token.TypeID,
+		Value:                        token.Amount,
+		Nonce:                        targetStateHash,
+		Backlink:                     token.TxHash,
+		InvariantPredicateSignatures: nil,
 	}
 }
 

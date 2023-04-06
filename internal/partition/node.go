@@ -132,6 +132,7 @@ func New(
 		status:                      initializing,
 		configuration:               conf,
 		transactionSystem:           txSystem,
+		timers:                      timer.NewTimers(),
 		leaderSelector:              conf.leaderSelector,
 		txValidator:                 conf.txValidator,
 		unicityCertificateValidator: conf.unicityCertificateValidator,
@@ -147,9 +148,6 @@ func New(
 	}
 	n.ctx, n.ctxCancel = context.WithCancel(conf.context)
 
-	// init timer
-	n.timers = timer.NewTimers()
-	n.timers.Start(t1TimerName, conf.t1Timeout)
 	n.txCh = make(chan txsystem.GenericTransaction, conf.txBuffer.Capacity())
 	if n.eventHandler != nil {
 		n.eventCh = make(chan event.Event, conf.eventChCapacity)
@@ -183,13 +181,13 @@ func (n *Node) sendHandshake() {
 	}
 }
 
-func initState(n *Node) error {
+func initState(n *Node) (err error) {
 	defer trackExecutionTime(time.Now(), "Restore node state")
 	// get genesis block from the genesis
 	genesisBlock := n.configuration.genesisBlock()
 	if n.blockStore.Empty() {
 		logger.Info("State initialised from genesis")
-		if err := n.blockStore.Write(util.Uint64ToBytes(pgenesis.PartitionRoundNumber), genesisBlock); err != nil {
+		if err = n.blockStore.Write(util.Uint64ToBytes(pgenesis.PartitionRoundNumber), genesisBlock); err != nil {
 			return fmt.Errorf("init failed to persist genesis block, %w", err)
 		}
 		n.transactionSystem.Commit() // commit everything from the genesis
@@ -202,21 +200,19 @@ func initState(n *Node) error {
 	prevBlock := genesisBlock
 	// get next block from genesis block
 	dbIt := n.blockStore.Find(util.Uint64ToBytes(pgenesis.PartitionRoundNumber + 1))
-	defer func() {
-		if err := dbIt.Close(); err != nil {
-			logger.Warning("Unexpected DB iterator error %v", err)
-		}
-	}()
+	defer func() { err = errors.Join(err, dbIt.Close()) }()
 	for ; dbIt.Valid(); dbIt.Next() {
 		var bl block.Block
 		roundNo := util.BytesToUint64(dbIt.Key())
-		if err := dbIt.Value(&bl); err != nil {
+		if err = dbIt.Value(&bl); err != nil {
 			return fmt.Errorf("failed to read block %v from db, %w", roundNo, err)
 		}
 		if !bytes.Equal(prevBlock.UnicityCertificate.InputRecord.BlockHash, bl.PreviousBlockHash) {
-			return fmt.Errorf("invalid blockchain (previous block %v hash='%X', current block %v backlink='%X')", prevBlock.UnicityCertificate.InputRecord.RoundNumber, prevBlock.UnicityCertificate.InputRecord.BlockHash, bl.UnicityCertificate.InputRecord.RoundNumber, bl.PreviousBlockHash)
+			return fmt.Errorf("invalid blockchain (previous block %v hash='%X', current block %v backlink='%X')",
+				prevBlock.GetRoundNumber(), prevBlock.UnicityCertificate.InputRecord.BlockHash, bl.GetRoundNumber(), bl.PreviousBlockHash)
 		}
-		state, err := n.applyBlockTransactions(bl.GetRoundNumber(), bl.Transactions)
+		var state txsystem.State
+		state, err = n.applyBlockTransactions(bl.GetRoundNumber(), bl.Transactions)
 		if err != nil {
 			return fmt.Errorf("block %v apply transactions failed, %w", roundNo, err)
 		}
@@ -227,12 +223,12 @@ func initState(n *Node) error {
 		n.transactionSystem.Commit()
 		prevBlock = &bl
 	}
-	logger.Info("State initialised from persistent store up to block %v", prevBlock.UnicityCertificate.InputRecord.RoundNumber)
+	logger.Info("State initialised from persistent store up to block %v", prevBlock.GetRoundNumber())
 	// update luc to last known uc
 	n.luc = prevBlock.UnicityCertificate
 	n.lastStoredBlock = prevBlock
 	n.restoreBlockProposal(prevBlock)
-	return nil
+	return err
 }
 
 func verifyTxSystemState(state txsystem.State, ucIR *certificates.InputRecord) error {
@@ -283,10 +279,10 @@ func (n *Node) restoreBlockProposal(prevBlock *block.Block) {
 	}
 	// apply stored proposal to current state
 	logger.Debug("Stored block proposal extends the previous state")
-	roundNo := prevBlock.UnicityCertificate.InputRecord.RoundNumber + 1
+	roundNo := prevBlock.GetRoundNumber() + 1
 	state, err := n.applyBlockTransactions(roundNo, pr.Transactions)
 	if err != nil {
-		logger.Warning("Block proposal recovery failed, %w", err)
+		logger.Warning("Block proposal recovery failed, %v", err)
 		n.revertState()
 		return
 	}
@@ -334,7 +330,7 @@ func (n *Node) loop() {
 				}
 			} else {
 				if err := n.process(tx, n.getCurrentRound()); err != nil {
-					logger.Warning("Processing tx failed, %w", err)
+					logger.Warning("Processing tx failed, %v", err)
 				}
 			}
 		case m, ok := <-n.network.ReceivedChannel():
@@ -454,7 +450,7 @@ func (n *Node) handleTxMessage(m network.ReceivedMessage) error {
 }
 
 func (n *Node) handleOrForwardTransaction(tx txsystem.GenericTransaction) bool {
-	rn := n.luc.InputRecord.RoundNumber + 1
+	rn := n.getCurrentRound()
 	if err := n.txValidator.Validate(tx, rn); err != nil {
 		logger.Warning("Received invalid transaction: %v", err)
 		return true
@@ -464,7 +460,7 @@ func (n *Node) handleOrForwardTransaction(tx txsystem.GenericTransaction) bool {
 		n.txCh <- tx
 		return true
 	}
-	logger.Info("Forwarding tx %X to %v", tx.Hash(gocrypto.SHA256), leader)
+	logger.Debug("Forwarding tx %X to %v", tx.Hash(gocrypto.SHA256), leader)
 	err := n.network.Send(
 		network.OutputMessage{
 			Protocol: network.ProtocolInputForward,
@@ -536,17 +532,17 @@ func (n *Node) handleBlockProposal(prop *blockproposal.BlockProposal) error {
 	// verify proposal unicity certificate, must not be older than latest seen received by the node
 	uc := prop.UnicityCertificate
 	// UC must be newer than the last one seen
-	if uc.InputRecord.RoundNumber < n.luc.InputRecord.RoundNumber {
+	if uc.GetRoundNumber() < n.luc.GetRoundNumber() {
 		return fmt.Errorf("received UC is older, uc round %v, luc round %v",
-			uc.InputRecord.RoundNumber, n.luc.InputRecord.RoundNumber)
+			uc.GetRoundNumber(), n.luc.GetRoundNumber())
 	}
-	expectedLeader := n.leaderSelector.LeaderFromUnicitySeal(uc.UnicitySeal)
+	expectedLeader := n.leaderSelector.LeaderFunc(uc)
 	if expectedLeader == UnknownLeader || prop.NodeIdentifier != expectedLeader.String() {
 		return fmt.Errorf("invalid node identifier. leader from UC: %v, request leader: %v", expectedLeader, prop.NodeIdentifier)
 	}
-	if uc.InputRecord.RoundNumber > n.luc.InputRecord.RoundNumber {
+	if uc.GetRoundNumber() > n.luc.GetRoundNumber() {
 		// either the other node received it faster from root or there must be some issue with root communication?
-		logger.Debug("Received newer UC round nr %v via block proposal, LUC round %v", uc.InputRecord.RoundNumber, n.luc.InputRecord.RoundNumber)
+		logger.Debug("Received newer UC round nr %v via block proposal, LUC round %v", uc.GetRoundNumber(), n.luc.GetRoundNumber())
 		// just to be sure, subscribe to root chain again, this may result in a duplicate UC received
 		n.sendHandshake()
 		if err = n.handleUnicityCertificate(uc); err != nil {
@@ -562,7 +558,7 @@ func (n *Node) handleBlockProposal(prop *blockproposal.BlockProposal) error {
 	if !bytes.Equal(prevHash, txState.Root()) {
 		return fmt.Errorf("tx system start state mismatch error, expected: %X, got: %X", txState.Root(), prevHash)
 	}
-	n.transactionSystem.BeginBlock(n.luc.InputRecord.RoundNumber + 1)
+	n.transactionSystem.BeginBlock(n.getCurrentRound())
 	for _, tx := range prop.Transactions {
 		genTx, err := n.transactionSystem.ConvertTx(tx)
 		if err != nil {
@@ -580,11 +576,13 @@ func (n *Node) handleBlockProposal(prop *blockproposal.BlockProposal) error {
 }
 
 func (n *Node) updateLUC(uc *certificates.UnicityCertificate) {
-	if n.luc != nil && uc.InputRecord.RoundNumber <= n.luc.InputRecord.RoundNumber {
+	if n.luc != nil && uc.GetRoundNumber() <= n.luc.GetRoundNumber() {
+		logger.Debug("Update LUC, received UC ignored already have latest, LUC round %v received UC round %v",
+			n.luc.GetRoundNumber(), uc.GetRoundNumber())
 		return
 	}
 	n.luc = uc
-	logger.Debug("Updated LUC, round: %v", n.luc.InputRecord.RoundNumber)
+	logger.Debug("Updated LUC, round: %v", n.luc.GetRoundNumber())
 	n.sendEvent(event.LatestUnicityCertificateUpdated, uc)
 }
 
@@ -601,11 +599,11 @@ func (n *Node) startNewRound(uc *certificates.UnicityCertificate) {
 	n.pendingBlockProposal = nil
 	// not a fatal issue, but log anyway
 	if err := n.blockStore.Delete(util.Uint32ToBytes(proposalKey)); err != nil {
-		logger.Debug("DB delete failed, %w", err)
+		logger.Debug("DB proposal delete failed, %v", err)
 	}
-	n.leaderSelector.UpdateLeader(uc.UnicitySeal)
+	n.leaderSelector.UpdateLeader(uc)
 	n.startHandleOrForwardTransactions()
-	n.timers.Restart(t1TimerName)
+	n.timers.Start(t1TimerName, n.configuration.t1Timeout)
 	n.sendEvent(event.NewRoundStarted, newRoundNr)
 }
 
@@ -614,15 +612,15 @@ func (n *Node) startRecovery(uc *certificates.UnicityCertificate) {
 	n.updateLUC(uc)
 	if n.status == recovering {
 		// already recovering, but if uc is newer than luc, let's update luc
-		logger.Debug("Recovery already in progress, recovering to %v", n.luc.InputRecord.RoundNumber)
+		logger.Debug("Recovery already in progress, recovering to %v", n.luc.GetRoundNumber())
 		return
 	}
 	// starting recovery
 	n.revertState()
 	n.status = recovering
 	n.stopForwardingOrHandlingTransactions()
-	logger.Debug("Entering recovery state, recover node up to %v", n.luc.InputRecord.RoundNumber)
-	fromBlockNr := n.lastStoredBlock.UnicityCertificate.InputRecord.RoundNumber + 1
+	logger.Debug("Entering recovery state, recover node up to %v", n.luc.GetRoundNumber())
+	fromBlockNr := n.lastStoredBlock.GetRoundNumber() + 1
 	n.sendEvent(event.RecoveryStarted, fromBlockNr)
 	n.sendLedgerReplicationRequest(fromBlockNr)
 }
@@ -708,7 +706,7 @@ func (n *Node) handleUnicityCertificate(uc *certificates.UnicityCertificate) err
 		if err = n.finalizeBlock(bl); err != nil {
 			logger.Warning("Recovery needed, block finalize failed, %v", err)
 			n.startRecovery(uc)
-			return fmt.Errorf("block %v finalize failed, %w", bl.UnicityCertificate.InputRecord.RoundNumber, err)
+			return fmt.Errorf("block %v finalize failed, %w", bl.GetRoundNumber(), err)
 		}
 		n.startNewRound(uc)
 		return nil
@@ -751,13 +749,13 @@ func (n *Node) proposalHash(transactions []txsystem.GenericTransaction, uc *cert
 
 // finalizeBlock creates the block and adds it to the blockStore.
 func (n *Node) finalizeBlock(b *block.Block) error {
-	defer trackExecutionTime(time.Now(), fmt.Sprintf("Block %v finalization", b.UnicityCertificate.InputRecord.RoundNumber))
+	defer trackExecutionTime(time.Now(), fmt.Sprintf("Block %v finalization", b.GetRoundNumber()))
 	// if empty block then ignore this block
 	if len(b.Transactions) == 0 {
 		n.sendEvent(event.BlockFinalized, b)
 		return nil
 	}
-	roundNoInBytes := util.Uint64ToBytes(b.UnicityCertificate.InputRecord.RoundNumber)
+	roundNoInBytes := util.Uint64ToBytes(b.GetRoundNumber())
 	if err := n.blockStore.Write(roundNoInBytes, b); err != nil {
 		return fmt.Errorf("db write failed, %w", err)
 	}
@@ -780,17 +778,18 @@ func (n *Node) handleT1TimeoutEvent() {
 		return
 	}
 	logger.Info("Handling T1 timeout")
-	if n.leaderSelector.IsCurrentNodeLeader() {
-		logger.Debug("Current node is the leader.")
-		if err := n.sendBlockProposal(); err != nil {
-			logger.Warning("Failed to send BlockProposal: %v", err)
-			return
-		}
-		if err := n.sendCertificationRequest(); err != nil {
-			logger.Warning("Failed to send certification request: %v", err)
-		}
-	} else {
+	// if node is not leader, then do not do anything
+	if !n.leaderSelector.IsCurrentNodeLeader() {
 		logger.Debug("Current node is not the leader.")
+		return
+	}
+	logger.Debug("Current node is the leader.")
+	if err := n.sendBlockProposal(); err != nil {
+		logger.Warning("Failed to send BlockProposal: %v", err)
+		return
+	}
+	if err := n.sendCertificationRequest(); err != nil {
+		logger.Warning("Failed to send certification request: %v", err)
 	}
 }
 
@@ -860,7 +859,8 @@ func (n *Node) handleLedgerReplicationRequest(lr *replication.LedgerReplicationR
 		dbIt := n.blockStore.Find(util.Uint64ToBytes(startBlock))
 		defer func() {
 			if err := dbIt.Close(); err != nil {
-				logger.Warning("Unexpected DB iterator error %v", err)
+				logger.Warning(
+					"Unexpected DB iterator error %v", err)
 			}
 		}()
 		for ; dbIt.Valid(); dbIt.Next() {
@@ -934,14 +934,16 @@ func (n *Node) handleLedgerReplicationResponse(lr *replication.LedgerReplication
 		}
 		state, err = n.applyBlockTransactions(b.GetRoundNumber(), b.Transactions)
 		if err != nil {
-			return fmt.Errorf("block %v apply transactions failed, %w", roundNo, err)
+			err = fmt.Errorf("block %v apply transactions failed, %w", roundNo, err)
+			break
 		}
 		if err = verifyTxSystemState(state, b.UnicityCertificate.InputRecord); err != nil {
-			return fmt.Errorf("block %v, state mismatch, %w", roundNo, err)
+			err = fmt.Errorf("block %v, state mismatch, %w", roundNo, err)
+			break
 		}
 		// update DB and last block
 		if err = n.finalizeBlock(b); err != nil {
-			err = fmt.Errorf("block %v persist failed, %w", b.UnicityCertificate.InputRecord.RoundNumber, err)
+			err = fmt.Errorf("block %v persist failed, %w", b.GetRoundNumber(), err)
 			break
 		}
 	}
@@ -1006,7 +1008,7 @@ func (n *Node) sendLedgerReplicationRequest(startingBlockNr uint64) {
 		// log every failed attempt?
 		logger.Debug("Error sending ledger replication request: %s", err)
 	}
-	if requestSent == false {
+	if !requestSent {
 		logger.Warning("Error sending ledger replication request, all peers down")
 		return
 	}
@@ -1055,7 +1057,7 @@ func (n *Node) sendCertificationRequest() error {
 	summary := state.Summary()
 
 	pendingProposal := &block.GenericPendingBlockProposal{
-		RoundNumber:  n.luc.InputRecord.RoundNumber + 1,
+		RoundNumber:  n.getCurrentRound(),
 		PrevHash:     prevStateHash,
 		StateHash:    stateHash,
 		Transactions: n.proposedTransactions,
@@ -1104,7 +1106,7 @@ func (n *Node) SubmitTx(tx *txsystem.Transaction) error {
 	if err != nil {
 		return err
 	}
-	rn := n.luc.InputRecord.RoundNumber + 1
+	rn := n.getCurrentRound()
 	if err != nil {
 		return err
 	}
@@ -1132,19 +1134,15 @@ func (n *Node) GetBlock(blockNr uint64) (*block.Block, error) {
 	return &bl, nil
 }
 
-func (n *Node) GetLatestBlock() (*block.Block, error) {
+func (n *Node) GetLatestBlock() (b *block.Block, err error) {
 	dbIt := n.blockStore.Last()
-	defer func() {
-		if err := dbIt.Close(); err != nil {
-			logger.Warning("Unexpected DB iterator error %v", err)
-		}
-	}()
+	defer func() { err = errors.Join(err, dbIt.Close()) }()
 	var bl block.Block
 	roundNo := util.BytesToUint64(dbIt.Key())
-	if err := dbIt.Value(&bl); err != nil {
+	if err = dbIt.Value(&bl); err != nil {
 		return nil, fmt.Errorf("failed to read block %v from db, %w", roundNo, err)
 	}
-	return &bl, nil
+	return &bl, err
 }
 
 func (n *Node) GetLatestRoundNumber() (uint64, error) {

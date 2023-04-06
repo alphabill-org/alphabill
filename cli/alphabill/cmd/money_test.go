@@ -4,15 +4,14 @@ import (
 	"context"
 	"net/http"
 	"os"
-	"path"
+	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
 	"time"
 
-	"github.com/alphabill-org/alphabill/internal/async"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
-	rootgenesis "github.com/alphabill-org/alphabill/internal/rootvalidator/genesis"
+	rootgenesis "github.com/alphabill-org/alphabill/internal/rootchain/genesis"
 	"github.com/alphabill-org/alphabill/internal/rpc/alphabill"
 	"github.com/alphabill-org/alphabill/internal/script"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
@@ -46,7 +45,7 @@ func TestMoneyNodeConfig_EnvAndFlags(t *testing.T) {
 				sc := defaultMoneyNodeConfiguration()
 				sc.Base = &baseConfiguration{
 					HomeDir:    "/custom-home",
-					CfgFile:    path.Join("/custom-home", defaultConfigFile),
+					CfgFile:    filepath.Join("/custom-home", defaultConfigFile),
 					LogCfgFile: defaultLoggerConfigFile,
 				}
 				return sc
@@ -261,7 +260,7 @@ func defaultMoneyNodeConfiguration() *moneyNodeConfiguration {
 		baseNodeConfiguration: baseNodeConfiguration{
 			Base: &baseConfiguration{
 				HomeDir:    alphabillHomeDir(),
-				CfgFile:    path.Join(alphabillHomeDir(), defaultConfigFile),
+				CfgFile:    filepath.Join(alphabillHomeDir(), defaultConfigFile),
 				LogCfgFile: defaultLoggerConfigFile,
 			},
 		},
@@ -306,9 +305,9 @@ func envVarsStr(envVars []envVar) (out string) {
 
 func TestRunMoneyNode_Ok(t *testing.T) {
 	homeDirMoney := setupTestHomeDir(t, "money")
-	keysFileLocation := path.Join(homeDirMoney, defaultKeysFileName)
-	nodeGenesisFileLocation := path.Join(homeDirMoney, nodeGenesisFileName)
-	partitionGenesisFileLocation := path.Join(homeDirMoney, "partition-genesis.json")
+	keysFileLocation := filepath.Join(homeDirMoney, defaultKeysFileName)
+	nodeGenesisFileLocation := filepath.Join(homeDirMoney, nodeGenesisFileName)
+	partitionGenesisFileLocation := filepath.Join(homeDirMoney, "partition-genesis.json")
 	test.MustRunInTime(t, 5*time.Second, func() {
 		port := "9543"
 		listenAddr := ":" + port // listen is on all devices, so it would work in CI inside docker too.
@@ -318,8 +317,7 @@ func TestRunMoneyNode_Ok(t *testing.T) {
 		conf.RPCServer.Address = listenAddr
 
 		appStoppedWg := sync.WaitGroup{}
-		ctx, _ := async.WithWaitGroup(context.Background())
-		ctx, ctxCancel := context.WithCancel(ctx)
+		ctx, ctxCancel := context.WithCancel(context.Background())
 
 		// generate node genesis
 		cmd := New()
@@ -351,7 +349,7 @@ func TestRunMoneyNode_Ok(t *testing.T) {
 			cmd.baseCmd.SetArgs(strings.Split(args, " "))
 
 			err = cmd.addAndExecuteCommand(ctx)
-			require.NoError(t, err)
+			require.ErrorIs(t, err, context.Canceled)
 			appStoppedWg.Done()
 		}()
 
@@ -391,9 +389,8 @@ func makeSuccessfulPayment(t *testing.T, ctx context.Context, txClient alphabill
 	err := anypb.MarshalFrom(tx.TransactionAttributes, bt, proto.MarshalOptions{})
 	require.NoError(t, err)
 
-	response, err := txClient.ProcessTransaction(ctx, tx, grpc.WaitForReady(true))
+	_, err = txClient.ProcessTransaction(ctx, tx, grpc.WaitForReady(true))
 	require.NoError(t, err)
-	require.True(t, response.Ok, "Successful response ok should be true")
 }
 
 func makeFailingPayment(t *testing.T, ctx context.Context, txClient alphabill.AlphabillServiceClient) {

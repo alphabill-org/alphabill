@@ -11,8 +11,7 @@ import (
 )
 
 const (
-	round             uint64 = 1
-	roundCreationTime        = 100000
+	round uint64 = 1
 )
 
 var sysID = p.SystemIdentifier([]byte{0, 0, 0, 1})
@@ -24,15 +23,8 @@ var unicityMap = map[p.SystemIdentifier]*certificates.UnicityCertificate{
 			SystemDescriptionHash: nil,
 		},
 		UnicitySeal: &certificates.UnicitySeal{
-			RootRoundInfo: &certificates.RootRoundInfo{
-				RoundNumber:     round,
-				Timestamp:       roundCreationTime,
-				CurrentRootHash: make([]byte, gocrypto.SHA256.Size()),
-			},
-			CommitInfo: &certificates.CommitInfo{
-				RootRoundInfoHash: make([]byte, gocrypto.SHA256.Size()),
-				RootHash:          make([]byte, gocrypto.SHA256.Size()),
-			},
+			RootRoundInfo: &certificates.RootRoundInfo{RoundNumber: round},
+			CommitInfo:    &certificates.CommitInfo{RootHash: make([]byte, gocrypto.SHA256.Size())},
 		},
 	},
 }
@@ -139,7 +131,7 @@ func TestMemDB_WriteReadComplexStruct(t *testing.T) {
 	original, _ := unicityMap[sysID]
 	require.Equal(t, original, uc)
 	// update
-	uc.UnicitySeal.RootRoundInfo.CurrentRootHash = []byte{1}
+	uc.UnicitySeal.CommitInfo.RootHash = []byte{1}
 	newUC := map[p.SystemIdentifier]*certificates.UnicityCertificate{sysID: uc}
 	err = db.Write([]byte("certificates"), newUC)
 	require.NoError(t, err)
@@ -149,7 +141,7 @@ func TestMemDB_WriteReadComplexStruct(t *testing.T) {
 	require.Len(t, ucs, 1)
 	require.Contains(t, ucs, sysID)
 	uc, _ = ucs[sysID]
-	require.Equal(t, []byte{1}, uc.UnicitySeal.RootRoundInfo.CurrentRootHash)
+	require.Equal(t, []byte{1}, uc.UnicitySeal.CommitInfo.RootHash)
 }
 
 func TestMemDB_StartTxNil(t *testing.T) {

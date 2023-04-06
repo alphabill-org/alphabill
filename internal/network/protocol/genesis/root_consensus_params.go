@@ -12,30 +12,22 @@ import (
 
 var (
 	ErrConsensusParamsIsNil          = errors.New("consensus record is nil")
-	ErrInvalidNumberOfRootValidators = errors.New("invalid number of root validators")
-	ErrConsensusNotSigned            = errors.New("consensus struct is not signed")
+	ErrInvalidNumberOfRootValidators = errors.New("invalid number of root nodes")
 	ErrBlockRateTooSmall             = errors.New("block rate too small")
 	ErrUnknownHashAlgorithm          = errors.New("unknown hash algorithm")
 	ErrInvalidConsensusTimeout       = errors.New("invalid consensus timeout")
 	ErrSignerIsNil                   = errors.New("signer is nil")
-	ErrRootValidatorInfoMissing      = errors.New("missing root validator public info")
-	ErrConsensusIsNotSignedByAll     = errors.New("consensus is not signed by all root validators")
+	ErrRootValidatorInfoMissing      = errors.New("missing root node public info")
 )
 
 const (
-	// MinDistributedRootValidators defines min number of distributed root chain validators.
-	// Total number of root validators is defined by N=3f+1
-	// If at least one faulty/compromised validator is to be tolerated then min nodes is 3*1+1=4
-	MinDistributedRootValidators = 4
-	MinBlockRateMs               = 500
-	DefaultBlockRateMs           = 900
-	MinConsensusTimeout          = 2000
-	DefaultConsensusTimeout      = 10000
+	MinBlockRateMs          = 500
+	DefaultBlockRateMs      = 900
+	MinConsensusTimeout     = 2000
+	DefaultConsensusTimeout = 10000
 )
 
-// GetMinQuorumThreshold calculated minimal quorum threshold from total number of validators
-// Returns 0 if threshold cannot be calculated. Either because it is a monolithic root chain
-// or there are less than MinDistributedRootValidators in total
+// GetMinQuorumThreshold calculates minimal quorum threshold from total number of validators
 func GetMinQuorumThreshold(totalRootValidators uint32) uint32 {
 	// must be over 2/3
 	// +1 to round up and avoid using floats

@@ -4,8 +4,9 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
-	"path"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -26,9 +27,7 @@ var (
 	isEncryptedKeyName     = []byte("isEncryptedKey")
 	maxAccountIndexKeyName = []byte("maxAccountIndexKey")
 
-	errAccountDbAlreadyExists = errors.New("account db already exists")
-	errAccountDbDoesNotExists = errors.New("cannot open Account db, file does not exist")
-	errAccountNotFound        = errors.New("account does not exist")
+	errAccountNotFound = errors.New("account does not exist")
 )
 
 const AccountFileName = "accounts.db"
@@ -306,9 +305,9 @@ func (a *adbtx) decryptValue(val []byte) ([]byte, error) {
 func openDb(dbFilePath string, pw string, create bool) (*adb, error) {
 	exists := util.FileExists(dbFilePath)
 	if create && exists {
-		return nil, errAccountDbAlreadyExists
+		return nil, fmt.Errorf("cannot create account db, file (%s) already exists", dbFilePath)
 	} else if !create && !exists {
-		return nil, errAccountDbDoesNotExists
+		return nil, fmt.Errorf("cannot open account db, file (%s) does not exist", dbFilePath)
 	}
 
 	db, err := bolt.Open(dbFilePath, 0600, &bolt.Options{Timeout: 3 * time.Second}) // -rw-------
@@ -372,7 +371,7 @@ func createNewDb(dir string, pw string) (*adb, error) {
 		return nil, err
 	}
 
-	dbFilePath := path.Join(dir, AccountFileName)
+	dbFilePath := filepath.Join(dir, AccountFileName)
 	return openDb(dbFilePath, pw, true)
 }
 

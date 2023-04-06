@@ -58,7 +58,7 @@ func TestBlock_IsValid(t *testing.T) {
 		UnicityCertificate *certificates.UnicityCertificate
 	}
 	type args struct {
-		v CertificateValidator
+		v UCValidator
 	}
 	tests := []struct {
 		name    string
@@ -78,12 +78,12 @@ func TestBlock_IsValid(t *testing.T) {
 			args: args{
 				v: &alwaysOkValidator{},
 			},
-			wantErr: ErrSystemIdIsNil.Error(),
+			wantErr: errSystemIdIsNil.Error(),
 		},
 		{
 			name: "prev block hash is nil",
 			fields: fields{
-				SystemIdentifier:   []byte{1, 2, 3},
+				SystemIdentifier:   []byte{1, 2, 3, 4},
 				PreviousBlockHash:  nil,
 				NodeIdentifier:     "test",
 				Transactions:       []*txsystem.Transaction{},
@@ -92,7 +92,7 @@ func TestBlock_IsValid(t *testing.T) {
 			args: args{
 				v: &alwaysOkValidator{},
 			},
-			wantErr: ErrPrevBlockHashIsNil.Error(),
+			wantErr: errPrevBlockHashIsNil.Error(),
 		},
 		/* Todo: AB-845
 		{
@@ -106,13 +106,13 @@ func TestBlock_IsValid(t *testing.T) {
 			args: args{
 				v: &alwaysOkValidator{},
 			},
-			wantErr: ErrBlockProposerIdIsMissing.Error(),
+			wantErr: errBlockProposerIdIsMissing.Error(),
 		},
 		*/
 		{
 			name: "transactions array is nil",
 			fields: fields{
-				SystemIdentifier:   []byte{1, 2, 3},
+				SystemIdentifier:   []byte{1, 2, 3, 4},
 				PreviousBlockHash:  []byte{1, 2, 3},
 				NodeIdentifier:     "test",
 				Transactions:       nil,
@@ -121,12 +121,12 @@ func TestBlock_IsValid(t *testing.T) {
 			args: args{
 				v: &alwaysOkValidator{},
 			},
-			wantErr: ErrTransactionsIsNil.Error(),
+			wantErr: errTransactionsIsNil.Error(),
 		},
 		{
 			name: "system id nil",
 			fields: fields{
-				SystemIdentifier:   []byte{1, 2, 3},
+				SystemIdentifier:   []byte{1, 2, 3, 4},
 				PreviousBlockHash:  []byte{1, 2, 3},
 				NodeIdentifier:     "test",
 				Transactions:       []*txsystem.Transaction{},
@@ -140,7 +140,7 @@ func TestBlock_IsValid(t *testing.T) {
 		{
 			name: "UC verification fails",
 			fields: fields{
-				SystemIdentifier:   []byte{1, 2, 3},
+				SystemIdentifier:   []byte{1, 2, 3, 4},
 				PreviousBlockHash:  []byte{1, 2, 3},
 				NodeIdentifier:     "test",
 				Transactions:       []*txsystem.Transaction{},
@@ -154,7 +154,7 @@ func TestBlock_IsValid(t *testing.T) {
 		{
 			name: "ok",
 			fields: fields{
-				SystemIdentifier:   []byte{1, 2, 3},
+				SystemIdentifier:   []byte{1, 2, 3, 4},
 				PreviousBlockHash:  []byte{1, 2, 3},
 				NodeIdentifier:     "test",
 				Transactions:       []*txsystem.Transaction{},

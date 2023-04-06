@@ -16,10 +16,6 @@ type (
 	}
 )
 
-func newAccountsCache() *accounts {
-	return &accounts{accounts: make([]Account, 0)}
-}
-
 func (a *accounts) add(account *Account) {
 	a.mu.Lock()
 	defer a.mu.Unlock()

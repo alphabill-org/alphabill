@@ -94,7 +94,7 @@ func parsePredicate(argument string, am account.Manager) (*PredicateInput, error
 
 	}
 	if strings.HasPrefix(argument, hexPrefix) {
-		decoded, err := decodeHexOrEmpty(argument)
+		decoded, err := DecodeHexOrEmpty(argument)
 		if err != nil {
 			return nil, err
 		}
@@ -146,12 +146,12 @@ func ParsePredicateClause(clause string, am account.Manager) ([]byte, error) {
 
 	}
 	if strings.HasPrefix(clause, hexPrefix) {
-		return decodeHexOrEmpty(clause)
+		return DecodeHexOrEmpty(clause)
 	}
 	return nil, fmt.Errorf("invalid predicate clause: '%s'", clause)
 }
 
-func decodeHexOrEmpty(input string) ([]byte, error) {
+func DecodeHexOrEmpty(input string) ([]byte, error) {
 	if len(input) == 0 || input == predicateEmpty {
 		return []byte{}, nil
 	}

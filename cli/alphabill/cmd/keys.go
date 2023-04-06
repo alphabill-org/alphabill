@@ -4,19 +4,15 @@ import (
 	"crypto/rand"
 	"fmt"
 	"os"
-	"path"
 	"path/filepath"
 
+	"github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/spf13/cobra"
 
-	"github.com/alphabill-org/alphabill/internal/network"
-
-	"github.com/alphabill-org/alphabill/internal/errors"
-
-	"github.com/alphabill-org/alphabill/internal/util"
-
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
-	"github.com/libp2p/go-libp2p/core/crypto"
+	"github.com/alphabill-org/alphabill/internal/errors"
+	"github.com/alphabill-org/alphabill/internal/network"
+	"github.com/alphabill-org/alphabill/internal/util"
 )
 
 const (
@@ -54,13 +50,13 @@ type (
 )
 
 func NewKeysConf(conf *baseConfiguration, relativeDir string) *keysConfig {
-	return &keysConfig{HomeDir: &conf.HomeDir, defaultKeysRelativeFilePath: path.Join(relativeDir, defaultKeysFileName)}
+	return &keysConfig{HomeDir: &conf.HomeDir, defaultKeysRelativeFilePath: filepath.Join(relativeDir, defaultKeysFileName)}
 }
 
 func (keysConf *keysConfig) addCmdFlags(cmd *cobra.Command) {
 	cmd.Flags().BoolVarP(&keysConf.GenerateKeys, genKeysCmdFlag, "g", false, "generates new keys if none exist")
 	cmd.Flags().BoolVarP(&keysConf.ForceGeneration, forceKeyGenCmdFlag, "f", false, "forces key generation, overwriting existing keys. Must be used with -g flag")
-	fullKeysFilePath := path.Join("$AB_HOME", keysConf.defaultKeysRelativeFilePath)
+	fullKeysFilePath := filepath.Join("$AB_HOME", keysConf.defaultKeysRelativeFilePath)
 	cmd.Flags().StringVarP(&keysConf.KeyFilePath, keyFileCmdFlag, "k", "", fmt.Sprintf("path to the keys file (default: %s). If key file does not exist and flag -g is present then new keys are generated.", fullKeysFilePath))
 }
 
@@ -84,7 +80,7 @@ func (keysConf *keysConfig) GetKeyFileLocation() string {
 	if keysConf.KeyFilePath != "" {
 		return keysConf.KeyFilePath
 	}
-	return path.Join(*keysConf.HomeDir, keysConf.defaultKeysRelativeFilePath)
+	return filepath.Join(*keysConf.HomeDir, keysConf.defaultKeysRelativeFilePath)
 }
 
 // LoadKeys loads signing and encryption keys.

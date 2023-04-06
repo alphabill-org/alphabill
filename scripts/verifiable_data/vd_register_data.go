@@ -10,13 +10,13 @@ import (
 	"github.com/holiman/uint256"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/protobuf/types/known/emptypb"
 )
 
 /*
 Example usage
-start root and vd shard nodes:
-$ ./setup-testab.sh
-$ ./start.sh -r -p vd
+start shard node:
+$ setup-testab.sh && start.sh -r -p vd
 
 run script:
 $ go run scripts/verifiable_data/vd_register_data.go --data-hash 0x67588d4d37bf6f4d6c63ce4bda38da2b869012b1bc131db07aa1d2b5bfd810dd
@@ -58,11 +58,11 @@ func main() {
 		}
 	}()
 	txClient := alphabill.NewAlphabillServiceClient(conn)
-	blockNr, err := txClient.GetMaxBlockNo(ctx, &alphabill.GetMaxBlockNoRequest{})
+	blockNr, err := txClient.GetRoundNumber(ctx, &emptypb.Empty{})
 	if err != nil {
 		log.Fatal(err)
 	}
-	absoluteTimeout := blockNr.BlockNo + *timeout
+	absoluteTimeout := blockNr.RoundNumber + *timeout
 
 	// create tx
 	tx, err := createRegisterDataTx(dataId, absoluteTimeout)
@@ -71,15 +71,10 @@ func main() {
 	}
 
 	// send tx
-	txResponse, err := txClient.ProcessTransaction(ctx, tx)
-	if err != nil {
+	if _, err := txClient.ProcessTransaction(ctx, tx); err != nil {
 		log.Fatal(err)
 	}
-	if txResponse.Ok {
-		log.Println("successfully sent transaction")
-	} else {
-		log.Fatalf("faild to send transaction %v", txResponse.Message)
-	}
+	log.Println("successfully sent transaction")
 }
 
 func createRegisterDataTx(hash []byte, timeout uint64) (*txsystem.Transaction, error) {

@@ -32,10 +32,8 @@ func (it *Itr) Next() {
 		return
 	}
 	it.index++
-	if it.index >= len(it.keys) {
-		it.index = -1
-	}
 }
+
 func (it *Itr) Prev() {
 	if !it.Valid() {
 		return
@@ -44,7 +42,7 @@ func (it *Itr) Prev() {
 }
 
 func (it *Itr) Valid() bool {
-	return !(it.index < 0)
+	return it.index >= 0 && it.index < len(it.keys)
 }
 
 func (it *Itr) Key() []byte {
@@ -53,6 +51,7 @@ func (it *Itr) Key() []byte {
 	}
 	return it.keys[it.index]
 }
+
 func (it *Itr) Value(v any) error {
 	if !it.Valid() {
 		return fmt.Errorf("iterator invalid")

@@ -2,12 +2,9 @@ package cmd
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"os"
-	"os/signal"
 	"path/filepath"
-	"syscall"
 
 	"github.com/spf13/cobra"
 
@@ -75,18 +72,7 @@ func execTokenWalletBackendStartCmd(ctx context.Context, cmd *cobra.Command, con
 		return fmt.Errorf("failed to init logger: %w", err)
 	}
 
-	ctx, stop := signal.NotifyContext(ctx, os.Interrupt, syscall.SIGTERM)
-	go func() {
-		<-ctx.Done()
-		stop()
-	}()
-
-	err = twb.Run(ctx, twb.NewConfig(srvAddr, abURL, dbFile, logger))
-	if errors.Is(err, context.Canceled) {
-		logger.Info("Token backend stopped")
-		return nil
-	}
-	return err
+	return twb.Run(ctx, twb.NewConfig(srvAddr, abURL, dbFile, logger))
 }
 
 /*

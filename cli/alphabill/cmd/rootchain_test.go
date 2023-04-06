@@ -2,56 +2,59 @@ package cmd
 
 import (
 	"context"
-	gocrypto "crypto"
-	"path"
-	"sync"
+	"path/filepath"
 	"testing"
+	"time"
 
-	"github.com/alphabill-org/alphabill/internal/rootchain/store"
-
-	"github.com/alphabill-org/alphabill/internal/async"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/sync/errgroup"
 )
 
 func TestRootChainCanBeStarted(t *testing.T) {
-	conf := validRootChainConfig()
-	ctx, _ := async.WithWaitGroup(context.Background())
-	ctx, cancel := context.WithCancel(ctx)
+	ctx, cancel := context.WithCancel(context.Background())
+	dbDir := t.TempDir()
+	g, ctx := errgroup.WithContext(ctx)
 
-	wg := sync.WaitGroup{}
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		err := defaultRootChainRunFunc(ctx, conf)
-		require.NoError(t, err)
-	}()
+	g.Go(func() error { return defaultRootNodeRunFunc(ctx, validMonolithicRootValidatorConfig(dbDir)) })
 
-	cancel()
-	wg.Wait() // wait for rootchain to close and require statements to execute
+	g.Go(func() error {
+		// give rootchain some time to start up (should try to sens message it to verify it is up!)
+		// and then cancel the ctx which should cause it to exit
+		time.Sleep(500 * time.Millisecond)
+		cancel()
+		return nil
+	})
+
+	err := g.Wait()
+	require.ErrorIs(t, err, context.Canceled)
 }
 
-func TestRootChainInvalidRootKey_CannotBeStarted(t *testing.T) {
-	conf := validRootChainConfig()
+func TestRootValidatorInvalidRootKey_CannotBeStartedInvalidKeyFile(t *testing.T) {
+	conf := validMonolithicRootValidatorConfig("")
 	conf.KeyFile = "testdata/invalid-root-key.json"
-	ctx, _ := async.WithWaitGroup(context.Background())
 
-	err := defaultRootChainRunFunc(ctx, conf)
-	require.ErrorContains(t, err, "invalid root validator sign key")
+	err := defaultRootNodeRunFunc(context.Background(), conf)
+	require.ErrorContains(t, err, "error root node key not found in genesis file")
 }
 
-func validRootChainConfig() *rootChainConfig {
-	conf := &rootChainConfig{
+func TestRootValidatorInvalidRootKey_CannotBeStartedInvalidDBDir(t *testing.T) {
+	conf := validMonolithicRootValidatorConfig("/foobar/doesnotexist3454/")
+	err := defaultRootNodeRunFunc(context.Background(), conf)
+	require.ErrorContains(t, err, "no such file or directory")
+}
+
+func validMonolithicRootValidatorConfig(dbDir string) *rootNodeConfig {
+	conf := &rootNodeConfig{
 		Base: &baseConfiguration{
 			HomeDir:    alphabillHomeDir(),
-			CfgFile:    path.Join(alphabillHomeDir(), defaultConfigFile),
+			CfgFile:    filepath.Join(alphabillHomeDir(), defaultConfigFile),
 			LogCfgFile: defaultLoggerConfigFile,
 		},
-		KeyFile:     "testdata/root-key.json",
-		GenesisFile: "testdata/expected/root-genesis.json",
-		Address:     "/ip4/0.0.0.0/tcp/0",
-		T3Timeout:   900,
-		MaxRequests: 1000,
-		StateStore:  store.NewInMemStateStore(gocrypto.SHA256),
+		KeyFile:      "testdata/root-key.json",
+		GenesisFile:  "testdata/expected/root-genesis.json",
+		RootListener: "/ip4/127.0.0.1/tcp/0",
+		MaxRequests:  1000,
+		StoragePath:  dbDir,
 	}
 	return conf
 }

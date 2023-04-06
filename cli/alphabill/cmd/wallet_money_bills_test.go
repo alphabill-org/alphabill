@@ -2,13 +2,10 @@ package cmd
 
 import (
 	"fmt"
-	"path"
+	"path/filepath"
 	"strings"
 	"testing"
 
-	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
-	testpartition "github.com/alphabill-org/alphabill/internal/testutils/partition"
-	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/alphabill-org/alphabill/pkg/wallet/backend/money/client"
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
@@ -61,11 +58,11 @@ func TestWalletBillsListCmd_ExtraAccount(t *testing.T) {
 	defer mockServer.Close()
 
 	// add new key
-	stdout, err := execCommand(homedir, "add-key")
+	_, err := execCommand(homedir, "add-key")
 	require.NoError(t, err)
 
 	// verify list bills for specific account only shows given account bills
-	stdout, err = execBillsCommand(homedir, "list -k 2 --alphabill-api-uri "+addr.Host)
+	stdout, err := execBillsCommand(homedir, "list -k 2 --alphabill-api-uri "+addr.Host)
 	require.NoError(t, err)
 	lines := stdout.lines
 	require.Len(t, lines, 2)
@@ -108,7 +105,7 @@ func TestWalletBillsExportCmd_BillIdFlag(t *testing.T) {
 	defer mockServer.Close()
 
 	// verify export with --bill-id flag
-	billFilePath := path.Join(homedir, "bill-0x0000000000000000000000000000000000000000000000000000000000000001.json")
+	billFilePath := filepath.Join(homedir, "bill-0x0000000000000000000000000000000000000000000000000000000000000001.json")
 	stdout, err := execBillsCommand(homedir, "export --bill-id 0000000000000000000000000000000000000000000000000000000000000001 --output-path "+homedir+" --alphabill-api-uri "+addr.Host)
 	require.NoError(t, err)
 	require.Len(t, stdout.lines, 1)
@@ -125,24 +122,11 @@ func TestWalletBillsExportCmd(t *testing.T) {
 	defer mockServer.Close()
 
 	// verify export with no flags outputs all bills
-	billFilePath := path.Join(homedir, "bills.json")
+	billFilePath := filepath.Join(homedir, "bills.json")
 	stdout, err := execBillsCommand(homedir, "export --output-path "+homedir+" --alphabill-api-uri "+addr.Host)
 	require.NoError(t, err)
 	require.Len(t, stdout.lines, 1)
 	require.Equal(t, stdout.lines[0], fmt.Sprintf("Exported bill(s) to: %s", billFilePath))
-}
-
-// createTrustBaseFile extracts and saves trust-base file from testpartition.AlphabillPartition
-func createTrustBaseFile(filePath string, network *testpartition.AlphabillPartition) error {
-	tb := &TrustBase{RootValidators: []*genesis.PublicKeyInfo{}}
-	for k, v := range network.TrustBase {
-		pk, _ := v.MarshalPublicKey()
-		tb.RootValidators = append(tb.RootValidators, &genesis.PublicKeyInfo{
-			NodeIdentifier:   k,
-			SigningPublicKey: pk,
-		})
-	}
-	return util.WriteJsonFile(filePath, tb)
 }
 
 func execBillsCommand(homeDir, command string) (*testConsoleWriter, error) {

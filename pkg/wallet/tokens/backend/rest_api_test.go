@@ -16,12 +16,12 @@ import (
 	"sync/atomic"
 	"testing"
 
-	"github.com/alphabill-org/alphabill/internal/block"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/gorilla/mux"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/encoding/protojson"
 
+	"github.com/alphabill-org/alphabill/internal/block"
 	"github.com/alphabill-org/alphabill/internal/hash"
 	"github.com/alphabill-org/alphabill/internal/script"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
@@ -107,9 +107,11 @@ func Test_restAPI_postTransaction(t *testing.T) {
 		var saveTypeCalls, sendTxCalls int32
 		api := &restAPI{
 			convertTx: func(tx *txsystem.Transaction) (txsystem.GenericTransaction, error) { return nil, expErr },
-			sendTransaction: func(ctx context.Context, t *txsystem.Transaction) (*txsystem.TransactionResponse, error) {
-				atomic.AddInt32(&sendTxCalls, 1)
-				return nil, fmt.Errorf("unexpected call")
+			ab: &mockABClient{
+				sendTransaction: func(ctx context.Context, t *txsystem.Transaction) error {
+					atomic.AddInt32(&sendTxCalls, 1)
+					return fmt.Errorf("unexpected call")
+				},
 			},
 			db: &mockStorage{
 				saveTTypeCreator: func(id TokenTypeID, kind Kind, creator PubKey) error {
@@ -140,9 +142,11 @@ func Test_restAPI_postTransaction(t *testing.T) {
 		var saveTypeCalls, sendTxCalls int32
 		api := &restAPI{
 			convertTx: txsys.ConvertTx,
-			sendTransaction: func(ctx context.Context, t *txsystem.Transaction) (*txsystem.TransactionResponse, error) {
-				atomic.AddInt32(&sendTxCalls, 1)
-				return &txsystem.TransactionResponse{Ok: true}, nil
+			ab: &mockABClient{
+				sendTransaction: func(ctx context.Context, t *txsystem.Transaction) error {
+					atomic.AddInt32(&sendTxCalls, 1)
+					return nil
+				},
 			},
 			db: &mockStorage{
 				saveTTypeCreator: func(id TokenTypeID, kind Kind, creator PubKey) error {
@@ -178,9 +182,11 @@ func Test_restAPI_postTransaction(t *testing.T) {
 		var saveTypeCalls, sendTxCalls int32
 		api := &restAPI{
 			convertTx: txsys.ConvertTx,
-			sendTransaction: func(ctx context.Context, t *txsystem.Transaction) (*txsystem.TransactionResponse, error) {
-				atomic.AddInt32(&sendTxCalls, 1)
-				return &txsystem.TransactionResponse{Ok: true}, nil
+			ab: &mockABClient{
+				sendTransaction: func(ctx context.Context, t *txsystem.Transaction) error {
+					atomic.AddInt32(&sendTxCalls, 1)
+					return nil
+				},
 			},
 			db: &mockStorage{
 				saveTTypeCreator: func(id TokenTypeID, kind Kind, creator PubKey) error {
@@ -687,20 +693,20 @@ func Test_restAPI_getRoundNumber(t *testing.T) {
 
 	t.Run("query returns error", func(t *testing.T) {
 		expErr := fmt.Errorf("failed to read round number")
-		ds := &mockStorage{
-			getBlockNumber: func() (uint64, error) { return 0, expErr },
+		abc := &mockABClient{
+			roundNumber: func(context.Context) (uint64, error) { return 0, expErr },
 		}
-		resp := makeRequest(&restAPI{db: ds})
+		resp := makeRequest(&restAPI{ab: abc})
 		if resp.StatusCode != http.StatusInternalServerError {
 			t.Errorf("unexpected status %d", resp.StatusCode)
 		}
 	})
 
 	t.Run("success", func(t *testing.T) {
-		ds := &mockStorage{
-			getBlockNumber: func() (uint64, error) { return 42, nil },
+		abc := &mockABClient{
+			roundNumber: func(context.Context) (uint64, error) { return 42, nil },
 		}
-		resp := makeRequest(&restAPI{db: ds})
+		resp := makeRequest(&restAPI{ab: abc})
 		if resp.StatusCode != http.StatusOK {
 			t.Errorf("unexpected status %d", resp.StatusCode)
 		}

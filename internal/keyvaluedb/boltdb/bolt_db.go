@@ -2,23 +2,16 @@ package boltdb
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
-	"reflect"
 	"time"
 
 	"github.com/alphabill-org/alphabill/internal/keyvaluedb"
 	bolt "go.etcd.io/bbolt"
 )
 
-// bucket feature currently not used as it is not compatible with most others kee-value database implementations
+// bucket feature currently not used as it is not compatible with most others key-value database implementations
 // use more than one db file instead
 const defaultBucket = "default"
-
-var (
-	ErrInvalidKey = errors.New("invalid key")
-	ErrValueIsNil = errors.New("value is nil")
-)
 
 type (
 	EncodeFn func(v any) ([]byte, error)
@@ -31,30 +24,6 @@ type (
 		decoder DecodeFn
 	}
 )
-
-func checkKey(key []byte) error {
-	if len(key) == 0 {
-		return ErrInvalidKey
-	}
-	return nil
-}
-
-func checkValue(val any) error {
-	if reflect.ValueOf(val).Kind() == reflect.Ptr && reflect.ValueOf(val).IsNil() {
-		return ErrValueIsNil
-	}
-	return nil
-}
-
-func checkKeyAndValue(key []byte, val any) error {
-	if err := checkKey(key); err != nil {
-		return err
-	}
-	if err := checkValue(val); err != nil {
-		return err
-	}
-	return nil
-}
 
 // New creates a new Bolt DB
 // todo: add options and make it possible to use other encode/decode methods
@@ -96,7 +65,7 @@ func (db *BoltDB) Empty() bool {
 }
 
 func (db *BoltDB) Read(key []byte, v any) (bool, error) {
-	if err := checkKeyAndValue(key, v); err != nil {
+	if err := keyvaluedb.CheckKeyAndValue(key, v); err != nil {
 		return false, err
 	}
 	var data []byte = nil
@@ -114,7 +83,7 @@ func (db *BoltDB) Read(key []byte, v any) (bool, error) {
 }
 
 func (db *BoltDB) Write(key []byte, v any) error {
-	if err := checkKeyAndValue(key, v); err != nil {
+	if err := keyvaluedb.CheckKeyAndValue(key, v); err != nil {
 		return err
 	}
 	b, err := db.encoder(v)
@@ -130,7 +99,7 @@ func (db *BoltDB) Write(key []byte, v any) error {
 }
 
 func (db *BoltDB) Delete(key []byte) error {
-	if err := checkKey(key); err != nil {
+	if err := keyvaluedb.CheckKey(key); err != nil {
 		return err
 	}
 	if err := db.db.Update(func(tx *bolt.Tx) error {

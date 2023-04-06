@@ -13,8 +13,8 @@ type Subscriptions struct {
 	subs map[p.SystemIdentifier]map[string]int
 }
 
-func NewSubscriptions() Subscriptions {
-	return Subscriptions{
+func NewSubscriptions() *Subscriptions {
+	return &Subscriptions{
 		subs: map[p.SystemIdentifier]map[string]int{},
 	}
 }

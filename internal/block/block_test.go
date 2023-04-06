@@ -94,11 +94,10 @@ func TestBlock_IsValid(t *testing.T) {
 			},
 			wantErr: errPrevBlockHashIsNil.Error(),
 		},
-		/* Todo: AB-845
 		{
 			name: "block proposer node id is missing",
 			fields: fields{
-				SystemIdentifier:   []byte{1, 2, 3},
+				SystemIdentifier:   []byte{1, 2, 3, 4},
 				PreviousBlockHash:  []byte{1, 2, 3},
 				Transactions:       []*txsystem.Transaction{},
 				UnicityCertificate: &certificates.UnicityCertificate{},
@@ -108,7 +107,6 @@ func TestBlock_IsValid(t *testing.T) {
 			},
 			wantErr: errBlockProposerIdIsMissing.Error(),
 		},
-		*/
 		{
 			name: "transactions array is nil",
 			fields: fields{

@@ -67,7 +67,6 @@ func newRootNodeCmd(baseConfig *baseConfiguration) *cobra.Command {
 	cmd.Flags().StringVarP(&config.StoragePath, "db", "f", "", "persistent store path (default: $AB_HOME/rootchain/)")
 	cmd.Flags().StringVar(&config.PartitionListener, "partition-listener", "/ip4/127.0.0.1/tcp/26662", "validator address in libp2p multiaddress-format")
 	cmd.Flags().StringVar(&config.RootListener, rootPortCmdFlag, "/ip4/127.0.0.1/tcp/29666", "validator address in libp2p multiaddress-format")
-	cmd.Flags().MarkHidden(rootPortCmdFlag)
 	cmd.Flags().StringToStringVarP(&config.Validators, "peers", "p", nil, "a map of root node identifiers and addresses. must contain all genesis validator addresses")
 	cmd.Flags().UintVar(&config.MaxRequests, "max-requests", 1000, "request buffer capacity")
 	return cmd
@@ -151,6 +150,51 @@ func defaultRootNodeRunFunc(ctx context.Context, config *rootNodeConfig) error {
 	node.Start(ctx)
 	<-ctx.Done()
 	return ctx.Err()
+}
+
+func loadRootNetworkConfiguration(keys *Keys, rootValidators []*genesis.PublicKeyInfo, cfg *validatorConfig) (*network.Peer, error) {
+	pair, err := keys.getEncryptionKeyPair()
+	if err != nil {
+		return nil, err
+	}
+	selfId, err := peer.IDFromPublicKey(keys.EncryptionPrivateKey.GetPublic())
+	if err != nil {
+		return nil, err
+	}
+	var persistentPeers = make([]*network.PeerInfo, len(rootValidators))
+	for i, validator := range rootValidators {
+		if selfId.String() == validator.NodeIdentifier {
+			if !bytes.Equal(pair.PublicKey, validator.EncryptionPublicKey) {
+				return nil, fmt.Errorf("invalid encryption key")
+			}
+			persistentPeers[i] = &network.PeerInfo{
+				Address:   cfg.RootListener,
+				PublicKey: validator.EncryptionPublicKey,
+			}
+			continue
+		}
+
+		peerAddress, err := cfg.getPeerAddress(validator.NodeIdentifier)
+		if err != nil {
+			return nil, err
+		}
+
+		persistentPeers[i] = &network.PeerInfo{
+			Address:   peerAddress,
+			PublicKey: validator.EncryptionPublicKey,
+		}
+	}
+	// Sort validators by public encryption key
+	sort.Slice(persistentPeers, func(i, j int) bool {
+		return string(persistentPeers[i].PublicKey) < string(persistentPeers[j].PublicKey)
+	})
+
+	conf := &network.PeerConfiguration{
+		Address:         cfg.RootListener,
+		KeyPair:         pair,
+		PersistentPeers: persistentPeers,
+	}
+	return network.NewPeer(conf)
 }
 
 func createHost(address string, encPrivate crypto.PrivKey) (*network.Peer, error) {

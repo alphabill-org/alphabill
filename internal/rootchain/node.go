@@ -28,7 +28,6 @@ type (
 	}
 
 	Node struct {
-		ctxCancel        context.CancelFunc
 		peer             *network.Peer // p2p network host for partition
 		partitions       partitions.PartitionConfiguration
 		incomingRequests *CertRequestBuffer
@@ -237,7 +236,7 @@ func (v *Node) handleConsensus(ctx context.Context) error {
 				logger.Warning("%v consensus channel closed, exiting loop", v.peer.String())
 				return fmt.Errorf("consenus channel closed")
 			}
-			v.onCertificationResult(&uc)
+			v.onCertificationResult(uc)
 		}
 	}
 }

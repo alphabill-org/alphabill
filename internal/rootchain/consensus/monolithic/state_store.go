@@ -118,7 +118,7 @@ func (s *StateStore) GetCertificate(id protocol.SystemIdentifier) (*certificates
 	var cert certificates.UnicityCertificate
 	cKey := certKey(id.Bytes())
 	found, err := s.db.Read(cKey, &cert)
-	if found == false {
+	if !found {
 		return nil, fmt.Errorf("certificate id %X not found", id.Bytes())
 	}
 	if err != nil {
@@ -132,7 +132,7 @@ func (s *StateStore) GetRound() (uint64, error) {
 	defer s.mu.Unlock()
 	round := uint64(0)
 	found, err := s.db.Read([]byte(roundKey), &round)
-	if found == false {
+	if !found {
 		return 0, fmt.Errorf("round not stored in db")
 	}
 	if err != nil {

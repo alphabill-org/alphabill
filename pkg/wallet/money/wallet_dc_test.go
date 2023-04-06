@@ -45,7 +45,7 @@ func TestSwapIsTriggeredWhenDcSumIsReached(t *testing.T) {
 	dcBills := []*Bill{addDcBill(t, w, accKey, uint256.NewInt(0).SetBytes(nonce), 1, swapTimeoutBlockCount), addDcBill(t, w, accKey, uint256.NewInt(0).SetBytes(nonce), 2, swapTimeoutBlockCount)}
 	billIds := [][]byte{util.Uint256ToBytes(dcBills[0].Id), util.Uint256ToBytes(dcBills[1].Id)}
 	swapTx, _ := createSwapTx(accKey, w.SystemID(), dcBills, calculateDcNonce(dcBills), billIds, swapTimeout)
-	_, _ = mockClient.SendTransaction(context.Background(), swapTx)
+	_ = mockClient.SendTransaction(context.Background(), swapTx)
 
 	// and swap tx is broadcast
 	require.Len(t, mockClient.GetRecordedTransactions(), 3) // 2 dc + 1 swap
@@ -102,7 +102,7 @@ func TestSwapIsTriggeredWhenDcTimeoutIsReached(t *testing.T) {
 
 	billIds := [][]byte{util.Uint256ToBytes(dc.Id)}
 	swapTx, _ := createSwapTx(k, w.SystemID(), []*Bill{dc}, calculateDcNonce([]*Bill{dc}), billIds, 10)
-	_, _ = mockClient.SendTransaction(context.Background(), swapTx)
+	_ = mockClient.SendTransaction(context.Background(), swapTx)
 
 	// when dcTimeout is reached
 	mockClient.SetMaxBlockNumber(dcTimeoutBlockCount)
@@ -138,7 +138,7 @@ func TestSwapIsTriggeredWhenSwapTimeoutIsReached(t *testing.T) {
 
 	billIds := [][]byte{util.Uint256ToBytes(dc.Id)}
 	swapTx, _ := createSwapTx(k, w.SystemID(), []*Bill{dc}, calculateDcNonce([]*Bill{dc}), billIds, swapTimeoutBlockCount)
-	_, _ = mockClient.SendTransaction(context.Background(), swapTx)
+	_ = mockClient.SendTransaction(context.Background(), swapTx)
 
 	// when swapTimeout is reached
 	mockClient.SetMaxBlockNumber(swapTimeoutBlockCount)
@@ -234,7 +234,7 @@ func TestSwapContainsUnconfirmedDustBillIds(t *testing.T) {
 	dcBills := []*Bill{addDcBill(t, w, accKey, uint256.NewInt(0).SetBytes(nonce), 1, 10), addDcBill(t, w, accKey, uint256.NewInt(0).SetBytes(nonce), 2, 10)}
 	billIds := [][]byte{util.Uint256ToBytes(dcBills[0].Id), util.Uint256ToBytes(dcBills[1].Id), util.Uint256ToBytes(b3.Id)}
 	swapTx, _ := createSwapTx(accKey, w.SystemID(), dcBills, calculateDcNonce(dcBills), billIds, 10)
-	_, _ = mockClient.SendTransaction(context.Background(), swapTx)
+	_ = mockClient.SendTransaction(context.Background(), swapTx)
 
 	// then swap should be broadcast
 	require.Len(t, mockClient.GetRecordedTransactions(), 4)
@@ -256,7 +256,7 @@ func TestSwapContainsUnconfirmedDustBillIds(t *testing.T) {
 
 	// when swap timeout is reached
 	mockClient.SetMaxBlockNumber(swapTimeout)
-	_, _ = mockClient.SendTransaction(context.Background(), swapTx)
+	_ = mockClient.SendTransaction(context.Background(), swapTx)
 
 	// then swap is broadcast with same bill ids
 	require.Len(t, mockClient.GetRecordedTransactions(), 5)
@@ -296,7 +296,7 @@ func addDcBill(t *testing.T, w *Wallet, k *account.AccountKey, nonce *uint256.In
 }
 
 func verifyBlockHeight(t *testing.T, w *Wallet, blockHeight uint64) {
-	actualBlockHeight, _, err := w.AlphabillClient.GetMaxBlockNumber(context.Background())
+	actualBlockHeight, err := w.AlphabillClient.GetRoundNumber(context.Background())
 	require.NoError(t, err)
 	require.Equal(t, blockHeight, actualBlockHeight)
 }

@@ -73,13 +73,11 @@ func fetchBlocks(ctx context.Context, getBlocks BlocksLoaderFunc, blockNumber ui
 		if err != nil {
 			return fmt.Errorf("failed to fetch blocks [%d...]: %w", blockNumber, err)
 		}
-		if n := len(rsp.Blocks); n > 0 {
-			for _, b := range rsp.Blocks {
-				out <- b
-			}
-			blockNumber = rsp.Blocks[n-1].UnicityCertificate.InputRecord.RoundNumber + 1
+		for _, b := range rsp.Blocks {
+			out <- b
 		}
-		if rsp.MaxBlockNumber <= blockNumber {
+		blockNumber = rsp.BatchMaxBlockNumber + 1
+		if rsp.MaxBlockNumber < blockNumber {
 			// we have reached to the last block the source currently has - wait a bit before asking for more
 			select {
 			case <-ctx.Done():

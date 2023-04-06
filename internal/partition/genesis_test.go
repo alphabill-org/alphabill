@@ -70,7 +70,7 @@ func TestNewGenesisPartitionNode_NotOk(t *testing.T) {
 					WithHashAlgorithm(gocrypto.SHA256),
 				},
 			},
-			wantErr: ErrInvalidSystemIdentifier,
+			wantErr: errInvalidSystemIdentifier,
 		},
 		{
 			name: "peer ID is empty",

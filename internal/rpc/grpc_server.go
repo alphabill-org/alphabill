@@ -3,6 +3,8 @@ package rpc
 import (
 	"context"
 
+	"google.golang.org/protobuf/types/known/emptypb"
+
 	"github.com/alphabill-org/alphabill/internal/block"
 	"github.com/alphabill-org/alphabill/internal/errors"
 	"github.com/alphabill-org/alphabill/internal/errors/errstr"
@@ -48,54 +50,42 @@ func NewGRPCServer(node partitionNode, opts ...Option) (*grpcServer, error) {
 	}, nil
 }
 
-func (r *grpcServer) ProcessTransaction(_ context.Context, tx *txsystem.Transaction) (*txsystem.TransactionResponse, error) {
+func (r *grpcServer) ProcessTransaction(_ context.Context, tx *txsystem.Transaction) (*emptypb.Empty, error) {
 	receivedTransactionsGRPCMeter.Inc(1)
-	err := r.node.SubmitTx(tx)
-	if err != nil {
+	if err := r.node.SubmitTx(tx); err != nil {
 		receivedInvalidTransactionsGRPCMeter.Inc(1)
-		return &txsystem.TransactionResponse{
-			Ok:      false,
-			Message: err.Error(),
-		}, err
+		return nil, err
 	}
-	return &txsystem.TransactionResponse{
-		Ok:      true,
-		Message: "",
-	}, nil
+	return &emptypb.Empty{}, nil
 }
 
 func (r *grpcServer) GetBlock(_ context.Context, req *alphabill.GetBlockRequest) (*alphabill.GetBlockResponse, error) {
 	b, err := r.node.GetBlock(req.BlockNo)
 	if err != nil {
-		return &alphabill.GetBlockResponse{ErrorMessage: err.Error()}, err
+		return nil, err
 	}
 	return &alphabill.GetBlockResponse{Block: b}, nil
 }
 
-func (r *grpcServer) GetMaxBlockNo(_ context.Context, req *alphabill.GetMaxBlockNoRequest) (*alphabill.GetMaxBlockNoResponse, error) {
-	bl, err := r.node.GetLatestBlock()
-	if err != nil {
-		return &alphabill.GetMaxBlockNoResponse{ErrorMessage: err.Error()}, err
-	}
+func (r *grpcServer) GetRoundNumber(_ context.Context, _ *emptypb.Empty) (*alphabill.GetRoundNumberResponse, error) {
 	latestRn, err := r.node.GetLatestRoundNumber()
 	if err != nil {
-		return &alphabill.GetMaxBlockNoResponse{ErrorMessage: err.Error()}, err
+		return nil, err
 	}
-	return &alphabill.GetMaxBlockNoResponse{BlockNo: bl.UnicityCertificate.InputRecord.RoundNumber, MaxRoundNumber: latestRn}, nil
+	return &alphabill.GetRoundNumberResponse{RoundNumber: latestRn}, nil
 }
 
 func (r *grpcServer) GetBlocks(_ context.Context, req *alphabill.GetBlocksRequest) (*alphabill.GetBlocksResponse, error) {
-	err := verifyRequest(req)
-	if err != nil {
-		return &alphabill.GetBlocksResponse{ErrorMessage: err.Error()}, err
+	if err := verifyRequest(req); err != nil {
+		return nil, err
 	}
 	latestBlock, err := r.node.GetLatestBlock()
 	if err != nil {
-		return &alphabill.GetBlocksResponse{ErrorMessage: err.Error()}, err
+		return nil, err
 	}
 	latestRn, err := r.node.GetLatestRoundNumber()
 	if err != nil {
-		return &alphabill.GetBlocksResponse{ErrorMessage: err.Error()}, err
+		return nil, err
 	}
 	maxBlockCount := util.Min(req.BlockCount, r.maxGetBlocksBatchSize)
 	batchMaxBlockNumber := util.Min(req.BlockNumber+maxBlockCount-1, latestBlock.UnicityCertificate.InputRecord.RoundNumber)

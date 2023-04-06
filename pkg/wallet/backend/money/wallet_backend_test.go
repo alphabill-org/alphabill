@@ -14,9 +14,7 @@ import (
 	moneytesttx "github.com/alphabill-org/alphabill/internal/testutils/transaction/money"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	moneytx "github.com/alphabill-org/alphabill/internal/txsystem/money"
-	"github.com/alphabill-org/alphabill/pkg/client"
 	"github.com/alphabill-org/alphabill/pkg/client/clientmock"
-	"github.com/alphabill-org/alphabill/pkg/wallet"
 	wlog "github.com/alphabill-org/alphabill/pkg/wallet/log"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/stretchr/testify/require"
@@ -52,19 +50,24 @@ func TestWalletBackend_BillsCanBeIndexedByPredicates(t *testing.T) {
 				}},
 			},
 		}))
-	w := createWalletBackend(t, abclient)
+
+	storage, err := createTestBillStore(t)
+	require.NoError(t, err)
+
+	getBlockNumber := func() (uint64, error) { return storage.Do().GetBlockNumber() }
 
 	// start wallet backend
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	t.Cleanup(cancelFunc)
 	go func() {
-		err := w.Start(ctx)
-		require.NoError(t, err)
+		bp := NewBlockProcessor(storage, NewTxConverter([]byte{0, 0, 0, 0}))
+		err := runBlockSync(ctx, abclient.GetBlocks, getBlockNumber, 100, bp.ProcessBlock)
+		require.ErrorIs(t, err, context.Canceled)
 	}()
 
 	// verify first unit is indexed
 	require.Eventually(t, func() bool {
-		bills, err := w.store.Do().GetBills(bearer1)
+		bills, err := storage.Do().GetBills(bearer1)
 		require.NoError(t, err)
 		return len(bills) > 0
 	}, test.WaitDuration, test.WaitTick)
@@ -74,7 +77,7 @@ func TestWalletBackend_BillsCanBeIndexedByPredicates(t *testing.T) {
 
 	// verify new bill is indexed by pubkey
 	require.Eventually(t, func() bool {
-		bills, err := w.store.Do().GetBills(bearer2)
+		bills, err := storage.Do().GetBills(bearer2)
 		require.NoError(t, err)
 		return len(bills) > 0
 	}, test.WaitDuration, test.WaitTick)
@@ -96,7 +99,7 @@ func TestGetBills_OK(t *testing.T) {
 	require.NoError(t, err)
 
 	// add bill to service
-	service := New(nil, store)
+	service := &WalletBackend{store: store}
 	b := &Bill{
 		Id:             tx.UnitId,
 		Value:          txValue,
@@ -136,7 +139,7 @@ func TestGetBills_SHA512OK(t *testing.T) {
 	require.NoError(t, err)
 
 	// add sha512 owner condition bill to service
-	service := New(nil, store)
+	service := &WalletBackend{store: store}
 	b := &Bill{
 		Id:             tx.UnitId,
 		Value:          txValue,
@@ -151,11 +154,4 @@ func TestGetBills_SHA512OK(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, bills, 1)
 	require.Equal(t, b, bills[0])
-}
-
-func createWalletBackend(t *testing.T, abclient client.ABClient) *WalletBackend {
-	storage, _ := createTestBillStore(t)
-	bp := NewBlockProcessor(storage, NewTxConverter(moneySystemID))
-	genericWallet := wallet.New().SetBlockProcessor(bp).SetABClient(abclient).Build()
-	return New(genericWallet, storage)
 }

@@ -389,9 +389,8 @@ func makeSuccessfulPayment(t *testing.T, ctx context.Context, txClient alphabill
 	err := anypb.MarshalFrom(tx.TransactionAttributes, bt, proto.MarshalOptions{})
 	require.NoError(t, err)
 
-	response, err := txClient.ProcessTransaction(ctx, tx, grpc.WaitForReady(true))
+	_, err = txClient.ProcessTransaction(ctx, tx, grpc.WaitForReady(true))
 	require.NoError(t, err)
-	require.True(t, response.Ok, "Successful response ok should be true")
 }
 
 func makeFailingPayment(t *testing.T, ctx context.Context, txClient alphabill.AlphabillServiceClient) {

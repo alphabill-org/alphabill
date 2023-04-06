@@ -3,6 +3,7 @@ package wallet
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"time"
 
@@ -23,9 +24,8 @@ const (
 )
 
 var (
-	ErrWalletAlreadySynchronizing = errors.New("wallet is already synchronizing")
-	ErrFailedToBroadcastTx        = errors.New("failed to broadcast transaction")
-	ErrTxRetryCanceled            = errors.New("user canceled tx retry")
+	ErrFailedToBroadcastTx = errors.New("failed to broadcast transaction")
+	ErrTxRetryCanceled     = errors.New("user canceled tx retry")
 )
 
 type (
@@ -34,7 +34,6 @@ type (
 	Wallet struct {
 		BlockProcessor  BlockProcessor
 		AlphabillClient client.ABClient
-		syncFlag        *syncFlagWrapper
 	}
 	Builder struct {
 		bp      BlockProcessor
@@ -51,6 +50,10 @@ type (
 		lastFetchedBlockNumber  uint64 // latest processed block by a wallet/client
 		maxAvailableBlockNumber uint64 // latest non-empty block in a partition shard
 		maxAvailableRoundNumber uint64 // latest round number in a partition shard, greater or equal to maxAvailableBlockNumber
+	}
+
+	BlockProcessor interface {
+		ProcessBlock(b *block.Block) error
 	}
 )
 
@@ -75,7 +78,6 @@ func (b *Builder) SetABClient(abc client.ABClient) *Builder {
 
 func (b *Builder) Build() *Wallet {
 	return &Wallet{
-		syncFlag:        newSyncFlagWrapper(),
 		AlphabillClient: b.getOrCreateABClient(),
 		BlockProcessor:  b.bp,
 	}
@@ -95,16 +97,9 @@ func (w *Wallet) Sync(ctx context.Context, lastBlockNumber uint64) error {
 	return w.syncLedger(ctx, lastBlockNumber, true)
 }
 
-// SyncToMaxBlockNumber synchronises wallet from the last known block number with the given alphabill node.
-// The function blocks until maximum block number, calculated at the start of the process, is reached.
-// Returns error if wallet is already synchronizing or any error occured during syncrohronization, otherwise returns nil.
-func (w *Wallet) SyncToMaxBlockNumber(ctx context.Context, lastBlockNumber uint64) error {
-	return w.syncLedger(ctx, lastBlockNumber, false)
-}
-
-// GetMaxBlockNumber queries the node for latest block and round number
-func (w *Wallet) GetMaxBlockNumber(ctx context.Context) (uint64, uint64, error) {
-	return w.AlphabillClient.GetMaxBlockNumber(ctx)
+// GetRoundNumber queries the node for latest round number
+func (w *Wallet) GetRoundNumber(ctx context.Context) (uint64, error) {
+	return w.AlphabillClient.GetRoundNumber(ctx)
 }
 
 // SendTransaction broadcasts transaction to configured node.
@@ -120,14 +115,6 @@ func (w *Wallet) SendTransaction(ctx context.Context, tx *txsystem.Transaction, 
 func (w *Wallet) Shutdown() {
 	log.Info("shutting down wallet")
 
-	// send cancel signal only if channel is not full
-	// this check is needed in case Shutdown is called multiple times
-	// alternatively we can prohibit reusing wallet that has been shut down
-	select {
-	case w.syncFlag.cancelSyncCh <- true:
-	default:
-	}
-
 	if w.AlphabillClient != nil {
 		err := w.AlphabillClient.Shutdown()
 		if err != nil {
@@ -138,12 +125,7 @@ func (w *Wallet) Shutdown() {
 
 // syncLedger downloads and processes blocks, blocks until error in rpc connection
 func (w *Wallet) syncLedger(ctx context.Context, lastBlockNumber uint64, syncForever bool) error {
-	if w.syncFlag.isSynchronizing() {
-		return ErrWalletAlreadySynchronizing
-	}
 	log.Info("starting ledger synchronization process")
-	w.syncFlag.setSynchronizing(true)
-	defer w.syncFlag.setSynchronizing(false)
 
 	ch := make(chan *block.Block, prefetchBlockCount)
 
@@ -176,8 +158,6 @@ func (w *Wallet) fetchBlocksForever(ctx context.Context, lastBlockNumber uint64,
 	var maxBlockNumber uint64
 	for {
 		select {
-		case <-w.syncFlag.cancelSyncCh: // canceled from shutdown
-			return nil
 		case <-ctx.Done(): // canceled by user or error in block receiver
 			return nil
 		default:
@@ -202,15 +182,13 @@ func (w *Wallet) fetchBlocksForever(ctx context.Context, lastBlockNumber uint64,
 }
 
 func (w *Wallet) fetchBlocksUntilMaxBlock(ctx context.Context, lastBlockNumber uint64, ch chan<- *block.Block) error {
-	maxBlockNumber, _, err := w.GetMaxBlockNumber(ctx)
+	maxBlockNumber, err := w.GetRoundNumber(ctx)
 	if err != nil {
 		return err
 	}
 	log.Info("syncing from current block number ", lastBlockNumber, " to ", maxBlockNumber)
 	for lastBlockNumber < maxBlockNumber {
 		select {
-		case <-w.syncFlag.cancelSyncCh: // canceled from shutdown
-			return nil
 		case <-ctx.Done(): // canceled by user or error in block receiver
 			return nil
 		default:
@@ -261,31 +239,21 @@ func (w *Wallet) processBlocks(ch <-chan *block.Block) error {
 
 func (w *Wallet) sendTx(ctx context.Context, tx *txsystem.Transaction, maxRetries int) error {
 	for failedTries := 0; failedTries < maxRetries; failedTries++ {
-		// node side error is included in both res.Message and err.Error(),
-		// we use res.Message here to check if tx passed
-		res, err := w.AlphabillClient.SendTransaction(ctx, tx)
-		if res == nil && err == nil {
-			return errors.New("send transaction returned nil response with nil error")
+		err := w.AlphabillClient.SendTransaction(ctx, tx)
+		if err == nil {
+			return nil
 		}
-		if res != nil {
-			if res.Ok {
-				return nil
+		// error message can also contain stacktrace when node returns aberror, so we check prefix instead of exact match
+		if strings.HasPrefix(err.Error(), txBufferFullErrMsg) {
+			log.Debug("tx buffer full, waiting 1s to retry...")
+			select {
+			case <-time.After(time.Second):
+				continue
+			case <-ctx.Done():
+				return ErrTxRetryCanceled
 			}
-			// res.Message can also contain stacktrace when node returns aberror, so we check prefix instead of exact match
-			if strings.HasPrefix(res.Message, txBufferFullErrMsg) {
-				log.Debug("tx buffer full, waiting 1s to retry...")
-				select {
-				case <-time.After(time.Second):
-					continue
-				case <-ctx.Done():
-					return ErrTxRetryCanceled
-				}
-			}
-			return errors.New("transaction returned error code: " + res.Message)
 		}
-		if err != nil {
-			return err
-		}
+		return fmt.Errorf("failed to send transaction: %w", err)
 	}
 	return ErrFailedToBroadcastTx
 }

@@ -223,14 +223,6 @@ definitions:
         example: "0"
         type: string
     type: object
-  money.BlockHeightResponse:
-    properties:
-      blockHeight:
-        example: "0"
-        type: string
-      lastRoundNumber:
-        type: integer
-    type: object
   money.ErrorResponse:
     properties:
       message:
@@ -262,6 +254,12 @@ definitions:
       total:
         example: 1
         type: integer
+    type: object
+  money.RoundNumberResponse:
+    properties:
+      roundNumber:
+        example: "0"
+        type: string
     type: object
   money.TxProof:
     properties:
@@ -321,17 +319,6 @@ paths:
         "500":
           description: Internal Server Error
       summary: Get balance
-  /block-height:
-    get:
-      operationId: "4"
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            $ref: '#/definitions/money.BlockHeightResponse'
-      summary: Money partition's latest block number
   /list-bills:
     get:
       operationId: "1"
@@ -393,4 +380,15 @@ paths:
         "500":
           description: Internal Server Error
       summary: Get proof
+  /round-number:
+    get:
+      operationId: "4"
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/money.RoundNumberResponse'
+      summary: Money partition's latest block number
 swagger: "2.0"

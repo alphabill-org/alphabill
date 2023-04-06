@@ -74,7 +74,6 @@ func NewMonolithicConsensusManager(selfStr string, rg *genesis.RootGenesis, part
 		certReqCh:    make(chan consensus.IRChangeRequest),
 		certResultCh: make(chan certificates.UnicityCertificate),
 		params:       consensusParams,
-		ticker:       time.NewTicker(consensusParams.BlockRateMs),
 		selfID:       selfStr,
 		partitions:   partitionStore,
 		stateStore:   storage,
@@ -87,8 +86,9 @@ func NewMonolithicConsensusManager(selfStr string, rg *genesis.RootGenesis, part
 	return consensusManager, nil
 }
 
-func (x *ConsensusManager) Start(ctx context.Context) {
-	go x.loop(ctx)
+func (x *ConsensusManager) Run(ctx context.Context) error {
+	x.ticker = time.NewTicker(x.params.BlockRateMs)
+	return x.loop(ctx)
 }
 
 func (x *ConsensusManager) RequestCertification() chan<- consensus.IRChangeRequest {
@@ -107,16 +107,16 @@ func (x *ConsensusManager) GetLatestUnicityCertificate(id p.SystemIdentifier) (*
 	return luc, nil
 }
 
-func (x *ConsensusManager) loop(ctx context.Context) {
+func (x *ConsensusManager) loop(ctx context.Context) error {
 	for {
 		select {
 		case <-ctx.Done():
 			logger.Info("Exiting consensus manager main loop")
-			return
+			return ctx.Err()
 		case req, ok := <-x.certReqCh:
 			if !ok {
 				logger.Warning("Certification channel closed, exiting consensus main loop")
-				return
+				return fmt.Errorf("certification channel closed")
 			}
 			if err := x.onIRChangeReq(&req); err != nil {
 				logger.Warning("Certification request error, %w", err)
@@ -125,7 +125,7 @@ func (x *ConsensusManager) loop(ctx context.Context) {
 		case _, ok := <-x.ticker.C:
 			if !ok {
 				logger.Warning("Ticker channel closed, exiting main loop")
-				return
+				return fmt.Errorf("ticker channel closed")
 			}
 			x.onT3Timeout()
 		}

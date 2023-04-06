@@ -14,6 +14,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/rootchain/partitions"
 	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/libp2p/go-libp2p/core/peer"
+	"golang.org/x/sync/errgroup"
 )
 
 type (
@@ -62,52 +63,49 @@ func New(
 	return node, nil
 }
 
-func (v *Node) Start(ctx context.Context) {
-	v.consensusManager.Start(ctx)
+func (v *Node) Start(ctx context.Context) error {
+	g, gctx := errgroup.WithContext(ctx)
+	// Start root consensus algorithm
+	g.Go(func() error { return v.consensusManager.Run(gctx) })
 	// Start receiving messages from partition nodes
-	go v.loop(ctx)
+	g.Go(func() error { return v.loop(gctx) })
 	// Start handling certification responses
-	go v.handleConsensus(ctx)
+	g.Go(func() error { return v.handleConsensus(gctx) })
+	return g.Wait()
 }
 
 // loop handles messages from different goroutines.
-func (v *Node) loop(ctx context.Context) {
+func (v *Node) loop(ctx context.Context) error {
 	for {
 		select {
 		case <-ctx.Done():
 			logger.Info("%v exiting root node main loop", v.peer.String())
-			return
+			return ctx.Err()
 		case msg, ok := <-v.net.ReceivedChannel():
 			if !ok {
 				logger.Warning("%v partition received channel closed, exiting root node main loop", v.peer.String())
-				return
+				return fmt.Errorf("partition channel closed")
 			}
 			if msg.Message == nil {
 				logger.Warning("%v received partition message is nil", v.peer.String())
-				return
 			}
 			switch msg.Protocol {
 			case network.ProtocolBlockCertification:
 				req, correctType := msg.Message.(*certification.BlockCertificationRequest)
 				if !correctType {
 					logger.Warning("%v type %T not supported", v.peer.String(), msg.Message)
-					return
 				}
 				util.WriteTraceJsonLog(logger, fmt.Sprintf("Certification Request from %s", msg.From), req)
 				v.onBlockCertificationRequest(req)
-				break
 			case network.ProtocolHandshake:
 				req, correctType := msg.Message.(*handshake.Handshake)
 				if !correctType {
 					logger.Warning("%v type %T not supported", v.peer.String(), msg.Message)
-					return
 				}
 				util.WriteTraceJsonLog(logger, fmt.Sprintf("Handshake from %s", msg.From), req)
 				v.onHandshake(req)
-				break
 			default:
 				logger.Warning("%v protocol %s not supported.", v.peer.String(), msg.Protocol)
-				break
 			}
 		}
 	}
@@ -228,16 +226,16 @@ func (v *Node) onBlockCertificationRequest(req *certification.BlockCertification
 }
 
 // handleConsensus - receives consensus results and delivers certificates to subscribers
-func (v *Node) handleConsensus(ctx context.Context) {
+func (v *Node) handleConsensus(ctx context.Context) error {
 	for {
 		select {
 		case <-ctx.Done():
 			logger.Info("%v exiting root consensus result handler", v.peer.String())
-			return
+			return ctx.Err()
 		case uc, ok := <-v.consensusManager.CertificationResult():
 			if !ok {
 				logger.Warning("%v consensus channel closed, exiting loop", v.peer.String())
-				return
+				return fmt.Errorf("consenus channel closed")
 			}
 			v.onCertificationResult(&uc)
 		}

@@ -115,8 +115,9 @@ func TestConsensusManager_checkT2Timeout(t *testing.T) {
 func TestConsensusManager_NormalOperation(t *testing.T) {
 	cm, rootNode, partitionNodes, rg := initConsensusManager(t, "")
 	ctx, ctxCancel := context.WithCancel(context.Background())
-	cm.Start(ctx)
 	defer ctxCancel()
+	go func() { require.ErrorIs(t, cm.Run(ctx), context.Canceled) }()
+
 	// make sure that 3 partition nodes where generated, needed for the next steps
 	require.Len(t, partitionNodes, 3)
 	// mock requests from partition node
@@ -152,8 +153,9 @@ func TestConsensusManager_PartitionTimeout(t *testing.T) {
 	dir := t.TempDir()
 	cm, rootNode, partitionNodes, rg := initConsensusManager(t, dir)
 	ctx, ctxCancel := context.WithCancel(context.Background())
-	cm.Start(ctx)
 	defer ctxCancel()
+	go func() { require.ErrorIs(t, cm.Run(ctx), context.Canceled) }()
+
 	// make sure that 3 partition nodes where generated, needed for the next steps
 	require.Len(t, partitionNodes, 3)
 	// require, that repeat UC certificates are received for partition ID in 3 root rounds (partition timeout 2500 < 4 * block rate (900))

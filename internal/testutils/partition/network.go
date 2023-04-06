@@ -150,7 +150,7 @@ func NewNetwork(partitionNodes int, txSystemProvider func(trustBase map[string]c
 	partitionGenesis := partitionGenesisFiles[0]
 	ctx, ctxCancel := context.WithCancel(context.Background())
 	// start root
-	rootNode.Start(ctx)
+	go rootNode.Start(ctx)
 	// start Nodes
 	var nodes = make([]*partition.Node, partitionNodes)
 	eh := &testevent.TestEventHandler{}

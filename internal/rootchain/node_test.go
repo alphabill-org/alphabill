@@ -61,8 +61,9 @@ func (m *MockConsensusManager) CertificationResult() <-chan certificates.Unicity
 	return m.certResultCh
 }
 
-func (m *MockConsensusManager) Start(ctx context.Context) {
+func (m *MockConsensusManager) Run(_ context.Context) error {
 	// nothing to do
+	return nil
 }
 
 func (m *MockConsensusManager) GetLatestUnicityCertificate(id p.SystemIdentifier) (*certificates.UnicityCertificate, error) {
@@ -185,8 +186,9 @@ func TestRootValidatorTest_SimulateNetCommunication(t *testing.T) {
 	mockNet := testnetwork.NewMockNetwork()
 	rootValidator, node, partitionNodes, rg := initRootValidator(t, mockNet)
 	ctx, ctxCancel := context.WithCancel(context.Background())
-	rootValidator.Start(ctx)
-	defer ctxCancel()
+	t.Cleanup(ctxCancel)
+	go func() { require.ErrorIs(t, rootValidator.Start(ctx), context.Canceled) }()
+
 	require.Len(t, partitionNodes, 3)
 	require.NotNil(t, rg)
 	require.NotEmpty(t, node.Peer.ID().String())
@@ -211,8 +213,9 @@ func TestRootValidatorTest_SimulateNetCommunicationNoQuorum(t *testing.T) {
 	mockNet := testnetwork.NewMockNetwork()
 	rootValidator, node, partitionNodes, rg := initRootValidator(t, mockNet)
 	ctx, ctxCancel := context.WithCancel(context.Background())
-	rootValidator.Start(ctx)
-	defer ctxCancel()
+	t.Cleanup(ctxCancel)
+	go func() { require.ErrorIs(t, rootValidator.Start(ctx), context.Canceled) }()
+
 	require.Len(t, partitionNodes, 3)
 	require.NotNil(t, rg)
 	require.NotEmpty(t, node.Peer.ID().String())
@@ -252,8 +255,9 @@ func TestRootValidatorTest_SimulateNetCommunicationHandshake(t *testing.T) {
 	mockNet := testnetwork.NewMockNetwork()
 	rootValidator, node, partitionNodes, rg := initRootValidator(t, mockNet)
 	ctx, ctxCancel := context.WithCancel(context.Background())
-	rootValidator.Start(ctx)
-	defer ctxCancel()
+	t.Cleanup(ctxCancel)
+	go func() { require.ErrorIs(t, rootValidator.Start(ctx), context.Canceled) }()
+
 	require.Len(t, partitionNodes, 3)
 	require.NotNil(t, rg)
 	require.NotEmpty(t, node.Peer.ID().String())
@@ -302,8 +306,9 @@ func TestRootValidatorTest_SimulateNetCommunicationInvalidReqRoundNumber(t *test
 	mockNet := testnetwork.NewMockNetwork()
 	rootValidator, node, partitionNodes, rg := initRootValidator(t, mockNet)
 	ctx, ctxCancel := context.WithCancel(context.Background())
-	rootValidator.Start(ctx)
-	defer ctxCancel()
+	t.Cleanup(ctxCancel)
+	go func() { require.ErrorIs(t, rootValidator.Start(ctx), context.Canceled) }()
+
 	require.NotNil(t, rootValidator)
 	require.Len(t, partitionNodes, 3)
 	require.NotNil(t, rg)
@@ -329,8 +334,9 @@ func TestRootValidatorTest_SimulateNetCommunicationInvalidHash(t *testing.T) {
 	mockNet := testnetwork.NewMockNetwork()
 	rootValidator, node, partitionNodes, rg := initRootValidator(t, mockNet)
 	ctx, ctxCancel := context.WithCancel(context.Background())
-	rootValidator.Start(ctx)
-	defer ctxCancel()
+	t.Cleanup(ctxCancel)
+	go func() { require.ErrorIs(t, rootValidator.Start(ctx), context.Canceled) }()
+
 	require.NotNil(t, rootValidator)
 	require.Len(t, partitionNodes, 3)
 	require.NotNil(t, rg)
@@ -356,8 +362,9 @@ func TestRootValidatorTest_SimulateResponse(t *testing.T) {
 	mockNet := testnetwork.NewMockNetwork()
 	rootValidator, node, partitionNodes, rg := initRootValidator(t, mockNet)
 	ctx, ctxCancel := context.WithCancel(context.Background())
-	rootValidator.Start(ctx)
-	defer ctxCancel()
+	t.Cleanup(ctxCancel)
+	go func() { require.ErrorIs(t, rootValidator.Start(ctx), context.Canceled) }()
+
 	require.Len(t, partitionNodes, 3)
 	require.NotNil(t, rg)
 	require.NotEmpty(t, node.Peer.ID().String())
@@ -394,8 +401,9 @@ func TestRootValidator_ResultUnknown(t *testing.T) {
 	mockNet := testnetwork.NewMockNetwork()
 	rootValidator, _, _, rg := initRootValidator(t, mockNet)
 	ctx, ctxCancel := context.WithCancel(context.Background())
-	rootValidator.Start(ctx)
-	defer ctxCancel()
+	t.Cleanup(ctxCancel)
+	go func() { require.ErrorIs(t, rootValidator.Start(ctx), context.Canceled) }()
+
 	newIR := &certificates.InputRecord{
 		PreviousHash: rg.Partitions[0].Nodes[0].BlockCertificationRequest.InputRecord.Hash,
 		Hash:         test.RandomBytes(32),

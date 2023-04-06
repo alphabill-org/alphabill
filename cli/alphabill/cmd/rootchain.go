@@ -131,7 +131,8 @@ func defaultRootNodeRunFunc(ctx context.Context, config *rootNodeConfig) error {
 		return fmt.Errorf("failed to extract partition info from genesis file %s, %w", config.getGenesisFilePath(), err)
 	}
 	// use monolithic consensus algorithm
-	cm, err := monolithic.NewMonolithicConsensusManager(prtHost.ID().String(),
+	cm, err := monolithic.NewMonolithicConsensusManager(
+		prtHost.ID().String(),
 		rootGenesis,
 		partitionCfg,
 		keys.SigningPrivateKey,
@@ -147,9 +148,8 @@ func defaultRootNodeRunFunc(ctx context.Context, config *rootNodeConfig) error {
 	if err != nil {
 		return fmt.Errorf("failed initiate root node: %w", err)
 	}
-
+	node.Start(ctx)
 	<-ctx.Done()
-	node.Close()
 	return ctx.Err()
 }
 

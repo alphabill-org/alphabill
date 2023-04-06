@@ -1,6 +1,7 @@
 package consensus
 
 import (
+	"context"
 	gocrypto "crypto"
 	"time"
 
@@ -18,8 +19,8 @@ type (
 		CertificationResult() <-chan certificates.UnicityCertificate
 		// GetLatestUnicityCertificate get the latest certification for partition (maybe should/can be removed)
 		GetLatestUnicityCertificate(id protocol.SystemIdentifier) (*certificates.UnicityCertificate, error)
-		// Stop consensus manager, stop manager go routines and clean-up
-		Stop()
+		// Run consensus algorithm
+		Run(ctx context.Context) error
 	}
 
 	// Parameters are basic consensus parameters that need to be the same in all root validators.

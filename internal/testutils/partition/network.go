@@ -149,6 +149,8 @@ func NewNetwork(partitionNodes int, txSystemProvider func(trustBase map[string]c
 
 	partitionGenesis := partitionGenesisFiles[0]
 	ctx, ctxCancel := context.WithCancel(context.Background())
+	// start root
+	go rootNode.Start(ctx)
 	// start Nodes
 	var nodes = make([]*partition.Node, partitionNodes)
 	eh := &testevent.TestEventHandler{}
@@ -247,7 +249,6 @@ func (a *AlphabillPartition) GetBlockProof(tx *txsystem.Transaction, txConverter
 
 func (a *AlphabillPartition) Close() error {
 	a.ctxCancel()
-	a.RootNode.Close()
 	for _, node := range a.Nodes {
 		node.Close()
 	}

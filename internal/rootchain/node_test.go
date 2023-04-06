@@ -1,6 +1,7 @@
 package rootchain
 
 import (
+	"context"
 	"fmt"
 	"testing"
 	"time"
@@ -60,8 +61,9 @@ func (m *MockConsensusManager) CertificationResult() <-chan certificates.Unicity
 	return m.certResultCh
 }
 
-func (m *MockConsensusManager) Stop() {
+func (m *MockConsensusManager) Run(_ context.Context) error {
 	// nothing to do
+	return nil
 }
 
 func (m *MockConsensusManager) GetLatestUnicityCertificate(id p.SystemIdentifier) (*certificates.UnicityCertificate, error) {
@@ -104,7 +106,8 @@ func TestRootValidatorTest_ConstructWithMonolithicManager(t *testing.T) {
 	mockNet := testnetwork.NewMockNetwork()
 	partitionStore, err := partitions.NewPartitionStoreFromGenesis(rootGenesis.Partitions)
 	require.NoError(t, err)
-	cm, err := monolithic.NewMonolithicConsensusManager(node.Peer.ID().String(),
+	cm, err := monolithic.NewMonolithicConsensusManager(
+		node.Peer.ID().String(),
 		rootGenesis,
 		partitionStore,
 		node.Signer)
@@ -112,13 +115,11 @@ func TestRootValidatorTest_ConstructWithMonolithicManager(t *testing.T) {
 	validator, err := New(node.Peer, mockNet, partitionStore, cm)
 	require.NoError(t, err)
 	require.NotNil(t, validator)
-	defer validator.Close()
 }
 
 func TestRootValidatorTest_CertificationReqRejected(t *testing.T) {
 	mockNet := testnetwork.NewMockNetwork()
 	rootValidator, _, partitionNodes, rg := initRootValidator(t, mockNet)
-	defer rootValidator.Close()
 	newIR := &certificates.InputRecord{
 		PreviousHash: rg.Partitions[0].Nodes[0].BlockCertificationRequest.InputRecord.Hash,
 		Hash:         test.RandomBytes(32),
@@ -150,7 +151,6 @@ func TestRootValidatorTest_CertificationReqRejected(t *testing.T) {
 func TestRootValidatorTest_CertificationReqEquivocatingReq(t *testing.T) {
 	mockNet := testnetwork.NewMockNetwork()
 	rootValidator, _, partitionNodes, rg := initRootValidator(t, mockNet)
-	defer rootValidator.Close()
 	newIR := &certificates.InputRecord{
 		PreviousHash: rg.Partitions[0].Nodes[0].BlockCertificationRequest.InputRecord.Hash,
 		Hash:         test.RandomBytes(32),
@@ -185,7 +185,10 @@ func TestRootValidatorTest_CertificationReqEquivocatingReq(t *testing.T) {
 func TestRootValidatorTest_SimulateNetCommunication(t *testing.T) {
 	mockNet := testnetwork.NewMockNetwork()
 	rootValidator, node, partitionNodes, rg := initRootValidator(t, mockNet)
-	defer rootValidator.Close()
+	ctx, ctxCancel := context.WithCancel(context.Background())
+	t.Cleanup(ctxCancel)
+	go func() { require.ErrorIs(t, rootValidator.Start(ctx), context.Canceled) }()
+
 	require.Len(t, partitionNodes, 3)
 	require.NotNil(t, rg)
 	require.NotEmpty(t, node.Peer.ID().String())
@@ -209,7 +212,10 @@ func TestRootValidatorTest_SimulateNetCommunication(t *testing.T) {
 func TestRootValidatorTest_SimulateNetCommunicationNoQuorum(t *testing.T) {
 	mockNet := testnetwork.NewMockNetwork()
 	rootValidator, node, partitionNodes, rg := initRootValidator(t, mockNet)
-	defer rootValidator.Close()
+	ctx, ctxCancel := context.WithCancel(context.Background())
+	t.Cleanup(ctxCancel)
+	go func() { require.ErrorIs(t, rootValidator.Start(ctx), context.Canceled) }()
+
 	require.Len(t, partitionNodes, 3)
 	require.NotNil(t, rg)
 	require.NotEmpty(t, node.Peer.ID().String())
@@ -248,7 +254,10 @@ func TestRootValidatorTest_SimulateNetCommunicationNoQuorum(t *testing.T) {
 func TestRootValidatorTest_SimulateNetCommunicationHandshake(t *testing.T) {
 	mockNet := testnetwork.NewMockNetwork()
 	rootValidator, node, partitionNodes, rg := initRootValidator(t, mockNet)
-	defer rootValidator.Close()
+	ctx, ctxCancel := context.WithCancel(context.Background())
+	t.Cleanup(ctxCancel)
+	go func() { require.ErrorIs(t, rootValidator.Start(ctx), context.Canceled) }()
+
 	require.Len(t, partitionNodes, 3)
 	require.NotNil(t, rg)
 	require.NotEmpty(t, node.Peer.ID().String())
@@ -296,7 +305,11 @@ func TestRootValidatorTest_SimulateNetCommunicationHandshake(t *testing.T) {
 func TestRootValidatorTest_SimulateNetCommunicationInvalidReqRoundNumber(t *testing.T) {
 	mockNet := testnetwork.NewMockNetwork()
 	rootValidator, node, partitionNodes, rg := initRootValidator(t, mockNet)
-	defer rootValidator.Close()
+	ctx, ctxCancel := context.WithCancel(context.Background())
+	t.Cleanup(ctxCancel)
+	go func() { require.ErrorIs(t, rootValidator.Start(ctx), context.Canceled) }()
+
+	require.NotNil(t, rootValidator)
 	require.Len(t, partitionNodes, 3)
 	require.NotNil(t, rg)
 	require.NotEmpty(t, node.Peer.ID().String())
@@ -320,7 +333,11 @@ func TestRootValidatorTest_SimulateNetCommunicationInvalidReqRoundNumber(t *test
 func TestRootValidatorTest_SimulateNetCommunicationInvalidHash(t *testing.T) {
 	mockNet := testnetwork.NewMockNetwork()
 	rootValidator, node, partitionNodes, rg := initRootValidator(t, mockNet)
-	defer rootValidator.Close()
+	ctx, ctxCancel := context.WithCancel(context.Background())
+	t.Cleanup(ctxCancel)
+	go func() { require.ErrorIs(t, rootValidator.Start(ctx), context.Canceled) }()
+
+	require.NotNil(t, rootValidator)
 	require.Len(t, partitionNodes, 3)
 	require.NotNil(t, rg)
 	require.NotEmpty(t, node.Peer.ID().String())
@@ -344,7 +361,10 @@ func TestRootValidatorTest_SimulateNetCommunicationInvalidHash(t *testing.T) {
 func TestRootValidatorTest_SimulateResponse(t *testing.T) {
 	mockNet := testnetwork.NewMockNetwork()
 	rootValidator, node, partitionNodes, rg := initRootValidator(t, mockNet)
-	defer rootValidator.Close()
+	ctx, ctxCancel := context.WithCancel(context.Background())
+	t.Cleanup(ctxCancel)
+	go func() { require.ErrorIs(t, rootValidator.Start(ctx), context.Canceled) }()
+
 	require.Len(t, partitionNodes, 3)
 	require.NotNil(t, rg)
 	require.NotEmpty(t, node.Peer.ID().String())
@@ -380,7 +400,10 @@ func TestRootValidatorTest_SimulateResponse(t *testing.T) {
 func TestRootValidator_ResultUnknown(t *testing.T) {
 	mockNet := testnetwork.NewMockNetwork()
 	rootValidator, _, _, rg := initRootValidator(t, mockNet)
-	defer rootValidator.Close()
+	ctx, ctxCancel := context.WithCancel(context.Background())
+	t.Cleanup(ctxCancel)
+	go func() { require.ErrorIs(t, rootValidator.Start(ctx), context.Canceled) }()
+
 	newIR := &certificates.InputRecord{
 		PreviousHash: rg.Partitions[0].Nodes[0].BlockCertificationRequest.InputRecord.Hash,
 		Hash:         test.RandomBytes(32),

@@ -1,6 +1,7 @@
 package monolithic
 
 import (
+	"context"
 	gocrypto "crypto"
 	"fmt"
 	"testing"
@@ -58,11 +59,10 @@ func initConsensusManager(t *testing.T, dbPath string) (*ConsensusManager, *test
 		require.NoError(t, err)
 		return cm, rootNode, partitionNodes, rootGenesis
 
-	} else {
-		cm, err := NewMonolithicConsensusManager(rootNode.Peer.ID().String(), rootGenesis, partitions, rootNode.Signer, consensus.WithPersistentStoragePath(dbPath))
-		require.NoError(t, err)
-		return cm, rootNode, partitionNodes, rootGenesis
 	}
+	cm, err := NewMonolithicConsensusManager(rootNode.Peer.ID().String(), rootGenesis, partitions, rootNode.Signer, consensus.WithPersistentStoragePath(dbPath))
+	require.NoError(t, err)
+	return cm, rootNode, partitionNodes, rootGenesis
 }
 
 func TestConsensusManager_checkT2Timeout(t *testing.T) {
@@ -114,7 +114,10 @@ func TestConsensusManager_checkT2Timeout(t *testing.T) {
 
 func TestConsensusManager_NormalOperation(t *testing.T) {
 	cm, rootNode, partitionNodes, rg := initConsensusManager(t, "")
-	defer cm.Stop()
+	ctx, ctxCancel := context.WithCancel(context.Background())
+	defer ctxCancel()
+	go func() { require.ErrorIs(t, cm.Run(ctx), context.Canceled) }()
+
 	// make sure that 3 partition nodes where generated, needed for the next steps
 	require.Len(t, partitionNodes, 3)
 	// mock requests from partition node
@@ -149,7 +152,10 @@ func TestConsensusManager_NormalOperation(t *testing.T) {
 func TestConsensusManager_PartitionTimeout(t *testing.T) {
 	dir := t.TempDir()
 	cm, rootNode, partitionNodes, rg := initConsensusManager(t, dir)
-	defer cm.Stop()
+	ctx, ctxCancel := context.WithCancel(context.Background())
+	defer ctxCancel()
+	go func() { require.ErrorIs(t, cm.Run(ctx), context.Canceled) }()
+
 	// make sure that 3 partition nodes where generated, needed for the next steps
 	require.Len(t, partitionNodes, 3)
 	// require, that repeat UC certificates are received for partition ID in 3 root rounds (partition timeout 2500 < 4 * block rate (900))

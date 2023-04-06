@@ -18,9 +18,8 @@ import (
 
 type (
 	ConsensusManager struct {
-		ctxCancel    context.CancelFunc
 		certReqCh    chan consensus.IRChangeRequest
-		certResultCh chan certificates.UnicityCertificate
+		certResultCh chan *certificates.UnicityCertificate
 		params       *consensus.Parameters
 		ticker       *time.Ticker
 		selfID       string // node identifier
@@ -72,7 +71,7 @@ func NewMonolithicConsensusManager(selfStr string, rg *genesis.RootGenesis, part
 	consensusParams := consensus.NewConsensusParams(rg.Root)
 	consensusManager := &ConsensusManager{
 		certReqCh:    make(chan consensus.IRChangeRequest),
-		certResultCh: make(chan certificates.UnicityCertificate),
+		certResultCh: make(chan *certificates.UnicityCertificate),
 		params:       consensusParams,
 		selfID:       selfStr,
 		partitions:   partitionStore,
@@ -95,7 +94,7 @@ func (x *ConsensusManager) RequestCertification() chan<- consensus.IRChangeReque
 	return x.certReqCh
 }
 
-func (x *ConsensusManager) CertificationResult() <-chan certificates.UnicityCertificate {
+func (x *ConsensusManager) CertificationResult() <-chan *certificates.UnicityCertificate {
 	return x.certResultCh
 }
 
@@ -186,7 +185,7 @@ func (x *ConsensusManager) onT3Timeout() {
 	// Only deliver updated (new input or repeat) certificates
 	for id, cert := range certs {
 		logger.Debug("Round %d sending new UC for '%X'", newRound, id.Bytes())
-		x.certResultCh <- *cert
+		x.certResultCh <- cert
 	}
 }
 

@@ -32,13 +32,13 @@ var partitionInputRecord = &certificates.InputRecord{
 	RoundNumber:  1,
 }
 
-func readResult(ch <-chan certificates.UnicityCertificate, timeout time.Duration) (*certificates.UnicityCertificate, error) {
+func readResult(ch <-chan *certificates.UnicityCertificate, timeout time.Duration) (*certificates.UnicityCertificate, error) {
 	select {
 	case result, ok := <-ch:
 		if !ok {
 			return nil, fmt.Errorf("failed to read from channel")
 		}
-		return &result, nil
+		return result, nil
 	case <-time.After(timeout):
 		return nil, fmt.Errorf("timeout")
 	}
@@ -54,6 +54,7 @@ func initConsensusManager(t *testing.T, dbPath string) (*ConsensusManager, *test
 	rootGenesis, _, err := rootgenesis.NewRootGenesis(id.String(), rootNode.Signer, rootPubKeyBytes, []*genesis.PartitionRecord{partitionRecord})
 	require.NoError(t, err)
 	partitions, err := partitions.NewPartitionStoreFromGenesis(rootGenesis.Partitions)
+	require.NoError(t, err)
 	if dbPath == "" {
 		cm, err := NewMonolithicConsensusManager(rootNode.Peer.ID().String(), rootGenesis, partitions, rootNode.Signer)
 		require.NoError(t, err)

@@ -33,7 +33,7 @@ var partitionInputRecord = &certificates.InputRecord{
 
 type MockConsensusManager struct {
 	certReqCh    chan consensus.IRChangeRequest
-	certResultCh chan certificates.UnicityCertificate
+	certResultCh chan *certificates.UnicityCertificate
 	partitions   partitions.PartitionConfiguration
 	certs        map[p.SystemIdentifier]*certificates.UnicityCertificate
 }
@@ -47,7 +47,7 @@ func NewMockConsensus(rg *genesis.RootGenesis, partitionStore partitions.Partiti
 	return &MockConsensusManager{
 		// use buffered channels here, we just want to know if a tlg is received
 		certReqCh:    make(chan consensus.IRChangeRequest, 1),
-		certResultCh: make(chan certificates.UnicityCertificate, 1),
+		certResultCh: make(chan *certificates.UnicityCertificate, 1),
 		partitions:   partitionStore,
 		certs:        c,
 	}, nil
@@ -57,7 +57,7 @@ func (m *MockConsensusManager) RequestCertification() chan<- consensus.IRChangeR
 	return m.certReqCh
 }
 
-func (m *MockConsensusManager) CertificationResult() <-chan certificates.UnicityCertificate {
+func (m *MockConsensusManager) CertificationResult() <-chan *certificates.UnicityCertificate {
 	return m.certResultCh
 }
 

@@ -33,11 +33,11 @@ func NewMapTx(m *MemoryDB) (*Tx, error) {
 }
 
 func (t *Tx) Read(key []byte, v any) (bool, error) {
+	t.mem.lock.RLock()
+	defer t.mem.lock.RUnlock()
 	if err := keyvaluedb.CheckKeyAndValue(key, v); err != nil {
 		return false, err
 	}
-	t.mem.lock.RLock()
-	defer t.mem.lock.RUnlock()
 	if t.db == nil {
 		return false, fmt.Errorf("memdb tx read failed, tx closed")
 	}
@@ -48,11 +48,11 @@ func (t *Tx) Read(key []byte, v any) (bool, error) {
 }
 
 func (t *Tx) Write(key []byte, value any) error {
+	t.mem.lock.Lock()
+	defer t.mem.lock.Unlock()
 	if err := keyvaluedb.CheckKeyAndValue(key, value); err != nil {
 		return err
 	}
-	t.mem.lock.Lock()
-	defer t.mem.lock.Unlock()
 	if t.db == nil {
 		return fmt.Errorf("memdb tx write failed, tx closed")
 	}
@@ -68,11 +68,11 @@ func (t *Tx) Write(key []byte, value any) error {
 }
 
 func (t *Tx) Delete(key []byte) error {
+	t.mem.lock.Lock()
+	defer t.mem.lock.Unlock()
 	if err := keyvaluedb.CheckKey(key); err != nil {
 		return err
 	}
-	t.mem.lock.Lock()
-	defer t.mem.lock.Unlock()
 	if t.db == nil {
 		return fmt.Errorf("memdb tx delete failed, tx closed")
 	}

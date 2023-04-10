@@ -1,9 +1,9 @@
 package keyvaluedb
 
+import "fmt"
+
 // Reader interface for DB
 type Reader interface {
-	// Empty returns if key value DB is empty
-	Empty() bool
 	// Read reads the value for key stored in the DB
 	Read(key []byte, value any) (bool, error)
 }
@@ -83,8 +83,19 @@ type Iterable interface {
 // DBTransaction key value database transaction
 type DBTransaction interface {
 	Writer
+	Reader
 	// Commit commits all pending changes
 	Commit() error
 	// Rollback reverts everything and nothing is changed
 	Rollback() error
+}
+
+// IsEmpty is returns true if the key value DB is empty
+func IsEmpty(db KeyValueDB) (empty bool, err error) {
+	if db == nil {
+		return true, fmt.Errorf("db is nil")
+	}
+	it := db.First()
+	defer func() { err = it.Close() }()
+	return !it.Valid(), err
 }

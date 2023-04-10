@@ -185,7 +185,11 @@ func initState(n *Node) (err error) {
 	defer trackExecutionTime(time.Now(), "Restore node state")
 	// get genesis block from the genesis
 	genesisBlock := n.configuration.genesisBlock()
-	if n.blockStore.Empty() {
+	empty, err := keyvaluedb.IsEmpty(n.blockStore)
+	if err != nil {
+		return fmt.Errorf("node init db empty check failed, %w", err)
+	}
+	if empty {
 		logger.Info("State initialised from genesis")
 		if err = n.blockStore.Write(util.Uint64ToBytes(pgenesis.PartitionRoundNumber), genesisBlock); err != nil {
 			return fmt.Errorf("init failed to persist genesis block, %w", err)

@@ -1,6 +1,7 @@
 package partition
 
 import (
+	"context"
 	gocrypto "crypto"
 	"crypto/rand"
 	"fmt"
@@ -94,9 +95,6 @@ func SetupNewSingleNodePartition(t *testing.T, txSystem txsystem.TransactionSyst
 	pr, err := rootgenesis.NewPartitionRecordFromNodes([]*genesis.PartitionNode{nodeGenesis})
 	require.NoError(t, err)
 	rootGenesis, partitionGenesis, err := rootgenesis.NewRootGenesis("test", rootSigner, rootPubKeyBytes, pr)
-	if err != nil {
-		t.Error(err)
-	}
 	require.NoError(t, err)
 
 	// root state
@@ -106,7 +104,6 @@ func SetupNewSingleNodePartition(t *testing.T, txSystem txsystem.TransactionSyst
 	}
 
 	net := testnetwork.NewMockNetwork()
-	eh := &testevent.TestEventHandler{}
 
 	// allows restarting the node
 	deps := &partitionStartupDependencies{
@@ -124,23 +121,32 @@ func SetupNewSingleNodePartition(t *testing.T, txSystem txsystem.TransactionSyst
 		certs:      certs,
 		rootSigner: rootSigner,
 		mockNet:    net,
-		eh:         eh,
+		eh:         &testevent.TestEventHandler{},
 	}
 	return partition
 }
 
-func StartSingleNodePartition(t *testing.T, p *SingleNodePartition) {
+func StartSingleNodePartition(ctx context.Context, t *testing.T, p *SingleNodePartition) chan struct{} {
 	// partition node
-	require.NoError(t, p.StartNode())
+	require.NoError(t, p.newNode(), "failed to init partition node")
+	done := make(chan struct{})
+	go func() {
+		require.ErrorIs(t, p.partition.Run(ctx), context.Canceled)
+		close(done)
+	}()
+	return done
 }
 
-func NewSingleNodePartition(t *testing.T, txSystem txsystem.TransactionSystem, nodeOptions ...NodeOption) *SingleNodePartition {
+func RunSingleNodePartition(t *testing.T, txSystem txsystem.TransactionSystem, nodeOptions ...NodeOption) *SingleNodePartition {
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+
 	partition := SetupNewSingleNodePartition(t, txSystem, nodeOptions...)
-	StartSingleNodePartition(t, partition)
+	StartSingleNodePartition(ctx, t, partition)
 	return partition
 }
 
-func (sn *SingleNodePartition) StartNode() error {
+func (sn *SingleNodePartition) newNode() error {
 	n, err := New(
 		sn.nodeDeps.peer,
 		sn.nodeDeps.nodeSigner,
@@ -165,17 +171,6 @@ func (sn *SingleNodePartition) StartNode() error {
 	sn.nodeConf = n.configuration
 	sn.store = n.blockStore
 	return nil
-}
-
-func (sn *SingleNodePartition) Restart(t *testing.T) {
-	sn.partition.Close()
-	fmt.Println("Restarting node...")
-	require.NoError(t, sn.StartNode())
-}
-
-func (sn *SingleNodePartition) Close() {
-	sn.partition.Close()
-	close(sn.mockNet.MessageCh)
 }
 
 func (sn *SingleNodePartition) SubmitTx(tx *txsystem.Transaction) error {

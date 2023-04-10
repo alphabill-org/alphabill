@@ -3,7 +3,7 @@ package cmd
 import (
 	"bytes"
 	"context"
-	goerrors "errors"
+	"errors"
 	"fmt"
 	"net"
 	"net/http"
@@ -18,7 +18,6 @@ import (
 	"google.golang.org/grpc/health"
 	"google.golang.org/grpc/health/grpc_health_v1"
 
-	"github.com/alphabill-org/alphabill/internal/errors"
 	"github.com/alphabill-org/alphabill/internal/keyvaluedb"
 	"github.com/alphabill-org/alphabill/internal/keyvaluedb/boltdb"
 	"github.com/alphabill-org/alphabill/internal/keyvaluedb/memorydb"
@@ -49,23 +48,24 @@ type startNodeConfiguration struct {
 }
 
 func defaultNodeRunFunc(ctx context.Context, name string, txs txsystem.TransactionSystem, nodeCfg *startNodeConfiguration, rpcServerConf *grpcServerConfiguration, restServerConf *restServerConfiguration) error {
-	self, node, err := startNode(ctx, txs, nodeCfg)
+	self, node, err := createNode(txs, nodeCfg)
 	if err != nil {
-		return fmt.Errorf("failed to start %s node: %w", name, err)
-	}
-	defer node.Close()
-
-	listener, err := net.Listen("tcp", rpcServerConf.Address)
-	if err != nil {
-		return fmt.Errorf("failed to open listener on %q for %s: %w", rpcServerConf.Address, name, err)
+		return fmt.Errorf("failed to create node %q: %w", name, err)
 	}
 
 	g, ctx := errgroup.WithContext(ctx)
+
+	g.Go(func() error { return node.Run(ctx) })
 
 	g.Go(func() error {
 		grpcServer, err := initRPCServer(node, rpcServerConf)
 		if err != nil {
 			return fmt.Errorf("failed to init gRPC server for %s: %w", name, err)
+		}
+
+		listener, err := net.Listen("tcp", rpcServerConf.Address)
+		if err != nil {
+			return fmt.Errorf("failed to open listener on %q for %s: %w", rpcServerConf.Address, name, err)
 		}
 
 		errch := make(chan error, 1)
@@ -98,7 +98,7 @@ func defaultNodeRunFunc(ctx context.Context, name string, txs txsystem.Transacti
 		errch := make(chan error, 1)
 		go func() {
 			log.Info("%s REST server starting on %s", name, restServer.Addr)
-			if err := restServer.ListenAndServe(); err != nil && !goerrors.Is(err, http.ErrServerClosed) {
+			if err := restServer.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 				errch <- fmt.Errorf("%s REST server exited: %w", name, err)
 			}
 			log.Info("%s REST server exited", name)
@@ -108,7 +108,7 @@ func defaultNodeRunFunc(ctx context.Context, name string, txs txsystem.Transacti
 		case <-ctx.Done():
 			err := ctx.Err()
 			if e := restServer.Close(); e != nil {
-				err = goerrors.Join(err, fmt.Errorf("closing REST server: %w", e))
+				err = errors.Join(err, fmt.Errorf("closing REST server: %w", e))
 			}
 			return err
 		case err := <-errch:
@@ -199,7 +199,7 @@ func initRPCServer(node *partition.Node, cfg *grpcServerConfiguration) (*grpc.Se
 	return grpcServer, nil
 }
 
-func startNode(ctx context.Context, txs txsystem.TransactionSystem, cfg *startNodeConfiguration) (*network.Peer, *partition.Node, error) {
+func createNode(txs txsystem.TransactionSystem, cfg *startNodeConfiguration) (*network.Peer, *partition.Node, error) {
 	keys, err := LoadKeys(cfg.KeyFile, false, false)
 	if err != nil {
 		return nil, nil, err
@@ -214,7 +214,7 @@ func startNode(ctx context.Context, txs txsystem.TransactionSystem, cfg *startNo
 		return nil, nil, err
 	}
 	if len(pg.RootValidators) < 1 {
-		return nil, nil, errors.New("Root validator info is missing")
+		return nil, nil, errors.New("root validator info is missing")
 	}
 	// Assume monolithic root chain for now and only extract the id of the first root node
 	rootEncryptionKey, err := crypto.UnmarshalSecp256k1PublicKey(pg.RootValidators[0].EncryptionPublicKey)
@@ -243,7 +243,6 @@ func startNode(ctx context.Context, txs txsystem.TransactionSystem, cfg *startNo
 		txs,
 		pg,
 		n,
-		partition.WithContext(ctx),
 		partition.WithRootAddressAndIdentifier(newMultiAddr, rootID),
 		partition.WithBlockStore(blockStore),
 		partition.WithReplicationParams(cfg.LedgerReplicationMaxBlocks, cfg.LedgerReplicationMaxTx),
@@ -272,7 +271,7 @@ func loadPartitionGenesis(genesisPath string) (*genesis.PartitionGenesis, error)
 func (c *startNodeConfiguration) getPeerAddress(identifier string) (string, error) {
 	address, f := c.Peers[identifier]
 	if !f {
-		return "", errors.Errorf("address for node %v not found.", identifier)
+		return "", fmt.Errorf("address for node %q not found", identifier)
 	}
 	return address, nil
 }

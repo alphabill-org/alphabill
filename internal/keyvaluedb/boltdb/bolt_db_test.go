@@ -52,7 +52,7 @@ func TestMemDB_TestIsEmpty(t *testing.T) {
 	empty, err := keyvaluedb.IsEmpty(db)
 	require.NoError(t, err)
 	require.True(t, empty)
-	require.NoError(t, db.Write([]byte("integer"), "test"))
+	require.NoError(t, db.Write([]byte("foo"), "test"))
 	empty, err = keyvaluedb.IsEmpty(db)
 	require.NoError(t, err)
 	require.False(t, empty)

@@ -41,12 +41,7 @@ func (t *Tx) Read(key []byte, v any) (bool, error) {
 	if t.db == nil {
 		return false, fmt.Errorf("memdb tx read failed, tx closed")
 	}
-	db := t.db
-	// if no write yet, read from original DB
-	if db == nil {
-		db = t.mem.db
-	}
-	if data, ok := db[string(key)]; ok {
+	if data, ok := t.db[string(key)]; ok {
 		return true, t.mem.decoder(data, v)
 	}
 	return false, nil

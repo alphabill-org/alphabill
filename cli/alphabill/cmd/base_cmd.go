@@ -3,12 +3,11 @@ package cmd
 import (
 	"context"
 	"fmt"
-	"os"
-	"path"
+	"path/filepath"
 	"strings"
 
 	"github.com/alphabill-org/alphabill/internal/errors"
-	"github.com/alphabill-org/alphabill/internal/logger"
+	"github.com/alphabill-org/alphabill/pkg/logger"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
@@ -34,41 +33,41 @@ func (a *alphabillApp) WithOpts(opts interface{}) *alphabillApp {
 }
 
 // Execute adds all child commands and runs the application
-func (a *alphabillApp) Execute(ctx context.Context) {
-	cobra.CheckErr(a.addAndExecuteCommand(ctx))
+func (a *alphabillApp) Execute(ctx context.Context) error {
+	return a.addAndExecuteCommand(ctx)
 }
 
 func (a *alphabillApp) addAndExecuteCommand(ctx context.Context) error {
-	a.baseCmd.AddCommand(newMoneyNodeCmd(ctx, a.baseConfig, convertOptsToRunnable(a.opts)))
-	a.baseCmd.AddCommand(newMoneyGenesisCmd(ctx, a.baseConfig))
-	a.baseCmd.AddCommand(newVDNodeCmd(ctx, a.baseConfig))
-	a.baseCmd.AddCommand(newVDGenesisCmd(ctx, a.baseConfig))
-	a.baseCmd.AddCommand(newWalletCmd(ctx, a.baseConfig))
-	a.baseCmd.AddCommand(newRootGenesisCmd(ctx, a.baseConfig))
-	a.baseCmd.AddCommand(newRootChainCmd(ctx, a.baseConfig))
-	a.baseCmd.AddCommand(newNodeIdentifierCmd(ctx))
-	a.baseCmd.AddCommand(newVDClientCmd(ctx, a.baseConfig))
-	a.baseCmd.AddCommand(newTokensNodeCmd(ctx, a.baseConfig))
-	a.baseCmd.AddCommand(newUserTokenGenesisCmd(ctx, a.baseConfig))
-	a.baseCmd.AddCommand(newPubkeyIndexerCmd(ctx, a.baseConfig))
-	a.baseCmd.AddCommand(newMoneyBackendCmd(ctx, a.baseConfig))
-	a.baseCmd.AddCommand(newTokenWalletBackendCmd(ctx, a.baseConfig))
-	return a.baseCmd.Execute()
+	a.baseCmd.AddCommand(newMoneyNodeCmd(a.baseConfig, convertOptsToRunnable(a.opts)))
+	a.baseCmd.AddCommand(newMoneyGenesisCmd(a.baseConfig))
+	a.baseCmd.AddCommand(newVDNodeCmd(a.baseConfig))
+	a.baseCmd.AddCommand(newVDGenesisCmd(a.baseConfig))
+	a.baseCmd.AddCommand(newWalletCmd(a.baseConfig))
+	a.baseCmd.AddCommand(newRootGenesisCmd(a.baseConfig))
+	a.baseCmd.AddCommand(newRootChainCmd(a.baseConfig))
+	a.baseCmd.AddCommand(newNodeIdentifierCmd())
+	a.baseCmd.AddCommand(newVDClientCmd(a.baseConfig))
+	a.baseCmd.AddCommand(newTokensNodeCmd(a.baseConfig))
+	a.baseCmd.AddCommand(newUserTokenGenesisCmd(a.baseConfig))
+	a.baseCmd.AddCommand(newMoneyBackendCmd(a.baseConfig))
+	a.baseCmd.AddCommand(newTokenWalletBackendCmd(a.baseConfig))
+	return a.baseCmd.ExecuteContext(ctx)
 }
 
 func newBaseCmd() (*cobra.Command, *baseConfiguration) {
 	config := &baseConfiguration{}
 	// baseCmd represents the base command when called without any subcommands
 	var baseCmd = &cobra.Command{
-		Use:   "alphabill",
-		Short: "The alphabill CLI",
-		Long:  `The alphabill CLI includes commands for all different parts of the system: shard, core, wallet etc.`,
+		Use:           "alphabill",
+		Short:         "The alphabill CLI",
+		Long:          `The alphabill CLI includes commands for all different parts of the system: shard, core, wallet etc.`,
+		SilenceErrors: true,
+		SilenceUsage:  true,
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 			// You can bind cobra and viper in a few locations, but PersistencePreRunE on the base command works well
 			// If subcommand does not define PersistentPreRunE, the one from base cmd is used.
-			err := initializeConfig(cmd, config)
-			if err != nil {
-				return err
+			if err := initializeConfig(cmd, config); err != nil {
+				return fmt.Errorf("failed to initialize configuration: %w", err)
 			}
 			initializeLogger(config)
 			return nil
@@ -120,13 +119,12 @@ func initializeConfig(cmd *cobra.Command, config *baseConfiguration) error {
 
 func initializeLogger(config *baseConfiguration) {
 	loggerConfigFile := config.LogCfgFile
-	if !strings.HasPrefix(config.LogCfgFile, string(os.PathSeparator)) {
+	if !filepath.IsAbs(loggerConfigFile) {
 		// Logger config file URL is using relative path
-		loggerConfigFile = path.Join(config.HomeDir, config.LogCfgFile)
+		loggerConfigFile = filepath.Join(config.HomeDir, config.LogCfgFile)
 	}
 
-	err := logger.UpdateGlobalConfigFromFile(loggerConfigFile)
-	if err != nil {
+	if err := logger.UpdateGlobalConfigFromFile(loggerConfigFile); err != nil {
 		if errors.ErrorCausedBy(err, errors.ErrFileNotFound) {
 			// In a common case when the config file is not found, the error message is made shorter. Not to spam the log.
 			log.Debug("The logger configuration file (%s) not found", loggerConfigFile)

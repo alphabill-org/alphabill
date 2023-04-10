@@ -1,14 +1,16 @@
 package twb
 
 import (
+	"bytes"
 	"context"
+	"embed"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"net/url"
-	"strconv"
 	"sync"
 	"time"
 
@@ -24,33 +26,63 @@ import (
 )
 
 type dataSource interface {
-	GetBlockNumber() (uint64, error)
+	GetTokenType(id TokenTypeID) (*TokenUnitType, error)
 	QueryTokenType(kind Kind, creator PubKey, startKey TokenTypeID, count int) ([]*TokenUnitType, TokenTypeID, error)
+	GetToken(id TokenID) (*TokenUnit, error)
 	QueryTokens(kind Kind, owner Predicate, startKey TokenID, count int) ([]*TokenUnit, TokenID, error)
 	SaveTokenTypeCreator(id TokenTypeID, kind Kind, creator PubKey) error
+	GetTxProof(unitID UnitID, txHash TxHash) (*Proof, error)
+}
+
+type abClient interface {
+	SendTransaction(ctx context.Context, tx *txsystem.Transaction) (*txsystem.TransactionResponse, error)
+	GetMaxBlockNumber(ctx context.Context) (uint64, uint64, error) // latest persisted block number, latest round number
 }
 
 type restAPI struct {
-	db              dataSource
-	sendTransaction func(*txsystem.Transaction) (*txsystem.TransactionResponse, error)
-	convertTx       func(tx *txsystem.Transaction) (txsystem.GenericTransaction, error)
-	logErr          func(a ...any)
+	db        dataSource
+	ab        abClient
+	convertTx func(tx *txsystem.Transaction) (txsystem.GenericTransaction, error)
+	logErr    func(a ...any)
 }
+
+const maxResponseItems = 100
+
+//go:embed swagger/*
+var swaggerFiles embed.FS
 
 func (api *restAPI) endpoints() http.Handler {
 	apiRouter := mux.NewRouter().StrictSlash(true).PathPrefix("/api").Subrouter()
 
 	// add cors middleware
 	// content-type needs to be explicitly defined without this content-type header is not allowed and cors filter is not applied
+	// Link header is needed for pagination support.
 	// OPTIONS method needs to be explicitly defined for each handler func
-	apiRouter.Use(handlers.CORS(handlers.AllowedHeaders([]string{"Content-Type", "Link"})))
+	apiRouter.Use(handlers.CORS(
+		handlers.AllowedHeaders([]string{"Content-Type"}),
+		handlers.ExposedHeaders([]string{"Link"}),
+	))
 
 	// version v1 router
 	apiV1 := apiRouter.PathPrefix("/v1").Subrouter()
+	apiV1.HandleFunc("/tokens/{tokenId}", api.getToken).Methods("GET", "OPTIONS")
+	apiV1.HandleFunc("/types/{typeId}/hierarchy", api.typeHierarchy).Methods("GET", "OPTIONS")
 	apiV1.HandleFunc("/kinds/{kind}/owners/{owner}/tokens", api.listTokens).Methods("GET", "OPTIONS")
 	apiV1.HandleFunc("/kinds/{kind}/types", api.listTypes).Methods("GET", "OPTIONS")
 	apiV1.HandleFunc("/round-number", api.getRoundNumber).Methods("GET", "OPTIONS")
 	apiV1.HandleFunc("/transactions/{pubkey}", api.postTransactions).Methods("POST", "OPTIONS")
+	apiV1.HandleFunc("/units/{unitId}/transactions/{txHash}/proof", api.getTxProof).Methods("GET", "OPTIONS")
+
+	apiV1.Handle("/swagger/{.*}", http.StripPrefix("/api/v1/", http.FileServer(http.FS(swaggerFiles)))).Methods("GET", "OPTIONS")
+	apiV1.Handle("/swagger/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		f, err := swaggerFiles.ReadFile("swagger/index.html")
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			fmt.Fprintf(w, "failed to read swagger/index.html file: %v", err)
+			return
+		}
+		http.ServeContent(w, r, "index.html", time.Time{}, bytes.NewReader(f))
+	})).Methods("GET", "OPTIONS")
 
 	return apiRouter
 }
@@ -70,9 +102,15 @@ func (api *restAPI) listTokens(w http.ResponseWriter, r *http.Request) {
 	}
 
 	qp := r.URL.Query()
-	startKey, err := parseTokenID(qp.Get("offsetKey"), false)
+	startKey, err := parseHex[TokenID](qp.Get("offsetKey"), false)
 	if err != nil {
 		api.invalidParamResponse(w, "offsetKey", err)
+		return
+	}
+
+	limit, err := parseMaxResponseItems(qp.Get("limit"), maxResponseItems)
+	if err != nil {
+		api.invalidParamResponse(w, "limit", err)
 		return
 	}
 
@@ -80,13 +118,29 @@ func (api *restAPI) listTokens(w http.ResponseWriter, r *http.Request) {
 		kind,
 		script.PredicatePayToPublicKeyHashDefault(hash.Sum256(owner)),
 		startKey,
-		maxResponseItems(qp.Get("limit")))
+		limit)
 	if err != nil {
 		api.writeErrorResponse(w, err)
 		return
 	}
-	setLinkHeader(r.URL, w, encodeTokenID(next))
+	setLinkHeader(r.URL, w, encodeHex(next))
 	api.writeResponse(w, data)
+}
+
+func (api *restAPI) getToken(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	tokenId, err := parseHex[TokenID](vars["tokenId"], true)
+	if err != nil {
+		api.invalidParamResponse(w, "tokenId", err)
+		return
+	}
+
+	token, err := api.db.GetToken(tokenId)
+	if err != nil {
+		api.writeErrorResponse(w, err)
+		return
+	}
+	api.writeResponse(w, token)
 }
 
 func (api *restAPI) listTypes(w http.ResponseWriter, r *http.Request) {
@@ -104,23 +158,50 @@ func (api *restAPI) listTypes(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	startKey, err := parseTokenTypeID(qp.Get("offsetKey"), false)
+	startKey, err := parseHex[TokenTypeID](qp.Get("offsetKey"), false)
 	if err != nil {
 		api.invalidParamResponse(w, "offsetKey", err)
 		return
 	}
 
-	data, next, err := api.db.QueryTokenType(kind, creator, startKey, maxResponseItems(qp.Get("limit")))
+	limit, err := parseMaxResponseItems(qp.Get("limit"), maxResponseItems)
+	if err != nil {
+		api.invalidParamResponse(w, "limit", err)
+		return
+	}
+
+	data, next, err := api.db.QueryTokenType(kind, creator, startKey, limit)
 	if err != nil {
 		api.writeErrorResponse(w, err)
 		return
 	}
-	setLinkHeader(r.URL, w, encodeTokenTypeID(next))
+	setLinkHeader(r.URL, w, encodeHex(next))
 	api.writeResponse(w, data)
 }
 
+func (api *restAPI) typeHierarchy(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	typeId, err := parseHex[TokenTypeID](vars["typeId"], true)
+	if err != nil {
+		api.invalidParamResponse(w, "typeId", err)
+		return
+	}
+
+	var rsp []*TokenUnitType
+	for len(typeId) > 0 && !bytes.Equal(typeId, NoParent) {
+		tokTyp, err := api.db.GetTokenType(typeId)
+		if err != nil {
+			api.writeErrorResponse(w, fmt.Errorf("failed to load type with id %x: %w", typeId, err))
+			return
+		}
+		rsp = append(rsp, tokTyp)
+		typeId = tokTyp.ParentTypeID
+	}
+	api.writeResponse(w, rsp)
+}
+
 func (api *restAPI) getRoundNumber(w http.ResponseWriter, r *http.Request) {
-	rn, err := api.db.GetBlockNumber()
+	_, rn, err := api.ab.GetMaxBlockNumber(r.Context())
 	if err != nil {
 		api.writeErrorResponse(w, err)
 		return
@@ -173,7 +254,7 @@ func (api *restAPI) saveTxs(ctx context.Context, txs []*txsystem.Transaction, ow
 		}
 		go func(tx *txsystem.Transaction) {
 			defer sem.Release(1)
-			if err := api.saveTx(tx, owner); err != nil {
+			if err := api.saveTx(ctx, tx, owner); err != nil {
 				m.Lock()
 				errs[hex.EncodeToString(tx.GetUnitId())] = err.Error()
 				m.Unlock()
@@ -191,7 +272,7 @@ func (api *restAPI) saveTxs(ctx context.Context, txs []*txsystem.Transaction, ow
 	return errs
 }
 
-func (api *restAPI) saveTx(tx *txsystem.Transaction, owner []byte) error {
+func (api *restAPI) saveTx(ctx context.Context, tx *txsystem.Transaction, owner []byte) error {
 	// if "creator type tx" then save the type->owner relation
 	gtx, err := api.convertTx(tx)
 	if err != nil {
@@ -210,7 +291,7 @@ func (api *restAPI) saveTx(tx *txsystem.Transaction, owner []byte) error {
 		}
 	}
 
-	rsp, err := api.sendTransaction(tx)
+	rsp, err := api.ab.SendTransaction(ctx, tx)
 	if err != nil {
 		return fmt.Errorf("failed to forward tx: %w", err)
 	}
@@ -218,6 +299,32 @@ func (api *restAPI) saveTx(tx *txsystem.Transaction, owner []byte) error {
 		return fmt.Errorf("transaction was not accepted: %s", rsp.GetMessage())
 	}
 	return nil
+}
+
+func (api *restAPI) getTxProof(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	unitID, err := parseHex[UnitID](vars["unitId"], true)
+	if err != nil {
+		api.invalidParamResponse(w, "unitId", err)
+		return
+	}
+	txHash, err := parseHex[TxHash](vars["txHash"], true)
+	if err != nil {
+		api.invalidParamResponse(w, "txHash", err)
+		return
+	}
+
+	proof, err := api.db.GetTxProof(unitID, txHash)
+	if err != nil {
+		api.writeErrorResponse(w, fmt.Errorf("failed to load proof of tx 0x%X (unit 0x%X): %w", txHash, unitID, err))
+		return
+	}
+	if proof == nil {
+		api.errorResponse(w, http.StatusNotFound, fmt.Errorf("no proof found for tx 0x%X (unit 0x%X)", txHash, unitID))
+		return
+	}
+
+	api.writeResponse(w, proof)
 }
 
 func (api *restAPI) writeResponse(w http.ResponseWriter, data any) {
@@ -228,6 +335,11 @@ func (api *restAPI) writeResponse(w http.ResponseWriter, data any) {
 }
 
 func (api *restAPI) writeErrorResponse(w http.ResponseWriter, err error) {
+	if errors.Is(err, errRecordNotFound) {
+		api.errorResponse(w, http.StatusNotFound, err)
+		return
+	}
+
 	api.errorResponse(w, http.StatusInternalServerError, err)
 	api.logError(err)
 }
@@ -261,18 +373,9 @@ func setLinkHeader(u *url.URL, w http.ResponseWriter, next string) {
 	w.Header().Set("Link", fmt.Sprintf(`<%s>; rel="next"`, u))
 }
 
-func maxResponseItems(s string) int {
-	const def = 100 // default / max response item count
-	v, err := strconv.Atoi(s)
-	if v <= 0 || v > def || err != nil {
-		return def
-	}
-	return v
-}
-
 type (
 	RoundNumberResponse struct {
-		RoundNumber uint64 `json:"roundNumber"`
+		RoundNumber uint64 `json:"roundNumber,string"`
 	}
 
 	ErrorResponse struct {

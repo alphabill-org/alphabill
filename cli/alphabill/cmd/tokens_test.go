@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"context"
+	"fmt"
 	"math/rand"
 	"path/filepath"
 	"strings"
@@ -9,11 +10,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/alphabill-org/alphabill/internal/async"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/internal/rootchain"
 	"github.com/alphabill-org/alphabill/internal/rpc/alphabill"
 	"github.com/alphabill-org/alphabill/internal/script"
+	"github.com/alphabill-org/alphabill/internal/testutils/net"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	testtime "github.com/alphabill-org/alphabill/internal/testutils/time"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
@@ -26,20 +27,13 @@ import (
 	"google.golang.org/protobuf/types/known/anypb"
 )
 
-var (
-	port       = "9543"
-	listenAddr = ":" + port // listen is on all devices, so it would work in CI inside docker too.
-	dialAddr   = "localhost:" + port
-)
-
 func TestRunTokensNode(t *testing.T) {
 	homeDir := setupTestHomeDir(t, "tokens")
 	keysFileLocation := filepath.Join(homeDir, defaultKeysFileName)
 	nodeGenesisFileLocation := filepath.Join(homeDir, nodeGenesisFileName)
 	partitionGenesisFileLocation := filepath.Join(homeDir, "partition-genesis.json")
 	testtime.MustRunInTime(t, 5*time.Second, func() {
-		ctx, _ := async.WithWaitGroup(context.Background())
-		ctx, ctxCancel := context.WithCancel(ctx)
+		ctx, ctxCancel := context.WithCancel(context.Background())
 		appStoppedWg := sync.WaitGroup{}
 		defer func() {
 			ctxCancel()
@@ -67,6 +61,8 @@ func TestRunTokensNode(t *testing.T) {
 		err = util.WriteJsonFile(partitionGenesisFileLocation, partitionGenesisFiles[0])
 		require.NoError(t, err)
 
+		listenAddr := fmt.Sprintf(":%d", net.GetFreeRandomPort(t))
+
 		// start the node in background
 		appStoppedWg.Add(1)
 		go func() {
@@ -75,12 +71,12 @@ func TestRunTokensNode(t *testing.T) {
 			cmd.baseCmd.SetArgs(strings.Split(args, " "))
 
 			err = cmd.addAndExecuteCommand(ctx)
-			require.NoError(t, err)
+			require.ErrorIs(t, err, context.Canceled)
 			appStoppedWg.Done()
 		}()
 
 		// Create the gRPC client
-		conn, err := grpc.DialContext(ctx, dialAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+		conn, err := grpc.DialContext(ctx, "localhost"+listenAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
 		require.NoError(t, err)
 		defer conn.Close()
 		rpcClient := alphabill.NewAlphabillServiceClient(conn)

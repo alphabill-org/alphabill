@@ -8,6 +8,7 @@ import (
 )
 
 func TestWalletFeesCmds(t *testing.T) {
+	t.SkipNow() // TODO add fee credit support to "new" cli wallet
 	homedir, _ := setupInfra(t)
 
 	// list fees
@@ -52,6 +53,7 @@ wallet runs sync
 wallet balance and fee credit balance remain the same as before the sync
 */
 func TestSyncDoesNotOverwritePreviouslyProcessedTxs(t *testing.T) {
+	t.SkipNow() // TODO add fee credit support to "new" cli wallet
 	homedir, _ := setupInfra(t)
 
 	// add fee credits

@@ -6,40 +6,44 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"strings"
 	"time"
 
-	"github.com/alphabill-org/alphabill/pkg/wallet/backend/bp"
-
-	"github.com/alphabill-org/alphabill/pkg/wallet/backend/money"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"google.golang.org/protobuf/encoding/protojson"
+
+	"github.com/alphabill-org/alphabill/pkg/wallet/backend/bp"
+	"github.com/alphabill-org/alphabill/pkg/wallet/backend/money"
 )
 
 type (
 	MoneyBackendClient struct {
-		baseUrl    string
-		httpClient http.Client
+		BaseUrl    string
+		HttpClient http.Client
 	}
 )
 
 const (
-	balancePath     = "api/v1/balance"
-	listBillsPath   = "api/v1/list-bills"
-	proofPath       = "api/v1/proof"
-	blockHeightPath = "api/v1/block-height"
+	BalancePath     = "api/v1/balance"
+	ListBillsPath   = "api/v1/list-bills"
+	ProofPath       = "api/v1/proof"
+	BlockHeightPath = "api/v1/block-height"
 
 	balanceUrlFormat     = "%v/%v?pubkey=%v&includedcbills=%v"
 	listBillsUrlFormat   = "%v/%v?pubkey=%v"
 	proofUrlFormat       = "%v/%v?bill_id=%v"
 	blockHeightUrlFormat = "%v/%v"
 
-	scheme          = "http://"
+	defaultScheme   = "http://"
 	contentType     = "Content-Type"
 	applicationJson = "application/json"
 )
 
 func NewClient(baseUrl string) (*MoneyBackendClient, error) {
-	u, err := url.Parse(scheme + baseUrl)
+	if !strings.HasPrefix(baseUrl, "http://") && !strings.HasPrefix(baseUrl, "https://") {
+		baseUrl = defaultScheme + baseUrl
+	}
+	u, err := url.Parse(baseUrl)
 	if err != nil {
 		return nil, fmt.Errorf("error parsing Money Backend Client base URL (%s): %w", baseUrl, err)
 	}
@@ -47,12 +51,17 @@ func NewClient(baseUrl string) (*MoneyBackendClient, error) {
 }
 
 func (c *MoneyBackendClient) GetBalance(pubKey []byte, includeDCBills bool) (uint64, error) {
-
-	req, err := http.NewRequest(http.MethodGet, fmt.Sprintf(balanceUrlFormat, c.baseUrl, balancePath, hexutil.Encode(pubKey), includeDCBills), nil)
+	req, err := http.NewRequest(http.MethodGet, fmt.Sprintf(balanceUrlFormat, c.BaseUrl, BalancePath, hexutil.Encode(pubKey), includeDCBills), nil)
+	if err != nil {
+		return 0, fmt.Errorf("failed to build get balance request: %w", err)
+	}
 	req.Header.Set(contentType, applicationJson)
-	response, err := c.httpClient.Do(req)
+	response, err := c.HttpClient.Do(req)
 	if err != nil {
 		return 0, fmt.Errorf("request GetBalance failed: %w", err)
+	}
+	if response.StatusCode != http.StatusOK {
+		return 0, fmt.Errorf("unexpected response status code: %d", response.StatusCode)
 	}
 
 	responseData, err := io.ReadAll(response.Body)
@@ -64,7 +73,6 @@ func (c *MoneyBackendClient) GetBalance(pubKey []byte, includeDCBills bool) (uin
 	if err != nil {
 		return 0, fmt.Errorf("failed to unmarshall GetBalance response data: %w", err)
 	}
-
 	return responseObject.Balance, nil
 }
 
@@ -84,16 +92,24 @@ func (c *MoneyBackendClient) ListBills(pubKey []byte) (*money.ListBillsResponse,
 		}
 		finalResponse.Bills = append(finalResponse.Bills, responseObject.Bills...)
 	}
-
 	return finalResponse, nil
 }
 
 func (c *MoneyBackendClient) GetProof(billId []byte) (*bp.Bills, error) {
-	req, err := http.NewRequest(http.MethodGet, fmt.Sprintf(proofUrlFormat, c.baseUrl, proofPath, hexutil.Encode(billId)), nil)
+	req, err := http.NewRequest(http.MethodGet, fmt.Sprintf(proofUrlFormat, c.BaseUrl, ProofPath, hexutil.Encode(billId)), nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to build get proof request: %w", err)
+	}
 	req.Header.Set(contentType, applicationJson)
-	response, err := c.httpClient.Do(req)
+	response, err := c.HttpClient.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("request GetProof failed: %w", err)
+	}
+	if response.StatusCode != http.StatusOK {
+		if response.StatusCode == http.StatusNotFound {
+			return nil, fmt.Errorf("bill does not exist")
+		}
+		return nil, fmt.Errorf("unexpected response status code: %d", response.StatusCode)
 	}
 
 	responseData, err := io.ReadAll(response.Body)
@@ -105,16 +121,21 @@ func (c *MoneyBackendClient) GetProof(billId []byte) (*bp.Bills, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to unmarshall GetProof response data: %w", err)
 	}
-
 	return &responseObject, nil
 }
 
 func (c *MoneyBackendClient) GetBlockHeight() (uint64, error) {
-	req, err := http.NewRequest(http.MethodGet, fmt.Sprintf(blockHeightUrlFormat, c.baseUrl, blockHeightPath), nil)
+	req, err := http.NewRequest(http.MethodGet, fmt.Sprintf(blockHeightUrlFormat, c.BaseUrl, BlockHeightPath), nil)
+	if err != nil {
+		return 0, fmt.Errorf("failed to build get block height request: %w", err)
+	}
 	req.Header.Set(contentType, applicationJson)
-	response, err := c.httpClient.Do(req)
+	response, err := c.HttpClient.Do(req)
 	if err != nil {
 		return 0, fmt.Errorf("request GetBlockHeight failed: %w", err)
+	}
+	if response.StatusCode != http.StatusOK {
+		return 0, fmt.Errorf("unexpected response status code: %d", response.StatusCode)
 	}
 
 	responseData, err := io.ReadAll(response.Body)
@@ -126,20 +147,25 @@ func (c *MoneyBackendClient) GetBlockHeight() (uint64, error) {
 	if err != nil {
 		return 0, fmt.Errorf("failed to unmarshall GetBlockHeight response data: %w", err)
 	}
-
 	return responseObject.BlockHeight, nil
 }
 
 func (c *MoneyBackendClient) retrieveBills(pubKey []byte, offset int) (*money.ListBillsResponse, error) {
-	reqUrl := fmt.Sprintf(listBillsUrlFormat, c.baseUrl, listBillsPath, hexutil.Encode(pubKey))
+	reqUrl := fmt.Sprintf(listBillsUrlFormat, c.BaseUrl, ListBillsPath, hexutil.Encode(pubKey))
 	if offset > 0 {
 		reqUrl = fmt.Sprintf("%v&offset=%v", reqUrl, offset)
 	}
 	req, err := http.NewRequest(http.MethodGet, reqUrl, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to build get bills request: %w", err)
+	}
 	req.Header.Set(contentType, applicationJson)
-	response, err := c.httpClient.Do(req)
+	response, err := c.HttpClient.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("request ListBills failed: %w", err)
+	}
+	if response.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("unexpected response status code: %d", response.StatusCode)
 	}
 
 	responseData, err := io.ReadAll(response.Body)
@@ -151,6 +177,5 @@ func (c *MoneyBackendClient) retrieveBills(pubKey []byte, offset int) (*money.Li
 	if err != nil {
 		return nil, fmt.Errorf("failed to unmarshall ListBills response data: %w", err)
 	}
-
 	return &responseObject, nil
 }

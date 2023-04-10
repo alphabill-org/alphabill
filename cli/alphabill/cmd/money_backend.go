@@ -15,6 +15,10 @@ import (
 
 const (
 	moneyBackendHomeDir = "money-backend"
+
+	serverAddrCmdName  = "server-addr"
+	dbFileCmdName      = "db"
+	listBillsPageLimit = "list-bills-page-limit"
 )
 
 type moneyBackendConfig struct {
@@ -30,19 +34,19 @@ type moneyBackendConfig struct {
 }
 
 func (c *moneyBackendConfig) GetDbFile() (string, error) {
-	if c.DbFile != "" {
-		return c.DbFile, nil
+	dbFile := c.DbFile
+	if dbFile == "" {
+		dbFile = filepath.Join(c.Base.HomeDir, moneyBackendHomeDir, indexer.BoltBillStoreFileName)
 	}
-	indexerHomeDir := filepath.Join(c.Base.HomeDir, moneyBackendHomeDir)
-	err := os.MkdirAll(indexerHomeDir, 0700) // -rwx------
+	err := os.MkdirAll(filepath.Dir(dbFile), 0700) // -rwx------
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("failed to create directory for database file: %w", err)
 	}
-	return filepath.Join(indexerHomeDir, indexer.BoltBillStoreFileName), nil
+	return dbFile, nil
 }
 
 // newMoneyBackendCmd creates a new cobra command for the money-backend component.
-func newMoneyBackendCmd(ctx context.Context, baseConfig *baseConfiguration) *cobra.Command {
+func newMoneyBackendCmd(baseConfig *baseConfiguration) *cobra.Command {
 	config := &moneyBackendConfig{Base: baseConfig}
 	var walletCmd = &cobra.Command{
 		Use:   "money-backend",
@@ -57,24 +61,21 @@ func newMoneyBackendCmd(ctx context.Context, baseConfig *baseConfiguration) *cob
 			// init logger
 			return initWalletLogger(&walletConfig{LogLevel: config.LogLevel, LogFile: config.LogFile})
 		},
-		Run: func(cmd *cobra.Command, args []string) {
-			consoleWriter.Println("Error: must specify a subcommand")
-		},
 	}
-	walletCmd.PersistentFlags().StringVar(&config.LogFile, logFileCmdName, "", fmt.Sprintf("log file path (default output to stderr)"))
-	walletCmd.PersistentFlags().StringVar(&config.LogLevel, logLevelCmdName, "INFO", fmt.Sprintf("logging level (DEBUG, INFO, NOTICE, WARNING, ERROR)"))
-	walletCmd.AddCommand(startMoneyBackendCmd(ctx, config))
+	walletCmd.PersistentFlags().StringVar(&config.LogFile, logFileCmdName, "", "log file path (default output to stderr)")
+	walletCmd.PersistentFlags().StringVar(&config.LogLevel, logLevelCmdName, "INFO", "logging level (DEBUG, INFO, NOTICE, WARNING, ERROR)")
+	walletCmd.AddCommand(startMoneyBackendCmd(config))
 	return walletCmd
 }
 
-func startMoneyBackendCmd(ctx context.Context, config *moneyBackendConfig) *cobra.Command {
+func startMoneyBackendCmd(config *moneyBackendConfig) *cobra.Command {
 	cmd := &cobra.Command{
 		Use: "start",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return execMoneyBackendStartCmd(ctx, cmd, config)
+			return execMoneyBackendStartCmd(cmd.Context(), config)
 		},
 	}
-	cmd.Flags().StringVarP(&config.AlphabillUrl, alphabillUriCmdName, "u", defaultAlphabillUri, "alphabill node url")
+	cmd.Flags().StringVarP(&config.AlphabillUrl, alphabillNodeURLCmdName, "u", defaultAlphabillNodeURL, "alphabill node url")
 	cmd.Flags().StringVarP(&config.ServerAddr, serverAddrCmdName, "s", "localhost:9654", "server address")
 	cmd.Flags().StringVarP(&config.DbFile, dbFileCmdName, "f", "", "path to the database file (default: $AB_HOME/"+moneyBackendHomeDir+"/"+indexer.BoltBillStoreFileName+")")
 	cmd.Flags().IntVarP(&config.ListBillsPageLimit, listBillsPageLimit, "l", 100, "GET /list-bills request default/max limit size")
@@ -83,7 +84,7 @@ func startMoneyBackendCmd(ctx context.Context, config *moneyBackendConfig) *cobr
 	return cmd
 }
 
-func execMoneyBackendStartCmd(ctx context.Context, _ *cobra.Command, config *moneyBackendConfig) error {
+func execMoneyBackendStartCmd(ctx context.Context, config *moneyBackendConfig) error {
 	dbFile, err := config.GetDbFile()
 	if err != nil {
 		return err

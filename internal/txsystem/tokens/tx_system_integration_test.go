@@ -32,6 +32,7 @@ func TestInitPartitionAndCreateNFTType_Ok(t *testing.T) {
 	tx := testtransaction.NewTransaction(t,
 		testtransaction.WithSystemID(DefaultTokenTxSystemIdentifier),
 		testtransaction.WithUnitId([]byte{0, 0, 0, 1}),
+		testtransaction.WithOwnerProof(script.PredicateArgumentEmpty()),
 		testtransaction.WithAttributes(
 			&CreateNonFungibleTokenTypeAttributes{
 				Symbol:                   "Test",
@@ -68,7 +69,7 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 
 	var txConverter block.TxConverter
 	// setup network
-	network, err := testpartition.NewNetwork(3, func(tb map[string]crypto.Verifier) txsystem.TransactionSystem {
+	network, err := testpartition.NewNetwork(1, func(tb map[string]crypto.Verifier) txsystem.TransactionSystem {
 		trustBase = tb
 		state := newStateWithFeeCredit(t, feeCreditID)
 		system, err := New(WithState(state), WithTrustBase(tb))
@@ -152,10 +153,13 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 	splitTx1 := testtransaction.NewTransaction(t,
 		testtransaction.WithSystemID(DefaultTokenTxSystemIdentifier),
 		testtransaction.WithUnitId(fungibleTokenID1),
+		testtransaction.WithOwnerProof(script.PredicateArgumentEmpty()),
 		testtransaction.WithAttributes(
 			&SplitFungibleTokenAttributes{
+				Type:                         fungibleTokenTypeID,
 				NewBearer:                    script.PredicateAlwaysTrue(),
 				TargetValue:                  splitValue1,
+				RemainingValue:               totalValue - splitValue1,
 				Nonce:                        test.RandomBytes(32),
 				Backlink:                     txHash,
 				InvariantPredicateSignatures: [][]byte{script.PredicateArgumentEmpty()},
@@ -194,10 +198,13 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 	splitTx2 := testtransaction.NewTransaction(t,
 		testtransaction.WithSystemID(DefaultTokenTxSystemIdentifier),
 		testtransaction.WithUnitId(fungibleTokenID1),
+		testtransaction.WithOwnerProof(script.PredicateArgumentEmpty()),
 		testtransaction.WithAttributes(
 			&SplitFungibleTokenAttributes{
+				Type:                         fungibleTokenTypeID,
 				NewBearer:                    script.PredicateAlwaysTrue(),
 				TargetValue:                  splitValue2,
+				RemainingValue:               totalValue - (splitValue1 + splitValue2),
 				Nonce:                        nil,
 				Backlink:                     split1GenTx.Hash(hashAlgorithm),
 				InvariantPredicateSignatures: [][]byte{script.PredicateArgumentEmpty()},
@@ -213,6 +220,7 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 	require.NoError(t, network.BroadcastTx(splitTx2))
 	require.Eventually(t, testpartition.BlockchainContainsTx(splitTx2, network), test.WaitDuration, test.WaitTick)
 	verifyProof(t, splitTx2, network, trustBase, hashAlgorithm)
+
 	splitGenTx2, err := NewGenericTx(splitTx2)
 	require.NoError(t, err)
 	splitGenTx2Hash := splitGenTx2.Hash(hashAlgorithm)
@@ -237,8 +245,10 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 	transferTx := testtransaction.NewTransaction(t,
 		testtransaction.WithSystemID(DefaultTokenTxSystemIdentifier),
 		testtransaction.WithUnitId(fungibleTokenID1),
+		testtransaction.WithOwnerProof(script.PredicateArgumentEmpty()),
 		testtransaction.WithAttributes(
 			&TransferFungibleTokenAttributes{
+				Type:                         fungibleTokenTypeID,
 				NewBearer:                    script.PredicateAlwaysTrue(),
 				Value:                        totalValue - splitValue1 - splitValue2,
 				Nonce:                        nil,
@@ -271,6 +281,7 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 	burnTx := testtransaction.NewTransaction(t,
 		testtransaction.WithSystemID(DefaultTokenTxSystemIdentifier),
 		testtransaction.WithUnitId(util.Uint256ToBytes(sUnitID1)),
+		testtransaction.WithOwnerProof(script.PredicateArgumentEmpty()),
 		testtransaction.WithAttributes(
 			&BurnFungibleTokenAttributes{
 				Type:                         fungibleTokenTypeID,
@@ -296,6 +307,7 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 	burnTx2 := testtransaction.NewTransaction(t,
 		testtransaction.WithSystemID(DefaultTokenTxSystemIdentifier),
 		testtransaction.WithUnitId(util.Uint256ToBytes(sUnitID2)),
+		testtransaction.WithOwnerProof(script.PredicateArgumentEmpty()),
 		testtransaction.WithAttributes(
 			&BurnFungibleTokenAttributes{
 				Type:                         fungibleTokenTypeID,
@@ -330,6 +342,7 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 	joinTx := testtransaction.NewTransaction(t,
 		testtransaction.WithSystemID(DefaultTokenTxSystemIdentifier),
 		testtransaction.WithUnitId(fungibleTokenID1),
+		testtransaction.WithOwnerProof(script.PredicateArgumentEmpty()),
 		testtransaction.WithAttributes(
 			&JoinFungibleTokenAttributes{
 				BurnTransactions:             []*txsystem.Transaction{burnTx, burnTx2},

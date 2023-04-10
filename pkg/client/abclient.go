@@ -13,24 +13,21 @@ import (
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/pkg/wallet/log"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/connectivity"
 	"google.golang.org/grpc/credentials/insecure"
 )
 
 // ABClient manages connection to alphabill node and implements RPC methods
 type ABClient interface {
-	SendTransaction(tx *txsystem.Transaction) (*txsystem.TransactionResponse, error)
-	GetBlock(blockNumber uint64) (*block.Block, error)
-	GetBlocks(blockNumber, blockCount uint64) (*alphabill.GetBlocksResponse, error)
-	GetMaxBlockNumber() (uint64, uint64, error) // latest persisted block number, latest round number
+	SendTransaction(ctx context.Context, tx *txsystem.Transaction) (*txsystem.TransactionResponse, error)
+	GetBlock(ctx context.Context, blockNumber uint64) (*block.Block, error)
+	GetBlocks(ctx context.Context, blockNumber, blockCount uint64) (*alphabill.GetBlocksResponse, error)
+	GetMaxBlockNumber(ctx context.Context) (uint64, uint64, error) // latest persisted block number, latest round number
 	Shutdown() error
-	IsShutdown() bool
 }
 
 type AlphabillClientConfig struct {
-	Uri              string
-	RequestTimeoutMs uint64
-	WaitForReady     bool
+	Uri          string
+	WaitForReady bool
 }
 
 type AlphabillClient struct {
@@ -47,38 +44,24 @@ func New(config AlphabillClientConfig) *AlphabillClient {
 	return &AlphabillClient{config: config}
 }
 
-func (c *AlphabillClient) SendTransaction(tx *txsystem.Transaction) (*txsystem.TransactionResponse, error) {
+func (c *AlphabillClient) SendTransaction(ctx context.Context, tx *txsystem.Transaction) (*txsystem.TransactionResponse, error) {
 	defer trackExecutionTime(time.Now(), "sending transaction")
-	err := c.connect()
-	if err != nil {
+
+	if err := c.connect(); err != nil {
 		return nil, err
 	}
-	c.mu.RLock()
-	defer c.mu.RUnlock()
-	ctx := context.Background()
-	if c.config.RequestTimeoutMs > 0 {
-		ctxTimeout, cancel := context.WithTimeout(ctx, time.Duration(c.config.RequestTimeoutMs)*time.Millisecond)
-		defer cancel()
-		ctx = ctxTimeout
-	}
-	return c.client.ProcessTransaction(ctx, tx, grpc.WaitForReady(c.config.WaitForReady))
+
+	return c.client.ProcessTransaction(ctx, tx)
 }
 
-func (c *AlphabillClient) GetBlock(blockNumber uint64) (*block.Block, error) {
+func (c *AlphabillClient) GetBlock(ctx context.Context, blockNumber uint64) (*block.Block, error) {
 	defer trackExecutionTime(time.Now(), fmt.Sprintf("downloading block %d", blockNumber))
-	err := c.connect()
-	if err != nil {
+
+	if err := c.connect(); err != nil {
 		return nil, err
 	}
-	c.mu.RLock()
-	defer c.mu.RUnlock()
-	ctx := context.Background()
-	if c.config.RequestTimeoutMs > 0 {
-		ctxTimeout, cancel := context.WithTimeout(ctx, time.Duration(c.config.RequestTimeoutMs)*time.Millisecond)
-		defer cancel()
-		ctx = ctxTimeout
-	}
-	res, err := c.client.GetBlock(ctx, &alphabill.GetBlockRequest{BlockNo: blockNumber}, grpc.WaitForReady(c.config.WaitForReady))
+
+	res, err := c.client.GetBlock(ctx, &alphabill.GetBlockRequest{BlockNo: blockNumber})
 	if err != nil {
 		return nil, err
 	}
@@ -88,7 +71,7 @@ func (c *AlphabillClient) GetBlock(blockNumber uint64) (*block.Block, error) {
 	return res.Block, nil
 }
 
-func (c *AlphabillClient) GetBlocks(blockNumber uint64, blockCount uint64) (res *alphabill.GetBlocksResponse, err error) {
+func (c *AlphabillClient) GetBlocks(ctx context.Context, blockNumber uint64, blockCount uint64) (res *alphabill.GetBlocksResponse, err error) {
 	log.Debug("fetching blocks blocknumber=", blockNumber, " blockcount=", blockCount)
 	defer func(t1 time.Time) {
 		if res != nil && len(res.Blocks) > 0 {
@@ -98,19 +81,11 @@ func (c *AlphabillClient) GetBlocks(blockNumber uint64, blockCount uint64) (res 
 		}
 	}(time.Now())
 
-	err = c.connect()
-	if err != nil {
+	if err := c.connect(); err != nil {
 		return nil, err
 	}
-	c.mu.RLock()
-	defer c.mu.RUnlock()
-	ctx := context.Background()
-	if c.config.RequestTimeoutMs > 0 {
-		ctxTimeout, cancel := context.WithTimeout(ctx, time.Duration(c.config.RequestTimeoutMs)*time.Millisecond)
-		defer cancel()
-		ctx = ctxTimeout
-	}
-	res, err = c.client.GetBlocks(ctx, &alphabill.GetBlocksRequest{BlockNumber: blockNumber, BlockCount: blockCount}, grpc.WaitForReady(c.config.WaitForReady))
+
+	res, err = c.client.GetBlocks(ctx, &alphabill.GetBlocksRequest{BlockNumber: blockNumber, BlockCount: blockCount})
 	if err != nil {
 		return nil, err
 	}
@@ -120,21 +95,14 @@ func (c *AlphabillClient) GetBlocks(blockNumber uint64, blockCount uint64) (res 
 	return res, nil
 }
 
-func (c *AlphabillClient) GetMaxBlockNumber() (uint64, uint64, error) {
+func (c *AlphabillClient) GetMaxBlockNumber(ctx context.Context) (uint64, uint64, error) {
 	defer trackExecutionTime(time.Now(), "fetching max block number")
-	err := c.connect()
-	if err != nil {
+
+	if err := c.connect(); err != nil {
 		return 0, 0, err
 	}
-	c.mu.RLock()
-	defer c.mu.RUnlock()
-	ctx := context.Background()
-	if c.config.RequestTimeoutMs > 0 {
-		ctxTimeout, cancel := context.WithTimeout(ctx, time.Duration(c.config.RequestTimeoutMs)*time.Millisecond)
-		defer cancel()
-		ctx = ctxTimeout
-	}
-	res, err := c.client.GetMaxBlockNo(ctx, &alphabill.GetMaxBlockNoRequest{}, grpc.WaitForReady(c.config.WaitForReady))
+
+	res, err := c.client.GetMaxBlockNo(ctx, &alphabill.GetMaxBlockNoRequest{})
 	if err != nil {
 		return 0, 0, err
 	}
@@ -147,44 +115,37 @@ func (c *AlphabillClient) GetMaxBlockNumber() (uint64, uint64, error) {
 func (c *AlphabillClient) Shutdown() error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	if !c.isShutdown() {
-		err := c.connection.Close()
-		if err != nil {
+	if c.connection != nil {
+		con := c.connection
+		c.connection = nil
+		c.client = nil
+		if err := con.Close(); err != nil {
 			return errors.Wrap(err, "error shutting down alphabill client")
 		}
 	}
 	return nil
 }
 
-func (c *AlphabillClient) IsShutdown() bool {
-	c.mu.RLock()
-	defer c.mu.RUnlock()
-	return c.isShutdown()
-}
-
-func (c *AlphabillClient) isShutdown() bool {
-	return c.connection == nil || c.connection.GetState() == connectivity.Shutdown
-}
-
 // connect connects to given alphabill node and keeps connection open forever,
 // connect can be called any number of times, it does nothing if connection is already established and not shut down.
 // Shutdown can be used to shut down the client and terminate the connection.
 func (c *AlphabillClient) connect() error {
-	if !c.IsShutdown() {
-		return nil
-	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	if !c.isShutdown() {
+	if c.connection != nil {
 		return nil
 	}
 
+	callOpts := []grpc.CallOption{grpc.MaxCallSendMsgSize(1024 * 1024 * 4), grpc.MaxCallRecvMsgSize(math.MaxInt32)}
+	if c.config.WaitForReady {
+		callOpts = append(callOpts, grpc.WaitForReady(c.config.WaitForReady))
+	}
 	conn, err := grpc.Dial(
 		c.config.Uri,
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
-		grpc.WithDefaultCallOptions(grpc.MaxCallSendMsgSize(1024*1024*4), grpc.MaxCallRecvMsgSize(math.MaxInt32)))
+		grpc.WithDefaultCallOptions(callOpts...))
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to dial gRPC connection: %w", err)
 	}
 	c.connection = conn
 	c.client = alphabill.NewAlphabillServiceClient(conn)

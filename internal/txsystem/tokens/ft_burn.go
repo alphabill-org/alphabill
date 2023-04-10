@@ -19,19 +19,28 @@ func handleBurnFungibleTokenTx(options *Options) txsystem.GenericExecuteFunc[*bu
 		}
 		fee := options.feeCalculator()
 		tx.SetServerMetadata(&txsystem.ServerMetadata{Fee: fee})
-		// update state
-		fcrID := tx.transaction.GetClientFeeCreditRecordID()
 
-		unitID := tx.UnitID()
+		// disable fee handling if fee is calculated to 0 (used to temporarily disable fee handling, can be removed after all wallets are updated)
+		var fcFunc rma.Action
+		if options.feeCalculator() == 0 {
+			fcFunc = func(tree *rma.Tree) error {
+				return nil
+			}
+		} else {
+			fcrID := tx.transaction.GetClientFeeCreditRecordID()
+			fcFunc = fc.DecrCredit(fcrID, fee, tx.Hash(options.hashAlgorithm))
+		}
+
+		// update state
 		return options.state.AtomicUpdate(
-			fc.DecrCredit(fcrID, fee, tx.Hash(options.hashAlgorithm)),
-			rma.DeleteItem(unitID),
+			fcFunc,
+			rma.DeleteItem(tx.UnitID()),
 		)
 	}
 }
 
 func validateBurnFungibleToken(tx *burnFungibleTokenWrapper, state *rma.Tree) error {
-	d, err := getFungibleTokenData(tx.UnitID(), state)
+	bearer, d, err := getFungibleTokenData(tx.UnitID(), state)
 	if err != nil {
 		return err
 	}
@@ -58,5 +67,5 @@ func validateBurnFungibleToken(tx *burnFungibleTokenWrapper, state *rma.Tree) er
 	if err != nil {
 		return err
 	}
-	return verifyPredicates(predicates, tx.InvariantPredicateSignatures(), tx.SigBytes())
+	return verifyOwnership(bearer, predicates, tx)
 }

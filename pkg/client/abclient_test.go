@@ -1,8 +1,8 @@
 package client
 
 import (
+	"context"
 	"crypto/sha256"
-	"strconv"
 	"sync"
 	"testing"
 	"time"
@@ -18,42 +18,34 @@ import (
 	"google.golang.org/protobuf/types/known/anypb"
 )
 
-const port = 9222
-
 // TestRaceConditions meant to be run with -race flag
 func TestRaceConditions(t *testing.T) {
 	// start mock ab server
 	serviceServer := testserver.NewTestAlphabillServiceServer()
-	server := testserver.StartServer(port, serviceServer)
+	server, addr := testserver.StartServer(serviceServer)
 	t.Cleanup(server.GracefulStop)
 
 	// create ab client
-	abclient := New(AlphabillClientConfig{Uri: "localhost:" + strconv.Itoa(port)})
+	abclient := New(AlphabillClientConfig{Uri: addr.String()})
 	t.Cleanup(func() { _ = abclient.Shutdown() })
 
 	// do async operations on abclient
 	wg := sync.WaitGroup{}
 	wg.Add(1)
 	go func() {
-		_, _ = abclient.SendTransaction(createRandomTx())
+		_, _ = abclient.SendTransaction(context.Background(), createRandomTx())
 		wg.Done()
 	}()
 
 	wg.Add(1)
 	go func() {
-		_, _ = abclient.GetBlock(1)
+		_, _ = abclient.GetBlock(context.Background(), 1)
 		wg.Done()
 	}()
 
 	wg.Add(1)
 	go func() {
-		_, _, _ = abclient.GetMaxBlockNumber()
-		wg.Done()
-	}()
-
-	wg.Add(1)
-	go func() {
-		abclient.IsShutdown()
+		_, _, _ = abclient.GetMaxBlockNumber(context.Background())
 		wg.Done()
 	}()
 
@@ -70,7 +62,8 @@ func TestTimeout(t *testing.T) {
 	server, client := startServerAndCreateClient(t)
 
 	// set client timeout to a low value, so the request times out
-	client.config.RequestTimeoutMs = 10
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Millisecond)
+	defer cancel()
 
 	// make GetBlock request wait for some time
 	server.SetBlockFunc(0, func() *block.Block {
@@ -83,7 +76,7 @@ func TestTimeout(t *testing.T) {
 	})
 
 	// fetch the block and verify request is timed out
-	b, err := client.GetBlock(0)
+	b, err := client.GetBlock(ctx, 0)
 	require.Nil(t, b)
 	require.ErrorContains(t, err, "deadline exceeded")
 }
@@ -109,11 +102,11 @@ func createRandomTx() *txsystem.Transaction {
 func startServerAndCreateClient(t *testing.T) (*testserver.TestAlphabillServiceServer, *AlphabillClient) {
 	// start mock ab server
 	serviceServer := testserver.NewTestAlphabillServiceServer()
-	server := testserver.StartServer(port, serviceServer)
+	server, addr := testserver.StartServer(serviceServer)
 	t.Cleanup(server.GracefulStop)
 
 	// create ab client
-	abclient := New(AlphabillClientConfig{Uri: "localhost:" + strconv.Itoa(port)})
+	abclient := New(AlphabillClientConfig{Uri: addr.String()})
 	t.Cleanup(func() { _ = abclient.Shutdown() })
 	return serviceServer, abclient
 }

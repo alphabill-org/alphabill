@@ -1,6 +1,7 @@
 package money
 
 import (
+	"context"
 	"testing"
 
 	"github.com/alphabill-org/alphabill/internal/block"
@@ -13,7 +14,6 @@ import (
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	testfc "github.com/alphabill-org/alphabill/internal/txsystem/fc/testutils"
 	"github.com/alphabill-org/alphabill/internal/util"
-	"github.com/alphabill-org/alphabill/pkg/wallet/backend"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
@@ -69,10 +69,10 @@ func TestGenericBlockProcessor_EachTxTypeCanBeProcessed(t *testing.T) {
 	require.NoError(t, err)
 	err = store.Do().SetFeeCreditBill(fcb)
 	require.NoError(t, err)
-	bp := NewBlockProcessor(store, backend.NewTxConverter(moneySystemID))
+	bp := NewBlockProcessor(store, NewTxConverter(moneySystemID))
 
 	// process transactions
-	err = bp.ProcessBlock(b)
+	err = bp.ProcessBlock(context.Background(), b)
 	require.NoError(t, err)
 
 	// verify bills exist
@@ -118,7 +118,7 @@ func TestGenericBlockProcessor_EachTxTypeCanBeProcessed(t *testing.T) {
 		Transactions:       []*txsystem.Transaction{transferFC.Transaction, addFC.Transaction},
 		UnicityCertificate: &certificates.UnicityCertificate{InputRecord: &certificates.InputRecord{RoundNumber: 2}},
 	}
-	err = bp.ProcessBlock(b)
+	err = bp.ProcessBlock(context.Background(), b)
 	require.NoError(t, err)
 
 	// verify fee credit bill value (96) is incremented by transferFC value (99) minus txfee (1)
@@ -155,7 +155,7 @@ func TestGenericBlockProcessor_EachTxTypeCanBeProcessed(t *testing.T) {
 		Transactions:       []*txsystem.Transaction{closeFC.Transaction, reclaimFC.Transaction},
 		UnicityCertificate: &certificates.UnicityCertificate{InputRecord: &certificates.InputRecord{RoundNumber: 3}},
 	}
-	err = bp.ProcessBlock(b)
+	err = bp.ProcessBlock(context.Background(), b)
 	require.NoError(t, err)
 
 	// verify FCB is reduced to zero

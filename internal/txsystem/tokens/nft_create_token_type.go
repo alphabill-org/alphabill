@@ -19,13 +19,26 @@ func handleCreateNoneFungibleTokenTx(options *Options) txsystem.GenericExecuteFu
 		if err := validate(tx, options.state); err != nil {
 			return fmt.Errorf("invalid create none-fungible token tx: %w", err)
 		}
-		h := tx.Hash(options.hashAlgorithm)
 		fee := options.feeCalculator()
 		tx.SetServerMetadata(&txsystem.ServerMetadata{Fee: fee})
+
+		// calculate hash after setting server metadata
+		h := tx.Hash(options.hashAlgorithm)
+
 		// update state
-		fcrID := tx.transaction.GetClientFeeCreditRecordID()
+		// disable fee handling if fee is calculated to 0 (used to temporarily disable fee handling, can be removed after all wallets are updated)
+		var fcFunc rma.Action
+		if options.feeCalculator() == 0 {
+			fcFunc = func(tree *rma.Tree) error {
+				return nil
+			}
+		} else {
+			fcrID := tx.transaction.GetClientFeeCreditRecordID()
+			fcFunc = fc.DecrCredit(fcrID, fee, h)
+		}
+
 		return options.state.AtomicUpdate(
-			fc.DecrCredit(fcrID, fee, h),
+			fcFunc,
 			rma.AddItem(tx.UnitID(), script.PredicateAlwaysTrue(), newNonFungibleTokenTypeData(tx), h))
 	}
 }

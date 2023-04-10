@@ -23,7 +23,9 @@ func Test_Run(t *testing.T) {
 		done := make(chan error, 1)
 		go func() {
 			done <- Run(ctx,
-				func(blockNumber, batchSize uint64) (*alphabill.GetBlocksResponse, error) { return nil, nil },
+				func(ctx context.Context, blockNumber, batchSize uint64) (*alphabill.GetBlocksResponse, error) {
+					return nil, nil
+				},
 				0,     // starting block, must be > 0
 				0, 10, // max block and batch size
 				func(ctx context.Context, b *block.Block) error { return nil })
@@ -46,7 +48,9 @@ func Test_Run(t *testing.T) {
 		done := make(chan error, 1)
 		go func() {
 			done <- Run(ctx,
-				func(blockNumber, batchSize uint64) (*alphabill.GetBlocksResponse, error) { return nil, nil },
+				func(ctx context.Context, blockNumber, batchSize uint64) (*alphabill.GetBlocksResponse, error) {
+					return nil, nil
+				},
 				1, 0, // starting block and max block
 				0, // batch size, must be > 0
 				func(ctx context.Context, b *block.Block) error { return nil })
@@ -69,7 +73,9 @@ func Test_Run(t *testing.T) {
 		done := make(chan error, 1)
 		go func() {
 			done <- Run(ctx,
-				func(blockNumber, batchSize uint64) (*alphabill.GetBlocksResponse, error) { return nil, nil },
+				func(ctx context.Context, blockNumber, batchSize uint64) (*alphabill.GetBlocksResponse, error) {
+					return nil, nil
+				},
 				10, 9, // starting block and max block
 				10, // batch size, must be > 0
 				func(ctx context.Context, b *block.Block) error { return nil })
@@ -90,7 +96,7 @@ func Test_Run(t *testing.T) {
 		defer cancel()
 
 		expErr := fmt.Errorf("failed to produce block")
-		getBlocks := func(blockNumber, batchSize uint64) (*alphabill.GetBlocksResponse, error) {
+		getBlocks := func(ctx context.Context, blockNumber, batchSize uint64) (*alphabill.GetBlocksResponse, error) {
 			// on first call return a block, next call(s) return error
 			if blockNumber == 1 {
 				return &alphabill.GetBlocksResponse{
@@ -127,7 +133,7 @@ func Test_Run(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
-		getBlocks := func(blockNumber, batchSize uint64) (*alphabill.GetBlocksResponse, error) {
+		getBlocks := func(ctx context.Context, blockNumber, batchSize uint64) (*alphabill.GetBlocksResponse, error) {
 			// must have sleep not to starve CPU so that context cancel can take effect
 			time.Sleep(time.Millisecond)
 			// ignore batchSize and send always single block
@@ -168,7 +174,7 @@ func Test_Run(t *testing.T) {
 		defer cancel()
 
 		var callCnt uint64
-		getBlocks := func(blockNumber, batchSize uint64) (*alphabill.GetBlocksResponse, error) {
+		getBlocks := func(ctx context.Context, blockNumber, batchSize uint64) (*alphabill.GetBlocksResponse, error) {
 			n := atomic.AddUint64(&callCnt, 1)
 			if n == 4 {
 				// there have been 3 iterations, do not generate new blocks
@@ -221,7 +227,7 @@ func Test_Run(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
-		getBlocks := func(blockNumber, batchSize uint64) (*alphabill.GetBlocksResponse, error) {
+		getBlocks := func(ctx context.Context, blockNumber, batchSize uint64) (*alphabill.GetBlocksResponse, error) {
 			var b []*block.Block
 			for i := 0; i < int(batchSize); i++ {
 				b = append(b, &block.Block{
@@ -276,7 +282,9 @@ func Test_fetchBlocks(t *testing.T) {
 		blocks := make(chan *block.Block)
 		done := make(chan error, 1)
 		go func() {
-			done <- fetchBlocks(ctx, func(blockNumber, batchSize uint64) (*alphabill.GetBlocksResponse, error) { return nil, nil }, 1, blocks)
+			done <- fetchBlocks(ctx, func(ctx context.Context, blockNumber, batchSize uint64) (*alphabill.GetBlocksResponse, error) {
+				return nil, nil
+			}, 1, blocks)
 		}()
 
 		select {
@@ -294,7 +302,7 @@ func Test_fetchBlocks(t *testing.T) {
 		defer cancel()
 
 		expErr := fmt.Errorf("getBlocks failed")
-		getBlocks := func(blockNumber, batchSize uint64) (*alphabill.GetBlocksResponse, error) {
+		getBlocks := func(ctx context.Context, blockNumber, batchSize uint64) (*alphabill.GetBlocksResponse, error) {
 			return nil, expErr
 		}
 
@@ -319,7 +327,7 @@ func Test_fetchBlocks(t *testing.T) {
 		defer cancel()
 
 		var callCnt int32
-		getBlocks := func(blockNumber, batchSize uint64) (*alphabill.GetBlocksResponse, error) {
+		getBlocks := func(ctx context.Context, blockNumber, batchSize uint64) (*alphabill.GetBlocksResponse, error) {
 			if blockNumber != 4 {
 				return nil, fmt.Errorf("expected that block 4 is requested, got %d", blockNumber)
 			}
@@ -353,7 +361,7 @@ func Test_fetchBlocks(t *testing.T) {
 		defer cancel()
 
 		var callCnt uint64
-		getBlocks := func(blockNumber, batchSize uint64) (*alphabill.GetBlocksResponse, error) {
+		getBlocks := func(ctx context.Context, blockNumber, batchSize uint64) (*alphabill.GetBlocksResponse, error) {
 			n := atomic.AddUint64(&callCnt, 1)
 			if n == 3 {
 				// there have been 3 iterations, cancel the ctx, this should stop the test
@@ -436,13 +444,13 @@ func Test_loadUntilBlockNumber(t *testing.T) {
 	t.Parallel()
 
 	t.Run("invalid input: blockNumber > maxBN", func(t *testing.T) {
-		loader := func(blockNumber, batchSize uint64) (*alphabill.GetBlocksResponse, error) {
+		loader := func(ctx context.Context, blockNumber, batchSize uint64) (*alphabill.GetBlocksResponse, error) {
 			err := fmt.Errorf("unexpected call (%d, %d)", blockNumber, batchSize)
 			t.Error(err.Error())
 			return nil, err
 		}
 		f := loadUntilBlockNumber(3, loader)
-		abr, err := f(4, 100)
+		abr, err := f(context.Background(), 4, 100)
 		if err == nil {
 			t.Error("expected non-nil error")
 		} else if !errors.Is(err, errMaxBlockReached) {
@@ -479,14 +487,14 @@ func Test_loadUntilBlockNumber(t *testing.T) {
 		}
 
 		for n, tc := range cases {
-			loader := func(blockNumber, batchSize uint64) (*alphabill.GetBlocksResponse, error) {
+			loader := func(ctx context.Context, blockNumber, batchSize uint64) (*alphabill.GetBlocksResponse, error) {
 				if blockNumber != tc.blockNo || batchSize != tc.queryBS {
 					return nil, fmt.Errorf("unexpected parameters block(%d vs %d) batch(%d vs %d)", blockNumber, tc.blockNo, batchSize, tc.queryBS)
 				}
 				return nil, nil
 			}
 			f := loadUntilBlockNumber(tc.maxBNo, loader)
-			_, err := f(tc.blockNo, tc.batchSize)
+			_, err := f(context.Background(), tc.blockNo, tc.batchSize)
 			if err != nil {
 				t.Errorf("test case [%d] unexpected error: %v", n, err)
 			}

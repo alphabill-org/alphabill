@@ -3,6 +3,7 @@ package tokens
 import (
 	"bytes"
 	"crypto"
+	"fmt"
 	"hash"
 
 	"github.com/alphabill-org/alphabill/internal/block"
@@ -765,6 +766,7 @@ func (s *splitFungibleTokenWrapper) addAttributesToHasher(hasher hash.Hash) {
 	hasher.Write(s.NewBearer())
 	hasher.Write(util.Uint64ToBytes(s.TargetValue()))
 	hasher.Write(util.Uint64ToBytes(s.RemainingValue()))
+	fmt.Printf("target=%d remaining=%d\n", s.TargetValue(), s.RemainingValue())
 	hasher.Write(s.Nonce())
 	hasher.Write(s.Backlink())
 	for _, bs := range s.InvariantPredicateSignatures() {

@@ -3,6 +3,7 @@ package cmd
 import (
 	"context"
 	"fmt"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -25,7 +26,7 @@ func TestMoneyBackendCLI(t *testing.T) {
 	_ = wlog.InitStdoutLogger(wlog.INFO)
 	initialBill := &moneytx.InitialBill{
 		ID:    uint256.NewInt(1),
-		Value: 10000,
+		Value: 1e18,
 		Owner: script.PredicateAlwaysTrue(),
 	}
 	initialBillID := util.Uint256ToBytes(initialBill.ID)
@@ -50,7 +51,7 @@ func TestMoneyBackendCLI(t *testing.T) {
 		ctx, cancelFunc := context.WithCancel(context.Background())
 		t.Cleanup(cancelFunc)
 		err = cmd.addAndExecuteCommand(ctx)
-		require.NoError(t, err)
+		require.ErrorIs(t, err, context.Canceled)
 	}()
 
 	// wait for wallet-backend to index the transaction by verifying balance
@@ -79,4 +80,12 @@ func TestMoneyBackendCLI(t *testing.T) {
 	require.NoError(t, err)
 	require.EqualValues(t, 200, httpRes.StatusCode)
 	require.Len(t, resBlockProof.Bills, 1)
+}
+
+func TestMoneyBackendConfig_DbFileParentDirsAreCreated(t *testing.T) {
+	expectedFilePath := filepath.Join(t.TempDir(), "non-existent-dir", "my.db")
+	c := &moneyBackendConfig{DbFile: expectedFilePath}
+	_, err := c.GetDbFile()
+	require.NoError(t, err)
+	require.True(t, util.FileExists(filepath.Dir(expectedFilePath)))
 }

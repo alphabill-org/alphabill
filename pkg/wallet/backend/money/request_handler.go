@@ -37,13 +37,13 @@ type (
 
 	ListBillVM struct {
 		Id       []byte `json:"id" swaggertype:"string" format:"base64" example:"AAAAAAgwv3UA1HfGO4qc1T3I3EOvqxfcrhMjJpr9Tn4="`
-		Value    uint64 `json:"value" example:"1000"`
+		Value    uint64 `json:"value,string" example:"1000"`
 		TxHash   []byte `json:"txHash" swaggertype:"string" format:"base64" example:"Q4ShCITC0ODXPR+j1Zl/teYcoU3/mAPy0x8uSsvQFM8="`
-		IsDCBill bool   `json:"isDCBill" example:"false"`
+		IsDCBill bool   `json:"isDcBill" example:"false"`
 	}
 
 	BalanceResponse struct {
-		Balance uint64 `json:"balance"`
+		Balance uint64 `json:"balance,string"`
 	}
 
 	AddKeyRequest struct {
@@ -51,7 +51,8 @@ type (
 	}
 
 	BlockHeightResponse struct {
-		BlockHeight uint64 `json:"blockHeight"`
+		BlockHeight     uint64 `json:"blockHeight,string"`
+		LastRoundNumber uint64 `json:"lastRoundNumber"`
 	}
 
 	EmptyResponse struct{}
@@ -72,13 +73,6 @@ func (s *RequestHandler) Router() *mux.Router {
 	// TODO add request/response headers middleware
 	router := mux.NewRouter().StrictSlash(true)
 
-	router.PathPrefix("/swagger/").Handler(httpSwagger.Handler(
-		httpSwagger.URL("/swagger/doc.json"), //The url pointing to API definition
-		httpSwagger.DeepLinking(true),
-		httpSwagger.DocExpansion("list"),
-		httpSwagger.DomID("swagger-ui"),
-	)).Methods(http.MethodGet)
-
 	apiRouter := router.PathPrefix("/api").Subrouter()
 	// add cors middleware
 	// content-type needs to be explicitly defined without this content-type header is not allowed and cors filter is not applied
@@ -93,6 +87,13 @@ func (s *RequestHandler) Router() *mux.Router {
 	apiV1.HandleFunc("/block-height", s.blockHeightFunc).Methods("GET", "OPTIONS")
 	apiV1.HandleFunc("/fee-credit-bill", s.getFeeCreditBillFunc).Methods("GET", "OPTIONS")
 
+	apiV1.PathPrefix("/swagger/").Handler(httpSwagger.Handler(
+		httpSwagger.URL("/api/v1/swagger/doc.json"), //The url pointing to API definition
+		httpSwagger.DeepLinking(true),
+		httpSwagger.DocExpansion("list"),
+		httpSwagger.DomID("swagger-ui"),
+	)).Methods(http.MethodGet)
+
 	return router
 }
 
@@ -104,6 +105,8 @@ func (s *RequestHandler) Router() *mux.Router {
 // @Param limit query int false "limits how many bills are returned in response" default(100)
 // @Param offset query int false "response will include bills starting after offset" default(0)
 // @Success 200 {object} ListBillsResponse
+// @Failure 400 {object} money.ErrorResponse
+// @Failure 500
 // @Router /list-bills [get]
 func (s *RequestHandler) listBillsFunc(w http.ResponseWriter, r *http.Request) {
 	pk, err := parsePubKeyQueryParam(r)
@@ -136,6 +139,8 @@ func (s *RequestHandler) listBillsFunc(w http.ResponseWriter, r *http.Request) {
 // @produce application/json
 // @Param pubkey query string true "Public key prefixed with 0x"
 // @Success 200 {object} BalanceResponse
+// @Failure 400 {object} money.ErrorResponse
+// @Failure 500
 // @Router /balance [get]
 func (s *RequestHandler) balanceFunc(w http.ResponseWriter, r *http.Request) {
 	pk, err := parsePubKeyQueryParam(r)
@@ -172,6 +177,9 @@ func (s *RequestHandler) balanceFunc(w http.ResponseWriter, r *http.Request) {
 // @produce application/json
 // @Param bill_id query string true "ID of the bill (hex)"
 // @Success 200 {object} bp.Bills
+// @Failure 400 {object} moneyErrorResponse
+// @Failure 404 {object} money.ErrorResponse
+// @Failure 500
 // @Router /proof [get]
 func (s *RequestHandler) getProofFunc(w http.ResponseWriter, r *http.Request) {
 	billID, err := parseBillID(r)
@@ -193,17 +201,11 @@ func (s *RequestHandler) getProofFunc(w http.ResponseWriter, r *http.Request) {
 	}
 	if bill == nil {
 		log.Debug("error on GET /proof: ", err)
-		w.WriteHeader(http.StatusBadRequest)
+		w.WriteHeader(http.StatusNotFound)
 		writeAsJson(w, ErrorResponse{Message: "bill does not exist"})
 		return
 	}
 	writeAsProtoJson(w, bill.toProtoBills())
-}
-
-func (s *RequestHandler) parsePubkeyURLParam(r *http.Request) ([]byte, error) {
-	vars := mux.Vars(r)
-	pubkeyParam := vars["pubkey"]
-	return parsePubKey(pubkeyParam)
 }
 
 func (s *RequestHandler) handlePubKeyNotFoundError(w http.ResponseWriter, err error) {
@@ -234,13 +236,14 @@ func (s *RequestHandler) readBillsProto(r *http.Request) (*bp.Bills, error) {
 // @produce application/json
 // @Success 200 {object} BlockHeightResponse
 // @Router /block-height [get]
-func (s *RequestHandler) blockHeightFunc(w http.ResponseWriter, _ *http.Request) {
-	maxBlockNumber, _, err := s.Service.GetMaxBlockNumber()
+func (s *RequestHandler) blockHeightFunc(w http.ResponseWriter, r *http.Request) {
+	maxBlockNumber, lastRoundNumber, err := s.Service.GetMaxBlockNumber(r.Context())
 	if err != nil {
 		log.Error("GET /block-height error fetching max block number", err)
 		w.WriteHeader(http.StatusInternalServerError)
 	} else {
-		writeAsJson(w, &BlockHeightResponse{BlockHeight: maxBlockNumber})
+		//writeAsJson(w, &BlockHeightResponse{BlockHeight: strconv.FormatUint(maxBlockNumber, 10)}) // TODO: merge
+		writeAsJson(w, &BlockHeightResponse{BlockHeight: maxBlockNumber, LastRoundNumber: lastRoundNumber})
 	}
 }
 

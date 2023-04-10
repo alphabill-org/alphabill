@@ -13,9 +13,10 @@ import (
 )
 
 var (
-	ErrInvalidBillValue                 = errors.New("transaction value must be equal to bill value")
-	ErrSplitTxInvalidBillRemainingValue = errors.New("transaction remaining value must equal to the previous bill value minus the transaction amount")
-	ErrInvalidDataType                  = errors.New("invalid data type")
+	ErrInvalidBillValue       = errors.New("transaction value must be equal to bill value")
+	ErrSplitBillZeroAmount    = errors.New("when splitting an bill the value assigned to the new bill must be greater than zero")
+	ErrSplitBillZeroRemainder = errors.New("when splitting an bill the remaining value of the bill must be greater than zero")
+	ErrInvalidDataType        = errors.New("invalid data type")
 )
 
 func handleSplitTx(state *rma.Tree, hashAlgorithm crypto.Hash, feeCalc fc.FeeCalculator) txsystem.GenericExecuteFunc[*billSplitWrapper] {
@@ -74,13 +75,21 @@ func validateSplit(data rma.UnitData, tx *billSplitWrapper) error {
 	if !bytes.Equal(tx.Backlink(), bd.Backlink) {
 		return ErrInvalidBacklink
 	}
+
+	if tx.Amount() == 0 {
+		return ErrSplitBillZeroAmount
+	}
+	if tx.RemainingValue() == 0 {
+		return ErrSplitBillZeroRemainder
+	}
+
 	// amount does not exceed value of the bill
 	if tx.Amount() >= bd.V {
 		return ErrInvalidBillValue
 	}
 	// remaining value equals the previous value minus the amount
 	if tx.RemainingValue() != bd.V-tx.Amount() {
-		return ErrSplitTxInvalidBillRemainingValue
+		return ErrInvalidBillValue
 	}
 	return nil
 }

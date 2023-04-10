@@ -14,10 +14,7 @@ import (
 	moneytesttx "github.com/alphabill-org/alphabill/internal/testutils/transaction/money"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	moneytx "github.com/alphabill-org/alphabill/internal/txsystem/money"
-	"github.com/alphabill-org/alphabill/pkg/client"
 	"github.com/alphabill-org/alphabill/pkg/client/clientmock"
-	"github.com/alphabill-org/alphabill/pkg/wallet"
-	"github.com/alphabill-org/alphabill/pkg/wallet/backend"
 	wlog "github.com/alphabill-org/alphabill/pkg/wallet/log"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/stretchr/testify/require"
@@ -35,43 +32,50 @@ func TestWalletBackend_BillsCanBeIndexedByPredicates(t *testing.T) {
 	fcbID := newUnitID(101)
 	fcb := &Bill{Id: fcbID, Value: 100, FCBlockNumber: 1}
 
-	abclient := clientmock.NewMockAlphabillClient(1, map[uint64]*block.Block{
-		1: {
-			UnicityCertificate: &certificates.UnicityCertificate{InputRecord: &certificates.InputRecord{RoundNumber: 1}},
-			Transactions: []*txsystem.Transaction{{
-				UnitId:                billId1,
-				SystemId:              moneySystemID,
-				TransactionAttributes: moneytesttx.CreateBillTransferTx(hash.Sum256(pubkey1)),
-				ClientMetadata:        &txsystem.ClientMetadata{FeeCreditRecordId: fcbID},
-				ServerMetadata:        &txsystem.ServerMetadata{Fee: 1},
-			}},
-		},
-		2: {
-			UnicityCertificate: &certificates.UnicityCertificate{InputRecord: &certificates.InputRecord{RoundNumber: 2}},
-			Transactions: []*txsystem.Transaction{{
-				UnitId:                billId2,
-				SystemId:              moneySystemID,
-				TransactionAttributes: moneytesttx.CreateBillTransferTx(hash.Sum256(pubkey2)),
-				ClientMetadata:        &txsystem.ClientMetadata{FeeCreditRecordId: fcbID},
-				ServerMetadata:        &txsystem.ServerMetadata{Fee: 1},
-			}},
-		},
-	})
-	w := createWalletBackend(t, abclient)
-	err := w.store.Do().SetFeeCreditBill(fcb)
+	abclient := clientmock.NewMockAlphabillClient(
+		clientmock.WithMaxBlockNumber(1),
+		clientmock.WithBlocks(map[uint64]*block.Block{
+			1: {
+				UnicityCertificate: &certificates.UnicityCertificate{InputRecord: &certificates.InputRecord{RoundNumber: 1}},
+				Transactions: []*txsystem.Transaction{{
+					UnitId:                billId1,
+					SystemId:              moneySystemID,
+					TransactionAttributes: moneytesttx.CreateBillTransferTx(hash.Sum256(pubkey1)),
+					ClientMetadata:        &txsystem.ClientMetadata{FeeCreditRecordId: fcbID},
+					ServerMetadata:        &txsystem.ServerMetadata{Fee: 1},
+				}},
+			},
+			2: {
+				UnicityCertificate: &certificates.UnicityCertificate{InputRecord: &certificates.InputRecord{RoundNumber: 2}},
+				Transactions: []*txsystem.Transaction{{
+					UnitId:                billId2,
+					SystemId:              moneySystemID,
+					TransactionAttributes: moneytesttx.CreateBillTransferTx(hash.Sum256(pubkey2)),
+					ClientMetadata:        &txsystem.ClientMetadata{FeeCreditRecordId: fcbID},
+					ServerMetadata:        &txsystem.ServerMetadata{Fee: 1},
+				}},
+			},
+		}))
+	storage, err := createTestBillStore(t)
 	require.NoError(t, err)
+
+	err = storage.Do().SetFeeCreditBill(fcb)
+	require.NoError(t, err)
+
+	getBlockNumber := func() (uint64, error) { return storage.Do().GetBlockNumber() }
 
 	// start wallet backend
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	t.Cleanup(cancelFunc)
 	go func() {
-		err := w.Start(ctx)
-		require.NoError(t, err)
+		bp := NewBlockProcessor(storage, NewTxConverter([]byte{0, 0, 0, 0}))
+		err := runBlockSync(ctx, abclient.GetBlocks, getBlockNumber, 100, bp.ProcessBlock)
+		require.ErrorIs(t, err, context.Canceled)
 	}()
 
 	// verify first unit is indexed
 	require.Eventually(t, func() bool {
-		bills, err := w.store.Do().GetBills(bearer1)
+		bills, err := storage.Do().GetBills(bearer1)
 		require.NoError(t, err)
 		return len(bills) > 0
 	}, test.WaitDuration, test.WaitTick)
@@ -81,7 +85,7 @@ func TestWalletBackend_BillsCanBeIndexedByPredicates(t *testing.T) {
 
 	// verify new bill is indexed by pubkey
 	require.Eventually(t, func() bool {
-		bills, err := w.store.Do().GetBills(bearer2)
+		bills, err := storage.Do().GetBills(bearer2)
 		require.NoError(t, err)
 		return len(bills) > 0
 	}, test.WaitDuration, test.WaitTick)
@@ -95,7 +99,7 @@ func TestGetBills_OK(t *testing.T) {
 		TargetValue: txValue,
 		NewBearer:   bearer,
 	}))
-	gtx, err := backend.NewTxConverter(moneySystemID).ConvertTx(tx)
+	gtx, err := NewTxConverter(moneySystemID).ConvertTx(tx)
 	require.NoError(t, err)
 	txHash := gtx.Hash(gocrypto.SHA256)
 
@@ -103,7 +107,7 @@ func TestGetBills_OK(t *testing.T) {
 	require.NoError(t, err)
 
 	// add bill to service
-	service := New(nil, store)
+	service := &WalletBackend{store: store}
 	b := &Bill{
 		Id:             tx.UnitId,
 		Value:          txValue,
@@ -143,7 +147,7 @@ func TestGetBills_SHA512_OK(t *testing.T) {
 	require.NoError(t, err)
 
 	// add sha512 owner condition bill to service
-	service := New(nil, store)
+	service := &WalletBackend{store: store}
 	b := &Bill{
 		Id:             tx.UnitId,
 		Value:          txValue,
@@ -158,11 +162,4 @@ func TestGetBills_SHA512_OK(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, bills, 1)
 	require.Equal(t, b, bills[0])
-}
-
-func createWalletBackend(t *testing.T, abclient client.ABClient) *WalletBackend {
-	storage, _ := createTestBillStore(t)
-	bp := NewBlockProcessor(storage, backend.NewTxConverter(moneySystemID))
-	genericWallet := wallet.New().SetBlockProcessor(bp).SetABClient(abclient).Build()
-	return New(genericWallet, storage)
 }

@@ -46,3 +46,8 @@ do
   ((grpcPort=grpcPort+1))
   ((restPort=restPort+1))
 done
+
+#start Money partition backend
+build/alphabill money-backend start -u localhost:26766 -s localhost:9654 -f testab/money-backend/bills.db --log-file testab/money-backend/money-backend.log --log-level DEBUG &
+
+echo "Started money backend, check the API at http://localhost:9654/api/v1/swagger/"

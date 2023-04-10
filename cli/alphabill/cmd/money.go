@@ -6,10 +6,10 @@ import (
 	"fmt"
 
 	"github.com/alphabill-org/alphabill/internal/errors"
-	"github.com/alphabill-org/alphabill/internal/logger"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/internal/script"
 	"github.com/alphabill-org/alphabill/internal/txsystem/money"
+	"github.com/alphabill-org/alphabill/pkg/logger"
 	"github.com/holiman/uint256"
 	"github.com/spf13/cobra"
 )
@@ -31,7 +31,7 @@ var log = logger.CreateForPackage()
 // newMoneyNodeCmd creates a new cobra command for the shard component.
 //
 // nodeRunFunc - set the function to override the default behaviour. Meant for tests.
-func newMoneyNodeCmd(ctx context.Context, baseConfig *baseConfiguration, nodeRunFunc moneyNodeRunnable) *cobra.Command {
+func newMoneyNodeCmd(baseConfig *baseConfiguration, nodeRunFunc moneyNodeRunnable) *cobra.Command {
 	config := &moneyNodeConfiguration{
 		baseNodeConfiguration: baseNodeConfiguration{
 			Base: baseConfig,
@@ -46,9 +46,9 @@ func newMoneyNodeCmd(ctx context.Context, baseConfig *baseConfiguration, nodeRun
 		Long:  `Starts a money partition's node, binding to the network address provided by configuration.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if nodeRunFunc != nil {
-				return nodeRunFunc(ctx, config)
+				return nodeRunFunc(cmd.Context(), config)
 			}
-			return runMoneyNode(ctx, config)
+			return runMoneyNode(cmd.Context(), config)
 		},
 	}
 

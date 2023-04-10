@@ -35,6 +35,8 @@ func TestEncryptedWalletCanBeCreated(t *testing.T) {
 	am.Close()
 
 	am, err = newManager(am.dir, walletPass, false)
+	require.NoError(t, err)
+
 	require.NoError(t, am.CreateKeys(testMnemonic))
 	mnemonic, err := am.db.Do().GetMnemonic()
 	require.NoError(t, err)
@@ -94,6 +96,7 @@ func verifyAccount(t *testing.T, m *managerImpl) {
 	require.True(t, bip39.IsMnemonicValid(mnemonic))
 
 	mk, err := m.db.Do().GetMasterKey()
+	require.NoError(t, err)
 	require.Equal(t, testMasterKeyBase58, mk)
 
 	ac, err := m.db.Do().GetAccountKey(0)

@@ -5,8 +5,6 @@ import (
 	"github.com/alphabill-org/alphabill/internal/certificates"
 )
 
-var ErrStrPendingBlockProposalNotFound = "pending block proposal not found"
-
 // BlockStore provides methods to store and query blockchain blocks.
 type BlockStore interface {
 	// Add adds the new block to the blockchain.
@@ -23,8 +21,8 @@ type BlockStore interface {
 	LatestBlock() (*block.Block, error)
 	// LatestUC returns the latest known unicity certificate (its round number might be larger than the last persisted block).
 	LatestUC() (*certificates.UnicityCertificate, error)
-	// AddPendingProposal stores the pending block proposal.
-	AddPendingProposal(proposal *block.PendingBlockProposal) error
-	// GetPendingProposal returns the pending block proposal.
+	// SetPendingProposal stores the pending block proposal, nil removed stored proposal.
+	SetPendingProposal(proposal *block.PendingBlockProposal) error
+	// GetPendingProposal returns the pending block proposal if it exists.
 	GetPendingProposal() (*block.PendingBlockProposal, error)
 }

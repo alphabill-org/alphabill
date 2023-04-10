@@ -3,7 +3,10 @@ package money
 import (
 	"bytes"
 	"crypto"
+	goerrors "errors"
 	"fmt"
+
+	"github.com/holiman/uint256"
 
 	"github.com/alphabill-org/alphabill/internal/block"
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
@@ -13,20 +16,19 @@ import (
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/internal/txsystem/fc"
 	"github.com/alphabill-org/alphabill/internal/util"
-	"github.com/holiman/uint256"
 )
 
 var (
-	ErrSwapInvalidTargetValue        = errors.New("target value of the bill must be equal to the sum of the target values of succeeded payments in swap transaction")
-	ErrSwapInsufficientDCMoneySupply = errors.New("insufficient DC-money supply")
-	ErrSwapBillAlreadyExists         = errors.New("swapped bill id already exists")
-	ErrSwapInvalidBillIdentifiers    = errors.New("all bill identifiers in dust transfer orders must exist in transaction bill identifiers")
-	ErrSwapInvalidBillId             = errors.New("bill id is not properly computed")
-	ErrSwapDustTransfersInvalidOrder = errors.New("transfer orders are not listed in strictly increasing order of bill identifiers")
-	ErrSwapInvalidNonce              = errors.New("dust transfer orders do not contain proper nonce")
-	ErrSwapInvalidTargetBearer       = errors.New("dust transfer orders do not contain proper target bearer")
-	ErrInvalidProofType              = errors.New("invalid proof type")
-	ErrSwapOwnerProofFailed          = errors.New("owner proof does not satisfy the bearer condition of the swapped bill")
+	ErrSwapInvalidTargetValue        = goerrors.New("target value of the bill must be equal to the sum of the target values of succeeded payments in swap transaction")
+	ErrSwapInsufficientDCMoneySupply = goerrors.New("insufficient DC-money supply")
+	ErrSwapBillAlreadyExists         = goerrors.New("swapped bill id already exists")
+	ErrSwapInvalidBillIdentifiers    = goerrors.New("all bill identifiers in dust transfer orders must exist in transaction bill identifiers")
+	ErrSwapInvalidBillId             = goerrors.New("bill id is not properly computed")
+	ErrSwapDustTransfersInvalidOrder = goerrors.New("transfer orders are not listed in strictly increasing order of bill identifiers")
+	ErrSwapInvalidNonce              = goerrors.New("dust transfer orders do not contain proper nonce")
+	ErrSwapInvalidTargetBearer       = goerrors.New("dust transfer orders do not contain proper target bearer")
+	ErrInvalidProofType              = goerrors.New("invalid proof type")
+	ErrSwapOwnerProofFailed          = goerrors.New("owner proof does not satisfy the bearer condition of the swapped bill")
 )
 
 func handleSwapDCTx(state *rma.Tree, hashAlgorithm crypto.Hash, trustBase map[string]abcrypto.Verifier, feeCalc fc.FeeCalculator) txsystem.GenericExecuteFunc[*swapDCWrapper] {

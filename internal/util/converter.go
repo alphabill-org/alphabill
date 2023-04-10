@@ -26,3 +26,8 @@ func Uint256ToBytes(i *uint256.Int) []byte {
 	b := i.Bytes32()
 	return b[:]
 }
+
+func BytesToUint256(b []byte) *uint256.Int {
+	i := uint256.NewInt(0)
+	return i.SetBytes(b)
+}

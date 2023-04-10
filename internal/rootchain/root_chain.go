@@ -7,11 +7,11 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/alphabill-org/alphabill/internal/certificates"
+	"github.com/libp2p/go-libp2p/core/peer"
 
+	"github.com/alphabill-org/alphabill/internal/certificates"
 	"github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/errors"
-	log "github.com/alphabill-org/alphabill/internal/logger"
 	"github.com/alphabill-org/alphabill/internal/network"
 	p "github.com/alphabill-org/alphabill/internal/network/protocol"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/certification"
@@ -20,7 +20,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/rootchain/store"
 	"github.com/alphabill-org/alphabill/internal/timer"
 	"github.com/alphabill-org/alphabill/internal/util"
-	"github.com/libp2p/go-libp2p/core/peer"
+	log "github.com/alphabill-org/alphabill/pkg/logger"
 )
 
 const (
@@ -36,13 +36,11 @@ type (
 	}
 
 	RootChain struct {
-		ctx        context.Context
-		ctxCancel  context.CancelFunc
-		net        Net
-		peer       *network.Peer // p2p network
-		state      *State        // state of the root chain. keeps everything needed for consensus.
-		stateStore StateStore
-		timers     *timer.Timers // keeps track of T2 and T3 timers
+		ctxCancel context.CancelFunc
+		net       Net
+		peer      *network.Peer // p2p network
+		state     *State        // state of the root chain. keeps everything needed for consensus.
+		timers    *timer.Timers // keeps track of T2 and T3 timers
 	}
 
 	rootChainConf struct {
@@ -113,18 +111,15 @@ func NewRootChain(peer *network.Peer, genesis *genesis.RootGenesis, signer crypt
 		}
 	}
 
-	if err != nil {
-		return nil, err
-	}
-
 	rc := &RootChain{
 		net:    net,
 		peer:   peer,
 		state:  s,
 		timers: timers,
 	}
-	rc.ctx, rc.ctxCancel = context.WithCancel(context.Background())
-	go rc.loop()
+	var ctx context.Context
+	ctx, rc.ctxCancel = context.WithCancel(context.Background())
+	go rc.loop(ctx)
 	return rc, nil
 }
 
@@ -134,10 +129,10 @@ func (rc *RootChain) Close() {
 }
 
 // loop handles messages from different goroutines.
-func (rc *RootChain) loop() {
+func (rc *RootChain) loop(ctx context.Context) {
 	for {
 		select {
-		case <-rc.ctx.Done():
+		case <-ctx.Done():
 			logger.Info("Exiting root chain main loop")
 			return
 		case m, ok := <-rc.net.ReceivedChannel():

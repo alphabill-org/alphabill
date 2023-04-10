@@ -53,3 +53,15 @@ func getUnit[T rma.UnitData](state *rma.Tree, unitID *uint256.Int) (*rma.Unit, T
 	}
 	return u, d, nil
 }
+
+type TokenOwnershipProver interface {
+	OwnerProof() []byte
+	InvariantPredicateSignatures() [][]byte
+	SigBytes() []byte
+}
+
+func verifyOwnership(bearer Predicate, invariants []Predicate, prover TokenOwnershipProver) error {
+	predicates := append([]Predicate{bearer}, invariants...)
+	proofs := append([][]byte{prover.OwnerProof()}, prover.InvariantPredicateSignatures()...)
+	return verifyPredicates(predicates, proofs, prover.SigBytes())
+}

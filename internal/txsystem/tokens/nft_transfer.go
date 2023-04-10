@@ -8,6 +8,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/rma"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/internal/txsystem/fc"
+	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/holiman/uint256"
 )
 
@@ -17,13 +18,26 @@ func handleTransferNonFungibleTokenTx(options *Options) txsystem.GenericExecuteF
 		if err := validateTransferNonFungibleToken(tx, options.state); err != nil {
 			return fmt.Errorf("invalid transfer none-fungible token tx: %w", err)
 		}
-		h := tx.Hash(options.hashAlgorithm)
 		fee := options.feeCalculator()
 		tx.SetServerMetadata(&txsystem.ServerMetadata{Fee: fee})
+
+		// calculate hash after setting server metadata
+		h := tx.Hash(options.hashAlgorithm)
+
 		// update state
-		fcrID := tx.transaction.GetClientFeeCreditRecordID()
+		// disable fee handling if fee is calculated to 0 (used to temporarily disable fee handling, can be removed after all wallets are updated)
+		var fcFunc rma.Action
+		if options.feeCalculator() == 0 {
+			fcFunc = func(tree *rma.Tree) error {
+				return nil
+			}
+		} else {
+			fcrID := tx.transaction.GetClientFeeCreditRecordID()
+			fcFunc = fc.DecrCredit(fcrID, fee, h)
+		}
+
 		return options.state.AtomicUpdate(
-			fc.DecrCredit(fcrID, fee, h),
+			fcFunc,
 			rma.SetOwner(tx.UnitID(), tx.attributes.NewBearer, h),
 			rma.UpdateData(tx.UnitID(), func(data rma.UnitData) (newData rma.UnitData) {
 				d, ok := data.(*nonFungibleTokenData)
@@ -50,9 +64,14 @@ func validateTransferNonFungibleToken(tx *transferNonFungibleTokenWrapper, state
 	if !bytes.Equal(data.backlink, tx.attributes.Backlink) {
 		return errors.New("validate nft transfer: invalid backlink")
 	}
+	tokenTypeID := util.Uint256ToBytes(data.nftType)
+	if !bytes.Equal(tx.NFTTypeID(), tokenTypeID) {
+		return fmt.Errorf("invalid type identifier: expected '%X', got '%X'", tokenTypeID, tx.NFTTypeID())
+	}
+
 	// signature given in the transaction request satisfies the predicate obtained by concatenating all the token
 	// invariant clauses along the type inheritance chain.
-	predicates, err := getChainedPredicates[*nonFungibleTokenTypeData](
+	predicates, err := getChainedPredicates(
 		state,
 		data.nftType,
 		func(d *nonFungibleTokenTypeData) []byte {
@@ -65,5 +84,5 @@ func validateTransferNonFungibleToken(tx *transferNonFungibleTokenWrapper, state
 	if err != nil {
 		return err
 	}
-	return verifyPredicates(predicates, tx.InvariantPredicateSignatures(), tx.SigBytes())
+	return verifyOwnership(Predicate(u.Bearer), predicates, tx)
 }

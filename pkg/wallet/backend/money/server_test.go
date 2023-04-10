@@ -2,9 +2,12 @@ package money
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
+	"syscall"
 	"testing"
+	"time"
 
 	"github.com/alphabill-org/alphabill/pkg/wallet/backend/bp"
 
@@ -14,6 +17,7 @@ import (
 	testtransaction "github.com/alphabill-org/alphabill/internal/testutils/transaction"
 	"github.com/alphabill-org/alphabill/pkg/client"
 	"github.com/alphabill-org/alphabill/pkg/client/clientmock"
+	"github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/stretchr/testify/require"
 )
 
@@ -21,6 +25,57 @@ const (
 	pubkeyHex = "0x000000000000000000000000000000000000000000000000000000000000000000"
 	billId    = "0x0000000000000000000000000000000000000000000000000000000000000001"
 )
+
+type (
+	option func(service *WalletBackend) error
+)
+
+func newWalletBackend(t *testing.T, options ...option) *WalletBackend {
+	storage, err := createTestBillStore(t)
+	require.NoError(t, err)
+
+	service := &WalletBackend{store: storage, genericWallet: wallet.New().SetABClient(&clientmock.MockAlphabillClient{}).Build()}
+	for _, o := range options {
+		err := o(service)
+		require.NoError(t, err)
+	}
+	return service
+}
+
+func withBills(bills ...*Bill) option {
+	return func(s *WalletBackend) error {
+		return s.store.WithTransaction(func(tx BillStoreTx) error {
+			for _, bill := range bills {
+				err := tx.SetBill(bill)
+				if err != nil {
+					return err
+				}
+			}
+			return nil
+		})
+	}
+}
+
+func withABClient(client client.ABClient) option {
+	return func(s *WalletBackend) error {
+		s.genericWallet.AlphabillClient = client
+		return nil
+	}
+}
+
+func withFeeCreditBills(bills ...*Bill) option {
+	return func(s *WalletBackend) error {
+		return s.store.WithTransaction(func(tx BillStoreTx) error {
+			for _, bill := range bills {
+				err := tx.SetFeeCreditBill(bill)
+				if err != nil {
+					return err
+				}
+			}
+			return nil
+		})
+	}
+}
 
 func TestListBillsRequest_Ok(t *testing.T) {
 	expectedBill := &Bill{
@@ -84,11 +139,11 @@ func TestListBillsRequest_DCBillsIncluded(t *testing.T) {
 	require.Equal(t, 2, res.Total)
 	require.Len(t, res.Bills, 2)
 	bill := res.Bills[0]
-	require.EqualValues(t, bill.Value, 1)
+	require.EqualValues(t, 1, bill.Value)
 	require.False(t, bill.IsDCBill)
 	bill = res.Bills[1]
-	require.EqualValues(t, res.Bills[1].Value, 2)
-	require.True(t, res.Bills[1].IsDCBill)
+	require.EqualValues(t, 2, bill.Value)
+	require.True(t, bill.IsDCBill)
 }
 
 func TestListBillsRequest_Paging(t *testing.T) {
@@ -112,8 +167,8 @@ func TestListBillsRequest_Paging(t *testing.T) {
 	require.Equal(t, http.StatusOK, httpRes.StatusCode)
 	require.Equal(t, len(bills), res.Total)
 	require.Len(t, res.Bills, 100)
-	require.EqualValues(t, res.Bills[0].Value, 0)
-	require.EqualValues(t, res.Bills[99].Value, 99)
+	require.EqualValues(t, 0, res.Bills[0].Value)
+	require.EqualValues(t, 99, res.Bills[99].Value)
 
 	// verify offset=100 returns next 100 elements
 	res = &ListBillsResponse{}
@@ -122,8 +177,8 @@ func TestListBillsRequest_Paging(t *testing.T) {
 	require.Equal(t, http.StatusOK, httpRes.StatusCode)
 	require.Equal(t, len(bills), res.Total)
 	require.Len(t, res.Bills, 100)
-	require.EqualValues(t, res.Bills[0].Value, 100)
-	require.EqualValues(t, res.Bills[99].Value, 199)
+	require.EqualValues(t, 100, res.Bills[0].Value)
+	require.EqualValues(t, 199, res.Bills[99].Value)
 
 	// verify limit limits result size
 	res = &ListBillsResponse{}
@@ -132,8 +187,8 @@ func TestListBillsRequest_Paging(t *testing.T) {
 	require.Equal(t, http.StatusOK, httpRes.StatusCode)
 	require.Equal(t, len(bills), res.Total)
 	require.Len(t, res.Bills, 50)
-	require.EqualValues(t, res.Bills[0].Value, 100)
-	require.EqualValues(t, res.Bills[49].Value, 149)
+	require.EqualValues(t, 100, res.Bills[0].Value)
+	require.EqualValues(t, 149, res.Bills[49].Value)
 
 	// verify out of bounds offset returns nothing
 	res = &ListBillsResponse{}
@@ -150,8 +205,8 @@ func TestListBillsRequest_Paging(t *testing.T) {
 	require.Equal(t, http.StatusOK, httpRes.StatusCode)
 	require.Equal(t, len(bills), res.Total)
 	require.Len(t, res.Bills, 100)
-	require.EqualValues(t, res.Bills[0].Value, 0)
-	require.EqualValues(t, res.Bills[99].Value, 99)
+	require.EqualValues(t, 0, res.Bills[0].Value)
+	require.EqualValues(t, 99, res.Bills[99].Value)
 
 	// verify out of bounds offset+limit return all available data
 	res = &ListBillsResponse{}
@@ -160,8 +215,8 @@ func TestListBillsRequest_Paging(t *testing.T) {
 	require.Equal(t, http.StatusOK, httpRes.StatusCode)
 	require.Equal(t, len(bills), res.Total)
 	require.Len(t, res.Bills, 10)
-	require.EqualValues(t, res.Bills[0].Value, 190)
-	require.EqualValues(t, res.Bills[9].Value, 199)
+	require.EqualValues(t, 190, res.Bills[0].Value)
+	require.EqualValues(t, 199, res.Bills[9].Value)
 }
 
 func TestBalanceRequest_Ok(t *testing.T) {
@@ -302,13 +357,18 @@ func TestProofRequest_ProofDoesNotExist(t *testing.T) {
 	res := &ErrorResponse{}
 	httpRes, err := testhttp.DoGet(fmt.Sprintf("http://localhost:%d/api/v1/proof?bill_id=%s", port, billId), res)
 	require.NoError(t, err)
-	require.Equal(t, http.StatusBadRequest, httpRes.StatusCode)
+	require.Equal(t, http.StatusNotFound, httpRes.StatusCode)
 	require.Equal(t, "bill does not exist", res.Message)
 }
 
 func TestBlockHeightRequest_Ok(t *testing.T) {
 	blockNumber := uint64(100)
-	service := newWalletBackend(t, withABClient(clientmock.NewMockAlphabillClient(blockNumber, nil)))
+	roundNumber := uint64(150)
+	alphabillClient := clientmock.NewMockAlphabillClient(
+		clientmock.WithMaxBlockNumber(blockNumber),
+		clientmock.WithMaxRoundNumber(roundNumber),
+	)
+	service := newWalletBackend(t, withABClient(alphabillClient))
 	port := startServer(t, service)
 
 	res := &BlockHeightResponse{}
@@ -316,6 +376,7 @@ func TestBlockHeightRequest_Ok(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, http.StatusOK, httpRes.StatusCode)
 	require.EqualValues(t, blockNumber, res.BlockHeight)
+	require.EqualValues(t, roundNumber, res.LastRoundNumber)
 }
 
 func TestInvalidUrl_NotFound(t *testing.T) {
@@ -416,63 +477,35 @@ func TestGetFeeCreditBillRequest_BillDoesNotExist(t *testing.T) {
 	require.Equal(t, "fee credit bill does not exist", res.Message)
 }
 
-type (
-	option func(service *WalletBackend) error
-)
-
-func newWalletBackend(t *testing.T, options ...option) *WalletBackend {
-	service := createWalletBackend(t, &clientmock.MockAlphabillClient{})
-	for _, o := range options {
-		err := o(service)
-		require.NoError(t, err)
-	}
-	return service
-}
-
-func withBills(bills ...*Bill) option {
-	return func(s *WalletBackend) error {
-		return s.store.WithTransaction(func(tx BillStoreTx) error {
-			for _, bill := range bills {
-				err := tx.SetBill(bill)
-				if err != nil {
-					return err
-				}
-			}
-			return nil
-		})
-	}
-}
-
-func withFeeCreditBills(bills ...*Bill) option {
-	return func(s *WalletBackend) error {
-		return s.store.WithTransaction(func(tx BillStoreTx) error {
-			for _, bill := range bills {
-				err := tx.SetFeeCreditBill(bill)
-				if err != nil {
-					return err
-				}
-			}
-			return nil
-		})
-	}
-}
-
-func withABClient(client client.ABClient) option {
-	return func(s *WalletBackend) error {
-		s.genericWallet.AlphabillClient = client
-		return nil
-	}
-}
-
 func startServer(t *testing.T, service WalletBackendService) int {
 	port, err := net.GetFreePort()
 	require.NoError(t, err)
 
-	server := NewHttpServer(fmt.Sprintf("localhost:%d", port), 100, service)
-	err = server.Start()
-	require.NoError(t, err)
-	t.Cleanup(func() {
-		_ = server.Shutdown(context.Background())
-	})
-	return port
+	ctx, cancel := context.WithCancel(context.Background())
+
+	go func() {
+		server := NewHttpServer(fmt.Sprintf("localhost:%d", port), 100, service)
+		err := server.Run(ctx)
+		require.ErrorIs(t, err, context.Canceled)
+	}()
+	// stop the server
+	t.Cleanup(func() { cancel() })
+
+	// wait until server is up
+	tout := time.After(1500 * time.Millisecond)
+	for {
+		if _, err := http.Get(fmt.Sprintf("http://localhost:%d", port)); err != nil {
+			if !errors.Is(err, syscall.ECONNREFUSED) {
+				t.Fatalf("unexpected error from http server: %v", err)
+			}
+		} else {
+			return port
+		}
+
+		select {
+		case <-time.After(50 * time.Millisecond):
+		case <-tout:
+			t.Fatalf("http server didn't become available within timeout")
+		}
+	}
 }

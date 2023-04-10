@@ -2,13 +2,14 @@ package tokens
 
 import (
 	"bytes"
+	goerrors "errors"
 	"fmt"
 
-	"github.com/alphabill-org/alphabill/internal/errors"
 	"github.com/alphabill-org/alphabill/internal/rma"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/internal/txsystem/fc"
 	txutil "github.com/alphabill-org/alphabill/internal/txsystem/util"
+	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/holiman/uint256"
 )
 
@@ -26,13 +27,27 @@ func handleSplitFungibleTokenTx(options *Options) txsystem.GenericExecuteFunc[*s
 		// add new token unit
 		newTokenID := txutil.SameShardID(tx.UnitID(), tx.HashForIDCalculation(options.hashAlgorithm))
 		logger.Debug("Adding a fungible token with ID %v", newTokenID)
-		txHash := tx.Hash(options.hashAlgorithm)
+
 		fee := options.feeCalculator()
 		tx.SetServerMetadata(&txsystem.ServerMetadata{Fee: fee})
+
+		// calculate hash after setting server metadata
+		txHash := tx.Hash(options.hashAlgorithm)
+
 		// update state
-		fcrID := tx.transaction.GetClientFeeCreditRecordID()
+		// disable fee handling if fee is calculated to 0 (used to temporarily disable fee handling, can be removed after all wallets are updated)
+		var fcFunc rma.Action
+		if options.feeCalculator() == 0 {
+			fcFunc = func(tree *rma.Tree) error {
+				return nil
+			}
+		} else {
+			fcrID := tx.transaction.GetClientFeeCreditRecordID()
+			fcFunc = fc.DecrCredit(fcrID, fee, txHash)
+		}
+
 		return options.state.AtomicUpdate(
-			fc.DecrCredit(fcrID, fee, txHash),
+			fcFunc,
 			rma.AddItem(newTokenID,
 				tx.attributes.NewBearer,
 				&fungibleTokenData{
@@ -59,16 +74,32 @@ func handleSplitFungibleTokenTx(options *Options) txsystem.GenericExecuteFunc[*s
 }
 
 func validateSplitFungibleToken(tx *splitFungibleTokenWrapper, state *rma.Tree) error {
-	d, err := getFungibleTokenData(tx.UnitID(), state)
+	bearer, d, err := getFungibleTokenData(tx.UnitID(), state)
 	if err != nil {
 		return err
 	}
+	if tx.TargetValue() == 0 {
+		return goerrors.New("when splitting a token the value assigned to the new token must be greater than zero")
+	}
+	if tx.RemainingValue() == 0 {
+		return goerrors.New("when splitting a token the remaining value of the token must be greater than zero")
+	}
+
 	if d.value < tx.attributes.TargetValue {
-		return errors.Errorf("invalid token value: max allowed %v, got %v", d.value, tx.attributes.TargetValue)
+		return fmt.Errorf("invalid token value: max allowed %v, got %v", d.value, tx.attributes.TargetValue)
 	}
+	if rm := d.value - tx.TargetValue(); tx.RemainingValue() != rm {
+		return goerrors.New("remaining value must equal to the original value minus target value")
+	}
+
 	if !bytes.Equal(d.backlink, tx.attributes.Backlink) {
-		return errors.Errorf("invalid backlink: expected %X, got %X", d.backlink, tx.attributes.Backlink)
+		return fmt.Errorf("invalid backlink: expected %X, got %X", d.backlink, tx.attributes.Backlink)
 	}
+	tokenTypeID := util.Uint256ToBytes(d.tokenType)
+	if !bytes.Equal(tx.TypeID(), tokenTypeID) {
+		return fmt.Errorf("invalid type identifier: expected '%X', got '%X'", tokenTypeID, tx.TypeID())
+	}
+
 	predicates, err := getChainedPredicates[*fungibleTokenTypeData](
 		state,
 		d.tokenType,
@@ -82,5 +113,5 @@ func validateSplitFungibleToken(tx *splitFungibleTokenWrapper, state *rma.Tree) 
 	if err != nil {
 		return err
 	}
-	return verifyPredicates(predicates, tx.InvariantPredicateSignatures(), tx.SigBytes())
+	return verifyOwnership(bearer, predicates, tx)
 }

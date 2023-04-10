@@ -14,25 +14,44 @@ type txLog struct {
 	txsMap map[string]*BlockProof
 }
 
-func newTxLog(pendingTxs []*txsystem.Transaction) *txLog {
+func NewTxLog(pendingTxs []*txsystem.Transaction) *txLog {
 	txsMap := make(map[string]*BlockProof, len(pendingTxs))
 	for _, tx := range pendingTxs {
 		txsMap[string(tx.TxBytes())] = nil
 	}
 	return &txLog{txsMap: txsMap}
 }
-func (t *txLog) contains(tx *txsystem.Transaction) bool {
+func (t *txLog) Contains(tx *txsystem.Transaction) bool {
 	_, exists := t.txsMap[string(tx.TxBytes())]
 	return exists
 }
 
-func (t *txLog) recordTx(gtx txsystem.GenericTransaction, b *block.GenericBlock) error {
+func (t *txLog) RecordTx(gtx txsystem.GenericTransaction, b *block.GenericBlock) error {
 	proof, err := t.extractProof(gtx, b)
 	if err != nil {
 		return err
 	}
 	t.txsMap[string(gtx.ToProtoBuf().TxBytes())] = proof
 	return nil
+}
+
+func (t *txLog) IsAllTxsConfirmed() bool {
+	for _, v := range t.txsMap {
+		if v == nil {
+			return false
+		}
+	}
+	return true
+}
+
+func (t *txLog) GetAllRecordedProofs() []*BlockProof {
+	var proofs []*BlockProof
+	for _, v := range t.txsMap {
+		if v != nil {
+			proofs = append(proofs, v)
+		}
+	}
+	return proofs
 }
 
 // extractProof Extracts proof from given transaction and block.
@@ -53,23 +72,4 @@ func (t *txLog) extractProof(gtx txsystem.GenericTransaction, b *block.GenericBl
 		return nil, err
 	}
 	return blockProof, nil
-}
-
-func (t *txLog) isAllTxsConfirmed() bool {
-	for _, v := range t.txsMap {
-		if v == nil {
-			return false
-		}
-	}
-	return true
-}
-
-func (t *txLog) getAllRecordedProofs() []*BlockProof {
-	var proofs []*BlockProof
-	for _, v := range t.txsMap {
-		if v != nil {
-			proofs = append(proofs, v)
-		}
-	}
-	return proofs
 }

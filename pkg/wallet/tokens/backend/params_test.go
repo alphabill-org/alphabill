@@ -11,25 +11,25 @@ func Test_parseTokenTypeID(t *testing.T) {
 	t.Parallel()
 
 	t.Run("empty value, required", func(t *testing.T) {
-		v, err := parseTokenTypeID("", true)
+		v, err := parseHex[TokenTypeID]("", true)
 		require.EqualError(t, err, `parameter is required`)
 		require.Nil(t, v)
 	})
 
 	t.Run("empty value, not required", func(t *testing.T) {
-		v, err := parseTokenTypeID("", false)
+		v, err := parseHex[TokenTypeID]("", false)
 		require.NoError(t, err)
 		require.Nil(t, v)
 	})
 
 	t.Run("missing prefix", func(t *testing.T) {
-		v, err := parseTokenTypeID("01234567890abcdef", true)
+		v, err := parseHex[TokenTypeID]("01234567890abcdef", true)
 		require.EqualError(t, err, `hex string without 0x prefix`)
 		require.Nil(t, v)
 	})
 
 	t.Run("not valid hex encoding", func(t *testing.T) {
-		v, err := parseTokenTypeID("0xABCDEFGHIJKL", true)
+		v, err := parseHex[TokenTypeID]("0xABCDEFGHIJKL", true)
 		require.EqualError(t, err, `invalid hex string`)
 		require.Nil(t, v)
 	})
@@ -40,7 +40,7 @@ func Test_parseTokenTypeID(t *testing.T) {
 		require.NoError(t, err)
 		require.EqualValues(t, len(id), n)
 
-		v, err := parseTokenTypeID(encodeTokenTypeID(id), false)
+		v, err := parseHex[TokenTypeID](encodeHex[TokenTypeID](id), false)
 		require.NoError(t, err)
 		require.EqualValues(t, id, v)
 	})
@@ -50,25 +50,25 @@ func Test_parseTokenID(t *testing.T) {
 	t.Parallel()
 
 	t.Run("empty value, required", func(t *testing.T) {
-		v, err := parseTokenID("", true)
+		v, err := parseHex[TokenID]("", true)
 		require.EqualError(t, err, `parameter is required`)
 		require.Nil(t, v)
 	})
 
 	t.Run("empty value, not required", func(t *testing.T) {
-		v, err := parseTokenID("", false)
+		v, err := parseHex[TokenID]("", false)
 		require.NoError(t, err)
 		require.Nil(t, v)
 	})
 
 	t.Run("missing prefix", func(t *testing.T) {
-		v, err := parseTokenID("01234567890abcdef", true)
+		v, err := parseHex[TokenID]("01234567890abcdef", true)
 		require.EqualError(t, err, `hex string without 0x prefix`)
 		require.Nil(t, v)
 	})
 
 	t.Run("not valid hex encoding", func(t *testing.T) {
-		v, err := parseTokenID("0xABCDEFGHIJKL", true)
+		v, err := parseHex[TokenID]("0xABCDEFGHIJKL", true)
 		require.EqualError(t, err, `invalid hex string`)
 		require.Nil(t, v)
 	})
@@ -79,7 +79,7 @@ func Test_parseTokenID(t *testing.T) {
 		require.NoError(t, err)
 		require.EqualValues(t, len(id), n)
 
-		v, err := parseTokenID(encodeTokenID(id), false)
+		v, err := parseHex[TokenID](encodeHex[TokenID](id), false)
 		require.NoError(t, err)
 		require.EqualValues(t, id, v)
 	})

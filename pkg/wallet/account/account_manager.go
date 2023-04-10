@@ -2,7 +2,7 @@ package account
 
 import (
 	"errors"
-	"path"
+	"path/filepath"
 
 	"github.com/btcsuite/btcd/btcutil/hdkeychain"
 )
@@ -173,7 +173,7 @@ func getDb(dir string, create bool, pw string) (Db, error) {
 	if create {
 		return createNewDb(dir, pw)
 	}
-	dbFilePath := path.Join(dir, AccountFileName)
+	dbFilePath := filepath.Join(dir, AccountFileName)
 	return openDb(dbFilePath, pw, false)
 }
 

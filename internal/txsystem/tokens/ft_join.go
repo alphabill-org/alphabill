@@ -22,13 +22,25 @@ func handleJoinFungibleTokenTx(options *Options) txsystem.GenericExecuteFunc[*jo
 		}
 		fee := options.feeCalculator()
 		tx.SetServerMetadata(&txsystem.ServerMetadata{Fee: fee})
+
+		// calculate hash after setting server metadata
+		h := tx.Hash(options.hashAlgorithm)
+
 		// update state
-		fcrID := tx.transaction.GetClientFeeCreditRecordID()
+		// disable fee handling if fee is calculated to 0 (used to temporarily disable fee handling, can be removed after all wallets are updated)
+		var fcFunc rma.Action
+		if options.feeCalculator() == 0 {
+			fcFunc = func(tree *rma.Tree) error {
+				return nil
+			}
+		} else {
+			fcrID := tx.transaction.GetClientFeeCreditRecordID()
+			fcFunc = fc.DecrCredit(fcrID, fee, h)
+		}
 
 		unitID := tx.UnitID()
-		h := tx.Hash(options.hashAlgorithm)
 		return options.state.AtomicUpdate(
-			fc.DecrCredit(fcrID, fee, h),
+			fcFunc,
 			rma.UpdateData(unitID,
 				func(data rma.UnitData) rma.UnitData {
 					d, ok := data.(*fungibleTokenData)
@@ -47,7 +59,7 @@ func handleJoinFungibleTokenTx(options *Options) txsystem.GenericExecuteFunc[*jo
 }
 
 func validateJoinFungibleToken(tx *joinFungibleTokenWrapper, options *Options) (uint64, error) {
-	d, err := getFungibleTokenData(tx.UnitID(), options.state)
+	bearer, d, err := getFungibleTokenData(tx.UnitID(), options.state)
 	if err != nil {
 		return 0, err
 	}
@@ -97,5 +109,5 @@ func validateJoinFungibleToken(tx *joinFungibleTokenWrapper, options *Options) (
 	if err != nil {
 		return 0, err
 	}
-	return sum, verifyPredicates(predicates, tx.InvariantPredicateSignatures(), tx.SigBytes())
+	return sum, verifyOwnership(bearer, predicates, tx)
 }

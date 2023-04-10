@@ -4,8 +4,11 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/alphabill-org/alphabill/pkg/wallet/money"
 	"github.com/spf13/cobra"
+
+	"github.com/alphabill-org/alphabill/pkg/client"
+	moneyclient "github.com/alphabill-org/alphabill/pkg/wallet/backend/money/client"
+	"github.com/alphabill-org/alphabill/pkg/wallet/money"
 )
 
 // newWalletFeesCmd creates a new cobra command for the wallet fees component.
@@ -33,16 +36,32 @@ func addFeeCreditCmd(ctx context.Context, config *walletConfig) *cobra.Command {
 	}
 	cmd.Flags().Uint64P(keyCmdName, "k", 1, "specifies to which account to add the fee credit")
 	cmd.Flags().Uint64P(amountCmdName, "v", 100, "specifies how much fee credit to create")
-	cmd.Flags().StringP(alphabillUriCmdName, "u", defaultAlphabillUri, "node url")
+	cmd.Flags().StringP(alphabillNodeURLCmdName, "u", alphabillNodeURLCmdName, "node url")
+	cmd.Flags().StringP(alphabillApiURLCmdName, "r", alphabillApiURLCmdName, "alphabill API uri to connect to")
 	return cmd
 }
 
 func addFeeCreditCmdExec(ctx context.Context, cmd *cobra.Command, config *walletConfig) error {
-	url, err := cmd.Flags().GetString(alphabillUriCmdName)
+	nodeUrl, err := cmd.Flags().GetString(alphabillNodeURLCmdName)
 	if err != nil {
 		return err
 	}
-	w, err := loadExistingWallet(cmd, config.WalletHomeDir, url)
+	apiUrl, err := cmd.Flags().GetString(alphabillApiURLCmdName)
+	if err != nil {
+		return err
+	}
+
+	restClient, err := moneyclient.NewClient(apiUrl)
+	if err != nil {
+		return err
+	}
+	am, err := loadExistingAccountManager(cmd, config.WalletHomeDir)
+	if err != nil {
+		return err
+	}
+	defer am.Close()
+
+	w, err := money.LoadExistingWallet(client.AlphabillClientConfig{Uri: nodeUrl}, am, restClient)
 	if err != nil {
 		return err
 	}
@@ -85,19 +104,37 @@ func listFeesCmdExec(cmd *cobra.Command, config *walletConfig) error {
 		return err
 	}
 
-	w, err := loadExistingWallet(cmd, config.WalletHomeDir, "")
+	nodeUrl, err := cmd.Flags().GetString(alphabillNodeURLCmdName)
+	if err != nil {
+		return err
+	}
+	apiUrl, err := cmd.Flags().GetString(alphabillApiURLCmdName)
+	if err != nil {
+		return err
+	}
+	restClient, err := moneyclient.NewClient(apiUrl)
+	if err != nil {
+		return err
+	}
+	am, err := loadExistingAccountManager(cmd, config.WalletHomeDir)
+	if err != nil {
+		return err
+	}
+	defer am.Close()
+
+	w, err := money.LoadExistingWallet(client.AlphabillClientConfig{Uri: nodeUrl}, am, restClient)
 	if err != nil {
 		return err
 	}
 	defer w.Shutdown()
 
 	if accountNumber == 0 {
-		maxAccountIndex, err := w.GetMaxAccountIndex()
+		pubKeys, err := am.GetPublicKeys()
 		if err != nil {
 			return err
 		}
-		for accountIndex := uint64(0); accountIndex <= maxAccountIndex; accountIndex++ {
-			fcb, err := w.GetFeeCreditBill(accountIndex)
+		for accountIndex := range pubKeys {
+			fcb, err := w.GetFeeCreditBill(uint64(accountIndex))
 			if err != nil {
 				return err
 			}
@@ -124,16 +161,31 @@ func reclaimFeeCreditCmd(ctx context.Context, config *walletConfig) *cobra.Comma
 		},
 	}
 	cmd.Flags().Uint64P(keyCmdName, "k", 1, "specifies to which account to reclaim the fee credit")
-	cmd.Flags().StringP(alphabillUriCmdName, "u", defaultAlphabillUri, "node url")
+	cmd.Flags().StringP(alphabillNodeURLCmdName, "u", alphabillNodeURLCmdName, "node url")
+	cmd.Flags().StringP(alphabillApiURLCmdName, "r", alphabillApiURLCmdName, "alphabill API uri to connect to")
 	return cmd
 }
 
 func reclaimFeeCreditCmdExec(ctx context.Context, cmd *cobra.Command, config *walletConfig) error {
-	url, err := cmd.Flags().GetString(alphabillUriCmdName)
+	nodeUrl, err := cmd.Flags().GetString(alphabillNodeURLCmdName)
 	if err != nil {
 		return err
 	}
-	w, err := loadExistingWallet(cmd, config.WalletHomeDir, url)
+	apiUrl, err := cmd.Flags().GetString(alphabillApiURLCmdName)
+	if err != nil {
+		return err
+	}
+	restClient, err := moneyclient.NewClient(apiUrl)
+	if err != nil {
+		return err
+	}
+	am, err := loadExistingAccountManager(cmd, config.WalletHomeDir)
+	if err != nil {
+		return err
+	}
+	defer am.Close()
+
+	w, err := money.LoadExistingWallet(client.AlphabillClientConfig{Uri: nodeUrl}, am, restClient)
 	if err != nil {
 		return err
 	}

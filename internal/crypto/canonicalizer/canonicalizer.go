@@ -6,8 +6,8 @@ import (
 
 	"github.com/alphabill-org/alphabill/internal/errors"
 	"github.com/alphabill-org/alphabill/internal/errors/errstr"
-	"github.com/alphabill-org/alphabill/internal/logger"
 	"github.com/alphabill-org/alphabill/internal/util"
+	"github.com/alphabill-org/alphabill/pkg/logger"
 )
 
 var log = logger.CreateForPackage()
@@ -38,14 +38,16 @@ type (
 //
 // The implementation makes use of struct tags with the key 'hsh' as serialization
 // template. Available options:
-//  - 'idx'  [mandatory]: binary serialization sequence for given field.
-//  - 'size' [optional] : integer value size expressed in bytes. Supported values 1, 4, 8.
-//                        If not set 1 is used as default.
+//   - 'idx'  [mandatory]: binary serialization sequence for given field.
+//   - 'size' [optional] : integer value size expressed in bytes. Supported values 1, 4, 8.
+//     If not set 1 is used as default.
+//
 // e.g.
-//  type Object struct {
-//	    Number uint64 `hsh:"idx=1,size=8"`
-//	    Slice  []byte `hsh:"idx=2"`
-//  }
+//
+//	 type Object struct {
+//		    Number uint64 `hsh:"idx=1,size=8"`
+//		    Slice  []byte `hsh:"idx=2"`
+//	 }
 func Canonicalize(obj interface{}, opts ...Option) ([]byte, error) {
 	if obj == nil {
 		return nil, errors.Wrap(errors.ErrInvalidArgument, errstr.NilArgument)

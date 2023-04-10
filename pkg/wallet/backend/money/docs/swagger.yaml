@@ -16,14 +16,14 @@ definitions:
           scheme `http`, `https`, or no scheme, one can optionally set up a type
           server that maps type URLs to message definitions as follows:
 
-          * If no scheme is provided, `https` is assumed.
-          * An HTTP GET on the URL must yield a [google.protobuf.Type][]
-            value in binary format, or produce an error.
-          * Applications are allowed to cache lookup results based on the
-            URL, or have them precompiled into a binary to avoid any
-            lookup. Therefore, binary compatibility needs to be preserved
-            on changes to types. (Use versioned type names to manage
-            breaking changes.)
+            - If no scheme is provided, `https` is assumed.
+            - An HTTP GET on the URL must yield a [google.protobuf.Type][]
+              value in binary format, or produce an error.
+            - Applications are allowed to cache lookup results based on the
+              URL, or have them precompiled into a binary to avoid any
+              lookup. Therefore, binary compatibility needs to be preserved
+              on changes to types. (Use versioned type names to manage
+              breaking changes.)
 
           Note: this functionality is not currently available in the official
           protobuf release, and it is not used for type URLs beginning with
@@ -224,15 +224,56 @@ definitions:
           type: integer
         type: array
     type: object
+  github_com_alphabill-org_alphabill_pkg_wallet_backend_money.Bill:
+    properties:
+      OwnerPredicate:
+        items:
+          type: integer
+        type: array
+      id:
+        items:
+          type: integer
+        type: array
+      isDcBill:
+        type: boolean
+      orderNumber:
+        description: OrderNumber insertion order of given bill in pubkey => list of
+          bills bucket, needed for determistic paging
+        type: integer
+      txHash:
+        items:
+          type: integer
+        type: array
+      txProof:
+        $ref: '#/definitions/money.TxProof'
+      value:
+        type: integer
+    type: object
+  github_com_alphabill-org_alphabill_pkg_wallet_backend_money.Bills:
+    properties:
+      bills:
+        items:
+          $ref: '#/definitions/github_com_alphabill-org_alphabill_pkg_wallet_backend_money.Bill'
+        type: array
+    type: object
   money.BalanceResponse:
     properties:
       balance:
-        type: integer
+        example: "0"
+        type: string
     type: object
   money.BlockHeightResponse:
     properties:
       blockHeight:
+        example: "0"
+        type: string
+      lastRoundNumber:
         type: integer
+    type: object
+  money.ErrorResponse:
+    properties:
+      message:
+        type: string
     type: object
   money.ListBillVM:
     properties:
@@ -240,7 +281,7 @@ definitions:
         example: AAAAAAgwv3UA1HfGO4qc1T3I3EOvqxfcrhMjJpr9Tn4=
         format: base64
         type: string
-      isDCBill:
+      isDcBill:
         example: false
         type: boolean
       txHash:
@@ -248,8 +289,8 @@ definitions:
         format: base64
         type: string
       value:
-        example: 1000
-        type: integer
+        example: "1000"
+        type: string
     type: object
   money.ListBillsResponse:
     properties:
@@ -282,6 +323,15 @@ definitions:
       fee:
         description: actual transaction fee charged
         type: integer
+    type: object
+  money.TxProof:
+    properties:
+      blockNumber:
+        type: integer
+      proof:
+        $ref: '#/definitions/block.BlockProof'
+      tx:
+        $ref: '#/definitions/txsystem.Transaction'
     type: object
   txsystem.Transaction:
     properties:
@@ -337,6 +387,12 @@ paths:
           description: OK
           schema:
             $ref: '#/definitions/money.BalanceResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/money.ErrorResponse'
+        "500":
+          description: Internal Server Error
       summary: Get balance
   /block-height:
     get:
@@ -393,6 +449,12 @@ paths:
           description: OK
           schema:
             $ref: '#/definitions/money.ListBillsResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/money.ErrorResponse'
+        "500":
+          description: Internal Server Error
       summary: List bills
   /proof:
     get:
@@ -410,5 +472,15 @@ paths:
           description: OK
           schema:
             $ref: '#/definitions/bp.Bills'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/money.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/money.ErrorResponse'
+        "500":
+          description: Internal Server Error
       summary: Get proof
 swagger: "2.0"

@@ -8,6 +8,10 @@ import (
 	"fmt"
 	"time"
 
+	libp2pcrypto "github.com/libp2p/go-libp2p/core/crypto"
+	"github.com/libp2p/go-libp2p/core/peer"
+	"google.golang.org/protobuf/proto"
+
 	"github.com/alphabill-org/alphabill/internal/block"
 	"github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/errors"
@@ -18,8 +22,6 @@ import (
 	"github.com/alphabill-org/alphabill/internal/testutils/net"
 	testevent "github.com/alphabill-org/alphabill/internal/testutils/partition/event"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
-	libp2pcrypto "github.com/libp2p/go-libp2p/core/crypto"
-	"github.com/libp2p/go-libp2p/core/peer"
 )
 
 // AlphabillPartition for integration tests
@@ -296,7 +298,8 @@ func generateKeyPairs(count int) ([]*network.PeerKeyPair, error) {
 // BlockchainContainsTx checks if at least one partition node block contains the given transaction.
 func BlockchainContainsTx(tx *txsystem.Transaction, network *AlphabillPartition) func() bool {
 	return BlockchainContains(network, func(actualTx *txsystem.Transaction) bool {
-		return bytes.Equal(tx.TxBytes(), actualTx.TxBytes())
+		// compare tx without server metadata field
+		return bytes.Equal(tx.TxBytes(), actualTx.TxBytes()) && proto.Equal(tx.TransactionAttributes, actualTx.TransactionAttributes)
 	})
 }
 

@@ -3,17 +3,14 @@ package cmd
 import (
 	"context"
 	gocrypto "crypto"
-	"path"
+	"path/filepath"
 	"time"
 
-	"github.com/alphabill-org/alphabill/internal/async"
-	"github.com/alphabill-org/alphabill/internal/async/future"
 	"github.com/alphabill-org/alphabill/internal/errors"
 	"github.com/alphabill-org/alphabill/internal/network"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/internal/rootchain"
 	"github.com/alphabill-org/alphabill/internal/rootchain/store"
-	"github.com/alphabill-org/alphabill/internal/starter"
 	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/spf13/cobra"
@@ -46,7 +43,7 @@ type rootChainConfig struct {
 }
 
 // newRootChainCmd creates a new cobra command for root chain
-func newRootChainCmd(ctx context.Context, baseConfig *baseConfiguration) *cobra.Command {
+func newRootChainCmd(baseConfig *baseConfiguration) *cobra.Command {
 	config := &rootChainConfig{
 		Base:       baseConfig,
 		StateStore: store.NewInMemStateStore(gocrypto.SHA256),
@@ -55,7 +52,7 @@ func newRootChainCmd(ctx context.Context, baseConfig *baseConfiguration) *cobra.
 		Use:   "root",
 		Short: "Starts a root chain node",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return defaultRootChainRunFunc(ctx, config)
+			return defaultRootChainRunFunc(cmd.Context(), config)
 		},
 	}
 	cmd.Flags().StringVarP(&config.KeyFile, keyFileCmdFlag, "k", "", "path to root chain key file")
@@ -77,7 +74,7 @@ func (c *rootChainConfig) getGenesisFilePath() string {
 	if c.GenesisFile != "" {
 		return c.GenesisFile
 	}
-	return path.Join(c.Base.defaultRootGenesisDir(), rootGenesisFileName)
+	return filepath.Join(c.Base.defaultRootGenesisDir(), rootGenesisFileName)
 }
 
 func defaultRootChainRunFunc(ctx context.Context, config *rootChainConfig) error {
@@ -119,14 +116,10 @@ func defaultRootChainRunFunc(ctx context.Context, config *rootChainConfig) error
 	if err != nil {
 		return errors.Wrapf(err, "rootchain failed to start: %v", err)
 	}
-	// use StartAndWait for SIGTERM hook
-	return starter.StartAndWait(ctx, "rootchain", func(ctx context.Context) {
-		async.MakeWorker("rootchain shutdown hook", func(ctx context.Context) future.Value {
-			<-ctx.Done()
-			rc.Close()
-			return nil
-		}).Start(ctx)
-	})
+
+	<-ctx.Done()
+	rc.Close()
+	return ctx.Err()
 }
 
 func createPeer(config *rootChainConfig, encPrivate crypto.PrivKey) (*network.Peer, error) {

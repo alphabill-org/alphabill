@@ -3,7 +3,7 @@ package store
 import (
 	"fmt"
 	"os"
-	"path"
+	"path/filepath"
 	"testing"
 
 	"github.com/alphabill-org/alphabill/internal/block"
@@ -71,6 +71,7 @@ func TestPersistentBlockStore_AddGet_EmptyBlock(t *testing.T) {
 
 	// verify block is not persisted, but round number and UC are updated
 	latestPersistedBlock, err := bs.LatestBlock()
+	require.NoError(t, err)
 	require.Equal(t, genesisBlock, latestPersistedBlock)
 	b, err := bs.Get(newBlock.UnicityCertificate.InputRecord.RoundNumber)
 	require.NoError(t, err)
@@ -143,7 +144,7 @@ func TestPersistentPendingBlockProposal(t *testing.T) {
 		PrevHash:    test.RandomBytes(32),
 		StateHash:   test.RandomBytes(32),
 	}
-	require.NoError(t, bs.AddPendingProposal(prop))
+	require.NoError(t, bs.SetPendingProposal(prop))
 	p, err := bs.GetPendingProposal()
 	require.NoError(t, err)
 	require.Equal(t, prop, p)
@@ -152,7 +153,7 @@ func TestPersistentPendingBlockProposal(t *testing.T) {
 func TestPersistentGetPendingBlockProposal_NotFound(t *testing.T) {
 	bs, _ := createTestBlockStore(t)
 	p, err := bs.GetPendingProposal()
-	require.ErrorContains(t, err, ErrStrPendingBlockProposalNotFound)
+	require.NoError(t, err)
 	require.Nil(t, p)
 }
 
@@ -191,7 +192,7 @@ func newNonEmptyBlock(t *testing.T, blockNo uint64) *block.Block {
 }
 
 func createTestBlockStore(t *testing.T) (*BoltBlockStore, error) {
-	dbFile := path.Join(os.TempDir(), BoltBlockStoreFileName)
+	dbFile := filepath.Join(os.TempDir(), BoltBlockStoreFileName)
 	t.Cleanup(func() {
 		err := os.Remove(dbFile)
 		if err != nil {

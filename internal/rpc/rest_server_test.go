@@ -132,6 +132,7 @@ func TestRestServer_TransactionOptions(t *testing.T) {
 	require.Equal(t, http.StatusOK, recorder.Code)
 	require.Equal(t, "POST,OPTIONS", recorder.Header().Get("Access-Control-Allow-Methods"))
 	require.Equal(t, "*", recorder.Header().Get("Access-Control-Allow-Origin"))
+	require.Equal(t, headerContentType, recorder.Header().Get("Access-Control-Allow-Headers"))
 	require.Empty(t, recorder.Body)
 }
 

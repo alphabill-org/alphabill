@@ -4,9 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"os/signal"
 	"path/filepath"
-	"syscall"
 
 	"github.com/spf13/cobra"
 
@@ -14,7 +12,9 @@ import (
 	twb "github.com/alphabill-org/alphabill/pkg/wallet/tokens/backend"
 )
 
-func newTokenWalletBackendCmd(ctx context.Context, baseConfig *baseConfiguration) *cobra.Command {
+const defaultTokenApiURL = "localhost:9735"
+
+func newTokenWalletBackendCmd(baseConfig *baseConfiguration) *cobra.Command {
 	var cmd = &cobra.Command{
 		Use:   "token-backend",
 		Short: "starts token wallet backend service",
@@ -28,27 +28,27 @@ func newTokenWalletBackendCmd(ctx context.Context, baseConfig *baseConfiguration
 	}
 	cmd.PersistentFlags().String(logFileCmdName, "", "log file path (default output to stderr)")
 	cmd.PersistentFlags().String(logLevelCmdName, "INFO", "logging level (DEBUG, INFO, NOTICE, WARNING, ERROR)")
-	cmd.AddCommand(startTokenWalletBackendCmd(ctx, baseConfig))
+	cmd.AddCommand(buildCmdStartTokenWalletBackend(baseConfig))
 	return cmd
 }
 
-func startTokenWalletBackendCmd(ctx context.Context, config *baseConfiguration) *cobra.Command {
+func buildCmdStartTokenWalletBackend(config *baseConfiguration) *cobra.Command {
 	cmd := &cobra.Command{
 		Use: "start",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return execTokenWalletBackendStartCmd(ctx, cmd, config)
+			return execTokenWalletBackendStartCmd(cmd.Context(), cmd, config)
 		},
 	}
-	cmd.Flags().StringP(alphabillUriCmdName, "u", defaultAlphabillUri, "alphabill node url")
-	cmd.Flags().StringP(serverAddrCmdName, "s", "localhost:9735", "server address")
+	cmd.Flags().StringP(alphabillNodeURLCmdName, "u", defaultAlphabillNodeURL, "alphabill node url")
+	cmd.Flags().StringP(serverAddrCmdName, "s", defaultTokenApiURL, "server address")
 	cmd.Flags().StringP(dbFileCmdName, "f", "", "path to the database file")
 	return cmd
 }
 
 func execTokenWalletBackendStartCmd(ctx context.Context, cmd *cobra.Command, config *baseConfiguration) error {
-	abURL, err := cmd.Flags().GetString(alphabillUriCmdName)
+	abURL, err := cmd.Flags().GetString(alphabillNodeURLCmdName)
 	if err != nil {
-		return fmt.Errorf("failed to get %q flag value: %w", alphabillUriCmdName, err)
+		return fmt.Errorf("failed to get %q flag value: %w", alphabillNodeURLCmdName, err)
 	}
 	srvAddr, err := cmd.Flags().GetString(serverAddrCmdName)
 	if err != nil {
@@ -72,13 +72,7 @@ func execTokenWalletBackendStartCmd(ctx context.Context, cmd *cobra.Command, con
 		return fmt.Errorf("failed to init logger: %w", err)
 	}
 
-	ctx, stop := signal.NotifyContext(ctx, os.Interrupt, syscall.SIGTERM)
-	go func() {
-		<-ctx.Done()
-		stop()
-	}()
-
-	return twb.Run(ctx, twb.NewConfig(srvAddr, abURL, dbFile, logger.Error))
+	return twb.Run(ctx, twb.NewConfig(srvAddr, abURL, dbFile, logger))
 }
 
 /*

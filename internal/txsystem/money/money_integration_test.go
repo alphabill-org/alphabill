@@ -133,7 +133,7 @@ func TestPartition_SwapDCOk(t *testing.T) {
 	amount := uint64(1)
 	prev := transferInitialBillTx
 	total = total - fcrAmount - txFee
-	for i, _ := range splitTxs {
+	for i := range splitTxs {
 		total = total - amount
 		splitTxs[i] = createSplitTx(prev, amount, total)
 		amount++
@@ -206,6 +206,7 @@ func TestPartition_SwapDCOk(t *testing.T) {
 	swapTx.OwnerProof = script.PredicateArgumentPayToPublicKeyHashDefault(sig, decodeHex(pubKey1))
 
 	err = network.SubmitTx(swapTx)
+	require.NoError(t, err)
 	require.Eventually(t, testpartition.BlockchainContainsTx(swapTx, network), test.WaitDuration, test.WaitTick)
 }
 

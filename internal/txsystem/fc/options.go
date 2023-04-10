@@ -4,8 +4,8 @@ import (
 	"crypto"
 
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
-	"github.com/alphabill-org/alphabill/internal/logger"
 	"github.com/alphabill-org/alphabill/internal/rma"
+	"github.com/alphabill-org/alphabill/pkg/logger"
 )
 
 type Option func(f *FeeCredit)

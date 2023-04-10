@@ -117,13 +117,37 @@ func TestSplit(t *testing.T) {
 			name: "AmountEqualsBillValue",
 			bd:   newBillData(100, []byte{6}),
 			tx:   newSplit(t, 100, 0, []byte{6}),
+			res:  ErrSplitBillZeroRemainder,
+		},
+		{
+			name: "Amount is zero (0:100)",
+			bd:   newBillData(100, []byte{6}),
+			tx:   newSplit(t, 0, 100, []byte{6}),
+			res:  ErrSplitBillZeroAmount,
+		},
+		{
+			name: "Amount is zero (0:30)",
+			bd:   newBillData(100, []byte{6}),
+			tx:   newSplit(t, 0, 30, []byte{6}),
+			res:  ErrSplitBillZeroAmount,
+		},
+		{
+			name: "InvalidRemainingValue - zero remaining (50:0)",
+			bd:   newBillData(100, []byte{6}),
+			tx:   newSplit(t, 50, 0, []byte{6}),
+			res:  ErrSplitBillZeroRemainder,
+		},
+		{
+			name: "InvalidRemainingValue - smaller than amount",
+			bd:   newBillData(100, []byte{6}),
+			tx:   newSplit(t, 50, 49, []byte{6}),
 			res:  ErrInvalidBillValue,
 		},
 		{
-			name: "InvalidRemainingValue",
+			name: "InvalidRemainingValue - greater than amount",
 			bd:   newBillData(100, []byte{6}),
 			tx:   newSplit(t, 50, 51, []byte{6}),
-			res:  ErrSplitTxInvalidBillRemainingValue,
+			res:  ErrInvalidBillValue,
 		},
 		{
 			name: "InvalidBacklink",
@@ -132,6 +156,7 @@ func TestSplit(t *testing.T) {
 			res:  ErrInvalidBacklink,
 		},
 	}
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			err := validateSplit(tt.bd, tt.tx)

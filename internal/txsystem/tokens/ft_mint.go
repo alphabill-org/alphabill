@@ -16,13 +16,27 @@ func handleMintFungibleTokenTx(options *Options) txsystem.GenericExecuteFunc[*mi
 		if err := validateMintFungibleToken(tx, options.state); err != nil {
 			return fmt.Errorf("invalid mint fungible token tx: %w", err)
 		}
-		h := tx.Hash(options.hashAlgorithm)
 		fee := options.feeCalculator()
 		tx.SetServerMetadata(&txsystem.ServerMetadata{Fee: fee})
+
+		// calculate hash after setting server metadata
+		h := tx.Hash(options.hashAlgorithm)
+
 		// update state
-		fcrID := tx.transaction.GetClientFeeCreditRecordID()
+		// disable fee handling if fee is calculated to 0
+		// (used to temporarily disable fee handling, can be removed after all wallets are updated)
+		var fcFunc rma.Action
+		if options.feeCalculator() == 0 {
+			fcFunc = func(tree *rma.Tree) error {
+				return nil
+			}
+		} else {
+			fcrID := tx.transaction.GetClientFeeCreditRecordID()
+			fcFunc = fc.DecrCredit(fcrID, fee, h)
+		}
+
 		return options.state.AtomicUpdate(
-			fc.DecrCredit(fcrID, fee, h),
+			fcFunc,
 			rma.AddItem(tx.UnitID(), tx.attributes.Bearer, newFungibleTokenData(tx, h, currentBlockNr), h),
 		)
 	}
@@ -35,11 +49,15 @@ func validateMintFungibleToken(tx *mintFungibleTokenWrapper, state *rma.Tree) er
 	}
 	u, err := state.GetUnit(unitID)
 	if u != nil {
-		return fmt.Errorf("unit %v exists", unitID)
+		return fmt.Errorf("unit with id %v already exists", unitID)
 	}
 	if !errors.Is(err, rma.ErrUnitNotFound) {
 		return err
 	}
+	if tx.Value() == 0 {
+		return errors.New("token must have value greater than zero")
+	}
+
 	// existence of the parent type is checked by the getChainedPredicates
 	predicates, err := getChainedPredicates[*fungibleTokenTypeData](
 		state,

@@ -20,7 +20,6 @@ import (
 type (
 	VDClient struct {
 		abClient client.ABClient
-		wallet   *wallet.Wallet
 		// synchronizes with ledger until the block is found where tx has been added to
 		syncToBlock   bool
 		timeoutDelta  uint64
@@ -78,11 +77,11 @@ func (v *VDClient) RegisterFileHash(filePath string) error {
 
 	hash := hasher.Sum(nil)
 	log.Debug("Hash of file '", filePath, "': ", hash)
-	return v.registerHashTx(hash)
+	return v.registerHashTx(context.Background(), hash)
 }
 
 func (v *VDClient) RegisterHashBytes(bytes []byte) error {
-	return v.registerHashTx(bytes)
+	return v.registerHashTx(context.Background(), bytes)
 }
 
 func (v *VDClient) RegisterHash(hash string) error {
@@ -90,7 +89,7 @@ func (v *VDClient) RegisterHash(hash string) error {
 	if err != nil {
 		return err
 	}
-	return v.registerHashTx(b)
+	return v.registerHashTx(context.Background(), b)
 }
 
 // FetchBlockWithHash is a temporary workaround for verifying registered hash values.
@@ -102,7 +101,7 @@ func (v *VDClient) FetchBlockWithHash(hash []byte, blockNumber uint64) error {
 func (v *VDClient) ListAllBlocksWithTx() error {
 	defer v.shutdown()
 	log.Info("Fetching blocks...")
-	maxBlockNumber, _, err := v.abClient.GetMaxBlockNumber()
+	maxBlockNumber, _, err := v.abClient.GetMaxBlockNumber(context.Background())
 	if err != nil {
 		return err
 	}
@@ -115,14 +114,14 @@ func (v *VDClient) ListAllBlocksWithTx() error {
 	return nil
 }
 
-func (v *VDClient) registerHashTx(hash []byte) error {
+func (v *VDClient) registerHashTx(ctx context.Context, hash []byte) error {
 	defer v.shutdown()
 
 	if err := validateHash(hash); err != nil {
 		return err
 	}
 
-	_, currentRoundNumber, err := v.abClient.GetMaxBlockNumber()
+	_, currentRoundNumber, err := v.abClient.GetMaxBlockNumber(ctx)
 	if err != nil {
 		return err
 	}
@@ -133,7 +132,7 @@ func (v *VDClient) registerHashTx(hash []byte) error {
 	if err != nil {
 		return err
 	}
-	resp, err := v.abClient.SendTransaction(tx)
+	resp, err := v.abClient.SendTransaction(ctx, tx)
 	if err != nil {
 		return err
 	}
@@ -149,11 +148,17 @@ func (v *VDClient) registerHashTx(hash []byte) error {
 }
 
 func (v *VDClient) sync(currentBlock uint64, timeout uint64, hash []byte) error {
-	v.wallet = wallet.New().
-		SetBlockProcessor(v.prepareProcessor(timeout, hash)).
-		SetABClient(v.abClient).
-		Build()
-	return v.wallet.Sync(v.ctx, currentBlock)
+	wallet := wallet.New().SetABClient(v.abClient).Build()
+
+	ctx, cancel := context.WithCancel(v.ctx)
+	syncDone := func() {
+		cancel()
+		wallet.Shutdown()
+	}
+
+	wallet.BlockProcessor = v.prepareProcessor(timeout, hash, syncDone)
+
+	return wallet.Sync(ctx, currentBlock)
 }
 
 type VDBlockProcessor func(b *block.Block) error
@@ -162,12 +167,12 @@ func (p VDBlockProcessor) ProcessBlock(b *block.Block) error {
 	return p(b)
 }
 
-func (v *VDClient) prepareProcessor(timeout uint64, hash []byte) VDBlockProcessor {
+func (v *VDClient) prepareProcessor(timeout uint64, hash []byte, syncDone func()) VDBlockProcessor {
 	return func(b *block.Block) error {
 		log.Debug("Fetched block #", b.UnicityCertificate.InputRecord.RoundNumber, ", tx count: ", len(b.GetTransactions()))
 		if b.UnicityCertificate.InputRecord.RoundNumber > timeout {
 			log.Info("Block timeout reached")
-			v.shutdown()
+			syncDone()
 			return nil
 		}
 		for _, tx := range b.GetTransactions() {
@@ -180,7 +185,7 @@ func (v *VDClient) prepareProcessor(timeout uint64, hash []byte) VDBlockProcesso
 						log.Info("Invoking block callback")
 						v.blockCallback(&VDBlock{blockNumber: b.UnicityCertificate.InputRecord.RoundNumber})
 					}
-					v.shutdown()
+					syncDone()
 					break
 				}
 			} else {
@@ -193,20 +198,10 @@ func (v *VDClient) prepareProcessor(timeout uint64, hash []byte) VDBlockProcesso
 
 func (v *VDClient) shutdown() {
 	log.Info("Shutting down")
-	if v.wallet != nil {
-		v.wallet.Shutdown()
-	}
 	err := v.abClient.Shutdown()
 	if err != nil {
 		log.Error(err)
 	}
-}
-
-func (v *VDClient) IsShutdown() bool {
-	if v.abClient != nil {
-		return v.abClient.IsShutdown()
-	}
-	return true
 }
 
 func validateHash(hash []byte) error {

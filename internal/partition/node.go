@@ -734,10 +734,10 @@ func (n *Node) revertState() {
 
 func (n *Node) proposalHash(prop *block.GenericPendingBlockProposal, uc *certificates.UnicityCertificate) (*block.Block, []byte, error) {
 	b := &block.GenericBlock{
-		NodeIdentifier:   prop.ProposerNodeId,
 		SystemIdentifier: n.configuration.GetSystemIdentifier(),
 		// latest non-empty block
 		PreviousBlockHash:  n.lastStoredBlock.UnicityCertificate.InputRecord.BlockHash,
+		NodeIdentifier:     prop.ProposerNodeId,
 		Transactions:       prop.Transactions,
 		UnicityCertificate: uc,
 	}

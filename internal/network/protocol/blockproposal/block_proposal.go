@@ -3,9 +3,10 @@ package blockproposal
 import (
 	"bytes"
 	gocrypto "crypto"
+	"errors"
+	"fmt"
 
 	"github.com/alphabill-org/alphabill/internal/crypto"
-	"github.com/alphabill-org/alphabill/internal/errors"
 )
 
 var (
@@ -14,6 +15,7 @@ var (
 	ErrSignerIsNil             = errors.New("signer is nil")
 	ErrNodeVerifierIsNil       = errors.New("node signature verifier is nil")
 	ErrInvalidSystemIdentifier = errors.New("invalid system identifier")
+	errBlockProposerIDMissing  = errors.New("block proposer id is missing")
 )
 
 func (x *BlockProposal) IsValid(nodeSignatureVerifier crypto.Verifier, ucTrustBase map[string]crypto.Verifier, algorithm gocrypto.Hash, systemIdentifier []byte, systemDescriptionHash []byte) error {
@@ -23,11 +25,14 @@ func (x *BlockProposal) IsValid(nodeSignatureVerifier crypto.Verifier, ucTrustBa
 	if nodeSignatureVerifier == nil {
 		return ErrNodeVerifierIsNil
 	}
+	if len(x.NodeIdentifier) == 0 {
+		return errBlockProposerIDMissing
+	}
 	if ucTrustBase == nil {
 		return ErrTrustBaseIsNil
 	}
 	if !bytes.Equal(systemIdentifier, x.SystemIdentifier) {
-		return errors.Wrapf(ErrInvalidSystemIdentifier, "expected %X, got %X", systemIdentifier, x.SystemIdentifier)
+		return fmt.Errorf("%w, expected %X, got %X", ErrInvalidSystemIdentifier, systemIdentifier, x.SystemIdentifier)
 	}
 	if err := x.UnicityCertificate.IsValid(ucTrustBase, algorithm, systemIdentifier, systemDescriptionHash); err != nil {
 		return err

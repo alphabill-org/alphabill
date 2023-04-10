@@ -911,7 +911,7 @@ func (n *Node) handleLedgerReplicationResponse(lr *replication.LedgerReplication
 	for _, b := range lr.Blocks {
 		if err = b.IsValid(n.unicityCertificateValidator); err != nil {
 			// sends invalid blocks, do not trust the response and try again
-			err = fmt.Errorf("ledger replication response contains invalid block, %w", err)
+			err = fmt.Errorf("ledger replication response contains invalid block for round %v, %w", b.GetRoundNumber(), err)
 			break
 		}
 		// it could be that we receive blocks from earlier time or later time, make sure to extend from what is missing

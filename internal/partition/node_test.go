@@ -187,6 +187,7 @@ func TestNode_CreateBlocks(t *testing.T) {
 	tp.CreateBlock(t)
 
 	block1 := tp.GetLatestBlock(t)
+	require.NotEmpty(t, block1.NodeIdentifier)
 	require.True(t, ContainsTransaction(block1, transfer))
 
 	tx1 := moneytesttx.RandomBillTransfer(t)
@@ -231,6 +232,7 @@ func TestNode_SubsequentEmptyBlocksNotPersisted(t *testing.T) {
 	testevent.ContainsEvent(t, tp.eh, event.TransactionProcessed)
 	tp.CreateBlock(t)
 	block1 := tp.GetLatestBlock(t)
+	require.NotEmpty(t, block1.NodeIdentifier)
 	require.NotEqual(t, genesis.UnicityCertificate.InputRecord.RoundNumber, block1.UnicityCertificate.InputRecord.RoundNumber)
 	require.NotEqual(t, genesis.UnicityCertificate.InputRecord.BlockHash, block1.UnicityCertificate.InputRecord.BlockHash)
 
@@ -259,6 +261,7 @@ func TestNode_SubsequentEmptyBlocksNotPersisted(t *testing.T) {
 	testevent.ContainsEvent(t, tp.eh, event.TransactionProcessed)
 	tp.CreateBlock(t)
 	block4 := tp.GetLatestBlock(t)
+	require.NotEmpty(t, block4.NodeIdentifier)
 	require.NotEqual(t, block1, block4)
 	require.NotEqual(t, block4.UnicityCertificate.InputRecord.BlockHash, zeroHash)
 	require.Equal(t, block1.UnicityCertificate.InputRecord.BlockHash, block4.PreviousBlockHash)

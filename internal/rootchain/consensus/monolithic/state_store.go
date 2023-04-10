@@ -44,10 +44,10 @@ func NewStateStore(dbPath string) (*StateStore, error) {
 	}
 }
 
-func (s *StateStore) IsEmpty() bool {
+func (s *StateStore) IsEmpty() (bool, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return s.db.Empty()
+	return keyvaluedb.IsEmpty(s.db)
 }
 
 func (s *StateStore) save(newRound uint64, certificates map[protocol.SystemIdentifier]*certificates.UnicityCertificate) error {

@@ -53,7 +53,11 @@ func NewMonolithicConsensusManager(selfStr string, rg *genesis.RootGenesis, part
 	if err != nil {
 		return nil, fmt.Errorf("storage init failed, %w", err)
 	}
-	if storage.IsEmpty() {
+	empty, err := storage.IsEmpty()
+	if err != nil {
+		return nil, fmt.Errorf("storage init db empty check failed, %w", err)
+	}
+	if empty {
 		// init form genesis
 		logger.Info("Consensus init from genesis")
 		if err = storage.Init(rg); err != nil {

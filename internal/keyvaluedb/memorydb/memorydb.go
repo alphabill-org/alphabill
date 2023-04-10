@@ -32,17 +32,6 @@ func New() *MemoryDB {
 	}
 }
 
-// Empty returns true if no values are stored in db
-func (db *MemoryDB) Empty() bool {
-	db.lock.RLock()
-	defer db.lock.RUnlock()
-
-	if len(db.db) == 0 {
-		return true
-	}
-	return false
-}
-
 // Read retrieves the given key if it's present in the key-value store.
 func (db *MemoryDB) Read(key []byte, value any) (bool, error) {
 	db.lock.RLock()

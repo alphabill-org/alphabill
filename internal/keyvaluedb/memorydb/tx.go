@@ -28,27 +28,37 @@ func NewMapTx(m *MemoryDB) (*Tx, error) {
 	}
 	return &Tx{
 		mem: m,
-		db:  nil,
+		db:  copyMap(m.db),
 	}, nil
 }
 
-func (t *Tx) copyOnWrite() {
-	t.db = copyMap(t.mem.db)
+func (t *Tx) Read(key []byte, v any) (bool, error) {
+	t.mem.lock.RLock()
+	defer t.mem.lock.RUnlock()
+	if err := keyvaluedb.CheckKeyAndValue(key, v); err != nil {
+		return false, err
+	}
+	if t.db == nil {
+		return false, fmt.Errorf("memdb tx read failed, tx closed")
+	}
+	if data, ok := t.db[string(key)]; ok {
+		return true, t.mem.decoder(data, v)
+	}
+	return false, nil
 }
 
 func (t *Tx) Write(key []byte, value any) error {
+	t.mem.lock.Lock()
+	defer t.mem.lock.Unlock()
 	if err := keyvaluedb.CheckKeyAndValue(key, value); err != nil {
 		return err
 	}
-	t.mem.lock.Lock()
-	defer t.mem.lock.Unlock()
+	if t.db == nil {
+		return fmt.Errorf("memdb tx write failed, tx closed")
+	}
 	b, err := t.mem.encoder(value)
 	if err != nil {
 		return err
-	}
-	// copy on write
-	if t.db == nil {
-		t.copyOnWrite()
 	}
 	if t.mem.writeErr != nil {
 		return t.mem.writeErr
@@ -58,20 +68,22 @@ func (t *Tx) Write(key []byte, value any) error {
 }
 
 func (t *Tx) Delete(key []byte) error {
+	t.mem.lock.Lock()
+	defer t.mem.lock.Unlock()
 	if err := keyvaluedb.CheckKey(key); err != nil {
 		return err
 	}
-	t.mem.lock.Lock()
-	defer t.mem.lock.Unlock()
-	// copy on write
 	if t.db == nil {
-		t.copyOnWrite()
+		return fmt.Errorf("memdb tx delete failed, tx closed")
 	}
 	delete(t.db, string(key))
 	return nil
 }
 
 func (t *Tx) Rollback() error {
+	t.mem.lock.Lock()
+	defer t.mem.lock.Unlock()
+	t.db = nil
 	return nil
 }
 

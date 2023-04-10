@@ -1071,7 +1071,7 @@ func (n *Node) sendCertificationRequest(blockAuthor string) error {
 	n.pendingBlockProposal = pendingProposal
 
 	latestBlockHash := n.lastStoredBlock.UnicityCertificate.InputRecord.BlockHash
-	blockHash, err := n.hashProposedBlock(latestBlockHash)
+	blockHash, err := n.hashProposedBlock(latestBlockHash, blockAuthor)
 	if err != nil {
 		return fmt.Errorf("block hash calculation failed, %w", err)
 	}
@@ -1179,10 +1179,11 @@ func (n *Node) startHandleOrForwardTransactions() {
 	}()
 }
 
-func (n *Node) hashProposedBlock(prevBlockHash []byte) ([]byte, error) {
+func (n *Node) hashProposedBlock(prevBlockHash []byte, author string) ([]byte, error) {
 	b := block.GenericBlock{
 		SystemIdentifier:  n.configuration.GetSystemIdentifier(),
 		PreviousBlockHash: prevBlockHash,
+		NodeIdentifier:    author,
 		Transactions:      n.pendingBlockProposal.Transactions,
 	}
 	return b.Hash(n.configuration.hashAlgorithm)

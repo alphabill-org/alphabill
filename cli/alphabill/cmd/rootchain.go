@@ -147,54 +147,7 @@ func defaultRootNodeRunFunc(ctx context.Context, config *rootNodeConfig) error {
 	if err != nil {
 		return fmt.Errorf("failed initiate root node: %w", err)
 	}
-	node.Start(ctx)
-	<-ctx.Done()
-	return ctx.Err()
-}
-
-func loadRootNetworkConfiguration(keys *Keys, rootValidators []*genesis.PublicKeyInfo, cfg *validatorConfig) (*network.Peer, error) {
-	pair, err := keys.getEncryptionKeyPair()
-	if err != nil {
-		return nil, err
-	}
-	selfId, err := peer.IDFromPublicKey(keys.EncryptionPrivateKey.GetPublic())
-	if err != nil {
-		return nil, err
-	}
-	var persistentPeers = make([]*network.PeerInfo, len(rootValidators))
-	for i, validator := range rootValidators {
-		if selfId.String() == validator.NodeIdentifier {
-			if !bytes.Equal(pair.PublicKey, validator.EncryptionPublicKey) {
-				return nil, fmt.Errorf("invalid encryption key")
-			}
-			persistentPeers[i] = &network.PeerInfo{
-				Address:   cfg.RootListener,
-				PublicKey: validator.EncryptionPublicKey,
-			}
-			continue
-		}
-
-		peerAddress, err := cfg.getPeerAddress(validator.NodeIdentifier)
-		if err != nil {
-			return nil, err
-		}
-
-		persistentPeers[i] = &network.PeerInfo{
-			Address:   peerAddress,
-			PublicKey: validator.EncryptionPublicKey,
-		}
-	}
-	// Sort validators by public encryption key
-	sort.Slice(persistentPeers, func(i, j int) bool {
-		return string(persistentPeers[i].PublicKey) < string(persistentPeers[j].PublicKey)
-	})
-
-	conf := &network.PeerConfiguration{
-		Address:         cfg.RootListener,
-		KeyPair:         pair,
-		PersistentPeers: persistentPeers,
-	}
-	return network.NewPeer(conf)
+	return node.Start(ctx)
 }
 
 func createHost(address string, encPrivate crypto.PrivKey) (*network.Peer, error) {

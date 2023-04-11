@@ -88,6 +88,21 @@ func TestBlockProposal_IsValid_NotOk(t *testing.T) {
 			wantErr: ErrInvalidSystemIdentifier,
 		},
 		{
+			name: "block proposer id is missing",
+			fields: fields{
+				SystemIdentifier: systemIdentifier,
+				Transactions:     []*txsystem.Transaction{},
+			},
+			args: args{
+				nodeSignatureVerifier: nodeVerifier,
+				ucTrustBase:           map[string]crypto.Verifier{"1": trustBase},
+				algorithm:             gocrypto.SHA256,
+				systemIdentifier:      systemIdentifier,
+				systemDescriptionHash: test.RandomBytes(32),
+			},
+			wantErr: errBlockProposerIDMissing,
+		},
+		{
 			name: "uc is nil",
 			fields: fields{
 				SystemIdentifier:   systemIdentifier,

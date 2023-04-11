@@ -570,7 +570,7 @@ func (n *Node) handleBlockProposal(prop *blockproposal.BlockProposal) error {
 			return fmt.Errorf("transaction error %w", err)
 		}
 	}
-	if err = n.sendCertificationRequest(); err != nil {
+	if err = n.sendCertificationRequest(prop.NodeIdentifier); err != nil {
 		return fmt.Errorf("certification request send failed, %w", err)
 	}
 	return nil
@@ -694,7 +694,7 @@ func (n *Node) handleUnicityCertificate(uc *certificates.UnicityCertificate) err
 		return nil
 	}
 	// Check pending block proposal
-	bl, blockHash, err := n.proposalHash(n.pendingBlockProposal.Transactions, uc)
+	bl, blockHash, err := n.proposalHash(n.pendingBlockProposal, uc)
 	logger.Debug("Pending proposal: \nH:\t%X\nH':\t%X\nHb:\t%X\nround:\t%v",
 		n.pendingBlockProposal.StateHash, n.pendingBlockProposal.PrevHash, blockHash, n.pendingBlockProposal.RoundNumber)
 	if err != nil {
@@ -733,12 +733,13 @@ func (n *Node) revertState() {
 	n.transactionSystem.Revert()
 }
 
-func (n *Node) proposalHash(transactions []txsystem.GenericTransaction, uc *certificates.UnicityCertificate) (*block.Block, []byte, error) {
+func (n *Node) proposalHash(prop *block.GenericPendingBlockProposal, uc *certificates.UnicityCertificate) (*block.Block, []byte, error) {
 	b := &block.GenericBlock{
 		SystemIdentifier: n.configuration.GetSystemIdentifier(),
 		// latest non-empty block
 		PreviousBlockHash:  n.lastStoredBlock.UnicityCertificate.InputRecord.BlockHash,
-		Transactions:       transactions,
+		NodeIdentifier:     prop.ProposerNodeId,
+		Transactions:       prop.Transactions,
 		UnicityCertificate: uc,
 	}
 	blockHash, err := b.Hash(n.configuration.hashAlgorithm)
@@ -789,7 +790,7 @@ func (n *Node) handleT1TimeoutEvent() {
 		logger.Warning("Failed to send BlockProposal: %v", err)
 		return
 	}
-	if err := n.sendCertificationRequest(); err != nil {
+	if err := n.sendCertificationRequest(n.leaderSelector.SelfID().String()); err != nil {
 		logger.Warning("Failed to send certification request: %v", err)
 	}
 }
@@ -911,7 +912,7 @@ func (n *Node) handleLedgerReplicationResponse(lr *replication.LedgerReplication
 	for _, b := range lr.Blocks {
 		if err = b.IsValid(n.unicityCertificateValidator); err != nil {
 			// sends invalid blocks, do not trust the response and try again
-			err = fmt.Errorf("ledger replication response contains invalid block, %w", err)
+			err = fmt.Errorf("ledger replication response contains invalid block for round %v, %w", b.GetRoundNumber(), err)
 			break
 		}
 		// it could be that we receive blocks from earlier time or later time, make sure to extend from what is missing
@@ -1045,7 +1046,7 @@ func (n *Node) persistBlockProposal(pr *block.GenericPendingBlockProposal) error
 	return nil
 }
 
-func (n *Node) sendCertificationRequest() error {
+func (n *Node) sendCertificationRequest(blockAuthor string) error {
 	defer trackExecutionTime(time.Now(), "Sending CertificationRequest")
 	systemIdentifier := n.configuration.GetSystemIdentifier()
 	nodeId := n.leaderSelector.SelfID()
@@ -1058,10 +1059,11 @@ func (n *Node) sendCertificationRequest() error {
 	summary := state.Summary()
 
 	pendingProposal := &block.GenericPendingBlockProposal{
-		RoundNumber:  n.getCurrentRound(),
-		PrevHash:     prevStateHash,
-		StateHash:    stateHash,
-		Transactions: n.proposedTransactions,
+		ProposerNodeId: blockAuthor,
+		RoundNumber:    n.getCurrentRound(),
+		PrevHash:       prevStateHash,
+		StateHash:      stateHash,
+		Transactions:   n.proposedTransactions,
 	}
 	if err = n.persistBlockProposal(pendingProposal); err != nil {
 		logger.Error("failed to store proposal, %v", err)
@@ -1070,7 +1072,7 @@ func (n *Node) sendCertificationRequest() error {
 	n.pendingBlockProposal = pendingProposal
 
 	latestBlockHash := n.lastStoredBlock.UnicityCertificate.InputRecord.BlockHash
-	blockHash, err := n.hashProposedBlock(latestBlockHash)
+	blockHash, err := n.hashProposedBlock(latestBlockHash, blockAuthor)
 	if err != nil {
 		return fmt.Errorf("block hash calculation failed, %w", err)
 	}
@@ -1178,10 +1180,11 @@ func (n *Node) startHandleOrForwardTransactions() {
 	}()
 }
 
-func (n *Node) hashProposedBlock(prevBlockHash []byte) ([]byte, error) {
+func (n *Node) hashProposedBlock(prevBlockHash []byte, author string) ([]byte, error) {
 	b := block.GenericBlock{
 		SystemIdentifier:  n.configuration.GetSystemIdentifier(),
 		PreviousBlockHash: prevBlockHash,
+		NodeIdentifier:    author,
 		Transactions:      n.pendingBlockProposal.Transactions,
 	}
 	return b.Hash(n.configuration.hashAlgorithm)

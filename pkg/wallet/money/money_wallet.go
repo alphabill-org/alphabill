@@ -375,7 +375,7 @@ func (w *Wallet) confirmSwap(ctx context.Context) error {
 		}
 		if b != nil {
 			for _, tx := range b.Transactions {
-				err = w.dcWg.DecrementSwaps(string(tx.UnitId), roundNr)
+				err = w.dcWg.DecrementSwaps(string(tx.UnitId))
 				if err != nil {
 					return err
 				}

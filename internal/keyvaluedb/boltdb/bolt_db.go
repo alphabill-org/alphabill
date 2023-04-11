@@ -58,12 +58,6 @@ func (db *BoltDB) createBuckets() error {
 	})
 }
 
-func (db *BoltDB) Empty() bool {
-	it := db.First()
-	defer it.Close()
-	return !it.Valid()
-}
-
 func (db *BoltDB) Read(key []byte, v any) (bool, error) {
 	if err := keyvaluedb.CheckKeyAndValue(key, v); err != nil {
 		return false, err
@@ -129,7 +123,7 @@ func (db *BoltDB) Find(key []byte) keyvaluedb.Iterator {
 }
 
 func (db *BoltDB) StartTx() (keyvaluedb.DBTransaction, error) {
-	tx, err := NewBoltTx(db.db, db.bucket, db.encoder)
+	tx, err := NewBoltTx(db.db, db.bucket, db.encoder, db.decoder)
 	if err != nil {
 		return nil, fmt.Errorf("failed to start Bolt tx, %w", err)
 	}

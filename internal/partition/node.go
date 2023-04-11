@@ -9,6 +9,9 @@ import (
 	"sync"
 	"time"
 
+	"github.com/libp2p/go-libp2p/core/peer"
+	"golang.org/x/sync/errgroup"
+
 	"github.com/alphabill-org/alphabill/internal/block"
 	"github.com/alphabill-org/alphabill/internal/certificates"
 	"github.com/alphabill-org/alphabill/internal/crypto"
@@ -27,7 +30,6 @@ import (
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/internal/util"
 	log "github.com/alphabill-org/alphabill/pkg/logger"
-	"github.com/libp2p/go-libp2p/core/peer"
 )
 
 const (
@@ -73,19 +75,15 @@ type (
 		blockProposalValidator      BlockProposalValidator
 		blockStore                  keyvaluedb.KeyValueDB
 		txBuffer                    *txbuffer.TxBuffer
-		ctx                         context.Context
-		ctxCancel                   context.CancelFunc
 		network                     Net
 		txCancel                    context.CancelFunc
 		txWaitGroup                 *sync.WaitGroup
 		txCh                        chan txsystem.GenericTransaction
 		eventCh                     chan event.Event
-		eventChCancel               chan bool
 		lastRootMsgTime             time.Time
 		lastLedgerReqTime           time.Time
 		eventHandler                event.Handler
 		recoveryLastProp            *blockproposal.BlockProposal
-		ticker                      *time.Ticker
 	}
 
 	status int
@@ -100,7 +98,6 @@ type (
 //			txSystem,
 //			genesis,
 //			net,
-//			WithContext(context.Background()),
 //			WithTxValidator(myTxValidator)),
 //			WithUnicityCertificateValidator(ucValidator),
 //			WithBlockProposalValidator(blockProposalValidator),
@@ -123,7 +120,7 @@ func New(
 	// load and validate node configuration
 	conf, err := loadAndValidateConfiguration(peer, signer, genesis, txSystem, net, nodeOptions...)
 	if err != nil {
-		return nil, fmt.Errorf("node error, %w", err)
+		return nil, fmt.Errorf("invalid node configuration: %w", err)
 	}
 
 	log.SetContext(log.KeyNodeID, conf.peer.ID().String())
@@ -144,24 +141,38 @@ func New(
 		txWaitGroup:                 &sync.WaitGroup{},
 		lastRootMsgTime:             time.Time{},
 		lastLedgerReqTime:           time.Time{},
-		ticker:                      time.NewTicker(time.Second),
+		txCh:                        make(chan txsystem.GenericTransaction, conf.txBuffer.Capacity()),
 	}
-	n.ctx, n.ctxCancel = context.WithCancel(conf.context)
 
-	n.txCh = make(chan txsystem.GenericTransaction, conf.txBuffer.Capacity())
 	if n.eventHandler != nil {
 		n.eventCh = make(chan event.Event, conf.eventChCapacity)
-		n.eventChCancel = make(chan bool)
-		go n.eventHandlerLoop()
 	}
 
 	if err = initState(n); err != nil {
-		return nil, fmt.Errorf("node init failed, %w", err)
+		return nil, fmt.Errorf("node init failed: %w", err)
 	}
-	go n.loop()
+	return n, nil
+}
+
+func (n *Node) Run(ctx context.Context) error {
 	// subscribe to unicity certificates
 	n.sendHandshake()
-	return n, nil
+
+	g, ctx := errgroup.WithContext(ctx)
+
+	g.Go(func() error {
+		if n.eventHandler == nil {
+			return nil // do not cancel the group!
+		}
+		return n.eventHandlerLoop(ctx)
+	})
+
+	g.Go(func() error {
+		defer n.timers.WaitClose()
+		return n.loop(ctx)
+	})
+
+	return g.Wait()
 }
 
 func (n *Node) getCurrentRound() uint64 {
@@ -185,7 +196,11 @@ func initState(n *Node) (err error) {
 	defer trackExecutionTime(time.Now(), "Restore node state")
 	// get genesis block from the genesis
 	genesisBlock := n.configuration.genesisBlock()
-	if n.blockStore.Empty() {
+	empty, err := keyvaluedb.IsEmpty(n.blockStore)
+	if err != nil {
+		return fmt.Errorf("node init db empty check failed, %w", err)
+	}
+	if empty {
 		logger.Info("State initialised from genesis")
 		if err = n.blockStore.Write(util.Uint64ToBytes(pgenesis.PartitionRoundNumber), genesisBlock); err != nil {
 			return fmt.Errorf("init failed to persist genesis block, %w", err)
@@ -295,30 +310,20 @@ func (n *Node) restoreBlockProposal(prevBlock *block.Block) {
 	n.pendingBlockProposal = proposal
 }
 
-// Close shuts down the Node component.
-func (n *Node) Close() {
-	logger.Info("Shutting down node '%v'", n.configuration.peer.ID())
-	n.ctxCancel()
-	n.ticker.Stop()
-	n.timers.WaitClose()
-	n.txBuffer.Close()
-	close(n.txCh)
-	if n.eventHandler != nil {
-		n.eventChCancel <- true
-	}
-}
-
 // loop handles receivedMessages from different goroutines.
-func (n *Node) loop() {
+func (n *Node) loop(ctx context.Context) error {
+	ticker := time.NewTicker(time.Second)
+	defer ticker.Stop()
+
 	for {
 		select {
-		case <-n.ctx.Done():
-			logger.Info("Exiting partition node component main loop")
-			return
+		case <-ctx.Done():
+			logger.Info("Exiting partition node %v component main loop", n.configuration.peer.ID())
+			return ctx.Err()
 		case tx, ok := <-n.txCh:
 			if !ok {
 				logger.Warning("Tx channel closed, exiting main loop")
-				return
+				return fmt.Errorf("transaction channel is closed")
 			}
 			// round might not be active, but some transactions might still be in the channel
 			if n.txCancel == nil {
@@ -336,7 +341,7 @@ func (n *Node) loop() {
 		case m, ok := <-n.network.ReceivedChannel():
 			if !ok {
 				logger.Warning("Received channel closed, exiting main loop")
-				return
+				return fmt.Errorf("network received channel is closed")
 			}
 			if m.Message == nil {
 				logger.Warning("Received network message is nil")
@@ -350,7 +355,7 @@ func (n *Node) loop() {
 					n.sendEvent(event.Error, err)
 				}
 			case network.ProtocolUnicityCertificates:
-				success, uc := convertType[*certificates.UnicityCertificate](m.Message)
+				uc, success := m.Message.(*certificates.UnicityCertificate)
 				if !success {
 					logger.Warning("Invalid unicity certificate type: %T", m.Message)
 					continue
@@ -365,7 +370,7 @@ func (n *Node) loop() {
 				}
 				n.sendEvent(event.UnicityCertificateHandled, uc)
 			case network.ProtocolBlockProposal:
-				success, bp := convertType[*blockproposal.BlockProposal](m.Message)
+				bp, success := m.Message.(*blockproposal.BlockProposal)
 				if !success {
 					logger.Warning("Invalid block proposal type: %T", m.Message)
 					continue
@@ -377,7 +382,7 @@ func (n *Node) loop() {
 					continue
 				}
 			case network.ProtocolLedgerReplicationReq:
-				success, lr := convertType[*replication.LedgerReplicationRequest](m.Message)
+				lr, success := m.Message.(*replication.LedgerReplicationRequest)
 				if !success {
 					logger.Warning("Invalid ledger replication request type: %T", m.Message)
 					continue
@@ -386,7 +391,7 @@ func (n *Node) loop() {
 					logger.Warning("Ledger replication failed by node %v: %v", n.configuration.peer.ID(), err)
 				}
 			case network.ProtocolLedgerReplicationResp:
-				success, lr := convertType[*replication.LedgerReplicationResponse](m.Message)
+				lr, success := m.Message.(*replication.LedgerReplicationResponse)
 				if !success {
 					logger.Warning("Invalid ledger replication response type: %T", m.Message)
 					continue
@@ -400,17 +405,13 @@ func (n *Node) loop() {
 		case nt, ok := <-n.timers.C:
 			if !ok {
 				logger.Warning("Timers channel closed, exiting main loop")
-				return
+				return fmt.Errorf("timers channel is closed")
 			}
 			if nt == nil {
 				continue
 			}
 			n.handleT1TimeoutEvent()
-		case _, ok := <-n.ticker.C:
-			if !ok {
-				logger.Warning("Ticker channel closed, exiting main loop")
-				return
-			}
+		case <-ticker.C:
 			n.handleMonitoring()
 		}
 	}
@@ -426,11 +427,11 @@ func (n *Node) sendEvent(eventType event.Type, content any) {
 }
 
 // eventHandlerLoop forwards events produced by a node to the configured eventHandler.
-func (n *Node) eventHandlerLoop() {
+func (n *Node) eventHandlerLoop(ctx context.Context) error {
 	for {
 		select {
-		case <-n.eventChCancel:
-			return
+		case <-ctx.Done():
+			return ctx.Err()
 		case e := <-n.eventCh:
 			n.eventHandler(&e)
 		}
@@ -438,7 +439,7 @@ func (n *Node) eventHandlerLoop() {
 }
 
 func (n *Node) handleTxMessage(m network.ReceivedMessage) error {
-	success, tx := convertType[*txsystem.Transaction](m.Message)
+	tx, success := m.Message.(*txsystem.Transaction)
 	if !success {
 		return fmt.Errorf("unsupported type: %T", m.Message)
 	}
@@ -1187,15 +1188,6 @@ func (n *Node) hashProposedBlock(prevBlockHash []byte, author string) ([]byte, e
 		Transactions:      n.pendingBlockProposal.Transactions,
 	}
 	return b.Hash(n.configuration.hashAlgorithm)
-}
-
-func convertType[T any](event interface{}) (bool, T) {
-	var result T
-	switch r := event.(type) {
-	case T:
-		return true, r
-	}
-	return false, result
 }
 
 func trackExecutionTime(start time.Time, name string) {

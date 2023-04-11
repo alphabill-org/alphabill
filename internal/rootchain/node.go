@@ -28,11 +28,10 @@ type (
 	}
 
 	Node struct {
-		ctxCancel        context.CancelFunc
 		peer             *network.Peer // p2p network host for partition
 		partitions       partitions.PartitionConfiguration
 		incomingRequests *CertRequestBuffer
-		subscription     Subscriptions
+		subscription     *Subscriptions
 		net              PartitionNet
 		consensusManager consensus.Manager
 	}
@@ -63,9 +62,9 @@ func New(
 	return node, nil
 }
 
-func (v *Node) Start(ctx context.Context) error {
+func (v *Node) Run(ctx context.Context) error {
 	g, gctx := errgroup.WithContext(ctx)
-	// Start root consensus algorithm
+	// Run root consensus algorithm
 	g.Go(func() error { return v.consensusManager.Run(gctx) })
 	// Start receiving messages from partition nodes
 	g.Go(func() error { return v.loop(gctx) })
@@ -237,7 +236,7 @@ func (v *Node) handleConsensus(ctx context.Context) error {
 				logger.Warning("%v consensus channel closed, exiting loop", v.peer.String())
 				return fmt.Errorf("consenus channel closed")
 			}
-			v.onCertificationResult(&uc)
+			v.onCertificationResult(uc)
 		}
 	}
 }

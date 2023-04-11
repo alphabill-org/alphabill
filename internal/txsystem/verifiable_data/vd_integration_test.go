@@ -1,6 +1,7 @@
 package verifiable_data
 
 import (
+	"context"
 	"fmt"
 	"testing"
 
@@ -42,7 +43,7 @@ func TestVDPartition_OnePartitionNodeIsDown(t *testing.T) {
 	}, systemIdentifier)
 	require.NoError(t, err)
 	// Killing the leader node fails the test
-	network.Nodes[1].Close() // shut down the node
+	require.ErrorIs(t, network.Nodes[1].Stop(), context.Canceled) // shut down the node
 
 	tx := createVDTransaction()
 	fmt.Printf("Submitting tx: %v, UnitId=%x\n", tx, tx.UnitId)

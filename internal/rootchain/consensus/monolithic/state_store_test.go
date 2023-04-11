@@ -54,7 +54,9 @@ var testGenesis = &genesis.RootGenesis{
 }
 
 func storeTest(t *testing.T, store *StateStore) {
-	require.True(t, store.IsEmpty())
+	empty, err := store.IsEmpty()
+	require.NoError(t, err)
+	require.True(t, empty)
 	// read round from empty
 	round, err := store.GetRound()
 	require.ErrorContains(t, err, "round not stored in db")
@@ -99,6 +101,7 @@ func storeTest(t *testing.T, store *StateStore) {
 	// read non-existing system id
 	lastCert, err = store.GetCertificate(protocol.SystemIdentifier(sysID2))
 	require.ErrorContains(t, err, "certificate id 00000002 not found")
+	require.Nil(t, lastCert)
 	// read sys id 1
 	lastCert, err = store.GetCertificate(protocol.SystemIdentifier(sysID1))
 	require.NoError(t, err)
@@ -117,6 +120,7 @@ func TestPersistentRootState(t *testing.T) {
 	dir, err := os.MkdirTemp("", "bolt*")
 	require.NoError(t, err)
 	stateStore, err := NewStateStore(dir)
+	require.NoError(t, err)
 	defer func() {
 		require.NoError(t, os.RemoveAll(dir))
 	}()
@@ -134,6 +138,7 @@ func TestRepeatedStore(t *testing.T) {
 	dir, err := os.MkdirTemp("", "bolt*")
 	require.NoError(t, err)
 	store, err := NewStateStore(dir)
+	require.NoError(t, err)
 	defer func() {
 		require.NoError(t, os.RemoveAll(dir))
 	}()

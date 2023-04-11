@@ -148,7 +148,7 @@ func defaultRootNodeRunFunc(ctx context.Context, config *rootNodeConfig) error {
 	if err != nil {
 		return fmt.Errorf("failed initiate root node: %w", err)
 	}
-	return node.Start(ctx)
+	return node.Run(ctx)
 }
 
 func createHost(address string, encPrivate crypto.PrivKey) (*network.Peer, error) {
@@ -169,14 +169,6 @@ func createHost(address string, encPrivate crypto.PrivKey) (*network.Peer, error
 		KeyPair: keyPair,
 	}
 	return network.NewPeer(conf)
-}
-
-func (c *rootNodeConfig) getPeerAddress(identifier string) (string, error) {
-	address, f := c.Validators[identifier]
-	if !f {
-		return "", fmt.Errorf("address for node %v not found", identifier)
-	}
-	return address, nil
 }
 
 func verifyKeyPresentInGenesis(peer *network.Peer, rg *genesis.GenesisRootRecord, ver abcrypto.Verifier) error {

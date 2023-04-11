@@ -66,11 +66,9 @@ func (x *Block) IsValid(v UCValidator) error {
 	if x.PreviousBlockHash == nil {
 		return errPrevBlockHashIsNil
 	}
-	/* Todo: AB-845, currently this field is never set
 	if len(x.NodeIdentifier) == 0 {
 		return errBlockProposerIdIsMissing
 	}
-	*/
 	if x.Transactions == nil {
 		return errTransactionsIsNil
 	}

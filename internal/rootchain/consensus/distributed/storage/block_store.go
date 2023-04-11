@@ -7,6 +7,7 @@ import (
 
 	"github.com/alphabill-org/alphabill/internal/certificates"
 	"github.com/alphabill-org/alphabill/internal/errors"
+	"github.com/alphabill-org/alphabill/internal/keyvaluedb"
 	"github.com/alphabill-org/alphabill/internal/network/protocol"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/atomic_broadcast"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
@@ -56,8 +57,12 @@ func NewBlockStore(hash gocrypto.Hash, pg []*genesis.GenesisPartitionRecord, s *
 		return nil, errors.New("storage is nil")
 	}
 	// First start, initiate from genesis data
-	if s.blocksDB.Empty() {
-		if err := storeGenesisInit(hash, pg, s); err != nil {
+	empty, err := keyvaluedb.IsEmpty(s.blocksDB)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read block store, %w", err)
+	}
+	if empty {
+		if err = storeGenesisInit(hash, pg, s); err != nil {
 			return nil, fmt.Errorf("block store init failed, %w", err)
 		}
 	}

@@ -213,7 +213,7 @@ func TestRootValidatorTest_SimulateNetCommunication(t *testing.T) {
 	rootValidator, node, partitionNodes, rg := initRootValidator(t, mockNet)
 	ctx, ctxCancel := context.WithCancel(context.Background())
 	t.Cleanup(ctxCancel)
-	go func() { require.ErrorIs(t, rootValidator.Start(ctx), context.Canceled) }()
+	go func() { require.ErrorIs(t, rootValidator.Run(ctx), context.Canceled) }()
 
 	require.Len(t, partitionNodes, 3)
 	require.NotNil(t, rg)
@@ -240,7 +240,7 @@ func TestRootValidatorTest_SimulateNetCommunicationNoQuorum(t *testing.T) {
 	rootValidator, node, partitionNodes, rg := initRootValidator(t, mockNet)
 	ctx, ctxCancel := context.WithCancel(context.Background())
 	t.Cleanup(ctxCancel)
-	go func() { require.ErrorIs(t, rootValidator.Start(ctx), context.Canceled) }()
+	go func() { require.ErrorIs(t, rootValidator.Run(ctx), context.Canceled) }()
 
 	require.Len(t, partitionNodes, 3)
 	require.NotNil(t, rg)
@@ -282,7 +282,7 @@ func TestRootValidatorTest_SimulateNetCommunicationHandshake(t *testing.T) {
 	rootValidator, node, partitionNodes, rg := initRootValidator(t, mockNet)
 	ctx, ctxCancel := context.WithCancel(context.Background())
 	t.Cleanup(ctxCancel)
-	go func() { require.ErrorIs(t, rootValidator.Start(ctx), context.Canceled) }()
+	go func() { require.ErrorIs(t, rootValidator.Run(ctx), context.Canceled) }()
 
 	require.Len(t, partitionNodes, 3)
 	require.NotNil(t, rg)
@@ -333,7 +333,7 @@ func TestRootValidatorTest_SimulateNetCommunicationInvalidReqRoundNumber(t *test
 	rootValidator, node, partitionNodes, rg := initRootValidator(t, mockNet)
 	ctx, ctxCancel := context.WithCancel(context.Background())
 	t.Cleanup(ctxCancel)
-	go func() { require.ErrorIs(t, rootValidator.Start(ctx), context.Canceled) }()
+	go func() { require.ErrorIs(t, rootValidator.Run(ctx), context.Canceled) }()
 
 	require.NotNil(t, rootValidator)
 	require.Len(t, partitionNodes, 3)
@@ -361,7 +361,7 @@ func TestRootValidatorTest_SimulateNetCommunicationInvalidHash(t *testing.T) {
 	rootValidator, node, partitionNodes, rg := initRootValidator(t, mockNet)
 	ctx, ctxCancel := context.WithCancel(context.Background())
 	t.Cleanup(ctxCancel)
-	go func() { require.ErrorIs(t, rootValidator.Start(ctx), context.Canceled) }()
+	go func() { require.ErrorIs(t, rootValidator.Run(ctx), context.Canceled) }()
 
 	require.NotNil(t, rootValidator)
 	require.Len(t, partitionNodes, 3)
@@ -389,7 +389,7 @@ func TestRootValidatorTest_SimulateResponse(t *testing.T) {
 	rootValidator, node, partitionNodes, rg := initRootValidator(t, mockNet)
 	ctx, ctxCancel := context.WithCancel(context.Background())
 	t.Cleanup(ctxCancel)
-	go func() { require.ErrorIs(t, rootValidator.Start(ctx), context.Canceled) }()
+	go func() { require.ErrorIs(t, rootValidator.Run(ctx), context.Canceled) }()
 
 	require.Len(t, partitionNodes, 3)
 	require.NotNil(t, rg)
@@ -428,7 +428,7 @@ func TestRootValidator_ResultUnknown(t *testing.T) {
 	rootValidator, _, _, rg := initRootValidator(t, mockNet)
 	ctx, ctxCancel := context.WithCancel(context.Background())
 	t.Cleanup(ctxCancel)
-	go func() { require.ErrorIs(t, rootValidator.Start(ctx), context.Canceled) }()
+	go func() { require.ErrorIs(t, rootValidator.Run(ctx), context.Canceled) }()
 
 	newIR := &certificates.InputRecord{
 		PreviousHash: rg.Partitions[0].Nodes[0].BlockCertificationRequest.InputRecord.Hash,

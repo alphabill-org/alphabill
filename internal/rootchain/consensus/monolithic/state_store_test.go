@@ -54,7 +54,9 @@ var testGenesis = &genesis.RootGenesis{
 }
 
 func storeTest(t *testing.T, store *StateStore) {
-	require.True(t, store.IsEmpty())
+	empty, err := store.IsEmpty()
+	require.NoError(t, err)
+	require.True(t, empty)
 	// read round from empty
 	round, err := store.GetRound()
 	require.ErrorContains(t, err, "round not stored in db")

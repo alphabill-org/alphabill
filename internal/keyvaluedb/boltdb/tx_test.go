@@ -9,7 +9,7 @@ import (
 )
 
 func TestBoltTx_Nil(t *testing.T) {
-	tx, err := NewBoltTx(nil, []byte("test"), json.Marshal)
+	tx, err := NewBoltTx(nil, []byte("test"), json.Marshal, json.Unmarshal)
 	require.Error(t, err)
 	require.Nil(t, tx)
 }
@@ -19,13 +19,13 @@ func TestBoltTx_StartAndCommit(t *testing.T) {
 	defer func() {
 		require.NoError(t, os.Remove(db.Path()))
 	}()
-	require.True(t, db.Empty())
+	require.True(t, isEmpty(t, db))
 	tx, err := db.StartTx()
 	require.NoError(t, err)
 	require.NotNil(t, tx)
 	require.NoError(t, tx.Commit())
 	// still empty
-	require.True(t, db.Empty())
+	require.True(t, isEmpty(t, db))
 }
 
 func TestBoltTx_StartAndRollback(t *testing.T) {
@@ -33,13 +33,13 @@ func TestBoltTx_StartAndRollback(t *testing.T) {
 	defer func() {
 		require.NoError(t, os.Remove(db.Path()))
 	}()
-	require.True(t, db.Empty())
+	require.True(t, isEmpty(t, db))
 	tx, err := db.StartTx()
 	require.NoError(t, err)
 	require.NotNil(t, tx)
 	require.NoError(t, tx.Rollback())
 	// still empty
-	require.True(t, db.Empty())
+	require.True(t, isEmpty(t, db))
 }
 
 func TestBoltTx_SimpleCommit(t *testing.T) {
@@ -47,16 +47,16 @@ func TestBoltTx_SimpleCommit(t *testing.T) {
 	defer func() {
 		require.NoError(t, os.Remove(db.Path()))
 	}()
-	require.True(t, db.Empty())
+	require.True(t, isEmpty(t, db))
 	tx, err := db.StartTx()
 	require.NoError(t, err)
 	require.NotNil(t, tx)
 	require.NoError(t, tx.Write([]byte("test1"), "1"))
 	require.NoError(t, tx.Write([]byte("test2"), "2"))
 	require.NoError(t, tx.Write([]byte("test3"), "3"))
-	require.True(t, db.Empty())
+	require.True(t, isEmpty(t, db))
 	require.NoError(t, tx.Commit())
-	require.False(t, db.Empty())
+	require.False(t, isEmpty(t, db))
 	var res string
 	f, err := db.Read([]byte("test1"), &res)
 	require.NoError(t, err)
@@ -72,24 +72,58 @@ func TestBoltTx_SimpleCommit(t *testing.T) {
 	require.Equal(t, "3", res)
 }
 
-func TestBoltTx_SimpleRollback(t *testing.T) {
+func TestBoltTx_UseAfterClose(t *testing.T) {
 	db := initBoltDB(t)
 	defer func() {
 		require.NoError(t, os.Remove(db.Path()))
 	}()
-	require.True(t, db.Empty())
+	require.True(t, isEmpty(t, db))
 	tx, err := db.StartTx()
 	require.NoError(t, err)
 	require.NotNil(t, tx)
 	require.NoError(t, tx.Write([]byte("test1"), "1"))
 	require.NoError(t, tx.Write([]byte("test2"), "2"))
 	require.NoError(t, tx.Write([]byte("test3"), "3"))
-	require.True(t, db.Empty())
+	var val string
+	found, err := tx.Read([]byte("test2"), &val)
+	require.True(t, found)
+	require.NoError(t, err, "tx closed")
+	require.NoError(t, tx.Delete([]byte("test2")))
+	require.NoError(t, tx.Commit())
+	found, err = tx.Read([]byte("test2"), &val)
+	require.False(t, found)
+	require.ErrorContains(t, err, "tx closed")
+	require.ErrorContains(t, tx.Write([]byte("test1"), "1"), "tx closed")
+	require.ErrorContains(t, tx.Delete([]byte("test1")), "tx closed")
+}
+
+func TestBoltTx_SimpleRollback(t *testing.T) {
+	db := initBoltDB(t)
+	defer func() {
+		require.NoError(t, os.Remove(db.Path()))
+	}()
+	require.True(t, isEmpty(t, db))
+	tx, err := db.StartTx()
+	require.NoError(t, err)
+	require.NotNil(t, tx)
+	var val string
+	found, err := tx.Read([]byte("test"), &val)
+	require.False(t, found)
+	require.NoError(t, err)
+	require.NoError(t, tx.Write([]byte("test1"), "1"))
+	require.NoError(t, tx.Write([]byte("test2"), "2"))
+	require.NoError(t, tx.Write([]byte("test3"), "3"))
+	// read value
+	found, err = tx.Read([]byte("test2"), &val)
+	require.True(t, found)
+	require.NoError(t, err)
+	require.Equal(t, "2", val)
+	require.True(t, isEmpty(t, db))
 	require.NoError(t, tx.Rollback())
-	require.True(t, db.Empty())
+	require.True(t, isEmpty(t, db))
 	// write a single value
 	require.NoError(t, db.Write([]byte("test"), "test"))
-	require.False(t, db.Empty())
+	require.False(t, isEmpty(t, db))
 }
 
 func TestBoltTx_Delete(t *testing.T) {
@@ -97,7 +131,7 @@ func TestBoltTx_Delete(t *testing.T) {
 	defer func() {
 		require.NoError(t, os.Remove(db.Path()))
 	}()
-	require.True(t, db.Empty())
+	require.True(t, isEmpty(t, db))
 	tx, err := db.StartTx()
 	require.NoError(t, err)
 	require.NotNil(t, tx)
@@ -106,11 +140,18 @@ func TestBoltTx_Delete(t *testing.T) {
 	require.NoError(t, tx.Write([]byte("test1"), "1"))
 	require.NoError(t, tx.Write([]byte("test2"), "2"))
 	require.NoError(t, tx.Write([]byte("test3"), "3"))
+	var val string
+	found, err := tx.Read([]byte("test2"), &val)
+	require.True(t, found)
+	require.NoError(t, err)
 	// delete test2
 	require.NoError(t, tx.Delete([]byte("test2")))
-	require.True(t, db.Empty())
+	require.True(t, isEmpty(t, db))
+	found, err = tx.Read([]byte("test2"), &val)
+	require.False(t, found)
+	require.NoError(t, err)
 	require.NoError(t, tx.Commit())
-	require.False(t, db.Empty())
+	require.False(t, isEmpty(t, db))
 	var res string
 	f, err := db.Read([]byte("test1"), &res)
 	require.NoError(t, err)
@@ -130,7 +171,7 @@ func TestBoltTx_WriteEncodeError(t *testing.T) {
 	defer func() {
 		require.NoError(t, os.Remove(db.Path()))
 	}()
-	require.True(t, db.Empty())
+	require.True(t, isEmpty(t, db))
 	tx, err := db.StartTx()
 	require.NoError(t, err)
 	require.NotNil(t, tx)

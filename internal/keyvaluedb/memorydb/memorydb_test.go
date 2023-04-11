@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/alphabill-org/alphabill/internal/certificates"
+	"github.com/alphabill-org/alphabill/internal/keyvaluedb"
 	p "github.com/alphabill-org/alphabill/internal/network/protocol"
 	"github.com/stretchr/testify/require"
 )
@@ -27,6 +28,27 @@ var unicityMap = map[p.SystemIdentifier]*certificates.UnicityCertificate{
 			CommitInfo:    &certificates.CommitInfo{RootHash: make([]byte, gocrypto.SHA256.Size())},
 		},
 	},
+}
+
+func isEmpty(t *testing.T, db *MemoryDB) bool {
+	empty, err := keyvaluedb.IsEmpty(db)
+	require.NoError(t, err)
+	return empty
+}
+
+func TestMemDB_TestIsEmpty(t *testing.T) {
+	db := New()
+	require.NotNil(t, db)
+	empty, err := keyvaluedb.IsEmpty(db)
+	require.NoError(t, err)
+	require.True(t, empty)
+	require.NoError(t, db.Write([]byte("foo"), "test"))
+	empty, err = keyvaluedb.IsEmpty(db)
+	require.NoError(t, err)
+	require.False(t, empty)
+	empty, err = keyvaluedb.IsEmpty(nil)
+	require.ErrorContains(t, err, "db is nil")
+	require.True(t, empty)
 }
 
 func TestMemDB_TestEmptyValue(t *testing.T) {
@@ -65,18 +87,18 @@ func TestMemDB_TestInvalidWriteAndRead(t *testing.T) {
 	found, err = db.Read([]byte("test"), nil)
 	require.NoError(t, err)
 	require.False(t, found)
-	require.True(t, db.Empty())
+	require.True(t, isEmpty(t, db))
 }
 
 func TestMemDB_WriteAndRead(t *testing.T) {
 	db := New()
 	require.NotNil(t, db)
-	require.True(t, db.Empty())
+	require.True(t, isEmpty(t, db))
 	var value uint64 = 1
 	require.NoError(t, db.Write([]byte("integer"), value))
 	// set empty slice
 	require.NoError(t, db.Write([]byte("slice"), []byte{}))
-	require.False(t, db.Empty())
+	require.False(t, isEmpty(t, db))
 	var some []byte
 	found, err := db.Read([]byte("slice"), &some)
 	require.NoError(t, err)
@@ -104,12 +126,12 @@ func TestMemDB_TestSerializeError(t *testing.T) {
 func TestMemDB_Delete(t *testing.T) {
 	db := New()
 	require.NotNil(t, db)
-	require.True(t, db.Empty())
+	require.True(t, isEmpty(t, db))
 	var value uint64 = 1
 	require.NoError(t, db.Write([]byte("integer"), value))
-	require.False(t, db.Empty())
+	require.False(t, isEmpty(t, db))
 	require.NoError(t, db.Delete([]byte("integer")))
-	require.True(t, db.Empty())
+	require.True(t, isEmpty(t, db))
 	// delete non-existing key
 	require.NoError(t, db.Delete([]byte("integer")))
 	// delete invalid key
@@ -119,7 +141,7 @@ func TestMemDB_Delete(t *testing.T) {
 func TestMemDB_WriteReadComplexStruct(t *testing.T) {
 	db := New()
 	require.NotNil(t, db)
-	require.True(t, db.Empty())
+	require.True(t, isEmpty(t, db))
 	require.NoError(t, db.Write([]byte("certificates"), unicityMap))
 	ucs := make(map[p.SystemIdentifier]*certificates.UnicityCertificate)
 	present, err := db.Read([]byte("certificates"), &ucs)

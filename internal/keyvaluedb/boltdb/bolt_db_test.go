@@ -3,17 +3,17 @@ package boltdb
 import (
 	gocrypto "crypto"
 	"encoding/json"
-	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/alphabill-org/alphabill/internal/certificates"
+	"github.com/alphabill-org/alphabill/internal/keyvaluedb"
 	p "github.com/alphabill-org/alphabill/internal/network/protocol"
 	"github.com/stretchr/testify/require"
 )
 
 const (
-	round             uint64 = 1
-	roundCreationTime        = 100000
+	round uint64 = 1
 )
 
 var sysID = p.SystemIdentifier([]byte{0, 0, 0, 1})
@@ -31,14 +31,35 @@ var unicityMap = map[p.SystemIdentifier]*certificates.UnicityCertificate{
 	},
 }
 
+func isEmpty(t *testing.T, db *BoltDB) bool {
+	empty, err := keyvaluedb.IsEmpty(db)
+	require.NoError(t, err)
+	return empty
+}
+
 func initBoltDB(t *testing.T) *BoltDB {
 	t.Helper()
-	f, err := os.CreateTemp("", "bolt-*.db")
-	require.NoError(t, err)
-	boltDB, err := New(f.Name())
+	dbDir := t.TempDir()
+	boltDB, err := New(filepath.Join(dbDir, "bolt.db"))
 	require.NoError(t, err)
 	require.NotNil(t, boltDB)
 	return boltDB
+}
+
+func TestMemDB_TestIsEmpty(t *testing.T) {
+	db := initBoltDB(t)
+	require.NotNil(t, db)
+	empty, err := keyvaluedb.IsEmpty(db)
+	require.NoError(t, err)
+	require.True(t, empty)
+	require.NoError(t, db.Write([]byte("foo"), "test"))
+	empty, err = keyvaluedb.IsEmpty(db)
+	require.NoError(t, err)
+	require.False(t, empty)
+	empty, err = keyvaluedb.IsEmpty(nil)
+	require.ErrorContains(t, err, "db is nil")
+	require.True(t, empty)
+
 }
 
 func TestBoltDB_InvalidPath(t *testing.T) {
@@ -50,9 +71,6 @@ func TestBoltDB_InvalidPath(t *testing.T) {
 
 func TestBoltDB_TestEmptyValue(t *testing.T) {
 	db := initBoltDB(t)
-	defer func() {
-		require.NoError(t, os.Remove(db.Path()))
-	}()
 	var uc certificates.UnicityCertificate
 	found, err := db.Read([]byte("certificate"), &uc)
 	require.NoError(t, err)
@@ -67,9 +85,6 @@ func TestBoltDB_TestEmptyValue(t *testing.T) {
 
 func TestBoltDB_TestInvalidReadWrite(t *testing.T) {
 	db := initBoltDB(t)
-	defer func() {
-		require.NoError(t, os.Remove(db.Path()))
-	}()
 	require.NotNil(t, db)
 	var uc *certificates.UnicityCertificate = nil
 	require.Error(t, db.Write([]byte("certificate"), uc))
@@ -89,21 +104,18 @@ func TestBoltDB_TestInvalidReadWrite(t *testing.T) {
 	found, err = db.Read([]byte("test"), nil)
 	require.NoError(t, err)
 	require.False(t, found)
-	require.True(t, db.Empty())
+	require.True(t, isEmpty(t, db))
 }
 
 func TestBoltDB_TestReadAndWrite(t *testing.T) {
 	db := initBoltDB(t)
-	defer func() {
-		require.NoError(t, os.Remove(db.Path()))
-	}()
 	require.NotNil(t, db)
-	require.True(t, db.Empty())
+	require.True(t, isEmpty(t, db))
 	var value uint64 = 1
 	require.NoError(t, db.Write([]byte("integer"), value))
 	// set empty slice
 	require.NoError(t, db.Write([]byte("slice"), []byte{}))
-	require.False(t, db.Empty())
+	require.False(t, isEmpty(t, db))
 	var some []byte
 	found, err := db.Read([]byte("slice"), &some)
 	require.NoError(t, err)
@@ -122,9 +134,6 @@ func TestBoltDB_TestReadAndWrite(t *testing.T) {
 
 func TestBoltDB_TestSerializeError(t *testing.T) {
 	db := initBoltDB(t)
-	defer func() {
-		require.NoError(t, os.Remove(db.Path()))
-	}()
 	require.NotNil(t, db)
 	// use custom type that has got marshal implementation
 	c := make(chan int)
@@ -133,16 +142,13 @@ func TestBoltDB_TestSerializeError(t *testing.T) {
 
 func TestBoltDB_Delete(t *testing.T) {
 	db := initBoltDB(t)
-	defer func() {
-		require.NoError(t, os.Remove(db.Path()))
-	}()
 	require.NotNil(t, db)
-	require.True(t, db.Empty())
+	require.True(t, isEmpty(t, db))
 	var value uint64 = 1
 	require.NoError(t, db.Write([]byte("integer"), value))
-	require.False(t, db.Empty())
+	require.False(t, isEmpty(t, db))
 	require.NoError(t, db.Delete([]byte("integer")))
-	require.True(t, db.Empty())
+	require.True(t, isEmpty(t, db))
 	// delete non-existing key
 	require.NoError(t, db.Delete([]byte("integer")))
 	// delete invalid key
@@ -151,9 +157,6 @@ func TestBoltDB_Delete(t *testing.T) {
 
 func TestBoltDB_WriteReadComplexStruct(t *testing.T) {
 	db := initBoltDB(t)
-	defer func() {
-		require.NoError(t, os.Remove(db.Path()))
-	}()
 	// write a complex struct
 	require.NoError(t, db.Write([]byte("certificates"), unicityMap))
 	ucs := make(map[p.SystemIdentifier]*certificates.UnicityCertificate)
@@ -194,16 +197,13 @@ func TestBoltDB_StartTxNil(t *testing.T) {
 
 func TestBoltDB_TestReadAndWriteIterate(t *testing.T) {
 	db := initBoltDB(t)
-	defer func() {
-		require.NoError(t, os.Remove(db.Path()))
-	}()
 	require.NotNil(t, db)
-	require.True(t, db.Empty())
+	require.True(t, isEmpty(t, db))
 	var value uint64 = 1
 	require.NoError(t, db.Write([]byte("integer"), value))
 	require.NoError(t, db.Write([]byte("test"), "d1"))
 	require.NoError(t, db.Write([]byte("test2"), "d2"))
-	require.False(t, db.Empty())
+	require.False(t, isEmpty(t, db))
 	var back uint64
 	found, err := db.Read([]byte("integer"), &back)
 	require.NoError(t, err)

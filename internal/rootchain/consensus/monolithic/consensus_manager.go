@@ -22,7 +22,6 @@ type (
 		certReqCh    chan consensus.IRChangeRequest
 		certResultCh chan *certificates.UnicityCertificate
 		params       *consensus.Parameters
-		ticker       *time.Ticker
 		selfID       string // node identifier
 		partitions   partitions.PartitionConfiguration
 		stateStore   *StateStore
@@ -54,7 +53,11 @@ func NewMonolithicConsensusManager(selfStr string, rg *genesis.RootGenesis, part
 	if err != nil {
 		return nil, fmt.Errorf("storage init failed, %w", err)
 	}
-	if storage.IsEmpty() {
+	empty, err := storage.IsEmpty()
+	if err != nil {
+		return nil, fmt.Errorf("storage init db empty check failed, %w", err)
+	}
+	if empty {
 		// init form genesis
 		logger.Info("Consensus init from genesis")
 		if err = storage.Init(rg); err != nil {
@@ -87,7 +90,6 @@ func NewMonolithicConsensusManager(selfStr string, rg *genesis.RootGenesis, part
 }
 
 func (x *ConsensusManager) Run(ctx context.Context) error {
-	x.ticker = time.NewTicker(x.params.BlockRateMs)
 	return x.loop(ctx)
 }
 
@@ -108,6 +110,10 @@ func (x *ConsensusManager) GetLatestUnicityCertificate(id p.SystemIdentifier) (*
 }
 
 func (x *ConsensusManager) loop(ctx context.Context) error {
+	// start root round timer
+	ticker := time.NewTicker(x.params.BlockRateMs)
+	defer ticker.Stop()
+
 	for {
 		select {
 		case <-ctx.Done():
@@ -122,11 +128,7 @@ func (x *ConsensusManager) loop(ctx context.Context) error {
 				logger.Warning("Certification request error, %w", err)
 			}
 		// handle timeouts
-		case _, ok := <-x.ticker.C:
-			if !ok {
-				logger.Warning("Ticker channel closed, exiting main loop")
-				return fmt.Errorf("ticker channel closed")
-			}
+		case <-ticker.C:
 			x.onT3Timeout()
 		}
 	}

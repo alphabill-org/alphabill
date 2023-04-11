@@ -180,7 +180,7 @@ func defaultRootNodeRunFunc(ctx context.Context, config *rootNodeConfig) error {
 	if err != nil {
 		return fmt.Errorf("failed initiate root node: %w", err)
 	}
-	return node.Start(ctx)
+	return node.Run(ctx)
 }
 
 func loadRootNetworkConfiguration(keys *Keys, rootValidators []*genesis.PublicKeyInfo, cfg *rootNodeConfig) (*network.Peer, error) {

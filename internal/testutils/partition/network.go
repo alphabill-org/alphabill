@@ -179,7 +179,7 @@ func NewNetwork(nodeCount int, txSystemProvider func(trustBase map[string]crypto
 		nctx, ncfn := context.WithCancel(ctx)
 		rootNodes[i] = &rootNode{Node: rn, cancel: ncfn, done: make(chan error, 1)}
 		// start root node
-		go func(ec chan error) { ec <- rn.Start(nctx) }(rootNodes[i].done)
+		go func(ec chan error) { ec <- rn.Run(nctx) }(rootNodes[i].done)
 	}
 	partitionGenesis := partitionGenesisFiles[0]
 	// start Nodes

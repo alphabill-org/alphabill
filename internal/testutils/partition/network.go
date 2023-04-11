@@ -9,7 +9,6 @@ import (
 
 	"github.com/alphabill-org/alphabill/internal/block"
 	"github.com/alphabill-org/alphabill/internal/crypto"
-	"github.com/alphabill-org/alphabill/internal/errors"
 	"github.com/alphabill-org/alphabill/internal/network"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/internal/partition"
@@ -26,29 +25,50 @@ import (
 
 // AlphabillPartition for integration tests
 type AlphabillPartition struct {
-	RootNodes    []*rootchain.Node
-	Nodes        []*partition.Node
+	RootNodes    []*rootNode
+	Nodes        []*partitionNode
 	ctxCancel    context.CancelFunc
-	ctx          context.Context
 	TrustBase    map[string]crypto.Verifier
 	EventHandler *testevent.TestEventHandler
 }
 
 const rootValidatorNodes = 3
 
+type partitionNode struct {
+	*partition.Node
+	cancel context.CancelFunc
+	done   chan error
+}
+
+type rootNode struct {
+	*rootchain.Node
+	cancel context.CancelFunc
+	done   chan error
+}
+
+func (pn *partitionNode) Stop() error {
+	pn.cancel()
+	return <-pn.done
+}
+
+func (rn *rootNode) Stop() error {
+	rn.cancel()
+	return <-rn.done
+}
+
 // NewNetwork creates the AlphabillPartition for integration tests. It starts partition nodes with given
 // transaction system and a root chain.
-func NewNetwork(partitionNodes int, txSystemProvider func(trustBase map[string]crypto.Verifier) txsystem.TransactionSystem, systemIdentifier []byte) (*AlphabillPartition, error) {
-	if partitionNodes < 1 {
-		return nil, errors.New("invalid count of partition Nodes")
+func NewNetwork(nodeCount int, txSystemProvider func(trustBase map[string]crypto.Verifier) txsystem.TransactionSystem, systemIdentifier []byte) (*AlphabillPartition, error) {
+	if nodeCount < 1 {
+		return nil, fmt.Errorf("invalid count of partition Nodes: %d", nodeCount)
 	}
 	// create network nodePeers
-	nodePeers, err := createNetworkPeers(partitionNodes)
+	nodePeers, err := createNetworkPeers(nodeCount)
 	if err != nil {
 		return nil, err
 	}
 	// create partition signing keys
-	signers, err := createSigners(partitionNodes)
+	signers, err := createSigners(nodeCount)
 	if err != nil {
 		return nil, err
 	}
@@ -72,8 +92,8 @@ func NewNetwork(partitionNodes int, txSystemProvider func(trustBase map[string]c
 		}
 	}
 	// create partition genesis file
-	var nodeGenesisFiles = make([]*genesis.PartitionNode, partitionNodes)
-	for i := 0; i < partitionNodes; i++ {
+	var nodeGenesisFiles = make([]*genesis.PartitionNode, nodeCount)
+	for i := 0; i < nodeCount; i++ {
 		transactionSystem := txSystemProvider(trustBase)
 		nodeGenesis, err := partition.NewNodeGenesis(
 			transactionSystem,
@@ -124,8 +144,9 @@ func NewNetwork(partitionNodes int, txSystemProvider func(trustBase map[string]c
 	if err != nil {
 		return nil, err
 	}
+	ctx, ctxCancel := context.WithCancel(context.Background())
 	// start root chain nodes
-	rootNodes := make([]*rootchain.Node, rootValidatorNodes)
+	rootNodes := make([]*rootNode, rootValidatorNodes)
 	rootPartitionHots := make([]*network.Peer, rootValidatorNodes)
 	for i := 0; i < rootValidatorNodes; i++ {
 		partitionHost, err := network.NewPeer(&network.PeerConfiguration{
@@ -134,36 +155,37 @@ func NewNetwork(partitionNodes int, txSystemProvider func(trustBase map[string]c
 		rootPartitionHots[i] = partitionHost
 		rootNet, err := network.NewLibP2PRootChainNetwork(partitionHost, 100, 300*time.Millisecond)
 		if err != nil {
+			ctxCancel()
 			return nil, err
 		}
 		rootConsensusNet, err := network.NewLibP2RootConsensusNetwork(rootPeers[i], 100, 300*time.Millisecond)
 		// Initiate partition store
 		partitionStore, err := partitions.NewPartitionStoreFromGenesis(rootGenesis.Partitions)
 		if err != nil {
+			ctxCancel()
 			return nil, fmt.Errorf("failed to extract partition info from genesis, %w", err)
 		}
 		// Create distributed consensus manager
 		cm, err := distributed.NewDistributedAbConsensusManager(rootPeers[i], rootGenesis, partitionStore, rootConsensusNet, rootSigners[i])
 		if err != nil {
+			ctxCancel()
 			return nil, fmt.Errorf("consensus manager initialization failed, %w", err)
 		}
 		rn, err := rootchain.New(partitionHost, rootNet, partitionStore, cm)
 		if err != nil {
+			ctxCancel()
 			return nil, err
 		}
-		rootNodes[i] = rn
+		nctx, ncfn := context.WithCancel(ctx)
+		rootNodes[i] = &rootNode{Node: rn, cancel: ncfn, done: make(chan error, 1)}
+		// start root node
+		go func(ec chan error) { ec <- rn.Start(nctx) }(rootNodes[i].done)
 	}
-
 	partitionGenesis := partitionGenesisFiles[0]
-	ctx, ctxCancel := context.WithCancel(context.Background())
-	// start root nodes
-	for _, rn := range rootNodes {
-		go rn.Start(ctx)
-	}
 	// start Nodes
-	var nodes = make([]*partition.Node, partitionNodes)
+	nodes := make([]*partitionNode, nodeCount)
 	eh := &testevent.TestEventHandler{}
-	for i := 0; i < partitionNodes; i++ {
+	for i := 0; i < nodeCount; i++ {
 		if err != nil {
 			ctxCancel()
 			return nil, err
@@ -180,7 +202,6 @@ func NewNetwork(partitionNodes int, txSystemProvider func(trustBase map[string]c
 			transactionSystems[i],
 			partitionGenesis,
 			pn,
-			partition.WithContext(ctx),
 			partition.WithRootAddressAndIdentifier(rootPartitionHots[0].MultiAddresses()[0], rootPartitionHots[0].ID()),
 			partition.WithEventHandler(eh.HandleEvent, 100),
 		)
@@ -188,7 +209,10 @@ func NewNetwork(partitionNodes int, txSystemProvider func(trustBase map[string]c
 			ctxCancel()
 			return nil, err
 		}
-		nodes[i] = n
+
+		nctx, ncfn := context.WithCancel(ctx)
+		nodes[i] = &partitionNode{Node: n, cancel: ncfn, done: make(chan error, 1)}
+		go func(ec chan error) { ec <- n.Run(nctx) }(nodes[i].done)
 	}
 
 	if err != nil {
@@ -198,7 +222,6 @@ func NewNetwork(partitionNodes int, txSystemProvider func(trustBase map[string]c
 	return &AlphabillPartition{
 		RootNodes:    rootNodes,
 		Nodes:        nodes,
-		ctx:          ctx,
 		ctxCancel:    ctxCancel,
 		TrustBase:    trustBase,
 		EventHandler: eh,
@@ -253,14 +276,11 @@ func (a *AlphabillPartition) GetBlockProof(tx *txsystem.Transaction, txConverter
 			}
 		}
 	}
-	return nil, nil, errors.New("tx not found")
+	return nil, nil, fmt.Errorf("tx with id %x was not found", tx.UnitId)
 }
 
 func (a *AlphabillPartition) Close() error {
 	a.ctxCancel()
-	for _, node := range a.Nodes {
-		node.Close()
-	}
 	return nil
 }
 
@@ -316,6 +336,9 @@ func generateKeyPairs(count int) ([]*network.PeerKeyPair, error) {
 	var keyPairs = make([]*network.PeerKeyPair, count)
 	for i := 0; i < count; i++ {
 		privateKey, publicKey, err := libp2pcrypto.GenerateSecp256k1Key(rand.Reader)
+		if err != nil {
+			return nil, fmt.Errorf("failed to generate key pair %d/%d: %w", i, count, err)
+		}
 		privateKeyBytes, err := privateKey.Raw()
 		if err != nil {
 			return nil, err

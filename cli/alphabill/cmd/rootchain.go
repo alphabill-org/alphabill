@@ -75,6 +75,14 @@ func newRootNodeCmd(baseConfig *baseConfiguration) *cobra.Command {
 	return cmd
 }
 
+func (c *rootNodeConfig) getPeerAddress(identifier string) (string, error) {
+	address, f := c.Validators[identifier]
+	if !f {
+		return "", fmt.Errorf("address for node %q not found", identifier)
+	}
+	return address, nil
+}
+
 // getGenesisFilePath returns genesis file path if provided, otherwise $AB_HOME/rootchain/root-genesis.json
 // Must be called after $AB_HOME is initialized in base command PersistentPreRunE function.
 func (c *rootNodeConfig) getGenesisFilePath() string {
@@ -238,14 +246,6 @@ func createHost(address string, encPrivate crypto.PrivKey) (*network.Peer, error
 		KeyPair: keyPair,
 	}
 	return network.NewPeer(conf)
-}
-
-func (c *rootNodeConfig) getPeerAddress(identifier string) (string, error) {
-	address, f := c.Validators[identifier]
-	if !f {
-		return "", fmt.Errorf("address for node %v not found", identifier)
-	}
-	return address, nil
 }
 
 func verifyKeyPresentInGenesis(peer *network.Peer, rg *genesis.GenesisRootRecord, ver abcrypto.Verifier) error {

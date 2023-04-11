@@ -2,7 +2,6 @@ package partition
 
 import (
 	"bytes"
-	"context"
 	gocrypto "crypto"
 	"errors"
 	"fmt"
@@ -39,7 +38,6 @@ var (
 
 type (
 	configuration struct {
-		context                     context.Context
 		txValidator                 TxValidator
 		unicityCertificateValidator UnicityCertificateValidator
 		blockProposalValidator      BlockProposalValidator
@@ -66,12 +64,6 @@ type (
 		maxTx     uint32
 	}
 )
-
-func WithContext(context context.Context) NodeOption {
-	return func(c *configuration) {
-		c.context = context
-	}
-}
 
 func WithReplicationParams(maxBlocks uint64, maxTx uint32) NodeOption {
 	return func(c *configuration) {
@@ -167,9 +159,6 @@ func loadAndValidateConfiguration(peer *network.Peer, signer crypto.Signer, gene
 
 // initMissingDefaults loads missing default configuration.
 func (c *configuration) initMissingDefaults(peer *network.Peer) error {
-	if c.context == nil {
-		c.context = context.Background()
-	}
 	if c.t1Timeout == 0 {
 		c.t1Timeout = DefaultT1Timeout
 	}

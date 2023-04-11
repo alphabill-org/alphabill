@@ -1,7 +1,6 @@
 package partition
 
 import (
-	"context"
 	gocrypto "crypto"
 	"testing"
 	"time"
@@ -96,7 +95,6 @@ func TestLoadConfigurationWithDefaultValues_Ok(t *testing.T) {
 	require.NotNil(t, conf.unicityCertificateValidator)
 	require.NotNil(t, conf.genesis)
 	require.NotNil(t, conf.hashAlgorithm)
-	require.NotNil(t, conf.context)
 	require.NotNil(t, conf.leaderSelector)
 	require.Equal(t, p, conf.peer)
 	require.Equal(t, DefaultT1Timeout, conf.t1Timeout)
@@ -107,12 +105,10 @@ func TestLoadConfigurationWithOptions_Ok(t *testing.T) {
 	signer, verifier := testsig.CreateSignerAndVerifier(t)
 	blockStore := memorydb.New()
 	selector := &mockLeaderSelector{}
-	ctx := context.Background()
 	t1Timeout := 250 * time.Millisecond
-	conf, err := loadAndValidateConfiguration(p, signer, createPartitionGenesis(t, signer, verifier, nil, p), &testtxsystem.CounterTxSystem{}, testnetwork.NewMockNetwork(), WithContext(ctx), WithTxValidator(&AlwaysValidTransactionValidator{}), WithUnicityCertificateValidator(&AlwaysValidCertificateValidator{}), WithBlockProposalValidator(&AlwaysValidBlockProposalValidator{}), WithLeaderSelector(selector), WithBlockStore(blockStore), WithT1Timeout(t1Timeout))
+	conf, err := loadAndValidateConfiguration(p, signer, createPartitionGenesis(t, signer, verifier, nil, p), &testtxsystem.CounterTxSystem{}, testnetwork.NewMockNetwork(), WithTxValidator(&AlwaysValidTransactionValidator{}), WithUnicityCertificateValidator(&AlwaysValidCertificateValidator{}), WithBlockProposalValidator(&AlwaysValidBlockProposalValidator{}), WithLeaderSelector(selector), WithBlockStore(blockStore), WithT1Timeout(t1Timeout))
 	require.NoError(t, err)
 	require.NotNil(t, conf)
-	require.Equal(t, ctx, conf.context)
 	require.Equal(t, blockStore, conf.blockStore)
 	require.NoError(t, conf.txValidator.Validate(nil, 0))
 	require.NoError(t, conf.blockProposalValidator.Validate(nil, nil))

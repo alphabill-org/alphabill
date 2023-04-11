@@ -9,7 +9,7 @@ import (
 
 var (
 	ErrValidatorPublicInfoIsEmpty    = errors.New("public key info is empty")
-	ErrPubKeyNodeIdentifierIsEmpty   = errors.New("public key info node identifier empty")
+	ErrPubKeyNodeIdentifierIsEmpty   = errors.New("public key info node identifier is empty")
 	ErrPubKeyInfoSigningKeyIsInvalid = errors.New("public key info singing key is invalid")
 	ErrPubKeyInfoEncryptionIsInvalid = errors.New("public key info encryption key is invalid")
 )
@@ -79,16 +79,14 @@ func (x *PublicKeyInfo) IsValid() error {
 	if len(x.SigningPublicKey) == 0 {
 		return ErrPubKeyInfoSigningKeyIsInvalid
 	}
-	_, err := crypto.NewVerifierSecp256k1(x.SigningPublicKey)
-	if err != nil {
-		return err
+	if _, err := crypto.NewVerifierSecp256k1(x.SigningPublicKey); err != nil {
+		return fmt.Errorf("invalid signing key, %w", err)
 	}
 	if len(x.EncryptionPublicKey) == 0 {
 		return ErrPubKeyInfoEncryptionIsInvalid
 	}
-	_, err = crypto.NewVerifierSecp256k1(x.EncryptionPublicKey)
-	if err != nil {
-		return err
+	if _, err := crypto.NewVerifierSecp256k1(x.EncryptionPublicKey); err != nil {
+		return fmt.Errorf("invalid encryption key, %w", err)
 	}
 	return nil
 }

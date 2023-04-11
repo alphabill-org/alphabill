@@ -105,7 +105,7 @@ func (s *SafetyModule) MakeVote(block *atomic_broadcast.BlockData, execStateID [
 	qcRound := block.Qc.VoteInfo.RoundNumber
 	votingRound := block.Round
 	if s.isSafeToVote(votingRound, qcRound, lastRoundTC) == false {
-		return nil, errors.New("Not safe to vote")
+		return nil, errors.New("not safe to vote")
 	}
 	s.updateHighestQcRound(qcRound)
 	s.increaseHigestVoteRound(votingRound)
@@ -166,7 +166,7 @@ func (s *SafetyModule) isSafeToTimeout(round, qcRound uint64, tc *atomic_broadca
 		highestVotedRound = s.GetHighestVotedRound() - 1
 	}
 	if qcRound < s.GetHighestQcRound() || round <= util.Max(highestVotedRound, qcRound) {
-		// respect highest qc round and don’t timeout in a past round
+		// respect highest qc round and don’t time out in a past round
 		return false
 	}
 	// qc or tc must allow entering the round to timeout

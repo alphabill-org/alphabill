@@ -124,7 +124,7 @@ func TestSafetyModule_MakeVote(t *testing.T) {
 	// try to sign the same vote again
 	vote, err = s.MakeVote(blockData, dummyRootHash, nil, tc)
 	// only allowed to vote for monotonically increasing rounds
-	require.ErrorContains(t, err, "Not safe to vote")
+	require.ErrorContains(t, err, "not safe to vote")
 	require.Nil(t, vote)
 
 }

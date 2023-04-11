@@ -32,11 +32,12 @@ func NewRepeatInputRecord(lastIR *InputRecord) (*InputRecord, error) {
 		return nil, ErrInputRecordIsNil
 	}
 	return &InputRecord{
-		PreviousHash: lastIR.Hash,
-		Hash:         lastIR.Hash,
-		BlockHash:    make([]byte, len(lastIR.BlockHash)),
-		SummaryValue: lastIR.SummaryValue,
-		RoundNumber:  lastIR.RoundNumber + 1,
+		PreviousHash:    lastIR.Hash,
+		Hash:            lastIR.Hash,
+		BlockHash:       make([]byte, len(lastIR.BlockHash)),
+		SummaryValue:    lastIR.SummaryValue,
+		RoundNumber:     lastIR.RoundNumber + 1,
+		SumOfEarnedFees: lastIR.SumOfEarnedFees,
 	}, nil
 }
 

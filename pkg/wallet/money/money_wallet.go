@@ -12,7 +12,6 @@ import (
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"golang.org/x/sync/errgroup"
 
-	"github.com/alphabill-org/alphabill/pkg/wallet/backend/bp"
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/internal/txsystem/money"
@@ -21,6 +20,7 @@ import (
 	abclient "github.com/alphabill-org/alphabill/pkg/client"
 	"github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/alphabill-org/alphabill/pkg/wallet/account"
+	"github.com/alphabill-org/alphabill/pkg/wallet/backend/bp"
 	backendmoney "github.com/alphabill-org/alphabill/pkg/wallet/backend/money"
 	"github.com/alphabill-org/alphabill/pkg/wallet/backend/money/client"
 	"github.com/alphabill-org/alphabill/pkg/wallet/log"
@@ -804,14 +804,14 @@ func newBill(proof *BlockProof, txConverter *TxConverter) (*Bill, error) {
 	}
 }
 
-func convertBill(b *moneytx.Bill) *Bill {
+func convertBill(b *bp.Bill) *Bill {
 	if b.IsDcBill {
-		attrs := &moneytx.TransferDCOrder{}
+		attrs := &money.TransferDCAttributes{}
 		err := b.TxProof.Tx.TransactionAttributes.UnmarshalTo(attrs)
 		if err != nil {
 			return nil
 		}
-		return &Bill{Id: util.BytesToUint256(b.Id), Value: b.Value, TxHash: b.TxHash, IsDcBill: b.IsDcBill, DcNonce: attrs.Nonce, DcTimeout: b.TxProof.Tx.Timeout, BlockProof: &BlockProof{Tx: b.TxProof.Tx, Proof: b.TxProof.Proof, BlockNumber: b.TxProof.BlockNumber}}
+		return &Bill{Id: util.BytesToUint256(b.Id), Value: b.Value, TxHash: b.TxHash, IsDcBill: b.IsDcBill, DcNonce: attrs.Nonce, DcTimeout: b.TxProof.Tx.Timeout(), BlockProof: &BlockProof{Tx: b.TxProof.Tx, Proof: b.TxProof.Proof, BlockNumber: b.TxProof.BlockNumber}}
 	}
 	return &Bill{Id: util.BytesToUint256(b.Id), Value: b.Value, TxHash: b.TxHash, IsDcBill: b.IsDcBill, BlockProof: &BlockProof{Tx: b.TxProof.Tx, Proof: b.TxProof.Proof, BlockNumber: b.TxProof.BlockNumber}}
 }

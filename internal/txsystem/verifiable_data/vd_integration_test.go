@@ -1,6 +1,7 @@
 package verifiable_data
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"testing"
@@ -43,13 +44,15 @@ func TestVDPartition_OnePartitionNodeIsDown(t *testing.T) {
 	}, systemIdentifier)
 	require.NoError(t, err)
 	// Killing the leader node fails the test
-	require.ErrorIs(t, network.Nodes[1].Stop(), context.Canceled) // shut down the node
+	require.ErrorIs(t, network.Nodes[2].Stop(), context.Canceled) // shut down the node
 
 	tx := createVDTransaction()
 	fmt.Printf("Submitting tx: %v, UnitId=%x\n", tx, tx.UnitId)
 	err = network.SubmitTx(tx)
 	require.NoError(t, err)
-	require.Eventually(t, testpartition.BlockchainContainsTx(tx, network), test.WaitDuration, test.WaitTick)
+	require.Eventually(t, testpartition.BlockchainContains(network, func(actualTx *txsystem.Transaction) bool {
+		return bytes.Equal(tx.UnitId, actualTx.UnitId)
+	}), test.WaitDuration, test.WaitTick)
 }
 
 func createVDTransaction() *txsystem.Transaction {

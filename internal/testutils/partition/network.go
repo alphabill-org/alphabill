@@ -9,7 +9,6 @@ import (
 	"time"
 
 	libp2pcrypto "github.com/libp2p/go-libp2p/core/crypto"
-	"github.com/libp2p/go-libp2p/core/peer"
 	"google.golang.org/protobuf/proto"
 
 	"github.com/alphabill-org/alphabill/internal/block"
@@ -33,6 +32,7 @@ type AlphabillPartition struct {
 	ctxCancel    context.CancelFunc
 	TrustBase    map[string]crypto.Verifier
 	EventHandler *testevent.TestEventHandler
+	RootSigners  []crypto.Signer
 }
 
 type partitionNode struct {
@@ -210,6 +210,7 @@ func NewNetwork(nodeCount int, txSystemProvider func(trustBase map[string]crypto
 		ctxCancel:    ctxCancel,
 		TrustBase:    trustBase,
 		EventHandler: eh,
+		RootSigners:  rootSigners,
 	}, nil
 }
 

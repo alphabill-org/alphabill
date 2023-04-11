@@ -93,15 +93,12 @@ func main() {
 		log.Fatal(err)
 	}
 	// send transferFC
-	transferFCResponse, err := txClient.ProcessTransaction(ctx, transferFC)
+	_, err = txClient.ProcessTransaction(ctx, transferFC)
 	if err != nil {
 		log.Fatal(err)
 	}
-	if transferFCResponse.Ok {
-		log.Println("sent transferFC transaction")
-	} else {
-		log.Fatalf("failed to send transferFC transaction %v", transferFCResponse.Message)
-	}
+	log.Println("sent transferFC transaction")
+
 	// wait for transferFC proof
 	transferFCProof, err := waitForConfirmation(ctx, txClient, transferFC, res.RoundNumber, absoluteTimeout)
 	if err != nil {
@@ -117,17 +114,14 @@ func main() {
 		log.Fatal(err)
 	}
 	// send addFC
-	addFCResponse, err := txClient.ProcessTransaction(ctx, addFC)
+	_, err = txClient.ProcessTransaction(ctx, addFC)
 	if err != nil {
 		log.Fatal(err)
 	}
-	if addFCResponse.Ok {
-		log.Println("sent addFC transaction")
-	} else {
-		log.Fatalf("failed to send addFC transaction %v", addFCResponse.Message)
-	}
+	log.Println("sent addFC transaction")
+
 	// wait for addFC confirmation
-	_, err = waitForConfirmation(ctx, txClient, addFC, maxBlockNumberRes.MaxRoundNumber, absoluteTimeout)
+	_, err = waitForConfirmation(ctx, txClient, addFC, res.RoundNumber, absoluteTimeout)
 	if err != nil {
 		log.Fatalf("failed to confirm addFC transaction %v", err)
 	} else {
@@ -235,12 +229,10 @@ func waitForConfirmation(ctx context.Context, abClient alphabill.AlphabillServic
 		}
 		if res.Block == nil {
 			// block might be empty, check latest round number
-			res, err := txClient.GetRoundNumber(ctx, &emptypb.Empty{})
+			res, err := abClient.GetRoundNumber(ctx, &emptypb.Empty{})
 			if err != nil {
 				return nil, err
 			}
-			absoluteTimeout := res.RoundNumber + *timeout
-
 			if res.RoundNumber > latestRoundNumber {
 				latestRoundNumber++
 			} else {

@@ -1,11 +1,11 @@
 package distributed
 
 import (
+	"errors"
 	"fmt"
 	"time"
 
 	"github.com/alphabill-org/alphabill/internal/certificates"
-	"github.com/alphabill-org/alphabill/internal/errors"
 	"github.com/alphabill-org/alphabill/internal/network/protocol"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/atomic_broadcast"
 	"github.com/alphabill-org/alphabill/internal/rootchain/consensus"
@@ -68,7 +68,7 @@ func (x *IRChangeReqVerifier) VerifyIRChangeReq(round uint64, irChReq *atomic_br
 	// verify certification Request
 	luc, found := ucs[sysID]
 	if !found {
-		return nil, errors.Errorf("ir change request verification error, partition %X last certificate not found", sysID)
+		return nil, fmt.Errorf("ir change request verification error, partition %X last certificate not found", sysID)
 	}
 	if round < luc.UnicitySeal.RootRoundInfo.RoundNumber {
 		return nil, fmt.Errorf("error, current round %v is in the past, luc round %v", round, luc.UnicitySeal.RootRoundInfo.RoundNumber)

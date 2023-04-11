@@ -3,11 +3,11 @@ package distributed
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/alphabill-org/alphabill/internal/certificates"
 	"github.com/alphabill-org/alphabill/internal/crypto"
-	"github.com/alphabill-org/alphabill/internal/errors"
 	"github.com/alphabill-org/alphabill/internal/network"
 	p "github.com/alphabill-org/alphabill/internal/network/protocol"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/atomic_broadcast"
@@ -353,7 +353,7 @@ func (x *ConsensusManager) onPartitionIRChangeReq(req *consensus.IRChangeRequest
 // onIRChange handles IR change request from other root nodes
 func (x *ConsensusManager) onIRChange(irChange *atomic_broadcast.IRChangeReqMsg) {
 	nextLeader := x.leaderSelector.GetLeaderForRound(x.pacemaker.GetCurrentRound() + 1)
-	// todo: if in recovery then forward to next
+	// todo: if in recovery then forward to next?
 	// if the node is either next leader or leader now, but has not yet proposed then buffer the request
 	if (x.leaderSelector.GetLeaderForRound(x.pacemaker.GetCurrentRound()) == x.peer.ID() && x.waitPropose) ||
 		(nextLeader == x.peer.ID()) {

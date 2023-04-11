@@ -31,11 +31,11 @@ func TestMoneyBackendCLI(t *testing.T) {
 	}
 	initialBillID := util.Uint256ToBytes(initialBill.ID)
 	initialBillHex := hexutil.Encode(initialBillID)
-	network := startAlphabillPartition(t, initialBill)
+	network := startAlphabillPartition(t, initialBill, true)
 	startRPCServer(t, network, defaultServerAddr)
 
 	// transfer initial bill to wallet pubkey
-	initialBillValue := spendInitialBill(t, network, initialBill)
+	initialBillValue := spendInitialBillWithFeeCredits(t, network, initialBill)
 
 	// start wallet-backend service
 	homedir := setupTestHomeDir(t, "money-backend-test")

@@ -22,8 +22,7 @@ func handleTransferTx(state *rma.Tree, hashAlgorithm crypto.Hash, feeCalc fc.Fee
 		tx.SetServerMetadata(&txsystem.ServerMetadata{Fee: fee})
 
 		// update state
-		fcrID := tx.transaction.GetClientFeeCreditRecordID()
-		decrCreditFunc := fc.DecrCredit(fcrID, fee, tx.Hash(hashAlgorithm))
+		decrCreditFunc := decrFeeCredit(tx, feeCalc, hashAlgorithm)
 		updateDataFunc := updateBillDataFunc(tx, currentBlockNumber, hashAlgorithm)
 		setOwnerFunc := rma.SetOwner(tx.UnitID(), tx.NewBearer(), tx.Hash(hashAlgorithm))
 		if err := state.AtomicUpdate(

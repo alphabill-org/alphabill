@@ -20,8 +20,7 @@ func handleTransferDCTx(state *rma.Tree, dustCollector *DustCollector, hashAlgor
 		fee := feeCalc()
 		tx.SetServerMetadata(&txsystem.ServerMetadata{Fee: fee})
 		// update state
-		fcrID := tx.transaction.GetClientFeeCreditRecordID()
-		decrCreditFunc := fc.DecrCredit(fcrID, tx.transaction.ServerMetadata.Fee, tx.Hash(hashAlgorithm))
+		decrCreditFunc := decrFeeCredit(tx, feeCalc, hashAlgorithm)
 		updateDataFunc := updateBillDataFunc(tx, currentBlockNumber, hashAlgorithm)
 		setOwnerFunc := rma.SetOwner(tx.UnitID(), dustCollectorPredicate, tx.Hash(hashAlgorithm))
 		if err := state.AtomicUpdate(

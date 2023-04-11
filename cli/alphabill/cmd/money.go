@@ -8,6 +8,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/errors"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/internal/script"
+	"github.com/alphabill-org/alphabill/internal/txsystem/fc"
 	"github.com/alphabill-org/alphabill/internal/txsystem/money"
 	"github.com/alphabill-org/alphabill/pkg/logger"
 	"github.com/holiman/uint256"
@@ -88,6 +89,7 @@ func runMoneyNode(ctx context.Context, cfg *moneyNodeConfiguration) error {
 		money.WithSystemDescriptionRecords(params.SystemDescriptionRecords),
 		money.WithDCMoneyAmount(params.DcMoneySupplyValue),
 		money.WithTrustBase(trustBase),
+		money.WithFeeCalculator(fc.FixedFee(0)), // 0 to disable fee module
 	)
 	if err != nil {
 		return errors.Wrapf(err, "failed to start money transaction system")

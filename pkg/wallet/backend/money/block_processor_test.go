@@ -69,7 +69,7 @@ func TestGenericBlockProcessor_EachTxTypeCanBeProcessed(t *testing.T) {
 	require.NoError(t, err)
 	err = store.Do().SetFeeCreditBill(fcb)
 	require.NoError(t, err)
-	bp := NewBlockProcessor(store, NewTxConverter(moneySystemID))
+	bp := NewBlockProcessor(store, NewTxConverter(moneySystemID), true)
 
 	// process transactions
 	err = bp.ProcessBlock(context.Background(), b)

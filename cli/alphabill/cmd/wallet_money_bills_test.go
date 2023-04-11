@@ -154,11 +154,11 @@ func setupInfra(t *testing.T) (string, *testpartition.AlphabillPartition) {
 		Value: 10000,
 		Owner: script.PredicateAlwaysTrue(),
 	}
-	network := startAlphabillPartition(t, initialBill)
+	network := startAlphabillPartition(t, initialBill, true)
 	startRPCServer(t, network, ":9543")
 
 	// transfer initial bill to wallet pubkey
-	spendInitialBill(t, network, initialBill)
+	spendInitialBillWithFeeCredits(t, network, initialBill)
 
 	// create wallet
 	homedir := createNewTestWallet(t)
@@ -169,7 +169,7 @@ func setupInfra(t *testing.T) (string, *testpartition.AlphabillPartition) {
 	return homedir, network
 }
 
-func spendInitialBill(t *testing.T, network *testpartition.AlphabillPartition, initialBill *moneytx.InitialBill) uint64 {
+func spendInitialBillWithFeeCredits(t *testing.T, network *testpartition.AlphabillPartition, initialBill *moneytx.InitialBill) uint64 {
 	pubkey := "0x03c30573dc0c7fd43fcb801289a6a96cb78c27f4ba398b89da91ece23e9a99aca3"
 	pubkeyBytes, _ := hexutil.Decode(pubkey)
 	pubkeyHash := hash.Sum256(pubkeyBytes)
@@ -215,6 +215,22 @@ func spendInitialBill(t *testing.T, network *testpartition.AlphabillPartition, i
 	require.Eventually(t, testpartition.BlockchainContainsTx(tx, network), test.WaitDuration, test.WaitTick)
 
 	return remainingValue
+}
+
+func spendInitialBill(t *testing.T, network *testpartition.AlphabillPartition, initialBill *moneytx.InitialBill) uint64 {
+	pubkey := "0x03c30573dc0c7fd43fcb801289a6a96cb78c27f4ba398b89da91ece23e9a99aca3"
+	pubkeyBytes, _ := hexutil.Decode(pubkey)
+	absoluteTimeout := uint64(10000)
+
+	tx, err := createTransferTx(pubkeyBytes, util.Uint256ToBytes(initialBill.ID), initialBill.Value, nil, absoluteTimeout, nil)
+	require.NoError(t, err)
+
+	// send transfer tx
+	err = network.SubmitTx(tx)
+	require.NoError(t, err)
+	require.Eventually(t, testpartition.BlockchainContainsTx(tx, network), test.WaitDuration, test.WaitTick)
+
+	return initialBill.Value
 }
 
 func createTransferTx(pubKey []byte, billId []byte, billValue uint64, fcrID []byte, timeout uint64, backlink []byte) (*txsystem.Transaction, error) {

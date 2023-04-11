@@ -19,10 +19,11 @@ const DustBillDeletionTimeout = 65536
 type BlockProcessor struct {
 	store       BillStore
 	TxConverter block.TxConverter
+	feesEnabled bool
 }
 
-func NewBlockProcessor(store BillStore, txConverter block.TxConverter) *BlockProcessor {
-	return &BlockProcessor{store: store, TxConverter: txConverter}
+func NewBlockProcessor(store BillStore, txConverter block.TxConverter, feesEnabled bool) *BlockProcessor {
+	return &BlockProcessor{store: store, TxConverter: txConverter, feesEnabled: feesEnabled}
 }
 
 func (p *BlockProcessor) ProcessBlock(_ context.Context, b *block.Block) error {
@@ -223,6 +224,9 @@ func (p *BlockProcessor) saveFCBWithProof(b *block.GenericBlock, tx *txsystem.Tr
 }
 
 func (p *BlockProcessor) updateFCB(tx *txsystem.Transaction, roundNumber uint64, dbTx BillStoreTx) error {
+	if !p.feesEnabled {
+		return nil
+	}
 	fcb, err := dbTx.GetFeeCreditBill(tx.ClientMetadata.FeeCreditRecordId)
 	if err != nil {
 		return err

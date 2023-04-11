@@ -25,6 +25,7 @@ type (
 	WalletBackend struct {
 		store         BillStore
 		genericWallet *wallet.Wallet
+		feesEnabled   bool
 	}
 
 	Bills struct {
@@ -89,6 +90,7 @@ type (
 		DbFile                  string
 		ListBillsPageLimit      int
 		InitialBill             InitialBill
+		FeesEnabled             bool
 	}
 
 	InitialBill struct {
@@ -129,14 +131,14 @@ func CreateAndRun(ctx context.Context, config *Config) error {
 	g, ctx := errgroup.WithContext(ctx)
 
 	g.Go(func() error {
-		walletBackend := &WalletBackend{store: store, genericWallet: wallet.New().SetABClient(abc).Build()}
+		walletBackend := &WalletBackend{store: store, genericWallet: wallet.New().SetABClient(abc).Build(), feesEnabled: config.FeesEnabled}
 		defer walletBackend.genericWallet.Shutdown()
 		server := NewHttpServer(config.ServerAddr, config.ListBillsPageLimit, walletBackend)
 		return server.Run(ctx)
 	})
 
 	g.Go(func() error {
-		bp := NewBlockProcessor(store, NewTxConverter(config.ABMoneySystemIdentifier))
+		bp := NewBlockProcessor(store, NewTxConverter(config.ABMoneySystemIdentifier), config.FeesEnabled)
 		getBlockNumber := func() (uint64, error) { return store.Do().GetBlockNumber() }
 		// we act as if all errors returned by block sync are recoverable ie we
 		// just retry in a loop until ctx is cancelled

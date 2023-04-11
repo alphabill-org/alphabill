@@ -14,9 +14,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/rpc/alphabill"
 	"github.com/alphabill-org/alphabill/internal/script"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
-	"github.com/alphabill-org/alphabill/internal/txsystem/fc/transactions"
 	billtx "github.com/alphabill-org/alphabill/internal/txsystem/money"
-	"github.com/alphabill-org/alphabill/internal/txsystem/util"
 	"github.com/alphabill-org/alphabill/pkg/wallet/money"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/holiman/uint256"
@@ -83,57 +81,7 @@ func main() {
 	}
 	absoluteTimeout := res.RoundNumber + *timeout
 
-	txFee := uint64(1)
-	feeAmount := uint64(2)
-	fcrID := util.SameShardIDBytes(uint256.NewInt(0).SetBytes(billID), hash.Sum256(pubKey))
-
-	// create transferFC
-	transferFC, err := createTransferFC(feeAmount, billID, fcrID, res.RoundNumber, absoluteTimeout)
-	if err != nil {
-		log.Fatal(err)
-	}
-	// send transferFC
-	_, err = txClient.ProcessTransaction(ctx, transferFC)
-	if err != nil {
-		log.Fatal(err)
-	}
-	log.Println("sent transferFC transaction")
-
-	// wait for transferFC proof
-	transferFCProof, err := waitForConfirmation(ctx, txClient, transferFC, res.RoundNumber, absoluteTimeout)
-	if err != nil {
-		log.Fatalf("failed to confirm transferFC transaction %v", err)
-	} else {
-		log.Println("confirmed transferFC transaction")
-	}
-
-	// create addFC
-	transferFC.ServerMetadata = &txsystem.ServerMetadata{Fee: txFee} // add server metadata so that hash is correct
-	addFC, err := createAddFC(fcrID, script.PredicateAlwaysTrue(), transferFC, transferFCProof, absoluteTimeout, feeAmount)
-	if err != nil {
-		log.Fatal(err)
-	}
-	// send addFC
-	_, err = txClient.ProcessTransaction(ctx, addFC)
-	if err != nil {
-		log.Fatal(err)
-	}
-	log.Println("sent addFC transaction")
-
-	// wait for addFC confirmation
-	_, err = waitForConfirmation(ctx, txClient, addFC, res.RoundNumber, absoluteTimeout)
-	if err != nil {
-		log.Fatalf("failed to confirm addFC transaction %v", err)
-	} else {
-		log.Println("confirmed addFC transaction")
-	}
-
-	// create transfer tx
-	transferFCWrapper, err := transactions.NewFeeCreditTx(transferFC)
-	if err != nil {
-		log.Fatalf("failed to wrap transferFC %v", err)
-	}
-	tx, err := createTransferTx(pubKey, billID, *billValue-feeAmount-txFee, fcrID, absoluteTimeout, transferFCWrapper.Hash(crypto.SHA256))
+	tx, err := createTransferTx(pubKey, billID, *billValue, nil, absoluteTimeout, nil)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -167,52 +115,6 @@ func createTransferTx(pubKey []byte, unitID []byte, billValue uint64, fcrID []by
 		NewBearer:   script.PredicatePayToPublicKeyHashDefault(hash.Sum256(pubKey)),
 		TargetValue: billValue,
 		Backlink:    backlink,
-	}, proto.MarshalOptions{})
-	if err != nil {
-		return nil, err
-	}
-	return tx, nil
-}
-
-func createTransferFC(feeAmount uint64, unitID []byte, targetUnitID []byte, t1, t2 uint64) (*txsystem.Transaction, error) {
-	tx := &txsystem.Transaction{
-		UnitId:                unitID,
-		SystemId:              []byte{0, 0, 0, 0},
-		TransactionAttributes: new(anypb.Any),
-		OwnerProof:            script.PredicateArgumentEmpty(),
-		ClientMetadata: &txsystem.ClientMetadata{
-			Timeout: t2,
-			MaxFee:  1,
-		},
-	}
-	err := anypb.MarshalFrom(tx.TransactionAttributes, &transactions.TransferFeeCreditAttributes{
-		Amount:                 feeAmount,
-		TargetSystemIdentifier: []byte{0, 0, 0, 0},
-		TargetRecordId:         targetUnitID,
-		EarliestAdditionTime:   t1,
-		LatestAdditionTime:     t2,
-	}, proto.MarshalOptions{})
-	if err != nil {
-		return nil, err
-	}
-	return tx, nil
-}
-
-func createAddFC(unitID []byte, ownerCondition []byte, transferFC *txsystem.Transaction, transferFCProof *block.BlockProof, timeout uint64, maxFee uint64) (*txsystem.Transaction, error) {
-	tx := &txsystem.Transaction{
-		UnitId:                unitID,
-		SystemId:              []byte{0, 0, 0, 0},
-		TransactionAttributes: new(anypb.Any),
-		OwnerProof:            script.PredicateArgumentEmpty(),
-		ClientMetadata: &txsystem.ClientMetadata{
-			Timeout: timeout,
-			MaxFee:  maxFee,
-		},
-	}
-	err := anypb.MarshalFrom(tx.TransactionAttributes, &transactions.AddFeeCreditAttributes{
-		FeeCreditTransfer:       transferFC,
-		FeeCreditTransferProof:  transferFCProof,
-		FeeCreditOwnerCondition: ownerCondition,
 	}, proto.MarshalOptions{})
 	if err != nil {
 		return nil, err

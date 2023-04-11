@@ -166,7 +166,7 @@ func NewNetwork(nodeCount int, txSystemProvider func(trustBase map[string]crypto
 	partitionGenesis := partitionGenesisFiles[0]
 	ctx, ctxCancel := context.WithCancel(context.Background())
 	// start root
-	go rootNode.Start(ctx)
+	go rootNode.Run(ctx)
 	// start Nodes
 	nodes := make([]*partitionNode, nodeCount)
 	eh := &testevent.TestEventHandler{}

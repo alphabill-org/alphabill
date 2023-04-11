@@ -2,11 +2,11 @@ package storage
 
 import (
 	gocrypto "crypto"
+	"errors"
 	"fmt"
 	"sync"
 
 	"github.com/alphabill-org/alphabill/internal/certificates"
-	"github.com/alphabill-org/alphabill/internal/errors"
 	"github.com/alphabill-org/alphabill/internal/keyvaluedb"
 	"github.com/alphabill-org/alphabill/internal/network/protocol"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/atomic_broadcast"
@@ -48,7 +48,7 @@ func storeGenesisInit(hash gocrypto.Hash, pg []*genesis.GenesisPartitionRecord, 
 	return nil
 }
 
-func NewBlockStore(hash gocrypto.Hash, pg []*genesis.GenesisPartitionRecord, s *Storage) (*BlockStore, error) {
+func NewBlockStore(hash gocrypto.Hash, pg []*genesis.GenesisPartitionRecord, s *Storage) (block *BlockStore, err error) {
 	// Initiate store
 	if pg == nil {
 		return nil, errors.New("genesis record is nil")
@@ -69,16 +69,12 @@ func NewBlockStore(hash gocrypto.Hash, pg []*genesis.GenesisPartitionRecord, s *
 	certStore := s.GetCertificatesDB()
 	// read certificates from storage
 	itr := certStore.First()
-	defer func() {
-		if err := itr.Close(); err != nil {
-			logger.Warning("Unexpected error, db iterator close %v", err)
-		}
-	}()
+	defer func() { err = errors.Join(err, itr.Close()) }()
 	ucs := make(map[protocol.SystemIdentifier]*certificates.UnicityCertificate)
 	for ; itr.Valid(); itr.Next() {
 		id := protocol.SystemIdentifier(itr.Key())
 		var uc certificates.UnicityCertificate
-		if err := itr.Value(&uc); err != nil {
+		if err = itr.Value(&uc); err != nil {
 			return nil, fmt.Errorf("block store init failed, read certificated from db error, %w", err)
 		}
 		ucs[id] = &uc
@@ -188,15 +184,18 @@ func (x *BlockStore) GetHighQc() *atomic_broadcast.QuorumCert {
 	return x.blockTree.HighQc()
 }
 
-func (x *BlockStore) updateCertificateCache(certs map[protocol.SystemIdentifier]*certificates.UnicityCertificate) {
+func (x *BlockStore) updateCertificateCache(certs map[protocol.SystemIdentifier]*certificates.UnicityCertificate) error {
 	x.lock.Lock()
 	defer x.lock.Unlock()
 	for id, uc := range certs {
 		x.Certificates[id] = uc
 		// and persist changes
 		// todo: AB-795 persistent storage failure?
-		x.storage.GetCertificatesDB().Write(id.Bytes(), uc)
+		if err := x.storage.GetCertificatesDB().Write(id.Bytes(), uc); err != nil {
+			return fmt.Errorf("failed to update certificates, %w", err)
+		}
 	}
+	return nil
 }
 
 func (x *BlockStore) GetCertificates() map[protocol.SystemIdentifier]*certificates.UnicityCertificate {

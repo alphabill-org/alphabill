@@ -148,9 +148,7 @@ func defaultRootNodeRunFunc(ctx context.Context, config *rootNodeConfig) error {
 	if err != nil {
 		return fmt.Errorf("failed initiate root node: %w", err)
 	}
-	node.Start(ctx)
-	<-ctx.Done()
-	return ctx.Err()
+	return node.Run(ctx)
 }
 
 func createHost(address string, encPrivate crypto.PrivKey) (*network.Peer, error) {

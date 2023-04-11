@@ -62,9 +62,9 @@ func New(
 	return node, nil
 }
 
-func (v *Node) Start(ctx context.Context) error {
+func (v *Node) Run(ctx context.Context) error {
 	g, gctx := errgroup.WithContext(ctx)
-	// Start root consensus algorithm
+	// Run root consensus algorithm
 	g.Go(func() error { return v.consensusManager.Run(gctx) })
 	// Start receiving messages from partition nodes
 	g.Go(func() error { return v.loop(gctx) })

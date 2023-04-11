@@ -103,7 +103,7 @@ func Test_Run(t *testing.T) {
 					default:
 					}
 					// signal "no new blocks" so sync should sit idle
-					return &alphabill.GetBlocksResponse{MaxBlockNumber: blockNumber}, nil
+					return &alphabill.GetBlocksResponse{MaxBlockNumber: blockNumber, BatchMaxBlockNumber: blockNumber}, nil
 				},
 			},
 			log: logger,
@@ -143,34 +143,38 @@ func Test_Run_API(t *testing.T) {
 
 	var currentRoundNumber atomic.Uint64
 	syncing := make(chan *txsystem.Transaction, 1)
+	boltStore, err := newBoltStore(filepath.Join(t.TempDir(), "tokens.db"))
+	require.NoError(t, err)
 	// only AB backend is mocked, rest is "real"
 	cfg := &mockCfg{
-		log:    logger,
-		dbFile: filepath.Join(t.TempDir(), "tokens.db"),
+		log: logger,
+		db:  boltStore,
 		abc: &mockABClient{
-			sendTransaction: func(ctx context.Context, tx *txsystem.Transaction) (*txsystem.TransactionResponse, error) {
+			sendTransaction: func(ctx context.Context, tx *txsystem.Transaction) error {
 				syncing <- tx
-				return &txsystem.TransactionResponse{Ok: true}, nil
+				return nil
 			},
 			getBlocks: func(ctx context.Context, blockNumber, blockCount uint64) (*alphabill.GetBlocksResponse, error) {
 				select {
 				case tx := <-syncing:
-					currentRoundNumber.Add(1)
+					rn := currentRoundNumber.Add(1)
 					return &alphabill.GetBlocksResponse{
-						MaxBlockNumber: blockNumber,
+						MaxBlockNumber:      blockNumber,
+						BatchMaxBlockNumber: rn,
+						MaxRoundNumber:      rn,
 						Blocks: []*block.Block{{
 							SystemIdentifier:   tx.SystemId,
 							Transactions:       []*txsystem.Transaction{tx},
-							UnicityCertificate: &certificates.UnicityCertificate{InputRecord: &certificates.InputRecord{RoundNumber: currentRoundNumber.Load()}},
+							UnicityCertificate: &certificates.UnicityCertificate{InputRecord: &certificates.InputRecord{RoundNumber: rn}},
 						}},
 					}, nil
 				default:
 					// signal "no new blocks"
-					return &alphabill.GetBlocksResponse{MaxBlockNumber: blockNumber, MaxRoundNumber: currentRoundNumber.Load()}, nil
+					return &alphabill.GetBlocksResponse{MaxBlockNumber: blockNumber, MaxRoundNumber: blockNumber, BatchMaxBlockNumber: blockNumber}, nil
 				}
 			},
-			maxBlockNumber: func(ctx context.Context) (bn uint64, rn uint64, err error) {
-				return 0, currentRoundNumber.Load(), nil
+			roundNumber: func(ctx context.Context) (uint64, error) {
+				return currentRoundNumber.Load(), nil
 			},
 		},
 	}
@@ -184,17 +188,14 @@ func Test_Run_API(t *testing.T) {
 		return decodeResponse(t, rsp, code, data)
 	}
 
-	getRoundNumber := func() uint64 {
-		t.Helper()
-		var rn RoundNumberResponse
-		require.NoError(t, doGet("/round-number", http.StatusOK, &rn))
-		return rn.RoundNumber
-	}
-
-	waitForRoundNumber := func(num uint64, timeout time.Duration) {
+	waitForRoundNumberToBeStored := func(num uint64, timeout time.Duration) {
 		t.Helper()
 		for st := time.Now(); ; {
-			if getRoundNumber() == num {
+			rn, err := boltStore.GetBlockNumber()
+			if err != nil {
+				t.Logf("failed to read block number from storage: %v", err)
+			}
+			if rn == num {
 				break
 			}
 			if et := time.Since(st); et > timeout {
@@ -214,7 +215,9 @@ func Test_Run_API(t *testing.T) {
 		}
 	}()
 
-	require.EqualValues(t, 0, getRoundNumber(), "expected that system starts with round-number 0")
+	var rn RoundNumberResponse
+	require.NoError(t, doGet("/round-number", http.StatusOK, &rn))
+	require.EqualValues(t, 0, rn.RoundNumber, "expected that system starts with round-number 0")
 
 	// trigger block sync from (mocked) AB with an CreateNonFungibleTokenType tx
 	createNTFTypeTx := randomTx(t, &tokens.CreateNonFungibleTokenTypeAttributes{Symbol: "test"})
@@ -225,7 +228,7 @@ func Test_Run_API(t *testing.T) {
 	}
 
 	// syncing with mocked AB backend should have us now on round-number 1
-	waitForRoundNumber(1, 1000*time.Millisecond)
+	waitForRoundNumberToBeStored(1, 1500*time.Millisecond)
 
 	// we synced NTF token type from backend, check that it is returned:
 	// first convert the txsystem.Transaction to the type we have in indexing backend...
@@ -284,7 +287,7 @@ func Test_Run_API(t *testing.T) {
 	require.Empty(t, data)
 
 	// syncing with mocked AB backend should have us now on round-number 2
-	waitForRoundNumber(2, 1000*time.Millisecond)
+	waitForRoundNumberToBeStored(2, 1500*time.Millisecond)
 
 	// read back the token we minted
 	var tokens []*TokenUnit

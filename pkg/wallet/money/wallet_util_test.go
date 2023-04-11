@@ -41,12 +41,8 @@ type (
 	}
 )
 
-func CreateTestWallet(t *testing.T, br *backendMockReturnConf) (*Wallet, *clientmock.MockAlphabillClient) {
-	dir := t.TempDir()
-	am, err := account.NewManager(dir, "", true)
-	require.NoError(t, err)
-
-	err = CreateNewWallet(am, "")
+func CreateTestWalletWithManager(t *testing.T, br *backendMockReturnConf, am account.Manager) (*Wallet, *clientmock.MockAlphabillClient) {
+	err := CreateNewWallet(am, "")
 	require.NoError(t, err)
 
 	mockClient := clientmock.NewMockAlphabillClient(clientmock.WithMaxBlockNumber(0), clientmock.WithBlocks(map[uint64]*block.Block{}))
@@ -57,6 +53,12 @@ func CreateTestWallet(t *testing.T, br *backendMockReturnConf) (*Wallet, *client
 	require.NoError(t, err)
 	w.AlphabillClient = mockClient
 	return w, mockClient
+}
+
+func CreateTestWallet(t *testing.T, br *backendMockReturnConf) (*Wallet, *clientmock.MockAlphabillClient) {
+	am, err := account.NewManager(t.TempDir(), "", true)
+	require.NoError(t, err)
+	return CreateTestWalletWithManager(t, br, am)
 }
 
 func CreateTestWalletFromSeed(t *testing.T, br *backendMockReturnConf) (*Wallet, *clientmock.MockAlphabillClient) {
@@ -92,7 +94,7 @@ func mockBackendCalls(br *backendMockReturnConf) (*httptest.Server, *url.URL) {
 				w.Write([]byte(fmt.Sprintf(`{"blockHeight": "%d"}`, br.blockHeight)))
 			case "/" + testclient.ProofPath:
 				w.WriteHeader(http.StatusOK)
-				w.Write([]byte(br.proofList[proofCount]))
+				w.Write([]byte(br.proofList[proofCount%len(br.proofList)]))
 				proofCount++
 			case "/" + testclient.ListBillsPath:
 				w.WriteHeader(http.StatusOK)
@@ -115,11 +117,13 @@ func toBillId(i *uint256.Int) string {
 	return base64.StdEncoding.EncodeToString(util.Uint256ToBytes(i))
 }
 
-func createBlockProofJsonResponse(t *testing.T, bills []*Bill, overrideNonce []byte, blockNumber, timeout uint64) []string {
+func createBlockProofJsonResponse(t *testing.T, bills []*Bill, overrideNonce []byte, blockNumber, timeout uint64, k *account.AccountKey) []string {
 	var jsonList []string
 	for _, b := range bills {
 		w, mockClient := CreateTestWallet(t, nil)
-		k, _ := w.am.GetAccountKey(0)
+		if k == nil {
+			k, _ = w.am.GetAccountKey(0)
+		}
 		var dcTx *txsystem.Transaction
 		if overrideNonce != nil {
 			dcTx, _ = createDustTx(k, w.SystemID(), b, overrideNonce, timeout)

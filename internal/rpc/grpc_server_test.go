@@ -75,7 +75,8 @@ func TestNewRpcServer_Ok(t *testing.T) {
 
 func TestRpcServer_GetBlocksOk(t *testing.T) {
 	p, err := NewGRPCServer(&MockNode{maxBlockNumber: 12})
-	res, err := p.GetBlocks(nil, &alphabill.GetBlocksRequest{BlockNumber: 1, BlockCount: 12})
+	require.NoError(t, err)
+	res, err := p.GetBlocks(context.Background(), &alphabill.GetBlocksRequest{BlockNumber: 1, BlockCount: 12})
 	require.NoError(t, err)
 	require.Len(t, res.Blocks, 12)
 	require.EqualValues(t, 12, res.MaxBlockNumber)
@@ -83,7 +84,8 @@ func TestRpcServer_GetBlocksOk(t *testing.T) {
 
 func TestRpcServer_GetBlocksSingleBlock(t *testing.T) {
 	p, err := NewGRPCServer(&MockNode{maxBlockNumber: 1})
-	res, err := p.GetBlocks(nil, &alphabill.GetBlocksRequest{BlockNumber: 1, BlockCount: 1})
+	require.NoError(t, err)
+	res, err := p.GetBlocks(context.Background(), &alphabill.GetBlocksRequest{BlockNumber: 1, BlockCount: 1})
 	require.NoError(t, err)
 	require.Len(t, res.Blocks, 1)
 	require.EqualValues(t, 1, res.MaxBlockNumber)
@@ -91,7 +93,8 @@ func TestRpcServer_GetBlocksSingleBlock(t *testing.T) {
 
 func TestRpcServer_FetchNonExistentBlocks_DoesNotPanic(t *testing.T) {
 	p, err := NewGRPCServer(&MockNode{maxBlockNumber: 7})
-	res, err := p.GetBlocks(nil, &alphabill.GetBlocksRequest{BlockNumber: 73, BlockCount: 100})
+	require.NoError(t, err)
+	res, err := p.GetBlocks(context.Background(), &alphabill.GetBlocksRequest{BlockNumber: 73, BlockCount: 100})
 	require.NoError(t, err)
 	require.Len(t, res.Blocks, 0)
 	require.EqualValues(t, 7, res.MaxBlockNumber)
@@ -115,7 +118,6 @@ func TestRpcServer_ProcessTransaction_Ok(t *testing.T) {
 	response, err := client.ProcessTransaction(ctx, req)
 	assert.Nil(t, err)
 	assert.NotNil(t, response)
-	assert.True(t, response.Ok)
 }
 
 func createRpcClient(t *testing.T, ctx context.Context) (*grpc.ClientConn, alphabill.AlphabillServiceClient) {
@@ -126,9 +128,11 @@ func createRpcClient(t *testing.T, ctx context.Context) (*grpc.ClientConn, alpha
 	alphabill.RegisterAlphabillServiceServer(grpcServer, rpcServer)
 	go func() {
 		if err := grpcServer.Serve(listener); err != nil {
-			t.Fatal(err)
+			t.Error("gRPC server exited with error:", err)
 		}
 	}()
+	t.Cleanup(func() { grpcServer.Stop() })
+
 	d := func(context.Context, string) (net.Conn, error) {
 		return listener.Dial()
 	}

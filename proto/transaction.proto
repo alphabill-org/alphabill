@@ -9,20 +9,13 @@ message Transaction {
   bytes system_id = 1;
   bytes unit_id = 2;
   google.protobuf.Any transaction_attributes = 3;
-  bytes owner_proof = 5;
+  bytes owner_proof = 4;
   // optional fee authorization proof (omitted when the main owner proof also satisfies the fee owner condition)
-  bytes fee_proof = 6;
+  bytes fee_proof = 5;
   // transaction metadata added by user
-  ClientMetadata client_metadata = 7;
+  ClientMetadata client_metadata = 6;
   // transaction metadata added by node
-  ServerMetadata server_metadata = 8;
-}
-
-message TransactionResponse {
-  // True if request passed initial validation.
-  bool ok = 1;
-  // Contains error message if ok is false.
-  string message = 2;
+  ServerMetadata server_metadata = 7;
 }
 
 message ClientMetadata {

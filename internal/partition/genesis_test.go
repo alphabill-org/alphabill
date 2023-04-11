@@ -70,7 +70,7 @@ func TestNewGenesisPartitionNode_NotOk(t *testing.T) {
 					WithHashAlgorithm(gocrypto.SHA256),
 				},
 			},
-			wantErr: ErrInvalidSystemIdentifier,
+			wantErr: errInvalidSystemIdentifier,
 		},
 		{
 			name: "peer ID is empty",
@@ -104,7 +104,6 @@ func TestNewGenesisPartitionNode_Ok(t *testing.T) {
 	require.Equal(t, pubKey, pn.SigningPublicKey)
 	blockCertificationRequestRequest := pn.BlockCertificationRequest
 	require.Equal(t, systemIdentifier, blockCertificationRequestRequest.SystemIdentifier)
-	require.Equal(t, uint64(1), blockCertificationRequestRequest.RootRoundNumber)
 	require.NoError(t, blockCertificationRequestRequest.IsValid(verifier))
 
 	ir := blockCertificationRequestRequest.InputRecord

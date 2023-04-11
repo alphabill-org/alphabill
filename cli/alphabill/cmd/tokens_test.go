@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
-	"github.com/alphabill-org/alphabill/internal/rootchain"
+	rootgenesis "github.com/alphabill-org/alphabill/internal/rootchain/genesis"
 	"github.com/alphabill-org/alphabill/internal/rpc/alphabill"
 	"github.com/alphabill-org/alphabill/internal/script"
 	"github.com/alphabill-org/alphabill/internal/testutils/net"
@@ -53,9 +53,9 @@ func TestRunTokensNode(t *testing.T) {
 		rootSigner, verifier := testsig.CreateSignerAndVerifier(t)
 		rootPubKeyBytes, err := verifier.MarshalPublicKey()
 		require.NoError(t, err)
-		pr, err := rootchain.NewPartitionRecordFromNodes([]*genesis.PartitionNode{pn})
+		pr, err := rootgenesis.NewPartitionRecordFromNodes([]*genesis.PartitionNode{pn})
 		require.NoError(t, err)
-		_, partitionGenesisFiles, err := rootchain.NewRootGenesis("test", rootSigner, rootPubKeyBytes, pr)
+		_, partitionGenesisFiles, err := rootgenesis.NewRootGenesis("test", rootSigner, rootPubKeyBytes, pr)
 		require.NoError(t, err)
 
 		err = util.WriteJsonFile(partitionGenesisFileLocation, partitionGenesisFiles[0])
@@ -99,14 +99,12 @@ func TestRunTokensNode(t *testing.T) {
 			DataUpdatePredicate:      script.PredicateAlwaysTrue(),
 		}))
 
-		response, err := rpcClient.ProcessTransaction(ctx, tx, grpc.WaitForReady(true))
+		_, err = rpcClient.ProcessTransaction(ctx, tx, grpc.WaitForReady(true))
 		require.NoError(t, err)
-		require.True(t, response.Ok, "Successful response ok should be true")
 
 		// failing case
 		tx.SystemId = []byte{1, 0, 0, 0} // incorrect system id
-		response, err = rpcClient.ProcessTransaction(ctx, tx, grpc.WaitForReady(true))
-		require.ErrorContains(t, err, "system identifier is invalid")
-		require.Nil(t, response, "expected nil response in case of error")
+		_, err = rpcClient.ProcessTransaction(ctx, tx, grpc.WaitForReady(true))
+		require.ErrorContains(t, err, "invalid transaction system identifier")
 	})
 }

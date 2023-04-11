@@ -13,6 +13,7 @@ var ir = &InputRecord{
 	Hash:         []byte{0, 0, 2},
 	BlockHash:    []byte{0, 0, 3},
 	SummaryValue: []byte{0, 0, 4},
+	RoundNumber:  1,
 }
 
 func TestInputRecord_IsValid(t *testing.T) {
@@ -62,12 +63,24 @@ func TestInputRecord_IsValid(t *testing.T) {
 			wantErr: ErrSummaryValueIsNil,
 		},
 		{
+			name: "partition round is 0",
+			inputRecord: &InputRecord{
+				PreviousHash: zeroHash,
+				Hash:         zeroHash,
+				BlockHash:    zeroHash,
+				SummaryValue: []byte{1, 2, 3},
+				RoundNumber:  0,
+			},
+			wantErr: ErrInvalidPartitionRound,
+		},
+		{
 			name: "valid input record",
 			inputRecord: &InputRecord{
 				PreviousHash: zeroHash,
 				Hash:         zeroHash,
 				BlockHash:    zeroHash,
 				SummaryValue: zeroHash,
+				RoundNumber:  1,
 			},
 			wantErr: nil,
 		},
@@ -89,7 +102,7 @@ func TestInputRecord_IsNil(t *testing.T) {
 }
 
 func TestInputRecord_AddToHasher(t *testing.T) {
-	expectedHash, _ := hex.DecodeString("4B56730E1EEF4801A8AC8902AF4FA21BC900829BB85A341A1E998561F09DF574")
+	expectedHash, _ := hex.DecodeString("751b96425db404a17632072106655fa93019bc4eb11e13a71d157b77129d104b")
 	hasher := sha256.New()
 	ir.AddToHasher(hasher)
 	hash := hasher.Sum(nil)

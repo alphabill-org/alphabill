@@ -78,15 +78,15 @@ func randomTx(t *testing.T, attr proto.Message) *txsystem.Transaction {
 
 type mockABClient struct {
 	getBlocks       func(ctx context.Context, blockNumber, blockCount uint64) (*alphabill.GetBlocksResponse, error)
-	sendTransaction func(ctx context.Context, tx *txsystem.Transaction) (*txsystem.TransactionResponse, error)
-	maxBlockNumber  func(ctx context.Context) (bn uint64, rn uint64, err error)
+	sendTransaction func(ctx context.Context, tx *txsystem.Transaction) error
+	roundNumber     func(ctx context.Context) (uint64, error)
 }
 
-func (abc *mockABClient) SendTransaction(ctx context.Context, tx *txsystem.Transaction) (*txsystem.TransactionResponse, error) {
+func (abc *mockABClient) SendTransaction(ctx context.Context, tx *txsystem.Transaction) error {
 	if abc.sendTransaction != nil {
 		return abc.sendTransaction(ctx, tx)
 	}
-	return nil, fmt.Errorf("unexpected mockABClient.SendTransaction call")
+	return fmt.Errorf("unexpected mockABClient.SendTransaction call")
 }
 
 func (abc *mockABClient) GetBlocks(ctx context.Context, blockNumber, blockCount uint64) (*alphabill.GetBlocksResponse, error) {
@@ -96,11 +96,11 @@ func (abc *mockABClient) GetBlocks(ctx context.Context, blockNumber, blockCount 
 	return nil, fmt.Errorf("unexpected mockABClient.GetBlocks(%d, %d) call", blockNumber, blockCount)
 }
 
-func (abc *mockABClient) GetMaxBlockNumber(ctx context.Context) (uint64, uint64, error) { // latest persisted block number, latest round number
-	if abc.maxBlockNumber != nil {
-		return abc.maxBlockNumber(ctx)
+func (abc *mockABClient) GetRoundNumber(ctx context.Context) (uint64, error) {
+	if abc.roundNumber != nil {
+		return abc.roundNumber(ctx)
 	}
-	return 0, 0, fmt.Errorf("unexpected mockABClient.GetMaxBlockNumber call")
+	return 0, fmt.Errorf("unexpected mockABClient.GetRoundNumber call")
 }
 
 type mockCfg struct {
@@ -164,6 +164,7 @@ type mockStorage struct {
 	setBlockNumber   func(blockNumber uint64) error
 	saveTokenType    func(data *TokenUnitType, proof *Proof) error
 	saveToken        func(data *TokenUnit, proof *Proof) error
+	removeToken      func(id TokenID) error
 	getToken         func(id TokenID) (*TokenUnit, error)
 	queryTokens      func(kind Kind, owner Predicate, startKey TokenID, count int) ([]*TokenUnit, TokenID, error)
 	getTokenType     func(id TokenTypeID) (*TokenUnitType, error)
@@ -221,6 +222,13 @@ func (ms *mockStorage) SaveToken(data *TokenUnit, proof *Proof) error {
 		return ms.saveToken(data, proof)
 	}
 	return fmt.Errorf("unexpected SaveToken call")
+}
+
+func (ms *mockStorage) RemoveToken(id TokenID) error {
+	if ms.removeToken != nil {
+		return ms.removeToken(id)
+	}
+	return fmt.Errorf("unexpected RemoveToken(%x) call", id)
 }
 
 func (ms *mockStorage) GetToken(id TokenID) (*TokenUnit, error) {

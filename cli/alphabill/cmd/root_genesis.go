@@ -1,21 +1,23 @@
 package cmd
 
 import (
-	"context"
 	"encoding/binary"
 	"fmt"
 	"os"
 	"path/filepath"
 
-	"github.com/alphabill-org/alphabill/internal/errors"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
-	"github.com/alphabill-org/alphabill/internal/rootchain"
+	rootgenesis "github.com/alphabill-org/alphabill/internal/rootchain/genesis"
 	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/spf13/cobra"
 )
 
 const (
+	totalNodesCmdFlag      = "total-nodes"
+	consensusTmoCmdFlag    = "consensus-timeout"
+	quorumThresholdCmdFlag = "quorum-threshold"
+
 	partitionRecordFile = "partition-node-genesis-file"
 	rootGenesisFileName = "root-genesis.json"
 )
@@ -45,24 +47,40 @@ type rootGenesisConfig struct {
 }
 
 // newRootGenesisCmd creates a new cobra command for the root-genesis component.
+// there will be other commands added in the future
 func newRootGenesisCmd(baseConfig *baseConfiguration) *cobra.Command {
 	config := &rootGenesisConfig{Base: baseConfig, Keys: NewKeysConf(baseConfig, defaultRootChainDir)}
 	var cmd = &cobra.Command{
 		Use:   "root-genesis",
 		Short: "Generates root chain genesis files",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return rootGenesisRunFunc(cmd.Context(), config)
+			return fmt.Errorf("error: must specify a subcommand, new")
+		},
+	}
+	cmd.AddCommand(newGenesisCmd(config))
+	return cmd
+}
+
+func newGenesisCmd(config *rootGenesisConfig) *cobra.Command {
+	var cmd = &cobra.Command{
+		Use:   "new",
+		Short: "Generates root chain genesis file",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return rootGenesisRunFunc(config)
 		},
 	}
 	config.Keys.addCmdFlags(cmd)
 	cmd.Flags().StringSliceVarP(&config.PartitionNodeGenesisFiles, partitionRecordFile, "p", []string{}, "path to partition node genesis files")
 	cmd.Flags().StringVarP(&config.OutputDir, "output-dir", "o", "", "path to output directory (default: $AB_HOME/rootchain)")
 	// Consensus params
-	//cmd.Flags().Uint32Var(&config.TotalNodes, "total-nodes", 1, "total number of root nodes")
-	//cmd.Flags().Uint32Var(&config.BlockRateMs, "block-rate", 900, "Unicity Certificate rate")
-	//cmd.Flags().Uint32Var(&config.ConsensusTimeoutMs, "consensus-timeout", 10000, "time to vote for timeout in round (only distributed root chain)")
-	//cmd.Flags().Uint32Var(&config.QuorumThreshold, "quorum-threshold", 0, "define higher quorum threshold instead of calculated default")
-	//cmd.Flags().StringVar(&config.HashAlgorithm, "hash-algorithm", "SHA-256", "Hash algorithm to be used")
+	cmd.Flags().Uint32Var(&config.TotalNodes, totalNodesCmdFlag, 1, "total number of root nodes")
+	cmd.Flags().MarkHidden(totalNodesCmdFlag)
+	cmd.Flags().Uint32Var(&config.BlockRateMs, "block-rate", genesis.DefaultBlockRateMs, "Unicity Certificate rate")
+	cmd.Flags().Uint32Var(&config.ConsensusTimeoutMs, consensusTmoCmdFlag, genesis.DefaultConsensusTimeout, "time to vote for timeout in round (only distributed root chain)")
+	cmd.Flags().MarkHidden(consensusTmoCmdFlag)
+	cmd.Flags().Uint32Var(&config.QuorumThreshold, quorumThresholdCmdFlag, 0, "define higher quorum threshold instead of calculated default")
+	cmd.Flags().MarkHidden(quorumThresholdCmdFlag)
+	cmd.Flags().StringVar(&config.HashAlgorithm, "hash-algorithm", "SHA-256", "Hash algorithm to be used")
 
 	err := cmd.MarkFlagRequired(partitionRecordFile)
 	if err != nil {
@@ -87,19 +105,27 @@ func (c *rootGenesisConfig) getOutputDir() string {
 	return outputDir
 }
 
-func rootGenesisRunFunc(_ context.Context, config *rootGenesisConfig) error {
+func (c *rootGenesisConfig) getQuorumThreshold() uint32 {
+	// If not set by user, calculate minimal threshold
+	if c.QuorumThreshold == 0 {
+		return genesis.GetMinQuorumThreshold(c.TotalNodes)
+	}
+	return c.QuorumThreshold
+}
+
+func rootGenesisRunFunc(config *rootGenesisConfig) error {
 	// ensure output dir is present before keys generation
 	_ = config.getOutputDir()
 	// load or generate keys
 	keys, err := LoadKeys(config.Keys.GetKeyFileLocation(), config.Keys.GenerateKeys, config.Keys.ForceGeneration)
 	if err != nil {
-		return errors.Wrapf(err, "failed to read root chain keys from file '%s'", config.Keys.GetKeyFileLocation())
+		return fmt.Errorf("failed to read root chain keys from file '%s', error %w", config.Keys.GetKeyFileLocation(), err)
 	}
 	pn, err := loadPartitionNodeGenesisFiles(config.PartitionNodeGenesisFiles)
 	if err != nil {
 		return err
 	}
-	pr, err := rootchain.NewPartitionRecordFromNodes(pn)
+	pr, err := rootgenesis.NewPartitionRecordFromNodes(pn)
 	if err != nil {
 		return err
 	}
@@ -112,7 +138,16 @@ func rootGenesisRunFunc(_ context.Context, config *rootGenesisConfig) error {
 		return err
 	}
 
-	rg, pg, err := rootchain.NewRootGenesis(peerID.String(), keys.SigningPrivateKey, encPubKeyBytes, pr)
+	rg, pg, err := rootgenesis.NewRootGenesis(
+		peerID.String(),
+		keys.SigningPrivateKey,
+		encPubKeyBytes,
+		pr,
+		rootgenesis.WithTotalNodes(config.TotalNodes),
+		rootgenesis.WithQuorumThreshold(config.getQuorumThreshold()),
+		rootgenesis.WithBlockRate(config.BlockRateMs),
+		rootgenesis.WithConsensusTimeout(config.ConsensusTimeoutMs))
+
 	if err != nil {
 		return err
 	}
@@ -132,7 +167,7 @@ func loadPartitionNodeGenesisFiles(paths []string) ([]*genesis.PartitionNode, er
 	for _, p := range paths {
 		pr, err := util.ReadJsonFile(p, &genesis.PartitionNode{})
 		if err != nil {
-			return nil, errors.Wrapf(err, "failed to read partition node genesis file '%s'", p)
+			return nil, fmt.Errorf("failed to read partition node genesis file '%s', error %w", p, err)
 		}
 		pns = append(pns, pr)
 	}

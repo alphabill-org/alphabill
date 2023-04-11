@@ -512,7 +512,7 @@ func doExecTokensCmd(homedir string, command string) (*testConsoleWriter, error)
 	consoleWriter = outputWriter
 
 	cmd := New()
-	args := "wallet token --log-level DEBUG --home " + homedir + " " + command // + " -l " + homedir + " "
+	args := "wallet token --log-level DEBUG --home " + homedir + " " + command
 	cmd.baseCmd.SetArgs(strings.Split(args, " "))
 
 	return outputWriter, cmd.addAndExecuteCommand(context.Background())

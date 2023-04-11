@@ -21,12 +21,12 @@ func TestNewValidatorTrustBase(t *testing.T) {
 		{
 			name:    "Validator info is nil",
 			args:    args{nil},
-			wantErr: ErrValidatorPublicInfoIsEmpty,
+			wantErr: ErrValidatorPublicInfoIsEmpty.Error(),
 		},
 		{
 			name:    "From empty validator info",
 			args:    args{[]*PublicKeyInfo{}},
-			wantErr: ErrValidatorPublicInfoIsEmpty,
+			wantErr: ErrValidatorPublicInfoIsEmpty.Error(),
 		},
 		{
 			name: "Invalid validator public key",
@@ -64,12 +64,12 @@ func TestPublicKeyInfo_IsValid(t *testing.T) {
 		{
 			name:    "missing node identifier",
 			fields:  fields{"", pubKeyBytes, pubKeyBytes},
-			wantErr: ErrPubKeyNodeIdentifierIsEmpty,
+			wantErr: ErrPubKeyNodeIdentifierIsEmpty.Error(),
 		},
 		{
 			name:    "signing pub key is missing",
 			fields:  fields{"1", nil, pubKeyBytes},
-			wantErr: ErrPubKeyInfoSigningKeyIsInvalid,
+			wantErr: ErrPubKeyInfoSigningKeyIsInvalid.Error(),
 		},
 		{
 			name:    "signing pub key is invalid",
@@ -79,7 +79,7 @@ func TestPublicKeyInfo_IsValid(t *testing.T) {
 		{
 			name:    "enc pub key is missing",
 			fields:  fields{"1", pubKeyBytes, nil},
-			wantErr: ErrPubKeyInfoEncryptionIsInvalid,
+			wantErr: ErrPubKeyInfoEncryptionIsInvalid.Error(),
 		},
 		{
 			name:    "enc pub key is invalid",
@@ -123,12 +123,12 @@ func TestValidatorInfoUnique(t *testing.T) {
 		{
 			name:    "Validator info is nil",
 			args:    args{nil},
-			wantErr: ErrValidatorPublicInfoIsEmpty,
+			wantErr: ErrValidatorPublicInfoIsEmpty.Error(),
 		},
 		{
 			name:    "From empty validator info",
 			args:    args{[]*PublicKeyInfo{}},
-			wantErr: ErrValidatorPublicInfoIsEmpty,
+			wantErr: ErrValidatorPublicInfoIsEmpty.Error(),
 		},
 		{
 			name: "Invalid validator public key",

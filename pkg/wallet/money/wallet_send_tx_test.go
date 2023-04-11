@@ -3,6 +3,7 @@ package money
 import (
 	"context"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"strings"
 	"sync"
@@ -59,10 +60,9 @@ func TestWalletSendFunction_ClientError(t *testing.T) {
 	ctx := context.Background()
 
 	// test abclient returns error
-	mockClient.SetTxResponse(&txsystem.TransactionResponse{Ok: false, Message: "some error"})
+	mockClient.SetTxResponse(errors.New("some error"))
 	_, err := w.Send(ctx, SendCmd{ReceiverPubKey: validPubKey, Amount: amount})
-	require.ErrorContains(t, err, "transaction returned error code: some error")
-	mockClient.SetTxResponse(nil)
+	require.ErrorContains(t, err, "failed to send transaction: some error")
 }
 
 func TestWalletSendFunction_WaitForConfirmation(t *testing.T) {
@@ -183,7 +183,7 @@ func TestWalletSendFunction_RetryTxWhenTxBufferIsFull(t *testing.T) {
 	w, mockClient := CreateTestWallet(t, &backendMockReturnConf{balance: 100, billId: b.Id, billValue: b.Value})
 
 	// make server return TxBufferFullErrMessage
-	mockClient.SetTxResponse(&txsystem.TransactionResponse{Ok: false, Message: txBufferFullErrMsg})
+	mockClient.SetTxResponse(errors.New(txBufferFullErrMsg))
 
 	// send tx
 	_, sendError := w.Send(context.Background(), SendCmd{ReceiverPubKey: make([]byte, 33), Amount: 50})
@@ -207,7 +207,7 @@ func TestWalletSendFunction_RetryCanBeCanceledByUser(t *testing.T) {
 	w, mockClient := CreateTestWallet(t, &backendMockReturnConf{balance: 100, billId: b.Id, billValue: b.Value})
 
 	// make server return TxBufferFullErrMessage
-	mockClient.SetTxResponse(&txsystem.TransactionResponse{Ok: false, Message: txBufferFullErrMsg})
+	mockClient.SetTxResponse(errors.New(txBufferFullErrMsg))
 
 	// send tx
 	ctx, cancel := context.WithCancel(context.Background())

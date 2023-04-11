@@ -9,7 +9,6 @@ import (
 	"strconv"
 
 	"github.com/alphabill-org/alphabill/pkg/wallet/backend/bp"
-
 	_ "github.com/alphabill-org/alphabill/pkg/wallet/backend/money/docs"
 	"github.com/alphabill-org/alphabill/pkg/wallet/log"
 	"github.com/ethereum/go-ethereum/common/hexutil"
@@ -50,9 +49,8 @@ type (
 		Pubkey string `json:"pubkey"`
 	}
 
-	BlockHeightResponse struct {
-		BlockHeight     uint64 `json:"blockHeight,string"`
-		LastRoundNumber uint64 `json:"lastRoundNumber"`
+	RoundNumberResponse struct {
+		RoundNumber uint64 `json:"roundNumber,string"`
 	}
 
 	EmptyResponse struct{}
@@ -84,7 +82,7 @@ func (s *RequestHandler) Router() *mux.Router {
 	apiV1.HandleFunc("/list-bills", s.listBillsFunc).Methods("GET", "OPTIONS")
 	apiV1.HandleFunc("/balance", s.balanceFunc).Methods("GET", "OPTIONS")
 	apiV1.HandleFunc("/proof", s.getProofFunc).Methods("GET", "OPTIONS")
-	apiV1.HandleFunc("/block-height", s.blockHeightFunc).Methods("GET", "OPTIONS")
+	apiV1.HandleFunc("/round-number", s.blockHeightFunc).Methods("GET", "OPTIONS")
 	apiV1.HandleFunc("/fee-credit-bill", s.getFeeCreditBillFunc).Methods("GET", "OPTIONS")
 
 	apiV1.PathPrefix("/swagger/").Handler(httpSwagger.Handler(
@@ -234,16 +232,15 @@ func (s *RequestHandler) readBillsProto(r *http.Request) (*bp.Bills, error) {
 // @Id 4
 // @version 1.0
 // @produce application/json
-// @Success 200 {object} BlockHeightResponse
-// @Router /block-height [get]
+// @Success 200 {object} RoundNumberResponse
+// @Router /round-number [get]
 func (s *RequestHandler) blockHeightFunc(w http.ResponseWriter, r *http.Request) {
-	maxBlockNumber, lastRoundNumber, err := s.Service.GetMaxBlockNumber(r.Context())
+	lastRoundNumber, err := s.Service.GetRoundNumber(r.Context())
 	if err != nil {
-		log.Error("GET /block-height error fetching max block number", err)
+		log.Error("GET /round-number error fetching round number", err)
 		w.WriteHeader(http.StatusInternalServerError)
 	} else {
-		//writeAsJson(w, &BlockHeightResponse{BlockHeight: strconv.FormatUint(maxBlockNumber, 10)}) // TODO: merge
-		writeAsJson(w, &BlockHeightResponse{BlockHeight: maxBlockNumber, LastRoundNumber: lastRoundNumber})
+		writeAsJson(w, &RoundNumberResponse{RoundNumber: lastRoundNumber})
 	}
 }
 

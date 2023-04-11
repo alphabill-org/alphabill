@@ -24,6 +24,7 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/anypb"
+	"google.golang.org/protobuf/types/known/emptypb"
 )
 
 /*
@@ -76,18 +77,18 @@ func main() {
 		}
 	}()
 	txClient := alphabill.NewAlphabillServiceClient(conn)
-	maxBlockNumberRes, err := txClient.GetMaxBlockNo(ctx, &alphabill.GetMaxBlockNoRequest{})
+	res, err := txClient.GetRoundNumber(ctx, &emptypb.Empty{})
 	if err != nil {
 		log.Fatal(err)
 	}
-	absoluteTimeout := maxBlockNumberRes.MaxRoundNumber + *timeout
+	absoluteTimeout := res.RoundNumber + *timeout
 
 	txFee := uint64(1)
 	feeAmount := uint64(2)
 	fcrID := util.SameShardIDBytes(uint256.NewInt(0).SetBytes(billID), hash.Sum256(pubKey))
 
 	// create transferFC
-	transferFC, err := createTransferFC(feeAmount, billID, fcrID, maxBlockNumberRes.MaxRoundNumber, absoluteTimeout)
+	transferFC, err := createTransferFC(feeAmount, billID, fcrID, res.RoundNumber, absoluteTimeout)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -102,7 +103,7 @@ func main() {
 		log.Fatalf("failed to send transferFC transaction %v", transferFCResponse.Message)
 	}
 	// wait for transferFC proof
-	transferFCProof, err := waitForConfirmation(ctx, txClient, transferFC, maxBlockNumberRes.MaxRoundNumber, absoluteTimeout)
+	transferFCProof, err := waitForConfirmation(ctx, txClient, transferFC, res.RoundNumber, absoluteTimeout)
 	if err != nil {
 		log.Fatalf("failed to confirm transferFC transaction %v", err)
 	} else {
@@ -125,11 +126,6 @@ func main() {
 	} else {
 		log.Fatalf("failed to send addFC transaction %v", addFCResponse.Message)
 	}
-	// get max block number
-	maxBlockNumberRes, err = txClient.GetMaxBlockNo(ctx, &alphabill.GetMaxBlockNoRequest{})
-	if err != nil {
-		log.Fatal(err)
-	}
 	// wait for addFC confirmation
 	_, err = waitForConfirmation(ctx, txClient, addFC, maxBlockNumberRes.MaxRoundNumber, absoluteTimeout)
 	if err != nil {
@@ -147,16 +143,18 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	// send transfer tx
-	txResponse, err := txClient.ProcessTransaction(ctx, tx)
+	// get round number for timeout
+	res, err = txClient.GetRoundNumber(ctx, &emptypb.Empty{})
 	if err != nil {
 		log.Fatal(err)
 	}
-	if txResponse.Ok {
-		log.Println("sent initial bill transfer transaction")
-	} else {
-		log.Fatalf("failed to send transaction %v", txResponse.Message)
+	absoluteTimeout = res.RoundNumber + *timeout
+
+	// send transfer tx
+	if _, err := txClient.ProcessTransaction(ctx, tx); err != nil {
+		log.Fatal(err)
 	}
+	log.Println("successfully sent initial bill transfer transaction")
 }
 
 func createTransferTx(pubKey []byte, unitID []byte, billValue uint64, fcrID []byte, timeout uint64, backlink []byte) (*txsystem.Transaction, error) {
@@ -237,11 +235,13 @@ func waitForConfirmation(ctx context.Context, abClient alphabill.AlphabillServic
 		}
 		if res.Block == nil {
 			// block might be empty, check latest round number
-			res, err := abClient.GetMaxBlockNo(ctx, &alphabill.GetMaxBlockNoRequest{})
+			res, err := txClient.GetRoundNumber(ctx, &emptypb.Empty{})
 			if err != nil {
 				return nil, err
 			}
-			if res.MaxRoundNumber > latestRoundNumber {
+			absoluteTimeout := res.RoundNumber + *timeout
+
+			if res.RoundNumber > latestRoundNumber {
 				latestRoundNumber++
 			} else {
 				// wait for some time before retrying to fetch new block

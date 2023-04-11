@@ -35,6 +35,7 @@ type (
 		// fungible only
 		Amount   uint64 `json:"amount,omitempty,string"`
 		Decimals uint32 `json:"decimals,omitempty"`
+		Burned   bool   `json:"burned,omitempty"`
 		// nft only
 		NftURI                 string    `json:"nftUri,omitempty"`
 		NftData                []byte    `json:"nftData,omitempty"`

@@ -279,7 +279,7 @@ func startRPCServer(t *testing.T, network *testpartition.AlphabillPartition, add
 	listener, err := net.Listen("tcp", addr)
 	require.NoError(t, err)
 
-	grpcServer, err := initRPCServer(network.Nodes[0])
+	grpcServer, err := initRPCServer(network.Nodes[0].Node)
 	require.NoError(t, err)
 
 	t.Cleanup(func() {

@@ -31,9 +31,9 @@ type Configuration interface {
 }
 
 type ABClient interface {
-	SendTransaction(ctx context.Context, tx *txsystem.Transaction) (*txsystem.TransactionResponse, error)
+	SendTransaction(ctx context.Context, tx *txsystem.Transaction) error
 	GetBlocks(ctx context.Context, blockNumber, blockCount uint64) (*alphabill.GetBlocksResponse, error)
-	GetMaxBlockNumber(ctx context.Context) (uint64, uint64, error) // latest persisted block number, latest round number
+	GetRoundNumber(ctx context.Context) (uint64, error)
 }
 
 type Storage interface {
@@ -47,6 +47,7 @@ type Storage interface {
 	QueryTokenType(kind Kind, creator PubKey, startKey TokenTypeID, count int) ([]*TokenUnitType, TokenTypeID, error)
 
 	SaveToken(data *TokenUnit, proof *Proof) error
+	RemoveToken(id TokenID) error
 	GetToken(id TokenID) (*TokenUnit, error)
 	QueryTokens(kind Kind, owner Predicate, startKey TokenID, count int) ([]*TokenUnit, TokenID, error)
 

@@ -211,6 +211,7 @@ func createUC(t *testing.T, b *GenericBlock, hashAlgorithm crypto.Hash) (*certif
 		Hash:         make([]byte, 32),
 		BlockHash:    blockhash,
 		SummaryValue: make([]byte, 32),
+		RoundNumber:  1,
 	}
 	uc := testcertificates.CreateUnicityCertificate(
 		t,

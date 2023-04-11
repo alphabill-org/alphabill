@@ -3,17 +3,18 @@ package partition
 import (
 	"bytes"
 	gocrypto "crypto"
+	"errors"
+	"fmt"
 
 	"github.com/alphabill-org/alphabill/internal/certificates"
 	"github.com/alphabill-org/alphabill/internal/crypto"
-	"github.com/alphabill-org/alphabill/internal/errors"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/blockproposal"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 )
 
 var (
-	ErrSystemIdentifierIsNil = errors.New("System identifier is nil")
+	ErrSystemIdentifierIsNil = errors.New("system identifier is nil")
 	ErrStrTxIsNil            = "transaction is nil"
 )
 
@@ -62,10 +63,10 @@ type (
 	}
 )
 
-// NewDefaultTxValidator creates a new instance of default	TxValidator.
+// NewDefaultTxValidator creates a new instance of default TxValidator.
 func NewDefaultTxValidator(systemIdentifier []byte) (TxValidator, error) {
-	if systemIdentifier == nil {
-		return nil, ErrSystemIdentifierIsNil
+	if len(systemIdentifier) != 4 {
+		return nil, fmt.Errorf("invalid transaction system identifier: expected 4 bytes, got %d", len(systemIdentifier))
 	}
 	return &DefaultTxValidator{
 		systemIdentifier: systemIdentifier,
@@ -74,16 +75,16 @@ func NewDefaultTxValidator(systemIdentifier []byte) (TxValidator, error) {
 
 func (dtv *DefaultTxValidator) Validate(tx txsystem.GenericTransaction, latestBlockNumber uint64) error {
 	if tx == nil {
-		return errors.New(ErrStrTxIsNil)
+		return errors.New("transaction is nil")
 	}
 	if !bytes.Equal(dtv.systemIdentifier, tx.SystemID()) {
-		//  transaction was not sent to correct transaction system
-		return errors.Wrapf(ErrInvalidSystemIdentifier, "expected %X, got %X", dtv.systemIdentifier, tx.SystemID())
+		// transaction was not sent to correct transaction system
+		return fmt.Errorf("expected %X, got %X: %w", dtv.systemIdentifier, tx.SystemID(), errInvalidSystemIdentifier)
 	}
 
 	if tx.Timeout() <= latestBlockNumber {
 		// transaction is expired
-		return errors.Errorf("transaction timeout must be greater than latest block number: transaction timeout %v, latest blockNumber: %v", tx.Timeout(), latestBlockNumber)
+		return fmt.Errorf("transaction has timed out: transaction timeout round is %d, current round is %d", tx.Timeout(), latestBlockNumber)
 	}
 	return nil
 }

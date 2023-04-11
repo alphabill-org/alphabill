@@ -23,7 +23,7 @@ func TestNewNetwork_Ok(t *testing.T) {
 		err = network.Close()
 		require.NoError(t, err)
 	}()
-	require.NotNil(t, network.RootChain)
+	require.NotNil(t, network.RootNode)
 	require.Equal(t, 3, len(network.Nodes))
 
 	tx := testtransaction.NewTransaction(t, testtransaction.WithSystemID(systemIdentifier))

@@ -184,7 +184,7 @@ func mockGetBlockHeightCall(t *testing.T) (*httptest.Server, *url.URL) {
 			t.Errorf("Expected to request '%v', got: %s", BlockHeightPath, r.URL.Path)
 		}
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`{"blockHeight": "1000"}`))
+		w.Write([]byte(`{"roundNumber": "1000"}`))
 	}))
 
 	serverAddress, _ := url.Parse(server.URL)

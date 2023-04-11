@@ -2,22 +2,20 @@ package cmd
 
 import (
 	"context"
-	gocrypto "crypto"
 	"path/filepath"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sync/errgroup"
-
-	"github.com/alphabill-org/alphabill/internal/rootchain/store"
 )
 
 func TestRootChainCanBeStarted(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
+	dbDir := t.TempDir()
 	g, ctx := errgroup.WithContext(ctx)
 
-	g.Go(func() error { return defaultRootChainRunFunc(ctx, validRootChainConfig()) })
+	g.Go(func() error { return defaultRootNodeRunFunc(ctx, validMonolithicRootValidatorConfig(dbDir)) })
 
 	g.Go(func() error {
 		// give rootchain some time to start up (should try to sens message it to verify it is up!)
@@ -31,27 +29,32 @@ func TestRootChainCanBeStarted(t *testing.T) {
 	require.ErrorIs(t, err, context.Canceled)
 }
 
-func TestRootChainInvalidRootKey_CannotBeStarted(t *testing.T) {
-	conf := validRootChainConfig()
+func TestRootValidatorInvalidRootKey_CannotBeStartedInvalidKeyFile(t *testing.T) {
+	conf := validMonolithicRootValidatorConfig("")
 	conf.KeyFile = "testdata/invalid-root-key.json"
 
-	err := defaultRootChainRunFunc(context.Background(), conf)
-	require.ErrorContains(t, err, "invalid root validator sign key")
+	err := defaultRootNodeRunFunc(context.Background(), conf)
+	require.ErrorContains(t, err, "error root node key not found in genesis file")
 }
 
-func validRootChainConfig() *rootChainConfig {
-	conf := &rootChainConfig{
+func TestRootValidatorInvalidRootKey_CannotBeStartedInvalidDBDir(t *testing.T) {
+	conf := validMonolithicRootValidatorConfig("/foobar/doesnotexist3454/")
+	err := defaultRootNodeRunFunc(context.Background(), conf)
+	require.ErrorContains(t, err, "no such file or directory")
+}
+
+func validMonolithicRootValidatorConfig(dbDir string) *rootNodeConfig {
+	conf := &rootNodeConfig{
 		Base: &baseConfiguration{
 			HomeDir:    alphabillHomeDir(),
 			CfgFile:    filepath.Join(alphabillHomeDir(), defaultConfigFile),
 			LogCfgFile: defaultLoggerConfigFile,
 		},
-		KeyFile:     "testdata/root-key.json",
-		GenesisFile: "testdata/expected/root-genesis.json",
-		Address:     "/ip4/127.0.0.1/tcp/0",
-		T3Timeout:   900,
-		MaxRequests: 1000,
-		StateStore:  store.NewInMemStateStore(gocrypto.SHA256),
+		KeyFile:      "testdata/root-key.json",
+		GenesisFile:  "testdata/expected/root-genesis.json",
+		RootListener: "/ip4/127.0.0.1/tcp/0",
+		MaxRequests:  1000,
+		StoragePath:  dbDir,
 	}
 	return conf
 }

@@ -33,23 +33,20 @@ func (p *BlockProcessor) ProcessBlock(_ context.Context, b *block.Block) error {
 		if err != nil {
 			return err
 		}
-		// TODO: AB-505 block numbers are not sequential any more, gaps might appear as empty block are not stored and sent
 		if lastBlockNumber >= roundNumber {
 			return fmt.Errorf("invalid block number. Received blockNumber %d current wallet blockNumber %d", roundNumber, lastBlockNumber)
 		}
 		genericBlock, err := b.ToGenericBlock(p.TxConverter)
 		if err != nil {
-			return err
+			return fmt.Errorf("failed to convert block to generic block: %w", err)
 		}
 		for _, tx := range genericBlock.Transactions {
-			err = p.processTx(tx, genericBlock, dbTx)
-			if err != nil {
-				return err
+			if err := p.processTx(tx, genericBlock, dbTx); err != nil {
+				return fmt.Errorf("failed to process transaction: %w", err)
 			}
 		}
-		err = dbTx.DeleteExpiredBills(roundNumber)
-		if err != nil {
-			return err
+		if err := dbTx.DeleteExpiredBills(roundNumber); err != nil {
+			return fmt.Errorf("failed to delete expired bills: %w", err)
 		}
 		return dbTx.SetBlockNumber(roundNumber)
 	})

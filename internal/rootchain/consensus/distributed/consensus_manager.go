@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/alphabill-org/alphabill/internal/certificates"
 	"github.com/alphabill-org/alphabill/internal/crypto"
@@ -23,8 +24,7 @@ import (
 
 const (
 	// local timeout
-	blockRateID    = "block-rate"
-	localTimeoutID = "local-timeout"
+	blockRateID = "block-rate"
 )
 
 type (
@@ -47,6 +47,7 @@ type (
 		certResultCh   chan *certificates.UnicityCertificate
 		params         *consensus.Parameters
 		peer           *network.Peer
+		localTimeout   *time.Ticker
 		timers         *timer.Timers
 		net            RootNet
 		pacemaker      *Pacemaker
@@ -142,9 +143,10 @@ func (x *ConsensusManager) GetLatestUnicityCertificate(id p.SystemIdentifier) (*
 	return luc, nil
 }
 
-func (x *ConsensusManager) start() {
+func (x *ConsensusManager) Run(ctx context.Context) error {
+	defer x.timers.WaitClose()
 	// Start timers and network processing
-	x.timers.Start(localTimeoutID, x.params.LocalTimeoutMs)
+	x.localTimeout = time.NewTicker(x.params.LocalTimeoutMs)
 	// Am I the leader?
 	currentRound := x.pacemaker.GetCurrentRound()
 	if x.leaderSelector.GetLeaderForRound(currentRound) == x.peer.ID() {
@@ -156,10 +158,6 @@ func (x *ConsensusManager) start() {
 		logger.Info("%v round %v root node started, waiting for proposal from leader %v",
 			x.peer.String(), currentRound, x.leaderSelector.GetLeaderForRound(currentRound).String())
 	}
-}
-
-func (x *ConsensusManager) Run(ctx context.Context) error {
-	x.start()
 	return x.loop(ctx)
 }
 
@@ -179,73 +177,33 @@ func (x *ConsensusManager) loop(ctx context.Context) error {
 				logger.Warning("%v root network received message is nil", x.peer.String())
 				continue
 			}
-			switch msg.Protocol {
-			case network.ProtocolRootIrChangeReq:
-				req, correctType := msg.Message.(*atomic_broadcast.IRChangeReqMsg)
-				if !correctType {
-					logger.Warning("%v type %T not supported", x.peer.String(), msg.Message)
-					continue
-				}
-				util.WriteTraceJsonLog(logger, fmt.Sprintf("IR Change Request from %v", msg.From), req)
-				x.onIRChange(req)
-			case network.ProtocolRootProposal:
-				req, correctType := msg.Message.(*atomic_broadcast.ProposalMsg)
-				if !correctType {
-					logger.Warning("%v type %T not supported", x.peer.String(), msg.Message)
-					continue
-				}
-				util.WriteTraceJsonLog(logger, fmt.Sprintf("Proposal from %v", msg.From), req)
-				x.onProposalMsg(req)
-			case network.ProtocolRootVote:
-				req, correctType := msg.Message.(*atomic_broadcast.VoteMsg)
-				if !correctType {
-					logger.Warning("%v type %T not supported", x.peer.String(), msg.Message)
-					continue
-				}
-				util.WriteTraceJsonLog(logger, fmt.Sprintf("Vote from %v", msg.From), req)
-				x.onVoteMsg(req)
-			case network.ProtocolRootTimeout:
-				req, correctType := msg.Message.(*atomic_broadcast.TimeoutMsg)
-				if !correctType {
-					logger.Warning("%v type %T not supported", x.peer.String(), msg.Message)
-					continue
-				}
-				util.WriteTraceJsonLog(logger, fmt.Sprintf("Timeout vote from %v", msg.From), req)
-				x.onTimeoutMsg(req)
-			case network.ProtocolRootCertReq:
-				req, correctType := msg.Message.(*atomic_broadcast.GetCertificates)
-				if !correctType {
-					logger.Warning("Type %T not supported", msg.Message)
-					continue
-				}
-				util.WriteTraceJsonLog(logger, fmt.Sprintf("Recovery certificates request from %v", msg.From), req)
-				x.onCertificateReq(req)
-			case network.ProtocolRootCertResp:
-				req, correctType := msg.Message.(*atomic_broadcast.CertificatesMsg)
-				if !correctType {
-					logger.Warning("Type %T not supported", msg.Message)
-					continue
-				}
-				util.WriteTraceJsonLog(logger, fmt.Sprintf("Recovery certificates response from %v", msg.From), req)
-				x.onCertificateResp(req.Certificates)
-			case network.ProtocolRootStateReq:
-				req, correctType := msg.Message.(*atomic_broadcast.GetStateMsg)
-				if !correctType {
-					logger.Warning("Type %T not supported", msg.Message)
-					continue
-				}
-				util.WriteTraceJsonLog(logger, fmt.Sprintf("Recovery state request from %v", msg.From), req)
-				x.onStateReq(req)
-			case network.ProtocolRootStateResp:
-				req, correctType := msg.Message.(*atomic_broadcast.StateMsg)
-				if !correctType {
-					logger.Warning("Type %T not supported", msg.Message)
-					continue
-				}
-				util.WriteTraceJsonLog(logger, fmt.Sprintf("Received recovery response from %v", msg.From), req)
-				x.onStateResponse(req)
+			switch mt := msg.Message.(type) {
+			case *atomic_broadcast.IRChangeReqMsg:
+				util.WriteTraceJsonLog(logger, fmt.Sprintf("IR Change Request from %v", msg.From), mt)
+				x.onIRChange(mt)
+			case *atomic_broadcast.ProposalMsg:
+				util.WriteTraceJsonLog(logger, fmt.Sprintf("Proposal from %v", msg.From), mt)
+				x.onProposalMsg(mt)
+			case *atomic_broadcast.VoteMsg:
+				util.WriteTraceJsonLog(logger, fmt.Sprintf("Vote from %v", msg.From), mt)
+				x.onVoteMsg(mt)
+			case *atomic_broadcast.TimeoutMsg:
+				util.WriteTraceJsonLog(logger, fmt.Sprintf("Timeout vote from %v", msg.From), mt)
+				x.onTimeoutMsg(mt)
+			case *atomic_broadcast.GetCertificates:
+				util.WriteTraceJsonLog(logger, fmt.Sprintf("Recovery certificates request from %v", msg.From), mt)
+				x.onCertificateReq(mt)
+			case *atomic_broadcast.CertificatesMsg:
+				util.WriteTraceJsonLog(logger, fmt.Sprintf("Recovery certificates response from %v", msg.From), mt)
+				x.onCertificateResp(mt.Certificates)
+			case *atomic_broadcast.GetStateMsg:
+				util.WriteTraceJsonLog(logger, fmt.Sprintf("Recovery state request from %v", msg.From), mt)
+				x.onStateReq(mt)
+			case *atomic_broadcast.StateMsg:
+				util.WriteTraceJsonLog(logger, fmt.Sprintf("Received recovery response from %v", msg.From), mt)
+				x.onStateResponse(mt)
 			default:
-				logger.Warning("%v unknown protocol req %s from %v", x.peer.String(), msg.Protocol, msg.From)
+				logger.Warning("%v unknown protocol req %s %T from %v", x.peer.String(), msg.Protocol, mt, msg.From)
 			}
 		case req, ok := <-x.certReqCh:
 			if !ok {
@@ -253,6 +211,9 @@ func (x *ConsensusManager) loop(ctx context.Context) error {
 				return fmt.Errorf("exit drc consensus, certification channel closed")
 			}
 			x.onPartitionIRChangeReq(&req)
+		case <-x.localTimeout.C:
+			x.onLocalTimeout()
+
 		// handle timeouts
 		case nt, ok := <-x.timers.C:
 			if !ok {
@@ -263,16 +224,7 @@ func (x *ConsensusManager) loop(ctx context.Context) error {
 				logger.Warning("%v root timer channel received nil timer", x.peer.String())
 				continue
 			}
-			timerID := nt.Name()
-			switch {
-			case timerID == localTimeoutID:
-				x.onLocalTimeout()
-			case timerID == blockRateID:
-				// throttling, make a proposal
-				x.processNewRoundEvent()
-			default:
-				logger.Warning("%v unknown timer %v", x.peer.String(), timerID)
-			}
+			x.processNewRoundEvent()
 		}
 	}
 }
@@ -282,7 +234,6 @@ func (x *ConsensusManager) loop(ctx context.Context) error {
 func (x *ConsensusManager) onLocalTimeout() {
 	// always restart timer, time might be adjusted in case a new round is started
 	// to account for throttling
-	defer x.timers.Restart(localTimeoutID)
 	logger.Info("%v round %v local timeout", x.peer.String(), x.pacemaker.GetCurrentRound())
 	// Has the validator voted in this round, if true send the same vote
 	// maybe less than quorum of nodes where operational the last time
@@ -589,7 +540,7 @@ func (x *ConsensusManager) processQC(qc *atomic_broadcast.QuorumCert) {
 	}
 	x.pacemaker.AdvanceRoundQC(qc)
 	// progress is made, restart timeout (move to pacemaker)
-	x.timers.Restart(localTimeoutID)
+	x.localTimeout.Reset(x.pacemaker.GetRoundTimeout())
 }
 
 // processTC - handles timeout certificate
@@ -609,7 +560,7 @@ func (x *ConsensusManager) processTC(tc *atomic_broadcast.TimeoutCert) {
 func (x *ConsensusManager) processNewRoundEvent() {
 	// to counteract throttling (find a better solution)
 	x.waitPropose = false
-	x.timers.Restart(localTimeoutID)
+	x.localTimeout.Reset(x.pacemaker.GetRoundTimeout())
 	round := x.pacemaker.GetCurrentRound()
 	if x.leaderSelector.GetLeaderForRound(round) != x.peer.ID() {
 		logger.Info("%v round %v new round start, not leader awaiting proposal", x.peer.String(), round)

@@ -224,51 +224,11 @@ definitions:
           type: integer
         type: array
     type: object
-  github_com_alphabill-org_alphabill_pkg_wallet_backend_money.Bill:
-    properties:
-      OwnerPredicate:
-        items:
-          type: integer
-        type: array
-      id:
-        items:
-          type: integer
-        type: array
-      isDcBill:
-        type: boolean
-      orderNumber:
-        description: OrderNumber insertion order of given bill in pubkey => list of
-          bills bucket, needed for determistic paging
-        type: integer
-      txHash:
-        items:
-          type: integer
-        type: array
-      txProof:
-        $ref: '#/definitions/money.TxProof'
-      value:
-        type: integer
-    type: object
-  github_com_alphabill-org_alphabill_pkg_wallet_backend_money.Bills:
-    properties:
-      bills:
-        items:
-          $ref: '#/definitions/github_com_alphabill-org_alphabill_pkg_wallet_backend_money.Bill'
-        type: array
-    type: object
   money.BalanceResponse:
     properties:
       balance:
         example: "0"
         type: string
-    type: object
-  money.BlockHeightResponse:
-    properties:
-      blockHeight:
-        example: "0"
-        type: string
-      lastRoundNumber:
-        type: integer
     type: object
   money.ErrorResponse:
     properties:
@@ -302,6 +262,12 @@ definitions:
         example: 1
         type: integer
     type: object
+  money.RoundNumberResponse:
+    properties:
+      roundNumber:
+        example: "0"
+        type: string
+    type: object
   txsystem.ClientMetadata:
     properties:
       fee_credit_record_id:
@@ -323,15 +289,6 @@ definitions:
       fee:
         description: actual transaction fee charged
         type: integer
-    type: object
-  money.TxProof:
-    properties:
-      blockNumber:
-        type: integer
-      proof:
-        $ref: '#/definitions/block.BlockProof'
-      tx:
-        $ref: '#/definitions/txsystem.Transaction'
     type: object
   txsystem.Transaction:
     properties:
@@ -394,17 +351,6 @@ paths:
         "500":
           description: Internal Server Error
       summary: Get balance
-  /block-height:
-    get:
-      operationId: "4"
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            $ref: '#/definitions/money.BlockHeightResponse'
-      summary: Money partition's latest block number
   /fee-credit-bill:
     get:
       operationId: "5"
@@ -483,4 +429,15 @@ paths:
         "500":
           description: Internal Server Error
       summary: Get proof
+  /round-number:
+    get:
+      operationId: "4"
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/money.RoundNumberResponse'
+      summary: Money partition's latest block number
 swagger: "2.0"

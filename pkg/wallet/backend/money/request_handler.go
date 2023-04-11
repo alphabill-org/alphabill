@@ -175,7 +175,7 @@ func (s *RequestHandler) balanceFunc(w http.ResponseWriter, r *http.Request) {
 // @produce application/json
 // @Param bill_id query string true "ID of the bill (hex)"
 // @Success 200 {object} bp.Bills
-// @Failure 400 {object} moneyErrorResponse
+// @Failure 400 {object} money.ErrorResponse
 // @Failure 404 {object} money.ErrorResponse
 // @Failure 500
 // @Router /proof [get]

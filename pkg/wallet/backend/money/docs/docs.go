@@ -51,23 +51,6 @@ const docTemplate = `{
                 }
             }
         },
-        "/block-height": {
-            "get": {
-                "produces": [
-                    "application/json"
-                ],
-                "summary": "Money partition's latest block number",
-                "operationId": "4",
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/money.BlockHeightResponse"
-                        }
-                    }
-                }
-            }
-        },
         "/fee-credit-bill": {
             "get": {
                 "produces": [
@@ -181,6 +164,23 @@ const docTemplate = `{
                     },
                     "500": {
                         "description": "Internal Server Error"
+                    }
+                }
+            }
+        },
+        "/round-number": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "summary": "Money partition's latest block number",
+                "operationId": "4",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/money.RoundNumberResponse"
+                        }
                     }
                 }
             }
@@ -394,10 +394,6 @@ const docTemplate = `{
                     "description": "transaction system's round number",
                     "type": "integer"
                 },
-                "round_number": {
-                    "description": "transaction system's round number",
-                    "type": "integer"
-                },
                 "sum_of_earned_fees": {
                     "description": "sum of the actual fees over all transaction records in the block",
                     "type": "integer"
@@ -480,71 +476,12 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_alphabill-org_alphabill_pkg_wallet_backend_money.Bill": {
-            "type": "object",
-            "properties": {
-                "OwnerPredicate": {
-                    "type": "array",
-                    "items": {
-                        "type": "integer"
-                    }
-                },
-                "id": {
-                    "type": "array",
-                    "items": {
-                        "type": "integer"
-                    }
-                },
-                "isDcBill": {
-                    "type": "boolean"
-                },
-                "orderNumber": {
-                    "description": "OrderNumber insertion order of given bill in pubkey =\u003e list of bills bucket, needed for determistic paging",
-                    "type": "integer"
-                },
-                "txHash": {
-                    "type": "array",
-                    "items": {
-                        "type": "integer"
-                    }
-                },
-                "txProof": {
-                    "$ref": "#/definitions/money.TxProof"
-                },
-                "value": {
-                    "type": "integer"
-                }
-            }
-        },
-        "github_com_alphabill-org_alphabill_pkg_wallet_backend_money.Bills": {
-            "type": "object",
-            "properties": {
-                "bills": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/github_com_alphabill-org_alphabill_pkg_wallet_backend_money.Bill"
-                    }
-                }
-            }
-        },
         "money.BalanceResponse": {
             "type": "object",
             "properties": {
                 "balance": {
                     "type": "string",
                     "example": "0"
-                }
-            }
-        },
-        "money.BlockHeightResponse": {
-            "type": "object",
-            "properties": {
-                "blockHeight": {
-                    "type": "string",
-                    "example": "0"
-                },
-                "lastRoundNumber": {
-                    "type": "integer"
                 }
             }
         },
@@ -594,6 +531,15 @@ const docTemplate = `{
                 }
             }
         },
+        "money.RoundNumberResponse": {
+            "type": "object",
+            "properties": {
+                "roundNumber": {
+                    "type": "string",
+                    "example": "0"
+                }
+            }
+        },
         "txsystem.ClientMetadata": {
             "type": "object",
             "properties": {
@@ -620,20 +566,6 @@ const docTemplate = `{
                 "fee": {
                     "description": "actual transaction fee charged",
                     "type": "integer"
-                }
-            }
-        },
-        "money.TxProof": {
-            "type": "object",
-            "properties": {
-                "blockNumber": {
-                    "type": "integer"
-                },
-                "proof": {
-                    "$ref": "#/definitions/block.BlockProof"
-                },
-                "tx": {
-                    "$ref": "#/definitions/txsystem.Transaction"
                 }
             }
         },

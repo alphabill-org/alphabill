@@ -80,7 +80,6 @@ type (
 		txWaitGroup                 *sync.WaitGroup
 		txCh                        chan txsystem.GenericTransaction
 		eventCh                     chan event.Event
-		lastRootMsgTime             time.Time
 		lastLedgerReqTime           time.Time
 		eventHandler                event.Handler
 		recoveryLastProp            *blockproposal.BlockProposal
@@ -139,7 +138,6 @@ func New(
 		eventHandler:                conf.eventHandler,
 		network:                     net,
 		txWaitGroup:                 &sync.WaitGroup{},
-		lastRootMsgTime:             time.Time{},
 		lastLedgerReqTime:           time.Time{},
 		txCh:                        make(chan txsystem.GenericTransaction, conf.txBuffer.Capacity()),
 	}
@@ -314,6 +312,7 @@ func (n *Node) restoreBlockProposal(prevBlock *block.Block) {
 func (n *Node) loop(ctx context.Context) error {
 	ticker := time.NewTicker(time.Second)
 	defer ticker.Stop()
+	var lastRootMsgTime time.Time
 
 	for {
 		select {
@@ -347,60 +346,35 @@ func (n *Node) loop(ctx context.Context) error {
 				logger.Warning("Received network message is nil")
 				continue
 			}
-			switch m.Protocol {
-			case network.ProtocolInputForward:
-				err := n.handleTxMessage(m)
-				if err != nil {
+			switch mt := m.Message.(type) {
+			case *txsystem.Transaction:
+				if err := n.handleTxMessage(mt); err != nil {
 					logger.Warning("Invalid transaction: %v", err)
 					n.sendEvent(event.Error, err)
 				}
-			case network.ProtocolUnicityCertificates:
-				uc, success := m.Message.(*certificates.UnicityCertificate)
-				if !success {
-					logger.Warning("Invalid unicity certificate type: %T", m.Message)
-					continue
-				}
-				util.WriteTraceJsonLog(logger, "Unicity Certificate:", uc)
-				n.lastRootMsgTime = time.Now()
-				err := n.handleUnicityCertificate(uc)
-				if err != nil {
+			case *certificates.UnicityCertificate:
+				util.WriteTraceJsonLog(logger, "Unicity Certificate:", mt)
+				lastRootMsgTime = time.Now()
+				if err := n.handleUnicityCertificate(ctx, mt); err != nil {
 					logger.Warning("Unicity Certificate processing failed: %v", err)
 					n.sendEvent(event.Error, err)
-					continue
 				}
-				n.sendEvent(event.UnicityCertificateHandled, uc)
-			case network.ProtocolBlockProposal:
-				bp, success := m.Message.(*blockproposal.BlockProposal)
-				if !success {
-					logger.Warning("Invalid block proposal type: %T", m.Message)
-					continue
-				}
-				err := n.handleBlockProposal(bp)
-				if err != nil {
+				n.sendEvent(event.UnicityCertificateHandled, mt)
+			case *blockproposal.BlockProposal:
+				if err := n.handleBlockProposal(ctx, mt); err != nil {
 					logger.Warning("Block proposal processing failed by node %v: %v", n.configuration.peer.ID(), err)
 					n.sendEvent(event.Error, err)
-					continue
 				}
-			case network.ProtocolLedgerReplicationReq:
-				lr, success := m.Message.(*replication.LedgerReplicationRequest)
-				if !success {
-					logger.Warning("Invalid ledger replication request type: %T", m.Message)
-					continue
-				}
-				if err := n.handleLedgerReplicationRequest(lr); err != nil {
+			case *replication.LedgerReplicationRequest:
+				if err := n.handleLedgerReplicationRequest(mt); err != nil {
 					logger.Warning("Ledger replication failed by node %v: %v", n.configuration.peer.ID(), err)
 				}
-			case network.ProtocolLedgerReplicationResp:
-				lr, success := m.Message.(*replication.LedgerReplicationResponse)
-				if !success {
-					logger.Warning("Invalid ledger replication response type: %T", m.Message)
-					continue
-				}
-				if err := n.handleLedgerReplicationResponse(lr); err != nil {
+			case *replication.LedgerReplicationResponse:
+				if err := n.handleLedgerReplicationResponse(ctx, mt); err != nil {
 					logger.Warning("Ledger replication failed by node %v: %v", n.configuration.peer.ID(), err)
 				}
 			default:
-				logger.Warning("Unknown network protocol: %s", m.Protocol)
+				logger.Warning("Unknown network protocol: %s %T", m.Protocol, mt)
 			}
 		case nt, ok := <-n.timers.C:
 			if !ok {
@@ -412,7 +386,7 @@ func (n *Node) loop(ctx context.Context) error {
 			}
 			n.handleT1TimeoutEvent()
 		case <-ticker.C:
-			n.handleMonitoring()
+			n.handleMonitoring(lastRootMsgTime)
 		}
 	}
 }
@@ -438,16 +412,15 @@ func (n *Node) eventHandlerLoop(ctx context.Context) error {
 	}
 }
 
-func (n *Node) handleTxMessage(m network.ReceivedMessage) error {
-	tx, success := m.Message.(*txsystem.Transaction)
-	if !success {
-		return fmt.Errorf("unsupported type: %T", m.Message)
-	}
+func (n *Node) handleTxMessage(tx *txsystem.Transaction) error {
 	genTx, err := n.transactionSystem.ConvertTx(tx)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to convert to generic transaction: %w", err)
 	}
-	return n.txBuffer.Add(genTx)
+	if err := n.txBuffer.Add(genTx); err != nil {
+		return fmt.Errorf("failed to add transaction into buffer: %w", err)
+	}
+	return nil
 }
 
 func (n *Node) handleOrForwardTransaction(tx txsystem.GenericTransaction) bool {
@@ -511,7 +484,7 @@ func (n *Node) validateAndExecuteTx(tx txsystem.GenericTransaction, round uint64
 //  5. Transaction orders are executed by applying them to the transaction system.
 //  6. Pending unicity certificate request data structure is created and persisted.
 //  7. Certificate Request query is assembled and sent to the Root Chain.
-func (n *Node) handleBlockProposal(prop *blockproposal.BlockProposal) error {
+func (n *Node) handleBlockProposal(ctx context.Context, prop *blockproposal.BlockProposal) error {
 	if n.status == recovering {
 		logger.Warning("Ignoring block proposal, node is recovering")
 		// but remember last block proposal received
@@ -546,7 +519,7 @@ func (n *Node) handleBlockProposal(prop *blockproposal.BlockProposal) error {
 		logger.Debug("Received newer UC round nr %v via block proposal, LUC round %v", uc.GetRoundNumber(), n.luc.GetRoundNumber())
 		// just to be sure, subscribe to root chain again, this may result in a duplicate UC received
 		n.sendHandshake()
-		if err = n.handleUnicityCertificate(uc); err != nil {
+		if err = n.handleUnicityCertificate(ctx, uc); err != nil {
 			return fmt.Errorf("block proposal unicity cerrificate hanlding faild, %w", err)
 		}
 	}
@@ -587,7 +560,7 @@ func (n *Node) updateLUC(uc *certificates.UnicityCertificate) {
 	n.sendEvent(event.LatestUnicityCertificateUpdated, uc)
 }
 
-func (n *Node) startNewRound(uc *certificates.UnicityCertificate) {
+func (n *Node) startNewRound(ctx context.Context, uc *certificates.UnicityCertificate) {
 	n.updateLUC(uc)
 	if n.status == recovering {
 		logger.Info("Node is recovered until block %v", uc.InputRecord.RoundNumber)
@@ -603,7 +576,7 @@ func (n *Node) startNewRound(uc *certificates.UnicityCertificate) {
 		logger.Debug("DB proposal delete failed, %v", err)
 	}
 	n.leaderSelector.UpdateLeader(uc)
-	n.startHandleOrForwardTransactions()
+	n.startHandleOrForwardTransactions(ctx)
 	n.timers.Start(t1TimerName, n.configuration.t1Timeout)
 	n.sendEvent(event.NewRoundStarted, newRoundNr)
 }
@@ -641,7 +614,7 @@ func (n *Node) startRecovery(uc *certificates.UnicityCertificate) {
 //  8. New round is started.
 //
 // See algorithm 5 "Processing a received Unicity Certificate" in Yellowpaper for more details
-func (n *Node) handleUnicityCertificate(uc *certificates.UnicityCertificate) error {
+func (n *Node) handleUnicityCertificate(ctx context.Context, uc *certificates.UnicityCertificate) error {
 	defer trackExecutionTime(time.Now(), "Handling unicity certificate")
 	if uc == nil {
 		return fmt.Errorf("unicity certificate is nil")
@@ -660,7 +633,7 @@ func (n *Node) handleUnicityCertificate(uc *certificates.UnicityCertificate) err
 		if n.status == initializing {
 			// first UC seen and as and node is already up-to-date
 			// either starting from genesis or a very quick restart
-			n.startNewRound(uc)
+			n.startNewRound(ctx, uc)
 		}
 		return nil
 	}
@@ -690,7 +663,7 @@ func (n *Node) handleUnicityCertificate(uc *certificates.UnicityCertificate) err
 			return ErrNodeDoesNotHaveLatestBlock
 		}
 		logger.Debug("No pending block proposal, UC IR hash is equal to State hash, so are block hashes")
-		n.startNewRound(uc)
+		n.startNewRound(ctx, uc)
 		return nil
 	}
 	// Check pending block proposal
@@ -709,7 +682,7 @@ func (n *Node) handleUnicityCertificate(uc *certificates.UnicityCertificate) err
 			n.startRecovery(uc)
 			return fmt.Errorf("block %v finalize failed, %w", bl.GetRoundNumber(), err)
 		}
-		n.startNewRound(uc)
+		n.startNewRound(ctx, uc)
 		return nil
 	}
 	// repeat UC
@@ -717,7 +690,7 @@ func (n *Node) handleUnicityCertificate(uc *certificates.UnicityCertificate) err
 		// UC certifies the IR before pending block proposal ("repeat UC"). state is rolled back to previous state.
 		logger.Warning("Reverting state tree on repeat certificate. UC IR hash: %X, proposal hash %X", uc.InputRecord.Hash, n.pendingBlockProposal.PrevHash)
 		n.revertState()
-		n.startNewRound(uc)
+		n.startNewRound(ctx, uc)
 		return nil
 	}
 	// UC with different IR hash. Node does not have the latest state. Revert changes and start recovery.
@@ -797,9 +770,9 @@ func (n *Node) handleT1TimeoutEvent() {
 
 // handleMonitoring - monitors root communication, if for no UC is
 // received for a long time then try and request one from root
-func (n *Node) handleMonitoring() {
+func (n *Node) handleMonitoring(lastRootMsgTime time.Time) {
 	// check if we have not heard from root validator for a long time
-	if time.Since(n.lastRootMsgTime) > 2*n.configuration.GetT2Timeout() {
+	if time.Since(lastRootMsgTime) > 2*n.configuration.GetT2Timeout() {
 		// subscribe again
 		n.sendHandshake()
 	}
@@ -893,7 +866,7 @@ func (n *Node) handleLedgerReplicationRequest(lr *replication.LedgerReplicationR
 
 // handleLedgerReplicationResponse handles ledger replication responses from other partition nodes.
 // This method is an approximation of YellowPaper algorithm 10 "Partition Node Recovery" (synchronous algorithm)
-func (n *Node) handleLedgerReplicationResponse(lr *replication.LedgerReplicationResponse) error {
+func (n *Node) handleLedgerReplicationResponse(ctx context.Context, lr *replication.LedgerReplicationResponse) error {
 	if err := lr.IsValid(); err != nil {
 		return fmt.Errorf("invalid ledger replication response, %w", err)
 	}
@@ -968,12 +941,12 @@ func (n *Node) handleLedgerReplicationResponse(lr *replication.LedgerReplication
 		return nil
 	}
 	// node should be recovered now, stop recovery and change state to normal
-	n.startNewRound(n.luc)
+	n.startNewRound(ctx, n.luc)
 	// try to apply the last received block proposal received during recovery, it may fail if the block was finalized and
 	// is in fact the last block received
 	if n.recoveryLastProp != nil {
 		// try to apply it to the latest state, may fail
-		if err = n.handleBlockProposal(n.recoveryLastProp); err != nil {
+		if err = n.handleBlockProposal(ctx, n.recoveryLastProp); err != nil {
 			logger.Debug("Recovery completed, failed to apply last received block proposal(stale?), %v", err)
 		}
 		n.recoveryLastProp = nil
@@ -1165,13 +1138,14 @@ func (n *Node) stopForwardingOrHandlingTransactions() {
 	}
 }
 
-func (n *Node) startHandleOrForwardTransactions() {
+func (n *Node) startHandleOrForwardTransactions(ctx context.Context) {
 	n.stopForwardingOrHandlingTransactions()
 	leader := n.leaderSelector.GetLeaderID()
 	if leader == UnknownLeader {
 		return
 	}
-	txCtx, txCancel := context.WithCancel(context.Background())
+
+	txCtx, txCancel := context.WithCancel(ctx)
 	n.txCancel = txCancel
 	n.txWaitGroup.Add(1)
 	go func() {

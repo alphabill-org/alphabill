@@ -300,7 +300,7 @@ func (sn *SingleNodePartition) SubmitT1Timeout(t *testing.T) {
 func (sn *SingleNodePartition) SubmitMonitorTimeout(t *testing.T) {
 	t.Helper()
 	sn.eh.Reset()
-	sn.partition.handleMonitoring()
+	sn.partition.handleMonitoring(time.Now().Add(-3 * sn.nodeConf.GetT2Timeout()))
 }
 
 type TestLeaderSelector struct {

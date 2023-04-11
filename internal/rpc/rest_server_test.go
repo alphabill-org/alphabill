@@ -21,8 +21,8 @@ import (
 const MaxBodySize int64 = 1 << 20 // 1 MB
 
 func TestNewRESTServer_PartitionNodeIsNil(t *testing.T) {
-	peer := peer.CreatePeer(t)
-	s, err := NewRESTServer(nil, "", MaxBodySize, peer)
+	p := peer.CreatePeer(t)
+	s, err := NewRESTServer(nil, "", MaxBodySize, p)
 	require.ErrorContains(t, err, "partition node is nil")
 	require.Nil(t, s)
 }
@@ -33,8 +33,8 @@ func TestNewRESTServer_PeerIsNil(t *testing.T) {
 }
 
 func TestNewRESTServer_OK(t *testing.T) {
-	peer := peer.CreatePeer(t)
-	s, err := NewRESTServer(&MockNode{}, "", MaxBodySize, peer)
+	p := peer.CreatePeer(t)
+	s, err := NewRESTServer(&MockNode{}, "", MaxBodySize, p)
 	require.NoError(t, err)
 	require.NotNil(t, s)
 	require.NotNil(t, s.Server)
@@ -44,14 +44,14 @@ func TestNewRESTServer_OK(t *testing.T) {
 func TestMetrics_OK(t *testing.T) {
 	node := &MockNode{}
 	metrics.Enabled = true
-	peer := peer.CreatePeer(t)
-	s, err := NewRESTServer(node, "", MaxBodySize, peer)
+	p := peer.CreatePeer(t)
+	s, err := NewRESTServer(node, "", MaxBodySize, p)
 	require.NoError(t, err)
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/metrics", nil)
 	recorder := httptest.NewRecorder()
 	s.Handler.ServeHTTP(recorder, req)
 	require.Equal(t, http.StatusOK, recorder.Code)
-	require.Contains(t, recorder.Body.String(), "transactions_grpc_received")
+	require.Contains(t, recorder.Body.String(), "ab_transactions_grpc_received")
 }
 
 func TestRestServer_SubmitTransaction(t *testing.T) {
@@ -84,8 +84,8 @@ func TestRestServer_SubmitTransaction(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			node := &MockNode{}
-			peer := peer.CreatePeer(t)
-			s, err := NewRESTServer(node, "", MaxBodySize, peer)
+			p := peer.CreatePeer(t)
+			s, err := NewRESTServer(node, "", MaxBodySize, p)
 			require.NoError(t, err)
 			transaction := testtransaction.NewTransaction(t,
 				testtransaction.WithTimeout(100),
@@ -120,8 +120,8 @@ func TestRestServer_SubmitTransaction(t *testing.T) {
 
 func TestRestServer_TransactionOptions(t *testing.T) {
 	node := &MockNode{}
-	peer := peer.CreatePeer(t)
-	s, err := NewRESTServer(node, "", MaxBodySize, peer)
+	p := peer.CreatePeer(t)
+	s, err := NewRESTServer(node, "", MaxBodySize, p)
 	require.NoError(t, err)
 
 	req := httptest.NewRequest(http.MethodOptions, "/api/v1/transactions", nil)
@@ -151,8 +151,8 @@ func TestNewRESTServer_NotFound(t *testing.T) {
 }
 
 func TestNewRESTServer_InvalidTx(t *testing.T) {
-	peer := peer.CreatePeer(t)
-	s, err := NewRESTServer(&MockNode{}, "", MaxBodySize, peer)
+	p := peer.CreatePeer(t)
+	s, err := NewRESTServer(&MockNode{}, "", MaxBodySize, p)
 	require.NoError(t, err)
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/transactions", bytes.NewReader(test.RandomBytes(102)))
@@ -165,8 +165,8 @@ func TestNewRESTServer_InvalidTx(t *testing.T) {
 }
 
 func TestNewRESTServer_RequestBodyTooLarge(t *testing.T) {
-	peer := peer.CreatePeer(t)
-	s, err := NewRESTServer(&MockNode{}, "", 10, peer)
+	p := peer.CreatePeer(t)
+	s, err := NewRESTServer(&MockNode{}, "", 10, p)
 	require.NoError(t, err)
 	transferTx, err := json.Marshal(moneytesttx.RandomBillTransfer(t))
 	require.NoError(t, err)
@@ -180,8 +180,8 @@ func TestNewRESTServer_RequestBodyTooLarge(t *testing.T) {
 }
 
 func TestRESTServer_RequestInfo(t *testing.T) {
-	peer := peer.CreatePeer(t)
-	s, err := NewRESTServer(&MockNode{}, "", 10, peer)
+	p := peer.CreatePeer(t)
+	s, err := NewRESTServer(&MockNode{}, "", 10, p)
 	require.NoError(t, err)
 	transferTx, err := json.Marshal(moneytesttx.RandomBillTransfer(t))
 	require.NoError(t, err)
@@ -194,9 +194,9 @@ func TestRESTServer_RequestInfo(t *testing.T) {
 	err = json.NewDecoder(recorder.Body).Decode(response)
 	require.NoError(t, err)
 	require.Equal(t, "00010000", response.SystemID)
-	require.Equal(t, peer.ID().String(), response.Self.Identifier)
+	require.Equal(t, p.ID().String(), response.Self.Identifier)
 	require.Equal(t, 1, len(response.Self.Addresses))
-	require.Equal(t, peer.MultiAddresses(), response.Self.Addresses)
+	require.Equal(t, p.MultiAddresses(), response.Self.Addresses)
 	require.Equal(t, 0, len(response.OpenConnections))
 	require.Equal(t, 0, len(response.PartitionValidators))
 	require.Equal(t, 0, len(response.RootValidators))

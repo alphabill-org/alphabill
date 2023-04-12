@@ -246,14 +246,21 @@ func TestFungibleTokens_CollectDust_Integration(t *testing.T) {
 	symbol1 := "AB"
 	execTokensCmd(t, homedir, fmt.Sprintf("new-type fungible --symbol %s -r %s --type %X --decimals 0", symbol1, backendUrl, typeID1))
 	verifyStdout(t, execTokensCmd(t, homedir, fmt.Sprintf("list-types fungible -r %s", backendUrl)), "symbol=AB (fungible)")
-	// mint tokens
-	execTokensCmd(t, homedir, fmt.Sprintf("new fungible -r %s --type %X --amount 300", backendUrl, typeID1))
-	execTokensCmd(t, homedir, fmt.Sprintf("new fungible -r %s --type %X --amount 700", backendUrl, typeID1))
-	execTokensCmd(t, homedir, fmt.Sprintf("new fungible -r %s --type %X --amount 1000", backendUrl, typeID1))
+	// mint tokens (without confirming, for speed)
+	mintIterations := 110
+	expectedAmounts := make([]string, 0, mintIterations)
+	expectedTotal := 0
+	for i := 1; i <= mintIterations; i++ {
+		execTokensCmd(t, homedir, fmt.Sprintf("new fungible -r %s --type %X --amount %v -w false", backendUrl, typeID1, i))
+		expectedAmounts = append(expectedAmounts, fmt.Sprintf("amount='%v'", i))
+		expectedTotal += i
+	}
 	//check w1
-	verifyStdout(t, execTokensCmd(t, homedir, fmt.Sprintf("list fungible -r %s", backendUrl)), "amount='300'", "amount='700'", "amount='1000'")
+	verifyStdoutEventually(t, func() *testConsoleWriter {
+		return execTokensCmd(t, homedir, fmt.Sprintf("list fungible -r %s", backendUrl))
+	}, expectedAmounts...)
 	// DC
 	execTokensCmd(t, homedir, fmt.Sprintf("collect-dust -r %s", backendUrl))
 
-	verifyStdout(t, execTokensCmd(t, homedir, fmt.Sprintf("list fungible -r %s", backendUrl)), "amount='2000'")
+	verifyStdout(t, execTokensCmd(t, homedir, fmt.Sprintf("list fungible -r %s", backendUrl)), fmt.Sprintf("amount='%v'", expectedTotal))
 }

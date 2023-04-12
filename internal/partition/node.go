@@ -1077,23 +1077,20 @@ func (n *Node) sendCertificationRequest(blockAuthor string) error {
 	}, []peer.ID{n.configuration.rootChainID})
 }
 
-func (n *Node) SubmitTx(tx *txsystem.Transaction) error {
+func (n *Node) SubmitTx(_ context.Context, tx *txsystem.Transaction) error {
 	genTx, err := n.transactionSystem.ConvertTx(tx)
 	if err != nil {
 		return err
 	}
+
 	rn := n.getCurrentRound()
-	if err != nil {
-		return err
-	}
-	err = n.txValidator.Validate(genTx, rn)
-	if err != nil {
+	if err = n.txValidator.Validate(genTx, rn); err != nil {
 		return err
 	}
 	return n.txBuffer.Add(genTx)
 }
 
-func (n *Node) GetBlock(blockNr uint64) (*block.Block, error) {
+func (n *Node) GetBlock(_ context.Context, blockNr uint64) (*block.Block, error) {
 	// find and return closest match from db
 	if blockNr == 0 {
 		return nil, fmt.Errorf("block number 0 does not exist")
@@ -1114,11 +1111,11 @@ func (n *Node) GetLatestBlock() (b *block.Block, err error) {
 	dbIt := n.blockStore.Last()
 	defer func() { err = errors.Join(err, dbIt.Close()) }()
 	var bl block.Block
-	roundNo := util.BytesToUint64(dbIt.Key())
-	if err = dbIt.Value(&bl); err != nil {
+	if err := dbIt.Value(&bl); err != nil {
+		roundNo := util.BytesToUint64(dbIt.Key())
 		return nil, fmt.Errorf("failed to read block %v from db, %w", roundNo, err)
 	}
-	return &bl, err
+	return &bl, nil
 }
 
 func (n *Node) GetLatestRoundNumber() (uint64, error) {

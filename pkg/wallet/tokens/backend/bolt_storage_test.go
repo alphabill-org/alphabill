@@ -370,6 +370,13 @@ func Test_storage_QueryTokens(t *testing.T) {
 	require.NoError(t, err)
 	require.Nil(t, next)
 	require.ElementsMatch(t, data, []*TokenUnit{tok1})
+	// burn token and make sure it is not returned
+	tok1.Burned = true
+	require.NoError(t, db.SaveToken(tok1, proof))
+	data, next, err = db.QueryTokens(Any, ownerB, nil, 10)
+	require.NoError(t, err)
+	require.Nil(t, next)
+	require.Empty(t, data)
 
 	// owner is required, when nil empty resultset is returned
 	data, next, err = db.QueryTokens(Any, nil, nil, 10)

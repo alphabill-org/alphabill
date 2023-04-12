@@ -44,7 +44,7 @@ func (x *BlockCertificationRequest) Sign(signer crypto.Signer) error {
 	}
 	signature, err := signer.SignBytes(x.Bytes())
 	if err != nil {
-		return fmt.Errorf("sing error, %w", err)
+		return fmt.Errorf("sign error, %w", err)
 	}
 	x.Signature = signature
 	return nil

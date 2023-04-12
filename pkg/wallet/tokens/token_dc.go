@@ -43,9 +43,6 @@ func (w *Wallet) CollectDust(ctx context.Context, accountNumber uint64, allowedT
 }
 
 func (w *Wallet) collectDust(ctx context.Context, acc *account.AccountKey, typedTokens []*twb.TokenUnit, invariantPredicateArgs []*PredicateInput) error {
-	if len(typedTokens) < 2 {
-		return nil
-	}
 	// first token to be joined into
 	targetTokenID := twb.UnitID(typedTokens[0].ID)
 	targetTokenBacklink := typedTokens[0].TxHash

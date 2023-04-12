@@ -2,17 +2,18 @@ package genesis
 
 import (
 	gocrypto "crypto"
+	"errors"
+	"fmt"
 
 	"github.com/alphabill-org/alphabill/internal/crypto"
-	"github.com/alphabill-org/alphabill/internal/errors"
 )
 
-var ErrPartitionGenesisIsNil = errors.New("partition genesis is nil")
-var ErrRootChainEncryptionKeyMissing = errors.New("root encryption public key is missing")
-var ErrKeysAreMissing = errors.New("partition keys are missing")
-var ErrKeyIsNil = errors.New("key is nil")
-var ErrMissingRootValidators = errors.New("Missing root nodes")
-var ErrPartitionUnicityCertificateIsNil = errors.New("partition unicity certificate is nil")
+var (
+	ErrPartitionGenesisIsNil            = errors.New("partition genesis is nil")
+	ErrKeysAreMissing                   = errors.New("partition keys are missing")
+	ErrMissingRootValidators            = errors.New("missing root nodes")
+	ErrPartitionUnicityCertificateIsNil = errors.New("partition unicity certificate is nil")
+)
 
 func (x *PartitionGenesis) FindRootPubKeyInfoById(id string) *PublicKeyInfo {
 	// linear search for id
@@ -29,7 +30,7 @@ func (x *PartitionGenesis) IsValid(verifiers map[string]crypto.Verifier, hashAlg
 		return ErrPartitionGenesisIsNil
 	}
 	if len(verifiers) == 0 {
-		return errors.New(ErrVerifiersEmpty)
+		return ErrVerifiersEmpty
 	}
 	if len(x.Keys) < 1 {
 		return ErrKeysAreMissing
@@ -37,36 +38,22 @@ func (x *PartitionGenesis) IsValid(verifiers map[string]crypto.Verifier, hashAlg
 	if len(x.RootValidators) < 1 {
 		return ErrMissingRootValidators
 	}
-	// check that root validator public info is valid
-	for _, node := range x.RootValidators {
-		err := node.IsValid()
-		if err != nil {
-			return errors.Wrap(err, "invalid root node public key info")
-		}
-	}
+	// check that root validators are valid and
 	// make sure it is a list of unique node ids and keys
-	err := ValidatorInfoUnique(x.RootValidators)
-	if err != nil {
-		return errors.Wrap(err, "invalid root node list")
+	if err := ValidatorInfoUnique(x.RootValidators); err != nil {
+		return fmt.Errorf("root node list validation failed, %w", err)
 	}
-	// check partition validator public info is valid
-	for _, keyInfo := range x.Keys {
-		err := keyInfo.IsValid()
-		if err != nil {
-			return errors.Wrap(err, "invalid partition node validator public key info")
-		}
-	}
-	// make sure it is a list of unique node ids and keys
-	err = ValidatorInfoUnique(x.Keys)
-	if err != nil {
-		return errors.Wrap(err, "invalid partition validator list")
+	// check partition validator public info is valid, and
+	// it is a list of unique node ids and keys
+	if err := ValidatorInfoUnique(x.Keys); err != nil {
+		return fmt.Errorf("partition keys validation failed, %w", err)
 	}
 
 	if x.SystemDescriptionRecord == nil {
 		return ErrSystemDescriptionIsNil
 	}
 	if err := x.SystemDescriptionRecord.IsValid(); err != nil {
-		return err
+		return fmt.Errorf("invalid system decsrition record, %w", err)
 	}
 	if x.Certificate == nil {
 		return ErrPartitionUnicityCertificateIsNil
@@ -74,11 +61,11 @@ func (x *PartitionGenesis) IsValid(verifiers map[string]crypto.Verifier, hashAlg
 	sdrHash := x.SystemDescriptionRecord.Hash(hashAlgorithm)
 	// validate all signatures against known root keys
 	if err := x.Certificate.IsValid(verifiers, hashAlgorithm, x.SystemDescriptionRecord.SystemIdentifier, sdrHash); err != nil {
-		return err
+		return fmt.Errorf("invalid unicity certificate, %w", err)
 	}
 	// UC Seal must be signed by all validators
 	if len(x.RootValidators) != len(x.Certificate.UnicitySeal.Signatures) {
-		return errors.New("Unicity Certificate is not signed by all root nodes")
+		return fmt.Errorf("unicity Certificate is not signed by all root nodes")
 	}
 	return nil
 }

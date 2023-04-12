@@ -23,18 +23,22 @@ func TestFungibleTokenDC(t *testing.T) {
 	typeID1 := test.RandomBytes(32)
 	typeID2 := test.RandomBytes(32)
 	typeID3 := test.RandomBytes(32)
-	var burnedValue = uint64(0)
-	accTokens := map[string][]*twb.TokenUnit{
-		string(pubKey0): {
-			&twb.TokenUnit{ID: test.RandomBytes(32), Kind: twb.Fungible, Symbol: "AB1", TypeID: typeID1, Amount: 100},
-			&twb.TokenUnit{ID: test.RandomBytes(32), Kind: twb.Fungible, Symbol: "AB3", TypeID: typeID3, Amount: 100},
-			&twb.TokenUnit{ID: test.RandomBytes(32), Kind: twb.Fungible, Symbol: "AB3", TypeID: typeID3, Amount: 100},
-			&twb.TokenUnit{ID: test.RandomBytes(32), Kind: twb.Fungible, Symbol: "AB3", TypeID: typeID3, Amount: 100},
-		},
-		string(pubKey1): {
-			&twb.TokenUnit{ID: test.RandomBytes(32), Kind: twb.Fungible, Symbol: "AB2", TypeID: typeID2, Amount: 100},
-		},
+
+	resetFunc := func() (uint64, map[string][]*twb.TokenUnit, map[string]*txsystem.Transaction) {
+		return uint64(0), map[string][]*twb.TokenUnit{
+			string(pubKey0): {
+				&twb.TokenUnit{ID: test.RandomBytes(32), Kind: twb.Fungible, Symbol: "AB1", TypeID: typeID1, Amount: 100},
+				&twb.TokenUnit{ID: test.RandomBytes(32), Kind: twb.Fungible, Symbol: "AB3", TypeID: typeID3, Amount: 100},
+				&twb.TokenUnit{ID: test.RandomBytes(32), Kind: twb.Fungible, Symbol: "AB3", TypeID: typeID3, Amount: 100},
+				&twb.TokenUnit{ID: test.RandomBytes(32), Kind: twb.Fungible, Symbol: "AB3", TypeID: typeID3, Amount: 100},
+			},
+			string(pubKey1): {
+				&twb.TokenUnit{ID: test.RandomBytes(32), Kind: twb.Fungible, Symbol: "AB2", TypeID: typeID2, Amount: 100},
+			},
+		}, make(map[string]*txsystem.Transaction, 0)
 	}
+
+	burnedValue, accTokens, recordedTx := resetFunc()
 
 	findToken := func(pubKey twb.PubKey, id twb.TokenID) *twb.TokenUnit {
 		tokens, found := accTokens[string(pubKey)]
@@ -47,8 +51,6 @@ func TestFungibleTokenDC(t *testing.T) {
 		t.Fatalf("unit %X not found", id)
 		return nil
 	}
-
-	recordedTx := make(map[string]*txsystem.Transaction, 0)
 
 	be := &mockTokenBackend{
 		getTokens: func(_ context.Context, _ twb.Kind, owner twb.PubKey, _ string, _ int) ([]twb.TokenUnit, string, error) {
@@ -100,6 +102,10 @@ func TestFungibleTokenDC(t *testing.T) {
 	// this should only join tokens with type typeID3
 	require.NoError(t, tw.CollectDust(ctx, AllAccounts, nil, nil))
 	// tx validation is done in postTransactions()
+
+	// repeat, but with the specific account number
+	burnedValue, accTokens, recordedTx = resetFunc()
+	require.NoError(t, tw.CollectDust(ctx, 1, nil, nil))
 }
 
 func TestGetTokensForDC(t *testing.T) {

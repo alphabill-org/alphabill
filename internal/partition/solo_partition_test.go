@@ -183,7 +183,7 @@ func (sn *SingleNodePartition) SubmitTx(tx *txsystem.Transaction) error {
 }
 
 func (sn *SingleNodePartition) SubmitTxFromRPC(tx *txsystem.Transaction) error {
-	return sn.partition.SubmitTx(tx)
+	return sn.partition.SubmitTx(context.Background(), tx)
 }
 
 func (sn *SingleNodePartition) SubmitUnicityCertificate(uc *certificates.UnicityCertificate) {

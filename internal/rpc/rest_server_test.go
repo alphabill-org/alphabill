@@ -161,7 +161,7 @@ func TestNewRESTServer_InvalidTx(t *testing.T) {
 
 	s.Handler.ServeHTTP(recorder, req)
 	require.Equal(t, http.StatusBadRequest, recorder.Code)
-	require.Contains(t, recorder.Body.String(), "json decode error")
+	require.Contains(t, recorder.Body.String(), "failed to decode request body as transaction")
 }
 
 func TestNewRESTServer_RequestBodyTooLarge(t *testing.T) {

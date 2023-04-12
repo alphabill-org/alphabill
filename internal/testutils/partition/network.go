@@ -213,7 +213,7 @@ func NewNetwork(nodeCount int, txSystemProvider func(trustBase map[string]crypto
 // BroadcastTx sends transactions to all nodes.
 func (a *AlphabillPartition) BroadcastTx(tx *txsystem.Transaction) error {
 	for _, n := range a.Nodes {
-		if err := n.SubmitTx(tx); err != nil {
+		if err := n.SubmitTx(context.Background(), tx); err != nil {
 			return err
 		}
 	}
@@ -222,7 +222,7 @@ func (a *AlphabillPartition) BroadcastTx(tx *txsystem.Transaction) error {
 
 // SubmitTx sends transactions to the first node.
 func (a *AlphabillPartition) SubmitTx(tx *txsystem.Transaction) error {
-	return a.Nodes[0].SubmitTx(tx)
+	return a.Nodes[0].SubmitTx(context.Background(), tx)
 }
 
 type TxConverter func(tx *txsystem.Transaction) (txsystem.GenericTransaction, error)
@@ -239,7 +239,7 @@ func (a *AlphabillPartition) GetBlockProof(tx *txsystem.Transaction, txConverter
 		}
 		number := bl.UnicityCertificate.InputRecord.RoundNumber
 		for i := uint64(0); i < number; i++ {
-			b, err := n.GetBlock(number - i)
+			b, err := n.GetBlock(context.Background(), number-i)
 			if err != nil || b == nil {
 				continue
 			}
@@ -356,7 +356,7 @@ func BlockchainContains(network *AlphabillPartition, criteria func(tx *txsystem.
 			}
 			number := bl.UnicityCertificate.InputRecord.RoundNumber
 			for i := uint64(0); i <= number; i++ {
-				b, err := n.GetBlock(number - i)
+				b, err := n.GetBlock(context.Background(), number-i)
 				if err != nil || b == nil {
 					continue
 				}

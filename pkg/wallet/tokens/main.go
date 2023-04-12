@@ -409,33 +409,38 @@ func (w *Wallet) collectDust(ctx context.Context, acc *account.AccountKey, typed
 			return err
 		}
 
-		joinAttrs := &tokens.JoinFungibleTokenAttributes{
-			BurnTransactions:             burnTxs,
-			Proofs:                       proofs,
-			Backlink:                     targetTokenBacklink,
-			InvariantPredicateSignatures: nil,
-		}
-
-		sub, err := w.prepareTx(ctx, targetTokenID, joinAttrs, acc, func(tx *txsystem.Transaction, gtx txsystem.GenericTransaction) error {
-			signatures, err := preparePredicateSignatures(w.GetAccountManager(), invariantPredicateArgs, gtx)
-			if err != nil {
-				return err
-			}
-			joinAttrs.SetInvariantPredicateSignatures(signatures)
-			return anypb.MarshalFrom(tx.TransactionAttributes, joinAttrs, proto.MarshalOptions{})
-		})
+		// if there's more to burn, update backlink to continue
+		targetTokenBacklink, err = w.joinTokenForDC(ctx, acc, burnTxs, proofs, targetTokenBacklink, targetTokenID, invariantPredicateArgs)
 		if err != nil {
 			return err
 		}
-		if err = sub.toBatch(w.backend, acc.PubKey).sendTx(ctx, true); err != nil {
-			return err
-		}
-		if endIdx < len(burnTokens) {
-			// there's more to burn, update backlink to continue
-			targetTokenBacklink = sub.txHash
-		}
 	}
 	return nil
+}
+
+func (w *Wallet) joinTokenForDC(ctx context.Context, acc *account.AccountKey, burnTxs []*txsystem.Transaction, proofs []*block.BlockProof, targetTokenBacklink twb.TxHash, targetTokenID twb.UnitID, invariantPredicateArgs []*PredicateInput) (twb.TxHash, error) {
+	joinAttrs := &tokens.JoinFungibleTokenAttributes{
+		BurnTransactions:             burnTxs,
+		Proofs:                       proofs,
+		Backlink:                     targetTokenBacklink,
+		InvariantPredicateSignatures: nil,
+	}
+
+	sub, err := w.prepareTx(ctx, targetTokenID, joinAttrs, acc, func(tx *txsystem.Transaction, gtx txsystem.GenericTransaction) error {
+		signatures, err := preparePredicateSignatures(w.GetAccountManager(), invariantPredicateArgs, gtx)
+		if err != nil {
+			return err
+		}
+		joinAttrs.SetInvariantPredicateSignatures(signatures)
+		return anypb.MarshalFrom(tx.TransactionAttributes, joinAttrs, proto.MarshalOptions{})
+	})
+	if err != nil {
+		return nil, err
+	}
+	if err = sub.toBatch(w.backend, acc.PubKey).sendTx(ctx, true); err != nil {
+		return nil, err
+	}
+	return sub.txHash, nil
 }
 
 func (w *Wallet) burnTokensForDC(ctx context.Context, acc *account.AccountKey, tokensToBurn []*twb.TokenUnit, nonce twb.TxHash, invariantPredicateArgs []*PredicateInput) (burnTxs []*txsystem.Transaction, proofs []*block.BlockProof, err error) {
@@ -443,7 +448,6 @@ func (w *Wallet) burnTokensForDC(ctx context.Context, acc *account.AccountKey, t
 		sender:  acc.PubKey,
 		backend: w.backend,
 	}
-	// burn the rest
 	for _, token := range tokensToBurn {
 		attrs := newBurnTxAttrs(token, nonce)
 		var sub *txSubmission

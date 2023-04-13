@@ -69,6 +69,9 @@ func newGenesisCmd(config *rootGenesisConfig) *cobra.Command {
 	}
 	config.Keys.addCmdFlags(cmd)
 	cmd.Flags().StringSliceVarP(&config.PartitionNodeGenesisFiles, partitionRecordFile, "p", []string{}, "path to partition node genesis files")
+	if err := cmd.MarkFlagRequired(partitionRecordFile); err != nil {
+		return nil
+	}
 	cmd.Flags().StringVarP(&config.OutputDir, "output-dir", "o", "", "path to output directory (default: $AB_HOME/rootchain)")
 	// Consensus params
 	cmd.Flags().Uint32Var(&config.TotalNodes, "total-nodes", 1, "total number of root nodes")
@@ -76,11 +79,6 @@ func newGenesisCmd(config *rootGenesisConfig) *cobra.Command {
 	cmd.Flags().Uint32Var(&config.ConsensusTimeoutMs, "consensus-timeout", genesis.DefaultConsensusTimeout, "time to vote for timeout in round (only distributed root chain)")
 	cmd.Flags().Uint32Var(&config.QuorumThreshold, "quorum-threshold", 0, "define higher quorum threshold instead of calculated default")
 	cmd.Flags().StringVar(&config.HashAlgorithm, "hash-algorithm", "SHA-256", "Hash algorithm to be used")
-
-	err := cmd.MarkFlagRequired(partitionRecordFile)
-	if err != nil {
-		panic(err)
-	}
 	return cmd
 }
 
@@ -118,19 +116,19 @@ func rootGenesisRunFunc(config *rootGenesisConfig) error {
 	}
 	pn, err := loadPartitionNodeGenesisFiles(config.PartitionNodeGenesisFiles)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to read partition genesis files, %w", err)
 	}
 	pr, err := rootgenesis.NewPartitionRecordFromNodes(pn)
 	if err != nil {
-		return err
+		return fmt.Errorf("genesis partition record generation failed, %w", err)
 	}
 	peerID, err := peer.IDFromPublicKey(keys.EncryptionPrivateKey.GetPublic())
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to extract root ID from publick key, %w", err)
 	}
 	encPubKeyBytes, err := keys.EncryptionPrivateKey.GetPublic().Raw()
 	if err != nil {
-		return err
+		return fmt.Errorf("root public key conversion error, %w", err)
 	}
 
 	rg, pg, err := rootgenesis.NewRootGenesis(
@@ -142,17 +140,16 @@ func rootGenesisRunFunc(config *rootGenesisConfig) error {
 		rootgenesis.WithQuorumThreshold(config.getQuorumThreshold()),
 		rootgenesis.WithBlockRate(config.BlockRateMs),
 		rootgenesis.WithConsensusTimeout(config.ConsensusTimeoutMs))
-
 	if err != nil {
-		return err
+		return fmt.Errorf("generate root genesis record failed, %w", err)
 	}
 	err = saveRootGenesisFile(rg, config.getOutputDir())
 	if err != nil {
-		return err
+		return fmt.Errorf("root genesis save failed, %w", err)
 	}
 	err = savePartitionGenesisFiles(pg, config.getOutputDir())
 	if err != nil {
-		return err
+		return fmt.Errorf("save partition genesis failed, %w", err)
 	}
 	return nil
 }
@@ -162,7 +159,7 @@ func loadPartitionNodeGenesisFiles(paths []string) ([]*genesis.PartitionNode, er
 	for _, p := range paths {
 		pr, err := util.ReadJsonFile(p, &genesis.PartitionNode{})
 		if err != nil {
-			return nil, fmt.Errorf("failed to read partition node genesis file '%s', error %w", p, err)
+			return nil, fmt.Errorf("partition genesis file '%s', read error %w", p, err)
 		}
 		pns = append(pns, pr)
 	}
@@ -178,7 +175,7 @@ func savePartitionGenesisFiles(pgs []*genesis.PartitionGenesis, outputDir string
 	for _, pg := range pgs {
 		err := savePartitionGenesisFile(pg, outputDir)
 		if err != nil {
-			return err
+			return fmt.Errorf("failed to save partition %X genesis, %w", pg.SystemDescriptionRecord.SystemIdentifier, err)
 		}
 	}
 	return nil

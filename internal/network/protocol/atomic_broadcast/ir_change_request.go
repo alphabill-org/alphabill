@@ -3,11 +3,11 @@ package atomic_broadcast
 import (
 	"bytes"
 	gocrypto "crypto"
+	"errors"
 	"fmt"
 	"hash"
 
 	"github.com/alphabill-org/alphabill/internal/certificates"
-	"github.com/alphabill-org/alphabill/internal/errors"
 	"github.com/alphabill-org/alphabill/internal/rootchain/partitions"
 	"github.com/alphabill-org/alphabill/internal/util"
 )

@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/alphabill-org/alphabill/internal/errors"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 	rootgenesis "github.com/alphabill-org/alphabill/internal/rootchain/genesis"
 	"github.com/alphabill-org/alphabill/internal/util"
@@ -50,12 +49,10 @@ func combineRootGenesisCmd(config *rootGenesisConfig) *cobra.Command {
 			return combineRootGenesisRunFunc(combineCfg)
 		},
 	}
-	cmd.Flags().StringSliceVarP(&combineCfg.RootGenesisFiles, rootGenesisFileName, "r", []string{}, "path to root node genesis files")
 	cmd.Flags().StringVarP(&combineCfg.OutputDir, "output-dir", "o", "", "path to output directory (default: $AB_HOME/rootchain)")
-
-	err := cmd.MarkFlagRequired(rootGenesisFileName)
-	if err != nil {
-		panic(err)
+	cmd.Flags().StringSliceVarP(&combineCfg.RootGenesisFiles, rootGenesisFileName, "r", []string{}, "path to root node genesis files")
+	if err := cmd.MarkFlagRequired(rootGenesisFileName); err != nil {
+		return nil
 	}
 	return cmd
 }
@@ -72,20 +69,20 @@ func combineRootGenesisRunFunc(config *combineGenesisConfig) error {
 	}
 	rgs, err := loadRootGenesisFiles(config.RootGenesisFiles)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to read root geresis files, %w", err)
 	}
 	// Combine root genesis files to single distributed genesis file
 	rg, pg, err := rootgenesis.MergeRootGenesisFiles(rgs)
 	if err != nil {
-		return err
+		return fmt.Errorf("root genesis merge failed, %w", err)
 	}
 	err = saveRootGenesisFile(rg, outputDir)
 	if err != nil {
-		return err
+		return fmt.Errorf("root genesis save failed, %w", err)
 	}
 	err = savePartitionGenesisFiles(pg, outputDir)
 	if err != nil {
-		return err
+		return fmt.Errorf("partition genesis file save failed, %w", err)
 	}
 	return nil
 }
@@ -95,7 +92,7 @@ func loadRootGenesisFiles(paths []string) ([]*genesis.RootGenesis, error) {
 	for _, p := range paths {
 		rg, err := util.ReadJsonFile(p, &genesis.RootGenesis{})
 		if err != nil {
-			return nil, errors.Wrapf(err, "failed to read partition node genesis file '%s'", p)
+			return nil, fmt.Errorf("file '%s' read error: %w", p, err)
 		}
 		rgs = append(rgs, rg)
 	}
@@ -113,12 +110,10 @@ func signRootGenesisCmd(config *rootGenesisConfig) *cobra.Command {
 		},
 	}
 	config.Keys.addCmdFlags(cmd)
-	cmd.Flags().StringVarP(&signCfg.RootGenesisFile, rootGenesisFileName, "r", "", "path to root node genesis file")
 	cmd.Flags().StringVarP(&signCfg.OutputDir, "output-dir", "o", "", "path to output directory (default: $AB_HOME/rootchain)")
-
-	err := cmd.MarkFlagRequired(rootGenesisFileName)
-	if err != nil {
-		panic(err)
+	cmd.Flags().StringVarP(&signCfg.RootGenesisFile, rootGenesisFileName, "r", "", "path to root node genesis file")
+	if err := cmd.MarkFlagRequired(rootGenesisFileName); err != nil {
+		return nil
 	}
 	return cmd
 }
@@ -126,7 +121,7 @@ func signRootGenesisCmd(config *rootGenesisConfig) *cobra.Command {
 func signRootGenesisRunFunc(config *signGenesisConfig) error {
 	// ensure output dir is present before keys generation
 	outputDir := config.Base.defaultRootGenesisDir()
-	// cmd override
+	// cmd override2
 	if config.OutputDir != "" {
 		outputDir = config.OutputDir
 	}

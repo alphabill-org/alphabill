@@ -226,10 +226,8 @@ func (w *Wallet) doSendMultiple(ctx context.Context, amount uint64, tokens []*tw
 		return tokens[i].Amount > tokens[j].Amount
 	})
 
-	batch := &txsubmitter.TxSubmissionBatch{
-		Sender:  acc.PubKey,
-		Backend: w.backend,
-	}
+	batch := txsubmitter.NewBatch(acc.PubKey, w.backend)
+
 	for _, t := range tokens {
 		remainingAmount := amount - accumulatedSum
 		sub, err := w.prepareSplitOrTransferTx(ctx, acc, remainingAmount, t, receiverPubKey, invariantPredicateArgs)

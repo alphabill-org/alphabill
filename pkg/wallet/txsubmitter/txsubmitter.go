@@ -20,10 +20,10 @@ type (
 	}
 
 	TxSubmissionBatch struct {
-		Sender      wallet.PubKey
+		sender      wallet.PubKey
 		submissions []*TxSubmission
 		maxTimeout  uint64
-		Backend     BackendAPI
+		backend     BackendAPI
 	}
 
 	BackendAPI interface {
@@ -35,10 +35,17 @@ type (
 
 func (s *TxSubmission) ToBatch(backend BackendAPI, sender wallet.PubKey) *TxSubmissionBatch {
 	return &TxSubmissionBatch{
-		Sender:      sender,
-		Backend:     backend,
+		sender:      sender,
+		backend:     backend,
 		submissions: []*TxSubmission{s},
 		maxTimeout:  s.Transaction.Timeout,
+	}
+}
+
+func NewBatch(sender wallet.PubKey, backend BackendAPI) *TxSubmissionBatch {
+	return &TxSubmissionBatch{
+		sender:  sender,
+		backend: backend,
 	}
 }
 
@@ -61,7 +68,7 @@ func (t *TxSubmissionBatch) SendTx(ctx context.Context, confirmTx bool) error {
 	if len(t.submissions) == 0 {
 		return errors.New("no transactions to send")
 	}
-	err := t.Backend.PostTransactions(ctx, t.Sender, &txsystem.Transactions{Transactions: t.transactions()})
+	err := t.backend.PostTransactions(ctx, t.sender, &txsystem.Transactions{Transactions: t.transactions()})
 	if err != nil {
 		return err
 	}
@@ -79,7 +86,7 @@ func (t *TxSubmissionBatch) ConfirmUnitsTx(ctx context.Context) error {
 			return fmt.Errorf("confirming transactions interrupted: %w", err)
 		}
 
-		roundNr, err := t.Backend.GetRoundNumber(ctx)
+		roundNr, err := t.backend.GetRoundNumber(ctx)
 		if err != nil {
 			return err
 		}
@@ -97,7 +104,7 @@ func (t *TxSubmissionBatch) ConfirmUnitsTx(ctx context.Context) error {
 			if sub.Confirmed || roundNr >= sub.Transaction.Timeout {
 				continue
 			}
-			proof, err := t.Backend.GetTxProof(ctx, sub.UnitID, sub.TxHash)
+			proof, err := t.backend.GetTxProof(ctx, sub.UnitID, sub.TxHash)
 			if err != nil {
 				return err
 			}

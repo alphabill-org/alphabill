@@ -18,7 +18,7 @@ func TestConfirmUnitsTx_skip(t *testing.T) {
 			return nil
 		},
 	}
-	batch := &txsubmitter.TxSubmissionBatch{Backend: backend}
+	batch := txsubmitter.NewBatch(nil, backend)
 	batch.Add(&txsubmitter.TxSubmission{Transaction: &txsystem.Transaction{Timeout: 1}})
 	err := batch.SendTx(context.Background(), false)
 	require.NoError(t, err)
@@ -41,7 +41,7 @@ func TestConfirmUnitsTx_ok(t *testing.T) {
 			return &wallet.Proof{}, nil
 		},
 	}
-	batch := &txsubmitter.TxSubmissionBatch{Backend: backend}
+	batch := txsubmitter.NewBatch(nil, backend)
 	batch.Add(&txsubmitter.TxSubmission{Transaction: &txsystem.Transaction{Timeout: 101}})
 	err := batch.SendTx(context.Background(), true)
 	require.NoError(t, err)
@@ -72,7 +72,7 @@ func TestConfirmUnitsTx_timeout(t *testing.T) {
 			return nil, nil
 		},
 	}
-	batch := &txsubmitter.TxSubmissionBatch{Backend: backend}
+	batch := txsubmitter.NewBatch(nil, backend)
 	sub1 := &txsubmitter.TxSubmission{Transaction: &txsystem.Transaction{Timeout: 101}, UnitID: randomID1}
 	batch.Add(sub1)
 	sub2 := &txsubmitter.TxSubmission{Transaction: &txsystem.Transaction{Timeout: 102}}

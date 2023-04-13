@@ -1,11 +1,15 @@
 package testpartition
 
 import (
+	"bytes"
 	"context"
 	gocrypto "crypto"
 	"crypto/rand"
 	"fmt"
 	"time"
+
+	libp2pcrypto "github.com/libp2p/go-libp2p/core/crypto"
+	"google.golang.org/protobuf/proto"
 
 	"github.com/alphabill-org/alphabill/internal/block"
 	"github.com/alphabill-org/alphabill/internal/crypto"
@@ -19,8 +23,6 @@ import (
 	"github.com/alphabill-org/alphabill/internal/testutils/net"
 	testevent "github.com/alphabill-org/alphabill/internal/testutils/partition/event"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
-	libp2pcrypto "github.com/libp2p/go-libp2p/core/crypto"
-	"google.golang.org/protobuf/proto"
 )
 
 // AlphabillPartition for integration tests
@@ -30,6 +32,7 @@ type AlphabillPartition struct {
 	ctxCancel    context.CancelFunc
 	TrustBase    map[string]crypto.Verifier
 	EventHandler *testevent.TestEventHandler
+	RootSigners  []crypto.Signer
 }
 
 type partitionNode struct {
@@ -207,6 +210,7 @@ func NewNetwork(nodeCount int, txSystemProvider func(trustBase map[string]crypto
 		ctxCancel:    ctxCancel,
 		TrustBase:    trustBase,
 		EventHandler: eh,
+		RootSigners:  rootSigners,
 	}, nil
 }
 
@@ -244,7 +248,7 @@ func (a *AlphabillPartition) GetBlockProof(tx *txsystem.Transaction, txConverter
 				continue
 			}
 			for _, t := range b.Transactions {
-				if proto.Equal(t, tx) {
+				if bytes.Equal(t.TxBytes(), tx.TxBytes()) {
 					genBlock, err := b.ToGenericBlock(txConverter)
 					if err != nil {
 						return nil, nil, err
@@ -342,8 +346,9 @@ func generateKeyPairs(count int) ([]*network.PeerKeyPair, error) {
 
 // BlockchainContainsTx checks if at least one partition node block contains the given transaction.
 func BlockchainContainsTx(tx *txsystem.Transaction, network *AlphabillPartition) func() bool {
-	return BlockchainContains(network, func(t *txsystem.Transaction) bool {
-		return proto.Equal(t, tx)
+	return BlockchainContains(network, func(actualTx *txsystem.Transaction) bool {
+		// compare tx without server metadata field
+		return bytes.Equal(tx.TxBytes(), actualTx.TxBytes()) && proto.Equal(tx.TransactionAttributes, actualTx.TransactionAttributes)
 	})
 }
 

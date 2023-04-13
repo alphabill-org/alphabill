@@ -9,17 +9,18 @@ import (
 	"sort"
 	"time"
 
-	moneytx "github.com/alphabill-org/alphabill/internal/txsystem/money"
-
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"golang.org/x/sync/errgroup"
 
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
+	"github.com/alphabill-org/alphabill/internal/txsystem/money"
+	txutil "github.com/alphabill-org/alphabill/internal/txsystem/util"
 	"github.com/alphabill-org/alphabill/internal/util"
 	abclient "github.com/alphabill-org/alphabill/pkg/client"
 	"github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/alphabill-org/alphabill/pkg/wallet/account"
+	"github.com/alphabill-org/alphabill/pkg/wallet/backend/bp"
 	backendmoney "github.com/alphabill-org/alphabill/pkg/wallet/backend/money"
 	"github.com/alphabill-org/alphabill/pkg/wallet/backend/money/client"
 	"github.com/alphabill-org/alphabill/pkg/wallet/log"
@@ -38,6 +39,10 @@ var (
 	ErrInvalidPubKey       = errors.New("invalid public key, public key must be in compressed secp256k1 format")
 	ErrInvalidPassword     = errors.New("invalid password")
 	ErrTxFailedToConfirm   = errors.New("transaction(s) failed to confirm")
+
+	ErrInsufficientFeeCredit        = errors.New("insufficient fee credit balance for transaction(s)")
+	ErrInsufficientBillValue        = errors.New("wallet does not have a bill large enough for fee transfer")
+	ErrInvalidCreateFeeCreditAmount = errors.New("fee credit amount must be positive")
 )
 
 var (
@@ -64,6 +69,15 @@ type (
 	GetBalanceCmd struct {
 		AccountIndex uint64
 		CountDCBills bool
+	}
+
+	AddFeeCmd struct {
+		Amount       uint64
+		AccountIndex uint64
+	}
+
+	ReclaimFeeCmd struct {
+		AccountIndex uint64
 	}
 )
 
@@ -167,15 +181,24 @@ func (w *Wallet) Send(ctx context.Context, cmd SendCmd) ([]*Bill, error) {
 	if err != nil {
 		return nil, err
 	}
-	timeout := roundNumber + txTimeoutBlockCount
-	if err != nil {
-		return nil, err
-	}
 
 	k, err := w.am.GetAccountKey(cmd.AccountIndex)
 	if err != nil {
 		return nil, err
 	}
+
+	// TODO add fee credit support to "new" cli wallet
+	//fcb, err := w.db.Do().GetFeeCreditBill(cmd.AccountIndex)
+	//if err != nil {
+	//	return nil, err
+	//}
+	//if fcb == nil {
+	//	return nil, ErrInsufficientFeeCredit
+	//}
+	//txsCost := maxFee * uint64(len(txs))
+	//if fcb.Value < txsCost {
+	//	return nil, ErrInsufficientFeeCredit
+	//}
 
 	billResponse, err := w.restClient.ListBills(pubKey)
 	if err != nil {
@@ -186,10 +209,12 @@ func (w *Wallet) Send(ctx context.Context, cmd SendCmd) ([]*Bill, error) {
 		return nil, err
 	}
 
-	txs, err := createTransactions(cmd.ReceiverPubKey, cmd.Amount, w.SystemID(), bills, k, timeout)
+	timeout := roundNumber + txTimeoutBlockCount
+	txs, err := createTransactions(cmd.ReceiverPubKey, cmd.Amount, w.SystemID(), bills, k, timeout, nil)
 	if err != nil {
 		return nil, err
 	}
+
 	for _, tx := range txs {
 		err := w.SendTransaction(ctx, tx, &wallet.SendOpts{RetryOnFullTxBuffer: true})
 		if err != nil {
@@ -199,11 +224,172 @@ func (w *Wallet) Send(ctx context.Context, cmd SendCmd) ([]*Bill, error) {
 	if cmd.WaitForConfirmation {
 		txProofs, err := w.waitForConfirmation(ctx, txs, roundNumber, timeout)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("failed to wait for confirmation: %w", err)
 		}
-		return txProofs, nil
+		txc := NewTxConverter(w.SystemID())
+		var units []*Bill
+		for _, proof := range txProofs {
+			unit, err := newBill(proof, txc)
+			if err != nil {
+				return nil, err
+			}
+			units = append(units, unit)
+		}
+		return units, nil
 	}
 	return nil, nil
+}
+
+// AddFeeCredit creates fee credit for the given amount.
+// Wallet must have a bill large enough for the required amount plus fees.
+// Returns list of "add fee credit" transaction proofs.
+func (w *Wallet) AddFeeCredit(ctx context.Context, cmd AddFeeCmd) ([]*BlockProof, error) {
+	//if err := cmd.isValid(); err != nil {
+	//	return nil, err
+	//}
+	//balance, err := w.GetBalance(GetBalanceCmd{AccountIndex: cmd.AccountIndex})
+	//if err != nil {
+	//	return nil, err
+	//}
+	//// must have enough balance to not end up with zero fee credits
+	//maxTotalFees := 2 * maxFee
+	//if cmd.Amount+maxTotalFees > balance {
+	//	return nil, ErrInsufficientBalance
+	//}
+	//
+	//bills, err := w.db.Do().GetBills(cmd.AccountIndex)
+	//if err != nil {
+	//	return nil, err
+	//}
+	//// sort bills by value in descending order
+	//sort.Slice(bills, func(i, j int) bool {
+	//	return bills[i].Value > bills[j].Value
+	//})
+	//billToTransfer := bills[0]
+	//
+	//if billToTransfer.Value < cmd.Amount+maxTotalFees {
+	//	return nil, ErrInsufficientBillValue
+	//}
+	//
+	//k, err := w.am.GetAccountKey(cmd.AccountIndex)
+	//if err != nil {
+	//	return nil, err
+	//}
+	//
+	//fcb, err := w.db.Do().GetFeeCreditBill(cmd.AccountIndex)
+	//if err != nil {
+	//	return nil, err
+	//}
+	//
+	//_, lastRoundNo, err := w.GetMaxBlockNumber()
+	//if err != nil {
+	//	return nil, err
+	//}
+	//timeout := lastRoundNo + txTimeoutBlockCount
+	//if err != nil {
+	//	return nil, err
+	//}
+	//
+	//log.Info("sending transfer fee credit transaction")
+	//tx, err := createTransferFCTx(cmd.Amount, k.PrivKeyHash, fcb.getTxHash(), k, w.SystemID(), billToTransfer, lastRoundNo, timeout)
+	//if err != nil {
+	//	return nil, err
+	//}
+	//err = w.SendTransaction(ctx, tx, &wallet.SendOpts{})
+	//if err != nil {
+	//	return nil, err
+	//}
+	//// TODO waiting can be canceled or AddFC tx can fail
+	//// record some metadata about transferFC so that AddFC can be retried
+	//fcTransferProof, err := w.waitForConfirmation(ctx, []*txsystem.Transaction{tx}, lastRoundNo, timeout, cmd.AccountIndex)
+	//if err != nil {
+	//	return nil, err
+	//}
+	//
+	//log.Info("sending add fee credit transaction")
+	//addFCTx, err := createAddFCTx(k.PrivKeyHash, fcTransferProof[0], k, w.SystemID(), timeout)
+	//if err != nil {
+	//	return nil, err
+	//}
+	//err = w.SendTransaction(ctx, addFCTx, &wallet.SendOpts{})
+	//if err != nil {
+	//	return nil, err
+	//}
+	//return w.waitForConfirmation(ctx, []*txsystem.Transaction{addFCTx}, lastRoundNo, timeout, cmd.AccountIndex)
+	return nil, nil // TODO add fee credit support to "new" cli wallet
+}
+
+// ReclaimFeeCredit reclaims fee credit.
+// Reclaimed fee credit is added to the largest bill in wallet.
+// Returns list of "reclaim fee credit" transaction proofs.
+func (w *Wallet) ReclaimFeeCredit(ctx context.Context, cmd ReclaimFeeCmd) ([]*BlockProof, error) {
+	//k, err := w.am.GetAccountKey(cmd.AccountIndex)
+	//if err != nil {
+	//	return nil, err
+	//}
+	//
+	//_, lastRoundNo, err := w.GetMaxBlockNumber()
+	//if err != nil {
+	//	return nil, err
+	//}
+	//timeout := lastRoundNo + txTimeoutBlockCount
+	//if err != nil {
+	//	return nil, err
+	//}
+	//
+	//fcb, err := w.db.Do().GetFeeCreditBill(cmd.AccountIndex)
+	//if err != nil {
+	//	return nil, err
+	//}
+	//if fcb == nil || fcb.Value == 0 {
+	//	return nil, ErrInsufficientFeeCredit
+	//}
+	//
+	//bills, err := w.db.Do().GetBills(cmd.AccountIndex)
+	//if err != nil {
+	//	return nil, err
+	//}
+	//if len(bills) == 0 {
+	//	return nil, errors.New("wallet must have a source bill to which to add reclaimed fee credits")
+	//}
+	//// sort bills by value in descending order
+	//sort.Slice(bills, func(i, j int) bool {
+	//	return bills[i].Value > bills[j].Value
+	//})
+	//
+	//log.Info("sending close fee credit transaction")
+	//targetBill := bills[0]
+	//tx, err := createCloseFCTx(w.SystemID(), fcb.GetID(), timeout, fcb.Value, targetBill.GetID(), targetBill.TxHash, k)
+	//if err != nil {
+	//	return nil, err
+	//}
+	//err = w.SendTransaction(ctx, tx, &wallet.SendOpts{})
+	//if err != nil {
+	//	return nil, err
+	//}
+	//fcTransferProof, err := w.waitForConfirmation(ctx, []*txsystem.Transaction{tx}, lastRoundNo, timeout, cmd.AccountIndex)
+	//if err != nil {
+	//	return nil, err
+	//}
+	//
+	//log.Info("sending reclaim fee credit transaction")
+	//addFCTx, err := createReclaimFCTx(w.SystemID(), targetBill.GetID(), timeout, fcTransferProof[0], targetBill.TxHash, k)
+	//if err != nil {
+	//	return nil, err
+	//}
+	//err = w.SendTransaction(ctx, addFCTx, &wallet.SendOpts{})
+	//if err != nil {
+	//	return nil, err
+	//}
+	//return w.waitForConfirmation(ctx, []*txsystem.Transaction{addFCTx}, lastRoundNo, timeout, cmd.AccountIndex)
+	return nil, nil // TODO add fee credit support to "new" cli wallet
+}
+
+// GetFeeCreditBill returns fee credit bill for given account,
+// can return nil if fee credit bill has not been created yet.
+func (w *Wallet) GetFeeCreditBill(accountIndex uint64) (*Bill, error) {
+	//return w.db.Do().GetFeeCreditBill(accountIndex)
+	return nil, nil // TODO add fee credit support to "new" cli wallet
 }
 
 // collectDust sends dust transfer for every bill for given account in wallet and records metadata.
@@ -406,6 +592,14 @@ func (w *Wallet) swapDcBills(dcBills []*Bill, dcNonce []byte, billIds [][]byte, 
 	if err != nil {
 		return err
 	}
+	// TODO add fee credit support to "new" cli wallet
+	//fcb, err := tx.GetFeeCreditBill(accountIndex)
+	//if err != nil {
+	//	return err
+	//}
+	//if fcb == nil || fcb.Value < maxFee {
+	//	return ErrInsufficientFeeCredit
+	//}
 	swap, err := createSwapTx(k, w.SystemID(), dcBills, dcNonce, billIds, timeout)
 	if err != nil {
 		return err
@@ -418,7 +612,7 @@ func (w *Wallet) swapDcBills(dcBills []*Bill, dcNonce []byte, billIds [][]byte, 
 	return nil
 }
 
-func (w *Wallet) waitForConfirmation(ctx context.Context, pendingTxs []*txsystem.Transaction, latestRoundNumber, timeout uint64) ([]*Bill, error) {
+func (w *Wallet) waitForConfirmation(ctx context.Context, pendingTxs []*txsystem.Transaction, latestRoundNumber, timeout uint64) ([]*BlockProof, error) {
 	log.Info("waiting for confirmation(s)...")
 	latestBlockNumber := latestRoundNumber
 	txsLog := NewTxLog(pendingTxs)
@@ -447,16 +641,35 @@ func (w *Wallet) waitForConfirmation(ctx context.Context, pendingTxs []*txsystem
 				return nil, nil
 			}
 		}
-		for _, tx := range b.Transactions {
+
+		// TODO no need to convert to generic tx?
+		txc := NewTxConverter(w.SystemID())
+		genericBlock, err := b.ToGenericBlock(txc)
+		if err != nil {
+			return nil, err
+		}
+		for _, gtx := range genericBlock.Transactions {
+			tx := gtx.ToProtoBuf()
 			if txsLog.Contains(tx) {
 				log.Info("confirmed tx ", hexutil.Encode(tx.UnitId))
-				err = txsLog.RecordTx(tx, b, NewTxConverter(w.SystemID()))
+				// TODO add fee credit support to "new" cli wallet
+				//err = w.db.WithTransaction(func(dbTx TxContext) error {
+				//	fcb, err := dbTx.GetFeeCreditBill(accountIndex)
+				//	if err != nil {
+				//		return err
+				//	}
+				//	return w.collectBills(dbTx, tx, b, fcb.getFCBlockNumber(), &w.am.GetAll()[accountIndex])
+				//})
+				//if err != nil {
+				//	return nil, err
+				//}
+				err = txsLog.RecordTx(gtx, genericBlock)
 				if err != nil {
 					return nil, err
 				}
 				if txsLog.IsAllTxsConfirmed() {
 					log.Info("transaction(s) confirmed")
-					return txsLog.GetAllRecordedBills(), nil
+					return txsLog.GetAllRecordedProofs(), nil
 				}
 			}
 		}
@@ -465,11 +678,17 @@ func (w *Wallet) waitForConfirmation(ctx context.Context, pendingTxs []*txsystem
 	return nil, ErrTxFailedToConfirm
 }
 
-func (s *SendCmd) isValid() error {
-	if len(s.ReceiverPubKey) != abcrypto.CompressedSecp256K1PublicKeySize {
+func (c *SendCmd) isValid() error {
+	if len(c.ReceiverPubKey) != abcrypto.CompressedSecp256K1PublicKeySize {
 		return ErrInvalidPubKey
 	}
+	return nil
+}
 
+func (c *AddFeeCmd) isValid() error {
+	if c.Amount == 0 {
+		return ErrInvalidCreateFeeCreditAmount
+	}
 	return nil
 }
 
@@ -509,7 +728,7 @@ func calculateDcNonce(bills []*Bill) []byte {
 		return bytes.Compare(billIds[i], billIds[j]) < 0
 	})
 
-	hasher := crypto.Hash.New(crypto.SHA256)
+	hasher := crypto.SHA256.New()
 	for _, billId := range billIds {
 		hasher.Write(billId)
 	}
@@ -559,14 +778,40 @@ func convertBills(billsList []*backendmoney.ListBillVM) ([]*Bill, error) {
 	return bills, nil
 }
 
-func convertBill(b *moneytx.Bill) *Bill {
+// newBill creates new Bill struct from given BlockProof for Transfer and Split transactions.
+func newBill(proof *BlockProof, txConverter *TxConverter) (*Bill, error) {
+	gtx, err := txConverter.ConvertTx(proof.Tx)
+	if err != nil {
+		return nil, err
+	}
+	switch tx := gtx.(type) {
+	case money.Transfer:
+		return &Bill{
+			Id:         tx.UnitID(),
+			Value:      tx.TargetValue(),
+			TxHash:     tx.Hash(crypto.SHA256),
+			BlockProof: proof,
+		}, nil
+	case money.Split:
+		return &Bill{
+			Id:         txutil.SameShardID(tx.UnitID(), tx.HashForIdCalculation(crypto.SHA256)),
+			Value:      tx.Amount(),
+			TxHash:     tx.Hash(crypto.SHA256),
+			BlockProof: proof,
+		}, nil
+	default:
+		return nil, errors.New("cannot convert unsupported tx type to Bill struct")
+	}
+}
+
+func convertBill(b *bp.Bill) *Bill {
 	if b.IsDcBill {
-		attrs := &moneytx.TransferDCOrder{}
+		attrs := &money.TransferDCAttributes{}
 		err := b.TxProof.Tx.TransactionAttributes.UnmarshalTo(attrs)
 		if err != nil {
 			return nil
 		}
-		return &Bill{Id: util.BytesToUint256(b.Id), Value: b.Value, TxHash: b.TxHash, IsDcBill: b.IsDcBill, DcNonce: attrs.Nonce, DcTimeout: b.TxProof.Tx.Timeout, BlockProof: &BlockProof{Tx: b.TxProof.Tx, Proof: b.TxProof.Proof, BlockNumber: b.TxProof.BlockNumber}}
+		return &Bill{Id: util.BytesToUint256(b.Id), Value: b.Value, TxHash: b.TxHash, IsDcBill: b.IsDcBill, DcNonce: attrs.Nonce, DcTimeout: b.TxProof.Tx.Timeout(), BlockProof: &BlockProof{Tx: b.TxProof.Tx, Proof: b.TxProof.Proof, BlockNumber: b.TxProof.BlockNumber}}
 	}
 	return &Bill{Id: util.BytesToUint256(b.Id), Value: b.Value, TxHash: b.TxHash, IsDcBill: b.IsDcBill, BlockProof: &BlockProof{Tx: b.TxProof.Tx, Proof: b.TxProof.Proof, BlockNumber: b.TxProof.BlockNumber}}
 }

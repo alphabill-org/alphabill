@@ -3,10 +3,10 @@ package txsystem
 import (
 	"bytes"
 	"crypto"
+	"errors"
 	"hash"
 	"sync"
 
-	"github.com/alphabill-org/alphabill/internal/errors"
 	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/holiman/uint256"
 )
@@ -23,6 +23,7 @@ type (
 		SigBytes() []byte
 		IsPrimary() bool
 		TargetUnits(hashFunc crypto.Hash) []*uint256.Int
+		SetServerMetadata(sm *ServerMetadata)
 	}
 
 	// DefaultGenericTransaction is a default implementation of GenericTransaction interface. NB! Only suitable for
@@ -55,7 +56,7 @@ func (d *DefaultGenericTransaction) UnitID() *uint256.Int {
 }
 
 func (d *DefaultGenericTransaction) Timeout() uint64 {
-	return d.transaction.Timeout
+	return d.transaction.Timeout()
 }
 
 func (d *DefaultGenericTransaction) OwnerProof() []byte {
@@ -65,7 +66,7 @@ func (d *DefaultGenericTransaction) OwnerProof() []byte {
 func (d *DefaultGenericTransaction) sigBytes(b *bytes.Buffer) {
 	b.Write(d.transaction.SystemId)
 	b.Write(d.transaction.UnitId)
-	b.Write(util.Uint64ToBytes(d.transaction.Timeout))
+	b.Write(util.Uint64ToBytes(d.transaction.Timeout()))
 }
 
 func (d *DefaultGenericTransaction) Hash(hashFunc crypto.Hash) []byte {
@@ -100,4 +101,13 @@ func (d *DefaultGenericTransaction) IsPrimary() bool {
 
 func (d *DefaultGenericTransaction) TargetUnits(_ crypto.Hash) []*uint256.Int {
 	return []*uint256.Int{d.UnitID()}
+}
+
+func (d *DefaultGenericTransaction) SetServerMetadata(sm *ServerMetadata) {
+	d.ToProtoBuf().ServerMetadata = sm
+	d.resetHasher()
+}
+
+func (d *DefaultGenericTransaction) resetHasher() {
+	d.hashValue = nil
 }

@@ -178,6 +178,35 @@ func TestBillStore_DeleteExpiredBills(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func TestBillStore_GetSetFeeCreditBills(t *testing.T) {
+	bs, _ := createTestBillStore(t)
+	ownerPredicate := getOwnerPredicate("0x000000000000000000000000000000000000000000000000000000000000000001")
+	fcbID := []byte{0}
+
+	// verify GetFeeCreditBill for unknown id returns no error
+	fcb, err := bs.Do().GetFeeCreditBill(fcbID)
+	require.NoError(t, err)
+	require.Nil(t, fcb)
+
+	// add fee credit bills
+	fcbs := []*Bill{
+		newBillWithValueAndOwner(1, ownerPredicate),
+		newBillWithValueAndOwner(2, ownerPredicate),
+		newBillWithValueAndOwner(3, ownerPredicate),
+	}
+	for _, b := range fcbs {
+		err = bs.Do().SetFeeCreditBill(b)
+		require.NoError(t, err)
+	}
+
+	// verify GetFeeCreditBill is not nil
+	for _, expectedFCB := range fcbs {
+		actualFCB, err := bs.Do().GetFeeCreditBill(expectedFCB.Id)
+		require.NoError(t, err)
+		require.Equal(t, expectedFCB, actualFCB)
+	}
+}
+
 func createTestBillStore(t *testing.T) (*BoltBillStore, error) {
 	dbFile := filepath.Join(t.TempDir(), BoltBillStoreFileName)
 	return NewBoltBillStore(dbFile)

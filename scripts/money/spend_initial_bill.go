@@ -1,16 +1,21 @@
 package main
 
 import (
+	"bytes"
 	"context"
+	"crypto"
 	"flag"
 	"log"
+	"time"
 
-	billtx "github.com/alphabill-org/alphabill/internal/txsystem/money"
-
+	"github.com/alphabill-org/alphabill/internal/block"
+	"github.com/alphabill-org/alphabill/internal/errors"
 	"github.com/alphabill-org/alphabill/internal/hash"
 	"github.com/alphabill-org/alphabill/internal/rpc/alphabill"
 	"github.com/alphabill-org/alphabill/internal/script"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
+	billtx "github.com/alphabill-org/alphabill/internal/txsystem/money"
+	"github.com/alphabill-org/alphabill/pkg/wallet/money"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/holiman/uint256"
 	"google.golang.org/grpc"
@@ -22,7 +27,7 @@ import (
 
 /*
 Example usage
-go run scripts/money/spend_initial_bill.go --pubkey 0x0212911c7341399e876800a268855c894c43eb849a72ac5a9d26a0091041c107f0 --alphabill-uri localhost:9543 --bill-id 1 --bill-value 1000000 --timeout 100
+go run scripts/money/spend_initial_bill.go --pubkey 0x03c30573dc0c7fd43fcb801289a6a96cb78c27f4ba398b89da91ece23e9a99aca3 --alphabill-uri localhost:9543 --bill-id 1 --bill-value 1000000 --timeout 10
 */
 func main() {
 	// parse command line parameters
@@ -56,7 +61,7 @@ func main() {
 		log.Fatal(err)
 	}
 	bytes32 := uint256.NewInt(*billIdUint).Bytes32()
-	billId := bytes32[:]
+	billID := bytes32[:]
 
 	ctx := context.Background()
 	conn, err := grpc.DialContext(ctx, *uri, grpc.WithTransportCredentials(insecure.NewCredentials()))
@@ -76,34 +81,87 @@ func main() {
 	}
 	absoluteTimeout := res.RoundNumber + *timeout
 
-	// create tx
-	tx, err := createTransferTx(pubKey, billId, *billValue, absoluteTimeout)
+	tx, err := createTransferTx(pubKey, billID, *billValue, nil, absoluteTimeout, nil)
 	if err != nil {
 		log.Fatal(err)
 	}
+	// get round number for timeout
+	res, err = txClient.GetRoundNumber(ctx, &emptypb.Empty{})
+	if err != nil {
+		log.Fatal(err)
+	}
+	absoluteTimeout = res.RoundNumber + *timeout
 
-	// send tx
+	// send transfer tx
 	if _, err := txClient.ProcessTransaction(ctx, tx); err != nil {
 		log.Fatal(err)
 	}
-	log.Println("successfully sent transaction")
+	log.Println("successfully sent initial bill transfer transaction")
 }
 
-func createTransferTx(pubKey []byte, billId []byte, billValue uint64, timeout uint64) (*txsystem.Transaction, error) {
+func createTransferTx(pubKey []byte, unitID []byte, billValue uint64, fcrID []byte, timeout uint64, backlink []byte) (*txsystem.Transaction, error) {
 	tx := &txsystem.Transaction{
-		UnitId:                billId,
+		UnitId:                unitID,
 		SystemId:              []byte{0, 0, 0, 0},
 		TransactionAttributes: new(anypb.Any),
-		Timeout:               timeout,
 		OwnerProof:            script.PredicateArgumentEmpty(),
+		ClientMetadata: &txsystem.ClientMetadata{
+			Timeout:           timeout,
+			MaxFee:            1,
+			FeeCreditRecordId: fcrID,
+		},
 	}
-	err := anypb.MarshalFrom(tx.TransactionAttributes, &billtx.TransferOrder{
+	err := anypb.MarshalFrom(tx.TransactionAttributes, &billtx.TransferAttributes{
 		NewBearer:   script.PredicatePayToPublicKeyHashDefault(hash.Sum256(pubKey)),
 		TargetValue: billValue,
-		Backlink:    nil,
+		Backlink:    backlink,
 	}, proto.MarshalOptions{})
 	if err != nil {
 		return nil, err
 	}
 	return tx, nil
+}
+
+func waitForConfirmation(ctx context.Context, abClient alphabill.AlphabillServiceClient, pendingTx *txsystem.Transaction, latestRoundNumber, timeout uint64) (*block.BlockProof, error) {
+	txConverter := money.NewTxConverter([]byte{0, 0, 0, 0})
+	for latestRoundNumber <= timeout {
+		res, err := abClient.GetBlock(ctx, &alphabill.GetBlockRequest{BlockNo: latestRoundNumber})
+		if err != nil {
+			return nil, err
+		}
+		if res.Block == nil {
+			// block might be empty, check latest round number
+			res, err := abClient.GetRoundNumber(ctx, &emptypb.Empty{})
+			if err != nil {
+				return nil, err
+			}
+			if res.RoundNumber > latestRoundNumber {
+				latestRoundNumber++
+			} else {
+				// wait for some time before retrying to fetch new block
+				select {
+				case <-time.After(time.Second):
+					continue
+				case <-ctx.Done():
+					return nil, nil
+				}
+			}
+		} else {
+			for _, tx := range res.Block.Transactions {
+				if bytes.Equal(tx.UnitId, pendingTx.UnitId) {
+					genericBlock, err := res.Block.ToGenericBlock(txConverter)
+					if err != nil {
+						return nil, err
+					}
+					proof, err := block.NewPrimaryProof(genericBlock, tx.UnitId, crypto.SHA256)
+					if err != nil {
+						return nil, err
+					}
+					return proof, nil
+				}
+			}
+			latestRoundNumber++
+		}
+	}
+	return nil, errors.New("error tx failed to confirm")
 }

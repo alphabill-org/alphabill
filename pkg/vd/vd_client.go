@@ -210,9 +210,9 @@ func validateHash(hash []byte) error {
 
 func createRegisterDataTx(systemId, hash []byte, timeout uint64) (*txsystem.Transaction, error) {
 	tx := &txsystem.Transaction{
-		UnitId:   hash,
-		SystemId: systemId,
-		Timeout:  timeout,
+		UnitId:         hash,
+		SystemId:       systemId,
+		ClientMetadata: &txsystem.ClientMetadata{Timeout: timeout},
 	}
 	return tx, nil
 }

@@ -165,6 +165,7 @@ func (w *Wallet) prepareTx(ctx context.Context, unitId twb.UnitID, attrs proto.M
 	}
 	tx.OwnerProof = sig
 	// convert again for hashing as the tx might have been modified
+	tx.ServerMetadata = &txsystem.ServerMetadata{Fee: 0} // TODO server metadata changes the hash
 	gtx, err = ttxs.NewGenericTx(tx)
 	if err != nil {
 		return nil, err
@@ -182,14 +183,14 @@ func (s *txSubmission) toBatch(backend TokenBackend, sender twb.PubKey) *txSubmi
 		sender:      sender,
 		backend:     backend,
 		submissions: []*txSubmission{s},
-		maxTimeout:  s.tx.Timeout,
+		maxTimeout:  s.tx.ClientMetadata.Timeout,
 	}
 }
 
 func (t *txSubmissionBatch) add(sub *txSubmission) {
 	t.submissions = append(t.submissions, sub)
-	if sub.tx.Timeout > t.maxTimeout {
-		t.maxTimeout = sub.tx.Timeout
+	if sub.tx.ClientMetadata.Timeout > t.maxTimeout {
+		t.maxTimeout = sub.tx.ClientMetadata.Timeout
 	}
 }
 
@@ -238,7 +239,7 @@ func (t *txSubmissionBatch) confirmUnitsTx(ctx context.Context) error {
 		}
 		unconfirmed := false
 		for _, sub := range t.submissions {
-			if sub.confirmed || roundNr >= sub.tx.Timeout {
+			if sub.confirmed || roundNr >= sub.tx.ClientMetadata.Timeout {
 				continue
 			}
 			proof, err := t.backend.GetTxProof(ctx, sub.id, sub.txHash)
@@ -387,7 +388,7 @@ func createTx(systemID []byte, unitId []byte, timeout uint64) *txsystem.Transact
 		SystemId:              systemID,
 		UnitId:                unitId,
 		TransactionAttributes: new(anypb.Any),
-		Timeout:               timeout,
+		ClientMetadata:        &txsystem.ClientMetadata{Timeout: timeout},
 		// OwnerProof is added after whole transaction is built
 	}
 }

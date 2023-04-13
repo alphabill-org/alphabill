@@ -29,6 +29,8 @@ func TestWalletBackend_BillsCanBeIndexedByPredicates(t *testing.T) {
 	pubkey2, _ := hexutil.Decode("0x02c30573dc0c7fd43fcb801289a6a96cb78c27f4ba398b89da91ece23e9a99aca3")
 	bearer1 := script.PredicatePayToPublicKeyHashDefault(hash.Sum256(pubkey1))
 	bearer2 := script.PredicatePayToPublicKeyHashDefault(hash.Sum256(pubkey2))
+	fcbID := newUnitID(101)
+	fcb := &Bill{Id: fcbID, Value: 100, FCBlockNumber: 1}
 
 	abclient := clientmock.NewMockAlphabillClient(
 		clientmock.WithMaxBlockNumber(1),
@@ -39,6 +41,8 @@ func TestWalletBackend_BillsCanBeIndexedByPredicates(t *testing.T) {
 					UnitId:                billId1,
 					SystemId:              moneySystemID,
 					TransactionAttributes: moneytesttx.CreateBillTransferTx(hash.Sum256(pubkey1)),
+					ClientMetadata:        &txsystem.ClientMetadata{FeeCreditRecordId: fcbID},
+					ServerMetadata:        &txsystem.ServerMetadata{Fee: 1},
 				}},
 			},
 			2: {
@@ -47,11 +51,15 @@ func TestWalletBackend_BillsCanBeIndexedByPredicates(t *testing.T) {
 					UnitId:                billId2,
 					SystemId:              moneySystemID,
 					TransactionAttributes: moneytesttx.CreateBillTransferTx(hash.Sum256(pubkey2)),
+					ClientMetadata:        &txsystem.ClientMetadata{FeeCreditRecordId: fcbID},
+					ServerMetadata:        &txsystem.ServerMetadata{Fee: 1},
 				}},
 			},
 		}))
-
 	storage, err := createTestBillStore(t)
+	require.NoError(t, err)
+
+	err = storage.Do().SetFeeCreditBill(fcb)
 	require.NoError(t, err)
 
 	getBlockNumber := func() (uint64, error) { return storage.Do().GetBlockNumber() }
@@ -60,7 +68,7 @@ func TestWalletBackend_BillsCanBeIndexedByPredicates(t *testing.T) {
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	t.Cleanup(cancelFunc)
 	go func() {
-		bp := NewBlockProcessor(storage, NewTxConverter([]byte{0, 0, 0, 0}))
+		bp := NewBlockProcessor(storage, NewTxConverter([]byte{0, 0, 0, 0}), true)
 		err := runBlockSync(ctx, abclient.GetBlocks, getBlockNumber, 100, bp.ProcessBlock)
 		require.ErrorIs(t, err, context.Canceled)
 	}()
@@ -87,7 +95,7 @@ func TestGetBills_OK(t *testing.T) {
 	txValue := uint64(100)
 	pubkey := make([]byte, 32)
 	bearer := script.PredicatePayToPublicKeyHashDefault(hash.Sum256(pubkey))
-	tx := testtransaction.NewTransaction(t, testtransaction.WithAttributes(&moneytx.TransferOrder{
+	tx := testtransaction.NewTransaction(t, testtransaction.WithAttributes(&moneytx.TransferAttributes{
 		TargetValue: txValue,
 		NewBearer:   bearer,
 	}))
@@ -126,11 +134,11 @@ func TestGetBills_OK(t *testing.T) {
 	require.Equal(t, b, bills[0])
 }
 
-func TestGetBills_SHA512OK(t *testing.T) {
+func TestGetBills_SHA512_OK(t *testing.T) {
 	txValue := uint64(100)
 	pubkey := make([]byte, 32)
 	bearer := script.PredicatePayToPublicKeyHashDefault(hash.Sum512(pubkey))
-	tx := testtransaction.NewTransaction(t, testtransaction.WithAttributes(&moneytx.TransferOrder{
+	tx := testtransaction.NewTransaction(t, testtransaction.WithAttributes(&moneytx.TransferAttributes{
 		TargetValue: txValue,
 		NewBearer:   bearer,
 	}))

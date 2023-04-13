@@ -26,6 +26,7 @@ type (
 		GetBills(ownerCondition []byte) ([]*Bill, error)
 		GetBill(unitID []byte) (*Bill, error)
 		GetRoundNumber(ctx context.Context) (uint64, error)
+		GetFeeCreditBill(unitID []byte) (*Bill, error)
 	}
 
 	GenericWalletBackendHttpServer struct {

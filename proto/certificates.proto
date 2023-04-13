@@ -19,6 +19,8 @@ message InputRecord {
   bytes summary_value = 4;
   // transaction system's round number
   uint64 round_number = 5;
+  // sum of the actual fees over all transaction records in the block
+  uint64 sum_of_earned_fees = 6;
 }
 
 message UnicityTreeCertificate {

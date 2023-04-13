@@ -14,23 +14,24 @@ import (
 	"testing"
 
 	"github.com/alphabill-org/alphabill/pkg/wallet/money"
+	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/holiman/uint256"
+	"github.com/stretchr/testify/require"
 
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
-	"github.com/alphabill-org/alphabill/internal/hash"
+	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/internal/script"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
+	testmoney "github.com/alphabill-org/alphabill/internal/testutils/money"
 	testpartition "github.com/alphabill-org/alphabill/internal/testutils/partition"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
+	"github.com/alphabill-org/alphabill/internal/txsystem/fc"
 	moneytx "github.com/alphabill-org/alphabill/internal/txsystem/money"
+	moneytestutils "github.com/alphabill-org/alphabill/internal/txsystem/money/testutils"
 	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/alphabill-org/alphabill/pkg/wallet/account"
 	testclient "github.com/alphabill-org/alphabill/pkg/wallet/backend/money/client"
 	wlog "github.com/alphabill-org/alphabill/pkg/wallet/log"
-	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/holiman/uint256"
-	"github.com/stretchr/testify/require"
-	"google.golang.org/protobuf/proto"
-	"google.golang.org/protobuf/types/known/anypb"
 )
 
 type (
@@ -180,14 +181,119 @@ func TestPubKeysCmd(t *testing.T) {
 Test scenario:
 start network and rpc server and send initial bill to wallet-1
 wallet-1 sends two transactions to wallet-2
+wallet-2 swaps received bills
+wallet-2 sends transaction back to wallet-1
 */
 func TestSendingMoneyBetweenWallets(t *testing.T) {
+	t.SkipNow() // TODO add fee credit management to wallet
 	initialBill := &moneytx.InitialBill{
 		ID:    uint256.NewInt(1),
 		Value: 1e18,
 		Owner: script.PredicateAlwaysTrue(),
 	}
-	network := startAlphabillPartition(t, initialBill)
+	network := startAlphabillPartition(t, initialBill, false)
+	startRPCServer(t, network, ":9543")
+
+	// create 2 wallets
+	err := wlog.InitStdoutLogger(wlog.INFO)
+	require.NoError(t, err)
+
+	am1, homedir1 := createNewWallet(t)
+	w1PubKey, _ := am1.GetPublicKey(0)
+	am1.Close()
+
+	am2, homedir2 := createNewWallet(t)
+	w2PubKey, _ := am2.GetPublicKey(0)
+	am2.Close()
+
+	// create fee credit for initial bill transfer
+	txFee := uint64(1)
+	fcrAmount := testmoney.FCRAmount
+	transferFC := testmoney.CreateFeeCredit(t, util.Uint256ToBytes(initialBill.ID), network)
+	initialBillBacklink := transferFC.Hash(crypto.SHA256)
+	w1Balance := initialBill.Value - fcrAmount - txFee
+
+	// transfer initial bill to wallet 1
+	transferInitialBillTx, err := moneytestutils.CreateInitialBillTransferTx(w1PubKey, initialBill.ID, w1Balance, 10000, initialBillBacklink)
+	require.NoError(t, err)
+	err = network.SubmitTx(transferInitialBillTx)
+	require.NoError(t, err)
+	require.Eventually(t, testpartition.BlockchainContainsTx(transferInitialBillTx, network), test.WaitDuration, test.WaitTick)
+
+	txHash, blockNumber := getLastTransactionProps(t, network)
+	mockServer, addr := mockBackendCalls(&backendMockReturnConf{balance: w1Balance, blockHeight: blockNumber, billId: initialBill.ID, billValue: w1Balance, billTxHash: txHash})
+
+	// verify bill is received by wallet 1
+	waitForBalance(t, homedir1, w1Balance, 0)
+
+	// create fee credit for wallet-1
+	amount := uint64(100)
+	stdout := execWalletCmd(t, homedir1, fmt.Sprintf("fees add --amount %d", amount))
+	verifyStdout(t, stdout, fmt.Sprintf("Successfully created %d fee credits.", amount))
+
+	// verify original balance is reduced by fee credit amount + fee
+	w1Balance = w1Balance - amount - txFee
+	verifyAccountBalance(t, homedir1, w1Balance, 0)
+
+	// send two transactions (two bills) to wallet-2
+	stdout = execWalletCmd(t, homedir1, "send --amount 50 --address "+hexutil.Encode(w2PubKey)+" --alphabill-api-uri "+addr.Host)
+	verifyStdout(t, stdout, "Successfully confirmed transaction(s)")
+
+	mockServer.Close()
+	txHash, blockNumber = getLastTransactionProps(t, network)
+	mockServer, addr = mockBackendCalls(&backendMockReturnConf{balance: initialBill.Value, blockHeight: blockNumber, billId: initialBill.ID, billValue: initialBill.Value - 100000000, billTxHash: txHash})
+	defer mockServer.Close()
+
+	stdout = execWalletCmd(t, homedir1, "send --amount 150 --address "+hexutil.Encode(w2PubKey)+" --alphabill-api-uri "+addr.Host)
+	verifyStdout(t, stdout, "Successfully confirmed transaction(s)")
+
+	// verify wallet-1 balance is decreased
+	w1Balance -= 200
+	verifyAccountBalance(t, homedir1, w1Balance, 0)
+
+	// verify wallet-2 received said bills
+	w2Balance := uint64(200)
+	waitForBalance(t, homedir2, w2Balance, 0)
+
+	// create fee credit for wallet-2
+	stdout = execWalletCmd(t, homedir2, fmt.Sprintf("fees add --amount %d", amount))
+	verifyStdout(t, stdout, fmt.Sprintf("Successfully created %d fee credits.", amount))
+
+	// verify balance is reduced by fee credit amount + fee
+	w2Balance = w2Balance - amount - txFee
+	waitForBalance(t, homedir2, w2Balance, 0)
+
+	// swap wallet-2 bills
+	stdout = execWalletCmd(t, homedir2, "collect-dust")
+	verifyStdout(t, stdout, "Dust collection finished successfully.")
+
+	// verify balance after swap remains the same
+	verifyTotalBalance(t, homedir2, w2Balance)
+
+	// send wallet-2 bill back to wallet-1
+	stdout = execWalletCmd(t, homedir2, fmt.Sprintf("send --amount %d --address %s", w2Balance, hexutil.Encode(w1PubKey)))
+	verifyStdout(t, stdout, "Successfully confirmed transaction(s)")
+
+	// verify wallet-2 balance is reduced
+	verifyTotalBalance(t, homedir2, 0)
+
+	// verify wallet-1 balance is increased
+	w1Balance += w2Balance
+	waitForBalance(t, homedir1, w1Balance, 0)
+}
+
+/*
+Test scenario:
+start network and rpc server and send initial bill to wallet-1
+wallet-1 sends two transactions to wallet-2
+*/
+func TestSendingMoneyBetweenWallets_WithoutFees(t *testing.T) {
+	initialBill := &moneytx.InitialBill{
+		ID:    uint256.NewInt(1),
+		Value: 1e18,
+		Owner: script.PredicateAlwaysTrue(),
+	}
+	network := startAlphabillPartition(t, initialBill, false)
 	startRPCServer(t, network, ":9543")
 
 	// create 2 wallets
@@ -203,7 +309,7 @@ func TestSendingMoneyBetweenWallets(t *testing.T) {
 	am2.Close()
 
 	// transfer initial bill to wallet 1
-	transferInitialBillTx, err := createInitialBillTransferTx(w1PubKey, initialBill.ID, initialBill.Value, 10000)
+	transferInitialBillTx, err := moneytestutils.CreateInitialBillTransferTx(w1PubKey, initialBill.ID, initialBill.Value, 10000, nil)
 	require.NoError(t, err)
 	err = network.SubmitTx(transferInitialBillTx)
 	require.NoError(t, err)
@@ -216,22 +322,22 @@ func TestSendingMoneyBetweenWallets(t *testing.T) {
 	waitForBalance(t, homedir1, initialBill.Value, 0)
 
 	// send two transactions (two bills) to wallet-2
-	stdout := execWalletCmd(t, homedir1, "send --amount 1 --address "+hexutil.Encode(w2PubKey)+" --alphabill-api-uri "+addr.Host)
+	stdout := execWalletCmd(t, homedir1, "send --amount 50 --address "+hexutil.Encode(w2PubKey)+" --alphabill-api-uri "+addr.Host)
 	verifyStdout(t, stdout, "Successfully confirmed transaction(s)")
 
 	mockServer.Close()
 	txHash, blockNumber = getLastTransactionProps(t, network)
-	mockServer, addr = mockBackendCalls(&backendMockReturnConf{balance: initialBill.Value, blockHeight: blockNumber, billId: initialBill.ID, billValue: initialBill.Value - 100000000, billTxHash: txHash})
+	mockServer, addr = mockBackendCalls(&backendMockReturnConf{balance: initialBill.Value, blockHeight: blockNumber, billId: initialBill.ID, billValue: initialBill.Value - 5000000000, billTxHash: txHash})
 	defer mockServer.Close()
 
-	stdout = execWalletCmd(t, homedir1, "send --amount 1 --address "+hexutil.Encode(w2PubKey)+" --alphabill-api-uri "+addr.Host)
+	stdout = execWalletCmd(t, homedir1, "send --amount 150 --address "+hexutil.Encode(w2PubKey)+" --alphabill-api-uri "+addr.Host)
 	verifyStdout(t, stdout, "Successfully confirmed transaction(s)")
 
 	// verify wallet-1 balance is decreased
-	verifyTotalBalance(t, homedir1, initialBill.Value-2)
+	verifyAccountBalance(t, homedir1, initialBill.Value-200, 0)
 
 	// verify wallet-2 received said bills
-	waitForBalance(t, homedir2, 2, 0)
+	waitForBalance(t, homedir2, 200, 0)
 }
 
 /*
@@ -241,17 +347,123 @@ add two accounts to wallet
 wallet account 1 sends two transactions to wallet account 2
 */
 func TestSendingMoneyBetweenWalletAccounts(t *testing.T) {
+	t.SkipNow() // TODO add fee credit management to wallet
 	initialBill := &moneytx.InitialBill{
 		ID:    uint256.NewInt(1),
 		Value: 1e18,
 		Owner: script.PredicateAlwaysTrue(),
 	}
-	network := startAlphabillPartition(t, initialBill)
+	network := startAlphabillPartition(t, initialBill, false)
 	startRPCServer(t, network, ":9543")
 
 	// create wallet with 3 accounts
 	_ = wlog.InitStdoutLogger(wlog.DEBUG)
-	//walletName := "wallet"
+	am, homedir := createNewWallet(t)
+	pubKey1, _ := am.GetPublicKey(0)
+	am.Close()
+
+	pubKey2Hex := addAccount(t, homedir)
+	pubKey3Hex := addAccount(t, homedir)
+
+	// create fee credit for initial bill transfer
+	txFee := fc.FixedFee(1)()
+	fcrAmount := testmoney.FCRAmount
+	transferFC := testmoney.CreateFeeCredit(t, util.Uint256ToBytes(initialBill.ID), network)
+	initialBillBacklink := transferFC.Hash(crypto.SHA256)
+	w1Balance := initialBill.Value - fcrAmount - txFee
+
+	// transfer initial bill to wallet
+	transferInitialBillTx, err := moneytestutils.CreateInitialBillTransferTx(pubKey1, initialBill.ID, w1Balance, 10000, initialBillBacklink)
+	require.NoError(t, err)
+	err = network.SubmitTx(transferInitialBillTx)
+	require.NoError(t, err)
+	require.Eventually(t, testpartition.BlockchainContainsTx(transferInitialBillTx, network), test.WaitDuration, test.WaitTick)
+
+	// verify bill is received by wallet account 1
+	waitForBalance(t, homedir, w1Balance, 0)
+
+	// create fee credit for wallet-1
+	t.SkipNow() // TODO add fee credit management to wallet
+	amount := uint64(100)
+	stdout := execWalletCmd(t, homedir, fmt.Sprintf("fees add --amount %d", amount))
+	verifyStdout(t, stdout, fmt.Sprintf("Successfully created %d fee credits.", amount))
+
+	// verify original balance is reduced by fee credit amount + fee
+	w1Balance = w1Balance - amount - txFee
+	verifyAccountBalance(t, homedir, w1Balance, 0)
+
+	txHash, blockNumber := getLastTransactionProps(t, network)
+	mockServer, addr := mockBackendCalls(&backendMockReturnConf{balance: initialBill.Value, blockHeight: blockNumber, billId: initialBill.ID, billValue: initialBill.Value, billTxHash: txHash})
+
+	// send two transactions (two bills) to wallet account 2
+	stdout = execWalletCmd(t, homedir, "send --amount 50 --address "+pubKey2Hex+" --alphabill-api-uri "+addr.Host)
+	verifyStdout(t, stdout, "Successfully confirmed transaction(s)")
+
+	mockServer.Close()
+	txHash, blockNumber = getLastTransactionProps(t, network)
+	mockServer, addr = mockBackendCalls(&backendMockReturnConf{balance: w1Balance, blockHeight: blockNumber, billId: initialBill.ID, billValue: w1Balance, billTxHash: txHash})
+	defer mockServer.Close()
+
+	stdout = execWalletCmd(t, homedir, "send --amount 150 --address "+pubKey2Hex+" --alphabill-api-uri "+addr.Host)
+	verifyStdout(t, stdout, "Successfully confirmed transaction(s)")
+
+	// verify account 1 balance is decreased
+	w1Balance -= 200
+	verifyAccountBalance(t, homedir, w1Balance, 0)
+
+	// verify account 2 balance is increased
+	w2Balance := uint64(200)
+	waitForBalance(t, homedir, w2Balance, 1)
+
+	// create fee credit for wallet-2
+	w2FeeCredit := uint64(10)
+	stdout = execWalletCmd(t, homedir, fmt.Sprintf("fees add --amount %d -k 2", w2FeeCredit))
+	verifyStdout(t, stdout, fmt.Sprintf("Successfully created %d fee credits.", w2FeeCredit))
+
+	// verify balance is reduced by fee credit amount + fee
+	w2Balance = w2Balance - w2FeeCredit - txFee
+	waitForBalance(t, homedir, w2Balance, 1)
+
+	// swap account 2 bills
+	stdout = execWalletCmd(t, homedir, "collect-dust")
+	verifyStdout(t, stdout, "Dust collection finished successfully.")
+
+	// verify balance after swap remains the same
+	verifyAccountBalance(t, homedir, w2Balance, 1)
+
+	// verify account-2 fcb balance is reduced after swap
+	stdout = execWalletCmd(t, homedir, "fees list -k 2")
+	w2FeeCredit = w2FeeCredit - 1 - 3 // 6 => added 10 credit minus 1 for transferFC minus 3 for 2x dcTx and 1x swap tx
+	verifyStdout(t, stdout, fmt.Sprintf("Account #2 %d", w2FeeCredit))
+
+	// send account-2 bills to account 3
+	stdout = execWalletCmd(t, homedir, "send --amount 2 --key 2 --address "+pubKey3Hex)
+	verifyStdout(t, stdout, "Successfully confirmed transaction(s)")
+	waitForBalance(t, homedir, 2, 2)
+
+	// verify account-2 fcb balance is reduced after send
+	stdout = execWalletCmd(t, homedir, "fees list -k 2")
+	w2FeeCredit = w2FeeCredit - 1
+	verifyStdout(t, stdout, fmt.Sprintf("Account #2 %d", w2FeeCredit))
+}
+
+/*
+Test scenario:
+start network and rpc server and send initial bill to wallet account 1
+add two accounts to wallet
+wallet account 1 sends two transactions to wallet account 2
+*/
+func TestSendingMoneyBetweenWalletAccounts_WithoutFees(t *testing.T) {
+	initialBill := &moneytx.InitialBill{
+		ID:    uint256.NewInt(1),
+		Value: 1e18,
+		Owner: script.PredicateAlwaysTrue(),
+	}
+	network := startAlphabillPartition(t, initialBill, false)
+	startRPCServer(t, network, ":9543")
+
+	// create wallet with 3 accounts
+	_ = wlog.InitStdoutLogger(wlog.DEBUG)
 	am, homedir := createNewWallet(t)
 	pubKey1, _ := am.GetPublicKey(0)
 	am.Close()
@@ -260,7 +472,7 @@ func TestSendingMoneyBetweenWalletAccounts(t *testing.T) {
 	_ = addAccount(t, homedir)
 
 	// transfer initial bill to wallet
-	transferInitialBillTx, err := createInitialBillTransferTx(pubKey1, initialBill.ID, initialBill.Value, 10000)
+	transferInitialBillTx, err := moneytestutils.CreateInitialBillTransferTx(pubKey1, initialBill.ID, initialBill.Value, 10000, nil)
 	require.NoError(t, err)
 	err = network.SubmitTx(transferInitialBillTx)
 	require.NoError(t, err)
@@ -273,31 +485,82 @@ func TestSendingMoneyBetweenWalletAccounts(t *testing.T) {
 	mockServer, addr := mockBackendCalls(&backendMockReturnConf{balance: initialBill.Value, blockHeight: blockNumber, billId: initialBill.ID, billValue: initialBill.Value, billTxHash: txHash})
 
 	// send two transactions (two bills) to wallet account 2
-	stdout := execWalletCmd(t, homedir, "send --amount 1 --address "+pubKey2Hex+" --alphabill-api-uri "+addr.Host)
+	stdout := execWalletCmd(t, homedir, "send --amount 50 --address "+pubKey2Hex+" --alphabill-api-uri "+addr.Host)
 	verifyStdout(t, stdout, "Successfully confirmed transaction(s)")
 
 	mockServer.Close()
 	txHash, blockNumber = getLastTransactionProps(t, network)
-	mockServer, addr = mockBackendCalls(&backendMockReturnConf{balance: initialBill.Value, blockHeight: blockNumber, billId: initialBill.ID, billValue: initialBill.Value - 100000000, billTxHash: txHash})
+	mockServer, addr = mockBackendCalls(&backendMockReturnConf{balance: initialBill.Value, blockHeight: blockNumber, billId: initialBill.ID, billValue: initialBill.Value - 5000000000, billTxHash: txHash})
 	defer mockServer.Close()
 
-	stdout = execWalletCmd(t, homedir, "send --amount 1 --address "+pubKey2Hex+" --alphabill-api-uri "+addr.Host)
+	stdout = execWalletCmd(t, homedir, "send --amount 150 --address "+pubKey2Hex+" --alphabill-api-uri "+addr.Host)
 	verifyStdout(t, stdout, "Successfully confirmed transaction(s)")
 
 	// verify account 1 balance is decreased
-	verifyAccountBalance(t, homedir, initialBill.Value-2, 0)
+	verifyAccountBalance(t, homedir, initialBill.Value-200, 0)
 
 	// verify account 2 balance is increased
-	waitForBalance(t, homedir, 2, 1)
+	waitForBalance(t, homedir, 200, 1)
 }
 
 func TestSendWithoutWaitingForConfirmation(t *testing.T) {
+	t.SkipNow() // TODO add fee credit management to wallet
 	initialBill := &moneytx.InitialBill{
 		ID:    uint256.NewInt(1),
 		Value: 1e18,
 		Owner: script.PredicateAlwaysTrue(),
 	}
-	network := startAlphabillPartition(t, initialBill)
+	network := startAlphabillPartition(t, initialBill, false)
+	startRPCServer(t, network, ":9543")
+
+	// create wallet with 3 accounts
+	_ = wlog.InitStdoutLogger(wlog.DEBUG)
+	am, homedir := createNewWallet(t)
+	pubKey1, _ := am.GetPublicKey(0)
+	am.Close()
+
+	// create fee credit for initial bill transfer
+	txFee := fc.FixedFee(1)()
+	fcrAmount := testmoney.FCRAmount
+	transferFC := testmoney.CreateFeeCredit(t, util.Uint256ToBytes(initialBill.ID), network)
+	initialBillBacklink := transferFC.Hash(crypto.SHA256)
+	balance := initialBill.Value - fcrAmount - txFee
+
+	// transfer initial bill to wallet
+	transferInitialBillTx, err := moneytestutils.CreateInitialBillTransferTx(pubKey1, initialBill.ID, balance, 10000, initialBillBacklink)
+	require.NoError(t, err)
+	err = network.SubmitTx(transferInitialBillTx)
+	require.NoError(t, err)
+	require.Eventually(t, testpartition.BlockchainContainsTx(transferInitialBillTx, network), test.WaitDuration, test.WaitTick)
+
+	// verify bill is received by wallet account 1
+	waitForBalance(t, homedir, balance, 0)
+
+	// create fee credit for wallet account 1
+	amount := uint64(10)
+	stdout := execWalletCmd(t, homedir, fmt.Sprintf("fees add --amount %d", amount))
+	verifyStdout(t, stdout, fmt.Sprintf("Successfully created %d fee credits.", amount))
+
+	// verify original balance is reduced by fee credit amount + fee
+	balance = balance - amount - txFee
+	verifyAccountBalance(t, homedir, balance, 0)
+
+	_, bp, _ := network.GetBlockProof(transferInitialBillTx, txConverter)
+	mockServer, addr := mockBackendCalls(&backendMockReturnConf{balance: balance, blockHeight: bp.UnicityCertificate.GetRoundNumber(), billId: initialBill.ID, billValue: balance, billTxHash: base64.StdEncoding.EncodeToString(bp.TransactionsHash)})
+	defer mockServer.Close()
+
+	// verify transaction is broadcasted immediately
+	stdout = execWalletCmd(t, homedir, "send -w false --amount 100 --address 0x00000046eed43bde3361e1a9ab6d0082dd923f20464a11869f8ef266045cf38d98 --alphabill-api-uri "+addr.Host)
+	verifyStdout(t, stdout, "Successfully sent transaction(s)")
+}
+
+func TestSendWithoutWaitingForConfirmation_WithoutFees(t *testing.T) {
+	initialBill := &moneytx.InitialBill{
+		ID:    uint256.NewInt(1),
+		Value: 1e18,
+		Owner: script.PredicateAlwaysTrue(),
+	}
+	network := startAlphabillPartition(t, initialBill, false)
 	startRPCServer(t, network, ":9543")
 
 	// create wallet with 3 accounts
@@ -307,7 +570,7 @@ func TestSendWithoutWaitingForConfirmation(t *testing.T) {
 	am.Close()
 
 	// transfer initial bill to wallet
-	transferInitialBillTx, err := createInitialBillTransferTx(pubKey1, initialBill.ID, initialBill.Value, 10000)
+	transferInitialBillTx, err := moneytestutils.CreateInitialBillTransferTx(pubKey1, initialBill.ID, initialBill.Value, 10000, nil)
 	require.NoError(t, err)
 	err = network.SubmitTx(transferInitialBillTx)
 	require.NoError(t, err)
@@ -326,31 +589,115 @@ func TestSendWithoutWaitingForConfirmation(t *testing.T) {
 }
 
 func TestSendCmdOutputPathFlag(t *testing.T) {
+	t.SkipNow() // TODO add fee credit management to wallet
+	// setup network
 	initialBill := &moneytx.InitialBill{
 		ID:    uint256.NewInt(1),
 		Value: 1e18,
 		Owner: script.PredicateAlwaysTrue(),
 	}
-	network := startAlphabillPartition(t, initialBill)
+	network := startAlphabillPartition(t, initialBill, false)
 	startRPCServer(t, network, ":9543")
 
 	// create wallet with 2 accounts
 	_ = wlog.InitStdoutLogger(wlog.DEBUG)
-	//walletName := "wallet"
 	am, homedir := createNewWallet(t)
 	pubKey1, _ := am.GetPublicKey(0)
+	pubKey1Hex := hexutil.Encode(pubKey1)
 	am.Close()
 
 	pubKey2Hex := addAccount(t, homedir)
 
+	// create fee credit for initial bill transfer
+	txFee := fc.FixedFee(1)()
+	fcrAmount := testmoney.FCRAmount
+	transferFC := testmoney.CreateFeeCredit(t, util.Uint256ToBytes(initialBill.ID), network)
+	initialBillBacklink := transferFC.Hash(crypto.SHA256)
+	w1Balance := initialBill.Value - fcrAmount - txFee
+
 	// transfer initial bill to wallet
-	transferInitialBillTx, err := createInitialBillTransferTx(pubKey1, initialBill.ID, initialBill.Value, 10000)
+	transferInitialBillTx, err := moneytestutils.CreateInitialBillTransferTx(pubKey1, initialBill.ID, w1Balance, 10000, initialBillBacklink)
 	require.NoError(t, err)
 	err = network.SubmitTx(transferInitialBillTx)
 	require.NoError(t, err)
 	require.Eventually(t, testpartition.BlockchainContainsTx(transferInitialBillTx, network), test.WaitDuration, test.WaitTick)
 
-	// verify bill is received by wallet account 1
+	// verify tx is received by wallet
+	waitForBalance(t, homedir, w1Balance, 0)
+
+	// create fee credit for wallet-1
+	amount := uint64(10)
+	stdout := execWalletCmd(t, homedir, fmt.Sprintf("fees add --amount %d", amount))
+	verifyStdout(t, stdout, fmt.Sprintf("Successfully created %d fee credits.", amount))
+
+	// verify original balance is reduced by fee credit amount + fee
+	w1Balance = w1Balance - amount - txFee
+	verifyAccountBalance(t, homedir, w1Balance, 0)
+
+	txHash, blockNumber := getLastTransactionProps(t, network)
+	mockServer, addr := mockBackendCalls(&backendMockReturnConf{balance: initialBill.Value, blockHeight: blockNumber, billId: initialBill.ID, billValue: initialBill.Value, billTxHash: txHash})
+
+	// send two transactions to wallet account 2 and verify the proof files
+	stdout, _ = execCommand(homedir, fmt.Sprintf("send --amount %d --address %s --output-path %s --alphabill-api-uri %s", 5, pubKey2Hex, homedir, addr.Host))
+	require.Contains(t, stdout.lines[0], "Successfully confirmed transaction(s)")
+	require.Contains(t, stdout.lines[1], "Transaction proof(s) saved to: ")
+
+	mockServer.Close()
+	txHash, blockNumber = getLastTransactionProps(t, network)
+	mockServer, addr = mockBackendCalls(&backendMockReturnConf{balance: initialBill.Value, blockHeight: blockNumber, billId: initialBill.ID, billValue: initialBill.Value - 100000000, billTxHash: txHash})
+	defer mockServer.Close()
+
+	stdout, _ = execCommand(homedir, fmt.Sprintf("send --amount %d --address %s --output-path %s --alphabill-api-uri %s", 5, pubKey2Hex, homedir, addr.Host))
+	require.Contains(t, stdout.lines[0], "Successfully confirmed transaction(s)")
+	require.Contains(t, stdout.lines[1], "Transaction proof(s) saved to: ")
+
+	// verify wallet-2 balance is increased
+	w2Balance := uint64(10)
+	waitForBalance(t, homedir, w2Balance, 1)
+
+	// create fee credit for wallet-2
+	w2Fees := uint64(3)
+	stdout = execWalletCmd(t, homedir, fmt.Sprintf("fees add --amount %d -k 2", w2Fees))
+	verifyStdout(t, stdout, fmt.Sprintf("Successfully created %d fee credits.", w2Fees))
+
+	// verify wallet-2 balance is reduced by fee credit amount + fee
+	w2Balance = w2Balance - w2Fees - txFee
+	verifyAccountBalance(t, homedir, w2Balance, 1)
+
+	// verify wallet-2 send-all-balance outputs both bills
+	stdout, err = execCommand(homedir, fmt.Sprintf("send --amount %d --address %s --output-path %s --key %d", w2Balance, pubKey1Hex, homedir, 2))
+	require.NoError(t, err)
+	require.Contains(t, stdout.lines[0], "Successfully confirmed transaction(s)")
+	require.Contains(t, stdout.lines[1], fmt.Sprintf("Transaction proof(s) saved to: %s", filepath.Join(homedir, "bills.json")))
+}
+
+func TestSendCmdOutputPathFlag_WithoutFees(t *testing.T) {
+	// setup network
+	initialBill := &moneytx.InitialBill{
+		ID:    uint256.NewInt(1),
+		Value: 1e18,
+		Owner: script.PredicateAlwaysTrue(),
+	}
+	network := startAlphabillPartition(t, initialBill, false)
+	startRPCServer(t, network, ":9543")
+
+	// create wallet with 2 accounts
+	_ = wlog.InitStdoutLogger(wlog.DEBUG)
+	am, homedir := createNewWallet(t)
+	pubKey1, _ := am.GetPublicKey(0)
+	_ = hexutil.Encode(pubKey1)
+	am.Close()
+
+	pubKey2Hex := addAccount(t, homedir)
+
+	// transfer initial bill to wallet
+	transferInitialBillTx, err := moneytestutils.CreateInitialBillTransferTx(pubKey1, initialBill.ID, initialBill.Value, 10000, nil)
+	require.NoError(t, err)
+	err = network.SubmitTx(transferInitialBillTx)
+	require.NoError(t, err)
+	require.Eventually(t, testpartition.BlockchainContainsTx(transferInitialBillTx, network), test.WaitDuration, test.WaitTick)
+
+	// verify tx is received by wallet
 	waitForBalance(t, homedir, initialBill.Value, 0)
 
 	txHash, blockNumber := getLastTransactionProps(t, network)
@@ -383,13 +730,31 @@ func TestSendingFailsWithInsufficientBalance(t *testing.T) {
 	require.ErrorIs(t, err, money.ErrInsufficientBalance)
 }
 
-func startAlphabillPartition(t *testing.T, initialBill *moneytx.InitialBill) *testpartition.AlphabillPartition {
+func startAlphabillPartition(t *testing.T, initialBill *moneytx.InitialBill, withFeeModule bool) *testpartition.AlphabillPartition {
 	network, err := testpartition.NewNetwork(1, func(tb map[string]abcrypto.Verifier) txsystem.TransactionSystem {
+		var feeCalc moneytx.Option
+		if withFeeModule {
+			feeCalc = moneytx.WithFeeCalculator(fc.FixedFee(1))
+		} else {
+			feeCalc = moneytx.WithFeeCalculator(fc.FixedFee(0)) // 0 to disable fee module
+		}
 		system, err := moneytx.NewMoneyTxSystem(
-			crypto.SHA256,
-			initialBill,
-			10000,
-			moneytx.SchemeOpts.TrustBase(tb),
+			defaultABMoneySystemIdentifier,
+			moneytx.WithHashAlgorithm(crypto.SHA256),
+			moneytx.WithInitialBill(initialBill),
+			moneytx.WithSystemDescriptionRecords([]*genesis.SystemDescriptionRecord{
+				{
+					SystemIdentifier: defaultABMoneySystemIdentifier,
+					T2Timeout:        defaultT2Timeout,
+					FeeCreditBill: &genesis.FeeCreditBill{
+						UnitId:         util.Uint256ToBytes(uint256.NewInt(2)),
+						OwnerPredicate: script.PredicateAlwaysTrue(),
+					},
+				},
+			}),
+			feeCalc,
+			moneytx.WithDCMoneyAmount(10000),
+			moneytx.WithTrustBase(tb),
 		)
 		require.NoError(t, err)
 		return system
@@ -465,26 +830,6 @@ func addAccount(t *testing.T, homedir string) string {
 	return ""
 }
 
-func createInitialBillTransferTx(pubKey []byte, billId *uint256.Int, billValue uint64, timeout uint64) (*txsystem.Transaction, error) {
-	billId32 := billId.Bytes32()
-	tx := &txsystem.Transaction{
-		UnitId:                billId32[:],
-		SystemId:              []byte{0, 0, 0, 0},
-		TransactionAttributes: new(anypb.Any),
-		Timeout:               timeout,
-		OwnerProof:            script.PredicateArgumentEmpty(),
-	}
-	err := anypb.MarshalFrom(tx.TransactionAttributes, &moneytx.TransferOrder{
-		NewBearer:   script.PredicatePayToPublicKeyHashDefault(hash.Sum256(pubKey)),
-		TargetValue: billValue,
-		Backlink:    nil,
-	}, proto.MarshalOptions{})
-	if err != nil {
-		return nil, err
-	}
-	return tx, nil
-}
-
 func createNewWallet(t *testing.T) (account.Manager, string) {
 	homeDir := t.TempDir()
 	walletDir := filepath.Join(homeDir, "wallet")
@@ -549,8 +894,8 @@ type testConsoleWriter struct {
 }
 
 func (w *testConsoleWriter) Println(a ...any) {
-	s := fmt.Sprint(a...)
-	w.lines = append(w.lines, s)
+	s := fmt.Sprintln(a...)
+	w.lines = append(w.lines, s[:len(s)-1]) // remove newline
 }
 
 func (w *testConsoleWriter) Print(a ...any) {

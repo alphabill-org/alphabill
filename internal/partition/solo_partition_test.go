@@ -184,7 +184,7 @@ func (sn *SingleNodePartition) SubmitTx(tx *txsystem.Transaction) error {
 }
 
 func (sn *SingleNodePartition) SubmitTxFromRPC(tx *txsystem.Transaction) error {
-	return sn.partition.SubmitTx(tx)
+	return sn.partition.SubmitTx(context.Background(), tx)
 }
 
 func (sn *SingleNodePartition) SubmitUnicityCertificate(uc *certificates.UnicityCertificate) {
@@ -310,7 +310,7 @@ func (sn *SingleNodePartition) SubmitT1Timeout(t *testing.T) {
 func (sn *SingleNodePartition) SubmitMonitorTimeout(t *testing.T) {
 	t.Helper()
 	sn.eh.Reset()
-	sn.partition.handleMonitoring()
+	sn.partition.handleMonitoring(time.Now().Add(-3 * sn.nodeConf.GetT2Timeout()))
 }
 
 type TestLeaderSelector struct {

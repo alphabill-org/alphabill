@@ -17,8 +17,9 @@ func defaultTx() *txsystem.Transaction {
 		SystemId:              moneySystemID,
 		TransactionAttributes: new(anypb.Any),
 		UnitId:                RandomBytes(32),
-		Timeout:               10,
 		OwnerProof:            RandomBytes(3),
+		ClientMetadata:        &txsystem.ClientMetadata{Timeout: 10, MaxFee: 2},
+		ServerMetadata:        &txsystem.ServerMetadata{Fee: 1},
 	}
 }
 
@@ -40,16 +41,30 @@ func WithUnitId(id []byte) Option {
 	}
 }
 
-func WithTimeout(timeout uint64) Option {
+func WithOwnerProof(ownerProof []byte) Option {
 	return func(tx *txsystem.Transaction) error {
-		tx.Timeout = timeout
+		tx.OwnerProof = ownerProof
 		return nil
 	}
 }
 
-func WithOwnerProof(ownerProof []byte) Option {
+func WithFeeProof(feeProof []byte) Option {
 	return func(tx *txsystem.Transaction) error {
-		tx.OwnerProof = ownerProof
+		tx.FeeProof = feeProof
+		return nil
+	}
+}
+
+func WithClientMetadata(m *txsystem.ClientMetadata) Option {
+	return func(tx *txsystem.Transaction) error {
+		tx.ClientMetadata = m
+		return nil
+	}
+}
+
+func WithServerMetadata(m *txsystem.ServerMetadata) Option {
+	return func(tx *txsystem.Transaction) error {
+		tx.ServerMetadata = m
 		return nil
 	}
 }

@@ -18,7 +18,7 @@ func TestConfirmUnitsTx_skip(t *testing.T) {
 		},
 	}
 	batch := &txSubmissionBatch{backend: backend}
-	batch.add(&txSubmission{tx: &txsystem.Transaction{Timeout: 1}})
+	batch.add(&txSubmission{tx: &txsystem.Transaction{ClientMetadata: &txsystem.ClientMetadata{Timeout: 1}}})
 	err := batch.sendTx(context.Background(), false)
 	require.NoError(t, err)
 
@@ -41,7 +41,7 @@ func TestConfirmUnitsTx_ok(t *testing.T) {
 		},
 	}
 	batch := &txSubmissionBatch{backend: backend}
-	batch.add(&txSubmission{tx: &txsystem.Transaction{Timeout: 101}})
+	batch.add(&txSubmission{tx: &txsystem.Transaction{ClientMetadata: &txsystem.ClientMetadata{Timeout: 101}}})
 	err := batch.sendTx(context.Background(), true)
 	require.NoError(t, err)
 	require.True(t, getRoundNumberCalled)
@@ -72,9 +72,9 @@ func TestConfirmUnitsTx_timeout(t *testing.T) {
 		},
 	}
 	batch := &txSubmissionBatch{backend: backend}
-	sub1 := &txSubmission{tx: &txsystem.Transaction{Timeout: 101}, id: randomID1}
+	sub1 := &txSubmission{tx: &txsystem.Transaction{ClientMetadata: &txsystem.ClientMetadata{Timeout: 101}}, id: randomID1}
 	batch.add(sub1)
-	sub2 := &txSubmission{tx: &txsystem.Transaction{Timeout: 102}}
+	sub2 := &txSubmission{tx: &txsystem.Transaction{ClientMetadata: &txsystem.ClientMetadata{Timeout: 102}}}
 	batch.add(sub2)
 	err := batch.sendTx(context.Background(), true)
 	require.ErrorContains(t, err, "confirmation timeout")

@@ -2,9 +2,9 @@
   "root": {
     "root_validators": [
       {
-        "node_identifier": "16Uiu2HAmRLQonKMShy4NKajpGf3WpYZStKE5o55aJnGq3QxDRtrA",
-        "signing_public_key": "A7y3LASBomlIOCYipVdpQSmOxEheZvq+MYMU/uJ3iU6P",
-        "encryption_public_key": "A7xljEsPO1ikJY2D69rNW7q96N31h+6XN9DRAMJZeeXv"
+        "node_identifier": "16Uiu2HAmDnASzrHwGD4NyWbv6k8MRzf3PgN5VSZTFmSMmASCNuUE",
+        "signing_public_key": "AyfOl4NHdrDfmgb6bGppKi0XPCeBcsYFaGs2HX/Qqn7L",
+        "encryption_public_key": "AxCyK8C7gFANN5cJSLgupo5ce/HTnCEKOd1RvXU5PkdT"
       }
     ],
     "consensus": {
@@ -14,7 +14,7 @@
       "quorum_threshold": 3,
       "hash_algorithm": 5,
       "signatures": {
-        "16Uiu2HAmRLQonKMShy4NKajpGf3WpYZStKE5o55aJnGq3QxDRtrA": "S9eMxKrJ/Tp0O2bp0ek+HJfRKHIaBVXl9mMvlcb+0lMMtlywuH/QF3LtwTjZqaG+rmtk8l6okuicXjr1LMLlRQA="
+        "16Uiu2HAmDnASzrHwGD4NyWbv6k8MRzf3PgN5VSZTFmSMmASCNuUE": "BwCP4rFp2frQ3yJtVMfAwnjX9Zih8N0E1dk606T/HOhWplcWkcHULzBHmQJ/3nKx+/3JIL2QmRxDhSZlyLqpUgA="
       }
     }
   },
@@ -90,14 +90,14 @@
           "root_round_info": {
             "round_number": 1,
             "timestamp": 1668208271000,
-            "current_root_hash": "eKkS80s/JuQwbuz6Noc7hxnVfrCKOPlWdaC/w8BuHv0="
+            "current_root_hash": "ML3JMGuE5r3UkiApNeiLocndMD+A22gfjpsUvtYzZlo="
           },
           "commit_info": {
-            "root_round_info_hash": "hVhgysDn24FD+48UMe9Sbo0gjr0syB0cl5iCy1wUqsI=",
-            "root_hash": "eKkS80s/JuQwbuz6Noc7hxnVfrCKOPlWdaC/w8BuHv0="
+            "root_round_info_hash": "6j6sA7fWIg/RQKufC6HhMR4+6eWTF93jBVLZ+Q0fouQ=",
+            "root_hash": "ML3JMGuE5r3UkiApNeiLocndMD+A22gfjpsUvtYzZlo="
           },
           "signatures": {
-            "16Uiu2HAmRLQonKMShy4NKajpGf3WpYZStKE5o55aJnGq3QxDRtrA": "odk6NSDM3HacpbFxVZ3Gmy+lL9QjIMcvjNuNbpIqG04cnN/WS/WU8bJPPDQZQ3bwZgN+p7XA3tl5F1fS3WzHvQE="
+            "16Uiu2HAmDnASzrHwGD4NyWbv6k8MRzf3PgN5VSZTFmSMmASCNuUE": "g4dxGMe3Def9OmU/2ebZvBXhmuUCvD/6FSs70rrXs1sGi8OgSvWyH5qu4uBmjgajOcIII34rFcPi7AyH64D1AAA="
           }
         }
       },

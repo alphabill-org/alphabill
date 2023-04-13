@@ -6,7 +6,6 @@ import (
 
 	"github.com/alphabill-org/alphabill/internal/certificates"
 	"github.com/alphabill-org/alphabill/internal/crypto"
-	"github.com/alphabill-org/alphabill/internal/errors"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	moneytesttx "github.com/alphabill-org/alphabill/internal/testutils/transaction/money"
@@ -224,5 +223,5 @@ func TestBlockProposal_InvalidSignature(t *testing.T) {
 	bp.Signature = test.RandomBytes(64)
 
 	err = bp.Verify(gocrypto.SHA256, verifier)
-	require.ErrorIs(t, err, errors.ErrVerificationFailed)
+	require.ErrorContains(t, err, "verification failed")
 }

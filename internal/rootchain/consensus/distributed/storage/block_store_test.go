@@ -111,7 +111,7 @@ func TestBlockStoreAdd(t *testing.T) {
 		Qc:      bStore.GetHighQc(), // the qc is genesis qc
 	}
 	// Proposal always comes with Qc and Block, process Qc first and then new block
-	// add qc for block 2
+	// add qc for block 1
 	ucs, err := bStore.ProcessQc(block.Qc)
 	require.Nil(t, ucs)
 	// and the new block 2

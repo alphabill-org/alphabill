@@ -3,14 +3,12 @@ package rpc
 import (
 	"bytes"
 	"context"
+	"errors"
 	"net"
-	"strings"
 	"testing"
 
 	"github.com/alphabill-org/alphabill/internal/block"
 	"github.com/alphabill-org/alphabill/internal/certificates"
-	"github.com/alphabill-org/alphabill/internal/errors"
-	"github.com/alphabill-org/alphabill/internal/errors/errstr"
 	"github.com/alphabill-org/alphabill/internal/rpc/alphabill"
 	"github.com/alphabill-org/alphabill/internal/script"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
@@ -34,7 +32,7 @@ type (
 	}
 )
 
-func (mn *MockNode) SubmitTx(tx *txsystem.Transaction) error {
+func (mn *MockNode) SubmitTx(_ context.Context, tx *txsystem.Transaction) error {
 	if bytes.Equal(tx.UnitId, failingTransactionID[:]) {
 		return errors.New("failed")
 	}
@@ -44,12 +42,12 @@ func (mn *MockNode) SubmitTx(tx *txsystem.Transaction) error {
 	return nil
 }
 
-func (mn *MockNode) GetBlock(blockNumber uint64) (*block.Block, error) {
+func (mn *MockNode) GetBlock(_ context.Context, blockNumber uint64) (*block.Block, error) {
 	return &block.Block{UnicityCertificate: &certificates.UnicityCertificate{InputRecord: &certificates.InputRecord{RoundNumber: blockNumber}}}, nil
 }
 
 func (mn *MockNode) GetLatestBlock() (*block.Block, error) {
-	return mn.GetBlock(mn.maxBlockNumber)
+	return mn.GetBlock(context.Background(), mn.maxBlockNumber)
 }
 
 func (mn *MockNode) GetLatestRoundNumber() (uint64, error) {
@@ -64,7 +62,7 @@ func TestNewRpcServer_PartitionNodeMissing(t *testing.T) {
 	p, err := NewGRPCServer(nil)
 	assert.Nil(t, p)
 	assert.NotNil(t, err)
-	assert.True(t, strings.Contains(err.Error(), errstr.NilArgument))
+	assert.EqualError(t, err, `partition node which implements the service must be assigned`)
 }
 
 func TestNewRpcServer_Ok(t *testing.T) {
@@ -147,10 +145,10 @@ func createTransaction(id [32]byte) *txsystem.Transaction {
 	tx := &txsystem.Transaction{
 		UnitId:                id[:],
 		TransactionAttributes: new(anypb.Any),
-		Timeout:               0,
+		ClientMetadata:        &txsystem.ClientMetadata{Timeout: 0},
 		OwnerProof:            []byte{1},
 	}
-	bt := &money.TransferOrder{
+	bt := &money.TransferAttributes{
 		NewBearer:   script.PredicateAlwaysTrue(),
 		TargetValue: 1,
 		Backlink:    nil,

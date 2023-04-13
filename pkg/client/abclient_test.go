@@ -82,7 +82,7 @@ func TestTimeout(t *testing.T) {
 }
 
 func createRandomTransfer() *anypb.Any {
-	tx, _ := anypb.New(&billtx.TransferOrder{
+	tx, _ := anypb.New(&billtx.TransferAttributes{
 		TargetValue: 100,
 		NewBearer:   script.PredicatePayToPublicKeyHashDefault(sha256.New().Sum([]byte{0})),
 		Backlink:    hash.Sum256([]byte{}),
@@ -94,7 +94,7 @@ func createRandomTx() *txsystem.Transaction {
 	return &txsystem.Transaction{
 		UnitId:                hash.Sum256([]byte{0x00}),
 		TransactionAttributes: createRandomTransfer(),
-		Timeout:               1000,
+		ClientMetadata:        &txsystem.ClientMetadata{Timeout: 1000},
 		OwnerProof:            script.PredicateArgumentEmpty(),
 	}
 }

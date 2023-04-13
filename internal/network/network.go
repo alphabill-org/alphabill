@@ -6,7 +6,6 @@ import (
 	"time"
 
 	uc "github.com/alphabill-org/alphabill/internal/certificates"
-	"github.com/alphabill-org/alphabill/internal/errors/errstr"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/atomic_broadcast"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/blockproposal"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/certification"
@@ -234,7 +233,7 @@ func (n *LibP2PNetwork) ReceivedChannel() <-chan ReceivedMessage {
 
 func (n *LibP2PNetwork) registerReceiveProtocol(receiveProtocol *ReceiveProtocol[proto.Message]) error {
 	if receiveProtocol == nil {
-		return errors.New(errstr.NilArgument)
+		return errors.New("receiver protocol is nil")
 	}
 	if _, f := n.receiveProtocols[receiveProtocol.ID()]; f {
 		return fmt.Errorf("protocol %v already registered", receiveProtocol.ID())
@@ -245,7 +244,7 @@ func (n *LibP2PNetwork) registerReceiveProtocol(receiveProtocol *ReceiveProtocol
 
 func (n *LibP2PNetwork) registerSendProtocol(sendProtocol *SendProtocol) error {
 	if sendProtocol == nil {
-		return errors.New(errstr.NilArgument)
+		return errors.New("send protocol is nil")
 	}
 	if _, f := n.sendProtocols[sendProtocol.ID()]; f {
 		return fmt.Errorf("protocol %v already registered", sendProtocol.ID())
@@ -294,7 +293,7 @@ func initReceiveProtocols(self *Peer, n *LibP2PNetwork, receiveProtocolDescripti
 	for _, d := range receiveProtocolDescriptions {
 		err := initReceiveProtocol(self, d.protocolID, d.typeFn, n)
 		if err != nil {
-			return err
+			return fmt.Errorf("receive protocol %v init failed, %w", d.protocolID, err)
 		}
 	}
 	return nil
@@ -303,11 +302,11 @@ func initReceiveProtocols(self *Peer, n *LibP2PNetwork, receiveProtocolDescripti
 func initReceiveProtocol(self *Peer, protocolID string, typeFn TypeFunc[proto.Message], n *LibP2PNetwork) error {
 	p, err := NewReceiverProtocol(self, protocolID, n.ReceivedMsgCh, typeFn)
 	if err != nil {
-		return err
+		return fmt.Errorf("new receive protocol error, %w", err)
 	}
 	err = n.registerReceiveProtocol(p)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to register receive protocol, %w", err)
 	}
 	return nil
 }
@@ -316,7 +315,7 @@ func initSendProtocols(self *Peer, sendProtocolDescriptions []sendProtocolDescri
 	for _, pd := range sendProtocolDescriptions {
 		err := initSendProtocol(pd.protocolID, self, pd.timeout, n)
 		if err != nil {
-			return err
+			return fmt.Errorf("send protocol %v init failed, %w", pd.protocolID, err)
 		}
 	}
 	return nil
@@ -325,10 +324,10 @@ func initSendProtocols(self *Peer, sendProtocolDescriptions []sendProtocolDescri
 func initSendProtocol(protocolID string, peer *Peer, timeout time.Duration, n *LibP2PNetwork) error {
 	p, err := NewSendProtocol(peer, protocolID, timeout)
 	if err != nil {
-		return err
+		return fmt.Errorf("new send protocol error, %w", err)
 	}
 	if err = n.registerSendProtocol(p); err != nil {
-		return fmt.Errorf("failed to register protocol %s, error: %w", protocolID, err)
+		return fmt.Errorf("failed to register send protocol, %w", err)
 	}
 	return nil
 }

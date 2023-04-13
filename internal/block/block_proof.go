@@ -48,7 +48,7 @@ func NewPrimaryProof(b *GenericBlock, unitID []byte, hashAlgorithm crypto.Hash) 
 	}
 	if unitIDInIdentifiers(identifiers, unitID) {
 		primTx, secTxs := b.extractTransactions(unitID, hashAlgorithm)
-		secHash, err := mt.SecondaryHash(secTxs, hashAlgorithm)
+		secHash, err := mt.SecondaryHash(convertTxs(secTxs), hashAlgorithm)
 		if err != nil {
 			return nil, err
 		}
@@ -82,7 +82,7 @@ func NewSecondaryProof(b *GenericBlock, unitID []byte, secTxIdx int, hashAlgorit
 	}
 	primTx, secTxs := b.extractTransactions(unitID, hashAlgorithm)
 	primhash := hashTx(primTx, hashAlgorithm)
-	secChain, err := mt.SecondaryChain(secTxs, secTxIdx, hashAlgorithm)
+	secChain, err := mt.SecondaryChain(convertTxs(secTxs), secTxIdx, hashAlgorithm)
 	if err != nil {
 		return nil, err
 	}

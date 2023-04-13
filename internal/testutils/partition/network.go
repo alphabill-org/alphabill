@@ -1,11 +1,15 @@
 package testpartition
 
 import (
+	"bytes"
 	"context"
 	gocrypto "crypto"
 	"crypto/rand"
 	"fmt"
 	"time"
+
+	libp2pcrypto "github.com/libp2p/go-libp2p/core/crypto"
+	"google.golang.org/protobuf/proto"
 
 	"github.com/alphabill-org/alphabill/internal/block"
 	"github.com/alphabill-org/alphabill/internal/crypto"
@@ -19,8 +23,6 @@ import (
 	"github.com/alphabill-org/alphabill/internal/testutils/net"
 	testevent "github.com/alphabill-org/alphabill/internal/testutils/partition/event"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
-	libp2pcrypto "github.com/libp2p/go-libp2p/core/crypto"
-	"google.golang.org/protobuf/proto"
 )
 
 // AlphabillPartition for integration tests
@@ -30,6 +32,7 @@ type AlphabillPartition struct {
 	ctxCancel    context.CancelFunc
 	TrustBase    map[string]crypto.Verifier
 	EventHandler *testevent.TestEventHandler
+	RootSigners  []crypto.Signer
 }
 
 const rootValidatorNodes = 3
@@ -225,13 +228,14 @@ func NewNetwork(nodeCount int, txSystemProvider func(trustBase map[string]crypto
 		ctxCancel:    ctxCancel,
 		TrustBase:    trustBase,
 		EventHandler: eh,
+		RootSigners:  rootSigners,
 	}, nil
 }
 
 // BroadcastTx sends transactions to all nodes.
 func (a *AlphabillPartition) BroadcastTx(tx *txsystem.Transaction) error {
 	for _, n := range a.Nodes {
-		if err := n.SubmitTx(tx); err != nil {
+		if err := n.SubmitTx(context.Background(), tx); err != nil {
 			return err
 		}
 	}
@@ -240,7 +244,7 @@ func (a *AlphabillPartition) BroadcastTx(tx *txsystem.Transaction) error {
 
 // SubmitTx sends transactions to the first node.
 func (a *AlphabillPartition) SubmitTx(tx *txsystem.Transaction) error {
-	return a.Nodes[0].SubmitTx(tx)
+	return a.Nodes[0].SubmitTx(context.Background(), tx)
 }
 
 type TxConverter func(tx *txsystem.Transaction) (txsystem.GenericTransaction, error)
@@ -257,12 +261,12 @@ func (a *AlphabillPartition) GetBlockProof(tx *txsystem.Transaction, txConverter
 		}
 		number := bl.UnicityCertificate.InputRecord.RoundNumber
 		for i := uint64(0); i < number; i++ {
-			b, err := n.GetBlock(number - i)
+			b, err := n.GetBlock(context.Background(), number-i)
 			if err != nil || b == nil {
 				continue
 			}
 			for _, t := range b.Transactions {
-				if proto.Equal(t, tx) {
+				if bytes.Equal(t.TxBytes(), tx.TxBytes()) {
 					genBlock, err := b.ToGenericBlock(txConverter)
 					if err != nil {
 						return nil, nil, err
@@ -360,8 +364,9 @@ func generateKeyPairs(count int) ([]*network.PeerKeyPair, error) {
 
 // BlockchainContainsTx checks if at least one partition node block contains the given transaction.
 func BlockchainContainsTx(tx *txsystem.Transaction, network *AlphabillPartition) func() bool {
-	return BlockchainContains(network, func(t *txsystem.Transaction) bool {
-		return proto.Equal(t, tx)
+	return BlockchainContains(network, func(actualTx *txsystem.Transaction) bool {
+		// compare tx without server metadata field
+		return bytes.Equal(tx.TxBytes(), actualTx.TxBytes()) && proto.Equal(tx.TransactionAttributes, actualTx.TransactionAttributes)
 	})
 }
 
@@ -374,7 +379,7 @@ func BlockchainContains(network *AlphabillPartition, criteria func(tx *txsystem.
 			}
 			number := bl.UnicityCertificate.InputRecord.RoundNumber
 			for i := uint64(0); i <= number; i++ {
-				b, err := n.GetBlock(number - i)
+				b, err := n.GetBlock(context.Background(), number-i)
 				if err != nil || b == nil {
 					continue
 				}

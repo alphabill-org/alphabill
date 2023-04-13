@@ -10,13 +10,16 @@ import (
 	"github.com/alphabill-org/alphabill/internal/hash"
 	"github.com/alphabill-org/alphabill/internal/script"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
+	"github.com/alphabill-org/alphabill/internal/txsystem/fc/transactions"
 	"github.com/alphabill-org/alphabill/internal/txsystem/money"
 	"github.com/alphabill-org/alphabill/pkg/wallet/account"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/anypb"
 )
 
-func createTransactions(pubKey []byte, amount uint64, systemId []byte, bills []*Bill, k *account.AccountKey, timeout uint64) ([]*txsystem.Transaction, error) {
+const maxFee = uint64(1)
+
+func createTransactions(pubKey []byte, amount uint64, systemId []byte, bills []*Bill, k *account.AccountKey, timeout uint64, fcrID []byte) ([]*txsystem.Transaction, error) {
 	var txs []*txsystem.Transaction
 	var accumulatedSum uint64
 	// sort bills by value in descending order
@@ -25,7 +28,7 @@ func createTransactions(pubKey []byte, amount uint64, systemId []byte, bills []*
 	})
 	for _, b := range bills {
 		remainingAmount := amount - accumulatedSum
-		tx, err := createTransaction(pubKey, k, remainingAmount, systemId, b, timeout)
+		tx, err := createTransaction(pubKey, k, remainingAmount, systemId, b, timeout, fcrID)
 		if err != nil {
 			return nil, err
 		}
@@ -39,16 +42,16 @@ func createTransactions(pubKey []byte, amount uint64, systemId []byte, bills []*
 
 }
 
-func createTransaction(pubKey []byte, k *account.AccountKey, amount uint64, systemId []byte, b *Bill, timeout uint64) (*txsystem.Transaction, error) {
+func createTransaction(pubKey []byte, k *account.AccountKey, amount uint64, systemId []byte, b *Bill, timeout uint64, fcrID []byte) (*txsystem.Transaction, error) {
 	if b.Value <= amount {
-		return createTransferTx(pubKey, k, systemId, b, timeout)
+		return createTransferTx(pubKey, k, systemId, b, timeout, fcrID)
 	}
-	return createSplitTx(amount, pubKey, k, systemId, b, timeout)
+	return createSplitTx(amount, pubKey, k, systemId, b, timeout, fcrID)
 }
 
-func createTransferTx(pubKey []byte, k *account.AccountKey, systemId []byte, bill *Bill, timeout uint64) (*txsystem.Transaction, error) {
-	tx := createGenericTx(systemId, bill.GetID(), timeout)
-	err := anypb.MarshalFrom(tx.TransactionAttributes, &money.TransferOrder{
+func createTransferTx(pubKey []byte, k *account.AccountKey, systemId []byte, bill *Bill, timeout uint64, fcrID []byte) (*txsystem.Transaction, error) {
+	tx := createGenericTx(systemId, bill.GetID(), timeout, fcrID)
+	err := anypb.MarshalFrom(tx.TransactionAttributes, &money.TransferAttributes{
 		NewBearer:   script.PredicatePayToPublicKeyHashDefault(hash.Sum256(pubKey)),
 		TargetValue: bill.Value,
 		Backlink:    bill.TxHash,
@@ -63,19 +66,97 @@ func createTransferTx(pubKey []byte, k *account.AccountKey, systemId []byte, bil
 	return tx, nil
 }
 
-func createGenericTx(systemId, unitId []byte, timeout uint64) *txsystem.Transaction {
+func createTransferFCTx(amount uint64, targetRecordID []byte, nonce []byte, k *account.AccountKey, systemId []byte, unit *Bill, t1, t2 uint64) (*txsystem.Transaction, error) {
+	tx := createGenericTx(systemId, unit.GetID(), t2, nil)
+	transferFC := &transactions.TransferFeeCreditAttributes{
+		Amount:                 amount,
+		TargetSystemIdentifier: systemId,
+		TargetRecordId:         targetRecordID,
+		EarliestAdditionTime:   t1,
+		LatestAdditionTime:     t2,
+		Nonce:                  nonce,
+		Backlink:               unit.TxHash,
+	}
+	err := anypb.MarshalFrom(tx.TransactionAttributes, transferFC, proto.MarshalOptions{})
+	if err != nil {
+		return nil, err
+	}
+	err = signTx(systemId, tx, k)
+	if err != nil {
+		return nil, err
+	}
+	return tx, nil
+}
+
+func createAddFCTx(unitID []byte, fcProof *BlockProof, k *account.AccountKey, systemId []byte, timeout uint64) (*txsystem.Transaction, error) {
+	tx := createGenericTx(systemId, unitID, timeout, nil)
+	err := anypb.MarshalFrom(tx.TransactionAttributes, &transactions.AddFeeCreditAttributes{
+		FeeCreditOwnerCondition: script.PredicatePayToPublicKeyHashDefault(k.PubKeyHash.Sha256),
+		FeeCreditTransfer:       fcProof.Tx,
+		FeeCreditTransferProof:  fcProof.Proof,
+	}, proto.MarshalOptions{})
+	if err != nil {
+		return nil, err
+	}
+	err = signTx(systemId, tx, k)
+	if err != nil {
+		return nil, err
+	}
+	return tx, nil
+}
+
+func createCloseFCTx(systemId []byte, unitID []byte, timeout uint64, amount uint64, targetUnitID, nonce []byte, k *account.AccountKey) (*txsystem.Transaction, error) {
+	tx := createGenericTx(systemId, unitID, timeout, nil)
+	closeFC := &transactions.CloseFeeCreditAttributes{
+		Amount:       amount,
+		TargetUnitId: targetUnitID,
+		Nonce:        nonce,
+	}
+	err := anypb.MarshalFrom(tx.TransactionAttributes, closeFC, proto.MarshalOptions{})
+	if err != nil {
+		return nil, err
+	}
+	err = signTx(systemId, tx, k)
+	if err != nil {
+		return nil, err
+	}
+	return tx, nil
+}
+
+func createReclaimFCTx(systemID []byte, unitID []byte, timeout uint64, fcProof *BlockProof, backlink []byte, k *account.AccountKey) (*txsystem.Transaction, error) {
+	tx := createGenericTx(systemID, unitID, timeout, nil)
+	err := anypb.MarshalFrom(tx.TransactionAttributes, &transactions.ReclaimFeeCreditAttributes{
+		CloseFeeCreditTransfer: fcProof.Tx,
+		CloseFeeCreditProof:    fcProof.Proof,
+		Backlink:               backlink,
+	}, proto.MarshalOptions{})
+	if err != nil {
+		return nil, err
+	}
+	err = signTx(systemID, tx, k)
+	if err != nil {
+		return nil, err
+	}
+	return tx, nil
+}
+
+func createGenericTx(systemId, unitId []byte, timeout uint64, fcrID []byte) *txsystem.Transaction {
 	return &txsystem.Transaction{
 		SystemId:              systemId,
 		UnitId:                unitId,
 		TransactionAttributes: new(anypb.Any),
-		Timeout:               timeout,
+		ClientMetadata: &txsystem.ClientMetadata{
+			Timeout:           timeout,
+			MaxFee:            maxFee,
+			FeeCreditRecordId: fcrID,
+		},
 		// OwnerProof is added after whole transaction is built
 	}
 }
 
-func createSplitTx(amount uint64, pubKey []byte, k *account.AccountKey, systemId []byte, bill *Bill, timeout uint64) (*txsystem.Transaction, error) {
-	tx := createGenericTx(systemId, bill.GetID(), timeout)
-	err := anypb.MarshalFrom(tx.TransactionAttributes, &money.SplitOrder{
+func createSplitTx(amount uint64, pubKey []byte, k *account.AccountKey, systemId []byte, bill *Bill, timeout uint64, fcrID []byte) (*txsystem.Transaction, error) {
+	tx := createGenericTx(systemId, bill.GetID(), timeout, fcrID)
+	err := anypb.MarshalFrom(tx.TransactionAttributes, &money.SplitAttributes{
 		Amount:         amount,
 		TargetBearer:   script.PredicatePayToPublicKeyHashDefault(hash.Sum256(pubKey)),
 		RemainingValue: bill.Value - amount,
@@ -92,8 +173,8 @@ func createSplitTx(amount uint64, pubKey []byte, k *account.AccountKey, systemId
 }
 
 func createDustTx(k *account.AccountKey, systemId []byte, bill *Bill, nonce []byte, timeout uint64) (*txsystem.Transaction, error) {
-	tx := createGenericTx(systemId, bill.GetID(), timeout)
-	err := anypb.MarshalFrom(tx.TransactionAttributes, &money.TransferDCOrder{
+	tx := createGenericTx(systemId, bill.GetID(), timeout, k.PrivKeyHash)
+	err := anypb.MarshalFrom(tx.TransactionAttributes, &money.TransferDCAttributes{
 		TargetValue:  bill.Value,
 		TargetBearer: script.PredicatePayToPublicKeyHashDefault(k.PubKeyHash.Sha256),
 		Backlink:     bill.TxHash,
@@ -130,8 +211,8 @@ func createSwapTx(k *account.AccountKey, systemId []byte, dcBills []*Bill, dcNon
 		billValueSum += b.Value
 	}
 
-	swapTx := createGenericTx(systemId, dcNonce, timeout)
-	err := anypb.MarshalFrom(swapTx.TransactionAttributes, &money.SwapOrder{
+	swapTx := createGenericTx(systemId, dcNonce, timeout, k.PrivKeyHash)
+	err := anypb.MarshalFrom(swapTx.TransactionAttributes, &money.SwapDCAttributes{
 		OwnerCondition:  script.PredicatePayToPublicKeyHashDefault(k.PubKeyHash.Sha256),
 		BillIdentifiers: billIds,
 		DcTransfers:     dustTransferOrders,

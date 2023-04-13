@@ -20,9 +20,9 @@ func TestRegisterData_Ok(t *testing.T) {
 func TestRegisterData_InvalidOwnerProof(t *testing.T) {
 	vd := createVD(t)
 	tx := &txsystem.Transaction{
-		SystemId: vdSystemIdentifier,
-		UnitId:   make([]byte, 32),
-		Timeout:  2,
+		SystemId:       vdSystemIdentifier,
+		UnitId:         make([]byte, 32),
+		ClientMetadata: &txsystem.ClientMetadata{Timeout: 2},
 	}
 	genTx, err := txsystem.NewDefaultGenericTransaction(tx)
 	require.NoError(t, err)
@@ -63,9 +63,9 @@ func createTx(t *testing.T) txsystem.GenericTransaction {
 	hasher.Write(test.RandomBytes(32))
 	id := hasher.Sum(nil)
 	tx := &txsystem.Transaction{
-		SystemId: vdSystemIdentifier,
-		UnitId:   id,
-		Timeout:  2,
+		SystemId:       vdSystemIdentifier,
+		UnitId:         id,
+		ClientMetadata: &txsystem.ClientMetadata{Timeout: 2},
 	}
 	genTx, err := txsystem.NewDefaultGenericTransaction(tx)
 	require.NoError(t, err)

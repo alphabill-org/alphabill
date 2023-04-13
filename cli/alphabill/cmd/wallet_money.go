@@ -11,6 +11,7 @@ import (
 	"strings"
 	"syscall"
 
+	"github.com/alphabill-org/alphabill/pkg/wallet/backend/bp"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/spf13/cobra"
 	"github.com/tyler-smith/go-bip39"
@@ -18,7 +19,6 @@ import (
 	"golang.org/x/term"
 
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
-	moneytx "github.com/alphabill-org/alphabill/internal/txsystem/money"
 	"github.com/alphabill-org/alphabill/pkg/client"
 	"github.com/alphabill-org/alphabill/pkg/wallet/account"
 	moneyclient "github.com/alphabill-org/alphabill/pkg/wallet/backend/money/client"
@@ -76,6 +76,7 @@ func newWalletCmd(baseConfig *baseConfiguration) *cobra.Command {
 		},
 	}
 	walletCmd.AddCommand(newWalletBillsCmd(config))
+	//walletCmd.AddCommand(newWalletFeesCmd(ctx, config)) TODO add fee credit support to "new" cli wallet
 	walletCmd.AddCommand(createCmd(config))
 	walletCmd.AddCommand(sendCmd(config))
 	walletCmd.AddCommand(getPubKeysCmd(config))
@@ -255,7 +256,7 @@ func execSendCmd(ctx context.Context, cmd *cobra.Command, config *walletConfig) 
 	if waitForConf {
 		consoleWriter.Println("Successfully confirmed transaction(s)")
 		if outputPath != "" {
-			var outputBills []*moneytx.Bill
+			var outputBills []*bp.Bill
 			for _, b := range bills {
 				outputBills = append(outputBills, b.ToProto())
 			}

@@ -22,6 +22,7 @@ import (
 	"google.golang.org/protobuf/encoding/protojson"
 
 	"github.com/alphabill-org/alphabill/internal/block"
+	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/hash"
 	"github.com/alphabill-org/alphabill/internal/script"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
@@ -134,7 +135,9 @@ func Test_restAPI_postTransaction(t *testing.T) {
 	})
 
 	t.Run("one valid type-creation transaction is sent", func(t *testing.T) {
-		txsys, err := tokens.New()
+		txsys, err := tokens.New(
+			tokens.WithTrustBase(map[string]abcrypto.Verifier{"test": nil}),
+		)
 		if err != nil {
 			t.Fatalf("failed to create token tx system: %v", err)
 		}
@@ -174,7 +177,9 @@ func Test_restAPI_postTransaction(t *testing.T) {
 		message, err := protojson.MarshalOptions{EmitUnpopulated: true}.Marshal(txs)
 		require.NoError(t, err)
 
-		txsys, err := tokens.New()
+		txsys, err := tokens.New(
+			tokens.WithTrustBase(map[string]abcrypto.Verifier{"test": nil}),
+		)
 		if err != nil {
 			t.Fatalf("failed to create token tx system: %v", err)
 		}

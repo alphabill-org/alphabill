@@ -24,7 +24,6 @@ import (
 	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/proto"
-	"google.golang.org/protobuf/types/known/anypb"
 )
 
 type AlwaysValidCertificateValidator struct{}
@@ -49,7 +48,7 @@ func TestNode_StartNewRoundCallsRInit(t *testing.T) {
 			CommitInfo:    &certificates.CommitInfo{RootHash: zeroHash},
 		},
 	}
-	p.partition.startNewRound(ucr)
+	p.partition.startNewRound(context.Background(), ucr)
 	require.Equal(t, uint64(1), s.BeginBlockCountDelta)
 }
 
@@ -78,27 +77,11 @@ func TestNode_noRound_txAddedBackToBuffer(t *testing.T) {
 	require.Equal(t, stateBefore.Root(), stateAfter.Root())
 }
 
-func TestNode_HandleInvalidTxEvent(t *testing.T) {
-	pn := RunSingleNodePartition(t, &testtxsystem.CounterTxSystem{})
-	message := network.ReceivedMessage{
-		From:     "test-from",
-		Protocol: network.ProtocolInputForward,
-		Message:  &anypb.Any{},
-	}
-	err := pn.partition.handleTxMessage(message)
-	require.ErrorContains(t, err, "unsupported type")
-	require.Equal(t, 0, len(pn.partition.proposedTransactions))
-}
-
 func TestNode_ConvertingTxToGenericTxFails(t *testing.T) {
 	system := &convertTxFailsTxSystem{}
 	pn := RunSingleNodePartition(t, system)
-	message := network.ReceivedMessage{
-		From:     "test-from",
-		Protocol: network.ProtocolInputForward,
-		Message:  moneytesttx.RandomBillTransfer(t),
-	}
-	err := pn.partition.handleTxMessage(message)
+	tx := moneytesttx.RandomBillTransfer(t)
+	err := pn.partition.handleTxMessage(tx)
 	require.ErrorContains(t, err, "invalid tx")
 	require.Equal(t, 0, len(pn.partition.proposedTransactions))
 }
@@ -169,7 +152,7 @@ func TestNode_NodeStartWithRecoverStateFromDB(t *testing.T) {
 
 func TestNode_CreateBlocks(t *testing.T) {
 	tp := RunSingleNodePartition(t, &testtxsystem.CounterTxSystem{})
-	tp.partition.startNewRound(tp.partition.luc)
+	tp.partition.startNewRound(context.Background(), tp.partition.luc)
 	transfer := moneytesttx.RandomBillTransfer(t)
 	require.NoError(t, tp.SubmitTx(transfer))
 	require.Eventually(t, func() bool {
@@ -223,7 +206,7 @@ func TestNode_CreateBlocks(t *testing.T) {
 func TestNode_SubsequentEmptyBlocksNotPersisted(t *testing.T) {
 	tp := RunSingleNodePartition(t, &testtxsystem.CounterTxSystem{})
 	genesis := tp.GetLatestBlock(t)
-	tp.partition.startNewRound(tp.partition.luc)
+	tp.partition.startNewRound(context.Background(), tp.partition.luc)
 	require.NoError(t, tp.SubmitTx(moneytesttx.RandomBillTransfer(t)))
 	testevent.ContainsEvent(t, tp.eh, event.TransactionProcessed)
 	tp.CreateBlock(t)
@@ -362,7 +345,7 @@ func TestNode_HandleEquivocatingUnicityCertificate_SameIRPreviousHashDifferentIR
 	txs := &testtxsystem.CounterTxSystem{}
 	tp := RunSingleNodePartition(t, txs)
 	genesisUC := tp.partition.luc
-	tp.partition.startNewRound(genesisUC)
+	tp.partition.startNewRound(context.Background(), genesisUC)
 	block := tp.GetLatestBlock(t)
 	txs.ExecuteCountDelta++ // so that the block is not considered empty
 	require.NoError(t, tp.SubmitTx(moneytesttx.RandomBillTransfer(t)))
@@ -390,7 +373,7 @@ func TestNode_HandleUnicityCertificate_SameIR_DifferentBlockHash_StateReverted(t
 	txs := &testtxsystem.CounterTxSystem{}
 	tp := RunSingleNodePartition(t, txs)
 	genesisUC := tp.partition.luc
-	tp.partition.startNewRound(genesisUC)
+	tp.partition.startNewRound(context.Background(), genesisUC)
 	require.NoError(t, tp.SubmitTx(moneytesttx.RandomBillTransfer(t)))
 	testevent.ContainsEvent(t, tp.eh, event.TransactionProcessed)
 	tp.CreateBlock(t)
@@ -398,7 +381,7 @@ func TestNode_HandleUnicityCertificate_SameIR_DifferentBlockHash_StateReverted(t
 	latestUC := tp.partition.luc
 	require.NotEqual(t, genesisUC, latestUC)
 	tp.mockNet.ResetSentMessages(network.ProtocolBlockCertification)
-	tp.partition.startNewRound(tp.partition.luc)
+	tp.partition.startNewRound(context.Background(), tp.partition.luc)
 	// create a new transaction
 	require.NoError(t, tp.SubmitTx(moneytesttx.RandomBillTransfer(t)))
 	testevent.ContainsEvent(t, tp.eh, event.TransactionProcessed)

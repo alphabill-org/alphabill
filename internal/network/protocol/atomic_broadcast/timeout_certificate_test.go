@@ -6,10 +6,9 @@ import (
 	"testing"
 
 	"github.com/alphabill-org/alphabill/internal/certificates"
-	"github.com/alphabill-org/alphabill/internal/util"
-
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
+	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/stretchr/testify/require"
 )
 
@@ -260,4 +259,43 @@ func TestTimeout_Verify(t *testing.T) {
 	err := timeout.Verify(2, rootTrust)
 	require.ErrorContains(t, err, "invalid timeout, qc round 7 is bigger than timeout round 3")
 	// QC verification is unit-tested in QC module
+}
+
+func TestTimeoutCert_GetRound(t *testing.T) {
+	var tc *TimeoutCert = nil
+	require.Equal(t, uint64(0), tc.GetRound())
+	tc = &TimeoutCert{Timeout: nil}
+	require.Equal(t, uint64(0), tc.GetRound())
+	tc = &TimeoutCert{
+		Timeout: &Timeout{Round: 10},
+	}
+	require.Equal(t, uint64(10), tc.GetRound())
+}
+
+func TestTimeoutCert_GetHqcRound(t *testing.T) {
+	var tc *TimeoutCert = nil
+	require.Equal(t, uint64(0), tc.GetHqcRound())
+	tc = &TimeoutCert{Timeout: nil}
+	require.Equal(t, uint64(0), tc.GetHqcRound())
+	tc = &TimeoutCert{
+		Timeout: &Timeout{
+			Round:  10,
+			HighQc: nil,
+		},
+	}
+	require.Equal(t, uint64(0), tc.GetHqcRound())
+	tc = &TimeoutCert{
+		Timeout: &Timeout{
+			Round:  10,
+			HighQc: &QuorumCert{},
+		},
+	}
+	require.Equal(t, uint64(0), tc.GetHqcRound())
+	tc = &TimeoutCert{
+		Timeout: &Timeout{
+			Round:  10,
+			HighQc: &QuorumCert{VoteInfo: &certificates.RootRoundInfo{RoundNumber: 9}},
+		},
+	}
+	require.Equal(t, uint64(9), tc.GetHqcRound())
 }

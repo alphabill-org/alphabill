@@ -18,6 +18,20 @@ func (x *Timeout) Verify(quorum uint32, rootTrust map[string]crypto.Verifier) er
 	return x.HighQc.Verify(quorum, rootTrust)
 }
 
+func (x *TimeoutCert) GetRound() uint64 {
+	if x == nil {
+		return 0
+	}
+	return x.Timeout.GetRound()
+}
+
+func (x *TimeoutCert) GetHqcRound() uint64 {
+	if x == nil || x.Timeout == nil {
+		return 0
+	}
+	return x.Timeout.HighQc.GetRound()
+}
+
 func (x *TimeoutCert) GetAuthors() []string {
 	authors := make([]string, 0, len(x.Signatures))
 	for k := range x.Signatures {

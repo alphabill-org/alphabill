@@ -92,3 +92,10 @@ func (x *TimeoutMsg) Verify(quorum uint32, rootTrust map[string]crypto.Verifier)
 	}
 	return nil
 }
+
+func (x *TimeoutMsg) GetRound() uint64 {
+	if x == nil || x.Timeout == nil {
+		return 0
+	}
+	return x.Timeout.Round
+}

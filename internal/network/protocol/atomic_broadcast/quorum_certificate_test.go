@@ -221,3 +221,12 @@ func TestQuorumCert_Verify(t *testing.T) {
 		})
 	}
 }
+
+func TestQuorumCert_GetRound(t *testing.T) {
+	var qc *QuorumCert = nil
+	require.Equal(t, uint64(0), qc.GetRound())
+	qc = &QuorumCert{}
+	require.Equal(t, uint64(0), qc.GetRound())
+	qc = &QuorumCert{VoteInfo: &certificates.RootRoundInfo{RoundNumber: 2}}
+	require.Equal(t, uint64(2), qc.GetRound())
+}

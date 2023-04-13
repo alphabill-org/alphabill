@@ -2,7 +2,6 @@ package distributed
 
 import (
 	gocrypto "crypto"
-	"errors"
 	"fmt"
 
 	"github.com/alphabill-org/alphabill/internal/certificates"
@@ -31,16 +30,6 @@ type (
 
 func isConsecutive(blockRound, round uint64) bool {
 	return round+1 == blockRound
-}
-
-func isSafeToExtend(blockRound, qcRound uint64, tc *atomic_broadcast.TimeoutCert) bool {
-	if !isConsecutive(blockRound, tc.Timeout.Round) {
-		return false
-	}
-	if qcRound < tc.Timeout.HighQc.VoteInfo.RoundNumber {
-		return false
-	}
-	return true
 }
 
 func NewSafetyModule(id string, signer crypto.Signer, s keyvaluedb.KeyValueDB) (*SafetyModule, error) {
@@ -78,17 +67,37 @@ func (s *SafetyModule) SetHighestQcRound(highestQcRound uint64) {
 	_ = s.storage.Write([]byte(highestQcKey), &highestQcRound)
 }
 
-func (s *SafetyModule) isSafeToVote(blockRound, qcRound uint64, tc *atomic_broadcast.TimeoutCert) bool {
-	if blockRound <= util.Max(s.GetHighestVotedRound(), qcRound) {
-		// 1. must vote in monotonically increasing rounds
-		// 2. must extend a smaller round
-		return false
+func (s *SafetyModule) isSafeToVote(block *atomic_broadcast.BlockData, lastRoundTC *atomic_broadcast.TimeoutCert) error {
+	if block == nil {
+		return fmt.Errorf("block is nil")
 	}
-	// Either extending from previous round QC or safe to extend due to last round TC
-	if tc != nil {
-		return isConsecutive(blockRound, qcRound) || isSafeToExtend(blockRound, qcRound, tc)
+	blockRound := block.Round
+	// never vote for the same round twice
+	if blockRound <= s.GetHighestVotedRound() {
+		return fmt.Errorf("already voted for round %d, last voted round %d",
+			blockRound, s.GetHighestVotedRound())
 	}
-	return isConsecutive(blockRound, qcRound)
+	qcRound := block.Qc.GetRound()
+	// normal case, block is extended from last QC
+	if lastRoundTC == nil {
+		if !isConsecutive(blockRound, qcRound) {
+			return fmt.Errorf("block round %d does not extend from block qc round %d", blockRound, qcRound)
+		}
+		// all is fine
+		return nil
+	}
+	// previous round was timeout, block is extended from TC
+	tcRound := lastRoundTC.GetRound()
+	tcHqcRound := lastRoundTC.GetHqcRound()
+	if !isConsecutive(blockRound, tcRound) {
+		return fmt.Errorf("block round %d does not extend timeout certificate round %d",
+			blockRound, tcRound)
+	}
+	if qcRound < tcHqcRound {
+		return fmt.Errorf("block qc round %d is smaller than timeout certificate highest qc round %d",
+			qcRound, tcHqcRound)
+	}
+	return nil
 }
 
 func (s *SafetyModule) constructCommitInfo(block *atomic_broadcast.BlockData, voteInfoHash []byte) *certificates.CommitInfo {
@@ -104,8 +113,8 @@ func (s *SafetyModule) MakeVote(block *atomic_broadcast.BlockData, execStateID [
 	}
 	qcRound := block.Qc.VoteInfo.RoundNumber
 	votingRound := block.Round
-	if s.isSafeToVote(votingRound, qcRound, lastRoundTC) == false {
-		return nil, errors.New("not safe to vote")
+	if err := s.isSafeToVote(block, lastRoundTC); err != nil {
+		return nil, fmt.Errorf("not safe to vote, %w", err)
 	}
 	s.updateHighestQcRound(qcRound)
 	s.increaseHigestVoteRound(votingRound)
@@ -132,16 +141,19 @@ func (s *SafetyModule) MakeVote(block *atomic_broadcast.BlockData, execStateID [
 	return voteMsg, nil
 }
 
-func (s *SafetyModule) SignTimeout(vote *atomic_broadcast.TimeoutMsg, lastRoundTC *atomic_broadcast.TimeoutCert) error {
-	qcRound := vote.Timeout.HighQc.VoteInfo.RoundNumber
-	round := vote.Timeout.Round
-	if !s.isSafeToTimeout(round, qcRound, lastRoundTC) {
-		return errors.New("not safe to timeout")
+func (s *SafetyModule) SignTimeout(tmoVote *atomic_broadcast.TimeoutMsg, lastRoundTC *atomic_broadcast.TimeoutCert) error {
+	if err := tmoVote.IsValid(); err != nil {
+		return fmt.Errorf("timeout message not valid, %w", err)
 	}
-	// stop voting for this round, all other request to sign a vote for this round will be rejected
+	qcRound := tmoVote.Timeout.HighQc.GetRound()
+	round := tmoVote.GetRound()
+	if err := s.isSafeToTimeout(round, qcRound, lastRoundTC); err != nil {
+		return fmt.Errorf("not safe to time-out, %w", err)
+	}
+	// stop voting for this round, all other request to sign a normal vote for this round will be rejected
 	s.increaseHigestVoteRound(round)
 	// Sign timeout
-	return vote.Sign(s.signer)
+	return tmoVote.Sign(s.signer)
 }
 
 func (s *SafetyModule) SignProposal(proposalMsg *atomic_broadcast.ProposalMsg) error {
@@ -156,21 +168,27 @@ func (s *SafetyModule) updateHighestQcRound(qcRound uint64) {
 	s.SetHighestQcRound(util.Max(s.GetHighestQcRound(), qcRound))
 }
 
-func (s *SafetyModule) isSafeToTimeout(round, qcRound uint64, tc *atomic_broadcast.TimeoutCert) bool {
+func (s *SafetyModule) isSafeToTimeout(round, qcRound uint64, lastRoundTC *atomic_broadcast.TimeoutCert) error {
+	if qcRound < s.GetHighestQcRound() {
+		// respect highest qc round
+		return fmt.Errorf("qc round %v is smaller than highest qc round %v seen", qcRound, s.GetHighestQcRound())
+	}
+	highestVotedRound := s.GetHighestVotedRound() - 1
+	if round <= util.Max(highestVotedRound, qcRound) {
+		// don’t time out in a past round
+		return fmt.Errorf("timeout round %v is in the past, highest voted round %v, hqc round %v",
+			round, highestVotedRound, qcRound)
+	}
 	var tcRound uint64 = 0
-	var highestVotedRound uint64 = 0
-	if tc != nil {
-		tcRound = tc.Timeout.Round
+	if lastRoundTC != nil {
+		tcRound = lastRoundTC.GetRound()
 	}
-	if s.GetHighestVotedRound() > 0 {
-		highestVotedRound = s.GetHighestVotedRound() - 1
+	// timeout round must follow either last qc or tc
+	if !isConsecutive(round, qcRound) && !isConsecutive(round, tcRound) {
+		return fmt.Errorf("round %v does not follow last qc round %v or tc round %v",
+			round, qcRound, tcRound)
 	}
-	if qcRound < s.GetHighestQcRound() || round <= util.Max(highestVotedRound, qcRound) {
-		// respect highest qc round and don’t time out in a past round
-		return false
-	}
-	// qc or tc must allow entering the round to timeout
-	return isConsecutive(round, qcRound) || isConsecutive(round, tcRound)
+	return nil
 }
 
 func (s *SafetyModule) isCommitCandidate(block *atomic_broadcast.BlockData) []byte {

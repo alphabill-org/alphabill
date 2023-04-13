@@ -278,3 +278,12 @@ func TestVoteMsg_PureTimeoutVoteVerifyOk(t *testing.T) {
 	tmoMsg.Timeout.Round = 11
 	require.ErrorContains(t, tmoMsg.Verify(quorum, rootTrust), "timeout message verify failed: invalid signature")
 }
+
+func TestTimeoutMsg_GetRound(t *testing.T) {
+	var tmoMsg *TimeoutMsg = nil
+	require.Equal(t, uint64(0), tmoMsg.GetRound())
+	tmoMsg = &TimeoutMsg{Timeout: nil}
+	require.Equal(t, uint64(0), tmoMsg.GetRound())
+	tmoMsg = &TimeoutMsg{Timeout: &Timeout{Round: 10}}
+	require.Equal(t, uint64(10), tmoMsg.GetRound())
+}

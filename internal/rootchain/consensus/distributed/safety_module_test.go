@@ -65,33 +65,186 @@ func TestNewSafetyModule_WithStorageNotEmpty(t *testing.T) {
 	require.Equal(t, uint64(4), s.GetHighestVotedRound())
 }
 
-func TestSafetyModule_IsSafeToVote(t *testing.T) {
-	var blockRound uint64 = 4
-	s := initSafetyModule(t, "node1")
-	// Assume last round was not TC - TC is nil
-	// then it is safe to vote:
-	// 1. must vote in monotonically increasing rounds
-	// 2. must extend a smaller round
-	var tc *atomic_broadcast.TimeoutCert = nil
-	require.False(t, s.isSafeToVote(blockRound, 2, tc))
-	require.True(t, s.isSafeToVote(blockRound, 3, tc))
-	require.False(t, s.isSafeToVote(blockRound, 4, tc))
-	// create dummy TC for last round
-	voteInfo := NewDummyVoteInfo(4, []byte{0, 1, 2, 3})
-	qc := atomic_broadcast.NewQuorumCertificate(voteInfo, nil)
-	tc = NewDummyTc(4, qc)
-	// Is safe because block follows directly to QC
-	require.True(t, s.isSafeToVote(blockRound, 3, tc))
-	// Not safe because block round does not follow TC round
-	require.False(t, s.isSafeToVote(blockRound, 2, tc))
-	tc = NewDummyTc(3, qc)
-	// Not safe because TC highest QC round seen is bigger than QC round
-	require.False(t, s.isSafeToVote(blockRound, 2, tc))
-	// Safe, block follows TC and the QC round is >= TC higest QC round seen by the group
-	voteInfo = NewDummyVoteInfo(1, []byte{0, 1, 2, 3})
-	qc = atomic_broadcast.NewQuorumCertificate(voteInfo, nil)
-	tc = NewDummyTc(3, qc)
-	require.True(t, s.isSafeToVote(blockRound, 2, tc))
+func TestSafetyModule_isSafeToVote(t *testing.T) {
+	type args struct {
+		block       *atomic_broadcast.BlockData
+		lastRoundTC *atomic_broadcast.TimeoutCert
+	}
+	db := memorydb.New()
+	require.NoError(t, db.Write([]byte(highestVotedKey), 3))
+	tests := []struct {
+		name       string
+		args       args
+		wantErrStr string
+	}{
+		{
+			name: "nil",
+			args: args{
+				block:       nil,
+				lastRoundTC: nil,
+			},
+			wantErrStr: "block is nil",
+		},
+		{
+			name: "invalid block test, qc is nil",
+			args: args{
+				block: &atomic_broadcast.BlockData{
+					Round: 4,
+					Qc:    nil},
+				lastRoundTC: nil,
+			},
+			wantErrStr: "block round 4 does not extend from block qc round 0",
+		},
+		{
+			name: "invalid block test, round info is nil",
+			args: args{
+				block: &atomic_broadcast.BlockData{
+					Round: 4,
+					Qc:    &atomic_broadcast.QuorumCert{}},
+				lastRoundTC: nil,
+			},
+			wantErrStr: "block round 4 does not extend from block qc round 0",
+		},
+		{
+			name: "ok",
+			args: args{
+				block: &atomic_broadcast.BlockData{
+					Round: 4,
+					Qc: &atomic_broadcast.QuorumCert{
+						VoteInfo: &certificates.RootRoundInfo{
+							RoundNumber: 3,
+						}}},
+				lastRoundTC: nil,
+			},
+		},
+		{
+			name: "already voted for round 3",
+			args: args{
+				block: &atomic_broadcast.BlockData{
+					Round: 3,
+					Qc: &atomic_broadcast.QuorumCert{
+						VoteInfo: &certificates.RootRoundInfo{
+							RoundNumber: 3,
+						}}},
+				lastRoundTC: nil,
+			},
+			wantErrStr: "already voted for round 3, last voted round 3",
+		},
+		{
+			name: "round does not follow qc round",
+			args: args{
+				block: &atomic_broadcast.BlockData{
+					Round: 5,
+					Qc: &atomic_broadcast.QuorumCert{
+						VoteInfo: &certificates.RootRoundInfo{
+							RoundNumber: 3,
+						}}},
+				lastRoundTC: nil,
+			},
+			wantErrStr: "block round 5 does not extend from block qc round 3",
+		},
+		{
+			name: "safe to extend from TC, block 5 follows TC round 4 and block QC is equal to TC hqc",
+			args: args{
+				block: &atomic_broadcast.BlockData{
+					Round: 5,
+					Qc: &atomic_broadcast.QuorumCert{
+						VoteInfo: &certificates.RootRoundInfo{
+							RoundNumber: 3,
+						}}},
+				lastRoundTC: &atomic_broadcast.TimeoutCert{
+					Timeout: &atomic_broadcast.Timeout{
+						Round: 4,
+						HighQc: &atomic_broadcast.QuorumCert{
+							VoteInfo: &certificates.RootRoundInfo{
+								RoundNumber: 3,
+							}}}},
+			},
+		},
+		{
+			name: "Not safe to extend from TC, block 5 does not extend TC round 3",
+			args: args{
+				block: &atomic_broadcast.BlockData{
+					Round: 5,
+					Qc: &atomic_broadcast.QuorumCert{
+						VoteInfo: &certificates.RootRoundInfo{
+							RoundNumber: 3,
+						}}},
+				lastRoundTC: &atomic_broadcast.TimeoutCert{
+					Timeout: &atomic_broadcast.Timeout{
+						Round: 3,
+						HighQc: &atomic_broadcast.QuorumCert{
+							VoteInfo: &certificates.RootRoundInfo{
+								RoundNumber: 3,
+							}}}},
+			},
+			wantErrStr: "block round 5 does not extend timeout certificate round 3",
+		},
+		{
+			name: "Not safe to extend from TC, block follows TC, but hqc round is higher than block QC round",
+			args: args{
+				block: &atomic_broadcast.BlockData{
+					Round: 5,
+					Qc: &atomic_broadcast.QuorumCert{
+						VoteInfo: &certificates.RootRoundInfo{
+							RoundNumber: 3,
+						}}},
+				lastRoundTC: &atomic_broadcast.TimeoutCert{
+					Timeout: &atomic_broadcast.Timeout{
+						Round: 4,
+						HighQc: &atomic_broadcast.QuorumCert{
+							VoteInfo: &certificates.RootRoundInfo{
+								RoundNumber: 4,
+							}}},
+				},
+			},
+			wantErrStr: "block qc round 3 is smaller than timeout certificate highest qc round 4",
+		},
+		{
+			name: "safe to extend from TC, block follows TC",
+			args: args{
+				block: &atomic_broadcast.BlockData{
+					Round: 4,
+					Qc: &atomic_broadcast.QuorumCert{
+						VoteInfo: &certificates.RootRoundInfo{
+							RoundNumber: 2,
+						}}},
+				lastRoundTC: &atomic_broadcast.TimeoutCert{
+					Timeout: &atomic_broadcast.Timeout{Round: 3,
+						HighQc: &atomic_broadcast.QuorumCert{
+							VoteInfo: &certificates.RootRoundInfo{RoundNumber: 2},
+						}}}},
+		},
+		{
+			name: "not safe to extend from TC, invalid TC timeout is nil",
+			args: args{
+				block: &atomic_broadcast.BlockData{
+					Round: 4,
+					Qc: &atomic_broadcast.QuorumCert{
+						VoteInfo: &certificates.RootRoundInfo{
+							RoundNumber: 1,
+						}}},
+				lastRoundTC: &atomic_broadcast.TimeoutCert{
+					Timeout: nil}},
+			wantErrStr: "block round 4 does not extend timeout certificate round 0",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s := &SafetyModule{
+				peerID:   "test",
+				signer:   nil,
+				verifier: nil,
+				storage:  db,
+			}
+			err := s.isSafeToVote(tt.args.block, tt.args.lastRoundTC)
+			if tt.wantErrStr != "" {
+				require.ErrorContains(t, err, tt.wantErrStr)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
 }
 
 func TestSafetyModule_MakeVote(t *testing.T) {
@@ -172,7 +325,7 @@ func TestSafetyModule_SignTimeout(t *testing.T) {
 		storage: db,
 	}
 	require.NotNil(t, s)
-	// previous round did not timeout
+	// previous round did not time out
 	voteInfo := NewDummyVoteInfo(3, []byte{0, 1, 2, 3})
 	qc := atomic_broadcast.NewQuorumCertificate(voteInfo, nil)
 	qc.Signatures = map[string][]byte{"1": {1, 2}, "2": {1, 2}, "3": {1, 2}}
@@ -183,7 +336,7 @@ func TestSafetyModule_SignTimeout(t *testing.T) {
 		},
 		Author: "test",
 	}
-	require.ErrorContains(t, s.SignTimeout(tmoMsg, nil), "not safe to timeout")
+	require.ErrorContains(t, s.SignTimeout(tmoMsg, nil), "timeout message not valid, invalid timeout: timeout info round is smaller or equal to highest qc seen")
 	require.Nil(t, tmoMsg.Signature)
 	tmoMsg.Timeout.Round = 4
 	require.NoError(t, s.SignTimeout(tmoMsg, nil))
@@ -321,10 +474,10 @@ func TestSafetyModule_isSafeToTimeout(t *testing.T) {
 		tc      *atomic_broadcast.TimeoutCert // previous round TC
 	}
 	tests := []struct {
-		name   string
-		fields fields
-		args   args
-		want   bool
+		name       string
+		fields     fields
+		args       args
+		wantErrStr string
 	}{
 		{
 			name:   "OK",
@@ -335,22 +488,22 @@ func TestSafetyModule_isSafeToTimeout(t *testing.T) {
 						HighQc: &atomic_broadcast.QuorumCert{
 							VoteInfo: &certificates.RootRoundInfo{RoundNumber: 1},
 						}}}},
-			want: true,
+			wantErrStr: "",
 		},
 		{
-			name:   "Not safe to timeout, last round was not TC, but QC round is smaller than the QC we have seen",
-			fields: fields{highestVotedRound: 2, highestQcRound: 2, signer: nil},
-			args:   args{round: 2, qcRound: 1, tc: nil},
-			want:   false,
+			name:       "Not safe to timeout, last round was not TC, but QC round is smaller than the QC we have seen",
+			fields:     fields{highestVotedRound: 2, highestQcRound: 2, signer: nil},
+			args:       args{round: 2, qcRound: 1, tc: nil},
+			wantErrStr: "qc round 1 is smaller than highest qc round 2 seen",
 		},
 		{
-			name:   "Already voted for round 2 and can vote again for timeout",
-			fields: fields{highestVotedRound: 2, highestQcRound: 1, signer: nil},
-			args:   args{round: 2, qcRound: 1, tc: nil},
-			want:   true,
+			name:       "Already voted for round 2 and can vote again for timeout",
+			fields:     fields{highestVotedRound: 2, highestQcRound: 1, signer: nil},
+			args:       args{round: 2, qcRound: 1, tc: nil},
+			wantErrStr: "",
 		},
 		{
-			name:   "round does not follow QC or TC",
+			name:   "try timeout a past round",
 			fields: fields{highestVotedRound: 2, highestQcRound: 1, signer: nil},
 			args: args{round: 2, qcRound: 2,
 				tc: &atomic_broadcast.TimeoutCert{
@@ -358,7 +511,24 @@ func TestSafetyModule_isSafeToTimeout(t *testing.T) {
 						HighQc: &atomic_broadcast.QuorumCert{
 							VoteInfo: &certificates.RootRoundInfo{RoundNumber: 1},
 						}}}},
-			want: false,
+			wantErrStr: "timeout round 2 is in the past, highest voted round 1, hqc round 2",
+		},
+		{
+			name:       "round does not follow QC",
+			fields:     fields{highestVotedRound: 2, highestQcRound: 2, signer: nil},
+			args:       args{round: 4, qcRound: 2, tc: nil},
+			wantErrStr: "round 4 does not follow last qc round 2 or tc round 0",
+		},
+		{
+			name:   "round does not follow TC",
+			fields: fields{highestVotedRound: 2, highestQcRound: 2, signer: nil},
+			args: args{round: 5, qcRound: 2,
+				tc: &atomic_broadcast.TimeoutCert{
+					Timeout: &atomic_broadcast.Timeout{Round: 3,
+						HighQc: &atomic_broadcast.QuorumCert{
+							VoteInfo: &certificates.RootRoundInfo{RoundNumber: 2},
+						}}}},
+			wantErrStr: "round 5 does not follow last qc round 2 or tc round 3",
 		},
 	}
 	for _, tt := range tests {
@@ -371,79 +541,11 @@ func TestSafetyModule_isSafeToTimeout(t *testing.T) {
 				signer:  tt.fields.signer,
 				storage: db,
 			}
-			if got := s.isSafeToTimeout(tt.args.round, tt.args.qcRound, tt.args.tc); got != tt.want {
-				t.Errorf("isSafeToTimeout() = %v, want %v", got, tt.want)
-			}
-		})
-	}
-}
-
-func Test_isSaveToExtend(t *testing.T) {
-	type args struct {
-		blockRound uint64
-		qcRound    uint64
-		tc         *atomic_broadcast.TimeoutCert
-	}
-	tests := []struct {
-		name string
-		args args
-		want bool
-	}{
-		{
-			name: "Safe to extend from TC, block follows TC",
-			args: args{blockRound: 2, qcRound: 1,
-				tc: &atomic_broadcast.TimeoutCert{
-					Timeout: &atomic_broadcast.Timeout{Round: 1,
-						HighQc: &atomic_broadcast.QuorumCert{
-							VoteInfo: &certificates.RootRoundInfo{RoundNumber: 1},
-						}}}},
-			want: true,
-		},
-		{
-			name: "Not safe to extend from TC, block does not follow TC",
-			args: args{blockRound: 2, qcRound: 1,
-				tc: &atomic_broadcast.TimeoutCert{
-					Timeout: &atomic_broadcast.Timeout{Round: 2,
-						HighQc: &atomic_broadcast.QuorumCert{
-							VoteInfo: &certificates.RootRoundInfo{RoundNumber: 1},
-						}}}},
-			want: false,
-		},
-		{
-			name: "Not safe to extend from TC, block does not follow TC",
-			args: args{blockRound: 2, qcRound: 1,
-				tc: &atomic_broadcast.TimeoutCert{
-					Timeout: &atomic_broadcast.Timeout{Round: 3,
-						HighQc: &atomic_broadcast.QuorumCert{
-							VoteInfo: &certificates.RootRoundInfo{RoundNumber: 1},
-						}}}},
-			want: false,
-		},
-		{
-			name: "Not safe to extend from TC, block follows TC, but hqc round is higher than qc round",
-			args: args{blockRound: 3, qcRound: 1,
-				tc: &atomic_broadcast.TimeoutCert{
-					Timeout: &atomic_broadcast.Timeout{Round: 2,
-						HighQc: &atomic_broadcast.QuorumCert{
-							VoteInfo: &certificates.RootRoundInfo{RoundNumber: 3},
-						}}}},
-			want: false,
-		},
-		{
-			name: "Safe to extend from TC, block follows TC and hqc round is equal to qc round",
-			args: args{blockRound: 3, qcRound: 3,
-				tc: &atomic_broadcast.TimeoutCert{
-					Timeout: &atomic_broadcast.Timeout{Round: 2,
-						HighQc: &atomic_broadcast.QuorumCert{
-							VoteInfo: &certificates.RootRoundInfo{RoundNumber: 3},
-						}}}},
-			want: true,
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if got := isSafeToExtend(tt.args.blockRound, tt.args.qcRound, tt.args.tc); got != tt.want {
-				t.Errorf("isSafeToExtend() = %v, want %v", got, tt.want)
+			err := s.isSafeToTimeout(tt.args.round, tt.args.qcRound, tt.args.tc)
+			if tt.wantErrStr != "" {
+				require.ErrorContains(t, err, tt.wantErrStr)
+			} else {
+				require.NoError(t, err)
 			}
 		})
 	}

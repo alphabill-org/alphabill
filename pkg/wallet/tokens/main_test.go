@@ -16,6 +16,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	ttxs "github.com/alphabill-org/alphabill/internal/txsystem/tokens"
 	"github.com/alphabill-org/alphabill/internal/util"
+	"github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/alphabill-org/alphabill/pkg/wallet/account"
 	twb "github.com/alphabill-org/alphabill/pkg/wallet/tokens/backend"
 	"github.com/ethereum/go-ethereum/common/hexutil"
@@ -43,7 +44,7 @@ func Test_Load(t *testing.T) {
 
 func Test_ListTokens(t *testing.T) {
 	be := &mockTokenBackend{
-		getTokens: func(ctx context.Context, kind twb.Kind, _ twb.PubKey, _ string, _ int) ([]twb.TokenUnit, string, error) {
+		getTokens: func(ctx context.Context, kind twb.Kind, _ wallet.PubKey, _ string, _ int) ([]twb.TokenUnit, string, error) {
 			fungible := []twb.TokenUnit{
 				{
 					ID:   test.RandomBytes(32),
@@ -110,7 +111,7 @@ func Test_ListTokens_offset(t *testing.T) {
 	}
 
 	be := &mockTokenBackend{
-		getTokens: func(ctx context.Context, kind twb.Kind, _ twb.PubKey, offsetKey string, _ int) ([]twb.TokenUnit, string, error) {
+		getTokens: func(ctx context.Context, kind twb.Kind, _ wallet.PubKey, offsetKey string, _ int) ([]twb.TokenUnit, string, error) {
 			return getSubarray(allTokens, offsetKey)
 		},
 	}
@@ -129,7 +130,7 @@ func Test_ListTokens_offset(t *testing.T) {
 
 func Test_ListTokenTypes(t *testing.T) {
 	be := &mockTokenBackend{
-		getTokenTypes: func(ctx context.Context, kind twb.Kind, _ twb.PubKey, _ string, _ int) ([]twb.TokenUnitType, string, error) {
+		getTokenTypes: func(ctx context.Context, kind twb.Kind, _ wallet.PubKey, _ string, _ int) ([]twb.TokenUnitType, string, error) {
 			fungible := []twb.TokenUnitType{
 				{
 					ID:   test.RandomBytes(32),
@@ -205,7 +206,7 @@ func Test_ListTokenTypes_offset(t *testing.T) {
 		},
 	}
 	be := &mockTokenBackend{
-		getTokenTypes: func(ctx context.Context, _ twb.Kind, _ twb.PubKey, offsetKey string, _ int) ([]twb.TokenUnitType, string, error) {
+		getTokenTypes: func(ctx context.Context, _ twb.Kind, _ wallet.PubKey, offsetKey string, _ int) ([]twb.TokenUnitType, string, error) {
 			return getSubarray(allTypes, offsetKey)
 		},
 	}
@@ -246,7 +247,7 @@ func TestNewTypes(t *testing.T) {
 			}
 			return nil, fmt.Errorf("not found")
 		},
-		postTransactions: func(ctx context.Context, pubKey twb.PubKey, txs *txsystem.Transactions) error {
+		postTransactions: func(ctx context.Context, pubKey wallet.PubKey, txs *txsystem.Transactions) error {
 			for _, tx := range txs.Transactions {
 				recTxs[string(tx.UnitId)] = tx
 			}
@@ -319,7 +320,7 @@ func TestNewTypes(t *testing.T) {
 func TestMintFungibleToken(t *testing.T) {
 	recTxs := make([]*txsystem.Transaction, 0)
 	be := &mockTokenBackend{
-		postTransactions: func(ctx context.Context, pubKey twb.PubKey, txs *txsystem.Transactions) error {
+		postTransactions: func(ctx context.Context, pubKey wallet.PubKey, txs *txsystem.Transactions) error {
 			recTxs = append(recTxs, txs.Transactions...)
 			return nil
 		},
@@ -369,7 +370,7 @@ func TestSendFungible(t *testing.T) {
 	recTxs := make([]*txsystem.Transaction, 0)
 	typeId := test.RandomBytes(32)
 	be := &mockTokenBackend{
-		getTokens: func(ctx context.Context, kind twb.Kind, owner twb.PubKey, offsetKey string, limit int) ([]twb.TokenUnit, string, error) {
+		getTokens: func(ctx context.Context, kind twb.Kind, owner wallet.PubKey, offsetKey string, limit int) ([]twb.TokenUnit, string, error) {
 			return []twb.TokenUnit{
 				{ID: test.RandomBytes(32), Kind: twb.Fungible, Symbol: "AB", TypeID: typeId, Amount: 3},
 				{ID: test.RandomBytes(32), Kind: twb.Fungible, Symbol: "AB", TypeID: typeId, Amount: 5},
@@ -377,7 +378,7 @@ func TestSendFungible(t *testing.T) {
 				{ID: test.RandomBytes(32), Kind: twb.Fungible, Symbol: "AB", TypeID: typeId, Amount: 18},
 			}, "", nil
 		},
-		postTransactions: func(ctx context.Context, pubKey twb.PubKey, txs *txsystem.Transactions) error {
+		postTransactions: func(ctx context.Context, pubKey wallet.PubKey, txs *txsystem.Transactions) error {
 			recTxs = append(recTxs, txs.Transactions...)
 			return nil
 		},
@@ -508,7 +509,7 @@ func TestMintNFT_InvalidInputs(t *testing.T) {
 func TestMintNFT(t *testing.T) {
 	recTxs := make([]*txsystem.Transaction, 0)
 	be := &mockTokenBackend{
-		postTransactions: func(ctx context.Context, pubKey twb.PubKey, txs *txsystem.Transactions) error {
+		postTransactions: func(ctx context.Context, pubKey wallet.PubKey, txs *txsystem.Transactions) error {
 			recTxs = append(recTxs, txs.Transactions...)
 			return nil
 		},
@@ -593,7 +594,7 @@ func TestTransferNFT(t *testing.T) {
 		getToken: func(ctx context.Context, id twb.TokenID) (*twb.TokenUnit, error) {
 			return tokens[string(id)], nil
 		},
-		postTransactions: func(ctx context.Context, pubKey twb.PubKey, txs *txsystem.Transactions) error {
+		postTransactions: func(ctx context.Context, pubKey wallet.PubKey, txs *txsystem.Transactions) error {
 			for _, tx := range txs.Transactions {
 				recTxs[string(tx.UnitId)] = tx
 			}
@@ -605,21 +606,21 @@ func TestTransferNFT(t *testing.T) {
 	}
 	tw := initTestWallet(t, be)
 
-	first := func(s twb.PubKey, e error) twb.PubKey {
+	first := func(s wallet.PubKey, e error) wallet.PubKey {
 		require.NoError(t, e)
 		return s
 	}
 	tests := []struct {
 		name          string
 		token         *twb.TokenUnit
-		key           twb.PubKey
-		validateOwner func(t *testing.T, accNr uint64, key twb.PubKey, tok *ttxs.TransferNonFungibleTokenAttributes)
+		key           wallet.PubKey
+		validateOwner func(t *testing.T, accNr uint64, key wallet.PubKey, tok *ttxs.TransferNonFungibleTokenAttributes)
 	}{
 		{
 			name:  "to 'always true' predicate",
 			token: &twb.TokenUnit{ID: test.RandomBytes(32), Kind: twb.NonFungible, Symbol: "AB", TypeID: test.RandomBytes(32)},
 			key:   nil,
-			validateOwner: func(t *testing.T, accNr uint64, key twb.PubKey, tok *ttxs.TransferNonFungibleTokenAttributes) {
+			validateOwner: func(t *testing.T, accNr uint64, key wallet.PubKey, tok *ttxs.TransferNonFungibleTokenAttributes) {
 				require.Equal(t, script.PredicateAlwaysTrue(), tok.NewBearer)
 			},
 		},
@@ -627,7 +628,7 @@ func TestTransferNFT(t *testing.T) {
 			name:  "to public key hash predicate",
 			token: &twb.TokenUnit{ID: test.RandomBytes(32), Kind: twb.NonFungible, Symbol: "AB", TypeID: test.RandomBytes(32)},
 			key:   first(hexutil.Decode("0x0290a43bc454babf1ea8b0b76fcbb01a8f27a989047cf6d6d76397cc4756321e64")),
-			validateOwner: func(t *testing.T, accNr uint64, key twb.PubKey, tok *ttxs.TransferNonFungibleTokenAttributes) {
+			validateOwner: func(t *testing.T, accNr uint64, key wallet.PubKey, tok *ttxs.TransferNonFungibleTokenAttributes) {
 				require.Equal(t, script.PredicatePayToPublicKeyHashDefault(hash.Sum256(key)), tok.NewBearer)
 			},
 		},
@@ -655,7 +656,7 @@ func TestUpdateNFTData(t *testing.T) {
 		getToken: func(ctx context.Context, id twb.TokenID) (*twb.TokenUnit, error) {
 			return tokens[string(id)], nil
 		},
-		postTransactions: func(ctx context.Context, pubKey twb.PubKey, txs *txsystem.Transactions) error {
+		postTransactions: func(ctx context.Context, pubKey wallet.PubKey, txs *txsystem.Transactions) error {
 			for _, tx := range txs.Transactions {
 				recTxs[string(tx.UnitId)] = tx
 			}
@@ -723,12 +724,12 @@ func initAccountManager(t *testing.T) account.Manager {
 
 type mockTokenBackend struct {
 	getToken         func(ctx context.Context, id twb.TokenID) (*twb.TokenUnit, error)
-	getTokens        func(ctx context.Context, kind twb.Kind, owner twb.PubKey, offsetKey string, limit int) ([]twb.TokenUnit, string, error)
-	getTokenTypes    func(ctx context.Context, kind twb.Kind, creator twb.PubKey, offsetKey string, limit int) ([]twb.TokenUnitType, string, error)
+	getTokens        func(ctx context.Context, kind twb.Kind, owner wallet.PubKey, offsetKey string, limit int) ([]twb.TokenUnit, string, error)
+	getTokenTypes    func(ctx context.Context, kind twb.Kind, creator wallet.PubKey, offsetKey string, limit int) ([]twb.TokenUnitType, string, error)
 	getRoundNumber   func(ctx context.Context) (uint64, error)
-	postTransactions func(ctx context.Context, pubKey twb.PubKey, txs *txsystem.Transactions) error
+	postTransactions func(ctx context.Context, pubKey wallet.PubKey, txs *txsystem.Transactions) error
 	getTypeHierarchy func(ctx context.Context, id twb.TokenTypeID) ([]twb.TokenUnitType, error)
-	getTxProof       func(ctx context.Context, unitID twb.UnitID, txHash twb.TxHash) (*twb.Proof, error)
+	getTxProof       func(ctx context.Context, unitID wallet.UnitID, txHash wallet.TxHash) (*wallet.Proof, error)
 }
 
 func (m *mockTokenBackend) GetToken(ctx context.Context, id twb.TokenID) (*twb.TokenUnit, error) {
@@ -738,14 +739,14 @@ func (m *mockTokenBackend) GetToken(ctx context.Context, id twb.TokenID) (*twb.T
 	return nil, fmt.Errorf("GetToken not implemented")
 }
 
-func (m *mockTokenBackend) GetTokens(ctx context.Context, kind twb.Kind, owner twb.PubKey, offsetKey string, limit int) ([]twb.TokenUnit, string, error) {
+func (m *mockTokenBackend) GetTokens(ctx context.Context, kind twb.Kind, owner wallet.PubKey, offsetKey string, limit int) ([]twb.TokenUnit, string, error) {
 	if m.getTokens != nil {
 		return m.getTokens(ctx, kind, owner, offsetKey, limit)
 	}
 	return nil, "", fmt.Errorf("GetTokens not implemented")
 }
 
-func (m *mockTokenBackend) GetTokenTypes(ctx context.Context, kind twb.Kind, creator twb.PubKey, offsetKey string, limit int) ([]twb.TokenUnitType, string, error) {
+func (m *mockTokenBackend) GetTokenTypes(ctx context.Context, kind twb.Kind, creator wallet.PubKey, offsetKey string, limit int) ([]twb.TokenUnitType, string, error) {
 	if m.getTokenTypes != nil {
 		return m.getTokenTypes(ctx, kind, creator, offsetKey, limit)
 	}
@@ -759,7 +760,7 @@ func (m *mockTokenBackend) GetRoundNumber(ctx context.Context) (uint64, error) {
 	return 0, fmt.Errorf("GetRoundNumber not implemented")
 }
 
-func (m *mockTokenBackend) PostTransactions(ctx context.Context, pubKey twb.PubKey, txs *txsystem.Transactions) error {
+func (m *mockTokenBackend) PostTransactions(ctx context.Context, pubKey wallet.PubKey, txs *txsystem.Transactions) error {
 	if m.postTransactions != nil {
 		return m.postTransactions(ctx, pubKey, txs)
 	}
@@ -773,7 +774,7 @@ func (m *mockTokenBackend) GetTypeHierarchy(ctx context.Context, id twb.TokenTyp
 	return nil, fmt.Errorf("GetTypeHierarchy not implemented")
 }
 
-func (m *mockTokenBackend) GetTxProof(ctx context.Context, unitID twb.UnitID, txHash twb.TxHash) (*twb.Proof, error) {
+func (m *mockTokenBackend) GetTxProof(ctx context.Context, unitID wallet.UnitID, txHash wallet.TxHash) (*wallet.Proof, error) {
 	if m.getTxProof != nil {
 		return m.getTxProof(ctx, unitID, txHash)
 	}

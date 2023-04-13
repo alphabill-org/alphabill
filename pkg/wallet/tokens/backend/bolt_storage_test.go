@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/stretchr/testify/require"
 
 	"github.com/alphabill-org/alphabill/internal/script"
@@ -54,7 +55,7 @@ func Test_storage(t *testing.T) {
 
 func testTokenTypeCreator(t *testing.T, db *storage) {
 	typeID := []byte{0x01}
-	creatorKey := PubKey{0x02}
+	creatorKey := wallet.PubKey{0x02}
 
 	err := db.SaveTokenTypeCreator(nil, Fungible, creatorKey)
 	require.EqualError(t, err, `key required`)
@@ -66,7 +67,7 @@ func testTokenTypeCreator(t *testing.T, db *storage) {
 }
 
 func testTokenType(t *testing.T, db *storage) {
-	proof := &Proof{BlockNumber: 1}
+	proof := &wallet.Proof{BlockNumber: 1}
 	typeUnit := &TokenUnitType{
 		ID:                       test.RandomBytes(32),
 		ParentTypeID:             test.RandomBytes(32),
@@ -100,7 +101,7 @@ func testTokenType(t *testing.T, db *storage) {
 	require.NoError(t, err)
 	require.Equal(t, typeUnit, typeFromDB)
 
-	proofFromDB, err := db.GetTxProof(UnitID(typeUnit.ID), typeUnit.TxHash)
+	proofFromDB, err := db.GetTxProof(wallet.UnitID(typeUnit.ID), typeUnit.TxHash)
 	require.NoError(t, err)
 	require.Equal(t, proof, proofFromDB)
 }
@@ -117,7 +118,7 @@ func testSaveToken(t *testing.T, db *storage) {
 
 	owner := script.PredicatePayToPublicKeyHashDefault(test.RandomBytes(32))
 	token := randomToken(owner, Fungible)
-	proof := &Proof{BlockNumber: 1}
+	proof := &wallet.Proof{BlockNumber: 1}
 
 	require.NoError(t, db.SaveToken(token, proof))
 
@@ -135,7 +136,7 @@ func testSaveToken(t *testing.T, db *storage) {
 	require.NoError(t, err)
 	require.Equal(t, token, tokenFromDB)
 
-	proofFromDB, err := db.GetTxProof(UnitID(token.ID), token.TxHash)
+	proofFromDB, err := db.GetTxProof(wallet.UnitID(token.ID), token.TxHash)
 	require.NoError(t, err)
 	require.Equal(t, proof, proofFromDB)
 }
@@ -175,7 +176,7 @@ func testBlockNumber(t *testing.T, db *storage) {
 func Test_storage_QueryTokenType(t *testing.T) {
 	t.Parallel()
 
-	proof := &Proof{BlockNumber: 1}
+	proof := &wallet.Proof{BlockNumber: 1}
 	ctorA := test.RandomBytes(32)
 
 	db := initTestStorage(t)
@@ -253,7 +254,7 @@ func Test_storage_QueryTokens(t *testing.T) {
 
 	db := initTestStorage(t)
 
-	proof := &Proof{BlockNumber: 1}
+	proof := &wallet.Proof{BlockNumber: 1}
 	ownerA := script.PredicatePayToPublicKeyHashDefault(test.RandomBytes(32))
 	ownerB := script.PredicatePayToPublicKeyHashDefault(test.RandomBytes(32))
 
@@ -359,7 +360,7 @@ func randomTokenType(kind Kind) *TokenUnitType {
 	}
 }
 
-func randomToken(owner Predicate, kind Kind) *TokenUnit {
+func randomToken(owner wallet.Predicate, kind Kind) *TokenUnit {
 	return &TokenUnit{
 		ID:                     test.RandomBytes(32),
 		Symbol:                 "AB",

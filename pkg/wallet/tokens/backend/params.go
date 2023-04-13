@@ -4,10 +4,11 @@ import (
 	"fmt"
 	"strconv"
 
+	"github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 )
 
-func parsePubKey(pubkey string, required bool) (PubKey, error) {
+func parsePubKey(pubkey string, required bool) (wallet.PubKey, error) {
 	if pubkey == "" {
 		if required {
 			return nil, fmt.Errorf("parameter is required")
@@ -17,7 +18,7 @@ func parsePubKey(pubkey string, required bool) (PubKey, error) {
 	return decodePubKeyHex(pubkey)
 }
 
-func decodePubKeyHex(pubKey string) (PubKey, error) {
+func decodePubKeyHex(pubKey string) (wallet.PubKey, error) {
 	if n := len(pubKey); n != 68 {
 		s := " starting "
 		switch {
@@ -37,7 +38,7 @@ func decodePubKeyHex(pubKey string) (PubKey, error) {
 	return bytes, nil
 }
 
-func parseHex[T UnitID | TokenTypeID | TokenID | TxHash](value string, required bool) (T, error) {
+func parseHex[T wallet.UnitID | TokenTypeID | TokenID | wallet.TxHash](value string, required bool) (T, error) {
 	if value == "" {
 		if required {
 			return nil, fmt.Errorf("parameter is required")
@@ -52,7 +53,7 @@ func parseHex[T UnitID | TokenTypeID | TokenID | TxHash](value string, required 
 	return bytes, nil
 }
 
-func encodeHex[T UnitID | TokenTypeID | TokenID | TxHash](value T) string {
+func encodeHex[T wallet.UnitID | TokenTypeID | TokenID | wallet.TxHash](value T) string {
 	if len(value) == 0 {
 		return ""
 	}

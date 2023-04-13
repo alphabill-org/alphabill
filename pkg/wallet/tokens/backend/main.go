@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/ainvaltin/httpsrv"
+	"github.com/alphabill-org/alphabill/pkg/wallet"
 	"golang.org/x/sync/errgroup"
 
 	"github.com/alphabill-org/alphabill/internal/rpc/alphabill"
@@ -39,16 +40,16 @@ type Storage interface {
 	GetBlockNumber() (uint64, error)
 	SetBlockNumber(blockNumber uint64) error
 
-	SaveTokenTypeCreator(id TokenTypeID, kind Kind, creator PubKey) error
-	SaveTokenType(data *TokenUnitType, proof *Proof) error
+	SaveTokenTypeCreator(id TokenTypeID, kind Kind, creator wallet.PubKey) error
+	SaveTokenType(data *TokenUnitType, proof *wallet.Proof) error
 	GetTokenType(id TokenTypeID) (*TokenUnitType, error)
-	QueryTokenType(kind Kind, creator PubKey, startKey TokenTypeID, count int) ([]*TokenUnitType, TokenTypeID, error)
+	QueryTokenType(kind Kind, creator wallet.PubKey, startKey TokenTypeID, count int) ([]*TokenUnitType, TokenTypeID, error)
 
-	SaveToken(data *TokenUnit, proof *Proof) error
+	SaveToken(data *TokenUnit, proof *wallet.Proof) error
 	GetToken(id TokenID) (*TokenUnit, error)
-	QueryTokens(kind Kind, owner Predicate, startKey TokenID, count int) ([]*TokenUnit, TokenID, error)
+	QueryTokens(kind Kind, owner wallet.Predicate, startKey TokenID, count int) ([]*TokenUnit, TokenID, error)
 
-	GetTxProof(unitID UnitID, txHash TxHash) (*Proof, error)
+	GetTxProof(unitID wallet.UnitID, txHash wallet.TxHash) (*wallet.Proof, error)
 }
 
 /*

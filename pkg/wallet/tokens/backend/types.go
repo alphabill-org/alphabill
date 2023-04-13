@@ -4,60 +4,49 @@ import (
 	"bytes"
 	"fmt"
 
-	"github.com/alphabill-org/alphabill/internal/block"
-	"github.com/alphabill-org/alphabill/internal/txsystem"
+	"github.com/alphabill-org/alphabill/pkg/wallet"
 )
 
 type (
 	TokenUnitType struct {
 		// common
-		ID                       TokenTypeID `json:"id"`
-		ParentTypeID             TokenTypeID `json:"parentTypeId"`
-		Symbol                   string      `json:"symbol"`
-		SubTypeCreationPredicate Predicate   `json:"subTypeCreationPredicate,omitempty"`
-		TokenCreationPredicate   Predicate   `json:"tokenCreationPredicate,omitempty"`
-		InvariantPredicate       Predicate   `json:"invariantPredicate,omitempty"`
+		ID                       TokenTypeID      `json:"id"`
+		ParentTypeID             TokenTypeID      `json:"parentTypeId"`
+		Symbol                   string           `json:"symbol"`
+		SubTypeCreationPredicate wallet.Predicate `json:"subTypeCreationPredicate,omitempty"`
+		TokenCreationPredicate   wallet.Predicate `json:"tokenCreationPredicate,omitempty"`
+		InvariantPredicate       wallet.Predicate `json:"invariantPredicate,omitempty"`
 		// fungible only
 		DecimalPlaces uint32 `json:"decimalPlaces,omitempty"`
 		// nft only
-		NftDataUpdatePredicate Predicate `json:"nftDataUpdatePredicate,omitempty"`
+		NftDataUpdatePredicate wallet.Predicate `json:"nftDataUpdatePredicate,omitempty"`
 		// meta
-		Kind   Kind   `json:"kind"`
-		TxHash TxHash `json:"txHash"`
+		Kind   Kind          `json:"kind"`
+		TxHash wallet.TxHash `json:"txHash"`
 	}
 
 	TokenUnit struct {
 		// common
-		ID     TokenID     `json:"id"`
-		Symbol string      `json:"symbol"`
-		TypeID TokenTypeID `json:"typeId"`
-		Owner  Predicate   `json:"owner"`
+		ID     TokenID          `json:"id"`
+		Symbol string           `json:"symbol"`
+		TypeID TokenTypeID      `json:"typeId"`
+		Owner  wallet.Predicate `json:"owner"`
 		// fungible only
 		Amount   uint64 `json:"amount,omitempty,string"`
 		Decimals uint32 `json:"decimals,omitempty"`
 		// nft only
-		NftURI                 string    `json:"nftUri,omitempty"`
-		NftData                []byte    `json:"nftData,omitempty"`
-		NftDataUpdatePredicate Predicate `json:"nftDataUpdatePredicate,omitempty"`
+		NftURI                 string           `json:"nftUri,omitempty"`
+		NftData                []byte           `json:"nftData,omitempty"`
+		NftDataUpdatePredicate wallet.Predicate `json:"nftDataUpdatePredicate,omitempty"`
 		// meta
-		Kind   Kind   `json:"kind"`
-		TxHash TxHash `json:"txHash"`
+		Kind   Kind          `json:"kind"`
+		TxHash wallet.TxHash `json:"txHash"`
 	}
 
-	TokenID     UnitID
-	TokenTypeID UnitID
-	TxHash      []byte
-	UnitID      []byte
-	Kind        byte
+	TokenID     wallet.UnitID
+	TokenTypeID wallet.UnitID
 
-	Proof struct {
-		BlockNumber uint64                `json:"blockNumber,string"`
-		Tx          *txsystem.Transaction `json:"tx"`
-		Proof       *block.BlockProof     `json:"proof"`
-	}
-
-	Predicate []byte
-	PubKey    []byte
+	Kind byte
 )
 
 const (

@@ -15,6 +15,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"google.golang.org/protobuf/encoding/protojson"
 
@@ -71,7 +72,7 @@ Returns:
   - offsetKey for the next batch (if empty then there is no more data to query);
   - non-nil error when something failed;
 */
-func (tb *TokenBackend) GetTokens(ctx context.Context, kind twb.Kind, owner twb.PubKey, offsetKey string, limit int) ([]twb.TokenUnit, string, error) {
+func (tb *TokenBackend) GetTokens(ctx context.Context, kind twb.Kind, owner wallet.PubKey, offsetKey string, limit int) ([]twb.TokenUnit, string, error) {
 	addr := tb.getURL(apiPathPrefix, "kinds", kind.String(), "owners", hexutil.Encode(owner), "tokens")
 	setPaginationParams(addr, offsetKey, limit)
 
@@ -93,7 +94,7 @@ Returns:
   - offsetKey for the next batch (if empty then there is no more data to query);
   - non-nil error when something failed;
 */
-func (tb *TokenBackend) GetTokenTypes(ctx context.Context, kind twb.Kind, creator twb.PubKey, offsetKey string, limit int) ([]twb.TokenUnitType, string, error) {
+func (tb *TokenBackend) GetTokenTypes(ctx context.Context, kind twb.Kind, creator wallet.PubKey, offsetKey string, limit int) ([]twb.TokenUnitType, string, error) {
 	addr := tb.getURL(apiPathPrefix, "kinds", kind.String(), "types")
 	if len(creator) > 0 {
 		q := addr.Query()
@@ -119,8 +120,8 @@ func (tb *TokenBackend) GetTypeHierarchy(ctx context.Context, id twb.TokenTypeID
 	return rspData, nil
 }
 
-func (tb *TokenBackend) GetTxProof(ctx context.Context, unitID twb.UnitID, txHash twb.TxHash) (*twb.Proof, error) {
-	var proof *twb.Proof
+func (tb *TokenBackend) GetTxProof(ctx context.Context, unitID wallet.UnitID, txHash wallet.TxHash) (*wallet.Proof, error) {
+	var proof *wallet.Proof
 	addr := tb.getURL(apiPathPrefix, "units", hexutil.Encode(unitID), "transactions", hexutil.Encode(txHash), "proof")
 	_, err := tb.get(ctx, addr, &proof, false)
 	if err != nil {
@@ -141,7 +142,7 @@ func (tb *TokenBackend) GetRoundNumber(ctx context.Context) (uint64, error) {
 	return rn.RoundNumber, nil
 }
 
-func (tb *TokenBackend) PostTransactions(ctx context.Context, pubKey twb.PubKey, txs *txsystem.Transactions) error {
+func (tb *TokenBackend) PostTransactions(ctx context.Context, pubKey wallet.PubKey, txs *txsystem.Transactions) error {
 	b, err := protojson.Marshal(txs)
 	if err != nil {
 		return fmt.Errorf("failed to encode transactions: %w", err)

@@ -7,6 +7,7 @@ import (
 	"io"
 	"testing"
 
+	"github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/reflect/protoreflect"
 
@@ -59,7 +60,7 @@ func Test_blockProcessor_ProcessBlock(t *testing.T) {
 				getBlockNumber: func() (uint64, error) { return 3, nil },
 				setBlockNumber: func(blockNumber uint64) error { return nil },
 				// cause protcessing to fail by failing to store tx
-				saveTokenType: func(data *TokenUnitType, proof *Proof) error {
+				saveTokenType: func(data *TokenUnitType, proof *wallet.Proof) error {
 					return expErr
 				},
 			},
@@ -110,7 +111,7 @@ func Test_blockProcessor_processTx(t *testing.T) {
 					store: &mockStorage{
 						getBlockNumber: func() (uint64, error) { return 3, nil },
 						setBlockNumber: func(blockNumber uint64) error { return nil },
-						saveTokenType: func(data *TokenUnitType, proof *Proof) error {
+						saveTokenType: func(data *TokenUnitType, proof *wallet.Proof) error {
 							gtx, err := txs.ConvertTx(tx)
 							require.NoError(t, err)
 							require.EqualValues(t, gtx.Hash(crypto.SHA256), data.TxHash)
@@ -143,7 +144,7 @@ func Test_blockProcessor_processTx(t *testing.T) {
 					require.EqualValues(t, txAttr.Type, id)
 					return &TokenUnitType{ID: id, Kind: Fungible}, nil
 				},
-				saveToken: func(data *TokenUnit, proof *Proof) error {
+				saveToken: func(data *TokenUnit, proof *wallet.Proof) error {
 					gtx, err := txs.ConvertTx(tx)
 					require.NoError(t, err)
 					require.EqualValues(t, gtx.Hash(crypto.SHA256), data.TxHash)
@@ -176,7 +177,7 @@ func Test_blockProcessor_processTx(t *testing.T) {
 					require.EqualValues(t, txAttr.NftType, id)
 					return &TokenUnitType{ID: id, Kind: NonFungible}, nil
 				},
-				saveToken: func(data *TokenUnit, proof *Proof) error {
+				saveToken: func(data *TokenUnit, proof *wallet.Proof) error {
 					gtx, err := txs.ConvertTx(tx)
 					require.NoError(t, err)
 					require.EqualValues(t, gtx.Hash(crypto.SHA256), data.TxHash)
@@ -208,7 +209,7 @@ func Test_blockProcessor_processTx(t *testing.T) {
 				getToken: func(id TokenID) (*TokenUnit, error) {
 					return &TokenUnit{ID: id, TypeID: txAttr.Type, Amount: txAttr.Value, Kind: Fungible}, nil
 				},
-				saveToken: func(data *TokenUnit, proof *Proof) error {
+				saveToken: func(data *TokenUnit, proof *wallet.Proof) error {
 					gtx, err := txs.ConvertTx(tx)
 					require.NoError(t, err)
 					require.EqualValues(t, gtx.Hash(crypto.SHA256), data.TxHash)
@@ -240,7 +241,7 @@ func Test_blockProcessor_processTx(t *testing.T) {
 				getToken: func(id TokenID) (*TokenUnit, error) {
 					return &TokenUnit{ID: id, TypeID: txAttr.NftType, Owner: test.RandomBytes(4), Kind: NonFungible}, nil
 				},
-				saveToken: func(data *TokenUnit, proof *Proof) error {
+				saveToken: func(data *TokenUnit, proof *wallet.Proof) error {
 					gtx, err := txs.ConvertTx(tx)
 					require.NoError(t, err)
 					require.EqualValues(t, gtx.Hash(crypto.SHA256), data.TxHash)
@@ -275,7 +276,7 @@ func Test_blockProcessor_processTx(t *testing.T) {
 				getToken: func(id TokenID) (*TokenUnit, error) {
 					return &TokenUnit{ID: id, TypeID: txAttr.Type, Amount: 50, Owner: owner, Kind: Fungible}, nil
 				},
-				saveToken: func(data *TokenUnit, proof *Proof) error {
+				saveToken: func(data *TokenUnit, proof *wallet.Proof) error {
 					// save token is called twice - first to update existng token and then to save new one
 					if saveTokenCalls++; saveTokenCalls == 1 {
 						require.EqualValues(t, tx.UnitId, data.ID)
@@ -312,7 +313,7 @@ func Test_blockProcessor_processTx(t *testing.T) {
 				getToken: func(id TokenID) (*TokenUnit, error) {
 					return &TokenUnit{ID: id, NftData: test.RandomBytes(4), Kind: NonFungible}, nil
 				},
-				saveToken: func(data *TokenUnit, proof *Proof) error {
+				saveToken: func(data *TokenUnit, proof *wallet.Proof) error {
 					require.EqualValues(t, tx.UnitId, data.ID)
 					require.EqualValues(t, txAttr.Data, data.NftData)
 					require.Equal(t, NonFungible, data.Kind)

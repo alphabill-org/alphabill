@@ -84,20 +84,3 @@ func TestConfirmUnitsTx_timeout(t *testing.T) {
 	require.True(t, sub1.Confirmed)
 	require.False(t, sub2.Confirmed)
 }
-
-func TestConfirmUnitsTx_canceled(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	cancel()
-	batch := &txsubmitter.TxSubmissionBatch{}
-	err := batch.ConfirmUnitsTx(ctx)
-	require.ErrorContains(t, err, "confirming transactions interrupted")
-	require.ErrorIs(t, err, context.Canceled)
-}
-
-func TestConfirmUnitsTx_contextError(t *testing.T) {
-	ctx, cancel := context.WithTimeout(context.Background(), 0)
-	defer cancel()
-	batch := &txsubmitter.TxSubmissionBatch{}
-	err := batch.ConfirmUnitsTx(ctx)
-	require.ErrorContains(t, err, "confirming transactions interrupted")
-}

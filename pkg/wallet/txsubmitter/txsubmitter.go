@@ -73,12 +73,12 @@ func (t *TxSubmissionBatch) SendTx(ctx context.Context, confirmTx bool) error {
 		return err
 	}
 	if confirmTx {
-		return t.ConfirmUnitsTx(ctx)
+		return t.confirmUnitsTx(ctx)
 	}
 	return nil
 }
 
-func (t *TxSubmissionBatch) ConfirmUnitsTx(ctx context.Context) error {
+func (t *TxSubmissionBatch) confirmUnitsTx(ctx context.Context) error {
 	log.Info("Confirming submitted transactions")
 
 	for {

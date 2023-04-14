@@ -2,6 +2,7 @@ package money
 
 import (
 	"bytes"
+	gocrypto "crypto"
 	"sort"
 
 	"github.com/alphabill-org/alphabill/internal/block"
@@ -12,33 +13,43 @@ import (
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/internal/txsystem/money"
 	"github.com/alphabill-org/alphabill/pkg/wallet/account"
+	"github.com/alphabill-org/alphabill/pkg/wallet/txsubmitter"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/anypb"
 )
 
 var alphabillMoneySystemId = []byte{0, 0, 0, 0}
 
-func createTransactions(pubKey []byte, amount uint64, bills []*Bill, k *account.AccountKey, timeout uint64) ([]*txsystem.Transaction, error) {
-	var txs []*txsystem.Transaction
+type txBatchAdder func(tx *txsubmitter.TxSubmission)
+
+func createTransactions(add txBatchAdder, txConverter *TxConverter, targetPubKey []byte, amount uint64, bills []*Bill, k *account.AccountKey, timeout uint64) error {
 	var accumulatedSum uint64
 	// sort bills by value in descending order
 	sort.Slice(bills, func(i, j int) bool {
 		return bills[i].Value > bills[j].Value
 	})
+
 	for _, b := range bills {
 		remainingAmount := amount - accumulatedSum
-		tx, err := createTransaction(pubKey, k, remainingAmount, b, timeout)
+		tx, err := createTransaction(targetPubKey, k, remainingAmount, b, timeout)
 		if err != nil {
-			return nil, err
+			return err
 		}
-		txs = append(txs, tx)
+		gtx, err := txConverter.ConvertTx(tx)
+		if err != nil {
+			return err
+		}
+		add(&txsubmitter.TxSubmission{
+			UnitID:      b.GetID(),
+			TxHash:      gtx.Hash(gocrypto.SHA256),
+			Transaction: tx,
+		})
 		accumulatedSum += b.Value
 		if accumulatedSum >= amount {
-			return txs, nil
+			return nil
 		}
 	}
-	return nil, ErrInsufficientBalance
-
+	return ErrInsufficientBalance
 }
 
 func createTransaction(pubKey []byte, k *account.AccountKey, amount uint64, b *Bill, timeout uint64) (*txsystem.Transaction, error) {

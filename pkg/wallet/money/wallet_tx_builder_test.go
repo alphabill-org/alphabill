@@ -8,6 +8,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	moneytx "github.com/alphabill-org/alphabill/internal/txsystem/money"
 	"github.com/alphabill-org/alphabill/pkg/wallet/account"
+	"github.com/alphabill-org/alphabill/pkg/wallet/txsubmitter"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
@@ -120,15 +121,17 @@ func TestCreateTransactions(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			txs, err := createTransactions(receiverPubKey, tt.amount, tt.bills, accountKey.AccountKey, 100)
+			var txs []*txsystem.Transaction
+			batch := func(tx *txsubmitter.TxSubmission) {
+				txs = append(txs, tx.Transaction)
+			}
+			err := createTransactions(batch, txConverter, receiverPubKey, tt.amount, tt.bills, accountKey.AccountKey, 100)
 			if tt.expectedErr != nil {
 				require.ErrorIs(t, err, tt.expectedErr)
-				require.Nil(t, txs)
 			} else {
 				require.NoError(t, err)
-				require.NotNil(t, txs)
+				tt.verify(t, txs)
 			}
-			tt.verify(t, txs)
 		})
 	}
 }

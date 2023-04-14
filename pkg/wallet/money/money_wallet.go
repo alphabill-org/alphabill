@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/alphabill-org/alphabill/pkg/wallet/txsubmitter"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"golang.org/x/sync/errgroup"
 
@@ -181,24 +182,57 @@ func (w *Wallet) Send(ctx context.Context, cmd SendCmd) ([]*Bill, error) {
 		return nil, err
 	}
 
-	txs, err := createTransactions(cmd.ReceiverPubKey, cmd.Amount, bills, k, timeout)
+	apiWrapper := &backendAPIWrapper{wallet: w}
+	batch := txsubmitter.NewBatch(k.PubKey, apiWrapper)
+
+	if err = createTransactions(batch.Add, txConverter, cmd.ReceiverPubKey, cmd.Amount, bills, k, timeout); err != nil {
+		return nil, err
+	}
+	if err = batch.SendTx(ctx, cmd.WaitForConfirmation); err != nil {
+		return nil, err
+	}
+	return apiWrapper.txProofs, nil
+}
+
+type backendAPIWrapper struct {
+	wallet   *Wallet
+	txProofs []*Bill
+}
+
+func (b *backendAPIWrapper) GetRoundNumber(context.Context) (uint64, error) {
+	return b.wallet.restClient.GetBlockHeight()
+}
+
+func (b *backendAPIWrapper) PostTransactions(ctx context.Context, _ wallet.PubKey, txs *txsystem.Transactions) error {
+	for _, tx := range txs.Transactions {
+		err := b.wallet.SendTransaction(ctx, tx, &wallet.SendOpts{RetryOnFullTxBuffer: true})
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (b *backendAPIWrapper) GetTxProof(_ context.Context, unitID wallet.UnitID, txHash wallet.TxHash) (*wallet.Proof, error) {
+	resp, err := b.wallet.restClient.GetProof(unitID)
 	if err != nil {
 		return nil, err
 	}
-	for _, tx := range txs {
-		err := w.SendTransaction(ctx, tx, &wallet.SendOpts{RetryOnFullTxBuffer: true})
-		if err != nil {
-			return nil, err
-		}
+	if len(resp.Bills) != 1 {
+		return nil, errors.New(fmt.Sprintf("unexpected number of proofs: %d, bill ID: %X", len(resp.Bills), unitID))
 	}
-	if cmd.WaitForConfirmation {
-		txProofs, err := w.waitForConfirmation(ctx, txs, maxBlockNo, timeout)
-		if err != nil {
-			return nil, err
-		}
-		return txProofs, nil
+	bill := resp.Bills[0]
+	if !bytes.Equal(bill.TxHash, txHash) {
+		// confirmation expects nil (not error) if there's no proof for the given tx hash (yet)
+		return nil, nil
 	}
-	return nil, nil
+	b.txProofs = append(b.txProofs, convertBill(bill))
+	proof := bill.GetTxProof()
+	return &wallet.Proof{
+		BlockNumber: proof.BlockNumber,
+		Tx:          proof.Tx,
+		Proof:       proof.Proof,
+	}, nil
 }
 
 // collectDust sends dust transfer for every bill for given account in wallet and records metadata.

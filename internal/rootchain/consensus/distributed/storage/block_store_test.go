@@ -7,7 +7,7 @@ import (
 
 	"github.com/alphabill-org/alphabill/internal/certificates"
 	"github.com/alphabill-org/alphabill/internal/network/protocol"
-	"github.com/alphabill-org/alphabill/internal/network/protocol/atomic_broadcast"
+	"github.com/alphabill-org/alphabill/internal/network/protocol/ab_consensus"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 	"github.com/stretchr/testify/require"
 )
@@ -22,7 +22,7 @@ func NewAlwaysOkBlockVerifier(bStore *BlockStore) *MockAlwaysOkBlockVerifier {
 	}
 }
 
-func (m *MockAlwaysOkBlockVerifier) VerifyIRChangeReq(_ uint64, irChReq *atomic_broadcast.IRChangeReqMsg) (*InputData, error) {
+func (m *MockAlwaysOkBlockVerifier) VerifyIRChangeReq(_ uint64, irChReq *ab_consensus.IRChangeReqMsg) (*InputData, error) {
 	// Certify input, everything needs to be verified again as if received from partition node, since we cannot trust the leader is honest
 	// Remember all partitions that have changes in the current proposal and apply changes
 	id := protocol.SystemIdentifier(irChReq.SystemIdentifier)
@@ -34,11 +34,11 @@ func (m *MockAlwaysOkBlockVerifier) VerifyIRChangeReq(_ uint64, irChReq *atomic_
 		return nil, fmt.Errorf("invalid payload: partition %X state is missing", id.Bytes())
 	}
 	switch irChReq.CertReason {
-	case atomic_broadcast.IRChangeReqMsg_QUORUM:
+	case ab_consensus.IRChangeReqMsg_QUORUM:
 		// NB! there was at least one request, otherwise we would not be here
 		return &InputData{IR: irChReq.Requests[0].InputRecord, Sdrh: luc.UnicityTreeCertificate.SystemDescriptionHash}, nil
-	case atomic_broadcast.IRChangeReqMsg_QUORUM_NOT_POSSIBLE:
-	case atomic_broadcast.IRChangeReqMsg_T2_TIMEOUT:
+	case ab_consensus.IRChangeReqMsg_QUORUM_NOT_POSSIBLE:
+	case ab_consensus.IRChangeReqMsg_T2_TIMEOUT:
 		return &InputData{SysID: irChReq.SystemIdentifier, IR: luc.InputRecord, Sdrh: luc.UnicityTreeCertificate.SystemDescriptionHash}, nil
 	}
 	return nil, fmt.Errorf("unknown certification reason %v", irChReq.CertReason)
@@ -68,8 +68,8 @@ func TestNewBlockStoreFromGenesis(t *testing.T) {
 func TestHandleTcError(t *testing.T) {
 	bStore := initBlockStoreFromGenesis(t)
 	require.ErrorContains(t, bStore.ProcessTc(nil), "tc is nil")
-	tc := &atomic_broadcast.TimeoutCert{
-		Timeout: &atomic_broadcast.Timeout{
+	tc := &ab_consensus.TimeoutCert{
+		Timeout: &ab_consensus.Timeout{
 			Round: 3,
 		},
 	}
@@ -83,7 +83,7 @@ func TestHandleQcError(t *testing.T) {
 	require.ErrorContains(t, err, "qc is nil")
 	require.Nil(t, ucs)
 	// qc for non-existing round
-	qc := &atomic_broadcast.QuorumCert{
+	qc := &ab_consensus.QuorumCert{
 		VoteInfo: &certificates.RootRoundInfo{
 			RoundNumber:       3,
 			ParentRoundNumber: 2,
@@ -98,16 +98,16 @@ func TestBlockStoreAdd(t *testing.T) {
 	bStore := initBlockStoreFromGenesis(t)
 	rBlock := bStore.GetRoot()
 	mockBlockVer := NewAlwaysOkBlockVerifier(bStore)
-	block := &atomic_broadcast.BlockData{
+	block := &ab_consensus.BlockData{
 		Round:   genesis.RootRound,
-		Payload: &atomic_broadcast.Payload{},
+		Payload: &ab_consensus.Payload{},
 		Qc:      nil,
 	}
 	_, err := bStore.Add(block, mockBlockVer)
 	require.ErrorContains(t, err, "dd block failed: block for round 1 already in store")
-	block = &atomic_broadcast.BlockData{
+	block = &ab_consensus.BlockData{
 		Round:   genesis.RootRound + 1,
-		Payload: &atomic_broadcast.Payload{},
+		Payload: &ab_consensus.Payload{},
 		Qc:      bStore.GetHighQc(), // the qc is genesis qc
 	}
 	// Proposal always comes with Qc and Block, process Qc first and then new block
@@ -124,16 +124,16 @@ func TestBlockStoreAdd(t *testing.T) {
 		ParentRoundNumber: genesis.RootRound,
 		CurrentRootHash:   rh,
 	}
-	qc := &atomic_broadcast.QuorumCert{
+	qc := &ab_consensus.QuorumCert{
 		VoteInfo: vInfo,
 		LedgerCommitInfo: &certificates.CommitInfo{
 			RootHash: rBlock.RootHash,
 		},
 	}
 	// qc for round 2, does not commit a round
-	block = &atomic_broadcast.BlockData{
+	block = &ab_consensus.BlockData{
 		Round:   genesis.RootRound + 2,
-		Payload: &atomic_broadcast.Payload{},
+		Payload: &ab_consensus.Payload{},
 		Qc:      qc,
 	}
 	ucs, err = bStore.ProcessQc(qc)
@@ -149,16 +149,16 @@ func TestBlockStoreAdd(t *testing.T) {
 		ParentRoundNumber: genesis.RootRound + 1,
 		CurrentRootHash:   rh,
 	}
-	qc = &atomic_broadcast.QuorumCert{
+	qc = &ab_consensus.QuorumCert{
 		VoteInfo: vInfo,
 		LedgerCommitInfo: &certificates.CommitInfo{
 			RootHash: rBlock.RootHash,
 		},
 	}
 	// qc for round 2, does not commit a round
-	block = &atomic_broadcast.BlockData{
+	block = &ab_consensus.BlockData{
 		Round:   genesis.RootRound + 3,
-		Payload: &atomic_broadcast.Payload{},
+		Payload: &ab_consensus.Payload{},
 		Qc:      qc,
 	}
 	// Add

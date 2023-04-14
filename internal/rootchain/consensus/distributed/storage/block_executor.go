@@ -7,7 +7,7 @@ import (
 
 	"github.com/alphabill-org/alphabill/internal/certificates"
 	"github.com/alphabill-org/alphabill/internal/network/protocol"
-	"github.com/alphabill-org/alphabill/internal/network/protocol/atomic_broadcast"
+	"github.com/alphabill-org/alphabill/internal/network/protocol/ab_consensus"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/internal/rootchain/unicitytree"
 	"github.com/alphabill-org/alphabill/internal/util"
@@ -24,17 +24,17 @@ type (
 	Changed      [][]byte
 
 	ExecutedBlock struct {
-		BlockData *atomic_broadcast.BlockData  `json:"block"`         // proposed block
-		CurrentIR InputRecords                 `json:"inputData"`     // all input records in this block
-		Changed   Changed                      `json:"changed"`       // changed partition system identifiers
-		HashAlgo  gocrypto.Hash                `json:"hashAlgorithm"` // hash algorithm for the block
-		RootHash  []byte                       `json:"rootHash"`      // resulting root hash
-		Qc        *atomic_broadcast.QuorumCert `json:"Qc"`            // block's quorum certificate (from next view)
-		CommitQc  *atomic_broadcast.QuorumCert `json:"commitQc"`      // commit certificate
+		BlockData *ab_consensus.BlockData  `json:"block"`         // proposed block
+		CurrentIR InputRecords             `json:"inputData"`     // all input records in this block
+		Changed   Changed                  `json:"changed"`       // changed partition system identifiers
+		HashAlgo  gocrypto.Hash            `json:"hashAlgorithm"` // hash algorithm for the block
+		RootHash  []byte                   `json:"rootHash"`      // resulting root hash
+		Qc        *ab_consensus.QuorumCert `json:"Qc"`            // block's quorum certificate (from next view)
+		CommitQc  *ab_consensus.QuorumCert `json:"commitQc"`      // commit certificate
 	}
 
 	IRChangeReqVerifier interface {
-		VerifyIRChangeReq(round uint64, irChReq *atomic_broadcast.IRChangeReqMsg) (*InputData, error)
+		VerifyIRChangeReq(round uint64, irChReq *ab_consensus.IRChangeReqMsg) (*InputData, error)
 	}
 )
 
@@ -75,9 +75,9 @@ func (data *Changed) Find(sysID []byte) bool {
 	return false
 }
 
-func QcFromGenesisState(partitionRecords []*genesis.GenesisPartitionRecord) *atomic_broadcast.QuorumCert {
+func QcFromGenesisState(partitionRecords []*genesis.GenesisPartitionRecord) *ab_consensus.QuorumCert {
 	for _, p := range partitionRecords {
-		return &atomic_broadcast.QuorumCert{
+		return &ab_consensus.QuorumCert{
 			VoteInfo:         p.Certificate.UnicitySeal.RootRoundInfo,
 			LedgerCommitInfo: p.Certificate.UnicitySeal.CommitInfo,
 			Signatures:       p.Certificate.UnicitySeal.Signatures,
@@ -98,7 +98,7 @@ func NewExecutedBlockFromGenesis(hash gocrypto.Hash, pg []*genesis.GenesisPartit
 	qc := QcFromGenesisState(pg)
 	// If not initiated, save genesis file to store
 	return &ExecutedBlock{
-		BlockData: &atomic_broadcast.BlockData{
+		BlockData: &ab_consensus.BlockData{
 			Author:    "genesis",
 			Round:     genesis.RootRound,
 			Epoch:     0,
@@ -115,7 +115,7 @@ func NewExecutedBlockFromGenesis(hash gocrypto.Hash, pg []*genesis.GenesisPartit
 	}
 }
 
-func NewExecutedBlockFromRecovery(hash gocrypto.Hash, recoverBlock *atomic_broadcast.RecoveryBlock, verifier IRChangeReqVerifier) (*ExecutedBlock, error) {
+func NewExecutedBlockFromRecovery(hash gocrypto.Hash, recoverBlock *ab_consensus.RecoveryBlock, verifier IRChangeReqVerifier) (*ExecutedBlock, error) {
 	changed := make(InputRecords, 0, len(recoverBlock.Block.Payload.Requests))
 	changes := make([][]byte, 0, len(recoverBlock.Block.Payload.Requests))
 	// verify requests for IR change and proof of consensus
@@ -174,7 +174,7 @@ func NewExecutedBlockFromRecovery(hash gocrypto.Hash, recoverBlock *atomic_broad
 	}, nil
 }
 
-func NewExecutedBlock(hash gocrypto.Hash, newBlock *atomic_broadcast.BlockData, parent *ExecutedBlock, verifier IRChangeReqVerifier) (*ExecutedBlock, error) {
+func NewExecutedBlock(hash gocrypto.Hash, newBlock *ab_consensus.BlockData, parent *ExecutedBlock, verifier IRChangeReqVerifier) (*ExecutedBlock, error) {
 	changed := make(InputRecords, 0, len(newBlock.Payload.Requests))
 	changes := make([][]byte, 0, len(newBlock.Payload.Requests))
 	// verify requests for IR change and proof of consensus
@@ -239,7 +239,7 @@ func (x *ExecutedBlock) generateUnicityTree() (*unicitytree.UnicityTree, error) 
 	return unicitytree.New(x.HashAlgo.New(), utData)
 }
 
-func (x *ExecutedBlock) GenerateCertificates(commitQc *atomic_broadcast.QuorumCert) (map[protocol.SystemIdentifier]*certificates.UnicityCertificate, error) {
+func (x *ExecutedBlock) GenerateCertificates(commitQc *ab_consensus.QuorumCert) (map[protocol.SystemIdentifier]*certificates.UnicityCertificate, error) {
 	ut, err := x.generateUnicityTree()
 	if err != nil {
 		return nil, fmt.Errorf("unexpected error, failed to generate unicity tree, %w", err)

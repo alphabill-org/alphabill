@@ -6,22 +6,22 @@ import (
 
 	"github.com/alphabill-org/alphabill/internal/certificates"
 	"github.com/alphabill-org/alphabill/internal/network/protocol"
-	"github.com/alphabill-org/alphabill/internal/network/protocol/atomic_broadcast"
+	"github.com/alphabill-org/alphabill/internal/network/protocol/ab_consensus"
 	"github.com/alphabill-org/alphabill/internal/rootchain/consensus/distributed/storage"
 	"github.com/alphabill-org/alphabill/internal/util"
 )
 
 type (
 	IRChangeVerifier interface {
-		VerifyIRChangeReq(round uint64, irChReq *atomic_broadcast.IRChangeReqMsg) (*storage.InputData, error)
+		VerifyIRChangeReq(round uint64, irChReq *ab_consensus.IRChangeReqMsg) (*storage.InputData, error)
 	}
 	PartitionTimeout interface {
 		GetT2Timeouts(currenRound uint64) []protocol.SystemIdentifier
 	}
 	irChange struct {
 		InputRecord *certificates.InputRecord
-		Reason      atomic_broadcast.IRChangeReqMsg_CERT_REASON
-		Msg         *atomic_broadcast.IRChangeReqMsg
+		Reason      ab_consensus.IRChangeReqMsg_CERT_REASON
+		Msg         *ab_consensus.IRChangeReqMsg
 	}
 	IrReqBuffer struct {
 		irChgReqBuffer map[protocol.SystemIdentifier]*irChange
@@ -52,12 +52,12 @@ func compareIR(a, b *certificates.InputRecord) bool {
 
 // Add validates incoming IR change request and buffers valid requests. If for any reason the IR request is found not
 // valid, reason is logged, error is returned and request is ignored.
-func (x *IrReqBuffer) Add(round uint64, irChReq *atomic_broadcast.IRChangeReqMsg, ver IRChangeVerifier) error {
+func (x *IrReqBuffer) Add(round uint64, irChReq *ab_consensus.IRChangeReqMsg, ver IRChangeVerifier) error {
 	if irChReq == nil {
 		return fmt.Errorf("ir change request is nil")
 	}
 	// special case, timeout cannot be requested, it can only be added to a block by the leader
-	if irChReq.CertReason == atomic_broadcast.IRChangeReqMsg_T2_TIMEOUT {
+	if irChReq.CertReason == ab_consensus.IRChangeReqMsg_T2_TIMEOUT {
 		return fmt.Errorf("invalid ir change request, timeout can only be proposed by leader issuing a new block")
 	}
 	irData, err := ver.VerifyIRChangeReq(round, irChReq)
@@ -97,11 +97,11 @@ func (x *IrReqBuffer) IsChangeInBuffer(id protocol.SystemIdentifier) bool {
 }
 
 // GeneratePayload generates new proposal payload from buffered IR change requests.
-func (x *IrReqBuffer) GeneratePayload(round uint64, timeout PartitionTimeout) *atomic_broadcast.Payload {
+func (x *IrReqBuffer) GeneratePayload(round uint64, timeout PartitionTimeout) *ab_consensus.Payload {
 	// find partitions with T2 timeouts
 	timeoutIds := timeout.GetT2Timeouts(round)
-	payload := &atomic_broadcast.Payload{
-		Requests: make([]*atomic_broadcast.IRChangeReqMsg, 0, len(x.irChgReqBuffer)+len(timeoutIds)),
+	payload := &ab_consensus.Payload{
+		Requests: make([]*ab_consensus.IRChangeReqMsg, 0, len(x.irChgReqBuffer)+len(timeoutIds)),
 	}
 	// first add timeout requests
 	for _, id := range timeoutIds {
@@ -110,9 +110,9 @@ func (x *IrReqBuffer) GeneratePayload(round uint64, timeout PartitionTimeout) *a
 			continue
 		}
 		logger.Debug("round %v request partition %X T2 timeout", round, id.Bytes())
-		payload.Requests = append(payload.Requests, &atomic_broadcast.IRChangeReqMsg{
+		payload.Requests = append(payload.Requests, &ab_consensus.IRChangeReqMsg{
 			SystemIdentifier: id.Bytes(),
-			CertReason:       atomic_broadcast.IRChangeReqMsg_T2_TIMEOUT,
+			CertReason:       ab_consensus.IRChangeReqMsg_T2_TIMEOUT,
 		})
 	}
 	for _, req := range x.irChgReqBuffer {

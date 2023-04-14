@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/alphabill-org/alphabill/internal/network/protocol/atomic_broadcast"
+	"github.com/alphabill-org/alphabill/internal/network/protocol/ab_consensus"
 	"github.com/stretchr/testify/require"
 )
 
@@ -90,7 +90,7 @@ func TestRoundState_AdvanceRoundQC(t *testing.T) {
 	require.Nil(t, pacemaker.GetVoted())
 	// create QC
 	voteInfo := NewDummyVoteInfo(4, []byte{0, 1, 2, 3})
-	staleQc := atomic_broadcast.NewQuorumCertificate(voteInfo, nil)
+	staleQc := ab_consensus.NewQuorumCertificate(voteInfo, nil)
 	vote := NewDummyVote("test", 7, []byte{2, 2, 2, 2})
 	// record vote
 	pacemaker.SetVoted(vote)
@@ -102,7 +102,7 @@ func TestRoundState_AdvanceRoundQC(t *testing.T) {
 	require.NotNil(t, pacemaker.GetVoted())
 	require.Equal(t, pacemaker.GetCurrentRound(), lastCommittedRound+1)
 	voteInfo = NewDummyVoteInfo(8, []byte{1, 2, 3, 4})
-	qc := atomic_broadcast.NewQuorumCertificate(voteInfo, nil)
+	qc := ab_consensus.NewQuorumCertificate(voteInfo, nil)
 	require.True(t, pacemaker.AdvanceRoundQC(qc))
 	require.Equal(t, pacemaker.GetCurrentRound(), uint64(9))
 	// vote is reset when view is changed
@@ -122,7 +122,7 @@ func TestRoundState_AdvanceRoundTC(t *testing.T) {
 	require.Equal(t, pacemaker.GetCurrentRound(), lastCommittedRound+1)
 	require.Equal(t, pacemaker.GetVoted(), vote)
 	voteInfo := NewDummyVoteInfo(4, []byte{0, 1, 2, 3})
-	staleQc := atomic_broadcast.NewQuorumCertificate(voteInfo, nil)
+	staleQc := ab_consensus.NewQuorumCertificate(voteInfo, nil)
 	staleTc := NewDummyTc(4, staleQc)
 	pacemaker.AdvanceRoundTC(staleTc)
 	require.NotNil(t, pacemaker.GetVoted())
@@ -130,7 +130,7 @@ func TestRoundState_AdvanceRoundTC(t *testing.T) {
 	require.Equal(t, pacemaker.GetCurrentRound(), lastCommittedRound+1)
 	// create a valid qc for current
 	voteInfo = NewDummyVoteInfo(pacemaker.GetCurrentRound()-1, []byte{0, 1, 2, 3})
-	qc := atomic_broadcast.NewQuorumCertificate(voteInfo, nil)
+	qc := ab_consensus.NewQuorumCertificate(voteInfo, nil)
 	tc := NewDummyTc(pacemaker.GetCurrentRound(), qc)
 	pacemaker.AdvanceRoundTC(tc)
 	require.Equal(t, pacemaker.GetCurrentRound(), lastCommittedRound+2)
@@ -139,7 +139,7 @@ func TestRoundState_AdvanceRoundTC(t *testing.T) {
 	require.Nil(t, pacemaker.GetVoted())
 	// Now advance with qc for round 7
 	voteInfo = NewDummyVoteInfo(pacemaker.GetCurrentRound(), []byte{0, 1, 2, 3})
-	qc = atomic_broadcast.NewQuorumCertificate(voteInfo, nil)
+	qc = ab_consensus.NewQuorumCertificate(voteInfo, nil)
 	require.True(t, pacemaker.AdvanceRoundQC(qc))
 	// now also last round TC is reset
 	require.Nil(t, pacemaker.LastRoundTC())
@@ -154,7 +154,7 @@ func TestRoundState_GetRoundTimeout(t *testing.T) {
 	roundTimeout := pacemaker.GetRoundTimeout().Round(time.Millisecond)
 	require.Equal(t, localTimeout, roundTimeout)
 	voteInfo := NewDummyVoteInfo(pacemaker.GetCurrentRound()-1, []byte{0, 1, 2, 3})
-	qc := atomic_broadcast.NewQuorumCertificate(voteInfo, nil)
+	qc := ab_consensus.NewQuorumCertificate(voteInfo, nil)
 	tc := NewDummyTc(pacemaker.GetCurrentRound(), qc)
 	pacemaker.AdvanceRoundTC(tc)
 	require.Equal(t, pacemaker.GetCurrentRound(), lastCommittedRound+2)

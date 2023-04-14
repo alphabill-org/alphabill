@@ -4,7 +4,7 @@ import (
 	"math"
 	"time"
 
-	"github.com/alphabill-org/alphabill/internal/network/protocol/atomic_broadcast"
+	"github.com/alphabill-org/alphabill/internal/network/protocol/ab_consensus"
 	"github.com/alphabill-org/alphabill/internal/util"
 )
 
@@ -41,14 +41,14 @@ type (
 		// Collection of votes (when node is the next leader)
 		pendingVotes *VoteRegister
 		// Last round timeout certificate
-		lastRoundTC *atomic_broadcast.TimeoutCert
+		lastRoundTC *ab_consensus.TimeoutCert
 		// Store for votes sent in the ongoing round.
-		voteSent    *atomic_broadcast.VoteMsg
-		timeoutVote *atomic_broadcast.TimeoutMsg
+		voteSent    *ab_consensus.VoteMsg
+		timeoutVote *ab_consensus.TimeoutMsg
 	}
 )
 
-func (x *Pacemaker) LastRoundTC() *atomic_broadcast.TimeoutCert {
+func (x *Pacemaker) LastRoundTC() *ab_consensus.TimeoutCert {
 	return x.lastRoundTC
 }
 
@@ -83,22 +83,22 @@ func (x *Pacemaker) GetCurrentRound() uint64 {
 	return x.currentRound
 }
 
-func (x *Pacemaker) SetVoted(vote *atomic_broadcast.VoteMsg) {
+func (x *Pacemaker) SetVoted(vote *ab_consensus.VoteMsg) {
 	if vote.VoteInfo.RoundNumber == x.currentRound {
 		x.voteSent = vote
 	}
 }
 
-func (x *Pacemaker) SetTimeoutVote(vote *atomic_broadcast.TimeoutMsg) {
+func (x *Pacemaker) SetTimeoutVote(vote *ab_consensus.TimeoutMsg) {
 	if vote.Timeout.Round == x.currentRound {
 		x.timeoutVote = vote
 	}
 }
 
-func (x *Pacemaker) GetVoted() *atomic_broadcast.VoteMsg {
+func (x *Pacemaker) GetVoted() *ab_consensus.VoteMsg {
 	return x.voteSent
 }
-func (x *Pacemaker) GetTimeoutVote() *atomic_broadcast.TimeoutMsg {
+func (x *Pacemaker) GetTimeoutVote() *ab_consensus.TimeoutMsg {
 	return x.timeoutVote
 }
 
@@ -106,7 +106,7 @@ func (x *Pacemaker) GetRoundTimeout() time.Duration {
 	return x.roundTimeout.Sub(time.Now())
 }
 
-func (x *Pacemaker) RegisterVote(vote *atomic_broadcast.VoteMsg, quorum QuorumInfo) *atomic_broadcast.QuorumCert {
+func (x *Pacemaker) RegisterVote(vote *ab_consensus.VoteMsg, quorum QuorumInfo) *ab_consensus.QuorumCert {
 	// If the vote is not about the current round then ignore
 	if vote.VoteInfo.RoundNumber != x.currentRound {
 		logger.Warning("Round %v received vote for unexpected round %v: vote ignored",
@@ -137,7 +137,7 @@ func (x *Pacemaker) CalcTimeTilNextProposal(round uint64) time.Duration {
 	*/
 }
 
-func (x *Pacemaker) RegisterTimeoutVote(vote *atomic_broadcast.TimeoutMsg, quorum QuorumInfo) *atomic_broadcast.TimeoutCert {
+func (x *Pacemaker) RegisterTimeoutVote(vote *ab_consensus.TimeoutMsg, quorum QuorumInfo) *ab_consensus.TimeoutCert {
 	tc, err := x.pendingVotes.InsertTimeoutVote(vote, quorum)
 	if err != nil {
 		logger.Warning("Round %v vote message from %v error:", x.currentRound, vote.Author, err)
@@ -146,7 +146,7 @@ func (x *Pacemaker) RegisterTimeoutVote(vote *atomic_broadcast.TimeoutMsg, quoru
 	return tc
 }
 
-func (x *Pacemaker) AdvanceRoundQC(qc *atomic_broadcast.QuorumCert) bool {
+func (x *Pacemaker) AdvanceRoundQC(qc *ab_consensus.QuorumCert) bool {
 	if qc == nil {
 		return false
 	}
@@ -163,7 +163,7 @@ func (x *Pacemaker) AdvanceRoundQC(qc *atomic_broadcast.QuorumCert) bool {
 	return true
 }
 
-func (x *Pacemaker) AdvanceRoundTC(tc *atomic_broadcast.TimeoutCert) {
+func (x *Pacemaker) AdvanceRoundTC(tc *ab_consensus.TimeoutCert) {
 	// no timeout cert or is from old view/round - ignore
 	if tc == nil || tc.Timeout.Round < x.currentRound {
 		return

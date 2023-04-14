@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"github.com/alphabill-org/alphabill/internal/certificates"
-	"github.com/alphabill-org/alphabill/internal/network/protocol/atomic_broadcast"
+	"github.com/alphabill-org/alphabill/internal/network/protocol/ab_consensus"
 	"github.com/stretchr/testify/require"
 )
 
@@ -37,9 +37,9 @@ func NewDummyLedgerCommitInfo(voteInfo *certificates.RootRoundInfo) *certificate
 	}
 }
 
-func NewDummyVote(author string, round uint64, rootHash []byte) *atomic_broadcast.VoteMsg {
+func NewDummyVote(author string, round uint64, rootHash []byte) *ab_consensus.VoteMsg {
 	voteInfo := NewDummyVoteInfo(round, rootHash)
-	return &atomic_broadcast.VoteMsg{
+	return &ab_consensus.VoteMsg{
 		VoteInfo:         voteInfo,
 		LedgerCommitInfo: NewDummyLedgerCommitInfo(voteInfo),
 		HighQc:           nil,
@@ -48,28 +48,28 @@ func NewDummyVote(author string, round uint64, rootHash []byte) *atomic_broadcas
 	}
 }
 
-func NewDummyTimeoutVote(hqc *atomic_broadcast.QuorumCert, round uint64, author string) *atomic_broadcast.TimeoutMsg {
-	timeoutMsg := atomic_broadcast.NewTimeoutMsg(
-		atomic_broadcast.NewTimeout(round, 0, hqc), author)
+func NewDummyTimeoutVote(hqc *ab_consensus.QuorumCert, round uint64, author string) *ab_consensus.TimeoutMsg {
+	timeoutMsg := ab_consensus.NewTimeoutMsg(
+		ab_consensus.NewTimeout(round, 0, hqc), author)
 	// will not actually sign it, but just create a dummy sig
 	timeoutMsg.Signature = []byte{0, 1, 2, 3}
 	return timeoutMsg
 }
 
-func NewDummyTc(round uint64, qc *atomic_broadcast.QuorumCert) *atomic_broadcast.TimeoutCert {
-	timeout := &atomic_broadcast.Timeout{
+func NewDummyTc(round uint64, qc *ab_consensus.QuorumCert) *ab_consensus.TimeoutCert {
+	timeout := &ab_consensus.Timeout{
 		Epoch:  0,
 		Round:  round,
 		HighQc: qc,
 	}
 	// will not actually sign it, but just create a dummy sig
 	dummySig := []byte{0, 1, 2, 3}
-	sigs := map[string]*atomic_broadcast.TimeoutVote{
+	sigs := map[string]*ab_consensus.TimeoutVote{
 		"node1": {HqcRound: 2, Signature: dummySig},
 		"node2": {HqcRound: 2, Signature: dummySig},
 		"node3": {HqcRound: 2, Signature: dummySig},
 	}
-	return &atomic_broadcast.TimeoutCert{
+	return &ab_consensus.TimeoutCert{
 		Timeout:    timeout,
 		Signatures: sigs,
 	}
@@ -84,7 +84,7 @@ func TestNewVoteRegister(t *testing.T) {
 
 func TestVoteRegister_InsertVote(t *testing.T) {
 	type args struct {
-		vote       []*atomic_broadcast.VoteMsg
+		vote       []*ab_consensus.VoteMsg
 		quorumInfo QuorumInfo
 	}
 	tests := []struct {
@@ -95,14 +95,14 @@ func TestVoteRegister_InsertVote(t *testing.T) {
 	}{
 		{
 			name: "Add nil vote",
-			args: args{vote: []*atomic_broadcast.VoteMsg{nil},
+			args: args{vote: []*ab_consensus.VoteMsg{nil},
 				quorumInfo: NewDummyQuorum(3)},
 			wantQc:  false,
 			wantErr: true,
 		},
 		{
 			name: "No quorum",
-			args: args{vote: []*atomic_broadcast.VoteMsg{
+			args: args{vote: []*ab_consensus.VoteMsg{
 				NewDummyVote("node1", 2, []byte{1, 2, 3}),
 				NewDummyVote("node2", 2, []byte{1, 2, 3}),
 				NewDummyVote("node3", 2, []byte{1, 2, 4}),
@@ -113,7 +113,7 @@ func TestVoteRegister_InsertVote(t *testing.T) {
 		},
 		{
 			name: "Quorum ok",
-			args: args{vote: []*atomic_broadcast.VoteMsg{
+			args: args{vote: []*ab_consensus.VoteMsg{
 				NewDummyVote("node1", 2, []byte{1, 2, 3}),
 				NewDummyVote("node2", 2, []byte{1, 2, 3}),
 				NewDummyVote("node3", 2, []byte{1, 2, 3}),
@@ -124,7 +124,7 @@ func TestVoteRegister_InsertVote(t *testing.T) {
 		},
 		{
 			name: "Quorum 5 ok",
-			args: args{vote: []*atomic_broadcast.VoteMsg{
+			args: args{vote: []*ab_consensus.VoteMsg{
 				NewDummyVote("node1", 2, []byte{1, 2, 3}),
 				NewDummyVote("node2", 2, []byte{1, 2, 3}),
 				NewDummyVote("node3", 2, []byte{1, 2, 3}),
@@ -144,7 +144,7 @@ func TestVoteRegister_InsertVote(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			register := NewVoteRegister()
 			var err error
-			var qc *atomic_broadcast.QuorumCert
+			var qc *ab_consensus.QuorumCert
 			for _, vote := range tt.args.vote {
 				qc, err = register.InsertVote(vote, tt.args.quorumInfo)
 			}
@@ -202,11 +202,11 @@ func TestVoteRegister_Tc(t *testing.T) {
 		"node2": {0, 1, 2, 3},
 		"node3": {0, 1, 2, 3},
 	}
-	qcRound1 := atomic_broadcast.NewQuorumCertificate(NewDummyVoteInfo(1, []byte{0, 1, 1}), nil)
+	qcRound1 := ab_consensus.NewQuorumCertificate(NewDummyVoteInfo(1, []byte{0, 1, 1}), nil)
 	qcRound1.Signatures = qcSignatures
-	qcRound2 := atomic_broadcast.NewQuorumCertificate(NewDummyVoteInfo(2, []byte{0, 1, 2}), nil)
+	qcRound2 := ab_consensus.NewQuorumCertificate(NewDummyVoteInfo(2, []byte{0, 1, 2}), nil)
 	qcRound2.Signatures = qcSignatures
-	qcRound3 := atomic_broadcast.NewQuorumCertificate(NewDummyVoteInfo(3, []byte{0, 1, 3}), nil)
+	qcRound3 := ab_consensus.NewQuorumCertificate(NewDummyVoteInfo(3, []byte{0, 1, 3}), nil)
 	qcRound3.Signatures = qcSignatures
 
 	register := NewVoteRegister()
@@ -260,7 +260,7 @@ func TestVoteRegister_Reset(t *testing.T) {
 		"node2": {0, 1, 2, 3},
 		"node3": {0, 1, 2, 3},
 	}
-	qcRound1 := atomic_broadcast.NewQuorumCertificate(NewDummyVoteInfo(1, []byte{0, 1, 1}), nil)
+	qcRound1 := ab_consensus.NewQuorumCertificate(NewDummyVoteInfo(1, []byte{0, 1, 1}), nil)
 	qcRound1.Signatures = qcSignatures
 	qc, err := register.InsertVote(NewDummyVote("node1", 2, []byte{1, 2, 3}), quorumInfo)
 	require.NoError(t, err)

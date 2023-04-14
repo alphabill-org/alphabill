@@ -1,4 +1,4 @@
-package atomic_broadcast
+package ab_consensus
 
 import (
 	gocrypto "crypto"
@@ -12,11 +12,9 @@ import (
 )
 
 var (
-	ErrInvalidRound             = errors.New("invalid round number")
-	ErrInvalidSystemId          = errors.New("invalid system identifier")
-	ErrMissingPayload           = errors.New("proposed block is missing payload")
-	ErrMissingQuorumCertificate = errors.New("proposed block is missing quorum certificate")
-	ErrIncompatibleReq          = errors.New("different system identifier and request system identifier")
+	errInvalidRound             = errors.New("invalid round number")
+	errMissingPayload           = errors.New("proposed block is missing payload")
+	errMissingQuorumCertificate = errors.New("proposed block is missing quorum certificate")
 )
 
 func (x *Payload) AddToHasher(hasher hash.Hash) {
@@ -52,17 +50,17 @@ func (x *Payload) IsEmpty() bool {
 
 func (x *BlockData) IsValid() error {
 	if x.Round < 1 {
-		return ErrInvalidRound
+		return errInvalidRound
 	}
 	if x.Payload == nil {
-		return ErrMissingPayload
+		return errMissingPayload
 	}
 	// does not verify request signatures, this will need to be done later
 	if err := x.Payload.IsValid(); err != nil {
 		return err
 	}
 	if x.Qc == nil {
-		return ErrMissingQuorumCertificate
+		return errMissingQuorumCertificate
 	}
 	if err := x.Qc.IsValid(); err != nil {
 		return err

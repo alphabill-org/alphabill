@@ -1,4 +1,4 @@
-package atomic_broadcast
+package ab_consensus
 
 import (
 	gocrypto "crypto"
@@ -125,7 +125,7 @@ func TestProposalMsg_Sign_SignerIsNil(t *testing.T) {
 		},
 		LastRoundTc: nil,
 	}
-	require.ErrorIs(t, ErrSignerIsNil, proposeMsg.Sign(nil))
+	require.ErrorIs(t, errSignerIsNil, proposeMsg.Sign(nil))
 }
 
 func TestProposalMsg_Sign_InvalidBlock(t *testing.T) {

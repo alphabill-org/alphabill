@@ -1,4 +1,4 @@
-package atomic_broadcast
+package ab_consensus
 
 import (
 	"bytes"
@@ -11,7 +11,7 @@ import (
 
 func (x *VoteMsg) Sign(signer crypto.Signer) error {
 	if signer == nil {
-		return ErrSignerIsNil
+		return errSignerIsNil
 	}
 	// sanity check, make sure commit info round info hash is set
 	if len(x.LedgerCommitInfo.RootRoundInfoHash) < 1 {

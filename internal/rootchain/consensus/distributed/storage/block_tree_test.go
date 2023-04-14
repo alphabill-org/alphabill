@@ -8,7 +8,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/certificates"
 	"github.com/alphabill-org/alphabill/internal/keyvaluedb/boltdb"
 	"github.com/alphabill-org/alphabill/internal/keyvaluedb/memorydb"
-	"github.com/alphabill-org/alphabill/internal/network/protocol/atomic_broadcast"
+	"github.com/alphabill-org/alphabill/internal/network/protocol/ab_consensus"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 	"github.com/stretchr/testify/require"
 )
@@ -87,9 +87,9 @@ var pg = []*genesis.GenesisPartitionRecord{
 
 func mockExecutedBlock(round, qcRound, qcParentRound uint64) *ExecutedBlock {
 	return &ExecutedBlock{
-		BlockData: &atomic_broadcast.BlockData{
+		BlockData: &ab_consensus.BlockData{
 			Round: round,
-			Qc: &atomic_broadcast.QuorumCert{
+			Qc: &ab_consensus.QuorumCert{
 				VoteInfo: &certificates.RootRoundInfo{
 					RoundNumber:       qcRound,
 					ParentRoundNumber: qcParentRound,
@@ -235,7 +235,7 @@ func TestAddAndCommit(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, genesis.RootRound+3, b.BlockData.Round)
 
-	commitQc := &atomic_broadcast.QuorumCert{
+	commitQc := &ab_consensus.QuorumCert{
 		VoteInfo: &certificates.RootRoundInfo{
 			RoundNumber:       5,
 			ParentRoundNumber: 4,

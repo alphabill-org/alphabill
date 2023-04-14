@@ -3,7 +3,7 @@ syntax = "proto3";
 import "certification.proto";
 import "certificates.proto";
 
-option go_package = "github.com/alphabill-org/alphabill/internal/network/protocol/atomic_broadcast;atomic_broadcast";
+option go_package = "github.com/alphabill-org/alphabill/internal/network/protocol/ab_consensus;ab_consensus";
 
 message IRChangeReqMsg {
   enum CERT_REASON{

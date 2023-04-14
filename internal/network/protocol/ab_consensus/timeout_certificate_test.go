@@ -1,4 +1,4 @@
-package atomic_broadcast
+package ab_consensus
 
 import (
 	"bytes"

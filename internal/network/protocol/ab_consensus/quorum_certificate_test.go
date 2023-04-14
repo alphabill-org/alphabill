@@ -1,4 +1,4 @@
-package atomic_broadcast
+package ab_consensus
 
 import (
 	gocrypto "crypto"
@@ -58,7 +58,7 @@ func TestQuorumCert_IsValid(t *testing.T) {
 				LedgerCommitInfo: &certificates.CommitInfo{RootRoundInfoHash: voteInfo.Hash(gocrypto.SHA256)},
 				Signatures:       nil,
 			},
-			wantErrStr: ErrVoteInfoIsNil.Error(),
+			wantErrStr: errVoteInfoIsNil.Error(),
 		},
 		// Vote info valid unit tests are covered in VoteInfo tests
 		{
@@ -77,7 +77,7 @@ func TestQuorumCert_IsValid(t *testing.T) {
 				LedgerCommitInfo: nil,
 				Signatures:       nil,
 			},
-			wantErrStr: ErrLedgerCommitInfoIsNil.Error(),
+			wantErrStr: errLedgerCommitInfoIsNil.Error(),
 		},
 		{
 			name: "QC not  valid - ledger info is nil",
@@ -95,7 +95,7 @@ func TestQuorumCert_IsValid(t *testing.T) {
 				LedgerCommitInfo: &certificates.CommitInfo{RootRoundInfoHash: voteInfo.Hash(gocrypto.SHA256)},
 				Signatures:       nil,
 			},
-			wantErrStr: ErrQcIsMissingSignatures.Error(),
+			wantErrStr: errQcIsMissingSignatures.Error(),
 		},
 		// Is valid, but would not verify
 		{

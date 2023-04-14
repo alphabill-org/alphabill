@@ -1,4 +1,4 @@
-package atomic_broadcast
+package ab_consensus
 
 import (
 	gocrypto "crypto"
@@ -10,8 +10,7 @@ import (
 )
 
 var (
-	ErrSignerIsNil   = errors.New("signer is nil")
-	ErrVerifierIsNil = errors.New("verifier is nil")
+	errSignerIsNil = errors.New("signer is nil")
 )
 
 func (x *ProposalMsg) getLastTcRound() uint64 {
@@ -41,19 +40,19 @@ func (x *ProposalMsg) IsValid() error {
 
 func (x *ProposalMsg) Sign(signer crypto.Signer) error {
 	if signer == nil {
-		return ErrSignerIsNil
+		return errSignerIsNil
 	}
 	if err := x.Block.IsValid(); err != nil {
 		return err
 	}
 	hash, err := x.Block.Hash(gocrypto.SHA256)
 	if err != nil {
-		return err
+		return fmt.Errorf("proposal hash calculation failed, %w", err)
 	}
 	// Sign block hash
 	signature, err := signer.SignHash(hash)
 	if err != nil {
-		return err
+		return fmt.Errorf("proposal sign failed, %w", err)
 	}
 	x.Signature = signature
 	return nil

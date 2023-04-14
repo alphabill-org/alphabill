@@ -7,7 +7,7 @@ import (
 	"fmt"
 
 	"github.com/alphabill-org/alphabill/internal/certificates"
-	"github.com/alphabill-org/alphabill/internal/network/protocol/atomic_broadcast"
+	"github.com/alphabill-org/alphabill/internal/network/protocol/ab_consensus"
 	"github.com/libp2p/go-libp2p/core/peer"
 )
 
@@ -27,9 +27,9 @@ type (
 		hashToSignatures map[string]*ConsensusWithSignatures
 		// Tracks all timout votes for this round
 		// if 2f+1 or threshold votes, then TC is formed
-		timeoutCert *atomic_broadcast.TimeoutCert
+		timeoutCert *ab_consensus.TimeoutCert
 		// Helper, to avoid duplicate votes
-		authorToVote map[peer.ID]*atomic_broadcast.VoteMsg
+		authorToVote map[peer.ID]*ab_consensus.VoteMsg
 	}
 )
 
@@ -39,11 +39,11 @@ func NewVoteRegister() *VoteRegister {
 	return &VoteRegister{
 		hashToSignatures: make(map[string]*ConsensusWithSignatures),
 		timeoutCert:      nil,
-		authorToVote:     make(map[peer.ID]*atomic_broadcast.VoteMsg),
+		authorToVote:     make(map[peer.ID]*ab_consensus.VoteMsg),
 	}
 }
 
-func (v *VoteRegister) InsertVote(vote *atomic_broadcast.VoteMsg, quorumInfo QuorumInfo) (*atomic_broadcast.QuorumCert, error) {
+func (v *VoteRegister) InsertVote(vote *ab_consensus.VoteMsg, quorumInfo QuorumInfo) (*ab_consensus.QuorumCert, error) {
 	if vote == nil {
 		return nil, ErrVoteIsNil
 	}
@@ -78,19 +78,19 @@ func (v *VoteRegister) InsertVote(vote *atomic_broadcast.VoteMsg, quorumInfo Quo
 	quorum.signatures[vote.Author] = vote.Signature
 	// Check QC
 	if uint32(len(quorum.signatures)) >= quorumInfo.GetQuorumThreshold() {
-		qc := atomic_broadcast.NewQuorumCertificateFromVote(quorum.voteInfo, quorum.commitInfo, quorum.signatures)
+		qc := ab_consensus.NewQuorumCertificateFromVote(quorum.voteInfo, quorum.commitInfo, quorum.signatures)
 		return qc, nil
 	}
 	// Vote registered, no QC could be formed
 	return nil, nil
 }
 
-func (v *VoteRegister) InsertTimeoutVote(timeout *atomic_broadcast.TimeoutMsg, quorumInfo QuorumInfo) (*atomic_broadcast.TimeoutCert, error) {
+func (v *VoteRegister) InsertTimeoutVote(timeout *ab_consensus.TimeoutMsg, quorumInfo QuorumInfo) (*ab_consensus.TimeoutCert, error) {
 	// Create partial timeout cert on first vote received
 	if v.timeoutCert == nil {
-		v.timeoutCert = &atomic_broadcast.TimeoutCert{
+		v.timeoutCert = &ab_consensus.TimeoutCert{
 			Timeout:    timeout.Timeout,
-			Signatures: make(map[string]*atomic_broadcast.TimeoutVote),
+			Signatures: make(map[string]*ab_consensus.TimeoutVote),
 		}
 	}
 	// append signature
@@ -106,5 +106,5 @@ func (v *VoteRegister) InsertTimeoutVote(timeout *atomic_broadcast.TimeoutMsg, q
 func (v *VoteRegister) Reset() {
 	v.hashToSignatures = make(map[string]*ConsensusWithSignatures)
 	v.timeoutCert = nil
-	v.authorToVote = make(map[peer.ID]*atomic_broadcast.VoteMsg)
+	v.authorToVote = make(map[peer.ID]*ab_consensus.VoteMsg)
 }

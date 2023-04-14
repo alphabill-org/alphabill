@@ -1,4 +1,4 @@
-package atomic_broadcast
+package ab_consensus
 
 import (
 	"bytes"
@@ -67,11 +67,11 @@ func (x *TimeoutMsg) IsValid() error {
 
 func (x *TimeoutMsg) Sign(s crypto.Signer) error {
 	if err := x.IsValid(); err != nil {
-		return err
+		return fmt.Errorf("timeout message not valid: %w", err)
 	}
 	sig, err := s.SignBytes(x.Bytes())
 	if err != nil {
-		return err
+		return fmt.Errorf("timeout message sign error: %w", err)
 	}
 	x.Signature = sig
 	return nil

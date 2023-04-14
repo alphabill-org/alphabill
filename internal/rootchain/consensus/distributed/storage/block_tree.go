@@ -6,7 +6,7 @@ import (
 	"sort"
 
 	"github.com/alphabill-org/alphabill/internal/keyvaluedb"
-	"github.com/alphabill-org/alphabill/internal/network/protocol/atomic_broadcast"
+	"github.com/alphabill-org/alphabill/internal/network/protocol/ab_consensus"
 	"github.com/alphabill-org/alphabill/internal/util"
 )
 
@@ -20,7 +20,7 @@ type (
 	BlockTree struct {
 		root        *node
 		roundToNode map[uint64]*node
-		highQc      *atomic_broadcast.QuorumCert
+		highQc      *ab_consensus.QuorumCert
 		blocksDB    keyvaluedb.KeyValueDB
 	}
 )
@@ -93,7 +93,7 @@ func NewBlockTree(bDB keyvaluedb.KeyValueDB) (*BlockTree, error) {
 	}()
 	var blocks []*ExecutedBlock
 	var lastRoot *ExecutedBlock = nil
-	var hQC *atomic_broadcast.QuorumCert = nil
+	var hQC *ab_consensus.QuorumCert = nil
 	for ; itr.Valid(); itr.Prev() {
 		round := util.BytesToUint64(itr.Key())
 		var b ExecutedBlock
@@ -142,7 +142,7 @@ func NewBlockTree(bDB keyvaluedb.KeyValueDB) (*BlockTree, error) {
 	}, nil
 }
 
-func (bt *BlockTree) InsertQc(qc *atomic_broadcast.QuorumCert, bockDB keyvaluedb.KeyValueDB) error {
+func (bt *BlockTree) InsertQc(qc *ab_consensus.QuorumCert, bockDB keyvaluedb.KeyValueDB) error {
 	// find block, if it does not exist, return error we need to recover missing info
 	b, err := bt.FindBlock(qc.VoteInfo.RoundNumber)
 	if err != nil {
@@ -160,7 +160,7 @@ func (bt *BlockTree) InsertQc(qc *atomic_broadcast.QuorumCert, bockDB keyvaluedb
 	return nil
 }
 
-func (bt *BlockTree) HighQc() *atomic_broadcast.QuorumCert {
+func (bt *BlockTree) HighQc() *ab_consensus.QuorumCert {
 	return bt.highQc
 }
 
@@ -293,7 +293,7 @@ func (bt *BlockTree) FindBlock(round uint64) (*ExecutedBlock, error) {
 
 // Commit commits block for round and prunes all preceding blocks from the tree,
 // the committed block becomes the new root of the tree
-func (bt *BlockTree) Commit(commitQc *atomic_broadcast.QuorumCert) (*ExecutedBlock, error) {
+func (bt *BlockTree) Commit(commitQc *ab_consensus.QuorumCert) (*ExecutedBlock, error) {
 	// Add qc to pending state (needed for recovery)
 	commitRound := commitQc.VoteInfo.ParentRoundNumber
 	commitNode, found := bt.roundToNode[commitRound]

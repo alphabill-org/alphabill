@@ -1,10 +1,10 @@
-package atomic_broadcast
+package ab_consensus
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/alphabill-org/alphabill/internal/crypto"
-	"github.com/alphabill-org/alphabill/internal/errors"
 )
 
 // Verify verifies timeout vote received.
@@ -53,9 +53,8 @@ func (x *TimeoutCert) Add(author string, timeout *Timeout, signature []byte) {
 // Verify timeout certificate
 func (x *TimeoutCert) Verify(quorum uint32, rootTrust map[string]crypto.Verifier) error {
 	// 1. verify stored quorum certificate is valid and contains quorum of signatures
-	err := x.Timeout.Verify(quorum, rootTrust)
-	if err != nil {
-		return errors.Wrap(err, "timeout certificate not valid")
+	if err := x.Timeout.Verify(quorum, rootTrust); err != nil {
+		return fmt.Errorf("timeout certificate not valid, %w", err)
 	}
 	// 2. Check if there is quorum of signatures for TC
 	if uint32(len(x.Signatures)) < quorum {
@@ -74,7 +73,7 @@ func (x *TimeoutCert) Verify(quorum uint32, rootTrust map[string]crypto.Verifier
 		}
 		err := v.VerifyBytes(timeoutSig.Signature, timeout)
 		if err != nil {
-			return errors.Wrap(err, "timeout certificate not valid: invalid signature")
+			return fmt.Errorf("timeout certificate signature validation error, %w", err)
 		}
 		if maxSignedRound < timeoutSig.HqcRound {
 			maxSignedRound = timeoutSig.HqcRound

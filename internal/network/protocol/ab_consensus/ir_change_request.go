@@ -1,4 +1,4 @@
-package atomic_broadcast
+package ab_consensus
 
 import (
 	"bytes"
@@ -38,7 +38,7 @@ func (x *IRChangeReqMsg) Verify(tb partitions.PartitionTrustBase, luc *certifica
 		return nil, errors.New("partition info is nil")
 	}
 	if err := x.IsValid(); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("ir change request validation failed, %w", err)
 	}
 	// quick sanity check, there cannot be more requests than known partition nodes
 	if len(x.Requests) > int(tb.GetTotalNodes()) {

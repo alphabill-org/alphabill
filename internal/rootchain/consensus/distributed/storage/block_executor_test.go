@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"github.com/alphabill-org/alphabill/internal/certificates"
-	"github.com/alphabill-org/alphabill/internal/network/protocol/atomic_broadcast"
+	"github.com/alphabill-org/alphabill/internal/network/protocol/ab_consensus"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/certification"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 	rootgenesis "github.com/alphabill-org/alphabill/internal/rootchain/genesis"
@@ -32,17 +32,17 @@ func NewAlwaysTrueIRReqVerifier() *mockIRVerifier {
 	return &mockIRVerifier{}
 }
 
-func (x *mockIRVerifier) VerifyIRChangeReq(_ uint64, irChReq *atomic_broadcast.IRChangeReqMsg) (*InputData, error) {
+func (x *mockIRVerifier) VerifyIRChangeReq(_ uint64, irChReq *ab_consensus.IRChangeReqMsg) (*InputData, error) {
 	return &InputData{SysID: irChReq.SystemIdentifier, IR: irChReq.Requests[0].InputRecord, Sdrh: []byte{0, 0, 0, 0, 1}}, nil
 }
 
-func generateBlockData(round uint64, req ...*atomic_broadcast.IRChangeReqMsg) *atomic_broadcast.BlockData {
-	return &atomic_broadcast.BlockData{
+func generateBlockData(round uint64, req ...*ab_consensus.IRChangeReqMsg) *ab_consensus.BlockData {
+	return &ab_consensus.BlockData{
 		Author:    "test",
 		Round:     round,
 		Epoch:     0,
 		Timestamp: 12,
-		Payload:   &atomic_broadcast.Payload{Requests: req},
+		Payload:   &ab_consensus.Payload{Requests: req},
 		Qc:        nil, // not important in this context
 	}
 }
@@ -99,9 +99,9 @@ func TestExecutedBlock(t *testing.T) {
 			SumOfEarnedFees: 3,
 		},
 	}
-	req := &atomic_broadcast.IRChangeReqMsg{
+	req := &ab_consensus.IRChangeReqMsg{
 		SystemIdentifier: partitionID1,
-		CertReason:       atomic_broadcast.IRChangeReqMsg_QUORUM,
+		CertReason:       ab_consensus.IRChangeReqMsg_QUORUM,
 		Requests:         []*certification.BlockCertificationRequest{certReq},
 	}
 	newBlock := generateBlockData(genesis.RootRound+1, req)
@@ -123,10 +123,10 @@ func TestExecutedBlock(t *testing.T) {
 
 func TestExecutedBlock_GenerateCertificates(t *testing.T) {
 	block := &ExecutedBlock{
-		BlockData: &atomic_broadcast.BlockData{
+		BlockData: &ab_consensus.BlockData{
 			Author:  "test",
 			Round:   2,
-			Payload: &atomic_broadcast.Payload{},
+			Payload: &ab_consensus.Payload{},
 			Qc:      nil,
 		},
 		CurrentIR: InputRecords{
@@ -159,10 +159,10 @@ func TestExecutedBlock_GenerateCertificates(t *testing.T) {
 		HashAlgo: gocrypto.SHA256,
 		RootHash: []byte{0xF2, 0xE8, 0xBC, 0xC5, 0x71, 0x0D, 0x40, 0xAB, 0x42, 0xD5, 0x70, 0x57, 0x6F, 0x56, 0xA2, 0xF2,
 			0x7E, 0xF6, 0x0F, 0xE9, 0x21, 0x25, 0x0A, 0x4B, 0x4C, 0xF5, 0xBC, 0xAC, 0xA3, 0x29, 0xBF, 0x32},
-		Qc:       &atomic_broadcast.QuorumCert{},
+		Qc:       &ab_consensus.QuorumCert{},
 		CommitQc: nil,
 	}
-	commitQc := &atomic_broadcast.QuorumCert{
+	commitQc := &ab_consensus.QuorumCert{
 		VoteInfo: &certificates.RootRoundInfo{
 			RoundNumber:       3,
 			ParentRoundNumber: 2,
@@ -178,7 +178,7 @@ func TestExecutedBlock_GenerateCertificates(t *testing.T) {
 	require.ErrorContains(t, err, "commit of block round 2 failed, root hash mismatch")
 	require.Nil(t, certs)
 	// make a correct qc
-	commitQc = &atomic_broadcast.QuorumCert{
+	commitQc = &ab_consensus.QuorumCert{
 		VoteInfo: &certificates.RootRoundInfo{
 			RoundNumber:       3,
 			ParentRoundNumber: 2,

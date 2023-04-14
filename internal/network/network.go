@@ -6,7 +6,7 @@ import (
 	"time"
 
 	uc "github.com/alphabill-org/alphabill/internal/certificates"
-	"github.com/alphabill-org/alphabill/internal/network/protocol/atomic_broadcast"
+	"github.com/alphabill-org/alphabill/internal/network/protocol/ab_consensus"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/blockproposal"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/certification"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/handshake"
@@ -182,35 +182,35 @@ func NewLibP2RootConsensusNetwork(self *Peer, capacity uint, sendTimeout time.Du
 	receiveProtocolDescriptions := []receiveProtocolDescription{
 		{
 			protocolID: ProtocolRootIrChangeReq,
-			typeFn:     func() proto.Message { return &atomic_broadcast.IRChangeReqMsg{} },
+			typeFn:     func() proto.Message { return &ab_consensus.IRChangeReqMsg{} },
 		},
 		{
 			protocolID: ProtocolRootProposal,
-			typeFn:     func() proto.Message { return &atomic_broadcast.ProposalMsg{} },
+			typeFn:     func() proto.Message { return &ab_consensus.ProposalMsg{} },
 		},
 		{
 			protocolID: ProtocolRootVote,
-			typeFn:     func() proto.Message { return &atomic_broadcast.VoteMsg{} },
+			typeFn:     func() proto.Message { return &ab_consensus.VoteMsg{} },
 		},
 		{
 			protocolID: ProtocolRootTimeout,
-			typeFn:     func() proto.Message { return &atomic_broadcast.TimeoutMsg{} },
+			typeFn:     func() proto.Message { return &ab_consensus.TimeoutMsg{} },
 		},
 		{
 			protocolID: ProtocolRootStateReq,
-			typeFn:     func() proto.Message { return &atomic_broadcast.GetStateMsg{} },
+			typeFn:     func() proto.Message { return &ab_consensus.GetStateMsg{} },
 		},
 		{
 			protocolID: ProtocolRootStateResp,
-			typeFn:     func() proto.Message { return &atomic_broadcast.StateMsg{} },
+			typeFn:     func() proto.Message { return &ab_consensus.StateMsg{} },
 		},
 		{
 			protocolID: ProtocolRootCertReq,
-			typeFn:     func() proto.Message { return &atomic_broadcast.GetCertificates{} },
+			typeFn:     func() proto.Message { return &ab_consensus.GetCertificates{} },
 		},
 		{
 			protocolID: ProtocolRootCertResp,
-			typeFn:     func() proto.Message { return &atomic_broadcast.CertificatesMsg{} },
+			typeFn:     func() proto.Message { return &ab_consensus.CertificatesMsg{} },
 		},
 	}
 	err = initReceiveProtocols(self, n, receiveProtocolDescriptions)

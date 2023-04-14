@@ -7,7 +7,7 @@ import (
 
 	"github.com/alphabill-org/alphabill/internal/certificates"
 	"github.com/alphabill-org/alphabill/internal/network/protocol"
-	"github.com/alphabill-org/alphabill/internal/network/protocol/atomic_broadcast"
+	"github.com/alphabill-org/alphabill/internal/network/protocol/ab_consensus"
 	"github.com/alphabill-org/alphabill/internal/rootchain/consensus"
 	"github.com/alphabill-org/alphabill/internal/rootchain/consensus/distributed/storage"
 	"github.com/alphabill-org/alphabill/internal/rootchain/partitions"
@@ -53,7 +53,7 @@ func NewIRChangeReqVerifier(c *consensus.Parameters, pInfo partitions.PartitionC
 	}, nil
 }
 
-func (x *IRChangeReqVerifier) VerifyIRChangeReq(round uint64, irChReq *atomic_broadcast.IRChangeReqMsg) (*storage.InputData, error) {
+func (x *IRChangeReqVerifier) VerifyIRChangeReq(round uint64, irChReq *ab_consensus.IRChangeReqMsg) (*storage.InputData, error) {
 	if irChReq == nil {
 		return nil, fmt.Errorf("IR change request is nil")
 	}

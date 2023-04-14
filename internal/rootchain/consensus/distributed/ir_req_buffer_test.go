@@ -4,7 +4,7 @@ import (
 	"testing"
 
 	p "github.com/alphabill-org/alphabill/internal/network/protocol"
-	"github.com/alphabill-org/alphabill/internal/network/protocol/atomic_broadcast"
+	"github.com/alphabill-org/alphabill/internal/network/protocol/ab_consensus"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/certification"
 	"github.com/alphabill-org/alphabill/internal/rootchain/consensus/distributed/storage"
 	"github.com/stretchr/testify/require"
@@ -43,7 +43,7 @@ func NewAlwaysTrueIRReqVerifier() *mockIRVerifier {
 	return &mockIRVerifier{}
 }
 
-func (x *mockIRVerifier) VerifyIRChangeReq(_ uint64, irChReq *atomic_broadcast.IRChangeReqMsg) (*storage.InputData, error) {
+func (x *mockIRVerifier) VerifyIRChangeReq(_ uint64, irChReq *ab_consensus.IRChangeReqMsg) (*storage.InputData, error) {
 	return &storage.InputData{SysID: irChReq.SystemIdentifier, IR: irChReq.Requests[0].InputRecord, Sdrh: []byte{0, 0, 0, 0, 1}}, nil
 }
 
@@ -158,9 +158,9 @@ func TestIrReqBuffer_Add(t *testing.T) {
 		NodeIdentifier:   "1",
 		InputRecord:      inputRecord1,
 	}
-	IrChReqMsg := &atomic_broadcast.IRChangeReqMsg{
+	IrChReqMsg := &ab_consensus.IRChangeReqMsg{
 		SystemIdentifier: sysID1,
-		CertReason:       atomic_broadcast.IRChangeReqMsg_QUORUM,
+		CertReason:       ab_consensus.IRChangeReqMsg_QUORUM,
 		Requests:         []*certification.BlockCertificationRequest{req1},
 	}
 	// no requests, generate payload
@@ -174,16 +174,16 @@ func TestIrReqBuffer_Add(t *testing.T) {
 	// try to add the same again, considered duplicate no error
 	require.NoError(t, reqBuffer.Add(3, IrChReqMsg, ver))
 	// change reason and try to add, must be rejected as equivocating, we already have a valid request
-	IrChReqMsg.CertReason = atomic_broadcast.IRChangeReqMsg_T2_TIMEOUT
+	IrChReqMsg.CertReason = ab_consensus.IRChangeReqMsg_T2_TIMEOUT
 	require.ErrorContains(t, reqBuffer.Add(3, IrChReqMsg, ver),
 		"invalid ir change request, timeout can only be proposed by leader issuing a new block")
 	// change IR and try to add, must be rejected as equivocating, we already have a valid request
-	IrChReqMsg.CertReason = atomic_broadcast.IRChangeReqMsg_QUORUM
+	IrChReqMsg.CertReason = ab_consensus.IRChangeReqMsg_QUORUM
 	IrChReqMsg.Requests[0].InputRecord = inputRecord2
 	require.ErrorContains(t, reqBuffer.Add(3, IrChReqMsg, ver),
 		"error equivocating request for partition 00000001")
 	// try to change reason
-	IrChReqMsg.CertReason = atomic_broadcast.IRChangeReqMsg_QUORUM_NOT_POSSIBLE
+	IrChReqMsg.CertReason = ab_consensus.IRChangeReqMsg_QUORUM_NOT_POSSIBLE
 	IrChReqMsg.Requests[0].InputRecord = inputRecord1
 	require.ErrorContains(t, reqBuffer.Add(3, IrChReqMsg, ver),
 		"error equivocating request for partition 00000001 reason has changed")
@@ -207,10 +207,10 @@ func TestIrReqBuffer_TimeoutReq(t *testing.T) {
 	require.Len(t, payload.Requests, 2)
 	// if both then prefer to make progress over timeout
 	require.Equal(t, sysID1, payload.Requests[0].SystemIdentifier)
-	require.Equal(t, atomic_broadcast.IRChangeReqMsg_T2_TIMEOUT, payload.Requests[0].CertReason)
+	require.Equal(t, ab_consensus.IRChangeReqMsg_T2_TIMEOUT, payload.Requests[0].CertReason)
 	require.Empty(t, payload.Requests[0].Requests)
 	require.Equal(t, sysID2, payload.Requests[1].SystemIdentifier)
-	require.Equal(t, atomic_broadcast.IRChangeReqMsg_T2_TIMEOUT, payload.Requests[1].CertReason)
+	require.Equal(t, ab_consensus.IRChangeReqMsg_T2_TIMEOUT, payload.Requests[1].CertReason)
 	require.Empty(t, payload.Requests[1].Requests)
 }
 
@@ -224,9 +224,9 @@ func TestIrReqBuffer_TimeoutAndNewReq(t *testing.T) {
 		NodeIdentifier:   "1",
 		InputRecord:      inputRecord1,
 	}
-	IrChReqMsg := &atomic_broadcast.IRChangeReqMsg{
+	IrChReqMsg := &ab_consensus.IRChangeReqMsg{
 		SystemIdentifier: sysID1,
-		CertReason:       atomic_broadcast.IRChangeReqMsg_QUORUM,
+		CertReason:       ab_consensus.IRChangeReqMsg_QUORUM,
 		Requests:         []*certification.BlockCertificationRequest{req1},
 	}
 	mockTimeouts.setTimeout(p.SystemIdentifier(sysID1))
@@ -234,5 +234,5 @@ func TestIrReqBuffer_TimeoutAndNewReq(t *testing.T) {
 	payload := reqBuffer.GeneratePayload(3, mockTimeouts)
 	require.Len(t, payload.Requests, 1)
 	// if both then prefer to make progress over timeout
-	require.Equal(t, atomic_broadcast.IRChangeReqMsg_QUORUM, payload.Requests[0].CertReason)
+	require.Equal(t, ab_consensus.IRChangeReqMsg_QUORUM, payload.Requests[0].CertReason)
 }

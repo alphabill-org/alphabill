@@ -1,4 +1,4 @@
-package atomic_broadcast
+package ab_consensus
 
 import (
 	"crypto"
@@ -158,7 +158,7 @@ func TestBlockData_IsValid(t *testing.T) {
 				},
 			},
 			args:       args{quorum: 1, rootTrust: nil},
-			wantErrStr: ErrInvalidRound.Error(),
+			wantErrStr: errInvalidRound.Error(),
 		},
 		{
 			name: "Invalid payload",
@@ -175,7 +175,7 @@ func TestBlockData_IsValid(t *testing.T) {
 				},
 			},
 			args:       args{quorum: 1, rootTrust: nil},
-			wantErrStr: ErrMissingPayload.Error(),
+			wantErrStr: errMissingPayload.Error(),
 		},
 		{
 			name: "Invalid QC is nil",
@@ -189,7 +189,7 @@ func TestBlockData_IsValid(t *testing.T) {
 				Qc:        nil,
 			},
 			args:       args{quorum: 1, rootTrust: nil},
-			wantErrStr: ErrMissingQuorumCertificate.Error(),
+			wantErrStr: errMissingQuorumCertificate.Error(),
 		},
 		{
 			name: "Invalid timestamp missing",

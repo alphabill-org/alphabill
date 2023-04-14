@@ -7,7 +7,7 @@ import (
 
 	"github.com/alphabill-org/alphabill/internal/certificates"
 	"github.com/alphabill-org/alphabill/internal/network/protocol"
-	"github.com/alphabill-org/alphabill/internal/network/protocol/atomic_broadcast"
+	"github.com/alphabill-org/alphabill/internal/network/protocol/ab_consensus"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/internal/rootchain/consensus"
 	"github.com/alphabill-org/alphabill/internal/rootchain/consensus/distributed/storage"
@@ -51,7 +51,7 @@ func TestIRChangeReqVerifier_VerifyIRChangeReq(t *testing.T) {
 	}
 	type args struct {
 		round   uint64
-		irChReq *atomic_broadcast.IRChangeReqMsg
+		irChReq *ab_consensus.IRChangeReqMsg
 	}
 	_, encPubKey := testsig.CreateSignerAndVerifier(t)
 	pubKeyBytes, err := encPubKey.MarshalPublicKey()
@@ -84,7 +84,7 @@ func TestIRChangeReqVerifier_VerifyIRChangeReq(t *testing.T) {
 				c:        &consensus.Parameters{BlockRateMs: 500 * time.Millisecond},
 				pInfo:    conf,
 				sMonitor: &MockState{inProgress: []protocol.SystemIdentifier{protocol.SystemIdentifier(sysID1)}}},
-			args: args{round: 1, irChReq: &atomic_broadcast.IRChangeReqMsg{
+			args: args{round: 1, irChReq: &ab_consensus.IRChangeReqMsg{
 				SystemIdentifier: sysID1,
 			}},
 			want:    nil,

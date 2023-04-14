@@ -1,4 +1,4 @@
-package atomic_broadcast
+package ab_consensus
 
 import (
 	"bytes"
@@ -11,10 +11,9 @@ import (
 )
 
 var (
-	ErrTimeoutIsNil          = errors.New("timeout is nil")
-	ErrVoteInfoIsNil         = errors.New("vote info is nil")
-	ErrLedgerCommitInfoIsNil = errors.New("ledger commit info is nil")
-	ErrQcIsMissingSignatures = errors.New("qc is missing signatures")
+	errVoteInfoIsNil         = errors.New("vote info is nil")
+	errLedgerCommitInfoIsNil = errors.New("ledger commit info is nil")
+	errQcIsMissingSignatures = errors.New("qc is missing signatures")
 )
 
 func NewQuorumCertificateFromVote(voteInfo *certificates.RootRoundInfo, commitInfo *certificates.CommitInfo, signatures map[string][]byte) *QuorumCert {
@@ -43,28 +42,28 @@ func (x *QuorumCert) GetRound() uint64 {
 func (x *QuorumCert) IsValid() error {
 	// QC must have valid vote info
 	if x.VoteInfo == nil {
-		return ErrVoteInfoIsNil
+		return errVoteInfoIsNil
 	}
 	if err := x.VoteInfo.IsValid(); err != nil {
-		return err
+		return fmt.Errorf("vote info not valid, %w", err)
 	}
 	// and must have valid ledger commit info
 	if x.LedgerCommitInfo == nil {
-		return ErrLedgerCommitInfoIsNil
+		return errLedgerCommitInfoIsNil
 	}
 	// For root validator commit state id can be empty
 	if len(x.LedgerCommitInfo.RootRoundInfoHash) < 1 {
 		return certificates.ErrInvalidRootInfoHash
 	}
 	if len(x.Signatures) < 1 {
-		return ErrQcIsMissingSignatures
+		return errQcIsMissingSignatures
 	}
 	return nil
 }
 
 func (x *QuorumCert) Verify(quorum uint32, rootTrust map[string]crypto.Verifier) error {
 	if err := x.IsValid(); err != nil {
-		return err
+		return fmt.Errorf("quorum certificate validation failed, %w", err)
 	}
 	// check vote info hash
 	hash := x.VoteInfo.Hash(gocrypto.SHA256)

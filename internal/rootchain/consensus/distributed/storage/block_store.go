@@ -9,7 +9,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/certificates"
 	"github.com/alphabill-org/alphabill/internal/keyvaluedb"
 	"github.com/alphabill-org/alphabill/internal/network/protocol"
-	"github.com/alphabill-org/alphabill/internal/network/protocol/atomic_broadcast"
+	"github.com/alphabill-org/alphabill/internal/network/protocol/ab_consensus"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 )
 
@@ -91,7 +91,7 @@ func NewBlockStore(hash gocrypto.Hash, pg []*genesis.GenesisPartitionRecord, s *
 	}, nil
 }
 
-func (x *BlockStore) ProcessTc(tc *atomic_broadcast.TimeoutCert) error {
+func (x *BlockStore) ProcessTc(tc *ab_consensus.TimeoutCert) error {
 	if tc == nil {
 		return fmt.Errorf("error tc is nil")
 	}
@@ -122,7 +122,7 @@ func (x *BlockStore) GetBlockRootHash(round uint64) ([]byte, error) {
 	return b.RootHash, nil
 }
 
-func (x *BlockStore) ProcessQc(qc *atomic_broadcast.QuorumCert) (map[protocol.SystemIdentifier]*certificates.UnicityCertificate, error) {
+func (x *BlockStore) ProcessQc(qc *ab_consensus.QuorumCert) (map[protocol.SystemIdentifier]*certificates.UnicityCertificate, error) {
 	if qc == nil {
 		return nil, fmt.Errorf("qc is nil")
 	}
@@ -159,7 +159,7 @@ func (x *BlockStore) ProcessQc(qc *atomic_broadcast.QuorumCert) (map[protocol.Sy
 }
 
 // Add adds new round state to pipeline and returns the new state root hash a.k.a. execStateID
-func (x *BlockStore) Add(block *atomic_broadcast.BlockData, verifier IRChangeReqVerifier) ([]byte, error) {
+func (x *BlockStore) Add(block *ab_consensus.BlockData, verifier IRChangeReqVerifier) ([]byte, error) {
 	// verify that block for the round does not exist yet
 	_, err := x.blockTree.FindBlock(block.Round)
 	if err == nil {
@@ -180,7 +180,7 @@ func (x *BlockStore) Add(block *atomic_broadcast.BlockData, verifier IRChangeReq
 	return exeBlock.RootHash, nil
 }
 
-func (x *BlockStore) GetHighQc() *atomic_broadcast.QuorumCert {
+func (x *BlockStore) GetHighQc() *ab_consensus.QuorumCert {
 	return x.blockTree.HighQc()
 }
 
@@ -220,10 +220,10 @@ func (x *BlockStore) UpdateCertificates(cert []*certificates.UnicityCertificate)
 	x.updateCertificateCache(newerCerts)
 }
 
-func ToRecoveryInputData(data []*InputData) []*atomic_broadcast.InputData {
-	inputData := make([]*atomic_broadcast.InputData, len(data))
+func ToRecoveryInputData(data []*InputData) []*ab_consensus.InputData {
+	inputData := make([]*ab_consensus.InputData, len(data))
 	for i, d := range data {
-		inputData[i] = &atomic_broadcast.InputData{
+		inputData[i] = &ab_consensus.InputData{
 			SysID: d.SysID,
 			Ir:    d.IR,
 			Sdrh:  d.Sdrh,
@@ -236,7 +236,7 @@ func (x *BlockStore) GetPendingBlocks() []*ExecutedBlock {
 	return x.blockTree.GetAllUncommittedNodes()
 }
 
-func (x *BlockStore) RecoverState(rRootBlock *atomic_broadcast.RecoveryBlock, rNodes []*atomic_broadcast.RecoveryBlock, verifier IRChangeReqVerifier) error {
+func (x *BlockStore) RecoverState(rRootBlock *ab_consensus.RecoveryBlock, rNodes []*ab_consensus.RecoveryBlock, verifier IRChangeReqVerifier) error {
 	rootNode, err := NewExecutedBlockFromRecovery(x.hash, rRootBlock, verifier)
 	if err != nil {
 		return fmt.Errorf("state recovery failed, %w", err)

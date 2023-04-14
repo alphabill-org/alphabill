@@ -7,7 +7,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/certificates"
 	"github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/keyvaluedb"
-	"github.com/alphabill-org/alphabill/internal/network/protocol/atomic_broadcast"
+	"github.com/alphabill-org/alphabill/internal/network/protocol/ab_consensus"
 	"github.com/alphabill-org/alphabill/internal/util"
 )
 
@@ -67,7 +67,7 @@ func (s *SafetyModule) SetHighestQcRound(highestQcRound uint64) {
 	_ = s.storage.Write([]byte(highestQcKey), &highestQcRound)
 }
 
-func (s *SafetyModule) isSafeToVote(block *atomic_broadcast.BlockData, lastRoundTC *atomic_broadcast.TimeoutCert) error {
+func (s *SafetyModule) isSafeToVote(block *ab_consensus.BlockData, lastRoundTC *ab_consensus.TimeoutCert) error {
 	if block == nil {
 		return fmt.Errorf("block is nil")
 	}
@@ -100,16 +100,16 @@ func (s *SafetyModule) isSafeToVote(block *atomic_broadcast.BlockData, lastRound
 	return nil
 }
 
-func (s *SafetyModule) constructCommitInfo(block *atomic_broadcast.BlockData, voteInfoHash []byte) *certificates.CommitInfo {
+func (s *SafetyModule) constructCommitInfo(block *ab_consensus.BlockData, voteInfoHash []byte) *certificates.CommitInfo {
 	commitHash := s.isCommitCandidate(block)
 	return &certificates.CommitInfo{RootRoundInfoHash: voteInfoHash, RootHash: commitHash}
 }
 
-func (s *SafetyModule) MakeVote(block *atomic_broadcast.BlockData, execStateID []byte, highQC *atomic_broadcast.QuorumCert, lastRoundTC *atomic_broadcast.TimeoutCert) (*atomic_broadcast.VoteMsg, error) {
+func (s *SafetyModule) MakeVote(block *ab_consensus.BlockData, execStateID []byte, highQC *ab_consensus.QuorumCert, lastRoundTC *ab_consensus.TimeoutCert) (*ab_consensus.VoteMsg, error) {
 	// The overall validity of the block must be checked prior to calling this method
 	// However since we are de-referencing QC make sure it is not nil
 	if block.Qc == nil {
-		return nil, atomic_broadcast.ErrMissingQuorumCertificate
+		return nil, fmt.Errorf("make vote error, block is missing quorum certificate")
 	}
 	qcRound := block.Qc.VoteInfo.RoundNumber
 	votingRound := block.Round
@@ -128,7 +128,7 @@ func (s *SafetyModule) MakeVote(block *atomic_broadcast.BlockData, execStateID [
 	}
 	// Create ledger commit info, the signed part of vote
 	ledgerCommitInfo := s.constructCommitInfo(block, voteInfo.Hash(gocrypto.SHA256))
-	voteMsg := &atomic_broadcast.VoteMsg{
+	voteMsg := &ab_consensus.VoteMsg{
 		VoteInfo:         voteInfo,
 		LedgerCommitInfo: ledgerCommitInfo,
 		HighQc:           highQC,
@@ -141,7 +141,7 @@ func (s *SafetyModule) MakeVote(block *atomic_broadcast.BlockData, execStateID [
 	return voteMsg, nil
 }
 
-func (s *SafetyModule) SignTimeout(tmoVote *atomic_broadcast.TimeoutMsg, lastRoundTC *atomic_broadcast.TimeoutCert) error {
+func (s *SafetyModule) SignTimeout(tmoVote *ab_consensus.TimeoutMsg, lastRoundTC *ab_consensus.TimeoutCert) error {
 	if err := tmoVote.IsValid(); err != nil {
 		return fmt.Errorf("timeout message not valid, %w", err)
 	}
@@ -156,7 +156,7 @@ func (s *SafetyModule) SignTimeout(tmoVote *atomic_broadcast.TimeoutMsg, lastRou
 	return tmoVote.Sign(s.signer)
 }
 
-func (s *SafetyModule) SignProposal(proposalMsg *atomic_broadcast.ProposalMsg) error {
+func (s *SafetyModule) SignProposal(proposalMsg *ab_consensus.ProposalMsg) error {
 	return proposalMsg.Sign(s.signer)
 }
 
@@ -168,7 +168,7 @@ func (s *SafetyModule) updateHighestQcRound(qcRound uint64) {
 	s.SetHighestQcRound(util.Max(s.GetHighestQcRound(), qcRound))
 }
 
-func (s *SafetyModule) isSafeToTimeout(round, qcRound uint64, lastRoundTC *atomic_broadcast.TimeoutCert) error {
+func (s *SafetyModule) isSafeToTimeout(round, qcRound uint64, lastRoundTC *ab_consensus.TimeoutCert) error {
 	if qcRound < s.GetHighestQcRound() {
 		// respect highest qc round
 		return fmt.Errorf("qc round %v is smaller than highest qc round %v seen", qcRound, s.GetHighestQcRound())
@@ -191,7 +191,7 @@ func (s *SafetyModule) isSafeToTimeout(round, qcRound uint64, lastRoundTC *atomi
 	return nil
 }
 
-func (s *SafetyModule) isCommitCandidate(block *atomic_broadcast.BlockData) []byte {
+func (s *SafetyModule) isCommitCandidate(block *ab_consensus.BlockData) []byte {
 	if block.Qc == nil {
 		return nil
 	}

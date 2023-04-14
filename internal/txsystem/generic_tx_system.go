@@ -42,6 +42,11 @@ func NewGenericTxSystem(modules []Module, opts ...Option) (*GenericTxSystem, err
 	for _, option := range opts {
 		option(options)
 	}
+	// initial changes made may require tree recompute
+	// get root hash will trigger recompute if needed
+	// todo: AB-576 remove both lines after new AVL tree is added
+	options.state.GetRootHash()
+	options.state.Commit()
 	txs := &GenericTxSystem{
 		systemIdentifier:    options.systemIdentifier,
 		hashAlgorithm:       options.hashAlgorithm,

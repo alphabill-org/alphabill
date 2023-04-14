@@ -124,9 +124,9 @@ func (w *Wallet) CollectDust(ctx context.Context, accountNumber uint64) error {
 	errgrp, ctx := errgroup.WithContext(ctx)
 	if accountNumber == 0 {
 		for _, acc := range w.am.GetAll() {
-			acc := acc // copy value for closure
+			accIndex := acc.AccountIndex // copy value for closure
 			errgrp.Go(func() error {
-				return w.collectDust(ctx, true, acc.AccountIndex)
+				return w.collectDust(ctx, true, accIndex)
 			})
 		}
 	} else {

@@ -15,7 +15,6 @@ import (
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/spf13/cobra"
 	"github.com/tyler-smith/go-bip39"
-	"golang.org/x/sync/errgroup"
 	"golang.org/x/term"
 
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
@@ -436,21 +435,8 @@ func execCollectDust(cmd *cobra.Command, config *walletConfig) error {
 	defer w.Shutdown()
 
 	consoleWriter.Println("Starting dust collection, this may take a while...")
-	// start dust collection by calling CollectDust (sending dc transfers) and Sync (waiting for dc transfers to confirm)
-	// any error from CollectDust or Sync causes either goroutine to terminate
-	// if collect dust returns without error we signal Sync to cancel manually
+	err = w.CollectDust(context.Background(), accountNumber)
 
-	ctx, cancel := context.WithCancel(cmd.Context())
-
-	group, ctx := errgroup.WithContext(ctx)
-	group.Go(func() error {
-		err := w.CollectDust(ctx, accountNumber)
-		if err == nil {
-			defer cancel() // signal Sync to cancel
-		}
-		return err
-	})
-	err = group.Wait()
 	if err != nil {
 		consoleWriter.Println("Failed to collect dust: " + err.Error())
 		return err

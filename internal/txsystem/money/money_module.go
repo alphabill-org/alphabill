@@ -58,10 +58,6 @@ func NewMoneyModule(systemIdentifier []byte, options *Options) (*Module, error) 
 	if err := addInitialFeeCredits(options.systemDescriptionRecords, options.initialBill.ID, state); err != nil {
 		return nil, fmt.Errorf("could not set initial fee credits: %w", err)
 	}
-	// initial changes made may require tree recompute
-	// get root hash will trigger recompute if needed
-	state.GetRootHash()
-	state.Commit()
 	return &Module{
 		state:               state,
 		trustBase:           options.trustBase,

@@ -403,6 +403,7 @@ func collectDustCmd(config *walletConfig) *cobra.Command {
 	}
 	cmd.Flags().StringP(alphabillNodeURLCmdName, "u", defaultAlphabillNodeURL, "alphabill uri to connect to")
 	cmd.Flags().StringP(alphabillApiURLCmdName, "r", defaultAlphabillApiURL, "alphabill API uri to connect to")
+	cmd.Flags().Uint64P(keyCmdName, "k", 0, "which key to use for dust collection, 0 for all bills from all accounts")
 	return cmd
 }
 
@@ -412,6 +413,10 @@ func execCollectDust(cmd *cobra.Command, config *walletConfig) error {
 		return err
 	}
 	apiUri, err := cmd.Flags().GetString(alphabillApiURLCmdName)
+	if err != nil {
+		return err
+	}
+	accountNumber, err := cmd.Flags().GetUint64(keyCmdName)
 	if err != nil {
 		return err
 	}
@@ -439,7 +444,7 @@ func execCollectDust(cmd *cobra.Command, config *walletConfig) error {
 
 	group, ctx := errgroup.WithContext(ctx)
 	group.Go(func() error {
-		err := w.CollectDust(ctx)
+		err := w.CollectDust(ctx, accountNumber)
 		if err == nil {
 			defer cancel() // signal Sync to cancel
 		}

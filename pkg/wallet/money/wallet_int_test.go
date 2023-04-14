@@ -114,7 +114,7 @@ func TestCollectDustTimeoutReached(t *testing.T) {
 	wg := sync.WaitGroup{}
 	wg.Add(1)
 	go func() {
-		err = w.CollectDust(context.Background())
+		err = w.CollectDust(context.Background(), 0)
 		if err != nil {
 			fmt.Println(err)
 		}
@@ -136,7 +136,7 @@ func TestCollectDustTimeoutReached(t *testing.T) {
 	// when dc timeout is reached
 	serverService.SetMaxBlockNumber(dcTimeoutBlockCount)
 
-	err = w.CollectDust(context.Background())
+	err = w.CollectDust(context.Background(), 0)
 
 	// and dc wg is cleared
 	require.Len(t, w.dcWg.swaps, 0)
@@ -234,7 +234,7 @@ func TestCollectDustInMultiAccountWallet(t *testing.T) {
 
 	group, ctx := errgroup.WithContext(ctx)
 	group.Go(func() error {
-		err := w.CollectDust(ctx)
+		err := w.CollectDust(ctx, 0)
 		if err == nil {
 			defer cancel() // signal Sync to cancel
 		}
@@ -307,7 +307,7 @@ func TestCollectDustTimeoutReached_WithoutFees(t *testing.T) {
 	wg := sync.WaitGroup{}
 	wg.Add(1)
 	go func() {
-		err = w.CollectDust(context.Background())
+		err = w.CollectDust(context.Background(), 0)
 		if err != nil {
 			fmt.Println(err)
 		}
@@ -329,7 +329,7 @@ func TestCollectDustTimeoutReached_WithoutFees(t *testing.T) {
 	// when dc timeout is reached
 	serverService.SetMaxBlockNumber(dcTimeoutBlockCount)
 
-	err = w.CollectDust(context.Background())
+	err = w.CollectDust(context.Background(), 0)
 
 	// and dc wg is cleared
 	require.Len(t, w.dcWg.swaps, 0)
@@ -416,7 +416,7 @@ func TestCollectDustInMultiAccountWallet_WithoutFees(t *testing.T) {
 
 	group, ctx := errgroup.WithContext(ctx)
 	group.Go(func() error {
-		err := w.CollectDust(ctx)
+		err := w.CollectDust(ctx, 0)
 		if err == nil {
 			defer cancel() // signal Sync to cancel
 		}

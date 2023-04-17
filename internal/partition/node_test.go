@@ -3,13 +3,13 @@ package partition
 import (
 	"context"
 	gocrypto "crypto"
+	"errors"
 	"testing"
 	"time"
 
 	"github.com/alphabill-org/alphabill/internal/block"
 	"github.com/alphabill-org/alphabill/internal/certificates"
 	"github.com/alphabill-org/alphabill/internal/crypto"
-	"github.com/alphabill-org/alphabill/internal/errors"
 	"github.com/alphabill-org/alphabill/internal/keyvaluedb/memorydb"
 	"github.com/alphabill-org/alphabill/internal/network"
 	p "github.com/alphabill-org/alphabill/internal/network/protocol"

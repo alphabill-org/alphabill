@@ -4,10 +4,7 @@ import (
 	"bytes"
 	"context"
 	"crypto"
-	"encoding/base64"
 	"errors"
-	"fmt"
-	"strings"
 	"sync"
 	"testing"
 
@@ -158,22 +155,49 @@ func TestWalletSendFunction_WaitForMultipleTxConfirmationsInDifferentBlocks(t *t
 	pubKey := make([]byte, 33)
 	b1 := addBill(1)
 	b2 := addBill(2)
-	billsList := ""
-	for i := 1; i <= 2; i++ {
-		billsList = billsList + fmt.Sprintf(`{"id":"%s","value":"%d","txHash":"%s","isDCBill":false},`, toBillId(uint256.NewInt(uint64(i))), i, base64.StdEncoding.EncodeToString(hash.Sum256([]byte{byte(i)})))
-	}
-	w, mockClient := CreateTestWallet(t, withBackendMock(t, &backendMockReturnConf{balance: 3, customBillList: fmt.Sprintf(`{"total": 2, "bills": [%s]}`, strings.TrimSuffix(billsList, ","))}))
 
-	// create block with expected transactions
-	k, _ := w.am.GetAccountKey(0)
-	tx1, _ := createTransaction(pubKey, k, b1.Value, b1, txTimeoutBlockCount)
-	tx2, _ := createTransaction(pubKey, k, b2.Value, b2, txTimeoutBlockCount)
-	mockClient.SetBlock(&block.Block{BlockNumber: 0, Transactions: []*txsystem.Transaction{
-		tx1,
-	}})
-	mockClient.SetBlock(&block.Block{BlockNumber: 1, Transactions: []*txsystem.Transaction{
-		tx2,
-	}})
+	blockCounter := uint64(0)
+
+	bills := map[string]*Bill{
+		string(util.Uint256ToBytes(b1.Id)): b1,
+		string(util.Uint256ToBytes(b2.Id)): b2,
+	}
+
+	var mockClient *clientmock.MockAlphabillClient
+	backend := &backendAPIMock{
+		getBalance: func(pubKey []byte, includeDCBills bool) (uint64, error) {
+			return 100, nil
+		},
+		getBlockHeight: func() (uint64, error) {
+			return blockCounter, nil
+		},
+		listBills: func(pubKey []byte) (*money.ListBillsResponse, error) {
+			return createBillListResponse([]*Bill{b1, b2}), nil
+		},
+		getProof: func(billId []byte) (*block.Bills, error) {
+			txs := mockClient.GetRecordedTransactions()
+			var bill *Bill
+			for _, tx := range txs {
+				if bytes.Equal(billId, tx.UnitId) {
+					bill, _ = bills[string(billId)]
+					if bill != nil {
+						gtx, err := txConverter.ConvertTx(tx)
+						require.NoError(t, err)
+						bill.TxHash = gtx.Hash(crypto.SHA256)
+					}
+				}
+			}
+
+			if bill != nil {
+				nr := blockCounter
+				blockCounter++
+				return createBlockProofResponse(t, bill, nil, nr, dcTimeoutBlockCount), nil
+			} else {
+				return nil, errors.New("bill not found")
+			}
+		},
+	}
+	w, mockClient := CreateTestWallet(t, backend)
 
 	// test send successfully waits for confirmation
 	_, err := w.Send(context.Background(), SendCmd{ReceiverPubKey: pubKey, Amount: b1.Value + b2.Value, WaitForConfirmation: true})

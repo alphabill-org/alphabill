@@ -2,12 +2,15 @@ package money
 
 import (
 	"context"
+	"crypto"
 	"encoding/base64"
 	"fmt"
 	"strings"
 	"sync"
 	"testing"
 
+	"github.com/alphabill-org/alphabill/pkg/client/clientmock"
+	"github.com/alphabill-org/alphabill/pkg/wallet/backend/money"
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
 
@@ -72,20 +75,29 @@ func TestWalletSendFunction_WaitForConfirmation(t *testing.T) {
 		TxHash: hash.Sum256([]byte{0x01}),
 	}
 
-	// create block with expected transaction
-	bills := []*Bill{b}
-	proofList := createBlockProofJsonResponse(t, bills, nil, 0, dcTimeoutBlockCount)
-	// TODO backend mock needs to be more flexible
-	w, mockClient := CreateTestWallet(t, withBackendMock(t, &backendMockReturnConf{balance: 100, billId: b.Id, billTxHash: base64.StdEncoding.EncodeToString(b.TxHash), billValue: b.Value, proofList: proofList}))
-	k, _ := w.am.GetAccountKey(0)
-	tx, err := createTransaction(pubKey, k, b.Value, b, txTimeoutBlockCount)
-	require.NoError(t, err)
-	mockClient.SetBlock(&block.Block{BlockNumber: 0, Transactions: []*txsystem.Transaction{
-		tx,
-	}})
+	var mockClient *clientmock.MockAlphabillClient
+	backend := &backendAPIMock{
+		getBalance: func(pubKey []byte, includeDCBills bool) (uint64, error) {
+			return 100, nil
+		},
+		getBlockHeight: func() (uint64, error) {
+			return 0, nil
+		},
+		listBills: func(pubKey []byte) (*money.ListBillsResponse, error) {
+			return createBillListResponse([]*Bill{b}), nil
+		},
+		getProof: func(billId []byte) (*block.Bills, error) {
+			tx := mockClient.GetRecordedTransactions()[0]
+			gtx, err := txConverter.ConvertTx(tx)
+			require.NoError(t, err)
+			b.TxHash = gtx.Hash(crypto.SHA256)
+			return createBlockProofResponse(t, b, nil, 0, dcTimeoutBlockCount), nil
+		},
+	}
+	w, mockClient := CreateTestWallet(t, backend)
 
 	// test send successfully waits for confirmation
-	_, err = w.Send(context.Background(), SendCmd{ReceiverPubKey: pubKey, Amount: b.Value, WaitForConfirmation: true, AccountIndex: 0})
+	_, err := w.Send(context.Background(), SendCmd{ReceiverPubKey: pubKey, Amount: b.Value, WaitForConfirmation: true, AccountIndex: 0})
 	require.NoError(t, err)
 	balance, _ := w.GetBalance(GetBalanceCmd{})
 	require.EqualValues(t, 100, balance)

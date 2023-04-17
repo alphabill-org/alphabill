@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"sort"
 	"strconv"
-	"time"
 
 	"github.com/alphabill-org/alphabill/pkg/wallet/txsubmitter"
 	"github.com/ethereum/go-ethereum/common/hexutil"
@@ -39,7 +38,6 @@ var (
 	ErrInvalidAmount        = errors.New("invalid amount")
 	ErrInvalidAccountIndex  = errors.New("invalid account index")
 	ErrInvalidBlockSystemID = errors.New("invalid system identifier")
-	ErrTxFailedToConfirm    = errors.New("transaction(s) failed to confirm")
 )
 
 var (
@@ -341,44 +339,6 @@ func (w *Wallet) swapDcBills(dcBills []*Bill, dcNonce []byte, billIds [][]byte, 
 		return err
 	}
 	return nil
-}
-
-func (w *Wallet) waitForConfirmation(ctx context.Context, pendingTxs []*txsystem.Transaction, maxBlockNumber, timeout uint64) ([]*Bill, error) {
-	log.Info("waiting for confirmation(s)...")
-	blockNumber := maxBlockNumber
-	txsLog := NewTxLog(pendingTxs)
-	for blockNumber <= timeout {
-		b, err := w.AlphabillClient.GetBlock(ctx, blockNumber)
-		if err != nil {
-			return nil, err
-		}
-		if b == nil {
-			// wait for some time before retrying to fetch new block
-			timer := time.NewTimer(100 * time.Millisecond)
-			select {
-			case <-timer.C:
-				continue
-			case <-ctx.Done():
-				timer.Stop()
-				return nil, nil
-			}
-		}
-		for _, tx := range b.Transactions {
-			if txsLog.Contains(tx) {
-				log.Info("confirmed tx ", hexutil.Encode(tx.UnitId))
-				err = txsLog.RecordTx(tx, b)
-				if err != nil {
-					return nil, err
-				}
-				if txsLog.IsAllTxsConfirmed() {
-					log.Info("transaction(s) confirmed")
-					return txsLog.GetAllRecordedBills(), nil
-				}
-			}
-		}
-		blockNumber += 1
-	}
-	return nil, ErrTxFailedToConfirm
 }
 
 func (s *SendCmd) isValid() error {

@@ -19,7 +19,7 @@ import (
 )
 
 func TestWalletSendFunction(t *testing.T) {
-	w, _ := CreateTestWallet(t, &backendMockReturnConf{balance: 70, billId: uint256.NewInt(0), billValue: 50})
+	w, _ := CreateTestWallet(t, withBackendMock(t, &backendMockReturnConf{balance: 70, billId: uint256.NewInt(0), billValue: 50}))
 	validPubKey := make([]byte, 33)
 	amount := uint64(50)
 	ctx := context.Background()
@@ -30,7 +30,7 @@ func TestWalletSendFunction(t *testing.T) {
 }
 
 func TestWalletSendFunction_InvalidPubKey(t *testing.T) {
-	w, _ := CreateTestWallet(t, &backendMockReturnConf{})
+	w, _ := CreateTestWallet(t, withBackendMock(t, &backendMockReturnConf{}))
 	invalidPubKey := make([]byte, 32)
 	amount := uint64(50)
 	ctx := context.Background()
@@ -41,7 +41,7 @@ func TestWalletSendFunction_InvalidPubKey(t *testing.T) {
 }
 
 func TestWalletSendFunction_InsufficientBalance(t *testing.T) {
-	w, _ := CreateTestWallet(t, &backendMockReturnConf{balance: 10})
+	w, _ := CreateTestWallet(t, withBackendMock(t, &backendMockReturnConf{balance: 10}))
 	validPubKey := make([]byte, 33)
 	amount := uint64(50)
 	ctx := context.Background()
@@ -52,7 +52,7 @@ func TestWalletSendFunction_InsufficientBalance(t *testing.T) {
 }
 
 func TestWalletSendFunction_ClientError(t *testing.T) {
-	w, mockClient := CreateTestWallet(t, &backendMockReturnConf{balance: 70, billId: uint256.NewInt(0), billValue: 50})
+	w, mockClient := CreateTestWallet(t, withBackendMock(t, &backendMockReturnConf{balance: 70, billId: uint256.NewInt(0), billValue: 50}))
 	validPubKey := make([]byte, 33)
 	amount := uint64(50)
 	ctx := context.Background()
@@ -73,7 +73,10 @@ func TestWalletSendFunction_WaitForConfirmation(t *testing.T) {
 	}
 
 	// create block with expected transaction
-	w, mockClient := CreateTestWallet(t, &backendMockReturnConf{balance: 100, billId: b.Id, billTxHash: base64.StdEncoding.EncodeToString(b.TxHash), billValue: b.Value})
+	bills := []*Bill{b}
+	proofList := createBlockProofJsonResponse(t, bills, nil, 0, dcTimeoutBlockCount)
+	// TODO backend mock needs to be more flexible
+	w, mockClient := CreateTestWallet(t, withBackendMock(t, &backendMockReturnConf{balance: 100, billId: b.Id, billTxHash: base64.StdEncoding.EncodeToString(b.TxHash), billValue: b.Value, proofList: proofList}))
 	k, _ := w.am.GetAccountKey(0)
 	tx, err := createTransaction(pubKey, k, b.Value, b, txTimeoutBlockCount)
 	require.NoError(t, err)
@@ -96,7 +99,7 @@ func TestWalletSendFunction_WaitForMultipleTxConfirmations(t *testing.T) {
 	for i := 1; i <= 2; i++ {
 		billsList = billsList + fmt.Sprintf(`{"id":"%s","value":"%d","txHash":"%s","isDCBill":false},`, toBillId(uint256.NewInt(uint64(i))), i, base64.StdEncoding.EncodeToString(hash.Sum256([]byte{byte(i)})))
 	}
-	w, mockClient := CreateTestWallet(t, &backendMockReturnConf{balance: 3, customBillList: fmt.Sprintf(`{"total": 2, "bills": [%s]}`, strings.TrimSuffix(billsList, ","))})
+	w, mockClient := CreateTestWallet(t, withBackendMock(t, &backendMockReturnConf{balance: 3, customBillList: fmt.Sprintf(`{"total": 2, "bills": [%s]}`, strings.TrimSuffix(billsList, ","))}))
 
 	// create block with expected transactions
 	k, _ := w.am.GetAccountKey(0)
@@ -119,7 +122,7 @@ func TestWalletSendFunction_WaitForMultipleTxConfirmationsInDifferentBlocks(t *t
 	for i := 1; i <= 2; i++ {
 		billsList = billsList + fmt.Sprintf(`{"id":"%s","value":"%d","txHash":"%s","isDCBill":false},`, toBillId(uint256.NewInt(uint64(i))), i, base64.StdEncoding.EncodeToString(hash.Sum256([]byte{byte(i)})))
 	}
-	w, mockClient := CreateTestWallet(t, &backendMockReturnConf{balance: 3, customBillList: fmt.Sprintf(`{"total": 2, "bills": [%s]}`, strings.TrimSuffix(billsList, ","))})
+	w, mockClient := CreateTestWallet(t, withBackendMock(t, &backendMockReturnConf{balance: 3, customBillList: fmt.Sprintf(`{"total": 2, "bills": [%s]}`, strings.TrimSuffix(billsList, ","))}))
 
 	// create block with expected transactions
 	k, _ := w.am.GetAccountKey(0)
@@ -140,7 +143,7 @@ func TestWalletSendFunction_WaitForMultipleTxConfirmationsInDifferentBlocks(t *t
 func TestWalletSendFunction_ErrTxFailedToConfirm(t *testing.T) {
 	pubKey := make([]byte, 33)
 	b := addBill(1)
-	w, mockClient := CreateTestWallet(t, &backendMockReturnConf{balance: 10, billId: b.Id, billValue: b.Value})
+	w, mockClient := CreateTestWallet(t, withBackendMock(t, &backendMockReturnConf{balance: 10, billId: b.Id, billValue: b.Value}))
 
 	for i := 0; i <= txTimeoutBlockCount; i++ {
 		mockClient.SetBlock(&block.Block{BlockNumber: uint64(i)})
@@ -158,7 +161,7 @@ func TestWholeBalanceIsSentUsingBillTransferOrder(t *testing.T) {
 		Value:  100,
 		TxHash: hash.Sum256([]byte{0x01}),
 	}
-	w, mockClient := CreateTestWallet(t, &backendMockReturnConf{balance: 100, billId: b.Id, billValue: b.Value})
+	w, mockClient := CreateTestWallet(t, withBackendMock(t, &backendMockReturnConf{balance: 100, billId: b.Id, billValue: b.Value}))
 
 	// when whole balance is spent
 	_, err := w.Send(context.Background(), SendCmd{ReceiverPubKey: pubKey, Amount: 100})
@@ -177,7 +180,7 @@ func TestWalletSendFunction_RetryTxWhenTxBufferIsFull(t *testing.T) {
 		Value:  100,
 		TxHash: hash.Sum256([]byte{0x01}),
 	}
-	w, mockClient := CreateTestWallet(t, &backendMockReturnConf{balance: 100, billId: b.Id, billValue: b.Value})
+	w, mockClient := CreateTestWallet(t, withBackendMock(t, &backendMockReturnConf{balance: 100, billId: b.Id, billValue: b.Value}))
 
 	// make server return TxBufferFullErrMessage
 	mockClient.SetTxResponse(&txsystem.TransactionResponse{Ok: false, Message: txBufferFullErrMsg})
@@ -210,7 +213,7 @@ func TestWalletSendFunction_RetryCanBeCanceledByUser(t *testing.T) {
 		Value:  100,
 		TxHash: hash.Sum256([]byte{0x01}),
 	}
-	w, mockClient := CreateTestWallet(t, &backendMockReturnConf{balance: 100, billId: b.Id, billValue: b.Value})
+	w, mockClient := CreateTestWallet(t, withBackendMock(t, &backendMockReturnConf{balance: 100, billId: b.Id, billValue: b.Value}))
 
 	// make server return TxBufferFullErrMessage
 	mockClient.SetTxResponse(&txsystem.TransactionResponse{Ok: false, Message: txBufferFullErrMsg})

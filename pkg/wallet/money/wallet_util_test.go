@@ -41,7 +41,7 @@ type (
 	}
 )
 
-func CreateTestWallet(t *testing.T, br *backendMockReturnConf) (*Wallet, *clientmock.MockAlphabillClient) {
+func CreateTestWallet(t *testing.T, backend BackendAPI) (*Wallet, *clientmock.MockAlphabillClient) {
 	dir := t.TempDir()
 	am, err := account.NewManager(dir, "", true)
 	require.NoError(t, err)
@@ -50,13 +50,18 @@ func CreateTestWallet(t *testing.T, br *backendMockReturnConf) (*Wallet, *client
 	require.NoError(t, err)
 
 	mockClient := clientmock.NewMockAlphabillClient(0, map[uint64]*block.Block{})
-	_, serverAddr := mockBackendCalls(br)
-	restClient, err := testclient.NewClient(serverAddr.Host)
-	require.NoError(t, err)
-	w, err := LoadExistingWallet(abclient.AlphabillClientConfig{}, am, restClient)
+
+	w, err := LoadExistingWallet(abclient.AlphabillClientConfig{}, am, backend)
 	require.NoError(t, err)
 	w.AlphabillClient = mockClient
 	return w, mockClient
+}
+
+func withBackendMock(t *testing.T, br *backendMockReturnConf) BackendAPI {
+	_, serverAddr := mockBackendCalls(br)
+	restClient, err := testclient.NewClient(serverAddr.Host)
+	require.NoError(t, err)
+	return restClient
 }
 
 func CreateTestWalletFromSeed(t *testing.T, br *backendMockReturnConf) (*Wallet, *clientmock.MockAlphabillClient) {

@@ -22,7 +22,6 @@ import (
 	"github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/alphabill-org/alphabill/pkg/wallet/account"
 	backendmoney "github.com/alphabill-org/alphabill/pkg/wallet/backend/money"
-	"github.com/alphabill-org/alphabill/pkg/wallet/backend/money/client"
 	"github.com/alphabill-org/alphabill/pkg/wallet/log"
 )
 
@@ -52,9 +51,16 @@ type (
 	Wallet struct {
 		*wallet.Wallet
 
-		dcWg       *dcWaitGroup
-		am         account.Manager
-		restClient *client.MoneyBackendClient
+		dcWg    *dcWaitGroup
+		am      account.Manager
+		backend BackendAPI
+	}
+
+	BackendAPI interface {
+		GetBalance(pubKey []byte, includeDCBills bool) (uint64, error)
+		ListBills(pubKey []byte) (*backendmoney.ListBillsResponse, error)
+		GetProof(billId []byte) (*block.Bills, error)
+		GetBlockHeight() (uint64, error)
 	}
 
 	SendCmd struct {
@@ -77,8 +83,8 @@ func CreateNewWallet(am account.Manager, mnemonic string) error {
 	return createMoneyWallet(mnemonic, am)
 }
 
-func LoadExistingWallet(config abclient.AlphabillClientConfig, am account.Manager, restClient *client.MoneyBackendClient) (*Wallet, error) {
-	mw := &Wallet{am: am, restClient: restClient, dcWg: newDcWaitGroup()}
+func LoadExistingWallet(config abclient.AlphabillClientConfig, am account.Manager, backend BackendAPI) (*Wallet, error) {
+	mw := &Wallet{am: am, backend: backend, dcWg: newDcWaitGroup()}
 
 	mw.Wallet = wallet.New().
 		SetABClientConf(config).
@@ -121,7 +127,7 @@ func (w *Wallet) GetBalance(cmd GetBalanceCmd) (uint64, error) {
 	if err != nil {
 		return 0, err
 	}
-	return w.restClient.GetBalance(pubKey, cmd.CountDCBills)
+	return w.backend.GetBalance(pubKey, cmd.CountDCBills)
 }
 
 // GetBalances returns sum value of all bills currently owned by the wallet, for all accounts.
@@ -131,7 +137,7 @@ func (w *Wallet) GetBalances(cmd GetBalanceCmd) ([]uint64, uint64, error) {
 	totals := make([]uint64, len(pubKeys))
 	sum := uint64(0)
 	for accountIndex, pubKey := range pubKeys {
-		balance, err := w.restClient.GetBalance(pubKey, cmd.CountDCBills)
+		balance, err := w.backend.GetBalance(pubKey, cmd.CountDCBills)
 		if err != nil {
 			return nil, 0, err
 		}
@@ -151,7 +157,7 @@ func (w *Wallet) Send(ctx context.Context, cmd SendCmd) ([]*Bill, error) {
 	}
 
 	pubKey, _ := w.am.GetPublicKey(cmd.AccountIndex)
-	balance, err := w.restClient.GetBalance(pubKey, true)
+	balance, err := w.backend.GetBalance(pubKey, true)
 	if err != nil {
 		return nil, err
 	}
@@ -173,7 +179,7 @@ func (w *Wallet) Send(ctx context.Context, cmd SendCmd) ([]*Bill, error) {
 		return nil, err
 	}
 
-	billResponse, err := w.restClient.ListBills(pubKey)
+	billResponse, err := w.backend.ListBills(pubKey)
 	if err != nil {
 		return nil, err
 	}
@@ -200,7 +206,7 @@ type backendAPIWrapper struct {
 }
 
 func (b *backendAPIWrapper) GetRoundNumber(context.Context) (uint64, error) {
-	return b.wallet.restClient.GetBlockHeight()
+	return b.wallet.backend.GetBlockHeight()
 }
 
 func (b *backendAPIWrapper) PostTransactions(ctx context.Context, _ wallet.PubKey, txs *txsystem.Transactions) error {
@@ -214,7 +220,7 @@ func (b *backendAPIWrapper) PostTransactions(ctx context.Context, _ wallet.PubKe
 }
 
 func (b *backendAPIWrapper) GetTxProof(_ context.Context, unitID wallet.UnitID, txHash wallet.TxHash) (*wallet.Proof, error) {
-	resp, err := b.wallet.restClient.GetProof(unitID)
+	resp, err := b.wallet.backend.GetProof(unitID)
 	if err != nil {
 		return nil, err
 	}
@@ -250,7 +256,7 @@ func (w *Wallet) collectDust(ctx context.Context, blocking bool, accountIndex ui
 	if err != nil {
 		return err
 	}
-	billResponse, err := w.restClient.ListBills(pubKey)
+	billResponse, err := w.backend.ListBills(pubKey)
 	if err != nil {
 		return err
 	}
@@ -260,7 +266,7 @@ func (w *Wallet) collectDust(ctx context.Context, blocking bool, accountIndex ui
 	}
 	var bills []*Bill
 	for _, b := range billResponse.Bills {
-		proof, err := w.restClient.GetProof(b.Id)
+		proof, err := w.backend.GetProof(b.Id)
 		if err != nil {
 			return err
 		}

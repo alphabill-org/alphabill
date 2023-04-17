@@ -16,7 +16,7 @@ func TestDcJobWithExistingDcBills(t *testing.T) {
 	nonce := calculateDcNonce(bills)
 	billsList := createBillListJsonResponse(bills)
 	proofList := createBlockProofJsonResponse(t, bills, nonce, 0, dcTimeoutBlockCount)
-	w, mockClient := CreateTestWallet(t, &backendMockReturnConf{balance: 3, customBillList: billsList, proofList: proofList})
+	w, mockClient := CreateTestWallet(t, withBackendMock(t, &backendMockReturnConf{balance: 3, customBillList: billsList, proofList: proofList}))
 	mockClient.SetMaxBlockNumber(100)
 
 	// when dust collector runs
@@ -47,7 +47,7 @@ func TestDcJobWithExistingDcAndNonDcBills(t *testing.T) {
 	billsList := createBillListJsonResponse([]*Bill{bill, dc})
 	proofList := createBlockProofJsonResponse(t, []*Bill{bill, dc}, nonce, 0, dcTimeoutBlockCount)
 
-	w, mockClient := CreateTestWallet(t, &backendMockReturnConf{balance: 3, customBillList: billsList, proofList: proofList})
+	w, mockClient := CreateTestWallet(t, withBackendMock(t, &backendMockReturnConf{balance: 3, customBillList: billsList, proofList: proofList}))
 	mockClient.SetMaxBlockNumber(100)
 
 	// when dust collector runs
@@ -74,7 +74,7 @@ func TestDcJobWithExistingNonDcBills(t *testing.T) {
 	billsList := createBillListJsonResponse(bills)
 	proofList := createBlockProofJsonResponse(t, bills, nil, 0, dcTimeoutBlockCount)
 
-	w, mockClient := CreateTestWallet(t, &backendMockReturnConf{balance: 3, customBillList: billsList, proofList: proofList})
+	w, mockClient := CreateTestWallet(t, withBackendMock(t, &backendMockReturnConf{balance: 3, customBillList: billsList, proofList: proofList}))
 	mockClient.SetMaxBlockNumber(100)
 
 	// when dust collector runs
@@ -98,7 +98,7 @@ func TestDcJobSendsSwapsIfDcBillTimeoutHasBeenReached(t *testing.T) {
 	nonce := calculateDcNonce(bills)
 	billsList := createBillListJsonResponse(bills)
 	proofList := createBlockProofJsonResponse(t, bills, nonce, 0, dcTimeoutBlockCount)
-	w, mockClient := CreateTestWallet(t, &backendMockReturnConf{balance: 3, customBillList: billsList, proofList: proofList})
+	w, mockClient := CreateTestWallet(t, withBackendMock(t, &backendMockReturnConf{balance: 3, customBillList: billsList, proofList: proofList}))
 
 	// when dust collector runs
 	err := w.collectDust(context.Background(), false, 0)

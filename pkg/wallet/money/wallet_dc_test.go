@@ -24,7 +24,7 @@ func TestSwapIsTriggeredWhenDcSumIsReached(t *testing.T) {
 	billsList := createBillListJsonResponse(bills)
 	proofList := createBlockProofJsonResponse(t, bills, nil, 0, dcTimeoutBlockCount)
 
-	w, mockClient := CreateTestWallet(t, &backendMockReturnConf{balance: 3, customBillList: billsList, proofList: proofList})
+	w, mockClient := CreateTestWallet(t, withBackendMock(t, &backendMockReturnConf{balance: 3, customBillList: billsList, proofList: proofList}))
 	pubKey, _ := w.am.GetPublicKey(0)
 
 	// when dc runs
@@ -98,7 +98,7 @@ func TestSwapIsTriggeredWhenDcTimeoutIsReached(t *testing.T) {
 	billsList := createBillListJsonResponse([]*Bill{bill, dc})
 	proofList := createBlockProofJsonResponse(t, []*Bill{bill, dc}, nil, 0, dcTimeoutBlockCount)
 
-	w, mockClient := CreateTestWallet(t, &backendMockReturnConf{balance: 3, customBillList: billsList, proofList: proofList})
+	w, mockClient := CreateTestWallet(t, withBackendMock(t, &backendMockReturnConf{balance: 3, customBillList: billsList, proofList: proofList}))
 	pubKey, _ := w.am.GetPublicKey(0)
 
 	billIds := [][]byte{util.Uint256ToBytes(dc.Id)}
@@ -134,7 +134,7 @@ func TestSwapIsTriggeredWhenSwapTimeoutIsReached(t *testing.T) {
 	bill := addBill(1)
 	dc := addDcBill(t, k, nonce, 2, swapTimeoutBlockCount)
 	billsList := createBillListJsonResponse([]*Bill{bill, dc})
-	w, mockClient := CreateTestWallet(t, &backendMockReturnConf{balance: 3, customBillList: billsList})
+	w, mockClient := CreateTestWallet(t, withBackendMock(t, &backendMockReturnConf{balance: 3, customBillList: billsList}))
 	pubKey, _ := w.am.GetPublicKey(0)
 
 	billIds := [][]byte{util.Uint256ToBytes(dc.Id)}
@@ -212,7 +212,7 @@ func TestSwapContainsUnconfirmedDustBillIds(t *testing.T) {
 
 	billsList := createBillListJsonResponse([]*Bill{b1, b2, b3})
 	proofList := createBlockProofJsonResponse(t, []*Bill{b1, b2, b3}, nil, 0, dcTimeoutBlockCount)
-	w, mockClient := CreateTestWallet(t, &backendMockReturnConf{balance: 3, customBillList: billsList, proofList: proofList})
+	w, mockClient := CreateTestWallet(t, withBackendMock(t, &backendMockReturnConf{balance: 3, customBillList: billsList, proofList: proofList}))
 
 	// when dc runs
 	err := w.collectDust(context.Background(), false, 0)
@@ -302,13 +302,13 @@ func verifyBlockHeight(t *testing.T, w *Wallet, blockHeight uint64) {
 }
 
 func verifyBalance(t *testing.T, w *Wallet, balance uint64, pubKey []byte) {
-	actualBalance, err := w.restClient.GetBalance(pubKey, false)
+	actualBalance, err := w.backend.GetBalance(pubKey, false)
 	require.NoError(t, err)
 	require.EqualValues(t, balance, actualBalance)
 }
 
 func verifyTotalBalance(t *testing.T, w *Wallet, balance uint64, pubKey []byte) {
-	actualBalance, err := w.restClient.GetBalance(pubKey, true)
+	actualBalance, err := w.backend.GetBalance(pubKey, true)
 	require.NoError(t, err)
 	require.EqualValues(t, balance, actualBalance)
 }

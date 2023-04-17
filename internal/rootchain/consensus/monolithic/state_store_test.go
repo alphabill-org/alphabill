@@ -2,10 +2,12 @@ package monolithic
 
 import (
 	gocrypto "crypto"
-	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/alphabill-org/alphabill/internal/certificates"
+	"github.com/alphabill-org/alphabill/internal/keyvaluedb/boltdb"
+	"github.com/alphabill-org/alphabill/internal/keyvaluedb/memorydb"
 	"github.com/alphabill-org/alphabill/internal/network/protocol"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 	"github.com/stretchr/testify/require"
@@ -109,39 +111,27 @@ func storeTest(t *testing.T, store *StateStore) {
 }
 
 func TestInMemState(t *testing.T) {
-	stateStore, err := NewStateStore("")
-	require.NoError(t, err)
+	stateStore := NewStateStore(memorydb.New())
 	require.NotNil(t, stateStore)
 	storeTest(t, stateStore)
 }
 
 func TestPersistentRootState(t *testing.T) {
 	// creates and initiates the bolt store backend, and saves initial state
-	dir, err := os.MkdirTemp("", "bolt*")
+	dir := t.TempDir()
+	db, err := boltdb.New(filepath.Join(dir, "bolt.db"))
 	require.NoError(t, err)
-	stateStore, err := NewStateStore(dir)
-	require.NoError(t, err)
-	defer func() {
-		require.NoError(t, os.RemoveAll(dir))
-	}()
+	stateStore := NewStateStore(db)
 	storeTest(t, stateStore)
-}
-
-func TestPersistentRootState_Err(t *testing.T) {
-	stateStore, err := NewStateStore("/foobar1234/unlikely/")
-	require.ErrorContains(t, err, "bolt db initialization failed, open /foobar1234/unlikely/rootchain.db: no such file or directory")
-	require.Nil(t, stateStore)
 }
 
 func TestRepeatedStore(t *testing.T) {
 	// creates and initiates the bolt store backend, and saves initial state
-	dir, err := os.MkdirTemp("", "bolt*")
+	dir := t.TempDir()
+	db, err := boltdb.New(filepath.Join(dir, "bolt.db"))
 	require.NoError(t, err)
-	store, err := NewStateStore(dir)
-	require.NoError(t, err)
-	defer func() {
-		require.NoError(t, os.RemoveAll(dir))
-	}()
+	store := NewStateStore(db)
+	storeTest(t, store)
 	require.NoError(t, store.Init(testGenesis))
 	require.NoError(t, store.Update(2, nil))
 	require.NoError(t, store.Update(3, nil))

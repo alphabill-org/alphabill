@@ -32,13 +32,13 @@ func isConsecutive(blockRound, round uint64) bool {
 	return round+1 == blockRound
 }
 
-func NewSafetyModule(id string, signer crypto.Signer, s keyvaluedb.KeyValueDB) (*SafetyModule, error) {
+func NewSafetyModule(id string, signer crypto.Signer, db keyvaluedb.KeyValueDB) (*SafetyModule, error) {
 	ver, err := signer.Verifier()
 	if err != nil {
 		return nil, fmt.Errorf("invalid root validator sign key: %w", err)
 	}
 
-	return &SafetyModule{peerID: id, signer: signer, verifier: ver, storage: s}, nil
+	return &SafetyModule{peerID: id, signer: signer, verifier: ver, storage: db}, nil
 }
 
 func (s *SafetyModule) GetHighestVotedRound() uint64 {

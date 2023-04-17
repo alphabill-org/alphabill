@@ -4,11 +4,15 @@ import (
 	"context"
 	gocrypto "crypto"
 	"fmt"
+	"path/filepath"
 	"testing"
 	"time"
 
 	"github.com/alphabill-org/alphabill/internal/certificates"
 	"github.com/alphabill-org/alphabill/internal/crypto"
+	"github.com/alphabill-org/alphabill/internal/keyvaluedb"
+	"github.com/alphabill-org/alphabill/internal/keyvaluedb/boltdb"
+	"github.com/alphabill-org/alphabill/internal/keyvaluedb/memorydb"
 	p "github.com/alphabill-org/alphabill/internal/network/protocol"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/certification"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
@@ -44,7 +48,7 @@ func readResult(ch <-chan *certificates.UnicityCertificate, timeout time.Duratio
 	}
 }
 
-func initConsensusManager(t *testing.T, dbPath string) (*ConsensusManager, *testutils.TestNode, []*testutils.TestNode, *genesis.RootGenesis) {
+func initConsensusManager(t *testing.T, db keyvaluedb.KeyValueDB) (*ConsensusManager, *testutils.TestNode, []*testutils.TestNode, *genesis.RootGenesis) {
 	partitionNodes, partitionRecord := testutils.CreatePartitionNodesAndPartitionRecord(t, partitionInputRecord, partitionID, 3)
 	rootNode := testutils.NewTestNode(t)
 	verifier := rootNode.Verifier
@@ -55,13 +59,7 @@ func initConsensusManager(t *testing.T, dbPath string) (*ConsensusManager, *test
 	require.NoError(t, err)
 	partitions, err := partitions.NewPartitionStoreFromGenesis(rootGenesis.Partitions)
 	require.NoError(t, err)
-	if dbPath == "" {
-		cm, err := NewMonolithicConsensusManager(rootNode.Peer.ID().String(), rootGenesis, partitions, rootNode.Signer)
-		require.NoError(t, err)
-		return cm, rootNode, partitionNodes, rootGenesis
-
-	}
-	cm, err := NewMonolithicConsensusManager(rootNode.Peer.ID().String(), rootGenesis, partitions, rootNode.Signer, consensus.WithPersistentStoragePath(dbPath))
+	cm, err := NewMonolithicConsensusManager(rootNode.Peer.ID().String(), rootGenesis, partitions, rootNode.Signer, consensus.WithStorage(db))
 	require.NoError(t, err)
 	return cm, rootNode, partitionNodes, rootGenesis
 }
@@ -73,8 +71,7 @@ func TestConsensusManager_checkT2Timeout(t *testing.T) {
 		{SystemDescriptionRecord: &genesis.SystemDescriptionRecord{SystemIdentifier: sysID2, T2Timeout: 2500}},
 	})
 	require.NoError(t, err)
-	store, err := NewStateStore("")
-	require.NoError(t, err)
+	store := NewStateStore(memorydb.New())
 	// store mock state
 	certs := map[p.SystemIdentifier]*certificates.UnicityCertificate{
 		p.SystemIdentifier(sysID0): {
@@ -114,7 +111,8 @@ func TestConsensusManager_checkT2Timeout(t *testing.T) {
 }
 
 func TestConsensusManager_NormalOperation(t *testing.T) {
-	cm, rootNode, partitionNodes, rg := initConsensusManager(t, "")
+	db := memorydb.New()
+	cm, rootNode, partitionNodes, rg := initConsensusManager(t, db)
 	ctx, ctxCancel := context.WithCancel(context.Background())
 	defer ctxCancel()
 	go func() { require.ErrorIs(t, cm.Run(ctx), context.Canceled) }()
@@ -152,7 +150,8 @@ func TestConsensusManager_NormalOperation(t *testing.T) {
 // this will run long, cut timeouts or find a way to manipulate timeouts
 func TestConsensusManager_PartitionTimeout(t *testing.T) {
 	dir := t.TempDir()
-	cm, rootNode, partitionNodes, rg := initConsensusManager(t, dir)
+	boltDb, err := boltdb.New(filepath.Join(dir, "bolt.db"))
+	cm, rootNode, partitionNodes, rg := initConsensusManager(t, boltDb)
 	ctx, ctxCancel := context.WithCancel(context.Background())
 	defer ctxCancel()
 	go func() { require.ErrorIs(t, cm.Run(ctx), context.Canceled) }()

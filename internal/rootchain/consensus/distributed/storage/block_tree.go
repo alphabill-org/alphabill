@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"sort"
+	"strings"
 
 	"github.com/alphabill-org/alphabill/internal/keyvaluedb"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/ab_consensus"
@@ -42,7 +43,7 @@ func (l *node) removeChild() {
 }
 
 func blockStoreGenesisInit(genesisBlock *ExecutedBlock, blocks keyvaluedb.KeyValueDB) error {
-	if err := blocks.Write(util.Uint64ToBytes(genesisBlock.BlockData.Round), genesisBlock); err != nil {
+	if err := blocks.Write(blockKey(genesisBlock.BlockData.Round), genesisBlock); err != nil {
 		return fmt.Errorf("genesis block write failed, %w", err)
 	}
 	return nil
@@ -85,50 +86,45 @@ func NewBlockTree(bDB keyvaluedb.KeyValueDB) (*BlockTree, error) {
 	if bDB == nil {
 		return nil, fmt.Errorf("block tree init failed, databes is nil")
 	}
-	itr := bDB.Last()
+	itr := bDB.Find([]byte(blockPrefix))
 	defer func() {
 		if err := itr.Close(); err != nil {
 			logger.Warning("Unexpected error, db iterator close %v", err)
 		}
 	}()
 	var blocks []*ExecutedBlock
-	var lastRoot *ExecutedBlock = nil
 	var hQC *ab_consensus.QuorumCert = nil
-	for ; itr.Valid(); itr.Prev() {
-		round := util.BytesToUint64(itr.Key())
+	for ; itr.Valid() && strings.HasPrefix(string(itr.Key()), blockPrefix); itr.Next() {
 		var b ExecutedBlock
 		if err := itr.Value(&b); err != nil {
-			return nil, fmt.Errorf("read block %v from db failed, %w", round, err)
-		}
-		// read until latest committed block is found
-		if b.CommitQc != nil && b.CommitQc.LedgerCommitInfo != nil {
-			lastRoot = &b
-			break
+			return nil, fmt.Errorf("read block %v from db failed, %w", itr.Key(), err)
 		}
 		blocks = append(blocks, &b)
 	}
-	if lastRoot == nil {
+	if len(blocks) == 0 {
 		return nil, fmt.Errorf("block tree init failed to recover latest committed block")
 	}
-	// make sure that nodes are sorted by round
-	sort.Slice(blocks, func(i, j int) bool {
-		return blocks[i].BlockData.Round < blocks[j].BlockData.Round
-	})
-	rootNode := newNode(lastRoot)
-	hQC = rootNode.data.Qc
-	treeNodes := map[uint64]*node{lastRoot.BlockData.Round: rootNode}
-	for _, next := range blocks {
+	var rootNode *node = nil
+	treeNodes := make(map[uint64]*node)
+	for i, block := range blocks {
+		// last root
+		if i == 0 {
+			rootNode = newNode(block)
+			hQC = rootNode.data.Qc
+			treeNodes = map[uint64]*node{block.BlockData.Round: rootNode}
+			continue
+		}
 		// if parent round does not exist then reject, parent must be recovered
-		parent, found := treeNodes[next.BlockData.Qc.VoteInfo.RoundNumber]
+		parent, found := treeNodes[block.BlockData.Qc.VoteInfo.RoundNumber]
 		if found == false {
-			return nil, fmt.Errorf("error cannot add block for round %v, parent block %v not found", next.BlockData.Round,
-				next.BlockData.Qc.VoteInfo.RoundNumber)
+			return nil, fmt.Errorf("error cannot add block for round %v, parent block %v not found", block.BlockData.Round,
+				block.BlockData.Qc.VoteInfo.RoundNumber)
 		}
 		// append block and add a child to parent
-		n := newNode(next)
-		treeNodes[next.BlockData.Round] = n
+		n := newNode(block)
+		treeNodes[block.BlockData.Round] = n
 		if err := parent.addChild(n); err != nil {
-			return nil, fmt.Errorf("error cannot add block for round %v, parent block add child error, %w", next.BlockData.Round, err)
+			return nil, fmt.Errorf("error cannot add block for round %v, parent block add child error, %w", block.BlockData.Round, err)
 		}
 		if n.data.Qc != nil {
 			hQC = n.data.Qc
@@ -153,7 +149,7 @@ func (bt *BlockTree) InsertQc(qc *ab_consensus.QuorumCert, bockDB keyvaluedb.Key
 	}
 	b.Qc = qc
 	// persist changes
-	if err = bockDB.Write(util.Uint64ToBytes(b.BlockData.Round), b); err != nil {
+	if err = bockDB.Write(blockKey(b.BlockData.Round), b); err != nil {
 		return fmt.Errorf("failed to persist block for round %v, %w", b.BlockData.Round, err)
 	}
 	bt.highQc = qc
@@ -184,7 +180,7 @@ func (bt *BlockTree) Add(block *ExecutedBlock) error {
 	}
 	bt.roundToNode[block.BlockData.Round] = n
 	// persist block
-	return bt.blocksDB.Write(util.Uint64ToBytes(block.BlockData.Round), n.data)
+	return bt.blocksDB.Write(blockKey(block.BlockData.Round), n.data)
 }
 
 // RemoveLeaf removes leaf node if it is not root node
@@ -322,7 +318,7 @@ func (bt *BlockTree) Commit(commitQc *ab_consensus.QuorumCert) (*ExecutedBlock, 
 		_ = dbTx.Delete(util.Uint64ToBytes(round))
 	}
 	// update the new root with commit QC info
-	if err = dbTx.Write(util.Uint64ToBytes(commitRound), commitNode.data); err != nil {
+	if err = dbTx.Write(blockKey(commitRound), commitNode.data); err != nil {
 		_ = dbTx.Rollback()
 		return nil, fmt.Errorf("commit of round %v failed, persist changes failed, %w", commitRound, err)
 	}

@@ -6,10 +6,10 @@ import (
 	"testing"
 
 	"github.com/alphabill-org/alphabill/internal/certificates"
-	"github.com/alphabill-org/alphabill/internal/keyvaluedb/boltdb"
 	"github.com/alphabill-org/alphabill/internal/keyvaluedb/memorydb"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/ab_consensus"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
+	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/stretchr/testify/require"
 )
 
@@ -140,37 +140,96 @@ func copyFile(src string, dst string) error {
 }
 
 func TestNewBlockTreeFromDb(t *testing.T) {
-	f, err := os.CreateTemp("", "bolt-*.db")
-	defer func() {
-		require.NoError(t, os.Remove(f.Name()))
-	}()
-	require.NoError(t, copyFile("test_data/blocks.db", f.Name()))
-	boltDb, err := boltdb.New(f.Name())
-	require.NoError(t, err)
-	bTree, err := NewBlockTree(boltDb)
+	db := memorydb.New()
+	gBlock := NewExecutedBlockFromGenesis(gocrypto.SHA256, pg)
+	require.NoError(t, db.Write(blockKey(genesis.RootRound), gBlock))
+	// create a new block
+	block2 := &ExecutedBlock{
+		BlockData: &ab_consensus.BlockData{
+			Author:    "test",
+			Round:     genesis.RootRound + 1,
+			Epoch:     0,
+			Timestamp: util.MakeTimestamp(),
+			Payload:   &ab_consensus.Payload{},
+			Qc:        gBlock.Qc,
+		},
+		CurrentIR: gBlock.CurrentIR,
+		Changed:   make([][]byte, 0),
+		HashAlgo:  gocrypto.SHA256,
+		RootHash:  gBlock.Qc.LedgerCommitInfo.RootHash,
+		Qc:        nil, // qc to genesis
+		CommitQc:  nil, // does not commit a block
+	}
+	require.NoError(t, db.Write(blockKey(block2.BlockData.Round), block2))
+	bTree, err := NewBlockTree(db)
 	require.NoError(t, err)
 	require.NotNil(t, bTree)
 	require.Len(t, bTree.roundToNode, 2)
 	hQc := bTree.HighQc()
 	require.NotNil(t, hQc)
-	require.Equal(t, uint64(34), hQc.VoteInfo.RoundNumber)
+	require.Equal(t, uint64(1), hQc.VoteInfo.RoundNumber)
 }
 
 func TestNewBlockTreeFromDbChain3Blocks(t *testing.T) {
-	f, err := os.CreateTemp("", "bolt-*.db")
-	defer func() {
-		require.NoError(t, os.Remove(f.Name()))
-	}()
-	require.NoError(t, copyFile("test_data/blocks3.db", f.Name()))
-	boltDb, err := boltdb.New(f.Name())
-	require.NoError(t, err)
-	bTree, err := NewBlockTree(boltDb)
+	db := memorydb.New()
+
+	gBlock := NewExecutedBlockFromGenesis(gocrypto.SHA256, pg)
+	require.NoError(t, db.Write(blockKey(genesis.RootRound), gBlock))
+	// create blocks 2 and 3
+	voteInfoB2 := &certificates.RootRoundInfo{
+		RoundNumber:       2,
+		Timestamp:         util.MakeTimestamp(),
+		ParentRoundNumber: 1,
+		CurrentRootHash:   gBlock.RootHash,
+	}
+	qcBlock2 := &ab_consensus.QuorumCert{
+		VoteInfo: voteInfoB2,
+		LedgerCommitInfo: &certificates.CommitInfo{
+			RootRoundInfoHash: voteInfoB2.Hash(gocrypto.SHA256),
+			RootHash:          gBlock.RootHash,
+		},
+	}
+	// create a new block
+	block2 := &ExecutedBlock{
+		BlockData: &ab_consensus.BlockData{
+			Author:    "test",
+			Round:     genesis.RootRound + 1,
+			Epoch:     0,
+			Timestamp: util.MakeTimestamp(),
+			Payload:   &ab_consensus.Payload{},
+			Qc:        gBlock.Qc,
+		},
+		CurrentIR: gBlock.CurrentIR,
+		Changed:   make([][]byte, 0),
+		HashAlgo:  gocrypto.SHA256,
+		RootHash:  gBlock.Qc.LedgerCommitInfo.RootHash,
+		Qc:        qcBlock2,
+		CommitQc:  qcBlock2,
+	}
+	block3 := &ExecutedBlock{
+		BlockData: &ab_consensus.BlockData{
+			Author:    "test",
+			Round:     genesis.RootRound + 2,
+			Epoch:     0,
+			Timestamp: util.MakeTimestamp() + 1000,
+			Payload:   &ab_consensus.Payload{},
+			Qc:        qcBlock2,
+		},
+		CurrentIR: gBlock.CurrentIR,
+		Changed:   make([][]byte, 0),
+		HashAlgo:  gocrypto.SHA256,
+		RootHash:  gBlock.Qc.LedgerCommitInfo.RootHash,
+	}
+	require.NoError(t, db.Write(blockKey(block2.BlockData.Round), block2))
+	require.NoError(t, db.Write(blockKey(block3.BlockData.Round), block3))
+
+	bTree, err := NewBlockTree(db)
 	require.NoError(t, err)
 	require.NotNil(t, bTree)
 	require.Len(t, bTree.roundToNode, 3)
 	hQc := bTree.HighQc()
 	require.NotNil(t, hQc)
-	require.Equal(t, uint64(33), hQc.VoteInfo.RoundNumber)
+	require.Equal(t, uint64(2), hQc.VoteInfo.RoundNumber)
 }
 
 func TestAddErrorCases(t *testing.T) {

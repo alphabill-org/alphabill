@@ -55,7 +55,6 @@ type (
 		trustBase      *RootTrustBase
 		irReqBuffer    *IrReqBuffer
 		safety         *SafetyModule
-		datastore      *storage.Storage
 		blockStore     *storage.BlockStore
 		partitions     partitions.PartitionConfiguration
 		irReqVerifier  *IRChangeReqVerifier
@@ -80,8 +79,7 @@ func NewDistributedAbConsensusManager(host *network.Peer, rg *genesis.RootGenesi
 	// load consensus configuration from genesis
 	cParams := consensus.NewConsensusParams(rg.Root)
 	// init storage
-	dataStore, err := storage.New(optional.StoragePath)
-	bStore, err := storage.NewBlockStore(cParams.HashAlgorithm, rg.Partitions, dataStore)
+	bStore, err := storage.NewBlockStore(cParams.HashAlgorithm, rg.Partitions, optional.Storage)
 	if err != nil {
 		return nil, fmt.Errorf("consensus block storage init failed, %w", err)
 	}
@@ -91,7 +89,7 @@ func NewDistributedAbConsensusManager(host *network.Peer, rg *genesis.RootGenesi
 		return nil, fmt.Errorf("block verifier construct error, %w", err)
 	}
 	hqcRound := bStore.GetHighQc().VoteInfo.RoundNumber
-	safetyModule, err := NewSafetyModule(host.ID().String(), signer, dataStore.GetRootDB())
+	safetyModule, err := NewSafetyModule(host.ID().String(), signer, optional.Storage)
 	if err != nil {
 		return nil, err
 	}
@@ -232,10 +230,9 @@ func (x *ConsensusManager) loop(ctx context.Context) error {
 // onLocalTimeout handle local timeout, either no proposal is received or voting does not
 // reach consensus. Triggers timeout voting.
 func (x *ConsensusManager) onLocalTimeout() {
-	// always restart timer, time might be adjusted in case a new round is started
-	// to account for throttling
+	// the ticker is automatically restarted, the timeout may need adjustment depending on algorithm and throttling
 	logger.Info("%v round %v local timeout", x.peer.String(), x.pacemaker.GetCurrentRound())
-	// Has the validator voted in this round, if true send the same vote
+	// has the validator voted in this round, if true send the same (timeout)vote
 	// maybe less than quorum of nodes where operational the last time
 	timeoutVoteMsg := x.pacemaker.GetTimeoutVote()
 	if timeoutVoteMsg == nil {

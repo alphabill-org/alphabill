@@ -9,6 +9,9 @@ import (
 	"time"
 
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
+	"github.com/alphabill-org/alphabill/internal/keyvaluedb"
+	"github.com/alphabill-org/alphabill/internal/keyvaluedb/boltdb"
+	"github.com/alphabill-org/alphabill/internal/keyvaluedb/memorydb"
 	"github.com/alphabill-org/alphabill/internal/network"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/internal/rootchain"
@@ -23,8 +26,9 @@ import (
 )
 
 const (
-	rootPortCmdFlag       = "root-listener"
-	defaultNetworkTimeout = 300 * time.Millisecond
+	boltRootChainStoreFileName = "rootchain.db"
+	rootPortCmdFlag            = "root-listener"
+	defaultNetworkTimeout      = 300 * time.Millisecond
 )
 
 type rootNodeConfig struct {
@@ -106,6 +110,13 @@ func (c *rootNodeConfig) getKeyFilePath() string {
 	return filepath.Join(c.Base.defaultRootGenesisDir(), defaultKeysFileName)
 }
 
+func initRootStore(dbPath string) (keyvaluedb.KeyValueDB, error) {
+	if dbPath != "" {
+		return boltdb.New(filepath.Join(dbPath, boltRootChainStoreFileName))
+	}
+	return memorydb.New(), nil
+}
+
 func defaultRootNodeRunFunc(ctx context.Context, config *rootNodeConfig) error {
 	rootGenesis, err := util.ReadJsonFile(config.getGenesisFilePath(), &genesis.RootGenesis{})
 	if err != nil {
@@ -119,7 +130,7 @@ func defaultRootNodeRunFunc(ctx context.Context, config *rootNodeConfig) error {
 	if err = rootGenesis.Verify(); err != nil {
 		return fmt.Errorf("root genesis verification failed, %w", err)
 	}
-	// Process partition node network
+	// process partition node network
 	prtHost, err := createHost(config.PartitionListener, keys.EncryptionPrivateKey)
 	if err != nil {
 		return fmt.Errorf("partition host error, %w", err)
@@ -135,10 +146,15 @@ func defaultRootNodeRunFunc(ctx context.Context, config *rootNodeConfig) error {
 	if verifyKeyPresentInGenesis(prtHost, rootGenesis.Root, ver) != nil {
 		return fmt.Errorf("error root node key not found in genesis file")
 	}
-	// Initiate partition store
+	// initiate partition store
 	partitionCfg, err := partitions.NewPartitionStoreFromGenesis(rootGenesis.Partitions)
 	if err != nil {
 		return fmt.Errorf("failed to extract partition info from genesis file %s, %w", config.getGenesisFilePath(), err)
+	}
+	// init root storage
+	store, err := initRootStore(config.StoragePath)
+	if err != nil {
+		return fmt.Errorf("root store init failed, %w", err)
 	}
 	var cm consensus.Manager
 	if len(rootGenesis.Root.RootValidators) == 1 {
@@ -148,7 +164,7 @@ func defaultRootNodeRunFunc(ctx context.Context, config *rootNodeConfig) error {
 			rootGenesis,
 			partitionCfg,
 			keys.SigningPrivateKey,
-			consensus.WithPersistentStoragePath(config.getStoragePath()))
+			consensus.WithStorage(store))
 	} else {
 		// Initiate Root validator network
 		var rootHost *network.Peer
@@ -167,7 +183,7 @@ func defaultRootNodeRunFunc(ctx context.Context, config *rootNodeConfig) error {
 			partitionCfg,
 			rootNet,
 			keys.SigningPrivateKey,
-			consensus.WithPersistentStoragePath(config.getStoragePath()))
+			consensus.WithStorage(store))
 	}
 	if err != nil {
 		return fmt.Errorf("failed initiate monolithic consensus manager: %w", err)

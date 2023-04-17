@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/alphabill-org/alphabill/internal/certificates"
+	"github.com/alphabill-org/alphabill/internal/keyvaluedb/memorydb"
 	"github.com/alphabill-org/alphabill/internal/network/protocol"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/ab_consensus"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
@@ -46,9 +47,7 @@ func (m *MockAlwaysOkBlockVerifier) VerifyIRChangeReq(_ uint64, irChReq *ab_cons
 
 func initBlockStoreFromGenesis(t *testing.T) *BlockStore {
 	t.Helper()
-	s, err := newMemStore()
-	require.NoError(t, err)
-	bStore, err := NewBlockStore(gocrypto.SHA256, pg, s)
+	bStore, err := NewBlockStore(gocrypto.SHA256, pg, memorydb.New())
 	require.NoError(t, err)
 	return bStore
 }

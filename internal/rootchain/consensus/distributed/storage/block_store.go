@@ -4,6 +4,7 @@ import (
 	gocrypto "crypto"
 	"errors"
 	"fmt"
+	"strings"
 	"sync"
 
 	"github.com/alphabill-org/alphabill/internal/certificates"
@@ -17,7 +18,7 @@ type (
 	BlockStore struct {
 		hash         gocrypto.Hash // hash algorithm
 		blockTree    *BlockTree
-		storage      *Storage
+		storage      keyvaluedb.KeyValueDB
 		Certificates map[protocol.SystemIdentifier]*certificates.UnicityCertificate // cashed
 		lock         sync.RWMutex
 	}
@@ -32,62 +33,69 @@ func UnicityCertificatesFromGenesis(pg []*genesis.GenesisPartitionRecord) map[pr
 	return certs
 }
 
-func storeGenesisInit(hash gocrypto.Hash, pg []*genesis.GenesisPartitionRecord, s *Storage) error {
+func storeGenesisInit(hash gocrypto.Hash, pg []*genesis.GenesisPartitionRecord, db keyvaluedb.KeyValueDB) error {
 	// nil is returned if no value is in DB
 	genesisBlock := NewExecutedBlockFromGenesis(hash, pg)
 	ucs := UnicityCertificatesFromGenesis(pg)
-	certStore := s.GetCertificatesDB()
 	for id, cert := range ucs {
-		if err := certStore.Write(id.Bytes(), cert); err != nil {
-			return fmt.Errorf("certificates store genesis init failed, %w", err)
+		if err := db.Write(certKey(id.Bytes()), cert); err != nil {
+			return fmt.Errorf("certificate %X write failed, %w", id, err)
 		}
 	}
-	if err := blockStoreGenesisInit(genesisBlock, s.GetBlocksDB()); err != nil {
+	if err := blockStoreGenesisInit(genesisBlock, db); err != nil {
 		return fmt.Errorf("block store genesis init failed, %w", err)
 	}
 	return nil
 }
 
-func NewBlockStore(hash gocrypto.Hash, pg []*genesis.GenesisPartitionRecord, s *Storage) (block *BlockStore, err error) {
+func readCertificates(db keyvaluedb.KeyValueDB) (ucs map[protocol.SystemIdentifier]*certificates.UnicityCertificate, err error) {
+	// read certificates from storage
+	itr := db.Find([]byte(certPrefix))
+	defer func() { err = errors.Join(err, itr.Close()) }()
+	ucs = make(map[protocol.SystemIdentifier]*certificates.UnicityCertificate)
+	for ; itr.Valid() && strings.HasPrefix(string(itr.Key()), certPrefix); itr.Next() {
+		var uc certificates.UnicityCertificate
+		if err = itr.Value(&uc); err != nil {
+			return nil, fmt.Errorf("certificate read error, %w", err)
+		}
+		id := uc.UnicityTreeCertificate.SystemIdentifier
+		ucs[protocol.SystemIdentifier(id)] = &uc
+	}
+	return ucs, err
+}
+
+func NewBlockStore(hash gocrypto.Hash, pg []*genesis.GenesisPartitionRecord, db keyvaluedb.KeyValueDB) (block *BlockStore, err error) {
 	// Initiate store
 	if pg == nil {
 		return nil, errors.New("genesis record is nil")
 	}
-	if s == nil {
+	if db == nil {
 		return nil, errors.New("storage is nil")
 	}
 	// First start, initiate from genesis data
-	empty, err := keyvaluedb.IsEmpty(s.blocksDB)
+	empty, err := keyvaluedb.IsEmpty(db)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read block store, %w", err)
 	}
 	if empty {
-		if err = storeGenesisInit(hash, pg, s); err != nil {
+		if err = storeGenesisInit(hash, pg, db); err != nil {
 			return nil, fmt.Errorf("block store init failed, %w", err)
 		}
 	}
-	certStore := s.GetCertificatesDB()
 	// read certificates from storage
-	itr := certStore.First()
-	defer func() { err = errors.Join(err, itr.Close()) }()
-	ucs := make(map[protocol.SystemIdentifier]*certificates.UnicityCertificate)
-	for ; itr.Valid(); itr.Next() {
-		id := protocol.SystemIdentifier(itr.Key())
-		var uc certificates.UnicityCertificate
-		if err = itr.Value(&uc); err != nil {
-			return nil, fmt.Errorf("block store init failed, read certificated from db error, %w", err)
-		}
-		ucs[id] = &uc
-	}
-	blTree, err := NewBlockTree(s.GetBlocksDB())
+	ucs, err := readCertificates(db)
 	if err != nil {
-		return nil, fmt.Errorf("block store init failed, %w", err)
+		return nil, fmt.Errorf("init failed, %w", err)
+	}
+	blTree, err := NewBlockTree(db)
+	if err != nil {
+		return nil, fmt.Errorf("init failed, %w", err)
 	}
 	return &BlockStore{
 		hash:         hash,
 		blockTree:    blTree,
 		Certificates: ucs,
-		storage:      s,
+		storage:      db,
 	}, nil
 }
 
@@ -132,7 +140,7 @@ func (x *BlockStore) ProcessQc(qc *ab_consensus.QuorumCert) (map[protocol.System
 		return nil, nil
 	}
 	// add Qc to block tree
-	err := x.blockTree.InsertQc(qc, x.storage.GetBlocksDB())
+	err := x.blockTree.InsertQc(qc, x.storage)
 	if err != nil {
 		return nil, fmt.Errorf("block store qc handling failed, %w", err)
 	}
@@ -191,7 +199,7 @@ func (x *BlockStore) updateCertificateCache(certs map[protocol.SystemIdentifier]
 		x.Certificates[id] = uc
 		// and persist changes
 		// todo: AB-795 persistent storage failure?
-		if err := x.storage.GetCertificatesDB().Write(id.Bytes(), uc); err != nil {
+		if err := x.storage.Write(certKey(id.Bytes()), uc); err != nil {
 			return fmt.Errorf("failed to update certificates, %w", err)
 		}
 	}
@@ -243,13 +251,14 @@ func (x *BlockStore) RecoverState(rRootBlock *ab_consensus.RecoveryBlock, rNodes
 	}
 	nodes := make([]*ExecutedBlock, len(rNodes))
 	for i, n := range rNodes {
-		executedBlock, err := NewExecutedBlockFromRecovery(x.hash, n, verifier)
+		var executedBlock *ExecutedBlock
+		executedBlock, err = NewExecutedBlockFromRecovery(x.hash, n, verifier)
 		if err != nil {
 			return fmt.Errorf("state recovery failed, %w", err)
 		}
 		nodes[i] = executedBlock
 	}
-	bt, err := NewBlockTreeFromRecovery(rootNode, nodes, x.storage.GetBlocksDB())
+	bt, err := NewBlockTreeFromRecovery(rootNode, nodes, x.storage)
 	if err != nil {
 		return fmt.Errorf("state recovery, failed to create block tree from recovered blocks, %w", err)
 	}

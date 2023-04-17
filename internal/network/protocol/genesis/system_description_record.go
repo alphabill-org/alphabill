@@ -2,9 +2,9 @@ package genesis
 
 import (
 	gocrypto "crypto"
+	"errors"
+	"fmt"
 	"hash"
-
-	"github.com/alphabill-org/alphabill/internal/errors"
 
 	"github.com/alphabill-org/alphabill/internal/util"
 )
@@ -22,7 +22,7 @@ func (x *SystemDescriptionRecord) IsValid() error {
 	}
 
 	if len(x.SystemIdentifier) != systemIdentifierLength {
-		return errors.Errorf("invalid system identifier length: expected %v, got %v", systemIdentifierLength, len(x.SystemIdentifier))
+		return fmt.Errorf("invalid system identifier length: expected %v, got %v", systemIdentifierLength, len(x.SystemIdentifier))
 	}
 	if x.T2Timeout == 0 {
 		return ErrT2TimeoutIsNil

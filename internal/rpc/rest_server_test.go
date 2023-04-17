@@ -11,6 +11,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/testutils/peer"
 	testtransaction "github.com/alphabill-org/alphabill/internal/testutils/transaction"
 	moneytesttx "github.com/alphabill-org/alphabill/internal/testutils/transaction/money"
+	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/internal/txsystem/money"
 	"github.com/ethereum/go-ethereum/metrics"
 	"github.com/stretchr/testify/require"
@@ -63,22 +64,22 @@ func TestRestServer_SubmitTransaction(t *testing.T) {
 		{
 			name:            "transfer",
 			givenAttributes: moneytesttx.RandomTransferAttributes(),
-			expectedType:    &money.TransferOrder{},
+			expectedType:    &money.TransferAttributes{},
 		},
 		{
 			name:            "split",
 			givenAttributes: moneytesttx.RandomSplitAttributes(),
-			expectedType:    &money.SplitOrder{},
+			expectedType:    &money.SplitAttributes{},
 		},
 		{
 			name:            "transferDC",
 			givenAttributes: moneytesttx.RandomTransferDCAttributes(),
-			expectedType:    &money.TransferDCOrder{},
+			expectedType:    &money.TransferDCAttributes{},
 		},
 		{
 			name:            "swap",
-			givenAttributes: moneytesttx.CreateRandomSwapAttributes(t, 2),
-			expectedType:    &money.SwapOrder{},
+			givenAttributes: moneytesttx.CreateRandomSwapDCAttributes(t, 2),
+			expectedType:    &money.SwapDCAttributes{},
 		},
 	}
 	for _, tt := range tests {
@@ -88,11 +89,11 @@ func TestRestServer_SubmitTransaction(t *testing.T) {
 			s, err := NewRESTServer(node, "", MaxBodySize, p)
 			require.NoError(t, err)
 			transaction := testtransaction.NewTransaction(t,
-				testtransaction.WithTimeout(100),
 				testtransaction.WithAttributes(tt.givenAttributes),
 				testtransaction.WithUnitId([]byte{0, 0, 0, 1}),
 				testtransaction.WithSystemID([]byte{0, 0, 0, 0}),
 				testtransaction.WithOwnerProof([]byte{0, 0, 0, 2}),
+				testtransaction.WithClientMetadata(&txsystem.ClientMetadata{Timeout: 100}),
 			)
 			message, err := protojson.MarshalOptions{EmitUnpopulated: true}.Marshal(transaction)
 			require.NoError(t, err)
@@ -109,7 +110,7 @@ func TestRestServer_SubmitTransaction(t *testing.T) {
 			require.Equal(t, transaction.SystemId, tx.SystemId)
 			require.Equal(t, transaction.UnitId, tx.UnitId)
 			require.Equal(t, transaction.OwnerProof, tx.OwnerProof)
-			require.Equal(t, transaction.Timeout, tx.Timeout)
+			require.Equal(t, transaction.Timeout(), tx.Timeout())
 
 			err = tx.TransactionAttributes.UnmarshalTo(tt.expectedType)
 			require.NoError(t, err)
@@ -161,7 +162,7 @@ func TestNewRESTServer_InvalidTx(t *testing.T) {
 
 	s.Handler.ServeHTTP(recorder, req)
 	require.Equal(t, http.StatusBadRequest, recorder.Code)
-	require.Contains(t, recorder.Body.String(), "json decode error")
+	require.Contains(t, recorder.Body.String(), "failed to decode request body as transaction")
 }
 
 func TestNewRESTServer_RequestBodyTooLarge(t *testing.T) {

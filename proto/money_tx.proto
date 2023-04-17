@@ -6,27 +6,27 @@ import "block_proof.proto";
 
 option go_package = "github.com/alphabill-org/alphabill/internal/txsystem/money/;money";
 
-message TransferOrder {
+message TransferAttributes {
   bytes new_bearer = 1;
   uint64 target_value = 2;
   bytes backlink = 3;
 }
 
-message TransferDCOrder {
+message TransferDCAttributes {
   bytes nonce = 1;
   bytes target_bearer = 2;
   uint64 target_value = 3;
   bytes backlink = 4;
 }
 
-message SplitOrder {
+message SplitAttributes {
   uint64 amount = 1;
   bytes target_bearer = 2;
   uint64 remaining_value = 3;
   bytes backlink = 4;
 }
 
-message SwapOrder {
+message SwapDCAttributes {
   bytes owner_condition = 1;
   repeated bytes bill_identifiers = 2;
   repeated Transaction dc_transfers = 3;

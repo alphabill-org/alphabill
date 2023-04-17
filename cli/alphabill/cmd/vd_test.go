@@ -100,7 +100,7 @@ func TestRunVD(t *testing.T) {
 		tx := &txsystem.Transaction{
 			UnitId:                id[:],
 			TransactionAttributes: nil,
-			Timeout:               10,
+			ClientMetadata:        &txsystem.ClientMetadata{Timeout: 10},
 			SystemId:              []byte{0, 0, 0, 1},
 		}
 

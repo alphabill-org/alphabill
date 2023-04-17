@@ -167,7 +167,7 @@ func TestNode_HandleUnicityCertificate_RevertAndStartRecovery_withNoProposal(t *
 	tp := RunSingleNodePartition(t, system)
 	bl := tp.GetLatestBlock(t)
 
-	tp.partition.startNewRound(tp.partition.luc)
+	tp.partition.startNewRound(context.Background(), tp.partition.luc.Load())
 
 	// send new UC
 	rootRound := bl.UnicityCertificate.UnicitySeal.RootChainRoundNumber
@@ -272,24 +272,24 @@ func TestNode_RecoverBlocks(t *testing.T) {
 	latestBlock, err := tp.partition.GetLatestBlock()
 	require.NoError(t, err)
 	require.True(t, proto.Equal(latestBlock, newBlock3))
-	b, err := tp.partition.GetBlock(0)
+	b, err := tp.partition.GetBlock(context.Background(), 0)
 	require.ErrorContains(t, err, "block number 0 does not exist")
 	require.Nil(t, b)
-	b, err = tp.partition.GetBlock(1)
+	b, err = tp.partition.GetBlock(context.Background(), 1)
 	require.NoError(t, err)
 	require.True(t, proto.Equal(b, genesisBlock))
-	b, err = tp.partition.GetBlock(2)
+	b, err = tp.partition.GetBlock(context.Background(), 2)
 	require.NoError(t, err)
 	require.True(t, proto.Equal(b, newBlock1))
-	b, err = tp.partition.GetBlock(3)
+	b, err = tp.partition.GetBlock(context.Background(), 3)
 	require.NoError(t, err)
 	require.True(t, proto.Equal(b, newBlock2))
-	b, err = tp.partition.GetBlock(4)
+	b, err = tp.partition.GetBlock(context.Background(), 4)
 	require.NoError(t, err)
 	require.True(t, proto.Equal(b, newBlock3))
 	require.True(t, proto.Equal(b, latestBlock))
 	// on not found nil is returned
-	b, err = tp.partition.GetBlock(5)
+	b, err = tp.partition.GetBlock(context.Background(), 5)
 	require.NoError(t, err)
 	require.Nil(t, b)
 	require.Equal(t, []byte{1, 1, 1, 1}, tp.partition.SystemIdentifier())
@@ -836,7 +836,7 @@ func TestNode_RespondToReplicationRequest(t *testing.T) {
 	tp := RunSingleNodePartition(t, &testtxsystem.CounterTxSystem{}, WithReplicationParams(3, 5))
 	genesisBlockNumber := tp.GetLatestBlock(t).UnicityCertificate.InputRecord.RoundNumber
 
-	tp.partition.startNewRound(tp.partition.luc)
+	tp.partition.startNewRound(context.Background(), tp.partition.luc.Load())
 
 	// generate 4 blocks with 3 tx each (but only 2 blocks will be matched and sent)
 	for i := 0; i < 4; i++ {
@@ -906,7 +906,7 @@ func TestNode_RespondToInvalidReplicationRequest(t *testing.T) {
 	tp := RunSingleNodePartition(t, &testtxsystem.CounterTxSystem{}, WithReplicationParams(3, 5))
 	genesisBlockNumber := tp.GetLatestBlock(t).UnicityCertificate.InputRecord.RoundNumber
 
-	tp.partition.startNewRound(tp.partition.luc)
+	tp.partition.startNewRound(context.Background(), tp.partition.luc.Load())
 
 	// generate 4 blocks with 3 tx each (but only 2 blocks will be matched and sent)
 	for i := 0; i < 4; i++ {

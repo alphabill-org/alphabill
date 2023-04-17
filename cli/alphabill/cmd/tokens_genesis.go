@@ -5,8 +5,10 @@ import (
 	"os"
 	"path/filepath"
 
+	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/errors"
 	"github.com/alphabill-org/alphabill/internal/partition"
+	"github.com/alphabill-org/alphabill/internal/txsystem/fc"
 	"github.com/alphabill-org/alphabill/internal/txsystem/tokens"
 	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/libp2p/go-libp2p/core/peer"
@@ -64,7 +66,11 @@ func utGenesisRunFun(_ context.Context, config *userTokenPartitionGenesisConfig)
 		return errors.Wrapf(err, "failed to load keys %v", config.Keys.GetKeyFileLocation())
 	}
 
-	txSystem, err := tokens.New(tokens.WithSystemIdentifier(config.SystemIdentifier))
+	txSystem, err := tokens.New(
+		tokens.WithSystemIdentifier(config.SystemIdentifier),
+		tokens.WithTrustBase(map[string]abcrypto.Verifier{"genesis": nil}),
+		tokens.WithFeeCalculator(fc.FixedFee(0)), // 0 to disable fee module
+	)
 	if err != nil {
 		return err
 	}

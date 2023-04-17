@@ -51,9 +51,9 @@
     },
     "unicity_seal": {
       "root_chain_round_number": 1,
-      "hash": "eKkS80s/JuQwbuz6Noc7hxnVfrCKOPlWdaC/w8BuHv0=",
+      "hash": "ML3JMGuE5r3UkiApNeiLocndMD+A22gfjpsUvtYzZlo=",
       "signatures": {
-        "16Uiu2HAm87wYZyJtpPuPovXRDrMpK5tWTGyLz2GKkQL8sYHD9pmm": "Rco2KggAze3y/RSyLUNBOhrSC+XzVAOnkiG6ksMbXZkDsz/frlT7IwsDiWR4z02KUHq13bVYGWrt/erkKZeSvQA="
+        "16Uiu2HAm87wYZyJtpPuPovXRDrMpK5tWTGyLz2GKkQL8sYHD9pmm": "b415dGpSUMAWtsngSqTe5UKj2/WTGlM9AZyTXXQlv7lMIJvGO/2vbmc19eFw6BhC6al4CnkxEKr1Pcf6YLJQ+gE="
       }
     }
   },

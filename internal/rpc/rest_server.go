@@ -109,25 +109,22 @@ func (s *RestServer) infoHandler(w http.ResponseWriter, _ *http.Request) {
 func (s *RestServer) submitTransaction(writer http.ResponseWriter, r *http.Request) {
 	receivedTransactionsRESTMeter.Inc(1)
 	setCorsHeaders(writer)
-	tx := &txsystem.Transaction{}
+
 	buf := new(bytes.Buffer)
-	_, err := buf.ReadFrom(r.Body)
-	if err != nil {
-		err = fmt.Errorf("reading request body failed: %w", err)
+	if _, err := buf.ReadFrom(r.Body); err != nil {
 		receivedInvalidTransactionsRESTMeter.Inc(1)
-		writeError(writer, err, http.StatusBadRequest)
+		writeError(writer, fmt.Errorf("reading request body failed: %w", err), http.StatusBadRequest)
 		return
 	}
-	bb := buf.Bytes()
-	err = protojson.Unmarshal(bb, tx)
-	if err != nil {
-		err = fmt.Errorf("json decode error: %w", err)
+
+	tx := &txsystem.Transaction{}
+	if err := protojson.Unmarshal(buf.Bytes(), tx); err != nil {
 		receivedInvalidTransactionsRESTMeter.Inc(1)
-		writeError(writer, err, http.StatusBadRequest)
+		writeError(writer, fmt.Errorf("failed to decode request body as transaction: %w", err), http.StatusBadRequest)
 		return
 	}
-	err = s.node.SubmitTx(tx)
-	if err != nil {
+
+	if err := s.node.SubmitTx(r.Context(), tx); err != nil {
 		receivedInvalidTransactionsRESTMeter.Inc(1)
 		writeError(writer, err, http.StatusBadRequest)
 		return

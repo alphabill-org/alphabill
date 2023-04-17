@@ -9,7 +9,9 @@ import (
 	"strings"
 
 	"github.com/alphabill-org/alphabill/internal/block"
+	"github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
+	"github.com/alphabill-org/alphabill/internal/txsystem/fc"
 	"github.com/alphabill-org/alphabill/internal/txsystem/tokens"
 	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/alphabill-org/alphabill/pkg/wallet/account"
@@ -59,7 +61,11 @@ func New(systemID []byte, backendUrl string, am account.Manager, confirmTx bool)
 	if err != nil {
 		return nil, err
 	}
-	txs, err := tokens.New(tokens.WithSystemIdentifier(systemID))
+	txs, err := tokens.New(
+		tokens.WithSystemIdentifier(systemID),
+		tokens.WithTrustBase(map[string]crypto.Verifier{"test": nil}),
+		tokens.WithFeeCalculator(fc.FixedFee(0)), // 0 to disable fee module
+	)
 	if err != nil {
 		return nil, err
 	}

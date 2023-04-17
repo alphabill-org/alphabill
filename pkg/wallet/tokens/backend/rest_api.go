@@ -262,9 +262,9 @@ func (api *restAPI) saveTxs(ctx context.Context, txs []*txsystem.Transaction, ow
 		}(tx)
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	semCtx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
-	if err := sem.Acquire(ctx, maxWorkers); err != nil {
+	if err := sem.Acquire(semCtx, maxWorkers); err != nil {
 		m.Lock()
 		errs["waiting-for-workers"] = err.Error()
 		m.Unlock()

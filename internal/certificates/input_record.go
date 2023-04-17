@@ -32,11 +32,12 @@ func NewRepeatInputRecord(lastIR *InputRecord) (*InputRecord, error) {
 		return nil, ErrInputRecordIsNil
 	}
 	return &InputRecord{
-		PreviousHash: lastIR.Hash,
-		Hash:         lastIR.Hash,
-		BlockHash:    make([]byte, len(lastIR.BlockHash)),
-		SummaryValue: lastIR.SummaryValue,
-		RoundNumber:  lastIR.RoundNumber + 1,
+		PreviousHash:    lastIR.Hash,
+		Hash:            lastIR.Hash,
+		BlockHash:       make([]byte, len(lastIR.BlockHash)),
+		SummaryValue:    lastIR.SummaryValue,
+		RoundNumber:     lastIR.RoundNumber + 1,
+		SumOfEarnedFees: lastIR.SumOfEarnedFees,
 	}, nil
 }
 
@@ -54,7 +55,6 @@ func (x *InputRecord) IsValid() error {
 		return ErrPreviousHashIsNil
 	}
 	if x.SummaryValue == nil {
-
 		return ErrSummaryValueIsNil
 	}
 	if x.RoundNumber == 0 {
@@ -74,5 +74,6 @@ func (x *InputRecord) Bytes() []byte {
 	b.Write(x.BlockHash)
 	b.Write(x.SummaryValue)
 	b.Write(util.Uint64ToBytes(x.RoundNumber))
+	b.Write(util.Uint64ToBytes(x.SumOfEarnedFees))
 	return b.Bytes()
 }

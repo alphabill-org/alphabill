@@ -21,7 +21,7 @@ func TestBlockCertificationRequest_IsValid_VerifierIsNil(t *testing.T) {
 		NodeIdentifier:   "1",
 		InputRecord:      &certificates.InputRecord{},
 	}
-	require.ErrorIs(t, p1.IsValid(nil), ErrVerifierIsNil)
+	require.ErrorIs(t, p1.IsValid(nil), errVerifierIsNil)
 }
 
 func TestBlockCertificationRequest_IsValid_InvalidSystemIdentifier(t *testing.T) {
@@ -31,7 +31,7 @@ func TestBlockCertificationRequest_IsValid_InvalidSystemIdentifier(t *testing.T)
 		NodeIdentifier:   "11",
 		InputRecord:      &certificates.InputRecord{},
 	}
-	require.ErrorIs(t, p1.IsValid(verifier), ErrInvalidSystemIdentifierLength)
+	require.ErrorIs(t, p1.IsValid(verifier), errInvalidSystemIdentifierLength)
 }
 
 func TestBlockCertificationRequest_IsValid_EmptyNodeIdentifier(t *testing.T) {
@@ -41,7 +41,7 @@ func TestBlockCertificationRequest_IsValid_EmptyNodeIdentifier(t *testing.T) {
 		NodeIdentifier:   "",
 		InputRecord:      &certificates.InputRecord{},
 	}
-	require.ErrorIs(t, p1.IsValid(verifier), ErrEmptyNodeIdentifier)
+	require.ErrorIs(t, p1.IsValid(verifier), errEmptyNodeIdentifier)
 }
 
 func TestBlockCertificationRequest_IsValid_InvalidInputRecord(t *testing.T) {

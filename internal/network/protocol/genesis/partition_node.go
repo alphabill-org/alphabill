@@ -1,8 +1,10 @@
 package genesis
 
 import (
+	"errors"
+	"fmt"
+
 	"github.com/alphabill-org/alphabill/internal/crypto"
-	"github.com/alphabill-org/alphabill/internal/errors"
 )
 
 var (
@@ -24,17 +26,16 @@ func (x *PartitionNode) IsValid() error {
 	}
 	signingPubKey, err := crypto.NewVerifierSecp256k1(x.SigningPublicKey)
 	if err != nil {
-		return err
+		return fmt.Errorf("invalid signing public key, %w", err)
 	}
 	if len(x.EncryptionPublicKey) == 0 {
 		return ErrEncryptionPublicKeyIsInvalid
 	}
-	_, err = crypto.NewVerifierSecp256k1(x.EncryptionPublicKey)
-	if err != nil {
-		return err
+	if _, err = crypto.NewVerifierSecp256k1(x.EncryptionPublicKey); err != nil {
+		return fmt.Errorf("invalid encryption public key, %w", err)
 	}
-	if err := x.BlockCertificationRequest.IsValid(signingPubKey); err != nil {
-		return err
+	if err = x.BlockCertificationRequest.IsValid(signingPubKey); err != nil {
+		return fmt.Errorf("block certification request validation failed, %w", err)
 	}
 	return nil
 }
@@ -49,19 +50,19 @@ func nodesUnique(x []*PartitionNode) error {
 		}
 		id := node.NodeIdentifier
 		if _, f := ids[id]; f {
-			return errors.Errorf("duplicated node id: %v", id)
+			return fmt.Errorf("duplicated node id: %v", id)
 		}
 		ids[id] = id
 
 		signingPubKey := string(node.SigningPublicKey)
 		if _, f := signingKeys[signingPubKey]; f {
-			return errors.Errorf("duplicated node signing public key: %X", node.SigningPublicKey)
+			return fmt.Errorf("duplicated node signing public key: %X", node.SigningPublicKey)
 		}
 		signingKeys[signingPubKey] = node.SigningPublicKey
 
 		encPubKey := string(node.EncryptionPublicKey)
 		if _, f := encryptionKeys[encPubKey]; f {
-			return errors.Errorf("duplicated node encryption public key: %X", node.EncryptionPublicKey)
+			return fmt.Errorf("duplicated node encryption public key: %X", node.EncryptionPublicKey)
 		}
 		encryptionKeys[encPubKey] = node.EncryptionPublicKey
 	}

@@ -550,21 +550,26 @@ func (n *Node) handleBlockProposal(ctx context.Context, prop *blockproposal.Bloc
 	return nil
 }
 
-func (n *Node) updateLUC(uc *certificates.UnicityCertificate) {
+func (n *Node) updateLUC(uc *certificates.UnicityCertificate) error {
 	luc := n.luc.Load()
-	if luc != nil && uc.GetRoundNumber() <= luc.GetRoundNumber() {
-		logger.Debug("Update LUC, received UC ignored already have latest, LUC round %v received UC round %v",
+	// Unicity Certificate GetRoundNumber function handles nil pointer and returns 0 if either UC is nil or
+	// input record is nil. More importantly we should not get here if UC is nil
+	if uc.GetRoundNumber() < luc.GetRoundNumber() {
+		return fmt.Errorf("received stale unicity certificate, current uc round %d, received uc round %d",
 			luc.GetRoundNumber(), uc.GetRoundNumber())
-		return
 	}
 	if n.luc.CompareAndSwap(luc, uc) {
 		logger.Debug("Updated LUC, round: %v", uc.GetRoundNumber())
 		n.sendEvent(event.LatestUnicityCertificateUpdated, uc)
 	}
+	return nil
 }
 
 func (n *Node) startNewRound(ctx context.Context, uc *certificates.UnicityCertificate) {
-	n.updateLUC(uc)
+	if err := n.updateLUC(uc); err != nil {
+		logger.Warning("Start new round unicity certificate update failed, %v", err)
+		return
+	}
 	if n.status == recovering {
 		logger.Info("Node is recovered until block %v", uc.InputRecord.RoundNumber)
 		n.sendEvent(event.RecoveryFinished, uc.InputRecord.RoundNumber)
@@ -586,7 +591,10 @@ func (n *Node) startNewRound(ctx context.Context, uc *certificates.UnicityCertif
 
 func (n *Node) startRecovery(uc *certificates.UnicityCertificate) {
 	// always update last UC seen, this is needed to evaluate if node has recovered and is up-to-date
-	n.updateLUC(uc)
+	if err := n.updateLUC(uc); err != nil {
+		logger.Warning("Start recovery unicity certificate update failed, %v", err)
+		return
+	}
 	luc := n.luc.Load()
 	if n.status == recovering {
 		// already recovering, but if uc is newer than luc, let's update luc

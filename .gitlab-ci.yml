@@ -4,7 +4,7 @@ stages:
   - build
   - analyze
 
-image: $CI_REGISTRY/alphabill/gitlab-ci-image:585921e2
+image: $CI_REGISTRY/alphabill/gitlab-ci-image:4b1c3577
 
 # Debugging info and initialization goes here
 init:

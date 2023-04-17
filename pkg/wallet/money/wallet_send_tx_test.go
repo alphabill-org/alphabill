@@ -207,14 +207,26 @@ func TestWalletSendFunction_WaitForMultipleTxConfirmationsInDifferentBlocks(t *t
 func TestWalletSendFunction_ErrTxFailedToConfirm(t *testing.T) {
 	pubKey := make([]byte, 33)
 	b := addBill(1)
-	w, mockClient := CreateTestWallet(t, withBackendMock(t, &backendMockReturnConf{balance: 10, billId: b.Id, billValue: b.Value}))
 
-	for i := 0; i <= txTimeoutBlockCount; i++ {
-		mockClient.SetBlock(&block.Block{BlockNumber: uint64(i)})
+	var mockClient *clientmock.MockAlphabillClient
+	backend := &backendAPIMock{
+		getBalance: func(pubKey []byte, includeDCBills bool) (uint64, error) {
+			return 100, nil
+		},
+		getBlockHeight: func() (uint64, error) {
+			if len(mockClient.GetRecordedTransactions()) == 0 {
+				return 0, nil
+			}
+			return 2 * txTimeoutBlockCount, nil
+		},
+		listBills: func(pubKey []byte) (*money.ListBillsResponse, error) {
+			return createBillListResponse([]*Bill{b}), nil
+		},
 	}
+	w, mockClient := CreateTestWallet(t, backend)
 
 	_, err := w.Send(context.Background(), SendCmd{ReceiverPubKey: pubKey, Amount: b.Value, WaitForConfirmation: true})
-	require.ErrorIs(t, err, ErrTxFailedToConfirm)
+	require.ErrorContains(t, err, "confirmation timeout")
 }
 
 func TestWholeBalanceIsSentUsingBillTransferOrder(t *testing.T) {

@@ -2,9 +2,11 @@ package client
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
+	"net/http/httputil"
 	"net/url"
 	"strings"
 	"time"
@@ -20,6 +22,8 @@ type (
 	MoneyBackendClient struct {
 		BaseUrl    string
 		HttpClient http.Client
+
+		feeCreditBillURL string
 	}
 )
 
@@ -28,6 +32,7 @@ const (
 	ListBillsPath   = "api/v1/list-bills"
 	ProofPath       = "api/v1/proof"
 	BlockHeightPath = "api/v1/round-number"
+	FeeCreditPath   = "api/v1/fee-credit-bill"
 
 	balanceUrlFormat     = "%v/%v?pubkey=%v&includedcbills=%v"
 	listBillsUrlFormat   = "%v/%v?pubkey=%v"
@@ -39,6 +44,10 @@ const (
 	applicationJson = "application/json"
 )
 
+var (
+	ErrMissingFeeCreditBill = errors.New("fee credit bill does not exist 123")
+)
+
 func NewClient(baseUrl string) (*MoneyBackendClient, error) {
 	if !strings.HasPrefix(baseUrl, "http://") && !strings.HasPrefix(baseUrl, "https://") {
 		baseUrl = defaultScheme + baseUrl
@@ -47,7 +56,12 @@ func NewClient(baseUrl string) (*MoneyBackendClient, error) {
 	if err != nil {
 		return nil, fmt.Errorf("error parsing Money Backend Client base URL (%s): %w", baseUrl, err)
 	}
-	return &MoneyBackendClient{u.String(), http.Client{Timeout: time.Minute}}, nil
+	feeCreditURL := u.JoinPath(FeeCreditPath)
+	return &MoneyBackendClient{
+		BaseUrl:          u.String(),
+		HttpClient:       http.Client{Timeout: time.Minute},
+		feeCreditBillURL: feeCreditURL.String(),
+	}, nil
 }
 
 func (c *MoneyBackendClient) GetBalance(pubKey []byte, includeDCBills bool) (uint64, error) {
@@ -148,6 +162,42 @@ func (c *MoneyBackendClient) GetBlockHeight() (uint64, error) {
 		return 0, fmt.Errorf("failed to unmarshall GetBlockHeight response data: %w", err)
 	}
 	return responseObject.RoundNumber, nil
+}
+
+func (c *MoneyBackendClient) GetFeeCreditBill(unitID []byte) (*bp.Bill, error) {
+	req, err := http.NewRequest(http.MethodGet, c.feeCreditBillURL, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to build get fee credit request: %w", err)
+	}
+	req.Header.Set(contentType, applicationJson)
+
+	// set bill_id query param
+	params := url.Values{}
+	params.Add("bill_id", hexutil.Encode(unitID))
+	req.URL.RawQuery = params.Encode()
+
+	response, err := c.HttpClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("request get fee credit failed: %w", err)
+	}
+	if response.StatusCode != http.StatusOK {
+		if response.StatusCode == http.StatusNotFound {
+			return nil, ErrMissingFeeCreditBill
+		}
+		responseStr, _ := httputil.DumpResponse(response, true)
+		return nil, fmt.Errorf("unexpected response: %s", responseStr)
+	}
+
+	responseData, err := io.ReadAll(response.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read get get credit bill response: %w", err)
+	}
+	var res bp.Bill
+	err = protojson.Unmarshal(responseData, &res)
+	if err != nil {
+		return nil, fmt.Errorf("failed to unmarshall get fee credit bill response data: %w", err)
+	}
+	return &res, nil
 }
 
 func (c *MoneyBackendClient) retrieveBills(pubKey []byte, offset int) (*money.ListBillsResponse, error) {

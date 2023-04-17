@@ -68,7 +68,7 @@ func TestWalletBackend_BillsCanBeIndexedByPredicates(t *testing.T) {
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	t.Cleanup(cancelFunc)
 	go func() {
-		bp := NewBlockProcessor(storage, NewTxConverter([]byte{0, 0, 0, 0}), true)
+		bp := NewBlockProcessor(storage, NewTxConverter([]byte{0, 0, 0, 0}))
 		err := runBlockSync(ctx, abclient.GetBlocks, getBlockNumber, 100, bp.ProcessBlock)
 		require.ErrorIs(t, err, context.Canceled)
 	}()

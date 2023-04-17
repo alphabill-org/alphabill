@@ -8,8 +8,10 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/alphabill-org/alphabill/pkg/wallet/backend/bp"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/encoding/protojson"
 )
 
 const pubKeyHex = "0x038003e218eea360cbf580ebb90cc8c8caf0ccef4bf660ea9ab4fc06b5c367b038"
@@ -120,6 +122,16 @@ func Test_NewClient(t *testing.T) {
 	})
 }
 
+func TestGetFeeCreditBill(t *testing.T) {
+	serverURL := mockGetFeeCreditBillCall(t)
+	restClient, _ := NewClient(serverURL.Host)
+	response, err := restClient.GetFeeCreditBill([]byte{})
+	require.NoError(t, err)
+
+	expectedBillID, _ := base64.StdEncoding.DecodeString(billId)
+	require.EqualValues(t, expectedBillID, response.Id)
+}
+
 func mockGetBalanceCall(t *testing.T) (*httptest.Server, *url.URL) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != ("/" + BalancePath) {
@@ -189,4 +201,29 @@ func mockGetBlockHeightCall(t *testing.T) (*httptest.Server, *url.URL) {
 
 	serverAddress, _ := url.Parse(server.URL)
 	return server, serverAddress
+}
+
+func mockGetFeeCreditBillCall(t *testing.T) *url.URL {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !strings.HasPrefix(r.URL.Path, "/"+FeeCreditPath) {
+			t.Errorf("Expected to request '%v', got: %s", ProofPath, r.URL.Path)
+		}
+		w.WriteHeader(http.StatusOK)
+		w.Write(getFeeCreditBillJsonBytes())
+	}))
+	t.Cleanup(server.Close)
+	serverURL, _ := url.Parse(server.URL)
+	return serverURL
+}
+
+func getFeeCreditBillJsonBytes() []byte {
+	unitID, _ := base64.StdEncoding.DecodeString(billId)
+	res := &bp.Bill{
+		Id:            unitID,
+		Value:         10,
+		TxHash:        []byte{1},
+		FcBlockNumber: 100,
+	}
+	jsonBytes, _ := protojson.Marshal(res)
+	return jsonBytes
 }

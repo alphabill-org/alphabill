@@ -104,23 +104,16 @@ func createProof(unitID []byte, tx *txsystem.Transaction, b *block.Block, txc *T
 	return NewBlockProof(tx, proof, b.UnicityCertificate.InputRecord.RoundNumber)
 }
 
-func (b *Bill) getTxHash() []byte {
+func (b *Bill) GetTxHash() []byte {
 	if b != nil {
 		return b.TxHash
 	}
 	return nil
 }
 
-func (b *Bill) getValue() uint64 {
+func (b *Bill) GetValue() uint64 {
 	if b != nil {
 		return b.Value
-	}
-	return 0
-}
-
-func (b *Bill) getFCBlockNumber() uint64 {
-	if b != nil {
-		return b.FCBlockNumber
 	}
 	return 0
 }

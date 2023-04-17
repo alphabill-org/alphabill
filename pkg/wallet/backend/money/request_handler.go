@@ -271,7 +271,7 @@ func (s *RequestHandler) getFeeCreditBillFunc(w http.ResponseWriter, r *http.Req
 	}
 	if fcb == nil {
 		log.Debug("error on GET /fee-credit-bill: ", err)
-		w.WriteHeader(http.StatusBadRequest)
+		w.WriteHeader(http.StatusNotFound)
 		writeAsJson(w, ErrorResponse{Message: "fee credit bill does not exist"})
 		return
 	}

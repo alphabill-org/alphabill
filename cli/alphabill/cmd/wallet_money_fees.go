@@ -11,6 +11,11 @@ import (
 	"github.com/alphabill-org/alphabill/pkg/wallet/money"
 )
 
+const (
+	apiUsage  = "wallet backend API URL"
+	nodeUsage = "alphabill node URL"
+)
+
 // newWalletFeesCmd creates a new cobra command for the wallet fees component.
 func newWalletFeesCmd(ctx context.Context, config *walletConfig) *cobra.Command {
 	var cmd = &cobra.Command{
@@ -20,7 +25,7 @@ func newWalletFeesCmd(ctx context.Context, config *walletConfig) *cobra.Command 
 			consoleWriter.Println("Error: must specify a subcommand")
 		},
 	}
-	cmd.AddCommand(listFeesCmd(config))
+	cmd.AddCommand(listFeesCmd(ctx, config))
 	cmd.AddCommand(addFeeCreditCmd(ctx, config))
 	cmd.AddCommand(reclaimFeeCreditCmd(ctx, config))
 	return cmd
@@ -35,23 +40,22 @@ func addFeeCreditCmd(ctx context.Context, config *walletConfig) *cobra.Command {
 		},
 	}
 	cmd.Flags().Uint64P(keyCmdName, "k", 1, "specifies to which account to add the fee credit")
-	cmd.Flags().Uint64P(amountCmdName, "v", 100, "specifies how much fee credit to create")
-	cmd.Flags().StringP(alphabillNodeURLCmdName, "u", alphabillNodeURLCmdName, "node url")
-	cmd.Flags().StringP(alphabillApiURLCmdName, "r", alphabillApiURLCmdName, "alphabill API uri to connect to")
+	cmd.Flags().StringP(amountCmdName, "v", "1", "specifies how much fee credit to create in ALPHA")
+	cmd.Flags().StringP(alphabillApiURLCmdName, "r", defaultAlphabillApiURL, apiUsage)
+	cmd.Flags().StringP(alphabillNodeURLCmdName, "u", defaultAlphabillNodeURL, nodeUsage)
 	return cmd
 }
 
 func addFeeCreditCmdExec(ctx context.Context, cmd *cobra.Command, config *walletConfig) error {
-	nodeUrl, err := cmd.Flags().GetString(alphabillNodeURLCmdName)
+	nodeURL, err := cmd.Flags().GetString(alphabillNodeURLCmdName)
 	if err != nil {
 		return err
 	}
-	apiUrl, err := cmd.Flags().GetString(alphabillApiURLCmdName)
+	apiURL, err := cmd.Flags().GetString(alphabillApiURLCmdName)
 	if err != nil {
 		return err
 	}
-
-	restClient, err := moneyclient.NewClient(apiUrl)
+	restClient, err := moneyclient.NewClient(apiURL)
 	if err != nil {
 		return err
 	}
@@ -61,7 +65,7 @@ func addFeeCreditCmdExec(ctx context.Context, cmd *cobra.Command, config *wallet
 	}
 	defer am.Close()
 
-	w, err := money.LoadExistingWallet(client.AlphabillClientConfig{Uri: nodeUrl}, am, restClient)
+	w, err := money.LoadExistingWallet(client.AlphabillClientConfig{Uri: nodeURL}, am, restClient)
 	if err != nil {
 		return err
 	}
@@ -71,7 +75,11 @@ func addFeeCreditCmdExec(ctx context.Context, cmd *cobra.Command, config *wallet
 	if err != nil {
 		return err
 	}
-	amount, err := cmd.Flags().GetUint64(amountCmdName)
+	amountString, err := cmd.Flags().GetString(amountCmdName)
+	if err != nil {
+		return err
+	}
+	amount, err := stringToAmount(amountString, 8)
 	if err != nil {
 		return err
 	}
@@ -82,29 +90,25 @@ func addFeeCreditCmdExec(ctx context.Context, cmd *cobra.Command, config *wallet
 	if err != nil {
 		return err
 	}
-	consoleWriter.Println("Successfully created", amount, "fee credits.")
+	consoleWriter.Println("Successfully created", amountString, "fee credits.")
 	return nil
 }
 
-func listFeesCmd(config *walletConfig) *cobra.Command {
+func listFeesCmd(ctx context.Context, config *walletConfig) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "list",
 		Short: "lists fee credit of the wallet",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return listFeesCmdExec(cmd, config)
+			return listFeesCmdExec(ctx, cmd, config)
 		},
 	}
 	cmd.Flags().Uint64P(keyCmdName, "k", 0, "specifies which account fee bills to list (default: all accounts)")
+	cmd.Flags().StringP(alphabillApiURLCmdName, "r", defaultAlphabillApiURL, apiUsage)
 	return cmd
 }
 
-func listFeesCmdExec(cmd *cobra.Command, config *walletConfig) error {
+func listFeesCmdExec(_ context.Context, cmd *cobra.Command, config *walletConfig) error {
 	accountNumber, err := cmd.Flags().GetUint64(keyCmdName)
-	if err != nil {
-		return err
-	}
-
-	nodeUrl, err := cmd.Flags().GetString(alphabillNodeURLCmdName)
 	if err != nil {
 		return err
 	}
@@ -122,7 +126,7 @@ func listFeesCmdExec(cmd *cobra.Command, config *walletConfig) error {
 	}
 	defer am.Close()
 
-	w, err := money.LoadExistingWallet(client.AlphabillClientConfig{Uri: nodeUrl}, am, restClient)
+	w, err := money.LoadExistingWallet(client.AlphabillClientConfig{}, am, restClient)
 	if err != nil {
 		return err
 	}
@@ -139,7 +143,8 @@ func listFeesCmdExec(cmd *cobra.Command, config *walletConfig) error {
 				return err
 			}
 			accNum := accountIndex + 1
-			consoleWriter.Println(fmt.Sprintf("Account #%d %d", accNum, getValue(fcb)))
+			amountString := amountToString(fcb.GetValue(), 8)
+			consoleWriter.Println(fmt.Sprintf("Account #%d %s", accNum, amountString))
 		}
 	} else {
 		accountIndex := accountNumber - 1
@@ -147,7 +152,8 @@ func listFeesCmdExec(cmd *cobra.Command, config *walletConfig) error {
 		if err != nil {
 			return err
 		}
-		consoleWriter.Println(fmt.Sprintf("Account #%d %d", accountNumber, getValue(fcb)))
+		amountString := amountToString(fcb.GetValue(), 8)
+		consoleWriter.Println(fmt.Sprintf("Account #%d %s", accountNumber, amountString))
 	}
 	return nil
 }
@@ -161,21 +167,21 @@ func reclaimFeeCreditCmd(ctx context.Context, config *walletConfig) *cobra.Comma
 		},
 	}
 	cmd.Flags().Uint64P(keyCmdName, "k", 1, "specifies to which account to reclaim the fee credit")
-	cmd.Flags().StringP(alphabillNodeURLCmdName, "u", alphabillNodeURLCmdName, "node url")
-	cmd.Flags().StringP(alphabillApiURLCmdName, "r", alphabillApiURLCmdName, "alphabill API uri to connect to")
+	cmd.Flags().StringP(alphabillApiURLCmdName, "r", defaultAlphabillApiURL, apiUsage)
+	cmd.Flags().StringP(alphabillNodeURLCmdName, "u", defaultAlphabillNodeURL, nodeUsage)
 	return cmd
 }
 
 func reclaimFeeCreditCmdExec(ctx context.Context, cmd *cobra.Command, config *walletConfig) error {
-	nodeUrl, err := cmd.Flags().GetString(alphabillNodeURLCmdName)
+	nodeURL, err := cmd.Flags().GetString(alphabillNodeURLCmdName)
 	if err != nil {
 		return err
 	}
-	apiUrl, err := cmd.Flags().GetString(alphabillApiURLCmdName)
+	apiURL, err := cmd.Flags().GetString(alphabillApiURLCmdName)
 	if err != nil {
 		return err
 	}
-	restClient, err := moneyclient.NewClient(apiUrl)
+	restClient, err := moneyclient.NewClient(apiURL)
 	if err != nil {
 		return err
 	}
@@ -185,7 +191,7 @@ func reclaimFeeCreditCmdExec(ctx context.Context, cmd *cobra.Command, config *wa
 	}
 	defer am.Close()
 
-	w, err := money.LoadExistingWallet(client.AlphabillClientConfig{Uri: nodeUrl}, am, restClient)
+	w, err := money.LoadExistingWallet(client.AlphabillClientConfig{Uri: nodeURL}, am, restClient)
 	if err != nil {
 		return err
 	}
@@ -203,11 +209,4 @@ func reclaimFeeCreditCmdExec(ctx context.Context, cmd *cobra.Command, config *wa
 	}
 	consoleWriter.Println("Successfully reclaimed fee credits.")
 	return nil
-}
-
-func getValue(b *money.Bill) uint64 {
-	if b != nil {
-		return b.Value
-	}
-	return 0
 }

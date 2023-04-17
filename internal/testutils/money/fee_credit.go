@@ -15,7 +15,7 @@ import (
 
 var (
 	FCRID     = uint256.NewInt(88)
-	FCRAmount = uint64(100)
+	FCRAmount = uint64(1e8)
 )
 
 // CreateFeeCredit creates fee credit to be able to spend initial bill

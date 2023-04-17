@@ -38,6 +38,7 @@ type (
 		customPath     string
 		customFullPath string
 		customResponse string
+		feeCreditBill  *bp.Bill
 	}
 )
 
@@ -103,6 +104,10 @@ func mockBackendCalls(br *backendMockReturnConf) (*httptest.Server, *url.URL) {
 				} else {
 					w.Write([]byte(fmt.Sprintf(`{"total": 1, "bills": [{"id":"%s","value":"%d","txHash":"%s","isDcBill":false}]}`, toBillId(br.billId), br.billValue, br.billTxHash)))
 				}
+			case "/" + testclient.FeeCreditPath:
+				w.WriteHeader(http.StatusOK)
+				fcb, _ := protojson.Marshal(br.feeCreditBill)
+				w.Write(fcb)
 			default:
 				w.WriteHeader(http.StatusNotFound)
 			}

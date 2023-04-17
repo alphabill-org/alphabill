@@ -204,7 +204,6 @@ func initState(n *Node) (err error) {
 		if err = n.blockStore.Write(util.Uint64ToBytes(pgenesis.PartitionRoundNumber), genesisBlock); err != nil {
 			return fmt.Errorf("init failed to persist genesis block, %w", err)
 		}
-		n.transactionSystem.Commit() // commit everything from the genesis
 		// set luc to last known uc
 		n.luc.Store(genesisBlock.UnicityCertificate)
 		n.lastStoredBlock = genesisBlock

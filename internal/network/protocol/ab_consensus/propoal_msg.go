@@ -43,7 +43,7 @@ func (x *ProposalMsg) Sign(signer crypto.Signer) error {
 		return errSignerIsNil
 	}
 	if err := x.Block.IsValid(); err != nil {
-		return err
+		return fmt.Errorf("block validation failed, %w", err)
 	}
 	hash, err := x.Block.Hash(gocrypto.SHA256)
 	if err != nil {

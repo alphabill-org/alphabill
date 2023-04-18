@@ -57,13 +57,13 @@ func (x *BlockData) IsValid() error {
 	}
 	// does not verify request signatures, this will need to be done later
 	if err := x.Payload.IsValid(); err != nil {
-		return err
+		return fmt.Errorf("payload validation failed, %w", err)
 	}
 	if x.Qc == nil {
 		return errMissingQuorumCertificate
 	}
 	if err := x.Qc.IsValid(); err != nil {
-		return err
+		return fmt.Errorf("quorum certificate validation failed, %w", err)
 	}
 	if x.Round <= x.Qc.VoteInfo.RoundNumber {
 		return fmt.Errorf("invalid block round: round %v is not bigger than last qc round %v", x.Round, x.Qc.VoteInfo.RoundNumber)
@@ -73,17 +73,17 @@ func (x *BlockData) IsValid() error {
 
 func (x *BlockData) Verify(quorum uint32, rootTrust map[string]crypto.Verifier) error {
 	if err := x.IsValid(); err != nil {
-		return err
+		return fmt.Errorf("block data validation failed, %w", err)
 	}
 	if err := x.Qc.Verify(quorum, rootTrust); err != nil {
-		return err
+		return fmt.Errorf("block data quorum certificate validation failed, %w", err)
 	}
 	return nil
 }
 
 func (x *BlockData) Hash(algo gocrypto.Hash) ([]byte, error) {
 	if err := x.IsValid(); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("block data validation failed, %w", err)
 	}
 	hasher := algo.New()
 	// Block ID is defined as block hash, so hence it is not included

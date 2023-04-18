@@ -19,7 +19,7 @@ func (x *VoteMsg) Sign(signer crypto.Signer) error {
 	}
 	signature, err := signer.SignBytes(x.LedgerCommitInfo.Bytes())
 	if err != nil {
-		return err
+		return fmt.Errorf("vote sign failed, %w", err)
 	}
 	x.Signature = signature
 	return nil

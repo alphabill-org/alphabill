@@ -33,10 +33,10 @@ func NewQuorumCertificate(voteInfo *certificates.RootRoundInfo, commitHash []byt
 }
 
 func (x *QuorumCert) GetRound() uint64 {
-	if x == nil || x.VoteInfo == nil {
-		return 0
+	if x != nil {
+		return x.VoteInfo.GetRoundNumber()
 	}
-	return x.VoteInfo.RoundNumber
+	return 0
 }
 
 func (x *QuorumCert) IsValid() error {

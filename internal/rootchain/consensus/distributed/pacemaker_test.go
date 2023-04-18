@@ -182,7 +182,7 @@ func TestRoundState_OddRoundCalcTimeTilProposal(t *testing.T) {
 	const lastCommittedRound = uint64(2)
 	pacemaker := NewPacemaker(lastCommittedRound, testLocalTimeout, testBlockRate)
 	require.Equal(t, uint64(3), pacemaker.GetCurrentRound())
-	timeout := pacemaker.CalcTimeTilNextProposal(2)
+	timeout := pacemaker.CalcTimeTilNextProposal()
 	// symmetric delay (half of block rate) in each view/round
 	// subtract some small amount of time to reduce race
 	// expected delay is bigger than 495 ms when half of block rate is 500 ms
@@ -195,7 +195,7 @@ func TestRoundState_EvenRoundCalcTimeTilProposal(t *testing.T) {
 	const lastCommittedRound = uint64(1)
 	pacemaker := NewPacemaker(lastCommittedRound, testLocalTimeout, testBlockRate)
 	require.Equal(t, uint64(2), pacemaker.GetCurrentRound())
-	timeout := pacemaker.CalcTimeTilNextProposal(3)
+	timeout := pacemaker.CalcTimeTilNextProposal()
 	// symmetric delay (half of block rate) in each view/round
 	// subtract some small amount of time to reduce race
 	// expected delay is bigger than 495 ms when half of block rate is 500 ms

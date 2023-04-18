@@ -280,7 +280,7 @@ func (x *ConsensusManager) onPartitionIRChangeReq(req *consensus.IRChangeRequest
 	// are we the next leader or leader in current round waiting/throttling to send proposal
 	nextRound := x.pacemaker.GetCurrentRound() + 1
 	nextLeader := x.leaderSelector.GetLeaderForRound(nextRound)
-	if x.leaderSelector.GetLeaderForRound(nextRound) == x.peer.ID() || x.waitPropose == true {
+	if x.leaderSelector.GetLeaderForRound(nextRound) == x.peer.ID() || x.waitPropose {
 		// store the request in local buffer
 		x.onIRChange(irReq)
 		return
@@ -377,11 +377,11 @@ func (x *ConsensusManager) onVoteMsg(vote *ab_consensus.VoteMsg) {
 	logger.Debug("%v round %v quorum achieved", x.peer.String(), vote.VoteInfo.RoundNumber)
 	// since the root chain must not run faster than block-rate, calculate
 	// time from last proposal and see if we need to wait
-	slowDownTime := x.pacemaker.CalcTimeTilNextProposal(x.pacemaker.GetCurrentRound() + 1)
+	slowDownTime := x.pacemaker.CalcTimeTilNextProposal()
 	// advance view/round on QC
 	x.processQC(qc)
 	if slowDownTime > 0 {
-		logger.Trace("%v round %v node %v wait %v before proposing",
+		logger.Debug("%v round %v node %v wait %v before proposing",
 			x.peer.String(), x.pacemaker.GetCurrentRound(), x.peer.ID().String(), slowDownTime)
 		x.waitPropose = true
 		x.timers.Start(blockRateID, slowDownTime)

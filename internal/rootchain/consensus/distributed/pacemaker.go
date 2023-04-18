@@ -83,29 +83,60 @@ func (x *Pacemaker) GetCurrentRound() uint64 {
 	return x.currentRound
 }
 
+// SetVoted - remember vote sent in this view
 func (x *Pacemaker) SetVoted(vote *ab_consensus.VoteMsg) {
 	if vote.VoteInfo.RoundNumber == x.currentRound {
 		x.voteSent = vote
 	}
 }
 
+// GetVoted - has the node voted in this round, returns either vote or nil
+func (x *Pacemaker) GetVoted() *ab_consensus.VoteMsg {
+	return x.voteSent
+}
+
+// SetTimeoutVote - remember timeout vote sent in this view
 func (x *Pacemaker) SetTimeoutVote(vote *ab_consensus.TimeoutMsg) {
 	if vote.Timeout.Round == x.currentRound {
 		x.timeoutVote = vote
 	}
 }
 
-func (x *Pacemaker) GetVoted() *ab_consensus.VoteMsg {
-	return x.voteSent
-}
+// GetTimeoutVote - has the node voted for timeout in this round, returns either vote or nil
 func (x *Pacemaker) GetTimeoutVote() *ab_consensus.TimeoutMsg {
 	return x.timeoutVote
 }
 
+// GetRoundTimeout - get round local timeout
 func (x *Pacemaker) GetRoundTimeout() time.Duration {
 	return x.roundTimeout.Sub(time.Now())
 }
 
+// CalcTimeTilNextProposal calculates delay for next round symmetrically, no round
+// should take less than half of block rate - two consecutive rounds not less than block rate
+func (x *Pacemaker) CalcTimeTilNextProposal() time.Duration {
+	//symmetric delay
+	now := time.Now()
+	if now.Sub(x.lastViewChange) >= x.blockRate/2 {
+		return 0
+	}
+	return x.lastViewChange.Add(x.blockRate / 2).Sub(now)
+}
+
+/*
+// CalcAsyncTimeTilNextProposal - delays every second round, 2 consecutive rounds
+// must never be faster that block rate.
+func (x *Pacemaker) CalcAsyncTimeTilNextProposal(round uint64) time.Duration {
+	now := time.Now()
+	// according to spec. in case of 2-chain-rule finality the wait is every 2nd block
+	if now.Sub(x.lastViewChange) >= time.Duration(round%2)*x.blockRate {
+		return 0
+	}
+	return x.lastViewChange.Add(x.blockRate).Sub(now)
+}
+*/
+
+// RegisterVote - register vote from another root node, this node is the leader and assembles votes for quorum certificate
 func (x *Pacemaker) RegisterVote(vote *ab_consensus.VoteMsg, quorum QuorumInfo) *ab_consensus.QuorumCert {
 	// If the vote is not about the current round then ignore
 	if vote.VoteInfo.RoundNumber != x.currentRound {
@@ -121,22 +152,8 @@ func (x *Pacemaker) RegisterVote(vote *ab_consensus.VoteMsg, quorum QuorumInfo) 
 	return qc
 }
 
-func (x *Pacemaker) CalcTimeTilNextProposal(round uint64) time.Duration {
-	//symmetric delay
-	now := time.Now()
-	if now.Sub(x.lastViewChange) >= x.blockRate/2 {
-		return 0
-	}
-	return x.lastViewChange.Add(x.blockRate / 2).Sub(now)
-	/* asymmetric delay
-	// according to spec. in case of 2-chain-rule finality the wait is every 2nd block
-	if now.Sub(x.lastViewChange) >= time.Duration(round%2)*x.blockRate {
-		return 0
-	}
-	return x.lastViewChange.Add(x.blockRate).Sub(now)
-	*/
-}
-
+// RegisterTimeoutVote - register time-out vote from another root node, this node is the leader and tries to assemble
+// a timeout quorum certificate for this round
 func (x *Pacemaker) RegisterTimeoutVote(vote *ab_consensus.TimeoutMsg, quorum QuorumInfo) *ab_consensus.TimeoutCert {
 	tc, err := x.pendingVotes.InsertTimeoutVote(vote, quorum)
 	if err != nil {
@@ -146,6 +163,7 @@ func (x *Pacemaker) RegisterTimeoutVote(vote *ab_consensus.TimeoutMsg, quorum Qu
 	return tc
 }
 
+// AdvanceRoundQC - trigger next round/view on quorum certificate
 func (x *Pacemaker) AdvanceRoundQC(qc *ab_consensus.QuorumCert) bool {
 	if qc == nil {
 		return false
@@ -163,6 +181,7 @@ func (x *Pacemaker) AdvanceRoundQC(qc *ab_consensus.QuorumCert) bool {
 	return true
 }
 
+// AdvanceRoundTC - trigger next round/view on timeout certificate
 func (x *Pacemaker) AdvanceRoundTC(tc *ab_consensus.TimeoutCert) {
 	// no timeout cert or is from old view/round - ignore
 	if tc == nil || tc.Timeout.Round < x.currentRound {
@@ -172,6 +191,8 @@ func (x *Pacemaker) AdvanceRoundTC(tc *ab_consensus.TimeoutCert) {
 	x.startNewRound(tc.Timeout.Round + 1)
 }
 
+// startNewRound - starts new round, sets new round number, resets all stores and
+// calculates the new round timeout
 func (x *Pacemaker) startNewRound(round uint64) {
 	x.clear()
 	x.lastViewChange = time.Now()

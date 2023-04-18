@@ -744,7 +744,12 @@ func createRMATreeAndTxSystem(t *testing.T) (*rma.Tree, *txsystem.GenericTxSyste
 		WithTrustBase(trustBase),
 	)
 	require.NoError(t, err)
-
+	state, err := mss.State()
+	require.NoError(t, err)
+	require.NotNil(t, state.Summary())
+	require.NotNil(t, state.Root())
+	require.Len(t, state.Root(), crypto.SHA256.Size())
+	require.False(t, rmaTree.ContainsUncommittedChanges())
 	// add fee credit record with empty predicate
 	fcrData := &fc.FeeCreditRecord{
 		Balance: 100,

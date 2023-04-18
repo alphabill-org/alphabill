@@ -386,7 +386,7 @@ func NextBlockReceived(t *testing.T, tp *SingleNodePartition, prevBlock *block.B
 	return func() bool {
 		// Empty blocks are not persisted, assume new block is received if new last UC round is bigger than block UC round
 		// NB! it could also be that repeat UC is received
-		return tp.partition.luc.InputRecord.RoundNumber > prevBlock.UnicityCertificate.InputRecord.RoundNumber
+		return tp.partition.luc.Load().InputRecord.RoundNumber > prevBlock.UnicityCertificate.InputRecord.RoundNumber
 	}
 }
 

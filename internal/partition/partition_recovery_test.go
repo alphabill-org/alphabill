@@ -167,7 +167,7 @@ func TestNode_HandleUnicityCertificate_RevertAndStartRecovery_withNoProposal(t *
 	tp := RunSingleNodePartition(t, system)
 	bl := tp.GetLatestBlock(t)
 
-	tp.partition.startNewRound(context.Background(), tp.partition.luc)
+	tp.partition.startNewRound(context.Background(), tp.partition.luc.Load())
 
 	// send new UC
 	rootRound := bl.UnicityCertificate.UnicitySeal.RootRoundInfo.RoundNumber
@@ -836,7 +836,7 @@ func TestNode_RespondToReplicationRequest(t *testing.T) {
 	tp := RunSingleNodePartition(t, &testtxsystem.CounterTxSystem{}, WithReplicationParams(3, 5))
 	genesisBlockNumber := tp.GetLatestBlock(t).UnicityCertificate.InputRecord.RoundNumber
 
-	tp.partition.startNewRound(context.Background(), tp.partition.luc)
+	tp.partition.startNewRound(context.Background(), tp.partition.luc.Load())
 
 	// generate 4 blocks with 3 tx each (but only 2 blocks will be matched and sent)
 	for i := 0; i < 4; i++ {
@@ -906,7 +906,7 @@ func TestNode_RespondToInvalidReplicationRequest(t *testing.T) {
 	tp := RunSingleNodePartition(t, &testtxsystem.CounterTxSystem{}, WithReplicationParams(3, 5))
 	genesisBlockNumber := tp.GetLatestBlock(t).UnicityCertificate.InputRecord.RoundNumber
 
-	tp.partition.startNewRound(context.Background(), tp.partition.luc)
+	tp.partition.startNewRound(context.Background(), tp.partition.luc.Load())
 
 	// generate 4 blocks with 3 tx each (but only 2 blocks will be matched and sent)
 	for i := 0; i < 4; i++ {

@@ -152,7 +152,7 @@ func TestVoteMsg_Verify(t *testing.T) {
 				Signature:        nil,
 			},
 			args:       args{quorum: quorum, rootTrust: nil},
-			wantErrStr: "invalid vote message, vote info hash verification failed",
+			wantErrStr: "vote info hash does not match hash in commit info",
 		},
 		{
 			name: "Vote info no author",
@@ -188,7 +188,7 @@ func TestVoteMsg_Verify(t *testing.T) {
 				Signature:        nil,
 			},
 			args:       args{quorum: quorum, rootTrust: rootTrust},
-			wantErrStr: "vote message signature verification error",
+			wantErrStr: "message signature verification failed",
 		},
 	}
 	for _, tt := range tests {

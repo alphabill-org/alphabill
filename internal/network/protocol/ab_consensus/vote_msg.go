@@ -35,7 +35,7 @@ func (x *VoteMsg) Verify(quorum uint32, rootTrust map[string]crypto.Verifier) er
 	// Verify hash of vote info
 	hash := x.VoteInfo.Hash(gocrypto.SHA256)
 	if !bytes.Equal(hash, x.LedgerCommitInfo.RootRoundInfoHash) {
-		return fmt.Errorf("invalid vote message, vote info hash verification failed")
+		return fmt.Errorf("vote info hash does not match hash in commit info")
 	}
 	if len(x.Author) == 0 {
 		return fmt.Errorf("invalid vote message, no author")
@@ -49,7 +49,7 @@ func (x *VoteMsg) Verify(quorum uint32, rootTrust map[string]crypto.Verifier) er
 		return fmt.Errorf("failed to find public key for author %v", x.Author)
 	}
 	if err := v.VerifyBytes(x.Signature, x.LedgerCommitInfo.Bytes()); err != nil {
-		return fmt.Errorf("vote message signature verification error, %w", err)
+		return fmt.Errorf("message signature verification failed, %w", err)
 	}
 	return nil
 }

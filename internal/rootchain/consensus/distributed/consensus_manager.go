@@ -300,11 +300,11 @@ func (x *ConsensusManager) onPartitionIRChangeReq(req *consensus.IRChangeRequest
 
 // onIRChange handles IR change request from other root nodes
 func (x *ConsensusManager) onIRChange(irChange *ab_consensus.IRChangeReqMsg) {
+	currentLeader := x.leaderSelector.GetLeaderForRound(x.pacemaker.GetCurrentRound())
 	nextLeader := x.leaderSelector.GetLeaderForRound(x.pacemaker.GetCurrentRound() + 1)
 	// todo: if in recovery then forward to next?
-	// if the node is either next leader or leader now, but has not yet proposed then buffer the request
-	if (x.leaderSelector.GetLeaderForRound(x.pacemaker.GetCurrentRound()) == x.peer.ID() && x.waitPropose) ||
-		(nextLeader == x.peer.ID()) {
+	// if the node is leader and has not yet proposed or is the next leader - then buffer the request to include in the next block proposal
+	if (currentLeader == x.peer.ID() && x.waitPropose) || nextLeader == x.peer.ID() {
 		logger.Debug("%v round %v IR change request received", x.peer.String(), x.pacemaker.GetCurrentRound())
 		// Verify and buffer and wait for opportunity to make the next proposal
 		if err := x.irReqBuffer.Add(x.pacemaker.GetCurrentRound(), irChange, x.irReqVerifier); err != nil {
@@ -313,9 +313,14 @@ func (x *ConsensusManager) onIRChange(irChange *ab_consensus.IRChangeReqMsg) {
 		return
 	}
 	// todo: AB-549 add max hop count or some sort of TTL?
-	// either this a completely lots message or because of race we just proposed, try to forward again to the next leader
-	logger.Warning("%v is not leader in next round %v, IR change req forwarded again %v",
-		x.peer.String(), x.pacemaker.GetCurrentRound()+1, nextLeader.String())
+	// either this is a completely lost message or because of race we just proposed, try to forward again to the next leader
+	if currentLeader == x.peer.ID() && !x.waitPropose {
+		logger.Warning("%v is the leader in round %v, but proposal has been already sent, forward request to next leader %v",
+			x.peer.String(), x.pacemaker.GetCurrentRound(), nextLeader.String())
+	} else {
+		logger.Warning("%v is not leader in next round %v, IR change req forwarded again %v",
+			x.peer.String(), x.pacemaker.GetCurrentRound()+1, nextLeader.String())
+	}
 	if err := x.net.Send(
 		network.OutputMessage{
 			Protocol: network.ProtocolRootIrChangeReq,

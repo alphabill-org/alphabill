@@ -68,11 +68,11 @@ func (x *QuorumCert) Verify(quorum uint32, rootTrust map[string]crypto.Verifier)
 	// check vote info hash
 	hash := x.VoteInfo.Hash(gocrypto.SHA256)
 	if !bytes.Equal(hash, x.LedgerCommitInfo.RootRoundInfoHash) {
-		return fmt.Errorf("quorum certificate not valid: vote info hash verification failed")
+		return fmt.Errorf("vote info hash verification failed")
 	}
 	// Check quorum, if not fail without checking signatures itself
 	if uint32(len(x.Signatures)) < quorum {
-		return fmt.Errorf("quorum certificate not valid: less than quorum %d/%d have signed",
+		return fmt.Errorf("certificate has less signatures %d than required by quorum %d",
 			len(x.Signatures), quorum)
 	}
 	// Verify all signatures
@@ -83,7 +83,7 @@ func (x *QuorumCert) Verify(quorum uint32, rootTrust map[string]crypto.Verifier)
 		}
 		err := ver.VerifyBytes(sig, x.LedgerCommitInfo.Bytes())
 		if err != nil {
-			return fmt.Errorf("quorum certificate not valid: %w", err)
+			return fmt.Errorf("node %v signature is not valid: %w", author, err)
 		}
 	}
 	return nil

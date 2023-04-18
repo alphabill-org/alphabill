@@ -24,11 +24,11 @@ func getMaxHashCount(hashCnt map[string]uint64) uint64 {
 
 func (x *IRChangeReqMsg) IsValid() error {
 	if len(x.SystemIdentifier) != 4 {
-		return fmt.Errorf("invalid ir change request, invalid system identifier %v", x.SystemIdentifier)
+		return fmt.Errorf("invalid system identifier %v", x.SystemIdentifier)
 	}
 	// ignore other values for now, just make sure it is not negative
 	if x.CertReason < 0 || x.CertReason > IRChangeReqMsg_T2_TIMEOUT {
-		return fmt.Errorf("invalid ir change request, unknown reason %v", x.CertReason)
+		return fmt.Errorf("unknown reason %v", x.CertReason)
 	}
 	return nil
 }
@@ -42,7 +42,7 @@ func (x *IRChangeReqMsg) Verify(tb partitions.PartitionTrustBase, luc *certifica
 	}
 	// quick sanity check, there cannot be more requests than known partition nodes
 	if len(x.Requests) > int(tb.GetTotalNodes()) {
-		return nil, fmt.Errorf("invalid ir change request, proof contains more requests than registered partition nodes")
+		return nil, fmt.Errorf("proof contains more requests than registered partition nodes")
 	}
 	// verify IR change proof
 	// monitor hash counts
@@ -51,11 +51,11 @@ func (x *IRChangeReqMsg) Verify(tb partitions.PartitionTrustBase, luc *certifica
 	nodeIDs := make(map[string]struct{})
 	for _, req := range x.Requests {
 		if err := tb.Verify(req.NodeIdentifier, req); err != nil {
-			return nil, fmt.Errorf("invalid ir change request, proof from system id %X node %v is not valid: %w",
+			return nil, fmt.Errorf("request proof from system id %X node %v is not valid: %w",
 				req.SystemIdentifier, req.NodeIdentifier, err)
 		}
 		if !bytes.Equal(x.SystemIdentifier, req.SystemIdentifier) {
-			return nil, fmt.Errorf("invalid ir change request proof, %X node %v proof system id %X does not match",
+			return nil, fmt.Errorf("invalid partition %X proof, node %v request system id %X does not match request",
 				x.SystemIdentifier, req.NodeIdentifier, req.SystemIdentifier)
 		}
 		// does not extend from previous partition round
@@ -64,11 +64,11 @@ func (x *IRChangeReqMsg) Verify(tb partitions.PartitionTrustBase, luc *certifica
 		}
 		// validate against last unicity certificate
 		if !bytes.Equal(req.InputRecord.PreviousHash, luc.InputRecord.Hash) {
-			return nil, fmt.Errorf("invalid ir change request proof, partition %X node %v input record does not extend last certified state",
+			return nil, fmt.Errorf("invalid proof, partition %X node %v input record does not extend last certified state",
 				x.SystemIdentifier, req.NodeIdentifier)
 		}
 		if _, found := nodeIDs[req.NodeIdentifier]; found {
-			return nil, fmt.Errorf("invalid ir change request proof, partition %X proof contains duplicate request from node %v",
+			return nil, fmt.Errorf("invalid proof, partition %X proof contains duplicate request from node %v",
 				x.SystemIdentifier, req.NodeIdentifier)
 		}
 		// register node id
@@ -86,16 +86,16 @@ func (x *IRChangeReqMsg) Verify(tb partitions.PartitionTrustBase, luc *certifica
 		// reject requests carrying redundant info, there is no use for proofs that do not participate in quorum
 		// perhaps this is a bit harsh, but let's not waste bandwidth
 		if len(hashCnt) != 1 {
-			return nil, fmt.Errorf("invalid ir change request quorum proof, partition %X contains proofs for no quorum", x.SystemIdentifier)
+			return nil, fmt.Errorf("invalid partition %X quorum proof, contains proofs for different state hashes", x.SystemIdentifier)
 		}
 		// 2. more than 50% of the nodes must have voted for the same IR
 		if count := getMaxHashCount(hashCnt); count < tb.GetQuorum() {
-			return nil, fmt.Errorf("invalid ir change request quorum proof, partition %X not enough requests to prove quorum", x.SystemIdentifier)
+			return nil, fmt.Errorf("invalid partition %X quorum proof, not enough requests to prove quorum", x.SystemIdentifier)
 		}
 		newIR := x.Requests[0].InputRecord
 		// there change request must extend previous state
 		if !bytes.Equal(newIR.PreviousHash, luc.InputRecord.Hash) {
-			return nil, fmt.Errorf("ir change request extends unknown state")
+			return nil, fmt.Errorf("invalid partition %X quorum proof, request does not extends last certified state", x.SystemIdentifier)
 		}
 		// NB! there was at least one request, otherwise we would not be here
 		return x.Requests[0].InputRecord, nil
@@ -104,7 +104,7 @@ func (x *IRChangeReqMsg) Verify(tb partitions.PartitionTrustBase, luc *certifica
 		// a) find how many votes are missing (nof nodes - requests)
 		// b) if the missing votes would also vote for the most popular hash, it must be still not enough to come to a quorum
 		if int(tb.GetTotalNodes())-len(x.Requests)+int(getMaxHashCount(hashCnt)) >= int(tb.GetQuorum()) {
-			return nil, fmt.Errorf("invalid ir change request no quorum proof for %X, not enough requests to prove no quorum is possible", x.SystemIdentifier)
+			return nil, fmt.Errorf("invalid partition %X no quorum proof, not enough requests to prove only no quorum is possible", x.SystemIdentifier)
 		}
 		// initiate repeat UC
 		return certificates.NewRepeatInputRecord(luc.InputRecord)
@@ -113,19 +113,19 @@ func (x *IRChangeReqMsg) Verify(tb partitions.PartitionTrustBase, luc *certifica
 		// timout does not carry proof in form of certification requests
 		// again this is not fatal in itself, but we should not encourage redundant info
 		if len(x.Requests) != 0 {
-			return nil, fmt.Errorf("invalid ir change request timeout proof, proof contains requests")
+			return nil, fmt.Errorf("invalid partition %X timeout proof, proof contains requests", x.SystemIdentifier)
 		}
 		// validate timeout against LUC age
 		lucAge := round - luc.UnicitySeal.RootRoundInfo.RoundNumber
 		if lucAge < t2InRounds {
-			return nil, fmt.Errorf("invalid ir change request timeout proof, partition %X time from latest UC %v, timeout in rounds %v",
+			return nil, fmt.Errorf("invalid partition %X timeout proof, time from latest UC %v, timeout in rounds %v",
 				x.SystemIdentifier, lucAge, t2InRounds)
 		}
 		// initiate repeat UC
 		return certificates.NewRepeatInputRecord(luc.InputRecord)
 	}
 	// should be unreachable, since validate method already makes sure that reason is known
-	return nil, fmt.Errorf("unknown certificatio reason %v", x.CertReason)
+	return nil, fmt.Errorf("invalid request, unknown certification reason %v", x.CertReason)
 }
 
 func (x *IRChangeReqMsg) AddToHasher(hasher hash.Hash) {

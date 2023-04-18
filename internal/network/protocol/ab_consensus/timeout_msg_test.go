@@ -238,11 +238,11 @@ func TestTimeoutMsg_Sign(t *testing.T) {
 		},
 		Author: "",
 	}
-	require.ErrorContains(t, x.Sign(s1), "invalid timeout: missing author")
+	require.ErrorContains(t, x.Sign(s1), "timeout validation failed, timeout message is missing author")
 	require.Nil(t, x.Signature)
 	// add author
 	x.Author = "test"
-	require.NoError(t, x.Sign(s1), "invalid timeout: missing author")
+	require.NoError(t, x.Sign(s1))
 	require.NotNil(t, x.Signature)
 }
 
@@ -276,7 +276,7 @@ func TestVoteMsg_PureTimeoutVoteVerifyOk(t *testing.T) {
 	require.NoError(t, tmoMsg.Verify(quorum, rootTrust))
 	// adjust after signing
 	tmoMsg.Timeout.Round = 11
-	require.ErrorContains(t, tmoMsg.Verify(quorum, rootTrust), "timeout message verify failed: invalid signature")
+	require.ErrorContains(t, tmoMsg.Verify(quorum, rootTrust), "signature verification failed")
 }
 
 func TestTimeoutMsg_GetRound(t *testing.T) {

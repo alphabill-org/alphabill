@@ -31,7 +31,7 @@ func TestProposalMsg_IsValid(t *testing.T) {
 			fields: fields{
 				Block: nil,
 			},
-			wantErrStr: "proposal msg not valid, block is nil",
+			wantErrStr: "block is nil",
 		},
 		{
 			name: "Block not valid",
@@ -45,7 +45,7 @@ func TestProposalMsg_IsValid(t *testing.T) {
 					Qc:        nil,
 				},
 			},
-			wantErrStr: "proposal msg not valid, block error: invalid round number",
+			wantErrStr: "block not valid: invalid round number",
 		},
 		{
 			name: "Invalid block round, does not follow QC",
@@ -63,7 +63,7 @@ func TestProposalMsg_IsValid(t *testing.T) {
 					},
 				},
 			},
-			wantErrStr: "proposal round 9 does not follow certified round 7",
+			wantErrStr: "proposed block round 9 does not follow attached quorum certificate round 7",
 		},
 		{
 			name: "Invalid block round, does not follow QC nor TC",
@@ -88,7 +88,7 @@ func TestProposalMsg_IsValid(t *testing.T) {
 					},
 				},
 			},
-			wantErrStr: "proposal round 9 does not follow certified round 7",
+			wantErrStr: "proposed block round 9 does not follow attached quorum certificate round 7",
 		},
 	}
 	for _, tt := range tests {
@@ -193,7 +193,7 @@ func TestProposalMsg_Verify_UnknownSigner(t *testing.T) {
 		LastRoundTc: nil,
 	}
 	require.NoError(t, proposeMsg.Sign(s1))
-	require.ErrorContains(t, proposeMsg.Verify(3, rootTrust), "failed to find public key for root validator 12")
+	require.ErrorContains(t, proposeMsg.Verify(3, rootTrust), "unknown root validator 12")
 }
 
 func TestProposalMsg_Verify_ErrorInBlockHash(t *testing.T) {
@@ -224,7 +224,7 @@ func TestProposalMsg_Verify_ErrorInBlockHash(t *testing.T) {
 	require.NoError(t, proposeMsg.Sign(s1))
 	// change block after signing
 	proposeMsg.Block.Timestamp = 0x11111111
-	require.ErrorContains(t, proposeMsg.Verify(3, rootTrust), "proposal msg signature verification error")
+	require.ErrorContains(t, proposeMsg.Verify(3, rootTrust), "message signature verification failed")
 }
 
 func TestProposalMsg_Verify_BlockQcNoQuorum(t *testing.T) {
@@ -252,7 +252,7 @@ func TestProposalMsg_Verify_BlockQcNoQuorum(t *testing.T) {
 		LastRoundTc: nil,
 	}
 	require.NoError(t, proposeMsg.Sign(s1))
-	require.ErrorContains(t, proposeMsg.Verify(3, rootTrust), "proposal msg block verification failed")
+	require.ErrorContains(t, proposeMsg.Verify(3, rootTrust), "block verification failed")
 }
 
 func TestProposalMsg_Verify_InvalidSignature(t *testing.T) {
@@ -282,7 +282,7 @@ func TestProposalMsg_Verify_InvalidSignature(t *testing.T) {
 	}
 	require.NoError(t, proposeMsg.Sign(s1))
 	proposeMsg.Signature = []byte{0, 1, 2, 3, 4}
-	require.ErrorContains(t, proposeMsg.Verify(3, rootTrust), "proposal msg signature verification error")
+	require.ErrorContains(t, proposeMsg.Verify(3, rootTrust), "signature verification failed")
 }
 
 func TestProposalMsg_Verify_OK(t *testing.T) {

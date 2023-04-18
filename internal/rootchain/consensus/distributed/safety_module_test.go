@@ -336,7 +336,7 @@ func TestSafetyModule_SignTimeout(t *testing.T) {
 		},
 		Author: "test",
 	}
-	require.ErrorContains(t, s.SignTimeout(tmoMsg, nil), "timeout message not valid, invalid timeout: timeout info round is smaller or equal to highest qc seen")
+	require.ErrorContains(t, s.SignTimeout(tmoMsg, nil), "timeout message not valid, timeout info validation failed, timeout info round is smaller or equal to highest qc seen")
 	require.Nil(t, tmoMsg.Signature)
 	tmoMsg.Timeout.Round = 4
 	require.NoError(t, s.SignTimeout(tmoMsg, nil))

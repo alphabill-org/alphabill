@@ -30,14 +30,14 @@ func (x *Payload) IsValid() error {
 
 	for _, req := range x.Requests {
 		if err := req.IsValid(); err != nil {
-			return fmt.Errorf("invalid payload: IR change request for %X err %w", req.SystemIdentifier, err)
+			return fmt.Errorf("IR change request for %X not valid, %w", req.SystemIdentifier, err)
 		}
 		// Timeout requests do not contain proof
 		if req.CertReason == IRChangeReqMsg_T2_TIMEOUT && len(req.Requests) > 0 {
-			return fmt.Errorf("invalid payload: %X timeout contains requests", req.SystemIdentifier)
+			return fmt.Errorf("partition %X timeout proof contains requests", req.SystemIdentifier)
 		}
 		if _, found := sysIdSet[string(req.SystemIdentifier)]; found {
-			return fmt.Errorf("invalid payload: duplicate request for %X", req.SystemIdentifier)
+			return fmt.Errorf("duplicate requests for parition %X", req.SystemIdentifier)
 		}
 		sysIdSet[string(req.SystemIdentifier)] = true
 	}
@@ -66,7 +66,7 @@ func (x *BlockData) IsValid() error {
 		return fmt.Errorf("quorum certificate validation failed, %w", err)
 	}
 	if x.Round <= x.Qc.VoteInfo.RoundNumber {
-		return fmt.Errorf("invalid block round: round %v is not bigger than last qc round %v", x.Round, x.Qc.VoteInfo.RoundNumber)
+		return fmt.Errorf("invalid block round %v, round is less or equal to qc round %v", x.Round, x.Qc.VoteInfo.RoundNumber)
 	}
 	return nil
 }

@@ -173,7 +173,7 @@ func TestQuorumCert_Verify(t *testing.T) {
 				Signatures:       map[string][]byte{"1": {0, 1, 2}, "2": {0, 1, 2}, "3": {0, 1, 2}},
 			},
 			args:       args{quorum: 2, rootTrust: rootTrust},
-			wantErrStr: "quorum certificate not valid: signature length is",
+			wantErrStr: "node 1 signature is not valid: signature length is",
 		},
 		{
 			name: "QC no quorum",
@@ -183,7 +183,7 @@ func TestQuorumCert_Verify(t *testing.T) {
 				Signatures:       map[string][]byte{"1": {0, 1, 2}, "2": {0, 1, 2}},
 			},
 			args:       args{quorum: 3, rootTrust: rootTrust},
-			wantErrStr: "less than quorum",
+			wantErrStr: "certificate has less signatures 2 than required by quorum 3",
 		},
 		{
 			name: "QC invalid signature means no qc is not valid",
@@ -193,7 +193,7 @@ func TestQuorumCert_Verify(t *testing.T) {
 				Signatures:       map[string][]byte{"1": sig1, "2": sig2, "3": {0, 1, 2}},
 			},
 			args:       args{quorum: 2, rootTrust: rootTrust},
-			wantErrStr: "quorum certificate not valid: signature length is",
+			wantErrStr: "node 3 signature is not valid: signature length is",
 		},
 		{
 			name: "QC is valid",
@@ -212,7 +212,7 @@ func TestQuorumCert_Verify(t *testing.T) {
 				LedgerCommitInfo: tt.fields.LedgerCommitInfo,
 				Signatures:       tt.fields.Signatures,
 			}
-			err := x.Verify(tt.args.quorum, tt.args.rootTrust)
+			err = x.Verify(tt.args.quorum, tt.args.rootTrust)
 			if tt.wantErrStr != "" {
 				require.ErrorContains(t, err, tt.wantErrStr)
 				return

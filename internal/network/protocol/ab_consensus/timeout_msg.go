@@ -54,24 +54,24 @@ func BytesFromTimeoutVote(t *Timeout, author string, vote *TimeoutVote) []byte {
 
 func (x *TimeoutMsg) IsValid() error {
 	if x.Timeout == nil {
-		return fmt.Errorf("invalid timeout: timeout info is nil")
+		return fmt.Errorf("timeout info is nil")
 	}
 	if err := x.Timeout.IsValid(); err != nil {
-		return fmt.Errorf("invalid timeout: %w", err)
+		return fmt.Errorf("timeout info validation failed, %w", err)
 	}
 	if len(x.Author) < 1 {
-		return fmt.Errorf("invalid timeout: missing author")
+		return fmt.Errorf("timeout message is missing author")
 	}
 	return nil
 }
 
 func (x *TimeoutMsg) Sign(s crypto.Signer) error {
 	if err := x.IsValid(); err != nil {
-		return fmt.Errorf("timeout message not valid: %w", err)
+		return fmt.Errorf("timeout validation failed, %w", err)
 	}
 	sig, err := s.SignBytes(x.Bytes())
 	if err != nil {
-		return fmt.Errorf("timeout message sign error: %w", err)
+		return fmt.Errorf("sign error, %w", err)
 	}
 	x.Signature = sig
 	return nil
@@ -85,10 +85,10 @@ func (x *TimeoutMsg) Verify(quorum uint32, rootTrust map[string]crypto.Verifier)
 	}
 	// verify signature
 	if err := v.VerifyBytes(x.Signature, x.Bytes()); err != nil {
-		return fmt.Errorf("timeout message verify failed: invalid signature")
+		return fmt.Errorf("signature verification failed, %w", err)
 	}
 	if err := x.Timeout.HighQc.Verify(quorum, rootTrust); err != nil {
-		return fmt.Errorf("timeout message verify failed: %w", err)
+		return fmt.Errorf("high qc verification failed: %w", err)
 	}
 	return nil
 }

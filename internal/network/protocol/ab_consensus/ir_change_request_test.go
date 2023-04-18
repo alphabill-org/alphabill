@@ -250,7 +250,7 @@ func TestIRChangeReqMsg_GeneralReq(t *testing.T) {
 					InputRecord: &certificates.InputRecord{Hash: prevHash},
 				},
 			},
-			wantErrStr: "invalid ir change request, invalid system identifier",
+			wantErrStr: "ir change request validation failed, invalid system identifier [0 0 1]",
 		},
 		{
 			name: "System id in request and proof do not match",
@@ -265,7 +265,7 @@ func TestIRChangeReqMsg_GeneralReq(t *testing.T) {
 					InputRecord: &certificates.InputRecord{Hash: prevHash, RoundNumber: 1},
 				},
 			},
-			wantErrStr: "invalid ir change request proof, 00000001 node 1 proof system id 00000002 does not match",
+			wantErrStr: "invalid partition 00000001 proof, node 1 request system id 00000002 does not match request",
 		},
 		{
 			name: "IR change request, signature verification error",
@@ -297,7 +297,7 @@ func TestIRChangeReqMsg_GeneralReq(t *testing.T) {
 					InputRecord: &certificates.InputRecord{Hash: prevHash, RoundNumber: 1},
 				},
 			},
-			wantErrStr: "invalid ir change request, proof contains more requests than registered partition nodes",
+			wantErrStr: "proof contains more requests than registered partition nodes",
 		},
 		{
 			name: "Proof contains more request from unknown node",
@@ -314,7 +314,7 @@ func TestIRChangeReqMsg_GeneralReq(t *testing.T) {
 					InputRecord: &certificates.InputRecord{Hash: prevHash, RoundNumber: 1},
 				},
 			},
-			wantErrStr: "invalid ir change request, proof from system id 00000001 node 2 is not valid: verification failed, unknown node id 2",
+			wantErrStr: "request proof from system id 00000001 node 2 is not valid: verification failed, unknown node id 2",
 		},
 		{
 			name: "Proof contains duplicate node",
@@ -331,7 +331,7 @@ func TestIRChangeReqMsg_GeneralReq(t *testing.T) {
 					InputRecord: &certificates.InputRecord{Hash: prevHash, RoundNumber: 1},
 				},
 			},
-			wantErrStr: "invalid ir change request proof, partition 00000001 proof contains duplicate request from node 1",
+			wantErrStr: "invalid proof, partition 00000001 proof contains duplicate request from node 1",
 		},
 		{
 			name: "IR does not extend last certified state",
@@ -413,7 +413,7 @@ func TestIRChangeReqMsg_VerifyTimeoutReq(t *testing.T) {
 					},
 				},
 			},
-			wantErrStr: "invalid ir change request timeout proof, proof contains requests",
+			wantErrStr: "invalid partition 00000001 timeout proof, proof contains requests",
 		},
 		{
 			name: "Invalid, not yet timeout",
@@ -435,7 +435,7 @@ func TestIRChangeReqMsg_VerifyTimeoutReq(t *testing.T) {
 				t2InRounds: 5,
 				round:      5,
 			},
-			wantErrStr: "invalid ir change request timeout proof, partition 00000001 time from latest UC 4, timeout in rounds 5",
+			wantErrStr: "invalid partition 00000001 timeout proof, time from latest UC 4, timeout in rounds 5",
 		},
 		{
 			name: "OK",
@@ -567,7 +567,7 @@ func TestIRChangeReqMsg_VerifyQuorum(t *testing.T) {
 					InputRecord: &certificates.InputRecord{Hash: prevHash, RoundNumber: 1},
 				},
 			},
-			wantErrStr: "invalid ir change request quorum proof, partition 00000001 contains proofs for no quorum",
+			wantErrStr: "invalid partition 00000001 quorum proof, contains proofs for different state hashes",
 		},
 		{
 			name: "OK",
@@ -652,7 +652,7 @@ func TestIRChangeReqMsg_VerifyQuorumNotPossible(t *testing.T) {
 					InputRecord: &certificates.InputRecord{Hash: prevHash, RoundNumber: 1},
 				},
 			},
-			wantErrStr: "not enough requests to prove no quorum is possible",
+			wantErrStr: "invalid partition 00000001 no quorum proof, not enough requests to prove only no quorum is possible",
 		},
 		{
 			name: "OK",

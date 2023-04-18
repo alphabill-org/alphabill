@@ -241,7 +241,7 @@ func TestBlockData_IsValid(t *testing.T) {
 				},
 			},
 			args:       args{quorum: 1, rootTrust: nil},
-			wantErrStr: "invalid block round: round 2 is not bigger than last qc round 3",
+			wantErrStr: "invalid block round 2, round is less or equal to qc round 3",
 		},
 		{
 			name: "Valid",
@@ -303,7 +303,7 @@ func TestBlockData_Verify(t *testing.T) {
 	require.NoError(t, block.Verify(3, rootTrust))
 	// remove a signature from QC
 	delete(block.Qc.Signatures, "2")
-	require.ErrorContains(t, block.Verify(3, rootTrust), "quorum certificate not valid: less than quorum 2/3 have signed")
+	require.ErrorContains(t, block.Verify(3, rootTrust), "block data quorum certificate validation failed, certificate has less signatures 2 than required by quorum 3")
 }
 
 func TestPayload_IsEmpty(t *testing.T) {

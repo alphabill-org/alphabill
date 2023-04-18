@@ -1,7 +1,6 @@
 package ab_consensus
 
 import (
-	"errors"
 	"fmt"
 
 	"github.com/alphabill-org/alphabill/internal/crypto"
@@ -61,11 +60,11 @@ func (x *TimeoutCert) Add(author string, timeout *Timeout, signature []byte) {
 func (x *TimeoutCert) Verify(quorum uint32, rootTrust map[string]crypto.Verifier) error {
 	// 1. verify stored quorum certificate is valid and contains quorum of signatures
 	if err := x.Timeout.Verify(quorum, rootTrust); err != nil {
-		return fmt.Errorf("timeout certificate not valid, %w", err)
+		return fmt.Errorf("timeout validation failed, %w", err)
 	}
 	// 2. Check if there is quorum of signatures for TC
 	if uint32(len(x.Signatures)) < quorum {
-		return fmt.Errorf("timeout certificate not valid: less than quorum %v/%v have signed certificate", len(x.Signatures), quorum)
+		return fmt.Errorf("certificate is has less %d sinatures than required by quorum %d", len(x.Signatures), quorum)
 	}
 	maxSignedRound := uint64(0)
 	// Extract attached the highest QC round number and compare it later to the round extracted from signatures
@@ -80,7 +79,7 @@ func (x *TimeoutCert) Verify(quorum uint32, rootTrust map[string]crypto.Verifier
 		}
 		err := v.VerifyBytes(timeoutSig.Signature, timeout)
 		if err != nil {
-			return fmt.Errorf("timeout certificate signature validation error, %w", err)
+			return fmt.Errorf("timeout certificate signature verification failed, %w", err)
 		}
 		if maxSignedRound < timeoutSig.HqcRound {
 			maxSignedRound = timeoutSig.HqcRound
@@ -88,7 +87,7 @@ func (x *TimeoutCert) Verify(quorum uint32, rootTrust map[string]crypto.Verifier
 	}
 	// 4. Verify that the highest quorum certificate stored has max QC round over all timeout votes received
 	if highQcRound != maxSignedRound {
-		return errors.New("timeout certificate not valid: QC and max QC round do not match")
+		return fmt.Errorf("timeout high qc round %d does not match max signed qc round %d", highQcRound, maxSignedRound)
 	}
 	return nil
 }

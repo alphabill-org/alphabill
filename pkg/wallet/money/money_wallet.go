@@ -120,12 +120,18 @@ func (w *Wallet) Shutdown() {
 // CollectDust starts the dust collector process for all accounts in the wallet.
 // Wallet needs to be synchronizing using Sync or SyncToMaxBlockNumber in order to receive transactions and finish the process.
 // The function blocks until dust collector process is finished or timed out. Skips account if the account already has only one or no bills.
-func (w *Wallet) CollectDust(ctx context.Context) error {
+func (w *Wallet) CollectDust(ctx context.Context, accountNumber uint64) error {
 	errgrp, ctx := errgroup.WithContext(ctx)
-	for _, acc := range w.am.GetAll() {
-		acc := acc // copy value for closure
+	if accountNumber == 0 {
+		for _, acc := range w.am.GetAll() {
+			accIndex := acc.AccountIndex // copy value for closure
+			errgrp.Go(func() error {
+				return w.collectDust(ctx, true, accIndex)
+			})
+		}
+	} else {
 		errgrp.Go(func() error {
-			return w.collectDust(ctx, true, acc.AccountIndex)
+			return w.collectDust(ctx, true, accountNumber-1)
 		})
 	}
 	return errgrp.Wait()

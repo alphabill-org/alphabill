@@ -7,8 +7,8 @@ import (
 	"time"
 
 	"github.com/holiman/uint256"
-	"google.golang.org/protobuf/types/known/anypb"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/types/known/anypb"
 
 	"github.com/alphabill-org/alphabill/internal/block"
 	"github.com/alphabill-org/alphabill/internal/certificates"
@@ -178,8 +178,9 @@ func runBlockingDc(t *testing.T, w *Wallet) *sync.WaitGroup {
 	wg := sync.WaitGroup{}
 	wg.Add(1)
 	go func() {
-		dcErr := w.collectDust(context.Background(), true, 0)
-		require.NoError(t, dcErr)
+		counter := uint64(0)
+		_, err := w.collectDust(context.Background(), true, 0, &counter)
+		require.NoError(t, err)
 		wg.Done()
 	}()
 	return &wg

@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/ethereum/go-ethereum/common/hexutil"
-	"golang.org/x/sync/errgroup"
 
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
@@ -117,24 +116,23 @@ func (w *Wallet) Shutdown() {
 	}
 }
 
-// CollectDust starts the dust collector process for all accounts in the wallet.
-// Wallet needs to be synchronizing using Sync or SyncToMaxBlockNumber in order to receive transactions and finish the process.
+// CollectDust starts the dust collector process for the requested accounts in the wallet.
 // The function blocks until dust collector process is finished or timed out. Skips account if the account already has only one or no bills.
 func (w *Wallet) CollectDust(ctx context.Context, accountNumber uint64) error {
-	errgrp, ctx := errgroup.WithContext(ctx)
+	processedDcBillsCounter := uint64(0)
 	if accountNumber == 0 {
 		for _, acc := range w.am.GetAll() {
-			accIndex := acc.AccountIndex // copy value for closure
-			errgrp.Go(func() error {
-				return w.collectDust(ctx, true, accIndex)
-			})
+			processedDcBills, err := w.collectDust(ctx, true, acc.AccountIndex, &processedDcBillsCounter)
+			processedDcBillsCounter = *processedDcBills
+			if err != nil {
+				return err
+			}
 		}
+		return nil
 	} else {
-		errgrp.Go(func() error {
-			return w.collectDust(ctx, true, accountNumber-1)
-		})
+		_, err := w.collectDust(ctx, true, accountNumber-1, &processedDcBillsCounter)
+		return err
 	}
-	return errgrp.Wait()
 }
 
 // GetBalance returns sum value of all bills currently owned by the wallet, for given account.
@@ -398,38 +396,39 @@ func (w *Wallet) GetFeeCreditBill(accountIndex uint64) (*Bill, error) {
 	return nil, nil // TODO add fee credit support to "new" cli wallet
 }
 
-// collectDust sends dust transfer for every bill for given account in wallet and records metadata.
+// collectDust sends dust transfer for every bill for given account in wallet.
 // Returns immediately without error if there's already 1 or 0 bills.
-// Once the dust transfers get confirmed on the ledger then swap transfer is broadcast and metadata cleared.
+// Once the dust transfers get confirmed on the ledger then swap transfer is broadcast.
 // If blocking is true then the function blocks until swap has been completed or timed out,
 // if blocking is false then the function returns after sending the dc transfers.
-func (w *Wallet) collectDust(ctx context.Context, blocking bool, accountIndex uint64) error {
+func (w *Wallet) collectDust(ctx context.Context, blocking bool, accountIndex uint64, processedDcBillsCounter *uint64) (*uint64, error) {
 	log.Info("starting dust collection for account=", accountIndex, " blocking=", blocking)
 	roundNr, err := w.GetRoundNumber(ctx)
 	if err != nil {
-		return err
+		return processedDcBillsCounter, err
 	}
 	pubKey, err := w.am.GetPublicKey(accountIndex)
 	if err != nil {
-		return err
+		return processedDcBillsCounter, err
 	}
 	billResponse, err := w.restClient.ListBills(pubKey)
 	if err != nil {
-		return err
+		return processedDcBillsCounter, err
 	}
 	if len(billResponse.Bills) < 2 {
 		log.Info("Account ", accountIndex, " has less than 2 bills, skipping dust collection")
-		return nil
+		return processedDcBillsCounter, nil
 	}
-	if len(billResponse.Bills) > maxBillsForDustCollection {
-		log.Info("Account ", accountIndex, " has more than ", maxBillsForDustCollection, " bills, dust collection will take only the first ", maxBillsForDustCollection, " bills")
-		billResponse.Bills = billResponse.Bills[0:maxBillsForDustCollection]
+	currentDcBillsLimit := maxBillsForDustCollection - *processedDcBillsCounter
+	if uint64(len(billResponse.Bills)) > currentDcBillsLimit {
+		log.Info("Account ", accountIndex, " has enough bills to reach the limit of ", maxBillsForDustCollection, ", dust collection will take only the first ", currentDcBillsLimit, " bills")
+		billResponse.Bills = billResponse.Bills[0:currentDcBillsLimit]
 	}
 	var bills []*Bill
 	for _, b := range billResponse.Bills {
 		proof, err := w.restClient.GetProof(b.Id)
 		if err != nil {
-			return err
+			return processedDcBillsCounter, err
 		}
 		bills = append(bills, convertBill(proof.Bills[0]))
 	}
@@ -442,7 +441,7 @@ func (w *Wallet) collectDust(ctx context.Context, blocking bool, accountIndex ui
 				billIds := getBillIds(v.dcBills)
 				err = w.swapDcBills(v.dcBills, v.dcNonce, billIds, swapTimeout, accountIndex)
 				if err != nil {
-					return err
+					return processedDcBillsCounter, err
 				}
 				expectedSwaps = append(expectedSwaps, expectedSwap{dcNonce: v.dcNonce, timeout: swapTimeout, dcSum: v.valueSum})
 				w.dcWg.AddExpectedSwaps(expectedSwaps)
@@ -452,14 +451,14 @@ func (w *Wallet) collectDust(ctx context.Context, blocking bool, accountIndex ui
 				w.dcWg.AddExpectedSwaps(expectedSwaps)
 				err = w.doSwap(ctx, accountIndex, v.dcTimeout)
 				if err != nil {
-					return err
+					return processedDcBillsCounter, err
 				}
 			}
 		}
 	} else {
 		k, err := w.am.GetAccountKey(accountIndex)
 		if err != nil {
-			return err
+			return processedDcBillsCounter, err
 		}
 
 		dcTimeout := roundNr + dcTimeoutBlockCount
@@ -469,32 +468,34 @@ func (w *Wallet) collectDust(ctx context.Context, blocking bool, accountIndex ui
 			dcValueSum += b.Value
 			tx, err := createDustTx(k, w.SystemID(), b, dcNonce, dcTimeout)
 			if err != nil {
-				return err
+				return processedDcBillsCounter, err
 			}
 			log.Info("sending dust transfer tx for bill=", b.Id, " account=", accountIndex)
 			err = w.SendTransaction(ctx, tx, &wallet.SendOpts{RetryOnFullTxBuffer: true})
 			if err != nil {
-				return err
+				return processedDcBillsCounter, err
 			}
 		}
+		processedDcBills := uint64(len(bills))
+		processedDcBillsCounter = &processedDcBills
 		expectedSwaps = append(expectedSwaps, expectedSwap{dcNonce: dcNonce, timeout: dcTimeout, dcSum: dcValueSum})
 		w.dcWg.AddExpectedSwaps(expectedSwaps)
 
 		if err = w.doSwap(ctx, accountIndex, dcTimeout); err != nil {
-			return err
+			return processedDcBillsCounter, err
 		}
 	}
 
 	if blocking {
 		if err = w.confirmSwap(ctx); err != nil {
 			log.Error("failed to confirm swap tx", err)
-			return err
+			return processedDcBillsCounter, nil
 		}
 	}
 
 	log.Info("finished waiting for blocking collect dust on account=", accountIndex)
 
-	return nil
+	return processedDcBillsCounter, nil
 }
 
 func (w *Wallet) doSwap(ctx context.Context, accountIndex, timeout uint64) error {

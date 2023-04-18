@@ -26,7 +26,8 @@ func TestDustCollectionWontRunForSingleBill(t *testing.T) {
 	w, mockClient := CreateTestWallet(t, &backendMockReturnConf{customBillList: billsList})
 
 	// when dc runs
-	err := w.collectDust(context.Background(), false, 0)
+	counter := uint64(0)
+	_, err := w.collectDust(context.Background(), false, 0, &counter)
 	require.NoError(t, err)
 
 	// then no txs are broadcast
@@ -54,11 +55,43 @@ func TestDustCollectionMaxBillCount(t *testing.T) {
 	w, mockClient := CreateTestWallet(t, &backendMockReturnConf{customBillList: billsList, proofList: proofList})
 
 	// when dc runs
-	err = w.collectDust(context.Background(), false, 0)
+	counter := uint64(0)
+	_, err = w.collectDust(context.Background(), false, 0, &counter)
 	require.NoError(t, err)
 
 	// then dc tx count should be equal to max allowed bills for dc plus 1 for the swap
 	require.Len(t, mockClient.GetRecordedTransactions(), maxBillsForDustCollection+1)
+}
+
+func TestDustCollectionMaxBillCountInitialized(t *testing.T) {
+	// define that some dc bills have already been processed
+	counter := uint64(95)
+	// create wallet with one bill over the limit
+	tempNonce := uint256.NewInt(1)
+	nonceBytes := util.Uint256ToBytes(tempNonce)
+	am, err := account.NewManager(t.TempDir(), "", true)
+	require.NoError(t, err)
+	_ = am.CreateKeys("")
+	k, _ := am.GetAccountKey(0)
+	billsNumber := int(maxBillsForDustCollection + 1 - counter)
+	bills := make([]*Bill, billsNumber)
+	dcBills := make([]*Bill, billsNumber)
+	for i := 0; i < billsNumber; i++ {
+		bills[i] = addBill(uint64(i))
+		dcBills[i] = addDcBill(t, k, uint256.NewInt(uint64(i)), nonceBytes, uint64(i), dcTimeoutBlockCount)
+	}
+	billsList := createBillListJsonResponse(bills)
+	proofList := createBlockProofJsonResponse(t, bills, nil, 0, dcTimeoutBlockCount, nil)
+	proofList = append(proofList, createBlockProofJsonResponse(t, dcBills, nonceBytes, 0, dcTimeoutBlockCount, k)...)
+
+	w, mockClient := CreateTestWallet(t, &backendMockReturnConf{customBillList: billsList, proofList: proofList})
+
+	// when dc runs
+	_, err = w.collectDust(context.Background(), false, 0, &counter)
+	require.NoError(t, err)
+
+	// then dc tx count should be equal to max allowed bills minus the counter plus 1 for the swap
+	require.Len(t, mockClient.GetRecordedTransactions(), billsNumber)
 }
 
 func TestBasicDustCollection(t *testing.T) {
@@ -79,7 +112,8 @@ func TestBasicDustCollection(t *testing.T) {
 	w, mockClient := CreateTestWalletWithManager(t, &backendMockReturnConf{balance: 3, customBillList: billsList, proofList: proofList}, am)
 
 	// when dc runs
-	err = w.collectDust(context.Background(), false, 0)
+	counter := uint64(0)
+	_, err = w.collectDust(context.Background(), false, 0, &counter)
 	require.NoError(t, err)
 
 	// then two dc txs are broadcast plus one swap
@@ -118,7 +152,8 @@ func TestDustCollectionWithSwap(t *testing.T) {
 	w, mockClient := CreateTestWalletWithManager(t, &backendMockReturnConf{balance: 3, customBillList: billsList, proofList: proofList}, am)
 
 	// when dc runs
-	err = w.collectDust(context.Background(), false, 0)
+	counter := uint64(0)
+	_, err = w.collectDust(context.Background(), false, 0, &counter)
 	require.NoError(t, err)
 
 	// then two dc txs + one swap tx are broadcast
@@ -158,7 +193,8 @@ func TestSwapWithExistingDCBillsBeforeDCTimeout(t *testing.T) {
 	mockClient.SetMaxRoundNumber(roundNr)
 
 	// when dc runs
-	err = w.collectDust(context.Background(), false, 0)
+	counter := uint64(0)
+	_, err = w.collectDust(context.Background(), false, 0, &counter)
 	require.NoError(t, err)
 
 	// then a swap tx is broadcast
@@ -192,7 +228,8 @@ func TestSwapWithExistingExpiredDCBills(t *testing.T) {
 	w, mockClient := CreateTestWalletWithManager(t, &backendMockReturnConf{balance: 3, customBillList: billsList, proofList: proofList}, am)
 
 	// when dc runs
-	err = w.collectDust(context.Background(), false, 0)
+	counter := uint64(0)
+	_, err = w.collectDust(context.Background(), false, 0, &counter)
 	require.NoError(t, err)
 
 	// then a swap tx is broadcast
@@ -275,7 +312,8 @@ func TestSwapContainsUnconfirmedDustBillIds(t *testing.T) {
 	w, mockClient := CreateTestWalletWithManager(t, &backendMockReturnConf{balance: 3, customBillList: billsList, proofList: proofList}, am)
 
 	// when dc runs
-	err = w.collectDust(context.Background(), false, 0)
+	counter := uint64(0)
+	_, err = w.collectDust(context.Background(), false, 0, &counter)
 	require.NoError(t, err)
 
 	verifyBlockHeight(t, w, 0)

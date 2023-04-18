@@ -27,7 +27,8 @@ func TestDcJobWithExistingDcBills(t *testing.T) {
 	mockClient.SetMaxBlockNumber(100)
 
 	// when dust collector runs
-	err = w.collectDust(context.Background(), false, 0)
+	counter := uint64(0)
+	_, err = w.collectDust(context.Background(), false, 0, &counter)
 	require.NoError(t, err)
 
 	// then swap tx is broadcast
@@ -60,7 +61,8 @@ func TestDcJobWithExistingDcAndNonDcBills(t *testing.T) {
 	mockClient.SetMaxBlockNumber(100)
 
 	// when dust collector runs
-	err = w.collectDust(context.Background(), false, 0)
+	counter := uint64(0)
+	_, err = w.collectDust(context.Background(), false, 0, &counter)
 	require.NoError(t, err)
 
 	// then swap tx is sent for the timed out dc bill
@@ -93,7 +95,8 @@ func TestDcJobWithExistingNonDcBills(t *testing.T) {
 	mockClient.SetMaxBlockNumber(100)
 
 	// when dust collector runs
-	err = w.collectDust(context.Background(), false, 0)
+	counter := uint64(0)
+	_, err = w.collectDust(context.Background(), false, 0, &counter)
 	require.NoError(t, err)
 
 	// then dust txs are broadcast (plus swap)
@@ -118,7 +121,8 @@ func TestDcJobSendsSwapsIfDcBillTimeoutHasBeenReached(t *testing.T) {
 	w, mockClient := CreateTestWalletWithManager(t, &backendMockReturnConf{balance: 3, customBillList: billsList, proofList: proofList}, am)
 
 	// when dust collector runs
-	err = w.collectDust(context.Background(), false, 0)
+	counter := uint64(0)
+	_, err = w.collectDust(context.Background(), false, 0, &counter)
 	require.NoError(t, err)
 
 	// then 2 swap txs must be broadcast

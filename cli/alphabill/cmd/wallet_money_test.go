@@ -10,9 +10,12 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 
+	netutil "github.com/alphabill-org/alphabill/internal/testutils/net"
+	indexer "github.com/alphabill-org/alphabill/pkg/wallet/backend/money"
 	"github.com/alphabill-org/alphabill/pkg/wallet/money"
 
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
@@ -170,25 +173,45 @@ start network and rpc server and send initial bill to wallet-1
 wallet-1 sends two transactions to wallet-2
 */
 func TestSendingMoneyBetweenWallets(t *testing.T) {
+	// create 2 wallets
+	am1, homedir1 := createNewWallet(t)
+	acc1, _ := am1.GetAccountKey(0)
+	w1PubKey := acc1.PubKey
+	am1.Close()
+
+	am2, homedir2 := createNewWallet(t)
+	w2PubKey, _ := am2.GetPublicKey(0)
+	am2.Close()
+
 	initialBill := &moneytx.InitialBill{
 		ID:    uint256.NewInt(1),
 		Value: 1e18,
 		Owner: script.PredicateAlwaysTrue(),
 	}
 	network := startAlphabillPartition(t, initialBill)
-	startRPCServer(t, network, ":9543")
+	nodePort := netutil.GetFreeRandomPort(t)
+	startRPCServer(t, network, ":"+strconv.Itoa(nodePort))
+	nodeAddr := fmt.Sprintf("localhost:%v", nodePort)
+	apiPort := netutil.GetFreeRandomPort(t)
+	apiAddr := fmt.Sprintf("localhost:%v", apiPort)
 
-	// create 2 wallets
 	err := wlog.InitStdoutLogger(wlog.INFO)
 	require.NoError(t, err)
 
-	am1, homedir1 := createNewWallet(t)
-	w1PubKey, _ := am1.GetPublicKey(0)
-	am1.Close()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
-	am2, homedir2 := createNewWallet(t)
-	w2PubKey, _ := am2.GetPublicKey(0)
-	am2.Close()
+	go func() {
+		err := indexer.CreateAndRun(ctx, &indexer.Config{
+			ABMoneySystemIdentifier: defaultABMoneySystemIdentifier,
+			AlphabillUrl:            nodeAddr,
+			ServerAddr:              apiAddr,
+			DbFile:                  fmt.Sprintf("%s/backend.db", t.TempDir()),
+			ListBillsPageLimit:      100,
+		})
+		wlog.Info("backend stopped")
+		require.NoError(t, err)
+	}()
 
 	// transfer initial bill to wallet 1
 	transferInitialBillTx, err := createInitialBillTransferTx(w1PubKey, initialBill.ID, initialBill.Value, 10000)
@@ -197,29 +220,27 @@ func TestSendingMoneyBetweenWallets(t *testing.T) {
 	require.NoError(t, err)
 	require.Eventually(t, testpartition.BlockchainContainsTx(transferInitialBillTx, network), test.WaitDuration, test.WaitTick)
 
-	txHash, blockNumber := getLastTransactionProps(network)
-	mockServer, addr := mockBackendCalls(&backendMockReturnConf{balance: initialBill.Value, blockHeight: blockNumber, billId: initialBill.ID, billValue: initialBill.Value, billTxHash: txHash})
-
 	// verify bill is received by wallet 1
-	waitForBalance(t, homedir1, initialBill.Value, 0)
+	verifyStdoutEventually(t, func() *testConsoleWriter {
+		return execWalletCmd(t, homedir1, fmt.Sprintf("get-balance --alphabill-api-uri %s", apiAddr))
+	}, fmt.Sprintf("#%d %s", 1, amountToString(initialBill.Value, 8)))
 
 	// send two transactions (two bills) to wallet-2
-	stdout := execWalletCmd(t, homedir1, "send --amount 1 --address "+hexutil.Encode(w2PubKey)+" --alphabill-api-uri "+addr.Host)
+	stdout := execWalletCmd(t, homedir1, fmt.Sprintf("send --amount 1 --address 0x%x --alphabill-api-uri %s --alphabill-uri %s", w2PubKey, apiAddr, nodeAddr))
 	verifyStdout(t, stdout, "Successfully confirmed transaction(s)")
 
-	mockServer.Close()
-	txHash, blockNumber = getLastTransactionProps(network)
-	mockServer, addr = mockBackendCalls(&backendMockReturnConf{balance: initialBill.Value, blockHeight: blockNumber, billId: initialBill.ID, billValue: initialBill.Value - 100000000, billTxHash: txHash})
-	defer mockServer.Close()
-
-	stdout = execWalletCmd(t, homedir1, "send --amount 1 --address "+hexutil.Encode(w2PubKey)+" --alphabill-api-uri "+addr.Host)
+	stdout = execWalletCmd(t, homedir1, fmt.Sprintf("send --amount 1 --address 0x%x --alphabill-api-uri %s --alphabill-uri %s", w2PubKey, apiAddr, nodeAddr))
 	verifyStdout(t, stdout, "Successfully confirmed transaction(s)")
 
 	// verify wallet-1 balance is decreased
-	verifyTotalBalance(t, homedir1, initialBill.Value-2)
+	verifyStdoutEventually(t, func() *testConsoleWriter {
+		return execWalletCmd(t, homedir1, fmt.Sprintf("get-balance --alphabill-api-uri %s", apiAddr))
+	}, fmt.Sprintf("#%d %s", 1, amountToString(initialBill.Value-2e8, 8)))
 
 	// verify wallet-2 received said bills
-	waitForBalance(t, homedir2, 2, 0)
+	verifyStdoutEventually(t, func() *testConsoleWriter {
+		return execWalletCmd(t, homedir2, fmt.Sprintf("get-balance --alphabill-api-uri %s", apiAddr))
+	}, fmt.Sprintf("#%d %s", 1, amountToString(2e8, 8)))
 }
 
 /*

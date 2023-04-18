@@ -173,7 +173,7 @@ func TestQuorumCert_Verify(t *testing.T) {
 				Signatures:       map[string][]byte{"1": {0, 1, 2}, "2": {0, 1, 2}, "3": {0, 1, 2}},
 			},
 			args:       args{quorum: 2, rootTrust: rootTrust},
-			wantErrStr: "node 1 signature is not valid: signature length is",
+			wantErrStr: "signature is not valid: signature length is",
 		},
 		{
 			name: "QC no quorum",

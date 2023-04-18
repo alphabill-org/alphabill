@@ -12,16 +12,22 @@ import (
 )
 
 const (
-	zeroSummaryValue = rma.Uint64SummaryValue(0)
-	uriMaxSize       = 4 * 1024
-	dataMaxSize      = 64 * 1024
-	maxSymbolLength  = 64
-	maxDecimalPlaces = 8
+	zeroSummaryValue  = rma.Uint64SummaryValue(0)
+	uriMaxSize        = 4 * 1024
+	dataMaxSize       = 64 * 1024
+	maxSymbolLength   = 16
+	maxNameLength     = 256
+	maxIconTypeLength = 64
+	maxIconDataLength = 64 * 1024
+	maxDecimalPlaces  = 8
 
 	ErrStrSystemIdentifierIsNil = "system identifier is nil"
 	ErrStrStateIsNil            = "state is nil"
 	ErrStrUnitIDIsZero          = "unit ID cannot be zero"
-	ErrStrInvalidSymbolName     = "symbol name exceeds the allowed maximum length of 64 bytes"
+	ErrStrInvalidSymbolLength   = "symbol length exceeds the allowed maximum of 16 bytes"
+	ErrStrInvalidNameLength     = "name length exceeds the allowed maximum of 256 bytes"
+	ErrStrInvalidIconTypeLength = "icon type length exceeds the allowed maximum of 64 bytes"
+	ErrStrInvalidIconDataLength = "icon data length exceeds the allowed maximum of 64 KiB"
 )
 
 type (
@@ -57,6 +63,8 @@ type (
 		txsystem.GenericTransaction
 		ParentTypeID() []byte
 		Symbol() string
+		Name() string
+		Icon() *Icon
 		SubTypeCreationPredicate() []byte
 		TokenCreationPredicate() []byte
 		InvariantPredicate() []byte
@@ -69,6 +77,7 @@ type (
 		NFTTypeID() []byte
 		NFTTypeIDInt() *uint256.Int
 		Bearer() []byte
+		Name() string
 		URI() string
 		Data() []byte
 		DataUpdatePredicate() []byte
@@ -95,6 +104,8 @@ type (
 		txsystem.GenericTransaction
 		ParentTypeID() []byte
 		Symbol() string
+		Name() string
+		Icon() *Icon
 		DecimalPlaces() uint32
 		SubTypeCreationPredicate() []byte
 		TokenCreationPredicate() []byte

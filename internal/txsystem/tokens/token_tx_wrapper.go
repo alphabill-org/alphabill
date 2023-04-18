@@ -282,6 +282,9 @@ func (c *createNonFungibleTokenTypeWrapper) SigBytes() []byte {
 	var b bytes.Buffer
 	c.wrapper.sigBytes(&b)
 	b.Write([]byte(c.Symbol()))
+	b.Write([]byte(c.Name()))
+	b.Write([]byte(c.Icon().GetType()))
+	b.Write(c.Icon().GetData())
 	b.Write(c.ParentTypeID())
 	b.Write(c.SubTypeCreationPredicate())
 	b.Write(c.TokenCreationPredicate())
@@ -293,6 +296,9 @@ func (c *createNonFungibleTokenTypeWrapper) SigBytes() []byte {
 func (c *createNonFungibleTokenTypeWrapper) AddToHasher(hasher hash.Hash) {
 	c.wrapper.addTransactionFieldsToHasher(hasher)
 	hasher.Write([]byte(c.Symbol()))
+	hasher.Write([]byte(c.Name()))
+	hasher.Write([]byte(c.Icon().GetType()))
+	hasher.Write(c.Icon().GetData())
 	hasher.Write(c.ParentTypeID())
 	hasher.Write(c.SubTypeCreationPredicate())
 	hasher.Write(c.TokenCreationPredicate())
@@ -305,6 +311,14 @@ func (c *createNonFungibleTokenTypeWrapper) AddToHasher(hasher hash.Hash) {
 
 func (c *createNonFungibleTokenTypeWrapper) Symbol() string {
 	return c.attributes.Symbol
+}
+
+func (c *createNonFungibleTokenTypeWrapper) Name() string {
+	return c.attributes.Name
+}
+
+func (c *createNonFungibleTokenTypeWrapper) Icon() *Icon {
+	return c.attributes.Icon
 }
 
 func (c *createNonFungibleTokenTypeWrapper) SubTypeCreationPredicate() []byte {
@@ -339,6 +353,10 @@ func (c *mintNonFungibleTokenWrapper) NFTTypeID() []byte {
 	return c.attributes.NftType
 }
 
+func (c *mintNonFungibleTokenWrapper) Name() string {
+	return c.attributes.Name
+}
+
 func (c *mintNonFungibleTokenWrapper) Hash(hashFunc crypto.Hash) []byte {
 	if c.wrapper.hashComputed(hashFunc) {
 		return c.wrapper.hashValue
@@ -355,6 +373,7 @@ func (c *mintNonFungibleTokenWrapper) SigBytes() []byte {
 	c.wrapper.sigBytes(&b)
 	b.Write(c.Bearer())
 	b.Write(c.NFTTypeID())
+	b.Write([]byte(c.Name()))
 	b.Write([]byte(c.URI()))
 	b.Write(c.Data())
 	b.Write(c.DataUpdatePredicate())
@@ -365,6 +384,7 @@ func (c *mintNonFungibleTokenWrapper) AddToHasher(hasher hash.Hash) {
 	c.wrapper.addTransactionFieldsToHasher(hasher)
 	hasher.Write(c.Bearer())
 	hasher.Write(c.NFTTypeID())
+	hasher.Write([]byte(c.Name()))
 	hasher.Write([]byte(c.URI()))
 	hasher.Write(c.Data())
 	hasher.Write(c.DataUpdatePredicate())
@@ -512,6 +532,9 @@ func (c *createFungibleTokenTypeWrapper) SigBytes() []byte {
 	var b bytes.Buffer
 	c.wrapper.sigBytes(&b)
 	b.Write([]byte(c.Symbol()))
+	b.Write([]byte(c.Name()))
+	b.Write([]byte(c.Icon().GetType()))
+	b.Write(c.Icon().GetData())
 	b.Write(c.ParentTypeID())
 	b.Write(util.Uint32ToBytes(c.DecimalPlaces()))
 	b.Write(c.SubTypeCreationPredicate())
@@ -527,6 +550,9 @@ func (c *createFungibleTokenTypeWrapper) ParentTypeIdInt() *uint256.Int {
 func (c *createFungibleTokenTypeWrapper) AddToHasher(hasher hash.Hash) {
 	c.wrapper.addTransactionFieldsToHasher(hasher)
 	hasher.Write([]byte(c.Symbol()))
+	hasher.Write([]byte(c.Name()))
+	hasher.Write([]byte(c.Icon().GetType()))
+	hasher.Write(c.Icon().GetData())
 	hasher.Write(c.ParentTypeID())
 	hasher.Write(util.Uint32ToBytes(c.DecimalPlaces()))
 	hasher.Write(c.SubTypeCreationPredicate())
@@ -547,6 +573,14 @@ func (c *createFungibleTokenTypeWrapper) DecimalPlaces() uint32 {
 
 func (c *createFungibleTokenTypeWrapper) Symbol() string {
 	return c.attributes.Symbol
+}
+
+func (c *createFungibleTokenTypeWrapper) Name() string {
+	return c.attributes.Name
+}
+
+func (c *createFungibleTokenTypeWrapper) Icon() *Icon {
+	return c.attributes.Icon
 }
 
 func (c *createFungibleTokenTypeWrapper) SubTypeCreationPredicate() []byte {

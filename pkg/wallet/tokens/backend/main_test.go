@@ -244,6 +244,8 @@ func Test_Run_API(t *testing.T) {
 		ID:                       util.Uint256ToBytes(gtx.UnitID()),
 		ParentTypeID:             tx.ParentTypeID(),
 		Symbol:                   tx.Symbol(),
+		Name:                     tx.Name(),
+		Icon:                     tx.Icon(),
 		SubTypeCreationPredicate: tx.SubTypeCreationPredicate(),
 		TokenCreationPredicate:   tx.TokenCreationPredicate(),
 		InvariantPredicate:       tx.InvariantPredicate(),

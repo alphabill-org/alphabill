@@ -187,7 +187,16 @@ func (c *createFungibleTokenTypeTxExecutor) validate(tx *createFungibleTokenType
 		return errors.New(ErrStrUnitIDIsZero)
 	}
 	if len(tx.attributes.Symbol) > maxSymbolLength {
-		return errors.New(ErrStrInvalidSymbolName)
+		return errors.New(ErrStrInvalidSymbolLength)
+	}
+	if len(tx.attributes.Name) > maxNameLength {
+		return errors.New(ErrStrInvalidNameLength)
+	}
+	if len(tx.attributes.Icon.GetType()) > maxIconTypeLength {
+		return errors.New(ErrStrInvalidIconTypeLength)
+	}
+	if len(tx.attributes.Icon.GetData()) > maxIconDataLength {
+		return errors.New(ErrStrInvalidIconDataLength)
 	}
 	decimalPlaces := tx.attributes.DecimalPlaces
 	if decimalPlaces > maxDecimalPlaces {

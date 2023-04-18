@@ -33,6 +33,8 @@ func TestInitPartitionAndCreateNFTType_Ok(t *testing.T) {
 		testtransaction.WithAttributes(
 			&CreateNonFungibleTokenTypeAttributes{
 				Symbol:                   "Test",
+				Name:                     "Long name for Test",
+				Icon:                     &Icon{Type: validIconType, Data: []byte{3, 2, 1}},
 				ParentTypeId:             util.Uint256ToBytes(uint256.NewInt(0)),
 				SubTypeCreationPredicate: script.PredicateAlwaysTrue(),
 				TokenCreationPredicate:   script.PredicateAlwaysTrue(),
@@ -83,6 +85,8 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 		testtransaction.WithAttributes(
 			&CreateFungibleTokenTypeAttributes{
 				Symbol:                   "ALPHA",
+				Name:                     "Long name for ALPHA",
+				Icon:                     &Icon{Type: validIconType, Data: []byte{1, 2, 3}},
 				ParentTypeId:             zeroID,
 				SubTypeCreationPredicate: script.PredicateAlwaysTrue(),
 				TokenCreationPredicate:   script.PredicateAlwaysTrue(),
@@ -99,6 +103,8 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 		unitID:                   fungibleTokenTypeID,
 		bearer:                   script.PredicateAlwaysTrue(),
 		symbol:                   "ALPHA",
+		name:                     "Long name for ALPHA",
+		icon:                     &Icon{Type: validIconType, Data: []byte{1, 2, 3}},
 		parentID:                 zeroID,
 		decimalPlaces:            0,
 	})
@@ -339,7 +345,8 @@ type fungibleTokenUnitData struct {
 
 type fungibleTokenTypeUnitData struct {
 	parentID, unitID, bearer                                             []byte
-	symbol                                                               string
+	symbol, name                                                         string
+	icon                                                                 *Icon
 	decimalPlaces                                                        uint32
 	tokenCreationPredicate, subTypeCreationPredicate, invariantPredicate []byte
 }
@@ -356,6 +363,9 @@ func RequireFungibleTokenTypeState(t *testing.T, state TokenState, e fungibleTok
 	require.Equal(t, e.subTypeCreationPredicate, d.subTypeCreationPredicate)
 	require.Equal(t, e.invariantPredicate, d.invariantPredicate)
 	require.Equal(t, e.symbol, d.symbol)
+	require.Equal(t, e.name, d.name)
+	require.Equal(t, e.icon.GetType(), d.icon.GetType())
+	require.Equal(t, e.icon.GetData(), d.icon.GetData())
 	require.Equal(t, uint256.NewInt(0).SetBytes(e.parentID), d.parentTypeId)
 	require.Equal(t, e.decimalPlaces, d.decimalPlaces)
 }

@@ -132,12 +132,13 @@ func Test_blockProcessor_processTx(t *testing.T) {
 	require.NotNil(t, txs)
 
 	t.Run("token type transactions", func(t *testing.T) {
+		icon := &tokens.Icon{Type: "image/svg+xml; encoding=gzip", Data: []byte{1, 2, 3}}
 		cases := []struct {
 			txAttr protoreflect.ProtoMessage
 			kind   Kind
 		}{
-			{txAttr: &tokens.CreateNonFungibleTokenTypeAttributes{Symbol: "test"}, kind: NonFungible},
-			{txAttr: &tokens.CreateFungibleTokenTypeAttributes{Symbol: "test"}, kind: Fungible},
+			{txAttr: &tokens.CreateNonFungibleTokenTypeAttributes{Symbol: "test", Name: "long name of test", Icon: icon}, kind: NonFungible},
+			{txAttr: &tokens.CreateFungibleTokenTypeAttributes{Symbol: "test", Name: "long name of test", Icon: icon}, kind: Fungible},
 		}
 
 		for n, tc := range cases {

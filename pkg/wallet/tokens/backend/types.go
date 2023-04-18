@@ -6,17 +6,20 @@ import (
 
 	"github.com/alphabill-org/alphabill/internal/block"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
+	"github.com/alphabill-org/alphabill/internal/txsystem/tokens"
 )
 
 type (
 	TokenUnitType struct {
 		// common
-		ID                       TokenTypeID `json:"id"`
-		ParentTypeID             TokenTypeID `json:"parentTypeId"`
-		Symbol                   string      `json:"symbol"`
-		SubTypeCreationPredicate Predicate   `json:"subTypeCreationPredicate,omitempty"`
-		TokenCreationPredicate   Predicate   `json:"tokenCreationPredicate,omitempty"`
-		InvariantPredicate       Predicate   `json:"invariantPredicate,omitempty"`
+		ID                       TokenTypeID  `json:"id"`
+		ParentTypeID             TokenTypeID  `json:"parentTypeId"`
+		Symbol                   string       `json:"symbol"`
+		Name                     string       `json:"name,omitempty"`
+		Icon                     *tokens.Icon `json:"icon,omitempty"`
+		SubTypeCreationPredicate Predicate    `json:"subTypeCreationPredicate,omitempty"`
+		TokenCreationPredicate   Predicate    `json:"tokenCreationPredicate,omitempty"`
+		InvariantPredicate       Predicate    `json:"invariantPredicate,omitempty"`
 		// fungible only
 		DecimalPlaces uint32 `json:"decimalPlaces,omitempty"`
 		// nft only
@@ -37,6 +40,7 @@ type (
 		Decimals uint32 `json:"decimals,omitempty"`
 		Burned   bool   `json:"burned,omitempty"`
 		// nft only
+		NftName                string    `json:"nftName,omitempty"`
 		NftURI                 string    `json:"nftUri,omitempty"`
 		NftData                []byte    `json:"nftData,omitempty"`
 		NftDataUpdatePredicate Predicate `json:"nftDataUpdatePredicate,omitempty"`

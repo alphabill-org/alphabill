@@ -264,6 +264,8 @@ func TestNewTypes(t *testing.T) {
 		typeId := test.RandomBytes(32)
 		a := &ttxs.CreateFungibleTokenTypeAttributes{
 			Symbol:                             "AB",
+			Name:                               "Long name for AB",
+			Icon:                               &ttxs.Icon{Type: "image/png", Data: []byte{1}},
 			DecimalPlaces:                      0,
 			ParentTypeId:                       nil,
 			SubTypeCreationPredicateSignatures: nil,
@@ -279,12 +281,16 @@ func TestNewTypes(t *testing.T) {
 		require.NoError(t, tx.TransactionAttributes.UnmarshalTo(newFungibleTx))
 		require.Equal(t, typeId, tx.UnitId)
 		require.Equal(t, a.Symbol, newFungibleTx.Symbol)
+		require.Equal(t, a.Name, newFungibleTx.Name)
+		require.Equal(t, a.Icon.Type, newFungibleTx.Icon.Type)
+		require.Equal(t, a.Icon.Data, newFungibleTx.Icon.Data)
 		require.Equal(t, a.DecimalPlaces, newFungibleTx.DecimalPlaces)
 		require.EqualValues(t, tx.Timeout, 101)
 
 		// new subtype
 		b := &ttxs.CreateFungibleTokenTypeAttributes{
 			Symbol:                             "AB",
+			Name:                               "Long name for AB",
 			DecimalPlaces:                      2,
 			ParentTypeId:                       typeId,
 			SubTypeCreationPredicateSignatures: nil,
@@ -301,6 +307,8 @@ func TestNewTypes(t *testing.T) {
 		typeId := test.RandomBytes(32)
 		a := &ttxs.CreateNonFungibleTokenTypeAttributes{
 			Symbol:                             "ABNFT",
+			Name:                               "Long name for ABNFT",
+			Icon:                               &ttxs.Icon{Type: "image/svg", Data: []byte{2}},
 			ParentTypeId:                       nil,
 			SubTypeCreationPredicateSignatures: nil,
 			SubTypeCreationPredicate:           script.PredicateAlwaysFalse(),
@@ -315,6 +323,8 @@ func TestNewTypes(t *testing.T) {
 		require.NoError(t, tx.TransactionAttributes.UnmarshalTo(newNFTTx))
 		require.Equal(t, typeId, tx.UnitId)
 		require.Equal(t, a.Symbol, newNFTTx.Symbol)
+		require.Equal(t, a.Icon.Type, newNFTTx.Icon.Type)
+		require.Equal(t, a.Icon.Data, newNFTTx.Icon.Data)
 	})
 }
 
@@ -482,6 +492,13 @@ func TestMintNFT_InvalidInputs(t *testing.T) {
 			name:       "attributes missing",
 			attrs:      nil,
 			wantErrStr: "attributes missing",
+		},
+		{
+			name: "invalid name",
+			attrs: &ttxs.MintNonFungibleTokenAttributes{
+				Name: test.RandomString(257),
+			},
+			wantErrStr: "name exceeds the maximum allowed size of 256 bytes",
 		},
 		{
 			name: "invalid URI",

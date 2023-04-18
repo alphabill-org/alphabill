@@ -195,8 +195,9 @@ func TestWalletCreateFungibleTokenTypeAndTokenAndSendCmd_IntegrationTest(t *test
 	w2.Shutdown()
 	typeID := util.Uint256ToBytes(uint256.NewInt(uint64(0x10)))
 	symbol := "AB"
+	name := "Long name for AB"
 	// create type
-	execTokensCmd(t, homedir, fmt.Sprintf("new-type fungible  --symbol %s -r %s --type %X --decimals %v", symbol, backendUrl, typeID, decimals))
+	execTokensCmd(t, homedir, fmt.Sprintf("new-type fungible  --symbol %s --name %s -r %s --type %X --decimals %v", symbol, name, backendUrl, typeID, decimals))
 	ensureTokenTypeIndexed(t, ctx, client, w1key.PubKey, typeID)
 	// non-existing id
 	nonExistingTypeId := util.Uint256ToBytes(uint256.NewInt(uint64(0x11)))

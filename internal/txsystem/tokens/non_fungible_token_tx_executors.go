@@ -109,8 +109,17 @@ func (c *createNonFungibleTokenTypeTxExecutor) validate(tx *createNonFungibleTok
 	if unitID.IsZero() {
 		return errors.New(ErrStrUnitIDIsZero)
 	}
-	if len(tx.attributes.Symbol) > maxSymbolLength {
-		return errors.Errorf(ErrStrInvalidSymbolName)
+	if len(tx.Symbol()) > maxSymbolLength {
+		return errors.Errorf(ErrStrInvalidSymbolLength)
+	}
+	if len(tx.Name()) > maxNameLength {
+		return errors.New(ErrStrInvalidNameLength)
+	}
+	if tx.Icon() != nil && len(tx.Icon().Type) > maxIconTypeLength {
+		return errors.New(ErrStrInvalidIconTypeLength)
+	}
+	if tx.Icon() != nil && len(tx.Icon().Data) > maxIconDataLength {
+		return errors.New(ErrStrInvalidIconDataLength)
 	}
 	u, err := c.state.GetUnit(unitID)
 	if u != nil {
@@ -140,6 +149,9 @@ func (m *mintNonFungibleTokenTxExecutor) validate(tx *mintNonFungibleTokenWrappe
 	unitID := tx.wrapper.UnitID()
 	if unitID.IsZero() {
 		return errors.New(ErrStrUnitIDIsZero)
+	}
+	if len(tx.Name()) > maxNameLength {
+		return errors.New(ErrStrInvalidNameLength)
 	}
 	uri := tx.URI()
 	if uri != "" {

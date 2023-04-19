@@ -8,8 +8,8 @@ import (
 	"fmt"
 	"sort"
 	"strconv"
-	"time"
 
+	"github.com/alphabill-org/alphabill/pkg/wallet/txsubmitter"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"golang.org/x/sync/errgroup"
 
@@ -21,7 +21,6 @@ import (
 	"github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/alphabill-org/alphabill/pkg/wallet/account"
 	backendmoney "github.com/alphabill-org/alphabill/pkg/wallet/backend/money"
-	"github.com/alphabill-org/alphabill/pkg/wallet/backend/money/client"
 	"github.com/alphabill-org/alphabill/pkg/wallet/log"
 )
 
@@ -39,7 +38,6 @@ var (
 	ErrInvalidAmount        = errors.New("invalid amount")
 	ErrInvalidAccountIndex  = errors.New("invalid account index")
 	ErrInvalidBlockSystemID = errors.New("invalid system identifier")
-	ErrTxFailedToConfirm    = errors.New("transaction(s) failed to confirm")
 )
 
 var (
@@ -51,9 +49,16 @@ type (
 	Wallet struct {
 		*wallet.Wallet
 
-		dcWg       *dcWaitGroup
-		am         account.Manager
-		restClient *client.MoneyBackendClient
+		dcWg    *dcWaitGroup
+		am      account.Manager
+		backend BackendAPI
+	}
+
+	BackendAPI interface {
+		GetBalance(pubKey []byte, includeDCBills bool) (uint64, error)
+		ListBills(pubKey []byte) (*backendmoney.ListBillsResponse, error)
+		GetProof(billId []byte) (*block.Bills, error)
+		GetBlockHeight() (uint64, error)
 	}
 
 	SendCmd struct {
@@ -76,8 +81,8 @@ func CreateNewWallet(am account.Manager, mnemonic string) error {
 	return createMoneyWallet(mnemonic, am)
 }
 
-func LoadExistingWallet(config abclient.AlphabillClientConfig, am account.Manager, restClient *client.MoneyBackendClient) (*Wallet, error) {
-	mw := &Wallet{am: am, restClient: restClient, dcWg: newDcWaitGroup()}
+func LoadExistingWallet(config abclient.AlphabillClientConfig, am account.Manager, backend BackendAPI) (*Wallet, error) {
+	mw := &Wallet{am: am, backend: backend, dcWg: newDcWaitGroup()}
 
 	mw.Wallet = wallet.New().
 		SetABClientConf(config).
@@ -120,7 +125,7 @@ func (w *Wallet) GetBalance(cmd GetBalanceCmd) (uint64, error) {
 	if err != nil {
 		return 0, err
 	}
-	return w.restClient.GetBalance(pubKey, cmd.CountDCBills)
+	return w.backend.GetBalance(pubKey, cmd.CountDCBills)
 }
 
 // GetBalances returns sum value of all bills currently owned by the wallet, for all accounts.
@@ -130,7 +135,7 @@ func (w *Wallet) GetBalances(cmd GetBalanceCmd) ([]uint64, uint64, error) {
 	totals := make([]uint64, len(pubKeys))
 	sum := uint64(0)
 	for accountIndex, pubKey := range pubKeys {
-		balance, err := w.restClient.GetBalance(pubKey, cmd.CountDCBills)
+		balance, err := w.backend.GetBalance(pubKey, cmd.CountDCBills)
 		if err != nil {
 			return nil, 0, err
 		}
@@ -150,7 +155,7 @@ func (w *Wallet) Send(ctx context.Context, cmd SendCmd) ([]*Bill, error) {
 	}
 
 	pubKey, _ := w.am.GetPublicKey(cmd.AccountIndex)
-	balance, err := w.restClient.GetBalance(pubKey, true)
+	balance, err := w.backend.GetBalance(pubKey, true)
 	if err != nil {
 		return nil, err
 	}
@@ -172,7 +177,7 @@ func (w *Wallet) Send(ctx context.Context, cmd SendCmd) ([]*Bill, error) {
 		return nil, err
 	}
 
-	billResponse, err := w.restClient.ListBills(pubKey)
+	billResponse, err := w.backend.ListBills(pubKey)
 	if err != nil {
 		return nil, err
 	}
@@ -181,24 +186,57 @@ func (w *Wallet) Send(ctx context.Context, cmd SendCmd) ([]*Bill, error) {
 		return nil, err
 	}
 
-	txs, err := createTransactions(cmd.ReceiverPubKey, cmd.Amount, bills, k, timeout)
+	apiWrapper := &backendAPIWrapper{wallet: w}
+	batch := txsubmitter.NewBatch(k.PubKey, apiWrapper)
+
+	if err = createTransactions(batch.Add, txConverter, cmd.ReceiverPubKey, cmd.Amount, bills, k, timeout); err != nil {
+		return nil, err
+	}
+	if err = batch.SendTx(ctx, cmd.WaitForConfirmation); err != nil {
+		return nil, err
+	}
+	return apiWrapper.txProofs, nil
+}
+
+type backendAPIWrapper struct {
+	wallet   *Wallet
+	txProofs []*Bill
+}
+
+func (b *backendAPIWrapper) GetRoundNumber(context.Context) (uint64, error) {
+	return b.wallet.backend.GetBlockHeight()
+}
+
+func (b *backendAPIWrapper) PostTransactions(ctx context.Context, _ wallet.PubKey, txs *txsystem.Transactions) error {
+	for _, tx := range txs.Transactions {
+		err := b.wallet.SendTransaction(ctx, tx, &wallet.SendOpts{RetryOnFullTxBuffer: true})
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (b *backendAPIWrapper) GetTxProof(_ context.Context, unitID wallet.UnitID, txHash wallet.TxHash) (*wallet.Proof, error) {
+	resp, err := b.wallet.backend.GetProof(unitID)
 	if err != nil {
 		return nil, err
 	}
-	for _, tx := range txs {
-		err := w.SendTransaction(ctx, tx, &wallet.SendOpts{RetryOnFullTxBuffer: true})
-		if err != nil {
-			return nil, err
-		}
+	if len(resp.Bills) != 1 {
+		return nil, errors.New(fmt.Sprintf("unexpected number of proofs: %d, bill ID: %X", len(resp.Bills), unitID))
 	}
-	if cmd.WaitForConfirmation {
-		txProofs, err := w.waitForConfirmation(ctx, txs, maxBlockNo, timeout)
-		if err != nil {
-			return nil, err
-		}
-		return txProofs, nil
+	bill := resp.Bills[0]
+	if !bytes.Equal(bill.TxHash, txHash) {
+		// confirmation expects nil (not error) if there's no proof for the given tx hash (yet)
+		return nil, nil
 	}
-	return nil, nil
+	b.txProofs = append(b.txProofs, convertBill(bill))
+	proof := bill.GetTxProof()
+	return &wallet.Proof{
+		BlockNumber: proof.BlockNumber,
+		Tx:          proof.Tx,
+		Proof:       proof.Proof,
+	}, nil
 }
 
 // collectDust sends dust transfer for every bill for given account in wallet and records metadata.
@@ -216,7 +254,7 @@ func (w *Wallet) collectDust(ctx context.Context, blocking bool, accountIndex ui
 	if err != nil {
 		return err
 	}
-	billResponse, err := w.restClient.ListBills(pubKey)
+	billResponse, err := w.backend.ListBills(pubKey)
 	if err != nil {
 		return err
 	}
@@ -226,7 +264,7 @@ func (w *Wallet) collectDust(ctx context.Context, blocking bool, accountIndex ui
 	}
 	var bills []*Bill
 	for _, b := range billResponse.Bills {
-		proof, err := w.restClient.GetProof(b.Id)
+		proof, err := w.backend.GetProof(b.Id)
 		if err != nil {
 			return err
 		}
@@ -301,44 +339,6 @@ func (w *Wallet) swapDcBills(dcBills []*Bill, dcNonce []byte, billIds [][]byte, 
 		return err
 	}
 	return nil
-}
-
-func (w *Wallet) waitForConfirmation(ctx context.Context, pendingTxs []*txsystem.Transaction, maxBlockNumber, timeout uint64) ([]*Bill, error) {
-	log.Info("waiting for confirmation(s)...")
-	blockNumber := maxBlockNumber
-	txsLog := NewTxLog(pendingTxs)
-	for blockNumber <= timeout {
-		b, err := w.AlphabillClient.GetBlock(ctx, blockNumber)
-		if err != nil {
-			return nil, err
-		}
-		if b == nil {
-			// wait for some time before retrying to fetch new block
-			timer := time.NewTimer(100 * time.Millisecond)
-			select {
-			case <-timer.C:
-				continue
-			case <-ctx.Done():
-				timer.Stop()
-				return nil, nil
-			}
-		}
-		for _, tx := range b.Transactions {
-			if txsLog.Contains(tx) {
-				log.Info("confirmed tx ", hexutil.Encode(tx.UnitId))
-				err = txsLog.RecordTx(tx, b)
-				if err != nil {
-					return nil, err
-				}
-				if txsLog.IsAllTxsConfirmed() {
-					log.Info("transaction(s) confirmed")
-					return txsLog.GetAllRecordedBills(), nil
-				}
-			}
-		}
-		blockNumber += 1
-	}
-	return nil, ErrTxFailedToConfirm
 }
 
 func (s *SendCmd) isValid() error {

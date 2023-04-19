@@ -12,6 +12,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/internal/txsystem/tokens"
 	"github.com/alphabill-org/alphabill/internal/util"
+	"github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/alphabill-org/alphabill/pkg/wallet/account"
 	"github.com/alphabill-org/alphabill/pkg/wallet/log"
 	twb "github.com/alphabill-org/alphabill/pkg/wallet/tokens/backend"
@@ -42,12 +43,12 @@ type (
 
 	TokenBackend interface {
 		GetToken(ctx context.Context, id twb.TokenID) (*twb.TokenUnit, error)
-		GetTokens(ctx context.Context, kind twb.Kind, owner twb.PubKey, offsetKey string, limit int) ([]twb.TokenUnit, string, error)
-		GetTokenTypes(ctx context.Context, kind twb.Kind, creator twb.PubKey, offsetKey string, limit int) ([]twb.TokenUnitType, string, error)
+		GetTokens(ctx context.Context, kind twb.Kind, owner wallet.PubKey, offsetKey string, limit int) ([]twb.TokenUnit, string, error)
+		GetTokenTypes(ctx context.Context, kind twb.Kind, creator wallet.PubKey, offsetKey string, limit int) ([]twb.TokenUnitType, string, error)
 		GetTypeHierarchy(ctx context.Context, id twb.TokenTypeID) ([]twb.TokenUnitType, error)
 		GetRoundNumber(ctx context.Context) (uint64, error)
-		PostTransactions(ctx context.Context, pubKey twb.PubKey, txs *txsystem.Transactions) error
-		GetTxProof(ctx context.Context, unitID twb.UnitID, txHash twb.TxHash) (*twb.Proof, error)
+		PostTransactions(ctx context.Context, pubKey wallet.PubKey, txs *txsystem.Transactions) error
+		GetTxProof(ctx context.Context, unitID wallet.UnitID, txHash wallet.TxHash) (*wallet.Proof, error)
 	}
 )
 
@@ -95,7 +96,7 @@ func (w *Wallet) NewNonFungibleType(ctx context.Context, accNr uint64, attrs *to
 	return w.newType(ctx, accNr, attrs, typeId, subtypePredicateArgs)
 }
 
-func (w *Wallet) NewFungibleToken(ctx context.Context, accNr uint64, typeId twb.TokenTypeID, amount uint64, bearerPredicate twb.Predicate, mintPredicateArgs []*PredicateInput) (twb.TokenID, error) {
+func (w *Wallet) NewFungibleToken(ctx context.Context, accNr uint64, typeId twb.TokenTypeID, amount uint64, bearerPredicate wallet.Predicate, mintPredicateArgs []*PredicateInput) (twb.TokenID, error) {
 	log.Info("Creating new fungible token")
 	attrs := &tokens.MintFungibleTokenAttributes{
 		Bearer:                           bearerPredicate,
@@ -234,7 +235,7 @@ func (w *Wallet) ListTokens(ctx context.Context, kind twb.Kind, accountNumber ui
 	return allTokensByAccountNumber, nil
 }
 
-func (w *Wallet) GetToken(ctx context.Context, owner twb.PubKey, kind twb.Kind, tokenId twb.TokenID) (*twb.TokenUnit, error) {
+func (w *Wallet) GetToken(ctx context.Context, owner wallet.PubKey, kind twb.Kind, tokenId twb.TokenID) (*twb.TokenUnit, error) {
 	token, err := w.backend.GetToken(ctx, tokenId)
 	if err != nil {
 		return nil, fmt.Errorf("error fetching token %X: %w", tokenId, err)
@@ -242,7 +243,7 @@ func (w *Wallet) GetToken(ctx context.Context, owner twb.PubKey, kind twb.Kind, 
 	return token, nil
 }
 
-func (w *Wallet) TransferNFT(ctx context.Context, accountNumber uint64, tokenId twb.TokenID, receiverPubKey twb.PubKey, invariantPredicateArgs []*PredicateInput) error {
+func (w *Wallet) TransferNFT(ctx context.Context, accountNumber uint64, tokenId twb.TokenID, receiverPubKey wallet.PubKey, invariantPredicateArgs []*PredicateInput) error {
 	key, err := w.am.GetAccountKey(accountNumber - 1)
 	if err != nil {
 		return err
@@ -253,7 +254,7 @@ func (w *Wallet) TransferNFT(ctx context.Context, accountNumber uint64, tokenId 
 		return err
 	}
 	attrs := newNonFungibleTransferTxAttrs(token, receiverPubKey)
-	sub, err := w.prepareTx(ctx, twb.UnitID(tokenId), attrs, key, func(tx *txsystem.Transaction, gtx txsystem.GenericTransaction) error {
+	sub, err := w.prepareTx(ctx, wallet.UnitID(tokenId), attrs, key, func(tx *txsystem.Transaction, gtx txsystem.GenericTransaction) error {
 		signatures, err := preparePredicateSignatures(w.am, invariantPredicateArgs, gtx)
 		if err != nil {
 			return err
@@ -264,7 +265,7 @@ func (w *Wallet) TransferNFT(ctx context.Context, accountNumber uint64, tokenId 
 	if err != nil {
 		return err
 	}
-	return sub.toBatch(w.backend, key.PubKey).sendTx(ctx, w.confirmTx)
+	return sub.ToBatch(w.backend, key.PubKey).SendTx(ctx, w.confirmTx)
 }
 
 func (w *Wallet) SendFungible(ctx context.Context, accountNumber uint64, typeId twb.TokenTypeID, targetAmount uint64, receiverPubKey []byte, invariantPredicateArgs []*PredicateInput) error {
@@ -315,7 +316,7 @@ func (w *Wallet) SendFungible(ctx context.Context, accountNumber uint64, typeId 
 		if err != nil {
 			return err
 		}
-		return sub.toBatch(w.backend, acc.PubKey).sendTx(ctx, w.confirmTx)
+		return sub.ToBatch(w.backend, acc.PubKey).SendTx(ctx, w.confirmTx)
 	} else {
 		return w.doSendMultiple(ctx, targetAmount, matchingTokens, acc, receiverPubKey, invariantPredicateArgs)
 	}
@@ -354,7 +355,7 @@ func (w *Wallet) UpdateNFTData(ctx context.Context, accountNumber uint64, tokenI
 	if err != nil {
 		return err
 	}
-	return sub.toBatch(w.backend, acc.PubKey).sendTx(ctx, w.confirmTx)
+	return sub.ToBatch(w.backend, acc.PubKey).SendTx(ctx, w.confirmTx)
 }
 
 func (w *Wallet) getRoundNumber(ctx context.Context) (uint64, error) {

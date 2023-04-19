@@ -17,7 +17,7 @@ func TestBlockingDcWithNormalBills(t *testing.T) {
 	billsList := createBillListJsonResponse(bills)
 	proofList := createBlockProofJsonResponse(t, bills, nil, 0, dcTimeoutBlockCount)
 
-	w, mockClient := CreateTestWallet(t, &backendMockReturnConf{balance: 3, customBillList: billsList, proofList: proofList})
+	w, mockClient := CreateTestWallet(t, withBackendMock(t, &backendMockReturnConf{balance: 3, customBillList: billsList, proofList: proofList}))
 
 	// when blocking dust collector runs
 	_ = runBlockingDc(t, w)
@@ -42,7 +42,7 @@ func TestBlockingDcWithDcBills(t *testing.T) {
 	billsList := createBillListJsonResponse(bills)
 	proofList := createBlockProofJsonResponse(t, bills, nil, 0, dcTimeoutBlockCount)
 
-	w, _ = CreateTestWallet(t, &backendMockReturnConf{balance: 3, customBillList: billsList, proofList: proofList})
+	w, _ = CreateTestWallet(t, withBackendMock(t, &backendMockReturnConf{balance: 3, customBillList: billsList, proofList: proofList}))
 
 	// when blocking dust collector runs
 	_ = runBlockingDc(t, w)

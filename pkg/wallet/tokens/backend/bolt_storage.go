@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/alphabill-org/alphabill/pkg/wallet"
 	bolt "go.etcd.io/bbolt"
 
 	"github.com/alphabill-org/alphabill/internal/util"
@@ -31,7 +32,7 @@ type storage struct {
 
 func (s *storage) Close() error { return s.db.Close() }
 
-func (s *storage) SaveTokenTypeCreator(id TokenTypeID, kind Kind, creator PubKey) error {
+func (s *storage) SaveTokenTypeCreator(id TokenTypeID, kind Kind, creator wallet.PubKey) error {
 	return s.db.Update(func(tx *bolt.Tx) error {
 		b, err := s.ensureSubBucket(tx, bucketTypeCreator, creator, false)
 		if err != nil {
@@ -46,7 +47,7 @@ QueryTokenType loads token types filtered by "kind" and "creator", starting from
   - "creator" parameter is optional, when nil result is not filterd by creator.
   - return value "next" just indicates that there is more data, it might not match the (kind) filter!
 */
-func (s *storage) QueryTokenType(kind Kind, creator PubKey, startKey TokenTypeID, count int) (rsp []*TokenUnitType, next TokenTypeID, _ error) {
+func (s *storage) QueryTokenType(kind Kind, creator wallet.PubKey, startKey TokenTypeID, count int) (rsp []*TokenUnitType, next TokenTypeID, _ error) {
 	if creator != nil {
 		return s.tokenTypesByCreator(creator, kind, startKey, count)
 	}
@@ -72,7 +73,7 @@ func (s *storage) QueryTokenType(kind Kind, creator PubKey, startKey TokenTypeID
 	})
 }
 
-func (s *storage) tokenTypesByCreator(creator PubKey, kind Kind, startKey []byte, count int) (rsp []*TokenUnitType, next []byte, _ error) {
+func (s *storage) tokenTypesByCreator(creator wallet.PubKey, kind Kind, startKey []byte, count int) (rsp []*TokenUnitType, next []byte, _ error) {
 	return rsp, next, s.db.View(func(tx *bolt.Tx) error {
 		ownerBucket, err := s.ensureSubBucket(tx, bucketTypeCreator, creator, true)
 		if err != nil {
@@ -104,7 +105,7 @@ func (s *storage) tokenTypesByCreator(creator PubKey, kind Kind, startKey []byte
 	})
 }
 
-func (s *storage) SaveTokenType(tokenType *TokenUnitType, proof *Proof) error {
+func (s *storage) SaveTokenType(tokenType *TokenUnitType, proof *wallet.Proof) error {
 	tokenData, err := json.Marshal(tokenType)
 	if err != nil {
 		return fmt.Errorf("failed to serialize token type data: %w", err)
@@ -114,7 +115,7 @@ func (s *storage) SaveTokenType(tokenType *TokenUnitType, proof *Proof) error {
 		if err != nil {
 			return fmt.Errorf("failed to save token type data: %w", err)
 		}
-		if err := s.storeUnitBlockProof(tx, UnitID(tokenType.ID), tokenType.TxHash, proof); err != nil {
+		if err := s.storeUnitBlockProof(tx, wallet.UnitID(tokenType.ID), tokenType.TxHash, proof); err != nil {
 			return fmt.Errorf("failed to store unit block proof: %w", err)
 		}
 		return nil
@@ -139,7 +140,7 @@ func (s *storage) GetTokenType(id TokenTypeID) (*TokenUnitType, error) {
 	return d, nil
 }
 
-func (s *storage) SaveToken(token *TokenUnit, proof *Proof) error {
+func (s *storage) SaveToken(token *TokenUnit, proof *wallet.Proof) error {
 	tokenData, err := json.Marshal(token)
 	if err != nil {
 		return fmt.Errorf("failed to serialize token unit data: %w", err)
@@ -170,7 +171,7 @@ func (s *storage) SaveToken(token *TokenUnit, proof *Proof) error {
 		if err = tx.Bucket(bucketTokenUnit).Put(token.ID, tokenData); err != nil {
 			return err
 		}
-		return s.storeUnitBlockProof(tx, UnitID(token.ID), token.TxHash, proof)
+		return s.storeUnitBlockProof(tx, wallet.UnitID(token.ID), token.TxHash, proof)
 	})
 }
 
@@ -186,7 +187,7 @@ QueryTokens loads tokens filtered by "kind" and "owner", starting from "startKey
   - owner is required, ie can't query "any owner".
   - return value "next" just indicates that there is more data, it might not match the (kind) filter!
 */
-func (s *storage) QueryTokens(kind Kind, owner Predicate, startKey TokenID, count int) (rsp []*TokenUnit, next TokenID, _ error) {
+func (s *storage) QueryTokens(kind Kind, owner wallet.Predicate, startKey TokenID, count int) (rsp []*TokenUnit, next TokenID, _ error) {
 	return rsp, next, s.db.View(func(tx *bolt.Tx) error {
 		ownerBucket, err := s.ensureSubBucket(tx, bucketTokenOwner, owner, true)
 		if err != nil {
@@ -233,8 +234,8 @@ func (s *storage) SetBlockNumber(blockNumber uint64) error {
 	})
 }
 
-func (s *storage) GetTxProof(unitID UnitID, txHash TxHash) (*Proof, error) {
-	var proof *Proof
+func (s *storage) GetTxProof(unitID wallet.UnitID, txHash wallet.TxHash) (*wallet.Proof, error) {
+	var proof *wallet.Proof
 	err := s.db.View(func(tx *bolt.Tx) error {
 		var err error
 		proof, err = s.getUnitBlockProof(tx, unitID, txHash)
@@ -267,7 +268,7 @@ func (s *storage) getToken(tx *bolt.Tx, id TokenID) (*TokenUnit, error) {
 	return token, nil
 }
 
-func (s *storage) storeUnitBlockProof(tx *bolt.Tx, unitID UnitID, txHash TxHash, proof *Proof) error {
+func (s *storage) storeUnitBlockProof(tx *bolt.Tx, unitID wallet.UnitID, txHash wallet.TxHash, proof *wallet.Proof) error {
 	proofData, err := json.Marshal(proof)
 	if err != nil {
 		return fmt.Errorf("failed to serialize proof data: %w", err)
@@ -318,7 +319,7 @@ func (s *storage) initMetaData() error {
 	})
 }
 
-func (s *storage) getUnitBlockProof(dbTx *bolt.Tx, id []byte, txHash TxHash) (*Proof, error) {
+func (s *storage) getUnitBlockProof(dbTx *bolt.Tx, id []byte, txHash wallet.TxHash) (*wallet.Proof, error) {
 	b, err := s.ensureSubBucket(dbTx, bucketTxHistory, id, true)
 	if err != nil {
 		return nil, err
@@ -330,7 +331,7 @@ func (s *storage) getUnitBlockProof(dbTx *bolt.Tx, id []byte, txHash TxHash) (*P
 	if proofData == nil {
 		return nil, nil
 	}
-	proof := &Proof{}
+	proof := &wallet.Proof{}
 	if err := json.Unmarshal(proofData, proof); err != nil {
 		return nil, fmt.Errorf("failed to deserialize proof data: %w", err)
 	}

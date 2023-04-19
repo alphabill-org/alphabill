@@ -4,7 +4,7 @@ stages:
   - build
   - analyze
 
-image: $CI_REGISTRY/alphabill/gitlab-ci-image:585921e2
+image: $CI_REGISTRY/alphabill/gitlab-ci-image:4b1c3577
 
 # Debugging info and initialization goes here
 init:
@@ -15,7 +15,7 @@ init:
 test:
   stage: test
   script:
-    - make test
+    - gotestsum --junitfile report.xml --format standard-quiet -- ./... -coverpkg=./... -count=1 -coverprofile test-coverage.out
     - go tool cover -func test-coverage.out
     - gocover-cobertura < test-coverage.out > test-coverage-cobertura.xml
   coverage: '/\(statements\)(?:\s+)?(\d+(?:\.\d+)?%)/'
@@ -25,6 +25,7 @@ test:
       coverage_report:
         coverage_format: cobertura
         path: test-coverage-cobertura.xml
+      junit: report.xml
     paths:
       - test-coverage.out
     when: always
@@ -51,10 +52,10 @@ sonarqube-check:
   stage: analyze
   image:
     name: sonarsource/sonar-scanner-cli:latest
-    entrypoint: [ "" ]
+    entrypoint: [""]
   variables:
-    SONAR_USER_HOME: "${CI_PROJECT_DIR}/.sonar"  # Defines the location of the analysis task cache
-    GIT_DEPTH: "0"  # Tells git to fetch all the branches of the project, required by the analysis task
+    SONAR_USER_HOME: "${CI_PROJECT_DIR}/.sonar" # Defines the location of the analysis task cache
+    GIT_DEPTH: "0" # Tells git to fetch all the branches of the project, required by the analysis task
   cache:
     key: "${CI_JOB_NAME}"
     paths:

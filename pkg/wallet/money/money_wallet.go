@@ -44,6 +44,7 @@ var (
 	ErrInsufficientFeeCredit        = errors.New("insufficient fee credit balance for transaction(s)")
 	ErrInsufficientBillValue        = errors.New("wallet does not have a bill large enough for fee transfer")
 	ErrInvalidCreateFeeCreditAmount = errors.New("fee credit amount must be positive")
+	ErrAddFCInsufficientBalance     = errors.New("insufficient balance for transaction and transaction fee")
 )
 
 var (
@@ -199,7 +200,6 @@ func (w *Wallet) Send(ctx context.Context, cmd SendCmd) ([]*Bill, error) {
 		return nil, err
 	}
 	if fcb == nil {
-		log.Info("err no fee credit")
 		return nil, ErrNoFeeCredit
 	}
 
@@ -262,7 +262,7 @@ func (w *Wallet) AddFeeCredit(ctx context.Context, cmd AddFeeCmd) ([]*BlockProof
 	// must have enough balance for two txs (transferFC + addFC) and not end up with zero sum
 	maxTotalFees := 2 * maxFee
 	if cmd.Amount+maxTotalFees > balance {
-		return nil, ErrInsufficientBalance
+		return nil, ErrAddFCInsufficientBalance
 	}
 
 	// fetch bills

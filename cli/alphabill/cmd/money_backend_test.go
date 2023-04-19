@@ -31,11 +31,12 @@ func TestMoneyBackendCLI(t *testing.T) {
 	}
 	initialBillID := util.Uint256ToBytes(initialBill.ID)
 	initialBillHex := hexutil.Encode(initialBillID)
-	network := startAlphabillPartition(t, initialBill, true)
+	network := startAlphabillPartition(t, initialBill)
 	startRPCServer(t, network, defaultServerAddr)
 
 	// transfer initial bill to wallet pubkey
-	initialBillValue := spendInitialBillWithFeeCredits(t, network, initialBill)
+	pk := "0x03c30573dc0c7fd43fcb801289a6a96cb78c27f4ba398b89da91ece23e9a99aca3"
+	initialBillValue := spendInitialBillWithFeeCredits(t, network, initialBill, pk)
 
 	// start wallet-backend service
 	homedir := setupTestHomeDir(t, "money-backend-test")
@@ -55,7 +56,6 @@ func TestMoneyBackendCLI(t *testing.T) {
 	}()
 
 	// wait for wallet-backend to index the transaction by verifying balance
-	pk := "0x03c30573dc0c7fd43fcb801289a6a96cb78c27f4ba398b89da91ece23e9a99aca3"
 	require.Eventually(t, func() bool {
 		// verify balance
 		res := &backend.BalanceResponse{}

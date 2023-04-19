@@ -8,6 +8,7 @@ import (
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
 
+	"github.com/alphabill-org/alphabill/internal/block"
 	"github.com/alphabill-org/alphabill/internal/hash"
 	"github.com/alphabill-org/alphabill/internal/script"
 	moneytesttx "github.com/alphabill-org/alphabill/internal/testutils/transaction/money"
@@ -15,6 +16,7 @@ import (
 	billtx "github.com/alphabill-org/alphabill/internal/txsystem/money"
 	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/alphabill-org/alphabill/pkg/wallet/account"
+	"github.com/alphabill-org/alphabill/pkg/wallet/backend/bp"
 	"github.com/alphabill-org/alphabill/pkg/wallet/log"
 )
 
@@ -52,7 +54,15 @@ func TestDustCollectionMaxBillCount(t *testing.T) {
 	proofList := createBlockProofJsonResponse(t, bills, nil, 0, dcTimeoutBlockCount, nil)
 	proofList = append(proofList, createBlockProofJsonResponse(t, dcBills, nonceBytes, 0, dcTimeoutBlockCount, k)...)
 
-	w, mockClient := CreateTestWallet(t, &backendMockReturnConf{customBillList: billsList, proofList: proofList})
+	w, mockClient := CreateTestWallet(t, &backendMockReturnConf{
+		customBillList: billsList,
+		proofList:      proofList,
+		feeCreditBill: &bp.Bill{
+			Id:      k.PrivKeyHash,
+			Value:   100 * 1e8,
+			TxProof: &block.TxProof{},
+		},
+	})
 
 	// when dc runs
 	counter := uint64(0)
@@ -109,7 +119,15 @@ func TestBasicDustCollection(t *testing.T) {
 	proofList = append(proofList, createBlockProofJsonResponse(t, dcBills, nonceBytes, 0, dcTimeoutBlockCount, k)...)
 	expectedDcNonce := calculateDcNonce(bills)
 
-	w, mockClient := CreateTestWalletWithManager(t, &backendMockReturnConf{balance: 3, customBillList: billsList, proofList: proofList}, am)
+	w, mockClient := CreateTestWalletWithManager(t, &backendMockReturnConf{
+		balance:        3,
+		customBillList: billsList,
+		proofList:      proofList,
+		feeCreditBill: &bp.Bill{
+			Id:      k.PrivKeyHash,
+			Value:   100 * 1e8,
+			TxProof: &block.TxProof{},
+		}}, am)
 
 	// when dc runs
 	counter := uint64(0)
@@ -149,7 +167,16 @@ func TestDustCollectionWithSwap(t *testing.T) {
 	proofList := createBlockProofJsonResponse(t, bills, nil, 0, dcTimeoutBlockCount, k)
 	proofList = append(proofList, createBlockProofJsonResponse(t, []*Bill{addDcBill(t, k, tempNonce, expectedDcNonce, 1, dcTimeoutBlockCount), addDcBill(t, k, tempNonce, expectedDcNonce, 2, dcTimeoutBlockCount)}, expectedDcNonce, 0, dcTimeoutBlockCount, k)...)
 
-	w, mockClient := CreateTestWalletWithManager(t, &backendMockReturnConf{balance: 3, customBillList: billsList, proofList: proofList}, am)
+	w, mockClient := CreateTestWalletWithManager(t, &backendMockReturnConf{
+		balance:        3,
+		customBillList: billsList,
+		proofList:      proofList,
+		feeCreditBill: &bp.Bill{
+			Id:      k.PrivKeyHash,
+			Value:   100 * 1e8,
+			TxProof: &block.TxProof{},
+		},
+	}, am)
 
 	// when dc runs
 	counter := uint64(0)
@@ -188,7 +215,15 @@ func TestSwapWithExistingDCBillsBeforeDCTimeout(t *testing.T) {
 	bills := []*Bill{addDcBill(t, k, tempNonce, nonceBytes, 1, dcTimeoutBlockCount), addDcBill(t, k, tempNonce, nonceBytes, 2, dcTimeoutBlockCount)}
 	billsList := createBillListJsonResponse(bills)
 	proofList := createBlockProofJsonResponse(t, bills, nonceBytes, 0, dcTimeoutBlockCount, k)
-	w, mockClient := CreateTestWalletWithManager(t, &backendMockReturnConf{balance: 3, customBillList: billsList, proofList: proofList}, am)
+	w, mockClient := CreateTestWalletWithManager(t, &backendMockReturnConf{
+		balance:        3,
+		customBillList: billsList,
+		proofList:      proofList,
+		feeCreditBill: &bp.Bill{
+			Id:      k.PrivKeyHash,
+			Value:   100 * 1e8,
+			TxProof: &block.TxProof{},
+		}}, am)
 	// set specific round number
 	mockClient.SetMaxRoundNumber(roundNr)
 
@@ -225,7 +260,16 @@ func TestSwapWithExistingExpiredDCBills(t *testing.T) {
 	bills := []*Bill{addDcBill(t, k, tempNonce, nonceBytes, 1, 0), addDcBill(t, k, tempNonce, nonceBytes, 2, 0)}
 	billsList := createBillListJsonResponse(bills)
 	proofList := createBlockProofJsonResponse(t, bills, nonceBytes, 0, 0, k)
-	w, mockClient := CreateTestWalletWithManager(t, &backendMockReturnConf{balance: 3, customBillList: billsList, proofList: proofList}, am)
+	w, mockClient := CreateTestWalletWithManager(t, &backendMockReturnConf{
+		balance:        3,
+		customBillList: billsList,
+		proofList:      proofList,
+		feeCreditBill: &bp.Bill{
+			Id:      k.PrivKeyHash,
+			Value:   100 * 1e8,
+			TxProof: &block.TxProof{},
+		},
+	}, am)
 
 	// when dc runs
 	counter := uint64(0)
@@ -309,7 +353,16 @@ func TestSwapContainsUnconfirmedDustBillIds(t *testing.T) {
 	// proofs are polled twice, one for the regular bills and one for dc bills
 	proofList := createBlockProofJsonResponse(t, []*Bill{b1, b2, b3}, nil, 0, dcTimeoutBlockCount, k)
 	proofList = append(proofList, createBlockProofJsonResponse(t, []*Bill{addDcBill(t, k, b1.Id, nonce, 1, dcTimeoutBlockCount), addDcBill(t, k, b2.Id, nonce, 2, dcTimeoutBlockCount), addDcBill(t, k, b3.Id, nonce, 3, dcTimeoutBlockCount)}, nonce, 0, dcTimeoutBlockCount, k)...)
-	w, mockClient := CreateTestWalletWithManager(t, &backendMockReturnConf{balance: 3, customBillList: billsList, proofList: proofList}, am)
+	w, mockClient := CreateTestWalletWithManager(t, &backendMockReturnConf{
+		balance:        3,
+		customBillList: billsList,
+		proofList:      proofList,
+		feeCreditBill: &bp.Bill{
+			Id:      k.PrivKeyHash,
+			Value:   100 * 1e8,
+			TxProof: &block.TxProof{},
+		},
+	}, am)
 
 	// when dc runs
 	counter := uint64(0)

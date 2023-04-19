@@ -146,31 +146,7 @@ func TestWalletBillsExportCmd(t *testing.T) {
 	require.Equal(t, stdout.lines[0], fmt.Sprintf("Exported bill(s) to: %s", billFilePath))
 }
 
-// setupInfra starts money partiton, sends initial bill to wallet, syncs wallet.
-// Returns home dir of wallet and alphabill partition.
-func setupInfra(t *testing.T) (string, *testpartition.AlphabillPartition) {
-	initialBill := &moneytx.InitialBill{
-		ID:    uint256.NewInt(1),
-		Value: 10000,
-		Owner: script.PredicateAlwaysTrue(),
-	}
-	network := startAlphabillPartition(t, initialBill, true)
-	startRPCServer(t, network, ":9543")
-
-	// transfer initial bill to wallet pubkey
-	spendInitialBillWithFeeCredits(t, network, initialBill)
-
-	// create wallet
-	homedir := createNewTestWallet(t)
-
-	// sync wallet
-	waitForBalance(t, homedir, initialBill.Value-3, 0) // initial bill minus txfees
-
-	return homedir, network
-}
-
-func spendInitialBillWithFeeCredits(t *testing.T, network *testpartition.AlphabillPartition, initialBill *moneytx.InitialBill) uint64 {
-	pubkey := "0x03c30573dc0c7fd43fcb801289a6a96cb78c27f4ba398b89da91ece23e9a99aca3"
+func spendInitialBillWithFeeCredits(t *testing.T, network *testpartition.AlphabillPartition, initialBill *moneytx.InitialBill, pubkey string) uint64 {
 	pubkeyBytes, _ := hexutil.Decode(pubkey)
 	pubkeyHash := hash.Sum256(pubkeyBytes)
 	absoluteTimeout := uint64(10000)

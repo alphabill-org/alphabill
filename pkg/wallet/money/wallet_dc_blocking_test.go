@@ -20,6 +20,7 @@ import (
 	billtx "github.com/alphabill-org/alphabill/internal/txsystem/money"
 	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/alphabill-org/alphabill/pkg/wallet/account"
+	"github.com/alphabill-org/alphabill/pkg/wallet/backend/bp"
 	"github.com/alphabill-org/alphabill/pkg/wallet/log"
 )
 
@@ -36,7 +37,16 @@ func TestBlockingDcWithNormalBills(t *testing.T) {
 	proofList := createBlockProofJsonResponse(t, bills, nil, 0, dcTimeoutBlockCount, nil)
 	proofList = append(proofList, createBlockProofJsonResponse(t, dcBills, nonce, 0, dcTimeoutBlockCount, k)...)
 
-	w, mockClient := CreateTestWalletWithManager(t, &backendMockReturnConf{balance: 3, customBillList: billsList, proofList: proofList}, am)
+	w, mockClient := CreateTestWalletWithManager(t, &backendMockReturnConf{
+		balance:        3,
+		customBillList: billsList,
+		proofList:      proofList,
+		feeCreditBill: &bp.Bill{
+			Id:      k.PrivKeyHash,
+			Value:   100 * 1e8,
+			TxProof: &block.TxProof{},
+		},
+	}, am)
 	tx, err := createSwapTx(k, w.SystemID(), dcBills, calculateDcNonce(bills), getBillIds(bills), swapTimeoutBlockCount)
 	require.NoError(t, err)
 	mockClient.SetBlock(&block.Block{Transactions: []*txsystem.Transaction{
@@ -73,7 +83,16 @@ func TestBlockingDCWithDCBillsBeforeDCTimeout(t *testing.T) {
 	bills := []*Bill{addDcBill(t, k, tempNonce, util.Uint256ToBytes(tempNonce), 1, dcTimeoutBlockCount), addDcBill(t, k, tempNonce, util.Uint256ToBytes(tempNonce), 2, dcTimeoutBlockCount)}
 	billsList := createBillListJsonResponse(bills)
 	proofList := createBlockProofJsonResponse(t, bills, util.Uint256ToBytes(tempNonce), 0, dcTimeoutBlockCount, k)
-	w, mockClient := CreateTestWalletWithManager(t, &backendMockReturnConf{balance: 3, customBillList: billsList, proofList: proofList}, am)
+	w, mockClient := CreateTestWalletWithManager(t, &backendMockReturnConf{
+		balance:        3,
+		customBillList: billsList,
+		proofList:      proofList,
+		feeCreditBill: &bp.Bill{
+			Id:      k.PrivKeyHash,
+			Value:   100 * 1e8,
+			TxProof: &block.TxProof{},
+		},
+	}, am)
 	// set specific round number
 	mockClient.SetMaxRoundNumber(roundNr)
 
@@ -108,7 +127,16 @@ func TestBlockingDCWithExistingExpiredDCBills(t *testing.T) {
 	bills := []*Bill{addDcBill(t, k, tempNonce, util.Uint256ToBytes(tempNonce), 1, 0), addDcBill(t, k, tempNonce, util.Uint256ToBytes(tempNonce), 2, 0)}
 	billsList := createBillListJsonResponse(bills)
 	proofList := createBlockProofJsonResponse(t, bills, util.Uint256ToBytes(tempNonce), 0, 0, k)
-	w, mockClient := CreateTestWalletWithManager(t, &backendMockReturnConf{balance: 3, customBillList: billsList, proofList: proofList}, am)
+	w, mockClient := CreateTestWalletWithManager(t, &backendMockReturnConf{
+		balance:        3,
+		customBillList: billsList,
+		proofList:      proofList,
+		feeCreditBill: &bp.Bill{
+			Id:      k.PrivKeyHash,
+			Value:   100 * 1e8,
+			TxProof: &block.TxProof{},
+		},
+	}, am)
 
 	tx, err := createSwapTx(k, w.SystemID(), bills, util.Uint256ToBytes(tempNonce), getBillIds(bills), swapTimeoutBlockCount)
 	require.NoError(t, err)
@@ -144,7 +172,16 @@ func TestBlockingDcWaitingForSwapTimesOut(t *testing.T) {
 	proofList := createBlockProofJsonResponse(t, bills, nil, 0, dcTimeoutBlockCount, nil)
 	proofList = append(proofList, createBlockProofJsonResponse(t, dcBills, nonce, 0, dcTimeoutBlockCount, k)...)
 
-	w, mockClient := CreateTestWalletWithManager(t, &backendMockReturnConf{balance: 3, customBillList: billsList, proofList: proofList}, am)
+	w, mockClient := CreateTestWalletWithManager(t, &backendMockReturnConf{
+		balance:        3,
+		customBillList: billsList,
+		proofList:      proofList,
+		feeCreditBill: &bp.Bill{
+			Id:      k.PrivKeyHash,
+			Value:   100 * 1e8,
+			TxProof: &block.TxProof{},
+		},
+	}, am)
 
 	// when blocking dust collector runs
 	_ = runBlockingDc(t, w)

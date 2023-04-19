@@ -7,12 +7,16 @@ import (
 
 	"github.com/alphabill-org/alphabill/internal/block"
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
+	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/internal/rma"
 	"github.com/alphabill-org/alphabill/internal/script"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	testblock "github.com/alphabill-org/alphabill/internal/testutils/block"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
+	testtransaction "github.com/alphabill-org/alphabill/internal/testutils/transaction"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
+	"github.com/alphabill-org/alphabill/internal/txsystem/fc"
+	testfc "github.com/alphabill-org/alphabill/internal/txsystem/fc/testutils"
 	txutil "github.com/alphabill-org/alphabill/internal/txsystem/util"
 	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/holiman/uint256"
@@ -20,28 +24,40 @@ import (
 	"google.golang.org/protobuf/types/known/anypb"
 )
 
-var initialBill = &InitialBill{ID: uint256.NewInt(77), Value: 110, Owner: script.PredicateAlwaysTrue()}
+var (
+	initialBill = &InitialBill{ID: uint256.NewInt(77), Value: 110, Owner: script.PredicateAlwaysTrue()}
+	fcrID       = uint256.NewInt(88)
+)
 
 const initialDustCollectorMoneyAmount uint64 = 100
 
 func TestNewMoneyScheme(t *testing.T) {
-	mockRevertibleState, err := rma.New(&rma.Config{
-		HashAlgorithm: crypto.SHA256,
-	})
+	var (
+		state         = rma.NewWithSHA256()
+		dcMoneyAmount = uint64(222)
+		sdrs          = createSDRs(3)
+		_, verifier   = testsig.CreateSignerAndVerifier(t)
+		trustBase     = map[string]abcrypto.Verifier{"test": verifier}
+	)
+	txSystem, err := NewMoneyTxSystem(
+		moneySystemID,
+		WithHashAlgorithm(crypto.SHA256),
+		WithInitialBill(initialBill),
+		WithSystemDescriptionRecords(sdrs),
+		WithDCMoneyAmount(dcMoneyAmount),
+		WithState(state),
+		WithTrustBase(trustBase),
+	)
 	require.NoError(t, err)
+	require.NotNil(t, txSystem)
 
-	initialBill := &InitialBill{ID: uint256.NewInt(2), Value: 100, Owner: nil}
-	dcMoneyAmount := uint64(222)
-
-	txSystem, err := NewMoneyTxSystem(crypto.SHA256, initialBill, dcMoneyAmount, SchemeOpts.RevertibleState(mockRevertibleState))
-	require.NoError(t, err)
-	u, err := txSystem.revertibleState.GetUnit(initialBill.ID)
+	u, err := state.GetUnit(initialBill.ID)
 	require.NoError(t, err)
 	require.NotNil(t, u)
 	require.Equal(t, rma.Uint64SummaryValue(initialBill.Value), u.Data.Value())
 	require.Equal(t, initialBill.Owner, u.Bearer)
 
-	d, err := txSystem.revertibleState.GetUnit(dustCollectorMoneySupplyID)
+	d, err := state.GetUnit(dustCollectorMoneySupplyID)
 	require.NoError(t, err)
 	require.NotNil(t, d)
 
@@ -50,14 +66,54 @@ func TestNewMoneyScheme(t *testing.T) {
 }
 
 func TestNewMoneyScheme_InitialBillIsNil(t *testing.T) {
-	_, err := NewMoneyTxSystem(crypto.SHA256, nil, 10)
+	_, err := NewMoneyTxSystem(
+		moneySystemID,
+		WithHashAlgorithm(crypto.SHA256),
+		WithInitialBill(nil),
+		WithSystemDescriptionRecords(createSDRs(2)),
+		WithDCMoneyAmount(10))
 	require.ErrorIs(t, err, ErrInitialBillIsNil)
 }
 
 func TestNewMoneyScheme_InvalidInitialBillID(t *testing.T) {
 	ib := &InitialBill{ID: uint256.NewInt(0), Value: 100, Owner: nil}
-	_, err := NewMoneyTxSystem(crypto.SHA256, ib, 10)
+	_, err := NewMoneyTxSystem(
+		moneySystemID,
+		WithHashAlgorithm(crypto.SHA256),
+		WithInitialBill(ib),
+		WithSystemDescriptionRecords(createSDRs(2)),
+		WithDCMoneyAmount(10))
 	require.ErrorIs(t, err, ErrInvalidInitialBillID)
+}
+
+func TestNewMoneyScheme_InvalidFeeCreditBill_Nil(t *testing.T) {
+	_, err := NewMoneyTxSystem(
+		moneySystemID,
+		WithHashAlgorithm(crypto.SHA256),
+		WithInitialBill(&InitialBill{ID: uint256.NewInt(1), Value: 100, Owner: nil}),
+		WithSystemDescriptionRecords(nil),
+		WithDCMoneyAmount(10))
+	require.ErrorIs(t, err, ErrUndefinedSystemDescriptionRecords)
+}
+
+func TestNewMoneyScheme_InvalidFeeCreditBill_SameIDAsInitialBill(t *testing.T) {
+	_, err := NewMoneyTxSystem(
+		moneySystemID,
+		WithHashAlgorithm(crypto.SHA256),
+		WithInitialBill(&InitialBill{ID: uint256.NewInt(1), Value: 100, Owner: nil}),
+		WithSystemDescriptionRecords(createSDRs(1)),
+		WithDCMoneyAmount(10))
+	require.ErrorIs(t, err, ErrInvalidFeeCreditBillID)
+}
+
+func TestNewMoneyScheme_InvalidFeeCreditBill_SameIDAsDCBill(t *testing.T) {
+	_, err := NewMoneyTxSystem(
+		moneySystemID,
+		WithHashAlgorithm(crypto.SHA256),
+		WithInitialBill(&InitialBill{ID: uint256.NewInt(1), Value: 100, Owner: nil}),
+		WithSystemDescriptionRecords(createSDRs(0)),
+		WithDCMoneyAmount(10))
+	require.ErrorIs(t, err, ErrInvalidFeeCreditBillID)
 }
 
 func TestExecute_TransferOk(t *testing.T) {
@@ -69,7 +125,7 @@ func TestExecute_TransferOk(t *testing.T) {
 	roundNumber := uint64(1)
 	txSystem.BeginBlock(roundNumber)
 	err = txSystem.Execute(transferOk)
-	txSystem.GetRootHash()
+	txSystem.Commit()
 	require.NoError(t, err)
 	unit2, data2 := getBill(t, rmaTree, initialBill.ID)
 	require.Equal(t, data.Value(), data2.Value())
@@ -90,7 +146,7 @@ func TestExecute_SplitOk(t *testing.T) {
 	roundNumber := uint64(1)
 	txSystem.BeginBlock(roundNumber)
 	err = txSystem.Execute(splitOk)
-	txSystem.GetRootHash()
+	txSystem.Commit()
 	require.NoError(t, err)
 	initBillAfterUpdate, initBillDataAfterUpdate := getBill(t, rmaTree, initialBill.ID)
 
@@ -282,13 +338,80 @@ func TestEndBlock_DustBillsAreRemoved(t *testing.T) {
 	require.NoError(t, err)
 	txSystem.Commit()
 
-	txSystem.BeginBlock(dustBillDeletionTimeout + 10)
+	txSystem.BeginBlock(defaultDustBillDeletionTimeout + 10)
 	_, err = txSystem.EndBlock()
 	require.NoError(t, err)
 	txSystem.Commit()
 
 	_, dustBill = getBill(t, rmaTree, dustCollectorMoneySupplyID)
 	require.Equal(t, initialDustCollectorMoneyAmount, dustBill.V)
+}
+
+// Test scenario:
+// 1) begin block
+// 2) process transfer FC (amount=50, fee=1)
+// 3) end block (moneyFCB=50+1=51)
+// commit
+// 1) begin block
+// 2) process reclaim FC closeFC(amount=50, fee=1)
+// 3) end block (moneyFCB=51-50+1+1=3)
+func TestEndBlock_FeesConsolidation(t *testing.T) {
+	rmaTree, txSystem, signer := createRMATreeAndTxSystem(t)
+
+	// process transferFC with amount 50 and fees 1
+	txSystem.BeginBlock(0)
+	transferFC := testfc.NewTransferFC(t,
+		testfc.NewTransferFCAttr(
+			testfc.WithBacklink(nil),
+		),
+		testtransaction.WithUnitId(util.Uint256ToBytes(initialBill.ID)),
+		testtransaction.WithOwnerProof(script.PredicateArgumentEmpty()),
+	)
+
+	require.NoError(t, txSystem.Execute(transferFC))
+	_, err := txSystem.EndBlock()
+	require.NoError(t, err)
+	txSystem.Commit()
+
+	// verify that money fee credit bill is 50+1=51
+	moneyFCUnitID := uint256.NewInt(2)
+	moneyFCUnit, err := rmaTree.GetUnit(moneyFCUnitID)
+	require.NoError(t, err)
+	require.EqualValues(t, 51, moneyFCUnit.Data.Value())
+
+	// process reclaimFC (with closeFC amount=50 and fee=1)
+	txSystem.BeginBlock(0)
+
+	transferFCHash := transferFC.Hash(crypto.SHA256)
+	closeFC := testfc.NewCloseFC(t,
+		testfc.NewCloseFCAttr(
+			testfc.WithCloseFCAmount(50),
+			testfc.WithCloseFCTargetUnitID(util.Uint256ToBytes(initialBill.ID)),
+			testfc.WithCloseFCNonce(transferFCHash),
+		),
+	)
+
+	closeFCPb := closeFC.Transaction
+	proof := testblock.CreateProof(t, closeFC, signer, closeFCPb.UnitId)
+	reclaimFC := testfc.NewReclaimFC(t, signer,
+		testfc.NewReclaimFCAttr(t, signer,
+			testfc.WithReclaimFCClosureTx(closeFCPb),
+			testfc.WithReclaimFCClosureProof(proof),
+			testfc.WithReclaimFCBacklink(transferFCHash),
+		),
+		testtransaction.WithUnitId(util.Uint256ToBytes(initialBill.ID)),
+		testtransaction.WithOwnerProof(script.PredicateArgumentEmpty()),
+	)
+	err = txSystem.Execute(reclaimFC)
+	require.NoError(t, err)
+	_, err = txSystem.EndBlock()
+	require.NoError(t, err)
+	txSystem.Commit()
+
+	// verify that moneyFCB=51-50+1+1=3 (moneyFCB - closeAmount + closeFee + reclaimFee)
+	moneyFCUnit, err = rmaTree.GetUnit(moneyFCUnitID)
+	require.NoError(t, err)
+	require.EqualValues(t, 3, moneyFCUnit.Data.Value())
 }
 
 func TestValidateSwap_InsufficientDcMoneySupply(t *testing.T) {
@@ -366,6 +489,103 @@ func TestRegisterData_Revert(t *testing.T) {
 	require.Equal(t, vdState, state)
 }
 
+// Test Transfer->Add->Close->Reclaim sequence OK
+func TestExecute_FeeCreditSequence_OK(t *testing.T) {
+	rmaTree, txSystem, signer := createRMATreeAndTxSystem(t)
+	txFee := fc.FixedFee(1)()
+	initialBillID := util.Uint256ToBytes(initialBill.ID)
+	fcrUnitID := util.Uint256ToBytes(uint256.NewInt(100))
+	txAmount := uint64(20)
+
+	txSystem.BeginBlock(1)
+
+	// transfer 20 alphas to FCB
+	transferFC := testfc.NewTransferFC(t,
+		testfc.NewTransferFCAttr(
+			testfc.WithBacklink(nil),
+			testfc.WithAmount(txAmount),
+			testfc.WithTargetRecordID(fcrUnitID),
+		),
+		testtransaction.WithUnitId(initialBillID),
+		testtransaction.WithOwnerProof(script.PredicateArgumentEmpty()),
+	)
+	err := txSystem.Execute(transferFC)
+	require.NoError(t, err)
+
+	// verify unit value is reduced by 21
+	ib, err := rmaTree.GetUnit(initialBill.ID)
+	require.NoError(t, err)
+	require.EqualValues(t, initialBill.Value-txAmount-txFee, ib.Data.Value())
+	require.Equal(t, txFee, transferFC.Transaction.ServerMetadata.Fee)
+
+	// send addFC
+	transferFCPb := transferFC.Transaction
+	transferFCProof := testblock.CreateProof(t, transferFC, signer, transferFCPb.UnitId)
+	addFC := testfc.NewAddFC(t, signer,
+		testfc.NewAddFCAttr(t, signer,
+			testfc.WithTransferFCTx(transferFCPb),
+			testfc.WithTransferFCProof(transferFCProof),
+			testfc.WithFCOwnerCondition(script.PredicateAlwaysTrue()),
+		),
+		testtransaction.WithUnitId(fcrUnitID),
+	)
+	err = txSystem.Execute(addFC)
+	require.NoError(t, err)
+
+	// verify user fee credit is 19 (transfer 20 minus fee 1)
+	remainingValue := txAmount - txFee // 19
+	fcrUnit, err := rmaTree.GetUnit(uint256.NewInt(0).SetBytes(fcrUnitID))
+	require.NoError(t, err)
+	fcrUnitData, ok := fcrUnit.Data.(*fc.FeeCreditRecord)
+	require.True(t, ok)
+	require.EqualValues(t, remainingValue, fcrUnitData.Balance)
+	require.Equal(t, txFee, addFC.Transaction.ServerMetadata.Fee)
+
+	// send closeFC
+	transferFCHash := transferFC.Hash(crypto.SHA256)
+	closeFC := testfc.NewCloseFC(t,
+		testfc.NewCloseFCAttr(
+			testfc.WithCloseFCAmount(remainingValue),
+			testfc.WithCloseFCTargetUnitID(initialBillID),
+			testfc.WithCloseFCNonce(transferFCHash),
+		),
+		testtransaction.WithUnitId(fcrUnitID),
+		testtransaction.WithOwnerProof(script.PredicateArgumentEmpty()),
+	)
+	err = txSystem.Execute(closeFC)
+	require.NoError(t, err)
+	require.Equal(t, txFee, closeFC.Transaction.ServerMetadata.Fee)
+
+	// verify user fee credit is closed (balance 0, unit will be deleted on round completion)
+	fcrUnit, err = rmaTree.GetUnit(uint256.NewInt(0).SetBytes(fcrUnitID))
+	require.NoError(t, err)
+	fcrUnitData, ok = fcrUnit.Data.(*fc.FeeCreditRecord)
+	require.True(t, ok)
+	require.EqualValues(t, 0, fcrUnitData.Balance)
+
+	// send reclaimFC
+	closeFCPb := closeFC.Transaction
+	closeFCProof := testblock.CreateProof(t, closeFC, signer, closeFCPb.UnitId)
+	reclaimFC := testfc.NewReclaimFC(t, signer,
+		testfc.NewReclaimFCAttr(t, signer,
+			testfc.WithReclaimFCClosureTx(closeFCPb),
+			testfc.WithReclaimFCClosureProof(closeFCProof),
+			testfc.WithReclaimFCBacklink(transferFCHash),
+		),
+		testtransaction.WithUnitId(initialBillID),
+		testtransaction.WithOwnerProof(script.PredicateArgumentEmpty()),
+	)
+	err = txSystem.Execute(reclaimFC)
+	require.NoError(t, err)
+	require.Equal(t, txFee, reclaimFC.Transaction.ServerMetadata.Fee)
+
+	// verify reclaimed fee is added back to initial bill (original value minus 4x txfee)
+	ib, err = rmaTree.GetUnit(initialBill.ID)
+	require.NoError(t, err)
+	require.True(t, ok)
+	require.EqualValues(t, initialBill.Value-4*txFee, ib.Data.Value())
+}
+
 func unitIdFromTransaction(tx *billSplitWrapper) []byte {
 	hasher := crypto.SHA256.New()
 	idBytes := tx.UnitID().Bytes32()
@@ -385,7 +605,7 @@ func getBill(t *testing.T, rmaTree *rma.Tree, billID *uint256.Int) (*rma.Unit, *
 
 func createBillTransfer(fromID *uint256.Int, value uint64, bearer []byte, backlink []byte) *txsystem.Transaction {
 	tx := createTx(fromID)
-	bt := &TransferOrder{
+	bt := &TransferAttributes{
 		NewBearer: bearer,
 		// #nosec G404
 		TargetValue: value,
@@ -431,12 +651,16 @@ func createDCTransferAndSwapTxs(
 	tx := &txsystem.Transaction{
 		SystemId:              []byte{0, 0, 0, 0},
 		UnitId:                newBillID,
-		Timeout:               20,
 		TransactionAttributes: &anypb.Any{},
 		OwnerProof:            script.PredicateArgumentEmpty(),
+		ClientMetadata: &txsystem.ClientMetadata{
+			Timeout:           20,
+			MaxFee:            10,
+			FeeCreditRecordId: util.Uint256ToBytes(fcrID),
+		},
 	}
 
-	bt := &SwapOrder{
+	bt := &SwapDCAttributes{
 		OwnerCondition:  script.PredicateAlwaysTrue(),
 		BillIdentifiers: idsByteArray,
 		DcTransfers:     dcTransfers,
@@ -450,7 +674,7 @@ func createDCTransferAndSwapTxs(
 
 func createDCTransfer(fromID *uint256.Int, targetValue uint64, backlink []byte, nonce []byte, targetBearer []byte) *txsystem.Transaction {
 	tx := createTx(fromID)
-	bt := &TransferDCOrder{
+	bt := &TransferDCAttributes{
 		Nonce:        nonce,
 		TargetBearer: targetBearer,
 		TargetValue:  targetValue,
@@ -463,7 +687,7 @@ func createDCTransfer(fromID *uint256.Int, targetValue uint64, backlink []byte, 
 
 func createSplit(fromID *uint256.Int, amount uint64, remainingValue uint64, targetBearer, backlink []byte) *txsystem.Transaction {
 	tx := createTx(fromID)
-	bt := &SplitOrder{
+	bt := &SplitAttributes{
 		Amount:         amount,
 		TargetBearer:   targetBearer,
 		RemainingValue: remainingValue,
@@ -479,9 +703,18 @@ func createTx(fromID *uint256.Int) *txsystem.Transaction {
 	tx := &txsystem.Transaction{
 		SystemId:              []byte{0, 0, 0, 0},
 		UnitId:                unitId32[:],
-		Timeout:               20,
 		TransactionAttributes: &anypb.Any{},
 		OwnerProof:            script.PredicateArgumentEmpty(),
+		FeeProof:              script.PredicateArgumentEmpty(),
+		ClientMetadata: &txsystem.ClientMetadata{
+			Timeout:           20,
+			MaxFee:            10,
+			FeeCreditRecordId: util.Uint256ToBytes(fcrID),
+		},
+		// add server metadata so that tx.Hash method matches bill backlink
+		ServerMetadata: &txsystem.ServerMetadata{
+			Fee: fc.FixedFee(1)(),
+		},
 	}
 	return tx
 }
@@ -491,26 +724,53 @@ func createNonMoneyTx() *txsystem.Transaction {
 	hasher.Write(test.RandomBytes(32))
 	id := hasher.Sum(nil)
 	return &txsystem.Transaction{
-		SystemId: []byte{0, 0, 0, 1},
-		UnitId:   id,
-		Timeout:  2,
+		SystemId:       []byte{0, 0, 0, 1},
+		UnitId:         id,
+		ClientMetadata: &txsystem.ClientMetadata{Timeout: 2},
 	}
 }
 
-func createRMATreeAndTxSystem(t *testing.T) (*rma.Tree, *moneyTxSystem, abcrypto.Signer) {
-	rmaTree, err := rma.New(&rma.Config{
-		HashAlgorithm: crypto.SHA256,
-	})
-	require.NoError(t, err)
+func createRMATreeAndTxSystem(t *testing.T) (*rma.Tree, *txsystem.GenericTxSystem, abcrypto.Signer) {
+	rmaTree := rma.NewWithSHA256()
 	signer, verifier := testsig.CreateSignerAndVerifier(t)
 	trustBase := map[string]abcrypto.Verifier{"test": verifier}
+
 	mss, err := NewMoneyTxSystem(
-		crypto.SHA256,
-		initialBill,
-		initialDustCollectorMoneyAmount,
-		SchemeOpts.RevertibleState(rmaTree),
-		SchemeOpts.TrustBase(trustBase),
+		[]byte{0, 0, 0, 0},
+		WithInitialBill(initialBill),
+		WithSystemDescriptionRecords(createSDRs(2)),
+		WithDCMoneyAmount(initialDustCollectorMoneyAmount),
+		WithState(rmaTree),
+		WithTrustBase(trustBase),
 	)
 	require.NoError(t, err)
+	state, err := mss.State()
+	require.NoError(t, err)
+	require.NotNil(t, state.Summary())
+	require.NotNil(t, state.Root())
+	require.Len(t, state.Root(), crypto.SHA256.Size())
+	require.False(t, rmaTree.ContainsUncommittedChanges())
+	// add fee credit record with empty predicate
+	fcrData := &fc.FeeCreditRecord{
+		Balance: 100,
+		Timeout: 100,
+	}
+	err = rmaTree.AtomicUpdate(fc.AddCredit(fcrID, script.PredicateAlwaysTrue(), fcrData, nil))
+	require.NoError(t, err)
+	_, err = mss.EndBlock()
+	require.NoError(t, err)
+	mss.Commit()
+
 	return rmaTree, mss, signer
+}
+
+func createSDRs(id uint64) []*genesis.SystemDescriptionRecord {
+	return []*genesis.SystemDescriptionRecord{{
+		SystemIdentifier: systemID,
+		T2Timeout:        2500,
+		FeeCreditBill: &genesis.FeeCreditBill{
+			UnitId:         util.Uint256ToBytes(uint256.NewInt(id)),
+			OwnerPredicate: script.PredicateAlwaysTrue(),
+		},
+	}}
 }

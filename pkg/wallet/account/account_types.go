@@ -13,8 +13,17 @@ type (
 	Account struct {
 		AccountIndex uint64
 		AccountKeys  KeyHashes
+		PrivKeyHash  []byte
 	}
 )
+
+func NewAccount(idx uint64, key AccountKey) *Account {
+	return &Account{
+		AccountIndex: idx,
+		AccountKeys:  *key.PubKeyHash,
+		PrivKeyHash:  key.PrivKeyHash,
+	}
+}
 
 func (a *accounts) add(account *Account) {
 	a.mu.Lock()

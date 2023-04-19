@@ -9,7 +9,7 @@ import (
 	"net/url"
 	"testing"
 
-	moneytx "github.com/alphabill-org/alphabill/internal/txsystem/money"
+	"github.com/alphabill-org/alphabill/pkg/wallet/backend/bp"
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/encoding/protojson"
@@ -146,8 +146,8 @@ func createBlockProofJsonResponse(t *testing.T, bills []*Bill, overrideNonce []b
 				},
 			},
 		}
-		b := &moneytx.Bill{Id: util.Uint256ToBytes(b.Id), Value: b.Value, IsDcBill: b.IsDcBill, TxProof: tp, TxHash: b.TxHash}
-		bills := &moneytx.Bills{Bills: []*moneytx.Bill{b}}
+		b := &bp.Bill{Id: util.Uint256ToBytes(b.Id), Value: b.Value, IsDcBill: b.IsDcBill, TxProof: tp, TxHash: b.TxHash}
+		bills := &bp.Bills{Bills: []*bp.Bill{b}}
 		res, _ := protojson.MarshalOptions{EmitUnpopulated: true}.Marshal(bills)
 		jsonList = append(jsonList, string(res))
 	}

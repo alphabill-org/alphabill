@@ -9,10 +9,11 @@ import (
 	"strings"
 	"time"
 
-	moneytx "github.com/alphabill-org/alphabill/internal/txsystem/money"
-	"github.com/alphabill-org/alphabill/pkg/wallet/backend/money"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"google.golang.org/protobuf/encoding/protojson"
+
+	"github.com/alphabill-org/alphabill/pkg/wallet/backend/bp"
+	"github.com/alphabill-org/alphabill/pkg/wallet/backend/money"
 )
 
 type (
@@ -94,7 +95,7 @@ func (c *MoneyBackendClient) ListBills(pubKey []byte) (*money.ListBillsResponse,
 	return finalResponse, nil
 }
 
-func (c *MoneyBackendClient) GetProof(billId []byte) (*moneytx.Bills, error) {
+func (c *MoneyBackendClient) GetProof(billId []byte) (*bp.Bills, error) {
 	req, err := http.NewRequest(http.MethodGet, fmt.Sprintf(proofUrlFormat, c.BaseUrl, ProofPath, hexutil.Encode(billId)), nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to build get proof request: %w", err)
@@ -115,7 +116,7 @@ func (c *MoneyBackendClient) GetProof(billId []byte) (*moneytx.Bills, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to read GetProof response: %w", err)
 	}
-	var responseObject moneytx.Bills
+	var responseObject bp.Bills
 	err = protojson.Unmarshal(responseData, &responseObject)
 	if err != nil {
 		return nil, fmt.Errorf("failed to unmarshall GetProof response data: %w", err)

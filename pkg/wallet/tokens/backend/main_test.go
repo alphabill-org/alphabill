@@ -12,6 +12,8 @@ import (
 	"testing"
 	"time"
 
+	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
+
 	"github.com/alphabill-org/alphabill/internal/block"
 	"github.com/alphabill-org/alphabill/internal/certificates"
 	"github.com/alphabill-org/alphabill/internal/hash"
@@ -230,7 +232,7 @@ func Test_Run_API(t *testing.T) {
 
 	// we synced NTF token type from backend, check that it is returned:
 	// first convert the txsystem.Transaction to the type we have in indexing backend...
-	txs, err := tokens.New()
+	txs, err := tokens.New(tokens.WithTrustBase(map[string]abcrypto.Verifier{"test": nil}))
 	if err != nil {
 		t.Errorf("failed to create token tx system: %v", err)
 	}

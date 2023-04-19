@@ -25,7 +25,6 @@ func TestPartitionNode_IsValid_InvalidInputs(t *testing.T) {
 	tests := []struct {
 		name       string
 		fields     fields
-		wantErr    error
 		wantErrStr string
 	}{
 		{
@@ -33,7 +32,7 @@ func TestPartitionNode_IsValid_InvalidInputs(t *testing.T) {
 			fields: fields{
 				NodeIdentifier: "",
 			},
-			wantErr: ErrNodeIdentifierIsEmpty,
+			wantErrStr: ErrNodeIdentifierIsEmpty.Error(),
 		},
 		{
 			name: "signing public key is missing",
@@ -41,7 +40,7 @@ func TestPartitionNode_IsValid_InvalidInputs(t *testing.T) {
 				NodeIdentifier:   nodeIdentifier,
 				SigningPublicKey: nil,
 			},
-			wantErr: ErrSigningPublicKeyIsInvalid,
+			wantErrStr: ErrSigningPublicKeyIsInvalid.Error(),
 		},
 		{
 			name: "signing public key is invalid",
@@ -49,7 +48,7 @@ func TestPartitionNode_IsValid_InvalidInputs(t *testing.T) {
 				NodeIdentifier:   "1",
 				SigningPublicKey: []byte{0, 0, 0, 0},
 			},
-			wantErrStr: "pubkey must be 33 bytes long",
+			wantErrStr: "invalid signing public key, pubkey must be 33 bytes long, but is 4",
 		},
 		{
 			name: "encryption public key is missing",
@@ -58,7 +57,7 @@ func TestPartitionNode_IsValid_InvalidInputs(t *testing.T) {
 				SigningPublicKey:    pubKey,
 				EncryptionPublicKey: nil,
 			},
-			wantErr: ErrEncryptionPublicKeyIsInvalid,
+			wantErrStr: ErrEncryptionPublicKeyIsInvalid.Error(),
 		},
 		{
 			name: "encryption public key is invalid",
@@ -67,7 +66,7 @@ func TestPartitionNode_IsValid_InvalidInputs(t *testing.T) {
 				SigningPublicKey:    pubKey,
 				EncryptionPublicKey: []byte{0, 0, 0, 0},
 			},
-			wantErrStr: "pubkey must be 33 bytes long",
+			wantErrStr: "invalid encryption public key, pubkey must be 33 bytes long, but is 4",
 		},
 		{
 			name: "invalid p1 request",
@@ -77,7 +76,7 @@ func TestPartitionNode_IsValid_InvalidInputs(t *testing.T) {
 				EncryptionPublicKey:              pubKey,
 				BlockCertificationRequestRequest: nil,
 			},
-			wantErr: certification.ErrBlockCertificationRequestIsNil,
+			wantErrStr: "block certification request validation failed, block certification request is nil",
 		},
 	}
 	for _, tt := range tests {
@@ -88,11 +87,11 @@ func TestPartitionNode_IsValid_InvalidInputs(t *testing.T) {
 				EncryptionPublicKey:       tt.fields.EncryptionPublicKey,
 				BlockCertificationRequest: tt.fields.BlockCertificationRequestRequest,
 			}
-			err := x.IsValid()
-			if tt.wantErr != nil {
-				require.Equal(t, tt.wantErr, err)
-			} else {
+			err = x.IsValid()
+			if tt.wantErrStr != "" {
 				require.ErrorContains(t, err, tt.wantErrStr)
+			} else {
+				require.NoError(t, err)
 			}
 		})
 	}

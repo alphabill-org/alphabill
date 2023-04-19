@@ -55,7 +55,6 @@ func (p *blockProcessor) processTx(inTx *txsystem.Transaction, b *block.Block) e
 	}
 
 	p.log.Debug(fmt.Sprintf("processTx: UnitID=%x type: %s", id, strings.TrimPrefix(inTx.GetTransactionAttributes().TypeUrl, "type.googleapis.com/alphabill.tokens.v1.")))
-
 	switch tx := gtx.(type) {
 	case tokens.CreateFungibleTokenType:
 		return p.saveTokenType(&TokenUnitType{

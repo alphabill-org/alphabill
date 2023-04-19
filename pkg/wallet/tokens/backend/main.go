@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/ainvaltin/httpsrv"
+	"github.com/alphabill-org/alphabill/internal/crypto"
 	"golang.org/x/sync/errgroup"
 
 	"github.com/alphabill-org/alphabill/internal/rpc/alphabill"
@@ -66,7 +67,7 @@ func Run(ctx context.Context, cfg Configuration) error {
 	}
 	defer db.Close()
 
-	txs, err := tokens.New()
+	txs, err := tokens.New(tokens.WithTrustBase(map[string]crypto.Verifier{"test": nil}))
 	if err != nil {
 		return fmt.Errorf("failed to create token tx system: %w", err)
 	}

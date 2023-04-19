@@ -12,6 +12,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/hash"
 	"github.com/alphabill-org/alphabill/internal/script"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
@@ -285,7 +286,7 @@ func TestNewTypes(t *testing.T) {
 		require.Equal(t, a.Icon.Type, newFungibleTx.Icon.Type)
 		require.Equal(t, a.Icon.Data, newFungibleTx.Icon.Data)
 		require.Equal(t, a.DecimalPlaces, newFungibleTx.DecimalPlaces)
-		require.EqualValues(t, tx.Timeout, 101)
+		require.EqualValues(t, tx.Timeout(), 101)
 
 		// new subtype
 		b := &ttxs.CreateFungibleTokenTypeAttributes{
@@ -889,7 +890,9 @@ func TestGetTokensForDC(t *testing.T) {
 
 func initTestWallet(t *testing.T, backend TokenBackend) *Wallet {
 	t.Helper()
-	txs, err := ttxs.New()
+	txs, err := ttxs.New(
+		ttxs.WithTrustBase(map[string]crypto.Verifier{"test": nil}),
+	)
 	require.NoError(t, err)
 
 	return &Wallet{

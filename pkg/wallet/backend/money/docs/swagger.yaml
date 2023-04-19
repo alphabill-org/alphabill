@@ -114,6 +114,42 @@ definitions:
           $ref: '#/definitions/block.MerklePathItem'
         type: array
     type: object
+  block.TxProof:
+    properties:
+      block_number:
+        type: integer
+      proof:
+        $ref: '#/definitions/block.BlockProof'
+      tx:
+        $ref: '#/definitions/txsystem.Transaction'
+    type: object
+  bp.Bill:
+    properties:
+      fc_block_number:
+        description: block number when fee credit bill balance was last updated
+        type: integer
+      id:
+        items:
+          type: integer
+        type: array
+      is_dc_bill:
+        type: boolean
+      tx_hash:
+        items:
+          type: integer
+        type: array
+      tx_proof:
+        $ref: '#/definitions/block.TxProof'
+      value:
+        type: integer
+    type: object
+  bp.Bills:
+    properties:
+      bills:
+        items:
+          $ref: '#/definitions/bp.Bill'
+        type: array
+    type: object
   certificates.InputRecord:
     properties:
       block_hash:
@@ -133,6 +169,9 @@ definitions:
         type: array
       round_number:
         description: transaction system's round number
+        type: integer
+      sum_of_earned_fees:
+        description: sum of the actual fees over all transaction records in the block
         type: integer
       summary_value:
         description: summary value to certified
@@ -185,38 +224,6 @@ definitions:
           type: integer
         type: array
     type: object
-  github_com_alphabill-org_alphabill_pkg_wallet_backend_money.Bill:
-    properties:
-      OwnerPredicate:
-        items:
-          type: integer
-        type: array
-      id:
-        items:
-          type: integer
-        type: array
-      isDcBill:
-        type: boolean
-      orderNumber:
-        description: OrderNumber insertion order of given bill in pubkey => list of
-          bills bucket, needed for determistic paging
-        type: integer
-      txHash:
-        items:
-          type: integer
-        type: array
-      txProof:
-        $ref: '#/definitions/money.TxProof'
-      value:
-        type: integer
-    type: object
-  github_com_alphabill-org_alphabill_pkg_wallet_backend_money.Bills:
-    properties:
-      bills:
-        items:
-          $ref: '#/definitions/github_com_alphabill-org_alphabill_pkg_wallet_backend_money.Bill'
-        type: array
-    type: object
   money.BalanceResponse:
     properties:
       balance:
@@ -261,27 +268,52 @@ definitions:
         example: "0"
         type: string
     type: object
-  money.TxProof:
+  txsystem.ClientMetadata:
     properties:
-      blockNumber:
+      fee_credit_record_id:
+        description: fee credit record identifier (should be empty for fee credit
+          transactions)
+        items:
+          type: integer
+        type: array
+      max_fee:
+        description: maximum fee the user is willing to pay for the execution of this
+          transaction
         type: integer
-      proof:
-        $ref: '#/definitions/block.BlockProof'
-      tx:
-        $ref: '#/definitions/txsystem.Transaction'
+      timeout:
+        description: transaction timeout block height
+        type: integer
+    type: object
+  txsystem.ServerMetadata:
+    properties:
+      fee:
+        description: actual transaction fee charged
+        type: integer
     type: object
   txsystem.Transaction:
     properties:
+      client_metadata:
+        allOf:
+        - $ref: '#/definitions/txsystem.ClientMetadata'
+        description: transaction metadata added by user
+      fee_proof:
+        description: optional fee authorization proof (omitted when the main owner
+          proof also satisfies the fee owner condition)
+        items:
+          type: integer
+        type: array
       owner_proof:
         items:
           type: integer
         type: array
+      server_metadata:
+        allOf:
+        - $ref: '#/definitions/txsystem.ServerMetadata'
+        description: transaction metadata added by node
       system_id:
         items:
           type: integer
         type: array
-      timeout:
-        type: integer
       transaction_attributes:
         $ref: '#/definitions/anypb.Any'
       unit_id:
@@ -319,6 +351,23 @@ paths:
         "500":
           description: Internal Server Error
       summary: Get balance
+  /fee-credit-bill:
+    get:
+      operationId: "5"
+      parameters:
+      - description: ID of the bill (hex)
+        in: query
+        name: bill_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/bp.Bill'
+      summary: Get Fee Credit Bill
   /list-bills:
     get:
       operationId: "1"
@@ -368,7 +417,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/github_com_alphabill-org_alphabill_pkg_wallet_backend_money.Bills'
+            $ref: '#/definitions/bp.Bills'
         "400":
           description: Bad Request
           schema:

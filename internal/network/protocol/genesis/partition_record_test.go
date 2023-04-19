@@ -1,7 +1,6 @@
 package genesis
 
 import (
-	"strings"
 	"testing"
 
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
@@ -28,20 +27,19 @@ func TestPartitionRecord_IsValid(t *testing.T) {
 	tests := []struct {
 		name       string
 		fields     fields
-		wantErr    error
 		wantErrStr string
 	}{
 		{
-			name:    "system description record is nil",
-			fields:  fields{},
-			wantErr: ErrSystemDescriptionIsNil,
+			name:       "system description record is nil",
+			fields:     fields{},
+			wantErrStr: ErrSystemDescriptionIsNil.Error(),
 		},
 		{
 			name: "validators are missing",
 			fields: fields{
 				SystemDescriptionRecord: systemDescription,
 			},
-			wantErr: ErrValidatorsMissing,
+			wantErrStr: errValidatorsMissing.Error(),
 		},
 		{
 			name: "validator is nil",
@@ -49,7 +47,7 @@ func TestPartitionRecord_IsValid(t *testing.T) {
 				SystemDescriptionRecord: systemDescription,
 				Validators:              []*PartitionNode{nil},
 			},
-			wantErr: ErrPartitionNodeIsNil,
+			wantErrStr: "validators list error, partition node is nil",
 		},
 		{
 			name: "invalid validator system identifier",
@@ -71,7 +69,7 @@ func TestPartitionRecord_IsValid(t *testing.T) {
 					createPartitionNode(t, nodeIdentifier, signingKey, encryptionPubKey),
 				},
 			},
-			wantErrStr: "duplicated node id: 1",
+			wantErrStr: "validator list error, duplicated node id: 1",
 		},
 	}
 	for _, tt := range tests {
@@ -80,11 +78,11 @@ func TestPartitionRecord_IsValid(t *testing.T) {
 				SystemDescriptionRecord: tt.fields.SystemDescriptionRecord,
 				Validators:              tt.fields.Validators,
 			}
-			err := x.IsValid()
-			if tt.wantErr != nil {
-				require.Equal(t, tt.wantErr, err)
+			err = x.IsValid()
+			if tt.wantErrStr != "" {
+				require.ErrorContains(t, err, tt.wantErrStr)
 			} else {
-				require.True(t, strings.Contains(err.Error(), tt.wantErrStr))
+				require.NoError(t, err)
 			}
 		})
 	}
@@ -92,7 +90,7 @@ func TestPartitionRecord_IsValid(t *testing.T) {
 
 func TestPartitionRecord_IsValid_Nil(t *testing.T) {
 	var pr *PartitionRecord
-	require.ErrorIs(t, ErrPartitionRecordIsNil, pr.IsValid())
+	require.ErrorIs(t, errPartitionRecordIsNil, pr.IsValid())
 }
 
 func TestPartitionRecord_GetPartitionNode(t *testing.T) {

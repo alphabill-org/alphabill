@@ -6,7 +6,6 @@ import (
 
 	"github.com/alphabill-org/alphabill/internal/certificates"
 	"github.com/alphabill-org/alphabill/internal/crypto"
-	"github.com/alphabill-org/alphabill/internal/errors"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	moneytesttx "github.com/alphabill-org/alphabill/internal/testutils/transaction/money"
@@ -86,6 +85,21 @@ func TestBlockProposal_IsValid_NotOk(t *testing.T) {
 				systemDescriptionHash: test.RandomBytes(32),
 			},
 			wantErr: ErrInvalidSystemIdentifier,
+		},
+		{
+			name: "block proposer id is missing",
+			fields: fields{
+				SystemIdentifier: systemIdentifier,
+				Transactions:     []*txsystem.Transaction{},
+			},
+			args: args{
+				nodeSignatureVerifier: nodeVerifier,
+				ucTrustBase:           map[string]crypto.Verifier{"1": trustBase},
+				algorithm:             gocrypto.SHA256,
+				systemIdentifier:      systemIdentifier,
+				systemDescriptionHash: test.RandomBytes(32),
+			},
+			wantErr: errBlockProposerIDMissing,
 		},
 		{
 			name: "uc is nil",
@@ -195,5 +209,5 @@ func TestBlockProposal_InvalidSignature(t *testing.T) {
 	bp.Signature = test.RandomBytes(64)
 
 	err = bp.Verify(gocrypto.SHA256, verifier)
-	require.ErrorIs(t, err, errors.ErrVerificationFailed)
+	require.ErrorContains(t, err, "verification failed")
 }

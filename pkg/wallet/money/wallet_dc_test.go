@@ -5,17 +5,17 @@ import (
 	"crypto"
 	"testing"
 
-	"github.com/alphabill-org/alphabill/internal/script"
+	"github.com/holiman/uint256"
+	"github.com/stretchr/testify/require"
 
 	"github.com/alphabill-org/alphabill/internal/hash"
+	"github.com/alphabill-org/alphabill/internal/script"
 	moneytesttx "github.com/alphabill-org/alphabill/internal/testutils/transaction/money"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	billtx "github.com/alphabill-org/alphabill/internal/txsystem/money"
 	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/alphabill-org/alphabill/pkg/wallet/account"
 	"github.com/alphabill-org/alphabill/pkg/wallet/log"
-	"github.com/holiman/uint256"
-	"github.com/stretchr/testify/require"
 )
 
 func TestDustCollectionWontRunForSingleBill(t *testing.T) {
@@ -303,18 +303,20 @@ func TestSwapContainsUnconfirmedDustBillIds(t *testing.T) {
 
 func addBill(value uint64) *Bill {
 	b1 := Bill{
-		Id:     uint256.NewInt(value),
-		Value:  value,
-		TxHash: hash.Sum256([]byte{byte(value)}),
+		Id:         uint256.NewInt(value),
+		Value:      value,
+		TxHash:     hash.Sum256([]byte{byte(value)}),
+		BlockProof: &BlockProof{},
 	}
 	return &b1
 }
 
 func addDcBill(t *testing.T, k *account.AccountKey, id *uint256.Int, nonce []byte, value uint64, timeout uint64) *Bill {
 	b := Bill{
-		Id:     id,
-		Value:  value,
-		TxHash: hash.Sum256([]byte{byte(value)}),
+		Id:         id,
+		Value:      value,
+		TxHash:     hash.Sum256([]byte{byte(value)}),
+		BlockProof: &BlockProof{},
 	}
 
 	tx, err := createDustTx(k, []byte{0, 0, 0, 0}, &b, nonce, timeout)
@@ -336,22 +338,34 @@ func verifyBlockHeight(t *testing.T, w *Wallet, blockHeight uint64) {
 	require.Equal(t, blockHeight, actualBlockHeight)
 }
 
-func parseBillTransferTx(t *testing.T, tx *txsystem.Transaction) *billtx.TransferOrder {
-	btTx := &billtx.TransferOrder{}
+func verifyBalance(t *testing.T, w *Wallet, balance uint64, pubKey []byte) {
+	actualBalance, err := w.restClient.GetBalance(pubKey, false)
+	require.NoError(t, err)
+	require.EqualValues(t, balance, actualBalance)
+}
+
+func verifyTotalBalance(t *testing.T, w *Wallet, balance uint64, pubKey []byte) {
+	actualBalance, err := w.restClient.GetBalance(pubKey, true)
+	require.NoError(t, err)
+	require.EqualValues(t, balance, actualBalance)
+}
+
+func parseBillTransferTx(t *testing.T, tx *txsystem.Transaction) *billtx.TransferAttributes {
+	btTx := &billtx.TransferAttributes{}
 	err := tx.TransactionAttributes.UnmarshalTo(btTx)
 	require.NoError(t, err)
 	return btTx
 }
 
-func parseDcTx(t *testing.T, tx *txsystem.Transaction) *billtx.TransferDCOrder {
-	dcTx := &billtx.TransferDCOrder{}
+func parseDcTx(t *testing.T, tx *txsystem.Transaction) *billtx.TransferDCAttributes {
+	dcTx := &billtx.TransferDCAttributes{}
 	err := tx.TransactionAttributes.UnmarshalTo(dcTx)
 	require.NoError(t, err)
 	return dcTx
 }
 
-func parseSwapTx(t *testing.T, tx *txsystem.Transaction) *billtx.SwapOrder {
-	txSwap := &billtx.SwapOrder{}
+func parseSwapTx(t *testing.T, tx *txsystem.Transaction) *billtx.SwapDCAttributes {
+	txSwap := &billtx.SwapDCAttributes{}
 	err := tx.TransactionAttributes.UnmarshalTo(txSwap)
 	require.NoError(t, err)
 	return txSwap

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"crypto"
 	goerrors "errors"
+	"fmt"
 
 	"github.com/holiman/uint256"
 
@@ -13,16 +14,11 @@ import (
 	"github.com/alphabill-org/alphabill/internal/rma"
 	"github.com/alphabill-org/alphabill/internal/script"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
+	"github.com/alphabill-org/alphabill/internal/txsystem/fc"
 	"github.com/alphabill-org/alphabill/internal/util"
 )
 
 var (
-	ErrInvalidBillValue = goerrors.New("transaction value must be equal to bill value")
-
-	ErrSplitBillZeroAmount    = goerrors.New("when splitting an bill the value assigned to the new bill must be greater than zero")
-	ErrSplitBillZeroRemainder = goerrors.New("when splitting an bill the remaining value of the bill must be greater than zero")
-
-	// swap tx specific validity conditions
 	ErrSwapInvalidTargetValue        = goerrors.New("target value of the bill must be equal to the sum of the target values of succeeded payments in swap transaction")
 	ErrSwapInsufficientDCMoneySupply = goerrors.New("insufficient DC-money supply")
 	ErrSwapBillAlreadyExists         = goerrors.New("swapped bill id already exists")
@@ -31,67 +27,69 @@ var (
 	ErrSwapDustTransfersInvalidOrder = goerrors.New("transfer orders are not listed in strictly increasing order of bill identifiers")
 	ErrSwapInvalidNonce              = goerrors.New("dust transfer orders do not contain proper nonce")
 	ErrSwapInvalidTargetBearer       = goerrors.New("dust transfer orders do not contain proper target bearer")
-ErrInvalidProofType              = goerrors.New("invalid proof type")
-ErrSwapOwnerProofFailed          = goerrors.New("owner proof does not satisfy the bearer condition of the swapped bill")
+	ErrInvalidProofType              = goerrors.New("invalid proof type")
+	ErrSwapOwnerProofFailed          = goerrors.New("owner proof does not satisfy the bearer condition of the swapped bill")
 )
 
-func validateTransfer(data rma.UnitData, tx Transfer) error {
-	return validateAnyTransfer(data, tx.Backlink(), tx.TargetValue())
+func handleSwapDCTx(state *rma.Tree, hashAlgorithm crypto.Hash, trustBase map[string]abcrypto.Verifier, feeCalc fc.FeeCalculator) txsystem.GenericExecuteFunc[*swapDCWrapper] {
+	return func(tx *swapDCWrapper, currentBlockNumber uint64) error {
+		log.Debug("Processing swap %v", tx)
+
+		if err := validateSwapTx(tx, state, hashAlgorithm, trustBase); err != nil {
+			return fmt.Errorf("invalid swap transaction: %w", err)
+		}
+		// calculate actual tx fee cost
+		fee := feeCalc()
+		tx.SetServerMetadata(&txsystem.ServerMetadata{Fee: fee})
+
+		// set n as the target value
+		n := tx.TargetValue()
+		// reduce dc-money supply by n
+		decDustCollectorSupplyFn := func(data rma.UnitData) (newData rma.UnitData) {
+			bd, ok := data.(*BillData)
+			if !ok {
+				return bd
+			}
+			bd.V -= n
+			return bd
+		}
+		// update state
+		return state.AtomicUpdate(
+			decrFeeCredit(tx, feeCalc, hashAlgorithm),
+			rma.UpdateData(dustCollectorMoneySupplyID, decDustCollectorSupplyFn, []byte{}),
+			rma.AddItem(tx.UnitID(), tx.OwnerCondition(), &BillData{
+				V:        n,
+				T:        currentBlockNumber,
+				Backlink: tx.Hash(hashAlgorithm),
+			}, tx.Hash(hashAlgorithm)))
+	}
 }
 
-func validateTransferDC(data rma.UnitData, tx TransferDC) error {
-	return validateAnyTransfer(data, tx.Backlink(), tx.TargetValue())
-}
-
-func validateAnyTransfer(data rma.UnitData, backlink []byte, targetValue uint64) error {
-	bd, ok := data.(*BillData)
+func validateSwapTx(tx *swapDCWrapper, state *rma.Tree, hashAlgorithm crypto.Hash, trustBase map[string]abcrypto.Verifier) error {
+	// 3. there is sufficient DC-money supply
+	dcMoneySupply, err := state.GetUnit(dustCollectorMoneySupplyID)
+	if err != nil {
+		return err
+	}
+	dcMoneySupplyBill, ok := dcMoneySupply.Data.(*BillData)
 	if !ok {
-		return txsystem.ErrInvalidDataType
+		return ErrInvalidDataType
 	}
-	if !bytes.Equal(backlink, bd.Backlink) {
-		return txsystem.ErrInvalidBacklink
+	if dcMoneySupplyBill.V < tx.TargetValue() {
+		return ErrSwapInsufficientDCMoneySupply
 	}
-	if targetValue != bd.V {
-		return ErrInvalidBillValue
+	// 4.there exists no bill with identifier
+	if _, err = state.GetUnit(tx.UnitID()); err == nil {
+		return ErrSwapBillAlreadyExists
 	}
-	return nil
+	return validateSwap(tx, hashAlgorithm, trustBase)
 }
 
-func validateSplit(data rma.UnitData, tx Split) error {
-	bd, ok := data.(*BillData)
-	if !ok {
-		return txsystem.ErrInvalidDataType
-	}
-	if !bytes.Equal(tx.Backlink(), bd.Backlink) {
-		return txsystem.ErrInvalidBacklink
-	}
-
-	if tx.Amount() == 0 {
-		return ErrSplitBillZeroAmount
-	}
-	if tx.RemainingValue() == 0 {
-		return ErrSplitBillZeroRemainder
-	}
-
-	// amount does not exceed value of the bill
-	if tx.Amount() >= bd.V {
-		return ErrInvalidBillValue
-	}
-	// remaining value equals the previous value minus the amount
-	if tx.RemainingValue() != bd.V-tx.Amount() {
-		return ErrInvalidBillValue
-	}
-
-	return nil
-}
-
-func validateSwap(tx Swap, hashAlgorithm crypto.Hash, trustBase map[string]abcrypto.Verifier) error {
+func validateSwap(tx *swapDCWrapper, hashAlgorithm crypto.Hash, trustBase map[string]abcrypto.Verifier) error {
 	// 1. ExtrType(ι) = bill - target unit is a bill
 	// TODO: AB-421
 	// 2. target value of the bill is the sum of the target values of succeeded payments in P
-	expectedSum := tx.TargetValue()
-	actualSum := sumDcTransferValues(tx)
-	if expectedSum != actualSum {
+	if tx.TargetValue() != sumDcTransferValues(tx) {
 		return ErrSwapInvalidTargetValue
 	}
 
@@ -122,7 +120,7 @@ func validateSwap(tx Swap, hashAlgorithm crypto.Hash, trustBase map[string]abcry
 	dustTransfers := tx.DCTransfers()
 	proofs := tx.Proofs()
 	if len(dustTransfers) != len(proofs) {
-		return errors.Errorf("invalid count of proofs: expected %v, got %v", len(dustTransfers), len(proofs))
+		return fmt.Errorf("invalid count of proofs: expected %v, got %v", len(dustTransfers), len(proofs))
 	}
 	for i, dcTx := range dustTransfers {
 		// 9. bill transfer orders are listed in strictly increasing order of bill identifiers
@@ -131,8 +129,7 @@ func validateSwap(tx Swap, hashAlgorithm crypto.Hash, trustBase map[string]abcry
 			return ErrSwapDustTransfersInvalidOrder
 		}
 
-		err := validateDustTransfer(dcTx, proofs[i], unitIdBytes, tx.OwnerCondition(), hashAlgorithm, trustBase)
-		if err != nil {
+		if err := validateDustTransfer(dcTx, proofs[i], unitIdBytes, tx.OwnerCondition(), hashAlgorithm, trustBase); err != nil {
 			return err
 		}
 
@@ -140,14 +137,13 @@ func validateSwap(tx Swap, hashAlgorithm crypto.Hash, trustBase map[string]abcry
 	}
 
 	// 12. the owner proof of the swap transaction satisfies the bearer condition of the new bill
-	err := script.RunScript(tx.OwnerProof(), tx.OwnerCondition(), tx.SigBytes())
-	if err != nil {
+	if err := script.RunScript(tx.OwnerProof(), tx.OwnerCondition(), tx.SigBytes()); err != nil {
 		return errors.Wrap(err, ErrSwapOwnerProofFailed.Error())
 	}
 	return nil
 }
 
-func validateDustTransfer(dcTx TransferDC, proof *block.BlockProof, unitIdBytes [32]byte, ownerCondition []byte, hashAlgorithm crypto.Hash, trustBase map[string]abcrypto.Verifier) error {
+func validateDustTransfer(dcTx *transferDCWrapper, proof *block.BlockProof, unitIdBytes [32]byte, ownerCondition []byte, hashAlgorithm crypto.Hash, trustBase map[string]abcrypto.Verifier) error {
 	// 10. bill transfer orders contain proper nonce
 	if !bytes.Equal(dcTx.Nonce(), unitIdBytes[:]) {
 		return ErrSwapInvalidNonce
@@ -160,15 +156,15 @@ func validateDustTransfer(dcTx TransferDC, proof *block.BlockProof, unitIdBytes 
 	if proof.ProofType != block.ProofType_PRIM {
 		return ErrInvalidProofType
 	}
-	err := proof.Verify(util.Uint256ToBytes(dcTx.UnitID()), dcTx, trustBase, hashAlgorithm)
-	if err != nil {
+
+	if err := proof.Verify(util.Uint256ToBytes(dcTx.UnitID()), dcTx, trustBase, hashAlgorithm); err != nil {
 		return errors.Wrap(err, "proof is not valid")
 	}
 
 	return nil
 }
 
-func hashBillIds(tx Swap, hashAlgorithm crypto.Hash) []byte {
+func hashBillIds(tx *swapDCWrapper, hashAlgorithm crypto.Hash) []byte {
 	hasher := hashAlgorithm.New()
 	for _, billId := range tx.BillIdentifiers() {
 		bytes32 := billId.Bytes32()
@@ -186,7 +182,7 @@ func billIdInList(billId *uint256.Int, billIds []*uint256.Int) bool {
 	return false
 }
 
-func sumDcTransferValues(tx Swap) uint64 {
+func sumDcTransferValues(tx *swapDCWrapper) uint64 {
 	sum := uint64(0)
 	for _, dcTx := range tx.DCTransfers() {
 		sum += dcTx.TargetValue()

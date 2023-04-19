@@ -180,7 +180,7 @@ function start_backend() {
         grpcPort=26766
         sPort=9654
         ;;
-      token)
+      tokens)
         home="testab/backend/vd/"
         cmd="token-backend"
         grpcPort=28766

@@ -102,7 +102,7 @@ func TestInputRecord_IsNil(t *testing.T) {
 }
 
 func TestInputRecord_AddToHasher(t *testing.T) {
-	expectedHash, _ := hex.DecodeString("751b96425db404a17632072106655fa93019bc4eb11e13a71d157b77129d104b")
+	expectedHash, _ := hex.DecodeString("2ce35f17c869ace38d096c92e48a0ca128bdaa1e02ebde88d2bbd2dc9576bb8e")
 	hasher := sha256.New()
 	ir.AddToHasher(hasher)
 	hash := hasher.Sum(nil)

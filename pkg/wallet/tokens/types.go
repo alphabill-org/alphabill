@@ -50,10 +50,10 @@ type (
 	}
 )
 
-func ParsePredicates(arguments []string, am account.Manager) ([]*PredicateInput, error) {
+func ParsePredicates(arguments []string, keyNr uint64, am account.Manager) ([]*PredicateInput, error) {
 	creationInputs := make([]*PredicateInput, 0, len(arguments))
 	for _, argument := range arguments {
-		input, err := parsePredicate(argument, am)
+		input, err := parsePredicate(argument, keyNr, am)
 		if err != nil {
 			return nil, err
 		}
@@ -64,12 +64,11 @@ func ParsePredicates(arguments []string, am account.Manager) ([]*PredicateInput,
 
 // parsePredicate uses the following format:
 // empty|true|false|empty produce an empty predicate argument
-// ptpkh (key 1) or ptpkh:n (n > 0) produce an argument with the signed transaction by the given key
-func parsePredicate(argument string, am account.Manager) (*PredicateInput, error) {
+// ptpkh (provided key #) or ptpkh:n (n > 0) produce an argument with the signed transaction by the given key
+func parsePredicate(argument string, keyNr uint64, am account.Manager) (*PredicateInput, error) {
 	if len(argument) == 0 || argument == predicateEmpty || argument == predicateTrue || argument == predicateFalse {
 		return &PredicateInput{Argument: script.PredicateArgumentEmpty()}, nil
 	}
-	keyNr := 1
 	var err error
 	if strings.HasPrefix(argument, predicatePtpkh) {
 		if split := strings.Split(argument, ":"); len(split) == 2 {
@@ -77,7 +76,7 @@ func parsePredicate(argument string, am account.Manager) (*PredicateInput, error
 			if strings.HasPrefix(strings.ToLower(keyStr), hexPrefix) {
 				return nil, fmt.Errorf("invalid creation input: '%s'", argument)
 			} else {
-				keyNr, err = strconv.Atoi(keyStr)
+				keyNr, err = strconv.ParseUint(keyStr, 10, 64)
 				if err != nil {
 					return nil, fmt.Errorf("invalid creation input: '%s': %w", argument, err)
 				}
@@ -86,11 +85,11 @@ func parsePredicate(argument string, am account.Manager) (*PredicateInput, error
 		if keyNr < 1 {
 			return nil, fmt.Errorf("invalid key number: %v in '%s'", keyNr, argument)
 		}
-		_, err := am.GetAccountKey(uint64(keyNr - 1))
+		_, err := am.GetAccountKey(keyNr - 1)
 		if err != nil {
 			return nil, err
 		}
-		return &PredicateInput{AccountNumber: uint64(keyNr)}, nil
+		return &PredicateInput{AccountNumber: keyNr}, nil
 
 	}
 	if strings.HasPrefix(argument, hexPrefix) {
@@ -106,7 +105,7 @@ func parsePredicate(argument string, am account.Manager) (*PredicateInput, error
 	return nil, fmt.Errorf("invalid creation input: '%s'", argument)
 }
 
-func ParsePredicateClause(clause string, am account.Manager) ([]byte, error) {
+func ParsePredicateClause(clause string, keyNr uint64, am account.Manager) ([]byte, error) {
 	if len(clause) == 0 || clause == predicateTrue {
 		return script.PredicateAlwaysTrue(), nil
 	}
@@ -114,7 +113,6 @@ func ParsePredicateClause(clause string, am account.Manager) ([]byte, error) {
 		return script.PredicateAlwaysFalse(), nil
 	}
 
-	keyNr := 1
 	var err error
 	if strings.HasPrefix(clause, predicatePtpkh) {
 		if split := strings.Split(clause, ":"); len(split) == 2 {
@@ -129,7 +127,7 @@ func ParsePredicateClause(clause string, am account.Manager) ([]byte, error) {
 				}
 				return script.PredicatePayToPublicKeyHashDefault(keyHash), nil
 			} else {
-				keyNr, err = strconv.Atoi(keyStr)
+				keyNr, err = strconv.ParseUint(keyStr, 10, 64)
 				if err != nil {
 					return nil, fmt.Errorf("invalid predicate clause: '%s': %w", clause, err)
 				}
@@ -138,7 +136,7 @@ func ParsePredicateClause(clause string, am account.Manager) ([]byte, error) {
 		if keyNr < 1 {
 			return nil, fmt.Errorf("invalid key number: %v in '%s'", keyNr, clause)
 		}
-		accountKey, err := am.GetAccountKey(uint64(keyNr - 1))
+		accountKey, err := am.GetAccountKey(keyNr - 1)
 		if err != nil {
 			return nil, err
 		}

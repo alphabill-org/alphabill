@@ -45,7 +45,7 @@ const (
 )
 
 var (
-	ErrMissingFeeCreditBill = errors.New("fee credit bill does not exist 123")
+	ErrMissingFeeCreditBill = errors.New("fee credit bill does not exist")
 )
 
 func NewClient(baseUrl string) (*MoneyBackendClient, error) {
@@ -190,7 +190,7 @@ func (c *MoneyBackendClient) GetFeeCreditBill(unitID []byte) (*bp.Bill, error) {
 
 	responseData, err := io.ReadAll(response.Body)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read get get credit bill response: %w", err)
+		return nil, fmt.Errorf("failed to read get credit bill response: %w", err)
 	}
 	var res bp.Bill
 	err = protojson.Unmarshal(responseData, &res)

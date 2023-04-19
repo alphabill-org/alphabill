@@ -253,7 +253,7 @@ func (w *Wallet) AddFeeCredit(ctx context.Context, cmd AddFeeCmd) ([]*BlockProof
 	if err != nil {
 		return nil, err
 	}
-	// must have enough balance to not end up with zero fee credits (transferFC + addFC txs)
+	// must have enough balance for two txs (transferFC + addFC) and not end up with zero sum
 	maxTotalFees := 2 * maxFee
 	if cmd.Amount+maxTotalFees > balance {
 		return nil, ErrInsufficientBalance
@@ -366,10 +366,6 @@ func (w *Wallet) ReclaimFeeCredit(ctx context.Context, cmd ReclaimFeeCmd) ([]*Bl
 			bills = append(bills, newBillFromVM(b))
 		}
 	}
-	// sort bills by value in descending order
-	sort.Slice(bills, func(i, j int) bool {
-		return bills[i].Value > bills[j].Value
-	})
 	if len(bills) == 0 {
 		return nil, errors.New("wallet must have a source bill to which to add reclaimed fee credits")
 	}
@@ -796,7 +792,7 @@ func convertBills(billsList []*backendmoney.ListBillVM) ([]*Bill, error) {
 	return bills, nil
 }
 
-// newBill creates new Bill struct from given BlockProof for Transfer and Split transactions.
+// newBillFromVM converts ListBillVM to Bill structs
 func newBillFromVM(b *backendmoney.ListBillVM) *Bill {
 	return &Bill{
 		Id:       util.BytesToUint256(b.Id),

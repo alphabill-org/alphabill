@@ -12,11 +12,8 @@ import (
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	testmoneyfc "github.com/alphabill-org/alphabill/internal/testutils/money"
 	testpartition "github.com/alphabill-org/alphabill/internal/testutils/partition"
-	testtransaction "github.com/alphabill-org/alphabill/internal/testutils/transaction"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/internal/txsystem/fc"
-	testfc "github.com/alphabill-org/alphabill/internal/txsystem/fc/testutils"
-	"github.com/alphabill-org/alphabill/internal/txsystem/fc/transactions"
 	txutil "github.com/alphabill-org/alphabill/internal/txsystem/util"
 	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/ethereum/go-ethereum/common/hexutil"
@@ -36,7 +33,7 @@ var (
 )
 
 func TestPartition_Ok(t *testing.T) {
-	const moneyInvariant = uint64(10000)
+	const moneyInvariant = uint64(10000 * 1e8)
 	total := moneyInvariant
 	initialBill := &InitialBill{
 		ID:    uint256.NewInt(1),
@@ -83,7 +80,7 @@ func TestPartition_Ok(t *testing.T) {
 }
 
 func TestPartition_SwapDCOk(t *testing.T) {
-	const moneyInvariant = uint64(10000)
+	const moneyInvariant = uint64(10000 * 1e8)
 	const nofDustToSwap = 3
 
 	var (
@@ -279,36 +276,4 @@ func decodeAndHashHex(hex string) []byte {
 func decodeHex(hex string) []byte {
 	decoded, _ := hexutil.Decode(hex)
 	return decoded
-}
-
-func createFeeCredit(t *testing.T, initialBill *InitialBill, network *testpartition.AlphabillPartition) (uint64, *transactions.TransferFeeCreditWrapper) {
-	// send transferFC
-	fcrIDBytes := fcrID.Bytes32()
-	fcrAmount := uint64(100)
-	transferFC := testfc.NewTransferFC(t,
-		testfc.NewTransferFCAttr(
-			testfc.WithBacklink(nil),
-			testfc.WithAmount(fcrAmount),
-			testfc.WithTargetRecordID(fcrIDBytes[:]),
-		),
-		testtransaction.WithUnitId(util.Uint256ToBytes(initialBill.ID)),
-		testtransaction.WithOwnerProof(script.PredicateArgumentEmpty()),
-	)
-	require.NoError(t, network.SubmitTx(transferFC.Transaction))
-	require.Eventually(t, testpartition.BlockchainContainsTx(transferFC.Transaction, network), test.WaitDuration, test.WaitTick)
-
-	// send addFC
-	_, transferFCProof, err := network.GetBlockProof(transferFC.Transaction, transactions.NewFeeCreditTx)
-	require.NoError(t, err)
-	addFC := testfc.NewAddFC(t, network.RootSigners[0],
-		testfc.NewAddFCAttr(t, network.RootSigners[0],
-			testfc.WithTransferFCTx(transferFC.Transaction),
-			testfc.WithTransferFCProof(transferFCProof),
-			testfc.WithFCOwnerCondition(script.PredicateAlwaysTrue()),
-		),
-		testtransaction.WithUnitId(fcrIDBytes[:]),
-	)
-	require.NoError(t, network.SubmitTx(addFC.Transaction))
-	require.Eventually(t, testpartition.BlockchainContainsTx(addFC.Transaction, network), test.WaitDuration, test.WaitTick)
-	return fcrAmount, transferFC
 }

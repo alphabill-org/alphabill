@@ -29,7 +29,7 @@ import (
 const (
 	dcTimeoutBlockCount       = 10
 	swapTimeoutBlockCount     = 60
-	txTimeoutBlockCount       = 100
+	txTimeoutBlockCount       = 10
 	maxBillsForDustCollection = 100
 	dustBillDeletionTimeout   = 65536
 )
@@ -40,9 +40,11 @@ var (
 	ErrInvalidPassword     = errors.New("invalid password")
 	ErrTxFailedToConfirm   = errors.New("transaction(s) failed to confirm")
 
+	ErrNoFeeCredit                  = errors.New("no fee credit in wallet")
 	ErrInsufficientFeeCredit        = errors.New("insufficient fee credit balance for transaction(s)")
 	ErrInsufficientBillValue        = errors.New("wallet does not have a bill large enough for fee transfer")
 	ErrInvalidCreateFeeCreditAmount = errors.New("fee credit amount must be positive")
+	ErrAddFCInsufficientBalance     = errors.New("insufficient balance for transaction and transaction fee")
 )
 
 var (
@@ -193,18 +195,13 @@ func (w *Wallet) Send(ctx context.Context, cmd SendCmd) ([]*Bill, error) {
 		return nil, err
 	}
 
-	// TODO add fee credit support to "new" cli wallet
-	//fcb, err := w.db.Do().GetFeeCreditBill(cmd.AccountIndex)
-	//if err != nil {
-	//	return nil, err
-	//}
-	//if fcb == nil {
-	//	return nil, ErrInsufficientFeeCredit
-	//}
-	//txsCost := maxFee * uint64(len(txs))
-	//if fcb.Value < txsCost {
-	//	return nil, ErrInsufficientFeeCredit
-	//}
+	fcb, err := w.GetFeeCreditBill(cmd.AccountIndex)
+	if err != nil {
+		return nil, err
+	}
+	if fcb == nil {
+		return nil, ErrNoFeeCredit
+	}
 
 	billResponse, err := w.restClient.ListBills(pubKey)
 	if err != nil {
@@ -216,12 +213,17 @@ func (w *Wallet) Send(ctx context.Context, cmd SendCmd) ([]*Bill, error) {
 	}
 
 	timeout := roundNumber + txTimeoutBlockCount
-	txs, err := createTransactions(cmd.ReceiverPubKey, cmd.Amount, w.SystemID(), bills, k, timeout, nil)
+	txs, err := createTransactions(cmd.ReceiverPubKey, cmd.Amount, w.SystemID(), bills, k, timeout, fcb.GetID())
 	if err != nil {
 		return nil, err
 	}
+	txsCost := maxFee * uint64(len(txs))
+	if fcb.Value < txsCost {
+		return nil, ErrInsufficientFeeCredit
+	}
 
 	for _, tx := range txs {
+		log.Info("sending tx")
 		err := w.SendTransaction(ctx, tx, &wallet.SendOpts{RetryOnFullTxBuffer: true})
 		if err != nil {
 			return nil, err
@@ -250,152 +252,178 @@ func (w *Wallet) Send(ctx context.Context, cmd SendCmd) ([]*Bill, error) {
 // Wallet must have a bill large enough for the required amount plus fees.
 // Returns list of "add fee credit" transaction proofs.
 func (w *Wallet) AddFeeCredit(ctx context.Context, cmd AddFeeCmd) ([]*BlockProof, error) {
-	//if err := cmd.isValid(); err != nil {
-	//	return nil, err
-	//}
-	//balance, err := w.GetBalance(GetBalanceCmd{AccountIndex: cmd.AccountIndex})
-	//if err != nil {
-	//	return nil, err
-	//}
-	//// must have enough balance to not end up with zero fee credits
-	//maxTotalFees := 2 * maxFee
-	//if cmd.Amount+maxTotalFees > balance {
-	//	return nil, ErrInsufficientBalance
-	//}
-	//
-	//bills, err := w.db.Do().GetBills(cmd.AccountIndex)
-	//if err != nil {
-	//	return nil, err
-	//}
-	//// sort bills by value in descending order
-	//sort.Slice(bills, func(i, j int) bool {
-	//	return bills[i].Value > bills[j].Value
-	//})
-	//billToTransfer := bills[0]
-	//
-	//if billToTransfer.Value < cmd.Amount+maxTotalFees {
-	//	return nil, ErrInsufficientBillValue
-	//}
-	//
-	//k, err := w.am.GetAccountKey(cmd.AccountIndex)
-	//if err != nil {
-	//	return nil, err
-	//}
-	//
-	//fcb, err := w.db.Do().GetFeeCreditBill(cmd.AccountIndex)
-	//if err != nil {
-	//	return nil, err
-	//}
-	//
-	//_, lastRoundNo, err := w.GetMaxBlockNumber()
-	//if err != nil {
-	//	return nil, err
-	//}
-	//timeout := lastRoundNo + txTimeoutBlockCount
-	//if err != nil {
-	//	return nil, err
-	//}
-	//
-	//log.Info("sending transfer fee credit transaction")
-	//tx, err := createTransferFCTx(cmd.Amount, k.PrivKeyHash, fcb.getTxHash(), k, w.SystemID(), billToTransfer, lastRoundNo, timeout)
-	//if err != nil {
-	//	return nil, err
-	//}
-	//err = w.SendTransaction(ctx, tx, &wallet.SendOpts{})
-	//if err != nil {
-	//	return nil, err
-	//}
-	//// TODO waiting can be canceled or AddFC tx can fail
-	//// record some metadata about transferFC so that AddFC can be retried
-	//fcTransferProof, err := w.waitForConfirmation(ctx, []*txsystem.Transaction{tx}, lastRoundNo, timeout, cmd.AccountIndex)
-	//if err != nil {
-	//	return nil, err
-	//}
-	//
-	//log.Info("sending add fee credit transaction")
-	//addFCTx, err := createAddFCTx(k.PrivKeyHash, fcTransferProof[0], k, w.SystemID(), timeout)
-	//if err != nil {
-	//	return nil, err
-	//}
-	//err = w.SendTransaction(ctx, addFCTx, &wallet.SendOpts{})
-	//if err != nil {
-	//	return nil, err
-	//}
-	//return w.waitForConfirmation(ctx, []*txsystem.Transaction{addFCTx}, lastRoundNo, timeout, cmd.AccountIndex)
-	return nil, nil // TODO add fee credit support to "new" cli wallet
+	if err := cmd.isValid(); err != nil {
+		return nil, err
+	}
+	balance, err := w.GetBalance(GetBalanceCmd{AccountIndex: cmd.AccountIndex})
+	if err != nil {
+		return nil, err
+	}
+	// must have enough balance for two txs (transferFC + addFC) and not end up with zero sum
+	maxTotalFees := 2 * maxFee
+	if cmd.Amount+maxTotalFees > balance {
+		return nil, ErrAddFCInsufficientBalance
+	}
+
+	// fetch bills
+	accountKey, err := w.am.GetAccountKey(cmd.AccountIndex)
+	if err != nil {
+		return nil, err
+	}
+	listBillsResponse, err := w.restClient.ListBills(accountKey.PubKey)
+	if err != nil {
+		return nil, err
+	}
+	// filter dc bills
+	var bills []*Bill
+	for _, b := range listBillsResponse.Bills {
+		if !b.IsDCBill {
+			bills = append(bills, newBillFromVM(b))
+		}
+	}
+	// sort bills by value in descending order
+	sort.Slice(bills, func(i, j int) bool {
+		return bills[i].Value > bills[j].Value
+	})
+
+	// verify bill is large enough for required amount
+	billToTransfer := bills[0]
+	if billToTransfer.Value < cmd.Amount+maxTotalFees {
+		return nil, ErrInsufficientBillValue
+	}
+
+	// fetch fee credit bill
+	fcb, err := w.GetFeeCreditBill(cmd.AccountIndex)
+	if err != nil {
+		return nil, err
+	}
+
+	roundNo, err := w.GetRoundNumber(ctx)
+	if err != nil {
+		return nil, err
+	}
+	timeout := roundNo + txTimeoutBlockCount
+	if err != nil {
+		return nil, err
+	}
+
+	log.Info("sending transfer fee credit transaction")
+	tx, err := createTransferFCTx(cmd.Amount, accountKey.PrivKeyHash, fcb.GetTxHash(), accountKey, w.SystemID(), billToTransfer, roundNo, timeout)
+	if err != nil {
+		return nil, err
+	}
+	err = w.SendTransaction(ctx, tx, &wallet.SendOpts{})
+	if err != nil {
+		return nil, err
+	}
+	// TODO waiting can be canceled or AddFC tx can fail
+	// record some metadata about transferFC so that AddFC can be retried
+	fcTransferProof, err := w.waitForConfirmation(ctx, []*txsystem.Transaction{tx}, roundNo, timeout)
+	if err != nil {
+		return nil, err
+	}
+
+	log.Info("sending add fee credit transaction")
+	addFCTx, err := createAddFCTx(accountKey.PrivKeyHash, fcTransferProof[0], accountKey, w.SystemID(), timeout)
+	if err != nil {
+		return nil, err
+	}
+	err = w.SendTransaction(ctx, addFCTx, &wallet.SendOpts{})
+	if err != nil {
+		return nil, err
+	}
+	return w.waitForConfirmation(ctx, []*txsystem.Transaction{addFCTx}, roundNo, timeout)
 }
 
 // ReclaimFeeCredit reclaims fee credit.
 // Reclaimed fee credit is added to the largest bill in wallet.
 // Returns list of "reclaim fee credit" transaction proofs.
 func (w *Wallet) ReclaimFeeCredit(ctx context.Context, cmd ReclaimFeeCmd) ([]*BlockProof, error) {
-	//k, err := w.am.GetAccountKey(cmd.AccountIndex)
-	//if err != nil {
-	//	return nil, err
-	//}
-	//
-	//_, lastRoundNo, err := w.GetMaxBlockNumber()
-	//if err != nil {
-	//	return nil, err
-	//}
-	//timeout := lastRoundNo + txTimeoutBlockCount
-	//if err != nil {
-	//	return nil, err
-	//}
-	//
-	//fcb, err := w.db.Do().GetFeeCreditBill(cmd.AccountIndex)
-	//if err != nil {
-	//	return nil, err
-	//}
-	//if fcb == nil || fcb.Value == 0 {
-	//	return nil, ErrInsufficientFeeCredit
-	//}
-	//
-	//bills, err := w.db.Do().GetBills(cmd.AccountIndex)
-	//if err != nil {
-	//	return nil, err
-	//}
-	//if len(bills) == 0 {
-	//	return nil, errors.New("wallet must have a source bill to which to add reclaimed fee credits")
-	//}
-	//// sort bills by value in descending order
-	//sort.Slice(bills, func(i, j int) bool {
-	//	return bills[i].Value > bills[j].Value
-	//})
-	//
-	//log.Info("sending close fee credit transaction")
-	//targetBill := bills[0]
-	//tx, err := createCloseFCTx(w.SystemID(), fcb.GetID(), timeout, fcb.Value, targetBill.GetID(), targetBill.TxHash, k)
-	//if err != nil {
-	//	return nil, err
-	//}
-	//err = w.SendTransaction(ctx, tx, &wallet.SendOpts{})
-	//if err != nil {
-	//	return nil, err
-	//}
-	//fcTransferProof, err := w.waitForConfirmation(ctx, []*txsystem.Transaction{tx}, lastRoundNo, timeout, cmd.AccountIndex)
-	//if err != nil {
-	//	return nil, err
-	//}
-	//
-	//log.Info("sending reclaim fee credit transaction")
-	//addFCTx, err := createReclaimFCTx(w.SystemID(), targetBill.GetID(), timeout, fcTransferProof[0], targetBill.TxHash, k)
-	//if err != nil {
-	//	return nil, err
-	//}
-	//err = w.SendTransaction(ctx, addFCTx, &wallet.SendOpts{})
-	//if err != nil {
-	//	return nil, err
-	//}
-	//return w.waitForConfirmation(ctx, []*txsystem.Transaction{addFCTx}, lastRoundNo, timeout, cmd.AccountIndex)
-	return nil, nil // TODO add fee credit support to "new" cli wallet
+	k, err := w.am.GetAccountKey(cmd.AccountIndex)
+	if err != nil {
+		return nil, err
+	}
+
+	roundNo, err := w.GetRoundNumber(ctx)
+	if err != nil {
+		return nil, err
+	}
+	timeout := roundNo + txTimeoutBlockCount
+	if err != nil {
+		return nil, err
+	}
+
+	fcb, err := w.GetFeeCreditBill(cmd.AccountIndex)
+	if err != nil {
+		return nil, err
+	}
+	if fcb.GetValue() == 0 {
+		return nil, ErrInsufficientFeeCredit
+	}
+
+	listBillsResponse, err := w.restClient.ListBills(k.PubKey)
+	if err != nil {
+		return nil, err
+	}
+	// filter dc bills
+	var bills []*Bill
+	for _, b := range listBillsResponse.Bills {
+		if !b.IsDCBill {
+			bills = append(bills, newBillFromVM(b))
+		}
+	}
+	if len(bills) == 0 {
+		return nil, errors.New("wallet must have a source bill to which to add reclaimed fee credits")
+	}
+	// sort bills by value in descending order
+	sort.Slice(bills, func(i, j int) bool {
+		return bills[i].Value > bills[j].Value
+	})
+
+	log.Info("sending close fee credit transaction")
+	targetBill := bills[0]
+	// TODO waiting can be canceled or ReclaimFC tx can fail
+	// record some metadata about CloseFC so that ReclaimFC can be retried
+	tx, err := createCloseFCTx(w.SystemID(), fcb.GetID(), timeout, fcb.Value, targetBill.GetID(), targetBill.TxHash, k)
+	if err != nil {
+		return nil, err
+	}
+	err = w.SendTransaction(ctx, tx, &wallet.SendOpts{})
+	if err != nil {
+		return nil, err
+	}
+	fcTransferProof, err := w.waitForConfirmation(ctx, []*txsystem.Transaction{tx}, roundNo, timeout)
+	if err != nil {
+		return nil, err
+	}
+
+	log.Info("sending reclaim fee credit transaction")
+	addFCTx, err := createReclaimFCTx(w.SystemID(), targetBill.GetID(), timeout, fcTransferProof[0], targetBill.TxHash, k)
+	if err != nil {
+		return nil, err
+	}
+	err = w.SendTransaction(ctx, addFCTx, &wallet.SendOpts{})
+	if err != nil {
+		return nil, err
+	}
+	return w.waitForConfirmation(ctx, []*txsystem.Transaction{addFCTx}, roundNo, timeout)
 }
 
 // GetFeeCreditBill returns fee credit bill for given account,
 // can return nil if fee credit bill has not been created yet.
 func (w *Wallet) GetFeeCreditBill(accountIndex uint64) (*Bill, error) {
-	//return w.db.Do().GetFeeCreditBill(accountIndex)
-	return nil, nil // TODO add fee credit support to "new" cli wallet
+	accountKey, err := w.am.GetAccountKey(accountIndex)
+	if err != nil {
+		return nil, err
+	}
+	fcb, err := w.restClient.GetFeeCreditBill(accountKey.PrivKeyHash)
+	if err != nil {
+		if errors.Is(err, client.ErrMissingFeeCreditBill) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return convertBill(fcb), nil
 }
 
 // collectDust sends dust transfer for every bill for given account in wallet and records metadata.
@@ -598,14 +626,13 @@ func (w *Wallet) swapDcBills(dcBills []*Bill, dcNonce []byte, billIds [][]byte, 
 	if err != nil {
 		return err
 	}
-	// TODO add fee credit support to "new" cli wallet
-	//fcb, err := tx.GetFeeCreditBill(accountIndex)
-	//if err != nil {
-	//	return err
-	//}
-	//if fcb == nil || fcb.Value < maxFee {
-	//	return ErrInsufficientFeeCredit
-	//}
+	fcb, err := w.GetFeeCreditBill(accountIndex)
+	if err != nil {
+		return err
+	}
+	if fcb.GetValue() < maxFee {
+		return ErrInsufficientFeeCredit
+	}
 	swap, err := createSwapTx(k, w.SystemID(), dcBills, dcNonce, billIds, timeout)
 	if err != nil {
 		return err
@@ -638,12 +665,10 @@ func (w *Wallet) waitForConfirmation(ctx context.Context, pendingTxs []*txsystem
 				continue
 			}
 			// wait for some time before retrying to fetch new block
-			timer := time.NewTimer(500 * time.Millisecond)
 			select {
-			case <-timer.C:
+			case <-time.After(time.Second):
 				continue
 			case <-ctx.Done():
-				timer.Stop()
 				return nil, nil
 			}
 		}
@@ -658,17 +683,6 @@ func (w *Wallet) waitForConfirmation(ctx context.Context, pendingTxs []*txsystem
 			tx := gtx.ToProtoBuf()
 			if txsLog.Contains(tx) {
 				log.Info("confirmed tx ", hexutil.Encode(tx.UnitId))
-				// TODO add fee credit support to "new" cli wallet
-				//err = w.db.WithTransaction(func(dbTx TxContext) error {
-				//	fcb, err := dbTx.GetFeeCreditBill(accountIndex)
-				//	if err != nil {
-				//		return err
-				//	}
-				//	return w.collectBills(dbTx, tx, b, fcb.getFCBlockNumber(), &w.am.GetAll()[accountIndex])
-				//})
-				//if err != nil {
-				//	return nil, err
-				//}
 				err = txsLog.RecordTx(gtx, genericBlock)
 				if err != nil {
 					return nil, err
@@ -778,10 +792,21 @@ func getBillIds(bills []*Bill) [][]byte {
 func convertBills(billsList []*backendmoney.ListBillVM) ([]*Bill, error) {
 	var bills []*Bill
 	for _, b := range billsList {
-		bill := &Bill{Id: util.BytesToUint256(b.Id), Value: b.Value, TxHash: b.TxHash, IsDcBill: b.IsDCBill, DcNonce: hashId(b.Id)}
+		bill := newBillFromVM(b)
 		bills = append(bills, bill)
 	}
 	return bills, nil
+}
+
+// newBillFromVM converts ListBillVM to Bill structs
+func newBillFromVM(b *backendmoney.ListBillVM) *Bill {
+	return &Bill{
+		Id:       util.BytesToUint256(b.Id),
+		Value:    b.Value,
+		TxHash:   b.TxHash,
+		IsDcBill: b.IsDCBill,
+		DcNonce:  hashId(b.Id),
+	}
 }
 
 // newBill creates new Bill struct from given BlockProof for Transfer and Split transactions.

@@ -42,6 +42,9 @@ func handleSwapDCTx(state *rma.Tree, hashAlgorithm crypto.Hash, trustBase map[st
 		fee := feeCalc()
 		tx.SetServerMetadata(&txsystem.ServerMetadata{Fee: fee})
 
+		// calculate hash after setting server metadata
+		h := tx.Hash(hashAlgorithm)
+
 		// set n as the target value
 		n := tx.TargetValue()
 		// reduce dc-money supply by n
@@ -55,13 +58,13 @@ func handleSwapDCTx(state *rma.Tree, hashAlgorithm crypto.Hash, trustBase map[st
 		}
 		// update state
 		return state.AtomicUpdate(
-			decrFeeCredit(tx, feeCalc, hashAlgorithm),
+			fc.DecrCredit(tx.transaction.GetClientFeeCreditRecordID(), fee, h),
 			rma.UpdateData(dustCollectorMoneySupplyID, decDustCollectorSupplyFn, []byte{}),
 			rma.AddItem(tx.UnitID(), tx.OwnerCondition(), &BillData{
 				V:        n,
 				T:        currentBlockNumber,
-				Backlink: tx.Hash(hashAlgorithm),
-			}, tx.Hash(hashAlgorithm)))
+				Backlink: h,
+			}, h))
 	}
 }
 

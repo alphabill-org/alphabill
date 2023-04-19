@@ -470,7 +470,7 @@ func TestGetFeeCreditBillRequest_BillDoesNotExist(t *testing.T) {
 	res := &ErrorResponse{}
 	httpRes, err := testhttp.DoGet(fmt.Sprintf("http://localhost:%d/api/v1/fee-credit-bill?bill_id=%s", port, billId), res)
 	require.NoError(t, err)
-	require.Equal(t, http.StatusBadRequest, httpRes.StatusCode)
+	require.Equal(t, http.StatusNotFound, httpRes.StatusCode)
 	require.Equal(t, "fee credit bill does not exist", res.Message)
 }
 

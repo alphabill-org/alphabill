@@ -336,22 +336,6 @@ func startMoneyBackend(t *testing.T, nodeAddr string) string {
 	return apiAddr
 }
 
-func waitForBalance(t *testing.T, homedir string, expectedBalance uint64, accountIndex uint64) {
-	require.Eventually(t, func() bool {
-		mockServer, mockAddress := mockBackendCalls(&backendMockReturnConf{balance: expectedBalance})
-		defer mockServer.Close()
-
-		stdout := execWalletCmd(t, homedir, "get-balance --alphabill-api-uri "+mockAddress.Host)
-		for _, line := range stdout.lines {
-			expectedBalanceStr := amountToString(expectedBalance, 8)
-			if line == fmt.Sprintf("#%d %s", accountIndex+1, expectedBalanceStr) {
-				return true
-			}
-		}
-		return false
-	}, test.WaitDuration, test.WaitTick)
-}
-
 // addAccount calls "add-key" cli function on given wallet and returns the added pubkey hex
 func addAccount(t *testing.T, homedir string) string {
 	stdout := execWalletCmd(t, homedir, "add-key")
@@ -487,14 +471,4 @@ func mockBackendCalls(br *backendMockReturnConf) (*httptest.Server, *url.URL) {
 
 func toBillId(i *uint256.Int) string {
 	return base64.StdEncoding.EncodeToString(util.Uint256ToBytes(i))
-}
-
-func txConverter(tx *txsystem.Transaction) (txsystem.GenericTransaction, error) {
-	return moneytx.NewMoneyTx([]byte{0, 0, 0, 0}, tx)
-}
-
-func getLastTransactionProps(network *testpartition.AlphabillPartition) (string, uint64) {
-	gb, bp, _ := network.GetBlockProof(network.Nodes[0].GetLatestBlock().Transactions[0], txConverter)
-	txHash := base64.StdEncoding.EncodeToString(bp.GetTransactionsHash())
-	return txHash, gb.BlockNumber
 }

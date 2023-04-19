@@ -1,6 +1,7 @@
 package metrics
 
 import (
+	"fmt"
 	"net/http"
 	"os"
 	"strings"
@@ -8,6 +9,8 @@ import (
 	"github.com/ethereum/go-ethereum/metrics"
 	"github.com/ethereum/go-ethereum/metrics/prometheus"
 )
+
+const prefix = "ab_"
 
 var registry metrics.Registry
 
@@ -17,7 +20,7 @@ type Counter struct {
 
 func GetOrRegisterCounter(name string) *Counter {
 	initMetrics()
-	return &Counter{metrics.GetOrRegisterCounter(name, registry)}
+	return &Counter{metrics.GetOrRegisterCounter(fmt.Sprintf("%s%s", prefix, name), registry)}
 }
 
 func Enabled() bool {

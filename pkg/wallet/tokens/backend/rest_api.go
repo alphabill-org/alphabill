@@ -73,7 +73,7 @@ func (api *restAPI) endpoints() http.Handler {
 	apiV1.HandleFunc("/round-number", api.getRoundNumber).Methods("GET", "OPTIONS")
 	apiV1.HandleFunc("/transactions/{pubkey}", api.postTransactions).Methods("POST", "OPTIONS")
 	apiV1.HandleFunc("/units/{unitId}/transactions/{txHash}/proof", api.getTxProof).Methods("GET", "OPTIONS")
-	apiV1.HandleFunc("/fee-credit-bill", api.getFeeCreditBill).Methods("GET", "OPTIONS")
+	apiV1.HandleFunc("/fee-credit-bills/{unitId}", api.getFeeCreditBill).Methods("GET", "OPTIONS")
 
 	apiV1.Handle("/swagger/{.*}", http.StripPrefix("/api/v1/", http.FileServer(http.FS(swaggerFiles)))).Methods("GET", "OPTIONS")
 	apiV1.Handle("/swagger/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -275,14 +275,15 @@ func (api *restAPI) saveTxs(ctx context.Context, txs []*txsystem.Transaction, ow
 }
 
 func (api *restAPI) getFeeCreditBill(w http.ResponseWriter, r *http.Request) {
-	billID, err := parseHex[UnitID](r.URL.Query().Get("bill_id"), true)
+	vars := mux.Vars(r)
+	unitID, err := parseHex[UnitID](vars["unitId"], true)
 	if err != nil {
-		api.invalidParamResponse(w, "bill_id", err)
+		api.invalidParamResponse(w, "unitId", err)
 		return
 	}
-	fcb, err := api.db.GetFeeCreditBill(billID)
+	fcb, err := api.db.GetFeeCreditBill(unitID)
 	if err != nil {
-		api.writeErrorResponse(w, fmt.Errorf("failed to load fee credit bill for ID 0x%X: %w", billID, err))
+		api.writeErrorResponse(w, fmt.Errorf("failed to load fee credit bill for ID 0x%X: %w", unitID, err))
 		return
 	}
 	if fcb == nil {

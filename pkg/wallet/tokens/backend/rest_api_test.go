@@ -802,15 +802,16 @@ func Test_restAPI_getFeeCreditBill(t *testing.T) {
 	t.Parallel()
 
 	makeRequest := func(api *restAPI, unitID string) *http.Response {
-		req := httptest.NewRequest("GET", fmt.Sprintf("http://ab.com/api/v1/fee-credit-bill?bill_id=%s", unitID), nil)
+		req := httptest.NewRequest("GET", fmt.Sprintf("http://ab.com/api/v1/fee-credit-bills/%s", unitID), nil)
+		req = mux.SetURLVars(req, map[string]string{"unitId": unitID})
 		w := httptest.NewRecorder()
 		api.getFeeCreditBill(w, req)
 		return w.Result()
 	}
 
-	t.Run("400 'bill_id' query param not in hex format", func(t *testing.T) {
+	t.Run("400 'unitId' query param not in hex format", func(t *testing.T) {
 		rsp := makeRequest(&restAPI{}, "foo")
-		expectErrorResponse(t, rsp, http.StatusBadRequest, `invalid parameter "bill_id": hex string without 0x prefix`)
+		expectErrorResponse(t, rsp, http.StatusBadRequest, `invalid parameter "unitId": hex string without 0x prefix`)
 	})
 
 	t.Run("500 error fetching fee credit bill", func(t *testing.T) {

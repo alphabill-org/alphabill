@@ -269,7 +269,7 @@ paths:
                 example:
                   ZD75s0+XCi3XwxOp3UxccXY6nM4ZhDnDyYNGoJv5K1U=: "failed to convert transaction: bad type name"
                   v8aSJW4nDxgQf7VxvNh/a60ux7CovgAuJUwJJIJNvAk=: "failed to forward tx: connection refused"
-  /fee-credit-bill:
+  /fee-credit-bills:
     get:
       tags:
         - fees
@@ -277,10 +277,10 @@ paths:
       description: Returns fee credit bill for given bill ID.
       operationId: getFeeCreditBill
       parameters:
-        - name: bill_id
-          in: query
+        - name: unitId
+          in: path
           required: true
-          description: fee credit bill id (SHA256 hash of private key) in hex format.
+          description: fee credit unit id (SHA256 hash of private key) in hex format.
           schema:
             $ref: '#/components/schemas/UnitIDParam'
       responses:

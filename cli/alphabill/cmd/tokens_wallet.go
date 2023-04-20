@@ -137,19 +137,19 @@ func execTokenCmdNewTypeFungible(cmd *cobra.Command, config *walletConfig) error
 		return fmt.Errorf("argument \"%v\" for \"--decimals\" flag is out of range, max value %v", decimals, maxDecimalPlaces)
 	}
 	am := tw.GetAccountManager()
-	parentType, creationInputs, err := readParentTypeInfo(cmd, am)
+	parentType, creationInputs, err := readParentTypeInfo(cmd, accountNumber, am)
 	if err != nil {
 		return err
 	}
-	subTypeCreationPredicate, err := parsePredicateClauseCmd(cmd, cmdFlagSybTypeClause, am)
+	subTypeCreationPredicate, err := parsePredicateClauseCmd(cmd, cmdFlagSybTypeClause, accountNumber, am)
 	if err != nil {
 		return err
 	}
-	mintTokenPredicate, err := parsePredicateClauseCmd(cmd, cmdFlagMintClause, am)
+	mintTokenPredicate, err := parsePredicateClauseCmd(cmd, cmdFlagMintClause, accountNumber, am)
 	if err != nil {
 		return err
 	}
-	invariantPredicate, err := parsePredicateClauseCmd(cmd, cmdFlagInheritBearerClause, am)
+	invariantPredicate, err := parsePredicateClauseCmd(cmd, cmdFlagInheritBearerClause, accountNumber, am)
 	if err != nil {
 		return err
 	}
@@ -204,23 +204,23 @@ func execTokenCmdNewTypeNonFungible(cmd *cobra.Command, config *walletConfig) er
 		return err
 	}
 	am := tw.GetAccountManager()
-	parentType, creationInputs, err := readParentTypeInfo(cmd, am)
+	parentType, creationInputs, err := readParentTypeInfo(cmd, accountNumber, am)
 	if err != nil {
 		return err
 	}
-	subTypeCreationPredicate, err := parsePredicateClauseCmd(cmd, cmdFlagSybTypeClause, am)
+	subTypeCreationPredicate, err := parsePredicateClauseCmd(cmd, cmdFlagSybTypeClause, accountNumber, am)
 	if err != nil {
 		return err
 	}
-	mintTokenPredicate, err := parsePredicateClauseCmd(cmd, cmdFlagMintClause, am)
+	mintTokenPredicate, err := parsePredicateClauseCmd(cmd, cmdFlagMintClause, accountNumber, am)
 	if err != nil {
 		return err
 	}
-	dataUpdatePredicate, err := parsePredicateClauseCmd(cmd, cmdFlagTokenDataUpdateClause, am)
+	dataUpdatePredicate, err := parsePredicateClauseCmd(cmd, cmdFlagTokenDataUpdateClause, accountNumber, am)
 	if err != nil {
 		return err
 	}
-	invariantPredicate, err := parsePredicateClauseCmd(cmd, cmdFlagInheritBearerClause, am)
+	invariantPredicate, err := parsePredicateClauseCmd(cmd, cmdFlagInheritBearerClause, accountNumber, am)
 	if err != nil {
 		return err
 	}
@@ -294,7 +294,7 @@ func execTokenCmdNewTokenFungible(cmd *cobra.Command, config *walletConfig) erro
 	if err != nil {
 		return err
 	}
-	ci, err := readPredicateInput(cmd, cmdFlagMintClauseInput, am)
+	ci, err := readPredicateInput(cmd, cmdFlagMintClauseInput, accountNumber, am)
 	if err != nil {
 		return err
 	}
@@ -310,7 +310,7 @@ func execTokenCmdNewTokenFungible(cmd *cobra.Command, config *walletConfig) erro
 	if amount == 0 {
 		return fmt.Errorf("invalid parameter \"%s\" for \"--amount\": 0 is not valid amount", amountStr)
 	}
-	bearerPredicate, err := parsePredicateClauseCmd(cmd, cmdFlagBearerClause, am)
+	bearerPredicate, err := parsePredicateClauseCmd(cmd, cmdFlagBearerClause, accountNumber, am)
 	if err != nil {
 		return err
 	}
@@ -376,15 +376,15 @@ func execTokenCmdNewTokenNonFungible(cmd *cobra.Command, config *walletConfig) e
 		return err
 	}
 	am := tw.GetAccountManager()
-	ci, err := readPredicateInput(cmd, cmdFlagMintClauseInput, am)
+	ci, err := readPredicateInput(cmd, cmdFlagMintClauseInput, accountNumber, am)
 	if err != nil {
 		return err
 	}
-	bearerPredicate, err := parsePredicateClauseCmd(cmd, cmdFlagBearerClause, am)
+	bearerPredicate, err := parsePredicateClauseCmd(cmd, cmdFlagBearerClause, accountNumber, am)
 	if err != nil {
 		return err
 	}
-	dataUpdatePredicate, err := parsePredicateClauseCmd(cmd, cmdFlagTokenDataUpdateClause, am)
+	dataUpdatePredicate, err := parsePredicateClauseCmd(cmd, cmdFlagTokenDataUpdateClause, accountNumber, am)
 	if err != nil {
 		return err
 	}
@@ -487,7 +487,7 @@ func execTokenCmdSendFungible(cmd *cobra.Command, config *walletConfig) error {
 		return err
 	}
 
-	ib, err := readPredicateInput(cmd, cmdFlagInheritBearerClauseInput, tw.GetAccountManager())
+	ib, err := readPredicateInput(cmd, cmdFlagInheritBearerClauseInput, accountNumber, tw.GetAccountManager())
 	if err != nil {
 		return err
 	}
@@ -551,7 +551,7 @@ func execTokenCmdSendNonFungible(cmd *cobra.Command, config *walletConfig) error
 		return err
 	}
 
-	ib, err := readPredicateInput(cmd, cmdFlagInheritBearerClauseInput, tw.GetAccountManager())
+	ib, err := readPredicateInput(cmd, cmdFlagInheritBearerClauseInput, accountNumber, tw.GetAccountManager())
 	if err != nil {
 		return err
 	}
@@ -618,7 +618,7 @@ func execTokenCmdUpdateNFTData(cmd *cobra.Command, config *walletConfig) error {
 		return err
 	}
 
-	du, err := readPredicateInput(cmd, cmdFlagTokenDataUpdateClauseInput, tw.GetAccountManager())
+	du, err := readPredicateInput(cmd, cmdFlagTokenDataUpdateClauseInput, accountNumber, tw.GetAccountManager())
 	if err != nil {
 		return err
 	}
@@ -787,7 +787,7 @@ func initTokensWallet(cmd *cobra.Command, config *walletConfig) (*tokens.Wallet,
 	return tw, nil
 }
 
-func readParentTypeInfo(cmd *cobra.Command, am account.Manager) (twb.TokenTypeID, []*tokens.PredicateInput, error) {
+func readParentTypeInfo(cmd *cobra.Command, keyNr uint64, am account.Manager) (twb.TokenTypeID, []*tokens.PredicateInput, error) {
 	parentType, err := getHexFlag(cmd, cmdFlagParentType)
 	if err != nil {
 		return nil, nil, err
@@ -797,7 +797,7 @@ func readParentTypeInfo(cmd *cobra.Command, am account.Manager) (twb.TokenTypeID
 		return NoParent, []*tokens.PredicateInput{{Argument: script.PredicateArgumentEmpty()}}, nil
 	}
 
-	creationInputs, err := readPredicateInput(cmd, cmdFlagSybTypeClauseInput, am)
+	creationInputs, err := readPredicateInput(cmd, cmdFlagSybTypeClauseInput, keyNr, am)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -805,7 +805,7 @@ func readParentTypeInfo(cmd *cobra.Command, am account.Manager) (twb.TokenTypeID
 	return parentType, creationInputs, nil
 }
 
-func readPredicateInput(cmd *cobra.Command, flag string, am account.Manager) ([]*tokens.PredicateInput, error) {
+func readPredicateInput(cmd *cobra.Command, flag string, keyNr uint64, am account.Manager) ([]*tokens.PredicateInput, error) {
 	creationInputStrs, err := cmd.Flags().GetStringSlice(flag)
 	if err != nil {
 		return nil, err
@@ -813,7 +813,7 @@ func readPredicateInput(cmd *cobra.Command, flag string, am account.Manager) ([]
 	if len(creationInputStrs) == 0 {
 		return []*tokens.PredicateInput{{Argument: script.PredicateArgumentEmpty()}}, nil
 	}
-	creationInputs, err := tokens.ParsePredicates(creationInputStrs, am)
+	creationInputs, err := tokens.ParsePredicates(creationInputStrs, keyNr, am)
 	if err != nil {
 		return nil, err
 	}
@@ -827,12 +827,12 @@ func readPredicateInput(cmd *cobra.Command, flag string, am account.Manager) ([]
 // ptpkh
 // ptpkh:1
 // ptpkh:0x<hex> where hex value is the hash of a public key
-func parsePredicateClauseCmd(cmd *cobra.Command, flag string, am account.Manager) ([]byte, error) {
+func parsePredicateClauseCmd(cmd *cobra.Command, flag string, keyNr uint64, am account.Manager) ([]byte, error) {
 	clause, err := cmd.Flags().GetString(flag)
 	if err != nil {
 		return nil, err
 	}
-	return tokens.ParsePredicateClause(clause, am)
+	return tokens.ParsePredicateClause(clause, keyNr, am)
 }
 
 func readNFTData(cmd *cobra.Command, required bool) ([]byte, error) {

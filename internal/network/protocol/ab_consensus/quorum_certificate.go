@@ -39,6 +39,13 @@ func (x *QuorumCert) GetRound() uint64 {
 	return 0
 }
 
+func (x *QuorumCert) GetPrentRound() uint64 {
+	if x != nil {
+		return x.VoteInfo.GetParentRoundNumber()
+	}
+	return 0
+}
+
 func (x *QuorumCert) IsValid() error {
 	// QC must have valid vote info
 	if x.VoteInfo == nil {

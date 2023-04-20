@@ -230,3 +230,12 @@ func TestQuorumCert_GetRound(t *testing.T) {
 	qc = &QuorumCert{VoteInfo: &certificates.RootRoundInfo{RoundNumber: 2}}
 	require.Equal(t, uint64(2), qc.GetRound())
 }
+
+func TestQuorumCert_GetParentRound(t *testing.T) {
+	var qc *QuorumCert = nil
+	require.Equal(t, uint64(0), qc.GetPrentRound())
+	qc = &QuorumCert{}
+	require.Equal(t, uint64(0), qc.GetPrentRound())
+	qc = &QuorumCert{VoteInfo: &certificates.RootRoundInfo{ParentRoundNumber: 2}}
+	require.Equal(t, uint64(2), qc.GetPrentRound())
+}

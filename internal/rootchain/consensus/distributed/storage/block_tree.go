@@ -2,6 +2,7 @@ package storage
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"sort"
 	"strings"
@@ -43,7 +44,7 @@ func (l *node) removeChild() {
 }
 
 func blockStoreGenesisInit(genesisBlock *ExecutedBlock, blocks keyvaluedb.KeyValueDB) error {
-	if err := blocks.Write(blockKey(genesisBlock.BlockData.Round), genesisBlock); err != nil {
+	if err := blocks.Write(blockKey(genesisBlock.GetRound()), genesisBlock); err != nil {
 		return fmt.Errorf("genesis block write failed, %w", err)
 	}
 	return nil
@@ -54,21 +55,21 @@ func NewBlockTreeFromRecovery(cBlock *ExecutedBlock, nodes []*ExecutedBlock, bDB
 	hQC := rootNode.data.Qc
 	// make sure that nodes are sorted by round
 	sort.Slice(nodes, func(i, j int) bool {
-		return nodes[i].BlockData.Round < nodes[j].BlockData.Round
+		return nodes[i].GetRound() < nodes[j].GetRound()
 	})
-	treeNodes := map[uint64]*node{rootNode.data.BlockData.Round: rootNode}
+	treeNodes := map[uint64]*node{rootNode.data.GetRound(): rootNode}
 	for _, next := range nodes {
 		// if parent round does not exist then reject, parent must be recovered
-		parent, found := treeNodes[next.BlockData.Qc.VoteInfo.RoundNumber]
+		parent, found := treeNodes[next.GetParentRound()]
 		if found == false {
-			return nil, fmt.Errorf("error cannot add block for round %v, parent block %v not found", next.BlockData.Round,
+			return nil, fmt.Errorf("error cannot add block for round %v, parent block %v not found", next.GetRound(),
 				next.BlockData.Qc.VoteInfo.RoundNumber)
 		}
 		// append block and add a child to parent
 		n := newNode(next)
-		treeNodes[next.BlockData.Round] = n
+		treeNodes[next.GetRound()] = n
 		if err := parent.addChild(n); err != nil {
-			return nil, fmt.Errorf("error cannot add block for round %v, parent block add child error, %w", next.BlockData.Round, err)
+			return nil, fmt.Errorf("error cannot add block for round %v, parent block add child error, %w", next.GetRound(), err)
 		}
 		if n.data.Qc != nil {
 			hQC = n.data.Qc
@@ -82,21 +83,17 @@ func NewBlockTreeFromRecovery(cBlock *ExecutedBlock, nodes []*ExecutedBlock, bDB
 	}, nil
 }
 
-func NewBlockTree(bDB keyvaluedb.KeyValueDB) (*BlockTree, error) {
+func NewBlockTree(bDB keyvaluedb.KeyValueDB) (bTree *BlockTree, err error) {
 	if bDB == nil {
 		return nil, fmt.Errorf("block tree init failed, databes is nil")
 	}
 	itr := bDB.Find([]byte(blockPrefix))
-	defer func() {
-		if err := itr.Close(); err != nil {
-			logger.Warning("Unexpected error, db iterator close %v", err)
-		}
-	}()
+	defer func() { err = errors.Join(err, itr.Close()) }()
 	var blocks []*ExecutedBlock
 	var hQC *ab_consensus.QuorumCert = nil
 	for ; itr.Valid() && strings.HasPrefix(string(itr.Key()), blockPrefix); itr.Next() {
 		var b ExecutedBlock
-		if err := itr.Value(&b); err != nil {
+		if err = itr.Value(&b); err != nil {
 			return nil, fmt.Errorf("read block %v from db failed, %w", itr.Key(), err)
 		}
 		blocks = append(blocks, &b)
@@ -111,20 +108,20 @@ func NewBlockTree(bDB keyvaluedb.KeyValueDB) (*BlockTree, error) {
 		if i == 0 {
 			rootNode = newNode(block)
 			hQC = rootNode.data.Qc
-			treeNodes = map[uint64]*node{block.BlockData.Round: rootNode}
+			treeNodes = map[uint64]*node{block.GetRound(): rootNode}
 			continue
 		}
 		// if parent round does not exist then reject, parent must be recovered
-		parent, found := treeNodes[block.BlockData.Qc.VoteInfo.RoundNumber]
+		parent, found := treeNodes[block.GetParentRound()]
 		if found == false {
-			return nil, fmt.Errorf("error cannot add block for round %v, parent block %v not found", block.BlockData.Round,
-				block.BlockData.Qc.VoteInfo.RoundNumber)
+			return nil, fmt.Errorf("error cannot add block for round %v, parent block %v not found", block.GetRound(),
+				block.GetParentRound())
 		}
 		// append block and add a child to parent
 		n := newNode(block)
 		treeNodes[block.BlockData.Round] = n
-		if err := parent.addChild(n); err != nil {
-			return nil, fmt.Errorf("error cannot add block for round %v, parent block add child error, %w", block.BlockData.Round, err)
+		if err = parent.addChild(n); err != nil {
+			return nil, fmt.Errorf("error cannot add block for round %v, parent block add child error, %w", block.GetRound(), err)
 		}
 		if n.data.Qc != nil {
 			hQC = n.data.Qc
@@ -140,7 +137,7 @@ func NewBlockTree(bDB keyvaluedb.KeyValueDB) (*BlockTree, error) {
 
 func (bt *BlockTree) InsertQc(qc *ab_consensus.QuorumCert, bockDB keyvaluedb.KeyValueDB) error {
 	// find block, if it does not exist, return error we need to recover missing info
-	b, err := bt.FindBlock(qc.VoteInfo.RoundNumber)
+	b, err := bt.FindBlock(qc.GetRound())
 	if err != nil {
 		return fmt.Errorf("block tree add qc failed, %w", err)
 	}
@@ -149,7 +146,7 @@ func (bt *BlockTree) InsertQc(qc *ab_consensus.QuorumCert, bockDB keyvaluedb.Key
 	}
 	b.Qc = qc
 	// persist changes
-	if err = bockDB.Write(blockKey(b.BlockData.Round), b); err != nil {
+	if err = bockDB.Write(blockKey(b.GetRound()), b); err != nil {
 		return fmt.Errorf("failed to persist block for round %v, %w", b.BlockData.Round, err)
 	}
 	bt.highQc = qc
@@ -164,29 +161,29 @@ func (bt *BlockTree) HighQc() *ab_consensus.QuorumCert {
 func (bt *BlockTree) Add(block *ExecutedBlock) error {
 	// every round can exist only once
 	// reject a block if this round has already been added
-	if _, found := bt.roundToNode[block.BlockData.Round]; found == true {
+	if _, found := bt.roundToNode[block.GetRound()]; found == true {
 		return fmt.Errorf("error block for round %v already exists", block.BlockData.Round)
 	}
 	// if parent round does not exist then reject, parent must be recovered
-	parent, found := bt.roundToNode[block.BlockData.Qc.VoteInfo.RoundNumber]
+	parent, found := bt.roundToNode[block.GetParentRound()]
 	if found == false {
-		return fmt.Errorf("error cannot add block for round %v, parent block %v not found", block.BlockData.Round,
-			block.BlockData.Qc.VoteInfo.RoundNumber)
+		return fmt.Errorf("error cannot add block for round %v, parent block %v not found", block.GetRound(),
+			block.GetParentRound())
 	}
 	// append block and add a child to parent
 	n := newNode(block)
 	if err := parent.addChild(n); err != nil {
-		return fmt.Errorf("error cannot add block for round %v, parent block add child error, %w", block.BlockData.Round, err)
+		return fmt.Errorf("error cannot add block for round %v, parent block add child error, %w", block.GetRound(), err)
 	}
-	bt.roundToNode[block.BlockData.Round] = n
+	bt.roundToNode[block.GetRound()] = n
 	// persist block
-	return bt.blocksDB.Write(blockKey(block.BlockData.Round), n.data)
+	return bt.blocksDB.Write(blockKey(block.GetRound()), n.data)
 }
 
 // RemoveLeaf removes leaf node if it is not root node
 func (bt *BlockTree) RemoveLeaf(round uint64) error {
 	// root cannot be removed
-	if bt.root.data.BlockData.Round == round {
+	if bt.root.data.GetRound() == round {
 		return fmt.Errorf("error root cannot be removed")
 	}
 	n, found := bt.roundToNode[round]
@@ -198,9 +195,9 @@ func (bt *BlockTree) RemoveLeaf(round uint64) error {
 	if n.child != nil {
 		return fmt.Errorf("error round %v is not child node", round)
 	}
-	parent, found := bt.roundToNode[n.data.BlockData.Qc.VoteInfo.RoundNumber]
+	parent, found := bt.roundToNode[n.data.GetParentRound()]
 	if found == false {
-		return fmt.Errorf("error parent block %v not found", n.data.BlockData.Qc.VoteInfo.RoundNumber)
+		return fmt.Errorf("error parent block %v not found", n.data.GetParentRound())
 	}
 	delete(bt.roundToNode, round)
 	parent.removeChild()
@@ -227,7 +224,7 @@ func (bt *BlockTree) FindPathToRoot(round uint64) []*ExecutedBlock {
 	// find path
 	path := make([]*ExecutedBlock, 0, 2)
 	for {
-		if parent, found := bt.roundToNode[n.data.BlockData.Qc.VoteInfo.RoundNumber]; found == true {
+		if parent, found := bt.roundToNode[n.data.GetParentRound()]; found == true {
 			path = append(path, n.data)
 			// if parent is root then break out of loop
 			if parent == bt.root {
@@ -259,15 +256,15 @@ func (bt *BlockTree) GetAllUncommittedNodes() []*ExecutedBlock {
 func (bt *BlockTree) findBlocksToPrune(newRootRound uint64) ([]uint64, error) {
 	blocksToPrune := make([]uint64, 0, 2)
 	// nothing to be pruned
-	if newRootRound == bt.root.data.BlockData.Round {
+	if newRootRound == bt.root.data.GetRound() {
 		return blocksToPrune, nil
 	}
 	treeNode := bt.root
 	newRootFound := false
 	for treeNode.child != nil {
-		blocksToPrune = append(blocksToPrune, treeNode.data.BlockData.Round)
+		blocksToPrune = append(blocksToPrune, treeNode.data.GetRound())
 		// if the child is to become the new root then stop here
-		if treeNode.child.data.BlockData.Round == newRootRound {
+		if treeNode.child.data.GetRound() == newRootRound {
 			newRootFound = true
 			break
 		}
@@ -291,7 +288,7 @@ func (bt *BlockTree) FindBlock(round uint64) (*ExecutedBlock, error) {
 // the committed block becomes the new root of the tree
 func (bt *BlockTree) Commit(commitQc *ab_consensus.QuorumCert) (*ExecutedBlock, error) {
 	// Add qc to pending state (needed for recovery)
-	commitRound := commitQc.VoteInfo.ParentRoundNumber
+	commitRound := commitQc.GetPrentRound()
 	commitNode, found := bt.roundToNode[commitRound]
 	if found == false {
 		return nil, fmt.Errorf("commit of round %v failed, block not found", commitRound)

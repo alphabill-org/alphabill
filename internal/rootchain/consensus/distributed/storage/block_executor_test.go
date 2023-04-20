@@ -198,47 +198,24 @@ func TestExecutedBlock_GenerateCertificates(t *testing.T) {
 
 }
 
-/*
-func TestExecutedBlock_GenerateCertificates(t *testing.T) {
-	type fields struct {
-		BlockData    *atomic_broadcast.BlockData
-		CurrentIR    map[protocol.SystemIdentifier]*InputData
-		Changed      map[protocol.SystemIdentifier]struct{}
-		HashAlgo     crypto.Hash
-		RootHash     []byte
-		Qc           *atomic_broadcast.QuorumCert
-		CommitQc     *atomic_broadcast.QuorumCert
-		Certificates map[protocol.SystemIdentifier]*certificates.UnicityCertificate
-	}
-	type args struct {
-		commitQc *atomic_broadcast.QuorumCert
-	}
-	tests := []struct {
-		name    string
-		fields  fields
-		args    args
-		wantErr bool
-	}{
-		// TODO: Add test cases.
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			x := &ExecutedBlock{
-				BlockData:    tt.fields.BlockData,
-				CurrentIR:    tt.fields.CurrentIR,
-				Changed:      tt.fields.Changed,
-				HashAlgo:     tt.fields.HashAlgo,
-				RootHash:     tt.fields.RootHash,
-				Qc:           tt.fields.Qc,
-				CommitQc:     tt.fields.CommitQc,
-				Certificates: tt.fields.Certificates,
-			}
-			if err := x.GenerateCertificates(tt.args.commitQc); (err != nil) != tt.wantErr {
-				t.Errorf("GenerateCertificates() error = %v, wantErr %v", err, tt.wantErr)
-			}
-		})
-	}
+func TestExecutedBlock_GetRound(t *testing.T) {
+	var b *ExecutedBlock
+	require.Equal(t, uint64(0), b.GetRound())
+	b = &ExecutedBlock{BlockData: nil}
+	require.Equal(t, uint64(0), b.GetRound())
+	b = &ExecutedBlock{BlockData: &ab_consensus.BlockData{Round: 2}}
+	require.Equal(t, uint64(2), b.GetRound())
 }
 
-
-*/
+func TestExecutedBlock_GetParentRound(t *testing.T) {
+	var b *ExecutedBlock
+	require.Equal(t, uint64(0), b.GetParentRound())
+	b = &ExecutedBlock{BlockData: &ab_consensus.BlockData{}}
+	require.Equal(t, uint64(0), b.GetParentRound())
+	b = &ExecutedBlock{BlockData: &ab_consensus.BlockData{Qc: &ab_consensus.QuorumCert{}}}
+	require.Equal(t, uint64(0), b.GetParentRound())
+	b = &ExecutedBlock{BlockData: &ab_consensus.BlockData{Qc: &ab_consensus.QuorumCert{VoteInfo: &certificates.RootRoundInfo{}}}}
+	require.Equal(t, uint64(0), b.GetParentRound())
+	b = &ExecutedBlock{BlockData: &ab_consensus.BlockData{Qc: &ab_consensus.QuorumCert{VoteInfo: &certificates.RootRoundInfo{RoundNumber: 2}}}}
+	require.Equal(t, uint64(2), b.GetParentRound())
+}

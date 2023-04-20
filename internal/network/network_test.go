@@ -61,8 +61,8 @@ func TestNewRootNodeLibP2PNetwork_SendToSelf(t *testing.T) {
 	require.NoError(t, err)
 	defer net.Close()
 	require.Equal(t, cap(net.ReceivedChannel()), 1000)
-	require.Equal(t, 8, len(net.sendProtocols))
-	require.Equal(t, 8, len(net.receiveProtocols))
+	require.Equal(t, 6, len(net.sendProtocols))
+	require.Equal(t, 6, len(net.receiveProtocols))
 
 	err = net.Send(OutputMessage{
 		Protocol: ProtocolRootVote,

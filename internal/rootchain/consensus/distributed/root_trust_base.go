@@ -59,6 +59,11 @@ func (r *RootTrustBase) GetQuorumThreshold() uint32 {
 	return r.quorumThreshold
 }
 
+// GetMaxFaultyNodes a.k.a get max allowed faulty nodes
+func (r *RootTrustBase) GetMaxFaultyNodes() int {
+	return len(r.nodeToPubkeyMap) - int(r.quorumThreshold)
+}
+
 func (r *RootTrustBase) VerifySignature(hash []byte, sig []byte, author peer.ID) error {
 	ver, err := r.GetVerifier(author)
 	if err != nil {

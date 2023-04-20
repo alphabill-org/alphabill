@@ -6,9 +6,8 @@ import (
 	"testing"
 
 	"github.com/alphabill-org/alphabill/internal/certificates"
-	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
-
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
+	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	"github.com/stretchr/testify/require"
 )
 
@@ -385,4 +384,15 @@ func TestPayload_IsValid(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestBlockData_GetParentRound(t *testing.T) {
+	var x *BlockData = nil
+	require.Equal(t, uint64(0), x.GetParentRound())
+	x = &BlockData{}
+	require.Equal(t, uint64(0), x.GetParentRound())
+	x = &BlockData{Qc: &QuorumCert{}}
+	require.Equal(t, uint64(0), x.GetParentRound())
+	x = &BlockData{Qc: &QuorumCert{VoteInfo: NewDummyVoteInfo(1)}}
+	require.Equal(t, uint64(1), x.GetParentRound())
 }

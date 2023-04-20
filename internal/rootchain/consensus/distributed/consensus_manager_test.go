@@ -282,13 +282,13 @@ func TestIRChangeRequestFromRootValidator_RootTimeout(t *testing.T) {
 	require.Equal(t, partitionID, result.UnicityTreeCertificate.SystemIdentifier)
 	require.False(t, cm.blockStore.IsChangeInProgress(p.SystemIdentifier(partitionID)))
 	// verify certificates have been updated when recovery query is sent
-	getCertsMsg := &ab_consensus.GetCertificates{
+	getCertsMsg := &ab_consensus.GetStateMsg{
 		NodeId: partitionNodes[0].Peer.ID().String(),
 	}
 	// simulate IR change request message
-	testutils.MockValidatorNetReceives(t, mockNet, rootNode.Peer.ID(), network.ProtocolRootCertReq, getCertsMsg)
+	testutils.MockValidatorNetReceives(t, mockNet, rootNode.Peer.ID(), network.ProtocolRootStateReq, getCertsMsg)
 	// As the node is the leader, next round will trigger a proposal
-	certsMsg := testutils.MockAwaitMessage[*ab_consensus.CertificatesMsg](t, mockNet, network.ProtocolRootCertResp)
+	certsMsg := testutils.MockAwaitMessage[*ab_consensus.StateMsg](t, mockNet, network.ProtocolRootStateResp)
 	require.Equal(t, len(rg.Partitions), len(certsMsg.Certificates))
 	idx := slices.IndexFunc(certsMsg.Certificates, func(c *certificates.UnicityCertificate) bool {
 		return bytes.Equal(c.UnicityTreeCertificate.SystemIdentifier, partitionID)
@@ -437,23 +437,6 @@ func TestPartitionTimeoutFromRootValidator(t *testing.T) {
 	testutils.MockValidatorNetReceives(t, mockNet, rootNode.Peer.ID(), network.ProtocolRootProposal, lastProposalMsg)
 }
 
-func TestGetCertificates(t *testing.T) {
-	mockNet := testnetwork.NewMockNetwork()
-	cm, rootNode, partitionNodes, rg := initConsensusManager(t, mockNet)
-	ctx, ctxCancel := context.WithCancel(context.Background())
-	defer ctxCancel()
-	go func() { require.ErrorIs(t, cm.Run(ctx), context.Canceled) }()
-
-	getCertsMsg := &ab_consensus.GetCertificates{
-		NodeId: partitionNodes[0].Peer.ID().String(),
-	}
-	// simulate IR change request message
-	testutils.MockValidatorNetReceives(t, mockNet, rootNode.Peer.ID(), network.ProtocolRootCertReq, getCertsMsg)
-	// As the node is the leader, next round will trigger a proposal
-	certsMsg := testutils.MockAwaitMessage[*ab_consensus.CertificatesMsg](t, mockNet, network.ProtocolRootCertResp)
-	require.Equal(t, len(rg.Partitions), len(certsMsg.Certificates))
-}
-
 func TestGetState(t *testing.T) {
 	mockNet := testnetwork.NewMockNetwork()
 	cm, rootNode, partitionNodes, _ := initConsensusManager(t, mockNet)
@@ -471,4 +454,5 @@ func TestGetState(t *testing.T) {
 	// at this stage there is only genesis block
 	require.Equal(t, uint64(1), stateMsg.CommittedHead.Block.Round)
 	require.Equal(t, 0, len(stateMsg.BlockNode))
+	require.Len(t, stateMsg.GetCertificates(), 1)
 }

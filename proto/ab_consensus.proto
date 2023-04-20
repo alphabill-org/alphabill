@@ -102,14 +102,6 @@ message TimeoutMsg {
 }
 
 // Recover state
-message GetCertificates {
-  string nodeId = 1;
-}
-
-message CertificatesMsg {
-  repeated UnicityCertificate certificates = 1;
-}
-
 message InputData {
   bytes sysID  = 1;
   InputRecord ir = 2;
@@ -128,6 +120,7 @@ message GetStateMsg {
 }
 
 message StateMsg {
-  RecoveryBlock committedHead = 1;
-  repeated RecoveryBlock blockNode = 2;
+  repeated UnicityCertificate certificates = 1;
+  RecoveryBlock committedHead = 2;
+  repeated RecoveryBlock blockNode = 3;
 }

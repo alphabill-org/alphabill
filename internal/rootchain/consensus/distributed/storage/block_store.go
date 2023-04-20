@@ -12,6 +12,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/network/protocol"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/ab_consensus"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
+	"google.golang.org/protobuf/proto"
 )
 
 type (
@@ -19,7 +20,7 @@ type (
 		hash         gocrypto.Hash // hash algorithm
 		blockTree    *BlockTree
 		storage      keyvaluedb.KeyValueDB
-		Certificates map[protocol.SystemIdentifier]*certificates.UnicityCertificate // cashed
+		certificates map[protocol.SystemIdentifier]*certificates.UnicityCertificate // cashed
 		lock         sync.RWMutex
 	}
 )
@@ -94,7 +95,7 @@ func NewBlockStore(hash gocrypto.Hash, pg []*genesis.GenesisPartitionRecord, db 
 	return &BlockStore{
 		hash:         hash,
 		blockTree:    blTree,
-		Certificates: ucs,
+		certificates: ucs,
 		storage:      db,
 	}, nil
 }
@@ -105,8 +106,8 @@ func (x *BlockStore) ProcessTc(tc *ab_consensus.TimeoutCert) error {
 	}
 	// Remove proposal for TC round if it exists, since quorum voted for timeout, it will never be committed
 	// So we will prune the block now, also it is ok, if we do not have the block, it does not matter anyway
-	if err := x.blockTree.RemoveLeaf(tc.Timeout.Round); err != nil {
-		logger.Warning("Unexpected error when removing timeout block %v, %v", tc.Timeout.Round, err)
+	if err := x.blockTree.RemoveLeaf(tc.GetRound()); err != nil {
+		return fmt.Errorf("unexpected error when removing timeout block %v, %v", tc.GetRound(), err)
 	}
 	return nil
 }
@@ -125,7 +126,7 @@ func (x *BlockStore) IsChangeInProgress(sysId protocol.SystemIdentifier) bool {
 func (x *BlockStore) GetBlockRootHash(round uint64) ([]byte, error) {
 	b, err := x.blockTree.FindBlock(round)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("get block root hash failed, %w", err)
 	}
 	return b.RootHash, nil
 }
@@ -135,7 +136,7 @@ func (x *BlockStore) ProcessQc(qc *ab_consensus.QuorumCert) (map[protocol.System
 		return nil, fmt.Errorf("qc is nil")
 	}
 	// if we have processed it already then skip (in case we are the next leader we have already handled the QC)
-	if x.GetHighQc().VoteInfo.RoundNumber >= qc.VoteInfo.RoundNumber {
+	if x.GetHighQc().GetRound() >= qc.GetRound() {
 		// stale qc
 		return nil, nil
 	}
@@ -145,7 +146,7 @@ func (x *BlockStore) ProcessQc(qc *ab_consensus.QuorumCert) (map[protocol.System
 		return nil, fmt.Errorf("block store qc handling failed, %w", err)
 	}
 	// This QC does not serve as commit QC, then we are done
-	if qc.VoteInfo.RoundNumber == genesis.RootRound || qc.LedgerCommitInfo.RootHash == nil {
+	if qc.GetRound() == genesis.RootRound || qc.LedgerCommitInfo.RootHash == nil {
 		// NB! exception, no commit for genesis round
 		return nil, nil
 	}
@@ -158,7 +159,7 @@ func (x *BlockStore) ProcessQc(qc *ab_consensus.QuorumCert) (map[protocol.System
 	// generate certificates for all partitions that have changes in progress
 	ucs, err := committedBlock.GenerateCertificates(qc)
 	if err != nil {
-		return nil, fmt.Errorf("commit block %v error, %w", committedBlock.BlockData.Round, err)
+		return nil, fmt.Errorf("commit block %v error, %w", committedBlock.GetRound(), err)
 	}
 	// update current certificates
 	x.updateCertificateCache(ucs)
@@ -169,14 +170,20 @@ func (x *BlockStore) ProcessQc(qc *ab_consensus.QuorumCert) (map[protocol.System
 // Add adds new round state to pipeline and returns the new state root hash a.k.a. execStateID
 func (x *BlockStore) Add(block *ab_consensus.BlockData, verifier IRChangeReqVerifier) ([]byte, error) {
 	// verify that block for the round does not exist yet
-	_, err := x.blockTree.FindBlock(block.Round)
+	b, err := x.blockTree.FindBlock(block.GetRound())
 	if err == nil {
-		return nil, fmt.Errorf("add block failed: block for round %v already in store", block.Round)
+		// block was found, ignore if it is the same block, recovery may hava added when state was duplicated
+		if proto.Equal(b.BlockData, block) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("add block failed: different block for round %v is already in store", block.Round)
 	}
-	parentBlock, err := x.blockTree.FindBlock(block.Qc.VoteInfo.RoundNumber)
+	// QC round is parent block round
+	parentBlock, err := x.blockTree.FindBlock(block.GetParentRound())
 	if err != nil {
 		return nil, fmt.Errorf("add block failed: parent round %v not found, recover", block.Qc.VoteInfo.RoundNumber)
 	}
+	// Extend state from parent block
 	exeBlock, err := NewExecutedBlock(x.hash, block, parentBlock, verifier)
 	if err != nil {
 		return nil, fmt.Errorf("error processing block round %v, %w", block.Round, err)
@@ -196,12 +203,12 @@ func (x *BlockStore) updateCertificateCache(certs map[protocol.SystemIdentifier]
 	x.lock.Lock()
 	defer x.lock.Unlock()
 	for id, uc := range certs {
-		x.Certificates[id] = uc
-		// and persist changes
-		// todo: AB-795 persistent storage failure?
+		// persist changes
 		if err := x.storage.Write(certKey(id.Bytes()), uc); err != nil {
 			return fmt.Errorf("failed to update certificates, %w", err)
 		}
+		// update cache
+		x.certificates[id] = uc
 	}
 	return nil
 }
@@ -209,7 +216,7 @@ func (x *BlockStore) updateCertificateCache(certs map[protocol.SystemIdentifier]
 func (x *BlockStore) GetCertificates() map[protocol.SystemIdentifier]*certificates.UnicityCertificate {
 	x.lock.RLock()
 	defer x.lock.RUnlock()
-	return x.Certificates
+	return x.certificates
 }
 
 func (x *BlockStore) GetRoot() *ExecutedBlock {
@@ -220,11 +227,13 @@ func (x *BlockStore) UpdateCertificates(cert []*certificates.UnicityCertificate)
 	newerCerts := make(map[protocol.SystemIdentifier]*certificates.UnicityCertificate)
 	for _, c := range cert {
 		id := protocol.SystemIdentifier(c.UnicityTreeCertificate.SystemIdentifier)
-		cachedCert, found := x.Certificates[id]
+		cachedCert, found := x.certificates[id]
 		if !found || cachedCert.UnicitySeal.RootRoundInfo.RoundNumber < c.UnicitySeal.RootRoundInfo.RoundNumber {
 			newerCerts[id] = c
 		}
 	}
+	// non-functional requirements? what should the root node do if it fails to persist state?
+	// todo: AB-795 persistent storage failure?
 	x.updateCertificateCache(newerCerts)
 }
 

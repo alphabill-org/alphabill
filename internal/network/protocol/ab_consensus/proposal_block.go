@@ -107,3 +107,10 @@ func (x *BlockData) Hash(algo gocrypto.Hash) ([]byte, error) {
 	}
 	return hasher.Sum(nil), nil
 }
+
+func (x *BlockData) GetParentRound() uint64 {
+	if x != nil {
+		return x.Qc.GetRound()
+	}
+	return 0
+}

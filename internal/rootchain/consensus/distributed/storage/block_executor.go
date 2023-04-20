@@ -120,7 +120,7 @@ func NewExecutedBlockFromRecovery(hash gocrypto.Hash, recoverBlock *ab_consensus
 	changes := make([][]byte, 0, len(recoverBlock.Block.Payload.Requests))
 	// verify requests for IR change and proof of consensus
 	for _, irChReq := range recoverBlock.Block.Payload.Requests {
-		irData, err := verifier.VerifyIRChangeReq(recoverBlock.Block.Round, irChReq)
+		irData, err := verifier.VerifyIRChangeReq(recoverBlock.Block.GetRound(), irChReq)
 		if err != nil {
 			return nil, fmt.Errorf("new block verification in round %v error, %w", recoverBlock.Block.Round, err)
 		}
@@ -179,7 +179,7 @@ func NewExecutedBlock(hash gocrypto.Hash, newBlock *ab_consensus.BlockData, pare
 	changes := make([][]byte, 0, len(newBlock.Payload.Requests))
 	// verify requests for IR change and proof of consensus
 	for _, irChReq := range newBlock.Payload.Requests {
-		irData, err := verifier.VerifyIRChangeReq(newBlock.Round, irChReq)
+		irData, err := verifier.VerifyIRChangeReq(newBlock.GetRound(), irChReq)
 		if err != nil {
 			return nil, fmt.Errorf("new block verification in round %v error, %w", newBlock.Round, err)
 		}
@@ -287,4 +287,18 @@ func (x *ExecutedBlock) GenerateCertificates(commitQc *ab_consensus.QuorumCert) 
 	}
 	x.CommitQc = commitQc
 	return ucs, nil
+}
+
+func (x *ExecutedBlock) GetRound() uint64 {
+	if x != nil {
+		return x.BlockData.GetRound()
+	}
+	return 0
+}
+
+func (x *ExecutedBlock) GetParentRound() uint64 {
+	if x != nil {
+		return x.BlockData.GetParentRound()
+	}
+	return 0
 }

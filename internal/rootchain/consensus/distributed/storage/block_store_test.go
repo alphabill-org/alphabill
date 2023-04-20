@@ -103,7 +103,7 @@ func TestBlockStoreAdd(t *testing.T) {
 		Qc:      nil,
 	}
 	_, err := bStore.Add(block, mockBlockVer)
-	require.ErrorContains(t, err, "dd block failed: block for round 1 already in store")
+	require.ErrorContains(t, err, "add block failed: different block for round 1 is already in store")
 	block = &ab_consensus.BlockData{
 		Round:   genesis.RootRound + 1,
 		Payload: &ab_consensus.Payload{},

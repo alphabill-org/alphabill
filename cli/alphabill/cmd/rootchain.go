@@ -8,6 +8,9 @@ import (
 	"time"
 
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
+	"github.com/alphabill-org/alphabill/internal/keyvaluedb"
+	"github.com/alphabill-org/alphabill/internal/keyvaluedb/boltdb"
+	"github.com/alphabill-org/alphabill/internal/keyvaluedb/memorydb"
 	"github.com/alphabill-org/alphabill/internal/network"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/internal/rootchain"
@@ -20,8 +23,9 @@ import (
 )
 
 const (
-	rootPortCmdFlag       = "root-listener"
-	defaultNetworkTimeout = 300 * time.Millisecond
+	boltRootChainStoreFileName = "rootchain.db"
+	rootPortCmdFlag            = "root-listener"
+	defaultNetworkTimeout      = 300 * time.Millisecond
 )
 
 type rootNodeConfig struct {
@@ -96,6 +100,13 @@ func (c *rootNodeConfig) getKeyFilePath() string {
 	return filepath.Join(c.Base.defaultRootGenesisDir(), defaultKeysFileName)
 }
 
+func initRootStore(dbPath string) (keyvaluedb.KeyValueDB, error) {
+	if dbPath != "" {
+		return boltdb.New(filepath.Join(dbPath, boltRootChainStoreFileName))
+	}
+	return memorydb.New(), nil
+}
+
 func defaultRootNodeRunFunc(ctx context.Context, config *rootNodeConfig) error {
 	rootGenesis, err := util.ReadJsonFile(config.getGenesisFilePath(), &genesis.RootGenesis{})
 	if err != nil {
@@ -130,13 +141,18 @@ func defaultRootNodeRunFunc(ctx context.Context, config *rootNodeConfig) error {
 	if err != nil {
 		return fmt.Errorf("failed to extract partition info from genesis file %s, %w", config.getGenesisFilePath(), err)
 	}
+	// Initiate root storage
+	store, err := initRootStore(config.StoragePath)
+	if err != nil {
+		return fmt.Errorf("root store init failed, %w", err)
+	}
 	// use monolithic consensus algorithm
 	cm, err := monolithic.NewMonolithicConsensusManager(
 		prtHost.ID().String(),
 		rootGenesis,
 		partitionCfg,
 		keys.SigningPrivateKey,
-		consensus.WithPersistentStoragePath(config.getStoragePath()))
+		consensus.WithStorage(store))
 	if err != nil {
 		return fmt.Errorf("failed initiate monolithic consensus manager: %w", err)
 	}

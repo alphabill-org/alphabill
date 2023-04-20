@@ -35,29 +35,13 @@ type KeyValueDB interface {
 type Iterator interface {
 	// Next moves the iterator to the next key value pair
 	Next()
+	// Prev returns previous key/value pair
+	Prev()
 	// Valid returns state of the iterator, if at the end false it returned
 	Valid() bool
 	// Key returns the key of the current key/value pair, or nil if not valid.
 	Key() []byte
 	// Value returns the value of the current key/value pair, or error if not valid.
-	Value(value any) error
-	// Close releases associated resources. Release should always succeed and can
-	// be called multiple times without causing error.
-	Close() error
-}
-
-type ReverseIterator interface {
-	// Prev returns previous key/value pair
-	Prev()
-	// Valid returns state of the iterator, if at the end false it returned
-	Valid() bool
-	// Key returns the key of the current key/value pair, or nil if done. The caller
-	// should not modify the contents of the returned slice, and its contents may
-	// change on the next call to Next.
-	Key() []byte
-	// Value returns the value of the current key/value pair, or nil if done. The
-	// caller should not modify the contents of the returned slice, and its contents
-	// may change on the next call to Next.
 	Value(value any) error
 	// Close releases associated resources. Release should always succeed and can
 	// be called multiple times without causing error.
@@ -73,7 +57,7 @@ type Iterable interface {
 	// Last creates a binary-alphabetical reverse iterator starting with last item.
 	// If the DB is empty the returned iterator returned is not valid (it.Valid() == false)
 	// NB! when done iterator MUST be released with Close() or next DB operation will result in deadlock
-	Last() ReverseIterator
+	Last() Iterator
 	// Find returns forward iterator to the closest binary-alphabetical match.
 	// If no match or DB is empty the returned iterator returned is not valid (it.Valid() == false)
 	// NB! when done iterator MUST be released with Close() or next DB operation will result in deadlock

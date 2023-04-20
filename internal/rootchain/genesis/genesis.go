@@ -218,6 +218,7 @@ func NewRootGenesis(id string, s crypto.Signer, encPubKey []byte, partitions []*
 	sealFn := func(rootHash []byte) (*certificates.UnicitySeal, error) {
 		uSeal := &certificates.UnicitySeal{
 			RootChainRoundNumber: genesis.RootRound,
+			Timestamp:            util.GenesisTime,
 			Hash:                 rootHash,
 		}
 		return uSeal, uSeal.Sign(c.peerID, c.signer)

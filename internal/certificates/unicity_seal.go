@@ -10,14 +10,14 @@ import (
 )
 
 var (
-	ErrUnicitySealIsNil             = errors.New("unicity seal is nil")
-	ErrSignerIsNil                  = errors.New("signer is nil")
-	ErrUnicitySealHashIsNil         = errors.New("hash is nil")
-	ErrUnicitySealPreviousHashIsNil = errors.New("previous hash is nil")
-	ErrInvalidBlockNumber           = errors.New("invalid block number")
-	ErrUnicitySealSignatureIsNil    = errors.New("no signatures")
-	ErrRootValidatorInfoMissing     = errors.New("root node info is missing")
-	ErrUnknownSigner                = errors.New("unknown signer")
+	ErrUnicitySealIsNil          = errors.New("unicity seal is nil")
+	ErrSignerIsNil               = errors.New("signer is nil")
+	ErrUnicitySealHashIsNil      = errors.New("hash is nil")
+	ErrInvalidBlockNumber        = errors.New("invalid block number")
+	ErrUnicitySealSignatureIsNil = errors.New("no signatures")
+	ErrRootValidatorInfoMissing  = errors.New("root node info is missing")
+	ErrUnknownSigner             = errors.New("unknown signer")
+	errInvalidTimestamp          = errors.New("invalid timestamp")
 )
 
 func (x *UnicitySeal) IsValid(verifiers map[string]crypto.Verifier) error {
@@ -32,6 +32,9 @@ func (x *UnicitySeal) IsValid(verifiers map[string]crypto.Verifier) error {
 	}
 	if x.RootChainRoundNumber < 1 {
 		return ErrInvalidBlockNumber
+	}
+	if x.Timestamp < util.GenesisTime {
+		return errInvalidTimestamp
 	}
 	if len(x.Signatures) == 0 {
 		return ErrUnicitySealSignatureIsNil
@@ -58,6 +61,7 @@ func (x *UnicitySeal) Sign(id string, signer crypto.Signer) error {
 func (x *UnicitySeal) Bytes() []byte {
 	var b bytes.Buffer
 	b.Write(util.Uint64ToBytes(x.RootChainRoundNumber))
+	b.Write(util.Uint64ToBytes(x.Timestamp))
 	b.Write(x.PreviousHash)
 	b.Write(x.Hash)
 	return b.Bytes()

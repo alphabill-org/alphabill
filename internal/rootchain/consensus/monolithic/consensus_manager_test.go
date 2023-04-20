@@ -195,7 +195,8 @@ func TestConsensusManager_PersistFails(t *testing.T) {
 	require.Equal(t, uint64(1), cm.round)
 	// set db to simulate error
 	db.MockWriteError(nil)
-	// start the actual timer and receive certificates
+	// start run and make sure rootchain recovers as it is now able to persist
+	// new state and hence a certificate should be now received
 	ctx, ctxCancel := context.WithCancel(context.Background())
 	defer ctxCancel()
 	go func() { require.ErrorIs(t, cm.Run(ctx), context.Canceled) }()

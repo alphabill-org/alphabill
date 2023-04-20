@@ -10,7 +10,6 @@ import (
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/keyvaluedb"
 	"github.com/alphabill-org/alphabill/internal/keyvaluedb/boltdb"
-	"github.com/alphabill-org/alphabill/internal/keyvaluedb/memorydb"
 	"github.com/alphabill-org/alphabill/internal/network"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/internal/rootchain"
@@ -104,7 +103,7 @@ func initRootStore(dbPath string) (keyvaluedb.KeyValueDB, error) {
 	if dbPath != "" {
 		return boltdb.New(filepath.Join(dbPath, boltRootChainStoreFileName))
 	}
-	return memorydb.New(), nil
+	return nil, fmt.Errorf("persistent storage path not set")
 }
 
 func defaultRootNodeRunFunc(ctx context.Context, config *rootNodeConfig) error {

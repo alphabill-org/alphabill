@@ -57,6 +57,13 @@ type (
 		Proof       *block.BlockProof     `json:"proof"`
 	}
 
+	FeeCreditBill struct {
+		Id            []byte `json:"id"`
+		Value         uint64 `json:"value,string"`
+		TxHash        []byte `json:"txHash"`
+		FCBlockNumber uint64 `json:"fcBlockNumber,string"`
+	}
+
 	Predicate []byte
 	PubKey    []byte
 )
@@ -97,4 +104,18 @@ func strToTokenKind(s string) (Kind, error) {
 		return NonFungible, nil
 	}
 	return Any, fmt.Errorf("%q is not valid token kind", s)
+}
+
+func (f *FeeCreditBill) GetID() []byte {
+	if f != nil {
+		return f.Id
+	}
+	return nil
+}
+
+func (f *FeeCreditBill) GetValue() uint64 {
+	if f != nil {
+		return f.Value
+	}
+	return 0
 }

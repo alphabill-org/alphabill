@@ -797,3 +797,69 @@ func Test_restAPI_txProof(t *testing.T) {
 		require.Equal(t, proof, proofFromApi)
 	})
 }
+
+func Test_restAPI_getFeeCreditBill(t *testing.T) {
+	t.Parallel()
+
+	makeRequest := func(api *restAPI, unitID string) *http.Response {
+		req := httptest.NewRequest("GET", fmt.Sprintf("http://ab.com/api/v1/fee-credit-bill?bill_id=%s", unitID), nil)
+		w := httptest.NewRecorder()
+		api.getFeeCreditBill(w, req)
+		return w.Result()
+	}
+
+	t.Run("400 'bill_id' query param not in hex format", func(t *testing.T) {
+		rsp := makeRequest(&restAPI{}, "foo")
+		expectErrorResponse(t, rsp, http.StatusBadRequest, `invalid parameter "bill_id": hex string without 0x prefix`)
+	})
+
+	t.Run("500 error fetching fee credit bill", func(t *testing.T) {
+		api := &restAPI{
+			db: &mockStorage{
+				getFeeCreditBill: func(unitID UnitID) (*FeeCreditBill, error) {
+					return nil, errors.New("error fetching fee credit bill")
+				},
+			},
+		}
+		rsp := makeRequest(api, "0x01")
+		expectErrorResponse(t, rsp, http.StatusInternalServerError, "failed to load fee credit bill for ID 0x01: error fetching fee credit bill")
+	})
+
+	t.Run("404 fee credit bill not found", func(t *testing.T) {
+		api := &restAPI{
+			db: &mockStorage{
+				getFeeCreditBill: func(unitID UnitID) (*FeeCreditBill, error) {
+					return nil, nil
+				},
+			},
+		}
+		rsp := makeRequest(api, "0x01")
+		expectErrorResponse(t, rsp, http.StatusNotFound, "bill does not exist")
+	})
+
+	t.Run("ok", func(t *testing.T) {
+		fcb := &FeeCreditBill{
+			Id:            []byte{1},
+			Value:         2,
+			TxHash:        []byte{3},
+			FCBlockNumber: 4,
+		}
+		api := &restAPI{
+			db: &mockStorage{
+				getFeeCreditBill: func(unitID UnitID) (*FeeCreditBill, error) {
+					return fcb, nil
+				},
+			},
+		}
+		rsp := makeRequest(api, encodeHex[UnitID](fcb.Id))
+		require.Equal(t, http.StatusOK, rsp.StatusCode, "unexpected status")
+		defer rsp.Body.Close()
+
+		fcbFromAPI := &FeeCreditBill{}
+		if err := json.NewDecoder(rsp.Body).Decode(fcbFromAPI); err != nil {
+			t.Fatalf("failed to decode response body: %v", err)
+		}
+
+		require.Equal(t, fcb, fcbFromAPI)
+	})
+}

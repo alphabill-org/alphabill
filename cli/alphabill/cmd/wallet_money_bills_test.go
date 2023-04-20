@@ -15,7 +15,6 @@ import (
 
 	"github.com/alphabill-org/alphabill/internal/block"
 	"github.com/alphabill-org/alphabill/internal/hash"
-	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/internal/script"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	testpartition "github.com/alphabill-org/alphabill/internal/testutils/partition"
@@ -95,7 +94,11 @@ func TestWalletBillsListCmd_ExtraAccountTotal(t *testing.T) {
 	require.NoError(t, err)
 	pubKey2 := strings.Split(stdout.lines[0], " ")[3]
 
-	mockServer, addr := mockBackendCalls(&backendMockReturnConf{billId: uint256.NewInt(1), billValue: 1e9, customFullPath: "/" + client.ListBillsPath + "?pubkey=" + pubKey2, customResponse: `{"total": 0, "bills": []}`})
+	mockServer, addr := mockBackendCalls(&backendMockReturnConf{
+		billId:         uint256.NewInt(1),
+		billValue:      1e9,
+		customFullPath: "/" + client.ListBillsPath + "?pubkey=" + pubKey2 + "&includedcbills=false",
+		customResponse: `{"total": 0, "bills": []}`})
 	defer mockServer.Close()
 
 	// verify both accounts are listed
@@ -104,6 +107,35 @@ func TestWalletBillsListCmd_ExtraAccountTotal(t *testing.T) {
 	verifyStdout(t, stdout, "Account #1")
 	verifyStdout(t, stdout, "#1 0x0000000000000000000000000000000000000000000000000000000000000001 10")
 	verifyStdout(t, stdout, "Account #2 - empty")
+}
+
+func TestWalletBillsListCmd_ShowUnswappedFlag(t *testing.T) {
+	homedir := createNewTestWallet(t)
+
+	// get pub key
+	stdout, err := execCommand(homedir, "get-pubkeys")
+	require.NoError(t, err)
+	pubKey := strings.Split(stdout.lines[0], " ")[1]
+
+	// verify no -s flag sends includedcbills=false by default
+	mockServer, addr := mockBackendCalls(&backendMockReturnConf{
+		customFullPath: "/" + client.ListBillsPath + "?pubkey=" + pubKey + "&includedcbills=false",
+		customResponse: `{"total": 1, "bills": [{"value":"22222222"}]}`})
+
+	stdout, err = execBillsCommand(homedir, "list --alphabill-api-uri "+addr.Host)
+	require.NoError(t, err)
+	verifyStdout(t, stdout, "#1 0x 0.22222222")
+	mockServer.Close()
+
+	// verify -s flag sends includedcbills=true
+	mockServer, addr = mockBackendCalls(&backendMockReturnConf{
+		customFullPath: "/" + client.ListBillsPath + "?pubkey=" + pubKey + "&includedcbills=true",
+		customResponse: `{"total": 1, "bills": [{"value":"33333333"}]}`})
+
+	stdout, err = execBillsCommand(homedir, "list --alphabill-api-uri "+addr.Host+" -s")
+	require.NoError(t, err)
+	verifyStdout(t, stdout, "#1 0x 0.33333333")
+	mockServer.Close()
 }
 
 func TestWalletBillsExportCmd_Error(t *testing.T) {
@@ -144,6 +176,39 @@ func TestWalletBillsExportCmd(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, stdout.lines, 1)
 	require.Equal(t, stdout.lines[0], fmt.Sprintf("Exported bill(s) to: %s", billFilePath))
+}
+
+func TestWalletBillsExportCmd_ShowUnswappedFlag(t *testing.T) {
+	homedir := createNewTestWallet(t)
+
+	// get pub key
+	stdout, err := execCommand(homedir, "get-pubkeys")
+	require.NoError(t, err)
+	pubKey := strings.Split(stdout.lines[0], " ")[1]
+
+	// verify no -s flag sends includedcbills=false by default
+	mockServer, addr := mockBackendCalls(&backendMockReturnConf{
+		proofList:      `{"bills": [{"id":"` + toBillId(uint256.NewInt(uint64(2))) + `","value":"22222222"}]}`,
+		customFullPath: "/" + client.ListBillsPath + "?pubkey=" + pubKey + "&includedcbills=false",
+		customResponse: `{"total": 1, "bills": [{"id":"` + toBillId(uint256.NewInt(uint64(2))) + `","value":"22222222"}]}`})
+
+	stdout, err = execBillsCommand(homedir, "export --output-path "+homedir+" --alphabill-api-uri "+addr.Host)
+	require.NoError(t, err)
+	billFilePath2 := filepath.Join(homedir, "bill-0x0000000000000000000000000000000000000000000000000000000000000002.json")
+	require.Equal(t, stdout.lines[0], fmt.Sprintf("Exported bill(s) to: %s", billFilePath2))
+	mockServer.Close()
+
+	// verify -s flag sends includedcbills=true
+	mockServer, addr = mockBackendCalls(&backendMockReturnConf{
+		proofList:      `{"bills": [{"id":"` + toBillId(uint256.NewInt(uint64(3))) + `","value":"33333333"}]}`,
+		customFullPath: "/" + client.ListBillsPath + "?pubkey=" + pubKey + "&includedcbills=true",
+		customResponse: `{"total": 1, "bills": [{"id":"` + toBillId(uint256.NewInt(uint64(3))) + `","value":"33333333"}]}`})
+
+	stdout, err = execBillsCommand(homedir, "export --output-path "+homedir+" --alphabill-api-uri "+addr.Host+" -s")
+	require.NoError(t, err)
+	billFilePath3 := filepath.Join(homedir, "bill-0x0000000000000000000000000000000000000000000000000000000000000003.json")
+	require.Equal(t, stdout.lines[0], fmt.Sprintf("Exported bill(s) to: %s", billFilePath3))
+	mockServer.Close()
 }
 
 func spendInitialBillWithFeeCredits(t *testing.T, network *testpartition.AlphabillPartition, initialBill *moneytx.InitialBill, pubkey string) uint64 {
@@ -191,22 +256,6 @@ func spendInitialBillWithFeeCredits(t *testing.T, network *testpartition.Alphabi
 	require.Eventually(t, testpartition.BlockchainContainsTx(tx, network), test.WaitDuration, test.WaitTick)
 
 	return remainingValue
-}
-
-func spendInitialBill(t *testing.T, network *testpartition.AlphabillPartition, initialBill *moneytx.InitialBill) uint64 {
-	pubkey := "0x03c30573dc0c7fd43fcb801289a6a96cb78c27f4ba398b89da91ece23e9a99aca3"
-	pubkeyBytes, _ := hexutil.Decode(pubkey)
-	absoluteTimeout := uint64(10000)
-
-	tx, err := createTransferTx(pubkeyBytes, util.Uint256ToBytes(initialBill.ID), initialBill.Value, nil, absoluteTimeout, nil)
-	require.NoError(t, err)
-
-	// send transfer tx
-	err = network.SubmitTx(tx)
-	require.NoError(t, err)
-	require.Eventually(t, testpartition.BlockchainContainsTx(tx, network), test.WaitDuration, test.WaitTick)
-
-	return initialBill.Value
 }
 
 func createTransferTx(pubKey []byte, billId []byte, billValue uint64, fcrID []byte, timeout uint64, backlink []byte) (*txsystem.Transaction, error) {
@@ -286,19 +335,6 @@ func getBlockProof(t *testing.T, tx *txsystem.Transaction, network *testpartitio
 	_, ttt, err := network.GetBlockProof(tx, txConverter)
 	require.NoError(t, err)
 	return ttt
-}
-
-// createTrustBaseFile extracts and saves trust-base file from testpartition.AlphabillPartition
-func createTrustBaseFile(filePath string, network *testpartition.AlphabillPartition) error {
-	tb := &TrustBase{RootValidators: []*genesis.PublicKeyInfo{}}
-	for k, v := range network.TrustBase {
-		pk, _ := v.MarshalPublicKey()
-		tb.RootValidators = append(tb.RootValidators, &genesis.PublicKeyInfo{
-			NodeIdentifier:   k,
-			SigningPublicKey: pk,
-		})
-	}
-	return util.WriteJsonFile(filePath, tb)
 }
 
 func execBillsCommand(homeDir, command string) (*testConsoleWriter, error) {

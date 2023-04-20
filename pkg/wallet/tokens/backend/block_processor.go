@@ -311,7 +311,7 @@ func (p *blockProcessor) updateFCB(tx *txsystem.Transaction, roundNumber uint64)
 		return fmt.Errorf("fee credit bill not found: %X", tx.ClientMetadata.FeeCreditRecordId)
 	}
 	if fcb.Value < tx.ServerMetadata.Fee {
-		return fmt.Errorf("fee credit bill value cannot go negative; value=%d fee=%d", fcb.Value, tx.ServerMetadata.Fee)
+		return fmt.Errorf("insufficient fee credit - fee is %d but remaining credit is only %d", tx.ServerMetadata.Fee, fcb.Value)
 	}
 	fcb.Value -= tx.ServerMetadata.Fee
 	fcb.FCBlockNumber = roundNumber

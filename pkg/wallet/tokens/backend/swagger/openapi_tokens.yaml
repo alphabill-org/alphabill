@@ -292,14 +292,14 @@ paths:
                 type: object
                 items:
                   $ref: '#/components/schemas/FeeCreditBill'
-        '400':
-          $ref: '#/components/responses/ErrorResponse'
         '404':
           description: fee credit bill was not found for given bill id
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+        default:
+          $ref: '#/components/responses/ErrorResponse'
 components:
   schemas:
     Kind:

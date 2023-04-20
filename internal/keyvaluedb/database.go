@@ -54,7 +54,7 @@ type Iterable interface {
 	// If the DB is empty the returned iterator returned is not valid (it.Valid() == false)
 	// NB! when done iterator MUST be released with Close() or next DB operation will result in deadlock
 	First() Iterator
-	// Last creates a binary-alphabetical reverse iterator starting with last item.
+	// Last creates a binary-alphabetical iterator starting with last item.
 	// If the DB is empty the returned iterator returned is not valid (it.Valid() == false)
 	// NB! when done iterator MUST be released with Close() or next DB operation will result in deadlock
 	Last() Iterator

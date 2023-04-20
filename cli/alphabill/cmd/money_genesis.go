@@ -12,7 +12,6 @@ import (
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/internal/partition"
 	"github.com/alphabill-org/alphabill/internal/script"
-	"github.com/alphabill-org/alphabill/internal/txsystem/fc"
 	"github.com/alphabill-org/alphabill/internal/txsystem/money"
 	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/holiman/uint256"
@@ -117,7 +116,6 @@ func abMoneyGenesisRunFun(_ context.Context, config *moneyGenesisConfig) error {
 		money.WithSystemDescriptionRecords(sdrs),
 		money.WithDCMoneyAmount(config.DCMoneySupplyValue),
 		money.WithTrustBase(map[string]abcrypto.Verifier{"genesis": nil}),
-		money.WithFeeCalculator(fc.FixedFee(0)), // 0 to disable fee module
 	)
 	if err != nil {
 		return fmt.Errorf("failed to create money transaction system: %w", err)

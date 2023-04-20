@@ -107,7 +107,7 @@ func (s *StateStore) GetCertificate(id protocol.SystemIdentifier) (*certificates
 	cKey := certKey(id.Bytes())
 	found, err := s.db.Read(cKey, &cert)
 	if !found {
-		return nil, fmt.Errorf("certificate id %X not found", id.Bytes())
+		return nil, fmt.Errorf("id %X not in DB", id.Bytes())
 	}
 	if err != nil {
 		return nil, fmt.Errorf("certificate id %X read failed, %w", id.Bytes(), err)

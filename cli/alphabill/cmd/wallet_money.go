@@ -75,7 +75,7 @@ func newWalletCmd(baseConfig *baseConfiguration) *cobra.Command {
 		},
 	}
 	walletCmd.AddCommand(newWalletBillsCmd(config))
-	//walletCmd.AddCommand(newWalletFeesCmd(ctx, config)) TODO add fee credit support to "new" cli wallet
+	walletCmd.AddCommand(newWalletFeesCmd(context.Background(), config))
 	walletCmd.AddCommand(createCmd(config))
 	walletCmd.AddCommand(sendCmd(config))
 	walletCmd.AddCommand(getPubKeysCmd(config))

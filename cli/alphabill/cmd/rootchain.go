@@ -11,7 +11,6 @@ import (
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/keyvaluedb"
 	"github.com/alphabill-org/alphabill/internal/keyvaluedb/boltdb"
-	"github.com/alphabill-org/alphabill/internal/keyvaluedb/memorydb"
 	"github.com/alphabill-org/alphabill/internal/network"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/internal/rootchain"
@@ -114,7 +113,7 @@ func initRootStore(dbPath string) (keyvaluedb.KeyValueDB, error) {
 	if dbPath != "" {
 		return boltdb.New(filepath.Join(dbPath, boltRootChainStoreFileName))
 	}
-	return memorydb.New(), nil
+	return nil, fmt.Errorf("persistent storage path not set")
 }
 
 func defaultRootNodeRunFunc(ctx context.Context, config *rootNodeConfig) error {
@@ -151,7 +150,7 @@ func defaultRootNodeRunFunc(ctx context.Context, config *rootNodeConfig) error {
 	if err != nil {
 		return fmt.Errorf("failed to extract partition info from genesis file %s, %w", config.getGenesisFilePath(), err)
 	}
-	// init root storage
+	// Initiate root storage
 	store, err := initRootStore(config.StoragePath)
 	if err != nil {
 		return fmt.Errorf("root store init failed, %w", err)

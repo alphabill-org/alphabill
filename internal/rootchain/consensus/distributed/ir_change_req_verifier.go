@@ -113,7 +113,7 @@ func (x *PartitionTimeoutGenerator) GetT2Timeouts(currenRound uint64) []protocol
 		}
 		sysDesc, _, err := x.partitions.GetInfo(id)
 		if err != nil {
-			logger.Error("round %v failed to generate timeout request for partition %v, %w", id.Bytes(), err)
+			logger.Warning("round %v failed to generate timeout request for partition %v, %w", id.Bytes(), err)
 			// still try to compose a payload, better than nothing
 			continue
 		}

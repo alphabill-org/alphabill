@@ -22,6 +22,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/rootchain/testutils"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/proto"
 )
 
 var sysID0 = []byte{0, 0, 0, 0}
@@ -142,6 +143,68 @@ func TestConsensusManager_NormalOperation(t *testing.T) {
 	require.Equal(t, partitionInputRecord.Hash, result.InputRecord.PreviousHash)
 	require.Equal(t, uint64(2), result.UnicitySeal.RootRoundInfo.RoundNumber)
 	require.NotNil(t, result.UnicitySeal.CommitInfo.RootHash)
+	trustBase := map[string]crypto.Verifier{rootNode.Peer.ID().String(): rootNode.Verifier}
+	sdrh := rg.Partitions[0].GetSystemDescriptionRecord().Hash(gocrypto.SHA256)
+	require.NoError(t, result.IsValid(trustBase, gocrypto.SHA256, partitionID, sdrh))
+	cert, err := cm.GetLatestUnicityCertificate(p.SystemIdentifier(partitionID))
+	require.NoError(t, err)
+	require.True(t, proto.Equal(cert, result))
+	// ask for non-existing cert
+	cert, err = cm.GetLatestUnicityCertificate(p.SystemIdentifier([]byte{0, 0, 0, 10}))
+	require.ErrorContains(t, err, "find certificate for system id 0000000A failed, id 0000000A not in DB")
+	require.Nil(t, cert)
+}
+
+func TestConsensusManager_PersistFails(t *testing.T) {
+	db := memorydb.New()
+	cm, rootNode, partitionNodes, rg := initConsensusManager(t, db)
+	// make sure that 3 partition nodes where generated, needed for the next steps
+	require.Len(t, partitionNodes, 3)
+	// mock requests from partition node
+	requests := make([]*certification.BlockCertificationRequest, 2)
+	newIR := &certificates.InputRecord{
+		PreviousHash: rg.Partitions[0].Nodes[0].BlockCertificationRequest.InputRecord.Hash,
+		Hash:         test.RandomBytes(32),
+		BlockHash:    test.RandomBytes(32),
+		SummaryValue: rg.Partitions[0].Nodes[0].BlockCertificationRequest.InputRecord.SummaryValue,
+		RoundNumber:  1,
+	}
+	requests[0] = testutils.CreateBlockCertificationRequest(t, newIR, partitionID, partitionNodes[0])
+	requests[1] = testutils.CreateBlockCertificationRequest(t, newIR, partitionID, partitionNodes[1])
+	req := &consensus.IRChangeRequest{
+		SystemIdentifier: p.SystemIdentifier(partitionID),
+		Reason:           consensus.Quorum,
+		Requests:         requests}
+	// set db to simulate error
+	db.MockWriteError(fmt.Errorf("db write failed"))
+	// submit IR change request from partition with quorum
+	require.NoError(t, cm.onIRChangeReq(req))
+	require.Equal(t, uint64(1), cm.round)
+	cert, err := cm.GetLatestUnicityCertificate(p.SystemIdentifier(partitionID))
+	require.NoError(t, err)
+	// simulate T3 timeout
+	cm.onT3Timeout()
+	// due to DB persist error round is not incremented and will be repeated
+	require.Equal(t, uint64(1), cm.round)
+	certNow, err := cm.GetLatestUnicityCertificate(p.SystemIdentifier(partitionID))
+	require.NoError(t, err)
+	require.True(t, proto.Equal(cert, certNow))
+	// simulate T3 timeout
+	cm.onT3Timeout()
+	// same deal no progress
+	require.Equal(t, uint64(1), cm.round)
+	// set db to simulate error
+	db.MockWriteError(nil)
+	// start run and make sure rootchain recovers as it is now able to persist
+	// new state and hence a certificate should be now received
+	ctx, ctxCancel := context.WithCancel(context.Background())
+	defer ctxCancel()
+	go func() { require.ErrorIs(t, cm.Run(ctx), context.Canceled) }()
+	// require, that certificates are received for partition ID
+	result, err := readResult(cm.CertificationResult(), 2*cm.params.BlockRateMs)
+	require.NoError(t, err)
+	require.Equal(t, partitionInputRecord.Hash, result.InputRecord.PreviousHash)
+	require.Equal(t, uint64(2), result.UnicitySeal.RootRoundInfo.RoundNumber)
 	trustBase := map[string]crypto.Verifier{rootNode.Peer.ID().String(): rootNode.Verifier}
 	sdrh := rg.Partitions[0].GetSystemDescriptionRecord().Hash(gocrypto.SHA256)
 	require.NoError(t, result.IsValid(trustBase, gocrypto.SHA256, partitionID, sdrh))

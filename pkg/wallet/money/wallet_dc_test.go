@@ -94,7 +94,15 @@ func TestDustCollectionMaxBillCountInitialized(t *testing.T) {
 	proofList := createBlockProofJsonResponse(t, bills, nil, 0, dcTimeoutBlockCount, nil)
 	proofList = append(proofList, createBlockProofJsonResponse(t, dcBills, nonceBytes, 0, dcTimeoutBlockCount, k)...)
 
-	w, mockClient := CreateTestWallet(t, &backendMockReturnConf{customBillList: billsList, proofList: proofList})
+	w, mockClient := CreateTestWallet(t, &backendMockReturnConf{
+		customBillList: billsList,
+		proofList:      proofList,
+		feeCreditBill: &bp.Bill{
+			Id:      k.PrivKeyHash,
+			Value:   100 * 1e8,
+			TxProof: &block.TxProof{},
+		},
+	})
 
 	// when dc runs
 	_, err = w.collectDust(context.Background(), false, 0, &counter)

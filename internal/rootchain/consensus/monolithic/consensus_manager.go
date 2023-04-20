@@ -48,10 +48,7 @@ func NewMonolithicConsensusManager(selfStr string, rg *genesis.RootGenesis, part
 	// load optional parameters
 	optional := consensus.LoadConf(opts)
 	// Initiate store
-	storage, err := NewStateStore(optional.StoragePath)
-	if err != nil {
-		return nil, fmt.Errorf("storage init failed, %w", err)
-	}
+	storage := NewStateStore(optional.Storage)
 	empty, err := storage.IsEmpty()
 	if err != nil {
 		return nil, fmt.Errorf("storage init db empty check failed, %w", err)

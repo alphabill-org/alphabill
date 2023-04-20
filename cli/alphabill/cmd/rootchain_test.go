@@ -38,9 +38,9 @@ func TestRootValidatorInvalidRootKey_CannotBeStartedInvalidKeyFile(t *testing.T)
 }
 
 func TestRootValidatorInvalidRootKey_CannotBeStartedInvalidDBDir(t *testing.T) {
-	conf := validMonolithicRootValidatorConfig("/foobar/doesnotexist3454/")
+	conf := validMonolithicRootValidatorConfig("/foobar/doesnotexist3454/some.db")
 	err := defaultRootNodeRunFunc(context.Background(), conf)
-	require.ErrorContains(t, err, "no such file or directory")
+	require.ErrorContains(t, err, "root store init failed, open /foobar/doesnotexist3454/some.db/rootchain.db: no such file or directory")
 }
 
 func validMonolithicRootValidatorConfig(dbDir string) *rootNodeConfig {

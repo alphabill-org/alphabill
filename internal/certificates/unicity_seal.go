@@ -2,10 +2,11 @@ package certificates
 
 import (
 	"bytes"
+	"errors"
+	"fmt"
 	"hash"
 
 	"github.com/alphabill-org/alphabill/internal/crypto"
-	"github.com/alphabill-org/alphabill/internal/errors"
 	"github.com/alphabill-org/alphabill/internal/util"
 )
 
@@ -18,6 +19,7 @@ var (
 	ErrRootValidatorInfoMissing  = errors.New("root node info is missing")
 	ErrUnknownSigner             = errors.New("unknown signer")
 	errInvalidTimestamp          = errors.New("invalid timestamp")
+	errUnicitySealNoSignature    = errors.New("unicity seal is missing signature")
 )
 
 func (x *UnicitySeal) IsValid(verifiers map[string]crypto.Verifier) error {
@@ -48,7 +50,7 @@ func (x *UnicitySeal) Sign(id string, signer crypto.Signer) error {
 	}
 	signature, err := signer.SignBytes(x.Bytes())
 	if err != nil {
-		return err
+		return fmt.Errorf("sign failed, %w", err)
 	}
 	// initiate signatures
 	if x.Signatures == nil {
@@ -76,7 +78,7 @@ func (x *UnicitySeal) Verify(verifiers map[string]crypto.Verifier) error {
 		return ErrRootValidatorInfoMissing
 	}
 	if len(x.Signatures) == 0 {
-		return errors.New("invalid unicity seal signature")
+		return errUnicitySealNoSignature
 	}
 	// Verify all signatures, all must be from known origin and valid
 	for id, sig := range x.Signatures {
@@ -87,7 +89,7 @@ func (x *UnicitySeal) Verify(verifiers map[string]crypto.Verifier) error {
 		}
 		err := ver.VerifyBytes(sig, x.Bytes())
 		if err != nil {
-			return errors.Wrap(err, "invalid unicity seal signature")
+			return fmt.Errorf("invalid unicity seal signature, %w", err)
 		}
 	}
 	return nil

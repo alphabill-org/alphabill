@@ -143,7 +143,7 @@ func TestVerify_SignatureIsNil(t *testing.T) {
 	}
 	verifiers := map[string]crypto.Verifier{"test": verifier}
 	err := seal.Verify(verifiers)
-	require.True(t, strings.Contains(err.Error(), "invalid unicity seal signature"))
+	require.ErrorIs(t, err, errUnicitySealNoSignature)
 }
 
 func TestVerify_SignatureUnknownSigner(t *testing.T) {

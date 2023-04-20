@@ -146,6 +146,13 @@ func TestConsensusManager_NormalOperation(t *testing.T) {
 	trustBase := map[string]crypto.Verifier{rootNode.Peer.ID().String(): rootNode.Verifier}
 	sdrh := rg.Partitions[0].GetSystemDescriptionRecord().Hash(gocrypto.SHA256)
 	require.NoError(t, result.IsValid(trustBase, gocrypto.SHA256, partitionID, sdrh))
+	cert, err := cm.GetLatestUnicityCertificate(p.SystemIdentifier(partitionID))
+	require.NoError(t, err)
+	require.True(t, proto.Equal(cert, result))
+	// ask for non-existing cert
+	cert, err = cm.GetLatestUnicityCertificate(p.SystemIdentifier([]byte{0, 0, 0, 10}))
+	require.ErrorContains(t, err, "find certificate for system id 0000000A failed, id 0000000A not in DB")
+	require.Nil(t, cert)
 }
 
 func TestConsensusManager_PersistFails(t *testing.T) {
@@ -173,13 +180,13 @@ func TestConsensusManager_PersistFails(t *testing.T) {
 	// submit IR change request from partition with quorum
 	require.NoError(t, cm.onIRChangeReq(req))
 	require.Equal(t, uint64(1), cm.round)
-	cert, err := cm.stateStore.GetCertificate(p.SystemIdentifier(partitionID))
+	cert, err := cm.GetLatestUnicityCertificate(p.SystemIdentifier(partitionID))
 	require.NoError(t, err)
 	// simulate T3 timeout
 	cm.onT3Timeout()
 	// due to DB persist error round is not incremented and will be repeated
 	require.Equal(t, uint64(1), cm.round)
-	certNow, err := cm.stateStore.GetCertificate(p.SystemIdentifier(partitionID))
+	certNow, err := cm.GetLatestUnicityCertificate(p.SystemIdentifier(partitionID))
 	require.NoError(t, err)
 	require.True(t, proto.Equal(cert, certNow))
 	// simulate T3 timeout

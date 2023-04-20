@@ -102,7 +102,7 @@ func storeTest(t *testing.T, store *StateStore) {
 	require.True(t, proto.Equal(ir, mockUc.InputRecord))
 	// read non-existing system id
 	lastCert, err = store.GetCertificate(protocol.SystemIdentifier(sysID2))
-	require.ErrorContains(t, err, "certificate id 00000002 not found")
+	require.ErrorContains(t, err, "id 00000002 not in DB")
 	require.Nil(t, lastCert)
 	// read sys id 1
 	lastCert, err = store.GetCertificate(protocol.SystemIdentifier(sysID1))

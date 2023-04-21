@@ -2,7 +2,9 @@ package twb
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
+	"io"
 
 	"github.com/alphabill-org/alphabill/pkg/wallet"
 )
@@ -58,6 +60,15 @@ const (
 var (
 	NoParent = TokenTypeID{0x00}
 )
+
+func (tu *TokenUnit) WriteSSE(w io.Writer) error {
+	b, err := json.Marshal(tu)
+	if err != nil {
+		return fmt.Errorf("failed to convert token unit to json: %w", err)
+	}
+	_, err = fmt.Fprintf(w, "event: token\ndata: %s\n\n", b)
+	return err
+}
 
 func (t TokenTypeID) Equal(to TokenTypeID) bool {
 	return bytes.Equal(t, to)

@@ -584,13 +584,20 @@ func (x *ConsensusManager) processNewRoundEvent() {
 		return
 	}
 	logger.Info("%v round %v new round start, node is leader", x.peer.String(), x.pacemaker.GetCurrentRound())
+	// find partitions with T2 timeouts
+	timeoutIds, err := x.t2Timeouts.GetT2Timeouts(round)
+	// NB! error here is not fatal, still make a proposal, hopefully the next node will generate timeout
+	// requests for partitions this node failed to query
+	if err != nil {
+		logger.Warning("failed to check timeouts for some partitions, %v", err)
+	}
 	proposalMsg := &ab_consensus.ProposalMsg{
 		Block: &ab_consensus.BlockData{
 			Author:    x.peer.ID().String(),
 			Round:     round,
 			Epoch:     0,
 			Timestamp: util.MakeTimestamp(),
-			Payload:   x.irReqBuffer.GeneratePayload(x.pacemaker.GetCurrentRound(), x.t2Timeouts),
+			Payload:   x.irReqBuffer.GeneratePayload(x.pacemaker.GetCurrentRound(), timeoutIds),
 			Qc:        x.blockStore.GetHighQc(),
 		},
 		LastRoundTc: x.pacemaker.LastRoundTC(),

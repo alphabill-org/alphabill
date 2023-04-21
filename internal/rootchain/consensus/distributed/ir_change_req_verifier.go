@@ -104,22 +104,23 @@ func NewLucBasedT2TimeoutGenerator(c *consensus.Parameters, pInfo partitions.Par
 	}, nil
 }
 
-func (x *PartitionTimeoutGenerator) GetT2Timeouts(currenRound uint64) []protocol.SystemIdentifier {
+func (x *PartitionTimeoutGenerator) GetT2Timeouts(currenRound uint64) ([]protocol.SystemIdentifier, error) {
 	ucs := x.state.GetCertificates()
 	timeoutIds := make([]protocol.SystemIdentifier, 0, len(ucs))
+	var err error
 	for id, cert := range ucs {
 		if x.state.IsChangeInProgress(id) {
 			continue
 		}
-		sysDesc, _, err := x.partitions.GetInfo(id)
+		sysDesc, _, getErr := x.partitions.GetInfo(id)
 		if err != nil {
-			logger.Warning("round %v failed to generate timeout request for partition %v, %w", id.Bytes(), err)
-			// still try to compose a payload, better than nothing
+			err = errors.Join(err, fmt.Errorf("read partition system description failed, %w", getErr))
+			// still try to check the rest of the partitions
 			continue
 		}
 		if currenRound-cert.UnicitySeal.RootRoundInfo.RoundNumber >= t2TimeoutToRootRounds(sysDesc.T2Timeout, x.params.BlockRateMs/2) {
 			timeoutIds = append(timeoutIds, id)
 		}
 	}
-	return timeoutIds
+	return timeoutIds, err
 }

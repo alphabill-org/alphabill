@@ -10,7 +10,6 @@ import (
 	"github.com/alphabill-org/alphabill/internal/network/protocol/ab_consensus"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/internal/rootchain/unicitytree"
-	"github.com/alphabill-org/alphabill/internal/util"
 )
 
 type (
@@ -189,16 +188,9 @@ func NewExecutedBlock(hash gocrypto.Hash, newBlock *ab_consensus.BlockData, pare
 	// copy parent input records
 	irState := make(InputRecords, len(parent.CurrentIR))
 	copy(irState, parent.CurrentIR)
-	if len(changed) == 0 {
-		logger.Trace("Round %v executing proposal, no changes to input records", newBlock.Round)
-	} else {
-		// apply changes
-		logger.Trace("Round %v executing proposal, changed input records are:", newBlock.Round)
-		for _, d := range changed {
-			util.WriteTraceJsonLog(logger, fmt.Sprintf("partition %X IR:", d.SysID), d.IR)
-			if err := irState.Update(d); err != nil {
-				return nil, fmt.Errorf("block execution failed, system id %X was not found in input records", d.SysID)
-			}
+	for _, d := range changed {
+		if err := irState.Update(d); err != nil {
+			return nil, fmt.Errorf("block execution failed, system id %X was not found in input records", d.SysID)
 		}
 	}
 	// calculate root hash

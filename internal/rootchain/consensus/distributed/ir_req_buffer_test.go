@@ -13,31 +13,9 @@ import (
 )
 
 type (
-	mockTimeoutGen struct {
-		timeoutIds []p.SystemIdentifier
-	}
-
 	mockIRVerifier struct {
 	}
 )
-
-func NewMockTimeoutGenerator() *mockTimeoutGen {
-	return &mockTimeoutGen{
-		timeoutIds: make([]p.SystemIdentifier, 0),
-	}
-}
-
-func (x *mockTimeoutGen) setTimeout(id p.SystemIdentifier) {
-	x.timeoutIds = append(x.timeoutIds, id)
-}
-
-func (x *mockTimeoutGen) clear() {
-	x.timeoutIds = make([]p.SystemIdentifier, 0)
-}
-
-func (x *mockTimeoutGen) GetT2Timeouts(_ uint64) []p.SystemIdentifier {
-	return x.timeoutIds
-}
 
 func NewAlwaysTrueIRReqVerifier() *mockIRVerifier {
 	return &mockIRVerifier{}
@@ -150,7 +128,6 @@ func TestIrReqBuffer_AddNil(t *testing.T) {
 
 func TestIrReqBuffer_Add(t *testing.T) {
 	reqBuffer := NewIrReqBuffer()
-	mockTimeouts := NewMockTimeoutGenerator()
 	ver := NewAlwaysTrueIRReqVerifier()
 	// add a request that reached consensus
 	req1 := &certification.BlockCertificationRequest{
@@ -163,8 +140,9 @@ func TestIrReqBuffer_Add(t *testing.T) {
 		CertReason:       ab_consensus.IRChangeReqMsg_QUORUM,
 		Requests:         []*certification.BlockCertificationRequest{req1},
 	}
+	timeouts := make([]p.SystemIdentifier, 0, 2)
 	// no requests, generate payload
-	payload := reqBuffer.GeneratePayload(3, mockTimeouts)
+	payload := reqBuffer.GeneratePayload(3, timeouts)
 	require.Empty(t, payload.Requests)
 	require.False(t, reqBuffer.IsChangeInBuffer(p.SystemIdentifier(sysID1)))
 	// add request
@@ -188,10 +166,10 @@ func TestIrReqBuffer_Add(t *testing.T) {
 	require.ErrorContains(t, reqBuffer.Add(3, IrChReqMsg, ver),
 		"error equivocating request for partition 00000001 reason has changed")
 	// Generate proposal payload, one request in buffer
-	payload = reqBuffer.GeneratePayload(3, mockTimeouts)
+	payload = reqBuffer.GeneratePayload(3, timeouts)
 	require.Len(t, payload.Requests, 1)
 	// generate payload again, but now it is empty
-	payloadNowEmpty := reqBuffer.GeneratePayload(4, mockTimeouts)
+	payloadNowEmpty := reqBuffer.GeneratePayload(4, timeouts)
 	require.Empty(t, payloadNowEmpty.Requests)
 	require.False(t, reqBuffer.IsChangeInBuffer(p.SystemIdentifier(sysID1)))
 	// finally verify that we got the original message back
@@ -200,10 +178,8 @@ func TestIrReqBuffer_Add(t *testing.T) {
 
 func TestIrReqBuffer_TimeoutReq(t *testing.T) {
 	reqBuffer := NewIrReqBuffer()
-	mockTimeouts := NewMockTimeoutGenerator()
-	mockTimeouts.setTimeout(p.SystemIdentifier(sysID1))
-	mockTimeouts.setTimeout(p.SystemIdentifier(sysID2))
-	payload := reqBuffer.GeneratePayload(3, mockTimeouts)
+	timeouts := []p.SystemIdentifier{p.SystemIdentifier(sysID1), p.SystemIdentifier(sysID2)}
+	payload := reqBuffer.GeneratePayload(3, timeouts)
 	require.Len(t, payload.Requests, 2)
 	// if both then prefer to make progress over timeout
 	require.Equal(t, sysID1, payload.Requests[0].SystemIdentifier)
@@ -216,7 +192,6 @@ func TestIrReqBuffer_TimeoutReq(t *testing.T) {
 
 func TestIrReqBuffer_TimeoutAndNewReq(t *testing.T) {
 	reqBuffer := NewIrReqBuffer()
-	mockTimeouts := NewMockTimeoutGenerator()
 	ver := NewAlwaysTrueIRReqVerifier()
 	// add a request that reached consensus
 	req1 := &certification.BlockCertificationRequest{
@@ -229,9 +204,9 @@ func TestIrReqBuffer_TimeoutAndNewReq(t *testing.T) {
 		CertReason:       ab_consensus.IRChangeReqMsg_QUORUM,
 		Requests:         []*certification.BlockCertificationRequest{req1},
 	}
-	mockTimeouts.setTimeout(p.SystemIdentifier(sysID1))
+	timeouts := []p.SystemIdentifier{p.SystemIdentifier(sysID1)}
 	require.NoError(t, reqBuffer.Add(3, IrChReqMsg, ver))
-	payload := reqBuffer.GeneratePayload(3, mockTimeouts)
+	payload := reqBuffer.GeneratePayload(3, timeouts)
 	require.Len(t, payload.Requests, 1)
 	// if both then prefer to make progress over timeout
 	require.Equal(t, ab_consensus.IRChangeReqMsg_QUORUM, payload.Requests[0].CertReason)

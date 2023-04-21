@@ -295,9 +295,10 @@ func TestPartitionTimeoutGenerator_GetT2Timeouts(t *testing.T) {
 				state:      tt.fields.sMonitor,
 				partitions: tt.fields.pInfo,
 			}
-			if got := x.GetT2Timeouts(tt.args.currenRound); !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("GetT2Timeouts() = %v, want %v", got, tt.want)
-			}
+			var tmos []protocol.SystemIdentifier
+			tmos, err = x.GetT2Timeouts(tt.args.currenRound)
+			require.NoError(t, err)
+			require.Equal(t, tt.want, tmos)
 		})
 	}
 }

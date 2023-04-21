@@ -16,7 +16,7 @@ type (
 		VerifyIRChangeReq(round uint64, irChReq *ab_consensus.IRChangeReqMsg) (*storage.InputData, error)
 	}
 	PartitionTimeout interface {
-		GetT2Timeouts(currenRound uint64) []protocol.SystemIdentifier
+		GetT2Timeouts(currenRound uint64) ([]protocol.SystemIdentifier, error)
 	}
 	irChange struct {
 		InputRecord *certificates.InputRecord
@@ -97,14 +97,12 @@ func (x *IrReqBuffer) IsChangeInBuffer(id protocol.SystemIdentifier) bool {
 }
 
 // GeneratePayload generates new proposal payload from buffered IR change requests.
-func (x *IrReqBuffer) GeneratePayload(round uint64, timeout PartitionTimeout) *ab_consensus.Payload {
-	// find partitions with T2 timeouts
-	timeoutIds := timeout.GetT2Timeouts(round)
+func (x *IrReqBuffer) GeneratePayload(round uint64, timeouts []protocol.SystemIdentifier) *ab_consensus.Payload {
 	payload := &ab_consensus.Payload{
-		Requests: make([]*ab_consensus.IRChangeReqMsg, 0, len(x.irChgReqBuffer)+len(timeoutIds)),
+		Requests: make([]*ab_consensus.IRChangeReqMsg, 0, len(x.irChgReqBuffer)+len(timeouts)),
 	}
 	// first add timeout requests
-	for _, id := range timeoutIds {
+	for _, id := range timeouts {
 		// if there is a request for the same partition (same id) in buffer (prefer progress to timeout) then skip
 		if x.IsChangeInBuffer(id) {
 			continue

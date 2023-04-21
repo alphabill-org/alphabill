@@ -67,7 +67,7 @@ func New(message string) error {
 
 // Errorf Creates a simple error from a format and arguments
 // The error will also have a stack trace if enabled using errors.SetGenerateStackTraces(generate bool)
-// Deprecated: use native go errors and fmt.Errorf with %w instead
+// Deprecated: use fmt.Errorf instead
 func Errorf(format string, a ...interface{}) error {
 	return &AlphabillError{
 		message: fmt.Sprintf(format, a...),

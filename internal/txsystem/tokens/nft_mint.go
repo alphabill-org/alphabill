@@ -46,6 +46,9 @@ func validateMintNonFungibleToken(tx *mintNonFungibleTokenWrapper, state *rma.Tr
 	if unitID.IsZero() {
 		return errors.New(ErrStrUnitIDIsZero)
 	}
+	if len(tx.Name()) > maxNameLength {
+		return errors.New(ErrStrInvalidNameLength)
+	}
 	uri := tx.URI()
 	if uri != "" {
 		if len(uri) > uriMaxSize {

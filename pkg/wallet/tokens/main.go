@@ -25,12 +25,14 @@ import (
 const (
 	uriMaxSize  = 4 * 1024
 	dataMaxSize = 64 * 1024
+	nameMaxSize = 256
 )
 
 var (
 	errAttributesMissing = goerrors.New("attributes missing")
 	errInvalidURILength  = fmt.Errorf("URI exceeds the maximum allowed size of %v bytes", uriMaxSize)
 	errInvalidDataLength = fmt.Errorf("data exceeds the maximum allowed size of %v bytes", dataMaxSize)
+	errInvalidNameLength = fmt.Errorf("name exceeds the maximum allowed size of %v bytes", nameMaxSize)
 )
 
 type (
@@ -116,6 +118,9 @@ func (w *Wallet) NewNFT(ctx context.Context, accNr uint64, attrs *tokens.MintNon
 	log.Info("Creating new NFT")
 	if attrs == nil {
 		return nil, errAttributesMissing
+	}
+	if len(attrs.Name) > nameMaxSize {
+		return nil, errInvalidNameLength
 	}
 	if len(attrs.Uri) > uriMaxSize {
 		return nil, errInvalidURILength

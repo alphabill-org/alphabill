@@ -17,6 +17,8 @@ var (
 	unitID                                    = []byte{1}
 	ownerProof                                = []byte{2}
 	symbol                                    = "TEST"
+	name                                      = "Long name for " + symbol
+	icon                                      = &Icon{Type: validIconType, Data: []byte{21}}
 	parentTypeId                              = []byte{3}
 	subTypeCreationPredicate                  = []byte{4}
 	tokenCreationPredicate                    = []byte{5}
@@ -56,6 +58,9 @@ func TestCreateNonFungibleTokenTypeTx_SigBytesIsCalculatedCorrectly(t *testing.T
 	b.Write(util.Uint64ToBytes(0))
 	b.Write(nil)
 	b.Write([]byte(symbol))
+	b.Write([]byte(name))
+	b.Write([]byte(icon.Type))
+	b.Write(icon.Data)
 	b.Write(parentTypeId)
 	b.Write(subTypeCreationPredicate)
 	b.Write(tokenCreationPredicate)
@@ -77,6 +82,7 @@ func TestMintNonFungibleTokenTx_SigBytesIsCalculatedCorrectly(t *testing.T) {
 	b.Write(nil)
 	b.Write(bearer)
 	b.Write(nftType)
+	b.Write([]byte(nftName))
 	b.Write([]byte(uri))
 	b.Write(data)
 	b.Write(dataUpdatePredicate)
@@ -98,6 +104,9 @@ func TestCreateNonFungibleTokenTypeTx_GetHashIsCalculatedCorrectly(t *testing.T)
 	b.Write(nil)                   // fee credit record id
 	b.Write(util.Uint64ToBytes(1)) // server metadata fee
 	b.Write([]byte(symbol))
+	b.Write([]byte(name))
+	b.Write([]byte(icon.Type))
+	b.Write(icon.Data)
 	b.Write(parentTypeId)
 	b.Write(subTypeCreationPredicate)
 	b.Write(tokenCreationPredicate)
@@ -125,6 +134,7 @@ func TestMintNonFungibleTokenTx_GetHashIsCalculatedCorrectly(t *testing.T) {
 	b.Write(util.Uint64ToBytes(1)) // server metadata fee
 	b.Write(bearer)
 	b.Write(nftType)
+	b.Write([]byte(nftName))
 	b.Write([]byte(uri))
 	b.Write(data)
 	b.Write(dataUpdatePredicate)
@@ -229,6 +239,9 @@ func TestCreateFungibleTokenTypeTx_GetHashIsCalculatedCorrectly(t *testing.T) {
 	b.Write(nil)                   // fee credit record id
 	b.Write(util.Uint64ToBytes(1)) // server metadata fee
 	b.Write([]byte(symbol))
+	b.Write([]byte(name))
+	b.Write([]byte(icon.Type))
+	b.Write(icon.Data)
 	b.Write(parentTypeId)
 	b.Write(util.Uint32ToBytes(fungibleTokenDecimalPlaces))
 	b.Write(subTypeCreationPredicate)
@@ -252,6 +265,9 @@ func TestCreateFungibleTokenTypeTx_SigBytesIsCalculatedCorrectly(t *testing.T) {
 	b.Write(util.Uint64ToBytes(0))
 	b.Write(nil)
 	b.Write([]byte(symbol))
+	b.Write([]byte(name))
+	b.Write([]byte(icon.Type))
+	b.Write(icon.Data)
 	b.Write(parentTypeId)
 	b.Write(util.Uint32ToBytes(fungibleTokenDecimalPlaces))
 	b.Write(subTypeCreationPredicate)
@@ -453,6 +469,8 @@ func createFungibleTokenTypeTxOrder(t *testing.T, systemIdentifier []byte) *txsy
 		testtransaction.WithOwnerProof(ownerProof),
 		testtransaction.WithAttributes(&CreateFungibleTokenTypeAttributes{
 			Symbol:                             symbol,
+			Name:                               name,
+			Icon:                               icon,
 			ParentTypeId:                       parentTypeId,
 			DecimalPlaces:                      fungibleTokenDecimalPlaces,
 			SubTypeCreationPredicate:           subTypeCreationPredicate,
@@ -537,6 +555,8 @@ func createNonFungibleTokenTypeTxOrder(t *testing.T, systemIdentifier []byte) *t
 		testtransaction.WithOwnerProof(ownerProof),
 		testtransaction.WithAttributes(&CreateNonFungibleTokenTypeAttributes{
 			Symbol:                             symbol,
+			Name:                               name,
+			Icon:                               icon,
 			ParentTypeId:                       parentTypeId,
 			SubTypeCreationPredicate:           subTypeCreationPredicate,
 			TokenCreationPredicate:             tokenCreationPredicate,
@@ -556,6 +576,7 @@ func createMintNonFungibleTokenTxOrder(t *testing.T, systemIdentifier []byte) *t
 		testtransaction.WithAttributes(&MintNonFungibleTokenAttributes{
 			Bearer:                           bearer,
 			NftType:                          nftType,
+			Name:                             nftName,
 			Uri:                              uri,
 			Data:                             data,
 			DataUpdatePredicate:              dataUpdatePredicate,

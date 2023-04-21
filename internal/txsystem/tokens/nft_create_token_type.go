@@ -11,8 +11,6 @@ import (
 	"github.com/holiman/uint256"
 )
 
-var ErrStrInvalidSymbolName = "symbol name exceeds the allowed maximum length of 64 bytes"
-
 func handleCreateNoneFungibleTokenTx(options *Options) txsystem.GenericExecuteFunc[*createNonFungibleTokenTypeWrapper] {
 	return func(tx *createNonFungibleTokenTypeWrapper, _ uint64) error {
 		logger.Debug("Processing Create Non-Fungible Token Type tx: %v", tx)
@@ -48,9 +46,19 @@ func validate(tx *createNonFungibleTokenTypeWrapper, state *rma.Tree) error {
 	if unitID.IsZero() {
 		return fmt.Errorf("create nft type: %s", ErrStrUnitIDIsZero)
 	}
-	if len(tx.attributes.Symbol) > maxSymbolLength {
-		return fmt.Errorf("create nft type: %s", ErrStrInvalidSymbolName)
+	if len(tx.Symbol()) > maxSymbolLength {
+		return fmt.Errorf("create nft type: %s", ErrStrInvalidSymbolLength)
 	}
+	if len(tx.Name()) > maxNameLength {
+		return fmt.Errorf("create nft type: %s", ErrStrInvalidNameLength)
+	}
+	if len(tx.Icon().GetType()) > maxIconTypeLength {
+		return fmt.Errorf("create nft type: %s", ErrStrInvalidIconTypeLength)
+	}
+	if len(tx.Icon().GetData()) > maxIconDataLength {
+		return fmt.Errorf("create nft type: %s", ErrStrInvalidIconDataLength)
+ 	}
+
 	u, err := state.GetUnit(unitID)
 	if u != nil {
 		return fmt.Errorf("create nft type: unit %v exists", unitID)

@@ -303,7 +303,10 @@ func (x *ConsensusManager) onIRChange(irChange *ab_consensus.IRChangeReqMsg) {
 	nextLeader := x.leaderSelector.GetLeaderForRound(x.pacemaker.GetCurrentRound() + 1)
 	// todo: if in recovery then forward to next?
 	// if the node is leader and has not yet proposed or is the next leader - then buffer the request to include in the next block proposal
-	if (currentLeader == x.peer.ID() && x.waitPropose) || nextLeader == x.peer.ID() {
+	// there is a race between proposal (received in reverse order) and IR change request, due to this the node could also be the leader in round+2
+	if (currentLeader == x.peer.ID() && x.waitPropose) ||
+		nextLeader == x.peer.ID() ||
+		x.leaderSelector.GetLeaderForRound(x.pacemaker.GetCurrentRound()+2) == x.peer.ID() {
 		logger.Debug("%v round %v IR change request received", x.peer.String(), x.pacemaker.GetCurrentRound())
 		// Verify and buffer and wait for opportunity to make the next proposal
 		if err := x.irReqBuffer.Add(x.pacemaker.GetCurrentRound(), irChange, x.irReqVerifier); err != nil {

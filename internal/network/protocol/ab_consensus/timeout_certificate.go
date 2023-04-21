@@ -46,7 +46,11 @@ func (x *TimeoutCert) GetAuthors() []string {
 	return authors
 }
 
-func (x *TimeoutCert) Add(author string, timeout *Timeout, signature []byte) {
+func (x *TimeoutCert) Add(author string, timeout *Timeout, signature []byte) error {
+	// if already added then reject
+	if _, found := x.Signatures[author]; found {
+		return fmt.Errorf("%s already voted", author)
+	}
 	// Keep the highest QC certificate
 	hqcRound := timeout.HighQc.VoteInfo.RoundNumber
 	// If received highest QC round was bigger than previously seen, replace timeout struct
@@ -54,6 +58,7 @@ func (x *TimeoutCert) Add(author string, timeout *Timeout, signature []byte) {
 		x.Timeout = timeout
 	}
 	x.Signatures[author] = &TimeoutVote{HqcRound: hqcRound, Signature: signature}
+	return nil
 }
 
 // Verify timeout certificate

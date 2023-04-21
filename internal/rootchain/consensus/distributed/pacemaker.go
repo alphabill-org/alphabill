@@ -1,6 +1,7 @@
 package distributed
 
 import (
+	"fmt"
 	"math"
 	"time"
 
@@ -137,30 +138,26 @@ func (x *Pacemaker) CalcAsyncTimeTilNextProposal(round uint64) time.Duration {
 */
 
 // RegisterVote - register vote from another root node, this node is the leader and assembles votes for quorum certificate
-func (x *Pacemaker) RegisterVote(vote *ab_consensus.VoteMsg, quorum QuorumInfo) *ab_consensus.QuorumCert {
+func (x *Pacemaker) RegisterVote(vote *ab_consensus.VoteMsg, quorum QuorumInfo) (*ab_consensus.QuorumCert, error) {
 	// If the vote is not about the current round then ignore
 	if vote.VoteInfo.RoundNumber != x.currentRound {
-		logger.Warning("Round %v received vote for unexpected round %v: vote ignored",
-			x.currentRound, vote.VoteInfo.RoundNumber)
-		return nil
+		return nil, fmt.Errorf("received vote is not for cuurent round %v", vote.VoteInfo.RoundNumber)
 	}
 	qc, err := x.pendingVotes.InsertVote(vote, quorum)
 	if err != nil {
-		logger.Warning("Round %v vote message from %v error:", x.currentRound, vote.Author, err)
-		return nil
+		return nil, fmt.Errorf("vote register error, %w", err)
 	}
-	return qc
+	return qc, nil
 }
 
 // RegisterTimeoutVote - register time-out vote from another root node, this node is the leader and tries to assemble
 // a timeout quorum certificate for this round
-func (x *Pacemaker) RegisterTimeoutVote(vote *ab_consensus.TimeoutMsg, quorum QuorumInfo) *ab_consensus.TimeoutCert {
+func (x *Pacemaker) RegisterTimeoutVote(vote *ab_consensus.TimeoutMsg, quorum QuorumInfo) (*ab_consensus.TimeoutCert, error) {
 	tc, err := x.pendingVotes.InsertTimeoutVote(vote, quorum)
 	if err != nil {
-		logger.Warning("Round %v vote message from %v error:", x.currentRound, vote.Author, err)
-		return nil
+		return nil, fmt.Errorf("timeout vote register failed, %w", err)
 	}
-	return tc
+	return tc, nil
 }
 
 // AdvanceRoundQC - trigger next round/view on quorum certificate

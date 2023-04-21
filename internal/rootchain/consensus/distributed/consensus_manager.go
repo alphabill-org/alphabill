@@ -386,7 +386,12 @@ func (x *ConsensusManager) onVoteMsg(vote *ab_consensus.VoteMsg) {
 		return
 	}
 	// Store vote, check for QC
-	qc := x.pacemaker.RegisterVote(vote, x.trustBase)
+	qc, err := x.pacemaker.RegisterVote(vote, x.trustBase)
+	if err != nil {
+		logger.Warning("%v round %v vote from error, %w",
+			x.peer.String(), x.pacemaker.GetCurrentRound(), vote.Author, err)
+		return
+	}
 	if qc == nil {
 		logger.Trace("%v round %v processed vote for round %v, no quorum yet",
 			x.peer.String(), x.pacemaker.GetCurrentRound(), vote.VoteInfo.RoundNumber)
@@ -435,7 +440,12 @@ func (x *ConsensusManager) onTimeoutMsg(vote *ab_consensus.TimeoutMsg) {
 		}
 		return
 	}
-	tc := x.pacemaker.RegisterTimeoutVote(vote, x.trustBase)
+	tc, err := x.pacemaker.RegisterTimeoutVote(vote, x.trustBase)
+	if err != nil {
+		logger.Warning("%v round %v vote message from %v error: %w",
+			x.peer.String(), x.pacemaker.GetCurrentRound(), vote.Author, err)
+		return
+	}
 	if tc == nil {
 		logger.Trace("%v round %v processed timeout vote for round %v, no quorum yet",
 			x.peer.String(), x.pacemaker.GetCurrentRound(), vote.Timeout.Round)

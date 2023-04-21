@@ -47,7 +47,8 @@ func TestTimeoutCert_Add(t *testing.T) {
 			Signatures:       map[string][]byte{"1": {1, 2, 1}, "2": {1, 2, 3}, "3": {1, 2, 3}},
 		},
 	}
-	timeoutCert.Add("1", t1, []byte{0, 1, 2})
+	err := timeoutCert.Add("1", t1, []byte{0, 1, 2})
+	require.NoError(t, err)
 	require.Equal(t, []string{"1"}, timeoutCert.GetAuthors())
 	require.Equal(t, timeoutCert.Timeout.HighQc.VoteInfo.RoundNumber, voteInfo.RoundNumber)
 	// Add a new timeout vote, but with lower round
@@ -60,7 +61,8 @@ func TestTimeoutCert_Add(t *testing.T) {
 			Signatures:       map[string][]byte{"1": {1, 2, 1}, "2": {1, 2, 3}, "3": {1, 2, 3}},
 		},
 	}
-	timeoutCert.Add("2", t2, []byte{1, 2, 2})
+	err = timeoutCert.Add("2", t2, []byte{1, 2, 2})
+	require.NoError(t, err)
 	require.Contains(t, timeoutCert.GetAuthors(), "1")
 	require.Contains(t, timeoutCert.GetAuthors(), "2")
 	require.Equal(t, uint64(8), timeoutCert.Timeout.HighQc.VoteInfo.RoundNumber)
@@ -74,11 +76,15 @@ func TestTimeoutCert_Add(t *testing.T) {
 			Signatures:       map[string][]byte{"1": {1, 2, 1}, "2": {1, 2, 3}, "3": {1, 2, 3}},
 		},
 	}
-	timeoutCert.Add("3", t3, []byte{1, 2, 2})
+	err = timeoutCert.Add("3", t3, []byte{1, 2, 2})
+	require.NoError(t, err)
 	require.Contains(t, timeoutCert.GetAuthors(), "1")
 	require.Contains(t, timeoutCert.GetAuthors(), "2")
 	require.Contains(t, timeoutCert.GetAuthors(), "3")
 	require.Equal(t, uint64(9), timeoutCert.Timeout.HighQc.VoteInfo.RoundNumber)
+	// duplicate
+	err = timeoutCert.Add("3", t3, []byte{1, 2, 3})
+	require.ErrorContains(t, err, "already voted")
 }
 
 func TestTimeoutCert_Verify(t *testing.T) {

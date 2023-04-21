@@ -94,7 +94,9 @@ func (v *VoteRegister) InsertTimeoutVote(timeout *ab_consensus.TimeoutMsg, quoru
 		}
 	}
 	// append signature
-	v.timeoutCert.Add(timeout.Author, timeout.Timeout, timeout.Signature)
+	if err := v.timeoutCert.Add(timeout.Author, timeout.Timeout, timeout.Signature); err != nil {
+		return nil, fmt.Errorf("timeout cert add vote failed, %w", err)
+	}
 	// Check if TC can be formed
 	if uint32(len(v.timeoutCert.GetSignatures())) >= quorumInfo.GetQuorumThreshold() {
 		return v.timeoutCert, nil

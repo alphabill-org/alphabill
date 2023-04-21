@@ -265,6 +265,7 @@ func (x *ConsensusManager) generateUnicityCertificates(round uint64) (map[p.Syst
 	rootHash := ut.GetRootHash()
 	uSeal := &certificates.UnicitySeal{
 		RootChainRoundNumber: round,
+		Timestamp:            util.MakeTimestamp(),
 		Hash:                 rootHash,
 	}
 	if err = uSeal.Sign(x.selfID, x.signer); err != nil {

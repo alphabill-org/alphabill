@@ -656,6 +656,7 @@ func (n *Node) handleUnicityCertificate(ctx context.Context, uc *certificates.Un
 		}
 		return nil
 	}
+
 	// check for equivocation
 	if err := certificates.CheckNonEquivocatingCertificates(luc, uc); err != nil {
 		// this is not normal, log all info

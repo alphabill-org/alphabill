@@ -219,7 +219,7 @@ func NewRootGenesis(id string, s crypto.Signer, encPubKey []byte, partitions []*
 		roundMeta := &certificates.RootRoundInfo{
 			RoundNumber:       genesis.RootRound,
 			Epoch:             0,
-			Timestamp:         genesis.Timestamp,
+			Timestamp:         util.GenesisTime,
 			ParentRoundNumber: 0,
 			CurrentRootHash:   rootHash,
 		}

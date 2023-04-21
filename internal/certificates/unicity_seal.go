@@ -23,6 +23,8 @@ var (
 	ErrRootRoundInfoIsNil       = errors.New("root round info is nil")
 	ErrCommitInfoIsNil          = errors.New("commit info is nil")
 	ErrCommitInfoRoundInfoHash  = errors.New("invalid commit info, root round info hash is different")
+	errInvalidTimestamp         = errors.New("invalid timestamp")
+	errUnicitySealNoSignature   = errors.New("unicity seal is missing signature")
 )
 
 func (x *RootRoundInfo) Hash(hash gocrypto.Hash) []byte {
@@ -111,7 +113,7 @@ func (x *UnicitySeal) Sign(id string, signer crypto.Signer) error {
 	}
 	signature, err := signer.SignBytes(x.CommitInfo.Bytes())
 	if err != nil {
-		return err
+		return fmt.Errorf("sign failed, %w", err)
 	}
 	// initiate signatures
 	if x.Signatures == nil {
@@ -137,6 +139,9 @@ func (x *UnicitySeal) verify(verifiers map[string]crypto.Verifier) error {
 	hash := x.RootRoundInfo.Hash(gocrypto.SHA256)
 	if !bytes.Equal(hash, x.CommitInfo.RootRoundInfoHash) {
 		return ErrCommitInfoRoundInfoHash
+	}
+	if len(x.Signatures) == 0 {
+		return errUnicitySealNoSignature
 	}
 	//! todo: implement trust base, which should also contain quorum info
 	quorum := ((len(x.Signatures) * 2) / 3) + 1

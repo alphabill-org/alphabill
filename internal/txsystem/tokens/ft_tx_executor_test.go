@@ -25,9 +25,13 @@ import (
 )
 
 const (
-	invalidSymbolName = "♥♥♥♥♥♥♥♥ We ♥ Alphabill ♥♥♥♥♥♥♥♥"
-	validSymbolName   = "BETA"
-	validUnitID       = 0x0000000000000000000000000000000000000000000000000000000000000064
+	invalidSymbol   = "♥ Alphabill ♥"
+	invalidName     = "♥♥♥♥♥♥♥♥ We ♥ Alphabill ♥♥♥♥♥♥♥♥ We ♥ Alphabill ♥♥♥♥♥♥♥♥ We ♥ Alphabill ♥♥♥♥♥♥♥♥ We ♥ Alphabill ♥♥♥♥♥♥♥♥ We ♥ Alphabill ♥♥♥♥♥♥♥♥ We ♥ Alphabill♥♥"
+	invalidIconType = "♥♥♥♥♥♥♥♥ We ♥ Alphabill ♥♥♥♥♥♥♥♥"
+	validSymbol     = "BETA"
+	validName       = "Long name for BETA"
+	validIconType   = "image/png"
+	validUnitID     = 0x0000000000000000000000000000000000000000000000000000000000000064
 
 	existingTokenUnitID = 2
 	existingTokenValue  = 1000
@@ -60,19 +64,52 @@ func TestCreateFungibleTokenType_NotOk(t *testing.T) {
 			wantErrStr: "unit ID cannot be zero",
 		},
 		{
-			name: "symbol name exceeds the allowed maximum length",
+			name: "symbol length exceeds the allowed maximum",
 			tx: &createFungibleTokenTypeWrapper{
 				wrapper:    createWrapper(t, uint256.NewInt(validUnitID)),
-				attributes: &CreateFungibleTokenTypeAttributes{Symbol: invalidSymbolName},
+				attributes: &CreateFungibleTokenTypeAttributes{Symbol: invalidSymbol},
 			},
 			options:    defaultOpts(t),
-			wantErrStr: "symbol name exceeds the allowed maximum length of 64 bytes",
+			wantErrStr: "symbol length exceeds the allowed maximum of 16 bytes",
+		},
+		{
+			name: "name length exceeds the allowed maximum",
+			tx: &createFungibleTokenTypeWrapper{
+				wrapper:    createWrapper(t, uint256.NewInt(validUnitID)),
+				attributes: &CreateFungibleTokenTypeAttributes{Name: invalidName},
+			},
+			options:    defaultOpts(t),
+			wantErrStr: "name length exceeds the allowed maximum of 256 bytes",
+		},
+		{
+			name: "icon type length exceeds the allowed maximum",
+			tx: &createFungibleTokenTypeWrapper{
+				wrapper:    createWrapper(t, uint256.NewInt(validUnitID)),
+				attributes: &CreateFungibleTokenTypeAttributes{
+					Symbol: validSymbol,
+					Icon: &Icon{Type: invalidIconType, Data: test.RandomBytes(maxIconDataLength)},
+				},
+			},
+			options:    defaultOpts(t),
+			wantErrStr: "icon type length exceeds the allowed maximum of 64 bytes",
+		},
+		{
+			name: "icon data length exceeds the allowed maximum",
+			tx: &createFungibleTokenTypeWrapper{
+				wrapper:    createWrapper(t, uint256.NewInt(validUnitID)),
+				attributes: &CreateFungibleTokenTypeAttributes{
+					Symbol: validSymbol,
+					Icon: &Icon{Type: validIconType, Data: test.RandomBytes(maxIconDataLength + 1)},
+				},
+			},
+			options:    defaultOpts(t),
+			wantErrStr: "icon data length exceeds the allowed maximum of 64 KiB",
 		},
 		{
 			name: "decimal places > 8",
 			tx: &createFungibleTokenTypeWrapper{
 				wrapper:    createWrapper(t, uint256.NewInt(validUnitID)),
-				attributes: &CreateFungibleTokenTypeAttributes{Symbol: validSymbolName, DecimalPlaces: 9},
+				attributes: &CreateFungibleTokenTypeAttributes{Symbol: validSymbol, DecimalPlaces: 9},
 			},
 			options:    defaultOpts(t),
 			wantErrStr: "invalid decimal places. maximum allowed value 8, got 9",
@@ -81,7 +118,7 @@ func TestCreateFungibleTokenType_NotOk(t *testing.T) {
 			name: "unit with given ID exists",
 			tx: &createFungibleTokenTypeWrapper{
 				wrapper:    createWrapper(t, existingTokenTypeUnitID),
-				attributes: &CreateFungibleTokenTypeAttributes{Symbol: validSymbolName, DecimalPlaces: 5},
+				attributes: &CreateFungibleTokenTypeAttributes{Symbol: validSymbol, DecimalPlaces: 5},
 			},
 			options:    defaultOpts(t),
 			wantErrStr: fmt.Sprintf("unit %v exists", existingTokenTypeUnitID),
@@ -90,7 +127,7 @@ func TestCreateFungibleTokenType_NotOk(t *testing.T) {
 			name: "parent.decimals != tx.attributes.decimalPlaces",
 			tx: &createFungibleTokenTypeWrapper{
 				wrapper:    createWrapper(t, uint256.NewInt(validUnitID)),
-				attributes: &CreateFungibleTokenTypeAttributes{Symbol: validSymbolName, DecimalPlaces: 6, ParentTypeId: existingTokenTypeUnitIDBytes[:]},
+				attributes: &CreateFungibleTokenTypeAttributes{Symbol: validSymbol, DecimalPlaces: 6, ParentTypeId: existingTokenTypeUnitIDBytes[:]},
 			},
 			options:    defaultOpts(t),
 			wantErrStr: "invalid decimal places. allowed 5, got 6",
@@ -99,7 +136,7 @@ func TestCreateFungibleTokenType_NotOk(t *testing.T) {
 			name: "parent does not exist",
 			tx: &createFungibleTokenTypeWrapper{
 				wrapper:    createWrapper(t, uint256.NewInt(validUnitID)),
-				attributes: &CreateFungibleTokenTypeAttributes{Symbol: validSymbolName, DecimalPlaces: 6, ParentTypeId: util.Uint256ToBytes(uint256.NewInt(100))},
+				attributes: &CreateFungibleTokenTypeAttributes{Symbol: validSymbol, DecimalPlaces: 6, ParentTypeId: util.Uint256ToBytes(uint256.NewInt(100))},
 			},
 			options:    defaultOpts(t),
 			wantErrStr: fmt.Sprintf("item %X does not exist", util.Uint256ToBytes(uint256.NewInt(validUnitID))),
@@ -115,7 +152,9 @@ func TestCreateFungibleTokenType_NotOk(t *testing.T) {
 func TestCreateFungibleTokenType_CreateSingleType_Ok(t *testing.T) {
 	opts := defaultOpts(t)
 	attributes := &CreateFungibleTokenTypeAttributes{
-		Symbol:                   validSymbolName,
+		Symbol:                   validSymbol,
+		Name:                     validName,
+		Icon:                     &Icon{Type: validIconType, Data: []byte{1, 2, 3}},
 		ParentTypeId:             nil,
 		DecimalPlaces:            6,
 		SubTypeCreationPredicate: script.PredicateAlwaysFalse(),
@@ -138,6 +177,9 @@ func TestCreateFungibleTokenType_CreateSingleType_Ok(t *testing.T) {
 	require.IsType(t, &fungibleTokenTypeData{}, u.Data)
 	d := u.Data.(*fungibleTokenTypeData)
 	require.Equal(t, attributes.Symbol, d.symbol)
+	require.Equal(t, attributes.Name, d.name)
+	require.Equal(t, attributes.Icon.GetType(), d.icon.GetType())
+	require.Equal(t, attributes.Icon.GetData(), d.icon.GetData())
 	require.Equal(t, attributes.DecimalPlaces, d.decimalPlaces)
 	require.Equal(t, attributes.SubTypeCreationPredicate, d.subTypeCreationPredicate)
 	require.Equal(t, attributes.TokenCreationPredicate, d.tokenCreationPredicate)
@@ -149,7 +191,9 @@ func TestCreateFungibleTokenType_CreateTokenTypeChain_Ok(t *testing.T) {
 	opts := defaultOpts(t)
 
 	parentAttributes := &CreateFungibleTokenTypeAttributes{
-		Symbol:                   validSymbolName,
+		Symbol:                   validSymbol,
+		Name:                     validName,
+		Icon:                     &Icon{Type: validIconType, Data: []byte{1, 2, 3}},
 		ParentTypeId:             nil,
 		DecimalPlaces:            6,
 		SubTypeCreationPredicate: script.PredicateAlwaysTrue(),
@@ -164,7 +208,9 @@ func TestCreateFungibleTokenType_CreateTokenTypeChain_Ok(t *testing.T) {
 
 	childID := uint256.NewInt(20)
 	childAttributes := &CreateFungibleTokenTypeAttributes{
-		Symbol:                             validSymbolName + "_CHILD",
+		Symbol:                             validSymbol + "_CHILD",
+		Name:                               validName + "_CHILD",
+		Icon:                               &Icon{Type: validIconType, Data: []byte{1, 2, 3}},
 		ParentTypeId:                       util.Uint256ToBytes(parentID),
 		DecimalPlaces:                      6,
 		SubTypeCreationPredicate:           script.PredicateAlwaysFalse(),
@@ -190,6 +236,9 @@ func TestCreateFungibleTokenType_CreateTokenTypeChain_Ok(t *testing.T) {
 	require.IsType(t, &fungibleTokenTypeData{}, u.Data)
 	d := u.Data.(*fungibleTokenTypeData)
 	require.Equal(t, childAttributes.Symbol, d.symbol)
+	require.Equal(t, childAttributes.Name, d.name)
+	require.Equal(t, childAttributes.Icon.GetType(), d.icon.GetType())
+	require.Equal(t, childAttributes.Icon.GetData(), d.icon.GetData())
 	require.Equal(t, childAttributes.DecimalPlaces, d.decimalPlaces)
 	require.Equal(t, childAttributes.SubTypeCreationPredicate, d.subTypeCreationPredicate)
 	require.Equal(t, childAttributes.TokenCreationPredicate, d.tokenCreationPredicate)
@@ -201,7 +250,7 @@ func TestCreateFungibleTokenType_CreateTokenTypeChain_InvalidCreationPredicateSi
 	opts := defaultOpts(t)
 
 	parentAttributes := &CreateFungibleTokenTypeAttributes{
-		Symbol:                   validSymbolName,
+		Symbol:                   validSymbol,
 		ParentTypeId:             nil,
 		DecimalPlaces:            6,
 		SubTypeCreationPredicate: script.PredicateAlwaysTrue(),
@@ -217,7 +266,7 @@ func TestCreateFungibleTokenType_CreateTokenTypeChain_InvalidCreationPredicateSi
 	parentIDBytes := parentID.Bytes32()
 	childID := uint256.NewInt(20)
 	childAttributes := &CreateFungibleTokenTypeAttributes{
-		Symbol:                             validSymbolName + "_CHILD",
+		Symbol:                             validSymbol + "_CHILD",
 		ParentTypeId:                       parentIDBytes[:],
 		DecimalPlaces:                      6,
 		SubTypeCreationPredicate:           script.PredicateAlwaysFalse(),
@@ -900,6 +949,8 @@ func initState(t *testing.T) *rma.Tree {
 	require.NoError(t, err)
 	err = state.AtomicUpdate(rma.AddItem(existingTokenTypeUnitID, script.PredicateAlwaysTrue(), &fungibleTokenTypeData{
 		symbol:                   "ALPHA",
+		name:                     "A long name for ALPHA",
+		icon:                     &Icon{Type: validIconType, Data: test.RandomBytes(10)},
 		parentTypeId:             uint256.NewInt(0),
 		decimalPlaces:            5,
 		subTypeCreationPredicate: script.PredicateAlwaysTrue(),
@@ -909,6 +960,8 @@ func initState(t *testing.T) *rma.Tree {
 	require.NoError(t, err)
 	err = state.AtomicUpdate(rma.AddItem(existingTokenTypeUnitID2, script.PredicateAlwaysTrue(), &fungibleTokenTypeData{
 		symbol:                   "ALPHA2",
+		name:                     "A long name for ALPHA2",
+		icon:                     &Icon{Type: validIconType, Data: test.RandomBytes(10)},
 		parentTypeId:             uint256.NewInt(0),
 		decimalPlaces:            5,
 		subTypeCreationPredicate: script.PredicateAlwaysTrue(),

@@ -3,7 +3,9 @@ package cmd
 import (
 	"bytes"
 	"fmt"
+	"mime"
 	"os"
+	"path/filepath"
 	"sort"
 	"strconv"
 
@@ -19,6 +21,8 @@ import (
 
 const (
 	cmdFlagSymbol                     = "symbol"
+	cmdFlagName                       = "name"
+	cmdFlagIconFile                   = "icon-file"
 	cmdFlagDecimals                   = "decimals"
 	cmdFlagParentType                 = "parent-type"
 	cmdFlagSybTypeClause              = "subtype-clause"
@@ -39,7 +43,10 @@ const (
 	predicateTrue  = "true"
 	predicatePtpkh = "ptpkh"
 
-	maxBinaryFile64Kb = 64 * 1024
+	iconFileExtSvgz     = ".svgz"
+	iconFileExtSvgzType = "image/svg+xml; encoding=gzip"
+
+	maxBinaryFile64KiB = 64 * 1024
 	maxDecimalPlaces  = 8
 )
 
@@ -81,7 +88,10 @@ func addCommonAccountFlags(cmd *cobra.Command) *cobra.Command {
 }
 
 func addCommonTypeFlags(cmd *cobra.Command) *cobra.Command {
-	cmd.Flags().String(cmdFlagSymbol, "", "token symbol (mandatory)")
+	cmd.Flags().String(cmdFlagSymbol, "", "symbol (short name) of the token type (mandatory)")
+	cmd.Flags().String(cmdFlagName, "", "full name of the token type (optional)")
+	cmd.Flags().String(cmdFlagIconFile, "", "icon file name for the token type (optional)")
+
 	err := cmd.MarkFlagRequired(cmdFlagSymbol)
 	if err != nil {
 		return nil
@@ -128,6 +138,18 @@ func execTokenCmdNewTypeFungible(cmd *cobra.Command, config *walletConfig) error
 	if err != nil {
 		return err
 	}
+	name, err := cmd.Flags().GetString(cmdFlagName)
+	if err != nil {
+		return err
+	}
+	iconFilePath, err := cmd.Flags().GetString(cmdFlagIconFile)
+	if err != nil {
+		return err
+	}
+	icon, err := readIconFile(iconFilePath)
+	if err != nil {
+		return err
+	}
 	decimals, err := cmd.Flags().GetUint32(cmdFlagDecimals)
 	if err != nil {
 		return err
@@ -154,6 +176,8 @@ func execTokenCmdNewTypeFungible(cmd *cobra.Command, config *walletConfig) error
 	}
 	a := &ttxs.CreateFungibleTokenTypeAttributes{
 		Symbol:                             symbol,
+		Name:                               name,
+		Icon:                               icon,
 		DecimalPlaces:                      decimals,
 		ParentTypeId:                       parentType,
 		SubTypeCreationPredicateSignatures: nil, // will be filled by the wallet
@@ -202,6 +226,18 @@ func execTokenCmdNewTypeNonFungible(cmd *cobra.Command, config *walletConfig) er
 	if err != nil {
 		return err
 	}
+	name, err := cmd.Flags().GetString(cmdFlagName)
+	if err != nil {
+		return err
+	}
+	iconFilePath, err := cmd.Flags().GetString(cmdFlagIconFile)
+	if err != nil {
+		return err
+	}
+	icon, err := readIconFile(iconFilePath)
+	if err != nil {
+		return err
+	}
 	am := tw.GetAccountManager()
 	parentType, creationInputs, err := readParentTypeInfo(cmd, am)
 	if err != nil {
@@ -225,6 +261,8 @@ func execTokenCmdNewTypeNonFungible(cmd *cobra.Command, config *walletConfig) er
 	}
 	a := &ttxs.CreateNonFungibleTokenTypeAttributes{
 		Symbol:                             symbol,
+		Name:                               name,
+		Icon:                               icon,
 		ParentTypeId:                       parentType,
 		SubTypeCreationPredicateSignatures: nil, // will be filled by the wallet
 		SubTypeCreationPredicate:           subTypeCreationPredicate,
@@ -330,6 +368,7 @@ func tokenCmdNewTokenNonFungible(config *walletConfig) *cobra.Command {
 	if err != nil {
 		return nil
 	}
+	cmd.Flags().String(cmdFlagName, "", "name of the token (optional)")
 	cmd.Flags().String(cmdFlagTokenURI, "", "URI to associated resource, ie. jpg file on IPFS")
 	cmd.Flags().BytesHex(cmdFlagTokenData, nil, "custom data (hex)")
 	cmd.Flags().String(cmdFlagTokenDataFile, "", "data file (max 64Kb) path")
@@ -360,6 +399,10 @@ func execTokenCmdNewTokenNonFungible(cmd *cobra.Command, config *walletConfig) e
 	if err != nil {
 		return err
 	}
+	name, err := cmd.Flags().GetString(cmdFlagName)
+	if err != nil {
+		return err
+	}
 	uri, err := cmd.Flags().GetString(cmdFlagTokenURI)
 	if err != nil {
 		return err
@@ -380,6 +423,7 @@ func execTokenCmdNewTokenNonFungible(cmd *cobra.Command, config *walletConfig) e
 	a := &ttxs.MintNonFungibleTokenAttributes{
 		Bearer:                           nil, // will be set in the wallet
 		NftType:                          typeId,
+		Name:                             name,
 		Uri:                              uri,
 		Data:                             data,
 		DataUpdatePredicate:              dataUpdatePredicate,
@@ -867,7 +911,7 @@ func readNFTData(cmd *cobra.Command, required bool) ([]byte, error) {
 		return nil, err
 	}
 	if len(dataFilePath) > 0 {
-		data, err = readDataFile(dataFilePath)
+		data, err = readFile(dataFilePath, cmdFlagTokenDataFile, maxBinaryFile64KiB)
 		if err != nil {
 			return nil, err
 		}
@@ -887,18 +931,42 @@ func getHexFlag(cmd *cobra.Command, flag string) ([]byte, error) {
 	return res, err
 }
 
-func readDataFile(path string) ([]byte, error) {
+func readIconFile(iconFilePath string) (*ttxs.Icon, error) {
+	if len(iconFilePath) == 0 {
+		return nil, nil
+	}
+	icon := &ttxs.Icon{}
+
+	ext := filepath.Ext(iconFilePath)
+	if len(ext) == 0 {
+		return nil, fmt.Errorf("%s read error: missing file extension", cmdFlagIconFile)
+	}
+
+	mime.AddExtensionType(iconFileExtSvgz, iconFileExtSvgzType)
+	icon.Type = mime.TypeByExtension(ext)
+	if len(icon.Type) == 0 {
+		return nil, fmt.Errorf("%s read error: could not determine MIME type from file extension", cmdFlagIconFile)
+	}
+
+	data, err := readFile(iconFilePath, cmdFlagIconFile, maxBinaryFile64KiB)
+	if err != nil {
+		return nil, err
+	}
+	icon.Data = data
+	return icon, nil
+}
+
+func readFile(path string, flag string, sizeLimit int64) ([]byte, error) {
 	size, err := util.GetFileSize(path)
 	if err != nil {
-		return nil, fmt.Errorf("data-file read error: %w", err)
+		return nil, fmt.Errorf("%s read error: %w", flag, err)
 	}
-	// verify file max 64KB
-	if size > maxBinaryFile64Kb {
-		return nil, fmt.Errorf("data-file read error: file size over 64Kb limit")
+	if size > sizeLimit {
+		return nil, fmt.Errorf("%s read error: file size over %vKiB limit", flag, sizeLimit / 1024)
 	}
 	data, err := os.ReadFile(path)
 	if err != nil {
-		return nil, fmt.Errorf("data-file read error: %w", err)
+		return nil, fmt.Errorf("%s read error: %w", flag, err)
 	}
 	return data, nil
 }

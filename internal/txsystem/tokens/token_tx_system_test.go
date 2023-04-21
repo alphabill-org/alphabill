@@ -4,9 +4,7 @@ import (
 	gocrypto "crypto"
 	"fmt"
 	"hash"
-	"math/rand"
 	"testing"
-	"time"
 
 	"github.com/alphabill-org/alphabill/internal/crypto"
 	hasher "github.com/alphabill-org/alphabill/internal/hash"
@@ -30,6 +28,7 @@ var (
 	parent2Identifier = uint256.NewInt(2)
 	unitIdentifier    = uint256.NewInt(10)
 	nftTypeID         = test.RandomBytes(32)
+	nftName           = fmt.Sprintf("Long name for %v", unitIdentifier)
 )
 
 func TestNewTokenTxSystem_NilSystemIdentifier(t *testing.T) {
@@ -386,8 +385,8 @@ func TestRevertTransaction_Ok(t *testing.T) {
 	require.ErrorContains(t, err, fmt.Sprintf("item %X does not exist", util.Uint256ToBytes(unitIdentifier)))
 }
 
-func TestExecuteCreateNFTType_InvalidSymbolName(t *testing.T) {
-	s := "♥♥♥♥♥♥♥♥ We ♥ Alphabill ♥♥♥♥♥♥♥♥"
+func TestExecuteCreateNFTType_InvalidSymbolLength(t *testing.T) {
+	s := "♥ Alphabill ♥"
 	txs := newTokenTxSystem(t)
 	tx := testtransaction.NewGenericTransaction(
 		t,
@@ -404,7 +403,53 @@ func TestExecuteCreateNFTType_InvalidSymbolName(t *testing.T) {
 		}),
 		testtransaction.WithFeeProof(script.PredicateArgumentEmpty()),
 	)
-	require.ErrorContains(t, txs.Execute(tx), ErrStrInvalidSymbolName)
+	require.ErrorContains(t, txs.Execute(tx), ErrStrInvalidSymbolLength)
+}
+
+func TestExecuteCreateNFTType_InvalidNameLength(t *testing.T) {
+	n := "♥♥♥♥♥♥♥♥ We ♥ Alphabill ♥♥♥♥♥♥♥♥ We ♥ Alphabill ♥♥♥♥♥♥♥♥ We ♥ Alphabill ♥♥♥♥♥♥♥♥ We ♥ Alphabill ♥♥♥♥♥♥♥♥ We ♥ Alphabill ♥♥♥♥♥♥♥♥ We ♥ Alphabill♥♥"
+	txs := newTokenTxSystem(t)
+	tx := testtransaction.NewGenericTransaction(
+		t,
+		txs.ConvertTx,
+		testtransaction.WithUnitId(util.Uint256ToBytes(unitIdentifier)),
+		testtransaction.WithSystemID(DefaultTokenTxSystemIdentifier),
+		testtransaction.WithAttributes(&CreateNonFungibleTokenTypeAttributes{
+			Symbol: symbol,
+			Name: n,
+		}),
+	)
+	require.ErrorContains(t, txs.Execute(tx), ErrStrInvalidNameLength)
+}
+
+func TestExecuteCreateNFTType_InvalidIconTypeLength(t *testing.T) {
+	txs := newTokenTxSystem(t)
+	tx := testtransaction.NewGenericTransaction(
+		t,
+		txs.ConvertTx,
+		testtransaction.WithUnitId(util.Uint256ToBytes(unitIdentifier)),
+		testtransaction.WithSystemID(DefaultTokenTxSystemIdentifier),
+		testtransaction.WithAttributes(&CreateNonFungibleTokenTypeAttributes{
+			Symbol: symbol,
+			Icon: &Icon{Type: invalidIconType, Data: []byte{1, 2, 3}},
+		}),
+	)
+	require.ErrorContains(t, txs.Execute(tx), ErrStrInvalidIconTypeLength)
+}
+
+func TestExecuteCreateNFTType_InvalidIconDataLength(t *testing.T) {
+	txs := newTokenTxSystem(t)
+	tx := testtransaction.NewGenericTransaction(
+		t,
+		txs.ConvertTx,
+		testtransaction.WithUnitId(util.Uint256ToBytes(unitIdentifier)),
+		testtransaction.WithSystemID(DefaultTokenTxSystemIdentifier),
+		testtransaction.WithAttributes(&CreateNonFungibleTokenTypeAttributes{
+			Symbol: symbol,
+			Icon: &Icon{Type: validIconType, Data: test.RandomBytes(maxIconDataLength + 1)},
+		}),
+	)
+	require.ErrorContains(t, txs.Execute(tx), ErrStrInvalidIconDataLength)
 }
 
 func TestMintNFT_Ok(t *testing.T) {
@@ -438,6 +483,7 @@ func TestMintNFT_Ok(t *testing.T) {
 		testtransaction.WithAttributes(&MintNonFungibleTokenAttributes{
 			Bearer:                           script.PredicateAlwaysTrue(),
 			NftType:                          nftTypeID,
+			Name:                             nftName,
 			Uri:                              validNFTURI,
 			Data:                             []byte{10},
 			DataUpdatePredicate:              script.PredicateAlwaysTrue(),
@@ -459,6 +505,7 @@ func TestMintNFT_Ok(t *testing.T) {
 	d := u.Data.(*nonFungibleTokenData)
 	require.Equal(t, zeroSummaryValue, d.Value())
 	require.Equal(t, uint256.NewInt(0).SetBytes(nftTypeID), d.nftType)
+	require.Equal(t, nftName, d.name)
 	require.Equal(t, []byte{10}, d.data)
 	require.Equal(t, validNFTURI, d.uri)
 	require.Equal(t, script.PredicateAlwaysTrue(), d.dataUpdatePredicate)
@@ -557,7 +604,7 @@ func TestMintNFT_NFTTypeIsZero(t *testing.T) {
 	require.ErrorContains(t, txs.Execute(tx), fmt.Sprintf("item %X does not exist", idBytes))
 }
 
-func TestMintNFT_URILengthIsInvalid(t *testing.T) {
+func TestMintNFT_NameLengthIsInvalid(t *testing.T) {
 	txs := newTokenTxSystem(t)
 	tx := testtransaction.NewGenericTransaction(
 		t,
@@ -565,7 +612,7 @@ func TestMintNFT_URILengthIsInvalid(t *testing.T) {
 		testtransaction.WithUnitId(unitID),
 		testtransaction.WithSystemID(DefaultTokenTxSystemIdentifier),
 		testtransaction.WithAttributes(&MintNonFungibleTokenAttributes{
-			Uri: randomString(4097),
+			Name: test.RandomString(maxNameLength + 1),
 		}),
 		testtransaction.WithClientMetadata(&txsystem.ClientMetadata{
 			Timeout:           1000,
@@ -574,14 +621,21 @@ func TestMintNFT_URILengthIsInvalid(t *testing.T) {
 		}),
 		testtransaction.WithFeeProof(script.PredicateArgumentEmpty()),
 	)
-	require.ErrorContains(t, txs.Execute(tx), "URI exceeds the maximum allowed size of 4096 KB")
+	require.ErrorContains(t, txs.Execute(tx), ErrStrInvalidNameLength)
 }
 
-func randomString(length int) string {
-	rand.Seed(time.Now().UnixNano())
-	b := make([]byte, length)
-	rand.Read(b)
-	return fmt.Sprintf("%x", b)[:length]
+func TestMintNFT_URILengthIsInvalid(t *testing.T) {
+	txs := newTokenTxSystem(t)
+	tx := testtransaction.NewGenericTransaction(
+		t,
+		txs.ConvertTx,
+		testtransaction.WithUnitId(unitID),
+		testtransaction.WithSystemID(DefaultTokenTxSystemIdentifier),
+		testtransaction.WithAttributes(&MintNonFungibleTokenAttributes{
+			Uri: test.RandomString(4097),
+		}),
+	)
+	require.ErrorContains(t, txs.Execute(tx), "URI exceeds the maximum allowed size of 4096 KB")
 }
 
 func TestMintNFT_URIFormatIsInvalid(t *testing.T) {
@@ -885,6 +939,7 @@ func TestTransferNFT_Ok(t *testing.T) {
 	d := u.Data.(*nonFungibleTokenData)
 	require.Equal(t, zeroSummaryValue, d.Value())
 	require.Equal(t, uint256.NewInt(0).SetBytes(nftTypeID), d.nftType)
+	require.Equal(t, nftName, d.name)
 	require.Equal(t, []byte{10}, d.data)
 	require.Equal(t, validNFTURI, d.uri)
 	require.Equal(t, script.PredicateAlwaysTrue(), d.dataUpdatePredicate)
@@ -1139,6 +1194,7 @@ func TestUpdateNFT_Ok(t *testing.T) {
 	d := u.Data.(*nonFungibleTokenData)
 	require.Equal(t, zeroSummaryValue, d.Value())
 	require.Equal(t, uint256.NewInt(0).SetBytes(nftTypeID), d.nftType)
+	require.Equal(t, nftName, d.name)
 	require.Equal(t, updatedData, d.data)
 	require.Equal(t, validNFTURI, d.uri)
 	require.Equal(t, script.PredicateAlwaysTrue(), d.dataUpdatePredicate)
@@ -1180,6 +1236,7 @@ func createNFTTypeAndMintToken(t *testing.T, txs *txsystem.GenericTxSystem, nftT
 		testtransaction.WithAttributes(&MintNonFungibleTokenAttributes{
 			Bearer:                           script.PredicateAlwaysTrue(),
 			NftType:                          nftTypeID,
+			Name:                             nftName,
 			Uri:                              validNFTURI,
 			Data:                             []byte{10},
 			DataUpdatePredicate:              script.PredicateAlwaysTrue(),

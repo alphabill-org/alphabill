@@ -2,7 +2,11 @@ package util
 
 import "time"
 
+// GenesisTime min timestamp Thursday, April 20, 2023 6:11:24 AM GMT+00:00
+const GenesisTime uint64 = 1681971084
+
+// MakeTimestamp returns timestamp in seconds from epoch
 func MakeTimestamp() uint64 {
-	// In milliseconds will set the last three digits to 0
-	return uint64(time.Now().UnixMilli())
+	// Epoch in seconds
+	return uint64(time.Now().Unix())
 }

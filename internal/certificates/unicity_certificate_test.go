@@ -8,7 +8,6 @@ import (
 	"github.com/alphabill-org/alphabill/internal/util"
 
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
-
 	"github.com/stretchr/testify/require"
 
 	"github.com/alphabill-org/alphabill/internal/crypto"

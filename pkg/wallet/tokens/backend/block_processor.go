@@ -62,6 +62,8 @@ func (p *blockProcessor) processTx(inTx *txsystem.Transaction, b *block.Block) e
 			ID:                       id,
 			ParentTypeID:             tx.ParentTypeID(),
 			Symbol:                   tx.Symbol(),
+			Name:                     tx.Name(),
+			Icon:                     tx.Icon(),
 			DecimalPlaces:            tx.DecimalPlaces(),
 			SubTypeCreationPredicate: tx.SubTypeCreationPredicate(),
 			TokenCreationPredicate:   tx.TokenCreationPredicate(),
@@ -186,6 +188,8 @@ func (p *blockProcessor) processTx(inTx *txsystem.Transaction, b *block.Block) e
 			ID:                       id,
 			ParentTypeID:             tx.ParentTypeID(),
 			Symbol:                   tx.Symbol(),
+			Name:                     tx.Name(),
+			Icon:                     tx.Icon(),
 			SubTypeCreationPredicate: tx.SubTypeCreationPredicate(),
 			TokenCreationPredicate:   tx.TokenCreationPredicate(),
 			InvariantPredicate:       tx.InvariantPredicate(),
@@ -203,6 +207,7 @@ func (p *blockProcessor) processTx(inTx *txsystem.Transaction, b *block.Block) e
 			Kind:                   tokenType.Kind,
 			TypeID:                 tx.NFTTypeID(),
 			Symbol:                 tokenType.Symbol,
+			NftName:                tx.Name(),
 			NftURI:                 tx.URI(),
 			NftData:                tx.Data(),
 			NftDataUpdatePredicate: tx.DataUpdatePredicate(),
@@ -227,7 +232,7 @@ func (p *blockProcessor) processTx(inTx *txsystem.Transaction, b *block.Block) e
 		token.TxHash = txHash
 		return p.saveToken(token, proof)
 	default:
-		p.log.Error("received unknown token transaction type, skipped processing:", tx)
+		p.log.Error("received unknown token transaction type, skipped processing:", fmt.Sprintf("data type: %T", tx))
 		return nil
 	}
 }

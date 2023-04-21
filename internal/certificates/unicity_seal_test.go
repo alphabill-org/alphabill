@@ -125,7 +125,7 @@ func TestUnicitySeal_IsValid(t *testing.T) {
 				Signatures:    nil,
 			},
 			verifier: map[string]crypto.Verifier{"test": verifier},
-			wantErr:  "unicity seal is not valid, less than quorum signatures 1/0",
+			wantErr:  "unicity seal is missing signature",
 		},
 		{
 			name: "Round creation time is 0",
@@ -146,6 +146,16 @@ func TestUnicitySeal_IsValid(t *testing.T) {
 			},
 			verifier: map[string]crypto.Verifier{"test": verifier},
 			wantErr:  ErrRootInfoInvalidRound.Error(),
+		},
+		{
+			name: "Timestamp is missing",
+			seal: &UnicitySeal{
+				RootRoundInfo: NewDummyRootRoundInfo(1, WithTimestamp(0)),
+				CommitInfo:    NewDummyCommitInfo(gocrypto.SHA256, NewDummyRootRoundInfo(1, WithTimestamp(0)), []byte{0, 1, 2}),
+				Signatures:    nil,
+			},
+			verifier: map[string]crypto.Verifier{"test": verifier},
+			wantErr:  "round creation time not set",
 		},
 	}
 	for _, tt := range tests {
@@ -208,7 +218,7 @@ func TestVerify_SignatureIsNil(t *testing.T) {
 	}
 	verifiers := map[string]crypto.Verifier{"test": verifier}
 	err := seal.verify(verifiers)
-	require.ErrorContains(t, err, "unicity seal is not valid, less than quorum signatures 1/0")
+	require.ErrorContains(t, err, "unicity seal is missing signature")
 }
 
 func TestVerify_SignatureUnknownSigner(t *testing.T) {

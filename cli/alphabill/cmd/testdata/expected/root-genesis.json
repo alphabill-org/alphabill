@@ -89,15 +89,15 @@
         "unicity_seal": {
           "root_round_info": {
             "round_number": 1,
-            "timestamp": 1668208271000,
+            "timestamp": 1681971084,
             "current_root_hash": "ML3JMGuE5r3UkiApNeiLocndMD+A22gfjpsUvtYzZlo="
           },
           "commit_info": {
-            "root_round_info_hash": "6j6sA7fWIg/RQKufC6HhMR4+6eWTF93jBVLZ+Q0fouQ=",
+            "root_round_info_hash": "y3G1bqhWH9jp008qltWA7hf0Wf6Z43FBRxUVfAueXaM=",
             "root_hash": "ML3JMGuE5r3UkiApNeiLocndMD+A22gfjpsUvtYzZlo="
           },
           "signatures": {
-            "16Uiu2HAm87wYZyJtpPuPovXRDrMpK5tWTGyLz2GKkQL8sYHD9pmm": "JdgTCdcmzTZPrqvm7t5Dur/Z79ikVr0jWGdeI/6IgCNKwnwamiwo6FatqvqOLpQ02+qBiKeIWh6Bux+WQGSjLAA="
+            "16Uiu2HAm87wYZyJtpPuPovXRDrMpK5tWTGyLz2GKkQL8sYHD9pmm": "ZwgQLrrSuGfYvKbmrCY1wVYp7rR45rZHcqyxhjE9xRFPvQK7drL8/9SzobeD/unwwEjWwhcg8J5nTwVESn5cRQE="
           }
         }
       },

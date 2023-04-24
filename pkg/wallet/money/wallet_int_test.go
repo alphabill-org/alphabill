@@ -47,8 +47,7 @@ func TestCollectDustTimeoutReached(t *testing.T) {
 		Owner: script.PredicateAlwaysTrue(),
 	}
 	network := startAlphabillPartition(t, initialBill)
-	addr := "localhost:9544"
-	startRPCServer(t, network, addr)
+	addr := startRPCServer(t, network)
 	serverService := testserver.NewTestAlphabillServiceServer()
 	server, _ := testserver.StartServer(serverService)
 	t.Cleanup(server.GracefulStop)
@@ -153,8 +152,7 @@ func TestCollectDustInMultiAccountWallet(t *testing.T) {
 		Owner: script.PredicateAlwaysTrue(),
 	}
 	network := startAlphabillPartition(t, initialBill)
-	addr := "localhost:9544"
-	startRPCServer(t, network, addr)
+	addr := startRPCServer(t, network)
 
 	// start wallet backend
 	restAddr := "localhost:9545"
@@ -258,8 +256,7 @@ func TestCollectDustInMultiAccountWalletWithKeyFlag(t *testing.T) {
 		Owner: script.PredicateAlwaysTrue(),
 	}
 	network := startAlphabillPartition(t, initialBill)
-	addr := "localhost:9544"
-	startRPCServer(t, network, addr)
+	addr := startRPCServer(t, network)
 
 	// start wallet backend
 	restAddr := "localhost:9545"
@@ -390,9 +387,9 @@ func startAlphabillPartition(t *testing.T, initialBill *moneytx.InitialBill) *te
 	return network
 }
 
-func startRPCServer(t *testing.T, network *testpartition.AlphabillPartition, addr string) {
+func startRPCServer(t *testing.T, network *testpartition.AlphabillPartition) (addr string) {
 	// start rpc server for network.Nodes[0]
-	listener, err := net.Listen("tcp", addr)
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err)
 
 	grpcServer, err := initRPCServer(network.Nodes[0].Node)
@@ -402,16 +399,19 @@ func startRPCServer(t *testing.T, network *testpartition.AlphabillPartition, add
 		grpcServer.GracefulStop()
 	})
 	go func() {
-		_ = grpcServer.Serve(listener)
+		require.NoError(t, grpcServer.Serve(listener), "gRPC server exited with error")
 	}()
+
+	return listener.Addr().String()
 }
 
 func initRPCServer(node *partition.Node) (*grpc.Server, error) {
-	grpcServer := grpc.NewServer()
 	rpcServer, err := rpc.NewGRPCServer(node)
 	if err != nil {
 		return nil, err
 	}
+
+	grpcServer := grpc.NewServer()
 	alphabill.RegisterAlphabillServiceServer(grpcServer, rpcServer)
 	return grpcServer, nil
 }

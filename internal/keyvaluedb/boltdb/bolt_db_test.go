@@ -59,7 +59,6 @@ func TestMemDB_TestIsEmpty(t *testing.T) {
 	empty, err = keyvaluedb.IsEmpty(nil)
 	require.ErrorContains(t, err, "db is nil")
 	require.True(t, empty)
-
 }
 
 func TestBoltDB_InvalidPath(t *testing.T) {
@@ -157,6 +156,8 @@ func TestBoltDB_Delete(t *testing.T) {
 
 func TestBoltDB_WriteReadComplexStruct(t *testing.T) {
 	db := initBoltDB(t)
+	require.NotNil(t, db)
+	require.True(t, isEmpty(t, db))
 	// write a complex struct
 	require.NoError(t, db.Write([]byte("certificates"), unicityMap))
 	ucs := make(map[p.SystemIdentifier]*certificates.UnicityCertificate)

@@ -142,11 +142,13 @@ func TestMemDB_WriteReadComplexStruct(t *testing.T) {
 	db := New()
 	require.NotNil(t, db)
 	require.True(t, isEmpty(t, db))
+	// write a complex struct
 	require.NoError(t, db.Write([]byte("certificates"), unicityMap))
 	ucs := make(map[p.SystemIdentifier]*certificates.UnicityCertificate)
 	present, err := db.Read([]byte("certificates"), &ucs)
 	require.NoError(t, err)
 	require.True(t, present)
+	// check that initial state was saved as intended
 	require.Len(t, ucs, 1)
 	require.Contains(t, ucs, sysID)
 	uc, _ := ucs[sysID]
@@ -175,4 +177,28 @@ func TestMemDB_StartTxNil(t *testing.T) {
 	tx, err := db.StartTx()
 	require.Error(t, err)
 	require.Nil(t, tx)
+}
+
+func TestBoltDB_TestReadAndWriteIterate(t *testing.T) {
+	db := New()
+	require.NotNil(t, db)
+	require.True(t, isEmpty(t, db))
+	var value uint64 = 1
+	require.NoError(t, db.Write([]byte("integer"), value))
+	require.NoError(t, db.Write([]byte("test"), "d1"))
+	require.NoError(t, db.Write([]byte("test2"), "d2"))
+	require.False(t, isEmpty(t, db))
+	var back uint64
+	found, err := db.Read([]byte("integer"), &back)
+	require.NoError(t, err)
+	require.True(t, found)
+	itr := db.First()
+	require.True(t, itr.Valid())
+	require.Equal(t, []byte("integer"), itr.Key())
+	require.NoError(t, itr.Close())
+	require.NoError(t, db.Write([]byte("test3"), "d3"))
+	var data string
+	found, err = db.Read([]byte("test3"), &data)
+	require.NoError(t, err)
+	require.True(t, found)
 }

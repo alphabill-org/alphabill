@@ -14,7 +14,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
 	"golang.org/x/sync/semaphore"
@@ -24,6 +23,8 @@ import (
 	"github.com/alphabill-org/alphabill/internal/script"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/internal/txsystem/tokens"
+	"github.com/alphabill-org/alphabill/pkg/wallet"
+	"github.com/alphabill-org/alphabill/pkg/wallet/broker"
 )
 
 type dataSource interface {
@@ -40,6 +41,7 @@ type restAPI struct {
 	db              dataSource
 	sendTransaction func(context.Context, *txsystem.Transaction) (*txsystem.TransactionResponse, error)
 	convertTx       func(tx *txsystem.Transaction) (txsystem.GenericTransaction, error)
+	streamSSE       func(ctx context.Context, owner broker.PubKey, w http.ResponseWriter) error
 	logErr          func(a ...any)
 }
 
@@ -68,6 +70,7 @@ func (api *restAPI) endpoints() http.Handler {
 	apiV1.HandleFunc("/kinds/{kind}/types", api.listTypes).Methods("GET", "OPTIONS")
 	apiV1.HandleFunc("/round-number", api.getRoundNumber).Methods("GET", "OPTIONS")
 	apiV1.HandleFunc("/transactions/{pubkey}", api.postTransactions).Methods("POST", "OPTIONS")
+	apiV1.HandleFunc("/events/{pubkey}/subscribe", api.subscribeEvents).Methods("GET", "OPTIONS")
 	apiV1.HandleFunc("/units/{unitId}/transactions/{txHash}/proof", api.getTxProof).Methods("GET", "OPTIONS")
 
 	apiV1.Handle("/swagger/{.*}", http.StripPrefix("/api/v1/", http.FileServer(http.FS(swaggerFiles)))).Methods("GET", "OPTIONS")
@@ -204,6 +207,19 @@ func (api *restAPI) getRoundNumber(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	api.writeResponse(w, RoundNumberResponse{RoundNumber: rn})
+}
+
+func (api *restAPI) subscribeEvents(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	ownerPK, err := parsePubKey(vars["pubkey"], true)
+	if err != nil {
+		api.invalidParamResponse(w, "pubkey", err)
+		return
+	}
+
+	if err := api.streamSSE(r.Context(), broker.PubKey(ownerPK), w); err != nil {
+		api.writeErrorResponse(w, fmt.Errorf("event streaming failed: %w", err))
+	}
 }
 
 func (api *restAPI) postTransactions(w http.ResponseWriter, r *http.Request) {

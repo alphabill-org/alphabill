@@ -13,13 +13,15 @@ import (
 	txutil "github.com/alphabill-org/alphabill/internal/txsystem/util"
 	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/alphabill-org/alphabill/pkg/wallet"
+	"github.com/alphabill-org/alphabill/pkg/wallet/broker"
 	"github.com/alphabill-org/alphabill/pkg/wallet/log"
 )
 
 type blockProcessor struct {
-	store Storage
-	txs   txsystem.TransactionSystem
-	log   log.Logger
+	store  Storage
+	txs    txsystem.TransactionSystem
+	notify func(bearerPredicate []byte, msg broker.Message)
+	log    log.Logger
 }
 
 func (p *blockProcessor) ProcessBlock(ctx context.Context, b *block.Block) error {
@@ -195,6 +197,7 @@ func (p *blockProcessor) saveToken(unit *TokenUnit, proof *wallet.Proof) error {
 	if err := p.store.SaveToken(unit, proof); err != nil {
 		return fmt.Errorf("failed to store token: %w", err)
 	}
+	p.notify(unit.Owner, unit)
 	return nil
 }
 

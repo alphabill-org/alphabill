@@ -10,14 +10,15 @@ import (
 	"time"
 
 	"github.com/ainvaltin/httpsrv"
-	"github.com/alphabill-org/alphabill/pkg/wallet"
 	"golang.org/x/sync/errgroup"
 
 	"github.com/alphabill-org/alphabill/internal/rpc/alphabill"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/internal/txsystem/tokens"
 	"github.com/alphabill-org/alphabill/pkg/client"
+	"github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/alphabill-org/alphabill/pkg/wallet/blocksync"
+	"github.com/alphabill-org/alphabill/pkg/wallet/broker"
 	"github.com/alphabill-org/alphabill/pkg/wallet/log"
 )
 
@@ -70,12 +71,13 @@ func Run(ctx context.Context, cfg Configuration) error {
 		return fmt.Errorf("failed to create token tx system: %w", err)
 	}
 	abc := cfg.Client()
+	msgBroker := broker.NewBroker()
 
 	g, ctx := errgroup.WithContext(ctx)
 
 	g.Go(func() error {
 		logger := cfg.Logger()
-		bp := &blockProcessor{store: db, txs: txs, log: logger}
+		bp := &blockProcessor{store: db, txs: txs, notify: msgBroker.Notify, log: logger}
 		// we act as if all errors returned by block sync are recoverable ie we
 		// just retry in a loop until ctx is cancelled
 		for {
@@ -97,6 +99,7 @@ func Run(ctx context.Context, cfg Configuration) error {
 			db:              db,
 			convertTx:       txs.ConvertTx,
 			sendTransaction: abc.SendTransaction,
+			streamSSE:       msgBroker.StreamSSE,
 			logErr:          cfg.Logger().Error,
 		}
 		return httpsrv.Run(ctx, cfg.HttpServer(api.endpoints()), httpsrv.Listener(cfg.Listener()), httpsrv.ShutdownTimeout(5*time.Second))

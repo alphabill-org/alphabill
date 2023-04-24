@@ -269,6 +269,36 @@ paths:
                 example:
                   ZD75s0+XCi3XwxOp3UxccXY6nM4ZhDnDyYNGoJv5K1U=: "failed to convert transaction: bad type name"
                   v8aSJW4nDxgQf7VxvNh/a60ux7CovgAuJUwJJIJNvAk=: "failed to forward tx: connection refused"
+  /events/{pubkey}/subscribe:
+    get:
+      tags:
+        - token
+      summary: subscribe to server-sent events (SSE) stream
+      description: |-
+        Allows to get events about transactions assosiated with the given public key.
+
+        Events are generetaed only for token transactions as token types do not have
+        "owner" info attached to them (so we do not know to which subscribers to send
+        events). Only successful transactions (these added to the block) will
+        generate events and one transaction can produce multiple events (ie split
+        transaction will produce two events - one for the original token and one for
+        the new one).
+
+        For the token unit transaction event will have:
+         - event: token
+         - data: JSON of the [`Token`](#/components/schemas/Token) structure.
+      parameters:
+        - name: pubkey
+          in: path
+          required: true
+          description: identifies the "owner" of the transactions about which events are.
+          schema:
+            $ref: '#/components/schemas/PublicKeyParam'
+      responses:
+        '200':
+          description: successful operation
+        default:
+          $ref: '#/components/responses/ErrorResponse'
 components:
   schemas:
     Kind:

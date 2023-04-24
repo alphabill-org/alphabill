@@ -283,7 +283,7 @@ func TestWalletCreateNonFungibleTokenCmd_TokenIdFlag(t *testing.T) {
 }
 
 func TestWalletCreateNonFungibleTokenCmd_DataFileFlag(t *testing.T) {
-	data := make([]byte, maxBinaryFile64Kb+1)
+	data := make([]byte, maxBinaryFile64KiB + 1)
 	tmpfile, err := os.CreateTemp(t.TempDir(), "test")
 	require.NoError(t, err)
 	_, err = tmpfile.Write(data)
@@ -308,7 +308,7 @@ func TestWalletCreateNonFungibleTokenCmd_DataFileFlag(t *testing.T) {
 		{
 			name:       "data-file too big",
 			cmdParams:  "token new non-fungible --type 12AB --data-file=" + tmpfile.Name(),
-			wantErrStr: "data-file read error: file size over 64Kb limit",
+			wantErrStr: "data-file read error: file size over 64KiB limit",
 		},
 	}
 	for _, tt := range tests {
@@ -325,7 +325,7 @@ func TestWalletCreateNonFungibleTokenCmd_DataFileFlag(t *testing.T) {
 }
 
 func TestWalletUpdateNonFungibleTokenDataCmd_Flags(t *testing.T) {
-	data := make([]byte, maxBinaryFile64Kb+1)
+	data := make([]byte, maxBinaryFile64KiB + 1)
 	tmpfile, err := os.CreateTemp(t.TempDir(), "test")
 	require.NoError(t, err)
 	_, err = tmpfile.Write(data)
@@ -350,7 +350,7 @@ func TestWalletUpdateNonFungibleTokenDataCmd_Flags(t *testing.T) {
 		{
 			name:       "data-file too big",
 			cmdParams:  "token update --token-identifier 12AB --data-file=" + tmpfile.Name(),
-			wantErrStr: "data-file read error: file size over 64Kb limit",
+			wantErrStr: "data-file read error: file size over 64KiB limit",
 		},
 		{
 			name:       "update nft: both data flags missing",

@@ -6,17 +6,20 @@ import (
 
 	"github.com/alphabill-org/alphabill/internal/block"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
+	"github.com/alphabill-org/alphabill/internal/txsystem/tokens"
 )
 
 type (
 	TokenUnitType struct {
 		// common
-		ID                       TokenTypeID `json:"id"`
-		ParentTypeID             TokenTypeID `json:"parentTypeId"`
-		Symbol                   string      `json:"symbol"`
-		SubTypeCreationPredicate Predicate   `json:"subTypeCreationPredicate,omitempty"`
-		TokenCreationPredicate   Predicate   `json:"tokenCreationPredicate,omitempty"`
-		InvariantPredicate       Predicate   `json:"invariantPredicate,omitempty"`
+		ID                       TokenTypeID  `json:"id"`
+		ParentTypeID             TokenTypeID  `json:"parentTypeId"`
+		Symbol                   string       `json:"symbol"`
+		Name                     string       `json:"name,omitempty"`
+		Icon                     *tokens.Icon `json:"icon,omitempty"`
+		SubTypeCreationPredicate Predicate    `json:"subTypeCreationPredicate,omitempty"`
+		TokenCreationPredicate   Predicate    `json:"tokenCreationPredicate,omitempty"`
+		InvariantPredicate       Predicate    `json:"invariantPredicate,omitempty"`
 		// fungible only
 		DecimalPlaces uint32 `json:"decimalPlaces,omitempty"`
 		// nft only
@@ -37,6 +40,7 @@ type (
 		Decimals uint32 `json:"decimals,omitempty"`
 		Burned   bool   `json:"burned,omitempty"`
 		// nft only
+		NftName                string    `json:"nftName,omitempty"`
 		NftURI                 string    `json:"nftUri,omitempty"`
 		NftData                []byte    `json:"nftData,omitempty"`
 		NftDataUpdatePredicate Predicate `json:"nftDataUpdatePredicate,omitempty"`
@@ -55,6 +59,13 @@ type (
 		BlockNumber uint64                `json:"blockNumber,string"`
 		Tx          *txsystem.Transaction `json:"tx"`
 		Proof       *block.BlockProof     `json:"proof"`
+	}
+
+	FeeCreditBill struct {
+		Id            []byte `json:"id"`
+		Value         uint64 `json:"value,string"`
+		TxHash        []byte `json:"txHash"`
+		FCBlockNumber uint64 `json:"fcBlockNumber,string"`
 	}
 
 	Predicate []byte
@@ -97,4 +108,18 @@ func strToTokenKind(s string) (Kind, error) {
 		return NonFungible, nil
 	}
 	return Any, fmt.Errorf("%q is not valid token kind", s)
+}
+
+func (f *FeeCreditBill) GetID() []byte {
+	if f != nil {
+		return f.Id
+	}
+	return nil
+}
+
+func (f *FeeCreditBill) GetValue() uint64 {
+	if f != nil {
+		return f.Value
+	}
+	return 0
 }

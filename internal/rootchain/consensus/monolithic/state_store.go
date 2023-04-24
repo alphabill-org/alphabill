@@ -3,22 +3,18 @@ package monolithic
 import (
 	"errors"
 	"fmt"
-	"path/filepath"
 	"strings"
 	"sync"
 
 	"github.com/alphabill-org/alphabill/internal/certificates"
 	"github.com/alphabill-org/alphabill/internal/keyvaluedb"
-	"github.com/alphabill-org/alphabill/internal/keyvaluedb/boltdb"
-	"github.com/alphabill-org/alphabill/internal/keyvaluedb/memorydb"
 	"github.com/alphabill-org/alphabill/internal/network/protocol"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 )
 
 const (
-	BoltRootChainStoreFileName = "rootchain.db"
-	roundKey                   = "round"
-	certPrefix                 = "cert"
+	roundKey   = "round"
+	certPrefix = "cert"
 )
 
 type (
@@ -32,16 +28,8 @@ func certKey(id []byte) []byte {
 	return append([]byte(certPrefix), id...)
 }
 
-func NewStateStore(dbPath string) (*StateStore, error) {
-	if dbPath == "" {
-		return &StateStore{db: memorydb.New()}, nil
-	} else {
-		boltDB, err := boltdb.New(filepath.Join(dbPath, BoltRootChainStoreFileName))
-		if err != nil {
-			return nil, fmt.Errorf("bolt db initialization failed, %w", err)
-		}
-		return &StateStore{db: boltDB}, nil
-	}
+func NewStateStore(storage keyvaluedb.KeyValueDB) *StateStore {
+	return &StateStore{db: storage}
 }
 
 func (s *StateStore) IsEmpty() (bool, error) {
@@ -119,7 +107,7 @@ func (s *StateStore) GetCertificate(id protocol.SystemIdentifier) (*certificates
 	cKey := certKey(id.Bytes())
 	found, err := s.db.Read(cKey, &cert)
 	if !found {
-		return nil, fmt.Errorf("certificate id %X not found", id.Bytes())
+		return nil, fmt.Errorf("id %X not in DB", id.Bytes())
 	}
 	if err != nil {
 		return nil, fmt.Errorf("certificate id %X read failed, %w", id.Bytes(), err)

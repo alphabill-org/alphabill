@@ -6,6 +6,8 @@ import (
 	"time"
 
 	"github.com/alphabill-org/alphabill/internal/certificates"
+	"github.com/alphabill-org/alphabill/internal/keyvaluedb"
+	"github.com/alphabill-org/alphabill/internal/keyvaluedb/memorydb"
 	"github.com/alphabill-org/alphabill/internal/network/protocol"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 )
@@ -33,7 +35,7 @@ type (
 	}
 	// Optional are common optional parameters for consensus managers
 	Optional struct {
-		StoragePath string
+		Storage keyvaluedb.KeyValueDB
 	}
 
 	Option func(c *Optional)
@@ -49,15 +51,15 @@ func NewConsensusParams(genesisRoot *genesis.GenesisRootRecord) *Parameters {
 	}
 }
 
-func WithPersistentStoragePath(s string) Option {
+func WithStorage(db keyvaluedb.KeyValueDB) Option {
 	return func(c *Optional) {
-		c.StoragePath = s
+		c.Storage = db
 	}
 }
 
 func LoadConf(opts []Option) *Optional {
 	conf := &Optional{
-		StoragePath: "",
+		Storage: memorydb.New(),
 	}
 	for _, opt := range opts {
 		if opt == nil {

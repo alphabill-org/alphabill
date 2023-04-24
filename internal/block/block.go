@@ -34,7 +34,7 @@ func (tcf TxConverterFunc) ConvertTx(tx *txsystem.Transaction) (txsystem.Generic
 func (x *Block) Hash(txConverter TxConverter, hashAlgorithm crypto.Hash) ([]byte, error) {
 	b, err := x.ToGenericBlock(txConverter)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("block conversion to generic type failed, %w", err)
 	}
 	return b.Hash(hashAlgorithm)
 }
@@ -42,7 +42,7 @@ func (x *Block) Hash(txConverter TxConverter, hashAlgorithm crypto.Hash) ([]byte
 func (x *Block) ToGenericBlock(txConverter TxConverter) (*GenericBlock, error) {
 	txs, err := ProtobufTxsToGeneric(x.Transactions, txConverter)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("trancation conversion failed, %w", err)
 	}
 	return &GenericBlock{
 		SystemIdentifier:   x.SystemIdentifier,
@@ -57,7 +57,7 @@ func (x *Block) ToGenericBlock(txConverter TxConverter) (*GenericBlock, error) {
 func (x *Block) GetPrimaryProof(unitID []byte, txc TxConverter, hashAlgorithm crypto.Hash) (*BlockProof, error) {
 	block, err := x.ToGenericBlock(txc)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("block converstion to genetic type failed, %w", err)
 	}
 	return NewPrimaryProof(block, unitID, hashAlgorithm)
 }

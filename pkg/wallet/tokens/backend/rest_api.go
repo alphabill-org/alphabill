@@ -32,6 +32,7 @@ type dataSource interface {
 	QueryTokens(kind Kind, owner Predicate, startKey TokenID, count int) ([]*TokenUnit, TokenID, error)
 	SaveTokenTypeCreator(id TokenTypeID, kind Kind, creator PubKey) error
 	GetTxProof(unitID UnitID, txHash TxHash) (*Proof, error)
+	GetFeeCreditBill(unitID UnitID) (*FeeCreditBill, error)
 }
 
 type abClient interface {
@@ -72,6 +73,7 @@ func (api *restAPI) endpoints() http.Handler {
 	apiV1.HandleFunc("/round-number", api.getRoundNumber).Methods("GET", "OPTIONS")
 	apiV1.HandleFunc("/transactions/{pubkey}", api.postTransactions).Methods("POST", "OPTIONS")
 	apiV1.HandleFunc("/units/{unitId}/transactions/{txHash}/proof", api.getTxProof).Methods("GET", "OPTIONS")
+	apiV1.HandleFunc("/fee-credit-bills/{unitId}", api.getFeeCreditBill).Methods("GET", "OPTIONS")
 
 	apiV1.Handle("/swagger/{.*}", http.StripPrefix("/api/v1/", http.FileServer(http.FS(swaggerFiles)))).Methods("GET", "OPTIONS")
 	apiV1.Handle("/swagger/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -270,6 +272,26 @@ func (api *restAPI) saveTxs(ctx context.Context, txs []*txsystem.Transaction, ow
 		m.Unlock()
 	}
 	return errs
+}
+
+func (api *restAPI) getFeeCreditBill(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	unitID, err := parseHex[UnitID](vars["unitId"], true)
+	if err != nil {
+		api.invalidParamResponse(w, "unitId", err)
+		return
+	}
+	fcb, err := api.db.GetFeeCreditBill(unitID)
+	if err != nil {
+		api.writeErrorResponse(w, fmt.Errorf("failed to load fee credit bill for ID 0x%X: %w", unitID, err))
+		return
+	}
+	if fcb == nil {
+		w.WriteHeader(http.StatusNotFound)
+		api.writeResponse(w, ErrorResponse{Message: "bill does not exist"})
+		return
+	}
+	api.writeResponse(w, fcb)
 }
 
 func (api *restAPI) saveTx(ctx context.Context, tx *txsystem.Transaction, owner []byte) error {

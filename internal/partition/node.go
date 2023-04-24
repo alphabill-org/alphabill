@@ -49,7 +49,8 @@ const ledgerReplicationTimeout = 1500 * time.Millisecond
 var (
 	ErrNodeDoesNotHaveLatestBlock = errors.New("recovery needed, node does not have the latest block")
 
-	transactionsCounter = metrics.GetOrRegisterCounter("partition/node/transaction/handled")
+	validTransactionsCounter   = metrics.GetOrRegisterCounter("partition/node/transactions/valid")
+	invalidTransactionsCounter = metrics.GetOrRegisterCounter("partition/node/transactions/invalid")
 )
 
 type (
@@ -350,6 +351,7 @@ func (n *Node) loop(ctx context.Context) error {
 			case *txsystem.Transaction:
 				if err := n.handleTxMessage(mt); err != nil {
 					logger.Warning("Invalid transaction: %v", err)
+					invalidTransactionsCounter.Inc(1)
 					n.sendEvent(event.Error, err)
 				}
 			case *certificates.UnicityCertificate:
@@ -458,12 +460,17 @@ func (n *Node) process(tx txsystem.GenericTransaction, round uint64) error {
 	return nil
 }
 
-func (n *Node) validateAndExecuteTx(tx txsystem.GenericTransaction, round uint64) error {
-	if err := n.txValidator.Validate(tx, round); err != nil {
+func (n *Node) validateAndExecuteTx(tx txsystem.GenericTransaction, round uint64) (err error) {
+	defer func() {
+		if err != nil {
+			invalidTransactionsCounter.Inc(1)
+		}
+	}()
+	if err = n.txValidator.Validate(tx, round); err != nil {
 		logger.Warning("Transaction '%v' is invalid: %v", tx, err)
 		return fmt.Errorf("invalid, %w", err)
 	}
-	if err := n.transactionSystem.Execute(tx); err != nil {
+	if err = n.transactionSystem.Execute(tx); err != nil {
 		logger.Warning("TxSystem was unable to process transaction '%v': %v", tx, err)
 		return fmt.Errorf("execute error, %w", err)
 	}
@@ -649,6 +656,7 @@ func (n *Node) handleUnicityCertificate(ctx context.Context, uc *certificates.Un
 		}
 		return nil
 	}
+
 	// check for equivocation
 	if err := certificates.CheckNonEquivocatingCertificates(luc, uc); err != nil {
 		// this is not normal, log all info
@@ -750,7 +758,7 @@ func (n *Node) finalizeBlock(b *block.Block) error {
 	// NB! only cache and commit if persist is successful
 	n.lastStoredBlock = b
 	n.transactionSystem.Commit()
-	transactionsCounter.Inc(int64(len(b.Transactions)))
+	validTransactionsCounter.Inc(int64(len(b.Transactions)))
 	n.sendEvent(event.BlockFinalized, b)
 	return nil
 }
@@ -1090,7 +1098,12 @@ func (n *Node) sendCertificationRequest(blockAuthor string) error {
 	}, []peer.ID{n.configuration.rootChainID})
 }
 
-func (n *Node) SubmitTx(_ context.Context, tx *txsystem.Transaction) error {
+func (n *Node) SubmitTx(_ context.Context, tx *txsystem.Transaction) (err error) {
+	defer func() {
+		if err != nil {
+			invalidTransactionsCounter.Inc(1)
+		}
+	}()
 	genTx, err := n.transactionSystem.ConvertTx(tx)
 	if err != nil {
 		return err

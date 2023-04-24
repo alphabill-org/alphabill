@@ -14,6 +14,8 @@ type (
 		txsystem.GenericTransaction
 		ParentTypeID() []byte
 		Symbol() string
+		Name() string
+		Icon() *Icon
 		SubTypeCreationPredicate() []byte
 		TokenCreationPredicate() []byte
 		InvariantPredicate() []byte
@@ -26,6 +28,7 @@ type (
 		NFTTypeID() []byte
 		NFTTypeIDInt() *uint256.Int
 		Bearer() []byte
+		Name() string
 		URI() string
 		Data() []byte
 		DataUpdatePredicate() []byte
@@ -52,6 +55,8 @@ type (
 		txsystem.GenericTransaction
 		ParentTypeID() []byte
 		Symbol() string
+		Name() string
+		Icon() *Icon
 		DecimalPlaces() uint32
 		SubTypeCreationPredicate() []byte
 		TokenCreationPredicate() []byte

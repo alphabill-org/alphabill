@@ -37,6 +37,7 @@ type (
 		billId         *uint256.Int
 		billValue      uint64
 		billTxHash     string
+		proofList      string
 		customBillList string
 		customPath     string
 		customFullPath string
@@ -332,6 +333,13 @@ func mockBackendCalls(br *backendMockReturnConf) (*httptest.Server, *url.URL) {
 			case "/" + testclient.BlockHeightPath:
 				w.WriteHeader(http.StatusOK)
 				w.Write([]byte(fmt.Sprintf(`{"blockHeight": "%d"}`, br.blockHeight)))
+			case "/" + testclient.ProofPath:
+				if br.proofList != "" {
+					w.WriteHeader(http.StatusOK)
+					w.Write([]byte(br.proofList))
+				} else {
+					w.WriteHeader(http.StatusNotFound)
+				}
 			case "/" + testclient.ListBillsPath:
 				w.WriteHeader(http.StatusOK)
 				if br.customBillList != "" {

@@ -141,7 +141,7 @@ func defaultRootNodeRunFunc(ctx context.Context, config *rootNodeConfig) error {
 		return fmt.Errorf("failed to extract partition info from genesis file %s, %w", config.getGenesisFilePath(), err)
 	}
 	// Initiate root storage
-	store, err := initRootStore(config.StoragePath)
+	store, err := initRootStore(config.getStoragePath())
 	if err != nil {
 		return fmt.Errorf("root store init failed, %w", err)
 	}

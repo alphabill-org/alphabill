@@ -42,7 +42,7 @@ func (b *MessageBroker) Subscribe(pubkey PubKey) (<-chan Message, error) {
 		return nil, fmt.Errorf("public key already has maximum allowed number of subscriptions")
 	}
 
-	clients = b.cloneSubscribtions()
+	clients = b.cloneSubscriptions()
 	ch := make(chan Message, 5)
 	clients[clientID] = append(channels, ch)
 	b.subscriptions.Store(clients)
@@ -55,7 +55,7 @@ func (b *MessageBroker) Unsubscribe(pubkey PubKey, c <-chan Message) {
 	defer b.m.Unlock()
 
 	clientID := pubkey.asMapKey()
-	clients := b.cloneSubscribtions()
+	clients := b.cloneSubscriptions()
 
 	var channels []chan Message
 	for _, v := range clients[clientID] {
@@ -71,7 +71,7 @@ func (b *MessageBroker) Unsubscribe(pubkey PubKey, c <-chan Message) {
 	b.subscriptions.Store(clients)
 }
 
-func (b *MessageBroker) cloneSubscribtions() subscribers {
+func (b *MessageBroker) cloneSubscriptions() subscribers {
 	clients := b.subscriptions.Load().(subscribers)
 	clone := make(subscribers, len(clients))
 	for k, v := range clients {

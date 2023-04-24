@@ -70,7 +70,7 @@ func (api *restAPI) endpoints() http.Handler {
 	apiV1.HandleFunc("/kinds/{kind}/types", api.listTypes).Methods("GET", "OPTIONS")
 	apiV1.HandleFunc("/round-number", api.getRoundNumber).Methods("GET", "OPTIONS")
 	apiV1.HandleFunc("/transactions/{pubkey}", api.postTransactions).Methods("POST", "OPTIONS")
-	apiV1.HandleFunc("/transactions/{pubkey}/subscribe", api.subscribeTransactions).Methods("GET", "OPTIONS")
+	apiV1.HandleFunc("/events/{pubkey}/subscribe", api.subscribeEvents).Methods("GET", "OPTIONS")
 	apiV1.HandleFunc("/units/{unitId}/transactions/{txHash}/proof", api.getTxProof).Methods("GET", "OPTIONS")
 
 	apiV1.Handle("/swagger/{.*}", http.StripPrefix("/api/v1/", http.FileServer(http.FS(swaggerFiles)))).Methods("GET", "OPTIONS")
@@ -209,7 +209,7 @@ func (api *restAPI) getRoundNumber(w http.ResponseWriter, r *http.Request) {
 	api.writeResponse(w, RoundNumberResponse{RoundNumber: rn})
 }
 
-func (api *restAPI) subscribeTransactions(w http.ResponseWriter, r *http.Request) {
+func (api *restAPI) subscribeEvents(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	ownerPK, err := parsePubKey(vars["pubkey"], true)
 	if err != nil {

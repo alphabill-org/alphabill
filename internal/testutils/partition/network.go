@@ -37,8 +37,9 @@ type AlphabillPartition struct {
 
 type partitionNode struct {
 	*partition.Node
-	cancel context.CancelFunc
-	done   chan error
+	AddrGRPC string
+	cancel   context.CancelFunc
+	done     chan error
 }
 
 func (pn *partitionNode) Stop() error {
@@ -167,14 +168,11 @@ func NewNetwork(nodeCount int, txSystemProvider func(trustBase map[string]crypto
 	ctx, ctxCancel := context.WithCancel(context.Background())
 	// start root
 	go rootNode.Run(ctx)
+
 	// start Nodes
 	nodes := make([]*partitionNode, nodeCount)
 	eh := &testevent.TestEventHandler{}
 	for i := 0; i < nodeCount; i++ {
-		if err != nil {
-			ctxCancel()
-			return nil, err
-		}
 		peer := nodePeers[i]
 		pn, err := network.NewLibP2PValidatorNetwork(peer, network.DefaultValidatorNetOptions)
 		if err != nil {
@@ -200,10 +198,6 @@ func NewNetwork(nodeCount int, txSystemProvider func(trustBase map[string]crypto
 		go func(ec chan error) { ec <- n.Run(nctx) }(nodes[i].done)
 	}
 
-	if err != nil {
-		ctxCancel()
-		return nil, err
-	}
 	return &AlphabillPartition{
 		RootNode:     rootNode,
 		Nodes:        nodes,

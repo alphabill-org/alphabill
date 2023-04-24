@@ -146,6 +146,33 @@ func TestListBillsRequest_DCBillsIncluded(t *testing.T) {
 	require.True(t, bill.IsDCBill)
 }
 
+func TestListBillsRequest_DCBillsExcluded(t *testing.T) {
+	walletBackend := newWalletBackend(t, withBills(
+		&Bill{
+			Id:             newUnitID(1),
+			Value:          1,
+			OwnerPredicate: getOwnerPredicate(pubkeyHex),
+		},
+		&Bill{
+			Id:             newUnitID(2),
+			Value:          2,
+			IsDCBill:       true,
+			OwnerPredicate: getOwnerPredicate(pubkeyHex),
+		},
+	))
+	port := startServer(t, walletBackend)
+
+	res := &ListBillsResponse{}
+	httpRes, err := testhttp.DoGet(fmt.Sprintf("http://localhost:%d/api/v1/list-bills?pubkey=%s&includedcbills=false", port, pubkeyHex), res)
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, httpRes.StatusCode)
+	require.Equal(t, 1, res.Total)
+	require.Len(t, res.Bills, 1)
+	bill := res.Bills[0]
+	require.EqualValues(t, 1, bill.Value)
+	require.False(t, bill.IsDCBill)
+}
+
 func TestListBillsRequest_Paging(t *testing.T) {
 	// given set of bills
 	var bills []*Bill

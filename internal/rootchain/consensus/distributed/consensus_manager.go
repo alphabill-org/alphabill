@@ -210,7 +210,6 @@ func (x *ConsensusManager) loop(ctx context.Context) error {
 			x.onPartitionIRChangeReq(&req)
 		case <-x.localTimeout.C:
 			x.onLocalTimeout()
-
 		// handle timeouts
 		case nt, ok := <-x.timers.C:
 			if !ok {

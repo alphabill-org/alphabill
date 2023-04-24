@@ -113,7 +113,7 @@ func (s *RequestHandler) listBillsFunc(w http.ResponseWriter, r *http.Request) {
 		s.handlePubKeyNotFoundError(w, err)
 		return
 	}
-	includeDCBills, err := parseIncludeDCCBillsQueryParam(r, true)
+	includeDCBills, err := parseIncludeDCBillsQueryParam(r, true)
 	if err != nil {
 		log.Debug("error parsing GET /balance request: ", err)
 		w.WriteHeader(http.StatusInternalServerError)
@@ -160,7 +160,7 @@ func (s *RequestHandler) balanceFunc(w http.ResponseWriter, r *http.Request) {
 		s.handlePubKeyNotFoundError(w, err)
 		return
 	}
-	includeDCBills, err := parseIncludeDCCBillsQueryParam(r, false)
+	includeDCBills, err := parseIncludeDCBillsQueryParam(r, false)
 	if err != nil {
 		log.Debug("error parsing GET /balance request: ", err)
 		w.WriteHeader(http.StatusInternalServerError)
@@ -351,7 +351,7 @@ func decodePubKeyHex(pubKey string) ([]byte, error) {
 	return bytes, nil
 }
 
-func parseIncludeDCCBillsQueryParam(r *http.Request, defaultValue bool) (bool, error) {
+func parseIncludeDCBillsQueryParam(r *http.Request, defaultValue bool) (bool, error) {
 	if r.URL.Query().Has("includedcbills") {
 		return strconv.ParseBool(r.URL.Query().Get("includedcbills"))
 	}

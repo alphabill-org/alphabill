@@ -434,15 +434,12 @@ func WaitNodeRequestReceived(t *testing.T, tp *SingleNodePartition, req string) 
 		reqs = tp.mockNet.SentMessages(req)
 		return len(reqs) > 0
 	}, test.WaitDuration, test.WaitTick)
-	// if more than one return last
-	if len(reqs) > 0 {
-		return &testnetwork.PeerMessage{
-			ID: reqs[len(reqs)-1].ID,
-			OutputMessage: network.OutputMessage{
-				Protocol: reqs[len(reqs)-1].Protocol,
-				Message:  proto.Clone(reqs[len(reqs)-1].Message),
-			},
-		}
+	// if more than one return last, but there has to be at least one, otherwise require.Eventually fails before
+	return &testnetwork.PeerMessage{
+		ID: reqs[len(reqs)-1].ID,
+		OutputMessage: network.OutputMessage{
+			Protocol: reqs[len(reqs)-1].Protocol,
+			Message:  proto.Clone(reqs[len(reqs)-1].Message),
+		},
 	}
-	return nil
 }

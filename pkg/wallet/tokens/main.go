@@ -3,19 +3,22 @@ package tokens
 import (
 	"bytes"
 	"context"
-	goerrors "errors"
+	"crypto"
+	"errors"
 	"fmt"
 	"net/url"
 	"strings"
 
 	"github.com/alphabill-org/alphabill/internal/block"
-	"github.com/alphabill-org/alphabill/internal/crypto"
+	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
-	"github.com/alphabill-org/alphabill/internal/txsystem/fc"
 	"github.com/alphabill-org/alphabill/internal/txsystem/tokens"
 	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/alphabill-org/alphabill/pkg/wallet/account"
+	"github.com/alphabill-org/alphabill/pkg/wallet/backend/bp"
 	"github.com/alphabill-org/alphabill/pkg/wallet/log"
+	"github.com/alphabill-org/alphabill/pkg/wallet/money/fees"
+	"github.com/alphabill-org/alphabill/pkg/wallet/money/tx_builder"
 	twb "github.com/alphabill-org/alphabill/pkg/wallet/tokens/backend"
 	"github.com/alphabill-org/alphabill/pkg/wallet/tokens/client"
 	"google.golang.org/protobuf/proto"
@@ -29,19 +32,23 @@ const (
 )
 
 var (
-	errAttributesMissing = goerrors.New("attributes missing")
+	errAttributesMissing = errors.New("attributes missing")
 	errInvalidURILength  = fmt.Errorf("URI exceeds the maximum allowed size of %v bytes", uriMaxSize)
 	errInvalidDataLength = fmt.Errorf("data exceeds the maximum allowed size of %v bytes", dataMaxSize)
 	errInvalidNameLength = fmt.Errorf("name exceeds the maximum allowed size of %v bytes", nameMaxSize)
+
+	ErrNoFeeCredit           = errors.New("no fee credit in token wallet")
+	ErrInsufficientFeeCredit = errors.New("insufficient fee credit balance for transaction(s)")
 )
 
 type (
 	Wallet struct {
-		systemID  []byte
-		txs       block.TxConverter
-		am        account.Manager
-		backend   TokenBackend
-		confirmTx bool
+		systemID   []byte
+		txs        block.TxConverter
+		am         account.Manager
+		backend    TokenBackend
+		confirmTx  bool
+		feeManager *fees.FeeManager
 	}
 
 	TokenBackend interface {
@@ -52,10 +59,16 @@ type (
 		GetRoundNumber(ctx context.Context) (uint64, error)
 		PostTransactions(ctx context.Context, pubKey twb.PubKey, txs *txsystem.Transactions) error
 		GetTxProof(ctx context.Context, unitID twb.UnitID, txHash twb.TxHash) (*twb.Proof, error)
+		GetFeeCreditBill(ctx context.Context, unitID twb.UnitID) (*twb.FeeCreditBill, error)
+	}
+
+	MoneyDataProvider interface {
+		SystemID() []byte
+		fees.TxPublisher
 	}
 )
 
-func New(systemID []byte, backendUrl string, am account.Manager, confirmTx bool) (*Wallet, error) {
+func New(systemID []byte, backendUrl string, am account.Manager, confirmTx bool, feeManager *fees.FeeManager) (*Wallet, error) {
 	if !strings.HasPrefix(backendUrl, "http://") && !strings.HasPrefix(backendUrl, "https://") {
 		backendUrl = "http://" + backendUrl
 	}
@@ -65,15 +78,19 @@ func New(systemID []byte, backendUrl string, am account.Manager, confirmTx bool)
 	}
 	txs, err := tokens.New(
 		tokens.WithSystemIdentifier(systemID),
-		tokens.WithTrustBase(map[string]crypto.Verifier{"test": nil}),
-		tokens.WithFeeCalculator(fc.FixedFee(0)), // 0 to disable fee module
+		tokens.WithTrustBase(map[string]abcrypto.Verifier{"test": nil}),
 	)
 	if err != nil {
 		return nil, err
 	}
-	w := &Wallet{systemID: systemID, am: am, txs: txs, backend: client.New(*addr), confirmTx: confirmTx}
-
-	return w, nil
+	return &Wallet{
+		systemID:   systemID,
+		am:         am,
+		txs:        txs,
+		backend:    client.New(*addr),
+		confirmTx:  confirmTx,
+		feeManager: feeManager,
+	}, nil
 }
 
 func (w *Wallet) Shutdown() {
@@ -255,6 +272,10 @@ func (w *Wallet) GetToken(ctx context.Context, owner twb.PubKey, kind twb.Kind, 
 }
 
 func (w *Wallet) TransferNFT(ctx context.Context, accountNumber uint64, tokenId twb.TokenID, receiverPubKey twb.PubKey, invariantPredicateArgs []*PredicateInput) error {
+	err := w.ensureFeeCredit(ctx, accountNumber-1, 1)
+	if err != nil {
+		return err
+	}
 	key, err := w.am.GetAccountKey(accountNumber - 1)
 	if err != nil {
 		return err
@@ -282,6 +303,10 @@ func (w *Wallet) TransferNFT(ctx context.Context, accountNumber uint64, tokenId 
 func (w *Wallet) SendFungible(ctx context.Context, accountNumber uint64, typeId twb.TokenTypeID, targetAmount uint64, receiverPubKey []byte, invariantPredicateArgs []*PredicateInput) error {
 	if accountNumber < 1 {
 		return fmt.Errorf("invalid account number: %d", accountNumber)
+	}
+	err := w.ensureFeeCredit(ctx, accountNumber-1, 1)
+	if err != nil {
+		return err
 	}
 	acc, err := w.am.GetAccountKey(accountNumber - 1)
 	if err != nil {
@@ -337,6 +362,10 @@ func (w *Wallet) UpdateNFTData(ctx context.Context, accountNumber uint64, tokenI
 	if accountNumber < 1 {
 		return fmt.Errorf("invalid account number: %d", accountNumber)
 	}
+	err := w.ensureFeeCredit(ctx, accountNumber-1, 1)
+	if err != nil {
+		return err
+	}
 	acc, err := w.am.GetAccountKey(accountNumber - 1)
 	if err != nil {
 		return err
@@ -385,7 +414,11 @@ func (w *Wallet) CollectDust(ctx context.Context, accountNumber uint64, tokenTyp
 		}
 	}
 	// TODO: rewrite with goroutines?
-	for _, key := range keys {
+	for accountIndex, key := range keys {
+		err = w.ensureFeeCredit(ctx, uint64(accountIndex), len(tokenTypes)+1)
+		if err != nil {
+			return err
+		}
 		err = w.collectDust(ctx, key, tokenTypes, invariantPredicateArgs)
 		if err != nil {
 			return err
@@ -492,4 +525,90 @@ func (w *Wallet) getTokensForDC(ctx context.Context, key twb.PubKey, allowedToke
 
 func (w *Wallet) getRoundNumber(ctx context.Context) (uint64, error) {
 	return w.backend.GetRoundNumber(ctx)
+}
+
+// GetFeeCreditBill returns fee credit bill for given account,
+// can return nil if fee credit bill has not been created yet.
+func (w *Wallet) GetFeeCreditBill(ctx context.Context, cmd fees.GetFeeCreditCmd) (*bp.Bill, error) {
+	accountKey, err := w.am.GetAccountKey(cmd.AccountIndex)
+	if err != nil {
+		return nil, err
+	}
+	return w.FetchFeeCreditBill(ctx, accountKey.PrivKeyHash)
+}
+
+// FetchFeeCreditBill returns fee credit bill for given unitID
+// can return nil if fee credit bill has not been created yet.
+func (w *Wallet) FetchFeeCreditBill(ctx context.Context, unitID []byte) (*bp.Bill, error) {
+	fcb, err := w.backend.GetFeeCreditBill(ctx, unitID)
+	if err != nil {
+		return nil, err
+	}
+	if fcb == nil {
+		return nil, nil
+	}
+	return &bp.Bill{
+		Id:            fcb.Id,
+		Value:         fcb.Value,
+		TxHash:        fcb.TxHash,
+		FcBlockNumber: fcb.FCBlockNumber,
+	}, nil
+}
+
+// FetchFeeCreditBill returns fee credit bill for given unitID
+// can return nil if fee credit bill has not been created yet.
+func (w *Wallet) GetRoundNumber(ctx context.Context) (uint64, error) {
+	return w.backend.GetRoundNumber(ctx)
+}
+
+func (w *Wallet) AddFeeCredit(ctx context.Context, cmd fees.AddFeeCmd) (*block.TxProof, error) {
+	return w.feeManager.AddFeeCredit(ctx, cmd)
+}
+
+func (w *Wallet) ReclaimFeeCredit(ctx context.Context, cmd fees.ReclaimFeeCmd) (*block.TxProof, error) {
+	return w.feeManager.ReclaimFeeCredit(ctx, cmd)
+}
+
+// SendTx sends tx and waits for confirmation, returns tx proof
+func (w *Wallet) SendTx(ctx context.Context, tx *txsystem.Transaction, accountIndex uint64) (*block.TxProof, error) {
+	accountKey, err := w.GetAccountManager().GetAccountKey(accountIndex)
+	if err != nil {
+		return nil, err
+	}
+	gtx, err := w.txs.ConvertTx(tx)
+	if err != nil {
+		return nil, err
+	}
+	// TODO txhash should not rely on server metadata
+	gtx.SetServerMetadata(&txsystem.ServerMetadata{Fee: 1})
+	txSub := &txSubmission{
+		id:     tx.UnitId,
+		tx:     tx,
+		txHash: gtx.Hash(crypto.SHA256),
+	}
+	txBatch := txSub.toBatch(w.backend, accountKey.PubKey)
+	err = txBatch.sendTx(ctx, true)
+	if err != nil {
+		return nil, err
+	}
+	return &block.TxProof{
+		Tx:          tx,
+		Proof:       txBatch.submissions[0].txProof,
+		BlockNumber: txBatch.submissions[0].txProof.UnicityCertificate.GetRoundNumber(),
+	}, nil
+}
+
+func (w *Wallet) ensureFeeCredit(ctx context.Context, accountIndex uint64, txCount int) error {
+	fcb, err := w.GetFeeCreditBill(ctx, fees.GetFeeCreditCmd{AccountIndex: accountIndex})
+	if err != nil {
+		return err
+	}
+	if fcb == nil {
+		return ErrNoFeeCredit
+	}
+	maxFee := uint64(txCount) * tx_builder.MaxFee
+	if fcb.GetValue() < maxFee {
+		return ErrInsufficientFeeCredit
+	}
+	return nil
 }

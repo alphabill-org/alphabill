@@ -1,6 +1,7 @@
 package client
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -31,13 +32,13 @@ const (
 	BalancePath     = "api/v1/balance"
 	ListBillsPath   = "api/v1/list-bills"
 	ProofPath       = "api/v1/proof"
-	BlockHeightPath = "api/v1/round-number"
+	RoundNumberPath = "api/v1/round-number"
 	FeeCreditPath   = "api/v1/fee-credit-bill"
 
 	balanceUrlFormat     = "%v/%v?pubkey=%v&includedcbills=%v"
 	listBillsUrlFormat   = "%v/%v?pubkey=%v&includedcbills=%v"
 	proofUrlFormat       = "%v/%v?bill_id=%v"
-	blockHeightUrlFormat = "%v/%v"
+	roundNumberUrlFormat = "%v/%v"
 
 	defaultScheme   = "http://"
 	contentType     = "Content-Type"
@@ -138,15 +139,15 @@ func (c *MoneyBackendClient) GetProof(billId []byte) (*bp.Bills, error) {
 	return &responseObject, nil
 }
 
-func (c *MoneyBackendClient) GetBlockHeight() (uint64, error) {
-	req, err := http.NewRequest(http.MethodGet, fmt.Sprintf(blockHeightUrlFormat, c.BaseUrl, BlockHeightPath), nil)
+func (c *MoneyBackendClient) GetRoundNumber(_ context.Context) (uint64, error) {
+	req, err := http.NewRequest(http.MethodGet, fmt.Sprintf(roundNumberUrlFormat, c.BaseUrl, RoundNumberPath), nil)
 	if err != nil {
-		return 0, fmt.Errorf("failed to build get block height request: %w", err)
+		return 0, fmt.Errorf("failed to build GetRoundNumber request: %w", err)
 	}
 	req.Header.Set(contentType, applicationJson)
 	response, err := c.HttpClient.Do(req)
 	if err != nil {
-		return 0, fmt.Errorf("request GetBlockHeight failed: %w", err)
+		return 0, fmt.Errorf("request GetRoundNumber failed: %w", err)
 	}
 	if response.StatusCode != http.StatusOK {
 		return 0, fmt.Errorf("unexpected response status code: %d", response.StatusCode)
@@ -154,17 +155,17 @@ func (c *MoneyBackendClient) GetBlockHeight() (uint64, error) {
 
 	responseData, err := io.ReadAll(response.Body)
 	if err != nil {
-		return 0, fmt.Errorf("failed to read GetBlockHeight response: %w", err)
+		return 0, fmt.Errorf("failed to read GetRoundNumber response: %w", err)
 	}
 	var responseObject money.RoundNumberResponse
 	err = json.Unmarshal(responseData, &responseObject)
 	if err != nil {
-		return 0, fmt.Errorf("failed to unmarshall GetBlockHeight response data: %w", err)
+		return 0, fmt.Errorf("failed to unmarshall GetRoundNumber response data: %w", err)
 	}
 	return responseObject.RoundNumber, nil
 }
 
-func (c *MoneyBackendClient) GetFeeCreditBill(unitID []byte) (*bp.Bill, error) {
+func (c *MoneyBackendClient) FetchFeeCreditBill(_ context.Context, unitID []byte) (*bp.Bill, error) {
 	req, err := http.NewRequest(http.MethodGet, c.feeCreditBillURL, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to build get fee credit request: %w", err)
@@ -182,7 +183,7 @@ func (c *MoneyBackendClient) GetFeeCreditBill(unitID []byte) (*bp.Bill, error) {
 	}
 	if response.StatusCode != http.StatusOK {
 		if response.StatusCode == http.StatusNotFound {
-			return nil, ErrMissingFeeCreditBill
+			return nil, nil
 		}
 		responseStr, _ := httputil.DumpResponse(response, true)
 		return nil, fmt.Errorf("unexpected response: %s", responseStr)

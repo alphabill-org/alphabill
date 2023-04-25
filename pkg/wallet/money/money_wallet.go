@@ -9,6 +9,9 @@ import (
 	"sort"
 	"time"
 
+	"github.com/alphabill-org/alphabill/internal/block"
+	"github.com/alphabill-org/alphabill/pkg/wallet/money/fees"
+	"github.com/alphabill-org/alphabill/pkg/wallet/money/tx_builder"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"golang.org/x/sync/errgroup"
 
@@ -37,14 +40,11 @@ const (
 var (
 	ErrInsufficientBalance = errors.New("insufficient balance for transaction")
 	ErrInvalidPubKey       = errors.New("invalid public key, public key must be in compressed secp256k1 format")
-	ErrInvalidPassword     = errors.New("invalid password")
 	ErrTxFailedToConfirm   = errors.New("transaction(s) failed to confirm")
 
-	ErrNoFeeCredit                  = errors.New("no fee credit in wallet")
+	ErrNoFeeCredit                  = errors.New("no fee credit in money wallet")
 	ErrInsufficientFeeCredit        = errors.New("insufficient fee credit balance for transaction(s)")
-	ErrInsufficientBillValue        = errors.New("wallet does not have a bill large enough for fee transfer")
 	ErrInvalidCreateFeeCreditAmount = errors.New("fee credit amount must be positive")
-	ErrAddFCInsufficientBalance     = errors.New("insufficient balance for transaction and transaction fee")
 )
 
 var (
@@ -56,9 +56,11 @@ type (
 	Wallet struct {
 		*wallet.Wallet
 
-		dcWg       *dcWaitGroup
-		am         account.Manager
-		restClient *client.MoneyBackendClient
+		dcWg        *dcWaitGroup
+		am          account.Manager
+		restClient  *client.MoneyBackendClient
+		feeManager  *fees.FeeManager
+		TxPublisher *TxPublisher
 	}
 
 	SendCmd struct {
@@ -91,13 +93,20 @@ func CreateNewWallet(am account.Manager, mnemonic string) error {
 }
 
 func LoadExistingWallet(config abclient.AlphabillClientConfig, am account.Manager, restClient *client.MoneyBackendClient) (*Wallet, error) {
-	mw := &Wallet{am: am, restClient: restClient, dcWg: newDcWaitGroup()}
-
-	mw.Wallet = wallet.New().
+	genericWallet := wallet.New().
 		SetABClientConf(config).
 		Build()
-
-	return mw, nil
+	moneySystemID := []byte{0, 0, 0, 0}
+	moneyTxPublisher := NewTxPublisher(genericWallet, restClient, NewTxConverter(moneySystemID))
+	feeManager := fees.NewFeeManager(am, moneySystemID, moneyTxPublisher, restClient, moneySystemID, moneyTxPublisher, restClient)
+	return &Wallet{
+		Wallet:      genericWallet,
+		am:          am,
+		restClient:  restClient,
+		dcWg:        newDcWaitGroup(),
+		TxPublisher: moneyTxPublisher,
+		feeManager:  feeManager,
+	}, nil
 }
 
 func (w *Wallet) GetAccountManager() account.Manager {
@@ -195,7 +204,7 @@ func (w *Wallet) Send(ctx context.Context, cmd SendCmd) ([]*Bill, error) {
 		return nil, err
 	}
 
-	fcb, err := w.GetFeeCreditBill(cmd.AccountIndex)
+	fcb, err := w.GetFeeCreditBill(ctx, fees.GetFeeCreditCmd{AccountIndex: cmd.AccountIndex})
 	if err != nil {
 		return nil, err
 	}
@@ -213,11 +222,11 @@ func (w *Wallet) Send(ctx context.Context, cmd SendCmd) ([]*Bill, error) {
 	}
 
 	timeout := roundNumber + txTimeoutBlockCount
-	txs, err := createTransactions(cmd.ReceiverPubKey, cmd.Amount, w.SystemID(), bills, k, timeout, fcb.GetID())
+	txs, err := tx_builder.CreateTransactions(cmd.ReceiverPubKey, cmd.Amount, w.SystemID(), bills, k, timeout, fcb.GetId())
 	if err != nil {
 		return nil, err
 	}
-	txsCost := maxFee * uint64(len(txs))
+	txsCost := tx_builder.MaxFee * uint64(len(txs))
 	if fcb.Value < txsCost {
 		return nil, ErrInsufficientFeeCredit
 	}
@@ -230,7 +239,7 @@ func (w *Wallet) Send(ctx context.Context, cmd SendCmd) ([]*Bill, error) {
 		}
 	}
 	if cmd.WaitForConfirmation {
-		txProofs, err := w.waitForConfirmation(ctx, txs, roundNumber, timeout)
+		txProofs, err := w.TxPublisher.WaitForConfirmation(ctx, txs, roundNumber, timeout)
 		if err != nil {
 			return nil, fmt.Errorf("failed to wait for confirmation: %w", err)
 		}
@@ -251,173 +260,38 @@ func (w *Wallet) Send(ctx context.Context, cmd SendCmd) ([]*Bill, error) {
 // AddFeeCredit creates fee credit for the given amount.
 // Wallet must have a bill large enough for the required amount plus fees.
 // Returns list of "add fee credit" transaction proofs.
-func (w *Wallet) AddFeeCredit(ctx context.Context, cmd AddFeeCmd) ([]*BlockProof, error) {
-	if err := cmd.isValid(); err != nil {
-		return nil, err
-	}
-	balance, err := w.GetBalance(GetBalanceCmd{AccountIndex: cmd.AccountIndex})
-	if err != nil {
-		return nil, err
-	}
-	// must have enough balance for two txs (transferFC + addFC) and not end up with zero sum
-	maxTotalFees := 2 * maxFee
-	if cmd.Amount+maxTotalFees > balance {
-		return nil, ErrAddFCInsufficientBalance
-	}
-
-	// fetch bills
-	accountKey, err := w.am.GetAccountKey(cmd.AccountIndex)
-	if err != nil {
-		return nil, err
-	}
-	listBillsResponse, err := w.restClient.ListBills(accountKey.PubKey, false)
-	if err != nil {
-		return nil, err
-	}
-	var bills []*Bill
-	for _, b := range listBillsResponse.Bills {
-		bills = append(bills, newBillFromVM(b))
-	}
-	// sort bills by value in descending order
-	sort.Slice(bills, func(i, j int) bool {
-		return bills[i].Value > bills[j].Value
-	})
-
-	// verify bill is large enough for required amount
-	billToTransfer := bills[0]
-	if billToTransfer.Value < cmd.Amount+maxTotalFees {
-		return nil, ErrInsufficientBillValue
-	}
-
-	// fetch fee credit bill
-	fcb, err := w.GetFeeCreditBill(cmd.AccountIndex)
-	if err != nil {
-		return nil, err
-	}
-
-	roundNo, err := w.GetRoundNumber(ctx)
-	if err != nil {
-		return nil, err
-	}
-	timeout := roundNo + txTimeoutBlockCount
-	if err != nil {
-		return nil, err
-	}
-
-	log.Info("sending transfer fee credit transaction")
-	tx, err := createTransferFCTx(cmd.Amount, accountKey.PrivKeyHash, fcb.GetTxHash(), accountKey, w.SystemID(), billToTransfer, roundNo, timeout)
-	if err != nil {
-		return nil, err
-	}
-	err = w.SendTransaction(ctx, tx, &wallet.SendOpts{})
-	if err != nil {
-		return nil, err
-	}
-	// TODO waiting can be canceled or AddFC tx can fail
-	// record some metadata about transferFC so that AddFC can be retried
-	fcTransferProof, err := w.waitForConfirmation(ctx, []*txsystem.Transaction{tx}, roundNo, timeout)
-	if err != nil {
-		return nil, err
-	}
-
-	log.Info("sending add fee credit transaction")
-	addFCTx, err := createAddFCTx(accountKey.PrivKeyHash, fcTransferProof[0], accountKey, w.SystemID(), timeout)
-	if err != nil {
-		return nil, err
-	}
-	err = w.SendTransaction(ctx, addFCTx, &wallet.SendOpts{})
-	if err != nil {
-		return nil, err
-	}
-	return w.waitForConfirmation(ctx, []*txsystem.Transaction{addFCTx}, roundNo, timeout)
+func (w *Wallet) AddFeeCredit(ctx context.Context, cmd fees.AddFeeCmd) (*block.TxProof, error) {
+	return w.feeManager.AddFeeCredit(ctx, cmd)
 }
 
 // ReclaimFeeCredit reclaims fee credit.
 // Reclaimed fee credit is added to the largest bill in wallet.
 // Returns list of "reclaim fee credit" transaction proofs.
-func (w *Wallet) ReclaimFeeCredit(ctx context.Context, cmd ReclaimFeeCmd) ([]*BlockProof, error) {
-	k, err := w.am.GetAccountKey(cmd.AccountIndex)
-	if err != nil {
-		return nil, err
-	}
-
-	roundNo, err := w.GetRoundNumber(ctx)
-	if err != nil {
-		return nil, err
-	}
-	timeout := roundNo + txTimeoutBlockCount
-	if err != nil {
-		return nil, err
-	}
-
-	fcb, err := w.GetFeeCreditBill(cmd.AccountIndex)
-	if err != nil {
-		return nil, err
-	}
-	if fcb.GetValue() == 0 {
-		return nil, ErrInsufficientFeeCredit
-	}
-
-	listBillsResponse, err := w.restClient.ListBills(k.PubKey, false)
-	if err != nil {
-		return nil, err
-	}
-	if len(listBillsResponse.Bills) == 0 {
-		return nil, errors.New("wallet must have a source bill to which to add reclaimed fee credits")
-	}
-	var bills []*Bill
-	for _, b := range listBillsResponse.Bills {
-		bills = append(bills, newBillFromVM(b))
-	}
-	// sort bills by value in descending order
-	sort.Slice(bills, func(i, j int) bool {
-		return bills[i].Value > bills[j].Value
-	})
-
-	log.Info("sending close fee credit transaction")
-	targetBill := bills[0]
-	// TODO waiting can be canceled or ReclaimFC tx can fail
-	// record some metadata about CloseFC so that ReclaimFC can be retried
-	tx, err := createCloseFCTx(w.SystemID(), fcb.GetID(), timeout, fcb.Value, targetBill.GetID(), targetBill.TxHash, k)
-	if err != nil {
-		return nil, err
-	}
-	err = w.SendTransaction(ctx, tx, &wallet.SendOpts{})
-	if err != nil {
-		return nil, err
-	}
-	fcTransferProof, err := w.waitForConfirmation(ctx, []*txsystem.Transaction{tx}, roundNo, timeout)
-	if err != nil {
-		return nil, err
-	}
-
-	log.Info("sending reclaim fee credit transaction")
-	addFCTx, err := createReclaimFCTx(w.SystemID(), targetBill.GetID(), timeout, fcTransferProof[0], targetBill.TxHash, k)
-	if err != nil {
-		return nil, err
-	}
-	err = w.SendTransaction(ctx, addFCTx, &wallet.SendOpts{})
-	if err != nil {
-		return nil, err
-	}
-	return w.waitForConfirmation(ctx, []*txsystem.Transaction{addFCTx}, roundNo, timeout)
+func (w *Wallet) ReclaimFeeCredit(ctx context.Context, cmd fees.ReclaimFeeCmd) (*block.TxProof, error) {
+	return w.feeManager.ReclaimFeeCredit(ctx, cmd)
 }
 
 // GetFeeCreditBill returns fee credit bill for given account,
 // can return nil if fee credit bill has not been created yet.
-func (w *Wallet) GetFeeCreditBill(accountIndex uint64) (*Bill, error) {
-	accountKey, err := w.am.GetAccountKey(accountIndex)
+func (w *Wallet) GetFeeCreditBill(ctx context.Context, cmd fees.GetFeeCreditCmd) (*bp.Bill, error) {
+	accountKey, err := w.am.GetAccountKey(cmd.AccountIndex)
 	if err != nil {
 		return nil, err
 	}
-	fcb, err := w.restClient.GetFeeCreditBill(accountKey.PrivKeyHash)
+	return w.FetchFeeCreditBill(ctx, accountKey.PrivKeyHash)
+}
+
+// FetchFeeCreditBill returns fee credit bill for given unitID
+// can return nil if fee credit bill has not been created yet.
+func (w *Wallet) FetchFeeCreditBill(ctx context.Context, unitID []byte) (*bp.Bill, error) {
+	fcb, err := w.restClient.FetchFeeCreditBill(ctx, unitID)
 	if err != nil {
 		if errors.Is(err, client.ErrMissingFeeCreditBill) {
 			return nil, nil
 		}
 		return nil, err
 	}
-	return convertBill(fcb), nil
+	return fcb, nil
 }
 
 // collectDust sends dust transfer for every bill for given account in wallet and records metadata.
@@ -462,7 +336,7 @@ func (w *Wallet) collectDust(ctx context.Context, blocking bool, accountIndex ui
 			if roundNr >= v.dcTimeout {
 				swapTimeout := roundNr + swapTimeoutBlockCount
 				billIds := getBillIds(v.dcBills)
-				err = w.swapDcBills(v.dcBills, v.dcNonce, billIds, swapTimeout, accountIndex)
+				err = w.swapDcBills(ctx, v.dcBills, v.dcNonce, billIds, swapTimeout, accountIndex)
 				if err != nil {
 					return err
 				}
@@ -489,7 +363,7 @@ func (w *Wallet) collectDust(ctx context.Context, blocking bool, accountIndex ui
 		var dcValueSum uint64
 		for _, b := range bills {
 			dcValueSum += b.Value
-			tx, err := createDustTx(k, w.SystemID(), b, dcNonce, dcTimeout)
+			tx, err := tx_builder.CreateDustTx(k, w.SystemID(), &bp.Bill{Id: b.GetID(), Value: b.Value, TxHash: b.TxHash}, dcNonce, dcTimeout)
 			if err != nil {
 				return err
 			}
@@ -549,7 +423,7 @@ func (w *Wallet) doSwap(ctx context.Context, accountIndex, timeout uint64) error
 				if s.dcNonce != nil && roundNr >= v.dcTimeout || v.valueSum >= s.dcSum {
 					swapTimeout := roundNr + swapTimeoutBlockCount
 					billIds := getBillIds(v.dcBills)
-					err = w.swapDcBills(v.dcBills, v.dcNonce, billIds, swapTimeout, accountIndex)
+					err = w.swapDcBills(ctx, v.dcBills, v.dcNonce, billIds, swapTimeout, accountIndex)
 					if err != nil {
 						return err
 					}
@@ -615,19 +489,28 @@ func (w *Wallet) confirmSwap(ctx context.Context) error {
 	return nil
 }
 
-func (w *Wallet) swapDcBills(dcBills []*Bill, dcNonce []byte, billIds [][]byte, timeout uint64, accountIndex uint64) error {
+func (w *Wallet) swapDcBills(ctx context.Context, dcBills []*Bill, dcNonce []byte, billIds [][]byte, timeout uint64, accountIndex uint64) error {
 	k, err := w.am.GetAccountKey(accountIndex)
 	if err != nil {
 		return err
 	}
-	fcb, err := w.GetFeeCreditBill(accountIndex)
+	fcb, err := w.GetFeeCreditBill(ctx, fees.GetFeeCreditCmd{AccountIndex: accountIndex})
 	if err != nil {
 		return err
 	}
-	if fcb.GetValue() < maxFee {
+	if fcb.GetValue() < tx_builder.MaxFee {
 		return ErrInsufficientFeeCredit
 	}
-	swap, err := createSwapTx(k, w.SystemID(), dcBills, dcNonce, billIds, timeout)
+
+	var bpBills []*bp.Bill
+	for _, b := range dcBills {
+		bpBills = append(bpBills, &bp.Bill{Id: b.GetID(), Value: b.Value, TxProof: &block.TxProof{
+			Tx:    b.BlockProof.Tx,
+			Proof: b.BlockProof.Proof,
+		}})
+	}
+
+	swap, err := tx_builder.CreateSwapTx(k, w.SystemID(), bpBills, dcNonce, billIds, timeout)
 	if err != nil {
 		return err
 	}
@@ -639,58 +522,63 @@ func (w *Wallet) swapDcBills(dcBills []*Bill, dcNonce []byte, billIds [][]byte, 
 	return nil
 }
 
-func (w *Wallet) waitForConfirmation(ctx context.Context, pendingTxs []*txsystem.Transaction, latestRoundNumber, timeout uint64) ([]*BlockProof, error) {
-	log.Info("waiting for confirmation(s)...")
-	latestBlockNumber := latestRoundNumber
-	txsLog := NewTxLog(pendingTxs)
-	for latestBlockNumber <= timeout {
-		b, err := w.AlphabillClient.GetBlock(ctx, latestBlockNumber)
-		if err != nil {
-			return nil, err
-		}
-		if b == nil {
-			// block might be empty, check latest round number
-			latestRoundNumber, err = w.AlphabillClient.GetRoundNumber(ctx)
-			if err != nil {
-				return nil, err
-			}
-			if latestRoundNumber > latestBlockNumber {
-				latestBlockNumber++
-				continue
-			}
-			// wait for some time before retrying to fetch new block
-			select {
-			case <-time.After(time.Second):
-				continue
-			case <-ctx.Done():
-				return nil, nil
-			}
-		}
-
-		// TODO no need to convert to generic tx?
-		txc := NewTxConverter(w.SystemID())
-		genericBlock, err := b.ToGenericBlock(txc)
-		if err != nil {
-			return nil, err
-		}
-		for _, gtx := range genericBlock.Transactions {
-			tx := gtx.ToProtoBuf()
-			if txsLog.Contains(tx) {
-				log.Info("confirmed tx ", hexutil.Encode(tx.UnitId))
-				err = txsLog.RecordTx(gtx, genericBlock)
-				if err != nil {
-					return nil, err
-				}
-				if txsLog.IsAllTxsConfirmed() {
-					log.Info("transaction(s) confirmed")
-					return txsLog.GetAllRecordedProofs(), nil
-				}
-			}
-		}
-		latestBlockNumber++
-	}
-	return nil, ErrTxFailedToConfirm
+// SendTx sends tx and waits for confirmation, returns tx proof
+func (w *Wallet) SendTx(ctx context.Context, tx *txsystem.Transaction, senderPubKey []byte) (*block.TxProof, error) {
+	return w.TxPublisher.SendTx(ctx, tx, senderPubKey)
 }
+
+//func (w *Wallet) WaitForConfirmation(ctx context.Context, pendingTxs []*txsystem.Transaction, latestRoundNumber, timeout uint64) ([]*block.TxProof, error) {
+//	log.Info("waiting for confirmation(s)...")
+//	latestBlockNumber := latestRoundNumber
+//	txsLog := NewTxLog(pendingTxs)
+//	for latestBlockNumber <= timeout {
+//		b, err := w.AlphabillClient.GetBlock(ctx, latestBlockNumber)
+//		if err != nil {
+//			return nil, err
+//		}
+//		if b == nil {
+//			// block might be empty, check latest round number
+//			latestRoundNumber, err = w.AlphabillClient.GetRoundNumber(ctx)
+//			if err != nil {
+//				return nil, err
+//			}
+//			if latestRoundNumber > latestBlockNumber {
+//				latestBlockNumber++
+//				continue
+//			}
+//			// wait for some time before retrying to fetch new block
+//			select {
+//			case <-time.After(time.Second):
+//				continue
+//			case <-ctx.Done():
+//				return nil, nil
+//			}
+//		}
+//
+//		// TODO no need to convert to generic tx?
+//		txc := NewTxConverter(w.SystemID())
+//		genericBlock, err := b.ToGenericBlock(txc)
+//		if err != nil {
+//			return nil, err
+//		}
+//		for _, gtx := range genericBlock.Transactions {
+//			tx := gtx.ToProtoBuf()
+//			if txsLog.Contains(tx) {
+//				log.Info("confirmed tx ", hexutil.Encode(tx.UnitId))
+//				err = txsLog.RecordTx(gtx, genericBlock)
+//				if err != nil {
+//					return nil, err
+//				}
+//				if txsLog.IsAllTxsConfirmed() {
+//					log.Info("transaction(s) confirmed")
+//					return txsLog.GetAllRecordedProofs(), nil
+//				}
+//			}
+//		}
+//		latestBlockNumber++
+//	}
+//	return nil, ErrTxFailedToConfirm
+//}
 
 func (c *SendCmd) isValid() error {
 	if len(c.ReceiverPubKey) != abcrypto.CompressedSecp256K1PublicKeySize {
@@ -769,12 +657,6 @@ func groupDcBills(bills []*Bill) map[string]*dcBillGroup {
 	return m
 }
 
-func hashId(id []byte) []byte {
-	hasher := crypto.Hash.New(crypto.SHA256)
-	hasher.Write(id)
-	return hasher.Sum(nil)
-}
-
 func getBillIds(bills []*Bill) [][]byte {
 	var billIds [][]byte
 	for _, b := range bills {
@@ -783,8 +665,8 @@ func getBillIds(bills []*Bill) [][]byte {
 	return billIds
 }
 
-func convertBills(billsList []*backendmoney.ListBillVM) ([]*Bill, error) {
-	var bills []*Bill
+func convertBills(billsList []*backendmoney.ListBillVM) ([]*bp.Bill, error) {
+	var bills []*bp.Bill
 	for _, b := range billsList {
 		bill := newBillFromVM(b)
 		bills = append(bills, bill)
@@ -793,19 +675,22 @@ func convertBills(billsList []*backendmoney.ListBillVM) ([]*Bill, error) {
 }
 
 // newBillFromVM converts ListBillVM to Bill structs
-func newBillFromVM(b *backendmoney.ListBillVM) *Bill {
-	return &Bill{
-		Id:       util.BytesToUint256(b.Id),
+func newBillFromVM(b *backendmoney.ListBillVM) *bp.Bill {
+	return &bp.Bill{
+		Id:       b.Id,
 		Value:    b.Value,
 		TxHash:   b.TxHash,
 		IsDcBill: b.IsDCBill,
-		DcNonce:  hashId(b.Id),
 	}
 }
 
 // newBill creates new Bill struct from given BlockProof for Transfer and Split transactions.
-func newBill(proof *BlockProof, txConverter *TxConverter) (*Bill, error) {
+func newBill(proof *block.TxProof, txConverter *TxConverter) (*Bill, error) {
 	gtx, err := txConverter.ConvertTx(proof.Tx)
+	if err != nil {
+		return nil, err
+	}
+	blockProof, err := NewBlockProof(proof.Tx, proof.Proof, proof.BlockNumber)
 	if err != nil {
 		return nil, err
 	}
@@ -815,14 +700,14 @@ func newBill(proof *BlockProof, txConverter *TxConverter) (*Bill, error) {
 			Id:         tx.UnitID(),
 			Value:      tx.TargetValue(),
 			TxHash:     tx.Hash(crypto.SHA256),
-			BlockProof: proof,
+			BlockProof: blockProof,
 		}, nil
 	case money.Split:
 		return &Bill{
 			Id:         txutil.SameShardID(tx.UnitID(), tx.HashForIdCalculation(crypto.SHA256)),
 			Value:      tx.Amount(),
 			TxHash:     tx.Hash(crypto.SHA256),
-			BlockProof: proof,
+			BlockProof: blockProof,
 		}, nil
 	default:
 		return nil, errors.New("cannot convert unsupported tx type to Bill struct")

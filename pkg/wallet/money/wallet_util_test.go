@@ -9,11 +9,6 @@ import (
 	"net/url"
 	"testing"
 
-	"github.com/alphabill-org/alphabill/pkg/wallet/backend/bp"
-	"github.com/holiman/uint256"
-	"github.com/stretchr/testify/require"
-	"google.golang.org/protobuf/encoding/protojson"
-
 	"github.com/alphabill-org/alphabill/internal/block"
 	"github.com/alphabill-org/alphabill/internal/certificates"
 	"github.com/alphabill-org/alphabill/internal/hash"
@@ -22,8 +17,13 @@ import (
 	abclient "github.com/alphabill-org/alphabill/pkg/client"
 	"github.com/alphabill-org/alphabill/pkg/client/clientmock"
 	"github.com/alphabill-org/alphabill/pkg/wallet/account"
+	"github.com/alphabill-org/alphabill/pkg/wallet/backend/bp"
 	"github.com/alphabill-org/alphabill/pkg/wallet/backend/money"
 	testclient "github.com/alphabill-org/alphabill/pkg/wallet/backend/money/client"
+	txbuilder "github.com/alphabill-org/alphabill/pkg/wallet/money/tx_builder"
+	"github.com/holiman/uint256"
+	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/encoding/protojson"
 )
 
 type (
@@ -90,7 +90,7 @@ func mockBackendCalls(br *backendMockReturnConf) (*httptest.Server, *url.URL) {
 			case "/" + testclient.BalancePath:
 				w.WriteHeader(http.StatusOK)
 				w.Write([]byte(fmt.Sprintf(`{"balance": "%d"}`, br.balance)))
-			case "/" + testclient.BlockHeightPath:
+			case "/" + testclient.RoundNumberPath:
 				w.WriteHeader(http.StatusOK)
 				w.Write([]byte(fmt.Sprintf(`{"blockHeight": "%d"}`, br.blockHeight)))
 			case "/" + testclient.ProofPath:
@@ -131,9 +131,9 @@ func createBlockProofJsonResponse(t *testing.T, bills []*Bill, overrideNonce []b
 		}
 		var dcTx *txsystem.Transaction
 		if overrideNonce != nil {
-			dcTx, _ = createDustTx(k, w.SystemID(), b, overrideNonce, timeout)
+			dcTx, _ = txbuilder.CreateDustTx(k, w.SystemID(), b.ToProto(), overrideNonce, timeout)
 		} else {
-			dcTx, _ = createDustTx(k, w.SystemID(), b, calculateDcNonce([]*Bill{b}), timeout)
+			dcTx, _ = txbuilder.CreateDustTx(k, w.SystemID(), b.ToProto(), calculateDcNonce([]*Bill{b}), timeout)
 		}
 		mockClient.SetBlock(&block.Block{
 			SystemIdentifier:   w.SystemID(),
@@ -151,7 +151,7 @@ func createBlockProofJsonResponse(t *testing.T, bills []*Bill, overrideNonce []b
 				},
 			},
 		}
-		b := &bp.Bill{Id: util.Uint256ToBytes(b.Id), Value: b.Value, IsDcBill: b.IsDcBill, TxProof: tp, TxHash: b.TxHash}
+		b := &bp.Bill{Id: b.GetID(), Value: b.Value, IsDcBill: b.IsDcBill, TxProof: tp, TxHash: b.TxHash}
 		bills := &bp.Bills{Bills: []*bp.Bill{b}}
 		res, _ := protojson.MarshalOptions{EmitUnpopulated: true}.Marshal(bills)
 		jsonList = append(jsonList, string(res))
@@ -163,7 +163,7 @@ func createBillListJsonResponse(bills []*Bill) string {
 	billVMs := make([]*money.ListBillVM, len(bills))
 	for i, b := range bills {
 		billVMs[i] = &money.ListBillVM{
-			Id:       util.Uint256ToBytes(b.Id),
+			Id:       b.GetID(),
 			Value:    b.Value,
 			TxHash:   b.TxHash,
 			IsDCBill: b.IsDcBill,

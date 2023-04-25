@@ -23,7 +23,6 @@ import (
 	"github.com/alphabill-org/alphabill/internal/script"
 	testpartition "github.com/alphabill-org/alphabill/internal/testutils/partition"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
-	"github.com/alphabill-org/alphabill/internal/txsystem/fc"
 	moneytx "github.com/alphabill-org/alphabill/internal/txsystem/money"
 	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/alphabill-org/alphabill/pkg/wallet/account"
@@ -187,7 +186,7 @@ func TestSendingFailsWithInsufficientBalance(t *testing.T) {
 	require.ErrorIs(t, err, money.ErrInsufficientBalance)
 }
 
-func startAlphabillPartition(t *testing.T, initialBill *moneytx.InitialBill) *testpartition.AlphabillPartition {
+func startMoneyPartition(t *testing.T, initialBill *moneytx.InitialBill) *testpartition.AlphabillPartition {
 	network, err := testpartition.NewNetwork(1, func(tb map[string]abcrypto.Verifier) txsystem.TransactionSystem {
 		system, err := moneytx.NewMoneyTxSystem(
 			defaultABMoneySystemIdentifier,
@@ -203,7 +202,6 @@ func startAlphabillPartition(t *testing.T, initialBill *moneytx.InitialBill) *te
 					},
 				},
 			}),
-			moneytx.WithFeeCalculator(fc.FixedFee(1)),
 			moneytx.WithDCMoneyAmount(10000),
 			moneytx.WithTrustBase(tb),
 		)
@@ -345,7 +343,7 @@ func mockBackendCalls(br *backendMockReturnConf) (*httptest.Server, *url.URL) {
 			case "/" + testclient.BalancePath:
 				w.WriteHeader(http.StatusOK)
 				w.Write([]byte(fmt.Sprintf(`{"balance": "%d"}`, br.balance)))
-			case "/" + testclient.BlockHeightPath:
+			case "/" + testclient.RoundNumberPath:
 				w.WriteHeader(http.StatusOK)
 				w.Write([]byte(fmt.Sprintf(`{"blockHeight": "%d"}`, br.blockHeight)))
 			case "/" + testclient.ProofPath:

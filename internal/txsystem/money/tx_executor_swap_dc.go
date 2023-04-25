@@ -57,8 +57,9 @@ func handleSwapDCTx(state *rma.Tree, hashAlgorithm crypto.Hash, trustBase map[st
 			return bd
 		}
 		// update state
+		fcrID := tx.transaction.GetClientFeeCreditRecordID()
 		return state.AtomicUpdate(
-			fc.DecrCredit(tx.transaction.GetClientFeeCreditRecordID(), fee, h),
+			fc.DecrCredit(fcrID, fee, h),
 			rma.UpdateData(dustCollectorMoneySupplyID, decDustCollectorSupplyFn, []byte{}),
 			rma.AddItem(tx.UnitID(), tx.OwnerCondition(), &BillData{
 				V:        n,

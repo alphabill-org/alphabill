@@ -5,7 +5,6 @@ import (
 	gocrypto "crypto"
 
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
-	"github.com/alphabill-org/alphabill/internal/txsystem/fc"
 	"github.com/alphabill-org/alphabill/internal/txsystem/tokens"
 	"github.com/spf13/cobra"
 )
@@ -59,7 +58,6 @@ func runTokensNode(ctx context.Context, cfg *tokensConfiguration) error {
 		tokens.WithSystemIdentifier(pg.SystemDescriptionRecord.GetSystemIdentifier()),
 		tokens.WithHashAlgorithm(gocrypto.SHA256),
 		tokens.WithTrustBase(trustBase),
-		tokens.WithFeeCalculator(fc.FixedFee(0)), // 0 to disable fee module
 	)
 	if err != nil {
 		return err

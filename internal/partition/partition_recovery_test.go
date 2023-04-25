@@ -14,7 +14,6 @@ import (
 	"github.com/alphabill-org/alphabill/internal/network/protocol/replication"
 	"github.com/alphabill-org/alphabill/internal/partition/event"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
-	testnetwork "github.com/alphabill-org/alphabill/internal/testutils/network"
 	testevent "github.com/alphabill-org/alphabill/internal/testutils/partition/event"
 	moneytesttx "github.com/alphabill-org/alphabill/internal/testutils/transaction/money"
 	testtxsystem "github.com/alphabill-org/alphabill/internal/testutils/txsystem"
@@ -53,18 +52,9 @@ func TestNode_LedgerReplicationRequestTimeout(t *testing.T) {
 	require.Equal(t, uint64(1), system.RevertCount)
 	require.Equal(t, recovering, tp.partition.status.Load())
 	testevent.ContainsEvent(t, tp.eh, event.RecoveryStarted)
-	// make sure replication request is sent
-	var reqs []testnetwork.PeerMessage
-	require.Eventually(t, func() bool {
-		reqs = tp.mockNet.SentMessages(network.ProtocolLedgerReplicationReq)
-		return len(reqs) != 0
-	}, test.WaitDuration, test.WaitTick)
-	require.Equal(t, 1, len(reqs))
-	require.IsType(t, reqs[0].Message, &replication.LedgerReplicationRequest{})
-	tp.mockNet.ResetSentMessages(network.ProtocolLedgerReplicationReq)
+	WaitNodeRequestReceived(t, tp, network.ProtocolLedgerReplicationReq)
 	// on timeout second request is sent
 	require.Eventually(t, RequestReceived(tp, network.ProtocolLedgerReplicationReq), ledgerReplicationTimeout+time.Second, test.WaitTick)
-	require.Equal(t, 1, len(reqs))
 }
 
 func TestNode_HandleUnicityCertificate_RevertAndStartRecovery_withPendingProposal_differentIR(t *testing.T) {
@@ -98,14 +88,7 @@ func TestNode_HandleUnicityCertificate_RevertAndStartRecovery_withPendingProposa
 	require.Equal(t, recovering, tp.partition.status.Load())
 	testevent.ContainsEvent(t, tp.eh, event.RecoveryStarted)
 	// make sure replication request is sent
-	var reqs []testnetwork.PeerMessage
-	require.Eventually(t, func() bool {
-		reqs = tp.mockNet.SentMessages(network.ProtocolLedgerReplicationReq)
-		return len(reqs) != 0
-	}, test.WaitDuration, test.WaitTick)
-	require.Equal(t, 1, len(reqs))
-	require.IsType(t, reqs[0].Message, &replication.LedgerReplicationRequest{})
-
+	WaitNodeRequestReceived(t, tp, network.ProtocolLedgerReplicationReq)
 	// send newer UC and check LUC is updated and node still recovering
 	tp.eh.Reset()
 	// increment round number
@@ -205,14 +188,8 @@ func TestNode_HandleUnicityCertificate_RevertAndStartRecovery_withNoProposal(t *
 	require.Equal(t, recovering, tp.partition.status.Load())
 	testevent.ContainsEvent(t, tp.eh, event.RecoveryStarted)
 	// make sure replication request is sent
-	var reqs []testnetwork.PeerMessage
-	require.Eventually(t, func() bool {
-		reqs = tp.mockNet.SentMessages(network.ProtocolLedgerReplicationReq)
-		return len(reqs) != 0
-	}, test.WaitDuration, test.WaitTick)
-	require.Equal(t, 1, len(reqs))
-	require.IsType(t, reqs[0].Message, &replication.LedgerReplicationRequest{})
-
+	req := WaitNodeRequestReceived(t, tp, network.ProtocolLedgerReplicationReq)
+	require.NotNil(t, req)
 	// send newer UC and check LUC is updated and node still recovering
 	tp.eh.Reset()
 	rootRound++
@@ -252,17 +229,11 @@ func TestNode_RecoverBlocks(t *testing.T) {
 	testevent.ContainsEvent(t, tp.eh, event.RecoveryStarted)
 
 	// make sure replication request is sent
-	var reqs []testnetwork.PeerMessage
-	require.Eventually(t, func() bool {
-		reqs = tp.mockNet.SentMessages(network.ProtocolLedgerReplicationReq)
-		return len(reqs) != 0
-	}, test.WaitDuration, test.WaitTick)
-	require.Equal(t, 1, len(reqs))
-	require.IsType(t, reqs[0].Message, &replication.LedgerReplicationRequest{})
-
+	req := WaitNodeRequestReceived(t, tp, network.ProtocolLedgerReplicationReq)
+	require.NotNil(t, req)
 	// send back the response with 2 blocks
 	tp.mockNet.Receive(network.ReceivedMessage{
-		From:     reqs[0].ID,
+		From:     req.ID,
 		Protocol: network.ProtocolLedgerReplicationResp,
 		Message: &replication.LedgerReplicationResponse{
 			Status: replication.LedgerReplicationResponse_OK,
@@ -273,7 +244,7 @@ func TestNode_RecoverBlocks(t *testing.T) {
 
 	// send back the response with last block
 	tp.mockNet.Receive(network.ReceivedMessage{
-		From:     reqs[0].ID,
+		From:     req.ID,
 		Protocol: network.ProtocolLedgerReplicationResp,
 		Message: &replication.LedgerReplicationResponse{
 			Status: replication.LedgerReplicationResponse_OK,
@@ -330,18 +301,11 @@ func TestNode_RecoverSkipsRequiredBlock(t *testing.T) {
 	testevent.ContainsEvent(t, tp.eh, event.RecoveryStarted)
 
 	// make sure replication request is sent
-	// make sure replication request is sent
-	var reqs []testnetwork.PeerMessage
-	require.Eventually(t, func() bool {
-		reqs = tp.mockNet.SentMessages(network.ProtocolLedgerReplicationReq)
-		return len(reqs) != 0
-	}, test.WaitDuration, test.WaitTick)
-	require.Equal(t, 1, len(reqs))
-	require.IsType(t, reqs[0].Message, &replication.LedgerReplicationRequest{})
-	tp.mockNet.ResetSentMessages(network.ProtocolLedgerReplicationReq)
+	req := WaitNodeRequestReceived(t, tp, network.ProtocolLedgerReplicationReq)
+	require.NotNil(t, req)
 	// skip block 2 and send block 3 only
 	tp.mockNet.Receive(network.ReceivedMessage{
-		From:     reqs[0].ID,
+		From:     req.ID,
 		Protocol: network.ProtocolLedgerReplicationResp,
 		Message: &replication.LedgerReplicationResponse{
 			Status: replication.LedgerReplicationResponse_OK,
@@ -353,10 +317,10 @@ func TestNode_RecoverSkipsRequiredBlock(t *testing.T) {
 	// still recovering
 	require.Equal(t, recovering, tp.partition.status.Load())
 	// node is asking for missing block 2
-	reqs = tp.mockNet.SentMessages(network.ProtocolLedgerReplicationReq)
-	require.Equal(t, 1, len(reqs))
-	require.IsType(t, reqs[0].Message, &replication.LedgerReplicationRequest{})
-	msg := reqs[0].Message.(*replication.LedgerReplicationRequest)
+	req = WaitNodeRequestReceived(t, tp, network.ProtocolLedgerReplicationReq)
+	require.NotNil(t, req)
+	require.IsType(t, req.Message, &replication.LedgerReplicationRequest{})
+	msg := req.Message.(*replication.LedgerReplicationRequest)
 	require.Equal(t, msg.BeginBlockNumber, uint64(2))
 }
 
@@ -378,18 +342,11 @@ func TestNode_RecoverSkipsBlocksAndSendMixedBlocks(t *testing.T) {
 	testevent.ContainsEvent(t, tp.eh, event.RecoveryStarted)
 
 	// make sure replication request is sent
-	// make sure replication request is sent
-	var reqs []testnetwork.PeerMessage
-	require.Eventually(t, func() bool {
-		reqs = tp.mockNet.SentMessages(network.ProtocolLedgerReplicationReq)
-		return len(reqs) != 0
-	}, test.WaitDuration, test.WaitTick)
-	require.Equal(t, 1, len(reqs))
-	require.IsType(t, reqs[0].Message, &replication.LedgerReplicationRequest{})
-
+	req := WaitNodeRequestReceived(t, tp, network.ProtocolLedgerReplicationReq)
+	require.NotNil(t, req)
 	// send back the response with 2 blocks
 	tp.mockNet.Receive(network.ReceivedMessage{
-		From:     reqs[0].ID,
+		From:     req.ID,
 		Protocol: network.ProtocolLedgerReplicationResp,
 		Message: &replication.LedgerReplicationResponse{
 			Status: replication.LedgerReplicationResponse_OK,
@@ -400,7 +357,7 @@ func TestNode_RecoverSkipsBlocksAndSendMixedBlocks(t *testing.T) {
 
 	// send back the block 2 again, but also block 3
 	tp.mockNet.Receive(network.ReceivedMessage{
-		From:     reqs[0].ID,
+		From:     req.ID,
 		Protocol: network.ProtocolLedgerReplicationResp,
 		Message: &replication.LedgerReplicationResponse{
 			Status: replication.LedgerReplicationResponse_OK,
@@ -411,7 +368,7 @@ func TestNode_RecoverSkipsBlocksAndSendMixedBlocks(t *testing.T) {
 
 	// send back the response with last block
 	tp.mockNet.Receive(network.ReceivedMessage{
-		From:     reqs[0].ID,
+		From:     req.ID,
 		Protocol: network.ProtocolLedgerReplicationResp,
 		Message: &replication.LedgerReplicationResponse{
 			Status: replication.LedgerReplicationResponse_OK,
@@ -422,7 +379,7 @@ func TestNode_RecoverSkipsBlocksAndSendMixedBlocks(t *testing.T) {
 	require.Equal(t, normal, tp.partition.status.Load())
 	// and now out of the blue a response with blocks 2,3 is received again
 	tp.mockNet.Receive(network.ReceivedMessage{
-		From:     reqs[0].ID,
+		From:     req.ID,
 		Protocol: network.ProtocolLedgerReplicationResp,
 		Message: &replication.LedgerReplicationResponse{
 			Status: replication.LedgerReplicationResponse_OK,
@@ -455,38 +412,26 @@ func TestNode_RecoverReceivesInvalidBlock(t *testing.T) {
 	ContainsError(t, tp, ErrNodeDoesNotHaveLatestBlock.Error())
 	require.Equal(t, recovering, tp.partition.status.Load())
 	testevent.ContainsEvent(t, tp.eh, event.RecoveryStarted)
-
 	// make sure replication request is sent
-	// make sure replication request is sent
-	var reqs []testnetwork.PeerMessage
-	require.Eventually(t, func() bool {
-		reqs = tp.mockNet.SentMessages(network.ProtocolLedgerReplicationReq)
-		return len(reqs) != 0
-	}, test.WaitDuration, test.WaitTick)
-	require.Equal(t, 1, len(reqs))
-	require.IsType(t, reqs[0].Message, &replication.LedgerReplicationRequest{})
-	tp.mockNet.ResetSentMessages(network.ProtocolLedgerReplicationReq)
+	req := WaitNodeRequestReceived(t, tp, network.ProtocolLedgerReplicationReq)
 	// send back the response with 2 blocks
 	tp.mockNet.Receive(network.ReceivedMessage{
-		From:     reqs[0].ID,
+		From:     req.ID,
 		Protocol: network.ProtocolLedgerReplicationResp,
 		Message: &replication.LedgerReplicationResponse{
 			Status: replication.LedgerReplicationResponse_OK,
 			Blocks: []*block.Block{newBlock2, altBlock3},
 		},
 	})
-	// make sure replication request is sent again and that block 3 is asked again
-	require.Eventually(t, func() bool { return len(tp.mockNet.SentMessages(network.ProtocolLedgerReplicationReq)) == 1 }, 1*time.Second, 10*time.Millisecond)
-	reqs = tp.mockNet.SentMessages(network.ProtocolLedgerReplicationReq)
-	require.Equal(t, 1, len(reqs))
-	require.IsType(t, reqs[0].Message, &replication.LedgerReplicationRequest{})
-	req := reqs[0].Message.(*replication.LedgerReplicationRequest)
-	require.Equal(t, uint64(3), req.BeginBlockNumber)
+	req = WaitNodeRequestReceived(t, tp, network.ProtocolLedgerReplicationReq)
+	require.NotNil(t, req)
+	require.IsType(t, req.Message, &replication.LedgerReplicationRequest{})
+	require.Equal(t, uint64(3), req.Message.(*replication.LedgerReplicationRequest).BeginBlockNumber)
 	require.Equal(t, recovering, tp.partition.status.Load())
 
 	// send back the block 2 again, but also block 3
 	tp.mockNet.Receive(network.ReceivedMessage{
-		From:     reqs[0].ID,
+		From:     req.ID,
 		Protocol: network.ProtocolLedgerReplicationResp,
 		Message: &replication.LedgerReplicationResponse{
 			Status: replication.LedgerReplicationResponse_OK,
@@ -524,18 +469,12 @@ func TestNode_RecoverReceivesInvalidBlockNoBlockProposerId(t *testing.T) {
 	testevent.ContainsEvent(t, tp.eh, event.RecoveryStarted)
 
 	// make sure replication request is sent
-	// make sure replication request is sent
-	var reqs []testnetwork.PeerMessage
-	require.Eventually(t, func() bool {
-		reqs = tp.mockNet.SentMessages(network.ProtocolLedgerReplicationReq)
-		return len(reqs) != 0
-	}, test.WaitDuration, test.WaitTick)
-	require.Equal(t, 1, len(reqs))
-	require.IsType(t, reqs[0].Message, &replication.LedgerReplicationRequest{})
+	req := WaitNodeRequestReceived(t, tp, network.ProtocolLedgerReplicationReq)
+	require.NotNil(t, req)
 	tp.mockNet.ResetSentMessages(network.ProtocolLedgerReplicationReq)
 	// send back the response with 2 blocks
 	tp.mockNet.Receive(network.ReceivedMessage{
-		From:     reqs[0].ID,
+		From:     req.ID,
 		Protocol: network.ProtocolLedgerReplicationResp,
 		Message: &replication.LedgerReplicationResponse{
 			Status: replication.LedgerReplicationResponse_OK,
@@ -543,17 +482,15 @@ func TestNode_RecoverReceivesInvalidBlockNoBlockProposerId(t *testing.T) {
 		},
 	})
 	// make sure replication request is sent again and that block 3 is asked again
-	require.Eventually(t, func() bool { return len(tp.mockNet.SentMessages(network.ProtocolLedgerReplicationReq)) == 1 }, 1*time.Second, 10*time.Millisecond)
-	reqs = tp.mockNet.SentMessages(network.ProtocolLedgerReplicationReq)
-	require.Equal(t, 1, len(reqs))
-	require.IsType(t, reqs[0].Message, &replication.LedgerReplicationRequest{})
-	req := reqs[0].Message.(*replication.LedgerReplicationRequest)
-	require.Equal(t, uint64(3), req.BeginBlockNumber)
+	req = WaitNodeRequestReceived(t, tp, network.ProtocolLedgerReplicationReq)
+	require.NotNil(t, req)
+	require.IsType(t, req.Message, &replication.LedgerReplicationRequest{})
+	require.Equal(t, uint64(3), req.Message.(*replication.LedgerReplicationRequest).BeginBlockNumber)
 	require.Equal(t, recovering, tp.partition.status.Load())
 
 	// send back the block 2 again, but also block 3
 	tp.mockNet.Receive(network.ReceivedMessage{
-		From:     reqs[0].ID,
+		From:     req.ID,
 		Protocol: network.ProtocolLedgerReplicationResp,
 		Message: &replication.LedgerReplicationResponse{
 			Status: replication.LedgerReplicationResponse_OK,
@@ -595,17 +532,11 @@ func TestNode_RecoverySimulateStorageFailsOnRecovery(t *testing.T) {
 	require.Equal(t, recovering, tp.partition.status.Load())
 	testevent.ContainsEvent(t, tp.eh, event.RecoveryStarted)
 	// make sure replication request is sent
-	var reqs []testnetwork.PeerMessage
-	require.Eventually(t, func() bool {
-		reqs = tp.mockNet.SentMessages(network.ProtocolLedgerReplicationReq)
-		return len(reqs) != 0
-	}, test.WaitDuration, test.WaitTick)
-	require.Equal(t, 1, len(reqs))
-	require.IsType(t, reqs[0].Message, &replication.LedgerReplicationRequest{})
-	tp.mockNet.ResetSentMessages(network.ProtocolLedgerReplicationReq)
+	req := WaitNodeRequestReceived(t, tp, network.ProtocolLedgerReplicationReq)
+	require.NotNil(t, req)
 	// send all missing blocks
 	tp.mockNet.Receive(network.ReceivedMessage{
-		From:     reqs[0].ID,
+		From:     req.ID,
 		Protocol: network.ProtocolLedgerReplicationResp,
 		Message: &replication.LedgerReplicationResponse{
 			Status: replication.LedgerReplicationResponse_OK,
@@ -617,17 +548,13 @@ func TestNode_RecoverySimulateStorageFailsOnRecovery(t *testing.T) {
 	// still recovering
 	require.Equal(t, recovering, tp.partition.status.Load())
 	// expect a ledger replication request
-	require.Eventually(t, func() bool {
-		reqs = tp.mockNet.SentMessages(network.ProtocolLedgerReplicationReq)
-		return len(reqs) != 0
-	}, test.WaitDuration, test.WaitTick)
-	require.Equal(t, 1, len(reqs))
-	require.IsType(t, reqs[0].Message, &replication.LedgerReplicationRequest{})
+	req = WaitNodeRequestReceived(t, tp, network.ProtocolLedgerReplicationReq)
+	require.NotNil(t, req)
 	tp.mockNet.ResetSentMessages(network.ProtocolLedgerReplicationReq)
 	// send blocks 3, 4, but set error first
 	db.MockWriteError(fmt.Errorf("disk is full"))
 	tp.mockNet.Receive(network.ReceivedMessage{
-		From:     reqs[0].ID,
+		From:     req.ID,
 		Protocol: network.ProtocolLedgerReplicationResp,
 		Message: &replication.LedgerReplicationResponse{
 			Status: replication.LedgerReplicationResponse_OK,
@@ -638,20 +565,16 @@ func TestNode_RecoverySimulateStorageFailsOnRecovery(t *testing.T) {
 	require.Eventually(t, func() bool { return len(tp.mockNet.MessageCh) == 0 }, 1*time.Second, 10*time.Millisecond)
 	// db failed to persist block 3 because disk is full, block 3 is asked again in a loop
 	// expect a ledger replication request
-	require.Eventually(t, func() bool {
-		reqs = tp.mockNet.SentMessages(network.ProtocolLedgerReplicationReq)
-		return len(reqs) != 0
-	}, test.WaitDuration, test.WaitTick)
-	require.Equal(t, 1, len(reqs))
-	require.IsType(t, reqs[0].Message, &replication.LedgerReplicationRequest{})
-	msg := reqs[0].Message.(*replication.LedgerReplicationRequest)
-	require.Equal(t, uint64(3), msg.BeginBlockNumber)
+	req = WaitNodeRequestReceived(t, tp, network.ProtocolLedgerReplicationReq)
+	require.NotNil(t, req)
+	require.IsType(t, req.Message, &replication.LedgerReplicationRequest{})
+	require.Equal(t, uint64(3), req.Message.(*replication.LedgerReplicationRequest).BeginBlockNumber)
 	// clear error and make sure node still recovers
 	db.MockWriteError(nil)
 	tp.mockNet.ResetSentMessages(network.ProtocolLedgerReplicationReq)
 	// send all missing blocks 3, 4 and make sure that node now recovers
 	tp.mockNet.Receive(network.ReceivedMessage{
-		From:     reqs[0].ID,
+		From:     req.ID,
 		Protocol: network.ProtocolLedgerReplicationResp,
 		Message: &replication.LedgerReplicationResponse{
 			Status: replication.LedgerReplicationResponse_OK,
@@ -715,21 +638,18 @@ func TestNode_RecoverySimulateStorageFailsDuringBlockFinalizationOnUC(t *testing
 	// expect store fails and node enters recovery
 	require.Equal(t, recovering, tp.partition.status.Load())
 	// make sure replication request is sent
-	var reqs []testnetwork.PeerMessage
-	require.Eventually(t, func() bool {
-		reqs = tp.mockNet.SentMessages(network.ProtocolLedgerReplicationReq)
-		return len(reqs) != 0
-	}, test.WaitDuration, test.WaitTick)
-	require.Equal(t, 1, len(reqs))
-	require.IsType(t, reqs[0].Message, &replication.LedgerReplicationRequest{})
-	msg := reqs[0].Message.(*replication.LedgerReplicationRequest)
+	// make sure replication request is sent
+	req := WaitNodeRequestReceived(t, tp, network.ProtocolLedgerReplicationReq)
+	require.NotNil(t, req)
+	require.IsType(t, req.Message, &replication.LedgerReplicationRequest{})
+	msg := req.Message.(*replication.LedgerReplicationRequest)
 	require.NotNil(t, msg)
 	// make sure block 2 is asked
 	require.Equal(t, uint64(2), msg.BeginBlockNumber)
 	// reset error
 	db.MockWriteError(nil)
 	tp.mockNet.Receive(network.ReceivedMessage{
-		From:     reqs[0].ID,
+		From:     req.ID,
 		Protocol: network.ProtocolLedgerReplicationResp,
 		Message: &replication.LedgerReplicationResponse{
 			Status: replication.LedgerReplicationResponse_OK,
@@ -794,17 +714,12 @@ func TestNode_CertificationRequestNotSentWhenProposalStoreFails(t *testing.T) {
 	// block is requested from other nodes
 	testevent.ContainsEvent(t, tp.eh, event.RecoveryStarted)
 	// make sure replication request is sent
-	var reqs []testnetwork.PeerMessage
-	require.Eventually(t, func() bool {
-		reqs = tp.mockNet.SentMessages(network.ProtocolLedgerReplicationReq)
-		return len(reqs) != 0
-	}, test.WaitDuration, test.WaitTick)
-	require.Equal(t, 1, len(reqs))
-	require.IsType(t, reqs[0].Message, &replication.LedgerReplicationRequest{})
+	req := WaitNodeRequestReceived(t, tp, network.ProtocolLedgerReplicationReq)
+	require.NotNil(t, req)
 	// reset error
 	db.MockWriteError(nil)
 	tp.mockNet.Receive(network.ReceivedMessage{
-		From:     reqs[0].ID,
+		From:     req.ID,
 		Protocol: network.ProtocolLedgerReplicationResp,
 		Message: &replication.LedgerReplicationResponse{
 			Status: replication.LedgerReplicationResponse_OK,
@@ -836,17 +751,12 @@ func TestNode_RecoverySendInvalidLedgerReplicationReplies(t *testing.T) {
 	require.Equal(t, recovering, tp.partition.status.Load())
 	testevent.ContainsEvent(t, tp.eh, event.RecoveryStarted)
 	// make sure replication request is sent
-	var reqs []testnetwork.PeerMessage
-	require.Eventually(t, func() bool {
-		reqs = tp.mockNet.SentMessages(network.ProtocolLedgerReplicationReq)
-		return len(reqs) != 0
-	}, test.WaitDuration, test.WaitTick)
-	require.Equal(t, 1, len(reqs))
-	require.IsType(t, reqs[0].Message, &replication.LedgerReplicationRequest{})
-
+	req := WaitNodeRequestReceived(t, tp, network.ProtocolLedgerReplicationReq)
+	require.NotNil(t, req)
+	require.IsType(t, req.Message, &replication.LedgerReplicationRequest{})
 	// send back the response with nil block
 	tp.mockNet.Receive(network.ReceivedMessage{
-		From:     reqs[0].ID,
+		From:     req.ID,
 		Protocol: network.ProtocolLedgerReplicationResp,
 		Message: &replication.LedgerReplicationResponse{
 			Status: replication.LedgerReplicationResponse_OK,
@@ -858,7 +768,7 @@ func TestNode_RecoverySendInvalidLedgerReplicationReplies(t *testing.T) {
 	illegalBlock.SystemIdentifier = []byte{0xFF, 0xFF, 0xFF, 0xFF}
 	// send back the response with nil block
 	tp.mockNet.Receive(network.ReceivedMessage{
-		From:     reqs[0].ID,
+		From:     req.ID,
 		Protocol: network.ProtocolLedgerReplicationResp,
 		Message: &replication.LedgerReplicationResponse{
 			Status: replication.LedgerReplicationResponse_OK,
@@ -869,7 +779,7 @@ func TestNode_RecoverySendInvalidLedgerReplicationReplies(t *testing.T) {
 	illegalBlock.SystemIdentifier = nil
 	// send back the response with nil block
 	tp.mockNet.Receive(network.ReceivedMessage{
-		From:     reqs[0].ID,
+		From:     req.ID,
 		Protocol: network.ProtocolLedgerReplicationResp,
 		Message: &replication.LedgerReplicationResponse{
 			Status: replication.LedgerReplicationResponse_OK,
@@ -881,7 +791,7 @@ func TestNode_RecoverySendInvalidLedgerReplicationReplies(t *testing.T) {
 	illegalBlock.UnicityCertificate = nil
 	// send back the response with nil block
 	tp.mockNet.Receive(network.ReceivedMessage{
-		From:     reqs[0].ID,
+		From:     req.ID,
 		Protocol: network.ProtocolLedgerReplicationResp,
 		Message: &replication.LedgerReplicationResponse{
 			Status: replication.LedgerReplicationResponse_OK,
@@ -891,7 +801,7 @@ func TestNode_RecoverySendInvalidLedgerReplicationReplies(t *testing.T) {
 	require.Equal(t, recovering, tp.partition.status.Load())
 	// send all blocks and assume full recovery
 	tp.mockNet.Receive(network.ReceivedMessage{
-		From:     reqs[0].ID,
+		From:     req.ID,
 		Protocol: network.ProtocolLedgerReplicationResp,
 		Message: &replication.LedgerReplicationResponse{
 			Status: replication.LedgerReplicationResponse_OK,
@@ -945,18 +855,13 @@ func TestNode_RespondToReplicationRequest(t *testing.T) {
 	})
 
 	testevent.ContainsEvent(t, tp.eh, event.ReplicationResponseSent)
-
 	//make sure response is sent
-	var resp []testnetwork.PeerMessage
-	require.Eventually(t, func() bool {
-		resp = tp.mockNet.SentMessages(network.ProtocolLedgerReplicationResp)
-		return len(resp) != 0
-	}, test.WaitDuration, test.WaitTick)
-	require.Equal(t, 1, len(resp))
-	require.IsType(t, resp[0].Message, &replication.LedgerReplicationResponse{})
-	require.Equal(t, replication.LedgerReplicationResponse_OK, resp[0].Message.(*replication.LedgerReplicationResponse).Status)
-	require.Equal(t, tp.nodeDeps.peer.ID().String(), resp[0].ID.String())
-	require.Equal(t, 2, len(resp[0].Message.(*replication.LedgerReplicationResponse).Blocks))
+	resp := WaitNodeRequestReceived(t, tp, network.ProtocolLedgerReplicationResp)
+	require.NotNil(t, resp)
+	require.IsType(t, resp.Message, &replication.LedgerReplicationResponse{})
+	require.Equal(t, replication.LedgerReplicationResponse_OK, resp.Message.(*replication.LedgerReplicationResponse).Status)
+	require.Equal(t, tp.nodeDeps.peer.ID().String(), resp.ID.String())
+	require.Equal(t, 2, len(resp.Message.(*replication.LedgerReplicationResponse).Blocks))
 
 	tp.eh.Reset()
 	tp.mockNet.ResetSentMessages(network.ProtocolLedgerReplicationResp)
@@ -972,15 +877,12 @@ func TestNode_RespondToReplicationRequest(t *testing.T) {
 		},
 	})
 	testevent.ContainsEvent(t, tp.eh, event.ReplicationResponseSent)
-	require.Eventually(t, func() bool {
-		resp = tp.mockNet.SentMessages(network.ProtocolLedgerReplicationResp)
-		return len(resp) != 0
-	}, test.WaitDuration, test.WaitTick)
-	require.Equal(t, 1, len(resp))
-	require.IsType(t, resp[0].Message, &replication.LedgerReplicationResponse{})
-	require.Equal(t, replication.LedgerReplicationResponse_OK, resp[0].Message.(*replication.LedgerReplicationResponse).Status)
-	require.Equal(t, tp.nodeDeps.peer.ID().String(), resp[0].ID.String())
-	require.Equal(t, 1, len(resp[0].Message.(*replication.LedgerReplicationResponse).Blocks))
+	resp = WaitNodeRequestReceived(t, tp, network.ProtocolLedgerReplicationResp)
+	require.NotNil(t, resp)
+	require.IsType(t, resp.Message, &replication.LedgerReplicationResponse{})
+	require.Equal(t, replication.LedgerReplicationResponse_OK, resp.Message.(*replication.LedgerReplicationResponse).Status)
+	require.Equal(t, tp.nodeDeps.peer.ID().String(), resp.ID.String())
+	require.Equal(t, 1, len(resp.Message.(*replication.LedgerReplicationResponse).Blocks))
 }
 
 func TestNode_RespondToInvalidReplicationRequest(t *testing.T) {
@@ -1021,14 +923,10 @@ func TestNode_RespondToInvalidReplicationRequest(t *testing.T) {
 	})
 	testevent.ContainsEvent(t, tp.eh, event.ReplicationResponseSent)
 	//make sure response is sent
-	var resp []testnetwork.PeerMessage
-	require.Eventually(t, func() bool {
-		resp = tp.mockNet.SentMessages(network.ProtocolLedgerReplicationResp)
-		return len(resp) != 0
-	}, test.WaitDuration, test.WaitTick)
-	require.Equal(t, 1, len(resp))
-	require.IsType(t, resp[0].Message, &replication.LedgerReplicationResponse{})
-	msg := resp[0].Message.(*replication.LedgerReplicationResponse)
+	resp := WaitNodeRequestReceived(t, tp, network.ProtocolLedgerReplicationResp)
+	require.NotNil(t, resp)
+	require.IsType(t, resp.Message, &replication.LedgerReplicationResponse{})
+	msg := resp.Message.(*replication.LedgerReplicationResponse)
 	require.Equal(t, replication.LedgerReplicationResponse_BLOCKS_NOT_FOUND, msg.Status)
 	require.Contains(t, msg.Message, "Node does not have block: 11, latest block: 5")
 	tp.mockNet.ResetSentMessages(network.ProtocolLedgerReplicationResp)
@@ -1043,13 +941,10 @@ func TestNode_RespondToInvalidReplicationRequest(t *testing.T) {
 		},
 	})
 	testevent.ContainsEvent(t, tp.eh, event.ReplicationResponseSent)
-	require.Eventually(t, func() bool {
-		resp = tp.mockNet.SentMessages(network.ProtocolLedgerReplicationResp)
-		return len(resp) != 0
-	}, test.WaitDuration, test.WaitTick)
-	require.Equal(t, 1, len(resp))
-	require.IsType(t, resp[0].Message, &replication.LedgerReplicationResponse{})
-	msg = resp[0].Message.(*replication.LedgerReplicationResponse)
+	resp = WaitNodeRequestReceived(t, tp, network.ProtocolLedgerReplicationResp)
+	require.NotNil(t, resp)
+	require.IsType(t, resp.Message, &replication.LedgerReplicationResponse{})
+	msg = resp.Message.(*replication.LedgerReplicationResponse)
 	require.Equal(t, replication.LedgerReplicationResponse_UNKNOWN_SYSTEM_IDENTIFIER, msg.Status)
 	require.Contains(t, msg.Message, "Unknown system identifier: FFFFFFFF")
 	tp.mockNet.ResetSentMessages(network.ProtocolLedgerReplicationResp)

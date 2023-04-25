@@ -34,6 +34,7 @@ import (
 	p2pcrypto "github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/proto"
 )
 
 type AlwaysValidBlockProposalValidator struct{}
@@ -420,4 +421,28 @@ func ContainsEventType(t *testing.T, tp *SingleNodePartition, evType event.Type)
 		}
 		return false
 	}, test.WaitDuration, test.WaitTick)
+}
+
+// WaitNodeRequestReceived waits for req type message from node and if there is more than one, copy of the latest is
+// returned and the buffer is cleared. NB! if there is already such a message received the method will return with the latest
+// immediately. Make sure to clear the "sent" messages if test expects a new message.
+func WaitNodeRequestReceived(t *testing.T, tp *SingleNodePartition, req string) *testnetwork.PeerMessage {
+	t.Helper()
+	defer tp.mockNet.ResetSentMessages(req)
+	var reqs []testnetwork.PeerMessage
+	require.Eventually(t, func() bool {
+		reqs = tp.mockNet.SentMessages(req)
+		return len(reqs) > 0
+	}, test.WaitDuration, test.WaitTick)
+	// if more than one return last
+	if len(reqs) > 0 {
+		return &testnetwork.PeerMessage{
+			ID: reqs[len(reqs)-1].ID,
+			OutputMessage: network.OutputMessage{
+				Protocol: reqs[len(reqs)-1].Protocol,
+				Message:  proto.Clone(reqs[len(reqs)-1].Message),
+			},
+		}
+	}
+	return nil
 }

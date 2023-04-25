@@ -27,10 +27,10 @@ func (p *SendProtocol) ID() string {
 
 func (p *SendProtocol) Send(m proto.Message, receiverID peer.ID) error {
 	ctx, cancel := context.WithTimeout(context.Background(), p.timeout)
+	defer cancel()
 	doneCh := make(chan error, 1)
+
 	go func() {
-		defer close(doneCh)
-		defer cancel()
 		s, err := p.self.CreateStream(ctx, receiverID, p.protocolID)
 		if err != nil {
 			doneCh <- errors.Wrapf(err, "failed to open stream: "+
@@ -38,8 +38,7 @@ func (p *SendProtocol) Send(m proto.Message, receiverID peer.ID) error {
 			return
 		}
 		defer func() {
-			err := s.Close()
-			if err != nil {
+			if err := s.Close(); err != nil {
 				logger.Warning("Failed to close libp2p stream. Error %v, "+
 					"protocol: %s, receiver peerID: %v, sender peerID: %v", err, p.protocolID, receiverID, p.self.ID())
 			}
@@ -47,14 +46,13 @@ func (p *SendProtocol) Send(m proto.Message, receiverID peer.ID) error {
 
 		w := NewProtoBufWriter(s)
 		defer func() {
-			err := w.Close()
-			if err != nil {
+			if err := w.Close(); err != nil {
 				logger.Warning("Failed to close protobuf writer. Error %v, "+
 					"protocol: %s, receiver peerID: %v, sender peerID: %v", err, p.protocolID, receiverID, p.self.ID())
 			}
 		}()
-		err = w.Write(m)
-		if err != nil {
+
+		if err := w.Write(m); err != nil {
 			doneCh <- errors.Errorf("failed to write request: %v, "+
 				"protocol: %s, receiver peerID: %v, sender peerID: %v", err, p.protocolID, receiverID, p.self.ID())
 		}
@@ -63,7 +61,7 @@ func (p *SendProtocol) Send(m proto.Message, receiverID peer.ID) error {
 
 	select {
 	case <-ctx.Done():
-		return errors.Errorf("timeout: protocol: %v, receiver peerID: %v, sender peerID: %v\"",
+		return errors.Errorf("timeout: protocol: %v, receiver peerID: %v, sender peerID: %v",
 			p.protocolID, receiverID, p.self.ID())
 	case err := <-doneCh:
 		if err != nil {

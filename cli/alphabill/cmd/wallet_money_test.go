@@ -19,6 +19,7 @@ import (
 
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
+	"github.com/alphabill-org/alphabill/internal/partition"
 	"github.com/alphabill-org/alphabill/internal/script"
 	testpartition "github.com/alphabill-org/alphabill/internal/testutils/partition"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
@@ -210,19 +211,24 @@ func startAlphabillPartition(t *testing.T, initialBill *moneytx.InitialBill) *te
 		return system
 	}, []byte{0, 0, 0, 0})
 	require.NoError(t, err)
+
 	t.Cleanup(func() {
-		_ = network.Close()
+		require.NoError(t, network.Close())
 	})
+
+	for i := range network.Nodes {
+		network.Nodes[i].AddrGRPC = startRPCServer(t, network.Nodes[i].Node)
+	}
+
 	return network
 }
 
-func startRPCServer(t *testing.T, network *testpartition.AlphabillPartition, addr string) {
-	// start rpc server for network.Nodes[0]
-	listener, err := net.Listen("tcp", addr)
+func startRPCServer(t *testing.T, node *partition.Node) string {
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err)
 
-	grpcServer, err := initRPCServer(network.Nodes[0].Node, &grpcServerConfiguration{
-		Address:               addr,
+	grpcServer, err := initRPCServer(node, &grpcServerConfiguration{
+		Address:               listener.Addr().String(),
 		MaxGetBlocksBatchSize: defaultMaxGetBlocksBatchSize,
 		MaxRecvMsgSize:        defaultMaxRecvMsgSize,
 		MaxSendMsgSize:        defaultMaxSendMsgSize,
@@ -232,14 +238,17 @@ func startRPCServer(t *testing.T, network *testpartition.AlphabillPartition, add
 	t.Cleanup(func() {
 		grpcServer.GracefulStop()
 	})
+
 	go func() {
-		_ = grpcServer.Serve(listener)
+		require.NoError(t, grpcServer.Serve(listener), "gRPC server exited with error")
 	}()
+
+	return listener.Addr().String()
 }
 
 // addAccount calls "add-key" cli function on given wallet and returns the added pubkey hex
 func addAccount(t *testing.T, homedir string) string {
-	stdout := execWalletCmd(t, homedir, "add-key")
+	stdout := execWalletCmd(t, "", homedir, "add-key")
 	for _, line := range stdout.lines {
 		if strings.HasPrefix(line, "Added key #") {
 			return line[13:]
@@ -293,12 +302,18 @@ func execCommand(homeDir, command string) (*testConsoleWriter, error) {
 	return outputWriter, cmd.addAndExecuteCommand(context.Background())
 }
 
-func execWalletCmd(t *testing.T, homedir string, command string) *testConsoleWriter {
+func execWalletCmd(t *testing.T, alphabillNodeAddr, homedir string, command string) *testConsoleWriter {
 	outputWriter := &testConsoleWriter{}
 	consoleWriter = outputWriter
 
 	cmd := New()
-	args := "wallet --home " + homedir + " " + command
+
+	abNodeParam := ""
+	if alphabillNodeAddr != "" {
+		abNodeParam = fmt.Sprintf(" --%s %s", alphabillNodeURLCmdName, alphabillNodeAddr)
+	}
+
+	args := "wallet --home " + homedir + abNodeParam + " " + command
 	cmd.baseCmd.SetArgs(strings.Split(args, " "))
 
 	err := cmd.addAndExecuteCommand(context.Background())

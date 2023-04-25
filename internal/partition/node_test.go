@@ -89,7 +89,7 @@ func TestNode_ConvertingTxToGenericTxFails(t *testing.T) {
 func TestNode_NodeStartTest(t *testing.T) {
 	tp := RunSingleNodePartition(t, &testtxsystem.CounterTxSystem{})
 	// node starts in init state
-	require.Equal(t, initializing, tp.partition.status)
+	require.Equal(t, initializing, tp.partition.status.Load())
 	// node sends a handshake to root and subscribes to UC messages
 	require.Eventually(t, RequestReceived(tp, network.ProtocolHandshake), 200*time.Millisecond, test.WaitTick)
 	// simulate no response, but monitor timeout
@@ -107,7 +107,7 @@ func TestNode_NodeStartTest(t *testing.T) {
 	tp.SubmitUnicityCertificate(tp.partition.luc.Load())
 	// node is initiated
 	require.Eventually(t, func() bool {
-		return tp.partition.status == normal
+		return tp.partition.status.Load() == normal
 	}, test.WaitDuration, test.WaitTick)
 }
 
@@ -421,7 +421,7 @@ func TestNode_HandleUnicityCertificate_ProposalIsNil(t *testing.T) {
 
 	ContainsError(t, tp, ErrNodeDoesNotHaveLatestBlock.Error())
 	require.Equal(t, uint64(1), txSystem.RevertCount)
-	require.Equal(t, recovering, tp.partition.status)
+	require.Equal(t, recovering, tp.partition.status.Load())
 }
 
 // proposal not nil
@@ -602,7 +602,7 @@ func TestBlockProposal_TxSystemStateIsDifferent_newUC(t *testing.T) {
 	ContainsError(t, tp, ErrNodeDoesNotHaveLatestBlock.Error())
 	require.Equal(t, uint64(1), system.RevertCount)
 	testevent.ContainsEvent(t, tp.eh, event.StateReverted)
-	require.Equal(t, recovering, tp.partition.status)
+	require.Equal(t, recovering, tp.partition.status.Load())
 }
 
 func (c *AlwaysValidCertificateValidator) Validate(_ *certificates.UnicityCertificate) error {

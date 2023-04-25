@@ -20,7 +20,8 @@ import (
 )
 
 func TestWalletFeesCmds(t *testing.T) {
-	homedir, _ := setupInfraAndWallet(t)
+	homedir, abPartition := setupInfraAndWallet(t)
+	abNodeAddrFlag := "-u " + abPartition.Nodes[0].AddrGRPC
 
 	// list fees
 	stdout, err := execFeesCommand(homedir, "list")
@@ -29,7 +30,7 @@ func TestWalletFeesCmds(t *testing.T) {
 
 	// add fee credits
 	amount := uint64(150)
-	stdout, err = execFeesCommand(homedir, fmt.Sprintf("add --amount=%d", amount))
+	stdout, err = execFeesCommand(homedir, fmt.Sprintf("add --amount=%d %s", amount, abNodeAddrFlag))
 	require.NoError(t, err)
 	require.Equal(t, fmt.Sprintf("Successfully created %d fee credits.", amount), stdout.lines[0])
 	time.Sleep(2 * time.Second) // TODO waitForConf should use backend and not node for tx confirmations
@@ -41,7 +42,7 @@ func TestWalletFeesCmds(t *testing.T) {
 	require.Equal(t, fmt.Sprintf("Account #1 %s", amountToString(expectedFees, 8)), stdout.lines[0])
 
 	// add more fee credits
-	stdout, err = execFeesCommand(homedir, fmt.Sprintf("add --amount=%d", amount))
+	stdout, err = execFeesCommand(homedir, fmt.Sprintf("add --amount=%d %s", amount, abNodeAddrFlag))
 	require.NoError(t, err)
 	require.Equal(t, fmt.Sprintf("Successfully created %d fee credits.", amount), stdout.lines[0])
 	time.Sleep(2 * time.Second) // TODO waitForConf should use backend and not node for tx confirmations
@@ -53,7 +54,7 @@ func TestWalletFeesCmds(t *testing.T) {
 	require.Equal(t, fmt.Sprintf("Account #1 %s", amountToString(expectedFees, 8)), stdout.lines[0])
 
 	// reclaim fees
-	stdout, err = execFeesCommand(homedir, "reclaim")
+	stdout, err = execFeesCommand(homedir, "reclaim "+abNodeAddrFlag)
 	require.NoError(t, err)
 	require.Equal(t, "Successfully reclaimed fee credits.", stdout.lines[0])
 
@@ -76,7 +77,6 @@ func setupInfraAndWallet(t *testing.T) (string, *testpartition.AlphabillPartitio
 		Owner: script.PredicateAlwaysTrue(),
 	}
 	network := startAlphabillPartition(t, initialBill)
-	startRPCServer(t, network, defaultAlphabillNodeURL)
 
 	// start wallet backend
 	ctx, cancelFunc := context.WithCancel(context.Background())
@@ -85,8 +85,8 @@ func setupInfraAndWallet(t *testing.T) (string, *testpartition.AlphabillPartitio
 		err := money.CreateAndRun(ctx,
 			&money.Config{
 				ABMoneySystemIdentifier: []byte{0, 0, 0, 0},
-				AlphabillUrl:            defaultAlphabillNodeURL, // TODO move to random port
-				ServerAddr:              defaultAlphabillApiURL,  // TODO move to random port
+				AlphabillUrl:            network.Nodes[0].AddrGRPC,
+				ServerAddr:              defaultAlphabillApiURL, // TODO move to random port
 				DbFile:                  filepath.Join(t.TempDir(), money.BoltBillStoreFileName),
 				ListBillsPageLimit:      100,
 				InitialBill: money.InitialBill{
@@ -102,7 +102,7 @@ func setupInfraAndWallet(t *testing.T) (string, *testpartition.AlphabillPartitio
 	wlog.InitStdoutLogger(wlog.DEBUG)
 	homedir := createNewTestWallet(t)
 
-	stdout := execWalletCmd(t, homedir, "get-pubkeys")
+	stdout := execWalletCmd(t, "", homedir, "get-pubkeys")
 	require.Len(t, stdout.lines, 1)
 	pk, _ := strings.CutPrefix(stdout.lines[0], "#1 ")
 

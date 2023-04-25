@@ -283,7 +283,7 @@ func TestWalletCreateNonFungibleTokenCmd_TokenIdFlag(t *testing.T) {
 }
 
 func TestWalletCreateNonFungibleTokenCmd_DataFileFlag(t *testing.T) {
-	data := make([]byte, maxBinaryFile64KiB + 1)
+	data := make([]byte, maxBinaryFile64KiB+1)
 	tmpfile, err := os.CreateTemp(t.TempDir(), "test")
 	require.NoError(t, err)
 	_, err = tmpfile.Write(data)
@@ -325,7 +325,7 @@ func TestWalletCreateNonFungibleTokenCmd_DataFileFlag(t *testing.T) {
 }
 
 func TestWalletUpdateNonFungibleTokenDataCmd_Flags(t *testing.T) {
-	data := make([]byte, maxBinaryFile64KiB + 1)
+	data := make([]byte, maxBinaryFile64KiB+1)
 	tmpfile, err := os.CreateTemp(t.TempDir(), "test")
 	require.NoError(t, err)
 	_, err = tmpfile.Write(data)
@@ -432,6 +432,7 @@ func ensureTokenTypeIndexed(t *testing.T, ctx context.Context, api *client.Token
 func startTokensPartition(t *testing.T) (*testpartition.AlphabillPartition, string) {
 	tokensState := rma.NewWithSHA256()
 	require.NotNil(t, tokensState)
+
 	network, err := testpartition.NewNetwork(1,
 		func(tb map[string]abcrypto.Verifier) txsystem.TransactionSystem {
 			system, err := tokens.New(
@@ -443,13 +444,12 @@ func startTokensPartition(t *testing.T) (*testpartition.AlphabillPartition, stri
 			return system
 		}, tokens.DefaultTokenTxSystemIdentifier)
 	require.NoError(t, err)
+
 	t.Cleanup(func() {
-		_ = network.Close()
+		require.NoError(t, network.Close())
 	})
 
-	listenAddr := fmt.Sprintf(":%d", net.GetFreeRandomPort(t))
-	startRPCServer(t, network, listenAddr)
-	dialAddr := "localhost" + listenAddr
+	dialAddr := startRPCServer(t, network.Nodes[0].Node)
 	return network, dialAddr
 }
 
@@ -458,7 +458,6 @@ func startTokensBackend(t *testing.T, nodeAddr string) (srvUri string, restApi *
 	require.NoError(t, err)
 	host := fmt.Sprintf("localhost:%v", port)
 	srvUri = "http://" + host
-	cfg := twb.NewConfig(host, nodeAddr, filepath.Join(t.TempDir(), "backend.db"), wlog.GetLogger())
 	addr, err := url.Parse(srvUri)
 	require.NoError(t, err)
 	restApi = client.New(*addr)
@@ -469,8 +468,8 @@ func startTokensBackend(t *testing.T, nodeAddr string) (srvUri string, restApi *
 	t.Cleanup(cancel)
 
 	go func() {
-		err = twb.Run(ctx, cfg)
-		fmt.Println("token wallet ended")
+		cfg := twb.NewConfig(host, nodeAddr, filepath.Join(t.TempDir(), "backend.db"), wlog.GetLogger())
+		require.ErrorIs(t, twb.Run(ctx, cfg), context.Canceled)
 	}()
 
 	require.Eventually(t, func() bool {

@@ -39,8 +39,9 @@ const rootValidatorNodes = 3
 
 type partitionNode struct {
 	*partition.Node
-	cancel context.CancelFunc
-	done   chan error
+	AddrGRPC string
+	cancel   context.CancelFunc
+	done     chan error
 }
 
 type rootNode struct {
@@ -185,14 +186,11 @@ func NewNetwork(nodeCount int, txSystemProvider func(trustBase map[string]crypto
 		go func(ec chan error) { ec <- rn.Run(nctx) }(rootNodes[i].done)
 	}
 	partitionGenesis := partitionGenesisFiles[0]
+
 	// start Nodes
 	nodes := make([]*partitionNode, nodeCount)
 	eh := &testevent.TestEventHandler{}
 	for i := 0; i < nodeCount; i++ {
-		if err != nil {
-			ctxCancel()
-			return nil, err
-		}
 		peer := nodePeers[i]
 		pn, err := network.NewLibP2PValidatorNetwork(peer, network.DefaultValidatorNetOptions)
 		if err != nil {
@@ -218,10 +216,6 @@ func NewNetwork(nodeCount int, txSystemProvider func(trustBase map[string]crypto
 		go func(ec chan error) { ec <- n.Run(nctx) }(nodes[i].done)
 	}
 
-	if err != nil {
-		ctxCancel()
-		return nil, err
-	}
 	return &AlphabillPartition{
 		RootNodes:    rootNodes,
 		Nodes:        nodes,

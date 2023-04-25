@@ -24,12 +24,12 @@ const MaxBodySize int64 = 1 << 20 // 1 MB
 func TestNewRESTServer_PartitionNodeIsNil(t *testing.T) {
 	p := peer.CreatePeer(t)
 	s, err := NewRESTServer(nil, "", MaxBodySize, p)
-	require.ErrorContains(t, err, "partition node is nil")
+	require.ErrorContains(t, err, "can't initialize REST server with nil partition node")
 	require.Nil(t, s)
 }
 func TestNewRESTServer_PeerIsNil(t *testing.T) {
 	s, err := NewRESTServer(&MockNode{}, "", MaxBodySize, nil)
-	require.ErrorContains(t, err, "peer is nil")
+	require.ErrorContains(t, err, "can't initialize REST server with nil network peer")
 	require.Nil(t, s)
 }
 
@@ -148,7 +148,7 @@ func TestNewRESTServer_NotFound(t *testing.T) {
 
 	s.Handler.ServeHTTP(recorder, req)
 	require.Equal(t, http.StatusNotFound, recorder.Code)
-	require.Contains(t, recorder.Body.String(), "404 not found")
+	require.Contains(t, recorder.Body.String(), "request path doesn't match any endpoint")
 }
 
 func TestNewRESTServer_InvalidTx(t *testing.T) {

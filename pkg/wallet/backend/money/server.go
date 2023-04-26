@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/alphabill-org/alphabill/internal/txsystem"
 	wlog "github.com/alphabill-org/alphabill/pkg/wallet/log"
 )
 
@@ -27,6 +28,7 @@ type (
 		GetBill(unitID []byte) (*Bill, error)
 		GetRoundNumber(ctx context.Context) (uint64, error)
 		GetFeeCreditBill(unitID []byte) (*Bill, error)
+		SendTransactions(ctx context.Context, txs []*txsystem.Transaction) map[string]string
 	}
 
 	GenericWalletBackendHttpServer struct {

@@ -3,11 +3,13 @@ package money
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"sort"
 	"strconv"
 
+	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/pkg/wallet/backend/bp"
 	_ "github.com/alphabill-org/alphabill/pkg/wallet/backend/money/docs"
 	"github.com/alphabill-org/alphabill/pkg/wallet/log"
@@ -84,6 +86,7 @@ func (s *RequestHandler) Router() *mux.Router {
 	apiV1.HandleFunc("/proof", s.getProofFunc).Methods("GET", "OPTIONS")
 	apiV1.HandleFunc("/round-number", s.blockHeightFunc).Methods("GET", "OPTIONS")
 	apiV1.HandleFunc("/fee-credit-bill", s.getFeeCreditBillFunc).Methods("GET", "OPTIONS")
+	apiV1.HandleFunc("/transactions/{pubkey}", s.postTransactions).Methods("POST", "OPTIONS")
 
 	apiV1.PathPrefix("/swagger/").Handler(httpSwagger.Handler(
 		httpSwagger.URL("/api/v1/swagger/doc.json"), //The url pointing to API definition
@@ -276,6 +279,62 @@ func (s *RequestHandler) getFeeCreditBillFunc(w http.ResponseWriter, r *http.Req
 		return
 	}
 	writeAsProtoJson(w, fcb.toProto())
+}
+
+// @Summary Forward transactions to partiton node(s)
+// @Id 6
+// @version 1.0
+// @produce application/json
+// @Param pubkey path string true "Sender public key prefixed with 0x"
+// @Success 202
+// @Router /transactions [post]
+func (s *RequestHandler) postTransactions(w http.ResponseWriter, r *http.Request) {
+	defer r.Body.Close()
+	buf, err := io.ReadAll(r.Body)
+	if err != nil {
+		log.Debug("failed to read request body: ", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		writeAsJson(w, ErrorResponse{
+			Message: fmt.Errorf("failed to read request body: %w", err).Error(),
+		})
+		return
+	}
+
+	vars := mux.Vars(r)
+	_, err = parsePubKey(vars["pubkey"])
+	if err != nil {
+		log.Debug("Failed to parse sender pubkey: ", err)
+		w.WriteHeader(http.StatusBadRequest)
+		writeAsJson(w, ErrorResponse{
+			Message: fmt.Errorf("failed to parse sender pubkey: %w", err).Error(),
+		})
+		return
+	}
+
+	txs := &txsystem.Transactions{}
+	if err = protojson.Unmarshal(buf, txs); err != nil {
+		log.Debug("failed to decode request body: ", err)
+		w.WriteHeader(http.StatusBadRequest)
+		writeAsJson(w, ErrorResponse{
+			Message: fmt.Errorf("failed to decode request body: %w", err).Error(),
+		})
+		return
+	}
+	if len(txs.GetTransactions()) == 0 {
+		log.Debug("request body contained no transactions to process")
+		w.WriteHeader(http.StatusBadRequest)
+		writeAsJson(w, ErrorResponse{
+			Message: "request body contained no transactions to process",
+		})
+		return
+	}
+
+	if errs := s.Service.SendTransactions(r.Context(), txs.GetTransactions()); len(errs) > 0 {
+		w.WriteHeader(http.StatusInternalServerError)
+		writeAsJson(w, errs)
+		return
+	}
+	w.WriteHeader(http.StatusAccepted)
 }
 
 func (s *RequestHandler) parsePagingParams(r *http.Request) (int, int) {

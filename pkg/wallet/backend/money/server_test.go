@@ -15,6 +15,8 @@ import (
 	testhttp "github.com/alphabill-org/alphabill/internal/testutils/http"
 	"github.com/alphabill-org/alphabill/internal/testutils/net"
 	testtransaction "github.com/alphabill-org/alphabill/internal/testutils/transaction"
+	"github.com/alphabill-org/alphabill/internal/testutils/transaction/money"
+	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/pkg/client"
 	"github.com/alphabill-org/alphabill/pkg/client/clientmock"
 	"github.com/alphabill-org/alphabill/pkg/wallet"
@@ -472,6 +474,62 @@ func TestGetFeeCreditBillRequest_BillDoesNotExist(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, http.StatusNotFound, httpRes.StatusCode)
 	require.Equal(t, "fee credit bill does not exist", res.Message)
+}
+
+func TestPostTransactionsRequest_InvalidPubkey(t *testing.T) {
+	walletBackend := newWalletBackend(t)
+	port := startServer(t, walletBackend)
+
+	res := &ErrorResponse{}
+	httpRes, err := testhttp.DoPostProto(fmt.Sprintf("http://localhost:%d/api/v1/transactions/%s", port, "invalid"), nil, res)
+	require.NoError(t, err)
+	require.Equal(t, http.StatusBadRequest, httpRes.StatusCode)
+	require.Contains(t, res.Message, "failed to parse sender pubkey")
+}
+
+func TestPostTransactionsRequest_EmptyBody(t *testing.T) {
+	walletBackend := newWalletBackend(t)
+	port := startServer(t, walletBackend)
+
+	// txs := &txsystem.Transactions{Transactions: []*txsystem.Transaction{
+	// 	money.RandomtrBillTransfer(t),
+	// 	money.RandomBillTransfer(t),
+	// 	money.RandomBillTransfer(t),
+	// }}
+
+	res := &ErrorResponse{}
+	httpRes, err := testhttp.DoPostProto(fmt.Sprintf("http://localhost:%d/api/v1/transactions/%s", port, pubkeyHex), nil, res)
+	require.NoError(t, err)
+	require.Equal(t, http.StatusBadRequest, httpRes.StatusCode)
+	require.Equal(t, "request body contained no transactions to process", res.Message)
+}
+
+func TestPostTransactionsRequest_InvalidTransactions(t *testing.T) {
+	walletBackend := newWalletBackend(t)
+	port := startServer(t, walletBackend)
+
+	txs := money.RandomBillTransfer(t)
+
+	res := &ErrorResponse{}
+	httpRes, err := testhttp.DoPostProto(fmt.Sprintf("http://localhost:%d/api/v1/transactions/%s", port, pubkeyHex), txs, res)
+	require.NoError(t, err)
+	require.Equal(t, http.StatusBadRequest, httpRes.StatusCode)
+	require.Contains(t, res.Message, "failed to decode request body")
+}
+
+func TestPostTransactionsRequest_Ok(t *testing.T) {
+	walletBackend := newWalletBackend(t)
+	port := startServer(t, walletBackend)
+
+	txs := &txsystem.Transactions{Transactions: []*txsystem.Transaction{
+		money.RandomBillTransfer(t),
+		money.RandomBillTransfer(t),
+		money.RandomBillTransfer(t),
+	}}
+
+	httpRes, err := testhttp.DoPostProto(fmt.Sprintf("http://localhost:%d/api/v1/transactions/%s", port, pubkeyHex), txs, nil)
+	require.NoError(t, err)
+	require.Equal(t, http.StatusAccepted, httpRes.StatusCode)
 }
 
 func startServer(t *testing.T, service WalletBackendService) int {

@@ -31,9 +31,10 @@ message UnicityTreeCertificate {
 
 message UnicitySeal {
   uint64 root_chain_round_number = 1;
-  bytes previous_hash = 2;
-  bytes hash = 3;
-  map<string, bytes> signatures = 4;
+  uint64 timestamp = 2;
+  bytes previous_hash = 3;
+  bytes hash = 4;
+  map<string, bytes> signatures = 5;
 }
 
 

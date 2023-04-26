@@ -168,7 +168,7 @@ func (w *Wallet) GetBalances(cmd GetBalanceCmd) ([]uint64, uint64, error) {
 
 // Send creates, signs and broadcasts transactions, in total for the given amount,
 // to the given public key, the public key must be in compressed secp256k1 format.
-// Sends one transaction per bill, prioritzing larger bills.
+// Sends one transaction per bill, prioritizing larger bills.
 // Waits for initial response from the node, returns error if any transaction was not accepted to the mempool.
 // Returns list of bills including transaction and proof data, if waitForConfirmation=true, otherwise nil.
 func (w *Wallet) Send(ctx context.Context, cmd SendCmd) ([]*Bill, error) {
@@ -203,7 +203,7 @@ func (w *Wallet) Send(ctx context.Context, cmd SendCmd) ([]*Bill, error) {
 		return nil, ErrNoFeeCredit
 	}
 
-	billResponse, err := w.restClient.ListBills(pubKey)
+	billResponse, err := w.restClient.ListBills(pubKey, false)
 	if err != nil {
 		return nil, err
 	}
@@ -270,16 +270,13 @@ func (w *Wallet) AddFeeCredit(ctx context.Context, cmd AddFeeCmd) ([]*BlockProof
 	if err != nil {
 		return nil, err
 	}
-	listBillsResponse, err := w.restClient.ListBills(accountKey.PubKey)
+	listBillsResponse, err := w.restClient.ListBills(accountKey.PubKey, false)
 	if err != nil {
 		return nil, err
 	}
-	// filter dc bills
 	var bills []*Bill
 	for _, b := range listBillsResponse.Bills {
-		if !b.IsDCBill {
-			bills = append(bills, newBillFromVM(b))
-		}
+		bills = append(bills, newBillFromVM(b))
 	}
 	// sort bills by value in descending order
 	sort.Slice(bills, func(i, j int) bool {
@@ -361,19 +358,16 @@ func (w *Wallet) ReclaimFeeCredit(ctx context.Context, cmd ReclaimFeeCmd) ([]*Bl
 		return nil, ErrInsufficientFeeCredit
 	}
 
-	listBillsResponse, err := w.restClient.ListBills(k.PubKey)
+	listBillsResponse, err := w.restClient.ListBills(k.PubKey, false)
 	if err != nil {
 		return nil, err
 	}
-	// filter dc bills
+	if len(listBillsResponse.Bills) == 0 {
+		return nil, errors.New("wallet must have a source bill to which to add reclaimed fee credits")
+	}
 	var bills []*Bill
 	for _, b := range listBillsResponse.Bills {
-		if !b.IsDCBill {
-			bills = append(bills, newBillFromVM(b))
-		}
-	}
-	if len(bills) == 0 {
-		return nil, errors.New("wallet must have a source bill to which to add reclaimed fee credits")
+		bills = append(bills, newBillFromVM(b))
 	}
 	// sort bills by value in descending order
 	sort.Slice(bills, func(i, j int) bool {
@@ -441,7 +435,7 @@ func (w *Wallet) collectDust(ctx context.Context, blocking bool, accountIndex ui
 	if err != nil {
 		return err
 	}
-	billResponse, err := w.restClient.ListBills(pubKey)
+	billResponse, err := w.restClient.ListBills(pubKey, true)
 	if err != nil {
 		return err
 	}
@@ -536,7 +530,7 @@ func (w *Wallet) doSwap(ctx context.Context, accountIndex, timeout uint64) error
 	}
 	log.Info("waiting for swap confirmation(s)...")
 	for roundNr <= timeout+1 {
-		billResponse, err := w.restClient.ListBills(pubKey)
+		billResponse, err := w.restClient.ListBills(pubKey, true)
 		if err != nil {
 			return err
 		}

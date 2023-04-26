@@ -32,7 +32,7 @@ func TestMoneyBackendCLI(t *testing.T) {
 	initialBillID := util.Uint256ToBytes(initialBill.ID)
 	initialBillHex := hexutil.Encode(initialBillID)
 	network := startAlphabillPartition(t, initialBill)
-	startRPCServer(t, network, defaultServerAddr)
+	alphabillNodeAddr := network.Nodes[0].AddrGRPC
 
 	// transfer initial bill to wallet pubkey
 	pk := "0x03c30573dc0c7fd43fcb801289a6a96cb78c27f4ba398b89da91ece23e9a99aca3"
@@ -46,7 +46,7 @@ func TestMoneyBackendCLI(t *testing.T) {
 	consoleWriter = &testConsoleWriter{}
 	go func() {
 		cmd := New()
-		args := fmt.Sprintf("money-backend --home %s start --server-addr %s", homedir, serverAddr)
+		args := fmt.Sprintf("money-backend --home %s start --server-addr %s --%s %s", homedir, serverAddr, alphabillNodeURLCmdName, alphabillNodeAddr)
 		cmd.baseCmd.SetArgs(strings.Split(args, " "))
 
 		ctx, cancelFunc := context.WithCancel(context.Background())

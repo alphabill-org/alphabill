@@ -63,7 +63,7 @@ type (
 	// Node represents a member in the partition and implements an instance of a specific TransactionSystem. Partition
 	// is a distributed system, it consists of either a set of shards, or one or more partition nodes.
 	Node struct {
-		status                      status
+		status                      atomic.Value
 		configuration               *configuration
 		transactionSystem           txsystem.TransactionSystem
 		luc                         atomic.Pointer[certificates.UnicityCertificate]
@@ -127,7 +127,6 @@ func New(
 	log.SetContext(log.KeyNodeID, conf.peer.ID().String())
 
 	n := &Node{
-		status:                      initializing,
 		configuration:               conf,
 		transactionSystem:           txSystem,
 		timers:                      timer.NewTimers(),
@@ -143,6 +142,8 @@ func New(
 		lastLedgerReqTime:           time.Time{},
 		txCh:                        make(chan txsystem.GenericTransaction, conf.txBuffer.Capacity()),
 	}
+
+	n.status.Store(initializing)
 
 	if n.eventHandler != nil {
 		n.eventCh = make(chan event.Event, conf.eventChCapacity)
@@ -492,7 +493,7 @@ func (n *Node) validateAndExecuteTx(tx txsystem.GenericTransaction, round uint64
 //  6. Pending unicity certificate request data structure is created and persisted.
 //  7. Certificate Request query is assembled and sent to the Root Chain.
 func (n *Node) handleBlockProposal(ctx context.Context, prop *blockproposal.BlockProposal) error {
-	if n.status == recovering {
+	if n.status.Load() == recovering {
 		logger.Warning("Ignoring block proposal, node is recovering")
 		// but remember last block proposal received
 		n.recoveryLastProp = prop
@@ -576,11 +577,11 @@ func (n *Node) startNewRound(ctx context.Context, uc *certificates.UnicityCertif
 		logger.Warning("Start new round unicity certificate update failed, %v", err)
 		return
 	}
-	if n.status == recovering {
+	if n.status.Load() == recovering {
 		logger.Info("Node is recovered until block %v", uc.InputRecord.RoundNumber)
 		n.sendEvent(event.RecoveryFinished, uc.InputRecord.RoundNumber)
 	}
-	n.status = normal
+	n.status.Store(normal)
 	newRoundNr := uc.InputRecord.RoundNumber + 1
 	n.transactionSystem.BeginBlock(newRoundNr)
 	n.proposedTransactions = []txsystem.GenericTransaction{}
@@ -602,14 +603,14 @@ func (n *Node) startRecovery(uc *certificates.UnicityCertificate) {
 		return
 	}
 	luc := n.luc.Load()
-	if n.status == recovering {
+	if n.status.Load() == recovering {
 		// already recovering, but if uc is newer than luc, let's update luc
 		logger.Debug("Recovery already in progress, recovering to %v", luc.GetRoundNumber())
 		return
 	}
 	// starting recovery
 	n.revertState()
-	n.status = recovering
+	n.status.Store(recovering)
 	n.stopForwardingOrHandlingTransactions()
 	logger.Debug("Entering recovery state, recover node up to %v", luc.GetRoundNumber())
 	fromBlockNr := n.lastStoredBlock.GetRoundNumber() + 1
@@ -649,13 +650,14 @@ func (n *Node) handleUnicityCertificate(ctx context.Context, uc *certificates.Un
 	logger.Debug("LUC:\nH:\t%X\nH':\t%X\nHb:\t%X", luc.InputRecord.Hash, luc.InputRecord.PreviousHash, luc.InputRecord.BlockHash)
 	// ignore duplicates
 	if bytes.Equal(luc.InputRecord.Bytes(), uc.InputRecord.Bytes()) {
-		if n.status == initializing {
+		if n.status.Load() == initializing {
 			// first UC seen and as and node is already up-to-date
 			// either starting from genesis or a very quick restart
 			n.startNewRound(ctx, uc)
 		}
 		return nil
 	}
+
 	// check for equivocation
 	if err := certificates.CheckNonEquivocatingCertificates(luc, uc); err != nil {
 		// this is not normal, log all info
@@ -767,7 +769,7 @@ func (n *Node) handleT1TimeoutEvent() {
 	defer func() {
 		n.leaderSelector.UpdateLeader(nil)
 	}()
-	if n.status == recovering {
+	if n.status.Load() == recovering {
 		logger.Info("T1 timeout: node is recovering")
 		return
 	}
@@ -796,7 +798,7 @@ func (n *Node) handleMonitoring(lastRootMsgTime time.Time) {
 		n.sendHandshake()
 	}
 	// handle ledger replication timeout - no response from node is received
-	if n.status == recovering && time.Since(n.lastLedgerReqTime) > ledgerReplicationTimeout {
+	if n.status.Load() == recovering && time.Since(n.lastLedgerReqTime) > ledgerReplicationTimeout {
 		logger.Warning("Ledger replication timeout, repeat request")
 		n.sendLedgerReplicationRequest(n.lastStoredBlock.GetRoundNumber() + 1)
 	}
@@ -889,7 +891,7 @@ func (n *Node) handleLedgerReplicationResponse(ctx context.Context, lr *replicat
 	if err := lr.IsValid(); err != nil {
 		return fmt.Errorf("invalid ledger replication response, %w", err)
 	}
-	if n.status != recovering {
+	if n.status.Load() != recovering {
 		logger.Debug("Stale Ledger Replication response, node is not recovering: %s", lr.Pretty())
 		return nil
 	}

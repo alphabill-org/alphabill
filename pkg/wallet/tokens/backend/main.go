@@ -52,6 +52,9 @@ type Storage interface {
 	QueryTokens(kind Kind, owner Predicate, startKey TokenID, count int) ([]*TokenUnit, TokenID, error)
 
 	GetTxProof(unitID UnitID, txHash TxHash) (*Proof, error)
+
+	GetFeeCreditBill(unitID UnitID) (*FeeCreditBill, error)
+	SetFeeCreditBill(fcb *FeeCreditBill) error
 }
 
 /*

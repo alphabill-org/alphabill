@@ -35,7 +35,7 @@ const (
 	FeeCreditPath   = "api/v1/fee-credit-bill"
 
 	balanceUrlFormat     = "%v/%v?pubkey=%v&includedcbills=%v"
-	listBillsUrlFormat   = "%v/%v?pubkey=%v"
+	listBillsUrlFormat   = "%v/%v?pubkey=%v&includedcbills=%v"
 	proofUrlFormat       = "%v/%v?bill_id=%v"
 	blockHeightUrlFormat = "%v/%v"
 
@@ -90,9 +90,9 @@ func (c *MoneyBackendClient) GetBalance(pubKey []byte, includeDCBills bool) (uin
 	return responseObject.Balance, nil
 }
 
-func (c *MoneyBackendClient) ListBills(pubKey []byte) (*money.ListBillsResponse, error) {
+func (c *MoneyBackendClient) ListBills(pubKey []byte, includeDCBills bool) (*money.ListBillsResponse, error) {
 	offset := 0
-	responseObject, err := c.retrieveBills(pubKey, offset)
+	responseObject, err := c.retrieveBills(pubKey, includeDCBills, offset)
 	if err != nil {
 		return nil, err
 	}
@@ -100,7 +100,7 @@ func (c *MoneyBackendClient) ListBills(pubKey []byte) (*money.ListBillsResponse,
 
 	for len(finalResponse.Bills) < finalResponse.Total {
 		offset += len(responseObject.Bills)
-		responseObject, err = c.retrieveBills(pubKey, offset)
+		responseObject, err = c.retrieveBills(pubKey, includeDCBills, offset)
 		if err != nil {
 			return nil, err
 		}
@@ -200,8 +200,8 @@ func (c *MoneyBackendClient) GetFeeCreditBill(unitID []byte) (*bp.Bill, error) {
 	return &res, nil
 }
 
-func (c *MoneyBackendClient) retrieveBills(pubKey []byte, offset int) (*money.ListBillsResponse, error) {
-	reqUrl := fmt.Sprintf(listBillsUrlFormat, c.BaseUrl, ListBillsPath, hexutil.Encode(pubKey))
+func (c *MoneyBackendClient) retrieveBills(pubKey []byte, includeDCBills bool, offset int) (*money.ListBillsResponse, error) {
+	reqUrl := fmt.Sprintf(listBillsUrlFormat, c.BaseUrl, ListBillsPath, hexutil.Encode(pubKey), includeDCBills)
 	if offset > 0 {
 		reqUrl = fmt.Sprintf("%v&offset=%v", reqUrl, offset)
 	}

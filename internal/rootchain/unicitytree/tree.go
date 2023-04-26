@@ -1,13 +1,11 @@
 package unicitytree
 
 import (
+	"errors"
 	"fmt"
 	"hash"
 
 	"github.com/alphabill-org/alphabill/internal/certificates"
-
-	"github.com/alphabill-org/alphabill/internal/errors"
-
 	"github.com/alphabill-org/alphabill/internal/smt"
 )
 

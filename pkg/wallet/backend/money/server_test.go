@@ -518,12 +518,6 @@ func TestPostTransactionsRequest_EmptyBody(t *testing.T) {
 	walletBackend := newWalletBackend(t)
 	port := startServer(t, walletBackend)
 
-	// txs := &txsystem.Transactions{Transactions: []*txsystem.Transaction{
-	// 	money.RandomtrBillTransfer(t),
-	// 	money.RandomBillTransfer(t),
-	// 	money.RandomBillTransfer(t),
-	// }}
-
 	res := &ErrorResponse{}
 	httpRes, err := testhttp.DoPostProto(fmt.Sprintf("http://localhost:%d/api/v1/transactions/%s", port, pubkeyHex), nil, res)
 	require.NoError(t, err)

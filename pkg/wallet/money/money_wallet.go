@@ -21,8 +21,8 @@ import (
 	"github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/alphabill-org/alphabill/pkg/wallet/account"
 	"github.com/alphabill-org/alphabill/pkg/wallet/backend/bp"
-	backendmoney "github.com/alphabill-org/alphabill/pkg/wallet/backend/money"
-	"github.com/alphabill-org/alphabill/pkg/wallet/backend/money/client"
+	"github.com/alphabill-org/alphabill/pkg/wallet/money/backend"
+	"github.com/alphabill-org/alphabill/pkg/wallet/money/backend/client"
 	"github.com/alphabill-org/alphabill/pkg/wallet/log"
 )
 
@@ -783,7 +783,7 @@ func getBillIds(bills []*Bill) [][]byte {
 	return billIds
 }
 
-func convertBills(billsList []*backendmoney.ListBillVM) ([]*Bill, error) {
+func convertBills(billsList []*backend.ListBillVM) ([]*Bill, error) {
 	var bills []*Bill
 	for _, b := range billsList {
 		bill := newBillFromVM(b)
@@ -793,7 +793,7 @@ func convertBills(billsList []*backendmoney.ListBillVM) ([]*Bill, error) {
 }
 
 // newBillFromVM converts ListBillVM to Bill structs
-func newBillFromVM(b *backendmoney.ListBillVM) *Bill {
+func newBillFromVM(b *backend.ListBillVM) *Bill {
 	return &Bill{
 		Id:       util.BytesToUint256(b.Id),
 		Value:    b.Value,

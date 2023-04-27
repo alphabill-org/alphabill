@@ -15,7 +15,7 @@ import (
 	"google.golang.org/protobuf/encoding/protojson"
 
 	"github.com/alphabill-org/alphabill/pkg/wallet/backend/bp"
-	"github.com/alphabill-org/alphabill/pkg/wallet/backend/money"
+	"github.com/alphabill-org/alphabill/pkg/wallet/money/backend"
 )
 
 type (
@@ -82,7 +82,7 @@ func (c *MoneyBackendClient) GetBalance(pubKey []byte, includeDCBills bool) (uin
 	if err != nil {
 		return 0, fmt.Errorf("failed to read GetBalance response: %w", err)
 	}
-	var responseObject money.BalanceResponse
+	var responseObject backend.BalanceResponse
 	err = json.Unmarshal(responseData, &responseObject)
 	if err != nil {
 		return 0, fmt.Errorf("failed to unmarshall GetBalance response data: %w", err)
@@ -90,7 +90,7 @@ func (c *MoneyBackendClient) GetBalance(pubKey []byte, includeDCBills bool) (uin
 	return responseObject.Balance, nil
 }
 
-func (c *MoneyBackendClient) ListBills(pubKey []byte, includeDCBills bool) (*money.ListBillsResponse, error) {
+func (c *MoneyBackendClient) ListBills(pubKey []byte, includeDCBills bool) (*backend.ListBillsResponse, error) {
 	offset := 0
 	responseObject, err := c.retrieveBills(pubKey, includeDCBills, offset)
 	if err != nil {
@@ -156,7 +156,7 @@ func (c *MoneyBackendClient) GetBlockHeight() (uint64, error) {
 	if err != nil {
 		return 0, fmt.Errorf("failed to read GetBlockHeight response: %w", err)
 	}
-	var responseObject money.RoundNumberResponse
+	var responseObject backend.RoundNumberResponse
 	err = json.Unmarshal(responseData, &responseObject)
 	if err != nil {
 		return 0, fmt.Errorf("failed to unmarshall GetBlockHeight response data: %w", err)
@@ -200,7 +200,7 @@ func (c *MoneyBackendClient) GetFeeCreditBill(unitID []byte) (*bp.Bill, error) {
 	return &res, nil
 }
 
-func (c *MoneyBackendClient) retrieveBills(pubKey []byte, includeDCBills bool, offset int) (*money.ListBillsResponse, error) {
+func (c *MoneyBackendClient) retrieveBills(pubKey []byte, includeDCBills bool, offset int) (*backend.ListBillsResponse, error) {
 	reqUrl := fmt.Sprintf(listBillsUrlFormat, c.BaseUrl, ListBillsPath, hexutil.Encode(pubKey), includeDCBills)
 	if offset > 0 {
 		reqUrl = fmt.Sprintf("%v&offset=%v", reqUrl, offset)
@@ -222,7 +222,7 @@ func (c *MoneyBackendClient) retrieveBills(pubKey []byte, includeDCBills bool, o
 	if err != nil {
 		return nil, fmt.Errorf("failed to read ListBills response: %w", err)
 	}
-	var responseObject money.ListBillsResponse
+	var responseObject backend.ListBillsResponse
 	err = json.Unmarshal(responseData, &responseObject)
 	if err != nil {
 		return nil, fmt.Errorf("failed to unmarshall ListBills response data: %w", err)

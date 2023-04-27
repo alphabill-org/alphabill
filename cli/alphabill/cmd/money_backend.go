@@ -8,7 +8,7 @@ import (
 
 	"github.com/alphabill-org/alphabill/internal/script"
 	"github.com/alphabill-org/alphabill/internal/util"
-	indexer "github.com/alphabill-org/alphabill/pkg/wallet/backend/money"
+	"github.com/alphabill-org/alphabill/pkg/wallet/money/backend"
 	"github.com/holiman/uint256"
 	"github.com/spf13/cobra"
 )
@@ -36,7 +36,7 @@ type moneyBackendConfig struct {
 func (c *moneyBackendConfig) GetDbFile() (string, error) {
 	dbFile := c.DbFile
 	if dbFile == "" {
-		dbFile = filepath.Join(c.Base.HomeDir, moneyBackendHomeDir, indexer.BoltBillStoreFileName)
+		dbFile = filepath.Join(c.Base.HomeDir, moneyBackendHomeDir, backend.BoltBillStoreFileName)
 	}
 	err := os.MkdirAll(filepath.Dir(dbFile), 0700) // -rwx------
 	if err != nil {
@@ -77,7 +77,7 @@ func startMoneyBackendCmd(config *moneyBackendConfig) *cobra.Command {
 	}
 	cmd.Flags().StringVarP(&config.AlphabillUrl, alphabillNodeURLCmdName, "u", defaultAlphabillNodeURL, "alphabill node url")
 	cmd.Flags().StringVarP(&config.ServerAddr, serverAddrCmdName, "s", defaultAlphabillApiURL, "server address")
-	cmd.Flags().StringVarP(&config.DbFile, dbFileCmdName, "f", "", "path to the database file (default: $AB_HOME/"+moneyBackendHomeDir+"/"+indexer.BoltBillStoreFileName+")")
+	cmd.Flags().StringVarP(&config.DbFile, dbFileCmdName, "f", "", "path to the database file (default: $AB_HOME/" + moneyBackendHomeDir + "/" + backend.BoltBillStoreFileName + ")")
 	cmd.Flags().IntVarP(&config.ListBillsPageLimit, listBillsPageLimit, "l", 100, "GET /list-bills request default/max limit size")
 	cmd.Flags().Uint64Var(&config.InitialBillValue, "initial-bill-value", 100000000, "initial bill value (needed for initial startup only)")
 	cmd.Flags().Uint64Var(&config.InitialBillID, "initial-bill-id", 1, "initial bill id hex string with 0x prefix (needed for initial startup only)")
@@ -89,13 +89,13 @@ func execMoneyBackendStartCmd(ctx context.Context, config *moneyBackendConfig) e
 	if err != nil {
 		return err
 	}
-	return indexer.CreateAndRun(ctx, &indexer.Config{
+	return backend.CreateAndRun(ctx, &backend.Config{
 		ABMoneySystemIdentifier: defaultABMoneySystemIdentifier,
 		AlphabillUrl:            config.AlphabillUrl,
 		ServerAddr:              config.ServerAddr,
 		DbFile:                  dbFile,
 		ListBillsPageLimit:      config.ListBillsPageLimit,
-		InitialBill: indexer.InitialBill{
+		InitialBill: backend.InitialBill{
 			Id:        util.Uint256ToBytes(uint256.NewInt(config.InitialBillID)),
 			Value:     config.InitialBillValue,
 			Predicate: script.PredicateAlwaysTrue(),

@@ -1,4 +1,4 @@
-package money
+package backend
 
 import (
 	"encoding/json"
@@ -11,7 +11,7 @@ import (
 
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/pkg/wallet/backend/bp"
-	_ "github.com/alphabill-org/alphabill/pkg/wallet/backend/money/docs"
+	_ "github.com/alphabill-org/alphabill/pkg/wallet/money/backend/docs"
 	"github.com/alphabill-org/alphabill/pkg/wallet/log"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/gorilla/handlers"
@@ -106,7 +106,7 @@ func (s *RequestHandler) Router() *mux.Router {
 // @Param limit query int false "limits how many bills are returned in response" default(100)
 // @Param offset query int false "response will include bills starting after offset" default(0)
 // @Success 200 {object} ListBillsResponse
-// @Failure 400 {object} money.ErrorResponse
+// @Failure 400 {object} backend.ErrorResponse
 // @Failure 500
 // @Router /list-bills [get]
 func (s *RequestHandler) listBillsFunc(w http.ResponseWriter, r *http.Request) {
@@ -153,7 +153,7 @@ func (s *RequestHandler) listBillsFunc(w http.ResponseWriter, r *http.Request) {
 // @produce application/json
 // @Param pubkey query string true "Public key prefixed with 0x"
 // @Success 200 {object} BalanceResponse
-// @Failure 400 {object} money.ErrorResponse
+// @Failure 400 {object} backend.ErrorResponse
 // @Failure 500
 // @Router /balance [get]
 func (s *RequestHandler) balanceFunc(w http.ResponseWriter, r *http.Request) {
@@ -191,8 +191,8 @@ func (s *RequestHandler) balanceFunc(w http.ResponseWriter, r *http.Request) {
 // @produce application/json
 // @Param bill_id query string true "ID of the bill (hex)"
 // @Success 200 {object} bp.Bills
-// @Failure 400 {object} money.ErrorResponse
-// @Failure 404 {object} money.ErrorResponse
+// @Failure 400 {object} backend.ErrorResponse
+// @Failure 404 {object} backend.ErrorResponse
 // @Failure 500
 // @Router /proof [get]
 func (s *RequestHandler) getProofFunc(w http.ResponseWriter, r *http.Request) {

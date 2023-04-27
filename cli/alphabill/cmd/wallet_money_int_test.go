@@ -18,7 +18,7 @@ import (
 	moneytx "github.com/alphabill-org/alphabill/internal/txsystem/money"
 	moneytestutils "github.com/alphabill-org/alphabill/internal/txsystem/money/testutils"
 	"github.com/alphabill-org/alphabill/internal/util"
-	moneybackend "github.com/alphabill-org/alphabill/pkg/wallet/backend/money"
+	"github.com/alphabill-org/alphabill/pkg/wallet/money/backend"
 	wlog "github.com/alphabill-org/alphabill/pkg/wallet/log"
 )
 
@@ -43,14 +43,14 @@ func TestSendingMoneyBetweenWallets(t *testing.T) {
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	t.Cleanup(cancelFunc)
 	go func() {
-		err := moneybackend.CreateAndRun(ctx,
-			&moneybackend.Config{
+		err := backend.CreateAndRun(ctx,
+			&backend.Config{
 				ABMoneySystemIdentifier: []byte{0, 0, 0, 0},
 				AlphabillUrl:            alphabillNodeAddr,
 				ServerAddr:              defaultAlphabillApiURL, // TODO move to random port
-				DbFile:                  filepath.Join(t.TempDir(), moneybackend.BoltBillStoreFileName),
+				DbFile:                  filepath.Join(t.TempDir(), backend.BoltBillStoreFileName),
 				ListBillsPageLimit:      100,
-				InitialBill: moneybackend.InitialBill{
+				InitialBill: backend.InitialBill{
 					Id:        util.Uint256ToBytes(initialBill.ID),
 					Value:     initialBill.Value,
 					Predicate: initialBill.Owner,
@@ -158,14 +158,14 @@ func TestSendingMoneyBetweenWalletAccounts(t *testing.T) {
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	t.Cleanup(cancelFunc)
 	go func() {
-		err := moneybackend.CreateAndRun(ctx,
-			&moneybackend.Config{
+		err := backend.CreateAndRun(ctx,
+			&backend.Config{
 				ABMoneySystemIdentifier: []byte{0, 0, 0, 0},
 				AlphabillUrl:            alphabillNodeAddr,
 				ServerAddr:              defaultAlphabillApiURL, // TODO move to random port
-				DbFile:                  filepath.Join(t.TempDir(), moneybackend.BoltBillStoreFileName),
+				DbFile:                  filepath.Join(t.TempDir(), backend.BoltBillStoreFileName),
 				ListBillsPageLimit:      100,
-				InitialBill: moneybackend.InitialBill{
+				InitialBill: backend.InitialBill{
 					Id:        util.Uint256ToBytes(initialBill.ID),
 					Value:     initialBill.Value,
 					Predicate: initialBill.Owner,

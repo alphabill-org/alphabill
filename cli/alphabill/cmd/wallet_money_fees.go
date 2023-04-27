@@ -7,7 +7,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/alphabill-org/alphabill/pkg/client"
-	moneyclient "github.com/alphabill-org/alphabill/pkg/wallet/backend/money/client"
+	moneyclient "github.com/alphabill-org/alphabill/pkg/wallet/money/backend/client"
 	"github.com/alphabill-org/alphabill/pkg/wallet/money"
 )
 

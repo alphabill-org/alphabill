@@ -6,7 +6,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/alphabill-org/alphabill/pkg/wallet/backend/money"
+	"github.com/alphabill-org/alphabill/pkg/wallet/money/backend"
 )
 
 //http://localhost:8080/api/v1/list-bills?pubkey=0x000000000000000000000000000000000000000000000000000000000000000000
@@ -19,7 +19,7 @@ func main() {
 			panic(err)
 		}
 	}(dbFile)
-	err := money.CreateAndRun(context.Background(), &money.Config{
+	err := backend.CreateAndRun(context.Background(), &backend.Config{
 		ABMoneySystemIdentifier: []byte{0, 0, 0, 0},
 		//AlphabillUrl:            "", // empty string will not start the sync
 		AlphabillUrl:       "localhost:26766",

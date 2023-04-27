@@ -62,7 +62,7 @@ func tokenCmd(config *walletConfig) *cobra.Command {
 	cmd.AddCommand(tokenCmdList(config, execTokenCmdList))
 	cmd.AddCommand(tokenCmdListTypes(config, execTokenCmdListTypes))
 	cmd.PersistentFlags().StringP(alphabillApiURLCmdName, "r", defaultTokenApiURL, "alphabill token API uri to connect to")
-	cmd.PersistentFlags().StringP(waitForConfCmdName, "w", "true", "waits for transaction confirmation on the blockchain, otherwise just broadcasts the transaction, defaults to 'true'")
+	cmd.PersistentFlags().StringP(waitForConfCmdName, "w", "true", "waits for transaction confirmation on the blockchain, otherwise just broadcasts the transaction")
 	return cmd
 }
 
@@ -87,12 +87,12 @@ func addCommonTypeFlags(cmd *cobra.Command) *cobra.Command {
 	if err != nil {
 		return nil
 	}
-	cmd.Flags().BytesHex(cmdFlagParentType, NoParent, "unit identifier of a parent type in hexadecimal format (optional)")
+	cmd.Flags().BytesHex(cmdFlagParentType, NoParent, "unit identifier of a parent type in hexadecimal format")
 	cmd.Flags().StringSlice(cmdFlagSybTypeClauseInput, nil, "input to satisfy the parent type creation clause (mandatory with --parent-type)")
 	cmd.MarkFlagsRequiredTogether(cmdFlagParentType, cmdFlagSybTypeClauseInput)
-	cmd.Flags().String(cmdFlagSybTypeClause, predicateTrue, "predicate to control sub typing, values <true|false|ptpkh>, defaults to 'true' (optional)")
-	cmd.Flags().String(cmdFlagMintClause, predicatePtpkh, "predicate to control minting of this type, values <true|false|ptpkh>, defaults to 'ptpkh' (optional)")
-	cmd.Flags().String(cmdFlagInheritBearerClause, predicateTrue, "predicate that will be inherited by subtypes into their bearer clauses, values <true|false|ptpkh>, defaults to 'true' (optional)")
+	cmd.Flags().String(cmdFlagSybTypeClause, predicateTrue, "predicate to control sub typing, values <true|false|ptpkh>")
+	cmd.Flags().String(cmdFlagMintClause, predicatePtpkh, "predicate to control minting of this type, values <true|false|ptpkh>")
+	cmd.Flags().String(cmdFlagInheritBearerClause, predicateTrue, "predicate that will be inherited by subtypes into their bearer clauses, values <true|false|ptpkh>")
 	return cmd
 }
 
@@ -104,7 +104,7 @@ func tokenCmdNewTypeFungible(config *walletConfig) *cobra.Command {
 			return execTokenCmdNewTypeFungible(cmd, config)
 		},
 	}
-	cmd.Flags().Uint32(cmdFlagDecimals, 8, "token decimal (optional)")
+	cmd.Flags().Uint32(cmdFlagDecimals, 8, "token decimal")
 	cmd.Flags().BytesHex(cmdFlagType, nil, "type unit identifier (hex)")
 	_ = cmd.Flags().MarkHidden(cmdFlagType)
 	return cmd
@@ -180,7 +180,7 @@ func tokenCmdNewTypeNonFungible(config *walletConfig) *cobra.Command {
 	}
 	cmd.Flags().BytesHex(cmdFlagType, nil, "type unit identifier (hex)")
 	_ = cmd.Flags().MarkHidden(cmdFlagType)
-	cmd.Flags().String(cmdFlagTokenDataUpdateClause, predicateTrue, "data update predicate, values <true|false|ptpkh>, defaults to 'true' (optional)")
+	cmd.Flags().String(cmdFlagTokenDataUpdateClause, predicateTrue, "data update predicate, values <true|false|ptpkh>")
 	return cmd
 }
 
@@ -259,7 +259,7 @@ func tokenCmdNewTokenFungible(config *walletConfig) *cobra.Command {
 			return execTokenCmdNewTokenFungible(cmd, config)
 		},
 	}
-	cmd.Flags().String(cmdFlagBearerClause, predicatePtpkh, "predicate that defines the ownership of this fungible token, values <true|false|ptpkh>, defaults to 'ptpkh' (optional)")
+	cmd.Flags().String(cmdFlagBearerClause, predicatePtpkh, "predicate that defines the ownership of this fungible token, values <true|false|ptpkh>")
 	cmd.Flags().String(cmdFlagAmount, "", "amount, must be bigger than 0 and is interpreted according to token type precision (decimals)")
 	err := cmd.MarkFlagRequired(cmdFlagAmount)
 	if err != nil {
@@ -331,7 +331,7 @@ func tokenCmdNewTokenNonFungible(config *walletConfig) *cobra.Command {
 			return execTokenCmdNewTokenNonFungible(cmd, config)
 		},
 	}
-	cmd.Flags().String(cmdFlagBearerClause, predicatePtpkh, "predicate that defines the ownership of this non-fungible token, values <true|false|ptpkh>, defaults to 'ptpkh' (optional)")
+	cmd.Flags().String(cmdFlagBearerClause, predicatePtpkh, "predicate that defines the ownership of this non-fungible token, values <true|false|ptpkh>")
 	cmd.Flags().BytesHex(cmdFlagType, nil, "type unit identifier (hex)")
 	err := cmd.MarkFlagRequired(cmdFlagType)
 	if err != nil {
@@ -341,7 +341,7 @@ func tokenCmdNewTokenNonFungible(config *walletConfig) *cobra.Command {
 	cmd.Flags().BytesHex(cmdFlagTokenData, nil, "custom data (hex)")
 	cmd.Flags().String(cmdFlagTokenDataFile, "", "data file (max 64Kb) path")
 	cmd.MarkFlagsMutuallyExclusive(cmdFlagTokenData, cmdFlagTokenDataFile)
-	cmd.Flags().String(cmdFlagTokenDataUpdateClause, predicateTrue, "data update predicate, values <true|false|ptpkh>, defaults to 'true' (optional)")
+	cmd.Flags().String(cmdFlagTokenDataUpdateClause, predicateTrue, "data update predicate, values <true|false|ptpkh>")
 	cmd.Flags().StringSlice(cmdFlagMintClauseInput, []string{predicatePtpkh}, "input to satisfy the type's minting clause")
 	cmd.Flags().BytesHex(cmdFlagTokenId, nil, "unit identifier of token (hex)")
 	_ = cmd.Flags().MarkHidden(cmdFlagTokenId)

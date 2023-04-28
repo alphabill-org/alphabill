@@ -1,5 +1,4 @@
-// package twb implements token wallet backend
-package twb
+package backend
 
 import (
 	"context"

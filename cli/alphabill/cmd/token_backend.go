@@ -9,7 +9,7 @@ import (
 	"github.com/spf13/cobra"
 
 	wlog "github.com/alphabill-org/alphabill/pkg/wallet/log"
-	twb "github.com/alphabill-org/alphabill/pkg/wallet/tokens/backend"
+	"github.com/alphabill-org/alphabill/pkg/wallet/tokens/backend"
 )
 
 const defaultTokenApiURL = "localhost:9735"
@@ -72,7 +72,7 @@ func execTokenWalletBackendStartCmd(ctx context.Context, cmd *cobra.Command, con
 		return fmt.Errorf("failed to init logger: %w", err)
 	}
 
-	return twb.Run(ctx, twb.NewConfig(srvAddr, abURL, dbFile, logger))
+	return backend.Run(ctx, backend.NewConfig(srvAddr, abURL, dbFile, logger))
 }
 
 /*

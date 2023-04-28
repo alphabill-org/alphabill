@@ -31,8 +31,8 @@ func newTokensNodeCmd(baseConfig *baseConfiguration) *cobra.Command {
 
 	var nodeCmd = &cobra.Command{
 		Use:   "tokens",
-		Short: "Starts an User-Defined Token partition's node",
-		Long:  `Starts an User-Defined Token partition's node, binding to the network address provided by configuration.`,
+		Short: "Starts a User-Defined Token partition's node",
+		Long:  `Starts a User-Defined Token partition's node, binding to the network address provided by configuration.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runTokensNode(cmd.Context(), config)
 		},

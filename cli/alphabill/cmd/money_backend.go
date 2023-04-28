@@ -50,8 +50,8 @@ func newMoneyBackendCmd(baseConfig *baseConfiguration) *cobra.Command {
 	config := &moneyBackendConfig{Base: baseConfig}
 	var walletCmd = &cobra.Command{
 		Use:   "money-backend",
-		Short: "starts money backend service",
-		Long:  "starts money backend service, indexes all transactions by owner predicates, starts http server",
+		Short: "Starts money backend service",
+		Long:  "Starts money backend service, indexes all transactions by owner predicates, starts http server",
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 			// initialize config so that baseConfig.HomeDir gets configured
 			err := initializeConfig(cmd, baseConfig)

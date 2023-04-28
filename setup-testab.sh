@@ -53,7 +53,7 @@ generate_partition_node_genesis "money" $money_nodes
 # Generate money node genesis files.
 generate_partition_node_genesis "vd" $vd_nodes
 # Generate money node genesis files.
-generate_partition_node_genesis "token" $token_nodes
+generate_partition_node_genesis "tokens" $token_nodes
 # generate root node genesis files
 generate_root_genesis $root_nodes
 # generate log configuration for all nodes

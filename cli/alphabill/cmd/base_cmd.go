@@ -50,7 +50,7 @@ func (a *alphabillApp) addAndExecuteCommand(ctx context.Context) error {
 	a.baseCmd.AddCommand(newTokensNodeCmd(a.baseConfig))
 	a.baseCmd.AddCommand(newUserTokenGenesisCmd(a.baseConfig))
 	a.baseCmd.AddCommand(newMoneyBackendCmd(a.baseConfig))
-	a.baseCmd.AddCommand(newTokenWalletBackendCmd(a.baseConfig))
+	a.baseCmd.AddCommand(newTokensBackendCmd(a.baseConfig))
 	return a.baseCmd.ExecuteContext(ctx)
 }
 

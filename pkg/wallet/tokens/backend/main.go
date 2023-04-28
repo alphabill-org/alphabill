@@ -70,10 +70,10 @@ func Run(ctx context.Context, cfg Configuration) error {
 	if err != nil {
 		return fmt.Errorf("failed to create token tx system: %w", err)
 	}
-	abc := cfg.Client()
-	msgBroker := broker.NewBroker()
 
 	g, ctx := errgroup.WithContext(ctx)
+	msgBroker := broker.NewBroker(ctx.Done())
+	abc := cfg.Client()
 
 	g.Go(func() error {
 		logger := cfg.Logger()
@@ -151,9 +151,10 @@ func (c *cfg) HttpServer(endpoints http.Handler) http.Server {
 	return http.Server{
 		Addr:              c.apiAddr,
 		Handler:           endpoints,
+		IdleTimeout:       30 * time.Second,
 		ReadTimeout:       3 * time.Second,
 		ReadHeaderTimeout: time.Second,
-		WriteTimeout:      5 * time.Second,
-		IdleTimeout:       30 * time.Second,
+		// can't set global write timeout here - it'll kill the streaming responses prematurely
+		//WriteTimeout:    5 * time.Second,
 	}
 }

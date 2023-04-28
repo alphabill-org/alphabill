@@ -21,10 +21,17 @@ type subscribers map[string][]chan Message
 type MessageBroker struct {
 	subscriptions atomic.Value
 	m             sync.Mutex
+	done          <-chan struct{}
 }
 
-func NewBroker() *MessageBroker {
-	b := &MessageBroker{}
+/*
+NewBroker constructs new MessageBroker (zero value is not usable).
+
+When "done" chan is closed all in-flight event streams (StreamSSE calls)
+will be terminated.
+*/
+func NewBroker(done <-chan struct{}) *MessageBroker {
+	b := &MessageBroker{done: done}
 	b.subscriptions.Store(make(subscribers))
 	return b
 }
@@ -92,7 +99,8 @@ func (b *MessageBroker) Notify(bearerPredicate []byte, msg Message) {
 
 /*
 StreamSSE subscribes to broker with "owner" key and streams the messages it receives
-as server-sent events to "w" until "ctx" is cancelled (in which case nil error is returned).
+as server-sent events to "w" until "ctx" is cancelled or the "done" chan used as
+MessageBroker constructor parameter is closed (in both cases nil error is returned).
 Upon return it also unsubscribes from the message broker.
 */
 func (b *MessageBroker) StreamSSE(ctx context.Context, owner PubKey, w http.ResponseWriter) error {
@@ -110,8 +118,11 @@ func (b *MessageBroker) StreamSSE(ctx context.Context, owner PubKey, w http.Resp
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.Header().Set("Cache-Control", "no-cache")
 	w.Header().Set("Connection", "keep-alive")
+	w.Header().Set("Access-Control-Allow-Origin", "*")
 	for {
 		select {
+		case <-b.done:
+			return nil
 		case <-ctx.Done():
 			return nil
 		case msg := <-messages:

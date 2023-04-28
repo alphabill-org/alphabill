@@ -21,7 +21,7 @@ func Test_broker_subscribe(t *testing.T) {
 
 	t.Run("subscribe and unsubscribe", func(t *testing.T) {
 		ownerPK := test.RandomBytes(33)
-		b := NewBroker()
+		b := NewBroker(nil)
 
 		ch, err := b.Subscribe(ownerPK)
 		require.NoError(t, err)
@@ -36,7 +36,7 @@ func Test_broker_subscribe(t *testing.T) {
 
 	t.Run("max allowed subscriptions per key", func(t *testing.T) {
 		ownerPK := test.RandomBytes(33)
-		b := NewBroker()
+		b := NewBroker(nil)
 		for i := 0; i <= maxSubscriptionsPerKey; i++ {
 			ch, err := b.Subscribe(ownerPK)
 			require.NoError(t, err)
@@ -78,7 +78,7 @@ func Test_broker_notify(t *testing.T) {
 	}
 
 	t.Run("empty bearer", func(t *testing.T) {
-		b := NewBroker()
+		b := NewBroker(nil)
 
 		ownerPK := PubKey(test.RandomBytes(33))
 		ch, err := b.Subscribe(ownerPK)
@@ -94,7 +94,7 @@ func Test_broker_notify(t *testing.T) {
 
 	t.Run("single subscription", func(t *testing.T) {
 		ownerPK := PubKey(test.RandomBytes(33))
-		b := NewBroker()
+		b := NewBroker(nil)
 
 		ch, err := b.Subscribe(ownerPK)
 		require.NoError(t, err)
@@ -113,7 +113,7 @@ func Test_broker_notify(t *testing.T) {
 
 	t.Run("single key, multiple subscriptions", func(t *testing.T) {
 		ownerPK := PubKey(test.RandomBytes(33))
-		b := NewBroker()
+		b := NewBroker(nil)
 
 		ch1, err := b.Subscribe(ownerPK)
 		require.NoError(t, err)
@@ -139,7 +139,7 @@ func Test_broker_notify(t *testing.T) {
 	t.Run("multiple keys with single subscription", func(t *testing.T) {
 		pk1 := PubKey(test.RandomBytes(33))
 		pk2 := PubKey(test.RandomBytes(33))
-		b := NewBroker()
+		b := NewBroker(nil)
 
 		ch1, err := b.Subscribe(pk1)
 		require.NoError(t, err)
@@ -165,7 +165,7 @@ func Test_broker_concurrency(t *testing.T) {
 	t.Parallel()
 
 	ownerPK := PubKey(test.RandomBytes(33))
-	b := NewBroker()
+	b := NewBroker(make(chan struct{}))
 
 	done := make(chan struct{})
 	subscriptions := make(chan (<-chan Message), maxSubscriptionsPerKey-1)
@@ -211,7 +211,7 @@ func Test_broker_StreamSSE(t *testing.T) {
 
 	t.Run("cancelling context stops streaming", func(t *testing.T) {
 		ownerPK := PubKey(test.RandomBytes(33))
-		b := NewBroker()
+		b := NewBroker(nil)
 
 		ctx, cancel := context.WithCancel(context.Background())
 		done := make(chan struct{})
@@ -235,9 +235,29 @@ func Test_broker_StreamSSE(t *testing.T) {
 		}
 	})
 
+	t.Run("closing done chan stops streaming", func(t *testing.T) {
+		ownerPK := PubKey(test.RandomBytes(33))
+		quitBroker := make(chan struct{})
+		b := NewBroker(quitBroker)
+
+		done := make(chan struct{})
+		go func() {
+			defer close(done)
+			w := httptest.NewRecorder()
+			require.NoError(t, b.StreamSSE(context.Background(), ownerPK, w))
+		}()
+
+		close(quitBroker)
+		select {
+		case <-done:
+		case <-time.After(time.Second):
+			t.Error("StreamSSE didn't return within timeout")
+		}
+	})
+
 	t.Run("max allowed subscriptions per key exceeded", func(t *testing.T) {
 		ownerPK := test.RandomBytes(33)
-		b := NewBroker()
+		b := NewBroker(nil)
 		for i := 0; i <= maxSubscriptionsPerKey; i++ {
 			ch, err := b.Subscribe(ownerPK)
 			require.NoError(t, err)
@@ -251,7 +271,7 @@ func Test_broker_StreamSSE(t *testing.T) {
 
 	t.Run("get one message from stream", func(t *testing.T) {
 		ownerPK := PubKey(test.RandomBytes(33))
-		b := NewBroker()
+		b := NewBroker(nil)
 
 		ctx, cancel := context.WithCancel(context.Background())
 		done := make(chan struct{})
@@ -276,7 +296,7 @@ func Test_broker_StreamSSE(t *testing.T) {
 
 	t.Run("get two messages from stream", func(t *testing.T) {
 		ownerPK := PubKey(test.RandomBytes(33))
-		b := NewBroker()
+		b := NewBroker(nil)
 
 		ctx, cancel := context.WithCancel(context.Background())
 		done := make(chan struct{})

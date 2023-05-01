@@ -2,10 +2,14 @@ package cmd
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 
+	"github.com/alphabill-org/alphabill/internal/script"
+	"github.com/alphabill-org/alphabill/internal/util"
 	indexer "github.com/alphabill-org/alphabill/pkg/wallet/backend/money"
+	"github.com/holiman/uint256"
 	"github.com/spf13/cobra"
 )
 
@@ -25,24 +29,24 @@ type moneyBackendConfig struct {
 	LogLevel           string
 	LogFile            string
 	ListBillsPageLimit int
+	InitialBillID      uint64
+	InitialBillValue   uint64
 }
 
 func (c *moneyBackendConfig) GetDbFile() (string, error) {
-	var dbFile string
-	if c.DbFile != "" {
-		dbFile = c.DbFile
-	} else {
+	dbFile := c.DbFile
+	if dbFile == "" {
 		dbFile = filepath.Join(c.Base.HomeDir, moneyBackendHomeDir, indexer.BoltBillStoreFileName)
 	}
 	err := os.MkdirAll(filepath.Dir(dbFile), 0700) // -rwx------
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("failed to create directory for database file: %w", err)
 	}
 	return dbFile, nil
 }
 
 // newMoneyBackendCmd creates a new cobra command for the money-backend component.
-func newMoneyBackendCmd(ctx context.Context, baseConfig *baseConfiguration) *cobra.Command {
+func newMoneyBackendCmd(baseConfig *baseConfiguration) *cobra.Command {
 	config := &moneyBackendConfig{Base: baseConfig}
 	var walletCmd = &cobra.Command{
 		Use:   "money-backend",
@@ -60,25 +64,27 @@ func newMoneyBackendCmd(ctx context.Context, baseConfig *baseConfiguration) *cob
 	}
 	walletCmd.PersistentFlags().StringVar(&config.LogFile, logFileCmdName, "", "log file path (default output to stderr)")
 	walletCmd.PersistentFlags().StringVar(&config.LogLevel, logLevelCmdName, "INFO", "logging level (DEBUG, INFO, NOTICE, WARNING, ERROR)")
-	walletCmd.AddCommand(startMoneyBackendCmd(ctx, config))
+	walletCmd.AddCommand(startMoneyBackendCmd(config))
 	return walletCmd
 }
 
-func startMoneyBackendCmd(ctx context.Context, config *moneyBackendConfig) *cobra.Command {
+func startMoneyBackendCmd(config *moneyBackendConfig) *cobra.Command {
 	cmd := &cobra.Command{
 		Use: "start",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return execMoneyBackendStartCmd(ctx, cmd, config)
+			return execMoneyBackendStartCmd(cmd.Context(), config)
 		},
 	}
 	cmd.Flags().StringVarP(&config.AlphabillUrl, alphabillNodeURLCmdName, "u", defaultAlphabillNodeURL, "alphabill node url")
-	cmd.Flags().StringVarP(&config.ServerAddr, serverAddrCmdName, "s", "localhost:9654", "server address")
+	cmd.Flags().StringVarP(&config.ServerAddr, serverAddrCmdName, "s", defaultAlphabillApiURL, "server address")
 	cmd.Flags().StringVarP(&config.DbFile, dbFileCmdName, "f", "", "path to the database file (default: $AB_HOME/"+moneyBackendHomeDir+"/"+indexer.BoltBillStoreFileName+")")
 	cmd.Flags().IntVarP(&config.ListBillsPageLimit, listBillsPageLimit, "l", 100, "GET /list-bills request default/max limit size")
+	cmd.Flags().Uint64Var(&config.InitialBillValue, "initial-bill-value", 100000000, "initial bill value (needed for initial startup only)")
+	cmd.Flags().Uint64Var(&config.InitialBillID, "initial-bill-id", 1, "initial bill id hex string with 0x prefix (needed for initial startup only)")
 	return cmd
 }
 
-func execMoneyBackendStartCmd(ctx context.Context, _ *cobra.Command, config *moneyBackendConfig) error {
+func execMoneyBackendStartCmd(ctx context.Context, config *moneyBackendConfig) error {
 	dbFile, err := config.GetDbFile()
 	if err != nil {
 		return err
@@ -89,5 +95,10 @@ func execMoneyBackendStartCmd(ctx context.Context, _ *cobra.Command, config *mon
 		ServerAddr:              config.ServerAddr,
 		DbFile:                  dbFile,
 		ListBillsPageLimit:      config.ListBillsPageLimit,
+		InitialBill: indexer.InitialBill{
+			Id:        util.Uint256ToBytes(uint256.NewInt(config.InitialBillID)),
+			Value:     config.InitialBillValue,
+			Predicate: script.PredicateAlwaysTrue(),
+		},
 	})
 }

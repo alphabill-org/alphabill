@@ -27,7 +27,6 @@ import (
 )
 
 type dataSource interface {
-	GetBlockNumber() (uint64, error)
 	GetTokenType(id TokenTypeID) (*TokenUnitType, error)
 	QueryTokenType(kind Kind, creator wallet.PubKey, startKey TokenTypeID, count int) ([]*TokenUnitType, TokenTypeID, error)
 	GetToken(id TokenID) (*TokenUnit, error)
@@ -36,11 +35,16 @@ type dataSource interface {
 	GetTxProof(unitID wallet.UnitID, txHash wallet.TxHash) (*wallet.Proof, error)
 }
 
+type abClient interface {
+	SendTransaction(ctx context.Context, tx *txsystem.Transaction) error
+	GetRoundNumber(ctx context.Context) (uint64, error)
+}
+
 type restAPI struct {
-	db              dataSource
-	sendTransaction func(context.Context, *txsystem.Transaction) (*txsystem.TransactionResponse, error)
-	convertTx       func(tx *txsystem.Transaction) (txsystem.GenericTransaction, error)
-	logErr          func(a ...any)
+	db        dataSource
+	ab        abClient
+	convertTx func(tx *txsystem.Transaction) (txsystem.GenericTransaction, error)
+	logErr    func(a ...any)
 }
 
 const maxResponseItems = 100
@@ -198,7 +202,7 @@ func (api *restAPI) typeHierarchy(w http.ResponseWriter, r *http.Request) {
 }
 
 func (api *restAPI) getRoundNumber(w http.ResponseWriter, r *http.Request) {
-	rn, err := api.db.GetBlockNumber()
+	rn, err := api.ab.GetRoundNumber(r.Context())
 	if err != nil {
 		api.writeErrorResponse(w, err)
 		return
@@ -259,9 +263,9 @@ func (api *restAPI) saveTxs(ctx context.Context, txs []*txsystem.Transaction, ow
 		}(tx)
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	semCtx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
-	if err := sem.Acquire(ctx, maxWorkers); err != nil {
+	if err := sem.Acquire(semCtx, maxWorkers); err != nil {
 		m.Lock()
 		errs["waiting-for-workers"] = err.Error()
 		m.Unlock()
@@ -288,12 +292,8 @@ func (api *restAPI) saveTx(ctx context.Context, tx *txsystem.Transaction, owner 
 		}
 	}
 
-	rsp, err := api.sendTransaction(ctx, tx)
-	if err != nil {
+	if err := api.ab.SendTransaction(ctx, tx); err != nil {
 		return fmt.Errorf("failed to forward tx: %w", err)
-	}
-	if !rsp.GetOk() {
-		return fmt.Errorf("transaction was not accepted: %s", rsp.GetMessage())
 	}
 	return nil
 }

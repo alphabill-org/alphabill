@@ -68,8 +68,8 @@ func randomTx(t *testing.T, attr proto.Message) *txsystem.Transaction {
 		SystemId:              tokens.DefaultTokenTxSystemIdentifier,
 		TransactionAttributes: new(anypb.Any),
 		UnitId:                test.RandomBytes(32),
-		Timeout:               10,
 		OwnerProof:            test.RandomBytes(3),
+		ClientMetadata:        &txsystem.ClientMetadata{Timeout: 10},
 	}
 	if err := tx.TransactionAttributes.MarshalFrom(attr); err != nil {
 		t.Errorf("failed to marshal tx attributes: %v", err)
@@ -79,14 +79,15 @@ func randomTx(t *testing.T, attr proto.Message) *txsystem.Transaction {
 
 type mockABClient struct {
 	getBlocks       func(ctx context.Context, blockNumber, blockCount uint64) (*alphabill.GetBlocksResponse, error)
-	sendTransaction func(ctx context.Context, tx *txsystem.Transaction) (*txsystem.TransactionResponse, error)
+	sendTransaction func(ctx context.Context, tx *txsystem.Transaction) error
+	roundNumber     func(ctx context.Context) (uint64, error)
 }
 
-func (abc *mockABClient) SendTransaction(ctx context.Context, tx *txsystem.Transaction) (*txsystem.TransactionResponse, error) {
+func (abc *mockABClient) SendTransaction(ctx context.Context, tx *txsystem.Transaction) error {
 	if abc.sendTransaction != nil {
 		return abc.sendTransaction(ctx, tx)
 	}
-	return nil, fmt.Errorf("unexpected mockABClient.SendTransaction call")
+	return fmt.Errorf("unexpected mockABClient.SendTransaction call")
 }
 
 func (abc *mockABClient) GetBlocks(ctx context.Context, blockNumber, blockCount uint64) (*alphabill.GetBlocksResponse, error) {
@@ -94,6 +95,13 @@ func (abc *mockABClient) GetBlocks(ctx context.Context, blockNumber, blockCount 
 		return abc.getBlocks(ctx, blockNumber, blockCount)
 	}
 	return nil, fmt.Errorf("unexpected mockABClient.GetBlocks(%d, %d) call", blockNumber, blockCount)
+}
+
+func (abc *mockABClient) GetRoundNumber(ctx context.Context) (uint64, error) {
+	if abc.roundNumber != nil {
+		return abc.roundNumber(ctx)
+	}
+	return 0, fmt.Errorf("unexpected mockABClient.GetRoundNumber call")
 }
 
 type mockCfg struct {
@@ -157,6 +165,7 @@ type mockStorage struct {
 	setBlockNumber   func(blockNumber uint64) error
 	saveTokenType    func(data *TokenUnitType, proof *wallet.Proof) error
 	saveToken        func(data *TokenUnit, proof *wallet.Proof) error
+	removeToken      func(id TokenID) error
 	getToken         func(id TokenID) (*TokenUnit, error)
 	queryTokens      func(kind Kind, owner wallet.Predicate, startKey TokenID, count int) ([]*TokenUnit, TokenID, error)
 	getTokenType     func(id TokenTypeID) (*TokenUnitType, error)
@@ -214,6 +223,13 @@ func (ms *mockStorage) SaveToken(data *TokenUnit, proof *wallet.Proof) error {
 		return ms.saveToken(data, proof)
 	}
 	return fmt.Errorf("unexpected SaveToken call")
+}
+
+func (ms *mockStorage) RemoveToken(id TokenID) error {
+	if ms.removeToken != nil {
+		return ms.removeToken(id)
+	}
+	return fmt.Errorf("unexpected RemoveToken(%x) call", id)
 }
 
 func (ms *mockStorage) GetToken(id TokenID) (*TokenUnit, error) {

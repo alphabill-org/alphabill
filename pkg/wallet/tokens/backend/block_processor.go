@@ -27,8 +27,10 @@ func (p *blockProcessor) ProcessBlock(ctx context.Context, b *block.Block) error
 	if err != nil {
 		return fmt.Errorf("failed to read current block number: %w", err)
 	}
-	if b.BlockNumber != lastBlockNumber+1 {
-		return fmt.Errorf("invalid block order: current wallet blockNumber is %d, received %d as next block", lastBlockNumber, b.BlockNumber)
+	// block numbers must not be sequential (gaps might appear as empty block are not stored
+	// and sent) but must be in ascending order
+	if lastBlockNumber >= b.UnicityCertificate.InputRecord.RoundNumber {
+		return fmt.Errorf("invalid block, received block %d, current wallet block %d", b.UnicityCertificate.InputRecord.RoundNumber, lastBlockNumber)
 	}
 
 	for _, tx := range b.Transactions {
@@ -37,7 +39,7 @@ func (p *blockProcessor) ProcessBlock(ctx context.Context, b *block.Block) error
 		}
 	}
 
-	return p.store.SetBlockNumber(b.BlockNumber)
+	return p.store.SetBlockNumber(b.UnicityCertificate.InputRecord.RoundNumber)
 }
 
 func (p *blockProcessor) processTx(inTx *txsystem.Transaction, b *block.Block) error {
@@ -54,7 +56,6 @@ func (p *blockProcessor) processTx(inTx *txsystem.Transaction, b *block.Block) e
 	}
 
 	p.log.Debug(fmt.Sprintf("processTx: UnitID=%x type: %s", id, strings.TrimPrefix(inTx.GetTransactionAttributes().TypeUrl, "type.googleapis.com/alphabill.tokens.v1.")))
-
 	switch tx := gtx.(type) {
 	case tokens.CreateFungibleTokenType:
 		return p.saveTokenType(&TokenUnitType{
@@ -130,8 +131,56 @@ func (p *blockProcessor) processTx(inTx *txsystem.Transaction, b *block.Block) e
 			Owner:    tx.NewBearer(),
 		}
 		return p.saveToken(newToken, splitProof)
-	//case tokens.BurnFungibleToken: // TODO in 0.2.0 (AB-751)
-	//case tokens.JoinFungibleToken: // TODO in 0.2.0 (AB-751)
+	case tokens.BurnFungibleToken:
+		token, err := p.store.GetToken(id)
+		if err != nil {
+			return err
+		}
+		if token.Amount != tx.Value() {
+			return fmt.Errorf("expected burned amount: %v, got %v. token id='%X', type id='%X'", token.Amount, tx.Value(), token.ID, token.TypeID)
+		}
+		token.TxHash = txHash
+		token.Burned = true
+		return p.saveToken(token, proof)
+	case tokens.JoinFungibleToken:
+		joinedToken, err := p.store.GetToken(id)
+		if err != nil {
+			return err
+		}
+		if joinedToken == nil {
+			return nil
+		}
+		burnedTokensToRemove := make([]TokenID, 0, len(tx.BurnTransactions()))
+		var burnedValue uint64
+		for _, burnTx := range tx.BurnTransactions() {
+			burnedID := util.Uint256ToBytes(burnTx.UnitID())
+			burnedToken, err := p.store.GetToken(burnedID)
+			if err != nil {
+				return err
+			}
+			if !burnedToken.Burned {
+				return fmt.Errorf("token with id '%X' is expected to be burned, but it is not", burnedID)
+			}
+			if !bytes.Equal(burnedToken.Owner, joinedToken.Owner) {
+				return fmt.Errorf("expected burned token's bearer '%X', got %X", joinedToken.Owner, burnedToken.Owner)
+			}
+			if !bytes.Equal(joinedToken.TxHash, burnTx.Nonce()) {
+				return fmt.Errorf("expected burned token's nonce '%X', got %X", joinedToken.TxHash, burnTx.Nonce())
+			}
+			burnedTokensToRemove = append(burnedTokensToRemove, burnedID)
+			burnedValue += burnTx.Value()
+		}
+		joinedToken.Amount += burnedValue
+		joinedToken.TxHash = txHash
+		if err = p.saveToken(joinedToken, proof); err != nil {
+			return fmt.Errorf("failed to save joined token: %w", err)
+		}
+		for _, burnedID := range burnedTokensToRemove {
+			if err = p.store.RemoveToken(burnedID); err != nil {
+				return fmt.Errorf("failed to remove burned token %X: %w", burnedID, err)
+			}
+		}
+		return nil
 	case tokens.CreateNonFungibleTokenType:
 		return p.saveTokenType(&TokenUnitType{
 			Kind:                     NonFungible,
@@ -211,7 +260,7 @@ func (p *blockProcessor) createProof(unitID wallet.UnitID, b *block.Block, tx *t
 		return nil, fmt.Errorf("failed to create primary proof for the block: %w", err)
 	}
 	return &wallet.Proof{
-		BlockNumber: b.BlockNumber,
+		BlockNumber: b.UnicityCertificate.InputRecord.RoundNumber,
 		Tx:          tx,
 		Proof:       proof,
 	}, nil

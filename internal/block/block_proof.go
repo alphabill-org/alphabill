@@ -48,7 +48,7 @@ func NewPrimaryProof(b *GenericBlock, unitID []byte, hashAlgorithm crypto.Hash) 
 	}
 	if unitIDInIdentifiers(identifiers, unitID) {
 		primTx, secTxs := b.extractTransactions(unitID, hashAlgorithm)
-		secHash, err := mt.SecondaryHash(secTxs, hashAlgorithm)
+		secHash, err := mt.SecondaryHash(convertTxs(secTxs), hashAlgorithm)
 		if err != nil {
 			return nil, err
 		}
@@ -82,11 +82,16 @@ func NewSecondaryProof(b *GenericBlock, unitID []byte, secTxIdx int, hashAlgorit
 	}
 	primTx, secTxs := b.extractTransactions(unitID, hashAlgorithm)
 	primhash := hashTx(primTx, hashAlgorithm)
-	secChain, err := mt.SecondaryChain(secTxs, secTxIdx, hashAlgorithm)
+	secChain, err := mt.SecondaryChain(convertTxs(secTxs), secTxIdx, hashAlgorithm)
 	if err != nil {
 		return nil, err
 	}
 	return newSecBlockProof(b, primhash, chain, secChain, hashAlgorithm), nil
+}
+
+// Verify verifies the proof against given transaction, returns error if verification failed, or nil if verification succeeded.
+func (x *TxProof) Verify(unitID []byte, tx txsystem.GenericTransaction, verifiers map[string]abcrypto.Verifier, hashAlgo crypto.Hash) error {
+	return x.Proof.Verify(unitID, tx, verifiers, hashAlgo)
 }
 
 // Verify verifies the proof against given transaction, returns error if verification failed, or nil if verification succeeded.
@@ -173,7 +178,16 @@ func (x *BlockProof) verifyUC(unitID []byte, verifiers map[string]abcrypto.Verif
 
 	chain := FromProtobufHashChain(x.getChainItems())
 	rblock := omt.EvalMerklePath(chain, unitID, hashAlgorithm)
-	blockhash := hash.Sum(hashAlgorithm, x.BlockHeaderHash, x.TransactionsHash, rblock)
+	blockhash, err := makeBlockHash(hashAlgorithm, len(chain) != 0, func() (*genericBlockHashingContext, error) {
+		return &genericBlockHashingContext{
+			headerHash: x.BlockHeaderHash,
+			txsHash:    x.TransactionsHash,
+			treeHash:   rblock,
+		}, nil
+	})
+	if err != nil {
+		return err
+	}
 	if !bytes.Equal(x.UnicityCertificate.InputRecord.BlockHash, blockhash) {
 		return aberrors.Wrap(
 			ErrProofVerificationFailed,

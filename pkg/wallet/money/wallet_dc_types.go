@@ -2,18 +2,14 @@ package money
 
 import (
 	"sync"
-
-	"github.com/alphabill-org/alphabill/internal/util"
-
-	"github.com/holiman/uint256"
 )
 
-// DcBillGroup helper struct for grouped dc bills and their aggregate data
-type DcBillGroup struct {
-	DcBills   []*Bill
-	ValueSum  uint64
-	DcNonce   []byte
-	DcTimeout uint64
+// dcBillGroup helper struct for grouped dc bills and their aggregate data
+type dcBillGroup struct {
+	dcBills   []*Bill
+	valueSum  uint64
+	dcNonce   []byte
+	dcTimeout uint64
 }
 
 // dcWaitGroup helper struct to support blocking collect dust feature.
@@ -27,17 +23,18 @@ type dcWaitGroup struct {
 	// swaps list of expected transactions to be received during dc process
 	// key - dc nonce;
 	// value - timeout block height
-	swaps map[uint256.Int]uint64
+	swaps map[string]expectedSwap
 }
 
 // expectedSwap helper struct to support blocking collect dust feature
 type expectedSwap struct {
 	dcNonce []byte
 	timeout uint64
+	dcSum   uint64
 }
 
 func newDcWaitGroup() *dcWaitGroup {
-	return &dcWaitGroup{swaps: map[uint256.Int]uint64{}}
+	return &dcWaitGroup{swaps: map[string]expectedSwap{}}
 }
 
 // AddExpectedSwaps increments wg and records expected swap data for each expected swap.
@@ -49,15 +46,34 @@ func (wg *dcWaitGroup) AddExpectedSwaps(swaps []expectedSwap) {
 	}
 }
 
+// DecrementSwaps decrement waitgroup after receiving expected swap bills, or timing out on dc/swap
+func (wg *dcWaitGroup) DecrementSwaps(dcNonce string) error {
+	wg.mu.Lock()
+	defer wg.mu.Unlock()
+
+	_, exists := wg.swaps[dcNonce]
+	if exists {
+		wg.removeSwap(dcNonce)
+	}
+	return nil
+}
+
+// removeSwap decrements wg and removes expected swap data
+func (wg *dcWaitGroup) removeSwap(dcNonce string) {
+	delete(wg.swaps, dcNonce)
+	wg.wg.Done()
+}
+
 // UpdateTimeout updates timeout from dc timeout to swap timeout after receiving dc bills and sending swap tx
 func (wg *dcWaitGroup) UpdateTimeout(dcNonce []byte, timeout uint64) {
 	wg.mu.Lock()
 	defer wg.mu.Unlock()
 
-	key := *uint256.NewInt(0).SetBytes(dcNonce)
-	_, exists := wg.swaps[key]
+	key := string(dcNonce)
+	swap, exists := wg.swaps[key]
 	if exists {
-		wg.swaps[key] = timeout
+		swap.timeout = timeout
+		wg.swaps[key] = swap
 	}
 }
 
@@ -74,5 +90,9 @@ func (wg *dcWaitGroup) ResetWaitGroup() {
 // addExpectedSwap increments wg and records expected swap data
 func (wg *dcWaitGroup) addExpectedSwap(swap expectedSwap) {
 	wg.wg.Add(1)
-	wg.swaps[*util.BytesToUint256(swap.dcNonce)] = swap.timeout
+	wg.swaps[string(swap.dcNonce)] = swap
+}
+
+func (wg *dcWaitGroup) getExpectedSwap(dcNonce string) expectedSwap {
+	return wg.swaps[dcNonce]
 }

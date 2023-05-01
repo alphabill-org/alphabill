@@ -130,7 +130,6 @@ func (tb *TokenBackend) GetTxProof(ctx context.Context, unitID wallet.UnitID, tx
 		}
 		return nil, fmt.Errorf("get tx proof request failed: %w", err)
 	}
-
 	return proof, nil
 }
 

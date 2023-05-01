@@ -1,0 +1,9 @@
+syntax = "proto3";
+package rpc;
+
+option go_package = "github.com/alphabill-org/alphabill/internal/txsystem/sc/;sc";
+
+message SCallAttributes {
+  bytes input = 1;
+}
+

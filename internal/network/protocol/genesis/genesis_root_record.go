@@ -1,24 +1,27 @@
 package genesis
 
-import "github.com/alphabill-org/alphabill/internal/errors"
-
-const (
-	ErrRootValidatorsSize = "registered root validators do not match consensus total root nodes"
-	ErrGenesisRootIssNil  = "root genesis record is nil"
-	ErrNoRootValidators   = "no root validators set"
-	ErrConsensusIsNil     = "consensus is nil"
+import (
+	"errors"
+	"fmt"
 )
 
-// IsValid only validates Consensus structure and that it signed by the listed root validators
+var (
+	ErrRootValidatorsSize = errors.New("registered root nodes do not match consensus total root nodes")
+	ErrGenesisRootIssNil  = errors.New("root genesis record is nil")
+	ErrNoRootValidators   = errors.New("root nodes not set")
+	ErrConsensusIsNil     = errors.New("consensus is nil")
+)
+
+// IsValid only validates Consensus structure and that it signed by the listed root nodes
 func (x *GenesisRootRecord) IsValid() error {
 	if x == nil {
-		return errors.New(ErrGenesisRootIssNil)
+		return ErrGenesisRootIssNil
 	}
 	if len(x.RootValidators) == 0 {
-		return errors.New(ErrNoRootValidators)
+		return ErrNoRootValidators
 	}
 	if x.Consensus == nil {
-		return errors.New(ErrConsensusIsNil)
+		return ErrConsensusIsNil
 	}
 	// 1. Check all registered validator nodes are unique and have all fields set correctly
 	err := ValidatorInfoUnique(x.RootValidators)
@@ -28,7 +31,7 @@ func (x *GenesisRootRecord) IsValid() error {
 	// 2. Check the consensus structure
 	err = x.Consensus.IsValid()
 	if err != nil {
-		return err
+		return fmt.Errorf("consnesus parameters not valid, %w", err)
 	}
 	// 3. Verify that all signatures are valid and from known authors
 	verifiers, err := NewValidatorTrustBase(x.RootValidators)
@@ -46,16 +49,17 @@ func (x *GenesisRootRecord) IsValid() error {
 // validators and number of signatures in consensus structure
 func (x *GenesisRootRecord) Verify() error {
 	if x == nil {
-		return errors.New(ErrGenesisRootIssNil)
+		return ErrGenesisRootIssNil
 	}
 	// 1. Check genesis is valid, all structures are filled correctly and consensus is signed by all validators
+	//  listed in RootValidators
 	err := x.IsValid()
 	if err != nil {
 		return err
 	}
 	// 2. Check nof registered validators vs total number of validators in consensus structure
 	if x.Consensus.TotalRootValidators != uint32(len(x.RootValidators)) {
-		return errors.New(ErrRootValidatorsSize)
+		return ErrRootValidatorsSize
 	}
 	return nil
 }

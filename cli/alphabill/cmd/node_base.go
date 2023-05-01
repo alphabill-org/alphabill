@@ -3,30 +3,34 @@ package cmd
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"net"
+	"net/http"
 	"sort"
 
-	"github.com/alphabill-org/alphabill/internal/async"
-	"github.com/alphabill-org/alphabill/internal/async/future"
-	"github.com/alphabill-org/alphabill/internal/errors"
-	"github.com/alphabill-org/alphabill/internal/network"
-	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
-	"github.com/alphabill-org/alphabill/internal/partition"
-	"github.com/alphabill-org/alphabill/internal/partition/store"
-	"github.com/alphabill-org/alphabill/internal/rpc"
-	"github.com/alphabill-org/alphabill/internal/rpc/alphabill"
-	"github.com/alphabill-org/alphabill/internal/starter"
-	"github.com/alphabill-org/alphabill/internal/txsystem"
-	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/multiformats/go-multiaddr"
 	"github.com/spf13/cobra"
+	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/health"
 	"google.golang.org/grpc/health/grpc_health_v1"
+
+	"github.com/alphabill-org/alphabill/internal/keyvaluedb"
+	"github.com/alphabill-org/alphabill/internal/keyvaluedb/boltdb"
+	"github.com/alphabill-org/alphabill/internal/keyvaluedb/memorydb"
+	"github.com/alphabill-org/alphabill/internal/network"
+	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
+	"github.com/alphabill-org/alphabill/internal/partition"
+	"github.com/alphabill-org/alphabill/internal/rpc"
+	"github.com/alphabill-org/alphabill/internal/rpc/alphabill"
+	"github.com/alphabill-org/alphabill/internal/txsystem"
+	"github.com/alphabill-org/alphabill/internal/util"
 )
+
+const BoltBlockStoreFileName = "blocks.db"
 
 type baseNodeConfiguration struct {
 	Base *baseConfiguration
@@ -44,65 +48,78 @@ type startNodeConfiguration struct {
 }
 
 func defaultNodeRunFunc(ctx context.Context, name string, txs txsystem.TransactionSystem, nodeCfg *startNodeConfiguration, rpcServerConf *grpcServerConfiguration, restServerConf *restServerConfiguration) error {
-	self, node, err := startNode(ctx, txs, nodeCfg)
+	self, node, err := createNode(txs, nodeCfg)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to create node %q: %w", name, err)
 	}
-	listener, err := net.Listen("tcp", rpcServerConf.Address)
-	if err != nil {
-		return err
-	}
-	grpcServer, err := initRPCServer(node, rpcServerConf)
-	if err != nil {
-		return err
-	}
-	restServer, err := initRESTServer(node, self, restServerConf)
-	if err != nil {
-		return err
-	}
-	starterFunc := func(ctx context.Context) {
-		async.MakeWorker("grpc transport layer server", func(ctx context.Context) future.Value {
-			go func() {
-				log.Info("Starting gRPC server on %s", rpcServerConf.Address)
-				err = grpcServer.Serve(listener)
-				if err != nil {
-					log.Error("gRPC Server exited with erroneous situation: %s", err)
-				} else {
-					log.Info("gRPC Server exited successfully")
-				}
-			}()
-			if restServer != nil {
-				go func() {
-					log.Info("Starting REST server on %s", restServer.Addr)
-					err = restServer.ListenAndServe()
-					if err != nil {
-						log.Error("REST server exited with erroneous situation: %s", err)
-					} else {
-						log.Info("REST server exited successfully")
-					}
-				}()
+
+	g, ctx := errgroup.WithContext(ctx)
+
+	g.Go(func() error { return node.Run(ctx) })
+
+	g.Go(func() error {
+		grpcServer, err := initRPCServer(node, rpcServerConf)
+		if err != nil {
+			return fmt.Errorf("failed to init gRPC server for %s: %w", name, err)
+		}
+
+		listener, err := net.Listen("tcp", rpcServerConf.Address)
+		if err != nil {
+			return fmt.Errorf("failed to open listener on %q for %s: %w", rpcServerConf.Address, name, err)
+		}
+
+		errch := make(chan error, 1)
+		go func() {
+			log.Info("%s gRPC server starting on %s", name, rpcServerConf.Address)
+			if err := grpcServer.Serve(listener); err != nil {
+				errch <- fmt.Errorf("%s gRPC server exited: %w", name, err)
 			}
-			<-ctx.Done()
+			log.Info("%s gRPC server exited", name)
+		}()
+
+		select {
+		case <-ctx.Done():
 			grpcServer.GracefulStop()
-			if restServer != nil {
-				e := restServer.Close()
-				if e != nil {
-					log.Error("Failed to close REST server: %v", err)
-				}
+			return ctx.Err()
+		case err := <-errch:
+			return err
+		}
+	})
+
+	g.Go(func() error {
+		if restServerConf.IsAddressEmpty() {
+			return nil // return nil in this case in order not to kill the group!
+		}
+		restServer, err := initRESTServer(node, self, restServerConf)
+		if err != nil {
+			return fmt.Errorf("failed to create REST server for %s: %w", name, err)
+		}
+
+		errch := make(chan error, 1)
+		go func() {
+			log.Info("%s REST server starting on %s", name, restServer.Addr)
+			if err := restServer.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+				errch <- fmt.Errorf("%s REST server exited: %w", name, err)
 			}
-			node.Close()
-			return nil
-		}).Start(ctx)
-	}
-	// StartAndWait waits until ctx.waitgroup is done OR sigterm cancels signal OR timeout (not used here)
-	return starter.StartAndWait(ctx, name, starterFunc)
+			log.Info("%s REST server exited", name)
+		}()
+
+		select {
+		case <-ctx.Done():
+			err := ctx.Err()
+			if e := restServer.Close(); e != nil {
+				err = errors.Join(err, fmt.Errorf("closing REST server: %w", e))
+			}
+			return err
+		case err := <-errch:
+			return err
+		}
+	})
+
+	return g.Wait()
 }
 
 func initRESTServer(node *partition.Node, self *network.Peer, conf *restServerConfiguration) (*rpc.RestServer, error) {
-	if conf.IsAddressEmpty() {
-		// Address not configured.
-		return nil, nil
-	}
 	rs, err := rpc.NewRESTServer(node, conf.Address, conf.MaxBodyBytes, self)
 	if err != nil {
 		return nil, err
@@ -182,7 +199,7 @@ func initRPCServer(node *partition.Node, cfg *grpcServerConfiguration) (*grpc.Se
 	return grpcServer, nil
 }
 
-func startNode(ctx context.Context, txs txsystem.TransactionSystem, cfg *startNodeConfiguration) (*network.Peer, *partition.Node, error) {
+func createNode(txs txsystem.TransactionSystem, cfg *startNodeConfiguration) (*network.Peer, *partition.Node, error) {
 	keys, err := LoadKeys(cfg.KeyFile, false, false)
 	if err != nil {
 		return nil, nil, err
@@ -197,7 +214,7 @@ func startNode(ctx context.Context, txs txsystem.TransactionSystem, cfg *startNo
 		return nil, nil, err
 	}
 	if len(pg.RootValidators) < 1 {
-		return nil, nil, errors.New("Root validator info is missing")
+		return nil, nil, errors.New("root validator info is missing")
 	}
 	// Assume monolithic root chain for now and only extract the id of the first root node
 	rootEncryptionKey, err := crypto.UnmarshalSecp256k1PublicKey(pg.RootValidators[0].EncryptionPublicKey)
@@ -226,7 +243,6 @@ func startNode(ctx context.Context, txs txsystem.TransactionSystem, cfg *startNo
 		txs,
 		pg,
 		n,
-		partition.WithContext(ctx),
 		partition.WithRootAddressAndIdentifier(newMultiAddr, rootID),
 		partition.WithBlockStore(blockStore),
 		partition.WithReplicationParams(cfg.LedgerReplicationMaxBlocks, cfg.LedgerReplicationMaxTx),
@@ -237,12 +253,11 @@ func startNode(ctx context.Context, txs txsystem.TransactionSystem, cfg *startNo
 	return p, node, nil
 }
 
-func initNodeBlockStore(dbFile string) (store.BlockStore, error) {
+func initNodeBlockStore(dbFile string) (keyvaluedb.KeyValueDB, error) {
 	if dbFile != "" {
-		return store.NewBoltBlockStore(dbFile)
-	} else {
-		return store.NewInMemoryBlockStore(), nil
+		return boltdb.New(dbFile)
 	}
+	return memorydb.New(), nil
 }
 
 func loadPartitionGenesis(genesisPath string) (*genesis.PartitionGenesis, error) {
@@ -256,7 +271,7 @@ func loadPartitionGenesis(genesisPath string) (*genesis.PartitionGenesis, error)
 func (c *startNodeConfiguration) getPeerAddress(identifier string) (string, error) {
 	address, f := c.Peers[identifier]
 	if !f {
-		return "", errors.Errorf("address for node %v not found.", identifier)
+		return "", fmt.Errorf("address for node %q not found", identifier)
 	}
 	return address, nil
 }
@@ -267,7 +282,7 @@ func addCommonNodeConfigurationFlags(nodeCmd *cobra.Command, config *startNodeCo
 	nodeCmd.Flags().StringToStringVarP(&config.Peers, "peers", "p", nil, "a map of partition peer identifiers and addresses. must contain all genesis validator addresses")
 	nodeCmd.Flags().StringVarP(&config.KeyFile, keyFileCmdFlag, "k", "", fmt.Sprintf("path to the key file (default: $AB_HOME/%s/keys.json)", partitionSuffix))
 	nodeCmd.Flags().StringVarP(&config.Genesis, "genesis", "g", "", fmt.Sprintf("path to the partition genesis file : $AB_HOME/%s/partition-genesis.json)", partitionSuffix))
-	nodeCmd.Flags().StringVarP(&config.DbFile, "db", "f", "", fmt.Sprintf("path to the database file (default: $AB_HOME/%s/%s)", partitionSuffix, store.BoltBlockStoreFileName))
+	nodeCmd.Flags().StringVarP(&config.DbFile, "db", "f", "", fmt.Sprintf("path to the database file (default: $AB_HOME/%s/%s)", partitionSuffix, BoltBlockStoreFileName))
 	nodeCmd.Flags().Uint64Var(&config.LedgerReplicationMaxBlocks, "ledger-replication-max-blocks", 1000, "maximum number of blocks to return in a single replication response")
 	nodeCmd.Flags().Uint32Var(&config.LedgerReplicationMaxTx, "ledger-replication-max-transactions", 10000, "maximum number of transactions to return in a single replication response")
 }

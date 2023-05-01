@@ -7,15 +7,16 @@ import (
 	"io"
 	"testing"
 
-	"github.com/alphabill-org/alphabill/pkg/wallet"
-	"github.com/stretchr/testify/require"
-	"google.golang.org/protobuf/reflect/protoreflect"
-
 	"github.com/alphabill-org/alphabill/internal/block"
+	"github.com/alphabill-org/alphabill/internal/certificates"
+	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/internal/txsystem/tokens"
+	"github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/alphabill-org/alphabill/pkg/wallet/log"
+	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/reflect/protoreflect"
 )
 
 func Test_blockProcessor_ProcessBlock(t *testing.T) {
@@ -36,19 +37,57 @@ func Test_blockProcessor_ProcessBlock(t *testing.T) {
 		require.ErrorIs(t, err, expErr)
 	})
 
-	t.Run("blocks are not in correct order", func(t *testing.T) {
+	t.Run("blocks are not in correct order, same block twice", func(t *testing.T) {
+		bp := &blockProcessor{
+			store: &mockStorage{
+				getBlockNumber: func() (uint64, error) { return 5, nil },
+			},
+		}
+		err := bp.ProcessBlock(context.Background(), &block.Block{
+			UnicityCertificate: &certificates.UnicityCertificate{InputRecord: &certificates.InputRecord{RoundNumber: 5}},
+		})
+		require.EqualError(t, err, `invalid block, received block 5, current wallet block 5`)
+	})
+
+	t.Run("blocks are not in correct order, received earlier block", func(t *testing.T) {
 		bp := &blockProcessor{
 			log: logger,
 			store: &mockStorage{
 				getBlockNumber: func() (uint64, error) { return 5, nil },
 			},
 		}
-		err := bp.ProcessBlock(context.Background(), &block.Block{BlockNumber: 8})
-		require.EqualError(t, err, `invalid block order: current wallet blockNumber is 5, received 8 as next block`)
+		err := bp.ProcessBlock(context.Background(), &block.Block{
+			UnicityCertificate: &certificates.UnicityCertificate{InputRecord: &certificates.InputRecord{RoundNumber: 4}},
+		})
+		require.EqualError(t, err, `invalid block, received block 4, current wallet block 5`)
+	})
+
+	t.Run("missing block", func(t *testing.T) {
+		// block numbers must not be sequential, gaps might appear as empty block are not stored and sent
+		callCnt := 0
+		bp := &blockProcessor{
+			store: &mockStorage{
+				getBlockNumber: func() (uint64, error) { return 5, nil },
+				setBlockNumber: func(blockNumber uint64) error {
+					callCnt++
+					if blockNumber != 8 {
+						t.Errorf("expected blockNumber = 8, got %d", blockNumber)
+					}
+					return nil
+				},
+			},
+		}
+		err := bp.ProcessBlock(context.Background(), &block.Block{
+			UnicityCertificate: &certificates.UnicityCertificate{InputRecord: &certificates.InputRecord{RoundNumber: 8}},
+		})
+		require.NoError(t, err)
+		require.Equal(t, 1, callCnt, "expected that setBlockNumber is called once")
 	})
 
 	t.Run("failure to process tx", func(t *testing.T) {
-		txs, err := tokens.New()
+		txs, err := tokens.New(
+			tokens.WithTrustBase(map[string]abcrypto.Verifier{"test": nil}),
+		)
 		require.NoError(t, err)
 
 		createNTFTypeTx := randomTx(t, &tokens.CreateNonFungibleTokenTypeAttributes{Symbol: "test"})
@@ -65,7 +104,10 @@ func Test_blockProcessor_ProcessBlock(t *testing.T) {
 				},
 			},
 		}
-		err = bp.ProcessBlock(context.Background(), &block.Block{BlockNumber: 4, Transactions: []*txsystem.Transaction{createNTFTypeTx}})
+		err = bp.ProcessBlock(context.Background(), &block.Block{
+			Transactions:       []*txsystem.Transaction{createNTFTypeTx},
+			UnicityCertificate: &certificates.UnicityCertificate{InputRecord: &certificates.InputRecord{RoundNumber: 4}},
+		})
 		require.ErrorIs(t, err, expErr)
 	})
 
@@ -79,7 +121,7 @@ func Test_blockProcessor_ProcessBlock(t *testing.T) {
 			},
 		}
 		// no processTx call here as block is empty!
-		err := bp.ProcessBlock(context.Background(), &block.Block{BlockNumber: 4})
+		err := bp.ProcessBlock(context.Background(), &block.Block{UnicityCertificate: &certificates.UnicityCertificate{InputRecord: &certificates.InputRecord{RoundNumber: 4}}})
 		require.ErrorIs(t, err, expErr)
 	})
 }
@@ -89,7 +131,9 @@ func Test_blockProcessor_processTx(t *testing.T) {
 
 	logger, err := log.New(log.DEBUG, io.Discard)
 	require.NoError(t, err)
-	txs, err := tokens.New()
+	txs, err := tokens.New(
+		tokens.WithTrustBase(map[string]abcrypto.Verifier{"test": nil}),
+	)
 	require.NoError(t, err)
 	require.NotNil(t, txs)
 
@@ -121,7 +165,10 @@ func Test_blockProcessor_processTx(t *testing.T) {
 						},
 					},
 				}
-				err = bp.ProcessBlock(context.Background(), &block.Block{BlockNumber: 4, Transactions: []*txsystem.Transaction{tx}})
+				err = bp.ProcessBlock(context.Background(), &block.Block{
+					UnicityCertificate: &certificates.UnicityCertificate{InputRecord: &certificates.InputRecord{RoundNumber: 4}},
+					Transactions:       []*txsystem.Transaction{tx},
+				})
 				require.NoError(t, err)
 			})
 		}
@@ -157,7 +204,10 @@ func Test_blockProcessor_processTx(t *testing.T) {
 				},
 			},
 		}
-		err = bp.ProcessBlock(context.Background(), &block.Block{BlockNumber: 4, Transactions: []*txsystem.Transaction{tx}})
+		err = bp.ProcessBlock(context.Background(), &block.Block{
+			UnicityCertificate: &certificates.UnicityCertificate{InputRecord: &certificates.InputRecord{RoundNumber: 4}},
+			Transactions:       []*txsystem.Transaction{tx},
+		})
 		require.NoError(t, err)
 	})
 
@@ -189,7 +239,10 @@ func Test_blockProcessor_processTx(t *testing.T) {
 				},
 			},
 		}
-		err = bp.ProcessBlock(context.Background(), &block.Block{BlockNumber: 4, Transactions: []*txsystem.Transaction{tx}})
+		err = bp.ProcessBlock(context.Background(), &block.Block{
+			UnicityCertificate: &certificates.UnicityCertificate{InputRecord: &certificates.InputRecord{RoundNumber: 4}},
+			Transactions:       []*txsystem.Transaction{tx},
+		})
 		require.NoError(t, err)
 	})
 
@@ -222,7 +275,10 @@ func Test_blockProcessor_processTx(t *testing.T) {
 				},
 			},
 		}
-		err = bp.ProcessBlock(context.Background(), &block.Block{BlockNumber: 4, Transactions: []*txsystem.Transaction{tx}})
+		err = bp.ProcessBlock(context.Background(), &block.Block{
+			UnicityCertificate: &certificates.UnicityCertificate{InputRecord: &certificates.InputRecord{RoundNumber: 4}},
+			Transactions:       []*txsystem.Transaction{tx},
+		})
 		require.NoError(t, err)
 	})
 
@@ -253,7 +309,10 @@ func Test_blockProcessor_processTx(t *testing.T) {
 				},
 			},
 		}
-		err = bp.ProcessBlock(context.Background(), &block.Block{BlockNumber: 4, Transactions: []*txsystem.Transaction{tx}})
+		err = bp.ProcessBlock(context.Background(), &block.Block{
+			UnicityCertificate: &certificates.UnicityCertificate{InputRecord: &certificates.InputRecord{RoundNumber: 4}},
+			Transactions:       []*txsystem.Transaction{tx},
+		})
 		require.NoError(t, err)
 	})
 
@@ -294,7 +353,10 @@ func Test_blockProcessor_processTx(t *testing.T) {
 				},
 			},
 		}
-		err = bp.ProcessBlock(context.Background(), &block.Block{BlockNumber: 4, Transactions: []*txsystem.Transaction{tx}})
+		err = bp.ProcessBlock(context.Background(), &block.Block{
+			UnicityCertificate: &certificates.UnicityCertificate{InputRecord: &certificates.InputRecord{RoundNumber: 4}},
+			Transactions:       []*txsystem.Transaction{tx},
+		})
 		require.NoError(t, err)
 		require.Equal(t, 2, saveTokenCalls)
 	})
@@ -321,7 +383,10 @@ func Test_blockProcessor_processTx(t *testing.T) {
 				},
 			},
 		}
-		err = bp.ProcessBlock(context.Background(), &block.Block{BlockNumber: 4, Transactions: []*txsystem.Transaction{tx}})
+		err = bp.ProcessBlock(context.Background(), &block.Block{
+			UnicityCertificate: &certificates.UnicityCertificate{InputRecord: &certificates.InputRecord{RoundNumber: 4}},
+			Transactions:       []*txsystem.Transaction{tx},
+		})
 		require.NoError(t, err)
 	})
 }

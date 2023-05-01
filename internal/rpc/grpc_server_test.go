@@ -3,13 +3,12 @@ package rpc
 import (
 	"bytes"
 	"context"
+	"errors"
 	"net"
-	"strings"
 	"testing"
 
 	"github.com/alphabill-org/alphabill/internal/block"
-	"github.com/alphabill-org/alphabill/internal/errors"
-	"github.com/alphabill-org/alphabill/internal/errors/errstr"
+	"github.com/alphabill-org/alphabill/internal/certificates"
 	"github.com/alphabill-org/alphabill/internal/rpc/alphabill"
 	"github.com/alphabill-org/alphabill/internal/script"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
@@ -33,7 +32,7 @@ type (
 	}
 )
 
-func (mn *MockNode) SubmitTx(tx *txsystem.Transaction) error {
+func (mn *MockNode) SubmitTx(_ context.Context, tx *txsystem.Transaction) error {
 	if bytes.Equal(tx.UnitId, failingTransactionID[:]) {
 		return errors.New("failed")
 	}
@@ -43,12 +42,16 @@ func (mn *MockNode) SubmitTx(tx *txsystem.Transaction) error {
 	return nil
 }
 
-func (mn *MockNode) GetBlock(blockNumber uint64) (*block.Block, error) {
-	return &block.Block{BlockNumber: blockNumber}, nil
+func (mn *MockNode) GetBlock(_ context.Context, blockNumber uint64) (*block.Block, error) {
+	return &block.Block{UnicityCertificate: &certificates.UnicityCertificate{InputRecord: &certificates.InputRecord{RoundNumber: blockNumber}}}, nil
 }
 
-func (mn *MockNode) GetLatestBlock() *block.Block {
-	return &block.Block{BlockNumber: mn.maxBlockNumber}
+func (mn *MockNode) GetLatestBlock() (*block.Block, error) {
+	return mn.GetBlock(context.Background(), mn.maxBlockNumber)
+}
+
+func (mn *MockNode) GetLatestRoundNumber() (uint64, error) {
+	return mn.maxBlockNumber, nil
 }
 
 func (mn *MockNode) SystemIdentifier() []byte {
@@ -59,7 +62,7 @@ func TestNewRpcServer_PartitionNodeMissing(t *testing.T) {
 	p, err := NewGRPCServer(nil)
 	assert.Nil(t, p)
 	assert.NotNil(t, err)
-	assert.True(t, strings.Contains(err.Error(), errstr.NilArgument))
+	assert.EqualError(t, err, `partition node which implements the service must be assigned`)
 }
 
 func TestNewRpcServer_Ok(t *testing.T) {
@@ -70,7 +73,8 @@ func TestNewRpcServer_Ok(t *testing.T) {
 
 func TestRpcServer_GetBlocksOk(t *testing.T) {
 	p, err := NewGRPCServer(&MockNode{maxBlockNumber: 12})
-	res, err := p.GetBlocks(nil, &alphabill.GetBlocksRequest{BlockNumber: 1, BlockCount: 12})
+	require.NoError(t, err)
+	res, err := p.GetBlocks(context.Background(), &alphabill.GetBlocksRequest{BlockNumber: 1, BlockCount: 12})
 	require.NoError(t, err)
 	require.Len(t, res.Blocks, 12)
 	require.EqualValues(t, 12, res.MaxBlockNumber)
@@ -78,7 +82,8 @@ func TestRpcServer_GetBlocksOk(t *testing.T) {
 
 func TestRpcServer_GetBlocksSingleBlock(t *testing.T) {
 	p, err := NewGRPCServer(&MockNode{maxBlockNumber: 1})
-	res, err := p.GetBlocks(nil, &alphabill.GetBlocksRequest{BlockNumber: 1, BlockCount: 1})
+	require.NoError(t, err)
+	res, err := p.GetBlocks(context.Background(), &alphabill.GetBlocksRequest{BlockNumber: 1, BlockCount: 1})
 	require.NoError(t, err)
 	require.Len(t, res.Blocks, 1)
 	require.EqualValues(t, 1, res.MaxBlockNumber)
@@ -86,7 +91,8 @@ func TestRpcServer_GetBlocksSingleBlock(t *testing.T) {
 
 func TestRpcServer_FetchNonExistentBlocks_DoesNotPanic(t *testing.T) {
 	p, err := NewGRPCServer(&MockNode{maxBlockNumber: 7})
-	res, err := p.GetBlocks(nil, &alphabill.GetBlocksRequest{BlockNumber: 73, BlockCount: 100})
+	require.NoError(t, err)
+	res, err := p.GetBlocks(context.Background(), &alphabill.GetBlocksRequest{BlockNumber: 73, BlockCount: 100})
 	require.NoError(t, err)
 	require.Len(t, res.Blocks, 0)
 	require.EqualValues(t, 7, res.MaxBlockNumber)
@@ -110,7 +116,6 @@ func TestRpcServer_ProcessTransaction_Ok(t *testing.T) {
 	response, err := client.ProcessTransaction(ctx, req)
 	assert.Nil(t, err)
 	assert.NotNil(t, response)
-	assert.True(t, response.Ok)
 }
 
 func createRpcClient(t *testing.T, ctx context.Context) (*grpc.ClientConn, alphabill.AlphabillServiceClient) {
@@ -121,9 +126,11 @@ func createRpcClient(t *testing.T, ctx context.Context) (*grpc.ClientConn, alpha
 	alphabill.RegisterAlphabillServiceServer(grpcServer, rpcServer)
 	go func() {
 		if err := grpcServer.Serve(listener); err != nil {
-			t.Fatal(err)
+			t.Error("gRPC server exited with error:", err)
 		}
 	}()
+	t.Cleanup(func() { grpcServer.Stop() })
+
 	d := func(context.Context, string) (net.Conn, error) {
 		return listener.Dial()
 	}
@@ -138,10 +145,10 @@ func createTransaction(id [32]byte) *txsystem.Transaction {
 	tx := &txsystem.Transaction{
 		UnitId:                id[:],
 		TransactionAttributes: new(anypb.Any),
-		Timeout:               0,
+		ClientMetadata:        &txsystem.ClientMetadata{Timeout: 0},
 		OwnerProof:            []byte{1},
 	}
-	bt := &money.TransferOrder{
+	bt := &money.TransferAttributes{
 		NewBearer:   script.PredicateAlwaysTrue(),
 		TargetValue: 1,
 		Backlink:    nil,

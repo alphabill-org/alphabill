@@ -3,15 +3,14 @@ package cmd
 import (
 	"context"
 	"math/rand"
-	"path"
+	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
 	"time"
 
-	"github.com/alphabill-org/alphabill/internal/async"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
-	"github.com/alphabill-org/alphabill/internal/rootchain"
+	rootgenesis "github.com/alphabill-org/alphabill/internal/rootchain/genesis"
 	"github.com/alphabill-org/alphabill/internal/rpc/alphabill"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	testtime "github.com/alphabill-org/alphabill/internal/testutils/time"
@@ -25,9 +24,9 @@ import (
 
 func TestRunVD(t *testing.T) {
 	homeDirVD := setupTestHomeDir(t, "vd")
-	keysFileLocation := path.Join(homeDirVD, defaultKeysFileName)
-	nodeGenesisFileLocation := path.Join(homeDirVD, nodeGenesisFileName)
-	partitionGenesisFileLocation := path.Join(homeDirVD, "partition-genesis.json")
+	keysFileLocation := filepath.Join(homeDirVD, defaultKeysFileName)
+	nodeGenesisFileLocation := filepath.Join(homeDirVD, nodeGenesisFileName)
+	partitionGenesisFileLocation := filepath.Join(homeDirVD, "partition-genesis.json")
 	testtime.MustRunInTime(t, 5*time.Second, func() {
 		port := "9543"
 		listenAddr := ":" + port // listen is on all devices, so it would work in CI inside docker too.
@@ -37,7 +36,7 @@ func TestRunVD(t *testing.T) {
 			baseNodeConfiguration: baseNodeConfiguration{
 				Base: &baseConfiguration{
 					HomeDir:    alphabillHomeDir(),
-					CfgFile:    path.Join(alphabillHomeDir(), defaultConfigFile),
+					CfgFile:    filepath.Join(alphabillHomeDir(), defaultConfigFile),
 					LogCfgFile: defaultLoggerConfigFile,
 				},
 			},
@@ -51,8 +50,7 @@ func TestRunVD(t *testing.T) {
 		conf.RPCServer.Address = listenAddr
 
 		appStoppedWg := sync.WaitGroup{}
-		ctx, _ := async.WithWaitGroup(context.Background())
-		ctx, ctxCancel := context.WithCancel(ctx)
+		ctx, ctxCancel := context.WithCancel(context.Background())
 
 		// generate node genesis
 		cmd := New()
@@ -68,9 +66,9 @@ func TestRunVD(t *testing.T) {
 		rootSigner, verifier := testsig.CreateSignerAndVerifier(t)
 		rootPubKeyBytes, err := verifier.MarshalPublicKey()
 		require.NoError(t, err)
-		pr, err := rootchain.NewPartitionRecordFromNodes([]*genesis.PartitionNode{pn})
+		pr, err := rootgenesis.NewPartitionRecordFromNodes([]*genesis.PartitionNode{pn})
 		require.NoError(t, err)
-		_, partitionGenesisFiles, err := rootchain.NewRootGenesis("test", rootSigner, rootPubKeyBytes, pr)
+		_, partitionGenesisFiles, err := rootgenesis.NewRootGenesis("test", rootSigner, rootPubKeyBytes, pr)
 		require.NoError(t, err)
 
 		err = util.WriteJsonFile(partitionGenesisFileLocation, partitionGenesisFiles[0])
@@ -85,7 +83,7 @@ func TestRunVD(t *testing.T) {
 			cmd.baseCmd.SetArgs(strings.Split(args, " "))
 
 			err = cmd.addAndExecuteCommand(ctx)
-			require.NoError(t, err)
+			require.ErrorIs(t, err, context.Canceled)
 			appStoppedWg.Done()
 		}()
 
@@ -102,17 +100,16 @@ func TestRunVD(t *testing.T) {
 		tx := &txsystem.Transaction{
 			UnitId:                id[:],
 			TransactionAttributes: nil,
-			Timeout:               10,
+			ClientMetadata:        &txsystem.ClientMetadata{Timeout: 10},
 			SystemId:              []byte{0, 0, 0, 1},
 		}
 
-		response, err := rpcClient.ProcessTransaction(ctx, tx, grpc.WaitForReady(true))
+		_, err = rpcClient.ProcessTransaction(ctx, tx, grpc.WaitForReady(true))
 		require.NoError(t, err)
-		require.True(t, response.Ok, "Successful response ok should be true")
 
 		// failing case
 		tx.SystemId = []byte{0, 0, 0, 0} // incorrect system id
-		response, err = rpcClient.ProcessTransaction(ctx, tx, grpc.WaitForReady(true))
+		_, err = rpcClient.ProcessTransaction(ctx, tx, grpc.WaitForReady(true))
 		require.ErrorContains(t, err, "transaction has invalid system identifier")
 
 		// Close the app

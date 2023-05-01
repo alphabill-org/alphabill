@@ -51,18 +51,27 @@ const docTemplate = `{
                 }
             }
         },
-        "/block-height": {
+        "/fee-credit-bill": {
             "get": {
                 "produces": [
                     "application/json"
                 ],
-                "summary": "Money partition's latest block number",
-                "operationId": "4",
+                "summary": "Get Fee Credit Bill",
+                "operationId": "5",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "ID of the bill (hex)",
+                        "name": "bill_id",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
                 "responses": {
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/money.BlockHeightResponse"
+                            "$ref": "#/definitions/bp.Bill"
                         }
                     }
                 }
@@ -138,7 +147,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/block.Bills"
+                            "$ref": "#/definitions/bp.Bills"
                         }
                     },
                     "400": {
@@ -158,6 +167,23 @@ const docTemplate = `{
                     }
                 }
             }
+        },
+        "/round-number": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "summary": "Money partition's latest block number",
+                "operationId": "4",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/money.RoundNumberResponse"
+                        }
+                    }
+                }
+            }
         }
     },
     "definitions": {
@@ -173,43 +199,6 @@ const docTemplate = `{
                     "type": "array",
                     "items": {
                         "type": "integer"
-                    }
-                }
-            }
-        },
-        "block.Bill": {
-            "type": "object",
-            "properties": {
-                "id": {
-                    "type": "array",
-                    "items": {
-                        "type": "integer"
-                    }
-                },
-                "is_dc_bill": {
-                    "type": "boolean"
-                },
-                "tx_hash": {
-                    "type": "array",
-                    "items": {
-                        "type": "integer"
-                    }
-                },
-                "tx_proof": {
-                    "$ref": "#/definitions/block.TxProof"
-                },
-                "value": {
-                    "type": "integer"
-                }
-            }
-        },
-        "block.Bills": {
-            "type": "object",
-            "properties": {
-                "bills": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/block.Bill"
                     }
                 }
             }
@@ -336,6 +325,47 @@ const docTemplate = `{
                 }
             }
         },
+        "bp.Bill": {
+            "type": "object",
+            "properties": {
+                "fc_block_number": {
+                    "description": "block number when fee credit bill balance was last updated",
+                    "type": "integer"
+                },
+                "id": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                },
+                "is_dc_bill": {
+                    "type": "boolean"
+                },
+                "tx_hash": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                },
+                "tx_proof": {
+                    "$ref": "#/definitions/block.TxProof"
+                },
+                "value": {
+                    "type": "integer"
+                }
+            }
+        },
+        "bp.Bills": {
+            "type": "object",
+            "properties": {
+                "bills": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/bp.Bill"
+                    }
+                }
+            }
+        },
         "certificates.InputRecord": {
             "type": "object",
             "properties": {
@@ -347,18 +377,26 @@ const docTemplate = `{
                     }
                 },
                 "hash": {
-                    "description": "hash to be certified",
+                    "description": "state hash to be certified",
                     "type": "array",
                     "items": {
                         "type": "integer"
                     }
                 },
                 "previous_hash": {
-                    "description": "previously certified root hash",
+                    "description": "previously certified state hash",
                     "type": "array",
                     "items": {
                         "type": "integer"
                     }
+                },
+                "round_number": {
+                    "description": "transaction system's round number",
+                    "type": "integer"
+                },
+                "sum_of_earned_fees": {
+                    "description": "sum of the actual fees over all transaction records in the block",
+                    "type": "integer"
                 },
                 "summary_value": {
                     "description": "summary value to certified",
@@ -442,15 +480,8 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "balance": {
-                    "type": "string"
-                }
-            }
-        },
-        "money.BlockHeightResponse": {
-            "type": "object",
-            "properties": {
-                "blockHeight": {
-                    "type": "string"
+                    "type": "string",
+                    "example": "0"
                 }
             }
         },
@@ -500,23 +531,81 @@ const docTemplate = `{
                 }
             }
         },
+        "money.RoundNumberResponse": {
+            "type": "object",
+            "properties": {
+                "roundNumber": {
+                    "type": "string",
+                    "example": "0"
+                }
+            }
+        },
+        "txsystem.ClientMetadata": {
+            "type": "object",
+            "properties": {
+                "fee_credit_record_id": {
+                    "description": "fee credit record identifier (should be empty for fee credit transactions)",
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                },
+                "max_fee": {
+                    "description": "maximum fee the user is willing to pay for the execution of this transaction",
+                    "type": "integer"
+                },
+                "timeout": {
+                    "description": "transaction timeout block height",
+                    "type": "integer"
+                }
+            }
+        },
+        "txsystem.ServerMetadata": {
+            "type": "object",
+            "properties": {
+                "fee": {
+                    "description": "actual transaction fee charged",
+                    "type": "integer"
+                }
+            }
+        },
         "txsystem.Transaction": {
             "type": "object",
             "properties": {
+                "client_metadata": {
+                    "description": "transaction metadata added by user",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/txsystem.ClientMetadata"
+                        }
+                    ]
+                },
+                "fee_proof": {
+                    "description": "optional fee authorization proof (omitted when the main owner proof also satisfies the fee owner condition)",
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                },
                 "owner_proof": {
                     "type": "array",
                     "items": {
                         "type": "integer"
                     }
                 },
+                "server_metadata": {
+                    "description": "transaction metadata added by node",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/txsystem.ServerMetadata"
+                        }
+                    ]
+                },
                 "system_id": {
                     "type": "array",
                     "items": {
                         "type": "integer"
                     }
-                },
-                "timeout": {
-                    "type": "integer"
                 },
                 "transaction_attributes": {
                     "$ref": "#/definitions/anypb.Any"

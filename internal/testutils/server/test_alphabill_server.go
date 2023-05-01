@@ -12,6 +12,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/internal/util"
 	"google.golang.org/grpc"
+	"google.golang.org/protobuf/types/known/emptypb"
 )
 
 type TestAlphabillServiceServer struct {
@@ -28,19 +29,19 @@ func NewTestAlphabillServiceServer() *TestAlphabillServiceServer {
 	return &TestAlphabillServiceServer{blocks: make(map[uint64]func() *block.Block, 100)}
 }
 
-func (s *TestAlphabillServiceServer) ProcessTransaction(_ context.Context, tx *txsystem.Transaction) (*txsystem.TransactionResponse, error) {
+func (s *TestAlphabillServiceServer) ProcessTransaction(_ context.Context, tx *txsystem.Transaction) (*emptypb.Empty, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.processedTxs = append(s.processedTxs, tx)
-	return &txsystem.TransactionResponse{Ok: true}, nil
+	return &emptypb.Empty{}, nil
 }
 
 func (s *TestAlphabillServiceServer) GetBlock(_ context.Context, req *alphabill.GetBlockRequest) (*alphabill.GetBlockResponse, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	blockFunc, f := s.blocks[req.BlockNo]
-	if !f {
-		return &alphabill.GetBlockResponse{Block: nil, ErrorMessage: fmt.Sprintf("block with number %v not found", req.BlockNo)}, nil
+	blockFunc, ok := s.blocks[req.BlockNo]
+	if !ok {
+		return nil, fmt.Errorf("block with number %d not found", req.BlockNo)
 	}
 	return &alphabill.GetBlockResponse{Block: blockFunc()}, nil
 }
@@ -60,10 +61,10 @@ func (s *TestAlphabillServiceServer) GetBlocks(_ context.Context, req *alphabill
 	return &alphabill.GetBlocksResponse{Blocks: blocks, MaxBlockNumber: s.maxBlockHeight}, nil
 }
 
-func (s *TestAlphabillServiceServer) GetMaxBlockNo(context.Context, *alphabill.GetMaxBlockNoRequest) (*alphabill.GetMaxBlockNoResponse, error) {
+func (s *TestAlphabillServiceServer) GetRoundNumber(context.Context, *emptypb.Empty) (*alphabill.GetRoundNumberResponse, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return &alphabill.GetMaxBlockNoResponse{BlockNo: s.maxBlockHeight}, nil
+	return &alphabill.GetRoundNumberResponse{RoundNumber: s.maxBlockHeight}, nil
 }
 
 func (s *TestAlphabillServiceServer) GetPubKey() []byte {
@@ -110,8 +111,8 @@ func (s *TestAlphabillServiceServer) SetBlockFunc(blockNo uint64, blockFunc func
 	s.blocks[blockNo] = blockFunc
 }
 
-func StartServer(port int, alphabillService *TestAlphabillServiceServer) *grpc.Server {
-	lis, err := net.Listen("tcp", fmt.Sprintf("localhost:%d", port))
+func StartServer(alphabillService *TestAlphabillServiceServer) (*grpc.Server, net.Addr) {
+	lis, err := net.Listen("tcp", "localhost:0")
 	if err != nil {
 		log.Fatalf("failed to listen: %v", err)
 	}
@@ -123,7 +124,7 @@ func StartServer(port int, alphabillService *TestAlphabillServiceServer) *grpc.S
 			defer closeListener(lis)
 		}
 	}()
-	return grpcServer
+	return grpcServer, lis.Addr()
 }
 
 func closeListener(lis net.Listener) {

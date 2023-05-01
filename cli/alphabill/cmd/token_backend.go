@@ -2,12 +2,9 @@ package cmd
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"os"
-	"os/signal"
 	"path/filepath"
-	"syscall"
 
 	"github.com/spf13/cobra"
 
@@ -17,7 +14,7 @@ import (
 
 const defaultTokenApiURL = "localhost:9735"
 
-func newTokenWalletBackendCmd(ctx context.Context, baseConfig *baseConfiguration) *cobra.Command {
+func newTokenWalletBackendCmd(baseConfig *baseConfiguration) *cobra.Command {
 	var cmd = &cobra.Command{
 		Use:   "token-backend",
 		Short: "starts token wallet backend service",
@@ -31,15 +28,15 @@ func newTokenWalletBackendCmd(ctx context.Context, baseConfig *baseConfiguration
 	}
 	cmd.PersistentFlags().String(logFileCmdName, "", "log file path (default output to stderr)")
 	cmd.PersistentFlags().String(logLevelCmdName, "INFO", "logging level (DEBUG, INFO, NOTICE, WARNING, ERROR)")
-	cmd.AddCommand(buildCmdStartTokenWalletBackend(ctx, baseConfig))
+	cmd.AddCommand(buildCmdStartTokenWalletBackend(baseConfig))
 	return cmd
 }
 
-func buildCmdStartTokenWalletBackend(ctx context.Context, config *baseConfiguration) *cobra.Command {
+func buildCmdStartTokenWalletBackend(config *baseConfiguration) *cobra.Command {
 	cmd := &cobra.Command{
 		Use: "start",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return execTokenWalletBackendStartCmd(ctx, cmd, config)
+			return execTokenWalletBackendStartCmd(cmd.Context(), cmd, config)
 		},
 	}
 	cmd.Flags().StringP(alphabillNodeURLCmdName, "u", defaultAlphabillNodeURL, "alphabill node url")
@@ -75,18 +72,7 @@ func execTokenWalletBackendStartCmd(ctx context.Context, cmd *cobra.Command, con
 		return fmt.Errorf("failed to init logger: %w", err)
 	}
 
-	ctx, stop := signal.NotifyContext(ctx, os.Interrupt, syscall.SIGTERM)
-	go func() {
-		<-ctx.Done()
-		stop()
-	}()
-
-	err = twb.Run(ctx, twb.NewConfig(srvAddr, abURL, dbFile, logger))
-	if errors.Is(err, context.Canceled) {
-		logger.Info("Token backend stopped")
-		return nil
-	}
-	return err
+	return twb.Run(ctx, twb.NewConfig(srvAddr, abURL, dbFile, logger))
 }
 
 /*

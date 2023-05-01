@@ -175,6 +175,25 @@ func (s *storage) SaveToken(token *TokenUnit, proof *wallet.Proof) error {
 	})
 }
 
+func (s *storage) RemoveToken(id TokenID) error {
+	return s.db.Update(func(tx *bolt.Tx) error {
+		token, err := s.getToken(tx, id)
+		if err != nil {
+			return err
+		}
+		// TODO: maybe check and only allow deleting burned tokens?
+		ownerBucket, err := s.ensureSubBucket(tx, bucketTokenOwner, token.Owner, false)
+		if err != nil {
+			return err
+		}
+		if err = ownerBucket.Delete(token.ID); err != nil {
+			return fmt.Errorf("failed to delete token from owner bucket: %w", err)
+		}
+		// TODO: remove from txHistory bucket?
+		return tx.Bucket(bucketTokenUnit).Delete(token.ID)
+	})
+}
+
 func (s *storage) GetToken(id TokenID) (token *TokenUnit, _ error) {
 	return token, s.db.View(func(tx *bolt.Tx) (err error) {
 		token, err = s.getToken(tx, id)

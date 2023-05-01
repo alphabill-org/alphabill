@@ -8,6 +8,7 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/alphabill-org/alphabill/internal/certificates"
 	"github.com/alphabill-org/alphabill/internal/util"
 
 	"github.com/alphabill-org/alphabill/internal/block"
@@ -25,6 +26,7 @@ type abClientMock struct {
 	// record most recent transaction
 	tx             *txsystem.Transaction
 	maxBlock       uint64
+	maxRoundNumber uint64
 	incrementBlock bool
 	fail           bool
 	shutdown       bool
@@ -50,7 +52,7 @@ func TestVDClient_Create(t *testing.T) {
 func TestVdClient_RegisterHash(t *testing.T) {
 	vdClient, err := New(context.Background(), testConf())
 	require.NoError(t, err)
-	mock := &abClientMock{}
+	mock := &abClientMock{maxBlock: 1, maxRoundNumber: 100}
 	vdClient.abClient = mock
 
 	hashHex := "0x67588D4D37BF6F4D6C63CE4BDA38DA2B869012B1BC131DB07AA1D2B5BFD810DD"
@@ -60,6 +62,7 @@ func TestVdClient_RegisterHash(t *testing.T) {
 	dataHash, err := uint256.FromHex(hashHex)
 	require.NoError(t, err)
 	require.EqualValues(t, util.Uint256ToBytes(dataHash), mock.tx.UnitId)
+	require.Equal(t, mock.maxRoundNumber+vdClient.timeoutDelta, mock.tx.Timeout())
 }
 
 func TestVdClient_RegisterHash_SyncBlocks(t *testing.T) {
@@ -83,8 +86,8 @@ func TestVdClient_RegisterHash_SyncBlocks(t *testing.T) {
 			txs = append(txs, mock.tx)
 		}
 		return &block.Block{
-			BlockNumber:  nr,
-			Transactions: txs,
+			UnicityCertificate: &certificates.UnicityCertificate{InputRecord: &certificates.InputRecord{RoundNumber: nr}},
+			Transactions:       txs,
 		}
 	}
 
@@ -216,7 +219,7 @@ func TestVdClient_ListAllBlocksWithTx(t *testing.T) {
 	mock.incrementBlock = true
 	mock.block = func(nr uint64) *block.Block {
 		return &block.Block{
-			BlockNumber: nr,
+			UnicityCertificate: &certificates.UnicityCertificate{InputRecord: &certificates.InputRecord{RoundNumber: nr}},
 		}
 	}
 
@@ -237,22 +240,12 @@ func TestVdClient_ListAllBlocksWithTx(t *testing.T) {
 	}, test.WaitDuration, test.WaitTick)
 }
 
-func (a *abClientMock) SendTransaction(ctx context.Context, tx *txsystem.Transaction) (*txsystem.TransactionResponse, error) {
-	fmt.Printf("Recording incoming tx: %s\n", tx)
+func (a *abClientMock) SendTransaction(ctx context.Context, tx *txsystem.Transaction) error {
 	a.tx = tx
-	var resp txsystem.TransactionResponse
 	if a.fail {
-		resp = txsystem.TransactionResponse{
-			Ok:      false,
-			Message: "boom",
-		}
-	} else {
-		resp = txsystem.TransactionResponse{
-			Ok:      true,
-			Message: "",
-		}
+		return fmt.Errorf("boom")
 	}
-	return &resp, nil
+	return nil
 }
 
 func (a *abClientMock) GetBlock(ctx context.Context, n uint64) (*block.Block, error) {
@@ -269,12 +262,16 @@ func (a *abClientMock) GetBlocks(ctx context.Context, blockNumber, blockCount ui
 	return &alphabill.GetBlocksResponse{MaxBlockNumber: a.maxBlock, Blocks: []*block.Block{a.block(blockNumber)}}, nil
 }
 
-func (a *abClientMock) GetMaxBlockNumber(ctx context.Context) (uint64, error) {
-	fmt.Printf("GetMaxBlockNumber: %v\n", a.maxBlock)
+func (a *abClientMock) GetRoundNumber(ctx context.Context) (uint64, error) {
 	if a.incrementBlock {
-		defer func() { a.maxBlock++ }()
+		defer func() {
+			a.maxBlock++
+			if a.maxBlock > a.maxRoundNumber {
+				a.maxRoundNumber = a.maxBlock
+			}
+		}()
 	}
-	return a.maxBlock, nil
+	return a.maxRoundNumber, nil
 }
 
 func (a *abClientMock) Shutdown() error {

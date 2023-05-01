@@ -8,9 +8,9 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
-	"strconv"
 	"testing"
 
+	"github.com/alphabill-org/alphabill/pkg/wallet/backend/bp"
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/encoding/protojson"
@@ -39,6 +39,7 @@ type (
 		customPath     string
 		customFullPath string
 		customResponse string
+		feeCreditBill  *bp.Bill
 	}
 )
 
@@ -47,11 +48,14 @@ func CreateTestWallet(t *testing.T, backend BackendAPI) (*Wallet, *clientmock.Mo
 	am, err := account.NewManager(dir, "", true)
 	require.NoError(t, err)
 
-	err = CreateNewWallet(am, "")
+	return CreateTestWalletWithManager(t, backend, am)
+}
+
+func CreateTestWalletWithManager(t *testing.T, backend BackendAPI, am account.Manager) (*Wallet, *clientmock.MockAlphabillClient) {
+	err := CreateNewWallet(am, "")
 	require.NoError(t, err)
 
-	mockClient := clientmock.NewMockAlphabillClient(0, map[uint64]*block.Block{})
-
+	mockClient := clientmock.NewMockAlphabillClient(clientmock.WithMaxBlockNumber(0), clientmock.WithBlocks(map[uint64]*block.Block{}))
 	w, err := LoadExistingWallet(abclient.AlphabillClientConfig{}, am, backend)
 	require.NoError(t, err)
 	w.AlphabillClient = mockClient
@@ -98,7 +102,7 @@ func mockBackendCalls(br *backendMockReturnConf) (*httptest.Server, *url.URL) {
 				w.Write([]byte(fmt.Sprintf(`{"blockHeight": "%d"}`, br.blockHeight)))
 			case "/" + testclient.ProofPath:
 				w.WriteHeader(http.StatusOK)
-				w.Write([]byte(br.proofList[proofCount]))
+				w.Write([]byte(br.proofList[proofCount%len(br.proofList)]))
 				proofCount++
 			case "/" + testclient.ListBillsPath:
 				w.WriteHeader(http.StatusOK)
@@ -107,6 +111,10 @@ func mockBackendCalls(br *backendMockReturnConf) (*httptest.Server, *url.URL) {
 				} else {
 					w.Write([]byte(fmt.Sprintf(`{"total": 1, "bills": [{"id":"%s","value":"%d","txHash":"%s","isDcBill":false}]}`, toBillId(br.billId), br.billValue, br.billTxHash)))
 				}
+			case "/" + testclient.FeeCreditPath:
+				w.WriteHeader(http.StatusOK)
+				fcb, _ := protojson.Marshal(br.feeCreditBill)
+				w.Write(fcb)
 			default:
 				w.WriteHeader(http.StatusNotFound)
 			}
@@ -121,21 +129,22 @@ func toBillId(i *uint256.Int) string {
 	return base64.StdEncoding.EncodeToString(util.Uint256ToBytes(i))
 }
 
-func createBlockProofResponse(t *testing.T, b *Bill, overrideNonce []byte, blockNumber, timeout uint64) *block.Bills {
+func createBlockProofResponse(t *testing.T, b *Bill, overrideNonce []byte, blockNumber, timeout uint64, k *account.AccountKey) *bp.Bills {
 	w, mockClient := CreateTestWallet(t, nil)
-	k, _ := w.am.GetAccountKey(0)
+	if k == nil {
+		k, _ = w.am.GetAccountKey(0)
+	}
 	var dcTx *txsystem.Transaction
 	if overrideNonce != nil {
-		dcTx, _ = createDustTx(k, b, overrideNonce, timeout)
+		dcTx, _ = createDustTx(k, w.SystemID(), b, overrideNonce, timeout)
 	} else {
-		dcTx, _ = createDustTx(k, b, calculateDcNonce([]*Bill{b}), timeout)
+		dcTx, _ = createDustTx(k, w.SystemID(), b, calculateDcNonce([]*Bill{b}), timeout)
 	}
 	mockClient.SetBlock(&block.Block{
-		SystemIdentifier:   alphabillMoneySystemId,
-		BlockNumber:        timeout,
+		SystemIdentifier:   w.SystemID(),
 		PreviousBlockHash:  hash.Sum256([]byte{}),
 		Transactions:       []*txsystem.Transaction{dcTx},
-		UnicityCertificate: &certificates.UnicityCertificate{},
+		UnicityCertificate: &certificates.UnicityCertificate{InputRecord: &certificates.InputRecord{RoundNumber: timeout}},
 	})
 	tp := &block.TxProof{
 		BlockNumber: blockNumber,
@@ -147,13 +156,13 @@ func createBlockProofResponse(t *testing.T, b *Bill, overrideNonce []byte, block
 			},
 		},
 	}
-	return &block.Bills{Bills: []*block.Bill{{Id: util.Uint256ToBytes(b.Id), Value: b.Value, IsDcBill: b.IsDcBill, TxProof: tp, TxHash: b.TxHash}}}
+	return &bp.Bills{Bills: []*bp.Bill{{Id: util.Uint256ToBytes(b.Id), Value: b.Value, IsDcBill: b.IsDcBill, TxProof: tp, TxHash: b.TxHash}}}
 }
 
-func createBlockProofJsonResponse(t *testing.T, bills []*Bill, overrideNonce []byte, blockNumber, timeout uint64) []string {
+func createBlockProofJsonResponse(t *testing.T, bills []*Bill, overrideNonce []byte, blockNumber, timeout uint64, k *account.AccountKey) []string {
 	var jsonList []string
 	for _, b := range bills {
-		bills := createBlockProofResponse(t, b, overrideNonce, blockNumber, timeout)
+		bills := createBlockProofResponse(t, b, overrideNonce, blockNumber, timeout, k)
 		res, _ := protojson.MarshalOptions{EmitUnpopulated: true}.Marshal(bills)
 		jsonList = append(jsonList, string(res))
 	}
@@ -165,7 +174,7 @@ func createBillListResponse(bills []*Bill) *money.ListBillsResponse {
 	for i, b := range bills {
 		billVMs[i] = &money.ListBillVM{
 			Id:       util.Uint256ToBytes(b.Id),
-			Value:    strconv.FormatUint(b.Value, 10),
+			Value:    b.Value,
 			TxHash:   b.TxHash,
 			IsDCBill: b.IsDcBill,
 		}
@@ -180,10 +189,18 @@ func createBillListJsonResponse(bills []*Bill) string {
 }
 
 type backendAPIMock struct {
-	getBalance     func(pubKey []byte, includeDCBills bool) (uint64, error)
-	listBills      func(pubKey []byte) (*money.ListBillsResponse, error)
-	getProof       func(billId []byte) (*block.Bills, error)
-	getBlockHeight func() (uint64, error)
+	getBalance       func(pubKey []byte, includeDCBills bool) (uint64, error)
+	listBills        func(pubKey []byte) (*money.ListBillsResponse, error)
+	getProof         func(billId []byte) (*bp.Bills, error)
+	getBlockHeight   func() (uint64, error)
+	getFeeCreditBill func(unitID []byte) (*bp.Bill, error)
+}
+
+func (b *backendAPIMock) GetFeeCreditBill(unitID []byte) (*bp.Bill, error) {
+	if b.getFeeCreditBill != nil {
+		return b.getFeeCreditBill(unitID)
+	}
+	return nil, errors.New("getFeeCreditBill not implemented")
 }
 
 func (b *backendAPIMock) GetBalance(pubKey []byte, includeDCBills bool) (uint64, error) {
@@ -200,7 +217,7 @@ func (b *backendAPIMock) ListBills(pubKey []byte) (*money.ListBillsResponse, err
 	return nil, errors.New("listBills not implemented")
 }
 
-func (b *backendAPIMock) GetProof(billId []byte) (*block.Bills, error) {
+func (b *backendAPIMock) GetProof(billId []byte) (*bp.Bills, error) {
 	if b.getProof != nil {
 		return b.getProof(billId)
 	}

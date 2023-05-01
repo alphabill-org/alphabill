@@ -17,22 +17,47 @@ import (
 // GenericBlock same as Block but transactions are of type txsystem.GenericTransaction
 type GenericBlock struct {
 	SystemIdentifier   []byte
-	BlockNumber        uint64
+	ShardIdentifier    []byte
 	PreviousBlockHash  []byte
+	NodeIdentifier     string
 	Transactions       []txsystem.GenericTransaction
 	UnicityCertificate *certificates.UnicityCertificate
 }
 
+type genericBlockHashingContext struct {
+	headerHash []byte
+	txsHash    []byte
+	treeHash   []byte
+}
+
 // Hash returns the hash of the block.
 // Hash is computed from hash of block header fields || hash of raw block payload || tree hash of transactions
+// AB-505: hash of an empty block is a zero-hash
 func (x *GenericBlock) Hash(hashAlgorithm crypto.Hash) ([]byte, error) {
-	headerHash := x.HashHeader(hashAlgorithm)
-	txsHash := x.hashTransactions(hashAlgorithm)
-	treeHash, err := x.treeHash(hashAlgorithm)
+	return makeBlockHash(hashAlgorithm, len(x.Transactions) != 0, func() (*genericBlockHashingContext, error) {
+		treeHash, err := x.treeHash(hashAlgorithm)
+		if err != nil {
+			return nil, err
+		}
+		return &genericBlockHashingContext{
+			headerHash: x.HashHeader(hashAlgorithm),
+			txsHash:    x.hashTransactions(hashAlgorithm),
+			treeHash:   treeHash,
+		}, nil
+	})
+}
+
+// doHash returns the hash of the block. Empty block hash is a zero-hash (AB-505).
+// If not empty, hash is computed from hash of block header fields || hash of raw block payload || tree hash of transactions
+func makeBlockHash(hashAlgorithm crypto.Hash, hasTx bool, lazyCtx func() (*genericBlockHashingContext, error)) ([]byte, error) {
+	if !hasTx {
+		return make([]byte, hashAlgorithm.Size()), nil
+	}
+	ctx, err := lazyCtx()
 	if err != nil {
 		return nil, err
 	}
-	return abhash.Sum(hashAlgorithm, headerHash, txsHash, treeHash), nil
+	return abhash.Sum(hashAlgorithm, ctx.headerHash, ctx.txsHash, ctx.treeHash), nil
 }
 
 func (x *GenericBlock) HashHeader(hashAlgorithm crypto.Hash) []byte {
@@ -43,21 +68,28 @@ func (x *GenericBlock) HashHeader(hashAlgorithm crypto.Hash) []byte {
 
 func (x *GenericBlock) AddHeaderToHasher(hasher hash.Hash) {
 	hasher.Write(x.SystemIdentifier)
-	// TODO add shard id to block header hash
-	//hasher.Write(b.ShardIdentifier)
-	hasher.Write(util.Uint64ToBytes(x.BlockNumber))
+	hasher.Write(x.ShardIdentifier)
 	hasher.Write(x.PreviousBlockHash)
+	hasher.Write([]byte(x.NodeIdentifier))
 }
 
 // ToProtobuf converts GenericBlock to protobuf Block
 func (x *GenericBlock) ToProtobuf() *Block {
 	return &Block{
 		SystemIdentifier:   x.SystemIdentifier,
-		BlockNumber:        x.BlockNumber,
+		ShardIdentifier:    x.ShardIdentifier,
 		PreviousBlockHash:  x.PreviousBlockHash,
-		Transactions:       genericTxsToProtobuf(x.Transactions),
+		NodeIdentifier:     x.NodeIdentifier,
+		Transactions:       GenericTxsToProtobuf(x.Transactions),
 		UnicityCertificate: x.UnicityCertificate,
 	}
+}
+
+func (x *GenericBlock) GetRoundNumber() uint64 {
+	if x != nil {
+		return x.UnicityCertificate.GetRoundNumber()
+	}
+	return 0
 }
 
 func (x *GenericBlock) hashTransactions(hashAlgorithm crypto.Hash) []byte {
@@ -164,7 +196,7 @@ func (x *GenericBlock) extractTransactions(unitID []byte, hashAlgorithm crypto.H
 	return primaryTx, secondaryTxs
 }
 
-func genericTxsToProtobuf(src []txsystem.GenericTransaction) []*txsystem.Transaction {
+func GenericTxsToProtobuf(src []txsystem.GenericTransaction) []*txsystem.Transaction {
 	dst := make([]*txsystem.Transaction, len(src))
 	for i, tx := range src {
 		dst[i] = tx.ToProtoBuf()
@@ -172,7 +204,7 @@ func genericTxsToProtobuf(src []txsystem.GenericTransaction) []*txsystem.Transac
 	return dst
 }
 
-func protobufTxsToGeneric(src []*txsystem.Transaction, txConverter TxConverter) ([]txsystem.GenericTransaction, error) {
+func ProtobufTxsToGeneric(src []*txsystem.Transaction, txConverter TxConverter) ([]txsystem.GenericTransaction, error) {
 	dst := make([]txsystem.GenericTransaction, len(src))
 	var err error
 	for i, tx := range src {

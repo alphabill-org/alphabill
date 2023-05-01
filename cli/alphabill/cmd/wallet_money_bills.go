@@ -3,16 +3,13 @@ package cmd
 import (
 	"fmt"
 	"os"
-	"path"
-	"strconv"
+	"path/filepath"
 
-	"github.com/alphabill-org/alphabill/internal/block"
-	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/errors"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
+	"github.com/alphabill-org/alphabill/pkg/wallet/backend/bp"
 	backendmoney "github.com/alphabill-org/alphabill/pkg/wallet/backend/money"
 	moneyclient "github.com/alphabill-org/alphabill/pkg/wallet/backend/money/client"
-	"github.com/alphabill-org/alphabill/pkg/wallet/money"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/spf13/cobra"
 )
@@ -112,11 +109,7 @@ func execListCmd(cmd *cobra.Command, config *walletConfig) error {
 			consoleWriter.Println(fmt.Sprintf("Account #%d", group.accountIndex+1))
 		}
 		for j, bill := range group.bills.Bills {
-			billValueUint, err := strconv.ParseUint(bill.Value, 10, 64)
-			if err != nil {
-				return err
-			}
-			billValueStr := amountToString(billValueUint, 8)
+			billValueStr := amountToString(bill.Value, 8)
 			consoleWriter.Println(fmt.Sprintf("#%d 0x%X %s", j+1, bill.Id, billValueStr))
 		}
 	}
@@ -202,7 +195,7 @@ func execExportCmd(cmd *cobra.Command, config *walletConfig) error {
 		return err
 	}
 
-	var bills []*block.Bill
+	var bills []*bp.Bill
 	for _, b := range billsList.Bills {
 		proof, err := restClient.GetProof(b.Id)
 		if err != nil {
@@ -221,7 +214,7 @@ func execExportCmd(cmd *cobra.Command, config *walletConfig) error {
 
 // writeBillsToFile writes bill(s) to given directory.
 // Creates outputDir if it does not already exist. Returns output file.
-func writeBillsToFile(outputDir string, bills ...*block.Bill) (string, error) {
+func writeBillsToFile(outputDir string, bills ...*bp.Bill) (string, error) {
 	outputFile, err := getOutputFile(outputDir, bills)
 	if err != nil {
 		return "", err
@@ -230,7 +223,7 @@ func writeBillsToFile(outputDir string, bills ...*block.Bill) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	err = block.WriteBillsFile(outputFile, &block.Bills{Bills: bills})
+	err = bp.WriteBillsFile(outputFile, &bp.Bills{Bills: bills})
 	if err != nil {
 		return "", err
 	}
@@ -238,41 +231,15 @@ func writeBillsToFile(outputDir string, bills ...*block.Bill) (string, error) {
 }
 
 // getOutputFile returns filename either bill-<bill-id-hex>.json or bills.json
-func getOutputFile(outputDir string, bills []*block.Bill) (string, error) {
-	if len(bills) == 0 {
+func getOutputFile(outputDir string, bills []*bp.Bill) (string, error) {
+	switch len(bills) {
+	case 0:
 		return "", errors.New("no bills to export")
-	} else if len(bills) == 1 {
+	case 1:
 		billId := bills[0].GetId()
 		filename := "bill-" + hexutil.Encode(billId[:]) + ".json"
-		return path.Join(outputDir, filename), nil
-	} else {
-		return path.Join(outputDir, "bills.json"), nil
+		return filepath.Join(outputDir, filename), nil
+	default:
+		return filepath.Join(outputDir, "bills.json"), nil
 	}
-}
-
-func newBillsDTO(bills ...*money.Bill) *block.Bills {
-	var billsDTO []*block.Bill
-	for _, b := range bills {
-		billsDTO = append(billsDTO, b.ToProto())
-	}
-	return &block.Bills{Bills: billsDTO}
-}
-
-func (t *TrustBase) verify() error {
-	if len(t.RootValidators) == 0 {
-		return errors.New("missing trust base key info")
-	}
-	for _, rv := range t.RootValidators {
-		if len(rv.SigningPublicKey) == 0 {
-			return errors.New("missing trust base signing public key")
-		}
-		if len(rv.NodeIdentifier) == 0 {
-			return errors.New("missing trust base node identifier")
-		}
-	}
-	return nil
-}
-
-func (t *TrustBase) toVerifiers() (map[string]abcrypto.Verifier, error) {
-	return genesis.NewValidatorTrustBase(t.RootValidators)
 }

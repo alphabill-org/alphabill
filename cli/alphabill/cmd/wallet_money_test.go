@@ -10,30 +10,27 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"testing"
 
 	netutil "github.com/alphabill-org/alphabill/internal/testutils/net"
 	indexer "github.com/alphabill-org/alphabill/pkg/wallet/backend/money"
+	wlog "github.com/alphabill-org/alphabill/pkg/wallet/log"
 	"github.com/alphabill-org/alphabill/pkg/wallet/money"
+	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/holiman/uint256"
+	"github.com/stretchr/testify/require"
 
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
-	"github.com/alphabill-org/alphabill/internal/hash"
+	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/internal/script"
-	test "github.com/alphabill-org/alphabill/internal/testutils"
 	testpartition "github.com/alphabill-org/alphabill/internal/testutils/partition"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
+	"github.com/alphabill-org/alphabill/internal/txsystem/fc"
 	moneytx "github.com/alphabill-org/alphabill/internal/txsystem/money"
 	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/alphabill-org/alphabill/pkg/wallet/account"
 	testclient "github.com/alphabill-org/alphabill/pkg/wallet/backend/money/client"
-	wlog "github.com/alphabill-org/alphabill/pkg/wallet/log"
-	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/holiman/uint256"
-	"github.com/stretchr/testify/require"
-	"google.golang.org/protobuf/proto"
-	"google.golang.org/protobuf/types/known/anypb"
 )
 
 type (
@@ -95,6 +92,18 @@ func TestWalletCreateCmd_encrypt(t *testing.T) {
 	cmd.baseCmd.SetArgs(strings.Split("wallet --home "+homeDir+" add-key --pn "+pw, " "))
 	err = cmd.addAndExecuteCommand(context.Background())
 	require.NoError(t, err)
+}
+
+func TestWalletCreateCmd_invalidSeed(t *testing.T) {
+	outputWriter := &testConsoleWriter{}
+	consoleWriter = outputWriter
+	homeDir := setupTestHomeDir(t, "wallet-test")
+
+	cmd := New()
+	cmd.baseCmd.SetArgs(strings.Split("wallet create -s --wallet-location "+homeDir, " "))
+	err := cmd.addAndExecuteCommand(context.Background())
+	require.EqualError(t, err, `invalid value "--wallet-location" for flag "seed" (mnemonic)`)
+	require.False(t, util.FileExists(filepath.Join(homeDir, "wallet", "accounts.db")))
 }
 
 func TestWalletGetBalanceCmd(t *testing.T) {
@@ -167,102 +176,6 @@ func TestPubKeysCmd(t *testing.T) {
 	verifyStdout(t, stdout, "#1 "+hexutil.Encode(pk))
 }
 
-/*
-Prep: start network and money backend, send initial bill to wallet-1
-Test scenario 1: wallet-1 sends two transactions to wallet-2
-Test scenario 1.1: when sending a tx, wallet-1 specifies --output-path flag and checks proofs are saved there
-Test scenario 2: wallet-1 account 1 sends two transactions to wallet-1 account 2
-Test scenario 3: wallet-2 sends tx without confirming
-*/
-func TestSendingMoneyUsingWallets_integration(t *testing.T) {
-	// create 2 wallets
-	am1, homedir1 := createNewWallet(t)
-	acc1, _ := am1.GetAccountKey(0)
-	w1PubKey := acc1.PubKey
-	am1.Close()
-
-	am2, homedir2 := createNewWallet(t)
-	w2PubKey, _ := am2.GetPublicKey(0)
-	am2.Close()
-
-	initialBill := &moneytx.InitialBill{
-		ID:    uint256.NewInt(1),
-		Value: 1e18,
-		Owner: script.PredicateAlwaysTrue(),
-	}
-	network := startAlphabillPartition(t, initialBill)
-	nodePort := netutil.GetFreeRandomPort(t)
-	startRPCServer(t, network, ":"+strconv.Itoa(nodePort))
-	nodeAddr := fmt.Sprintf("localhost:%v", nodePort)
-
-	err := wlog.InitStdoutLogger(wlog.INFO)
-	require.NoError(t, err)
-
-	apiAddr := startMoneyBackend(t, nodeAddr)
-
-	// transfer initial bill to wallet 1
-	transferInitialBillTx, err := createInitialBillTransferTx(w1PubKey, initialBill.ID, initialBill.Value, 10000)
-	require.NoError(t, err)
-	err = network.SubmitTx(transferInitialBillTx)
-	require.NoError(t, err)
-	require.Eventually(t, testpartition.BlockchainContainsTx(transferInitialBillTx, network), test.WaitDuration, test.WaitTick)
-
-	// verify bill is received by wallet 1
-	verifyStdoutEventually(t, func() *testConsoleWriter {
-		return execWalletCmd(t, homedir1, fmt.Sprintf("get-balance --alphabill-api-uri %s", apiAddr))
-	}, fmt.Sprintf("#%d %s", 1, amountToString(initialBill.Value, 8)))
-
-	// TS1:
-	// send two transactions (two bills) to wallet-2
-	stdout := execWalletCmd(t, homedir1, fmt.Sprintf("send --amount 1 --address 0x%x --alphabill-api-uri %s --alphabill-uri %s", w2PubKey, apiAddr, nodeAddr))
-	verifyStdout(t, stdout, "Successfully confirmed transaction(s)")
-
-	// TS1.1: also verify --output-path flag
-	stdout = execWalletCmd(t, homedir1, fmt.Sprintf("send -k 1 --amount 1 --address 0x%x --alphabill-api-uri %s --alphabill-uri %s --output-path %s", w2PubKey, apiAddr, nodeAddr, homedir1))
-	proofFile := fmt.Sprintf("%s/bill-0x0000000000000000000000000000000000000000000000000000000000000001.json", homedir1)
-	verifyStdout(t, stdout,
-		"Successfully confirmed transaction(s)",
-		fmt.Sprintf("Transaction proof(s) saved to: %s", proofFile),
-	)
-	require.FileExists(t, proofFile)
-
-	// verify wallet-1 balance is decreased
-	verifyStdoutEventually(t, func() *testConsoleWriter {
-		return execWalletCmd(t, homedir1, fmt.Sprintf("get-balance --alphabill-api-uri %s", apiAddr))
-	}, fmt.Sprintf("#%d %s", 1, amountToString(initialBill.Value-2e8, 8)))
-
-	// verify wallet-2 received said bills
-	verifyStdoutEventually(t, func() *testConsoleWriter {
-		return execWalletCmd(t, homedir2, fmt.Sprintf("get-balance --alphabill-api-uri %s", apiAddr))
-	}, fmt.Sprintf("#%d %s", 1, amountToString(2e8, 8)))
-
-	// TS2:
-	// add additional accounts to wallet 1
-	pubKey2Hex := addAccount(t, homedir1)
-	_ = addAccount(t, homedir1)
-	// send two transactions (two bills) to wallet account 2
-	stdout = execWalletCmd(t, homedir1, fmt.Sprintf("send -k 1 --amount 1 --address %s --alphabill-api-uri %s --alphabill-uri %s", pubKey2Hex, apiAddr, nodeAddr))
-	verifyStdout(t, stdout, "Successfully confirmed transaction(s)")
-
-	stdout = execWalletCmd(t, homedir1, fmt.Sprintf("send -k 1 --amount 1 --address %s --alphabill-api-uri %s --alphabill-uri %s", pubKey2Hex, apiAddr, nodeAddr))
-	verifyStdout(t, stdout, "Successfully confirmed transaction(s)")
-
-	// verify account 1 balance is decreased
-	verifyStdoutEventually(t, func() *testConsoleWriter {
-		return execWalletCmd(t, homedir1, fmt.Sprintf("get-balance -k 1 --alphabill-api-uri %s", apiAddr))
-	}, fmt.Sprintf("#%d %s", 1, amountToString(initialBill.Value-4e8, 8)))
-
-	// verify account 2 received said bills
-	verifyStdoutEventually(t, func() *testConsoleWriter {
-		return execWalletCmd(t, homedir1, fmt.Sprintf("get-balance -k 2 --alphabill-api-uri %s", apiAddr))
-	}, fmt.Sprintf("#%d %s", 2, amountToString(2e8, 8)))
-
-	// TS3:
-	// verify transaction is broadcasted immediately
-	stdout = execWalletCmd(t, homedir2, fmt.Sprintf("send -w false --amount 2 --address 0x%x --alphabill-api-uri %s --alphabill-uri %s", w1PubKey, apiAddr, nodeAddr))
-	verifyStdout(t, stdout, "Successfully sent transaction(s)")
-}
-
 func TestSendingFailsWithInsufficientBalance(t *testing.T) {
 	am, homedir := createNewWallet(t)
 	pubKey, _ := am.GetPublicKey(0)
@@ -278,10 +191,22 @@ func TestSendingFailsWithInsufficientBalance(t *testing.T) {
 func startAlphabillPartition(t *testing.T, initialBill *moneytx.InitialBill) *testpartition.AlphabillPartition {
 	network, err := testpartition.NewNetwork(1, func(tb map[string]abcrypto.Verifier) txsystem.TransactionSystem {
 		system, err := moneytx.NewMoneyTxSystem(
-			crypto.SHA256,
-			initialBill,
-			10000,
-			moneytx.SchemeOpts.TrustBase(tb),
+			defaultABMoneySystemIdentifier,
+			moneytx.WithHashAlgorithm(crypto.SHA256),
+			moneytx.WithInitialBill(initialBill),
+			moneytx.WithSystemDescriptionRecords([]*genesis.SystemDescriptionRecord{
+				{
+					SystemIdentifier: defaultABMoneySystemIdentifier,
+					T2Timeout:        defaultT2Timeout,
+					FeeCreditBill: &genesis.FeeCreditBill{
+						UnitId:         util.Uint256ToBytes(uint256.NewInt(2)),
+						OwnerPredicate: script.PredicateAlwaysTrue(),
+					},
+				},
+			}),
+			moneytx.WithFeeCalculator(fc.FixedFee(1)),
+			moneytx.WithDCMoneyAmount(10000),
+			moneytx.WithTrustBase(tb),
 		)
 		require.NoError(t, err)
 		return system
@@ -298,7 +223,7 @@ func startRPCServer(t *testing.T, network *testpartition.AlphabillPartition, add
 	listener, err := net.Listen("tcp", addr)
 	require.NoError(t, err)
 
-	grpcServer, err := initRPCServer(network.Nodes[0], &grpcServerConfiguration{
+	grpcServer, err := initRPCServer(network.Nodes[0].Node, &grpcServerConfiguration{
 		Address:               addr,
 		MaxGetBlocksBatchSize: defaultMaxGetBlocksBatchSize,
 		MaxRecvMsgSize:        defaultMaxRecvMsgSize,
@@ -314,7 +239,7 @@ func startRPCServer(t *testing.T, network *testpartition.AlphabillPartition, add
 	}()
 }
 
-func startMoneyBackend(t *testing.T, nodeAddr string) string {
+func startMoneyBackend(t *testing.T, nodeAddr string, initialBill *moneytx.InitialBill) string {
 	apiPort := netutil.GetFreeRandomPort(t)
 	apiAddr := fmt.Sprintf("localhost:%v", apiPort)
 
@@ -328,6 +253,11 @@ func startMoneyBackend(t *testing.T, nodeAddr string) string {
 			ServerAddr:              apiAddr,
 			DbFile:                  fmt.Sprintf("%s/backend.db", t.TempDir()),
 			ListBillsPageLimit:      100,
+			InitialBill: indexer.InitialBill{
+				Id:        util.Uint256ToBytes(initialBill.ID),
+				Value:     initialBill.Value,
+				Predicate: initialBill.Owner,
+			},
 		})
 		wlog.Info("backend stopped")
 		require.NoError(t, err)
@@ -345,26 +275,6 @@ func addAccount(t *testing.T, homedir string) string {
 		}
 	}
 	return ""
-}
-
-func createInitialBillTransferTx(pubKey []byte, billId *uint256.Int, billValue uint64, timeout uint64) (*txsystem.Transaction, error) {
-	billId32 := billId.Bytes32()
-	tx := &txsystem.Transaction{
-		UnitId:                billId32[:],
-		SystemId:              []byte{0, 0, 0, 0},
-		TransactionAttributes: new(anypb.Any),
-		Timeout:               timeout,
-		OwnerProof:            script.PredicateArgumentEmpty(),
-	}
-	err := anypb.MarshalFrom(tx.TransactionAttributes, &moneytx.TransferOrder{
-		NewBearer:   script.PredicatePayToPublicKeyHashDefault(hash.Sum256(pubKey)),
-		TargetValue: billValue,
-		Backlink:    nil,
-	}, proto.MarshalOptions{})
-	if err != nil {
-		return nil, err
-	}
-	return tx, nil
 }
 
 func createNewWallet(t *testing.T) (account.Manager, string) {
@@ -431,8 +341,8 @@ type testConsoleWriter struct {
 }
 
 func (w *testConsoleWriter) Println(a ...any) {
-	s := fmt.Sprint(a...)
-	w.lines = append(w.lines, s)
+	s := fmt.Sprintln(a...)
+	w.lines = append(w.lines, s[:len(s)-1]) // remove newline
 }
 
 func (w *testConsoleWriter) Print(a ...any) {

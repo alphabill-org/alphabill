@@ -8,7 +8,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/certificates"
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
-	"github.com/alphabill-org/alphabill/internal/omt"
+	test "github.com/alphabill-org/alphabill/internal/testutils"
 	testcertificates "github.com/alphabill-org/alphabill/internal/testutils/certificates"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
@@ -55,8 +55,6 @@ func TestProofTypePrim(t *testing.T) {
 
 	// verify primary proof for each transaction
 	for i, tx := range b.Transactions {
-		verifyHashChain(t, b, tx, hashAlgorithm)
-
 		unitIDBytes := util.Uint256ToBytes(tx.UnitID())
 		p, err := NewPrimaryProof(b, unitIDBytes, hashAlgorithm)
 		require.NoError(t, err)
@@ -189,7 +187,7 @@ func TestProofsForSecondaryTargetUnits(t *testing.T) {
 }
 
 func createPrimaryTx(unitID uint64) *OnlyPrimaryTx {
-	transaction := newTransaction(newUnitID(unitID), make([]byte, 32), 555)
+	transaction := newTransaction(test.NewUnitID(unitID), make([]byte, 32), 555)
 	tx, _ := txsystem.NewDefaultGenericTransaction(transaction)
 	return &OnlyPrimaryTx{tx}
 }
@@ -200,7 +198,7 @@ func createSecondaryTx(unitID uint64) *OnlySecondaryTx {
 }
 
 func createMultiTargetTx(unitID uint64, secUnitID uint64) *MultiUnitTargetTxType {
-	transaction := newTransaction(newUnitID(unitID), make([]byte, 32), 555)
+	transaction := newTransaction(test.NewUnitID(unitID), make([]byte, 32), 555)
 	tx, _ := txsystem.NewDefaultGenericTransaction(transaction)
 	return &MultiUnitTargetTxType{tx, uint256.NewInt(secUnitID)}
 }
@@ -213,6 +211,7 @@ func createUC(t *testing.T, b *GenericBlock, hashAlgorithm crypto.Hash) (*certif
 		Hash:         make([]byte, 32),
 		BlockHash:    blockhash,
 		SummaryValue: make([]byte, 32),
+		RoundNumber:  1,
 	}
 	uc := testcertificates.CreateUnicityCertificate(
 		t,
@@ -225,26 +224,12 @@ func createUC(t *testing.T, b *GenericBlock, hashAlgorithm crypto.Hash) (*certif
 	return uc, map[string]abcrypto.Verifier{"test": verifier}
 }
 
-func verifyHashChain(t *testing.T, b *GenericBlock, tx txsystem.GenericTransaction, hashAlgorithm crypto.Hash) {
-	unitIDBytes := util.Uint256ToBytes(tx.UnitID())
-	leaves, _ := b.blockTreeLeaves(hashAlgorithm)
-	chain, _ := treeChain(unitIDBytes, leaves, hashAlgorithm)
-	root := omt.EvalMerklePath(chain, unitIDBytes[:], hashAlgorithm)
-	require.Equal(t, "690822883B5310DF3B8DA4232252A76E20E07F2F4FB184CEF85D35DC4AF4DF70", fmt.Sprintf("%X", root),
-		"hash chain verification failed for tx=%X", unitIDBytes[:])
-}
-
-func newUnitID(num uint64) []byte {
-	bytes32 := uint256.NewInt(num).Bytes32()
-	return bytes32[:]
-}
-
 func newTransaction(id, ownerProof []byte, timeout uint64) *txsystem.Transaction {
 	tx := &txsystem.Transaction{
 		SystemId:              []byte{0, 0, 0, 0},
 		UnitId:                id,
 		TransactionAttributes: new(anypb.Any),
-		Timeout:               timeout,
+		ClientMetadata:        &txsystem.ClientMetadata{Timeout: timeout},
 		OwnerProof:            ownerProof,
 	}
 	return tx

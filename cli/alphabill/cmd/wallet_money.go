@@ -11,18 +11,18 @@ import (
 	"strings"
 	"syscall"
 
-	"golang.org/x/sync/errgroup"
+	"github.com/alphabill-org/alphabill/pkg/wallet/backend/bp"
+	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/spf13/cobra"
+	"github.com/tyler-smith/go-bip39"
 	"golang.org/x/term"
 
-	"github.com/alphabill-org/alphabill/internal/block"
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/pkg/client"
 	"github.com/alphabill-org/alphabill/pkg/wallet/account"
 	moneyclient "github.com/alphabill-org/alphabill/pkg/wallet/backend/money/client"
 	wlog "github.com/alphabill-org/alphabill/pkg/wallet/log"
 	"github.com/alphabill-org/alphabill/pkg/wallet/money"
-	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/spf13/cobra"
 )
 
 type walletConfig struct {
@@ -56,7 +56,7 @@ const (
 )
 
 // newWalletCmd creates a new cobra command for the wallet component.
-func newWalletCmd(ctx context.Context, baseConfig *baseConfiguration) *cobra.Command {
+func newWalletCmd(baseConfig *baseConfiguration) *cobra.Command {
 	config := &walletConfig{Base: baseConfig}
 	var walletCmd = &cobra.Command{
 		Use:   "wallet",
@@ -75,8 +75,9 @@ func newWalletCmd(ctx context.Context, baseConfig *baseConfiguration) *cobra.Com
 		},
 	}
 	walletCmd.AddCommand(newWalletBillsCmd(config))
+	walletCmd.AddCommand(newWalletFeesCmd(context.Background(), config))
 	walletCmd.AddCommand(createCmd(config))
-	walletCmd.AddCommand(sendCmd(ctx, config))
+	walletCmd.AddCommand(sendCmd(config))
 	walletCmd.AddCommand(getPubKeysCmd(config))
 	walletCmd.AddCommand(getBalanceCmd(config))
 	walletCmd.AddCommand(collectDustCmd(config))
@@ -103,38 +104,51 @@ func createCmd(config *walletConfig) *cobra.Command {
 }
 
 func execCreateCmd(cmd *cobra.Command, config *walletConfig) (err error) {
-	mnemonic, err := cmd.Flags().GetString(seedCmdName)
-	if err != nil {
-		return
+	mnemonic := ""
+	if cmd.Flags().Changed(seedCmdName) {
+		// when user omits value for "s" flag, ie by executing
+		// wallet create -s --wallet-location some/path
+		// then Cobra eats next param name (--wallet-location) as value for "s". So we validate the mnemonic here to
+		// catch this case as otherwise we most likely get error about creating wallet db which is confusing
+		if mnemonic, err = cmd.Flags().GetString(seedCmdName); err != nil {
+			return fmt.Errorf("failed to read the value of the %q flag: %w", seedCmdName, err)
+		}
+		if !bip39.IsMnemonicValid(mnemonic) {
+			return fmt.Errorf("invalid value %q for flag %q (mnemonic)", mnemonic, seedCmdName)
+		}
 	}
+
 	password, err := createPassphrase(cmd)
 	if err != nil {
-		return
+		return err
 	}
+
 	am, err := account.NewManager(config.WalletHomeDir, password, true)
 	if err != nil {
-		return
+		return fmt.Errorf("failed to create account manager: %w", err)
 	}
 	defer am.Close()
 
-	err = money.CreateNewWallet(am, mnemonic)
+	if err := money.CreateNewWallet(am, mnemonic); err != nil {
+		return fmt.Errorf("failed to create new wallet: %w", err)
+	}
 
 	if mnemonic == "" {
 		mnemonicSeed, err := am.GetMnemonic()
 		if err != nil {
-			return err
+			return fmt.Errorf("failed to read mnemonic created for the wallet: %w", err)
 		}
 		consoleWriter.Println("The following mnemonic key can be used to recover your wallet. Please write it down now, and keep it in a safe, offline place.")
 		consoleWriter.Println("mnemonic key: " + mnemonicSeed)
 	}
-	return
+	return nil
 }
 
-func sendCmd(ctx context.Context, config *walletConfig) *cobra.Command {
+func sendCmd(config *walletConfig) *cobra.Command {
 	cmd := &cobra.Command{
 		Use: "send",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return execSendCmd(ctx, cmd, config)
+			return execSendCmd(cmd.Context(), cmd, config)
 		},
 	}
 	cmd.Flags().StringP(addressCmdName, "a", "", "compressed secp256k1 public key of the receiver in hexadecimal format, must start with 0x and be 68 characters in length")
@@ -241,7 +255,7 @@ func execSendCmd(ctx context.Context, cmd *cobra.Command, config *walletConfig) 
 	if waitForConf {
 		consoleWriter.Println("Successfully confirmed transaction(s)")
 		if outputPath != "" {
-			var outputBills []*block.Bill
+			var outputBills []*bp.Bill
 			for _, b := range bills {
 				outputBills = append(outputBills, b.ToProto())
 			}
@@ -379,16 +393,16 @@ func execGetPubKeysCmd(cmd *cobra.Command, config *walletConfig) error {
 
 func collectDustCmd(config *walletConfig) *cobra.Command {
 	cmd := &cobra.Command{
-		Hidden: true, // feature will be enabled in v0.2.0 version
-		Use:    "collect-dust",
-		Short:  "consolidates bills",
-		Long:   "consolidates all bills into a single bill",
+		Use:   "collect-dust",
+		Short: "consolidates bills",
+		Long:  "consolidates all bills into a single bill",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return execCollectDust(cmd, config)
 		},
 	}
 	cmd.Flags().StringP(alphabillNodeURLCmdName, "u", defaultAlphabillNodeURL, "alphabill uri to connect to")
 	cmd.Flags().StringP(alphabillApiURLCmdName, "r", defaultAlphabillApiURL, "alphabill API uri to connect to")
+	cmd.Flags().Uint64P(keyCmdName, "k", 0, "which key to use for dust collection, 0 for all bills from all accounts")
 	return cmd
 }
 
@@ -398,6 +412,10 @@ func execCollectDust(cmd *cobra.Command, config *walletConfig) error {
 		return err
 	}
 	apiUri, err := cmd.Flags().GetString(alphabillApiURLCmdName)
+	if err != nil {
+		return err
+	}
+	accountNumber, err := cmd.Flags().GetUint64(keyCmdName)
 	if err != nil {
 		return err
 	}
@@ -417,21 +435,8 @@ func execCollectDust(cmd *cobra.Command, config *walletConfig) error {
 	defer w.Shutdown()
 
 	consoleWriter.Println("Starting dust collection, this may take a while...")
-	// start dust collection by calling CollectDust (sending dc transfers) and Sync (waiting for dc transfers to confirm)
-	// any error from CollectDust or Sync causes either goroutine to terminate
-	// if collect dust returns without error we signal Sync to cancel manually
+	err = w.CollectDust(context.Background(), accountNumber)
 
-	ctx, cancel := context.WithCancel(cmd.Context())
-
-	group, ctx := errgroup.WithContext(ctx)
-	group.Go(func() error {
-		err := w.CollectDust(ctx)
-		if err == nil {
-			defer cancel() // signal Sync to cancel
-		}
-		return err
-	})
-	err = group.Wait()
 	if err != nil {
 		consoleWriter.Println("Failed to collect dust: " + err.Error())
 		return err

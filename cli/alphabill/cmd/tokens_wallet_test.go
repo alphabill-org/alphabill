@@ -3,7 +3,6 @@ package cmd
 import (
 	"bytes"
 	"context"
-	gocrypto "crypto"
 	"fmt"
 	"net/url"
 	"os"
@@ -17,6 +16,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/testutils/net"
 	testpartition "github.com/alphabill-org/alphabill/internal/testutils/partition"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
+	"github.com/alphabill-org/alphabill/internal/txsystem/fc"
 	"github.com/alphabill-org/alphabill/internal/txsystem/tokens"
 	"github.com/alphabill-org/alphabill/pkg/wallet/account"
 	wlog "github.com/alphabill-org/alphabill/pkg/wallet/log"
@@ -430,14 +430,15 @@ func ensureTokenTypeIndexed(t *testing.T, ctx context.Context, api *client.Token
 }
 
 func startTokensPartition(t *testing.T) (*testpartition.AlphabillPartition, string) {
-	tokensState, err := rma.New(&rma.Config{
-		HashAlgorithm: gocrypto.SHA256,
-	})
-	require.NoError(t, err)
+	tokensState := rma.NewWithSHA256()
 	require.NotNil(t, tokensState)
 	network, err := testpartition.NewNetwork(1,
 		func(tb map[string]abcrypto.Verifier) txsystem.TransactionSystem {
-			system, err := tokens.New(tokens.WithState(tokensState))
+			system, err := tokens.New(
+				tokens.WithState(tokensState),
+				tokens.WithTrustBase(tb),
+				tokens.WithFeeCalculator(fc.FixedFee(0)), // 0 to disable fee module
+			)
 			require.NoError(t, err)
 			return system
 		}, tokens.DefaultTokenTxSystemIdentifier)
@@ -468,7 +469,8 @@ func startTokensBackend(t *testing.T, nodeAddr string) (srvUri string, restApi *
 	t.Cleanup(cancel)
 
 	go func() {
-		_ = twb.Run(ctx, cfg)
+		err = twb.Run(ctx, cfg)
+		fmt.Println("token wallet ended")
 	}()
 
 	require.Eventually(t, func() bool {
@@ -510,7 +512,7 @@ func doExecTokensCmd(homedir string, command string) (*testConsoleWriter, error)
 	consoleWriter = outputWriter
 
 	cmd := New()
-	args := "wallet token --log-level DEBUG --home " + homedir + " " + command // + " -l " + homedir + " "
+	args := "wallet token --log-level DEBUG --home " + homedir + " " + command
 	cmd.baseCmd.SetArgs(strings.Split(args, " "))
 
 	return outputWriter, cmd.addAndExecuteCommand(context.Background())

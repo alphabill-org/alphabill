@@ -3,10 +3,12 @@ package money
 import (
 	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
 	"sort"
 	"strconv"
 
+	"github.com/alphabill-org/alphabill/pkg/wallet/backend/bp"
 	_ "github.com/alphabill-org/alphabill/pkg/wallet/backend/money/docs"
 	"github.com/alphabill-org/alphabill/pkg/wallet/log"
 	"github.com/ethereum/go-ethereum/common/hexutil"
@@ -34,21 +36,21 @@ type (
 
 	ListBillVM struct {
 		Id       []byte `json:"id" swaggertype:"string" format:"base64" example:"AAAAAAgwv3UA1HfGO4qc1T3I3EOvqxfcrhMjJpr9Tn4="`
-		Value    string `json:"value" example:"1000"`
+		Value    uint64 `json:"value,string" example:"1000"`
 		TxHash   []byte `json:"txHash" swaggertype:"string" format:"base64" example:"Q4ShCITC0ODXPR+j1Zl/teYcoU3/mAPy0x8uSsvQFM8="`
 		IsDCBill bool   `json:"isDcBill" example:"false"`
 	}
 
 	BalanceResponse struct {
-		Balance string `json:"balance"`
+		Balance uint64 `json:"balance,string"`
 	}
 
 	AddKeyRequest struct {
 		Pubkey string `json:"pubkey"`
 	}
 
-	BlockHeightResponse struct {
-		BlockHeight string `json:"blockHeight"`
+	RoundNumberResponse struct {
+		RoundNumber uint64 `json:"roundNumber,string"`
 	}
 
 	EmptyResponse struct{}
@@ -80,7 +82,8 @@ func (s *RequestHandler) Router() *mux.Router {
 	apiV1.HandleFunc("/list-bills", s.listBillsFunc).Methods("GET", "OPTIONS")
 	apiV1.HandleFunc("/balance", s.balanceFunc).Methods("GET", "OPTIONS")
 	apiV1.HandleFunc("/proof", s.getProofFunc).Methods("GET", "OPTIONS")
-	apiV1.HandleFunc("/block-height", s.blockHeightFunc).Methods("GET", "OPTIONS")
+	apiV1.HandleFunc("/round-number", s.blockHeightFunc).Methods("GET", "OPTIONS")
+	apiV1.HandleFunc("/fee-credit-bill", s.getFeeCreditBillFunc).Methods("GET", "OPTIONS")
 
 	apiV1.PathPrefix("/swagger/").Handler(httpSwagger.Handler(
 		httpSwagger.URL("/api/v1/swagger/doc.json"), //The url pointing to API definition
@@ -162,7 +165,7 @@ func (s *RequestHandler) balanceFunc(w http.ResponseWriter, r *http.Request) {
 			sum += b.Value
 		}
 	}
-	res := &BalanceResponse{Balance: strconv.FormatUint(sum, 10)}
+	res := &BalanceResponse{Balance: sum}
 	writeAsJson(w, res)
 }
 
@@ -171,7 +174,7 @@ func (s *RequestHandler) balanceFunc(w http.ResponseWriter, r *http.Request) {
 // @version 1.0
 // @produce application/json
 // @Param bill_id query string true "ID of the bill (hex)"
-// @Success 200 {object} block.Bills
+// @Success 200 {object} bp.Bills
 // @Failure 400 {object} money.ErrorResponse
 // @Failure 404 {object} money.ErrorResponse
 // @Failure 500
@@ -212,20 +215,67 @@ func (s *RequestHandler) handlePubKeyNotFoundError(w http.ResponseWriter, err er
 	}
 }
 
+func (s *RequestHandler) readBillsProto(r *http.Request) (*bp.Bills, error) {
+	b, err := io.ReadAll(r.Body)
+	if err != nil {
+		return nil, err
+	}
+	req := &bp.Bills{}
+	err = protojson.Unmarshal(b, req)
+	if err != nil {
+		return nil, err
+	}
+	return req, nil
+}
+
 // @Summary Money partition's latest block number
 // @Id 4
 // @version 1.0
 // @produce application/json
-// @Success 200 {object} BlockHeightResponse
-// @Router /block-height [get]
+// @Success 200 {object} RoundNumberResponse
+// @Router /round-number [get]
 func (s *RequestHandler) blockHeightFunc(w http.ResponseWriter, r *http.Request) {
-	maxBlockNumber, err := s.Service.GetMaxBlockNumber(r.Context())
+	lastRoundNumber, err := s.Service.GetRoundNumber(r.Context())
 	if err != nil {
-		log.Error("GET /block-height error fetching max block number", err)
+		log.Error("GET /round-number error fetching round number", err)
 		w.WriteHeader(http.StatusInternalServerError)
 	} else {
-		writeAsJson(w, &BlockHeightResponse{BlockHeight: strconv.FormatUint(maxBlockNumber, 10)})
+		writeAsJson(w, &RoundNumberResponse{RoundNumber: lastRoundNumber})
 	}
+}
+
+// @Summary Get Fee Credit Bill
+// @Id 5
+// @version 1.0
+// @produce application/json
+// @Param bill_id query string true "ID of the bill (hex)"
+// @Success 200 {object} bp.Bill
+// @Router /fee-credit-bill [get]
+func (s *RequestHandler) getFeeCreditBillFunc(w http.ResponseWriter, r *http.Request) {
+	billID, err := parseBillID(r)
+	if err != nil {
+		log.Debug("error parsing GET /fee-credit-bill request: ", err)
+		w.WriteHeader(http.StatusBadRequest)
+		if errors.Is(err, errMissingBillIDQueryParam) || errors.Is(err, errInvalidBillIDLength) {
+			writeAsJson(w, ErrorResponse{Message: err.Error()})
+		} else {
+			writeAsJson(w, ErrorResponse{Message: "invalid bill_id format"})
+		}
+		return
+	}
+	fcb, err := s.Service.GetFeeCreditBill(billID)
+	if err != nil {
+		log.Error("error on GET /fee-credit-bill: ", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	if fcb == nil {
+		log.Debug("error on GET /fee-credit-bill: ", err)
+		w.WriteHeader(http.StatusNotFound)
+		writeAsJson(w, ErrorResponse{Message: "fee credit bill does not exist"})
+		return
+	}
+	writeAsProtoJson(w, fcb.toProto())
 }
 
 func (s *RequestHandler) parsePagingParams(r *http.Request) (int, int) {
@@ -335,7 +385,7 @@ func toBillVMList(bills []*Bill) []*ListBillVM {
 	for i, b := range bills {
 		billVMs[i] = &ListBillVM{
 			Id:       b.Id,
-			Value:    strconv.FormatUint(b.Value, 10),
+			Value:    b.Value,
 			TxHash:   b.TxHash,
 			IsDCBill: b.IsDCBill,
 		}

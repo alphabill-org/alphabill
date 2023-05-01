@@ -144,6 +144,7 @@ func (w *Wallet) prepareTx(ctx context.Context, unitId wallet.UnitID, attrs prot
 	}
 	tx.OwnerProof = sig
 	// convert again for hashing as the tx might have been modified
+	tx.ServerMetadata = &txsystem.ServerMetadata{Fee: 0} // TODO server metadata changes the hash
 	gtx, err = ttxs.NewGenericTx(tx)
 	if err != nil {
 		return nil, err
@@ -219,6 +220,17 @@ func newSplitTxAttrs(token *twb.TokenUnit, amount uint64, receiverPubKey []byte)
 	}
 }
 
+func newBurnTxAttrs(token *twb.TokenUnit, targetStateHash []byte) *ttxs.BurnFungibleTokenAttributes {
+	log.Info(fmt.Sprintf("Creating burn tx of unit=%X with bl=%X, new value=%v", token.ID, token.TxHash, token.Amount))
+	return &ttxs.BurnFungibleTokenAttributes{
+		Type:                         token.TypeID,
+		Value:                        token.Amount,
+		Nonce:                        targetStateHash,
+		Backlink:                     token.TxHash,
+		InvariantPredicateSignatures: nil,
+	}
+}
+
 // assumes there's sufficient balance for the given amount, sends transactions immediately
 func (w *Wallet) doSendMultiple(ctx context.Context, amount uint64, tokens []*twb.TokenUnit, acc *account.AccountKey, receiverPubKey []byte, invariantPredicateArgs []*PredicateInput) error {
 	var accumulatedSum uint64
@@ -269,7 +281,7 @@ func createTx(systemID []byte, unitId []byte, timeout uint64) *txsystem.Transact
 		SystemId:              systemID,
 		UnitId:                unitId,
 		TransactionAttributes: new(anypb.Any),
-		Timeout:               timeout,
+		ClientMetadata:        &txsystem.ClientMetadata{Timeout: timeout},
 		// OwnerProof is added after whole transaction is built
 	}
 }

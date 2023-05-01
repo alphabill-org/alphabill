@@ -4,18 +4,16 @@ import (
 	"context"
 	"fmt"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"testing"
 
-	"github.com/alphabill-org/alphabill/internal/block"
 	"github.com/alphabill-org/alphabill/internal/script"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	testhttp "github.com/alphabill-org/alphabill/internal/testutils/http"
 	"github.com/alphabill-org/alphabill/internal/testutils/net"
-	testpartition "github.com/alphabill-org/alphabill/internal/testutils/partition"
 	moneytx "github.com/alphabill-org/alphabill/internal/txsystem/money"
 	"github.com/alphabill-org/alphabill/internal/util"
+	"github.com/alphabill-org/alphabill/pkg/wallet/backend/bp"
 	backend "github.com/alphabill-org/alphabill/pkg/wallet/backend/money"
 	wlog "github.com/alphabill-org/alphabill/pkg/wallet/log"
 	"github.com/ethereum/go-ethereum/common/hexutil"
@@ -31,19 +29,14 @@ func TestMoneyBackendCLI(t *testing.T) {
 		Value: 1e18,
 		Owner: script.PredicateAlwaysTrue(),
 	}
-	initialBillBytes32 := initialBill.ID.Bytes32()
-	initialBillHex := hexutil.Encode(initialBillBytes32[:])
+	initialBillID := util.Uint256ToBytes(initialBill.ID)
+	initialBillHex := hexutil.Encode(initialBillID)
 	network := startAlphabillPartition(t, initialBill)
 	startRPCServer(t, network, defaultServerAddr)
 
-	// transfer initial bill to wallet
-	pubkeyHex := "0x03c30573dc0c7fd43fcb801289a6a96cb78c27f4ba398b89da91ece23e9a99aca3"
-	pubkey1, _ := hexutil.Decode(pubkeyHex)
-	transferInitialBillTx, err := createInitialBillTransferTx(pubkey1, initialBill.ID, initialBill.Value, 10000)
-	require.NoError(t, err)
-	err = network.SubmitTx(transferInitialBillTx)
-	require.NoError(t, err)
-	require.Eventually(t, testpartition.BlockchainContainsTx(transferInitialBillTx, network), test.WaitDuration, test.WaitTick)
+	// transfer initial bill to wallet pubkey
+	pk := "0x03c30573dc0c7fd43fcb801289a6a96cb78c27f4ba398b89da91ece23e9a99aca3"
+	initialBillValue := spendInitialBillWithFeeCredits(t, network, initialBill, pk)
 
 	// start wallet-backend service
 	homedir := setupTestHomeDir(t, "money-backend-test")
@@ -59,31 +52,31 @@ func TestMoneyBackendCLI(t *testing.T) {
 		ctx, cancelFunc := context.WithCancel(context.Background())
 		t.Cleanup(cancelFunc)
 		err = cmd.addAndExecuteCommand(ctx)
-		require.NoError(t, err)
+		require.ErrorIs(t, err, context.Canceled)
 	}()
 
 	// wait for wallet-backend to index the transaction by verifying balance
 	require.Eventually(t, func() bool {
 		// verify balance
 		res := &backend.BalanceResponse{}
-		httpRes := testhttp.DoGet(t, fmt.Sprintf("http://%s/api/v1/balance?pubkey=%s", serverAddr, pubkeyHex), res)
-		return httpRes != nil && httpRes.StatusCode == 200 && res.Balance == strconv.FormatUint(initialBill.Value, 10)
+		httpRes, _ := testhttp.DoGet(fmt.Sprintf("http://%s/api/v1/balance?pubkey=%s", serverAddr, pk), res)
+		return httpRes != nil && httpRes.StatusCode == 200 && res.Balance == initialBillValue
 	}, test.WaitDuration, test.WaitTick)
 
 	// verify /list-bills
 	resListBills := &backend.ListBillsResponse{}
-	httpRes := testhttp.DoGet(t, fmt.Sprintf("http://%s/api/v1/list-bills?pubkey=%s", serverAddr, pubkeyHex), resListBills)
+	httpRes, err := testhttp.DoGet(fmt.Sprintf("http://%s/api/v1/list-bills?pubkey=%s", serverAddr, pk), resListBills)
 	require.NoError(t, err)
 	require.EqualValues(t, 200, httpRes.StatusCode)
 	require.Len(t, resListBills.Bills, 1)
 	b := resListBills.Bills[0]
-	require.Equal(t, strconv.FormatUint(initialBill.Value, 10), b.Value)
-	require.Equal(t, initialBillBytes32[:], b.Id)
+	require.Equal(t, initialBillValue, b.Value)
+	require.Equal(t, initialBillID, b.Id)
 	require.NotNil(t, b.TxHash)
 
 	// verify /proof
-	resBlockProof := &block.Bills{}
-	httpRes = testhttp.DoGetProto(t, fmt.Sprintf("http://%s/api/v1/proof?bill_id=%s", serverAddr, initialBillHex), resBlockProof)
+	resBlockProof := &bp.Bills{}
+	httpRes, err = testhttp.DoGetProto(fmt.Sprintf("http://%s/api/v1/proof?bill_id=%s", serverAddr, initialBillHex), resBlockProof)
 	require.NoError(t, err)
 	require.EqualValues(t, 200, httpRes.StatusCode)
 	require.Len(t, resBlockProof.Bills, 1)

@@ -3,9 +3,8 @@ package cmd
 import (
 	"context"
 	"fmt"
-	"io/ioutil"
 	"os"
-	"path"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -17,50 +16,50 @@ func TestGenerateGenesisFiles(t *testing.T) {
 	conf := &rootGenesisConfig{
 		Base: &baseConfiguration{
 			HomeDir:    alphabillHomeDir(),
-			CfgFile:    path.Join(alphabillHomeDir(), defaultConfigFile),
+			CfgFile:    filepath.Join(alphabillHomeDir(), defaultConfigFile),
 			LogCfgFile: defaultLoggerConfigFile,
 		},
 		PartitionNodeGenesisFiles: []string{"testdata/partition-node-genesis-1.json"},
 		Keys: &keysConfig{
 			KeyFilePath: "testdata/root-key.json",
 		},
-		OutputDir:   outputDir,
-		TotalNodes:  1,
-		BlockRateMs: 900,
+		OutputDir:          outputDir,
+		TotalNodes:         1,
+		BlockRateMs:        900,
+		ConsensusTimeoutMs: 10000,
+		QuorumThreshold:    1,
 	}
-	err := rootGenesisRunFunc(context.Background(), conf)
+	err := rootGenesisRunFunc(conf)
 	require.NoError(t, err)
 
-	expectedRGFile, _ := ioutil.ReadFile("testdata/expected/root-genesis.json")
-	actualRGFile, _ := ioutil.ReadFile(path.Join(outputDir, "root-genesis.json"))
+	expectedRGFile, _ := os.ReadFile("testdata/expected/root-genesis.json")
+	actualRGFile, _ := os.ReadFile(filepath.Join(outputDir, "root-genesis.json"))
 	require.EqualValues(t, expectedRGFile, actualRGFile)
 
-	expectedPGFile1, _ := ioutil.ReadFile("testdata/expected/partition-genesis-1.json")
-	actualPGFile1, _ := ioutil.ReadFile(path.Join(outputDir, "partition-genesis-1.json"))
+	expectedPGFile1, _ := os.ReadFile("testdata/expected/partition-genesis-1.json")
+	actualPGFile1, _ := os.ReadFile(filepath.Join(outputDir, "partition-genesis-1.json"))
 	require.EqualValues(t, expectedPGFile1, actualPGFile1)
 }
 
 func TestRootGenesis_KeyFileNotFound(t *testing.T) {
 	homeDir := setupTestDir(t, alphabillDir)
 	cmd := New()
-	args := "root-genesis --home " + homeDir + " -p testdata/partition-node-genesis-1.json"
+	args := "root-genesis new --home " + homeDir + " -p testdata/partition-node-genesis-1.json"
 	cmd.baseCmd.SetArgs(strings.Split(args, " "))
 	err := cmd.addAndExecuteCommand(context.Background())
 
-	s := path.Join(homeDir, defaultRootChainDir, defaultKeysFileName)
+	s := filepath.Join(homeDir, defaultRootChainDir, defaultKeysFileName)
 	require.ErrorContains(t, err, fmt.Sprintf("failed to read root chain keys from file '%s'", s))
 }
 
 func TestRootGenesis_ForceKeyGeneration(t *testing.T) {
 	homeDir := setupTestHomeDir(t, alphabillDir)
 	cmd := New()
-	args := "root-genesis --gen-keys --home " + homeDir + " -p testdata/partition-node-genesis-1.json"
+	args := "root-genesis new --gen-keys --home " + homeDir + " -p testdata/partition-node-genesis-1.json"
 	cmd.baseCmd.SetArgs(strings.Split(args, " "))
 	err := cmd.addAndExecuteCommand(context.Background())
 	require.NoError(t, err)
-
-	kf := path.Join(homeDir, defaultRootChainDir, defaultKeysFileName)
-	require.FileExists(t, kf)
+	require.FileExists(t, filepath.Join(homeDir, defaultRootChainDir, defaultKeysFileName))
 }
 
 func TestGenerateGenesisFiles_InvalidPartitionSignature(t *testing.T) {
@@ -68,7 +67,7 @@ func TestGenerateGenesisFiles_InvalidPartitionSignature(t *testing.T) {
 	conf := &rootGenesisConfig{
 		Base: &baseConfiguration{
 			HomeDir:    alphabillHomeDir(),
-			CfgFile:    path.Join(alphabillHomeDir(), defaultConfigFile),
+			CfgFile:    filepath.Join(alphabillHomeDir(), defaultConfigFile),
 			LogCfgFile: defaultLoggerConfigFile,
 		},
 		PartitionNodeGenesisFiles: []string{"testdata/partition-record-1-invalid-sig.json"},
@@ -77,12 +76,12 @@ func TestGenerateGenesisFiles_InvalidPartitionSignature(t *testing.T) {
 		},
 		OutputDir: outputDir,
 	}
-	err := rootGenesisRunFunc(context.Background(), conf)
-	require.ErrorContains(t, err, "signature verify failed")
+	err := rootGenesisRunFunc(conf)
+	require.ErrorContains(t, err, "signature verification failed")
 }
 
 func setupTestDir(t *testing.T, dirName string) string {
-	outputDir := path.Join(os.TempDir(), dirName)
+	outputDir := filepath.Join(os.TempDir(), dirName)
 	_ = os.RemoveAll(outputDir)
 	_ = os.MkdirAll(outputDir, 0700) // -rwx------
 	t.Cleanup(func() {

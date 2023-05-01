@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/alphabill-org/alphabill/internal/block"
+	"github.com/alphabill-org/alphabill/internal/certificates"
 	"github.com/stretchr/testify/require"
 )
 
@@ -16,7 +17,7 @@ func TestLedgerReplicationResponse_Pretty_okEmpty(t *testing.T) {
 	res := r.Pretty()
 	require.Contains(t, res, "status")
 	require.NotContains(t, res, "message")
-	require.NotContains(t, res, "blocks")
+	require.Contains(t, res, "0 blocks")
 }
 
 func TestLedgerReplicationResponse_Pretty_okWithBlocks(t *testing.T) {
@@ -25,17 +26,17 @@ func TestLedgerReplicationResponse_Pretty_okWithBlocks(t *testing.T) {
 		Message: "",
 		Blocks: []*block.Block{
 			{
-				BlockNumber: 1,
+				UnicityCertificate: &certificates.UnicityCertificate{InputRecord: &certificates.InputRecord{RoundNumber: 1}},
 			},
 			{
-				BlockNumber: 2,
+				UnicityCertificate: &certificates.UnicityCertificate{InputRecord: &certificates.InputRecord{RoundNumber: 2}},
 			},
 		},
 	}
 	res := r.Pretty()
 	require.Contains(t, res, "status")
 	require.NotContains(t, res, "message")
-	require.Contains(t, res, "blocks 1..2")
+	require.Contains(t, res, "2 blocks")
 }
 
 func TestLedgerReplicationResponse_Pretty_error(t *testing.T) {
@@ -47,5 +48,5 @@ func TestLedgerReplicationResponse_Pretty_error(t *testing.T) {
 	res := r.Pretty()
 	require.Contains(t, res, "status")
 	require.Contains(t, res, "message:")
-	require.NotContains(t, res, "blocks")
+	require.Contains(t, res, "1 blocks")
 }

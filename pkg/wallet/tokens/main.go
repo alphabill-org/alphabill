@@ -9,7 +9,9 @@ import (
 	"strings"
 
 	"github.com/alphabill-org/alphabill/internal/block"
+	"github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
+	"github.com/alphabill-org/alphabill/internal/txsystem/fc"
 	"github.com/alphabill-org/alphabill/internal/txsystem/tokens"
 	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/alphabill-org/alphabill/pkg/wallet"
@@ -17,6 +19,7 @@ import (
 	"github.com/alphabill-org/alphabill/pkg/wallet/log"
 	twb "github.com/alphabill-org/alphabill/pkg/wallet/tokens/backend"
 	"github.com/alphabill-org/alphabill/pkg/wallet/tokens/client"
+	"github.com/alphabill-org/alphabill/pkg/wallet/txsubmitter"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/anypb"
 )
@@ -60,7 +63,11 @@ func New(systemID []byte, backendUrl string, am account.Manager, confirmTx bool)
 	if err != nil {
 		return nil, err
 	}
-	txs, err := tokens.New(tokens.WithSystemIdentifier(systemID))
+	txs, err := tokens.New(
+		tokens.WithSystemIdentifier(systemID),
+		tokens.WithTrustBase(map[string]crypto.Verifier{"test": nil}),
+		tokens.WithFeeCalculator(fc.FixedFee(0)), // 0 to disable fee module
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -196,28 +203,9 @@ func (w *Wallet) ListTokens(ctx context.Context, kind twb.Kind, accountNumber ui
 
 	// account number -> list of its tokens
 	allTokensByAccountNumber := make(map[uint64][]*twb.TokenUnit, 0)
-	fetchForPubKey := func(pubKey []byte) ([]*twb.TokenUnit, error) {
-		allTokensForKey := make([]*twb.TokenUnit, 0)
-		var ts []twb.TokenUnit
-		offsetKey := ""
-		var err error
-		for {
-			ts, offsetKey, err = w.backend.GetTokens(ctx, kind, pubKey, offsetKey, 0)
-			if err != nil {
-				return nil, err
-			}
-			for i := range ts {
-				allTokensForKey = append(allTokensForKey, &ts[i])
-			}
-			if offsetKey == "" {
-				break
-			}
-		}
-		return allTokensForKey, nil
-	}
 
 	if singleKey {
-		ts, err := fetchForPubKey(pubKeys[0])
+		ts, err := w.getTokens(ctx, kind, pubKeys[0])
 		if err != nil {
 			return nil, err
 		}
@@ -226,13 +214,33 @@ func (w *Wallet) ListTokens(ctx context.Context, kind twb.Kind, accountNumber ui
 	}
 
 	for idx, pubKey := range pubKeys {
-		ts, err := fetchForPubKey(pubKey)
+		ts, err := w.getTokens(ctx, kind, pubKey)
 		if err != nil {
 			return nil, err
 		}
 		allTokensByAccountNumber[uint64(idx)+1] = ts
 	}
 	return allTokensByAccountNumber, nil
+}
+
+func (w *Wallet) getTokens(ctx context.Context, kind twb.Kind, pubKey wallet.PubKey) ([]*twb.TokenUnit, error) {
+	allTokens := make([]*twb.TokenUnit, 0)
+	var ts []twb.TokenUnit
+	offsetKey := ""
+	var err error
+	for {
+		ts, offsetKey, err = w.backend.GetTokens(ctx, kind, pubKey, offsetKey, 0)
+		if err != nil {
+			return nil, err
+		}
+		for i := range ts {
+			allTokens = append(allTokens, &ts[i])
+		}
+		if offsetKey == "" {
+			break
+		}
+	}
+	return allTokens, nil
 }
 
 func (w *Wallet) GetToken(ctx context.Context, owner wallet.PubKey, kind twb.Kind, tokenId twb.TokenID) (*twb.TokenUnit, error) {
@@ -356,6 +364,125 @@ func (w *Wallet) UpdateNFTData(ctx context.Context, accountNumber uint64, tokenI
 		return err
 	}
 	return sub.ToBatch(w.backend, acc.PubKey).SendTx(ctx, w.confirmTx)
+}
+
+func (w *Wallet) CollectDust(ctx context.Context, accountNumber uint64, tokenTypes []twb.TokenTypeID, invariantPredicateArgs []*PredicateInput) error {
+	var keys []*account.AccountKey
+	var err error
+	if accountNumber > AllAccounts {
+		key, err := w.am.GetAccountKey(accountNumber - 1)
+		if err != nil {
+			return err
+		}
+		keys = append(keys, key)
+	} else {
+		keys, err = w.am.GetAccountKeys()
+		if err != nil {
+			return err
+		}
+	}
+	// TODO: rewrite with goroutines?
+	for _, key := range keys {
+		err = w.collectDust(ctx, key, tokenTypes, invariantPredicateArgs)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (w *Wallet) collectDust(ctx context.Context, acc *account.AccountKey, allowedTokenTypes []twb.TokenTypeID, invariantPredicateArgs []*PredicateInput) error {
+	tokensByTypes, err := w.getTokensForDC(ctx, acc.PubKey, allowedTokenTypes)
+	if err != nil {
+		return err
+	}
+
+	for _, v := range tokensByTypes {
+		// first token to be joined into
+		targetToken := v[0]
+		burnBatch := txsubmitter.NewBatch(acc.PubKey, w.backend)
+		// burn the rest
+		for i := 1; i < len(v); i++ {
+			token := v[i]
+			attrs := newBurnTxAttrs(token, targetToken.TxHash)
+			sub, err := w.prepareTx(ctx, wallet.UnitID(token.ID), attrs, acc, func(tx *txsystem.Transaction, gtx txsystem.GenericTransaction) error {
+				signatures, err := preparePredicateSignatures(w.GetAccountManager(), invariantPredicateArgs, gtx)
+				if err != nil {
+					return err
+				}
+				attrs.SetInvariantPredicateSignatures(signatures)
+				return anypb.MarshalFrom(tx.TransactionAttributes, attrs, proto.MarshalOptions{})
+			})
+			if err != nil {
+				return err
+			}
+			burnBatch.Add(sub)
+		}
+		if err = burnBatch.SendTx(ctx, true); err != nil {
+			return err
+		}
+		subs := burnBatch.Submissions()
+		burnTxs := make([]*txsystem.Transaction, 0, len(subs))
+		proofs := make([]*block.BlockProof, 0, len(subs))
+		for _, sub := range subs {
+			burnTxs = append(burnTxs, sub.Transaction)
+			proofs = append(proofs, sub.Proof.Proof)
+		}
+
+		joinAttrs := &tokens.JoinFungibleTokenAttributes{
+			BurnTransactions:             burnTxs,
+			Proofs:                       proofs,
+			Backlink:                     targetToken.TxHash,
+			InvariantPredicateSignatures: nil,
+		}
+
+		sub, err := w.prepareTx(ctx, wallet.UnitID(targetToken.ID), joinAttrs, acc, func(tx *txsystem.Transaction, gtx txsystem.GenericTransaction) error {
+			signatures, err := preparePredicateSignatures(w.GetAccountManager(), invariantPredicateArgs, gtx)
+			if err != nil {
+				return err
+			}
+			joinAttrs.SetInvariantPredicateSignatures(signatures)
+			return anypb.MarshalFrom(tx.TransactionAttributes, joinAttrs, proto.MarshalOptions{})
+		})
+		if err != nil {
+			return err
+		}
+		if err = sub.ToBatch(w.backend, acc.PubKey).SendTx(ctx, true); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (w *Wallet) getTokensForDC(ctx context.Context, key wallet.PubKey, allowedTokenTypes []twb.TokenTypeID) (map[string][]*twb.TokenUnit, error) {
+	// find tokens to join
+	allTokens, err := w.getTokens(ctx, twb.Fungible, key)
+	if err != nil {
+		return nil, err
+	}
+	// group tokens by type
+	var tokensByTypes = make(map[string][]*twb.TokenUnit, len(allowedTokenTypes))
+	for _, tokenType := range allowedTokenTypes {
+		tokensByTypes[string(tokenType)] = make([]*twb.TokenUnit, 0)
+	}
+	for _, tok := range allTokens {
+		tokenTypeStr := string(tok.TypeID)
+		tokenz, found := tokensByTypes[tokenTypeStr]
+		if !found {
+			if len(allowedTokenTypes) == 0 {
+				tokenz = make([]*twb.TokenUnit, 0, 1)
+			} else {
+				continue
+			}
+		}
+		tokensByTypes[tokenTypeStr] = append(tokenz, tok)
+	}
+	for k, v := range tokensByTypes {
+		if len(v) < 2 { // not interested if tokens count is less than two
+			delete(tokensByTypes, k)
+		}
+	}
+	return tokensByTypes, nil
 }
 
 func (w *Wallet) getRoundNumber(ctx context.Context) (uint64, error) {

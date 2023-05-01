@@ -10,12 +10,13 @@ import (
 	"github.com/holiman/uint256"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/protobuf/types/known/emptypb"
 )
 
 /*
 Example usage
 start shard node:
-$ start-vd.sh
+$ setup-testab.sh && start.sh -r -p vd
 
 run script:
 $ go run scripts/verifiable_data/vd_register_data.go --data-hash 0x67588d4d37bf6f4d6c63ce4bda38da2b869012b1bc131db07aa1d2b5bfd810dd
@@ -23,7 +24,7 @@ $ go run scripts/verifiable_data/vd_register_data.go --data-hash 0x67588d4d37bf6
 func main() {
 	// parse command line parameters
 	dataHashHex := flag.String("data-hash", "", "SHA256 hash (hex, prefixed with '0x') of the data to verify")
-	timeout := flag.Uint64("timeout", 1000, "transaction timeout (block height)")
+	timeout := flag.Uint64("timeout", 1000, "transaction timeout (block number)")
 	uri := flag.String("alphabill-uri", "localhost:9543", "alphabill node uri where to send the transaction")
 	flag.Parse()
 
@@ -57,11 +58,11 @@ func main() {
 		}
 	}()
 	txClient := alphabill.NewAlphabillServiceClient(conn)
-	blockNr, err := txClient.GetMaxBlockNo(ctx, &alphabill.GetMaxBlockNoRequest{})
+	blockNr, err := txClient.GetRoundNumber(ctx, &emptypb.Empty{})
 	if err != nil {
 		log.Fatal(err)
 	}
-	absoluteTimeout := blockNr.BlockNo + *timeout
+	absoluteTimeout := blockNr.RoundNumber + *timeout
 
 	// create tx
 	tx, err := createRegisterDataTx(dataId, absoluteTimeout)
@@ -70,22 +71,17 @@ func main() {
 	}
 
 	// send tx
-	txResponse, err := txClient.ProcessTransaction(ctx, tx)
-	if err != nil {
+	if _, err := txClient.ProcessTransaction(ctx, tx); err != nil {
 		log.Fatal(err)
 	}
-	if txResponse.Ok {
-		log.Println("successfully sent transaction")
-	} else {
-		log.Fatalf("faild to send transaction %v", txResponse.Message)
-	}
+	log.Println("successfully sent transaction")
 }
 
 func createRegisterDataTx(hash []byte, timeout uint64) (*txsystem.Transaction, error) {
 	tx := &txsystem.Transaction{
-		UnitId:   hash,
-		SystemId: []byte{0, 0, 0, 1},
-		Timeout:  timeout,
+		UnitId:         hash,
+		SystemId:       []byte{0, 0, 0, 1},
+		ClientMetadata: &txsystem.ClientMetadata{Timeout: timeout},
 	}
 	return tx, nil
 }

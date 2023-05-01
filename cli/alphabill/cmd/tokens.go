@@ -5,6 +5,7 @@ import (
 	gocrypto "crypto"
 
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
+	"github.com/alphabill-org/alphabill/internal/txsystem/fc"
 	"github.com/alphabill-org/alphabill/internal/txsystem/tokens"
 	"github.com/spf13/cobra"
 )
@@ -18,7 +19,7 @@ type (
 	}
 )
 
-func newTokensNodeCmd(ctx context.Context, baseConfig *baseConfiguration) *cobra.Command {
+func newTokensNodeCmd(baseConfig *baseConfiguration) *cobra.Command {
 	config := &tokensConfiguration{
 		baseNodeConfiguration: baseNodeConfiguration{
 			Base: baseConfig,
@@ -33,7 +34,7 @@ func newTokensNodeCmd(ctx context.Context, baseConfig *baseConfiguration) *cobra
 		Short: "Starts an User-Defined Token partition's node",
 		Long:  `Starts an User-Defined Token partition's node, binding to the network address provided by configuration.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runTokensNode(ctx, config)
+			return runTokensNode(cmd.Context(), config)
 		},
 	}
 
@@ -58,6 +59,7 @@ func runTokensNode(ctx context.Context, cfg *tokensConfiguration) error {
 		tokens.WithSystemIdentifier(pg.SystemDescriptionRecord.GetSystemIdentifier()),
 		tokens.WithHashAlgorithm(gocrypto.SHA256),
 		tokens.WithTrustBase(trustBase),
+		tokens.WithFeeCalculator(fc.FixedFee(0)), // 0 to disable fee module
 	)
 	if err != nil {
 		return err

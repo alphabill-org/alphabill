@@ -11,6 +11,7 @@ import (
 
 	"github.com/ainvaltin/httpsrv"
 	"github.com/alphabill-org/alphabill/pkg/wallet"
+	"github.com/alphabill-org/alphabill/internal/crypto"
 	"golang.org/x/sync/errgroup"
 
 	"github.com/alphabill-org/alphabill/internal/rpc/alphabill"
@@ -31,8 +32,9 @@ type Configuration interface {
 }
 
 type ABClient interface {
-	SendTransaction(ctx context.Context, tx *txsystem.Transaction) (*txsystem.TransactionResponse, error)
+	SendTransaction(ctx context.Context, tx *txsystem.Transaction) error
 	GetBlocks(ctx context.Context, blockNumber, blockCount uint64) (*alphabill.GetBlocksResponse, error)
+	GetRoundNumber(ctx context.Context) (uint64, error)
 }
 
 type Storage interface {
@@ -46,6 +48,7 @@ type Storage interface {
 	QueryTokenType(kind Kind, creator wallet.PubKey, startKey TokenTypeID, count int) ([]*TokenUnitType, TokenTypeID, error)
 
 	SaveToken(data *TokenUnit, proof *wallet.Proof) error
+	RemoveToken(id TokenID) error
 	GetToken(id TokenID) (*TokenUnit, error)
 	QueryTokens(kind Kind, owner wallet.Predicate, startKey TokenID, count int) ([]*TokenUnit, TokenID, error)
 
@@ -65,7 +68,7 @@ func Run(ctx context.Context, cfg Configuration) error {
 	}
 	defer db.Close()
 
-	txs, err := tokens.New()
+	txs, err := tokens.New(tokens.WithTrustBase(map[string]crypto.Verifier{"test": nil}))
 	if err != nil {
 		return fmt.Errorf("failed to create token tx system: %w", err)
 	}
@@ -94,10 +97,10 @@ func Run(ctx context.Context, cfg Configuration) error {
 
 	g.Go(func() error {
 		api := &restAPI{
-			db:              db,
-			convertTx:       txs.ConvertTx,
-			sendTransaction: abc.SendTransaction,
-			logErr:          cfg.Logger().Error,
+			db:        db,
+			ab:        abc,
+			convertTx: txs.ConvertTx,
+			logErr:    cfg.Logger().Error,
 		}
 		return httpsrv.Run(ctx, cfg.HttpServer(api.endpoints()), httpsrv.Listener(cfg.Listener()), httpsrv.ShutdownTimeout(5*time.Second))
 	})

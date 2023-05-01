@@ -29,22 +29,25 @@ func TestUnicitySeal_IsValid(t *testing.T) {
 			wantErr:  ErrUnicitySealIsNil,
 		},
 		{
-			name:     "no root validators",
+			name:     "no root nodes",
 			seal:     &UnicitySeal{},
 			verifier: nil,
 			wantErr:  ErrRootValidatorInfoMissing,
 		},
-		{
-			name: "PreviousHash is nil",
-			seal: &UnicitySeal{
-				RootChainRoundNumber: 1,
-				PreviousHash:         nil,
-				Hash:                 zeroHash,
-				Signatures:           map[string][]byte{"": zeroHash},
+		// todo: AB-871 PreviousHash should be removed, it is not compatible with DRC and not used for anything anyway
+		/*
+			{
+				name: "PreviousHash is nil",
+				seal: &UnicitySeal{
+					RootChainRoundNumber: 1,
+					PreviousHash:         nil,
+					Hash:                 zeroHash,
+					Signatures:           map[string][]byte{"": zeroHash},
+				},
+				verifier: map[string]crypto.Verifier{"test": verifier},
+				wantErr:  ErrUnicitySealPreviousHashIsNil,
 			},
-			verifier: map[string]crypto.Verifier{"test": verifier},
-			wantErr:  ErrUnicitySealPreviousHashIsNil,
-		},
+		*/
 		{
 			name: "Hash is nil",
 			seal: &UnicitySeal{

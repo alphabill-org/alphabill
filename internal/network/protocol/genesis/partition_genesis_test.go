@@ -46,7 +46,6 @@ func TestPartitionGenesis_IsValid(t *testing.T) {
 		name       string
 		fields     fields
 		args       args
-		wantErr    error
 		wantErrStr string
 	}{
 		{
@@ -55,7 +54,7 @@ func TestPartitionGenesis_IsValid(t *testing.T) {
 			fields: fields{
 				Keys: []*PublicKeyInfo{keyInfo},
 			},
-			wantErrStr: ErrVerifiersEmpty,
+			wantErrStr: ErrVerifiersEmpty.Error(),
 		},
 		{
 			name: "system description record is nil",
@@ -64,7 +63,7 @@ func TestPartitionGenesis_IsValid(t *testing.T) {
 				RootValidators: []*PublicKeyInfo{rootKeyInfo},
 				Keys:           []*PublicKeyInfo{keyInfo},
 			},
-			wantErr: ErrSystemDescriptionIsNil,
+			wantErrStr: ErrSystemDescriptionIsNil.Error(),
 		},
 		{
 			name: "keys are missing",
@@ -77,7 +76,7 @@ func TestPartitionGenesis_IsValid(t *testing.T) {
 				RootValidators: []*PublicKeyInfo{rootKeyInfo},
 				Keys:           nil,
 			},
-			wantErr: ErrKeysAreMissing,
+			wantErrStr: ErrKeysAreMissing.Error(),
 		},
 		{
 			name: "node signing key info is nil",
@@ -90,7 +89,7 @@ func TestPartitionGenesis_IsValid(t *testing.T) {
 				RootValidators: []*PublicKeyInfo{rootKeyInfo},
 				Keys:           []*PublicKeyInfo{nil},
 			},
-			wantErrStr: ErrValidatorPublicInfoIsEmpty,
+			wantErrStr: "partition keys validation failed, public key info is empty",
 		},
 
 		{
@@ -106,7 +105,7 @@ func TestPartitionGenesis_IsValid(t *testing.T) {
 					{NodeIdentifier: "", SigningPublicKey: pubKey, EncryptionPublicKey: test.RandomBytes(33)},
 				},
 			},
-			wantErrStr: "invalid partition node validator public key info",
+			wantErrStr: "partition keys validation failed, public key info node identifier is empty",
 		},
 		{
 			name: "signing pub key is invalid",
@@ -119,7 +118,7 @@ func TestPartitionGenesis_IsValid(t *testing.T) {
 				RootValidators: []*PublicKeyInfo{rootKeyInfo},
 				Keys:           []*PublicKeyInfo{{NodeIdentifier: "111", SigningPublicKey: []byte{0, 0}}},
 			},
-			wantErrStr: "pubkey must be 33 bytes long, but is 2",
+			wantErrStr: "partition keys validation failed, invalid signing key, pubkey must be 33 bytes long, but is 2",
 		},
 		{
 			name: "encryption pub key is invalid",
@@ -132,7 +131,7 @@ func TestPartitionGenesis_IsValid(t *testing.T) {
 				RootValidators: []*PublicKeyInfo{rootKeyInfo},
 				Keys:           []*PublicKeyInfo{{NodeIdentifier: "111", SigningPublicKey: pubKey, EncryptionPublicKey: []byte{0, 0}}},
 			},
-			wantErrStr: "pubkey must be 33 bytes long, but is 2",
+			wantErrStr: "partition keys validation failed, invalid encryption key, pubkey must be 33 bytes long, but is 2",
 		},
 		{
 			name: "invalid root signing public key",
@@ -145,7 +144,7 @@ func TestPartitionGenesis_IsValid(t *testing.T) {
 				RootValidators: []*PublicKeyInfo{{NodeIdentifier: "1", SigningPublicKey: []byte{0}, EncryptionPublicKey: pubKey}},
 				Keys:           []*PublicKeyInfo{keyInfo},
 			},
-			wantErrStr: "pubkey must be 33 bytes long, but is 1",
+			wantErrStr: "root node list validation failed, invalid signing key, pubkey must be 33 bytes long, but is 1",
 		},
 		{
 			name: "certificate is nil",
@@ -159,7 +158,7 @@ func TestPartitionGenesis_IsValid(t *testing.T) {
 				RootValidators: []*PublicKeyInfo{rootKeyInfo},
 				Keys:           []*PublicKeyInfo{keyInfo},
 			},
-			wantErr: ErrPartitionUnicityCertificateIsNil,
+			wantErrStr: ErrPartitionUnicityCertificateIsNil.Error(),
 		},
 		{
 			name: "encryption key is nil",
@@ -172,7 +171,7 @@ func TestPartitionGenesis_IsValid(t *testing.T) {
 				RootValidators: []*PublicKeyInfo{{NodeIdentifier: "1", SigningPublicKey: pubKey, EncryptionPublicKey: nil}},
 				Keys:           []*PublicKeyInfo{keyInfo},
 			},
-			wantErrStr: "invalid root validator public key info",
+			wantErrStr: "root node list validation failed, public key info encryption key is invalid",
 		},
 		{
 			name: "encryption key is invalid",
@@ -185,7 +184,7 @@ func TestPartitionGenesis_IsValid(t *testing.T) {
 				RootValidators: []*PublicKeyInfo{{NodeIdentifier: "1", SigningPublicKey: pubKey, EncryptionPublicKey: []byte{0, 0, 0, 0}}},
 				Keys:           []*PublicKeyInfo{keyInfo},
 			},
-			wantErrStr: "pubkey must be 33 bytes long, but is 4",
+			wantErrStr: "root node list validation failed, invalid encryption key, pubkey must be 33 bytes long, but is 4",
 		},
 	}
 	for _, tt := range tests {
@@ -196,11 +195,11 @@ func TestPartitionGenesis_IsValid(t *testing.T) {
 				RootValidators:          tt.fields.RootValidators,
 				Keys:                    tt.fields.Keys,
 			}
-			err := x.IsValid(tt.args.verifier, tt.args.hashAlgorithm)
-			if tt.wantErr != nil {
-				require.Equal(t, tt.wantErr, err)
-			} else {
+			err = x.IsValid(tt.args.verifier, tt.args.hashAlgorithm)
+			if tt.wantErrStr != "" {
 				require.ErrorContains(t, err, tt.wantErrStr)
+			} else {
+				require.NoError(t, err)
 			}
 		})
 	}

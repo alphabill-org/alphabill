@@ -19,7 +19,7 @@ func TestConfirmUnitsTx_skip(t *testing.T) {
 		},
 	}
 	batch := txsubmitter.NewBatch(nil, backend)
-	batch.Add(&txsubmitter.TxSubmission{Transaction: &txsystem.Transaction{Timeout: 1}})
+	batch.Add(&txsubmitter.TxSubmission{Transaction: &txsystem.Transaction{ClientMetadata: &txsystem.ClientMetadata{Timeout: 1}}})
 	err := batch.SendTx(context.Background(), false)
 	require.NoError(t, err)
 
@@ -42,7 +42,7 @@ func TestConfirmUnitsTx_ok(t *testing.T) {
 		},
 	}
 	batch := txsubmitter.NewBatch(nil, backend)
-	batch.Add(&txsubmitter.TxSubmission{Transaction: &txsystem.Transaction{Timeout: 101}})
+	batch.Add(&txsubmitter.TxSubmission{Transaction: &txsystem.Transaction{ClientMetadata: &txsystem.ClientMetadata{Timeout: 101}}})
 	err := batch.SendTx(context.Background(), true)
 	require.NoError(t, err)
 	require.True(t, getRoundNumberCalled)
@@ -73,14 +73,14 @@ func TestConfirmUnitsTx_timeout(t *testing.T) {
 		},
 	}
 	batch := txsubmitter.NewBatch(nil, backend)
-	sub1 := &txsubmitter.TxSubmission{Transaction: &txsystem.Transaction{Timeout: 101}, UnitID: randomID1}
+	sub1 := &txsubmitter.TxSubmission{Transaction: &txsystem.Transaction{ClientMetadata: &txsystem.ClientMetadata{Timeout: 101}}, UnitID: randomID1}
 	batch.Add(sub1)
-	sub2 := &txsubmitter.TxSubmission{Transaction: &txsystem.Transaction{Timeout: 102}}
+	sub2 := &txsubmitter.TxSubmission{Transaction: &txsystem.Transaction{ClientMetadata: &txsystem.ClientMetadata{Timeout: 102}}}
 	batch.Add(sub2)
 	err := batch.SendTx(context.Background(), true)
 	require.ErrorContains(t, err, "confirmation timeout")
 	require.EqualValues(t, 2, getRoundNumberCalled)
 	require.EqualValues(t, 2, getTxProofCalled)
-	require.True(t, sub1.Confirmed)
-	require.False(t, sub2.Confirmed)
+	require.True(t, sub1.Confirmed())
+	require.False(t, sub2.Confirmed())
 }

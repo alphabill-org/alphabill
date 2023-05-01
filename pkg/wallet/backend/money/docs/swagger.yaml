@@ -39,30 +39,6 @@ definitions:
           type: integer
         type: array
     type: object
-  block.Bill:
-    properties:
-      id:
-        items:
-          type: integer
-        type: array
-      is_dc_bill:
-        type: boolean
-      tx_hash:
-        items:
-          type: integer
-        type: array
-      tx_proof:
-        $ref: '#/definitions/block.TxProof'
-      value:
-        type: integer
-    type: object
-  block.Bills:
-    properties:
-      bills:
-        items:
-          $ref: '#/definitions/block.Bill'
-        type: array
-    type: object
   block.BlockProof:
     properties:
       block_header_hash:
@@ -147,6 +123,33 @@ definitions:
       tx:
         $ref: '#/definitions/txsystem.Transaction'
     type: object
+  bp.Bill:
+    properties:
+      fc_block_number:
+        description: block number when fee credit bill balance was last updated
+        type: integer
+      id:
+        items:
+          type: integer
+        type: array
+      is_dc_bill:
+        type: boolean
+      tx_hash:
+        items:
+          type: integer
+        type: array
+      tx_proof:
+        $ref: '#/definitions/block.TxProof'
+      value:
+        type: integer
+    type: object
+  bp.Bills:
+    properties:
+      bills:
+        items:
+          $ref: '#/definitions/bp.Bill'
+        type: array
+    type: object
   certificates.InputRecord:
     properties:
       block_hash:
@@ -155,15 +158,21 @@ definitions:
           type: integer
         type: array
       hash:
-        description: hash to be certified
+        description: state hash to be certified
         items:
           type: integer
         type: array
       previous_hash:
-        description: previously certified root hash
+        description: previously certified state hash
         items:
           type: integer
         type: array
+      round_number:
+        description: transaction system's round number
+        type: integer
+      sum_of_earned_fees:
+        description: sum of the actual fees over all transaction records in the block
+        type: integer
       summary_value:
         description: summary value to certified
         items:
@@ -218,11 +227,7 @@ definitions:
   money.BalanceResponse:
     properties:
       balance:
-        type: string
-    type: object
-  money.BlockHeightResponse:
-    properties:
-      blockHeight:
+        example: "0"
         type: string
     type: object
   money.ErrorResponse:
@@ -257,18 +262,58 @@ definitions:
         example: 1
         type: integer
     type: object
+  money.RoundNumberResponse:
+    properties:
+      roundNumber:
+        example: "0"
+        type: string
+    type: object
+  txsystem.ClientMetadata:
+    properties:
+      fee_credit_record_id:
+        description: fee credit record identifier (should be empty for fee credit
+          transactions)
+        items:
+          type: integer
+        type: array
+      max_fee:
+        description: maximum fee the user is willing to pay for the execution of this
+          transaction
+        type: integer
+      timeout:
+        description: transaction timeout block height
+        type: integer
+    type: object
+  txsystem.ServerMetadata:
+    properties:
+      fee:
+        description: actual transaction fee charged
+        type: integer
+    type: object
   txsystem.Transaction:
     properties:
+      client_metadata:
+        allOf:
+        - $ref: '#/definitions/txsystem.ClientMetadata'
+        description: transaction metadata added by user
+      fee_proof:
+        description: optional fee authorization proof (omitted when the main owner
+          proof also satisfies the fee owner condition)
+        items:
+          type: integer
+        type: array
       owner_proof:
         items:
           type: integer
         type: array
+      server_metadata:
+        allOf:
+        - $ref: '#/definitions/txsystem.ServerMetadata'
+        description: transaction metadata added by node
       system_id:
         items:
           type: integer
         type: array
-      timeout:
-        type: integer
       transaction_attributes:
         $ref: '#/definitions/anypb.Any'
       unit_id:
@@ -306,17 +351,23 @@ paths:
         "500":
           description: Internal Server Error
       summary: Get balance
-  /block-height:
+  /fee-credit-bill:
     get:
-      operationId: "4"
+      operationId: "5"
+      parameters:
+      - description: ID of the bill (hex)
+        in: query
+        name: bill_id
+        required: true
+        type: string
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/money.BlockHeightResponse'
-      summary: Money partition's latest block number
+            $ref: '#/definitions/bp.Bill'
+      summary: Get Fee Credit Bill
   /list-bills:
     get:
       operationId: "1"
@@ -366,7 +417,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/block.Bills'
+            $ref: '#/definitions/bp.Bills'
         "400":
           description: Bad Request
           schema:
@@ -378,4 +429,15 @@ paths:
         "500":
           description: Internal Server Error
       summary: Get proof
+  /round-number:
+    get:
+      operationId: "4"
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/money.RoundNumberResponse'
+      summary: Money partition's latest block number
 swagger: "2.0"

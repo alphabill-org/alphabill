@@ -423,7 +423,7 @@ func tokenCmdSendFungible(config *walletConfig) *cobra.Command {
 			return execTokenCmdSendFungible(cmd, config)
 		},
 	}
-	cmd.Flags().StringSlice(cmdFlagInheritBearerClauseInput, []string{predicateTrue}, "input to satisfy the type's minting clause")
+	cmd.Flags().StringSlice(cmdFlagInheritBearerClauseInput, []string{predicateTrue}, "input to satisfy the type's invariant clause")
 	cmd.Flags().String(cmdFlagAmount, "", "amount, must be bigger than 0 and is interpreted according to token type precision (decimals)")
 	err := cmd.MarkFlagRequired(cmdFlagAmount)
 	if err != nil {
@@ -516,7 +516,7 @@ func tokenCmdSendNonFungible(config *walletConfig) *cobra.Command {
 			return execTokenCmdSendNonFungible(cmd, config)
 		},
 	}
-	cmd.Flags().StringSlice(cmdFlagInheritBearerClauseInput, []string{predicateTrue}, "input to satisfy the type's minting clause")
+	cmd.Flags().StringSlice(cmdFlagInheritBearerClauseInput, []string{predicateTrue}, "input to satisfy the type's invariant clause")
 	cmd.Flags().BytesHex(cmdFlagTokenId, nil, "unit identifier of token (hex)")
 	err := cmd.MarkFlagRequired(cmdFlagTokenId)
 	if err != nil {
@@ -560,20 +560,50 @@ func execTokenCmdSendNonFungible(cmd *cobra.Command, config *walletConfig) error
 }
 
 func tokenCmdDC(config *walletConfig) *cobra.Command {
+	var accountNumber uint64
+
 	cmd := &cobra.Command{
-		Use:    "collect-dust",
-		Hidden: true, //TODO: AB-751
-		Short:  "join fungible tokens into one unit",
+		Use:   "collect-dust",
+		Short: "join fungible tokens into one unit",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return execTokenCmdDC(cmd, config)
+			return execTokenCmdDC(cmd, config, &accountNumber)
 		},
 	}
+
+	cmd.Flags().Uint64VarP(&accountNumber, keyCmdName, "k", 0, "which key to use for dust collection, 0 for all tokens from all accounts")
+	cmd.Flags().StringSlice(cmdFlagType, nil, "type unit identifier (hex)")
+	cmd.Flags().StringSlice(cmdFlagInheritBearerClauseInput, []string{predicateTrue}, "input to satisfy the type's invariant clause")
+
 	return cmd
 }
 
-func execTokenCmdDC(cmd *cobra.Command, config *walletConfig) error {
-	// TODO: AB-751
-	return nil
+func execTokenCmdDC(cmd *cobra.Command, config *walletConfig, accountNumber *uint64) error {
+	tw, err := initTokensWallet(cmd, config)
+	if err != nil {
+		return err
+	}
+	defer tw.Shutdown()
+
+	typeIDStrs, err := cmd.Flags().GetStringSlice(cmdFlagType)
+	if err != nil {
+		return err
+	}
+	var types []twb.TokenTypeID
+	for _, tokenType := range typeIDStrs {
+		typeBytes, err := tokens.DecodeHexOrEmpty(tokenType)
+		if err != nil {
+			return err
+		}
+		if len(typeBytes) > 0 {
+			types = append(types, typeBytes)
+		}
+	}
+	ib, err := readPredicateInput(cmd, cmdFlagInheritBearerClauseInput, *accountNumber, tw.GetAccountManager())
+	if err != nil {
+		return err
+	}
+
+	return tw.CollectDust(cmd.Context(), *accountNumber, types, ib)
 }
 
 func tokenCmdUpdateNFTData(config *walletConfig) *cobra.Command {

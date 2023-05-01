@@ -32,7 +32,7 @@ func VerifyTxP2PKHOwner(gtx txsystem.GenericTransaction, key *account.KeyHashes)
 		if account.VerifyP2PKHOwner(key, tx.TargetBearer()) {
 			return nil
 		}
-	case money.Swap:
+	case money.SwapDC:
 		if account.VerifyP2PKHOwner(key, tx.OwnerCondition()) {
 			return nil
 		}

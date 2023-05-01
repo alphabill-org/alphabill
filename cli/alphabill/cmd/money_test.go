@@ -4,15 +4,14 @@ import (
 	"context"
 	"net/http"
 	"os"
-	"path"
+	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
 	"time"
 
-	"github.com/alphabill-org/alphabill/internal/async"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
-	"github.com/alphabill-org/alphabill/internal/rootchain"
+	rootgenesis "github.com/alphabill-org/alphabill/internal/rootchain/genesis"
 	"github.com/alphabill-org/alphabill/internal/rpc/alphabill"
 	"github.com/alphabill-org/alphabill/internal/script"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
@@ -46,7 +45,7 @@ func TestMoneyNodeConfig_EnvAndFlags(t *testing.T) {
 				sc := defaultMoneyNodeConfiguration()
 				sc.Base = &baseConfiguration{
 					HomeDir:    "/custom-home",
-					CfgFile:    path.Join("/custom-home", defaultConfigFile),
+					CfgFile:    filepath.Join("/custom-home", defaultConfigFile),
 					LogCfgFile: defaultLoggerConfigFile,
 				}
 				return sc
@@ -261,7 +260,7 @@ func defaultMoneyNodeConfiguration() *moneyNodeConfiguration {
 		baseNodeConfiguration: baseNodeConfiguration{
 			Base: &baseConfiguration{
 				HomeDir:    alphabillHomeDir(),
-				CfgFile:    path.Join(alphabillHomeDir(), defaultConfigFile),
+				CfgFile:    filepath.Join(alphabillHomeDir(), defaultConfigFile),
 				LogCfgFile: defaultLoggerConfigFile,
 			},
 		},
@@ -306,9 +305,9 @@ func envVarsStr(envVars []envVar) (out string) {
 
 func TestRunMoneyNode_Ok(t *testing.T) {
 	homeDirMoney := setupTestHomeDir(t, "money")
-	keysFileLocation := path.Join(homeDirMoney, defaultKeysFileName)
-	nodeGenesisFileLocation := path.Join(homeDirMoney, nodeGenesisFileName)
-	partitionGenesisFileLocation := path.Join(homeDirMoney, "partition-genesis.json")
+	keysFileLocation := filepath.Join(homeDirMoney, defaultKeysFileName)
+	nodeGenesisFileLocation := filepath.Join(homeDirMoney, nodeGenesisFileName)
+	partitionGenesisFileLocation := filepath.Join(homeDirMoney, "partition-genesis.json")
 	test.MustRunInTime(t, 5*time.Second, func() {
 		port := "9543"
 		listenAddr := ":" + port // listen is on all devices, so it would work in CI inside docker too.
@@ -318,8 +317,7 @@ func TestRunMoneyNode_Ok(t *testing.T) {
 		conf.RPCServer.Address = listenAddr
 
 		appStoppedWg := sync.WaitGroup{}
-		ctx, _ := async.WithWaitGroup(context.Background())
-		ctx, ctxCancel := context.WithCancel(ctx)
+		ctx, ctxCancel := context.WithCancel(context.Background())
 
 		// generate node genesis
 		cmd := New()
@@ -335,9 +333,9 @@ func TestRunMoneyNode_Ok(t *testing.T) {
 		rootSigner, verifier := testsig.CreateSignerAndVerifier(t)
 		rootPubKeyBytes, err := verifier.MarshalPublicKey()
 		require.NoError(t, err)
-		pr, err := rootchain.NewPartitionRecordFromNodes([]*genesis.PartitionNode{pn})
+		pr, err := rootgenesis.NewPartitionRecordFromNodes([]*genesis.PartitionNode{pn})
 		require.NoError(t, err)
-		_, partitionGenesisFiles, err := rootchain.NewRootGenesis("test", rootSigner, rootPubKeyBytes, pr)
+		_, partitionGenesisFiles, err := rootgenesis.NewRootGenesis("test", rootSigner, rootPubKeyBytes, pr)
 		require.NoError(t, err)
 
 		err = util.WriteJsonFile(partitionGenesisFileLocation, partitionGenesisFiles[0])
@@ -351,7 +349,7 @@ func TestRunMoneyNode_Ok(t *testing.T) {
 			cmd.baseCmd.SetArgs(strings.Split(args, " "))
 
 			err = cmd.addAndExecuteCommand(ctx)
-			require.NoError(t, err)
+			require.ErrorIs(t, err, context.Canceled)
 			appStoppedWg.Done()
 		}()
 
@@ -379,11 +377,11 @@ func makeSuccessfulPayment(t *testing.T, ctx context.Context, txClient alphabill
 	tx := &txsystem.Transaction{
 		UnitId:                initialBillID[:],
 		TransactionAttributes: new(anypb.Any),
-		Timeout:               10,
+		ClientMetadata:        &txsystem.ClientMetadata{Timeout: 10},
 		OwnerProof:            script.PredicateArgumentEmpty(),
 		SystemId:              []byte{0, 0, 0, 0},
 	}
-	bt := &billtx.TransferOrder{
+	bt := &billtx.TransferAttributes{
 		NewBearer:   script.PredicateAlwaysTrue(),
 		TargetValue: defaultInitialBillValue,
 		Backlink:    nil,
@@ -391,9 +389,8 @@ func makeSuccessfulPayment(t *testing.T, ctx context.Context, txClient alphabill
 	err := anypb.MarshalFrom(tx.TransactionAttributes, bt, proto.MarshalOptions{})
 	require.NoError(t, err)
 
-	response, err := txClient.ProcessTransaction(ctx, tx, grpc.WaitForReady(true))
+	_, err = txClient.ProcessTransaction(ctx, tx, grpc.WaitForReady(true))
 	require.NoError(t, err)
-	require.True(t, response.Ok, "Successful response ok should be true")
 }
 
 func makeFailingPayment(t *testing.T, ctx context.Context, txClient alphabill.AlphabillServiceClient) {
@@ -402,11 +399,11 @@ func makeFailingPayment(t *testing.T, ctx context.Context, txClient alphabill.Al
 	tx := &txsystem.Transaction{
 		UnitId:                wrongBillID[:],
 		TransactionAttributes: new(anypb.Any),
-		Timeout:               10,
+		ClientMetadata:        &txsystem.ClientMetadata{Timeout: 10},
 		OwnerProof:            script.PredicateArgumentEmpty(),
 		SystemId:              []byte{0},
 	}
-	bt := &billtx.TransferOrder{
+	bt := &billtx.TransferAttributes{
 		NewBearer:   script.PredicateAlwaysTrue(),
 		TargetValue: defaultInitialBillValue,
 		Backlink:    nil,

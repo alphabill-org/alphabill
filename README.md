@@ -77,4 +77,4 @@ building (this is `bash` example):
 
 See gitlab-ci.yml for details.
 
-GitLab runs the CI job inside docker container defined in `deployments/gitlab`.
+GitLab runs the CI job inside docker container defined in `alphabill/gitlab-ci-image`.

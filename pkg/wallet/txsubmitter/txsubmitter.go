@@ -16,7 +16,7 @@ type (
 		UnitID      wallet.UnitID
 		TxHash      wallet.TxHash
 		Transaction *txsystem.Transaction
-		Confirmed   bool
+		Proof       *wallet.Proof
 	}
 
 	TxSubmissionBatch struct {
@@ -38,8 +38,12 @@ func (s *TxSubmission) ToBatch(backend BackendAPI, sender wallet.PubKey) *TxSubm
 		sender:      sender,
 		backend:     backend,
 		submissions: []*TxSubmission{s},
-		maxTimeout:  s.Transaction.Timeout,
+		maxTimeout:  s.Transaction.Timeout(),
 	}
+}
+
+func (s *TxSubmission) Confirmed() bool {
+	return s.Proof != nil
 }
 
 func NewBatch(sender wallet.PubKey, backend BackendAPI) *TxSubmissionBatch {
@@ -51,9 +55,13 @@ func NewBatch(sender wallet.PubKey, backend BackendAPI) *TxSubmissionBatch {
 
 func (t *TxSubmissionBatch) Add(sub *TxSubmission) {
 	t.submissions = append(t.submissions, sub)
-	if sub.Transaction.Timeout > t.maxTimeout {
-		t.maxTimeout = sub.Transaction.Timeout
+	if sub.Transaction.Timeout() > t.maxTimeout {
+		t.maxTimeout = sub.Transaction.Timeout()
 	}
+}
+
+func (t *TxSubmissionBatch) Submissions() []*TxSubmission {
+	return t.submissions
 }
 
 func (t *TxSubmissionBatch) transactions() []*txsystem.Transaction {
@@ -93,7 +101,7 @@ func (t *TxSubmissionBatch) confirmUnitsTx(ctx context.Context) error {
 		if roundNr >= t.maxTimeout {
 			log.Info(fmt.Sprintf("Tx confirmation timeout is reached, block (#%v)", roundNr))
 			for _, sub := range t.submissions {
-				if !sub.Confirmed {
+				if !sub.Confirmed() {
 					log.Info(fmt.Sprintf("Tx not confirmed for UnitID=%X", sub.UnitID))
 				}
 			}
@@ -101,7 +109,7 @@ func (t *TxSubmissionBatch) confirmUnitsTx(ctx context.Context) error {
 		}
 		unconfirmed := false
 		for _, sub := range t.submissions {
-			if sub.Confirmed || roundNr >= sub.Transaction.Timeout {
+			if sub.Confirmed() || roundNr >= sub.Transaction.Timeout() {
 				continue
 			}
 			proof, err := t.backend.GetTxProof(ctx, sub.UnitID, sub.TxHash)
@@ -110,9 +118,9 @@ func (t *TxSubmissionBatch) confirmUnitsTx(ctx context.Context) error {
 			}
 			if proof != nil {
 				log.Debug(fmt.Sprintf("UnitID=%X is confirmed", sub.UnitID))
-				sub.Confirmed = true
+				sub.Proof = proof
 			}
-			unconfirmed = unconfirmed || !sub.Confirmed
+			unconfirmed = unconfirmed || !sub.Confirmed()
 		}
 		if unconfirmed {
 			time.Sleep(500 * time.Millisecond)

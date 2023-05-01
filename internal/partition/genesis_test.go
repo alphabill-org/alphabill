@@ -10,7 +10,6 @@ import (
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	testtxsystem "github.com/alphabill-org/alphabill/internal/testutils/txsystem"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
-	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/btcsuite/btcd/btcutil/base58"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/stretchr/testify/require"
@@ -71,7 +70,7 @@ func TestNewGenesisPartitionNode_NotOk(t *testing.T) {
 					WithHashAlgorithm(gocrypto.SHA256),
 				},
 			},
-			wantErr: ErrInvalidSystemIdentifier,
+			wantErr: errInvalidSystemIdentifier,
 		},
 		{
 			name: "peer ID is empty",
@@ -105,13 +104,12 @@ func TestNewGenesisPartitionNode_Ok(t *testing.T) {
 	require.Equal(t, pubKey, pn.SigningPublicKey)
 	blockCertificationRequestRequest := pn.BlockCertificationRequest
 	require.Equal(t, systemIdentifier, blockCertificationRequestRequest.SystemIdentifier)
-	require.Equal(t, uint64(1), blockCertificationRequestRequest.RootRoundNumber)
 	require.NoError(t, blockCertificationRequestRequest.IsValid(verifier))
 
 	ir := blockCertificationRequestRequest.InputRecord
 	expectedHash := make([]byte, 32)
 	require.Equal(t, expectedHash, ir.Hash)
-	require.Equal(t, calculateBlockHash(1, systemIdentifier, nil), ir.BlockHash)
+	require.Equal(t, calculateBlockHash(systemIdentifier, nil, true), ir.BlockHash)
 	require.Equal(t, zeroHash, ir.PreviousHash)
 }
 
@@ -132,11 +130,13 @@ func createPartitionNode(t *testing.T, nodeSigningKey crypto.Signer, nodeEncrypt
 	return pn
 }
 
-func calculateBlockHash(blockNr uint64, systemIdentifier, previousHash []byte) []byte {
+func calculateBlockHash(systemIdentifier, previousHash []byte, isEmpty bool) []byte {
 	// blockhash = hash(header_hash, raw_txs_hash, mt_root_hash)
 	hasher := gocrypto.SHA256.New()
+	if isEmpty {
+		return zeroHash
+	}
 	hasher.Write(systemIdentifier)
-	hasher.Write(util.Uint64ToBytes(blockNr))
 	hasher.Write(previousHash)
 	headerHash := hasher.Sum(nil)
 	hasher.Reset()

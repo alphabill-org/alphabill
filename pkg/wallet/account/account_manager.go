@@ -2,7 +2,7 @@ package account
 
 import (
 	"errors"
-	"path"
+	"path/filepath"
 
 	"github.com/btcsuite/btcd/btcutil/hdkeychain"
 )
@@ -59,10 +59,7 @@ func newManager(dir string, password string, create bool) (*managerImpl, error) 
 	}
 	accs := make([]Account, len(accountKeys))
 	for idx, val := range accountKeys {
-		accs[idx] = Account{
-			AccountIndex: uint64(idx),
-			AccountKeys:  *val.PubKeyHash,
-		}
+		accs[idx] = *NewAccount(uint64(idx), *val)
 	}
 	return &managerImpl{db: db, accounts: &accounts{accounts: accs}, password: password, dir: dir}, nil
 }
@@ -77,10 +74,7 @@ func (m *managerImpl) CreateKeys(mnemonic string) error {
 		return err
 	}
 
-	m.accounts.add(&Account{
-		AccountIndex: 0,
-		AccountKeys:  *keys.AccountKey.PubKeyHash,
-	})
+	m.accounts.add(NewAccount(0, *keys.AccountKey))
 	return nil
 }
 
@@ -156,7 +150,7 @@ func (m *managerImpl) AddAccount() (uint64, []byte, error) {
 		if err != nil {
 			return err
 		}
-		m.accounts.add(&Account{AccountIndex: accountIndex, AccountKeys: *accountKey.PubKeyHash})
+		m.accounts.add(NewAccount(accountIndex, *accountKey))
 		return nil
 	})
 	if err != nil {
@@ -179,7 +173,7 @@ func getDb(dir string, create bool, pw string) (Db, error) {
 	if create {
 		return createNewDb(dir, pw)
 	}
-	dbFilePath := path.Join(dir, AccountFileName)
+	dbFilePath := filepath.Join(dir, AccountFileName)
 	return openDb(dbFilePath, pw, false)
 }
 

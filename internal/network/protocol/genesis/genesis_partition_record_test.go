@@ -2,7 +2,6 @@ package genesis
 
 import (
 	gocrypto "crypto"
-	"strings"
 	"testing"
 
 	"github.com/alphabill-org/alphabill/internal/network/protocol/certification"
@@ -38,20 +37,19 @@ func TestGenesisPartitionRecord_IsValid(t *testing.T) {
 		name       string
 		fields     fields
 		args       args
-		wantErr    error
 		wantErrStr string
 	}{
 		{
 			name:       "verifier is nil",
 			args:       args{verifier: nil},
 			fields:     fields{},
-			wantErrStr: ErrVerifiersEmpty,
+			wantErrStr: ErrVerifiersEmpty.Error(),
 		},
 		{
-			name:    "nodes missing",
-			args:    args{verifier: map[string]crypto.Verifier{"test": verifier}, hashAlgorithm: gocrypto.SHA256},
-			fields:  fields{},
-			wantErr: ErrNodesAreMissing,
+			name:       "nodes missing",
+			args:       args{verifier: map[string]crypto.Verifier{"test": verifier}, hashAlgorithm: gocrypto.SHA256},
+			fields:     fields{},
+			wantErrStr: ErrNodesAreMissing.Error(),
 		},
 		{
 			name: "system description record is nil",
@@ -60,7 +58,7 @@ func TestGenesisPartitionRecord_IsValid(t *testing.T) {
 				Nodes:                   []*PartitionNode{nil},
 				SystemDescriptionRecord: nil,
 			},
-			wantErr: ErrSystemDescriptionIsNil,
+			wantErrStr: ErrSystemDescriptionIsNil.Error(),
 		},
 		{
 			name: "contains nodes with same node identifier",
@@ -72,7 +70,7 @@ func TestGenesisPartitionRecord_IsValid(t *testing.T) {
 				},
 				SystemDescriptionRecord: &SystemDescriptionRecord{SystemIdentifier: []byte{0, 0, 0, 0}, T2Timeout: 10},
 			},
-			wantErrStr: "duplicated node id: 1",
+			wantErrStr: "partition nodes validation failed, duplicated node id: 1",
 		},
 		{
 			name: "contains nodes with same signing public key",
@@ -84,7 +82,7 @@ func TestGenesisPartitionRecord_IsValid(t *testing.T) {
 				},
 				SystemDescriptionRecord: &SystemDescriptionRecord{SystemIdentifier: []byte{0, 0, 0, 0}, T2Timeout: 10},
 			},
-			wantErrStr: "duplicated node signing public key",
+			wantErrStr: "partition nodes validation failed, duplicated node signing public key",
 		},
 		{
 			name: "contains nodes with same encryption public key",
@@ -96,7 +94,7 @@ func TestGenesisPartitionRecord_IsValid(t *testing.T) {
 				},
 				SystemDescriptionRecord: &SystemDescriptionRecord{SystemIdentifier: []byte{0, 0, 0, 0}, T2Timeout: 10},
 			},
-			wantErrStr: "duplicated node encryption public key",
+			wantErrStr: "partition nodes validation failed, duplicated node encryption public key",
 		},
 		{
 			name: "certificate is nil",
@@ -107,7 +105,7 @@ func TestGenesisPartitionRecord_IsValid(t *testing.T) {
 				},
 				SystemDescriptionRecord: &SystemDescriptionRecord{SystemIdentifier: []byte{0, 0, 0, 0}, T2Timeout: 10},
 			},
-			wantErr: certificates.ErrUnicityCertificateIsNil,
+			wantErrStr: "unicity certificate validation failed, unicity certificate is nil",
 		},
 	}
 	for _, tt := range tests {
@@ -117,11 +115,12 @@ func TestGenesisPartitionRecord_IsValid(t *testing.T) {
 				Certificate:             tt.fields.Certificate,
 				SystemDescriptionRecord: tt.fields.SystemDescriptionRecord,
 			}
-			err := x.IsValid(tt.args.verifier, tt.args.hashAlgorithm)
-			if tt.wantErr != nil {
-				require.Equal(t, tt.wantErr, err)
+			err = x.IsValid(tt.args.verifier, tt.args.hashAlgorithm)
+			if tt.wantErrStr != "" {
+				require.ErrorContains(t, err, tt.wantErrStr)
 			} else {
-				require.True(t, strings.Contains(err.Error(), tt.wantErrStr))
+				// must not be error then
+				require.NoError(t, err)
 			}
 		})
 	}
@@ -146,12 +145,12 @@ func createPartitionNode(t *testing.T, nodeID string, signingKey crypto.Signer, 
 	request := &certification.BlockCertificationRequest{
 		SystemIdentifier: []byte{0, 0, 0, 0},
 		NodeIdentifier:   nodeID,
-		RootRoundNumber:  1,
 		InputRecord: &certificates.InputRecord{
 			PreviousHash: make([]byte, 32),
 			Hash:         make([]byte, 32),
 			BlockHash:    make([]byte, 32),
 			SummaryValue: make([]byte, 32),
+			RoundNumber:  1,
 		},
 	}
 	require.NoError(t, request.Sign(signingKey))

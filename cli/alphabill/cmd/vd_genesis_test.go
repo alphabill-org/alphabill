@@ -4,14 +4,14 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"path"
+	"path/filepath"
 	"strings"
 	"testing"
 
-	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
-
-	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/stretchr/testify/require"
+
+	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
+	"github.com/alphabill-org/alphabill/internal/util"
 )
 
 const (
@@ -26,8 +26,7 @@ func TestVDGenesis_KeyFileNotFound(t *testing.T) {
 	args := "vd-genesis --home " + homeDir
 	cmd.baseCmd.SetArgs(strings.Split(args, " "))
 	err := cmd.addAndExecuteCommand(context.Background())
-
-	require.ErrorContains(t, err, fmt.Sprintf("failed to load keys %s", path.Join(homeDir, vdDirectory, defaultKeysFileName)))
+	require.ErrorContains(t, err, fmt.Sprintf("failed to load keys %s", filepath.Join(homeDir, vdDirectory, defaultKeysFileName)))
 }
 
 func TestVDGenesis_ForceKeyGeneration(t *testing.T) {
@@ -37,19 +36,16 @@ func TestVDGenesis_ForceKeyGeneration(t *testing.T) {
 	cmd.baseCmd.SetArgs(strings.Split(args, " "))
 	err := cmd.addAndExecuteCommand(context.Background())
 	require.NoError(t, err)
-
-	kf := path.Join(homeDir, vdDir, defaultKeysFileName)
-	gf := path.Join(homeDir, vdDir, nodeGenesisFileName)
-	require.FileExists(t, kf)
-	require.FileExists(t, gf)
+	require.FileExists(t, filepath.Join(homeDir, vdDir, defaultKeysFileName))
+	require.FileExists(t, filepath.Join(homeDir, vdDir, nodeGenesisFileName))
 }
 
 func TestVDGenesis_DefaultNodeGenesisExists(t *testing.T) {
 	homeDir := setupTestHomeDir(t, vdGenesisDir)
-	err := os.MkdirAll(path.Join(homeDir, vdDirectory), 0700)
+	err := os.MkdirAll(filepath.Join(homeDir, vdDirectory), 0700)
 	require.NoError(t, err)
 
-	nodeGenesisFile := path.Join(homeDir, vdDirectory, nodeGenesisFileName)
+	nodeGenesisFile := filepath.Join(homeDir, vdDirectory, nodeGenesisFileName)
 	err = util.WriteJsonFile(nodeGenesisFile, &genesis.PartitionNode{NodeIdentifier: "1"})
 	require.NoError(t, err)
 
@@ -58,16 +54,15 @@ func TestVDGenesis_DefaultNodeGenesisExists(t *testing.T) {
 	cmd.baseCmd.SetArgs(strings.Split(args, " "))
 	err = cmd.addAndExecuteCommand(context.Background())
 	require.ErrorContains(t, err, fmt.Sprintf("node genesis %s exists", nodeGenesisFile))
-	kf := path.Join(homeDir, vdDirectory, defaultKeysFileName)
-	require.NoFileExists(t, kf)
+	require.NoFileExists(t, filepath.Join(homeDir, vdDirectory, defaultKeysFileName))
 }
 
 func TestVDGGenesis_LoadExistingKeys(t *testing.T) {
 	homeDir := setupTestHomeDir(t, vdGenesisDir)
-	err := os.MkdirAll(path.Join(homeDir, vdDirectory), 0700)
+	err := os.MkdirAll(filepath.Join(homeDir, vdDirectory), 0700)
 	require.NoError(t, err)
-	kf := path.Join(homeDir, vdDirectory, defaultKeysFileName)
-	nodeGenesisFile := path.Join(homeDir, vdDirectory, nodeGenesisFileName)
+	kf := filepath.Join(homeDir, vdDirectory, defaultKeysFileName)
+	nodeGenesisFile := filepath.Join(homeDir, vdDirectory, nodeGenesisFileName)
 	nodeKeys, err := GenerateKeys()
 	require.NoError(t, err)
 	err = nodeKeys.WriteTo(kf)
@@ -86,15 +81,13 @@ func TestVDGGenesis_LoadExistingKeys(t *testing.T) {
 func TestVDGGenesis_WritesGenesisToSpecifiedOutputLocation(t *testing.T) {
 
 	homeDir := setupTestHomeDir(t, vdGenesisDir)
-	err := os.MkdirAll(path.Join(homeDir, vdDirectory), 0700)
+	err := os.MkdirAll(filepath.Join(homeDir, vdDirectory), 0700)
 	require.NoError(t, err)
 
-	err = os.MkdirAll(path.Join(homeDir, vdDirectory, "n1"), 0700)
+	err = os.MkdirAll(filepath.Join(homeDir, vdDirectory, "n1"), 0700)
 	require.NoError(t, err)
 
-	kf := path.Join(homeDir, vdDirectory, defaultKeysFileName)
-
-	nodeGenesisFile := path.Join(homeDir, vdDirectory, "n1", nodeGenesisFileName)
+	nodeGenesisFile := filepath.Join(homeDir, vdDirectory, "n1", nodeGenesisFileName)
 
 	cmd := New()
 	args := "vd-genesis --gen-keys -o " + nodeGenesisFile + " --home " + homeDir
@@ -102,20 +95,20 @@ func TestVDGGenesis_WritesGenesisToSpecifiedOutputLocation(t *testing.T) {
 	err = cmd.addAndExecuteCommand(context.Background())
 	require.NoError(t, err)
 
-	require.FileExists(t, kf)
+	require.FileExists(t, filepath.Join(homeDir, vdDirectory, defaultKeysFileName))
 	require.FileExists(t, nodeGenesisFile)
 }
 
 func TestVDGGenesis_WithSystemIdentifier(t *testing.T) {
 	homeDir := setupTestHomeDir(t, vdGenesisDir)
-	err := os.MkdirAll(path.Join(homeDir, vdDirectory), 0700)
+	err := os.MkdirAll(filepath.Join(homeDir, vdDirectory), 0700)
 	require.NoError(t, err)
 
-	err = os.MkdirAll(path.Join(homeDir, vdDirectory, "n1"), 0700)
+	err = os.MkdirAll(filepath.Join(homeDir, vdDirectory, "n1"), 0700)
 	require.NoError(t, err)
 
-	kf := path.Join(homeDir, vdDirectory, "n1", defaultKeysFileName)
-	nodeGenesisFile := path.Join(homeDir, vdDirectory, "n1", nodeGenesisFileName)
+	kf := filepath.Join(homeDir, vdDirectory, "n1", defaultKeysFileName)
+	nodeGenesisFile := filepath.Join(homeDir, vdDirectory, "n1", nodeGenesisFileName)
 
 	cmd := New()
 	args := "vd-genesis -g -k " + kf + " -o " + nodeGenesisFile + " -s 01010101"
@@ -132,11 +125,8 @@ func TestVDGGenesis_WithSystemIdentifier(t *testing.T) {
 }
 
 func setupTestHomeDir(t *testing.T, dir string) string {
-	outputDir := path.Join(t.TempDir(), dir)
-	_ = os.RemoveAll(outputDir)
-	_ = os.MkdirAll(outputDir, 0700) // -rwx------
-	t.Cleanup(func() {
-		_ = os.RemoveAll(outputDir)
-	})
+	outputDir := filepath.Join(t.TempDir(), dir)
+	err := os.MkdirAll(outputDir, 0700) // -rwx------
+	require.NoError(t, err)
 	return outputDir
 }

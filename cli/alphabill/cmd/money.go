@@ -3,6 +3,7 @@ package cmd
 import (
 	"context"
 	"crypto"
+	"fmt"
 
 	"github.com/alphabill-org/alphabill/internal/errors"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
@@ -30,7 +31,7 @@ var log = logger.CreateForPackage()
 // newMoneyNodeCmd creates a new cobra command for the shard component.
 //
 // nodeRunFunc - set the function to override the default behaviour. Meant for tests.
-func newMoneyNodeCmd(ctx context.Context, baseConfig *baseConfiguration, nodeRunFunc moneyNodeRunnable) *cobra.Command {
+func newMoneyNodeCmd(baseConfig *baseConfiguration, nodeRunFunc moneyNodeRunnable) *cobra.Command {
 	config := &moneyNodeConfiguration{
 		baseNodeConfiguration: baseNodeConfiguration{
 			Base: baseConfig,
@@ -45,9 +46,9 @@ func newMoneyNodeCmd(ctx context.Context, baseConfig *baseConfiguration, nodeRun
 		Long:  `Starts a money partition's node, binding to the network address provided by configuration.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if nodeRunFunc != nil {
-				return nodeRunFunc(ctx, config)
+				return nodeRunFunc(cmd.Context(), config)
 			}
-			return runMoneyNode(ctx, config)
+			return runMoneyNode(cmd.Context(), config)
 		},
 	}
 
@@ -76,13 +77,17 @@ func runMoneyNode(ctx context.Context, cfg *moneyNodeConfiguration) error {
 		Owner: script.PredicateAlwaysTrue(),
 	}
 	trustBase, err := genesis.NewValidatorTrustBase(pg.RootValidators)
+	if err != nil {
+		return fmt.Errorf("failed to create trust base validator: %w", err)
+	}
 
 	txs, err := money.NewMoneyTxSystem(
-		crypto.SHA256,
-		ib,
-		params.DcMoneySupplyValue,
-		money.SchemeOpts.SystemIdentifier(pg.GetSystemDescriptionRecord().GetSystemIdentifier()),
-		money.SchemeOpts.TrustBase(trustBase),
+		pg.GetSystemDescriptionRecord().GetSystemIdentifier(),
+		money.WithHashAlgorithm(crypto.SHA256),
+		money.WithInitialBill(ib),
+		money.WithSystemDescriptionRecords(params.SystemDescriptionRecords),
+		money.WithDCMoneyAmount(params.DcMoneySupplyValue),
+		money.WithTrustBase(trustBase),
 	)
 	if err != nil {
 		return errors.Wrapf(err, "failed to start money transaction system")

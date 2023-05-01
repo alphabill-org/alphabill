@@ -3,14 +3,15 @@ package cmd
 import (
 	"context"
 	"os"
-	"path"
 	"path/filepath"
 
+	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/errors"
 	"github.com/alphabill-org/alphabill/internal/partition"
+	"github.com/alphabill-org/alphabill/internal/txsystem/fc"
 	"github.com/alphabill-org/alphabill/internal/txsystem/tokens"
 	"github.com/alphabill-org/alphabill/internal/util"
-	"github.com/libp2p/go-libp2p-core/peer"
+	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/spf13/cobra"
 )
 
@@ -27,13 +28,13 @@ type userTokenPartitionGenesisConfig struct {
 	T2Timeout        uint32
 }
 
-func newUserTokenGenesisCmd(ctx context.Context, baseConfig *baseConfiguration) *cobra.Command {
+func newUserTokenGenesisCmd(baseConfig *baseConfiguration) *cobra.Command {
 	config := &userTokenPartitionGenesisConfig{Base: baseConfig, Keys: NewKeysConf(baseConfig, utDir)}
 	var cmd = &cobra.Command{
 		Use:   "tokens-genesis",
 		Short: "Generates a genesis file for the User-Defined Token partition",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return utGenesisRunFun(ctx, config)
+			return utGenesisRunFun(cmd.Context(), config)
 		},
 	}
 
@@ -45,7 +46,7 @@ func newUserTokenGenesisCmd(ctx context.Context, baseConfig *baseConfiguration) 
 }
 
 func utGenesisRunFun(_ context.Context, config *userTokenPartitionGenesisConfig) error {
-	utHomePath := path.Join(config.Base.HomeDir, utDir)
+	utHomePath := filepath.Join(config.Base.HomeDir, utDir)
 	if !util.FileExists(utHomePath) {
 		err := os.MkdirAll(utHomePath, 0700) // -rwx------)
 		if err != nil {
@@ -65,7 +66,11 @@ func utGenesisRunFun(_ context.Context, config *userTokenPartitionGenesisConfig)
 		return errors.Wrapf(err, "failed to load keys %v", config.Keys.GetKeyFileLocation())
 	}
 
-	txSystem, err := tokens.New(tokens.WithSystemIdentifier(config.SystemIdentifier))
+	txSystem, err := tokens.New(
+		tokens.WithSystemIdentifier(config.SystemIdentifier),
+		tokens.WithTrustBase(map[string]abcrypto.Verifier{"genesis": nil}),
+		tokens.WithFeeCalculator(fc.FixedFee(0)), // 0 to disable fee module
+	)
 	if err != nil {
 		return err
 	}
@@ -96,5 +101,5 @@ func (c *userTokenPartitionGenesisConfig) getNodeGenesisFileLocation(utHomePath 
 	if c.Output != "" {
 		return c.Output
 	}
-	return path.Join(utHomePath, utGenesisFileName)
+	return filepath.Join(utHomePath, utGenesisFileName)
 }

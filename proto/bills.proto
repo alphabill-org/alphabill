@@ -1,9 +1,8 @@
 syntax = "proto3";
 
 import "block_proof.proto";
-import "transaction.proto";
 
-option go_package = "github.com/alphabill-org/alphabill/internal/block;block";
+option go_package = "github.com/alphabill-org/alphabill/pkg/wallet/backend/bp;bp";
 
 // bills with tx proofs
 message Bills {
@@ -17,11 +16,6 @@ message Bill {
   bytes tx_hash = 3;
   bool is_dc_bill = 4;
   TxProof tx_proof = 5;
-}
-
-// tx proof context
-message TxProof {
-  uint64 block_number = 1;
-  Transaction tx = 2;
-  BlockProof proof = 3;
+  // block number when fee credit bill balance was last updated
+  uint64 fc_block_number = 6;
 }

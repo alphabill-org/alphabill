@@ -2,20 +2,22 @@ package money
 
 import (
 	"context"
+	"crypto"
+	"errors"
 	"fmt"
-	"os"
-	"os/signal"
-	"sync"
-	"syscall"
+	"math/rand"
 	"time"
 
+	"golang.org/x/sync/errgroup"
+
 	"github.com/alphabill-org/alphabill/internal/block"
-	aberrors "github.com/alphabill-org/alphabill/internal/errors"
 	"github.com/alphabill-org/alphabill/internal/script"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/pkg/client"
 	"github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/alphabill-org/alphabill/pkg/wallet/account"
+	"github.com/alphabill-org/alphabill/pkg/wallet/backend/bp"
+	"github.com/alphabill-org/alphabill/pkg/wallet/blocksync"
 	wlog "github.com/alphabill-org/alphabill/pkg/wallet/log"
 )
 
@@ -23,7 +25,6 @@ type (
 	WalletBackend struct {
 		store         BillStore
 		genericWallet *wallet.Wallet
-		cancelSyncCh  chan bool
 	}
 
 	Bills struct {
@@ -39,6 +40,10 @@ type (
 		OrderNumber    uint64   `json:"orderNumber"`
 		TxProof        *TxProof `json:"txProof"`
 		OwnerPredicate []byte   `json:"OwnerPredicate"`
+
+		// fcb specific fields
+		// FCBlockNumber block number when fee credit bill balance was last updated
+		FCBlockNumber uint64 `json:"fcBlockNumber"`
 	}
 
 	TxProof struct {
@@ -68,6 +73,8 @@ type (
 		RemoveBill(unitID []byte) error
 		SetBillExpirationTime(blockNumber uint64, unitID []byte) error
 		DeleteExpiredBills(blockNumber uint64) error
+		GetFeeCreditBill(unitID []byte) (*Bill, error)
+		SetFeeCreditBill(fcb *Bill) error
 	}
 
 	p2pkhOwnerPredicates struct {
@@ -81,6 +88,13 @@ type (
 		ServerAddr              string
 		DbFile                  string
 		ListBillsPageLimit      int
+		InitialBill             InitialBill
+	}
+
+	InitialBill struct {
+		Id        []byte
+		Value     uint64
+		Predicate []byte
 	}
 )
 
@@ -90,75 +104,67 @@ func CreateAndRun(ctx context.Context, config *Config) error {
 		return fmt.Errorf("failed to get storage: %w", err)
 	}
 
-	bp := NewBlockProcessor(store, NewTxConverter(config.ABMoneySystemIdentifier))
-	w := wallet.New().SetBlockProcessor(bp).SetABClient(client.New(client.AlphabillClientConfig{Uri: config.AlphabillUrl})).Build()
-
-	service := New(w, store)
-	wg := sync.WaitGroup{}
-	if config.AlphabillUrl != "" {
-		wg.Add(1)
-		go func() {
-			service.StartProcess(ctx)
-			wg.Done()
-		}()
-	}
-
-	server := NewHttpServer(config.ServerAddr, config.ListBillsPageLimit, service)
-	err = server.Start()
-	if err != nil {
-		service.Shutdown()
-		return aberrors.Wrap(err, "error starting wallet backend http server")
-	}
-
-	// listen for termination signal and shutdown the app
-	hook := func(sig os.Signal) {
-		wlog.Info("Received signal '", sig, "' shutting down application...")
-		err := server.Shutdown(context.Background())
+	// store initial bill if first run to avoid some edge cases
+	err = store.WithTransaction(func(txc BillStoreTx) error {
+		blockNumber, err := txc.GetBlockNumber()
 		if err != nil {
-			wlog.Error("error shutting down server: ", err)
+			return err
 		}
-		service.Shutdown()
-	}
-	listen(hook, syscall.SIGTERM, syscall.SIGKILL, syscall.SIGQUIT, syscall.SIGINT)
-
-	wg.Wait() // wait for service shutdown to complete
-
-	return nil
-}
-
-// New creates a new wallet backend Service which can be started by calling the Start or StartProcess method.
-// Shutdown method should be called to close resources used by the Service.
-func New(wallet *wallet.Wallet, store BillStore) *WalletBackend {
-	return &WalletBackend{store: store, genericWallet: wallet, cancelSyncCh: make(chan bool, 1)}
-}
-
-// Start starts downloading blocks and indexing bills by their owner's public key.
-// Blocks forever or until alphabill connection is terminated.
-func (w *WalletBackend) Start(ctx context.Context) error {
-	blockNumber, err := w.store.Do().GetBlockNumber()
+		if blockNumber > 0 {
+			return nil
+		}
+		ib := config.InitialBill
+		return txc.SetBill(&Bill{
+			Id:             ib.Id,
+			Value:          ib.Value,
+			OwnerPredicate: ib.Predicate,
+		})
+	})
 	if err != nil {
 		return err
 	}
-	return w.genericWallet.Sync(ctx, blockNumber)
+
+	abc := client.New(client.AlphabillClientConfig{Uri: config.AlphabillUrl})
+
+	g, ctx := errgroup.WithContext(ctx)
+
+	g.Go(func() error {
+		walletBackend := &WalletBackend{store: store, genericWallet: wallet.New().SetABClient(abc).Build()}
+		defer walletBackend.genericWallet.Shutdown()
+		server := NewHttpServer(config.ServerAddr, config.ListBillsPageLimit, walletBackend)
+		return server.Run(ctx)
+	})
+
+	g.Go(func() error {
+		bp := NewBlockProcessor(store, NewTxConverter(config.ABMoneySystemIdentifier))
+		getBlockNumber := func() (uint64, error) { return store.Do().GetBlockNumber() }
+		// we act as if all errors returned by block sync are recoverable ie we
+		// just retry in a loop until ctx is cancelled
+		for {
+			wlog.Debug("starting block sync")
+			err := runBlockSync(ctx, abc.GetBlocks, getBlockNumber, 100, bp.ProcessBlock)
+			if err != nil {
+				wlog.Error("synchronizing blocks returned error: ", err)
+			}
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			case <-time.After(time.Duration(rand.Int31n(10)+10) * time.Second):
+			}
+		}
+	})
+
+	return g.Wait()
 }
 
-// StartProcess calls Start in a retry loop, can be canceled by cancelling context or calling Shutdown method.
-func (w *WalletBackend) StartProcess(ctx context.Context) {
-	wlog.Info("starting wallet-backend synchronization")
-	defer wlog.Info("wallet-backend synchronization ended")
-	for {
-		if err := w.Start(ctx); err != nil {
-			wlog.Error("error synchronizing wallet-backend: ", err)
-		}
-		// delay before retrying
-		select {
-		case <-ctx.Done(): // canceled from context
-			return
-		case <-w.cancelSyncCh: // canceled from shutdown method
-			return
-		case <-time.After(10 * time.Second):
-		}
+func runBlockSync(ctx context.Context, getBlocks blocksync.BlocksLoaderFunc, getBlockNumber func() (uint64, error), batchSize int, processor blocksync.BlockProcessorFunc) error {
+	blockNumber, err := getBlockNumber()
+	if err != nil {
+		return fmt.Errorf("failed to read current block number for a sync starting point: %w", err)
 	}
+	// on bootstrap storage returns 0 as current block and as block numbering
+	// starts from 1 by adding 1 to it we start with the first block
+	return blocksync.Run(ctx, getBlocks, blockNumber+1, 0, batchSize, processor)
 }
 
 // GetBills returns all bills for given public key.
@@ -182,29 +188,63 @@ func (w *WalletBackend) GetBill(unitID []byte) (*Bill, error) {
 	return w.store.Do().GetBill(unitID)
 }
 
-// GetMaxBlockNumber returns max block number known to the connected AB node.
-func (w *WalletBackend) GetMaxBlockNumber(ctx context.Context) (uint64, error) {
-	return w.genericWallet.GetMaxBlockNumber(ctx)
+// GetFeeCreditBill returns most recently seen fee credit bill with given unit id.
+func (w *WalletBackend) GetFeeCreditBill(unitID []byte) (*Bill, error) {
+	return w.store.Do().GetFeeCreditBill(unitID)
 }
 
-// Shutdown terminates wallet backend Service.
-func (w *WalletBackend) Shutdown() {
-	// send signal to cancel channel if channel is not full
-	select {
-	case w.cancelSyncCh <- true:
-	default:
-	}
-	w.genericWallet.Shutdown()
+// GetRoundNumber returns latest round number.
+func (w *WalletBackend) GetRoundNumber(ctx context.Context) (uint64, error) {
+	return w.genericWallet.GetRoundNumber(ctx)
 }
 
-func (b *Bill) toProto() *block.Bill {
-	return &block.Bill{
-		Id:       b.Id,
-		Value:    b.Value,
-		TxHash:   b.TxHash,
-		IsDcBill: b.IsDCBill,
-		TxProof:  b.TxProof.toProto(),
+func (b *Bill) toProto() *bp.Bill {
+	return &bp.Bill{
+		Id:            b.Id,
+		Value:         b.Value,
+		TxHash:        b.TxHash,
+		IsDcBill:      b.IsDCBill,
+		TxProof:       b.TxProof.toProto(),
+		FcBlockNumber: b.FCBlockNumber,
 	}
+}
+
+func (b *Bill) toProtoBills() *bp.Bills {
+	return &bp.Bills{
+		Bills: []*bp.Bill{
+			b.toProto(),
+		},
+	}
+}
+
+func (b *Bill) addProof(bl *block.GenericBlock, txPb *txsystem.Transaction) error {
+	proof, err := createProof(b.Id, txPb, bl, crypto.SHA256)
+	if err != nil {
+		return err
+	}
+	b.TxProof = proof
+	return nil
+}
+
+func (b *Bill) getTxHash() []byte {
+	if b != nil {
+		return b.TxHash
+	}
+	return nil
+}
+
+func (b *Bill) getValue() uint64 {
+	if b != nil {
+		return b.Value
+	}
+	return 0
+}
+
+func (b *Bill) getFCBlockNumber() uint64 {
+	if b != nil {
+		return b.FCBlockNumber
+	}
+	return 0
 }
 
 func (b *TxProof) toProto() *block.TxProof {
@@ -215,12 +255,26 @@ func (b *TxProof) toProto() *block.TxProof {
 	}
 }
 
-func (b *Bill) toProtoBills() *block.Bills {
-	return &block.Bills{
-		Bills: []*block.Bill{
-			b.toProto(),
-		},
+func createProof(unitID []byte, tx *txsystem.Transaction, b *block.GenericBlock, hashAlgorithm crypto.Hash) (*TxProof, error) {
+	proof, err := block.NewPrimaryProof(b, unitID, hashAlgorithm)
+	if err != nil {
+		return nil, err
 	}
+	return newTxProof(tx, proof, b.GetRoundNumber())
+}
+
+func newTxProof(tx *txsystem.Transaction, proof *block.BlockProof, blockNumber uint64) (*TxProof, error) {
+	if tx == nil {
+		return nil, errors.New("tx is nil")
+	}
+	if proof == nil {
+		return nil, errors.New("proof is nil")
+	}
+	return &TxProof{
+		Tx:          tx,
+		Proof:       proof,
+		BlockNumber: blockNumber,
+	}, nil
 }
 
 func newOwnerPredicates(hashes *account.KeyHashes) *p2pkhOwnerPredicates {
@@ -228,12 +282,4 @@ func newOwnerPredicates(hashes *account.KeyHashes) *p2pkhOwnerPredicates {
 		sha256: script.PredicatePayToPublicKeyHashDefault(hashes.Sha256),
 		sha512: script.PredicatePayToPublicKeyHashDefault(hashes.Sha512),
 	}
-}
-
-// listen waits for given OS signals and then calls given shutdownHook func
-func listen(shutdownHook func(sig os.Signal), signals ...os.Signal) {
-	ch := make(chan os.Signal, 1)
-	signal.Notify(ch, signals...)
-	sig := <-ch
-	shutdownHook(sig)
 }

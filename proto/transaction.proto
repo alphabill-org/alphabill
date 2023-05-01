@@ -9,15 +9,27 @@ message Transaction {
   bytes system_id = 1;
   bytes unit_id = 2;
   google.protobuf.Any transaction_attributes = 3;
-  uint64 timeout = 4;
-  bytes owner_proof = 5;
+  bytes owner_proof = 4;
+  // optional fee authorization proof (omitted when the main owner proof also satisfies the fee owner condition)
+  bytes fee_proof = 5;
+  // transaction metadata added by user
+  ClientMetadata client_metadata = 6;
+  // transaction metadata added by node
+  ServerMetadata server_metadata = 7;
 }
 
-message TransactionResponse {
-  // True if request passed initial validation.
-  bool ok = 1;
-  // Contains error message if ok is false.
-  string message = 2;
+message ClientMetadata {
+  // transaction timeout block height
+  uint64 timeout = 1;
+  // maximum fee the user is willing to pay for the execution of this transaction
+  uint64 max_fee = 2;
+  // fee credit record identifier (should be empty for fee credit transactions)
+  bytes fee_credit_record_id = 3;
+}
+
+message ServerMetadata {
+  // actual transaction fee charged
+  uint64 fee = 1;
 }
 
 message Transactions {

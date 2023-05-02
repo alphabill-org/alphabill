@@ -39,6 +39,50 @@ definitions:
           type: integer
         type: array
     type: object
+  backend.BalanceResponse:
+    properties:
+      balance:
+        example: "0"
+        type: string
+    type: object
+  backend.ErrorResponse:
+    properties:
+      message:
+        type: string
+    type: object
+  backend.ListBillVM:
+    properties:
+      id:
+        example: AAAAAAgwv3UA1HfGO4qc1T3I3EOvqxfcrhMjJpr9Tn4=
+        format: base64
+        type: string
+      isDcBill:
+        example: false
+        type: boolean
+      txHash:
+        example: Q4ShCITC0ODXPR+j1Zl/teYcoU3/mAPy0x8uSsvQFM8=
+        format: base64
+        type: string
+      value:
+        example: "1000"
+        type: string
+    type: object
+  backend.ListBillsResponse:
+    properties:
+      bills:
+        items:
+          $ref: '#/definitions/backend.ListBillVM'
+        type: array
+      total:
+        example: 1
+        type: integer
+    type: object
+  backend.RoundNumberResponse:
+    properties:
+      roundNumber:
+        example: "0"
+        type: string
+    type: object
   block.BlockProof:
     properties:
       block_header_hash:
@@ -206,6 +250,8 @@ definitions:
             type: integer
           type: array
         type: object
+      timestamp:
+        type: integer
     type: object
   certificates.UnicityTreeCertificate:
     properties:
@@ -223,50 +269,6 @@ definitions:
         items:
           type: integer
         type: array
-    type: object
-  money.BalanceResponse:
-    properties:
-      balance:
-        example: "0"
-        type: string
-    type: object
-  money.ErrorResponse:
-    properties:
-      message:
-        type: string
-    type: object
-  money.ListBillVM:
-    properties:
-      id:
-        example: AAAAAAgwv3UA1HfGO4qc1T3I3EOvqxfcrhMjJpr9Tn4=
-        format: base64
-        type: string
-      isDcBill:
-        example: false
-        type: boolean
-      txHash:
-        example: Q4ShCITC0ODXPR+j1Zl/teYcoU3/mAPy0x8uSsvQFM8=
-        format: base64
-        type: string
-      value:
-        example: "1000"
-        type: string
-    type: object
-  money.ListBillsResponse:
-    properties:
-      bills:
-        items:
-          $ref: '#/definitions/money.ListBillVM'
-        type: array
-      total:
-        example: 1
-        type: integer
-    type: object
-  money.RoundNumberResponse:
-    properties:
-      roundNumber:
-        example: "0"
-        type: string
     type: object
   txsystem.ClientMetadata:
     properties:
@@ -343,11 +345,11 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/money.BalanceResponse'
+            $ref: '#/definitions/backend.BalanceResponse'
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/money.ErrorResponse'
+            $ref: '#/definitions/backend.ErrorResponse'
         "500":
           description: Internal Server Error
       summary: Get balance
@@ -394,11 +396,11 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/money.ListBillsResponse'
+            $ref: '#/definitions/backend.ListBillsResponse'
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/money.ErrorResponse'
+            $ref: '#/definitions/backend.ErrorResponse'
         "500":
           description: Internal Server Error
       summary: List bills
@@ -421,11 +423,11 @@ paths:
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/money.ErrorResponse'
+            $ref: '#/definitions/backend.ErrorResponse'
         "404":
           description: Not Found
           schema:
-            $ref: '#/definitions/money.ErrorResponse'
+            $ref: '#/definitions/backend.ErrorResponse'
         "500":
           description: Internal Server Error
       summary: Get proof
@@ -438,7 +440,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/money.RoundNumberResponse'
+            $ref: '#/definitions/backend.RoundNumberResponse'
       summary: Money partition's latest block number
   /transactions:
     post:

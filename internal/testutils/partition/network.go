@@ -5,11 +5,10 @@ import (
 	"context"
 	gocrypto "crypto"
 	"crypto/rand"
+	"errors"
 	"fmt"
+	"sort"
 	"time"
-
-	libp2pcrypto "github.com/libp2p/go-libp2p/core/crypto"
-	"google.golang.org/protobuf/proto"
 
 	"github.com/alphabill-org/alphabill/internal/block"
 	"github.com/alphabill-org/alphabill/internal/crypto"
@@ -20,10 +19,14 @@ import (
 	"github.com/alphabill-org/alphabill/internal/rootchain/consensus/monolithic"
 	rootgenesis "github.com/alphabill-org/alphabill/internal/rootchain/genesis"
 	"github.com/alphabill-org/alphabill/internal/rootchain/partitions"
-	"github.com/alphabill-org/alphabill/internal/testutils/net"
 	testevent "github.com/alphabill-org/alphabill/internal/testutils/partition/event"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
+	libp2pcrypto "github.com/libp2p/go-libp2p/core/crypto"
+	"github.com/libp2p/go-libp2p/core/peer"
+	"google.golang.org/protobuf/proto"
 )
+
+const rootValidatorNodes = 1
 
 // AlphabillPartition for integration tests
 type AlphabillPartition struct {
@@ -40,23 +43,31 @@ type partitionNode struct {
 	AddrGRPC string
 	cancel   context.CancelFunc
 	done     chan error
+	peer     *network.Peer
 }
 
 func (pn *partitionNode) Stop() error {
+	if err := pn.peer.Close(); err != nil {
+		return err
+	}
 	pn.cancel()
 	return <-pn.done
 }
 
-const rootValidatorNodes = 1
-
 // NewNetwork creates the AlphabillPartition for integration tests. It starts partition nodes with given
 // transaction system and a root chain.
-func NewNetwork(nodeCount int, txSystemProvider func(trustBase map[string]crypto.Verifier) txsystem.TransactionSystem, systemIdentifier []byte) (*AlphabillPartition, error) {
+func NewNetwork(nodeCount int, txSystemProvider func(trustBase map[string]crypto.Verifier) txsystem.TransactionSystem, systemIdentifier []byte) (a *AlphabillPartition, err error) {
+	ctx, ctxCancel := context.WithCancel(context.Background())
+	defer func() {
+		if err != nil {
+			ctxCancel()
+		}
+	}()
 	if nodeCount < 1 {
 		return nil, fmt.Errorf("invalid count of partition Nodes: %d", nodeCount)
 	}
 	// create network nodePeers
-	nodePeers, err := createNetworkPeers(nodeCount)
+	nodePeers, err := createNetworkPeers(ctx, nodeCount)
 	if err != nil {
 		return nil, err
 	}
@@ -67,7 +78,7 @@ func NewNetwork(nodeCount int, txSystemProvider func(trustBase map[string]crypto
 	}
 	var transactionSystems []txsystem.TransactionSystem
 	// create root nodes and signers keys
-	rootPeers, err := createNetworkPeers(rootValidatorNodes)
+	rootPeers, err := createNetworkPeers(ctx, rootValidatorNodes)
 	if err != nil {
 		return nil, err
 	}
@@ -138,7 +149,7 @@ func NewNetwork(nodeCount int, txSystemProvider func(trustBase map[string]crypto
 		return nil, err
 	}
 	// start root chain nodes
-	partitionHost, err := network.NewPeer(&network.PeerConfiguration{
+	partitionHost, err := network.NewPeer(ctx, &network.PeerConfiguration{
 		Address: "/ip4/127.0.0.1/tcp/0",
 	})
 	if err != nil {
@@ -165,7 +176,6 @@ func NewNetwork(nodeCount int, txSystemProvider func(trustBase map[string]crypto
 	}
 
 	partitionGenesis := partitionGenesisFiles[0]
-	ctx, ctxCancel := context.WithCancel(context.Background())
 	// start root
 	go rootNode.Run(ctx)
 
@@ -173,14 +183,13 @@ func NewNetwork(nodeCount int, txSystemProvider func(trustBase map[string]crypto
 	nodes := make([]*partitionNode, nodeCount)
 	eh := &testevent.TestEventHandler{}
 	for i := 0; i < nodeCount; i++ {
-		peer := nodePeers[i]
-		pn, err := network.NewLibP2PValidatorNetwork(peer, network.DefaultValidatorNetOptions)
+		p := nodePeers[i]
+		pn, err := network.NewLibP2PValidatorNetwork(p, network.DefaultValidatorNetOptions)
 		if err != nil {
-			ctxCancel()
 			return nil, err
 		}
 		n, err := partition.New(
-			peer,
+			p,
 			signers[i],
 			transactionSystems[i],
 			partitionGenesis,
@@ -189,13 +198,18 @@ func NewNetwork(nodeCount int, txSystemProvider func(trustBase map[string]crypto
 			partition.WithEventHandler(eh.HandleEvent, 100),
 		)
 		if err != nil {
-			ctxCancel()
 			return nil, err
 		}
 
 		nctx, ncfn := context.WithCancel(ctx)
-		nodes[i] = &partitionNode{Node: n, cancel: ncfn, done: make(chan error, 1)}
+		nodes[i] = &partitionNode{Node: n, peer: p, cancel: ncfn, done: make(chan error, 1)}
 		go func(ec chan error) { ec <- n.Run(nctx) }(nodes[i].done)
+	}
+
+	for _, p := range nodePeers {
+		if err = assertConnections(p, nodeCount); err != nil {
+			return nil, err
+		}
 	}
 
 	return &AlphabillPartition{
@@ -205,7 +219,36 @@ func NewNetwork(nodeCount int, txSystemProvider func(trustBase map[string]crypto
 		TrustBase:    trustBase,
 		EventHandler: eh,
 		RootSigners:  rootSigners,
-	}, nil
+	}, err
+}
+
+func assertConnections(p *network.Peer, count int) error {
+	ch := make(chan bool, 1)
+
+	timer := time.NewTimer(2 * time.Second)
+	defer timer.Stop()
+
+	ticker := time.NewTicker(100 * time.Millisecond)
+	defer ticker.Stop()
+
+	for tick := ticker.C; ; {
+		select {
+		case <-timer.C:
+			return errors.New("network not initialized")
+		case <-tick:
+			tick = nil
+			go func() {
+				ch <- func() bool {
+					return p.Network().Peerstore().Peers().Len() >= count
+				}()
+			}()
+		case v := <-ch:
+			if v {
+				return nil
+			}
+			tick = ticker.C
+		}
+	}
 }
 
 // BroadcastTx sends transactions to all nodes.
@@ -276,32 +319,28 @@ func createSigners(count int) ([]crypto.Signer, error) {
 	return signers, nil
 }
 
-func createNetworkPeers(count int) ([]*network.Peer, error) {
+func createNetworkPeers(ctx context.Context, count int) ([]*network.Peer, error) {
 	var peers = make([]*network.Peer, count)
 	// generate connection encryption key pairs
 	keyPairs, err := generateKeyPairs(count)
 	if err != nil {
 		return nil, err
 	}
-
-	var peerInfo = make([]*network.PeerInfo, count)
+	var validators = make(peer.IDSlice, count)
 	for i := 0; i < count; i++ {
-		port, err := net.GetFreePort()
+		nodeID, err := network.NodeIDFromPublicKeyBytes(keyPairs[i].PublicKey)
 		if err != nil {
 			return nil, err
 		}
-		peerInfo[i] = &network.PeerInfo{
-			Address:   fmt.Sprintf("/ip4/127.0.0.1/tcp/%v", port),
-			PublicKey: keyPairs[i].PublicKey,
-		}
+		validators[i] = nodeID
 	}
+	sort.Sort(validators)
 
-	// init Nodes
 	for i := 0; i < count; i++ {
-		p, err := network.NewPeer(&network.PeerConfiguration{
-			Address:         peerInfo[i].Address,
-			KeyPair:         keyPairs[i], // connection encryption key. The ID of the node is derived from this keypair.
-			PersistentPeers: peerInfo,    // Persistent peers
+		p, err := network.NewPeer(ctx, &network.PeerConfiguration{
+			Address:    "/ip4/127.0.0.1/tcp/0",
+			KeyPair:    keyPairs[i], // connection encryption key. The ID of the node is derived from this keypair.
+			Validators: validators,  // Persistent peers
 		})
 		if err != nil {
 			return nil, err

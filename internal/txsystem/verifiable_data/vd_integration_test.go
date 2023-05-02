@@ -3,7 +3,6 @@ package verifiable_data
 import (
 	"bytes"
 	"context"
-	"fmt"
 	"testing"
 
 	"github.com/alphabill-org/alphabill/internal/crypto"
@@ -25,14 +24,11 @@ func TestVDPartition_Ok(t *testing.T) {
 	require.NoError(t, err)
 
 	tx := createVDTransaction()
-	fmt.Printf("Submitting tx: %v, UnitId=%x\n", tx, tx.UnitId)
-	err = network.SubmitTx(tx)
-	require.NoError(t, err)
+	require.NoError(t, network.SubmitTx(tx))
 	require.Eventually(t, testpartition.BlockchainContainsTx(tx, network), test.WaitDuration, test.WaitTick)
 
 	tx = createVDTransaction()
-	err = network.SubmitTx(tx)
-	require.NoError(t, err)
+	require.NoError(t, network.SubmitTx(tx))
 	require.Eventually(t, testpartition.BlockchainContainsTx(tx, network), test.WaitDuration, test.WaitTick)
 }
 
@@ -47,9 +43,8 @@ func TestVDPartition_OnePartitionNodeIsDown(t *testing.T) {
 	require.ErrorIs(t, network.Nodes[2].Stop(), context.Canceled) // shut down the node
 
 	tx := createVDTransaction()
-	fmt.Printf("Submitting tx: %v, UnitId=%x\n", tx, tx.UnitId)
-	err = network.SubmitTx(tx)
-	require.NoError(t, err)
+
+	require.NoError(t, network.SubmitTx(tx))
 	require.Eventually(t, testpartition.BlockchainContains(network, func(actualTx *txsystem.Transaction) bool {
 		return bytes.Equal(tx.UnitId, actualTx.UnitId)
 	}), test.WaitDuration, test.WaitTick)

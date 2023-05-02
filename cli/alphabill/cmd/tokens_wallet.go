@@ -388,13 +388,12 @@ func execTokenCmdNewTokenNonFungible(cmd *cobra.Command, config *walletConfig) e
 	if err != nil {
 		return err
 	}
-	a := &ttxs.MintNonFungibleTokenAttributes{
-		Bearer:                           bearerPredicate,
-		NftType:                          typeId,
-		Uri:                              uri,
-		Data:                             data,
-		DataUpdatePredicate:              dataUpdatePredicate,
-		TokenCreationPredicateSignatures: nil, // will be set in the wallet
+	a := &tokens.MintNonFungibleTokenAttributes{
+		Bearer:              bearerPredicate,
+		NftType:             typeId,
+		Uri:                 uri,
+		Data:                data,
+		DataUpdatePredicate: dataUpdatePredicate,
 	}
 	id, err := tw.NewNFT(cmd.Context(), accountNumber, a, tokenId, ci)
 	if err != nil {

@@ -17,14 +17,8 @@ import (
 	"github.com/alphabill-org/alphabill/internal/rootchain/consensus/distributed/leader"
 	"github.com/alphabill-org/alphabill/internal/rootchain/consensus/distributed/storage"
 	"github.com/alphabill-org/alphabill/internal/rootchain/partitions"
-	"github.com/alphabill-org/alphabill/internal/timer"
 	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/libp2p/go-libp2p/core/peer"
-)
-
-const (
-	// local timeout
-	blockRateID = "block-rate"
 )
 
 type (
@@ -52,7 +46,6 @@ type (
 		params         *consensus.Parameters
 		peer           *network.Peer
 		localTimeout   *time.Ticker
-		timers         *timer.Timers
 		net            RootNet
 		pacemaker      *Pacemaker
 		leaderSelector Leader
@@ -111,7 +104,6 @@ func NewDistributedAbConsensusManager(host *network.Peer, rg *genesis.RootGenesi
 		certResultCh:   make(chan *certificates.UnicityCertificate),
 		params:         cParams,
 		peer:           host,
-		timers:         timer.NewTimers(),
 		net:            net,
 		pacemaker:      NewPacemaker(hqcRound, cParams.LocalTimeoutMs, cParams.BlockRateMs),
 		leaderSelector: l,
@@ -147,7 +139,6 @@ func (x *ConsensusManager) GetLatestUnicityCertificate(id p.SystemIdentifier) (*
 }
 
 func (x *ConsensusManager) Run(ctx context.Context) error {
-	defer x.timers.WaitClose()
 	// Start timers and network processing
 	x.localTimeout = time.NewTicker(x.params.LocalTimeoutMs)
 	// Am I the leader?
@@ -156,7 +147,13 @@ func (x *ConsensusManager) Run(ctx context.Context) error {
 		logger.Info("%v round %v root node started as leader, waiting to propose", x.peer.String(), currentRound)
 		// on start wait a bit before making a proposal
 		x.waitPropose = true
-		x.timers.Start(blockRateID, x.params.BlockRateMs)
+		go func() {
+			select {
+			case <-time.After(x.params.BlockRateMs):
+				x.processNewRoundEvent()
+			case <-ctx.Done():
+			}
+		}()
 	} else {
 		logger.Info("%v round %v root node started, waiting for proposal from leader %v",
 			x.peer.String(), currentRound, x.leaderSelector.GetLeaderForRound(currentRound).String())
@@ -186,10 +183,10 @@ func (x *ConsensusManager) loop(ctx context.Context) error {
 				x.onIRChange(mt)
 			case *ab_consensus.ProposalMsg:
 				util.WriteTraceJsonLog(logger, fmt.Sprintf("Proposal from %v", msg.From), mt)
-				x.onProposalMsg(mt)
+				x.onProposalMsg(ctx, mt)
 			case *ab_consensus.VoteMsg:
 				util.WriteTraceJsonLog(logger, fmt.Sprintf("Vote from %v", msg.From), mt)
-				x.onVoteMsg(mt)
+				x.onVoteMsg(ctx, mt)
 			case *ab_consensus.TimeoutMsg:
 				util.WriteTraceJsonLog(logger, fmt.Sprintf("Timeout vote from %v", msg.From), mt)
 				x.onTimeoutMsg(mt)
@@ -198,7 +195,7 @@ func (x *ConsensusManager) loop(ctx context.Context) error {
 				x.onStateReq(mt)
 			case *ab_consensus.StateMsg:
 				util.WriteTraceJsonLog(logger, fmt.Sprintf("Received recovery response from %v", msg.From), mt)
-				x.onStateResponse(mt)
+				x.onStateResponse(ctx, mt)
 			default:
 				logger.Warning("%v unknown protocol req %s %T from %v", x.peer.String(), msg.Protocol, mt, msg.From)
 			}
@@ -210,17 +207,6 @@ func (x *ConsensusManager) loop(ctx context.Context) error {
 			x.onPartitionIRChangeReq(&req)
 		case <-x.localTimeout.C:
 			x.onLocalTimeout()
-		// handle timeouts
-		case nt, ok := <-x.timers.C:
-			if !ok {
-				logger.Warning("%v timers channel closed, exiting main loop", x.peer.String())
-				return fmt.Errorf("exit drc consensus, timer channel closed")
-			}
-			if nt == nil {
-				logger.Warning("%v root timer channel received nil timer", x.peer.String())
-				continue
-			}
-			x.processNewRoundEvent()
 		}
 	}
 }
@@ -332,7 +318,7 @@ func (x *ConsensusManager) onIRChange(irChange *ab_consensus.IRChangeReqMsg) {
 }
 
 // onVoteMsg handle votes messages from other root validators
-func (x *ConsensusManager) onVoteMsg(vote *ab_consensus.VoteMsg) {
+func (x *ConsensusManager) onVoteMsg(ctx context.Context, vote *ab_consensus.VoteMsg) {
 	// verify signature on vote
 	err := vote.Verify(x.trustBase.GetQuorumThreshold(), x.trustBase.GetVerifiers())
 	if err != nil {
@@ -406,7 +392,13 @@ func (x *ConsensusManager) onVoteMsg(vote *ab_consensus.VoteMsg) {
 		logger.Debug("%v round %v node %v wait %v before proposing",
 			x.peer.String(), x.pacemaker.GetCurrentRound(), x.peer.ID().String(), slowDownTime)
 		x.waitPropose = true
-		x.timers.Start(blockRateID, slowDownTime)
+		go func() {
+			select {
+			case <-time.After(slowDownTime):
+				x.processNewRoundEvent()
+			case <-ctx.Done():
+			}
+		}()
 		return
 	}
 	// trigger new round immediately
@@ -482,7 +474,7 @@ func (x *ConsensusManager) checkRecoveryNeeded(qc *ab_consensus.QuorumCert) bool
 
 // onProposalMsg handles block proposal messages from other validators.
 // Only a proposal made by the leader of this view/round shall be accepted and processed
-func (x *ConsensusManager) onProposalMsg(proposal *ab_consensus.ProposalMsg) {
+func (x *ConsensusManager) onProposalMsg(ctx context.Context, proposal *ab_consensus.ProposalMsg) {
 	// verify signature on proposal (does not verify partition request signatures)
 	err := proposal.Verify(x.trustBase.GetQuorumThreshold(), x.trustBase.GetVerifiers())
 	if err != nil {
@@ -546,7 +538,7 @@ func (x *ConsensusManager) onProposalMsg(proposal *ab_consensus.ProposalMsg) {
 	if len(x.voteBuffer) > 0 {
 		logger.Debug("Handling %v buffered vote messages", len(x.voteBuffer))
 		for _, v := range x.voteBuffer {
-			x.onVoteMsg(v)
+			x.onVoteMsg(ctx, v)
 		}
 		// clear
 		x.voteBuffer = []*ab_consensus.VoteMsg{}
@@ -675,7 +667,7 @@ func (x *ConsensusManager) onStateReq(req *ab_consensus.GetStateMsg) {
 	}
 }
 
-func (x *ConsensusManager) onStateResponse(req *ab_consensus.StateMsg) {
+func (x *ConsensusManager) onStateResponse(ctx context.Context, req *ab_consensus.StateMsg) {
 	logger.Trace("%v round %v received state response",
 		x.peer.String(), x.pacemaker.GetCurrentRound())
 	if x.recovery == nil {
@@ -699,11 +691,11 @@ func (x *ConsensusManager) onStateResponse(req *ab_consensus.StateMsg) {
 	}
 	switch mt := x.recovery.triggerMsg.(type) {
 	case *ab_consensus.ProposalMsg:
-		x.onProposalMsg(mt)
+		x.onProposalMsg(ctx, mt)
 	case *ab_consensus.VoteMsg:
 		// apply buffered vote messages
 		for _, v := range x.voteBuffer {
-			x.onVoteMsg(v)
+			x.onVoteMsg(ctx, v)
 		}
 		// for time out we will do nothing for now
 	}

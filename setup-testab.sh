@@ -52,11 +52,17 @@ mkdir testab
 # Generate all genesis files
 echo "generating genesis files"
 # Generate money node genesis files.
-generate_partition_node_genesis "money" $money_nodes
+if [ "$money_nodes" -ne 0 ]; then
+  generate_partition_node_genesis "money" "$money_nodes"
+fi
 # Generate money node genesis files.
-generate_partition_node_genesis "vd" $vd_nodes
+if [ "$vd_nodes" -ne 0 ]; then
+  generate_partition_node_genesis "vd" "$vd_nodes"
+fi
 # Generate money node genesis files.
-generate_partition_node_genesis "token" $token_nodes
+if [ "$token_nodes" -ne 0 ]; then
+  generate_partition_node_genesis "token" "$token_nodes"
+fi
 # generate root node genesis files
 generate_root_genesis $root_nodes
 # generate log configuration for all nodes

@@ -93,6 +93,9 @@ function generate_root_genesis() {
   local node_genesis_files=""
   for file in testab/money*/money/node-genesis.json testab/vd*/vd/node-genesis.json testab/tokens*/tokens/node-genesis.json
   do
+    if [[ ! -f $file ]]; then
+      continue
+    fi
     node_genesis_files="$node_genesis_files -p $file"
   done
   # generate individual root node genesis files

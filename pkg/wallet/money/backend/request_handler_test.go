@@ -9,8 +9,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ainvaltin/httpsrv"
 	"github.com/alphabill-org/alphabill/pkg/wallet/backend/bp"
-
 	"github.com/alphabill-org/alphabill/internal/block"
 	testhttp "github.com/alphabill-org/alphabill/internal/testutils/http"
 	"github.com/alphabill-org/alphabill/internal/testutils/net"
@@ -560,8 +560,17 @@ func startServer(t *testing.T, service WalletBackendService) int {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	go func() {
-		server := NewHttpServer(fmt.Sprintf("localhost:%d", port), 100, service)
-		err := server.Run(ctx)
+		handler := &RequestHandler{Service: service, ListBillsPageLimit: 100}
+		server := http.Server{
+			Addr:              fmt.Sprintf("localhost:%d", port),
+			Handler:           handler.Router(),
+			ReadTimeout:       3 * time.Second,
+			ReadHeaderTimeout: time.Second,
+			WriteTimeout:      5 * time.Second,
+			IdleTimeout:       30 * time.Second,
+		}
+
+		err := httpsrv.Run(ctx, server, httpsrv.ShutdownTimeout(5*time.Second))
 		require.ErrorIs(t, err, context.Canceled)
 	}()
 	// stop the server

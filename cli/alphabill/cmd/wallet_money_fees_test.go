@@ -82,7 +82,7 @@ func setupInfraAndWallet(t *testing.T) (string, *testpartition.AlphabillPartitio
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	t.Cleanup(cancelFunc)
 	go func() {
-		err := backend.CreateAndRun(ctx,
+		err := backend.Run(ctx,
 			&backend.Config{
 				ABMoneySystemIdentifier: []byte{0, 0, 0, 0},
 				AlphabillUrl:            network.Nodes[0].AddrGRPC,

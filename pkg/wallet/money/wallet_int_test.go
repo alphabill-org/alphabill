@@ -57,7 +57,7 @@ func TestCollectDustTimeoutReached(t *testing.T) {
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	t.Cleanup(cancelFunc)
 	go func() {
-		err := backend.CreateAndRun(ctx,
+		err := backend.Run(ctx,
 			&backend.Config{
 				ABMoneySystemIdentifier: []byte{0, 0, 0, 0},
 				AlphabillUrl:            addr,
@@ -159,7 +159,7 @@ func TestCollectDustInMultiAccountWallet(t *testing.T) {
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	t.Cleanup(cancelFunc)
 	go func() {
-		err := backend.CreateAndRun(ctx,
+		err := backend.Run(ctx,
 			&backend.Config{
 				ABMoneySystemIdentifier: []byte{0, 0, 0, 0},
 				AlphabillUrl:            addr,
@@ -263,7 +263,7 @@ func TestCollectDustInMultiAccountWalletWithKeyFlag(t *testing.T) {
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	t.Cleanup(cancelFunc)
 	go func() {
-		err := backend.CreateAndRun(ctx,
+		err := backend.Run(ctx,
 			&backend.Config{
 				ABMoneySystemIdentifier: []byte{0, 0, 0, 0},
 				AlphabillUrl:            addr,

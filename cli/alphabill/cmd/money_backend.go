@@ -89,7 +89,7 @@ func execMoneyBackendStartCmd(ctx context.Context, config *moneyBackendConfig) e
 	if err != nil {
 		return err
 	}
-	return backend.CreateAndRun(ctx, &backend.Config{
+	return backend.Run(ctx, &backend.Config{
 		ABMoneySystemIdentifier: defaultABMoneySystemIdentifier,
 		AlphabillUrl:            config.AlphabillUrl,
 		ServerAddr:              config.ServerAddr,

@@ -43,7 +43,7 @@ func TestSendingMoneyBetweenWallets(t *testing.T) {
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	t.Cleanup(cancelFunc)
 	go func() {
-		err := backend.CreateAndRun(ctx,
+		err := backend.Run(ctx,
 			&backend.Config{
 				ABMoneySystemIdentifier: []byte{0, 0, 0, 0},
 				AlphabillUrl:            alphabillNodeAddr,
@@ -158,7 +158,7 @@ func TestSendingMoneyBetweenWalletAccounts(t *testing.T) {
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	t.Cleanup(cancelFunc)
 	go func() {
-		err := backend.CreateAndRun(ctx,
+		err := backend.Run(ctx,
 			&backend.Config{
 				ABMoneySystemIdentifier: []byte{0, 0, 0, 0},
 				AlphabillUrl:            alphabillNodeAddr,

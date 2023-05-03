@@ -6,10 +6,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/holiman/uint256"
-	"github.com/stretchr/testify/require"
-	"google.golang.org/protobuf/types/known/anypb"
-
 	"github.com/alphabill-org/alphabill/internal/block"
 	"github.com/alphabill-org/alphabill/internal/certificates"
 	"github.com/alphabill-org/alphabill/internal/hash"
@@ -22,6 +18,10 @@ import (
 	"github.com/alphabill-org/alphabill/pkg/wallet/account"
 	"github.com/alphabill-org/alphabill/pkg/wallet/backend/bp"
 	"github.com/alphabill-org/alphabill/pkg/wallet/log"
+	txbuilder "github.com/alphabill-org/alphabill/pkg/wallet/money/tx_builder"
+	"github.com/holiman/uint256"
+	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/types/known/anypb"
 )
 
 func TestBlockingDcWithNormalBills(t *testing.T) {
@@ -47,7 +47,13 @@ func TestBlockingDcWithNormalBills(t *testing.T) {
 			TxProof: &block.TxProof{},
 		},
 	}, am)
-	tx, err := createSwapTx(k, w.SystemID(), dcBills, calculateDcNonce(bills), getBillIds(bills), swapTimeoutBlockCount)
+
+	var protoDcBills []*bp.Bill
+	for _, b := range dcBills {
+		protoDcBills = append(protoDcBills, b.ToProto())
+	}
+
+	tx, err := txbuilder.CreateSwapTx(k, w.SystemID(), protoDcBills, calculateDcNonce(bills), getBillIds(bills), swapTimeoutBlockCount)
 	require.NoError(t, err)
 	mockClient.SetBlock(&block.Block{Transactions: []*txsystem.Transaction{
 		tx,
@@ -96,7 +102,12 @@ func TestBlockingDCWithDCBillsBeforeDCTimeout(t *testing.T) {
 	// set specific round number
 	mockClient.SetMaxRoundNumber(roundNr)
 
-	tx, err := createSwapTx(k, w.SystemID(), bills, util.Uint256ToBytes(tempNonce), getBillIds(bills), swapTimeoutBlockCount)
+	var protoBills []*bp.Bill
+	for _, b := range bills {
+		protoBills = append(protoBills, b.ToProto())
+	}
+
+	tx, err := txbuilder.CreateSwapTx(k, w.SystemID(), protoBills, util.Uint256ToBytes(tempNonce), getBillIds(bills), swapTimeoutBlockCount)
 	require.NoError(t, err)
 	mockClient.SetBlock(&block.Block{Transactions: []*txsystem.Transaction{
 		tx,
@@ -138,7 +149,12 @@ func TestBlockingDCWithExistingExpiredDCBills(t *testing.T) {
 		},
 	}, am)
 
-	tx, err := createSwapTx(k, w.SystemID(), bills, util.Uint256ToBytes(tempNonce), getBillIds(bills), swapTimeoutBlockCount)
+	var protoBills []*bp.Bill
+	for _, b := range bills {
+		protoBills = append(protoBills, b.ToProto())
+	}
+
+	tx, err := txbuilder.CreateSwapTx(k, w.SystemID(), protoBills, util.Uint256ToBytes(tempNonce), getBillIds(bills), swapTimeoutBlockCount)
 	require.NoError(t, err)
 	mockClient.SetBlock(&block.Block{Transactions: []*txsystem.Transaction{
 		tx,

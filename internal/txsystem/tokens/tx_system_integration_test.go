@@ -20,6 +20,11 @@ import (
 )
 
 var feeCreditID = uint256.NewInt(420)
+var defaultClientMetadata = &txsystem.ClientMetadata{
+	Timeout:           20,
+	MaxFee:            10,
+	FeeCreditRecordId: util.Uint256ToBytes(feeCreditID),
+}
 
 func TestInitPartitionAndCreateNFTType_Ok(t *testing.T) {
 	network, err := testpartition.NewNetwork(3, func(trustBase map[string]crypto.Verifier) txsystem.TransactionSystem {
@@ -46,11 +51,7 @@ func TestInitPartitionAndCreateNFTType_Ok(t *testing.T) {
 			},
 		),
 		testtransaction.WithFeeProof(script.PredicateArgumentEmpty()),
-		testtransaction.WithClientMetadata(&txsystem.ClientMetadata{
-			Timeout:           20,
-			MaxFee:            10,
-			FeeCreditRecordId: util.Uint256ToBytes(feeCreditID),
-		}),
+		testtransaction.WithClientMetadata(defaultClientMetadata),
 	)
 	require.NoError(t, network.BroadcastTx(tx))
 	require.Eventually(t, testpartition.BlockchainContainsTx(tx, network), test.WaitDuration, test.WaitTick)
@@ -100,11 +101,7 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 			},
 		),
 		testtransaction.WithFeeProof(script.PredicateArgumentEmpty()),
-		testtransaction.WithClientMetadata(&txsystem.ClientMetadata{
-			Timeout:           20,
-			MaxFee:            10,
-			FeeCreditRecordId: util.Uint256ToBytes(feeCreditID),
-		}),
+		testtransaction.WithClientMetadata(defaultClientMetadata),
 	)
 	require.NoError(t, network.BroadcastTx(createTypeTx))
 	require.Eventually(t, testpartition.BlockchainContainsTx(createTypeTx, network), test.WaitDuration*4, test.WaitTick)
@@ -135,11 +132,7 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 			},
 		),
 		testtransaction.WithFeeProof(script.PredicateArgumentEmpty()),
-		testtransaction.WithClientMetadata(&txsystem.ClientMetadata{
-			Timeout:           20,
-			MaxFee:            10,
-			FeeCreditRecordId: util.Uint256ToBytes(feeCreditID),
-		}),
+		testtransaction.WithClientMetadata(defaultClientMetadata),
 	)
 	require.NoError(t, network.BroadcastTx(mintTx))
 	gtx, err := txConverter.ConvertTx(mintTx)
@@ -172,11 +165,7 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 			},
 		),
 		testtransaction.WithFeeProof(script.PredicateArgumentEmpty()),
-		testtransaction.WithClientMetadata(&txsystem.ClientMetadata{
-			Timeout:           20,
-			MaxFee:            10,
-			FeeCreditRecordId: util.Uint256ToBytes(feeCreditID),
-		}),
+		testtransaction.WithClientMetadata(defaultClientMetadata),
 	)
 	require.NoError(t, network.BroadcastTx(splitTx1))
 	require.Eventually(t, testpartition.BlockchainContainsTx(splitTx1, network), test.WaitDuration, test.WaitTick)
@@ -217,11 +206,7 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 			},
 		),
 		testtransaction.WithFeeProof(script.PredicateArgumentEmpty()),
-		testtransaction.WithClientMetadata(&txsystem.ClientMetadata{
-			Timeout:           20,
-			MaxFee:            10,
-			FeeCreditRecordId: util.Uint256ToBytes(feeCreditID),
-		}),
+		testtransaction.WithClientMetadata(defaultClientMetadata),
 	)
 	require.NoError(t, network.BroadcastTx(splitTx2))
 	require.Eventually(t, testpartition.BlockchainContainsTx(splitTx2, network), test.WaitDuration, test.WaitTick)
@@ -263,11 +248,7 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 			},
 		),
 		testtransaction.WithFeeProof(script.PredicateArgumentEmpty()),
-		testtransaction.WithClientMetadata(&txsystem.ClientMetadata{
-			Timeout:           20,
-			MaxFee:            10,
-			FeeCreditRecordId: util.Uint256ToBytes(feeCreditID),
-		}),
+		testtransaction.WithClientMetadata(defaultClientMetadata),
 	)
 	require.NoError(t, network.BroadcastTx(transferTx))
 	require.Eventually(t, testpartition.BlockchainContainsTx(transferTx, network), test.WaitDuration, test.WaitTick)
@@ -298,11 +279,7 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 			},
 		),
 		testtransaction.WithFeeProof(script.PredicateArgumentEmpty()),
-		testtransaction.WithClientMetadata(&txsystem.ClientMetadata{
-			Timeout:           20,
-			MaxFee:            10,
-			FeeCreditRecordId: util.Uint256ToBytes(feeCreditID),
-		}),
+		testtransaction.WithClientMetadata(defaultClientMetadata),
 	)
 	require.NoError(t, network.BroadcastTx(burnTx))
 	require.Eventually(t, testpartition.BlockchainContainsTx(burnTx, network), test.WaitDuration, test.WaitTick)
@@ -324,11 +301,7 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 			},
 		),
 		testtransaction.WithFeeProof(script.PredicateArgumentEmpty()),
-		testtransaction.WithClientMetadata(&txsystem.ClientMetadata{
-			Timeout:           20,
-			MaxFee:            10,
-			FeeCreditRecordId: util.Uint256ToBytes(feeCreditID),
-		}),
+		testtransaction.WithClientMetadata(defaultClientMetadata),
 	)
 	require.NoError(t, network.BroadcastTx(burnTx2))
 	require.Eventually(t, testpartition.BlockchainContainsTx(burnTx2, network), test.WaitDuration, test.WaitTick)
@@ -358,11 +331,7 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 			},
 		),
 		testtransaction.WithFeeProof(script.PredicateArgumentEmpty()),
-		testtransaction.WithClientMetadata(&txsystem.ClientMetadata{
-			Timeout:           20,
-			MaxFee:            10,
-			FeeCreditRecordId: util.Uint256ToBytes(feeCreditID),
-		}),
+		testtransaction.WithClientMetadata(defaultClientMetadata),
 	)
 	require.NoError(t, network.BroadcastTx(joinTx))
 	require.Eventually(t, testpartition.BlockchainContainsTx(joinTx, network), test.WaitDuration, test.WaitTick)

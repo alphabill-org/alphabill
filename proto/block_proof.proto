@@ -15,6 +15,7 @@ enum ProofType {
 
 // wrapper around block proof with transaction data
 message TxProof {
+  // deprecated: Use proof.UnicityCertificate.GetRoundNumber() instead; will be removed
   uint64 block_number = 1;
   Transaction tx = 2;
   BlockProof proof = 3;

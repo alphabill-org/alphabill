@@ -24,19 +24,9 @@ func handleCreateNoneFungibleTokenTx(options *Options) txsystem.GenericExecuteFu
 		h := tx.Hash(options.hashAlgorithm)
 
 		// update state
-		// disable fee handling if fee is calculated to 0 (used to temporarily disable fee handling, can be removed after all wallets are updated)
-		var fcFunc rma.Action
-		if options.feeCalculator() == 0 {
-			fcFunc = func(tree *rma.Tree) error {
-				return nil
-			}
-		} else {
-			fcrID := tx.transaction.GetClientFeeCreditRecordID()
-			fcFunc = fc.DecrCredit(fcrID, fee, h)
-		}
-
+		fcrID := tx.transaction.GetClientFeeCreditRecordID()
 		return options.state.AtomicUpdate(
-			fcFunc,
+			fc.DecrCredit(fcrID, fee, h),
 			rma.AddItem(tx.UnitID(), script.PredicateAlwaysTrue(), newNonFungibleTokenTypeData(tx), h))
 	}
 }
@@ -57,7 +47,7 @@ func validate(tx *createNonFungibleTokenTypeWrapper, state *rma.Tree) error {
 	}
 	if len(tx.Icon().GetData()) > maxIconDataLength {
 		return fmt.Errorf("create nft type: %s", ErrStrInvalidIconDataLength)
- 	}
+	}
 
 	u, err := state.GetUnit(unitID)
 	if u != nil {

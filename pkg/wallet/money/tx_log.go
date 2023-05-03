@@ -44,11 +44,11 @@ func (t *txLog) IsAllTxsConfirmed() bool {
 	return true
 }
 
-func (t *txLog) GetAllRecordedProofs() []*BlockProof {
-	var proofs []*BlockProof
+func (t *txLog) GetAllRecordedProofs() []*block.TxProof {
+	var proofs []*block.TxProof
 	for _, v := range t.txsMap {
 		if v != nil {
-			proofs = append(proofs, v)
+			proofs = append(proofs, v.ToSchema())
 		}
 	}
 	return proofs

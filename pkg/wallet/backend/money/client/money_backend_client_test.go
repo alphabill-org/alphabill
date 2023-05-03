@@ -1,6 +1,7 @@
 package client
 
 import (
+	"context"
 	"encoding/base64"
 	"net/http"
 	"net/http/httptest"
@@ -83,7 +84,7 @@ func TestBlockHeight(t *testing.T) {
 	defer mockServer.Close()
 
 	restClient, _ := NewClient(mockAddress.Host)
-	blockHeight, err := restClient.GetBlockHeight()
+	blockHeight, err := restClient.GetRoundNumber(context.Background())
 
 	require.NoError(t, err)
 	require.EqualValues(t, 1000, blockHeight)
@@ -125,7 +126,7 @@ func Test_NewClient(t *testing.T) {
 func TestGetFeeCreditBill(t *testing.T) {
 	serverURL := mockGetFeeCreditBillCall(t)
 	restClient, _ := NewClient(serverURL.Host)
-	response, err := restClient.GetFeeCreditBill([]byte{})
+	response, err := restClient.FetchFeeCreditBill(context.Background(), []byte{})
 	require.NoError(t, err)
 
 	expectedBillID, _ := base64.StdEncoding.DecodeString(billId)
@@ -192,8 +193,8 @@ func mockGetProofCall(t *testing.T) (*httptest.Server, *url.URL) {
 
 func mockGetBlockHeightCall(t *testing.T) (*httptest.Server, *url.URL) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != ("/" + BlockHeightPath) {
-			t.Errorf("Expected to request '%v', got: %s", BlockHeightPath, r.URL.Path)
+		if r.URL.Path != ("/" + RoundNumberPath) {
+			t.Errorf("Expected to request '%v', got: %s", RoundNumberPath, r.URL.Path)
 		}
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte(`{"roundNumber": "1000"}`))

@@ -34,6 +34,7 @@ import (
 	"github.com/alphabill-org/alphabill/pkg/wallet/backend/money"
 	testclient "github.com/alphabill-org/alphabill/pkg/wallet/backend/money/client"
 	"github.com/alphabill-org/alphabill/pkg/wallet/log"
+	"github.com/alphabill-org/alphabill/pkg/wallet/money/fees"
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
@@ -214,7 +215,7 @@ func TestCollectDustInMultiAccountWallet(t *testing.T) {
 	}, test.WaitDuration, time.Second)
 
 	// add fee credit to account 1
-	_, err = w.AddFeeCredit(ctx, AddFeeCmd{
+	_, err = w.AddFeeCredit(ctx, fees.AddFeeCmd{
 		Amount:       1e8,
 		AccountIndex: 0,
 	})
@@ -228,7 +229,7 @@ func TestCollectDustInMultiAccountWallet(t *testing.T) {
 	sendToAccount(t, w, 10*1e8, 0, 2)
 
 	// add fee credit to account 2
-	_, err = w.AddFeeCredit(ctx, AddFeeCmd{
+	_, err = w.AddFeeCredit(ctx, fees.AddFeeCmd{
 		Amount:       1e8,
 		AccountIndex: 1,
 	})
@@ -236,7 +237,7 @@ func TestCollectDustInMultiAccountWallet(t *testing.T) {
 	time.Sleep(2 * time.Second) // TODO waitForConf should use backend and not block download for confirmations
 
 	// add fee credit to account 3
-	_, err = w.AddFeeCredit(ctx, AddFeeCmd{
+	_, err = w.AddFeeCredit(ctx, fees.AddFeeCmd{
 		Amount:       1e8,
 		AccountIndex: 2,
 	})
@@ -318,7 +319,7 @@ func TestCollectDustInMultiAccountWalletWithKeyFlag(t *testing.T) {
 	}, test.WaitDuration, time.Second)
 
 	// add fee credit to wallet account 1
-	_, err = w.AddFeeCredit(ctx, AddFeeCmd{
+	_, err = w.AddFeeCredit(ctx, fees.AddFeeCmd{
 		Amount:       1e8,
 		AccountIndex: 0,
 	})
@@ -332,7 +333,7 @@ func TestCollectDustInMultiAccountWalletWithKeyFlag(t *testing.T) {
 	sendToAccount(t, w, 10*1e8, 0, 2)
 
 	// add fee credit to wallet account 3
-	_, err = w.AddFeeCredit(ctx, AddFeeCmd{
+	_, err = w.AddFeeCredit(ctx, fees.AddFeeCmd{
 		Amount:       1e8,
 		AccountIndex: 2,
 	})

@@ -27,21 +27,10 @@ func handleJoinFungibleTokenTx(options *Options) txsystem.GenericExecuteFunc[*jo
 		h := tx.Hash(options.hashAlgorithm)
 
 		// update state
-		// disable fee handling if fee is calculated to 0 (used to temporarily disable fee handling, can be removed after all wallets are updated)
-		var fcFunc rma.Action
-		if options.feeCalculator() == 0 {
-			fcFunc = func(tree *rma.Tree) error {
-				return nil
-			}
-		} else {
-			fcrID := tx.transaction.GetClientFeeCreditRecordID()
-			fcFunc = fc.DecrCredit(fcrID, fee, h)
-		}
-
-		unitID := tx.UnitID()
+		fcrID := tx.transaction.GetClientFeeCreditRecordID()
 		return options.state.AtomicUpdate(
-			fcFunc,
-			rma.UpdateData(unitID,
+			fc.DecrCredit(fcrID, fee, h),
+			rma.UpdateData(tx.UnitID(),
 				func(data rma.UnitData) rma.UnitData {
 					d, ok := data.(*fungibleTokenData)
 					if !ok {

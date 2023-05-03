@@ -17,10 +17,9 @@ import (
 )
 
 type blockProcessor struct {
-	store       Storage
-	txs         txsystem.TransactionSystem
-	log         log.Logger
-	feesEnabled bool
+	store Storage
+	txs   txsystem.TransactionSystem
+	log   log.Logger
 }
 
 func (p *blockProcessor) ProcessBlock(ctx context.Context, b *block.Block) error {
@@ -59,35 +58,33 @@ func (p *blockProcessor) processTx(inTx *txsystem.Transaction, b *block.Block) e
 	p.log.Debug(fmt.Sprintf("processTx: UnitID=%x type: %s", id, strings.TrimPrefix(inTx.GetTransactionAttributes().TypeUrl, "type.googleapis.com/alphabill.tokens.v1.")))
 
 	// handle fee credit txs
-	if p.feesEnabled {
-		switch tx := gtx.(type) {
-		case *transactions.AddFeeCreditWrapper:
-			fcb, err := p.store.GetFeeCreditBill(tx.Transaction.UnitId)
-			if err != nil {
-				return err
-			}
-			return p.store.SetFeeCreditBill(&FeeCreditBill{
-				Id:            tx.Transaction.UnitId,
-				Value:         fcb.GetValue() + tx.TransferFC.TransferFC.Amount - tx.Transaction.ServerMetadata.Fee,
-				TxHash:        tx.Hash(crypto.SHA256),
-				FCBlockNumber: b.GetRoundNumber(),
-			})
-		case *transactions.CloseFeeCreditWrapper:
-			fcb, err := p.store.GetFeeCreditBill(tx.Transaction.UnitId)
-			if err != nil {
-				return err
-			}
-			return p.store.SetFeeCreditBill(&FeeCreditBill{
-				Id:            tx.Transaction.UnitId,
-				Value:         fcb.GetValue() - tx.CloseFC.Amount,
-				TxHash:        tx.Hash(crypto.SHA256),
-				FCBlockNumber: b.GetRoundNumber(),
-			})
-		default:
-			// decrement fee credit bill value if tx is not fee credit tx i.e. a normal tx
-			if err := p.updateFCB(inTx, b.GetRoundNumber()); err != nil {
-				return fmt.Errorf("failed to update fee credit bill %w", err)
-			}
+	switch tx := gtx.(type) {
+	case *transactions.AddFeeCreditWrapper:
+		fcb, err := p.store.GetFeeCreditBill(tx.Transaction.UnitId)
+		if err != nil {
+			return err
+		}
+		return p.store.SetFeeCreditBill(&FeeCreditBill{
+			Id:            tx.Transaction.UnitId,
+			Value:         fcb.GetValue() + tx.TransferFC.TransferFC.Amount - tx.Transaction.ServerMetadata.Fee,
+			TxHash:        tx.Hash(crypto.SHA256),
+			FCBlockNumber: b.GetRoundNumber(),
+		}, proof)
+	case *transactions.CloseFeeCreditWrapper:
+		fcb, err := p.store.GetFeeCreditBill(tx.Transaction.UnitId)
+		if err != nil {
+			return err
+		}
+		return p.store.SetFeeCreditBill(&FeeCreditBill{
+			Id:            tx.Transaction.UnitId,
+			Value:         fcb.GetValue() - tx.CloseFC.Amount,
+			TxHash:        tx.Hash(crypto.SHA256),
+			FCBlockNumber: b.GetRoundNumber(),
+		}, proof)
+	default:
+		// decrement fee credit bill value if tx is not fee credit tx i.e. a normal tx
+		if err := p.updateFCB(inTx, b.GetRoundNumber()); err != nil {
+			return fmt.Errorf("failed to update fee credit bill %w", err)
 		}
 	}
 
@@ -320,5 +317,5 @@ func (p *blockProcessor) updateFCB(tx *txsystem.Transaction, roundNumber uint64)
 	}
 	fcb.Value -= tx.ServerMetadata.Fee
 	fcb.FCBlockNumber = roundNumber
-	return p.store.SetFeeCreditBill(fcb)
+	return p.store.SetFeeCreditBill(fcb, nil)
 }

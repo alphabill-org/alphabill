@@ -175,7 +175,7 @@ type mockStorage struct {
 	saveTTypeCreator func(id TokenTypeID, kind Kind, creator PubKey) error
 	getTxProof       func(unitID UnitID, txHash TxHash) (*Proof, error)
 	getFeeCreditBill func(unitID UnitID) (*FeeCreditBill, error)
-	setFeeCreditBill func(fcb *FeeCreditBill) error
+	setFeeCreditBill func(fcb *FeeCreditBill, proof *Proof) error
 }
 
 func (ms *mockStorage) Close() error { return nil }
@@ -264,9 +264,9 @@ func (ms *mockStorage) GetFeeCreditBill(unitID UnitID) (*FeeCreditBill, error) {
 	return nil, fmt.Errorf("unexpected GetFeeCredit call")
 }
 
-func (ms *mockStorage) SetFeeCreditBill(fcb *FeeCreditBill) error {
+func (ms *mockStorage) SetFeeCreditBill(fcb *FeeCreditBill, proof *Proof) error {
 	if ms.setFeeCreditBill != nil {
-		return ms.setFeeCreditBill(fcb)
+		return ms.setFeeCreditBill(fcb, proof)
 	}
 	return fmt.Errorf("unexpected SetFeeCreditBill(%X) call", fcb.GetID())
 }

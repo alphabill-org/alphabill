@@ -18,6 +18,7 @@ import (
 	ttxs "github.com/alphabill-org/alphabill/internal/txsystem/tokens"
 	"github.com/alphabill-org/alphabill/pkg/wallet/account"
 	"github.com/alphabill-org/alphabill/pkg/wallet/log"
+	"github.com/alphabill-org/alphabill/pkg/wallet/money/tx_builder"
 	"github.com/alphabill-org/alphabill/pkg/wallet/tokens/backend"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/anypb"
@@ -45,6 +46,10 @@ type (
 func (w *Wallet) newType(ctx context.Context, accNr uint64, attrs AttrWithSubTypeCreationInputs, typeId backend.TokenTypeID, subtypePredicateArgs []*PredicateInput) (backend.TokenTypeID, error) {
 	if accNr < 1 {
 		return nil, fmt.Errorf("invalid account number: %d", accNr)
+	}
+	err := w.ensureFeeCredit(ctx, accNr-1, 1)
+	if err != nil {
+		return nil, err
 	}
 	acc, err := w.am.GetAccountKey(accNr - 1)
 	if err != nil {
@@ -95,6 +100,10 @@ func (w *Wallet) newToken(ctx context.Context, accNr uint64, attrs MintAttr, tok
 	if accNr < 1 {
 		return nil, fmt.Errorf("invalid account number: %d", accNr)
 	}
+	err := w.ensureFeeCredit(ctx, accNr-1, 1)
+	if err != nil {
+		return nil, err
+	}
 	key, err := w.am.GetAccountKey(accNr - 1)
 	if err != nil {
 		return nil, err
@@ -143,7 +152,7 @@ func (w *Wallet) prepareTx(ctx context.Context, unitId backend.UnitID, attrs pro
 	if err != nil {
 		return nil, err
 	}
-	tx := createTx(w.systemID, unitId, roundNumber+txTimeoutRoundCount)
+	tx := createTx(w.systemID, unitId, roundNumber+txTimeoutRoundCount, ac.PrivKeyHash)
 	err = anypb.MarshalFrom(tx.TransactionAttributes, attrs, proto.MarshalOptions{})
 	if err != nil {
 		return nil, err
@@ -164,12 +173,14 @@ func (w *Wallet) prepareTx(ctx context.Context, unitId backend.UnitID, attrs pro
 		return nil, err
 	}
 	tx.OwnerProof = sig
-	// convert again for hashing as the tx might have been modified
-	tx.ServerMetadata = &txsystem.ServerMetadata{Fee: 0} // TODO server metadata changes the hash
 	gtx, err = ttxs.NewGenericTx(tx)
 	if err != nil {
 		return nil, err
 	}
+	// TODO should not rely on server metadata
+	gtx.SetServerMetadata(&txsystem.ServerMetadata{Fee: 1})
+
+	// convert again for hashing as the tx might have been modified
 	txSub := &txSubmission{
 		id:     unitId,
 		tx:     tx,
@@ -342,7 +353,6 @@ func (w *Wallet) doSendMultiple(ctx context.Context, amount uint64, tokens []*ba
 	sort.Slice(tokens, func(i, j int) bool {
 		return tokens[i].Amount > tokens[j].Amount
 	})
-
 	batch := &txSubmissionBatch{
 		sender:  acc.PubKey,
 		backend: w.backend,
@@ -383,12 +393,16 @@ func (w *Wallet) prepareSplitOrTransferTx(ctx context.Context, acc *account.Acco
 	return sub, nil
 }
 
-func createTx(systemID []byte, unitId []byte, timeout uint64) *txsystem.Transaction {
+func createTx(systemID []byte, unitId []byte, timeout uint64, fcrID []byte) *txsystem.Transaction {
 	return &txsystem.Transaction{
 		SystemId:              systemID,
 		UnitId:                unitId,
 		TransactionAttributes: new(anypb.Any),
-		ClientMetadata:        &txsystem.ClientMetadata{Timeout: timeout},
+		ClientMetadata: &txsystem.ClientMetadata{
+			Timeout:           timeout,
+			MaxFee:            tx_builder.MaxFee,
+			FeeCreditRecordId: fcrID,
+		},
 		// OwnerProof is added after whole transaction is built
 	}
 }

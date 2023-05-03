@@ -47,7 +47,7 @@ const (
 	iconFileExtSvgzType = "image/svg+xml; encoding=gzip"
 
 	maxBinaryFile64KiB = 64 * 1024
-	maxDecimalPlaces  = 8
+	maxDecimalPlaces   = 8
 )
 
 var NoParent = []byte{0x00}
@@ -843,7 +843,7 @@ func initTokensWallet(cmd *cobra.Command, config *walletConfig) (*tokens.Wallet,
 	if err != nil {
 		return nil, err
 	}
-	tw, err := tokens.New(ttxs.DefaultTokenTxSystemIdentifier, uri, am, confirmTx)
+	tw, err := tokens.New(ttxs.DefaultTokenTxSystemIdentifier, uri, am, confirmTx, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -962,7 +962,7 @@ func readFile(path string, flag string, sizeLimit int64) ([]byte, error) {
 		return nil, fmt.Errorf("%s read error: %w", flag, err)
 	}
 	if size > sizeLimit {
-		return nil, fmt.Errorf("%s read error: file size over %vKiB limit", flag, sizeLimit / 1024)
+		return nil, fmt.Errorf("%s read error: file size over %vKiB limit", flag, sizeLimit/1024)
 	}
 	data, err := os.ReadFile(path)
 	if err != nil {

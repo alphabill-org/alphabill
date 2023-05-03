@@ -53,7 +53,7 @@ type Storage interface {
 	GetTxProof(unitID UnitID, txHash TxHash) (*Proof, error)
 
 	GetFeeCreditBill(unitID UnitID) (*FeeCreditBill, error)
-	SetFeeCreditBill(fcb *FeeCreditBill) error
+	SetFeeCreditBill(fcb *FeeCreditBill, proof *Proof) error
 }
 
 /*

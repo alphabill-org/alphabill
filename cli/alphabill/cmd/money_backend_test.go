@@ -31,7 +31,7 @@ func TestMoneyBackendCLI(t *testing.T) {
 	}
 	initialBillID := util.Uint256ToBytes(initialBill.ID)
 	initialBillHex := hexutil.Encode(initialBillID)
-	network := startAlphabillPartition(t, initialBill)
+	network := startMoneyPartition(t, initialBill)
 	alphabillNodeAddr := network.Nodes[0].AddrGRPC
 
 	// transfer initial bill to wallet pubkey

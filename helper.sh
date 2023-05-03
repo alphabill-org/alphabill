@@ -23,7 +23,7 @@ echo "$addresses"
 
 function generate_log_configuration() {
   # to iterate over all home directories
-  for homedir in testab/*; do
+  for homedir in testab/*/; do
     # generate log file itself
     cat <<EOT >> "$homedir/logger-config.yaml"
 # File name to log to. If not set, logs to stdout.
@@ -54,6 +54,7 @@ EOT
 # expects two arguments
 # $1 alphabill partition type ('money', 'vd', 'tokens') or root as string
 # $2 nof genesis files to generate
+# $3 custom cli args
 function generate_partition_node_genesis() {
 local cmd=""
 local home=""
@@ -79,7 +80,7 @@ esac
 for i in $(seq 1 "$2")
 do
   # "-g" flags also generates keys
-  build/alphabill "$cmd" --home "${home}$i" -g
+  build/alphabill "$cmd" --home "${home}$i" -g "$3"
 done
 }
 
@@ -93,6 +94,9 @@ function generate_root_genesis() {
   local node_genesis_files=""
   for file in testab/money*/money/node-genesis.json testab/vd*/vd/node-genesis.json testab/tokens*/tokens/node-genesis.json
   do
+    if [[ ! -f $file ]]; then
+      continue
+    fi
     node_genesis_files="$node_genesis_files -p $file"
   done
   build/alphabill root-genesis new --home testab/rootchain1 -g --total-nodes=1 $node_genesis_files

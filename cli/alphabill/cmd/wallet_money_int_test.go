@@ -36,7 +36,7 @@ func TestSendingMoneyBetweenWallets(t *testing.T) {
 		Value: 1e18,
 		Owner: script.PredicateAlwaysTrue(),
 	}
-	network := startAlphabillPartition(t, initialBill)
+	network := startMoneyPartition(t, initialBill)
 	alphabillNodeAddr := network.Nodes[0].AddrGRPC
 
 	// start wallet backend
@@ -91,7 +91,7 @@ func TestSendingMoneyBetweenWallets(t *testing.T) {
 	// create fee credit for wallet-1
 	feeAmountAlpha := uint64(1)
 	stdout := execWalletCmd(t, alphabillNodeAddr, homedir1, fmt.Sprintf("fees add --amount %d", feeAmountAlpha))
-	verifyStdout(t, stdout, fmt.Sprintf("Successfully created %d fee credits.", feeAmountAlpha))
+	verifyStdout(t, stdout, fmt.Sprintf("Successfully created %d fee credits on money partition.", feeAmountAlpha))
 
 	// verify fee credit received
 	w1BalanceBilly = w1BalanceBilly - feeAmountAlpha*1e8 - txFeeBilly
@@ -118,7 +118,7 @@ func TestSendingMoneyBetweenWallets(t *testing.T) {
 
 	// create fee credit for wallet-2
 	stdout = execWalletCmd(t, alphabillNodeAddr, homedir2, fmt.Sprintf("fees add --amount %d", feeAmountAlpha))
-	verifyStdout(t, stdout, fmt.Sprintf("Successfully created %d fee credits.", feeAmountAlpha))
+	verifyStdout(t, stdout, fmt.Sprintf("Successfully created %d fee credits on money partition.", feeAmountAlpha))
 
 	// verify fee credit received for wallet-2
 	w2BalanceBilly = w2BalanceBilly - feeAmountAlpha*1e8 - txFeeBilly
@@ -151,7 +151,7 @@ func TestSendingMoneyBetweenWalletAccounts(t *testing.T) {
 		Value: 1e18,
 		Owner: script.PredicateAlwaysTrue(),
 	}
-	network := startAlphabillPartition(t, initialBill)
+	network := startMoneyPartition(t, initialBill)
 	alphabillNodeAddr := network.Nodes[0].AddrGRPC
 
 	// start wallet backend
@@ -202,7 +202,7 @@ func TestSendingMoneyBetweenWalletAccounts(t *testing.T) {
 	// create fee credit for account 1
 	feeAmountAlpha := uint64(1)
 	stdout := execWalletCmd(t, alphabillNodeAddr, homedir, fmt.Sprintf("fees add --amount %d", feeAmountAlpha))
-	verifyStdout(t, stdout, fmt.Sprintf("Successfully created %d fee credits.", feeAmountAlpha))
+	verifyStdout(t, stdout, fmt.Sprintf("Successfully created %d fee credits on money partition.", feeAmountAlpha))
 
 	// verify fee credit received
 	acc1BalanceBilly = acc1BalanceBilly - feeAmountAlpha*1e8 - txFeeBilly
@@ -229,7 +229,7 @@ func TestSendingMoneyBetweenWalletAccounts(t *testing.T) {
 
 	// create fee credit for account 2
 	stdout = execWalletCmd(t, alphabillNodeAddr, homedir, fmt.Sprintf("fees add --amount %d -k 2", feeAmountAlpha))
-	verifyStdout(t, stdout, fmt.Sprintf("Successfully created %d fee credits.", feeAmountAlpha))
+	verifyStdout(t, stdout, fmt.Sprintf("Successfully created %d fee credits on money partition.", feeAmountAlpha))
 
 	// verify fee credit received
 	waitForFeeCreditCLI(t, homedir, defaultAlphabillApiURL, feeAmountAlpha*1e8-txFeeBilly, 1)

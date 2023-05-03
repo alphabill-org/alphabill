@@ -1,4 +1,4 @@
-package money
+package tx_builder
 
 import (
 	"testing"
@@ -7,14 +7,20 @@ import (
 	"github.com/alphabill-org/alphabill/internal/script"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	moneytx "github.com/alphabill-org/alphabill/internal/txsystem/money"
+	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/alphabill-org/alphabill/pkg/wallet/account"
+	"github.com/alphabill-org/alphabill/pkg/wallet/backend/bp"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
 )
 
-var receiverPubKey, _ = hexutil.Decode("0x1234511c7341399e876800a268855c894c43eb849a72ac5a9d26a0091041c12345")
-var accountKey, _ = account.NewKeys(testMnemonic)
+const testMnemonic = "dinosaur simple verify deliver bless ridge monkey design venue six problem lucky"
+
+var (
+	receiverPubKey, _ = hexutil.Decode("0x1234511c7341399e876800a268855c894c43eb849a72ac5a9d26a0091041c12345")
+	accountKey, _     = account.NewKeys(testMnemonic)
+)
 
 func TestSplitTransactionAmount(t *testing.T) {
 	receiverPubKey, _ := hexutil.Decode("0x1234511c7341399e876800a268855c894c43eb849a72ac5a9d26a0091041c12345")
@@ -23,8 +29,8 @@ func TestSplitTransactionAmount(t *testing.T) {
 	billId := uint256.NewInt(0)
 	billIdBytes32 := billId.Bytes32()
 	billIdBytes := billIdBytes32[:]
-	b := &Bill{
-		Id:     billId,
+	b := &bp.Bill{
+		Id:     billIdBytes,
 		Value:  500,
 		TxHash: []byte{1, 2, 3, 4},
 	}
@@ -32,7 +38,7 @@ func TestSplitTransactionAmount(t *testing.T) {
 	timeout := uint64(100)
 	systemId := []byte{0, 0, 0, 0}
 
-	tx, err := createSplitTx(amount, receiverPubKey, keys.AccountKey, systemId, b, timeout, nil)
+	tx, err := CreateSplitTx(amount, receiverPubKey, keys.AccountKey, systemId, b, timeout, nil)
 	require.NoError(t, err)
 	require.NotNil(t, tx)
 	require.EqualValues(t, systemId, tx.SystemId)
@@ -52,7 +58,7 @@ func TestSplitTransactionAmount(t *testing.T) {
 func TestCreateTransactions(t *testing.T) {
 	tests := []struct {
 		name        string
-		bills       []*Bill
+		bills       []*bp.Bill
 		amount      uint64
 		txCount     int
 		verify      func(t *testing.T, systemId []byte, txs []*txsystem.Transaction)
@@ -60,7 +66,7 @@ func TestCreateTransactions(t *testing.T) {
 	}{
 		{
 			name:   "have more bills than target amount",
-			bills:  []*Bill{createBill(5), createBill(3), createBill(1)},
+			bills:  []*bp.Bill{createBill(5), createBill(3), createBill(1)},
 			amount: uint64(7),
 			verify: func(t *testing.T, systemId []byte, txs []*txsystem.Transaction) {
 				// verify tx count
@@ -80,7 +86,7 @@ func TestCreateTransactions(t *testing.T) {
 			},
 		}, {
 			name:   "have less bills than target amount",
-			bills:  []*Bill{createBill(5), createBill(1)},
+			bills:  []*bp.Bill{createBill(5), createBill(1)},
 			amount: uint64(7),
 			verify: func(t *testing.T, systemId []byte, txs []*txsystem.Transaction) {
 				require.Empty(t, txs)
@@ -88,7 +94,7 @@ func TestCreateTransactions(t *testing.T) {
 			expectedErr: ErrInsufficientBalance,
 		}, {
 			name:   "have exact amount of bills than target amount",
-			bills:  []*Bill{createBill(5), createBill(5)},
+			bills:  []*bp.Bill{createBill(5), createBill(5)},
 			amount: uint64(10),
 			verify: func(t *testing.T, systemId []byte, txs []*txsystem.Transaction) {
 				// verify tx count
@@ -104,7 +110,7 @@ func TestCreateTransactions(t *testing.T) {
 			},
 		}, {
 			name:   "have exactly one bill with equal target amount",
-			bills:  []*Bill{createBill(5)},
+			bills:  []*bp.Bill{createBill(5)},
 			amount: uint64(5),
 			verify: func(t *testing.T, systemId []byte, txs []*txsystem.Transaction) {
 				// verify tx count
@@ -122,7 +128,7 @@ func TestCreateTransactions(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			txs, err := createTransactions(receiverPubKey, tt.amount, systemId, tt.bills, accountKey.AccountKey, 100, nil)
+			txs, err := CreateTransactions(receiverPubKey, tt.amount, systemId, tt.bills, accountKey.AccountKey, 100, nil)
 			if tt.expectedErr != nil {
 				require.ErrorIs(t, err, tt.expectedErr)
 				require.Nil(t, txs)
@@ -135,10 +141,10 @@ func TestCreateTransactions(t *testing.T) {
 	}
 }
 
-func createBill(value uint64) *Bill {
-	return &Bill{
+func createBill(value uint64) *bp.Bill {
+	return &bp.Bill{
 		Value:  value,
-		Id:     uint256.NewInt(0),
+		Id:     util.Uint64ToBytes32(0),
 		TxHash: []byte{},
 	}
 }

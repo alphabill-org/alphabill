@@ -15,6 +15,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/alphabill-org/alphabill/pkg/wallet/backend/bp"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"google.golang.org/protobuf/encoding/protojson"
 
@@ -159,6 +160,35 @@ func (tb *TokenBackend) PostTransactions(ctx context.Context, pubKey backend.Pub
 		return errors.New(strings.TrimSpace(msg))
 	}
 	return nil
+}
+
+func (tb *TokenBackend) GetFeeCreditBill(ctx context.Context, unitID backend.UnitID) (*backend.FeeCreditBill, error) {
+	var fcb *backend.FeeCreditBill
+	addr := tb.getURL(apiPathPrefix, "fee-credit-bills", hexutil.Encode(unitID))
+	_, err := tb.get(ctx, addr, &fcb, false)
+	if err != nil {
+		if errors.Is(err, ErrNotFound) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("get fee credit bill request failed: %w", err)
+	}
+	return fcb, nil
+}
+
+func (tb *TokenBackend) FetchFeeCreditBill(ctx context.Context, unitID []byte) (*bp.Bill, error) {
+	fcb, err := tb.GetFeeCreditBill(ctx, unitID)
+	if err != nil {
+		return nil, err
+	}
+	if fcb == nil {
+		return nil, nil
+	}
+	return &bp.Bill{
+		Id:            fcb.Id,
+		Value:         fcb.Value,
+		TxHash:        fcb.TxHash,
+		FcBlockNumber: fcb.FCBlockNumber,
+	}, nil
 }
 
 func (tb *TokenBackend) getURL(pathElements ...string) *url.URL {

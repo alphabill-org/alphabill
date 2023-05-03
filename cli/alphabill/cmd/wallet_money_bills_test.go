@@ -233,7 +233,7 @@ func spendInitialBillWithFeeCredits(t *testing.T, network *testpartition.Alphabi
 	// verify proof
 	gtx, err := moneytx.NewMoneyTx([]byte{0, 0, 0, 0}, transferFC)
 	require.NoError(t, err)
-	require.NoError(t, transferFCProof.Verify(unitID, gtx, network.TrustBase, crypto.SHA256))
+	require.NoError(t, transferFCProof.Verify(unitID, gtx, network.RootPartition.TrustBase, crypto.SHA256))
 
 	// create addFC
 	addFC, err := createAddFC(fcrID, script.PredicateAlwaysTrue(), transferFC, transferFCProof, absoluteTimeout, feeAmount)

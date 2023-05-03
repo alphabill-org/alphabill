@@ -36,7 +36,7 @@ func Test_Load(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	w, err := New(ttxs.DefaultTokenTxSystemIdentifier, srv.URL, nil, false)
+	w, err := New(ttxs.DefaultTokenTxSystemIdentifier, srv.URL, nil, false, nil)
 	require.NoError(t, err)
 
 	rn, err := w.getRoundNumber(context.Background())
@@ -258,6 +258,14 @@ func TestNewTypes(t *testing.T) {
 		getRoundNumber: func(ctx context.Context) (uint64, error) {
 			return 1, nil
 		},
+		getFeeCreditBill: func(ctx context.Context, unitID backend.UnitID) (*backend.FeeCreditBill, error) {
+			return &backend.FeeCreditBill{
+				Id:            []byte{1},
+				Value:         100000,
+				TxHash:        []byte{2},
+				FCBlockNumber: 3,
+			}, nil
+		},
 	}
 	tw := initTestWallet(t, be)
 
@@ -286,7 +294,7 @@ func TestNewTypes(t *testing.T) {
 		require.Equal(t, a.Icon.Type, newFungibleTx.Icon.Type)
 		require.Equal(t, a.Icon.Data, newFungibleTx.Icon.Data)
 		require.Equal(t, a.DecimalPlaces, newFungibleTx.DecimalPlaces)
-		require.EqualValues(t, tx.Timeout(), 101)
+		require.EqualValues(t, tx.Timeout(), 11)
 
 		// new subtype
 		b := &ttxs.CreateFungibleTokenTypeAttributes{
@@ -338,6 +346,14 @@ func TestMintFungibleToken(t *testing.T) {
 		},
 		getRoundNumber: func(ctx context.Context) (uint64, error) {
 			return 1, nil
+		},
+		getFeeCreditBill: func(ctx context.Context, unitID backend.UnitID) (*backend.FeeCreditBill, error) {
+			return &backend.FeeCreditBill{
+				Id:            []byte{1},
+				Value:         100000,
+				TxHash:        []byte{2},
+				FCBlockNumber: 3,
+			}, nil
 		},
 	}
 	tw := initTestWallet(t, be)
@@ -398,6 +414,14 @@ func TestSendFungible(t *testing.T) {
 				{ID: test.RandomBytes(32), Kind: backend.Fungible, Symbol: "AB", TypeID: typeId, Amount: 7},
 				{ID: test.RandomBytes(32), Kind: backend.Fungible, Symbol: "AB", TypeID: typeId, Amount: 18},
 			}, "", nil
+		},
+		getFeeCreditBill: func(ctx context.Context, unitID backend.UnitID) (*backend.FeeCreditBill, error) {
+			return &backend.FeeCreditBill{
+				Id:            []byte{1},
+				Value:         100000,
+				TxHash:        []byte{2},
+				FCBlockNumber: 3,
+			}, nil
 		},
 		postTransactions: func(ctx context.Context, pubKey backend.PubKey, txs *txsystem.Transactions) error {
 			recTxs = append(recTxs, txs.Transactions...)
@@ -544,6 +568,14 @@ func TestMintNFT(t *testing.T) {
 		getRoundNumber: func(ctx context.Context) (uint64, error) {
 			return 1, nil
 		},
+		getFeeCreditBill: func(ctx context.Context, unitID backend.UnitID) (*backend.FeeCreditBill, error) {
+			return &backend.FeeCreditBill{
+				Id:            []byte{1},
+				Value:         100000,
+				TxHash:        []byte{2},
+				FCBlockNumber: 3,
+			}, nil
+		},
 	}
 	tw := initTestWallet(t, be)
 	_, _, err := tw.am.AddAccount()
@@ -628,6 +660,14 @@ func TestTransferNFT(t *testing.T) {
 		getRoundNumber: func(ctx context.Context) (uint64, error) {
 			return 1, nil
 		},
+		getFeeCreditBill: func(ctx context.Context, unitID backend.UnitID) (*backend.FeeCreditBill, error) {
+			return &backend.FeeCreditBill{
+				Id:            []byte{1},
+				Value:         100000,
+				TxHash:        []byte{2},
+				FCBlockNumber: 3,
+			}, nil
+		},
 	}
 	tw := initTestWallet(t, be)
 
@@ -689,6 +729,14 @@ func TestUpdateNFTData(t *testing.T) {
 		},
 		getRoundNumber: func(ctx context.Context) (uint64, error) {
 			return 1, nil
+		},
+		getFeeCreditBill: func(ctx context.Context, unitID backend.UnitID) (*backend.FeeCreditBill, error) {
+			return &backend.FeeCreditBill{
+				Id:            []byte{1},
+				Value:         100000,
+				TxHash:        []byte{2},
+				FCBlockNumber: 3,
+			}, nil
 		},
 	}
 	tw := initTestWallet(t, be)
@@ -804,6 +852,14 @@ func TestFungibleTokenDC(t *testing.T) {
 		getRoundNumber: func(ctx context.Context) (uint64, error) {
 			return 1, nil
 		},
+		getFeeCreditBill: func(ctx context.Context, unitID backend.UnitID) (*backend.FeeCreditBill, error) {
+			return &backend.FeeCreditBill{
+				Id:            []byte{1},
+				Value:         100000,
+				TxHash:        []byte{2},
+				FCBlockNumber: 3,
+			}, nil
+		},
 	}
 	tw := initTestWallet(t, be)
 	tw.am = am
@@ -918,6 +974,7 @@ type mockTokenBackend struct {
 	postTransactions func(ctx context.Context, pubKey backend.PubKey, txs *txsystem.Transactions) error
 	getTypeHierarchy func(ctx context.Context, id backend.TokenTypeID) ([]backend.TokenUnitType, error)
 	getTxProof       func(ctx context.Context, unitID backend.UnitID, txHash backend.TxHash) (*backend.Proof, error)
+	getFeeCreditBill func(ctx context.Context, unitID backend.UnitID) (*backend.FeeCreditBill, error)
 }
 
 func (m *mockTokenBackend) GetToken(ctx context.Context, id backend.TokenID) (*backend.TokenUnit, error) {
@@ -967,6 +1024,13 @@ func (m *mockTokenBackend) GetTxProof(ctx context.Context, unitID backend.UnitID
 		return m.getTxProof(ctx, unitID, txHash)
 	}
 	return nil, fmt.Errorf("GetTxProof not implemented")
+}
+
+func (m *mockTokenBackend) GetFeeCreditBill(ctx context.Context, unitID backend.UnitID) (*backend.FeeCreditBill, error) {
+	if m.getFeeCreditBill != nil {
+		return m.getFeeCreditBill(ctx, unitID)
+	}
+	return nil, fmt.Errorf("GetFeeCreditBill not implemented")
 }
 
 func getSubarray[T interface{}](array []T, offsetKey string) ([]T, string, error) {

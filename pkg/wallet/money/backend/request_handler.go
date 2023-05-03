@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"sort"
 	"strconv"
 
@@ -31,6 +32,7 @@ type (
 		ListBillsPageLimit int
 	}
 
+	// TODO: perhaps pass the total number of elements in a response header
 	ListBillsResponse struct {
 		Total int           `json:"total" example:"1"`
 		Bills []*ListBillVM `json:"bills"`
@@ -140,8 +142,10 @@ func (s *RequestHandler) listBillsFunc(w http.ResponseWriter, r *http.Request) {
 	if offset > len(bills) {
 		offset = len(bills)
 	}
-	if offset+limit > len(bills) {
+	if offset + limit > len(bills) {
 		limit = len(bills) - offset
+	} else {
+		setLinkHeader(r.URL, w, offset + limit)
 	}
 	res := newListBillsResponse(bills, limit, offset)
 	writeAsJson(w, res)
@@ -363,6 +367,17 @@ func (s *RequestHandler) parsePagingParams(r *http.Request) (int, int) {
 		offset = 0
 	}
 	return limit, offset
+}
+
+func setLinkHeader(u *url.URL, w http.ResponseWriter, offset int) {
+	if offset < 0 {
+		w.Header().Del("Link")
+		return
+	}
+	qp := u.Query()
+	qp.Set("offset", strconv.Itoa(offset))
+	u.RawQuery = qp.Encode()
+	w.Header().Set("Link", fmt.Sprintf(`<%s>; rel="next"`, u))
 }
 
 func writeAsJson(w http.ResponseWriter, res interface{}) {

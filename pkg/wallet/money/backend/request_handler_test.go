@@ -5,6 +5,9 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
+	"regexp"
+	"strconv"
 	"syscall"
 	"testing"
 	"time"
@@ -209,6 +212,21 @@ func TestListBillsRequest_Paging(t *testing.T) {
 	require.EqualValues(t, 100, res.Bills[0].Value)
 	require.EqualValues(t, 199, res.Bills[99].Value)
 
+	// verify Link header of the response
+	var linkHdrMatcher = regexp.MustCompile("<(.*)>")
+	match := linkHdrMatcher.FindStringSubmatch(httpRes.Header.Get("Link"))
+	if len(match) != 2 {
+		t.Errorf("Link header didn't result in expected match\nHeader: %s\nmatches: %v\n", httpRes.Header.Get("Link"), match)
+	} else {
+		u, err := url.Parse(match[1])
+		if err != nil {
+			t.Fatal("failed to parse Link header:", err)
+		}
+		if s := u.Query().Get("offset"); s != strconv.Itoa(200) {
+			t.Errorf("expected %v got %s", 200, s)
+		}
+	}
+
 	// verify limit limits result size
 	res = &ListBillsResponse{}
 	httpRes, err = testhttp.DoGet(fmt.Sprintf("http://localhost:%d/api/v1/list-bills?pubkey=%s&offset=100&limit=50", port, pubkeyHex), res)
@@ -246,6 +264,11 @@ func TestListBillsRequest_Paging(t *testing.T) {
 	require.Len(t, res.Bills, 10)
 	require.EqualValues(t, 190, res.Bills[0].Value)
 	require.EqualValues(t, 199, res.Bills[9].Value)
+
+	// verify no Link header in the response
+	if link := httpRes.Header.Get("Link"); link != "" {
+		t.Errorf("unexpectedly the Link header is not empty, got %q", link)
+	}
 }
 
 func TestBalanceRequest_Ok(t *testing.T) {

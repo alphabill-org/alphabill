@@ -228,7 +228,7 @@ func testFeeCredits(t *testing.T, db *storage) {
 		{Id: []byte{3}, Value: 3, TxHash: []byte{3}},
 	}
 	for _, b := range fcbs {
-		err = db.SetFeeCreditBill(b)
+		err = db.SetFeeCreditBill(b, nil)
 		require.NoError(t, err)
 	}
 

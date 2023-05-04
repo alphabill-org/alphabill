@@ -414,9 +414,10 @@ func TestExecuteCreateNFTType_InvalidNameLength(t *testing.T) {
 		txs.ConvertTx,
 		testtransaction.WithUnitId(util.Uint256ToBytes(unitIdentifier)),
 		testtransaction.WithSystemID(DefaultTokenTxSystemIdentifier),
+		testtransaction.WithClientMetadata(defaultClientMetadata),
 		testtransaction.WithAttributes(&CreateNonFungibleTokenTypeAttributes{
 			Symbol: symbol,
-			Name: n,
+			Name:   n,
 		}),
 	)
 	require.ErrorContains(t, txs.Execute(tx), ErrStrInvalidNameLength)
@@ -429,9 +430,10 @@ func TestExecuteCreateNFTType_InvalidIconTypeLength(t *testing.T) {
 		txs.ConvertTx,
 		testtransaction.WithUnitId(util.Uint256ToBytes(unitIdentifier)),
 		testtransaction.WithSystemID(DefaultTokenTxSystemIdentifier),
+		testtransaction.WithClientMetadata(defaultClientMetadata),
 		testtransaction.WithAttributes(&CreateNonFungibleTokenTypeAttributes{
 			Symbol: symbol,
-			Icon: &Icon{Type: invalidIconType, Data: []byte{1, 2, 3}},
+			Icon:   &Icon{Type: invalidIconType, Data: []byte{1, 2, 3}},
 		}),
 	)
 	require.ErrorContains(t, txs.Execute(tx), ErrStrInvalidIconTypeLength)
@@ -444,9 +446,10 @@ func TestExecuteCreateNFTType_InvalidIconDataLength(t *testing.T) {
 		txs.ConvertTx,
 		testtransaction.WithUnitId(util.Uint256ToBytes(unitIdentifier)),
 		testtransaction.WithSystemID(DefaultTokenTxSystemIdentifier),
+		testtransaction.WithClientMetadata(defaultClientMetadata),
 		testtransaction.WithAttributes(&CreateNonFungibleTokenTypeAttributes{
 			Symbol: symbol,
-			Icon: &Icon{Type: validIconType, Data: test.RandomBytes(maxIconDataLength + 1)},
+			Icon:   &Icon{Type: validIconType, Data: test.RandomBytes(maxIconDataLength + 1)},
 		}),
 	)
 	require.ErrorContains(t, txs.Execute(tx), ErrStrInvalidIconDataLength)
@@ -631,6 +634,7 @@ func TestMintNFT_URILengthIsInvalid(t *testing.T) {
 		txs.ConvertTx,
 		testtransaction.WithUnitId(unitID),
 		testtransaction.WithSystemID(DefaultTokenTxSystemIdentifier),
+		testtransaction.WithClientMetadata(defaultClientMetadata),
 		testtransaction.WithAttributes(&MintNonFungibleTokenAttributes{
 			Uri: test.RandomString(4097),
 		}),
@@ -1294,7 +1298,6 @@ func newTokenTxSystem(t *testing.T) *txsystem.GenericTxSystem {
 	txs, err := New(
 		WithTrustBase(map[string]crypto.Verifier{"test": verifier}),
 		WithState(state),
-		WithFeeCalculator(fc.FixedFee(0)), // 0 to disable fee module
 	)
 	require.NoError(t, err)
 	return txs

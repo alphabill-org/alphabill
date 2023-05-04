@@ -38,8 +38,8 @@ func CreateFeeCredit(t *testing.T, initialBillID []byte, network *testpartition.
 	// send addFC
 	_, transferFCProof, err := network.GetBlockProof(transferFC.Transaction, transactions.NewFeeCreditTx)
 	require.NoError(t, err)
-	addFC := testfc.NewAddFC(t, network.RootSigners[0],
-		testfc.NewAddFCAttr(t, network.RootSigners[0],
+	addFC := testfc.NewAddFC(t, network.RootPartition.RootSigners[0],
+		testfc.NewAddFCAttr(t, network.RootPartition.RootSigners[0],
 			testfc.WithTransferFCTx(transferFC.Transaction),
 			testfc.WithTransferFCProof(transferFCProof),
 			testfc.WithFCOwnerCondition(script.PredicateAlwaysTrue()),

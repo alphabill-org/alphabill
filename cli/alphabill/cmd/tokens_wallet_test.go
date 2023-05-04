@@ -16,10 +16,10 @@ import (
 	"github.com/alphabill-org/alphabill/internal/testutils/net"
 	testpartition "github.com/alphabill-org/alphabill/internal/testutils/partition"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
-	"github.com/alphabill-org/alphabill/internal/txsystem/fc"
 	"github.com/alphabill-org/alphabill/internal/txsystem/tokens"
 	"github.com/alphabill-org/alphabill/pkg/wallet/account"
 	wlog "github.com/alphabill-org/alphabill/pkg/wallet/log"
+	"github.com/alphabill-org/alphabill/pkg/wallet/money/fees"
 	tw "github.com/alphabill-org/alphabill/pkg/wallet/tokens"
 	twb "github.com/alphabill-org/alphabill/pkg/wallet/tokens/backend"
 	"github.com/alphabill-org/alphabill/pkg/wallet/tokens/client"
@@ -429,20 +429,26 @@ func ensureTokenTypeIndexed(t *testing.T, ctx context.Context, api *client.Token
 	return res
 }
 
-func startTokensPartition(t *testing.T) (*testpartition.AlphabillPartition, string) {
+func startTokensPartition(t *testing.T, opts ...testpartition.PartitionOption) (*testpartition.AlphabillPartition, string) {
 	tokensState := rma.NewWithSHA256()
 	require.NotNil(t, tokensState)
+
+	c := &testpartition.PartitionConf{}
+	for _, opt := range opts {
+		opt(c)
+	}
 
 	network, err := testpartition.NewNetwork(1,
 		func(tb map[string]abcrypto.Verifier) txsystem.TransactionSystem {
 			system, err := tokens.New(
 				tokens.WithState(tokensState),
 				tokens.WithTrustBase(tb),
-				tokens.WithFeeCalculator(fc.FixedFee(0)), // 0 to disable fee module
 			)
 			require.NoError(t, err)
 			return system
-		}, tokens.DefaultTokenTxSystemIdentifier)
+		}, tokens.DefaultTokenTxSystemIdentifier,
+		testpartition.WithRootPartition(c.RootPartition),
+	)
 	require.NoError(t, err)
 
 	t.Cleanup(func() {
@@ -481,13 +487,17 @@ func startTokensBackend(t *testing.T, nodeAddr string) (srvUri string, restApi *
 }
 
 func createNewTokenWallet(t *testing.T, addr string) (*tw.Wallet, string) {
+	return createNewTokenWalletWithFeeManager(t, addr, nil)
+}
+
+func createNewTokenWalletWithFeeManager(t *testing.T, addr string, feeManager *fees.FeeManager) (*tw.Wallet, string) {
 	homeDir := t.TempDir()
 	walletDir := filepath.Join(homeDir, "wallet")
 	am, err := account.NewManager(walletDir, "", true)
 	require.NoError(t, err)
 	require.NoError(t, am.CreateKeys(""))
 
-	w, err := tw.New(tokens.DefaultTokenTxSystemIdentifier, addr, am, false)
+	w, err := tw.New(tokens.DefaultTokenTxSystemIdentifier, addr, am, false, feeManager)
 	require.NoError(t, err)
 	require.NotNil(t, w)
 

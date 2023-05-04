@@ -15,7 +15,7 @@ import (
 )
 
 const (
-	txTimeoutRoundCount        = 100
+	txTimeoutRoundCount        = 10
 	AllAccounts         uint64 = 0
 
 	predicateEmpty = "empty"

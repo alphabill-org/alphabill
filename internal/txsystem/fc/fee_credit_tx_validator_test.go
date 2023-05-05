@@ -65,7 +65,7 @@ func TestAddFC(t *testing.T) {
 					testfc.WithFCOwnerCondition([]byte("wrong bearer")),
 				),
 			),
-			wantErrMsg: "addFC: invalid owner condition",
+			wantErrMsg: "invalid owner condition",
 		},
 		{
 			name: "Invalid systemID",
@@ -76,7 +76,7 @@ func TestAddFC(t *testing.T) {
 					).Transaction),
 				),
 			),
-			wantErrMsg: "addFC: invalid transferFC system identifier",
+			wantErrMsg: "invalid transferFC system identifier",
 		},
 		{
 			name: "Invalid target systemID",
@@ -87,7 +87,7 @@ func TestAddFC(t *testing.T) {
 					).Transaction),
 				),
 			),
-			wantErrMsg: "addFC: invalid transferFC target system identifier",
+			wantErrMsg: "invalid transferFC target system identifier",
 		},
 		{
 			name: "Invalid target recordID",
@@ -98,7 +98,7 @@ func TestAddFC(t *testing.T) {
 					).Transaction),
 				),
 			),
-			wantErrMsg: "addFC: invalid transferFC target record id",
+			wantErrMsg: "invalid transferFC target record id",
 		},
 		{
 			name: "Invalid nonce",
@@ -109,7 +109,7 @@ func TestAddFC(t *testing.T) {
 					).Transaction),
 				),
 			),
-			wantErrMsg: "addFC: invalid transferFC nonce",
+			wantErrMsg: "invalid transferFC nonce",
 		},
 		{
 			name: "EarliestAdditionTime in the future NOK",
@@ -121,7 +121,7 @@ func TestAddFC(t *testing.T) {
 				),
 			),
 			roundNumber: 10,
-			wantErrMsg:  "addFC: invalid transferFC timeout",
+			wantErrMsg:  "invalid transferFC timeout",
 		},
 		{
 			name: "EarliestAdditionTime next block OK",
@@ -144,7 +144,7 @@ func TestAddFC(t *testing.T) {
 				),
 			),
 			roundNumber: 10,
-			wantErrMsg:  "addFC: invalid transferFC timeout",
+			wantErrMsg:  "invalid transferFC timeout",
 		},
 		{
 			name: "LatestAdditionTime next block OK",
@@ -168,7 +168,7 @@ func TestAddFC(t *testing.T) {
 				testtransaction.WithClientMetadata(&txsystem.ClientMetadata{MaxFee: 101}),
 			),
 			roundNumber: 5,
-			wantErrMsg:  "addFC: invalid transferFC fee",
+			wantErrMsg:  "invalid transferFC fee",
 		},
 		{
 			name: "Invalid block proof",
@@ -206,14 +206,12 @@ func TestCloseFC(t *testing.T) {
 		name       string
 		unit       *rma.Unit
 		tx         *transactions.CloseFeeCreditWrapper
-		wantErr    error
 		wantErrMsg string
 	}{
 		{
-			name:    "Ok",
-			unit:    &rma.Unit{Data: &FeeCreditRecord{Balance: 50}},
-			tx:      testfc.NewCloseFC(t, nil),
-			wantErr: nil,
+			name: "Ok",
+			unit: &rma.Unit{Data: &FeeCreditRecord{Balance: 50}},
+			tx:   testfc.NewCloseFC(t, nil),
 		},
 		{
 			name:       "tx is nil",
@@ -241,19 +239,19 @@ func TestCloseFC(t *testing.T) {
 			name:       "Invalid unit nil",
 			unit:       nil,
 			tx:         testfc.NewCloseFC(t, nil),
-			wantErrMsg: "closeFC: unit is nil",
+			wantErrMsg: "unit is nil",
 		},
 		{
 			name:       "Invalid unit type",
 			unit:       &rma.Unit{Data: &testData{}},
 			tx:         testfc.NewCloseFC(t, nil),
-			wantErrMsg: "closeFC: unit data is not of type fee credit record",
+			wantErrMsg: "unit data is not of type fee credit record",
 		},
 		{
 			name:       "Invalid amount",
 			unit:       &rma.Unit{Data: &FeeCreditRecord{Balance: 50}},
 			tx:         testfc.NewCloseFC(t, testfc.NewCloseFCAttr(testfc.WithCloseFCAmount(51))),
-			wantErrMsg: "closeFC: invalid amount",
+			wantErrMsg: "invalid amount",
 		},
 		{
 			name: "Invalid fee",
@@ -261,7 +259,7 @@ func TestCloseFC(t *testing.T) {
 			tx: testfc.NewCloseFC(t, nil,
 				testtransaction.WithClientMetadata(&txsystem.ClientMetadata{MaxFee: 51}),
 			),
-			wantErrMsg: "closeFC: invalid fee",
+			wantErrMsg: "invalid fee",
 		},
 	}
 	for _, tt := range tests {
@@ -270,14 +268,10 @@ func TestCloseFC(t *testing.T) {
 				Tx:   tt.tx,
 				Unit: tt.unit,
 			})
-			if tt.wantErr == nil && tt.wantErrMsg == "" {
-				require.NoError(t, err)
-			}
-			if tt.wantErr != nil {
-				require.ErrorIs(t, err, tt.wantErr)
-			}
 			if tt.wantErrMsg != "" {
 				require.ErrorContains(t, err, tt.wantErrMsg)
+			} else {
+				require.NoError(t, err)
 			}
 		})
 	}

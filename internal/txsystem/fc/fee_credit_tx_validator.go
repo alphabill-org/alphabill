@@ -66,22 +66,22 @@ func (v *DefaultFeeCreditTxValidator) ValidateAddFeeCredit(ctx *AddFCValidationC
 	// 2. S.N[P.ι] = ⊥ ∨ S.N[P.ι].φ = P.A.φ – if the target exists, the owner condition matches
 	unit := ctx.Unit
 	if unit != nil && !bytes.Equal(unit.Bearer, tx.AddFC.FeeCreditOwnerCondition) {
-		return fmt.Errorf("addFC: invalid owner condition: expected=%X actual=%X", unit.Bearer, tx.AddFC.FeeCreditOwnerCondition)
+		return fmt.Errorf("invalid owner condition: expected=%X actual=%X", unit.Bearer, tx.AddFC.FeeCreditOwnerCondition)
 	}
 
 	// 4. P.A.P.α = P.αmoney ∧ P.A.P.τ = transFC – bill was transferred to fee credits
 	if !bytes.Equal(tx.AddFC.FeeCreditTransfer.SystemId, v.moneySystemID) {
-		return fmt.Errorf("addFC: invalid transferFC system identifier: expected_system_id=%X actual_system_id=%X", v.moneySystemID, tx.AddFC.FeeCreditTransfer.SystemId)
+		return fmt.Errorf("invalid transferFC system identifier: expected_system_id=%X actual_system_id=%X", v.moneySystemID, tx.AddFC.FeeCreditTransfer.SystemId)
 	}
 
 	// 5. P.A.P.A.α = P.α – bill was transferred to fee credits for this system
 	if !bytes.Equal(tx.TransferFC.TransferFC.TargetSystemIdentifier, v.systemID) {
-		return fmt.Errorf("addFC: invalid transferFC target system identifier: expected_target_system_id: %X actual_target_system_id=%X", v.systemID, tx.TransferFC.TransferFC.TargetSystemIdentifier)
+		return fmt.Errorf("invalid transferFC target system identifier: expected_target_system_id: %X actual_target_system_id=%X", v.systemID, tx.TransferFC.TransferFC.TargetSystemIdentifier)
 	}
 
 	// 6. P.A.P.A.ιf = P.ι – bill was transferred to fee credits of the target record
 	if !bytes.Equal(tx.TransferFC.TransferFC.TargetRecordId, tx.Transaction.UnitId) {
-		return fmt.Errorf("addFC: invalid transferFC target record id: transferFC.TargetRecordId=%X tx.UnitId=%X", tx.TransferFC.TransferFC.TargetRecordId, tx.Transaction.UnitId)
+		return fmt.Errorf("invalid transferFC target record id: transferFC.TargetRecordId=%X tx.UnitId=%X", tx.TransferFC.TransferFC.TargetRecordId, tx.Transaction.UnitId)
 	}
 
 	// 7. (S.N[P.ι] = ⊥ ∧ P.A.P.A.η = ⊥) ∨ (S.N[P.ι] != ⊥ ∧ P.A.P.A.η = S.N[P.ι].λ) – bill transfer order contains correct nonce
@@ -90,7 +90,7 @@ func (v *DefaultFeeCreditTxValidator) ValidateAddFeeCredit(ctx *AddFCValidationC
 		backlink = unit.StateHash
 	}
 	if !bytes.Equal(tx.TransferFC.TransferFC.Nonce, backlink) {
-		return fmt.Errorf("addFC: invalid transferFC nonce: transferFC.nonce=%X unit.backlink=%X", tx.TransferFC.TransferFC.Nonce, backlink)
+		return fmt.Errorf("invalid transferFC nonce: transferFC.nonce=%X unit.backlink=%X", tx.TransferFC.TransferFC.Nonce, backlink)
 	}
 
 	// 8. P.A.P.A.tb ≤ t ≤ P.A.P.A.te, where t is the number of the current block being composed – bill transfer is valid to be used in this block
@@ -98,12 +98,12 @@ func (v *DefaultFeeCreditTxValidator) ValidateAddFeeCredit(ctx *AddFCValidationC
 	te := tx.TransferFC.TransferFC.LatestAdditionTime
 	t := ctx.CurrentRoundNumber
 	if t < tb || t > te {
-		return fmt.Errorf("addFC: invalid transferFC timeout: earliest=%d latest=%d current=%d", tb, te, t)
+		return fmt.Errorf("invalid transferFC timeout: earliest=%d latest=%d current=%d", tb, te, t)
 	}
 
 	// 9. P.MC.fm ≤ P.A.P.A.v – the transaction fee can’t exceed the transferred value
 	if tx.Transaction.ClientMetadata.MaxFee > tx.TransferFC.TransferFC.Amount {
-		return fmt.Errorf("addFC: invalid transferFC fee: max_fee=%d transferFC.Amount=%d", tx.Transaction.ClientMetadata.MaxFee, tx.TransferFC.TransferFC.Amount)
+		return fmt.Errorf("invalid transferFC fee: max_fee=%d transferFC.Amount=%d", tx.Transaction.ClientMetadata.MaxFee, tx.TransferFC.TransferFC.Amount)
 	}
 
 	// 3. VerifyBlockProof(P.A.Π, P.A.P, S.T, S.SD) – proof of the bill transfer order verifies
@@ -137,21 +137,21 @@ func (v *DefaultFeeCreditTxValidator) ValidateCloseFC(ctx *CloseFCValidationCont
 
 	// S.N[P.ι] != ⊥ - ι identifies an existing fee credit record
 	if ctx.Unit == nil {
-		return errors.New("closeFC: unit is nil")
+		return errors.New("unit is nil")
 	}
 	fcr, ok := ctx.Unit.Data.(*FeeCreditRecord)
 	if !ok {
-		return errors.New("closeFC: unit data is not of type fee credit record")
+		return errors.New("unit data is not of type fee credit record")
 	}
 
 	// P.A.v = S.N[ι].b - the amount is the current balance of the record
 	if tx.CloseFC.Amount != fcr.Balance {
-		return fmt.Errorf("closeFC: invalid amount: amount=%d fcr.Balance=%d", tx.CloseFC.Amount, fcr.Balance)
+		return fmt.Errorf("invalid amount: amount=%d fcr.Balance=%d", tx.CloseFC.Amount, fcr.Balance)
 	}
 
 	// P.MC.fm ≤ S.N[ι].b - the transaction fee can’t exceed the current balance of the record
 	if tx.Transaction.ClientMetadata.MaxFee > fcr.Balance {
-		return fmt.Errorf("closeFC: invalid fee: max_fee=%d fcr.Balance=%d", tx.Transaction.ClientMetadata.MaxFee, fcr.Balance)
+		return fmt.Errorf("invalid fee: max_fee=%d fcr.Balance=%d", tx.Transaction.ClientMetadata.MaxFee, fcr.Balance)
 	}
 	return nil
 }

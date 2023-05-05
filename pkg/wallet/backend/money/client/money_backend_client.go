@@ -110,6 +110,18 @@ func (c *MoneyBackendClient) ListBills(pubKey []byte, includeDCBills bool) (*mon
 	return finalResponse, nil
 }
 
+func (c *MoneyBackendClient) GetBills(pubKey []byte) ([]*bp.Bill, error) {
+	bills, err := c.ListBills(pubKey, false)
+	if err != nil {
+		return nil, err
+	}
+	var res []*bp.Bill
+	for _, b := range bills.Bills {
+		res = append(res, b.ToProto())
+	}
+	return res, nil
+}
+
 func (c *MoneyBackendClient) GetProof(billId []byte) (*bp.Bills, error) {
 	req, err := http.NewRequest(http.MethodGet, fmt.Sprintf(proofUrlFormat, c.BaseUrl, ProofPath, hexutil.Encode(billId)), nil)
 	if err != nil {

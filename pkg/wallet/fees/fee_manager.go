@@ -9,8 +9,6 @@ import (
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/pkg/wallet/account"
 	"github.com/alphabill-org/alphabill/pkg/wallet/backend/bp"
-	backendmoney "github.com/alphabill-org/alphabill/pkg/wallet/backend/money"
-	"github.com/alphabill-org/alphabill/pkg/wallet/backend/money/client"
 	"github.com/alphabill-org/alphabill/pkg/wallet/log"
 	txbuilder "github.com/alphabill-org/alphabill/pkg/wallet/money/tx_builder"
 )
@@ -23,7 +21,6 @@ const (
 var (
 	ErrInvalidCreateFeeCreditAmount = errors.New("fee credit amount must be positive")
 	ErrInsufficientBillValue        = errors.New("wallet does not have a bill large enough for fee transfer")
-	ErrAddFCInsufficientBalance     = errors.New("insufficient balance for transaction and transaction fee")
 	ErrInsufficientFeeCredit        = errors.New("insufficient fee credit balance for transaction(s)")
 )
 
@@ -37,13 +34,18 @@ type (
 		FetchFeeCreditBill(ctx context.Context, unitID []byte) (*bp.Bill, error)
 	}
 
+	MoneyClient interface {
+		GetBills(pubKey []byte) ([]*bp.Bill, error)
+		PartitionDataProvider
+	}
+
 	FeeManager struct {
 		am account.Manager
 
 		// money partition fields
 		moneySystemID      []byte
 		moneyTxPublisher   TxPublisher
-		moneyBackendClient *client.MoneyBackendClient
+		moneyBackendClient MoneyClient
 
 		// user partition fields
 		userPartitionSystemID      []byte
@@ -82,7 +84,7 @@ func NewFeeManager(
 	am account.Manager,
 	moneySystemID []byte,
 	moneyTxPublisher TxPublisher,
-	moneyBackendClient *client.MoneyBackendClient,
+	moneyBackendClient MoneyClient,
 	partitionSystemID []byte,
 	partitionTxPublisher TxPublisher,
 	partitionBackendClient PartitionDataProvider,
@@ -105,29 +107,15 @@ func (w *FeeManager) AddFeeCredit(ctx context.Context, cmd AddFeeCmd) (*block.Tx
 	if err := cmd.isValid(); err != nil {
 		return nil, err
 	}
-	balance, err := w.getMoneyBalance(cmd.AccountIndex)
-	if err != nil {
-		return nil, err
-	}
-	// must have enough balance for two txs (transferFC + addFC) and not end up with zero sum
-	maxTotalFees := 2 * maxFee
-	if cmd.Amount+maxTotalFees > balance {
-		return nil, ErrAddFCInsufficientBalance
-	}
 
 	// fetch bills
 	accountKey, err := w.am.GetAccountKey(cmd.AccountIndex)
 	if err != nil {
 		return nil, err
 	}
-	listBillsResponse, err := w.moneyBackendClient.ListBills(accountKey.PubKey, false)
+	bills, err := w.moneyBackendClient.GetBills(accountKey.PubKey)
 	if err != nil {
 		return nil, err
-	}
-	// convert list view bills to []*bp.Bill
-	var bills []*bp.Bill
-	for _, b := range listBillsResponse.Bills {
-		bills = append(bills, newBillFromVM(b))
 	}
 	// sort bills by value in descending order
 	sort.Slice(bills, func(i, j int) bool {
@@ -136,7 +124,7 @@ func (w *FeeManager) AddFeeCredit(ctx context.Context, cmd AddFeeCmd) (*block.Tx
 
 	// verify bill is large enough for required amount
 	billToTransfer := bills[0]
-	if billToTransfer.Value < cmd.Amount+maxTotalFees {
+	if billToTransfer.Value < cmd.Amount+maxFee {
 		return nil, ErrInsufficientBillValue
 	}
 
@@ -215,17 +203,10 @@ func (w *FeeManager) ReclaimFeeCredit(ctx context.Context, cmd ReclaimFeeCmd) (*
 	}
 
 	// fetch bills
-	listBillsResponse, err := w.moneyBackendClient.ListBills(k.PubKey, false)
+	bills, err := w.moneyBackendClient.GetBills(k.PubKey)
 	if err != nil {
 		return nil, err
 	}
-
-	// convert list view bills to []*bp.Bill
-	var bills []*bp.Bill
-	for _, b := range listBillsResponse.Bills {
-		bills = append(bills, newBillFromVM(b))
-	}
-
 	// sort bills by value in descending order
 	sort.Slice(bills, func(i, j int) bool {
 		return bills[i].Value > bills[j].Value
@@ -275,27 +256,9 @@ func (w *FeeManager) GetFeeCreditBill(ctx context.Context, cmd GetFeeCreditCmd) 
 	return w.userPartitionBackendClient.FetchFeeCreditBill(ctx, accountKey.PrivKeyHash)
 }
 
-func (w *FeeManager) getMoneyBalance(accountIndex uint64) (uint64, error) {
-	pubkey, err := w.am.GetPublicKey(accountIndex)
-	if err != nil {
-		return 0, err
-	}
-	return w.moneyBackendClient.GetBalance(pubkey, false)
-}
-
 func (c *AddFeeCmd) isValid() error {
 	if c.Amount == 0 {
 		return ErrInvalidCreateFeeCreditAmount
 	}
 	return nil
-}
-
-// newBillFromVM converts ListBillVM to Bill structs
-func newBillFromVM(b *backendmoney.ListBillVM) *bp.Bill {
-	return &bp.Bill{
-		Id:       b.Id,
-		Value:    b.Value,
-		TxHash:   b.TxHash,
-		IsDcBill: b.IsDCBill,
-	}
 }

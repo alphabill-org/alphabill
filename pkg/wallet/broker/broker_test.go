@@ -21,7 +21,9 @@ func Test_broker_subscribe(t *testing.T) {
 
 	t.Run("subscribe and unsubscribe", func(t *testing.T) {
 		ownerPK := test.RandomBytes(33)
-		b := NewBroker(nil)
+		quitBroker := make(chan struct{})
+		defer close(quitBroker)
+		b := NewBroker(quitBroker)
 
 		ch, err := b.Subscribe(ownerPK)
 		require.NoError(t, err)
@@ -36,7 +38,10 @@ func Test_broker_subscribe(t *testing.T) {
 
 	t.Run("max allowed subscriptions per key", func(t *testing.T) {
 		ownerPK := test.RandomBytes(33)
-		b := NewBroker(nil)
+		quitBroker := make(chan struct{})
+		defer close(quitBroker)
+		b := NewBroker(quitBroker)
+
 		for i := 0; i <= maxSubscriptionsPerKey; i++ {
 			ch, err := b.Subscribe(ownerPK)
 			require.NoError(t, err)
@@ -78,7 +83,9 @@ func Test_broker_notify(t *testing.T) {
 	}
 
 	t.Run("empty bearer", func(t *testing.T) {
-		b := NewBroker(nil)
+		quitBroker := make(chan struct{})
+		defer close(quitBroker)
+		b := NewBroker(quitBroker)
 
 		ownerPK := PubKey(test.RandomBytes(33))
 		ch, err := b.Subscribe(ownerPK)
@@ -94,7 +101,9 @@ func Test_broker_notify(t *testing.T) {
 
 	t.Run("single subscription", func(t *testing.T) {
 		ownerPK := PubKey(test.RandomBytes(33))
-		b := NewBroker(nil)
+		quitBroker := make(chan struct{})
+		defer close(quitBroker)
+		b := NewBroker(quitBroker)
 
 		ch, err := b.Subscribe(ownerPK)
 		require.NoError(t, err)
@@ -113,7 +122,9 @@ func Test_broker_notify(t *testing.T) {
 
 	t.Run("single key, multiple subscriptions", func(t *testing.T) {
 		ownerPK := PubKey(test.RandomBytes(33))
-		b := NewBroker(nil)
+		quitBroker := make(chan struct{})
+		defer close(quitBroker)
+		b := NewBroker(quitBroker)
 
 		ch1, err := b.Subscribe(ownerPK)
 		require.NoError(t, err)
@@ -139,7 +150,9 @@ func Test_broker_notify(t *testing.T) {
 	t.Run("multiple keys with single subscription", func(t *testing.T) {
 		pk1 := PubKey(test.RandomBytes(33))
 		pk2 := PubKey(test.RandomBytes(33))
-		b := NewBroker(nil)
+		quitBroker := make(chan struct{})
+		defer close(quitBroker)
+		b := NewBroker(quitBroker)
 
 		ch1, err := b.Subscribe(pk1)
 		require.NoError(t, err)
@@ -161,11 +174,160 @@ func Test_broker_notify(t *testing.T) {
 	})
 }
 
+func Test_broker_broadcast(t *testing.T) {
+	t.Parallel()
+
+	mustHaveMessage := func(t *testing.T, ch <-chan Message, msg Message) {
+		t.Helper()
+		select {
+		case data := <-ch:
+			require.Equal(t, msg, data, "got unexpected message")
+		case <-time.After(time.Second):
+			t.Error("timeout, got no message")
+		}
+	}
+
+	mustBeEmpty := func(t *testing.T, ch <-chan Message) {
+		t.Helper()
+		select {
+		case data := <-ch:
+			t.Error("got unexpected message", data)
+		default:
+		}
+	}
+
+	quitBroker := make(chan struct{})
+	t.Cleanup(func() { close(quitBroker) })
+
+	t.Run("no subscribers", func(t *testing.T) {
+		b := NewBroker(quitBroker)
+		require.NotPanics(t, func() { b.Broadcast(&pingMsg{}) })
+	})
+
+	t.Run("one subscriber, single subscription", func(t *testing.T) {
+		ownerPK := PubKey(test.RandomBytes(33))
+		b := NewBroker(quitBroker)
+
+		ch, err := b.Subscribe(ownerPK)
+		require.NoError(t, err)
+		require.NotNil(t, ch)
+
+		msg := &message{data: "foobar"}
+		b.Broadcast(msg)
+
+		mustHaveMessage(t, ch, msg)
+
+		// shouldn't get messages after unsubscribing
+		b.Unsubscribe(ownerPK, ch)
+		b.Broadcast(msg)
+		mustBeEmpty(t, ch)
+	})
+
+	t.Run("one subscriber, multiple subscriptions", func(t *testing.T) {
+		ownerPK := PubKey(test.RandomBytes(33))
+		b := NewBroker(quitBroker)
+
+		ch1, err := b.Subscribe(ownerPK)
+		require.NoError(t, err)
+		require.NotNil(t, ch1)
+
+		ch2, err := b.Subscribe(ownerPK)
+		require.NoError(t, err)
+		require.NotNil(t, ch2)
+
+		// both channels should receive the message
+		msg := &message{data: "foobar"}
+		b.Broadcast(msg)
+		mustHaveMessage(t, ch1, msg)
+		mustHaveMessage(t, ch2, msg)
+
+		// unsubscribe from ch1; ch2 still must get the message
+		b.Unsubscribe(ownerPK, ch1)
+		b.Broadcast(msg)
+		mustBeEmpty(t, ch1)
+		mustHaveMessage(t, ch2, msg)
+	})
+
+	t.Run("multiple subscribers with single subscription", func(t *testing.T) {
+		pk1 := PubKey(test.RandomBytes(33))
+		pk2 := PubKey(test.RandomBytes(33))
+		b := NewBroker(quitBroker)
+
+		ch1, err := b.Subscribe(pk1)
+		require.NoError(t, err)
+		require.NotNil(t, ch1)
+
+		ch2, err := b.Subscribe(pk2)
+		require.NoError(t, err)
+		require.NotNil(t, ch2)
+
+		msg := &message{data: "msg 1"}
+		b.Broadcast(msg)
+		mustHaveMessage(t, ch1, msg)
+		mustHaveMessage(t, ch2, msg)
+
+		// unsubscribe pk1; pk2 still must get the message
+		b.Unsubscribe(pk1, ch1)
+		msg = &message{data: "msg 2"}
+		b.Broadcast(msg)
+		mustBeEmpty(t, ch1)
+		mustHaveMessage(t, ch2, msg)
+	})
+}
+
+func Test_broker_broadcastPing(t *testing.T) {
+	t.Parallel()
+
+	ownerPK := PubKey(test.RandomBytes(33))
+	pingInterval := 100 * time.Millisecond
+	const pingCount = 2 // how many pings to receive before shutting down
+
+	quitBroker := make(chan struct{})
+	b := &MessageBroker{done: quitBroker}
+	b.subscriptions.Store(make(subscribers))
+
+	messages, err := b.Subscribe(ownerPK)
+	require.NoError(t, err)
+	require.NotNil(t, messages)
+
+	go b.broadcastPing(pingInterval)
+
+	msgCnt := 0
+	go func() {
+		defer close(quitBroker)
+		for msg := range messages {
+			buf := bytes.NewBuffer(nil)
+			require.NoError(t, msg.WriteSSE(buf))
+			require.Equal(t, "event: ping\n\n", buf.String())
+
+			if msgCnt++; msgCnt == pingCount {
+				return
+			}
+		}
+	}()
+
+	select {
+	case <-quitBroker:
+		require.Equal(t, pingCount, msgCnt, "expected to receive %d messages, got %d", pingCount, msgCnt)
+	case <-time.After((pingCount + 2) * pingInterval):
+		t.Fatalf("broker wasn't shut down within timeout, have received %d messages so far", msgCnt)
+	}
+
+	// shouldn't get any more messages, broker was shut down
+	select {
+	case msg := <-messages:
+		t.Error("got unexpected message:", msg)
+	case <-time.After(2 * pingInterval):
+	}
+}
+
 func Test_broker_concurrency(t *testing.T) {
 	t.Parallel()
 
 	ownerPK := PubKey(test.RandomBytes(33))
-	b := NewBroker(make(chan struct{}))
+	quitBroker := make(chan struct{})
+	defer close(quitBroker)
+	b := NewBroker(quitBroker)
 
 	done := make(chan struct{})
 	subscriptions := make(chan (<-chan Message), maxSubscriptionsPerKey-1)
@@ -179,6 +341,18 @@ func Test_broker_concurrency(t *testing.T) {
 				return
 			default:
 				b.Notify(bearer, msg)
+			}
+		}
+	}()
+
+	go func() {
+		msg := &pingMsg{}
+		for {
+			select {
+			case <-done:
+				return
+			default:
+				b.Broadcast(msg)
 			}
 		}
 	}()
@@ -211,7 +385,9 @@ func Test_broker_StreamSSE(t *testing.T) {
 
 	t.Run("cancelling context stops streaming", func(t *testing.T) {
 		ownerPK := PubKey(test.RandomBytes(33))
-		b := NewBroker(nil)
+		quitBroker := make(chan struct{})
+		defer close(quitBroker)
+		b := NewBroker(quitBroker)
 
 		ctx, cancel := context.WithCancel(context.Background())
 		done := make(chan struct{})
@@ -235,7 +411,7 @@ func Test_broker_StreamSSE(t *testing.T) {
 		}
 	})
 
-	t.Run("closing done chan stops streaming", func(t *testing.T) {
+	t.Run("closing chan which controls Broker's lifetime stops streaming", func(t *testing.T) {
 		ownerPK := PubKey(test.RandomBytes(33))
 		quitBroker := make(chan struct{})
 		b := NewBroker(quitBroker)
@@ -257,7 +433,9 @@ func Test_broker_StreamSSE(t *testing.T) {
 
 	t.Run("max allowed subscriptions per key exceeded", func(t *testing.T) {
 		ownerPK := test.RandomBytes(33)
-		b := NewBroker(nil)
+		quitBroker := make(chan struct{})
+		defer close(quitBroker)
+		b := NewBroker(quitBroker)
 		for i := 0; i <= maxSubscriptionsPerKey; i++ {
 			ch, err := b.Subscribe(ownerPK)
 			require.NoError(t, err)
@@ -271,7 +449,9 @@ func Test_broker_StreamSSE(t *testing.T) {
 
 	t.Run("get one message from stream", func(t *testing.T) {
 		ownerPK := PubKey(test.RandomBytes(33))
-		b := NewBroker(nil)
+		quitBroker := make(chan struct{})
+		defer close(quitBroker)
+		b := NewBroker(quitBroker)
 
 		ctx, cancel := context.WithCancel(context.Background())
 		done := make(chan struct{})
@@ -296,7 +476,9 @@ func Test_broker_StreamSSE(t *testing.T) {
 
 	t.Run("get two messages from stream", func(t *testing.T) {
 		ownerPK := PubKey(test.RandomBytes(33))
-		b := NewBroker(nil)
+		quitBroker := make(chan struct{})
+		defer close(quitBroker)
+		b := NewBroker(quitBroker)
 
 		ctx, cancel := context.WithCancel(context.Background())
 		done := make(chan struct{})

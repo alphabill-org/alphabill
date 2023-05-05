@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"github.com/alphabill-org/alphabill/internal/hash"
 	"github.com/alphabill-org/alphabill/internal/script"
@@ -33,6 +34,9 @@ will be terminated.
 func NewBroker(done <-chan struct{}) *MessageBroker {
 	b := &MessageBroker{done: done}
 	b.subscriptions.Store(make(subscribers))
+
+	go b.broadcastPing(40 * time.Second)
+
 	return b
 }
 
@@ -97,6 +101,34 @@ func (b *MessageBroker) Notify(bearerPredicate []byte, msg Message) {
 	}
 }
 
+func (b *MessageBroker) Broadcast(msg Message) {
+	subs := b.subscriptions.Load().(subscribers)
+	for _, chs := range subs {
+		for _, c := range chs {
+			select {
+			case c <- msg:
+			default:
+			}
+		}
+	}
+}
+
+func (b *MessageBroker) broadcastPing(interval time.Duration) {
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+
+	ping := &pingMsg{}
+
+	for {
+		select {
+		case <-b.done:
+			return
+		case <-ticker.C:
+			b.Broadcast(ping)
+		}
+	}
+}
+
 /*
 StreamSSE subscribes to broker with "owner" key and streams the messages it receives
 as server-sent events to "w" until "ctx" is cancelled or the "done" chan used as
@@ -142,4 +174,11 @@ func (pk PubKey) p2pkh() []byte {
 
 func (pk PubKey) asMapKey() string {
 	return string(pk.p2pkh())
+}
+
+type pingMsg struct{}
+
+func (pm *pingMsg) WriteSSE(w io.Writer) error {
+	_, err := fmt.Fprint(w, "event: ping\n\n")
+	return err
 }

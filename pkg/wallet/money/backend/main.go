@@ -1,4 +1,4 @@
-package money
+package backend
 
 import (
 	"context"
@@ -7,12 +7,14 @@ import (
 	"errors"
 	"fmt"
 	"math/rand"
+	"net/http"
 	"sync"
 	"time"
 
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/sync/semaphore"
 
+	"github.com/ainvaltin/httpsrv"
 	"github.com/alphabill-org/alphabill/internal/block"
 	"github.com/alphabill-org/alphabill/internal/script"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
@@ -24,7 +26,20 @@ import (
 	wlog "github.com/alphabill-org/alphabill/pkg/wallet/log"
 )
 
+// @title           Money Partition Indexing Backend API
+// @version         1.0
+// @description     This service processes blocks from the Money partition and indexes ownership of bills.
+
+// @BasePath  /api/v1
 type (
+	WalletBackendService interface {
+		GetBills(ownerCondition []byte) ([]*Bill, error)
+		GetBill(unitID []byte) (*Bill, error)
+		GetRoundNumber(ctx context.Context) (uint64, error)
+		GetFeeCreditBill(unitID []byte) (*Bill, error)
+		SendTransactions(ctx context.Context, txs []*txsystem.Transaction) map[string]string
+	}
+
 	WalletBackend struct {
 		store         BillStore
 		genericWallet *wallet.Wallet
@@ -101,7 +116,7 @@ type (
 	}
 )
 
-func CreateAndRun(ctx context.Context, config *Config) error {
+func Run(ctx context.Context, config *Config) error {
 	store, err := NewBoltBillStore(config.DbFile)
 	if err != nil {
 		return fmt.Errorf("failed to get storage: %w", err)
@@ -134,8 +149,18 @@ func CreateAndRun(ctx context.Context, config *Config) error {
 	g.Go(func() error {
 		walletBackend := &WalletBackend{store: store, genericWallet: wallet.New().SetABClient(abc).Build()}
 		defer walletBackend.genericWallet.Shutdown()
-		server := NewHttpServer(config.ServerAddr, config.ListBillsPageLimit, walletBackend)
-		return server.Run(ctx)
+
+		handler := &RequestHandler{Service: walletBackend, ListBillsPageLimit: config.ListBillsPageLimit}
+		server := http.Server{
+			Addr:              config.ServerAddr,
+			Handler:           handler.Router(),
+			ReadTimeout:       3 * time.Second,
+			ReadHeaderTimeout: time.Second,
+			WriteTimeout:      5 * time.Second,
+			IdleTimeout:       30 * time.Second,
+		}
+
+		return httpsrv.Run(ctx, server, httpsrv.ShutdownTimeout(5*time.Second))
 	})
 
 	g.Go(func() error {

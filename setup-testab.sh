@@ -67,7 +67,7 @@ if [ "$token_nodes" -ne 0 ]; then
   tokensSdr='{"systemId": "0x00000002", "unitId": "0x0000000000000000000000000000000000000000000000000000000000000004", "ownerPubKey": "0x03c30573dc0c7fd43fcb801289a6a96cb78c27f4ba398b89da91ece23e9a99aca3"}'
   echo "$tokensSdr" >testab/tokens-sdr.json
   moneySdrFlags+=" -c testab/tokens-sdr.json"
-  generate_partition_node_genesis "token" "$token_nodes"
+  generate_partition_node_genesis "tokens" "$token_nodes"
 fi
 # Generate money nodes genesis files.
 if [ "$money_nodes" -ne 0 ]; then

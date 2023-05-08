@@ -52,7 +52,7 @@ EOT
 
 # generates genesis files
 # expects two arguments
-# $1 alphabill partition type ('money', 'vd', 'token') or root as string
+# $1 alphabill partition type ('money', 'vd', 'tokens') or root as string
 # $2 nof genesis files to generate
 # $3 custom cli args
 function generate_partition_node_genesis() {
@@ -67,7 +67,7 @@ case $1 in
     cmd="vd-genesis"
     home="testab/vd"
     ;;
-  token)
+  tokens)
     cmd="tokens-genesis"
     home="testab/tokens"
     ;;
@@ -186,7 +186,7 @@ function start_backend() {
         ;;
       tokens)
         home="testab/backend/vd/"
-        cmd="token-backend"
+        cmd="tokens-backend"
         grpcPort=28766
         sPort=9735
         ;;

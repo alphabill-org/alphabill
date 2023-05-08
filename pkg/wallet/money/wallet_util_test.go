@@ -18,8 +18,8 @@ import (
 	"github.com/alphabill-org/alphabill/pkg/client/clientmock"
 	"github.com/alphabill-org/alphabill/pkg/wallet/account"
 	"github.com/alphabill-org/alphabill/pkg/wallet/backend/bp"
-	"github.com/alphabill-org/alphabill/pkg/wallet/backend/money"
-	testclient "github.com/alphabill-org/alphabill/pkg/wallet/backend/money/client"
+	"github.com/alphabill-org/alphabill/pkg/wallet/money/backend"
+	beclient "github.com/alphabill-org/alphabill/pkg/wallet/money/backend/client"
 	txbuilder "github.com/alphabill-org/alphabill/pkg/wallet/money/tx_builder"
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
@@ -48,7 +48,7 @@ func CreateTestWalletWithManager(t *testing.T, br *backendMockReturnConf, am acc
 
 	mockClient := clientmock.NewMockAlphabillClient(clientmock.WithMaxBlockNumber(0), clientmock.WithBlocks(map[uint64]*block.Block{}))
 	_, serverAddr := mockBackendCalls(br)
-	restClient, err := testclient.NewClient(serverAddr.Host)
+	restClient, err := beclient.New(serverAddr.Host)
 	require.NoError(t, err)
 	w, err := LoadExistingWallet(abclient.AlphabillClientConfig{}, am, restClient)
 	require.NoError(t, err)
@@ -71,7 +71,7 @@ func CreateTestWalletFromSeed(t *testing.T, br *backendMockReturnConf) (*Wallet,
 
 	mockClient := &clientmock.MockAlphabillClient{}
 	_, serverAddr := mockBackendCalls(br)
-	restClient, err := testclient.NewClient(serverAddr.Host)
+	restClient, err := beclient.New(serverAddr.Host)
 	require.NoError(t, err)
 	w, err := LoadExistingWallet(abclient.AlphabillClientConfig{}, am, restClient)
 	require.NoError(t, err)
@@ -87,24 +87,24 @@ func mockBackendCalls(br *backendMockReturnConf) (*httptest.Server, *url.URL) {
 			w.Write([]byte(br.customResponse))
 		} else {
 			switch r.URL.Path {
-			case "/" + testclient.BalancePath:
+			case "/" + beclient.BalancePath:
 				w.WriteHeader(http.StatusOK)
 				w.Write([]byte(fmt.Sprintf(`{"balance": "%d"}`, br.balance)))
-			case "/" + testclient.RoundNumberPath:
+			case "/" + beclient.RoundNumberPath:
 				w.WriteHeader(http.StatusOK)
 				w.Write([]byte(fmt.Sprintf(`{"blockHeight": "%d"}`, br.blockHeight)))
-			case "/" + testclient.ProofPath:
+			case "/" + beclient.ProofPath:
 				w.WriteHeader(http.StatusOK)
 				w.Write([]byte(br.proofList[proofCount%len(br.proofList)]))
 				proofCount++
-			case "/" + testclient.ListBillsPath:
+			case "/" + beclient.ListBillsPath:
 				w.WriteHeader(http.StatusOK)
 				if br.customBillList != "" {
 					w.Write([]byte(br.customBillList))
 				} else {
 					w.Write([]byte(fmt.Sprintf(`{"total": 1, "bills": [{"id":"%s","value":"%d","txHash":"%s","isDcBill":false}]}`, toBillId(br.billId), br.billValue, br.billTxHash)))
 				}
-			case "/" + testclient.FeeCreditPath:
+			case "/" + beclient.FeeCreditPath:
 				w.WriteHeader(http.StatusOK)
 				fcb, _ := protojson.Marshal(br.feeCreditBill)
 				w.Write(fcb)
@@ -160,16 +160,16 @@ func createBlockProofJsonResponse(t *testing.T, bills []*Bill, overrideNonce []b
 }
 
 func createBillListJsonResponse(bills []*Bill) string {
-	billVMs := make([]*money.ListBillVM, len(bills))
+	billVMs := make([]*backend.ListBillVM, len(bills))
 	for i, b := range bills {
-		billVMs[i] = &money.ListBillVM{
+		billVMs[i] = &backend.ListBillVM{
 			Id:       b.GetID(),
 			Value:    b.Value,
 			TxHash:   b.TxHash,
 			IsDCBill: b.IsDcBill,
 		}
 	}
-	billsResponse := &money.ListBillsResponse{Bills: billVMs, Total: len(bills)}
+	billsResponse := &backend.ListBillsResponse{Bills: billVMs, Total: len(bills)}
 	res, _ := json.Marshal(billsResponse)
 	return string(res)
 }

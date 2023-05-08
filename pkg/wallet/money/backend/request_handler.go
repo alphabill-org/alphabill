@@ -1,4 +1,4 @@
-package money
+package backend
 
 import (
 	"encoding/json"
@@ -6,12 +6,13 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"sort"
 	"strconv"
 
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/pkg/wallet/backend/bp"
-	_ "github.com/alphabill-org/alphabill/pkg/wallet/backend/money/docs"
+	_ "github.com/alphabill-org/alphabill/pkg/wallet/money/backend/docs"
 	"github.com/alphabill-org/alphabill/pkg/wallet/log"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/gorilla/handlers"
@@ -31,6 +32,7 @@ type (
 		ListBillsPageLimit int
 	}
 
+	// TODO: perhaps pass the total number of elements in a response header
 	ListBillsResponse struct {
 		Total int           `json:"total" example:"1"`
 		Bills []*ListBillVM `json:"bills"`
@@ -106,7 +108,7 @@ func (s *RequestHandler) Router() *mux.Router {
 // @Param limit query int false "limits how many bills are returned in response" default(100)
 // @Param offset query int false "response will include bills starting after offset" default(0)
 // @Success 200 {object} ListBillsResponse
-// @Failure 400 {object} money.ErrorResponse
+// @Failure 400 {object} backend.ErrorResponse
 // @Failure 500
 // @Router /list-bills [get]
 func (s *RequestHandler) listBillsFunc(w http.ResponseWriter, r *http.Request) {
@@ -140,8 +142,10 @@ func (s *RequestHandler) listBillsFunc(w http.ResponseWriter, r *http.Request) {
 	if offset > len(bills) {
 		offset = len(bills)
 	}
-	if offset+limit > len(bills) {
+	if offset + limit > len(bills) {
 		limit = len(bills) - offset
+	} else {
+		setLinkHeader(r.URL, w, offset + limit)
 	}
 	res := newListBillsResponse(bills, limit, offset)
 	writeAsJson(w, res)
@@ -153,7 +157,7 @@ func (s *RequestHandler) listBillsFunc(w http.ResponseWriter, r *http.Request) {
 // @produce application/json
 // @Param pubkey query string true "Public key prefixed with 0x"
 // @Success 200 {object} BalanceResponse
-// @Failure 400 {object} money.ErrorResponse
+// @Failure 400 {object} backend.ErrorResponse
 // @Failure 500
 // @Router /balance [get]
 func (s *RequestHandler) balanceFunc(w http.ResponseWriter, r *http.Request) {
@@ -191,8 +195,8 @@ func (s *RequestHandler) balanceFunc(w http.ResponseWriter, r *http.Request) {
 // @produce application/json
 // @Param bill_id query string true "ID of the bill (hex)"
 // @Success 200 {object} bp.Bills
-// @Failure 400 {object} money.ErrorResponse
-// @Failure 404 {object} money.ErrorResponse
+// @Failure 400 {object} backend.ErrorResponse
+// @Failure 404 {object} backend.ErrorResponse
 // @Failure 500
 // @Router /proof [get]
 func (s *RequestHandler) getProofFunc(w http.ResponseWriter, r *http.Request) {
@@ -363,6 +367,17 @@ func (s *RequestHandler) parsePagingParams(r *http.Request) (int, int) {
 		offset = 0
 	}
 	return limit, offset
+}
+
+func setLinkHeader(u *url.URL, w http.ResponseWriter, offset int) {
+	if offset < 0 {
+		w.Header().Del("Link")
+		return
+	}
+	qp := u.Query()
+	qp.Set("offset", strconv.Itoa(offset))
+	u.RawQuery = qp.Encode()
+	w.Header().Set("Link", fmt.Sprintf(`<%s>; rel="next"`, u))
 }
 
 func writeAsJson(w http.ResponseWriter, res interface{}) {

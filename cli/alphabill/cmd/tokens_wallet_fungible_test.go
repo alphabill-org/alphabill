@@ -18,7 +18,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/util"
 	abclient "github.com/alphabill-org/alphabill/pkg/client"
 	"github.com/alphabill-org/alphabill/pkg/wallet/account"
-	moneyclient "github.com/alphabill-org/alphabill/pkg/wallet/backend/money/client"
+	moneyclient "github.com/alphabill-org/alphabill/pkg/wallet/money/backend/client"
 	"github.com/alphabill-org/alphabill/pkg/wallet/fees"
 	wlog "github.com/alphabill-org/alphabill/pkg/wallet/log"
 	"github.com/alphabill-org/alphabill/pkg/wallet/money"

@@ -7,13 +7,13 @@ import (
 
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
-	twb "github.com/alphabill-org/alphabill/pkg/wallet/tokens/backend"
+	"github.com/alphabill-org/alphabill/pkg/wallet/tokens/backend"
 	"github.com/stretchr/testify/require"
 )
 
 func TestConfirmUnitsTx_skip(t *testing.T) {
 	backend := &mockTokenBackend{
-		postTransactions: func(ctx context.Context, pubKey twb.PubKey, txs *txsystem.Transactions) error {
+		postTransactions: func(ctx context.Context, pubKey backend.PubKey, txs *txsystem.Transactions) error {
 			return nil
 		},
 	}
@@ -28,16 +28,16 @@ func TestConfirmUnitsTx_ok(t *testing.T) {
 	getRoundNumberCalled := false
 	getTxProofCalled := false
 	backend := &mockTokenBackend{
-		postTransactions: func(ctx context.Context, pubKey twb.PubKey, txs *txsystem.Transactions) error {
+		postTransactions: func(ctx context.Context, pubKey backend.PubKey, txs *txsystem.Transactions) error {
 			return nil
 		},
 		getRoundNumber: func(ctx context.Context) (uint64, error) {
 			getRoundNumberCalled = true
 			return 100, nil
 		},
-		getTxProof: func(ctx context.Context, unitID twb.UnitID, txHash twb.TxHash) (*twb.Proof, error) {
+		getTxProof: func(ctx context.Context, unitID backend.UnitID, txHash backend.TxHash) (*backend.Proof, error) {
 			getTxProofCalled = true
-			return &twb.Proof{}, nil
+			return &backend.Proof{}, nil
 		},
 	}
 	batch := &txSubmissionBatch{backend: backend}
@@ -53,7 +53,7 @@ func TestConfirmUnitsTx_timeout(t *testing.T) {
 	getTxProofCalled := 0
 	randomID1 := test.RandomBytes(32)
 	backend := &mockTokenBackend{
-		postTransactions: func(ctx context.Context, pubKey twb.PubKey, txs *txsystem.Transactions) error {
+		postTransactions: func(ctx context.Context, pubKey backend.PubKey, txs *txsystem.Transactions) error {
 			return nil
 		},
 		getRoundNumber: func(ctx context.Context) (uint64, error) {
@@ -63,10 +63,10 @@ func TestConfirmUnitsTx_timeout(t *testing.T) {
 			}
 			return 102, nil
 		},
-		getTxProof: func(ctx context.Context, unitID twb.UnitID, txHash twb.TxHash) (*twb.Proof, error) {
+		getTxProof: func(ctx context.Context, unitID backend.UnitID, txHash backend.TxHash) (*backend.Proof, error) {
 			getTxProofCalled++
 			if bytes.Equal(unitID, randomID1) {
-				return &twb.Proof{}, nil
+				return &backend.Proof{}, nil
 			}
 			return nil, nil
 		},

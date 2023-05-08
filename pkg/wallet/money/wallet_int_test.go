@@ -28,11 +28,11 @@ import (
 	moneytx "github.com/alphabill-org/alphabill/internal/txsystem/money"
 	moneytestutils "github.com/alphabill-org/alphabill/internal/txsystem/money/testutils"
 	"github.com/alphabill-org/alphabill/internal/util"
-	"github.com/alphabill-org/alphabill/pkg/client"
+	abclient "github.com/alphabill-org/alphabill/pkg/client"
 	"github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/alphabill-org/alphabill/pkg/wallet/account"
-	"github.com/alphabill-org/alphabill/pkg/wallet/backend/money"
-	testclient "github.com/alphabill-org/alphabill/pkg/wallet/backend/money/client"
+	"github.com/alphabill-org/alphabill/pkg/wallet/money/backend"
+	beclient "github.com/alphabill-org/alphabill/pkg/wallet/money/backend/client"
 	"github.com/alphabill-org/alphabill/pkg/wallet/fees"
 	"github.com/alphabill-org/alphabill/pkg/wallet/log"
 	"github.com/holiman/uint256"
@@ -58,14 +58,14 @@ func TestCollectDustTimeoutReached(t *testing.T) {
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	t.Cleanup(cancelFunc)
 	go func() {
-		err := money.CreateAndRun(ctx,
-			&money.Config{
+		err := backend.Run(ctx,
+			&backend.Config{
 				ABMoneySystemIdentifier: []byte{0, 0, 0, 0},
 				AlphabillUrl:            addr,
 				ServerAddr:              restAddr,
-				DbFile:                  filepath.Join(t.TempDir(), money.BoltBillStoreFileName),
+				DbFile:                  filepath.Join(t.TempDir(), backend.BoltBillStoreFileName),
 				ListBillsPageLimit:      100,
-				InitialBill: money.InitialBill{
+				InitialBill: backend.InitialBill{
 					Id:        util.Uint256ToBytes(initialBill.ID),
 					Value:     initialBill.Value,
 					Predicate: script.PredicateAlwaysTrue(),
@@ -81,9 +81,9 @@ func TestCollectDustTimeoutReached(t *testing.T) {
 	require.NoError(t, err)
 	err = CreateNewWallet(am, "")
 	require.NoError(t, err)
-	restClient, err := testclient.NewClient(restAddr)
+	restClient, err := beclient.New(restAddr)
 	require.NoError(t, err)
-	w, err := LoadExistingWallet(client.AlphabillClientConfig{Uri: addr}, am, restClient)
+	w, err := LoadExistingWallet(abclient.AlphabillClientConfig{Uri: addr}, am, restClient)
 	require.NoError(t, err)
 	pubKeys, err := am.GetPublicKeys()
 	require.NoError(t, err)
@@ -160,14 +160,14 @@ func TestCollectDustInMultiAccountWallet(t *testing.T) {
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	t.Cleanup(cancelFunc)
 	go func() {
-		err := money.CreateAndRun(ctx,
-			&money.Config{
+		err := backend.Run(ctx,
+			&backend.Config{
 				ABMoneySystemIdentifier: []byte{0, 0, 0, 0},
 				AlphabillUrl:            addr,
 				ServerAddr:              restAddr,
-				DbFile:                  filepath.Join(t.TempDir(), money.BoltBillStoreFileName),
+				DbFile:                  filepath.Join(t.TempDir(), backend.BoltBillStoreFileName),
 				ListBillsPageLimit:      100,
-				InitialBill: money.InitialBill{
+				InitialBill: backend.InitialBill{
 					Id:        util.Uint256ToBytes(initialBill.ID),
 					Value:     initialBill.Value,
 					Predicate: script.PredicateAlwaysTrue(),
@@ -183,9 +183,9 @@ func TestCollectDustInMultiAccountWallet(t *testing.T) {
 	require.NoError(t, err)
 	err = CreateNewWallet(am, "")
 	require.NoError(t, err)
-	restClient, err := testclient.NewClient(restAddr)
+	restClient, err := beclient.New(restAddr)
 	require.NoError(t, err)
-	w, err := LoadExistingWallet(client.AlphabillClientConfig{Uri: addr}, am, restClient)
+	w, err := LoadExistingWallet(abclient.AlphabillClientConfig{Uri: addr}, am, restClient)
 	require.NoError(t, err)
 
 	_, _, _ = am.AddAccount()
@@ -264,14 +264,14 @@ func TestCollectDustInMultiAccountWalletWithKeyFlag(t *testing.T) {
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	t.Cleanup(cancelFunc)
 	go func() {
-		err := money.CreateAndRun(ctx,
-			&money.Config{
+		err := backend.Run(ctx,
+			&backend.Config{
 				ABMoneySystemIdentifier: []byte{0, 0, 0, 0},
 				AlphabillUrl:            addr,
 				ServerAddr:              restAddr,
-				DbFile:                  filepath.Join(t.TempDir(), money.BoltBillStoreFileName),
+				DbFile:                  filepath.Join(t.TempDir(), backend.BoltBillStoreFileName),
 				ListBillsPageLimit:      100,
-				InitialBill: money.InitialBill{
+				InitialBill: backend.InitialBill{
 					Id:        util.Uint256ToBytes(initialBill.ID),
 					Value:     initialBill.Value,
 					Predicate: script.PredicateAlwaysTrue(),
@@ -287,9 +287,9 @@ func TestCollectDustInMultiAccountWalletWithKeyFlag(t *testing.T) {
 	require.NoError(t, err)
 	err = CreateNewWallet(am, "")
 	require.NoError(t, err)
-	restClient, err := testclient.NewClient(restAddr)
+	restClient, err := beclient.New(restAddr)
 	require.NoError(t, err)
-	w, err := LoadExistingWallet(client.AlphabillClientConfig{Uri: addr}, am, restClient)
+	w, err := LoadExistingWallet(abclient.AlphabillClientConfig{Uri: addr}, am, restClient)
 	require.NoError(t, err)
 
 	_, _, _ = am.AddAccount()

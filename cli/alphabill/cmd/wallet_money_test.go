@@ -26,7 +26,7 @@ import (
 	moneytx "github.com/alphabill-org/alphabill/internal/txsystem/money"
 	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/alphabill-org/alphabill/pkg/wallet/account"
-	testclient "github.com/alphabill-org/alphabill/pkg/wallet/backend/money/client"
+	"github.com/alphabill-org/alphabill/pkg/wallet/money/backend/client"
 	"github.com/alphabill-org/alphabill/pkg/wallet/money"
 )
 
@@ -340,20 +340,20 @@ func mockBackendCalls(br *backendMockReturnConf) (*httptest.Server, *url.URL) {
 			w.Write([]byte(br.customResponse))
 		} else {
 			switch r.URL.Path {
-			case "/" + testclient.BalancePath:
+			case "/" + client.BalancePath:
 				w.WriteHeader(http.StatusOK)
 				w.Write([]byte(fmt.Sprintf(`{"balance": "%d"}`, br.balance)))
-			case "/" + testclient.RoundNumberPath:
+			case "/" + client.RoundNumberPath:
 				w.WriteHeader(http.StatusOK)
 				w.Write([]byte(fmt.Sprintf(`{"blockHeight": "%d"}`, br.blockHeight)))
-			case "/" + testclient.ProofPath:
+			case "/" + client.ProofPath:
 				if br.proofList != "" {
 					w.WriteHeader(http.StatusOK)
 					w.Write([]byte(br.proofList))
 				} else {
 					w.WriteHeader(http.StatusNotFound)
 				}
-			case "/" + testclient.ListBillsPath:
+			case "/" + client.ListBillsPath:
 				w.WriteHeader(http.StatusOK)
 				if br.customBillList != "" {
 					w.Write([]byte(br.customBillList))

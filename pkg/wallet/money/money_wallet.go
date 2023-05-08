@@ -10,11 +10,6 @@ import (
 	"time"
 
 	"github.com/alphabill-org/alphabill/internal/block"
-	"github.com/alphabill-org/alphabill/pkg/wallet/money/fees"
-	"github.com/alphabill-org/alphabill/pkg/wallet/money/tx_builder"
-	"github.com/ethereum/go-ethereum/common/hexutil"
-	"golang.org/x/sync/errgroup"
-
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/internal/txsystem/money"
@@ -26,7 +21,11 @@ import (
 	"github.com/alphabill-org/alphabill/pkg/wallet/backend/bp"
 	"github.com/alphabill-org/alphabill/pkg/wallet/money/backend"
 	"github.com/alphabill-org/alphabill/pkg/wallet/money/backend/client"
+	"github.com/alphabill-org/alphabill/pkg/wallet/fees"
 	"github.com/alphabill-org/alphabill/pkg/wallet/log"
+	"github.com/alphabill-org/alphabill/pkg/wallet/money/tx_builder"
+	"github.com/ethereum/go-ethereum/common/hexutil"
+	"golang.org/x/sync/errgroup"
 )
 
 const (

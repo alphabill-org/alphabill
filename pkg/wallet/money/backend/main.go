@@ -249,7 +249,7 @@ func (w *WalletBackend) SendTransactions(ctx context.Context, txs []*txsystem.Tr
 		}(tx)
 	}
 
-	semCtx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	semCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()
 	if err := sem.Acquire(semCtx, maxWorkers); err != nil {
 		m.Lock()

@@ -440,4 +440,19 @@ paths:
           schema:
             $ref: '#/definitions/money.RoundNumberResponse'
       summary: Money partition's latest block number
+  /transactions:
+    post:
+      operationId: "6"
+      parameters:
+      - description: Sender public key prefixed with 0x
+        in: path
+        name: pubkey
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "202":
+          description: Accepted
+      summary: Forward transactions to partiton node(s)
 swagger: "2.0"

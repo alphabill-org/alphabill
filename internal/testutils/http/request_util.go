@@ -73,10 +73,16 @@ func doPost(url string, reqBody []byte, res interface{}) (*http.Response, error)
 	defer func() {
 		_ = httpRes.Body.Close()
 	}()
-	resBytes, _ := ioutil.ReadAll(httpRes.Body)
-	err = json.NewDecoder(bytes.NewReader(resBytes)).Decode(res)
-	if err != nil {
-		return nil, err
+
+	if res != nil {
+		resBytes, err := ioutil.ReadAll(httpRes.Body)
+		if err != nil {
+			return nil, err
+		}
+		err = json.NewDecoder(bytes.NewReader(resBytes)).Decode(res)
+		if err != nil {
+			return nil, err
+		}
 	}
 	return httpRes, nil
 }

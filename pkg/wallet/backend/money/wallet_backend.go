@@ -3,12 +3,15 @@ package money
 import (
 	"context"
 	"crypto"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"math/rand"
+	"sync"
 	"time"
 
 	"golang.org/x/sync/errgroup"
+	"golang.org/x/sync/semaphore"
 
 	"github.com/alphabill-org/alphabill/internal/block"
 	"github.com/alphabill-org/alphabill/internal/script"
@@ -196,6 +199,39 @@ func (w *WalletBackend) GetFeeCreditBill(unitID []byte) (*Bill, error) {
 // GetRoundNumber returns latest round number.
 func (w *WalletBackend) GetRoundNumber(ctx context.Context) (uint64, error) {
 	return w.genericWallet.GetRoundNumber(ctx)
+}
+
+// TODO: Share functionaly with tokens partiton
+// SendTransactions forwards transactions to partiton node(s).
+func (w *WalletBackend) SendTransactions(ctx context.Context, txs []*txsystem.Transaction) map[string]string {
+	errs := make(map[string]string)
+	var m sync.Mutex
+
+	const maxWorkers = 5
+	sem := semaphore.NewWeighted(maxWorkers)
+	for _, tx := range txs {
+		if err := sem.Acquire(ctx, 1); err != nil {
+			break
+		}
+		go func(tx *txsystem.Transaction) {
+			defer sem.Release(1)
+			if err := w.genericWallet.SendTransaction(ctx, tx, nil); err != nil {
+				m.Lock()
+				errs[hex.EncodeToString(tx.GetUnitId())] =
+					fmt.Errorf("failed to forward tx: %w", err).Error()
+				m.Unlock()
+			}
+		}(tx)
+	}
+
+	semCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	defer cancel()
+	if err := sem.Acquire(semCtx, maxWorkers); err != nil {
+		m.Lock()
+		errs["waiting-for-workers"] = err.Error()
+		m.Unlock()
+	}
+	return errs
 }
 
 func (b *Bill) toProto() *bp.Bill {

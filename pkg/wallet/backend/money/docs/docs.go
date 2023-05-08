@@ -184,6 +184,29 @@ const docTemplate = `{
                     }
                 }
             }
+        },
+        "/transactions": {
+            "post": {
+                "produces": [
+                    "application/json"
+                ],
+                "summary": "Forward transactions to partiton node(s)",
+                "operationId": "6",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Sender public key prefixed with 0x",
+                        "name": "pubkey",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "202": {
+                        "description": "Accepted"
+                    }
+                }
+            }
         }
     },
     "definitions": {

@@ -43,6 +43,28 @@ func TestAddFeeCredit_SpendEntireBill_OK(t *testing.T) {
 	require.ErrorContains(t, err, "wallet does not have a bill large enough for fee transfer")
 }
 
+/*
+Test scenario:
+Wallet has no bills
+Trying to create fee credit should return error "wallet does not contain any bills"
+*/
+func TestAddFeeCredit_NoBillsReturnsError(t *testing.T) {
+	// create fee manager
+	am, err := account.NewManager(t.TempDir(), "", true)
+	require.NoError(t, err)
+	defer am.Close()
+	err = am.CreateKeys("dinosaur simple verify deliver bless ridge monkey design venue six problem lucky")
+	require.NoError(t, err)
+
+	moneyTxPublisher := &mockMoneyTxPublisher{}
+	moneyBackendClient := &mockMoneyClient{bills: []*bp.Bill{}}
+	feeManager := newMoneyPartitionFeeManager(am, moneyTxPublisher, moneyBackendClient)
+
+	// verify that error is returned
+	_, err = feeManager.AddFeeCredit(context.Background(), AddFeeCmd{Amount: 100000000})
+	require.ErrorContains(t, err, "wallet does not contain any bills")
+}
+
 func newMoneyPartitionFeeManager(am account.Manager, moneyTxPublisher TxPublisher, moneyBackendClient MoneyClient) *FeeManager {
 	moneySystemID := []byte{0, 0, 0, 0}
 	return NewFeeManager(am, moneySystemID, moneyTxPublisher, moneyBackendClient, moneySystemID, moneyTxPublisher, moneyBackendClient)

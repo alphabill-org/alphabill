@@ -18,12 +18,6 @@ const (
 	txTimeoutBlockCount = 10
 )
 
-var (
-	ErrInvalidCreateFeeCreditAmount = errors.New("fee credit amount must be positive")
-	ErrInsufficientBillValue        = errors.New("wallet does not have a bill large enough for fee transfer")
-	ErrInsufficientFeeCredit        = errors.New("insufficient fee credit balance for transaction(s)")
-)
-
 type (
 	TxPublisher interface {
 		SendTx(ctx context.Context, tx *txsystem.Transaction, senderPubKey []byte) (*block.TxProof, error)
@@ -121,11 +115,13 @@ func (w *FeeManager) AddFeeCredit(ctx context.Context, cmd AddFeeCmd) (*block.Tx
 	sort.Slice(bills, func(i, j int) bool {
 		return bills[i].Value > bills[j].Value
 	})
-
+	if len(bills) == 0 {
+		return nil, errors.New("wallet does not contain any bills")
+	}
 	// verify bill is large enough for required amount
 	billToTransfer := bills[0]
 	if billToTransfer.Value < cmd.Amount+maxFee {
-		return nil, ErrInsufficientBillValue
+		return nil, errors.New("wallet does not have a bill large enough for fee transfer")
 	}
 
 	// fetch fee credit bill
@@ -199,7 +195,7 @@ func (w *FeeManager) ReclaimFeeCredit(ctx context.Context, cmd ReclaimFeeCmd) (*
 		return nil, err
 	}
 	if fcb.GetValue() == 0 {
-		return nil, ErrInsufficientFeeCredit
+		return nil, errors.New("insufficient fee credit balance for transaction(s)")
 	}
 
 	// fetch bills
@@ -258,7 +254,7 @@ func (w *FeeManager) GetFeeCreditBill(ctx context.Context, cmd GetFeeCreditCmd) 
 
 func (c *AddFeeCmd) isValid() error {
 	if c.Amount == 0 {
-		return ErrInvalidCreateFeeCreditAmount
+		return errors.New("fee credit amount must be positive")
 	}
 	return nil
 }

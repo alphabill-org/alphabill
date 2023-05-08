@@ -25,7 +25,7 @@ func TestExistingWalletCanBeLoaded(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	}))
-	restClient, err := beclient.NewClient(server.URL)
+	restClient, err := beclient.New(server.URL)
 	require.NoError(t, err)
 	_, err = LoadExistingWallet(abclient.AlphabillClientConfig{}, am, restClient)
 	require.NoError(t, err)

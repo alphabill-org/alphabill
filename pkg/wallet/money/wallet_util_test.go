@@ -48,7 +48,7 @@ func CreateTestWalletWithManager(t *testing.T, br *backendMockReturnConf, am acc
 
 	mockClient := clientmock.NewMockAlphabillClient(clientmock.WithMaxBlockNumber(0), clientmock.WithBlocks(map[uint64]*block.Block{}))
 	_, serverAddr := mockBackendCalls(br)
-	restClient, err := beclient.NewClient(serverAddr.Host)
+	restClient, err := beclient.New(serverAddr.Host)
 	require.NoError(t, err)
 	w, err := LoadExistingWallet(abclient.AlphabillClientConfig{}, am, restClient)
 	require.NoError(t, err)
@@ -71,7 +71,7 @@ func CreateTestWalletFromSeed(t *testing.T, br *backendMockReturnConf) (*Wallet,
 
 	mockClient := &clientmock.MockAlphabillClient{}
 	_, serverAddr := mockBackendCalls(br)
-	restClient, err := beclient.NewClient(serverAddr.Host)
+	restClient, err := beclient.New(serverAddr.Host)
 	require.NoError(t, err)
 	w, err := LoadExistingWallet(abclient.AlphabillClientConfig{}, am, restClient)
 	require.NoError(t, err)

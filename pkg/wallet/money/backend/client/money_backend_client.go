@@ -49,7 +49,7 @@ var (
 	ErrMissingFeeCreditBill = errors.New("fee credit bill does not exist")
 )
 
-func NewClient(baseUrl string) (*MoneyBackendClient, error) {
+func New(baseUrl string) (*MoneyBackendClient, error) {
 	if !strings.HasPrefix(baseUrl, "http://") && !strings.HasPrefix(baseUrl, "https://") {
 		baseUrl = defaultScheme + baseUrl
 	}

@@ -174,7 +174,7 @@ func startMoneyBackend(t *testing.T, network *testpartition.AlphabillPartition, 
 		require.ErrorIs(t, err, context.Canceled)
 	}()
 
-	restClient, err := moneyclient.NewClient(defaultAlphabillApiURL)
+	restClient, err := moneyclient.New(defaultAlphabillApiURL)
 	require.NoError(t, err)
 
 	return defaultAlphabillApiURL, restClient

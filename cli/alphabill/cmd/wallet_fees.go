@@ -86,7 +86,7 @@ func addFeeCreditCmdExec(ctx context.Context, cmd *cobra.Command, config *wallet
 	if err != nil {
 		return err
 	}
-	restClient, err := moneyclient.NewClient(apiURL)
+	restClient, err := moneyclient.New(apiURL)
 	if err != nil {
 		return err
 	}
@@ -129,7 +129,7 @@ func listFeesCmdExec(ctx context.Context, cmd *cobra.Command, config *walletConf
 	if err != nil {
 		return err
 	}
-	moneyBackendClient, err := moneyclient.NewClient(moneyBackendURL)
+	moneyBackendClient, err := moneyclient.New(moneyBackendURL)
 	if err != nil {
 		return err
 	}
@@ -176,7 +176,7 @@ func reclaimFeeCreditCmdExec(ctx context.Context, cmd *cobra.Command, config *wa
 	if err != nil {
 		return err
 	}
-	restClient, err := moneyclient.NewClient(moneyBackendApiURL)
+	restClient, err := moneyclient.New(moneyBackendApiURL)
 	if err != nil {
 		return err
 	}

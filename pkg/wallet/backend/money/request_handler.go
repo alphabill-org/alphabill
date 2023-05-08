@@ -464,3 +464,12 @@ func toBillVMList(bills []*Bill) []*ListBillVM {
 	}
 	return billVMs
 }
+
+func (b *ListBillVM) ToProto() *bp.Bill {
+	return &bp.Bill{
+		Id:       b.Id,
+		Value:    b.Value,
+		TxHash:   b.TxHash,
+		IsDcBill: b.IsDCBill,
+	}
+}

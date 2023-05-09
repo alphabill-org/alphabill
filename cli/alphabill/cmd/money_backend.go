@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/internal/script"
 	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/alphabill-org/alphabill/pkg/wallet/money/backend"
@@ -31,6 +32,7 @@ type moneyBackendConfig struct {
 	ListBillsPageLimit int
 	InitialBillID      uint64
 	InitialBillValue   uint64
+	SDRFiles           []string // system description record files
 }
 
 func (c *moneyBackendConfig) GetDbFile() (string, error) {
@@ -43,6 +45,22 @@ func (c *moneyBackendConfig) GetDbFile() (string, error) {
 		return "", fmt.Errorf("failed to create directory for database file: %w", err)
 	}
 	return dbFile, nil
+}
+
+func (c *moneyBackendConfig) getSDRFiles() ([]*genesis.SystemDescriptionRecord, error) {
+	var sdrs []*genesis.SystemDescriptionRecord
+	if len(c.SDRFiles) == 0 {
+		sdrs = append(sdrs, defaultMoneySDR)
+	} else {
+		for _, sdrFile := range c.SDRFiles {
+			sdr, err := util.ReadJsonFile(sdrFile, &genesis.SystemDescriptionRecord{})
+			if err != nil {
+				return nil, err
+			}
+			sdrs = append(sdrs, sdr)
+		}
+	}
+	return sdrs, nil
 }
 
 // newMoneyBackendCmd creates a new cobra command for the money-backend component.
@@ -77,15 +95,20 @@ func startMoneyBackendCmd(config *moneyBackendConfig) *cobra.Command {
 	}
 	cmd.Flags().StringVarP(&config.AlphabillUrl, alphabillNodeURLCmdName, "u", defaultAlphabillNodeURL, "alphabill node url")
 	cmd.Flags().StringVarP(&config.ServerAddr, serverAddrCmdName, "s", defaultAlphabillApiURL, "server address")
-	cmd.Flags().StringVarP(&config.DbFile, dbFileCmdName, "f", "", "path to the database file (default: $AB_HOME/" + moneyBackendHomeDir + "/" + backend.BoltBillStoreFileName + ")")
+	cmd.Flags().StringVarP(&config.DbFile, dbFileCmdName, "f", "", "path to the database file (default: $AB_HOME/"+moneyBackendHomeDir+"/"+backend.BoltBillStoreFileName+")")
 	cmd.Flags().IntVarP(&config.ListBillsPageLimit, listBillsPageLimit, "l", 100, "GET /list-bills request default/max limit size")
 	cmd.Flags().Uint64Var(&config.InitialBillValue, "initial-bill-value", 100000000, "initial bill value (needed for initial startup only)")
 	cmd.Flags().Uint64Var(&config.InitialBillID, "initial-bill-id", 1, "initial bill id hex string with 0x prefix (needed for initial startup only)")
+	cmd.Flags().StringSliceVarP(&config.SDRFiles, "system-description-record-files", "c", nil, "path to SDR files (one for each partition, including money partion itself; defaults to single money partition only SDR; needed for initial startup only)")
 	return cmd
 }
 
 func execMoneyBackendStartCmd(ctx context.Context, config *moneyBackendConfig) error {
 	dbFile, err := config.GetDbFile()
+	if err != nil {
+		return err
+	}
+	sdrFiles, err := config.getSDRFiles()
 	if err != nil {
 		return err
 	}
@@ -100,5 +123,6 @@ func execMoneyBackendStartCmd(ctx context.Context, config *moneyBackendConfig) e
 			Value:     config.InitialBillValue,
 			Predicate: script.PredicateAlwaysTrue(),
 		},
+		SystemDescriptionRecords: sdrFiles,
 	})
 }

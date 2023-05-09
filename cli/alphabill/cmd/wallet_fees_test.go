@@ -8,16 +8,27 @@ import (
 	"testing"
 	"time"
 
+	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/internal/script"
 	testpartition "github.com/alphabill-org/alphabill/internal/testutils/partition"
 	moneytx "github.com/alphabill-org/alphabill/internal/txsystem/money"
+	"github.com/alphabill-org/alphabill/internal/txsystem/tokens"
 	"github.com/alphabill-org/alphabill/internal/util"
+	wlog "github.com/alphabill-org/alphabill/pkg/wallet/log"
 	"github.com/alphabill-org/alphabill/pkg/wallet/money/backend"
 	moneyclient "github.com/alphabill-org/alphabill/pkg/wallet/money/backend/client"
-	wlog "github.com/alphabill-org/alphabill/pkg/wallet/log"
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
 )
+
+var defaultTokenSDR = &genesis.SystemDescriptionRecord{
+	SystemIdentifier: tokens.DefaultTokenTxSystemIdentifier,
+	T2Timeout:        defaultT2Timeout,
+	FeeCreditBill: &genesis.FeeCreditBill{
+		UnitId:         util.Uint256ToBytes(uint256.NewInt(4)),
+		OwnerPredicate: script.PredicateAlwaysTrue(),
+	},
+}
 
 func TestWalletFeesCmds_MoneyPartition(t *testing.T) {
 	homedir, abPartition := setupMoneyInfraAndWallet(t)
@@ -170,6 +181,7 @@ func startMoneyBackend(t *testing.T, network *testpartition.AlphabillPartition, 
 					Value:     initialBill.Value,
 					Predicate: script.PredicateAlwaysTrue(),
 				},
+				SystemDescriptionRecords: []*genesis.SystemDescriptionRecord{defaultMoneySDR, defaultTokenSDR},
 			})
 		require.ErrorIs(t, err, context.Canceled)
 	}()

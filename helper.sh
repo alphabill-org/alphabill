@@ -176,6 +176,7 @@ local restPort=0
 function start_backend() {
   local home=""
   local cmd=""
+  local customArgs=""
 
     case $1 in
       money)
@@ -183,6 +184,17 @@ function start_backend() {
         cmd="money-backend"
         grpcPort=26766
         sPort=9654
+        sdrFiles=""
+        if test -f "testab/money-sdr.json"; then
+            sdrFiles+=" -c testab/money-sdr.json"
+        fi
+        if test -f "testab/tokens-sdr.json"; then
+            sdrFiles+=" -c testab/tokens-sdr.json"
+        fi
+        if test -f "testab/vd-sdr.json"; then
+            sdrFiles+=" -c testab/vd-sdr.json"
+        fi
+        customArgs=$sdrFiles
         ;;
       tokens)
         home="testab/backend/vd/"
@@ -197,6 +209,6 @@ function start_backend() {
     esac
     #create home if not present, ignore errors if already done
     mkdir -p $home 1>&2
-    build/alphabill $cmd start -u "localhost:$grpcPort" -s "localhost:$sPort" -f "$home/bills.db" --log-file "$home/backend.log" --log-level DEBUG &
+    build/alphabill $cmd start -u "localhost:$grpcPort" -s "localhost:$sPort" -f "$home/bills.db" $customArgs --log-file "$home/backend.log" --log-level DEBUG &
     echo "Started $1 backend, check the API at http://localhost:$sPort/api/v1/swagger/"
 }

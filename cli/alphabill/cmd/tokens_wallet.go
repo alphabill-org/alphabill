@@ -153,14 +153,13 @@ func execTokenCmdNewTypeFungible(cmd *cobra.Command, config *walletConfig) error
 	if err != nil {
 		return err
 	}
-	a := &ttxs.CreateFungibleTokenTypeAttributes{
-		Symbol:                             symbol,
-		DecimalPlaces:                      decimals,
-		ParentTypeId:                       parentType,
-		SubTypeCreationPredicateSignatures: nil, // will be filled by the wallet
-		SubTypeCreationPredicate:           subTypeCreationPredicate,
-		TokenCreationPredicate:             mintTokenPredicate,
-		InvariantPredicate:                 invariantPredicate,
+	a := tokens.CreateFungibleTokenTypeAttributes{
+		Symbol:                   symbol,
+		DecimalPlaces:            decimals,
+		ParentTypeId:             parentType,
+		SubTypeCreationPredicate: subTypeCreationPredicate,
+		TokenCreationPredicate:   mintTokenPredicate,
+		InvariantPredicate:       invariantPredicate,
 	}
 	id, err := tw.NewFungibleType(cmd.Context(), accountNumber, a, typeId, creationInputs)
 	if err != nil {
@@ -224,14 +223,13 @@ func execTokenCmdNewTypeNonFungible(cmd *cobra.Command, config *walletConfig) er
 	if err != nil {
 		return err
 	}
-	a := &ttxs.CreateNonFungibleTokenTypeAttributes{
-		Symbol:                             symbol,
-		ParentTypeId:                       parentType,
-		SubTypeCreationPredicateSignatures: nil, // will be filled by the wallet
-		SubTypeCreationPredicate:           subTypeCreationPredicate,
-		TokenCreationPredicate:             mintTokenPredicate,
-		InvariantPredicate:                 invariantPredicate,
-		DataUpdatePredicate:                dataUpdatePredicate,
+	a := tokens.CreateNonFungibleTokenTypeAttributes{
+		Symbol:                   symbol,
+		ParentTypeId:             parentType,
+		SubTypeCreationPredicate: subTypeCreationPredicate,
+		TokenCreationPredicate:   mintTokenPredicate,
+		InvariantPredicate:       invariantPredicate,
+		DataUpdatePredicate:      dataUpdatePredicate,
 	}
 	id, err := tw.NewNonFungibleType(cmd.Context(), accountNumber, a, typeId, creationInputs)
 	if err != nil {
@@ -388,7 +386,7 @@ func execTokenCmdNewTokenNonFungible(cmd *cobra.Command, config *walletConfig) e
 	if err != nil {
 		return err
 	}
-	a := &tokens.MintNonFungibleTokenAttributes{
+	a := tokens.MintNonFungibleTokenAttributes{
 		Bearer:              bearerPredicate,
 		NftType:             typeId,
 		Uri:                 uri,

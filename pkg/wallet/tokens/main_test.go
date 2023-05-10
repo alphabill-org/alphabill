@@ -264,14 +264,13 @@ func TestNewTypes(t *testing.T) {
 
 	t.Run("fungible type", func(t *testing.T) {
 		typeId := test.RandomBytes(32)
-		a := &ttxs.CreateFungibleTokenTypeAttributes{
-			Symbol:                             "AB",
-			DecimalPlaces:                      0,
-			ParentTypeId:                       nil,
-			SubTypeCreationPredicateSignatures: nil,
-			SubTypeCreationPredicate:           script.PredicateAlwaysFalse(),
-			TokenCreationPredicate:             script.PredicateAlwaysTrue(),
-			InvariantPredicate:                 script.PredicateAlwaysTrue(),
+		a := CreateFungibleTokenTypeAttributes{
+			Symbol:                   "AB",
+			DecimalPlaces:            0,
+			ParentTypeId:             nil,
+			SubTypeCreationPredicate: script.PredicateAlwaysFalse(),
+			TokenCreationPredicate:   script.PredicateAlwaysTrue(),
+			InvariantPredicate:       script.PredicateAlwaysTrue(),
 		}
 		_, err := tw.NewFungibleType(context.Background(), 1, a, typeId, nil)
 		require.NoError(t, err)
@@ -285,14 +284,13 @@ func TestNewTypes(t *testing.T) {
 		require.EqualValues(t, tx.Timeout(), 101)
 
 		// new subtype
-		b := &ttxs.CreateFungibleTokenTypeAttributes{
-			Symbol:                             "AB",
-			DecimalPlaces:                      2,
-			ParentTypeId:                       typeId,
-			SubTypeCreationPredicateSignatures: nil,
-			SubTypeCreationPredicate:           script.PredicateAlwaysFalse(),
-			TokenCreationPredicate:             script.PredicateAlwaysTrue(),
-			InvariantPredicate:                 script.PredicateAlwaysTrue(),
+		b := CreateFungibleTokenTypeAttributes{
+			Symbol:                   "AB",
+			DecimalPlaces:            2,
+			ParentTypeId:             typeId,
+			SubTypeCreationPredicate: script.PredicateAlwaysFalse(),
+			TokenCreationPredicate:   script.PredicateAlwaysTrue(),
+			InvariantPredicate:       script.PredicateAlwaysTrue(),
 		}
 		//check decimal places are validated against the parent type
 		_, err = tw.NewFungibleType(context.Background(), 1, b, []byte{2}, nil)
@@ -301,13 +299,12 @@ func TestNewTypes(t *testing.T) {
 
 	t.Run("non-fungible type", func(t *testing.T) {
 		typeId := test.RandomBytes(32)
-		a := &ttxs.CreateNonFungibleTokenTypeAttributes{
-			Symbol:                             "ABNFT",
-			ParentTypeId:                       nil,
-			SubTypeCreationPredicateSignatures: nil,
-			SubTypeCreationPredicate:           script.PredicateAlwaysFalse(),
-			TokenCreationPredicate:             script.PredicateAlwaysTrue(),
-			InvariantPredicate:                 script.PredicateAlwaysTrue(),
+		a := CreateNonFungibleTokenTypeAttributes{
+			Symbol:                   "ABNFT",
+			ParentTypeId:             nil,
+			SubTypeCreationPredicate: script.PredicateAlwaysFalse(),
+			TokenCreationPredicate:   script.PredicateAlwaysTrue(),
+			InvariantPredicate:       script.PredicateAlwaysTrue(),
 		}
 		_, err := tw.NewNonFungibleType(context.Background(), 1, a, typeId, nil)
 		require.NoError(t, err)
@@ -468,31 +465,26 @@ func TestMintNFT_InvalidInputs(t *testing.T) {
 	accNr := uint64(1)
 	tests := []struct {
 		name       string
-		attrs      *MintNonFungibleTokenAttributes
+		attrs      MintNonFungibleTokenAttributes
 		wantErrStr string
 	}{
 		{
-			name:       "attributes missing",
-			attrs:      nil,
-			wantErrStr: "attributes missing",
-		},
-		{
 			name: "invalid URI",
-			attrs: &MintNonFungibleTokenAttributes{
+			attrs: MintNonFungibleTokenAttributes{
 				Uri: "invalid_uri",
 			},
 			wantErrStr: "URI 'invalid_uri' is invalid",
 		},
 		{
 			name: "URI exceeds maximum allowed length",
-			attrs: &MintNonFungibleTokenAttributes{
+			attrs: MintNonFungibleTokenAttributes{
 				Uri: string(test.RandomBytes(4097)),
 			},
 			wantErrStr: "URI exceeds the maximum allowed size of 4096 bytes",
 		},
 		{
 			name: "data exceeds maximum allowed length",
-			attrs: &MintNonFungibleTokenAttributes{
+			attrs: MintNonFungibleTokenAttributes{
 				Data: test.RandomBytes(65537),
 			},
 			wantErrStr: "data exceeds the maximum allowed size of 65536 bytes",
@@ -564,7 +556,7 @@ func TestMintNFT(t *testing.T) {
 			key, err := tw.am.GetAccountKey(tt.accNr - 1)
 			require.NoError(t, err)
 			typeId := []byte{1}
-			a := &MintNonFungibleTokenAttributes{
+			a := MintNonFungibleTokenAttributes{
 				Bearer:              bearerPredicateFromHash(key.PubKeyHash.Sha256),
 				NftType:             typeId,
 				Uri:                 "https://alphabill.org",

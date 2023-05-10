@@ -3,7 +3,6 @@ package tokens
 import (
 	"bytes"
 	"context"
-	goerrors "errors"
 	"fmt"
 	"net/url"
 	"strings"
@@ -30,7 +29,6 @@ const (
 )
 
 var (
-	errAttributesMissing = goerrors.New("attributes missing")
 	errInvalidURILength  = fmt.Errorf("URI exceeds the maximum allowed size of %v bytes", uriMaxSize)
 	errInvalidDataLength = fmt.Errorf("data exceeds the maximum allowed size of %v bytes", dataMaxSize)
 )
@@ -52,14 +50,6 @@ type (
 		GetRoundNumber(ctx context.Context) (uint64, error)
 		PostTransactions(ctx context.Context, pubKey wallet.PubKey, txs *txsystem.Transactions) error
 		GetTxProof(ctx context.Context, unitID wallet.UnitID, txHash wallet.TxHash) (*wallet.Proof, error)
-	}
-
-	MintNonFungibleTokenAttributes struct {
-		NftType             twb.TokenTypeID
-		Uri                 string
-		Data                []byte
-		Bearer              wallet.Predicate
-		DataUpdatePredicate wallet.Predicate
 	}
 )
 
@@ -92,7 +82,7 @@ func (w *Wallet) GetAccountManager() account.Manager {
 	return w.am
 }
 
-func (w *Wallet) NewFungibleType(ctx context.Context, accNr uint64, attrs *tokens.CreateFungibleTokenTypeAttributes, typeId twb.TokenTypeID, subtypePredicateArgs []*PredicateInput) (twb.TokenTypeID, error) {
+func (w *Wallet) NewFungibleType(ctx context.Context, accNr uint64, attrs CreateFungibleTokenTypeAttributes, typeId twb.TokenTypeID, subtypePredicateArgs []*PredicateInput) (twb.TokenTypeID, error) {
 	log.Info("Creating new fungible token type")
 	if attrs.ParentTypeId != nil && !bytes.Equal(attrs.ParentTypeId, twb.NoParent) {
 		parentType, err := w.GetTokenType(ctx, attrs.ParentTypeId)
@@ -103,12 +93,12 @@ func (w *Wallet) NewFungibleType(ctx context.Context, accNr uint64, attrs *token
 			return nil, fmt.Errorf("parent type requires %d decimal places, got %d", parentType.DecimalPlaces, attrs.DecimalPlaces)
 		}
 	}
-	return w.newType(ctx, accNr, attrs, typeId, subtypePredicateArgs)
+	return w.newType(ctx, accNr, attrs.toProtobuf(), typeId, subtypePredicateArgs)
 }
 
-func (w *Wallet) NewNonFungibleType(ctx context.Context, accNr uint64, attrs *tokens.CreateNonFungibleTokenTypeAttributes, typeId twb.TokenTypeID, subtypePredicateArgs []*PredicateInput) (twb.TokenTypeID, error) {
+func (w *Wallet) NewNonFungibleType(ctx context.Context, accNr uint64, attrs CreateNonFungibleTokenTypeAttributes, typeId twb.TokenTypeID, subtypePredicateArgs []*PredicateInput) (twb.TokenTypeID, error) {
 	log.Info("Creating new NFT type")
-	return w.newType(ctx, accNr, attrs, typeId, subtypePredicateArgs)
+	return w.newType(ctx, accNr, attrs.toProtobuf(), typeId, subtypePredicateArgs)
 }
 
 func (w *Wallet) NewFungibleToken(ctx context.Context, accNr uint64, typeId twb.TokenTypeID, amount uint64, bearerPredicate wallet.Predicate, mintPredicateArgs []*PredicateInput) (twb.TokenID, error) {
@@ -122,11 +112,8 @@ func (w *Wallet) NewFungibleToken(ctx context.Context, accNr uint64, typeId twb.
 	return w.newToken(ctx, accNr, attrs, nil, mintPredicateArgs)
 }
 
-func (w *Wallet) NewNFT(ctx context.Context, accNr uint64, attrs *MintNonFungibleTokenAttributes, tokenId twb.TokenID, mintPredicateArgs []*PredicateInput) (twb.TokenID, error) {
+func (w *Wallet) NewNFT(ctx context.Context, accNr uint64, attrs MintNonFungibleTokenAttributes, tokenId twb.TokenID, mintPredicateArgs []*PredicateInput) (twb.TokenID, error) {
 	log.Info("Creating new NFT")
-	if attrs == nil {
-		return nil, errAttributesMissing
-	}
 	if len(attrs.Uri) > uriMaxSize {
 		return nil, errInvalidURILength
 	}
@@ -136,17 +123,7 @@ func (w *Wallet) NewNFT(ctx context.Context, accNr uint64, attrs *MintNonFungibl
 	if len(attrs.Data) > dataMaxSize {
 		return nil, errInvalidDataLength
 	}
-	return w.newToken(ctx, accNr, attrs.convert(), tokenId, mintPredicateArgs)
-}
-
-func (a *MintNonFungibleTokenAttributes) convert() *tokens.MintNonFungibleTokenAttributes {
-	return &tokens.MintNonFungibleTokenAttributes{
-		NftType:             a.NftType,
-		Uri:                 a.Uri,
-		Data:                a.Data,
-		Bearer:              a.Bearer,
-		DataUpdatePredicate: a.DataUpdatePredicate,
-	}
+	return w.newToken(ctx, accNr, attrs.toProtobuf(), tokenId, mintPredicateArgs)
 }
 
 func (w *Wallet) ListTokenTypes(ctx context.Context, kind twb.Kind) ([]*twb.TokenUnitType, error) {

@@ -561,11 +561,11 @@ func (w *Wallet) GetRoundNumber(ctx context.Context) (uint64, error) {
 	return w.backend.GetRoundNumber(ctx)
 }
 
-func (w *Wallet) AddFeeCredit(ctx context.Context, cmd fees.AddFeeCmd) (*block.TxProof, error) {
+func (w *Wallet) AddFeeCredit(ctx context.Context, cmd fees.AddFeeCmd) ([]*block.TxProof, error) {
 	return w.feeManager.AddFeeCredit(ctx, cmd)
 }
 
-func (w *Wallet) ReclaimFeeCredit(ctx context.Context, cmd fees.ReclaimFeeCmd) (*block.TxProof, error) {
+func (w *Wallet) ReclaimFeeCredit(ctx context.Context, cmd fees.ReclaimFeeCmd) ([]*block.TxProof, error) {
 	return w.feeManager.ReclaimFeeCredit(ctx, cmd)
 }
 

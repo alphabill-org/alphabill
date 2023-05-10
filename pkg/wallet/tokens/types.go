@@ -6,6 +6,8 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/alphabill-org/alphabill/pkg/wallet"
+	twb "github.com/alphabill-org/alphabill/pkg/wallet/tokens/backend"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"google.golang.org/protobuf/proto"
 
@@ -31,6 +33,32 @@ type (
 		Argument tokens.Predicate
 		// if Argument empty, check AccountNumber
 		AccountNumber uint64
+	}
+
+	CreateFungibleTokenTypeAttributes struct {
+		Symbol                   string
+		DecimalPlaces            uint32
+		ParentTypeId             twb.TokenTypeID
+		SubTypeCreationPredicate wallet.Predicate
+		TokenCreationPredicate   wallet.Predicate
+		InvariantPredicate       wallet.Predicate
+	}
+
+	CreateNonFungibleTokenTypeAttributes struct {
+		Symbol                   string
+		ParentTypeId             twb.TokenTypeID
+		SubTypeCreationPredicate wallet.Predicate
+		TokenCreationPredicate   wallet.Predicate
+		InvariantPredicate       wallet.Predicate
+		DataUpdatePredicate      wallet.Predicate
+	}
+
+	MintNonFungibleTokenAttributes struct {
+		NftType             twb.TokenTypeID
+		Uri                 string
+		Data                []byte
+		Bearer              wallet.Predicate
+		DataUpdatePredicate wallet.Predicate
 	}
 
 	MintAttr interface {
@@ -147,6 +175,38 @@ func ParsePredicateClause(clause string, keyNr uint64, am account.Manager) ([]by
 		return decodeHexOrEmpty(clause)
 	}
 	return nil, fmt.Errorf("invalid predicate clause: '%s'", clause)
+}
+
+func (c *CreateFungibleTokenTypeAttributes) toProtobuf() *tokens.CreateFungibleTokenTypeAttributes {
+	return &tokens.CreateFungibleTokenTypeAttributes{
+		Symbol:                   c.Symbol,
+		DecimalPlaces:            c.DecimalPlaces,
+		ParentTypeId:             c.ParentTypeId,
+		SubTypeCreationPredicate: c.SubTypeCreationPredicate,
+		TokenCreationPredicate:   c.TokenCreationPredicate,
+		InvariantPredicate:       c.InvariantPredicate,
+	}
+}
+
+func (c *CreateNonFungibleTokenTypeAttributes) toProtobuf() *tokens.CreateNonFungibleTokenTypeAttributes {
+	return &tokens.CreateNonFungibleTokenTypeAttributes{
+		Symbol:                   c.Symbol,
+		ParentTypeId:             c.ParentTypeId,
+		SubTypeCreationPredicate: c.SubTypeCreationPredicate,
+		TokenCreationPredicate:   c.TokenCreationPredicate,
+		InvariantPredicate:       c.InvariantPredicate,
+		DataUpdatePredicate:      c.DataUpdatePredicate,
+	}
+}
+
+func (a *MintNonFungibleTokenAttributes) toProtobuf() *tokens.MintNonFungibleTokenAttributes {
+	return &tokens.MintNonFungibleTokenAttributes{
+		NftType:             a.NftType,
+		Uri:                 a.Uri,
+		Data:                a.Data,
+		Bearer:              a.Bearer,
+		DataUpdatePredicate: a.DataUpdatePredicate,
+	}
 }
 
 func decodeHexOrEmpty(input string) ([]byte, error) {

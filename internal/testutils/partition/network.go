@@ -59,10 +59,7 @@ type rootNode struct {
 	RootSigner crypto.Signer
 	genesis    *genesis.RootGenesis
 	id         peer.ID
-
-	addr multiaddr.Multiaddr
-
-	cancel context.CancelFunc
+	addr       multiaddr.Multiaddr
 }
 
 // AlphabillPartition for integration tests
@@ -132,7 +129,11 @@ func newRootPartition(nodePartitions []*NodePartition) (*RootPartition, error) {
 		if err != nil {
 			return nil, err
 		}
-		trustBase[id.String()], err = rootSigners[i].Verifier()
+		ver, err := rootSigners[i].Verifier()
+		if err != nil {
+			return nil, fmt.Errorf("failed to get root node verifier, %w", err)
+		}
+		trustBase[id.String()] = ver
 		rootGenesisFiles[i] = rg
 		rootNodes[i] = &rootNode{
 			genesis:    rg,
@@ -249,7 +250,6 @@ func (n *NodePartition) start(ctx context.Context, rootID peer.ID, rootAddr mult
 	for _, nd := range n.Nodes {
 		pn, err := network.NewLibP2PValidatorNetwork(nd.nodePeer, network.DefaultValidatorNetOptions)
 		if err != nil {
-			//ctxCancel()
 			return err
 		}
 		nd.EventHandler = &testevent.TestEventHandler{}
@@ -263,8 +263,7 @@ func (n *NodePartition) start(ctx context.Context, rootID peer.ID, rootAddr mult
 			partition.WithEventHandler(nd.EventHandler.HandleEvent, 100),
 		)
 		if err != nil {
-			//	ctxCancel()
-			return fmt.Errorf("failed to start partition %X", err)
+			return fmt.Errorf("failed to start partition, %w", err)
 		}
 
 		nctx, ncfn := context.WithCancel(ctx)

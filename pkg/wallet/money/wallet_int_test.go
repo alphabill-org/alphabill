@@ -31,10 +31,10 @@ import (
 	abclient "github.com/alphabill-org/alphabill/pkg/client"
 	"github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/alphabill-org/alphabill/pkg/wallet/account"
-	"github.com/alphabill-org/alphabill/pkg/wallet/money/backend"
-	beclient "github.com/alphabill-org/alphabill/pkg/wallet/money/backend/client"
 	"github.com/alphabill-org/alphabill/pkg/wallet/fees"
 	"github.com/alphabill-org/alphabill/pkg/wallet/log"
+	"github.com/alphabill-org/alphabill/pkg/wallet/money/backend"
+	beclient "github.com/alphabill-org/alphabill/pkg/wallet/money/backend/client"
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
@@ -70,6 +70,7 @@ func TestCollectDustTimeoutReached(t *testing.T) {
 					Value:     initialBill.Value,
 					Predicate: script.PredicateAlwaysTrue(),
 				},
+				SystemDescriptionRecords: createSDRs(2),
 			})
 		require.ErrorIs(t, err, context.Canceled)
 	}()
@@ -172,6 +173,7 @@ func TestCollectDustInMultiAccountWallet(t *testing.T) {
 					Value:     initialBill.Value,
 					Predicate: script.PredicateAlwaysTrue(),
 				},
+				SystemDescriptionRecords: createSDRs(2),
 			})
 		require.ErrorIs(t, err, context.Canceled)
 	}()
@@ -276,6 +278,7 @@ func TestCollectDustInMultiAccountWalletWithKeyFlag(t *testing.T) {
 					Value:     initialBill.Value,
 					Predicate: script.PredicateAlwaysTrue(),
 				},
+				SystemDescriptionRecords: createSDRs(2),
 			})
 		require.ErrorIs(t, err, context.Canceled)
 	}()

@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
@@ -18,8 +19,8 @@ import (
 	moneytx "github.com/alphabill-org/alphabill/internal/txsystem/money"
 	moneytestutils "github.com/alphabill-org/alphabill/internal/txsystem/money/testutils"
 	"github.com/alphabill-org/alphabill/internal/util"
-	"github.com/alphabill-org/alphabill/pkg/wallet/money/backend"
 	wlog "github.com/alphabill-org/alphabill/pkg/wallet/log"
+	"github.com/alphabill-org/alphabill/pkg/wallet/money/backend"
 )
 
 /*
@@ -55,6 +56,7 @@ func TestSendingMoneyBetweenWallets(t *testing.T) {
 					Value:     initialBill.Value,
 					Predicate: initialBill.Owner,
 				},
+				SystemDescriptionRecords: []*genesis.SystemDescriptionRecord{defaultMoneySDR},
 			})
 		require.ErrorIs(t, err, context.Canceled)
 	}()
@@ -170,6 +172,7 @@ func TestSendingMoneyBetweenWalletAccounts(t *testing.T) {
 					Value:     initialBill.Value,
 					Predicate: initialBill.Owner,
 				},
+				SystemDescriptionRecords: []*genesis.SystemDescriptionRecord{defaultMoneySDR},
 			})
 		require.ErrorIs(t, err, context.Canceled)
 	}()

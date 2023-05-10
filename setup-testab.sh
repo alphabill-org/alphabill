@@ -57,21 +57,21 @@ moneySdrFlags=""
 
 # Generate vd nodes genesis files.
 if [ "$vd_nodes" -ne 0 ]; then
-  vdSdr='{"systemId": "0x00000001", "unitId": "0x0000000000000000000000000000000000000000000000000000000000000003", "ownerPubKey": "0x03c30573dc0c7fd43fcb801289a6a96cb78c27f4ba398b89da91ece23e9a99aca3"}'
+  vdSdr='{"system_identifier": "AAAAAQ==", "t2timeout": 2500, "fee_credit_bill": {"unit_id": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAM=", "owner_predicate": "U3aoAU8B9SAiu0UEB9kvE78cUxKKZ2vPMEgY6fQaXvTr6unA1rCHaawB"}}'
   echo "$vdSdr" >testab/vd-sdr.json
   moneySdrFlags+=" -c testab/vd-sdr.json"
   generate_partition_node_genesis "vd" "$vd_nodes"
 fi
 # Generate token nodes genesis files.
 if [ "$token_nodes" -ne 0 ]; then
-  tokensSdr='{"systemId": "0x00000002", "unitId": "0x0000000000000000000000000000000000000000000000000000000000000004", "ownerPubKey": "0x03c30573dc0c7fd43fcb801289a6a96cb78c27f4ba398b89da91ece23e9a99aca3"}'
+  tokensSdr='{"system_identifier": "AAAAAg==", "t2timeout": 2500, "fee_credit_bill": {"unit_id": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAQ=", "owner_predicate": "U3aoAU8B9SAiu0UEB9kvE78cUxKKZ2vPMEgY6fQaXvTr6unA1rCHaawB"}}'
   echo "$tokensSdr" >testab/tokens-sdr.json
   moneySdrFlags+=" -c testab/tokens-sdr.json"
   generate_partition_node_genesis "tokens" "$token_nodes"
 fi
 # Generate money nodes genesis files.
 if [ "$money_nodes" -ne 0 ]; then
-  moneySdr='{"systemId": "0x00000000", "unitId": "0x0000000000000000000000000000000000000000000000000000000000000002", "ownerPubKey": "0x03c30573dc0c7fd43fcb801289a6a96cb78c27f4ba398b89da91ece23e9a99aca3"}'
+  moneySdr='{"system_identifier": "AAAAAA==", "t2timeout": 2500, "fee_credit_bill": {"unit_id": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAI=", "owner_predicate": "U3aoAU8B9SAiu0UEB9kvE78cUxKKZ2vPMEgY6fQaXvTr6unA1rCHaawB"}}'
   echo "$moneySdr" >testab/money-sdr.json
   moneySdrFlags+=" -c testab/money-sdr.json"
   generate_partition_node_genesis "money" "$money_nodes" "$moneySdrFlags"

@@ -76,8 +76,8 @@ func (pn *partitionNode) Stop() error {
 
 const rootValidatorNodes = 1
 
-// GetGenesisFiles is a helper function to collect all node genesis files
-func GetGenesisFiles(nodePartitions []*NodePartition) []*genesis.PartitionNode {
+// getGenesisFiles is a helper function to collect all node genesis files
+func getGenesisFiles(nodePartitions []*NodePartition) []*genesis.PartitionNode {
 	var partitionRecords []*genesis.PartitionNode
 	for _, part := range nodePartitions {
 		for _, node := range part.Nodes {
@@ -113,7 +113,7 @@ func newRootPartition(nodePartitions []*NodePartition) (*RootPartition, error) {
 		if err != nil {
 			return nil, fmt.Errorf("root node id error, %w", err)
 		}
-		nodeGenesisFiles := GetGenesisFiles(nodePartitions)
+		nodeGenesisFiles := getGenesisFiles(nodePartitions)
 		pr, err := rootgenesis.NewPartitionRecordFromNodes(nodeGenesisFiles)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create genesis partition record")

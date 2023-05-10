@@ -24,7 +24,7 @@ func TestGetBalance(t *testing.T) {
 
 	pubKey, err := hexutil.Decode(pubKeyHex)
 	require.NoError(t, err)
-	restClient, err := NewClient(mockAddress.Host)
+	restClient, err := New(mockAddress.Host)
 	require.NoError(t, err)
 
 	balance, err := restClient.GetBalance(pubKey, true)
@@ -38,7 +38,7 @@ func TestListBills(t *testing.T) {
 
 	pubKey, err := hexutil.Decode(pubKeyHex)
 	require.NoError(t, err)
-	restClient, err := NewClient(mockAddress.Host)
+	restClient, err := New(mockAddress.Host)
 	require.NoError(t, err)
 
 	billsResponse, err := restClient.ListBills(pubKey, true)
@@ -55,7 +55,7 @@ func TestListBillsWithPaging(t *testing.T) {
 
 	pubKey, err := hexutil.Decode(pubKeyHex)
 	require.NoError(t, err)
-	restClient, err := NewClient(mockAddress.Host)
+	restClient, err := New(mockAddress.Host)
 	require.NoError(t, err)
 
 	billsResponse, err := restClient.ListBills(pubKey, true)
@@ -70,7 +70,7 @@ func TestGetProof(t *testing.T) {
 	mockServer, mockAddress := mockGetProofCall(t)
 	defer mockServer.Close()
 
-	restClient, _ := NewClient(mockAddress.Host)
+	restClient, _ := New(mockAddress.Host)
 	proofResponse, err := restClient.GetProof([]byte(billId))
 
 	require.NoError(t, err)
@@ -83,7 +83,7 @@ func TestBlockHeight(t *testing.T) {
 	mockServer, mockAddress := mockGetBlockHeightCall(t)
 	defer mockServer.Close()
 
-	restClient, _ := NewClient(mockAddress.Host)
+	restClient, _ := New(mockAddress.Host)
 	blockHeight, err := restClient.GetRoundNumber(context.Background())
 
 	require.NoError(t, err)
@@ -92,7 +92,7 @@ func TestBlockHeight(t *testing.T) {
 
 func Test_NewClient(t *testing.T) {
 	t.Run("invalid URL", func(t *testing.T) {
-		mbc, err := NewClient("x:y:z")
+		mbc, err := New("x:y:z")
 		require.ErrorContains(t, err, "error parsing Money Backend Client base URL")
 		require.Nil(t, mbc)
 	})
@@ -112,7 +112,7 @@ func Test_NewClient(t *testing.T) {
 		}
 
 		for _, tc := range cases {
-			mbc, err := NewClient(tc.param)
+			mbc, err := New(tc.param)
 			if err != nil {
 				t.Errorf("unexpected error for parameter %q: %v", tc.param, err)
 			}
@@ -125,7 +125,7 @@ func Test_NewClient(t *testing.T) {
 
 func TestGetFeeCreditBill(t *testing.T) {
 	serverURL := mockGetFeeCreditBillCall(t)
-	restClient, _ := NewClient(serverURL.Host)
+	restClient, _ := New(serverURL.Host)
 	response, err := restClient.FetchFeeCreditBill(context.Background(), []byte{})
 	require.NoError(t, err)
 

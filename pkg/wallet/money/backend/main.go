@@ -1,15 +1,20 @@
-package money
+package backend
 
 import (
 	"context"
 	"crypto"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"math/rand"
+	"net/http"
+	"sync"
 	"time"
 
 	"golang.org/x/sync/errgroup"
+	"golang.org/x/sync/semaphore"
 
+	"github.com/ainvaltin/httpsrv"
 	"github.com/alphabill-org/alphabill/internal/block"
 	"github.com/alphabill-org/alphabill/internal/script"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
@@ -21,7 +26,20 @@ import (
 	wlog "github.com/alphabill-org/alphabill/pkg/wallet/log"
 )
 
+// @title           Money Partition Indexing Backend API
+// @version         1.0
+// @description     This service processes blocks from the Money partition and indexes ownership of bills.
+
+// @BasePath  /api/v1
 type (
+	WalletBackendService interface {
+		GetBills(ownerCondition []byte) ([]*Bill, error)
+		GetBill(unitID []byte) (*Bill, error)
+		GetRoundNumber(ctx context.Context) (uint64, error)
+		GetFeeCreditBill(unitID []byte) (*Bill, error)
+		SendTransactions(ctx context.Context, txs []*txsystem.Transaction) map[string]string
+	}
+
 	WalletBackend struct {
 		store         BillStore
 		genericWallet *wallet.Wallet
@@ -98,7 +116,7 @@ type (
 	}
 )
 
-func CreateAndRun(ctx context.Context, config *Config) error {
+func Run(ctx context.Context, config *Config) error {
 	store, err := NewBoltBillStore(config.DbFile)
 	if err != nil {
 		return fmt.Errorf("failed to get storage: %w", err)
@@ -131,8 +149,18 @@ func CreateAndRun(ctx context.Context, config *Config) error {
 	g.Go(func() error {
 		walletBackend := &WalletBackend{store: store, genericWallet: wallet.New().SetABClient(abc).Build()}
 		defer walletBackend.genericWallet.Shutdown()
-		server := NewHttpServer(config.ServerAddr, config.ListBillsPageLimit, walletBackend)
-		return server.Run(ctx)
+
+		handler := &RequestHandler{Service: walletBackend, ListBillsPageLimit: config.ListBillsPageLimit}
+		server := http.Server{
+			Addr:              config.ServerAddr,
+			Handler:           handler.Router(),
+			ReadTimeout:       3 * time.Second,
+			ReadHeaderTimeout: time.Second,
+			WriteTimeout:      5 * time.Second,
+			IdleTimeout:       30 * time.Second,
+		}
+
+		return httpsrv.Run(ctx, server, httpsrv.ShutdownTimeout(5*time.Second))
 	})
 
 	g.Go(func() error {
@@ -196,6 +224,39 @@ func (w *WalletBackend) GetFeeCreditBill(unitID []byte) (*Bill, error) {
 // GetRoundNumber returns latest round number.
 func (w *WalletBackend) GetRoundNumber(ctx context.Context) (uint64, error) {
 	return w.genericWallet.GetRoundNumber(ctx)
+}
+
+// TODO: Share functionaly with tokens partiton
+// SendTransactions forwards transactions to partiton node(s).
+func (w *WalletBackend) SendTransactions(ctx context.Context, txs []*txsystem.Transaction) map[string]string {
+	errs := make(map[string]string)
+	var m sync.Mutex
+
+	const maxWorkers = 5
+	sem := semaphore.NewWeighted(maxWorkers)
+	for _, tx := range txs {
+		if err := sem.Acquire(ctx, 1); err != nil {
+			break
+		}
+		go func(tx *txsystem.Transaction) {
+			defer sem.Release(1)
+			if err := w.genericWallet.SendTransaction(ctx, tx, nil); err != nil {
+				m.Lock()
+				errs[hex.EncodeToString(tx.GetUnitId())] =
+					fmt.Errorf("failed to forward tx: %w", err).Error()
+				m.Unlock()
+			}
+		}(tx)
+	}
+
+	semCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	defer cancel()
+	if err := sem.Acquire(semCtx, maxWorkers); err != nil {
+		m.Lock()
+		errs["waiting-for-workers"] = err.Error()
+		m.Unlock()
+	}
+	return errs
 }
 
 func (b *Bill) toProto() *bp.Bill {

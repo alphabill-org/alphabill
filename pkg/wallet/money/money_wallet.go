@@ -10,11 +10,6 @@ import (
 	"time"
 
 	"github.com/alphabill-org/alphabill/internal/block"
-	"github.com/alphabill-org/alphabill/pkg/wallet/money/fees"
-	"github.com/alphabill-org/alphabill/pkg/wallet/money/tx_builder"
-	"github.com/ethereum/go-ethereum/common/hexutil"
-	"golang.org/x/sync/errgroup"
-
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/internal/txsystem/money"
@@ -24,9 +19,13 @@ import (
 	"github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/alphabill-org/alphabill/pkg/wallet/account"
 	"github.com/alphabill-org/alphabill/pkg/wallet/backend/bp"
-	backendmoney "github.com/alphabill-org/alphabill/pkg/wallet/backend/money"
-	"github.com/alphabill-org/alphabill/pkg/wallet/backend/money/client"
+	"github.com/alphabill-org/alphabill/pkg/wallet/money/backend"
+	"github.com/alphabill-org/alphabill/pkg/wallet/money/backend/client"
+	"github.com/alphabill-org/alphabill/pkg/wallet/fees"
 	"github.com/alphabill-org/alphabill/pkg/wallet/log"
+	"github.com/alphabill-org/alphabill/pkg/wallet/money/tx_builder"
+	"github.com/ethereum/go-ethereum/common/hexutil"
+	"golang.org/x/sync/errgroup"
 )
 
 const (
@@ -665,7 +664,7 @@ func getBillIds(bills []*Bill) [][]byte {
 	return billIds
 }
 
-func convertBills(billsList []*backendmoney.ListBillVM) ([]*bp.Bill, error) {
+func convertBills(billsList []*backend.ListBillVM) ([]*bp.Bill, error) {
 	var bills []*bp.Bill
 	for _, b := range billsList {
 		bill := newBillFromVM(b)
@@ -675,7 +674,7 @@ func convertBills(billsList []*backendmoney.ListBillVM) ([]*bp.Bill, error) {
 }
 
 // newBillFromVM converts ListBillVM to Bill structs
-func newBillFromVM(b *backendmoney.ListBillVM) *bp.Bill {
+func newBillFromVM(b *backend.ListBillVM) *bp.Bill {
 	return &bp.Bill{
 		Id:       b.Id,
 		Value:    b.Value,

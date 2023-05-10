@@ -13,9 +13,9 @@ import (
 	"github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/alphabill-org/alphabill/pkg/wallet/account"
 	"github.com/alphabill-org/alphabill/pkg/wallet/backend/bp"
-	moneyclient "github.com/alphabill-org/alphabill/pkg/wallet/backend/money/client"
+	moneyclient "github.com/alphabill-org/alphabill/pkg/wallet/money/backend/client"
+	"github.com/alphabill-org/alphabill/pkg/wallet/fees"
 	"github.com/alphabill-org/alphabill/pkg/wallet/money"
-	"github.com/alphabill-org/alphabill/pkg/wallet/money/fees"
 	"github.com/alphabill-org/alphabill/pkg/wallet/tokens"
 	tokenclient "github.com/alphabill-org/alphabill/pkg/wallet/tokens/client"
 	"github.com/spf13/cobra"
@@ -51,7 +51,7 @@ func newWalletFeesCmd(ctx context.Context, config *walletConfig) *cobra.Command 
 	// TODO remove when tx broadcasting through backend api is implemented
 	cmd.PersistentFlags().StringP(alphabillNodeURLCmdName, "u", defaultAlphabillNodeURL, nodeUsage)
 
-	usage := fmt.Sprintf("partition backend url for which to manage fees (default: [%s|%s] based on --partition flag)", defaultAlphabillApiURL, defaultTokenApiURL)
+	usage := fmt.Sprintf("partition backend url for which to manage fees (default: [%s|%s] based on --partition flag)", defaultAlphabillApiURL, defaultTokensBackendApiURL)
 	cmd.PersistentFlags().StringVarP(&cliConfig.partitionBackendURL, partitionBackendUrlCmdName, "m", "", usage)
 	return cmd
 }
@@ -86,7 +86,7 @@ func addFeeCreditCmdExec(ctx context.Context, cmd *cobra.Command, config *wallet
 	if err != nil {
 		return err
 	}
-	restClient, err := moneyclient.NewClient(apiURL)
+	restClient, err := moneyclient.New(apiURL)
 	if err != nil {
 		return err
 	}
@@ -129,7 +129,7 @@ func listFeesCmdExec(ctx context.Context, cmd *cobra.Command, config *walletConf
 	if err != nil {
 		return err
 	}
-	moneyBackendClient, err := moneyclient.NewClient(moneyBackendURL)
+	moneyBackendClient, err := moneyclient.New(moneyBackendURL)
 	if err != nil {
 		return err
 	}
@@ -176,7 +176,7 @@ func reclaimFeeCreditCmdExec(ctx context.Context, cmd *cobra.Command, config *wa
 	if err != nil {
 		return err
 	}
-	restClient, err := moneyclient.NewClient(moneyBackendApiURL)
+	restClient, err := moneyclient.New(moneyBackendApiURL)
 	if err != nil {
 		return err
 	}
@@ -273,7 +273,7 @@ func (c *cliConf) getPartitionBackendURL() string {
 	case moneyType:
 		return defaultAlphabillApiURL
 	case tokenType:
-		return defaultTokenApiURL
+		return defaultTokensBackendApiURL
 	default:
 		panic("invalid \"partition\" flag value: " + c.partitionType)
 	}

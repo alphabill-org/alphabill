@@ -9,16 +9,16 @@ import (
 	"github.com/spf13/cobra"
 
 	wlog "github.com/alphabill-org/alphabill/pkg/wallet/log"
-	twb "github.com/alphabill-org/alphabill/pkg/wallet/tokens/backend"
+	"github.com/alphabill-org/alphabill/pkg/wallet/tokens/backend"
 )
 
-const defaultTokenApiURL = "localhost:9735"
+const defaultTokensBackendApiURL = "localhost:9735"
 
-func newTokenWalletBackendCmd(baseConfig *baseConfiguration) *cobra.Command {
+func newTokensBackendCmd(baseConfig *baseConfiguration) *cobra.Command {
 	var cmd = &cobra.Command{
-		Use:   "token-backend",
-		Short: "starts token wallet backend service",
-		Long:  "starts token wallet backend service, indexes all transactions by owner predicates, starts http server",
+		Use:   "tokens-backend",
+		Short: "Starts tokens backend service",
+		Long:  "Starts tokens backend service, indexes all transactions by owner predicates, starts http server",
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 			if err := initializeConfig(cmd, baseConfig); err != nil {
 				return fmt.Errorf("failed to init configuration: %w", err)
@@ -28,24 +28,24 @@ func newTokenWalletBackendCmd(baseConfig *baseConfiguration) *cobra.Command {
 	}
 	cmd.PersistentFlags().String(logFileCmdName, "", "log file path (default output to stderr)")
 	cmd.PersistentFlags().String(logLevelCmdName, "INFO", "logging level (DEBUG, INFO, NOTICE, WARNING, ERROR)")
-	cmd.AddCommand(buildCmdStartTokenWalletBackend(baseConfig))
+	cmd.AddCommand(buildCmdStartTokensBackend(baseConfig))
 	return cmd
 }
 
-func buildCmdStartTokenWalletBackend(config *baseConfiguration) *cobra.Command {
+func buildCmdStartTokensBackend(config *baseConfiguration) *cobra.Command {
 	cmd := &cobra.Command{
 		Use: "start",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return execTokenWalletBackendStartCmd(cmd.Context(), cmd, config)
+			return execTokensBackendStartCmd(cmd.Context(), cmd, config)
 		},
 	}
 	cmd.Flags().StringP(alphabillNodeURLCmdName, "u", defaultAlphabillNodeURL, "alphabill node url")
-	cmd.Flags().StringP(serverAddrCmdName, "s", defaultTokenApiURL, "server address")
+	cmd.Flags().StringP(serverAddrCmdName, "s", defaultTokensBackendApiURL, "server address")
 	cmd.Flags().StringP(dbFileCmdName, "f", "", "path to the database file")
 	return cmd
 }
 
-func execTokenWalletBackendStartCmd(ctx context.Context, cmd *cobra.Command, config *baseConfiguration) error {
+func execTokensBackendStartCmd(ctx context.Context, cmd *cobra.Command, config *baseConfiguration) error {
 	abURL, err := cmd.Flags().GetString(alphabillNodeURLCmdName)
 	if err != nil {
 		return fmt.Errorf("failed to get %q flag value: %w", alphabillNodeURLCmdName, err)
@@ -54,7 +54,7 @@ func execTokenWalletBackendStartCmd(ctx context.Context, cmd *cobra.Command, con
 	if err != nil {
 		return fmt.Errorf("failed to get %q flag value: %w", serverAddrCmdName, err)
 	}
-	dbFile, err := filenameEnsureDir(dbFileCmdName, cmd, config.HomeDir, "token-backend", "tokens.db")
+	dbFile, err := filenameEnsureDir(dbFileCmdName, cmd, config.HomeDir, "tokens-backend", "tokens.db")
 	if err != nil {
 		return fmt.Errorf("failed to get path for database: %w", err)
 	}
@@ -72,7 +72,7 @@ func execTokenWalletBackendStartCmd(ctx context.Context, cmd *cobra.Command, con
 		return fmt.Errorf("failed to init logger: %w", err)
 	}
 
-	return twb.Run(ctx, twb.NewConfig(srvAddr, abURL, dbFile, logger))
+	return backend.Run(ctx, backend.NewConfig(srvAddr, abURL, dbFile, logger))
 }
 
 /*

@@ -12,8 +12,8 @@ import (
 	testpartition "github.com/alphabill-org/alphabill/internal/testutils/partition"
 	moneytx "github.com/alphabill-org/alphabill/internal/txsystem/money"
 	"github.com/alphabill-org/alphabill/internal/util"
-	"github.com/alphabill-org/alphabill/pkg/wallet/backend/money"
-	moneyclient "github.com/alphabill-org/alphabill/pkg/wallet/backend/money/client"
+	"github.com/alphabill-org/alphabill/pkg/wallet/money/backend"
+	moneyclient "github.com/alphabill-org/alphabill/pkg/wallet/money/backend/client"
 	wlog "github.com/alphabill-org/alphabill/pkg/wallet/log"
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
@@ -171,14 +171,14 @@ func startMoneyBackend(t *testing.T, moneyPart *testpartition.NodePartition, ini
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	t.Cleanup(cancelFunc)
 	go func() {
-		err := money.CreateAndRun(ctx,
-			&money.Config{
+		err := backend.Run(ctx,
+			&backend.Config{
 				ABMoneySystemIdentifier: []byte{0, 0, 0, 0},
 				AlphabillUrl:            moneyPart.Nodes[0].AddrGRPC,
 				ServerAddr:              defaultAlphabillApiURL, // TODO move to random port
-				DbFile:                  filepath.Join(t.TempDir(), money.BoltBillStoreFileName),
+				DbFile:                  filepath.Join(t.TempDir(), backend.BoltBillStoreFileName),
 				ListBillsPageLimit:      100,
-				InitialBill: money.InitialBill{
+				InitialBill: backend.InitialBill{
 					Id:        util.Uint256ToBytes(initialBill.ID),
 					Value:     initialBill.Value,
 					Predicate: script.PredicateAlwaysTrue(),
@@ -187,7 +187,7 @@ func startMoneyBackend(t *testing.T, moneyPart *testpartition.NodePartition, ini
 		require.ErrorIs(t, err, context.Canceled)
 	}()
 
-	restClient, err := moneyclient.NewClient(defaultAlphabillApiURL)
+	restClient, err := moneyclient.New(defaultAlphabillApiURL)
 	require.NoError(t, err)
 
 	return defaultAlphabillApiURL, restClient

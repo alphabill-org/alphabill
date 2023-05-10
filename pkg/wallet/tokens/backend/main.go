@@ -1,5 +1,4 @@
-// package twb implements token wallet backend
-package twb
+package backend
 
 import (
 	"context"
@@ -58,7 +57,7 @@ type Storage interface {
 }
 
 /*
-Run starts the token wallet backend - syncing blocks to local storage and
+Run starts the tokens backend - syncing blocks to local storage and
 launching HTTP server to query it.
 Run blocks until ctx is cancelled or some unrecoverable error happens, it
 always returns non-nil error.

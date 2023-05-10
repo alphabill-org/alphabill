@@ -23,9 +23,11 @@ func TestNFTs_Integration(t *testing.T) {
 	require.NoError(t, wlog.InitStdoutLogger(wlog.INFO))
 
 	network := NewAlphabillNetwork(t)
-	moneyPartition := network.moneyPartition
+	moneyPartition, err := network.abNetwork.GetNodePartition(defaultABMoneySystemIdentifier)
+	require.NoError(t, err)
 	moneyBackendURL := network.moneyBackendURL
-	partition := network.tokenPartition
+	tokenPartition, err := network.abNetwork.GetNodePartition(tokens.DefaultTokenTxSystemIdentifier)
+	require.NoError(t, err)
 	homedirW1 := network.walletHomedir
 	w1key := network.walletKey1
 	backendURL := network.tokenBackendURL
@@ -49,13 +51,13 @@ func TestNFTs_Integration(t *testing.T) {
 	ensureTokenTypeIndexed(t, ctx, backendClient, w1key.PubKey, typeID2)
 	// mint NFT
 	execTokensCmd(t, homedirW1, fmt.Sprintf("new non-fungible -r %s --type %X --token-identifier %X", backendURL, typeID, nftID))
-	require.Eventually(t, testpartition.BlockchainContains(partition, func(tx *txsystem.Transaction) bool {
+	require.Eventually(t, testpartition.BlockchainContains(tokenPartition, func(tx *txsystem.Transaction) bool {
 		return tx.TransactionAttributes.GetTypeUrl() == "type.googleapis.com/alphabill.tokens.v1.MintNonFungibleTokenAttributes" && bytes.Equal(tx.UnitId, nftID)
 	}), test.WaitDuration, test.WaitTick)
 	ensureTokenIndexed(t, ctx, backendClient, w1key.PubKey, nftID)
 	// transfer NFT
 	execTokensCmd(t, homedirW1, fmt.Sprintf("send non-fungible -r %s --token-identifier %X --address 0x%X -k 1", backendURL, nftID, w2key.PubKey))
-	require.Eventually(t, testpartition.BlockchainContains(partition, func(tx *txsystem.Transaction) bool {
+	require.Eventually(t, testpartition.BlockchainContains(tokenPartition, func(tx *txsystem.Transaction) bool {
 		return tx.TransactionAttributes.GetTypeUrl() == "type.googleapis.com/alphabill.tokens.v1.TransferNonFungibleTokenAttributes" && bytes.Equal(tx.UnitId, nftID)
 	}), test.WaitDuration, test.WaitTick)
 	ensureTokenIndexed(t, ctx, backendClient, w2key.PubKey, nftID)
@@ -85,7 +87,8 @@ func TestNFTDataUpdateCmd_Integration(t *testing.T) {
 	require.NoError(t, wlog.InitStdoutLogger(wlog.INFO))
 
 	network := NewAlphabillNetwork(t)
-	partition := network.tokenPartition
+	tokenPartition, err := network.abNetwork.GetNodePartition(tokens.DefaultTokenTxSystemIdentifier)
+	require.NoError(t, err)
 	homedir := network.walletHomedir
 	w1key := network.walletKey1
 	backendURL := network.tokenBackendURL
@@ -106,7 +109,7 @@ func TestNFTDataUpdateCmd_Integration(t *testing.T) {
 	_, err = tmpfile.Write(data)
 	require.NoError(t, err)
 	execTokensCmd(t, homedir, fmt.Sprintf("new non-fungible -r %s --type %X --token-identifier %X --data-file %s", backendURL, typeID, nftID, tmpfile.Name()))
-	require.Eventually(t, testpartition.BlockchainContains(partition, func(tx *txsystem.Transaction) bool {
+	require.Eventually(t, testpartition.BlockchainContains(tokenPartition, func(tx *txsystem.Transaction) bool {
 		if tx.TransactionAttributes.GetTypeUrl() == "type.googleapis.com/alphabill.tokens.v1.MintNonFungibleTokenAttributes" && bytes.Equal(tx.UnitId, nftID) {
 			mintNonFungibleAttr := &tokens.MintNonFungibleTokenAttributes{}
 			require.NoError(t, tx.TransactionAttributes.UnmarshalTo(mintNonFungibleAttr))
@@ -128,7 +131,7 @@ func TestNFTDataUpdateCmd_Integration(t *testing.T) {
 	require.NoError(t, err)
 	// update data, assumes default [--data-update-input true,true]
 	execTokensCmd(t, homedir, fmt.Sprintf("update -r %s --token-identifier %X --data-file %s", backendURL, nftID, tmpfile.Name()))
-	require.Eventually(t, testpartition.BlockchainContains(partition, func(tx *txsystem.Transaction) bool {
+	require.Eventually(t, testpartition.BlockchainContains(tokenPartition, func(tx *txsystem.Transaction) bool {
 		if tx.TransactionAttributes.GetTypeUrl() == "type.googleapis.com/alphabill.tokens.v1.UpdateNonFungibleTokenAttributes" && bytes.Equal(tx.UnitId, nftID) {
 			dataUpdateAttrs := &tokens.UpdateNonFungibleTokenAttributes{}
 			require.NoError(t, tx.TransactionAttributes.UnmarshalTo(dataUpdateAttrs))
@@ -149,14 +152,15 @@ func TestNFTDataUpdateCmd_Integration(t *testing.T) {
 	require.Equal(t, []byte{0x01}, nft2.NftData)
 	//try to update and observe failure
 	execTokensCmd(t, homedir, fmt.Sprintf("update -r %s --token-identifier %X --data 02 --data-update-input false,true -w false", backendURL, nftID2))
-	testevent.ContainsEvent(t, partition.EventHandler, event.TransactionFailed)
+	testevent.ContainsEvent(t, tokenPartition.Nodes[0].EventHandler, event.TransactionFailed)
 }
 
 func TestNFT_InvariantPredicate_Integration(t *testing.T) {
 	require.NoError(t, wlog.InitStdoutLogger(wlog.INFO))
 
 	network := NewAlphabillNetwork(t)
-	partition := network.tokenPartition
+	tokenPartition, err := network.abNetwork.GetNodePartition(tokens.DefaultTokenTxSystemIdentifier)
+	require.NoError(t, err)
 	homedirW1 := network.walletHomedir
 	w1key := network.walletKey1
 	backendURL := network.tokenBackendURL
@@ -172,13 +176,13 @@ func TestNFT_InvariantPredicate_Integration(t *testing.T) {
 	typeID11 := randomID(t)
 	typeID12 := randomID(t)
 	execTokensCmd(t, homedirW1, fmt.Sprintf("new-type non-fungible -r %s --symbol %s --type %X --inherit-bearer-clause %s", backendURL, symbol1, typeID11, predicatePtpkh))
-	require.Eventually(t, testpartition.BlockchainContains(partition, func(tx *txsystem.Transaction) bool {
+	require.Eventually(t, testpartition.BlockchainContains(tokenPartition, func(tx *txsystem.Transaction) bool {
 		return bytes.Equal(tx.UnitId, typeID11)
 	}), test.WaitDuration, test.WaitTick)
 	ensureTokenTypeIndexed(t, ctx, backendClient, w1key.PubKey, typeID11)
 	//second type inheriting the first one and leaves inherit-bearer clause to default (true)
 	execTokensCmd(t, homedirW1, fmt.Sprintf("new-type non-fungible -r %s --symbol %s --type %X --parent-type %X --subtype-input %s", backendURL, symbol1, typeID12, typeID11, predicateTrue))
-	require.Eventually(t, testpartition.BlockchainContains(partition, func(tx *txsystem.Transaction) bool {
+	require.Eventually(t, testpartition.BlockchainContains(tokenPartition, func(tx *txsystem.Transaction) bool {
 		return bytes.Equal(tx.UnitId, typeID12)
 	}), test.WaitDuration, test.WaitTick)
 	ensureTokenTypeIndexed(t, ctx, backendClient, w1key.PubKey, typeID12)

@@ -13,13 +13,13 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/alphabill-org/alphabill/internal/partition"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
 
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
-	"github.com/alphabill-org/alphabill/internal/partition"
 	"github.com/alphabill-org/alphabill/internal/script"
 	testpartition "github.com/alphabill-org/alphabill/internal/testutils/partition"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
@@ -186,8 +186,8 @@ func TestSendingFailsWithInsufficientBalance(t *testing.T) {
 	require.ErrorIs(t, err, money.ErrInsufficientBalance)
 }
 
-func startMoneyPartition(t *testing.T, initialBill *moneytx.InitialBill) *testpartition.AlphabillPartition {
-	network, err := testpartition.NewNetwork(1, func(tb map[string]abcrypto.Verifier) txsystem.TransactionSystem {
+func createMoneyPartition(t *testing.T, initialBill *moneytx.InitialBill) *testpartition.NodePartition {
+	moneyPart, err := testpartition.NewPartition(1, func(tb map[string]abcrypto.Verifier) txsystem.TransactionSystem {
 		system, err := moneytx.NewMoneyTxSystem(
 			defaultABMoneySystemIdentifier,
 			moneytx.WithHashAlgorithm(crypto.SHA256),
@@ -209,16 +209,24 @@ func startMoneyPartition(t *testing.T, initialBill *moneytx.InitialBill) *testpa
 		return system
 	}, []byte{0, 0, 0, 0})
 	require.NoError(t, err)
+	return moneyPart
+}
+
+func startAlphabill(t *testing.T, partitions []*testpartition.NodePartition) *testpartition.AlphabillPartition {
+	abNetwork, err := testpartition.NewAlphabillPartition(partitions)
+	require.NoError(t, err)
+	require.NoError(t, abNetwork.Start())
 
 	t.Cleanup(func() {
-		require.NoError(t, network.Close())
+		require.NoError(t, abNetwork.Close())
 	})
+	return abNetwork
+}
 
-	for i := range network.Nodes {
-		network.Nodes[i].AddrGRPC = startRPCServer(t, network.Nodes[i].Node)
+func startPartitionRPCServers(t *testing.T, partition *testpartition.NodePartition) {
+	for _, n := range partition.Nodes {
+		n.AddrGRPC = startRPCServer(t, n.Node)
 	}
-
-	return network
 }
 
 func startRPCServer(t *testing.T, node *partition.Node) string {

@@ -15,24 +15,32 @@ import (
 var systemIdentifier = []byte{1, 2, 4, 1}
 
 func TestNewNetwork_Ok(t *testing.T) {
-	network, err := NewNetwork(3, func(_ map[string]crypto.Verifier) txsystem.TransactionSystem {
-		return &testtxsystem.CounterTxSystem{}
-	}, systemIdentifier)
+	counterPartition, err := NewPartition(3,
+		func(_ map[string]crypto.Verifier) txsystem.TransactionSystem {
+			return &testtxsystem.CounterTxSystem{}
+		},
+		systemIdentifier)
 	require.NoError(t, err)
+	abNetwork, err := NewAlphabillPartition([]*NodePartition{counterPartition})
+	require.NoError(t, err)
+	require.NoError(t, abNetwork.Start())
 	defer func() {
-		err = network.Close()
+		err = abNetwork.Close()
 		require.NoError(t, err)
 	}()
-	require.NotNil(t, network.RootNode)
-	require.Equal(t, 3, len(network.Nodes))
+	require.Len(t, abNetwork.RootPartition.Nodes, 1)
+	require.Len(t, abNetwork.NodePartitions, 1)
+	cPart, err := abNetwork.GetNodePartition(systemIdentifier)
+	require.NoError(t, err)
+	require.Len(t, cPart.Nodes, 3)
 
 	tx := testtransaction.NewTransaction(t, testtransaction.WithSystemID(systemIdentifier))
 	fmt.Printf("Submitting tx: %v, UnitId=%x\n", tx, tx.UnitId)
-	require.NoError(t, network.SubmitTx(tx))
-	require.Eventually(t, BlockchainContainsTx(tx, network), test.WaitDuration, test.WaitTick)
+	require.NoError(t, cPart.SubmitTx(tx))
+	require.Eventually(t, BlockchainContainsTx(cPart, tx), test.WaitDuration, test.WaitTick)
 
 	tx = testtransaction.NewTransaction(t, testtransaction.WithSystemID(systemIdentifier))
 	fmt.Printf("Broadcasting tx: %v, UnitId=%x\n", tx, tx.UnitId)
-	err = network.BroadcastTx(tx)
-	require.Eventually(t, BlockchainContainsTx(tx, network), test.WaitDuration, test.WaitTick)
+	err = cPart.BroadcastTx(tx)
+	require.Eventually(t, BlockchainContainsTx(cPart, tx), test.WaitDuration, test.WaitTick)
 }

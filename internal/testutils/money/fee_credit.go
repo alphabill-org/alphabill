@@ -31,23 +31,25 @@ func CreateFeeCredit(t *testing.T, initialBillID []byte, network *testpartition.
 		testtransaction.WithUnitId(initialBillID),
 		testtransaction.WithOwnerProof(script.PredicateArgumentEmpty()),
 	)
-	err := network.SubmitTx(transferFC.Transaction)
+	moneyPartition, err := network.GetNodePartition([]byte{0, 0, 0, 0})
 	require.NoError(t, err)
-	require.Eventually(t, testpartition.BlockchainContainsTx(transferFC.Transaction, network), test.WaitDuration, test.WaitTick)
+	err = moneyPartition.SubmitTx(transferFC.Transaction)
+	require.NoError(t, err)
+	require.Eventually(t, testpartition.BlockchainContainsTx(moneyPartition, transferFC.Transaction), test.WaitDuration, test.WaitTick)
 
 	// send addFC
-	_, transferFCProof, err := network.GetBlockProof(transferFC.Transaction, transactions.NewFeeCreditTx)
+	_, transferFCProof, err := moneyPartition.GetBlockProof(transferFC.Transaction, transactions.NewFeeCreditTx)
 	require.NoError(t, err)
-	addFC := testfc.NewAddFC(t, network.RootPartition.RootSigners[0],
-		testfc.NewAddFCAttr(t, network.RootPartition.RootSigners[0],
+	addFC := testfc.NewAddFC(t, network.RootPartition.Nodes[0].RootSigner,
+		testfc.NewAddFCAttr(t, network.RootPartition.Nodes[0].RootSigner,
 			testfc.WithTransferFCTx(transferFC.Transaction),
 			testfc.WithTransferFCProof(transferFCProof),
 			testfc.WithFCOwnerCondition(script.PredicateAlwaysTrue()),
 		),
 		testtransaction.WithUnitId(fcrIDBytes[:]),
 	)
-	err = network.SubmitTx(addFC.Transaction)
+	err = moneyPartition.SubmitTx(addFC.Transaction)
 	require.NoError(t, err)
-	require.Eventually(t, testpartition.BlockchainContainsTx(addFC.Transaction, network), test.WaitDuration, test.WaitTick)
+	require.Eventually(t, testpartition.BlockchainContainsTx(moneyPartition, addFC.Transaction), test.WaitDuration, test.WaitTick)
 	return transferFC
 }

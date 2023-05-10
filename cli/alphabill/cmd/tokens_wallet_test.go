@@ -429,16 +429,11 @@ func ensureTokenTypeIndexed(t *testing.T, ctx context.Context, api *client.Token
 	return res
 }
 
-func startTokensPartition(t *testing.T, opts ...testpartition.PartitionOption) (*testpartition.AlphabillPartition, string) {
+func createTokensPartition(t *testing.T) *testpartition.NodePartition {
 	tokensState := rma.NewWithSHA256()
 	require.NotNil(t, tokensState)
 
-	c := &testpartition.PartitionConf{}
-	for _, opt := range opts {
-		opt(c)
-	}
-
-	network, err := testpartition.NewNetwork(1,
+	network, err := testpartition.NewPartition(1,
 		func(tb map[string]abcrypto.Verifier) txsystem.TransactionSystem {
 			system, err := tokens.New(
 				tokens.WithState(tokensState),
@@ -447,16 +442,11 @@ func startTokensPartition(t *testing.T, opts ...testpartition.PartitionOption) (
 			require.NoError(t, err)
 			return system
 		}, tokens.DefaultTokenTxSystemIdentifier,
-		testpartition.WithRootPartition(c.RootPartition),
 	)
 	require.NoError(t, err)
 
-	t.Cleanup(func() {
-		require.NoError(t, network.Close())
-	})
-
-	dialAddr := startRPCServer(t, network.Nodes[0].Node)
-	return network, dialAddr
+	//	dialAddr := startRPCServer(t, network.Nodes[0].Node)
+	return network //dialAddr
 }
 
 func startTokensBackend(t *testing.T, nodeAddr string) (srvUri string, restApi *client.TokenBackend, ctx context.Context) {

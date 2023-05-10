@@ -37,8 +37,10 @@ func TestSendingMoneyBetweenWallets(t *testing.T) {
 		Value: 1e18,
 		Owner: script.PredicateAlwaysTrue(),
 	}
-	network := startMoneyPartition(t, initialBill)
-	alphabillNodeAddr := network.Nodes[0].AddrGRPC
+	moneyPartition := createMoneyPartition(t, initialBill)
+	abNet := startAlphabill(t, []*testpartition.NodePartition{moneyPartition})
+	startPartitionRPCServers(t, moneyPartition)
+	alphabillNodeAddr := moneyPartition.Nodes[0].AddrGRPC
 
 	// start wallet backend
 	ctx, cancelFunc := context.WithCancel(context.Background())
@@ -76,16 +78,16 @@ func TestSendingMoneyBetweenWallets(t *testing.T) {
 	// create fee credit for initial bill transfer
 	txFeeBilly := uint64(1)
 	fcrAmount := testmoney.FCRAmount
-	transferFC := testmoney.CreateFeeCredit(t, util.Uint256ToBytes(initialBill.ID), network)
+	transferFC := testmoney.CreateFeeCredit(t, util.Uint256ToBytes(initialBill.ID), abNet)
 	initialBillBacklink := transferFC.Hash(crypto.SHA256)
 	w1BalanceBilly := initialBill.Value - fcrAmount - txFeeBilly
 
 	// transfer initial bill to wallet 1
 	transferInitialBillTx, err := moneytestutils.CreateInitialBillTransferTx(w1PubKey, initialBill.ID, w1BalanceBilly, 10000, initialBillBacklink)
 	require.NoError(t, err)
-	err = network.SubmitTx(transferInitialBillTx)
+	err = moneyPartition.SubmitTx(transferInitialBillTx)
 	require.NoError(t, err)
-	require.Eventually(t, testpartition.BlockchainContainsTx(transferInitialBillTx, network), test.WaitDuration, test.WaitTick)
+	require.Eventually(t, testpartition.BlockchainContainsTx(moneyPartition, transferInitialBillTx), test.WaitDuration, test.WaitTick)
 
 	// verify bill is received by wallet 1
 	waitForBalanceCLI(t, homedir1, defaultAlphabillApiURL, w1BalanceBilly, 0)
@@ -153,8 +155,10 @@ func TestSendingMoneyBetweenWalletAccounts(t *testing.T) {
 		Value: 1e18,
 		Owner: script.PredicateAlwaysTrue(),
 	}
-	network := startMoneyPartition(t, initialBill)
-	alphabillNodeAddr := network.Nodes[0].AddrGRPC
+	moneyPartition := createMoneyPartition(t, initialBill)
+	abNet := startAlphabill(t, []*testpartition.NodePartition{moneyPartition})
+	startPartitionRPCServers(t, moneyPartition)
+	alphabillNodeAddr := moneyPartition.Nodes[0].AddrGRPC
 
 	// start wallet backend
 	ctx, cancelFunc := context.WithCancel(context.Background())
@@ -188,16 +192,16 @@ func TestSendingMoneyBetweenWalletAccounts(t *testing.T) {
 	// create fee credit for initial bill transfer
 	txFeeBilly := uint64(1)
 	fcrAmount := testmoney.FCRAmount
-	transferFC := testmoney.CreateFeeCredit(t, util.Uint256ToBytes(initialBill.ID), network)
+	transferFC := testmoney.CreateFeeCredit(t, util.Uint256ToBytes(initialBill.ID), abNet)
 	initialBillBacklink := transferFC.Hash(crypto.SHA256)
 	acc1BalanceBilly := initialBill.Value - fcrAmount - txFeeBilly
 
 	// transfer initial bill to wallet account 1
 	transferInitialBillTx, err := moneytestutils.CreateInitialBillTransferTx(pubKey1, initialBill.ID, acc1BalanceBilly, 10000, initialBillBacklink)
 	require.NoError(t, err)
-	err = network.SubmitTx(transferInitialBillTx)
+	err = moneyPartition.SubmitTx(transferInitialBillTx)
 	require.NoError(t, err)
-	require.Eventually(t, testpartition.BlockchainContainsTx(transferInitialBillTx, network), test.WaitDuration, test.WaitTick)
+	require.Eventually(t, testpartition.BlockchainContainsTx(moneyPartition, transferInitialBillTx), test.WaitDuration, test.WaitTick)
 
 	// verify bill is received by account 1
 	waitForBalanceCLI(t, homedir, defaultAlphabillApiURL, acc1BalanceBilly, 0)

@@ -7,6 +7,9 @@ import (
 	"io"
 	"testing"
 
+	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/reflect/protoreflect"
+
 	"github.com/alphabill-org/alphabill/internal/block"
 	"github.com/alphabill-org/alphabill/internal/certificates"
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
@@ -14,9 +17,8 @@ import (
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/internal/txsystem/tokens"
 	"github.com/alphabill-org/alphabill/pkg/wallet"
+	"github.com/alphabill-org/alphabill/pkg/wallet/broker"
 	"github.com/alphabill-org/alphabill/pkg/wallet/log"
-	"github.com/stretchr/testify/require"
-	"google.golang.org/protobuf/reflect/protoreflect"
 )
 
 func Test_blockProcessor_ProcessBlock(t *testing.T) {
@@ -184,6 +186,9 @@ func Test_blockProcessor_processTx(t *testing.T) {
 		bp := &blockProcessor{
 			log: logger,
 			txs: txs,
+			notify: func(bearerPredicate []byte, msg broker.Message) {
+				require.EqualValues(t, txAttr.Bearer, bearerPredicate)
+			},
 			store: &mockStorage{
 				getBlockNumber: func() (uint64, error) { return 3, nil },
 				setBlockNumber: func(blockNumber uint64) error { return nil },
@@ -220,6 +225,9 @@ func Test_blockProcessor_processTx(t *testing.T) {
 		bp := &blockProcessor{
 			log: logger,
 			txs: txs,
+			notify: func(bearerPredicate []byte, msg broker.Message) {
+				require.EqualValues(t, txAttr.Bearer, bearerPredicate)
+			},
 			store: &mockStorage{
 				getBlockNumber: func() (uint64, error) { return 3, nil },
 				setBlockNumber: func(blockNumber uint64) error { return nil },
@@ -256,6 +264,9 @@ func Test_blockProcessor_processTx(t *testing.T) {
 		bp := &blockProcessor{
 			log: logger,
 			txs: txs,
+			notify: func(bearerPredicate []byte, msg broker.Message) {
+				require.EqualValues(t, txAttr.NewBearer, bearerPredicate)
+			},
 			store: &mockStorage{
 				getBlockNumber: func() (uint64, error) { return 3, nil },
 				setBlockNumber: func(blockNumber uint64) error { return nil },
@@ -291,6 +302,9 @@ func Test_blockProcessor_processTx(t *testing.T) {
 		bp := &blockProcessor{
 			log: logger,
 			txs: txs,
+			notify: func(bearerPredicate []byte, msg broker.Message) {
+				require.EqualValues(t, txAttr.NewBearer, bearerPredicate)
+			},
 			store: &mockStorage{
 				getBlockNumber: func() (uint64, error) { return 3, nil },
 				setBlockNumber: func(blockNumber uint64) error { return nil },
@@ -324,11 +338,18 @@ func Test_blockProcessor_processTx(t *testing.T) {
 			NewBearer:      test.RandomBytes(4),
 		}
 		owner := test.RandomBytes(4) // owner of the original token
-		saveTokenCalls := 0
+		saveTokenCalls, notifyCalls := 0, 0
 		tx := randomTx(t, txAttr)
 		bp := &blockProcessor{
 			log: logger,
 			txs: txs,
+			notify: func(bearerPredicate []byte, msg broker.Message) {
+				if notifyCalls++; notifyCalls == 1 {
+					require.EqualValues(t, owner, bearerPredicate)
+				} else {
+					require.EqualValues(t, txAttr.NewBearer, bearerPredicate)
+				}
+			},
 			store: &mockStorage{
 				getBlockNumber: func() (uint64, error) { return 3, nil },
 				setBlockNumber: func(blockNumber uint64) error { return nil },
@@ -359,9 +380,12 @@ func Test_blockProcessor_processTx(t *testing.T) {
 		})
 		require.NoError(t, err)
 		require.Equal(t, 2, saveTokenCalls)
+		require.Equal(t, 2, notifyCalls)
 	})
 
 	t.Run("UpdateNonFungibleToken", func(t *testing.T) {
+		notifyCalls := 0
+		bearer := test.RandomBytes(4)
 		txAttr := &tokens.UpdateNonFungibleTokenAttributes{
 			Data: test.RandomBytes(4),
 		}
@@ -369,14 +393,19 @@ func Test_blockProcessor_processTx(t *testing.T) {
 		bp := &blockProcessor{
 			log: logger,
 			txs: txs,
+			notify: func(bearerPredicate []byte, msg broker.Message) {
+				notifyCalls++
+				require.EqualValues(t, bearer, bearerPredicate)
+			},
 			store: &mockStorage{
 				getBlockNumber: func() (uint64, error) { return 3, nil },
 				setBlockNumber: func(blockNumber uint64) error { return nil },
 				getToken: func(id TokenID) (*TokenUnit, error) {
-					return &TokenUnit{ID: id, NftData: test.RandomBytes(4), Kind: NonFungible}, nil
+					return &TokenUnit{ID: id, Owner: bearer, NftData: test.RandomBytes(4), Kind: NonFungible}, nil
 				},
 				saveToken: func(data *TokenUnit, proof *wallet.Proof) error {
 					require.EqualValues(t, tx.UnitId, data.ID)
+					require.EqualValues(t, bearer, data.Owner)
 					require.EqualValues(t, txAttr.Data, data.NftData)
 					require.Equal(t, NonFungible, data.Kind)
 					return nil
@@ -388,5 +417,6 @@ func Test_blockProcessor_processTx(t *testing.T) {
 			Transactions:       []*txsystem.Transaction{tx},
 		})
 		require.NoError(t, err)
+		require.Equal(t, 1, notifyCalls)
 	})
 }

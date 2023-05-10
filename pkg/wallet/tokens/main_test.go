@@ -468,7 +468,7 @@ func TestMintNFT_InvalidInputs(t *testing.T) {
 	accNr := uint64(1)
 	tests := []struct {
 		name       string
-		attrs      *ttxs.MintNonFungibleTokenAttributes
+		attrs      *MintNonFungibleTokenAttributes
 		wantErrStr string
 	}{
 		{
@@ -478,21 +478,21 @@ func TestMintNFT_InvalidInputs(t *testing.T) {
 		},
 		{
 			name: "invalid URI",
-			attrs: &ttxs.MintNonFungibleTokenAttributes{
+			attrs: &MintNonFungibleTokenAttributes{
 				Uri: "invalid_uri",
 			},
 			wantErrStr: "URI 'invalid_uri' is invalid",
 		},
 		{
 			name: "URI exceeds maximum allowed length",
-			attrs: &ttxs.MintNonFungibleTokenAttributes{
+			attrs: &MintNonFungibleTokenAttributes{
 				Uri: string(test.RandomBytes(4097)),
 			},
 			wantErrStr: "URI exceeds the maximum allowed size of 4096 bytes",
 		},
 		{
 			name: "data exceeds maximum allowed length",
-			attrs: &ttxs.MintNonFungibleTokenAttributes{
+			attrs: &MintNonFungibleTokenAttributes{
 				Data: test.RandomBytes(65537),
 			},
 			wantErrStr: "data exceeds the maximum allowed size of 65536 bytes",
@@ -506,7 +506,6 @@ func TestMintNFT_InvalidInputs(t *testing.T) {
 			require.Nil(t, got)
 		})
 	}
-
 }
 
 func TestMintNFT(t *testing.T) {
@@ -565,13 +564,12 @@ func TestMintNFT(t *testing.T) {
 			key, err := tw.am.GetAccountKey(tt.accNr - 1)
 			require.NoError(t, err)
 			typeId := []byte{1}
-			a := &ttxs.MintNonFungibleTokenAttributes{
-				Bearer:                           bearerPredicateFromHash(key.PubKeyHash.Sha256),
-				NftType:                          typeId,
-				Uri:                              "https://alphabill.org",
-				Data:                             nil,
-				DataUpdatePredicate:              script.PredicateAlwaysTrue(),
-				TokenCreationPredicateSignatures: nil,
+			a := &MintNonFungibleTokenAttributes{
+				Bearer:              bearerPredicateFromHash(key.PubKeyHash.Sha256),
+				NftType:             typeId,
+				Uri:                 "https://alphabill.org",
+				Data:                nil,
+				DataUpdatePredicate: script.PredicateAlwaysTrue(),
 			}
 			_, err = tw.NewNFT(context.Background(), tt.accNr, a, tt.tokenID, nil)
 			require.NoError(t, err)

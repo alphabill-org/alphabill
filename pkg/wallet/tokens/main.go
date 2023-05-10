@@ -53,6 +53,14 @@ type (
 		PostTransactions(ctx context.Context, pubKey wallet.PubKey, txs *txsystem.Transactions) error
 		GetTxProof(ctx context.Context, unitID wallet.UnitID, txHash wallet.TxHash) (*wallet.Proof, error)
 	}
+
+	MintNonFungibleTokenAttributes struct {
+		NftType             twb.TokenTypeID
+		Uri                 string
+		Data                []byte
+		Bearer              wallet.Predicate
+		DataUpdatePredicate wallet.Predicate
+	}
 )
 
 func New(systemID []byte, backendUrl string, am account.Manager, confirmTx bool) (*Wallet, error) {
@@ -114,7 +122,7 @@ func (w *Wallet) NewFungibleToken(ctx context.Context, accNr uint64, typeId twb.
 	return w.newToken(ctx, accNr, attrs, nil, mintPredicateArgs)
 }
 
-func (w *Wallet) NewNFT(ctx context.Context, accNr uint64, attrs *tokens.MintNonFungibleTokenAttributes, tokenId twb.TokenID, mintPredicateArgs []*PredicateInput) (twb.TokenID, error) {
+func (w *Wallet) NewNFT(ctx context.Context, accNr uint64, attrs *MintNonFungibleTokenAttributes, tokenId twb.TokenID, mintPredicateArgs []*PredicateInput) (twb.TokenID, error) {
 	log.Info("Creating new NFT")
 	if attrs == nil {
 		return nil, errAttributesMissing
@@ -128,7 +136,17 @@ func (w *Wallet) NewNFT(ctx context.Context, accNr uint64, attrs *tokens.MintNon
 	if len(attrs.Data) > dataMaxSize {
 		return nil, errInvalidDataLength
 	}
-	return w.newToken(ctx, accNr, attrs, tokenId, mintPredicateArgs)
+	return w.newToken(ctx, accNr, attrs.convert(), tokenId, mintPredicateArgs)
+}
+
+func (a *MintNonFungibleTokenAttributes) convert() *tokens.MintNonFungibleTokenAttributes {
+	return &tokens.MintNonFungibleTokenAttributes{
+		NftType:             a.NftType,
+		Uri:                 a.Uri,
+		Data:                a.Data,
+		Bearer:              a.Bearer,
+		DataUpdatePredicate: a.DataUpdatePredicate,
+	}
 }
 
 func (w *Wallet) ListTokenTypes(ctx context.Context, kind twb.Kind) ([]*twb.TokenUnitType, error) {

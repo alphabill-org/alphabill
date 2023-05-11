@@ -139,15 +139,15 @@ func TestBlockProcessor_EachTxTypeCanBeProcessed(t *testing.T) {
 	require.NoError(t, err)
 	require.EqualValues(t, 194, fcb.Value)
 
-	// verify tx1 unitID value is 0 (TODO delete unit?)
+	// verify tx1 unit is deleted (zero value bills are not allowed)
 	unit1, err := store.Do().GetBill(tx1.UnitId)
 	require.NoError(t, err)
-	require.EqualValues(t, 0, unit1.Value)
+	require.Nil(t, unit1)
 
-	// process closeFC + reclaimFC (reclaim all credits)
+	// process closeFC + reclaimFC (reclaim all credits to bill no 4)
 	closeFCAttr := testfc.NewCloseFCAttr(
 		testfc.WithCloseFCAmount(194),
-		testfc.WithCloseFCTargetUnitID(tx1.UnitId),
+		testfc.WithCloseFCTargetUnitID(tx4.UnitId),
 	)
 	closeFC := testfc.NewCloseFC(t, closeFCAttr,
 		testtransaction.WithSystemID(moneySystemID),
@@ -160,7 +160,7 @@ func TestBlockProcessor_EachTxTypeCanBeProcessed(t *testing.T) {
 	)
 	reclaimFC := testfc.NewReclaimFC(t, signer, reclaimFCAttr,
 		testtransaction.WithSystemID(moneySystemID),
-		testtransaction.WithUnitId(tx1.UnitId),
+		testtransaction.WithUnitId(tx4.UnitId),
 		testtransaction.WithServerMetadata(&txsystem.ServerMetadata{Fee: 1}),
 	)
 
@@ -176,10 +176,10 @@ func TestBlockProcessor_EachTxTypeCanBeProcessed(t *testing.T) {
 	require.NoError(t, err)
 	require.EqualValues(t, 0, fcb.Value)
 
-	// verify reclaimed fee credits (194) were added to specified unit (tx1 value=0) minus 2x txfee (2)
-	unit, err := store.Do().GetBill(tx1.UnitId)
+	// verify reclaimed fee credits (194) were added to specified unit (tx4 value=100) minus 2x txfee (2)
+	unit, err := store.Do().GetBill(tx4.UnitId)
 	require.NoError(t, err)
-	require.EqualValues(t, 192, unit.Value)
+	require.EqualValues(t, 292, unit.Value)
 }
 
 func TestBlockProcessor_TransferFCAndReclaimFC(t *testing.T) {

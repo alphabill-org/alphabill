@@ -170,13 +170,21 @@ func (p *BlockProcessor) processTx(gtx txsystem.GenericTransaction, b *block.Gen
 		if bill == nil {
 			return fmt.Errorf("unit not found for transferFC tx (unitID=%X)", txPb.UnitId)
 		}
-		bill.Value -= tx.TransferFC.Amount + tx.Transaction.ServerMetadata.Fee
-		bill.TxHash = tx.Hash(crypto.SHA256)
-		err = p.saveBillWithProof(b, txPb, dbTx, bill)
-		if err != nil {
-			return err
+		v := tx.TransferFC.Amount + tx.Wrapper.Transaction.ServerMetadata.Fee
+		if v < bill.Value {
+			bill.Value -= v
+			bill.TxHash = tx.Hash(crypto.SHA256)
+			err = p.saveBillWithProof(b, txPb, dbTx, bill)
+			if err != nil {
+				return err
+			}
+		} else {
+			err = dbTx.RemoveBill(bill.Id)
+			if err != nil {
+				return err
+			}
 		}
-		err = p.addTransferedCreditToPartitionFeeBill(tx, dbTx)
+		err = p.addTransferredCreditToPartitionFeeBill(tx, dbTx)
 		if err != nil {
 			return err
 		}
@@ -233,7 +241,7 @@ func (p *BlockProcessor) processTx(gtx txsystem.GenericTransaction, b *block.Gen
 	return nil
 }
 
-func (p *BlockProcessor) addTransferedCreditToPartitionFeeBill(tx *transactions.TransferFeeCreditWrapper, dbTx BillStoreTx) error {
+func (p *BlockProcessor) addTransferredCreditToPartitionFeeBill(tx *transactions.TransferFeeCreditWrapper, dbTx BillStoreTx) error {
 	sdr, f := p.sdrs[string(tx.TransferFC.TargetSystemIdentifier)]
 	if !f {
 		return fmt.Errorf("received transferFC for unknown tx system: %x", tx.TransferFC.TargetSystemIdentifier)

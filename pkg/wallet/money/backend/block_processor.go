@@ -188,7 +188,7 @@ func (p *BlockProcessor) processTx(gtx txsystem.GenericTransaction, b *block.Gen
 		if err != nil {
 			return err
 		}
-		return p.addTxFeeToMoneyFeeBill(dbTx, txPb)
+		return p.addTxFeesToMoneyFeeBill(dbTx, txPb)
 	case *transactions.AddFeeCreditWrapper:
 		wlog.Info(fmt.Sprintf("received addFC order (UnitID=%x)", txPb.UnitId))
 		fcb, err := dbTx.GetFeeCreditBill(txPb.UnitId)
@@ -233,7 +233,8 @@ func (p *BlockProcessor) processTx(gtx txsystem.GenericTransaction, b *block.Gen
 		if err != nil {
 			return err
 		}
-		return p.addTxFeeToMoneyFeeBill(dbTx, txPb)
+		// add closeFC and reclaimFC txs fees to money partition fee bill
+		return p.addTxFeesToMoneyFeeBill(dbTx, tx.CloseFCTransfer.Transaction, txPb)
 	default:
 		wlog.Warning(fmt.Sprintf("received unknown transaction type, skipping processing: %s", tx))
 		return nil
@@ -270,12 +271,14 @@ func (p *BlockProcessor) removeReclaimedCreditFromPartitionFeeBill(tx *transacti
 	return dbTx.SetBill(partitionFeeBill)
 }
 
-func (p *BlockProcessor) addTxFeeToMoneyFeeBill(dbTx BillStoreTx, txPb *txsystem.Transaction) error {
+func (p *BlockProcessor) addTxFeesToMoneyFeeBill(dbTx BillStoreTx, txPb ...*txsystem.Transaction) error {
 	moneyFeeBill, err := dbTx.GetBill(p.moneySDR.FeeCreditBill.UnitId)
 	if err != nil {
 		return err
 	}
-	moneyFeeBill.Value += txPb.ServerMetadata.Fee
+	for _, tx := range txPb {
+		moneyFeeBill.Value += tx.ServerMetadata.Fee
+	}
 	return dbTx.SetBill(moneyFeeBill)
 }
 

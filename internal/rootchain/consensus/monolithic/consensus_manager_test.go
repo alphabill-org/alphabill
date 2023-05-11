@@ -94,7 +94,7 @@ func TestConsensusManager_checkT2Timeout(t *testing.T) {
 	manager := &ConsensusManager{
 		selfID: "test",
 		params: &consensus.Parameters{
-			BlockRateMs: 900 * time.Millisecond, // also known as T3
+			BlockRate: 900 * time.Millisecond, // also known as T3
 		},
 		partitions: partitions,
 		stateStore: store,
@@ -201,7 +201,7 @@ func TestConsensusManager_PersistFails(t *testing.T) {
 	defer ctxCancel()
 	go func() { require.ErrorIs(t, cm.Run(ctx), context.Canceled) }()
 	// require, that certificates are received for partition ID
-	result, err := readResult(cm.CertificationResult(), 2*cm.params.BlockRateMs)
+	result, err := readResult(cm.CertificationResult(), 2*cm.params.BlockRate)
 	require.NoError(t, err)
 	require.Equal(t, partitionInputRecord.Hash, result.InputRecord.PreviousHash)
 	require.Equal(t, uint64(2), result.UnicitySeal.RootRoundInfo.RoundNumber)
@@ -222,7 +222,7 @@ func TestConsensusManager_PartitionTimeout(t *testing.T) {
 	// make sure that 3 partition nodes where generated, needed for the next steps
 	require.Len(t, partitionNodes, 3)
 	// require, that repeat UC certificates are received for partition ID in 3 root rounds (partition timeout 2500 < 4 * block rate (900))
-	result, err := readResult(cm.CertificationResult(), 4*cm.params.BlockRateMs)
+	result, err := readResult(cm.CertificationResult(), 4*cm.params.BlockRate)
 	require.NoError(t, err)
 	require.Equal(t, uint64(2), result.InputRecord.RoundNumber)
 	require.Equal(t, []byte{0, 0, 0, 0}, result.InputRecord.BlockHash)

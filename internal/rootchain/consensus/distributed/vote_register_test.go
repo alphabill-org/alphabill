@@ -240,6 +240,7 @@ func TestVoteRegister_ErrDuplicateVote(t *testing.T) {
 	require.Nil(t, qc)
 	qc, err = register.InsertVote(NewDummyVote("node1", 2, []byte{1, 2, 3}), quorumInfo)
 	require.ErrorContains(t, err, "duplicate vote")
+	require.Nil(t, qc)
 }
 
 func TestVoteRegister_ErrEquivocatingVote(t *testing.T) {
@@ -250,6 +251,7 @@ func TestVoteRegister_ErrEquivocatingVote(t *testing.T) {
 	require.Nil(t, qc)
 	qc, err = register.InsertVote(NewDummyVote("node1", 2, []byte{1, 2, 4}), quorumInfo)
 	require.ErrorContains(t, err, "equivocating vote")
+	require.Nil(t, qc)
 }
 
 func TestVoteRegister_Reset(t *testing.T) {

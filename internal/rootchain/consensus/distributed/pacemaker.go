@@ -14,10 +14,10 @@ type (
 		GetNextTimeout(roundIndexAfterCommit uint64) time.Duration
 	}
 	// ExponentialTimeInterval exponential back-off
-	// baseMs * exponentBase^"commit gap"
+	// base * exponentBase^"commit gap"
 	// If max exponent is set to 0, then it will output constant value baseMs
 	ExponentialTimeInterval struct {
-		baseMs       time.Duration
+		base         time.Duration
 		exponentBase float64
 		maxExponent  uint8
 	}
@@ -56,7 +56,7 @@ func (x *Pacemaker) LastRoundTC() *ab_consensus.TimeoutCert {
 func (x ExponentialTimeInterval) GetNextTimeout(roundsAfterLastCommit uint64) time.Duration {
 	exp := util.Min(uint64(x.maxExponent), roundsAfterLastCommit)
 	mul := math.Pow(x.exponentBase, float64(exp))
-	return time.Duration(float64(x.baseMs) * mul)
+	return time.Duration(float64(x.base) * mul)
 }
 
 // NewPacemaker Needs to be constructed from last QC!
@@ -67,7 +67,7 @@ func NewPacemaker(lastRound uint64, localTimeout time.Duration, bRate time.Durat
 		currentRound:        lastRound + 1,
 		roundTimeout:        time.Now().Add(localTimeout),
 		lastViewChange:      time.Now(),
-		timeoutCalculator:   ExponentialTimeInterval{baseMs: localTimeout, exponentBase: 1.2, maxExponent: 0},
+		timeoutCalculator:   ExponentialTimeInterval{base: localTimeout, exponentBase: 1.2, maxExponent: 0},
 		pendingVotes:        NewVoteRegister(),
 		lastRoundTC:         nil,
 		voteSent:            nil,

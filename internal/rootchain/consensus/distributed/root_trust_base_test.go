@@ -189,7 +189,7 @@ func TestRootNodeTrustBase_VerifyBytes(t *testing.T) {
 	signers, validators := generateSignersAndVerifiers(4)
 	commitInfo := &certificates.CommitInfo{RootRoundInfoHash: []byte{0, 1, 2}, RootHash: []byte{2, 3, 4}}
 	bytes := commitInfo.Bytes()
-	signer, _ := signers["0"]
+	signer := signers["0"]
 	sig, err := signer.SignBytes(bytes)
 	require.NoError(t, err)
 	verifier, err := NewRootTrustBase(validators, 3)
@@ -246,7 +246,7 @@ func TestRootNodeTrustBase_VerifySignature(t *testing.T) {
 			Signatures:       map[string][]byte{"0": {1, 2, 3}},
 		},
 	}
-	signer, _ := signers["0"]
+	signer := signers["0"]
 	hash, err := blockData.Hash(gocrypto.SHA256)
 	require.NoError(t, err)
 	sig, err := signer.SignHash(hash)

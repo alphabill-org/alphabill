@@ -80,7 +80,7 @@ func (x *IRChangeReqVerifier) VerifyIRChangeReq(round uint64, irChReq *ab_consen
 		return nil, fmt.Errorf("invalid payload: unknown partition %X", sysID.Bytes())
 	}
 	// verify request
-	inputRecord, err := irChReq.Verify(tb, luc, round, t2TimeoutToRootRounds(sysDesRecord.T2Timeout, x.params.BlockRateMs/2))
+	inputRecord, err := irChReq.Verify(tb, luc, round, t2TimeoutToRootRounds(sysDesRecord.T2Timeout, x.params.BlockRate/2))
 	if err != nil {
 		return nil, fmt.Errorf("invalid payload: partition %X certification request verifiaction failed %w", sysID.Bytes(), err)
 	}
@@ -104,7 +104,7 @@ func NewLucBasedT2TimeoutGenerator(c *consensus.Parameters, pInfo partitions.Par
 	}, nil
 }
 
-func (x *PartitionTimeoutGenerator) GetT2Timeouts(currenRound uint64) ([]protocol.SystemIdentifier, error) {
+func (x *PartitionTimeoutGenerator) GetT2Timeouts(currentRound uint64) ([]protocol.SystemIdentifier, error) {
 	ucs := x.state.GetCertificates()
 	timeoutIds := make([]protocol.SystemIdentifier, 0, len(ucs))
 	var err error
@@ -113,12 +113,12 @@ func (x *PartitionTimeoutGenerator) GetT2Timeouts(currenRound uint64) ([]protoco
 			continue
 		}
 		sysDesc, _, getErr := x.partitions.GetInfo(id)
-		if err != nil {
-			err = errors.Join(err, fmt.Errorf("read partition system description failed, %w", getErr))
+		if getErr != nil {
+			err = errors.Join(err, fmt.Errorf("read partition system description failed: %w", getErr))
 			// still try to check the rest of the partitions
 			continue
 		}
-		if currenRound-cert.UnicitySeal.RootRoundInfo.RoundNumber >= t2TimeoutToRootRounds(sysDesc.T2Timeout, x.params.BlockRateMs/2) {
+		if currentRound-cert.UnicitySeal.RootRoundInfo.RoundNumber >= t2TimeoutToRootRounds(sysDesc.T2Timeout, x.params.BlockRate/2) {
 			timeoutIds = append(timeoutIds, id)
 		}
 	}

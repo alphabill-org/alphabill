@@ -41,6 +41,15 @@ func NewRepeatInputRecord(lastIR *InputRecord) (*InputRecord, error) {
 	}, nil
 }
 
+func (x *InputRecord) Equal(b *InputRecord) bool {
+	return x.RoundNumber == b.RoundNumber &&
+		x.SumOfEarnedFees == b.SumOfEarnedFees &&
+		bytes.Equal(x.PreviousHash, b.PreviousHash) &&
+		bytes.Equal(x.Hash, b.Hash) &&
+		bytes.Equal(x.BlockHash, b.BlockHash) &&
+		bytes.Equal(x.SummaryValue, b.SummaryValue)
+}
+
 func (x *InputRecord) IsValid() error {
 	if x == nil {
 		return ErrInputRecordIsNil

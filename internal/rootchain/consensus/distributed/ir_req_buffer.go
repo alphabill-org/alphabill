@@ -1,7 +1,6 @@
 package distributed
 
 import (
-	"bytes"
 	"fmt"
 
 	"github.com/alphabill-org/alphabill/internal/certificates"
@@ -34,22 +33,6 @@ func NewIrReqBuffer() *IrReqBuffer {
 	}
 }
 
-func compareIR(a, b *certificates.InputRecord) bool {
-	if bytes.Equal(a.PreviousHash, b.PreviousHash) == false {
-		return false
-	}
-	if bytes.Equal(a.Hash, b.Hash) == false {
-		return false
-	}
-	if bytes.Equal(a.BlockHash, b.BlockHash) == false {
-		return false
-	}
-	if bytes.Equal(a.SummaryValue, b.SummaryValue) == false {
-		return false
-	}
-	return true
-}
-
 // Add validates incoming IR change request and buffers valid requests. If for any reason the IR request is found not
 // valid, reason is logged, error is returned and request is ignored.
 func (x *IrReqBuffer) Add(round uint64, irChReq *ab_consensus.IRChangeReqMsg, ver IRChangeVerifier) error {
@@ -68,13 +51,11 @@ func (x *IrReqBuffer) Add(round uint64, irChReq *ab_consensus.IRChangeReqMsg, ve
 	// verify and extract proposed IR, NB! in this case we set the age to 0 as
 	// currently no request can be received to request timeout
 	newIrChReq := &irChange{InputRecord: irData.IR, Reason: irChReq.CertReason, Msg: irChReq}
-	irChangeReq, found := x.irChgReqBuffer[systemID]
-	if found {
+	if irChangeReq, found := x.irChgReqBuffer[systemID]; found {
 		if irChangeReq.Reason != newIrChReq.Reason {
 			return fmt.Errorf("error equivocating request for partition %X reason has changed", systemID.Bytes())
 		}
-		// compare IR's
-		if compareIR(irChangeReq.InputRecord, newIrChReq.InputRecord) == true {
+		if irChangeReq.InputRecord.Equal(newIrChReq.InputRecord) {
 			// duplicate already stored
 			logger.Debug("Duplicate IR change request, ignored")
 			return nil

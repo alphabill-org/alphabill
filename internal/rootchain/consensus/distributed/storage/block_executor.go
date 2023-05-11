@@ -115,15 +115,13 @@ func NewExecutedBlockFromGenesis(hash gocrypto.Hash, pg []*genesis.GenesisPartit
 }
 
 func NewExecutedBlockFromRecovery(hash gocrypto.Hash, recoverBlock *ab_consensus.RecoveryBlock, verifier IRChangeReqVerifier) (*ExecutedBlock, error) {
-	changed := make(InputRecords, 0, len(recoverBlock.Block.Payload.Requests))
 	changes := make([][]byte, 0, len(recoverBlock.Block.Payload.Requests))
 	// verify requests for IR change and proof of consensus
 	for _, irChReq := range recoverBlock.Block.Payload.Requests {
-		irData, err := verifier.VerifyIRChangeReq(recoverBlock.Block.GetRound(), irChReq)
+		_, err := verifier.VerifyIRChangeReq(recoverBlock.Block.GetRound(), irChReq)
 		if err != nil {
 			return nil, fmt.Errorf("new block verification in round %v error, %w", recoverBlock.Block.Round, err)
 		}
-		changed = append(changed, irData)
 		changes = append(changes, irChReq.SystemIdentifier)
 	}
 	// recover input records
@@ -153,12 +151,12 @@ func NewExecutedBlockFromRecovery(hash gocrypto.Hash, recoverBlock *ab_consensus
 	root := ut.GetRootHash()
 	// check against qc and commit qc
 	if recoverBlock.Qc != nil {
-		if bytes.Equal(root, recoverBlock.Qc.VoteInfo.CurrentRootHash) == false {
+		if !bytes.Equal(root, recoverBlock.Qc.VoteInfo.CurrentRootHash) {
 			return nil, fmt.Errorf("invalid recovery data, qc state hash does not match input records")
 		}
 	}
 	if recoverBlock.CommitQc != nil {
-		if bytes.Equal(root, recoverBlock.CommitQc.LedgerCommitInfo.RootHash) == false {
+		if !bytes.Equal(root, recoverBlock.CommitQc.LedgerCommitInfo.RootHash) {
 			return nil, fmt.Errorf("invalid recovery data, commit qc state hash does not match input records")
 		}
 	}

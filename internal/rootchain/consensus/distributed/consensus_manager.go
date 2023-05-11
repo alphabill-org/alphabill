@@ -39,8 +39,6 @@ type (
 	}
 
 	ConsensusManager struct {
-		ctx            context.Context
-		ctxCancel      context.CancelFunc
 		certReqCh      chan consensus.IRChangeRequest
 		certResultCh   chan *certificates.UnicityCertificate
 		params         *consensus.Parameters
@@ -79,12 +77,15 @@ func NewDistributedAbConsensusManager(host *network.Peer, rg *genesis.RootGenesi
 	// init storage
 	bStore, err := storage.NewBlockStore(cParams.HashAlgorithm, rg.Partitions, optional.Storage)
 	if err != nil {
-		return nil, fmt.Errorf("consensus block storage init failed, %w", err)
+		return nil, fmt.Errorf("consensus block storage init failed: %w", err)
 	}
 	reqVerifier, err := NewIRChangeReqVerifier(cParams, partitionStore, bStore)
+	if err != nil {
+		return nil, fmt.Errorf("block verifier construct error: %w", err)
+	}
 	t2TimeoutGen, err := NewLucBasedT2TimeoutGenerator(cParams, partitionStore, bStore)
 	if err != nil {
-		return nil, fmt.Errorf("block verifier construct error, %w", err)
+		return nil, fmt.Errorf("failed to create T2 timeout generator: %w", err)
 	}
 	hqcRound := bStore.GetHighQc().VoteInfo.RoundNumber
 	safetyModule, err := NewSafetyModule(host.ID().String(), signer, optional.Storage)
@@ -105,7 +106,7 @@ func NewDistributedAbConsensusManager(host *network.Peer, rg *genesis.RootGenesi
 		params:         cParams,
 		peer:           host,
 		net:            net,
-		pacemaker:      NewPacemaker(hqcRound, cParams.LocalTimeoutMs, cParams.BlockRateMs),
+		pacemaker:      NewPacemaker(hqcRound, cParams.LocalTimeout, cParams.BlockRate),
 		leaderSelector: l,
 		trustBase:      tb,
 		irReqBuffer:    NewIrReqBuffer(),
@@ -117,7 +118,6 @@ func NewDistributedAbConsensusManager(host *network.Peer, rg *genesis.RootGenesi
 		waitPropose:    false,
 		voteBuffer:     []*ab_consensus.VoteMsg{},
 	}
-	consensusManager.ctx, consensusManager.ctxCancel = context.WithCancel(context.Background())
 	return consensusManager, nil
 }
 
@@ -140,7 +140,7 @@ func (x *ConsensusManager) GetLatestUnicityCertificate(id p.SystemIdentifier) (*
 
 func (x *ConsensusManager) Run(ctx context.Context) error {
 	// Start timers and network processing
-	x.localTimeout = time.NewTicker(x.params.LocalTimeoutMs)
+	x.localTimeout = time.NewTicker(x.params.LocalTimeout)
 	// Am I the leader?
 	currentRound := x.pacemaker.GetCurrentRound()
 	if x.leaderSelector.GetLeaderForRound(currentRound) == x.peer.ID() {
@@ -149,7 +149,7 @@ func (x *ConsensusManager) Run(ctx context.Context) error {
 		x.waitPropose = true
 		go func() {
 			select {
-			case <-time.After(x.params.BlockRateMs):
+			case <-time.After(x.params.BlockRate):
 				x.processNewRoundEvent()
 			case <-ctx.Done():
 			}
@@ -587,7 +587,7 @@ func (x *ConsensusManager) processNewRoundEvent() {
 		logger.Info("%v round %v new round start, not leader awaiting proposal", x.peer.String(), round)
 		return
 	}
-	logger.Info("%v round %v new round start, node is leader", x.peer.String(), x.pacemaker.GetCurrentRound())
+	logger.Info("%v round %v new round start, node is leader", x.peer.String(), round)
 	// find partitions with T2 timeouts
 	timeoutIds, err := x.t2Timeouts.GetT2Timeouts(round)
 	// NB! error here is not fatal, still make a proposal, hopefully the next node will generate timeout
@@ -601,7 +601,7 @@ func (x *ConsensusManager) processNewRoundEvent() {
 			Round:     round,
 			Epoch:     0,
 			Timestamp: util.MakeTimestamp(),
-			Payload:   x.irReqBuffer.GeneratePayload(x.pacemaker.GetCurrentRound(), timeoutIds),
+			Payload:   x.irReqBuffer.GeneratePayload(round, timeoutIds),
 			Qc:        x.blockStore.GetHighQc(),
 		},
 		LastRoundTc: x.pacemaker.LastRoundTC(),
@@ -703,16 +703,13 @@ func (x *ConsensusManager) onStateResponse(ctx context.Context, req *ab_consensu
 	x.recovery = nil
 }
 
-func randomNodeIdFromSignatureMap(nodes []peer.ID, m map[string][]byte) {
-	var err error
+func addRandomNodeIdFromSignatureMap(nodes []peer.ID, m map[string][]byte) []peer.ID {
 	for k := range m {
-		var id peer.ID
-		if id, err = peer.Decode(k); err == nil {
-			nodes = append(nodes, id)
-			return
+		if id, err := peer.Decode(k); err == nil {
+			return append(nodes, id)
 		}
 	}
-	return
+	return nodes
 }
 
 func (x *ConsensusManager) sendRecoveryRequests(triggerMsg any) error {
@@ -730,7 +727,7 @@ func (x *ConsensusManager) sendRecoveryRequests(triggerMsg any) error {
 		}
 		nodes = append(nodes, authorID)
 		// add another node to query from last QC
-		randomNodeIdFromSignatureMap(nodes, mt.Block.Qc.Signatures)
+		nodes = addRandomNodeIdFromSignatureMap(nodes, mt.Block.Qc.Signatures)
 	case *ab_consensus.VoteMsg:
 		x.recovery = &recoveryInfo{
 			toRound:    mt.VoteInfo.RoundNumber,
@@ -743,7 +740,7 @@ func (x *ConsensusManager) sendRecoveryRequests(triggerMsg any) error {
 		}
 		nodes = append(nodes, authorID)
 		// add another node to query from last QC
-		randomNodeIdFromSignatureMap(nodes, mt.HighQc.Signatures)
+		nodes = addRandomNodeIdFromSignatureMap(nodes, mt.HighQc.Signatures)
 	case *ab_consensus.TimeoutMsg:
 		x.recovery = &recoveryInfo{
 			toRound:    mt.Timeout.HighQc.VoteInfo.RoundNumber,
@@ -757,7 +754,7 @@ func (x *ConsensusManager) sendRecoveryRequests(triggerMsg any) error {
 		}
 		nodes = append(nodes, authorID)
 		// add another node to query from last QC
-		randomNodeIdFromSignatureMap(nodes, mt.Timeout.HighQc.Signatures)
+		nodes = addRandomNodeIdFromSignatureMap(nodes, mt.Timeout.HighQc.Signatures)
 	default:
 		return fmt.Errorf("unknown message, cannot be used for recovery")
 	}

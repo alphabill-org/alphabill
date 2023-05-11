@@ -247,7 +247,7 @@ func TestBlockProcessor_TransferFCAndReclaimFC(t *testing.T) {
 	err = blockProcessor.ProcessBlock(context.Background(), b)
 	require.NoError(t, err)
 
-	// verify money partition fee bill value is increased by transferFC amount + transfer fee amount
+	// verify money partition fee bill value (0) is increased by transferFC amount (50) + transfer fee amount (1)
 	moneyPartitionFeeBill, err := store.Do().GetBill(moneyPartitionFeeBillID)
 	require.NoError(t, err)
 	require.EqualValues(t, 51, moneyPartitionFeeBill.Value)
@@ -279,10 +279,10 @@ func TestBlockProcessor_TransferFCAndReclaimFC(t *testing.T) {
 	err = blockProcessor.ProcessBlock(context.Background(), b)
 	require.NoError(t, err)
 
-	// verify money partition fee bill value is decreased by closeFC amount (30) and increased by closeFC fee amount (1)
+	// verify money partition fee bill value (51) is decreased by closeFC amount (30) and increased by closeFC fee amount (1) and reclaimFC fee amount(1)
 	moneyPartitionFeeBill, err = store.Do().GetBill(moneyPartitionFeeBillID)
 	require.NoError(t, err)
-	require.EqualValues(t, 22, moneyPartitionFeeBill.Value)
+	require.EqualValues(t, 23, moneyPartitionFeeBill.Value)
 }
 
 func verifyProof(t *testing.T, b *Bill) {

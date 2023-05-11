@@ -56,6 +56,7 @@ func initConsensusManager(t *testing.T, net RootNet) (*ConsensusManager, *testut
 	rootGenesis, _, err := rootgenesis.NewRootGenesis(id.String(), rootNode.Signer, rootPubKeyBytes, []*genesis.PartitionRecord{partitionRecord})
 	require.NoError(t, err)
 	partitions, err := partitions.NewPartitionStoreFromGenesis(rootGenesis.Partitions)
+	require.NoError(t, err)
 	cm, err := NewDistributedAbConsensusManager(rootNode.Peer, rootGenesis, partitions, net, rootNode.Signer)
 	require.NoError(t, err)
 	return cm, rootNode, partitionNodes, rootGenesis
@@ -98,10 +99,7 @@ func TestIRChangeRequestFromPartition(t *testing.T) {
 	cm.RequestCertification() <- req
 	// since there is only one root node, it is the next leader, the request will be buffered
 	require.Eventually(t, func() bool {
-		if cm.irReqBuffer.IsChangeInBuffer(p.SystemIdentifier(partitionID)) == true {
-			return true
-		}
-		return false
+		return cm.irReqBuffer.IsChangeInBuffer(p.SystemIdentifier(partitionID))
 	}, test.WaitDuration, test.WaitTick)
 }
 

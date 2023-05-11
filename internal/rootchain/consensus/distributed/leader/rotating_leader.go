@@ -18,6 +18,7 @@ type RotatingLeader struct {
 
 // NewRotatingLeader returns round-robin leader selection algorithm based on node identifiers.
 // It is assumed that the order of node identifiers is the same (e.g. alphabetical) for all validators
+// "contRounds" - for how many continuous rounds each peer is considered to be the leader.
 func NewRotatingLeader(self *network.Peer, contRounds uint32) (*RotatingLeader, error) {
 	if self == nil {
 		return nil, ErrPeerIsNil

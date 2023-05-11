@@ -61,6 +61,7 @@ func TestNewLeaderSelector_Normal(t *testing.T) {
 		PersistentPeers: persistentPeers,
 	}
 	peer, err := network.NewPeer(conf)
+	require.NoError(t, err)
 	ls, err := NewRotatingLeader(peer, 1)
 	require.NoError(t, err)
 	require.NotNil(t, ls)
@@ -96,6 +97,7 @@ func TestNewLeaderSelector_NormalTwoRounds(t *testing.T) {
 		PersistentPeers: persistentPeers,
 	}
 	peer, err := network.NewPeer(conf)
+	require.NoError(t, err)
 	// two rounds have the same leader
 	ls, err := NewRotatingLeader(peer, 2)
 	require.NoError(t, err)

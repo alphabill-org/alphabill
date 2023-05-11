@@ -2,7 +2,6 @@ package storage
 
 import (
 	gocrypto "crypto"
-	"os"
 	"testing"
 
 	"github.com/alphabill-org/alphabill/internal/certificates"
@@ -125,18 +124,6 @@ func TestNewBlockTree(t *testing.T) {
 	require.Error(t, err)
 	require.Len(t, bTree.GetAllUncommittedNodes(), 0)
 	require.Equal(t, b.CommitQc, bTree.HighQc())
-}
-
-func copyFile(src string, dst string) error {
-	srcBytes, err := os.ReadFile(src)
-	if err != nil {
-		return err
-	}
-	err = os.WriteFile(dst, srcBytes, 0700)
-	if err != nil {
-		return err
-	}
-	return nil
 }
 
 func TestNewBlockTreeFromDb(t *testing.T) {

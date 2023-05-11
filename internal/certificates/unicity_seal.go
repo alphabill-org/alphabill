@@ -23,7 +23,6 @@ var (
 	ErrRootRoundInfoIsNil       = errors.New("root round info is nil")
 	ErrCommitInfoIsNil          = errors.New("commit info is nil")
 	ErrCommitInfoRoundInfoHash  = errors.New("invalid commit info, root round info hash is different")
-	errInvalidTimestamp         = errors.New("invalid timestamp")
 	errUnicitySealNoSignature   = errors.New("unicity seal is missing signature")
 )
 

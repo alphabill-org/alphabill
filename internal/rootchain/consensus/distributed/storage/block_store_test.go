@@ -58,6 +58,7 @@ func TestNewBlockStoreFromGenesis(t *testing.T) {
 	require.Equal(t, uint64(1), hQc.VoteInfo.RoundNumber)
 	require.False(t, bStore.IsChangeInProgress(protocol.SystemIdentifier(sysID1)))
 	rh, err := bStore.GetBlockRootHash(1)
+	require.NoError(t, err)
 	require.Len(t, rh, 32)
 	_, err = bStore.GetBlockRootHash(2)
 	require.ErrorContains(t, err, "block for round 2 not found")
@@ -112,6 +113,7 @@ func TestBlockStoreAdd(t *testing.T) {
 	// Proposal always comes with Qc and Block, process Qc first and then new block
 	// add qc for block 1
 	ucs, err := bStore.ProcessQc(block.Qc)
+	require.NoError(t, err)
 	require.Nil(t, ucs)
 	// and the new block 2
 	rh, err := bStore.Add(block, mockBlockVer)

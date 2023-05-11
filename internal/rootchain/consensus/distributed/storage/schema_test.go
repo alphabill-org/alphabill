@@ -11,7 +11,7 @@ func TestCertKey(t *testing.T) {
 	require.Equal(t, []byte("cert_test"), certKey([]byte("test")))
 	require.Equal(t, []byte("cert_00000001"), certKey([]byte("00000001")))
 	// nil case
-	require.Equal(t, append([]byte(certPrefix)), certKey(nil))
+	require.Equal(t, []byte(certPrefix), certKey(nil))
 }
 
 func TestBlockKey(t *testing.T) {

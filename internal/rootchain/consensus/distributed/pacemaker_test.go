@@ -13,23 +13,19 @@ const testBlockRate = time.Duration(1000) * time.Millisecond
 
 func TestExponentialTimeInterval_GetNextTimeout(t *testing.T) {
 	type fields struct {
-		baseMs       time.Duration
+		base         time.Duration
 		exponentBase float64
 		maxExponent  uint8
-	}
-	type args struct {
-		roundsAfterLastCommit uint64
 	}
 	tests := []struct {
 		name   string
 		fields fields
-		args   args
 		want   []time.Duration
 	}{
 		{
 			name: "Get constant timeout",
 			fields: fields{
-				baseMs:       time.Duration(500) * time.Millisecond,
+				base:         time.Duration(500) * time.Millisecond,
 				exponentBase: 1.2,
 				maxExponent:  0,
 			},
@@ -42,7 +38,7 @@ func TestExponentialTimeInterval_GetNextTimeout(t *testing.T) {
 		{
 			name: "Get exponential backoff timeout",
 			fields: fields{
-				baseMs:       time.Duration(500) * time.Millisecond,
+				base:         time.Duration(500) * time.Millisecond,
 				exponentBase: 1.2,
 				maxExponent:  3,
 			},
@@ -58,7 +54,7 @@ func TestExponentialTimeInterval_GetNextTimeout(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			x := ExponentialTimeInterval{
-				baseMs:       tt.fields.baseMs,
+				base:         tt.fields.base,
 				exponentBase: tt.fields.exponentBase,
 				maxExponent:  tt.fields.maxExponent,
 			}
@@ -176,8 +172,9 @@ func TestRoundState_RegisterVote(t *testing.T) {
 	require.NoError(t, err)
 	require.Nil(t, qc)
 	vote = NewDummyVote("node3", 7, []byte{2, 2, 2, 2})
-	require.NoError(t, err)
+	require.NotNil(t, vote)
 	qc, err = pacemaker.RegisterVote(vote, quorum)
+	require.NoError(t, err)
 	require.NotNil(t, qc)
 }
 

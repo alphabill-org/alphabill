@@ -3,13 +3,13 @@ package distributed
 import (
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
+	"github.com/alphabill-org/alphabill/internal/certificates"
 	p "github.com/alphabill-org/alphabill/internal/network/protocol"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/ab_consensus"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/certification"
 	"github.com/alphabill-org/alphabill/internal/rootchain/consensus/distributed/storage"
-	"github.com/stretchr/testify/require"
-
-	"github.com/alphabill-org/alphabill/internal/certificates"
 )
 
 type (
@@ -28,96 +28,20 @@ func (x *mockIRVerifier) VerifyIRChangeReq(_ uint64, irChReq *ab_consensus.IRCha
 var sysID1 = []byte{0, 0, 0, 1}
 var sysID2 = []byte{0, 0, 0, 2}
 var inputRecord1 = &certificates.InputRecord{
-	PreviousHash: []byte{1, 1, 1},
-	Hash:         []byte{2, 2, 2},
-	BlockHash:    []byte{3, 3, 3},
-	SummaryValue: []byte{4, 4, 4},
+	PreviousHash:    []byte{1, 1, 1},
+	Hash:            []byte{2, 2, 2},
+	BlockHash:       []byte{3, 3, 3},
+	SummaryValue:    []byte{4, 4, 4},
+	RoundNumber:     5,
+	SumOfEarnedFees: 6,
 }
 var inputRecord2 = &certificates.InputRecord{
-	PreviousHash: []byte{1, 1, 1},
-	Hash:         []byte{5, 5, 5},
-	BlockHash:    []byte{3, 3, 3},
-	SummaryValue: []byte{4, 4, 4},
-}
-
-func Test_compareIR(t *testing.T) {
-	type args struct {
-		a *certificates.InputRecord
-		b *certificates.InputRecord
-	}
-	tests := []struct {
-		name string
-		args args
-		want bool
-	}{
-		{
-			name: "equal",
-			args: args{
-				a: inputRecord1,
-				b: &certificates.InputRecord{
-					PreviousHash: []byte{1, 1, 1},
-					Hash:         []byte{2, 2, 2},
-					BlockHash:    []byte{3, 3, 3},
-					SummaryValue: []byte{4, 4, 4}},
-			},
-			want: true,
-		},
-		{
-			name: "Previous hash not equal",
-			args: args{
-				a: inputRecord1,
-				b: &certificates.InputRecord{
-					PreviousHash: []byte{1, 1},
-					Hash:         []byte{2, 2, 2},
-					BlockHash:    []byte{3, 3, 3},
-					SummaryValue: []byte{4, 4, 4}},
-			},
-			want: false,
-		},
-		{
-			name: "Hash not equal",
-			args: args{
-				a: inputRecord1,
-				b: &certificates.InputRecord{
-					PreviousHash: []byte{1, 1, 1},
-					Hash:         []byte{2, 2, 2, 3},
-					BlockHash:    []byte{3, 3, 3},
-					SummaryValue: []byte{4, 4, 4}},
-			},
-			want: false,
-		},
-		{
-			name: "Block hash not equal",
-			args: args{
-				a: inputRecord1,
-				b: &certificates.InputRecord{
-					PreviousHash: []byte{1, 1, 1},
-					Hash:         []byte{2, 2, 2},
-					BlockHash:    nil,
-					SummaryValue: []byte{4, 4, 4}},
-			},
-			want: false,
-		},
-		{
-			name: "Summary value not equal",
-			args: args{
-				a: inputRecord1,
-				b: &certificates.InputRecord{
-					PreviousHash: []byte{1, 1, 1},
-					Hash:         []byte{2, 2, 2},
-					BlockHash:    []byte{3, 3, 3},
-					SummaryValue: []byte{}},
-			},
-			want: false,
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if got := compareIR(tt.args.a, tt.args.b); got != tt.want {
-				t.Errorf("compareIR() = %v, want %v", got, tt.want)
-			}
-		})
-	}
+	PreviousHash:    []byte{1, 1, 1},
+	Hash:            []byte{5, 5, 5},
+	BlockHash:       []byte{3, 3, 3},
+	SummaryValue:    []byte{4, 4, 4},
+	RoundNumber:     5,
+	SumOfEarnedFees: 6,
 }
 
 func TestIrReqBuffer_AddNil(t *testing.T) {

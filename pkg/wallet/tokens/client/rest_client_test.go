@@ -21,7 +21,7 @@ import (
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/internal/txsystem/tokens"
-	twb "github.com/alphabill-org/alphabill/pkg/wallet/tokens/backend"
+	"github.com/alphabill-org/alphabill/pkg/wallet/tokens/backend"
 )
 
 func Test_setPaginationParams(t *testing.T) {
@@ -288,7 +288,7 @@ func Test_GetToken(t *testing.T) {
 		require.Empty(t, data)
 	})
 
-	createClient := func(t *testing.T, respBody *twb.TokenUnit) *TokenBackend {
+	createClient := func(t *testing.T, respBody *backend.TokenUnit) *TokenBackend {
 		return &TokenBackend{
 			hc: &http.Client{
 				Transport: &mockRoundTripper{
@@ -317,7 +317,7 @@ func Test_GetToken(t *testing.T) {
 	})
 
 	t.Run("token found", func(t *testing.T) {
-		token := &twb.TokenUnit{
+		token := &backend.TokenUnit{
 			ID:     test.RandomBytes(32),
 			Symbol: "OUCH!",
 			Amount: 10000,
@@ -355,13 +355,13 @@ func Test_GetTokens(t *testing.T) {
 			}},
 		}
 
-		data, offset, err := cli.GetTokens(context.Background(), twb.Any, ownerID, "", 10)
+		data, offset, err := cli.GetTokens(context.Background(), backend.Any, ownerID, "", 10)
 		require.NoError(t, err)
 		require.Empty(t, data)
 		require.Empty(t, offset)
 	})
 
-	createClient := func(t *testing.T, respBody []twb.TokenUnit) *TokenBackend {
+	createClient := func(t *testing.T, respBody []backend.TokenUnit) *TokenBackend {
 		return &TokenBackend{
 			hc: &http.Client{
 				Transport: &mockRoundTripper{
@@ -377,16 +377,16 @@ func Test_GetTokens(t *testing.T) {
 
 	t.Run("no data in the response", func(t *testing.T) {
 		cli := createClient(t, nil)
-		data, offset, err := cli.GetTokens(context.Background(), twb.Any, ownerID, "", 20)
+		data, offset, err := cli.GetTokens(context.Background(), backend.Any, ownerID, "", 20)
 		require.NoError(t, err)
 		require.Empty(t, data)
 		require.Empty(t, offset)
 	})
 
 	t.Run("data in the response", func(t *testing.T) {
-		expData := []twb.TokenUnit{{ID: []byte{0, 1}, Symbol: "test", Amount: 42}}
+		expData := []backend.TokenUnit{{ID: []byte{0, 1}, Symbol: "test", Amount: 42}}
 		cli := createClient(t, expData)
-		data, offset, err := cli.GetTokens(context.Background(), twb.Any, ownerID, "", 20)
+		data, offset, err := cli.GetTokens(context.Background(), backend.Any, ownerID, "", 20)
 		require.NoError(t, err)
 		require.ElementsMatch(t, data, expData)
 		require.Empty(t, offset)
@@ -419,13 +419,13 @@ func Test_GetTokenTypes(t *testing.T) {
 			}},
 		}
 
-		data, offset, err := cli.GetTokenTypes(context.Background(), twb.Any, ownerID, "", 10)
+		data, offset, err := cli.GetTokenTypes(context.Background(), backend.Any, ownerID, "", 10)
 		require.NoError(t, err)
 		require.Empty(t, data)
 		require.Empty(t, offset)
 	})
 
-	createClient := func(t *testing.T, respBody []twb.TokenUnitType) *TokenBackend {
+	createClient := func(t *testing.T, respBody []backend.TokenUnitType) *TokenBackend {
 		return &TokenBackend{
 			hc: &http.Client{
 				Transport: &mockRoundTripper{
@@ -443,16 +443,16 @@ func Test_GetTokenTypes(t *testing.T) {
 
 	t.Run("no data in the response", func(t *testing.T) {
 		cli := createClient(t, nil)
-		data, offset, err := cli.GetTokenTypes(context.Background(), twb.Any, ownerID, "", 20)
+		data, offset, err := cli.GetTokenTypes(context.Background(), backend.Any, ownerID, "", 20)
 		require.NoError(t, err)
 		require.Empty(t, data)
 		require.Empty(t, offset)
 	})
 
 	t.Run("data in the response", func(t *testing.T) {
-		expData := []twb.TokenUnitType{{ID: []byte{0, 1}, Symbol: "test"}}
+		expData := []backend.TokenUnitType{{ID: []byte{0, 1}, Symbol: "test"}}
 		cli := createClient(t, expData)
-		data, offset, err := cli.GetTokenTypes(context.Background(), twb.Any, ownerID, "", 20)
+		data, offset, err := cli.GetTokenTypes(context.Background(), backend.Any, ownerID, "", 20)
 		require.NoError(t, err)
 		require.ElementsMatch(t, data, expData)
 		require.Empty(t, offset)
@@ -490,7 +490,7 @@ func Test_GetTypeHierarchy(t *testing.T) {
 		require.Empty(t, data)
 	})
 
-	createClient := func(t *testing.T, respBody []twb.TokenUnitType) *TokenBackend {
+	createClient := func(t *testing.T, respBody []backend.TokenUnitType) *TokenBackend {
 		return &TokenBackend{
 			hc: &http.Client{
 				Transport: &mockRoundTripper{
@@ -519,7 +519,7 @@ func Test_GetTypeHierarchy(t *testing.T) {
 	})
 
 	t.Run("type with given id exists", func(t *testing.T) {
-		expData := []twb.TokenUnitType{{ID: []byte{0, 1}, Symbol: "test"}}
+		expData := []backend.TokenUnitType{{ID: []byte{0, 1}, Symbol: "test"}}
 		cli := createClient(t, expData)
 		data, err := cli.GetTypeHierarchy(context.Background(), typeID)
 		require.NoError(t, err)
@@ -533,7 +533,7 @@ func Test_GetTxProof(t *testing.T) {
 	unitID := test.RandomBytes(32)
 	txHash := test.RandomBytes(32)
 
-	createClient := func(t *testing.T, proof *twb.Proof) *TokenBackend {
+	createClient := func(t *testing.T, proof *backend.Proof) *TokenBackend {
 		return &TokenBackend{
 			addr: url.URL{Scheme: "http", Host: "localhost"},
 			hc: &http.Client{Transport: &mockRoundTripper{
@@ -565,7 +565,7 @@ func Test_GetTxProof(t *testing.T) {
 	}
 
 	t.Run("valid proof returned", func(t *testing.T) {
-		proof := &twb.Proof{
+		proof := &backend.Proof{
 			BlockNumber: 1,
 			Tx:          &txsystem.Transaction{UnitId: unitID},
 			Proof:       &block.BlockProof{TransactionsHash: txHash},

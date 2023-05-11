@@ -1,16 +1,22 @@
-package money
+package backend
 
 import (
 	"context"
 	"crypto"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"math/rand"
+	"net/http"
+	"sync"
 	"time"
 
 	"golang.org/x/sync/errgroup"
+	"golang.org/x/sync/semaphore"
 
+	"github.com/ainvaltin/httpsrv"
 	"github.com/alphabill-org/alphabill/internal/block"
+	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/internal/script"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/pkg/client"
@@ -21,7 +27,20 @@ import (
 	wlog "github.com/alphabill-org/alphabill/pkg/wallet/log"
 )
 
+// @title           Money Partition Indexing Backend API
+// @version         1.0
+// @description     This service processes blocks from the Money partition and indexes ownership of bills.
+
+// @BasePath  /api/v1
 type (
+	WalletBackendService interface {
+		GetBills(ownerCondition []byte) ([]*Bill, error)
+		GetBill(unitID []byte) (*Bill, error)
+		GetRoundNumber(ctx context.Context) (uint64, error)
+		GetFeeCreditBill(unitID []byte) (*Bill, error)
+		SendTransactions(ctx context.Context, txs []*txsystem.Transaction) map[string]string
+	}
+
 	WalletBackend struct {
 		store         BillStore
 		genericWallet *wallet.Wallet
@@ -75,6 +94,8 @@ type (
 		DeleteExpiredBills(blockNumber uint64) error
 		GetFeeCreditBill(unitID []byte) (*Bill, error)
 		SetFeeCreditBill(fcb *Bill) error
+		GetSystemDescriptionRecords() ([]*genesis.SystemDescriptionRecord, error)
+		SetSystemDescriptionRecords(sdrs []*genesis.SystemDescriptionRecord) error
 	}
 
 	p2pkhOwnerPredicates struct {
@@ -83,12 +104,13 @@ type (
 	}
 
 	Config struct {
-		ABMoneySystemIdentifier []byte
-		AlphabillUrl            string
-		ServerAddr              string
-		DbFile                  string
-		ListBillsPageLimit      int
-		InitialBill             InitialBill
+		ABMoneySystemIdentifier  []byte
+		AlphabillUrl             string
+		ServerAddr               string
+		DbFile                   string
+		ListBillsPageLimit       int
+		InitialBill              InitialBill
+		SystemDescriptionRecords []*genesis.SystemDescriptionRecord
 	}
 
 	InitialBill struct {
@@ -98,13 +120,15 @@ type (
 	}
 )
 
-func CreateAndRun(ctx context.Context, config *Config) error {
+func Run(ctx context.Context, config *Config) error {
 	store, err := NewBoltBillStore(config.DbFile)
 	if err != nil {
 		return fmt.Errorf("failed to get storage: %w", err)
 	}
 
-	// store initial bill if first run to avoid some edge cases
+	// if first run:
+	// store initial bill to avoid some edge cases
+	// store system description records and partition fee bills to avoid providing them every run
 	err = store.WithTransaction(func(txc BillStoreTx) error {
 		blockNumber, err := txc.GetBlockNumber()
 		if err != nil {
@@ -114,11 +138,29 @@ func CreateAndRun(ctx context.Context, config *Config) error {
 			return nil
 		}
 		ib := config.InitialBill
-		return txc.SetBill(&Bill{
+		err = txc.SetBill(&Bill{
 			Id:             ib.Id,
 			Value:          ib.Value,
 			OwnerPredicate: ib.Predicate,
 		})
+		if err != nil {
+			return fmt.Errorf("failed to store initial bill: %w", err)
+		}
+
+		err = txc.SetSystemDescriptionRecords(config.SystemDescriptionRecords)
+		if err != nil {
+			return fmt.Errorf("failed to store system description records: %w", err)
+		}
+		for _, sdr := range config.SystemDescriptionRecords {
+			err = txc.SetBill(&Bill{
+				Id:             sdr.FeeCreditBill.UnitId,
+				OwnerPredicate: sdr.FeeCreditBill.OwnerPredicate,
+			})
+			if err != nil {
+				return err
+			}
+		}
+		return nil
 	})
 	if err != nil {
 		return err
@@ -131,18 +173,31 @@ func CreateAndRun(ctx context.Context, config *Config) error {
 	g.Go(func() error {
 		walletBackend := &WalletBackend{store: store, genericWallet: wallet.New().SetABClient(abc).Build()}
 		defer walletBackend.genericWallet.Shutdown()
-		server := NewHttpServer(config.ServerAddr, config.ListBillsPageLimit, walletBackend)
-		return server.Run(ctx)
+
+		handler := &RequestHandler{Service: walletBackend, ListBillsPageLimit: config.ListBillsPageLimit}
+		server := http.Server{
+			Addr:              config.ServerAddr,
+			Handler:           handler.Router(),
+			ReadTimeout:       3 * time.Second,
+			ReadHeaderTimeout: time.Second,
+			WriteTimeout:      5 * time.Second,
+			IdleTimeout:       30 * time.Second,
+		}
+
+		return httpsrv.Run(ctx, server, httpsrv.ShutdownTimeout(5*time.Second))
 	})
 
 	g.Go(func() error {
-		bp := NewBlockProcessor(store, NewTxConverter(config.ABMoneySystemIdentifier))
+		blockProcessor, err := NewBlockProcessor(store, NewTxConverter(config.ABMoneySystemIdentifier), config.ABMoneySystemIdentifier)
+		if err != nil {
+			return fmt.Errorf("failed to create block processor: %w", err)
+		}
 		getBlockNumber := func() (uint64, error) { return store.Do().GetBlockNumber() }
 		// we act as if all errors returned by block sync are recoverable ie we
 		// just retry in a loop until ctx is cancelled
 		for {
 			wlog.Debug("starting block sync")
-			err := runBlockSync(ctx, abc.GetBlocks, getBlockNumber, 100, bp.ProcessBlock)
+			err := runBlockSync(ctx, abc.GetBlocks, getBlockNumber, 100, blockProcessor.ProcessBlock)
 			if err != nil {
 				wlog.Error("synchronizing blocks returned error: ", err)
 			}
@@ -196,6 +251,39 @@ func (w *WalletBackend) GetFeeCreditBill(unitID []byte) (*Bill, error) {
 // GetRoundNumber returns latest round number.
 func (w *WalletBackend) GetRoundNumber(ctx context.Context) (uint64, error) {
 	return w.genericWallet.GetRoundNumber(ctx)
+}
+
+// TODO: Share functionaly with tokens partiton
+// SendTransactions forwards transactions to partiton node(s).
+func (w *WalletBackend) SendTransactions(ctx context.Context, txs []*txsystem.Transaction) map[string]string {
+	errs := make(map[string]string)
+	var m sync.Mutex
+
+	const maxWorkers = 5
+	sem := semaphore.NewWeighted(maxWorkers)
+	for _, tx := range txs {
+		if err := sem.Acquire(ctx, 1); err != nil {
+			break
+		}
+		go func(tx *txsystem.Transaction) {
+			defer sem.Release(1)
+			if err := w.genericWallet.SendTransaction(ctx, tx, nil); err != nil {
+				m.Lock()
+				errs[hex.EncodeToString(tx.GetUnitId())] =
+					fmt.Errorf("failed to forward tx: %w", err).Error()
+				m.Unlock()
+			}
+		}(tx)
+	}
+
+	semCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	defer cancel()
+	if err := sem.Acquire(semCtx, maxWorkers); err != nil {
+		m.Lock()
+		errs["waiting-for-workers"] = err.Error()
+		m.Unlock()
+	}
+	return errs
 }
 
 func (b *Bill) toProto() *bp.Bill {

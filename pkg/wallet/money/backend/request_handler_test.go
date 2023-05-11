@@ -1,20 +1,25 @@
-package money
+package backend
 
 import (
 	"context"
 	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
+	"regexp"
+	"strconv"
 	"syscall"
 	"testing"
 	"time"
 
+	"github.com/ainvaltin/httpsrv"
 	"github.com/alphabill-org/alphabill/pkg/wallet/backend/bp"
-
 	"github.com/alphabill-org/alphabill/internal/block"
 	testhttp "github.com/alphabill-org/alphabill/internal/testutils/http"
 	"github.com/alphabill-org/alphabill/internal/testutils/net"
 	testtransaction "github.com/alphabill-org/alphabill/internal/testutils/transaction"
+	"github.com/alphabill-org/alphabill/internal/testutils/transaction/money"
+	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/pkg/client"
 	"github.com/alphabill-org/alphabill/pkg/client/clientmock"
 	"github.com/alphabill-org/alphabill/pkg/wallet"
@@ -207,6 +212,21 @@ func TestListBillsRequest_Paging(t *testing.T) {
 	require.EqualValues(t, 100, res.Bills[0].Value)
 	require.EqualValues(t, 199, res.Bills[99].Value)
 
+	// verify Link header of the response
+	var linkHdrMatcher = regexp.MustCompile("<(.*)>")
+	match := linkHdrMatcher.FindStringSubmatch(httpRes.Header.Get("Link"))
+	if len(match) != 2 {
+		t.Errorf("Link header didn't result in expected match\nHeader: %s\nmatches: %v\n", httpRes.Header.Get("Link"), match)
+	} else {
+		u, err := url.Parse(match[1])
+		if err != nil {
+			t.Fatal("failed to parse Link header:", err)
+		}
+		if s := u.Query().Get("offset"); s != strconv.Itoa(200) {
+			t.Errorf("expected %v got %s", 200, s)
+		}
+	}
+
 	// verify limit limits result size
 	res = &ListBillsResponse{}
 	httpRes, err = testhttp.DoGet(fmt.Sprintf("http://localhost:%d/api/v1/list-bills?pubkey=%s&offset=100&limit=50", port, pubkeyHex), res)
@@ -244,6 +264,11 @@ func TestListBillsRequest_Paging(t *testing.T) {
 	require.Len(t, res.Bills, 10)
 	require.EqualValues(t, 190, res.Bills[0].Value)
 	require.EqualValues(t, 199, res.Bills[9].Value)
+
+	// verify no Link header in the response
+	if link := httpRes.Header.Get("Link"); link != "" {
+		t.Errorf("unexpectedly the Link header is not empty, got %q", link)
+	}
 }
 
 func TestBalanceRequest_Ok(t *testing.T) {
@@ -501,6 +526,56 @@ func TestGetFeeCreditBillRequest_BillDoesNotExist(t *testing.T) {
 	require.Equal(t, "fee credit bill does not exist", res.Message)
 }
 
+func TestPostTransactionsRequest_InvalidPubkey(t *testing.T) {
+	walletBackend := newWalletBackend(t)
+	port := startServer(t, walletBackend)
+
+	res := &ErrorResponse{}
+	httpRes, err := testhttp.DoPostProto(fmt.Sprintf("http://localhost:%d/api/v1/transactions/%s", port, "invalid"), nil, res)
+	require.NoError(t, err)
+	require.Equal(t, http.StatusBadRequest, httpRes.StatusCode)
+	require.Contains(t, res.Message, "failed to parse sender pubkey")
+}
+
+func TestPostTransactionsRequest_EmptyBody(t *testing.T) {
+	walletBackend := newWalletBackend(t)
+	port := startServer(t, walletBackend)
+
+	res := &ErrorResponse{}
+	httpRes, err := testhttp.DoPostProto(fmt.Sprintf("http://localhost:%d/api/v1/transactions/%s", port, pubkeyHex), nil, res)
+	require.NoError(t, err)
+	require.Equal(t, http.StatusBadRequest, httpRes.StatusCode)
+	require.Equal(t, "request body contained no transactions to process", res.Message)
+}
+
+func TestPostTransactionsRequest_InvalidTransactions(t *testing.T) {
+	walletBackend := newWalletBackend(t)
+	port := startServer(t, walletBackend)
+
+	txs := money.RandomBillTransfer(t)
+
+	res := &ErrorResponse{}
+	httpRes, err := testhttp.DoPostProto(fmt.Sprintf("http://localhost:%d/api/v1/transactions/%s", port, pubkeyHex), txs, res)
+	require.NoError(t, err)
+	require.Equal(t, http.StatusBadRequest, httpRes.StatusCode)
+	require.Contains(t, res.Message, "failed to decode request body")
+}
+
+func TestPostTransactionsRequest_Ok(t *testing.T) {
+	walletBackend := newWalletBackend(t)
+	port := startServer(t, walletBackend)
+
+	txs := &txsystem.Transactions{Transactions: []*txsystem.Transaction{
+		money.RandomBillTransfer(t),
+		money.RandomBillTransfer(t),
+		money.RandomBillTransfer(t),
+	}}
+
+	httpRes, err := testhttp.DoPostProto(fmt.Sprintf("http://localhost:%d/api/v1/transactions/%s", port, pubkeyHex), txs, nil)
+	require.NoError(t, err)
+	require.Equal(t, http.StatusAccepted, httpRes.StatusCode)
+}
+
 func startServer(t *testing.T, service WalletBackendService) int {
 	port, err := net.GetFreePort()
 	require.NoError(t, err)
@@ -508,8 +583,17 @@ func startServer(t *testing.T, service WalletBackendService) int {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	go func() {
-		server := NewHttpServer(fmt.Sprintf("localhost:%d", port), 100, service)
-		err := server.Run(ctx)
+		handler := &RequestHandler{Service: service, ListBillsPageLimit: 100}
+		server := http.Server{
+			Addr:              fmt.Sprintf("localhost:%d", port),
+			Handler:           handler.Router(),
+			ReadTimeout:       3 * time.Second,
+			ReadHeaderTimeout: time.Second,
+			WriteTimeout:      5 * time.Second,
+			IdleTimeout:       30 * time.Second,
+		}
+
+		err := httpsrv.Run(ctx, server, httpsrv.ShutdownTimeout(5*time.Second))
 		require.ErrorIs(t, err, context.Canceled)
 	}()
 	// stop the server

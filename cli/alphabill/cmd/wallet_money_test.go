@@ -13,21 +13,20 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/alphabill-org/alphabill/internal/partition"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
 
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
-	"github.com/alphabill-org/alphabill/internal/partition"
 	"github.com/alphabill-org/alphabill/internal/script"
 	testpartition "github.com/alphabill-org/alphabill/internal/testutils/partition"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
-	"github.com/alphabill-org/alphabill/internal/txsystem/fc"
 	moneytx "github.com/alphabill-org/alphabill/internal/txsystem/money"
 	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/alphabill-org/alphabill/pkg/wallet/account"
-	testclient "github.com/alphabill-org/alphabill/pkg/wallet/backend/money/client"
+	"github.com/alphabill-org/alphabill/pkg/wallet/money/backend/client"
 	"github.com/alphabill-org/alphabill/pkg/wallet/money"
 )
 
@@ -187,8 +186,8 @@ func TestSendingFailsWithInsufficientBalance(t *testing.T) {
 	require.ErrorIs(t, err, money.ErrInsufficientBalance)
 }
 
-func startAlphabillPartition(t *testing.T, initialBill *moneytx.InitialBill) *testpartition.AlphabillPartition {
-	network, err := testpartition.NewNetwork(1, func(tb map[string]abcrypto.Verifier) txsystem.TransactionSystem {
+func createMoneyPartition(t *testing.T, initialBill *moneytx.InitialBill) *testpartition.NodePartition {
+	moneyPart, err := testpartition.NewPartition(1, func(tb map[string]abcrypto.Verifier) txsystem.TransactionSystem {
 		system, err := moneytx.NewMoneyTxSystem(
 			defaultABMoneySystemIdentifier,
 			moneytx.WithHashAlgorithm(crypto.SHA256),
@@ -203,7 +202,6 @@ func startAlphabillPartition(t *testing.T, initialBill *moneytx.InitialBill) *te
 					},
 				},
 			}),
-			moneytx.WithFeeCalculator(fc.FixedFee(1)),
 			moneytx.WithDCMoneyAmount(10000),
 			moneytx.WithTrustBase(tb),
 		)
@@ -211,16 +209,24 @@ func startAlphabillPartition(t *testing.T, initialBill *moneytx.InitialBill) *te
 		return system
 	}, []byte{0, 0, 0, 0})
 	require.NoError(t, err)
+	return moneyPart
+}
+
+func startAlphabill(t *testing.T, partitions []*testpartition.NodePartition) *testpartition.AlphabillPartition {
+	abNetwork, err := testpartition.NewAlphabillPartition(partitions)
+	require.NoError(t, err)
+	require.NoError(t, abNetwork.Start())
 
 	t.Cleanup(func() {
-		require.NoError(t, network.Close())
+		require.NoError(t, abNetwork.Close())
 	})
+	return abNetwork
+}
 
-	for i := range network.Nodes {
-		network.Nodes[i].AddrGRPC = startRPCServer(t, network.Nodes[i].Node)
+func startPartitionRPCServers(t *testing.T, partition *testpartition.NodePartition) {
+	for _, n := range partition.Nodes {
+		n.AddrGRPC = startRPCServer(t, n.Node)
 	}
-
-	return network
 }
 
 func startRPCServer(t *testing.T, node *partition.Node) string {
@@ -342,20 +348,20 @@ func mockBackendCalls(br *backendMockReturnConf) (*httptest.Server, *url.URL) {
 			w.Write([]byte(br.customResponse))
 		} else {
 			switch r.URL.Path {
-			case "/" + testclient.BalancePath:
+			case "/" + client.BalancePath:
 				w.WriteHeader(http.StatusOK)
 				w.Write([]byte(fmt.Sprintf(`{"balance": "%d"}`, br.balance)))
-			case "/" + testclient.BlockHeightPath:
+			case "/" + client.RoundNumberPath:
 				w.WriteHeader(http.StatusOK)
 				w.Write([]byte(fmt.Sprintf(`{"blockHeight": "%d"}`, br.blockHeight)))
-			case "/" + testclient.ProofPath:
+			case "/" + client.ProofPath:
 				if br.proofList != "" {
 					w.WriteHeader(http.StatusOK)
 					w.Write([]byte(br.proofList))
 				} else {
 					w.WriteHeader(http.StatusNotFound)
 				}
-			case "/" + testclient.ListBillsPath:
+			case "/" + client.ListBillsPath:
 				w.WriteHeader(http.StatusOK)
 				if br.customBillList != "" {
 					w.Write([]byte(br.customBillList))

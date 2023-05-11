@@ -20,7 +20,7 @@ import (
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/pkg/client"
 	"github.com/alphabill-org/alphabill/pkg/wallet/account"
-	moneyclient "github.com/alphabill-org/alphabill/pkg/wallet/backend/money/client"
+	moneyclient "github.com/alphabill-org/alphabill/pkg/wallet/money/backend/client"
 	wlog "github.com/alphabill-org/alphabill/pkg/wallet/log"
 	"github.com/alphabill-org/alphabill/pkg/wallet/money"
 )
@@ -179,7 +179,7 @@ func execSendCmd(ctx context.Context, cmd *cobra.Command, config *walletConfig) 
 	if err != nil {
 		return err
 	}
-	restClient, err := moneyclient.NewClient(apiUri)
+	restClient, err := moneyclient.New(apiUri)
 	if err != nil {
 		return err
 	}
@@ -294,7 +294,7 @@ func execGetBalanceCmd(cmd *cobra.Command, config *walletConfig) error {
 	if err != nil {
 		return err
 	}
-	restClient, err := moneyclient.NewClient(uri)
+	restClient, err := moneyclient.New(uri)
 	if err != nil {
 		return err
 	}
@@ -419,7 +419,7 @@ func execCollectDust(cmd *cobra.Command, config *walletConfig) error {
 	if err != nil {
 		return err
 	}
-	restClient, err := moneyclient.NewClient(apiUri)
+	restClient, err := moneyclient.New(apiUri)
 	if err != nil {
 		return err
 	}

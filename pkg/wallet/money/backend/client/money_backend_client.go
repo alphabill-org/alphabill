@@ -1,6 +1,7 @@
 package client
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -15,7 +16,7 @@ import (
 	"google.golang.org/protobuf/encoding/protojson"
 
 	"github.com/alphabill-org/alphabill/pkg/wallet/backend/bp"
-	"github.com/alphabill-org/alphabill/pkg/wallet/backend/money"
+	"github.com/alphabill-org/alphabill/pkg/wallet/money/backend"
 )
 
 type (
@@ -31,13 +32,13 @@ const (
 	BalancePath     = "api/v1/balance"
 	ListBillsPath   = "api/v1/list-bills"
 	ProofPath       = "api/v1/proof"
-	BlockHeightPath = "api/v1/round-number"
+	RoundNumberPath = "api/v1/round-number"
 	FeeCreditPath   = "api/v1/fee-credit-bill"
 
 	balanceUrlFormat     = "%v/%v?pubkey=%v&includedcbills=%v"
 	listBillsUrlFormat   = "%v/%v?pubkey=%v&includedcbills=%v"
 	proofUrlFormat       = "%v/%v?bill_id=%v"
-	blockHeightUrlFormat = "%v/%v"
+	roundNumberUrlFormat = "%v/%v"
 
 	defaultScheme   = "http://"
 	contentType     = "Content-Type"
@@ -48,7 +49,7 @@ var (
 	ErrMissingFeeCreditBill = errors.New("fee credit bill does not exist")
 )
 
-func NewClient(baseUrl string) (*MoneyBackendClient, error) {
+func New(baseUrl string) (*MoneyBackendClient, error) {
 	if !strings.HasPrefix(baseUrl, "http://") && !strings.HasPrefix(baseUrl, "https://") {
 		baseUrl = defaultScheme + baseUrl
 	}
@@ -82,7 +83,7 @@ func (c *MoneyBackendClient) GetBalance(pubKey []byte, includeDCBills bool) (uin
 	if err != nil {
 		return 0, fmt.Errorf("failed to read GetBalance response: %w", err)
 	}
-	var responseObject money.BalanceResponse
+	var responseObject backend.BalanceResponse
 	err = json.Unmarshal(responseData, &responseObject)
 	if err != nil {
 		return 0, fmt.Errorf("failed to unmarshall GetBalance response data: %w", err)
@@ -90,7 +91,7 @@ func (c *MoneyBackendClient) GetBalance(pubKey []byte, includeDCBills bool) (uin
 	return responseObject.Balance, nil
 }
 
-func (c *MoneyBackendClient) ListBills(pubKey []byte, includeDCBills bool) (*money.ListBillsResponse, error) {
+func (c *MoneyBackendClient) ListBills(pubKey []byte, includeDCBills bool) (*backend.ListBillsResponse, error) {
 	offset := 0
 	responseObject, err := c.retrieveBills(pubKey, includeDCBills, offset)
 	if err != nil {
@@ -107,6 +108,18 @@ func (c *MoneyBackendClient) ListBills(pubKey []byte, includeDCBills bool) (*mon
 		finalResponse.Bills = append(finalResponse.Bills, responseObject.Bills...)
 	}
 	return finalResponse, nil
+}
+
+func (c *MoneyBackendClient) GetBills(pubKey []byte) ([]*bp.Bill, error) {
+	bills, err := c.ListBills(pubKey, false)
+	if err != nil {
+		return nil, err
+	}
+	var res []*bp.Bill
+	for _, b := range bills.Bills {
+		res = append(res, b.ToProto())
+	}
+	return res, nil
 }
 
 func (c *MoneyBackendClient) GetProof(billId []byte) (*bp.Bills, error) {
@@ -138,15 +151,15 @@ func (c *MoneyBackendClient) GetProof(billId []byte) (*bp.Bills, error) {
 	return &responseObject, nil
 }
 
-func (c *MoneyBackendClient) GetBlockHeight() (uint64, error) {
-	req, err := http.NewRequest(http.MethodGet, fmt.Sprintf(blockHeightUrlFormat, c.BaseUrl, BlockHeightPath), nil)
+func (c *MoneyBackendClient) GetRoundNumber(_ context.Context) (uint64, error) {
+	req, err := http.NewRequest(http.MethodGet, fmt.Sprintf(roundNumberUrlFormat, c.BaseUrl, RoundNumberPath), nil)
 	if err != nil {
-		return 0, fmt.Errorf("failed to build get block height request: %w", err)
+		return 0, fmt.Errorf("failed to build GetRoundNumber request: %w", err)
 	}
 	req.Header.Set(contentType, applicationJson)
 	response, err := c.HttpClient.Do(req)
 	if err != nil {
-		return 0, fmt.Errorf("request GetBlockHeight failed: %w", err)
+		return 0, fmt.Errorf("request GetRoundNumber failed: %w", err)
 	}
 	if response.StatusCode != http.StatusOK {
 		return 0, fmt.Errorf("unexpected response status code: %d", response.StatusCode)
@@ -154,17 +167,17 @@ func (c *MoneyBackendClient) GetBlockHeight() (uint64, error) {
 
 	responseData, err := io.ReadAll(response.Body)
 	if err != nil {
-		return 0, fmt.Errorf("failed to read GetBlockHeight response: %w", err)
+		return 0, fmt.Errorf("failed to read GetRoundNumber response: %w", err)
 	}
-	var responseObject money.RoundNumberResponse
+	var responseObject backend.RoundNumberResponse
 	err = json.Unmarshal(responseData, &responseObject)
 	if err != nil {
-		return 0, fmt.Errorf("failed to unmarshall GetBlockHeight response data: %w", err)
+		return 0, fmt.Errorf("failed to unmarshall GetRoundNumber response data: %w", err)
 	}
 	return responseObject.RoundNumber, nil
 }
 
-func (c *MoneyBackendClient) GetFeeCreditBill(unitID []byte) (*bp.Bill, error) {
+func (c *MoneyBackendClient) FetchFeeCreditBill(_ context.Context, unitID []byte) (*bp.Bill, error) {
 	req, err := http.NewRequest(http.MethodGet, c.feeCreditBillURL, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to build get fee credit request: %w", err)
@@ -182,7 +195,7 @@ func (c *MoneyBackendClient) GetFeeCreditBill(unitID []byte) (*bp.Bill, error) {
 	}
 	if response.StatusCode != http.StatusOK {
 		if response.StatusCode == http.StatusNotFound {
-			return nil, ErrMissingFeeCreditBill
+			return nil, nil
 		}
 		responseStr, _ := httputil.DumpResponse(response, true)
 		return nil, fmt.Errorf("unexpected response: %s", responseStr)
@@ -200,7 +213,7 @@ func (c *MoneyBackendClient) GetFeeCreditBill(unitID []byte) (*bp.Bill, error) {
 	return &res, nil
 }
 
-func (c *MoneyBackendClient) retrieveBills(pubKey []byte, includeDCBills bool, offset int) (*money.ListBillsResponse, error) {
+func (c *MoneyBackendClient) retrieveBills(pubKey []byte, includeDCBills bool, offset int) (*backend.ListBillsResponse, error) {
 	reqUrl := fmt.Sprintf(listBillsUrlFormat, c.BaseUrl, ListBillsPath, hexutil.Encode(pubKey), includeDCBills)
 	if offset > 0 {
 		reqUrl = fmt.Sprintf("%v&offset=%v", reqUrl, offset)
@@ -222,7 +235,7 @@ func (c *MoneyBackendClient) retrieveBills(pubKey []byte, includeDCBills bool, o
 	if err != nil {
 		return nil, fmt.Errorf("failed to read ListBills response: %w", err)
 	}
-	var responseObject money.ListBillsResponse
+	var responseObject backend.ListBillsResponse
 	err = json.Unmarshal(responseData, &responseObject)
 	if err != nil {
 		return nil, fmt.Errorf("failed to unmarshall ListBills response data: %w", err)

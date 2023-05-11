@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
@@ -18,8 +19,8 @@ import (
 	moneytx "github.com/alphabill-org/alphabill/internal/txsystem/money"
 	moneytestutils "github.com/alphabill-org/alphabill/internal/txsystem/money/testutils"
 	"github.com/alphabill-org/alphabill/internal/util"
-	moneybackend "github.com/alphabill-org/alphabill/pkg/wallet/backend/money"
 	wlog "github.com/alphabill-org/alphabill/pkg/wallet/log"
+	"github.com/alphabill-org/alphabill/pkg/wallet/money/backend"
 )
 
 /*
@@ -36,25 +37,28 @@ func TestSendingMoneyBetweenWallets(t *testing.T) {
 		Value: 1e18,
 		Owner: script.PredicateAlwaysTrue(),
 	}
-	network := startAlphabillPartition(t, initialBill)
-	alphabillNodeAddr := network.Nodes[0].AddrGRPC
+	moneyPartition := createMoneyPartition(t, initialBill)
+	abNet := startAlphabill(t, []*testpartition.NodePartition{moneyPartition})
+	startPartitionRPCServers(t, moneyPartition)
+	alphabillNodeAddr := moneyPartition.Nodes[0].AddrGRPC
 
 	// start wallet backend
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	t.Cleanup(cancelFunc)
 	go func() {
-		err := moneybackend.CreateAndRun(ctx,
-			&moneybackend.Config{
+		err := backend.Run(ctx,
+			&backend.Config{
 				ABMoneySystemIdentifier: []byte{0, 0, 0, 0},
 				AlphabillUrl:            alphabillNodeAddr,
 				ServerAddr:              defaultAlphabillApiURL, // TODO move to random port
-				DbFile:                  filepath.Join(t.TempDir(), moneybackend.BoltBillStoreFileName),
+				DbFile:                  filepath.Join(t.TempDir(), backend.BoltBillStoreFileName),
 				ListBillsPageLimit:      100,
-				InitialBill: moneybackend.InitialBill{
+				InitialBill: backend.InitialBill{
 					Id:        util.Uint256ToBytes(initialBill.ID),
 					Value:     initialBill.Value,
 					Predicate: initialBill.Owner,
 				},
+				SystemDescriptionRecords: []*genesis.SystemDescriptionRecord{defaultMoneySDR},
 			})
 		require.ErrorIs(t, err, context.Canceled)
 	}()
@@ -74,16 +78,16 @@ func TestSendingMoneyBetweenWallets(t *testing.T) {
 	// create fee credit for initial bill transfer
 	txFeeBilly := uint64(1)
 	fcrAmount := testmoney.FCRAmount
-	transferFC := testmoney.CreateFeeCredit(t, util.Uint256ToBytes(initialBill.ID), network)
+	transferFC := testmoney.CreateFeeCredit(t, util.Uint256ToBytes(initialBill.ID), abNet)
 	initialBillBacklink := transferFC.Hash(crypto.SHA256)
 	w1BalanceBilly := initialBill.Value - fcrAmount - txFeeBilly
 
 	// transfer initial bill to wallet 1
 	transferInitialBillTx, err := moneytestutils.CreateInitialBillTransferTx(w1PubKey, initialBill.ID, w1BalanceBilly, 10000, initialBillBacklink)
 	require.NoError(t, err)
-	err = network.SubmitTx(transferInitialBillTx)
+	err = moneyPartition.SubmitTx(transferInitialBillTx)
 	require.NoError(t, err)
-	require.Eventually(t, testpartition.BlockchainContainsTx(transferInitialBillTx, network), test.WaitDuration, test.WaitTick)
+	require.Eventually(t, testpartition.BlockchainContainsTx(moneyPartition, transferInitialBillTx), test.WaitDuration, test.WaitTick)
 
 	// verify bill is received by wallet 1
 	waitForBalanceCLI(t, homedir1, defaultAlphabillApiURL, w1BalanceBilly, 0)
@@ -91,7 +95,7 @@ func TestSendingMoneyBetweenWallets(t *testing.T) {
 	// create fee credit for wallet-1
 	feeAmountAlpha := uint64(1)
 	stdout := execWalletCmd(t, alphabillNodeAddr, homedir1, fmt.Sprintf("fees add --amount %d", feeAmountAlpha))
-	verifyStdout(t, stdout, fmt.Sprintf("Successfully created %d fee credits.", feeAmountAlpha))
+	verifyStdout(t, stdout, fmt.Sprintf("Successfully created %d fee credits on money partition.", feeAmountAlpha))
 
 	// verify fee credit received
 	w1BalanceBilly = w1BalanceBilly - feeAmountAlpha*1e8 - txFeeBilly
@@ -118,7 +122,7 @@ func TestSendingMoneyBetweenWallets(t *testing.T) {
 
 	// create fee credit for wallet-2
 	stdout = execWalletCmd(t, alphabillNodeAddr, homedir2, fmt.Sprintf("fees add --amount %d", feeAmountAlpha))
-	verifyStdout(t, stdout, fmt.Sprintf("Successfully created %d fee credits.", feeAmountAlpha))
+	verifyStdout(t, stdout, fmt.Sprintf("Successfully created %d fee credits on money partition.", feeAmountAlpha))
 
 	// verify fee credit received for wallet-2
 	w2BalanceBilly = w2BalanceBilly - feeAmountAlpha*1e8 - txFeeBilly
@@ -151,25 +155,28 @@ func TestSendingMoneyBetweenWalletAccounts(t *testing.T) {
 		Value: 1e18,
 		Owner: script.PredicateAlwaysTrue(),
 	}
-	network := startAlphabillPartition(t, initialBill)
-	alphabillNodeAddr := network.Nodes[0].AddrGRPC
+	moneyPartition := createMoneyPartition(t, initialBill)
+	abNet := startAlphabill(t, []*testpartition.NodePartition{moneyPartition})
+	startPartitionRPCServers(t, moneyPartition)
+	alphabillNodeAddr := moneyPartition.Nodes[0].AddrGRPC
 
 	// start wallet backend
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	t.Cleanup(cancelFunc)
 	go func() {
-		err := moneybackend.CreateAndRun(ctx,
-			&moneybackend.Config{
+		err := backend.Run(ctx,
+			&backend.Config{
 				ABMoneySystemIdentifier: []byte{0, 0, 0, 0},
 				AlphabillUrl:            alphabillNodeAddr,
 				ServerAddr:              defaultAlphabillApiURL, // TODO move to random port
-				DbFile:                  filepath.Join(t.TempDir(), moneybackend.BoltBillStoreFileName),
+				DbFile:                  filepath.Join(t.TempDir(), backend.BoltBillStoreFileName),
 				ListBillsPageLimit:      100,
-				InitialBill: moneybackend.InitialBill{
+				InitialBill: backend.InitialBill{
 					Id:        util.Uint256ToBytes(initialBill.ID),
 					Value:     initialBill.Value,
 					Predicate: initialBill.Owner,
 				},
+				SystemDescriptionRecords: []*genesis.SystemDescriptionRecord{defaultMoneySDR},
 			})
 		require.ErrorIs(t, err, context.Canceled)
 	}()
@@ -185,16 +192,16 @@ func TestSendingMoneyBetweenWalletAccounts(t *testing.T) {
 	// create fee credit for initial bill transfer
 	txFeeBilly := uint64(1)
 	fcrAmount := testmoney.FCRAmount
-	transferFC := testmoney.CreateFeeCredit(t, util.Uint256ToBytes(initialBill.ID), network)
+	transferFC := testmoney.CreateFeeCredit(t, util.Uint256ToBytes(initialBill.ID), abNet)
 	initialBillBacklink := transferFC.Hash(crypto.SHA256)
 	acc1BalanceBilly := initialBill.Value - fcrAmount - txFeeBilly
 
 	// transfer initial bill to wallet account 1
 	transferInitialBillTx, err := moneytestutils.CreateInitialBillTransferTx(pubKey1, initialBill.ID, acc1BalanceBilly, 10000, initialBillBacklink)
 	require.NoError(t, err)
-	err = network.SubmitTx(transferInitialBillTx)
+	err = moneyPartition.SubmitTx(transferInitialBillTx)
 	require.NoError(t, err)
-	require.Eventually(t, testpartition.BlockchainContainsTx(transferInitialBillTx, network), test.WaitDuration, test.WaitTick)
+	require.Eventually(t, testpartition.BlockchainContainsTx(moneyPartition, transferInitialBillTx), test.WaitDuration, test.WaitTick)
 
 	// verify bill is received by account 1
 	waitForBalanceCLI(t, homedir, defaultAlphabillApiURL, acc1BalanceBilly, 0)
@@ -202,7 +209,7 @@ func TestSendingMoneyBetweenWalletAccounts(t *testing.T) {
 	// create fee credit for account 1
 	feeAmountAlpha := uint64(1)
 	stdout := execWalletCmd(t, alphabillNodeAddr, homedir, fmt.Sprintf("fees add --amount %d", feeAmountAlpha))
-	verifyStdout(t, stdout, fmt.Sprintf("Successfully created %d fee credits.", feeAmountAlpha))
+	verifyStdout(t, stdout, fmt.Sprintf("Successfully created %d fee credits on money partition.", feeAmountAlpha))
 
 	// verify fee credit received
 	acc1BalanceBilly = acc1BalanceBilly - feeAmountAlpha*1e8 - txFeeBilly
@@ -229,7 +236,7 @@ func TestSendingMoneyBetweenWalletAccounts(t *testing.T) {
 
 	// create fee credit for account 2
 	stdout = execWalletCmd(t, alphabillNodeAddr, homedir, fmt.Sprintf("fees add --amount %d -k 2", feeAmountAlpha))
-	verifyStdout(t, stdout, fmt.Sprintf("Successfully created %d fee credits.", feeAmountAlpha))
+	verifyStdout(t, stdout, fmt.Sprintf("Successfully created %d fee credits on money partition.", feeAmountAlpha))
 
 	// verify fee credit received
 	waitForFeeCreditCLI(t, homedir, defaultAlphabillApiURL, feeAmountAlpha*1e8-txFeeBilly, 1)

@@ -1,4 +1,4 @@
-package twb
+package backend
 
 import (
 	"bytes"
@@ -264,6 +264,16 @@ func (s *storage) GetTxProof(unitID UnitID, txHash TxHash) (*Proof, error) {
 	return proof, err
 }
 
+func (s *storage) SetTxProof(unitID UnitID, txHash TxHash) (*Proof, error) {
+	var proof *Proof
+	err := s.db.Update(func(tx *bolt.Tx) error {
+		var err error
+		proof, err = s.getUnitBlockProof(tx, unitID, txHash)
+		return err
+	})
+	return proof, err
+}
+
 func (s *storage) GetFeeCreditBill(unitID UnitID) (*FeeCreditBill, error) {
 	var fcb *FeeCreditBill
 	err := s.db.View(func(tx *bolt.Tx) error {
@@ -276,8 +286,16 @@ func (s *storage) GetFeeCreditBill(unitID UnitID) (*FeeCreditBill, error) {
 	return fcb, err
 }
 
-func (s *storage) SetFeeCreditBill(fcb *FeeCreditBill) error {
+func (s *storage) SetFeeCreditBill(fcb *FeeCreditBill, proof *Proof) error {
 	return s.db.Update(func(tx *bolt.Tx) error {
+		// store proof in separate bucket, instead of part of fee credit bill,
+		// so that existing framework can be used for confirming fee credit txs
+		if proof != nil {
+			err := s.storeUnitBlockProof(tx, fcb.Id, fcb.TxHash, proof)
+			if err != nil {
+				return err
+			}
+		}
 		fcbBytes, err := json.Marshal(fcb)
 		if err != nil {
 			return err

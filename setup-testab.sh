@@ -9,7 +9,10 @@ reset_db_only=false
 set -e
 
 # print help
-usage() { echo "Generate 'testab' structure, log configuration and genesis files. Usage: $0 [-h usage] [-m number of money nodes] [-t number of token nodes] [-d number of vd nodes]  [-r number of root nodes] [-c reset all DB files]"; exit 0; }
+usage() {
+  echo "Generate 'testab' structure, log configuration and genesis files. Usage: $0 [-h usage] [-m number of money nodes] [-t number of token nodes] [-d number of vd nodes]  [-r number of root nodes] [-c reset all DB files]"
+  exit 0
+}
 # handle arguments
 # NB! add check to make parameter is numeric
 while getopts "chd:m:t:r:" o; do
@@ -44,26 +47,40 @@ fi
 #make clean will remove "testab" directory with all of the content
 echo "clearing 'testab' directory and building alphabill"
 make clean build
+mkdir testab
 
 # get common functions
 source helper.sh
 
-mkdir testab
 # Generate all genesis files
 echo "generating genesis files"
-# Generate money node genesis files.
-if [ "$money_nodes" -ne 0 ]; then
-  generate_partition_node_genesis "money" "$money_nodes"
-fi
-# Generate money node genesis files.
+
+moneySdrFlags=""
+
+# Generate vd nodes genesis files.
 if [ "$vd_nodes" -ne 0 ]; then
+  vdSdr='{"system_identifier": "AAAAAQ==", "t2timeout": 2500, "fee_credit_bill": {"unit_id": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAM=", "owner_predicate": "U3aoAU8B9SAiu0UEB9kvE78cUxKKZ2vPMEgY6fQaXvTr6unA1rCHaawB"}}'
+  echo "$vdSdr" >testab/vd-sdr.json
+  moneySdrFlags+=" -c testab/vd-sdr.json"
   generate_partition_node_genesis "vd" "$vd_nodes"
 fi
-# Generate money node genesis files.
+# Generate token nodes genesis files.
 if [ "$token_nodes" -ne 0 ]; then
-  generate_partition_node_genesis "token" "$token_nodes"
+  tokensSdr='{"system_identifier": "AAAAAg==", "t2timeout": 2500, "fee_credit_bill": {"unit_id": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAQ=", "owner_predicate": "U3aoAU8B9SAiu0UEB9kvE78cUxKKZ2vPMEgY6fQaXvTr6unA1rCHaawB"}}'
+  echo "$tokensSdr" >testab/tokens-sdr.json
+  moneySdrFlags+=" -c testab/tokens-sdr.json"
+  generate_partition_node_genesis "tokens" "$token_nodes"
 fi
+# Generate money nodes genesis files.
+if [ "$money_nodes" -ne 0 ]; then
+  moneySdr='{"system_identifier": "AAAAAA==", "t2timeout": 2500, "fee_credit_bill": {"unit_id": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAI=", "owner_predicate": "U3aoAU8B9SAiu0UEB9kvE78cUxKKZ2vPMEgY6fQaXvTr6unA1rCHaawB"}}'
+  echo "$moneySdr" >testab/money-sdr.json
+  moneySdrFlags+=" -c testab/money-sdr.json"
+  generate_partition_node_genesis "money" "$money_nodes" "$moneySdrFlags"
+fi
+
 # generate root node genesis files
 generate_root_genesis $root_nodes
+
 # generate log configuration for all nodes
 generate_log_configuration

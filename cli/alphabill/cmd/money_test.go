@@ -75,25 +75,6 @@ func TestMoneyNodeConfig_EnvAndFlags(t *testing.T) {
 		},
 		// Validator configuration from flags
 		{
-			args: "money -a=/ip4/127.0.0.1/tcp/21111 -p 1=/ip4/127.0.0.1/tcp/21111,2=/ip4/127.0.0.1/tcp/21112 -g genesis.json -k keys.json -r /ip4/127.0.0.1/tcp/26611 --ledger-replication-max-blocks=10 --ledger-replication-max-transactions=99",
-			expectedConfig: func() *moneyNodeConfiguration {
-				sc := defaultMoneyNodeConfiguration()
-				peers := make(map[string]string)
-				peers["1"] = "/ip4/127.0.0.1/tcp/21111"
-				peers["2"] = "/ip4/127.0.0.1/tcp/21112"
-
-				sc.Node = &startNodeConfiguration{
-					Address:                    "/ip4/127.0.0.1/tcp/21111",
-					Peers:                      peers,
-					Genesis:                    "genesis.json",
-					KeyFile:                    "keys.json",
-					RootChainAddress:           "/ip4/127.0.0.1/tcp/26611",
-					LedgerReplicationMaxBlocks: 10,
-					LedgerReplicationMaxTx:     99,
-				}
-				return sc
-			}(),
-		}, {
 			args: "money --server-address=srv:1234 --server-max-get-blocks-batch-size=55 --server-max-send-msg-size=65 --server-max-recv-msg-size=66 --server-max-connection-age-ms=77 --server-max-connection-age-grace-ms=88",
 			expectedConfig: func() *moneyNodeConfiguration {
 				sc := defaultMoneyNodeConfiguration()

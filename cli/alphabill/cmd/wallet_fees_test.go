@@ -146,7 +146,7 @@ func execFeesCommand(homeDir, command string) (*testConsoleWriter, error) {
 
 // setupMoneyInfraAndWallet starts money partiton and wallet backend and sends initial bill to wallet.
 // Returns wallet homedir and reference to money partition object.
-func setupMoneyInfraAndWallet(t *testing.T, otherPartitions []*testpartition.NodePartition) (string, *testpartition.AlphabillPartition) {
+func setupMoneyInfraAndWallet(t *testing.T, otherPartitions []*testpartition.NodePartition) (string, *testpartition.AlphabillNetwork) {
 	initialBill := &moneytx.InitialBill{
 		ID:    uint256.NewInt(1),
 		Value: 1e18,

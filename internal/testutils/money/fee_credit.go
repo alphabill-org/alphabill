@@ -19,7 +19,7 @@ var (
 )
 
 // CreateFeeCredit creates fee credit to be able to spend initial bill
-func CreateFeeCredit(t *testing.T, initialBillID []byte, network *testpartition.AlphabillPartition) *transactions.TransferFeeCreditWrapper {
+func CreateFeeCredit(t *testing.T, initialBillID []byte, network *testpartition.AlphabillNetwork) *transactions.TransferFeeCreditWrapper {
 	// send transferFC
 	fcrIDBytes := FCRID.Bytes32()
 	transferFC := testfc.NewTransferFC(t,

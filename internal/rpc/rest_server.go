@@ -39,9 +39,11 @@ type (
 	infoResponse struct {
 		SystemID            string     `json:"system_id"` // hex encoded system identifier
 		Self                peerInfo   `json:"self"`      // information about this peer
+		BootstrapNodes      []peerInfo `json:"bootstrap_nodes"`
 		RootValidators      []peerInfo `json:"root_validators"`
 		PartitionValidators []peerInfo `json:"partition_validators"`
 		OpenConnections     []peerInfo `json:"open_connections"` // all libp2p connections to other peers in the network
+
 	}
 
 	peerInfo struct {
@@ -100,6 +102,7 @@ func (s *RestServer) infoHandler(w http.ResponseWriter, _ *http.Request) {
 			Identifier: s.self.ID().String(),
 			Addresses:  s.self.MultiAddresses(),
 		},
+		BootstrapNodes:      s.getBootstrapNodes(),
 		RootValidators:      s.getRootValidators(),
 		PartitionValidators: s.getPartitionValidators(),
 		OpenConnections:     s.getOpenConnections(),
@@ -189,6 +192,15 @@ func (s *RestServer) getRootValidators() []peerInfo {
 		}
 	}
 	return peers
+}
+
+func (s *RestServer) getBootstrapNodes() []peerInfo {
+	bootstrapPeers := s.self.Configuration().BootstrapPeers
+	infos := make([]peerInfo, len(bootstrapPeers))
+	for i, p := range bootstrapPeers {
+		infos[i] = peerInfo{Identifier: p.ID.String(), Addresses: p.Addrs}
+	}
+	return infos
 }
 
 func notFound(w http.ResponseWriter, r *http.Request) {

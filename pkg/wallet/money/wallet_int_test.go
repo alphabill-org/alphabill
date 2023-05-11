@@ -380,7 +380,7 @@ func sendToAccount(t *testing.T, w *Wallet, amount, fromAccount, toAccount uint6
 	}, test.WaitDuration, time.Second)
 }
 
-func startMoneyOnlyAlphabillPartition(t *testing.T, initialBill *moneytx.InitialBill) *testpartition.AlphabillPartition {
+func startMoneyOnlyAlphabillPartition(t *testing.T, initialBill *moneytx.InitialBill) *testpartition.AlphabillNetwork {
 	mPart, err := testpartition.NewPartition(1, func(tb map[string]abcrypto.Verifier) txsystem.TransactionSystem {
 		system, err := moneytx.NewMoneyTxSystem(
 			moneySysId,

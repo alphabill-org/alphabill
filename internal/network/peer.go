@@ -10,6 +10,7 @@ import (
 
 	"github.com/alphabill-org/alphabill/internal/metrics"
 	"github.com/libp2p/go-libp2p"
+	dht "github.com/libp2p/go-libp2p-kad-dht"
 	"github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/network"
@@ -21,26 +22,24 @@ import (
 )
 
 const (
-	defaultAddress = "/ip4/0.0.0.0/tcp/0"
+	defaultAddress    = "/ip4/0.0.0.0/tcp/0"
+	dhtProtocolPrefix = "/ab/dht/0.1.0"
 )
 
 var (
 	ErrPeerConfigurationIsNil = errors.New("peer configuration is nil")
+
+	openConnectionsCounter = metrics.GetOrRegisterCounter("network/connections/open")
 )
 
 type (
 
 	// PeerConfiguration includes single peer configuration values.
 	PeerConfiguration struct {
-		Address         string       // address to listen for incoming connections. Uses libp2p multiaddress format.
-		KeyPair         *PeerKeyPair // keypair for the peer.
-		PersistentPeers []*PeerInfo  // a list of known peers (in case of partition node this list must contain all validators).
-	}
-
-	// PeerInfo contains a public key and address.
-	PeerInfo struct {
-		Address   string // address of the peer
-		PublicKey []byte // public key of the peer
+		Address        string          // address to listen for incoming connections. Uses libp2p multiaddress format.
+		KeyPair        *PeerKeyPair    // keypair for the peer.
+		BootstrapPeers []peer.AddrInfo // a list of seed peers to connect to.
+		Validators     []peer.ID       // a list of known peers (in case of partition node this list must contain all validators).
 	}
 
 	// PeerKeyPair contains node's public and private key.
@@ -54,13 +53,11 @@ type (
 		host       host.Host
 		conf       *PeerConfiguration
 		validators []peer.ID
+		dht        *dht.IpfsDHT
 	}
 
-	metricsNotifiee struct {
-	}
+	metricsNotifiee struct{}
 )
-
-var openConnectionsCounter = metrics.GetOrRegisterCounter("network/connections/open")
 
 func (m *metricsNotifiee) Listen(network.Network, ma.Multiaddr) {}
 
@@ -77,12 +74,12 @@ func (m *metricsNotifiee) Disconnected(network.Network, network.Conn) {
 // NewPeer constructs a new peer node with given configuration. If no peer key is provided, it generates a random
 // Secp256k1 key-pair and derives a new identity from it. If no transport and listen addresses are provided, the node
 // listens to the multiaddresses "/ip4/0.0.0.0/tcp/0".
-func NewPeer(conf *PeerConfiguration) (*Peer, error) {
+func NewPeer(ctx context.Context, conf *PeerConfiguration) (*Peer, error) {
 	if conf == nil {
 		return nil, ErrPeerConfigurationIsNil
 	}
 	// keys
-	privateKey, publicKey, err := readOrGenerateKeyPair(conf)
+	privateKey, _, err := readOrGenerateKeyPair(conf)
 	if err != nil {
 		return nil, err
 	}
@@ -92,14 +89,9 @@ func NewPeer(conf *PeerConfiguration) (*Peer, error) {
 	if conf.Address != "" {
 		address = conf.Address
 	}
-	// node identifier
-	id, err := peer.IDFromPublicKey(publicKey)
-	if err != nil {
-		return nil, err
-	}
 
 	// create a new peerstore
-	peerStore, err := newPeerStore(conf.PersistentPeers, id)
+	peerStore, err := newPeerStore()
 	if err != nil {
 		return nil, err
 	}
@@ -115,21 +107,18 @@ func NewPeer(conf *PeerConfiguration) (*Peer, error) {
 		return nil, err
 	}
 	h.Network().Notify(&metricsNotifiee{})
-	p := &Peer{host: h, conf: conf}
 
-	// validator identifiers
-	peers := conf.PersistentPeers
-	for _, pi := range peers {
-		valID, err := pi.GetID()
-		if err != nil {
-			return nil, err
-		}
-		if valID == id {
-			continue
-		}
-		p.validators = append(p.validators, valID)
+	kademliaDHT, err := newDHT(ctx, h, conf.BootstrapPeers, dht.ModeServer)
+	if err != nil {
+		defer func() {
+			if e := h.Close(); e != nil {
+				logger.Error("Closing a libp2p host failed: %+v", err)
+			}
+		}()
+		return nil, err
 	}
 
+	p := &Peer{host: h, conf: conf, dht: kademliaDHT, validators: conf.Validators}
 	logger.Debug("Host ID=%v, addresses=%v", h.ID(), h.Addrs())
 	return p, nil
 }
@@ -152,6 +141,16 @@ func (p *Peer) Validators() []peer.ID {
 	return p.validators
 }
 
+func (p *Peer) FilterValidators(exclude peer.ID) []peer.ID {
+	var validatorIdentifiers []peer.ID
+	for _, v := range p.validators {
+		if v != exclude {
+			validatorIdentifiers = append(validatorIdentifiers, v)
+		}
+	}
+	return validatorIdentifiers
+}
+
 // PublicKey returns the public key of the peer.
 func (p *Peer) PublicKey() (crypto.PubKey, error) {
 	return p.ID().ExtractPublicKey()
@@ -165,6 +164,10 @@ func (p *Peer) MultiAddresses() []ma.Multiaddr {
 // Network returns the Network of the Peer.
 func (p *Peer) Network() network.Network {
 	return p.host.Network()
+}
+
+func (p *Peer) BootstrapNodes() []peer.AddrInfo {
+	return p.Configuration().BootstrapPeers
 }
 
 // RegisterProtocolHandler sets the protocol stream handler for given protocol.
@@ -190,10 +193,18 @@ func (p *Peer) Configuration() *PeerConfiguration {
 // Close shuts down the libp2p host and related services.
 func (p *Peer) Close() error {
 	logger.Info("Closing peer")
-
+	var err error
+	if cerr := p.dht.Close(); cerr != nil {
+		err = fmt.Errorf("closing the DHT returned an error: %w", cerr)
+	}
 	// close libp2p host
-	if err := p.host.Close(); err != nil {
-		return fmt.Errorf("closing the host returned error: %w", err)
+	if cerr := p.host.Close(); cerr != nil {
+		if err == nil {
+			return fmt.Errorf("closing the host returned error: %w", cerr)
+		} else {
+			return fmt.Errorf("closing the host returned error: %w; %s", cerr, err.Error())
+		}
+
 	}
 	return nil
 }
@@ -215,8 +226,8 @@ func (p *Peer) GetRandomPeerID() peer.ID {
 	return peers[index]
 }
 
-func (pi *PeerInfo) GetID() (peer.ID, error) {
-	pub, err := crypto.UnmarshalSecp256k1PublicKey(pi.PublicKey)
+func NodeIDFromPublicKeyBytes(pubKey []byte) (peer.ID, error) {
+	pub, err := crypto.UnmarshalSecp256k1PublicKey(pubKey)
 	if err != nil {
 		return "", err
 	}
@@ -227,30 +238,24 @@ func (pi *PeerInfo) GetID() (peer.ID, error) {
 	return id, nil
 }
 
-func newPeerStore(peers []*PeerInfo, self peer.ID) (peerstore.Peerstore, error) {
+func newDHT(ctx context.Context, h host.Host, bootstrapPeers []peer.AddrInfo, opt dht.ModeOpt) (*dht.IpfsDHT, error) {
+	if len(bootstrapPeers) > 0 {
+		logger.Info("Bootstrap peers: %v", bootstrapPeers)
+	}
+	kdht, err := dht.New(ctx, h, dht.ProtocolPrefix(dhtProtocolPrefix), dht.BootstrapPeers(bootstrapPeers...), dht.Mode(opt))
+	if err != nil {
+		return nil, fmt.Errorf("DHT initialization failed: %w", err)
+	}
+	if err = kdht.Bootstrap(ctx); err != nil {
+		return nil, fmt.Errorf("bootstrapping failed: %w", err)
+	}
+	return kdht, nil
+}
+
+func newPeerStore() (peerstore.Peerstore, error) {
 	peerStore, err := pstoremem.NewPeerstore()
 	if err != nil {
 		return nil, err
-	}
-
-	for _, p := range peers {
-		id, err := p.GetID()
-		if err != nil {
-			return nil, err
-		}
-
-		if id == self {
-			// ignore itself
-			continue
-		}
-
-		addr, err := ma.NewMultiaddr(p.Address)
-		if err != nil {
-			return nil, err
-		}
-
-		peerStore.AddAddr(id, addr, peerstore.PermanentAddrTTL)
-
 	}
 	return peerStore, nil
 }

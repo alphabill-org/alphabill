@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/alphabill-org/alphabill/internal/block"
-	"github.com/alphabill-org/alphabill/internal/certificates"
 	"github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/keyvaluedb"
 	"github.com/alphabill-org/alphabill/internal/metrics"
@@ -26,6 +25,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/timer"
 	"github.com/alphabill-org/alphabill/internal/txbuffer"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
+	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/internal/util"
 	log "github.com/alphabill-org/alphabill/pkg/logger"
 	"github.com/libp2p/go-libp2p/core/peer"
@@ -65,7 +65,7 @@ type (
 		status                      atomic.Value
 		configuration               *configuration
 		transactionSystem           txsystem.TransactionSystem
-		luc                         atomic.Pointer[certificates.UnicityCertificate]
+		luc                         atomic.Pointer[types.UnicityCertificate]
 		lastStoredBlock             *block.Block
 		proposedTransactions        []txsystem.GenericTransaction
 		pendingBlockProposal        *block.GenericPendingBlockProposal
@@ -245,7 +245,7 @@ func initState(n *Node) (err error) {
 	return err
 }
 
-func verifyTxSystemState(state txsystem.State, ucIR *certificates.InputRecord) error {
+func verifyTxSystemState(state txsystem.State, ucIR *types.InputRecord) error {
 	if ucIR == nil {
 		return errors.New("unicity certificate input record is nil")
 	}
@@ -354,7 +354,7 @@ func (n *Node) loop(ctx context.Context) error {
 					invalidTransactionsCounter.Inc(1)
 					n.sendEvent(event.Error, err)
 				}
-			case *certificates.UnicityCertificate:
+			case *types.UnicityCertificate:
 				util.WriteTraceJsonLog(logger, "Unicity Certificate:", mt)
 				lastRootMsgTime = time.Now()
 				if err := n.handleUnicityCertificate(ctx, mt); err != nil {
@@ -556,7 +556,7 @@ func (n *Node) handleBlockProposal(ctx context.Context, prop *blockproposal.Bloc
 	return nil
 }
 
-func (n *Node) updateLUC(uc *certificates.UnicityCertificate) error {
+func (n *Node) updateLUC(uc *types.UnicityCertificate) error {
 	luc := n.luc.Load()
 	// Unicity Certificate GetRoundNumber function handles nil pointer and returns 0 if either UC is nil or
 	// input record is nil. More importantly we should not get here if UC is nil
@@ -571,7 +571,7 @@ func (n *Node) updateLUC(uc *certificates.UnicityCertificate) error {
 	return nil
 }
 
-func (n *Node) startNewRound(ctx context.Context, uc *certificates.UnicityCertificate) {
+func (n *Node) startNewRound(ctx context.Context, uc *types.UnicityCertificate) {
 	if err := n.updateLUC(uc); err != nil {
 		logger.Warning("Start new round unicity certificate update failed, %v", err)
 		return
@@ -595,7 +595,7 @@ func (n *Node) startNewRound(ctx context.Context, uc *certificates.UnicityCertif
 	n.sendEvent(event.NewRoundStarted, newRoundNr)
 }
 
-func (n *Node) startRecovery(uc *certificates.UnicityCertificate) {
+func (n *Node) startRecovery(uc *types.UnicityCertificate) {
 	// always update last UC seen, this is needed to evaluate if node has recovered and is up-to-date
 	if err := n.updateLUC(uc); err != nil {
 		logger.Warning("Start recovery unicity certificate update failed, %v", err)
@@ -632,7 +632,7 @@ func (n *Node) startRecovery(uc *certificates.UnicityCertificate) {
 //  8. New round is started.
 //
 // See algorithm 5 "Processing a received Unicity Certificate" in Yellowpaper for more details
-func (n *Node) handleUnicityCertificate(ctx context.Context, uc *certificates.UnicityCertificate) error {
+func (n *Node) handleUnicityCertificate(ctx context.Context, uc *types.UnicityCertificate) error {
 	defer trackExecutionTime(time.Now(), "Handling unicity certificate")
 	if uc == nil {
 		return fmt.Errorf("unicity certificate is nil")
@@ -658,7 +658,7 @@ func (n *Node) handleUnicityCertificate(ctx context.Context, uc *certificates.Un
 	}
 
 	// check for equivocation
-	if err := certificates.CheckNonEquivocatingCertificates(luc, uc); err != nil {
+	if err := types.CheckNonEquivocatingCertificates(luc, uc); err != nil {
 		// this is not normal, log all info
 		logger.Warning("Round %v UC error, %v", uc.InputRecord.RoundNumber, err)
 		logger.Warning("LUC:\n%s", util.EncodeToJsonHelper(luc))
@@ -726,7 +726,7 @@ func (n *Node) revertState() {
 	n.transactionSystem.Revert()
 }
 
-func (n *Node) proposalHash(prop *block.GenericPendingBlockProposal, uc *certificates.UnicityCertificate) (*block.Block, []byte, error) {
+func (n *Node) proposalHash(prop *block.GenericPendingBlockProposal, uc *types.UnicityCertificate) (*block.Block, []byte, error) {
 	b := &block.GenericBlock{
 		SystemIdentifier: n.configuration.GetSystemIdentifier(),
 		// latest non-empty block
@@ -1075,7 +1075,7 @@ func (n *Node) sendCertificationRequest(blockAuthor string) error {
 	req := &certification.BlockCertificationRequest{
 		SystemIdentifier: systemIdentifier,
 		NodeIdentifier:   nodeId.String(),
-		InputRecord: &certificates.InputRecord{
+		InputRecord: &types.InputRecord{
 			PreviousHash: pendingProposal.PrevHash,
 			Hash:         pendingProposal.StateHash,
 			BlockHash:    blockHash,

@@ -4,7 +4,6 @@ import (
 	gocrypto "crypto"
 	"testing"
 
-	"github.com/alphabill-org/alphabill/internal/certificates"
 	"github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/blockproposal"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
@@ -12,6 +11,7 @@ import (
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	moneytesttx "github.com/alphabill-org/alphabill/internal/testutils/transaction/money"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
+	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/stretchr/testify/require"
 )
 
@@ -48,7 +48,7 @@ func TestNewDefaultUnicityCertificateValidator_NotOk(t *testing.T) {
 				rootTrustBase:     nil,
 				algorithm:         gocrypto.SHA256,
 			},
-			wantErr: certificates.ErrRootValidatorInfoMissing,
+			wantErr: types.ErrRootValidatorInfoMissing,
 		},
 	}
 	for _, tt := range tests {
@@ -65,7 +65,7 @@ func TestDefaultUnicityCertificateValidator_ValidateNotOk(t *testing.T) {
 	rootTrust := map[string]crypto.Verifier{"test": verifier}
 	v, err := NewDefaultUnicityCertificateValidator(systemDescription, rootTrust, gocrypto.SHA256)
 	require.NoError(t, err)
-	require.ErrorIs(t, v.Validate(nil), certificates.ErrUnicityCertificateIsNil)
+	require.ErrorIs(t, v.Validate(nil), types.ErrUnicityCertificateIsNil)
 }
 
 func TestDefaultUnicityCertificateValidator_ValidateOk(t *testing.T) {
@@ -73,7 +73,7 @@ func TestDefaultUnicityCertificateValidator_ValidateOk(t *testing.T) {
 	rootTrust := map[string]crypto.Verifier{"test": verifier}
 	v, err := NewDefaultUnicityCertificateValidator(systemDescription, rootTrust, gocrypto.SHA256)
 	require.NoError(t, err)
-	ir := &certificates.InputRecord{
+	ir := &types.InputRecord{
 		PreviousHash: make([]byte, 32),
 		Hash:         make([]byte, 32),
 		BlockHash:    make([]byte, 32),
@@ -119,7 +119,7 @@ func TestNewDefaultBlockProposalValidator_NotOk(t *testing.T) {
 				trustBase:         nil,
 				algorithm:         gocrypto.SHA256,
 			},
-			wantErr: certificates.ErrRootValidatorInfoMissing,
+			wantErr: types.ErrRootValidatorInfoMissing,
 		},
 	}
 	for _, tt := range tests {
@@ -145,7 +145,7 @@ func TestDefaultNewDefaultBlockProposalValidator_ValidateOk(t *testing.T) {
 	rootTrust := map[string]crypto.Verifier{"test": verifier}
 	v, err := NewDefaultBlockProposalValidator(systemDescription, rootTrust, gocrypto.SHA256)
 	require.NoError(t, err)
-	ir := &certificates.InputRecord{
+	ir := &types.InputRecord{
 		PreviousHash: make([]byte, 32),
 		Hash:         make([]byte, 32),
 		BlockHash:    make([]byte, 32),

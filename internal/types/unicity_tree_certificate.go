@@ -1,4 +1,4 @@
-package certificates
+package types
 
 import (
 	"bytes"
@@ -13,6 +13,13 @@ import (
 var ErrUnicityTreeCertificateIsNil = errors.New("unicity tree certificate is nil")
 var ErrUCIsNil = errors.New("new UC is nil")
 var ErrLastUCIsNil = errors.New("last UC is nil")
+
+type UnicityTreeCertificate struct {
+	_                     struct{} `cbor:",toarray"`
+	SystemIdentifier      SystemID
+	SiblingHashes         [][]byte
+	SystemDescriptionHash []byte
+}
 
 func (x *UnicityTreeCertificate) IsValid(systemIdentifier, systemDescriptionHash []byte) error {
 	if x == nil {

@@ -6,9 +6,11 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/alphabill-org/alphabill/internal/certificates"
+	"github.com/alphabill-org/alphabill/internal/network/protocol"
+
+	"github.com/alphabill-org/alphabill/internal/types"
+
 	"github.com/alphabill-org/alphabill/internal/keyvaluedb"
-	p "github.com/alphabill-org/alphabill/internal/network/protocol"
 	"github.com/stretchr/testify/require"
 )
 
@@ -16,15 +18,15 @@ const (
 	round uint64 = 1
 )
 
-var sysID = p.SystemIdentifier([]byte{0, 0, 0, 1})
-var unicityMap = map[p.SystemIdentifier]*certificates.UnicityCertificate{
+var sysID = protocol.SystemIdentifier([]byte{0, 0, 0, 1})
+var unicityMap = map[protocol.SystemIdentifier]*types.UnicityCertificate{
 	sysID: {
-		UnicityTreeCertificate: &certificates.UnicityTreeCertificate{
+		UnicityTreeCertificate: &types.UnicityTreeCertificate{
 			SystemIdentifier:      []byte(sysID),
 			SiblingHashes:         nil,
 			SystemDescriptionHash: nil,
 		},
-		UnicitySeal: &certificates.UnicitySeal{
+		UnicitySeal: &types.UnicitySeal{
 			RootChainRoundNumber: round,
 			Hash:                 make([]byte, gocrypto.SHA256.Size()),
 		},
@@ -70,12 +72,12 @@ func TestBoltDB_InvalidPath(t *testing.T) {
 
 func TestBoltDB_TestEmptyValue(t *testing.T) {
 	db := initBoltDB(t)
-	var uc certificates.UnicityCertificate
+	var uc types.UnicityCertificate
 	found, err := db.Read([]byte("certificate"), &uc)
 	require.NoError(t, err)
 	require.False(t, found)
 	require.NoError(t, db.Write([]byte("certificate"), &uc))
-	var back certificates.UnicityCertificate
+	var back types.UnicityCertificate
 	found, err = db.Read([]byte("certificate"), &back)
 	require.NoError(t, err)
 	require.True(t, found)
@@ -85,7 +87,7 @@ func TestBoltDB_TestEmptyValue(t *testing.T) {
 func TestBoltDB_TestInvalidReadWrite(t *testing.T) {
 	db := initBoltDB(t)
 	require.NotNil(t, db)
-	var uc *certificates.UnicityCertificate = nil
+	var uc *types.UnicityCertificate = nil
 	require.Error(t, db.Write([]byte("certificate"), uc))
 	require.Error(t, db.Write([]byte(""), nil))
 	var value uint64 = 1
@@ -160,7 +162,7 @@ func TestBoltDB_WriteReadComplexStruct(t *testing.T) {
 	require.True(t, isEmpty(t, db))
 	// write a complex struct
 	require.NoError(t, db.Write([]byte("certificates"), unicityMap))
-	ucs := make(map[p.SystemIdentifier]*certificates.UnicityCertificate)
+	ucs := make(map[protocol.SystemIdentifier]*types.UnicityCertificate)
 	present, err := db.Read([]byte("certificates"), &ucs)
 	require.NoError(t, err)
 	require.True(t, present)
@@ -172,7 +174,7 @@ func TestBoltDB_WriteReadComplexStruct(t *testing.T) {
 	require.Equal(t, original, uc)
 	// update
 	uc.UnicitySeal.Hash = []byte{1}
-	newUC := map[p.SystemIdentifier]*certificates.UnicityCertificate{sysID: uc}
+	newUC := map[protocol.SystemIdentifier]*types.UnicityCertificate{sysID: uc}
 	err = db.Write([]byte("certificates"), newUC)
 	require.NoError(t, err)
 	present, err = db.Read([]byte("certificates"), &ucs)

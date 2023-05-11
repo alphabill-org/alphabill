@@ -12,6 +12,12 @@ var (
 	ErrConsensusIsNil     = errors.New("consensus is nil")
 )
 
+type GenesisRootRecord struct {
+	_              struct{} `cbor:",toarray"`
+	RootValidators []*PublicKeyInfo
+	Consensus      *ConsensusParams
+}
+
 // IsValid only validates Consensus structure and that it signed by the listed root nodes
 func (x *GenesisRootRecord) IsValid() error {
 	if x == nil {

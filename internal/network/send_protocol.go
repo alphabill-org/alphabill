@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/libp2p/go-libp2p/core/peer"
-	"google.golang.org/protobuf/proto"
 )
 
 func NewSendProtocol(self *Peer, protocolID string, timeout time.Duration) (*SendProtocol, error) {
@@ -26,7 +25,7 @@ func (p *SendProtocol) ID() string {
 	return p.protocolID
 }
 
-func (p *SendProtocol) Send(m proto.Message, receiverID peer.ID) error {
+func (p *SendProtocol) Send(m any, receiverID peer.ID) error {
 	ctx, cancel := context.WithTimeout(context.Background(), p.timeout)
 	defer cancel()
 	doneCh := make(chan error, 1)
@@ -43,8 +42,7 @@ func (p *SendProtocol) Send(m proto.Message, receiverID peer.ID) error {
 					"protocol: %s, receiver peerID: %v, sender peerID: %v", err, p.protocolID, receiverID, p.self.ID())
 			}
 		}()
-
-		w := NewProtoBufWriter(s)
+		w := NewCBORWriter(s)
 		defer func() {
 			if err := w.Close(); err != nil {
 				logger.Warning("Failed to close protobuf writer, error: %v, "+

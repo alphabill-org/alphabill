@@ -16,6 +16,19 @@ var (
 	ErrT2TimeoutIsNil         = errors.New("t2 timeout is zero")
 )
 
+type SystemDescriptionRecord struct {
+	_                struct{} `cbor:",toarray"`
+	SystemIdentifier []byte
+	T2Timeout        uint32
+	FeeCreditBill    *FeeCreditBill
+}
+
+type FeeCreditBill struct {
+	_              struct{} `cbor:",toarray"`
+	UnitId         []byte
+	OwnerPredicate []byte
+}
+
 func (x *SystemDescriptionRecord) IsValid() error {
 	if x == nil {
 		return ErrSystemDescriptionIsNil

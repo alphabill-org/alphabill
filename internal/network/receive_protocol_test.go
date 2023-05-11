@@ -9,7 +9,6 @@ import (
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/libp2p/go-libp2p/core/peerstore"
 	"github.com/stretchr/testify/require"
-	"google.golang.org/protobuf/proto"
 )
 
 const testProtocolID = "/ab/test/0.0.1"
@@ -34,14 +33,14 @@ func TestNewReceiverProtocol_Ok(t *testing.T) {
 	require.NoError(t, err)
 	defer func() { require.NoError(t, s.Close()) }()
 
-	w := NewProtoBufWriter(s)
+	w := NewCBORWriter(s)
 	tx := moneytesttx.RandomBillTransfer(t)
 	err = w.Write(tx)
 	require.NoError(t, err)
 
 	require.Eventually(t, func() bool {
 		m := <-ch
-		require.True(t, proto.Equal(tx, m.Message))
+		require.Equal(t, tx, m.Message)
 		return true
 	}, test.WaitDuration, test.WaitTick)
 }

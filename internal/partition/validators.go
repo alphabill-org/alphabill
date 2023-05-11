@@ -6,16 +6,11 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/alphabill-org/alphabill/internal/certificates"
 	"github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/blockproposal"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
-)
-
-var (
-	ErrSystemIdentifierIsNil = errors.New("system identifier is nil")
-	ErrStrTxIsNil            = "transaction is nil"
+	"github.com/alphabill-org/alphabill/internal/types"
 )
 
 type (
@@ -31,7 +26,7 @@ type (
 
 		// Validate validates the given certificates.UnicityCertificate. Returns an error if given unicity certificate
 		// is not valid.
-		Validate(uc *certificates.UnicityCertificate) error
+		Validate(uc *types.UnicityCertificate) error
 	}
 
 	// BlockProposalValidator is used to validate block proposals.
@@ -99,7 +94,7 @@ func NewDefaultUnicityCertificateValidator(
 		return nil, err
 	}
 	if len(rootTrust) == 0 {
-		return nil, certificates.ErrRootValidatorInfoMissing
+		return nil, types.ErrRootValidatorInfoMissing
 	}
 	h := systemDescription.Hash(algorithm)
 	return &DefaultUnicityCertificateValidator{
@@ -110,7 +105,7 @@ func NewDefaultUnicityCertificateValidator(
 	}, nil
 }
 
-func (ucv *DefaultUnicityCertificateValidator) Validate(uc *certificates.UnicityCertificate) error {
+func (ucv *DefaultUnicityCertificateValidator) Validate(uc *types.UnicityCertificate) error {
 	return uc.IsValid(ucv.rootTrustBase, ucv.algorithm, ucv.systemIdentifier, ucv.systemDescriptionHash)
 }
 
@@ -124,7 +119,7 @@ func NewDefaultBlockProposalValidator(
 		return nil, err
 	}
 	if len(rootTrust) == 0 {
-		return nil, certificates.ErrRootValidatorInfoMissing
+		return nil, types.ErrRootValidatorInfoMissing
 	}
 	h := systemDescription.Hash(algorithm)
 	return &DefaultBlockProposalValidator{

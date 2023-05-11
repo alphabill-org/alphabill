@@ -1,4 +1,4 @@
-package certificates
+package types
 
 import (
 	"strings"

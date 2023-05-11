@@ -1,15 +1,13 @@
-package certificates
+package types
 
 import (
 	"strings"
 	"testing"
 
+	"github.com/alphabill-org/alphabill/internal/crypto"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	"github.com/alphabill-org/alphabill/internal/util"
-
 	"github.com/stretchr/testify/require"
-
-	"github.com/alphabill-org/alphabill/internal/crypto"
 )
 
 var zeroHash = make([]byte, 32)

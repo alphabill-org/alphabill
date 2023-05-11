@@ -5,19 +5,19 @@ import (
 	"fmt"
 	"io"
 
-	"google.golang.org/protobuf/proto"
+	"github.com/fxamacker/cbor/v2"
 )
 
-type ProtobufWriter struct {
+type CBORWriter struct {
 	w io.Writer
 }
 
-func NewProtoBufWriter(w io.Writer) *ProtobufWriter {
-	return &ProtobufWriter{w}
+func NewCBORWriter(w io.Writer) *CBORWriter {
+	return &CBORWriter{w}
 }
 
-func (pw *ProtobufWriter) Write(msg proto.Message) error {
-	data, err := proto.Marshal(msg)
+func (pw *CBORWriter) Write(msg any) error {
+	data, err := cbor.Marshal(msg)
 	if err != nil {
 		return fmt.Errorf("marshal error, %w", err)
 	}
@@ -29,7 +29,7 @@ func (pw *ProtobufWriter) Write(msg proto.Message) error {
 	return err
 }
 
-func (pw *ProtobufWriter) Close() error {
+func (pw *CBORWriter) Close() error {
 	if closer, ok := pw.w.(io.Closer); ok {
 		return closer.Close()
 	}

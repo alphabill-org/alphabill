@@ -29,6 +29,16 @@ const (
 	DefaultConsensusTimeout = 10000
 )
 
+type ConsensusParams struct {
+	_                   struct{}          `cbor:",toarray"`
+	TotalRootValidators uint32            // Number of root validator nodes in the root cluster (1 in case of monolithic root chain)
+	BlockRateMs         uint32            // Block rate (round time t3 in monolithic root chain)
+	ConsensusTimeoutMs  uint32            // Time to abandon proposal and vote for timeout (only used in distributed implementation)
+	QuorumThreshold     uint32            // Optionally define a different, higher quorum threshold (only used for distributed implementation)
+	HashAlgorithm       uint32            // Hash algorithm for UnicityTree calculation
+	Signatures          map[string][]byte // Signed hash of all fields excluding signatures
+}
+
 // GetMinQuorumThreshold calculates minimal quorum threshold from total number of validators
 func GetMinQuorumThreshold(totalRootValidators uint32) uint32 {
 	// must be over 2/3

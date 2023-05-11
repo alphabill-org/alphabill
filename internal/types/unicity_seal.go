@@ -1,4 +1,4 @@
-package certificates
+package types
 
 import (
 	"bytes"
@@ -21,6 +21,15 @@ var (
 	errInvalidTimestamp          = errors.New("invalid timestamp")
 	errUnicitySealNoSignature    = errors.New("unicity seal is missing signature")
 )
+
+type UnicitySeal struct {
+	_                    struct{} `cbor:",toarray"`
+	RootChainRoundNumber uint64
+	Timestamp            uint64
+	PreviousHash         []byte
+	Hash                 []byte
+	Signatures           map[string][]byte
+}
 
 func (x *UnicitySeal) IsValid(verifiers map[string]crypto.Verifier) error {
 	if x == nil {

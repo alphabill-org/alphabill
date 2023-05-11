@@ -10,7 +10,6 @@ import (
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/libp2p/go-libp2p/core/peerstore"
 	"github.com/stretchr/testify/require"
-	"google.golang.org/protobuf/proto"
 )
 
 func TestNewSendProtocol_NotOk(t *testing.T) {
@@ -124,12 +123,11 @@ func TestSend_Ok(t *testing.T) {
 
 	// peer2 forwards tx to peer1
 	transfer := moneytesttx.RandomBillTransfer(t)
-	err = p.Send(transfer, peer1.ID())
-	require.NoError(t, err)
+	require.NoError(t, p.Send(transfer, peer1.ID()))
 	require.Eventually(t, func() bool {
 		m := <-ch
 		require.Equal(t, testProtocolID, m.Protocol)
-		require.True(t, proto.Equal(transfer, m.Message))
+		require.Equal(t, transfer, m.Message)
 		return true
 	}, test.WaitDuration, test.WaitTick)
 }

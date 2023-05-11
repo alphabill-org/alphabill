@@ -1,4 +1,4 @@
-package certificates
+package types
 
 import (
 	"bytes"
@@ -11,6 +11,13 @@ import (
 )
 
 var ErrUnicityCertificateIsNil = errors.New("unicity certificate is nil")
+
+type UnicityCertificate struct {
+	_                      struct{} `cbor:",toarray"`
+	InputRecord            *InputRecord
+	UnicityTreeCertificate *UnicityTreeCertificate
+	UnicitySeal            *UnicitySeal
+}
 
 func (x *UnicityCertificate) IsValid(verifiers map[string]crypto.Verifier, algorithm gocrypto.Hash, systemIdentifier, systemDescriptionHash []byte) error {
 	if x == nil {
@@ -58,8 +65,8 @@ func (x *UnicityCertificate) Bytes() []byte {
 }
 
 func (x *UnicityCertificate) GetRoundNumber() uint64 {
-	if x != nil {
-		return x.InputRecord.GetRoundNumber()
+	if x != nil && x.InputRecord != nil {
+		return x.InputRecord.RoundNumber
 	}
 	return 0
 }

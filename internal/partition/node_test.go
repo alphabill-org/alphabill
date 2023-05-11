@@ -8,11 +8,10 @@ import (
 	"time"
 
 	"github.com/alphabill-org/alphabill/internal/block"
-	"github.com/alphabill-org/alphabill/internal/certificates"
 	"github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/keyvaluedb/memorydb"
 	"github.com/alphabill-org/alphabill/internal/network"
-	p "github.com/alphabill-org/alphabill/internal/network/protocol"
+	"github.com/alphabill-org/alphabill/internal/network/protocol"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/blockproposal"
 	"github.com/alphabill-org/alphabill/internal/partition/event"
 	pgenesis "github.com/alphabill-org/alphabill/internal/partition/genesis"
@@ -21,6 +20,7 @@ import (
 	moneytesttx "github.com/alphabill-org/alphabill/internal/testutils/transaction/money"
 	testtxsystem "github.com/alphabill-org/alphabill/internal/testutils/txsystem"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
+	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/proto"
@@ -39,11 +39,11 @@ func (c *convertTxFailsTxSystem) ConvertTx(*txsystem.Transaction) (txsystem.Gene
 func TestNode_StartNewRoundCallsRInit(t *testing.T) {
 	s := &testtxsystem.CounterTxSystem{}
 	p := RunSingleNodePartition(t, s)
-	ucr := &certificates.UnicityCertificate{
-		InputRecord: &certificates.InputRecord{
+	ucr := &types.UnicityCertificate{
+		InputRecord: &types.InputRecord{
 			RoundNumber: 2,
 		},
-		UnicitySeal: &certificates.UnicitySeal{
+		UnicitySeal: &types.UnicitySeal{
 			RootChainRoundNumber: 1,
 			Hash:                 zeroHash,
 		},
@@ -271,7 +271,7 @@ func TestNode_HandleOlderUnicityCertificate(t *testing.T) {
 
 func TestNode_StartNodeBehindRootchain_OK(t *testing.T) {
 	tp := RunSingleNodePartition(t, &testtxsystem.CounterTxSystem{})
-	systemId := p.SystemIdentifier(tp.nodeConf.GetSystemIdentifier())
+	systemId := protocol.SystemIdentifier(tp.nodeConf.GetSystemIdentifier())
 	luc, found := tp.certs[systemId]
 	require.True(t, found)
 	// Mock and skip some root rounds
@@ -330,7 +330,7 @@ func TestNode_HandleEquivocatingUnicityCertificate_SameRoundDifferentIRHashes(t 
 	require.NotNil(t, block)
 
 	latestUC := tp.partition.luc.Load()
-	ir := proto.Clone(latestUC.InputRecord).(*certificates.InputRecord)
+	ir := proto.Clone(latestUC.InputRecord).(*types.InputRecord)
 	ir.Hash = test.RandomBytes(32)
 	ir.BlockHash = test.RandomBytes(32)
 
@@ -355,7 +355,7 @@ func TestNode_HandleEquivocatingUnicityCertificate_SameIRPreviousHashDifferentIR
 	require.Eventually(t, NextBlockReceived(t, tp, block), test.WaitDuration, test.WaitTick)
 
 	latestUC := tp.partition.luc.Load()
-	ir := proto.Clone(latestUC.InputRecord).(*certificates.InputRecord)
+	ir := proto.Clone(latestUC.InputRecord).(*types.InputRecord)
 	ir.Hash = test.RandomBytes(32)
 
 	equivocatingUC, err := tp.CreateUnicityCertificate(
@@ -390,7 +390,7 @@ func TestNode_HandleUnicityCertificate_SameIR_DifferentBlockHash_StateReverted(t
 	require.Equal(t, uint64(0), txs.RevertCount)
 
 	// simulate receiving repeat UC
-	ir, _ := certificates.NewRepeatInputRecord(latestUC.InputRecord)
+	ir, _ := types.NewRepeatInputRecord(latestUC.InputRecord)
 	uc, err := tp.CreateUnicityCertificate(
 		ir,
 		latestUC.UnicitySeal.RootChainRoundNumber+1,
@@ -409,7 +409,7 @@ func TestNode_HandleUnicityCertificate_ProposalIsNil(t *testing.T) {
 
 	txSystem.EndBlockCount = 10000
 
-	ir := proto.Clone(block.UnicityCertificate.InputRecord).(*certificates.InputRecord)
+	ir := proto.Clone(block.UnicityCertificate.InputRecord).(*types.InputRecord)
 	ir.RoundNumber++
 	uc, err := tp.CreateUnicityCertificate(
 		ir,
@@ -441,7 +441,7 @@ func TestNode_HandleUnicityCertificate_Revert(t *testing.T) {
 	require.Equal(t, uint64(0), system.RevertCount)
 
 	// send repeat UC
-	ir := proto.Clone(block.UnicityCertificate.InputRecord).(*certificates.InputRecord)
+	ir := proto.Clone(block.UnicityCertificate.InputRecord).(*types.InputRecord)
 	ir.RoundNumber = ir.RoundNumber + 1
 	repeatUC, err := tp.CreateUnicityCertificate(
 		ir,
@@ -577,7 +577,7 @@ func TestBlockProposal_TxSystemStateIsDifferent_newUC(t *testing.T) {
 	tp := RunSingleNodePartition(t, system)
 	block := tp.GetLatestBlock(t)
 	// create a UC for a new round
-	ir := &certificates.InputRecord{
+	ir := &types.InputRecord{
 		Hash:         block.UnicityCertificate.InputRecord.Hash,
 		PreviousHash: block.UnicityCertificate.InputRecord.PreviousHash,
 		BlockHash:    block.UnicityCertificate.InputRecord.BlockHash,
@@ -605,6 +605,6 @@ func TestBlockProposal_TxSystemStateIsDifferent_newUC(t *testing.T) {
 	require.Equal(t, recovering, tp.partition.status.Load())
 }
 
-func (c *AlwaysValidCertificateValidator) Validate(_ *certificates.UnicityCertificate) error {
+func (c *AlwaysValidCertificateValidator) Validate(_ *types.UnicityCertificate) error {
 	return nil
 }

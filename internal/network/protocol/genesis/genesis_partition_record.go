@@ -5,9 +5,9 @@ import (
 	"errors"
 	"fmt"
 
-	p "github.com/alphabill-org/alphabill/internal/network/protocol"
-
 	"github.com/alphabill-org/alphabill/internal/crypto"
+	"github.com/alphabill-org/alphabill/internal/network/protocol"
+	"github.com/alphabill-org/alphabill/internal/types"
 )
 
 var (
@@ -15,6 +15,20 @@ var (
 	ErrNodesAreMissing             = errors.New("nodes are missing")
 	ErrVerifiersEmpty              = errors.New("verifier list is empty")
 )
+
+type GenesisPartitionRecord struct {
+	_                       struct{} `cbor:",toarray"`
+	Nodes                   []*PartitionNode
+	Certificate             *types.UnicityCertificate
+	SystemDescriptionRecord *SystemDescriptionRecord
+}
+
+func (x *GenesisPartitionRecord) GetSystemDescriptionRecord() *SystemDescriptionRecord {
+	if x == nil {
+		return nil
+	}
+	return x.SystemDescriptionRecord
+}
 
 func (x *GenesisPartitionRecord) IsValid(verifiers map[string]crypto.Verifier, hashAlgorithm gocrypto.Hash) error {
 	if x == nil {
@@ -40,6 +54,6 @@ func (x *GenesisPartitionRecord) IsValid(verifiers map[string]crypto.Verifier, h
 	return nil
 }
 
-func (x *GenesisPartitionRecord) GetSystemIdentifierString() p.SystemIdentifier {
-	return p.SystemIdentifier(x.SystemDescriptionRecord.SystemIdentifier)
+func (x *GenesisPartitionRecord) GetSystemIdentifierString() protocol.SystemIdentifier {
+	return protocol.SystemIdentifier(x.SystemDescriptionRecord.SystemIdentifier)
 }

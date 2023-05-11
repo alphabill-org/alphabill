@@ -1,4 +1,4 @@
-package certificates
+package types
 
 import (
 	"bytes"
@@ -9,14 +9,23 @@ import (
 )
 
 var (
-	ErrInputRecordIsNil             = errors.New("input record is nil")
-	ErrHashIsNil                    = errors.New("hash is nil")
-	ErrBlockHashIsNil               = errors.New("block hash is nil")
-	ErrPreviousHashIsNil            = errors.New("previous hash is nil")
-	ErrSummaryValueIsNil            = errors.New("summary value is nil")
-	ErrInvalidPartitionRound        = errors.New("partition round is 0")
-	ErrInvalidZeroBlockChangesState = errors.New("zero block hash, changes state hash")
+	ErrInputRecordIsNil      = errors.New("input record is nil")
+	ErrHashIsNil             = errors.New("hash is nil")
+	ErrBlockHashIsNil        = errors.New("block hash is nil")
+	ErrPreviousHashIsNil     = errors.New("previous hash is nil")
+	ErrSummaryValueIsNil     = errors.New("summary value is nil")
+	ErrInvalidPartitionRound = errors.New("partition round is 0")
 )
+
+type InputRecord struct {
+	_               struct{} `cbor:",toarray"`
+	PreviousHash    []byte   // previously certified state hash
+	Hash            []byte   // state hash to be certified
+	BlockHash       []byte   // hash of the block
+	SummaryValue    []byte   // summary value to certified
+	RoundNumber     uint64   // transaction system's round number
+	SumOfEarnedFees uint64   // sum of the actual fees over all transaction records in the block
+}
 
 func isZeroHash(hash []byte) bool {
 	for _, b := range hash {

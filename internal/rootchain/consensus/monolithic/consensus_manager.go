@@ -5,13 +5,13 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/alphabill-org/alphabill/internal/certificates"
 	"github.com/alphabill-org/alphabill/internal/crypto"
-	p "github.com/alphabill-org/alphabill/internal/network/protocol"
+	"github.com/alphabill-org/alphabill/internal/network/protocol"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/internal/rootchain/consensus"
 	"github.com/alphabill-org/alphabill/internal/rootchain/partitions"
 	"github.com/alphabill-org/alphabill/internal/rootchain/unicitytree"
+	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/internal/util"
 	"golang.org/x/exp/maps"
 )
@@ -19,19 +19,19 @@ import (
 type (
 	ConsensusManager struct {
 		certReqCh    chan consensus.IRChangeRequest
-		certResultCh chan *certificates.UnicityCertificate
+		certResultCh chan *types.UnicityCertificate
 		params       *consensus.Parameters
 		selfID       string // node identifier
 		partitions   partitions.PartitionConfiguration
 		stateStore   *StateStore
 		round        uint64
-		ir           map[p.SystemIdentifier]*certificates.InputRecord
-		changes      map[p.SystemIdentifier]*certificates.InputRecord
+		ir           map[protocol.SystemIdentifier]*types.InputRecord
+		changes      map[protocol.SystemIdentifier]*types.InputRecord
 		signer       crypto.Signer // private key of the root chain
 		trustBase    map[string]crypto.Verifier
 	}
 
-	UnicitySealFunc func(rootHash []byte) (*certificates.UnicitySeal, error)
+	UnicitySealFunc func(rootHash []byte) (*types.UnicitySeal, error)
 )
 
 func trackExecutionTime(start time.Time, name string) {
@@ -71,14 +71,14 @@ func NewMonolithicConsensusManager(selfStr string, rg *genesis.RootGenesis, part
 	consensusParams := consensus.NewConsensusParams(rg.Root)
 	consensusManager := &ConsensusManager{
 		certReqCh:    make(chan consensus.IRChangeRequest),
-		certResultCh: make(chan *certificates.UnicityCertificate),
+		certResultCh: make(chan *types.UnicityCertificate),
 		params:       consensusParams,
 		selfID:       selfStr,
 		partitions:   partitionStore,
 		stateStore:   storage,
 		round:        lastRound,
 		ir:           lastIR,
-		changes:      make(map[p.SystemIdentifier]*certificates.InputRecord),
+		changes:      make(map[protocol.SystemIdentifier]*types.InputRecord),
 		signer:       signer,
 		trustBase:    map[string]crypto.Verifier{selfStr: verifier},
 	}
@@ -93,11 +93,11 @@ func (x *ConsensusManager) RequestCertification() chan<- consensus.IRChangeReque
 	return x.certReqCh
 }
 
-func (x *ConsensusManager) CertificationResult() <-chan *certificates.UnicityCertificate {
+func (x *ConsensusManager) CertificationResult() <-chan *types.UnicityCertificate {
 	return x.certResultCh
 }
 
-func (x *ConsensusManager) GetLatestUnicityCertificate(id p.SystemIdentifier) (*certificates.UnicityCertificate, error) {
+func (x *ConsensusManager) GetLatestUnicityCertificate(id protocol.SystemIdentifier) (*types.UnicityCertificate, error) {
 	luc, err := x.stateStore.GetCertificate(id)
 	if err != nil {
 		return nil, fmt.Errorf("find certificate for system id %X failed, %w", id, err)
@@ -134,7 +134,7 @@ func (x *ConsensusManager) loop(ctx context.Context) error {
 // NB! the request is received from validator go routine running in the same instance.
 // Hence, it is assumed that the partition request handler is working correctly and the proof is not double verified here
 func (x *ConsensusManager) onIRChangeReq(req *consensus.IRChangeRequest) error {
-	var newInputRecord *certificates.InputRecord = nil
+	var newInputRecord *types.InputRecord = nil
 	switch req.Reason {
 	case consensus.Quorum:
 		// simple sanity check
@@ -148,7 +148,7 @@ func (x *ConsensusManager) onIRChangeReq(req *consensus.IRChangeRequest) error {
 			return fmt.Errorf("ir change request ignored, read state for system id %X failed, %w", req.SystemIdentifier.Bytes(), err)
 		}
 		// repeat UC, ignore error here as we found the luc, and it cannot be nil
-		newInputRecord, _ = certificates.NewRepeatInputRecord(luc.InputRecord)
+		newInputRecord, _ = types.NewRepeatInputRecord(luc.InputRecord)
 	default:
 		return fmt.Errorf("invalid certfification reason %v", req.Reason)
 	}
@@ -206,7 +206,7 @@ func (x *ConsensusManager) checkT2Timeout(round uint64) error {
 				time.Duration(partInfo.T2Timeout)*time.Millisecond {
 				// timeout
 				logger.Info("Round %v, partition %X T2 timeout", round, id.Bytes())
-				repeatIR, _ := certificates.NewRepeatInputRecord(lastCert.InputRecord)
+				repeatIR, _ := types.NewRepeatInputRecord(lastCert.InputRecord)
 				x.changes[id] = repeatIR
 			}
 		}
@@ -214,8 +214,8 @@ func (x *ConsensusManager) checkT2Timeout(round uint64) error {
 	return nil
 }
 
-func getMergeInputRecords(currentIR, changed map[p.SystemIdentifier]*certificates.InputRecord) map[p.SystemIdentifier]*certificates.InputRecord {
-	result := make(map[p.SystemIdentifier]*certificates.InputRecord)
+func getMergeInputRecords(currentIR, changed map[protocol.SystemIdentifier]*types.InputRecord) map[protocol.SystemIdentifier]*types.InputRecord {
+	result := make(map[protocol.SystemIdentifier]*types.InputRecord)
 	for id, ir := range currentIR {
 		result[id] = ir
 	}
@@ -228,7 +228,7 @@ func getMergeInputRecords(currentIR, changed map[p.SystemIdentifier]*certificate
 }
 
 // generateUnicityCertificates generates certificates for all changed input records in round
-func (x *ConsensusManager) generateUnicityCertificates(round uint64) (map[p.SystemIdentifier]*certificates.UnicityCertificate, error) {
+func (x *ConsensusManager) generateUnicityCertificates(round uint64) (map[protocol.SystemIdentifier]*types.UnicityCertificate, error) {
 	// if no new consensus or timeouts then skip the round
 	if len(x.changes) == 0 {
 		logger.Info("Round %v, no IR changes", round)
@@ -256,14 +256,14 @@ func (x *ConsensusManager) generateUnicityCertificates(round uint64) (map[p.Syst
 			SystemDescriptionRecordHash: sdrh,
 		})
 	}
-	certs := make(map[p.SystemIdentifier]*certificates.UnicityCertificate)
+	certs := make(map[protocol.SystemIdentifier]*types.UnicityCertificate)
 	// create unicity tree
 	ut, err := unicitytree.New(x.params.HashAlgorithm.New(), utData)
 	if err != nil {
 		return nil, err
 	}
 	rootHash := ut.GetRootHash()
-	uSeal := &certificates.UnicitySeal{
+	uSeal := &types.UnicitySeal{
 		RootChainRoundNumber: round,
 		Timestamp:            util.MakeTimestamp(),
 		Hash:                 rootHash,
@@ -274,14 +274,14 @@ func (x *ConsensusManager) generateUnicityCertificates(round uint64) (map[p.Syst
 	// extract certificates for all changed IR's
 	for sysID, ir := range x.changes {
 		// get certificate for change
-		var utCert *certificates.UnicityTreeCertificate
+		var utCert *types.UnicityTreeCertificate
 		utCert, err = ut.GetCertificate(sysID.Bytes())
 		if err != nil {
 			return nil, err
 		}
-		uc := &certificates.UnicityCertificate{
+		uc := &types.UnicityCertificate{
 			InputRecord: ir,
-			UnicityTreeCertificate: &certificates.UnicityTreeCertificate{
+			UnicityTreeCertificate: &types.UnicityTreeCertificate{
 				SystemIdentifier:      utCert.SystemIdentifier,
 				SiblingHashes:         utCert.SiblingHashes,
 				SystemDescriptionHash: utCert.SystemDescriptionHash,
@@ -305,6 +305,6 @@ func (x *ConsensusManager) generateUnicityCertificates(round uint64) (map[p.Syst
 		x.ir[id] = ir
 	}
 	// clear changed and return new certificates
-	x.changes = make(map[p.SystemIdentifier]*certificates.InputRecord)
+	x.changes = make(map[protocol.SystemIdentifier]*types.InputRecord)
 	return certs, nil
 }

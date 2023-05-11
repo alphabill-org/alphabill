@@ -5,24 +5,24 @@ import (
 	"encoding/binary"
 	"io"
 
-	"google.golang.org/protobuf/proto"
+	"github.com/fxamacker/cbor/v2"
 )
 
-type ProtobufReader struct {
+type CBORReader struct {
 	r      *bufio.Reader
 	buf    []byte
 	closer io.Closer
 }
 
-func NewProtoBufReader(r io.Reader) *ProtobufReader {
+func NewCBORReader(r io.Reader) *CBORReader {
 	var closer io.Closer
 	if c, ok := r.(io.Closer); ok {
 		closer = c
 	}
-	return &ProtobufReader{bufio.NewReader(r), nil, closer}
+	return &CBORReader{bufio.NewReader(r), nil, closer}
 }
 
-func (pr *ProtobufReader) Read(msg proto.Message) error {
+func (pr *CBORReader) Read(msg any) error {
 	// read data length
 	length64, err := binary.ReadUvarint(pr.r)
 	if err != nil {
@@ -39,10 +39,10 @@ func (pr *ProtobufReader) Read(msg proto.Message) error {
 	if _, err := io.ReadFull(pr.r, buf); err != nil {
 		return err
 	}
-	return proto.Unmarshal(buf, msg)
+	return cbor.Unmarshal(buf, msg)
 }
 
-func (pr *ProtobufReader) Close() error {
+func (pr *CBORReader) Close() error {
 	if pr.closer != nil {
 		return pr.closer.Close()
 	}

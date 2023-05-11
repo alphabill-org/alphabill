@@ -1,4 +1,4 @@
-package certificates
+package types
 
 import (
 	"crypto/sha256"

@@ -1,4 +1,4 @@
-package twb
+package backend
 
 import (
 	"context"
@@ -99,8 +99,10 @@ func Test_blockProcessor_ProcessBlock(t *testing.T) {
 			log: logger,
 			txs: txs,
 			store: &mockStorage{
-				getBlockNumber: func() (uint64, error) { return 3, nil },
-				setBlockNumber: func(blockNumber uint64) error { return nil },
+				getFeeCreditBill: getFeeCreditBillFunc,
+				setFeeCreditBill: func(fcb *FeeCreditBill, proof *Proof) error { return verifySetFeeCreditBill(t, fcb) },
+				getBlockNumber:   func() (uint64, error) { return 3, nil },
+				setBlockNumber:   func(blockNumber uint64) error { return nil },
 				// cause protcessing to fail by failing to store tx
 				saveTokenType: func(data *TokenUnitType, proof *Proof) error {
 					return expErr
@@ -158,7 +160,7 @@ func Test_blockProcessor_processTx(t *testing.T) {
 					txs: txs,
 					store: &mockStorage{
 						getFeeCreditBill: getFeeCreditBillFunc,
-						setFeeCreditBill: func(fcb *FeeCreditBill) error { return verifySetFeeCreditBill(t, fcb) },
+						setFeeCreditBill: func(fcb *FeeCreditBill, proof *Proof) error { return verifySetFeeCreditBill(t, fcb) },
 						getBlockNumber:   func() (uint64, error) { return 3, nil },
 						setBlockNumber:   func(blockNumber uint64) error { return nil },
 						saveTokenType: func(data *TokenUnitType, proof *Proof) error {
@@ -170,7 +172,6 @@ func Test_blockProcessor_processTx(t *testing.T) {
 							return nil
 						},
 					},
-					feesEnabled: true,
 				}
 				err = bp.ProcessBlock(context.Background(), &block.Block{
 					UnicityCertificate: &certificates.UnicityCertificate{InputRecord: &certificates.InputRecord{RoundNumber: 4}},
@@ -195,7 +196,7 @@ func Test_blockProcessor_processTx(t *testing.T) {
 				getBlockNumber:   func() (uint64, error) { return 3, nil },
 				setBlockNumber:   func(blockNumber uint64) error { return nil },
 				getFeeCreditBill: getFeeCreditBillFunc,
-				setFeeCreditBill: func(fcb *FeeCreditBill) error { return verifySetFeeCreditBill(t, fcb) },
+				setFeeCreditBill: func(fcb *FeeCreditBill, proof *Proof) error { return verifySetFeeCreditBill(t, fcb) },
 				getTokenType: func(id TokenTypeID) (*TokenUnitType, error) {
 					require.EqualValues(t, txAttr.Type, id)
 					return &TokenUnitType{ID: id, Kind: Fungible}, nil
@@ -212,7 +213,6 @@ func Test_blockProcessor_processTx(t *testing.T) {
 					return nil
 				},
 			},
-			feesEnabled: true,
 		}
 		err = bp.ProcessBlock(context.Background(), &block.Block{
 			UnicityCertificate: &certificates.UnicityCertificate{InputRecord: &certificates.InputRecord{RoundNumber: 4}},
@@ -234,7 +234,7 @@ func Test_blockProcessor_processTx(t *testing.T) {
 				getBlockNumber:   func() (uint64, error) { return 3, nil },
 				setBlockNumber:   func(blockNumber uint64) error { return nil },
 				getFeeCreditBill: getFeeCreditBillFunc,
-				setFeeCreditBill: func(fcb *FeeCreditBill) error { return verifySetFeeCreditBill(t, fcb) },
+				setFeeCreditBill: func(fcb *FeeCreditBill, proof *Proof) error { return verifySetFeeCreditBill(t, fcb) },
 				getTokenType: func(id TokenTypeID) (*TokenUnitType, error) {
 					require.EqualValues(t, txAttr.NftType, id)
 					return &TokenUnitType{ID: id, Kind: NonFungible}, nil
@@ -250,7 +250,6 @@ func Test_blockProcessor_processTx(t *testing.T) {
 					return nil
 				},
 			},
-			feesEnabled: true,
 		}
 		err = bp.ProcessBlock(context.Background(), &block.Block{
 			UnicityCertificate: &certificates.UnicityCertificate{InputRecord: &certificates.InputRecord{RoundNumber: 4}},
@@ -273,7 +272,7 @@ func Test_blockProcessor_processTx(t *testing.T) {
 				getBlockNumber:   func() (uint64, error) { return 3, nil },
 				setBlockNumber:   func(blockNumber uint64) error { return nil },
 				getFeeCreditBill: getFeeCreditBillFunc,
-				setFeeCreditBill: func(fcb *FeeCreditBill) error { return verifySetFeeCreditBill(t, fcb) },
+				setFeeCreditBill: func(fcb *FeeCreditBill, proof *Proof) error { return verifySetFeeCreditBill(t, fcb) },
 				getToken: func(id TokenID) (*TokenUnit, error) {
 					return &TokenUnit{ID: id, TypeID: txAttr.Type, Amount: txAttr.Value, Kind: Fungible}, nil
 				},
@@ -289,7 +288,6 @@ func Test_blockProcessor_processTx(t *testing.T) {
 					return nil
 				},
 			},
-			feesEnabled: true,
 		}
 		err = bp.ProcessBlock(context.Background(), &block.Block{
 			UnicityCertificate: &certificates.UnicityCertificate{InputRecord: &certificates.InputRecord{RoundNumber: 4}},
@@ -311,7 +309,7 @@ func Test_blockProcessor_processTx(t *testing.T) {
 				getBlockNumber:   func() (uint64, error) { return 3, nil },
 				setBlockNumber:   func(blockNumber uint64) error { return nil },
 				getFeeCreditBill: getFeeCreditBillFunc,
-				setFeeCreditBill: func(fcb *FeeCreditBill) error { return verifySetFeeCreditBill(t, fcb) },
+				setFeeCreditBill: func(fcb *FeeCreditBill, proof *Proof) error { return verifySetFeeCreditBill(t, fcb) },
 				getToken: func(id TokenID) (*TokenUnit, error) {
 					return &TokenUnit{ID: id, TypeID: txAttr.NftType, Owner: test.RandomBytes(4), Kind: NonFungible}, nil
 				},
@@ -326,7 +324,6 @@ func Test_blockProcessor_processTx(t *testing.T) {
 					return nil
 				},
 			},
-			feesEnabled: true,
 		}
 		err = bp.ProcessBlock(context.Background(), &block.Block{
 			UnicityCertificate: &certificates.UnicityCertificate{InputRecord: &certificates.InputRecord{RoundNumber: 4}},
@@ -352,7 +349,7 @@ func Test_blockProcessor_processTx(t *testing.T) {
 				getBlockNumber:   func() (uint64, error) { return 3, nil },
 				setBlockNumber:   func(blockNumber uint64) error { return nil },
 				getFeeCreditBill: getFeeCreditBillFunc,
-				setFeeCreditBill: func(fcb *FeeCreditBill) error { return verifySetFeeCreditBill(t, fcb) },
+				setFeeCreditBill: func(fcb *FeeCreditBill, proof *Proof) error { return verifySetFeeCreditBill(t, fcb) },
 				getToken: func(id TokenID) (*TokenUnit, error) {
 					return &TokenUnit{ID: id, TypeID: txAttr.Type, Amount: 50, Owner: owner, Kind: Fungible}, nil
 				},
@@ -373,7 +370,6 @@ func Test_blockProcessor_processTx(t *testing.T) {
 					return nil
 				},
 			},
-			feesEnabled: true,
 		}
 		err = bp.ProcessBlock(context.Background(), &block.Block{
 			UnicityCertificate: &certificates.UnicityCertificate{InputRecord: &certificates.InputRecord{RoundNumber: 4}},
@@ -395,7 +391,7 @@ func Test_blockProcessor_processTx(t *testing.T) {
 				getBlockNumber:   func() (uint64, error) { return 3, nil },
 				setBlockNumber:   func(blockNumber uint64) error { return nil },
 				getFeeCreditBill: getFeeCreditBillFunc,
-				setFeeCreditBill: func(fcb *FeeCreditBill) error { return verifySetFeeCreditBill(t, fcb) },
+				setFeeCreditBill: func(fcb *FeeCreditBill, proof *Proof) error { return verifySetFeeCreditBill(t, fcb) },
 				getToken: func(id TokenID) (*TokenUnit, error) {
 					return &TokenUnit{ID: id, NftData: test.RandomBytes(4), Kind: NonFungible}, nil
 				},
@@ -406,7 +402,6 @@ func Test_blockProcessor_processTx(t *testing.T) {
 					return nil
 				},
 			},
-			feesEnabled: true,
 		}
 		err = bp.ProcessBlock(context.Background(), &block.Block{
 			UnicityCertificate: &certificates.UnicityCertificate{InputRecord: &certificates.InputRecord{RoundNumber: 4}},
@@ -469,7 +464,7 @@ func createBlockProcessor(t *testing.T) *blockProcessor {
 	txSystem, err := tokens.New(tokens.WithTrustBase(map[string]abcrypto.Verifier{"test": nil}))
 	require.NoError(t, err)
 
-	return &blockProcessor{log: logger, txs: txSystem, store: db, feesEnabled: true}
+	return &blockProcessor{log: logger, txs: txSystem, store: db}
 }
 
 func getFeeCreditBillFunc(unitID UnitID) (*FeeCreditBill, error) {

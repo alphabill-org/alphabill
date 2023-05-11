@@ -41,7 +41,7 @@ type (
 		Wrapper
 		AddFC *AddFeeCreditAttributes
 
-		// TransferFC the "fee credit transfer" that also exist inside AddFeeCreditOrder as *txsystem.Transaction
+		// TransferFC the "fee credit transfer" that also exist inside AddFC as *txsystem.Transaction
 		// needed to correctly serialize bytes
 		TransferFC *TransferFeeCreditWrapper
 	}
@@ -55,7 +55,7 @@ type (
 		Wrapper
 		ReclaimFC *ReclaimFeeCreditAttributes
 
-		// CloseFCTransfer the "close fee credit" transfer that also exist inside ReclaimFeeCreditOrder as *txsystem.Transaction
+		// CloseFCTransfer the "close fee credit" transfer that also exist inside ReclaimFC as *txsystem.Transaction
 		// needed to correctly serialize bytes
 		CloseFCTransfer *CloseFeeCreditWrapper
 	}

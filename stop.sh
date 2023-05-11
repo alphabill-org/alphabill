@@ -42,7 +42,7 @@ function stop_backend() {
         program="build/alphabill money-backend"
         ;;
       tokens)
-        program="build/alphabill token-backend"
+        program="build/alphabill tokens-backend"
         ;;
       *)
         echo "error: unknown argument $1" >&2

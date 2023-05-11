@@ -3,6 +3,7 @@ package verifiable_data
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"testing"
 
 	"github.com/alphabill-org/alphabill/internal/crypto"
@@ -16,36 +17,47 @@ import (
 var systemIdentifier = []byte{0, 0, 0, 1}
 
 func TestVDPartition_Ok(t *testing.T) {
-	network, err := testpartition.NewNetwork(3, func(trustBase map[string]crypto.Verifier) txsystem.TransactionSystem {
+	vdPart, err := testpartition.NewPartition(3, func(trustBase map[string]crypto.Verifier) txsystem.TransactionSystem {
 		system, err := New(systemIdentifier)
 		require.NoError(t, err)
 		return system
 	}, systemIdentifier)
 	require.NoError(t, err)
-
+	abNet, err := testpartition.NewAlphabillPartition([]*testpartition.NodePartition{vdPart})
+	require.NoError(t, err)
+	require.NoError(t, abNet.Start())
+	t.Cleanup(func() { abNet.Close() })
 	tx := createVDTransaction()
-	require.NoError(t, network.SubmitTx(tx))
-	require.Eventually(t, testpartition.BlockchainContainsTx(tx, network), test.WaitDuration, test.WaitTick)
+	fmt.Printf("Submitting tx: %v, UnitId=%x\n", tx, tx.UnitId)
+	err = vdPart.SubmitTx(tx)
+	require.NoError(t, err)
+	require.Eventually(t, testpartition.BlockchainContainsTx(vdPart, tx), test.WaitDuration, test.WaitTick)
 
 	tx = createVDTransaction()
-	require.NoError(t, network.SubmitTx(tx))
-	require.Eventually(t, testpartition.BlockchainContainsTx(tx, network), test.WaitDuration, test.WaitTick)
+	err = vdPart.SubmitTx(tx)
+	require.NoError(t, err)
+	require.Eventually(t, testpartition.BlockchainContainsTx(vdPart, tx), test.WaitDuration, test.WaitTick)
 }
 
 func TestVDPartition_OnePartitionNodeIsDown(t *testing.T) {
-	network, err := testpartition.NewNetwork(3, func(trustBase map[string]crypto.Verifier) txsystem.TransactionSystem {
+	vdPart, err := testpartition.NewPartition(3, func(trustBase map[string]crypto.Verifier) txsystem.TransactionSystem {
 		system, err := New(systemIdentifier)
 		require.NoError(t, err)
 		return system
 	}, systemIdentifier)
 	require.NoError(t, err)
+	abNet, err := testpartition.NewAlphabillPartition([]*testpartition.NodePartition{vdPart})
+	require.NoError(t, err)
+	require.NoError(t, abNet.Start())
+	t.Cleanup(func() { abNet.Close() })
 	// Killing the leader node fails the test
-	require.ErrorIs(t, network.Nodes[2].Stop(), context.Canceled) // shut down the node
+	require.ErrorIs(t, vdPart.Nodes[2].Stop(), context.Canceled) // shut down the node
 
 	tx := createVDTransaction()
-
-	require.NoError(t, network.SubmitTx(tx))
-	require.Eventually(t, testpartition.BlockchainContains(network, func(actualTx *txsystem.Transaction) bool {
+	fmt.Printf("Submitting tx: %v, UnitId=%x\n", tx, tx.UnitId)
+	err = vdPart.SubmitTx(tx)
+	require.NoError(t, err)
+	require.Eventually(t, testpartition.BlockchainContains(vdPart, func(actualTx *txsystem.Transaction) bool {
 		return bytes.Equal(tx.UnitId, actualTx.UnitId)
 	}), test.WaitDuration, test.WaitTick)
 }

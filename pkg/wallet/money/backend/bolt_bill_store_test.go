@@ -1,10 +1,11 @@
-package money
+package backend
 
 import (
 	"path/filepath"
 	"testing"
 
 	"github.com/alphabill-org/alphabill/internal/hash"
+	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/internal/script"
 	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/ethereum/go-ethereum/common/hexutil"
@@ -205,6 +206,35 @@ func TestBillStore_GetSetFeeCreditBills(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, expectedFCB, actualFCB)
 	}
+}
+
+func TestBillStore_GetSetSystemDescriptionRecordsBills(t *testing.T) {
+	bs, _ := createTestBillStore(t)
+
+	// verify GetSystemDescriptionRecords is empty
+	sdrs, err := bs.Do().GetSystemDescriptionRecords()
+	require.NoError(t, err)
+	require.Nil(t, sdrs)
+
+	// add system description records
+	sdrs = []*genesis.SystemDescriptionRecord{
+		{
+			SystemIdentifier: []byte{0},
+			T2Timeout:        2500,
+			FeeCreditBill:    &genesis.FeeCreditBill{UnitId: []byte{2}, OwnerPredicate: []byte{3}},
+		},
+		{
+			SystemIdentifier: []byte{1},
+			T2Timeout:        2500,
+			FeeCreditBill:    &genesis.FeeCreditBill{UnitId: []byte{2}, OwnerPredicate: []byte{3}},
+		},
+	}
+	err = bs.Do().SetSystemDescriptionRecords(sdrs)
+	require.NoError(t, err)
+
+	actualSDRs, err := bs.Do().GetSystemDescriptionRecords()
+	require.NoError(t, err)
+	require.Equal(t, sdrs, actualSDRs)
 }
 
 func createTestBillStore(t *testing.T) (*BoltBillStore, error) {

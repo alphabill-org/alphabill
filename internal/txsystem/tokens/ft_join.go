@@ -15,7 +15,7 @@ import (
 
 func handleJoinFungibleTokenTx(options *Options) txsystem.GenericExecuteFunc[*joinFungibleTokenWrapper] {
 	return func(tx *joinFungibleTokenWrapper, currentBlockNr uint64) error {
-		logger.Debug("Processing Join Fungible Token tx: %v", tx)
+		logger.Debug("Processing Join Fungible Token tx: %v", tx.transaction.ToLogString(logger))
 		sum, err := validateJoinFungibleToken(tx, options)
 		if err != nil {
 			return fmt.Errorf("invalid join fungible token tx: %w", err)

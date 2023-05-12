@@ -12,7 +12,7 @@ import (
 
 func handleMintFungibleTokenTx(options *Options) txsystem.GenericExecuteFunc[*mintFungibleTokenWrapper] {
 	return func(tx *mintFungibleTokenWrapper, currentBlockNr uint64) error {
-		logger.Debug("Processing Mint Fungible Token tx: %v", tx)
+		logger.Debug("Processing Mint Fungible Token tx: %v", tx.transaction.ToLogString(logger))
 		if err := validateMintFungibleToken(tx, options.state); err != nil {
 			return fmt.Errorf("invalid mint fungible token tx: %w", err)
 		}

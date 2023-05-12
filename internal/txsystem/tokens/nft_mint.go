@@ -13,7 +13,7 @@ import (
 
 func handleMintNonFungibleTokenTx(options *Options) txsystem.GenericExecuteFunc[*mintNonFungibleTokenWrapper] {
 	return func(tx *mintNonFungibleTokenWrapper, currentBlockNr uint64) error {
-		logger.Debug("Processing Mint Non-Fungible Token tx: %v", tx)
+		logger.Debug("Processing Mint Non-Fungible Token tx: %v", tx.transaction.ToLogString(logger))
 		if err := validateMintNonFungibleToken(tx, options.state); err != nil {
 			return fmt.Errorf("invalid mint none-fungible token tx: %w", err)
 		}

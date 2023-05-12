@@ -13,7 +13,7 @@ import (
 
 func handleUpdateNonFungibleTokenTx(options *Options) txsystem.GenericExecuteFunc[*updateNonFungibleTokenWrapper] {
 	return func(tx *updateNonFungibleTokenWrapper, currentBlockNr uint64) error {
-		logger.Debug("Processing Update Non-Fungible Token tx: %v", tx)
+		logger.Debug("Processing Update Non-Fungible Token tx: %v", tx.transaction.ToLogString(logger))
 		if err := validateUpdateNonFungibleToken(tx, options.state); err != nil {
 			return fmt.Errorf("invalid update none-fungible token tx: %w", err)
 		}

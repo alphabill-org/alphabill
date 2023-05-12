@@ -10,7 +10,7 @@ import (
 
 func handleAddFeeCreditTx(f *FeeCredit) txsystem.GenericExecuteFunc[*transactions.AddFeeCreditWrapper] {
 	return func(tx *transactions.AddFeeCreditWrapper, currentBlockNumber uint64) error {
-		f.logger.Debug("Processing addFC %v", tx)
+		f.logger.Debug("Processing addFC %v", tx.Transaction.ToLogString(f.logger))
 		bd, _ := f.state.GetUnit(tx.UnitID())
 		if err := f.txValidator.ValidateAddFeeCredit(&AddFCValidationContext{
 			Tx:                 tx,

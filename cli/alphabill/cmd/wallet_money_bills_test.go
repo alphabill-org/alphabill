@@ -211,7 +211,7 @@ func TestWalletBillsExportCmd_ShowUnswappedFlag(t *testing.T) {
 	mockServer.Close()
 }
 
-func spendInitialBillWithFeeCredits(t *testing.T, abNet *testpartition.AlphabillPartition, initialBill *moneytx.InitialBill, pubkey string) uint64 {
+func spendInitialBillWithFeeCredits(t *testing.T, abNet *testpartition.AlphabillNetwork, initialBill *moneytx.InitialBill, pubkey string) uint64 {
 	pubkeyBytes, _ := hexutil.Decode(pubkey)
 	pubkeyHash := hash.Sum256(pubkeyBytes)
 	absoluteTimeout := uint64(10000)

@@ -18,10 +18,10 @@ import (
 	"github.com/alphabill-org/alphabill/internal/util"
 	abclient "github.com/alphabill-org/alphabill/pkg/client"
 	"github.com/alphabill-org/alphabill/pkg/wallet/account"
-	moneyclient "github.com/alphabill-org/alphabill/pkg/wallet/money/backend/client"
 	"github.com/alphabill-org/alphabill/pkg/wallet/fees"
 	wlog "github.com/alphabill-org/alphabill/pkg/wallet/log"
 	"github.com/alphabill-org/alphabill/pkg/wallet/money"
+	moneyclient "github.com/alphabill-org/alphabill/pkg/wallet/money/backend/client"
 	"github.com/alphabill-org/alphabill/pkg/wallet/tokens"
 	"github.com/alphabill-org/alphabill/pkg/wallet/tokens/client"
 	"github.com/ethereum/go-ethereum/common/hexutil"
@@ -282,7 +282,7 @@ func TestFungibleTokens_CollectDust_Integration(t *testing.T) {
 }
 
 type AlphabillNetwork struct {
-	abNetwork          *testpartition.AlphabillPartition
+	abNetwork          *testpartition.AlphabillNetwork
 	moneyBackendClient *moneyclient.MoneyBackendClient
 	moneyBackendURL    string
 

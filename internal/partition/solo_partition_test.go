@@ -4,7 +4,6 @@ import (
 	"context"
 	gocrypto "crypto"
 	"crypto/rand"
-	"fmt"
 	"reflect"
 	"strings"
 	"sync"
@@ -354,31 +353,31 @@ func (l *TestLeaderSelector) LeaderFunc(seal *certificates.UnicityCertificate) p
 }
 
 func createPeer(t *testing.T) *network.Peer {
-	conf := &network.PeerConfiguration{}
 	// fake validator, so that network 'send' requests don't fail
-	_, validatorPubKey, err := p2pcrypto.GenerateSecp256k1Key(rand.Reader)
-	require.NoError(t, err)
-	validatorPubKeyBytes, _ := validatorPubKey.Raw()
-
-	conf.PersistentPeers = []*network.PeerInfo{{
-		Address:   "/ip4/1.2.3.4/tcp/80",
-		PublicKey: validatorPubKeyBytes,
-	}}
-	//
-	peer, err := network.NewPeer(conf)
+	privateKey, pubKey, err := p2pcrypto.GenerateSecp256k1Key(rand.Reader)
 	require.NoError(t, err)
 
-	pubKey, err := peer.PublicKey()
+	privateKeyBytes, err := privateKey.Raw()
 	require.NoError(t, err)
 
 	pubKeyBytes, err := pubKey.Raw()
 	require.NoError(t, err)
 
-	conf.PersistentPeers = []*network.PeerInfo{{
-		Address:   fmt.Sprintf("%v", peer.MultiAddresses()[0]),
-		PublicKey: pubKeyBytes,
-	}}
-	return peer
+	id, err := peer.IDFromPublicKey(pubKey)
+	require.NoError(t, err)
+
+	conf := &network.PeerConfiguration{
+		KeyPair: &network.PeerKeyPair{
+			PublicKey:  pubKeyBytes,
+			PrivateKey: privateKeyBytes,
+		},
+		Validators: []peer.ID{id},
+	}
+	newPeer, err := network.NewPeer(context.Background(), conf)
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, newPeer.Close()) })
+
+	return newPeer
 }
 
 func NextBlockReceived(t *testing.T, tp *SingleNodePartition, prevBlock *block.Block) func() bool {

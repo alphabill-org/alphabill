@@ -35,7 +35,7 @@ type (
 		// GetLeaderForRound returns valid leader (node id) for round/view number
 		GetLeaderForRound(round uint64) peer.ID
 		// GetRootNodes returns all nodes
-		GetRootNodes() []*network.PeerInfo
+		GetRootNodes() []peer.ID
 	}
 
 	ConsensusManager struct {
@@ -233,17 +233,12 @@ func (x *ConsensusManager) onLocalTimeout() {
 	}
 	// in the case root chain has not made any progress (less than quorum nodes online), broadcast the same vote again
 	// broadcast timeout vote
-	receivers := make([]peer.ID, len(x.leaderSelector.GetRootNodes()))
-	for i, validator := range x.leaderSelector.GetRootNodes() {
-		id, _ := validator.GetID()
-		receivers[i] = id
-	}
 	logger.Trace("%v round %v broadcasting timeout vote", x.peer.String(), x.pacemaker.GetCurrentRound())
 	if err := x.net.Send(
 		network.OutputMessage{
 			Protocol: network.ProtocolRootTimeout,
 			Message:  timeoutVoteMsg,
-		}, receivers); err != nil {
+		}, x.leaderSelector.GetRootNodes()); err != nil {
 		logger.Warning("%v failed to forward ir change message: %v", x.peer.String(), err)
 	}
 }
@@ -611,16 +606,11 @@ func (x *ConsensusManager) processNewRoundEvent() {
 		logger.Warning("%v failed to send proposal message, message signing failed: %v", x.peer.String(), err)
 	}
 	// broadcast proposal message (also to self)
-	receivers := make([]peer.ID, len(x.leaderSelector.GetRootNodes()))
-	for i, validator := range x.leaderSelector.GetRootNodes() {
-		id, _ := validator.GetID()
-		receivers[i] = id
-	}
 	logger.Trace("%v broadcasting proposal msg", x.peer.String())
 	if err := x.net.Send(
 		network.OutputMessage{
 			Protocol: network.ProtocolRootProposal,
-			Message:  proposalMsg}, receivers); err != nil {
+			Message:  proposalMsg}, x.leaderSelector.GetRootNodes()); err != nil {
 		logger.Warning("%v failed to send proposal message, network error: %v", x.peer.String(), err)
 	}
 }

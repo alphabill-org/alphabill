@@ -266,7 +266,7 @@ func calcNewBillId(ids []*uint256.Int) ([]byte, [][]byte) {
 	return hasher.Sum(nil), idsByteArray
 }
 
-func getBlockProof(t *testing.T, tx *txsystem.Transaction, sysId []byte, network *testpartition.AlphabillPartition) *block.BlockProof {
+func getBlockProof(t *testing.T, tx *txsystem.Transaction, sysId []byte, network *testpartition.AlphabillNetwork) *block.BlockProof {
 	// create adapter for conversion interface
 	txConverter := func(tx *txsystem.Transaction) (txsystem.GenericTransaction, error) {
 		return NewMoneyTx(sysId, tx)

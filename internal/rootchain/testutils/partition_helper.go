@@ -27,6 +27,8 @@ type TestNode struct {
 func NewTestNode(t *testing.T) *TestNode {
 	t.Helper()
 	node := &TestNode{Peer: testpeer.CreatePeer(t)}
+	// append self to validators list
+	node.Peer.Configuration().Validators = append(node.Peer.Configuration().Validators, node.Peer.ID())
 	node.Signer, node.Verifier = testsig.CreateSignerAndVerifier(t)
 	return node
 }

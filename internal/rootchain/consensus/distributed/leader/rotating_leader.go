@@ -23,24 +23,20 @@ func NewRotatingLeader(self *network.Peer, contRounds uint32) (*RotatingLeader, 
 	if self == nil {
 		return nil, ErrPeerIsNil
 	}
-	if len(self.Configuration().PersistentPeers) < 1 {
+	if len(self.Configuration().Validators) < 1 {
 		return nil, errors.New("empty root validator node id list")
 	}
-	if contRounds < 1 || contRounds > uint32(len(self.Configuration().PersistentPeers)) {
+	if contRounds < 1 || contRounds > uint32(len(self.Configuration().Validators)) {
 		return nil, errors.New("invalid nof rounds")
 	}
 	return &RotatingLeader{self: self, nofRounds: contRounds}, nil
 }
 
 func (r *RotatingLeader) GetLeaderForRound(round uint64) peer.ID {
-	index := uint32(round/uint64(r.nofRounds)) % uint32(len(r.self.Configuration().PersistentPeers))
-	leader, err := r.self.Configuration().PersistentPeers[index].GetID()
-	if err != nil {
-		return UnknownLeader
-	}
-	return leader
+	index := uint32(round/uint64(r.nofRounds)) % uint32(len(r.self.Configuration().Validators))
+	return r.self.Configuration().Validators[index]
 }
 
-func (r *RotatingLeader) GetRootNodes() []*network.PeerInfo {
-	return r.self.Configuration().PersistentPeers
+func (r *RotatingLeader) GetRootNodes() []peer.ID {
+	return r.self.Configuration().Validators
 }

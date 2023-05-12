@@ -10,9 +10,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/libp2p/go-libp2p/core/peer"
-	"golang.org/x/sync/errgroup"
-
 	"github.com/alphabill-org/alphabill/internal/block"
 	"github.com/alphabill-org/alphabill/internal/certificates"
 	"github.com/alphabill-org/alphabill/internal/crypto"
@@ -30,6 +27,8 @@ import (
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/internal/util"
 	log "github.com/alphabill-org/alphabill/pkg/logger"
+	"github.com/libp2p/go-libp2p/core/peer"
+	"golang.org/x/sync/errgroup"
 )
 
 const (
@@ -1014,7 +1013,7 @@ func (n *Node) sendBlockProposal() error {
 	return n.network.Send(network.OutputMessage{
 		Protocol: network.ProtocolBlockProposal,
 		Message:  prop,
-	}, n.configuration.peer.Validators())
+	}, n.configuration.peer.FilterValidators(nodeId))
 }
 
 func (n *Node) persistBlockProposal(pr *block.GenericPendingBlockProposal) error {

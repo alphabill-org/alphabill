@@ -1,6 +1,7 @@
 package leader
 
 import (
+	"context"
 	"crypto/rand"
 	mrand "math/rand"
 	"sort"
@@ -9,6 +10,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/network"
 	"github.com/alphabill-org/alphabill/internal/testutils/peer"
 	p2pcrypto "github.com/libp2p/go-libp2p/core/crypto"
+	p2ppeer "github.com/libp2p/go-libp2p/core/peer"
 	"github.com/stretchr/testify/require"
 )
 
@@ -20,7 +22,7 @@ func TestNewLeaderSelector_RootNodesNil(t *testing.T) {
 
 func TestNewLeaderSelector_EmptyRootNodes(t *testing.T) {
 	p := peer.CreatePeer(t)
-	p.Configuration().PersistentPeers = []*network.PeerInfo{}
+	p.Configuration().Validators = []p2ppeer.ID{}
 	ls, err := NewRotatingLeader(p, 1)
 	require.Error(t, err)
 	require.Nil(t, ls)
@@ -41,26 +43,24 @@ func TestNewLeaderSelector_ContZero(t *testing.T) {
 
 func TestNewLeaderSelector_Normal(t *testing.T) {
 	const nofPeers = 6
-	persistentPeers := make([]*network.PeerInfo, nofPeers)
+	persistentPeers := make(p2ppeer.IDSlice, nofPeers)
 	for i := range persistentPeers {
 		_, publicKey, err := p2pcrypto.GenerateSecp256k1Key(rand.Reader)
 		require.NoError(t, err)
 		pubKeyBytes, err := publicKey.Raw()
 		require.NoError(t, err)
-		persistentPeers[i] = &network.PeerInfo{
-			Address:   "/ip4/127.0.0.1/tcp/0", // address of the peer
-			PublicKey: pubKeyBytes,            // peer public key [0],[1]...
-		}
+		id, err := network.NodeIDFromPublicKeyBytes(pubKeyBytes)
+		require.NoError(t, err)
+		persistentPeers[i] = id
 	}
 	//sort by pubkeys
-	sort.Slice(persistentPeers, func(i, j int) bool {
-		return string(persistentPeers[i].PublicKey) < string(persistentPeers[j].PublicKey)
-	})
+	sort.Sort(persistentPeers)
 	conf := &network.PeerConfiguration{
-		Address:         "/ip4/127.0.0.1/tcp/0",
-		PersistentPeers: persistentPeers,
+		Address:    "/ip4/127.0.0.1/tcp/0",
+		Validators: persistentPeers,
 	}
-	peer, err := network.NewPeer(conf)
+	ctx := context.Background()
+	peer, err := network.NewPeer(ctx, conf)
 	require.NoError(t, err)
 	ls, err := NewRotatingLeader(peer, 1)
 	require.NoError(t, err)
@@ -68,35 +68,31 @@ func TestNewLeaderSelector_Normal(t *testing.T) {
 	require.Equal(t, 6, len(ls.GetRootNodes()))
 	round := 0
 	for round < 14 {
-		id, err := persistentPeers[round%nofPeers].GetID()
-		require.NoError(t, err)
-		require.EqualValues(t, ls.GetLeaderForRound(uint64(round)), id)
+		require.EqualValues(t, ls.GetLeaderForRound(uint64(round)), persistentPeers[round%nofPeers])
 		round++
 	}
 }
 
 func TestNewLeaderSelector_NormalTwoRounds(t *testing.T) {
 	const nofPeers = 6
-	persistentPeers := make([]*network.PeerInfo, nofPeers)
+	persistentPeers := make(p2ppeer.IDSlice, nofPeers)
 	for i := range persistentPeers {
 		_, publicKey, err := p2pcrypto.GenerateSecp256k1Key(rand.Reader)
 		require.NoError(t, err)
 		pubKeyBytes, err := publicKey.Raw()
 		require.NoError(t, err)
-		persistentPeers[i] = &network.PeerInfo{
-			Address:   "/ip4/127.0.0.1/tcp/0", // address of the peer
-			PublicKey: pubKeyBytes,            // peer public key [0],[1]...
-		}
+		id, err := network.NodeIDFromPublicKeyBytes(pubKeyBytes)
+		require.NoError(t, err)
+		persistentPeers[i] = id
 	}
 	//sort by pubkeys
-	sort.Slice(persistentPeers, func(i, j int) bool {
-		return string(persistentPeers[i].PublicKey) < string(persistentPeers[j].PublicKey)
-	})
+	sort.Sort(persistentPeers)
 	conf := &network.PeerConfiguration{
-		Address:         "/ip4/127.0.0.1/tcp/0",
-		PersistentPeers: persistentPeers,
+		Address:    "/ip4/127.0.0.1/tcp/0",
+		Validators: persistentPeers,
 	}
-	peer, err := network.NewPeer(conf)
+	ctx := context.Background()
+	peer, err := network.NewPeer(ctx, conf)
 	require.NoError(t, err)
 	// two rounds have the same leader
 	ls, err := NewRotatingLeader(peer, 2)
@@ -106,7 +102,7 @@ func TestNewLeaderSelector_NormalTwoRounds(t *testing.T) {
 	round := 0
 	leaderIndex := 0
 	for round < 14 {
-		id, err := persistentPeers[leaderIndex%nofPeers].GetID()
+		id := persistentPeers[leaderIndex%nofPeers]
 		require.NoError(t, err)
 		require.EqualValues(t, ls.GetLeaderForRound(uint64(round)), id)
 		require.EqualValues(t, ls.GetLeaderForRound(uint64(round+1)), id)
@@ -117,26 +113,24 @@ func TestNewLeaderSelector_NormalTwoRounds(t *testing.T) {
 
 func TestNewLeaderSelector_IsValidLeader(t *testing.T) {
 	const nofPeers = 6
-	persistentPeers := make([]*network.PeerInfo, nofPeers)
+	persistentPeers := make(p2ppeer.IDSlice, nofPeers)
 	for i := range persistentPeers {
 		_, publicKey, err := p2pcrypto.GenerateSecp256k1Key(rand.Reader)
 		require.NoError(t, err)
 		pubKeyBytes, err := publicKey.Raw()
 		require.NoError(t, err)
-		persistentPeers[i] = &network.PeerInfo{
-			Address:   "/ip4/127.0.0.1/tcp/0", // address of the peer
-			PublicKey: pubKeyBytes,            // peer public key [0],[1]...
-		}
+		id, err := network.NodeIDFromPublicKeyBytes(pubKeyBytes)
+		require.NoError(t, err)
+		persistentPeers[i] = id
 	}
 	//sort by pubkeys
-	sort.Slice(persistentPeers, func(i, j int) bool {
-		return string(persistentPeers[i].PublicKey) < string(persistentPeers[j].PublicKey)
-	})
+	sort.Sort(persistentPeers)
 	conf := &network.PeerConfiguration{
-		Address:         "/ip4/127.0.0.1/tcp/0",
-		PersistentPeers: persistentPeers,
+		Address:    "/ip4/127.0.0.1/tcp/0",
+		Validators: persistentPeers,
 	}
-	peer, err := network.NewPeer(conf)
+	ctx := context.Background()
+	peer, err := network.NewPeer(ctx, conf)
 	require.NoError(t, err)
 	ls, err := NewRotatingLeader(peer, 1)
 	require.NoError(t, err)
@@ -144,7 +138,7 @@ func TestNewLeaderSelector_IsValidLeader(t *testing.T) {
 	test := 0
 	for test < 10 {
 		randomRound := mrand.Intn(1000)
-		id, err := persistentPeers[randomRound%nofPeers].GetID()
+		id := persistentPeers[randomRound%nofPeers]
 		require.NoError(t, err)
 		require.Equal(t, ls.GetLeaderForRound(uint64(randomRound)), id)
 		test++

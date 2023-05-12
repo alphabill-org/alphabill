@@ -26,8 +26,8 @@ import (
 	moneytx "github.com/alphabill-org/alphabill/internal/txsystem/money"
 	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/alphabill-org/alphabill/pkg/wallet/account"
-	"github.com/alphabill-org/alphabill/pkg/wallet/money/backend/client"
 	"github.com/alphabill-org/alphabill/pkg/wallet/money"
+	"github.com/alphabill-org/alphabill/pkg/wallet/money/backend/client"
 )
 
 type (
@@ -212,7 +212,7 @@ func createMoneyPartition(t *testing.T, initialBill *moneytx.InitialBill) *testp
 	return moneyPart
 }
 
-func startAlphabill(t *testing.T, partitions []*testpartition.NodePartition) *testpartition.AlphabillPartition {
+func startAlphabill(t *testing.T, partitions []*testpartition.NodePartition) *testpartition.AlphabillNetwork {
 	abNetwork, err := testpartition.NewAlphabillPartition(partitions)
 	require.NoError(t, err)
 	require.NoError(t, abNetwork.Start())

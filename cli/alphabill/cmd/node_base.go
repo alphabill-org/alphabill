@@ -38,7 +38,6 @@ type baseNodeConfiguration struct {
 
 type startNodeConfiguration struct {
 	Address                    string
-	Peers                      map[string]string
 	Genesis                    string
 	KeyFile                    string
 	RootChainAddress           string
@@ -48,7 +47,7 @@ type startNodeConfiguration struct {
 }
 
 func defaultNodeRunFunc(ctx context.Context, name string, txs txsystem.TransactionSystem, nodeCfg *startNodeConfiguration, rpcServerConf *grpcServerConfiguration, restServerConf *restServerConfiguration) error {
-	self, node, err := createNode(txs, nodeCfg)
+	self, node, err := createNode(ctx, txs, nodeCfg)
 	if err != nil {
 		return fmt.Errorf("failed to create node %q: %w", name, err)
 	}
@@ -132,7 +131,7 @@ func initRESTServer(node *partition.Node, self *network.Peer, conf *restServerCo
 	return rs, nil
 }
 
-func loadNetworkConfiguration(keys *Keys, pg *genesis.PartitionGenesis, cfg *startNodeConfiguration) (*network.Peer, error) {
+func loadNetworkConfiguration(ctx context.Context, keys *Keys, pg *genesis.PartitionGenesis, cfg *startNodeConfiguration) (*network.Peer, error) {
 	pair, err := keys.getEncryptionKeyPair()
 	if err != nil {
 		return nil, err
@@ -141,41 +140,40 @@ func loadNetworkConfiguration(keys *Keys, pg *genesis.PartitionGenesis, cfg *sta
 	if err != nil {
 		return nil, err
 	}
-	var persistentPeers = make([]*network.PeerInfo, len(pg.Keys))
-	for i, key := range pg.Keys {
-		if peerID.String() == key.NodeIdentifier {
-			if !bytes.Equal(pair.PublicKey, key.EncryptionPublicKey) {
-				return nil, errors.New("invalid encryption key")
+	validatorIdentifiers := make(peer.IDSlice, len(pg.Keys))
+	for i, k := range pg.Keys {
+		if peerID.String() == k.NodeIdentifier {
+			if !bytes.Equal(pair.PublicKey, k.EncryptionPublicKey) {
+				return nil, fmt.Errorf("invalid encryption key: expected %X, got %X", pair.PublicKey, k.EncryptionPublicKey)
 			}
-			persistentPeers[i] = &network.PeerInfo{
-				Address:   cfg.Address,
-				PublicKey: key.EncryptionPublicKey,
-			}
-			continue
 		}
-
-		peerAddress, err := cfg.getPeerAddress(key.NodeIdentifier)
+		nodeID, err := network.NodeIDFromPublicKeyBytes(k.EncryptionPublicKey)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("invalid encryption key: %X", k.EncryptionPublicKey)
 		}
-
-		persistentPeers[i] = &network.PeerInfo{
-			Address:   peerAddress,
-			PublicKey: key.EncryptionPublicKey,
+		if nodeID.String() != k.NodeIdentifier {
+			return nil, fmt.Errorf("invalid nodeID/encryption key combination: %s", nodeID)
 		}
+		validatorIdentifiers[i] = nodeID
 	}
+	sort.Sort(validatorIdentifiers)
 
-	sort.Slice(persistentPeers, func(i, j int) bool {
-		return string(persistentPeers[i].PublicKey) < string(persistentPeers[j].PublicKey)
-	})
+	// Assume monolithic root chain for now and only extract the id of the first root node.
+	// Assume monolithic root chain is also a bootstrap node.
+	bootstrapNodeID, bootstrapNodeAddress, err := getRootValidatorIDAndMultiAddress(pg.RootValidators[0].EncryptionPublicKey, cfg.RootChainAddress)
+	if err != nil {
+		return nil, err
+	}
+	bootstrapPeers := []peer.AddrInfo{{bootstrapNodeID, []multiaddr.Multiaddr{bootstrapNodeAddress}}}
 
 	peerConfiguration := &network.PeerConfiguration{
-		Address:         cfg.Address,
-		KeyPair:         pair,
-		PersistentPeers: persistentPeers,
+		Address:        cfg.Address,
+		KeyPair:        pair,
+		BootstrapPeers: bootstrapPeers,
+		Validators:     validatorIdentifiers,
 	}
 
-	p, err := network.NewPeer(peerConfiguration)
+	p, err := network.NewPeer(ctx, peerConfiguration)
 	if err != nil {
 		return nil, err
 	}
@@ -199,7 +197,7 @@ func initRPCServer(node *partition.Node, cfg *grpcServerConfiguration) (*grpc.Se
 	return grpcServer, nil
 }
 
-func createNode(txs txsystem.TransactionSystem, cfg *startNodeConfiguration) (*network.Peer, *partition.Node, error) {
+func createNode(ctx context.Context, txs txsystem.TransactionSystem, cfg *startNodeConfiguration) (*network.Peer, *partition.Node, error) {
 	keys, err := LoadKeys(cfg.KeyFile, false, false)
 	if err != nil {
 		return nil, nil, err
@@ -209,7 +207,7 @@ func createNode(txs txsystem.TransactionSystem, cfg *startNodeConfiguration) (*n
 		return nil, nil, err
 	}
 	// Load network configuration. In testnet, we assume that all validators know the address of all other validators.
-	p, err := loadNetworkConfiguration(keys, pg, cfg)
+	p, err := loadNetworkConfiguration(ctx, keys, pg, cfg)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -217,15 +215,8 @@ func createNode(txs txsystem.TransactionSystem, cfg *startNodeConfiguration) (*n
 		return nil, nil, errors.New("root validator info is missing")
 	}
 	// Assume monolithic root chain for now and only extract the id of the first root node
-	rootEncryptionKey, err := crypto.UnmarshalSecp256k1PublicKey(pg.RootValidators[0].EncryptionPublicKey)
-	if err != nil {
-		return nil, nil, err
-	}
-	rootID, err := peer.IDFromPublicKey(rootEncryptionKey)
-	if err != nil {
-		return nil, nil, err
-	}
-	newMultiAddr, err := multiaddr.NewMultiaddr(cfg.RootChainAddress)
+	rootValidatorEncryptionKey := pg.RootValidators[0].EncryptionPublicKey
+	rootID, rootAddress, err := getRootValidatorIDAndMultiAddress(rootValidatorEncryptionKey, cfg.RootChainAddress)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -243,7 +234,7 @@ func createNode(txs txsystem.TransactionSystem, cfg *startNodeConfiguration) (*n
 		txs,
 		pg,
 		n,
-		partition.WithRootAddressAndIdentifier(newMultiAddr, rootID),
+		partition.WithRootAddressAndIdentifier(rootAddress, rootID),
 		partition.WithBlockStore(blockStore),
 		partition.WithReplicationParams(cfg.LedgerReplicationMaxBlocks, cfg.LedgerReplicationMaxTx),
 	)
@@ -251,6 +242,22 @@ func createNode(txs txsystem.TransactionSystem, cfg *startNodeConfiguration) (*n
 		return nil, nil, err
 	}
 	return p, node, nil
+}
+
+func getRootValidatorIDAndMultiAddress(rootValidatorEncryptionKey []byte, addressStr string) (peer.ID, multiaddr.Multiaddr, error) {
+	rootEncryptionKey, err := crypto.UnmarshalSecp256k1PublicKey(rootValidatorEncryptionKey)
+	if err != nil {
+		return "", nil, err
+	}
+	rootID, err := peer.IDFromPublicKey(rootEncryptionKey)
+	if err != nil {
+		return "", nil, err
+	}
+	rootAddress, err := multiaddr.NewMultiaddr(addressStr)
+	if err != nil {
+		return "", nil, err
+	}
+	return rootID, rootAddress, nil
 }
 
 func initNodeBlockStore(dbFile string) (keyvaluedb.KeyValueDB, error) {
@@ -268,18 +275,9 @@ func loadPartitionGenesis(genesisPath string) (*genesis.PartitionGenesis, error)
 	return pg, nil
 }
 
-func (c *startNodeConfiguration) getPeerAddress(identifier string) (string, error) {
-	address, f := c.Peers[identifier]
-	if !f {
-		return "", fmt.Errorf("address for node %q not found", identifier)
-	}
-	return address, nil
-}
-
 func addCommonNodeConfigurationFlags(nodeCmd *cobra.Command, config *startNodeConfiguration, partitionSuffix string) {
 	nodeCmd.Flags().StringVarP(&config.Address, "address", "a", "/ip4/127.0.0.1/tcp/26652", "node address in libp2p multiaddress-format")
 	nodeCmd.Flags().StringVarP(&config.RootChainAddress, "rootchain", "r", "/ip4/127.0.0.1/tcp/26662", "root chain address in libp2p multiaddress-format")
-	nodeCmd.Flags().StringToStringVarP(&config.Peers, "peers", "p", nil, "a map of partition peer identifiers and addresses. must contain all genesis validator addresses")
 	nodeCmd.Flags().StringVarP(&config.KeyFile, keyFileCmdFlag, "k", "", fmt.Sprintf("path to the key file (default: $AB_HOME/%s/keys.json)", partitionSuffix))
 	nodeCmd.Flags().StringVarP(&config.Genesis, "genesis", "g", "", fmt.Sprintf("path to the partition genesis file : $AB_HOME/%s/partition-genesis.json)", partitionSuffix))
 	nodeCmd.Flags().StringVarP(&config.DbFile, "db", "f", "", fmt.Sprintf("path to the database file (default: $AB_HOME/%s/%s)", partitionSuffix, BoltBlockStoreFileName))

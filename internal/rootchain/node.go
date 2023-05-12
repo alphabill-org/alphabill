@@ -39,20 +39,20 @@ type (
 
 // New creates a new instance of the root chain node
 func New(
-	host *network.Peer,
+	p *network.Peer,
 	pNet PartitionNet,
 	ps partitions.PartitionConfiguration,
 	cm consensus.Manager,
 ) (*Node, error) {
-	if host == nil {
+	if p == nil {
 		return nil, fmt.Errorf("partition listener is nil")
 	}
 	if pNet == nil {
 		return nil, fmt.Errorf("network is nil")
 	}
-	logger.Info("Starting root node. PeerId=%v; Addresses=%v", host.String(), host.MultiAddresses())
+	logger.Info("Starting root node. PeerId=%v; Addresses=%v", p.String(), p.MultiAddresses())
 	node := &Node{
-		peer:             host,
+		peer:             p,
 		partitions:       ps,
 		incomingRequests: NewCertificationRequestBuffer(),
 		subscription:     NewSubscriptions(),

@@ -998,7 +998,7 @@ func createTx(t *testing.T, unitID *uint256.Int, attributes proto.Message) txsys
 		t,
 		NewGenericTx,
 		testtransaction.WithUnitId(id[:]),
-		testtransaction.WithSystemID(DefaultTokenTxSystemIdentifier),
+		testtransaction.WithSystemID(DefaultSystemIdentifier),
 		testtransaction.WithOwnerProof(script.PredicateArgumentEmpty()),
 		testtransaction.WithFeeProof(script.PredicateArgumentEmpty()),
 		testtransaction.WithAttributes(attributes),
@@ -1011,7 +1011,7 @@ func createWrapper(t *testing.T, unitID *uint256.Int) wrapper {
 		transaction: testtransaction.NewTransaction(
 			t,
 			testtransaction.WithUnitId(id[:]),
-			testtransaction.WithSystemID(DefaultTokenTxSystemIdentifier),
+			testtransaction.WithSystemID(DefaultSystemIdentifier),
 			testtransaction.WithOwnerProof(script.PredicateArgumentEmpty()),
 			testtransaction.WithFeeProof(script.PredicateArgumentEmpty()),
 			testtransaction.WithClientMetadata(&txsystem.ClientMetadata{

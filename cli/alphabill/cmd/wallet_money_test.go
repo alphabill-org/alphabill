@@ -23,11 +23,11 @@ import (
 	"github.com/alphabill-org/alphabill/internal/script"
 	testpartition "github.com/alphabill-org/alphabill/internal/testutils/partition"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
-	moneytx "github.com/alphabill-org/alphabill/internal/txsystem/money"
+	"github.com/alphabill-org/alphabill/internal/txsystem/money"
 	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/alphabill-org/alphabill/pkg/wallet/account"
 	"github.com/alphabill-org/alphabill/pkg/wallet/money/backend/client"
-	"github.com/alphabill-org/alphabill/pkg/wallet/money"
+	wallet "github.com/alphabill-org/alphabill/pkg/wallet/money"
 )
 
 type (
@@ -183,18 +183,18 @@ func TestSendingFailsWithInsufficientBalance(t *testing.T) {
 	defer mockServer.Close()
 
 	_, err := execCommand(homedir, "send --amount 10 --address "+hexutil.Encode(pubKey)+" --alphabill-api-uri "+addr.Host)
-	require.ErrorIs(t, err, money.ErrInsufficientBalance)
+	require.ErrorIs(t, err, wallet.ErrInsufficientBalance)
 }
 
-func startMoneyPartition(t *testing.T, initialBill *moneytx.InitialBill) *testpartition.AlphabillPartition {
+func startMoneyPartition(t *testing.T, initialBill *money.InitialBill) *testpartition.AlphabillPartition {
 	network, err := testpartition.NewNetwork(1, func(tb map[string]abcrypto.Verifier) txsystem.TransactionSystem {
-		system, err := moneytx.NewMoneyTxSystem(
-			defaultABMoneySystemIdentifier,
-			moneytx.WithHashAlgorithm(crypto.SHA256),
-			moneytx.WithInitialBill(initialBill),
-			moneytx.WithSystemDescriptionRecords([]*genesis.SystemDescriptionRecord{
+		system, err := money.NewTxSystem(
+			money.WithSystemIdentifier(money.DefaultSystemIdentifier),
+			money.WithHashAlgorithm(crypto.SHA256),
+			money.WithInitialBill(initialBill),
+			money.WithSystemDescriptionRecords([]*genesis.SystemDescriptionRecord{
 				{
-					SystemIdentifier: defaultABMoneySystemIdentifier,
+					SystemIdentifier: money.DefaultSystemIdentifier,
 					T2Timeout:        defaultT2Timeout,
 					FeeCreditBill: &genesis.FeeCreditBill{
 						UnitId:         util.Uint256ToBytes(uint256.NewInt(2)),
@@ -202,8 +202,8 @@ func startMoneyPartition(t *testing.T, initialBill *moneytx.InitialBill) *testpa
 					},
 				},
 			}),
-			moneytx.WithDCMoneyAmount(10000),
-			moneytx.WithTrustBase(tb),
+			money.WithDCMoneyAmount(10000),
+			money.WithTrustBase(tb),
 		)
 		require.NoError(t, err)
 		return system

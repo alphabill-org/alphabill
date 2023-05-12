@@ -88,7 +88,7 @@ func TestRunTokensNode(t *testing.T) {
 			UnitId:                id[:],
 			TransactionAttributes: new(anypb.Any),
 			ClientMetadata:        &txsystem.ClientMetadata{Timeout: 10},
-			SystemId:              tokens.DefaultTokenTxSystemIdentifier,
+			SystemId:              tokens.DefaultSystemIdentifier,
 		}
 		require.NoError(t, tx.TransactionAttributes.MarshalFrom(&tokens.CreateNonFungibleTokenTypeAttributes{
 			Symbol:                   "Test",

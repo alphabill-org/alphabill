@@ -72,9 +72,9 @@ func TestNFTs_Integration(t *testing.T) {
 	time.Sleep(2 * time.Second) // TODO confirm through backend instead of node
 
 	// create fee credit on w2
-	stdout, err = execFeesCommand(homedirW2, fmt.Sprintf("--partition token add --amount 50 -u %s -r %s -m %s", moneyPartition.Nodes[0].AddrGRPC, moneyBackendURL, backendURL))
+	stdout, err = execFeesCommand(homedirW2, fmt.Sprintf("--partition tokens add --amount 50 -u %s -r %s -m %s", moneyPartition.Nodes[0].AddrGRPC, moneyBackendURL, backendURL))
 	require.NoError(t, err)
-	verifyStdout(t, stdout, "Successfully created 50 fee credits on token partition.")
+	verifyStdout(t, stdout, "Successfully created 50 fee credits on tokens partition.")
 
 	// transfer back
 	execTokensCmd(t, homedirW2, fmt.Sprintf("send non-fungible -r %s --token-identifier %X --address 0x%X -k 1", backendURL, nftID, w1key.PubKey))

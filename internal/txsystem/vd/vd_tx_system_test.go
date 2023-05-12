@@ -1,4 +1,4 @@
-package verifiable_data
+package vd
 
 import (
 	"crypto"
@@ -73,7 +73,7 @@ func createTx(t *testing.T) txsystem.GenericTransaction {
 }
 
 func createVD(t *testing.T) *txSystem {
-	vd, err := New(vdSystemIdentifier)
+	vd, err := NewTxSystem(vdSystemIdentifier)
 	require.NoError(t, err)
 	return vd
 }

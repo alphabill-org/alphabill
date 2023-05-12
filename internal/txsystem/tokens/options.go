@@ -8,7 +8,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/txsystem/fc"
 )
 
-var DefaultTokenTxSystemIdentifier = []byte{0, 0, 0, 2}
+var DefaultSystemIdentifier = []byte{0, 0, 0, 2}
 
 type (
 	Options struct {
@@ -25,7 +25,7 @@ type (
 
 func defaultOptions() (*Options, error) {
 	return &Options{
-		systemIdentifier:        DefaultTokenTxSystemIdentifier,
+		systemIdentifier:        DefaultSystemIdentifier,
 		moneyTXSystemIdentifier: []byte{0, 0, 0, 0},
 		hashAlgorithm:           gocrypto.SHA256,
 		state:                   rma.NewWithSHA256(),

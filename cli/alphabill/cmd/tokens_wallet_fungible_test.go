@@ -13,16 +13,16 @@ import (
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	testpartition "github.com/alphabill-org/alphabill/internal/testutils/partition"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
-	moneytx "github.com/alphabill-org/alphabill/internal/txsystem/money"
-	tokentxs "github.com/alphabill-org/alphabill/internal/txsystem/tokens"
+	"github.com/alphabill-org/alphabill/internal/txsystem/money"
+	"github.com/alphabill-org/alphabill/internal/txsystem/tokens"
 	"github.com/alphabill-org/alphabill/internal/util"
 	abclient "github.com/alphabill-org/alphabill/pkg/client"
 	"github.com/alphabill-org/alphabill/pkg/wallet/account"
 	moneyclient "github.com/alphabill-org/alphabill/pkg/wallet/money/backend/client"
 	"github.com/alphabill-org/alphabill/pkg/wallet/fees"
 	wlog "github.com/alphabill-org/alphabill/pkg/wallet/log"
-	"github.com/alphabill-org/alphabill/pkg/wallet/money"
-	"github.com/alphabill-org/alphabill/pkg/wallet/tokens"
+	moneywallet "github.com/alphabill-org/alphabill/pkg/wallet/money"
+	tokenswallet "github.com/alphabill-org/alphabill/pkg/wallet/tokens"
 	"github.com/alphabill-org/alphabill/pkg/wallet/tokens/client"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/holiman/uint256"
@@ -143,7 +143,7 @@ func TestFungibleTokens_Sending_Integration(t *testing.T) {
 	crit := func(amount uint64) func(tx *txsystem.Transaction) bool {
 		return func(tx *txsystem.Transaction) bool {
 			if tx.TransactionAttributes.GetTypeUrl() == "type.googleapis.com/alphabill.tokens.v1.MintFungibleTokenAttributes" {
-				attrs := &tokentxs.MintFungibleTokenAttributes{}
+				attrs := &tokens.MintFungibleTokenAttributes{}
 				require.NoError(t, tx.TransactionAttributes.UnmarshalTo(attrs))
 				return attrs.Value == amount
 			}
@@ -178,9 +178,9 @@ func TestFungibleTokens_Sending_Integration(t *testing.T) {
 	time.Sleep(2 * time.Second) // TODO confirm through backend instead of node
 
 	// create fee credit on w2
-	stdout, err = execFeesCommand(homedirW2, fmt.Sprintf("--partition token add --amount 50 -u %s -r %s -m %s", moneyPartition.Nodes[0].AddrGRPC, moneyBackendURL, backendUrl))
+	stdout, err = execFeesCommand(homedirW2, fmt.Sprintf("--partition tokens add --amount 50 -u %s -r %s -m %s", moneyPartition.Nodes[0].AddrGRPC, moneyBackendURL, backendUrl))
 	require.NoError(t, err)
-	verifyStdout(t, stdout, "Successfully created 50 fee credits on token partition.")
+	verifyStdout(t, stdout, "Successfully created 50 fee credits on tokens partition.")
 
 	//transfer back w2->w1 (AB-513)
 	execTokensCmd(t, homedirW2, fmt.Sprintf("send fungible -r %s --type %X --amount 6 --address 0x%X -k 1", backendUrl, typeID1, w1key.PubKey))
@@ -193,7 +193,7 @@ func TestWalletCreateFungibleTokenTypeAndTokenAndSendCmd_IntegrationTest(t *test
 	crit := func(amount uint64) func(tx *txsystem.Transaction) bool {
 		return func(tx *txsystem.Transaction) bool {
 			if tx.TransactionAttributes.GetTypeUrl() == "type.googleapis.com/alphabill.tokens.v1.MintFungibleTokenAttributes" {
-				attrs := &tokentxs.MintFungibleTokenAttributes{}
+				attrs := &tokens.MintFungibleTokenAttributes{}
 				require.NoError(t, tx.TransactionAttributes.UnmarshalTo(attrs))
 				return attrs.Value == amount
 			}
@@ -295,7 +295,7 @@ type AlphabillNetwork struct {
 // sends initial bill to money wallet
 // creates fee credit on money wallet and token wallet
 func NewAlphabillNetwork(t *testing.T) *AlphabillNetwork {
-	initialBill := &moneytx.InitialBill{
+	initialBill := &money.InitialBill{
 		ID:    uint256.NewInt(1),
 		Value: 1e18,
 		Owner: script.PredicateAlwaysTrue(),
@@ -312,18 +312,18 @@ func NewAlphabillNetwork(t *testing.T) *AlphabillNetwork {
 	require.NoError(t, err)
 	require.NoError(t, am.CreateKeys(""))
 
-	moneyWallet, err := money.LoadExistingWallet(abclient.AlphabillClientConfig{Uri: moneyPartition.Nodes[0].AddrGRPC}, am, moneyBackendClient)
+	moneyWallet, err := moneywallet.LoadExistingWallet(abclient.AlphabillClientConfig{Uri: moneyPartition.Nodes[0].AddrGRPC}, am, moneyBackendClient)
 	require.NoError(t, err)
 	t.Cleanup(moneyWallet.Shutdown)
 
-	tokenTxConverter, err := tokentxs.New(
-		tokentxs.WithSystemIdentifier(tokentxs.DefaultTokenTxSystemIdentifier),
-		tokentxs.WithTrustBase(map[string]abcrypto.Verifier{"test": nil}),
+	tokenTxConverter, err := tokens.NewTxSystem(
+		tokens.WithSystemIdentifier(tokens.DefaultSystemIdentifier),
+		tokens.WithTrustBase(map[string]abcrypto.Verifier{"test": nil}),
 	)
-	tokenTxPublisher := tokens.NewTxPublisher(tokenBackendClient, tokenTxConverter)
-	tokenFeeManager := fees.NewFeeManager(am, defaultABMoneySystemIdentifier, moneyWallet, moneyBackendClient, tokentxs.DefaultTokenTxSystemIdentifier, tokenTxPublisher, tokenBackendClient)
+	tokenTxPublisher := tokenswallet.NewTxPublisher(tokenBackendClient, tokenTxConverter)
+	tokenFeeManager := fees.NewFeeManager(am, money.DefaultSystemIdentifier, moneyWallet, moneyBackendClient, tokens.DefaultSystemIdentifier, tokenTxPublisher, tokenBackendClient)
 
-	w1, err := tokens.New(tokentxs.DefaultTokenTxSystemIdentifier, tokenBackendURL, am, true, tokenFeeManager)
+	w1, err := tokenswallet.New(tokens.DefaultSystemIdentifier, tokenBackendURL, am, true, tokenFeeManager)
 	require.NoError(t, err)
 	require.NotNil(t, w1)
 	t.Cleanup(w1.Shutdown)

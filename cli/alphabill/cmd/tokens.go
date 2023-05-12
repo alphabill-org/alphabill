@@ -54,7 +54,7 @@ func runTokensNode(ctx context.Context, cfg *tokensConfiguration) error {
 	if err != nil {
 		return err
 	}
-	txs, err := tokens.New(
+	txs, err := tokens.NewTxSystem(
 		tokens.WithSystemIdentifier(pg.SystemDescriptionRecord.GetSystemIdentifier()),
 		tokens.WithHashAlgorithm(gocrypto.SHA256),
 		tokens.WithTrustBase(trustBase),

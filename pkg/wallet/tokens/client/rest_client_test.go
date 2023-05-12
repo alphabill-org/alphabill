@@ -785,7 +785,7 @@ func Test_extractOffsetMarker(t *testing.T) {
 func randomTx(t *testing.T, attr proto.Message) *txsystem.Transaction {
 	t.Helper()
 	tx := &txsystem.Transaction{
-		SystemId:              tokens.DefaultTokenTxSystemIdentifier,
+		SystemId:              tokens.DefaultSystemIdentifier,
 		TransactionAttributes: new(anypb.Any),
 		UnitId:                test.RandomBytes(32),
 		OwnerProof:            test.RandomBytes(32),

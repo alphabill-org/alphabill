@@ -76,43 +76,43 @@ func TestWalletFeesCmds_TokenPartition(t *testing.T) {
 	// start token partition
 	_, tokenNodeURL := startTokensPartition(t, testpartition.WithRootPartition(moneyPartition.RootPartition))
 	tokenBackendURL, _, _ := startTokensBackend(t, tokenNodeURL)
-	args := fmt.Sprintf("--partition=token -r %s -u %s -m %s", defaultAlphabillApiURL, moneyNodeURL, tokenBackendURL)
+	args := fmt.Sprintf("--partition=tokens -r %s -u %s -m %s", defaultAlphabillApiURL, moneyNodeURL, tokenBackendURL)
 
 	// list fees on token partition
 	stdout, err := execFeesCommand(homedir, "list "+args)
 	require.NoError(t, err)
-	require.Equal(t, "Partition: token", stdout.lines[0])
+	require.Equal(t, "Partition: tokens", stdout.lines[0])
 	require.Equal(t, "Account #1 0.00000000", stdout.lines[1])
 
 	// add fee credits
 	amount := uint64(150)
 	stdout, err = execFeesCommand(homedir, fmt.Sprintf("add --amount=%d %s", amount, args))
 	require.NoError(t, err)
-	require.Equal(t, fmt.Sprintf("Successfully created %d fee credits on token partition.", amount), stdout.lines[0])
+	require.Equal(t, fmt.Sprintf("Successfully created %d fee credits on tokens partition.", amount), stdout.lines[0])
 
 	// verify fee credits
 	expectedFees := amount*1e8 - 1
 	stdout, err = execFeesCommand(homedir, "list "+args)
 	require.NoError(t, err)
-	require.Equal(t, "Partition: token", stdout.lines[0])
+	require.Equal(t, "Partition: tokens", stdout.lines[0])
 	require.Equal(t, fmt.Sprintf("Account #1 %s", amountToString(expectedFees, 8)), stdout.lines[1])
 
 	// add more fee credits to token partition
 	stdout, err = execFeesCommand(homedir, fmt.Sprintf("add --amount=%d %s", amount, args))
 	require.NoError(t, err)
-	require.Equal(t, fmt.Sprintf("Successfully created %d fee credits on token partition.", amount), stdout.lines[0])
+	require.Equal(t, fmt.Sprintf("Successfully created %d fee credits on tokens partition.", amount), stdout.lines[0])
 
 	// verify fee credits to token partition
 	expectedFees = amount*2*1e8 - 2
 	stdout, err = execFeesCommand(homedir, "list "+args)
 	require.NoError(t, err)
-	require.Equal(t, "Partition: token", stdout.lines[0])
+	require.Equal(t, "Partition: tokens", stdout.lines[0])
 	require.Equal(t, fmt.Sprintf("Account #1 %s", amountToString(expectedFees, 8)), stdout.lines[1])
 
 	// reclaim fees
 	stdout, err = execFeesCommand(homedir, "reclaim "+args)
 	require.NoError(t, err)
-	require.Equal(t, "Successfully reclaimed fee credits on token partition.", stdout.lines[0])
+	require.Equal(t, "Successfully reclaimed fee credits on tokens partition.", stdout.lines[0])
 
 	// list fees
 	stdout, err = execFeesCommand(homedir, "list")

@@ -39,8 +39,8 @@ func TestNewMoneyScheme(t *testing.T) {
 		_, verifier   = testsig.CreateSignerAndVerifier(t)
 		trustBase     = map[string]abcrypto.Verifier{"test": verifier}
 	)
-	txSystem, err := NewMoneyTxSystem(
-		moneySystemID,
+	txSystem, err := NewTxSystem(
+		WithSystemIdentifier(moneySystemID),
 		WithHashAlgorithm(crypto.SHA256),
 		WithInitialBill(initialBill),
 		WithSystemDescriptionRecords(sdrs),
@@ -66,8 +66,8 @@ func TestNewMoneyScheme(t *testing.T) {
 }
 
 func TestNewMoneyScheme_InitialBillIsNil(t *testing.T) {
-	_, err := NewMoneyTxSystem(
-		moneySystemID,
+	_, err := NewTxSystem(
+		WithSystemIdentifier(moneySystemID),
 		WithHashAlgorithm(crypto.SHA256),
 		WithInitialBill(nil),
 		WithSystemDescriptionRecords(createSDRs(2)),
@@ -77,8 +77,8 @@ func TestNewMoneyScheme_InitialBillIsNil(t *testing.T) {
 
 func TestNewMoneyScheme_InvalidInitialBillID(t *testing.T) {
 	ib := &InitialBill{ID: uint256.NewInt(0), Value: 100, Owner: nil}
-	_, err := NewMoneyTxSystem(
-		moneySystemID,
+	_, err := NewTxSystem(
+		WithSystemIdentifier(moneySystemID),
 		WithHashAlgorithm(crypto.SHA256),
 		WithInitialBill(ib),
 		WithSystemDescriptionRecords(createSDRs(2)),
@@ -87,8 +87,8 @@ func TestNewMoneyScheme_InvalidInitialBillID(t *testing.T) {
 }
 
 func TestNewMoneyScheme_InvalidFeeCreditBill_Nil(t *testing.T) {
-	_, err := NewMoneyTxSystem(
-		moneySystemID,
+	_, err := NewTxSystem(
+		WithSystemIdentifier(moneySystemID),
 		WithHashAlgorithm(crypto.SHA256),
 		WithInitialBill(&InitialBill{ID: uint256.NewInt(1), Value: 100, Owner: nil}),
 		WithSystemDescriptionRecords(nil),
@@ -97,8 +97,8 @@ func TestNewMoneyScheme_InvalidFeeCreditBill_Nil(t *testing.T) {
 }
 
 func TestNewMoneyScheme_InvalidFeeCreditBill_SameIDAsInitialBill(t *testing.T) {
-	_, err := NewMoneyTxSystem(
-		moneySystemID,
+	_, err := NewTxSystem(
+		WithSystemIdentifier(moneySystemID),
 		WithHashAlgorithm(crypto.SHA256),
 		WithInitialBill(&InitialBill{ID: uint256.NewInt(1), Value: 100, Owner: nil}),
 		WithSystemDescriptionRecords(createSDRs(1)),
@@ -107,8 +107,8 @@ func TestNewMoneyScheme_InvalidFeeCreditBill_SameIDAsInitialBill(t *testing.T) {
 }
 
 func TestNewMoneyScheme_InvalidFeeCreditBill_SameIDAsDCBill(t *testing.T) {
-	_, err := NewMoneyTxSystem(
-		moneySystemID,
+	_, err := NewTxSystem(
+		WithSystemIdentifier(moneySystemID),
 		WithHashAlgorithm(crypto.SHA256),
 		WithInitialBill(&InitialBill{ID: uint256.NewInt(1), Value: 100, Owner: nil}),
 		WithSystemDescriptionRecords(createSDRs(0)),
@@ -735,8 +735,8 @@ func createRMATreeAndTxSystem(t *testing.T) (*rma.Tree, *txsystem.GenericTxSyste
 	signer, verifier := testsig.CreateSignerAndVerifier(t)
 	trustBase := map[string]abcrypto.Verifier{"test": verifier}
 
-	mss, err := NewMoneyTxSystem(
-		[]byte{0, 0, 0, 0},
+	mss, err := NewTxSystem(
+		WithSystemIdentifier(systemIdentifier),
 		WithInitialBill(initialBill),
 		WithSystemDescriptionRecords(createSDRs(2)),
 		WithDCMoneyAmount(initialDustCollectorMoneyAmount),

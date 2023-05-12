@@ -1,4 +1,4 @@
-package verifiable_data
+package vd
 
 import (
 	"bytes"
@@ -18,7 +18,7 @@ var systemIdentifier = []byte{0, 0, 0, 1}
 
 func TestVDPartition_Ok(t *testing.T) {
 	network, err := testpartition.NewNetwork(3, func(trustBase map[string]crypto.Verifier) txsystem.TransactionSystem {
-		system, err := New(systemIdentifier)
+		system, err := NewTxSystem(systemIdentifier)
 		require.NoError(t, err)
 		return system
 	}, systemIdentifier)
@@ -38,7 +38,7 @@ func TestVDPartition_Ok(t *testing.T) {
 
 func TestVDPartition_OnePartitionNodeIsDown(t *testing.T) {
 	network, err := testpartition.NewNetwork(3, func(trustBase map[string]crypto.Verifier) txsystem.TransactionSystem {
-		system, err := New(systemIdentifier)
+		system, err := NewTxSystem(systemIdentifier)
 		require.NoError(t, err)
 		return system
 	}, systemIdentifier)

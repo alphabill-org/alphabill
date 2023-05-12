@@ -76,7 +76,7 @@ func New(systemID []byte, backendUrl string, am account.Manager, confirmTx bool,
 	if err != nil {
 		return nil, err
 	}
-	txs, err := tokens.New(
+	txs, err := tokens.NewTxSystem(
 		tokens.WithSystemIdentifier(systemID),
 		tokens.WithTrustBase(map[string]abcrypto.Verifier{"test": nil}),
 	)

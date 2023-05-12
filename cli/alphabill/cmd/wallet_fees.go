@@ -8,15 +8,16 @@ import (
 
 	"github.com/alphabill-org/alphabill/internal/block"
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
-	ttxs "github.com/alphabill-org/alphabill/internal/txsystem/tokens"
+	"github.com/alphabill-org/alphabill/internal/txsystem/tokens"
+	"github.com/alphabill-org/alphabill/internal/txsystem/vd"
 	"github.com/alphabill-org/alphabill/pkg/client"
 	"github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/alphabill-org/alphabill/pkg/wallet/account"
 	"github.com/alphabill-org/alphabill/pkg/wallet/backend/bp"
 	moneyclient "github.com/alphabill-org/alphabill/pkg/wallet/money/backend/client"
 	"github.com/alphabill-org/alphabill/pkg/wallet/fees"
-	"github.com/alphabill-org/alphabill/pkg/wallet/money"
-	"github.com/alphabill-org/alphabill/pkg/wallet/tokens"
+	moneywallet "github.com/alphabill-org/alphabill/pkg/wallet/money"
+	tokenswallet "github.com/alphabill-org/alphabill/pkg/wallet/tokens"
 	tokenclient "github.com/alphabill-org/alphabill/pkg/wallet/tokens/client"
 	"github.com/spf13/cobra"
 )
@@ -45,7 +46,7 @@ func newWalletFeesCmd(ctx context.Context, config *walletConfig) *cobra.Command 
 	cmd.AddCommand(addFeeCreditCmd(ctx, config, cliConfig))
 	cmd.AddCommand(reclaimFeeCreditCmd(ctx, config, cliConfig))
 
-	cmd.PersistentFlags().VarP(&cliConfig.partitionType, partitionCmdName, "n", "partition name for which to manage fees [money|token]")
+	cmd.PersistentFlags().VarP(&cliConfig.partitionType, partitionCmdName, "n", "partition name for which to manage fees [money|tokens]")
 	cmd.PersistentFlags().StringP(alphabillApiURLCmdName, "r", defaultAlphabillApiURL, apiUsage)
 
 	// TODO remove when tx broadcasting through backend api is implemented
@@ -272,8 +273,10 @@ func (c *cliConf) getPartitionBackendURL() string {
 	switch c.partitionType {
 	case moneyType:
 		return defaultAlphabillApiURL
-	case tokenType:
+	case tokensType:
 		return defaultTokensBackendApiURL
+	case vdType:
+		return "TODO: somekindofvdurl"
 	default:
 		panic("invalid \"partition\" flag value: " + c.partitionType)
 	}
@@ -281,10 +284,10 @@ func (c *cliConf) getPartitionBackendURL() string {
 
 func getFeeCreditManager(c *cliConf, am account.Manager, genericWallet *wallet.Wallet, moneyClient *moneyclient.MoneyBackendClient) (FeeCreditManager, error) {
 	moneySystemID := []byte{0, 0, 0, 0}
-	moneyTxPublisher := money.NewTxPublisher(genericWallet, moneyClient, money.NewTxConverter(moneySystemID))
+	moneyTxPublisher := moneywallet.NewTxPublisher(genericWallet, moneyClient, moneywallet.NewTxConverter(moneySystemID))
 	if c.partitionType == moneyType {
 		return fees.NewFeeManager(am, moneySystemID, moneyTxPublisher, moneyClient, moneySystemID, moneyTxPublisher, moneyClient), nil
-	} else if c.partitionType == tokenType {
+	} else if c.partitionType == tokensType {
 		backendUrl := c.getPartitionBackendURL()
 		if !strings.HasPrefix(backendUrl, "http://") && !strings.HasPrefix(backendUrl, "https://") {
 			backendUrl = "http://" + backendUrl
@@ -295,15 +298,21 @@ func getFeeCreditManager(c *cliConf, am account.Manager, genericWallet *wallet.W
 		}
 		tokenBackendClient := tokenclient.New(*addr)
 
-		txs, err := ttxs.New(
-			ttxs.WithSystemIdentifier(ttxs.DefaultTokenTxSystemIdentifier),
-			ttxs.WithTrustBase(map[string]abcrypto.Verifier{"test": nil}),
+		txs, err := tokens.NewTxSystem(
+			tokens.WithSystemIdentifier(tokens.DefaultSystemIdentifier),
+			tokens.WithTrustBase(map[string]abcrypto.Verifier{"test": nil}),
 		)
 		if err != nil {
 			return nil, err
 		}
-		tokenTxPublisher := tokens.NewTxPublisher(tokenBackendClient, txs)
-		return fees.NewFeeManager(am, moneySystemID, moneyTxPublisher, moneyClient, ttxs.DefaultTokenTxSystemIdentifier, tokenTxPublisher, tokenBackendClient), nil
+		tokenTxPublisher := tokenswallet.NewTxPublisher(tokenBackendClient, txs)
+		return fees.NewFeeManager(am, moneySystemID, moneyTxPublisher, moneyClient, tokens.DefaultSystemIdentifier, tokenTxPublisher, tokenBackendClient), nil
+	} else if c.partitionType == vdType {
+		// TODO:
+		// vdClient := ...
+		// vdTxPublisher := ...
+
+		return fees.NewFeeManager(am, moneySystemID, moneyTxPublisher, moneyClient, vd.DefaultSystemIdentifier, nil, nil), nil
 	} else {
 		panic("invalid \"partition\" flag value: " + c.partitionType)
 	}

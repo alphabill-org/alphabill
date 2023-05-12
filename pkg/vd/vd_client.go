@@ -12,6 +12,7 @@ import (
 
 	"github.com/alphabill-org/alphabill/internal/block"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
+	"github.com/alphabill-org/alphabill/internal/txsystem/vd"
 	"github.com/alphabill-org/alphabill/pkg/client"
 	"github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/alphabill-org/alphabill/pkg/wallet/log"
@@ -60,7 +61,7 @@ func New(ctx context.Context, conf *VDClientConfig) (*VDClient, error) {
 func (v *VDClient) SystemID() []byte {
 	// TODO: return the default "AlphaBill VD System ID" for now
 	// but this should come from config (base wallet? AB client?)
-	return []byte{0, 0, 0, 1}
+	return vd.DefaultSystemIdentifier
 }
 
 func (v *VDClient) RegisterFileHash(filePath string) error {

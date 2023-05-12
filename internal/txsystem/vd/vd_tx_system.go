@@ -1,4 +1,4 @@
-package verifiable_data
+package vd
 
 import (
 	"bytes"
@@ -14,6 +14,8 @@ import (
 	"github.com/alphabill-org/alphabill/pkg/logger"
 	"github.com/holiman/uint256"
 )
+
+var DefaultSystemIdentifier = []byte{0, 0, 0, 1}
 
 const zeroSummaryValue = rma.Uint64SummaryValue(0)
 
@@ -43,7 +45,7 @@ type (
 	}
 )
 
-func New(systemId []byte) (*txSystem, error) {
+func NewTxSystem(systemId []byte) (*txSystem, error) {
 	conf := &rma.Config{HashAlgorithm: crypto.SHA256}
 	s, err := rma.New(conf)
 	if err != nil {

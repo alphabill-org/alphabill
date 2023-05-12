@@ -6,20 +6,17 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/alphabill-org/alphabill/pkg/client"
-	vd "github.com/alphabill-org/alphabill/pkg/vd"
+	abclient "github.com/alphabill-org/alphabill/pkg/client"
+	vdclient "github.com/alphabill-org/alphabill/pkg/wallet/vd/client"
 	wlog "github.com/alphabill-org/alphabill/pkg/wallet/log"
 )
 
 const timeoutDelta = 100 // TODO make timeout configurable?
 
-func newVDClientCmd(baseConfig *baseConfiguration) *cobra.Command {
+func vdCmd(config *walletConfig) *cobra.Command {
 	var vdCmd = &cobra.Command{
-		Use:   "vd-client",
-		Short: "cli for submitting data to Verifiable Data partition",
-		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
-			return initializeConfig(cmd, baseConfig)
-		},
+		Use:   "vd",
+		Short: "submit data to Verifiable Data partition",
 	}
 
 	var wait bool
@@ -95,7 +92,7 @@ func listBlocksCmd(wait *bool) *cobra.Command {
 	return cmd
 }
 
-func initVDClient(ctx context.Context, cmd *cobra.Command, wait *bool, sync bool) (*vd.VDClient, error) {
+func initVDClient(ctx context.Context, cmd *cobra.Command, wait *bool, sync bool) (*vdclient.VDClient, error) {
 	uri, err := cmd.Flags().GetString(alphabillNodeURLCmdName)
 	if err != nil {
 		return nil, err
@@ -106,8 +103,8 @@ func initVDClient(ctx context.Context, cmd *cobra.Command, wait *bool, sync bool
 		return nil, err
 	}
 
-	vdClient, err := vd.New(ctx, &vd.VDClientConfig{
-		AbConf: &client.AlphabillClientConfig{
+	vdClient, err := vdclient.New(ctx, &vdclient.VDClientConfig{
+		AbConf: &abclient.AlphabillClientConfig{
 			Uri:          uri,
 			WaitForReady: *wait,
 		},

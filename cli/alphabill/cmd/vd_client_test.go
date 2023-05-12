@@ -94,7 +94,7 @@ func TestVD_UseClientForTx(t *testing.T) {
 
 func sendTxWithClient(ctx context.Context, dialAddr string) error {
 	cmd := New()
-	args := "vd-client register --hash " + "0x67588D4D37BF6F4D6C63CE4BDA38DA2B869012B1BC131DB07AA1D2B5BFD810DD" + " -u " + dialAddr + " --wait"
+	args := "wallet vd register --hash " + "0x67588D4D37BF6F4D6C63CE4BDA38DA2B869012B1BC131DB07AA1D2B5BFD810DD" + " -u " + dialAddr + " --wait"
 	cmd.baseCmd.SetArgs(strings.Split(args, " "))
 	return cmd.addAndExecuteCommand(ctx)
 }

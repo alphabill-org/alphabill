@@ -1,4 +1,4 @@
-package verifiable_data
+package client
 
 import (
 	"context"

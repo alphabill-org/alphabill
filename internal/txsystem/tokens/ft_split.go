@@ -15,7 +15,7 @@ import (
 
 func handleSplitFungibleTokenTx(options *Options) txsystem.GenericExecuteFunc[*splitFungibleTokenWrapper] {
 	return func(tx *splitFungibleTokenWrapper, currentBlockNr uint64) error {
-		logger.Debug("Processing Split Fungible Token tx: %v", tx)
+		logger.Debug("Processing Split Fungible Token tx: %v", tx.transaction.ToLogString(logger))
 		if err := validateSplitFungibleToken(tx, options.state); err != nil {
 			return fmt.Errorf("invalid split fungible token tx: %w", err)
 		}

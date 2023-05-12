@@ -13,7 +13,7 @@ import (
 
 func handleBurnFungibleTokenTx(options *Options) txsystem.GenericExecuteFunc[*burnFungibleTokenWrapper] {
 	return func(tx *burnFungibleTokenWrapper, currentBlockNr uint64) error {
-		logger.Debug("Processing Burn Fungible Token tx: %v", tx)
+		logger.Debug("Processing Burn Fungible Token tx: %v", tx.transaction.ToLogString(logger))
 		if err := validateBurnFungibleToken(tx, options.state); err != nil {
 			return fmt.Errorf("invalid burn fungible token transaction: %w", err)
 		}

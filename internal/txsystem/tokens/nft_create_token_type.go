@@ -13,7 +13,7 @@ import (
 
 func handleCreateNoneFungibleTokenTx(options *Options) txsystem.GenericExecuteFunc[*createNonFungibleTokenTypeWrapper] {
 	return func(tx *createNonFungibleTokenTypeWrapper, _ uint64) error {
-		logger.Debug("Processing Create Non-Fungible Token Type tx: %v", tx)
+		logger.Debug("Processing Create Non-Fungible Token Type tx: %v", tx.transaction.ToLogString(logger))
 		if err := validate(tx, options.state); err != nil {
 			return fmt.Errorf("invalid create none-fungible token tx: %w", err)
 		}

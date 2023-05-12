@@ -14,7 +14,7 @@ import (
 
 func handleTransferNonFungibleTokenTx(options *Options) txsystem.GenericExecuteFunc[*transferNonFungibleTokenWrapper] {
 	return func(tx *transferNonFungibleTokenWrapper, currentBlockNr uint64) error {
-		logger.Debug("Processing Transfer Non-Fungible Token tx: %v", tx)
+		logger.Debug("Processing Transfer Non-Fungible Token tx: %v", tx.transaction.ToLogString(logger))
 		if err := validateTransferNonFungibleToken(tx, options.state); err != nil {
 			return fmt.Errorf("invalid transfer none-fungible token tx: %w", err)
 		}

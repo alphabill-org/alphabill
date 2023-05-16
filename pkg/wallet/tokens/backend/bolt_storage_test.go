@@ -1,4 +1,4 @@
-package twb
+package backend
 
 import (
 	"fmt"
@@ -55,6 +55,10 @@ func Test_storage(t *testing.T) {
 
 	t.Run("remove token", func(t *testing.T) {
 		testRemoveToken(t, db)
+	})
+
+	t.Run("fee credits", func(t *testing.T) {
+		testFeeCredits(t, db)
 	})
 }
 
@@ -204,6 +208,36 @@ func testBlockNumber(t *testing.T, db *storage) {
 
 	for i := 0; i < 100; i++ {
 		getSetBlockNumber(rand.Uint64())
+	}
+}
+
+func testFeeCredits(t *testing.T, db *storage) {
+	// nil key returns nil
+	fcb, err := db.GetFeeCreditBill(nil)
+	require.NoError(t, err)
+	require.Nil(t, fcb)
+
+	// unknown key returns nil
+	fcb, err = db.GetFeeCreditBill([]byte{0})
+	require.NoError(t, err)
+	require.Nil(t, fcb)
+
+	// set fee credit bills
+	fcbs := []*FeeCreditBill{
+		{Id: []byte{1}, Value: 1, TxHash: []byte{1}},
+		{Id: []byte{2}, Value: 2, TxHash: []byte{2}},
+		{Id: []byte{3}, Value: 3, TxHash: []byte{3}},
+	}
+	for _, b := range fcbs {
+		err = db.SetFeeCreditBill(b, nil)
+		require.NoError(t, err)
+	}
+
+	// get fee credit bills
+	for _, expectedFCB := range fcbs {
+		actualFCB, err := db.GetFeeCreditBill(expectedFCB.Id)
+		require.NoError(t, err)
+		require.Equal(t, expectedFCB, actualFCB)
 	}
 }
 

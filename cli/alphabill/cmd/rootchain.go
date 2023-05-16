@@ -28,28 +28,14 @@ const (
 )
 
 type rootNodeConfig struct {
-	Base *baseConfiguration
-
-	// path to rootchain chain key file
-	KeyFile string
-
-	// path to rootchain-genesis.json file
-	GenesisFile string
-
-	// partition validator node address (libp2p multiaddress format)
-	PartitionListener string
-
-	// Root validator node address (libp2p multiaddress format)
-	RootListener string
-
-	// root node addresses
-	Validators map[string]string
-
-	// path to Bolt storage file
-	StoragePath string
-
-	// validator partition certification request channel capacity
-	MaxRequests uint
+	Base              *baseConfiguration
+	KeyFile           string            // path to rootchain chain key file
+	GenesisFile       string            // path to rootchain-genesis.json file
+	PartitionListener string            // partition validator node address (libp2p multiaddress format)
+	RootListener      string            // Root validator node address (libp2p multiaddress format)
+	Validators        map[string]string // root node addresses
+	StoragePath       string            // path to Bolt storage file
+	MaxRequests       uint              // validator partition certification request channel capacity
 }
 
 // newRootNodeCmd creates a new cobra command for root chain node
@@ -120,7 +106,7 @@ func defaultRootNodeRunFunc(ctx context.Context, config *rootNodeConfig) error {
 		return fmt.Errorf("root genesis verification failed, %w", err)
 	}
 	// Process partition node network
-	prtHost, err := createHost(config.PartitionListener, keys.EncryptionPrivateKey)
+	prtHost, err := createHost(ctx, config.PartitionListener, keys.EncryptionPrivateKey)
 	if err != nil {
 		return fmt.Errorf("partition host error, %w", err)
 	}
@@ -141,7 +127,7 @@ func defaultRootNodeRunFunc(ctx context.Context, config *rootNodeConfig) error {
 		return fmt.Errorf("failed to extract partition info from genesis file %s, %w", config.getGenesisFilePath(), err)
 	}
 	// Initiate root storage
-	store, err := initRootStore(config.StoragePath)
+	store, err := initRootStore(config.getStoragePath())
 	if err != nil {
 		return fmt.Errorf("root store init failed, %w", err)
 	}
@@ -166,7 +152,7 @@ func defaultRootNodeRunFunc(ctx context.Context, config *rootNodeConfig) error {
 	return node.Run(ctx)
 }
 
-func createHost(address string, encPrivate crypto.PrivKey) (*network.Peer, error) {
+func createHost(ctx context.Context, address string, encPrivate crypto.PrivKey) (*network.Peer, error) {
 	privateKeyBytes, err := encPrivate.Raw()
 	if err != nil {
 		return nil, err
@@ -183,7 +169,7 @@ func createHost(address string, encPrivate crypto.PrivKey) (*network.Peer, error
 		Address: address,
 		KeyPair: keyPair,
 	}
-	return network.NewPeer(conf)
+	return network.NewPeer(ctx, conf)
 }
 
 func verifyKeyPresentInGenesis(peer *network.Peer, rg *genesis.GenesisRootRecord, ver abcrypto.Verifier) error {

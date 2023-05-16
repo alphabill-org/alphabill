@@ -39,7 +39,7 @@ func (p *SendProtocol) Send(m proto.Message, receiverID peer.ID) error {
 		}
 		defer func() {
 			if err := s.Close(); err != nil {
-				logger.Warning("Failed to close libp2p stream. Error %v, "+
+				logger.Warning("Failed to close libp2p stream, error: %v, "+
 					"protocol: %s, receiver peerID: %v, sender peerID: %v", err, p.protocolID, receiverID, p.self.ID())
 			}
 		}()
@@ -47,7 +47,7 @@ func (p *SendProtocol) Send(m proto.Message, receiverID peer.ID) error {
 		w := NewProtoBufWriter(s)
 		defer func() {
 			if err := w.Close(); err != nil {
-				logger.Warning("Failed to close protobuf writer. Error %v, "+
+				logger.Warning("Failed to close protobuf writer, error: %v, "+
 					"protocol: %s, receiver peerID: %v, sender peerID: %v", err, p.protocolID, receiverID, p.self.ID())
 			}
 		}()

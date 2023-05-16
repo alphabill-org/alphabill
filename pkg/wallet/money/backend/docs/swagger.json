@@ -28,13 +28,13 @@
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/money.BalanceResponse"
+                            "$ref": "#/definitions/backend.BalanceResponse"
                         }
                     },
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/money.ErrorResponse"
+                            "$ref": "#/definitions/backend.ErrorResponse"
                         }
                     },
                     "500": {
@@ -104,13 +104,13 @@
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/money.ListBillsResponse"
+                            "$ref": "#/definitions/backend.ListBillsResponse"
                         }
                     },
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/money.ErrorResponse"
+                            "$ref": "#/definitions/backend.ErrorResponse"
                         }
                     },
                     "500": {
@@ -145,13 +145,13 @@
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/money.ErrorResponse"
+                            "$ref": "#/definitions/backend.ErrorResponse"
                         }
                     },
                     "404": {
                         "description": "Not Found",
                         "schema": {
-                            "$ref": "#/definitions/money.ErrorResponse"
+                            "$ref": "#/definitions/backend.ErrorResponse"
                         }
                     },
                     "500": {
@@ -171,8 +171,31 @@
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/money.RoundNumberResponse"
+                            "$ref": "#/definitions/backend.RoundNumberResponse"
                         }
+                    }
+                }
+            }
+        },
+        "/transactions": {
+            "post": {
+                "produces": [
+                    "application/json"
+                ],
+                "summary": "Forward transactions to partiton node(s)",
+                "operationId": "6",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Sender public key prefixed with 0x",
+                        "name": "pubkey",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "202": {
+                        "description": "Accepted"
                     }
                 }
             }
@@ -192,6 +215,70 @@
                     "items": {
                         "type": "integer"
                     }
+                }
+            }
+        },
+        "backend.BalanceResponse": {
+            "type": "object",
+            "properties": {
+                "balance": {
+                    "type": "string",
+                    "example": "0"
+                }
+            }
+        },
+        "backend.ErrorResponse": {
+            "type": "object",
+            "properties": {
+                "message": {
+                    "type": "string"
+                }
+            }
+        },
+        "backend.ListBillVM": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "type": "string",
+                    "format": "base64",
+                    "example": "AAAAAAgwv3UA1HfGO4qc1T3I3EOvqxfcrhMjJpr9Tn4="
+                },
+                "isDcBill": {
+                    "type": "boolean",
+                    "example": false
+                },
+                "txHash": {
+                    "type": "string",
+                    "format": "base64",
+                    "example": "Q4ShCITC0ODXPR+j1Zl/teYcoU3/mAPy0x8uSsvQFM8="
+                },
+                "value": {
+                    "type": "string",
+                    "example": "1000"
+                }
+            }
+        },
+        "backend.ListBillsResponse": {
+            "type": "object",
+            "properties": {
+                "bills": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/backend.ListBillVM"
+                    }
+                },
+                "total": {
+                    "type": "integer",
+                    "example": 1
+                }
+            }
+        },
+        "backend.RoundNumberResponse": {
+            "type": "object",
+            "properties": {
+                "roundNumber": {
+                    "type": "string",
+                    "example": "0"
                 }
             }
         },
@@ -439,6 +526,9 @@
                             "type": "integer"
                         }
                     }
+                },
+                "timestamp": {
+                    "type": "integer"
                 }
             }
         },
@@ -465,70 +555,6 @@
                     "items": {
                         "type": "integer"
                     }
-                }
-            }
-        },
-        "money.BalanceResponse": {
-            "type": "object",
-            "properties": {
-                "balance": {
-                    "type": "string",
-                    "example": "0"
-                }
-            }
-        },
-        "money.ErrorResponse": {
-            "type": "object",
-            "properties": {
-                "message": {
-                    "type": "string"
-                }
-            }
-        },
-        "money.ListBillVM": {
-            "type": "object",
-            "properties": {
-                "id": {
-                    "type": "string",
-                    "format": "base64",
-                    "example": "AAAAAAgwv3UA1HfGO4qc1T3I3EOvqxfcrhMjJpr9Tn4="
-                },
-                "isDcBill": {
-                    "type": "boolean",
-                    "example": false
-                },
-                "txHash": {
-                    "type": "string",
-                    "format": "base64",
-                    "example": "Q4ShCITC0ODXPR+j1Zl/teYcoU3/mAPy0x8uSsvQFM8="
-                },
-                "value": {
-                    "type": "string",
-                    "example": "1000"
-                }
-            }
-        },
-        "money.ListBillsResponse": {
-            "type": "object",
-            "properties": {
-                "bills": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/money.ListBillVM"
-                    }
-                },
-                "total": {
-                    "type": "integer",
-                    "example": 1
-                }
-            }
-        },
-        "money.RoundNumberResponse": {
-            "type": "object",
-            "properties": {
-                "roundNumber": {
-                    "type": "string",
-                    "example": "0"
                 }
             }
         },

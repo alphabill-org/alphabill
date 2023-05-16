@@ -299,6 +299,37 @@ paths:
           description: successful operation
         default:
           $ref: '#/components/responses/ErrorResponse'
+  /fee-credit-bills/{unitId}:
+    get:
+      tags:
+        - fees
+      summary: Fetches fee credit bill.
+      description: Returns fee credit bill for given bill ID.
+      operationId: getFeeCreditBill
+      parameters:
+        - name: unitId
+          in: path
+          required: true
+          description: fee credit unit id (SHA256 hash of private key) in hex format.
+          schema:
+            $ref: '#/components/schemas/UnitIDParam'
+      responses:
+        '200':
+          description: fee credit bill returned
+          content:
+            application/json:
+              schema:
+                type: object
+                items:
+                  $ref: '#/components/schemas/FeeCreditBill'
+        '404':
+          description: fee credit bill was not found for given bill id
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        default:
+          $ref: '#/components/responses/ErrorResponse'
 components:
   schemas:
     Kind:
@@ -433,6 +464,24 @@ components:
           $ref: '#/components/schemas/transaction.Transaction'
         proof:
           $ref: '#/components/schemas/block_proof.BlockProof'
+    FeeCreditBill:
+      type: object
+      properties:
+        id:
+          type: string
+          format: byte
+        value:
+          type: string
+          description: uint64 value encoded as string
+          example: "1000"
+        txHash:
+          type: string
+          format: byte
+          example: ux5oRDOUCKFCb06vuDOcGPspoBxTYOq9G97mzPAdQxc=
+        fcBlockNumber:
+          type: string
+          description: uint64 value encoded as string
+          example: "1000"
     ErrorResponse:
       description: returned by endpoint in case of bad request or internal error.
       type: object

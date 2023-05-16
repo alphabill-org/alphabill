@@ -84,7 +84,7 @@ func validateReclaimFC(tx *transactions.ReclaimFeeCreditWrapper, bd *BillData, v
 	if !bytes.Equal(bd.Backlink, tx.ReclaimFC.Backlink) {
 		return ErrInvalidBacklink
 	}
-	if tx.CloseFCTransfer.Transaction.ServerMetadata.Fee+tx.Transaction.ClientMetadata.MaxFee > bd.V {
+	if tx.CloseFCTransfer.Transaction.ServerMetadata.Fee+tx.Transaction.ClientMetadata.MaxFee > tx.CloseFCTransfer.CloseFC.Amount {
 		return ErrReclaimFCInvalidTxFee
 	}
 	// verify proof

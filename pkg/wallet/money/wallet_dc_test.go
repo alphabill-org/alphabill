@@ -5,9 +5,6 @@ import (
 	"crypto"
 	"testing"
 
-	"github.com/holiman/uint256"
-	"github.com/stretchr/testify/require"
-
 	"github.com/alphabill-org/alphabill/internal/block"
 	"github.com/alphabill-org/alphabill/internal/hash"
 	"github.com/alphabill-org/alphabill/internal/script"
@@ -18,6 +15,9 @@ import (
 	"github.com/alphabill-org/alphabill/pkg/wallet/account"
 	"github.com/alphabill-org/alphabill/pkg/wallet/backend/bp"
 	"github.com/alphabill-org/alphabill/pkg/wallet/log"
+	txbuilder "github.com/alphabill-org/alphabill/pkg/wallet/money/tx_builder"
+	"github.com/holiman/uint256"
+	"github.com/stretchr/testify/require"
 )
 
 func TestDustCollectionWontRunForSingleBill(t *testing.T) {
@@ -287,7 +287,12 @@ func TestSwapTxValuesAreCalculatedInCorrectBillOrder(t *testing.T) {
 		dcBillIds = append(dcBillIds, dcBill.GetID())
 	}
 
-	tx, err := createSwapTx(k, w.SystemID(), dcBills, dcNonce, dcBillIds, 10)
+	var protoDcBills []*bp.Bill
+	for _, b := range dcBills {
+		protoDcBills = append(protoDcBills, b.ToProto())
+	}
+
+	tx, err := txbuilder.CreateSwapTx(k, w.SystemID(), protoDcBills, dcNonce, dcBillIds, 10)
 	require.NoError(t, err)
 	swapTx := parseSwapTx(t, tx)
 
@@ -372,7 +377,7 @@ func addDcBill(t *testing.T, k *account.AccountKey, id *uint256.Int, nonce []byt
 		BlockProof: &BlockProof{},
 	}
 
-	tx, err := createDustTx(k, []byte{0, 0, 0, 0}, &b, nonce, timeout)
+	tx, err := txbuilder.CreateDustTx(k, []byte{0, 0, 0, 0}, b.ToProto(), nonce, timeout)
 	require.NoError(t, err)
 	b.BlockProof = &BlockProof{Tx: tx}
 

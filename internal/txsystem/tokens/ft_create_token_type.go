@@ -26,18 +26,9 @@ func handleCreateFungibleTokenTypeTx(options *Options) txsystem.GenericExecuteFu
 		h := tx.Hash(options.hashAlgorithm)
 
 		// update state
-		// disable fee handling if fee is calculated to 0 (used to temporarily disable fee handling, can be removed after all wallets are updated)
-		var fcFunc rma.Action
-		if options.feeCalculator() == 0 {
-			fcFunc = func(tree *rma.Tree) error {
-				return nil
-			}
-		} else {
-			fcrID := tx.transaction.GetClientFeeCreditRecordID()
-			fcFunc = fc.DecrCredit(fcrID, fee, h)
-		}
+		fcrID := tx.transaction.GetClientFeeCreditRecordID()
 		return options.state.AtomicUpdate(
-			fcFunc,
+			fc.DecrCredit(fcrID, fee, h),
 			rma.AddItem(tx.UnitID(), script.PredicateAlwaysTrue(), newFungibleTokenTypeData(tx), h),
 		)
 	}
@@ -49,8 +40,18 @@ func validateCreateFungibleTokenType(tx *createFungibleTokenTypeWrapper, state *
 		return errors.New(ErrStrUnitIDIsZero)
 	}
 	if len(tx.attributes.Symbol) > maxSymbolLength {
-		return errors.New(ErrStrInvalidSymbolName)
+		return errors.New(ErrStrInvalidSymbolLength)
 	}
+	if len(tx.attributes.Name) > maxNameLength {
+		return errors.New(ErrStrInvalidNameLength)
+	}
+	if len(tx.attributes.Icon.GetType()) > maxIconTypeLength {
+		return errors.New(ErrStrInvalidIconTypeLength)
+	}
+	if len(tx.attributes.Icon.GetData()) > maxIconDataLength {
+		return errors.New(ErrStrInvalidIconDataLength)
+	}
+
 	decimalPlaces := tx.attributes.DecimalPlaces
 	if decimalPlaces > maxDecimalPlaces {
 		return fmt.Errorf("invalid decimal places. maximum allowed value %v, got %v", maxDecimalPlaces, decimalPlaces)

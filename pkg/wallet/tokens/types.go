@@ -17,7 +17,7 @@ import (
 )
 
 const (
-	txTimeoutRoundCount        = 100
+	txTimeoutRoundCount        = 10
 	AllAccounts         uint64 = 0
 
 	predicateEmpty = "empty"
@@ -37,6 +37,8 @@ type (
 
 	CreateFungibleTokenTypeAttributes struct {
 		Symbol                   string
+		Name                     string
+		Icon                     *Icon
 		DecimalPlaces            uint32
 		ParentTypeId             twb.TokenTypeID
 		SubTypeCreationPredicate wallet.Predicate
@@ -44,8 +46,15 @@ type (
 		InvariantPredicate       wallet.Predicate
 	}
 
+	Icon struct {
+		Type string
+		Data []byte
+	}
+
 	CreateNonFungibleTokenTypeAttributes struct {
 		Symbol                   string
+		Name                     string
+		Icon                     *Icon
 		ParentTypeId             twb.TokenTypeID
 		SubTypeCreationPredicate wallet.Predicate
 		TokenCreationPredicate   wallet.Predicate
@@ -54,6 +63,7 @@ type (
 	}
 
 	MintNonFungibleTokenAttributes struct {
+		Name                string
 		NftType             twb.TokenTypeID
 		Uri                 string
 		Data                []byte
@@ -178,7 +188,13 @@ func ParsePredicateClause(clause string, keyNr uint64, am account.Manager) ([]by
 }
 
 func (c *CreateFungibleTokenTypeAttributes) toProtobuf() *tokens.CreateFungibleTokenTypeAttributes {
+	var icon *tokens.Icon
+	if c.Icon != nil {
+		icon = &tokens.Icon{Type: c.Icon.Type, Data: c.Icon.Data}
+	}
 	return &tokens.CreateFungibleTokenTypeAttributes{
+		Name:                     c.Name,
+		Icon:                     icon,
 		Symbol:                   c.Symbol,
 		DecimalPlaces:            c.DecimalPlaces,
 		ParentTypeId:             c.ParentTypeId,
@@ -189,8 +205,14 @@ func (c *CreateFungibleTokenTypeAttributes) toProtobuf() *tokens.CreateFungibleT
 }
 
 func (c *CreateNonFungibleTokenTypeAttributes) toProtobuf() *tokens.CreateNonFungibleTokenTypeAttributes {
+	var icon *tokens.Icon
+	if c.Icon != nil {
+		icon = &tokens.Icon{Type: c.Icon.Type, Data: c.Icon.Data}
+	}
 	return &tokens.CreateNonFungibleTokenTypeAttributes{
 		Symbol:                   c.Symbol,
+		Name:                     c.Name,
+		Icon:                     icon,
 		ParentTypeId:             c.ParentTypeId,
 		SubTypeCreationPredicate: c.SubTypeCreationPredicate,
 		TokenCreationPredicate:   c.TokenCreationPredicate,
@@ -201,6 +223,7 @@ func (c *CreateNonFungibleTokenTypeAttributes) toProtobuf() *tokens.CreateNonFun
 
 func (a *MintNonFungibleTokenAttributes) toProtobuf() *tokens.MintNonFungibleTokenAttributes {
 	return &tokens.MintNonFungibleTokenAttributes{
+		Name:                a.Name,
 		NftType:             a.NftType,
 		Uri:                 a.Uri,
 		Data:                a.Data,

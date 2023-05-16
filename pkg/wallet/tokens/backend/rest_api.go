@@ -1,4 +1,4 @@
-package twb
+package backend
 
 import (
 	"bytes"
@@ -34,6 +34,7 @@ type dataSource interface {
 	QueryTokens(kind Kind, owner wallet.Predicate, startKey TokenID, count int) ([]*TokenUnit, TokenID, error)
 	SaveTokenTypeCreator(id TokenTypeID, kind Kind, creator wallet.PubKey) error
 	GetTxProof(unitID wallet.UnitID, txHash wallet.TxHash) (*wallet.Proof, error)
+	GetFeeCreditBill(unitID wallet.UnitID) (*FeeCreditBill, error)
 }
 
 type abClient interface {
@@ -76,6 +77,7 @@ func (api *restAPI) endpoints() http.Handler {
 	apiV1.HandleFunc("/transactions/{pubkey}", api.postTransactions).Methods("POST", "OPTIONS")
 	apiV1.HandleFunc("/events/{pubkey}/subscribe", api.subscribeEvents).Methods("GET", "OPTIONS")
 	apiV1.HandleFunc("/units/{unitId}/transactions/{txHash}/proof", api.getTxProof).Methods("GET", "OPTIONS")
+	apiV1.HandleFunc("/fee-credit-bills/{unitId}", api.getFeeCreditBill).Methods("GET", "OPTIONS")
 
 	apiV1.Handle("/swagger/{.*}", http.StripPrefix("/api/v1/", http.FileServer(http.FS(swaggerFiles)))).Methods("GET", "OPTIONS")
 	apiV1.Handle("/swagger/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -279,7 +281,7 @@ func (api *restAPI) saveTxs(ctx context.Context, txs []*txsystem.Transaction, ow
 		}(tx)
 	}
 
-	semCtx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	semCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()
 	if err := sem.Acquire(semCtx, maxWorkers); err != nil {
 		m.Lock()
@@ -287,6 +289,26 @@ func (api *restAPI) saveTxs(ctx context.Context, txs []*txsystem.Transaction, ow
 		m.Unlock()
 	}
 	return errs
+}
+
+func (api *restAPI) getFeeCreditBill(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	unitID, err := parseHex[wallet.UnitID](vars["unitId"], true)
+	if err != nil {
+		api.invalidParamResponse(w, "unitId", err)
+		return
+	}
+	fcb, err := api.db.GetFeeCreditBill(unitID)
+	if err != nil {
+		api.writeErrorResponse(w, fmt.Errorf("failed to load fee credit bill for ID 0x%X: %w", unitID, err))
+		return
+	}
+	if fcb == nil {
+		w.WriteHeader(http.StatusNotFound)
+		api.writeResponse(w, ErrorResponse{Message: "bill does not exist"})
+		return
+	}
+	api.writeResponse(w, fcb)
 }
 
 func (api *restAPI) saveTx(ctx context.Context, tx *txsystem.Transaction, owner []byte) error {

@@ -1,6 +1,7 @@
 package money
 
 import (
+	"context"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
@@ -10,11 +11,6 @@ import (
 	"net/url"
 	"testing"
 
-	"github.com/alphabill-org/alphabill/pkg/wallet/backend/bp"
-	"github.com/holiman/uint256"
-	"github.com/stretchr/testify/require"
-	"google.golang.org/protobuf/encoding/protojson"
-
 	"github.com/alphabill-org/alphabill/internal/block"
 	"github.com/alphabill-org/alphabill/internal/certificates"
 	"github.com/alphabill-org/alphabill/internal/hash"
@@ -23,8 +19,13 @@ import (
 	abclient "github.com/alphabill-org/alphabill/pkg/client"
 	"github.com/alphabill-org/alphabill/pkg/client/clientmock"
 	"github.com/alphabill-org/alphabill/pkg/wallet/account"
-	"github.com/alphabill-org/alphabill/pkg/wallet/backend/money"
-	testclient "github.com/alphabill-org/alphabill/pkg/wallet/backend/money/client"
+	"github.com/alphabill-org/alphabill/pkg/wallet/backend/bp"
+	"github.com/alphabill-org/alphabill/pkg/wallet/money/backend"
+	beclient "github.com/alphabill-org/alphabill/pkg/wallet/money/backend/client"
+	txbuilder "github.com/alphabill-org/alphabill/pkg/wallet/money/tx_builder"
+	"github.com/holiman/uint256"
+	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/encoding/protojson"
 )
 
 type (
@@ -64,7 +65,7 @@ func CreateTestWalletWithManager(t *testing.T, backend BackendAPI, am account.Ma
 
 func withBackendMock(t *testing.T, br *backendMockReturnConf) BackendAPI {
 	_, serverAddr := mockBackendCalls(br)
-	restClient, err := testclient.NewClient(serverAddr.Host)
+	restClient, err := beclient.New(serverAddr.Host)
 	require.NoError(t, err)
 	return restClient
 }
@@ -78,7 +79,7 @@ func CreateTestWalletFromSeed(t *testing.T, br *backendMockReturnConf) (*Wallet,
 
 	mockClient := &clientmock.MockAlphabillClient{}
 	_, serverAddr := mockBackendCalls(br)
-	restClient, err := testclient.NewClient(serverAddr.Host)
+	restClient, err := beclient.New(serverAddr.Host)
 	require.NoError(t, err)
 	w, err := LoadExistingWallet(abclient.AlphabillClientConfig{}, am, restClient)
 	require.NoError(t, err)
@@ -94,24 +95,24 @@ func mockBackendCalls(br *backendMockReturnConf) (*httptest.Server, *url.URL) {
 			w.Write([]byte(br.customResponse))
 		} else {
 			switch r.URL.Path {
-			case "/" + testclient.BalancePath:
+			case "/" + beclient.BalancePath:
 				w.WriteHeader(http.StatusOK)
 				w.Write([]byte(fmt.Sprintf(`{"balance": "%d"}`, br.balance)))
-			case "/" + testclient.BlockHeightPath:
+			case "/" + beclient.RoundNumberPath:
 				w.WriteHeader(http.StatusOK)
 				w.Write([]byte(fmt.Sprintf(`{"blockHeight": "%d"}`, br.blockHeight)))
-			case "/" + testclient.ProofPath:
+			case "/" + beclient.ProofPath:
 				w.WriteHeader(http.StatusOK)
 				w.Write([]byte(br.proofList[proofCount%len(br.proofList)]))
 				proofCount++
-			case "/" + testclient.ListBillsPath:
+			case "/" + beclient.ListBillsPath:
 				w.WriteHeader(http.StatusOK)
 				if br.customBillList != "" {
 					w.Write([]byte(br.customBillList))
 				} else {
 					w.Write([]byte(fmt.Sprintf(`{"total": 1, "bills": [{"id":"%s","value":"%d","txHash":"%s","isDcBill":false}]}`, toBillId(br.billId), br.billValue, br.billTxHash)))
 				}
-			case "/" + testclient.FeeCreditPath:
+			case "/" + beclient.FeeCreditPath:
 				w.WriteHeader(http.StatusOK)
 				fcb, _ := protojson.Marshal(br.feeCreditBill)
 				w.Write(fcb)
@@ -136,9 +137,9 @@ func createBlockProofResponse(t *testing.T, b *Bill, overrideNonce []byte, block
 	}
 	var dcTx *txsystem.Transaction
 	if overrideNonce != nil {
-		dcTx, _ = createDustTx(k, w.SystemID(), b, overrideNonce, timeout)
+		dcTx, _ = txbuilder.CreateDustTx(k, w.SystemID(), b.ToProto(), overrideNonce, timeout)
 	} else {
-		dcTx, _ = createDustTx(k, w.SystemID(), b, calculateDcNonce([]*Bill{b}), timeout)
+		dcTx, _ = txbuilder.CreateDustTx(k, w.SystemID(), b.ToProto(), calculateDcNonce([]*Bill{b}), timeout)
 	}
 	mockClient.SetBlock(&block.Block{
 		SystemIdentifier:   w.SystemID(),
@@ -169,17 +170,17 @@ func createBlockProofJsonResponse(t *testing.T, bills []*Bill, overrideNonce []b
 	return jsonList
 }
 
-func createBillListResponse(bills []*Bill) *money.ListBillsResponse {
-	billVMs := make([]*money.ListBillVM, len(bills))
+func createBillListResponse(bills []*Bill) *backend.ListBillsResponse {
+	billVMs := make([]*backend.ListBillVM, len(bills))
 	for i, b := range bills {
-		billVMs[i] = &money.ListBillVM{
-			Id:       util.Uint256ToBytes(b.Id),
+		billVMs[i] = &backend.ListBillVM{
+			Id:       b.GetID(),
 			Value:    b.Value,
 			TxHash:   b.TxHash,
 			IsDCBill: b.IsDcBill,
 		}
 	}
-	return &money.ListBillsResponse{Bills: billVMs, Total: len(bills)}
+	return &backend.ListBillsResponse{Bills: billVMs, Total: len(bills)}
 }
 
 func createBillListJsonResponse(bills []*Bill) string {
@@ -189,18 +190,33 @@ func createBillListJsonResponse(bills []*Bill) string {
 }
 
 type backendAPIMock struct {
-	getBalance       func(pubKey []byte, includeDCBills bool) (uint64, error)
-	listBills        func(pubKey []byte) (*money.ListBillsResponse, error)
-	getProof         func(billId []byte) (*bp.Bills, error)
-	getBlockHeight   func() (uint64, error)
-	getFeeCreditBill func(unitID []byte) (*bp.Bill, error)
+	getBalance         func(pubKey []byte, includeDCBills bool) (uint64, error)
+	listBills          func(pubKey []byte, includeDCBills bool) (*backend.ListBillsResponse, error)
+	getBills           func(pubKey []byte) ([]*bp.Bill, error)
+	getProof           func(billId []byte) (*bp.Bills, error)
+	getRoundNumber     func() (uint64, error)
+	fetchFeeCreditBill func(ctx context.Context, unitID []byte) (*bp.Bill, error)
 }
 
-func (b *backendAPIMock) GetFeeCreditBill(unitID []byte) (*bp.Bill, error) {
-	if b.getFeeCreditBill != nil {
-		return b.getFeeCreditBill(unitID)
+func (b *backendAPIMock) GetBills(pubKey []byte) ([]*bp.Bill, error) {
+	if b.getBills != nil {
+		return b.getBills(pubKey)
 	}
-	return nil, errors.New("getFeeCreditBill not implemented")
+	return nil, errors.New("getBills not implemented")
+}
+
+func (b *backendAPIMock) GetRoundNumber(ctx context.Context) (uint64, error) {
+	if b.getRoundNumber != nil {
+		return b.getRoundNumber()
+	}
+	return 0, errors.New("getRoundNumber not implemented")
+}
+
+func (b *backendAPIMock) FetchFeeCreditBill(ctx context.Context, unitID []byte) (*bp.Bill, error) {
+	if b.fetchFeeCreditBill != nil {
+		return b.fetchFeeCreditBill(ctx, unitID)
+	}
+	return nil, errors.New("fetchFeeCreditBill not implemented")
 }
 
 func (b *backendAPIMock) GetBalance(pubKey []byte, includeDCBills bool) (uint64, error) {
@@ -210,9 +226,9 @@ func (b *backendAPIMock) GetBalance(pubKey []byte, includeDCBills bool) (uint64,
 	return 0, errors.New("getBalance not implemented")
 }
 
-func (b *backendAPIMock) ListBills(pubKey []byte) (*money.ListBillsResponse, error) {
+func (b *backendAPIMock) ListBills(pubKey []byte, includeDCBills bool) (*backend.ListBillsResponse, error) {
 	if b.listBills != nil {
-		return b.listBills(pubKey)
+		return b.listBills(pubKey, includeDCBills)
 	}
 	return nil, errors.New("listBills not implemented")
 }
@@ -222,11 +238,4 @@ func (b *backendAPIMock) GetProof(billId []byte) (*bp.Bills, error) {
 		return b.getProof(billId)
 	}
 	return nil, errors.New("getProof not implemented")
-}
-
-func (b *backendAPIMock) GetBlockHeight() (uint64, error) {
-	if b.getBlockHeight != nil {
-		return b.getBlockHeight()
-	}
-	return 0, errors.New("getBlockHeight not implemented")
 }

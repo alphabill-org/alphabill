@@ -1,4 +1,4 @@
-package twb
+package backend
 
 import (
 	"bytes"
@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 
+	"github.com/alphabill-org/alphabill/internal/txsystem/tokens"
 	"github.com/alphabill-org/alphabill/pkg/wallet"
 )
 
@@ -15,6 +16,8 @@ type (
 		ID                       TokenTypeID      `json:"id"`
 		ParentTypeID             TokenTypeID      `json:"parentTypeId"`
 		Symbol                   string           `json:"symbol"`
+		Name                     string           `json:"name,omitempty"`
+		Icon                     *tokens.Icon     `json:"icon,omitempty"`
 		SubTypeCreationPredicate wallet.Predicate `json:"subTypeCreationPredicate,omitempty"`
 		TokenCreationPredicate   wallet.Predicate `json:"tokenCreationPredicate,omitempty"`
 		InvariantPredicate       wallet.Predicate `json:"invariantPredicate,omitempty"`
@@ -38,6 +41,7 @@ type (
 		Decimals uint32 `json:"decimals,omitempty"`
 		Burned   bool   `json:"burned,omitempty"`
 		// nft only
+		NftName                string           `json:"nftName,omitempty"`
 		NftURI                 string           `json:"nftUri,omitempty"`
 		NftData                []byte           `json:"nftData,omitempty"`
 		NftDataUpdatePredicate wallet.Predicate `json:"nftDataUpdatePredicate,omitempty"`
@@ -48,8 +52,14 @@ type (
 
 	TokenID     wallet.UnitID
 	TokenTypeID wallet.UnitID
+	Kind        byte
 
-	Kind byte
+	FeeCreditBill struct {
+		Id            []byte `json:"id"`
+		Value         uint64 `json:"value,string"`
+		TxHash        []byte `json:"txHash"`
+		FCBlockNumber uint64 `json:"fcBlockNumber,string"`
+	}
 )
 
 const (
@@ -97,4 +107,18 @@ func strToTokenKind(s string) (Kind, error) {
 		return NonFungible, nil
 	}
 	return Any, fmt.Errorf("%q is not valid token kind", s)
+}
+
+func (f *FeeCreditBill) GetID() []byte {
+	if f != nil {
+		return f.Id
+	}
+	return nil
+}
+
+func (f *FeeCreditBill) GetValue() uint64 {
+	if f != nil {
+		return f.Value
+	}
+	return 0
 }

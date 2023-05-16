@@ -1,4 +1,4 @@
-package twb
+package backend
 
 import (
 	"bytes"
@@ -9,6 +9,7 @@ import (
 
 	"github.com/alphabill-org/alphabill/internal/block"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
+	"github.com/alphabill-org/alphabill/internal/txsystem/fc/transactions"
 	"github.com/alphabill-org/alphabill/internal/txsystem/tokens"
 	txutil "github.com/alphabill-org/alphabill/internal/txsystem/util"
 	"github.com/alphabill-org/alphabill/internal/util"
@@ -58,6 +59,39 @@ func (p *blockProcessor) processTx(inTx *txsystem.Transaction, b *block.Block) e
 	}
 
 	p.log.Debug(fmt.Sprintf("processTx: UnitID=%x type: %s", id, strings.TrimPrefix(inTx.GetTransactionAttributes().TypeUrl, "type.googleapis.com/alphabill.tokens.v1.")))
+
+	// handle fee credit txs
+	switch tx := gtx.(type) {
+	case *transactions.AddFeeCreditWrapper:
+		fcb, err := p.store.GetFeeCreditBill(tx.Transaction.UnitId)
+		if err != nil {
+			return err
+		}
+		return p.store.SetFeeCreditBill(&FeeCreditBill{
+			Id:            tx.Transaction.UnitId,
+			Value:         fcb.GetValue() + tx.TransferFC.TransferFC.Amount - tx.Transaction.ServerMetadata.Fee,
+			TxHash:        tx.Hash(crypto.SHA256),
+			FCBlockNumber: b.GetRoundNumber(),
+		}, proof)
+	case *transactions.CloseFeeCreditWrapper:
+		fcb, err := p.store.GetFeeCreditBill(tx.Transaction.UnitId)
+		if err != nil {
+			return err
+		}
+		return p.store.SetFeeCreditBill(&FeeCreditBill{
+			Id:            tx.Transaction.UnitId,
+			Value:         fcb.GetValue() - tx.CloseFC.Amount,
+			TxHash:        tx.Hash(crypto.SHA256),
+			FCBlockNumber: b.GetRoundNumber(),
+		}, proof)
+	default:
+		// decrement fee credit bill value if tx is not fee credit tx i.e. a normal tx
+		if err := p.updateFCB(inTx, b.GetRoundNumber()); err != nil {
+			return fmt.Errorf("failed to update fee credit bill %w", err)
+		}
+	}
+
+	// handle UT transactions
 	switch tx := gtx.(type) {
 	case tokens.CreateFungibleTokenType:
 		return p.saveTokenType(&TokenUnitType{
@@ -65,6 +99,8 @@ func (p *blockProcessor) processTx(inTx *txsystem.Transaction, b *block.Block) e
 			ID:                       id,
 			ParentTypeID:             tx.ParentTypeID(),
 			Symbol:                   tx.Symbol(),
+			Name:                     tx.Name(),
+			Icon:                     tx.Icon(),
 			DecimalPlaces:            tx.DecimalPlaces(),
 			SubTypeCreationPredicate: tx.SubTypeCreationPredicate(),
 			TokenCreationPredicate:   tx.TokenCreationPredicate(),
@@ -189,6 +225,8 @@ func (p *blockProcessor) processTx(inTx *txsystem.Transaction, b *block.Block) e
 			ID:                       id,
 			ParentTypeID:             tx.ParentTypeID(),
 			Symbol:                   tx.Symbol(),
+			Name:                     tx.Name(),
+			Icon:                     tx.Icon(),
 			SubTypeCreationPredicate: tx.SubTypeCreationPredicate(),
 			TokenCreationPredicate:   tx.TokenCreationPredicate(),
 			InvariantPredicate:       tx.InvariantPredicate(),
@@ -206,6 +244,7 @@ func (p *blockProcessor) processTx(inTx *txsystem.Transaction, b *block.Block) e
 			Kind:                   tokenType.Kind,
 			TypeID:                 tx.NFTTypeID(),
 			Symbol:                 tokenType.Symbol,
+			NftName:                tx.Name(),
 			NftURI:                 tx.URI(),
 			NftData:                tx.Data(),
 			NftDataUpdatePredicate: tx.DataUpdatePredicate(),
@@ -230,7 +269,7 @@ func (p *blockProcessor) processTx(inTx *txsystem.Transaction, b *block.Block) e
 		token.TxHash = txHash
 		return p.saveToken(token, proof)
 	default:
-		p.log.Error("received unknown token transaction type, skipped processing:", tx)
+		p.log.Error("received unknown token transaction type, skipped processing:", fmt.Sprintf("data type: %T", tx))
 		return nil
 	}
 }
@@ -267,4 +306,20 @@ func (p *blockProcessor) createProof(unitID wallet.UnitID, b *block.Block, tx *t
 		Tx:          tx,
 		Proof:       proof,
 	}, nil
+}
+
+func (p *blockProcessor) updateFCB(tx *txsystem.Transaction, roundNumber uint64) error {
+	fcb, err := p.store.GetFeeCreditBill(tx.ClientMetadata.FeeCreditRecordId)
+	if err != nil {
+		return err
+	}
+	if fcb == nil {
+		return fmt.Errorf("fee credit bill not found: %X", tx.ClientMetadata.FeeCreditRecordId)
+	}
+	if fcb.Value < tx.ServerMetadata.Fee {
+		return fmt.Errorf("insufficient fee credit - fee is %d but remaining credit is only %d", tx.ServerMetadata.Fee, fcb.Value)
+	}
+	fcb.Value -= tx.ServerMetadata.Fee
+	fcb.FCBlockNumber = roundNumber
+	return p.store.SetFeeCreditBill(fcb, nil)
 }

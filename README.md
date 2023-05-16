@@ -11,14 +11,14 @@ Run `make build` to build the application. Executable will be built to `build/al
 
 # Money Partition
 
-1. Run script `start-money.sh` to rebuild the project, start a root chain and 3 money partition nodes.
+1. Run script `./setup-testab.sh -m 3 -t 0 -d 0` to generate configuration for a root chain and 3 money partition nodes.
+    The script generates rootchain and partition node keys, genesis files.
+    Node configuration files are located in `testab` directory.
+2. Run script `./start.sh -r -p money -b money` to start rootchain and 3 money partition nodes and money backend
 
-   The script generates rootchain and partition node keys, genesis files, and starts nodes.
-   Node configuration files are located in `testab` directory.
-
-2. Run script `stop-all.sh` to stop the root chain and partition nodes.
+3. Run script `stop.sh -a` to stop the root chain and partition nodes.
    
-   Alternatively, use `stop-money.sh` to stop and `resume-money.sh` to resume partition nodes and `stop-root.sh` and `resume-root.sh` to stop and resume the root chain. 
+   Alternatively, use `stop.sh` to stop any partition or root and `start.sh` to resume. See command help for more details. 
 
 ## Configuration
 
@@ -34,17 +34,23 @@ The default location of configuration file is `$AB_HOME/config.props`
 The default `$AB_HOME` is `$HOME/.alphabill`
 
 # Verifiable Data Partition
-
-1. Run script `start-vd.sh` to start a root chain and 3 VD partition nodes.
-2. Run script `stop-all.sh` to stop the root chain and partition nodes (or `stop-vd.sh` and `stop-root.sh`).
+1. Run script `./setup-testab.sh -m 0 -t 0 -d 3` to generate configuration for a root chain and 3 vd partition nodes.
+   The script generates rootchain and partition node keys, genesis files.
+   Node configuration files are located in `testab` directory.
+2. Run script `./start.sh -r -p vd` to start rootchain and 3 vd partition nodes
+3. Run script `stop.sh -a` to stop the root chain and partition nodes.
 
 # User Token Partition
-1. Run script `start-tokens.sh` to start a root chain and 3 Tokens partition nodes.
-2. Run script `stop-all.sh` to stop the root chain and partition nodes (or `stop-tokens.sh` and `stop-root.sh`).
+1. Run script `./setup-testab.sh -m 0 -t 3 -d 0` to generate configuration for a root chain and 3 token partition nodes.
+   The script generates rootchain and partition node keys, genesis files.
+   Node configuration files are located in `testab` directory.
+2. Run script `./start.sh -r -p tokens -b tokens` to start rootchain and 3 token partition nodes and token backend
+3. Run script `stop.sh -a` to stop the root chain and partition nodes.
 
 # Start all partitions at once
-1. Run script `start-all.sh` to start money, vd and tokens nodes and a root chain.
-2. Run `stop-all.sh` to stop everything
+1. Run script `./setup-testab.sh` to generate genesis for root, and 3 money, vd and tokens nodes.
+2. Run `start.sh -r -p money -p tokens -p vd -b money -b tokens` to start everything
+3. Run `stop.sh -a` to stop everything
 
 # Logging configuration
 

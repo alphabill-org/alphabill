@@ -1,4 +1,4 @@
-package money
+package backend
 
 import (
 	"context"
@@ -8,6 +8,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/certificates"
 	"github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/hash"
+	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/internal/script"
 	testtransaction "github.com/alphabill-org/alphabill/internal/testutils/transaction"
 	moneytesttx "github.com/alphabill-org/alphabill/internal/testutils/transaction/money"
@@ -21,7 +22,7 @@ import (
 
 var moneySystemID = []byte{0, 0, 0, 0}
 
-func TestGenericBlockProcessor_EachTxTypeCanBeProcessed(t *testing.T) {
+func TestBlockProcessor_EachTxTypeCanBeProcessed(t *testing.T) {
 	pubKeyBytes, _ := hexutil.Decode("0x03c30573dc0c7fd43fcb801289a6a96cb78c27f4ba398b89da91ece23e9a99aca3")
 	pubKeyHash := hash.Sum256(pubKeyBytes)
 	fcbID := newUnitID(101)
@@ -69,10 +70,22 @@ func TestGenericBlockProcessor_EachTxTypeCanBeProcessed(t *testing.T) {
 	require.NoError(t, err)
 	err = store.Do().SetFeeCreditBill(fcb)
 	require.NoError(t, err)
-	bp := NewBlockProcessor(store, NewTxConverter(moneySystemID))
+	err = store.Do().SetSystemDescriptionRecords([]*genesis.SystemDescriptionRecord{
+		{
+			SystemIdentifier: moneySystemID,
+			T2Timeout:        2500,
+			FeeCreditBill: &genesis.FeeCreditBill{
+				UnitId:         util.Uint256ToBytes(uint256.NewInt(2)),
+				OwnerPredicate: script.PredicateAlwaysTrue(),
+			},
+		},
+	})
+	require.NoError(t, err)
+	blockProcessor, err := NewBlockProcessor(store, NewTxConverter(moneySystemID), moneySystemID)
+	require.NoError(t, err)
 
 	// process transactions
-	err = bp.ProcessBlock(context.Background(), b)
+	err = blockProcessor.ProcessBlock(context.Background(), b)
 	require.NoError(t, err)
 
 	// verify bills exist
@@ -118,7 +131,7 @@ func TestGenericBlockProcessor_EachTxTypeCanBeProcessed(t *testing.T) {
 		Transactions:       []*txsystem.Transaction{transferFC.Transaction, addFC.Transaction},
 		UnicityCertificate: &certificates.UnicityCertificate{InputRecord: &certificates.InputRecord{RoundNumber: 2}},
 	}
-	err = bp.ProcessBlock(context.Background(), b)
+	err = blockProcessor.ProcessBlock(context.Background(), b)
 	require.NoError(t, err)
 
 	// verify fee credit bill value (96) is incremented by transferFC value (99) minus txfee (1)
@@ -126,15 +139,15 @@ func TestGenericBlockProcessor_EachTxTypeCanBeProcessed(t *testing.T) {
 	require.NoError(t, err)
 	require.EqualValues(t, 194, fcb.Value)
 
-	// verify tx1 unitID value is 0 (TODO delete unit?)
+	// verify tx1 unit is deleted (zero value bills are not allowed)
 	unit1, err := store.Do().GetBill(tx1.UnitId)
 	require.NoError(t, err)
-	require.EqualValues(t, 0, unit1.Value)
+	require.Nil(t, unit1)
 
-	// process closeFC + reclaimFC (reclaim all credits)
+	// process closeFC + reclaimFC (reclaim all credits to bill no 4)
 	closeFCAttr := testfc.NewCloseFCAttr(
 		testfc.WithCloseFCAmount(194),
-		testfc.WithCloseFCTargetUnitID(tx1.UnitId),
+		testfc.WithCloseFCTargetUnitID(tx4.UnitId),
 	)
 	closeFC := testfc.NewCloseFC(t, closeFCAttr,
 		testtransaction.WithSystemID(moneySystemID),
@@ -147,7 +160,7 @@ func TestGenericBlockProcessor_EachTxTypeCanBeProcessed(t *testing.T) {
 	)
 	reclaimFC := testfc.NewReclaimFC(t, signer, reclaimFCAttr,
 		testtransaction.WithSystemID(moneySystemID),
-		testtransaction.WithUnitId(tx1.UnitId),
+		testtransaction.WithUnitId(tx4.UnitId),
 		testtransaction.WithServerMetadata(&txsystem.ServerMetadata{Fee: 1}),
 	)
 
@@ -155,7 +168,7 @@ func TestGenericBlockProcessor_EachTxTypeCanBeProcessed(t *testing.T) {
 		Transactions:       []*txsystem.Transaction{closeFC.Transaction, reclaimFC.Transaction},
 		UnicityCertificate: &certificates.UnicityCertificate{InputRecord: &certificates.InputRecord{RoundNumber: 3}},
 	}
-	err = bp.ProcessBlock(context.Background(), b)
+	err = blockProcessor.ProcessBlock(context.Background(), b)
 	require.NoError(t, err)
 
 	// verify FCB is reduced to zero
@@ -163,10 +176,113 @@ func TestGenericBlockProcessor_EachTxTypeCanBeProcessed(t *testing.T) {
 	require.NoError(t, err)
 	require.EqualValues(t, 0, fcb.Value)
 
-	// verify reclaimed fee credits (194) were added to specified unit (tx1 value=0) minus 2x txfee (2)
-	unit, err := store.Do().GetBill(tx1.UnitId)
+	// verify reclaimed fee credits (194) were added to specified unit (tx4 value=100) minus 2x txfee (2)
+	unit, err := store.Do().GetBill(tx4.UnitId)
 	require.NoError(t, err)
-	require.EqualValues(t, 192, unit.Value)
+	require.EqualValues(t, 292, unit.Value)
+}
+
+func TestBlockProcessor_TransferFCAndReclaimFC(t *testing.T) {
+	fcbID := newUnitID(101)
+	fcb := &Bill{
+		Id:            fcbID,
+		Value:         50,
+		FCBlockNumber: 1,
+	}
+	signer, _ := crypto.NewInMemorySecp256K1Signer()
+
+	store, err := createTestBillStore(t)
+	require.NoError(t, err)
+
+	err = store.Do().SetFeeCreditBill(fcb)
+	require.NoError(t, err)
+
+	userBillID := []byte{1}
+	err = store.Do().SetBill(&Bill{
+		Id:             userBillID,
+		Value:          100,
+		TxHash:         []byte{2},
+		OwnerPredicate: script.PredicateAlwaysTrue(),
+	})
+	require.NoError(t, err)
+
+	moneyPartitionFeeBillID := util.Uint256ToBytes(uint256.NewInt(2))
+	err = store.Do().SetSystemDescriptionRecords([]*genesis.SystemDescriptionRecord{
+		{
+			SystemIdentifier: moneySystemID,
+			T2Timeout:        2500,
+			FeeCreditBill: &genesis.FeeCreditBill{
+				UnitId:         moneyPartitionFeeBillID,
+				OwnerPredicate: script.PredicateAlwaysTrue(),
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	err = store.Do().SetBill(&Bill{
+		Id:             moneyPartitionFeeBillID,
+		OwnerPredicate: script.PredicateAlwaysTrue(),
+		Value:          0,
+	})
+	require.NoError(t, err)
+
+	blockProcessor, err := NewBlockProcessor(store, NewTxConverter(moneySystemID), moneySystemID)
+	require.NoError(t, err)
+
+	// process transferFC of 50 billy from userBillID
+	transferFCAttr := testfc.NewTransferFCAttr(
+		testfc.WithTargetRecordID(fcbID),
+		testfc.WithTargetSystemID(moneySystemID),
+		testfc.WithAmount(50),
+	)
+	transferFC := testfc.NewTransferFC(t, transferFCAttr,
+		testtransaction.WithUnitId(userBillID),
+		testtransaction.WithSystemID(moneySystemID),
+		testtransaction.WithServerMetadata(&txsystem.ServerMetadata{Fee: 1}),
+	)
+	b := &block.Block{
+		Transactions:       []*txsystem.Transaction{transferFC.Transaction},
+		UnicityCertificate: &certificates.UnicityCertificate{InputRecord: &certificates.InputRecord{RoundNumber: 1}},
+	}
+	err = blockProcessor.ProcessBlock(context.Background(), b)
+	require.NoError(t, err)
+
+	// verify money partition fee bill value (0) is increased by transferFC amount (50) + transfer fee amount (1)
+	moneyPartitionFeeBill, err := store.Do().GetBill(moneyPartitionFeeBillID)
+	require.NoError(t, err)
+	require.EqualValues(t, 51, moneyPartitionFeeBill.Value)
+
+	// process closeFC + reclaimFC (reclaim all credits)
+	closeFCAttr := testfc.NewCloseFCAttr(
+		testfc.WithCloseFCAmount(30),
+		testfc.WithCloseFCTargetUnitID(transferFC.Transaction.UnitId),
+	)
+	closeFC := testfc.NewCloseFC(t, closeFCAttr,
+		testtransaction.WithSystemID(moneySystemID),
+		testtransaction.WithUnitId(fcbID),
+		testtransaction.WithServerMetadata(&txsystem.ServerMetadata{Fee: 1}),
+	)
+
+	reclaimFCAttr := testfc.NewReclaimFCAttr(t, signer,
+		testfc.WithReclaimFCClosureTx(closeFC.Transaction),
+	)
+	reclaimFC := testfc.NewReclaimFC(t, signer, reclaimFCAttr,
+		testtransaction.WithSystemID(moneySystemID),
+		testtransaction.WithUnitId(transferFC.Transaction.UnitId),
+		testtransaction.WithServerMetadata(&txsystem.ServerMetadata{Fee: 1}),
+	)
+
+	b = &block.Block{
+		Transactions:       []*txsystem.Transaction{closeFC.Transaction, reclaimFC.Transaction},
+		UnicityCertificate: &certificates.UnicityCertificate{InputRecord: &certificates.InputRecord{RoundNumber: 3}},
+	}
+	err = blockProcessor.ProcessBlock(context.Background(), b)
+	require.NoError(t, err)
+
+	// verify money partition fee bill value (51) is decreased by closeFC amount (30) and increased by closeFC fee amount (1) and reclaimFC fee amount(1)
+	moneyPartitionFeeBill, err = store.Do().GetBill(moneyPartitionFeeBillID)
+	require.NoError(t, err)
+	require.EqualValues(t, 23, moneyPartitionFeeBill.Value)
 }
 
 func verifyProof(t *testing.T, b *Bill) {

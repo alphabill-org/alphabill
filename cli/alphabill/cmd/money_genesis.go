@@ -170,8 +170,8 @@ func (c *moneyGenesisConfig) getSDRFiles() ([]*genesis.SystemDescriptionRecord, 
 	if len(c.SDRFiles) == 0 {
 		sdrs = append(sdrs, defaultMoneySDR)
 	} else {
-		for _, feeBillPath := range c.SDRFiles {
-			sdr, err := util.ReadJsonFile(feeBillPath, &genesis.SystemDescriptionRecord{})
+		for _, sdrFile := range c.SDRFiles {
+			sdr, err := util.ReadJsonFile(sdrFile, &genesis.SystemDescriptionRecord{})
 			if err != nil {
 				return nil, err
 			}

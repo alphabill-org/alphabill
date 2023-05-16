@@ -78,7 +78,7 @@ func (l *DefaultLeaderSelector) LeaderFunc(uc *certificates.UnicityCertificate) 
 	if uc == nil {
 		return UnknownLeader
 	}
-	peerCount := uint64(len(l.self.Configuration().PersistentPeers))
+	peerCount := uint64(len(l.self.Configuration().Validators))
 	hasher := crypto.SHA256.New()
 	hasher.Write(uc.Bytes())
 	hash := hasher.Sum(nil)
@@ -90,10 +90,5 @@ func (l *DefaultLeaderSelector) LeaderFunc(uc *certificates.UnicityCertificate) 
 		logger.Warning("Invalid leader index.")
 		return UnknownLeader
 	}
-	leader, err := l.self.Configuration().PersistentPeers[index].GetID()
-	if err != nil {
-		logger.Warning("Failed to get leader ID: %v", err)
-		return UnknownLeader
-	}
-	return leader
+	return l.self.Configuration().Validators[index]
 }

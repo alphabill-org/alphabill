@@ -13,10 +13,7 @@ import (
 	"strings"
 	"testing"
 
-	netutil "github.com/alphabill-org/alphabill/internal/testutils/net"
-	indexer "github.com/alphabill-org/alphabill/pkg/wallet/backend/money"
-	wlog "github.com/alphabill-org/alphabill/pkg/wallet/log"
-	"github.com/alphabill-org/alphabill/pkg/wallet/money"
+	"github.com/alphabill-org/alphabill/internal/partition"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
@@ -26,11 +23,11 @@ import (
 	"github.com/alphabill-org/alphabill/internal/script"
 	testpartition "github.com/alphabill-org/alphabill/internal/testutils/partition"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
-	"github.com/alphabill-org/alphabill/internal/txsystem/fc"
 	moneytx "github.com/alphabill-org/alphabill/internal/txsystem/money"
 	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/alphabill-org/alphabill/pkg/wallet/account"
-	testclient "github.com/alphabill-org/alphabill/pkg/wallet/backend/money/client"
+	"github.com/alphabill-org/alphabill/pkg/wallet/money"
+	"github.com/alphabill-org/alphabill/pkg/wallet/money/backend/client"
 )
 
 type (
@@ -40,6 +37,7 @@ type (
 		billId         *uint256.Int
 		billValue      uint64
 		billTxHash     string
+		proofList      string
 		customBillList string
 		customPath     string
 		customFullPath string
@@ -188,8 +186,8 @@ func TestSendingFailsWithInsufficientBalance(t *testing.T) {
 	require.ErrorIs(t, err, money.ErrInsufficientBalance)
 }
 
-func startAlphabillPartition(t *testing.T, initialBill *moneytx.InitialBill) *testpartition.AlphabillPartition {
-	network, err := testpartition.NewNetwork(1, func(tb map[string]abcrypto.Verifier) txsystem.TransactionSystem {
+func createMoneyPartition(t *testing.T, initialBill *moneytx.InitialBill) *testpartition.NodePartition {
+	moneyPart, err := testpartition.NewPartition(1, func(tb map[string]abcrypto.Verifier) txsystem.TransactionSystem {
 		system, err := moneytx.NewMoneyTxSystem(
 			defaultABMoneySystemIdentifier,
 			moneytx.WithHashAlgorithm(crypto.SHA256),
@@ -204,7 +202,6 @@ func startAlphabillPartition(t *testing.T, initialBill *moneytx.InitialBill) *te
 					},
 				},
 			}),
-			moneytx.WithFeeCalculator(fc.FixedFee(1)),
 			moneytx.WithDCMoneyAmount(10000),
 			moneytx.WithTrustBase(tb),
 		)
@@ -212,19 +209,32 @@ func startAlphabillPartition(t *testing.T, initialBill *moneytx.InitialBill) *te
 		return system
 	}, []byte{0, 0, 0, 0})
 	require.NoError(t, err)
-	t.Cleanup(func() {
-		_ = network.Close()
-	})
-	return network
+	return moneyPart
 }
 
-func startRPCServer(t *testing.T, network *testpartition.AlphabillPartition, addr string) {
-	// start rpc server for network.Nodes[0]
-	listener, err := net.Listen("tcp", addr)
+func startAlphabill(t *testing.T, partitions []*testpartition.NodePartition) *testpartition.AlphabillNetwork {
+	abNetwork, err := testpartition.NewAlphabillPartition(partitions)
+	require.NoError(t, err)
+	require.NoError(t, abNetwork.Start())
+
+	t.Cleanup(func() {
+		require.NoError(t, abNetwork.Close())
+	})
+	return abNetwork
+}
+
+func startPartitionRPCServers(t *testing.T, partition *testpartition.NodePartition) {
+	for _, n := range partition.Nodes {
+		n.AddrGRPC = startRPCServer(t, n.Node)
+	}
+}
+
+func startRPCServer(t *testing.T, node *partition.Node) string {
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err)
 
-	grpcServer, err := initRPCServer(network.Nodes[0].Node, &grpcServerConfiguration{
-		Address:               addr,
+	grpcServer, err := initRPCServer(node, &grpcServerConfiguration{
+		Address:               listener.Addr().String(),
 		MaxGetBlocksBatchSize: defaultMaxGetBlocksBatchSize,
 		MaxRecvMsgSize:        defaultMaxRecvMsgSize,
 		MaxSendMsgSize:        defaultMaxSendMsgSize,
@@ -234,41 +244,44 @@ func startRPCServer(t *testing.T, network *testpartition.AlphabillPartition, add
 	t.Cleanup(func() {
 		grpcServer.GracefulStop()
 	})
-	go func() {
-		_ = grpcServer.Serve(listener)
-	}()
-}
-
-func startMoneyBackend(t *testing.T, nodeAddr string, initialBill *moneytx.InitialBill) string {
-	apiPort := netutil.GetFreeRandomPort(t)
-	apiAddr := fmt.Sprintf("localhost:%v", apiPort)
-
-	ctx, cancel := context.WithCancel(context.Background())
-	t.Cleanup(cancel)
 
 	go func() {
-		err := indexer.CreateAndRun(ctx, &indexer.Config{
-			ABMoneySystemIdentifier: defaultABMoneySystemIdentifier,
-			AlphabillUrl:            nodeAddr,
-			ServerAddr:              apiAddr,
-			DbFile:                  fmt.Sprintf("%s/backend.db", t.TempDir()),
-			ListBillsPageLimit:      100,
-			InitialBill: indexer.InitialBill{
-				Id:        util.Uint256ToBytes(initialBill.ID),
-				Value:     initialBill.Value,
-				Predicate: initialBill.Owner,
-			},
-		})
-		wlog.Info("backend stopped")
-		require.NoError(t, err)
+		require.NoError(t, grpcServer.Serve(listener), "gRPC server exited with error")
 	}()
 
-	return apiAddr
+	return listener.Addr().String()
 }
+
+//func startMoneyBackend(t *testing.T, nodeAddr string, initialBill *moneytx.InitialBill) string {
+//	apiPort := netutil.GetFreeRandomPort(t)
+//	apiAddr := fmt.Sprintf("localhost:%v", apiPort)
+//
+//	ctx, cancel := context.WithCancel(context.Background())
+//	t.Cleanup(cancel)
+//
+//	go func() {
+//		err := indexer.CreateAndRun(ctx, &indexer.Config{
+//			ABMoneySystemIdentifier: defaultABMoneySystemIdentifier,
+//			AlphabillUrl:            nodeAddr,
+//			ServerAddr:              apiAddr,
+//			DbFile:                  fmt.Sprintf("%s/backend.db", t.TempDir()),
+//			ListBillsPageLimit:      100,
+//			InitialBill: indexer.InitialBill{
+//				Id:        util.Uint256ToBytes(initialBill.ID),
+//				Value:     initialBill.Value,
+//				Predicate: initialBill.Owner,
+//			},
+//		})
+//		wlog.Info("backend stopped")
+//		require.NoError(t, err)
+//	}()
+//
+//	return apiAddr
+//}
 
 // addAccount calls "add-key" cli function on given wallet and returns the added pubkey hex
 func addAccount(t *testing.T, homedir string) string {
-	stdout := execWalletCmd(t, homedir, "add-key")
+	stdout := execWalletCmd(t, "", homedir, "add-key")
 	for _, line := range stdout.lines {
 		if strings.HasPrefix(line, "Added key #") {
 			return line[13:]
@@ -322,12 +335,18 @@ func execCommand(homeDir, command string) (*testConsoleWriter, error) {
 	return outputWriter, cmd.addAndExecuteCommand(context.Background())
 }
 
-func execWalletCmd(t *testing.T, homedir string, command string) *testConsoleWriter {
+func execWalletCmd(t *testing.T, alphabillNodeAddr, homedir string, command string) *testConsoleWriter {
 	outputWriter := &testConsoleWriter{}
 	consoleWriter = outputWriter
 
 	cmd := New()
-	args := "wallet --home " + homedir + " " + command
+
+	abNodeParam := ""
+	if alphabillNodeAddr != "" {
+		abNodeParam = fmt.Sprintf(" --%s %s", alphabillNodeURLCmdName, alphabillNodeAddr)
+	}
+
+	args := "wallet --home " + homedir + abNodeParam + " " + command
 	cmd.baseCmd.SetArgs(strings.Split(args, " "))
 
 	err := cmd.addAndExecuteCommand(context.Background())
@@ -356,13 +375,20 @@ func mockBackendCalls(br *backendMockReturnConf) (*httptest.Server, *url.URL) {
 			w.Write([]byte(br.customResponse))
 		} else {
 			switch r.URL.Path {
-			case "/" + testclient.BalancePath:
+			case "/" + client.BalancePath:
 				w.WriteHeader(http.StatusOK)
 				w.Write([]byte(fmt.Sprintf(`{"balance": "%d"}`, br.balance)))
-			case "/" + testclient.BlockHeightPath:
+			case "/" + client.RoundNumberPath:
 				w.WriteHeader(http.StatusOK)
 				w.Write([]byte(fmt.Sprintf(`{"blockHeight": "%d"}`, br.blockHeight)))
-			case "/" + testclient.ListBillsPath:
+			case "/" + client.ProofPath:
+				if br.proofList != "" {
+					w.WriteHeader(http.StatusOK)
+					w.Write([]byte(br.proofList))
+				} else {
+					w.WriteHeader(http.StatusNotFound)
+				}
+			case "/" + client.ListBillsPath:
 				w.WriteHeader(http.StatusOK)
 				if br.customBillList != "" {
 					w.Write([]byte(br.customBillList))

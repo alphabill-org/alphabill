@@ -23,7 +23,7 @@ echo "$addresses"
 
 function generate_log_configuration() {
   # to iterate over all home directories
-  for homedir in testab/*; do
+  for homedir in testab/*/; do
     # generate log file itself
     cat <<EOT >> "$homedir/logger-config.yaml"
 # File name to log to. If not set, logs to stdout.
@@ -52,8 +52,9 @@ EOT
 
 # generates genesis files
 # expects two arguments
-# $1 alphabill partition type ('money', 'vd', 'toke') or root as string
+# $1 alphabill partition type ('money', 'vd', 'tokens') or root as string
 # $2 nof genesis files to generate
+# $3 custom cli args
 function generate_partition_node_genesis() {
 local cmd=""
 local home=""
@@ -66,7 +67,7 @@ case $1 in
     cmd="vd-genesis"
     home="testab/vd"
     ;;
-  token)
+  tokens)
     cmd="tokens-genesis"
     home="testab/tokens"
     ;;
@@ -79,7 +80,7 @@ esac
 for i in $(seq 1 "$2")
 do
   # "-g" flags also generates keys
-  build/alphabill "$cmd" --home "${home}$i" -g
+  build/alphabill "$cmd" --home "${home}$i" -g "$3"
 done
 }
 
@@ -93,6 +94,9 @@ function generate_root_genesis() {
   local node_genesis_files=""
   for file in testab/money*/money/node-genesis.json testab/vd*/vd/node-genesis.json testab/tokens*/tokens/node-genesis.json
   do
+    if [[ ! -f $file ]]; then
+      continue
+    fi
     node_genesis_files="$node_genesis_files -p $file"
   done
   build/alphabill root-genesis new --home testab/rootchain1 -g --total-nodes=1 $node_genesis_files
@@ -160,7 +164,7 @@ local restPort=0
   i=1
   for keyf in $key_files
   do
-    build/alphabill "$1" --home ${home}$i -f ${home}$i/"$1"/blocks.db -k $keyf -r "/ip4/127.0.0.1/tcp/26662" -a "/ip4/127.0.0.1/tcp/$aPort" --server-address ":$grpcPort" --rest-server-address "localhost:$restPort" -g $genesis_file -p "$nodeAddresses" >> ${home}$i/"$1"/"$1".log &
+    build/alphabill "$1" --home ${home}$i -f ${home}$i/"$1"/blocks.db -k $keyf -r "/ip4/127.0.0.1/tcp/26662" -a "/ip4/127.0.0.1/tcp/$aPort" --server-address ":$grpcPort" --rest-server-address "localhost:$restPort" -g $genesis_file  >> ${home}$i/"$1"/"$1".log &
     ((i=i+1))
     ((aPort=aPort+1))
     ((grpcPort=grpcPort+1))
@@ -172,6 +176,7 @@ local restPort=0
 function start_backend() {
   local home=""
   local cmd=""
+  local customArgs=""
 
     case $1 in
       money)
@@ -179,10 +184,21 @@ function start_backend() {
         cmd="money-backend"
         grpcPort=26766
         sPort=9654
+        sdrFiles=""
+        if test -f "testab/money-sdr.json"; then
+            sdrFiles+=" -c testab/money-sdr.json"
+        fi
+        if test -f "testab/tokens-sdr.json"; then
+            sdrFiles+=" -c testab/tokens-sdr.json"
+        fi
+        if test -f "testab/vd-sdr.json"; then
+            sdrFiles+=" -c testab/vd-sdr.json"
+        fi
+        customArgs=$sdrFiles
         ;;
       tokens)
         home="testab/backend/vd/"
-        cmd="token-backend"
+        cmd="tokens-backend"
         grpcPort=28766
         sPort=9735
         ;;
@@ -193,6 +209,6 @@ function start_backend() {
     esac
     #create home if not present, ignore errors if already done
     mkdir -p $home 1>&2
-    build/alphabill $cmd start -u "localhost:$grpcPort" -s "localhost:$sPort" -f "$home/bills.db" --log-file "$home/backend.log" --log-level DEBUG &
+    build/alphabill $cmd start -u "localhost:$grpcPort" -s "localhost:$sPort" -f "$home/bills.db" $customArgs --log-file "$home/backend.log" --log-level DEBUG &
     echo "Started $1 backend, check the API at http://localhost:$sPort/api/v1/swagger/"
 }

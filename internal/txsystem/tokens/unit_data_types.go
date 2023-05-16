@@ -10,6 +10,8 @@ import (
 
 type nonFungibleTokenTypeData struct {
 	symbol                   string
+	name                     string
+	icon                     *Icon
 	parentTypeId             *uint256.Int // identifies the parent type that this type derives from; 0 indicates there is no parent type;
 	subTypeCreationPredicate []byte       // the predicate clause that controls defining new sub-types of this type;
 	tokenCreationPredicate   []byte       // the predicate clause that controls creating new tokens of this type
@@ -19,6 +21,8 @@ type nonFungibleTokenTypeData struct {
 
 type fungibleTokenTypeData struct {
 	symbol                   string
+	name                     string
+	icon                     *Icon
 	parentTypeId             *uint256.Int // identifies the parent type that this type derives from; 0 indicates there is no parent type;
 	decimalPlaces            uint32       // is the number of decimal places to display for values of tokens of this type;
 	subTypeCreationPredicate []byte       // the predicate clause that controls defining new sub-types of this type;
@@ -28,6 +32,7 @@ type fungibleTokenTypeData struct {
 
 type nonFungibleTokenData struct {
 	nftType             *uint256.Int
+	name                string // the optional long name of the token
 	uri                 string // uri is the optional URI of an external resource associated with the token
 	data                []byte // data is the optional data associated with the token.
 	dataUpdatePredicate []byte // the data update predicate;
@@ -46,6 +51,8 @@ func newFungibleTokenTypeData(tx *createFungibleTokenTypeWrapper) rma.UnitData {
 	attr := tx.attributes
 	return &fungibleTokenTypeData{
 		symbol:                   attr.Symbol,
+		name:                     attr.Name,
+		icon:                     attr.Icon,
 		parentTypeId:             tx.ParentTypeIdInt(),
 		decimalPlaces:            attr.DecimalPlaces,
 		subTypeCreationPredicate: attr.SubTypeCreationPredicate,
@@ -58,6 +65,8 @@ func newNonFungibleTokenTypeData(tx *createNonFungibleTokenTypeWrapper) rma.Unit
 	attr := tx.attributes
 	return &nonFungibleTokenTypeData{
 		symbol:                   attr.Symbol,
+		name:                     attr.Name,
+		icon:                     attr.Icon,
 		parentTypeId:             tx.parentTypeIdInt(),
 		subTypeCreationPredicate: attr.SubTypeCreationPredicate,
 		tokenCreationPredicate:   attr.TokenCreationPredicate,
@@ -70,6 +79,7 @@ func newNonFungibleTokenData(tx *mintNonFungibleTokenWrapper, txHash []byte, cur
 	attr := tx.attributes
 	return &nonFungibleTokenData{
 		nftType:             tx.NFTTypeIDInt(),
+		name:                attr.Name,
 		uri:                 attr.Uri,
 		data:                attr.Data,
 		dataUpdatePredicate: attr.DataUpdatePredicate,
@@ -90,6 +100,9 @@ func newFungibleTokenData(tx *mintFungibleTokenWrapper, txHash []byte, currentBl
 
 func (n *nonFungibleTokenTypeData) AddToHasher(hasher hash.Hash) {
 	hasher.Write([]byte(n.symbol))
+	hasher.Write([]byte(n.name))
+	hasher.Write([]byte(n.icon.GetType()))
+	hasher.Write(n.icon.GetData())
 	hasher.Write(util.Uint256ToBytes(n.parentTypeId))
 	hasher.Write(n.subTypeCreationPredicate)
 	hasher.Write(n.tokenCreationPredicate)
@@ -105,6 +118,7 @@ func (n *nonFungibleTokenTypeData) Value() rma.SummaryValue {
 func (n *nonFungibleTokenData) AddToHasher(hasher hash.Hash) {
 	nftTypeID := n.nftType.Bytes32()
 	hasher.Write(nftTypeID[:])
+	hasher.Write([]byte(n.name))
 	hasher.Write([]byte(n.uri))
 	hasher.Write(n.data)
 	hasher.Write(n.dataUpdatePredicate)
@@ -118,6 +132,9 @@ func (n *nonFungibleTokenData) Value() rma.SummaryValue {
 
 func (f *fungibleTokenTypeData) AddToHasher(hasher hash.Hash) {
 	hasher.Write([]byte(f.symbol))
+	hasher.Write([]byte(f.name))
+	hasher.Write([]byte(f.icon.GetType()))
+	hasher.Write(f.icon.GetData())
 	parentTypeID := f.parentTypeId.Bytes32()
 	hasher.Write(parentTypeID[:])
 	hasher.Write(util.Uint32ToBytes(f.decimalPlaces))

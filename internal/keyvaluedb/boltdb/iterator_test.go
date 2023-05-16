@@ -3,7 +3,7 @@ package boltdb
 import (
 	"encoding/json"
 	"fmt"
-	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"testing"
@@ -15,11 +15,8 @@ var defaultsDBKeys = []string{"1", "2", "3", "4"}
 
 func initDB(t *testing.T, defaults []string) *BoltDB {
 	t.Helper()
-	f, err := os.CreateTemp("", "bolt-*.db")
-	if err != nil {
-		t.Fatal(err)
-	}
-	boltDB, err := New(f.Name())
+	dir := t.TempDir()
+	boltDB, err := New(filepath.Join(dir, "bolt.db"))
 	require.NoError(t, err)
 	require.NotNil(t, boltDB)
 	if defaults == nil {
@@ -50,13 +47,8 @@ func TestBoltIterator_newIteratorNil(t *testing.T) {
 
 func TestBoltIterator_TestEmptyDB(t *testing.T) {
 	db := initDB(t, nil)
-	defer func() {
-		require.NoError(t, os.Remove(db.Path()))
-	}()
 	it := db.First()
-	defer func() {
-		require.NoError(t, it.Close())
-	}()
+	defer func() { require.NoError(t, it.Close()) }()
 	require.False(t, it.Valid())
 	var value string
 	require.ErrorContains(t, it.Value(value), "iterator invalid")
@@ -65,13 +57,8 @@ func TestBoltIterator_TestEmptyDB(t *testing.T) {
 
 func TestPersistentStore_TestIterator(t *testing.T) {
 	db := initDB(t, defaultsDBKeys)
-	defer func() {
-		require.NoError(t, os.Remove(db.Path()))
-	}()
 	it := db.First()
-	defer func() {
-		require.NoError(t, it.Close())
-	}()
+	defer func() { require.NoError(t, it.Close()) }()
 	iterations := 0
 	for ; it.Valid(); it.Next() {
 		require.Equal(t, []byte(defaultsDBKeys[iterations]), it.Key())
@@ -85,15 +72,10 @@ func TestPersistentStore_TestIterator(t *testing.T) {
 
 func TestBoltIterator_TestIteratorReverse(t *testing.T) {
 	db := initDB(t, defaultsDBKeys)
-	defer func() {
-		require.NoError(t, os.Remove(db.Path()))
-	}()
 	it := db.Last()
-	defer func() {
-		require.NoError(t, it.Close())
-	}()
+	defer func() { require.NoError(t, it.Close()) }()
 	require.True(t, it.Valid())
-	require.Equal(t, it.Key(), []byte("4"))
+	require.Equal(t, []byte("4"), it.Key())
 	iterations := 0
 	for ; it.Valid(); it.Prev() {
 		require.Equal(t, []byte(defaultsDBKeys[len(defaultsDBKeys)-iterations-1]), it.Key())
@@ -105,15 +87,24 @@ func TestBoltIterator_TestIteratorReverse(t *testing.T) {
 	require.Equal(t, len(defaultsDBKeys), iterations)
 }
 
+func TestIterator_TestIteratorReversePastEnd(t *testing.T) {
+	db := initDB(t, defaultsDBKeys)
+	it := db.Last()
+	defer func() { require.NoError(t, it.Close()) }()
+	require.True(t, it.Valid())
+	require.Equal(t, []byte("4"), it.Key())
+	it.Next()
+	require.False(t, it.Valid())
+	it.Next()
+	require.False(t, it.Valid())
+	it.Prev()
+	require.False(t, it.Valid())
+}
+
 func TestBoltIterator_TestIteratorSeek(t *testing.T) {
 	db := initDB(t, defaultsDBKeys)
-	defer func() {
-		require.NoError(t, os.Remove(db.Path()))
-	}()
 	it := db.Find([]byte("3"))
-	defer func() {
-		require.NoError(t, it.Close())
-	}()
+	defer func() { require.NoError(t, it.Close()) }()
 	require.True(t, it.Valid())
 	require.Equal(t, []byte("3"), it.Key())
 	var value string
@@ -124,36 +115,23 @@ func TestBoltIterator_TestIteratorSeek(t *testing.T) {
 
 func TestBoltIterator_FindNoMatch(t *testing.T) {
 	db := initDB(t, defaultsDBKeys)
-	defer func() {
-		require.NoError(t, os.Remove(db.Path()))
-	}()
 	// seek past end
 	it := db.Find([]byte("waypastend"))
-	defer func() {
-		require.NoError(t, it.Close())
-	}()
+	defer func() { require.NoError(t, it.Close()) }()
 	require.False(t, it.Valid())
 }
 
 func TestBoltIterator_FindClosestMatch(t *testing.T) {
 	db := initDB(t, defaultsDBKeys)
-	defer func() {
-		require.NoError(t, os.Remove(db.Path()))
-	}()
 	// seek past end
 	it := db.Find([]byte("0"))
-	defer func() {
-		require.NoError(t, it.Close())
-	}()
+	defer func() { require.NoError(t, it.Close()) }()
 	require.True(t, it.Valid())
 	require.Equal(t, []byte("1"), it.Key())
 }
 
 func TestBoltIterator_DoubleClose(t *testing.T) {
 	db := initDB(t, defaultsDBKeys)
-	defer func() {
-		require.NoError(t, os.Remove(db.Path()))
-	}()
 	// seek past end
 	it := db.Find([]byte("0"))
 	require.NoError(t, it.Close())
@@ -162,9 +140,6 @@ func TestBoltIterator_DoubleClose(t *testing.T) {
 
 func TestBoltIterator_IteratePastEndAndAfterClose(t *testing.T) {
 	db := initDB(t, defaultsDBKeys)
-	defer func() {
-		require.NoError(t, os.Remove(db.Path()))
-	}()
 	it := db.First()
 	iterations := 0
 	for ; it.Valid(); it.Next() {
@@ -182,9 +157,6 @@ func TestBoltIterator_IteratePastEndAndAfterClose(t *testing.T) {
 
 func TestBoltIterator_IteratePastBegin(t *testing.T) {
 	db := initDB(t, defaultsDBKeys)
-	defer func() {
-		require.NoError(t, os.Remove(db.Path()))
-	}()
 	it := db.Last()
 	iterations := 0
 	for ; it.Valid(); it.Prev() {
@@ -202,17 +174,12 @@ func TestBoltIterator_IteratePastBegin(t *testing.T) {
 
 func TestBoltIterator_IterateWithPrefix(t *testing.T) {
 	db := initDB(t, defaultsDBKeys)
-	defer func() {
-		require.NoError(t, os.Remove(db.Path()))
-	}()
 	require.NoError(t, db.Write([]byte("cert-001"), "cert1"))
 	require.NoError(t, db.Write([]byte("cert-002"), "cert2"))
 	require.NoError(t, db.Write([]byte("cert-003"), "cert3"))
 	require.NoError(t, db.Write([]byte("cert-004"), "cert4"))
 	it := db.Find([]byte("cert-"))
-	defer func() {
-		require.NoError(t, it.Close())
-	}()
+	defer func() { require.NoError(t, it.Close()) }()
 	iterations := 0
 	for ; it.Valid() && strings.HasPrefix(string(it.Key()), "cert-"); it.Next() {
 		iterations++

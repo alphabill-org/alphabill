@@ -371,9 +371,20 @@ func TestReclaimFC(t *testing.T) {
 			wantErr: ErrReclaimFCInvalidTargetUnit,
 		},
 		{
-			name:    "Invalid tx fee",
-			bd:      newBillData(1, backlink),
-			tx:      testfc.NewReclaimFC(t, signer, nil),
+			name: "Invalid tx fee",
+			bd:   newBillData(amount, backlink),
+			tx: testfc.NewReclaimFC(t, signer,
+				testfc.NewReclaimFCAttr(t, signer,
+					testfc.WithReclaimFCClosureTx(
+						testfc.NewCloseFC(t,
+							testfc.NewCloseFCAttr(
+								testfc.WithCloseFCAmount(2),
+								testfc.WithCloseFCNonce(backlink),
+							),
+						).Transaction,
+					),
+				),
+			),
 			wantErr: ErrReclaimFCInvalidTxFee,
 		},
 		{

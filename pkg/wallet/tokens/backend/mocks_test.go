@@ -1,4 +1,4 @@
-package twb
+package backend
 
 import (
 	"context"
@@ -13,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/holiman/uint256"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/anypb"
 
@@ -20,6 +21,7 @@ import (
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/internal/txsystem/tokens"
+	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/alphabill-org/alphabill/pkg/wallet/log"
 )
 
@@ -68,7 +70,8 @@ func randomTx(t *testing.T, attr proto.Message) *txsystem.Transaction {
 		TransactionAttributes: new(anypb.Any),
 		UnitId:                test.RandomBytes(32),
 		OwnerProof:            test.RandomBytes(3),
-		ClientMetadata:        &txsystem.ClientMetadata{Timeout: 10},
+		ClientMetadata:        &txsystem.ClientMetadata{Timeout: 10, FeeCreditRecordId: util.Uint256ToBytes(uint256.NewInt(1))},
+		ServerMetadata:        &txsystem.ServerMetadata{Fee: 1},
 	}
 	if err := tx.TransactionAttributes.MarshalFrom(attr); err != nil {
 		t.Errorf("failed to marshal tx attributes: %v", err)
@@ -171,6 +174,8 @@ type mockStorage struct {
 	queryTTypes      func(kind Kind, creator PubKey, startKey TokenTypeID, count int) ([]*TokenUnitType, TokenTypeID, error)
 	saveTTypeCreator func(id TokenTypeID, kind Kind, creator PubKey) error
 	getTxProof       func(unitID UnitID, txHash TxHash) (*Proof, error)
+	getFeeCreditBill func(unitID UnitID) (*FeeCreditBill, error)
+	setFeeCreditBill func(fcb *FeeCreditBill, proof *Proof) error
 }
 
 func (ms *mockStorage) Close() error { return nil }
@@ -250,4 +255,18 @@ func (ms *mockStorage) GetTxProof(unitID UnitID, txHash TxHash) (*Proof, error) 
 		return ms.getTxProof(unitID, txHash)
 	}
 	return nil, fmt.Errorf("unexpected GetTxProof call")
+}
+
+func (ms *mockStorage) GetFeeCreditBill(unitID UnitID) (*FeeCreditBill, error) {
+	if ms.getFeeCreditBill != nil {
+		return ms.getFeeCreditBill(unitID)
+	}
+	return nil, fmt.Errorf("unexpected GetFeeCredit call")
+}
+
+func (ms *mockStorage) SetFeeCreditBill(fcb *FeeCreditBill, proof *Proof) error {
+	if ms.setFeeCreditBill != nil {
+		return ms.setFeeCreditBill(fcb, proof)
+	}
+	return fmt.Errorf("unexpected SetFeeCreditBill(%X) call", fcb.GetID())
 }

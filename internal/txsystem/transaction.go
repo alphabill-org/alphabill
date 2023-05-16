@@ -4,7 +4,10 @@ import (
 	"bytes"
 
 	"github.com/alphabill-org/alphabill/internal/util"
+	"github.com/alphabill-org/alphabill/pkg/logger"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/holiman/uint256"
+	"google.golang.org/protobuf/encoding/protojson"
 )
 
 // Bytes serializes the generic transaction order fields.
@@ -62,4 +65,18 @@ func (x *Transaction) Timeout() uint64 {
 		return cm.Timeout
 	}
 	return 0
+}
+
+// ToLogString serializes tx to string based on log level
+// TRACE - human-readable multiline json string
+// DEBUG - hex encoded unit id
+// INFO or higher  - empty string
+func (x *Transaction) ToLogString(l logger.Logger) string {
+	if l.GetLevel() >= logger.TRACE {
+		return protojson.Format(x)
+	}
+	if l.GetLevel() >= logger.DEBUG {
+		return hexutil.Encode(x.UnitId)
+	}
+	return ""
 }

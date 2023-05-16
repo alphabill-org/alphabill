@@ -29,7 +29,7 @@ func TestRootChainCanBeStarted(t *testing.T) {
 	require.ErrorIs(t, err, context.Canceled)
 }
 
-func TestRootValidatorInvalidRootKey_CannotBeStartedInvalidKeyFile(t *testing.T) {
+func TestRootValidator_CannotBeStartedInvalidKeyFile(t *testing.T) {
 	conf := validMonolithicRootValidatorConfig("")
 	conf.KeyFile = "testdata/invalid-root-key.json"
 
@@ -37,10 +37,22 @@ func TestRootValidatorInvalidRootKey_CannotBeStartedInvalidKeyFile(t *testing.T)
 	require.ErrorContains(t, err, "error root node key not found in genesis file")
 }
 
-func TestRootValidatorInvalidRootKey_CannotBeStartedInvalidDBDir(t *testing.T) {
+func TestRootValidator_CannotBeStartedInvalidDBDir(t *testing.T) {
 	conf := validMonolithicRootValidatorConfig("/foobar/doesnotexist3454/")
 	err := defaultRootNodeRunFunc(context.Background(), conf)
-	require.ErrorContains(t, err, "no such file or directory")
+	require.ErrorContains(t, err, "root store init failed, open /foobar/doesnotexist3454/rootchain.db: no such file or directory")
+}
+
+func TestRootValidator_StorageInitNoDBPath(t *testing.T) {
+	db, err := initRootStore("")
+	require.Nil(t, db)
+	require.ErrorContains(t, err, "persistent storage path not set")
+}
+
+func TestRootValidator_DefaultDBPath(t *testing.T) {
+	conf := validMonolithicRootValidatorConfig("")
+	// if not set it will return a default path
+	require.Contains(t, conf.getStoragePath(), filepath.Join(conf.Base.HomeDir, "rootchain"))
 }
 
 func validMonolithicRootValidatorConfig(dbDir string) *rootNodeConfig {

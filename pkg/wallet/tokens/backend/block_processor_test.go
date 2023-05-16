@@ -1,10 +1,11 @@
-package twb
+package backend
 
 import (
 	"context"
 	"crypto"
 	"fmt"
 	"io"
+	"path/filepath"
 	"testing"
 
 	"github.com/alphabill-org/alphabill/internal/block"
@@ -12,8 +13,11 @@ import (
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
+	testfc "github.com/alphabill-org/alphabill/internal/txsystem/fc/testutils"
 	"github.com/alphabill-org/alphabill/internal/txsystem/tokens"
+	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/alphabill-org/alphabill/pkg/wallet/log"
+	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/reflect/protoreflect"
 )
@@ -95,8 +99,10 @@ func Test_blockProcessor_ProcessBlock(t *testing.T) {
 			log: logger,
 			txs: txs,
 			store: &mockStorage{
-				getBlockNumber: func() (uint64, error) { return 3, nil },
-				setBlockNumber: func(blockNumber uint64) error { return nil },
+				getFeeCreditBill: getFeeCreditBillFunc,
+				setFeeCreditBill: func(fcb *FeeCreditBill, proof *Proof) error { return verifySetFeeCreditBill(t, fcb) },
+				getBlockNumber:   func() (uint64, error) { return 3, nil },
+				setBlockNumber:   func(blockNumber uint64) error { return nil },
 				// cause protcessing to fail by failing to store tx
 				saveTokenType: func(data *TokenUnitType, proof *Proof) error {
 					return expErr
@@ -137,12 +143,13 @@ func Test_blockProcessor_processTx(t *testing.T) {
 	require.NotNil(t, txs)
 
 	t.Run("token type transactions", func(t *testing.T) {
+		icon := &tokens.Icon{Type: "image/svg+xml; encoding=gzip", Data: []byte{1, 2, 3}}
 		cases := []struct {
 			txAttr protoreflect.ProtoMessage
 			kind   Kind
 		}{
-			{txAttr: &tokens.CreateNonFungibleTokenTypeAttributes{Symbol: "test"}, kind: NonFungible},
-			{txAttr: &tokens.CreateFungibleTokenTypeAttributes{Symbol: "test"}, kind: Fungible},
+			{txAttr: &tokens.CreateNonFungibleTokenTypeAttributes{Symbol: "test", Name: "long name of test", Icon: icon}, kind: NonFungible},
+			{txAttr: &tokens.CreateFungibleTokenTypeAttributes{Symbol: "test", Name: "long name of test", Icon: icon}, kind: Fungible},
 		}
 
 		for n, tc := range cases {
@@ -152,8 +159,10 @@ func Test_blockProcessor_processTx(t *testing.T) {
 					log: logger,
 					txs: txs,
 					store: &mockStorage{
-						getBlockNumber: func() (uint64, error) { return 3, nil },
-						setBlockNumber: func(blockNumber uint64) error { return nil },
+						getFeeCreditBill: getFeeCreditBillFunc,
+						setFeeCreditBill: func(fcb *FeeCreditBill, proof *Proof) error { return verifySetFeeCreditBill(t, fcb) },
+						getBlockNumber:   func() (uint64, error) { return 3, nil },
+						setBlockNumber:   func(blockNumber uint64) error { return nil },
 						saveTokenType: func(data *TokenUnitType, proof *Proof) error {
 							gtx, err := txs.ConvertTx(tx)
 							require.NoError(t, err)
@@ -184,8 +193,10 @@ func Test_blockProcessor_processTx(t *testing.T) {
 			log: logger,
 			txs: txs,
 			store: &mockStorage{
-				getBlockNumber: func() (uint64, error) { return 3, nil },
-				setBlockNumber: func(blockNumber uint64) error { return nil },
+				getBlockNumber:   func() (uint64, error) { return 3, nil },
+				setBlockNumber:   func(blockNumber uint64) error { return nil },
+				getFeeCreditBill: getFeeCreditBillFunc,
+				setFeeCreditBill: func(fcb *FeeCreditBill, proof *Proof) error { return verifySetFeeCreditBill(t, fcb) },
 				getTokenType: func(id TokenTypeID) (*TokenUnitType, error) {
 					require.EqualValues(t, txAttr.Type, id)
 					return &TokenUnitType{ID: id, Kind: Fungible}, nil
@@ -220,8 +231,10 @@ func Test_blockProcessor_processTx(t *testing.T) {
 			log: logger,
 			txs: txs,
 			store: &mockStorage{
-				getBlockNumber: func() (uint64, error) { return 3, nil },
-				setBlockNumber: func(blockNumber uint64) error { return nil },
+				getBlockNumber:   func() (uint64, error) { return 3, nil },
+				setBlockNumber:   func(blockNumber uint64) error { return nil },
+				getFeeCreditBill: getFeeCreditBillFunc,
+				setFeeCreditBill: func(fcb *FeeCreditBill, proof *Proof) error { return verifySetFeeCreditBill(t, fcb) },
 				getTokenType: func(id TokenTypeID) (*TokenUnitType, error) {
 					require.EqualValues(t, txAttr.NftType, id)
 					return &TokenUnitType{ID: id, Kind: NonFungible}, nil
@@ -256,8 +269,10 @@ func Test_blockProcessor_processTx(t *testing.T) {
 			log: logger,
 			txs: txs,
 			store: &mockStorage{
-				getBlockNumber: func() (uint64, error) { return 3, nil },
-				setBlockNumber: func(blockNumber uint64) error { return nil },
+				getBlockNumber:   func() (uint64, error) { return 3, nil },
+				setBlockNumber:   func(blockNumber uint64) error { return nil },
+				getFeeCreditBill: getFeeCreditBillFunc,
+				setFeeCreditBill: func(fcb *FeeCreditBill, proof *Proof) error { return verifySetFeeCreditBill(t, fcb) },
 				getToken: func(id TokenID) (*TokenUnit, error) {
 					return &TokenUnit{ID: id, TypeID: txAttr.Type, Amount: txAttr.Value, Kind: Fungible}, nil
 				},
@@ -291,8 +306,10 @@ func Test_blockProcessor_processTx(t *testing.T) {
 			log: logger,
 			txs: txs,
 			store: &mockStorage{
-				getBlockNumber: func() (uint64, error) { return 3, nil },
-				setBlockNumber: func(blockNumber uint64) error { return nil },
+				getBlockNumber:   func() (uint64, error) { return 3, nil },
+				setBlockNumber:   func(blockNumber uint64) error { return nil },
+				getFeeCreditBill: getFeeCreditBillFunc,
+				setFeeCreditBill: func(fcb *FeeCreditBill, proof *Proof) error { return verifySetFeeCreditBill(t, fcb) },
 				getToken: func(id TokenID) (*TokenUnit, error) {
 					return &TokenUnit{ID: id, TypeID: txAttr.NftType, Owner: test.RandomBytes(4), Kind: NonFungible}, nil
 				},
@@ -329,8 +346,10 @@ func Test_blockProcessor_processTx(t *testing.T) {
 			log: logger,
 			txs: txs,
 			store: &mockStorage{
-				getBlockNumber: func() (uint64, error) { return 3, nil },
-				setBlockNumber: func(blockNumber uint64) error { return nil },
+				getBlockNumber:   func() (uint64, error) { return 3, nil },
+				setBlockNumber:   func(blockNumber uint64) error { return nil },
+				getFeeCreditBill: getFeeCreditBillFunc,
+				setFeeCreditBill: func(fcb *FeeCreditBill, proof *Proof) error { return verifySetFeeCreditBill(t, fcb) },
 				getToken: func(id TokenID) (*TokenUnit, error) {
 					return &TokenUnit{ID: id, TypeID: txAttr.Type, Amount: 50, Owner: owner, Kind: Fungible}, nil
 				},
@@ -369,8 +388,10 @@ func Test_blockProcessor_processTx(t *testing.T) {
 			log: logger,
 			txs: txs,
 			store: &mockStorage{
-				getBlockNumber: func() (uint64, error) { return 3, nil },
-				setBlockNumber: func(blockNumber uint64) error { return nil },
+				getBlockNumber:   func() (uint64, error) { return 3, nil },
+				setBlockNumber:   func(blockNumber uint64) error { return nil },
+				getFeeCreditBill: getFeeCreditBillFunc,
+				setFeeCreditBill: func(fcb *FeeCreditBill, proof *Proof) error { return verifySetFeeCreditBill(t, fcb) },
 				getToken: func(id TokenID) (*TokenUnit, error) {
 					return &TokenUnit{ID: id, NftData: test.RandomBytes(4), Kind: NonFungible}, nil
 				},
@@ -388,4 +409,76 @@ func Test_blockProcessor_processTx(t *testing.T) {
 		})
 		require.NoError(t, err)
 	})
+}
+
+func Test_blockProcessor_ProcessFeeCreditTxs(t *testing.T) {
+	bp := createBlockProcessor(t)
+
+	signer, err := abcrypto.NewInMemorySecp256K1Signer()
+	require.NoError(t, err)
+
+	// when addFC tx is processed
+	addFC := testfc.NewAddFC(t, signer, nil)
+	b := &block.Block{
+		UnicityCertificate: &certificates.UnicityCertificate{InputRecord: &certificates.InputRecord{RoundNumber: 4}},
+		Transactions:       []*txsystem.Transaction{addFC.Transaction},
+	}
+	err = bp.ProcessBlock(context.Background(), b)
+	require.NoError(t, err)
+
+	// then fee credit bill is saved
+	fcb, err := bp.store.GetFeeCreditBill(addFC.Transaction.UnitId)
+	require.NoError(t, err)
+	require.Equal(t, uint256.NewInt(1), uint256.NewInt(0).SetBytes(fcb.Id))
+	require.EqualValues(t, 49, fcb.GetValue())
+	require.EqualValues(t, 4, fcb.FCBlockNumber)
+	require.Equal(t, addFC.Hash(crypto.SHA256), fcb.TxHash)
+
+	// when closeFC tx is processed
+	closeFC := testfc.NewCloseFC(t,
+		testfc.NewCloseFCAttr(testfc.WithCloseFCAmount(10)),
+	)
+	b = &block.Block{
+		UnicityCertificate: &certificates.UnicityCertificate{InputRecord: &certificates.InputRecord{RoundNumber: 5}},
+		Transactions:       []*txsystem.Transaction{closeFC.Transaction},
+	}
+	err = bp.ProcessBlock(context.Background(), b)
+	require.NoError(t, err)
+
+	// then fee credit bill value is reduced
+	fcb, err = bp.store.GetFeeCreditBill(closeFC.Transaction.UnitId)
+	require.NoError(t, err)
+	require.Equal(t, uint256.NewInt(1), uint256.NewInt(0).SetBytes(fcb.Id))
+	require.EqualValues(t, 39, fcb.GetValue())
+	require.EqualValues(t, 5, fcb.FCBlockNumber)
+	require.Equal(t, closeFC.Hash(crypto.SHA256), fcb.TxHash)
+}
+
+func createBlockProcessor(t *testing.T) *blockProcessor {
+	db, err := newBoltStore(filepath.Join(t.TempDir(), "tokens.db"))
+	require.NoError(t, err)
+
+	logger, err := log.New(log.DEBUG, io.Discard)
+	require.NoError(t, err)
+
+	txSystem, err := tokens.New(tokens.WithTrustBase(map[string]abcrypto.Verifier{"test": nil}))
+	require.NoError(t, err)
+
+	return &blockProcessor{log: logger, txs: txSystem, store: db}
+}
+
+func getFeeCreditBillFunc(unitID UnitID) (*FeeCreditBill, error) {
+	return &FeeCreditBill{
+		Id:            unitID,
+		Value:         50,
+		TxHash:        []byte{1},
+		FCBlockNumber: 3,
+	}, nil
+}
+
+func verifySetFeeCreditBill(t *testing.T, fcb *FeeCreditBill) error {
+	// verify fee credit bill value is reduced by 1 on every tx
+	require.EqualValues(t, util.Uint256ToBytes(uint256.NewInt(1)), fcb.Id)
+	require.EqualValues(t, 49, fcb.Value)
+	return nil
 }

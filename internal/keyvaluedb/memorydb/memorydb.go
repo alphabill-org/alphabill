@@ -85,7 +85,7 @@ func (db *MemoryDB) First() keyvaluedb.Iterator {
 }
 
 // Last returns reverse iterator from the last element in DB
-func (db *MemoryDB) Last() keyvaluedb.ReverseIterator {
+func (db *MemoryDB) Last() keyvaluedb.Iterator {
 	db.lock.RLock()
 	defer db.lock.RUnlock()
 	it := NewIterator(db.db, db.decoder)

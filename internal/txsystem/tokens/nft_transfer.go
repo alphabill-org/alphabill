@@ -14,7 +14,7 @@ import (
 
 func handleTransferNonFungibleTokenTx(options *Options) txsystem.GenericExecuteFunc[*transferNonFungibleTokenWrapper] {
 	return func(tx *transferNonFungibleTokenWrapper, currentBlockNr uint64) error {
-		logger.Debug("Processing Transfer Non-Fungible Token tx: %v", tx)
+		logger.Debug("Processing Transfer Non-Fungible Token tx: %v", tx.transaction.ToLogString(logger))
 		if err := validateTransferNonFungibleToken(tx, options.state); err != nil {
 			return fmt.Errorf("invalid transfer none-fungible token tx: %w", err)
 		}
@@ -25,19 +25,9 @@ func handleTransferNonFungibleTokenTx(options *Options) txsystem.GenericExecuteF
 		h := tx.Hash(options.hashAlgorithm)
 
 		// update state
-		// disable fee handling if fee is calculated to 0 (used to temporarily disable fee handling, can be removed after all wallets are updated)
-		var fcFunc rma.Action
-		if options.feeCalculator() == 0 {
-			fcFunc = func(tree *rma.Tree) error {
-				return nil
-			}
-		} else {
-			fcrID := tx.transaction.GetClientFeeCreditRecordID()
-			fcFunc = fc.DecrCredit(fcrID, fee, h)
-		}
-
+		fcrID := tx.transaction.GetClientFeeCreditRecordID()
 		return options.state.AtomicUpdate(
-			fcFunc,
+			fc.DecrCredit(fcrID, fee, h),
 			rma.SetOwner(tx.UnitID(), tx.attributes.NewBearer, h),
 			rma.UpdateData(tx.UnitID(), func(data rma.UnitData) (newData rma.UnitData) {
 				d, ok := data.(*nonFungibleTokenData)

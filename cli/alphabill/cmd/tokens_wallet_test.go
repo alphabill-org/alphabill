@@ -16,12 +16,12 @@ import (
 	"github.com/alphabill-org/alphabill/internal/testutils/net"
 	testpartition "github.com/alphabill-org/alphabill/internal/testutils/partition"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
-	"github.com/alphabill-org/alphabill/internal/txsystem/fc"
 	"github.com/alphabill-org/alphabill/internal/txsystem/tokens"
 	"github.com/alphabill-org/alphabill/pkg/wallet/account"
+	"github.com/alphabill-org/alphabill/pkg/wallet/fees"
 	wlog "github.com/alphabill-org/alphabill/pkg/wallet/log"
 	tw "github.com/alphabill-org/alphabill/pkg/wallet/tokens"
-	twb "github.com/alphabill-org/alphabill/pkg/wallet/tokens/backend"
+	"github.com/alphabill-org/alphabill/pkg/wallet/tokens/backend"
 	"github.com/alphabill-org/alphabill/pkg/wallet/tokens/client"
 	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/require"
@@ -32,71 +32,71 @@ func TestListTokensCommandInputs(t *testing.T) {
 		name          string
 		args          []string
 		accountNumber uint64
-		expectedKind  twb.Kind
+		expectedKind  backend.Kind
 		expectedPass  string
 	}{
 		{
 			name:          "list all tokens",
 			args:          []string{},
 			accountNumber: 0, // all tokens
-			expectedKind:  twb.Any,
+			expectedKind:  backend.Any,
 		},
 		{
 			name:          "list all tokens, encrypted wallet",
 			args:          []string{"--pn", "some pass phrase"},
 			accountNumber: 0, // all tokens
-			expectedKind:  twb.Any,
+			expectedKind:  backend.Any,
 			expectedPass:  "some pass phrase",
 		},
 		{
 			name:          "list account tokens",
 			args:          []string{"--key", "3"},
 			accountNumber: 3,
-			expectedKind:  twb.Any,
+			expectedKind:  backend.Any,
 		},
 		{
 			name:          "list all fungible tokens",
 			args:          []string{"fungible"},
 			accountNumber: 0,
-			expectedKind:  twb.Fungible,
+			expectedKind:  backend.Fungible,
 		},
 		{
 			name:          "list account fungible tokens",
 			args:          []string{"fungible", "--key", "4"},
 			accountNumber: 4,
-			expectedKind:  twb.Fungible,
+			expectedKind:  backend.Fungible,
 		},
 		{
 			name:          "list account fungible tokens, encrypted wallet",
 			args:          []string{"fungible", "--key", "4", "--pn", "some pass phrase"},
 			accountNumber: 4,
-			expectedKind:  twb.Fungible,
+			expectedKind:  backend.Fungible,
 			expectedPass:  "some pass phrase",
 		},
 		{
 			name:          "list all non-fungible tokens",
 			args:          []string{"non-fungible"},
 			accountNumber: 0,
-			expectedKind:  twb.NonFungible,
+			expectedKind:  backend.NonFungible,
 		},
 		{
 			name:          "list account non-fungible tokens",
 			args:          []string{"non-fungible", "--key", "5"},
 			accountNumber: 5,
-			expectedKind:  twb.NonFungible,
+			expectedKind:  backend.NonFungible,
 		},
 		{
 			name:          "list account non-fungible tokens, encrypted walled",
 			args:          []string{"non-fungible", "--key", "5", "--pn", "some pass phrase"},
 			accountNumber: 5,
-			expectedKind:  twb.NonFungible,
+			expectedKind:  backend.NonFungible,
 			expectedPass:  "some pass phrase",
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			exec := false
-			cmd := tokenCmdList(&walletConfig{}, func(cmd *cobra.Command, config *walletConfig, kind twb.Kind, accountNumber *uint64) error {
+			cmd := tokenCmdList(&walletConfig{}, func(cmd *cobra.Command, config *walletConfig, kind backend.Kind, accountNumber *uint64) error {
 				require.Equal(t, tt.accountNumber, *accountNumber)
 				require.Equal(t, tt.expectedKind, kind)
 				if len(tt.expectedPass) > 0 {
@@ -119,47 +119,47 @@ func TestListTokensTypesCommandInputs(t *testing.T) {
 	tests := []struct {
 		name         string
 		args         []string
-		expectedKind twb.Kind
+		expectedKind backend.Kind
 		expectedPass string
 	}{
 		{
 			name:         "list all tokens",
 			args:         []string{},
-			expectedKind: twb.Any,
+			expectedKind: backend.Any,
 		},
 		{
 			name:         "list all tokens, encrypted wallet",
 			args:         []string{"--pn", "test pass phrase"},
-			expectedKind: twb.Any,
+			expectedKind: backend.Any,
 			expectedPass: "test pass phrase",
 		},
 		{
 			name:         "list all fungible tokens",
 			args:         []string{"fungible"},
-			expectedKind: twb.Fungible,
+			expectedKind: backend.Fungible,
 		},
 		{
 			name:         "list all fungible tokens, encrypted wallet",
 			args:         []string{"fungible", "--pn", "test pass phrase"},
-			expectedKind: twb.Fungible,
+			expectedKind: backend.Fungible,
 			expectedPass: "test pass phrase",
 		},
 		{
 			name:         "list all non-fungible tokens",
 			args:         []string{"non-fungible"},
-			expectedKind: twb.NonFungible,
+			expectedKind: backend.NonFungible,
 		},
 		{
 			name:         "list all non-fungible tokens, encrypted wallet",
 			args:         []string{"non-fungible", "--pn", "test pass phrase"},
-			expectedKind: twb.NonFungible,
+			expectedKind: backend.NonFungible,
 			expectedPass: "test pass phrase",
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			exec := false
-			cmd := tokenCmdListTypes(&walletConfig{}, func(cmd *cobra.Command, config *walletConfig, kind twb.Kind) error {
+			cmd := tokenCmdListTypes(&walletConfig{}, func(cmd *cobra.Command, config *walletConfig, kind backend.Kind) error {
 				require.Equal(t, tt.expectedKind, kind)
 				if len(tt.expectedPass) != 0 {
 					passwordFromArg, err := cmd.Flags().GetString(passwordArgCmdName)
@@ -283,7 +283,7 @@ func TestWalletCreateNonFungibleTokenCmd_TokenIdFlag(t *testing.T) {
 }
 
 func TestWalletCreateNonFungibleTokenCmd_DataFileFlag(t *testing.T) {
-	data := make([]byte, maxBinaryFile64Kb+1)
+	data := make([]byte, maxBinaryFile64KiB+1)
 	tmpfile, err := os.CreateTemp(t.TempDir(), "test")
 	require.NoError(t, err)
 	_, err = tmpfile.Write(data)
@@ -308,7 +308,7 @@ func TestWalletCreateNonFungibleTokenCmd_DataFileFlag(t *testing.T) {
 		{
 			name:       "data-file too big",
 			cmdParams:  "token new non-fungible --type 12AB --data-file=" + tmpfile.Name(),
-			wantErrStr: "data-file read error: file size over 64Kb limit",
+			wantErrStr: "data-file read error: file size over 64KiB limit",
 		},
 	}
 	for _, tt := range tests {
@@ -325,7 +325,7 @@ func TestWalletCreateNonFungibleTokenCmd_DataFileFlag(t *testing.T) {
 }
 
 func TestWalletUpdateNonFungibleTokenDataCmd_Flags(t *testing.T) {
-	data := make([]byte, maxBinaryFile64Kb+1)
+	data := make([]byte, maxBinaryFile64KiB+1)
 	tmpfile, err := os.CreateTemp(t.TempDir(), "test")
 	require.NoError(t, err)
 	_, err = tmpfile.Write(data)
@@ -350,7 +350,7 @@ func TestWalletUpdateNonFungibleTokenDataCmd_Flags(t *testing.T) {
 		{
 			name:       "data-file too big",
 			cmdParams:  "token update --token-identifier 12AB --data-file=" + tmpfile.Name(),
-			wantErrStr: "data-file read error: file size over 64Kb limit",
+			wantErrStr: "data-file read error: file size over 64KiB limit",
 		},
 		{
 			name:       "update nft: both data flags missing",
@@ -377,14 +377,14 @@ func TestWalletUpdateNonFungibleTokenDataCmd_Flags(t *testing.T) {
 }
 
 // tokenID == nil means first token will be considered as success
-func ensureTokenIndexed(t *testing.T, ctx context.Context, api *client.TokenBackend, ownerPubKey []byte, tokenID twb.TokenID) *twb.TokenUnit {
-	var res *twb.TokenUnit
+func ensureTokenIndexed(t *testing.T, ctx context.Context, api *client.TokenBackend, ownerPubKey []byte, tokenID backend.TokenID) *backend.TokenUnit {
+	var res *backend.TokenUnit
 	require.Eventually(t, func() bool {
 		offsetKey := ""
-		var tokens []twb.TokenUnit
+		var tokens []backend.TokenUnit
 		var err error
 		for {
-			tokens, offsetKey, err = api.GetTokens(ctx, twb.Any, ownerPubKey, offsetKey, 0)
+			tokens, offsetKey, err = api.GetTokens(ctx, backend.Any, ownerPubKey, offsetKey, 0)
 			require.NoError(t, err)
 			for _, token := range tokens {
 				if tokenID == nil {
@@ -405,14 +405,14 @@ func ensureTokenIndexed(t *testing.T, ctx context.Context, api *client.TokenBack
 	return res
 }
 
-func ensureTokenTypeIndexed(t *testing.T, ctx context.Context, api *client.TokenBackend, creatorPubKey []byte, typeID twb.TokenTypeID) *twb.TokenUnitType {
-	var res *twb.TokenUnitType
+func ensureTokenTypeIndexed(t *testing.T, ctx context.Context, api *client.TokenBackend, creatorPubKey []byte, typeID backend.TokenTypeID) *backend.TokenUnitType {
+	var res *backend.TokenUnitType
 	require.Eventually(t, func() bool {
 		offsetKey := ""
-		var types []twb.TokenUnitType
+		var types []backend.TokenUnitType
 		var err error
 		for {
-			types, offsetKey, err = api.GetTokenTypes(ctx, twb.Any, creatorPubKey, offsetKey, 0)
+			types, offsetKey, err = api.GetTokenTypes(ctx, backend.Any, creatorPubKey, offsetKey, 0)
 			require.NoError(t, err)
 			for _, t := range types {
 				if bytes.Equal(t.ID, typeID) {
@@ -429,28 +429,24 @@ func ensureTokenTypeIndexed(t *testing.T, ctx context.Context, api *client.Token
 	return res
 }
 
-func startTokensPartition(t *testing.T) (*testpartition.AlphabillPartition, string) {
+func createTokensPartition(t *testing.T) *testpartition.NodePartition {
 	tokensState := rma.NewWithSHA256()
 	require.NotNil(t, tokensState)
-	network, err := testpartition.NewNetwork(1,
+
+	network, err := testpartition.NewPartition(1,
 		func(tb map[string]abcrypto.Verifier) txsystem.TransactionSystem {
 			system, err := tokens.New(
 				tokens.WithState(tokensState),
 				tokens.WithTrustBase(tb),
-				tokens.WithFeeCalculator(fc.FixedFee(0)), // 0 to disable fee module
 			)
 			require.NoError(t, err)
 			return system
-		}, tokens.DefaultTokenTxSystemIdentifier)
+		}, tokens.DefaultTokenTxSystemIdentifier,
+	)
 	require.NoError(t, err)
-	t.Cleanup(func() {
-		_ = network.Close()
-	})
 
-	listenAddr := fmt.Sprintf(":%d", net.GetFreeRandomPort(t))
-	startRPCServer(t, network, listenAddr)
-	dialAddr := "localhost" + listenAddr
-	return network, dialAddr
+	//	dialAddr := startRPCServer(t, network.Nodes[0].Node)
+	return network //dialAddr
 }
 
 func startTokensBackend(t *testing.T, nodeAddr string) (srvUri string, restApi *client.TokenBackend, ctx context.Context) {
@@ -458,7 +454,6 @@ func startTokensBackend(t *testing.T, nodeAddr string) (srvUri string, restApi *
 	require.NoError(t, err)
 	host := fmt.Sprintf("localhost:%v", port)
 	srvUri = "http://" + host
-	cfg := twb.NewConfig(host, nodeAddr, filepath.Join(t.TempDir(), "backend.db"), wlog.GetLogger())
 	addr, err := url.Parse(srvUri)
 	require.NoError(t, err)
 	restApi = client.New(*addr)
@@ -469,8 +464,8 @@ func startTokensBackend(t *testing.T, nodeAddr string) (srvUri string, restApi *
 	t.Cleanup(cancel)
 
 	go func() {
-		err = twb.Run(ctx, cfg)
-		fmt.Println("token wallet ended")
+		cfg := backend.NewConfig(host, nodeAddr, filepath.Join(t.TempDir(), "backend.db"), wlog.GetLogger())
+		require.ErrorIs(t, backend.Run(ctx, cfg), context.Canceled)
 	}()
 
 	require.Eventually(t, func() bool {
@@ -482,13 +477,17 @@ func startTokensBackend(t *testing.T, nodeAddr string) (srvUri string, restApi *
 }
 
 func createNewTokenWallet(t *testing.T, addr string) (*tw.Wallet, string) {
+	return createNewTokenWalletWithFeeManager(t, addr, nil)
+}
+
+func createNewTokenWalletWithFeeManager(t *testing.T, addr string, feeManager *fees.FeeManager) (*tw.Wallet, string) {
 	homeDir := t.TempDir()
 	walletDir := filepath.Join(homeDir, "wallet")
 	am, err := account.NewManager(walletDir, "", true)
 	require.NoError(t, err)
 	require.NoError(t, am.CreateKeys(""))
 
-	w, err := tw.New(tokens.DefaultTokenTxSystemIdentifier, addr, am, false)
+	w, err := tw.New(tokens.DefaultTokenTxSystemIdentifier, addr, am, false, feeManager)
 	require.NoError(t, err)
 	require.NotNil(t, w)
 

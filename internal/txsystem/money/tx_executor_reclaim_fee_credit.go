@@ -23,7 +23,7 @@ var (
 func handleReclaimFeeCreditTx(state *rma.Tree, hashAlgorithm crypto.Hash, trustBase map[string]abcrypto.Verifier, feeCreditTxRecorder *feeCreditTxRecorder, feeCalc fc.FeeCalculator) txsystem.GenericExecuteFunc[*transactions.ReclaimFeeCreditWrapper] {
 	return func(tx *transactions.ReclaimFeeCreditWrapper, currentBlockNumber uint64) error {
 		bd, _ := state.GetUnit(tx.UnitID())
-		log.Debug("Processing reclaimFC %v", tx)
+		log.Debug("Processing reclaimFC %v", tx.Transaction.ToLogString(log))
 		if bd == nil {
 			return errors.New("reclaimFC: unit not found")
 		}
@@ -84,7 +84,7 @@ func validateReclaimFC(tx *transactions.ReclaimFeeCreditWrapper, bd *BillData, v
 	if !bytes.Equal(bd.Backlink, tx.ReclaimFC.Backlink) {
 		return ErrInvalidBacklink
 	}
-	if tx.CloseFCTransfer.Transaction.ServerMetadata.Fee+tx.Transaction.ClientMetadata.MaxFee > bd.V {
+	if tx.CloseFCTransfer.Transaction.ServerMetadata.Fee+tx.Transaction.ClientMetadata.MaxFee > tx.CloseFCTransfer.CloseFC.Amount {
 		return ErrReclaimFCInvalidTxFee
 	}
 	// verify proof

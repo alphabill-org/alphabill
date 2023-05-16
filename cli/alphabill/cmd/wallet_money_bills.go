@@ -8,8 +8,8 @@ import (
 	"github.com/alphabill-org/alphabill/internal/errors"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/pkg/wallet/backend/bp"
-	backendmoney "github.com/alphabill-org/alphabill/pkg/wallet/backend/money"
-	moneyclient "github.com/alphabill-org/alphabill/pkg/wallet/backend/money/client"
+	"github.com/alphabill-org/alphabill/pkg/wallet/money/backend"
+	"github.com/alphabill-org/alphabill/pkg/wallet/money/backend/client"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/spf13/cobra"
 )
@@ -57,11 +57,15 @@ func execListCmd(cmd *cobra.Command, config *walletConfig) error {
 	if err != nil {
 		return err
 	}
-	restClient, err := moneyclient.NewClient(uri)
+	restClient, err := client.New(uri)
 	if err != nil {
 		return err
 	}
 	accountNumber, err := cmd.Flags().GetUint64(keyCmdName)
+	if err != nil {
+		return err
+	}
+	showUnswapped, err := cmd.Flags().GetBool(showUnswappedCmdName)
 	if err != nil {
 		return err
 	}
@@ -74,7 +78,7 @@ func execListCmd(cmd *cobra.Command, config *walletConfig) error {
 
 	type accountBillGroup struct {
 		accountIndex uint64
-		bills        *backendmoney.ListBillsResponse
+		bills        *backend.ListBillsResponse
 	}
 	var accountBillGroups []*accountBillGroup
 	if accountNumber == 0 {
@@ -83,7 +87,7 @@ func execListCmd(cmd *cobra.Command, config *walletConfig) error {
 			return err
 		}
 		for accountIndex, pubKey := range pubKeys {
-			bills, err := restClient.ListBills(pubKey)
+			bills, err := restClient.ListBills(pubKey, showUnswapped)
 			if err != nil {
 				return err
 			}
@@ -95,7 +99,7 @@ func execListCmd(cmd *cobra.Command, config *walletConfig) error {
 		if err != nil {
 			return err
 		}
-		accountBills, err := restClient.ListBills(pubKey)
+		accountBills, err := restClient.ListBills(pubKey, showUnswapped)
 		if err != nil {
 			return err
 		}
@@ -127,6 +131,7 @@ func exportCmd(config *walletConfig) *cobra.Command {
 	}
 	cmd.Flags().StringP(alphabillApiURLCmdName, "r", defaultAlphabillApiURL, "alphabill API uri to connect to")
 	cmd.Flags().Uint64P(keyCmdName, "k", 1, "specifies which account bills to export")
+	cmd.Flags().BoolP(showUnswappedCmdName, "s", false, "export includes unswapped dust bills")
 	cmd.Flags().BytesHexP(billIdCmdName, "b", nil, "bill ID in hex format (without 0x prefix)")
 	cmd.Flags().StringP(outputPathCmdName, "o", "", "output directory for bills, directory is created if it does not exist (default: CWD)")
 	return cmd
@@ -137,12 +142,16 @@ func execExportCmd(cmd *cobra.Command, config *walletConfig) error {
 	if err != nil {
 		return err
 	}
-	restClient, err := moneyclient.NewClient(uri)
+	restClient, err := client.New(uri)
 	if err != nil {
 		return err
 	}
 
 	accountNumber, err := cmd.Flags().GetUint64(keyCmdName)
+	if err != nil {
+		return err
+	}
+	showUnswapped, err := cmd.Flags().GetBool(showUnswappedCmdName)
 	if err != nil {
 		return err
 	}
@@ -190,7 +199,7 @@ func execExportCmd(cmd *cobra.Command, config *walletConfig) error {
 		return nil
 	}
 	// export all bills if neither --bill-id or --bill-order-number are given
-	billsList, err := restClient.ListBills(pk)
+	billsList, err := restClient.ListBills(pk, showUnswapped)
 	if err != nil {
 		return err
 	}

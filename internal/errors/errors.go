@@ -56,6 +56,7 @@ func (e *AlphabillError) Unwrap() error {
 
 // New Creates a simple error with message
 // The error will also have a stack trace if enabled using errors.SetGenerateStackTraces(generate bool)
+// Deprecated: use native go error
 func New(message string) error {
 	return &AlphabillError{
 		message: message,
@@ -66,6 +67,7 @@ func New(message string) error {
 
 // Errorf Creates a simple error from a format and arguments
 // The error will also have a stack trace if enabled using errors.SetGenerateStackTraces(generate bool)
+// Deprecated: use fmt.Errorf instead
 func Errorf(format string, a ...interface{}) error {
 	return &AlphabillError{
 		message: fmt.Sprintf(format, a...),
@@ -76,6 +78,7 @@ func Errorf(format string, a ...interface{}) error {
 
 // Wrap Creates an error with message and another error as its cause
 // The error will also have a stack trace if enabled using errors.SetGenerateStackTraces(generate bool)
+// Deprecated: use native go errors and fmt.Errorf with %w or errors.Join instead
 func Wrap(cause error, message string) error {
 	return &AlphabillError{
 		message: message,
@@ -87,6 +90,7 @@ func Wrap(cause error, message string) error {
 
 // Wrapf Creates an error from a format and arguments, along with another error as its cause
 // The error will also have a stack trace if enabled using errors.SetGenerateStackTraces(generate bool)
+// Deprecated: use native go errors and fmt.Errorf with %w instead
 func Wrapf(cause error, format string, a ...interface{}) error {
 	msg := fmt.Sprintf(format, a...)
 	return &AlphabillError{
@@ -125,6 +129,7 @@ func padStacktrace(stacktrace string) string {
 }
 
 // ErrorCausedBy checks if any error in error queue matches the given error
+// Deprecated: use native error and errors.Is method
 func ErrorCausedBy(err error, cause error) bool {
 	if err == nil || cause == nil {
 		return false

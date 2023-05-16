@@ -21,7 +21,7 @@ var (
 
 func handleSplitTx(state *rma.Tree, hashAlgorithm crypto.Hash, feeCalc fc.FeeCalculator) txsystem.GenericExecuteFunc[*billSplitWrapper] {
 	return func(tx *billSplitWrapper, currentBlockNumber uint64) error {
-		log.Debug("Processing split %v", tx)
+		log.Debug("Processing split %v", tx.transaction.ToLogString(log))
 		if err := validateSplitTx(tx, state); err != nil {
 			return fmt.Errorf("invalid split transaction: %w", err)
 		}
@@ -32,12 +32,13 @@ func handleSplitTx(state *rma.Tree, hashAlgorithm crypto.Hash, feeCalc fc.FeeCal
 		fee := feeCalc()
 		tx.SetServerMetadata(&txsystem.ServerMetadata{Fee: fee})
 
-		// calcualte hash after setting server metadata
+		// calculate hash after setting server metadata
 		h := tx.Hash(hashAlgorithm)
 
 		// update state
+		fcrID := tx.transaction.GetClientFeeCreditRecordID()
 		return state.AtomicUpdate(
-			fc.DecrCredit(tx.transaction.GetClientFeeCreditRecordID(), fee, h),
+			fc.DecrCredit(fcrID, fee, h),
 			rma.UpdateData(tx.UnitID(),
 				func(data rma.UnitData) (newData rma.UnitData) {
 					bd, ok := data.(*BillData)

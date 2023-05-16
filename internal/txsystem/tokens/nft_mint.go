@@ -13,7 +13,7 @@ import (
 
 func handleMintNonFungibleTokenTx(options *Options) txsystem.GenericExecuteFunc[*mintNonFungibleTokenWrapper] {
 	return func(tx *mintNonFungibleTokenWrapper, currentBlockNr uint64) error {
-		logger.Debug("Processing Mint Non-Fungible Token tx: %v", tx)
+		logger.Debug("Processing Mint Non-Fungible Token tx: %v", tx.transaction.ToLogString(logger))
 		if err := validateMintNonFungibleToken(tx, options.state); err != nil {
 			return fmt.Errorf("invalid mint none-fungible token tx: %w", err)
 		}
@@ -24,19 +24,9 @@ func handleMintNonFungibleTokenTx(options *Options) txsystem.GenericExecuteFunc[
 		h := tx.Hash(options.hashAlgorithm)
 
 		// update state
-		// disable fee handling if fee is calculated to 0 (used to temporarily disable fee handling, can be removed after all wallets are updated)
-		var fcFunc rma.Action
-		if options.feeCalculator() == 0 {
-			fcFunc = func(tree *rma.Tree) error {
-				return nil
-			}
-		} else {
-			fcrID := tx.transaction.GetClientFeeCreditRecordID()
-			fcFunc = fc.DecrCredit(fcrID, fee, h)
-		}
-
+		fcrID := tx.transaction.GetClientFeeCreditRecordID()
 		return options.state.AtomicUpdate(
-			fcFunc,
+			fc.DecrCredit(fcrID, fee, h),
 			rma.AddItem(tx.UnitID(), tx.attributes.Bearer, newNonFungibleTokenData(tx, h, currentBlockNr), h))
 	}
 }
@@ -45,6 +35,9 @@ func validateMintNonFungibleToken(tx *mintNonFungibleTokenWrapper, state *rma.Tr
 	unitID := tx.wrapper.UnitID()
 	if unitID.IsZero() {
 		return errors.New(ErrStrUnitIDIsZero)
+	}
+	if len(tx.Name()) > maxNameLength {
+		return errors.New(ErrStrInvalidNameLength)
 	}
 	uri := tx.URI()
 	if uri != "" {

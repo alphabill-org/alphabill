@@ -4,6 +4,7 @@ import (
 	"math/rand"
 	"testing"
 
+	"github.com/alphabill-org/alphabill/internal/script"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/proto"
@@ -17,7 +18,7 @@ func defaultTx() *txsystem.Transaction {
 		SystemId:              moneySystemID,
 		TransactionAttributes: new(anypb.Any),
 		UnitId:                RandomBytes(32),
-		OwnerProof:            RandomBytes(3),
+		OwnerProof:            script.PredicateArgumentEmpty(),
 		ClientMetadata:        &txsystem.ClientMetadata{Timeout: 10, MaxFee: 2},
 		ServerMetadata:        &txsystem.ServerMetadata{Fee: 1},
 	}

@@ -15,7 +15,7 @@ import (
 
 func handleSplitFungibleTokenTx(options *Options) txsystem.GenericExecuteFunc[*splitFungibleTokenWrapper] {
 	return func(tx *splitFungibleTokenWrapper, currentBlockNr uint64) error {
-		logger.Debug("Processing Split Fungible Token tx: %v", tx)
+		logger.Debug("Processing Split Fungible Token tx: %v", tx.transaction.ToLogString(logger))
 		if err := validateSplitFungibleToken(tx, options.state); err != nil {
 			return fmt.Errorf("invalid split fungible token tx: %w", err)
 		}
@@ -35,19 +35,9 @@ func handleSplitFungibleTokenTx(options *Options) txsystem.GenericExecuteFunc[*s
 		txHash := tx.Hash(options.hashAlgorithm)
 
 		// update state
-		// disable fee handling if fee is calculated to 0 (used to temporarily disable fee handling, can be removed after all wallets are updated)
-		var fcFunc rma.Action
-		if options.feeCalculator() == 0 {
-			fcFunc = func(tree *rma.Tree) error {
-				return nil
-			}
-		} else {
-			fcrID := tx.transaction.GetClientFeeCreditRecordID()
-			fcFunc = fc.DecrCredit(fcrID, fee, txHash)
-		}
-
+		fcrID := tx.transaction.GetClientFeeCreditRecordID()
 		return options.state.AtomicUpdate(
-			fcFunc,
+			fc.DecrCredit(fcrID, fee, txHash),
 			rma.AddItem(newTokenID,
 				tx.attributes.NewBearer,
 				&fungibleTokenData{

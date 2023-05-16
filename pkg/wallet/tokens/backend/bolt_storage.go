@@ -1,4 +1,4 @@
-package twb
+package backend
 
 import (
 	"bytes"
@@ -21,6 +21,8 @@ var (
 	bucketTokenUnit   = []byte("token-unit")   // TokenID -> json(TokenUnit)
 	bucketTokenOwner  = []byte("token-owner")  // token bearer (p2pkh predicate) -> [TokenID -> b(kind)]
 	bucketTxHistory   = []byte("tx-history")   // UnitID(TokenTypeID|TokenID) -> [txHash -> json(block proof)]
+
+	bucketFeeCredits = []byte("fee-credits") // UnitID -> json(FeeCreditBill)
 )
 
 var errRecordNotFound = errors.New("not found")
@@ -262,6 +264,46 @@ func (s *storage) GetTxProof(unitID UnitID, txHash TxHash) (*Proof, error) {
 	return proof, err
 }
 
+func (s *storage) SetTxProof(unitID UnitID, txHash TxHash) (*Proof, error) {
+	var proof *Proof
+	err := s.db.Update(func(tx *bolt.Tx) error {
+		var err error
+		proof, err = s.getUnitBlockProof(tx, unitID, txHash)
+		return err
+	})
+	return proof, err
+}
+
+func (s *storage) GetFeeCreditBill(unitID UnitID) (*FeeCreditBill, error) {
+	var fcb *FeeCreditBill
+	err := s.db.View(func(tx *bolt.Tx) error {
+		fcbBytes := tx.Bucket(bucketFeeCredits).Get(unitID)
+		if fcbBytes == nil {
+			return nil
+		}
+		return json.Unmarshal(fcbBytes, &fcb)
+	})
+	return fcb, err
+}
+
+func (s *storage) SetFeeCreditBill(fcb *FeeCreditBill, proof *Proof) error {
+	return s.db.Update(func(tx *bolt.Tx) error {
+		// store proof in separate bucket, instead of part of fee credit bill,
+		// so that existing framework can be used for confirming fee credit txs
+		if proof != nil {
+			err := s.storeUnitBlockProof(tx, fcb.Id, fcb.TxHash, proof)
+			if err != nil {
+				return err
+			}
+		}
+		fcbBytes, err := json.Marshal(fcb)
+		if err != nil {
+			return err
+		}
+		return tx.Bucket(bucketFeeCredits).Put(fcb.Id, fcbBytes)
+	})
+}
+
 func (s *storage) getTokenType(tx *bolt.Tx, id TokenTypeID) (*TokenUnitType, error) {
 	var data []byte
 	if data = tx.Bucket(bucketTokenType).Get(id); data == nil {
@@ -370,7 +412,7 @@ func newBoltStore(dbFile string) (*storage, error) {
 	}
 	s := &storage{db: db}
 
-	if err := s.createBuckets(bucketMetadata, bucketTokenType, bucketTokenUnit, bucketTypeCreator, bucketTokenOwner, bucketTxHistory); err != nil {
+	if err := s.createBuckets(bucketMetadata, bucketTokenType, bucketTokenUnit, bucketTypeCreator, bucketTokenOwner, bucketTxHistory, bucketFeeCredits); err != nil {
 		return nil, fmt.Errorf("failed to create db buckets: %w", err)
 	}
 

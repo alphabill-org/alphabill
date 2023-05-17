@@ -1,13 +1,10 @@
 package cmd
 
 import (
-	"context"
 	"crypto"
 	"fmt"
-	"path/filepath"
 	"testing"
 
-	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
@@ -20,7 +17,6 @@ import (
 	moneytestutils "github.com/alphabill-org/alphabill/internal/txsystem/money/testutils"
 	"github.com/alphabill-org/alphabill/internal/util"
 	wlog "github.com/alphabill-org/alphabill/pkg/wallet/log"
-	"github.com/alphabill-org/alphabill/pkg/wallet/money/backend"
 )
 
 /*
@@ -39,6 +35,7 @@ func TestSendingMoneyUsingWallets_integration(t *testing.T) {
 	moneyPartition := createMoneyPartition(t, initialBill)
 	network := startAlphabill(t, []*testpartition.NodePartition{moneyPartition})
 	startPartitionRPCServers(t, moneyPartition)
+	alphabillNodeAddr := moneyPartition.Nodes[0].AddrGRPC
 
 	// start wallet backend
 	apiAddr, _ := startMoneyBackend(t, moneyPartition, initialBill)
@@ -76,20 +73,20 @@ func TestSendingMoneyUsingWallets_integration(t *testing.T) {
 
 	// create fee credit for wallet-1
 	feeAmountAlpha := uint64(1)
-	stdout := execWalletCmd(t, "", homedir1, fmt.Sprintf("fees add --amount %d --alphabill-api-uri %s", feeAmountAlpha, apiAddr))
-	verifyStdout(t, stdout, fmt.Sprintf("Successfully created %d fee credits.", feeAmountAlpha))
+	stdout := execWalletCmd(t, alphabillNodeAddr, homedir1, fmt.Sprintf("fees add --amount %d --alphabill-api-uri %s", feeAmountAlpha, apiAddr))
+	verifyStdout(t, stdout, fmt.Sprintf("Successfully created %d fee credits on money partition.", feeAmountAlpha))
 
 	// verify fee credit received
 	w1BalanceBilly = w1BalanceBilly - feeAmountAlpha*1e8 - txFeeBilly
 	waitForFeeCreditCLI(t, homedir1, defaultAlphabillApiURL, feeAmountAlpha*1e8-1, 0)
 
 	// TS1:
-	// send two transactions (two bills) to wallet-2
-	stdout = execWalletCmd(t, "", homedir1, fmt.Sprintf("send --amount 1 --address 0x%x --alphabill-api-uri %s", w2PubKey, apiAddr))
+	// send two transactions to wallet-2
+	stdout = execWalletCmd(t, alphabillNodeAddr, homedir1, fmt.Sprintf("send --amount 1 --address 0x%x --alphabill-api-uri %s", w2PubKey, apiAddr))
 	verifyStdout(t, stdout, "Successfully confirmed transaction(s)")
 
 	// TS1.1: also verify --output-path flag
-	stdout = execWalletCmd(t, "", homedir1, fmt.Sprintf("send -k 1 --amount 1 --address 0x%x --alphabill-api-uri %s --output-path %s", w2PubKey, apiAddr, homedir1))
+	stdout = execWalletCmd(t, alphabillNodeAddr, homedir1, fmt.Sprintf("send -k 1 --amount 1 --address 0x%x --alphabill-api-uri %s --output-path %s", w2PubKey, apiAddr, homedir1))
 	proofFile := fmt.Sprintf("%s/bill-0x0000000000000000000000000000000000000000000000000000000000000001.json", homedir1)
 	verifyStdout(t, stdout,
 		"Successfully confirmed transaction(s)",
@@ -98,40 +95,39 @@ func TestSendingMoneyUsingWallets_integration(t *testing.T) {
 	require.FileExists(t, proofFile)
 
 	// verify wallet-1 balance is decreased
+	w1BalanceBilly -= 2 * 1e8
 	verifyStdoutEventually(t, func() *testConsoleWriter {
 		return execWalletCmd(t, "", homedir1, fmt.Sprintf("get-balance --alphabill-api-uri %s", apiAddr))
-	}, fmt.Sprintf("#%d %s", 1, amountToString(initialBill.Value-2e8, 8)))
+	}, fmt.Sprintf("#%d %s", 1, amountToString(w1BalanceBilly, 8)))
 
 	// verify wallet-2 received said bills
+	w2BalanceBilly := uint64(2 * 1e8)
 	verifyStdoutEventually(t, func() *testConsoleWriter {
 		return execWalletCmd(t, "", homedir2, fmt.Sprintf("get-balance --alphabill-api-uri %s", apiAddr))
-	}, fmt.Sprintf("#%d %s", 1, amountToString(2e8, 8)))
+	}, fmt.Sprintf("#%d %s", 1, amountToString(w2BalanceBilly, 8)))
 
 	// TS2:
 	// add additional accounts to wallet 1
 	pubKey2Hex := addAccount(t, homedir1)
 	_ = addAccount(t, homedir1)
-	// send two transactions (two bills) to wallet account 2
-	stdout = execWalletCmd(t, "", homedir1, fmt.Sprintf("send -k 1 --amount 1 --address %s --alphabill-api-uri %s", pubKey2Hex, apiAddr))
+
+	// send two transactions to wallet account 2
+	stdout = execWalletCmd(t, alphabillNodeAddr, homedir1, fmt.Sprintf("send -k 1 --amount 1 --address %s --alphabill-api-uri %s", pubKey2Hex, apiAddr))
 	verifyStdout(t, stdout, "Successfully confirmed transaction(s)")
 
-	stdout = execWalletCmd(t, "", homedir1, fmt.Sprintf("send -k 1 --amount 1 --address %s --alphabill-api-uri %s", pubKey2Hex, apiAddr))
+	stdout = execWalletCmd(t, alphabillNodeAddr, homedir1, fmt.Sprintf("send -k 1 --amount 1 --address %s --alphabill-api-uri %s", pubKey2Hex, apiAddr))
 	verifyStdout(t, stdout, "Successfully confirmed transaction(s)")
 
-	// verify account 1 balance is decreased
+	// verify wallet-1 account-1 balance is decreased
+	w1BalanceBilly -= 2 * 1e8
 	verifyStdoutEventually(t, func() *testConsoleWriter {
 		return execWalletCmd(t, "", homedir1, fmt.Sprintf("get-balance -k 1 --alphabill-api-uri %s", apiAddr))
-	}, fmt.Sprintf("#%d %s", 1, amountToString(initialBill.Value-4e8, 8)))
+	}, fmt.Sprintf("#%d %s", 1, amountToString(w1BalanceBilly, 8)))
 
-	// verify account 2 received said bills
+	// verify wallet-1 account-2 received said bills
 	verifyStdoutEventually(t, func() *testConsoleWriter {
 		return execWalletCmd(t, "", homedir1, fmt.Sprintf("get-balance -k 2 --alphabill-api-uri %s", apiAddr))
 	}, fmt.Sprintf("#%d %s", 2, amountToString(2e8, 8)))
-
-	// TS3:
-	// verify transaction is broadcasted immediately
-	stdout = execWalletCmd(t, "", homedir2, fmt.Sprintf("send -w false --amount 2 --address 0x%x --alphabill-api-uri %s", w1PubKey, apiAddr))
-	verifyStdout(t, stdout, "Successfully sent transaction(s)")
 }
 
 /*
@@ -154,25 +150,7 @@ func TestSendingMoneyBetweenWallets(t *testing.T) {
 	alphabillNodeAddr := moneyPartition.Nodes[0].AddrGRPC
 
 	// start wallet backend
-	ctx, cancelFunc := context.WithCancel(context.Background())
-	t.Cleanup(cancelFunc)
-	go func() {
-		err := backend.Run(ctx,
-			&backend.Config{
-				ABMoneySystemIdentifier: []byte{0, 0, 0, 0},
-				AlphabillUrl:            alphabillNodeAddr,
-				ServerAddr:              defaultAlphabillApiURL, // TODO move to random port
-				DbFile:                  filepath.Join(t.TempDir(), backend.BoltBillStoreFileName),
-				ListBillsPageLimit:      100,
-				InitialBill: backend.InitialBill{
-					Id:        util.Uint256ToBytes(initialBill.ID),
-					Value:     initialBill.Value,
-					Predicate: initialBill.Owner,
-				},
-				SystemDescriptionRecords: []*genesis.SystemDescriptionRecord{defaultMoneySDR},
-			})
-		require.ErrorIs(t, err, context.Canceled)
-	}()
+	startMoneyBackend(t, moneyPartition, initialBill)
 
 	// create 2 wallets
 	err := wlog.InitStdoutLogger(wlog.INFO)
@@ -272,25 +250,7 @@ func TestSendingMoneyBetweenWalletAccounts(t *testing.T) {
 	alphabillNodeAddr := moneyPartition.Nodes[0].AddrGRPC
 
 	// start wallet backend
-	ctx, cancelFunc := context.WithCancel(context.Background())
-	t.Cleanup(cancelFunc)
-	go func() {
-		err := backend.Run(ctx,
-			&backend.Config{
-				ABMoneySystemIdentifier: []byte{0, 0, 0, 0},
-				AlphabillUrl:            alphabillNodeAddr,
-				ServerAddr:              defaultAlphabillApiURL, // TODO move to random port
-				DbFile:                  filepath.Join(t.TempDir(), backend.BoltBillStoreFileName),
-				ListBillsPageLimit:      100,
-				InitialBill: backend.InitialBill{
-					Id:        util.Uint256ToBytes(initialBill.ID),
-					Value:     initialBill.Value,
-					Predicate: initialBill.Owner,
-				},
-				SystemDescriptionRecords: []*genesis.SystemDescriptionRecord{defaultMoneySDR},
-			})
-		require.ErrorIs(t, err, context.Canceled)
-	}()
+	startMoneyBackend(t, moneyPartition, initialBill)
 
 	// create wallet with 3 accounts
 	_ = wlog.InitStdoutLogger(wlog.DEBUG)

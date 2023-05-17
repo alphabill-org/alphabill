@@ -33,7 +33,7 @@ var (
 
 func handleSwapDCTx(state *rma.Tree, hashAlgorithm crypto.Hash, trustBase map[string]abcrypto.Verifier, feeCalc fc.FeeCalculator) txsystem.GenericExecuteFunc[*swapDCWrapper] {
 	return func(tx *swapDCWrapper, currentBlockNumber uint64) error {
-		log.Debug("Processing swap %v", tx)
+		log.Debug("Processing swap %v", tx.transaction.ToLogString(log))
 
 		if err := validateSwapTx(tx, state, hashAlgorithm, trustBase); err != nil {
 			return fmt.Errorf("invalid swap transaction: %w", err)

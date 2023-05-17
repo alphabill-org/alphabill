@@ -12,7 +12,7 @@ import (
 
 func handleTransferTx(state *rma.Tree, hashAlgorithm crypto.Hash, feeCalc fc.FeeCalculator) txsystem.GenericExecuteFunc[*transferWrapper] {
 	return func(tx *transferWrapper, currentBlockNumber uint64) error {
-		log.Debug("Processing transfer %v", tx)
+		log.Debug("Processing transfer %v", tx.transaction.ToLogString(log))
 
 		if err := validateTransferTx(tx, state); err != nil {
 			return fmt.Errorf("invalid transfer tx: %w", err)

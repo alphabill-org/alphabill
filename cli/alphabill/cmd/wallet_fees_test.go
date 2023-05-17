@@ -8,20 +8,34 @@ import (
 	"testing"
 	"time"
 
+	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/internal/script"
 	testpartition "github.com/alphabill-org/alphabill/internal/testutils/partition"
-	moneytx "github.com/alphabill-org/alphabill/internal/txsystem/money"
+	"github.com/alphabill-org/alphabill/internal/txsystem/money"
+	"github.com/alphabill-org/alphabill/internal/txsystem/tokens"
 	"github.com/alphabill-org/alphabill/internal/util"
+	wlog "github.com/alphabill-org/alphabill/pkg/wallet/log"
 	"github.com/alphabill-org/alphabill/pkg/wallet/money/backend"
 	moneyclient "github.com/alphabill-org/alphabill/pkg/wallet/money/backend/client"
-	wlog "github.com/alphabill-org/alphabill/pkg/wallet/log"
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
 )
 
+var defaultTokenSDR = &genesis.SystemDescriptionRecord{
+	SystemIdentifier: tokens.DefaultSystemIdentifier,
+	T2Timeout:        defaultT2Timeout,
+	FeeCreditBill: &genesis.FeeCreditBill{
+		UnitId:         util.Uint256ToBytes(uint256.NewInt(4)),
+		OwnerPredicate: script.PredicateAlwaysTrue(),
+	},
+}
+
 func TestWalletFeesCmds_MoneyPartition(t *testing.T) {
-	homedir, abPartition := setupMoneyInfraAndWallet(t)
-	abNodeAddrFlag := "-u " + abPartition.Nodes[0].AddrGRPC
+	homedir, abPartition := setupMoneyInfraAndWallet(t, []*testpartition.NodePartition{})
+	// get money
+	moneyPartition, err := abPartition.GetNodePartition(money.DefaultSystemIdentifier)
+	require.NoError(t, err)
+	abNodeAddrFlag := "-u " + moneyPartition.Nodes[0].AddrGRPC
 
 	// list fees
 	stdout, err := execFeesCommand(homedir, "list")
@@ -69,13 +83,18 @@ func TestWalletFeesCmds_MoneyPartition(t *testing.T) {
 }
 
 func TestWalletFeesCmds_TokenPartition(t *testing.T) {
-	// start money partition and create wallet
-	homedir, moneyPartition := setupMoneyInfraAndWallet(t)
+	// start money partition and create wallet with token partition as well
+	tokensPartition := createTokensPartition(t)
+	homedir, abNet := setupMoneyInfraAndWallet(t, []*testpartition.NodePartition{tokensPartition})
+	// get money
+	moneyPartition, err := abNet.GetNodePartition(money.DefaultSystemIdentifier)
+	require.NoError(t, err)
 	moneyNodeURL := moneyPartition.Nodes[0].AddrGRPC
 
 	// start token partition
-	_, tokenNodeURL := startTokensPartition(t, testpartition.WithRootPartition(moneyPartition.RootPartition))
-	tokenBackendURL, _, _ := startTokensBackend(t, tokenNodeURL)
+	startPartitionRPCServers(t, tokensPartition)
+
+	tokenBackendURL, _, _ := startTokensBackend(t, tokensPartition.Nodes[0].AddrGRPC)
 	args := fmt.Sprintf("--partition=tokens -r %s -u %s -m %s", defaultAlphabillApiURL, moneyNodeURL, tokenBackendURL)
 
 	// list fees on token partition
@@ -127,15 +146,20 @@ func execFeesCommand(homeDir, command string) (*testConsoleWriter, error) {
 
 // setupMoneyInfraAndWallet starts money partiton and wallet backend and sends initial bill to wallet.
 // Returns wallet homedir and reference to money partition object.
-func setupMoneyInfraAndWallet(t *testing.T) (string, *testpartition.AlphabillPartition) {
-	initialBill := &moneytx.InitialBill{
+func setupMoneyInfraAndWallet(t *testing.T, otherPartitions []*testpartition.NodePartition) (string, *testpartition.AlphabillNetwork) {
+	initialBill := &money.InitialBill{
 		ID:    uint256.NewInt(1),
 		Value: 1e18,
 		Owner: script.PredicateAlwaysTrue(),
 	}
-	network := startMoneyPartition(t, initialBill)
+	moneyPartition := createMoneyPartition(t, initialBill)
+	nodePartitions := []*testpartition.NodePartition{moneyPartition}
+	nodePartitions = append(nodePartitions, otherPartitions...)
+	abNet := startAlphabill(t, nodePartitions)
 
-	startMoneyBackend(t, network, initialBill)
+	startPartitionRPCServers(t, moneyPartition)
+
+	startMoneyBackend(t, moneyPartition, initialBill)
 
 	// create wallet
 	wlog.InitStdoutLogger(wlog.DEBUG)
@@ -146,22 +170,22 @@ func setupMoneyInfraAndWallet(t *testing.T) (string, *testpartition.AlphabillPar
 	pk, _ := strings.CutPrefix(stdout.lines[0], "#1 ")
 
 	// transfer initial bill to wallet pubkey
-	spendInitialBillWithFeeCredits(t, network, initialBill, pk)
+	spendInitialBillWithFeeCredits(t, abNet, initialBill, pk)
 
 	// wait for initial bill tx
 	waitForBalanceCLI(t, homedir, defaultAlphabillApiURL, initialBill.Value-3, 0) // initial bill minus txfees
 
-	return homedir, network
+	return homedir, abNet
 }
 
-func startMoneyBackend(t *testing.T, network *testpartition.AlphabillPartition, initialBill *moneytx.InitialBill) (string, *moneyclient.MoneyBackendClient) {
+func startMoneyBackend(t *testing.T, moneyPart *testpartition.NodePartition, initialBill *money.InitialBill) (string, *moneyclient.MoneyBackendClient) {
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	t.Cleanup(cancelFunc)
 	go func() {
 		err := backend.Run(ctx,
 			&backend.Config{
-				ABMoneySystemIdentifier: []byte{0, 0, 0, 0},
-				AlphabillUrl:            network.Nodes[0].AddrGRPC,
+				ABMoneySystemIdentifier: money.DefaultSystemIdentifier,
+				AlphabillUrl:            moneyPart.Nodes[0].AddrGRPC,
 				ServerAddr:              defaultAlphabillApiURL, // TODO move to random port
 				DbFile:                  filepath.Join(t.TempDir(), backend.BoltBillStoreFileName),
 				ListBillsPageLimit:      100,
@@ -170,6 +194,7 @@ func startMoneyBackend(t *testing.T, network *testpartition.AlphabillPartition, 
 					Value:     initialBill.Value,
 					Predicate: script.PredicateAlwaysTrue(),
 				},
+				SystemDescriptionRecords: []*genesis.SystemDescriptionRecord{defaultMoneySDR, defaultTokenSDR},
 			})
 		require.ErrorIs(t, err, context.Canceled)
 	}()

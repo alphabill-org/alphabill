@@ -21,7 +21,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/internal/txsystem/fc"
 	"github.com/alphabill-org/alphabill/internal/txsystem/fc/transactions"
-	moneytx "github.com/alphabill-org/alphabill/internal/txsystem/money"
+	"github.com/alphabill-org/alphabill/internal/txsystem/money"
 	utiltx "github.com/alphabill-org/alphabill/internal/txsystem/util"
 	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/alphabill-org/alphabill/pkg/wallet/money/backend/client"
@@ -211,7 +211,7 @@ func TestWalletBillsExportCmd_ShowUnswappedFlag(t *testing.T) {
 	mockServer.Close()
 }
 
-func spendInitialBillWithFeeCredits(t *testing.T, network *testpartition.AlphabillPartition, initialBill *moneytx.InitialBill, pubkey string) uint64 {
+func spendInitialBillWithFeeCredits(t *testing.T, abNet *testpartition.AlphabillNetwork, initialBill *money.InitialBill, pubkey string) uint64 {
 	pubkeyBytes, _ := hexutil.Decode(pubkey)
 	pubkeyHash := hash.Sum256(pubkeyBytes)
 	absoluteTimeout := uint64(10000)
@@ -220,28 +220,29 @@ func spendInitialBillWithFeeCredits(t *testing.T, network *testpartition.Alphabi
 	feeAmount := uint64(2)
 	fcrID := utiltx.SameShardIDBytes(initialBill.ID, pubkeyHash)
 	unitID := util.Uint256ToBytes(initialBill.ID)
-
+	moneyPart, err := abNet.GetNodePartition(money.DefaultSystemIdentifier)
+	require.NoError(t, err)
 	// create transferFC
 	transferFC, err := createTransferFC(feeAmount, unitID, fcrID, 0, absoluteTimeout)
 	require.NoError(t, err)
 	// send transferFC
-	err = network.SubmitTx(transferFC)
+	err = moneyPart.SubmitTx(transferFC)
 	require.NoError(t, err)
-	require.Eventually(t, testpartition.BlockchainContainsTx(transferFC, network), test.WaitDuration, test.WaitTick)
-	transferFCProof := getBlockProof(t, transferFC, network)
+	require.Eventually(t, testpartition.BlockchainContainsTx(moneyPart, transferFC), test.WaitDuration, test.WaitTick)
+	transferFCProof := getBlockProof(t, transferFC, moneyPart)
 
 	// verify proof
-	gtx, err := moneytx.NewMoneyTx([]byte{0, 0, 0, 0}, transferFC)
+	gtx, err := money.NewMoneyTx([]byte{0, 0, 0, 0}, transferFC)
 	require.NoError(t, err)
-	require.NoError(t, transferFCProof.Verify(unitID, gtx, network.RootPartition.TrustBase, crypto.SHA256))
+	require.NoError(t, transferFCProof.Verify(unitID, gtx, abNet.RootPartition.TrustBase, crypto.SHA256))
 
 	// create addFC
 	addFC, err := createAddFC(fcrID, script.PredicateAlwaysTrue(), transferFC, transferFCProof, absoluteTimeout, feeAmount)
 	require.NoError(t, err)
 	// send addFC
-	err = network.SubmitTx(addFC)
+	err = moneyPart.SubmitTx(addFC)
 	require.NoError(t, err)
-	require.Eventually(t, testpartition.BlockchainContainsTx(addFC, network), test.WaitDuration, test.WaitTick)
+	require.Eventually(t, testpartition.BlockchainContainsTx(moneyPart, addFC), test.WaitDuration, test.WaitTick)
 
 	// create transfer tx
 	transferFCWrapper, err := transactions.NewFeeCreditTx(transferFC)
@@ -251,9 +252,9 @@ func spendInitialBillWithFeeCredits(t *testing.T, network *testpartition.Alphabi
 	require.NoError(t, err)
 
 	// send transfer tx
-	err = network.SubmitTx(tx)
+	err = moneyPart.SubmitTx(tx)
 	require.NoError(t, err)
-	require.Eventually(t, testpartition.BlockchainContainsTx(tx, network), test.WaitDuration, test.WaitTick)
+	require.Eventually(t, testpartition.BlockchainContainsTx(moneyPart, tx), test.WaitDuration, test.WaitTick)
 
 	return remainingValue
 }
@@ -270,7 +271,7 @@ func createTransferTx(pubKey []byte, billId []byte, billValue uint64, fcrID []by
 			FeeCreditRecordId: fcrID,
 		},
 	}
-	err := anypb.MarshalFrom(tx.TransactionAttributes, &moneytx.TransferAttributes{
+	err := anypb.MarshalFrom(tx.TransactionAttributes, &money.TransferAttributes{
 		NewBearer:   script.PredicatePayToPublicKeyHashDefault(hash.Sum256(pubKey)),
 		TargetValue: billValue,
 		Backlink:    backlink,
@@ -327,12 +328,12 @@ func createAddFC(unitID []byte, ownerCondition []byte, transferFC *txsystem.Tran
 	return tx, nil
 }
 
-func getBlockProof(t *testing.T, tx *txsystem.Transaction, network *testpartition.AlphabillPartition) *block.BlockProof {
+func getBlockProof(t *testing.T, tx *txsystem.Transaction, partition *testpartition.NodePartition) *block.BlockProof {
 	// create adapter for conversion interface
 	txConverter := func(tx *txsystem.Transaction) (txsystem.GenericTransaction, error) {
-		return moneytx.NewMoneyTx([]byte{0, 0, 0, 0}, tx)
+		return money.NewMoneyTx([]byte{0, 0, 0, 0}, tx)
 	}
-	_, ttt, err := network.GetBlockProof(tx, txConverter)
+	_, ttt, err := partition.GetBlockProof(tx, txConverter)
 	require.NoError(t, err)
 	return ttt
 }

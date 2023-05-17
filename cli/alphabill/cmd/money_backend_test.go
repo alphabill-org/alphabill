@@ -11,6 +11,7 @@ import (
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	testhttp "github.com/alphabill-org/alphabill/internal/testutils/http"
 	"github.com/alphabill-org/alphabill/internal/testutils/net"
+	testpartition "github.com/alphabill-org/alphabill/internal/testutils/partition"
 	moneytx "github.com/alphabill-org/alphabill/internal/txsystem/money"
 	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/alphabill-org/alphabill/pkg/wallet/backend/bp"
@@ -31,12 +32,14 @@ func TestMoneyBackendCLI(t *testing.T) {
 	}
 	initialBillID := util.Uint256ToBytes(initialBill.ID)
 	initialBillHex := hexutil.Encode(initialBillID)
-	network := startMoneyPartition(t, initialBill)
-	alphabillNodeAddr := network.Nodes[0].AddrGRPC
+	moneyPartition := createMoneyPartition(t, initialBill)
+	abNet := startAlphabill(t, []*testpartition.NodePartition{moneyPartition})
+	startPartitionRPCServers(t, moneyPartition)
+	alphabillNodeAddr := moneyPartition.Nodes[0].AddrGRPC
 
 	// transfer initial bill to wallet pubkey
 	pk := "0x03c30573dc0c7fd43fcb801289a6a96cb78c27f4ba398b89da91ece23e9a99aca3"
-	initialBillValue := spendInitialBillWithFeeCredits(t, network, initialBill, pk)
+	initialBillValue := spendInitialBillWithFeeCredits(t, abNet, initialBill, pk)
 
 	// start wallet-backend service
 	homedir := setupTestHomeDir(t, "money-backend-test")

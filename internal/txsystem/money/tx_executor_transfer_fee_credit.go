@@ -24,7 +24,7 @@ var (
 
 func handleTransferFeeCreditTx(state *rma.Tree, hashAlgorithm crypto.Hash, feeCreditTxRecorder *feeCreditTxRecorder, feeCalc fc.FeeCalculator) txsystem.GenericExecuteFunc[*transactions.TransferFeeCreditWrapper] {
 	return func(tx *transactions.TransferFeeCreditWrapper, currentBlockNumber uint64) error {
-		log.Debug("Processing transferFC %v", tx)
+		log.Debug("Processing transferFC %v", tx.Transaction.ToLogString(log))
 		unit, _ := state.GetUnit(tx.UnitID())
 		if unit == nil {
 			return errors.New("transferFC: unit not found")

@@ -16,6 +16,7 @@ import (
 
 	"github.com/ainvaltin/httpsrv"
 	"github.com/alphabill-org/alphabill/internal/block"
+	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/internal/script"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/pkg/client"
@@ -93,6 +94,8 @@ type (
 		DeleteExpiredBills(blockNumber uint64) error
 		GetFeeCreditBill(unitID []byte) (*Bill, error)
 		SetFeeCreditBill(fcb *Bill) error
+		GetSystemDescriptionRecords() ([]*genesis.SystemDescriptionRecord, error)
+		SetSystemDescriptionRecords(sdrs []*genesis.SystemDescriptionRecord) error
 	}
 
 	p2pkhOwnerPredicates struct {
@@ -101,12 +104,13 @@ type (
 	}
 
 	Config struct {
-		ABMoneySystemIdentifier []byte
-		AlphabillUrl            string
-		ServerAddr              string
-		DbFile                  string
-		ListBillsPageLimit      int
-		InitialBill             InitialBill
+		ABMoneySystemIdentifier  []byte
+		AlphabillUrl             string
+		ServerAddr               string
+		DbFile                   string
+		ListBillsPageLimit       int
+		InitialBill              InitialBill
+		SystemDescriptionRecords []*genesis.SystemDescriptionRecord
 	}
 
 	InitialBill struct {
@@ -122,7 +126,9 @@ func Run(ctx context.Context, config *Config) error {
 		return fmt.Errorf("failed to get storage: %w", err)
 	}
 
-	// store initial bill if first run to avoid some edge cases
+	// if first run:
+	// store initial bill to avoid some edge cases
+	// store system description records and partition fee bills to avoid providing them every run
 	err = store.WithTransaction(func(txc BillStoreTx) error {
 		blockNumber, err := txc.GetBlockNumber()
 		if err != nil {
@@ -132,11 +138,29 @@ func Run(ctx context.Context, config *Config) error {
 			return nil
 		}
 		ib := config.InitialBill
-		return txc.SetBill(&Bill{
+		err = txc.SetBill(&Bill{
 			Id:             ib.Id,
 			Value:          ib.Value,
 			OwnerPredicate: ib.Predicate,
 		})
+		if err != nil {
+			return fmt.Errorf("failed to store initial bill: %w", err)
+		}
+
+		err = txc.SetSystemDescriptionRecords(config.SystemDescriptionRecords)
+		if err != nil {
+			return fmt.Errorf("failed to store system description records: %w", err)
+		}
+		for _, sdr := range config.SystemDescriptionRecords {
+			err = txc.SetBill(&Bill{
+				Id:             sdr.FeeCreditBill.UnitId,
+				OwnerPredicate: sdr.FeeCreditBill.OwnerPredicate,
+			})
+			if err != nil {
+				return err
+			}
+		}
+		return nil
 	})
 	if err != nil {
 		return err
@@ -164,13 +188,16 @@ func Run(ctx context.Context, config *Config) error {
 	})
 
 	g.Go(func() error {
-		bp := NewBlockProcessor(store, NewTxConverter(config.ABMoneySystemIdentifier))
+		blockProcessor, err := NewBlockProcessor(store, NewTxConverter(config.ABMoneySystemIdentifier), config.ABMoneySystemIdentifier)
+		if err != nil {
+			return fmt.Errorf("failed to create block processor: %w", err)
+		}
 		getBlockNumber := func() (uint64, error) { return store.Do().GetBlockNumber() }
 		// we act as if all errors returned by block sync are recoverable ie we
 		// just retry in a loop until ctx is cancelled
 		for {
 			wlog.Debug("starting block sync")
-			err := runBlockSync(ctx, abc.GetBlocks, getBlockNumber, 100, bp.ProcessBlock)
+			err := runBlockSync(ctx, abc.GetBlocks, getBlockNumber, 100, blockProcessor.ProcessBlock)
 			if err != nil {
 				wlog.Error("synchronizing blocks returned error: ", err)
 			}

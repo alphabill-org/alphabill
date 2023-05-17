@@ -14,11 +14,11 @@ import (
 	"github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/alphabill-org/alphabill/pkg/wallet/account"
 	"github.com/alphabill-org/alphabill/pkg/wallet/backend/bp"
-	moneyclient "github.com/alphabill-org/alphabill/pkg/wallet/money/backend/client"
 	"github.com/alphabill-org/alphabill/pkg/wallet/fees"
 	moneywallet "github.com/alphabill-org/alphabill/pkg/wallet/money"
+	moneyclient "github.com/alphabill-org/alphabill/pkg/wallet/money/backend/client"
 	tokenswallet "github.com/alphabill-org/alphabill/pkg/wallet/tokens"
-	tokenclient "github.com/alphabill-org/alphabill/pkg/wallet/tokens/client"
+	tokensclient "github.com/alphabill-org/alphabill/pkg/wallet/tokens/client"
 	"github.com/spf13/cobra"
 )
 
@@ -201,8 +201,8 @@ func reclaimFeeCreditCmdExec(ctx context.Context, cmd *cobra.Command, config *wa
 
 type FeeCreditManager interface {
 	GetFeeCreditBill(ctx context.Context, cmd fees.GetFeeCreditCmd) (*bp.Bill, error)
-	AddFeeCredit(ctx context.Context, cmd fees.AddFeeCmd) (*block.TxProof, error)
-	ReclaimFeeCredit(ctx context.Context, cmd fees.ReclaimFeeCmd) (*block.TxProof, error)
+	AddFeeCredit(ctx context.Context, cmd fees.AddFeeCmd) ([]*block.TxProof, error)
+	ReclaimFeeCredit(ctx context.Context, cmd fees.ReclaimFeeCmd) ([]*block.TxProof, error)
 }
 
 func listFees(ctx context.Context, accountNumber uint64, am account.Manager, c *cliConf, w FeeCreditManager) error {
@@ -239,7 +239,7 @@ func addFees(ctx context.Context, accountNumber uint64, amountString string, c *
 	if err != nil {
 		return err
 	}
-	_, err = w.AddFeeCredit(ctx, fees.AddFeeCmd{
+	proofs, err := w.AddFeeCredit(ctx, fees.AddFeeCmd{
 		Amount:       amount,
 		AccountIndex: accountNumber - 1,
 	})
@@ -247,17 +247,21 @@ func addFees(ctx context.Context, accountNumber uint64, amountString string, c *
 		return err
 	}
 	consoleWriter.Println("Successfully created", amountString, "fee credits on", c.partitionType, "partition.")
+	consoleWriter.Println("Paid", amountToString(proofs[0].Tx.ServerMetadata.Fee, 8), "fee for TransferFC transaction from wallet balance.")
+	consoleWriter.Println("Paid", amountToString(proofs[1].Tx.ServerMetadata.Fee, 8), "fee for addFC transaction from fee credit balance.")
 	return nil
 }
 
 func reclaimFees(ctx context.Context, accountNumber uint64, c *cliConf, w FeeCreditManager) error {
-	_, err := w.ReclaimFeeCredit(ctx, fees.ReclaimFeeCmd{
+	proofs, err := w.ReclaimFeeCredit(ctx, fees.ReclaimFeeCmd{
 		AccountIndex: accountNumber - 1,
 	})
 	if err != nil {
 		return err
 	}
 	consoleWriter.Println("Successfully reclaimed fee credits on", c.partitionType, "partition.")
+	consoleWriter.Println("Paid", amountToString(proofs[0].Tx.ServerMetadata.Fee, 8), "fee for closeFC transaction from fee credit balance.")
+	consoleWriter.Println("Paid", amountToString(proofs[1].Tx.ServerMetadata.Fee, 8), "fee for reclaimFC transaction from wallet balance.")
 	return nil
 }
 
@@ -296,7 +300,7 @@ func getFeeCreditManager(c *cliConf, am account.Manager, genericWallet *wallet.W
 		if err != nil {
 			return nil, err
 		}
-		tokenBackendClient := tokenclient.New(*addr)
+		tokenBackendClient := tokensclient.New(*addr)
 
 		txs, err := tokens.NewTxSystem(
 			tokens.WithSystemIdentifier(tokens.DefaultSystemIdentifier),

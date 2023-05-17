@@ -14,7 +14,7 @@ import (
 
 func handleTransferFungibleTokenTx(options *Options) txsystem.GenericExecuteFunc[*transferFungibleTokenWrapper] {
 	return func(tx *transferFungibleTokenWrapper, currentBlockNr uint64) error {
-		logger.Debug("Processing Transfer Fungible Token tx: %v", tx)
+		logger.Debug("Processing Transfer Fungible Token tx: %v", tx.transaction.ToLogString(logger))
 		if err := validateTransferFungibleToken(tx, options.state); err != nil {
 			return fmt.Errorf("invalid transfer fungible token tx: %w", err)
 		}

@@ -283,7 +283,7 @@ func (w *Wallet) TransferNFT(ctx context.Context, accountNumber uint64, tokenId 
 		return err
 	}
 	attrs := newNonFungibleTransferTxAttrs(token, receiverPubKey)
-	sub, err := w.prepareTx(ctx, wallet.UnitID(tokenId), attrs, key, func(tx *txsystem.Transaction, gtx txsystem.GenericTransaction) error {
+	sub, err := w.prepareTxSubmission(ctx, wallet.UnitID(tokenId), attrs, key, func(tx *txsystem.Transaction, gtx txsystem.GenericTransaction) error {
 		signatures, err := preparePredicateSignatures(w.am, invariantPredicateArgs, gtx)
 		if err != nil {
 			return err
@@ -381,7 +381,7 @@ func (w *Wallet) UpdateNFTData(ctx context.Context, accountNumber uint64, tokenI
 		DataUpdateSignatures: nil,
 	}
 
-	sub, err := w.prepareTx(ctx, tokenId, attrs, acc, func(tx *txsystem.Transaction, gtx txsystem.GenericTransaction) error {
+	sub, err := w.prepareTxSubmission(ctx, tokenId, attrs, acc, func(tx *txsystem.Transaction, gtx txsystem.GenericTransaction) error {
 		signatures, err := preparePredicateSignatures(w.am, updatePredicateArgs, gtx)
 		if err != nil {
 			return err
@@ -438,7 +438,7 @@ func (w *Wallet) collectDust(ctx context.Context, acc *account.AccountKey, allow
 		for i := 1; i < len(v); i++ {
 			token := v[i]
 			attrs := newBurnTxAttrs(token, targetToken.TxHash)
-			sub, err := w.prepareTx(ctx, wallet.UnitID(token.ID), attrs, acc, func(tx *txsystem.Transaction, gtx txsystem.GenericTransaction) error {
+			sub, err := w.prepareTxSubmission(ctx, wallet.UnitID(token.ID), attrs, acc, func(tx *txsystem.Transaction, gtx txsystem.GenericTransaction) error {
 				signatures, err := preparePredicateSignatures(w.GetAccountManager(), invariantPredicateArgs, gtx)
 				if err != nil {
 					return err
@@ -469,7 +469,7 @@ func (w *Wallet) collectDust(ctx context.Context, acc *account.AccountKey, allow
 			InvariantPredicateSignatures: nil,
 		}
 
-		sub, err := w.prepareTx(ctx, wallet.UnitID(targetToken.ID), joinAttrs, acc, func(tx *txsystem.Transaction, gtx txsystem.GenericTransaction) error {
+		sub, err := w.prepareTxSubmission(ctx, wallet.UnitID(targetToken.ID), joinAttrs, acc, func(tx *txsystem.Transaction, gtx txsystem.GenericTransaction) error {
 			signatures, err := preparePredicateSignatures(w.GetAccountManager(), invariantPredicateArgs, gtx)
 			if err != nil {
 				return err
@@ -575,7 +575,7 @@ func (w *Wallet) ReclaimFeeCredit(ctx context.Context, cmd fees.ReclaimFeeCmd) (
 //	if err != nil {
 //		return nil, err
 //	}
-//	// TODO txhash should not rely on server metadata
+//	// TODO should not rely on server metadata
 //	gtx.SetServerMetadata(&txsystem.ServerMetadata{Fee: 1})
 //	txSub := &txSubmission{
 //		id:     tx.UnitId,

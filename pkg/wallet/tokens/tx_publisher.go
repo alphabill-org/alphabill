@@ -34,7 +34,7 @@ func (w *TxPublisher) SendTx(ctx context.Context, tx *txsystem.Transaction, send
 	if err != nil {
 		return nil, err
 	}
-	// TODO txhash should not rely on server metadata
+	// TODO should not rely on server metadata
 	gtx.SetServerMetadata(&txsystem.ServerMetadata{Fee: 1})
 	txSub := &txsubmitter.TxSubmission{
 		UnitID:      tx.UnitId,

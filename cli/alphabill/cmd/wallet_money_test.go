@@ -252,6 +252,33 @@ func startRPCServer(t *testing.T, node *partition.Node) string {
 	return listener.Addr().String()
 }
 
+//func startMoneyBackend(t *testing.T, nodeAddr string, initialBill *moneytx.InitialBill) string {
+//	apiPort := netutil.GetFreeRandomPort(t)
+//	apiAddr := fmt.Sprintf("localhost:%v", apiPort)
+//
+//	ctx, cancel := context.WithCancel(context.Background())
+//	t.Cleanup(cancel)
+//
+//	go func() {
+//		err := indexer.CreateAndRun(ctx, &indexer.Config{
+//			ABMoneySystemIdentifier: defaultABMoneySystemIdentifier,
+//			AlphabillUrl:            nodeAddr,
+//			ServerAddr:              apiAddr,
+//			DbFile:                  fmt.Sprintf("%s/backend.db", t.TempDir()),
+//			ListBillsPageLimit:      100,
+//			InitialBill: indexer.InitialBill{
+//				Id:        util.Uint256ToBytes(initialBill.ID),
+//				Value:     initialBill.Value,
+//				Predicate: initialBill.Owner,
+//			},
+//		})
+//		wlog.Info("backend stopped")
+//		require.NoError(t, err)
+//	}()
+//
+//	return apiAddr
+//}
+
 // addAccount calls "add-key" cli function on given wallet and returns the added pubkey hex
 func addAccount(t *testing.T, homedir string) string {
 	stdout := execWalletCmd(t, "", homedir, "add-key")

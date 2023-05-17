@@ -17,7 +17,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/txsystem/fc/transactions"
 	billtx "github.com/alphabill-org/alphabill/internal/txsystem/money"
 	"github.com/alphabill-org/alphabill/internal/txsystem/util"
-	"github.com/alphabill-org/alphabill/pkg/wallet/money"
+	"github.com/alphabill-org/alphabill/pkg/wallet/money/tx_builder"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/holiman/uint256"
 	"google.golang.org/grpc"
@@ -29,7 +29,7 @@ import (
 
 /*
 Example usage
-go run scripts/money/spend_initial_bill.go --pubkey 0x03c30573dc0c7fd43fcb801289a6a96cb78c27f4ba398b89da91ece23e9a99aca3 --alphabill-uri localhost:9543 --bill-id 1 --bill-value 1000000 --timeout 10
+go run scripts/money/spend_initial_bill.go --pubkey 0x0212911c7341399e876800a268855c894c43eb849a72ac5a9d26a0091041c107f0 --alphabill-uri localhost:26766 --bill-id 1 --bill-value 1000000000000000000 --timeout 100
 */
 func main() {
 	// parse command line parameters
@@ -221,7 +221,7 @@ func createTransferTx(pubKey []byte, unitID []byte, billValue uint64, fcrID []by
 }
 
 func waitForConfirmation(ctx context.Context, abClient alphabill.AlphabillServiceClient, pendingTx *txsystem.Transaction, latestRoundNumber, timeout uint64) (*block.BlockProof, error) {
-	txConverter := money.NewTxConverter([]byte{0, 0, 0, 0})
+	txConverter := tx_builder.NewTxConverter([]byte{0, 0, 0, 0})
 	for latestRoundNumber <= timeout {
 		res, err := abClient.GetBlock(ctx, &alphabill.GetBlockRequest{BlockNo: latestRoundNumber})
 		if err != nil {

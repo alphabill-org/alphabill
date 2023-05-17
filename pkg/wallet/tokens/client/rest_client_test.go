@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	"github.com/alphabill-org/alphabill/internal/block"
+	"github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/encoding/protojson"
@@ -533,7 +534,7 @@ func Test_GetTxProof(t *testing.T) {
 	unitID := test.RandomBytes(32)
 	txHash := test.RandomBytes(32)
 
-	createClient := func(t *testing.T, proof *backend.Proof) *TokenBackend {
+	createClient := func(t *testing.T, proof *wallet.Proof) *TokenBackend {
 		return &TokenBackend{
 			addr: url.URL{Scheme: "http", Host: "localhost"},
 			hc: &http.Client{Transport: &mockRoundTripper{
@@ -565,7 +566,7 @@ func Test_GetTxProof(t *testing.T) {
 	}
 
 	t.Run("valid proof returned", func(t *testing.T) {
-		proof := &backend.Proof{
+		proof := &wallet.Proof{
 			BlockNumber: 1,
 			Tx:          &txsystem.Transaction{UnitId: unitID},
 			Proof:       &block.BlockProof{TransactionsHash: txHash},

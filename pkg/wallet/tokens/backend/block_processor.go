@@ -13,13 +13,16 @@ import (
 	"github.com/alphabill-org/alphabill/internal/txsystem/tokens"
 	txutil "github.com/alphabill-org/alphabill/internal/txsystem/util"
 	"github.com/alphabill-org/alphabill/internal/util"
+	"github.com/alphabill-org/alphabill/pkg/wallet"
+	"github.com/alphabill-org/alphabill/pkg/wallet/broker"
 	"github.com/alphabill-org/alphabill/pkg/wallet/log"
 )
 
 type blockProcessor struct {
-	store Storage
-	txs   txsystem.TransactionSystem
-	log   log.Logger
+	store  Storage
+	txs    txsystem.TransactionSystem
+	notify func(bearerPredicate []byte, msg broker.Message)
+	log    log.Logger
 }
 
 func (p *blockProcessor) ProcessBlock(ctx context.Context, b *block.Block) error {
@@ -271,21 +274,22 @@ func (p *blockProcessor) processTx(inTx *txsystem.Transaction, b *block.Block) e
 	}
 }
 
-func (p *blockProcessor) saveTokenType(unit *TokenUnitType, proof *Proof) error {
+func (p *blockProcessor) saveTokenType(unit *TokenUnitType, proof *wallet.Proof) error {
 	if err := p.store.SaveTokenType(unit, proof); err != nil {
 		return fmt.Errorf("failed to store token type: %w", err)
 	}
 	return nil
 }
 
-func (p *blockProcessor) saveToken(unit *TokenUnit, proof *Proof) error {
+func (p *blockProcessor) saveToken(unit *TokenUnit, proof *wallet.Proof) error {
 	if err := p.store.SaveToken(unit, proof); err != nil {
 		return fmt.Errorf("failed to store token: %w", err)
 	}
+	p.notify(unit.Owner, unit)
 	return nil
 }
 
-func (p *blockProcessor) createProof(unitID UnitID, b *block.Block, tx *txsystem.Transaction) (*Proof, error) {
+func (p *blockProcessor) createProof(unitID wallet.UnitID, b *block.Block, tx *txsystem.Transaction) (*wallet.Proof, error) {
 	if b == nil {
 		return nil, nil
 	}
@@ -297,7 +301,7 @@ func (p *blockProcessor) createProof(unitID UnitID, b *block.Block, tx *txsystem
 	if err != nil {
 		return nil, fmt.Errorf("failed to create primary proof for the block: %w", err)
 	}
-	return &Proof{
+	return &wallet.Proof{
 		BlockNumber: b.UnicityCertificate.InputRecord.RoundNumber,
 		Tx:          tx,
 		Proof:       proof,

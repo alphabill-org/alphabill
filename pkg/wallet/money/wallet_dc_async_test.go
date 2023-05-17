@@ -27,7 +27,7 @@ func TestDcJobWithExistingDcBills(t *testing.T) {
 	billsList := createBillListJsonResponse(bills)
 	proofList := createBlockProofJsonResponse(t, bills, nonce, 0, dcTimeoutBlockCount, k)
 	proofList = append(proofList, createBlockProofJsonResponse(t, bills, nonce, 0, dcTimeoutBlockCount, k)...)
-	w, mockClient := CreateTestWalletWithManager(t, &backendMockReturnConf{
+	w, mockClient := CreateTestWalletWithManager(t, withBackendMock(t, &backendMockReturnConf{
 		balance:        3,
 		customBillList: billsList,
 		proofList:      proofList,
@@ -36,7 +36,7 @@ func TestDcJobWithExistingDcBills(t *testing.T) {
 			Value:   100 * 1e8,
 			TxProof: &block.TxProof{},
 		},
-	}, am)
+	}), am)
 	mockClient.SetMaxBlockNumber(100)
 
 	// when dust collector runs
@@ -69,7 +69,7 @@ func TestDcJobWithExistingDcAndNonDcBills(t *testing.T) {
 	billsList := createBillListJsonResponse([]*Bill{bill, dc})
 	proofList := createBlockProofJsonResponse(t, []*Bill{bill, dc}, nonce, 0, dcTimeoutBlockCount, k)
 
-	w, mockClient := CreateTestWalletWithManager(t, &backendMockReturnConf{
+	w, mockClient := CreateTestWalletWithManager(t, withBackendMock(t, &backendMockReturnConf{
 		balance:        3,
 		customBillList: billsList,
 		proofList:      proofList,
@@ -78,7 +78,7 @@ func TestDcJobWithExistingDcAndNonDcBills(t *testing.T) {
 			Value:   100 * 1e8,
 			TxProof: &block.TxProof{},
 		},
-	}, am)
+	}), am)
 	mockClient.SetMaxBlockNumber(100)
 
 	// when dust collector runs
@@ -109,9 +109,10 @@ func TestDcJobWithExistingNonDcBills(t *testing.T) {
 	nonce := calculateDcNonce(dcBills)
 	bills := []*Bill{addBill(1), addBill(2)}
 	billsList := createBillListJsonResponse(bills)
+
 	proofList := createBlockProofJsonResponse(t, bills, nil, 0, dcTimeoutBlockCount, nil)
 	proofList = append(proofList, createBlockProofJsonResponse(t, dcBills, nonce, 0, dcTimeoutBlockCount, k)...)
-	w, mockClient := CreateTestWallet(t, &backendMockReturnConf{
+	w, mockClient := CreateTestWallet(t, withBackendMock(t, &backendMockReturnConf{
 		balance:        3,
 		customBillList: billsList,
 		proofList:      proofList,
@@ -119,7 +120,7 @@ func TestDcJobWithExistingNonDcBills(t *testing.T) {
 			Id:      k.PrivKeyHash,
 			Value:   100 * 1e8,
 			TxProof: &block.TxProof{},
-		}})
+		}}))
 	mockClient.SetMaxBlockNumber(100)
 
 	// when dust collector runs
@@ -145,7 +146,7 @@ func TestDcJobSendsSwapsIfDcBillTimeoutHasBeenReached(t *testing.T) {
 	nonce := calculateDcNonce(bills)
 	billsList := createBillListJsonResponse(bills)
 	proofList := createBlockProofJsonResponse(t, bills, nonce, 0, dcTimeoutBlockCount, k)
-	w, mockClient := CreateTestWalletWithManager(t, &backendMockReturnConf{
+	w, mockClient := CreateTestWalletWithManager(t, withBackendMock(t, &backendMockReturnConf{
 		balance:        3,
 		customBillList: billsList,
 		proofList:      proofList,
@@ -154,7 +155,7 @@ func TestDcJobSendsSwapsIfDcBillTimeoutHasBeenReached(t *testing.T) {
 			Value:   100 * 1e8,
 			TxProof: &block.TxProof{},
 		},
-	}, am)
+	}), am)
 
 	// when dust collector runs
 	err = w.collectDust(context.Background(), false, 0)

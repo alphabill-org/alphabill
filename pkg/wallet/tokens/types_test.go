@@ -15,9 +15,9 @@ func TestParsePredicateArgument(t *testing.T) {
 	tests := []struct {
 		input string
 		// expectations:
-		result tokens.Predicate
-		accKey uint64
-		err    string
+		result    tokens.Predicate
+		accNumber uint64
+		err       string
 	}{
 		{
 			input:  "",
@@ -48,27 +48,27 @@ func TestParsePredicateArgument(t *testing.T) {
 			err:   "invalid key number: 0",
 		},
 		{
-			input:  "ptpkh",
-			accKey: uint64(1),
+			input:     "ptpkh",
+			accNumber: uint64(1),
 		},
 		{
-			input:  "ptpkh:1",
-			accKey: uint64(1),
+			input:     "ptpkh:1",
+			accNumber: uint64(1),
 		},
 		{
-			input:  "ptpkh:10",
-			accKey: uint64(10),
+			input:     "ptpkh:10",
+			accNumber: uint64(10),
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.input, func(t *testing.T) {
-			argument, err := parsePredicate(tt.input, mock)
+			argument, err := parsePredicate(tt.input, tt.accNumber, mock)
 			if tt.err != "" {
 				require.ErrorContains(t, err, tt.err)
 			} else {
 				require.NoError(t, err)
-				if tt.accKey > 0 {
-					require.Equal(t, tt.accKey, argument.AccountNumber)
+				if tt.accNumber > 0 {
+					require.Equal(t, tt.accNumber, argument.AccountNumber)
 				} else {
 					require.Equal(t, tt.result, argument.Argument)
 				}
@@ -80,10 +80,13 @@ func TestParsePredicateArgument(t *testing.T) {
 func TestParsePredicateClause(t *testing.T) {
 	mock := &accountManagerMock{keyHash: []byte{0x1, 0x2}}
 	tests := []struct {
+		// inputs:
 		clause    string
-		predicate []byte
-		index     uint64
-		err       string
+		accNumber uint64
+		// expectations:
+		predicate     []byte
+		expectedIndex uint64
+		err           string
 	}{
 		{
 			clause:    "",
@@ -109,18 +112,24 @@ func TestParsePredicateClause(t *testing.T) {
 			err:    "invalid predicate clause",
 		},
 		{
-			clause:    "ptpkh",
-			index:     uint64(0),
-			predicate: script.PredicatePayToPublicKeyHashDefault(mock.keyHash),
+			clause:        "ptpkh",
+			expectedIndex: uint64(0),
+			err:           "invalid key number: 0 in 'ptpkh'",
+		},
+		{
+			clause:        "ptpkh",
+			accNumber:     2,
+			expectedIndex: uint64(1),
+			predicate:     script.PredicatePayToPublicKeyHashDefault(mock.keyHash),
 		},
 		{
 			clause: "ptpkh:0",
 			err:    "invalid key number: 0",
 		},
 		{
-			clause:    "ptpkh:2",
-			index:     uint64(1),
-			predicate: script.PredicatePayToPublicKeyHashDefault(mock.keyHash),
+			clause:        "ptpkh:2",
+			expectedIndex: uint64(1),
+			predicate:     script.PredicatePayToPublicKeyHashDefault(mock.keyHash),
 		},
 		{
 			clause:    "ptpkh:0x0102",
@@ -135,14 +144,14 @@ func TestParsePredicateClause(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.clause, func(t *testing.T) {
 			mock.recordedIndex = 0
-			predicate, err := ParsePredicateClause(tt.clause, mock)
+			predicate, err := ParsePredicateClause(tt.clause, tt.accNumber, mock)
 			if tt.err != "" {
 				require.ErrorContains(t, err, tt.err)
 			} else {
 				require.NoError(t, err)
 			}
 			require.Equal(t, tt.predicate, predicate)
-			require.Equal(t, tt.index, mock.recordedIndex)
+			require.Equal(t, tt.expectedIndex, mock.recordedIndex)
 		})
 	}
 }

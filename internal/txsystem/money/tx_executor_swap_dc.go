@@ -25,7 +25,6 @@ var (
 	ErrSwapDustTransfersInvalidOrder = goerrors.New("transfer orders are not listed in strictly increasing order of bill identifiers")
 	ErrSwapInvalidNonce              = goerrors.New("dust transfer orders do not contain proper nonce")
 	ErrSwapInvalidTargetBearer       = goerrors.New("dust transfer orders do not contain proper target bearer")
-	ErrInvalidProofType              = goerrors.New("invalid proof type")
 	ErrSwapOwnerProofFailed          = goerrors.New("owner proof does not satisfy the bearer condition of the swapped bill")
 )
 
@@ -174,9 +173,8 @@ func getDCTransfers(attr *SwapDCAttributes) ([]*dustCollectorTransfer, error) {
 	transfers := make([]*dustCollectorTransfer, len(attr.DcTransfers))
 	for i, t := range attr.DcTransfers {
 		a := &TransferDCAttributes{}
-		// TODO
-		if t.TransactionOrder.PayloadType() != "transDC" {
-			return nil, fmt.Errorf("invalid DC transfer payload type: %s", t.TransactionOrder.PayloadType())
+		if t.TransactionOrder.PayloadType() != PayloadTypeTransDC {
+			return nil, fmt.Errorf("invalid transfer DC payload type: %s", t.TransactionOrder.PayloadType())
 		}
 		if err := t.TransactionOrder.UnmarshalAttributes(a); err != nil {
 			return nil, fmt.Errorf("invalid DC transfer: %w", err)
@@ -200,7 +198,6 @@ func validateDustTransfer(dcTx *dustCollectorTransfer, proof *types.TxProof, uni
 		return ErrSwapInvalidTargetBearer
 	}
 	// 13. block proofs of the bill transfer orders verify
-
 	if err := types.VerifyTxProof(proof, dcTx.tx, trustBase, hashAlgorithm); err != nil {
 		return fmt.Errorf("proof is not valid: %w", err)
 	}

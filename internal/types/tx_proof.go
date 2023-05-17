@@ -35,6 +35,13 @@ type (
 	}
 )
 
+func (p *TxProof) GetUnicityTreeSystemDescriptionHash() []byte {
+	if p == nil || p.UnicityCertificate == nil || p.UnicityCertificate.UnicityTreeCertificate == nil {
+		return nil
+	}
+	return p.UnicityCertificate.UnicityTreeCertificate.SystemDescriptionHash
+}
+
 func NewTxProof(block *Block, txIndex int, algorithm crypto.Hash) (*TxProof, error) {
 	if block == nil {
 		return nil, ErrBlockIsNil
@@ -82,7 +89,7 @@ func VerifyTxProof(proof *TxProof, txRecord *TransactionRecord, trustBase map[st
 	blockHash := hasher.Sum(nil)
 
 	// TODO ch 2.8.7: Verify Transaction Proof: VerifyTxProof: System description must be an input parameter
-	systemDescriptionHash := proof.UnicityCertificate.UnicityTreeCertificate.SystemDescriptionHash
+	systemDescriptionHash := proof.GetUnicityTreeSystemDescriptionHash()
 	if err := proof.UnicityCertificate.IsValid(trustBase, hashAlgorithm, txRecord.TransactionOrder.SystemID(), systemDescriptionHash); err != nil {
 		return fmt.Errorf("invalid unicity certificate: %w", err)
 	}

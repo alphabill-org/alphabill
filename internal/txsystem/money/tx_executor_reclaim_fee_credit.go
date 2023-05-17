@@ -1,6 +1,7 @@
 package money
 
 import (
+	"bytes"
 	"crypto"
 	"errors"
 	"fmt"
@@ -33,7 +34,7 @@ func handleReclaimFeeCreditTx(state *rma.Tree, hashAlgorithm crypto.Hash, trustB
 			return nil, errors.New("reclaimFC: invalid unit type")
 		}
 
-		if err := validateReclaimFC(tx, bdd, trustBase, hashAlgorithm); err != nil {
+		if err := validateReclaimFC(tx, attr, bdd, trustBase, hashAlgorithm); err != nil {
 			return nil, fmt.Errorf("reclaimFC: validation failed: %w", err)
 		}
 
@@ -70,7 +71,7 @@ func handleReclaimFeeCreditTx(state *rma.Tree, hashAlgorithm crypto.Hash, trustB
 	}
 }
 
-func validateReclaimFC(tx *types.TransactionOrder, bd *BillData, verifiers map[string]abcrypto.Verifier, hashAlgorithm crypto.Hash) error {
+func validateReclaimFC(tx *types.TransactionOrder, attr *transactions.ReclaimFeeCreditAttributes, bd *BillData, verifiers map[string]abcrypto.Verifier, hashAlgorithm crypto.Hash) error {
 	if tx == nil {
 		return ErrTxNil
 	}
@@ -83,28 +84,28 @@ func validateReclaimFC(tx *types.TransactionOrder, bd *BillData, verifiers map[s
 	if tx.FeeProof != nil {
 		return ErrFeeProofExists
 	}
-	/*
-		TODO
-		if !bytes.Equal(tx.UnitID(), tx.CloseFCTransfer.CloseFC.TargetUnitId) {
-			return ErrReclaimFCInvalidTargetUnit
-		}
-		if !bytes.Equal(bd.Backlink, tx.CloseFCTransfer.CloseFC.Nonce) {
-			return ErrReclaimFCInvalidNonce
-		}
-		if !bytes.Equal(bd.Backlink, tx.ReclaimFC.Backlink) {
-			return ErrInvalidBacklink
-		}
-		if tx.CloseFCTransfer.Transaction.ServerMetadata.Fee+tx.Transaction.ClientMetadata.MaxFee > bd.V {
-			return ErrReclaimFCInvalidTxFee
-		}
-		// verify proof
-		proof := tx.ReclaimFC.CloseFeeCreditProof
-		if proof.ProofType != block.ProofType_PRIM {
-			return ErrInvalidProofType
-		}
-		err := proof.Verify(tx.ReclaimFC.CloseFeeCreditTransfer.UnitId, tx.CloseFCTransfer, verifiers, hashAlgorithm)
-		if err != nil {
-			return fmt.Errorf("invalid proof: %w", err)
-		}*/
+
+	closeFeeCreditTx := attr.CloseFeeCreditTransfer
+	closeFCAttr := &transactions.CloseFeeCreditAttributes{}
+	if err := closeFeeCreditTx.TransactionOrder.UnmarshalAttributes(closeFCAttr); err != nil {
+		return fmt.Errorf("invalid close fee credit attributes: %w", err)
+	}
+
+	if !bytes.Equal(tx.UnitID(), closeFCAttr.TargetUnitID) {
+		return ErrReclaimFCInvalidTargetUnit
+	}
+	if !bytes.Equal(bd.Backlink, closeFCAttr.Nonce) {
+		return ErrReclaimFCInvalidNonce
+	}
+	if !bytes.Equal(bd.Backlink, attr.Backlink) {
+		return ErrInvalidBacklink
+	}
+	if closeFeeCreditTx.ServerMetadata.ActualFee+tx.Payload.ClientMetadata.MaxTransactionFee > bd.V {
+		return ErrReclaimFCInvalidTxFee
+	}
+	// verify proof
+	if err := types.VerifyTxProof(attr.CloseFeeCreditProof, attr.CloseFeeCreditTransfer, verifiers, hashAlgorithm); err != nil {
+		return fmt.Errorf("invalid proof: %w", err)
+	}
 	return nil
 }

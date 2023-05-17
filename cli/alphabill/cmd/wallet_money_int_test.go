@@ -24,7 +24,7 @@ Prep: start network and money backend, send initial bill to wallet-1
 Test scenario 1: wallet-1 sends two transactions to wallet-2
 Test scenario 1.1: when sending a tx, wallet-1 specifies --output-path flag and checks proofs are saved there
 Test scenario 2: wallet-1 account 1 sends two transactions to wallet-1 account 2
-Test scenario 3: wallet-2 sends tx without confirming
+Test scenario 3: wallet-1 sends tx without confirming
 */
 func TestSendingMoneyUsingWallets_integration(t *testing.T) {
 	initialBill := &moneytx.InitialBill{
@@ -128,6 +128,11 @@ func TestSendingMoneyUsingWallets_integration(t *testing.T) {
 	verifyStdoutEventually(t, func() *testConsoleWriter {
 		return execWalletCmd(t, "", homedir1, fmt.Sprintf("get-balance -k 2 --alphabill-api-uri %s", apiAddr))
 	}, fmt.Sprintf("#%d %s", 2, amountToString(2e8, 8)))
+
+	// TS3:
+	// verify transaction is broadcasted immediately
+	stdout = execWalletCmd(t, alphabillNodeAddr, homedir1, fmt.Sprintf("send -w false --amount 2 --address %s --alphabill-api-uri %s", pubKey2Hex, apiAddr))
+	verifyStdout(t, stdout, "Successfully sent transaction(s)")
 }
 
 /*

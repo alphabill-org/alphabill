@@ -396,18 +396,6 @@ func verifyBlockHeight(t *testing.T, w *Wallet, blockHeight uint64) {
 	require.Equal(t, blockHeight, actualBlockHeight)
 }
 
-func verifyBalance(t *testing.T, w *Wallet, balance uint64, pubKey []byte) {
-	actualBalance, err := w.backend.GetBalance(pubKey, false)
-	require.NoError(t, err)
-	require.EqualValues(t, balance, actualBalance)
-}
-
-func verifyTotalBalance(t *testing.T, w *Wallet, balance uint64, pubKey []byte) {
-	actualBalance, err := w.backend.GetBalance(pubKey, true)
-	require.NoError(t, err)
-	require.EqualValues(t, balance, actualBalance)
-}
-
 func parseBillTransferTx(t *testing.T, tx *txsystem.Transaction) *billtx.TransferAttributes {
 	btTx := &billtx.TransferAttributes{}
 	err := tx.TransactionAttributes.UnmarshalTo(btTx)

@@ -1,4 +1,4 @@
-package tx_builder
+package money
 
 import (
 	"errors"

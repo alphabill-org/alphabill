@@ -9,7 +9,6 @@ import (
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/internal/util"
 	moneytx "github.com/alphabill-org/alphabill/pkg/wallet/backend/bp"
-	"github.com/alphabill-org/alphabill/pkg/wallet/money/tx_builder"
 	"github.com/holiman/uint256"
 )
 
@@ -53,7 +52,7 @@ func NewBlockProof(tx *txsystem.Transaction, proof *block.BlockProof, blockNumbe
 	}, nil
 }
 
-func (b *BlockProof) Verify(unitID []byte, verifiers map[string]abcrypto.Verifier, hashAlgorithm crypto.Hash, txConverter *tx_builder.TxConverter) error {
+func (b *BlockProof) Verify(unitID []byte, verifiers map[string]abcrypto.Verifier, hashAlgorithm crypto.Hash, txConverter *TxConverter) error {
 	gtx, err := txConverter.ConvertTx(b.Tx)
 	if err != nil {
 		return err
@@ -88,7 +87,7 @@ func (b *Bill) isExpired(blockHeight uint64) bool {
 	return b.IsDcBill && blockHeight >= b.DcExpirationTimeout
 }
 
-func (b *Bill) addProof(bl *block.Block, txPb *txsystem.Transaction, txConverter *tx_builder.TxConverter) error {
+func (b *Bill) addProof(bl *block.Block, txPb *txsystem.Transaction, txConverter *TxConverter) error {
 	proof, err := createProof(b.GetID(), txPb, bl, txConverter, crypto.SHA256)
 	if err != nil {
 		return err
@@ -97,7 +96,7 @@ func (b *Bill) addProof(bl *block.Block, txPb *txsystem.Transaction, txConverter
 	return nil
 }
 
-func createProof(unitID []byte, tx *txsystem.Transaction, b *block.Block, txc *tx_builder.TxConverter, hashAlgorithm crypto.Hash) (*BlockProof, error) {
+func createProof(unitID []byte, tx *txsystem.Transaction, b *block.Block, txc *TxConverter, hashAlgorithm crypto.Hash) (*BlockProof, error) {
 	proof, err := b.GetPrimaryProof(unitID, txc, hashAlgorithm)
 	if err != nil {
 		return nil, err

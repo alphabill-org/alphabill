@@ -8,7 +8,6 @@ import (
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/pkg/wallet"
 	wlog "github.com/alphabill-org/alphabill/pkg/wallet/log"
-	"github.com/alphabill-org/alphabill/pkg/wallet/money/tx_builder"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 )
 
@@ -16,11 +15,11 @@ type (
 	TxPublisher struct {
 		wallet      *wallet.Wallet
 		backend     BackendAPI
-		txConverter *tx_builder.TxConverter
+		txConverter *TxConverter
 	}
 )
 
-func NewTxPublisher(wallet *wallet.Wallet, backend BackendAPI, txConverter *tx_builder.TxConverter) *TxPublisher {
+func NewTxPublisher(wallet *wallet.Wallet, backend BackendAPI, txConverter *TxConverter) *TxPublisher {
 	return &TxPublisher{
 		wallet:      wallet,
 		backend:     backend,

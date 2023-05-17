@@ -30,11 +30,11 @@ func (w *Wallet) newType(ctx context.Context, accNr uint64, attrs AttrWithSubTyp
 	if accNr < 1 {
 		return nil, fmt.Errorf("invalid account number: %d", accNr)
 	}
-	err := w.ensureFeeCredit(ctx, accNr-1, 1)
+	acc, err := w.am.GetAccountKey(accNr - 1)
 	if err != nil {
 		return nil, err
 	}
-	acc, err := w.am.GetAccountKey(accNr - 1)
+	err = w.ensureFeeCredit(ctx, acc, 1)
 	if err != nil {
 		return nil, err
 	}
@@ -82,15 +82,14 @@ func (w *Wallet) newToken(ctx context.Context, accNr uint64, attrs MintAttr, tok
 	if accNr < 1 {
 		return nil, fmt.Errorf("invalid account number: %d", accNr)
 	}
-	err := w.ensureFeeCredit(ctx, accNr-1, 1)
-	if err != nil {
-		return nil, err
-	}
 	key, err := w.am.GetAccountKey(accNr - 1)
 	if err != nil {
 		return nil, err
 	}
-
+	err = w.ensureFeeCredit(ctx, key, 1)
+	if err != nil {
+		return nil, err
+	}
 	sub, err := w.prepareTxSubmission(ctx, wallet.UnitID(tokenId), attrs, key, func(tx *txsystem.Transaction, gtx txsystem.GenericTransaction) error {
 		signatures, err := preparePredicateSignatures(w.am, mintPredicateArgs, gtx)
 		if err != nil {
@@ -128,7 +127,7 @@ func (w *Wallet) prepareTxSubmission(ctx context.Context, unitId wallet.UnitID, 
 	}
 	log.Info(fmt.Sprintf("Preparing to send token tx, UnitID=%X, attributes: %v", unitId, reflect.TypeOf(attrs)))
 
-	roundNumber, err := w.getRoundNumber(ctx)
+	roundNumber, err := w.GetRoundNumber(ctx)
 	if err != nil {
 		return nil, err
 	}

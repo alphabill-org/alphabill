@@ -269,15 +269,14 @@ func (w *Wallet) GetToken(ctx context.Context, owner wallet.PubKey, kind backend
 }
 
 func (w *Wallet) TransferNFT(ctx context.Context, accountNumber uint64, tokenId backend.TokenID, receiverPubKey wallet.PubKey, invariantPredicateArgs []*PredicateInput) error {
-	err := w.ensureFeeCredit(ctx, accountNumber-1, 1)
-	if err != nil {
-		return err
-	}
 	key, err := w.am.GetAccountKey(accountNumber - 1)
 	if err != nil {
 		return err
 	}
-
+	err = w.ensureFeeCredit(ctx, key, 1)
+	if err != nil {
+		return err
+	}
 	token, err := w.GetToken(ctx, key.PubKey, backend.NonFungible, tokenId)
 	if err != nil {
 		return err
@@ -301,11 +300,11 @@ func (w *Wallet) SendFungible(ctx context.Context, accountNumber uint64, typeId 
 	if accountNumber < 1 {
 		return fmt.Errorf("invalid account number: %d", accountNumber)
 	}
-	err := w.ensureFeeCredit(ctx, accountNumber-1, 1)
+	acc, err := w.am.GetAccountKey(accountNumber - 1)
 	if err != nil {
 		return err
 	}
-	acc, err := w.am.GetAccountKey(accountNumber - 1)
+	err = w.ensureFeeCredit(ctx, acc, 1)
 	if err != nil {
 		return err
 	}
@@ -359,11 +358,11 @@ func (w *Wallet) UpdateNFTData(ctx context.Context, accountNumber uint64, tokenI
 	if accountNumber < 1 {
 		return fmt.Errorf("invalid account number: %d", accountNumber)
 	}
-	err := w.ensureFeeCredit(ctx, accountNumber-1, 1)
+	acc, err := w.am.GetAccountKey(accountNumber - 1)
 	if err != nil {
 		return err
 	}
-	acc, err := w.am.GetAccountKey(accountNumber - 1)
+	err = w.ensureFeeCredit(ctx, acc, 1)
 	if err != nil {
 		return err
 	}
@@ -411,12 +410,8 @@ func (w *Wallet) CollectDust(ctx context.Context, accountNumber uint64, tokenTyp
 		}
 	}
 	// TODO: rewrite with goroutines?
-	for accountIndex, key := range keys {
-		err = w.ensureFeeCredit(ctx, uint64(accountIndex), len(tokenTypes)+1)
-		if err != nil {
-			return err
-		}
-		err = w.collectDust(ctx, key, tokenTypes, invariantPredicateArgs)
+	for _, key := range keys {
+		err := w.collectDust(ctx, key, tokenTypes, invariantPredicateArgs)
 		if err != nil {
 			return err
 		}
@@ -431,6 +426,10 @@ func (w *Wallet) collectDust(ctx context.Context, acc *account.AccountKey, allow
 	}
 
 	for _, v := range tokensByTypes {
+		err = w.ensureFeeCredit(ctx, acc, len(tokensByTypes))
+		if err != nil {
+			return err
+		}
 		// first token to be joined into
 		targetToken := v[0]
 		burnBatch := txsubmitter.NewBatch(acc.PubKey, w.backend)
@@ -518,10 +517,6 @@ func (w *Wallet) getTokensForDC(ctx context.Context, key wallet.PubKey, allowedT
 	return tokensByTypes, nil
 }
 
-func (w *Wallet) getRoundNumber(ctx context.Context) (uint64, error) {
-	return w.backend.GetRoundNumber(ctx)
-}
-
 // GetFeeCreditBill returns fee credit bill for given account,
 // can return nil if fee credit bill has not been created yet.
 func (w *Wallet) GetFeeCreditBill(ctx context.Context, cmd fees.GetFeeCreditCmd) (*bp.Bill, error) {
@@ -550,8 +545,6 @@ func (w *Wallet) FetchFeeCreditBill(ctx context.Context, unitID []byte) (*bp.Bil
 	}, nil
 }
 
-// FetchFeeCreditBill returns fee credit bill for given unitID
-// can return nil if fee credit bill has not been created yet.
 func (w *Wallet) GetRoundNumber(ctx context.Context) (uint64, error) {
 	return w.backend.GetRoundNumber(ctx)
 }
@@ -564,38 +557,8 @@ func (w *Wallet) ReclaimFeeCredit(ctx context.Context, cmd fees.ReclaimFeeCmd) (
 	return w.feeManager.ReclaimFeeCredit(ctx, cmd)
 }
 
-//
-//// SendTx sends tx and waits for confirmation, returns tx proof
-//func (w *Wallet) SendTx(ctx context.Context, tx *txsystem.Transaction, accountIndex uint64) (*block.TxProof, error) {
-//	accountKey, err := w.GetAccountManager().GetAccountKey(accountIndex)
-//	if err != nil {
-//		return nil, err
-//	}
-//	gtx, err := w.txs.ConvertTx(tx)
-//	if err != nil {
-//		return nil, err
-//	}
-//	// TODO should not rely on server metadata
-//	gtx.SetServerMetadata(&txsystem.ServerMetadata{Fee: 1})
-//	txSub := &txSubmission{
-//		id:     tx.UnitId,
-//		tx:     tx,
-//		txHash: gtx.Hash(crypto.SHA256),
-//	}
-//	txBatch := txSub.toBatch(w.backend, accountKey.PubKey)
-//	err = txBatch.sendTx(ctx, true)
-//	if err != nil {
-//		return nil, err
-//	}
-//	return &block.TxProof{
-//		Tx:          tx,
-//		Proof:       txBatch.submissions[0].txProof,
-//		BlockNumber: txBatch.submissions[0].txProof.UnicityCertificate.GetRoundNumber(),
-//	}, nil
-//}
-
-func (w *Wallet) ensureFeeCredit(ctx context.Context, accountIndex uint64, txCount int) error {
-	fcb, err := w.GetFeeCreditBill(ctx, fees.GetFeeCreditCmd{AccountIndex: accountIndex})
+func (w *Wallet) ensureFeeCredit(ctx context.Context, accountKey *account.AccountKey, txCount int) error {
+	fcb, err := w.FetchFeeCreditBill(ctx, accountKey.PrivKeyHash)
 	if err != nil {
 		return err
 	}

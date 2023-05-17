@@ -112,7 +112,7 @@ func LoadExistingWallet(config abclient.AlphabillClientConfig, am account.Manage
 		SetABClientConf(config).
 		Build()
 	moneySystemID := []byte{0, 0, 0, 0}
-	moneyTxPublisher := NewTxPublisher(genericWallet, backend, tx_builder.NewTxConverter(moneySystemID))
+	moneyTxPublisher := NewTxPublisher(genericWallet, backend, NewTxConverter(moneySystemID))
 	feeManager := fees.NewFeeManager(am, moneySystemID, moneyTxPublisher, backend, moneySystemID, moneyTxPublisher, backend)
 	return &Wallet{
 		Wallet:      genericWallet,
@@ -236,9 +236,25 @@ func (w *Wallet) Send(ctx context.Context, cmd SendCmd) ([]*Bill, error) {
 	apiWrapper := &backendAPIWrapper{wallet: w}
 	batch := txsubmitter.NewBatch(k.PubKey, apiWrapper)
 
-	if err = tx_builder.CreateTransactions(batch.Add, tx_builder.NewTxConverter(w.SystemID()), cmd.ReceiverPubKey, cmd.Amount, w.SystemID(), bills, k, timeout, fcb.GetId()); err != nil {
+	txc := NewTxConverter(w.SystemID())
+	txs, err := tx_builder.CreateTransactions(cmd.ReceiverPubKey, cmd.Amount, w.SystemID(), bills, k, timeout, fcb.GetId())
+	if err != nil {
 		return nil, err
 	}
+	for _, tx := range txs {
+		gtx, err := txc.ConvertTx(tx)
+		if err != nil {
+			return nil, err
+		}
+		// TODO should not rely on server metadata
+		gtx.SetServerMetadata(&txsystem.ServerMetadata{Fee: 1})
+		batch.Add(&txsubmitter.TxSubmission{
+			UnitID:      tx.UnitId,
+			TxHash:      gtx.Hash(crypto.SHA256),
+			Transaction: tx,
+		})
+	}
+
 	txsCost := tx_builder.MaxFee * uint64(len(batch.Submissions()))
 	if fcb.Value < txsCost {
 		return nil, ErrInsufficientFeeCredit
@@ -725,7 +741,7 @@ func newBillFromVM(b *backendmoney.ListBillVM) *bp.Bill {
 }
 
 // newBill creates new Bill struct from given BlockProof for Transfer and Split transactions.
-func newBill(proof *block.TxProof, txConverter *tx_builder.TxConverter) (*Bill, error) {
+func newBill(proof *block.TxProof, txConverter *TxConverter) (*Bill, error) {
 	gtx, err := txConverter.ConvertTx(proof.Tx)
 	if err != nil {
 		return nil, err

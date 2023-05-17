@@ -2,7 +2,6 @@ package tx_builder
 
 import (
 	"bytes"
-	gocrypto "crypto"
 	"sort"
 
 	"github.com/alphabill-org/alphabill/internal/block"
@@ -15,46 +14,34 @@ import (
 	"github.com/alphabill-org/alphabill/internal/txsystem/money"
 	"github.com/alphabill-org/alphabill/pkg/wallet/account"
 	"github.com/alphabill-org/alphabill/pkg/wallet/backend/bp"
-	"github.com/alphabill-org/alphabill/pkg/wallet/txsubmitter"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/anypb"
 )
 
 const MaxFee = uint64(1)
 
-type txBatchAdder func(tx *txsubmitter.TxSubmission)
-
 var ErrInsufficientBalance = errors.New("insufficient balance for transaction")
 
-func CreateTransactions(add txBatchAdder, txConverter *TxConverter, targetPubKey []byte, amount uint64, systemId []byte, bills []*bp.Bill, k *account.AccountKey, timeout uint64, fcrID []byte) error {
-	//TODO: func CreateTransactions(pubKey []byte, amount uint64, systemId []byte, bills []*bp.Bill, k *account.AccountKey, timeout uint64, fcrID []byte) ([]*txsystem.Transaction, error) {
+func CreateTransactions(pubKey []byte, amount uint64, systemId []byte, bills []*bp.Bill, k *account.AccountKey, timeout uint64, fcrID []byte) ([]*txsystem.Transaction, error) {
+	var txs []*txsystem.Transaction
 	var accumulatedSum uint64
 	// sort bills by value in descending order
 	sort.Slice(bills, func(i, j int) bool {
 		return bills[i].Value > bills[j].Value
 	})
-
 	for _, b := range bills {
 		remainingAmount := amount - accumulatedSum
-		tx, err := CreateTransaction(targetPubKey, k, remainingAmount, systemId, b, timeout, fcrID)
+		tx, err := CreateTransaction(pubKey, k, remainingAmount, systemId, b, timeout, fcrID)
 		if err != nil {
-			return err
+			return nil, err
 		}
-		gtx, err := txConverter.ConvertTx(tx)
-		if err != nil {
-			return err
-		}
-		add(&txsubmitter.TxSubmission{
-			UnitID:      b.GetId(),
-			TxHash:      gtx.Hash(gocrypto.SHA256),
-			Transaction: tx,
-		})
+		txs = append(txs, tx)
 		accumulatedSum += b.Value
 		if accumulatedSum >= amount {
-			return nil
+			return txs, nil
 		}
 	}
-	return ErrInsufficientBalance
+	return nil, ErrInsufficientBalance
 }
 
 func CreateTransaction(pubKey []byte, k *account.AccountKey, amount uint64, systemId []byte, b *bp.Bill, timeout uint64, fcrID []byte) (*txsystem.Transaction, error) {

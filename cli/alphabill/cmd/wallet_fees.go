@@ -16,7 +16,6 @@ import (
 	"github.com/alphabill-org/alphabill/pkg/wallet/fees"
 	"github.com/alphabill-org/alphabill/pkg/wallet/money"
 	moneyclient "github.com/alphabill-org/alphabill/pkg/wallet/money/backend/client"
-	"github.com/alphabill-org/alphabill/pkg/wallet/money/tx_builder"
 	"github.com/alphabill-org/alphabill/pkg/wallet/tokens"
 	tokenclient "github.com/alphabill-org/alphabill/pkg/wallet/tokens/client"
 	"github.com/spf13/cobra"
@@ -286,7 +285,7 @@ func (c *cliConf) getPartitionBackendURL() string {
 
 func getFeeCreditManager(c *cliConf, am account.Manager, genericWallet *wallet.Wallet, moneyClient *moneyclient.MoneyBackendClient) (FeeCreditManager, error) {
 	moneySystemID := []byte{0, 0, 0, 0}
-	moneyTxPublisher := money.NewTxPublisher(genericWallet, moneyClient, tx_builder.NewTxConverter(moneySystemID))
+	moneyTxPublisher := money.NewTxPublisher(genericWallet, moneyClient, money.NewTxConverter(moneySystemID))
 	if c.partitionType == moneyType {
 		return fees.NewFeeManager(am, moneySystemID, moneyTxPublisher, moneyClient, moneySystemID, moneyTxPublisher, moneyClient), nil
 	} else if c.partitionType == tokenType {

@@ -170,10 +170,6 @@ func (p *BlockProcessor) processTx(gtx txsystem.GenericTransaction, b *block.Gen
 		if bill == nil {
 			return fmt.Errorf("unit not found for transferFC tx (unitID=%X)", txPb.UnitId)
 		}
-//bill.Value -= tx.TransferFC.Amount + tx.Transaction.ServerMetadata.Fee//TODO: pg
-		//bill.TxHash = tx.Hash(crypto.SHA256)
-		//wlog.Info(fmt.Sprintf("block processor: TransferFC: %X", bill.TxHash))
-		//return p.saveBillWithProof(b, txPb, dbTx, bill)
 		v := tx.TransferFC.Amount + tx.Wrapper.Transaction.ServerMetadata.Fee
 		if v < bill.Value {
 			bill.Value -= v

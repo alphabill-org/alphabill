@@ -11,7 +11,6 @@ import (
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/libp2p/go-libp2p/core/peer"
-	"google.golang.org/protobuf/types/known/anypb"
 )
 
 var ErrSignerIsNil = errors.New("signer is nil")
@@ -26,7 +25,7 @@ type (
 		signer                crypto.Signer
 		encryptionPubKeyBytes []byte
 		t2Timeout             uint32
-		params                *anypb.Any
+		params                any
 	}
 
 	GenesisOption func(c *genesisConf)
@@ -84,7 +83,7 @@ func WithT2Timeout(t2Timeout uint32) GenesisOption {
 	}
 }
 
-func WithParams(params *anypb.Any) GenesisOption {
+func WithParams(params any) GenesisOption {
 	return func(c *genesisConf) {
 		c.params = params
 	}
@@ -120,7 +119,7 @@ func NewNodeGenesis(txSystem txsystem.TransactionSystem, opts ...GenesisOption) 
 	}
 
 	// create the first round of the tx system
-	state, err := txSystem.State()
+	state, err := txSystem.StateSummary()
 	if err != nil {
 		return nil, err
 	}

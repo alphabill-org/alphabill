@@ -12,10 +12,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/alphabill-org/alphabill/internal/types"
+
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
 
 	"github.com/alphabill-org/alphabill/internal/block"
-	"github.com/alphabill-org/alphabill/internal/certificates"
 	"github.com/alphabill-org/alphabill/internal/hash"
 	"github.com/alphabill-org/alphabill/internal/rpc/alphabill"
 	"github.com/alphabill-org/alphabill/internal/script"
@@ -165,7 +166,7 @@ func Test_Run_API(t *testing.T) {
 						Blocks: []*block.Block{{
 							SystemIdentifier:   tx.SystemId,
 							Transactions:       []*txsystem.Transaction{tx},
-							UnicityCertificate: &certificates.UnicityCertificate{InputRecord: &certificates.InputRecord{RoundNumber: rn}},
+							UnicityCertificate: &types.UnicityCertificate{InputRecord: &types.InputRecord{RoundNumber: rn}},
 						}},
 					}, nil
 				default:

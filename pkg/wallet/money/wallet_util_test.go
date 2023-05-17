@@ -9,13 +9,14 @@ import (
 	"net/url"
 	"testing"
 
+	"github.com/alphabill-org/alphabill/internal/types"
+
 	"github.com/alphabill-org/alphabill/pkg/wallet/backend/bp"
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/encoding/protojson"
 
 	"github.com/alphabill-org/alphabill/internal/block"
-	"github.com/alphabill-org/alphabill/internal/certificates"
 	"github.com/alphabill-org/alphabill/internal/hash"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/internal/util"
@@ -139,7 +140,7 @@ func createBlockProofJsonResponse(t *testing.T, bills []*Bill, overrideNonce []b
 			SystemIdentifier:   w.SystemID(),
 			PreviousBlockHash:  hash.Sum256([]byte{}),
 			Transactions:       []*txsystem.Transaction{dcTx},
-			UnicityCertificate: &certificates.UnicityCertificate{InputRecord: &certificates.InputRecord{RoundNumber: timeout}},
+			UnicityCertificate: &types.UnicityCertificate{InputRecord: &types.InputRecord{RoundNumber: timeout}},
 		})
 		tp := &block.TxProof{
 			BlockNumber: blockNumber,

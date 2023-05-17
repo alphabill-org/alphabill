@@ -1,16 +1,15 @@
 package testpartition
 
 import (
-	"bytes"
 	"context"
 	gocrypto "crypto"
 	"crypto/rand"
 	"errors"
 	"fmt"
+	"reflect"
 	"sort"
 	"time"
 
-	"github.com/alphabill-org/alphabill/internal/block"
 	"github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/network"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
@@ -21,9 +20,9 @@ import (
 	"github.com/alphabill-org/alphabill/internal/rootchain/partitions"
 	testevent "github.com/alphabill-org/alphabill/internal/testutils/partition/event"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
+	"github.com/alphabill-org/alphabill/internal/types"
 	libp2pcrypto "github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/core/peer"
-	"google.golang.org/protobuf/proto"
 )
 
 const rootValidatorNodes = 1
@@ -252,7 +251,7 @@ func assertConnections(p *network.Peer, count int) error {
 }
 
 // BroadcastTx sends transactions to all nodes.
-func (a *AlphabillPartition) BroadcastTx(tx *txsystem.Transaction) error {
+func (a *AlphabillPartition) BroadcastTx(tx *types.TransactionOrder) error {
 	for _, n := range a.Nodes {
 		if err := n.SubmitTx(context.Background(), tx); err != nil {
 			return err
@@ -262,21 +261,15 @@ func (a *AlphabillPartition) BroadcastTx(tx *txsystem.Transaction) error {
 }
 
 // SubmitTx sends transactions to the first node.
-func (a *AlphabillPartition) SubmitTx(tx *txsystem.Transaction) error {
+func (a *AlphabillPartition) SubmitTx(tx *types.TransactionOrder) error {
 	return a.Nodes[0].SubmitTx(context.Background(), tx)
 }
 
-type TxConverter func(tx *txsystem.Transaction) (txsystem.GenericTransaction, error)
-
-func (c TxConverter) ConvertTx(tx *txsystem.Transaction) (txsystem.GenericTransaction, error) {
-	return c(tx)
-}
-
-func (a *AlphabillPartition) GetBlockProof(tx *txsystem.Transaction, txConverter TxConverter) (*block.GenericBlock, *block.BlockProof, error) {
+func (a *AlphabillPartition) GetBlockProof(tx *types.TransactionOrder) (*types.Block, *types.TxProof, *types.TransactionRecord, error) {
 	for _, n := range a.Nodes {
 		bl, err := n.GetLatestBlock()
 		if err != nil {
-			return nil, nil, err
+			return nil, nil, nil, err
 		}
 		number := bl.UnicityCertificate.InputRecord.RoundNumber
 		for i := uint64(0); i < number; i++ {
@@ -284,22 +277,18 @@ func (a *AlphabillPartition) GetBlockProof(tx *txsystem.Transaction, txConverter
 			if err != nil || b == nil {
 				continue
 			}
-			for _, t := range b.Transactions {
-				if bytes.Equal(t.TxBytes(), tx.TxBytes()) {
-					genBlock, err := b.ToGenericBlock(txConverter)
+			for j, t := range b.Transactions {
+				if reflect.DeepEqual(t.TransactionOrder, tx) {
+					proof, err := types.NewTxProof(b, j, gocrypto.SHA256)
 					if err != nil {
-						return nil, nil, err
+						return nil, nil, nil, err
 					}
-					proof, err := block.NewPrimaryProof(genBlock, tx.UnitId, gocrypto.SHA256)
-					if err != nil {
-						return nil, nil, err
-					}
-					return genBlock, proof, nil
+					return b, proof, t, nil
 				}
 			}
 		}
 	}
-	return nil, nil, fmt.Errorf("tx with id %x was not found", tx.UnitId)
+	return nil, nil, nil, fmt.Errorf("tx with id %x was not found", tx.UnitID())
 }
 
 func (a *AlphabillPartition) Close() error {
@@ -378,14 +367,14 @@ func generateKeyPairs(count int) ([]*network.PeerKeyPair, error) {
 }
 
 // BlockchainContainsTx checks if at least one partition node block contains the given transaction.
-func BlockchainContainsTx(tx *txsystem.Transaction, network *AlphabillPartition) func() bool {
-	return BlockchainContains(network, func(actualTx *txsystem.Transaction) bool {
+func BlockchainContainsTx(tx *types.TransactionOrder, network *AlphabillPartition) func() bool {
+	return BlockchainContains(network, func(actualTx *types.TransactionOrder) bool {
 		// compare tx without server metadata field
-		return bytes.Equal(tx.TxBytes(), actualTx.TxBytes()) && proto.Equal(tx.TransactionAttributes, actualTx.TransactionAttributes)
+		return reflect.DeepEqual(tx, actualTx)
 	})
 }
 
-func BlockchainContains(network *AlphabillPartition, criteria func(tx *txsystem.Transaction) bool) func() bool {
+func BlockchainContains(network *AlphabillPartition, criteria func(tx *types.TransactionOrder) bool) func() bool {
 	return func() bool {
 		for _, n := range network.Nodes {
 			bl, err := n.GetLatestBlock()
@@ -399,7 +388,7 @@ func BlockchainContains(network *AlphabillPartition, criteria func(tx *txsystem.
 					continue
 				}
 				for _, t := range b.Transactions {
-					if criteria(t) {
+					if criteria(t.TransactionOrder) {
 						return true
 					}
 				}

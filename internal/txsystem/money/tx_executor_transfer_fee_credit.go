@@ -10,6 +10,8 @@ import (
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/internal/txsystem/fc"
 	"github.com/alphabill-org/alphabill/internal/txsystem/fc/transactions"
+	"github.com/alphabill-org/alphabill/internal/types"
+	"github.com/alphabill-org/alphabill/internal/util"
 )
 
 var (
@@ -22,30 +24,30 @@ var (
 	ErrInvalidBacklink = errors.New("the transaction backlink is not equal to unit backlink")
 )
 
-func handleTransferFeeCreditTx(state *rma.Tree, hashAlgorithm crypto.Hash, feeCreditTxRecorder *feeCreditTxRecorder, feeCalc fc.FeeCalculator) txsystem.GenericExecuteFunc[*transactions.TransferFeeCreditWrapper] {
-	return func(tx *transactions.TransferFeeCreditWrapper, currentBlockNumber uint64) error {
+func handleTransferFeeCreditTx(state *rma.Tree, hashAlgorithm crypto.Hash, feeCreditTxRecorder *feeCreditTxRecorder, feeCalc fc.FeeCalculator) txsystem.GenericExecuteFunc[transactions.TransferFeeCreditAttributes] {
+	return func(tx *types.TransactionOrder, attr *transactions.TransferFeeCreditAttributes, currentBlockNumber uint64) (*types.ServerMetadata, error) {
 		log.Debug("Processing transferFC %v", tx)
-		unit, _ := state.GetUnit(tx.UnitID())
+		unitID := util.BytesToUint256(tx.UnitID())
+		unit, _ := state.GetUnit(unitID)
 		if unit == nil {
-			return errors.New("transferFC: unit not found")
+			return nil, errors.New("transferFC: unit not found")
 		}
 		billData, ok := unit.Data.(*BillData)
 		if !ok {
-			return errors.New("transferFC: invalid unit type")
+			return nil, errors.New("transferFC: invalid unit type")
 		}
-
-		if err := validateTransferFC(tx, billData); err != nil {
-			return fmt.Errorf("transferFC: validation failed: %w", err)
+		if err := validateTransferFC(tx, attr, billData); err != nil {
+			return nil, fmt.Errorf("transferFC: validation failed: %w", err)
 		}
 
 		// calculate actual tx fee cost
-		tx.SetServerMetadata(&txsystem.ServerMetadata{Fee: feeCalc()})
+		fee := feeCalc()
 
 		// remove value from source unit, or delete source bill entirely
 		var action rma.Action
-		v := tx.TransferFC.Amount + tx.Wrapper.Transaction.ServerMetadata.Fee
+		v := attr.Amount + fee
 		if v < billData.V {
-			action = rma.UpdateData(tx.UnitID(), func(data rma.UnitData) (newData rma.UnitData) {
+			action = rma.UpdateData(unitID, func(data rma.UnitData) (newData rma.UnitData) {
 				newBillData, ok := data.(*BillData)
 				if !ok {
 					return data // TODO should return error instead
@@ -56,34 +58,38 @@ func handleTransferFeeCreditTx(state *rma.Tree, hashAlgorithm crypto.Hash, feeCr
 				return newBillData
 			}, tx.Hash(hashAlgorithm))
 		} else {
-			action = rma.DeleteItem(tx.UnitID())
+			action = rma.DeleteItem(unitID)
 		}
 		if err := state.AtomicUpdate(action); err != nil {
-			return fmt.Errorf("transferFC: failed to update state: %w", err)
+			return nil, fmt.Errorf("transferFC: failed to update state: %w", err)
 		}
 		// record fee tx for end of the round consolidation
-		feeCreditTxRecorder.recordTransferFC(tx)
-		return nil
+		feeCreditTxRecorder.recordTransferFC(&transferFeeCreditTx{
+			tx:   tx,
+			attr: attr,
+			fee:  fee,
+		})
+		return &types.ServerMetadata{ActualFee: fee}, nil
 	}
 }
 
-func validateTransferFC(tx *transactions.TransferFeeCreditWrapper, bd *BillData) error {
+func validateTransferFC(tx *types.TransactionOrder, attr *transactions.TransferFeeCreditAttributes, bd *BillData) error {
 	if tx == nil {
 		return ErrTxNil
 	}
 	if bd == nil {
 		return ErrBillNil
 	}
-	if tx.TransferFC.Amount+tx.Transaction.ClientMetadata.MaxFee > bd.V {
+	if attr.Amount+tx.Payload.ClientMetadata.MaxTransactionFee > bd.V {
 		return ErrInvalidFCValue
 	}
-	if !bytes.Equal(tx.TransferFC.Backlink, bd.Backlink) {
+	if !bytes.Equal(attr.Backlink, bd.Backlink) {
 		return ErrInvalidBacklink
 	}
-	if tx.Transaction.ClientMetadata.FeeCreditRecordId != nil {
+	if tx.GetClientFeeCreditRecordID() != nil {
 		return ErrRecordIDExists
 	}
-	if tx.Transaction.FeeProof != nil {
+	if tx.FeeProof != nil {
 		return ErrFeeProofExists
 	}
 	return nil

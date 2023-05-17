@@ -4,8 +4,9 @@ import (
 	"context"
 	"testing"
 
+	"github.com/alphabill-org/alphabill/internal/types"
+
 	"github.com/alphabill-org/alphabill/internal/block"
-	"github.com/alphabill-org/alphabill/internal/certificates"
 	"github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/hash"
 	"github.com/alphabill-org/alphabill/internal/script"
@@ -62,7 +63,7 @@ func TestGenericBlockProcessor_EachTxTypeCanBeProcessed(t *testing.T) {
 
 	b := &block.Block{
 		Transactions:       []*txsystem.Transaction{tx1, tx2, tx3, tx4},
-		UnicityCertificate: &certificates.UnicityCertificate{InputRecord: &certificates.InputRecord{RoundNumber: 1}},
+		UnicityCertificate: &types.UnicityCertificate{InputRecord: &types.InputRecord{RoundNumber: 1}},
 	}
 
 	store, err := createTestBillStore(t)
@@ -116,7 +117,7 @@ func TestGenericBlockProcessor_EachTxTypeCanBeProcessed(t *testing.T) {
 
 	b = &block.Block{
 		Transactions:       []*txsystem.Transaction{transferFC.Transaction, addFC.Transaction},
-		UnicityCertificate: &certificates.UnicityCertificate{InputRecord: &certificates.InputRecord{RoundNumber: 2}},
+		UnicityCertificate: &types.UnicityCertificate{InputRecord: &types.InputRecord{RoundNumber: 2}},
 	}
 	err = bp.ProcessBlock(context.Background(), b)
 	require.NoError(t, err)
@@ -153,7 +154,7 @@ func TestGenericBlockProcessor_EachTxTypeCanBeProcessed(t *testing.T) {
 
 	b = &block.Block{
 		Transactions:       []*txsystem.Transaction{closeFC.Transaction, reclaimFC.Transaction},
-		UnicityCertificate: &certificates.UnicityCertificate{InputRecord: &certificates.InputRecord{RoundNumber: 3}},
+		UnicityCertificate: &types.UnicityCertificate{InputRecord: &types.InputRecord{RoundNumber: 3}},
 	}
 	err = bp.ProcessBlock(context.Background(), b)
 	require.NoError(t, err)

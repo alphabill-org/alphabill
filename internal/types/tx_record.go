@@ -18,7 +18,7 @@ type (
 
 	ServerMetadata struct {
 		_           struct{} `cbor:",toarray"`
-		ActualFee   int64
+		ActualFee   uint64
 		TargetUnits []UnitID
 	}
 )

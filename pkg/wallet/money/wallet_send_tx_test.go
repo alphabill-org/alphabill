@@ -9,11 +9,12 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/alphabill-org/alphabill/internal/types"
+
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
 
 	"github.com/alphabill-org/alphabill/internal/block"
-	"github.com/alphabill-org/alphabill/internal/certificates"
 	"github.com/alphabill-org/alphabill/internal/hash"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
@@ -105,7 +106,7 @@ func TestWalletSendFunction_WaitForConfirmation(t *testing.T) {
 	require.NoError(t, err)
 	mockClient.SetBlock(&block.Block{Transactions: []*txsystem.Transaction{
 		tx,
-	}, UnicityCertificate: &certificates.UnicityCertificate{InputRecord: &certificates.InputRecord{RoundNumber: 0}}})
+	}, UnicityCertificate: &types.UnicityCertificate{InputRecord: &types.InputRecord{RoundNumber: 0}}})
 
 	// test send successfully waits for confirmation
 	_, err = w.Send(context.Background(), SendCmd{ReceiverPubKey: pubKey, Amount: b.Value, WaitForConfirmation: true, AccountIndex: 0})
@@ -136,7 +137,7 @@ func TestWalletSendFunction_WaitForMultipleTxConfirmations(t *testing.T) {
 	tx2, _ := createTransaction(pubKey, k, b2.Value, w.SystemID(), b2, txTimeoutBlockCount, k.PrivKeyHash)
 	mockClient.SetBlock(&block.Block{Transactions: []*txsystem.Transaction{
 		tx2, tx1,
-	}, UnicityCertificate: &certificates.UnicityCertificate{InputRecord: &certificates.InputRecord{RoundNumber: 0}}})
+	}, UnicityCertificate: &types.UnicityCertificate{InputRecord: &types.InputRecord{RoundNumber: 0}}})
 
 	// test send successfully waits for confirmation
 	_, err := w.Send(context.Background(), SendCmd{ReceiverPubKey: pubKey, Amount: b1.Value + b2.Value, WaitForConfirmation: true})
@@ -165,10 +166,10 @@ func TestWalletSendFunction_WaitForMultipleTxConfirmationsInDifferentBlocks(t *t
 	tx2, _ := createTransaction(pubKey, k, b2.Value, w.SystemID(), b2, txTimeoutBlockCount, k.PrivKeyHash)
 	mockClient.SetBlock(&block.Block{Transactions: []*txsystem.Transaction{
 		tx1,
-	}, UnicityCertificate: &certificates.UnicityCertificate{InputRecord: &certificates.InputRecord{RoundNumber: 0}}})
+	}, UnicityCertificate: &types.UnicityCertificate{InputRecord: &types.InputRecord{RoundNumber: 0}}})
 	mockClient.SetBlock(&block.Block{Transactions: []*txsystem.Transaction{
 		tx2,
-	}, UnicityCertificate: &certificates.UnicityCertificate{InputRecord: &certificates.InputRecord{RoundNumber: 5}}})
+	}, UnicityCertificate: &types.UnicityCertificate{InputRecord: &types.InputRecord{RoundNumber: 5}}})
 	mockClient.SetIncrementOnFetch(true)
 
 	// test send successfully waits for confirmation
@@ -191,7 +192,7 @@ func TestWalletSendFunction_ErrTxFailedToConfirm(t *testing.T) {
 	})
 
 	for i := 0; i <= txTimeoutBlockCount; i++ {
-		mockClient.SetBlock(&block.Block{UnicityCertificate: &certificates.UnicityCertificate{InputRecord: &certificates.InputRecord{RoundNumber: uint64(i)}}})
+		mockClient.SetBlock(&block.Block{UnicityCertificate: &types.UnicityCertificate{InputRecord: &types.InputRecord{RoundNumber: uint64(i)}}})
 	}
 
 	_, err := w.Send(context.Background(), SendCmd{ReceiverPubKey: pubKey, Amount: b.Value, WaitForConfirmation: true})

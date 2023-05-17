@@ -7,45 +7,46 @@ import (
 	"github.com/alphabill-org/alphabill/internal/rma"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/internal/txsystem/fc"
+	"github.com/alphabill-org/alphabill/internal/types"
+	"github.com/alphabill-org/alphabill/internal/util"
 )
 
-func handleTransferDCTx(state *rma.Tree, dustCollector *DustCollector, hashAlgorithm crypto.Hash, feeCalc fc.FeeCalculator) txsystem.GenericExecuteFunc[*transferDCWrapper] {
-	return func(tx *transferDCWrapper, currentBlockNumber uint64) error {
+func handleTransferDCTx(state *rma.Tree, dustCollector *DustCollector, hashAlgorithm crypto.Hash, feeCalc fc.FeeCalculator) txsystem.GenericExecuteFunc[TransferDCAttributes] {
+	return func(tx *types.TransactionOrder, attr *TransferDCAttributes, currentBlockNumber uint64) (*types.ServerMetadata, error) {
 		log.Debug("Processing transferDC %v", tx)
-
-		if err := validateTransferDCTx(tx, state); err != nil {
-			return fmt.Errorf("invalid transferDC transaction: %w", err)
+		if err := validateTransferDCTx(tx, attr, state); err != nil {
+			return nil, fmt.Errorf("invalid transferDC transaction: %w", err)
 		}
 		// calculate actual tx fee cost
 		fee := feeCalc()
-		tx.SetServerMetadata(&txsystem.ServerMetadata{Fee: fee})
 		// update state
-		fcrID := tx.transaction.GetClientFeeCreditRecordID()
-		decrCreditFunc := fc.DecrCredit(fcrID, tx.transaction.ServerMetadata.Fee, tx.Hash(hashAlgorithm))
+		fcrID := util.BytesToUint256(tx.GetClientFeeCreditRecordID())
+		decrCreditFunc := fc.DecrCredit(fcrID, fee, tx.Hash(hashAlgorithm))
 		updateDataFunc := updateBillDataFunc(tx, currentBlockNumber, hashAlgorithm)
-		setOwnerFunc := rma.SetOwner(tx.UnitID(), dustCollectorPredicate, tx.Hash(hashAlgorithm))
+		unitID := util.BytesToUint256(tx.UnitID())
+		setOwnerFunc := rma.SetOwner(unitID, dustCollectorPredicate, tx.Hash(hashAlgorithm))
 		if err := state.AtomicUpdate(
 			decrCreditFunc,
 			updateDataFunc,
 			setOwnerFunc,
 		); err != nil {
-			return fmt.Errorf("transferDC: failed to update state: %w", err)
+			return nil, fmt.Errorf("transferDC: failed to update state: %w", err)
 		}
 
 		// record dust bills for later deletion
-		dustCollector.AddDustBill(tx.UnitID(), currentBlockNumber)
-		return nil
+		dustCollector.AddDustBill(unitID, currentBlockNumber)
+		return &types.ServerMetadata{ActualFee: fee}, nil
 	}
 }
 
-func validateTransferDCTx(tx *transferDCWrapper, state *rma.Tree) error {
-	data, err := state.GetUnit(tx.UnitID())
+func validateTransferDCTx(tx *types.TransactionOrder, attr *TransferDCAttributes, state *rma.Tree) error {
+	data, err := state.GetUnit(util.BytesToUint256(tx.UnitID()))
 	if err != nil {
 		return err
 	}
-	return validateTransferDC(data.Data, tx)
+	return validateTransferDC(data.Data, attr)
 }
 
-func validateTransferDC(data rma.UnitData, tx *transferDCWrapper) error {
-	return validateAnyTransfer(data, tx.Backlink(), tx.TargetValue())
+func validateTransferDC(data rma.UnitData, tx *TransferDCAttributes) error {
+	return validateAnyTransfer(data, tx.Backlink, tx.TargetValue)
 }

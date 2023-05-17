@@ -8,8 +8,9 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/alphabill-org/alphabill/internal/types"
+
 	"github.com/alphabill-org/alphabill/internal/block"
-	"github.com/alphabill-org/alphabill/internal/certificates"
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
@@ -47,7 +48,7 @@ func Test_blockProcessor_ProcessBlock(t *testing.T) {
 			},
 		}
 		err := bp.ProcessBlock(context.Background(), &block.Block{
-			UnicityCertificate: &certificates.UnicityCertificate{InputRecord: &certificates.InputRecord{RoundNumber: 5}},
+			UnicityCertificate: &types.UnicityCertificate{InputRecord: &types.InputRecord{RoundNumber: 5}},
 		})
 		require.EqualError(t, err, `invalid block, received block 5, current wallet block 5`)
 	})
@@ -60,7 +61,7 @@ func Test_blockProcessor_ProcessBlock(t *testing.T) {
 			},
 		}
 		err := bp.ProcessBlock(context.Background(), &block.Block{
-			UnicityCertificate: &certificates.UnicityCertificate{InputRecord: &certificates.InputRecord{RoundNumber: 4}},
+			UnicityCertificate: &types.UnicityCertificate{InputRecord: &types.InputRecord{RoundNumber: 4}},
 		})
 		require.EqualError(t, err, `invalid block, received block 4, current wallet block 5`)
 	})
@@ -81,7 +82,7 @@ func Test_blockProcessor_ProcessBlock(t *testing.T) {
 			},
 		}
 		err := bp.ProcessBlock(context.Background(), &block.Block{
-			UnicityCertificate: &certificates.UnicityCertificate{InputRecord: &certificates.InputRecord{RoundNumber: 8}},
+			UnicityCertificate: &types.UnicityCertificate{InputRecord: &types.InputRecord{RoundNumber: 8}},
 		})
 		require.NoError(t, err)
 		require.Equal(t, 1, callCnt, "expected that setBlockNumber is called once")
@@ -109,7 +110,7 @@ func Test_blockProcessor_ProcessBlock(t *testing.T) {
 		}
 		err = bp.ProcessBlock(context.Background(), &block.Block{
 			Transactions:       []*txsystem.Transaction{createNTFTypeTx},
-			UnicityCertificate: &certificates.UnicityCertificate{InputRecord: &certificates.InputRecord{RoundNumber: 4}},
+			UnicityCertificate: &types.UnicityCertificate{InputRecord: &types.InputRecord{RoundNumber: 4}},
 		})
 		require.ErrorIs(t, err, expErr)
 	})
@@ -124,7 +125,7 @@ func Test_blockProcessor_ProcessBlock(t *testing.T) {
 			},
 		}
 		// no processTx call here as block is empty!
-		err := bp.ProcessBlock(context.Background(), &block.Block{UnicityCertificate: &certificates.UnicityCertificate{InputRecord: &certificates.InputRecord{RoundNumber: 4}}})
+		err := bp.ProcessBlock(context.Background(), &block.Block{UnicityCertificate: &types.UnicityCertificate{InputRecord: &types.InputRecord{RoundNumber: 4}}})
 		require.ErrorIs(t, err, expErr)
 	})
 }
@@ -173,7 +174,7 @@ func Test_blockProcessor_processTx(t *testing.T) {
 					feesEnabled: true,
 				}
 				err = bp.ProcessBlock(context.Background(), &block.Block{
-					UnicityCertificate: &certificates.UnicityCertificate{InputRecord: &certificates.InputRecord{RoundNumber: 4}},
+					UnicityCertificate: &types.UnicityCertificate{InputRecord: &types.InputRecord{RoundNumber: 4}},
 					Transactions:       []*txsystem.Transaction{tx},
 				})
 				require.NoError(t, err)
@@ -215,7 +216,7 @@ func Test_blockProcessor_processTx(t *testing.T) {
 			feesEnabled: true,
 		}
 		err = bp.ProcessBlock(context.Background(), &block.Block{
-			UnicityCertificate: &certificates.UnicityCertificate{InputRecord: &certificates.InputRecord{RoundNumber: 4}},
+			UnicityCertificate: &types.UnicityCertificate{InputRecord: &types.InputRecord{RoundNumber: 4}},
 			Transactions:       []*txsystem.Transaction{tx},
 		})
 		require.NoError(t, err)
@@ -253,7 +254,7 @@ func Test_blockProcessor_processTx(t *testing.T) {
 			feesEnabled: true,
 		}
 		err = bp.ProcessBlock(context.Background(), &block.Block{
-			UnicityCertificate: &certificates.UnicityCertificate{InputRecord: &certificates.InputRecord{RoundNumber: 4}},
+			UnicityCertificate: &types.UnicityCertificate{InputRecord: &types.InputRecord{RoundNumber: 4}},
 			Transactions:       []*txsystem.Transaction{tx},
 		})
 		require.NoError(t, err)
@@ -292,7 +293,7 @@ func Test_blockProcessor_processTx(t *testing.T) {
 			feesEnabled: true,
 		}
 		err = bp.ProcessBlock(context.Background(), &block.Block{
-			UnicityCertificate: &certificates.UnicityCertificate{InputRecord: &certificates.InputRecord{RoundNumber: 4}},
+			UnicityCertificate: &types.UnicityCertificate{InputRecord: &types.InputRecord{RoundNumber: 4}},
 			Transactions:       []*txsystem.Transaction{tx},
 		})
 		require.NoError(t, err)
@@ -329,7 +330,7 @@ func Test_blockProcessor_processTx(t *testing.T) {
 			feesEnabled: true,
 		}
 		err = bp.ProcessBlock(context.Background(), &block.Block{
-			UnicityCertificate: &certificates.UnicityCertificate{InputRecord: &certificates.InputRecord{RoundNumber: 4}},
+			UnicityCertificate: &types.UnicityCertificate{InputRecord: &types.InputRecord{RoundNumber: 4}},
 			Transactions:       []*txsystem.Transaction{tx},
 		})
 		require.NoError(t, err)
@@ -376,7 +377,7 @@ func Test_blockProcessor_processTx(t *testing.T) {
 			feesEnabled: true,
 		}
 		err = bp.ProcessBlock(context.Background(), &block.Block{
-			UnicityCertificate: &certificates.UnicityCertificate{InputRecord: &certificates.InputRecord{RoundNumber: 4}},
+			UnicityCertificate: &types.UnicityCertificate{InputRecord: &types.InputRecord{RoundNumber: 4}},
 			Transactions:       []*txsystem.Transaction{tx},
 		})
 		require.NoError(t, err)
@@ -409,7 +410,7 @@ func Test_blockProcessor_processTx(t *testing.T) {
 			feesEnabled: true,
 		}
 		err = bp.ProcessBlock(context.Background(), &block.Block{
-			UnicityCertificate: &certificates.UnicityCertificate{InputRecord: &certificates.InputRecord{RoundNumber: 4}},
+			UnicityCertificate: &types.UnicityCertificate{InputRecord: &types.InputRecord{RoundNumber: 4}},
 			Transactions:       []*txsystem.Transaction{tx},
 		})
 		require.NoError(t, err)
@@ -425,7 +426,7 @@ func Test_blockProcessor_ProcessFeeCreditTxs(t *testing.T) {
 	// when addFC tx is processed
 	addFC := testfc.NewAddFC(t, signer, nil)
 	b := &block.Block{
-		UnicityCertificate: &certificates.UnicityCertificate{InputRecord: &certificates.InputRecord{RoundNumber: 4}},
+		UnicityCertificate: &types.UnicityCertificate{InputRecord: &types.InputRecord{RoundNumber: 4}},
 		Transactions:       []*txsystem.Transaction{addFC.Transaction},
 	}
 	err = bp.ProcessBlock(context.Background(), b)
@@ -444,7 +445,7 @@ func Test_blockProcessor_ProcessFeeCreditTxs(t *testing.T) {
 		testfc.NewCloseFCAttr(testfc.WithCloseFCAmount(10)),
 	)
 	b = &block.Block{
-		UnicityCertificate: &certificates.UnicityCertificate{InputRecord: &certificates.InputRecord{RoundNumber: 5}},
+		UnicityCertificate: &types.UnicityCertificate{InputRecord: &types.InputRecord{RoundNumber: 5}},
 		Transactions:       []*txsystem.Transaction{closeFC.Transaction},
 	}
 	err = bp.ProcessBlock(context.Background(), b)

@@ -5,24 +5,23 @@ import (
 
 	testtransaction "github.com/alphabill-org/alphabill/internal/testutils/transaction"
 	"github.com/alphabill-org/alphabill/internal/txsystem/fc/transactions"
+	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/stretchr/testify/require"
 )
 
-func NewCloseFC(t *testing.T, attr *transactions.CloseFeeCreditAttributes, opts ...testtransaction.Option) *transactions.CloseFeeCreditWrapper {
+func NewCloseFC(t *testing.T, attr *transactions.CloseFeeCreditAttributes, opts ...testtransaction.Option) *types.TransactionOrder {
 	if attr == nil {
 		attr = NewCloseFCAttr()
 	}
-	defaultTx := testtransaction.NewTransaction(t,
+	tx := testtransaction.NewTransaction(t,
 		testtransaction.WithUnitId(unitID),
 		testtransaction.WithAttributes(attr),
+		testtransaction.WithPayloadType(transactions.PayloadTypeCloseFeeCredit),
 	)
 	for _, opt := range opts {
-		require.NoError(t, opt(defaultTx))
+		require.NoError(t, opt(tx))
 	}
-	tx, err := transactions.NewFeeCreditTx(defaultTx)
-	require.NoError(t, err)
-
-	return tx.(*transactions.CloseFeeCreditWrapper)
+	return tx
 }
 
 type CloseFCOption func(*transactions.CloseFeeCreditAttributes) CloseFCOption
@@ -38,7 +37,7 @@ func NewCloseFCAttr(opts ...CloseFCOption) *transactions.CloseFeeCreditAttribute
 func NewDefaultCloseFCAttr() *transactions.CloseFeeCreditAttributes {
 	return &transactions.CloseFeeCreditAttributes{
 		Amount:       amount,
-		TargetUnitId: unitID,
+		TargetUnitID: unitID,
 		Nonce:        nonce,
 	}
 }
@@ -52,7 +51,7 @@ func WithCloseFCAmount(amount uint64) CloseFCOption {
 
 func WithCloseFCTargetUnitID(targetUnitID []byte) CloseFCOption {
 	return func(tx *transactions.CloseFeeCreditAttributes) CloseFCOption {
-		tx.TargetUnitId = targetUnitID
+		tx.TargetUnitID = targetUnitID
 		return nil
 	}
 }

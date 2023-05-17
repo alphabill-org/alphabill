@@ -5,14 +5,13 @@ import (
 	"hash"
 	"testing"
 
-	"github.com/alphabill-org/alphabill/internal/block"
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/rma"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	testtransaction "github.com/alphabill-org/alphabill/internal/testutils/transaction"
-	"github.com/alphabill-org/alphabill/internal/txsystem"
 	testfc "github.com/alphabill-org/alphabill/internal/txsystem/fc/testutils"
 	"github.com/alphabill-org/alphabill/internal/txsystem/fc/transactions"
+	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/stretchr/testify/require"
 )
 
@@ -32,7 +31,7 @@ func TestAddFC(t *testing.T) {
 	tests := []struct {
 		name        string
 		unit        *rma.Unit
-		tx          *transactions.AddFeeCreditWrapper
+		tx          *types.TransactionOrder
 		roundNumber uint64
 		wantErr     error
 		wantErrMsg  string
@@ -47,7 +46,7 @@ func TestAddFC(t *testing.T) {
 			name: "RecordID exists",
 			unit: nil,
 			tx: testfc.NewAddFC(t, signer, nil,
-				testtransaction.WithClientMetadata(&txsystem.ClientMetadata{FeeCreditRecordId: recordID}),
+				testtransaction.WithClientMetadata(&types.ClientMetadata{FeeCreditRecordID: recordID}),
 			),
 			wantErr: ErrRecordIDExists,
 		},
@@ -73,9 +72,12 @@ func TestAddFC(t *testing.T) {
 			name: "Invalid systemID",
 			tx: testfc.NewAddFC(t, signer,
 				testfc.NewAddFCAttr(t, signer,
-					testfc.WithTransferFCTx(testfc.NewTransferFC(t, nil,
-						testtransaction.WithSystemID([]byte("not money partition")),
-					).Transaction),
+					testfc.WithTransferFCTx(
+						&types.TransactionRecord{
+							TransactionOrder: testfc.NewTransferFC(t, nil, testtransaction.WithSystemID([]byte("not money partition"))),
+							ServerMetadata:   nil,
+						},
+					),
 				),
 			),
 			wantErr: ErrAddFCInvalidSystemID,
@@ -84,9 +86,12 @@ func TestAddFC(t *testing.T) {
 			name: "Invalid target systemID",
 			tx: testfc.NewAddFC(t, signer,
 				testfc.NewAddFCAttr(t, signer,
-					testfc.WithTransferFCTx(testfc.NewTransferFC(t,
-						testfc.NewTransferFCAttr(testfc.WithTargetSystemID([]byte("not money partition"))),
-					).Transaction),
+					testfc.WithTransferFCTx(
+						&types.TransactionRecord{
+							TransactionOrder: testfc.NewTransferFC(t, testfc.NewTransferFCAttr(testfc.WithTargetSystemID([]byte("not money partition")))),
+							ServerMetadata:   nil,
+						},
+					),
 				),
 			),
 			wantErr: ErrAddFCInvalidTargetSystemID,
@@ -95,9 +100,12 @@ func TestAddFC(t *testing.T) {
 			name: "Invalid target recordID",
 			tx: testfc.NewAddFC(t, signer,
 				testfc.NewAddFCAttr(t, signer,
-					testfc.WithTransferFCTx(testfc.NewTransferFC(t,
-						testfc.NewTransferFCAttr(testfc.WithTargetRecordID([]byte("not equal to transaction.unitId"))),
-					).Transaction),
+					testfc.WithTransferFCTx(
+						&types.TransactionRecord{
+							TransactionOrder: testfc.NewTransferFC(t, testfc.NewTransferFCAttr(testfc.WithTargetRecordID([]byte("not equal to transaction.unitId")))),
+							ServerMetadata:   nil,
+						},
+					),
 				),
 			),
 			wantErr: ErrAddFCInvalidTargetRecordID,
@@ -106,9 +114,12 @@ func TestAddFC(t *testing.T) {
 			name: "Invalid nonce",
 			tx: testfc.NewAddFC(t, signer,
 				testfc.NewAddFCAttr(t, signer,
-					testfc.WithTransferFCTx(testfc.NewTransferFC(t,
-						testfc.NewTransferFCAttr(testfc.WithNonce([]byte("non-empty nonce"))),
-					).Transaction),
+					testfc.WithTransferFCTx(
+						&types.TransactionRecord{
+							TransactionOrder: testfc.NewTransferFC(t, testfc.NewTransferFCAttr(testfc.WithNonce([]byte("non-empty nonce")))),
+							ServerMetadata:   nil,
+						},
+					),
 				),
 			),
 			wantErr: ErrAddFCInvalidNonce,
@@ -117,9 +128,12 @@ func TestAddFC(t *testing.T) {
 			name: "EarliestAdditionTime in the future NOK",
 			tx: testfc.NewAddFC(t, signer,
 				testfc.NewAddFCAttr(t, signer,
-					testfc.WithTransferFCTx(testfc.NewTransferFC(t,
-						testfc.NewTransferFCAttr(testfc.WithEarliestAdditionTime(11)),
-					).Transaction),
+					testfc.WithTransferFCTx(
+						&types.TransactionRecord{
+							TransactionOrder: testfc.NewTransferFC(t, testfc.NewTransferFCAttr(testfc.WithEarliestAdditionTime(11))),
+							ServerMetadata:   nil,
+						},
+					),
 				),
 			),
 			roundNumber: 10,
@@ -129,9 +143,12 @@ func TestAddFC(t *testing.T) {
 			name: "EarliestAdditionTime next block OK",
 			tx: testfc.NewAddFC(t, signer,
 				testfc.NewAddFCAttr(t, signer,
-					testfc.WithTransferFCTx(testfc.NewTransferFC(t,
-						testfc.NewTransferFCAttr(testfc.WithEarliestAdditionTime(10)),
-					).Transaction),
+					testfc.WithTransferFCTx(
+						&types.TransactionRecord{
+							TransactionOrder: testfc.NewTransferFC(t, testfc.NewTransferFCAttr(testfc.WithEarliestAdditionTime(10))),
+							ServerMetadata:   nil,
+						},
+					),
 				),
 			),
 			roundNumber: 10,
@@ -141,9 +158,12 @@ func TestAddFC(t *testing.T) {
 			name: "LatestAdditionTime in the past NOK",
 			tx: testfc.NewAddFC(t, signer,
 				testfc.NewAddFCAttr(t, signer,
-					testfc.WithTransferFCTx(testfc.NewTransferFC(t,
-						testfc.NewTransferFCAttr(testfc.WithLatestAdditionTime(9)),
-					).Transaction),
+					testfc.WithTransferFCTx(
+						&types.TransactionRecord{
+							TransactionOrder: testfc.NewTransferFC(t, testfc.NewTransferFCAttr(testfc.WithLatestAdditionTime(9))),
+							ServerMetadata:   nil,
+						},
+					),
 				),
 			),
 			roundNumber: 10,
@@ -153,9 +173,12 @@ func TestAddFC(t *testing.T) {
 			name: "LatestAdditionTime next block OK",
 			tx: testfc.NewAddFC(t, signer,
 				testfc.NewAddFCAttr(t, signer,
-					testfc.WithTransferFCTx(testfc.NewTransferFC(t,
-						testfc.NewTransferFCAttr(testfc.WithLatestAdditionTime(10)),
-					).Transaction),
+					testfc.WithTransferFCTx(
+						&types.TransactionRecord{
+							TransactionOrder: testfc.NewTransferFC(t, testfc.NewTransferFCAttr(testfc.WithLatestAdditionTime(10))),
+							ServerMetadata:   nil,
+						},
+					),
 				),
 			),
 			roundNumber: 10,
@@ -165,24 +188,27 @@ func TestAddFC(t *testing.T) {
 			name: "Invalid tx fee",
 			tx: testfc.NewAddFC(t, signer,
 				testfc.NewAddFCAttr(t, signer,
-					testfc.WithTransferFCTx(testfc.NewTransferFC(t,
-						testfc.NewTransferFCAttr(testfc.WithAmount(100)),
-					).Transaction),
+					testfc.WithTransferFCTx(
+						&types.TransactionRecord{
+							TransactionOrder: testfc.NewTransferFC(t, testfc.NewTransferFCAttr(testfc.WithAmount(100))),
+							ServerMetadata:   nil,
+						},
+					),
 				),
-				testtransaction.WithClientMetadata(&txsystem.ClientMetadata{MaxFee: 101}),
+				testtransaction.WithClientMetadata(&types.ClientMetadata{MaxTransactionFee: 101}),
 			),
 			roundNumber: 5,
 			wantErr:     ErrAddFCInvalidTxFee,
 		},
 		{
-			name: "Invalid block proof",
+			name: "Invalid tx proof",
 			tx: testfc.NewAddFC(t, signer,
 				testfc.NewAddFCAttr(t, signer,
 					testfc.WithTransferFCProof(newInvalidProof(t, signer)),
 				),
 			),
 			roundNumber: 5,
-			wantErrMsg:  "proof verification failed",
+			wantErrMsg:  "invalid proof",
 		},
 	}
 	for _, tt := range tests {
@@ -213,7 +239,7 @@ func TestCloseFC(t *testing.T) {
 	tests := []struct {
 		name       string
 		unit       *rma.Unit
-		tx         *transactions.CloseFeeCreditWrapper
+		tx         *types.TransactionOrder
 		wantErr    error
 		wantErrMsg string
 	}{
@@ -233,7 +259,7 @@ func TestCloseFC(t *testing.T) {
 			name: "RecordID exists",
 			unit: &rma.Unit{Data: &FeeCreditRecord{Balance: 50}},
 			tx: testfc.NewCloseFC(t, nil,
-				testtransaction.WithClientMetadata(&txsystem.ClientMetadata{FeeCreditRecordId: recordID}),
+				testtransaction.WithClientMetadata(&types.ClientMetadata{FeeCreditRecordID: recordID}),
 			),
 			wantErr: ErrRecordIDExists,
 		},
@@ -267,7 +293,7 @@ func TestCloseFC(t *testing.T) {
 			name: "Invalid fee",
 			unit: &rma.Unit{Data: &FeeCreditRecord{Balance: 50}},
 			tx: testfc.NewCloseFC(t, nil,
-				testtransaction.WithClientMetadata(&txsystem.ClientMetadata{MaxFee: 51}),
+				testtransaction.WithClientMetadata(&types.ClientMetadata{MaxTransactionFee: 51}),
 			),
 			wantErr: ErrCloseFCInvalidFee,
 		},
@@ -291,10 +317,13 @@ func TestCloseFC(t *testing.T) {
 	}
 }
 
-func newInvalidProof(t *testing.T, signer abcrypto.Signer) *block.BlockProof {
+func newInvalidProof(t *testing.T, signer abcrypto.Signer) *types.TxProof {
 	addFC := testfc.NewAddFC(t, signer, nil)
-	addFC.AddFC.FeeCreditTransferProof.TransactionsHash = []byte("invalid hash")
-	return addFC.AddFC.FeeCreditTransferProof
+	attr := &transactions.AddFeeCreditAttributes{}
+	require.NoError(t, addFC.UnmarshalAttributes(attr))
+
+	attr.FeeCreditTransferProof.BlockHeaderHash = []byte("invalid hash")
+	return attr.FeeCreditTransferProof
 }
 
 type testData struct {

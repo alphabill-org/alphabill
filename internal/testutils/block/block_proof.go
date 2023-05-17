@@ -4,44 +4,42 @@ import (
 	"crypto"
 	"testing"
 
-	"github.com/alphabill-org/alphabill/internal/util"
-
-	"github.com/alphabill-org/alphabill/internal/block"
-	"github.com/alphabill-org/alphabill/internal/certificates"
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 	testcertificates "github.com/alphabill-org/alphabill/internal/testutils/certificates"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
-	"github.com/alphabill-org/alphabill/internal/txsystem"
+	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/stretchr/testify/require"
 )
 
-func CreateProof(t *testing.T, tx txsystem.GenericTransaction, signer abcrypto.Signer, unitID []byte) *block.BlockProof {
-	b := &block.GenericBlock{UnicityCertificate: &certificates.UnicityCertificate{InputRecord: &certificates.InputRecord{RoundNumber: 1}}}
+// TODO remove unit ID
+func CreateProof(t *testing.T, tx *types.TransactionRecord, signer abcrypto.Signer, unitID []byte) *types.TxProof {
+	b := &types.Block{Header: &types.Header{}, UnicityCertificate: &types.UnicityCertificate{InputRecord: &types.InputRecord{RoundNumber: 1}}}
 	if tx != nil {
-		b.Transactions = []txsystem.GenericTransaction{tx}
+		b.Transactions = []*types.TransactionRecord{tx}
 	}
 	b.UnicityCertificate = CreateUC(t, b, signer)
-	p, err := block.NewPrimaryProof(b, unitID, crypto.SHA256)
+	p, err := types.NewTxProof(b, 0, crypto.SHA256)
 	require.NoError(t, err)
 	return p
 }
 
-func CreatePrimaryProofs(t *testing.T, txs []txsystem.GenericTransaction, signer abcrypto.Signer) (proofs []*block.BlockProof) {
-	b := &block.GenericBlock{UnicityCertificate: &certificates.UnicityCertificate{InputRecord: &certificates.InputRecord{RoundNumber: 1}}}
+// TODO remove?
+func CreatePrimaryProofs(t *testing.T, txs []*types.TransactionRecord, signer abcrypto.Signer) (proofs []*types.TxProof) {
+	b := &types.Block{UnicityCertificate: &types.UnicityCertificate{InputRecord: &types.InputRecord{RoundNumber: 1}}}
 	b.Transactions = txs
 	b.UnicityCertificate = CreateUC(t, b, signer)
-	for _, tx := range txs {
-		p, err := block.NewPrimaryProof(b, util.Uint256ToBytes(tx.UnitID()), crypto.SHA256)
+	for i, _ := range txs {
+		p, err := types.NewTxProof(b, i, crypto.SHA256)
 		require.NoError(t, err)
 		proofs = append(proofs, p)
 	}
 	return
 }
 
-func CreateUC(t *testing.T, b *block.GenericBlock, signer abcrypto.Signer) *certificates.UnicityCertificate {
+func CreateUC(t *testing.T, b *types.Block, signer abcrypto.Signer) *types.UnicityCertificate {
 	blockHash, _ := b.Hash(crypto.SHA256)
-	ir := &certificates.InputRecord{
+	ir := &types.InputRecord{
 		PreviousHash: make([]byte, 32),
 		Hash:         make([]byte, 32),
 		BlockHash:    blockHash,
@@ -59,14 +57,12 @@ func CreateUC(t *testing.T, b *block.GenericBlock, signer abcrypto.Signer) *cert
 	return uc
 }
 
-func CertifyBlock(t *testing.T, b *block.Block, txConverter block.TxConverter) (*block.Block, map[string]abcrypto.Verifier) {
-	gblock, err := b.ToGenericBlock(txConverter)
-	require.NoError(t, err)
-	verifiers := CertifyGenericBlock(t, gblock)
-	return gblock.ToProtobuf(), verifiers
+func CertifyBlock(t *testing.T, b *types.Block) (*types.Block, map[string]abcrypto.Verifier) {
+	verifiers := CertifyGenericBlock(t, b)
+	return b, verifiers
 }
 
-func CertifyGenericBlock(t *testing.T, b *block.GenericBlock) map[string]abcrypto.Verifier {
+func CertifyGenericBlock(t *testing.T, b *types.Block) map[string]abcrypto.Verifier {
 	signer, verifier := testsig.CreateSignerAndVerifier(t)
 	verifiers := map[string]abcrypto.Verifier{"test": verifier}
 	b.UnicityCertificate = CreateUC(t, b, signer)

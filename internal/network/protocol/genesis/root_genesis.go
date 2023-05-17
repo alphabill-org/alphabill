@@ -30,7 +30,8 @@ type SystemDescriptionRecordGetter interface {
 func CheckPartitionSystemIdentifiersUnique[T SystemDescriptionRecordGetter](records []T) error {
 	var ids = make(map[string][]byte)
 	for _, rec := range records {
-		id := rec.GetSystemDescriptionRecord().SystemIdentifier
+		record := rec.GetSystemDescriptionRecord()
+		id := record.SystemIdentifier
 		if _, f := ids[string(id)]; f {
 			return fmt.Errorf("duplicated system identifier: %X", id)
 		}

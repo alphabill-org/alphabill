@@ -9,7 +9,6 @@ import (
 	"github.com/alphabill-org/alphabill/internal/network/protocol/certification"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/handshake"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/replication"
-	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/libp2p/go-libp2p/core/peer"
 )
@@ -107,7 +106,7 @@ func NewLibP2PValidatorNetwork(self *Peer, opts ValidatorNetOptions) (*LibP2PNet
 		},
 		{
 			protocolID: ProtocolInputForward,
-			typeFn:     func() any { return &txsystem.Transaction{} },
+			typeFn:     func() any { return &types.TransactionOrder{} },
 		},
 		{
 			protocolID: ProtocolUnicityCertificates,

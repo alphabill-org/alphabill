@@ -1,8 +1,0 @@
-syntax = "proto3";
-
-option go_package = "github.com/alphabill-org/alphabill/internal/handshake;handshake";
-
-message Handshake {
-  bytes system_identifier = 1;
-  string node_identifier = 2;
-}

@@ -9,7 +9,6 @@ import (
 	"github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/blockproposal"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
-	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/internal/types"
 )
 
@@ -18,7 +17,7 @@ type (
 	// TxValidator is used to validate generic transactions (e.g. timeouts, system identifiers, etc.). This validator
 	// should not contain transaction system specific validation logic.
 	TxValidator interface {
-		Validate(tx txsystem.GenericTransaction, latestBlockNumber uint64) error
+		Validate(tx *types.TransactionOrder, latestBlockNumber uint64) error
 	}
 
 	// UnicityCertificateValidator is used to validate certificates.UnicityCertificate.
@@ -68,7 +67,7 @@ func NewDefaultTxValidator(systemIdentifier []byte) (TxValidator, error) {
 	}, nil
 }
 
-func (dtv *DefaultTxValidator) Validate(tx txsystem.GenericTransaction, latestBlockNumber uint64) error {
+func (dtv *DefaultTxValidator) Validate(tx *types.TransactionOrder, latestBlockNumber uint64) error {
 	if tx == nil {
 		return errors.New("transaction is nil")
 	}

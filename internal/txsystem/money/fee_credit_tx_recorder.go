@@ -6,6 +6,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/internal/rma"
 	"github.com/alphabill-org/alphabill/internal/txsystem/fc/transactions"
+	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/holiman/uint256"
 )
 
@@ -14,10 +15,24 @@ type feeCreditTxRecorder struct {
 	sdrs  map[string]*genesis.SystemDescriptionRecord
 	state *rma.Tree
 	// recorded fee credit transfers indexed by string(system_identifier)
-	transferFeeCredits map[string][]*transactions.TransferFeeCreditWrapper
+	transferFeeCredits map[string][]*transferFeeCreditTx
 	// recorded reclaim fee credit transfers indexed by string(system_identifier)
-	reclaimFeeCredits map[string][]*transactions.ReclaimFeeCreditWrapper
+	reclaimFeeCredits map[string][]*reclaimFeeCreditTx
 	systemIdentifier  string
+}
+
+type transferFeeCreditTx struct {
+	tx   *types.TransactionOrder
+	fee  uint64
+	attr *transactions.TransferFeeCreditAttributes
+}
+
+type reclaimFeeCreditTx struct {
+	tx                  *types.TransactionOrder
+	attr                *transactions.ReclaimFeeCreditAttributes
+	closeFCTransferAttr *transactions.CloseFeeCreditAttributes
+	reclaimFee          uint64
+	closeFee            uint64
 }
 
 func newFeeCreditTxRecorder(state *rma.Tree, systemIdentifier []byte, records []*genesis.SystemDescriptionRecord) *feeCreditTxRecorder {
@@ -29,25 +44,25 @@ func newFeeCreditTxRecorder(state *rma.Tree, systemIdentifier []byte, records []
 		sdrs:               sdrs,
 		state:              state,
 		systemIdentifier:   string(systemIdentifier),
-		transferFeeCredits: make(map[string][]*transactions.TransferFeeCreditWrapper),
-		reclaimFeeCredits:  make(map[string][]*transactions.ReclaimFeeCreditWrapper),
+		transferFeeCredits: make(map[string][]*transferFeeCreditTx),
+		reclaimFeeCredits:  make(map[string][]*reclaimFeeCreditTx),
 	}
 }
 
-func (f *feeCreditTxRecorder) recordTransferFC(tx *transactions.TransferFeeCreditWrapper) {
-	sid := string(tx.TransferFC.TargetSystemIdentifier)
+func (f *feeCreditTxRecorder) recordTransferFC(tx *transferFeeCreditTx) {
+	sid := string(tx.attr.TargetSystemIdentifier)
 	f.transferFeeCredits[sid] = append(f.transferFeeCredits[sid], tx)
 }
 
-func (f *feeCreditTxRecorder) recordReclaimFC(tx *transactions.ReclaimFeeCreditWrapper) {
-	sid := string(tx.CloseFCTransfer.SystemID())
+func (f *feeCreditTxRecorder) recordReclaimFC(tx *reclaimFeeCreditTx) {
+	sid := string(tx.attr.CloseFeeCreditTransfer.TransactionOrder.SystemID())
 	f.reclaimFeeCredits[sid] = append(f.reclaimFeeCredits[sid], tx)
 }
 
 func (f *feeCreditTxRecorder) getAddedCredit(sid string) uint64 {
 	var sum uint64
 	for _, transferFC := range f.transferFeeCredits[sid] {
-		sum += transferFC.TransferFC.Amount
+		sum += transferFC.attr.Amount
 	}
 	return sum
 }
@@ -55,7 +70,7 @@ func (f *feeCreditTxRecorder) getAddedCredit(sid string) uint64 {
 func (f *feeCreditTxRecorder) getReclaimedCredit(sid string) uint64 {
 	var sum uint64
 	for _, reclaimFC := range f.reclaimFeeCredits[sid] {
-		sum += reclaimFC.CloseFCTransfer.CloseFC.Amount - reclaimFC.CloseFCTransfer.Transaction.ServerMetadata.Fee
+		sum += reclaimFC.closeFCTransferAttr.Amount - reclaimFC.closeFee
 	}
 	return sum
 }
@@ -64,20 +79,20 @@ func (f *feeCreditTxRecorder) getSpentFeeSum() uint64 {
 	var sum uint64
 	for _, transferFCs := range f.transferFeeCredits {
 		for _, transferFC := range transferFCs {
-			sum += transferFC.Transaction.ServerMetadata.Fee
+			sum += transferFC.fee
 		}
 	}
 	for _, reclaimFCs := range f.reclaimFeeCredits {
 		for _, reclaimFC := range reclaimFCs {
-			sum += reclaimFC.Transaction.ServerMetadata.Fee
+			sum += reclaimFC.reclaimFee
 		}
 	}
 	return sum
 }
 
 func (f *feeCreditTxRecorder) reset() {
-	f.transferFeeCredits = make(map[string][]*transactions.TransferFeeCreditWrapper)
-	f.reclaimFeeCredits = make(map[string][]*transactions.ReclaimFeeCreditWrapper)
+	f.transferFeeCredits = make(map[string][]*transferFeeCreditTx)
+	f.reclaimFeeCredits = make(map[string][]*reclaimFeeCreditTx)
 }
 
 func (f *feeCreditTxRecorder) consolidateFees() error {

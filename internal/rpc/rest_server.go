@@ -2,6 +2,7 @@ package rpc
 
 import (
 	"bytes"
+	"context"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -9,15 +10,16 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/fxamacker/cbor/v2"
+
+	"github.com/alphabill-org/alphabill/internal/types"
+
 	aberrors "github.com/alphabill-org/alphabill/internal/errors"
 	"github.com/alphabill-org/alphabill/internal/metrics"
 	"github.com/alphabill-org/alphabill/internal/network"
-	"github.com/alphabill-org/alphabill/internal/txsystem"
-
 	"github.com/gorilla/mux"
 	"github.com/multiformats/go-multiaddr"
 	"golang.org/x/exp/slices"
-	"google.golang.org/protobuf/encoding/protojson"
 )
 
 const (
@@ -44,6 +46,14 @@ type (
 		PartitionValidators []peerInfo `json:"partition_validators"`
 		OpenConnections     []peerInfo `json:"open_connections"` // all libp2p connections to other peers in the network
 
+	}
+
+	partitionNode interface {
+		SubmitTx(ctx context.Context, tx *types.TransactionOrder) error
+		GetBlock(ctx context.Context, blockNr uint64) (*types.Block, error)
+		GetLatestBlock() (*types.Block, error)
+		GetLatestRoundNumber() (uint64, error)
+		SystemIdentifier() []byte
 	}
 
 	peerInfo struct {
@@ -127,8 +137,8 @@ func (s *RestServer) submitTransaction(writer http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	tx := &txsystem.Transaction{}
-	if err := protojson.Unmarshal(buf.Bytes(), tx); err != nil {
+	tx := &types.TransactionOrder{}
+	if err := cbor.Unmarshal(buf.Bytes(), tx); err != nil {
 		receivedInvalidTransactionsRESTMeter.Inc(1)
 		writeError(writer, fmt.Errorf("failed to decode request body as transaction: %w", err), http.StatusBadRequest)
 		return

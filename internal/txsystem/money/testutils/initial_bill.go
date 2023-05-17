@@ -1,5 +1,6 @@
 package testutils
 
+/*
 import (
 	"github.com/alphabill-org/alphabill/internal/hash"
 	"github.com/alphabill-org/alphabill/internal/script"
@@ -36,3 +37,4 @@ func CreateInitialBillTransferTx(pubKey []byte, billId *uint256.Int, billValue u
 	}
 	return tx, nil
 }
+*/

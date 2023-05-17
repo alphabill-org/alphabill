@@ -1,6 +1,10 @@
 package txsystem
 
-import "errors"
+import (
+	"errors"
+
+	"github.com/alphabill-org/alphabill/internal/types"
+)
 
 var ErrStateContainsUncommittedChanges = errors.New("state contains uncommitted changes")
 
@@ -11,16 +15,16 @@ type (
 	// round was unsuccessful).
 	TransactionSystem interface {
 
-		// State returns the current state of the transaction system or an ErrStateContainsUncommittedChanges if
+		// StateSummary returns the current state of the transaction system or an ErrStateContainsUncommittedChanges if
 		// current state contains uncommitted changes.
-		State() (State, error)
+		StateSummary() (State, error)
 
 		// BeginBlock signals the start of a new block and is invoked before any Execute method calls.
 		BeginBlock(uint64)
 
-		// Execute method executes the transaction. An error must be returned if the transaction execution was not
-		// successful.
-		Execute(tx GenericTransaction) error
+		// Execute method executes the transaction order. An error must be returned if the transaction order execution
+		// was not successful.
+		Execute(order *types.TransactionOrder) (*types.ServerMetadata, error)
 
 		// EndBlock signals the end of the block and is called after all transactions have been delivered to the
 		// transaction system.
@@ -34,12 +38,10 @@ type (
 		// the transaction system must commit all the changes made during the BeginBlock, EndBlock, and Execute method
 		// calls.
 		Commit()
-
-		// ConvertTx converts protobuf transaction to a GenericTransaction.
-		ConvertTx(tx *Transaction) (GenericTransaction, error)
 	}
 
 	// State represents the root hash and summary value of the transaction system.
+	// TODO remove
 	State interface {
 		// Root returns the root hash of the TransactionSystem.
 		Root() []byte

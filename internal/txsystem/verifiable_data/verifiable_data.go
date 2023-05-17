@@ -1,18 +1,18 @@
 package verifiable_data
 
 import (
-	"bytes"
 	"crypto"
+	"errors"
+	"fmt"
 	"hash"
 
-	"github.com/alphabill-org/alphabill/internal/errors"
 	hasherUtil "github.com/alphabill-org/alphabill/internal/hash"
 	"github.com/alphabill-org/alphabill/internal/rma"
 	"github.com/alphabill-org/alphabill/internal/script"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
+	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/alphabill-org/alphabill/pkg/logger"
-	"github.com/holiman/uint256"
 )
 
 const zeroSummaryValue = rma.Uint64SummaryValue(0)
@@ -21,14 +21,17 @@ var (
 	ErrOwnerProofPresent = errors.New("'register data' transaction cannot have an owner proof")
 	log                  = logger.CreateForPackage()
 	zeroRootHash         = make([]byte, 32)
+
+	txType = "reg"
 )
 
 type (
-	vdTransaction struct {
-		transaction *txsystem.Transaction
-		hashFunc    crypto.Hash
-		hashValue   []byte
-	}
+	/*
+		vdTransaction struct {
+			transaction *txsystem.Transaction
+			hashFunc    crypto.Hash
+			hashValue   []byte
+		}*/
 
 	txSystem struct {
 		systemIdentifier   []byte
@@ -59,7 +62,7 @@ func New(systemId []byte) (*txSystem, error) {
 	return vdTxSystem, nil
 }
 
-func (d *txSystem) State() (txsystem.State, error) {
+func (d *txSystem) StateSummary() (txsystem.State, error) {
 	if d.stateTree.ContainsUncommittedChanges() {
 		return nil, txsystem.ErrStateContainsUncommittedChanges
 	}
@@ -82,38 +85,27 @@ func (d *txSystem) Commit() {
 	d.stateTree.Commit()
 }
 
-func (d *txSystem) Execute(tx txsystem.GenericTransaction) error {
+func (d *txSystem) Execute(tx *types.TransactionOrder) (*types.ServerMetadata, error) {
 	log.Debug("Processing register data tx: '%v', UnitID=%x", tx, tx.UnitID())
-	if len(tx.OwnerProof()) > 0 {
-		return ErrOwnerProofPresent
+	if len(tx.OwnerProof) > 0 {
+		return nil, ErrOwnerProofPresent
+	}
+	if tx.PayloadType() != txType {
+		return nil, fmt.Errorf("invalid transaction payload type: got %s, expected %s", tx.PayloadType(), txType)
 	}
 	h := tx.Hash(d.hashAlgorithm)
-	err := d.stateTree.AtomicUpdate(
-		rma.AddItem(tx.UnitID(),
+	if err := d.stateTree.AtomicUpdate(
+		rma.AddItem(util.BytesToUint256(tx.UnitID()),
 			script.PredicateAlwaysFalse(),
 			&unit{
-				dataHash:    hasherUtil.Sum256(util.Uint256ToBytes(tx.UnitID())),
+				dataHash:    hasherUtil.Sum256(tx.UnitID()),
 				blockNumber: d.currentBlockNumber,
 			},
 			h,
-		))
-	if err != nil {
-		return errors.Wrapf(err, "could not add item: %v", err)
+		)); err != nil {
+		return nil, fmt.Errorf("could not add item: %v", err)
 	}
-	return nil
-}
-
-func (d *txSystem) ConvertTx(tx *txsystem.Transaction) (txsystem.GenericTransaction, error) {
-	if !bytes.Equal(d.systemIdentifier, tx.GetSystemId()) {
-		return nil, errors.Errorf("transaction has invalid system identifier %X, expected %X", tx.GetSystemId(), d.systemIdentifier)
-	}
-	if tx.TransactionAttributes != nil {
-		return nil, errors.New("invalid vd transaction: transactionAttributes present")
-	}
-
-	return &vdTransaction{
-		transaction: tx,
-	}, nil
+	return &types.ServerMetadata{}, nil
 }
 
 func (d *txSystem) getState() txsystem.State {
@@ -132,6 +124,7 @@ func (u *unit) Value() rma.SummaryValue {
 	return zeroSummaryValue
 }
 
+/*
 func (w *vdTransaction) Hash(hashFunc crypto.Hash) []byte {
 	if w.hashComputed(hashFunc) {
 		return w.hashValue
@@ -143,6 +136,7 @@ func (w *vdTransaction) Hash(hashFunc crypto.Hash) []byte {
 	w.hashFunc = hashFunc
 	return w.hashValue
 }
+
 
 func (w *vdTransaction) AddToHasher(hasher hash.Hash) {
 	hasher.Write(w.transaction.Bytes())
@@ -200,3 +194,6 @@ func (w *vdTransaction) sigBytes(b *bytes.Buffer) {
 func (w *vdTransaction) hashComputed(hashFunc crypto.Hash) bool {
 	return w.hashFunc == hashFunc && w.hashValue != nil
 }
+
+
+*/

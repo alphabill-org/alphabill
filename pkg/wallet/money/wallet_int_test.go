@@ -10,8 +10,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/alphabill-org/alphabill/internal/types"
+
 	"github.com/alphabill-org/alphabill/internal/block"
-	"github.com/alphabill-org/alphabill/internal/certificates"
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/hash"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
@@ -125,7 +126,7 @@ func TestCollectDustTimeoutReached(t *testing.T) {
 			SystemIdentifier:   w.SystemID(),
 			PreviousBlockHash:  hash.Sum256([]byte{}),
 			Transactions:       []*txsystem.Transaction{},
-			UnicityCertificate: &certificates.UnicityCertificate{InputRecord: &certificates.InputRecord{RoundNumber: blockNo}},
+			UnicityCertificate: &types.UnicityCertificate{InputRecord: &types.InputRecord{RoundNumber: blockNo}},
 		}
 		serverService.SetBlock(blockNo, b)
 	}

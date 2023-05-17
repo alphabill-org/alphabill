@@ -9,8 +9,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 	testcertificates "github.com/alphabill-org/alphabill/internal/testutils/certificates"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
-	moneytesttx "github.com/alphabill-org/alphabill/internal/testutils/transaction/money"
-	"github.com/alphabill-org/alphabill/internal/txsystem"
+	testtransaction "github.com/alphabill-org/alphabill/internal/testutils/transaction"
 	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/stretchr/testify/require"
 )
@@ -165,7 +164,14 @@ func TestDefaultNewDefaultBlockProposalValidator_ValidateOk(t *testing.T) {
 		SystemIdentifier:   uc.UnicityTreeCertificate.SystemIdentifier,
 		NodeIdentifier:     "1",
 		UnicityCertificate: uc,
-		Transactions:       []*txsystem.Transaction{moneytesttx.RandomBillTransfer(t)},
+		Transactions: []*types.TransactionRecord{
+			{
+				TransactionOrder: testtransaction.NewTransaction(t),
+				ServerMetadata: &types.ServerMetadata{
+					ActualFee: 10,
+				},
+			},
+		},
 	}
 	err = bp.Sign(gocrypto.SHA256, nodeSigner)
 	require.NoError(t, err)
@@ -175,7 +181,7 @@ func TestDefaultNewDefaultBlockProposalValidator_ValidateOk(t *testing.T) {
 func TestDefaultTxValidator_ValidateNotOk(t *testing.T) {
 	tests := []struct {
 		name                     string
-		tx                       txsystem.GenericTransaction
+		tx                       *types.TransactionOrder
 		latestBlockNumber        uint64
 		expectedSystemIdentifier []byte
 		errStr                   string
@@ -189,14 +195,14 @@ func TestDefaultTxValidator_ValidateNotOk(t *testing.T) {
 		},
 		{
 			name:                     "invalid system identifier",
-			tx:                       moneytesttx.RandomGenericBillTransfer(t), // default systemID is 0000
+			tx:                       testtransaction.NewTransaction(t), // default systemID is 0000
 			latestBlockNumber:        10,
 			expectedSystemIdentifier: []byte{1, 2, 3, 4},
 			errStr:                   "expected 01020304, got 00000000: invalid transaction system identifier",
 		},
 		{
 			name:                     "expired transaction",
-			tx:                       moneytesttx.RandomGenericBillTransfer(t), // default timeout is 10
+			tx:                       testtransaction.NewTransaction(t), // default timeout is 10
 			latestBlockNumber:        11,
 			expectedSystemIdentifier: []byte{0, 0, 0, 0},
 			errStr:                   "transaction has timed out: transaction timeout round is 10, current round is 11",

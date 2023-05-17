@@ -8,20 +8,20 @@ import (
 	"github.com/alphabill-org/alphabill/internal/rma"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/internal/txsystem/fc"
+	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/holiman/uint256"
 )
 
-func handleTransferNonFungibleTokenTx(options *Options) txsystem.GenericExecuteFunc[*transferNonFungibleTokenWrapper] {
-	return func(tx *transferNonFungibleTokenWrapper, currentBlockNr uint64) error {
+func handleTransferNonFungibleTokenTx(options *Options) txsystem.GenericExecuteFunc[TransferNonFungibleTokenAttributes] {
+	return func(tx *types.TransactionOrder, attr *TransferNonFungibleTokenAttributes, currentBlockNr uint64) (*types.ServerMetadata, error) {
 		logger.Debug("Processing Transfer Non-Fungible Token tx: %v", tx)
-		if err := validateTransferNonFungibleToken(tx, options.state); err != nil {
-			return fmt.Errorf("invalid transfer none-fungible token tx: %w", err)
+		if err := validateTransferNonFungibleToken(tx, attr, options.state); err != nil {
+			return nil, fmt.Errorf("invalid transfer none-fungible token tx: %w", err)
 		}
 		fee := options.feeCalculator()
-		tx.SetServerMetadata(&txsystem.ServerMetadata{Fee: fee})
 
-		// calculate hash after setting server metadata
+		// TODO calculate hash after setting server metadata
 		h := tx.Hash(options.hashAlgorithm)
 
 		// update state
@@ -32,14 +32,15 @@ func handleTransferNonFungibleTokenTx(options *Options) txsystem.GenericExecuteF
 				return nil
 			}
 		} else {
-			fcrID := tx.transaction.GetClientFeeCreditRecordID()
+			fcrID := util.BytesToUint256(tx.GetClientFeeCreditRecordID())
 			fcFunc = fc.DecrCredit(fcrID, fee, h)
 		}
 
-		return options.state.AtomicUpdate(
+		unitID := util.BytesToUint256(tx.UnitID())
+		if err := options.state.AtomicUpdate(
 			fcFunc,
-			rma.SetOwner(tx.UnitID(), tx.attributes.NewBearer, h),
-			rma.UpdateData(tx.UnitID(), func(data rma.UnitData) (newData rma.UnitData) {
+			rma.SetOwner(unitID, attr.NewBearer, h),
+			rma.UpdateData(unitID, func(data rma.UnitData) (newData rma.UnitData) {
 				d, ok := data.(*nonFungibleTokenData)
 				if !ok {
 					return data
@@ -47,12 +48,15 @@ func handleTransferNonFungibleTokenTx(options *Options) txsystem.GenericExecuteF
 				d.t = currentBlockNr
 				d.backlink = tx.Hash(options.hashAlgorithm)
 				return data
-			}, h))
+			}, h)); err != nil {
+			return nil, err
+		}
+		return &types.ServerMetadata{ActualFee: fee}, nil
 	}
 }
 
-func validateTransferNonFungibleToken(tx *transferNonFungibleTokenWrapper, state *rma.Tree) error {
-	unitID := tx.UnitID()
+func validateTransferNonFungibleToken(tx *types.TransactionOrder, attr *TransferNonFungibleTokenAttributes, state *rma.Tree) error {
+	unitID := util.BytesToUint256(tx.UnitID())
 	u, err := state.GetUnit(unitID)
 	if err != nil {
 		return err
@@ -61,12 +65,12 @@ func validateTransferNonFungibleToken(tx *transferNonFungibleTokenWrapper, state
 	if !ok {
 		return fmt.Errorf("validate nft transfer: unit %v is not a non-fungible token type", unitID)
 	}
-	if !bytes.Equal(data.backlink, tx.attributes.Backlink) {
+	if !bytes.Equal(data.backlink, attr.Backlink) {
 		return errors.New("validate nft transfer: invalid backlink")
 	}
 	tokenTypeID := util.Uint256ToBytes(data.nftType)
-	if !bytes.Equal(tx.NFTTypeID(), tokenTypeID) {
-		return fmt.Errorf("invalid type identifier: expected '%X', got '%X'", tokenTypeID, tx.NFTTypeID())
+	if !bytes.Equal(attr.NFTType, tokenTypeID) {
+		return fmt.Errorf("invalid type identifier: expected '%X', got '%X'", tokenTypeID, attr.NFTType)
 	}
 
 	// signature given in the transaction request satisfies the predicate obtained by concatenating all the token
@@ -84,5 +88,5 @@ func validateTransferNonFungibleToken(tx *transferNonFungibleTokenWrapper, state
 	if err != nil {
 		return err
 	}
-	return verifyOwnership(Predicate(u.Bearer), predicates, tx)
+	return verifyOwnership(Predicate(u.Bearer), predicates, TokenOwnershipProver{tx: tx, invariantPredicateSignatures: attr.InvariantPredicateSignatures})
 }

@@ -1,6 +1,7 @@
 package types
 
 import (
+	"crypto"
 	"errors"
 
 	"github.com/fxamacker/cbor/v2"
@@ -27,8 +28,8 @@ type (
 
 	ClientMetadata struct {
 		_                 struct{} `cbor:",toarray"`
-		Timeout           int64
-		MaxTransactionFee int64
+		Timeout           uint64
+		MaxTransactionFee uint64
 		FeeCreditRecordID []byte
 	}
 
@@ -44,6 +45,52 @@ func (t *TransactionOrder) UnmarshalAttributes(v any) error {
 		return errors.New("transaction order is nil")
 	}
 	return t.Payload.UnmarshalAttributes(v)
+}
+
+func (t *TransactionOrder) UnitID() []byte {
+	if t.Payload == nil {
+		return nil
+	}
+	return t.Payload.UnitID
+}
+
+func (t *TransactionOrder) SystemID() []byte {
+	if t.Payload == nil {
+		return nil
+	}
+	return t.Payload.SystemID
+}
+
+func (t *TransactionOrder) Timeout() uint64 {
+	if t.Payload == nil || t.Payload.ClientMetadata == nil {
+		return 0
+	}
+	return t.Payload.ClientMetadata.Timeout
+}
+
+func (t *TransactionOrder) PayloadType() string {
+	if t.Payload == nil {
+		return ""
+	}
+	return t.Payload.Type
+}
+
+func (t *TransactionOrder) GetClientFeeCreditRecordID() []byte {
+	if t.Payload == nil || t.Payload.ClientMetadata == nil {
+		return nil
+	}
+	return t.Payload.ClientMetadata.FeeCreditRecordID
+}
+
+func (t *TransactionOrder) Hash(algorithm crypto.Hash) []byte {
+	hasher := algorithm.New()
+	bytes, err := cbor.Marshal(t)
+	if err != nil {
+		//TODO
+		panic(err)
+	}
+	hasher.Write(bytes)
+	return hasher.Sum(nil)
 }
 
 func (p *Payload) UnmarshalAttributes(v any) error {

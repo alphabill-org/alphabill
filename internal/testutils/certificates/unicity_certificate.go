@@ -4,22 +4,22 @@ import (
 	gocrypto "crypto"
 	"testing"
 
-	"github.com/alphabill-org/alphabill/internal/certificates"
 	"github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/internal/rootchain/unicitytree"
+	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/internal/util"
 )
 
 func CreateUnicityCertificate(
 	t *testing.T,
 	signer crypto.Signer,
-	ir *certificates.InputRecord,
+	ir *types.InputRecord,
 	systemDescription *genesis.SystemDescriptionRecord,
 	roundNumber uint64,
 	previousRoundRootHash []byte,
 
-) *certificates.UnicityCertificate {
+) *types.UnicityCertificate {
 	t.Helper()
 	data := []*unicitytree.Data{{
 		SystemIdentifier:            systemDescription.SystemIdentifier,
@@ -40,9 +40,9 @@ func CreateUnicityCertificate(
 	if err != nil {
 		t.Error(err)
 	}
-	return &certificates.UnicityCertificate{
+	return &types.UnicityCertificate{
 		InputRecord: ir,
-		UnicityTreeCertificate: &certificates.UnicityTreeCertificate{
+		UnicityTreeCertificate: &types.UnicityTreeCertificate{
 			SystemIdentifier:      cert.SystemIdentifier,
 			SiblingHashes:         cert.SiblingHashes,
 			SystemDescriptionHash: systemDescription.Hash(gocrypto.SHA256),
@@ -51,8 +51,8 @@ func CreateUnicityCertificate(
 	}
 }
 
-func createUnicitySeal(rootHash []byte, roundNumber uint64, previousRoundRootHash []byte) *certificates.UnicitySeal {
-	return &certificates.UnicitySeal{
+func createUnicitySeal(rootHash []byte, roundNumber uint64, previousRoundRootHash []byte) *types.UnicitySeal {
+	return &types.UnicitySeal{
 		RootChainRoundNumber: roundNumber,
 		Timestamp:            util.MakeTimestamp(),
 		PreviousHash:         previousRoundRootHash,

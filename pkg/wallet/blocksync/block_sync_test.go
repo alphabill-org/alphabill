@@ -8,8 +8,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/alphabill-org/alphabill/internal/types"
+
 	"github.com/alphabill-org/alphabill/internal/block"
-	"github.com/alphabill-org/alphabill/internal/certificates"
 	"github.com/alphabill-org/alphabill/internal/rpc/alphabill"
 )
 
@@ -101,7 +102,7 @@ func Test_Run(t *testing.T) {
 			if blockNumber == 1 {
 				return &alphabill.GetBlocksResponse{
 					Blocks: []*block.Block{
-						{UnicityCertificate: &certificates.UnicityCertificate{InputRecord: &certificates.InputRecord{RoundNumber: blockNumber}}},
+						{UnicityCertificate: &types.UnicityCertificate{InputRecord: &types.InputRecord{RoundNumber: blockNumber}}},
 					},
 					MaxBlockNumber:      blockNumber + batchSize,
 					BatchMaxBlockNumber: blockNumber,
@@ -140,7 +141,7 @@ func Test_Run(t *testing.T) {
 			// ignore batchSize and send always single block
 			return &alphabill.GetBlocksResponse{
 				Blocks: []*block.Block{
-					{UnicityCertificate: &certificates.UnicityCertificate{InputRecord: &certificates.InputRecord{RoundNumber: blockNumber}}},
+					{UnicityCertificate: &types.UnicityCertificate{InputRecord: &types.InputRecord{RoundNumber: blockNumber}}},
 				},
 				MaxBlockNumber:      blockNumber + batchSize, //always signal there is one more batch
 				BatchMaxBlockNumber: blockNumber,
@@ -187,7 +188,7 @@ func Test_Run(t *testing.T) {
 			var b []*block.Block
 			for i := 0; i < int(n); i++ {
 				b = append(b, &block.Block{
-					UnicityCertificate: &certificates.UnicityCertificate{InputRecord: &certificates.InputRecord{RoundNumber: blockNumber + uint64(i)}},
+					UnicityCertificate: &types.UnicityCertificate{InputRecord: &types.InputRecord{RoundNumber: blockNumber + uint64(i)}},
 				})
 			}
 			return &alphabill.GetBlocksResponse{
@@ -234,7 +235,7 @@ func Test_Run(t *testing.T) {
 			var b []*block.Block
 			for i := 0; i < int(batchSize); i++ {
 				b = append(b, &block.Block{
-					UnicityCertificate: &certificates.UnicityCertificate{InputRecord: &certificates.InputRecord{RoundNumber: blockNumber + uint64(i)}},
+					UnicityCertificate: &types.UnicityCertificate{InputRecord: &types.InputRecord{RoundNumber: blockNumber + uint64(i)}},
 				})
 			}
 			return &alphabill.GetBlocksResponse{
@@ -377,7 +378,7 @@ func Test_fetchBlocks(t *testing.T) {
 			// ignore batchSize and send only one block
 			return &alphabill.GetBlocksResponse{
 				Blocks: []*block.Block{
-					{UnicityCertificate: &certificates.UnicityCertificate{InputRecord: &certificates.InputRecord{RoundNumber: blockNumber}}},
+					{UnicityCertificate: &types.UnicityCertificate{InputRecord: &types.InputRecord{RoundNumber: blockNumber}}},
 				},
 				MaxBlockNumber:      4,
 				BatchMaxBlockNumber: blockNumber,

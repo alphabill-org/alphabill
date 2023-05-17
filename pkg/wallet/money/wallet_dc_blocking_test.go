@@ -6,12 +6,13 @@ import (
 	"testing"
 	"time"
 
+	"github.com/alphabill-org/alphabill/internal/types"
+
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/types/known/anypb"
 
 	"github.com/alphabill-org/alphabill/internal/block"
-	"github.com/alphabill-org/alphabill/internal/certificates"
 	"github.com/alphabill-org/alphabill/internal/hash"
 	"github.com/alphabill-org/alphabill/internal/rpc/alphabill"
 	"github.com/alphabill-org/alphabill/internal/script"
@@ -51,7 +52,7 @@ func TestBlockingDcWithNormalBills(t *testing.T) {
 	require.NoError(t, err)
 	mockClient.SetBlock(&block.Block{Transactions: []*txsystem.Transaction{
 		tx,
-	}, UnicityCertificate: &certificates.UnicityCertificate{InputRecord: &certificates.InputRecord{RoundNumber: 0}}})
+	}, UnicityCertificate: &types.UnicityCertificate{InputRecord: &types.InputRecord{RoundNumber: 0}}})
 
 	// when blocking dust collector runs
 	_ = runBlockingDc(t, w)
@@ -100,7 +101,7 @@ func TestBlockingDCWithDCBillsBeforeDCTimeout(t *testing.T) {
 	require.NoError(t, err)
 	mockClient.SetBlock(&block.Block{Transactions: []*txsystem.Transaction{
 		tx,
-	}, UnicityCertificate: &certificates.UnicityCertificate{InputRecord: &certificates.InputRecord{RoundNumber: roundNr}}})
+	}, UnicityCertificate: &types.UnicityCertificate{InputRecord: &types.InputRecord{RoundNumber: roundNr}}})
 
 	// when blocking dust collector runs
 	_ = runBlockingDc(t, w)
@@ -142,7 +143,7 @@ func TestBlockingDCWithExistingExpiredDCBills(t *testing.T) {
 	require.NoError(t, err)
 	mockClient.SetBlock(&block.Block{Transactions: []*txsystem.Transaction{
 		tx,
-	}, UnicityCertificate: &certificates.UnicityCertificate{InputRecord: &certificates.InputRecord{RoundNumber: 0}}})
+	}, UnicityCertificate: &types.UnicityCertificate{InputRecord: &types.InputRecord{RoundNumber: 0}}})
 
 	// when blocking dust collector runs
 	_ = runBlockingDc(t, w)
@@ -253,7 +254,7 @@ func createBlockWithSwapTx(systemId, dcNonce []byte, k *account.AccountKey, dcTx
 					ServerMetadata:        &txsystem.ServerMetadata{Fee: 1},
 				},
 			},
-			UnicityCertificate: &certificates.UnicityCertificate{InputRecord: &certificates.InputRecord{RoundNumber: 1}},
+			UnicityCertificate: &types.UnicityCertificate{InputRecord: &types.InputRecord{RoundNumber: 1}},
 		},
 	}
 }

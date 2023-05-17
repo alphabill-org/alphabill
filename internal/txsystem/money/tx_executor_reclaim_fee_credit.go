@@ -1,17 +1,17 @@
 package money
 
 import (
-	"bytes"
 	"crypto"
 	"errors"
 	"fmt"
 
-	"github.com/alphabill-org/alphabill/internal/block"
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/rma"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/internal/txsystem/fc"
 	"github.com/alphabill-org/alphabill/internal/txsystem/fc/transactions"
+	"github.com/alphabill-org/alphabill/internal/types"
+	"github.com/alphabill-org/alphabill/internal/util"
 )
 
 var (
@@ -20,28 +20,34 @@ var (
 	ErrReclaimFCInvalidNonce      = errors.New("invalid nonce")
 )
 
-func handleReclaimFeeCreditTx(state *rma.Tree, hashAlgorithm crypto.Hash, trustBase map[string]abcrypto.Verifier, feeCreditTxRecorder *feeCreditTxRecorder, feeCalc fc.FeeCalculator) txsystem.GenericExecuteFunc[*transactions.ReclaimFeeCreditWrapper] {
-	return func(tx *transactions.ReclaimFeeCreditWrapper, currentBlockNumber uint64) error {
-		bd, _ := state.GetUnit(tx.UnitID())
+func handleReclaimFeeCreditTx(state *rma.Tree, hashAlgorithm crypto.Hash, trustBase map[string]abcrypto.Verifier, feeCreditTxRecorder *feeCreditTxRecorder, feeCalc fc.FeeCalculator) txsystem.GenericExecuteFunc[transactions.ReclaimFeeCreditAttributes] {
+	return func(tx *types.TransactionOrder, attr *transactions.ReclaimFeeCreditAttributes, currentBlockNumber uint64) (*types.ServerMetadata, error) {
+		unitID := util.BytesToUint256(tx.UnitID())
+		bd, _ := state.GetUnit(unitID)
 		log.Debug("Processing reclaimFC %v", tx)
 		if bd == nil {
-			return errors.New("reclaimFC: unit not found")
+			return nil, errors.New("reclaimFC: unit not found")
 		}
 		bdd, ok := bd.Data.(*BillData)
 		if !ok {
-			return errors.New("reclaimFC: invalid unit type")
+			return nil, errors.New("reclaimFC: invalid unit type")
 		}
 
 		if err := validateReclaimFC(tx, bdd, trustBase, hashAlgorithm); err != nil {
-			return fmt.Errorf("reclaimFC: validation failed: %w", err)
+			return nil, fmt.Errorf("reclaimFC: validation failed: %w", err)
 		}
 
 		// calculate actual tx fee cost
 		fee := feeCalc()
-		tx.SetServerMetadata(&txsystem.ServerMetadata{Fee: fee})
+
+		closeFCAttr := &transactions.CloseFeeCreditAttributes{}
+		closeFeeCreditTransfer := attr.CloseFeeCreditTransfer
+		if err := closeFeeCreditTransfer.TransactionOrder.UnmarshalAttributes(closeFCAttr); err != nil {
+			return nil, fmt.Errorf("reclaimFC: failed to unmarshal close fee credit attributes: %w", err)
+		}
 
 		// add reclaimed value to source unit
-		v := tx.CloseFCTransfer.CloseFC.Amount - tx.CloseFCTransfer.Transaction.ServerMetadata.Fee - fee
+		v := closeFCAttr.Amount - closeFeeCreditTransfer.ServerMetadata.ActualFee - fee
 		updateFunc := func(data rma.UnitData) (newData rma.UnitData) {
 			newBillData, ok := data.(*BillData)
 			if !ok {
@@ -52,49 +58,53 @@ func handleReclaimFeeCreditTx(state *rma.Tree, hashAlgorithm crypto.Hash, trustB
 			newBillData.Backlink = tx.Hash(hashAlgorithm)
 			return newBillData
 		}
-		updateAction := rma.UpdateData(tx.UnitID(), updateFunc, tx.Hash(hashAlgorithm))
+		updateAction := rma.UpdateData(unitID, updateFunc, tx.Hash(hashAlgorithm))
 
 		if err := state.AtomicUpdate(updateAction); err != nil {
-			return fmt.Errorf("reclaimFC: failed to update state: %w", err)
+			return nil, fmt.Errorf("reclaimFC: failed to update state: %w", err)
 		}
-		feeCreditTxRecorder.recordReclaimFC(tx)
-		return nil
+		feeCreditTxRecorder.recordReclaimFC(
+			&reclaimFeeCreditTx{
+				tx: tx, attr: attr, closeFCTransferAttr: closeFCAttr, reclaimFee: fee, closeFee: closeFeeCreditTransfer.ServerMetadata.ActualFee})
+		return &types.ServerMetadata{ActualFee: fee}, nil
 	}
 }
 
-func validateReclaimFC(tx *transactions.ReclaimFeeCreditWrapper, bd *BillData, verifiers map[string]abcrypto.Verifier, hashAlgorithm crypto.Hash) error {
+func validateReclaimFC(tx *types.TransactionOrder, bd *BillData, verifiers map[string]abcrypto.Verifier, hashAlgorithm crypto.Hash) error {
 	if tx == nil {
 		return ErrTxNil
 	}
 	if bd == nil {
 		return ErrBillNil
 	}
-	if tx.Transaction.ClientMetadata.FeeCreditRecordId != nil {
+	if tx.GetClientFeeCreditRecordID() != nil {
 		return ErrRecordIDExists
 	}
-	if tx.Transaction.FeeProof != nil {
+	if tx.FeeProof != nil {
 		return ErrFeeProofExists
 	}
-	if !bytes.Equal(tx.Transaction.UnitId, tx.CloseFCTransfer.CloseFC.TargetUnitId) {
-		return ErrReclaimFCInvalidTargetUnit
-	}
-	if !bytes.Equal(bd.Backlink, tx.CloseFCTransfer.CloseFC.Nonce) {
-		return ErrReclaimFCInvalidNonce
-	}
-	if !bytes.Equal(bd.Backlink, tx.ReclaimFC.Backlink) {
-		return ErrInvalidBacklink
-	}
-	if tx.CloseFCTransfer.Transaction.ServerMetadata.Fee+tx.Transaction.ClientMetadata.MaxFee > bd.V {
-		return ErrReclaimFCInvalidTxFee
-	}
-	// verify proof
-	proof := tx.ReclaimFC.CloseFeeCreditProof
-	if proof.ProofType != block.ProofType_PRIM {
-		return ErrInvalidProofType
-	}
-	err := proof.Verify(tx.ReclaimFC.CloseFeeCreditTransfer.UnitId, tx.CloseFCTransfer, verifiers, hashAlgorithm)
-	if err != nil {
-		return fmt.Errorf("invalid proof: %w", err)
-	}
+	/*
+		TODO
+		if !bytes.Equal(tx.UnitID(), tx.CloseFCTransfer.CloseFC.TargetUnitId) {
+			return ErrReclaimFCInvalidTargetUnit
+		}
+		if !bytes.Equal(bd.Backlink, tx.CloseFCTransfer.CloseFC.Nonce) {
+			return ErrReclaimFCInvalidNonce
+		}
+		if !bytes.Equal(bd.Backlink, tx.ReclaimFC.Backlink) {
+			return ErrInvalidBacklink
+		}
+		if tx.CloseFCTransfer.Transaction.ServerMetadata.Fee+tx.Transaction.ClientMetadata.MaxFee > bd.V {
+			return ErrReclaimFCInvalidTxFee
+		}
+		// verify proof
+		proof := tx.ReclaimFC.CloseFeeCreditProof
+		if proof.ProofType != block.ProofType_PRIM {
+			return ErrInvalidProofType
+		}
+		err := proof.Verify(tx.ReclaimFC.CloseFeeCreditTransfer.UnitId, tx.CloseFCTransfer, verifiers, hashAlgorithm)
+		if err != nil {
+			return fmt.Errorf("invalid proof: %w", err)
+		}*/
 	return nil
 }

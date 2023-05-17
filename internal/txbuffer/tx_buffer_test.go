@@ -9,9 +9,8 @@ import (
 	"time"
 
 	test "github.com/alphabill-org/alphabill/internal/testutils"
-	testtransaction "github.com/alphabill-org/alphabill/internal/testutils/transaction/money"
-	"github.com/alphabill-org/alphabill/internal/txsystem"
-
+	testtransaction "github.com/alphabill-org/alphabill/internal/testutils/transaction"
+	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/stretchr/testify/require"
 )
 
@@ -47,7 +46,7 @@ func TestAddTx_TxIsAlreadyInTxBuffer(t *testing.T) {
 	require.NoError(t, err)
 	defer buffer.Close()
 
-	tx := testtransaction.RandomGenericBillTransfer(t)
+	tx := testtransaction.NewTransaction(t)
 	err = buffer.Add(tx)
 	require.NoError(t, err)
 
@@ -63,11 +62,11 @@ func TestAddTx_TxBufferFull(t *testing.T) {
 	defer buffer.Close()
 
 	for i := uint32(0); i < testBufferSize; i++ {
-		err = buffer.Add(testtransaction.RandomGenericBillTransfer(t))
+		err = buffer.Add(testtransaction.NewTransaction(t))
 		require.NoError(t, err)
 	}
 
-	err = buffer.Add(testtransaction.RandomGenericBillTransfer(t))
+	err = buffer.Add(testtransaction.NewTransaction(t))
 	require.ErrorIs(t, err, ErrTxBufferFull)
 	require.EqualValues(t, testBufferSize, len(buffer.transactionsCh))
 	require.Equal(t, testBufferSize, uint32(len(buffer.transactions)))
@@ -77,7 +76,7 @@ func TestAddTx_Ok(t *testing.T) {
 	buffer, err := New(testBufferSize, gocrypto.SHA256)
 	require.NoError(t, err)
 	defer buffer.Close()
-	err = buffer.Add(testtransaction.RandomGenericBillTransfer(t))
+	err = buffer.Add(testtransaction.NewTransaction(t))
 	require.NoError(t, err)
 	require.EqualValues(t, one, len(buffer.transactionsCh))
 	require.Equal(t, one, uint32(len(buffer.transactions)))
@@ -88,7 +87,7 @@ func TestCount_Ok(t *testing.T) {
 	require.NoError(t, err)
 	defer buffer.Close()
 	for i := uint32(0); i < testBufferSize; i++ {
-		err = buffer.Add(testtransaction.RandomGenericBillTransfer(t))
+		err = buffer.Add(testtransaction.NewTransaction(t))
 		require.NoError(t, err)
 	}
 	require.EqualValues(t, testBufferSize, len(buffer.transactionsCh))
@@ -99,7 +98,7 @@ func TestRemove_NotFound(t *testing.T) {
 	buffer, err := New(testBufferSize, gocrypto.SHA256)
 	require.NoError(t, err)
 	defer buffer.Close()
-	tx := testtransaction.RandomGenericBillTransfer(t)
+	tx := testtransaction.NewTransaction(t)
 	err = buffer.Add(tx)
 	require.NoError(t, err)
 	buffer.removeFromIndex("1")
@@ -111,7 +110,7 @@ func TestRemove_Ok(t *testing.T) {
 	require.NoError(t, err)
 	defer buffer.Close()
 
-	tx := testtransaction.RandomGenericBillTransfer(t)
+	tx := testtransaction.NewTransaction(t)
 	err = buffer.Add(tx)
 	require.NoError(t, err)
 
@@ -127,18 +126,18 @@ func TestProcess_ProcessAllTransactions(t *testing.T) {
 	require.NoError(t, err)
 	defer buffer.Close()
 
-	err = buffer.Add(testtransaction.RandomGenericBillTransfer(t))
+	err = buffer.Add(testtransaction.NewTransaction(t))
 	require.NoError(t, err)
-	err = buffer.Add(testtransaction.RandomGenericBillTransfer(t))
+	err = buffer.Add(testtransaction.NewTransaction(t))
 	require.NoError(t, err)
-	err = buffer.Add(testtransaction.RandomGenericBillTransfer(t))
+	err = buffer.Add(testtransaction.NewTransaction(t))
 	require.NoError(t, err)
 
 	var c uint32
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
-		buffer.Process(context.Background(), func(tx txsystem.GenericTransaction) bool {
+		buffer.Process(context.Background(), func(tx *types.TransactionOrder) bool {
 			atomic.AddUint32(&c, 1)
 			return true
 		})
@@ -160,7 +159,7 @@ func TestProcess_CloseQuitsProcess(t *testing.T) {
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
-		buffer.Process(context.Background(), func(tx txsystem.GenericTransaction) bool {
+		buffer.Process(context.Background(), func(tx *types.TransactionOrder) bool {
 			atomic.AddUint32(&c, 1)
 			return true
 		})
@@ -180,17 +179,17 @@ func TestProcess_CancelProcess(t *testing.T) {
 	require.NoError(t, err)
 	defer buffer.Close()
 
-	err = buffer.Add(testtransaction.RandomGenericBillTransfer(t))
+	err = buffer.Add(testtransaction.NewTransaction(t))
 	require.NoError(t, err)
 
-	context, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(context.Background())
 	wg := &sync.WaitGroup{}
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		buffer.Process(context, func(tx txsystem.GenericTransaction) bool {
+		buffer.Process(ctx, func(tx *types.TransactionOrder) bool {
 			cancel()
-			<-context.Done()
+			<-ctx.Done()
 			return false
 		})
 	}()

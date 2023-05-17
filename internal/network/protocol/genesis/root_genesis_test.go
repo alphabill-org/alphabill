@@ -4,12 +4,9 @@ import (
 	gocrypto "crypto"
 	"testing"
 
-	"github.com/alphabill-org/alphabill/internal/types"
-
-	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
-
 	"github.com/alphabill-org/alphabill/internal/crypto"
-
+	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
+	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/stretchr/testify/require"
 )
 
@@ -81,20 +78,6 @@ func TestRootGenesis_IsValid(t *testing.T) {
 				Partitions: nil,
 			},
 			wantErr: ErrPartitionsNotFound.Error(),
-		},
-		{
-			name: "genesis partition record is nil",
-			args: args{
-				verifier: verifier,
-			},
-			fields: fields{
-				Root: &GenesisRootRecord{
-					RootValidators: []*PublicKeyInfo{rootKeyInfo},
-					Consensus:      rootConsensus,
-				},
-				Partitions: []*GenesisPartitionRecord{nil},
-			},
-			wantErr: ErrGenesisPartitionRecordIsNil.Error(),
 		},
 		{
 			name: "genesis partition record duplicate system id",

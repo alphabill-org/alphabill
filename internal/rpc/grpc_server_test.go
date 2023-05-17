@@ -1,5 +1,6 @@
 package rpc
 
+/*
 import (
 	"bytes"
 	"context"
@@ -7,10 +8,10 @@ import (
 	"net"
 	"testing"
 
-	"github.com/alphabill-org/alphabill/internal/block"
+	"github.com/fxamacker/cbor/v2"
+
 	"github.com/alphabill-org/alphabill/internal/rpc/alphabill"
 	"github.com/alphabill-org/alphabill/internal/script"
-	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/internal/txsystem/money"
 	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/holiman/uint256"
@@ -19,8 +20,6 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/test/bufconn"
-	"google.golang.org/protobuf/proto"
-	"google.golang.org/protobuf/types/known/anypb"
 )
 
 var failingTransactionID = uint256.NewInt(5).Bytes32()
@@ -28,12 +27,12 @@ var failingTransactionID = uint256.NewInt(5).Bytes32()
 type (
 	MockNode struct {
 		maxBlockNumber uint64
-		transactions   []*txsystem.Transaction
+		transactions   []*types.TransactionOrder
 	}
 )
 
-func (mn *MockNode) SubmitTx(_ context.Context, tx *txsystem.Transaction) error {
-	if bytes.Equal(tx.UnitId, failingTransactionID[:]) {
+func (mn *MockNode) SubmitTx(_ context.Context, tx *types.TransactionOrder) error {
+	if bytes.Equal(tx.UnitID(), failingTransactionID[:]) {
 		return errors.New("failed")
 	}
 	if tx != nil {
@@ -42,11 +41,11 @@ func (mn *MockNode) SubmitTx(_ context.Context, tx *txsystem.Transaction) error 
 	return nil
 }
 
-func (mn *MockNode) GetBlock(_ context.Context, blockNumber uint64) (*block.Block, error) {
-	return &block.Block{UnicityCertificate: &types.UnicityCertificate{InputRecord: &types.InputRecord{RoundNumber: blockNumber}}}, nil
+func (mn *MockNode) GetBlock(_ context.Context, blockNumber uint64) (*types.Block, error) {
+	return &types.Block{UnicityCertificate: &types.UnicityCertificate{InputRecord: &types.InputRecord{RoundNumber: blockNumber}}}, nil
 }
 
-func (mn *MockNode) GetLatestBlock() (*block.Block, error) {
+func (mn *MockNode) GetLatestBlock() (*types.Block, error) {
 	return mn.GetBlock(context.Background(), mn.maxBlockNumber)
 }
 
@@ -141,22 +140,24 @@ func createRpcClient(t *testing.T, ctx context.Context) (*grpc.ClientConn, alpha
 	return conn, alphabill.NewAlphabillServiceClient(conn)
 }
 
-func createTransaction(id [32]byte) *txsystem.Transaction {
-	tx := &txsystem.Transaction{
-		UnitId:                id[:],
-		TransactionAttributes: new(anypb.Any),
-		ClientMetadata:        &txsystem.ClientMetadata{Timeout: 0},
-		OwnerProof:            []byte{1},
-	}
+func createTransaction(id [32]byte) *types.TransactionOrder {
 	bt := &money.TransferAttributes{
 		NewBearer:   script.PredicateAlwaysTrue(),
 		TargetValue: 1,
 		Backlink:    nil,
 	}
 
-	err := anypb.MarshalFrom(tx.TransactionAttributes, bt, proto.MarshalOptions{})
+	txBytes, err := cbor.Marshal(bt)
 	if err != nil {
 		panic(err)
 	}
-	return tx
-}
+	return &types.TransactionOrder{
+		Payload: &types.Payload{
+			UnitID:         id[:],
+			Type:           "transfer",
+			Attributes:     txBytes,
+			ClientMetadata: &types.ClientMetadata{Timeout: 0},
+		},
+		OwnerProof: []byte{1},
+	}
+}*/

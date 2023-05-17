@@ -3,30 +3,26 @@ package testutils
 import (
 	"testing"
 
-	"github.com/alphabill-org/alphabill/internal/block"
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
 	testblock "github.com/alphabill-org/alphabill/internal/testutils/block"
 	testtransaction "github.com/alphabill-org/alphabill/internal/testutils/transaction"
-	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/internal/txsystem/fc/transactions"
+	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/stretchr/testify/require"
-	"google.golang.org/protobuf/proto"
-	"google.golang.org/protobuf/types/known/anypb"
 )
 
-func NewReclaimFC(t *testing.T, signer abcrypto.Signer, reclaimFCAttr *transactions.ReclaimFeeCreditAttributes, opts ...testtransaction.Option) *transactions.ReclaimFeeCreditWrapper {
+func NewReclaimFC(t *testing.T, signer abcrypto.Signer, reclaimFCAttr *transactions.ReclaimFeeCreditAttributes, opts ...testtransaction.Option) *types.TransactionOrder {
 	if reclaimFCAttr == nil {
 		reclaimFCAttr = NewReclaimFCAttr(t, signer)
 	}
-	defaultReclaimFC := testtransaction.NewTransaction(t,
+	tx := testtransaction.NewTransaction(t,
 		testtransaction.WithUnitId(unitID),
 		testtransaction.WithAttributes(reclaimFCAttr),
 	)
 	for _, opt := range opts {
-		require.NoError(t, opt(defaultReclaimFC))
+		require.NoError(t, opt(tx))
 	}
-	tx, _ := transactions.NewFeeCreditTx(defaultReclaimFC)
-	return tx.(*transactions.ReclaimFeeCreditWrapper)
+	return tx
 }
 
 func NewReclaimFCAttr(t *testing.T, signer abcrypto.Signer, opts ...ReclaimFCOption) *transactions.ReclaimFeeCreditAttributes {
@@ -38,11 +34,15 @@ func NewReclaimFCAttr(t *testing.T, signer abcrypto.Signer, opts ...ReclaimFCOpt
 }
 
 func NewDefaultReclaimFCAttr(t *testing.T, signer abcrypto.Signer) *transactions.ReclaimFeeCreditAttributes {
-	closeFC := newCloseFC(t)
-	closeFCProof := testblock.CreateProof(t, closeFC, signer, closeFC.Transaction.UnitId)
+	tr := &types.TransactionRecord{
+		TransactionOrder: newCloseFC(t),
+		ServerMetadata: &types.ServerMetadata{
+			ActualFee: 10,
+		},
+	}
 	return &transactions.ReclaimFeeCreditAttributes{
-		CloseFeeCreditTransfer: closeFC.Transaction,
-		CloseFeeCreditProof:    closeFCProof,
+		CloseFeeCreditTransfer: tr,
+		CloseFeeCreditProof:    testblock.CreateProof(t, tr, signer, nil),
 		Backlink:               backlink,
 	}
 }
@@ -56,30 +56,29 @@ func WithReclaimFCBacklink(backlink []byte) ReclaimFCOption {
 	}
 }
 
-func WithReclaimFCClosureProof(proof *block.BlockProof) ReclaimFCOption {
+func WithReclaimFCClosureProof(proof *types.TxProof) ReclaimFCOption {
 	return func(tx *transactions.ReclaimFeeCreditAttributes) ReclaimFCOption {
 		tx.CloseFeeCreditProof = proof
 		return nil
 	}
 }
 
-func WithReclaimFCClosureTx(closeFCTx *txsystem.Transaction) ReclaimFCOption {
+func WithReclaimFCClosureTx(closeFCTx *types.TransactionRecord) ReclaimFCOption {
 	return func(tx *transactions.ReclaimFeeCreditAttributes) ReclaimFCOption {
 		tx.CloseFeeCreditTransfer = closeFCTx
 		return nil
 	}
 }
 
-func newCloseFC(t *testing.T) *transactions.CloseFeeCreditWrapper {
-	to := testtransaction.NewTransaction(t,
-		testtransaction.WithUnitId(unitID),
-	)
+func newCloseFC(t *testing.T) *types.TransactionOrder {
 	attr := &transactions.CloseFeeCreditAttributes{
 		Amount:       amount,
-		TargetUnitId: unitID,
+		TargetUnitID: unitID,
 		Nonce:        backlink,
 	}
-	_ = anypb.MarshalFrom(to.TransactionAttributes, attr, proto.MarshalOptions{})
-	tx, _ := transactions.NewFeeCreditTx(to)
-	return tx.(*transactions.CloseFeeCreditWrapper)
+	return testtransaction.NewTransaction(t,
+		testtransaction.WithUnitId(unitID),
+		testtransaction.WithAttributes(attr),
+		testtransaction.WithPayloadType(transactions.PayloadTypeReclaimFeeCredit),
+	)
 }

@@ -7,8 +7,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/alphabill-org/alphabill/internal/types"
+
 	"github.com/alphabill-org/alphabill/internal/block"
-	"github.com/alphabill-org/alphabill/internal/certificates"
 	"github.com/alphabill-org/alphabill/internal/hash"
 	"github.com/alphabill-org/alphabill/internal/script"
 	testserver "github.com/alphabill-org/alphabill/internal/testutils/server"
@@ -71,7 +72,7 @@ func TestTimeout(t *testing.T) {
 		return &block.Block{
 			PreviousBlockHash:  hash.Sum256([]byte{}),
 			Transactions:       []*txsystem.Transaction{},
-			UnicityCertificate: &certificates.UnicityCertificate{},
+			UnicityCertificate: &types.UnicityCertificate{},
 		}
 	})
 

@@ -10,7 +10,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/alphabill-org/alphabill/internal/block"
 	"github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/keyvaluedb"
 	"github.com/alphabill-org/alphabill/internal/network"
@@ -33,7 +32,6 @@ import (
 	p2pcrypto "github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/stretchr/testify/require"
-	"google.golang.org/protobuf/proto"
 )
 
 type AlwaysValidBlockProposalValidator struct{}
@@ -60,7 +58,7 @@ type partitionStartupDependencies struct {
 	nodeOptions []NodeOption
 }
 
-func (t *AlwaysValidTransactionValidator) Validate(txsystem.GenericTransaction, uint64) error {
+func (t *AlwaysValidTransactionValidator) Validate(_ *types.TransactionOrder, _ uint64) error {
 	return nil
 }
 
@@ -174,7 +172,7 @@ func (sn *SingleNodePartition) newNode() error {
 	return nil
 }
 
-func (sn *SingleNodePartition) SubmitTx(tx *txsystem.Transaction) error {
+func (sn *SingleNodePartition) SubmitTx(tx *types.TransactionOrder) error {
 	sn.mockNet.Receive(network.ReceivedMessage{
 		From:     "from-test",
 		Protocol: network.ProtocolInputForward,
@@ -183,7 +181,7 @@ func (sn *SingleNodePartition) SubmitTx(tx *txsystem.Transaction) error {
 	return nil
 }
 
-func (sn *SingleNodePartition) SubmitTxFromRPC(tx *txsystem.Transaction) error {
+func (sn *SingleNodePartition) SubmitTxFromRPC(tx *types.TransactionOrder) error {
 	return sn.partition.SubmitTx(context.Background(), tx)
 }
 
@@ -249,14 +247,14 @@ func (sn *SingleNodePartition) createUnicitySeal(roundNumber uint64, rootHash []
 	return u, u.Sign("test", sn.rootSigner)
 }
 
-func (sn *SingleNodePartition) GetLatestBlock(t *testing.T) *block.Block {
+func (sn *SingleNodePartition) GetLatestBlock(t *testing.T) *types.Block {
 	dbIt := sn.store.Last()
 	defer func() {
 		if err := dbIt.Close(); err != nil {
 			logger.Warning("Unexpected DB iterator error %v", err)
 		}
 	}()
-	var bl block.Block
+	var bl types.Block
 	require.NoError(t, dbIt.Value(&bl))
 	return &bl
 }
@@ -373,7 +371,7 @@ func createPeer(t *testing.T) *network.Peer {
 	return newPeer
 }
 
-func NextBlockReceived(t *testing.T, tp *SingleNodePartition, prevBlock *block.Block) func() bool {
+func NextBlockReceived(t *testing.T, tp *SingleNodePartition, prevBlock *types.Block) func() bool {
 	t.Helper()
 	return func() bool {
 		// Empty blocks are not persisted, assume new block is received if new last UC round is bigger than block UC round
@@ -382,9 +380,9 @@ func NextBlockReceived(t *testing.T, tp *SingleNodePartition, prevBlock *block.B
 	}
 }
 
-func ContainsTransaction(block *block.Block, tx *txsystem.Transaction) bool {
+func ContainsTransaction(block *types.Block, tx *types.TransactionOrder) bool {
 	for _, t := range block.Transactions {
-		if reflect.DeepEqual(t, tx) {
+		if reflect.DeepEqual(t.TransactionOrder, tx) {
 			return true
 		}
 	}
@@ -438,7 +436,8 @@ func WaitNodeRequestReceived(t *testing.T, tp *SingleNodePartition, req string) 
 		ID: reqs[len(reqs)-1].ID,
 		OutputMessage: network.OutputMessage{
 			Protocol: reqs[len(reqs)-1].Protocol,
-			Message:  proto.Clone(reqs[len(reqs)-1].Message),
+			// TODO Clone?
+			Message: reqs[len(reqs)-1].Message,
 		},
 	}
 }

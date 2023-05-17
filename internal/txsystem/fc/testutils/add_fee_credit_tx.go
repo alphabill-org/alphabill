@@ -3,13 +3,12 @@ package testutils
 import (
 	"testing"
 
-	"github.com/alphabill-org/alphabill/internal/block"
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	testblock "github.com/alphabill-org/alphabill/internal/testutils/block"
 	testtransaction "github.com/alphabill-org/alphabill/internal/testutils/transaction"
-	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/internal/txsystem/fc/transactions"
+	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/stretchr/testify/require"
 )
 
@@ -27,56 +26,56 @@ var (
 	latestAdditionTime   = uint64(10)
 )
 
-func NewAddFC(t *testing.T, signer abcrypto.Signer, attr *transactions.AddFeeCreditAttributes, opts ...testtransaction.Option) *transactions.AddFeeCreditWrapper {
+func NewAddFC(t *testing.T, signer abcrypto.Signer, attr *transactions.AddFeeCreditAttributes, opts ...testtransaction.Option) *types.TransactionOrder {
 	if attr == nil {
 		attr = NewAddFCAttr(t, signer)
 	}
-	defaultTx := testtransaction.NewTransaction(t,
+	tx := testtransaction.NewTransaction(t,
 		testtransaction.WithUnitId(unitID),
 		testtransaction.WithAttributes(attr),
+		testtransaction.WithPayloadType(transactions.PayloadTypeAddFeeCredit),
 	)
 	for _, opt := range opts {
-		require.NoError(t, opt(defaultTx))
+		require.NoError(t, opt(tx))
 	}
-	tx, err := transactions.NewFeeCreditTx(defaultTx)
-	require.NoError(t, err)
-
-	return tx.(*transactions.AddFeeCreditWrapper)
+	return tx
 }
 
-type AddFCOption func(*transactions.AddFeeCreditAttributes) AddFCOption
+type AddFeeCreditOption func(*transactions.AddFeeCreditAttributes) AddFeeCreditOption
 
-func NewAddFCAttr(t *testing.T, signer abcrypto.Signer, opts ...AddFCOption) *transactions.AddFeeCreditAttributes {
+func NewAddFCAttr(t *testing.T, signer abcrypto.Signer, opts ...AddFeeCreditOption) *transactions.AddFeeCreditAttributes {
 	defaultFCTx := &transactions.AddFeeCreditAttributes{}
 	for _, opt := range opts {
 		opt(defaultFCTx)
 	}
 	if defaultFCTx.FeeCreditTransfer == nil {
-		defaultFCTx.FeeCreditTransfer = NewTransferFC(t, nil).Transaction
+		defaultFCTx.FeeCreditTransfer = &types.TransactionRecord{
+			TransactionOrder: NewTransferFC(t, nil),
+			ServerMetadata:   &types.ServerMetadata{},
+		}
 	}
 	if defaultFCTx.FeeCreditTransferProof == nil {
-		gtx, _ := transactions.NewFeeCreditTx(defaultFCTx.FeeCreditTransfer)
-		defaultFCTx.FeeCreditTransferProof = testblock.CreateProof(t, gtx, signer, defaultFCTx.FeeCreditTransfer.UnitId)
+		defaultFCTx.FeeCreditTransferProof = testblock.CreateProof(t, defaultFCTx.FeeCreditTransfer, signer, defaultFCTx.FeeCreditTransfer.TransactionOrder.UnitID())
 	}
 	return defaultFCTx
 }
 
-func WithFCOwnerCondition(ownerCondition []byte) AddFCOption {
-	return func(tx *transactions.AddFeeCreditAttributes) AddFCOption {
+func WithFCOwnerCondition(ownerCondition []byte) AddFeeCreditOption {
+	return func(tx *transactions.AddFeeCreditAttributes) AddFeeCreditOption {
 		tx.FeeCreditOwnerCondition = ownerCondition
 		return nil
 	}
 }
 
-func WithTransferFCProof(proof *block.BlockProof) AddFCOption {
-	return func(tx *transactions.AddFeeCreditAttributes) AddFCOption {
+func WithTransferFCProof(proof *types.TxProof) AddFeeCreditOption {
+	return func(tx *transactions.AddFeeCreditAttributes) AddFeeCreditOption {
 		tx.FeeCreditTransferProof = proof
 		return nil
 	}
 }
 
-func WithTransferFCTx(ttx *txsystem.Transaction) AddFCOption {
-	return func(tx *transactions.AddFeeCreditAttributes) AddFCOption {
+func WithTransferFCTx(ttx *types.TransactionRecord) AddFeeCreditOption {
+	return func(tx *transactions.AddFeeCreditAttributes) AddFeeCreditOption {
 		tx.FeeCreditTransfer = ttx
 		return nil
 	}

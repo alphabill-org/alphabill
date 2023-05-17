@@ -47,13 +47,12 @@ type fungibleTokenData struct {
 	backlink  []byte       // the hash of the last transaction order for this token
 }
 
-func newFungibleTokenTypeData(tx *createFungibleTokenTypeWrapper) rma.UnitData {
-	attr := tx.attributes
+func newFungibleTokenTypeData(attr *CreateFungibleTokenTypeAttributes) rma.UnitData {
 	return &fungibleTokenTypeData{
 		symbol:                   attr.Symbol,
 		name:                     attr.Name,
 		icon:                     attr.Icon,
-		parentTypeId:             tx.ParentTypeIdInt(),
+		parentTypeId:             util.BytesToUint256(attr.ParentTypeID),
 		decimalPlaces:            attr.DecimalPlaces,
 		subTypeCreationPredicate: attr.SubTypeCreationPredicate,
 		tokenCreationPredicate:   attr.TokenCreationPredicate,
@@ -61,13 +60,12 @@ func newFungibleTokenTypeData(tx *createFungibleTokenTypeWrapper) rma.UnitData {
 	}
 }
 
-func newNonFungibleTokenTypeData(tx *createNonFungibleTokenTypeWrapper) rma.UnitData {
-	attr := tx.attributes
+func newNonFungibleTokenTypeData(attr *CreateNonFungibleTokenTypeAttributes) rma.UnitData {
 	return &nonFungibleTokenTypeData{
 		symbol:                   attr.Symbol,
 		name:                     attr.Name,
 		icon:                     attr.Icon,
-		parentTypeId:             tx.parentTypeIdInt(),
+		parentTypeId:             util.BytesToUint256(attr.ParentTypeID),
 		subTypeCreationPredicate: attr.SubTypeCreationPredicate,
 		tokenCreationPredicate:   attr.TokenCreationPredicate,
 		invariantPredicate:       attr.InvariantPredicate,
@@ -75,12 +73,11 @@ func newNonFungibleTokenTypeData(tx *createNonFungibleTokenTypeWrapper) rma.Unit
 	}
 }
 
-func newNonFungibleTokenData(tx *mintNonFungibleTokenWrapper, txHash []byte, currentBlockNr uint64) rma.UnitData {
-	attr := tx.attributes
+func newNonFungibleTokenData(attr *MintNonFungibleTokenAttributes, txHash []byte, currentBlockNr uint64) rma.UnitData {
 	return &nonFungibleTokenData{
-		nftType:             tx.NFTTypeIDInt(),
+		nftType:             util.BytesToUint256(attr.NFTType),
 		name:                attr.Name,
-		uri:                 attr.Uri,
+		uri:                 attr.URI,
 		data:                attr.Data,
 		dataUpdatePredicate: attr.DataUpdatePredicate,
 		t:                   currentBlockNr,
@@ -88,10 +85,9 @@ func newNonFungibleTokenData(tx *mintNonFungibleTokenWrapper, txHash []byte, cur
 	}
 }
 
-func newFungibleTokenData(tx *mintFungibleTokenWrapper, txHash []byte, currentBlockNr uint64) rma.UnitData {
-	attr := tx.attributes
+func newFungibleTokenData(attr *MintFungibleTokenAttributes, txHash []byte, currentBlockNr uint64) rma.UnitData {
 	return &fungibleTokenData{
-		tokenType: tx.TypeIDInt(),
+		tokenType: util.BytesToUint256(attr.Type),
 		value:     attr.Value,
 		t:         currentBlockNr,
 		backlink:  txHash,
@@ -101,8 +97,8 @@ func newFungibleTokenData(tx *mintFungibleTokenWrapper, txHash []byte, currentBl
 func (n *nonFungibleTokenTypeData) AddToHasher(hasher hash.Hash) {
 	hasher.Write([]byte(n.symbol))
 	hasher.Write([]byte(n.name))
-	hasher.Write([]byte(n.icon.GetType()))
-	hasher.Write(n.icon.GetData())
+	hasher.Write([]byte(n.icon.Type))
+	hasher.Write(n.icon.Data)
 	hasher.Write(util.Uint256ToBytes(n.parentTypeId))
 	hasher.Write(n.subTypeCreationPredicate)
 	hasher.Write(n.tokenCreationPredicate)
@@ -133,8 +129,8 @@ func (n *nonFungibleTokenData) Value() rma.SummaryValue {
 func (f *fungibleTokenTypeData) AddToHasher(hasher hash.Hash) {
 	hasher.Write([]byte(f.symbol))
 	hasher.Write([]byte(f.name))
-	hasher.Write([]byte(f.icon.GetType()))
-	hasher.Write(f.icon.GetData())
+	hasher.Write([]byte(f.icon.Type))
+	hasher.Write(f.icon.Data)
 	parentTypeID := f.parentTypeId.Bytes32()
 	hasher.Write(parentTypeID[:])
 	hasher.Write(util.Uint32ToBytes(f.decimalPlaces))

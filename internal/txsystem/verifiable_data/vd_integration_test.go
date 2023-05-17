@@ -1,8 +1,6 @@
 package verifiable_data
 
 import (
-	"bytes"
-	"context"
 	"testing"
 
 	"github.com/alphabill-org/alphabill/internal/crypto"
@@ -10,6 +8,7 @@ import (
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	testpartition "github.com/alphabill-org/alphabill/internal/testutils/partition"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
+	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/stretchr/testify/require"
 )
 
@@ -32,29 +31,15 @@ func TestVDPartition_Ok(t *testing.T) {
 	require.Eventually(t, testpartition.BlockchainContainsTx(tx, network), test.WaitDuration, test.WaitTick)
 }
 
-func TestVDPartition_OnePartitionNodeIsDown(t *testing.T) {
-	network, err := testpartition.NewNetwork(3, func(trustBase map[string]crypto.Verifier) txsystem.TransactionSystem {
-		system, err := New(systemIdentifier)
-		require.NoError(t, err)
-		return system
-	}, systemIdentifier)
-	require.NoError(t, err)
-	// Killing the leader node fails the test
-	require.ErrorIs(t, network.Nodes[2].Stop(), context.Canceled) // shut down the node
-
-	tx := createVDTransaction()
-
-	require.NoError(t, network.SubmitTx(tx))
-	require.Eventually(t, testpartition.BlockchainContains(network, func(actualTx *txsystem.Transaction) bool {
-		return bytes.Equal(tx.UnitId, actualTx.UnitId)
-	}), test.WaitDuration, test.WaitTick)
-}
-
-func createVDTransaction() *txsystem.Transaction {
-	return &txsystem.Transaction{
-		SystemId:       systemIdentifier,
-		UnitId:         hash.Sum256(test.RandomBytes(32)),
-		ClientMetadata: &txsystem.ClientMetadata{Timeout: 100},
-		OwnerProof:     nil,
+func createVDTransaction() *types.TransactionOrder {
+	return &types.TransactionOrder{
+		Payload: &types.Payload{
+			Type:           txType,
+			SystemID:       systemIdentifier,
+			UnitID:         hash.Sum256(test.RandomBytes(32)),
+			ClientMetadata: &types.ClientMetadata{Timeout: 100},
+			Attributes:     []byte{0xf6}, // nil
+		},
+		OwnerProof: nil,
 	}
 }

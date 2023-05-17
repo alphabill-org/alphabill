@@ -20,8 +20,8 @@ var (
 	systemID                     = []byte{1, 0, 0, 1}
 	payloadAttributesType        = "transfer"
 	unitID                       = make([]byte, 32)
-	timeout               int64  = 42
-	maxFee                int64  = 69
+	timeout               uint64 = 42
+	maxFee                uint64 = 69
 	feeCreditRecordID            = []byte{32, 32, 32, 32}
 	newBearer                    = []byte{1, 2, 3, 4}
 	targetValue           uint64 = 100

@@ -2,12 +2,13 @@ package txsystem
 
 import (
 	"crypto"
-	"errors"
 	"fmt"
 	"reflect"
 
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/internal/rma"
+	"github.com/alphabill-org/alphabill/internal/types"
+	"github.com/alphabill-org/alphabill/internal/util"
 )
 
 var _ TransactionSystem = &GenericTxSystem{}
@@ -15,13 +16,10 @@ var _ TransactionSystem = &GenericTxSystem{}
 // SystemDescriptions is map of system description records indexed by System Identifiers
 type SystemDescriptions map[string]*genesis.SystemDescriptionRecord
 
-type TxConverter func(tx *Transaction) (GenericTransaction, error)
-type TxConverters map[string]TxConverter
-
 type Module interface {
-	TxExecutors() []TxExecutor
+	TxExecutors() map[string]TxExecutor
 	GenericTransactionValidator() GenericTransactionValidator
-	TxConverter() TxConverters
+	//	TxConverter() TxConverters
 }
 
 type GenericTxSystem struct {
@@ -30,8 +28,8 @@ type GenericTxSystem struct {
 	state              *rma.Tree
 	currentBlockNumber uint64
 
-	executors           TxExecutors
-	txConverters        TxConverters
+	executors TxExecutors
+	//	txConverters        TxConverters
 	genericTxValidators []GenericTransactionValidator
 	beginBlockFunctions []func(blockNumber uint64)
 	endBlockFunctions   []func(blockNumber uint64) error
@@ -53,8 +51,7 @@ func NewGenericTxSystem(modules []Module, opts ...Option) (*GenericTxSystem, err
 		state:               options.state,
 		beginBlockFunctions: options.beginBlockFunctions,
 		endBlockFunctions:   options.endBlockFunctions,
-		executors:           map[reflect.Type]ExecuteFunc{},
-		txConverters:        make(map[string]TxConverter),
+		executors:           make(map[string]TxExecutor),
 		genericTxValidators: []GenericTransactionValidator{},
 	}
 	for _, module := range modules {
@@ -73,12 +70,8 @@ func NewGenericTxSystem(modules []Module, opts ...Option) (*GenericTxSystem, err
 		}
 
 		executors := module.TxExecutors()
-		for _, executor := range executors {
-			txs.executors[executor.Type()] = executor.ExecuteFunc()
-		}
-		converters := module.TxConverter()
-		for key, converter := range converters {
-			txs.txConverters[key] = converter
+		for k, executor := range executors {
+			txs.executors[k] = executor
 		}
 	}
 	return txs, nil
@@ -92,7 +85,7 @@ func (m *GenericTxSystem) CurrentBlockNumber() uint64 {
 	return m.currentBlockNumber
 }
 
-func (m *GenericTxSystem) State() (State, error) {
+func (m *GenericTxSystem) StateSummary() (State, error) {
 	if m.state.ContainsUncommittedChanges() {
 		return nil, ErrStateContainsUncommittedChanges
 	}
@@ -118,24 +111,8 @@ func (m *GenericTxSystem) BeginBlock(blockNr uint64) {
 	m.currentBlockNumber = blockNr
 }
 
-func (m *GenericTxSystem) ConvertTx(tx *Transaction) (GenericTransaction, error) {
-	if tx == nil || tx.TransactionAttributes == nil {
-		return nil, errors.New("tx or tx attributes missing")
-	}
-	typeUrl := tx.TransactionAttributes.TypeUrl
-	c, f := m.txConverters[typeUrl]
-	if !f {
-		return nil, fmt.Errorf("unknown transaction type %s", tx.TransactionAttributes.TypeUrl)
-	}
-	transaction, err := c(tx)
-	if err != nil {
-		return nil, fmt.Errorf("failed to convert tx with attributres type url '%s': %w", tx.TransactionAttributes.TypeUrl, err)
-	}
-	return transaction, nil
-}
-
-func (m *GenericTxSystem) Execute(tx GenericTransaction) error {
-	u, _ := m.state.GetUnit(tx.UnitID())
+func (m *GenericTxSystem) Execute(tx *types.TransactionOrder) (*types.ServerMetadata, error) {
+	u, _ := m.state.GetUnit(util.BytesToUint256(tx.UnitID()))
 	ctx := &TxValidationContext{
 		Tx:               tx,
 		Unit:             u,
@@ -144,7 +121,7 @@ func (m *GenericTxSystem) Execute(tx GenericTransaction) error {
 	}
 	for _, validator := range m.genericTxValidators {
 		if err := validator(ctx); err != nil {
-			return fmt.Errorf("invalid transaction: %w", err)
+			return nil, fmt.Errorf("invalid transaction: %w", err)
 		}
 	}
 

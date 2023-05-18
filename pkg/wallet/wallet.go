@@ -51,10 +51,6 @@ type (
 		maxAvailableBlockNumber uint64 // latest non-empty block in a partition shard
 		maxAvailableRoundNumber uint64 // latest round number in a partition shard, greater or equal to maxAvailableBlockNumber
 	}
-
-	BlockProcessor interface {
-		ProcessBlock(b *block.Block) error
-	}
 )
 
 func New() *Builder {
@@ -113,7 +109,7 @@ func (w *Wallet) SendTransaction(ctx context.Context, tx *txsystem.Transaction, 
 
 // Shutdown terminates connection to alphabill node and cancels any background goroutines.
 func (w *Wallet) Shutdown() {
-	log.Info("shutting down wallet")
+	log.Debug("shutting down wallet")
 
 	if w.AlphabillClient != nil {
 		err := w.AlphabillClient.Shutdown()
@@ -163,12 +159,10 @@ func (w *Wallet) fetchBlocksForever(ctx context.Context, lastBlockNumber uint64,
 		default:
 			if maxBlockNumber != 0 && lastBlockNumber == maxBlockNumber {
 				// wait for some time before retrying to fetch new block
-				timer := time.NewTimer(sleepTimeAtMaxBlockHeightMs * time.Millisecond)
 				select {
-				case <-timer.C:
 				case <-ctx.Done():
-					timer.Stop()
 					return nil
+				case <-time.After(sleepTimeAtMaxBlockHeightMs * time.Millisecond):
 				}
 			}
 			res, err := w.fetchBlocks(ctx, lastBlockNumber, blockDownloadMaxBatchSize, ch) // TODO: merge

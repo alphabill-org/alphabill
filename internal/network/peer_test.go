@@ -1,65 +1,38 @@
 package network
 
 import (
+	"context"
 	"crypto/rand"
-	"fmt"
 	"testing"
 
 	test "github.com/alphabill-org/alphabill/internal/testutils"
+	dht "github.com/libp2p/go-libp2p-kad-dht"
 	"github.com/libp2p/go-libp2p/core/crypto"
+	"github.com/libp2p/go-libp2p/core/peer"
+	basichost "github.com/libp2p/go-libp2p/p2p/host/basic"
+	swarmt "github.com/libp2p/go-libp2p/p2p/net/swarm/testing"
 	"github.com/stretchr/testify/require"
 )
 
+const randomTestAddressStr = "/ip4/127.0.0.1/tcp/0"
+
+type blankValidator struct{}
+
+func (blankValidator) Validate(_ string, _ []byte) error        { return nil }
+func (blankValidator) Select(_ string, _ [][]byte) (int, error) { return 0, nil }
+
 func TestNewPeer_PeerConfigurationIsNil(t *testing.T) {
-	peer, err := NewPeer(nil)
+	p, err := NewPeer(context.Background(), nil)
 	require.ErrorIs(t, err, ErrPeerConfigurationIsNil)
-	require.Nil(t, peer)
+	require.Nil(t, p)
 }
 
 func TestNewPeer_NewPeerCanBeCreated(t *testing.T) {
-	peer, err := NewPeer(&PeerConfiguration{})
-	require.NoError(t, err)
-	defer peer.Close()
-	require.NotNil(t, peer)
-	require.NotNil(t, peer.ID())
-	require.True(t, len(peer.MultiAddresses()) > 0)
-	require.Equal(t, 1, len(peer.host.Peerstore().Peers()))
-}
-
-func TestNewPeer_WithPersistentPeers(t *testing.T) {
-	peers := createPeers(t, 4)
-	defer func() {
-		for _, peer := range peers {
-			if peer != nil {
-				peer.Close()
-			}
-		}
-	}()
-	pis := make([]*PeerInfo, len(peers))
-	for i, peer := range peers {
-		pubKey, err := peer.PublicKey()
-		require.NoError(t, err)
-
-		pubKeyBytes, err := pubKey.Raw()
-		require.NoError(t, err)
-
-		pis[i] = &PeerInfo{
-			Address:   fmt.Sprintf("%v", peer.MultiAddresses()[0]),
-			PublicKey: pubKeyBytes,
-		}
-	}
-
-	peer, err := NewPeer(&PeerConfiguration{
-		Address:         "",
-		KeyPair:         nil,
-		PersistentPeers: pis,
-	})
-	require.NoError(t, err)
-	defer peer.Close()
-	require.NotNil(t, peer)
-	require.NotNil(t, peer.ID())
-	require.True(t, len(peer.MultiAddresses()) > 0)
-	require.Equal(t, 5, len(peer.host.Peerstore().Peers()))
+	p := createPeer(t)
+	require.NotNil(t, p)
+	require.NotNil(t, p.ID())
+	require.True(t, len(p.MultiAddresses()) > 0)
+	require.Equal(t, 1, len(p.host.Peerstore().Peers()))
 }
 
 func TestNewPeer_InvalidPrivateKey(t *testing.T) {
@@ -68,7 +41,7 @@ func TestNewPeer_InvalidPrivateKey(t *testing.T) {
 			PrivateKey: test.RandomBytes(30),
 		},
 	}
-	_, err := NewPeer(conf)
+	_, err := NewPeer(context.Background(), conf)
 	require.ErrorContains(t, err, "invalid private key error, expected secp256k1 data size to be 32")
 }
 
@@ -81,7 +54,7 @@ func TestNewPeer_InvalidPublicKey(t *testing.T) {
 			PublicKey:  test.RandomBytes(30),
 		},
 	}
-	_, err := NewPeer(conf)
+	_, err := NewPeer(context.Background(), conf)
 	require.ErrorContains(t, err, "invalid public key error, malformed public key: invalid length: 30")
 }
 
@@ -97,24 +70,67 @@ func TestNewPeer_LoadsKeyPairCorrectly(t *testing.T) {
 			PublicKey:  pubKeyBytes,
 		},
 	}
-	peer, err := NewPeer(conf)
+	peer, err := NewPeer(context.Background(), conf)
 	require.NoError(t, err)
+	defer func() { require.NoError(t, peer.Close()) }()
 	p := peer.host.Peerstore().PeersWithKeys()[0]
 	pub, _ := p.ExtractPublicKey()
 	raw, _ := pub.Raw()
 	require.Equal(t, pubKeyBytes, raw)
 }
 
-func createPeers(t *testing.T, nrOfPeers int) []*Peer {
-	peers := make([]*Peer, nrOfPeers)
-	for i := 0; i < nrOfPeers; i++ {
-		peers[i] = createPeer(t)
-	}
-	return peers
+func TestBootstrapNodes(t *testing.T) {
+	ctx := context.Background()
+	bootstrapNode := createDHT(ctx, t, false, dht.DisableAutoRefresh())
+	bootstrapNodeAddrInfo := []peer.AddrInfo{{bootstrapNode.Host().ID(), bootstrapNode.Host().Addrs()}}
+
+	peer1, err := NewPeer(context.Background(), &PeerConfiguration{Address: randomTestAddressStr, BootstrapPeers: bootstrapNodeAddrInfo})
+	require.NoError(t, err)
+	defer func() { _ = peer1.Close() }()
+	require.Eventually(t, func() bool { return peer1.dht.RoutingTable().Size() == 1 }, test.WaitDuration, test.WaitTick)
+
+	peer2, err := NewPeer(context.Background(), &PeerConfiguration{Address: randomTestAddressStr, BootstrapPeers: bootstrapNodeAddrInfo})
+	require.NoError(t, err)
+	defer func() { _ = peer2.Close() }()
+
+	require.Eventually(t, func() bool { return peer2.dht.RoutingTable().Size() == 2 }, test.WaitDuration, test.WaitTick)
+	require.Eventually(t, func() bool { return peer1.dht.RoutingTable().Size() == 2 }, test.WaitDuration, test.WaitTick)
+	require.Eventually(t, func() bool { return peer2.dht.RoutingTable().Find(peer1.dht.Host().ID()) != "" }, test.WaitDuration, test.WaitTick)
+	require.Eventually(t, func() bool { return peer1.dht.RoutingTable().Find(peer2.dht.Host().ID()) != "" }, test.WaitDuration, test.WaitTick)
 }
 
 func createPeer(t *testing.T) *Peer {
-	p, err := NewPeer(&PeerConfiguration{Address: "/ip4/127.0.0.1/tcp/0"})
+	p, err := NewPeer(context.Background(), &PeerConfiguration{Address: randomTestAddressStr})
 	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, p.Close()) })
 	return p
+}
+
+func createDHT(ctx context.Context, t *testing.T, client bool, options ...dht.Option) *dht.IpfsDHT {
+	baseOpts := []dht.Option{
+		dht.DisableAutoRefresh(),
+		dht.Validator(&blankValidator{}),
+		dht.ProtocolPrefix(dhtProtocolPrefix),
+	}
+
+	if client {
+		baseOpts = append(baseOpts, dht.Mode(dht.ModeClient))
+	} else {
+		baseOpts = append(baseOpts, dht.Mode(dht.ModeServer))
+	}
+
+	host := createHost(t)
+
+	d, err := dht.New(ctx, host, append(baseOpts, options...)...)
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, d.Close()) })
+	return d
+}
+
+func createHost(t *testing.T) *basichost.BasicHost {
+	host, err := basichost.NewHost(swarmt.GenSwarm(t, swarmt.OptDisableReuseport), new(basichost.HostOpts))
+	require.NoError(t, err)
+	host.Start()
+	t.Cleanup(func() { require.NoError(t, host.Close()) })
+	return host
 }

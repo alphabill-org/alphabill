@@ -110,7 +110,7 @@ func (db *BoltDB) First() keyvaluedb.Iterator {
 	return it
 }
 
-func (db *BoltDB) Last() keyvaluedb.ReverseIterator {
+func (db *BoltDB) Last() keyvaluedb.Iterator {
 	it := NewIterator(db.db, db.bucket, db.decoder)
 	it.last()
 	return it

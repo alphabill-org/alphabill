@@ -79,9 +79,9 @@ func main() {
 
 func createRegisterDataTx(hash []byte, timeout uint64) (*txsystem.Transaction, error) {
 	tx := &txsystem.Transaction{
-		UnitId:   hash,
-		SystemId: []byte{0, 0, 0, 1},
-		Timeout:  timeout,
+		UnitId:         hash,
+		SystemId:       []byte{0, 0, 0, 1},
+		ClientMetadata: &txsystem.ClientMetadata{Timeout: timeout},
 	}
 	return tx, nil
 }

@@ -10,6 +10,7 @@ import (
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	ttxs "github.com/alphabill-org/alphabill/internal/txsystem/tokens"
+	sdk "github.com/alphabill-org/alphabill/pkg/wallet"
 	twb "github.com/alphabill-org/alphabill/pkg/wallet/tokens/backend"
 	"github.com/stretchr/testify/require"
 )
@@ -40,7 +41,7 @@ func TestFungibleTokenDC(t *testing.T) {
 
 	burnedValue, accTokens, recordedTx := resetFunc()
 
-	findToken := func(pubKey twb.PubKey, id twb.TokenID) *twb.TokenUnit {
+	findToken := func(pubKey sdk.PubKey, id twb.TokenID) *twb.TokenUnit {
 		tokens, found := accTokens[string(pubKey)]
 		require.True(t, found, fmt.Sprintf("key %X not found", pubKey))
 		for _, token := range tokens {
@@ -53,7 +54,7 @@ func TestFungibleTokenDC(t *testing.T) {
 	}
 
 	be := &mockTokenBackend{
-		getTokens: func(_ context.Context, _ twb.Kind, owner twb.PubKey, _ string, _ int) ([]twb.TokenUnit, string, error) {
+		getTokens: func(_ context.Context, _ twb.Kind, owner sdk.PubKey, _ string, _ int) ([]twb.TokenUnit, string, error) {
 			tokens, found := accTokens[string(owner)]
 			if !found {
 				return nil, "", fmt.Errorf("no tokens for pubkey '%X'", owner)
@@ -64,7 +65,7 @@ func TestFungibleTokenDC(t *testing.T) {
 			}
 			return res, "", nil
 		},
-		postTransactions: func(ctx context.Context, pubKey twb.PubKey, txs *txsystem.Transactions) error {
+		postTransactions: func(ctx context.Context, pubKey sdk.PubKey, txs *txsystem.Transactions) error {
 			for _, tx := range txs.Transactions {
 				unitID := tx.UnitId
 				recordedTx[string(unitID)] = tx
@@ -83,15 +84,23 @@ func TestFungibleTokenDC(t *testing.T) {
 			}
 			return nil
 		},
-		getTxProof: func(ctx context.Context, unitID twb.UnitID, txHash twb.TxHash) (*twb.Proof, error) {
+		getTxProof: func(ctx context.Context, unitID sdk.UnitID, txHash sdk.TxHash) (*sdk.Proof, error) {
 			recordedTx, found := recordedTx[string(unitID)]
 			if !found {
 				return nil, errors.New("tx not found")
 			}
-			return &twb.Proof{BlockNumber: 1, Tx: recordedTx, Proof: nil}, nil
+			return &sdk.Proof{BlockNumber: 1, Tx: recordedTx, Proof: nil}, nil
 		},
 		getRoundNumber: func(ctx context.Context) (uint64, error) {
 			return 1, nil
+		},
+		getFeeCreditBill: func(ctx context.Context, unitID sdk.UnitID) (*twb.FeeCreditBill, error) {
+			return &twb.FeeCreditBill{
+				Id:            []byte{1},
+				Value:         100000,
+				TxHash:        []byte{2},
+				FCBlockNumber: 3,
+			}, nil
 		},
 	}
 	tw := initTestWallet(t, be)
@@ -122,7 +131,7 @@ func TestGetTokensForDC(t *testing.T) {
 	}
 
 	be := &mockTokenBackend{
-		getTokens: func(_ context.Context, kind twb.Kind, owner twb.PubKey, _ string, _ int) ([]twb.TokenUnit, string, error) {
+		getTokens: func(_ context.Context, kind twb.Kind, owner sdk.PubKey, _ string, _ int) ([]twb.TokenUnit, string, error) {
 			require.Equal(t, twb.Fungible, kind)
 			var res []twb.TokenUnit
 			for _, tok := range allTokens {

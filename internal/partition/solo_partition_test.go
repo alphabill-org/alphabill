@@ -4,7 +4,6 @@ import (
 	"context"
 	gocrypto "crypto"
 	"crypto/rand"
-	"fmt"
 	"reflect"
 	"strings"
 	"sync"
@@ -28,11 +27,12 @@ import (
 	testnetwork "github.com/alphabill-org/alphabill/internal/testutils/network"
 	testevent "github.com/alphabill-org/alphabill/internal/testutils/partition/event"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
-	"github.com/alphabill-org/alphabill/internal/timer"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
+	"github.com/alphabill-org/alphabill/internal/util"
 	p2pcrypto "github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/proto"
 )
 
 type AlwaysValidBlockProposalValidator struct{}
@@ -183,7 +183,7 @@ func (sn *SingleNodePartition) SubmitTx(tx *txsystem.Transaction) error {
 }
 
 func (sn *SingleNodePartition) SubmitTxFromRPC(tx *txsystem.Transaction) error {
-	return sn.partition.SubmitTx(tx)
+	return sn.partition.SubmitTx(context.Background(), tx)
 }
 
 func (sn *SingleNodePartition) SubmitUnicityCertificate(uc *certificates.UnicityCertificate) {
@@ -242,6 +242,7 @@ func (sn *SingleNodePartition) CreateUnicityCertificate(ir *certificates.InputRe
 func (sn *SingleNodePartition) createUnicitySeal(roundNumber uint64, rootHash []byte) (*certificates.UnicitySeal, error) {
 	u := &certificates.UnicitySeal{
 		RootChainRoundNumber: roundNumber,
+		Timestamp:            util.MakeTimestamp(),
 		Hash:                 rootHash,
 	}
 	return u, u.Sign("test", sn.rootSigner)
@@ -291,7 +292,7 @@ func (sn *SingleNodePartition) IssueBlockUC(t *testing.T) *certificates.UnicityC
 
 func (sn *SingleNodePartition) SubmitT1Timeout(t *testing.T) {
 	sn.eh.Reset()
-	sn.partition.timers.C <- &timer.Task{}
+	sn.partition.handleT1TimeoutEvent()
 	require.Eventually(t, func() bool {
 		return len(sn.mockNet.SentMessages(network.ProtocolBlockCertification)) == 1
 	}, test.WaitDuration, test.WaitTick, "block certification request not found")
@@ -300,7 +301,7 @@ func (sn *SingleNodePartition) SubmitT1Timeout(t *testing.T) {
 func (sn *SingleNodePartition) SubmitMonitorTimeout(t *testing.T) {
 	t.Helper()
 	sn.eh.Reset()
-	sn.partition.handleMonitoring()
+	sn.partition.handleMonitoring(time.Now().Add(-3 * sn.nodeConf.GetT2Timeout()))
 }
 
 type TestLeaderSelector struct {
@@ -344,31 +345,31 @@ func (l *TestLeaderSelector) LeaderFunc(seal *certificates.UnicityCertificate) p
 }
 
 func createPeer(t *testing.T) *network.Peer {
-	conf := &network.PeerConfiguration{}
 	// fake validator, so that network 'send' requests don't fail
-	_, validatorPubKey, err := p2pcrypto.GenerateSecp256k1Key(rand.Reader)
-	require.NoError(t, err)
-	validatorPubKeyBytes, _ := validatorPubKey.Raw()
-
-	conf.PersistentPeers = []*network.PeerInfo{{
-		Address:   "/ip4/1.2.3.4/tcp/80",
-		PublicKey: validatorPubKeyBytes,
-	}}
-	//
-	peer, err := network.NewPeer(conf)
+	privateKey, pubKey, err := p2pcrypto.GenerateSecp256k1Key(rand.Reader)
 	require.NoError(t, err)
 
-	pubKey, err := peer.PublicKey()
+	privateKeyBytes, err := privateKey.Raw()
 	require.NoError(t, err)
 
 	pubKeyBytes, err := pubKey.Raw()
 	require.NoError(t, err)
 
-	conf.PersistentPeers = []*network.PeerInfo{{
-		Address:   fmt.Sprintf("%v", peer.MultiAddresses()[0]),
-		PublicKey: pubKeyBytes,
-	}}
-	return peer
+	id, err := peer.IDFromPublicKey(pubKey)
+	require.NoError(t, err)
+
+	conf := &network.PeerConfiguration{
+		KeyPair: &network.PeerKeyPair{
+			PublicKey:  pubKeyBytes,
+			PrivateKey: privateKeyBytes,
+		},
+		Validators: []peer.ID{id},
+	}
+	newPeer, err := network.NewPeer(context.Background(), conf)
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, newPeer.Close()) })
+
+	return newPeer
 }
 
 func NextBlockReceived(t *testing.T, tp *SingleNodePartition, prevBlock *block.Block) func() bool {
@@ -376,7 +377,7 @@ func NextBlockReceived(t *testing.T, tp *SingleNodePartition, prevBlock *block.B
 	return func() bool {
 		// Empty blocks are not persisted, assume new block is received if new last UC round is bigger than block UC round
 		// NB! it could also be that repeat UC is received
-		return tp.partition.luc.InputRecord.RoundNumber > prevBlock.UnicityCertificate.InputRecord.RoundNumber
+		return tp.partition.luc.Load().InputRecord.RoundNumber > prevBlock.UnicityCertificate.InputRecord.RoundNumber
 	}
 }
 
@@ -418,4 +419,25 @@ func ContainsEventType(t *testing.T, tp *SingleNodePartition, evType event.Type)
 		}
 		return false
 	}, test.WaitDuration, test.WaitTick)
+}
+
+// WaitNodeRequestReceived waits for req type message from node and if there is more than one, copy of the latest is
+// returned and the buffer is cleared. NB! if there is already such a message received the method will return with the latest
+// immediately. Make sure to clear the "sent" messages if test expects a new message.
+func WaitNodeRequestReceived(t *testing.T, tp *SingleNodePartition, req string) *testnetwork.PeerMessage {
+	t.Helper()
+	defer tp.mockNet.ResetSentMessages(req)
+	var reqs []testnetwork.PeerMessage
+	require.Eventually(t, func() bool {
+		reqs = tp.mockNet.SentMessages(req)
+		return len(reqs) > 0
+	}, test.WaitDuration, test.WaitTick)
+	// if more than one return last, but there has to be at least one, otherwise require.Eventually fails before
+	return &testnetwork.PeerMessage{
+		ID: reqs[len(reqs)-1].ID,
+		OutputMessage: network.OutputMessage{
+			Protocol: reqs[len(reqs)-1].Protocol,
+			Message:  proto.Clone(reqs[len(reqs)-1].Message),
+		},
+	}
 }

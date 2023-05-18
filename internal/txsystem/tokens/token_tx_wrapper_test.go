@@ -17,6 +17,8 @@ var (
 	unitID                                    = []byte{1}
 	ownerProof                                = []byte{2}
 	symbol                                    = "TEST"
+	name                                      = "Long name for " + symbol
+	icon                                      = &Icon{Type: validIconType, Data: []byte{21}}
 	parentTypeId                              = []byte{3}
 	subTypeCreationPredicate                  = []byte{4}
 	tokenCreationPredicate                    = []byte{5}
@@ -53,7 +55,12 @@ func TestCreateNonFungibleTokenTypeTx_SigBytesIsCalculatedCorrectly(t *testing.T
 	b.Write(systemID)
 	b.Write(unitID)
 	b.Write(util.Uint64ToBytes(timeout))
+	b.Write(util.Uint64ToBytes(0))
+	b.Write(nil)
 	b.Write([]byte(symbol))
+	b.Write([]byte(name))
+	b.Write([]byte(icon.Type))
+	b.Write(icon.Data)
 	b.Write(parentTypeId)
 	b.Write(subTypeCreationPredicate)
 	b.Write(tokenCreationPredicate)
@@ -71,8 +78,11 @@ func TestMintNonFungibleTokenTx_SigBytesIsCalculatedCorrectly(t *testing.T) {
 	b.Write(systemID)
 	b.Write(unitID)
 	b.Write(util.Uint64ToBytes(timeout))
+	b.Write(util.Uint64ToBytes(0))
+	b.Write(nil)
 	b.Write(bearer)
 	b.Write(nftType)
+	b.Write([]byte(nftName))
 	b.Write([]byte(uri))
 	b.Write(data)
 	b.Write(dataUpdatePredicate)
@@ -90,7 +100,13 @@ func TestCreateNonFungibleTokenTypeTx_GetHashIsCalculatedCorrectly(t *testing.T)
 	b.Write(unitID)
 	b.Write(ownerProof)
 	b.Write(util.Uint64ToBytes(timeout))
+	b.Write(util.Uint64ToBytes(0)) // max fee
+	b.Write(nil)                   // fee credit record id
+	b.Write(util.Uint64ToBytes(1)) // server metadata fee
 	b.Write([]byte(symbol))
+	b.Write([]byte(name))
+	b.Write([]byte(icon.Type))
+	b.Write(icon.Data)
 	b.Write(parentTypeId)
 	b.Write(subTypeCreationPredicate)
 	b.Write(tokenCreationPredicate)
@@ -113,8 +129,12 @@ func TestMintNonFungibleTokenTx_GetHashIsCalculatedCorrectly(t *testing.T) {
 	b.Write(unitID)
 	b.Write(ownerProof)
 	b.Write(util.Uint64ToBytes(timeout))
+	b.Write(util.Uint64ToBytes(0)) // max fee
+	b.Write(nil)                   // fee credit record id
+	b.Write(util.Uint64ToBytes(1)) // server metadata fee
 	b.Write(bearer)
 	b.Write(nftType)
+	b.Write([]byte(nftName))
 	b.Write([]byte(uri))
 	b.Write(data)
 	b.Write(dataUpdatePredicate)
@@ -135,6 +155,9 @@ func TestTransferNonFungibleTokenTypeTx_GetHashIsCalculatedCorrectly(t *testing.
 	b.Write(unitID)
 	b.Write(ownerProof)
 	b.Write(util.Uint64ToBytes(timeout))
+	b.Write(util.Uint64ToBytes(0)) // max fee
+	b.Write(nil)                   // fee credit record id
+	b.Write(util.Uint64ToBytes(1)) // server metadata fee
 	b.Write(newBearer)
 	b.Write(nonce)
 	b.Write(backlink)
@@ -154,6 +177,8 @@ func TestTransferNonFungibleTokenTypeTx_SigBytesIsCalculatedCorrectly(t *testing
 	b.Write(systemID)
 	b.Write(unitID)
 	b.Write(util.Uint64ToBytes(timeout))
+	b.Write(util.Uint64ToBytes(0))
+	b.Write(nil)
 	b.Write(newBearer)
 	b.Write(nonce)
 	b.Write(backlink)
@@ -172,6 +197,9 @@ func TestUpdateNonFungibleTokenTypeTx_GetHashIsCalculatedCorrectly(t *testing.T)
 	b.Write(unitID)
 	b.Write(ownerProof)
 	b.Write(util.Uint64ToBytes(timeout))
+	b.Write(util.Uint64ToBytes(0)) // max fee
+	b.Write(nil)                   // fee credit record id
+	b.Write(util.Uint64ToBytes(1)) // server metadata fee
 	b.Write(updatedData)
 	b.Write(backlink)
 	for _, sig := range dataUpdateSignatures {
@@ -189,6 +217,8 @@ func TestUpdateNonFungibleTokenTypeTx_SigBytesIsCalculatedCorrectly(t *testing.T
 	b.Write(systemID)
 	b.Write(unitID)
 	b.Write(util.Uint64ToBytes(timeout))
+	b.Write(util.Uint64ToBytes(0))
+	b.Write(nil)
 	b.Write(updatedData)
 	b.Write(backlink)
 	require.Equal(t, b.Bytes(), sigBytes)
@@ -205,7 +235,13 @@ func TestCreateFungibleTokenTypeTx_GetHashIsCalculatedCorrectly(t *testing.T) {
 	b.Write(unitID)
 	b.Write(ownerProof)
 	b.Write(util.Uint64ToBytes(timeout))
+	b.Write(util.Uint64ToBytes(0)) // max fee
+	b.Write(nil)                   // fee credit record id
+	b.Write(util.Uint64ToBytes(1)) // server metadata fee
 	b.Write([]byte(symbol))
+	b.Write([]byte(name))
+	b.Write([]byte(icon.Type))
+	b.Write(icon.Data)
 	b.Write(parentTypeId)
 	b.Write(util.Uint32ToBytes(fungibleTokenDecimalPlaces))
 	b.Write(subTypeCreationPredicate)
@@ -226,7 +262,12 @@ func TestCreateFungibleTokenTypeTx_SigBytesIsCalculatedCorrectly(t *testing.T) {
 	b.Write(systemID)
 	b.Write(unitID)
 	b.Write(util.Uint64ToBytes(timeout))
+	b.Write(util.Uint64ToBytes(0))
+	b.Write(nil)
 	b.Write([]byte(symbol))
+	b.Write([]byte(name))
+	b.Write([]byte(icon.Type))
+	b.Write(icon.Data)
 	b.Write(parentTypeId)
 	b.Write(util.Uint32ToBytes(fungibleTokenDecimalPlaces))
 	b.Write(subTypeCreationPredicate)
@@ -246,6 +287,9 @@ func TestMintFungibleTokenTx_GetHashIsCalculatedCorrectly(t *testing.T) {
 	b.Write(unitID)
 	b.Write(ownerProof)
 	b.Write(util.Uint64ToBytes(timeout))
+	b.Write(util.Uint64ToBytes(0)) // max fee
+	b.Write(nil)                   // fee credit record id
+	b.Write(util.Uint64ToBytes(1)) // server metadata fee
 	b.Write(bearer)
 	b.Write(parentTypeId)
 	b.Write(util.Uint64ToBytes(fungibleTokenValue))
@@ -264,6 +308,8 @@ func TestMintFungibleTokenTx_SigBytesIsCalculatedCorrectly(t *testing.T) {
 	b.Write(systemID)
 	b.Write(unitID)
 	b.Write(util.Uint64ToBytes(timeout))
+	b.Write(util.Uint64ToBytes(0))
+	b.Write(nil)
 	b.Write(bearer)
 	b.Write(parentTypeId)
 	b.Write(util.Uint64ToBytes(fungibleTokenValue))
@@ -281,6 +327,9 @@ func TestTransferFungibleTokenTx_GetHashIsCalculatedCorrectly(t *testing.T) {
 	b.Write(unitID)
 	b.Write(ownerProof)
 	b.Write(util.Uint64ToBytes(timeout))
+	b.Write(util.Uint64ToBytes(0)) // max fee
+	b.Write(nil)                   // fee credit record id
+	b.Write(util.Uint64ToBytes(1)) // server metadata fee
 	b.Write(newBearer)
 	b.Write(util.Uint64ToBytes(transferValue))
 	b.Write(nonce)
@@ -301,6 +350,8 @@ func TestTransferFungibleTokenTx_SigBytesIsCalculatedCorrectly(t *testing.T) {
 	b.Write(systemID)
 	b.Write(unitID)
 	b.Write(util.Uint64ToBytes(timeout))
+	b.Write(util.Uint64ToBytes(0))
+	b.Write(nil)
 	b.Write(newBearer)
 	b.Write(util.Uint64ToBytes(transferValue))
 	b.Write(nonce)
@@ -320,6 +371,9 @@ func TestSplitFungibleTokenTx_GetHashIsCalculatedCorrectly(t *testing.T) {
 	b.Write(unitID)
 	b.Write(ownerProof)
 	b.Write(util.Uint64ToBytes(timeout))
+	b.Write(util.Uint64ToBytes(0)) // max fee
+	b.Write(nil)                   // fee credit record id
+	b.Write(util.Uint64ToBytes(1)) // server metadata fee
 	b.Write(newBearer)
 	b.Write(util.Uint64ToBytes(transferValue))
 	b.Write(util.Uint64ToBytes(remainingValue))
@@ -354,6 +408,8 @@ func TestSplitFungibleTokenTx_SigBytesIsCalculatedCorrectly(t *testing.T) {
 	b.Write(systemID)
 	b.Write(unitID)
 	b.Write(util.Uint64ToBytes(timeout))
+	b.Write(util.Uint64ToBytes(0))
+	b.Write(nil)
 	b.Write(newBearer)
 	b.Write(util.Uint64ToBytes(transferValue))
 	b.Write(util.Uint64ToBytes(remainingValue))
@@ -374,6 +430,9 @@ func TestBurnFungibleTokenTx_GetHashIsCalculatedCorrectly(t *testing.T) {
 	b.Write(unitID)
 	b.Write(ownerProof)
 	b.Write(util.Uint64ToBytes(timeout))
+	b.Write(util.Uint64ToBytes(0)) // max fee
+	b.Write(nil)                   // fee credit record id
+	b.Write(util.Uint64ToBytes(1)) // server metadata fee
 	b.Write(burnType)
 	b.Write(util.Uint64ToBytes(burnValue))
 	b.Write(nonce)
@@ -393,6 +452,8 @@ func TestBurnFungibleTokenTx_SigBytesIsCalculatedCorrectly(t *testing.T) {
 	b.Write(systemID)
 	b.Write(unitID)
 	b.Write(util.Uint64ToBytes(timeout))
+	b.Write(util.Uint64ToBytes(0))
+	b.Write(nil)
 	b.Write(burnType)
 	b.Write(util.Uint64ToBytes(burnValue))
 	b.Write(nonce)
@@ -404,10 +465,12 @@ func createFungibleTokenTypeTxOrder(t *testing.T, systemIdentifier []byte) *txsy
 	return testtransaction.NewTransaction(t,
 		testtransaction.WithSystemID(systemIdentifier),
 		testtransaction.WithUnitId(unitID),
-		testtransaction.WithTimeout(timeout),
+		testtransaction.WithClientMetadata(&txsystem.ClientMetadata{Timeout: timeout}),
 		testtransaction.WithOwnerProof(ownerProof),
 		testtransaction.WithAttributes(&CreateFungibleTokenTypeAttributes{
 			Symbol:                             symbol,
+			Name:                               name,
+			Icon:                               icon,
 			ParentTypeId:                       parentTypeId,
 			DecimalPlaces:                      fungibleTokenDecimalPlaces,
 			SubTypeCreationPredicate:           subTypeCreationPredicate,
@@ -422,7 +485,7 @@ func mintFungibleTokenTxOrder(t *testing.T, systemIdentifier []byte) *txsystem.T
 	return testtransaction.NewTransaction(t,
 		testtransaction.WithSystemID(systemIdentifier),
 		testtransaction.WithUnitId(unitID),
-		testtransaction.WithTimeout(timeout),
+		testtransaction.WithClientMetadata(&txsystem.ClientMetadata{Timeout: timeout}),
 		testtransaction.WithOwnerProof(ownerProof),
 		testtransaction.WithAttributes(&MintFungibleTokenAttributes{
 			Bearer:                           bearer,
@@ -437,7 +500,7 @@ func transferFungibleTokenTxOrder(t *testing.T, systemIdentifier []byte) *txsyst
 	return testtransaction.NewTransaction(t,
 		testtransaction.WithSystemID(systemIdentifier),
 		testtransaction.WithUnitId(unitID),
-		testtransaction.WithTimeout(timeout),
+		testtransaction.WithClientMetadata(&txsystem.ClientMetadata{Timeout: timeout}),
 		testtransaction.WithOwnerProof(ownerProof),
 		testtransaction.WithAttributes(&TransferFungibleTokenAttributes{
 			NewBearer:                    newBearer,
@@ -454,7 +517,7 @@ func splitFungibleTokenTxOrder(t *testing.T, systemIdentifier []byte) *txsystem.
 	return testtransaction.NewTransaction(t,
 		testtransaction.WithSystemID(systemIdentifier),
 		testtransaction.WithUnitId(unitID),
-		testtransaction.WithTimeout(timeout),
+		testtransaction.WithClientMetadata(&txsystem.ClientMetadata{Timeout: timeout}),
 		testtransaction.WithOwnerProof(ownerProof),
 		testtransaction.WithAttributes(&SplitFungibleTokenAttributes{
 			Type:                         parentTypeId,
@@ -472,7 +535,7 @@ func burnFungibleTokenTxOrder(t *testing.T, systemIdentifier []byte) *txsystem.T
 	return testtransaction.NewTransaction(t,
 		testtransaction.WithSystemID(systemIdentifier),
 		testtransaction.WithUnitId(unitID),
-		testtransaction.WithTimeout(timeout),
+		testtransaction.WithClientMetadata(&txsystem.ClientMetadata{Timeout: timeout}),
 		testtransaction.WithOwnerProof(ownerProof),
 		testtransaction.WithAttributes(&BurnFungibleTokenAttributes{
 			Type:                         burnType,
@@ -488,10 +551,12 @@ func createNonFungibleTokenTypeTxOrder(t *testing.T, systemIdentifier []byte) *t
 	return testtransaction.NewTransaction(t,
 		testtransaction.WithSystemID(systemIdentifier),
 		testtransaction.WithUnitId(unitID),
-		testtransaction.WithTimeout(timeout),
+		testtransaction.WithClientMetadata(&txsystem.ClientMetadata{Timeout: timeout}),
 		testtransaction.WithOwnerProof(ownerProof),
 		testtransaction.WithAttributes(&CreateNonFungibleTokenTypeAttributes{
 			Symbol:                             symbol,
+			Name:                               name,
+			Icon:                               icon,
 			ParentTypeId:                       parentTypeId,
 			SubTypeCreationPredicate:           subTypeCreationPredicate,
 			TokenCreationPredicate:             tokenCreationPredicate,
@@ -506,11 +571,12 @@ func createMintNonFungibleTokenTxOrder(t *testing.T, systemIdentifier []byte) *t
 	return testtransaction.NewTransaction(t,
 		testtransaction.WithSystemID(systemIdentifier),
 		testtransaction.WithUnitId(unitID),
-		testtransaction.WithTimeout(timeout),
+		testtransaction.WithClientMetadata(&txsystem.ClientMetadata{Timeout: timeout}),
 		testtransaction.WithOwnerProof(ownerProof),
 		testtransaction.WithAttributes(&MintNonFungibleTokenAttributes{
 			Bearer:                           bearer,
 			NftType:                          nftType,
+			Name:                             nftName,
 			Uri:                              uri,
 			Data:                             data,
 			DataUpdatePredicate:              dataUpdatePredicate,
@@ -523,7 +589,7 @@ func createTransferNonFungibleTokenTxOrder(t *testing.T, systemIdentifier []byte
 	return testtransaction.NewTransaction(t,
 		testtransaction.WithSystemID(systemIdentifier),
 		testtransaction.WithUnitId(unitID),
-		testtransaction.WithTimeout(timeout),
+		testtransaction.WithClientMetadata(&txsystem.ClientMetadata{Timeout: timeout}),
 		testtransaction.WithOwnerProof(ownerProof),
 		testtransaction.WithAttributes(&TransferNonFungibleTokenAttributes{
 			NewBearer:                    newBearer,
@@ -539,7 +605,7 @@ func createUpdateNonFungibleTokenTxOrder(t *testing.T, systemIdentifier []byte) 
 	return testtransaction.NewTransaction(t,
 		testtransaction.WithSystemID(systemIdentifier),
 		testtransaction.WithUnitId(unitID),
-		testtransaction.WithTimeout(timeout),
+		testtransaction.WithClientMetadata(&txsystem.ClientMetadata{Timeout: timeout}),
 		testtransaction.WithOwnerProof(ownerProof),
 		testtransaction.WithAttributes(&UpdateNonFungibleTokenAttributes{
 			Data:                 updatedData,

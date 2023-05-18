@@ -2,13 +2,11 @@ package network
 
 import (
 	"encoding/binary"
+	"fmt"
 	"io"
 
-	"github.com/alphabill-org/alphabill/internal/errors"
 	"google.golang.org/protobuf/proto"
 )
-
-var ErrNotProtoMessage = errors.New("input isn't protobuf message")
 
 type ProtobufWriter struct {
 	w io.Writer
@@ -18,14 +16,10 @@ func NewProtoBufWriter(w io.Writer) *ProtobufWriter {
 	return &ProtobufWriter{w}
 }
 
-func (pw *ProtobufWriter) Write(msg interface{}) (err error) {
-	protoMsg, ok := msg.(proto.Message)
-	if !ok {
-		return ErrNotProtoMessage
-	}
-	data, err := proto.Marshal(protoMsg)
+func (pw *ProtobufWriter) Write(msg proto.Message) error {
+	data, err := proto.Marshal(msg)
 	if err != nil {
-		return err
+		return fmt.Errorf("marshal error, %w", err)
 	}
 	length := uint64(len(data))
 	lengthBytes := make([]byte, 8)

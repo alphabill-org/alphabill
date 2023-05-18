@@ -1,4 +1,4 @@
-package twb
+package backend
 
 import (
 	"fmt"
@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/stretchr/testify/require"
 
 	"github.com/alphabill-org/alphabill/internal/script"
@@ -55,11 +56,15 @@ func Test_storage(t *testing.T) {
 	t.Run("remove token", func(t *testing.T) {
 		testRemoveToken(t, db)
 	})
+
+	t.Run("fee credits", func(t *testing.T) {
+		testFeeCredits(t, db)
+	})
 }
 
 func testTokenTypeCreator(t *testing.T, db *storage) {
 	typeID := []byte{0x01}
-	creatorKey := PubKey{0x02}
+	creatorKey := wallet.PubKey{0x02}
 
 	err := db.SaveTokenTypeCreator(nil, Fungible, creatorKey)
 	require.EqualError(t, err, `key required`)
@@ -71,7 +76,7 @@ func testTokenTypeCreator(t *testing.T, db *storage) {
 }
 
 func testTokenType(t *testing.T, db *storage) {
-	proof := &Proof{BlockNumber: 1}
+	proof := &wallet.Proof{BlockNumber: 1}
 	typeUnit := &TokenUnitType{
 		ID:                       test.RandomBytes(32),
 		ParentTypeID:             test.RandomBytes(32),
@@ -105,7 +110,7 @@ func testTokenType(t *testing.T, db *storage) {
 	require.NoError(t, err)
 	require.Equal(t, typeUnit, typeFromDB)
 
-	proofFromDB, err := db.GetTxProof(UnitID(typeUnit.ID), typeUnit.TxHash)
+	proofFromDB, err := db.GetTxProof(wallet.UnitID(typeUnit.ID), typeUnit.TxHash)
 	require.NoError(t, err)
 	require.Equal(t, proof, proofFromDB)
 }
@@ -122,7 +127,7 @@ func testSaveToken(t *testing.T, db *storage) {
 
 	owner := script.PredicatePayToPublicKeyHashDefault(test.RandomBytes(32))
 	token := randomToken(owner, Fungible)
-	proof := &Proof{BlockNumber: 1}
+	proof := &wallet.Proof{BlockNumber: 1}
 
 	require.NoError(t, db.SaveToken(token, proof))
 
@@ -140,7 +145,7 @@ func testSaveToken(t *testing.T, db *storage) {
 	require.NoError(t, err)
 	require.Equal(t, token, tokenFromDB)
 
-	proofFromDB, err := db.GetTxProof(UnitID(token.ID), token.TxHash)
+	proofFromDB, err := db.GetTxProof(wallet.UnitID(token.ID), token.TxHash)
 	require.NoError(t, err)
 	require.Equal(t, proof, proofFromDB)
 }
@@ -155,7 +160,7 @@ func testRemoveToken(t *testing.T, db *storage) {
 
 	owner := script.PredicatePayToPublicKeyHashDefault(test.RandomBytes(32))
 	token := randomToken(owner, Fungible)
-	require.NoError(t, db.SaveToken(token, &Proof{BlockNumber: 1}))
+	require.NoError(t, db.SaveToken(token, &wallet.Proof{BlockNumber: 1}))
 
 	tokenFromDB, err := db.GetToken(token.ID)
 	require.NoError(t, err)
@@ -206,10 +211,40 @@ func testBlockNumber(t *testing.T, db *storage) {
 	}
 }
 
+func testFeeCredits(t *testing.T, db *storage) {
+	// nil key returns nil
+	fcb, err := db.GetFeeCreditBill(nil)
+	require.NoError(t, err)
+	require.Nil(t, fcb)
+
+	// unknown key returns nil
+	fcb, err = db.GetFeeCreditBill([]byte{0})
+	require.NoError(t, err)
+	require.Nil(t, fcb)
+
+	// set fee credit bills
+	fcbs := []*FeeCreditBill{
+		{Id: []byte{1}, Value: 1, TxHash: []byte{1}},
+		{Id: []byte{2}, Value: 2, TxHash: []byte{2}},
+		{Id: []byte{3}, Value: 3, TxHash: []byte{3}},
+	}
+	for _, b := range fcbs {
+		err = db.SetFeeCreditBill(b, nil)
+		require.NoError(t, err)
+	}
+
+	// get fee credit bills
+	for _, expectedFCB := range fcbs {
+		actualFCB, err := db.GetFeeCreditBill(expectedFCB.Id)
+		require.NoError(t, err)
+		require.Equal(t, expectedFCB, actualFCB)
+	}
+}
+
 func Test_storage_QueryTokenType(t *testing.T) {
 	t.Parallel()
 
-	proof := &Proof{BlockNumber: 1}
+	proof := &wallet.Proof{BlockNumber: 1}
 	ctorA := test.RandomBytes(32)
 
 	db := initTestStorage(t)
@@ -287,7 +322,7 @@ func Test_storage_QueryTokens(t *testing.T) {
 
 	db := initTestStorage(t)
 
-	proof := &Proof{BlockNumber: 1}
+	proof := &wallet.Proof{BlockNumber: 1}
 	ownerA := script.PredicatePayToPublicKeyHashDefault(test.RandomBytes(32))
 	ownerB := script.PredicatePayToPublicKeyHashDefault(test.RandomBytes(32))
 
@@ -400,7 +435,7 @@ func randomTokenType(kind Kind) *TokenUnitType {
 	}
 }
 
-func randomToken(owner Predicate, kind Kind) *TokenUnit {
+func randomToken(owner wallet.Predicate, kind Kind) *TokenUnit {
 	return &TokenUnit{
 		ID:                     test.RandomBytes(32),
 		Symbol:                 "AB",

@@ -10,14 +10,16 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/hash"
 	"github.com/alphabill-org/alphabill/internal/script"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	ttxs "github.com/alphabill-org/alphabill/internal/txsystem/tokens"
 	"github.com/alphabill-org/alphabill/internal/util"
+	"github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/alphabill-org/alphabill/pkg/wallet/account"
-	twb "github.com/alphabill-org/alphabill/pkg/wallet/tokens/backend"
+	"github.com/alphabill-org/alphabill/pkg/wallet/tokens/backend"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/stretchr/testify/require"
 )
@@ -33,43 +35,43 @@ func Test_Load(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	w, err := New(ttxs.DefaultTokenTxSystemIdentifier, srv.URL, nil, false)
+	w, err := New(ttxs.DefaultTokenTxSystemIdentifier, srv.URL, nil, false, nil)
 	require.NoError(t, err)
 
-	rn, err := w.getRoundNumber(context.Background())
+	rn, err := w.GetRoundNumber(context.Background())
 	require.NoError(t, err)
 	require.EqualValues(t, 42, rn)
 }
 
 func Test_ListTokens(t *testing.T) {
 	be := &mockTokenBackend{
-		getTokens: func(ctx context.Context, kind twb.Kind, _ twb.PubKey, _ string, _ int) ([]twb.TokenUnit, string, error) {
-			fungible := []twb.TokenUnit{
+		getTokens: func(ctx context.Context, kind backend.Kind, _ wallet.PubKey, _ string, _ int) ([]backend.TokenUnit, string, error) {
+			fungible := []backend.TokenUnit{
 				{
 					ID:   test.RandomBytes(32),
-					Kind: twb.Fungible,
+					Kind: backend.Fungible,
 				},
 				{
 					ID:   test.RandomBytes(32),
-					Kind: twb.Fungible,
+					Kind: backend.Fungible,
 				},
 			}
-			nfts := []twb.TokenUnit{
+			nfts := []backend.TokenUnit{
 				{
 					ID:   test.RandomBytes(32),
-					Kind: twb.NonFungible,
+					Kind: backend.NonFungible,
 				},
 				{
 					ID:   test.RandomBytes(32),
-					Kind: twb.NonFungible,
+					Kind: backend.NonFungible,
 				},
 			}
 			switch kind {
-			case twb.Fungible:
+			case backend.Fungible:
 				return fungible, "", nil
-			case twb.NonFungible:
+			case backend.NonFungible:
 				return nfts, "", nil
-			case twb.Any:
+			case backend.Any:
 				return append(fungible, nfts...), "", nil
 			}
 			return nil, "", fmt.Errorf("invalid kind")
@@ -77,50 +79,50 @@ func Test_ListTokens(t *testing.T) {
 	}
 
 	tw := initTestWallet(t, be)
-	tokens, err := tw.ListTokens(context.Background(), twb.Any, AllAccounts)
+	tokens, err := tw.ListTokens(context.Background(), backend.Any, AllAccounts)
 	require.NoError(t, err)
 	require.Len(t, tokens[1], 4)
 
-	tokens, err = tw.ListTokens(context.Background(), twb.Fungible, AllAccounts)
+	tokens, err = tw.ListTokens(context.Background(), backend.Fungible, AllAccounts)
 	require.NoError(t, err)
 	require.Len(t, tokens[1], 2)
 
-	tokens, err = tw.ListTokens(context.Background(), twb.NonFungible, AllAccounts)
+	tokens, err = tw.ListTokens(context.Background(), backend.NonFungible, AllAccounts)
 	require.NoError(t, err)
 	require.Len(t, tokens[1], 2)
 }
 
 func Test_ListTokens_offset(t *testing.T) {
-	allTokens := []twb.TokenUnit{
+	allTokens := []backend.TokenUnit{
 		{
 			ID:     test.RandomBytes(32),
-			Kind:   twb.Fungible,
+			Kind:   backend.Fungible,
 			Symbol: "1",
 		},
 		{
 			ID:     test.RandomBytes(32),
-			Kind:   twb.Fungible,
+			Kind:   backend.Fungible,
 			Symbol: "2",
 		},
 		{
 			ID:     test.RandomBytes(32),
-			Kind:   twb.Fungible,
+			Kind:   backend.Fungible,
 			Symbol: "3",
 		},
 	}
 
 	be := &mockTokenBackend{
-		getTokens: func(ctx context.Context, kind twb.Kind, _ twb.PubKey, offsetKey string, _ int) ([]twb.TokenUnit, string, error) {
+		getTokens: func(ctx context.Context, kind backend.Kind, _ wallet.PubKey, offsetKey string, _ int) ([]backend.TokenUnit, string, error) {
 			return getSubarray(allTokens, offsetKey)
 		},
 	}
 
 	tw := initTestWallet(t, be)
-	tokens, err := tw.ListTokens(context.Background(), twb.Any, AllAccounts)
+	tokens, err := tw.ListTokens(context.Background(), backend.Any, AllAccounts)
 	tokensForAccount := tokens[1]
 	require.NoError(t, err)
 	require.Len(t, tokensForAccount, len(allTokens))
-	dereferencedTokens := make([]twb.TokenUnit, len(tokensForAccount))
+	dereferencedTokens := make([]backend.TokenUnit, len(tokensForAccount))
 	for i := range tokensForAccount {
 		dereferencedTokens[i] = *tokensForAccount[i]
 	}
@@ -129,33 +131,33 @@ func Test_ListTokens_offset(t *testing.T) {
 
 func Test_ListTokenTypes(t *testing.T) {
 	be := &mockTokenBackend{
-		getTokenTypes: func(ctx context.Context, kind twb.Kind, _ twb.PubKey, _ string, _ int) ([]twb.TokenUnitType, string, error) {
-			fungible := []twb.TokenUnitType{
+		getTokenTypes: func(ctx context.Context, kind backend.Kind, _ wallet.PubKey, _ string, _ int) ([]backend.TokenUnitType, string, error) {
+			fungible := []backend.TokenUnitType{
 				{
 					ID:   test.RandomBytes(32),
-					Kind: twb.Fungible,
+					Kind: backend.Fungible,
 				},
 				{
 					ID:   test.RandomBytes(32),
-					Kind: twb.Fungible,
+					Kind: backend.Fungible,
 				},
 			}
-			nfts := []twb.TokenUnitType{
+			nfts := []backend.TokenUnitType{
 				{
 					ID:   test.RandomBytes(32),
-					Kind: twb.NonFungible,
+					Kind: backend.NonFungible,
 				},
 				{
 					ID:   test.RandomBytes(32),
-					Kind: twb.NonFungible,
+					Kind: backend.NonFungible,
 				},
 			}
 			switch kind {
-			case twb.Fungible:
+			case backend.Fungible:
 				return fungible, "", nil
-			case twb.NonFungible:
+			case backend.NonFungible:
 				return nfts, "", nil
-			case twb.Any:
+			case backend.Any:
 				return append(fungible, nfts...), "", nil
 			}
 			return nil, "", fmt.Errorf("invalid kind")
@@ -163,58 +165,58 @@ func Test_ListTokenTypes(t *testing.T) {
 	}
 
 	tw := initTestWallet(t, be)
-	types, err := tw.ListTokenTypes(context.Background(), twb.Any)
+	types, err := tw.ListTokenTypes(context.Background(), backend.Any)
 	require.NoError(t, err)
 	require.Len(t, types, 4)
 
-	types, err = tw.ListTokenTypes(context.Background(), twb.Fungible)
+	types, err = tw.ListTokenTypes(context.Background(), backend.Fungible)
 	require.NoError(t, err)
 	require.Len(t, types, 2)
 
-	types, err = tw.ListTokenTypes(context.Background(), twb.NonFungible)
+	types, err = tw.ListTokenTypes(context.Background(), backend.NonFungible)
 	require.NoError(t, err)
 	require.Len(t, types, 2)
 }
 
 func Test_ListTokenTypes_offset(t *testing.T) {
-	allTypes := []twb.TokenUnitType{
+	allTypes := []backend.TokenUnitType{
 		{
 			ID:     test.RandomBytes(32),
 			Symbol: "1",
-			Kind:   twb.Fungible,
+			Kind:   backend.Fungible,
 		},
 		{
 			ID:     test.RandomBytes(32),
 			Symbol: "2",
-			Kind:   twb.Fungible,
+			Kind:   backend.Fungible,
 		},
 		{
 			ID:     test.RandomBytes(32),
 			Symbol: "3",
-			Kind:   twb.Fungible,
+			Kind:   backend.Fungible,
 		},
 		{
 			ID:     test.RandomBytes(32),
 			Symbol: "4",
-			Kind:   twb.Fungible,
+			Kind:   backend.Fungible,
 		},
 		{
 			ID:     test.RandomBytes(32),
 			Symbol: "5",
-			Kind:   twb.Fungible,
+			Kind:   backend.Fungible,
 		},
 	}
 	be := &mockTokenBackend{
-		getTokenTypes: func(ctx context.Context, _ twb.Kind, _ twb.PubKey, offsetKey string, _ int) ([]twb.TokenUnitType, string, error) {
+		getTokenTypes: func(ctx context.Context, _ backend.Kind, _ wallet.PubKey, offsetKey string, _ int) ([]backend.TokenUnitType, string, error) {
 			return getSubarray(allTypes, offsetKey)
 		},
 	}
 
 	tw := initTestWallet(t, be)
-	types, err := tw.ListTokenTypes(context.Background(), twb.Any)
+	types, err := tw.ListTokenTypes(context.Background(), backend.Any)
 	require.NoError(t, err)
 	require.Len(t, types, len(allTypes))
-	dereferencedTypes := make([]twb.TokenUnitType, len(types))
+	dereferencedTypes := make([]backend.TokenUnitType, len(types))
 	for i := range types {
 		dereferencedTypes[i] = *types[i]
 	}
@@ -226,27 +228,27 @@ func TestNewTypes(t *testing.T) {
 
 	recTxs := make(map[string]*txsystem.Transaction, 0)
 	be := &mockTokenBackend{
-		getTypeHierarchy: func(ctx context.Context, id twb.TokenTypeID) ([]twb.TokenUnitType, error) {
+		getTypeHierarchy: func(ctx context.Context, id backend.TokenTypeID) ([]backend.TokenUnitType, error) {
 			tx, found := recTxs[string(id)]
 			if found {
-				tokenType := twb.TokenUnitType{ID: tx.UnitId}
+				tokenType := backend.TokenUnitType{ID: tx.UnitId}
 				if strings.Contains(tx.TransactionAttributes.TypeUrl, "CreateFungibleTokenTypeAttributes") {
-					tokenType.Kind = twb.Fungible
+					tokenType.Kind = backend.Fungible
 					attrs := &ttxs.CreateFungibleTokenTypeAttributes{}
 					require.NoError(t, tx.TransactionAttributes.UnmarshalTo(attrs))
 					tokenType.ParentTypeID = attrs.ParentTypeId
 					tokenType.DecimalPlaces = attrs.DecimalPlaces
 				} else {
-					tokenType.Kind = twb.NonFungible
+					tokenType.Kind = backend.NonFungible
 					attrs := &ttxs.CreateNonFungibleTokenTypeAttributes{}
 					require.NoError(t, tx.TransactionAttributes.UnmarshalTo(attrs))
 					tokenType.ParentTypeID = attrs.ParentTypeId
 				}
-				return []twb.TokenUnitType{tokenType}, nil
+				return []backend.TokenUnitType{tokenType}, nil
 			}
 			return nil, fmt.Errorf("not found")
 		},
-		postTransactions: func(ctx context.Context, pubKey twb.PubKey, txs *txsystem.Transactions) error {
+		postTransactions: func(ctx context.Context, pubKey wallet.PubKey, txs *txsystem.Transactions) error {
 			for _, tx := range txs.Transactions {
 				recTxs[string(tx.UnitId)] = tx
 			}
@@ -255,19 +257,28 @@ func TestNewTypes(t *testing.T) {
 		getRoundNumber: func(ctx context.Context) (uint64, error) {
 			return 1, nil
 		},
+		getFeeCreditBill: func(ctx context.Context, unitID wallet.UnitID) (*backend.FeeCreditBill, error) {
+			return &backend.FeeCreditBill{
+				Id:            []byte{1},
+				Value:         100000,
+				TxHash:        []byte{2},
+				FCBlockNumber: 3,
+			}, nil
+		},
 	}
 	tw := initTestWallet(t, be)
 
 	t.Run("fungible type", func(t *testing.T) {
 		typeId := test.RandomBytes(32)
-		a := &ttxs.CreateFungibleTokenTypeAttributes{
-			Symbol:                             "AB",
-			DecimalPlaces:                      0,
-			ParentTypeId:                       nil,
-			SubTypeCreationPredicateSignatures: nil,
-			SubTypeCreationPredicate:           script.PredicateAlwaysFalse(),
-			TokenCreationPredicate:             script.PredicateAlwaysTrue(),
-			InvariantPredicate:                 script.PredicateAlwaysTrue(),
+		a := CreateFungibleTokenTypeAttributes{
+			Symbol:                   "AB",
+			Name:                     "Long name for AB",
+			Icon:                     &Icon{Type: "image/png", Data: []byte{1}},
+			DecimalPlaces:            0,
+			ParentTypeId:             nil,
+			SubTypeCreationPredicate: script.PredicateAlwaysFalse(),
+			TokenCreationPredicate:   script.PredicateAlwaysTrue(),
+			InvariantPredicate:       script.PredicateAlwaysTrue(),
 		}
 		_, err := tw.NewFungibleType(context.Background(), 1, a, typeId, nil)
 		require.NoError(t, err)
@@ -277,18 +288,21 @@ func TestNewTypes(t *testing.T) {
 		require.NoError(t, tx.TransactionAttributes.UnmarshalTo(newFungibleTx))
 		require.Equal(t, typeId, tx.UnitId)
 		require.Equal(t, a.Symbol, newFungibleTx.Symbol)
+		require.Equal(t, a.Name, newFungibleTx.Name)
+		require.Equal(t, a.Icon.Type, newFungibleTx.Icon.Type)
+		require.Equal(t, a.Icon.Data, newFungibleTx.Icon.Data)
 		require.Equal(t, a.DecimalPlaces, newFungibleTx.DecimalPlaces)
-		require.EqualValues(t, tx.Timeout, 101)
+		require.EqualValues(t, tx.Timeout(), 11)
 
 		// new subtype
-		b := &ttxs.CreateFungibleTokenTypeAttributes{
-			Symbol:                             "AB",
-			DecimalPlaces:                      2,
-			ParentTypeId:                       typeId,
-			SubTypeCreationPredicateSignatures: nil,
-			SubTypeCreationPredicate:           script.PredicateAlwaysFalse(),
-			TokenCreationPredicate:             script.PredicateAlwaysTrue(),
-			InvariantPredicate:                 script.PredicateAlwaysTrue(),
+		b := CreateFungibleTokenTypeAttributes{
+			Symbol:                   "AB",
+			Name:                     "Long name for AB",
+			DecimalPlaces:            2,
+			ParentTypeId:             typeId,
+			SubTypeCreationPredicate: script.PredicateAlwaysFalse(),
+			TokenCreationPredicate:   script.PredicateAlwaysTrue(),
+			InvariantPredicate:       script.PredicateAlwaysTrue(),
 		}
 		//check decimal places are validated against the parent type
 		_, err = tw.NewFungibleType(context.Background(), 1, b, []byte{2}, nil)
@@ -297,13 +311,14 @@ func TestNewTypes(t *testing.T) {
 
 	t.Run("non-fungible type", func(t *testing.T) {
 		typeId := test.RandomBytes(32)
-		a := &ttxs.CreateNonFungibleTokenTypeAttributes{
-			Symbol:                             "ABNFT",
-			ParentTypeId:                       nil,
-			SubTypeCreationPredicateSignatures: nil,
-			SubTypeCreationPredicate:           script.PredicateAlwaysFalse(),
-			TokenCreationPredicate:             script.PredicateAlwaysTrue(),
-			InvariantPredicate:                 script.PredicateAlwaysTrue(),
+		a := CreateNonFungibleTokenTypeAttributes{
+			Symbol:                   "ABNFT",
+			Name:                     "Long name for ABNFT",
+			Icon:                     &Icon{Type: "image/svg", Data: []byte{2}},
+			ParentTypeId:             nil,
+			SubTypeCreationPredicate: script.PredicateAlwaysFalse(),
+			TokenCreationPredicate:   script.PredicateAlwaysTrue(),
+			InvariantPredicate:       script.PredicateAlwaysTrue(),
 		}
 		_, err := tw.NewNonFungibleType(context.Background(), 1, a, typeId, nil)
 		require.NoError(t, err)
@@ -313,18 +328,28 @@ func TestNewTypes(t *testing.T) {
 		require.NoError(t, tx.TransactionAttributes.UnmarshalTo(newNFTTx))
 		require.Equal(t, typeId, tx.UnitId)
 		require.Equal(t, a.Symbol, newNFTTx.Symbol)
+		require.Equal(t, a.Icon.Type, newNFTTx.Icon.Type)
+		require.Equal(t, a.Icon.Data, newNFTTx.Icon.Data)
 	})
 }
 
 func TestMintFungibleToken(t *testing.T) {
 	recTxs := make([]*txsystem.Transaction, 0)
 	be := &mockTokenBackend{
-		postTransactions: func(ctx context.Context, pubKey twb.PubKey, txs *txsystem.Transactions) error {
+		postTransactions: func(ctx context.Context, pubKey wallet.PubKey, txs *txsystem.Transactions) error {
 			recTxs = append(recTxs, txs.Transactions...)
 			return nil
 		},
 		getRoundNumber: func(ctx context.Context) (uint64, error) {
 			return 1, nil
+		},
+		getFeeCreditBill: func(ctx context.Context, unitID wallet.UnitID) (*backend.FeeCreditBill, error) {
+			return &backend.FeeCreditBill{
+				Id:            []byte{1},
+				Value:         100000,
+				TxHash:        []byte{2},
+				FCBlockNumber: 3,
+			}, nil
 		},
 	}
 	tw := initTestWallet(t, be)
@@ -332,27 +357,16 @@ func TestMintFungibleToken(t *testing.T) {
 	require.NoError(t, err)
 
 	tests := []struct {
-		name          string
-		accNr         uint64
-		validateOwner func(t *testing.T, accNr uint64, tok *ttxs.MintFungibleTokenAttributes)
+		name  string
+		accNr uint64
 	}{
 		{
 			name:  "pub key bearer predicate, account 1",
 			accNr: uint64(1),
-			validateOwner: func(t *testing.T, accNr uint64, tok *ttxs.MintFungibleTokenAttributes) {
-				key, err := tw.am.GetAccountKey(accNr - 1)
-				require.NoError(t, err)
-				require.Equal(t, script.PredicatePayToPublicKeyHashDefault(key.PubKeyHash.Sha256), tok.Bearer)
-			},
 		},
 		{
 			name:  "pub key bearer predicate, account 2",
 			accNr: uint64(2),
-			validateOwner: func(t *testing.T, accNr uint64, tok *ttxs.MintFungibleTokenAttributes) {
-				key, err := tw.am.GetAccountKey(accNr - 1)
-				require.NoError(t, err)
-				require.Equal(t, script.PredicatePayToPublicKeyHashDefault(key.PubKeyHash.Sha256), tok.Bearer)
-			},
 		},
 	}
 
@@ -360,7 +374,9 @@ func TestMintFungibleToken(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			typeId := test.RandomBytes(32)
 			amount := uint64(100)
-			_, err := tw.NewFungibleToken(context.Background(), tt.accNr, typeId, amount, nil)
+			key, err := tw.am.GetAccountKey(tt.accNr - 1)
+			require.NoError(t, err)
+			_, err = tw.NewFungibleToken(context.Background(), tt.accNr, typeId, amount, bearerPredicateFromHash(key.PubKeyHash.Sha256), nil)
 			require.NoError(t, err)
 			tx := recTxs[len(recTxs)-1]
 			newToken := &ttxs.MintFungibleTokenAttributes{}
@@ -369,7 +385,7 @@ func TestMintFungibleToken(t *testing.T) {
 			require.Len(t, tx.UnitId, 32)
 			require.Equal(t, typeId, newToken.Type)
 			require.Equal(t, amount, newToken.Value)
-			tt.validateOwner(t, tt.accNr, newToken)
+			require.Equal(t, script.PredicatePayToPublicKeyHashDefault(key.PubKeyHash.Sha256), newToken.Bearer)
 		})
 	}
 }
@@ -378,15 +394,23 @@ func TestSendFungible(t *testing.T) {
 	recTxs := make([]*txsystem.Transaction, 0)
 	typeId := test.RandomBytes(32)
 	be := &mockTokenBackend{
-		getTokens: func(ctx context.Context, kind twb.Kind, owner twb.PubKey, offsetKey string, limit int) ([]twb.TokenUnit, string, error) {
-			return []twb.TokenUnit{
-				{ID: test.RandomBytes(32), Kind: twb.Fungible, Symbol: "AB", TypeID: typeId, Amount: 3},
-				{ID: test.RandomBytes(32), Kind: twb.Fungible, Symbol: "AB", TypeID: typeId, Amount: 5},
-				{ID: test.RandomBytes(32), Kind: twb.Fungible, Symbol: "AB", TypeID: typeId, Amount: 7},
-				{ID: test.RandomBytes(32), Kind: twb.Fungible, Symbol: "AB", TypeID: typeId, Amount: 18},
+		getTokens: func(ctx context.Context, kind backend.Kind, owner wallet.PubKey, offsetKey string, limit int) ([]backend.TokenUnit, string, error) {
+			return []backend.TokenUnit{
+				{ID: test.RandomBytes(32), Kind: backend.Fungible, Symbol: "AB", TypeID: typeId, Amount: 3},
+				{ID: test.RandomBytes(32), Kind: backend.Fungible, Symbol: "AB", TypeID: typeId, Amount: 5},
+				{ID: test.RandomBytes(32), Kind: backend.Fungible, Symbol: "AB", TypeID: typeId, Amount: 7},
+				{ID: test.RandomBytes(32), Kind: backend.Fungible, Symbol: "AB", TypeID: typeId, Amount: 18},
 			}, "", nil
 		},
-		postTransactions: func(ctx context.Context, pubKey twb.PubKey, txs *txsystem.Transactions) error {
+		getFeeCreditBill: func(ctx context.Context, unitID wallet.UnitID) (*backend.FeeCreditBill, error) {
+			return &backend.FeeCreditBill{
+				Id:            []byte{1},
+				Value:         100000,
+				TxHash:        []byte{2},
+				FCBlockNumber: 3,
+			}, nil
+		},
+		postTransactions: func(ctx context.Context, pubKey wallet.PubKey, txs *txsystem.Transactions) error {
 			recTxs = append(recTxs, txs.Transactions...)
 			return nil
 		},
@@ -473,31 +497,33 @@ func TestMintNFT_InvalidInputs(t *testing.T) {
 	accNr := uint64(1)
 	tests := []struct {
 		name       string
-		attrs      *ttxs.MintNonFungibleTokenAttributes
+		attrs      MintNonFungibleTokenAttributes
 		wantErrStr string
 	}{
 		{
-			name:       "attributes missing",
-			attrs:      nil,
-			wantErrStr: "attributes missing",
+			name: "invalid name",
+			attrs: MintNonFungibleTokenAttributes{
+				Name: test.RandomString(257),
+			},
+			wantErrStr: "name exceeds the maximum allowed size of 256 bytes",
 		},
 		{
 			name: "invalid URI",
-			attrs: &ttxs.MintNonFungibleTokenAttributes{
+			attrs: MintNonFungibleTokenAttributes{
 				Uri: "invalid_uri",
 			},
 			wantErrStr: "URI 'invalid_uri' is invalid",
 		},
 		{
 			name: "URI exceeds maximum allowed length",
-			attrs: &ttxs.MintNonFungibleTokenAttributes{
+			attrs: MintNonFungibleTokenAttributes{
 				Uri: string(test.RandomBytes(4097)),
 			},
 			wantErrStr: "URI exceeds the maximum allowed size of 4096 bytes",
 		},
 		{
 			name: "data exceeds maximum allowed length",
-			attrs: &ttxs.MintNonFungibleTokenAttributes{
+			attrs: MintNonFungibleTokenAttributes{
 				Data: test.RandomBytes(65537),
 			},
 			wantErrStr: "data exceeds the maximum allowed size of 65536 bytes",
@@ -511,18 +537,25 @@ func TestMintNFT_InvalidInputs(t *testing.T) {
 			require.Nil(t, got)
 		})
 	}
-
 }
 
 func TestMintNFT(t *testing.T) {
 	recTxs := make([]*txsystem.Transaction, 0)
 	be := &mockTokenBackend{
-		postTransactions: func(ctx context.Context, pubKey twb.PubKey, txs *txsystem.Transactions) error {
+		postTransactions: func(ctx context.Context, pubKey wallet.PubKey, txs *txsystem.Transactions) error {
 			recTxs = append(recTxs, txs.Transactions...)
 			return nil
 		},
 		getRoundNumber: func(ctx context.Context) (uint64, error) {
 			return 1, nil
+		},
+		getFeeCreditBill: func(ctx context.Context, unitID wallet.UnitID) (*backend.FeeCreditBill, error) {
+			return &backend.FeeCreditBill{
+				Id:            []byte{1},
+				Value:         100000,
+				TxHash:        []byte{2},
+				FCBlockNumber: 3,
+			}, nil
 		},
 	}
 	tw := initTestWallet(t, be)
@@ -532,7 +565,7 @@ func TestMintNFT(t *testing.T) {
 	tests := []struct {
 		name          string
 		accNr         uint64
-		tokenID       twb.TokenID
+		tokenID       backend.TokenID
 		validateOwner func(t *testing.T, accNr uint64, tok *ttxs.MintNonFungibleTokenAttributes)
 	}{
 		{
@@ -567,15 +600,17 @@ func TestMintNFT(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			key, err := tw.am.GetAccountKey(tt.accNr - 1)
+			require.NoError(t, err)
 			typeId := []byte{1}
-			a := &ttxs.MintNonFungibleTokenAttributes{
-				NftType:                          typeId,
-				Uri:                              "https://alphabill.org",
-				Data:                             nil,
-				DataUpdatePredicate:              script.PredicateAlwaysTrue(),
-				TokenCreationPredicateSignatures: nil,
+			a := MintNonFungibleTokenAttributes{
+				Bearer:              bearerPredicateFromHash(key.PubKeyHash.Sha256),
+				NftType:             typeId,
+				Uri:                 "https://alphabill.org",
+				Data:                nil,
+				DataUpdatePredicate: script.PredicateAlwaysTrue(),
 			}
-			_, err := tw.NewNFT(context.Background(), tt.accNr, a, tt.tokenID, nil)
+			_, err = tw.NewNFT(context.Background(), tt.accNr, a, tt.tokenID, nil)
 			require.NoError(t, err)
 			tx := recTxs[len(recTxs)-1]
 			newToken := &ttxs.MintNonFungibleTokenAttributes{}
@@ -592,14 +627,14 @@ func TestMintNFT(t *testing.T) {
 }
 
 func TestTransferNFT(t *testing.T) {
-	tokens := make(map[string]*twb.TokenUnit)
+	tokens := make(map[string]*backend.TokenUnit)
 
 	recTxs := make(map[string]*txsystem.Transaction, 0)
 	be := &mockTokenBackend{
-		getToken: func(ctx context.Context, id twb.TokenID) (*twb.TokenUnit, error) {
+		getToken: func(ctx context.Context, id backend.TokenID) (*backend.TokenUnit, error) {
 			return tokens[string(id)], nil
 		},
-		postTransactions: func(ctx context.Context, pubKey twb.PubKey, txs *txsystem.Transactions) error {
+		postTransactions: func(ctx context.Context, pubKey wallet.PubKey, txs *txsystem.Transactions) error {
 			for _, tx := range txs.Transactions {
 				recTxs[string(tx.UnitId)] = tx
 			}
@@ -608,32 +643,40 @@ func TestTransferNFT(t *testing.T) {
 		getRoundNumber: func(ctx context.Context) (uint64, error) {
 			return 1, nil
 		},
+		getFeeCreditBill: func(ctx context.Context, unitID wallet.UnitID) (*backend.FeeCreditBill, error) {
+			return &backend.FeeCreditBill{
+				Id:            []byte{1},
+				Value:         100000,
+				TxHash:        []byte{2},
+				FCBlockNumber: 3,
+			}, nil
+		},
 	}
 	tw := initTestWallet(t, be)
 
-	first := func(s twb.PubKey, e error) twb.PubKey {
+	first := func(s wallet.PubKey, e error) wallet.PubKey {
 		require.NoError(t, e)
 		return s
 	}
 	tests := []struct {
 		name          string
-		token         *twb.TokenUnit
-		key           twb.PubKey
-		validateOwner func(t *testing.T, accNr uint64, key twb.PubKey, tok *ttxs.TransferNonFungibleTokenAttributes)
+		token         *backend.TokenUnit
+		key           wallet.PubKey
+		validateOwner func(t *testing.T, accNr uint64, key wallet.PubKey, tok *ttxs.TransferNonFungibleTokenAttributes)
 	}{
 		{
 			name:  "to 'always true' predicate",
-			token: &twb.TokenUnit{ID: test.RandomBytes(32), Kind: twb.NonFungible, Symbol: "AB", TypeID: test.RandomBytes(32)},
+			token: &backend.TokenUnit{ID: test.RandomBytes(32), Kind: backend.NonFungible, Symbol: "AB", TypeID: test.RandomBytes(32)},
 			key:   nil,
-			validateOwner: func(t *testing.T, accNr uint64, key twb.PubKey, tok *ttxs.TransferNonFungibleTokenAttributes) {
+			validateOwner: func(t *testing.T, accNr uint64, key wallet.PubKey, tok *ttxs.TransferNonFungibleTokenAttributes) {
 				require.Equal(t, script.PredicateAlwaysTrue(), tok.NewBearer)
 			},
 		},
 		{
 			name:  "to public key hash predicate",
-			token: &twb.TokenUnit{ID: test.RandomBytes(32), Kind: twb.NonFungible, Symbol: "AB", TypeID: test.RandomBytes(32)},
+			token: &backend.TokenUnit{ID: test.RandomBytes(32), Kind: backend.NonFungible, Symbol: "AB", TypeID: test.RandomBytes(32)},
 			key:   first(hexutil.Decode("0x0290a43bc454babf1ea8b0b76fcbb01a8f27a989047cf6d6d76397cc4756321e64")),
-			validateOwner: func(t *testing.T, accNr uint64, key twb.PubKey, tok *ttxs.TransferNonFungibleTokenAttributes) {
+			validateOwner: func(t *testing.T, accNr uint64, key wallet.PubKey, tok *ttxs.TransferNonFungibleTokenAttributes) {
 				require.Equal(t, script.PredicatePayToPublicKeyHashDefault(hash.Sum256(key)), tok.NewBearer)
 			},
 		},
@@ -654,14 +697,14 @@ func TestTransferNFT(t *testing.T) {
 }
 
 func TestUpdateNFTData(t *testing.T) {
-	tokens := make(map[string]*twb.TokenUnit)
+	tokens := make(map[string]*backend.TokenUnit)
 
 	recTxs := make(map[string]*txsystem.Transaction, 0)
 	be := &mockTokenBackend{
-		getToken: func(ctx context.Context, id twb.TokenID) (*twb.TokenUnit, error) {
+		getToken: func(ctx context.Context, id backend.TokenID) (*backend.TokenUnit, error) {
 			return tokens[string(id)], nil
 		},
-		postTransactions: func(ctx context.Context, pubKey twb.PubKey, txs *txsystem.Transactions) error {
+		postTransactions: func(ctx context.Context, pubKey wallet.PubKey, txs *txsystem.Transactions) error {
 			for _, tx := range txs.Transactions {
 				recTxs[string(tx.UnitId)] = tx
 			}
@@ -669,6 +712,14 @@ func TestUpdateNFTData(t *testing.T) {
 		},
 		getRoundNumber: func(ctx context.Context) (uint64, error) {
 			return 1, nil
+		},
+		getFeeCreditBill: func(ctx context.Context, unitID wallet.UnitID) (*backend.FeeCreditBill, error) {
+			return &backend.FeeCreditBill{
+				Id:            []byte{1},
+				Value:         100000,
+				TxHash:        []byte{2},
+				FCBlockNumber: 3,
+			}, nil
 		},
 	}
 	tw := initTestWallet(t, be)
@@ -680,7 +731,7 @@ func TestUpdateNFTData(t *testing.T) {
 		return newTransfer
 	}
 
-	tok := &twb.TokenUnit{ID: test.RandomBytes(32), Kind: twb.NonFungible, Symbol: "AB", TypeID: test.RandomBytes(32), TxHash: test.RandomBytes(32)}
+	tok := &backend.TokenUnit{ID: test.RandomBytes(32), Kind: backend.NonFungible, Symbol: "AB", TypeID: test.RandomBytes(32), TxHash: test.RandomBytes(32)}
 	tokens[string(tok.ID)] = tok
 
 	// test data, backlink and predicate inputs are submitted correctly
@@ -709,7 +760,9 @@ func TestUpdateNFTData(t *testing.T) {
 
 func initTestWallet(t *testing.T, backend TokenBackend) *Wallet {
 	t.Helper()
-	txs, err := ttxs.New()
+	txs, err := ttxs.New(
+		ttxs.WithTrustBase(map[string]crypto.Verifier{"test": nil}),
+	)
 	require.NoError(t, err)
 
 	return &Wallet{
@@ -728,30 +781,31 @@ func initAccountManager(t *testing.T) account.Manager {
 }
 
 type mockTokenBackend struct {
-	getToken         func(ctx context.Context, id twb.TokenID) (*twb.TokenUnit, error)
-	getTokens        func(ctx context.Context, kind twb.Kind, owner twb.PubKey, offsetKey string, limit int) ([]twb.TokenUnit, string, error)
-	getTokenTypes    func(ctx context.Context, kind twb.Kind, creator twb.PubKey, offsetKey string, limit int) ([]twb.TokenUnitType, string, error)
+	getToken         func(ctx context.Context, id backend.TokenID) (*backend.TokenUnit, error)
+	getTokens        func(ctx context.Context, kind backend.Kind, owner wallet.PubKey, offsetKey string, limit int) ([]backend.TokenUnit, string, error)
+	getTokenTypes    func(ctx context.Context, kind backend.Kind, creator wallet.PubKey, offsetKey string, limit int) ([]backend.TokenUnitType, string, error)
 	getRoundNumber   func(ctx context.Context) (uint64, error)
-	postTransactions func(ctx context.Context, pubKey twb.PubKey, txs *txsystem.Transactions) error
-	getTypeHierarchy func(ctx context.Context, id twb.TokenTypeID) ([]twb.TokenUnitType, error)
-	getTxProof       func(ctx context.Context, unitID twb.UnitID, txHash twb.TxHash) (*twb.Proof, error)
+	postTransactions func(ctx context.Context, pubKey wallet.PubKey, txs *txsystem.Transactions) error
+	getTypeHierarchy func(ctx context.Context, id backend.TokenTypeID) ([]backend.TokenUnitType, error)
+	getTxProof       func(ctx context.Context, unitID wallet.UnitID, txHash wallet.TxHash) (*wallet.Proof, error)
+	getFeeCreditBill func(ctx context.Context, unitID wallet.UnitID) (*backend.FeeCreditBill, error)
 }
 
-func (m *mockTokenBackend) GetToken(ctx context.Context, id twb.TokenID) (*twb.TokenUnit, error) {
+func (m *mockTokenBackend) GetToken(ctx context.Context, id backend.TokenID) (*backend.TokenUnit, error) {
 	if m.getToken != nil {
 		return m.getToken(ctx, id)
 	}
 	return nil, fmt.Errorf("GetToken not implemented")
 }
 
-func (m *mockTokenBackend) GetTokens(ctx context.Context, kind twb.Kind, owner twb.PubKey, offsetKey string, limit int) ([]twb.TokenUnit, string, error) {
+func (m *mockTokenBackend) GetTokens(ctx context.Context, kind backend.Kind, owner wallet.PubKey, offsetKey string, limit int) ([]backend.TokenUnit, string, error) {
 	if m.getTokens != nil {
 		return m.getTokens(ctx, kind, owner, offsetKey, limit)
 	}
 	return nil, "", fmt.Errorf("GetTokens not implemented")
 }
 
-func (m *mockTokenBackend) GetTokenTypes(ctx context.Context, kind twb.Kind, creator twb.PubKey, offsetKey string, limit int) ([]twb.TokenUnitType, string, error) {
+func (m *mockTokenBackend) GetTokenTypes(ctx context.Context, kind backend.Kind, creator wallet.PubKey, offsetKey string, limit int) ([]backend.TokenUnitType, string, error) {
 	if m.getTokenTypes != nil {
 		return m.getTokenTypes(ctx, kind, creator, offsetKey, limit)
 	}
@@ -765,25 +819,32 @@ func (m *mockTokenBackend) GetRoundNumber(ctx context.Context) (uint64, error) {
 	return 0, fmt.Errorf("GetRoundNumber not implemented")
 }
 
-func (m *mockTokenBackend) PostTransactions(ctx context.Context, pubKey twb.PubKey, txs *txsystem.Transactions) error {
+func (m *mockTokenBackend) PostTransactions(ctx context.Context, pubKey wallet.PubKey, txs *txsystem.Transactions) error {
 	if m.postTransactions != nil {
 		return m.postTransactions(ctx, pubKey, txs)
 	}
 	return fmt.Errorf("PostTransactions not implemented")
 }
 
-func (m *mockTokenBackend) GetTypeHierarchy(ctx context.Context, id twb.TokenTypeID) ([]twb.TokenUnitType, error) {
+func (m *mockTokenBackend) GetTypeHierarchy(ctx context.Context, id backend.TokenTypeID) ([]backend.TokenUnitType, error) {
 	if m.getTypeHierarchy != nil {
 		return m.getTypeHierarchy(ctx, id)
 	}
 	return nil, fmt.Errorf("GetTypeHierarchy not implemented")
 }
 
-func (m *mockTokenBackend) GetTxProof(ctx context.Context, unitID twb.UnitID, txHash twb.TxHash) (*twb.Proof, error) {
+func (m *mockTokenBackend) GetTxProof(ctx context.Context, unitID wallet.UnitID, txHash wallet.TxHash) (*wallet.Proof, error) {
 	if m.getTxProof != nil {
 		return m.getTxProof(ctx, unitID, txHash)
 	}
 	return nil, fmt.Errorf("GetTxProof not implemented")
+}
+
+func (m *mockTokenBackend) GetFeeCreditBill(ctx context.Context, unitID wallet.UnitID) (*backend.FeeCreditBill, error) {
+	if m.getFeeCreditBill != nil {
+		return m.getFeeCreditBill(ctx, unitID)
+	}
+	return nil, fmt.Errorf("GetFeeCreditBill not implemented")
 }
 
 func getSubarray[T interface{}](array []T, offsetKey string) ([]T, string, error) {

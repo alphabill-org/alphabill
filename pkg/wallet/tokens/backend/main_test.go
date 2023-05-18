@@ -1,4 +1,4 @@
-package twb
+package backend
 
 import (
 	"bytes"
@@ -14,6 +14,7 @@ import (
 
 	"github.com/alphabill-org/alphabill/internal/block"
 	"github.com/alphabill-org/alphabill/internal/certificates"
+	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/hash"
 	"github.com/alphabill-org/alphabill/internal/rpc/alphabill"
 	"github.com/alphabill-org/alphabill/internal/script"
@@ -143,6 +144,16 @@ func Test_Run_API(t *testing.T) {
 	syncing := make(chan *txsystem.Transaction, 1)
 	boltStore, err := newBoltStore(filepath.Join(t.TempDir(), "tokens.db"))
 	require.NoError(t, err)
+
+	// add fee credit for user
+	err = boltStore.SetFeeCreditBill(&FeeCreditBill{
+		Id:            util.Uint64ToBytes32(1),
+		Value:         10000000,
+		TxHash:        []byte{1},
+		FCBlockNumber: 1,
+	}, nil)
+	require.NoError(t, err)
+
 	// only AB backend is mocked, rest is "real"
 	cfg := &mockCfg{
 		log: logger,
@@ -230,7 +241,7 @@ func Test_Run_API(t *testing.T) {
 
 	// we synced NTF token type from backend, check that it is returned:
 	// first convert the txsystem.Transaction to the type we have in indexing backend...
-	txs, err := tokens.New()
+	txs, err := tokens.New(tokens.WithTrustBase(map[string]abcrypto.Verifier{"test": nil}))
 	if err != nil {
 		t.Errorf("failed to create token tx system: %v", err)
 	}
@@ -244,6 +255,8 @@ func Test_Run_API(t *testing.T) {
 		ID:                       util.Uint256ToBytes(gtx.UnitID()),
 		ParentTypeID:             tx.ParentTypeID(),
 		Symbol:                   tx.Symbol(),
+		Name:                     tx.Name(),
+		Icon:                     tx.Icon(),
 		SubTypeCreationPredicate: tx.SubTypeCreationPredicate(),
 		TokenCreationPredicate:   tx.TokenCreationPredicate(),
 		InvariantPredicate:       tx.InvariantPredicate(),

@@ -19,6 +19,8 @@ message InputRecord {
   bytes summary_value = 4;
   // transaction system's round number
   uint64 round_number = 5;
+  // sum of the actual fees over all transaction records in the block
+  uint64 sum_of_earned_fees = 6;
 }
 
 message UnicityTreeCertificate {
@@ -29,9 +31,10 @@ message UnicityTreeCertificate {
 
 message UnicitySeal {
   uint64 root_chain_round_number = 1;
-  bytes previous_hash = 2;
-  bytes hash = 3;
-  map<string, bytes> signatures = 4;
+  uint64 timestamp = 2;
+  bytes previous_hash = 3;
+  bytes hash = 4;
+  map<string, bytes> signatures = 5;
 }
 
 

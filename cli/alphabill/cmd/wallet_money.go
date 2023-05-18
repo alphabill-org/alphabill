@@ -11,19 +11,18 @@ import (
 	"strings"
 	"syscall"
 
+	"github.com/alphabill-org/alphabill/pkg/wallet/backend/bp"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/spf13/cobra"
 	"github.com/tyler-smith/go-bip39"
-	"golang.org/x/sync/errgroup"
 	"golang.org/x/term"
 
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
-	moneytx "github.com/alphabill-org/alphabill/internal/txsystem/money"
 	"github.com/alphabill-org/alphabill/pkg/client"
 	"github.com/alphabill-org/alphabill/pkg/wallet/account"
-	moneyclient "github.com/alphabill-org/alphabill/pkg/wallet/backend/money/client"
 	wlog "github.com/alphabill-org/alphabill/pkg/wallet/log"
 	"github.com/alphabill-org/alphabill/pkg/wallet/money"
+	moneyclient "github.com/alphabill-org/alphabill/pkg/wallet/money/backend/client"
 )
 
 type walletConfig struct {
@@ -76,6 +75,7 @@ func newWalletCmd(baseConfig *baseConfiguration) *cobra.Command {
 		},
 	}
 	walletCmd.AddCommand(newWalletBillsCmd(config))
+	walletCmd.AddCommand(newWalletFeesCmd(context.Background(), config))
 	walletCmd.AddCommand(createCmd(config))
 	walletCmd.AddCommand(sendCmd(config))
 	walletCmd.AddCommand(getPubKeysCmd(config))
@@ -179,7 +179,7 @@ func execSendCmd(ctx context.Context, cmd *cobra.Command, config *walletConfig) 
 	if err != nil {
 		return err
 	}
-	restClient, err := moneyclient.NewClient(apiUri)
+	restClient, err := moneyclient.New(apiUri)
 	if err != nil {
 		return err
 	}
@@ -255,7 +255,7 @@ func execSendCmd(ctx context.Context, cmd *cobra.Command, config *walletConfig) 
 	if waitForConf {
 		consoleWriter.Println("Successfully confirmed transaction(s)")
 		if outputPath != "" {
-			var outputBills []*moneytx.Bill
+			var outputBills []*bp.Bill
 			for _, b := range bills {
 				outputBills = append(outputBills, b.ToProto())
 			}
@@ -294,7 +294,7 @@ func execGetBalanceCmd(cmd *cobra.Command, config *walletConfig) error {
 	if err != nil {
 		return err
 	}
-	restClient, err := moneyclient.NewClient(uri)
+	restClient, err := moneyclient.New(uri)
 	if err != nil {
 		return err
 	}
@@ -402,6 +402,7 @@ func collectDustCmd(config *walletConfig) *cobra.Command {
 	}
 	cmd.Flags().StringP(alphabillNodeURLCmdName, "u", defaultAlphabillNodeURL, "alphabill uri to connect to")
 	cmd.Flags().StringP(alphabillApiURLCmdName, "r", defaultAlphabillApiURL, "alphabill API uri to connect to")
+	cmd.Flags().Uint64P(keyCmdName, "k", 0, "which key to use for dust collection, 0 for all bills from all accounts")
 	return cmd
 }
 
@@ -414,7 +415,11 @@ func execCollectDust(cmd *cobra.Command, config *walletConfig) error {
 	if err != nil {
 		return err
 	}
-	restClient, err := moneyclient.NewClient(apiUri)
+	accountNumber, err := cmd.Flags().GetUint64(keyCmdName)
+	if err != nil {
+		return err
+	}
+	restClient, err := moneyclient.New(apiUri)
 	if err != nil {
 		return err
 	}
@@ -430,21 +435,8 @@ func execCollectDust(cmd *cobra.Command, config *walletConfig) error {
 	defer w.Shutdown()
 
 	consoleWriter.Println("Starting dust collection, this may take a while...")
-	// start dust collection by calling CollectDust (sending dc transfers) and Sync (waiting for dc transfers to confirm)
-	// any error from CollectDust or Sync causes either goroutine to terminate
-	// if collect dust returns without error we signal Sync to cancel manually
+	err = w.CollectDust(context.Background(), accountNumber)
 
-	ctx, cancel := context.WithCancel(cmd.Context())
-
-	group, ctx := errgroup.WithContext(ctx)
-	group.Go(func() error {
-		err := w.CollectDust(ctx)
-		if err == nil {
-			defer cancel() // signal Sync to cancel
-		}
-		return err
-	})
-	err = group.Wait()
 	if err != nil {
 		consoleWriter.Println("Failed to collect dust: " + err.Error())
 		return err

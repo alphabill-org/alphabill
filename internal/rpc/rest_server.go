@@ -4,14 +4,16 @@ import (
 	"bytes"
 	"encoding/hex"
 	"encoding/json"
-	goerrors "errors"
+	"errors"
 	"fmt"
 	"net/http"
+	"time"
 
-	"github.com/alphabill-org/alphabill/internal/errors"
+	aberrors "github.com/alphabill-org/alphabill/internal/errors"
 	"github.com/alphabill-org/alphabill/internal/metrics"
 	"github.com/alphabill-org/alphabill/internal/network"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
+
 	"github.com/gorilla/mux"
 	"github.com/multiformats/go-multiaddr"
 	"golang.org/x/exp/slices"
@@ -30,17 +32,18 @@ var receivedInvalidTransactionsRESTMeter = metrics.GetOrRegisterCounter("transac
 type (
 	RestServer struct {
 		*http.Server
-		node        partitionNode
-		maxBodySize int64
-		self        *network.Peer
+		node partitionNode
+		self *network.Peer
 	}
 
 	infoResponse struct {
 		SystemID            string     `json:"system_id"` // hex encoded system identifier
 		Self                peerInfo   `json:"self"`      // information about this peer
+		BootstrapNodes      []peerInfo `json:"bootstrap_nodes"`
 		RootValidators      []peerInfo `json:"root_validators"`
 		PartitionValidators []peerInfo `json:"partition_validators"`
 		OpenConnections     []peerInfo `json:"open_connections"` // all libp2p connections to other peers in the network
+
 	}
 
 	peerInfo struct {
@@ -51,35 +54,41 @@ type (
 
 func NewRESTServer(node partitionNode, addr string, maxBodySize int64, self *network.Peer) (*RestServer, error) {
 	if node == nil {
-		return nil, errors.Wrap(errors.ErrInvalidArgument, "partition node is nil")
+		return nil, errors.New("can't initialize REST server with nil partition node")
 	}
 	if self == nil {
-		return nil, errors.Wrap(errors.ErrInvalidArgument, "network peer is nil")
+		return nil, errors.New("can't initialize REST server with nil network peer")
 	}
+
 	rs := &RestServer{
 		Server: &http.Server{
-			Addr: addr,
+			Addr:              addr,
+			ReadTimeout:       3 * time.Second,
+			ReadHeaderTimeout: time.Second,
+			WriteTimeout:      5 * time.Second,
+			IdleTimeout:       30 * time.Second,
 		},
-		maxBodySize: maxBodySize,
-		node:        node,
-		self:        self,
+		node: node,
+		self: self,
 	}
 
 	r := mux.NewRouter()
 	r.NotFoundHandler = http.HandlerFunc(notFound)
+
 	handler := rs.submitTransaction
 	if maxBodySize > 0 {
-		handler = rs.maxBytesHandler(handler)
+		handler = maxBytesHandler(handler, maxBodySize)
 	}
-	if metrics.Enabled() {
-		r.Handle("/api/v1/metrics", metrics.PrometheusHandler()).Methods(http.MethodGet)
-	}
-
-	r.HandleFunc("/api/v1/info", rs.infoHandler).Methods(http.MethodGet)
 	r.HandleFunc(pathTransactions, handler).Methods(http.MethodPost)
 	r.HandleFunc(pathTransactions, func(w http.ResponseWriter, _ *http.Request) {
 		setCorsHeaders(w)
 	}).Methods(http.MethodOptions)
+
+	if metrics.Enabled() {
+		r.Handle("/api/v1/metrics", metrics.PrometheusHandler()).Methods(http.MethodGet)
+	}
+	r.HandleFunc("/api/v1/info", rs.infoHandler).Methods(http.MethodGet)
+
 	r.Use(mux.CORSMethodMiddleware(r))
 	rs.Handler = r
 	return rs, nil
@@ -93,6 +102,7 @@ func (s *RestServer) infoHandler(w http.ResponseWriter, _ *http.Request) {
 			Identifier: s.self.ID().String(),
 			Addresses:  s.self.MultiAddresses(),
 		},
+		BootstrapNodes:      s.getBootstrapNodes(),
 		RootValidators:      s.getRootValidators(),
 		PartitionValidators: s.getPartitionValidators(),
 		OpenConnections:     s.getOpenConnections(),
@@ -109,25 +119,22 @@ func (s *RestServer) infoHandler(w http.ResponseWriter, _ *http.Request) {
 func (s *RestServer) submitTransaction(writer http.ResponseWriter, r *http.Request) {
 	receivedTransactionsRESTMeter.Inc(1)
 	setCorsHeaders(writer)
-	tx := &txsystem.Transaction{}
+
 	buf := new(bytes.Buffer)
-	_, err := buf.ReadFrom(r.Body)
-	if err != nil {
-		err = fmt.Errorf("reading request body failed: %w", err)
+	if _, err := buf.ReadFrom(r.Body); err != nil {
 		receivedInvalidTransactionsRESTMeter.Inc(1)
-		writeError(writer, err, http.StatusBadRequest)
+		writeError(writer, fmt.Errorf("reading request body failed: %w", err), http.StatusBadRequest)
 		return
 	}
-	bb := buf.Bytes()
-	err = protojson.Unmarshal(bb, tx)
-	if err != nil {
-		err = fmt.Errorf("json decode error: %w", err)
+
+	tx := &txsystem.Transaction{}
+	if err := protojson.Unmarshal(buf.Bytes(), tx); err != nil {
 		receivedInvalidTransactionsRESTMeter.Inc(1)
-		writeError(writer, err, http.StatusBadRequest)
+		writeError(writer, fmt.Errorf("failed to decode request body as transaction: %w", err), http.StatusBadRequest)
 		return
 	}
-	err = s.node.SubmitTx(tx)
-	if err != nil {
+
+	if err := s.node.SubmitTx(r.Context(), tx); err != nil {
 		receivedInvalidTransactionsRESTMeter.Inc(1)
 		writeError(writer, err, http.StatusBadRequest)
 		return
@@ -135,9 +142,9 @@ func (s *RestServer) submitTransaction(writer http.ResponseWriter, r *http.Reque
 	writer.WriteHeader(http.StatusAccepted)
 }
 
-func (s *RestServer) maxBytesHandler(f http.HandlerFunc) http.HandlerFunc {
+func maxBytesHandler(f http.HandlerFunc, maxBodySize int64) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		r.Body = http.MaxBytesReader(w, r.Body, s.maxBodySize)
+		r.Body = http.MaxBytesReader(w, r.Body, maxBodySize)
 		f(w, r)
 	}
 }
@@ -187,22 +194,31 @@ func (s *RestServer) getRootValidators() []peerInfo {
 	return peers
 }
 
+func (s *RestServer) getBootstrapNodes() []peerInfo {
+	bootstrapPeers := s.self.Configuration().BootstrapPeers
+	infos := make([]peerInfo, len(bootstrapPeers))
+	for i, p := range bootstrapPeers {
+		infos[i] = peerInfo{Identifier: p.ID.String(), Addresses: p.Addrs}
+	}
+	return infos
+}
+
 func notFound(w http.ResponseWriter, r *http.Request) {
-	writeError(w, goerrors.New("404 not found"), http.StatusNotFound)
+	writeError(w, errors.New("request path doesn't match any endpoint"), http.StatusNotFound)
 }
 
 func writeError(w http.ResponseWriter, e error, statusCode int) {
 	w.Header().Set(headerContentType, applicationJson)
 	w.WriteHeader(statusCode)
-	var errStr = e.Error()
-	aberror, ok := e.(*errors.AlphabillError)
-	if ok {
-		errStr = aberror.Message()
+
+	errMsg := e.Error()
+	if abErr, ok := e.(*aberrors.AlphabillError); ok {
+		errMsg = abErr.Message()
 	}
 	err := json.NewEncoder(w).Encode(
 		struct {
 			Error string `json:"error"`
-		}{errStr})
+		}{errMsg})
 	if err != nil {
 		logger.Warning("Failed to encode error message: %v", err)
 	}

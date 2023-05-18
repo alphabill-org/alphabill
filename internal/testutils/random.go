@@ -2,6 +2,8 @@ package test
 
 import (
 	"math/rand"
+	"time"
+	"fmt"
 )
 
 func RandomBytes(len int) []byte {
@@ -12,4 +14,11 @@ func RandomBytes(len int) []byte {
 		panic(err)
 	}
 	return bytes
+}
+
+func RandomString(len int) string {
+	rand.Seed(time.Now().UnixNano())
+	b := make([]byte, len)
+	rand.Read(b)
+	return fmt.Sprintf("%x", b)[:len]
 }

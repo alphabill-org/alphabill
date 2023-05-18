@@ -6,11 +6,15 @@ import (
 	"github.com/alphabill-org/alphabill/internal/block"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/internal/txsystem/tokens"
+	sdk "github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/alphabill-org/alphabill/pkg/wallet/account"
 	twb "github.com/alphabill-org/alphabill/pkg/wallet/tokens/backend"
+	"github.com/alphabill-org/alphabill/pkg/wallet/txsubmitter"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/anypb"
 )
+
+const maxBurnBatchSize = 100
 
 func (w *Wallet) CollectDust(ctx context.Context, accountNumber uint64, allowedTokenTypes []twb.TokenTypeID, invariantPredicateArgs []*PredicateInput) error {
 	var keys []*account.AccountKey
@@ -27,7 +31,7 @@ func (w *Wallet) CollectDust(ctx context.Context, accountNumber uint64, allowedT
 			return err
 		}
 	}
-	// TODO: rewrite with goroutines?
+
 	for _, key := range keys {
 		tokensByTypes, err := w.getTokensForDC(ctx, key.PubKey, allowedTokenTypes)
 		if err != nil {
@@ -43,8 +47,11 @@ func (w *Wallet) CollectDust(ctx context.Context, accountNumber uint64, allowedT
 }
 
 func (w *Wallet) collectDust(ctx context.Context, acc *account.AccountKey, typedTokens []*twb.TokenUnit, invariantPredicateArgs []*PredicateInput) error {
+	if err := w.ensureFeeCredit(ctx, acc, len(typedTokens)); err != nil {
+		return err
+	}
 	// first token to be joined into
-	targetTokenID := twb.UnitID(typedTokens[0].ID)
+	targetTokenID := sdk.UnitID(typedTokens[0].ID)
 	targetTokenBacklink := typedTokens[0].TxHash
 	burnTokens := typedTokens[1:]
 
@@ -68,7 +75,7 @@ func (w *Wallet) collectDust(ctx context.Context, acc *account.AccountKey, typed
 	return nil
 }
 
-func (w *Wallet) joinTokenForDC(ctx context.Context, acc *account.AccountKey, burnTxs []*txsystem.Transaction, proofs []*block.BlockProof, targetTokenBacklink twb.TxHash, targetTokenID twb.UnitID, invariantPredicateArgs []*PredicateInput) (twb.TxHash, error) {
+func (w *Wallet) joinTokenForDC(ctx context.Context, acc *account.AccountKey, burnTxs []*txsystem.Transaction, proofs []*block.BlockProof, targetTokenBacklink sdk.TxHash, targetTokenID sdk.UnitID, invariantPredicateArgs []*PredicateInput) (sdk.TxHash, error) {
 	joinAttrs := &tokens.JoinFungibleTokenAttributes{
 		BurnTransactions:             burnTxs,
 		Proofs:                       proofs,
@@ -76,7 +83,7 @@ func (w *Wallet) joinTokenForDC(ctx context.Context, acc *account.AccountKey, bu
 		InvariantPredicateSignatures: nil,
 	}
 
-	sub, err := w.prepareTx(ctx, targetTokenID, joinAttrs, acc, func(tx *txsystem.Transaction, gtx txsystem.GenericTransaction) error {
+	sub, err := w.prepareTxSubmission(ctx, targetTokenID, joinAttrs, acc, func(tx *txsystem.Transaction, gtx txsystem.GenericTransaction) error {
 		signatures, err := preparePredicateSignatures(w.GetAccountManager(), invariantPredicateArgs, gtx)
 		if err != nil {
 			return err
@@ -87,21 +94,19 @@ func (w *Wallet) joinTokenForDC(ctx context.Context, acc *account.AccountKey, bu
 	if err != nil {
 		return nil, err
 	}
-	if err = sub.toBatch(w.backend, acc.PubKey).sendTx(ctx, true); err != nil {
+	if err = sub.ToBatch(w.backend, acc.PubKey).SendTx(ctx, true); err != nil {
 		return nil, err
 	}
-	return sub.txHash, nil
+	return sub.TxHash, nil
 }
 
-func (w *Wallet) burnTokensForDC(ctx context.Context, acc *account.AccountKey, tokensToBurn []*twb.TokenUnit, nonce twb.TxHash, invariantPredicateArgs []*PredicateInput) (burnTxs []*txsystem.Transaction, proofs []*block.BlockProof, err error) {
-	burnBatch := &txSubmissionBatch{
-		sender:  acc.PubKey,
-		backend: w.backend,
-	}
+func (w *Wallet) burnTokensForDC(ctx context.Context, acc *account.AccountKey, tokensToBurn []*twb.TokenUnit, nonce sdk.TxHash, invariantPredicateArgs []*PredicateInput) (burnTxs []*txsystem.Transaction, proofs []*block.BlockProof, err error) {
+	burnBatch := txsubmitter.NewBatch(acc.PubKey, w.backend)
+
 	for _, token := range tokensToBurn {
 		attrs := newBurnTxAttrs(token, nonce)
-		var sub *txSubmission
-		sub, err = w.prepareTx(ctx, twb.UnitID(token.ID), attrs, acc, func(tx *txsystem.Transaction, gtx txsystem.GenericTransaction) error {
+		var sub *txsubmitter.TxSubmission
+		sub, err = w.prepareTxSubmission(ctx, sdk.UnitID(token.ID), attrs, acc, func(tx *txsystem.Transaction, gtx txsystem.GenericTransaction) error {
 			signatures, err := preparePredicateSignatures(w.GetAccountManager(), invariantPredicateArgs, gtx)
 			if err != nil {
 				return err
@@ -112,21 +117,21 @@ func (w *Wallet) burnTokensForDC(ctx context.Context, acc *account.AccountKey, t
 		if err != nil {
 			return
 		}
-		burnBatch.add(sub)
+		burnBatch.Add(sub)
 	}
-	if err = burnBatch.sendTx(ctx, true); err != nil {
+	if err = burnBatch.SendTx(ctx, true); err != nil {
 		return
 	}
-	burnTxs = make([]*txsystem.Transaction, 0, len(burnBatch.submissions))
-	proofs = make([]*block.BlockProof, 0, len(burnBatch.submissions))
-	for _, sub := range burnBatch.submissions {
-		burnTxs = append(burnTxs, sub.tx)
-		proofs = append(proofs, sub.txProof)
+	burnTxs = make([]*txsystem.Transaction, 0, len(burnBatch.Submissions()))
+	proofs = make([]*block.BlockProof, 0, len(burnBatch.Submissions()))
+	for _, sub := range burnBatch.Submissions() {
+		burnTxs = append(burnTxs, sub.Transaction)
+		proofs = append(proofs, sub.Proof.Proof)
 	}
 	return
 }
 
-func (w *Wallet) getTokensForDC(ctx context.Context, key twb.PubKey, allowedTokenTypes []twb.TokenTypeID) (map[string][]*twb.TokenUnit, error) {
+func (w *Wallet) getTokensForDC(ctx context.Context, key sdk.PubKey, allowedTokenTypes []twb.TokenTypeID) (map[string][]*twb.TokenUnit, error) {
 	// find tokens to join
 	allTokens, err := w.getTokens(ctx, twb.Fungible, key)
 	if err != nil {

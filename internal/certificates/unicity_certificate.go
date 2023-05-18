@@ -3,11 +3,11 @@ package certificates
 import (
 	"bytes"
 	gocrypto "crypto"
+	"errors"
 	"fmt"
 	"hash"
 
 	"github.com/alphabill-org/alphabill/internal/crypto"
-	"github.com/alphabill-org/alphabill/internal/errors"
 )
 
 var ErrUnicityCertificateIsNil = errors.New("unicity certificate is nil")
@@ -17,24 +17,24 @@ func (x *UnicityCertificate) IsValid(verifiers map[string]crypto.Verifier, algor
 		return ErrUnicityCertificateIsNil
 	}
 	if err := x.UnicitySeal.IsValid(verifiers); err != nil {
-		return err
+		return fmt.Errorf("unicity seal validation failed, %w", err)
 	}
 	if err := x.InputRecord.IsValid(); err != nil {
-		return err
+		return fmt.Errorf("intput record validation failed, %w", err)
 	}
 	if err := x.UnicityTreeCertificate.IsValid(systemIdentifier, systemDescriptionHash); err != nil {
-		return err
+		return fmt.Errorf("unicity tree certificate validation failed, %w", err)
 	}
 	hasher := algorithm.New()
 	x.InputRecord.AddToHasher(hasher)
 	hasher.Write(x.UnicityTreeCertificate.SystemDescriptionHash)
 	treeRoot, err := x.UnicityTreeCertificate.GetAuthPath(hasher.Sum(nil), algorithm)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to get authentication path from unicity tree certificate, %w", err)
 	}
 	rootHash := x.UnicitySeal.Hash
 	if !bytes.Equal(treeRoot, rootHash) {
-		return errors.Errorf("unicity seal hash %X does not match with the root hash of the unicity tree %X", rootHash, treeRoot)
+		return fmt.Errorf("unicity seal hash %X does not match with the root hash of the unicity tree %X", rootHash, treeRoot)
 	}
 	return nil
 }

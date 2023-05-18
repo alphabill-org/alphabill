@@ -69,16 +69,17 @@ func TestFungibleTokenDC(t *testing.T) {
 			for _, tx := range txs.Transactions {
 				unitID := tx.UnitId
 				recordedTx[string(unitID)] = tx
-				if tx.TransactionAttributes.TypeUrl == "type.googleapis.com/alphabill.tokens.v1.BurnFungibleTokenAttributes" {
+				switch tx.TransactionAttributes.TypeUrl {
+				case "type.googleapis.com/alphabill.tokens.v1.BurnFungibleTokenAttributes":
 					tok := findToken(pubKey, unitID)
 					tok.Burned = true
 					burnedValue += tok.Amount
-				} else if tx.TransactionAttributes.TypeUrl == "type.googleapis.com/alphabill.tokens.v1.JoinFungibleTokenAttributes" {
+				case "type.googleapis.com/alphabill.tokens.v1.JoinFungibleTokenAttributes":
 					tok := findToken(pubKey, unitID)
 					attrs := &ttxs.JoinFungibleTokenAttributes{}
 					require.NoError(t, tx.TransactionAttributes.UnmarshalTo(attrs))
 					require.Equal(t, uint64(300), tok.Amount+burnedValue)
-				} else {
+				default:
 					return errors.New("unexpected tx")
 				}
 			}

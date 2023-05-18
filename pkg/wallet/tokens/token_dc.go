@@ -143,16 +143,13 @@ func (w *Wallet) getTokensForDC(ctx context.Context, key sdk.PubKey, allowedToke
 		tokensByTypes[string(tokenType)] = make([]*twb.TokenUnit, 0)
 	}
 	for _, tok := range allTokens {
-		tokenTypeStr := string(tok.TypeID)
-		tokenz, found := tokensByTypes[tokenTypeStr]
-		if !found {
-			if len(allowedTokenTypes) == 0 {
-				tokenz = make([]*twb.TokenUnit, 0, 1)
-			} else {
-				continue
-			}
+		typeID := string(tok.TypeID)
+		tokenz, found := tokensByTypes[typeID]
+		if !found && len(allowedTokenTypes) > 0 {
+			// if filter is set, skip tokens of other types
+			continue
 		}
-		tokensByTypes[tokenTypeStr] = append(tokenz, tok)
+		tokensByTypes[typeID] = append(tokenz, tok)
 	}
 	for k, v := range tokensByTypes {
 		if len(v) < 2 { // not interested if tokens count is less than two

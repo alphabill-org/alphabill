@@ -39,14 +39,9 @@ const (
 )
 
 var (
-	ErrSwapInProgress       = errors.New("swap is in progress, synchronize your wallet to complete the process")
-	ErrInsufficientBalance  = errors.New("insufficient balance for transaction")
-	ErrInvalidPubKey        = errors.New("invalid public key, public key must be in compressed secp256k1 format")
-	ErrInvalidAmount        = errors.New("invalid amount")
-	ErrInvalidAccountIndex  = errors.New("invalid account index")
-	ErrInvalidBlockSystemID = errors.New("invalid system identifier")
-	ErrInvalidPassword      = errors.New("invalid password")
-	ErrTxFailedToConfirm    = errors.New("transaction(s) failed to confirm")
+	ErrInsufficientBalance = errors.New("insufficient balance for transaction")
+	ErrInvalidPubKey       = errors.New("invalid public key, public key must be in compressed secp256k1 format")
+	ErrTxFailedToConfirm   = errors.New("transaction(s) failed to confirm")
 
 	ErrNoFeeCredit                  = errors.New("no fee credit in money wallet")
 	ErrInsufficientFeeCredit        = errors.New("insufficient fee credit balance for transaction(s)")

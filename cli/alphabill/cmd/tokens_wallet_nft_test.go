@@ -41,6 +41,16 @@ func TestNFTs_Integration(t *testing.T) {
 	require.NoError(t, err)
 	w2.Shutdown()
 
+	// send money to w1k2 to create fee credits
+	stdout := execWalletCmd(t, moneyPartition.Nodes[0].AddrGRPC, homedirW1, fmt.Sprintf("send --amount 100 --address %s -r %s", hexutil.Encode(w1key2.PubKey), moneyBackendURL))
+	verifyStdout(t, stdout, "Successfully confirmed transaction(s)")
+	time.Sleep(2 * time.Second) // TODO confirm through backend instead of node
+
+	// create fee credit on w1k2
+	stdout, err = execFeesCommand(homedirW1, fmt.Sprintf("--partition token add -k 2 --amount 50 -u %s -r %s -m %s", moneyPartition.Nodes[0].AddrGRPC, moneyBackendURL, backendURL))
+	require.NoError(t, err)
+	verifyStdout(t, stdout, "Successfully created 50 fee credits on token partition.")
+
 	// non-fungible token types
 	typeID := randomID(t)
 	typeID2 := randomID(t)
@@ -58,7 +68,7 @@ func TestNFTs_Integration(t *testing.T) {
 	}), test.WaitDuration, test.WaitTick)
 	ensureTokenIndexed(t, ctx, backendClient, w1key2.PubKey, nftID)
 	// transfer NFT
-	execTokensCmd(t, homedirW1, fmt.Sprintf("send non-fungible -k 2 -r %s --token-identifier %X --address 0x%X -k 1", backendURL, nftID, w2key.PubKey))
+	execTokensCmd(t, homedirW1, fmt.Sprintf("send non-fungible -k 2 -r %s --token-identifier %X --address 0x%X", backendURL, nftID, w2key.PubKey))
 	require.Eventually(t, testpartition.BlockchainContains(tokenPartition, func(tx *txsystem.Transaction) bool {
 		return tx.TransactionAttributes.GetTypeUrl() == "type.googleapis.com/alphabill.tokens.v1.TransferNonFungibleTokenAttributes" && bytes.Equal(tx.UnitId, nftID)
 	}), test.WaitDuration, test.WaitTick)
@@ -71,7 +81,7 @@ func TestNFTs_Integration(t *testing.T) {
 	verifyStdout(t, execTokensCmd(t, homedirW1, fmt.Sprintf("list-types non-fungible -r %s", backendURL)), "symbol=ABNFT (nft)")
 
 	// send money to w2 to create fee credits
-	stdout := execWalletCmd(t, moneyPartition.Nodes[0].AddrGRPC, homedirW1, fmt.Sprintf("send --amount 100 --address %s -r %s", hexutil.Encode(w2key.PubKey), moneyBackendURL))
+	stdout = execWalletCmd(t, moneyPartition.Nodes[0].AddrGRPC, homedirW1, fmt.Sprintf("send --amount 100 --address %s -r %s", hexutil.Encode(w2key.PubKey), moneyBackendURL))
 	verifyStdout(t, stdout, "Successfully confirmed transaction(s)")
 	time.Sleep(2 * time.Second) // TODO confirm through backend instead of node
 

@@ -2,10 +2,10 @@ package network
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
-	"github.com/alphabill-org/alphabill/internal/errors"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"google.golang.org/protobuf/proto"
 )
@@ -53,7 +53,7 @@ func (p *SendProtocol) Send(m proto.Message, receiverID peer.ID) error {
 		}()
 
 		if err := w.Write(m); err != nil {
-			doneCh <- errors.Errorf("failed to write request: %v, "+
+			doneCh <- fmt.Errorf("failed to write request: %v, "+
 				"protocol: %s, receiver peerID: %v, sender peerID: %v", err, p.protocolID, receiverID, p.self.ID())
 		}
 		doneCh <- nil
@@ -61,7 +61,7 @@ func (p *SendProtocol) Send(m proto.Message, receiverID peer.ID) error {
 
 	select {
 	case <-ctx.Done():
-		return errors.Errorf("timeout: protocol: %v, receiver peerID: %v, sender peerID: %v",
+		return fmt.Errorf("timeout: protocol: %v, receiver peerID: %v, sender peerID: %v",
 			p.protocolID, receiverID, p.self.ID())
 	case err := <-doneCh:
 		return err

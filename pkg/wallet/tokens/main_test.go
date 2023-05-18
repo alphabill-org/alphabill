@@ -40,7 +40,7 @@ func Test_Load(t *testing.T) {
 	w, err := New(ttxs.DefaultSystemIdentifier, srv.URL, nil, false, nil)
 	require.NoError(t, err)
 
-	rn, err := w.getRoundNumber(context.Background())
+	rn, err := w.GetRoundNumber(context.Background())
 	require.NoError(t, err)
 	require.EqualValues(t, 42, rn)
 }

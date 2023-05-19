@@ -24,3 +24,6 @@ type Proof struct {
 type Predicate []byte
 
 type PubKey []byte
+
+// TxProof type alias for block.TxProof, can be removed once block package is moved out of internal
+type TxProof = block.TxProof

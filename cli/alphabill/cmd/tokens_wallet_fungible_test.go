@@ -289,7 +289,7 @@ func TestFungibleTokens_CollectDust_Integration(t *testing.T) {
 	// DC
 	execTokensCmd(t, homedir, fmt.Sprintf("collect-dust -r %s", backendUrl))
 
-	verifyStdout(t, execTokensCmd(t, homedir, fmt.Sprintf("list fungible -r %s", backendUrl)), fmt.Sprintf("amount='%v'", expectedTotal))
+	verifyStdout(t, execTokensCmd(t, homedir, fmt.Sprintf("list fungible -r %s", backendUrl)), fmt.Sprintf("amount='%v'", insertSeparator(fmt.Sprint(expectedTotal), false)))
 }
 
 type AlphabillNetwork struct {

@@ -106,8 +106,8 @@ func LoadExistingWallet(config abclient.AlphabillClientConfig, am account.Manage
 	genericWallet := wallet.New().
 		SetABClientConf(config).
 		Build()
-	moneySystemID := []byte{0, 0, 0, 0}
-	moneyTxPublisher := NewTxPublisher(genericWallet, backend, NewTxConverter(moneySystemID))
+	moneySystemID := money.DefaultSystemIdentifier
+	moneyTxPublisher := NewTxPublisher(genericWallet.AlphabillClient, backend, NewTxConverter(moneySystemID))
 	feeManager := fees.NewFeeManager(am, moneySystemID, moneyTxPublisher, backend, moneySystemID, moneyTxPublisher, backend)
 	return &Wallet{
 		Wallet:      genericWallet,
@@ -133,6 +133,7 @@ func (w *Wallet) SystemID() []byte {
 func (w *Wallet) Shutdown() {
 	w.Wallet.Shutdown()
 	w.am.Close()
+	w.feeManager.Close()
 	if w.dcWg != nil {
 		w.dcWg.ResetWaitGroup()
 	}

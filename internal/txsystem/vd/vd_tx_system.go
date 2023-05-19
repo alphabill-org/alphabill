@@ -4,12 +4,14 @@ import (
 	"bytes"
 	"crypto"
 	"hash"
+	"fmt"
 
 	"github.com/alphabill-org/alphabill/internal/errors"
 	hasherUtil "github.com/alphabill-org/alphabill/internal/hash"
 	"github.com/alphabill-org/alphabill/internal/rma"
 	"github.com/alphabill-org/alphabill/internal/script"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
+	"github.com/alphabill-org/alphabill/internal/txsystem/fc/transactions"
 	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/alphabill-org/alphabill/pkg/logger"
 	"github.com/holiman/uint256"
@@ -61,6 +63,27 @@ func NewTxSystem(systemId []byte) (*txSystem, error) {
 	return vdTxSystem, nil
 }
 
+// NewVDTx creates a new wrapper, returns an error if unknown transaction type is given as argument.
+func NewVDTx(systemID []byte, tx *txsystem.Transaction) (txsystem.GenericTransaction, error) {
+	if !bytes.Equal(systemID, tx.GetSystemId()) {
+		return nil, fmt.Errorf("transaction has invalid system identifier %X, expected %X", tx.GetSystemId(), systemID)
+	}
+	if tx.TransactionAttributes != nil {
+		feeTx, err := transactions.NewFeeCreditTx(tx)
+		if err != nil {
+			return nil, err
+		}
+		if feeTx != nil {
+			return feeTx, nil
+		}
+		return nil, errors.New("invalid vd transaction: transactionAttributes present")
+	}
+
+	return &vdTransaction{
+		transaction: tx,
+	}, nil
+}
+
 func (d *txSystem) State() (txsystem.State, error) {
 	if d.stateTree.ContainsUncommittedChanges() {
 		return nil, txsystem.ErrStateContainsUncommittedChanges
@@ -106,16 +129,7 @@ func (d *txSystem) Execute(tx txsystem.GenericTransaction) error {
 }
 
 func (d *txSystem) ConvertTx(tx *txsystem.Transaction) (txsystem.GenericTransaction, error) {
-	if !bytes.Equal(d.systemIdentifier, tx.GetSystemId()) {
-		return nil, errors.Errorf("transaction has invalid system identifier %X, expected %X", tx.GetSystemId(), d.systemIdentifier)
-	}
-	if tx.TransactionAttributes != nil {
-		return nil, errors.New("invalid vd transaction: transactionAttributes present")
-	}
-
-	return &vdTransaction{
-		transaction: tx,
-	}, nil
+	return NewVDTx(d.systemIdentifier, tx)
 }
 
 func (d *txSystem) getState() txsystem.State {

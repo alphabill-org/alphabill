@@ -5,15 +5,13 @@ import (
 	"context"
 	"crypto"
 	"errors"
-	"sync"
 	"testing"
 
 	"github.com/alphabill-org/alphabill/internal/block"
 	"github.com/alphabill-org/alphabill/internal/hash"
-	test "github.com/alphabill-org/alphabill/internal/testutils"
+
 	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/alphabill-org/alphabill/pkg/client/clientmock"
-	"github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/alphabill-org/alphabill/pkg/wallet/backend/bp"
 	"github.com/alphabill-org/alphabill/pkg/wallet/money/backend"
 	"github.com/holiman/uint256"
@@ -59,26 +57,6 @@ func TestWalletSendFunction_InsufficientBalance(t *testing.T) {
 	// test ErrInsufficientBalance
 	_, err := w.Send(ctx, SendCmd{ReceiverPubKey: validPubKey, Amount: amount})
 	require.ErrorIs(t, err, ErrInsufficientBalance)
-}
-
-func TestWalletSendFunction_ClientError(t *testing.T) {
-	w, mockClient := CreateTestWallet(t, withBackendMock(t, &backendMockReturnConf{
-		balance:   70,
-		billId:    uint256.NewInt(0),
-		billValue: 50,
-		feeCreditBill: &bp.Bill{
-			Id:      []byte{},
-			Value:   100 * 1e8,
-			TxProof: &block.TxProof{},
-		},
-	}))
-	validPubKey := make([]byte, 33)
-	amount := uint64(50)
-
-	// test abclient returns error
-	mockClient.SetTxResponse(errors.New("some error"))
-	_, err := w.Send(context.Background(), SendCmd{ReceiverPubKey: validPubKey, Amount: amount})
-	require.ErrorContains(t, err, "failed to send transaction: some error")
 }
 
 func TestWalletSendFunction_WaitForConfirmation(t *testing.T) {
@@ -304,79 +282,4 @@ func TestWholeBalanceIsSentUsingBillTransferOrder(t *testing.T) {
 	require.Len(t, mockClient.GetRecordedTransactions(), 1)
 	btTx := parseBillTransferTx(t, mockClient.GetRecordedTransactions()[0])
 	require.EqualValues(t, 100, btTx.TargetValue)
-}
-
-func TestWalletSendFunction_RetryTxWhenTxBufferIsFull(t *testing.T) {
-	// setup wallet
-	b := &Bill{
-		Id:     uint256.NewInt(1),
-		Value:  100,
-		TxHash: hash.Sum256([]byte{0x01}),
-	}
-	w, mockClient := CreateTestWallet(t, withBackendMock(t, &backendMockReturnConf{
-		balance:   100,
-		billId:    b.Id,
-		billValue: b.Value,
-		feeCreditBill: &bp.Bill{
-			Id:      []byte{},
-			Value:   100 * 1e8,
-			TxProof: &block.TxProof{},
-		},
-	}))
-
-	// make server return TxBufferFullErrMessage
-	mockClient.SetTxResponse(errors.New(txBufferFullErrMsg))
-
-	// send tx
-	_, sendError := w.Send(context.Background(), SendCmd{ReceiverPubKey: make([]byte, 33), Amount: 50})
-
-	// verify send tx error
-	require.ErrorIs(t, sendError, wallet.ErrFailedToBroadcastTx)
-
-	// verify txs were broadcast multiple times
-	require.Eventually(t, func() bool {
-		return len(mockClient.GetRecordedTransactions()) == maxTxFailedTries
-	}, test.WaitDuration, test.WaitTick)
-}
-
-func TestWalletSendFunction_RetryCanBeCanceledByUser(t *testing.T) {
-	// setup wallet
-	b := &Bill{
-		Id:     uint256.NewInt(1),
-		Value:  100,
-		TxHash: hash.Sum256([]byte{0x01}),
-	}
-	w, mockClient := CreateTestWallet(t, withBackendMock(t, &backendMockReturnConf{
-		balance:   100,
-		billId:    b.Id,
-		billValue: b.Value,
-		feeCreditBill: &bp.Bill{
-			Id:      []byte{},
-			Value:   100 * 1e8,
-			TxProof: &block.TxProof{},
-		},
-	}))
-
-	// make server return TxBufferFullErrMessage
-	mockClient.SetTxResponse(errors.New(txBufferFullErrMsg))
-
-	// send tx
-	ctx, cancel := context.WithCancel(context.Background())
-	wg := sync.WaitGroup{}
-	wg.Add(1)
-	var sendError error
-	go func() {
-		_, sendError = w.Send(ctx, SendCmd{ReceiverPubKey: make([]byte, 33), Amount: 50})
-		wg.Done()
-	}()
-
-	// when context is canceled
-	cancel()
-
-	// then sendError returns immediately
-	wg.Wait()
-	require.ErrorIs(t, sendError, wallet.ErrTxRetryCanceled)
-
-	// and only the initial transaction should be broadcast
-	require.Len(t, mockClient.GetRecordedTransactions(), 1)
 }

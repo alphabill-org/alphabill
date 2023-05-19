@@ -328,12 +328,15 @@ func NewAlphabillNetwork(t *testing.T) *AlphabillNetwork {
 	require.NoError(t, err)
 	t.Cleanup(moneyWallet.Shutdown)
 
+	moneyNodeClient := abclient.New(abclient.AlphabillClientConfig{Uri: moneyPartition.Nodes[0].AddrGRPC})
+	moneyTxPublisher := moneywallet.NewTxPublisher(moneyNodeClient, moneyBackendClient, moneywallet.NewTxConverter(money.DefaultSystemIdentifier))
+
 	tokenTxConverter, err := tokens.NewTxSystem(
 		tokens.WithSystemIdentifier(tokens.DefaultSystemIdentifier),
 		tokens.WithTrustBase(map[string]abcrypto.Verifier{"test": nil}),
 	)
 	tokenTxPublisher := tokenswallet.NewTxPublisher(tokenBackendClient, tokenTxConverter)
-	tokenFeeManager := fees.NewFeeManager(am, money.DefaultSystemIdentifier, moneyWallet, moneyBackendClient, tokens.DefaultSystemIdentifier, tokenTxPublisher, tokenBackendClient)
+	tokenFeeManager := fees.NewFeeManager(am, money.DefaultSystemIdentifier, moneyTxPublisher, moneyBackendClient, tokens.DefaultSystemIdentifier, tokenTxPublisher, tokenBackendClient)
 
 	w1, err := tokenswallet.New(tokens.DefaultSystemIdentifier, tokenBackendURL, am, true, tokenFeeManager)
 	require.NoError(t, err)

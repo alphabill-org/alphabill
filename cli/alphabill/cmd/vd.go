@@ -7,6 +7,8 @@ import (
 	"github.com/spf13/cobra"
 )
 
+const defaultVDNodeURL = "localhost:27766"
+
 type (
 	vdConfiguration struct {
 		baseNodeConfiguration

@@ -21,6 +21,7 @@ type TestAlphabillServiceServer struct {
 	pubKey         []byte
 	maxBlockHeight uint64
 	processedTxs   []*txsystem.Transaction
+	processTxError error
 	blocks         map[uint64]func() *block.Block
 	alphabill.UnimplementedAlphabillServiceServer
 }
@@ -33,7 +34,7 @@ func (s *TestAlphabillServiceServer) ProcessTransaction(_ context.Context, tx *t
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.processedTxs = append(s.processedTxs, tx)
-	return &emptypb.Empty{}, nil
+	return &emptypb.Empty{}, s.processTxError
 }
 
 func (s *TestAlphabillServiceServer) GetBlock(_ context.Context, req *alphabill.GetBlockRequest) (*alphabill.GetBlockResponse, error) {
@@ -109,6 +110,10 @@ func (s *TestAlphabillServiceServer) SetBlockFunc(blockNo uint64, blockFunc func
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.blocks[blockNo] = blockFunc
+}
+
+func (s *TestAlphabillServiceServer) SetProcessTxError(processTxError error) {
+	s.processTxError = processTxError
 }
 
 func StartServer(alphabillService *TestAlphabillServiceServer) (*grpc.Server, net.Addr) {

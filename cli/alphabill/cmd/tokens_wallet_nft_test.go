@@ -47,9 +47,9 @@ func TestNFTs_Integration(t *testing.T) {
 	time.Sleep(2 * time.Second) // TODO confirm through backend instead of node
 
 	// create fee credit on w1k2
-	stdout, err = execFeesCommand(homedirW1, fmt.Sprintf("--partition token add -k 2 --amount 50 -u %s -r %s -m %s", moneyPartition.Nodes[0].AddrGRPC, moneyBackendURL, backendURL))
+	stdout, err = execFeesCommand(homedirW1, fmt.Sprintf("--partition tokens add -k 2 --amount 50 -u %s -r %s -m %s", moneyPartition.Nodes[0].AddrGRPC, moneyBackendURL, backendURL))
 	require.NoError(t, err)
-	verifyStdout(t, stdout, "Successfully created 50 fee credits on token partition.")
+	verifyStdout(t, stdout, "Successfully created 50 fee credits on tokens partition.")
 
 	// non-fungible token types
 	typeID := randomID(t)

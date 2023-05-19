@@ -15,22 +15,26 @@ import (
 	"github.com/alphabill-org/alphabill/internal/txsystem/vd"
 	"github.com/alphabill-org/alphabill/pkg/client"
 	"github.com/alphabill-org/alphabill/pkg/wallet"
+	"github.com/alphabill-org/alphabill/pkg/wallet/backend/bp"
 	"github.com/alphabill-org/alphabill/pkg/wallet/log"
 )
 
 type (
 	VDClient struct {
-		abClient client.ABClient
+		vdNodeClient    client.ABClient
+		moneyNodeClient client.ABClient
+
 		// synchronizes with ledger until the block is found where tx has been added to
 		syncToBlock   bool
 		timeoutDelta  uint64
-		ctx           context.Context
 		blockCallback func(b *VDBlock)
 	}
 
 	VDClientConfig struct {
-		// AbConf configuration parameters of Alphabill client
-		AbConf *client.AlphabillClientConfig
+		// VDNodeURL URL of the vd node to connect
+		VDNodeURL string
+		// MoneyNodeURL URL of the money node to connect
+		MoneyNodeURL string
 		// WaitBlock upon hash submission, waits for a block to contain a transaction with the given hash, stops when found or timeout is reached
 		WaitBlock bool
 		// BlockTimeout relative timeout of a transaction (e.g. if latest block # is 100, given block timeout is 50, transaction's timeout is 150)
@@ -48,13 +52,19 @@ func (block *VDBlock) GetBlockNumber() uint64 {
 	return block.blockNumber
 }
 
-func New(ctx context.Context, conf *VDClientConfig) (*VDClient, error) {
+func New(conf *VDClientConfig) (*VDClient, error) {
+	moneyNodeClient := client.New(client.AlphabillClientConfig{
+		Uri: conf.MoneyNodeURL,
+	})
+	vdNodeClient := client.New(client.AlphabillClientConfig{
+		Uri: conf.VDNodeURL,
+	})
 	return &VDClient{
-		ctx:           ctx,
-		abClient:      client.New(*conf.AbConf),
-		syncToBlock:   conf.WaitBlock,
-		timeoutDelta:  conf.BlockTimeout,
-		blockCallback: conf.OnBlockCallback,
+		moneyNodeClient: moneyNodeClient,
+		vdNodeClient:    vdNodeClient,
+		syncToBlock:     conf.WaitBlock,
+		timeoutDelta:    conf.BlockTimeout,
+		blockCallback:   conf.OnBlockCallback,
 	}, nil
 }
 
@@ -64,7 +74,31 @@ func (v *VDClient) SystemID() []byte {
 	return vd.DefaultSystemIdentifier
 }
 
-func (v *VDClient) RegisterFileHash(filePath string) error {
+func (v *VDClient) GetRoundNumber(ctx context.Context) (uint64, error) {
+	return v.vdNodeClient.GetRoundNumber(ctx)
+}
+
+func (v *VDClient) PostTransactions(ctx context.Context, pubKey wallet.PubKey, txs *txsystem.Transactions) error {
+	for _, tx := range txs.Transactions {
+		err := v.vdNodeClient.SendTransaction(ctx, tx)
+		if err != nil {
+			return fmt.Errorf("failed to send transaction: %w", err)
+		}
+	}
+	return nil
+}
+
+func (v *VDClient) GetTxProof(ctx context.Context, unitID wallet.UnitID, txHash wallet.TxHash) (*wallet.Proof, error) {
+	// TODO
+	return nil, nil;
+}
+
+func (v *VDClient) FetchFeeCreditBill(ctx context.Context, unitID []byte) (*bp.Bill, error) {
+	// TODO
+	return nil, nil
+}
+
+func (v *VDClient) RegisterFileHash(ctx context.Context, filePath string) error {
 	file, err := os.Open(filePath)
 	if err != nil {
 		return fmt.Errorf("failed to open the file %q: %w", filePath, err)
@@ -78,36 +112,35 @@ func (v *VDClient) RegisterFileHash(filePath string) error {
 
 	hash := hasher.Sum(nil)
 	log.Debug("Hash of file '", filePath, "': ", hash)
-	return v.registerHashTx(context.Background(), hash)
+	return v.registerHashTx(ctx, hash)
 }
 
-func (v *VDClient) RegisterHashBytes(bytes []byte) error {
-	return v.registerHashTx(context.Background(), bytes)
+func (v *VDClient) RegisterHashBytes(ctx context.Context, bytes []byte) error {
+	return v.registerHashTx(ctx, bytes)
 }
 
-func (v *VDClient) RegisterHash(hash string) error {
+func (v *VDClient) RegisterHash(ctx context.Context, hash string) error {
 	b, err := hexStringToBytes(hash)
 	if err != nil {
 		return err
 	}
-	return v.registerHashTx(context.Background(), b)
+	return v.registerHashTx(ctx, b)
 }
 
 // FetchBlockWithHash is a temporary workaround for verifying registered hash values.
-func (v *VDClient) FetchBlockWithHash(hash []byte, blockNumber uint64) error {
-	return v.sync(blockNumber-1, blockNumber, hash)
+func (v *VDClient) FetchBlockWithHash(ctx context.Context, hash []byte, blockNumber uint64) error {
+	return v.sync(ctx, blockNumber-1, blockNumber, hash)
 }
 
 // ListAllBlocksWithTx prints all non-empty blocks from genesis up to the latest block
-func (v *VDClient) ListAllBlocksWithTx() error {
-	defer v.shutdown()
+func (v *VDClient) ListAllBlocksWithTx(ctx context.Context) error {
 	log.Info("Fetching blocks...")
-	maxBlockNumber, err := v.abClient.GetRoundNumber(context.Background())
+	maxBlockNumber, err := v.vdNodeClient.GetRoundNumber(ctx)
 	if err != nil {
 		return err
 	}
 	log.Debug("Max block: #", maxBlockNumber)
-	if err := v.sync(0, maxBlockNumber, nil); err != nil {
+	if err := v.sync(ctx, 0, maxBlockNumber, nil); err != nil {
 		return err
 	}
 
@@ -116,13 +149,11 @@ func (v *VDClient) ListAllBlocksWithTx() error {
 }
 
 func (v *VDClient) registerHashTx(ctx context.Context, hash []byte) error {
-	defer v.shutdown()
-
 	if err := validateHash(hash); err != nil {
 		return err
 	}
 
-	currentRoundNumber, err := v.abClient.GetRoundNumber(ctx)
+	currentRoundNumber, err := v.vdNodeClient.GetRoundNumber(ctx)
 	if err != nil {
 		return err
 	}
@@ -134,21 +165,21 @@ func (v *VDClient) registerHashTx(ctx context.Context, hash []byte) error {
 		return err
 	}
 
-	if err := v.abClient.SendTransaction(ctx, tx); err != nil {
+	if err := v.vdNodeClient.SendTransaction(ctx, tx); err != nil {
 		return fmt.Errorf("error while submitting the hash: %w", err)
 	}
 	log.Info("Hash successfully submitted, timeout block: ", timeout)
 
 	if v.syncToBlock {
-		return v.sync(currentRoundNumber, timeout, hash)
+		return v.sync(ctx, currentRoundNumber, timeout, hash)
 	}
 	return nil
 }
 
-func (v *VDClient) sync(currentBlock uint64, timeout uint64, hash []byte) error {
-	wallet := wallet.New().SetABClient(v.abClient).Build()
+func (v *VDClient) sync(ctx context.Context, currentBlock uint64, timeout uint64, hash []byte) error {
+	wallet := wallet.New().SetABClient(v.vdNodeClient).Build()
 
-	ctx, cancel := context.WithCancel(v.ctx)
+	ctx, cancel := context.WithCancel(ctx)
 	syncDone := func() {
 		cancel()
 		wallet.Shutdown()
@@ -194,9 +225,13 @@ func (v *VDClient) prepareProcessor(timeout uint64, hash []byte, syncDone func()
 	}
 }
 
-func (v *VDClient) shutdown() {
+func (v *VDClient) Close() {
 	log.Info("Shutting down")
-	err := v.abClient.Shutdown()
+	err := v.moneyNodeClient.Close()
+	if err != nil {
+		log.Error(err)
+	}
+	err = v.vdNodeClient.Close()
 	if err != nil {
 		log.Error(err)
 	}

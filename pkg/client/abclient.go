@@ -6,6 +6,7 @@ import (
 	"math"
 	"sync"
 	"time"
+	"strings"
 
 	"github.com/alphabill-org/alphabill/internal/block"
 	"github.com/alphabill-org/alphabill/internal/errors"
@@ -17,13 +18,20 @@ import (
 	"google.golang.org/protobuf/types/known/emptypb"
 )
 
+const (
+	ErrFailedToBroadcastTx = "failed to broadcast transaction"
+	ErrTxBufferFull        = "tx buffer is full"
+	ErrTxRetryCanceled     = "user canceled tx retry"
+)
+
 // ABClient manages connection to alphabill node and implements RPC methods
 type ABClient interface {
 	SendTransaction(ctx context.Context, tx *txsystem.Transaction) error
+	SendTransactionWithRetry(ctx context.Context, tx *txsystem.Transaction, maxTries int) error
 	GetBlock(ctx context.Context, blockNumber uint64) (*block.Block, error)
 	GetBlocks(ctx context.Context, blockNumber, blockCount uint64) (*alphabill.GetBlocksResponse, error)
 	GetRoundNumber(ctx context.Context) (uint64, error)
-	Shutdown() error
+	Close() error
 }
 
 type AlphabillClientConfig struct {
@@ -54,6 +62,27 @@ func (c *AlphabillClient) SendTransaction(ctx context.Context, tx *txsystem.Tran
 
 	_, err := c.client.ProcessTransaction(ctx, tx)
 	return err
+}
+
+func (c *AlphabillClient) SendTransactionWithRetry(ctx context.Context, tx *txsystem.Transaction, maxTries int) error {
+	for try := 0; try < maxTries; try++ {
+		err := c.SendTransaction(ctx, tx)
+		if err == nil {
+			return nil
+		}
+		// error message can also contain stacktrace when node returns aberror, so we check prefix instead of exact match
+		if strings.Contains(err.Error(), ErrTxBufferFull) {
+			log.Debug("tx buffer full, waiting 1s to retry...")
+			select {
+			case <-time.After(time.Second):
+				continue
+			case <-ctx.Done():
+				return fmt.Errorf(ErrTxRetryCanceled)
+			}
+		}
+		return fmt.Errorf("failed to send transaction: %w", err)
+	}
+	return fmt.Errorf(ErrFailedToBroadcastTx)
 }
 
 func (c *AlphabillClient) GetBlock(ctx context.Context, blockNumber uint64) (*block.Block, error) {
@@ -105,7 +134,7 @@ func (c *AlphabillClient) GetRoundNumber(ctx context.Context) (uint64, error) {
 	return res.RoundNumber, nil
 }
 
-func (c *AlphabillClient) Shutdown() error {
+func (c *AlphabillClient) Close() error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if c.connection != nil {

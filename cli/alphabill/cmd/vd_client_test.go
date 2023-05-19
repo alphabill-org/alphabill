@@ -67,6 +67,9 @@ func TestVD_UseClientForTx(t *testing.T) {
 			appStoppedWg.Done()
 		}()
 
+		// Server startup takes time, somehow check if server is ready?
+		time.Sleep(1 * time.Second)
+
 		fmt.Println("Starting VD clients")
 		// Start VD Client
 		require.NoError(t, sendTxWithClient(ctx, dialAddr))

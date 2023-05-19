@@ -92,3 +92,6 @@ type mockMoneyTxPublisher struct {
 func (m *mockMoneyTxPublisher) SendTx(ctx context.Context, tx *txsystem.Transaction, _ []byte) (*block.TxProof, error) {
 	return &block.TxProof{Tx: tx, Proof: &block.BlockProof{}}, nil
 }
+
+func (m *mockMoneyTxPublisher) Close() {
+}

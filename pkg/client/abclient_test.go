@@ -3,6 +3,7 @@ package client
 import (
 	"context"
 	"crypto/sha256"
+	"errors"
 	"sync"
 	"testing"
 	"time"
@@ -11,6 +12,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/certificates"
 	"github.com/alphabill-org/alphabill/internal/hash"
 	"github.com/alphabill-org/alphabill/internal/script"
+	test "github.com/alphabill-org/alphabill/internal/testutils"
 	testserver "github.com/alphabill-org/alphabill/internal/testutils/server"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	billtx "github.com/alphabill-org/alphabill/internal/txsystem/money"
@@ -27,7 +29,7 @@ func TestRaceConditions(t *testing.T) {
 
 	// create ab client
 	abclient := New(AlphabillClientConfig{Uri: addr.String()})
-	t.Cleanup(func() { _ = abclient.Shutdown() })
+	t.Cleanup(func() { _ = abclient.Close() })
 
 	// do async operations on abclient
 	wg := sync.WaitGroup{}
@@ -51,7 +53,7 @@ func TestRaceConditions(t *testing.T) {
 
 	wg.Add(1)
 	go func() {
-		_ = abclient.Shutdown()
+		_ = abclient.Close()
 		wg.Done()
 	}()
 
@@ -81,6 +83,64 @@ func TestTimeout(t *testing.T) {
 	require.ErrorContains(t, err, "deadline exceeded")
 }
 
+func TestSendTransactionWithRetry_ServerError(t *testing.T) {
+	server, client := startServerAndCreateClient(t)
+	server.SetProcessTxError(errors.New("some error"))
+
+	// test abclient returns error
+	err := client.SendTransactionWithRetry(context.Background(), createRandomTx(), 1)
+	require.ErrorContains(t, err, "failed to send transaction:")
+	require.ErrorContains(t, err, "some error")
+}
+
+func TestSendTransactionWithRetry_RetryTxWhenTxBufferIsFull(t *testing.T) {
+	server, client := startServerAndCreateClient(t)
+	// make server return TxBufferFullErrMessage
+	server.SetProcessTxError(errors.New(ErrTxBufferFull))
+
+	// send tx
+	maxTries := 2
+	sendError := client.SendTransactionWithRetry(context.Background(), createRandomTx(), maxTries)
+
+	// verify send tx error
+	require.EqualError(t, sendError, ErrFailedToBroadcastTx)
+
+	// verify txs were broadcast multiple times
+	require.Eventually(t, func() bool {
+		return len(server.GetProcessedTransactions()) == maxTries
+	}, test.WaitDuration, test.WaitTick)
+}
+
+func TestSendTransactionWithRetry_RetryCanBeCanceledByUser(t *testing.T) {
+	server, client := startServerAndCreateClient(t)
+
+	// make server return TxBufferFullErrMessage
+	server.SetProcessTxError(errors.New(ErrTxBufferFull))
+
+	// send tx
+	ctx, cancel := context.WithCancel(context.Background())
+	wg := sync.WaitGroup{}
+	wg.Add(1)
+	var sendError error
+	go func() {
+		sendError = client.SendTransactionWithRetry(ctx, createRandomTx(), 3)
+		wg.Done()
+	}()
+
+	// when context is canceled
+	cancel()
+
+	// then sendError returns immediately
+	wg.Wait()
+
+	// context most likely canceled while while gRPC is doing the send,
+	// responds with rpc error desc "context canceled"
+	require.ErrorContains(t, sendError, "canceled")
+
+	// and most likely no transactions reached the server
+	require.Len(t, server.GetProcessedTransactions(), 0)
+}
+
 func createRandomTransfer() *anypb.Any {
 	tx, _ := anypb.New(&billtx.TransferAttributes{
 		TargetValue: 100,
@@ -107,6 +167,6 @@ func startServerAndCreateClient(t *testing.T) (*testserver.TestAlphabillServiceS
 
 	// create ab client
 	abclient := New(AlphabillClientConfig{Uri: addr.String()})
-	t.Cleanup(func() { _ = abclient.Shutdown() })
+	t.Cleanup(func() { _ = abclient.Close() })
 	return serviceServer, abclient
 }

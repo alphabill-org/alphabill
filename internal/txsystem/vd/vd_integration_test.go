@@ -14,7 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-var systemIdentifier = []byte{0, 0, 0, 1}
+var systemIdentifier = DefaultSystemIdentifier
 
 func TestVDPartition_Ok(t *testing.T) {
 	vdPart, err := testpartition.NewPartition(3, func(trustBase map[string]crypto.Verifier) txsystem.TransactionSystem {

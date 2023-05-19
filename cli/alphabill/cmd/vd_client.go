@@ -1,12 +1,10 @@
 package cmd
 
 import (
-	"context"
 	"errors"
 
 	"github.com/spf13/cobra"
 
-	abclient "github.com/alphabill-org/alphabill/pkg/client"
 	vdclient "github.com/alphabill-org/alphabill/pkg/wallet/vd/client"
 	wlog "github.com/alphabill-org/alphabill/pkg/wallet/log"
 )
@@ -52,15 +50,16 @@ func regCmd(wait *bool) *cobra.Command {
 				return errors.New("'hash' and 'file' flags are mutually exclusive")
 			}
 
-			vdClient, err := initVDClient(cmd.Context(), cmd, wait, sync)
+			vdClient, err := initVDClient(cmd, wait, sync)
 			if err != nil {
 				return err
 			}
+			defer vdClient.Close()
 
 			if hash != "" {
-				err = vdClient.RegisterHash(hash)
+				err = vdClient.RegisterHash(cmd.Context(), hash)
 			} else if file != "" {
-				err = vdClient.RegisterFileHash(file)
+				err = vdClient.RegisterFileHash(cmd.Context(), file)
 			}
 			return err
 		},
@@ -78,12 +77,13 @@ func listBlocksCmd(wait *bool) *cobra.Command {
 		Use:   "list-blocks",
 		Short: "prints all non-empty blocks from the ledger",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			vdClient, err := initVDClient(cmd.Context(), cmd, wait, false)
+			vdClient, err := initVDClient(cmd, wait, false)
 			if err != nil {
 				return err
 			}
+			defer vdClient.Close()
 
-			if err = vdClient.ListAllBlocksWithTx(); err != nil {
+			if err = vdClient.ListAllBlocksWithTx(cmd.Context()); err != nil {
 				return err
 			}
 			return nil
@@ -92,8 +92,8 @@ func listBlocksCmd(wait *bool) *cobra.Command {
 	return cmd
 }
 
-func initVDClient(ctx context.Context, cmd *cobra.Command, wait *bool, sync bool) (*vdclient.VDClient, error) {
-	uri, err := cmd.Flags().GetString(alphabillNodeURLCmdName)
+func initVDClient(cmd *cobra.Command, wait *bool, sync bool) (*vdclient.VDClient, error) {
+	vdNodeURL, err := cmd.Flags().GetString(alphabillNodeURLCmdName)
 	if err != nil {
 		return nil, err
 	}
@@ -103,13 +103,11 @@ func initVDClient(ctx context.Context, cmd *cobra.Command, wait *bool, sync bool
 		return nil, err
 	}
 
-	vdClient, err := vdclient.New(ctx, &vdclient.VDClientConfig{
-		AbConf: &abclient.AlphabillClientConfig{
-			Uri:          uri,
-			WaitForReady: *wait,
-		},
+	vdClient, err := vdclient.New(&vdclient.VDClientConfig{
+		VDNodeURL:    vdNodeURL,
 		WaitBlock:    sync,
-		BlockTimeout: timeoutDelta})
+		BlockTimeout: timeoutDelta,
+	})
 	if err != nil {
 		return nil, err
 	}

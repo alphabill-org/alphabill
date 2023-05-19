@@ -6,34 +6,35 @@ import (
 
 	"github.com/alphabill-org/alphabill/internal/block"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
-	"github.com/alphabill-org/alphabill/pkg/wallet"
+	"github.com/alphabill-org/alphabill/pkg/client"
 	wlog "github.com/alphabill-org/alphabill/pkg/wallet/log"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 )
 
 type (
 	TxPublisher struct {
-		wallet      *wallet.Wallet
-		backend     BackendAPI
-		txConverter *TxConverter
+		nodeClient    client.ABClient
+		backendClient BackendAPI
+		txConverter   *TxConverter
 	}
 )
 
-func NewTxPublisher(wallet *wallet.Wallet, backend BackendAPI, txConverter *TxConverter) *TxPublisher {
+// TODO: should use backendClient only (not nodeClient) and TxSubmitter
+func NewTxPublisher(nodeClient client.ABClient, backendClient BackendAPI, txConverter *TxConverter) *TxPublisher {
 	return &TxPublisher{
-		wallet:      wallet,
-		backend:     backend,
-		txConverter: txConverter,
+		nodeClient:    nodeClient,
+		backendClient: backendClient,
+		txConverter:   txConverter,
 	}
 }
 
 // SendTx sends tx and waits for confirmation, returns tx proof
 func (w *TxPublisher) SendTx(ctx context.Context, tx *txsystem.Transaction, _ []byte) (*block.TxProof, error) {
-	roundNumber, err := w.backend.GetRoundNumber(ctx)
+	roundNumber, err := w.backendClient.GetRoundNumber(ctx)
 	if err != nil {
 		return nil, err
 	}
-	err = w.wallet.SendTransaction(ctx, tx, nil)
+	err = w.nodeClient.SendTransaction(ctx, tx)
 	if err != nil {
 		return nil, err
 	}
@@ -49,13 +50,13 @@ func (w *TxPublisher) WaitForConfirmation(ctx context.Context, pendingTxs []*txs
 	latestBlockNumber := latestRoundNumber
 	txsLog := NewTxLog(pendingTxs)
 	for latestBlockNumber <= timeout {
-		b, err := w.wallet.AlphabillClient.GetBlock(ctx, latestBlockNumber)
+		b, err := w.nodeClient.GetBlock(ctx, latestBlockNumber)
 		if err != nil {
 			return nil, err
 		}
 		if b == nil {
 			// block might be empty, check latest round number
-			latestRoundNumber, err = w.wallet.AlphabillClient.GetRoundNumber(ctx)
+			latestRoundNumber, err = w.nodeClient.GetRoundNumber(ctx)
 			if err != nil {
 				return nil, err
 			}
@@ -94,4 +95,8 @@ func (w *TxPublisher) WaitForConfirmation(ctx context.Context, pendingTxs []*txs
 		latestBlockNumber++
 	}
 	return nil, ErrTxFailedToConfirm
+}
+
+func (w *TxPublisher) Close() {
+	w.nodeClient.Close()
 }

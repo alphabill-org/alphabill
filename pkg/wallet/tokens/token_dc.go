@@ -2,6 +2,7 @@ package tokens
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/alphabill-org/alphabill/internal/block"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
@@ -100,13 +101,12 @@ func (w *Wallet) joinTokenForDC(ctx context.Context, acc *account.AccountKey, bu
 	return sub.TxHash, nil
 }
 
-func (w *Wallet) burnTokensForDC(ctx context.Context, acc *account.AccountKey, tokensToBurn []*twb.TokenUnit, nonce sdk.TxHash, invariantPredicateArgs []*PredicateInput) (burnTxs []*txsystem.Transaction, proofs []*block.BlockProof, err error) {
+func (w *Wallet) burnTokensForDC(ctx context.Context, acc *account.AccountKey, tokensToBurn []*twb.TokenUnit, nonce sdk.TxHash, invariantPredicateArgs []*PredicateInput) ([]*txsystem.Transaction, []*block.BlockProof, error) {
 	burnBatch := txsubmitter.NewBatch(acc.PubKey, w.backend)
 
 	for _, token := range tokensToBurn {
 		attrs := newBurnTxAttrs(token, nonce)
-		var sub *txsubmitter.TxSubmission
-		sub, err = w.prepareTxSubmission(ctx, sdk.UnitID(token.ID), attrs, acc, func(tx *txsystem.Transaction, gtx txsystem.GenericTransaction) error {
+		sub, err := w.prepareTxSubmission(ctx, sdk.UnitID(token.ID), attrs, acc, func(tx *txsystem.Transaction, gtx txsystem.GenericTransaction) error {
 			signatures, err := preparePredicateSignatures(w.GetAccountManager(), invariantPredicateArgs, gtx)
 			if err != nil {
 				return err
@@ -115,20 +115,22 @@ func (w *Wallet) burnTokensForDC(ctx context.Context, acc *account.AccountKey, t
 			return anypb.MarshalFrom(tx.TransactionAttributes, attrs, proto.MarshalOptions{})
 		})
 		if err != nil {
-			return
+			return nil, nil, fmt.Errorf("failed to prepare burn tx: %w", err)
 		}
 		burnBatch.Add(sub)
 	}
-	if err = burnBatch.SendTx(ctx, true); err != nil {
-		return
+
+	if err := burnBatch.SendTx(ctx, true); err != nil {
+		return nil, nil, fmt.Errorf("failed to send burn tx: %w", err)
 	}
-	burnTxs = make([]*txsystem.Transaction, 0, len(burnBatch.Submissions()))
-	proofs = make([]*block.BlockProof, 0, len(burnBatch.Submissions()))
+
+	burnTxs := make([]*txsystem.Transaction, 0, len(burnBatch.Submissions()))
+	proofs := make([]*block.BlockProof, 0, len(burnBatch.Submissions()))
 	for _, sub := range burnBatch.Submissions() {
 		burnTxs = append(burnTxs, sub.Transaction)
 		proofs = append(proofs, sub.Proof.Proof)
 	}
-	return
+	return burnTxs, proofs, nil
 }
 
 func (w *Wallet) getTokensForDC(ctx context.Context, key sdk.PubKey, allowedTokenTypes []twb.TokenTypeID) (map[string][]*twb.TokenUnit, error) {

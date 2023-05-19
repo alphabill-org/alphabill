@@ -200,43 +200,48 @@ func (w *Wallet) GetTokenType(ctx context.Context, typeId backend.TokenTypeID) (
 
 // ListTokens specify accountNumber=0 to list tokens from all accounts
 func (w *Wallet) ListTokens(ctx context.Context, kind backend.Kind, accountNumber uint64) (map[uint64][]*backend.TokenUnit, error) {
-	var pubKeys [][]byte
-	var err error
-	singleKey := accountNumber > AllAccounts
-	accountIdx := accountNumber - 1
-	if singleKey {
-		key, err := w.am.GetPublicKey(accountIdx)
-		if err != nil {
-			return nil, err
-		}
-		pubKeys = append(pubKeys, key)
-	} else {
-		pubKeys, err = w.am.GetPublicKeys()
-		if err != nil {
-			return nil, err
-		}
+	keys, err := w.getAccounts(accountNumber)
+	if err != nil {
+		return nil, err
 	}
 
 	// account number -> list of its tokens
-	allTokensByAccountNumber := make(map[uint64][]*backend.TokenUnit, 0)
-
-	if singleKey {
-		ts, err := w.getTokens(ctx, kind, pubKeys[0])
+	allTokensByAccountNumber := make(map[uint64][]*backend.TokenUnit, len(keys))
+	for _, key := range keys {
+		ts, err := w.getTokens(ctx, kind, key.PubKey)
 		if err != nil {
 			return nil, err
 		}
-		allTokensByAccountNumber[accountNumber] = ts
-		return allTokensByAccountNumber, nil
+		allTokensByAccountNumber[key.idx+1] = ts
 	}
 
-	for idx, pubKey := range pubKeys {
-		ts, err := w.getTokens(ctx, kind, pubKey)
-		if err != nil {
-			return nil, err
-		}
-		allTokensByAccountNumber[uint64(idx)+1] = ts
-	}
 	return allTokensByAccountNumber, nil
+}
+
+type accountKey struct {
+	*account.AccountKey
+	idx uint64
+}
+
+func (w *Wallet) getAccounts(accountNumber uint64) ([]*accountKey, error) {
+	singleKey := accountNumber > AllAccounts
+	accountIdx := accountNumber - 1
+	if singleKey {
+		key, err := w.am.GetAccountKey(accountIdx)
+		if err != nil {
+			return nil, err
+		}
+		return []*accountKey{{AccountKey: key, idx: accountIdx}}, nil
+	}
+	keys, err := w.am.GetAccountKeys()
+	if err != nil {
+		return nil, err
+	}
+	wrappers := make([]*accountKey, len(keys))
+	for i := range keys {
+		wrappers[i] = &accountKey{AccountKey: keys[i], idx: uint64(i)}
+	}
+	return wrappers, nil
 }
 
 func (w *Wallet) getTokens(ctx context.Context, kind backend.Kind, pubKey wallet.PubKey) ([]*backend.TokenUnit, error) {

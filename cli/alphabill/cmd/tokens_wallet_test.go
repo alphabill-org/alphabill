@@ -96,7 +96,7 @@ func TestListTokensCommandInputs(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			exec := false
-			cmd := tokenCmdList(&walletConfig{}, func(cmd *cobra.Command, config *walletConfig, kind backend.Kind, accountNumber *uint64) error {
+			cmd := tokenCmdList(&walletConfig{}, func(cmd *cobra.Command, config *walletConfig, accountNumber *uint64, kind backend.Kind) error {
 				require.Equal(t, tt.accountNumber, *accountNumber)
 				require.Equal(t, tt.expectedKind, kind)
 				if len(tt.expectedPass) > 0 {

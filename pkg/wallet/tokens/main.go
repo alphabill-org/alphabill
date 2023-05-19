@@ -224,14 +224,12 @@ type accountKey struct {
 }
 
 func (w *Wallet) getAccounts(accountNumber uint64) ([]*accountKey, error) {
-	singleKey := accountNumber > AllAccounts
-	accountIdx := accountNumber - 1
-	if singleKey {
-		key, err := w.am.GetAccountKey(accountIdx)
+	if accountNumber > AllAccounts {
+		key, err := w.am.GetAccountKey(accountNumber - 1)
 		if err != nil {
 			return nil, err
 		}
-		return []*accountKey{{AccountKey: key, idx: accountIdx}}, nil
+		return []*accountKey{{AccountKey: key, idx: accountNumber - 1}}, nil
 	}
 	keys, err := w.am.GetAccountKeys()
 	if err != nil {

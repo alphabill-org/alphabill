@@ -124,6 +124,7 @@ func TestCreateTransactions(t *testing.T) {
 			},
 		},
 	}
+
 	systemId := []byte{0, 0, 0, 0}
 
 	for _, tt := range tests {
@@ -131,12 +132,10 @@ func TestCreateTransactions(t *testing.T) {
 			txs, err := CreateTransactions(receiverPubKey, tt.amount, systemId, tt.bills, accountKey.AccountKey, 100, nil)
 			if tt.expectedErr != nil {
 				require.ErrorIs(t, err, tt.expectedErr)
-				require.Nil(t, txs)
 			} else {
 				require.NoError(t, err)
-				require.NotNil(t, txs)
+				tt.verify(t, systemId, txs)
 			}
-			tt.verify(t, systemId, txs)
 		})
 	}
 }

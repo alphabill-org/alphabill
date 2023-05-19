@@ -23,16 +23,18 @@ import (
 	"github.com/alphabill-org/alphabill/internal/script"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/internal/txsystem/tokens"
+	"github.com/alphabill-org/alphabill/pkg/wallet"
+	"github.com/alphabill-org/alphabill/pkg/wallet/broker"
 )
 
 type dataSource interface {
 	GetTokenType(id TokenTypeID) (*TokenUnitType, error)
-	QueryTokenType(kind Kind, creator PubKey, startKey TokenTypeID, count int) ([]*TokenUnitType, TokenTypeID, error)
+	QueryTokenType(kind Kind, creator wallet.PubKey, startKey TokenTypeID, count int) ([]*TokenUnitType, TokenTypeID, error)
 	GetToken(id TokenID) (*TokenUnit, error)
-	QueryTokens(kind Kind, owner Predicate, startKey TokenID, count int) ([]*TokenUnit, TokenID, error)
-	SaveTokenTypeCreator(id TokenTypeID, kind Kind, creator PubKey) error
-	GetTxProof(unitID UnitID, txHash TxHash) (*Proof, error)
-	GetFeeCreditBill(unitID UnitID) (*FeeCreditBill, error)
+	QueryTokens(kind Kind, owner wallet.Predicate, startKey TokenID, count int) ([]*TokenUnit, TokenID, error)
+	SaveTokenTypeCreator(id TokenTypeID, kind Kind, creator wallet.PubKey) error
+	GetTxProof(unitID wallet.UnitID, txHash wallet.TxHash) (*wallet.Proof, error)
+	GetFeeCreditBill(unitID wallet.UnitID) (*FeeCreditBill, error)
 }
 
 type abClient interface {
@@ -44,6 +46,7 @@ type restAPI struct {
 	db        dataSource
 	ab        abClient
 	convertTx func(tx *txsystem.Transaction) (txsystem.GenericTransaction, error)
+	streamSSE func(ctx context.Context, owner broker.PubKey, w http.ResponseWriter) error
 	logErr    func(a ...any)
 }
 
@@ -72,6 +75,7 @@ func (api *restAPI) endpoints() http.Handler {
 	apiV1.HandleFunc("/kinds/{kind}/types", api.listTypes).Methods("GET", "OPTIONS")
 	apiV1.HandleFunc("/round-number", api.getRoundNumber).Methods("GET", "OPTIONS")
 	apiV1.HandleFunc("/transactions/{pubkey}", api.postTransactions).Methods("POST", "OPTIONS")
+	apiV1.HandleFunc("/events/{pubkey}/subscribe", api.subscribeEvents).Methods("GET", "OPTIONS")
 	apiV1.HandleFunc("/units/{unitId}/transactions/{txHash}/proof", api.getTxProof).Methods("GET", "OPTIONS")
 	apiV1.HandleFunc("/fee-credit-bills/{unitId}", api.getFeeCreditBill).Methods("GET", "OPTIONS")
 
@@ -211,6 +215,19 @@ func (api *restAPI) getRoundNumber(w http.ResponseWriter, r *http.Request) {
 	api.writeResponse(w, RoundNumberResponse{RoundNumber: rn})
 }
 
+func (api *restAPI) subscribeEvents(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	ownerPK, err := parsePubKey(vars["pubkey"], true)
+	if err != nil {
+		api.invalidParamResponse(w, "pubkey", err)
+		return
+	}
+
+	if err := api.streamSSE(r.Context(), broker.PubKey(ownerPK), w); err != nil {
+		api.writeErrorResponse(w, fmt.Errorf("event streaming failed: %w", err))
+	}
+}
+
 func (api *restAPI) postTransactions(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
 	buf, err := io.ReadAll(r.Body)
@@ -276,7 +293,7 @@ func (api *restAPI) saveTxs(ctx context.Context, txs []*txsystem.Transaction, ow
 
 func (api *restAPI) getFeeCreditBill(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
-	unitID, err := parseHex[UnitID](vars["unitId"], true)
+	unitID, err := parseHex[wallet.UnitID](vars["unitId"], true)
 	if err != nil {
 		api.invalidParamResponse(w, "unitId", err)
 		return
@@ -321,12 +338,12 @@ func (api *restAPI) saveTx(ctx context.Context, tx *txsystem.Transaction, owner 
 
 func (api *restAPI) getTxProof(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
-	unitID, err := parseHex[UnitID](vars["unitId"], true)
+	unitID, err := parseHex[wallet.UnitID](vars["unitId"], true)
 	if err != nil {
 		api.invalidParamResponse(w, "unitId", err)
 		return
 	}
-	txHash, err := parseHex[TxHash](vars["txHash"], true)
+	txHash, err := parseHex[wallet.TxHash](vars["txHash"], true)
 	if err != nil {
 		api.invalidParamResponse(w, "txHash", err)
 		return

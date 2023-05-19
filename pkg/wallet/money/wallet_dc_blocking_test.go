@@ -37,7 +37,7 @@ func TestBlockingDcWithNormalBills(t *testing.T) {
 	proofList := createBlockProofJsonResponse(t, bills, nil, 0, dcTimeoutBlockCount, nil)
 	proofList = append(proofList, createBlockProofJsonResponse(t, dcBills, nonce, 0, dcTimeoutBlockCount, k)...)
 
-	w, mockClient := CreateTestWalletWithManager(t, &backendMockReturnConf{
+	w, mockClient := CreateTestWalletWithManager(t, withBackendMock(t, &backendMockReturnConf{
 		balance:        3,
 		customBillList: billsList,
 		proofList:      proofList,
@@ -46,7 +46,7 @@ func TestBlockingDcWithNormalBills(t *testing.T) {
 			Value:   100 * 1e8,
 			TxProof: &block.TxProof{},
 		},
-	}, am)
+	}), am)
 
 	var protoDcBills []*bp.Bill
 	for _, b := range dcBills {
@@ -89,7 +89,7 @@ func TestBlockingDCWithDCBillsBeforeDCTimeout(t *testing.T) {
 	bills := []*Bill{addDcBill(t, k, tempNonce, util.Uint256ToBytes(tempNonce), 1, dcTimeoutBlockCount), addDcBill(t, k, tempNonce, util.Uint256ToBytes(tempNonce), 2, dcTimeoutBlockCount)}
 	billsList := createBillListJsonResponse(bills)
 	proofList := createBlockProofJsonResponse(t, bills, util.Uint256ToBytes(tempNonce), 0, dcTimeoutBlockCount, k)
-	w, mockClient := CreateTestWalletWithManager(t, &backendMockReturnConf{
+	w, mockClient := CreateTestWalletWithManager(t, withBackendMock(t, &backendMockReturnConf{
 		balance:        3,
 		customBillList: billsList,
 		proofList:      proofList,
@@ -98,7 +98,7 @@ func TestBlockingDCWithDCBillsBeforeDCTimeout(t *testing.T) {
 			Value:   100 * 1e8,
 			TxProof: &block.TxProof{},
 		},
-	}, am)
+	}), am)
 	// set specific round number
 	mockClient.SetMaxRoundNumber(roundNr)
 
@@ -138,7 +138,7 @@ func TestBlockingDCWithExistingExpiredDCBills(t *testing.T) {
 	bills := []*Bill{addDcBill(t, k, tempNonce, util.Uint256ToBytes(tempNonce), 1, 0), addDcBill(t, k, tempNonce, util.Uint256ToBytes(tempNonce), 2, 0)}
 	billsList := createBillListJsonResponse(bills)
 	proofList := createBlockProofJsonResponse(t, bills, util.Uint256ToBytes(tempNonce), 0, 0, k)
-	w, mockClient := CreateTestWalletWithManager(t, &backendMockReturnConf{
+	w, mockClient := CreateTestWalletWithManager(t, withBackendMock(t, &backendMockReturnConf{
 		balance:        3,
 		customBillList: billsList,
 		proofList:      proofList,
@@ -147,7 +147,7 @@ func TestBlockingDCWithExistingExpiredDCBills(t *testing.T) {
 			Value:   100 * 1e8,
 			TxProof: &block.TxProof{},
 		},
-	}, am)
+	}), am)
 
 	var protoBills []*bp.Bill
 	for _, b := range bills {
@@ -188,7 +188,7 @@ func TestBlockingDcWaitingForSwapTimesOut(t *testing.T) {
 	proofList := createBlockProofJsonResponse(t, bills, nil, 0, dcTimeoutBlockCount, nil)
 	proofList = append(proofList, createBlockProofJsonResponse(t, dcBills, nonce, 0, dcTimeoutBlockCount, k)...)
 
-	w, mockClient := CreateTestWalletWithManager(t, &backendMockReturnConf{
+	w, mockClient := CreateTestWalletWithManager(t, withBackendMock(t, &backendMockReturnConf{
 		balance:        3,
 		customBillList: billsList,
 		proofList:      proofList,
@@ -197,7 +197,7 @@ func TestBlockingDcWaitingForSwapTimesOut(t *testing.T) {
 			Value:   100 * 1e8,
 			TxProof: &block.TxProof{},
 		},
-	}, am)
+	}), am)
 
 	// when blocking dust collector runs
 	_ = runBlockingDc(t, w)

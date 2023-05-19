@@ -42,7 +42,6 @@ func CreateTransactions(pubKey []byte, amount uint64, systemId []byte, bills []*
 		}
 	}
 	return nil, ErrInsufficientBalance
-
 }
 
 func CreateTransaction(pubKey []byte, k *account.AccountKey, amount uint64, systemId []byte, b *bp.Bill, timeout uint64, fcrID []byte) (*txsystem.Transaction, error) {

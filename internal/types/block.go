@@ -108,3 +108,10 @@ func (b *Block) GetProposerID() string {
 	}
 	return b.Header.ProposerID
 }
+
+func (b *Block) SystemID() SystemID {
+	if b == nil || b.Header == nil {
+		return nil
+	}
+	return b.Header.SystemID
+}

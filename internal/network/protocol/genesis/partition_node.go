@@ -22,7 +22,7 @@ type PartitionNode struct {
 	EncryptionPublicKey       []byte
 	BlockCertificationRequest *certification.BlockCertificationRequest
 	T2Timeout                 uint32
-	Params                    any
+	Params                    []byte
 }
 
 type MoneyPartitionParams struct {

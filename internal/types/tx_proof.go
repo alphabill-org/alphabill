@@ -26,6 +26,7 @@ type (
 		BlockHeaderHash    []byte
 		Chain              []*GenericChainItem
 		UnicityCertificate *UnicityCertificate
+		TransactionRecord  *TransactionRecord
 	}
 
 	GenericChainItem struct {
@@ -69,6 +70,7 @@ func NewTxProof(block *Block, txIndex int, algorithm crypto.Hash) (*TxProof, err
 		BlockHeaderHash:    headerHash,
 		Chain:              items,
 		UnicityCertificate: block.UnicityCertificate,
+		TransactionRecord:  block.Transactions[txIndex],
 	}, nil
 }
 

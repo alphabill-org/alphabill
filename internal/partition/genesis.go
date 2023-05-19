@@ -25,7 +25,7 @@ type (
 		signer                crypto.Signer
 		encryptionPubKeyBytes []byte
 		t2Timeout             uint32
-		params                any
+		params                []byte
 	}
 
 	GenesisOption func(c *genesisConf)
@@ -83,7 +83,7 @@ func WithT2Timeout(t2Timeout uint32) GenesisOption {
 	}
 }
 
-func WithParams(params any) GenesisOption {
+func WithParams(params []byte) GenesisOption {
 	return func(c *genesisConf) {
 		c.params = params
 	}

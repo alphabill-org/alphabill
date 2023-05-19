@@ -57,3 +57,7 @@ func (x *SystemDescriptionRecord) Hash(hashAlgorithm gocrypto.Hash) []byte {
 func (x *SystemDescriptionRecord) GetSystemIdentifierString() string {
 	return string(x.SystemIdentifier)
 }
+
+func (x *SystemDescriptionRecord) GetSystemIdentifier() []byte {
+	return x.SystemIdentifier
+}

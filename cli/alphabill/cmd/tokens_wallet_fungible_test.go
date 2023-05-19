@@ -111,7 +111,7 @@ func TestFungibleToken_InvariantPredicate_Integration(t *testing.T) {
 	//mint
 	execTokensCmd(t, homedirW1, fmt.Sprintf("new fungible -r %s  --type %X --amount %v --mint-input %s,%s", backendUrl, typeID12, 1000, predicatePtpkh, predicatePtpkh))
 	ensureTokenIndexed(t, ctx, backendClient, w1key.PubKey, nil)
-	verifyStdout(t, execTokensCmd(t, homedirW1, fmt.Sprintf("list fungible -r %s", backendUrl)), "amount='1000'")
+	verifyStdout(t, execTokensCmd(t, homedirW1, fmt.Sprintf("list fungible -r %s", backendUrl)), "amount='1'000'")
 	//send to w2
 	execTokensCmd(t, homedirW1, fmt.Sprintf("send fungible -r %s --type %X --amount 100 --address 0x%X -k 1 --inherit-bearer-input %s,%s", backendUrl, typeID12, w2key.PubKey, predicateTrue, predicatePtpkh))
 	ensureTokenIndexed(t, ctx, backendClient, w2key.PubKey, nil)
@@ -289,7 +289,7 @@ func TestFungibleTokens_CollectDust_Integration(t *testing.T) {
 	// DC
 	execTokensCmd(t, homedir, fmt.Sprintf("collect-dust -r %s", backendUrl))
 
-	verifyStdout(t, execTokensCmd(t, homedir, fmt.Sprintf("list fungible -r %s", backendUrl)), fmt.Sprintf("amount='%v'", expectedTotal))
+	verifyStdout(t, execTokensCmd(t, homedir, fmt.Sprintf("list fungible -r %s", backendUrl)), fmt.Sprintf("amount='%v'", insertSeparator(fmt.Sprint(expectedTotal), false)))
 }
 
 type AlphabillNetwork struct {

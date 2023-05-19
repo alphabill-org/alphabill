@@ -61,10 +61,10 @@ func TestWalletBillsListCmd_Multiple(t *testing.T) {
 	stdout, err := execBillsCommand(homedir, "list --alphabill-api-uri "+addr.Host)
 	require.NoError(t, err)
 	verifyStdout(t, stdout, "Account #1")
-	verifyStdout(t, stdout, "#1 0x0000000000000000000000000000000000000000000000000000000000000001 0.00000001")
-	verifyStdout(t, stdout, "#2 0x0000000000000000000000000000000000000000000000000000000000000002 0.00000002")
-	verifyStdout(t, stdout, "#3 0x0000000000000000000000000000000000000000000000000000000000000003 0.00000003")
-	verifyStdout(t, stdout, "#4 0x0000000000000000000000000000000000000000000000000000000000000004 0.00000004")
+	verifyStdout(t, stdout, "#1 0x0000000000000000000000000000000000000000000000000000000000000001 0.000'000'01")
+	verifyStdout(t, stdout, "#2 0x0000000000000000000000000000000000000000000000000000000000000002 0.000'000'02")
+	verifyStdout(t, stdout, "#3 0x0000000000000000000000000000000000000000000000000000000000000003 0.000'000'03")
+	verifyStdout(t, stdout, "#4 0x0000000000000000000000000000000000000000000000000000000000000004 0.000'000'04")
 	require.Len(t, stdout.lines, 5)
 }
 
@@ -124,7 +124,7 @@ func TestWalletBillsListCmd_ShowUnswappedFlag(t *testing.T) {
 
 	stdout, err = execBillsCommand(homedir, "list --alphabill-api-uri "+addr.Host)
 	require.NoError(t, err)
-	verifyStdout(t, stdout, "#1 0x 0.22222222")
+	verifyStdout(t, stdout, "#1 0x 0.222'222'22")
 	mockServer.Close()
 
 	// verify -s flag sends includedcbills=true
@@ -134,7 +134,7 @@ func TestWalletBillsListCmd_ShowUnswappedFlag(t *testing.T) {
 
 	stdout, err = execBillsCommand(homedir, "list --alphabill-api-uri "+addr.Host+" -s")
 	require.NoError(t, err)
-	verifyStdout(t, stdout, "#1 0x 0.33333333")
+	verifyStdout(t, stdout, "#1 0x 0.333'333'33")
 	mockServer.Close()
 }
 

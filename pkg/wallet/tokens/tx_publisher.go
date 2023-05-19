@@ -7,6 +7,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/block"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/pkg/wallet/tokens/client"
+	"github.com/alphabill-org/alphabill/pkg/wallet/txsubmitter"
 )
 
 type (
@@ -33,21 +34,21 @@ func (w *TxPublisher) SendTx(ctx context.Context, tx *txsystem.Transaction, send
 	if err != nil {
 		return nil, err
 	}
-	// TODO txhash should not rely on server metadata
+	// TODO should not rely on server metadata
 	gtx.SetServerMetadata(&txsystem.ServerMetadata{Fee: 1})
-	txSub := &txSubmission{
-		id:     tx.UnitId,
-		tx:     tx,
-		txHash: gtx.Hash(crypto.SHA256),
+	txSub := &txsubmitter.TxSubmission{
+		UnitID:      tx.UnitId,
+		Transaction: tx,
+		TxHash:      gtx.Hash(crypto.SHA256),
 	}
-	txBatch := txSub.toBatch(w.backend, senderPubKey)
-	err = txBatch.sendTx(ctx, true)
+	txBatch := txSub.ToBatch(w.backend, senderPubKey)
+	err = txBatch.SendTx(ctx, true)
 	if err != nil {
 		return nil, err
 	}
 	return &block.TxProof{
 		Tx:          tx,
-		Proof:       txBatch.submissions[0].txProof,
-		BlockNumber: txBatch.submissions[0].txProof.UnicityCertificate.GetRoundNumber(),
+		Proof:       txBatch.Submissions()[0].Proof.Proof,
+		BlockNumber: txBatch.Submissions()[0].Proof.Proof.UnicityCertificate.GetRoundNumber(),
 	}, nil
 }

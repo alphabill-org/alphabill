@@ -51,10 +51,6 @@ type (
 		maxAvailableBlockNumber uint64 // latest non-empty block in a partition shard
 		maxAvailableRoundNumber uint64 // latest round number in a partition shard, greater or equal to maxAvailableBlockNumber
 	}
-
-	BlockProcessor interface {
-		ProcessBlock(b *block.Block) error
-	}
 )
 
 func New() *Builder {

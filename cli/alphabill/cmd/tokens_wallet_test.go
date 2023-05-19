@@ -469,8 +469,8 @@ func startTokensBackend(t *testing.T, nodeAddr string) (srvUri string, restApi *
 	}()
 
 	require.Eventually(t, func() bool {
-		rn, _ := restApi.GetRoundNumber(ctx)
-		return rn > 0
+		rn, err := restApi.GetRoundNumber(ctx)
+		return err == nil && rn > 0
 	}, test.WaitDuration, test.WaitTick)
 
 	return

@@ -7,19 +7,20 @@ import (
 
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
-	"github.com/alphabill-org/alphabill/pkg/wallet/tokens/backend"
+	"github.com/alphabill-org/alphabill/pkg/wallet"
+	"github.com/alphabill-org/alphabill/pkg/wallet/txsubmitter"
 	"github.com/stretchr/testify/require"
 )
 
 func TestConfirmUnitsTx_skip(t *testing.T) {
 	backend := &mockTokenBackend{
-		postTransactions: func(ctx context.Context, pubKey backend.PubKey, txs *txsystem.Transactions) error {
+		postTransactions: func(ctx context.Context, pubKey wallet.PubKey, txs *txsystem.Transactions) error {
 			return nil
 		},
 	}
-	batch := &txSubmissionBatch{backend: backend}
-	batch.add(&txSubmission{tx: &txsystem.Transaction{ClientMetadata: &txsystem.ClientMetadata{Timeout: 1}}})
-	err := batch.sendTx(context.Background(), false)
+	batch := txsubmitter.NewBatch(nil, backend)
+	batch.Add(&txsubmitter.TxSubmission{Transaction: &txsystem.Transaction{ClientMetadata: &txsystem.ClientMetadata{Timeout: 1}}})
+	err := batch.SendTx(context.Background(), false)
 	require.NoError(t, err)
 
 }
@@ -28,21 +29,21 @@ func TestConfirmUnitsTx_ok(t *testing.T) {
 	getRoundNumberCalled := false
 	getTxProofCalled := false
 	backend := &mockTokenBackend{
-		postTransactions: func(ctx context.Context, pubKey backend.PubKey, txs *txsystem.Transactions) error {
+		postTransactions: func(ctx context.Context, pubKey wallet.PubKey, txs *txsystem.Transactions) error {
 			return nil
 		},
 		getRoundNumber: func(ctx context.Context) (uint64, error) {
 			getRoundNumberCalled = true
 			return 100, nil
 		},
-		getTxProof: func(ctx context.Context, unitID backend.UnitID, txHash backend.TxHash) (*backend.Proof, error) {
+		getTxProof: func(ctx context.Context, unitID wallet.UnitID, txHash wallet.TxHash) (*wallet.Proof, error) {
 			getTxProofCalled = true
-			return &backend.Proof{}, nil
+			return &wallet.Proof{}, nil
 		},
 	}
-	batch := &txSubmissionBatch{backend: backend}
-	batch.add(&txSubmission{tx: &txsystem.Transaction{ClientMetadata: &txsystem.ClientMetadata{Timeout: 101}}})
-	err := batch.sendTx(context.Background(), true)
+	batch := txsubmitter.NewBatch(nil, backend)
+	batch.Add(&txsubmitter.TxSubmission{Transaction: &txsystem.Transaction{ClientMetadata: &txsystem.ClientMetadata{Timeout: 101}}})
+	err := batch.SendTx(context.Background(), true)
 	require.NoError(t, err)
 	require.True(t, getRoundNumberCalled)
 	require.True(t, getTxProofCalled)
@@ -53,7 +54,7 @@ func TestConfirmUnitsTx_timeout(t *testing.T) {
 	getTxProofCalled := 0
 	randomID1 := test.RandomBytes(32)
 	backend := &mockTokenBackend{
-		postTransactions: func(ctx context.Context, pubKey backend.PubKey, txs *txsystem.Transactions) error {
+		postTransactions: func(ctx context.Context, pubKey wallet.PubKey, txs *txsystem.Transactions) error {
 			return nil
 		},
 		getRoundNumber: func(ctx context.Context) (uint64, error) {
@@ -63,40 +64,23 @@ func TestConfirmUnitsTx_timeout(t *testing.T) {
 			}
 			return 102, nil
 		},
-		getTxProof: func(ctx context.Context, unitID backend.UnitID, txHash backend.TxHash) (*backend.Proof, error) {
+		getTxProof: func(ctx context.Context, unitID wallet.UnitID, txHash wallet.TxHash) (*wallet.Proof, error) {
 			getTxProofCalled++
 			if bytes.Equal(unitID, randomID1) {
-				return &backend.Proof{}, nil
+				return &wallet.Proof{}, nil
 			}
 			return nil, nil
 		},
 	}
-	batch := &txSubmissionBatch{backend: backend}
-	sub1 := &txSubmission{tx: &txsystem.Transaction{ClientMetadata: &txsystem.ClientMetadata{Timeout: 101}}, id: randomID1}
-	batch.add(sub1)
-	sub2 := &txSubmission{tx: &txsystem.Transaction{ClientMetadata: &txsystem.ClientMetadata{Timeout: 102}}}
-	batch.add(sub2)
-	err := batch.sendTx(context.Background(), true)
+	batch := txsubmitter.NewBatch(nil, backend)
+	sub1 := &txsubmitter.TxSubmission{Transaction: &txsystem.Transaction{ClientMetadata: &txsystem.ClientMetadata{Timeout: 101}}, UnitID: randomID1}
+	batch.Add(sub1)
+	sub2 := &txsubmitter.TxSubmission{Transaction: &txsystem.Transaction{ClientMetadata: &txsystem.ClientMetadata{Timeout: 102}}}
+	batch.Add(sub2)
+	err := batch.SendTx(context.Background(), true)
 	require.ErrorContains(t, err, "confirmation timeout")
 	require.EqualValues(t, 2, getRoundNumberCalled)
 	require.EqualValues(t, 2, getTxProofCalled)
-	require.True(t, sub1.confirmed)
-	require.False(t, sub2.confirmed)
-}
-
-func TestConfirmUnitsTx_canceled(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	cancel()
-	batch := &txSubmissionBatch{}
-	err := batch.confirmUnitsTx(ctx)
-	require.ErrorContains(t, err, "confirming transactions interrupted")
-	require.ErrorIs(t, err, context.Canceled)
-}
-
-func TestConfirmUnitsTx_contextError(t *testing.T) {
-	ctx, cancel := context.WithTimeout(context.Background(), 0)
-	defer cancel()
-	batch := &txSubmissionBatch{}
-	err := batch.confirmUnitsTx(ctx)
-	require.ErrorContains(t, err, "confirming transactions interrupted")
+	require.True(t, sub1.Confirmed())
+	require.False(t, sub2.Confirmed())
 }

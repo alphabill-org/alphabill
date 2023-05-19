@@ -29,7 +29,7 @@ import (
 
 /*
 Example usage
-go run scripts/money/spend_initial_bill.go --pubkey 0x03c30573dc0c7fd43fcb801289a6a96cb78c27f4ba398b89da91ece23e9a99aca3 --alphabill-uri localhost:9543 --bill-id 1 --bill-value 1000000 --timeout 10
+go run scripts/money/spend_initial_bill.go --pubkey 0x03c30573dc0c7fd43fcb801289a6a96cb78c27f4ba398b89da91ece23e9a99aca3 --alphabill-uri localhost:26766 --bill-id 1 --bill-value 1000000000000000000 --timeout 10
 */
 func main() {
 	// parse command line parameters

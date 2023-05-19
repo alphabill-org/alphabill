@@ -215,7 +215,7 @@ func TestWalletCreateFungibleTokenTypeAndTokenAndSendCmd_IntegrationTest(t *test
 	tokenBackendClient := network.tokenBackendClient
 	ctx := network.ctx
 
-	w2, _ := createNewTokenWallet(t, backendUrl) // homedirW2
+	w2, homedirW2 := createNewTokenWallet(t, backendUrl)
 	w2key, err := w2.GetAccountManager().GetAccountKey(0)
 	require.NoError(t, err)
 	w2.Shutdown()
@@ -248,6 +248,10 @@ func TestWalletCreateFungibleTokenTypeAndTokenAndSendCmd_IntegrationTest(t *test
 	require.Eventually(t, testpartition.BlockchainContains(tokensPart, crit(1100)), test.WaitDuration, test.WaitTick)
 	require.Eventually(t, testpartition.BlockchainContains(tokensPart, crit(1110)), test.WaitDuration, test.WaitTick)
 	require.Eventually(t, testpartition.BlockchainContains(tokensPart, crit(1111)), test.WaitDuration, test.WaitTick)
+	// mint tokens from w1 and set the owner to w2
+	execTokensCmd(t, homedir, fmt.Sprintf("new fungible  -r %s --type %X --amount 2.222 --bearer-clause ptpkh:0x%X", backendUrl, typeID, w2key.PubKeyHash.Sha256))
+	require.Eventually(t, testpartition.BlockchainContains(tokensPart, crit(2222)), test.WaitDuration, test.WaitTick)
+	verifyStdout(t, execTokensCmd(t, homedirW2, fmt.Sprintf("list fungible -r %s", backendUrl)), "amount='2.222'")
 
 	// test send fails
 	execTokensCmdWithError(t, homedir, fmt.Sprintf("send fungible -r %s --type %X --amount 2 --address 0x%X -k 1", backendUrl, nonExistingTypeId, w2key.PubKey), fmt.Sprintf("failed to load type with id %X", nonExistingTypeId))
@@ -269,16 +273,23 @@ func TestFungibleTokens_CollectDust_Integration(t *testing.T) {
 	symbol1 := "AB"
 	execTokensCmd(t, homedir, fmt.Sprintf("new-type fungible --symbol %s -r %s --type %X --decimals 0", symbol1, backendUrl, typeID1))
 	verifyStdout(t, execTokensCmd(t, homedir, fmt.Sprintf("list-types fungible -r %s", backendUrl)), "symbol=AB (fungible)")
-	// mint tokens
-	execTokensCmd(t, homedir, fmt.Sprintf("new fungible -r %s --type %X --amount 300", backendUrl, typeID1))
-	execTokensCmd(t, homedir, fmt.Sprintf("new fungible -r %s --type %X --amount 700", backendUrl, typeID1))
-	execTokensCmd(t, homedir, fmt.Sprintf("new fungible -r %s --type %X --amount 1000", backendUrl, typeID1))
+	// mint tokens (without confirming, for speed)
+	mintIterations := 110
+	expectedAmounts := make([]string, 0, mintIterations)
+	expectedTotal := 0
+	for i := 1; i <= mintIterations; i++ {
+		execTokensCmd(t, homedir, fmt.Sprintf("new fungible -r %s --type %X --amount %v -w false", backendUrl, typeID1, i))
+		expectedAmounts = append(expectedAmounts, fmt.Sprintf("amount='%v'", i))
+		expectedTotal += i
+	}
 	//check w1
-	verifyStdout(t, execTokensCmd(t, homedir, fmt.Sprintf("list fungible -r %s", backendUrl)), "amount='300'", "amount='700'", "amount='1'000'")
+	verifyStdoutEventually(t, func() *testConsoleWriter {
+		return execTokensCmd(t, homedir, fmt.Sprintf("list fungible -r %s", backendUrl))
+	}, expectedAmounts...)
 	// DC
 	execTokensCmd(t, homedir, fmt.Sprintf("collect-dust -r %s", backendUrl))
 
-	verifyStdout(t, execTokensCmd(t, homedir, fmt.Sprintf("list fungible -r %s", backendUrl)), "amount='2'000'")
+	verifyStdout(t, execTokensCmd(t, homedir, fmt.Sprintf("list fungible -r %s", backendUrl)), fmt.Sprintf("amount='%v'", expectedTotal))
 }
 
 type AlphabillNetwork struct {
@@ -291,6 +302,7 @@ type AlphabillNetwork struct {
 
 	walletHomedir string
 	walletKey1    *account.AccountKey
+	walletKey2    *account.AccountKey
 	ctx           context.Context
 }
 
@@ -335,16 +347,19 @@ func NewAlphabillNetwork(t *testing.T) *AlphabillNetwork {
 	require.NotNil(t, w1)
 	t.Cleanup(w1.Shutdown)
 	w1key, err := w1.GetAccountManager().GetAccountKey(0)
+	_, _, err = am.AddAccount()
+	require.NoError(t, err)
+	w1key2, err := w1.GetAccountManager().GetAccountKey(1)
 
 	spendInitialBillWithFeeCredits(t, abNet, initialBill, hexutil.Encode(w1key.PubKey))
 	time.Sleep(2 * time.Second) // TODO dynamic sleep
 
 	// create fees on money partition
-	_, err = moneyWallet.AddFeeCredit(ctx, fees.AddFeeCmd{Amount: 100})
+	_, err = moneyWallet.AddFeeCredit(ctx, fees.AddFeeCmd{Amount: 1000})
 	require.NoError(t, err)
 
 	// create fees on token partition
-	_, err = w1.AddFeeCredit(ctx, fees.AddFeeCmd{Amount: 100})
+	_, err = w1.AddFeeCredit(ctx, fees.AddFeeCmd{Amount: 1000})
 	require.NoError(t, err)
 	w1.Shutdown()
 
@@ -356,6 +371,7 @@ func NewAlphabillNetwork(t *testing.T) *AlphabillNetwork {
 		tokenBackendURL:    tokenBackendURL,
 		walletHomedir:      homedirW1,
 		walletKey1:         w1key,
+		walletKey2:         w1key2,
 		ctx:                ctx,
 	}
 }

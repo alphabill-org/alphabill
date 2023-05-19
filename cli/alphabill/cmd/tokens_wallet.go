@@ -802,20 +802,20 @@ func tokenCmdListTypes(config *walletConfig, runner runTokenListTypesCmd) *cobra
 	cmd.PersistentFlags().String(passwordArgCmdName, "", passwordArgUsage)
 	cmd.PersistentFlags().Uint64VarP(&accountNumber, keyCmdName, "k", 0, "show types created from a specific key, 0 for all keys")
 	// add optional sub-commands to filter fungible and non-fungible types
-	cmd.AddCommand(addCommonAccountFlags(&cobra.Command{
+	cmd.AddCommand(&cobra.Command{
 		Use:   "fungible",
 		Short: "lists fungible types",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runner(cmd, config, &accountNumber, backend.Fungible)
 		},
-	}))
-	cmd.AddCommand(addCommonAccountFlags(&cobra.Command{
+	})
+	cmd.AddCommand(&cobra.Command{
 		Use:   "non-fungible",
 		Short: "lists non-fungible types",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runner(cmd, config, &accountNumber, backend.NonFungible)
 		},
-	}))
+	})
 	return cmd
 }
 

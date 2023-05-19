@@ -225,6 +225,10 @@ func (s *storage) QueryTokens(kind Kind, owner wallet.Predicate, startKey TokenI
 				if err != nil {
 					return err
 				}
+				if item.Burned {
+					// burned tokens are not owned by anyone, thus skipped
+					continue
+				}
 				rsp = append(rsp, item)
 				if count--; count == 0 {
 					next, _ = obc.Next()

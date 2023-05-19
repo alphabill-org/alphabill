@@ -140,12 +140,14 @@ func addInitialFeeCredits(records []*genesis.SystemDescriptionRecord, initialBil
 		if bytes.Equal(feeCreditBill.UnitId, util.Uint256ToBytes(dustCollectorMoneySupplyID)) || bytes.Equal(feeCreditBill.UnitId, util.Uint256ToBytes(initialBillID)) {
 			return ErrInvalidFeeCreditBillID
 		}
-		return state.AtomicUpdate(rma.AddItem(uint256.NewInt(0).SetBytes(feeCreditBill.UnitId), feeCreditBill.OwnerPredicate, &BillData{
+		err := state.AtomicUpdate(rma.AddItem(uint256.NewInt(0).SetBytes(feeCreditBill.UnitId), feeCreditBill.OwnerPredicate, &BillData{
 			V:        0,
 			T:        0,
 			Backlink: nil,
 		}, nil))
-
+		if err != nil {
+			return err
+		}
 	}
 	return nil
 }

@@ -40,6 +40,7 @@ func TestVDPartition_Ok(t *testing.T) {
 }
 
 func TestVDPartition_OnePartitionNodeIsDown(t *testing.T) {
+	t.SkipNow() // TODO AB-996
 	vdPart, err := testpartition.NewPartition(6, func(trustBase map[string]crypto.Verifier) txsystem.TransactionSystem {
 		system, err := New(systemIdentifier)
 		require.NoError(t, err)

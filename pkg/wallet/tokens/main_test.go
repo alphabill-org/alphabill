@@ -1,6 +1,7 @@
 package tokens
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"net/http"
@@ -130,8 +131,13 @@ func Test_ListTokens_offset(t *testing.T) {
 }
 
 func Test_ListTokenTypes(t *testing.T) {
+	var firstPubKey *wallet.PubKey
 	be := &mockTokenBackend{
-		getTokenTypes: func(ctx context.Context, kind backend.Kind, _ wallet.PubKey, _ string, _ int) ([]backend.TokenUnitType, string, error) {
+		getTokenTypes: func(ctx context.Context, kind backend.Kind, pubKey wallet.PubKey, _ string, _ int) ([]backend.TokenUnitType, string, error) {
+			if !bytes.Equal(pubKey, *firstPubKey) {
+				return []backend.TokenUnitType{}, "", nil
+			}
+
 			fungible := []backend.TokenUnitType{
 				{
 					ID:   test.RandomBytes(32),
@@ -165,17 +171,30 @@ func Test_ListTokenTypes(t *testing.T) {
 	}
 
 	tw := initTestWallet(t, be)
-	types, err := tw.ListTokenTypes(context.Background(), backend.Any)
+	key, err := tw.GetAccountManager().GetPublicKey(0)
+	require.NoError(t, err)
+	firstPubKey = (*wallet.PubKey)(&key)
+
+	types, err := tw.ListTokenTypes(context.Background(), 0, backend.Any)
 	require.NoError(t, err)
 	require.Len(t, types, 4)
 
-	types, err = tw.ListTokenTypes(context.Background(), backend.Fungible)
+	types, err = tw.ListTokenTypes(context.Background(), 0, backend.Fungible)
 	require.NoError(t, err)
 	require.Len(t, types, 2)
 
-	types, err = tw.ListTokenTypes(context.Background(), backend.NonFungible)
+	types, err = tw.ListTokenTypes(context.Background(), 0, backend.NonFungible)
 	require.NoError(t, err)
 	require.Len(t, types, 2)
+
+	_, err = tw.ListTokenTypes(context.Background(), 2, backend.NonFungible)
+	require.ErrorContains(t, err, "account does not exist")
+
+	_, _, err = tw.am.AddAccount()
+	require.NoError(t, err)
+
+	types, err = tw.ListTokenTypes(context.Background(), 2, backend.Any)
+	require.Len(t, types, 0)
 }
 
 func Test_ListTokenTypes_offset(t *testing.T) {
@@ -213,7 +232,7 @@ func Test_ListTokenTypes_offset(t *testing.T) {
 	}
 
 	tw := initTestWallet(t, be)
-	types, err := tw.ListTokenTypes(context.Background(), backend.Any)
+	types, err := tw.ListTokenTypes(context.Background(), 0, backend.Any)
 	require.NoError(t, err)
 	require.Len(t, types, len(allTypes))
 	dereferencedTypes := make([]backend.TokenUnitType, len(types))

@@ -147,8 +147,8 @@ func (w *Wallet) NewNFT(ctx context.Context, accNr uint64, attrs MintNonFungible
 	return w.newToken(ctx, accNr, attrs.toProtobuf(), tokenId, mintPredicateArgs)
 }
 
-func (w *Wallet) ListTokenTypes(ctx context.Context, kind backend.Kind) ([]*backend.TokenUnitType, error) {
-	pubKeys, err := w.am.GetPublicKeys()
+func (w *Wallet) ListTokenTypes(ctx context.Context, accountNumber uint64, kind backend.Kind) ([]*backend.TokenUnitType, error) {
+	keys, err := w.getAccounts(accountNumber)
 	if err != nil {
 		return nil, err
 	}
@@ -173,8 +173,8 @@ func (w *Wallet) ListTokenTypes(ctx context.Context, kind backend.Kind) ([]*back
 		return allTokenTypesForKey, nil
 	}
 
-	for _, pubKey := range pubKeys {
-		types, err := fetchForPubKey(pubKey)
+	for _, key := range keys {
+		types, err := fetchForPubKey(key.PubKey)
 		if err != nil {
 			return nil, err
 		}

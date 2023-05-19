@@ -53,7 +53,7 @@ const (
 
 var NoParent = []byte{0x00}
 
-type runTokenListTypesCmd func(cmd *cobra.Command, config *walletConfig, kind backend.Kind) error
+type runTokenListTypesCmd func(cmd *cobra.Command, config *walletConfig, accountNumber *uint64, kind backend.Kind) error
 type runTokenListCmd func(cmd *cobra.Command, config *walletConfig, kind backend.Kind, accountNumber *uint64) error
 
 func tokenCmd(config *walletConfig) *cobra.Command {
@@ -789,42 +789,44 @@ func execTokenCmdList(cmd *cobra.Command, config *walletConfig, kind backend.Kin
 }
 
 func tokenCmdListTypes(config *walletConfig, runner runTokenListTypesCmd) *cobra.Command {
+	var accountNumber uint64
 	cmd := &cobra.Command{
 		Use:   "list-types",
 		Short: "lists token types",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runner(cmd, config, backend.Any)
+			return runner(cmd, config, &accountNumber, backend.Any)
 		},
 	}
 	// add password flags as persistent
 	cmd.PersistentFlags().BoolP(passwordPromptCmdName, "p", false, passwordPromptUsage)
 	cmd.PersistentFlags().String(passwordArgCmdName, "", passwordArgUsage)
+	cmd.PersistentFlags().Uint64VarP(&accountNumber, keyCmdName, "k", 0, "show types created from a specific key, 0 for all keys")
 	// add optional sub-commands to filter fungible and non-fungible types
-	cmd.AddCommand(&cobra.Command{
+	cmd.AddCommand(addCommonAccountFlags(&cobra.Command{
 		Use:   "fungible",
 		Short: "lists fungible types",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runner(cmd, config, backend.Fungible)
+			return runner(cmd, config, &accountNumber, backend.Fungible)
 		},
-	})
-	cmd.AddCommand(&cobra.Command{
+	}))
+	cmd.AddCommand(addCommonAccountFlags(&cobra.Command{
 		Use:   "non-fungible",
 		Short: "lists non-fungible types",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runner(cmd, config, backend.NonFungible)
+			return runner(cmd, config, &accountNumber, backend.NonFungible)
 		},
-	})
+	}))
 	return cmd
 }
 
-func execTokenCmdListTypes(cmd *cobra.Command, config *walletConfig, kind backend.Kind) error {
+func execTokenCmdListTypes(cmd *cobra.Command, config *walletConfig, accountNumber *uint64, kind backend.Kind) error {
 	tw, err := initTokensWallet(cmd, config)
 	if err != nil {
 		return err
 	}
 	defer tw.Shutdown()
 
-	res, err := tw.ListTokenTypes(cmd.Context(), kind)
+	res, err := tw.ListTokenTypes(cmd.Context(), *accountNumber, kind)
 	if err != nil {
 		return err
 	}

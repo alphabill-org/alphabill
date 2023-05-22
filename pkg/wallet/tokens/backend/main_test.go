@@ -1,4 +1,4 @@
-package twb
+package backend
 
 import (
 	"bytes"
@@ -12,11 +12,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/alphabill-org/alphabill/internal/types"
-
-	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
-
 	"github.com/alphabill-org/alphabill/internal/block"
+	"github.com/alphabill-org/alphabill/internal/certificates"
+	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/hash"
 	"github.com/alphabill-org/alphabill/internal/rpc/alphabill"
 	"github.com/alphabill-org/alphabill/internal/script"
@@ -146,6 +144,16 @@ func Test_Run_API(t *testing.T) {
 	syncing := make(chan *txsystem.Transaction, 1)
 	boltStore, err := newBoltStore(filepath.Join(t.TempDir(), "tokens.db"))
 	require.NoError(t, err)
+
+	// add fee credit for user
+	err = boltStore.SetFeeCreditBill(&FeeCreditBill{
+		Id:            util.Uint64ToBytes32(1),
+		Value:         10000000,
+		TxHash:        []byte{1},
+		FCBlockNumber: 1,
+	}, nil)
+	require.NoError(t, err)
+
 	// only AB backend is mocked, rest is "real"
 	cfg := &mockCfg{
 		log: logger,
@@ -166,7 +174,7 @@ func Test_Run_API(t *testing.T) {
 						Blocks: []*block.Block{{
 							SystemIdentifier:   tx.SystemId,
 							Transactions:       []*txsystem.Transaction{tx},
-							UnicityCertificate: &types.UnicityCertificate{InputRecord: &types.InputRecord{RoundNumber: rn}},
+							UnicityCertificate: &certificates.UnicityCertificate{InputRecord: &certificates.InputRecord{RoundNumber: rn}},
 						}},
 					}, nil
 				default:

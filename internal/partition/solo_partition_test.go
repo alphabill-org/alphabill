@@ -25,7 +25,6 @@ import (
 	testnetwork "github.com/alphabill-org/alphabill/internal/testutils/network"
 	testevent "github.com/alphabill-org/alphabill/internal/testutils/partition/event"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
-	"github.com/alphabill-org/alphabill/internal/timer"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/internal/util"
@@ -291,7 +290,7 @@ func (sn *SingleNodePartition) IssueBlockUC(t *testing.T) *types.UnicityCertific
 
 func (sn *SingleNodePartition) SubmitT1Timeout(t *testing.T) {
 	sn.eh.Reset()
-	sn.partition.timers.C <- &timer.Task{}
+	sn.partition.handleT1TimeoutEvent()
 	require.Eventually(t, func() bool {
 		return len(sn.mockNet.SentMessages(network.ProtocolBlockCertification)) == 1
 	}, test.WaitDuration, test.WaitTick, "block certification request not found")

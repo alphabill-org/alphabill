@@ -79,7 +79,8 @@ func getFeeProof(ctx *txsystem.TxValidationContext) []byte {
 func getFeeCreditRecordUnit(clientMD *types.ClientMetadata, state *rma.Tree) *rma.Unit {
 	var fcr *rma.Unit
 	if len(clientMD.FeeCreditRecordID) > 0 {
-		fcr, _ = state.GetUnit(uint256.NewInt(0).SetBytes(clientMD.FeeCreditRecordID))
+		fcrID := uint256.NewInt(0).SetBytes(clientMD.FeeCreditRecordID)
+		fcr, _ = state.GetUnit(fcrID)
 	}
 	return fcr
 }

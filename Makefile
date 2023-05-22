@@ -27,7 +27,7 @@ tools:
 	go install github.com/swaggo/swag/cmd/swag@latest
 
 swagger:
-	swag init --dir pkg/wallet/backend/money,internal/block,internal/txsystem --generalInfo server.go --parseInternal --parseDepth 1 --parseDependency --output pkg/wallet/backend/money/docs
+	swag init --dir pkg/wallet/money/backend,internal/block,internal/txsystem --parseInternal --parseDepth 1 --parseDependency --output pkg/wallet/money/backend/docs
 
 .PHONY: \
 	all \

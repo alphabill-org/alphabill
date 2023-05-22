@@ -38,8 +38,9 @@ func handleSplitTx(state *rma.Tree, hashAlgorithm crypto.Hash, feeCalc fc.FeeCal
 		h := tx.Hash(hashAlgorithm)
 
 		// update state
+		fcrID := util.BytesToUint256(tx.GetClientFeeCreditRecordID())
 		if err := state.AtomicUpdate(
-			fc.DecrCredit(util.BytesToUint256(tx.Payload.ClientMetadata.FeeCreditRecordID), fee, h),
+			fc.DecrCredit(fcrID, fee, h),
 			rma.UpdateData(unitID,
 				func(data rma.UnitData) (newData rma.UnitData) {
 					bd, ok := data.(*BillData)

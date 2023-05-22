@@ -8,8 +8,8 @@ import (
 	"github.com/alphabill-org/alphabill/internal/errors"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/pkg/wallet/backend/bp"
-	backendmoney "github.com/alphabill-org/alphabill/pkg/wallet/backend/money"
-	moneyclient "github.com/alphabill-org/alphabill/pkg/wallet/backend/money/client"
+	"github.com/alphabill-org/alphabill/pkg/wallet/money/backend"
+	"github.com/alphabill-org/alphabill/pkg/wallet/money/backend/client"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/spf13/cobra"
 )
@@ -57,7 +57,7 @@ func execListCmd(cmd *cobra.Command, config *walletConfig) error {
 	if err != nil {
 		return err
 	}
-	restClient, err := moneyclient.NewClient(uri)
+	restClient, err := client.New(uri)
 	if err != nil {
 		return err
 	}
@@ -78,7 +78,7 @@ func execListCmd(cmd *cobra.Command, config *walletConfig) error {
 
 	type accountBillGroup struct {
 		accountIndex uint64
-		bills        *backendmoney.ListBillsResponse
+		bills        *backend.ListBillsResponse
 	}
 	var accountBillGroups []*accountBillGroup
 	if accountNumber == 0 {
@@ -142,7 +142,7 @@ func execExportCmd(cmd *cobra.Command, config *walletConfig) error {
 	if err != nil {
 		return err
 	}
-	restClient, err := moneyclient.NewClient(uri)
+	restClient, err := client.New(uri)
 	if err != nil {
 		return err
 	}

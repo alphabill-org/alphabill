@@ -368,6 +368,8 @@ func TestExecuteCreateNFTType_InvalidTxType(t *testing.T) {
 		testtransaction.WithUnitId(util.Uint256ToBytes(unitIdentifier)),
 		testtransaction.WithSystemID(DefaultTokenTxSystemIdentifier),
 		testtransaction.WithAttributes(&CreateNonFungibleTokenTypeAttributes{}),
+		testtransaction.WithClientMetadata(defaultClientMetadata),
+		testtransaction.WithFeeProof(script.PredicateArgumentEmpty()),
 	)
 	_, err := txs.Execute(tx)
 	require.ErrorContains(t, err, "unknown transaction type")
@@ -418,10 +420,12 @@ func TestExecuteCreateNFTType_InvalidNameLength(t *testing.T) {
 		testtransaction.WithPayloadType(PayloadTypeCreateNFTType),
 		testtransaction.WithUnitId(util.Uint256ToBytes(unitIdentifier)),
 		testtransaction.WithSystemID(DefaultTokenTxSystemIdentifier),
+		testtransaction.WithClientMetadata(defaultClientMetadata),
 		testtransaction.WithAttributes(&CreateNonFungibleTokenTypeAttributes{
 			Symbol: symbol,
 			Name:   n,
 		}),
+		testtransaction.WithFeeProof(script.PredicateArgumentEmpty()),
 	)
 	_, err := txs.Execute(tx)
 	require.ErrorContains(t, err, ErrStrInvalidNameLength)
@@ -434,10 +438,12 @@ func TestExecuteCreateNFTType_InvalidIconTypeLength(t *testing.T) {
 		testtransaction.WithPayloadType(PayloadTypeCreateNFTType),
 		testtransaction.WithUnitId(util.Uint256ToBytes(unitIdentifier)),
 		testtransaction.WithSystemID(DefaultTokenTxSystemIdentifier),
+		testtransaction.WithClientMetadata(defaultClientMetadata),
 		testtransaction.WithAttributes(&CreateNonFungibleTokenTypeAttributes{
 			Symbol: symbol,
 			Icon:   &Icon{Type: invalidIconType, Data: []byte{1, 2, 3}},
 		}),
+		testtransaction.WithFeeProof(script.PredicateArgumentEmpty()),
 	)
 	_, err := txs.Execute(tx)
 	require.ErrorContains(t, err, ErrStrInvalidIconTypeLength)
@@ -450,10 +456,12 @@ func TestExecuteCreateNFTType_InvalidIconDataLength(t *testing.T) {
 		testtransaction.WithPayloadType(PayloadTypeCreateNFTType),
 		testtransaction.WithUnitId(util.Uint256ToBytes(unitIdentifier)),
 		testtransaction.WithSystemID(DefaultTokenTxSystemIdentifier),
+		testtransaction.WithClientMetadata(defaultClientMetadata),
 		testtransaction.WithAttributes(&CreateNonFungibleTokenTypeAttributes{
 			Symbol: symbol,
 			Icon:   &Icon{Type: validIconType, Data: test.RandomBytes(maxIconDataLength + 1)},
 		}),
+		testtransaction.WithFeeProof(script.PredicateArgumentEmpty()),
 	)
 	_, err := txs.Execute(tx)
 	require.ErrorContains(t, err, ErrStrInvalidIconDataLength)
@@ -618,9 +626,11 @@ func TestMintNFT_URILengthIsInvalid(t *testing.T) {
 		testtransaction.WithPayloadType(PayloadTypeMintNFT),
 		testtransaction.WithUnitId(unitID),
 		testtransaction.WithSystemID(DefaultTokenTxSystemIdentifier),
+		testtransaction.WithClientMetadata(defaultClientMetadata),
 		testtransaction.WithAttributes(&MintNonFungibleTokenAttributes{
 			URI: test.RandomString(4097),
 		}),
+		testtransaction.WithFeeProof(script.PredicateArgumentEmpty()),
 	)
 	_, err := txs.Execute(tx)
 	require.ErrorContains(t, err, "URI exceeds the maximum allowed size of 4096 KB")
@@ -1224,7 +1234,6 @@ func newTokenTxSystem(t *testing.T) *txsystem.GenericTxSystem {
 	txs, err := New(
 		WithTrustBase(map[string]crypto.Verifier{"test": verifier}),
 		WithState(state),
-		WithFeeCalculator(fc.FixedFee(0)), // 0 to disable fee module
 	)
 	require.NoError(t, err)
 	return txs

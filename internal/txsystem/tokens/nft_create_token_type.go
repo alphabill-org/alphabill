@@ -24,20 +24,11 @@ func handleCreateNoneFungibleTokenTx(options *Options) txsystem.GenericExecuteFu
 		h := tx.Hash(options.hashAlgorithm)
 
 		// update state
-		// disable fee handling if fee is calculated to 0 (used to temporarily disable fee handling, can be removed after all wallets are updated)
-		var fcFunc rma.Action
-		if options.feeCalculator() == 0 {
-			fcFunc = func(tree *rma.Tree) error {
-				return nil
-			}
-		} else {
-			fcrID := tx.GetClientFeeCreditRecordID()
-			fcFunc = fc.DecrCredit(util.BytesToUint256(fcrID), fee, h)
-		}
-
+		fcrID := util.BytesToUint256(tx.GetClientFeeCreditRecordID())
+		unitID := util.BytesToUint256(tx.UnitID())
 		if err := options.state.AtomicUpdate(
-			fcFunc,
-			rma.AddItem(util.BytesToUint256(tx.UnitID()), script.PredicateAlwaysTrue(), newNonFungibleTokenTypeData(attr), h)); err != nil {
+			fc.DecrCredit(fcrID, fee, h),
+			rma.AddItem(unitID, script.PredicateAlwaysTrue(), newNonFungibleTokenTypeData(attr), h)); err != nil {
 			return nil, err
 		}
 		return &types.ServerMetadata{ActualFee: fee}, nil

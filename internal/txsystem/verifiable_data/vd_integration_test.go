@@ -15,20 +15,25 @@ import (
 var systemIdentifier = []byte{0, 0, 0, 1}
 
 func TestVDPartition_Ok(t *testing.T) {
-	network, err := testpartition.NewNetwork(3, func(trustBase map[string]crypto.Verifier) txsystem.TransactionSystem {
+	vdPart, err := testpartition.NewPartition(3, func(trustBase map[string]crypto.Verifier) txsystem.TransactionSystem {
 		system, err := New(systemIdentifier)
 		require.NoError(t, err)
 		return system
 	}, systemIdentifier)
 	require.NoError(t, err)
-
+	abNet, err := testpartition.NewAlphabillPartition([]*testpartition.NodePartition{vdPart})
+	require.NoError(t, err)
+	require.NoError(t, abNet.Start())
+	t.Cleanup(func() { abNet.Close() })
 	tx := createVDTransaction()
-	require.NoError(t, network.SubmitTx(tx))
-	require.Eventually(t, testpartition.BlockchainContainsTx(tx, network), test.WaitDuration, test.WaitTick)
+	err = vdPart.SubmitTx(tx)
+	require.NoError(t, err)
+	require.Eventually(t, testpartition.BlockchainContainsTx(vdPart, tx), test.WaitDuration, test.WaitTick)
 
 	tx = createVDTransaction()
-	require.NoError(t, network.SubmitTx(tx))
-	require.Eventually(t, testpartition.BlockchainContainsTx(tx, network), test.WaitDuration, test.WaitTick)
+	err = vdPart.SubmitTx(tx)
+	require.NoError(t, err)
+	require.Eventually(t, testpartition.BlockchainContainsTx(vdPart, tx), test.WaitDuration, test.WaitTick)
 }
 
 func createVDTransaction() *types.TransactionOrder {

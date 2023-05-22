@@ -24,7 +24,7 @@ import (
 	moneytx "github.com/alphabill-org/alphabill/internal/txsystem/money"
 	utiltx "github.com/alphabill-org/alphabill/internal/txsystem/util"
 	"github.com/alphabill-org/alphabill/internal/util"
-	"github.com/alphabill-org/alphabill/pkg/wallet/backend/money/client"
+	"github.com/alphabill-org/alphabill/pkg/wallet/money/backend/client"
 )
 
 func TestWalletBillsListCmd_EmptyWallet(t *testing.T) {
@@ -61,10 +61,10 @@ func TestWalletBillsListCmd_Multiple(t *testing.T) {
 	stdout, err := execBillsCommand(homedir, "list --alphabill-api-uri "+addr.Host)
 	require.NoError(t, err)
 	verifyStdout(t, stdout, "Account #1")
-	verifyStdout(t, stdout, "#1 0x0000000000000000000000000000000000000000000000000000000000000001 0.00000001")
-	verifyStdout(t, stdout, "#2 0x0000000000000000000000000000000000000000000000000000000000000002 0.00000002")
-	verifyStdout(t, stdout, "#3 0x0000000000000000000000000000000000000000000000000000000000000003 0.00000003")
-	verifyStdout(t, stdout, "#4 0x0000000000000000000000000000000000000000000000000000000000000004 0.00000004")
+	verifyStdout(t, stdout, "#1 0x0000000000000000000000000000000000000000000000000000000000000001 0.000'000'01")
+	verifyStdout(t, stdout, "#2 0x0000000000000000000000000000000000000000000000000000000000000002 0.000'000'02")
+	verifyStdout(t, stdout, "#3 0x0000000000000000000000000000000000000000000000000000000000000003 0.000'000'03")
+	verifyStdout(t, stdout, "#4 0x0000000000000000000000000000000000000000000000000000000000000004 0.000'000'04")
 	require.Len(t, stdout.lines, 5)
 }
 
@@ -124,7 +124,7 @@ func TestWalletBillsListCmd_ShowUnswappedFlag(t *testing.T) {
 
 	stdout, err = execBillsCommand(homedir, "list --alphabill-api-uri "+addr.Host)
 	require.NoError(t, err)
-	verifyStdout(t, stdout, "#1 0x 0.22222222")
+	verifyStdout(t, stdout, "#1 0x 0.222'222'22")
 	mockServer.Close()
 
 	// verify -s flag sends includedcbills=true
@@ -134,7 +134,7 @@ func TestWalletBillsListCmd_ShowUnswappedFlag(t *testing.T) {
 
 	stdout, err = execBillsCommand(homedir, "list --alphabill-api-uri "+addr.Host+" -s")
 	require.NoError(t, err)
-	verifyStdout(t, stdout, "#1 0x 0.33333333")
+	verifyStdout(t, stdout, "#1 0x 0.333'333'33")
 	mockServer.Close()
 }
 
@@ -211,7 +211,7 @@ func TestWalletBillsExportCmd_ShowUnswappedFlag(t *testing.T) {
 	mockServer.Close()
 }
 
-func spendInitialBillWithFeeCredits(t *testing.T, network *testpartition.AlphabillPartition, initialBill *moneytx.InitialBill, pubkey string) uint64 {
+func spendInitialBillWithFeeCredits(t *testing.T, abNet *testpartition.AlphabillNetwork, initialBill *moneytx.InitialBill, pubkey string) uint64 {
 	pubkeyBytes, _ := hexutil.Decode(pubkey)
 	pubkeyHash := hash.Sum256(pubkeyBytes)
 	absoluteTimeout := uint64(10000)
@@ -220,28 +220,29 @@ func spendInitialBillWithFeeCredits(t *testing.T, network *testpartition.Alphabi
 	feeAmount := uint64(2)
 	fcrID := utiltx.SameShardIDBytes(initialBill.ID, pubkeyHash)
 	unitID := util.Uint256ToBytes(initialBill.ID)
-
+	money, err := abNet.GetNodePartition(defaultABMoneySystemIdentifier)
+	require.NoError(t, err)
 	// create transferFC
 	transferFC, err := createTransferFC(feeAmount, unitID, fcrID, 0, absoluteTimeout)
 	require.NoError(t, err)
 	// send transferFC
-	err = network.SubmitTx(transferFC)
+	err = money.SubmitTx(transferFC)
 	require.NoError(t, err)
-	require.Eventually(t, testpartition.BlockchainContainsTx(transferFC, network), test.WaitDuration, test.WaitTick)
-	transferFCProof := getBlockProof(t, transferFC, network)
+	require.Eventually(t, testpartition.BlockchainContainsTx(money, transferFC), test.WaitDuration, test.WaitTick)
+	transferFCProof := getBlockProof(t, transferFC, money)
 
 	// verify proof
 	gtx, err := moneytx.NewMoneyTx([]byte{0, 0, 0, 0}, transferFC)
 	require.NoError(t, err)
-	require.NoError(t, transferFCProof.Verify(unitID, gtx, network.TrustBase, crypto.SHA256))
+	require.NoError(t, transferFCProof.Verify(unitID, gtx, abNet.RootPartition.TrustBase, crypto.SHA256))
 
 	// create addFC
 	addFC, err := createAddFC(fcrID, script.PredicateAlwaysTrue(), transferFC, transferFCProof, absoluteTimeout, feeAmount)
 	require.NoError(t, err)
 	// send addFC
-	err = network.SubmitTx(addFC)
+	err = money.SubmitTx(addFC)
 	require.NoError(t, err)
-	require.Eventually(t, testpartition.BlockchainContainsTx(addFC, network), test.WaitDuration, test.WaitTick)
+	require.Eventually(t, testpartition.BlockchainContainsTx(money, addFC), test.WaitDuration, test.WaitTick)
 
 	// create transfer tx
 	transferFCWrapper, err := transactions.NewFeeCreditTx(transferFC)
@@ -251,9 +252,9 @@ func spendInitialBillWithFeeCredits(t *testing.T, network *testpartition.Alphabi
 	require.NoError(t, err)
 
 	// send transfer tx
-	err = network.SubmitTx(tx)
+	err = money.SubmitTx(tx)
 	require.NoError(t, err)
-	require.Eventually(t, testpartition.BlockchainContainsTx(tx, network), test.WaitDuration, test.WaitTick)
+	require.Eventually(t, testpartition.BlockchainContainsTx(money, tx), test.WaitDuration, test.WaitTick)
 
 	return remainingValue
 }
@@ -327,12 +328,12 @@ func createAddFC(unitID []byte, ownerCondition []byte, transferFC *txsystem.Tran
 	return tx, nil
 }
 
-func getBlockProof(t *testing.T, tx *txsystem.Transaction, network *testpartition.AlphabillPartition) *block.BlockProof {
+func getBlockProof(t *testing.T, tx *txsystem.Transaction, partition *testpartition.NodePartition) *block.BlockProof {
 	// create adapter for conversion interface
 	txConverter := func(tx *txsystem.Transaction) (txsystem.GenericTransaction, error) {
 		return moneytx.NewMoneyTx([]byte{0, 0, 0, 0}, tx)
 	}
-	_, ttt, err := network.GetBlockProof(tx, txConverter)
+	_, ttt, err := partition.GetBlockProof(tx, txConverter)
 	require.NoError(t, err)
 	return ttt
 }

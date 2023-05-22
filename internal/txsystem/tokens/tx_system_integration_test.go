@@ -20,15 +20,24 @@ import (
 )
 
 var feeCreditID = uint256.NewInt(420)
+var defaultClientMetadata = &types.ClientMetadata{
+	Timeout:           20,
+	MaxTransactionFee: 10,
+	FeeCreditRecordID: util.Uint256ToBytes(feeCreditID),
+}
 
 func TestInitPartitionAndCreateNFTType_Ok(t *testing.T) {
-	network, err := testpartition.NewNetwork(3, func(trustBase map[string]crypto.Verifier) txsystem.TransactionSystem {
+	tokenPrt, err := testpartition.NewPartition(3, func(trustBase map[string]crypto.Verifier) txsystem.TransactionSystem {
 		system, err := New(WithTrustBase(trustBase), WithState(newStateWithFeeCredit(t, feeCreditID)))
 		require.NoError(t, err)
 		return system
 	}, DefaultTokenTxSystemIdentifier)
 	require.NoError(t, err)
-	require.NotNil(t, network)
+	abNet, err := testpartition.NewAlphabillPartition([]*testpartition.NodePartition{tokenPrt})
+	require.NoError(t, err)
+	require.NoError(t, abNet.Start())
+	t.Cleanup(func() { require.NoError(t, abNet.Close()) })
+
 	tx := testtransaction.NewTransaction(t,
 		testtransaction.WithPayloadType(PayloadTypeCreateNFTType),
 		testtransaction.WithSystemID(DefaultTokenTxSystemIdentifier),
@@ -49,8 +58,8 @@ func TestInitPartitionAndCreateNFTType_Ok(t *testing.T) {
 		testtransaction.WithFeeProof(script.PredicateArgumentEmpty()),
 		testtransaction.WithClientMetadata(createClientMetadata()),
 	)
-	require.NoError(t, network.BroadcastTx(tx))
-	require.Eventually(t, testpartition.BlockchainContainsTx(tx, network), test.WaitDuration, test.WaitTick)
+	require.NoError(t, tokenPrt.BroadcastTx(tx))
+	require.Eventually(t, testpartition.BlockchainContainsTx(tokenPrt, tx), test.WaitDuration, test.WaitTick)
 }
 
 func TestFungibleTokenTransactions_Ok(t *testing.T) {
@@ -67,7 +76,7 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 	)
 
 	// setup network
-	network, err := testpartition.NewNetwork(1, func(tb map[string]crypto.Verifier) txsystem.TransactionSystem {
+	tokenPrt, err := testpartition.NewPartition(1, func(tb map[string]crypto.Verifier) txsystem.TransactionSystem {
 		trustBase = tb
 		state := newStateWithFeeCredit(t, feeCreditID)
 		system, err := New(WithState(state), WithTrustBase(tb))
@@ -76,7 +85,13 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 		return system
 	}, DefaultTokenTxSystemIdentifier)
 	require.NoError(t, err)
-	require.NotNil(t, network)
+	// the tx system lambda is called once for node genesis, but this is not interesting so clear the states before node
+	// is started
+	states = []*rma.Tree{}
+	abNet, err := testpartition.NewAlphabillPartition([]*testpartition.NodePartition{tokenPrt})
+	require.NoError(t, err)
+	require.NoError(t, abNet.Start())
+	t.Cleanup(func() { require.NoError(t, abNet.Close()) })
 	state := states[0]
 
 	// create fungible token type
@@ -98,8 +113,8 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 		testtransaction.WithFeeProof(script.PredicateArgumentEmpty()),
 		testtransaction.WithClientMetadata(createClientMetadata()),
 	)
-	require.NoError(t, network.BroadcastTx(createTypeTx))
-	require.Eventually(t, testpartition.BlockchainContainsTx(createTypeTx, network), test.WaitDuration*4, test.WaitTick)
+	require.NoError(t, tokenPrt.BroadcastTx(createTypeTx))
+	require.Eventually(t, testpartition.BlockchainContainsTx(tokenPrt, createTypeTx), test.WaitDuration*4, test.WaitTick)
 	RequireFungibleTokenTypeState(t, state, fungibleTokenTypeUnitData{
 		tokenCreationPredicate:   script.PredicateAlwaysTrue(),
 		subTypeCreationPredicate: script.PredicateAlwaysTrue(),
@@ -112,7 +127,7 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 		parentID:                 zeroID,
 		decimalPlaces:            0,
 	})
-	verifyProof(t, createTypeTx, network, trustBase, hashAlgorithm)
+	verifyProof(t, createTypeTx, tokenPrt, trustBase, hashAlgorithm)
 
 	// mint token
 	mintTx := testtransaction.NewTransaction(t,
@@ -130,9 +145,9 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 		testtransaction.WithFeeProof(script.PredicateArgumentEmpty()),
 		testtransaction.WithClientMetadata(createClientMetadata()),
 	)
-	require.NoError(t, network.BroadcastTx(mintTx))
+	require.NoError(t, tokenPrt.BroadcastTx(mintTx))
 	txHash := mintTx.Hash(gocrypto.SHA256)
-	require.Eventually(t, testpartition.BlockchainContainsTx(mintTx, network), test.WaitDuration*4, test.WaitTick)
+	require.Eventually(t, testpartition.BlockchainContainsTx(tokenPrt, mintTx), test.WaitDuration*4, test.WaitTick)
 	RequireFungibleTokenState(t, state, fungibleTokenUnitData{
 		unitID:     fungibleTokenID1,
 		typeUnitID: fungibleTokenTypeID,
@@ -140,7 +155,7 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 		bearer:     script.PredicateAlwaysTrue(),
 		tokenValue: totalValue,
 	})
-	verifyProof(t, mintTx, network, trustBase, hashAlgorithm)
+	verifyProof(t, mintTx, tokenPrt, trustBase, hashAlgorithm)
 
 	// split token
 	splitTx1 := testtransaction.NewTransaction(t,
@@ -162,8 +177,8 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 		testtransaction.WithFeeProof(script.PredicateArgumentEmpty()),
 		testtransaction.WithClientMetadata(createClientMetadata()),
 	)
-	require.NoError(t, network.BroadcastTx(splitTx1))
-	require.Eventually(t, testpartition.BlockchainContainsTx(splitTx1, network), test.WaitDuration, test.WaitTick)
+	require.NoError(t, tokenPrt.BroadcastTx(splitTx1))
+	require.Eventually(t, testpartition.BlockchainContainsTx(tokenPrt, splitTx1), test.WaitDuration, test.WaitTick)
 
 	split1GenTxHash := splitTx1.Hash(hashAlgorithm)
 	require.NoError(t, err)
@@ -174,7 +189,7 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 		bearer:     script.PredicateAlwaysTrue(),
 		tokenValue: totalValue - splitValue1,
 	})
-	verifyProof(t, splitTx1, network, trustBase, hashAlgorithm)
+	verifyProof(t, splitTx1, tokenPrt, trustBase, hashAlgorithm)
 
 	sUnitID1 := txutil.SameShardID(uint256.NewInt(0).SetBytes(fungibleTokenID1), hashForIDCalculation(splitTx1, hashAlgorithm))
 	RequireFungibleTokenState(t, state, fungibleTokenUnitData{
@@ -204,9 +219,9 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 		testtransaction.WithFeeProof(script.PredicateArgumentEmpty()),
 		testtransaction.WithClientMetadata(createClientMetadata()),
 	)
-	require.NoError(t, network.BroadcastTx(splitTx2))
-	require.Eventually(t, testpartition.BlockchainContainsTx(splitTx2, network), test.WaitDuration, test.WaitTick)
-	verifyProof(t, splitTx2, network, trustBase, hashAlgorithm)
+	require.NoError(t, tokenPrt.BroadcastTx(splitTx2))
+	require.Eventually(t, testpartition.BlockchainContainsTx(tokenPrt, splitTx2), test.WaitDuration, test.WaitTick)
+	verifyProof(t, splitTx2, tokenPrt, trustBase, hashAlgorithm)
 
 	splitGenTx2Hash := splitTx2.Hash(hashAlgorithm)
 	RequireFungibleTokenState(t, state, fungibleTokenUnitData{
@@ -245,9 +260,9 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 		testtransaction.WithFeeProof(script.PredicateArgumentEmpty()),
 		testtransaction.WithClientMetadata(createClientMetadata()),
 	)
-	require.NoError(t, network.BroadcastTx(transferTx))
-	require.Eventually(t, testpartition.BlockchainContainsTx(transferTx, network), test.WaitDuration, test.WaitTick)
-	verifyProof(t, transferTx, network, trustBase, hashAlgorithm)
+	require.NoError(t, tokenPrt.BroadcastTx(transferTx))
+	require.Eventually(t, testpartition.BlockchainContainsTx(tokenPrt, transferTx), test.WaitDuration, test.WaitTick)
+	verifyProof(t, transferTx, tokenPrt, trustBase, hashAlgorithm)
 	transferGenTxHash := transferTx.Hash(hashAlgorithm)
 	RequireFungibleTokenState(t, state, fungibleTokenUnitData{
 		unitID:     fungibleTokenID1,
@@ -275,9 +290,9 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 		testtransaction.WithFeeProof(script.PredicateArgumentEmpty()),
 		testtransaction.WithClientMetadata(createClientMetadata()),
 	)
-	require.NoError(t, network.BroadcastTx(burnTx))
-	require.Eventually(t, testpartition.BlockchainContainsTx(burnTx, network), test.WaitDuration, test.WaitTick)
-	verifyProof(t, burnTx, network, trustBase, hashAlgorithm)
+	require.NoError(t, tokenPrt.BroadcastTx(burnTx))
+	require.Eventually(t, testpartition.BlockchainContainsTx(tokenPrt, burnTx), test.WaitDuration, test.WaitTick)
+	verifyProof(t, burnTx, tokenPrt, trustBase, hashAlgorithm)
 
 	burnTx2 := testtransaction.NewTransaction(t,
 		testtransaction.WithSystemID(DefaultTokenTxSystemIdentifier),
@@ -296,17 +311,17 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 		testtransaction.WithFeeProof(script.PredicateArgumentEmpty()),
 		testtransaction.WithClientMetadata(createClientMetadata()),
 	)
-	require.NoError(t, network.BroadcastTx(burnTx2))
-	require.Eventually(t, testpartition.BlockchainContainsTx(burnTx2, network), test.WaitDuration, test.WaitTick)
-	verifyProof(t, burnTx2, network, trustBase, hashAlgorithm)
+	require.NoError(t, tokenPrt.BroadcastTx(burnTx2))
+	require.Eventually(t, testpartition.BlockchainContainsTx(tokenPrt, burnTx2), test.WaitDuration, test.WaitTick)
+	verifyProof(t, burnTx2, tokenPrt, trustBase, hashAlgorithm)
 
 	// join token
-	_, burnProof1, burnTxRecord, err := network.GetBlockProof(burnTx)
+	_, burnProof1, burnTxRecord, err := tokenPrt.GetBlockProof(burnTx)
 	require.NoError(t, err)
 
 	require.NoError(t, types.VerifyTxProof(burnProof1, burnTxRecord, trustBase, hashAlgorithm))
 
-	_, burnProof2, burnTxRecord2, err := network.GetBlockProof(burnTx2)
+	_, burnProof2, burnTxRecord2, err := tokenPrt.GetBlockProof(burnTx2)
 	require.NoError(t, err)
 	require.NoError(t, types.VerifyTxProof(burnProof2, burnTxRecord2, trustBase, hashAlgorithm))
 	joinTx := testtransaction.NewTransaction(t,
@@ -325,8 +340,8 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 		testtransaction.WithFeeProof(script.PredicateArgumentEmpty()),
 		testtransaction.WithClientMetadata(createClientMetadata()),
 	)
-	require.NoError(t, network.BroadcastTx(joinTx))
-	require.Eventually(t, testpartition.BlockchainContainsTx(joinTx, network), test.WaitDuration, test.WaitTick)
+	require.NoError(t, tokenPrt.BroadcastTx(joinTx))
+	require.Eventually(t, testpartition.BlockchainContainsTx(tokenPrt, joinTx), test.WaitDuration, test.WaitTick)
 	u, err := states[0].GetUnit(uint256.NewInt(0).SetBytes(fungibleTokenID1))
 	require.NoError(t, err)
 	require.NotNil(t, u)
@@ -347,8 +362,8 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 	require.Equal(t, uint64(92), unit.Data.(*fc.FeeCreditRecord).Balance)
 }
 
-func verifyProof(t *testing.T, tx *types.TransactionOrder, network *testpartition.AlphabillPartition, trustBase map[string]crypto.Verifier, hashAlgorithm gocrypto.Hash) {
-	_, proof, record, err := network.GetBlockProof(tx)
+func verifyProof(t *testing.T, tx *types.TransactionOrder, prt *testpartition.NodePartition, trustBase map[string]crypto.Verifier, hashAlgorithm gocrypto.Hash) {
+	_, proof, record, err := prt.GetBlockProof(tx)
 	require.NoError(t, err)
 	require.NoError(t, types.VerifyTxProof(proof, record, trustBase, hashAlgorithm))
 }

@@ -21,7 +21,6 @@ import (
 	"github.com/alphabill-org/alphabill/internal/network/protocol/replication"
 	"github.com/alphabill-org/alphabill/internal/partition/event"
 	pgenesis "github.com/alphabill-org/alphabill/internal/partition/genesis"
-	"github.com/alphabill-org/alphabill/internal/timer"
 	"github.com/alphabill-org/alphabill/internal/txbuffer"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/internal/types"
@@ -36,8 +35,6 @@ const (
 	normal
 	recovering
 )
-
-const t1TimerName = "t1"
 
 // Key 0 is used for proposal, that way it is still possible to reverse iterate the DB
 // and use 4 byte key, make it incompatible with block number
@@ -68,7 +65,6 @@ type (
 		lastStoredBlock             *types.Block
 		proposedTransactions        []*types.TransactionRecord
 		pendingBlockProposal        *pendingBlockProposal
-		timers                      *timer.Timers
 		leaderSelector              LeaderSelector
 		txValidator                 TxValidator
 		unicityCertificateValidator UnicityCertificateValidator
@@ -135,7 +131,6 @@ func New(
 	n := &Node{
 		configuration:               conf,
 		transactionSystem:           txSystem,
-		timers:                      timer.NewTimers(),
 		leaderSelector:              conf.leaderSelector,
 		txValidator:                 conf.txValidator,
 		unicityCertificateValidator: conf.unicityCertificateValidator,
@@ -175,7 +170,6 @@ func (n *Node) Run(ctx context.Context) error {
 	})
 
 	g.Go(func() error {
-		defer n.timers.WaitClose()
 		return n.loop(ctx)
 	})
 
@@ -389,15 +383,6 @@ func (n *Node) loop(ctx context.Context) error {
 			default:
 				logger.Warning("Unknown network protocol: %s %T", m.Protocol, mt)
 			}
-		case nt, ok := <-n.timers.C:
-			if !ok {
-				logger.Warning("Timers channel closed, exiting main loop")
-				return fmt.Errorf("timers channel is closed")
-			}
-			if nt == nil {
-				continue
-			}
-			n.handleT1TimeoutEvent()
 		case <-ticker.C:
 			n.handleMonitoring(lastRootMsgTime)
 		}
@@ -609,7 +594,6 @@ func (n *Node) startNewRound(ctx context.Context, uc *types.UnicityCertificate) 
 	}
 	n.leaderSelector.UpdateLeader(uc)
 	n.startHandleOrForwardTransactions(ctx)
-	n.timers.Start(t1TimerName, n.configuration.t1Timeout)
 	n.sendEvent(event.NewRoundStarted, newRoundNr)
 }
 
@@ -647,7 +631,7 @@ func (n *Node) startRecovery(uc *types.UnicityCertificate) {
 //     state is rolled back to previous state.
 //  8. Alternatively, recovery is initiated, after rollback. Note that recovery may end up with
 //     newer last known UC than the one being processed.
-//  8. New round is started.
+//  9. New round is started.
 //
 // See algorithm 5 "Processing a received Unicity Certificate" in Yellowpaper for more details
 func (n *Node) handleUnicityCertificate(ctx context.Context, uc *types.UnicityCertificate) error {
@@ -1184,17 +1168,25 @@ func (n *Node) stopForwardingOrHandlingTransactions() {
 
 func (n *Node) startHandleOrForwardTransactions(ctx context.Context) {
 	n.stopForwardingOrHandlingTransactions()
-	leader := n.leaderSelector.GetLeaderID()
-	if leader == UnknownLeader {
+	if n.leaderSelector.GetLeaderID() == UnknownLeader {
 		return
 	}
 
 	txCtx, txCancel := context.WithCancel(ctx)
 	n.txCancel = txCancel
+
 	n.txWaitGroup.Add(1)
 	go func() {
 		defer n.txWaitGroup.Done()
 		n.txBuffer.Process(txCtx, n.handleOrForwardTransaction)
+	}()
+
+	go func() {
+		select {
+		case <-time.After(n.configuration.t1Timeout):
+			n.handleT1TimeoutEvent()
+		case <-txCtx.Done():
+		}
 	}()
 }
 

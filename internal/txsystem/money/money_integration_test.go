@@ -5,19 +5,20 @@ import (
 	"sort"
 	"testing"
 
-	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/rma"
+	txutil "github.com/alphabill-org/alphabill/internal/txsystem/util"
+	"github.com/alphabill-org/alphabill/internal/types"
+	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/fxamacker/cbor/v2"
+
+	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/script"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	testmoneyfc "github.com/alphabill-org/alphabill/internal/testutils/money"
 	testpartition "github.com/alphabill-org/alphabill/internal/testutils/partition"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/internal/txsystem/fc"
-	txutil "github.com/alphabill-org/alphabill/internal/txsystem/util"
-	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/internal/util"
-	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/fxamacker/cbor/v2"
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
 )
@@ -41,7 +42,7 @@ func TestPartition_Ok(t *testing.T) {
 		Owner: script.PredicateAlwaysTrue(),
 	}
 	txFee := fc.FixedFee(1)
-	network, err := testpartition.NewNetwork(3, func(tb map[string]abcrypto.Verifier) txsystem.TransactionSystem {
+	moneyPrt, err := testpartition.NewPartition(3, func(tb map[string]abcrypto.Verifier) txsystem.TransactionSystem {
 		system, err := NewMoneyTxSystem(systemIdentifier,
 			WithHashAlgorithm(crypto.SHA256),
 			WithInitialBill(initialBill),
@@ -54,33 +55,37 @@ func TestPartition_Ok(t *testing.T) {
 		return system
 	}, systemIdentifier)
 	require.NoError(t, err)
+	abNet, err := testpartition.NewAlphabillPartition([]*testpartition.NodePartition{moneyPrt})
+	require.NoError(t, err)
+	require.NoError(t, abNet.Start())
+	t.Cleanup(func() { require.NoError(t, abNet.Close()) })
 
 	// create fee credit for initial bill transfer
 	fcrAmount := testmoneyfc.FCRAmount
-	transferFC := testmoneyfc.CreateFeeCredit(t, util.Uint256ToBytes(initialBill.ID), network)
+	transferFC := testmoneyfc.CreateFeeCredit(t, util.Uint256ToBytes(initialBill.ID), abNet)
 
 	// transfer initial bill to pubKey1
 	transferInitialBillTx, _ := createBillTransfer(t, initialBill.ID, total-fcrAmount-txFee(), script.PredicatePayToPublicKeyHashDefault(decodeAndHashHex(pubKey1)), transferFC.Hash(crypto.SHA256))
-	err = network.SubmitTx(transferInitialBillTx)
+	err = moneyPrt.SubmitTx(transferInitialBillTx)
 	require.NoError(t, err)
-	require.Eventually(t, testpartition.BlockchainContainsTx(transferInitialBillTx, network), test.WaitDuration, test.WaitTick)
+	require.Eventually(t, testpartition.BlockchainContainsTx(moneyPrt, transferInitialBillTx), test.WaitDuration, test.WaitTick)
 
-	_, _, transferInitialBillTxRecord, err := network.GetBlockProof(transferInitialBillTx)
+	_, _, transferInitialBillTxRecord, err := moneyPrt.GetBlockProof(transferInitialBillTx)
 	require.NoError(t, err)
 
 	// split initial bill from pubKey1 to pubKey2
 	amountPK2 := uint64(1000)
 	tx := createSplitTx(t, transferInitialBillTxRecord, amountPK2, total-fcrAmount-txFee()-amountPK2)
-	err = network.SubmitTx(tx)
+	err = moneyPrt.SubmitTx(tx)
 	require.NoError(t, err)
-	require.Eventually(t, testpartition.BlockchainContainsTx(tx, network), test.WaitDuration, test.WaitTick)
+	require.Eventually(t, testpartition.BlockchainContainsTx(moneyPrt, tx), test.WaitDuration, test.WaitTick)
 
 	// wrong partition tx
 	tx = createSplitTx(t, transferInitialBillTxRecord, amountPK2, total-fcrAmount-txFee()-amountPK2)
 	tx.Payload.SystemID = []byte{1, 1, 1, 1}
-	err = network.SubmitTx(tx)
+	err = moneyPrt.SubmitTx(tx)
 	require.Error(t, err)
-	require.Never(t, testpartition.BlockchainContainsTx(tx, network), test.WaitDuration, test.WaitTick)
+	require.Never(t, testpartition.BlockchainContainsTx(moneyPrt, tx), test.WaitDuration, test.WaitTick)
 }
 
 func TestPartition_SwapDCOk(t *testing.T) {
@@ -98,49 +103,53 @@ func TestPartition_SwapDCOk(t *testing.T) {
 		feeFunc = fc.FixedFee(1)
 	)
 	total := moneyInvariant
-	network, err := testpartition.NewNetwork(3, func(tb map[string]abcrypto.Verifier) txsystem.TransactionSystem {
+	moneyPrt, err := testpartition.NewPartition(3, func(tb map[string]abcrypto.Verifier) txsystem.TransactionSystem {
 		var err error
 		state = rma.NewWithSHA256()
 		//	trustBase = tb
 		system, err := NewMoneyTxSystem(systemIdentifier,
-			WithHashAlgorithm(hashAlgorithm),
+			WithHashAlgorithm(crypto.SHA256),
 			WithInitialBill(initialBill),
 			WithSystemDescriptionRecords(createSDRs(2)),
 			WithDCMoneyAmount(100),
 			WithTrustBase(tb),
 			WithState(state),
-			WithFeeCalculator(feeFunc),
+			WithFeeCalculator(fc.FixedFee(1)),
 		)
 		require.NoError(t, err)
 		return system
 	}, systemIdentifier)
 	require.NoError(t, err)
+	abNet, err := testpartition.NewAlphabillPartition([]*testpartition.NodePartition{moneyPrt})
+	require.NoError(t, err)
+	require.NoError(t, abNet.Start())
+	t.Cleanup(func() { require.NoError(t, abNet.Close()) })
 
 	// create fee credit for initial bill transfer
 	txFee := feeFunc()
 	fcrAmount := testmoneyfc.FCRAmount
-	transferFC := testmoneyfc.CreateFeeCredit(t, util.Uint256ToBytes(initialBill.ID), network)
+	transferFC := testmoneyfc.CreateFeeCredit(t, util.Uint256ToBytes(initialBill.ID), abNet)
 	require.NoError(t, err)
 
 	// transfer initial bill to pubKey1
 	transferInitialBillTx, _ := createBillTransfer(t, initialBill.ID, total-fcrAmount-txFee, script.PredicatePayToPublicKeyHashDefault(decodeAndHashHex(pubKey1)), transferFC.Hash(hashAlgorithm))
-	require.NoError(t, network.SubmitTx(transferInitialBillTx))
-	require.Eventually(t, testpartition.BlockchainContainsTx(transferInitialBillTx, network), test.WaitDuration, test.WaitTick)
+	require.NoError(t, moneyPrt.SubmitTx(transferInitialBillTx))
+	require.Eventually(t, testpartition.BlockchainContainsTx(moneyPrt, transferInitialBillTx), test.WaitDuration, test.WaitTick)
 
 	// split initial bill, create small payments from which to make dust payments
 	splitTxs := make([]*types.TransactionRecord, nofDustToSwap)
 	amount := uint64(1)
-	_, _, transferRecord, err := network.GetBlockProof(transferInitialBillTx)
+	_, _, transferRecord, err := moneyPrt.GetBlockProof(transferInitialBillTx)
 	require.NoError(t, err)
 	var prev = transferRecord
 	total = total - fcrAmount - txFee
 	for i := range splitTxs {
 		total = total - amount
 		splitTx := createSplitTx(t, prev, amount, total)
-		require.NoError(t, network.SubmitTx(splitTx))
+		require.NoError(t, moneyPrt.SubmitTx(splitTx))
 		// wait for transaction to be added to block
-		require.Eventually(t, testpartition.BlockchainContainsTx(splitTx, network), test.WaitDuration, test.WaitTick)
-		_, _, record, err := network.GetBlockProof(splitTx)
+		require.Eventually(t, testpartition.BlockchainContainsTx(moneyPrt, splitTx), test.WaitDuration, test.WaitTick)
+		_, _, record, err := moneyPrt.GetBlockProof(splitTx)
 		require.NoError(t, err)
 		prev = record
 		splitTxs[i] = record
@@ -162,10 +171,10 @@ func TestPartition_SwapDCOk(t *testing.T) {
 	dcRecords := make([]*types.TransactionRecord, len(dcTxs))
 	dcRecordsProofs := make([]*types.TxProof, len(dcTxs))
 	for i, dcTx := range dcTxs {
-		err = network.SubmitTx(dcTx)
+		err = moneyPrt.SubmitTx(dcTx)
 		require.NoError(t, err)
-		require.Eventually(t, testpartition.BlockchainContainsTx(dcTx, network), test.WaitDuration, test.WaitTick)
-		_, dcRecordsProofs[i], dcRecords[i], err = network.GetBlockProof(dcTx)
+		require.Eventually(t, testpartition.BlockchainContainsTx(moneyPrt, dcTx), test.WaitDuration, test.WaitTick)
+		_, dcRecordsProofs[i], dcRecords[i], err = moneyPrt.GetBlockProof(dcTx)
 		require.NoError(t, err)
 	}
 
@@ -203,9 +212,9 @@ func TestPartition_SwapDCOk(t *testing.T) {
 	sig, _ := signer.SignBytes(sigBytes)
 	swapTx.OwnerProof = script.PredicateArgumentPayToPublicKeyHashDefault(sig, decodeHex(pubKey1))
 
-	err = network.SubmitTx(swapTx)
+	err = moneyPrt.SubmitTx(swapTx)
 	require.NoError(t, err)
-	require.Eventually(t, testpartition.BlockchainContainsTx(swapTx, network), test.WaitDuration, test.WaitTick)
+	require.Eventually(t, testpartition.BlockchainContainsTx(moneyPrt, swapTx), test.WaitDuration, test.WaitTick)
 }
 
 func createSplitTx(t *testing.T, prevTx *types.TransactionRecord, amount, remaining uint64) *types.TransactionOrder {
@@ -258,9 +267,11 @@ func calcNewBillId(ids []*uint256.Int) ([]byte, [][]byte) {
 	return hasher.Sum(nil), idsByteArray
 }
 
-func getBlockProof(t *testing.T, tx *types.TransactionOrder, sysId []byte, network *testpartition.AlphabillPartition) *types.TxProof {
+func getBlockProof(t *testing.T, tx *types.TransactionOrder, sysId []byte, network *testpartition.AlphabillNetwork) *types.TxProof {
+	partition, err := network.GetNodePartition(sysId)
+	require.NoError(t, err)
 	// create adapter for conversion interface
-	_, proof, _, err := network.GetBlockProof(tx)
+	_, proof, _, err := partition.GetBlockProof(tx)
 	require.NoError(t, err)
 	return proof
 }

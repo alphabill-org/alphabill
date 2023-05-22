@@ -1,4 +1,4 @@
-package twb
+package backend
 
 import (
 	"context"
@@ -8,19 +8,21 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/alphabill-org/alphabill/internal/types"
+	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/reflect/protoreflect"
 
 	"github.com/alphabill-org/alphabill/internal/block"
+	"github.com/alphabill-org/alphabill/internal/certificates"
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	testfc "github.com/alphabill-org/alphabill/internal/txsystem/fc/testutils"
 	"github.com/alphabill-org/alphabill/internal/txsystem/tokens"
 	"github.com/alphabill-org/alphabill/internal/util"
+	"github.com/alphabill-org/alphabill/pkg/wallet"
+	"github.com/alphabill-org/alphabill/pkg/wallet/broker"
 	"github.com/alphabill-org/alphabill/pkg/wallet/log"
 	"github.com/holiman/uint256"
-	"github.com/stretchr/testify/require"
-	"google.golang.org/protobuf/reflect/protoreflect"
 )
 
 func Test_blockProcessor_ProcessBlock(t *testing.T) {
@@ -48,7 +50,7 @@ func Test_blockProcessor_ProcessBlock(t *testing.T) {
 			},
 		}
 		err := bp.ProcessBlock(context.Background(), &block.Block{
-			UnicityCertificate: &types.UnicityCertificate{InputRecord: &types.InputRecord{RoundNumber: 5}},
+			UnicityCertificate: &certificates.UnicityCertificate{InputRecord: &certificates.InputRecord{RoundNumber: 5}},
 		})
 		require.EqualError(t, err, `invalid block, received block 5, current wallet block 5`)
 	})
@@ -61,7 +63,7 @@ func Test_blockProcessor_ProcessBlock(t *testing.T) {
 			},
 		}
 		err := bp.ProcessBlock(context.Background(), &block.Block{
-			UnicityCertificate: &types.UnicityCertificate{InputRecord: &types.InputRecord{RoundNumber: 4}},
+			UnicityCertificate: &certificates.UnicityCertificate{InputRecord: &certificates.InputRecord{RoundNumber: 4}},
 		})
 		require.EqualError(t, err, `invalid block, received block 4, current wallet block 5`)
 	})
@@ -82,7 +84,7 @@ func Test_blockProcessor_ProcessBlock(t *testing.T) {
 			},
 		}
 		err := bp.ProcessBlock(context.Background(), &block.Block{
-			UnicityCertificate: &types.UnicityCertificate{InputRecord: &types.InputRecord{RoundNumber: 8}},
+			UnicityCertificate: &certificates.UnicityCertificate{InputRecord: &certificates.InputRecord{RoundNumber: 8}},
 		})
 		require.NoError(t, err)
 		require.Equal(t, 1, callCnt, "expected that setBlockNumber is called once")
@@ -100,17 +102,19 @@ func Test_blockProcessor_ProcessBlock(t *testing.T) {
 			log: logger,
 			txs: txs,
 			store: &mockStorage{
-				getBlockNumber: func() (uint64, error) { return 3, nil },
-				setBlockNumber: func(blockNumber uint64) error { return nil },
+				getFeeCreditBill: getFeeCreditBillFunc,
+				setFeeCreditBill: func(fcb *FeeCreditBill, proof *wallet.Proof) error { return verifySetFeeCreditBill(t, fcb) },
+				getBlockNumber:   func() (uint64, error) { return 3, nil },
+				setBlockNumber:   func(blockNumber uint64) error { return nil },
 				// cause protcessing to fail by failing to store tx
-				saveTokenType: func(data *TokenUnitType, proof *Proof) error {
+				saveTokenType: func(data *TokenUnitType, proof *wallet.Proof) error {
 					return expErr
 				},
 			},
 		}
 		err = bp.ProcessBlock(context.Background(), &block.Block{
 			Transactions:       []*txsystem.Transaction{createNTFTypeTx},
-			UnicityCertificate: &types.UnicityCertificate{InputRecord: &types.InputRecord{RoundNumber: 4}},
+			UnicityCertificate: &certificates.UnicityCertificate{InputRecord: &certificates.InputRecord{RoundNumber: 4}},
 		})
 		require.ErrorIs(t, err, expErr)
 	})
@@ -125,7 +129,7 @@ func Test_blockProcessor_ProcessBlock(t *testing.T) {
 			},
 		}
 		// no processTx call here as block is empty!
-		err := bp.ProcessBlock(context.Background(), &block.Block{UnicityCertificate: &types.UnicityCertificate{InputRecord: &types.InputRecord{RoundNumber: 4}}})
+		err := bp.ProcessBlock(context.Background(), &block.Block{UnicityCertificate: &certificates.UnicityCertificate{InputRecord: &certificates.InputRecord{RoundNumber: 4}}})
 		require.ErrorIs(t, err, expErr)
 	})
 }
@@ -159,10 +163,10 @@ func Test_blockProcessor_processTx(t *testing.T) {
 					txs: txs,
 					store: &mockStorage{
 						getFeeCreditBill: getFeeCreditBillFunc,
-						setFeeCreditBill: func(fcb *FeeCreditBill) error { return verifySetFeeCreditBill(t, fcb) },
+						setFeeCreditBill: func(fcb *FeeCreditBill, proof *wallet.Proof) error { return verifySetFeeCreditBill(t, fcb) },
 						getBlockNumber:   func() (uint64, error) { return 3, nil },
 						setBlockNumber:   func(blockNumber uint64) error { return nil },
-						saveTokenType: func(data *TokenUnitType, proof *Proof) error {
+						saveTokenType: func(data *TokenUnitType, proof *wallet.Proof) error {
 							gtx, err := txs.ConvertTx(tx)
 							require.NoError(t, err)
 							require.EqualValues(t, gtx.Hash(crypto.SHA256), data.TxHash)
@@ -171,10 +175,9 @@ func Test_blockProcessor_processTx(t *testing.T) {
 							return nil
 						},
 					},
-					feesEnabled: true,
 				}
 				err = bp.ProcessBlock(context.Background(), &block.Block{
-					UnicityCertificate: &types.UnicityCertificate{InputRecord: &types.InputRecord{RoundNumber: 4}},
+					UnicityCertificate: &certificates.UnicityCertificate{InputRecord: &certificates.InputRecord{RoundNumber: 4}},
 					Transactions:       []*txsystem.Transaction{tx},
 				})
 				require.NoError(t, err)
@@ -192,16 +195,19 @@ func Test_blockProcessor_processTx(t *testing.T) {
 		bp := &blockProcessor{
 			log: logger,
 			txs: txs,
+			notify: func(bearerPredicate []byte, msg broker.Message) {
+				require.EqualValues(t, txAttr.Bearer, bearerPredicate)
+			},
 			store: &mockStorage{
 				getBlockNumber:   func() (uint64, error) { return 3, nil },
 				setBlockNumber:   func(blockNumber uint64) error { return nil },
 				getFeeCreditBill: getFeeCreditBillFunc,
-				setFeeCreditBill: func(fcb *FeeCreditBill) error { return verifySetFeeCreditBill(t, fcb) },
+				setFeeCreditBill: func(fcb *FeeCreditBill, proof *wallet.Proof) error { return verifySetFeeCreditBill(t, fcb) },
 				getTokenType: func(id TokenTypeID) (*TokenUnitType, error) {
 					require.EqualValues(t, txAttr.Type, id)
 					return &TokenUnitType{ID: id, Kind: Fungible}, nil
 				},
-				saveToken: func(data *TokenUnit, proof *Proof) error {
+				saveToken: func(data *TokenUnit, proof *wallet.Proof) error {
 					gtx, err := txs.ConvertTx(tx)
 					require.NoError(t, err)
 					require.EqualValues(t, gtx.Hash(crypto.SHA256), data.TxHash)
@@ -213,10 +219,9 @@ func Test_blockProcessor_processTx(t *testing.T) {
 					return nil
 				},
 			},
-			feesEnabled: true,
 		}
 		err = bp.ProcessBlock(context.Background(), &block.Block{
-			UnicityCertificate: &types.UnicityCertificate{InputRecord: &types.InputRecord{RoundNumber: 4}},
+			UnicityCertificate: &certificates.UnicityCertificate{InputRecord: &certificates.InputRecord{RoundNumber: 4}},
 			Transactions:       []*txsystem.Transaction{tx},
 		})
 		require.NoError(t, err)
@@ -231,16 +236,19 @@ func Test_blockProcessor_processTx(t *testing.T) {
 		bp := &blockProcessor{
 			log: logger,
 			txs: txs,
+			notify: func(bearerPredicate []byte, msg broker.Message) {
+				require.EqualValues(t, txAttr.Bearer, bearerPredicate)
+			},
 			store: &mockStorage{
 				getBlockNumber:   func() (uint64, error) { return 3, nil },
 				setBlockNumber:   func(blockNumber uint64) error { return nil },
 				getFeeCreditBill: getFeeCreditBillFunc,
-				setFeeCreditBill: func(fcb *FeeCreditBill) error { return verifySetFeeCreditBill(t, fcb) },
+				setFeeCreditBill: func(fcb *FeeCreditBill, proof *wallet.Proof) error { return verifySetFeeCreditBill(t, fcb) },
 				getTokenType: func(id TokenTypeID) (*TokenUnitType, error) {
 					require.EqualValues(t, txAttr.NftType, id)
 					return &TokenUnitType{ID: id, Kind: NonFungible}, nil
 				},
-				saveToken: func(data *TokenUnit, proof *Proof) error {
+				saveToken: func(data *TokenUnit, proof *wallet.Proof) error {
 					gtx, err := txs.ConvertTx(tx)
 					require.NoError(t, err)
 					require.EqualValues(t, gtx.Hash(crypto.SHA256), data.TxHash)
@@ -251,10 +259,9 @@ func Test_blockProcessor_processTx(t *testing.T) {
 					return nil
 				},
 			},
-			feesEnabled: true,
 		}
 		err = bp.ProcessBlock(context.Background(), &block.Block{
-			UnicityCertificate: &types.UnicityCertificate{InputRecord: &types.InputRecord{RoundNumber: 4}},
+			UnicityCertificate: &certificates.UnicityCertificate{InputRecord: &certificates.InputRecord{RoundNumber: 4}},
 			Transactions:       []*txsystem.Transaction{tx},
 		})
 		require.NoError(t, err)
@@ -270,15 +277,18 @@ func Test_blockProcessor_processTx(t *testing.T) {
 		bp := &blockProcessor{
 			log: logger,
 			txs: txs,
+			notify: func(bearerPredicate []byte, msg broker.Message) {
+				require.EqualValues(t, txAttr.NewBearer, bearerPredicate)
+			},
 			store: &mockStorage{
 				getBlockNumber:   func() (uint64, error) { return 3, nil },
 				setBlockNumber:   func(blockNumber uint64) error { return nil },
 				getFeeCreditBill: getFeeCreditBillFunc,
-				setFeeCreditBill: func(fcb *FeeCreditBill) error { return verifySetFeeCreditBill(t, fcb) },
+				setFeeCreditBill: func(fcb *FeeCreditBill, proof *wallet.Proof) error { return verifySetFeeCreditBill(t, fcb) },
 				getToken: func(id TokenID) (*TokenUnit, error) {
 					return &TokenUnit{ID: id, TypeID: txAttr.Type, Amount: txAttr.Value, Kind: Fungible}, nil
 				},
-				saveToken: func(data *TokenUnit, proof *Proof) error {
+				saveToken: func(data *TokenUnit, proof *wallet.Proof) error {
 					gtx, err := txs.ConvertTx(tx)
 					require.NoError(t, err)
 					require.EqualValues(t, gtx.Hash(crypto.SHA256), data.TxHash)
@@ -290,10 +300,9 @@ func Test_blockProcessor_processTx(t *testing.T) {
 					return nil
 				},
 			},
-			feesEnabled: true,
 		}
 		err = bp.ProcessBlock(context.Background(), &block.Block{
-			UnicityCertificate: &types.UnicityCertificate{InputRecord: &types.InputRecord{RoundNumber: 4}},
+			UnicityCertificate: &certificates.UnicityCertificate{InputRecord: &certificates.InputRecord{RoundNumber: 4}},
 			Transactions:       []*txsystem.Transaction{tx},
 		})
 		require.NoError(t, err)
@@ -308,15 +317,18 @@ func Test_blockProcessor_processTx(t *testing.T) {
 		bp := &blockProcessor{
 			log: logger,
 			txs: txs,
+			notify: func(bearerPredicate []byte, msg broker.Message) {
+				require.EqualValues(t, txAttr.NewBearer, bearerPredicate)
+			},
 			store: &mockStorage{
 				getBlockNumber:   func() (uint64, error) { return 3, nil },
 				setBlockNumber:   func(blockNumber uint64) error { return nil },
 				getFeeCreditBill: getFeeCreditBillFunc,
-				setFeeCreditBill: func(fcb *FeeCreditBill) error { return verifySetFeeCreditBill(t, fcb) },
+				setFeeCreditBill: func(fcb *FeeCreditBill, proof *wallet.Proof) error { return verifySetFeeCreditBill(t, fcb) },
 				getToken: func(id TokenID) (*TokenUnit, error) {
 					return &TokenUnit{ID: id, TypeID: txAttr.NftType, Owner: test.RandomBytes(4), Kind: NonFungible}, nil
 				},
-				saveToken: func(data *TokenUnit, proof *Proof) error {
+				saveToken: func(data *TokenUnit, proof *wallet.Proof) error {
 					gtx, err := txs.ConvertTx(tx)
 					require.NoError(t, err)
 					require.EqualValues(t, gtx.Hash(crypto.SHA256), data.TxHash)
@@ -327,10 +339,9 @@ func Test_blockProcessor_processTx(t *testing.T) {
 					return nil
 				},
 			},
-			feesEnabled: true,
 		}
 		err = bp.ProcessBlock(context.Background(), &block.Block{
-			UnicityCertificate: &types.UnicityCertificate{InputRecord: &types.InputRecord{RoundNumber: 4}},
+			UnicityCertificate: &certificates.UnicityCertificate{InputRecord: &certificates.InputRecord{RoundNumber: 4}},
 			Transactions:       []*txsystem.Transaction{tx},
 		})
 		require.NoError(t, err)
@@ -344,20 +355,27 @@ func Test_blockProcessor_processTx(t *testing.T) {
 			NewBearer:      test.RandomBytes(4),
 		}
 		owner := test.RandomBytes(4) // owner of the original token
-		saveTokenCalls := 0
+		saveTokenCalls, notifyCalls := 0, 0
 		tx := randomTx(t, txAttr)
 		bp := &blockProcessor{
 			log: logger,
 			txs: txs,
+			notify: func(bearerPredicate []byte, msg broker.Message) {
+				if notifyCalls++; notifyCalls == 1 {
+					require.EqualValues(t, owner, bearerPredicate)
+				} else {
+					require.EqualValues(t, txAttr.NewBearer, bearerPredicate)
+				}
+			},
 			store: &mockStorage{
 				getBlockNumber:   func() (uint64, error) { return 3, nil },
 				setBlockNumber:   func(blockNumber uint64) error { return nil },
 				getFeeCreditBill: getFeeCreditBillFunc,
-				setFeeCreditBill: func(fcb *FeeCreditBill) error { return verifySetFeeCreditBill(t, fcb) },
+				setFeeCreditBill: func(fcb *FeeCreditBill, proof *wallet.Proof) error { return verifySetFeeCreditBill(t, fcb) },
 				getToken: func(id TokenID) (*TokenUnit, error) {
 					return &TokenUnit{ID: id, TypeID: txAttr.Type, Amount: 50, Owner: owner, Kind: Fungible}, nil
 				},
-				saveToken: func(data *TokenUnit, proof *Proof) error {
+				saveToken: func(data *TokenUnit, proof *wallet.Proof) error {
 					// save token is called twice - first to update existng token and then to save new one
 					if saveTokenCalls++; saveTokenCalls == 1 {
 						require.EqualValues(t, tx.UnitId, data.ID)
@@ -374,17 +392,19 @@ func Test_blockProcessor_processTx(t *testing.T) {
 					return nil
 				},
 			},
-			feesEnabled: true,
 		}
 		err = bp.ProcessBlock(context.Background(), &block.Block{
-			UnicityCertificate: &types.UnicityCertificate{InputRecord: &types.InputRecord{RoundNumber: 4}},
+			UnicityCertificate: &certificates.UnicityCertificate{InputRecord: &certificates.InputRecord{RoundNumber: 4}},
 			Transactions:       []*txsystem.Transaction{tx},
 		})
 		require.NoError(t, err)
 		require.Equal(t, 2, saveTokenCalls)
+		require.Equal(t, 2, notifyCalls)
 	})
 
 	t.Run("UpdateNonFungibleToken", func(t *testing.T) {
+		notifyCalls := 0
+		bearer := test.RandomBytes(4)
 		txAttr := &tokens.UpdateNonFungibleTokenAttributes{
 			Data: test.RandomBytes(4),
 		}
@@ -392,28 +412,33 @@ func Test_blockProcessor_processTx(t *testing.T) {
 		bp := &blockProcessor{
 			log: logger,
 			txs: txs,
+			notify: func(bearerPredicate []byte, msg broker.Message) {
+				notifyCalls++
+				require.EqualValues(t, bearer, bearerPredicate)
+			},
 			store: &mockStorage{
 				getBlockNumber:   func() (uint64, error) { return 3, nil },
 				setBlockNumber:   func(blockNumber uint64) error { return nil },
 				getFeeCreditBill: getFeeCreditBillFunc,
-				setFeeCreditBill: func(fcb *FeeCreditBill) error { return verifySetFeeCreditBill(t, fcb) },
+				setFeeCreditBill: func(fcb *FeeCreditBill, proof *wallet.Proof) error { return verifySetFeeCreditBill(t, fcb) },
 				getToken: func(id TokenID) (*TokenUnit, error) {
-					return &TokenUnit{ID: id, NftData: test.RandomBytes(4), Kind: NonFungible}, nil
+					return &TokenUnit{ID: id, Owner: bearer, NftData: test.RandomBytes(4), Kind: NonFungible}, nil
 				},
-				saveToken: func(data *TokenUnit, proof *Proof) error {
+				saveToken: func(data *TokenUnit, proof *wallet.Proof) error {
 					require.EqualValues(t, tx.UnitId, data.ID)
+					require.EqualValues(t, bearer, data.Owner)
 					require.EqualValues(t, txAttr.Data, data.NftData)
 					require.Equal(t, NonFungible, data.Kind)
 					return nil
 				},
 			},
-			feesEnabled: true,
 		}
 		err = bp.ProcessBlock(context.Background(), &block.Block{
-			UnicityCertificate: &types.UnicityCertificate{InputRecord: &types.InputRecord{RoundNumber: 4}},
+			UnicityCertificate: &certificates.UnicityCertificate{InputRecord: &certificates.InputRecord{RoundNumber: 4}},
 			Transactions:       []*txsystem.Transaction{tx},
 		})
 		require.NoError(t, err)
+		require.Equal(t, 1, notifyCalls)
 	})
 }
 
@@ -426,7 +451,7 @@ func Test_blockProcessor_ProcessFeeCreditTxs(t *testing.T) {
 	// when addFC tx is processed
 	addFC := testfc.NewAddFC(t, signer, nil)
 	b := &block.Block{
-		UnicityCertificate: &types.UnicityCertificate{InputRecord: &types.InputRecord{RoundNumber: 4}},
+		UnicityCertificate: &certificates.UnicityCertificate{InputRecord: &certificates.InputRecord{RoundNumber: 4}},
 		Transactions:       []*txsystem.Transaction{addFC.Transaction},
 	}
 	err = bp.ProcessBlock(context.Background(), b)
@@ -445,7 +470,7 @@ func Test_blockProcessor_ProcessFeeCreditTxs(t *testing.T) {
 		testfc.NewCloseFCAttr(testfc.WithCloseFCAmount(10)),
 	)
 	b = &block.Block{
-		UnicityCertificate: &types.UnicityCertificate{InputRecord: &types.InputRecord{RoundNumber: 5}},
+		UnicityCertificate: &certificates.UnicityCertificate{InputRecord: &certificates.InputRecord{RoundNumber: 5}},
 		Transactions:       []*txsystem.Transaction{closeFC.Transaction},
 	}
 	err = bp.ProcessBlock(context.Background(), b)
@@ -470,10 +495,10 @@ func createBlockProcessor(t *testing.T) *blockProcessor {
 	txSystem, err := tokens.New(tokens.WithTrustBase(map[string]abcrypto.Verifier{"test": nil}))
 	require.NoError(t, err)
 
-	return &blockProcessor{log: logger, txs: txSystem, store: db, feesEnabled: true}
+	return &blockProcessor{log: logger, txs: txSystem, store: db}
 }
 
-func getFeeCreditBillFunc(unitID UnitID) (*FeeCreditBill, error) {
+func getFeeCreditBillFunc(unitID wallet.UnitID) (*FeeCreditBill, error) {
 	return &FeeCreditBill{
 		Id:            unitID,
 		Value:         50,

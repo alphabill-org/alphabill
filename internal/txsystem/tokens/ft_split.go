@@ -37,19 +37,9 @@ func handleSplitFungibleTokenTx(options *Options) txsystem.GenericExecuteFunc[Sp
 		txHash := tx.Hash(options.hashAlgorithm)
 
 		// update state
-		// disable fee handling if fee is calculated to 0 (used to temporarily disable fee handling, can be removed after all wallets are updated)
-		var fcFunc rma.Action
-		if options.feeCalculator() == 0 {
-			fcFunc = func(tree *rma.Tree) error {
-				return nil
-			}
-		} else {
-			fcrID := util.BytesToUint256(tx.GetClientFeeCreditRecordID())
-			fcFunc = fc.DecrCredit(fcrID, fee, txHash)
-		}
-
-		if err = options.state.AtomicUpdate(
-			fcFunc,
+		fcrID := util.BytesToUint256(tx.GetClientFeeCreditRecordID())
+		if err := options.state.AtomicUpdate(
+			fc.DecrCredit(fcrID, fee, txHash),
 			rma.AddItem(newTokenID,
 				attr.NewBearer,
 				&fungibleTokenData{

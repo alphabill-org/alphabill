@@ -1,4 +1,4 @@
-package twb
+package backend
 
 import (
 	"bytes"
@@ -13,14 +13,16 @@ import (
 	"github.com/alphabill-org/alphabill/internal/txsystem/tokens"
 	txutil "github.com/alphabill-org/alphabill/internal/txsystem/util"
 	"github.com/alphabill-org/alphabill/internal/util"
+	"github.com/alphabill-org/alphabill/pkg/wallet"
+	"github.com/alphabill-org/alphabill/pkg/wallet/broker"
 	"github.com/alphabill-org/alphabill/pkg/wallet/log"
 )
 
 type blockProcessor struct {
-	store       Storage
-	txs         txsystem.TransactionSystem
-	log         log.Logger
-	feesEnabled bool
+	store  Storage
+	txs    txsystem.TransactionSystem
+	notify func(bearerPredicate []byte, msg broker.Message)
+	log    log.Logger
 }
 
 func (p *blockProcessor) ProcessBlock(ctx context.Context, b *block.Block) error {
@@ -59,35 +61,33 @@ func (p *blockProcessor) processTx(inTx *txsystem.Transaction, b *block.Block) e
 	p.log.Debug(fmt.Sprintf("processTx: UnitID=%x type: %s", id, strings.TrimPrefix(inTx.GetTransactionAttributes().TypeUrl, "type.googleapis.com/alphabill.tokens.v1.")))
 
 	// handle fee credit txs
-	if p.feesEnabled {
-		switch tx := gtx.(type) {
-		case *transactions.AddFeeCreditWrapper:
-			fcb, err := p.store.GetFeeCreditBill(tx.Transaction.UnitId)
-			if err != nil {
-				return err
-			}
-			return p.store.SetFeeCreditBill(&FeeCreditBill{
-				Id:            tx.Transaction.UnitId,
-				Value:         fcb.GetValue() + tx.TransferFC.TransferFC.Amount - tx.Transaction.ServerMetadata.Fee,
-				TxHash:        tx.Hash(crypto.SHA256),
-				FCBlockNumber: b.GetRoundNumber(),
-			})
-		case *transactions.CloseFeeCreditWrapper:
-			fcb, err := p.store.GetFeeCreditBill(tx.Transaction.UnitId)
-			if err != nil {
-				return err
-			}
-			return p.store.SetFeeCreditBill(&FeeCreditBill{
-				Id:            tx.Transaction.UnitId,
-				Value:         fcb.GetValue() - tx.CloseFC.Amount,
-				TxHash:        tx.Hash(crypto.SHA256),
-				FCBlockNumber: b.GetRoundNumber(),
-			})
-		default:
-			// decrement fee credit bill value if tx is not fee credit tx i.e. a normal tx
-			if err := p.updateFCB(inTx, b.GetRoundNumber()); err != nil {
-				return fmt.Errorf("failed to update fee credit bill %w", err)
-			}
+	switch tx := gtx.(type) {
+	case *transactions.AddFeeCreditWrapper:
+		fcb, err := p.store.GetFeeCreditBill(tx.Transaction.UnitId)
+		if err != nil {
+			return err
+		}
+		return p.store.SetFeeCreditBill(&FeeCreditBill{
+			Id:            tx.Transaction.UnitId,
+			Value:         fcb.GetValue() + tx.TransferFC.TransferFC.Amount - tx.Transaction.ServerMetadata.Fee,
+			TxHash:        tx.Hash(crypto.SHA256),
+			FCBlockNumber: b.GetRoundNumber(),
+		}, proof)
+	case *transactions.CloseFeeCreditWrapper:
+		fcb, err := p.store.GetFeeCreditBill(tx.Transaction.UnitId)
+		if err != nil {
+			return err
+		}
+		return p.store.SetFeeCreditBill(&FeeCreditBill{
+			Id:            tx.Transaction.UnitId,
+			Value:         fcb.GetValue() - tx.CloseFC.Amount,
+			TxHash:        tx.Hash(crypto.SHA256),
+			FCBlockNumber: b.GetRoundNumber(),
+		}, proof)
+	default:
+		// decrement fee credit bill value if tx is not fee credit tx i.e. a normal tx
+		if err := p.updateFCB(inTx, b.GetRoundNumber()); err != nil {
+			return fmt.Errorf("failed to update fee credit bill %w", err)
 		}
 	}
 
@@ -274,21 +274,22 @@ func (p *blockProcessor) processTx(inTx *txsystem.Transaction, b *block.Block) e
 	}
 }
 
-func (p *blockProcessor) saveTokenType(unit *TokenUnitType, proof *Proof) error {
+func (p *blockProcessor) saveTokenType(unit *TokenUnitType, proof *wallet.Proof) error {
 	if err := p.store.SaveTokenType(unit, proof); err != nil {
 		return fmt.Errorf("failed to store token type: %w", err)
 	}
 	return nil
 }
 
-func (p *blockProcessor) saveToken(unit *TokenUnit, proof *Proof) error {
+func (p *blockProcessor) saveToken(unit *TokenUnit, proof *wallet.Proof) error {
 	if err := p.store.SaveToken(unit, proof); err != nil {
 		return fmt.Errorf("failed to store token: %w", err)
 	}
+	p.notify(unit.Owner, unit)
 	return nil
 }
 
-func (p *blockProcessor) createProof(unitID UnitID, b *block.Block, tx *txsystem.Transaction) (*Proof, error) {
+func (p *blockProcessor) createProof(unitID wallet.UnitID, b *block.Block, tx *txsystem.Transaction) (*wallet.Proof, error) {
 	if b == nil {
 		return nil, nil
 	}
@@ -300,7 +301,7 @@ func (p *blockProcessor) createProof(unitID UnitID, b *block.Block, tx *txsystem
 	if err != nil {
 		return nil, fmt.Errorf("failed to create primary proof for the block: %w", err)
 	}
-	return &Proof{
+	return &wallet.Proof{
 		BlockNumber: b.UnicityCertificate.InputRecord.RoundNumber,
 		Tx:          tx,
 		Proof:       proof,
@@ -320,5 +321,5 @@ func (p *blockProcessor) updateFCB(tx *txsystem.Transaction, roundNumber uint64)
 	}
 	fcb.Value -= tx.ServerMetadata.Fee
 	fcb.FCBlockNumber = roundNumber
-	return p.store.SetFeeCreditBill(fcb)
+	return p.store.SetFeeCreditBill(fcb, nil)
 }

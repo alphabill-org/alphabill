@@ -20,24 +20,18 @@ func handleBurnFungibleTokenTx(options *Options) txsystem.GenericExecuteFunc[Bur
 		}
 		fee := options.feeCalculator()
 
-		// disable fee handling if fee is calculated to 0 (used to temporarily disable fee handling, can be removed after all wallets are updated)
-		var fcFunc rma.Action
-		if options.feeCalculator() == 0 {
-			fcFunc = func(tree *rma.Tree) error {
-				return nil
-			}
-		} else {
-			fcrID := util.BytesToUint256(tx.GetClientFeeCreditRecordID())
-			fcFunc = fc.DecrCredit(fcrID, fee, tx.Hash(options.hashAlgorithm))
-		}
-
 		// update state
+		fcrID := util.BytesToUint256(tx.GetClientFeeCreditRecordID())
+		unitID := util.BytesToUint256(tx.UnitID())
 		if err := options.state.AtomicUpdate(
-			fcFunc,
-			rma.DeleteItem(util.BytesToUint256(tx.UnitID()))); err != nil {
+			fc.DecrCredit(fcrID, fee, tx.Hash(options.hashAlgorithm)),
+			rma.DeleteItem(unitID),
+		); err != nil {
 			return nil, err
 		}
+
 		return &types.ServerMetadata{ActualFee: fee}, nil
+
 	}
 }
 

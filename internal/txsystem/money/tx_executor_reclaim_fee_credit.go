@@ -100,7 +100,8 @@ func validateReclaimFC(tx *types.TransactionOrder, attr *transactions.ReclaimFee
 	if !bytes.Equal(bd.Backlink, attr.Backlink) {
 		return ErrInvalidBacklink
 	}
-	if closeFeeCreditTx.ServerMetadata.ActualFee+tx.Payload.ClientMetadata.MaxTransactionFee > bd.V {
+	//
+	if closeFeeCreditTx.ServerMetadata.ActualFee+tx.Payload.ClientMetadata.MaxTransactionFee > closeFCAttr.Amount {
 		return ErrReclaimFCInvalidTxFee
 	}
 	// verify proof

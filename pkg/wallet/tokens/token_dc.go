@@ -18,19 +18,9 @@ import (
 const maxBurnBatchSize = 100
 
 func (w *Wallet) CollectDust(ctx context.Context, accountNumber uint64, allowedTokenTypes []twb.TokenTypeID, invariantPredicateArgs []*PredicateInput) error {
-	var keys []*account.AccountKey
-	var err error
-	if accountNumber > AllAccounts {
-		key, err := w.am.GetAccountKey(accountNumber - 1)
-		if err != nil {
-			return err
-		}
-		keys = append(keys, key)
-	} else {
-		keys, err = w.am.GetAccountKeys()
-		if err != nil {
-			return err
-		}
+	keys, err := w.getAccounts(accountNumber)
+	if err != nil {
+		return err
 	}
 
 	for _, key := range keys {
@@ -38,8 +28,8 @@ func (w *Wallet) CollectDust(ctx context.Context, accountNumber uint64, allowedT
 		if err != nil {
 			return err
 		}
-		for _, tokens := range tokensByTypes {
-			if err = w.collectDust(ctx, key, tokens, invariantPredicateArgs); err != nil {
+		for _, tokenz := range tokensByTypes {
+			if err = w.collectDust(ctx, key.AccountKey, tokenz, invariantPredicateArgs); err != nil {
 				return err
 			}
 		}

@@ -7,11 +7,11 @@ import (
 	"sync"
 	"time"
 
-	"github.com/alphabill-org/alphabill/internal/block"
 	"github.com/alphabill-org/alphabill/internal/errors"
 	"github.com/alphabill-org/alphabill/internal/rpc/alphabill"
-	"github.com/alphabill-org/alphabill/internal/txsystem"
+	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/pkg/wallet/log"
+	"github.com/fxamacker/cbor/v2"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/protobuf/types/known/emptypb"
@@ -19,8 +19,8 @@ import (
 
 // ABClient manages connection to alphabill node and implements RPC methods
 type ABClient interface {
-	SendTransaction(ctx context.Context, tx *txsystem.Transaction) error
-	GetBlock(ctx context.Context, blockNumber uint64) (*block.Block, error)
+	SendTransaction(ctx context.Context, tx *alphabill.Transaction) error
+	GetBlock(ctx context.Context, blockNumber uint64) ([]byte, error)
 	GetBlocks(ctx context.Context, blockNumber, blockCount uint64) (*alphabill.GetBlocksResponse, error)
 	GetRoundNumber(ctx context.Context) (uint64, error)
 	Shutdown() error
@@ -45,18 +45,23 @@ func New(config AlphabillClientConfig) *AlphabillClient {
 	return &AlphabillClient{config: config}
 }
 
-func (c *AlphabillClient) SendTransaction(ctx context.Context, tx *txsystem.Transaction) error {
+func (c *AlphabillClient) SendTransaction(ctx context.Context, tx *types.TransactionOrder) error {
 	defer trackExecutionTime(time.Now(), "sending transaction")
+
+	txoBytes, err := cbor.Marshal(tx)
+	if err != nil {
+		return err
+	}
 
 	if err := c.connect(); err != nil {
 		return err
 	}
 
-	_, err := c.client.ProcessTransaction(ctx, tx)
+	_, err = c.client.ProcessTransaction(ctx, &alphabill.Transaction{Order: txoBytes})
 	return err
 }
 
-func (c *AlphabillClient) GetBlock(ctx context.Context, blockNumber uint64) (*block.Block, error) {
+func (c *AlphabillClient) GetBlock(ctx context.Context, blockNumber uint64) ([]byte, error) {
 	defer trackExecutionTime(time.Now(), fmt.Sprintf("downloading block %d", blockNumber))
 
 	if err := c.connect(); err != nil {

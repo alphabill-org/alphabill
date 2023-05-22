@@ -1,6 +1,5 @@
 package rpc
 
-/*
 import (
 	"context"
 	"fmt"
@@ -9,6 +8,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/rpc/alphabill"
 	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/internal/util"
+	"github.com/fxamacker/cbor/v2"
 	"google.golang.org/protobuf/types/known/emptypb"
 )
 
@@ -17,7 +17,7 @@ var receivedInvalidTransactionsGRPCMeter = metrics.GetOrRegisterCounter("transac
 
 type (
 	grpcServer struct {
-		//alphabill.UnimplementedAlphabillServiceServer
+		alphabill.UnimplementedAlphabillServiceServer
 		node                  partitionNode
 		maxGetBlocksBatchSize uint64
 	}
@@ -50,9 +50,15 @@ func NewGRPCServer(node partitionNode, opts ...Option) (*grpcServer, error) {
 	}, nil
 }
 
-func (r *grpcServer) ProcessTransaction(ctx context.Context, tx *types.TransactionOrder) (*emptypb.Empty, error) {
+func (r *grpcServer) ProcessTransaction(ctx context.Context, tx *alphabill.Transaction) (*emptypb.Empty, error) {
 	receivedTransactionsGRPCMeter.Inc(1)
-	if err := r.node.SubmitTx(ctx, tx); err != nil {
+	txo := &types.TransactionOrder{}
+	if err := cbor.Unmarshal(tx.Order, txo); err != nil {
+		receivedInvalidTransactionsGRPCMeter.Inc(1)
+		return nil, err
+	}
+
+	if err := r.node.SubmitTx(ctx, txo); err != nil {
 		receivedInvalidTransactionsGRPCMeter.Inc(1)
 		return nil, err
 	}
@@ -64,7 +70,11 @@ func (r *grpcServer) GetBlock(ctx context.Context, req *alphabill.GetBlockReques
 	if err != nil {
 		return nil, err
 	}
-	return &alphabill.GetBlockResponse{Block: b}, nil
+	bytes, err := cbor.Marshal(b)
+	if err != nil {
+		return nil, err
+	}
+	return &alphabill.GetBlockResponse{Block: bytes}, nil
 }
 
 func (r *grpcServer) GetRoundNumber(_ context.Context, _ *emptypb.Empty) (*alphabill.GetRoundNumberResponse, error) {
@@ -94,7 +104,7 @@ func (r *grpcServer) GetBlocks(ctx context.Context, req *alphabill.GetBlocksRequ
 	if batchMaxBlockNumber >= req.BlockNumber {
 		batchSize = batchMaxBlockNumber - req.BlockNumber + 1
 	}
-	res := make([]*types.Block, 0, batchSize)
+	res := make([][]byte, 0, batchSize)
 	for blockNumber := req.BlockNumber; blockNumber <= batchMaxBlockNumber; blockNumber++ {
 		b, err := r.node.GetBlock(ctx, blockNumber)
 		if err != nil {
@@ -103,7 +113,11 @@ func (r *grpcServer) GetBlocks(ctx context.Context, req *alphabill.GetBlocksRequ
 		if b == nil {
 			continue
 		}
-		res = append(res, b)
+		bytes, err := cbor.Marshal(b)
+		if err != nil {
+			return nil, err
+		}
+		res = append(res, bytes)
 	}
 	return &alphabill.GetBlocksResponse{Blocks: res, MaxBlockNumber: latestBlock.UnicityCertificate.InputRecord.RoundNumber, MaxRoundNumber: latestRn, BatchMaxBlockNumber: batchMaxBlockNumber}, nil
 }
@@ -117,4 +131,3 @@ func verifyRequest(req *alphabill.GetBlocksRequest) error {
 	}
 	return nil
 }
-*/

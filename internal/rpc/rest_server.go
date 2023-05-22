@@ -2,7 +2,6 @@ package rpc
 
 import (
 	"bytes"
-	"context"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -46,14 +45,6 @@ type (
 		PartitionValidators []peerInfo `json:"partition_validators"`
 		OpenConnections     []peerInfo `json:"open_connections"` // all libp2p connections to other peers in the network
 
-	}
-
-	partitionNode interface {
-		SubmitTx(ctx context.Context, tx *types.TransactionOrder) error
-		GetBlock(ctx context.Context, blockNr uint64) (*types.Block, error)
-		GetLatestBlock() (*types.Block, error)
-		GetLatestRoundNumber() (uint64, error)
-		SystemIdentifier() []byte
 	}
 
 	peerInfo struct {

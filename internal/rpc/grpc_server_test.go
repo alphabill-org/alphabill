@@ -1,6 +1,5 @@
 package rpc
 
-/*
 import (
 	"bytes"
 	"context"
@@ -8,12 +7,11 @@ import (
 	"net"
 	"testing"
 
-	"github.com/fxamacker/cbor/v2"
-
 	"github.com/alphabill-org/alphabill/internal/rpc/alphabill"
 	"github.com/alphabill-org/alphabill/internal/script"
 	"github.com/alphabill-org/alphabill/internal/txsystem/money"
 	"github.com/alphabill-org/alphabill/internal/types"
+	"github.com/fxamacker/cbor/v2"
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -101,7 +99,7 @@ func TestRpcServer_ProcessTransaction_Fails(t *testing.T) {
 	ctx := context.Background()
 	con, client := createRpcClient(t, ctx)
 	defer con.Close()
-	response, err := client.ProcessTransaction(ctx, createTransaction(failingTransactionID))
+	response, err := client.ProcessTransaction(ctx, &alphabill.Transaction{Order: createTransactionOrder(t, failingTransactionID)})
 	assert.Nil(t, response)
 	assert.Errorf(t, err, "failed")
 }
@@ -111,8 +109,8 @@ func TestRpcServer_ProcessTransaction_Ok(t *testing.T) {
 	con, client := createRpcClient(t, ctx)
 	defer con.Close()
 
-	req := createTransaction(uint256.NewInt(1).Bytes32())
-	response, err := client.ProcessTransaction(ctx, req)
+	req := createTransactionOrder(t, uint256.NewInt(1).Bytes32())
+	response, err := client.ProcessTransaction(ctx, &alphabill.Transaction{Order: req})
 	assert.Nil(t, err)
 	assert.NotNil(t, response)
 }
@@ -140,24 +138,25 @@ func createRpcClient(t *testing.T, ctx context.Context) (*grpc.ClientConn, alpha
 	return conn, alphabill.NewAlphabillServiceClient(conn)
 }
 
-func createTransaction(id [32]byte) *types.TransactionOrder {
+func createTransactionOrder(t *testing.T, id [32]byte) []byte {
 	bt := &money.TransferAttributes{
 		NewBearer:   script.PredicateAlwaysTrue(),
 		TargetValue: 1,
 		Backlink:    nil,
 	}
 
-	txBytes, err := cbor.Marshal(bt)
-	if err != nil {
-		panic(err)
-	}
-	return &types.TransactionOrder{
+	attBytes, err := cbor.Marshal(bt)
+	require.NoError(t, err)
+
+	order, err := cbor.Marshal(&types.TransactionOrder{
 		Payload: &types.Payload{
 			UnitID:         id[:],
-			Type:           "transfer",
-			Attributes:     txBytes,
+			Type:           money.PayloadTypeTransfer,
+			Attributes:     attBytes,
 			ClientMetadata: &types.ClientMetadata{Timeout: 0},
 		},
 		OwnerProof: []byte{1},
-	}
-}*/
+	})
+	require.NoError(t, err)
+	return order
+}

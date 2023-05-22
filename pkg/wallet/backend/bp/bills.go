@@ -10,6 +10,7 @@ import (
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/internal/txsystem/money"
+	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/internal/util"
 	"google.golang.org/protobuf/encoding/protojson"
 )
@@ -20,6 +21,22 @@ var (
 	ErrInvalidDCBillFlag = errors.New("invalid isDcBill flag")
 	ErrInvalidTxHash     = errors.New("bill txHash is not equal to actual transaction hash")
 	ErrInvalidTxType     = errors.New("invalid tx type")
+)
+
+type (
+	Bills struct {
+		Bills []*Bill `json:"bills,omitempty"`
+	}
+
+	Bill struct {
+		Id       []byte         `json:"id,omitempty"`
+		Value    uint64         `json:"value,omitempty"`
+		TxHash   []byte         `json:"tx_hash,omitempty"`
+		IsDcBill bool           `json:"is_dc_bill,omitempty"`
+		TxProof  *types.TxProof `json:"tx_proof,omitempty"`
+		// block number when fee credit bill balance was last updated
+		FcBlockNumber uint64 `json:"fc_block_number,omitempty"`
+	}
 )
 
 type TxConverter interface {

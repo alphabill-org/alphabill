@@ -11,13 +11,13 @@ import (
 // MockAlphabillClient for testing. NOT thread safe.
 type (
 	MockAlphabillClient struct {
-		recordedTxs              []*types.TransactionOrder
+		recordedTxs              []*alphabill.Transaction
 		txResponse               error
 		maxBlockNumber           uint64
 		maxRoundNumber           uint64
 		shutdown                 bool
 		blocks                   map[uint64]*types.Block
-		txListener               func(tx *types.TransactionOrder)
+		txListener               func(tx *alphabill.Transaction)
 		incrementOnFetch         bool // if true, maxBlockNumber will be incremented on each GetBlocks call
 		lastRequestedBlockNumber uint64
 	}
@@ -50,7 +50,7 @@ func WithBlocks(blocks map[uint64]*types.Block) Option {
 	}
 }
 
-func (c *MockAlphabillClient) SendTransaction(_ context.Context, tx *types.TransactionOrder) error {
+func (c *MockAlphabillClient) SendTransaction(_ context.Context, tx *alphabill.Transaction) error {
 	c.recordedTxs = append(c.recordedTxs, tx)
 	if c.txListener != nil {
 		c.txListener(tx)
@@ -58,13 +58,13 @@ func (c *MockAlphabillClient) SendTransaction(_ context.Context, tx *types.Trans
 	return c.txResponse
 }
 
-func (c *MockAlphabillClient) GetBlock(_ context.Context, blockNumber uint64) (*types.Block, error) {
+func (c *MockAlphabillClient) GetBlock(_ context.Context, blockNumber uint64) ([]byte, error) {
 	if c.incrementOnFetch {
 		defer c.SetMaxBlockNumber(blockNumber + 1)
 	}
 	if c.blocks != nil {
 		b := c.blocks[blockNumber]
-		return b, nil
+		return cbor.Marshal(b)
 	}
 	return nil, nil
 }
@@ -138,15 +138,15 @@ func (c *MockAlphabillClient) SetBlock(b *types.Block) {
 	c.blocks[b.UnicityCertificate.InputRecord.RoundNumber] = b
 }
 
-func (c *MockAlphabillClient) GetRecordedTransactions() []*types.TransactionOrder {
+func (c *MockAlphabillClient) GetRecordedTransactions() []*alphabill.Transaction {
 	return c.recordedTxs
 }
 
 func (c *MockAlphabillClient) ClearRecordedTransactions() {
-	c.recordedTxs = make([]*types.TransactionOrder, 0)
+	c.recordedTxs = make([]*alphabill.Transaction, 0)
 }
 
-func (c *MockAlphabillClient) SetTxListener(txListener func(tx *types.TransactionOrder)) {
+func (c *MockAlphabillClient) SetTxListener(txListener func(tx *alphabill.Transaction)) {
 	c.txListener = txListener
 }
 

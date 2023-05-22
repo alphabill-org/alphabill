@@ -9,7 +9,6 @@ import (
 
 	"github.com/alphabill-org/alphabill/internal/errors"
 	"github.com/alphabill-org/alphabill/internal/rpc/alphabill"
-	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/pkg/wallet/log"
 	"github.com/fxamacker/cbor/v2"
 	"google.golang.org/grpc"
@@ -45,7 +44,7 @@ func New(config AlphabillClientConfig) *AlphabillClient {
 	return &AlphabillClient{config: config}
 }
 
-func (c *AlphabillClient) SendTransaction(ctx context.Context, tx *types.TransactionOrder) error {
+func (c *AlphabillClient) SendTransaction(ctx context.Context, tx *alphabill.Transaction) error {
 	defer trackExecutionTime(time.Now(), "sending transaction")
 
 	txoBytes, err := cbor.Marshal(tx)

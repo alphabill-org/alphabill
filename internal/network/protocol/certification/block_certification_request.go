@@ -60,7 +60,6 @@ func (x *BlockCertificationRequest) Sign(signer crypto.Signer) error {
 }
 
 func (x *BlockCertificationRequest) Bytes() []byte {
-	// TODO use cbor
 	var b bytes.Buffer
 	b.Write(x.SystemIdentifier)
 	b.WriteString(x.NodeIdentifier)

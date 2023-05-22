@@ -26,7 +26,7 @@ func TestNode_LedgerReplicationRequestTimeout(t *testing.T) {
 	system := &testtxsystem.CounterTxSystem{}
 	tp := RunSingleNodePartition(t, system)
 	bl := tp.GetLatestBlock(t)
-	order := testtransaction.NewTransaction(t)
+	order := testtransaction.NewTransactionOrder(t)
 	require.NoError(t, tp.SubmitTx(order))
 
 	// prepare proposal
@@ -60,7 +60,7 @@ func TestNode_HandleUnicityCertificate_RevertAndStartRecovery_withPendingProposa
 	system := &testtxsystem.CounterTxSystem{}
 	tp := RunSingleNodePartition(t, system)
 	bl := tp.GetLatestBlock(t)
-	order := testtransaction.NewTransaction(t)
+	order := testtransaction.NewTransactionOrder(t)
 	require.NoError(t, tp.SubmitTx(order))
 
 	// prepare proposal
@@ -829,9 +829,9 @@ func TestNode_RespondToReplicationRequest(t *testing.T) {
 
 	// generate 4 blocks with 3 tx each (but only 2 blocks will be matched and sent)
 	for i := 0; i < 4; i++ {
-		require.NoError(t, tp.SubmitTx(testtransaction.NewTransaction(t)))
-		require.NoError(t, tp.SubmitTx(testtransaction.NewTransaction(t)))
-		require.NoError(t, tp.SubmitTx(testtransaction.NewTransaction(t)))
+		require.NoError(t, tp.SubmitTx(testtransaction.NewTransactionOrder(t)))
+		require.NoError(t, tp.SubmitTx(testtransaction.NewTransactionOrder(t)))
+		require.NoError(t, tp.SubmitTx(testtransaction.NewTransactionOrder(t)))
 		require.Eventually(t, func() bool {
 			count := 0
 			for _, e := range tp.eh.GetEvents() {
@@ -898,9 +898,9 @@ func TestNode_RespondToInvalidReplicationRequest(t *testing.T) {
 
 	// generate 4 blocks with 3 tx each (but only 2 blocks will be matched and sent)
 	for i := 0; i < 4; i++ {
-		require.NoError(t, tp.SubmitTx(testtransaction.NewTransaction(t)))
-		require.NoError(t, tp.SubmitTx(testtransaction.NewTransaction(t)))
-		require.NoError(t, tp.SubmitTx(testtransaction.NewTransaction(t)))
+		require.NoError(t, tp.SubmitTx(testtransaction.NewTransactionOrder(t)))
+		require.NoError(t, tp.SubmitTx(testtransaction.NewTransactionOrder(t)))
+		require.NoError(t, tp.SubmitTx(testtransaction.NewTransactionOrder(t)))
 		require.Eventually(t, func() bool {
 			count := 0
 			for _, e := range tp.eh.GetEvents() {

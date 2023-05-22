@@ -60,7 +60,7 @@ func TestSend_UnknownPeer(t *testing.T) {
 	peer2Protocol, err := NewSendProtocol(peer2, testProtocolID, time.Second)
 	require.NoError(t, err)
 
-	err = peer2Protocol.Send(testtransaction.NewTransaction(t), peer1.ID())
+	err = peer2Protocol.Send(testtransaction.NewTransactionOrder(t), peer1.ID())
 	require.Error(t, err)
 	require.ErrorContains(t, err, "open stream error")
 }
@@ -83,7 +83,7 @@ func TestSend_ConnectionRefused(t *testing.T) {
 	peer2Protocol, err := NewSendProtocol(peer2, testProtocolID, time.Second)
 	require.NoError(t, err)
 
-	err = peer2Protocol.Send(testtransaction.NewTransaction(t), peer1.ID())
+	err = peer2Protocol.Send(testtransaction.NewTransactionOrder(t), peer1.ID())
 	require.Error(t, err)
 	require.ErrorContains(t, err, "connection refused")
 }
@@ -122,7 +122,7 @@ func TestSend_Ok(t *testing.T) {
 	require.NotEmpty(t, peer2.Network().Conns())
 
 	// peer2 forwards tx to peer1
-	transfer := testtransaction.NewTransaction(t)
+	transfer := testtransaction.NewTransactionOrder(t)
 	require.NoError(t, p.Send(transfer, peer1.ID()))
 	require.Eventually(t, func() bool {
 		m := <-ch

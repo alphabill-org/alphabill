@@ -1028,7 +1028,7 @@ func initState(t *testing.T) *rma.Tree {
 	}
 */
 func createTransactionOrder(t *testing.T, attr any, payloadType string, unitID *uint256.Int) *types.TransactionOrder {
-	return testtransaction.NewTransaction(
+	return testtransaction.NewTransactionOrder(
 		t,
 		testtransaction.WithUnitId(util.Uint256ToBytes(unitID)),
 		testtransaction.WithPayloadType(payloadType),

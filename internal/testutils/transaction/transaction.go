@@ -82,8 +82,7 @@ func WithAttributes(attr any) Option {
 	}
 }
 
-// TODO rename TransactionOrder...
-func NewTransaction(t *testing.T, options ...Option) *types.TransactionOrder {
+func NewTransactionOrder(t *testing.T, options ...Option) *types.TransactionOrder {
 	tx := defaultTx()
 	for _, o := range options {
 		require.NoError(t, o(tx))

@@ -491,7 +491,7 @@ func newInvalidTargetValueSwap(t *testing.T) *types.TransactionOrder {
 		TargetValue:  90,
 		Backlink:     []byte{6},
 	})
-	return testtransaction.NewTransaction(
+	return testtransaction.NewTransactionOrder(
 		t,
 		testtransaction.WithSystemID(systemIdentifier),
 		testtransaction.WithPayloadType(PayloadTypeSwapDC),
@@ -524,7 +524,7 @@ func newInvalidBillIdentifierSwap(t *testing.T, signer abcrypto.Signer) *types.T
 		TargetValue:  100,
 		Backlink:     []byte{6},
 	})
-	return testtransaction.NewTransaction(
+	return testtransaction.NewTransactionOrder(
 		t,
 		testtransaction.WithSystemID(systemIdentifier),
 		testtransaction.WithPayloadType(PayloadTypeSwapDC),
@@ -533,7 +533,7 @@ func newInvalidBillIdentifierSwap(t *testing.T, signer abcrypto.Signer) *types.T
 			OwnerCondition:  script.PredicateAlwaysTrue(),
 			BillIdentifiers: [][]byte{swapId},
 			DcTransfers:     []*types.TransactionRecord{transferDCRecord},
-			Proofs:          []*types.TxProof{testblock.CreateProof(t, transferDCRecord, signer, id32[:])},
+			Proofs:          []*types.TxProof{testblock.CreateProof(t, transferDCRecord, signer)},
 			TargetValue:     100,
 		}),
 		testtransaction.WithClientMetadata(&types.ClientMetadata{
@@ -561,10 +561,10 @@ func newInvalidBillIdSwap(t *testing.T, signer abcrypto.Signer) *types.Transacti
 			TargetValue:  100,
 			Backlink:     []byte{6},
 		})
-		proofs[i] = testblock.CreateProof(t, dcTransfers[i], signer, bytes32[:])
+		proofs[i] = testblock.CreateProof(t, dcTransfers[i], signer)
 	}
 
-	return testtransaction.NewTransaction(
+	return testtransaction.NewTransactionOrder(
 		t,
 		testtransaction.WithSystemID(systemIdentifier),
 		testtransaction.WithPayloadType(PayloadTypeSwapDC),
@@ -597,7 +597,7 @@ func newInvalidNonceSwap(t *testing.T, signer abcrypto.Signer) *types.Transactio
 		TargetValue:  100,
 		Backlink:     []byte{6},
 	})
-	return testtransaction.NewTransaction(
+	return testtransaction.NewTransactionOrder(
 		t,
 		testtransaction.WithSystemID(systemIdentifier),
 		testtransaction.WithPayloadType(PayloadTypeSwapDC),
@@ -606,7 +606,7 @@ func newInvalidNonceSwap(t *testing.T, signer abcrypto.Signer) *types.Transactio
 			OwnerCondition:  script.PredicateAlwaysTrue(),
 			BillIdentifiers: [][]byte{transferId},
 			DcTransfers:     []*types.TransactionRecord{transferDCRecord},
-			Proofs:          []*types.TxProof{testblock.CreateProof(t, transferDCRecord, signer, id32[:])},
+			Proofs:          []*types.TxProof{testblock.CreateProof(t, transferDCRecord, signer)},
 			TargetValue:     100,
 		}),
 		testtransaction.WithClientMetadata(&types.ClientMetadata{
@@ -634,10 +634,10 @@ func newSwapWithDescBillOrder(t *testing.T, signer abcrypto.Signer) *types.Trans
 			TargetValue:  100,
 			Backlink:     []byte{6},
 		})
-		proofs[i] = testblock.CreateProof(t, dcTransfers[i], signer, bytes32[:])
+		proofs[i] = testblock.CreateProof(t, dcTransfers[i], signer)
 	}
 
-	return testtransaction.NewTransaction(
+	return testtransaction.NewTransactionOrder(
 		t,
 		testtransaction.WithSystemID(systemIdentifier),
 		testtransaction.WithPayloadType(PayloadTypeSwapDC),
@@ -674,9 +674,9 @@ func newSwapOrderWithEqualBillIds(t *testing.T, signer abcrypto.Signer) *types.T
 			TargetValue:  100,
 			Backlink:     []byte{6},
 		})
-		proofs[i] = testblock.CreateProof(t, dcTransfers[i], signer, bytes32[:])
+		proofs[i] = testblock.CreateProof(t, dcTransfers[i], signer)
 	}
-	return testtransaction.NewTransaction(
+	return testtransaction.NewTransactionOrder(
 		t,
 		testtransaction.WithSystemID(systemIdentifier),
 		testtransaction.WithPayloadType(PayloadTypeSwapDC),
@@ -709,7 +709,7 @@ func newSwapOrderWithWrongOwnerCondition(t *testing.T, signer abcrypto.Signer) *
 		TargetValue:  100,
 		Backlink:     []byte{6},
 	})
-	return testtransaction.NewTransaction(
+	return testtransaction.NewTransactionOrder(
 		t,
 		testtransaction.WithSystemID(systemIdentifier),
 		testtransaction.WithPayloadType(PayloadTypeSwapDC),
@@ -718,7 +718,7 @@ func newSwapOrderWithWrongOwnerCondition(t *testing.T, signer abcrypto.Signer) *
 			OwnerCondition:  script.PredicateAlwaysTrue(),
 			BillIdentifiers: [][]byte{transferId},
 			DcTransfers:     []*types.TransactionRecord{transferDCRecord},
-			Proofs:          []*types.TxProof{testblock.CreateProof(t, transferDCRecord, signer, id32[:])},
+			Proofs:          []*types.TxProof{testblock.CreateProof(t, transferDCRecord, signer)},
 			TargetValue:     100,
 		}),
 		testtransaction.WithClientMetadata(&types.ClientMetadata{
@@ -742,7 +742,7 @@ func newInvalidTargetBearerSwap(t *testing.T, signer abcrypto.Signer) *types.Tra
 		TargetValue:  100,
 		Backlink:     []byte{6},
 	})
-	return testtransaction.NewTransaction(
+	return testtransaction.NewTransactionOrder(
 		t,
 		testtransaction.WithSystemID(systemIdentifier),
 		testtransaction.WithPayloadType(PayloadTypeSwapDC),
@@ -751,7 +751,7 @@ func newInvalidTargetBearerSwap(t *testing.T, signer abcrypto.Signer) *types.Tra
 			OwnerCondition:  script.PredicateAlwaysTrue(),
 			BillIdentifiers: [][]byte{transferId},
 			DcTransfers:     []*types.TransactionRecord{transferDCRecord},
-			Proofs:          []*types.TxProof{testblock.CreateProof(t, transferDCRecord, signer, id32[:])},
+			Proofs:          []*types.TxProof{testblock.CreateProof(t, transferDCRecord, signer)},
 			TargetValue:     100,
 		}),
 		testtransaction.WithClientMetadata(&types.ClientMetadata{
@@ -775,7 +775,7 @@ func newDcProofsNilSwap(t *testing.T) *types.TransactionOrder {
 		TargetValue:  100,
 		Backlink:     []byte{6},
 	})
-	return testtransaction.NewTransaction(
+	return testtransaction.NewTransactionOrder(
 		t,
 		testtransaction.WithSystemID(systemIdentifier),
 		testtransaction.WithPayloadType(PayloadTypeSwapDC),
@@ -809,7 +809,7 @@ func newEmptyDcProofsSwap(t *testing.T) *types.TransactionOrder {
 		TargetValue:  100,
 		Backlink:     []byte{6},
 	})
-	return testtransaction.NewTransaction(
+	return testtransaction.NewTransactionOrder(
 		t,
 		testtransaction.WithSystemID(systemIdentifier),
 		testtransaction.WithPayloadType(PayloadTypeSwapDC),
@@ -851,7 +851,7 @@ func newSwapDC(t *testing.T, signer abcrypto.Signer) *types.TransactionOrder {
 }
 
 func createSwapDCTransactionOrder(t *testing.T, signer abcrypto.Signer, swapId []byte, transferId []byte, transferDCRecord *types.TransactionRecord) *types.TransactionOrder {
-	return testtransaction.NewTransaction(
+	return testtransaction.NewTransactionOrder(
 		t,
 		testtransaction.WithSystemID(systemIdentifier),
 		testtransaction.WithPayloadType(PayloadTypeSwapDC),
@@ -860,7 +860,7 @@ func createSwapDCTransactionOrder(t *testing.T, signer abcrypto.Signer, swapId [
 			OwnerCondition:  script.PredicateAlwaysTrue(),
 			BillIdentifiers: [][]byte{transferId},
 			DcTransfers:     []*types.TransactionRecord{transferDCRecord},
-			Proofs:          []*types.TxProof{testblock.CreateProof(t, transferDCRecord, signer, nil)},
+			Proofs:          []*types.TxProof{testblock.CreateProof(t, transferDCRecord, signer)},
 			TargetValue:     100,
 		}),
 		testtransaction.WithClientMetadata(&types.ClientMetadata{

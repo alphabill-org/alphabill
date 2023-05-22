@@ -13,7 +13,6 @@ import (
 	"time"
 
 	"github.com/ainvaltin/httpsrv"
-	"github.com/alphabill-org/alphabill/pkg/wallet/backend/bp"
 	"github.com/alphabill-org/alphabill/internal/block"
 	testhttp "github.com/alphabill-org/alphabill/internal/testutils/http"
 	"github.com/alphabill-org/alphabill/internal/testutils/net"
@@ -23,6 +22,7 @@ import (
 	"github.com/alphabill-org/alphabill/pkg/client"
 	"github.com/alphabill-org/alphabill/pkg/client/clientmock"
 	"github.com/alphabill-org/alphabill/pkg/wallet"
+	"github.com/alphabill-org/alphabill/pkg/wallet/backend/bp"
 	"github.com/stretchr/testify/require"
 )
 
@@ -338,7 +338,7 @@ func TestProofRequest_Ok(t *testing.T) {
 		OwnerPredicate: getOwnerPredicate(pubkeyHex),
 		TxProof: &TxProof{
 			BlockNumber: 1,
-			Tx:          testtransaction.NewTransaction(t),
+			Tx:          testtransaction.NewTransactionOrder(t),
 			Proof: &block.BlockProof{
 				BlockHeaderHash: []byte{0},
 				BlockTreeHashChain: &block.BlockTreeHashChain{
@@ -451,7 +451,7 @@ func TestGetFeeCreditBillRequest_Ok(t *testing.T) {
 		FCBlockNumber:  1,
 		TxProof: &TxProof{
 			BlockNumber: 1,
-			Tx:          testtransaction.NewTransaction(t),
+			Tx:          testtransaction.NewTransactionOrder(t),
 			Proof: &block.BlockProof{
 				BlockHeaderHash: []byte{0},
 				BlockTreeHashChain: &block.BlockTreeHashChain{

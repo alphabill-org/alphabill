@@ -33,11 +33,11 @@ func TestNewNetwork_Ok(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, cPart.Nodes, 3)
 
-	tx := testtransaction.NewTransaction(t, testtransaction.WithSystemID(systemIdentifier))
+	tx := testtransaction.NewTransactionOrder(t, testtransaction.WithSystemID(systemIdentifier))
 	require.NoError(t, cPart.SubmitTx(tx))
 	require.Eventually(t, BlockchainContainsTx(cPart, tx), test.WaitDuration, test.WaitTick)
 
-	tx = testtransaction.NewTransaction(t, testtransaction.WithSystemID(systemIdentifier))
+	tx = testtransaction.NewTransactionOrder(t, testtransaction.WithSystemID(systemIdentifier))
 	err = cPart.BroadcastTx(tx)
 	require.Eventually(t, BlockchainContainsTx(cPart, tx), test.WaitDuration, test.WaitTick)
 }

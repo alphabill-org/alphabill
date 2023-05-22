@@ -97,7 +97,7 @@ func TestGetBills_OK(t *testing.T) {
 	txValue := uint64(100)
 	pubkey := make([]byte, 32)
 	bearer := script.PredicatePayToPublicKeyHashDefault(hash.Sum256(pubkey))
-	tx := testtransaction.NewTransaction(t, testtransaction.WithAttributes(&moneytx.TransferAttributes{
+	tx := testtransaction.NewTransactionOrder(t, testtransaction.WithAttributes(&moneytx.TransferAttributes{
 		TargetValue: txValue,
 		NewBearer:   bearer,
 	}))
@@ -140,7 +140,7 @@ func TestGetBills_SHA512_OK(t *testing.T) {
 	txValue := uint64(100)
 	pubkey := make([]byte, 32)
 	bearer := script.PredicatePayToPublicKeyHashDefault(hash.Sum512(pubkey))
-	tx := testtransaction.NewTransaction(t, testtransaction.WithAttributes(&moneytx.TransferAttributes{
+	tx := testtransaction.NewTransactionOrder(t, testtransaction.WithAttributes(&moneytx.TransferAttributes{
 		TargetValue: txValue,
 		NewBearer:   bearer,
 	}))

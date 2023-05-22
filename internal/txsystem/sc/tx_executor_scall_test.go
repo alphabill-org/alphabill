@@ -68,5 +68,5 @@ func Test_handleSCallTx(t *testing.T) {
 }
 
 func newSCallTxOrder(t *testing.T, opts ...testtransaction.Option) *types.TransactionOrder {
-	return testtransaction.NewTransaction(t, opts...)
+	return testtransaction.NewTransactionOrder(t, opts...)
 }

@@ -12,8 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TODO remove unit ID
-func CreateProof(t *testing.T, tx *types.TransactionRecord, signer abcrypto.Signer, unitID []byte) *types.TxProof {
+func CreateProof(t *testing.T, tx *types.TransactionRecord, signer abcrypto.Signer) *types.TxProof {
 	b := &types.Block{Header: &types.Header{}, UnicityCertificate: &types.UnicityCertificate{InputRecord: &types.InputRecord{RoundNumber: 1}}}
 	if tx != nil {
 		b.Transactions = []*types.TransactionRecord{tx}
@@ -22,19 +21,6 @@ func CreateProof(t *testing.T, tx *types.TransactionRecord, signer abcrypto.Sign
 	p, err := types.NewTxProof(b, 0, crypto.SHA256)
 	require.NoError(t, err)
 	return p
-}
-
-// TODO remove?
-func CreatePrimaryProofs(t *testing.T, txs []*types.TransactionRecord, signer abcrypto.Signer) (proofs []*types.TxProof) {
-	b := &types.Block{UnicityCertificate: &types.UnicityCertificate{InputRecord: &types.InputRecord{RoundNumber: 1}}}
-	b.Transactions = txs
-	b.UnicityCertificate = CreateUC(t, b, signer)
-	for i, _ := range txs {
-		p, err := types.NewTxProof(b, i, crypto.SHA256)
-		require.NoError(t, err)
-		proofs = append(proofs, p)
-	}
-	return
 }
 
 func CreateUC(t *testing.T, b *types.Block, signer abcrypto.Signer) *types.UnicityCertificate {
@@ -58,13 +44,8 @@ func CreateUC(t *testing.T, b *types.Block, signer abcrypto.Signer) *types.Unici
 }
 
 func CertifyBlock(t *testing.T, b *types.Block) (*types.Block, map[string]abcrypto.Verifier) {
-	verifiers := CertifyGenericBlock(t, b)
-	return b, verifiers
-}
-
-func CertifyGenericBlock(t *testing.T, b *types.Block) map[string]abcrypto.Verifier {
 	signer, verifier := testsig.CreateSignerAndVerifier(t)
 	verifiers := map[string]abcrypto.Verifier{"test": verifier}
 	b.UnicityCertificate = CreateUC(t, b, signer)
-	return verifiers
+	return b, verifiers
 }

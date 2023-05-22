@@ -19,7 +19,7 @@ func NewTransferFC(t *testing.T, attr *transactions.TransferFeeCreditAttributes,
 	if attr == nil {
 		attr = NewTransferFCAttr()
 	}
-	tx := testtransaction.NewTransaction(t,
+	tx := testtransaction.NewTransactionOrder(t,
 		testtransaction.WithUnitId(unitID),
 		testtransaction.WithAttributes(attr),
 		testtransaction.WithPayloadType(transactions.PayloadTypeTransferFeeCredit),

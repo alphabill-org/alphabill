@@ -13,7 +13,7 @@ func NewCloseFC(t *testing.T, attr *transactions.CloseFeeCreditAttributes, opts 
 	if attr == nil {
 		attr = NewCloseFCAttr()
 	}
-	tx := testtransaction.NewTransaction(t,
+	tx := testtransaction.NewTransactionOrder(t,
 		testtransaction.WithUnitId(unitID),
 		testtransaction.WithAttributes(attr),
 		testtransaction.WithPayloadType(transactions.PayloadTypeCloseFeeCredit),

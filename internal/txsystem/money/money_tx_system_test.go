@@ -387,7 +387,7 @@ func TestEndBlock_FeesConsolidation(t *testing.T) {
 		ServerMetadata:   &types.ServerMetadata{ActualFee: 1},
 	}
 
-	proof := testblock.CreateProof(t, closeFCRecord, signer, closeFC.UnitID())
+	proof := testblock.CreateProof(t, closeFCRecord, signer)
 	reclaimFC := testfc.NewReclaimFC(t, signer,
 		testfc.NewReclaimFCAttr(t, signer,
 			testfc.WithReclaimFCClosureTx(closeFCRecord),
@@ -511,7 +511,7 @@ func TestExecute_FeeCreditSequence_OK(t *testing.T) {
 		TransactionOrder: transferFC,
 		ServerMetadata:   sm,
 	}
-	transferFCProof := testblock.CreateProof(t, transferFCTransactionRecord, signer, transferFC.UnitID())
+	transferFCProof := testblock.CreateProof(t, transferFCTransactionRecord, signer)
 	addFC := testfc.NewAddFC(t, signer,
 		testfc.NewAddFCAttr(t, signer,
 			testfc.WithTransferFCTx(transferFCTransactionRecord),
@@ -560,7 +560,7 @@ func TestExecute_FeeCreditSequence_OK(t *testing.T) {
 		TransactionOrder: closeFC,
 		ServerMetadata:   sm,
 	}
-	closeFCProof := testblock.CreateProof(t, closeFCTransactionRecord, signer, closeFC.UnitID())
+	closeFCProof := testblock.CreateProof(t, closeFCTransactionRecord, signer)
 	reclaimFC := testfc.NewReclaimFC(t, signer,
 		testfc.NewReclaimFCAttr(t, signer,
 			testfc.WithReclaimFCClosureTx(closeFCTransactionRecord),
@@ -644,7 +644,7 @@ func createDCTransferAndSwapTxs(
 			TransactionOrder: tx,
 			ServerMetadata:   &types.ServerMetadata{ActualFee: 1},
 		}
-		proofs[i] = testblock.CreateProof(t, txr, signer, util.Uint256ToBytes(id))
+		proofs[i] = testblock.CreateProof(t, txr, signer)
 		dcTransfers[i] = txr
 	}
 

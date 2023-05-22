@@ -23,7 +23,7 @@ func TestSmartContractPartition_Ok(t *testing.T) {
 	require.NoError(t, abNet.Start())
 	t.Cleanup(func() { require.NoError(t, abNet.Close()) })
 
-	txOrder := testtransaction.NewTransaction(t,
+	txOrder := testtransaction.NewTransactionOrder(t,
 		testtransaction.WithUnitId(unlockMoneyBillProgramID),
 		testtransaction.WithSystemID(DefaultSmartContractSystemIdentifier),
 		testtransaction.WithAttributes(&SCallAttributes{

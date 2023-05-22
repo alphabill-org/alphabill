@@ -261,13 +261,6 @@ func verifyTxSystemState(state txsystem.State, ucIR *types.InputRecord) error {
 func (n *Node) applyBlockTransactions(round uint64, txs []*types.TransactionRecord) (txsystem.State, error) {
 	n.transactionSystem.BeginBlock(round)
 	for _, tx := range txs {
-		/*
-			TODO remove
-			gtx, err := n.transactionSystem.ConvertTx(tx)
-			if err != nil {
-				return nil, fmt.Errorf("tx '%v' conversion error, %w", tx, err)
-			}*/
-		// TODO check server matadata
 		if _, err := n.validateAndExecuteTx(tx.TransactionOrder, round); err != nil {
 			return nil, fmt.Errorf("tx '%v' execution error, %w", tx, err)
 		}
@@ -291,11 +284,6 @@ func (n *Node) restoreBlockProposal(prevBlock *types.Block) {
 		logger.Debug("Stored block proposal does not extend previous state, stale proposal")
 		return
 	}
-	/*
-		proposal, err := pr.ToGeneric(n.transactionSystem)
-		if err != nil {
-			logger.Warning("Error restoring block proposal: %v", err)
-		}*/
 	// apply stored proposal to current state
 	logger.Debug("Stored block proposal extends the previous state")
 	roundNo := prevBlock.GetRoundNumber() + 1
@@ -411,11 +399,6 @@ func (n *Node) eventHandlerLoop(ctx context.Context) error {
 }
 
 func (n *Node) handleTxMessage(tx *types.TransactionOrder) error {
-	/*genTx, err := n.transactionSystem.ConvertTx(tx)
-	if err != nil {
-		return fmt.Errorf("failed to convert to generic transaction: %w", err)
-	}*/
-
 	if err := n.txBuffer.Add(tx); err != nil {
 		return fmt.Errorf("failed to add transaction into buffer: %w", err)
 	}
@@ -450,8 +433,7 @@ func (n *Node) process(tx *types.TransactionOrder, round uint64) error {
 	sm, err := n.validateAndExecuteTx(tx, round)
 	if err != nil {
 		n.sendEvent(event.TransactionFailed, tx)
-		// TODO fix log
-		return fmt.Errorf("tx '%v' execution failed, %w", tx, err)
+		return fmt.Errorf("tx '%X' execution failed, %w", tx.Hash(n.configuration.hashAlgorithm), err)
 	}
 	n.proposedTransactions = append(n.proposedTransactions, &types.TransactionRecord{TransactionOrder: tx, ServerMetadata: sm})
 	n.sendEvent(event.TransactionProcessed, tx)
@@ -541,14 +523,6 @@ func (n *Node) handleBlockProposal(ctx context.Context, prop *blockproposal.Bloc
 	}
 	n.transactionSystem.BeginBlock(n.getCurrentRound())
 	for _, tx := range prop.Transactions {
-		/*
-			TODO remove
-			genTx, err := n.transactionSystem.ConvertTx(tx)
-			if err != nil {
-				logger.Warning("transaction is invalid %v", err)
-				return err
-			}*/
-		// TODO do we need to check server metadata?
 		if err = n.process(tx.TransactionOrder, n.getCurrentRound()); err != nil {
 			return fmt.Errorf("transaction error %w", err)
 		}
@@ -1107,13 +1081,6 @@ func (n *Node) SubmitTx(_ context.Context, tx *types.TransactionOrder) (err erro
 			invalidTransactionsCounter.Inc(1)
 		}
 	}()
-	/*
-		TODO remove
-		genTx, err := n.transactionSystem.ConvertTx(tx)
-		if err != nil {
-			return err
-		}*/
-
 	rn := n.getCurrentRound()
 	if err = n.txValidator.Validate(tx, rn); err != nil {
 		return err

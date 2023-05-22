@@ -43,10 +43,7 @@ func TestNode_StartNewRoundCallsRInit(t *testing.T) {
 func TestNode_noRound_txAddedBackToBuffer(t *testing.T) {
 	s := &testtxsystem.CounterTxSystem{}
 	p := RunSingleNodePartition(t, s)
-	//TODO remove
-	//transfer := moneytesttx.RandomGenericBillTransfer(t)
-	//
-	transfer := testtransaction.NewTransaction(t)
+	transfer := testtransaction.NewTransactionOrder(t)
 	stateBefore, err := s.StateSummary()
 	if err != nil {
 		require.NoError(t, err)
@@ -68,18 +65,6 @@ func TestNode_noRound_txAddedBackToBuffer(t *testing.T) {
 	require.Equal(t, stateBefore.Root(), stateAfter.Root())
 }
 
-/*
-TODO remove?
-
-	func TestNode_ConvertingTxToGenericTxFails(t *testing.T) {
-		system := &convertTxFailsTxSystem{}
-		pn := RunSingleNodePartition(t, system)
-		tx := moneytesttx.RandomBillTransfer(t)
-		err := pn.partition.handleTxMessage(tx)
-		require.ErrorContains(t, err, "invalid tx")
-		require.Equal(t, 0, len(pn.partition.proposedTransactions))
-	}
-*/
 func TestNode_NodeStartTest(t *testing.T) {
 	tp := RunSingleNodePartition(t, &testtxsystem.CounterTxSystem{})
 	// node starts in init state
@@ -149,7 +134,7 @@ func TestNode_NodeStartWithRecoverStateFromDB(t *testing.T) {
 func TestNode_CreateBlocks(t *testing.T) {
 	tp := RunSingleNodePartition(t, &testtxsystem.CounterTxSystem{})
 	tp.partition.startNewRound(context.Background(), tp.partition.luc.Load())
-	transfer := testtransaction.NewTransaction(t)
+	transfer := testtransaction.NewTransactionOrder(t)
 	require.NoError(t, tp.SubmitTx(transfer))
 	require.Eventually(t, func() bool {
 		events := tp.eh.GetEvents()
@@ -166,7 +151,7 @@ func TestNode_CreateBlocks(t *testing.T) {
 	require.NotEmpty(t, block1.GetProposerID())
 	require.True(t, ContainsTransaction(block1, transfer))
 
-	tx1 := testtransaction.NewTransaction(t)
+	tx1 := testtransaction.NewTransactionOrder(t)
 	require.NoError(t, tp.SubmitTxFromRPC(tx1))
 	require.Eventually(t, func() bool {
 		events := tp.eh.GetEvents()
@@ -178,7 +163,7 @@ func TestNode_CreateBlocks(t *testing.T) {
 		return false
 	}, test.WaitDuration, test.WaitTick)
 	tp.eh.Reset()
-	tx2 := testtransaction.NewTransaction(t)
+	tx2 := testtransaction.NewTransactionOrder(t)
 	require.NoError(t, tp.SubmitTx(tx2))
 	require.Eventually(t, func() bool {
 		events := tp.eh.GetEvents()
@@ -204,7 +189,7 @@ func TestNode_SubsequentEmptyBlocksNotPersisted(t *testing.T) {
 	tp := RunSingleNodePartition(t, &testtxsystem.CounterTxSystem{})
 	genesis := tp.GetLatestBlock(t)
 	tp.partition.startNewRound(context.Background(), tp.partition.luc.Load())
-	require.NoError(t, tp.SubmitTx(testtransaction.NewTransaction(t)))
+	require.NoError(t, tp.SubmitTx(testtransaction.NewTransactionOrder(t)))
 	testevent.ContainsEvent(t, tp.eh, event.TransactionProcessed)
 	tp.CreateBlock(t)
 	block1 := tp.GetLatestBlock(t)
@@ -233,7 +218,7 @@ func TestNode_SubsequentEmptyBlocksNotPersisted(t *testing.T) {
 	require.Equal(t, block1.UnicityCertificate.InputRecord.Hash, uc3.InputRecord.Hash)
 
 	// next block (non-empty)
-	require.NoError(t, tp.SubmitTx(testtransaction.NewTransaction(t)))
+	require.NoError(t, tp.SubmitTx(testtransaction.NewTransactionOrder(t)))
 	testevent.ContainsEvent(t, tp.eh, event.TransactionProcessed)
 	tp.CreateBlock(t)
 	block4 := tp.GetLatestBlock(t)
@@ -256,7 +241,7 @@ func TestNode_HandleNilUnicityCertificate(t *testing.T) {
 func TestNode_HandleOlderUnicityCertificate(t *testing.T) {
 	tp := RunSingleNodePartition(t, &testtxsystem.CounterTxSystem{})
 	block := tp.GetLatestBlock(t)
-	transfer := testtransaction.NewTransaction(t)
+	transfer := testtransaction.NewTransactionOrder(t)
 
 	require.NoError(t, tp.SubmitTx(transfer))
 	tp.CreateBlock(t)
@@ -299,9 +284,6 @@ func TestNode_CreateEmptyBlock(t *testing.T) {
 	tp.CreateBlock(t)
 	require.Eventually(t, NextBlockReceived(t, tp, block), test.WaitDuration, test.WaitTick)
 
-	//genericBlock, _ := block.ToGenericBlock(txSystem)
-	//blockHash, _ := genericBlock.Hash(gocrypto.SHA256)
-	//block2 := tp.GetLatestBlock()
 	uc2 := tp.partition.luc.Load()
 	require.Equal(t, block.UnicityCertificate.InputRecord.RoundNumber+1, uc2.InputRecord.RoundNumber)
 	require.Equal(t, block.Header.SystemID, uc2.UnicityTreeCertificate.SystemIdentifier)
@@ -361,7 +343,7 @@ func TestNode_HandleEquivocatingUnicityCertificate_SameIRPreviousHashDifferentIR
 	tp.partition.startNewRound(context.Background(), genesisUC)
 	block := tp.GetLatestBlock(t)
 	txs.ExecuteCountDelta++ // so that the block is not considered empty
-	require.NoError(t, tp.SubmitTx(testtransaction.NewTransaction(t)))
+	require.NoError(t, tp.SubmitTx(testtransaction.NewTransactionOrder(t)))
 	testevent.ContainsEvent(t, tp.eh, event.TransactionProcessed)
 
 	tp.CreateBlock(t)
@@ -387,7 +369,7 @@ func TestNode_HandleUnicityCertificate_SameIR_DifferentBlockHash_StateReverted(t
 	tp := RunSingleNodePartition(t, txs)
 	genesisUC := tp.partition.luc.Load()
 	tp.partition.startNewRound(context.Background(), genesisUC)
-	require.NoError(t, tp.SubmitTx(testtransaction.NewTransaction(t)))
+	require.NoError(t, tp.SubmitTx(testtransaction.NewTransactionOrder(t)))
 	testevent.ContainsEvent(t, tp.eh, event.TransactionProcessed)
 	tp.CreateBlock(t)
 
@@ -396,7 +378,7 @@ func TestNode_HandleUnicityCertificate_SameIR_DifferentBlockHash_StateReverted(t
 	tp.mockNet.ResetSentMessages(network.ProtocolBlockCertification)
 	tp.partition.startNewRound(context.Background(), tp.partition.luc.Load())
 	// create a new transaction
-	require.NoError(t, tp.SubmitTx(testtransaction.NewTransaction(t)))
+	require.NoError(t, tp.SubmitTx(testtransaction.NewTransactionOrder(t)))
 	testevent.ContainsEvent(t, tp.eh, event.TransactionProcessed)
 	// create block proposal
 	tp.SubmitT1Timeout(t)
@@ -446,7 +428,7 @@ func TestNode_HandleUnicityCertificate_Revert(t *testing.T) {
 	tp := RunSingleNodePartition(t, system)
 	block := tp.GetLatestBlock(t)
 
-	transfer := testtransaction.NewTransaction(t)
+	transfer := testtransaction.NewTransactionOrder(t)
 	require.NoError(t, tp.SubmitTx(transfer))
 
 	// create block proposal
@@ -476,7 +458,7 @@ func TestBlockProposal_BlockProposalIsNil(t *testing.T) {
 func TestBlockProposal_InvalidNodeIdentifier(t *testing.T) {
 	tp := RunSingleNodePartition(t, &testtxsystem.CounterTxSystem{})
 	block := tp.GetLatestBlock(t)
-	transfer := testtransaction.NewTransaction(t)
+	transfer := testtransaction.NewTransactionOrder(t)
 
 	require.NoError(t, tp.SubmitTx(transfer))
 	tp.CreateBlock(t)
@@ -488,7 +470,7 @@ func TestBlockProposal_InvalidNodeIdentifier(t *testing.T) {
 func TestBlockProposal_InvalidBlockProposal(t *testing.T) {
 	tp := RunSingleNodePartition(t, &testtxsystem.CounterTxSystem{})
 	block := tp.GetLatestBlock(t)
-	transfer := testtransaction.NewTransaction(t)
+	transfer := testtransaction.NewTransactionOrder(t)
 
 	require.NoError(t, tp.SubmitTx(transfer))
 	tp.CreateBlock(t)
@@ -507,7 +489,7 @@ func TestBlockProposal_InvalidBlockProposal(t *testing.T) {
 func TestBlockProposal_HandleOldBlockProposal(t *testing.T) {
 	tp := RunSingleNodePartition(t, &testtxsystem.CounterTxSystem{})
 	block := tp.GetLatestBlock(t)
-	transfer := testtransaction.NewTransaction(t)
+	transfer := testtransaction.NewTransactionOrder(t)
 
 	require.NoError(t, tp.SubmitTx(transfer))
 	tp.CreateBlock(t)

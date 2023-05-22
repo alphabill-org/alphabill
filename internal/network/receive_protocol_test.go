@@ -34,7 +34,7 @@ func TestNewReceiverProtocol_Ok(t *testing.T) {
 	defer func() { require.NoError(t, s.Close()) }()
 
 	w := NewCBORWriter(s)
-	tx := testtransaction.NewTransaction(t)
+	tx := testtransaction.NewTransactionOrder(t)
 	err = w.Write(tx)
 	require.NoError(t, err)
 

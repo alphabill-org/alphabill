@@ -14,13 +14,10 @@ import (
 
 var (
 	unitID               = test.NewUnitID(1)
-	moneySystemID        = []byte{0, 0, 0, 0}
 	systemID             = []byte{0, 0, 0, 0}
 	nonce                = []byte{3}
 	backlink             = []byte{4}
-	bearer               = []byte{5}
 	amount               = uint64(50)
-	fee                  = uint64(1)
 	maxFee               = uint64(2)
 	earliestAdditionTime = uint64(0)
 	latestAdditionTime   = uint64(10)
@@ -30,7 +27,7 @@ func NewAddFC(t *testing.T, signer abcrypto.Signer, attr *transactions.AddFeeCre
 	if attr == nil {
 		attr = NewAddFCAttr(t, signer)
 	}
-	tx := testtransaction.NewTransaction(t,
+	tx := testtransaction.NewTransactionOrder(t,
 		testtransaction.WithUnitId(unitID),
 		testtransaction.WithAttributes(attr),
 		testtransaction.WithPayloadType(transactions.PayloadTypeAddFeeCredit),
@@ -55,7 +52,7 @@ func NewAddFCAttr(t *testing.T, signer abcrypto.Signer, opts ...AddFeeCreditOpti
 		}
 	}
 	if defaultFCTx.FeeCreditTransferProof == nil {
-		defaultFCTx.FeeCreditTransferProof = testblock.CreateProof(t, defaultFCTx.FeeCreditTransfer, signer, defaultFCTx.FeeCreditTransfer.TransactionOrder.UnitID())
+		defaultFCTx.FeeCreditTransferProof = testblock.CreateProof(t, defaultFCTx.FeeCreditTransfer, signer)
 	}
 	return defaultFCTx
 }

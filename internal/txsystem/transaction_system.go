@@ -41,7 +41,6 @@ type (
 	}
 
 	// State represents the root hash and summary value of the transaction system.
-	// TODO remove
 	State interface {
 		// Root returns the root hash of the TransactionSystem.
 		Root() []byte

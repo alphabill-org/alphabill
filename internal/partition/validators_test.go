@@ -166,7 +166,7 @@ func TestDefaultNewDefaultBlockProposalValidator_ValidateOk(t *testing.T) {
 		UnicityCertificate: uc,
 		Transactions: []*types.TransactionRecord{
 			{
-				TransactionOrder: testtransaction.NewTransaction(t),
+				TransactionOrder: testtransaction.NewTransactionOrder(t),
 				ServerMetadata: &types.ServerMetadata{
 					ActualFee: 10,
 				},
@@ -195,14 +195,14 @@ func TestDefaultTxValidator_ValidateNotOk(t *testing.T) {
 		},
 		{
 			name:                     "invalid system identifier",
-			tx:                       testtransaction.NewTransaction(t), // default systemID is 0000
+			tx:                       testtransaction.NewTransactionOrder(t), // default systemID is 0000
 			latestBlockNumber:        10,
 			expectedSystemIdentifier: []byte{1, 2, 3, 4},
 			errStr:                   "expected 01020304, got 00000000: invalid transaction system identifier",
 		},
 		{
 			name:                     "expired transaction",
-			tx:                       testtransaction.NewTransaction(t), // default timeout is 10
+			tx:                       testtransaction.NewTransactionOrder(t), // default timeout is 10
 			latestBlockNumber:        11,
 			expectedSystemIdentifier: []byte{0, 0, 0, 0},
 			errStr:                   "transaction has timed out: transaction timeout round is 10, current round is 11",

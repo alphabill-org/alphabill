@@ -435,8 +435,7 @@ func WaitNodeRequestReceived(t *testing.T, tp *SingleNodePartition, req string) 
 		ID: reqs[len(reqs)-1].ID,
 		OutputMessage: network.OutputMessage{
 			Protocol: reqs[len(reqs)-1].Protocol,
-			// TODO Clone?
-			Message: reqs[len(reqs)-1].Message,
+			Message:  reqs[len(reqs)-1].Message,
 		},
 	}
 }

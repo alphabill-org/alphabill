@@ -35,24 +35,26 @@ func (p *blockProcessor) ProcessBlock(ctx context.Context, b *types.Block) error
 		return fmt.Errorf("invalid block, received block %d, current wallet block %d", b.UnicityCertificate.InputRecord.RoundNumber, lastBlockNumber)
 	}
 
-	for idx, tx := range b.Transactions {
-		if err := p.processTx(tx, idx, b); err != nil {
+	for idx := 0; idx < len(b.Transactions); idx++ {
+		proof, err := types.NewTxProof(b, idx, crypto.SHA256)
+		if err != nil {
+			return fmt.Errorf("failed to create tx proof for the block: %w", err)
+		}
+		if err := p.processTx(proof); err != nil {
 			return fmt.Errorf("failed to process tx: %w", err)
 		}
 	}
 
-	return p.store.SetBlockNumber(b.UnicityCertificate.InputRecord.RoundNumber)
+	return p.store.SetBlockNumber(b.GetRoundNumber())
 }
 
-func (p *blockProcessor) processTx(tr *types.TransactionRecord, txIdx int, b *types.Block) error {
+func (p *blockProcessor) processTx(proof *wallet.TxProof) error {
+	var err error
+	tr := proof.TransactionRecord
 	tx := tr.TransactionOrder
+	rn := proof.UnicityCertificate.GetRoundNumber()
 	id := tx.UnitID()
 	txHash := tx.Hash(crypto.SHA256)
-	proof, err := p.createProof(txIdx, b, tr)
-	if err != nil {
-		return fmt.Errorf("failed to create proof for tx with id=%X: %w", txHash, err)
-	}
-
 	p.log.Debug(fmt.Sprintf("processTx: UnitID=%x type: %s", id, tx.PayloadType()))
 
 	// handle fee credit txs
@@ -74,7 +76,7 @@ func (p *blockProcessor) processTx(tr *types.TransactionRecord, txIdx int, b *ty
 			Id:            id,
 			Value:         fcb.GetValue() + transferFeeCreditAttributes.Amount - tr.ServerMetadata.ActualFee,
 			TxHash:        tx.Hash(crypto.SHA256),
-			FCBlockNumber: b.GetRoundNumber(),
+			FCBlockNumber: rn,
 		}, proof)
 	case transactions.PayloadTypeCloseFeeCredit:
 		closeFeeCreditAttributes := &transactions.CloseFeeCreditAttributes{}
@@ -89,11 +91,11 @@ func (p *blockProcessor) processTx(tr *types.TransactionRecord, txIdx int, b *ty
 			Id:            id,
 			Value:         fcb.GetValue() - closeFeeCreditAttributes.Amount,
 			TxHash:        tx.Hash(crypto.SHA256),
-			FCBlockNumber: b.GetRoundNumber(),
+			FCBlockNumber: rn,
 		}, proof)
 	default:
 		// decrement fee credit bill value if tx is not fee credit tx i.e. a normal tx
-		if err := p.updateFCB(tr, b.GetRoundNumber()); err != nil {
+		if err := p.updateFCB(tr, rn); err != nil {
 			return fmt.Errorf("failed to update fee credit bill %w", err)
 		}
 	}
@@ -320,34 +322,19 @@ func (p *blockProcessor) processTx(tr *types.TransactionRecord, txIdx int, b *ty
 	}
 }
 
-func (p *blockProcessor) saveTokenType(unit *TokenUnitType, proof *wallet.Proof) error {
+func (p *blockProcessor) saveTokenType(unit *TokenUnitType, proof *wallet.TxProof) error {
 	if err := p.store.SaveTokenType(unit, proof); err != nil {
 		return fmt.Errorf("failed to store token type: %w", err)
 	}
 	return nil
 }
 
-func (p *blockProcessor) saveToken(unit *TokenUnit, proof *wallet.Proof) error {
+func (p *blockProcessor) saveToken(unit *TokenUnit, proof *wallet.TxProof) error {
 	if err := p.store.SaveToken(unit, proof); err != nil {
 		return fmt.Errorf("failed to store token: %w", err)
 	}
 	p.notify(unit.Owner, unit)
 	return nil
-}
-
-func (p *blockProcessor) createProof(txIdx int, b *types.Block, tx *types.TransactionRecord) (*wallet.Proof, error) {
-	if b == nil {
-		return nil, nil
-	}
-	proof, err := types.NewTxProof(b, txIdx, crypto.SHA256)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create primary proof for the block: %w", err)
-	}
-	return &wallet.Proof{
-		BlockNumber: b.UnicityCertificate.InputRecord.RoundNumber,
-		Tx:          tx,
-		Proof:       proof,
-	}, nil
 }
 
 func (p *blockProcessor) updateFCB(tx *types.TransactionRecord, roundNumber uint64) error {

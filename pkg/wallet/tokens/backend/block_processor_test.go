@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/reflect/protoreflect"
 
@@ -39,7 +40,7 @@ func Test_blockProcessor_ProcessBlock(t *testing.T) {
 				getBlockNumber: func() (uint64, error) { return 0, expErr },
 			},
 		}
-		err := bp.ProcessBlock(context.Background(), &block.Block{})
+		err := bp.ProcessBlock(context.Background(), &types.Block{})
 		require.ErrorIs(t, err, expErr)
 	})
 

@@ -191,7 +191,7 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 	})
 	verifyProof(t, splitTx1, tokenPrt, trustBase, hashAlgorithm)
 
-	sUnitID1 := txutil.SameShardID(uint256.NewInt(0).SetBytes(fungibleTokenID1), hashForIDCalculation(splitTx1, hashAlgorithm))
+	sUnitID1 := txutil.SameShardID(uint256.NewInt(0).SetBytes(fungibleTokenID1), HashForIDCalculation(splitTx1, hashAlgorithm))
 	RequireFungibleTokenState(t, state, fungibleTokenUnitData{
 		unitID:     util.Uint256ToBytes(sUnitID1),
 		typeUnitID: fungibleTokenTypeID,
@@ -232,7 +232,7 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 		tokenValue: totalValue - splitValue1 - splitValue2,
 	})
 
-	sUnitID2 := txutil.SameShardID(uint256.NewInt(0).SetBytes(fungibleTokenID1), hashForIDCalculation(splitTx2, hashAlgorithm))
+	sUnitID2 := txutil.SameShardID(uint256.NewInt(0).SetBytes(fungibleTokenID1), HashForIDCalculation(splitTx2, hashAlgorithm))
 	RequireFungibleTokenState(t, state, fungibleTokenUnitData{
 		unitID:     util.Uint256ToBytes(sUnitID2),
 		typeUnitID: fungibleTokenTypeID,

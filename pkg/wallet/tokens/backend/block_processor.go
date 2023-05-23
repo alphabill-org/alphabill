@@ -11,10 +11,10 @@ import (
 	"github.com/alphabill-org/alphabill/internal/txsystem/tokens"
 	txutil "github.com/alphabill-org/alphabill/internal/txsystem/util"
 	"github.com/alphabill-org/alphabill/internal/types"
-	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/alphabill-org/alphabill/pkg/wallet/broker"
 	"github.com/alphabill-org/alphabill/pkg/wallet/log"
+	"github.com/holiman/uint256"
 )
 
 type blockProcessor struct {
@@ -35,8 +35,8 @@ func (p *blockProcessor) ProcessBlock(ctx context.Context, b *types.Block) error
 		return fmt.Errorf("invalid block, received block %d, current wallet block %d", b.UnicityCertificate.InputRecord.RoundNumber, lastBlockNumber)
 	}
 
-	for _, tx := range b.Transactions {
-		if err := p.processTx(tx, b); err != nil {
+	for idx, tx := range b.Transactions {
+		if err := p.processTx(tx, idx, b); err != nil {
 			return fmt.Errorf("failed to process tx: %w", err)
 		}
 	}
@@ -44,11 +44,11 @@ func (p *blockProcessor) ProcessBlock(ctx context.Context, b *types.Block) error
 	return p.store.SetBlockNumber(b.UnicityCertificate.InputRecord.RoundNumber)
 }
 
-func (p *blockProcessor) processTx(tr *types.TransactionRecord, b *types.Block) error {
+func (p *blockProcessor) processTx(tr *types.TransactionRecord, txIdx int, b *types.Block) error {
 	tx := tr.TransactionOrder
 	id := tx.UnitID()
 	txHash := tx.Hash(crypto.SHA256)
-	proof, err := p.createProof(id, b, tx)
+	proof, err := p.createProof(txIdx, b, tr)
 	if err != nil {
 		return fmt.Errorf("failed to create proof for tx with id=%X: %w", txHash, err)
 	}
@@ -93,7 +93,7 @@ func (p *blockProcessor) processTx(tr *types.TransactionRecord, b *types.Block) 
 		}, proof)
 	default:
 		// decrement fee credit bill value if tx is not fee credit tx i.e. a normal tx
-		if err := p.updateFCB(tx, b.GetRoundNumber()); err != nil {
+		if err := p.updateFCB(tr, b.GetRoundNumber()); err != nil {
 			return fmt.Errorf("failed to update fee credit bill %w", err)
 		}
 	}
@@ -101,56 +101,72 @@ func (p *blockProcessor) processTx(tr *types.TransactionRecord, b *types.Block) 
 	// handle UT transactions
 	switch tx.Payload.Type {
 	case tokens.PayloadTypeCreateFungibleTokenType:
+		attrs := &tokens.CreateFungibleTokenTypeAttributes{}
+		if err = tx.UnmarshalAttributes(attrs); err != nil {
+			return err
+		}
 		return p.saveTokenType(&TokenUnitType{
 			Kind:                     Fungible,
 			ID:                       id,
-			ParentTypeID:             tx.ParentTypeID(),
-			Symbol:                   tx.Symbol(),
-			Name:                     tx.Name(),
-			Icon:                     tx.Icon(),
-			DecimalPlaces:            tx.DecimalPlaces(),
-			SubTypeCreationPredicate: tx.SubTypeCreationPredicate(),
-			TokenCreationPredicate:   tx.TokenCreationPredicate(),
-			InvariantPredicate:       tx.InvariantPredicate(),
+			ParentTypeID:             attrs.ParentTypeID,
+			Symbol:                   attrs.Symbol,
+			Name:                     attrs.Name,
+			Icon:                     attrs.Icon,
+			DecimalPlaces:            attrs.DecimalPlaces,
+			SubTypeCreationPredicate: attrs.SubTypeCreationPredicate,
+			TokenCreationPredicate:   attrs.TokenCreationPredicate,
+			InvariantPredicate:       attrs.InvariantPredicate,
 			TxHash:                   txHash,
 		}, proof)
 	case tokens.PayloadTypeMintFungibleToken:
-		tokenType, err := p.store.GetTokenType(tx.TypeID())
+		attrs := &tokens.MintFungibleTokenAttributes{}
+		if err = tx.UnmarshalAttributes(attrs); err != nil {
+			return err
+		}
+		tokenType, err := p.store.GetTokenType(attrs.Type)
 		if err != nil {
-			return fmt.Errorf("mint fungible token tx: failed to get token type with id=%X, token id=%X: %w", tx.TypeID(), id, err)
+			return fmt.Errorf("mint fungible token tx: failed to get token type with id=%X, token id=%X: %w", attrs.Type, id, err)
 		}
 		return p.saveToken(
 			&TokenUnit{
 				ID:       id,
-				TypeID:   tx.TypeID(),
-				Amount:   tx.Value(),
+				TypeID:   attrs.Type,
+				Amount:   attrs.Value,
 				Kind:     tokenType.Kind,
 				Symbol:   tokenType.Symbol,
 				Decimals: tokenType.DecimalPlaces,
 				TxHash:   txHash,
-				Owner:    tx.Bearer(),
+				Owner:    attrs.Bearer,
 			},
 			proof)
 	case tokens.PayloadTypeTransferFungibleToken:
+		attrs := &tokens.TransferFungibleTokenAttributes{}
+		if err = tx.UnmarshalAttributes(attrs); err != nil {
+			return err
+		}
 		token, err := p.store.GetToken(id)
 		if err != nil {
 			return fmt.Errorf("fungible transfer tx: failed to get token with id=%X: %w", id, err)
 		}
 		token.TxHash = txHash
-		token.Owner = tx.NewBearer()
+		token.Owner = attrs.NewBearer
 		return p.saveToken(token, proof)
 	case tokens.PayloadTypeSplitFungibleToken:
+		attrs := &tokens.SplitFungibleTokenAttributes{}
+		if err = tx.UnmarshalAttributes(attrs); err != nil {
+			return err
+		}
 		// check and update existing token
 		token, err := p.store.GetToken(id)
 		if err != nil {
 			return fmt.Errorf("split tx: failed to get token with id=%X: %w", id, err)
 		}
-		if !bytes.Equal(token.TypeID, tx.TypeID()) {
-			return fmt.Errorf("split tx: type id does not match (received '%X', expected '%X'), token id=%X", tx.TypeID(), token.TypeID, token.ID)
+		if !bytes.Equal(token.TypeID, attrs.Type) {
+			return fmt.Errorf("split tx: type id does not match (received '%X', expected '%X'), token id=%X", attrs.Type, token.TypeID, token.ID)
 		}
-		remainingValue := token.Amount - tx.TargetValue()
-		if tx.RemainingValue() != remainingValue {
-			return fmt.Errorf("split tx: invalid remaining amount (received '%v', expected '%v'), token id=%X", tx.RemainingValue(), remainingValue, token.ID)
+		remainingValue := token.Amount - attrs.TargetValue
+		if attrs.RemainingValue != remainingValue {
+			return fmt.Errorf("split tx: invalid remaining amount (received '%v', expected '%v'), token id=%X", attrs.RemainingValue, remainingValue, token.ID)
 		}
 
 		token.Amount = remainingValue
@@ -160,34 +176,37 @@ func (p *blockProcessor) processTx(tr *types.TransactionRecord, b *types.Block) 
 		}
 
 		// save new token created by the split
-		newId := txutil.SameShardIDBytes(tx.UnitID(), tx.HashForIDCalculation(crypto.SHA256))
-		splitProof, err := p.createProof(newId, b, tx)
-		if err != nil {
-			return fmt.Errorf("failed to create proof for split tx with id=%X for unit %X: %w", txHash, newId, err)
-		}
 		newToken := &TokenUnit{
-			ID:       newId,
+			ID:       txutil.SameShardIDBytes(uint256.NewInt(0).SetBytes(id), tokens.HashForIDCalculation(tx, crypto.SHA256)),
 			Symbol:   token.Symbol,
 			TypeID:   token.TypeID,
 			Kind:     token.Kind,
-			Amount:   tx.TargetValue(),
+			Amount:   attrs.TargetValue,
 			Decimals: token.Decimals,
 			TxHash:   txHash,
-			Owner:    tx.NewBearer(),
+			Owner:    attrs.NewBearer,
 		}
-		return p.saveToken(newToken, splitProof)
+		return p.saveToken(newToken, proof)
 	case tokens.PayloadTypeBurnFungibleToken:
+		attrs := &tokens.BurnFungibleTokenAttributes{}
+		if err = tx.UnmarshalAttributes(attrs); err != nil {
+			return err
+		}
 		token, err := p.store.GetToken(id)
 		if err != nil {
 			return err
 		}
-		if token.Amount != tx.Value() {
-			return fmt.Errorf("expected burned amount: %v, got %v. token id='%X', type id='%X'", token.Amount, tx.Value(), token.ID, token.TypeID)
+		if token.Amount != attrs.Value {
+			return fmt.Errorf("expected burned amount: %v, got %v. token id='%X', type id='%X'", token.Amount, attrs.Value, token.ID, token.TypeID)
 		}
 		token.TxHash = txHash
 		token.Burned = true
 		return p.saveToken(token, proof)
 	case tokens.PayloadTypeJoinFungibleToken:
+		attrs := &tokens.JoinFungibleTokenAttributes{}
+		if err = tx.UnmarshalAttributes(attrs); err != nil {
+			return err
+		}
 		joinedToken, err := p.store.GetToken(id)
 		if err != nil {
 			return err
@@ -195,10 +214,14 @@ func (p *blockProcessor) processTx(tr *types.TransactionRecord, b *types.Block) 
 		if joinedToken == nil {
 			return nil
 		}
-		burnedTokensToRemove := make([]TokenID, 0, len(tx.BurnTransactions()))
+		burnedTokensToRemove := make([]TokenID, 0, len(attrs.BurnTransactions))
 		var burnedValue uint64
-		for _, burnTx := range tx.BurnTransactions() {
-			burnedID := util.Uint256ToBytes(burnTx.UnitID())
+		for _, burnTx := range attrs.BurnTransactions {
+			burnTxAttr := &tokens.BurnFungibleTokenAttributes{}
+			if err = burnTx.TransactionOrder.UnmarshalAttributes(burnTxAttr); err != nil {
+				return err
+			}
+			burnedID := burnTx.TransactionOrder.UnitID()
 			burnedToken, err := p.store.GetToken(burnedID)
 			if err != nil {
 				return err
@@ -209,11 +232,11 @@ func (p *blockProcessor) processTx(tr *types.TransactionRecord, b *types.Block) 
 			if !bytes.Equal(burnedToken.Owner, joinedToken.Owner) {
 				return fmt.Errorf("expected burned token's bearer '%X', got %X", joinedToken.Owner, burnedToken.Owner)
 			}
-			if !bytes.Equal(joinedToken.TxHash, burnTx.Nonce()) {
-				return fmt.Errorf("expected burned token's nonce '%X', got %X", joinedToken.TxHash, burnTx.Nonce())
+			if !bytes.Equal(joinedToken.TxHash, burnTxAttr.Nonce) {
+				return fmt.Errorf("expected burned token's nonce '%X', got %X", joinedToken.TxHash, burnTxAttr.Nonce)
 			}
 			burnedTokensToRemove = append(burnedTokensToRemove, burnedID)
-			burnedValue += burnTx.Value()
+			burnedValue += burnTxAttr.Value
 		}
 		joinedToken.Amount += burnedValue
 		joinedToken.TxHash = txHash
@@ -227,52 +250,68 @@ func (p *blockProcessor) processTx(tr *types.TransactionRecord, b *types.Block) 
 		}
 		return nil
 	case tokens.PayloadTypeCreateNFTType:
+		attrs := &tokens.CreateNonFungibleTokenTypeAttributes{}
+		if err = tx.UnmarshalAttributes(attrs); err != nil {
+			return err
+		}
 		return p.saveTokenType(&TokenUnitType{
 			Kind:                     NonFungible,
 			ID:                       id,
-			ParentTypeID:             tx.ParentTypeID(),
-			Symbol:                   tx.Symbol(),
-			Name:                     tx.Name(),
-			Icon:                     tx.Icon(),
-			SubTypeCreationPredicate: tx.SubTypeCreationPredicate(),
-			TokenCreationPredicate:   tx.TokenCreationPredicate(),
-			InvariantPredicate:       tx.InvariantPredicate(),
-			NftDataUpdatePredicate:   tx.DataUpdatePredicate(),
+			ParentTypeID:             attrs.ParentTypeID,
+			Symbol:                   attrs.Symbol,
+			Name:                     attrs.Name,
+			Icon:                     attrs.Icon,
+			SubTypeCreationPredicate: attrs.SubTypeCreationPredicate,
+			TokenCreationPredicate:   attrs.TokenCreationPredicate,
+			InvariantPredicate:       attrs.InvariantPredicate,
+			NftDataUpdatePredicate:   attrs.DataUpdatePredicate,
 			TxHash:                   txHash,
 		}, proof)
 	case tokens.PayloadTypeMintNFT:
-		tokenType, err := p.store.GetTokenType(tx.NFTTypeID())
+		attrs := &tokens.MintNonFungibleTokenAttributes{}
+		if err = tx.UnmarshalAttributes(attrs); err != nil {
+			return err
+		}
+		tokenType, err := p.store.GetTokenType(attrs.NFTType)
 		if err != nil {
-			return fmt.Errorf("mint nft tx: failed to get token type with id=%X, token id=%X: %w", tx.NFTTypeID(), id, err)
+			return fmt.Errorf("mint nft tx: failed to get token type with id=%X, token id=%X: %w", attrs.NFTType, id, err)
 		}
 
 		newToken := &TokenUnit{
 			ID:                     id,
 			Kind:                   tokenType.Kind,
-			TypeID:                 tx.NFTTypeID(),
+			TypeID:                 attrs.NFTType,
 			Symbol:                 tokenType.Symbol,
-			NftName:                tx.Name(),
-			NftURI:                 tx.URI(),
-			NftData:                tx.Data(),
-			NftDataUpdatePredicate: tx.DataUpdatePredicate(),
+			NftName:                attrs.Name,
+			NftURI:                 attrs.URI,
+			NftData:                attrs.Data,
+			NftDataUpdatePredicate: attrs.DataUpdatePredicate,
 			TxHash:                 txHash,
-			Owner:                  tx.Bearer(),
+			Owner:                  attrs.Bearer,
 		}
 		return p.saveToken(newToken, proof)
 	case tokens.PayloadTypeTransferNFT:
+		attrs := &tokens.TransferNonFungibleTokenAttributes{}
+		if err = tx.UnmarshalAttributes(attrs); err != nil {
+			return err
+		}
 		token, err := p.store.GetToken(id)
 		if err != nil {
 			return fmt.Errorf("transfer nft tx: failed to get token with id=%X: %w", id, err)
 		}
-		token.Owner = tx.NewBearer()
+		token.Owner = attrs.NewBearer
 		token.TxHash = txHash
 		return p.saveToken(token, proof)
 	case tokens.PayloadTypeUpdateNFT:
+		attrs := &tokens.UpdateNonFungibleTokenAttributes{}
+		if err = tx.UnmarshalAttributes(attrs); err != nil {
+			return err
+		}
 		token, err := p.store.GetToken(id)
 		if err != nil {
 			return fmt.Errorf("update nft tx: failed to get token with id=%X: %w", id, err)
 		}
-		token.NftData = tx.Data()
+		token.NftData = attrs.Data
 		token.TxHash = txHash
 		return p.saveToken(token, proof)
 	default:
@@ -296,15 +335,11 @@ func (p *blockProcessor) saveToken(unit *TokenUnit, proof *wallet.Proof) error {
 	return nil
 }
 
-func (p *blockProcessor) createProof(unitID wallet.UnitID, b *block.Block, tx *txsystem.Transaction) (*wallet.Proof, error) {
+func (p *blockProcessor) createProof(txIdx int, b *types.Block, tx *types.TransactionRecord) (*wallet.Proof, error) {
 	if b == nil {
 		return nil, nil
 	}
-	gblock, err := b.ToGenericBlock(p.txs)
-	if err != nil {
-		return nil, fmt.Errorf("failed to convert block to generic block: %w", err)
-	}
-	proof, err := block.NewPrimaryProof(gblock, unitID, crypto.SHA256)
+	proof, err := types.NewTxProof(b, txIdx, crypto.SHA256)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create primary proof for the block: %w", err)
 	}
@@ -315,18 +350,18 @@ func (p *blockProcessor) createProof(unitID wallet.UnitID, b *block.Block, tx *t
 	}, nil
 }
 
-func (p *blockProcessor) updateFCB(tx *txsystem.Transaction, roundNumber uint64) error {
-	fcb, err := p.store.GetFeeCreditBill(tx.ClientMetadata.FeeCreditRecordId)
+func (p *blockProcessor) updateFCB(tx *types.TransactionRecord, roundNumber uint64) error {
+	fcb, err := p.store.GetFeeCreditBill(tx.TransactionOrder.GetClientFeeCreditRecordID())
 	if err != nil {
 		return err
 	}
 	if fcb == nil {
-		return fmt.Errorf("fee credit bill not found: %X", tx.ClientMetadata.FeeCreditRecordId)
+		return fmt.Errorf("fee credit bill not found: %X", tx.TransactionOrder.GetClientFeeCreditRecordID())
 	}
-	if fcb.Value < tx.ServerMetadata.Fee {
-		return fmt.Errorf("insufficient fee credit - fee is %d but remaining credit is only %d", tx.ServerMetadata.Fee, fcb.Value)
+	if fcb.Value < tx.ServerMetadata.ActualFee {
+		return fmt.Errorf("insufficient fee credit - fee is %d but remaining credit is only %d", tx.ServerMetadata.ActualFee, fcb.Value)
 	}
-	fcb.Value -= tx.ServerMetadata.Fee
+	fcb.Value -= tx.ServerMetadata.ActualFee
 	fcb.FCBlockNumber = roundNumber
 	return p.store.SetFeeCreditBill(fcb, nil)
 }

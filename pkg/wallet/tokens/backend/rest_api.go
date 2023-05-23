@@ -14,6 +14,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/alphabill-org/alphabill/internal/rpc/alphabill"
 	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
 	"golang.org/x/sync/semaphore"
@@ -38,14 +39,13 @@ type dataSource interface {
 }
 
 type abClient interface {
-	SendTransaction(ctx context.Context, tx *txsystem.Transaction) error
+	SendTransaction(ctx context.Context, tx *alphabill.Transaction) error
 	GetRoundNumber(ctx context.Context) (uint64, error)
 }
 
 type restAPI struct {
 	db        dataSource
 	ab        abClient
-	convertTx func(tx *txsystem.Transaction) (txsystem.GenericTransaction, error)
 	streamSSE func(ctx context.Context, owner broker.PubKey, w http.ResponseWriter) error
 	logErr    func(a ...any)
 }
@@ -243,7 +243,7 @@ func (api *restAPI) postTransactions(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	txs := &txsystem.Transactions{}
+	txs := &alphabill.Transactions{}
 	if err = protojson.Unmarshal(buf, txs); err != nil {
 		api.errorResponse(w, http.StatusBadRequest, fmt.Errorf("failed to decode request body: %w", err))
 		return
@@ -261,7 +261,7 @@ func (api *restAPI) postTransactions(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusAccepted)
 }
 
-func (api *restAPI) saveTxs(ctx context.Context, txs []*txsystem.Transaction, owner []byte) map[string]string {
+func (api *restAPI) saveTxs(ctx context.Context, txs []*alphabill.Transaction, owner []byte) map[string]string {
 	errs := make(map[string]string)
 	var m sync.Mutex
 

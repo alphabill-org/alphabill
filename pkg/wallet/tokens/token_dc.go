@@ -74,7 +74,7 @@ func (w *Wallet) joinTokenForDC(ctx context.Context, acc *account.AccountKey, bu
 		InvariantPredicateSignatures: nil,
 	}
 
-	sub, err := w.prepareTxSubmission(ctx, targetTokenID, joinAttrs, acc, func(tx *txsystem.Transaction, gtx txsystem.GenericTransaction) error {
+	sub, err := w.prepareTxSubmission(ctx, targetTokenID, joinAttrs, acc, w.GetRoundNumber, func(tx *txsystem.Transaction, gtx txsystem.GenericTransaction) error {
 		signatures, err := preparePredicateSignatures(w.GetAccountManager(), invariantPredicateArgs, gtx)
 		if err != nil {
 			return err
@@ -93,10 +93,11 @@ func (w *Wallet) joinTokenForDC(ctx context.Context, acc *account.AccountKey, bu
 
 func (w *Wallet) burnTokensForDC(ctx context.Context, acc *account.AccountKey, tokensToBurn []*twb.TokenUnit, nonce sdk.TxHash, invariantPredicateArgs []*PredicateInput) ([]*txsystem.Transaction, []*block.BlockProof, error) {
 	burnBatch := txsubmitter.NewBatch(acc.PubKey, w.backend)
+	rnFetcher := &cachingRoundNumberFetcher{delegate: w.GetRoundNumber}
 
 	for _, token := range tokensToBurn {
 		attrs := newBurnTxAttrs(token, nonce)
-		sub, err := w.prepareTxSubmission(ctx, sdk.UnitID(token.ID), attrs, acc, func(tx *txsystem.Transaction, gtx txsystem.GenericTransaction) error {
+		sub, err := w.prepareTxSubmission(ctx, sdk.UnitID(token.ID), attrs, acc, rnFetcher.getRoundNumber, func(tx *txsystem.Transaction, gtx txsystem.GenericTransaction) error {
 			signatures, err := preparePredicateSignatures(w.GetAccountManager(), invariantPredicateArgs, gtx)
 			if err != nil {
 				return err

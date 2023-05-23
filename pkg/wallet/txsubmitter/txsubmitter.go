@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/alphabill-org/alphabill/internal/txsystem"
+	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/alphabill-org/alphabill/pkg/wallet/log"
 )
@@ -15,8 +15,8 @@ type (
 	TxSubmission struct {
 		UnitID      wallet.UnitID
 		TxHash      wallet.TxHash
-		Transaction *txsystem.Transaction
-		Proof       *wallet.Proof
+		Transaction *types.TransactionOrder
+		Proof       *types.TxProof
 	}
 
 	TxSubmissionBatch struct {
@@ -28,8 +28,8 @@ type (
 
 	BackendAPI interface {
 		GetRoundNumber(ctx context.Context) (uint64, error)
-		PostTransactions(ctx context.Context, pubKey wallet.PubKey, txs *txsystem.Transactions) error
-		GetTxProof(ctx context.Context, unitID wallet.UnitID, txHash wallet.TxHash) (*wallet.Proof, error)
+		PostTransactions(ctx context.Context, pubKey wallet.PubKey, txs []*types.TransactionOrder) error
+		GetTxProof(ctx context.Context, unitID wallet.UnitID, txHash wallet.TxHash) (*types.TxProof, error)
 	}
 )
 
@@ -64,8 +64,8 @@ func (t *TxSubmissionBatch) Submissions() []*TxSubmission {
 	return t.submissions
 }
 
-func (t *TxSubmissionBatch) transactions() []*txsystem.Transaction {
-	txs := make([]*txsystem.Transaction, 0, len(t.submissions))
+func (t *TxSubmissionBatch) transactions() []*types.TransactionOrder {
+	txs := make([]*types.TransactionOrder, 0, len(t.submissions))
 	for _, sub := range t.submissions {
 		txs = append(txs, sub.Transaction)
 	}
@@ -76,7 +76,7 @@ func (t *TxSubmissionBatch) SendTx(ctx context.Context, confirmTx bool) error {
 	if len(t.submissions) == 0 {
 		return errors.New("no transactions to send")
 	}
-	err := t.backend.PostTransactions(ctx, t.sender, &txsystem.Transactions{Transactions: t.transactions()})
+	err := t.backend.PostTransactions(ctx, t.sender, t.transactions())
 	if err != nil {
 		return err
 	}

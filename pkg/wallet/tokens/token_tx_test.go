@@ -84,3 +84,22 @@ func TestConfirmUnitsTx_timeout(t *testing.T) {
 	require.True(t, sub1.Confirmed())
 	require.False(t, sub2.Confirmed())
 }
+
+func TestCachingRoundNumberFetcher(t *testing.T) {
+	getRoundNumberCalled := 0
+	backend := &mockTokenBackend{
+		getRoundNumber: func(ctx context.Context) (uint64, error) {
+			getRoundNumberCalled++
+			return 100, nil
+		},
+	}
+	fetcher := &cachingRoundNumberFetcher{delegate: backend.GetRoundNumber}
+	num, err := fetcher.getRoundNumber(context.Background())
+	require.NoError(t, err)
+	require.EqualValues(t, 100, num)
+	require.EqualValues(t, 1, getRoundNumberCalled)
+	num, err = fetcher.getRoundNumber(context.Background())
+	require.NoError(t, err)
+	require.EqualValues(t, 100, num)
+	require.EqualValues(t, 1, getRoundNumberCalled)
+}

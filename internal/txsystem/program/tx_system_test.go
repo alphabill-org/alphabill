@@ -1,6 +1,7 @@
-package sc
+package program
 
 import (
+	"context"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -31,7 +32,8 @@ func TestNew(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := New(tt.systemIdentifier, tt.opts...)
+			ctx := context.Background()
+			got, err := New(ctx, tt.systemIdentifier, tt.opts...)
 			if tt.wantErrorStr != "" {
 				require.ErrorContains(t, err, tt.wantErrorStr)
 				return

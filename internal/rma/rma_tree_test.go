@@ -344,7 +344,7 @@ func TestAtomicUpdateRollback1stFails(t *testing.T) {
 		UpdateData(unitID, updateFunc, stateHash), // change non-existing id to generate error
 		UpdateData(id, updateFunc, stateHash),
 	)
-	require.ErrorContains(t, err, "1. update failed")
+	require.ErrorContains(t, err, "1 update failed")
 	require.ErrorContains(t, err, fmt.Sprintf("item %X does not exist", util.Uint256ToBytes(unitID)))
 	// both get rolled back, so changes len is still 1
 	require.Equal(t, 1, len(tr.changes))
@@ -373,7 +373,7 @@ func TestAtomicUpdateRollback2ndFails(t *testing.T) {
 	err = tr.AtomicUpdate(
 		UpdateData(id, updateFunc, stateHash),
 		UpdateData(uint256.NewInt(5), updateFunc, stateHash)) // change non-existing id to generate error
-	require.ErrorContains(t, err, "2. update failed")
+	require.ErrorContains(t, err, "2 update failed")
 	require.ErrorContains(t, err, fmt.Sprintf("item %X does not exist", util.Uint256ToBytes(id5)))
 	// both get rolled back, so changes len is still 1
 	require.Equal(t, 1, len(tr.changes))
@@ -381,6 +381,59 @@ func TestAtomicUpdateRollback2ndFails(t *testing.T) {
 	require.NoError(t, err)
 	// and data unit data is still original data
 	requireEqual(t, owner, data, stateHash, unit)
+}
+
+func TestBatchUpdateOk(t *testing.T) {
+	tr, _ := New(defaultConfig())
+	id := uint256.NewInt(4)
+	data := TestData(5)
+	newData := TestData(6)
+	owner := Predicate{1, 2, 3}
+	stateHash := []byte("state hash")
+
+	updateFunc := func(data UnitData) UnitData {
+		return newData
+	}
+	require.Equal(t, 0, len(tr.changes))
+	b, err := tr.StartBatchUpdate()
+	require.NoError(t, err)
+	defer b.Revert()
+	require.NoError(t, b.AddItem(id, owner, data, stateHash))
+	require.NoError(t, b.UpdateData(id, updateFunc, stateHash))
+	require.NoError(t, err)
+	b.Commit()
+	// add and recompute, plus update so 3 changes
+	require.True(t, len(tr.changes) >= 2)
+	unit, err := tr.get(id)
+	require.NoError(t, err)
+	// and data unit data is still original data
+	requireEqual(t, owner, newData, stateHash, unit)
+}
+
+func TestBatchUpdateRevert(t *testing.T) {
+	tr, _ := New(defaultConfig())
+	id := uint256.NewInt(4)
+	data := TestData(5)
+	newData := TestData(6)
+	owner := Predicate{1, 2, 3}
+	stateHash := []byte("state hash")
+
+	updateFunc := func(data UnitData) UnitData {
+		return newData
+	}
+	require.Equal(t, 0, len(tr.changes))
+	b, err := tr.StartBatchUpdate()
+	require.NoError(t, err)
+	defer b.Revert()
+	require.NoError(t, b.AddItem(id, owner, data, stateHash))
+	require.NoError(t, b.UpdateData(id, updateFunc, stateHash))
+	require.NoError(t, err)
+	b.Revert()
+	// add and recompute, plus update so 3 changes
+	require.True(t, len(tr.changes) == 0)
+	unit, err := tr.get(id)
+	require.Error(t, err)
+	require.Nil(t, unit)
 }
 
 func TestSetNode_Overwrite(t *testing.T) {

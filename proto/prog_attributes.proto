@@ -1,0 +1,14 @@
+syntax = "proto3";
+package rpc;
+
+option go_package = "github.com/alphabill-org/alphabill/internal/txsystem/program/;program";
+
+message PCallAttributes {
+  string function = 1;
+  bytes input = 2;
+}
+
+message PDeployAttributes {
+  bytes program = 1;
+  bytes initData = 2;
+}

@@ -1,4 +1,4 @@
-package sc
+package program
 
 import (
 	"crypto"

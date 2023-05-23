@@ -7,11 +7,10 @@ package rma
 
 import (
 	"crypto"
-	goerrors "errors"
+	"errors"
 	"fmt"
 	"hash"
 
-	"github.com/alphabill-org/alphabill/internal/errors"
 	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/holiman/uint256"
 )
@@ -21,7 +20,7 @@ const (
 	errStrInvalidHashAlgorithm = "invalid hash algorithm"
 )
 
-var ErrUnitNotFound = goerrors.New("unit not found")
+var ErrUnitNotFound = errors.New("unit not found")
 
 type (
 	Predicate []byte
@@ -112,7 +111,7 @@ func AddItem(id *uint256.Int, owner Predicate, data UnitData, stateHash []byte) 
 	return func(tree *Tree) error {
 		exists := tree.exists(id)
 		if exists {
-			return errors.Errorf("cannot add item that already exists. ID: %d", id)
+			return fmt.Errorf("cannot add item that already exists. ID: %d", id)
 		}
 		tree.set(id, owner, data, stateHash)
 		return nil
@@ -124,7 +123,7 @@ func DeleteItem(id *uint256.Int) Action {
 	return func(tree *Tree) error {
 		exists := tree.exists(id)
 		if !exists {
-			return errors.Errorf("deleting item that does not exist. ID %d", id)
+			return fmt.Errorf("deleting item that does not exist. ID %d", id)
 		}
 		tree.removeNode(id)
 		return nil
@@ -143,7 +142,7 @@ func UpdateData(id *uint256.Int, f UpdateFunction, stateHash []byte) Action {
 	return func(tree *Tree) error {
 		node, exists := tree.getNode(id)
 		if !exists {
-			return errors.Errorf(errStrItemDoesntExist, util.Uint256ToBytes(id))
+			return fmt.Errorf(errStrItemDoesntExist, util.Uint256ToBytes(id))
 		}
 		data := f(node.Content.Data)
 		tree.set(id, node.Content.Bearer, data, stateHash)
@@ -173,7 +172,7 @@ func (tree *Tree) AtomicUpdate(actions ...Action) error {
 	for i, action := range actions {
 		if err = action(tree); err != nil {
 			// discontinue, if any action fails
-			err = errors.Wrap(err, fmt.Sprintf("%d. update failed", i+1))
+			err = fmt.Errorf("%w, %d update failed", err, i+1)
 			break
 		}
 	}
@@ -229,7 +228,82 @@ func (tree *Tree) Revert() {
 	tree.Commit()
 }
 
-///////// private methods \\\\\\\\\\\\\
+type BatchUpdate struct {
+	tree       *Tree
+	nofChanges int
+}
+
+func (tree *Tree) StartBatchUpdate() (*BatchUpdate, error) {
+	if tree == nil {
+		return nil, fmt.Errorf("start batch update failed, tree is nil")
+	}
+	return &BatchUpdate{tree: tree, nofChanges: 0}, nil
+}
+
+func (b *BatchUpdate) AddItem(id *uint256.Int, owner Predicate, data UnitData, stateHash []byte) error {
+	exists := b.tree.exists(id)
+	if exists {
+		return fmt.Errorf("cannot add item that already exists. ID: %d", id)
+	}
+	idx := len(b.tree.changes)
+	b.tree.set(id, owner, data, stateHash)
+	b.nofChanges += len(b.tree.changes) - idx
+	return nil
+}
+
+func (b *BatchUpdate) DeleteItem(id *uint256.Int) error {
+	exists := b.tree.exists(id)
+	if !exists {
+		return fmt.Errorf("deleting item that does not exist. ID %d", id)
+	}
+	idx := len(b.tree.changes)
+	b.tree.removeNode(id)
+	b.nofChanges += len(b.tree.changes) - idx
+	return nil
+}
+
+// SetOwner changes the owner of the item, leaves data as is
+func (b *BatchUpdate) SetOwner(id *uint256.Int, owner Predicate, stateHash []byte) error {
+	node, exists := b.tree.getNode(id)
+	if !exists {
+		return fmt.Errorf(errStrItemDoesntExist, util.Uint256ToBytes(id))
+	}
+	idx := len(b.tree.changes)
+	b.tree.set(id, owner, node.Content.Data, stateHash)
+	b.nofChanges += len(b.tree.changes) - idx
+	return nil
+}
+
+// UpdateData changes the data of the item, leaves owner as is.
+func (b *BatchUpdate) UpdateData(id *uint256.Int, f UpdateFunction, stateHash []byte) error {
+	node, exists := b.tree.getNode(id)
+	if !exists {
+		return fmt.Errorf(errStrItemDoesntExist, util.Uint256ToBytes(id))
+	}
+	idx := len(b.tree.changes)
+	data := f(node.Content.Data)
+	b.tree.set(id, node.Content.Bearer, data, stateHash)
+	b.nofChanges += len(b.tree.changes) - idx
+	return nil
+}
+
+// GetUnit find unit from the latest updated tree
+func (b *BatchUpdate) GetUnit(id *uint256.Int) (*Unit, error) {
+	return b.tree.get(id)
+}
+
+func (b *BatchUpdate) Commit() {
+	b.nofChanges = 0
+}
+
+func (b *BatchUpdate) Revert() {
+	if b.nofChanges > 0 {
+		b.tree.revert(b.nofChanges)
+		b.nofChanges = 0
+	}
+}
+
+// /////// private methods \\\\\\\\\\\\\
 // Revert reverts/rolls back 'nofChanges' from the state changes stack
 func (tree *Tree) revert(nofChanges int) {
 	totalChanges := len(tree.changes)
@@ -266,7 +340,7 @@ func (tree *Tree) rollback(change interface{}) {
 func (tree *Tree) get(id *uint256.Int) (unit *Unit, err error) {
 	node, exists := tree.getNode(id)
 	if !exists {
-		return nil, errors.Wrapf(ErrUnitNotFound, errStrItemDoesntExist, util.Uint256ToBytes(id))
+		return nil, errors.Join(ErrUnitNotFound, fmt.Errorf(errStrItemDoesntExist, util.Uint256ToBytes(id)))
 	}
 	return node.Content, nil
 }
@@ -282,7 +356,7 @@ func (tree *Tree) set(id *uint256.Int, owner Predicate, data UnitData, stateHash
 func (tree *Tree) setOwner(id *uint256.Int, owner Predicate, stateHash []byte) error {
 	node, exists := tree.getNode(id)
 	if !exists {
-		return errors.Errorf(errStrItemDoesntExist, util.Uint256ToBytes(id))
+		return fmt.Errorf(errStrItemDoesntExist, util.Uint256ToBytes(id))
 	}
 	tree.set(id, owner, node.Content.Data, stateHash)
 	return nil
@@ -291,7 +365,7 @@ func (tree *Tree) setOwner(id *uint256.Int, owner Predicate, stateHash []byte) e
 func (tree *Tree) setData(id *uint256.Int, data UnitData, stateHash []byte) error {
 	node, exists := tree.getNode(id)
 	if !exists {
-		return errors.Errorf(errStrItemDoesntExist, util.Uint256ToBytes(id))
+		return fmt.Errorf(errStrItemDoesntExist, util.Uint256ToBytes(id))
 	}
 	tree.set(id, node.Content.Bearer, data, stateHash)
 	return nil

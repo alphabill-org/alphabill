@@ -1,13 +1,14 @@
-package sc
+package program
 
 import (
+	"context"
 	"errors"
 	"fmt"
 
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 )
 
-func New(systemIdentifier []byte, opts ...Option) (*txsystem.GenericTxSystem, error) {
+func New(ctx context.Context, systemIdentifier []byte, opts ...Option) (*txsystem.GenericTxSystem, error) {
 	options := defaultOptions()
 	for _, opt := range opts {
 		opt(options)
@@ -15,7 +16,7 @@ func New(systemIdentifier []byte, opts ...Option) (*txsystem.GenericTxSystem, er
 	if systemIdentifier == nil {
 		return nil, errors.New("system identifier is nil")
 	}
-	sc, err := NewSmartContractModule(systemIdentifier, options)
+	sc, err := NewSmartContractModule(ctx, systemIdentifier, options)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load smart contract module: %w", err)
 	}

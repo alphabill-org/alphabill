@@ -1,6 +1,7 @@
-package sc
+package program
 
 import (
+	"context"
 	gocrypto "crypto"
 	"fmt"
 
@@ -9,34 +10,33 @@ import (
 )
 
 type SmartContractModule struct {
+	ctx              context.Context
 	state            *rma.Tree
 	systemIdentifier []byte
 	hashAlgorithm    gocrypto.Hash
-	programs         BuiltInPrograms
 }
 
-func NewSmartContractModule(systemIdentifier []byte, options *Options) (txsystem.Module, error) {
-	programs, err := initBuiltInPrograms(options.state)
-	if err != nil {
-		return nil, fmt.Errorf("failed to init built-in programs: %w", err)
-	}
+func NewSmartContractModule(ctx context.Context, systemIdentifier []byte, options *Options) (txsystem.Module, error) {
 	return &SmartContractModule{
+		ctx:              ctx,
 		systemIdentifier: systemIdentifier,
 		hashAlgorithm:    options.hashAlgorithm,
 		state:            options.state,
-		programs:         programs,
 	}, nil
 }
 
 func (s *SmartContractModule) TxExecutors() []txsystem.TxExecutor {
-	return []txsystem.TxExecutor{handleSCallTx(s.state, s.programs, s.systemIdentifier, s.hashAlgorithm)}
+	return []txsystem.TxExecutor{
+		handlePDeployTx(s.ctx, s.state, s.systemIdentifier, s.hashAlgorithm),
+		handlePCallTx(s.ctx, s.state, s.systemIdentifier, s.hashAlgorithm),
+	}
 }
 
 func (s *SmartContractModule) GenericTransactionValidator() txsystem.GenericTransactionValidator {
 	return func(ctx *txsystem.TxValidationContext) error {
 		return txsystem.ValidateGenericTransaction(&txsystem.TxValidationContext{
 			Tx:               ctx.Tx,
-			Unit:             nil, // SC transactions do not have owner proofs.
+			Unit:             nil, // program transactions do not have owner proofs.
 			SystemIdentifier: ctx.SystemIdentifier,
 			BlockNumber:      ctx.BlockNumber,
 		})
@@ -46,16 +46,27 @@ func (s *SmartContractModule) GenericTransactionValidator() txsystem.GenericTran
 
 func (s *SmartContractModule) TxConverter() txsystem.TxConverters {
 	return txsystem.TxConverters{
-		typeURLSCall: convertSCallTx(),
+		typeURLPCall:   convertPCallTx(),
+		typeURLPDeploy: convertPDeployTx(),
 	}
 }
 
-func convertSCallTx() func(tx *txsystem.Transaction) (txsystem.GenericTransaction, error) {
+func convertPCallTx() func(tx *txsystem.Transaction) (txsystem.GenericTransaction, error) {
 	return func(tx *txsystem.Transaction) (txsystem.GenericTransaction, error) {
-		attr := &SCallAttributes{}
+		attr := &PCallAttributes{}
 		if err := tx.TransactionAttributes.UnmarshalTo(attr); err != nil {
 			return nil, fmt.Errorf("invalid tx attributes: %w", err)
 		}
-		return &SCallTransactionOrder{attributes: attr, txOrder: tx}, nil
+		return &PCallTransactionOrder{attributes: attr, txOrder: tx}, nil
+	}
+}
+
+func convertPDeployTx() func(tx *txsystem.Transaction) (txsystem.GenericTransaction, error) {
+	return func(tx *txsystem.Transaction) (txsystem.GenericTransaction, error) {
+		attr := &PDeployAttributes{}
+		if err := tx.TransactionAttributes.UnmarshalTo(attr); err != nil {
+			return nil, fmt.Errorf("invalid tx attributes: %w", err)
+		}
+		return &PDeployTransactionOrder{attributes: attr, txOrder: tx}, nil
 	}
 }

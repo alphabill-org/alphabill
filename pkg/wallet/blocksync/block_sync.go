@@ -11,6 +11,7 @@ import (
 
 	"github.com/alphabill-org/alphabill/internal/block"
 	"github.com/alphabill-org/alphabill/internal/rpc/alphabill"
+	"github.com/alphabill-org/alphabill/internal/util"
 )
 
 type BlocksLoaderFunc func(ctx context.Context, blockNumber, batchSize uint64) (*alphabill.GetBlocksResponse, error)
@@ -65,19 +66,31 @@ func Run(ctx context.Context, getBlocks BlocksLoaderFunc, startingBlockNumber, m
 }
 
 func fetchBlocks(ctx context.Context, getBlocks BlocksLoaderFunc, blockNumber uint64, out chan<- *block.Block) error {
+	batchSize := uint64(cap(out))
 	for {
 		if err := ctx.Err(); err != nil {
 			return err
 		}
-		rsp, err := getBlocks(ctx, blockNumber, uint64(cap(out)))
+
+		rsp, err := getBlocks(ctx, blockNumber, batchSize)
 		if err != nil {
 			return fmt.Errorf("failed to fetch blocks [%d...]: %w", blockNumber, err)
 		}
 		for _, b := range rsp.Blocks {
 			out <- b
 		}
-		blockNumber = rsp.BatchMaxBlockNumber + 1
-		if rsp.MaxBlockNumber < blockNumber {
+
+		// by default ask next batch
+		nextBatchStart := blockNumber + batchSize
+
+		// but make sure we don't skip any rounds
+		nextRound := rsp.MaxRoundNumber + 1
+		if nextBatchStart > nextRound {
+			// and that we don't go back from what we've already asked
+			nextBatchStart = util.Max(nextRound, blockNumber)
+		}
+
+		if nextBatchStart >= nextRound {
 			// we have reached to the last block the source currently has - wait a bit before asking for more
 			select {
 			case <-ctx.Done():
@@ -85,6 +98,8 @@ func fetchBlocks(ctx context.Context, getBlocks BlocksLoaderFunc, blockNumber ui
 			case <-time.After(time.Duration(rand.Int31n(500)+500) * time.Millisecond):
 			}
 		}
+
+		blockNumber = nextBatchStart
 	}
 }
 

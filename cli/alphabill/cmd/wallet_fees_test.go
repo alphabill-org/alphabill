@@ -41,7 +41,7 @@ func TestWalletFeesCmds_MoneyPartition(t *testing.T) {
 	stdout, err := execFeesCommand(homedir, "list")
 	require.NoError(t, err)
 	require.Equal(t, "Partition: money", stdout.lines[0])
-	require.Equal(t, "Account #1 0.00000000", stdout.lines[1])
+	require.Equal(t, "Account #1 0.000'000'00", stdout.lines[1])
 
 	// add fee credits
 	amount := uint64(150)
@@ -79,7 +79,7 @@ func TestWalletFeesCmds_MoneyPartition(t *testing.T) {
 	stdout, err = execFeesCommand(homedir, "list")
 	require.NoError(t, err)
 	require.Equal(t, "Partition: money", stdout.lines[0])
-	require.Equal(t, "Account #1 0.00000000", stdout.lines[1])
+	require.Equal(t, "Account #1 0.000'000'00", stdout.lines[1])
 }
 
 func TestWalletFeesCmds_TokenPartition(t *testing.T) {
@@ -100,8 +100,9 @@ func TestWalletFeesCmds_TokenPartition(t *testing.T) {
 	// list fees on token partition
 	stdout, err := execFeesCommand(homedir, "list "+args)
 	require.NoError(t, err)
+
 	require.Equal(t, "Partition: tokens", stdout.lines[0])
-	require.Equal(t, "Account #1 0.00000000", stdout.lines[1])
+	require.Equal(t, "Account #1 0.000'000'00", stdout.lines[1])
 
 	// add fee credits
 	amount := uint64(150)
@@ -137,7 +138,7 @@ func TestWalletFeesCmds_TokenPartition(t *testing.T) {
 	stdout, err = execFeesCommand(homedir, "list")
 	require.NoError(t, err)
 	require.Equal(t, "Partition: money", stdout.lines[0])
-	require.Equal(t, "Account #1 0.00000000", stdout.lines[1])
+	require.Equal(t, "Account #1 0.000'000'00", stdout.lines[1])
 }
 
 func execFeesCommand(homeDir, command string) (*testConsoleWriter, error) {

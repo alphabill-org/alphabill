@@ -112,6 +112,16 @@ func Test_stringToAmount(t *testing.T) {
 			args: args{amount: "184467440737.09551615", decimals: 8},
 			want: 18446744073709551615,
 		},
+		{
+			name: "10'000.234'5, decimals 4 - ok",
+			args: args{amount: "10'000.234'5", decimals: 4},
+			want: 100002345,
+		},
+		{
+			name: "1'00'00.2'34'5, misplaced separators ignored - ok",
+			args: args{amount: "1'00'00.2'34'5", decimals: 4},
+			want: 100002345,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -145,32 +155,32 @@ func Test_amountToString(t *testing.T) {
 		{
 			name: "Conversion ok - decimals 1",
 			args: args{amount: 12345, decPlaces: 1},
-			want: "1234.5",
+			want: "1'234.5",
 		},
 		{
 			name: "Conversion ok - decimals 0",
 			args: args{amount: 12345, decPlaces: 0},
-			want: "12345",
+			want: "12'345",
 		},
 		{
 			name: "Conversion ok - decimals 7",
 			args: args{amount: 12345, decPlaces: 5},
-			want: "0.12345",
+			want: "0.123'45",
 		},
 		{
 			name: "Conversion ok - decimals 9",
 			args: args{amount: 12345, decPlaces: 9},
-			want: "0.000012345",
+			want: "0.000'012'345",
 		},
 		{
 			name: "Conversion ok - 99999 ",
 			args: args{amount: 99999, decPlaces: 7},
-			want: "0.0099999",
+			want: "0.009'999'9",
 		},
 		{
 			name: "Conversion ok - 9000 ",
 			args: args{amount: 9000, decPlaces: 5},
-			want: "0.09000",
+			want: "0.090'00",
 		},
 		{
 			name: "Conversion ok - 3 ",
@@ -185,12 +195,12 @@ func Test_amountToString(t *testing.T) {
 		{
 			name: "Conversion of max - 18446744073709551615 ",
 			args: args{amount: 18446744073709551615, decPlaces: 8},
-			want: "184467440737.09551615",
+			want: "184'467'440'737.095'516'15",
 		},
 		{
 			name: "decimals out of bounds - 18446744073709551615 ",
 			args: args{amount: 18446744073709551615, decPlaces: 32},
-			want: "0.00000000000018446744073709551615",
+			want: "0.000'000'000'000'184'467'440'737'095'516'15",
 		},
 		{
 			name: "Conversion ok - 2.30",

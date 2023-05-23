@@ -3,7 +3,6 @@ package tokens
 import (
 	"bytes"
 	"context"
-	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -132,8 +131,13 @@ func Test_ListTokens_offset(t *testing.T) {
 }
 
 func Test_ListTokenTypes(t *testing.T) {
+	var firstPubKey *wallet.PubKey
 	be := &mockTokenBackend{
-		getTokenTypes: func(ctx context.Context, kind backend.Kind, _ wallet.PubKey, _ string, _ int) ([]backend.TokenUnitType, string, error) {
+		getTokenTypes: func(ctx context.Context, kind backend.Kind, pubKey wallet.PubKey, _ string, _ int) ([]backend.TokenUnitType, string, error) {
+			if !bytes.Equal(pubKey, *firstPubKey) {
+				return []backend.TokenUnitType{}, "", nil
+			}
+
 			fungible := []backend.TokenUnitType{
 				{
 					ID:   test.RandomBytes(32),
@@ -167,17 +171,30 @@ func Test_ListTokenTypes(t *testing.T) {
 	}
 
 	tw := initTestWallet(t, be)
-	types, err := tw.ListTokenTypes(context.Background(), backend.Any)
+	key, err := tw.GetAccountManager().GetPublicKey(0)
+	require.NoError(t, err)
+	firstPubKey = (*wallet.PubKey)(&key)
+
+	types, err := tw.ListTokenTypes(context.Background(), 0, backend.Any)
 	require.NoError(t, err)
 	require.Len(t, types, 4)
 
-	types, err = tw.ListTokenTypes(context.Background(), backend.Fungible)
+	types, err = tw.ListTokenTypes(context.Background(), 0, backend.Fungible)
 	require.NoError(t, err)
 	require.Len(t, types, 2)
 
-	types, err = tw.ListTokenTypes(context.Background(), backend.NonFungible)
+	types, err = tw.ListTokenTypes(context.Background(), 0, backend.NonFungible)
 	require.NoError(t, err)
 	require.Len(t, types, 2)
+
+	_, err = tw.ListTokenTypes(context.Background(), 2, backend.NonFungible)
+	require.ErrorContains(t, err, "account does not exist")
+
+	_, _, err = tw.am.AddAccount()
+	require.NoError(t, err)
+
+	types, err = tw.ListTokenTypes(context.Background(), 2, backend.Any)
+	require.Len(t, types, 0)
 }
 
 func Test_ListTokenTypes_offset(t *testing.T) {
@@ -215,7 +232,7 @@ func Test_ListTokenTypes_offset(t *testing.T) {
 	}
 
 	tw := initTestWallet(t, be)
-	types, err := tw.ListTokenTypes(context.Background(), backend.Any)
+	types, err := tw.ListTokenTypes(context.Background(), 0, backend.Any)
 	require.NoError(t, err)
 	require.Len(t, types, len(allTypes))
 	dereferencedTypes := make([]backend.TokenUnitType, len(types))
@@ -758,175 +775,6 @@ func TestUpdateNFTData(t *testing.T) {
 	require.Len(t, dataUpdate.DataUpdateSignatures, 2)
 	require.Equal(t, []byte{script.StartByte}, dataUpdate.DataUpdateSignatures[0])
 	require.Len(t, dataUpdate.DataUpdateSignatures[1], 103)
-}
-
-func TestFungibleTokenDC(t *testing.T) {
-	am := initAccountManager(t)
-	pubKey0, err := am.GetPublicKey(0)
-	require.NoError(t, err)
-	_, pubKey1, err := am.AddAccount()
-	require.NoError(t, err)
-	typeID1 := test.RandomBytes(32)
-	typeID2 := test.RandomBytes(32)
-	typeID3 := test.RandomBytes(32)
-	var burnedValue = uint64(0)
-	accTokens := map[string][]*backend.TokenUnit{
-		string(pubKey0): {
-			&backend.TokenUnit{ID: test.RandomBytes(32), Kind: backend.Fungible, Symbol: "AB1", TypeID: typeID1, Amount: 100},
-			&backend.TokenUnit{ID: test.RandomBytes(32), Kind: backend.Fungible, Symbol: "AB3", TypeID: typeID3, Amount: 100},
-			&backend.TokenUnit{ID: test.RandomBytes(32), Kind: backend.Fungible, Symbol: "AB3", TypeID: typeID3, Amount: 100},
-			&backend.TokenUnit{ID: test.RandomBytes(32), Kind: backend.Fungible, Symbol: "AB3", TypeID: typeID3, Amount: 100},
-		},
-		string(pubKey1): {
-			&backend.TokenUnit{ID: test.RandomBytes(32), Kind: backend.Fungible, Symbol: "AB2", TypeID: typeID2, Amount: 100},
-		},
-	}
-
-	findToken := func(pubKey wallet.PubKey, id backend.TokenID) *backend.TokenUnit {
-		tokens, found := accTokens[string(pubKey)]
-		require.True(t, found, fmt.Sprintf("key %X not found", pubKey))
-		for _, token := range tokens {
-			if bytes.Equal(token.ID, id) {
-				return token
-			}
-		}
-		t.Fatalf("unit %X not found", id)
-		return nil
-	}
-
-	recordedTx := make(map[string]*txsystem.Transaction, 0)
-
-	be := &mockTokenBackend{
-		getTokens: func(_ context.Context, _ backend.Kind, owner wallet.PubKey, _ string, _ int) ([]backend.TokenUnit, string, error) {
-			tokens, found := accTokens[string(owner)]
-			if !found {
-				return nil, "", fmt.Errorf("no tokens for pubkey '%X'", owner)
-			}
-			var res []backend.TokenUnit
-			for _, tok := range tokens {
-				res = append(res, *tok)
-			}
-			return res, "", nil
-		},
-		postTransactions: func(ctx context.Context, pubKey wallet.PubKey, txs *txsystem.Transactions) error {
-			for _, tx := range txs.Transactions {
-				unitID := tx.UnitId
-				recordedTx[string(unitID)] = tx
-				if tx.TransactionAttributes.TypeUrl == "type.googleapis.com/alphabill.tokens.v1.BurnFungibleTokenAttributes" {
-					tok := findToken(pubKey, unitID)
-					tok.Burned = true
-					burnedValue += tok.Amount
-				} else if tx.TransactionAttributes.TypeUrl == "type.googleapis.com/alphabill.tokens.v1.JoinFungibleTokenAttributes" {
-					tok := findToken(pubKey, unitID)
-					attrs := &ttxs.JoinFungibleTokenAttributes{}
-					require.NoError(t, tx.TransactionAttributes.UnmarshalTo(attrs))
-					require.Equal(t, uint64(300), tok.Amount+burnedValue)
-				} else {
-					return errors.New("unexpected tx")
-				}
-			}
-			return nil
-		},
-		getTxProof: func(ctx context.Context, unitID wallet.UnitID, txHash wallet.TxHash) (*wallet.Proof, error) {
-			recordedTx, found := recordedTx[string(unitID)]
-			if !found {
-				return nil, errors.New("tx not found")
-			}
-			return &wallet.Proof{BlockNumber: 1, Tx: recordedTx, Proof: nil}, nil
-		},
-		getRoundNumber: func(ctx context.Context) (uint64, error) {
-			return 1, nil
-		},
-		getFeeCreditBill: func(ctx context.Context, unitID wallet.UnitID) (*backend.FeeCreditBill, error) {
-			return &backend.FeeCreditBill{
-				Id:            []byte{1},
-				Value:         100000,
-				TxHash:        []byte{2},
-				FCBlockNumber: 3,
-			}, nil
-		},
-	}
-	tw := initTestWallet(t, be)
-	tw.am = am
-
-	ctx := context.Background()
-
-	// this should only join tokens with type typeID3
-	require.NoError(t, tw.CollectDust(ctx, AllAccounts, nil, nil))
-	// tx validation is done in postTransactions()
-}
-
-func TestGetTokensForDC(t *testing.T) {
-	typeID1 := test.RandomBytes(32)
-	typeID2 := test.RandomBytes(32)
-	typeID3 := test.RandomBytes(32)
-
-	allTokens := []*backend.TokenUnit{
-		{ID: test.RandomBytes(32), Kind: backend.Fungible, Symbol: "AB1", TypeID: typeID1, Amount: 100},
-		{ID: test.RandomBytes(32), Kind: backend.Fungible, Symbol: "AB1", TypeID: typeID1, Amount: 100},
-		{ID: test.RandomBytes(32), Kind: backend.Fungible, Symbol: "AB2", TypeID: typeID2, Amount: 100},
-		{ID: test.RandomBytes(32), Kind: backend.Fungible, Symbol: "AB2", TypeID: typeID2, Amount: 100},
-		{ID: test.RandomBytes(32), Kind: backend.NonFungible, Symbol: "AB3", TypeID: typeID3},
-	}
-
-	be := &mockTokenBackend{
-		getTokens: func(_ context.Context, kind backend.Kind, owner wallet.PubKey, _ string, _ int) ([]backend.TokenUnit, string, error) {
-			require.Equal(t, backend.Fungible, kind)
-			var res []backend.TokenUnit
-			for _, tok := range allTokens {
-				if tok.Kind != kind {
-					continue
-				}
-				res = append(res, *tok)
-			}
-			return res, "", nil
-		},
-	}
-	tw := initTestWallet(t, be)
-	key, err := tw.GetAccountManager().GetPublicKey(0)
-	require.NoError(t, err)
-
-	tests := []struct {
-		allowedTypes []backend.TokenTypeID
-		expected     map[string][]*backend.TokenUnit
-	}{
-		{
-			allowedTypes: nil,
-			expected:     map[string][]*backend.TokenUnit{string(typeID1): allTokens[:2], string(typeID2): allTokens[2:4]},
-		},
-		{
-			allowedTypes: make([]backend.TokenTypeID, 0),
-			expected:     map[string][]*backend.TokenUnit{string(typeID1): allTokens[:2], string(typeID2): allTokens[2:4]},
-		},
-		{
-			allowedTypes: []backend.TokenTypeID{test.RandomBytes(32)},
-			expected:     map[string][]*backend.TokenUnit{},
-		},
-		{
-			allowedTypes: []backend.TokenTypeID{typeID3},
-			expected:     map[string][]*backend.TokenUnit{},
-		},
-		{
-			allowedTypes: []backend.TokenTypeID{typeID1},
-			expected:     map[string][]*backend.TokenUnit{string(typeID1): allTokens[:2]},
-		},
-		{
-			allowedTypes: []backend.TokenTypeID{typeID2},
-			expected:     map[string][]*backend.TokenUnit{string(typeID2): allTokens[2:4]},
-		},
-		{
-			allowedTypes: []backend.TokenTypeID{typeID1, typeID2},
-			expected:     map[string][]*backend.TokenUnit{string(typeID1): allTokens[:2], string(typeID2): allTokens[2:4]},
-		},
-	}
-
-	for _, test := range tests {
-		t.Run(fmt.Sprintf("%v", test.allowedTypes), func(t *testing.T) {
-			tokens, err := tw.getTokensForDC(context.Background(), key, test.allowedTypes)
-			require.NoError(t, err)
-			require.EqualValues(t, test.expected, tokens)
-		})
-	}
 }
 
 func initTestWallet(t *testing.T, backend TokenBackend) *Wallet {

@@ -79,6 +79,20 @@ func NewFeeCreditTx(tx *txsystem.Transaction) (txsystem.GenericTransaction, erro
 	}
 }
 
+func NewPartitionFeeCreditTx(tx *txsystem.Transaction) (txsystem.GenericTransaction, error) {
+	if tx == nil {
+		return nil, errors.New("cannot create fee credit tx wrapper: tx is nil")
+	}
+	switch tx.TransactionAttributes.TypeUrl {
+	case TypeURLAddFeeCreditOrder:
+		return ConvertAddFeeCredit(tx)
+	case TypeURLCloseFeeCreditOrder:
+		return ConvertCloseFeeCredit(tx)
+	default:
+		return nil, nil
+	}
+}
+
 func ConvertReclaimFeeCreditTx(tx *txsystem.Transaction) (txsystem.GenericTransaction, error) {
 	pb := &ReclaimFeeCreditAttributes{}
 	err := tx.TransactionAttributes.UnmarshalTo(pb)

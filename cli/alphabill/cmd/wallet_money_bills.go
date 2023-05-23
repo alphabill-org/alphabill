@@ -245,7 +245,7 @@ func getOutputFile(outputDir string, bills []*bp.Bill) (string, error) {
 	case 0:
 		return "", errors.New("no bills to export")
 	case 1:
-		billId := bills[0].GetId()
+		billId := bills[0].GetID()
 		filename := "bill-" + hexutil.Encode(billId[:]) + ".json"
 		return filepath.Join(outputDir, filename), nil
 	default:

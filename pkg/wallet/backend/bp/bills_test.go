@@ -4,13 +4,13 @@ import (
 	"crypto"
 	"testing"
 
+	"github.com/holiman/uint256"
+	"github.com/stretchr/testify/require"
+
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	testtransaction "github.com/alphabill-org/alphabill/internal/testutils/transaction"
-	"github.com/alphabill-org/alphabill/internal/testutils/transaction/money"
-	"github.com/alphabill-org/alphabill/internal/txsystem"
+	"github.com/alphabill-org/alphabill/internal/txsystem/money"
 	txutil "github.com/alphabill-org/alphabill/internal/txsystem/util"
-	"github.com/alphabill-org/alphabill/internal/util"
-	"github.com/stretchr/testify/require"
 )
 
 var (
@@ -20,7 +20,13 @@ var (
 )
 
 func TestBillVerifyTransferTx(t *testing.T) {
-	tx := money.NewTransferTx(t, targetValue, test.RandomBytes(32), test.RandomBytes(32))
+	tx := testtransaction.NewTransactionRecord(t,
+		testtransaction.WithPayloadType(money.PayloadTypeTransfer),
+		testtransaction.WithAttributes(money.TransferAttributes{
+			NewBearer:   test.RandomBytes(32),
+			TargetValue: targetValue,
+			Backlink:    test.RandomBytes(32),
+		}))
 
 	// test invalid value
 	b := &Bill{Value: targetValue - 1}
@@ -44,12 +50,16 @@ func TestBillVerifyTransferTx(t *testing.T) {
 }
 
 func TestBillVerifyDCTransferTx(t *testing.T) {
-	tx, err := money.ConvertNewGenericMoneyTx(money.CreateRandomDcTx())
-	require.NoError(t, err)
+	tx := testtransaction.NewTransactionRecord(t,
+		testtransaction.WithPayloadType(money.PayloadTypeTransDC),
+		testtransaction.WithAttributes(money.TransferDCAttributes{
+			TargetValue: targetValue,
+			Backlink:    test.RandomBytes(32),
+		}))
 
 	// test invalid value
 	b := &Bill{Value: targetValue - 1, IsDcBill: true}
-	err = b.verifyTx(tx)
+	err := b.verifyTx(tx)
 	require.ErrorIs(t, err, ErrInvalidValue)
 
 	// test invalid DCBillFlag
@@ -69,47 +79,55 @@ func TestBillVerifyDCTransferTx(t *testing.T) {
 }
 
 func TestBillVerifySplitTransferTx_OldBill(t *testing.T) {
-	tx, err := money.ConvertNewGenericMoneyTx(&txsystem.Transaction{
-		UnitId:                test.NewUnitID(3),
-		SystemId:              []byte{0, 0, 0, 0},
-		TransactionAttributes: money.CreateBillSplitTx(test.RandomBytes(32), targetValue, remainingValue),
-	})
-	require.NoError(t, err)
+	tx := testtransaction.NewTransactionRecord(t,
+		testtransaction.WithUnitId(test.NewUnitID(3)),
+		testtransaction.WithSystemID([]byte{0, 0, 0, 0}),
+		testtransaction.WithPayloadType(money.PayloadTypeSplit),
+		testtransaction.WithAttributes(money.SplitAttributes{
+			TargetBearer:   test.RandomBytes(32),
+			Amount:         targetValue,
+			RemainingValue: remainingValue,
+			Backlink:       test.RandomBytes(32),
+		}))
 
 	// test invalid value
-	b := &Bill{Id: util.Uint256ToBytes(tx.UnitID()), Value: remainingValue - 1}
-	err = b.verifyTx(tx)
+	b := &Bill{Id: tx.TransactionOrder.UnitID(), Value: remainingValue - 1}
+	err := b.verifyTx(tx)
 	require.ErrorIs(t, err, ErrInvalidValue)
 
 	// test invalid DCBillFlag
-	b = &Bill{Id: util.Uint256ToBytes(tx.UnitID()), Value: remainingValue, IsDcBill: true}
+	b = &Bill{Id: tx.TransactionOrder.UnitID(), Value: remainingValue, IsDcBill: true}
 	err = b.verifyTx(tx)
 	require.ErrorIs(t, err, ErrInvalidDCBillFlag)
 
 	// test invalid txHash
-	b = &Bill{Id: util.Uint256ToBytes(tx.UnitID()), Value: remainingValue}
+	b = &Bill{Id: tx.TransactionOrder.UnitID(), Value: remainingValue}
 	err = b.verifyTx(tx)
 	require.ErrorIs(t, err, ErrInvalidTxHash)
 
 	// test ok
-	b = &Bill{Id: util.Uint256ToBytes(tx.UnitID()), Value: remainingValue, TxHash: tx.Hash(crypto.SHA256)}
+	b = &Bill{Id: tx.TransactionOrder.UnitID(), Value: remainingValue, TxHash: tx.Hash(crypto.SHA256)}
 	err = b.verifyTx(tx)
 	require.NoError(t, err)
 }
 
 func TestBillVerifySplitTransferTx_NewBill(t *testing.T) {
-	tx, err := money.ConvertNewGenericMoneyTx(&txsystem.Transaction{
-		UnitId:                test.NewUnitID(3),
-		SystemId:              []byte{0, 0, 0, 0},
-		TransactionAttributes: money.CreateBillSplitTx(test.RandomBytes(32), amount, remainingValue),
-	})
-	require.NoError(t, err)
+	tx := testtransaction.NewTransactionRecord(t,
+		testtransaction.WithUnitId(test.NewUnitID(3)),
+		testtransaction.WithSystemID([]byte{0, 0, 0, 0}),
+		testtransaction.WithPayloadType(money.PayloadTypeSplit),
+		testtransaction.WithAttributes(money.SplitAttributes{
+			TargetBearer:   test.RandomBytes(32),
+			Amount:         amount,
+			RemainingValue: remainingValue,
+			Backlink:       test.RandomBytes(32),
+		}))
 
-	newUnitID := txutil.SameShardIDBytes(tx.UnitID(), tx.Hash(crypto.SHA256))
+	newUnitID := txutil.SameShardIDBytes(uint256.NewInt(0).SetBytes(tx.TransactionOrder.UnitID()), tx.Hash(crypto.SHA256))
 
 	// test invalid value
 	b := &Bill{Id: newUnitID, Value: amount - 1}
-	err = b.verifyTx(tx)
+	err := b.verifyTx(tx)
 	require.ErrorIs(t, err, ErrInvalidValue)
 
 	// test invalid DCBillFlag
@@ -129,17 +147,17 @@ func TestBillVerifySplitTransferTx_NewBill(t *testing.T) {
 }
 
 func TestBillVerifySwapTransferTx(t *testing.T) {
-	tx, err := money.ConvertNewGenericMoneyTx(testtransaction.NewTransactionOrder(t,
-		testtransaction.WithAttributes(money.CreateRandomSwapDCAttributes(t, 0)),
-		testtransaction.WithUnitId([]byte{0, 0, 0, 1}),
+	tx := testtransaction.NewTransactionRecord(t,
+		testtransaction.WithUnitId(test.NewUnitID(1)),
 		testtransaction.WithSystemID([]byte{0, 0, 0, 0}),
 		testtransaction.WithOwnerProof([]byte{0, 0, 0, 2}),
-	))
-	require.NoError(t, err)
+		testtransaction.WithPayloadType(money.PayloadTypeSwapDC),
+		testtransaction.WithAttributes(money.SwapDCAttributes{TargetValue: targetValue}),
+	)
 
 	// test invalid value
 	b := &Bill{Value: targetValue - 1}
-	err = b.verifyTx(tx)
+	err := b.verifyTx(tx)
 	require.ErrorIs(t, err, ErrInvalidValue)
 
 	// test invalid DCBillFlag
@@ -159,7 +177,17 @@ func TestBillVerifySwapTransferTx(t *testing.T) {
 }
 
 func TestBillVerify_NotMoneyTxType(t *testing.T) {
-	tx := testtransaction.NewGenericTransaction(t, txsystem.NewDefaultGenericTransaction)
+	type notMoneyAttr struct {
+		_              struct{} `cbor:",toarray"`
+		OwnerCondition []byte
+	}
+	tx := testtransaction.NewTransactionRecord(t,
+		testtransaction.WithUnitId(test.NewUnitID(1)),
+		testtransaction.WithSystemID([]byte{0, 0, 0, 0}),
+		testtransaction.WithOwnerProof([]byte{0, 0, 0, 2}),
+		testtransaction.WithPayloadType("not money"),
+		testtransaction.WithAttributes(notMoneyAttr{}),
+	)
 
 	// test invalid type
 	b := &Bill{Value: targetValue, TxHash: tx.Hash(crypto.SHA256)}

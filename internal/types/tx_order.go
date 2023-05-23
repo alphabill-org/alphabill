@@ -37,7 +37,7 @@ type (
 )
 
 func (t *TransactionOrder) PayloadBytes() ([]byte, error) {
-	return cbor.Marshal(t.Payload)
+	return t.Payload.Bytes()
 }
 
 func (t *TransactionOrder) UnmarshalAttributes(v any) error {
@@ -98,6 +98,10 @@ func (p *Payload) UnmarshalAttributes(v any) error {
 		return errors.New("payload is nil")
 	}
 	return cbor.Unmarshal(p.Attributes, v)
+}
+
+func (p *Payload) Bytes() ([]byte, error) {
+	return cbor.Marshal(p)
 }
 
 // MarshalCBOR returns r or CBOR nil if r is nil.

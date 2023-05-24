@@ -12,11 +12,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ethereum/go-ethereum/common/hexutil"
-	"google.golang.org/protobuf/encoding/protojson"
-
 	"github.com/alphabill-org/alphabill/pkg/wallet/backend/bp"
 	"github.com/alphabill-org/alphabill/pkg/wallet/money/backend"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 )
 
 type (
@@ -144,7 +142,7 @@ func (c *MoneyBackendClient) GetProof(billId []byte) (*bp.Bills, error) {
 		return nil, fmt.Errorf("failed to read GetProof response: %w", err)
 	}
 	var responseObject bp.Bills
-	err = protojson.Unmarshal(responseData, &responseObject)
+	err = json.Unmarshal(responseData, &responseObject)
 	if err != nil {
 		return nil, fmt.Errorf("failed to unmarshall GetProof response data: %w", err)
 	}
@@ -206,7 +204,7 @@ func (c *MoneyBackendClient) FetchFeeCreditBill(_ context.Context, unitID []byte
 		return nil, fmt.Errorf("failed to read get credit bill response: %w", err)
 	}
 	var res bp.Bill
-	err = protojson.Unmarshal(responseData, &res)
+	err = json.Unmarshal(responseData, &res)
 	if err != nil {
 		return nil, fmt.Errorf("failed to unmarshall get fee credit bill response data: %w", err)
 	}

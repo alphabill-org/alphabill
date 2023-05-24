@@ -5,17 +5,17 @@ import (
 	"crypto"
 	"testing"
 
-	"github.com/alphabill-org/alphabill/internal/block"
 	"github.com/alphabill-org/alphabill/internal/hash"
+	"github.com/alphabill-org/alphabill/internal/rpc/alphabill"
 	"github.com/alphabill-org/alphabill/internal/script"
-	moneytesttx "github.com/alphabill-org/alphabill/internal/testutils/transaction/money"
-	"github.com/alphabill-org/alphabill/internal/txsystem"
 	billtx "github.com/alphabill-org/alphabill/internal/txsystem/money"
+	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/alphabill-org/alphabill/pkg/wallet/account"
 	"github.com/alphabill-org/alphabill/pkg/wallet/backend/bp"
 	"github.com/alphabill-org/alphabill/pkg/wallet/log"
 	txbuilder "github.com/alphabill-org/alphabill/pkg/wallet/money/tx_builder"
+	"github.com/fxamacker/cbor/v2"
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
 )
@@ -59,7 +59,7 @@ func TestDustCollectionMaxBillCount(t *testing.T) {
 		feeCreditBill: &bp.Bill{
 			Id:      k.PrivKeyHash,
 			Value:   100 * 1e8,
-			TxProof: &block.TxProof{},
+			TxProof: &types.TxProof{},
 		},
 	}))
 
@@ -93,7 +93,7 @@ func TestBasicDustCollection(t *testing.T) {
 		feeCreditBill: &bp.Bill{
 			Id:      k.PrivKeyHash,
 			Value:   100 * 1e8,
-			TxProof: &block.TxProof{},
+			TxProof: &types.TxProof{},
 		}}), am)
 
 	// when dc runs
@@ -140,7 +140,7 @@ func TestDustCollectionWithSwap(t *testing.T) {
 		feeCreditBill: &bp.Bill{
 			Id:      k.PrivKeyHash,
 			Value:   100 * 1e8,
-			TxProof: &block.TxProof{},
+			TxProof: &types.TxProof{},
 		},
 	}), am)
 
@@ -187,7 +187,7 @@ func TestSwapWithExistingDCBillsBeforeDCTimeout(t *testing.T) {
 		feeCreditBill: &bp.Bill{
 			Id:      k.PrivKeyHash,
 			Value:   100 * 1e8,
-			TxProof: &block.TxProof{},
+			TxProof: &types.TxProof{},
 		}}), am)
 	// set specific round number
 	mockClient.SetMaxRoundNumber(roundNr)
@@ -231,7 +231,7 @@ func TestSwapWithExistingExpiredDCBills(t *testing.T) {
 		feeCreditBill: &bp.Bill{
 			Id:      k.PrivKeyHash,
 			Value:   100 * 1e8,
-			TxProof: &block.TxProof{},
+			TxProof: &types.TxProof{},
 		},
 	}), am)
 
@@ -277,9 +277,9 @@ func TestSwapTxValuesAreCalculatedInCorrectBillOrder(t *testing.T) {
 	k, _ := w.am.GetAccountKey(0)
 
 	dcBills := []*Bill{
-		{Id: uint256.NewInt(2), BlockProof: &BlockProof{Tx: moneytesttx.CreateRandomDcTx()}},
-		{Id: uint256.NewInt(1), BlockProof: &BlockProof{Tx: moneytesttx.CreateRandomDcTx()}},
-		{Id: uint256.NewInt(0), BlockProof: &BlockProof{Tx: moneytesttx.CreateRandomDcTx()}},
+		{Id: uint256.NewInt(2), TxProof: &types.TxProof{TransactionRecord: createRandomDcTx()}},
+		{Id: uint256.NewInt(1), TxProof: &types.TxProof{TransactionRecord: createRandomDcTx()}},
+		{Id: uint256.NewInt(0), TxProof: &types.TxProof{TransactionRecord: createRandomDcTx()}},
 	}
 	dcNonce := calculateDcNonce(dcBills)
 	var dcBillIds [][]byte
@@ -292,13 +292,16 @@ func TestSwapTxValuesAreCalculatedInCorrectBillOrder(t *testing.T) {
 		protoDcBills = append(protoDcBills, b.ToProto())
 	}
 
-	tx, err := txbuilder.CreateSwapTx(k, w.SystemID(), protoDcBills, dcNonce, dcBillIds, 10)
+	swapTxOrder, err := txbuilder.NewSwapTx(k, w.SystemID(), protoDcBills, dcNonce, dcBillIds, 10)
 	require.NoError(t, err)
-	swapTx := parseSwapTx(t, tx)
+
+	swapAttr := &billtx.SwapDCAttributes{}
+	err = swapTxOrder.UnmarshalAttributes(swapAttr)
+	require.NoError(t, err)
 
 	// verify bill ids in swap tx are in correct order (equal hash values)
 	hasher := crypto.SHA256.New()
-	for _, billId := range swapTx.BillIdentifiers {
+	for _, billId := range swapAttr.BillIdentifiers {
 		hasher.Write(billId)
 	}
 	actualDcNonce := hasher.Sum(nil)
@@ -328,7 +331,7 @@ func TestSwapContainsUnconfirmedDustBillIds(t *testing.T) {
 		feeCreditBill: &bp.Bill{
 			Id:      k.PrivKeyHash,
 			Value:   100 * 1e8,
-			TxProof: &block.TxProof{},
+			TxProof: &types.TxProof{},
 		},
 	}), am)
 
@@ -348,7 +351,7 @@ func TestSwapContainsUnconfirmedDustBillIds(t *testing.T) {
 	// and swap should contain all bill ids
 	tx := mockClient.GetRecordedTransactions()[3]
 	swapOrder := parseSwapTx(t, tx)
-	require.EqualValues(t, nonce, tx.UnitId)
+	require.EqualValues(t, nonce, tx)
 	require.Len(t, swapOrder.BillIdentifiers, 3)
 	require.Equal(t, b1.Id, uint256.NewInt(0).SetBytes(swapOrder.BillIdentifiers[0]))
 	require.Equal(t, b2.Id, uint256.NewInt(0).SetBytes(swapOrder.BillIdentifiers[1]))
@@ -361,25 +364,25 @@ func TestSwapContainsUnconfirmedDustBillIds(t *testing.T) {
 
 func addBill(value uint64) *Bill {
 	b1 := Bill{
-		Id:         uint256.NewInt(value),
-		Value:      value,
-		TxHash:     hash.Sum256([]byte{byte(value)}),
-		BlockProof: &BlockProof{},
+		Id:      uint256.NewInt(value),
+		Value:   value,
+		TxHash:  hash.Sum256([]byte{byte(value)}),
+		TxProof: &types.TxProof{},
 	}
 	return &b1
 }
 
 func addDcBill(t *testing.T, k *account.AccountKey, id *uint256.Int, nonce []byte, value uint64, timeout uint64) *Bill {
 	b := Bill{
-		Id:         id,
-		Value:      value,
-		TxHash:     hash.Sum256([]byte{byte(value)}),
-		BlockProof: &BlockProof{},
+		Id:      id,
+		Value:   value,
+		TxHash:  hash.Sum256([]byte{byte(value)}),
+		TxProof: &types.TxProof{},
 	}
 
-	tx, err := txbuilder.CreateDustTx(k, []byte{0, 0, 0, 0}, b.ToProto(), nonce, timeout)
+	tx, err := txbuilder.NewDustTx(k, []byte{0, 0, 0, 0}, b.ToProto(), nonce, timeout)
 	require.NoError(t, err)
-	b.BlockProof = &BlockProof{Tx: tx}
+	b.TxProof = &types.TxProof{TransactionRecord: &types.TransactionRecord{TransactionOrder: tx}}
 
 	b.IsDcBill = true
 	b.DcNonce = nonce
@@ -396,23 +399,69 @@ func verifyBlockHeight(t *testing.T, w *Wallet, blockHeight uint64) {
 	require.Equal(t, blockHeight, actualBlockHeight)
 }
 
-func parseBillTransferTx(t *testing.T, tx *txsystem.Transaction) *billtx.TransferAttributes {
-	btTx := &billtx.TransferAttributes{}
-	err := tx.TransactionAttributes.UnmarshalTo(btTx)
+func parseBillTransferTx(t *testing.T, tx *alphabill.Transaction) *billtx.TransferAttributes {
+	txo := &types.TransactionOrder{}
+	err := cbor.Unmarshal(tx.Order, txo)
 	require.NoError(t, err)
+
+	btTx := &billtx.TransferAttributes{}
+	err = txo.UnmarshalAttributes(btTx)
+	require.NoError(t, err)
+
 	return btTx
 }
 
-func parseDcTx(t *testing.T, tx *txsystem.Transaction) *billtx.TransferDCAttributes {
-	dcTx := &billtx.TransferDCAttributes{}
-	err := tx.TransactionAttributes.UnmarshalTo(dcTx)
+func parseDcTx(t *testing.T, tx *alphabill.Transaction) *billtx.TransferDCAttributes {
+	txo := &types.TransactionOrder{}
+	err := cbor.Unmarshal(tx.Order, txo)
 	require.NoError(t, err)
+
+	return parseDcTxAttr(t, txo)
+}
+
+func parseDcTxAttr(t *testing.T, txo *types.TransactionOrder) *billtx.TransferDCAttributes {
+	dcTx := &billtx.TransferDCAttributes{}
+	err := txo.UnmarshalAttributes(dcTx)
+	require.NoError(t, err)
+
 	return dcTx
 }
 
-func parseSwapTx(t *testing.T, tx *txsystem.Transaction) *billtx.SwapDCAttributes {
-	txSwap := &billtx.SwapDCAttributes{}
-	err := tx.TransactionAttributes.UnmarshalTo(txSwap)
+func parseSwapTx(t *testing.T, tx *alphabill.Transaction) *billtx.SwapDCAttributes {
+	txo := &types.TransactionOrder{}
+	err := cbor.Unmarshal(tx.Order, txo)
 	require.NoError(t, err)
+
+	txSwap := &billtx.SwapDCAttributes{}
+	err = txo.UnmarshalAttributes(txSwap)
+	require.NoError(t, err)
+
 	return txSwap
+}
+
+func createRandomDcTx() *types.TransactionRecord {
+	return &types.TransactionRecord{
+		TransactionOrder: &types.TransactionOrder{
+			Payload: &types.Payload{
+				SystemID:       []byte{0, 0, 0, 0},
+				Type:           billtx.PayloadTypeTransDC,
+				UnitID:         hash.Sum256([]byte{0x00}),
+				Attributes:     randomTransferDCAttributes(),
+				ClientMetadata: &types.ClientMetadata{Timeout: 1000},
+			},
+			OwnerProof: script.PredicateArgumentEmpty(),
+		},
+		ServerMetadata: nil,
+	}
+}
+
+func randomTransferDCAttributes() []byte {
+	attr := &billtx.TransferDCAttributes{
+		TargetBearer: script.PredicateAlwaysTrue(),
+		Backlink:     hash.Sum256([]byte{}),
+		Nonce:        hash.Sum256([]byte{}),
+		TargetValue:  100,
+	}
+	attrBytes, _ := cbor.Marshal(attr)
+	return attrBytes
 }

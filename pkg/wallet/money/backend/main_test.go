@@ -7,13 +7,10 @@ import (
 
 	"github.com/alphabill-org/alphabill/internal/types"
 
-	"github.com/alphabill-org/alphabill/internal/block"
 	"github.com/alphabill-org/alphabill/internal/hash"
 	"github.com/alphabill-org/alphabill/internal/script"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	testtransaction "github.com/alphabill-org/alphabill/internal/testutils/transaction"
-	moneytesttx "github.com/alphabill-org/alphabill/internal/testutils/transaction/money"
-	"github.com/alphabill-org/alphabill/internal/txsystem"
 	moneytx "github.com/alphabill-org/alphabill/internal/txsystem/money"
 	"github.com/alphabill-org/alphabill/pkg/client/clientmock"
 	wlog "github.com/alphabill-org/alphabill/pkg/wallet/log"
@@ -35,25 +32,35 @@ func TestWalletBackend_BillsCanBeIndexedByPredicates(t *testing.T) {
 
 	abclient := clientmock.NewMockAlphabillClient(
 		clientmock.WithMaxBlockNumber(1),
-		clientmock.WithBlocks(map[uint64]*block.Block{
+		clientmock.WithBlocks(map[uint64]*types.Block{
 			1: {
 				UnicityCertificate: &types.UnicityCertificate{InputRecord: &types.InputRecord{RoundNumber: 1}},
-				Transactions: []*txsystem.Transaction{{
-					UnitId:                billId1,
-					SystemId:              moneySystemID,
-					TransactionAttributes: moneytesttx.CreateBillTransferTx(hash.Sum256(pubkey1)),
-					ClientMetadata:        &txsystem.ClientMetadata{FeeCreditRecordId: fcbID},
-					ServerMetadata:        &txsystem.ServerMetadata{Fee: 1},
+				Transactions: []*types.TransactionRecord{{
+					TransactionOrder: &types.TransactionOrder{
+						Payload: &types.Payload{
+							SystemID:       moneySystemID,
+							Type:           moneytx.PayloadTypeTransfer,
+							UnitID:         billId1,
+							Attributes:     transferTxAttr(hash.Sum256(pubkey1)),
+							ClientMetadata: &types.ClientMetadata{FeeCreditRecordID: fcbID},
+						},
+					},
+					ServerMetadata: &types.ServerMetadata{ActualFee: 1},
 				}},
 			},
 			2: {
 				UnicityCertificate: &types.UnicityCertificate{InputRecord: &types.InputRecord{RoundNumber: 2}},
-				Transactions: []*txsystem.Transaction{{
-					UnitId:                billId2,
-					SystemId:              moneySystemID,
-					TransactionAttributes: moneytesttx.CreateBillTransferTx(hash.Sum256(pubkey2)),
-					ClientMetadata:        &txsystem.ClientMetadata{FeeCreditRecordId: fcbID},
-					ServerMetadata:        &txsystem.ServerMetadata{Fee: 1},
+				Transactions: []*types.TransactionRecord{{
+					TransactionOrder: &types.TransactionOrder{
+						Payload: &types.Payload{
+							SystemID:       moneySystemID,
+							Type:           moneytx.PayloadTypeTransfer,
+							UnitID:         billId2,
+							Attributes:     transferTxAttr(hash.Sum256(pubkey2)),
+							ClientMetadata: &types.ClientMetadata{FeeCreditRecordID: fcbID},
+						},
+					},
+					ServerMetadata: &types.ServerMetadata{ActualFee: 1},
 				}},
 			},
 		}))
@@ -69,7 +76,7 @@ func TestWalletBackend_BillsCanBeIndexedByPredicates(t *testing.T) {
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	t.Cleanup(cancelFunc)
 	go func() {
-		bp, err := NewBlockProcessor(storage, NewTxConverter(moneySystemID), moneySystemID)
+		bp, err := NewBlockProcessor(storage, moneySystemID)
 		require.NoError(t, err)
 		err = runBlockSync(ctx, abclient.GetBlocks, getBlockNumber, 100, bp.ProcessBlock)
 		require.ErrorIs(t, err, context.Canceled)
@@ -101,9 +108,7 @@ func TestGetBills_OK(t *testing.T) {
 		TargetValue: txValue,
 		NewBearer:   bearer,
 	}))
-	gtx, err := NewTxConverter(moneySystemID).ConvertTx(tx)
-	require.NoError(t, err)
-	txHash := gtx.Hash(gocrypto.SHA256)
+	txHash := tx.Hash(gocrypto.SHA256)
 
 	store, err := createTestBillStore(t)
 	require.NoError(t, err)
@@ -111,14 +116,14 @@ func TestGetBills_OK(t *testing.T) {
 	// add bill to service
 	service := &WalletBackend{store: store}
 	b := &Bill{
-		Id:             tx.UnitId,
+		Id:             tx.UnitID(),
 		Value:          txValue,
 		TxHash:         txHash,
 		OrderNumber:    1,
 		OwnerPredicate: bearer,
 		TxProof: &TxProof{
 			BlockNumber: 1,
-			Tx:          tx,
+			Tx:          &types.TransactionRecord{TransactionOrder: tx},
 		},
 	}
 	err = store.Do().SetBill(b)
@@ -151,7 +156,7 @@ func TestGetBills_SHA512_OK(t *testing.T) {
 	// add sha512 owner condition bill to service
 	service := &WalletBackend{store: store}
 	b := &Bill{
-		Id:             tx.UnitId,
+		Id:             tx.UnitID(),
 		Value:          txValue,
 		OrderNumber:    1,
 		OwnerPredicate: bearer,

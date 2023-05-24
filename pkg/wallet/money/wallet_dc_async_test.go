@@ -4,10 +4,11 @@ import (
 	"context"
 	"testing"
 
+	"github.com/alphabill-org/alphabill/internal/types"
+	"github.com/fxamacker/cbor/v2"
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
 
-	"github.com/alphabill-org/alphabill/internal/block"
 	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/alphabill-org/alphabill/pkg/wallet/account"
 	"github.com/alphabill-org/alphabill/pkg/wallet/backend/bp"
@@ -34,7 +35,7 @@ func TestDcJobWithExistingDcBills(t *testing.T) {
 		feeCreditBill: &bp.Bill{
 			Id:      k.PrivKeyHash,
 			Value:   100 * 1e8,
-			TxProof: &block.TxProof{},
+			TxProof: &types.TxProof{},
 		},
 	}), am)
 	mockClient.SetMaxBlockNumber(100)
@@ -48,12 +49,16 @@ func TestDcJobWithExistingDcBills(t *testing.T) {
 	tx := mockClient.GetRecordedTransactions()[0]
 	txSwap := parseSwapTx(t, tx)
 
+	txo := &types.TransactionOrder{}
+	err = cbor.Unmarshal(tx.Order, tx)
+	require.NoError(t, err)
+
 	// and verify each dc tx id = nonce = swap.id
 	require.Len(t, txSwap.DcTransfers, 2)
 	for i := 0; i < len(txSwap.DcTransfers); i++ {
-		dcTx := parseDcTx(t, txSwap.DcTransfers[i])
+		dcTx := parseDcTxAttr(t, txSwap.DcTransfers[i].TransactionOrder)
 		require.EqualValues(t, nonce, dcTx.Nonce)
-		require.EqualValues(t, nonce, tx.UnitId)
+		require.EqualValues(t, nonce, txo.UnitID())
 	}
 }
 
@@ -76,7 +81,7 @@ func TestDcJobWithExistingDcAndNonDcBills(t *testing.T) {
 		feeCreditBill: &bp.Bill{
 			Id:      k.PrivKeyHash,
 			Value:   100 * 1e8,
-			TxProof: &block.TxProof{},
+			TxProof: &types.TxProof{},
 		},
 	}), am)
 	mockClient.SetMaxBlockNumber(100)
@@ -90,12 +95,16 @@ func TestDcJobWithExistingDcAndNonDcBills(t *testing.T) {
 	tx := mockClient.GetRecordedTransactions()[0]
 	txSwap := parseSwapTx(t, tx)
 
+	txo := &types.TransactionOrder{}
+	err = cbor.Unmarshal(tx.Order, tx)
+	require.NoError(t, err)
+
 	// and verify nonce = swap.id = dc tx id
 	require.Len(t, txSwap.DcTransfers, 1)
 	for i := 0; i < len(txSwap.DcTransfers); i++ {
-		dcTx := parseDcTx(t, txSwap.DcTransfers[i])
+		dcTx := parseDcTxAttr(t, txSwap.DcTransfers[i].TransactionOrder)
 		require.EqualValues(t, nonce, dcTx.Nonce)
-		require.EqualValues(t, nonce, tx.UnitId)
+		require.EqualValues(t, nonce, txo.UnitID())
 	}
 }
 
@@ -119,7 +128,7 @@ func TestDcJobWithExistingNonDcBills(t *testing.T) {
 		feeCreditBill: &bp.Bill{
 			Id:      k.PrivKeyHash,
 			Value:   100 * 1e8,
-			TxProof: &block.TxProof{},
+			TxProof: &types.TxProof{},
 		}}))
 	mockClient.SetMaxBlockNumber(100)
 
@@ -153,7 +162,7 @@ func TestDcJobSendsSwapsIfDcBillTimeoutHasBeenReached(t *testing.T) {
 		feeCreditBill: &bp.Bill{
 			Id:      k.PrivKeyHash,
 			Value:   100 * 1e8,
-			TxProof: &block.TxProof{},
+			TxProof: &types.TxProof{},
 		},
 	}), am)
 

@@ -8,14 +8,15 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/alphabill-org/alphabill/internal/block"
 	"github.com/alphabill-org/alphabill/internal/hash"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
+	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/alphabill-org/alphabill/pkg/client/clientmock"
 	"github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/alphabill-org/alphabill/pkg/wallet/backend/bp"
 	"github.com/alphabill-org/alphabill/pkg/wallet/money/backend"
+	"github.com/fxamacker/cbor/v2"
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
 )
@@ -28,7 +29,7 @@ func TestWalletSendFunction(t *testing.T) {
 		feeCreditBill: &bp.Bill{
 			Id:      []byte{},
 			Value:   100 * 1e8,
-			TxProof: &block.TxProof{},
+			TxProof: &types.TxProof{},
 		}}))
 	validPubKey := make([]byte, 33)
 	amount := uint64(50)
@@ -69,7 +70,7 @@ func TestWalletSendFunction_ClientError(t *testing.T) {
 		feeCreditBill: &bp.Bill{
 			Id:      []byte{},
 			Value:   100 * 1e8,
-			TxProof: &block.TxProof{},
+			TxProof: &types.TxProof{},
 		},
 	}))
 	validPubKey := make([]byte, 33)
@@ -84,10 +85,10 @@ func TestWalletSendFunction_ClientError(t *testing.T) {
 func TestWalletSendFunction_WaitForConfirmation(t *testing.T) {
 	pubKey := make([]byte, 33)
 	b := &Bill{
-		Id:         uint256.NewInt(0),
-		Value:      100,
-		TxHash:     hash.Sum256([]byte{0x01}),
-		BlockProof: &BlockProof{Proof: &block.BlockProof{}},
+		Id:      uint256.NewInt(0),
+		Value:   100,
+		TxHash:  hash.Sum256([]byte{0x01}),
+		TxProof: &types.TxProof{},
 	}
 
 	var w *Wallet
@@ -107,9 +108,11 @@ func TestWalletSendFunction_WaitForConfirmation(t *testing.T) {
 		},
 		getProof: func(billId []byte) (*bp.Bills, error) {
 			tx := mockClient.GetRecordedTransactions()[0]
-			gtx, err := NewTxConverter(w.SystemID()).ConvertTx(tx)
+			txOrder := &types.TransactionOrder{}
+			err := cbor.Unmarshal(tx.Order, txOrder)
 			require.NoError(t, err)
-			b.TxHash = gtx.Hash(crypto.SHA256)
+
+			b.TxHash = txOrder.Hash(crypto.SHA256)
 			return createBlockProofResponse(t, b, nil, 0, dcTimeoutBlockCount, nil), nil
 		},
 		fetchFeeCreditBill: func(ctx context.Context, unitID []byte) (*bp.Bill, error) {
@@ -117,7 +120,7 @@ func TestWalletSendFunction_WaitForConfirmation(t *testing.T) {
 			return &bp.Bill{
 				Id:      ac.PrivKeyHash,
 				Value:   100 * 1e8,
-				TxProof: &block.TxProof{},
+				TxProof: &types.TxProof{},
 			}, nil
 		},
 	}
@@ -160,12 +163,14 @@ func TestWalletSendFunction_WaitForMultipleTxConfirmations(t *testing.T) {
 			txs := mockClient.GetRecordedTransactions()
 			var bill *Bill
 			for _, tx := range txs {
-				if bytes.Equal(billId, tx.UnitId) {
+				txOrder := &types.TransactionOrder{}
+				err := cbor.Unmarshal(tx.Order, txOrder)
+				require.NoError(t, err)
+
+				if bytes.Equal(billId, txOrder.UnitID()) {
 					bill, _ = bills[string(billId)]
 					if bill != nil {
-						gtx, err := NewTxConverter(w.SystemID()).ConvertTx(tx)
-						require.NoError(t, err)
-						bill.TxHash = gtx.Hash(crypto.SHA256)
+						bill.TxHash = txOrder.Hash(crypto.SHA256)
 					}
 				}
 			}
@@ -177,7 +182,7 @@ func TestWalletSendFunction_WaitForMultipleTxConfirmations(t *testing.T) {
 			}
 		},
 		fetchFeeCreditBill: func(ctx context.Context, unitID []byte) (*bp.Bill, error) {
-			return &bp.Bill{Id: []byte{}, Value: 100 * 1e8, TxProof: &block.TxProof{}}, nil
+			return &bp.Bill{Id: []byte{}, Value: 100 * 1e8, TxProof: &types.TxProof{}}, nil
 		},
 	}
 	w, mockClient = CreateTestWallet(t, backendMock)
@@ -220,12 +225,14 @@ func TestWalletSendFunction_WaitForMultipleTxConfirmationsInDifferentBlocks(t *t
 			txs := mockClient.GetRecordedTransactions()
 			var bill *Bill
 			for _, tx := range txs {
-				if bytes.Equal(billId, tx.UnitId) {
+				txOrder := &types.TransactionOrder{}
+				err := cbor.Unmarshal(tx.Order, txOrder)
+				require.NoError(t, err)
+
+				if bytes.Equal(billId, txOrder.UnitID()) {
 					bill, _ = bills[string(billId)]
 					if bill != nil {
-						gtx, err := NewTxConverter(w.SystemID()).ConvertTx(tx)
-						require.NoError(t, err)
-						bill.TxHash = gtx.Hash(crypto.SHA256)
+						bill.TxHash = txOrder.Hash(crypto.SHA256)
 					}
 				}
 			}
@@ -240,7 +247,7 @@ func TestWalletSendFunction_WaitForMultipleTxConfirmationsInDifferentBlocks(t *t
 		},
 		fetchFeeCreditBill: func(ctx context.Context, unitID []byte) (*bp.Bill, error) {
 			ac, _ := w.am.GetAccountKey(0)
-			return &bp.Bill{Id: ac.PrivKeyHash, Value: 100 * 1e8, TxProof: &block.TxProof{}}, nil
+			return &bp.Bill{Id: ac.PrivKeyHash, Value: 100 * 1e8, TxProof: &types.TxProof{}}, nil
 		},
 	}
 	w, mockClient = CreateTestWallet(t, backendMock)
@@ -272,7 +279,7 @@ func TestWalletSendFunction_ErrTxFailedToConfirm(t *testing.T) {
 			return []*bp.Bill{{Id: b.GetID(), Value: b.Value, TxHash: b.TxHash}}, nil
 		},
 		fetchFeeCreditBill: func(ctx context.Context, unitID []byte) (*bp.Bill, error) {
-			return &bp.Bill{Id: []byte{}, Value: 100 * 1e8, TxProof: &block.TxProof{}}, nil
+			return &bp.Bill{Id: []byte{}, Value: 100 * 1e8, TxProof: &types.TxProof{}}, nil
 		},
 	}
 	w, mockClient := CreateTestWallet(t, backendMock)
@@ -293,7 +300,7 @@ func TestWholeBalanceIsSentUsingBillTransferOrder(t *testing.T) {
 		balance:       100,
 		billId:        b.Id,
 		billValue:     b.Value,
-		feeCreditBill: &bp.Bill{Id: []byte{}, Value: 100 * 1e8, TxProof: &block.TxProof{}},
+		feeCreditBill: &bp.Bill{Id: []byte{}, Value: 100 * 1e8, TxProof: &types.TxProof{}},
 	}))
 
 	// when whole balance is spent
@@ -320,7 +327,7 @@ func TestWalletSendFunction_RetryTxWhenTxBufferIsFull(t *testing.T) {
 		feeCreditBill: &bp.Bill{
 			Id:      []byte{},
 			Value:   100 * 1e8,
-			TxProof: &block.TxProof{},
+			TxProof: &types.TxProof{},
 		},
 	}))
 
@@ -353,7 +360,7 @@ func TestWalletSendFunction_RetryCanBeCanceledByUser(t *testing.T) {
 		feeCreditBill: &bp.Bill{
 			Id:      []byte{},
 			Value:   100 * 1e8,
-			TxProof: &block.TxProof{},
+			TxProof: &types.TxProof{},
 		},
 	}))
 

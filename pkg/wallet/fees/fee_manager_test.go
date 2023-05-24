@@ -4,11 +4,11 @@ import (
 	"context"
 	"testing"
 
-	"github.com/alphabill-org/alphabill/internal/block"
-	"github.com/alphabill-org/alphabill/internal/txsystem"
+	"github.com/alphabill-org/alphabill/internal/types"
+	"github.com/stretchr/testify/require"
+
 	"github.com/alphabill-org/alphabill/pkg/wallet/account"
 	"github.com/alphabill-org/alphabill/pkg/wallet/backend/bp"
-	"github.com/stretchr/testify/require"
 )
 
 /*
@@ -89,6 +89,6 @@ func (m *mockMoneyClient) FetchFeeCreditBill(ctx context.Context, unitID []byte)
 type mockMoneyTxPublisher struct {
 }
 
-func (m *mockMoneyTxPublisher) SendTx(ctx context.Context, tx *txsystem.Transaction, _ []byte) (*block.TxProof, error) {
-	return &block.TxProof{Tx: tx, Proof: &block.BlockProof{}}, nil
+func (m *mockMoneyTxPublisher) SendTx(ctx context.Context, tx *types.TransactionOrder, _ []byte) (*types.TxProof, error) {
+	return &types.TxProof{}, nil
 }

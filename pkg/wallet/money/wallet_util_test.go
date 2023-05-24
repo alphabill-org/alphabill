@@ -11,10 +11,8 @@ import (
 	"net/url"
 	"testing"
 
-	"github.com/alphabill-org/alphabill/internal/block"
-	"github.com/alphabill-org/alphabill/internal/certificates"
 	"github.com/alphabill-org/alphabill/internal/hash"
-	"github.com/alphabill-org/alphabill/internal/txsystem"
+	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/internal/util"
 	abclient "github.com/alphabill-org/alphabill/pkg/client"
 	"github.com/alphabill-org/alphabill/pkg/client/clientmock"
@@ -25,7 +23,6 @@ import (
 	txbuilder "github.com/alphabill-org/alphabill/pkg/wallet/money/tx_builder"
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
-	"google.golang.org/protobuf/encoding/protojson"
 )
 
 type (
@@ -56,7 +53,7 @@ func CreateTestWalletWithManager(t *testing.T, backend BackendAPI, am account.Ma
 	err := CreateNewWallet(am, "")
 	require.NoError(t, err)
 
-	mockClient := clientmock.NewMockAlphabillClient(clientmock.WithMaxBlockNumber(0), clientmock.WithBlocks(map[uint64]*block.Block{}))
+	mockClient := clientmock.NewMockAlphabillClient(clientmock.WithMaxBlockNumber(0), clientmock.WithBlocks(map[uint64]*types.Block{}))
 	w, err := LoadExistingWallet(abclient.AlphabillClientConfig{}, am, backend)
 	require.NoError(t, err)
 	w.AlphabillClient = mockClient
@@ -114,7 +111,7 @@ func mockBackendCalls(br *backendMockReturnConf) (*httptest.Server, *url.URL) {
 				}
 			case "/" + beclient.FeeCreditPath:
 				w.WriteHeader(http.StatusOK)
-				fcb, _ := protojson.Marshal(br.feeCreditBill)
+				fcb, _ := json.Marshal(br.feeCreditBill)
 				w.Write(fcb)
 			default:
 				w.WriteHeader(http.StatusNotFound)
@@ -135,36 +132,35 @@ func createBlockProofResponse(t *testing.T, b *Bill, overrideNonce []byte, block
 	if k == nil {
 		k, _ = w.am.GetAccountKey(0)
 	}
-	var dcTx *txsystem.Transaction
+	var dcTx *types.TransactionOrder
 	if overrideNonce != nil {
-		dcTx, _ = txbuilder.CreateDustTx(k, w.SystemID(), b.ToProto(), overrideNonce, timeout)
+		dcTx, _ = txbuilder.NewDustTx(k, w.SystemID(), b.ToProto(), overrideNonce, timeout)
 	} else {
-		dcTx, _ = txbuilder.CreateDustTx(k, w.SystemID(), b.ToProto(), calculateDcNonce([]*Bill{b}), timeout)
+		dcTx, _ = txbuilder.NewDustTx(k, w.SystemID(), b.ToProto(), calculateDcNonce([]*Bill{b}), timeout)
 	}
-	mockClient.SetBlock(&block.Block{
-		SystemIdentifier:   w.SystemID(),
-		PreviousBlockHash:  hash.Sum256([]byte{}),
-		Transactions:       []*txsystem.Transaction{dcTx},
-		UnicityCertificate: &certificates.UnicityCertificate{InputRecord: &certificates.InputRecord{RoundNumber: timeout}},
-	})
-	tp := &block.TxProof{
-		BlockNumber: blockNumber,
-		Tx:          dcTx,
-		Proof: &block.BlockProof{
-			BlockHeaderHash: []byte{0},
-			BlockTreeHashChain: &block.BlockTreeHashChain{
-				Items: []*block.ChainItem{{Val: []byte{0}, Hash: []byte{0}}},
-			},
+	txRecord := &types.TransactionRecord{TransactionOrder: dcTx}
+	mockClient.SetBlock(&types.Block{
+		Header: &types.Header{
+			SystemID:          w.SystemID(),
+			PreviousBlockHash: hash.Sum256([]byte{}),
 		},
+		Transactions:       []*types.TransactionRecord{txRecord},
+		UnicityCertificate: &types.UnicityCertificate{InputRecord: &types.InputRecord{RoundNumber: timeout}},
+	})
+	txProof := &types.TxProof{
+		TransactionRecord:  txRecord,
+		BlockHeaderHash:    []byte{0},
+		Chain:              []*types.GenericChainItem{{Hash: []byte{0}}},
+		UnicityCertificate: &types.UnicityCertificate{InputRecord: &types.InputRecord{RoundNumber: timeout}},
 	}
-	return &bp.Bills{Bills: []*bp.Bill{{Id: util.Uint256ToBytes(b.Id), Value: b.Value, IsDcBill: b.IsDcBill, TxProof: tp, TxHash: b.TxHash}}}
+	return &bp.Bills{Bills: []*bp.Bill{{Id: util.Uint256ToBytes(b.Id), Value: b.Value, IsDcBill: b.IsDcBill, TxProof: txProof, TxHash: b.TxHash}}}
 }
 
 func createBlockProofJsonResponse(t *testing.T, bills []*Bill, overrideNonce []byte, blockNumber, timeout uint64, k *account.AccountKey) []string {
 	var jsonList []string
 	for _, b := range bills {
 		bills := createBlockProofResponse(t, b, overrideNonce, blockNumber, timeout, k)
-		res, _ := protojson.MarshalOptions{EmitUnpopulated: true}.Marshal(bills)
+		res, _ := json.Marshal(bills)
 		jsonList = append(jsonList, string(res))
 	}
 	return jsonList

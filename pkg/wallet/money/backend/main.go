@@ -11,14 +11,15 @@ import (
 	"sync"
 	"time"
 
+	"github.com/alphabill-org/alphabill/internal/rpc/alphabill"
+	"github.com/alphabill-org/alphabill/internal/types"
+	"github.com/fxamacker/cbor/v2"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/sync/semaphore"
 
 	"github.com/ainvaltin/httpsrv"
-	"github.com/alphabill-org/alphabill/internal/block"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/internal/script"
-	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/pkg/client"
 	"github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/alphabill-org/alphabill/pkg/wallet/account"
@@ -38,7 +39,7 @@ type (
 		GetBill(unitID []byte) (*Bill, error)
 		GetRoundNumber(ctx context.Context) (uint64, error)
 		GetFeeCreditBill(unitID []byte) (*Bill, error)
-		SendTransactions(ctx context.Context, txs []*txsystem.Transaction) map[string]string
+		SendTransactions(ctx context.Context, txs []*types.TransactionOrder) map[string]string
 	}
 
 	WalletBackend struct {
@@ -65,10 +66,11 @@ type (
 		FCBlockNumber uint64 `json:"fcBlockNumber"`
 	}
 
+	// TODO replace with types.TxProof?
 	TxProof struct {
-		BlockNumber uint64                `json:"blockNumber"`
-		Tx          *txsystem.Transaction `json:"tx"`
-		Proof       *block.BlockProof     `json:"proof"`
+		BlockNumber uint64                   `json:"blockNumber"`
+		Tx          *types.TransactionRecord `json:"tx"`
+		Proof       *types.TxProof           `json:"proof"`
 	}
 
 	Pubkey struct {
@@ -188,7 +190,7 @@ func Run(ctx context.Context, config *Config) error {
 	})
 
 	g.Go(func() error {
-		blockProcessor, err := NewBlockProcessor(store, NewTxConverter(config.ABMoneySystemIdentifier), config.ABMoneySystemIdentifier)
+		blockProcessor, err := NewBlockProcessor(store, config.ABMoneySystemIdentifier)
 		if err != nil {
 			return fmt.Errorf("failed to create block processor: %w", err)
 		}
@@ -255,7 +257,7 @@ func (w *WalletBackend) GetRoundNumber(ctx context.Context) (uint64, error) {
 
 // TODO: Share functionaly with tokens partiton
 // SendTransactions forwards transactions to partiton node(s).
-func (w *WalletBackend) SendTransactions(ctx context.Context, txs []*txsystem.Transaction) map[string]string {
+func (w *WalletBackend) SendTransactions(ctx context.Context, txs []*types.TransactionOrder) map[string]string {
 	errs := make(map[string]string)
 	var m sync.Mutex
 
@@ -265,11 +267,13 @@ func (w *WalletBackend) SendTransactions(ctx context.Context, txs []*txsystem.Tr
 		if err := sem.Acquire(ctx, 1); err != nil {
 			break
 		}
-		go func(tx *txsystem.Transaction) {
+		go func(tx *types.TransactionOrder) {
 			defer sem.Release(1)
-			if err := w.genericWallet.SendTransaction(ctx, tx, nil); err != nil {
+			txBytes, _ := cbor.Marshal(tx)
+			protoTx := &alphabill.Transaction{Order: txBytes}
+			if err := w.genericWallet.SendTransaction(ctx, protoTx, nil); err != nil {
 				m.Lock()
-				errs[hex.EncodeToString(tx.GetUnitId())] =
+				errs[hex.EncodeToString(tx.UnitID())] =
 					fmt.Errorf("failed to forward tx: %w", err).Error()
 				m.Unlock()
 			}
@@ -305,8 +309,8 @@ func (b *Bill) toProtoBills() *bp.Bills {
 	}
 }
 
-func (b *Bill) addProof(bl *block.GenericBlock, txPb *txsystem.Transaction) error {
-	proof, err := createProof(b.Id, txPb, bl, crypto.SHA256)
+func (b *Bill) addProof(txIdx int, bl *types.Block, txPb *types.TransactionRecord) error {
+	proof, err := createProof(txIdx, txPb, bl, crypto.SHA256)
 	if err != nil {
 		return err
 	}
@@ -335,23 +339,24 @@ func (b *Bill) getFCBlockNumber() uint64 {
 	return 0
 }
 
-func (b *TxProof) toProto() *block.TxProof {
-	return &block.TxProof{
-		BlockNumber: b.BlockNumber,
-		Tx:          b.Tx,
-		Proof:       b.Proof,
+func (b *TxProof) toProto() *types.TxProof {
+	return &types.TxProof{
+		BlockHeaderHash:    b.Proof.BlockHeaderHash,
+		Chain:              b.Proof.Chain,
+		UnicityCertificate: b.Proof.UnicityCertificate,
+		TransactionRecord:  b.Proof.TransactionRecord,
 	}
 }
 
-func createProof(unitID []byte, tx *txsystem.Transaction, b *block.GenericBlock, hashAlgorithm crypto.Hash) (*TxProof, error) {
-	proof, err := block.NewPrimaryProof(b, unitID, hashAlgorithm)
+func createProof(txIdx int, tx *types.TransactionRecord, b *types.Block, hashAlgorithm crypto.Hash) (*TxProof, error) {
+	proof, err := types.NewTxProof(b, txIdx, hashAlgorithm)
 	if err != nil {
 		return nil, err
 	}
 	return newTxProof(tx, proof, b.GetRoundNumber())
 }
 
-func newTxProof(tx *txsystem.Transaction, proof *block.BlockProof, blockNumber uint64) (*TxProof, error) {
+func newTxProof(tx *types.TransactionRecord, proof *types.TxProof, blockNumber uint64) (*TxProof, error) {
 	if tx == nil {
 		return nil, errors.New("tx is nil")
 	}

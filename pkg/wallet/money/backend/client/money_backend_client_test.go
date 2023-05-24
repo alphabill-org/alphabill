@@ -3,6 +3,7 @@ package client
 import (
 	"context"
 	"encoding/base64"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -12,7 +13,6 @@ import (
 	"github.com/alphabill-org/alphabill/pkg/wallet/backend/bp"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/stretchr/testify/require"
-	"google.golang.org/protobuf/encoding/protojson"
 )
 
 const pubKeyHex = "0x038003e218eea360cbf580ebb90cc8c8caf0ccef4bf660ea9ab4fc06b5c367b038"
@@ -225,6 +225,6 @@ func getFeeCreditBillJsonBytes() []byte {
 		TxHash:        []byte{1},
 		FcBlockNumber: 100,
 	}
-	jsonBytes, _ := protojson.Marshal(res)
+	jsonBytes, _ := json.Marshal(res)
 	return jsonBytes
 }

@@ -11,8 +11,8 @@ import (
 	"time"
 
 	"github.com/alphabill-org/alphabill/internal/types"
+	"github.com/fxamacker/cbor/v2"
 
-	"github.com/alphabill-org/alphabill/internal/block"
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/hash"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
@@ -103,7 +103,10 @@ func TestCollectDustTimeoutReached(t *testing.T) {
 
 	transferInitialBillTx, err := moneytestutils.CreateInitialBillTransferTx(pubKeys[0], initialBill.ID, initialBillValue, 10000, initialBillBacklink)
 	require.NoError(t, err)
-	err = w.SendTransaction(ctx, transferInitialBillTx, &wallet.SendOpts{})
+	txBytes, err := cbor.Marshal(transferInitialBillTx)
+	require.NoError(t, err)
+	protoTx := &alphabill.Transaction{Order: txBytes}
+	err = w.SendTransaction(ctx, protoTx, &wallet.SendOpts{})
 	require.NoError(t, err)
 	require.Eventually(t, testpartition.BlockchainContainsTx(moneyPart, transferInitialBillTx), test.WaitDuration, test.WaitTick)
 
@@ -128,10 +131,12 @@ func TestCollectDustTimeoutReached(t *testing.T) {
 	waitForExpectedSwap(w)
 
 	for blockNo := uint64(1); blockNo <= dcTimeoutBlockCount; blockNo++ {
-		b := &block.Block{
-			SystemIdentifier:   w.SystemID(),
-			PreviousBlockHash:  hash.Sum256([]byte{}),
-			Transactions:       []*txsystem.Transaction{},
+		b := &types.Block{
+			Header: &types.Header{
+				SystemID:          w.SystemID(),
+				PreviousBlockHash: hash.Sum256([]byte{}),
+			},
+			Transactions:       []*types.TransactionRecord{},
 			UnicityCertificate: &types.UnicityCertificate{InputRecord: &types.InputRecord{RoundNumber: blockNo}},
 		}
 		serverService.SetBlock(blockNo, b)
@@ -213,7 +218,10 @@ func TestCollectDustInMultiAccountWallet(t *testing.T) {
 
 	transferInitialBillTx, err := moneytestutils.CreateInitialBillTransferTx(pubKeys[0], initialBill.ID, initialBillValue, 10000, initialBillBacklink)
 	require.NoError(t, err)
-	err = w.SendTransaction(ctx, transferInitialBillTx, &wallet.SendOpts{})
+	txBytes, err := cbor.Marshal(transferInitialBillTx)
+	require.NoError(t, err)
+	protoTx := &alphabill.Transaction{Order: txBytes}
+	err = w.SendTransaction(ctx, protoTx, &wallet.SendOpts{})
 	require.NoError(t, err)
 	require.Eventually(t, testpartition.BlockchainContainsTx(moneyPart, transferInitialBillTx), test.WaitDuration, test.WaitTick)
 
@@ -320,7 +328,10 @@ func TestCollectDustInMultiAccountWalletWithKeyFlag(t *testing.T) {
 
 	transferInitialBillTx, err := moneytestutils.CreateInitialBillTransferTx(pubKeys[0], initialBill.ID, initialBillValue, 10000, initialBillBacklink)
 	require.NoError(t, err)
-	err = w.SendTransaction(ctx, transferInitialBillTx, &wallet.SendOpts{})
+	txBytes, err := cbor.Marshal(transferInitialBillTx)
+	require.NoError(t, err)
+	protoTx := &alphabill.Transaction{Order: txBytes}
+	err = w.SendTransaction(ctx, protoTx, &wallet.SendOpts{})
 	require.NoError(t, err)
 	require.Eventually(t, testpartition.BlockchainContainsTx(moneyPart, transferInitialBillTx), test.WaitDuration, test.WaitTick)
 
@@ -356,11 +367,11 @@ func TestCollectDustInMultiAccountWalletWithKeyFlag(t *testing.T) {
 	err = w.CollectDust(ctx, 3)
 	require.NoError(t, err)
 
-	// verify that there is only one swap tx and it belongs to account number 3
+	// verify that there is only one swap tx, and it belongs to account number 3
 	b, _ := moneyPart.Nodes[0].GetLatestBlock()
 	require.Len(t, b.Transactions, 1)
 	attrs := &moneytx.SwapDCAttributes{}
-	err = b.Transactions[0].TransactionAttributes.UnmarshalTo(attrs)
+	err = b.Transactions[0].TransactionOrder.UnmarshalAttributes(attrs)
 	require.NoError(t, err)
 	k, _ := am.GetAccountKey(2)
 	require.EqualValues(t, script.PredicatePayToPublicKeyHashDefault(k.PubKeyHash.Sha256), attrs.OwnerCondition)

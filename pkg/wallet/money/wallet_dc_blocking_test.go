@@ -6,14 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/alphabill-org/alphabill/internal/block"
-	"github.com/alphabill-org/alphabill/internal/certificates"
-	"github.com/alphabill-org/alphabill/internal/hash"
-	"github.com/alphabill-org/alphabill/internal/rpc/alphabill"
-	"github.com/alphabill-org/alphabill/internal/script"
-	moneytesttx "github.com/alphabill-org/alphabill/internal/testutils/transaction/money"
-	"github.com/alphabill-org/alphabill/internal/txsystem"
-	billtx "github.com/alphabill-org/alphabill/internal/txsystem/money"
+	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/alphabill-org/alphabill/pkg/wallet/account"
 	"github.com/alphabill-org/alphabill/pkg/wallet/backend/bp"
@@ -21,7 +14,6 @@ import (
 	txbuilder "github.com/alphabill-org/alphabill/pkg/wallet/money/tx_builder"
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
-	"google.golang.org/protobuf/types/known/anypb"
 )
 
 func TestBlockingDcWithNormalBills(t *testing.T) {
@@ -44,7 +36,7 @@ func TestBlockingDcWithNormalBills(t *testing.T) {
 		feeCreditBill: &bp.Bill{
 			Id:      k.PrivKeyHash,
 			Value:   100 * 1e8,
-			TxProof: &block.TxProof{},
+			TxProof: &types.TxProof{},
 		},
 	}), am)
 
@@ -53,11 +45,13 @@ func TestBlockingDcWithNormalBills(t *testing.T) {
 		protoDcBills = append(protoDcBills, b.ToProto())
 	}
 
-	tx, err := txbuilder.CreateSwapTx(k, w.SystemID(), protoDcBills, calculateDcNonce(bills), getBillIds(bills), swapTimeoutBlockCount)
+	tx, err := txbuilder.NewSwapTx(k, w.SystemID(), protoDcBills, calculateDcNonce(bills), getBillIds(bills), swapTimeoutBlockCount)
 	require.NoError(t, err)
-	mockClient.SetBlock(&block.Block{Transactions: []*txsystem.Transaction{
-		tx,
-	}, UnicityCertificate: &certificates.UnicityCertificate{InputRecord: &certificates.InputRecord{RoundNumber: 0}}})
+	txRecord := &types.TransactionRecord{TransactionOrder: tx, ServerMetadata: &types.ServerMetadata{ActualFee: 1}}
+	mockClient.SetBlock(&types.Block{
+		Transactions:       []*types.TransactionRecord{txRecord},
+		UnicityCertificate: &types.UnicityCertificate{InputRecord: &types.InputRecord{RoundNumber: 0}},
+	})
 
 	// when blocking dust collector runs
 	_ = runBlockingDc(t, w)
@@ -96,7 +90,7 @@ func TestBlockingDCWithDCBillsBeforeDCTimeout(t *testing.T) {
 		feeCreditBill: &bp.Bill{
 			Id:      k.PrivKeyHash,
 			Value:   100 * 1e8,
-			TxProof: &block.TxProof{},
+			TxProof: &types.TxProof{},
 		},
 	}), am)
 	// set specific round number
@@ -107,11 +101,16 @@ func TestBlockingDCWithDCBillsBeforeDCTimeout(t *testing.T) {
 		protoBills = append(protoBills, b.ToProto())
 	}
 
-	tx, err := txbuilder.CreateSwapTx(k, w.SystemID(), protoBills, util.Uint256ToBytes(tempNonce), getBillIds(bills), swapTimeoutBlockCount)
+	txOrder, err := txbuilder.NewSwapTx(k, w.SystemID(), protoBills, util.Uint256ToBytes(tempNonce), getBillIds(bills), swapTimeoutBlockCount)
 	require.NoError(t, err)
-	mockClient.SetBlock(&block.Block{Transactions: []*txsystem.Transaction{
-		tx,
-	}, UnicityCertificate: &certificates.UnicityCertificate{InputRecord: &certificates.InputRecord{RoundNumber: roundNr}}})
+	txRecord := &types.TransactionRecord{
+		TransactionOrder: txOrder,
+		ServerMetadata:   &types.ServerMetadata{ActualFee: 1},
+	}
+	mockClient.SetBlock(&types.Block{
+		Transactions:       []*types.TransactionRecord{txRecord},
+		UnicityCertificate: &types.UnicityCertificate{InputRecord: &types.InputRecord{RoundNumber: roundNr}},
+	})
 
 	// when blocking dust collector runs
 	_ = runBlockingDc(t, w)
@@ -145,7 +144,7 @@ func TestBlockingDCWithExistingExpiredDCBills(t *testing.T) {
 		feeCreditBill: &bp.Bill{
 			Id:      k.PrivKeyHash,
 			Value:   100 * 1e8,
-			TxProof: &block.TxProof{},
+			TxProof: &types.TxProof{},
 		},
 	}), am)
 
@@ -154,11 +153,15 @@ func TestBlockingDCWithExistingExpiredDCBills(t *testing.T) {
 		protoBills = append(protoBills, b.ToProto())
 	}
 
-	tx, err := txbuilder.CreateSwapTx(k, w.SystemID(), protoBills, util.Uint256ToBytes(tempNonce), getBillIds(bills), swapTimeoutBlockCount)
+	txOrder, err := txbuilder.NewSwapTx(k, w.SystemID(), protoBills, util.Uint256ToBytes(tempNonce), getBillIds(bills), swapTimeoutBlockCount)
 	require.NoError(t, err)
-	mockClient.SetBlock(&block.Block{Transactions: []*txsystem.Transaction{
-		tx,
-	}, UnicityCertificate: &certificates.UnicityCertificate{InputRecord: &certificates.InputRecord{RoundNumber: 0}}})
+	txRecord := &types.TransactionRecord{
+		TransactionOrder: txOrder,
+		ServerMetadata:   &types.ServerMetadata{ActualFee: 1},
+	}
+	mockClient.SetBlock(&types.Block{Transactions: []*types.TransactionRecord{
+		txRecord,
+	}, UnicityCertificate: &types.UnicityCertificate{InputRecord: &types.InputRecord{RoundNumber: 0}}})
 
 	// when blocking dust collector runs
 	_ = runBlockingDc(t, w)
@@ -195,7 +198,7 @@ func TestBlockingDcWaitingForSwapTimesOut(t *testing.T) {
 		feeCreditBill: &bp.Bill{
 			Id:      k.PrivKeyHash,
 			Value:   100 * 1e8,
-			TxProof: &block.TxProof{},
+			TxProof: &types.TxProof{},
 		},
 	}), am)
 
@@ -238,41 +241,50 @@ func runBlockingDc(t *testing.T, w *Wallet) *sync.WaitGroup {
 	return &wg
 }
 
-func createBlockWithSwapTxFromDcBills(dcNonce *uint256.Int, k *account.AccountKey, systemId []byte, bills ...*Bill) *alphabill.GetBlockResponse {
-	var dcTxs []*txsystem.Transaction
-	for _, b := range bills {
-		dcTxs = append(dcTxs, &txsystem.Transaction{
-			SystemId:              systemId,
-			UnitId:                b.GetID(),
-			TransactionAttributes: moneytesttx.CreateRandomDustTransferTx(),
-			OwnerProof:            script.PredicateArgumentEmpty(),
-			ClientMetadata:        &txsystem.ClientMetadata{FeeCreditRecordId: []byte{1, 3, 3, 7}, Timeout: 1000},
-			ServerMetadata:        &txsystem.ServerMetadata{Fee: 1},
-		})
-	}
-	dcNonce32 := dcNonce.Bytes32()
-	return createBlockWithSwapTx(systemId, dcNonce32[:], k, dcTxs)
-}
-
-func createBlockWithSwapTx(systemId, dcNonce []byte, k *account.AccountKey, dcTxs []*txsystem.Transaction) *alphabill.GetBlockResponse {
-	return &alphabill.GetBlockResponse{
-		Block: &block.Block{
-			SystemIdentifier:  systemId,
-			PreviousBlockHash: hash.Sum256([]byte{}),
-			Transactions: []*txsystem.Transaction{
-				{
-					SystemId:              systemId,
-					UnitId:                dcNonce,
-					TransactionAttributes: createSwapTxFromDcTxs(k.PubKeyHash.Sha256, dcTxs),
-					OwnerProof:            script.PredicateArgumentPayToPublicKeyHashDefault([]byte{}, k.PubKey),
-					ClientMetadata:        &txsystem.ClientMetadata{FeeCreditRecordId: []byte{1, 3, 3, 7}, Timeout: 1000},
-					ServerMetadata:        &txsystem.ServerMetadata{Fee: 1},
-				},
-			},
-			UnicityCertificate: &certificates.UnicityCertificate{InputRecord: &certificates.InputRecord{RoundNumber: 1}},
-		},
-	}
-}
+//func createBlockWithSwapTxFromDcBills(dcNonce *uint256.Int, k *account.AccountKey, systemId []byte, bills ...*Bill) *alphabill.GetBlockResponse {
+//	var dcTxs []*types.TransactionRecord
+//	for _, b := range bills {
+//		dcTxs = append(dcTxs, &types.TransactionRecord{
+//			SystemId:              systemId,
+//			UnitId:                b.GetID(),
+//			TransactionAttributes: moneytesttx.CreateRandomDustTransferTx(),
+//			OwnerProof:            script.PredicateArgumentEmpty(),
+//			ClientMetadata:        &txsystem.ClientMetadata{FeeCreditRecordId: []byte{1, 3, 3, 7}, Timeout: 1000},
+//			ServerMetadata:        &txsystem.ServerMetadata{Fee: 1},
+//		})
+//	}
+//	dcNonce32 := dcNonce.Bytes32()
+//	return createBlockWithSwapTx(systemId, dcNonce32[:], k, dcTxs)
+//}
+//
+//func createBlockWithSwapTx(systemId, dcNonce []byte, k *account.AccountKey, dcTxs []*types.TransactionRecord) *alphabill.GetBlockResponse {
+//	b := &types.Block{
+//		Header: &types.Header{
+//			SystemID:          systemId,
+//			PreviousBlockHash: hash.Sum256([]byte{}),
+//		},
+//		Transactions: []*types.TransactionRecord{
+//			{
+//				TransactionOrder: &types.TransactionOrder{
+//					Payload: &types.Payload{
+//						SystemID:       systemId,
+//						Type:           billtx.PayloadTypeSwapDC,
+//						UnitID:         dcNonce,
+//						Attributes:     createSwapTxFromDcTxs(k.PubKeyHash.Sha256, dcTxs),
+//						ClientMetadata: &types.ClientMetadata{FeeCreditRecordID: []byte{1, 3, 3, 7}, Timeout: 1000},
+//					},
+//					OwnerProof: script.PredicateArgumentPayToPublicKeyHashDefault([]byte{}, k.PubKey),
+//				},
+//				ServerMetadata: &types.ServerMetadata{ActualFee: 1},
+//			},
+//		},
+//		UnicityCertificate: &types.UnicityCertificate{InputRecord: &types.InputRecord{RoundNumber: 1}},
+//	}
+//	blockBytes, _ := cbor.Marshal(b)
+//	return &alphabill.GetBlockResponse{
+//		Block: blockBytes,
+//	}
+//}
 
 func waitForExpectedSwap(w *Wallet) {
 	waitForCondition(func() bool {
@@ -282,16 +294,17 @@ func waitForExpectedSwap(w *Wallet) {
 	})
 }
 
-func createSwapTxFromDcTxs(pubKeyHash []byte, dcTxs []*txsystem.Transaction) *anypb.Any {
-	tx, _ := anypb.New(&billtx.SwapDCAttributes{
-		OwnerCondition:  script.PredicatePayToPublicKeyHashDefault(pubKeyHash),
-		BillIdentifiers: [][]byte{},
-		DcTransfers:     dcTxs,
-		Proofs:          []*block.BlockProof{},
-		TargetValue:     3,
-	})
-	return tx
-}
+//func createSwapTxFromDcTxs(pubKeyHash []byte, dcTxs []*types.TransactionRecord) []byte {
+//	attr := &billtx.SwapDCAttributes{
+//		OwnerCondition:  script.PredicatePayToPublicKeyHashDefault(pubKeyHash),
+//		BillIdentifiers: [][]byte{},
+//		DcTransfers:     dcTxs,
+//		Proofs:          []*types.TxProof{},
+//		TargetValue:     3,
+//	}
+//	attrBytes, _ := cbor.Marshal(attr)
+//	return attrBytes
+//}
 
 func waitForCondition(waitCondition func() bool) {
 	t1 := time.Now()

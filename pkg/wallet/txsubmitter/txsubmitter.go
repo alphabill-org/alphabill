@@ -28,7 +28,7 @@ type (
 
 	BackendAPI interface {
 		GetRoundNumber(ctx context.Context) (uint64, error)
-		PostTransactions(ctx context.Context, pubKey wallet.PubKey, txs []*types.TransactionOrder) error
+		PostTransactions(ctx context.Context, pubKey wallet.PubKey, txs *wallet.Transactions) error
 		GetTxProof(ctx context.Context, unitID wallet.UnitID, txHash wallet.TxHash) (*types.TxProof, error)
 	}
 )
@@ -76,7 +76,7 @@ func (t *TxSubmissionBatch) SendTx(ctx context.Context, confirmTx bool) error {
 	if len(t.submissions) == 0 {
 		return errors.New("no transactions to send")
 	}
-	err := t.backend.PostTransactions(ctx, t.sender, t.transactions())
+	err := t.backend.PostTransactions(ctx, t.sender, &wallet.Transactions{Transactions: t.transactions()})
 	if err != nil {
 		return err
 	}

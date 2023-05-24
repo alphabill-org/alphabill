@@ -12,7 +12,12 @@ type BlockProcessor interface {
 
 type TxHash []byte
 
-type Transactions []*types.TransactionOrder
+type Transactions struct {
+	_            struct{} `cbor:",toarray"`
+	Transactions []*types.TransactionOrder
+}
+
+type TxAttributes types.RawCBOR
 
 type UnitID []byte
 

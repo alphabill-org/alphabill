@@ -140,7 +140,7 @@ func (tb *TokenBackend) GetRoundNumber(ctx context.Context) (uint64, error) {
 	return rn.RoundNumber, nil
 }
 
-func (tb *TokenBackend) PostTransactions(ctx context.Context, pubKey wallet.PubKey, txs *backend.Transactions) error {
+func (tb *TokenBackend) PostTransactions(ctx context.Context, pubKey wallet.PubKey, txs *wallet.Transactions) error {
 	b, err := cbor.Marshal(txs)
 	if err != nil {
 		return fmt.Errorf("failed to encode transactions: %w", err)

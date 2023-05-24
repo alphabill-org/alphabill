@@ -8,9 +8,6 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/alphabill-org/alphabill/internal/block"
-	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
-	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/internal/txsystem/tokens"
 	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/internal/util"
@@ -44,7 +41,6 @@ var (
 type (
 	Wallet struct {
 		systemID   []byte
-		txs        block.TxConverter
 		am         account.Manager
 		backend    TokenBackend
 		confirmTx  bool
@@ -57,8 +53,8 @@ type (
 		GetTokenTypes(ctx context.Context, kind backend.Kind, creator wallet.PubKey, offsetKey string, limit int) ([]backend.TokenUnitType, string, error)
 		GetTypeHierarchy(ctx context.Context, id backend.TokenTypeID) ([]backend.TokenUnitType, error)
 		GetRoundNumber(ctx context.Context) (uint64, error)
-		PostTransactions(ctx context.Context, pubKey wallet.PubKey, txs *txsystem.Transactions) error
-		GetTxProof(ctx context.Context, unitID wallet.UnitID, txHash wallet.TxHash) (*wallet.Proof, error)
+		PostTransactions(ctx context.Context, pubKey wallet.PubKey, txs *wallet.Transactions) error
+		GetTxProof(ctx context.Context, unitID wallet.UnitID, txHash wallet.TxHash) (*wallet.TxProof, error)
 		GetFeeCreditBill(ctx context.Context, unitID wallet.UnitID) (*backend.FeeCreditBill, error)
 	}
 
@@ -76,17 +72,16 @@ func New(systemID []byte, backendUrl string, am account.Manager, confirmTx bool,
 	if err != nil {
 		return nil, err
 	}
-	txs, err := tokens.New(
-		tokens.WithSystemIdentifier(systemID),
-		tokens.WithTrustBase(map[string]abcrypto.Verifier{"test": nil}),
-	)
+	//txs, err := tokens.New(
+	//	tokens.WithSystemIdentifier(systemID),
+	//	tokens.WithTrustBase(map[string]abcrypto.Verifier{"test": nil}),
+	//)
 	if err != nil {
 		return nil, err
 	}
 	return &Wallet{
 		systemID:   systemID,
 		am:         am,
-		txs:        txs,
 		backend:    client.New(*addr),
 		confirmTx:  confirmTx,
 		feeManager: feeManager,
@@ -285,7 +280,7 @@ func (w *Wallet) TransferNFT(ctx context.Context, accountNumber uint64, tokenId 
 		return err
 	}
 	attrs := newNonFungibleTransferTxAttrs(token, receiverPubKey)
-	sub, err := w.prepareTxSubmission(ctx, wallet.UnitID(tokenId), attrs, key, w.GetRoundNumber, func(tx *types.TransactionOrder, gtx txsystem.GenericTransaction) error {
+	sub, err := w.prepareTxSubmission(ctx, wallet.UnitID(tokenId), attrs, key, w.GetRoundNumber, func(tx *types.TransactionOrder) error {
 		signatures, err := preparePredicateSignatures(w.am, invariantPredicateArgs, gtx)
 		if err != nil {
 			return err
@@ -383,7 +378,7 @@ func (w *Wallet) UpdateNFTData(ctx context.Context, accountNumber uint64, tokenI
 		DataUpdateSignatures: nil,
 	}
 
-	sub, err := w.prepareTxSubmission(ctx, tokenId, attrs, acc, w.GetRoundNumber, func(tx *txsystem.Transaction, gtx txsystem.GenericTransaction) error {
+	sub, err := w.prepareTxSubmission(ctx, tokenId, attrs, acc, w.GetRoundNumber, func(tx *types.TransactionOrder) error {
 		signatures, err := preparePredicateSignatures(w.am, updatePredicateArgs, gtx)
 		if err != nil {
 			return err
@@ -429,11 +424,11 @@ func (w *Wallet) GetRoundNumber(ctx context.Context) (uint64, error) {
 	return w.backend.GetRoundNumber(ctx)
 }
 
-func (w *Wallet) AddFeeCredit(ctx context.Context, cmd fees.AddFeeCmd) ([]*block.TxProof, error) {
+func (w *Wallet) AddFeeCredit(ctx context.Context, cmd fees.AddFeeCmd) ([]*wallet.TxProof, error) {
 	return w.feeManager.AddFeeCredit(ctx, cmd)
 }
 
-func (w *Wallet) ReclaimFeeCredit(ctx context.Context, cmd fees.ReclaimFeeCmd) ([]*block.TxProof, error) {
+func (w *Wallet) ReclaimFeeCredit(ctx context.Context, cmd fees.ReclaimFeeCmd) ([]*wallet.TxProof, error) {
 	return w.feeManager.ReclaimFeeCredit(ctx, cmd)
 }
 

@@ -17,11 +17,9 @@ import (
 
 	"github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/alphabill-org/alphabill/pkg/wallet/backend/bp"
-	"github.com/ethereum/go-ethereum/common/hexutil"
-	"google.golang.org/protobuf/encoding/protojson"
-
-	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/pkg/wallet/tokens/backend"
+	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/fxamacker/cbor/v2"
 )
 
 var (
@@ -121,8 +119,8 @@ func (tb *TokenBackend) GetTypeHierarchy(ctx context.Context, id backend.TokenTy
 	return rspData, nil
 }
 
-func (tb *TokenBackend) GetTxProof(ctx context.Context, unitID wallet.UnitID, txHash wallet.TxHash) (*wallet.Proof, error) {
-	var proof *wallet.Proof
+func (tb *TokenBackend) GetTxProof(ctx context.Context, unitID wallet.UnitID, txHash wallet.TxHash) (*wallet.TxProof, error) {
+	var proof *wallet.TxProof
 	addr := tb.getURL(apiPathPrefix, "units", hexutil.Encode(unitID), "transactions", hexutil.Encode(txHash), "proof")
 	_, err := tb.get(ctx, addr, &proof, false)
 	if err != nil {
@@ -142,8 +140,8 @@ func (tb *TokenBackend) GetRoundNumber(ctx context.Context) (uint64, error) {
 	return rn.RoundNumber, nil
 }
 
-func (tb *TokenBackend) PostTransactions(ctx context.Context, pubKey wallet.PubKey, txs *txsystem.Transactions) error {
-	b, err := protojson.Marshal(txs)
+func (tb *TokenBackend) PostTransactions(ctx context.Context, pubKey wallet.PubKey, txs *wallet.Transactions) error {
+	b, err := cbor.Marshal(txs)
 	if err != nil {
 		return fmt.Errorf("failed to encode transactions: %w", err)
 	}
@@ -201,7 +199,7 @@ func (tb *TokenBackend) getURL(pathElements ...string) *url.URL {
 /*
 get executes GET request to given "addr" and decodes response body into "data" (which has to be a pointer
 of the data type expected in the response).
-When "allowEmptyResponse" is false then response must have a non empty body with JSON content.
+When "allowEmptyResponse" is false then response must have a non empty body with CBOR content.
 
 It returns value of the offsetKey parameter from the Link header (empty string when header is not
 present, ie missing header is not error).

@@ -83,7 +83,6 @@ type (
 	}
 
 	AttrWithInvariantPredicateInputs interface {
-		proto.Message
 		SetInvariantPredicateSignatures([][]byte)
 	}
 )

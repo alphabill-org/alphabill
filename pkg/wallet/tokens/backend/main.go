@@ -13,7 +13,6 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"github.com/alphabill-org/alphabill/internal/rpc/alphabill"
-	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/internal/txsystem/tokens"
 	"github.com/alphabill-org/alphabill/pkg/client"
 	"github.com/alphabill-org/alphabill/pkg/wallet"
@@ -32,7 +31,7 @@ type Configuration interface {
 }
 
 type ABClient interface {
-	SendTransaction(ctx context.Context, tx *txsystem.Transaction) error
+	SendTransaction(ctx context.Context, tx *alphabill.Transaction) error
 	GetBlocks(ctx context.Context, blockNumber, blockCount uint64) (*alphabill.GetBlocksResponse, error)
 	GetRoundNumber(ctx context.Context) (uint64, error)
 }
@@ -103,7 +102,6 @@ func Run(ctx context.Context, cfg Configuration) error {
 		api := &restAPI{
 			db:        db,
 			ab:        abc,
-			convertTx: txs.ConvertTx,
 			streamSSE: msgBroker.StreamSSE,
 			logErr:    cfg.Logger().Error,
 		}

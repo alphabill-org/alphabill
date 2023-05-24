@@ -24,7 +24,26 @@ import (
 	"google.golang.org/protobuf/types/known/anypb"
 )
 
-type txPreprocessor func(tx *txsystem.Transaction, gtx txsystem.GenericTransaction) error
+type (
+	txPreprocessor     func(tx *txsystem.Transaction, gtx txsystem.GenericTransaction) error
+	roundNumberFetcher func(ctx context.Context) (uint64, error)
+
+	cachingRoundNumberFetcher struct {
+		roundNumber uint64
+		delegate    roundNumberFetcher
+	}
+)
+
+func (f *cachingRoundNumberFetcher) getRoundNumber(ctx context.Context) (uint64, error) {
+	if f.roundNumber == 0 {
+		var err error
+		f.roundNumber, err = f.delegate(ctx)
+		if err != nil {
+			return 0, err
+		}
+	}
+	return f.roundNumber, nil
+}
 
 func (w *Wallet) newType(ctx context.Context, accNr uint64, attrs AttrWithSubTypeCreationInputs, typeId backend.TokenTypeID, subtypePredicateArgs []*PredicateInput) (backend.TokenTypeID, error) {
 	if accNr < 1 {
@@ -38,7 +57,7 @@ func (w *Wallet) newType(ctx context.Context, accNr uint64, attrs AttrWithSubTyp
 	if err != nil {
 		return nil, err
 	}
-	sub, err := w.prepareTxSubmission(ctx, wallet.UnitID(typeId), attrs, acc, func(tx *txsystem.Transaction, gtx txsystem.GenericTransaction) error {
+	sub, err := w.prepareTxSubmission(ctx, wallet.UnitID(typeId), attrs, acc, w.GetRoundNumber, func(tx *txsystem.Transaction, gtx txsystem.GenericTransaction) error {
 		signatures, err := preparePredicateSignatures(w.am, subtypePredicateArgs, gtx)
 		if err != nil {
 			return err
@@ -90,7 +109,7 @@ func (w *Wallet) newToken(ctx context.Context, accNr uint64, attrs MintAttr, tok
 	if err != nil {
 		return nil, err
 	}
-	sub, err := w.prepareTxSubmission(ctx, wallet.UnitID(tokenId), attrs, key, func(tx *txsystem.Transaction, gtx txsystem.GenericTransaction) error {
+	sub, err := w.prepareTxSubmission(ctx, wallet.UnitID(tokenId), attrs, key, w.GetRoundNumber, func(tx *txsystem.Transaction, gtx txsystem.GenericTransaction) error {
 		signatures, err := preparePredicateSignatures(w.am, mintPredicateArgs, gtx)
 		if err != nil {
 			return err
@@ -117,7 +136,7 @@ func RandomID() (wallet.UnitID, error) {
 	return id, nil
 }
 
-func (w *Wallet) prepareTxSubmission(ctx context.Context, unitId wallet.UnitID, attrs proto.Message, ac *account.AccountKey, txps txPreprocessor) (*txsubmitter.TxSubmission, error) {
+func (w *Wallet) prepareTxSubmission(ctx context.Context, unitId wallet.UnitID, attrs proto.Message, ac *account.AccountKey, rn roundNumberFetcher, txps txPreprocessor) (*txsubmitter.TxSubmission, error) {
 	var err error
 	if unitId == nil {
 		unitId, err = RandomID()
@@ -127,7 +146,7 @@ func (w *Wallet) prepareTxSubmission(ctx context.Context, unitId wallet.UnitID, 
 	}
 	log.Info(fmt.Sprintf("Preparing to send token tx, UnitID=%X, attributes: %v", unitId, reflect.TypeOf(attrs)))
 
-	roundNumber, err := w.GetRoundNumber(ctx)
+	roundNumber, err := rn(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -250,10 +269,11 @@ func (w *Wallet) doSendMultiple(ctx context.Context, amount uint64, tokens []*ba
 	})
 
 	batch := txsubmitter.NewBatch(acc.PubKey, w.backend)
+	rnFetcher := &cachingRoundNumberFetcher{delegate: w.GetRoundNumber}
 
 	for _, t := range tokens {
 		remainingAmount := amount - accumulatedSum
-		sub, err := w.prepareSplitOrTransferTx(ctx, acc, remainingAmount, t, receiverPubKey, invariantPredicateArgs)
+		sub, err := w.prepareSplitOrTransferTx(ctx, acc, remainingAmount, t, receiverPubKey, invariantPredicateArgs, rnFetcher.getRoundNumber)
 		if err != nil {
 			return err
 		}
@@ -266,14 +286,14 @@ func (w *Wallet) doSendMultiple(ctx context.Context, amount uint64, tokens []*ba
 	return batch.SendTx(ctx, w.confirmTx)
 }
 
-func (w *Wallet) prepareSplitOrTransferTx(ctx context.Context, acc *account.AccountKey, amount uint64, token *twb.TokenUnit, receiverPubKey []byte, invariantPredicateArgs []*PredicateInput) (*txsubmitter.TxSubmission, error) {
+func (w *Wallet) prepareSplitOrTransferTx(ctx context.Context, acc *account.AccountKey, amount uint64, token *twb.TokenUnit, receiverPubKey []byte, invariantPredicateArgs []*PredicateInput, rn roundNumberFetcher) (*txsubmitter.TxSubmission, error) {
 	var attrs AttrWithInvariantPredicateInputs
 	if amount >= token.Amount {
 		attrs = newFungibleTransferTxAttrs(token, receiverPubKey)
 	} else {
 		attrs = newSplitTxAttrs(token, amount, receiverPubKey)
 	}
-	sub, err := w.prepareTxSubmission(ctx, wallet.UnitID(token.ID), attrs, acc, func(tx *txsystem.Transaction, gtx txsystem.GenericTransaction) error {
+	sub, err := w.prepareTxSubmission(ctx, wallet.UnitID(token.ID), attrs, acc, rn, func(tx *txsystem.Transaction, gtx txsystem.GenericTransaction) error {
 		signatures, err := preparePredicateSignatures(w.am, invariantPredicateArgs, gtx)
 		if err != nil {
 			return err

@@ -58,12 +58,7 @@ func (b *Block) Hash(algorithm crypto.Hash) ([]byte, error) {
 }
 
 func (b *Block) HeaderHash(algorithm crypto.Hash) []byte {
-	hasher := algorithm.New()
-	hasher.Write(b.Header.SystemID)
-	hasher.Write(b.Header.ShardID)
-	hasher.Write(b.Header.PreviousBlockHash)
-	hasher.Write([]byte(b.Header.ProposerID))
-	return hasher.Sum(nil)
+	return b.Header.Hash(algorithm)
 }
 
 func (b *Block) GetRoundNumber() uint64 {
@@ -114,4 +109,16 @@ func (b *Block) SystemID() SystemID {
 		return nil
 	}
 	return b.Header.SystemID
+}
+
+func (h *Header) Hash(algorithm crypto.Hash) []byte {
+	if h == nil {
+		return nil
+	}
+	hasher := algorithm.New()
+	hasher.Write(h.SystemID)
+	hasher.Write(h.ShardID)
+	hasher.Write(h.PreviousBlockHash)
+	hasher.Write([]byte(h.ProposerID))
+	return hasher.Sum(nil)
 }

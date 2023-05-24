@@ -61,7 +61,7 @@ func (p *BlockProcessor) ProcessBlock(_ context.Context, b *types.Block) error {
 func (p *BlockProcessor) processTx(txr *types.TransactionRecord, b *types.Block, txIdx int, dbTx BillStoreTx) error {
 	roundNumber := b.GetRoundNumber()
 	txo := txr.TransactionOrder
-	switch txr.TransactionOrder.PayloadType() {
+	switch txo.PayloadType() {
 	case moneytx.PayloadTypeTransfer:
 		wlog.Info(fmt.Sprintf("received transfer order (UnitID=%x)", txo.UnitID()))
 		err := p.updateFCB(txr, roundNumber, dbTx)
@@ -225,7 +225,7 @@ func (p *BlockProcessor) processTx(txr *types.TransactionRecord, b *types.Block,
 		if err != nil {
 			return err
 		}
-		return p.saveBillWithProof(txIdx, b, txr, dbTx, &Bill{
+		return p.saveFCBWithProof(txIdx, b, txr, dbTx, &Bill{
 			Id:            txo.UnitID(),
 			Value:         fcb.getValue() + transferFCAttr.Amount - txr.ServerMetadata.ActualFee,
 			TxHash:        txo.Hash(crypto.SHA256),
@@ -242,7 +242,7 @@ func (p *BlockProcessor) processTx(txr *types.TransactionRecord, b *types.Block,
 		if err != nil {
 			return err
 		}
-		return p.saveBillWithProof(txIdx, b, txr, dbTx, &Bill{
+		return p.saveFCBWithProof(txIdx, b, txr, dbTx, &Bill{
 			Id:            txo.UnitID(),
 			Value:         fcb.getValue() - attr.Amount,
 			TxHash:        txo.Hash(crypto.SHA256),

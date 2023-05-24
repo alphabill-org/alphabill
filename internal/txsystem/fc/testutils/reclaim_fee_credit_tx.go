@@ -18,6 +18,7 @@ func NewReclaimFC(t *testing.T, signer abcrypto.Signer, reclaimFCAttr *transacti
 	tx := testtransaction.NewTransactionOrder(t,
 		testtransaction.WithUnitId(unitID),
 		testtransaction.WithAttributes(reclaimFCAttr),
+		testtransaction.WithPayloadType(transactions.PayloadTypeReclaimFeeCredit),
 	)
 	for _, opt := range opts {
 		require.NoError(t, opt(tx))
@@ -79,6 +80,6 @@ func newCloseFC(t *testing.T) *types.TransactionOrder {
 	return testtransaction.NewTransactionOrder(t,
 		testtransaction.WithUnitId(unitID),
 		testtransaction.WithAttributes(attr),
-		testtransaction.WithPayloadType(transactions.PayloadTypeReclaimFeeCredit),
+		testtransaction.WithPayloadType(transactions.PayloadTypeCloseFeeCredit),
 	)
 }

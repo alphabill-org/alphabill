@@ -59,7 +59,7 @@ func TestBlockProcessor_EachTxTypeCanBeProcessed(t *testing.T) {
 		TransactionOrder: &types.TransactionOrder{
 			Payload: &types.Payload{
 				SystemID:       moneySystemID,
-				Type:           money.PayloadTypeTransDC,
+				Type:           money.PayloadTypeSplit,
 				UnitID:         newUnitID(3),
 				Attributes:     splitTxAttr(pubKeyHash, 1, 1),
 				ClientMetadata: &types.ClientMetadata{FeeCreditRecordID: fcbID},
@@ -71,7 +71,7 @@ func TestBlockProcessor_EachTxTypeCanBeProcessed(t *testing.T) {
 		TransactionOrder: &types.TransactionOrder{
 			Payload: &types.Payload{
 				SystemID:       moneySystemID,
-				Type:           money.PayloadTypeTransDC,
+				Type:           money.PayloadTypeSwapDC,
 				UnitID:         newUnitID(4),
 				Attributes:     swapTxAttr(pubKeyHash),
 				ClientMetadata: &types.ClientMetadata{FeeCreditRecordID: fcbID},
@@ -81,6 +81,7 @@ func TestBlockProcessor_EachTxTypeCanBeProcessed(t *testing.T) {
 	}
 
 	b := &types.Block{
+		Header:             &types.Header{SystemID: moneySystemID},
 		Transactions:       []*types.TransactionRecord{tx1, tx2, tx3, tx4},
 		UnicityCertificate: &types.UnicityCertificate{InputRecord: &types.InputRecord{RoundNumber: 1}},
 	}
@@ -134,25 +135,26 @@ func TestBlockProcessor_EachTxTypeCanBeProcessed(t *testing.T) {
 	transferFC := testfc.NewTransferFC(t, transferFCAttr,
 		testtransaction.WithSystemID(moneySystemID),
 		testtransaction.WithUnitId(tx1.TransactionOrder.UnitID()),
-		//testtransaction.WithServerMetadata(&txsystem.ServerMetadata{Fee: 1}),
 	)
+	transferFCRecord := &types.TransactionRecord{
+		TransactionOrder: transferFC,
+		ServerMetadata:   &types.ServerMetadata{ActualFee: 1},
+	}
 
 	addFCAttr := testfc.NewAddFCAttr(t, signer,
-		testfc.WithTransferFCTx(&types.TransactionRecord{
-			TransactionOrder: transferFC,
-			ServerMetadata:   &types.ServerMetadata{ActualFee: 1},
-		}),
+		testfc.WithTransferFCTx(transferFCRecord),
 	)
 	addFC := testfc.NewAddFC(t, signer, addFCAttr,
 		testtransaction.WithSystemID(moneySystemID),
 		testtransaction.WithUnitId(fcbID),
 	)
+	addFCRecord := &types.TransactionRecord{
+		TransactionOrder: addFC,
+		ServerMetadata:   &types.ServerMetadata{ActualFee: 1},
+	}
 
 	b = &types.Block{
-		Transactions: []*types.TransactionRecord{
-			{TransactionOrder: transferFC},
-			{TransactionOrder: addFC},
-		},
+		Transactions:       []*types.TransactionRecord{transferFCRecord, addFCRecord},
 		UnicityCertificate: &types.UnicityCertificate{InputRecord: &types.InputRecord{RoundNumber: 2}},
 	}
 	err = blockProcessor.ProcessBlock(context.Background(), b)
@@ -176,9 +178,8 @@ func TestBlockProcessor_EachTxTypeCanBeProcessed(t *testing.T) {
 	closeFC := testfc.NewCloseFC(t, closeFCAttr,
 		testtransaction.WithSystemID(moneySystemID),
 		testtransaction.WithUnitId(fcbID),
-		//testtransaction.WithServerMetadata(&txsystem.ServerMetadata{Fee: 1}),
 	)
-	closeFCRecord := &types.TransactionRecord{TransactionOrder: closeFC}
+	closeFCRecord := &types.TransactionRecord{TransactionOrder: closeFC, ServerMetadata: &types.ServerMetadata{ActualFee: 1}}
 
 	reclaimFCAttr := testfc.NewReclaimFCAttr(t, signer,
 		testfc.WithReclaimFCClosureTx(closeFCRecord),
@@ -186,9 +187,11 @@ func TestBlockProcessor_EachTxTypeCanBeProcessed(t *testing.T) {
 	reclaimFC := testfc.NewReclaimFC(t, signer, reclaimFCAttr,
 		testtransaction.WithSystemID(moneySystemID),
 		testtransaction.WithUnitId(tx4.TransactionOrder.UnitID()),
-		//testtransaction.WithServerMetadata(&txsystem.ServerMetadata{Fee: 1}),
 	)
-	reclaimFCRecord := &types.TransactionRecord{TransactionOrder: reclaimFC}
+	reclaimFCRecord := &types.TransactionRecord{
+		TransactionOrder: reclaimFC,
+		ServerMetadata:   &types.ServerMetadata{ActualFee: 1},
+	}
 
 	b = &types.Block{
 		Transactions:       []*types.TransactionRecord{closeFCRecord, reclaimFCRecord},
@@ -264,9 +267,8 @@ func TestBlockProcessor_TransferFCAndReclaimFC(t *testing.T) {
 	transferFC := testfc.NewTransferFC(t, transferFCAttr,
 		testtransaction.WithUnitId(userBillID),
 		testtransaction.WithSystemID(moneySystemID),
-		//testtransaction.WithServerMetadata(&txsystem.ServerMetadata{Fee: 1}),
 	)
-	transferFCRecord := &types.TransactionRecord{TransactionOrder: transferFC}
+	transferFCRecord := &types.TransactionRecord{TransactionOrder: transferFC, ServerMetadata: &types.ServerMetadata{ActualFee: 1}}
 	b := &types.Block{
 		Transactions:       []*types.TransactionRecord{transferFCRecord},
 		UnicityCertificate: &types.UnicityCertificate{InputRecord: &types.InputRecord{RoundNumber: 1}},
@@ -287,9 +289,8 @@ func TestBlockProcessor_TransferFCAndReclaimFC(t *testing.T) {
 	closeFC := testfc.NewCloseFC(t, closeFCAttr,
 		testtransaction.WithSystemID(moneySystemID),
 		testtransaction.WithUnitId(fcbID),
-		//testtransaction.WithServerMetadata(&txsystem.ServerMetadata{Fee: 1}),
 	)
-	closeFCRecord := &types.TransactionRecord{TransactionOrder: closeFC}
+	closeFCRecord := &types.TransactionRecord{TransactionOrder: closeFC, ServerMetadata: &types.ServerMetadata{ActualFee: 1}}
 
 	reclaimFCAttr := testfc.NewReclaimFCAttr(t, signer,
 		testfc.WithReclaimFCClosureTx(closeFCRecord),
@@ -297,9 +298,8 @@ func TestBlockProcessor_TransferFCAndReclaimFC(t *testing.T) {
 	reclaimFC := testfc.NewReclaimFC(t, signer, reclaimFCAttr,
 		testtransaction.WithSystemID(moneySystemID),
 		testtransaction.WithUnitId(transferFC.UnitID()),
-		//testtransaction.WithServerMetadata(&txsystem.ServerMetadata{Fee: 1}),
 	)
-	reclaimFCRecord := &types.TransactionRecord{TransactionOrder: reclaimFC}
+	reclaimFCRecord := &types.TransactionRecord{TransactionOrder: reclaimFC, ServerMetadata: &types.ServerMetadata{ActualFee: 1}}
 
 	b = &types.Block{
 		Transactions:       []*types.TransactionRecord{closeFCRecord, reclaimFCRecord},

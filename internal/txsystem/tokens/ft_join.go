@@ -10,6 +10,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/txsystem/fc"
 	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/internal/util"
+	"github.com/fxamacker/cbor/v2"
 	"github.com/holiman/uint256"
 )
 
@@ -102,5 +103,43 @@ func validateJoinFungibleToken(tx *types.TransactionOrder, attr *JoinFungibleTok
 	if err != nil {
 		return 0, err
 	}
-	return sum, verifyOwnership(bearer, predicates, TokenOwnershipProver{tx: tx, invariantPredicateSignatures: attr.InvariantPredicateSignatures})
+	return sum, verifyOwnership(bearer, predicates, &joinFungibleTokenOwnershipProver{tx: tx, attr: attr})
+}
+
+type joinFungibleTokenOwnershipProver struct {
+	tx   *types.TransactionOrder
+	attr *JoinFungibleTokenAttributes
+}
+
+func (t *joinFungibleTokenOwnershipProver) OwnerProof() []byte {
+	return t.tx.OwnerProof
+}
+
+func (t *joinFungibleTokenOwnershipProver) InvariantPredicateSignatures() [][]byte {
+	return t.attr.InvariantPredicateSignatures
+}
+
+func (t *joinFungibleTokenOwnershipProver) SigBytes() ([]byte, error) {
+	if len(t.attr.InvariantPredicateSignatures) == 0 {
+		return t.tx.PayloadBytes()
+	}
+	// exclude InvariantPredicateSignatures from the payload hash because otherwise we have "chicken and egg" problem.
+	signatureAttr := &JoinFungibleTokenAttributes{
+		BurnTransactions:             t.attr.BurnTransactions,
+		Proofs:                       t.attr.Proofs,
+		Backlink:                     t.attr.Backlink,
+		InvariantPredicateSignatures: nil,
+	}
+	attrBytes, err := cbor.Marshal(signatureAttr)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal attributes: %w", err)
+	}
+	payload := &types.Payload{
+		SystemID:       t.tx.Payload.SystemID,
+		Type:           t.tx.Payload.Type,
+		UnitID:         t.tx.Payload.UnitID,
+		Attributes:     attrBytes,
+		ClientMetadata: t.tx.Payload.ClientMetadata,
+	}
+	return payload.Bytes()
 }

@@ -9,6 +9,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/txsystem/fc"
 	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/internal/util"
+	"github.com/fxamacker/cbor/v2"
 	"github.com/holiman/uint256"
 )
 
@@ -66,9 +67,34 @@ func validateMintFungibleToken(tx *types.TransactionOrder, attr *MintFungibleTok
 	if err != nil {
 		return err
 	}
-	sigBytes, err := tx.PayloadBytes()
+	sigBytes, err := getMintFungibleTokenTypeSignedData(tx, attr)
 	if err != nil {
 		return err
 	}
 	return verifyPredicates(predicates, attr.TokenCreationPredicateSignatures, sigBytes)
+}
+
+func getMintFungibleTokenTypeSignedData(tx *types.TransactionOrder, attr *MintFungibleTokenAttributes) ([]byte, error) {
+	if len(attr.TokenCreationPredicateSignatures) > 0 {
+		// exclude TokenCreationPredicateSignatures from the payload hash because otherwise we have "chicken and egg" problem.
+		signatureAttr := &MintFungibleTokenAttributes{
+			Bearer:                           attr.Bearer,
+			TypeID:                           attr.TypeID,
+			Value:                            attr.Value,
+			TokenCreationPredicateSignatures: nil,
+		}
+		attrBytes, err := cbor.Marshal(signatureAttr)
+		if err != nil {
+			return nil, fmt.Errorf("failed to marshal attributes: %w", err)
+		}
+		payload := &types.Payload{
+			SystemID:       tx.Payload.SystemID,
+			Type:           tx.Payload.Type,
+			UnitID:         tx.Payload.UnitID,
+			Attributes:     attrBytes,
+			ClientMetadata: tx.Payload.ClientMetadata,
+		}
+		return payload.Bytes()
+	}
+	return tx.PayloadBytes()
 }

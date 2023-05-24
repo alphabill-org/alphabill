@@ -10,6 +10,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/txsystem/fc"
 	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/internal/util"
+	"github.com/fxamacker/cbor/v2"
 	"github.com/holiman/uint256"
 )
 
@@ -96,9 +97,40 @@ func validateCreateFungibleTokenType(tx *types.TransactionOrder, attr *CreateFun
 		return err
 	}
 
-	sigBytes, err := tx.PayloadBytes()
+	sigBytes, err := getCreateFungibleTokenTypeSignedData(tx, attr)
 	if err != nil {
 		return err
 	}
 	return verifyPredicates(predicates, attr.SubTypeCreationPredicateSignatures, sigBytes)
+}
+
+func getCreateFungibleTokenTypeSignedData(tx *types.TransactionOrder, attr *CreateFungibleTokenTypeAttributes) ([]byte, error) {
+	// TODO SubTypeCreationPredicateSignatures field can not be part of payload attributes.
+	if len(attr.SubTypeCreationPredicateSignatures) > 0 {
+		// exclude SubTypeCreationPredicateSignatures from the payload hash because otherwise we have "chicken and egg" problem.
+		signatureAttr := &CreateFungibleTokenTypeAttributes{
+			Symbol:                             attr.Symbol,
+			Name:                               attr.Name,
+			Icon:                               attr.Icon,
+			ParentTypeID:                       attr.ParentTypeID,
+			DecimalPlaces:                      attr.DecimalPlaces,
+			SubTypeCreationPredicate:           attr.SubTypeCreationPredicate,
+			TokenCreationPredicate:             attr.TokenCreationPredicate,
+			InvariantPredicate:                 attr.InvariantPredicate,
+			SubTypeCreationPredicateSignatures: nil,
+		}
+		attrBytes, err := cbor.Marshal(signatureAttr)
+		if err != nil {
+			return nil, fmt.Errorf("failed to marshal attributes: %w", err)
+		}
+		payload := &types.Payload{
+			SystemID:       tx.Payload.SystemID,
+			Type:           tx.Payload.Type,
+			UnitID:         tx.Payload.UnitID,
+			Attributes:     attrBytes,
+			ClientMetadata: tx.Payload.ClientMetadata,
+		}
+		return payload.Bytes()
+	}
+	return tx.PayloadBytes()
 }

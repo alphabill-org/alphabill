@@ -10,6 +10,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/txsystem/fc"
 	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/internal/util"
+	"github.com/fxamacker/cbor/v2"
 	"github.com/holiman/uint256"
 )
 
@@ -74,9 +75,30 @@ func validateUpdateNonFungibleToken(tx *types.TransactionOrder, attr *UpdateNonF
 		return err
 	}
 	predicates = append([]Predicate{data.dataUpdatePredicate}, predicates...)
-	sigBytes, err := tx.PayloadBytes()
+	sigBytes, err := getUpdateNFTSignedData(tx, attr)
 	if err != nil {
 		return err
 	}
 	return verifyPredicates(predicates, attr.DataUpdateSignatures, sigBytes)
+}
+
+func getUpdateNFTSignedData(tx *types.TransactionOrder, attr *UpdateNonFungibleTokenAttributes) ([]byte, error) {
+	// exclude DataUpdateSignatures from the payload hash because otherwise we have "chicken and egg" problem.
+	signatureAttr := &UpdateNonFungibleTokenAttributes{
+		Data:                 attr.Data,
+		Backlink:             attr.Backlink,
+		DataUpdateSignatures: nil,
+	}
+	attrBytes, err := cbor.Marshal(signatureAttr)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal attributes: %w", err)
+	}
+	payload := &types.Payload{
+		SystemID:       tx.Payload.SystemID,
+		Type:           tx.Payload.Type,
+		UnitID:         tx.Payload.UnitID,
+		Attributes:     attrBytes,
+		ClientMetadata: tx.Payload.ClientMetadata,
+	}
+	return payload.Bytes()
 }

@@ -12,6 +12,7 @@ import (
 	txutil "github.com/alphabill-org/alphabill/internal/txsystem/util"
 	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/internal/util"
+	"github.com/fxamacker/cbor/v2"
 	"github.com/holiman/uint256"
 )
 
@@ -117,5 +118,46 @@ func validateSplitFungibleToken(tx *types.TransactionOrder, attr *SplitFungibleT
 	if err != nil {
 		return err
 	}
-	return verifyOwnership(bearer, predicates, TokenOwnershipProver{tx: tx, invariantPredicateSignatures: attr.InvariantPredicateSignatures})
+	return verifyOwnership(bearer, predicates, &splitFungibleTokenOwnershipProver{tx: tx, attr: attr})
+}
+
+type splitFungibleTokenOwnershipProver struct {
+	tx   *types.TransactionOrder
+	attr *SplitFungibleTokenAttributes
+}
+
+func (t *splitFungibleTokenOwnershipProver) OwnerProof() []byte {
+	return t.tx.OwnerProof
+}
+
+func (t *splitFungibleTokenOwnershipProver) InvariantPredicateSignatures() [][]byte {
+	return t.attr.InvariantPredicateSignatures
+}
+
+func (t *splitFungibleTokenOwnershipProver) SigBytes() ([]byte, error) {
+	if len(t.attr.InvariantPredicateSignatures) == 0 {
+		return t.tx.PayloadBytes()
+	}
+	// exclude InvariantPredicateSignatures from the payload hash because otherwise we have "chicken and egg" problem.
+	signatureAttr := &SplitFungibleTokenAttributes{
+		NewBearer:                    t.attr.NewBearer,
+		TargetValue:                  t.attr.TargetValue,
+		Nonce:                        t.attr.Nonce,
+		Backlink:                     t.attr.Backlink,
+		TypeID:                       t.attr.TypeID,
+		RemainingValue:               t.attr.RemainingValue,
+		InvariantPredicateSignatures: nil,
+	}
+	attrBytes, err := cbor.Marshal(signatureAttr)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal attributes: %w", err)
+	}
+	payload := &types.Payload{
+		SystemID:       t.tx.Payload.SystemID,
+		Type:           t.tx.Payload.Type,
+		UnitID:         t.tx.Payload.UnitID,
+		Attributes:     attrBytes,
+		ClientMetadata: t.tx.Payload.ClientMetadata,
+	}
+	return payload.Bytes()
 }

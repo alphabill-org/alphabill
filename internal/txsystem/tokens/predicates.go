@@ -5,14 +5,14 @@ import (
 
 	"github.com/alphabill-org/alphabill/internal/rma"
 	"github.com/alphabill-org/alphabill/internal/script"
-	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/holiman/uint256"
 )
 
 type (
-	TokenOwnershipProver struct {
-		tx                           *types.TransactionOrder
-		invariantPredicateSignatures [][]byte
+	TokenOwnershipProver interface {
+		OwnerProof() []byte
+		InvariantPredicateSignatures() [][]byte
+		SigBytes() ([]byte, error)
 	}
 )
 
@@ -61,18 +61,6 @@ func getUnit[T rma.UnitData](state *rma.Tree, unitID *uint256.Int) (*rma.Unit, T
 		return nil, *new(T), fmt.Errorf("unit %v data is not of type %T", unitID, *new(T))
 	}
 	return u, d, nil
-}
-
-func (t TokenOwnershipProver) OwnerProof() []byte {
-	return t.tx.OwnerProof
-}
-
-func (t TokenOwnershipProver) InvariantPredicateSignatures() [][]byte {
-	return t.invariantPredicateSignatures
-}
-
-func (t TokenOwnershipProver) SigBytes() ([]byte, error) {
-	return t.tx.PayloadBytes()
 }
 
 func verifyOwnership(bearer Predicate, invariants []Predicate, prover TokenOwnershipProver) error {

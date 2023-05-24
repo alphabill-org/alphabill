@@ -4,6 +4,8 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/fxamacker/cbor/v2"
+
 	"github.com/alphabill-org/alphabill/internal/rma"
 	"github.com/alphabill-org/alphabill/internal/script"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
@@ -76,9 +78,41 @@ func validate(tx *types.TransactionOrder, attr *CreateNonFungibleTokenTypeAttrib
 	if err != nil {
 		return err
 	}
-	sigBytes, err := tx.PayloadBytes()
+
+	sigBytes, err := getCreateNFTTypeSignedData(tx, attr)
 	if err != nil {
 		return err
 	}
+
 	return verifyPredicates(predicates, attr.SubTypeCreationPredicateSignatures, sigBytes)
+}
+
+func getCreateNFTTypeSignedData(tx *types.TransactionOrder, attr *CreateNonFungibleTokenTypeAttributes) ([]byte, error) {
+	// TODO SubTypeCreationPredicateSignatures field can not be part of payload attributes.
+	if len(attr.SubTypeCreationPredicateSignatures) > 0 {
+		// exclude SubTypeCreationPredicateSignatures from the payload hash because otherwise we have "chicken and egg" problem.
+		signatureAttr := &CreateNonFungibleTokenTypeAttributes{
+			Symbol:                   attr.Symbol,
+			Name:                     attr.Name,
+			ParentTypeID:             attr.ParentTypeID,
+			SubTypeCreationPredicate: attr.SubTypeCreationPredicate,
+			TokenCreationPredicate:   attr.TokenCreationPredicate,
+			InvariantPredicate:       attr.InvariantPredicate,
+			DataUpdatePredicate:      attr.DataUpdatePredicate,
+			Icon:                     attr.Icon,
+		}
+		attrBytes, err := cbor.Marshal(signatureAttr)
+		if err != nil {
+			return nil, fmt.Errorf("failed to marshal attributes: %w", err)
+		}
+		payload := &types.Payload{
+			SystemID:       tx.Payload.SystemID,
+			Type:           tx.Payload.Type,
+			UnitID:         tx.Payload.UnitID,
+			Attributes:     attrBytes,
+			ClientMetadata: tx.Payload.ClientMetadata,
+		}
+		return payload.Bytes()
+	}
+	return tx.PayloadBytes()
 }

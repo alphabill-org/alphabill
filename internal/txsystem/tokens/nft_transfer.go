@@ -10,6 +10,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/txsystem/fc"
 	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/internal/util"
+	"github.com/fxamacker/cbor/v2"
 	"github.com/holiman/uint256"
 )
 
@@ -78,5 +79,44 @@ func validateTransferNonFungibleToken(tx *types.TransactionOrder, attr *Transfer
 	if err != nil {
 		return err
 	}
-	return verifyOwnership(Predicate(u.Bearer), predicates, TokenOwnershipProver{tx: tx, invariantPredicateSignatures: attr.InvariantPredicateSignatures})
+	return verifyOwnership(Predicate(u.Bearer), predicates, &transferNFTTokenOwnershipProver{tx: tx, attr: attr})
+}
+
+type transferNFTTokenOwnershipProver struct {
+	tx   *types.TransactionOrder
+	attr *TransferNonFungibleTokenAttributes
+}
+
+func (t *transferNFTTokenOwnershipProver) OwnerProof() []byte {
+	return t.tx.OwnerProof
+}
+
+func (t *transferNFTTokenOwnershipProver) InvariantPredicateSignatures() [][]byte {
+	return t.attr.InvariantPredicateSignatures
+}
+
+func (t *transferNFTTokenOwnershipProver) SigBytes() ([]byte, error) {
+	if len(t.attr.InvariantPredicateSignatures) == 0 {
+		return t.tx.PayloadBytes()
+	}
+	// exclude SubTypeCreationPredicateSignatures from the payload hash because otherwise we have "chicken and egg" problem.
+	signatureAttr := &TransferNonFungibleTokenAttributes{
+		NewBearer:                    t.attr.NewBearer,
+		Nonce:                        t.attr.Nonce,
+		Backlink:                     t.attr.Backlink,
+		NFTTypeID:                    t.attr.NFTTypeID,
+		InvariantPredicateSignatures: nil,
+	}
+	attrBytes, err := cbor.Marshal(signatureAttr)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal attributes: %w", err)
+	}
+	payload := &types.Payload{
+		SystemID:       t.tx.Payload.SystemID,
+		Type:           t.tx.Payload.Type,
+		UnitID:         t.tx.Payload.UnitID,
+		Attributes:     attrBytes,
+		ClientMetadata: t.tx.Payload.ClientMetadata,
+	}
+	return payload.Bytes()
 }

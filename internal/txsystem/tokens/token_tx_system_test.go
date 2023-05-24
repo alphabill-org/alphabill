@@ -32,36 +32,18 @@ var (
 )
 
 var (
-	systemID                                  = []byte{0, 0, 4, 2}
-	unitID                                    = []byte{1}
-	ownerProof                                = []byte{2}
-	symbol                                    = "TEST"
-	name                                      = "Long name for " + symbol
-	icon                                      = &Icon{Type: validIconType, Data: []byte{21}}
-	parentTypeId                              = []byte{3}
-	subTypeCreationPredicate                  = []byte{4}
-	tokenCreationPredicate                    = []byte{5}
-	invariantPredicate                        = []byte{6}
-	dataUpdatePredicate                       = []byte{7}
-	subTypeCreationPredicateSignatures        = [][]byte{{8}, {8}}
-	timeout                                   = uint64(100)
-	bearer                                    = []byte{10}
-	nftType                                   = []byte{11}
-	data                                      = []byte{12}
-	updatedData                               = []byte{0, 12}
-	uri                                       = "https://alphabill.org"
-	tokenCreationPredicateSignatures          = [][]byte{{14}, {14}}
-	newBearer                                 = []byte{15}
-	nonce                                     = []byte{16}
-	backlink                                  = []byte{17}
-	invariantPredicateSignatures              = [][]byte{{18}, {18}}
-	dataUpdateSignatures                      = [][]byte{{19}, {19}}
-	fungibleTokenDecimalPlaces         uint32 = 8
-	fungibleTokenValue                 uint64 = 100_000_002
-	transferValue                      uint64 = 1000
-	remainingValue                     uint64 = 1000
-	burnValue                          uint64 = 2000
-	burnType                                  = []byte{20}
+	unitID                   = []byte{1}
+	symbol                   = "TEST"
+	name                     = "Long name for " + symbol
+	parentTypeId             = []byte{3}
+	subTypeCreationPredicate = []byte{4}
+	tokenCreationPredicate   = []byte{5}
+	invariantPredicate       = []byte{6}
+	dataUpdatePredicate      = []byte{7}
+	bearer                   = []byte{10}
+	data                     = []byte{12}
+	updatedData              = []byte{0, 12}
+	backlink                 = []byte{17}
 )
 
 func TestNewTokenTxSystem_NilSystemIdentifier(t *testing.T) {

@@ -19,17 +19,14 @@ type SystemDescriptions map[string]*genesis.SystemDescriptionRecord
 type Module interface {
 	TxExecutors() map[string]TxExecutor
 	GenericTransactionValidator() GenericTransactionValidator
-	//	TxConverter() TxConverters
 }
 
 type GenericTxSystem struct {
-	systemIdentifier   []byte
-	hashAlgorithm      crypto.Hash
-	state              *rma.Tree
-	currentBlockNumber uint64
-
-	executors TxExecutors
-	//	txConverters        TxConverters
+	systemIdentifier    []byte
+	hashAlgorithm       crypto.Hash
+	state               *rma.Tree
+	currentBlockNumber  uint64
+	executors           TxExecutors
 	genericTxValidators []GenericTransactionValidator
 	beginBlockFunctions []func(blockNumber uint64)
 	endBlockFunctions   []func(blockNumber uint64) error

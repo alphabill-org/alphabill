@@ -48,8 +48,8 @@ type (
 		NewBearer                    []byte   // the new bearer predicate of the token
 		Nonce                        []byte   // optional nonce
 		Backlink                     []byte   // the backlink to the previous transaction with the token
-		InvariantPredicateSignatures [][]byte // inputs to satisfy the token type invariant predicates down the inheritance chain
 		NFTTypeID                    []byte   // identifies the type of the token;
+		InvariantPredicateSignatures [][]byte // inputs to satisfy the token type invariant predicates down the inheritance chain
 	}
 
 	UpdateNonFungibleTokenAttributes struct {
@@ -92,8 +92,8 @@ type (
 		Value                        uint64   // the value to transfer
 		Nonce                        []byte
 		Backlink                     []byte   // the backlink to the previous transaction with this token
-		InvariantPredicateSignatures [][]byte // inputs to satisfy the token type invariant predicates down the inheritance chain
 		TypeID                       []byte   // identifies the type of the token;
+		InvariantPredicateSignatures [][]byte // inputs to satisfy the token type invariant predicates down the inheritance chain
 	}
 
 	SplitFungibleTokenAttributes struct {
@@ -102,9 +102,9 @@ type (
 		TargetValue                  uint64   // the value of the new token
 		Nonce                        []byte
 		Backlink                     []byte   // the backlink to the previous transaction with this token
-		InvariantPredicateSignatures [][]byte // inputs to satisfy the token type invariant predicates down the inheritance chain
 		TypeID                       []byte   // identifies the type of the token;
 		RemainingValue               uint64   // new value of the source token
+		InvariantPredicateSignatures [][]byte // inputs to satisfy the token type invariant predicates down the inheritance chain
 	}
 
 	BurnFungibleTokenAttributes struct {

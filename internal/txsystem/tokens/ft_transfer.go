@@ -10,6 +10,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/txsystem/fc"
 	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/internal/util"
+	"github.com/fxamacker/cbor/v2"
 	"github.com/holiman/uint256"
 )
 
@@ -77,7 +78,7 @@ func validateTransferFungibleToken(tx *types.TransactionOrder, attr *TransferFun
 	if err != nil {
 		return err
 	}
-	return verifyOwnership(bearer, predicates, TokenOwnershipProver{tx: tx, invariantPredicateSignatures: attr.InvariantPredicateSignatures})
+	return verifyOwnership(bearer, predicates, &transferFungibleTokenOwnershipProver{tx: tx, attr: attr})
 }
 
 func getFungibleTokenData(unitID *uint256.Int, state *rma.Tree) (Predicate, *fungibleTokenData, error) {
@@ -96,4 +97,44 @@ func getFungibleTokenData(unitID *uint256.Int, state *rma.Tree) (Predicate, *fun
 		return nil, nil, fmt.Errorf("unit %v is not fungible token data", unitID)
 	}
 	return Predicate(u.Bearer), d, nil
+}
+
+type transferFungibleTokenOwnershipProver struct {
+	tx   *types.TransactionOrder
+	attr *TransferFungibleTokenAttributes
+}
+
+func (t *transferFungibleTokenOwnershipProver) OwnerProof() []byte {
+	return t.tx.OwnerProof
+}
+
+func (t *transferFungibleTokenOwnershipProver) InvariantPredicateSignatures() [][]byte {
+	return t.attr.InvariantPredicateSignatures
+}
+
+func (t *transferFungibleTokenOwnershipProver) SigBytes() ([]byte, error) {
+	if len(t.attr.InvariantPredicateSignatures) == 0 {
+		return t.tx.PayloadBytes()
+	}
+	// exclude InvariantPredicateSignatures from the payload hash because otherwise we have "chicken and egg" problem.
+	signatureAttr := &TransferFungibleTokenAttributes{
+		NewBearer:                    t.attr.NewBearer,
+		Value:                        t.attr.Value,
+		Nonce:                        t.attr.Nonce,
+		Backlink:                     t.attr.Backlink,
+		TypeID:                       t.attr.TypeID,
+		InvariantPredicateSignatures: nil,
+	}
+	attrBytes, err := cbor.Marshal(signatureAttr)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal attributes: %w", err)
+	}
+	payload := &types.Payload{
+		SystemID:       t.tx.Payload.SystemID,
+		Type:           t.tx.Payload.Type,
+		UnitID:         t.tx.Payload.UnitID,
+		Attributes:     attrBytes,
+		ClientMetadata: t.tx.Payload.ClientMetadata,
+	}
+	return payload.Bytes()
 }

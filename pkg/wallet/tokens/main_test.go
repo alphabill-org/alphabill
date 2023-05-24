@@ -402,7 +402,7 @@ func TestMintFungibleToken(t *testing.T) {
 			require.NoError(t, tx.TransactionAttributes.UnmarshalTo(newToken))
 			require.NotEqual(t, []byte{0}, tx.UnitId)
 			require.Len(t, tx.UnitId, 32)
-			require.Equal(t, typeId, newToken.Type)
+			require.Equal(t, typeId, newToken.TypeID)
 			require.Equal(t, amount, newToken.Value)
 			require.Equal(t, script.PredicatePayToPublicKeyHashDefault(key.PubKeyHash.Sha256), newToken.Bearer)
 		})

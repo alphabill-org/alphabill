@@ -493,7 +493,7 @@ func TestMintNFT_Ok(t *testing.T) {
 		testtransaction.WithSystemID(DefaultTokenTxSystemIdentifier),
 		testtransaction.WithAttributes(&MintNonFungibleTokenAttributes{
 			Bearer:                           script.PredicateAlwaysTrue(),
-			NFTType:                          nftTypeID,
+			NFTTypeID:                        nftTypeID,
 			Name:                             nftName,
 			URI:                              validNFTURI,
 			Data:                             []byte{10},
@@ -563,7 +563,7 @@ func TestMintNFT_UnitIDExists(t *testing.T) {
 		testtransaction.WithSystemID(DefaultTokenTxSystemIdentifier),
 		testtransaction.WithAttributes(&MintNonFungibleTokenAttributes{
 			Bearer:                           script.PredicateAlwaysTrue(),
-			NFTType:                          nftTypeID,
+			NFTTypeID:                        nftTypeID,
 			URI:                              validNFTURI,
 			Data:                             []byte{10},
 			DataUpdatePredicate:              script.PredicateAlwaysTrue(),
@@ -588,7 +588,7 @@ func TestMintNFT_NFTTypeIsZero(t *testing.T) {
 		testtransaction.WithSystemID(DefaultTokenTxSystemIdentifier),
 		testtransaction.WithAttributes(&MintNonFungibleTokenAttributes{
 			Bearer:                           script.PredicateAlwaysTrue(),
-			NFTType:                          idBytes,
+			NFTTypeID:                        idBytes,
 			URI:                              validNFTURI,
 			Data:                             []byte{10},
 			DataUpdatePredicate:              script.PredicateAlwaysTrue(),
@@ -680,9 +680,9 @@ func TestMintNFT_NFTTypeDoesNotExist(t *testing.T) {
 		testtransaction.WithUnitId(unitID),
 		testtransaction.WithSystemID(DefaultTokenTxSystemIdentifier),
 		testtransaction.WithAttributes(&MintNonFungibleTokenAttributes{
-			URI:     validNFTURI,
-			Data:    []byte{0, 0, 0, 0},
-			NFTType: []byte{0, 0, 0, 1},
+			URI:       validNFTURI,
+			Data:      []byte{0, 0, 0, 0},
+			NFTTypeID: []byte{0, 0, 0, 1},
 		}),
 		testtransaction.WithClientMetadata(createClientMetadata()),
 		testtransaction.WithFeeProof(script.PredicateArgumentEmpty()),
@@ -784,7 +784,7 @@ func TestTransferNFT_InvalidTypeID(t *testing.T) {
 		testtransaction.WithUnitId(unitID),
 		testtransaction.WithSystemID(DefaultTokenTxSystemIdentifier),
 		testtransaction.WithAttributes(&TransferNonFungibleTokenAttributes{
-			NFTType:                      test.RandomBytes(32),
+			NFTTypeID:                    test.RandomBytes(32),
 			NewBearer:                    script.PredicateAlwaysTrue(),
 			Nonce:                        test.RandomBytes(32),
 			Backlink:                     tx.Hash(gocrypto.SHA256),
@@ -839,7 +839,7 @@ func TestTransferNFT_InvalidPredicateFormat(t *testing.T) {
 		testtransaction.WithUnitId(unitID),
 		testtransaction.WithSystemID(DefaultTokenTxSystemIdentifier),
 		testtransaction.WithAttributes(&TransferNonFungibleTokenAttributes{
-			NFTType:                      nftTypeID,
+			NFTTypeID:                    nftTypeID,
 			NewBearer:                    script.PredicateAlwaysTrue(),
 			Nonce:                        test.RandomBytes(32),
 			Backlink:                     tx.Hash(gocrypto.SHA256),
@@ -864,7 +864,7 @@ func TestTransferNFT_InvalidSignature(t *testing.T) {
 		testtransaction.WithSystemID(DefaultTokenTxSystemIdentifier),
 		testtransaction.WithOwnerProof(script.PredicateArgumentEmpty()),
 		testtransaction.WithAttributes(&TransferNonFungibleTokenAttributes{
-			NFTType:                      nftTypeID,
+			NFTTypeID:                    nftTypeID,
 			NewBearer:                    script.PredicateAlwaysTrue(),
 			Nonce:                        test.RandomBytes(32),
 			Backlink:                     tx.Hash(gocrypto.SHA256),
@@ -889,7 +889,7 @@ func TestTransferNFT_Ok(t *testing.T) {
 		testtransaction.WithSystemID(DefaultTokenTxSystemIdentifier),
 		testtransaction.WithOwnerProof(script.PredicateArgumentEmpty()),
 		testtransaction.WithAttributes(&TransferNonFungibleTokenAttributes{
-			NFTType:                      nftTypeID,
+			NFTTypeID:                    nftTypeID,
 			NewBearer:                    script.PredicateAlwaysTrue(),
 			Nonce:                        test.RandomBytes(32),
 			Backlink:                     tx.Hash(gocrypto.SHA256),
@@ -929,7 +929,7 @@ func TestTransferNFT_BurnedBearerMustFail(t *testing.T) {
 		testtransaction.WithSystemID(DefaultTokenTxSystemIdentifier),
 		testtransaction.WithOwnerProof(script.PredicateArgumentEmpty()),
 		testtransaction.WithAttributes(&TransferNonFungibleTokenAttributes{
-			NFTType:                      nftTypeID,
+			NFTTypeID:                    nftTypeID,
 			NewBearer:                    script.PredicateAlwaysFalse(),
 			Nonce:                        test.RandomBytes(32),
 			Backlink:                     tx.Hash(gocrypto.SHA256),
@@ -955,7 +955,7 @@ func TestTransferNFT_BurnedBearerMustFail(t *testing.T) {
 		testtransaction.WithSystemID(DefaultTokenTxSystemIdentifier),
 		testtransaction.WithOwnerProof(script.PredicateArgumentEmpty()),
 		testtransaction.WithAttributes(&TransferNonFungibleTokenAttributes{
-			NFTType:                      nftTypeID,
+			NFTTypeID:                    nftTypeID,
 			NewBearer:                    []byte{script.StartByte},
 			Nonce:                        test.RandomBytes(32),
 			Backlink:                     tx.Hash(gocrypto.SHA256),
@@ -1175,7 +1175,7 @@ func createNFTTypeAndMintToken(t *testing.T, txs *txsystem.GenericTxSystem, nftT
 		testtransaction.WithSystemID(DefaultTokenTxSystemIdentifier),
 		testtransaction.WithAttributes(&MintNonFungibleTokenAttributes{
 			Bearer:                           script.PredicateAlwaysTrue(),
-			NFTType:                          nftTypeID,
+			NFTTypeID:                        nftTypeID,
 			Name:                             nftName,
 			URI:                              validNFTURI,
 			Data:                             []byte{10},

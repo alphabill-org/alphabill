@@ -35,7 +35,7 @@ type (
 	MintNonFungibleTokenAttributes struct {
 		_                                struct{} `cbor:",toarray"`
 		Bearer                           []byte   // the initial bearer predicate of the new token
-		NFTType                          []byte   // identifies the type of the new token;
+		NFTTypeID                        []byte   // identifies the type of the new token;
 		Name                             string   // the name of the new token
 		URI                              string   // the optional URI of an external resource associated with the new token
 		Data                             []byte   // the optional data associated with the new token
@@ -49,7 +49,7 @@ type (
 		Nonce                        []byte   // optional nonce
 		Backlink                     []byte   // the backlink to the previous transaction with the token
 		InvariantPredicateSignatures [][]byte // inputs to satisfy the token type invariant predicates down the inheritance chain
-		NFTType                      []byte   // identifies the type of the token;
+		NFTTypeID                    []byte   // identifies the type of the token;
 	}
 
 	UpdateNonFungibleTokenAttributes struct {
@@ -81,7 +81,7 @@ type (
 	MintFungibleTokenAttributes struct {
 		_                                struct{} `cbor:",toarray"`
 		Bearer                           []byte   // the initial bearer predicate of the new token
-		Type                             []byte   // identifies the type of the new token;
+		TypeID                           []byte   // identifies the type of the new token;
 		Value                            uint64   // the value of the new token;
 		TokenCreationPredicateSignatures [][]byte // inputs to satisfy the token creation predicates of all parent types.
 	}
@@ -93,7 +93,7 @@ type (
 		Nonce                        []byte
 		Backlink                     []byte   // the backlink to the previous transaction with this token
 		InvariantPredicateSignatures [][]byte // inputs to satisfy the token type invariant predicates down the inheritance chain
-		Type                         []byte   // identifies the type of the token;
+		TypeID                       []byte   // identifies the type of the token;
 	}
 
 	SplitFungibleTokenAttributes struct {
@@ -103,13 +103,13 @@ type (
 		Nonce                        []byte
 		Backlink                     []byte   // the backlink to the previous transaction with this token
 		InvariantPredicateSignatures [][]byte // inputs to satisfy the token type invariant predicates down the inheritance chain
-		Type                         []byte   // identifies the type of the token;
+		TypeID                       []byte   // identifies the type of the token;
 		RemainingValue               uint64   // new value of the source token
 	}
 
 	BurnFungibleTokenAttributes struct {
 		_                            struct{} `cbor:",toarray"`
-		Type                         []byte   // identifies the type of the token to burn;
+		TypeID                       []byte   // identifies the type of the token to burn;
 		Value                        uint64   // the value to burn
 		Nonce                        []byte
 		Backlink                     []byte   // the backlink to the previous transaction with this token

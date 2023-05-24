@@ -12,8 +12,8 @@ import (
 
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/pkg/wallet/backend/bp"
-	_ "github.com/alphabill-org/alphabill/pkg/wallet/money/backend/docs"
 	"github.com/alphabill-org/alphabill/pkg/wallet/log"
+	_ "github.com/alphabill-org/alphabill/pkg/wallet/money/backend/docs"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
@@ -142,10 +142,10 @@ func (s *RequestHandler) listBillsFunc(w http.ResponseWriter, r *http.Request) {
 	if offset > len(bills) {
 		offset = len(bills)
 	}
-	if offset + limit > len(bills) {
+	if offset+limit > len(bills) {
 		limit = len(bills) - offset
 	} else {
-		setLinkHeader(r.URL, w, offset + limit)
+		setLinkHeader(r.URL, w, offset+limit)
 	}
 	res := newListBillsResponse(bills, limit, offset)
 	writeAsJson(w, res)

@@ -60,8 +60,8 @@ func validateTransferFungibleToken(tx *types.TransactionOrder, attr *TransferFun
 	}
 
 	tokenTypeID := util.Uint256ToBytes(d.tokenType)
-	if !bytes.Equal(attr.Type, tokenTypeID) {
-		return fmt.Errorf("invalid type identifier: expected '%X', got '%X'", tokenTypeID, attr.Type)
+	if !bytes.Equal(attr.TypeID, tokenTypeID) {
+		return fmt.Errorf("invalid type identifier: expected '%X', got '%X'", tokenTypeID, attr.TypeID)
 	}
 
 	predicates, err := getChainedPredicates[*fungibleTokenTypeData](

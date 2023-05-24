@@ -59,8 +59,8 @@ func validateTransferNonFungibleToken(tx *types.TransactionOrder, attr *Transfer
 		return errors.New("validate nft transfer: invalid backlink")
 	}
 	tokenTypeID := util.Uint256ToBytes(data.nftType)
-	if !bytes.Equal(attr.NFTType, tokenTypeID) {
-		return fmt.Errorf("invalid type identifier: expected '%X', got '%X'", tokenTypeID, attr.NFTType)
+	if !bytes.Equal(attr.NFTTypeID, tokenTypeID) {
+		return fmt.Errorf("invalid type identifier: expected '%X', got '%X'", tokenTypeID, attr.NFTTypeID)
 	}
 
 	// signature given in the transaction request satisfies the predicate obtained by concatenating all the token

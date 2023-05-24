@@ -319,7 +319,7 @@ func TestMintFungibleToken_NotOk(t *testing.T) {
 			},
 			attr: &MintFungibleTokenAttributes{
 				Bearer:                           script.PredicateAlwaysTrue(),
-				Type:                             util.Uint256ToBytes(uint256.NewInt(100)),
+				TypeID:                           util.Uint256ToBytes(uint256.NewInt(100)),
 				Value:                            1000,
 				TokenCreationPredicateSignatures: [][]byte{script.PredicateArgumentEmpty()},
 			},
@@ -335,7 +335,7 @@ func TestMintFungibleToken_NotOk(t *testing.T) {
 			},
 			attr: &MintFungibleTokenAttributes{
 				Bearer:                           script.PredicateAlwaysTrue(),
-				Type:                             existingTokenTypeUnitIDBytes[:],
+				TypeID:                           existingTokenTypeUnitIDBytes[:],
 				Value:                            1000,
 				TokenCreationPredicateSignatures: [][]byte{script.PredicateAlwaysFalse()},
 			},
@@ -351,7 +351,7 @@ func TestMintFungibleToken_NotOk(t *testing.T) {
 			},
 			attr: &MintFungibleTokenAttributes{
 				Bearer:                           script.PredicateAlwaysTrue(),
-				Type:                             existingTokenTypeUnitIDBytes,
+				TypeID:                           existingTokenTypeUnitIDBytes,
 				Value:                            0,
 				TokenCreationPredicateSignatures: [][]byte{script.PredicateArgumentEmpty()},
 			},
@@ -372,7 +372,7 @@ func TestMintFungibleToken_Ok(t *testing.T) {
 	opts := defaultOpts(t)
 	attributes := &MintFungibleTokenAttributes{
 		Bearer:                           script.PredicateAlwaysTrue(),
-		Type:                             existingTokenTypeUnitIDBytes[:],
+		TypeID:                           existingTokenTypeUnitIDBytes[:],
 		Value:                            1000,
 		TokenCreationPredicateSignatures: [][]byte{script.PredicateArgumentEmpty()},
 	}
@@ -389,7 +389,7 @@ func TestMintFungibleToken_Ok(t *testing.T) {
 	require.IsType(t, &fungibleTokenData{}, unit.Data)
 
 	d := unit.Data.(*fungibleTokenData)
-	require.Equal(t, attributes.Type, d.tokenType.PaddedBytes(32))
+	require.Equal(t, attributes.TypeID, d.tokenType.PaddedBytes(32))
 	require.Equal(t, attributes.Value, d.value)
 	require.Equal(t, tx.Hash(gocrypto.SHA256), d.backlink)
 	require.Equal(t, uint64(10), d.t)
@@ -398,7 +398,7 @@ func TestMintFungibleToken_Ok(t *testing.T) {
 
 func TestTransferFungibleToken_NotOk(t *testing.T) {
 	attr := &TransferFungibleTokenAttributes{
-		Type:                         existingTokenTypeUnitIDBytes,
+		TypeID:                       existingTokenTypeUnitIDBytes,
 		NewBearer:                    script.PredicateAlwaysTrue(),
 		Value:                        existingTokenValue,
 		Nonce:                        test.RandomBytes(32),
@@ -458,7 +458,7 @@ func TestTransferFungibleToken_NotOk(t *testing.T) {
 			name: "empty token type id",
 			tx:   createTransactionOrder(t, &TransferFungibleTokenAttributes{}, PayloadTypeTransferFungibleToken, uint256.NewInt(existingTokenUnitID)),
 			attr: &TransferFungibleTokenAttributes{
-				Type:                         nil,
+				TypeID:                       nil,
 				NewBearer:                    script.PredicateAlwaysTrue(),
 				Value:                        existingTokenValue,
 				Nonce:                        test.RandomBytes(32),
@@ -471,7 +471,7 @@ func TestTransferFungibleToken_NotOk(t *testing.T) {
 			name: "invalid token type id",
 			tx:   createTransactionOrder(t, &TransferFungibleTokenAttributes{}, PayloadTypeTransferFungibleToken, uint256.NewInt(existingTokenUnitID)),
 			attr: &TransferFungibleTokenAttributes{
-				Type:                         existingTokenTypeUnitIDBytes2,
+				TypeID:                       existingTokenTypeUnitIDBytes2,
 				NewBearer:                    script.PredicateAlwaysTrue(),
 				Value:                        existingTokenValue,
 				Nonce:                        test.RandomBytes(32),
@@ -499,7 +499,7 @@ func TestTransferFungibleToken_NotOk(t *testing.T) {
 func TestTransferFungibleToken_Ok(t *testing.T) {
 	opts := defaultOpts(t)
 	transferAttributes := &TransferFungibleTokenAttributes{
-		Type:                         util.Uint256ToBytes(existingTokenTypeUnitID),
+		TypeID:                       util.Uint256ToBytes(existingTokenTypeUnitID),
 		NewBearer:                    script.PredicatePayToPublicKeyHashDefault(test.RandomBytes(32)),
 		Value:                        existingTokenValue,
 		Nonce:                        test.RandomBytes(32),
@@ -581,7 +581,7 @@ func TestSplitFungibleToken_NotOk(t *testing.T) {
 			name: "invalid value - remaining value is zero",
 			tx:   createTransactionOrder(t, nil, PayloadTypeSplitFungibleToken, uint256.NewInt(existingTokenUnitID)),
 			attr: &SplitFungibleTokenAttributes{
-				Type:                         existingTokenTypeUnitIDBytes,
+				TypeID:                       existingTokenTypeUnitIDBytes,
 				NewBearer:                    script.PredicateAlwaysTrue(),
 				TargetValue:                  existingTokenValue,
 				RemainingValue:               0,
@@ -595,7 +595,7 @@ func TestSplitFungibleToken_NotOk(t *testing.T) {
 			name: "invalid value - target value is zero",
 			tx:   createTransactionOrder(t, nil, PayloadTypeSplitFungibleToken, uint256.NewInt(existingTokenUnitID)),
 			attr: &SplitFungibleTokenAttributes{
-				Type:                         existingTokenTypeUnitIDBytes,
+				TypeID:                       existingTokenTypeUnitIDBytes,
 				NewBearer:                    script.PredicateAlwaysTrue(),
 				RemainingValue:               existingTokenValue,
 				TargetValue:                  0,
@@ -622,7 +622,7 @@ func TestSplitFungibleToken_NotOk(t *testing.T) {
 			name: "empty token type id",
 			tx:   createTransactionOrder(t, nil, PayloadTypeSplitFungibleToken, uint256.NewInt(existingTokenUnitID)),
 			attr: &SplitFungibleTokenAttributes{
-				Type:                         nil,
+				TypeID:                       nil,
 				NewBearer:                    script.PredicateAlwaysTrue(),
 				TargetValue:                  existingTokenValue - 1,
 				RemainingValue:               1,
@@ -636,7 +636,7 @@ func TestSplitFungibleToken_NotOk(t *testing.T) {
 			name: "invalid token type id",
 			tx:   createTransactionOrder(t, nil, PayloadTypeSplitFungibleToken, uint256.NewInt(existingTokenUnitID)),
 			attr: &SplitFungibleTokenAttributes{
-				Type:                         existingTokenTypeUnitIDBytes2,
+				TypeID:                       existingTokenTypeUnitIDBytes2,
 				NewBearer:                    script.PredicateAlwaysTrue(),
 				TargetValue:                  existingTokenValue - 1,
 				RemainingValue:               1,
@@ -650,7 +650,7 @@ func TestSplitFungibleToken_NotOk(t *testing.T) {
 			name: "invalid token invariant predicate argument",
 			tx:   createTransactionOrder(t, nil, PayloadTypeSplitFungibleToken, uint256.NewInt(existingTokenUnitID)),
 			attr: &SplitFungibleTokenAttributes{
-				Type:                         existingTokenTypeUnitIDBytes,
+				TypeID:                       existingTokenTypeUnitIDBytes,
 				NewBearer:                    script.PredicateAlwaysTrue(),
 				TargetValue:                  existingTokenValue - 1,
 				RemainingValue:               1,
@@ -676,7 +676,7 @@ func TestSplitFungibleToken_Ok(t *testing.T) {
 
 	var remainingBillValue uint64 = 10
 	attr := &SplitFungibleTokenAttributes{
-		Type:                         existingTokenTypeUnitIDBytes,
+		TypeID:                       existingTokenTypeUnitIDBytes,
 		NewBearer:                    script.PredicatePayToPublicKeyHashDefault(test.RandomBytes(32)),
 		TargetValue:                  existingTokenValue - remainingBillValue,
 		RemainingValue:               remainingBillValue,
@@ -745,7 +745,7 @@ func TestBurnFungibleToken_NotOk(t *testing.T) {
 			name: "invalid value",
 			tx:   createTransactionOrder(t, nil, PayloadTypeBurnFungibleToken, uint256.NewInt(existingTokenUnitID)),
 			attr: &BurnFungibleTokenAttributes{
-				Type:                         existingTokenTypeUnitIDBytes[:],
+				TypeID:                       existingTokenTypeUnitIDBytes[:],
 				Value:                        existingTokenValue - 1,
 				Nonce:                        test.RandomBytes(32),
 				Backlink:                     make([]byte, 32),
@@ -757,7 +757,7 @@ func TestBurnFungibleToken_NotOk(t *testing.T) {
 			name: "invalid backlink",
 			tx:   createTransactionOrder(t, nil, PayloadTypeBurnFungibleToken, uint256.NewInt(existingTokenUnitID)),
 			attr: &BurnFungibleTokenAttributes{
-				Type:                         existingTokenTypeUnitIDBytes[:],
+				TypeID:                       existingTokenTypeUnitIDBytes[:],
 				Value:                        existingTokenValue,
 				Nonce:                        test.RandomBytes(32),
 				Backlink:                     test.RandomBytes(32),
@@ -769,7 +769,7 @@ func TestBurnFungibleToken_NotOk(t *testing.T) {
 			name: "invalid token invariant predicate argument",
 			tx:   createTransactionOrder(t, nil, PayloadTypeBurnFungibleToken, uint256.NewInt(existingTokenUnitID)),
 			attr: &BurnFungibleTokenAttributes{
-				Type:                         existingTokenTypeUnitIDBytes[:],
+				TypeID:                       existingTokenTypeUnitIDBytes[:],
 				Value:                        existingTokenValue,
 				Nonce:                        test.RandomBytes(32),
 				Backlink:                     make([]byte, 32),
@@ -781,7 +781,7 @@ func TestBurnFungibleToken_NotOk(t *testing.T) {
 			name: "invalid token type",
 			tx:   createTransactionOrder(t, nil, PayloadTypeBurnFungibleToken, uint256.NewInt(existingTokenUnitID)),
 			attr: &BurnFungibleTokenAttributes{
-				Type: func() []byte {
+				TypeID: func() []byte {
 					r := uint256.NewInt(42).Bytes32()
 					return r[:]
 				}(),
@@ -805,7 +805,7 @@ func TestBurnFungibleToken_NotOk(t *testing.T) {
 func TestBurnFungibleToken_Ok(t *testing.T) {
 	opts := defaultOpts(t)
 	burnAttributes := &BurnFungibleTokenAttributes{
-		Type:                         existingTokenTypeUnitIDBytes[:],
+		TypeID:                       existingTokenTypeUnitIDBytes[:],
 		Value:                        existingTokenValue,
 		Nonce:                        test.RandomBytes(32),
 		Backlink:                     make([]byte, 32),
@@ -829,21 +829,21 @@ func TestJoinFungibleToken_NotOk(t *testing.T) {
 	opts.trustBase = map[string]abcrypto.Verifier{"test": verifier}
 
 	burnTxInvalidSource := createTxRecord(t, uint256.NewInt(existingTokenUnitID), &BurnFungibleTokenAttributes{
-		Type:                         existingTokenTypeUnitIDBytes[:],
+		TypeID:                       existingTokenTypeUnitIDBytes[:],
 		Value:                        existingTokenValue,
 		Nonce:                        test.RandomBytes(32),
 		Backlink:                     make([]byte, 32),
 		InvariantPredicateSignatures: [][]byte{script.PredicateArgumentEmpty()},
 	}, PayloadTypeBurnFungibleToken)
 	burnTx := createTxRecord(t, uint256.NewInt(existingTokenUnitID), &BurnFungibleTokenAttributes{
-		Type:                         existingTokenTypeUnitIDBytes[:],
+		TypeID:                       existingTokenTypeUnitIDBytes[:],
 		Value:                        existingTokenValue,
 		Nonce:                        make([]byte, 32),
 		Backlink:                     make([]byte, 32),
 		InvariantPredicateSignatures: [][]byte{script.PredicateArgumentEmpty()},
 	}, PayloadTypeBurnFungibleToken)
 	burnTx2 := createTxRecord(t, uint256.NewInt(existingTokenUnitID2), &BurnFungibleTokenAttributes{
-		Type:                         existingTokenTypeUnitIDBytes2[:],
+		TypeID:                       existingTokenTypeUnitIDBytes2[:],
 		Value:                        existingTokenValue,
 		Nonce:                        test.RandomBytes(32),
 		Backlink:                     make([]byte, 32),
@@ -851,7 +851,7 @@ func TestJoinFungibleToken_NotOk(t *testing.T) {
 	}, PayloadTypeBurnFungibleToken)
 	maxUintValueTokenID := uint64(existingTokenUnitID2 + 1)
 	burnTx3 := createTxRecord(t, uint256.NewInt(maxUintValueTokenID), &BurnFungibleTokenAttributes{
-		Type:                         existingTokenTypeUnitIDBytes2[:],
+		TypeID:                       existingTokenTypeUnitIDBytes2[:],
 		Value:                        math.MaxUint64,
 		Nonce:                        make([]byte, 32),
 		Backlink:                     make([]byte, 32),

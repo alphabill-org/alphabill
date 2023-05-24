@@ -75,7 +75,7 @@ func newNonFungibleTokenTypeData(attr *CreateNonFungibleTokenTypeAttributes) rma
 
 func newNonFungibleTokenData(attr *MintNonFungibleTokenAttributes, txHash []byte, currentBlockNr uint64) rma.UnitData {
 	return &nonFungibleTokenData{
-		nftType:             util.BytesToUint256(attr.NFTType),
+		nftType:             util.BytesToUint256(attr.NFTTypeID),
 		name:                attr.Name,
 		uri:                 attr.URI,
 		data:                attr.Data,
@@ -87,7 +87,7 @@ func newNonFungibleTokenData(attr *MintNonFungibleTokenAttributes, txHash []byte
 
 func newFungibleTokenData(attr *MintFungibleTokenAttributes, txHash []byte, currentBlockNr uint64) rma.UnitData {
 	return &fungibleTokenData{
-		tokenType: util.BytesToUint256(attr.Type),
+		tokenType: util.BytesToUint256(attr.TypeID),
 		value:     attr.Value,
 		t:         currentBlockNr,
 		backlink:  txHash,

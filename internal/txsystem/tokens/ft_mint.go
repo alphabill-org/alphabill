@@ -55,7 +55,7 @@ func validateMintFungibleToken(tx *types.TransactionOrder, attr *MintFungibleTok
 	// existence of the parent type is checked by the getChainedPredicates
 	predicates, err := getChainedPredicates[*fungibleTokenTypeData](
 		state,
-		util.BytesToUint256(attr.Type),
+		util.BytesToUint256(attr.TypeID),
 		func(d *fungibleTokenTypeData) []byte {
 			return d.tokenCreationPredicate
 		},

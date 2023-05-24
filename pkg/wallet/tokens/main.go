@@ -124,7 +124,7 @@ func (w *Wallet) NewFungibleToken(ctx context.Context, accNr uint64, typeId back
 	log.Info("Creating new fungible token")
 	attrs := &tokens.MintFungibleTokenAttributes{
 		Bearer:                           bearerPredicate,
-		Type:                             typeId,
+		TypeID:                           typeId,
 		Value:                            amount,
 		TokenCreationPredicateSignatures: nil,
 	}

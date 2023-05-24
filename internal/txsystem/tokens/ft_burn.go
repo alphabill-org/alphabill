@@ -41,8 +41,8 @@ func validateBurnFungibleToken(tx *types.TransactionOrder, attr *BurnFungibleTok
 		return err
 	}
 	tokenTypeID := d.tokenType.Bytes32()
-	if !bytes.Equal(tokenTypeID[:], attr.Type) {
-		return fmt.Errorf("type of token to burn does not matches the actual type of the token: expected %X, got %X", tokenTypeID, attr.Type)
+	if !bytes.Equal(tokenTypeID[:], attr.TypeID) {
+		return fmt.Errorf("type of token to burn does not matches the actual type of the token: expected %X, got %X", tokenTypeID, attr.TypeID)
 	}
 	if attr.Value != d.value {
 		return fmt.Errorf("invalid token value: expected %v, got %v", d.value, attr.Value)

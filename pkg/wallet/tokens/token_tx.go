@@ -205,7 +205,7 @@ func signTx(gtx txsystem.GenericTransaction, ac *account.AccountKey) (wallet.Pre
 func newFungibleTransferTxAttrs(token *backend.TokenUnit, receiverPubKey []byte) *ttxs.TransferFungibleTokenAttributes {
 	log.Info(fmt.Sprintf("Creating transfer with bl=%X", token.TxHash))
 	return &ttxs.TransferFungibleTokenAttributes{
-		Type:                         token.TypeID,
+		TypeID:                       token.TypeID,
 		NewBearer:                    BearerPredicateFromPubKey(receiverPubKey),
 		Value:                        token.Amount,
 		Backlink:                     token.TxHash,
@@ -241,7 +241,7 @@ func BearerPredicateFromPubKey(receiverPubKey wallet.PubKey) wallet.Predicate {
 func newSplitTxAttrs(token *backend.TokenUnit, amount uint64, receiverPubKey []byte) *ttxs.SplitFungibleTokenAttributes {
 	log.Info(fmt.Sprintf("Creating split with bl=%X, new value=%v", token.TxHash, amount))
 	return &ttxs.SplitFungibleTokenAttributes{
-		Type:                         token.TypeID,
+		TypeID:                       token.TypeID,
 		NewBearer:                    BearerPredicateFromPubKey(receiverPubKey),
 		TargetValue:                  amount,
 		RemainingValue:               token.Amount - amount,
@@ -253,7 +253,7 @@ func newSplitTxAttrs(token *backend.TokenUnit, amount uint64, receiverPubKey []b
 func newBurnTxAttrs(token *backend.TokenUnit, targetStateHash []byte) *ttxs.BurnFungibleTokenAttributes {
 	log.Info(fmt.Sprintf("Creating burn tx of unit=%X with bl=%X, new value=%v", token.ID, token.TxHash, token.Amount))
 	return &ttxs.BurnFungibleTokenAttributes{
-		Type:                         token.TypeID,
+		TypeID:                       token.TypeID,
 		Value:                        token.Amount,
 		Nonce:                        targetStateHash,
 		Backlink:                     token.TxHash,

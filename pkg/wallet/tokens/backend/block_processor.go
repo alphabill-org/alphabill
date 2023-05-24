@@ -125,14 +125,14 @@ func (p *blockProcessor) processTx(proof *wallet.TxProof) error {
 		if err = tx.UnmarshalAttributes(attrs); err != nil {
 			return err
 		}
-		tokenType, err := p.store.GetTokenType(attrs.Type)
+		tokenType, err := p.store.GetTokenType(attrs.TypeID)
 		if err != nil {
-			return fmt.Errorf("mint fungible token tx: failed to get token type with id=%X, token id=%X: %w", attrs.Type, id, err)
+			return fmt.Errorf("mint fungible token tx: failed to get token type with id=%X, token id=%X: %w", attrs.TypeID, id, err)
 		}
 		return p.saveToken(
 			&TokenUnit{
 				ID:       id,
-				TypeID:   attrs.Type,
+				TypeID:   attrs.TypeID,
 				Amount:   attrs.Value,
 				Kind:     tokenType.Kind,
 				Symbol:   tokenType.Symbol,
@@ -163,8 +163,8 @@ func (p *blockProcessor) processTx(proof *wallet.TxProof) error {
 		if err != nil {
 			return fmt.Errorf("split tx: failed to get token with id=%X: %w", id, err)
 		}
-		if !bytes.Equal(token.TypeID, attrs.Type) {
-			return fmt.Errorf("split tx: type id does not match (received '%X', expected '%X'), token id=%X", attrs.Type, token.TypeID, token.ID)
+		if !bytes.Equal(token.TypeID, attrs.TypeID) {
+			return fmt.Errorf("split tx: type id does not match (received '%X', expected '%X'), token id=%X", attrs.TypeID, token.TypeID, token.ID)
 		}
 		remainingValue := token.Amount - attrs.TargetValue
 		if attrs.RemainingValue != remainingValue {
@@ -274,15 +274,15 @@ func (p *blockProcessor) processTx(proof *wallet.TxProof) error {
 		if err = tx.UnmarshalAttributes(attrs); err != nil {
 			return err
 		}
-		tokenType, err := p.store.GetTokenType(attrs.NFTType)
+		tokenType, err := p.store.GetTokenType(attrs.NFTTypeID)
 		if err != nil {
-			return fmt.Errorf("mint nft tx: failed to get token type with id=%X, token id=%X: %w", attrs.NFTType, id, err)
+			return fmt.Errorf("mint nft tx: failed to get token type with id=%X, token id=%X: %w", attrs.NFTTypeID, id, err)
 		}
 
 		newToken := &TokenUnit{
 			ID:                     id,
 			Kind:                   tokenType.Kind,
-			TypeID:                 attrs.NFTType,
+			TypeID:                 attrs.NFTTypeID,
 			Symbol:                 tokenType.Symbol,
 			NftName:                attrs.Name,
 			NftURI:                 attrs.URI,

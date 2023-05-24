@@ -189,7 +189,7 @@ func Test_blockProcessor_processTx(t *testing.T) {
 	t.Run("MintFungibleToken", func(t *testing.T) {
 		txAttr := &tokens.MintFungibleTokenAttributes{
 			Value:  42,
-			Type:   test.RandomBytes(4),
+			TypeID: test.RandomBytes(4),
 			Bearer: test.RandomBytes(4),
 		}
 		tx := randomTx(t, txAttr)
@@ -205,7 +205,7 @@ func Test_blockProcessor_processTx(t *testing.T) {
 				getFeeCreditBill: getFeeCreditBillFunc,
 				setFeeCreditBill: func(fcb *FeeCreditBill, proof *wallet.Proof) error { return verifySetFeeCreditBill(t, fcb) },
 				getTokenType: func(id TokenTypeID) (*TokenUnitType, error) {
-					require.EqualValues(t, txAttr.Type, id)
+					require.EqualValues(t, txAttr.TypeID, id)
 					return &TokenUnitType{ID: id, Kind: Fungible}, nil
 				},
 				saveToken: func(data *TokenUnit, proof *wallet.Proof) error {
@@ -213,7 +213,7 @@ func Test_blockProcessor_processTx(t *testing.T) {
 					require.NoError(t, err)
 					require.EqualValues(t, gtx.Hash(crypto.SHA256), data.TxHash)
 					require.EqualValues(t, tx.UnitId, data.ID)
-					require.EqualValues(t, txAttr.Type, data.TypeID)
+					require.EqualValues(t, txAttr.TypeID, data.TypeID)
 					require.EqualValues(t, txAttr.Bearer, data.Owner)
 					require.Equal(t, txAttr.Value, data.Amount)
 					require.Equal(t, Fungible, data.Kind)
@@ -271,7 +271,7 @@ func Test_blockProcessor_processTx(t *testing.T) {
 	t.Run("TransferFungibleToken", func(t *testing.T) {
 		txAttr := &tokens.TransferFungibleTokenAttributes{
 			Value:     50,
-			Type:      test.RandomBytes(4),
+			TypeID:    test.RandomBytes(4),
 			NewBearer: test.RandomBytes(4),
 		}
 		tx := randomTx(t, txAttr)
@@ -287,14 +287,14 @@ func Test_blockProcessor_processTx(t *testing.T) {
 				getFeeCreditBill: getFeeCreditBillFunc,
 				setFeeCreditBill: func(fcb *FeeCreditBill, proof *wallet.Proof) error { return verifySetFeeCreditBill(t, fcb) },
 				getToken: func(id TokenID) (*TokenUnit, error) {
-					return &TokenUnit{ID: id, TypeID: txAttr.Type, Amount: txAttr.Value, Kind: Fungible}, nil
+					return &TokenUnit{ID: id, TypeID: txAttr.TypeID, Amount: txAttr.Value, Kind: Fungible}, nil
 				},
 				saveToken: func(data *TokenUnit, proof *wallet.Proof) error {
 					gtx, err := txs.ConvertTx(tx)
 					require.NoError(t, err)
 					require.EqualValues(t, gtx.Hash(crypto.SHA256), data.TxHash)
 					require.EqualValues(t, tx.UnitId, data.ID)
-					require.EqualValues(t, txAttr.Type, data.TypeID)
+					require.EqualValues(t, txAttr.TypeID, data.TypeID)
 					require.EqualValues(t, txAttr.NewBearer, data.Owner)
 					require.EqualValues(t, txAttr.Value, data.Amount)
 					require.Equal(t, Fungible, data.Kind)
@@ -352,7 +352,7 @@ func Test_blockProcessor_processTx(t *testing.T) {
 		txAttr := &tokens.SplitFungibleTokenAttributes{
 			TargetValue:    42,
 			RemainingValue: 8,
-			Type:           test.RandomBytes(4),
+			TypeID:         test.RandomBytes(4),
 			NewBearer:      test.RandomBytes(4),
 		}
 		owner := test.RandomBytes(4) // owner of the original token
@@ -374,7 +374,7 @@ func Test_blockProcessor_processTx(t *testing.T) {
 				getFeeCreditBill: getFeeCreditBillFunc,
 				setFeeCreditBill: func(fcb *FeeCreditBill, proof *wallet.Proof) error { return verifySetFeeCreditBill(t, fcb) },
 				getToken: func(id TokenID) (*TokenUnit, error) {
-					return &TokenUnit{ID: id, TypeID: txAttr.Type, Amount: 50, Owner: owner, Kind: Fungible}, nil
+					return &TokenUnit{ID: id, TypeID: txAttr.TypeID, Amount: 50, Owner: owner, Kind: Fungible}, nil
 				},
 				saveToken: func(data *TokenUnit, proof *wallet.Proof) error {
 					// save token is called twice - first to update existng token and then to save new one
@@ -388,7 +388,7 @@ func Test_blockProcessor_processTx(t *testing.T) {
 						require.EqualValues(t, txAttr.NewBearer, data.Owner)
 						require.Equal(t, txAttr.TargetValue, data.Amount)
 					}
-					require.EqualValues(t, txAttr.Type, data.TypeID)
+					require.EqualValues(t, txAttr.TypeID, data.TypeID)
 					require.Equal(t, Fungible, data.Kind)
 					return nil
 				},

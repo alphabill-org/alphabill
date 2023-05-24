@@ -62,7 +62,7 @@ func validateMintNonFungibleToken(tx *types.TransactionOrder, attr *MintNonFungi
 	if !errors.Is(err, rma.ErrUnitNotFound) {
 		return err
 	}
-	nftTypeID := util.BytesToUint256(attr.NFTType)
+	nftTypeID := util.BytesToUint256(attr.NFTTypeID)
 	if nftTypeID.IsZero() {
 		return errors.New(ErrStrUnitIDIsZero)
 	}

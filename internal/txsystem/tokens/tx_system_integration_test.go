@@ -137,7 +137,7 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 		testtransaction.WithAttributes(
 			&MintFungibleTokenAttributes{
 				Bearer:                           script.PredicateAlwaysTrue(),
-				Type:                             fungibleTokenTypeID,
+				TypeID:                           fungibleTokenTypeID,
 				Value:                            totalValue,
 				TokenCreationPredicateSignatures: [][]byte{script.PredicateArgumentEmpty()},
 			},
@@ -165,7 +165,7 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 		testtransaction.WithPayloadType(PayloadTypeSplitFungibleToken),
 		testtransaction.WithAttributes(
 			&SplitFungibleTokenAttributes{
-				Type:                         fungibleTokenTypeID,
+				TypeID:                       fungibleTokenTypeID,
 				NewBearer:                    script.PredicateAlwaysTrue(),
 				TargetValue:                  splitValue1,
 				RemainingValue:               totalValue - splitValue1,
@@ -207,7 +207,7 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 		testtransaction.WithPayloadType(PayloadTypeSplitFungibleToken),
 		testtransaction.WithAttributes(
 			&SplitFungibleTokenAttributes{
-				Type:                         fungibleTokenTypeID,
+				TypeID:                       fungibleTokenTypeID,
 				NewBearer:                    script.PredicateAlwaysTrue(),
 				TargetValue:                  splitValue2,
 				RemainingValue:               totalValue - (splitValue1 + splitValue2),
@@ -249,7 +249,7 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 		testtransaction.WithPayloadType(PayloadTypeTransferFungibleToken),
 		testtransaction.WithAttributes(
 			&TransferFungibleTokenAttributes{
-				Type:                         fungibleTokenTypeID,
+				TypeID:                       fungibleTokenTypeID,
 				NewBearer:                    script.PredicateAlwaysTrue(),
 				Value:                        totalValue - splitValue1 - splitValue2,
 				Nonce:                        nil,
@@ -280,7 +280,7 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 		testtransaction.WithPayloadType(PayloadTypeBurnFungibleToken),
 		testtransaction.WithAttributes(
 			&BurnFungibleTokenAttributes{
-				Type:                         fungibleTokenTypeID,
+				TypeID:                       fungibleTokenTypeID,
 				Value:                        splitValue1,
 				Nonce:                        transferTx.Hash(hashAlgorithm),
 				Backlink:                     split1GenTxHash,
@@ -301,7 +301,7 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 		testtransaction.WithPayloadType(PayloadTypeBurnFungibleToken),
 		testtransaction.WithAttributes(
 			&BurnFungibleTokenAttributes{
-				Type:                         fungibleTokenTypeID,
+				TypeID:                       fungibleTokenTypeID,
 				Value:                        splitValue2,
 				Nonce:                        transferTx.Hash(hashAlgorithm),
 				Backlink:                     splitGenTx2Hash,

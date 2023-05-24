@@ -73,8 +73,8 @@ func validateJoinFungibleToken(tx *types.TransactionOrder, attr *JoinFungibleTok
 			return 0, errors.New("invalid sum of tokens: uint64 overflow")
 		}
 		tokenTypeID := util.Uint256ToBytes(d.tokenType)
-		if !bytes.Equal(btxAttr.Type, tokenTypeID) {
-			return 0, fmt.Errorf("the type of the burned source token does not match the type of target token: expected %X, got %X", tokenTypeID, btxAttr.Type)
+		if !bytes.Equal(btxAttr.TypeID, tokenTypeID) {
+			return 0, fmt.Errorf("the type of the burned source token does not match the type of target token: expected %X, got %X", tokenTypeID, btxAttr.TypeID)
 		}
 
 		if !bytes.Equal(btxAttr.Nonce, attr.Backlink) {

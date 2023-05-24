@@ -7,6 +7,7 @@ import (
 	"io"
 
 	"github.com/alphabill-org/alphabill/internal/txsystem/tokens"
+	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/pkg/wallet"
 )
 
@@ -59,6 +60,11 @@ type (
 		Value         uint64 `json:"value,string"`
 		TxHash        []byte `json:"txHash"`
 		FCBlockNumber uint64 `json:"fcBlockNumber,string"`
+	}
+
+	Transactions struct {
+		_            struct{} `cbor:",toarray"`
+		Transactions []*types.TransactionOrder
 	}
 )
 

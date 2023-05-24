@@ -34,7 +34,7 @@ type dataSource interface {
 	GetToken(id TokenID) (*TokenUnit, error)
 	QueryTokens(kind Kind, owner wallet.Predicate, startKey TokenID, count int) ([]*TokenUnit, TokenID, error)
 	SaveTokenTypeCreator(id TokenTypeID, kind Kind, creator wallet.PubKey) error
-	GetTxProof(unitID wallet.UnitID, txHash wallet.TxHash) (*wallet.Proof, error)
+	GetTxProof(unitID wallet.UnitID, txHash wallet.TxHash) (*wallet.TxProof, error)
 	GetFeeCreditBill(unitID wallet.UnitID) (*FeeCreditBill, error)
 }
 

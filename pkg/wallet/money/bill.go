@@ -12,7 +12,7 @@ import (
 type (
 	Bill struct {
 		Id      *uint256.Int   `json:"id"`
-		Value   uint64         `json:"value"`
+		Value   uint64         `json:"value,string"`
 		TxHash  []byte         `json:"txHash"`
 		TxProof *types.TxProof `json:"txProof"`
 
@@ -25,7 +25,7 @@ type (
 
 		// fcb specific fields
 		// FCBlockNumber block number when fee credit bill balance was last updated
-		FCBlockNumber uint64 `json:"fcBlockNumber"`
+		FCBlockNumber uint64 `json:"fcBlockNumber,string"`
 	}
 
 	// deprecated: can be replaced with types.TxProof

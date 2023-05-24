@@ -31,12 +31,12 @@ type (
 	// possibly can be removed as import/export/download/upoad feature was dropped
 	Bill struct {
 		Id       []byte         `json:"id,omitempty"`
-		Value    uint64         `json:"value,omitempty"`
+		Value    uint64         `json:"value,omitempty,string"`
 		TxHash   []byte         `json:"tx_hash,omitempty"`
 		IsDcBill bool           `json:"is_dc_bill,omitempty"`
 		TxProof  *types.TxProof `json:"tx_proof,omitempty"`
 		// block number when fee credit bill balance was last updated
-		FcBlockNumber uint64 `json:"fc_block_number,omitempty"`
+		FcBlockNumber uint64 `json:"fc_block_number,omitempty,string"`
 	}
 )
 

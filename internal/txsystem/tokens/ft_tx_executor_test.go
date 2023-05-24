@@ -3,11 +3,15 @@ package tokens
 import (
 	gocrypto "crypto"
 	"fmt"
+	"math"
 	"testing"
 
+	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/rma"
 	"github.com/alphabill-org/alphabill/internal/script"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
+	testblock "github.com/alphabill-org/alphabill/internal/testutils/block"
+	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	testtransaction "github.com/alphabill-org/alphabill/internal/testutils/transaction"
 	"github.com/alphabill-org/alphabill/internal/txsystem/fc"
 	txutil "github.com/alphabill-org/alphabill/internal/txsystem/util"
@@ -819,47 +823,43 @@ func TestBurnFungibleToken_Ok(t *testing.T) {
 	require.ErrorContains(t, err, fmt.Sprintf("item %X does not exist", util.Uint256ToBytes(uID)))
 }
 
-/*
-TODO
-
 func TestJoinFungibleToken_NotOk(t *testing.T) {
 	signer, verifier := testsig.CreateSignerAndVerifier(t)
 	opts := defaultOpts(t)
 	opts.trustBase = map[string]abcrypto.Verifier{"test": verifier}
 
-	burnTxInvalidSource := createTx(t, uint256.NewInt(existingTokenUnitID), &BurnFungibleTokenAttributes{
+	burnTxInvalidSource := createTxRecord(t, uint256.NewInt(existingTokenUnitID), &BurnFungibleTokenAttributes{
 		Type:                         existingTokenTypeUnitIDBytes[:],
 		Value:                        existingTokenValue,
 		Nonce:                        test.RandomBytes(32),
 		Backlink:                     make([]byte, 32),
 		InvariantPredicateSignatures: [][]byte{script.PredicateArgumentEmpty()},
-	})
-	burnTx := createTx(t, uint256.NewInt(existingTokenUnitID), &BurnFungibleTokenAttributes{
+	}, PayloadTypeBurnFungibleToken)
+	burnTx := createTxRecord(t, uint256.NewInt(existingTokenUnitID), &BurnFungibleTokenAttributes{
 		Type:                         existingTokenTypeUnitIDBytes[:],
 		Value:                        existingTokenValue,
 		Nonce:                        make([]byte, 32),
 		Backlink:                     make([]byte, 32),
 		InvariantPredicateSignatures: [][]byte{script.PredicateArgumentEmpty()},
-	})
-	burnTx2 := createTx(t, uint256.NewInt(existingTokenUnitID2), &BurnFungibleTokenAttributes{
+	}, PayloadTypeBurnFungibleToken)
+	burnTx2 := createTxRecord(t, uint256.NewInt(existingTokenUnitID2), &BurnFungibleTokenAttributes{
 		Type:                         existingTokenTypeUnitIDBytes2[:],
 		Value:                        existingTokenValue,
 		Nonce:                        test.RandomBytes(32),
 		Backlink:                     make([]byte, 32),
 		InvariantPredicateSignatures: [][]byte{script.PredicateArgumentEmpty()},
-	})
+	}, PayloadTypeBurnFungibleToken)
 	maxUintValueTokenID := uint64(existingTokenUnitID2 + 1)
-	burnTx3 := createTx(t, uint256.NewInt(maxUintValueTokenID), &BurnFungibleTokenAttributes{
+	burnTx3 := createTxRecord(t, uint256.NewInt(maxUintValueTokenID), &BurnFungibleTokenAttributes{
 		Type:                         existingTokenTypeUnitIDBytes2[:],
 		Value:                        math.MaxUint64,
 		Nonce:                        make([]byte, 32),
 		Backlink:                     make([]byte, 32),
 		InvariantPredicateSignatures: [][]byte{script.PredicateArgumentEmpty()},
-	})
-	proofInvalidSource := testblock.CreateProof(t, burnTxInvalidSource, signer, util.Uint256ToBytes(uint256.NewInt(existingTokenUnitID)))
-	proofBurnTx2 := testblock.CreateProof(t, burnTx2, signer, util.Uint256ToBytes(uint256.NewInt(existingTokenUnitID2)))
-	proofBurnTx3 := testblock.CreateProof(t, burnTx3, signer, util.Uint256ToBytes(uint256.NewInt(maxUintValueTokenID)))
-	emptyBlockProof := testblock.CreateProof(t, nil, signer, util.Uint256ToBytes(uint256.NewInt(existingTokenUnitID)))
+	}, PayloadTypeBurnFungibleToken)
+	proofInvalidSource := testblock.CreateProof(t, burnTxInvalidSource, signer)
+	proofBurnTx2 := testblock.CreateProof(t, burnTx2, signer)
+	proofBurnTx3 := testblock.CreateProof(t, burnTx3, signer)
 
 	tests := []struct {
 		name       string
@@ -869,92 +869,80 @@ func TestJoinFungibleToken_NotOk(t *testing.T) {
 	}{
 		{
 			name:       "unit ID is 0",
-			tx:         createTransactionOrder(t, nil, PayloadTypeJoinFungibleToken, uint256.NewInt(0)),
-			attr:       &JoinFungibleTokenAttributes{},
+			tx:         createTransactionOrder(t, &JoinFungibleTokenAttributes{}, PayloadTypeJoinFungibleToken, uint256.NewInt(0)),
 			wantErrStr: "unit ID cannot be zero",
 		},
 		{
 			name:       "fungible token does not exists",
-			tx:         createTransactionOrder(t, nil, PayloadTypeJoinFungibleToken, uint256.NewInt(42)),
-			attr:       &JoinFungibleTokenAttributes{},
+			tx:         createTransactionOrder(t, &JoinFungibleTokenAttributes{}, PayloadTypeJoinFungibleToken, uint256.NewInt(42)),
 			wantErrStr: "unit 42 does not exist",
 		},
 
 		{
 			name:       "unit isn't fungible token",
-			tx:         createTransactionOrder(t, nil, PayloadTypeJoinFungibleToken, existingTokenTypeUnitID),
-			attr:       &JoinFungibleTokenAttributes{},
+			tx:         createTransactionOrder(t, &JoinFungibleTokenAttributes{}, PayloadTypeJoinFungibleToken, existingTokenTypeUnitID),
 			wantErrStr: fmt.Sprintf("unit %v is not fungible token data", existingTokenTypeUnitID),
 		},
 		{
 			name: "invalid backlink",
-			tx:   createTx(t, uint256.NewInt(existingTokenUnitID)),
-			attr: &JoinFungibleTokenAttributes{
+			tx: createTx(t, uint256.NewInt(existingTokenUnitID), &JoinFungibleTokenAttributes{
 				Backlink:                     test.RandomBytes(32),
 				InvariantPredicateSignatures: [][]byte{script.PredicateArgumentEmpty()},
-			},
+			}, PayloadTypeJoinFungibleToken),
 			wantErrStr: "invalid backlink",
 		},
 		{
 			name: "source not burned",
 			tx: createTx(t, uint256.NewInt(existingTokenUnitID), &JoinFungibleTokenAttributes{
-				BurnTransactions:             []*txsystem.Transaction{burnTxInvalidSource.ToProtoBuf()},
-				Proofs:                       []*block.BlockProof{proofInvalidSource},
+				BurnTransactions:             []*types.TransactionRecord{burnTxInvalidSource},
+				Proofs:                       []*types.TxProof{proofInvalidSource},
 				Backlink:                     make([]byte, 32),
 				InvariantPredicateSignatures: [][]byte{script.PredicateAlwaysFalse()},
-			}),
+			}, PayloadTypeJoinFungibleToken),
 			wantErrStr: "the source tokens weren't burned to join them to the target token",
 		},
 		{
 			name: "invalid source token type",
 			tx: createTx(t, uint256.NewInt(existingTokenUnitID), &JoinFungibleTokenAttributes{
-				BurnTransactions:             []*txsystem.Transaction{burnTx2.ToProtoBuf()},
-				Proofs:                       []*block.BlockProof{proofInvalidSource},
+				BurnTransactions:             []*types.TransactionRecord{burnTx2},
+				Proofs:                       []*types.TxProof{proofInvalidSource},
 				Backlink:                     make([]byte, 32),
 				InvariantPredicateSignatures: [][]byte{script.PredicateAlwaysFalse()},
-			}),
+			}, PayloadTypeJoinFungibleToken),
 			wantErrStr: "the type of the burned source token does not match the type of target token",
-		},
-		{
-			name: "invalid proof type",
-			tx: createTx(t, uint256.NewInt(existingTokenUnitID), &JoinFungibleTokenAttributes{
-				BurnTransactions:             []*txsystem.Transaction{burnTx.ToProtoBuf()},
-				Proofs:                       []*block.BlockProof{emptyBlockProof},
-				Backlink:                     make([]byte, 32),
-				InvariantPredicateSignatures: [][]byte{script.PredicateAlwaysFalse()},
-			}),
-			wantErrStr: "invalid proof type",
 		},
 		{
 			name: "proof is not valid",
 			tx: createTx(t, uint256.NewInt(existingTokenUnitID), &JoinFungibleTokenAttributes{
-				BurnTransactions:             []*txsystem.Transaction{burnTx.ToProtoBuf()},
-				Proofs:                       []*block.BlockProof{proofBurnTx2},
+				BurnTransactions:             []*types.TransactionRecord{burnTx},
+				Proofs:                       []*types.TxProof{proofBurnTx2},
 				Backlink:                     make([]byte, 32),
 				InvariantPredicateSignatures: [][]byte{script.PredicateAlwaysFalse()},
-			}),
+			}, PayloadTypeBurnFungibleToken),
 			wantErrStr: "proof is not valid",
 		},
 		{
 			name: "uint64 overflow",
 			tx: createTx(t, uint256.NewInt(existingTokenUnitID2), &JoinFungibleTokenAttributes{
-				BurnTransactions:             []*txsystem.Transaction{burnTx3.ToProtoBuf()},
-				Proofs:                       []*block.BlockProof{proofBurnTx3},
+				BurnTransactions:             []*types.TransactionRecord{burnTx3},
+				Proofs:                       []*types.TxProof{proofBurnTx3},
 				Backlink:                     make([]byte, 32),
 				InvariantPredicateSignatures: [][]byte{script.PredicateArgumentEmpty()},
-			}),
+			}, PayloadTypeBurnFungibleToken),
 			wantErrStr: "invalid sum of tokens: uint64 overflow",
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			joinTx, ok := tt.tx.(*joinFungibleTokenWrapper)
-			require.True(t, ok, "invalid transaction type %T", tt.tx)
+			attr := &JoinFungibleTokenAttributes{}
+			require.NoError(t, tt.tx.UnmarshalAttributes(attr))
 
-			require.ErrorContains(t, handleJoinFungibleTokenTx(opts)(joinTx, 10), tt.wantErrStr)
+			sm, err := handleJoinFungibleTokenTx(opts)(tt.tx, attr, 10)
+			require.ErrorContains(t, err, tt.wantErrStr)
+			require.Nil(t, sm)
 		})
 	}
-}*/
+}
 
 func defaultOpts(t *testing.T) *Options {
 	o, err := defaultOptions()
@@ -1013,20 +1001,32 @@ func initState(t *testing.T) *rma.Tree {
 	return state
 }
 
-/*
-	func createTx(t *testing.T, unitID *uint256.Int, attributes proto.Message) txsystem.GenericTransaction {
-		id := unitID.Bytes32()
-		return testtransaction.NewGenericTransaction(
-			t,
-			NewGenericTx,
-			testtransaction.WithUnitId(id[:]),
-			testtransaction.WithSystemID(DefaultTokenTxSystemIdentifier),
-			testtransaction.WithOwnerProof(script.PredicateArgumentEmpty()),
-			testtransaction.WithFeeProof(script.PredicateArgumentEmpty()),
-			testtransaction.WithAttributes(attributes),
-		)
-	}
-*/
+func createTx(t *testing.T, unitID *uint256.Int, attributes any, payloadType string) *types.TransactionOrder {
+	id := unitID.Bytes32()
+	return testtransaction.NewTransactionOrder(
+		t,
+		testtransaction.WithUnitId(id[:]),
+		testtransaction.WithSystemID(DefaultTokenTxSystemIdentifier),
+		testtransaction.WithOwnerProof(script.PredicateArgumentEmpty()),
+		testtransaction.WithFeeProof(script.PredicateArgumentEmpty()),
+		testtransaction.WithAttributes(attributes),
+		testtransaction.WithPayloadType(payloadType),
+	)
+}
+
+func createTxRecord(t *testing.T, unitID *uint256.Int, attributes any, payloadType string) *types.TransactionRecord {
+	id := unitID.Bytes32()
+	return testtransaction.NewTransactionRecord(
+		t,
+		testtransaction.WithUnitId(id[:]),
+		testtransaction.WithSystemID(DefaultTokenTxSystemIdentifier),
+		testtransaction.WithOwnerProof(script.PredicateArgumentEmpty()),
+		testtransaction.WithFeeProof(script.PredicateArgumentEmpty()),
+		testtransaction.WithAttributes(attributes),
+		testtransaction.WithPayloadType(payloadType),
+	)
+}
+
 func createTransactionOrder(t *testing.T, attr any, payloadType string, unitID *uint256.Int) *types.TransactionOrder {
 	return testtransaction.NewTransactionOrder(
 		t,

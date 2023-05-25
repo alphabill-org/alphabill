@@ -105,8 +105,8 @@ func NewSwapTx(k *account.AccountKey, systemID []byte, dcBills []*bp.Bill, dcNon
 	var dustTransferRecords []*types.TransactionRecord
 	var billValueSum uint64
 	for _, b := range dcBills {
-		dustTransferRecords = append(dustTransferRecords, b.TxProof.TransactionRecord)
-		dustTransferProofs = append(dustTransferProofs, b.TxProof)
+		dustTransferRecords = append(dustTransferRecords, b.TxProof.TxRecord)
+		dustTransferProofs = append(dustTransferProofs, b.TxProof.TxProof)
 		billValueSum += b.Value
 	}
 	attr := &money.SwapDCAttributes{

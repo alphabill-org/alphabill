@@ -10,9 +10,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/alphabill-org/alphabill/internal/types"
-	"github.com/fxamacker/cbor/v2"
-
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/hash"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
@@ -28,6 +25,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/txsystem/fc"
 	moneytx "github.com/alphabill-org/alphabill/internal/txsystem/money"
 	moneytestutils "github.com/alphabill-org/alphabill/internal/txsystem/money/testutils"
+	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/internal/util"
 	abclient "github.com/alphabill-org/alphabill/pkg/client"
 	"github.com/alphabill-org/alphabill/pkg/wallet"
@@ -103,10 +101,7 @@ func TestCollectDustTimeoutReached(t *testing.T) {
 
 	transferInitialBillTx, err := moneytestutils.CreateInitialBillTransferTx(pubKeys[0], initialBill.ID, initialBillValue, 10000, initialBillBacklink)
 	require.NoError(t, err)
-	txBytes, err := cbor.Marshal(transferInitialBillTx)
-	require.NoError(t, err)
-	protoTx := &alphabill.Transaction{Order: txBytes}
-	err = w.SendTransaction(ctx, protoTx, &wallet.SendOpts{})
+	err = w.SendTransaction(ctx, transferInitialBillTx, &wallet.SendOpts{})
 	require.NoError(t, err)
 	require.Eventually(t, testpartition.BlockchainContainsTx(moneyPart, transferInitialBillTx), test.WaitDuration, test.WaitTick)
 
@@ -218,10 +213,7 @@ func TestCollectDustInMultiAccountWallet(t *testing.T) {
 
 	transferInitialBillTx, err := moneytestutils.CreateInitialBillTransferTx(pubKeys[0], initialBill.ID, initialBillValue, 10000, initialBillBacklink)
 	require.NoError(t, err)
-	txBytes, err := cbor.Marshal(transferInitialBillTx)
-	require.NoError(t, err)
-	protoTx := &alphabill.Transaction{Order: txBytes}
-	err = w.SendTransaction(ctx, protoTx, &wallet.SendOpts{})
+	err = w.SendTransaction(ctx, transferInitialBillTx, &wallet.SendOpts{})
 	require.NoError(t, err)
 	require.Eventually(t, testpartition.BlockchainContainsTx(moneyPart, transferInitialBillTx), test.WaitDuration, test.WaitTick)
 
@@ -328,10 +320,7 @@ func TestCollectDustInMultiAccountWalletWithKeyFlag(t *testing.T) {
 
 	transferInitialBillTx, err := moneytestutils.CreateInitialBillTransferTx(pubKeys[0], initialBill.ID, initialBillValue, 10000, initialBillBacklink)
 	require.NoError(t, err)
-	txBytes, err := cbor.Marshal(transferInitialBillTx)
-	require.NoError(t, err)
-	protoTx := &alphabill.Transaction{Order: txBytes}
-	err = w.SendTransaction(ctx, protoTx, &wallet.SendOpts{})
+	err = w.SendTransaction(ctx, transferInitialBillTx, &wallet.SendOpts{})
 	require.NoError(t, err)
 	require.Eventually(t, testpartition.BlockchainContainsTx(moneyPart, transferInitialBillTx), test.WaitDuration, test.WaitTick)
 

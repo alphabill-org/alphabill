@@ -4,22 +4,19 @@ import (
 	"context"
 	"crypto"
 	"encoding/hex"
-	"errors"
 	"fmt"
 	"math/rand"
 	"net/http"
 	"sync"
 	"time"
 
-	"github.com/alphabill-org/alphabill/internal/rpc/alphabill"
-	"github.com/alphabill-org/alphabill/internal/types"
-	"github.com/fxamacker/cbor/v2"
+	"github.com/ainvaltin/httpsrv"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/sync/semaphore"
 
-	"github.com/ainvaltin/httpsrv"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/internal/script"
+	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/pkg/client"
 	"github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/alphabill-org/alphabill/pkg/wallet/account"
@@ -57,20 +54,13 @@ type (
 		TxHash   []byte `json:"txHash"`
 		IsDCBill bool   `json:"isDcBill"`
 		// OrderNumber insertion order of given bill in pubkey => list of bills bucket, needed for determistic paging
-		OrderNumber    uint64   `json:"orderNumber"`
-		TxProof        *TxProof `json:"txProof"`
-		OwnerPredicate []byte   `json:"OwnerPredicate"`
+		OrderNumber    uint64      `json:"orderNumber"`
+		TxProof        *bp.TxProof `json:"txProof"`
+		OwnerPredicate []byte      `json:"OwnerPredicate"`
 
 		// fcb specific fields
 		// FCBlockNumber block number when fee credit bill balance was last updated
 		FCBlockNumber uint64 `json:"fcBlockNumber"`
-	}
-
-	// TODO replace with types.TxProof?
-	TxProof struct {
-		BlockNumber uint64                   `json:"blockNumber"`
-		Tx          *types.TransactionRecord `json:"tx"`
-		Proof       *types.TxProof           `json:"proof"`
 	}
 
 	Pubkey struct {
@@ -269,9 +259,7 @@ func (w *WalletBackend) SendTransactions(ctx context.Context, txs []*types.Trans
 		}
 		go func(tx *types.TransactionOrder) {
 			defer sem.Release(1)
-			txBytes, _ := cbor.Marshal(tx)
-			protoTx := &alphabill.Transaction{Order: txBytes}
-			if err := w.genericWallet.SendTransaction(ctx, protoTx, nil); err != nil {
+			if err := w.genericWallet.SendTransaction(ctx, tx, nil); err != nil {
 				m.Lock()
 				errs[hex.EncodeToString(tx.UnitID())] =
 					fmt.Errorf("failed to forward tx: %w", err).Error()
@@ -296,7 +284,7 @@ func (b *Bill) toProto() *bp.Bill {
 		Value:         b.Value,
 		TxHash:        b.TxHash,
 		IsDcBill:      b.IsDCBill,
-		TxProof:       b.TxProof.toProto(),
+		TxProof:       b.TxProof,
 		FcBlockNumber: b.FCBlockNumber,
 	}
 }
@@ -309,10 +297,11 @@ func (b *Bill) toProtoBills() *bp.Bills {
 	}
 }
 
-func (b *Bill) addProof(txIdx int, bl *types.Block, txPb *types.TransactionRecord) error {
-	proof, err := createProof(txIdx, txPb, bl, crypto.SHA256)
+func (b *Bill) addProof(txIdx int, bl *types.Block) error {
+	proof, err := bp.NewTxProof(txIdx, bl, crypto.SHA256)
 	if err != nil {
 		return err
+
 	}
 	b.TxProof = proof
 	return nil
@@ -337,37 +326,6 @@ func (b *Bill) getFCBlockNumber() uint64 {
 		return b.FCBlockNumber
 	}
 	return 0
-}
-
-func (b *TxProof) toProto() *types.TxProof {
-	return &types.TxProof{
-		BlockHeaderHash:    b.Proof.BlockHeaderHash,
-		Chain:              b.Proof.Chain,
-		UnicityCertificate: b.Proof.UnicityCertificate,
-		TransactionRecord:  b.Proof.TransactionRecord,
-	}
-}
-
-func createProof(txIdx int, tx *types.TransactionRecord, b *types.Block, hashAlgorithm crypto.Hash) (*TxProof, error) {
-	proof, err := types.NewTxProof(b, txIdx, hashAlgorithm)
-	if err != nil {
-		return nil, err
-	}
-	return newTxProof(tx, proof, b.GetRoundNumber())
-}
-
-func newTxProof(tx *types.TransactionRecord, proof *types.TxProof, blockNumber uint64) (*TxProof, error) {
-	if tx == nil {
-		return nil, errors.New("tx is nil")
-	}
-	if proof == nil {
-		return nil, errors.New("proof is nil")
-	}
-	return &TxProof{
-		Tx:          tx,
-		Proof:       proof,
-		BlockNumber: blockNumber,
-	}, nil
 }
 
 func newOwnerPredicates(hashes *account.KeyHashes) *p2pkhOwnerPredicates {

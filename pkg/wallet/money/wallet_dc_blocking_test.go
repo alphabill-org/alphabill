@@ -36,7 +36,7 @@ func TestBlockingDcWithNormalBills(t *testing.T) {
 		feeCreditBill: &bp.Bill{
 			Id:      k.PrivKeyHash,
 			Value:   100 * 1e8,
-			TxProof: &types.TxProof{},
+			TxProof: &bp.TxProof{},
 		},
 	}), am)
 
@@ -90,7 +90,7 @@ func TestBlockingDCWithDCBillsBeforeDCTimeout(t *testing.T) {
 		feeCreditBill: &bp.Bill{
 			Id:      k.PrivKeyHash,
 			Value:   100 * 1e8,
-			TxProof: &types.TxProof{},
+			TxProof: &bp.TxProof{},
 		},
 	}), am)
 	// set specific round number
@@ -144,7 +144,7 @@ func TestBlockingDCWithExistingExpiredDCBills(t *testing.T) {
 		feeCreditBill: &bp.Bill{
 			Id:      k.PrivKeyHash,
 			Value:   100 * 1e8,
-			TxProof: &types.TxProof{},
+			TxProof: &bp.TxProof{},
 		},
 	}), am)
 
@@ -198,7 +198,7 @@ func TestBlockingDcWaitingForSwapTimesOut(t *testing.T) {
 		feeCreditBill: &bp.Bill{
 			Id:      k.PrivKeyHash,
 			Value:   100 * 1e8,
-			TxProof: &types.TxProof{},
+			TxProof: &bp.TxProof{},
 		},
 	}), am)
 
@@ -242,9 +242,9 @@ func runBlockingDc(t *testing.T, w *Wallet) *sync.WaitGroup {
 }
 
 //func createBlockWithSwapTxFromDcBills(dcNonce *uint256.Int, k *account.AccountKey, systemId []byte, bills ...*Bill) *alphabill.GetBlockResponse {
-//	var dcTxs []*types.TransactionRecord
+//	var dcTxs []*types.TxRecord
 //	for _, b := range bills {
-//		dcTxs = append(dcTxs, &types.TransactionRecord{
+//		dcTxs = append(dcTxs, &types.TxRecord{
 //			SystemId:              systemId,
 //			UnitId:                b.GetID(),
 //			TransactionAttributes: moneytesttx.CreateRandomDustTransferTx(),
@@ -257,13 +257,13 @@ func runBlockingDc(t *testing.T, w *Wallet) *sync.WaitGroup {
 //	return createBlockWithSwapTx(systemId, dcNonce32[:], k, dcTxs)
 //}
 //
-//func createBlockWithSwapTx(systemId, dcNonce []byte, k *account.AccountKey, dcTxs []*types.TransactionRecord) *alphabill.GetBlockResponse {
+//func createBlockWithSwapTx(systemId, dcNonce []byte, k *account.AccountKey, dcTxs []*types.TxRecord) *alphabill.GetBlockResponse {
 //	b := &types.Block{
 //		Header: &types.Header{
 //			SystemID:          systemId,
 //			PreviousBlockHash: hash.Sum256([]byte{}),
 //		},
-//		Transactions: []*types.TransactionRecord{
+//		Transactions: []*types.TxRecord{
 //			{
 //				TransactionOrder: &types.TransactionOrder{
 //					Payload: &types.Payload{
@@ -294,7 +294,7 @@ func waitForExpectedSwap(w *Wallet) {
 	})
 }
 
-//func createSwapTxFromDcTxs(pubKeyHash []byte, dcTxs []*types.TransactionRecord) []byte {
+//func createSwapTxFromDcTxs(pubKeyHash []byte, dcTxs []*types.TxRecord) []byte {
 //	attr := &billtx.SwapDCAttributes{
 //		OwnerCondition:  script.PredicatePayToPublicKeyHashDefault(pubKeyHash),
 //		BillIdentifiers: [][]byte{},

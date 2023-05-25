@@ -147,11 +147,13 @@ func createBlockProofResponse(t *testing.T, b *Bill, overrideNonce []byte, block
 		Transactions:       []*types.TransactionRecord{txRecord},
 		UnicityCertificate: &types.UnicityCertificate{InputRecord: &types.InputRecord{RoundNumber: timeout}},
 	})
-	txProof := &types.TxProof{
-		TransactionRecord:  txRecord,
-		BlockHeaderHash:    []byte{0},
-		Chain:              []*types.GenericChainItem{{Hash: []byte{0}}},
-		UnicityCertificate: &types.UnicityCertificate{InputRecord: &types.InputRecord{RoundNumber: timeout}},
+	txProof := &bp.TxProof{
+		TxRecord: txRecord,
+		TxProof: &types.TxProof{
+			BlockHeaderHash:    []byte{0},
+			Chain:              []*types.GenericChainItem{{Hash: []byte{0}}},
+			UnicityCertificate: &types.UnicityCertificate{InputRecord: &types.InputRecord{RoundNumber: timeout}},
+		},
 	}
 	return &bp.Bills{Bills: []*bp.Bill{{Id: util.Uint256ToBytes(b.Id), Value: b.Value, IsDcBill: b.IsDcBill, TxProof: txProof, TxHash: b.TxHash}}}
 }

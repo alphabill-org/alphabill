@@ -10,7 +10,6 @@ import (
 	"time"
 
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
-	"github.com/alphabill-org/alphabill/internal/rpc/alphabill"
 	"github.com/alphabill-org/alphabill/internal/txsystem/money"
 	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/internal/util"
@@ -264,13 +263,9 @@ func (b *backendAPIWrapper) GetRoundNumber(ctx context.Context) (uint64, error) 
 	return b.wallet.backend.GetRoundNumber(ctx)
 }
 
-func (b *backendAPIWrapper) PostTransactions(ctx context.Context, _ wallet.PubKey, txs []*types.TransactionOrder) error {
-	for _, tx := range txs {
-		protoTx, err := alphabill.NewTransaction(tx)
-		if err != nil {
-			return err
-		}
-		err = b.wallet.SendTransaction(ctx, protoTx, &wallet.SendOpts{RetryOnFullTxBuffer: true})
+func (b *backendAPIWrapper) PostTransactions(ctx context.Context, _ wallet.PubKey, txs *wallet.Transactions) error {
+	for _, tx := range txs.Transactions {
+		err := b.wallet.SendTransaction(ctx, tx, &wallet.SendOpts{RetryOnFullTxBuffer: true})
 		if err != nil {
 			return err
 		}
@@ -292,7 +287,7 @@ func (b *backendAPIWrapper) GetTxProof(_ context.Context, unitID wallet.UnitID, 
 		return nil, nil
 	}
 	b.txProofs = append(b.txProofs, convertBill(bill))
-	return bill.TxProof, nil
+	return bill.TxProof.TxProof, nil
 }
 
 // AddFeeCredit creates fee credit for the given amount.
@@ -405,12 +400,8 @@ func (w *Wallet) collectDust(ctx context.Context, blocking bool, accountIndex ui
 			if err != nil {
 				return err
 			}
-			protoTx, err := alphabill.NewTransaction(tx)
-			if err != nil {
-				return err
-			}
 			log.Info("sending dust transfer tx for bill=", b.Id, " account=", accountIndex)
-			err = w.SendTransaction(ctx, protoTx, &wallet.SendOpts{RetryOnFullTxBuffer: true})
+			err = w.SendTransaction(ctx, tx, &wallet.SendOpts{RetryOnFullTxBuffer: true})
 			if err != nil {
 				return err
 			}
@@ -554,12 +545,8 @@ func (w *Wallet) swapDcBills(ctx context.Context, dcBills []*Bill, dcNonce []byt
 	if err != nil {
 		return err
 	}
-	protoTx, err := alphabill.NewTransaction(swapTx)
-	if err != nil {
-		return err
-	}
 	log.Info(fmt.Sprintf("sending swap tx: nonce=%s timeout=%d", hexutil.Encode(dcNonce), timeout))
-	err = w.SendTransaction(context.Background(), protoTx, &wallet.SendOpts{RetryOnFullTxBuffer: true})
+	err = w.SendTransaction(context.Background(), swapTx, &wallet.SendOpts{RetryOnFullTxBuffer: true})
 	if err != nil {
 		return err
 	}
@@ -669,7 +656,7 @@ func getBillIds(bills []*Bill) [][]byte {
 //
 //// newBill creates new Bill struct from given BlockProof for Transfer and Split transactions.
 //func newBill(proof *types.TxProof) (*Bill, error) {
-//	blockProof, err := NewBlockProof(proof.Tx, proof.Proof, proof.BlockNumber)
+//	blockProof, err := NewBlockProof(proof.TxRecord, proof.TxProof, proof.BlockNumber)
 //	if err != nil {
 //		return nil, err
 //	}
@@ -706,7 +693,7 @@ func getBillIds(bills []*Bill) [][]byte {
 func convertBill(b *bp.Bill) *Bill {
 	if b.IsDcBill {
 		attrs := &money.TransferDCAttributes{}
-		if err := b.TxProof.TransactionRecord.TransactionOrder.UnmarshalAttributes(attrs); err != nil {
+		if err := b.TxProof.TxRecord.TransactionOrder.UnmarshalAttributes(attrs); err != nil {
 			return nil
 		}
 		return &Bill{
@@ -715,7 +702,7 @@ func convertBill(b *bp.Bill) *Bill {
 			TxHash:    b.TxHash,
 			IsDcBill:  b.IsDcBill,
 			DcNonce:   attrs.Nonce,
-			DcTimeout: b.TxProof.TransactionRecord.TransactionOrder.Timeout(),
+			DcTimeout: b.TxProof.TxRecord.TransactionOrder.Timeout(),
 			TxProof:   b.TxProof,
 		}
 	}

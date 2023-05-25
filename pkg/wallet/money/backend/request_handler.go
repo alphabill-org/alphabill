@@ -10,14 +10,15 @@ import (
 	"sort"
 	"strconv"
 
-	"github.com/alphabill-org/alphabill/internal/types"
-	"github.com/alphabill-org/alphabill/pkg/wallet/backend/bp"
-	"github.com/alphabill-org/alphabill/pkg/wallet/log"
-	_ "github.com/alphabill-org/alphabill/pkg/wallet/money/backend/docs"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
 	httpSwagger "github.com/swaggo/http-swagger"
+
+	"github.com/alphabill-org/alphabill/pkg/wallet"
+	"github.com/alphabill-org/alphabill/pkg/wallet/backend/bp"
+	"github.com/alphabill-org/alphabill/pkg/wallet/log"
+	_ "github.com/alphabill-org/alphabill/pkg/wallet/money/backend/docs"
 )
 
 const (
@@ -296,11 +297,7 @@ func (s *RequestHandler) getFeeCreditBillFunc(w http.ResponseWriter, r *http.Req
 	writeAsJson(w, fcb.toProto())
 }
 
-type Transactions struct {
-	Transactions []*types.TransactionOrder `json:"transactions,omitempty"`
-}
-
-// @Summary Forward transactions to partiton node(s)
+// @Summary Forward transactions to partition node(s)
 // @Id 6
 // @version 1.0
 // @produce application/json
@@ -330,7 +327,7 @@ func (s *RequestHandler) postTransactions(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	txs := &Transactions{}
+	txs := &wallet.Transactions{}
 	if err = json.Unmarshal(buf, txs); err != nil {
 		log.Debug("failed to decode request body: ", err)
 		w.WriteHeader(http.StatusBadRequest)

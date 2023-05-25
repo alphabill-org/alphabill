@@ -5,17 +5,18 @@ import (
 	gocrypto "crypto"
 	"testing"
 
-	"github.com/alphabill-org/alphabill/internal/types"
+	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/stretchr/testify/require"
 
 	"github.com/alphabill-org/alphabill/internal/hash"
 	"github.com/alphabill-org/alphabill/internal/script"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	testtransaction "github.com/alphabill-org/alphabill/internal/testutils/transaction"
 	moneytx "github.com/alphabill-org/alphabill/internal/txsystem/money"
+	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/pkg/client/clientmock"
+	"github.com/alphabill-org/alphabill/pkg/wallet/backend/bp"
 	wlog "github.com/alphabill-org/alphabill/pkg/wallet/log"
-	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/stretchr/testify/require"
 )
 
 func TestWalletBackend_BillsCanBeIndexedByPredicates(t *testing.T) {
@@ -121,9 +122,9 @@ func TestGetBills_OK(t *testing.T) {
 		TxHash:         txHash,
 		OrderNumber:    1,
 		OwnerPredicate: bearer,
-		TxProof: &TxProof{
-			BlockNumber: 1,
-			Tx:          &types.TransactionRecord{TransactionOrder: tx},
+		TxProof: &bp.TxProof{
+			TxRecord: &types.TransactionRecord{TransactionOrder: tx},
+			TxProof:  &types.TxProof{UnicityCertificate: &types.UnicityCertificate{InputRecord: &types.InputRecord{RoundNumber: 1}}},
 		},
 	}
 	err = store.Do().SetBill(b)

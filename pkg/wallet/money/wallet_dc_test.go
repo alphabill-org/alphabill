@@ -59,7 +59,7 @@ func TestDustCollectionMaxBillCount(t *testing.T) {
 		feeCreditBill: &bp.Bill{
 			Id:      k.PrivKeyHash,
 			Value:   100 * 1e8,
-			TxProof: &types.TxProof{},
+			TxProof: &bp.TxProof{},
 		},
 	}))
 
@@ -93,7 +93,7 @@ func TestBasicDustCollection(t *testing.T) {
 		feeCreditBill: &bp.Bill{
 			Id:      k.PrivKeyHash,
 			Value:   100 * 1e8,
-			TxProof: &types.TxProof{},
+			TxProof: &bp.TxProof{},
 		}}), am)
 
 	// when dc runs
@@ -140,7 +140,7 @@ func TestDustCollectionWithSwap(t *testing.T) {
 		feeCreditBill: &bp.Bill{
 			Id:      k.PrivKeyHash,
 			Value:   100 * 1e8,
-			TxProof: &types.TxProof{},
+			TxProof: &bp.TxProof{},
 		},
 	}), am)
 
@@ -187,7 +187,7 @@ func TestSwapWithExistingDCBillsBeforeDCTimeout(t *testing.T) {
 		feeCreditBill: &bp.Bill{
 			Id:      k.PrivKeyHash,
 			Value:   100 * 1e8,
-			TxProof: &types.TxProof{},
+			TxProof: &bp.TxProof{},
 		}}), am)
 	// set specific round number
 	mockClient.SetMaxRoundNumber(roundNr)
@@ -231,7 +231,7 @@ func TestSwapWithExistingExpiredDCBills(t *testing.T) {
 		feeCreditBill: &bp.Bill{
 			Id:      k.PrivKeyHash,
 			Value:   100 * 1e8,
-			TxProof: &types.TxProof{},
+			TxProof: &bp.TxProof{},
 		},
 	}), am)
 
@@ -277,9 +277,9 @@ func TestSwapTxValuesAreCalculatedInCorrectBillOrder(t *testing.T) {
 	k, _ := w.am.GetAccountKey(0)
 
 	dcBills := []*Bill{
-		{Id: uint256.NewInt(2), TxProof: &types.TxProof{TransactionRecord: createRandomDcTx()}},
-		{Id: uint256.NewInt(1), TxProof: &types.TxProof{TransactionRecord: createRandomDcTx()}},
-		{Id: uint256.NewInt(0), TxProof: &types.TxProof{TransactionRecord: createRandomDcTx()}},
+		{Id: uint256.NewInt(2), TxProof: &bp.TxProof{TxRecord: createRandomDcTx()}},
+		{Id: uint256.NewInt(1), TxProof: &bp.TxProof{TxRecord: createRandomDcTx()}},
+		{Id: uint256.NewInt(0), TxProof: &bp.TxProof{TxRecord: createRandomDcTx()}},
 	}
 	dcNonce := calculateDcNonce(dcBills)
 	var dcBillIds [][]byte
@@ -331,7 +331,7 @@ func TestSwapContainsUnconfirmedDustBillIds(t *testing.T) {
 		feeCreditBill: &bp.Bill{
 			Id:      k.PrivKeyHash,
 			Value:   100 * 1e8,
-			TxProof: &types.TxProof{},
+			TxProof: &bp.TxProof{},
 		},
 	}), am)
 
@@ -367,7 +367,7 @@ func addBill(value uint64) *Bill {
 		Id:      uint256.NewInt(value),
 		Value:   value,
 		TxHash:  hash.Sum256([]byte{byte(value)}),
-		TxProof: &types.TxProof{},
+		TxProof: &bp.TxProof{},
 	}
 	return &b1
 }
@@ -377,12 +377,12 @@ func addDcBill(t *testing.T, k *account.AccountKey, id *uint256.Int, nonce []byt
 		Id:      id,
 		Value:   value,
 		TxHash:  hash.Sum256([]byte{byte(value)}),
-		TxProof: &types.TxProof{},
+		TxProof: &bp.TxProof{},
 	}
 
 	tx, err := txbuilder.NewDustTx(k, []byte{0, 0, 0, 0}, b.ToProto(), nonce, timeout)
 	require.NoError(t, err)
-	b.TxProof = &types.TxProof{TransactionRecord: &types.TransactionRecord{TransactionOrder: tx}}
+	b.TxProof = &bp.TxProof{TxRecord: &types.TransactionRecord{TransactionOrder: tx}}
 
 	b.IsDcBill = true
 	b.DcNonce = nonce

@@ -30,15 +30,32 @@ type (
 	// used to be protobuf defined Bill struct used as import/export/download/upload unified schema across applications
 	// possibly can be removed as import/export/download/upoad feature was dropped
 	Bill struct {
-		Id       []byte         `json:"id,omitempty"`
-		Value    uint64         `json:"value,omitempty,string"`
-		TxHash   []byte         `json:"tx_hash,omitempty"`
-		IsDcBill bool           `json:"is_dc_bill,omitempty"`
-		TxProof  *types.TxProof `json:"tx_proof,omitempty"`
+		Id       []byte   `json:"id,omitempty"`
+		Value    uint64   `json:"value,omitempty,string"`
+		TxHash   []byte   `json:"tx_hash,omitempty"`
+		IsDcBill bool     `json:"is_dc_bill,omitempty"`
+		TxProof  *TxProof `json:"tx_proof,omitempty"`
 		// block number when fee credit bill balance was last updated
 		FcBlockNumber uint64 `json:"fc_block_number,omitempty,string"`
 	}
+
+	// TxProof wrapper struct around TxRecord and TxProof
+	TxProof struct {
+		TxRecord *types.TransactionRecord `json:"txRecord"`
+		TxProof  *types.TxProof           `json:"txProof"`
+	}
 )
+
+func NewTxProof(txIdx int, b *types.Block, hashAlgorithm crypto.Hash) (*TxProof, error) {
+	txProof, err := types.NewTxProof(b, txIdx, hashAlgorithm)
+	if err != nil {
+		return nil, err
+	}
+	return &TxProof{
+		TxRecord: b.Transactions[txIdx],
+		TxProof:  txProof,
+	}, nil
+}
 
 // Verify validates struct and verifies proofs.
 func (x *Bills) Verify(verifiers map[string]abcrypto.Verifier) error {
@@ -53,16 +70,16 @@ func (x *Bills) Verify(verifiers map[string]abcrypto.Verifier) error {
 
 // Verify validates struct and verifies proof.
 func (x *Bill) Verify(verifiers map[string]abcrypto.Verifier) error {
-	txProof := x.TxProof
-	if txProof == nil {
+	proof := x.TxProof
+	if proof == nil {
 		return ErrTxProofNil
 	}
-	txr := txProof.TransactionRecord
+	txr := proof.TxRecord
 	err := x.verifyTx(txr)
 	if err != nil {
 		return err
 	}
-	return types.VerifyTxProof(txProof, txr, verifiers, crypto.SHA256)
+	return types.VerifyTxProof(proof.TxProof, txr, verifiers, crypto.SHA256)
 }
 
 func (x *Bill) GetID() []byte {
@@ -155,5 +172,18 @@ func (x *Bill) parseTx(txr *types.TransactionRecord) (uint64, bool, error) {
 		return attrs.TargetValue, false, nil
 	default:
 		return 0, false, ErrInvalidTxType
+	}
+}
+
+func (p *TxProof) ToProto() *types.TxProof {
+	txProof := p.TxProof
+	if txProof == nil {
+		return nil
+	}
+	return &types.TxProof{
+		BlockHeaderHash:    txProof.BlockHeaderHash,
+		Chain:              txProof.Chain,
+		UnicityCertificate: txProof.UnicityCertificate,
+		TransactionRecord:  p.TxRecord,
 	}
 }

@@ -35,7 +35,7 @@ func TestDcJobWithExistingDcBills(t *testing.T) {
 		feeCreditBill: &bp.Bill{
 			Id:      k.PrivKeyHash,
 			Value:   100 * 1e8,
-			TxProof: &types.TxProof{},
+			TxProof: &bp.TxProof{},
 		},
 	}), am)
 	mockClient.SetMaxBlockNumber(100)
@@ -81,7 +81,7 @@ func TestDcJobWithExistingDcAndNonDcBills(t *testing.T) {
 		feeCreditBill: &bp.Bill{
 			Id:      k.PrivKeyHash,
 			Value:   100 * 1e8,
-			TxProof: &types.TxProof{},
+			TxProof: &bp.TxProof{},
 		},
 	}), am)
 	mockClient.SetMaxBlockNumber(100)
@@ -128,7 +128,7 @@ func TestDcJobWithExistingNonDcBills(t *testing.T) {
 		feeCreditBill: &bp.Bill{
 			Id:      k.PrivKeyHash,
 			Value:   100 * 1e8,
-			TxProof: &types.TxProof{},
+			TxProof: &bp.TxProof{},
 		}}))
 	mockClient.SetMaxBlockNumber(100)
 
@@ -162,7 +162,7 @@ func TestDcJobSendsSwapsIfDcBillTimeoutHasBeenReached(t *testing.T) {
 		feeCreditBill: &bp.Bill{
 			Id:      k.PrivKeyHash,
 			Value:   100 * 1e8,
-			TxProof: &types.TxProof{},
+			TxProof: &bp.TxProof{},
 		},
 	}), am)
 

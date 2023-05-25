@@ -4,7 +4,6 @@ import (
 	"context"
 	"time"
 
-	"github.com/alphabill-org/alphabill/internal/rpc/alphabill"
 	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/pkg/wallet"
 	wlog "github.com/alphabill-org/alphabill/pkg/wallet/log"
@@ -32,11 +31,7 @@ func (w *TxPublisher) SendTx(ctx context.Context, tx *types.TransactionOrder, _ 
 	if err != nil {
 		return nil, err
 	}
-	protoTx, err := alphabill.NewTransaction(tx)
-	if err != nil {
-		return nil, err
-	}
-	err = w.wallet.SendTransaction(ctx, protoTx, nil)
+	err = w.wallet.SendTransaction(ctx, tx, nil)
 	if err != nil {
 		return nil, err
 	}

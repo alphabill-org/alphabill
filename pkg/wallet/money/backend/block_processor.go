@@ -330,7 +330,7 @@ func (p *BlockProcessor) addTxFeesToMoneyFeeBill(dbTx BillStoreTx, txs ...*types
 }
 
 func (p *BlockProcessor) saveBillWithProof(txIdx int, b *types.Block, tx *types.TransactionRecord, dbTx BillStoreTx, bill *Bill) error {
-	err := bill.addProof(txIdx, b, tx)
+	err := bill.addProof(txIdx, b)
 	if err != nil {
 		return err
 	}
@@ -338,7 +338,7 @@ func (p *BlockProcessor) saveBillWithProof(txIdx int, b *types.Block, tx *types.
 }
 
 func (p *BlockProcessor) saveFCBWithProof(txIdx int, b *types.Block, tx *types.TransactionRecord, dbTx BillStoreTx, fcb *Bill) error {
-	err := fcb.addProof(txIdx, b, tx)
+	err := fcb.addProof(txIdx, b)
 	if err != nil {
 		return err
 	}

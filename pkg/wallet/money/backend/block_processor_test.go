@@ -318,10 +318,10 @@ func verifyProof(t *testing.T, b *Bill) {
 	require.NotNil(t, b)
 	txProof := b.TxProof
 	require.NotNil(t, txProof)
-	require.EqualValues(t, 1, txProof.BlockNumber)
-	require.NotNil(t, txProof.Tx)
+	require.NotNil(t, txProof.TxRecord)
 
-	p := txProof.Proof
+	p := txProof.TxProof
+	require.EqualValues(t, 1, p.UnicityCertificate.GetRoundNumber())
 	require.NotNil(t, p)
 	require.NotNil(t, p.BlockHeaderHash)
 	require.NotNil(t, p.Chain)

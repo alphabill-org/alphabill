@@ -102,7 +102,7 @@ func (w *Wallet) GetRoundNumber(ctx context.Context) (uint64, error) {
 
 // SendTransaction broadcasts transaction to configured node.
 // Returns nil if transaction was successfully accepted by node, otherwise returns error.
-func (w *Wallet) SendTransaction(ctx context.Context, tx *alphabill.Transaction, opts *SendOpts) error {
+func (w *Wallet) SendTransaction(ctx context.Context, tx *types.TransactionOrder, opts *SendOpts) error {
 	if opts == nil || !opts.RetryOnFullTxBuffer {
 		return w.sendTx(ctx, tx, 1)
 	}
@@ -237,9 +237,13 @@ func (w *Wallet) processBlocks(ch <-chan *types.Block) error {
 	return nil
 }
 
-func (w *Wallet) sendTx(ctx context.Context, tx *alphabill.Transaction, maxRetries int) error {
+func (w *Wallet) sendTx(ctx context.Context, tx *types.TransactionOrder, maxRetries int) error {
 	for failedTries := 0; failedTries < maxRetries; failedTries++ {
-		err := w.AlphabillClient.SendTransaction(ctx, tx)
+		protoTx, err := cbor.Marshal(tx)
+		if err != nil {
+			return err
+		}
+		err = w.AlphabillClient.SendTransaction(ctx, &alphabill.Transaction{Order: protoTx})
 		if err == nil {
 			return nil
 		}

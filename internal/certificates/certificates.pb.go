@@ -239,6 +239,7 @@ func (x *UnicityTreeCertificate) GetSystemDescriptionHash() []byte {
 	return nil
 }
 
+// Yellowpaper refers this structure as "vote_info".
 type RootRoundInfo struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
@@ -250,9 +251,10 @@ type RootRoundInfo struct {
 	Epoch uint64 `protobuf:"varint,2,opt,name=epoch,proto3" json:"epoch,omitempty"`
 	// timestamp
 	Timestamp uint64 `protobuf:"varint,3,opt,name=timestamp,proto3" json:"timestamp,omitempty"`
-	// root parent round number
+	// round number of the previous round
 	ParentRoundNumber uint64 `protobuf:"varint,4,opt,name=parent_round_number,json=parentRoundNumber,proto3" json:"parent_round_number,omitempty"`
 	// latest state hash (only used by root chain)
+	// Yellowpaper refers to it as "exec_state_id" - state hash after executing all tx-s in payload
 	CurrentRootHash []byte `protobuf:"bytes,5,opt,name=current_root_hash,json=currentRootHash,proto3" json:"current_root_hash,omitempty"`
 }
 

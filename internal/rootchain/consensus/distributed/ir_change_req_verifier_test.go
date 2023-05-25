@@ -24,7 +24,7 @@ type (
 
 func (s *MockState) GetCertificates() map[protocol.SystemIdentifier]*certificates.UnicityCertificate {
 	return map[protocol.SystemIdentifier]*certificates.UnicityCertificate{
-		protocol.SystemIdentifier(sysID1): &certificates.UnicityCertificate{
+		protocol.SystemIdentifier(sysID1): {
 			InputRecord:            &certificates.InputRecord{},
 			UnicityTreeCertificate: &certificates.UnicityTreeCertificate{},
 			UnicitySeal: &certificates.UnicitySeal{
@@ -242,7 +242,7 @@ func TestPartitionTimeoutGenerator_GetT2Timeouts(t *testing.T) {
 		pInfo    partitions.PartitionConfiguration
 	}
 	type args struct {
-		currenRound uint64
+		currentRound uint64
 	}
 	_, encPubKey := testsig.CreateSignerAndVerifier(t)
 	pubKeyBytes, err := encPubKey.MarshalPublicKey()
@@ -269,13 +269,13 @@ func TestPartitionTimeoutGenerator_GetT2Timeouts(t *testing.T) {
 		{
 			name:   "no timeout",
 			fields: fields{c: &consensus.Parameters{BlockRate: 500 * time.Millisecond}, pInfo: conf, sMonitor: &MockState{}},
-			args:   args{currenRound: 11}, // last certified round is 1 then 11 - 1 = 10 we have not heard from partition in 10 rounds ~ at minimum 2500 ms not yet timeout
+			args:   args{currentRound: 11}, // last certified round is 1 then 11 - 1 = 10 we have not heard from partition in 10 rounds ~ at minimum 2500 ms not yet timeout
 			want:   []protocol.SystemIdentifier{},
 		},
 		{
 			name:   "timeout - 6 round since last UC",
 			fields: fields{c: &consensus.Parameters{BlockRate: 500 * time.Millisecond}, pInfo: conf, sMonitor: &MockState{}},
-			args:   args{currenRound: 12}, // last certified round is 1 then 12 - 1 = 11 we have not heard from partition in 12 rounds ~ at minimum 2750 ms not yet timeout
+			args:   args{currentRound: 12}, // last certified round is 1 then 12 - 1 = 11 we have not heard from partition in 12 rounds ~ at minimum 2750 ms not yet timeout
 			want:   []protocol.SystemIdentifier{protocol.SystemIdentifier(sysID1)},
 		},
 		{
@@ -284,7 +284,7 @@ func TestPartitionTimeoutGenerator_GetT2Timeouts(t *testing.T) {
 				c:        &consensus.Parameters{BlockRate: 500 * time.Millisecond},
 				pInfo:    conf,
 				sMonitor: &MockState{inProgress: []protocol.SystemIdentifier{protocol.SystemIdentifier(sysID1)}}},
-			args: args{currenRound: 7},
+			args: args{currentRound: 7},
 			want: []protocol.SystemIdentifier{},
 		},
 	}
@@ -296,7 +296,7 @@ func TestPartitionTimeoutGenerator_GetT2Timeouts(t *testing.T) {
 				partitions: tt.fields.pInfo,
 			}
 			var tmos []protocol.SystemIdentifier
-			tmos, err = x.GetT2Timeouts(tt.args.currenRound)
+			tmos, err = x.GetT2Timeouts(tt.args.currentRound)
 			require.NoError(t, err)
 			require.Equal(t, tt.want, tmos)
 		})

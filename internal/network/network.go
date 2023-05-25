@@ -243,6 +243,11 @@ func (n *LibP2PNetwork) registerSendProtocol(sendProtocol *SendProtocol) error {
 	return nil
 }
 
+func (n *LibP2PNetwork) Broadcast(msg OutputMessage) error {
+	// use n.self.host.Peerstore().Peers()? current code used conf so...
+	return n.Send(msg, n.self.conf.Validators)
+}
+
 func (n *LibP2PNetwork) Send(out OutputMessage, receivers []peer.ID) error {
 	if len(receivers) == 0 {
 		return nil // no one to send message in single-node partition

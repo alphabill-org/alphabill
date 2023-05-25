@@ -72,7 +72,7 @@ func TestNewRoundState(t *testing.T) {
 	testStartTime := time.Now()
 	pacemaker := NewPacemaker(lastCommittedRound, testLocalTimeout, testBlockRate)
 	// bad test, but there is a need to have some hysteresis, because clock is ticking
-	require.True(t, testStartTime.Add(testLocalTimeout).Sub(pacemaker.roundTimeout.Round(time.Millisecond)) < 5*time.Millisecond)
+	require.True(t, testStartTime.Add(testLocalTimeout).Sub(pacemaker.roundDeadline.Round(time.Millisecond)) < 5*time.Millisecond)
 	require.Equal(t, lastCommittedRound, pacemaker.lastQcToCommitRound)
 	require.Equal(t, lastCommittedRound+1, pacemaker.currentRound)
 	require.Nil(t, pacemaker.lastRoundTC)

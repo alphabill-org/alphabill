@@ -85,7 +85,7 @@ func NewBlockTreeFromRecovery(cBlock *ExecutedBlock, nodes []*ExecutedBlock, bDB
 
 func NewBlockTree(bDB keyvaluedb.KeyValueDB) (bTree *BlockTree, err error) {
 	if bDB == nil {
-		return nil, fmt.Errorf("block tree init failed, databes is nil")
+		return nil, fmt.Errorf("block tree init failed, database is nil")
 	}
 	itr := bDB.Find([]byte(blockPrefix))
 	defer func() { err = errors.Join(err, itr.Close()) }()
@@ -240,10 +240,8 @@ func (bt *BlockTree) FindPathToRoot(round uint64) []*ExecutedBlock {
 
 func (bt *BlockTree) GetAllUncommittedNodes() []*ExecutedBlock {
 	blocks := make([]*ExecutedBlock, 0, 2)
-	n := bt.root.child
-	for n != nil {
+	for n := bt.root.child; n != nil; n = n.child {
 		blocks = append(blocks, n.data)
-		n = n.child
 	}
 	return blocks
 }
@@ -276,18 +274,17 @@ func (bt *BlockTree) findBlocksToPrune(newRootRound uint64) ([]uint64, error) {
 }
 
 func (bt *BlockTree) FindBlock(round uint64) (*ExecutedBlock, error) {
-	b, found := bt.roundToNode[round]
-	if found != true {
-		return nil, fmt.Errorf("block for round %v not found", round)
+	if b, found := bt.roundToNode[round]; found {
+		return b.data, nil
 	}
-	return b.data, nil
+	return nil, fmt.Errorf("block for round %v not found", round)
 }
 
 // Commit commits block for round and prunes all preceding blocks from the tree,
 // the committed block becomes the new root of the tree
 func (bt *BlockTree) Commit(commitQc *ab_consensus.QuorumCert) (*ExecutedBlock, error) {
 	// Add qc to pending state (needed for recovery)
-	commitRound := commitQc.GetPrentRound()
+	commitRound := commitQc.GetParentRound()
 	commitNode, found := bt.roundToNode[commitRound]
 	if found == false {
 		return nil, fmt.Errorf("commit of round %v failed, block not found", commitRound)
@@ -320,7 +317,7 @@ func (bt *BlockTree) Commit(commitQc *ab_consensus.QuorumCert) (*ExecutedBlock, 
 	}
 	// commit changes
 	if err = dbTx.Commit(); err != nil {
-		return nil, fmt.Errorf("peristing changes to blocks db failed, %w", err)
+		return nil, fmt.Errorf("persisting changes to blocks db failed: %w", err)
 	}
 	bt.root = commitNode
 	return commitNode.data, nil

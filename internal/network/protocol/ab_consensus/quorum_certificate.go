@@ -39,7 +39,7 @@ func (x *QuorumCert) GetRound() uint64 {
 	return 0
 }
 
-func (x *QuorumCert) GetPrentRound() uint64 {
+func (x *QuorumCert) GetParentRound() uint64 {
 	if x != nil {
 		return x.VoteInfo.GetParentRoundNumber()
 	}

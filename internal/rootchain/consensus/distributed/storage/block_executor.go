@@ -62,11 +62,8 @@ func (data *InputRecords) Find(sysID []byte) *InputData {
 	return nil
 }
 
-func (data *Changed) Find(sysID []byte) bool {
-	if data == nil {
-		return false
-	}
-	for _, d := range *data {
+func (data Changed) Contains(sysID []byte) bool {
+	for _, d := range data {
 		if bytes.Equal(d, sysID) {
 			return true
 		}

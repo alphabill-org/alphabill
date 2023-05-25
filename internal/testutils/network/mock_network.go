@@ -44,6 +44,10 @@ func (m *MockNet) Send(msg network.OutputMessage, receivers []peer.ID) error {
 	return nil
 }
 
+func (m *MockNet) Broadcast(msg network.OutputMessage) error {
+	return m.Send(msg, []peer.ID{"*"})
+}
+
 func (m *MockNet) SetErrorState(err error) {
 	m.err = err
 }

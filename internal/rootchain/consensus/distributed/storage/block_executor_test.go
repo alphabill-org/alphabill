@@ -112,7 +112,7 @@ func TestExecutedBlock(t *testing.T) {
 	require.Equal(t, genesis.RootRound+1, executedBlock.BlockData.Round)
 	require.Equal(t, certReq, executedBlock.BlockData.Payload.Requests[0].Requests[0])
 	require.Len(t, executedBlock.Changed, 1)
-	require.True(t, executedBlock.Changed.Find(partitionID1))
+	require.True(t, executedBlock.Changed.Contains(partitionID1))
 	require.Len(t, executedBlock.CurrentIR, 1)
 	require.Equal(t, hash, executedBlock.HashAlgo)
 	rootHash := []byte{0xd0, 0xf7, 0xc6, 0x55, 0xcd, 0xa, 0xbc, 0x28, 0xc4, 0x26, 0x32, 0xaf, 0x6e, 0x29, 0x50, 0x69, 0x5e, 0xee, 0x55, 0x31, 0x6, 0xbd, 0xbd, 0x56, 0x7e, 0xa2, 0x77, 0xd7, 0xaa, 0x8b, 0xfc, 0x27}

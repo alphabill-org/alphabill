@@ -92,19 +92,18 @@ func (x *BlockData) Hash(algo gocrypto.Hash) ([]byte, error) {
 	hasher.Write(util.Uint64ToBytes(x.Epoch))
 	hasher.Write(util.Uint64ToBytes(x.Timestamp))
 	x.Payload.AddToHasher(hasher)
-	// Only add QC signatures
+
+	// From QC signatures (in the alphabetical order of signer ID!) must be included
 	signatures := x.Qc.Signatures
 	authors := make([]string, 0, len(signatures))
 	for k := range signatures {
 		authors = append(authors, k)
 	}
-	// sort the slice by keys
 	sort.Strings(authors)
-	// add signatures to hash in alphabetical order
 	for _, author := range authors {
-		sig, _ := signatures[author]
-		hasher.Write(sig)
+		hasher.Write(signatures[author])
 	}
+
 	return hasher.Sum(nil), nil
 }
 

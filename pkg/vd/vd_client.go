@@ -10,7 +10,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/alphabill-org/alphabill/internal/txsystem"
+	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/pkg/client"
 	"github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/alphabill-org/alphabill/pkg/wallet/log"
@@ -157,25 +157,25 @@ func (v *VDClient) sync(currentBlock uint64, timeout uint64, hash []byte) error 
 	return wallet.Sync(ctx, currentBlock)
 }
 
-type VDBlockProcessor func(b *block.Block) error
+type VDBlockProcessor func(b *types.Block) error
 
-func (p VDBlockProcessor) ProcessBlock(b *block.Block) error {
+func (p VDBlockProcessor) ProcessBlock(b *types.Block) error {
 	return p(b)
 }
 
 func (v *VDClient) prepareProcessor(timeout uint64, hash []byte, syncDone func()) VDBlockProcessor {
-	return func(b *block.Block) error {
-		log.Debug("Fetched block #", b.UnicityCertificate.InputRecord.RoundNumber, ", tx count: ", len(b.GetTransactions()))
+	return func(b *types.Block) error {
+		log.Debug("Fetched block #", b.UnicityCertificate.InputRecord.RoundNumber, ", tx count: ", len(b.Transactions))
 		if b.UnicityCertificate.InputRecord.RoundNumber > timeout {
 			log.Info("Block timeout reached")
 			syncDone()
 			return nil
 		}
-		for _, tx := range b.GetTransactions() {
+		for _, tx := range b.Transactions {
 			log.Debug("Processing block #", b.UnicityCertificate.InputRecord.RoundNumber)
 			if hash != nil {
 				// if hash is provided, print only the corresponding block
-				if bytes.Equal(hash, tx.GetUnitId()) {
+				if bytes.Equal(hash, tx.TransactionOrder.UnitID()) {
 					log.Info(fmt.Sprintf("Tx in block #%d, hash: %s", b.UnicityCertificate.InputRecord.RoundNumber, hex.EncodeToString(hash)))
 					if v.blockCallback != nil {
 						log.Info("Invoking block callback")
@@ -185,7 +185,7 @@ func (v *VDClient) prepareProcessor(timeout uint64, hash []byte, syncDone func()
 					break
 				}
 			} else {
-				log.Info(fmt.Sprintf("Tx in block #%d, hash: %s", b.UnicityCertificate.InputRecord.RoundNumber, hex.EncodeToString(tx.GetUnitId())))
+				log.Info(fmt.Sprintf("Tx in block #%d, hash: %s", b.UnicityCertificate.InputRecord.RoundNumber, hex.EncodeToString(tx.TransactionOrder.UnitID())))
 			}
 		}
 		return nil
@@ -207,11 +207,13 @@ func validateHash(hash []byte) error {
 	return nil
 }
 
-func createRegisterDataTx(systemId, hash []byte, timeout uint64) (*txsystem.Transaction, error) {
-	tx := &txsystem.Transaction{
-		UnitId:         hash,
-		SystemId:       systemId,
-		ClientMetadata: &txsystem.ClientMetadata{Timeout: timeout},
+func createRegisterDataTx(systemId, hash []byte, timeout uint64) (*types.TransactionOrder, error) {
+	tx := &types.TransactionOrder{
+		Payload: &types.Payload{
+			SystemID:       systemId,
+			UnitID:         hash,
+			ClientMetadata: &types.ClientMetadata{Timeout: timeout},
+		},
 	}
 	return tx, nil
 }

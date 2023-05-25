@@ -8,30 +8,27 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/alphabill-org/alphabill/internal/types"
-
-	"github.com/alphabill-org/alphabill/internal/util"
-
-	"github.com/alphabill-org/alphabill/internal/block"
 	"github.com/alphabill-org/alphabill/internal/rpc/alphabill"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	testfile "github.com/alphabill-org/alphabill/internal/testutils/file"
-	"github.com/alphabill-org/alphabill/internal/txsystem"
+	"github.com/alphabill-org/alphabill/internal/types"
+	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/alphabill-org/alphabill/pkg/client"
 	"github.com/alphabill-org/alphabill/pkg/wallet/log"
+	"github.com/fxamacker/cbor/v2"
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
 )
 
 type abClientMock struct {
 	// record most recent transaction
-	tx             *txsystem.Transaction
+	tx             *types.TransactionOrder
 	maxBlock       uint64
 	maxRoundNumber uint64
 	incrementBlock bool
 	fail           bool
 	shutdown       bool
-	block          func(nr uint64) *block.Block
+	block          func(nr uint64) *types.Block
 }
 
 func testConf() *VDClientConfig {
@@ -62,7 +59,7 @@ func TestVdClient_RegisterHash(t *testing.T) {
 	require.NotNil(t, mock.tx)
 	dataHash, err := uint256.FromHex(hashHex)
 	require.NoError(t, err)
-	require.EqualValues(t, util.Uint256ToBytes(dataHash), mock.tx.UnitId)
+	require.EqualValues(t, util.Uint256ToBytes(dataHash), mock.tx.UnitID())
 	require.Equal(t, mock.maxRoundNumber+vdClient.timeoutDelta, mock.tx.Timeout())
 }
 
@@ -81,12 +78,12 @@ func TestVdClient_RegisterHash_SyncBlocks(t *testing.T) {
 	require.NoError(t, err)
 	mock := &abClientMock{}
 	mock.incrementBlock = true
-	mock.block = func(nr uint64) *block.Block {
-		var txs []*txsystem.Transaction
+	mock.block = func(nr uint64) *types.Block {
+		var txs []*types.TransactionRecord
 		if nr == conf.BlockTimeout-1 && mock.tx != nil {
-			txs = append(txs, mock.tx)
+			txs = append(txs, &types.TransactionRecord{TransactionOrder: mock.tx})
 		}
-		return &block.Block{
+		return &types.Block{
 			UnicityCertificate: &types.UnicityCertificate{InputRecord: &types.InputRecord{RoundNumber: nr}},
 			Transactions:       txs,
 		}
@@ -103,7 +100,7 @@ func TestVdClient_RegisterHash_SyncBlocks(t *testing.T) {
 		require.NotNil(t, mock.tx)
 		dataHash, err := uint256.FromHex(hashHex)
 		require.NoError(t, err)
-		require.EqualValues(t, util.Uint256ToBytes(dataHash), mock.tx.UnitId)
+		require.EqualValues(t, util.Uint256ToBytes(dataHash), mock.tx.UnitID())
 		wg.Done()
 	}()
 
@@ -129,7 +126,7 @@ func TestVdClient_RegisterHash_LeadingZeroes(t *testing.T) {
 
 	bytes, err := hexStringToBytes(hashHex)
 	require.NoError(t, err)
-	require.EqualValues(t, bytes, mock.tx.UnitId)
+	require.EqualValues(t, bytes, mock.tx.UnitID())
 }
 
 func TestVdClient_RegisterHash_TooShort(t *testing.T) {
@@ -205,8 +202,8 @@ func TestVdClient_RegisterFileHash(t *testing.T) {
 
 	require.NoError(t, err)
 	require.NotNil(t, mock.tx)
-	require.EqualValues(t, hasher.Sum(nil), mock.tx.UnitId)
-	require.Nil(t, mock.tx.TransactionAttributes)
+	require.EqualValues(t, hasher.Sum(nil), mock.tx.UnitID())
+	require.Nil(t, mock.tx.Payload.Attributes)
 }
 
 func TestVdClient_ListAllBlocksWithTx(t *testing.T) {
@@ -218,8 +215,8 @@ func TestVdClient_ListAllBlocksWithTx(t *testing.T) {
 	mock := &abClientMock{}
 	mock.maxBlock = 1
 	mock.incrementBlock = true
-	mock.block = func(nr uint64) *block.Block {
-		return &block.Block{
+	mock.block = func(nr uint64) *types.Block {
+		return &types.Block{
 			UnicityCertificate: &types.UnicityCertificate{InputRecord: &types.InputRecord{RoundNumber: nr}},
 		}
 	}
@@ -241,7 +238,7 @@ func TestVdClient_ListAllBlocksWithTx(t *testing.T) {
 	}, test.WaitDuration, test.WaitTick)
 }
 
-func (a *abClientMock) SendTransaction(ctx context.Context, tx *txsystem.Transaction) error {
+func (a *abClientMock) SendTransaction(ctx context.Context, tx *types.TransactionOrder) error {
 	a.tx = tx
 	if a.fail {
 		return fmt.Errorf("boom")
@@ -249,18 +246,27 @@ func (a *abClientMock) SendTransaction(ctx context.Context, tx *txsystem.Transac
 	return nil
 }
 
-func (a *abClientMock) GetBlock(ctx context.Context, n uint64) (*block.Block, error) {
+func (a *abClientMock) GetBlock(ctx context.Context, n uint64) ([]byte, error) {
 	if a.block != nil {
 		bl := a.block(n)
-		fmt.Printf("GetBlock(%d) = %s\n", n, bl)
-		return bl, nil
+		fmt.Printf("GetBlock(%d) = %v\n", n, bl)
+		blockBytes, err := cbor.Marshal(bl)
+		if err != nil {
+			return nil, err
+		}
+		return blockBytes, nil
 	}
 	fmt.Printf("GetBlock(%d) = nil\n", n)
 	return nil, nil
 }
 
 func (a *abClientMock) GetBlocks(ctx context.Context, blockNumber, blockCount uint64) (*alphabill.GetBlocksResponse, error) {
-	return &alphabill.GetBlocksResponse{MaxBlockNumber: a.maxBlock, Blocks: []*block.Block{a.block(blockNumber)}}, nil
+	block := a.block(blockNumber)
+	blockBytes, err := cbor.Marshal(block)
+	if err != nil {
+		return nil, err
+	}
+	return &alphabill.GetBlocksResponse{MaxBlockNumber: a.maxBlock, Blocks: [][]byte{blockBytes}}, nil
 }
 
 func (a *abClientMock) GetRoundNumber(ctx context.Context) (uint64, error) {

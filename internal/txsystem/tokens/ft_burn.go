@@ -105,3 +105,51 @@ func (t *burnFungibleTokenOwnershipProver) SigBytes() ([]byte, error) {
 	}
 	return payload.Bytes()
 }
+
+func (b *BurnFungibleTokenAttributes) GetTypeID() []byte {
+	return b.TypeID
+}
+
+func (b *BurnFungibleTokenAttributes) SetTypeID(typeID []byte) {
+	b.TypeID = typeID
+}
+
+func (b *BurnFungibleTokenAttributes) GetValue() uint64 {
+	return b.Value
+}
+
+func (b *BurnFungibleTokenAttributes) SetValue(value uint64) {
+	b.Value = value
+}
+
+func (b *BurnFungibleTokenAttributes) GetNonce() []byte {
+	return b.Nonce
+}
+
+func (b *BurnFungibleTokenAttributes) SetNonce(nonce []byte) {
+	b.Nonce = nonce
+}
+
+func (b *BurnFungibleTokenAttributes) GetBacklink() []byte {
+	return b.Backlink
+}
+
+func (b *BurnFungibleTokenAttributes) SetBacklink(backlink []byte) {
+	b.Backlink = backlink
+}
+
+func (b *BurnFungibleTokenAttributes) GetInvariantPredicateSignatures() [][]byte {
+	return b.InvariantPredicateSignatures
+}
+
+func (b *BurnFungibleTokenAttributes) SetInvariantPredicateSignatures(signatures [][]byte) {
+	b.InvariantPredicateSignatures = signatures
+}
+
+func (b *BurnFungibleTokenAttributes) MarshalCBOR() ([]byte, error) {
+	return cbor.Marshal(b)
+}
+
+func (b *BurnFungibleTokenAttributes) UnmarshalCBOR(data []byte) error {
+	return cbor.Unmarshal(data, b)
+}

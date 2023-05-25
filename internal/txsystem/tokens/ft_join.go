@@ -143,3 +143,43 @@ func (t *joinFungibleTokenOwnershipProver) SigBytes() ([]byte, error) {
 	}
 	return payload.Bytes()
 }
+
+func (j *JoinFungibleTokenAttributes) GetBurnTransactions() []*types.TransactionRecord {
+	return j.BurnTransactions
+}
+
+func (j *JoinFungibleTokenAttributes) SetBurnTransactions(burnTransactions []*types.TransactionRecord) {
+	j.BurnTransactions = burnTransactions
+}
+
+func (j *JoinFungibleTokenAttributes) GetProofs() []*types.TxProof {
+	return j.Proofs
+}
+
+func (j *JoinFungibleTokenAttributes) SetProofs(proofs []*types.TxProof) {
+	j.Proofs = proofs
+}
+
+func (j *JoinFungibleTokenAttributes) GetBacklink() []byte {
+	return j.Backlink
+}
+
+func (j *JoinFungibleTokenAttributes) SetBacklink(backlink []byte) {
+	j.Backlink = backlink
+}
+
+func (j *JoinFungibleTokenAttributes) GetInvariantPredicateSignatures() [][]byte {
+	return j.InvariantPredicateSignatures
+}
+
+func (j *JoinFungibleTokenAttributes) SetInvariantPredicateSignatures(signatures [][]byte) {
+	j.InvariantPredicateSignatures = signatures
+}
+
+func (j *JoinFungibleTokenAttributes) MarshalCBOR() ([]byte, error) {
+	return cbor.Marshal(j)
+}
+
+func (j *JoinFungibleTokenAttributes) UnmarshalCBOR(data []byte) error {
+	return cbor.Unmarshal(data, j)
+}

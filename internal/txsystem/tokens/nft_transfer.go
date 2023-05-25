@@ -120,3 +120,51 @@ func (t *transferNFTTokenOwnershipProver) SigBytes() ([]byte, error) {
 	}
 	return payload.Bytes()
 }
+
+func (t *TransferNonFungibleTokenAttributes) GetNewBearer() []byte {
+	return t.NewBearer
+}
+
+func (t *TransferNonFungibleTokenAttributes) SetNewBearer(newBearer []byte) {
+	t.NewBearer = newBearer
+}
+
+func (t *TransferNonFungibleTokenAttributes) GetNonce() []byte {
+	return t.Nonce
+}
+
+func (t *TransferNonFungibleTokenAttributes) SetNonce(nonce []byte) {
+	t.Nonce = nonce
+}
+
+func (t *TransferNonFungibleTokenAttributes) GetBacklink() []byte {
+	return t.Backlink
+}
+
+func (t *TransferNonFungibleTokenAttributes) SetBacklink(backlink []byte) {
+	t.Backlink = backlink
+}
+
+func (t *TransferNonFungibleTokenAttributes) GetNFTTypeID() []byte {
+	return t.NFTTypeID
+}
+
+func (t *TransferNonFungibleTokenAttributes) SetNFTTypeID(nftTypeID []byte) {
+	t.NFTTypeID = nftTypeID
+}
+
+func (t *TransferNonFungibleTokenAttributes) GetInvariantPredicateSignatures() [][]byte {
+	return t.InvariantPredicateSignatures
+}
+
+func (t *TransferNonFungibleTokenAttributes) SetInvariantPredicateSignatures(signatures [][]byte) {
+	t.InvariantPredicateSignatures = signatures
+}
+
+func (t *TransferNonFungibleTokenAttributes) MarshalCBOR() ([]byte, error) {
+	return cbor.Marshal(t)
+}
+
+func (t *TransferNonFungibleTokenAttributes) UnmarshalCBOR(data []byte) error {
+	return cbor.Unmarshal(data, t)
+}

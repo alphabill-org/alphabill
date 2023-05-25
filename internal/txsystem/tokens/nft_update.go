@@ -102,3 +102,35 @@ func getUpdateNFTSignedData(tx *types.TransactionOrder, attr *UpdateNonFungibleT
 	}
 	return payload.Bytes()
 }
+
+func (u *UpdateNonFungibleTokenAttributes) GetData() []byte {
+	return u.Data
+}
+
+func (u *UpdateNonFungibleTokenAttributes) SetData(data []byte) {
+	u.Data = data
+}
+
+func (u *UpdateNonFungibleTokenAttributes) GetBacklink() []byte {
+	return u.Backlink
+}
+
+func (u *UpdateNonFungibleTokenAttributes) SetBacklink(backlink []byte) {
+	u.Backlink = backlink
+}
+
+func (u *UpdateNonFungibleTokenAttributes) GetDataUpdateSignatures() [][]byte {
+	return u.DataUpdateSignatures
+}
+
+func (u *UpdateNonFungibleTokenAttributes) SetDataUpdateSignatures(signatures [][]byte) {
+	u.DataUpdateSignatures = signatures
+}
+
+func (u *UpdateNonFungibleTokenAttributes) MarshalCBOR() ([]byte, error) {
+	return cbor.Marshal(u)
+}
+
+func (u *UpdateNonFungibleTokenAttributes) UnmarshalCBOR(data []byte) error {
+	return cbor.Unmarshal(data, u)
+}

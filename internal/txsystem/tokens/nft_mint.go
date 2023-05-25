@@ -117,3 +117,67 @@ func getMintNFTSignedData(tx *types.TransactionOrder, attr *MintNonFungibleToken
 	}
 	return tx.PayloadBytes()
 }
+
+func (m *MintNonFungibleTokenAttributes) GetBearer() []byte {
+	return m.Bearer
+}
+
+func (m *MintNonFungibleTokenAttributes) SetBearer(bearer []byte) {
+	m.Bearer = bearer
+}
+
+func (m *MintNonFungibleTokenAttributes) GetNFTTypeID() []byte {
+	return m.NFTTypeID
+}
+
+func (m *MintNonFungibleTokenAttributes) SetNFTTypeID(nftTypeID []byte) {
+	m.NFTTypeID = nftTypeID
+}
+
+func (m *MintNonFungibleTokenAttributes) GetName() string {
+	return m.Name
+}
+
+func (m *MintNonFungibleTokenAttributes) SetName(name string) {
+	m.Name = name
+}
+
+func (m *MintNonFungibleTokenAttributes) GetURI() string {
+	return m.URI
+}
+
+func (m *MintNonFungibleTokenAttributes) SetURI(uri string) {
+	m.URI = uri
+}
+
+func (m *MintNonFungibleTokenAttributes) GetData() []byte {
+	return m.Data
+}
+
+func (m *MintNonFungibleTokenAttributes) SetData(data []byte) {
+	m.Data = data
+}
+
+func (m *MintNonFungibleTokenAttributes) GetDataUpdatePredicate() []byte {
+	return m.DataUpdatePredicate
+}
+
+func (m *MintNonFungibleTokenAttributes) SetDataUpdatePredicate(predicate []byte) {
+	m.DataUpdatePredicate = predicate
+}
+
+func (m *MintNonFungibleTokenAttributes) GetTokenCreationPredicateSignatures() [][]byte {
+	return m.TokenCreationPredicateSignatures
+}
+
+func (m *MintNonFungibleTokenAttributes) SetTokenCreationPredicateSignatures(signatures [][]byte) {
+	m.TokenCreationPredicateSignatures = signatures
+}
+
+func (m *MintNonFungibleTokenAttributes) MarshalCBOR() ([]byte, error) {
+	return cbor.Marshal(m)
+}
+
+func (m *MintNonFungibleTokenAttributes) UnmarshalCBOR(data []byte) error {
+	return cbor.Unmarshal(data, m)
+}

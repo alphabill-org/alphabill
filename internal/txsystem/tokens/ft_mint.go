@@ -98,3 +98,43 @@ func getMintFungibleTokenTypeSignedData(tx *types.TransactionOrder, attr *MintFu
 	}
 	return tx.PayloadBytes()
 }
+
+func (m *MintFungibleTokenAttributes) GetBearer() []byte {
+	return m.Bearer
+}
+
+func (m *MintFungibleTokenAttributes) SetBearer(bearer []byte) {
+	m.Bearer = bearer
+}
+
+func (m *MintFungibleTokenAttributes) GetTypeID() []byte {
+	return m.TypeID
+}
+
+func (m *MintFungibleTokenAttributes) SetTypeID(typeID []byte) {
+	m.TypeID = typeID
+}
+
+func (m *MintFungibleTokenAttributes) GetValue() uint64 {
+	return m.Value
+}
+
+func (m *MintFungibleTokenAttributes) SetValue(value uint64) {
+	m.Value = value
+}
+
+func (m *MintFungibleTokenAttributes) GetTokenCreationPredicateSignatures() [][]byte {
+	return m.TokenCreationPredicateSignatures
+}
+
+func (m *MintFungibleTokenAttributes) SetTokenCreationPredicateSignatures(signatures [][]byte) {
+	m.TokenCreationPredicateSignatures = signatures
+}
+
+func (m *MintFungibleTokenAttributes) MarshalCBOR() ([]byte, error) {
+	return cbor.Marshal(m)
+}
+
+func (m *MintFungibleTokenAttributes) UnmarshalCBOR(data []byte) error {
+	return cbor.Unmarshal(data, m)
+}

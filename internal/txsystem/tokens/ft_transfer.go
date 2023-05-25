@@ -138,3 +138,59 @@ func (t *transferFungibleTokenOwnershipProver) SigBytes() ([]byte, error) {
 	}
 	return payload.Bytes()
 }
+
+func (t *TransferFungibleTokenAttributes) GetNewBearer() []byte {
+	return t.NewBearer
+}
+
+func (t *TransferFungibleTokenAttributes) SetNewBearer(newBearer []byte) {
+	t.NewBearer = newBearer
+}
+
+func (t *TransferFungibleTokenAttributes) GetValue() uint64 {
+	return t.Value
+}
+
+func (t *TransferFungibleTokenAttributes) SetValue(value uint64) {
+	t.Value = value
+}
+
+func (t *TransferFungibleTokenAttributes) GetNonce() []byte {
+	return t.Nonce
+}
+
+func (t *TransferFungibleTokenAttributes) SetNonce(nonce []byte) {
+	t.Nonce = nonce
+}
+
+func (t *TransferFungibleTokenAttributes) GetBacklink() []byte {
+	return t.Backlink
+}
+
+func (t *TransferFungibleTokenAttributes) SetBacklink(backlink []byte) {
+	t.Backlink = backlink
+}
+
+func (t *TransferFungibleTokenAttributes) GetTypeID() []byte {
+	return t.TypeID
+}
+
+func (t *TransferFungibleTokenAttributes) SetTypeID(typeID []byte) {
+	t.TypeID = typeID
+}
+
+func (t *TransferFungibleTokenAttributes) GetInvariantPredicateSignatures() [][]byte {
+	return t.InvariantPredicateSignatures
+}
+
+func (t *TransferFungibleTokenAttributes) SetInvariantPredicateSignatures(signatures [][]byte) {
+	t.InvariantPredicateSignatures = signatures
+}
+
+func (t *TransferFungibleTokenAttributes) MarshalCBOR() ([]byte, error) {
+	return cbor.Marshal(t)
+}
+
+func (t *TransferFungibleTokenAttributes) UnmarshalCBOR(data []byte) error {
+	return cbor.Unmarshal(data, t)
+}

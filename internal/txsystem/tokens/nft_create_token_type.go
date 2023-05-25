@@ -116,3 +116,83 @@ func getCreateNFTTypeSignedData(tx *types.TransactionOrder, attr *CreateNonFungi
 	}
 	return tx.PayloadBytes()
 }
+
+func (c *CreateNonFungibleTokenTypeAttributes) GetSymbol() string {
+	return c.Symbol
+}
+
+func (c *CreateNonFungibleTokenTypeAttributes) SetSymbol(symbol string) {
+	c.Symbol = symbol
+}
+
+func (c *CreateNonFungibleTokenTypeAttributes) GetName() string {
+	return c.Name
+}
+
+func (c *CreateNonFungibleTokenTypeAttributes) SetName(name string) {
+	c.Name = name
+}
+
+func (c *CreateNonFungibleTokenTypeAttributes) GetIcon() *Icon {
+	return c.Icon
+}
+
+func (c *CreateNonFungibleTokenTypeAttributes) SetIcon(icon *Icon) {
+	c.Icon = icon
+}
+
+func (c *CreateNonFungibleTokenTypeAttributes) GetParentTypeID() []byte {
+	return c.ParentTypeID
+}
+
+func (c *CreateNonFungibleTokenTypeAttributes) SetParentTypeID(parentTypeID []byte) {
+	c.ParentTypeID = parentTypeID
+}
+
+func (c *CreateNonFungibleTokenTypeAttributes) GetSubTypeCreationPredicate() []byte {
+	return c.SubTypeCreationPredicate
+}
+
+func (c *CreateNonFungibleTokenTypeAttributes) SetSubTypeCreationPredicate(predicate []byte) {
+	c.SubTypeCreationPredicate = predicate
+}
+
+func (c *CreateNonFungibleTokenTypeAttributes) GetTokenCreationPredicate() []byte {
+	return c.TokenCreationPredicate
+}
+
+func (c *CreateNonFungibleTokenTypeAttributes) SetTokenCreationPredicate(predicate []byte) {
+	c.TokenCreationPredicate = predicate
+}
+
+func (c *CreateNonFungibleTokenTypeAttributes) GetInvariantPredicate() []byte {
+	return c.InvariantPredicate
+}
+
+func (c *CreateNonFungibleTokenTypeAttributes) SetInvariantPredicate(predicate []byte) {
+	c.InvariantPredicate = predicate
+}
+
+func (c *CreateNonFungibleTokenTypeAttributes) GetDataUpdatePredicate() []byte {
+	return c.DataUpdatePredicate
+}
+
+func (c *CreateNonFungibleTokenTypeAttributes) SetDataUpdatePredicate(predicate []byte) {
+	c.DataUpdatePredicate = predicate
+}
+
+func (c *CreateNonFungibleTokenTypeAttributes) GetSubTypeCreationPredicateSignatures() [][]byte {
+	return c.SubTypeCreationPredicateSignatures
+}
+
+func (c *CreateNonFungibleTokenTypeAttributes) SetSubTypeCreationPredicateSignatures(signatures [][]byte) {
+	c.SubTypeCreationPredicateSignatures = signatures
+}
+
+func (c *CreateNonFungibleTokenTypeAttributes) MarshalCBOR() ([]byte, error) {
+	return cbor.Marshal(c)
+}
+
+func (c *CreateNonFungibleTokenTypeAttributes) UnmarshalCBOR(data []byte) error {
+	return cbor.Unmarshal(data, c)
+}

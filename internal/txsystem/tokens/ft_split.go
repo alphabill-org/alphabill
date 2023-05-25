@@ -161,3 +161,67 @@ func (t *splitFungibleTokenOwnershipProver) SigBytes() ([]byte, error) {
 	}
 	return payload.Bytes()
 }
+
+func (s *SplitFungibleTokenAttributes) GetNewBearer() []byte {
+	return s.NewBearer
+}
+
+func (s *SplitFungibleTokenAttributes) SetNewBearer(newBearer []byte) {
+	s.NewBearer = newBearer
+}
+
+func (s *SplitFungibleTokenAttributes) GetTargetValue() uint64 {
+	return s.TargetValue
+}
+
+func (s *SplitFungibleTokenAttributes) SetTargetValue(targetValue uint64) {
+	s.TargetValue = targetValue
+}
+
+func (s *SplitFungibleTokenAttributes) GetNonce() []byte {
+	return s.Nonce
+}
+
+func (s *SplitFungibleTokenAttributes) SetNonce(nonce []byte) {
+	s.Nonce = nonce
+}
+
+func (s *SplitFungibleTokenAttributes) GetBacklink() []byte {
+	return s.Backlink
+}
+
+func (s *SplitFungibleTokenAttributes) SetBacklink(backlink []byte) {
+	s.Backlink = backlink
+}
+
+func (s *SplitFungibleTokenAttributes) GetTypeID() []byte {
+	return s.TypeID
+}
+
+func (s *SplitFungibleTokenAttributes) SetTypeID(typeID []byte) {
+	s.TypeID = typeID
+}
+
+func (s *SplitFungibleTokenAttributes) GetRemainingValue() uint64 {
+	return s.RemainingValue
+}
+
+func (s *SplitFungibleTokenAttributes) SetRemainingValue(remainingValue uint64) {
+	s.RemainingValue = remainingValue
+}
+
+func (s *SplitFungibleTokenAttributes) GetInvariantPredicateSignatures() [][]byte {
+	return s.InvariantPredicateSignatures
+}
+
+func (s *SplitFungibleTokenAttributes) SetInvariantPredicateSignatures(signatures [][]byte) {
+	s.InvariantPredicateSignatures = signatures
+}
+
+func (s *SplitFungibleTokenAttributes) MarshalCBOR() ([]byte, error) {
+	return cbor.Marshal(s)
+}
+
+func (s *SplitFungibleTokenAttributes) UnmarshalCBOR(data []byte) error {
+	return cbor.Unmarshal(data, s)
+}

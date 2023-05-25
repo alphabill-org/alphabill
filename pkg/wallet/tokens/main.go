@@ -13,14 +13,11 @@ import (
 	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/alphabill-org/alphabill/pkg/wallet/account"
-	"github.com/alphabill-org/alphabill/pkg/wallet/backend/bp"
 	"github.com/alphabill-org/alphabill/pkg/wallet/fees"
 	"github.com/alphabill-org/alphabill/pkg/wallet/log"
 	"github.com/alphabill-org/alphabill/pkg/wallet/money/tx_builder"
 	"github.com/alphabill-org/alphabill/pkg/wallet/tokens/backend"
 	"github.com/alphabill-org/alphabill/pkg/wallet/tokens/client"
-	"google.golang.org/protobuf/proto"
-	"google.golang.org/protobuf/types/known/anypb"
 )
 
 const (
@@ -54,7 +51,7 @@ type (
 		GetTypeHierarchy(ctx context.Context, id backend.TokenTypeID) ([]backend.TokenUnitType, error)
 		GetRoundNumber(ctx context.Context) (uint64, error)
 		PostTransactions(ctx context.Context, pubKey wallet.PubKey, txs *wallet.Transactions) error
-		GetTxProof(ctx context.Context, unitID wallet.UnitID, txHash wallet.TxHash) (*wallet.TxProof, error)
+		GetTxProof(ctx context.Context, unitID wallet.UnitID, txHash wallet.TxHash) (*wallet.Proof, error)
 		GetFeeCreditBill(ctx context.Context, unitID wallet.UnitID) (*backend.FeeCreditBill, error)
 	}
 
@@ -107,12 +104,12 @@ func (w *Wallet) NewFungibleType(ctx context.Context, accNr uint64, attrs Create
 			return nil, fmt.Errorf("parent type requires %d decimal places, got %d", parentType.DecimalPlaces, attrs.DecimalPlaces)
 		}
 	}
-	return w.newType(ctx, accNr, attrs.toProtobuf(), typeId, subtypePredicateArgs)
+	return w.newType(ctx, accNr, attrs.toCBOR(), typeId, subtypePredicateArgs)
 }
 
 func (w *Wallet) NewNonFungibleType(ctx context.Context, accNr uint64, attrs CreateNonFungibleTokenTypeAttributes, typeId backend.TokenTypeID, subtypePredicateArgs []*PredicateInput) (backend.TokenTypeID, error) {
 	log.Info("Creating new NFT type")
-	return w.newType(ctx, accNr, attrs.toProtobuf(), typeId, subtypePredicateArgs)
+	return w.newType(ctx, accNr, attrs.toCBOR(), typeId, subtypePredicateArgs)
 }
 
 func (w *Wallet) NewFungibleToken(ctx context.Context, accNr uint64, typeId backend.TokenTypeID, amount uint64, bearerPredicate wallet.Predicate, mintPredicateArgs []*PredicateInput) (backend.TokenID, error) {
@@ -140,7 +137,7 @@ func (w *Wallet) NewNFT(ctx context.Context, accNr uint64, attrs MintNonFungible
 	if len(attrs.Data) > dataMaxSize {
 		return nil, errInvalidDataLength
 	}
-	return w.newToken(ctx, accNr, attrs.toProtobuf(), tokenId, mintPredicateArgs)
+	return w.newToken(ctx, accNr, attrs.toCBOR(), tokenId, mintPredicateArgs)
 }
 
 func (w *Wallet) ListTokenTypes(ctx context.Context, accountNumber uint64, kind backend.Kind) ([]*backend.TokenUnitType, error) {
@@ -280,13 +277,14 @@ func (w *Wallet) TransferNFT(ctx context.Context, accountNumber uint64, tokenId 
 		return err
 	}
 	attrs := newNonFungibleTransferTxAttrs(token, receiverPubKey)
-	sub, err := w.prepareTxSubmission(ctx, wallet.UnitID(tokenId), attrs, key, w.GetRoundNumber, func(tx *types.TransactionOrder) error {
-		signatures, err := preparePredicateSignatures(w.am, invariantPredicateArgs, gtx)
+	sub, err := w.prepareTxSubmission(ctx, wallet.UnitID(tokenId), key, w.GetRoundNumber, func(tx *types.TransactionOrder) error {
+		signatures, err := preparePredicateSignatures(w.am, invariantPredicateArgs, tx)
 		if err != nil {
 			return err
 		}
-		attrs.InvariantPredicateSignatures = signatures
-		return anypb.MarshalFrom(tx.TransactionAttributes, attrs, proto.MarshalOptions{})
+		attrs.SetInvariantPredicateSignatures(signatures)
+		tx.Payload.Attributes, err = attrs.MarshalCBOR()
+		return err
 	})
 	if err != nil {
 		return err
@@ -378,13 +376,14 @@ func (w *Wallet) UpdateNFTData(ctx context.Context, accountNumber uint64, tokenI
 		DataUpdateSignatures: nil,
 	}
 
-	sub, err := w.prepareTxSubmission(ctx, tokenId, attrs, acc, w.GetRoundNumber, func(tx *types.TransactionOrder) error {
-		signatures, err := preparePredicateSignatures(w.am, updatePredicateArgs, gtx)
+	sub, err := w.prepareTxSubmission(ctx, tokenId, acc, w.GetRoundNumber, func(tx *types.TransactionOrder) error {
+		signatures, err := preparePredicateSignatures(w.am, updatePredicateArgs, tx)
 		if err != nil {
 			return err
 		}
-		attrs.DataUpdateSignatures = signatures
-		return anypb.MarshalFrom(tx.TransactionAttributes, attrs, proto.MarshalOptions{})
+		attrs.SetDataUpdateSignatures(signatures)
+		tx.Payload.Attributes, err = attrs.MarshalCBOR()
+		return err
 	})
 	if err != nil {
 		return err
@@ -394,7 +393,7 @@ func (w *Wallet) UpdateNFTData(ctx context.Context, accountNumber uint64, tokenI
 
 // GetFeeCreditBill returns fee credit bill for given account,
 // can return nil if fee credit bill has not been created yet.
-func (w *Wallet) GetFeeCreditBill(ctx context.Context, cmd fees.GetFeeCreditCmd) (*bp.Bill, error) {
+func (w *Wallet) GetFeeCreditBill(ctx context.Context, cmd fees.GetFeeCreditCmd) (*wallet.Bill, error) {
 	accountKey, err := w.am.GetAccountKey(cmd.AccountIndex)
 	if err != nil {
 		return nil, err
@@ -404,7 +403,7 @@ func (w *Wallet) GetFeeCreditBill(ctx context.Context, cmd fees.GetFeeCreditCmd)
 
 // FetchFeeCreditBill returns fee credit bill for given unitID
 // can return nil if fee credit bill has not been created yet.
-func (w *Wallet) FetchFeeCreditBill(ctx context.Context, unitID []byte) (*bp.Bill, error) {
+func (w *Wallet) FetchFeeCreditBill(ctx context.Context, unitID []byte) (*wallet.Bill, error) {
 	fcb, err := w.backend.GetFeeCreditBill(ctx, unitID)
 	if err != nil {
 		return nil, err
@@ -412,7 +411,7 @@ func (w *Wallet) FetchFeeCreditBill(ctx context.Context, unitID []byte) (*bp.Bil
 	if fcb == nil {
 		return nil, nil
 	}
-	return &bp.Bill{
+	return &wallet.Bill{
 		Id:            fcb.Id,
 		Value:         fcb.Value,
 		TxHash:        fcb.TxHash,

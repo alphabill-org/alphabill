@@ -5,7 +5,6 @@ import (
 	"crypto"
 	"crypto/rand"
 	"fmt"
-	"reflect"
 	"sort"
 
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
@@ -20,8 +19,6 @@ import (
 	"github.com/alphabill-org/alphabill/pkg/wallet/tokens/backend"
 	twb "github.com/alphabill-org/alphabill/pkg/wallet/tokens/backend"
 	"github.com/alphabill-org/alphabill/pkg/wallet/txsubmitter"
-	"google.golang.org/protobuf/proto"
-	"google.golang.org/protobuf/types/known/anypb"
 )
 
 type (
@@ -45,7 +42,7 @@ func (f *cachingRoundNumberFetcher) getRoundNumber(ctx context.Context) (uint64,
 	return f.roundNumber, nil
 }
 
-func (w *Wallet) newType(ctx context.Context, accNr uint64, attrs wallet.TxAttributes, typeId backend.TokenTypeID, subtypePredicateArgs []*PredicateInput) (backend.TokenTypeID, error) {
+func (w *Wallet) newType(ctx context.Context, accNr uint64, attrs AttrWithSubTypeCreationInputs, typeId backend.TokenTypeID, subtypePredicateArgs []*PredicateInput) (backend.TokenTypeID, error) {
 	if accNr < 1 {
 		return nil, fmt.Errorf("invalid account number: %d", accNr)
 	}
@@ -57,13 +54,14 @@ func (w *Wallet) newType(ctx context.Context, accNr uint64, attrs wallet.TxAttri
 	if err != nil {
 		return nil, err
 	}
-	sub, err := w.prepareTxSubmission(ctx, wallet.UnitID(typeId), attrs, acc, w.GetRoundNumber, func(tx *types.TransactionOrder) error {
-		signatures, err := preparePredicateSignatures(w.am, subtypePredicateArgs, gtx)
+	sub, err := w.prepareTxSubmission(ctx, wallet.UnitID(typeId), acc, w.GetRoundNumber, func(tx *types.TransactionOrder) error {
+		signatures, err := preparePredicateSignatures(w.am, subtypePredicateArgs, tx)
 		if err != nil {
 			return err
 		}
 		attrs.SetSubTypeCreationPredicateSignatures(signatures)
-		return anypb.MarshalFrom(tx.TransactionAttributes, attrs, proto.MarshalOptions{})
+		tx.Payload.Attributes, err = attrs.MarshalCBOR()
+		return err
 	})
 	if err != nil {
 		return nil, err
@@ -97,7 +95,7 @@ func preparePredicateSignatures(am account.Manager, args []*PredicateInput, tx *
 	return signatures, nil
 }
 
-func (w *Wallet) newToken(ctx context.Context, accNr uint64, attrs wallet.TxAttributes, tokenId backend.TokenID, mintPredicateArgs []*PredicateInput) (backend.TokenID, error) {
+func (w *Wallet) newToken(ctx context.Context, accNr uint64, attrs MintAttr, tokenId backend.TokenID, mintPredicateArgs []*PredicateInput) (backend.TokenID, error) {
 	if accNr < 1 {
 		return nil, fmt.Errorf("invalid account number: %d", accNr)
 	}
@@ -109,13 +107,14 @@ func (w *Wallet) newToken(ctx context.Context, accNr uint64, attrs wallet.TxAttr
 	if err != nil {
 		return nil, err
 	}
-	sub, err := w.prepareTxSubmission(ctx, wallet.UnitID(tokenId), attrs, key, w.GetRoundNumber, func(tx *types.TransactionOrder) error {
-		signatures, err := preparePredicateSignatures(w.am, mintPredicateArgs, gtx)
+	sub, err := w.prepareTxSubmission(ctx, wallet.UnitID(tokenId), key, w.GetRoundNumber, func(tx *types.TransactionOrder) error {
+		signatures, err := preparePredicateSignatures(w.am, mintPredicateArgs, tx)
 		if err != nil {
 			return err
 		}
 		attrs.SetTokenCreationPredicateSignatures(signatures)
-		return anypb.MarshalFrom(tx.TransactionAttributes, attrs, proto.MarshalOptions{})
+		tx.Payload.Attributes, err = attrs.MarshalCBOR()
+		return err
 	})
 	if err != nil {
 		return nil, err
@@ -136,7 +135,7 @@ func RandomID() (wallet.UnitID, error) {
 	return id, nil
 }
 
-func (w *Wallet) prepareTxSubmission(ctx context.Context, unitId wallet.UnitID, attrs wallet.TxAttributes, ac *account.AccountKey, rn roundNumberFetcher, txps txPreprocessor) (*txsubmitter.TxSubmission, error) {
+func (w *Wallet) prepareTxSubmission(ctx context.Context, unitId wallet.UnitID, ac *account.AccountKey, rn roundNumberFetcher, txps txPreprocessor) (*txsubmitter.TxSubmission, error) {
 	var err error
 	if unitId == nil {
 		unitId, err = RandomID()
@@ -144,14 +143,13 @@ func (w *Wallet) prepareTxSubmission(ctx context.Context, unitId wallet.UnitID, 
 			return nil, err
 		}
 	}
-	log.Info(fmt.Sprintf("Preparing to send token tx, UnitID=%X, attributes: %v", unitId, reflect.TypeOf(attrs)))
+	log.Info(fmt.Sprintf("Preparing to send token tx, UnitID=%X", unitId))
 
 	roundNumber, err := rn(ctx)
 	if err != nil {
 		return nil, err
 	}
 	tx := createTx(w.systemID, unitId, roundNumber+txTimeoutRoundCount, ac.PrivKeyHash)
-	tx.Payload.Attributes = types.RawCBOR(attrs)
 	if txps != nil {
 		// set fields before tx is signed
 		err = txps(tx)
@@ -284,13 +282,14 @@ func (w *Wallet) prepareSplitOrTransferTx(ctx context.Context, acc *account.Acco
 	} else {
 		attrs = newSplitTxAttrs(token, amount, receiverPubKey)
 	}
-	sub, err := w.prepareTxSubmission(ctx, wallet.UnitID(token.ID), attrs, acc, rn, func(tx *types.TransactionOrder) error {
+	sub, err := w.prepareTxSubmission(ctx, wallet.UnitID(token.ID), acc, rn, func(tx *types.TransactionOrder) error {
 		signatures, err := preparePredicateSignatures(w.am, invariantPredicateArgs, tx)
 		if err != nil {
 			return err
 		}
 		attrs.SetInvariantPredicateSignatures(signatures)
-		return anypb.MarshalFrom(tx.TransactionAttributes, attrs, proto.MarshalOptions{})
+		tx.Payload.Attributes, err = attrs.MarshalCBOR()
+		return err
 	})
 	if err != nil {
 		return nil, err
@@ -303,7 +302,6 @@ func createTx(systemID []byte, unitId []byte, timeout uint64, fcrID []byte) *typ
 		Payload: &types.Payload{
 			SystemID: systemID,
 			UnitID:   unitId,
-			//Attributes: new(anypb.Any),
 			ClientMetadata: &types.ClientMetadata{
 				Timeout:           timeout,
 				MaxTransactionFee: tx_builder.MaxFee,

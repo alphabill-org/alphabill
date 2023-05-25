@@ -16,7 +16,7 @@ type (
 		UnitID      wallet.UnitID
 		TxHash      wallet.TxHash
 		Transaction *types.TransactionOrder
-		Proof       *types.TxProof
+		Proof       *wallet.Proof
 	}
 
 	TxSubmissionBatch struct {
@@ -29,7 +29,7 @@ type (
 	BackendAPI interface {
 		GetRoundNumber(ctx context.Context) (uint64, error)
 		PostTransactions(ctx context.Context, pubKey wallet.PubKey, txs *wallet.Transactions) error
-		GetTxProof(ctx context.Context, unitID wallet.UnitID, txHash wallet.TxHash) (*types.TxProof, error)
+		GetTxProof(ctx context.Context, unitID wallet.UnitID, txHash wallet.TxHash) (*wallet.Proof, error)
 	}
 )
 

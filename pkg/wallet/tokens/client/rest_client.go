@@ -16,7 +16,6 @@ import (
 	"time"
 
 	"github.com/alphabill-org/alphabill/pkg/wallet"
-	"github.com/alphabill-org/alphabill/pkg/wallet/backend/bp"
 	"github.com/alphabill-org/alphabill/pkg/wallet/tokens/backend"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/fxamacker/cbor/v2"
@@ -119,8 +118,8 @@ func (tb *TokenBackend) GetTypeHierarchy(ctx context.Context, id backend.TokenTy
 	return rspData, nil
 }
 
-func (tb *TokenBackend) GetTxProof(ctx context.Context, unitID wallet.UnitID, txHash wallet.TxHash) (*wallet.TxProof, error) {
-	var proof *wallet.TxProof
+func (tb *TokenBackend) GetTxProof(ctx context.Context, unitID wallet.UnitID, txHash wallet.TxHash) (*wallet.Proof, error) {
+	var proof *wallet.Proof
 	addr := tb.getURL(apiPathPrefix, "units", hexutil.Encode(unitID), "transactions", hexutil.Encode(txHash), "proof")
 	_, err := tb.get(ctx, addr, &proof, false)
 	if err != nil {
@@ -174,7 +173,7 @@ func (tb *TokenBackend) GetFeeCreditBill(ctx context.Context, unitID wallet.Unit
 	return fcb, nil
 }
 
-func (tb *TokenBackend) FetchFeeCreditBill(ctx context.Context, unitID []byte) (*bp.Bill, error) {
+func (tb *TokenBackend) FetchFeeCreditBill(ctx context.Context, unitID []byte) (*wallet.Bill, error) {
 	fcb, err := tb.GetFeeCreditBill(ctx, unitID)
 	if err != nil {
 		return nil, err
@@ -182,7 +181,7 @@ func (tb *TokenBackend) FetchFeeCreditBill(ctx context.Context, unitID []byte) (
 	if fcb == nil {
 		return nil, nil
 	}
-	return &bp.Bill{
+	return &wallet.Bill{
 		Id:            fcb.Id,
 		Value:         fcb.Value,
 		TxHash:        fcb.TxHash,

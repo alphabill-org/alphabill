@@ -10,8 +10,6 @@ import (
 	"github.com/alphabill-org/alphabill/pkg/wallet/account"
 	twb "github.com/alphabill-org/alphabill/pkg/wallet/tokens/backend"
 	"github.com/alphabill-org/alphabill/pkg/wallet/txsubmitter"
-	"google.golang.org/protobuf/proto"
-	"google.golang.org/protobuf/types/known/anypb"
 )
 
 const maxBurnBatchSize = 100
@@ -65,21 +63,29 @@ func (w *Wallet) collectDust(ctx context.Context, acc *account.AccountKey, typed
 	return nil
 }
 
-func (w *Wallet) joinTokenForDC(ctx context.Context, acc *account.AccountKey, burnProofs []*sdk.TxProof, targetTokenBacklink sdk.TxHash, targetTokenID sdk.UnitID, invariantPredicateArgs []*PredicateInput) (sdk.TxHash, error) {
+func (w *Wallet) joinTokenForDC(ctx context.Context, acc *account.AccountKey, burnProofs []*sdk.Proof, targetTokenBacklink sdk.TxHash, targetTokenID sdk.UnitID, invariantPredicateArgs []*PredicateInput) (sdk.TxHash, error) {
+	burnTxs := make([]*types.TransactionRecord, len(burnProofs))
+	burnTxProofs := make([]*types.TxProof, len(burnProofs))
+	for i, proof := range burnProofs {
+		burnTxs[i] = proof.TxRecord
+		burnTxProofs[i] = proof.TxProof
+	}
+
 	joinAttrs := &tokens.JoinFungibleTokenAttributes{
-		// TODO: no need for BurnTransactions?
-		Proofs:                       burnProofs,
+		BurnTransactions:             burnTxs,
+		Proofs:                       burnTxProofs,
 		Backlink:                     targetTokenBacklink,
 		InvariantPredicateSignatures: nil,
 	}
 
-	sub, err := w.prepareTxSubmission(ctx, targetTokenID, joinAttrs, acc, w.GetRoundNumber, func(tx *types.TransactionOrder) error {
-		signatures, err := preparePredicateSignatures(w.GetAccountManager(), invariantPredicateArgs, gtx)
+	sub, err := w.prepareTxSubmission(ctx, targetTokenID, acc, w.GetRoundNumber, func(tx *types.TransactionOrder) error {
+		signatures, err := preparePredicateSignatures(w.GetAccountManager(), invariantPredicateArgs, tx)
 		if err != nil {
 			return err
 		}
 		joinAttrs.SetInvariantPredicateSignatures(signatures)
-		return anypb.MarshalFrom(tx.TransactionAttributes, joinAttrs, proto.MarshalOptions{})
+		tx.Payload.Attributes, err = joinAttrs.MarshalCBOR()
+		return err
 	})
 	if err != nil {
 		return nil, err
@@ -90,31 +96,32 @@ func (w *Wallet) joinTokenForDC(ctx context.Context, acc *account.AccountKey, bu
 	return sub.TxHash, nil
 }
 
-func (w *Wallet) burnTokensForDC(ctx context.Context, acc *account.AccountKey, tokensToBurn []*twb.TokenUnit, nonce sdk.TxHash, invariantPredicateArgs []*PredicateInput) ([]*sdk.TxProof, error) {
+func (w *Wallet) burnTokensForDC(ctx context.Context, acc *account.AccountKey, tokensToBurn []*twb.TokenUnit, nonce sdk.TxHash, invariantPredicateArgs []*PredicateInput) ([]*sdk.Proof, error) {
 	burnBatch := txsubmitter.NewBatch(acc.PubKey, w.backend)
 	rnFetcher := &cachingRoundNumberFetcher{delegate: w.GetRoundNumber}
 
 	for _, token := range tokensToBurn {
 		attrs := newBurnTxAttrs(token, nonce)
-		sub, err := w.prepareTxSubmission(ctx, sdk.UnitID(token.ID), attrs, acc, rnFetcher.getRoundNumber, func(tx *types.TransactionOrder) error {
-			signatures, err := preparePredicateSignatures(w.GetAccountManager(), invariantPredicateArgs, gtx)
+		sub, err := w.prepareTxSubmission(ctx, sdk.UnitID(token.ID), acc, rnFetcher.getRoundNumber, func(tx *types.TransactionOrder) error {
+			signatures, err := preparePredicateSignatures(w.GetAccountManager(), invariantPredicateArgs, tx)
 			if err != nil {
 				return err
 			}
 			attrs.SetInvariantPredicateSignatures(signatures)
-			return anypb.MarshalFrom(tx.TransactionAttributes, attrs, proto.MarshalOptions{})
+			tx.Payload.Attributes, err = attrs.MarshalCBOR()
+			return err
 		})
 		if err != nil {
-			return nil, nil, fmt.Errorf("failed to prepare burn tx: %w", err)
+			return nil, fmt.Errorf("failed to prepare burn tx: %w", err)
 		}
 		burnBatch.Add(sub)
 	}
 
 	if err := burnBatch.SendTx(ctx, true); err != nil {
-		return nil, nil, fmt.Errorf("failed to send burn tx: %w", err)
+		return nil, fmt.Errorf("failed to send burn tx: %w", err)
 	}
 
-	proofs := make([]*sdk.TxProof, 0, len(burnBatch.Submissions()))
+	proofs := make([]*sdk.Proof, 0, len(burnBatch.Submissions()))
 	for _, sub := range burnBatch.Submissions() {
 		proofs = append(proofs, sub.Proof)
 	}

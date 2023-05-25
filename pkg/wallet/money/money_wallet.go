@@ -272,7 +272,7 @@ func (b *backendAPIWrapper) PostTransactions(ctx context.Context, _ wallet.PubKe
 	return nil
 }
 
-func (b *backendAPIWrapper) GetTxProof(_ context.Context, unitID wallet.UnitID, txHash wallet.TxHash) (*types.TxProof, error) {
+func (b *backendAPIWrapper) GetTxProof(_ context.Context, unitID wallet.UnitID, txHash wallet.TxHash) (*wallet.Proof, error) {
 	resp, err := b.wallet.backend.GetProof(unitID)
 	if err != nil {
 		return nil, err
@@ -286,7 +286,7 @@ func (b *backendAPIWrapper) GetTxProof(_ context.Context, unitID wallet.UnitID, 
 		return nil, nil
 	}
 	b.txProofs = append(b.txProofs, convertBill(bill))
-	return bill.TxProof.TxProof, nil
+	return bill.TxProof, nil
 }
 
 // AddFeeCredit creates fee credit for the given amount.

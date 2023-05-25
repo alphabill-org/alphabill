@@ -11,7 +11,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/hash"
 	"github.com/alphabill-org/alphabill/internal/script"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
@@ -779,13 +778,7 @@ func TestUpdateNFTData(t *testing.T) {
 
 func initTestWallet(t *testing.T, backend TokenBackend) *Wallet {
 	t.Helper()
-	txs, err := ttxs.New(
-		ttxs.WithTrustBase(map[string]crypto.Verifier{"test": nil}),
-	)
-	require.NoError(t, err)
-
 	return &Wallet{
-		txs:     txs,
 		am:      initAccountManager(t),
 		backend: backend,
 	}
@@ -804,7 +797,7 @@ type mockTokenBackend struct {
 	getTokens        func(ctx context.Context, kind backend.Kind, owner wallet.PubKey, offsetKey string, limit int) ([]backend.TokenUnit, string, error)
 	getTokenTypes    func(ctx context.Context, kind backend.Kind, creator wallet.PubKey, offsetKey string, limit int) ([]backend.TokenUnitType, string, error)
 	getRoundNumber   func(ctx context.Context) (uint64, error)
-	postTransactions func(ctx context.Context, pubKey wallet.PubKey, txs *txsystem.Transactions) error
+	postTransactions func(ctx context.Context, pubKey wallet.PubKey, txs *wallet.Transactions) error
 	getTypeHierarchy func(ctx context.Context, id backend.TokenTypeID) ([]backend.TokenUnitType, error)
 	getTxProof       func(ctx context.Context, unitID wallet.UnitID, txHash wallet.TxHash) (*wallet.Proof, error)
 	getFeeCreditBill func(ctx context.Context, unitID wallet.UnitID) (*backend.FeeCreditBill, error)
@@ -838,7 +831,7 @@ func (m *mockTokenBackend) GetRoundNumber(ctx context.Context) (uint64, error) {
 	return 0, fmt.Errorf("GetRoundNumber not implemented")
 }
 
-func (m *mockTokenBackend) PostTransactions(ctx context.Context, pubKey wallet.PubKey, txs *txsystem.Transactions) error {
+func (m *mockTokenBackend) PostTransactions(ctx context.Context, pubKey wallet.PubKey, txs *wallet.Transactions) error {
 	if m.postTransactions != nil {
 		return m.postTransactions(ctx, pubKey, txs)
 	}

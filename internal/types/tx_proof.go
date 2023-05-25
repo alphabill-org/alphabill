@@ -26,7 +26,7 @@ type (
 		BlockHeaderHash    []byte
 		Chain              []*GenericChainItem
 		UnicityCertificate *UnicityCertificate
-		TransactionRecord  *TransactionRecord
+		TransactionRecord  *TransactionRecord // TODO: remove
 	}
 
 	GenericChainItem struct {

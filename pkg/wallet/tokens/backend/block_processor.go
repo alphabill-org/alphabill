@@ -35,12 +35,12 @@ func (p *blockProcessor) ProcessBlock(ctx context.Context, b *types.Block) error
 		return fmt.Errorf("invalid block, received block %d, current wallet block %d", b.UnicityCertificate.InputRecord.RoundNumber, lastBlockNumber)
 	}
 
-	for idx := 0; idx < len(b.Transactions); idx++ {
+	for idx, tx := range b.Transactions {
 		proof, err := types.NewTxProof(b, idx, crypto.SHA256)
 		if err != nil {
 			return fmt.Errorf("failed to create tx proof for the block: %w", err)
 		}
-		if err := p.processTx(proof); err != nil {
+		if err := p.processTx(tx, proof); err != nil {
 			return fmt.Errorf("failed to process tx: %w", err)
 		}
 	}
@@ -48,12 +48,12 @@ func (p *blockProcessor) ProcessBlock(ctx context.Context, b *types.Block) error
 	return p.store.SetBlockNumber(b.GetRoundNumber())
 }
 
-func (p *blockProcessor) processTx(proof *wallet.TxProof) error {
+func (p *blockProcessor) processTx(tr *types.TransactionRecord, proof *wallet.TxProof) error {
 	var err error
-	tr := proof.TransactionRecord
 	tx := tr.TransactionOrder
 	rn := proof.UnicityCertificate.GetRoundNumber()
 	id := tx.UnitID()
+	txProof := &wallet.Proof{TxRecord: tr, TxProof: proof}
 	txHash := tx.Hash(crypto.SHA256)
 	p.log.Debug(fmt.Sprintf("processTx: UnitID=%x type: %s", id, tx.PayloadType()))
 
@@ -77,7 +77,7 @@ func (p *blockProcessor) processTx(proof *wallet.TxProof) error {
 			Value:         fcb.GetValue() + transferFeeCreditAttributes.Amount - tr.ServerMetadata.ActualFee,
 			TxHash:        tx.Hash(crypto.SHA256),
 			FCBlockNumber: rn,
-		}, proof)
+		}, txProof)
 	case transactions.PayloadTypeCloseFeeCredit:
 		closeFeeCreditAttributes := &transactions.CloseFeeCreditAttributes{}
 		if err = tx.UnmarshalAttributes(closeFeeCreditAttributes); err != nil {
@@ -92,7 +92,7 @@ func (p *blockProcessor) processTx(proof *wallet.TxProof) error {
 			Value:         fcb.GetValue() - closeFeeCreditAttributes.Amount,
 			TxHash:        tx.Hash(crypto.SHA256),
 			FCBlockNumber: rn,
-		}, proof)
+		}, txProof)
 	default:
 		// decrement fee credit bill value if tx is not fee credit tx i.e. a normal tx
 		if err := p.updateFCB(tr, rn); err != nil {
@@ -119,7 +119,7 @@ func (p *blockProcessor) processTx(proof *wallet.TxProof) error {
 			TokenCreationPredicate:   attrs.TokenCreationPredicate,
 			InvariantPredicate:       attrs.InvariantPredicate,
 			TxHash:                   txHash,
-		}, proof)
+		}, txProof)
 	case tokens.PayloadTypeMintFungibleToken:
 		attrs := &tokens.MintFungibleTokenAttributes{}
 		if err = tx.UnmarshalAttributes(attrs); err != nil {
@@ -140,7 +140,7 @@ func (p *blockProcessor) processTx(proof *wallet.TxProof) error {
 				TxHash:   txHash,
 				Owner:    attrs.Bearer,
 			},
-			proof)
+			txProof)
 	case tokens.PayloadTypeTransferFungibleToken:
 		attrs := &tokens.TransferFungibleTokenAttributes{}
 		if err = tx.UnmarshalAttributes(attrs); err != nil {
@@ -152,7 +152,7 @@ func (p *blockProcessor) processTx(proof *wallet.TxProof) error {
 		}
 		token.TxHash = txHash
 		token.Owner = attrs.NewBearer
-		return p.saveToken(token, proof)
+		return p.saveToken(token, txProof)
 	case tokens.PayloadTypeSplitFungibleToken:
 		attrs := &tokens.SplitFungibleTokenAttributes{}
 		if err = tx.UnmarshalAttributes(attrs); err != nil {
@@ -173,7 +173,7 @@ func (p *blockProcessor) processTx(proof *wallet.TxProof) error {
 
 		token.Amount = remainingValue
 		token.TxHash = txHash
-		if err = p.saveToken(token, proof); err != nil {
+		if err = p.saveToken(token, txProof); err != nil {
 			return err
 		}
 
@@ -188,7 +188,7 @@ func (p *blockProcessor) processTx(proof *wallet.TxProof) error {
 			TxHash:   txHash,
 			Owner:    attrs.NewBearer,
 		}
-		return p.saveToken(newToken, proof)
+		return p.saveToken(newToken, txProof)
 	case tokens.PayloadTypeBurnFungibleToken:
 		attrs := &tokens.BurnFungibleTokenAttributes{}
 		if err = tx.UnmarshalAttributes(attrs); err != nil {
@@ -203,7 +203,7 @@ func (p *blockProcessor) processTx(proof *wallet.TxProof) error {
 		}
 		token.TxHash = txHash
 		token.Burned = true
-		return p.saveToken(token, proof)
+		return p.saveToken(token, txProof)
 	case tokens.PayloadTypeJoinFungibleToken:
 		attrs := &tokens.JoinFungibleTokenAttributes{}
 		if err = tx.UnmarshalAttributes(attrs); err != nil {
@@ -242,7 +242,7 @@ func (p *blockProcessor) processTx(proof *wallet.TxProof) error {
 		}
 		joinedToken.Amount += burnedValue
 		joinedToken.TxHash = txHash
-		if err = p.saveToken(joinedToken, proof); err != nil {
+		if err = p.saveToken(joinedToken, txProof); err != nil {
 			return fmt.Errorf("failed to save joined token: %w", err)
 		}
 		for _, burnedID := range burnedTokensToRemove {
@@ -268,7 +268,7 @@ func (p *blockProcessor) processTx(proof *wallet.TxProof) error {
 			InvariantPredicate:       attrs.InvariantPredicate,
 			NftDataUpdatePredicate:   attrs.DataUpdatePredicate,
 			TxHash:                   txHash,
-		}, proof)
+		}, txProof)
 	case tokens.PayloadTypeMintNFT:
 		attrs := &tokens.MintNonFungibleTokenAttributes{}
 		if err = tx.UnmarshalAttributes(attrs); err != nil {
@@ -291,7 +291,7 @@ func (p *blockProcessor) processTx(proof *wallet.TxProof) error {
 			TxHash:                 txHash,
 			Owner:                  attrs.Bearer,
 		}
-		return p.saveToken(newToken, proof)
+		return p.saveToken(newToken, txProof)
 	case tokens.PayloadTypeTransferNFT:
 		attrs := &tokens.TransferNonFungibleTokenAttributes{}
 		if err = tx.UnmarshalAttributes(attrs); err != nil {
@@ -303,7 +303,7 @@ func (p *blockProcessor) processTx(proof *wallet.TxProof) error {
 		}
 		token.Owner = attrs.NewBearer
 		token.TxHash = txHash
-		return p.saveToken(token, proof)
+		return p.saveToken(token, txProof)
 	case tokens.PayloadTypeUpdateNFT:
 		attrs := &tokens.UpdateNonFungibleTokenAttributes{}
 		if err = tx.UnmarshalAttributes(attrs); err != nil {
@@ -315,21 +315,21 @@ func (p *blockProcessor) processTx(proof *wallet.TxProof) error {
 		}
 		token.NftData = attrs.Data
 		token.TxHash = txHash
-		return p.saveToken(token, proof)
+		return p.saveToken(token, txProof)
 	default:
 		p.log.Error("received unknown token transaction type, skipped processing:", fmt.Sprintf("data type: %T", tx))
 		return nil
 	}
 }
 
-func (p *blockProcessor) saveTokenType(unit *TokenUnitType, proof *wallet.TxProof) error {
+func (p *blockProcessor) saveTokenType(unit *TokenUnitType, proof *wallet.Proof) error {
 	if err := p.store.SaveTokenType(unit, proof); err != nil {
 		return fmt.Errorf("failed to store token type: %w", err)
 	}
 	return nil
 }
 
-func (p *blockProcessor) saveToken(unit *TokenUnit, proof *wallet.TxProof) error {
+func (p *blockProcessor) saveToken(unit *TokenUnit, proof *wallet.Proof) error {
 	if err := p.store.SaveToken(unit, proof); err != nil {
 		return fmt.Errorf("failed to store token: %w", err)
 	}

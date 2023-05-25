@@ -27,3 +27,9 @@ type PubKey []byte
 
 // TxProof type alias for block.TxProof, can be removed once block package is moved out of internal
 type TxProof = types.TxProof
+
+// Proof wrapper struct around TxRecord and TxProof
+type Proof struct {
+	TxRecord *types.TransactionRecord `json:"txRecord"`
+	TxProof  *types.TxProof           `json:"txProof"`
+}

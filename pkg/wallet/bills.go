@@ -38,12 +38,6 @@ type (
 		// block number when fee credit bill balance was last updated
 		FcBlockNumber uint64 `json:"fc_block_number,omitempty,string"`
 	}
-
-	// Proof wrapper struct around TxRecord and TxProof
-	Proof struct {
-		TxRecord *types.TransactionRecord `json:"txRecord"`
-		TxProof  *types.TxProof           `json:"txProof"`
-	}
 )
 
 func NewTxProof(txIdx int, b *types.Block, hashAlgorithm crypto.Hash) (*Proof, error) {

@@ -8,8 +8,8 @@ import (
 
 	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/internal/util"
+	"github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/alphabill-org/alphabill/pkg/wallet/account"
-	"github.com/alphabill-org/alphabill/pkg/wallet/backend/bp"
 	"github.com/alphabill-org/alphabill/pkg/wallet/log"
 	txbuilder "github.com/alphabill-org/alphabill/pkg/wallet/money/tx_builder"
 	"github.com/holiman/uint256"
@@ -33,14 +33,14 @@ func TestBlockingDcWithNormalBills(t *testing.T) {
 		balance:        3,
 		customBillList: billsList,
 		proofList:      proofList,
-		feeCreditBill: &bp.Bill{
+		feeCreditBill: &wallet.Bill{
 			Id:      k.PrivKeyHash,
 			Value:   100 * 1e8,
-			TxProof: &bp.TxProof{},
+			TxProof: &wallet.Proof{},
 		},
 	}), am)
 
-	var protoDcBills []*bp.Bill
+	var protoDcBills []*wallet.Bill
 	for _, b := range dcBills {
 		protoDcBills = append(protoDcBills, b.ToProto())
 	}
@@ -87,16 +87,16 @@ func TestBlockingDCWithDCBillsBeforeDCTimeout(t *testing.T) {
 		balance:        3,
 		customBillList: billsList,
 		proofList:      proofList,
-		feeCreditBill: &bp.Bill{
+		feeCreditBill: &wallet.Bill{
 			Id:      k.PrivKeyHash,
 			Value:   100 * 1e8,
-			TxProof: &bp.TxProof{},
+			TxProof: &wallet.Proof{},
 		},
 	}), am)
 	// set specific round number
 	mockClient.SetMaxRoundNumber(roundNr)
 
-	var protoBills []*bp.Bill
+	var protoBills []*wallet.Bill
 	for _, b := range bills {
 		protoBills = append(protoBills, b.ToProto())
 	}
@@ -141,14 +141,14 @@ func TestBlockingDCWithExistingExpiredDCBills(t *testing.T) {
 		balance:        3,
 		customBillList: billsList,
 		proofList:      proofList,
-		feeCreditBill: &bp.Bill{
+		feeCreditBill: &wallet.Bill{
 			Id:      k.PrivKeyHash,
 			Value:   100 * 1e8,
-			TxProof: &bp.TxProof{},
+			TxProof: &wallet.Proof{},
 		},
 	}), am)
 
-	var protoBills []*bp.Bill
+	var protoBills []*wallet.Bill
 	for _, b := range bills {
 		protoBills = append(protoBills, b.ToProto())
 	}
@@ -195,10 +195,10 @@ func TestBlockingDcWaitingForSwapTimesOut(t *testing.T) {
 		balance:        3,
 		customBillList: billsList,
 		proofList:      proofList,
-		feeCreditBill: &bp.Bill{
+		feeCreditBill: &wallet.Bill{
 			Id:      k.PrivKeyHash,
 			Value:   100 * 1e8,
-			TxProof: &bp.TxProof{},
+			TxProof: &wallet.Proof{},
 		},
 	}), am)
 

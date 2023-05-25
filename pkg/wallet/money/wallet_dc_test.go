@@ -10,8 +10,8 @@ import (
 	billtx "github.com/alphabill-org/alphabill/internal/txsystem/money"
 	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/internal/util"
+	"github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/alphabill-org/alphabill/pkg/wallet/account"
-	"github.com/alphabill-org/alphabill/pkg/wallet/backend/bp"
 	"github.com/alphabill-org/alphabill/pkg/wallet/log"
 	txbuilder "github.com/alphabill-org/alphabill/pkg/wallet/money/tx_builder"
 	"github.com/fxamacker/cbor/v2"
@@ -55,10 +55,10 @@ func TestDustCollectionMaxBillCount(t *testing.T) {
 	w, mockClient := CreateTestWallet(t, withBackendMock(t, &backendMockReturnConf{
 		customBillList: billsList,
 		proofList:      proofList,
-		feeCreditBill: &bp.Bill{
+		feeCreditBill: &wallet.Bill{
 			Id:      k.PrivKeyHash,
 			Value:   100 * 1e8,
-			TxProof: &bp.TxProof{},
+			TxProof: &wallet.Proof{},
 		},
 	}))
 
@@ -89,10 +89,10 @@ func TestBasicDustCollection(t *testing.T) {
 		balance:        3,
 		customBillList: billsList,
 		proofList:      proofList,
-		feeCreditBill: &bp.Bill{
+		feeCreditBill: &wallet.Bill{
 			Id:      k.PrivKeyHash,
 			Value:   100 * 1e8,
-			TxProof: &bp.TxProof{},
+			TxProof: &wallet.Proof{},
 		}}), am)
 
 	// when dc runs
@@ -136,10 +136,10 @@ func TestDustCollectionWithSwap(t *testing.T) {
 		balance:        3,
 		customBillList: billsList,
 		proofList:      proofList,
-		feeCreditBill: &bp.Bill{
+		feeCreditBill: &wallet.Bill{
 			Id:      k.PrivKeyHash,
 			Value:   100 * 1e8,
-			TxProof: &bp.TxProof{},
+			TxProof: &wallet.Proof{},
 		},
 	}), am)
 
@@ -183,10 +183,10 @@ func TestSwapWithExistingDCBillsBeforeDCTimeout(t *testing.T) {
 		balance:        3,
 		customBillList: billsList,
 		proofList:      proofList,
-		feeCreditBill: &bp.Bill{
+		feeCreditBill: &wallet.Bill{
 			Id:      k.PrivKeyHash,
 			Value:   100 * 1e8,
-			TxProof: &bp.TxProof{},
+			TxProof: &wallet.Proof{},
 		}}), am)
 	// set specific round number
 	mockClient.SetMaxRoundNumber(roundNr)
@@ -227,10 +227,10 @@ func TestSwapWithExistingExpiredDCBills(t *testing.T) {
 		balance:        3,
 		customBillList: billsList,
 		proofList:      proofList,
-		feeCreditBill: &bp.Bill{
+		feeCreditBill: &wallet.Bill{
 			Id:      k.PrivKeyHash,
 			Value:   100 * 1e8,
-			TxProof: &bp.TxProof{},
+			TxProof: &wallet.Proof{},
 		},
 	}), am)
 
@@ -276,9 +276,9 @@ func TestSwapTxValuesAreCalculatedInCorrectBillOrder(t *testing.T) {
 	k, _ := w.am.GetAccountKey(0)
 
 	dcBills := []*Bill{
-		{Id: uint256.NewInt(2), TxProof: &bp.TxProof{TxRecord: createRandomDcTx()}},
-		{Id: uint256.NewInt(1), TxProof: &bp.TxProof{TxRecord: createRandomDcTx()}},
-		{Id: uint256.NewInt(0), TxProof: &bp.TxProof{TxRecord: createRandomDcTx()}},
+		{Id: uint256.NewInt(2), TxProof: &wallet.Proof{TxRecord: createRandomDcTx()}},
+		{Id: uint256.NewInt(1), TxProof: &wallet.Proof{TxRecord: createRandomDcTx()}},
+		{Id: uint256.NewInt(0), TxProof: &wallet.Proof{TxRecord: createRandomDcTx()}},
 	}
 	dcNonce := calculateDcNonce(dcBills)
 	var dcBillIds [][]byte
@@ -286,7 +286,7 @@ func TestSwapTxValuesAreCalculatedInCorrectBillOrder(t *testing.T) {
 		dcBillIds = append(dcBillIds, dcBill.GetID())
 	}
 
-	var protoDcBills []*bp.Bill
+	var protoDcBills []*wallet.Bill
 	for _, b := range dcBills {
 		protoDcBills = append(protoDcBills, b.ToProto())
 	}
@@ -327,10 +327,10 @@ func TestSwapContainsUnconfirmedDustBillIds(t *testing.T) {
 		balance:        3,
 		customBillList: billsList,
 		proofList:      proofList,
-		feeCreditBill: &bp.Bill{
+		feeCreditBill: &wallet.Bill{
 			Id:      k.PrivKeyHash,
 			Value:   100 * 1e8,
-			TxProof: &bp.TxProof{},
+			TxProof: &wallet.Proof{},
 		},
 	}), am)
 
@@ -366,7 +366,7 @@ func addBill(value uint64) *Bill {
 		Id:      uint256.NewInt(value),
 		Value:   value,
 		TxHash:  hash.Sum256([]byte{byte(value)}),
-		TxProof: &bp.TxProof{},
+		TxProof: &wallet.Proof{},
 	}
 	return &b1
 }
@@ -376,12 +376,12 @@ func addDcBill(t *testing.T, k *account.AccountKey, id *uint256.Int, nonce []byt
 		Id:      id,
 		Value:   value,
 		TxHash:  hash.Sum256([]byte{byte(value)}),
-		TxProof: &bp.TxProof{},
+		TxProof: &wallet.Proof{},
 	}
 
 	tx, err := txbuilder.NewDustTx(k, []byte{0, 0, 0, 0}, b.ToProto(), nonce, timeout)
 	require.NoError(t, err)
-	b.TxProof = &bp.TxProof{TxRecord: &types.TransactionRecord{TransactionOrder: tx}}
+	b.TxProof = &wallet.Proof{TxRecord: &types.TransactionRecord{TransactionOrder: tx}}
 
 	b.IsDcBill = true
 	b.DcNonce = nonce

@@ -6,8 +6,8 @@ import (
 	"sort"
 
 	"github.com/alphabill-org/alphabill/internal/types"
+	"github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/alphabill-org/alphabill/pkg/wallet/account"
-	"github.com/alphabill-org/alphabill/pkg/wallet/backend/bp"
 	"github.com/alphabill-org/alphabill/pkg/wallet/log"
 	txbuilder "github.com/alphabill-org/alphabill/pkg/wallet/money/tx_builder"
 )
@@ -24,11 +24,11 @@ type (
 
 	PartitionDataProvider interface {
 		GetRoundNumber(ctx context.Context) (uint64, error)
-		FetchFeeCreditBill(ctx context.Context, unitID []byte) (*bp.Bill, error)
+		FetchFeeCreditBill(ctx context.Context, unitID []byte) (*wallet.Bill, error)
 	}
 
 	MoneyClient interface {
-		GetBills(pubKey []byte) ([]*bp.Bill, error)
+		GetBills(pubKey []byte) ([]*wallet.Bill, error)
 		PartitionDataProvider
 	}
 
@@ -251,7 +251,7 @@ func (w *FeeManager) ReclaimFeeCredit(ctx context.Context, cmd ReclaimFeeCmd) ([
 
 // GetFeeCreditBill returns fee credit bill for given account,
 // can return nil if fee credit bill has not been created yet.
-func (w *FeeManager) GetFeeCreditBill(ctx context.Context, cmd GetFeeCreditCmd) (*bp.Bill, error) {
+func (w *FeeManager) GetFeeCreditBill(ctx context.Context, cmd GetFeeCreditCmd) (*wallet.Bill, error) {
 	accountKey, err := w.am.GetAccountKey(cmd.AccountIndex)
 	if err != nil {
 		return nil, err

@@ -8,8 +8,8 @@ import (
 	moneytx "github.com/alphabill-org/alphabill/internal/txsystem/money"
 	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/internal/util"
+	"github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/alphabill-org/alphabill/pkg/wallet/account"
-	"github.com/alphabill-org/alphabill/pkg/wallet/backend/bp"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
@@ -28,7 +28,7 @@ func TestSplitTransactionAmount(t *testing.T) {
 	billID := uint256.NewInt(0)
 	billIDBytes32 := billID.Bytes32()
 	billIDBytes := billIDBytes32[:]
-	b := &bp.Bill{
+	b := &wallet.Bill{
 		Id:     billIDBytes,
 		Value:  500,
 		TxHash: []byte{1, 2, 3, 4},
@@ -57,7 +57,7 @@ func TestSplitTransactionAmount(t *testing.T) {
 func TestCreateTransactions(t *testing.T) {
 	tests := []struct {
 		name        string
-		bills       []*bp.Bill
+		bills       []*wallet.Bill
 		amount      uint64
 		txCount     int
 		verify      func(t *testing.T, systemID []byte, txs []*types.TransactionOrder)
@@ -65,7 +65,7 @@ func TestCreateTransactions(t *testing.T) {
 	}{
 		{
 			name:   "have more bills than target amount",
-			bills:  []*bp.Bill{createBill(5), createBill(3), createBill(1)},
+			bills:  []*wallet.Bill{createBill(5), createBill(3), createBill(1)},
 			amount: uint64(7),
 			verify: func(t *testing.T, systemID []byte, txs []*types.TransactionOrder) {
 				// verify tx count
@@ -91,7 +91,7 @@ func TestCreateTransactions(t *testing.T) {
 		},
 		{
 			name:   "have less bills than target amount",
-			bills:  []*bp.Bill{createBill(5), createBill(1)},
+			bills:  []*wallet.Bill{createBill(5), createBill(1)},
 			amount: uint64(7),
 			verify: func(t *testing.T, systemID []byte, txs []*types.TransactionOrder) {
 				require.Empty(t, txs)
@@ -100,7 +100,7 @@ func TestCreateTransactions(t *testing.T) {
 		},
 		{
 			name:   "have exact amount of bills than target amount",
-			bills:  []*bp.Bill{createBill(5), createBill(5)},
+			bills:  []*wallet.Bill{createBill(5), createBill(5)},
 			amount: uint64(10),
 			verify: func(t *testing.T, systemID []byte, txs []*types.TransactionOrder) {
 				// verify tx count
@@ -118,7 +118,7 @@ func TestCreateTransactions(t *testing.T) {
 		},
 		{
 			name:   "have exactly one bill with equal target amount",
-			bills:  []*bp.Bill{createBill(5)},
+			bills:  []*wallet.Bill{createBill(5)},
 			amount: uint64(5),
 			verify: func(t *testing.T, systemID []byte, txs []*types.TransactionOrder) {
 				// verify tx count
@@ -149,8 +149,8 @@ func TestCreateTransactions(t *testing.T) {
 	}
 }
 
-func createBill(value uint64) *bp.Bill {
-	return &bp.Bill{
+func createBill(value uint64) *wallet.Bill {
+	return &wallet.Bill{
 		Value:  value,
 		Id:     util.Uint64ToBytes32(0),
 		TxHash: []byte{},

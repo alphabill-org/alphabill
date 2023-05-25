@@ -16,7 +16,6 @@ import (
 	abclient "github.com/alphabill-org/alphabill/pkg/client"
 	"github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/alphabill-org/alphabill/pkg/wallet/account"
-	"github.com/alphabill-org/alphabill/pkg/wallet/backend/bp"
 	"github.com/alphabill-org/alphabill/pkg/wallet/fees"
 	"github.com/alphabill-org/alphabill/pkg/wallet/log"
 	backendmoney "github.com/alphabill-org/alphabill/pkg/wallet/money/backend"
@@ -65,10 +64,10 @@ type (
 	BackendAPI interface {
 		GetBalance(pubKey []byte, includeDCBills bool) (uint64, error)
 		ListBills(pubKey []byte, includeDCBills bool) (*backendmoney.ListBillsResponse, error)
-		GetBills(pubKey []byte) ([]*bp.Bill, error)
-		GetProof(billId []byte) (*bp.Bills, error)
+		GetBills(pubKey []byte) ([]*wallet.Bill, error)
+		GetProof(billId []byte) (*wallet.Bills, error)
 		GetRoundNumber(ctx context.Context) (uint64, error)
-		FetchFeeCreditBill(ctx context.Context, unitID []byte) (*bp.Bill, error)
+		FetchFeeCreditBill(ctx context.Context, unitID []byte) (*wallet.Bill, error)
 	}
 
 	SendCmd struct {
@@ -306,7 +305,7 @@ func (w *Wallet) ReclaimFeeCredit(ctx context.Context, cmd fees.ReclaimFeeCmd) (
 
 // GetFeeCreditBill returns fee credit bill for given account,
 // can return nil if fee credit bill has not been created yet.
-func (w *Wallet) GetFeeCreditBill(ctx context.Context, cmd fees.GetFeeCreditCmd) (*bp.Bill, error) {
+func (w *Wallet) GetFeeCreditBill(ctx context.Context, cmd fees.GetFeeCreditCmd) (*wallet.Bill, error) {
 	accountKey, err := w.am.GetAccountKey(cmd.AccountIndex)
 	if err != nil {
 		return nil, err
@@ -316,7 +315,7 @@ func (w *Wallet) GetFeeCreditBill(ctx context.Context, cmd fees.GetFeeCreditCmd)
 
 // FetchFeeCreditBill returns fee credit bill for given unitID
 // can return nil if fee credit bill has not been created yet.
-func (w *Wallet) FetchFeeCreditBill(ctx context.Context, unitID []byte) (*bp.Bill, error) {
+func (w *Wallet) FetchFeeCreditBill(ctx context.Context, unitID []byte) (*wallet.Bill, error) {
 	fcb, err := w.backend.FetchFeeCreditBill(ctx, unitID)
 	if err != nil {
 		if errors.Is(err, client.ErrMissingFeeCreditBill) {
@@ -396,7 +395,7 @@ func (w *Wallet) collectDust(ctx context.Context, blocking bool, accountIndex ui
 		var dcValueSum uint64
 		for _, b := range bills {
 			dcValueSum += b.Value
-			tx, err := tx_builder.NewDustTx(k, w.SystemID(), &bp.Bill{Id: b.GetID(), Value: b.Value, TxHash: b.TxHash}, dcNonce, dcTimeout)
+			tx, err := tx_builder.NewDustTx(k, w.SystemID(), &wallet.Bill{Id: b.GetID(), Value: b.Value, TxHash: b.TxHash}, dcNonce, dcTimeout)
 			if err != nil {
 				return err
 			}
@@ -536,9 +535,9 @@ func (w *Wallet) swapDcBills(ctx context.Context, dcBills []*Bill, dcNonce []byt
 		return ErrInsufficientFeeCredit
 	}
 
-	var bpBills []*bp.Bill
+	var bpBills []*wallet.Bill
 	for _, b := range dcBills {
-		bpBills = append(bpBills, &bp.Bill{Id: b.GetID(), Value: b.Value, TxProof: b.TxProof})
+		bpBills = append(bpBills, &wallet.Bill{Id: b.GetID(), Value: b.Value, TxProof: b.TxProof})
 	}
 
 	swapTx, err := tx_builder.NewSwapTx(k, w.SystemID(), bpBills, dcNonce, billIds, timeout)
@@ -690,7 +689,7 @@ func getBillIds(bills []*Bill) [][]byte {
 //}
 
 // converts proto bp.Bill to money.Bill domain struct
-func convertBill(b *bp.Bill) *Bill {
+func convertBill(b *wallet.Bill) *Bill {
 	if b.IsDcBill {
 		attrs := &money.TransferDCAttributes{}
 		if err := b.TxProof.TxRecord.TransactionOrder.UnmarshalAttributes(attrs); err != nil {

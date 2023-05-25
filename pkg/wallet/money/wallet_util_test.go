@@ -16,8 +16,8 @@ import (
 	"github.com/alphabill-org/alphabill/internal/util"
 	abclient "github.com/alphabill-org/alphabill/pkg/client"
 	"github.com/alphabill-org/alphabill/pkg/client/clientmock"
+	"github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/alphabill-org/alphabill/pkg/wallet/account"
-	"github.com/alphabill-org/alphabill/pkg/wallet/backend/bp"
 	"github.com/alphabill-org/alphabill/pkg/wallet/money/backend"
 	beclient "github.com/alphabill-org/alphabill/pkg/wallet/money/backend/client"
 	txbuilder "github.com/alphabill-org/alphabill/pkg/wallet/money/tx_builder"
@@ -37,7 +37,7 @@ type (
 		customPath     string
 		customFullPath string
 		customResponse string
-		feeCreditBill  *bp.Bill
+		feeCreditBill  *wallet.Bill
 	}
 )
 
@@ -127,7 +127,7 @@ func toBillId(i *uint256.Int) string {
 	return base64.StdEncoding.EncodeToString(util.Uint256ToBytes(i))
 }
 
-func createBlockProofResponse(t *testing.T, b *Bill, overrideNonce []byte, blockNumber, timeout uint64, k *account.AccountKey) *bp.Bills {
+func createBlockProofResponse(t *testing.T, b *Bill, overrideNonce []byte, blockNumber, timeout uint64, k *account.AccountKey) *wallet.Bills {
 	w, mockClient := CreateTestWallet(t, nil)
 	if k == nil {
 		k, _ = w.am.GetAccountKey(0)
@@ -147,7 +147,7 @@ func createBlockProofResponse(t *testing.T, b *Bill, overrideNonce []byte, block
 		Transactions:       []*types.TransactionRecord{txRecord},
 		UnicityCertificate: &types.UnicityCertificate{InputRecord: &types.InputRecord{RoundNumber: timeout}},
 	})
-	txProof := &bp.TxProof{
+	txProof := &wallet.Proof{
 		TxRecord: txRecord,
 		TxProof: &types.TxProof{
 			BlockHeaderHash:    []byte{0},
@@ -155,7 +155,7 @@ func createBlockProofResponse(t *testing.T, b *Bill, overrideNonce []byte, block
 			UnicityCertificate: &types.UnicityCertificate{InputRecord: &types.InputRecord{RoundNumber: timeout}},
 		},
 	}
-	return &bp.Bills{Bills: []*bp.Bill{{Id: util.Uint256ToBytes(b.Id), Value: b.Value, IsDcBill: b.IsDcBill, TxProof: txProof, TxHash: b.TxHash}}}
+	return &wallet.Bills{Bills: []*wallet.Bill{{Id: util.Uint256ToBytes(b.Id), Value: b.Value, IsDcBill: b.IsDcBill, TxProof: txProof, TxHash: b.TxHash}}}
 }
 
 func createBlockProofJsonResponse(t *testing.T, bills []*Bill, overrideNonce []byte, blockNumber, timeout uint64, k *account.AccountKey) []string {
@@ -190,13 +190,13 @@ func createBillListJsonResponse(bills []*Bill) string {
 type backendAPIMock struct {
 	getBalance         func(pubKey []byte, includeDCBills bool) (uint64, error)
 	listBills          func(pubKey []byte, includeDCBills bool) (*backend.ListBillsResponse, error)
-	getBills           func(pubKey []byte) ([]*bp.Bill, error)
-	getProof           func(billId []byte) (*bp.Bills, error)
+	getBills           func(pubKey []byte) ([]*wallet.Bill, error)
+	getProof           func(billId []byte) (*wallet.Bills, error)
 	getRoundNumber     func() (uint64, error)
-	fetchFeeCreditBill func(ctx context.Context, unitID []byte) (*bp.Bill, error)
+	fetchFeeCreditBill func(ctx context.Context, unitID []byte) (*wallet.Bill, error)
 }
 
-func (b *backendAPIMock) GetBills(pubKey []byte) ([]*bp.Bill, error) {
+func (b *backendAPIMock) GetBills(pubKey []byte) ([]*wallet.Bill, error) {
 	if b.getBills != nil {
 		return b.getBills(pubKey)
 	}
@@ -210,7 +210,7 @@ func (b *backendAPIMock) GetRoundNumber(ctx context.Context) (uint64, error) {
 	return 0, errors.New("getRoundNumber not implemented")
 }
 
-func (b *backendAPIMock) FetchFeeCreditBill(ctx context.Context, unitID []byte) (*bp.Bill, error) {
+func (b *backendAPIMock) FetchFeeCreditBill(ctx context.Context, unitID []byte) (*wallet.Bill, error) {
 	if b.fetchFeeCreditBill != nil {
 		return b.fetchFeeCreditBill(ctx, unitID)
 	}
@@ -231,7 +231,7 @@ func (b *backendAPIMock) ListBills(pubKey []byte, includeDCBills bool) (*backend
 	return nil, errors.New("listBills not implemented")
 }
 
-func (b *backendAPIMock) GetProof(billId []byte) (*bp.Bills, error) {
+func (b *backendAPIMock) GetProof(billId []byte) (*wallet.Bills, error) {
 	if b.getProof != nil {
 		return b.getProof(billId)
 	}

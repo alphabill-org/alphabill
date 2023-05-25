@@ -12,7 +12,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/alphabill-org/alphabill/pkg/wallet/backend/bp"
+	"github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/alphabill-org/alphabill/pkg/wallet/money/backend"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 )
@@ -108,19 +108,19 @@ func (c *MoneyBackendClient) ListBills(pubKey []byte, includeDCBills bool) (*bac
 	return finalResponse, nil
 }
 
-func (c *MoneyBackendClient) GetBills(pubKey []byte) ([]*bp.Bill, error) {
+func (c *MoneyBackendClient) GetBills(pubKey []byte) ([]*wallet.Bill, error) {
 	bills, err := c.ListBills(pubKey, false)
 	if err != nil {
 		return nil, err
 	}
-	var res []*bp.Bill
+	var res []*wallet.Bill
 	for _, b := range bills.Bills {
 		res = append(res, b.ToProto())
 	}
 	return res, nil
 }
 
-func (c *MoneyBackendClient) GetProof(billId []byte) (*bp.Bills, error) {
+func (c *MoneyBackendClient) GetProof(billId []byte) (*wallet.Bills, error) {
 	req, err := http.NewRequest(http.MethodGet, fmt.Sprintf(proofUrlFormat, c.BaseUrl, ProofPath, hexutil.Encode(billId)), nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to build get proof request: %w", err)
@@ -141,7 +141,7 @@ func (c *MoneyBackendClient) GetProof(billId []byte) (*bp.Bills, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to read GetProof response: %w", err)
 	}
-	var responseObject bp.Bills
+	var responseObject wallet.Bills
 	err = json.Unmarshal(responseData, &responseObject)
 	if err != nil {
 		return nil, fmt.Errorf("failed to unmarshall GetProof response data: %w", err)
@@ -175,7 +175,7 @@ func (c *MoneyBackendClient) GetRoundNumber(_ context.Context) (uint64, error) {
 	return responseObject.RoundNumber, nil
 }
 
-func (c *MoneyBackendClient) FetchFeeCreditBill(_ context.Context, unitID []byte) (*bp.Bill, error) {
+func (c *MoneyBackendClient) FetchFeeCreditBill(_ context.Context, unitID []byte) (*wallet.Bill, error) {
 	req, err := http.NewRequest(http.MethodGet, c.feeCreditBillURL, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to build get fee credit request: %w", err)
@@ -203,7 +203,7 @@ func (c *MoneyBackendClient) FetchFeeCreditBill(_ context.Context, unitID []byte
 	if err != nil {
 		return nil, fmt.Errorf("failed to read get credit bill response: %w", err)
 	}
-	var res bp.Bill
+	var res wallet.Bill
 	err = json.Unmarshal(responseData, &res)
 	if err != nil {
 		return nil, fmt.Errorf("failed to unmarshall get fee credit bill response data: %w", err)

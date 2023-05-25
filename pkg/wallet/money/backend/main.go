@@ -20,7 +20,6 @@ import (
 	"github.com/alphabill-org/alphabill/pkg/client"
 	"github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/alphabill-org/alphabill/pkg/wallet/account"
-	"github.com/alphabill-org/alphabill/pkg/wallet/backend/bp"
 	"github.com/alphabill-org/alphabill/pkg/wallet/blocksync"
 	wlog "github.com/alphabill-org/alphabill/pkg/wallet/log"
 )
@@ -54,9 +53,9 @@ type (
 		TxHash   []byte `json:"txHash"`
 		IsDCBill bool   `json:"isDcBill"`
 		// OrderNumber insertion order of given bill in pubkey => list of bills bucket, needed for determistic paging
-		OrderNumber    uint64      `json:"orderNumber"`
-		TxProof        *bp.TxProof `json:"txProof"`
-		OwnerPredicate []byte      `json:"OwnerPredicate"`
+		OrderNumber    uint64        `json:"orderNumber"`
+		TxProof        *wallet.Proof `json:"txProof"`
+		OwnerPredicate []byte        `json:"OwnerPredicate"`
 
 		// fcb specific fields
 		// FCBlockNumber block number when fee credit bill balance was last updated
@@ -278,8 +277,8 @@ func (w *WalletBackend) SendTransactions(ctx context.Context, txs []*types.Trans
 	return errs
 }
 
-func (b *Bill) toProto() *bp.Bill {
-	return &bp.Bill{
+func (b *Bill) toProto() *wallet.Bill {
+	return &wallet.Bill{
 		Id:            b.Id,
 		Value:         b.Value,
 		TxHash:        b.TxHash,
@@ -289,16 +288,16 @@ func (b *Bill) toProto() *bp.Bill {
 	}
 }
 
-func (b *Bill) toProtoBills() *bp.Bills {
-	return &bp.Bills{
-		Bills: []*bp.Bill{
+func (b *Bill) toProtoBills() *wallet.Bills {
+	return &wallet.Bills{
+		Bills: []*wallet.Bill{
 			b.toProto(),
 		},
 	}
 }
 
 func (b *Bill) addProof(txIdx int, bl *types.Block) error {
-	proof, err := bp.NewTxProof(txIdx, bl, crypto.SHA256)
+	proof, err := wallet.NewTxProof(txIdx, bl, crypto.SHA256)
 	if err != nil {
 		return err
 

@@ -11,7 +11,6 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/alphabill-org/alphabill/pkg/wallet/backend/bp"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/spf13/cobra"
 	"github.com/tyler-smith/go-bip39"
@@ -19,6 +18,7 @@ import (
 
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/pkg/client"
+	"github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/alphabill-org/alphabill/pkg/wallet/account"
 	wlog "github.com/alphabill-org/alphabill/pkg/wallet/log"
 	"github.com/alphabill-org/alphabill/pkg/wallet/money"
@@ -255,7 +255,7 @@ func execSendCmd(ctx context.Context, cmd *cobra.Command, config *walletConfig) 
 	if waitForConf {
 		consoleWriter.Println("Successfully confirmed transaction(s)")
 		if outputPath != "" {
-			var outputBills []*bp.Bill
+			var outputBills []*wallet.Bill
 			for _, b := range bills {
 				outputBills = append(outputBills, b.ToProto())
 			}

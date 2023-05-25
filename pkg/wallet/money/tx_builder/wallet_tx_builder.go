@@ -12,14 +12,14 @@ import (
 	"github.com/alphabill-org/alphabill/internal/txsystem/fc/transactions"
 	"github.com/alphabill-org/alphabill/internal/txsystem/money"
 	"github.com/alphabill-org/alphabill/internal/types"
+	"github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/alphabill-org/alphabill/pkg/wallet/account"
-	"github.com/alphabill-org/alphabill/pkg/wallet/backend/bp"
 	"github.com/fxamacker/cbor/v2"
 )
 
 const MaxFee = uint64(1)
 
-func CreateTransactions(pubKey []byte, amount uint64, systemID []byte, bills []*bp.Bill, k *account.AccountKey, timeout uint64, fcrID []byte) ([]*types.TransactionOrder, error) {
+func CreateTransactions(pubKey []byte, amount uint64, systemID []byte, bills []*wallet.Bill, k *account.AccountKey, timeout uint64, fcrID []byte) ([]*types.TransactionOrder, error) {
 	var txs []*types.TransactionOrder
 	var accumulatedSum uint64
 	// sort bills by value in descending order
@@ -41,14 +41,14 @@ func CreateTransactions(pubKey []byte, amount uint64, systemID []byte, bills []*
 	return nil, fmt.Errorf("insufficient balance for transaction, trying to send %d have %d", amount, accumulatedSum)
 }
 
-func CreateTransaction(receiverPubKey []byte, k *account.AccountKey, amount uint64, systemID []byte, b *bp.Bill, timeout uint64, fcrID []byte) (*types.TransactionOrder, error) {
+func CreateTransaction(receiverPubKey []byte, k *account.AccountKey, amount uint64, systemID []byte, b *wallet.Bill, timeout uint64, fcrID []byte) (*types.TransactionOrder, error) {
 	if b.Value <= amount {
 		return NewTransferTx(receiverPubKey, k, systemID, b, timeout, fcrID)
 	}
 	return NewSplitTx(amount, receiverPubKey, k, systemID, b, timeout, fcrID)
 }
 
-func NewTransferTx(receiverPubKey []byte, k *account.AccountKey, systemID []byte, bill *bp.Bill, timeout uint64, fcrID []byte) (*types.TransactionOrder, error) {
+func NewTransferTx(receiverPubKey []byte, k *account.AccountKey, systemID []byte, bill *wallet.Bill, timeout uint64, fcrID []byte) (*types.TransactionOrder, error) {
 	attr := &money.TransferAttributes{
 		NewBearer:   script.PredicatePayToPublicKeyHashDefault(hash.Sum256(receiverPubKey)),
 		TargetValue: bill.Value,
@@ -61,7 +61,7 @@ func NewTransferTx(receiverPubKey []byte, k *account.AccountKey, systemID []byte
 	return signPayload(txPayload, k)
 }
 
-func NewSplitTx(amount uint64, pubKey []byte, k *account.AccountKey, systemID []byte, bill *bp.Bill, timeout uint64, fcrID []byte) (*types.TransactionOrder, error) {
+func NewSplitTx(amount uint64, pubKey []byte, k *account.AccountKey, systemID []byte, bill *wallet.Bill, timeout uint64, fcrID []byte) (*types.TransactionOrder, error) {
 	attr := &money.SplitAttributes{
 		Amount:         amount,
 		TargetBearer:   script.PredicatePayToPublicKeyHashDefault(hash.Sum256(pubKey)),
@@ -75,7 +75,7 @@ func NewSplitTx(amount uint64, pubKey []byte, k *account.AccountKey, systemID []
 	return signPayload(txPayload, k)
 }
 
-func NewDustTx(ac *account.AccountKey, systemID []byte, bill *bp.Bill, nonce []byte, timeout uint64) (*types.TransactionOrder, error) {
+func NewDustTx(ac *account.AccountKey, systemID []byte, bill *wallet.Bill, nonce []byte, timeout uint64) (*types.TransactionOrder, error) {
 	attr := &money.TransferDCAttributes{
 		TargetValue:  bill.Value,
 		TargetBearer: script.PredicatePayToPublicKeyHashDefault(ac.PubKeyHash.Sha256),
@@ -89,7 +89,7 @@ func NewDustTx(ac *account.AccountKey, systemID []byte, bill *bp.Bill, nonce []b
 	return signPayload(txPayload, ac)
 }
 
-func NewSwapTx(k *account.AccountKey, systemID []byte, dcBills []*bp.Bill, dcNonce []byte, billIds [][]byte, timeout uint64) (*types.TransactionOrder, error) {
+func NewSwapTx(k *account.AccountKey, systemID []byte, dcBills []*wallet.Bill, dcNonce []byte, billIds [][]byte, timeout uint64) (*types.TransactionOrder, error) {
 	if len(dcBills) == 0 {
 		return nil, errors.New("cannot create swap transaction as no dust bills exist")
 	}
@@ -123,7 +123,7 @@ func NewSwapTx(k *account.AccountKey, systemID []byte, dcBills []*bp.Bill, dcNon
 	return signPayload(swapTx, k)
 }
 
-func NewTransferFCTx(amount uint64, targetRecordID []byte, nonce []byte, k *account.AccountKey, moneySystemID, targetSystemID []byte, unit *bp.Bill, timeout, t1, t2 uint64) (*types.TransactionOrder, error) {
+func NewTransferFCTx(amount uint64, targetRecordID []byte, nonce []byte, k *account.AccountKey, moneySystemID, targetSystemID []byte, unit *wallet.Bill, timeout, t1, t2 uint64) (*types.TransactionOrder, error) {
 	attr := &transactions.TransferFeeCreditAttributes{
 		Amount:                 amount,
 		TargetSystemIdentifier: targetSystemID,

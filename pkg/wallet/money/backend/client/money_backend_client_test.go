@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/alphabill-org/alphabill/pkg/wallet/backend/bp"
+	"github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/stretchr/testify/require"
 )
@@ -219,7 +219,7 @@ func mockGetFeeCreditBillCall(t *testing.T) *url.URL {
 
 func getFeeCreditBillJsonBytes() []byte {
 	unitID, _ := base64.StdEncoding.DecodeString(billId)
-	res := &bp.Bill{
+	res := &wallet.Bill{
 		Id:            unitID,
 		Value:         10,
 		TxHash:        []byte{1},

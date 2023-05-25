@@ -5,16 +5,16 @@ import (
 
 	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/internal/util"
-	"github.com/alphabill-org/alphabill/pkg/wallet/backend/bp"
+	"github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/holiman/uint256"
 )
 
 type (
 	Bill struct {
-		Id      *uint256.Int `json:"id"`
-		Value   uint64       `json:"value,string"`
-		TxHash  []byte       `json:"txHash"`
-		TxProof *bp.TxProof  `json:"txProof"`
+		Id      *uint256.Int  `json:"id"`
+		Value   uint64        `json:"value,string"`
+		TxHash  []byte        `json:"txHash"`
+		TxProof *wallet.Proof `json:"txProof"`
 
 		// dc bill specific fields
 		IsDcBill  bool   `json:"dcBill"`
@@ -37,8 +37,8 @@ func (b *Bill) GetID() []byte {
 	return nil
 }
 
-func (b *Bill) ToProto() *bp.Bill {
-	return &bp.Bill{
+func (b *Bill) ToProto() *wallet.Bill {
+	return &wallet.Bill{
 		Id:      b.GetID(),
 		Value:   b.Value,
 		TxHash:  b.TxHash,
@@ -52,7 +52,7 @@ func (b *Bill) isExpired(blockHeight uint64) bool {
 }
 
 func (b *Bill) addProof(txIdx int, bl *types.Block) error {
-	proof, err := bp.NewTxProof(txIdx, bl, crypto.SHA256)
+	proof, err := wallet.NewTxProof(txIdx, bl, crypto.SHA256)
 	if err != nil {
 		return err
 	}

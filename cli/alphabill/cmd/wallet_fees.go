@@ -11,7 +11,6 @@ import (
 	"github.com/alphabill-org/alphabill/pkg/client"
 	"github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/alphabill-org/alphabill/pkg/wallet/account"
-	"github.com/alphabill-org/alphabill/pkg/wallet/backend/bp"
 	"github.com/alphabill-org/alphabill/pkg/wallet/fees"
 	"github.com/alphabill-org/alphabill/pkg/wallet/money"
 	moneyclient "github.com/alphabill-org/alphabill/pkg/wallet/money/backend/client"
@@ -198,7 +197,7 @@ func reclaimFeeCreditCmdExec(ctx context.Context, cmd *cobra.Command, config *wa
 }
 
 type FeeCreditManager interface {
-	GetFeeCreditBill(ctx context.Context, cmd fees.GetFeeCreditCmd) (*bp.Bill, error)
+	GetFeeCreditBill(ctx context.Context, cmd fees.GetFeeCreditCmd) (*wallet.Bill, error)
 	AddFeeCredit(ctx context.Context, cmd fees.AddFeeCmd) ([]*types.TxProof, error)
 	ReclaimFeeCredit(ctx context.Context, cmd fees.ReclaimFeeCmd) ([]*types.TxProof, error)
 }
@@ -284,7 +283,7 @@ func (c *cliConf) getPartitionBackendURL() string {
 
 func getFeeCreditManager(c *cliConf, am account.Manager, genericWallet *wallet.Wallet, moneyClient *moneyclient.MoneyBackendClient) (FeeCreditManager, error) {
 	moneySystemID := []byte{0, 0, 0, 0}
-	moneyTxPublisher := money.NewTxPublisher(genericWallet, moneyClient, money.NewTxConverter(moneySystemID))
+	moneyTxPublisher := money.NewTxPublisher(genericWallet, moneyClient)
 	if c.partitionType == moneyType {
 		return fees.NewFeeManager(am, moneySystemID, moneyTxPublisher, moneyClient, moneySystemID, moneyTxPublisher, moneyClient), nil
 	} else if c.partitionType == tokenType {

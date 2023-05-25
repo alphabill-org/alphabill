@@ -4,12 +4,12 @@ import (
 	"context"
 	"testing"
 
+	"github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
 
 	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/alphabill-org/alphabill/pkg/wallet/account"
-	"github.com/alphabill-org/alphabill/pkg/wallet/backend/bp"
 )
 
 func TestDcJobWithExistingDcBills(t *testing.T) {
@@ -30,10 +30,10 @@ func TestDcJobWithExistingDcBills(t *testing.T) {
 		balance:        3,
 		customBillList: billsList,
 		proofList:      proofList,
-		feeCreditBill: &bp.Bill{
+		feeCreditBill: &wallet.Bill{
 			Id:      k.PrivKeyHash,
 			Value:   100 * 1e8,
-			TxProof: &bp.TxProof{},
+			TxProof: &wallet.Proof{},
 		},
 	}), am)
 	mockClient.SetMaxBlockNumber(100)
@@ -72,10 +72,10 @@ func TestDcJobWithExistingDcAndNonDcBills(t *testing.T) {
 		balance:        3,
 		customBillList: billsList,
 		proofList:      proofList,
-		feeCreditBill: &bp.Bill{
+		feeCreditBill: &wallet.Bill{
 			Id:      k.PrivKeyHash,
 			Value:   100 * 1e8,
-			TxProof: &bp.TxProof{},
+			TxProof: &wallet.Proof{},
 		},
 	}), am)
 	mockClient.SetMaxBlockNumber(100)
@@ -115,10 +115,10 @@ func TestDcJobWithExistingNonDcBills(t *testing.T) {
 		balance:        3,
 		customBillList: billsList,
 		proofList:      proofList,
-		feeCreditBill: &bp.Bill{
+		feeCreditBill: &wallet.Bill{
 			Id:      k.PrivKeyHash,
 			Value:   100 * 1e8,
-			TxProof: &bp.TxProof{},
+			TxProof: &wallet.Proof{},
 		}}))
 	mockClient.SetMaxBlockNumber(100)
 
@@ -149,10 +149,10 @@ func TestDcJobSendsSwapsIfDcBillTimeoutHasBeenReached(t *testing.T) {
 		balance:        3,
 		customBillList: billsList,
 		proofList:      proofList,
-		feeCreditBill: &bp.Bill{
+		feeCreditBill: &wallet.Bill{
 			Id:      k.PrivKeyHash,
 			Value:   100 * 1e8,
-			TxProof: &bp.TxProof{},
+			TxProof: &wallet.Proof{},
 		},
 	}), am)
 

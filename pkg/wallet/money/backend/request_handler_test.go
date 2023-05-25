@@ -22,7 +22,6 @@ import (
 	"github.com/alphabill-org/alphabill/pkg/client"
 	"github.com/alphabill-org/alphabill/pkg/client/clientmock"
 	"github.com/alphabill-org/alphabill/pkg/wallet"
-	"github.com/alphabill-org/alphabill/pkg/wallet/backend/bp"
 )
 
 const (
@@ -335,7 +334,7 @@ func TestProofRequest_Ok(t *testing.T) {
 		Value:          1,
 		TxHash:         []byte{0},
 		OwnerPredicate: getOwnerPredicate(pubkeyHex),
-		TxProof: &bp.TxProof{
+		TxProof: &wallet.Proof{
 			TxRecord: testtransaction.NewTransactionRecord(t),
 			TxProof: &types.TxProof{
 				BlockHeaderHash:    []byte{0},
@@ -347,7 +346,7 @@ func TestProofRequest_Ok(t *testing.T) {
 	walletBackend := newWalletBackend(t, withBills(b))
 	port := startServer(t, walletBackend)
 
-	response := &bp.Bills{}
+	response := &wallet.Bills{}
 	httpRes, err := testhttp.DoGet(fmt.Sprintf("http://localhost:%d/api/v1/proof?bill_id=%s", port, billId), response)
 	require.NoError(t, err)
 	require.Equal(t, http.StatusOK, httpRes.StatusCode)
@@ -446,7 +445,7 @@ func TestGetFeeCreditBillRequest_Ok(t *testing.T) {
 		TxHash:         []byte{0},
 		OwnerPredicate: getOwnerPredicate(pubkeyHex),
 		FCBlockNumber:  1,
-		TxProof: &bp.TxProof{
+		TxProof: &wallet.Proof{
 			TxRecord: testtransaction.NewTransactionRecord(t),
 			TxProof: &types.TxProof{
 				BlockHeaderHash: []byte{0},
@@ -457,7 +456,7 @@ func TestGetFeeCreditBillRequest_Ok(t *testing.T) {
 	walletBackend := newWalletBackend(t, withFeeCreditBills(b))
 	port := startServer(t, walletBackend)
 
-	response := &bp.Bill{}
+	response := &wallet.Bill{}
 	httpRes, err := testhttp.DoGet(fmt.Sprintf("http://localhost:%d/api/v1/fee-credit-bill?bill_id=%s", port, billId), response)
 	require.NoError(t, err)
 	require.Equal(t, http.StatusOK, httpRes.StatusCode)

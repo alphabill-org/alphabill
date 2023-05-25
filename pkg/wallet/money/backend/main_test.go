@@ -5,6 +5,7 @@ import (
 	gocrypto "crypto"
 	"testing"
 
+	"github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/stretchr/testify/require"
 
@@ -15,7 +16,6 @@ import (
 	moneytx "github.com/alphabill-org/alphabill/internal/txsystem/money"
 	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/pkg/client/clientmock"
-	"github.com/alphabill-org/alphabill/pkg/wallet/backend/bp"
 	wlog "github.com/alphabill-org/alphabill/pkg/wallet/log"
 )
 
@@ -122,7 +122,7 @@ func TestGetBills_OK(t *testing.T) {
 		TxHash:         txHash,
 		OrderNumber:    1,
 		OwnerPredicate: bearer,
-		TxProof: &bp.TxProof{
+		TxProof: &wallet.Proof{
 			TxRecord: &types.TransactionRecord{TransactionOrder: tx},
 			TxProof:  &types.TxProof{UnicityCertificate: &types.UnicityCertificate{InputRecord: &types.InputRecord{RoundNumber: 1}}},
 		},

@@ -16,7 +16,6 @@ import (
 	httpSwagger "github.com/swaggo/http-swagger"
 
 	"github.com/alphabill-org/alphabill/pkg/wallet"
-	"github.com/alphabill-org/alphabill/pkg/wallet/backend/bp"
 	"github.com/alphabill-org/alphabill/pkg/wallet/log"
 	_ "github.com/alphabill-org/alphabill/pkg/wallet/money/backend/docs"
 )
@@ -479,8 +478,8 @@ func toBillVMList(bills []*Bill) []*ListBillVM {
 	return billVMs
 }
 
-func (b *ListBillVM) ToProto() *bp.Bill {
-	return &bp.Bill{
+func (b *ListBillVM) ToProto() *wallet.Bill {
+	return &wallet.Bill{
 		Id:       b.Id,
 		Value:    b.Value,
 		TxHash:   b.TxHash,

@@ -14,7 +14,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/alphabill-org/alphabill/internal/rpc/alphabill"
 	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/fxamacker/cbor/v2"
 	"github.com/gorilla/handlers"
@@ -35,12 +34,12 @@ type dataSource interface {
 	GetToken(id TokenID) (*TokenUnit, error)
 	QueryTokens(kind Kind, owner wallet.Predicate, startKey TokenID, count int) ([]*TokenUnit, TokenID, error)
 	SaveTokenTypeCreator(id TokenTypeID, kind Kind, creator wallet.PubKey) error
-	GetTxProof(unitID wallet.UnitID, txHash wallet.TxHash) (*wallet.TxProof, error)
+	GetTxProof(unitID wallet.UnitID, txHash wallet.TxHash) (*wallet.Proof, error)
 	GetFeeCreditBill(unitID wallet.UnitID) (*FeeCreditBill, error)
 }
 
 type abClient interface {
-	SendTransaction(ctx context.Context, tx *alphabill.Transaction) error
+	SendTransaction(ctx context.Context, tx *types.TransactionOrder) error
 	GetRoundNumber(ctx context.Context) (uint64, error)
 }
 
@@ -244,7 +243,7 @@ func (api *restAPI) postTransactions(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	txs := &Transactions{}
+	txs := &wallet.Transactions{}
 	if err = cbor.Unmarshal(buf, txs); err != nil {
 		api.errorResponse(w, http.StatusBadRequest, fmt.Errorf("failed to decode request body: %w", err))
 		return
@@ -327,11 +326,7 @@ func (api *restAPI) saveTx(ctx context.Context, tx *types.TransactionOrder, owne
 		}
 	}
 
-	txBytes, err := cbor.Marshal(tx)
-	if err != nil {
-		return fmt.Errorf("failed to marshal tx: %w", err)
-	}
-	if err := api.ab.SendTransaction(ctx, &alphabill.Transaction{Order: txBytes}); err != nil {
+	if err := api.ab.SendTransaction(ctx, tx); err != nil {
 		return fmt.Errorf("failed to forward tx: %w", err)
 	}
 	return nil

@@ -107,7 +107,7 @@ func (s *storage) tokenTypesByCreator(creator wallet.PubKey, kind Kind, startKey
 	})
 }
 
-func (s *storage) SaveTokenType(tokenType *TokenUnitType, proof *wallet.TxProof) error {
+func (s *storage) SaveTokenType(tokenType *TokenUnitType, proof *wallet.Proof) error {
 	tokenData, err := cbor.Marshal(tokenType)
 	if err != nil {
 		return fmt.Errorf("failed to serialize token type data: %w", err)
@@ -142,7 +142,7 @@ func (s *storage) GetTokenType(id TokenTypeID) (*TokenUnitType, error) {
 	return d, nil
 }
 
-func (s *storage) SaveToken(token *TokenUnit, proof *wallet.TxProof) error {
+func (s *storage) SaveToken(token *TokenUnit, proof *wallet.Proof) error {
 	tokenData, err := cbor.Marshal(token)
 	if err != nil {
 		return fmt.Errorf("failed to serialize token unit data: %w", err)
@@ -259,8 +259,8 @@ func (s *storage) SetBlockNumber(blockNumber uint64) error {
 	})
 }
 
-func (s *storage) GetTxProof(unitID wallet.UnitID, txHash wallet.TxHash) (*wallet.TxProof, error) {
-	var proof *wallet.TxProof
+func (s *storage) GetTxProof(unitID wallet.UnitID, txHash wallet.TxHash) (*wallet.Proof, error) {
+	var proof *wallet.Proof
 	err := s.db.View(func(tx *bolt.Tx) error {
 		var err error
 		proof, err = s.getUnitBlockProof(tx, unitID, txHash)
@@ -269,8 +269,8 @@ func (s *storage) GetTxProof(unitID wallet.UnitID, txHash wallet.TxHash) (*walle
 	return proof, err
 }
 
-func (s *storage) SetTxProof(unitID wallet.UnitID, txHash wallet.TxHash) (*wallet.TxProof, error) {
-	var proof *wallet.TxProof
+func (s *storage) SetTxProof(unitID wallet.UnitID, txHash wallet.TxHash) (*wallet.Proof, error) {
+	var proof *wallet.Proof
 	err := s.db.Update(func(tx *bolt.Tx) error {
 		var err error
 		proof, err = s.getUnitBlockProof(tx, unitID, txHash)
@@ -291,7 +291,7 @@ func (s *storage) GetFeeCreditBill(unitID wallet.UnitID) (*FeeCreditBill, error)
 	return fcb, err
 }
 
-func (s *storage) SetFeeCreditBill(fcb *FeeCreditBill, proof *wallet.TxProof) error {
+func (s *storage) SetFeeCreditBill(fcb *FeeCreditBill, proof *wallet.Proof) error {
 	return s.db.Update(func(tx *bolt.Tx) error {
 		// store proof in separate bucket, instead of part of fee credit bill,
 		// so that existing framework can be used for confirming fee credit txs
@@ -333,7 +333,7 @@ func (s *storage) getToken(tx *bolt.Tx, id TokenID) (*TokenUnit, error) {
 	return token, nil
 }
 
-func (s *storage) storeUnitBlockProof(tx *bolt.Tx, unitID wallet.UnitID, txHash wallet.TxHash, proof *wallet.TxProof) error {
+func (s *storage) storeUnitBlockProof(tx *bolt.Tx, unitID wallet.UnitID, txHash wallet.TxHash, proof *wallet.Proof) error {
 	proofData, err := cbor.Marshal(proof)
 	if err != nil {
 		return fmt.Errorf("failed to serialize proof data: %w", err)
@@ -384,7 +384,7 @@ func (s *storage) initMetaData() error {
 	})
 }
 
-func (s *storage) getUnitBlockProof(dbTx *bolt.Tx, id []byte, txHash wallet.TxHash) (*wallet.TxProof, error) {
+func (s *storage) getUnitBlockProof(dbTx *bolt.Tx, id []byte, txHash wallet.TxHash) (*wallet.Proof, error) {
 	b, err := s.ensureSubBucket(dbTx, bucketTxHistory, id, true)
 	if err != nil {
 		return nil, err
@@ -396,7 +396,7 @@ func (s *storage) getUnitBlockProof(dbTx *bolt.Tx, id []byte, txHash wallet.TxHa
 	if proofData == nil {
 		return nil, nil
 	}
-	proof := &wallet.TxProof{}
+	proof := &wallet.Proof{}
 	if err := cbor.Unmarshal(proofData, proof); err != nil {
 		return nil, fmt.Errorf("failed to deserialize proof data: %w", err)
 	}

@@ -10,6 +10,7 @@ import (
 
 	"github.com/ainvaltin/httpsrv"
 	"github.com/alphabill-org/alphabill/internal/crypto"
+	"github.com/alphabill-org/alphabill/internal/types"
 	"golang.org/x/sync/errgroup"
 
 	"github.com/alphabill-org/alphabill/internal/rpc/alphabill"
@@ -31,7 +32,7 @@ type Configuration interface {
 }
 
 type ABClient interface {
-	SendTransaction(ctx context.Context, tx *alphabill.Transaction) error
+	SendTransaction(ctx context.Context, tx *types.TransactionOrder) error
 	GetBlocks(ctx context.Context, blockNumber, blockCount uint64) (*alphabill.GetBlocksResponse, error)
 	GetRoundNumber(ctx context.Context) (uint64, error)
 }

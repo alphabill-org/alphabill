@@ -492,13 +492,13 @@ func (w *Wallet) confirmSwap(ctx context.Context) error {
 		}
 		blockBytes, err := w.AlphabillClient.GetBlock(ctx, roundNr)
 		if err != nil {
-			return err
+			return fmt.Errorf("failed to download block: %w", err)
 		}
-		var b *types.Block
-		if err := cbor.Unmarshal(blockBytes, b); err != nil {
-			return err
+		block := &types.Block{}
+		if err := cbor.Unmarshal(blockBytes, block); err != nil {
+			return fmt.Errorf("failed to unmarshal block: %w", err)
 		}
-		for _, tx := range b.Transactions {
+		for _, tx := range block.Transactions {
 			if err := w.dcWg.DecrementSwaps(string(tx.TransactionOrder.UnitID())); err != nil {
 				return err
 			}

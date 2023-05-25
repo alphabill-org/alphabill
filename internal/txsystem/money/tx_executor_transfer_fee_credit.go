@@ -30,7 +30,7 @@ func handleTransferFeeCreditTx(state *rma.Tree, hashAlgorithm crypto.Hash, feeCr
 		unitID := util.BytesToUint256(tx.UnitID())
 		unit, _ := state.GetUnit(unitID)
 		if unit == nil {
-			return nil, errors.New("transferFC: unit not found")
+			return nil, fmt.Errorf("transferFC: unit not found %X", tx.UnitID())
 		}
 		billData, ok := unit.Data.(*BillData)
 		if !ok {

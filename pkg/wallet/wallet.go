@@ -9,7 +9,6 @@ import (
 
 	"github.com/fxamacker/cbor/v2"
 
-	"github.com/alphabill-org/alphabill/internal/rpc/alphabill"
 	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/alphabill-org/alphabill/pkg/client"
@@ -213,7 +212,7 @@ func (w *Wallet) fetchBlocks(ctx context.Context, lastBlockNumber uint64, batchS
 	for _, b := range res.Blocks {
 		block := &types.Block{}
 		if err := cbor.Unmarshal(b, block); err != nil {
-			return nil, err
+			return nil, fmt.Errorf("failed to unmarshal block: %w", err)
 		}
 		result.lastFetchedBlockNumber = block.UnicityCertificate.InputRecord.RoundNumber
 		ch <- block
@@ -239,11 +238,7 @@ func (w *Wallet) processBlocks(ch <-chan *types.Block) error {
 
 func (w *Wallet) sendTx(ctx context.Context, tx *types.TransactionOrder, maxRetries int) error {
 	for failedTries := 0; failedTries < maxRetries; failedTries++ {
-		protoTx, err := cbor.Marshal(tx)
-		if err != nil {
-			return err
-		}
-		err = w.AlphabillClient.SendTransaction(ctx, &alphabill.Transaction{Order: protoTx})
+		err := w.AlphabillClient.SendTransaction(ctx, tx)
 		if err == nil {
 			return nil
 		}

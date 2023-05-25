@@ -10,13 +10,11 @@ import (
 
 	"github.com/alphabill-org/alphabill/internal/hash"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
-	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/alphabill-org/alphabill/pkg/client/clientmock"
 	"github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/alphabill-org/alphabill/pkg/wallet/backend/bp"
 	"github.com/alphabill-org/alphabill/pkg/wallet/money/backend"
-	"github.com/fxamacker/cbor/v2"
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
 )
@@ -108,11 +106,7 @@ func TestWalletSendFunction_WaitForConfirmation(t *testing.T) {
 		},
 		getProof: func(billId []byte) (*bp.Bills, error) {
 			tx := mockClient.GetRecordedTransactions()[0]
-			txOrder := &types.TransactionOrder{}
-			err := cbor.Unmarshal(tx.Order, txOrder)
-			require.NoError(t, err)
-
-			b.TxHash = txOrder.Hash(crypto.SHA256)
+			b.TxHash = tx.Hash(crypto.SHA256)
 			return createBlockProofResponse(t, b, nil, 0, dcTimeoutBlockCount, nil), nil
 		},
 		fetchFeeCreditBill: func(ctx context.Context, unitID []byte) (*bp.Bill, error) {
@@ -163,14 +157,10 @@ func TestWalletSendFunction_WaitForMultipleTxConfirmations(t *testing.T) {
 			txs := mockClient.GetRecordedTransactions()
 			var bill *Bill
 			for _, tx := range txs {
-				txOrder := &types.TransactionOrder{}
-				err := cbor.Unmarshal(tx.Order, txOrder)
-				require.NoError(t, err)
-
-				if bytes.Equal(billId, txOrder.UnitID()) {
+				if bytes.Equal(billId, tx.UnitID()) {
 					bill, _ = bills[string(billId)]
 					if bill != nil {
-						bill.TxHash = txOrder.Hash(crypto.SHA256)
+						bill.TxHash = tx.Hash(crypto.SHA256)
 					}
 				}
 			}
@@ -225,18 +215,13 @@ func TestWalletSendFunction_WaitForMultipleTxConfirmationsInDifferentBlocks(t *t
 			txs := mockClient.GetRecordedTransactions()
 			var bill *Bill
 			for _, tx := range txs {
-				txOrder := &types.TransactionOrder{}
-				err := cbor.Unmarshal(tx.Order, txOrder)
-				require.NoError(t, err)
-
-				if bytes.Equal(billId, txOrder.UnitID()) {
+				if bytes.Equal(billId, tx.UnitID()) {
 					bill, _ = bills[string(billId)]
 					if bill != nil {
-						bill.TxHash = txOrder.Hash(crypto.SHA256)
+						bill.TxHash = tx.Hash(crypto.SHA256)
 					}
 				}
 			}
-
 			if bill != nil {
 				nr := blockCounter
 				blockCounter++

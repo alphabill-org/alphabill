@@ -4,8 +4,6 @@ import (
 	"context"
 	"testing"
 
-	"github.com/alphabill-org/alphabill/internal/types"
-	"github.com/fxamacker/cbor/v2"
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
 
@@ -47,18 +45,14 @@ func TestDcJobWithExistingDcBills(t *testing.T) {
 	// then swap tx is broadcast
 	require.Len(t, mockClient.GetRecordedTransactions(), 1)
 	tx := mockClient.GetRecordedTransactions()[0]
-	txSwap := parseSwapTx(t, tx)
-
-	txo := &types.TransactionOrder{}
-	err = cbor.Unmarshal(tx.Order, tx)
-	require.NoError(t, err)
+	txAttr := parseSwapTx(t, tx)
 
 	// and verify each dc tx id = nonce = swap.id
-	require.Len(t, txSwap.DcTransfers, 2)
-	for i := 0; i < len(txSwap.DcTransfers); i++ {
-		dcTx := parseDcTxAttr(t, txSwap.DcTransfers[i].TransactionOrder)
+	require.Len(t, txAttr.DcTransfers, 2)
+	for i := 0; i < len(txAttr.DcTransfers); i++ {
+		dcTx := parseDcTx(t, txAttr.DcTransfers[i].TransactionOrder)
 		require.EqualValues(t, nonce, dcTx.Nonce)
-		require.EqualValues(t, nonce, txo.UnitID())
+		require.EqualValues(t, nonce, tx.UnitID())
 	}
 }
 
@@ -93,18 +87,14 @@ func TestDcJobWithExistingDcAndNonDcBills(t *testing.T) {
 	// then swap tx is sent for the timed out dc bill
 	require.Len(t, mockClient.GetRecordedTransactions(), 1)
 	tx := mockClient.GetRecordedTransactions()[0]
-	txSwap := parseSwapTx(t, tx)
-
-	txo := &types.TransactionOrder{}
-	err = cbor.Unmarshal(tx.Order, tx)
-	require.NoError(t, err)
+	txAttr := parseSwapTx(t, tx)
 
 	// and verify nonce = swap.id = dc tx id
-	require.Len(t, txSwap.DcTransfers, 1)
-	for i := 0; i < len(txSwap.DcTransfers); i++ {
-		dcTx := parseDcTxAttr(t, txSwap.DcTransfers[i].TransactionOrder)
+	require.Len(t, txAttr.DcTransfers, 1)
+	for i := 0; i < len(txAttr.DcTransfers); i++ {
+		dcTx := parseDcTx(t, txAttr.DcTransfers[i].TransactionOrder)
 		require.EqualValues(t, nonce, dcTx.Nonce)
-		require.EqualValues(t, nonce, txo.UnitID())
+		require.EqualValues(t, nonce, tx.UnitID())
 	}
 }
 
@@ -173,6 +163,7 @@ func TestDcJobSendsSwapsIfDcBillTimeoutHasBeenReached(t *testing.T) {
 	// then 2 swap txs must be broadcast
 	require.Len(t, mockClient.GetRecordedTransactions(), 1)
 	for _, tx := range mockClient.GetRecordedTransactions() {
-		require.NotNil(t, parseSwapTx(t, tx))
+		attr := parseSwapTx(t, tx)
+		require.NotNil(t, attr)
 	}
 }

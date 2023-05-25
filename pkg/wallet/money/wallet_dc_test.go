@@ -6,7 +6,6 @@ import (
 	"testing"
 
 	"github.com/alphabill-org/alphabill/internal/hash"
-	"github.com/alphabill-org/alphabill/internal/rpc/alphabill"
 	"github.com/alphabill-org/alphabill/internal/script"
 	billtx "github.com/alphabill-org/alphabill/internal/txsystem/money"
 	"github.com/alphabill-org/alphabill/internal/types"
@@ -350,16 +349,16 @@ func TestSwapContainsUnconfirmedDustBillIds(t *testing.T) {
 
 	// and swap should contain all bill ids
 	tx := mockClient.GetRecordedTransactions()[3]
-	swapOrder := parseSwapTx(t, tx)
-	require.EqualValues(t, nonce, tx)
-	require.Len(t, swapOrder.BillIdentifiers, 3)
-	require.Equal(t, b1.Id, uint256.NewInt(0).SetBytes(swapOrder.BillIdentifiers[0]))
-	require.Equal(t, b2.Id, uint256.NewInt(0).SetBytes(swapOrder.BillIdentifiers[1]))
-	require.Equal(t, b3.Id, uint256.NewInt(0).SetBytes(swapOrder.BillIdentifiers[2]))
-	require.Len(t, swapOrder.DcTransfers, 3)
-	require.Equal(t, dcTxs[0], swapOrder.DcTransfers[0])
-	require.Equal(t, dcTxs[1], swapOrder.DcTransfers[1])
-	require.Equal(t, dcTxs[2], swapOrder.DcTransfers[2])
+	attr := parseSwapTx(t, tx)
+	require.EqualValues(t, nonce, tx.UnitID())
+	require.Len(t, attr.BillIdentifiers, 3)
+	require.Equal(t, b1.Id, uint256.NewInt(0).SetBytes(attr.BillIdentifiers[0]))
+	require.Equal(t, b2.Id, uint256.NewInt(0).SetBytes(attr.BillIdentifiers[1]))
+	require.Equal(t, b3.Id, uint256.NewInt(0).SetBytes(attr.BillIdentifiers[2]))
+	require.Len(t, attr.DcTransfers, 3)
+	require.Equal(t, dcTxs[0], attr.DcTransfers[0].TransactionOrder)
+	require.Equal(t, dcTxs[1], attr.DcTransfers[1].TransactionOrder)
+	require.Equal(t, dcTxs[2], attr.DcTransfers[2].TransactionOrder)
 }
 
 func addBill(value uint64) *Bill {
@@ -399,43 +398,24 @@ func verifyBlockHeight(t *testing.T, w *Wallet, blockHeight uint64) {
 	require.Equal(t, blockHeight, actualBlockHeight)
 }
 
-func parseBillTransferTx(t *testing.T, tx *alphabill.Transaction) *billtx.TransferAttributes {
-	txo := &types.TransactionOrder{}
-	err := cbor.Unmarshal(tx.Order, txo)
+func parseBillTransferTx(t *testing.T, tx *types.TransactionOrder) *billtx.TransferAttributes {
+	transferTx := &billtx.TransferAttributes{}
+	err := tx.UnmarshalAttributes(transferTx)
 	require.NoError(t, err)
-
-	btTx := &billtx.TransferAttributes{}
-	err = txo.UnmarshalAttributes(btTx)
-	require.NoError(t, err)
-
-	return btTx
+	return transferTx
 }
 
-func parseDcTx(t *testing.T, tx *alphabill.Transaction) *billtx.TransferDCAttributes {
-	txo := &types.TransactionOrder{}
-	err := cbor.Unmarshal(tx.Order, txo)
-	require.NoError(t, err)
-
-	return parseDcTxAttr(t, txo)
-}
-
-func parseDcTxAttr(t *testing.T, txo *types.TransactionOrder) *billtx.TransferDCAttributes {
+func parseDcTx(t *testing.T, tx *types.TransactionOrder) *billtx.TransferDCAttributes {
 	dcTx := &billtx.TransferDCAttributes{}
-	err := txo.UnmarshalAttributes(dcTx)
+	err := tx.UnmarshalAttributes(dcTx)
 	require.NoError(t, err)
-
 	return dcTx
 }
 
-func parseSwapTx(t *testing.T, tx *alphabill.Transaction) *billtx.SwapDCAttributes {
-	txo := &types.TransactionOrder{}
-	err := cbor.Unmarshal(tx.Order, txo)
-	require.NoError(t, err)
-
+func parseSwapTx(t *testing.T, tx *types.TransactionOrder) *billtx.SwapDCAttributes {
 	txSwap := &billtx.SwapDCAttributes{}
-	err = txo.UnmarshalAttributes(txSwap)
+	err := tx.UnmarshalAttributes(txSwap)
 	require.NoError(t, err)
-
 	return txSwap
 }
 

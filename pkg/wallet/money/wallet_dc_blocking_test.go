@@ -65,8 +65,8 @@ func TestBlockingDcWithNormalBills(t *testing.T) {
 		dcTx := parseDcTx(t, tx)
 		require.EqualValues(t, nonce, dcTx.Nonce)
 	}
-	swapTx := parseSwapTx(t, mockClient.GetRecordedTransactions()[2])
-	require.EqualValues(t, 3, swapTx.TargetValue)
+	txAttr := parseSwapTx(t, mockClient.GetRecordedTransactions()[2])
+	require.EqualValues(t, 3, txAttr.TargetValue)
 
 	// and expected swaps are cleared
 	require.Empty(t, w.dcWg.swaps)
@@ -120,8 +120,8 @@ func TestBlockingDCWithDCBillsBeforeDCTimeout(t *testing.T) {
 
 	// and swap tx should be sent
 	require.Len(t, mockClient.GetRecordedTransactions(), 1)
-	swapTx := parseSwapTx(t, mockClient.GetRecordedTransactions()[0])
-	require.EqualValues(t, 3, swapTx.TargetValue)
+	txAttr := parseSwapTx(t, mockClient.GetRecordedTransactions()[0])
+	require.EqualValues(t, 3, txAttr.TargetValue)
 
 	// and expected swaps are cleared
 	require.Empty(t, w.dcWg.swaps)
@@ -171,8 +171,8 @@ func TestBlockingDCWithExistingExpiredDCBills(t *testing.T) {
 
 	// and swap tx should be sent
 	require.Len(t, mockClient.GetRecordedTransactions(), 1)
-	swapTx := parseSwapTx(t, mockClient.GetRecordedTransactions()[0])
-	require.EqualValues(t, 3, swapTx.TargetValue)
+	txAttr := parseSwapTx(t, mockClient.GetRecordedTransactions()[0])
+	require.EqualValues(t, 3, txAttr.TargetValue)
 
 	// and expected swaps are cleared
 	require.Empty(t, w.dcWg.swaps)
@@ -223,8 +223,8 @@ func TestBlockingDcWaitingForSwapTimesOut(t *testing.T) {
 		dcTx := parseDcTx(t, tx)
 		require.EqualValues(t, nonce, dcTx.Nonce)
 	}
-	swapTx := parseSwapTx(t, mockClient.GetRecordedTransactions()[2])
-	require.EqualValues(t, 3, swapTx.TargetValue)
+	txAttr := parseSwapTx(t, mockClient.GetRecordedTransactions()[2])
+	require.EqualValues(t, 3, txAttr.TargetValue)
 
 	// and expected swaps are cleared
 	require.Empty(t, w.dcWg.swaps)

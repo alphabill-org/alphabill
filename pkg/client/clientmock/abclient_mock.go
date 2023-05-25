@@ -11,13 +11,13 @@ import (
 // MockAlphabillClient for testing. NOT thread safe.
 type (
 	MockAlphabillClient struct {
-		recordedTxs              []*alphabill.Transaction
+		recordedTxs              []*types.TransactionOrder
 		txResponse               error
 		maxBlockNumber           uint64
 		maxRoundNumber           uint64
 		shutdown                 bool
 		blocks                   map[uint64]*types.Block
-		txListener               func(tx *alphabill.Transaction)
+		txListener               func(tx *types.TransactionOrder)
 		incrementOnFetch         bool // if true, maxBlockNumber will be incremented on each GetBlocks call
 		lastRequestedBlockNumber uint64
 	}
@@ -50,7 +50,7 @@ func WithBlocks(blocks map[uint64]*types.Block) Option {
 	}
 }
 
-func (c *MockAlphabillClient) SendTransaction(_ context.Context, tx *alphabill.Transaction) error {
+func (c *MockAlphabillClient) SendTransaction(_ context.Context, tx *types.TransactionOrder) error {
 	c.recordedTxs = append(c.recordedTxs, tx)
 	if c.txListener != nil {
 		c.txListener(tx)
@@ -138,15 +138,15 @@ func (c *MockAlphabillClient) SetBlock(b *types.Block) {
 	c.blocks[b.UnicityCertificate.InputRecord.RoundNumber] = b
 }
 
-func (c *MockAlphabillClient) GetRecordedTransactions() []*alphabill.Transaction {
+func (c *MockAlphabillClient) GetRecordedTransactions() []*types.TransactionOrder {
 	return c.recordedTxs
 }
 
 func (c *MockAlphabillClient) ClearRecordedTransactions() {
-	c.recordedTxs = make([]*alphabill.Transaction, 0)
+	c.recordedTxs = make([]*types.TransactionOrder, 0)
 }
 
-func (c *MockAlphabillClient) SetTxListener(txListener func(tx *alphabill.Transaction)) {
+func (c *MockAlphabillClient) SetTxListener(txListener func(tx *types.TransactionOrder)) {
 	c.txListener = txListener
 }
 

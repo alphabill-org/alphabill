@@ -2,6 +2,7 @@ package money
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/alphabill-org/alphabill/internal/types"
@@ -51,7 +52,7 @@ func (w *TxPublisher) WaitForConfirmation(ctx context.Context, pendingTxs []*typ
 		if err != nil {
 			return nil, err
 		}
-		if blockBytes == nil {
+		if blockBytes == nil || (len(blockBytes) == 1 && blockBytes[0] == 0xf6) { // 0xf6 cbor Null
 			// block might be empty, check latest round number
 			latestRoundNumber, err = w.wallet.AlphabillClient.GetRoundNumber(ctx)
 			if err != nil {
@@ -69,15 +70,14 @@ func (w *TxPublisher) WaitForConfirmation(ctx context.Context, pendingTxs []*typ
 				return nil, nil
 			}
 		}
-
-		var b *types.Block
-		if err := cbor.Unmarshal(blockBytes, b); err != nil {
-			return nil, err
+		block := &types.Block{}
+		if err := cbor.Unmarshal(blockBytes, block); err != nil {
+			return nil, fmt.Errorf("failed to unmarshal block: %w", err)
 		}
-		for txIdx, tx := range b.Transactions {
+		for txIdx, tx := range block.Transactions {
 			if txsLog.Contains(tx) {
 				wlog.Info("confirmed tx ", hexutil.Encode(tx.TransactionOrder.UnitID()))
-				err = txsLog.RecordTx(tx, txIdx, b)
+				err = txsLog.RecordTx(tx, txIdx, block)
 				if err != nil {
 					return nil, err
 				}

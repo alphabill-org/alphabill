@@ -10,7 +10,6 @@ import (
 	moneytx "github.com/alphabill-org/alphabill/internal/txsystem/money"
 	utiltx "github.com/alphabill-org/alphabill/internal/txsystem/util"
 	"github.com/alphabill-org/alphabill/internal/types"
-	"github.com/alphabill-org/alphabill/internal/util"
 	wlog "github.com/alphabill-org/alphabill/pkg/wallet/log"
 	"github.com/holiman/uint256"
 )
@@ -73,7 +72,7 @@ func (p *BlockProcessor) processTx(txr *types.TransactionRecord, b *types.Block,
 		if err != nil {
 			return err
 		}
-		err = p.saveBillWithProof(txIdx, b, txr, dbTx, &Bill{
+		err = p.saveBillWithProof(txIdx, b, dbTx, &Bill{
 			Id:             txo.UnitID(),
 			Value:          attr.TargetValue,
 			TxHash:         txo.Hash(crypto.SHA256),
@@ -93,7 +92,7 @@ func (p *BlockProcessor) processTx(txr *types.TransactionRecord, b *types.Block,
 		if err != nil {
 			return err
 		}
-		err = p.saveBillWithProof(txIdx, b, txr, dbTx, &Bill{
+		err = p.saveBillWithProof(txIdx, b, dbTx, &Bill{
 			Id:             txo.UnitID(),
 			Value:          attr.TargetValue,
 			TxHash:         txo.Hash(crypto.SHA256),
@@ -124,7 +123,7 @@ func (p *BlockProcessor) processTx(txr *types.TransactionRecord, b *types.Block,
 		}
 		if oldBill != nil {
 			wlog.Info(fmt.Sprintf("received split order (existing UnitID=%x)", txo.UnitID()))
-			err = p.saveBillWithProof(txIdx, b, txr, dbTx, &Bill{
+			err = p.saveBillWithProof(txIdx, b, dbTx, &Bill{
 				Id:             txo.UnitID(),
 				Value:          attr.RemainingValue,
 				TxHash:         txo.Hash(crypto.SHA256),
@@ -139,9 +138,9 @@ func (p *BlockProcessor) processTx(txr *types.TransactionRecord, b *types.Block,
 		}
 
 		// new bill
-		newID := utiltx.SameShardIDBytes(uint256.NewInt(0).SetBytes(txo.UnitID()), hashForIdCalculation(txo, attr, crypto.SHA256))
+		newID := utiltx.SameShardIDBytes(uint256.NewInt(0).SetBytes(txo.UnitID()), moneytx.HashForIDCalculation(txo.UnitID(), txo.Payload.Attributes, txo.Timeout(), crypto.SHA256))
 		wlog.Info(fmt.Sprintf("received split order (new UnitID=%x)", newID))
-		err = p.saveBillWithProof(txIdx, b, txr, dbTx, &Bill{
+		err = p.saveBillWithProof(txIdx, b, dbTx, &Bill{
 			Id:             newID,
 			Value:          attr.Amount,
 			TxHash:         txo.Hash(crypto.SHA256),
@@ -161,7 +160,7 @@ func (p *BlockProcessor) processTx(txr *types.TransactionRecord, b *types.Block,
 			return err
 		}
 		wlog.Info(fmt.Sprintf("received swap order (UnitID=%x)", txo.UnitID()))
-		err = p.saveBillWithProof(txIdx, b, txr, dbTx, &Bill{
+		err = p.saveBillWithProof(txIdx, b, dbTx, &Bill{
 			Id:             txo.UnitID(),
 			Value:          attr.TargetValue,
 			TxHash:         txo.Hash(crypto.SHA256),
@@ -194,7 +193,7 @@ func (p *BlockProcessor) processTx(txr *types.TransactionRecord, b *types.Block,
 		if v < bill.Value {
 			bill.Value -= v
 			bill.TxHash = txo.Hash(crypto.SHA256)
-			err = p.saveBillWithProof(txIdx, b, txr, dbTx, bill)
+			err = p.saveBillWithProof(txIdx, b, dbTx, bill)
 			if err != nil {
 				return err
 			}
@@ -225,7 +224,7 @@ func (p *BlockProcessor) processTx(txr *types.TransactionRecord, b *types.Block,
 		if err != nil {
 			return err
 		}
-		return p.saveFCBWithProof(txIdx, b, txr, dbTx, &Bill{
+		return p.saveFCBWithProof(txIdx, b, dbTx, &Bill{
 			Id:            txo.UnitID(),
 			Value:         fcb.getValue() + transferFCAttr.Amount - txr.ServerMetadata.ActualFee,
 			TxHash:        txo.Hash(crypto.SHA256),
@@ -242,7 +241,7 @@ func (p *BlockProcessor) processTx(txr *types.TransactionRecord, b *types.Block,
 		if err != nil {
 			return err
 		}
-		return p.saveFCBWithProof(txIdx, b, txr, dbTx, &Bill{
+		return p.saveFCBWithProof(txIdx, b, dbTx, &Bill{
 			Id:            txo.UnitID(),
 			Value:         fcb.getValue() - attr.Amount,
 			TxHash:        txo.Hash(crypto.SHA256),
@@ -272,7 +271,7 @@ func (p *BlockProcessor) processTx(txr *types.TransactionRecord, b *types.Block,
 		reclaimedValue := closeFCAttr.Amount - reclaimFCAttr.CloseFeeCreditTransfer.ServerMetadata.ActualFee - txr.ServerMetadata.ActualFee
 		bill.Value += reclaimedValue
 		bill.TxHash = txo.Hash(crypto.SHA256)
-		err = p.saveBillWithProof(txIdx, b, txr, dbTx, bill)
+		err = p.saveBillWithProof(txIdx, b, dbTx, bill)
 		if err != nil {
 			return err
 		}
@@ -329,7 +328,7 @@ func (p *BlockProcessor) addTxFeesToMoneyFeeBill(dbTx BillStoreTx, txs ...*types
 	return dbTx.SetBill(moneyFeeBill)
 }
 
-func (p *BlockProcessor) saveBillWithProof(txIdx int, b *types.Block, tx *types.TransactionRecord, dbTx BillStoreTx, bill *Bill) error {
+func (p *BlockProcessor) saveBillWithProof(txIdx int, b *types.Block, dbTx BillStoreTx, bill *Bill) error {
 	err := bill.addProof(txIdx, b)
 	if err != nil {
 		return err
@@ -337,7 +336,7 @@ func (p *BlockProcessor) saveBillWithProof(txIdx int, b *types.Block, tx *types.
 	return dbTx.SetBill(bill)
 }
 
-func (p *BlockProcessor) saveFCBWithProof(txIdx int, b *types.Block, tx *types.TransactionRecord, dbTx BillStoreTx, fcb *Bill) error {
+func (p *BlockProcessor) saveFCBWithProof(txIdx int, b *types.Block, dbTx BillStoreTx, fcb *Bill) error {
 	err := fcb.addProof(txIdx, b)
 	if err != nil {
 		return err
@@ -360,15 +359,4 @@ func (p *BlockProcessor) updateFCB(txr *types.TransactionRecord, roundNumber uin
 	fcb.Value -= txr.ServerMetadata.ActualFee
 	fcb.FCBlockNumber = roundNumber
 	return dbTx.SetFeeCreditBill(fcb)
-}
-
-func hashForIdCalculation(txo *types.TransactionOrder, attr *moneytx.SplitAttributes, hashFunc crypto.Hash) []byte {
-	hasher := hashFunc.New()
-	hasher.Write(txo.UnitID())
-	hasher.Write(util.Uint64ToBytes(attr.Amount))
-	hasher.Write(attr.TargetBearer)
-	hasher.Write(util.Uint64ToBytes(attr.RemainingValue))
-	hasher.Write(attr.Backlink)
-	hasher.Write(util.Uint64ToBytes(txo.Timeout()))
-	return hasher.Sum(nil)
 }

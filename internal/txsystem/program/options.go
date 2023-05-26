@@ -6,7 +6,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/rma"
 )
 
-var DefaultSmartContractSystemIdentifier = []byte{0, 0, 0, 3}
+var DefaultProgramsSystemIdentifier = []byte{0, 0, 0, 3}
 
 type (
 	Options struct {

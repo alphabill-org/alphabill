@@ -52,7 +52,7 @@ EOT
 
 # generates genesis files
 # expects two arguments
-# $1 alphabill partition type ('money', 'vd', 'tokens') or root as string
+# $1 alphabill partition type ('money', 'vd', 'tokens', 'programs') or root as string
 # $2 nof genesis files to generate
 # $3 custom cli args
 function generate_partition_node_genesis() {
@@ -71,6 +71,10 @@ case $1 in
     cmd="tokens-genesis"
     home="testab/tokens"
     ;;
+  programs)
+      cmd="programs-genesis"
+      home="testab/programs"
+      ;;
   *)
     echo "error: unknown partition $1" >&2
     return 1
@@ -92,13 +96,14 @@ function generate_root_genesis() {
   # it scans all partition node genesis files from the directories and uses them to create root genesis
   # build partition node genesis files argument list '-p' for root genesis
   local node_genesis_files=""
-  for file in testab/money*/money/node-genesis.json testab/vd*/vd/node-genesis.json testab/tokens*/tokens/node-genesis.json
+  for file in testab/money*/money/node-genesis.json testab/vd*/vd/node-genesis.json testab/tokens*/tokens/node-genesis.json testab/programs*/programs/node-genesis.json
   do
     if [[ ! -f $file ]]; then
       continue
     fi
     node_genesis_files="$node_genesis_files -p $file"
   done
+  echo "$node_genesis_files"
   build/alphabill root-genesis new --home testab/rootchain1 -g --total-nodes=1 $node_genesis_files
 }
 
@@ -153,6 +158,14 @@ local restPort=0
       aPort=28666
       grpcPort=28766
       restPort=28866
+      ;;
+    programs)
+      home="testab/programs"
+      key_files="testab/programs*/programs/keys.json"
+      genesis_file="testab/rootchain1/rootchain/partition-genesis-3.json"
+      aPort=29666
+      grpcPort=29766
+      restPort=29866
       ;;
     *)
       echo "error: unknown partition $1" >&2

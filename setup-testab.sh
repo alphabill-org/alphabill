@@ -3,6 +3,7 @@
 money_nodes=3
 vd_nodes=3
 token_nodes=3
+program_nodes=3
 root_nodes=1
 reset_db_only=false
 # exit on error
@@ -10,13 +11,13 @@ set -e
 
 # print help
 usage() {
-  echo "Generate 'testab' structure, log configuration and genesis files. Usage: $0 [-h usage] [-m number of money nodes] [-t number of token nodes] [-d number of vd nodes] [-c reset all DB files]"
+  echo "Generate 'testab' structure, log configuration and genesis files. Usage: $0 [-h usage] [-m number of money nodes] [-p number of program nodes] [-t number of token nodes] [-d number of vd nodes] [-c reset all DB files]"
   exit 0
 }
 
 # handle arguments
 # NB! add check to make parameter is numeric
-while getopts "chd:m:t:" o; do
+while getopts "chd:m:p:t:" o; do
   case "${o}" in
   c)
     reset_db_only=true
@@ -26,6 +27,9 @@ while getopts "chd:m:t:" o; do
     ;;
   m)
     money_nodes=${OPTARG}
+    ;;
+  p)
+    program_nodes=${OPTARG}
     ;;
   t)
     token_nodes=${OPTARG}
@@ -76,6 +80,12 @@ if [ "$money_nodes" -ne 0 ]; then
   moneySdrFlags+=" -c testab/money-sdr.json"
   generate_partition_node_genesis "money" "$money_nodes" "$moneySdrFlags"
 fi
+# Generate program nodes genesis files.
+if [ "$program_nodes" -ne 0 ]; then
+  generate_partition_node_genesis "programs" "$program_nodes" ""
+fi
+
+
 
 # generate root node genesis files
 generate_root_genesis $root_nodes

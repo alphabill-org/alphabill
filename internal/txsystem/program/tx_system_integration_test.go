@@ -29,7 +29,7 @@ func TestSmartContractPartition_Ok(t *testing.T) {
 		system, err := New(ctx, []byte{0, 0, 0, 3}, WithState(state))
 		require.NoError(t, err)
 		return system
-	}, DefaultSmartContractSystemIdentifier)
+	}, DefaultProgramsSystemIdentifier)
 	require.NoError(t, err)
 	abNet, err := testpartition.NewAlphabillPartition([]*testpartition.NodePartition{scPrt})
 	require.NoError(t, err)
@@ -38,7 +38,7 @@ func TestSmartContractPartition_Ok(t *testing.T) {
 
 	txDeployOrder := testtransaction.NewTransaction(t,
 		testtransaction.WithUnitId(counterProgramUnitID.Bytes()),
-		testtransaction.WithSystemID(DefaultSmartContractSystemIdentifier),
+		testtransaction.WithSystemID(DefaultProgramsSystemIdentifier),
 		testtransaction.WithAttributes(&PDeployAttributes{
 			Program:  counterWasm,
 			InitData: uint64ToLEBytes(2),
@@ -50,7 +50,7 @@ func TestSmartContractPartition_Ok(t *testing.T) {
 
 	txCallOrder := testtransaction.NewTransaction(t,
 		testtransaction.WithUnitId(counterProgramUnitID.Bytes()),
-		testtransaction.WithSystemID(DefaultSmartContractSystemIdentifier),
+		testtransaction.WithSystemID(DefaultProgramsSystemIdentifier),
 		testtransaction.WithAttributes(&PCallAttributes{
 			Function: "count",
 			Input:    uint64ToLEBytes(1),
@@ -70,7 +70,7 @@ func TestSmartContractPartition_Ok(t *testing.T) {
 	require.EqualValues(t, 3, binary.LittleEndian.Uint64(stateFile.bytes))
 	txCallOrder = testtransaction.NewTransaction(t,
 		testtransaction.WithUnitId(counterProgramUnitID.Bytes()),
-		testtransaction.WithSystemID(DefaultSmartContractSystemIdentifier),
+		testtransaction.WithSystemID(DefaultProgramsSystemIdentifier),
 		testtransaction.WithAttributes(&PCallAttributes{
 			Function: "count",
 			Input:    uint64ToLEBytes(2),
@@ -88,7 +88,7 @@ func TestSmartContractPartition_Ok(t *testing.T) {
 	// fails invalid input
 	txCallOrder = testtransaction.NewTransaction(t,
 		testtransaction.WithUnitId(counterProgramUnitID.Bytes()),
-		testtransaction.WithSystemID(DefaultSmartContractSystemIdentifier),
+		testtransaction.WithSystemID(DefaultProgramsSystemIdentifier),
 		testtransaction.WithAttributes(&PCallAttributes{
 			Function: "count",
 			Input:    []byte{3},
@@ -99,7 +99,7 @@ func TestSmartContractPartition_Ok(t *testing.T) {
 	// fails - no such function
 	txCallOrder = testtransaction.NewTransaction(t,
 		testtransaction.WithUnitId(counterProgramUnitID.Bytes()),
-		testtransaction.WithSystemID(DefaultSmartContractSystemIdentifier),
+		testtransaction.WithSystemID(DefaultProgramsSystemIdentifier),
 		testtransaction.WithAttributes(&PCallAttributes{
 			Function: "counter",
 			Input:    uint64ToLEBytes(2),

@@ -57,16 +57,16 @@ func (s *StateTreeStorage) Read(key []byte) ([]byte, error) {
 
 func (s *StateTreeStorage) Write(key []byte, file []byte) error {
 	stateId := CreateStateFileID(s.execCtx.GetProgramID(), key)
-	logger.Info("Write state: %X", stateId)
+	logger.Info("Write state: %X, val %X", stateId, file)
 	_, err := s.state.GetUnit(stateId)
 	// call add if no uint found
 	if errors.Is(err, rma.ErrUnitNotFound) {
-		logger.Info("Add new state: %X", stateId)
+		logger.Debug("Add new state: %X", stateId)
 		if err = s.state.AtomicUpdate(rma.AddItem(stateId, script.PredicateAlwaysFalse(), &StateFile{bytes: file}, s.execCtx.GetTxHash())); err != nil {
 			return fmt.Errorf("failed to add program state to state tree, %w", err)
 		}
 	} else {
-		logger.Info("Update state: %X", stateId)
+		logger.Debug("Update state: %X", stateId)
 		// unit with id is already present, call update
 		updateFunc := func(data rma.UnitData) rma.UnitData {
 			return &StateFile{bytes: file}

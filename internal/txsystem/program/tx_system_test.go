@@ -16,7 +16,7 @@ func TestNew(t *testing.T) {
 	}{
 		{
 			name:             "use default options",
-			systemIdentifier: DefaultSmartContractSystemIdentifier,
+			systemIdentifier: DefaultProgramsSystemIdentifier,
 		},
 		{
 			name:             "use 'nil' value for system identifier",
@@ -25,7 +25,7 @@ func TestNew(t *testing.T) {
 		},
 		{
 			name:             "state is nil",
-			systemIdentifier: DefaultSmartContractSystemIdentifier,
+			systemIdentifier: DefaultProgramsSystemIdentifier,
 			opts:             []Option{WithState(nil)},
 			wantErrorStr:     "state is nil",
 		},

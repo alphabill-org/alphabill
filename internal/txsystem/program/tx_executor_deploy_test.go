@@ -77,14 +77,14 @@ func Test_validateDeployTx(t *testing.T) {
 			args: args{
 				tx: newPDeployTxOrder(t, newDeployAttributes(WithProgram([]byte{0, 1, 2, 3}), WithInitData([]byte{1, 2})),
 					testtransaction.WithSystemID(systemID)),
-				sysID: DefaultSmartContractSystemIdentifier,
+				sysID: DefaultProgramsSystemIdentifier,
 			},
 		},
 		{
 			name: "sys id does not match",
 			args: args{
 				tx:    newPDeployTxOrder(t, newDeployAttributes(WithProgram([]byte{0, 1, 2, 3}), WithInitData([]byte{1, 2}))),
-				sysID: DefaultSmartContractSystemIdentifier,
+				sysID: DefaultProgramsSystemIdentifier,
 			},
 			wantErrStr: "tx system id does not match tx system id",
 		},
@@ -93,7 +93,7 @@ func Test_validateDeployTx(t *testing.T) {
 			args: args{
 				tx: newPDeployTxOrder(t, newDeployAttributes(WithInitData([]byte{1, 2})),
 					testtransaction.WithSystemID(systemID)),
-				sysID: DefaultSmartContractSystemIdentifier,
+				sysID: DefaultProgramsSystemIdentifier,
 			},
 			wantErrStr: "wasm module is missing",
 		},
@@ -102,7 +102,7 @@ func Test_validateDeployTx(t *testing.T) {
 			args: args{
 				tx: newPDeployTxOrder(t, newDeployAttributes(WithProgram([]byte{0, 1, 2, 3})),
 					testtransaction.WithSystemID(systemID)),
-				sysID: DefaultSmartContractSystemIdentifier,
+				sysID: DefaultProgramsSystemIdentifier,
 			},
 			wantErrStr: "program init data is missing",
 		},

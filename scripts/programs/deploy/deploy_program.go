@@ -1,0 +1,93 @@
+package main
+
+import (
+	"context"
+	"crypto/sha256"
+	"flag"
+	"fmt"
+	"log"
+	"os"
+
+	"github.com/alphabill-org/alphabill/internal/rpc/alphabill"
+	"github.com/alphabill-org/alphabill/internal/txsystem"
+	"github.com/alphabill-org/alphabill/internal/txsystem/program"
+	"github.com/alphabill-org/alphabill/scripts/programs"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/protobuf/types/known/emptypb"
+)
+
+/*
+Example usage
+start shard node:
+$ ./setup-testab.sh -m 0 -t 0 -d 0 -p 3 && ./start.sh -r -p programs
+
+run script:
+$ go run scripts/programs/deploy/deploy_program.go --id "counter" --wasm-file counter.wasm
+*/
+func main() {
+	// parse command line parameters
+	id := flag.String("id", "", "string to be used as program identifier")
+
+	wasmPath := flag.String("wasm-file", "", "path to program wasm code")
+	timeout := flag.Uint64("timeout", 1000, "transaction timeout (block number)")
+	uri := flag.String("alphabill-uri", "localhost:29766", "alphabill node uri where to send the transaction")
+	flag.Parse()
+
+	if id == nil || len(*id) < 1 {
+		log.Fatal("program-id is required")
+	}
+	// verify command line parameters
+	if wasmPath == nil || *wasmPath == "" {
+		log.Fatal("program-file is required")
+	}
+	if *timeout <= 0 {
+		log.Fatal("timeout is required")
+	}
+	if *uri == "" {
+		log.Fatal("alphabill-uri is required")
+	}
+	progID := sha256.New().Sum([]byte(*id))
+	wasm, err := os.ReadFile(*wasmPath)
+	if err != nil {
+		log.Fatal(fmt.Sprintf("program-file read failed, %v", err))
+	}
+	if len(wasm) < 1 {
+		log.Fatal("program-file empty")
+	}
+	ctx := context.Background()
+	conn, err := grpc.DialContext(ctx, *uri, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer func() {
+		err = conn.Close()
+		if err != nil {
+			log.Fatal(err)
+		}
+	}()
+	txClient := alphabill.NewAlphabillServiceClient(conn)
+	blockNr, err := txClient.GetRoundNumber(ctx, &emptypb.Empty{})
+	if err != nil {
+		log.Fatal(err)
+	}
+	absoluteTimeout := blockNr.RoundNumber + *timeout
+
+	// create tx
+	txDeployOrder, err := programs.NewProgramTransaction(progID,
+		programs.WithClientMetadata(&txsystem.ClientMetadata{
+			Timeout: absoluteTimeout,
+		}),
+		programs.WithAttributes(&program.PDeployAttributes{
+			Program:  wasm,
+			InitData: programs.Uint64ToLEBytes(0),
+		}))
+	if err != nil {
+		log.Fatal(fmt.Sprintf("failed to create program deploy tx, %v", err))
+	}
+	// send tx
+	if _, err = txClient.ProcessTransaction(ctx, txDeployOrder); err != nil {
+		log.Fatal(err)
+	}
+	log.Println("successfully sent transaction")
+}

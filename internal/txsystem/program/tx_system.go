@@ -16,7 +16,7 @@ func New(ctx context.Context, systemIdentifier []byte, opts ...Option) (*txsyste
 	if systemIdentifier == nil {
 		return nil, errors.New("system identifier is nil")
 	}
-	sc, err := NewSmartContractModule(ctx, systemIdentifier, options)
+	sc, err := NewProgramModule(ctx, systemIdentifier, options)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load smart contract module: %w", err)
 	}

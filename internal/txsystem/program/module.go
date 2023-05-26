@@ -9,15 +9,18 @@ import (
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 )
 
-type SmartContractModule struct {
+type Module struct {
 	ctx              context.Context
 	state            *rma.Tree
 	systemIdentifier []byte
 	hashAlgorithm    gocrypto.Hash
 }
 
-func NewSmartContractModule(ctx context.Context, systemIdentifier []byte, options *Options) (txsystem.Module, error) {
-	return &SmartContractModule{
+func NewProgramModule(ctx context.Context, systemIdentifier []byte, options *Options) (txsystem.Module, error) {
+	if options.state == nil {
+		return nil, fmt.Errorf("state is nil")
+	}
+	return &Module{
 		ctx:              ctx,
 		systemIdentifier: systemIdentifier,
 		hashAlgorithm:    options.hashAlgorithm,
@@ -25,14 +28,14 @@ func NewSmartContractModule(ctx context.Context, systemIdentifier []byte, option
 	}, nil
 }
 
-func (s *SmartContractModule) TxExecutors() []txsystem.TxExecutor {
+func (s *Module) TxExecutors() []txsystem.TxExecutor {
 	return []txsystem.TxExecutor{
 		handlePDeployTx(s.ctx, s.state, s.systemIdentifier, s.hashAlgorithm),
 		handlePCallTx(s.ctx, s.state, s.systemIdentifier, s.hashAlgorithm),
 	}
 }
 
-func (s *SmartContractModule) GenericTransactionValidator() txsystem.GenericTransactionValidator {
+func (s *Module) GenericTransactionValidator() txsystem.GenericTransactionValidator {
 	return func(ctx *txsystem.TxValidationContext) error {
 		return txsystem.ValidateGenericTransaction(&txsystem.TxValidationContext{
 			Tx:               ctx.Tx,
@@ -44,7 +47,7 @@ func (s *SmartContractModule) GenericTransactionValidator() txsystem.GenericTran
 
 }
 
-func (s *SmartContractModule) TxConverter() txsystem.TxConverters {
+func (s *Module) TxConverter() txsystem.TxConverters {
 	return txsystem.TxConverters{
 		typeURLPCall:   convertPCallTx(),
 		typeURLPDeploy: convertPDeployTx(),

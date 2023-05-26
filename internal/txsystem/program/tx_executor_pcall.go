@@ -8,17 +8,24 @@ import (
 
 	"github.com/alphabill-org/alphabill/internal/rma"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
+	"github.com/alphabill-org/alphabill/internal/vm/wasmruntime"
 )
 
 func handlePCallTx(ctx context.Context, state *rma.Tree, systemIdentifier []byte, hashAlgorithm crypto.Hash) txsystem.GenericExecuteFunc[*PCallTransactionOrder] {
 	return func(txOrder *PCallTransactionOrder, currentBlockNr uint64) error {
+		logger.Debug("Processing pcall %X", txOrder.UnitID().Bytes())
 		if err := validatePCallTx(txOrder, systemIdentifier); err != nil {
 			return fmt.Errorf("invalid pcall tx, %w", err)
 		}
-		programUnitID := txOrder.UnitID()
-		// calculate hash of transaction
-		h := txOrder.Hash(hashAlgorithm)
-		return Call(ctx, programUnitID, txOrder.attributes.Function, txOrder.attributes.Input, state, h)
+		execCtx, err := NewExecCtxFormPCall(txOrder, state, hashAlgorithm)
+		if err != nil {
+			return fmt.Errorf("program call tx failed, %w", err)
+		}
+		s, err := NewStateStorage(state, execCtx)
+		if err != nil {
+			return fmt.Errorf("program call tx failed, %w", err)
+		}
+		return wasmruntime.Call(ctx, execCtx, txOrder.attributes.Function, s)
 	}
 }
 
@@ -33,7 +40,7 @@ func validatePCallTx(tx *PCallTransactionOrder, sysID []byte) error {
 	if len(tx.attributes.Function) < 1 {
 		return fmt.Errorf("program call is missing function")
 	}
-	if len(tx.attributes.Input) < 1 {
+	if tx.attributes.Input == nil {
 		return fmt.Errorf("program input is missing")
 	}
 	return nil

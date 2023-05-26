@@ -7,18 +7,33 @@ import (
 	"fmt"
 
 	"github.com/alphabill-org/alphabill/internal/rma"
+	"github.com/alphabill-org/alphabill/internal/script"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
+	"github.com/alphabill-org/alphabill/internal/vm/wasmruntime"
 )
 
 func handlePDeployTx(ctx context.Context, state *rma.Tree, systemIdentifier []byte, hashAlgorithm crypto.Hash) txsystem.GenericExecuteFunc[*PDeployTransactionOrder] {
 	return func(txOrder *PDeployTransactionOrder, currentBlockNr uint64) error {
+		logger.Debug("Processing pdeploy tx %X", txOrder.UnitID().Bytes())
+
 		if err := validateDeployTx(txOrder, systemIdentifier); err != nil {
 			return fmt.Errorf("invalid program deploy tx, %w", err)
 		}
-		programUnitID := txOrder.UnitID()
-		// calculate hash of transaction
-		h := txOrder.Hash(hashAlgorithm)
-		return ExecuteAndDeploy(ctx, programUnitID, txOrder.attributes.Program, txOrder.attributes.InitData, state, h)
+		execCtx, err := NewExecCtxFormDeploy(txOrder, state, hashAlgorithm)
+		if err != nil {
+			return fmt.Errorf("deloy program tx failed, %w", err)
+		}
+		if err = wasmruntime.CheckProgram(ctx, execCtx); err != nil {
+			return fmt.Errorf("program check failed, %w", err)
+		}
+		if err = state.AtomicUpdate(rma.AddItem(
+			txOrder.UnitID(),
+			script.PredicateAlwaysFalse(),
+			&Program{wasm: txOrder.attributes.Program, progParams: txOrder.attributes.InitData},
+			make([]byte, 32))); err != nil {
+			return fmt.Errorf("failed to save program to state, %w", err)
+		}
+		return nil
 	}
 }
 
@@ -31,8 +46,8 @@ func validateDeployTx(tx *PDeployTransactionOrder, sysID []byte) error {
 	if len(tx.attributes.Program) < 1 {
 		return fmt.Errorf("wasm module is missing")
 	}
-	if len(tx.attributes.InitData) < 1 {
-		return fmt.Errorf("program input is missing")
+	if tx.attributes.InitData == nil {
+		return fmt.Errorf("program init data is missing")
 	}
 	return nil
 }

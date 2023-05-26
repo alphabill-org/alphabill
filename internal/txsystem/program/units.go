@@ -7,8 +7,8 @@ import (
 )
 
 type Program struct {
-	wasm     []byte
-	initData []byte
+	wasm       []byte
+	progParams []byte
 }
 
 type StateFile struct {
@@ -27,8 +27,8 @@ func (p *Program) Wasm() []byte {
 	return p.wasm
 }
 
-func (p *Program) InitData() []byte {
-	return p.initData
+func (p *Program) ProgParams() []byte {
+	return p.progParams
 }
 
 func (s *StateFile) AddToHasher(hasher hash.Hash) {

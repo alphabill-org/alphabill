@@ -16,18 +16,16 @@ import (
 	"sync/atomic"
 	"testing"
 
+	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/fxamacker/cbor/v2"
 	"github.com/gorilla/mux"
 	"github.com/stretchr/testify/require"
-	"google.golang.org/protobuf/encoding/protojson"
 
-	"github.com/alphabill-org/alphabill/internal/block"
-	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/hash"
 	"github.com/alphabill-org/alphabill/internal/script"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
-	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/internal/txsystem/tokens"
 )
 
@@ -75,7 +73,7 @@ func Test_restAPI_postTransaction(t *testing.T) {
 
 	// valid request body with single create-nft-type tx
 	createNTFTypeTx := randomTx(t, &tokens.CreateNonFungibleTokenTypeAttributes{Symbol: "test"})
-	createNTFTypeMsg, err := protojson.MarshalOptions{EmitUnpopulated: true}.Marshal(&txsystem.Transactions{Transactions: []*txsystem.Transaction{createNTFTypeTx}})
+	createNTFTypeMsg, err := cbor.Marshal(&wallet.Transactions{Transactions: []*types.TransactionOrder{createNTFTypeTx}})
 	require.NoError(t, err)
 	require.NotEmpty(t, createNTFTypeMsg)
 
@@ -105,12 +103,10 @@ func Test_restAPI_postTransaction(t *testing.T) {
 	})
 
 	t.Run("failure to convert tx", func(t *testing.T) {
-		expErr := fmt.Errorf("can't convert tx")
 		var saveTypeCalls, sendTxCalls int32
 		api := &restAPI{
-			convertTx: func(tx *txsystem.Transaction) (txsystem.GenericTransaction, error) { return nil, expErr },
 			ab: &mockABClient{
-				sendTransaction: func(ctx context.Context, t *txsystem.Transaction) error {
+				sendTransaction: func(ctx context.Context, t *types.TransactionOrder) error {
 					atomic.AddInt32(&sendTxCalls, 1)
 					return fmt.Errorf("unexpected call")
 				},
@@ -136,18 +132,14 @@ func Test_restAPI_postTransaction(t *testing.T) {
 	})
 
 	t.Run("one valid type-creation transaction is sent", func(t *testing.T) {
-		txsys, err := tokens.New(
-			tokens.WithTrustBase(map[string]abcrypto.Verifier{"test": nil}),
-		)
 		if err != nil {
 			t.Fatalf("failed to create token tx system: %v", err)
 		}
 
 		var saveTypeCalls, sendTxCalls int32
 		api := &restAPI{
-			convertTx: txsys.ConvertTx,
 			ab: &mockABClient{
-				sendTransaction: func(ctx context.Context, t *txsystem.Transaction) error {
+				sendTransaction: func(ctx context.Context, t *types.TransactionOrder) error {
 					atomic.AddInt32(&sendTxCalls, 1)
 					return nil
 				},
@@ -155,7 +147,7 @@ func Test_restAPI_postTransaction(t *testing.T) {
 			db: &mockStorage{
 				saveTTypeCreator: func(id TokenTypeID, kind Kind, creator wallet.PubKey) error {
 					atomic.AddInt32(&saveTypeCalls, 1)
-					if !bytes.Equal(id, createNTFTypeTx.UnitId) {
+					if !bytes.Equal(id, createNTFTypeTx.UnitID()) {
 						t.Errorf("unexpected unit ID %x", id)
 					}
 					return nil
@@ -172,24 +164,20 @@ func Test_restAPI_postTransaction(t *testing.T) {
 	})
 
 	t.Run("valid non-type-creation request", func(t *testing.T) {
-		txs := &txsystem.Transactions{Transactions: []*txsystem.Transaction{
+		txs := &wallet.Transactions{Transactions: []*types.TransactionOrder{
 			randomTx(t, &tokens.MintFungibleTokenAttributes{Value: 42}),
 		}}
-		message, err := protojson.MarshalOptions{EmitUnpopulated: true}.Marshal(txs)
+		message, err := cbor.Marshal(txs)
 		require.NoError(t, err)
 
-		txsys, err := tokens.New(
-			tokens.WithTrustBase(map[string]abcrypto.Verifier{"test": nil}),
-		)
 		if err != nil {
 			t.Fatalf("failed to create token tx system: %v", err)
 		}
 
 		var saveTypeCalls, sendTxCalls int32
 		api := &restAPI{
-			convertTx: txsys.ConvertTx,
 			ab: &mockABClient{
-				sendTransaction: func(ctx context.Context, t *txsystem.Transaction) error {
+				sendTransaction: func(ctx context.Context, t *types.TransactionOrder) error {
 					atomic.AddInt32(&sendTxCalls, 1)
 					return nil
 				},
@@ -777,7 +765,7 @@ func Test_restAPI_txProof(t *testing.T) {
 		unitID := []byte{0x01}
 		txHash := []byte{0xFF}
 
-		proof := &wallet.Proof{1, &txsystem.Transaction{UnitId: unitID}, &block.BlockProof{TransactionsHash: txHash}}
+		proof := &wallet.Proof{&types.TransactionRecord{TransactionOrder: &types.TransactionOrder{Payload: &types.Payload{UnitID: unitID}}}, &types.TxProof{}}
 		api := &restAPI{
 			db: &mockStorage{
 				getTxProof: func(unitID wallet.UnitID, txHash wallet.TxHash) (*wallet.Proof, error) {

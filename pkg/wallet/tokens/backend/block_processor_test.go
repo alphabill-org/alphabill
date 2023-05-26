@@ -100,11 +100,11 @@ func Test_blockProcessor_ProcessBlock(t *testing.T) {
 			txs: txs,
 			store: &mockStorage{
 				getFeeCreditBill: getFeeCreditBillFunc,
-				setFeeCreditBill: func(fcb *FeeCreditBill, proof *wallet.TxProof) error { return verifySetFeeCreditBill(t, fcb) },
+				setFeeCreditBill: func(fcb *FeeCreditBill, proof *wallet.Proof) error { return verifySetFeeCreditBill(t, fcb) },
 				getBlockNumber:   func() (uint64, error) { return 3, nil },
 				setBlockNumber:   func(blockNumber uint64) error { return nil },
 				// cause protcessing to fail by failing to store tx
-				saveTokenType: func(data *TokenUnitType, proof *wallet.TxProof) error {
+				saveTokenType: func(data *TokenUnitType, proof *wallet.Proof) error {
 					return expErr
 				},
 			},
@@ -160,10 +160,10 @@ func Test_blockProcessor_processTx(t *testing.T) {
 					txs: txs,
 					store: &mockStorage{
 						getFeeCreditBill: getFeeCreditBillFunc,
-						setFeeCreditBill: func(fcb *FeeCreditBill, proof *wallet.TxProof) error { return verifySetFeeCreditBill(t, fcb) },
+						setFeeCreditBill: func(fcb *FeeCreditBill, proof *wallet.Proof) error { return verifySetFeeCreditBill(t, fcb) },
 						getBlockNumber:   func() (uint64, error) { return 3, nil },
 						setBlockNumber:   func(blockNumber uint64) error { return nil },
-						saveTokenType: func(data *TokenUnitType, proof *wallet.TxProof) error {
+						saveTokenType: func(data *TokenUnitType, proof *wallet.Proof) error {
 							require.NoError(t, err)
 							require.EqualValues(t, tx.Hash(crypto.SHA256), data.TxHash)
 							require.EqualValues(t, tx.UnitID(), data.ID, "token IDs do not match")
@@ -198,12 +198,12 @@ func Test_blockProcessor_processTx(t *testing.T) {
 				getBlockNumber:   func() (uint64, error) { return 3, nil },
 				setBlockNumber:   func(blockNumber uint64) error { return nil },
 				getFeeCreditBill: getFeeCreditBillFunc,
-				setFeeCreditBill: func(fcb *FeeCreditBill, proof *wallet.TxProof) error { return verifySetFeeCreditBill(t, fcb) },
+				setFeeCreditBill: func(fcb *FeeCreditBill, proof *wallet.Proof) error { return verifySetFeeCreditBill(t, fcb) },
 				getTokenType: func(id TokenTypeID) (*TokenUnitType, error) {
 					require.EqualValues(t, txAttr.TypeID, id)
 					return &TokenUnitType{ID: id, Kind: Fungible}, nil
 				},
-				saveToken: func(data *TokenUnit, proof *wallet.TxProof) error {
+				saveToken: func(data *TokenUnit, proof *wallet.Proof) error {
 					require.EqualValues(t, tx.Hash(crypto.SHA256), data.TxHash)
 					require.EqualValues(t, tx.UnitID(), data.ID)
 					require.EqualValues(t, txAttr.TypeID, data.TypeID)
@@ -237,12 +237,12 @@ func Test_blockProcessor_processTx(t *testing.T) {
 				getBlockNumber:   func() (uint64, error) { return 3, nil },
 				setBlockNumber:   func(blockNumber uint64) error { return nil },
 				getFeeCreditBill: getFeeCreditBillFunc,
-				setFeeCreditBill: func(fcb *FeeCreditBill, proof *wallet.TxProof) error { return verifySetFeeCreditBill(t, fcb) },
+				setFeeCreditBill: func(fcb *FeeCreditBill, proof *wallet.Proof) error { return verifySetFeeCreditBill(t, fcb) },
 				getTokenType: func(id TokenTypeID) (*TokenUnitType, error) {
 					require.EqualValues(t, txAttr.NFTTypeID, id)
 					return &TokenUnitType{ID: id, Kind: NonFungible}, nil
 				},
-				saveToken: func(data *TokenUnit, proof *wallet.TxProof) error {
+				saveToken: func(data *TokenUnit, proof *wallet.Proof) error {
 					require.EqualValues(t, tx.Hash(crypto.SHA256), data.TxHash)
 					require.EqualValues(t, tx.UnitID(), data.ID)
 					require.EqualValues(t, txAttr.NFTTypeID, data.TypeID)
@@ -276,11 +276,11 @@ func Test_blockProcessor_processTx(t *testing.T) {
 				getBlockNumber:   func() (uint64, error) { return 3, nil },
 				setBlockNumber:   func(blockNumber uint64) error { return nil },
 				getFeeCreditBill: getFeeCreditBillFunc,
-				setFeeCreditBill: func(fcb *FeeCreditBill, proof *wallet.TxProof) error { return verifySetFeeCreditBill(t, fcb) },
+				setFeeCreditBill: func(fcb *FeeCreditBill, proof *wallet.Proof) error { return verifySetFeeCreditBill(t, fcb) },
 				getToken: func(id TokenID) (*TokenUnit, error) {
 					return &TokenUnit{ID: id, TypeID: txAttr.TypeID, Amount: txAttr.Value, Kind: Fungible}, nil
 				},
-				saveToken: func(data *TokenUnit, proof *wallet.TxProof) error {
+				saveToken: func(data *TokenUnit, proof *wallet.Proof) error {
 					require.EqualValues(t, tx.Hash(crypto.SHA256), data.TxHash)
 					require.EqualValues(t, tx.UnitID(), data.ID)
 					require.EqualValues(t, txAttr.TypeID, data.TypeID)
@@ -314,11 +314,11 @@ func Test_blockProcessor_processTx(t *testing.T) {
 				getBlockNumber:   func() (uint64, error) { return 3, nil },
 				setBlockNumber:   func(blockNumber uint64) error { return nil },
 				getFeeCreditBill: getFeeCreditBillFunc,
-				setFeeCreditBill: func(fcb *FeeCreditBill, proof *wallet.TxProof) error { return verifySetFeeCreditBill(t, fcb) },
+				setFeeCreditBill: func(fcb *FeeCreditBill, proof *wallet.Proof) error { return verifySetFeeCreditBill(t, fcb) },
 				getToken: func(id TokenID) (*TokenUnit, error) {
 					return &TokenUnit{ID: id, TypeID: txAttr.NFTTypeID, Owner: test.RandomBytes(4), Kind: NonFungible}, nil
 				},
-				saveToken: func(data *TokenUnit, proof *wallet.TxProof) error {
+				saveToken: func(data *TokenUnit, proof *wallet.Proof) error {
 					require.EqualValues(t, tx.Hash(crypto.SHA256), data.TxHash)
 					require.EqualValues(t, tx.UnitID(), data.ID)
 					require.EqualValues(t, txAttr.NFTTypeID, data.TypeID)
@@ -359,11 +359,11 @@ func Test_blockProcessor_processTx(t *testing.T) {
 				getBlockNumber:   func() (uint64, error) { return 3, nil },
 				setBlockNumber:   func(blockNumber uint64) error { return nil },
 				getFeeCreditBill: getFeeCreditBillFunc,
-				setFeeCreditBill: func(fcb *FeeCreditBill, proof *wallet.TxProof) error { return verifySetFeeCreditBill(t, fcb) },
+				setFeeCreditBill: func(fcb *FeeCreditBill, proof *wallet.Proof) error { return verifySetFeeCreditBill(t, fcb) },
 				getToken: func(id TokenID) (*TokenUnit, error) {
 					return &TokenUnit{ID: id, TypeID: txAttr.TypeID, Amount: 50, Owner: owner, Kind: Fungible}, nil
 				},
-				saveToken: func(data *TokenUnit, proof *wallet.TxProof) error {
+				saveToken: func(data *TokenUnit, proof *wallet.Proof) error {
 					// save token is called twice - first to update existng token and then to save new one
 					if saveTokenCalls++; saveTokenCalls == 1 {
 						require.EqualValues(t, tx.UnitID(), data.ID)
@@ -408,11 +408,11 @@ func Test_blockProcessor_processTx(t *testing.T) {
 				getBlockNumber:   func() (uint64, error) { return 3, nil },
 				setBlockNumber:   func(blockNumber uint64) error { return nil },
 				getFeeCreditBill: getFeeCreditBillFunc,
-				setFeeCreditBill: func(fcb *FeeCreditBill, proof *wallet.TxProof) error { return verifySetFeeCreditBill(t, fcb) },
+				setFeeCreditBill: func(fcb *FeeCreditBill, proof *wallet.Proof) error { return verifySetFeeCreditBill(t, fcb) },
 				getToken: func(id TokenID) (*TokenUnit, error) {
 					return &TokenUnit{ID: id, Owner: bearer, NftData: test.RandomBytes(4), Kind: NonFungible}, nil
 				},
-				saveToken: func(data *TokenUnit, proof *wallet.TxProof) error {
+				saveToken: func(data *TokenUnit, proof *wallet.Proof) error {
 					require.EqualValues(t, tx.UnitID(), data.ID)
 					require.EqualValues(t, bearer, data.Owner)
 					require.EqualValues(t, txAttr.Data, data.NftData)

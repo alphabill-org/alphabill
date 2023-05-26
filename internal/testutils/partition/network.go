@@ -358,7 +358,7 @@ func (n *NodePartition) SubmitTx(tx *types.TransactionOrder) error {
 	return n.Nodes[0].SubmitTx(context.Background(), tx)
 }
 
-func (n *NodePartition) GetBlockProof(tx *types.TransactionOrder) (*types.Block, *types.TxProof, *types.TransactionRecord, error) {
+func (n *NodePartition) GetTxProof(tx *types.TransactionOrder) (*types.Block, *types.TxProof, *types.TransactionRecord, error) {
 	for _, n := range n.Nodes {
 		bl, err := n.GetLatestBlock()
 		if err != nil {

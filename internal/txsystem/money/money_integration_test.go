@@ -70,7 +70,7 @@ func TestPartition_Ok(t *testing.T) {
 	require.NoError(t, err)
 	require.Eventually(t, testpartition.BlockchainContainsTx(moneyPrt, transferInitialBillTx), test.WaitDuration, test.WaitTick)
 
-	_, _, transferInitialBillTxRecord, err := moneyPrt.GetBlockProof(transferInitialBillTx)
+	_, _, transferInitialBillTxRecord, err := moneyPrt.GetTxProof(transferInitialBillTx)
 	require.NoError(t, err)
 
 	// split initial bill from pubKey1 to pubKey2
@@ -139,7 +139,7 @@ func TestPartition_SwapDCOk(t *testing.T) {
 	// split initial bill, create small payments from which to make dust payments
 	splitTxs := make([]*types.TransactionRecord, nofDustToSwap)
 	amount := uint64(1)
-	_, _, transferRecord, err := moneyPrt.GetBlockProof(transferInitialBillTx)
+	_, _, transferRecord, err := moneyPrt.GetTxProof(transferInitialBillTx)
 	require.NoError(t, err)
 	var prev = transferRecord
 	total = total - fcrAmount - txFee
@@ -149,7 +149,7 @@ func TestPartition_SwapDCOk(t *testing.T) {
 		require.NoError(t, moneyPrt.SubmitTx(splitTx))
 		// wait for transaction to be added to block
 		require.Eventually(t, testpartition.BlockchainContainsTx(moneyPrt, splitTx), test.WaitDuration, test.WaitTick)
-		_, _, record, err := moneyPrt.GetBlockProof(splitTx)
+		_, _, record, err := moneyPrt.GetTxProof(splitTx)
 		require.NoError(t, err)
 		prev = record
 		splitTxs[i] = record
@@ -174,7 +174,7 @@ func TestPartition_SwapDCOk(t *testing.T) {
 		err = moneyPrt.SubmitTx(dcTx)
 		require.NoError(t, err)
 		require.Eventually(t, testpartition.BlockchainContainsTx(moneyPrt, dcTx), test.WaitDuration, test.WaitTick)
-		_, dcRecordsProofs[i], dcRecords[i], err = moneyPrt.GetBlockProof(dcTx)
+		_, dcRecordsProofs[i], dcRecords[i], err = moneyPrt.GetTxProof(dcTx)
 		require.NoError(t, err)
 	}
 
@@ -271,7 +271,7 @@ func getBlockProof(t *testing.T, tx *types.TransactionOrder, sysId []byte, netwo
 	partition, err := network.GetNodePartition(sysId)
 	require.NoError(t, err)
 	// create adapter for conversion interface
-	_, proof, _, err := partition.GetBlockProof(tx)
+	_, proof, _, err := partition.GetTxProof(tx)
 	require.NoError(t, err)
 	return proof
 }

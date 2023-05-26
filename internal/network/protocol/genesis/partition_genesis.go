@@ -22,7 +22,7 @@ type PartitionGenesis struct {
 	Certificate             *types.UnicityCertificate
 	RootValidators          []*PublicKeyInfo
 	Keys                    []*PublicKeyInfo
-	Params                  any
+	Params                  []byte
 }
 
 func (x *PartitionGenesis) FindRootPubKeyInfoById(id string) *PublicKeyInfo {

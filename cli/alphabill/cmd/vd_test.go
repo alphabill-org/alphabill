@@ -14,8 +14,9 @@ import (
 	"github.com/alphabill-org/alphabill/internal/rpc/alphabill"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	testtime "github.com/alphabill-org/alphabill/internal/testutils/time"
-	"github.com/alphabill-org/alphabill/internal/txsystem"
+	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/internal/util"
+	"github.com/fxamacker/cbor/v2"
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
@@ -97,19 +98,25 @@ func TestRunVD(t *testing.T) {
 		// Test
 		// green path
 		id := uint256.NewInt(rand.Uint64()).Bytes32()
-		tx := &txsystem.Transaction{
-			UnitId:                id[:],
-			TransactionAttributes: nil,
-			ClientMetadata:        &txsystem.ClientMetadata{Timeout: 10},
-			SystemId:              []byte{0, 0, 0, 1},
+		tx := &types.TransactionOrder{
+			Payload: &types.Payload{
+				UnitID:         id[:],
+				ClientMetadata: &types.ClientMetadata{Timeout: 10},
+				SystemID:       []byte{0, 0, 0, 1},
+			},
 		}
+		txBytes, _ := cbor.Marshal(tx)
+		txProto := &alphabill.Transaction{Order: txBytes}
 
-		_, err = rpcClient.ProcessTransaction(ctx, tx, grpc.WaitForReady(true))
+		_, err = rpcClient.ProcessTransaction(ctx, txProto, grpc.WaitForReady(true))
 		require.NoError(t, err)
 
 		// failing case
-		tx.SystemId = []byte{0, 0, 0, 0} // incorrect system id
-		_, err = rpcClient.ProcessTransaction(ctx, tx, grpc.WaitForReady(true))
+		tx.Payload.SystemID = []byte{0, 0, 0, 0} // incorrect system id
+		txBytes, _ = cbor.Marshal(tx)
+		txProto = &alphabill.Transaction{Order: txBytes}
+
+		_, err = rpcClient.ProcessTransaction(ctx, txProto, grpc.WaitForReady(true))
 		require.ErrorContains(t, err, "transaction has invalid system identifier")
 
 		// Close the app

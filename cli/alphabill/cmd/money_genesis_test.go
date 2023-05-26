@@ -12,9 +12,9 @@ import (
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/internal/script"
 	"github.com/alphabill-org/alphabill/internal/util"
+	"github.com/fxamacker/cbor/v2"
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
-	"google.golang.org/protobuf/proto"
 )
 
 const alphabillDir = "ab"
@@ -123,7 +123,7 @@ func TestMoneyGenesis_WithSystemIdentifier(t *testing.T) {
 
 	pn, err := util.ReadJsonFile(nodeGenesisFile, &genesis.PartitionNode{})
 	require.NoError(t, err)
-	require.Equal(t, []byte{1, 1, 1, 1}, pn.BlockCertificationRequest.SystemIdentifier)
+	require.EqualValues(t, []byte{1, 1, 1, 1}, pn.BlockCertificationRequest.SystemIdentifier)
 }
 
 func TestMoneyGenesis_DefaultParamsExist(t *testing.T) {
@@ -140,13 +140,13 @@ func TestMoneyGenesis_DefaultParamsExist(t *testing.T) {
 	require.NotNil(t, pg)
 
 	params := &genesis.MoneyPartitionParams{}
-	err = pg.Params.UnmarshalTo(params)
+	err = cbor.Unmarshal(pg.Params, params)
 	require.NoError(t, err)
 
 	require.EqualValues(t, defaultInitialBillValue, params.InitialBillValue)
 	require.EqualValues(t, defaultDCMoneySupplyValue, params.DcMoneySupplyValue)
 	require.Len(t, params.SystemDescriptionRecords, 1)
-	require.True(t, proto.Equal(defaultMoneySDR, params.SystemDescriptionRecords[0]))
+	require.Equal(t, defaultMoneySDR, params.SystemDescriptionRecords[0])
 }
 
 func TestMoneyGenesis_ParamsCanBeChanged(t *testing.T) {
@@ -174,12 +174,12 @@ func TestMoneyGenesis_ParamsCanBeChanged(t *testing.T) {
 	require.NotNil(t, pg)
 
 	params := &genesis.MoneyPartitionParams{}
-	err = pg.Params.UnmarshalTo(params)
+	err = cbor.Unmarshal(pg.Params, params)
 	require.NoError(t, err)
 
 	require.EqualValues(t, 1, params.InitialBillValue)
 	require.EqualValues(t, 2, params.DcMoneySupplyValue)
-	require.True(t, proto.Equal(sdr, params.SystemDescriptionRecords[0]))
+	require.Equal(t, sdr, params.SystemDescriptionRecords[0])
 }
 
 func createSDRFile(dir string, sdr *genesis.SystemDescriptionRecord) (string, error) {

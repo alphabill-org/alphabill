@@ -40,7 +40,7 @@ func CreateFeeCredit(t *testing.T, initialBillID []byte, network *testpartition.
 	require.Eventually(t, testpartition.BlockchainContainsTx(moneyPartition, transferFC), test.WaitDuration, test.WaitTick)
 
 	// send addFC
-	_, transferFCProof, transferFCRecord, err := moneyPartition.GetBlockProof(transferFC)
+	_, transferFCProof, transferFCRecord, err := moneyPartition.GetTxProof(transferFC)
 	require.NoError(t, err)
 	addFC := testfc.NewAddFC(t, network.RootPartition.Nodes[0].RootSigner,
 		testfc.NewAddFCAttr(t, network.RootPartition.Nodes[0].RootSigner,

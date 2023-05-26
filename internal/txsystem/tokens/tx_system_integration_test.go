@@ -316,12 +316,12 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 	verifyProof(t, burnTx2, tokenPrt, trustBase, hashAlgorithm)
 
 	// join token
-	_, burnProof1, burnTxRecord, err := tokenPrt.GetBlockProof(burnTx)
+	_, burnProof1, burnTxRecord, err := tokenPrt.GetTxProof(burnTx)
 	require.NoError(t, err)
 
 	require.NoError(t, types.VerifyTxProof(burnProof1, burnTxRecord, trustBase, hashAlgorithm))
 
-	_, burnProof2, burnTxRecord2, err := tokenPrt.GetBlockProof(burnTx2)
+	_, burnProof2, burnTxRecord2, err := tokenPrt.GetTxProof(burnTx2)
 	require.NoError(t, err)
 	require.NoError(t, types.VerifyTxProof(burnProof2, burnTxRecord2, trustBase, hashAlgorithm))
 	joinTx := testtransaction.NewTransactionOrder(t,
@@ -363,7 +363,7 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 }
 
 func verifyProof(t *testing.T, tx *types.TransactionOrder, prt *testpartition.NodePartition, trustBase map[string]crypto.Verifier, hashAlgorithm gocrypto.Hash) {
-	_, proof, record, err := prt.GetBlockProof(tx)
+	_, proof, record, err := prt.GetTxProof(tx)
 	require.NoError(t, err)
 	require.NoError(t, types.VerifyTxProof(proof, record, trustBase, hashAlgorithm))
 }

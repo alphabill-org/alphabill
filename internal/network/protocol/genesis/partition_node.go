@@ -16,13 +16,13 @@ var (
 )
 
 type PartitionNode struct {
-	_                         struct{} `cbor:",toarray"`
-	NodeIdentifier            string
-	SigningPublicKey          []byte
-	EncryptionPublicKey       []byte
-	BlockCertificationRequest *certification.BlockCertificationRequest
-	T2Timeout                 uint32
-	Params                    []byte
+	_                         struct{}                                 `cbor:",toarray"`
+	NodeIdentifier            string                                   `json:"node_identifier,omitempty"`
+	SigningPublicKey          []byte                                   `json:"signing_public_key,omitempty"`
+	EncryptionPublicKey       []byte                                   `json:"encryption_public_key,omitempty"`
+	BlockCertificationRequest *certification.BlockCertificationRequest `json:"block_certification_request,omitempty"`
+	T2Timeout                 uint32                                   `json:"t2timeout,omitempty"`
+	Params                    []byte                                   `json:"params,omitempty"`
 }
 
 type MoneyPartitionParams struct {

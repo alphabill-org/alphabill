@@ -19,12 +19,12 @@ var (
 
 type InputRecord struct {
 	_               struct{} `cbor:",toarray"`
-	PreviousHash    []byte   // previously certified state hash
-	Hash            []byte   // state hash to be certified
-	BlockHash       []byte   // hash of the block
-	SummaryValue    []byte   // summary value to certified
-	RoundNumber     uint64   // transaction system's round number
-	SumOfEarnedFees uint64   // sum of the actual fees over all transaction records in the block
+	PreviousHash    []byte   `json:"previous_hash,omitempty"`      // previously certified state hash
+	Hash            []byte   `json:"hash,omitempty"`               // state hash to be certified
+	BlockHash       []byte   `json:"block_hash,omitempty"`         // hash of the block
+	SummaryValue    []byte   `json:"summary_value,omitempty"`      // summary value to certified
+	RoundNumber     uint64   `json:"round_number,omitempty"`       // transaction system's round number
+	SumOfEarnedFees uint64   `json:"sum_of_earned_fees,omitempty"` // sum of the actual fees over all transaction records in the block
 }
 
 func isZeroHash(hash []byte) bool {

@@ -18,11 +18,11 @@ var (
 )
 
 type BlockCertificationRequest struct {
-	_                struct{} `cbor:",toarray"`
-	SystemIdentifier types.SystemID
-	NodeIdentifier   string
-	InputRecord      *types.InputRecord
-	Signature        []byte
+	_                struct{}           `cbor:",toarray"`
+	SystemIdentifier types.SystemID     `json:"system_identifier,omitempty"`
+	NodeIdentifier   string             `json:"node_identifier,omitempty"`
+	InputRecord      *types.InputRecord `json:"input_record,omitempty"`
+	Signature        []byte             `json:"signature,omitempty"`
 }
 
 func (x *BlockCertificationRequest) IsValid(v crypto.Verifier) error {

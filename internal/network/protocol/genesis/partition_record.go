@@ -12,9 +12,9 @@ var (
 )
 
 type PartitionRecord struct {
-	_                       struct{} `cbor:",toarray"`
-	SystemDescriptionRecord *SystemDescriptionRecord
-	Validators              []*PartitionNode
+	_                       struct{}                 `cbor:",toarray"`
+	SystemDescriptionRecord *SystemDescriptionRecord `json:"system_description_record,omitempty"`
+	Validators              []*PartitionNode         `json:"validators,omitempty"`
 }
 
 func (x *PartitionRecord) GetSystemDescriptionRecord() *SystemDescriptionRecord {

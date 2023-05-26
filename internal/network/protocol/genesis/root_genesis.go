@@ -18,9 +18,9 @@ var (
 )
 
 type RootGenesis struct {
-	_          struct{} `cbor:",toarray"`
-	Root       *GenesisRootRecord
-	Partitions []*GenesisPartitionRecord
+	_          struct{}                  `cbor:",toarray"`
+	Root       *GenesisRootRecord        `json:"root,omitempty"`
+	Partitions []*GenesisPartitionRecord `json:"partitions,omitempty"`
 }
 
 type SystemDescriptionRecordGetter interface {

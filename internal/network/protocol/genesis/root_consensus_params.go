@@ -31,12 +31,12 @@ const (
 
 type ConsensusParams struct {
 	_                   struct{}          `cbor:",toarray"`
-	TotalRootValidators uint32            // Number of root validator nodes in the root cluster (1 in case of monolithic root chain)
-	BlockRateMs         uint32            // Block rate (round time t3 in monolithic root chain)
-	ConsensusTimeoutMs  uint32            // Time to abandon proposal and vote for timeout (only used in distributed implementation)
-	QuorumThreshold     uint32            // Optionally define a different, higher quorum threshold (only used for distributed implementation)
-	HashAlgorithm       uint32            // Hash algorithm for UnicityTree calculation
-	Signatures          map[string][]byte // Signed hash of all fields excluding signatures
+	TotalRootValidators uint32            `json:"total_root_validators,omitempty"` // Number of root validator nodes in the root cluster (1 in case of monolithic root chain)
+	BlockRateMs         uint32            `json:"block_rate_ms,omitempty"`         // Block rate (round time t3 in monolithic root chain)
+	ConsensusTimeoutMs  uint32            `json:"consensus_timeout_ms,omitempty"`  // Time to abandon proposal and vote for timeout (only used in distributed implementation)
+	QuorumThreshold     uint32            `json:"quorum_threshold,omitempty"`      // Optionally define a different, higher quorum threshold (only used for distributed implementation)
+	HashAlgorithm       uint32            `json:"hash_algorithm,omitempty"`        // Hash algorithm for UnicityTree calculation
+	Signatures          map[string][]byte `json:"signatures,omitempty"`            // Signed hash of all fields excluding signatures
 }
 
 // GetMinQuorumThreshold calculates minimal quorum threshold from total number of validators

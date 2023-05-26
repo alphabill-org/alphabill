@@ -16,9 +16,9 @@ var ErrLastUCIsNil = errors.New("last UC is nil")
 
 type UnicityTreeCertificate struct {
 	_                     struct{} `cbor:",toarray"`
-	SystemIdentifier      SystemID
-	SiblingHashes         [][]byte
-	SystemDescriptionHash []byte
+	SystemIdentifier      SystemID `json:"system_identifier,omitempty"`
+	SiblingHashes         [][]byte `json:"sibling_hashes,omitempty"`
+	SystemDescriptionHash []byte   `json:"system_description_hash,omitempty"`
 }
 
 func (x *UnicityTreeCertificate) IsValid(systemIdentifier, systemDescriptionHash []byte) error {

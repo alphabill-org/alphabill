@@ -23,12 +23,12 @@ var (
 )
 
 type UnicitySeal struct {
-	_                    struct{} `cbor:",toarray"`
-	RootChainRoundNumber uint64
-	Timestamp            uint64
-	PreviousHash         []byte
-	Hash                 []byte
-	Signatures           map[string][]byte
+	_                    struct{}          `cbor:",toarray"`
+	RootChainRoundNumber uint64            `json:"root_chain_round_number,omitempty"`
+	Timestamp            uint64            `json:"timestamp,omitempty"`
+	PreviousHash         []byte            `json:"previous_hash,omitempty"`
+	Hash                 []byte            `json:"hash,omitempty"`
+	Signatures           map[string][]byte `json:"signatures,omitempty"`
 }
 
 func (x *UnicitySeal) IsValid(verifiers map[string]crypto.Verifier) error {

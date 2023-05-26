@@ -16,9 +16,9 @@ var (
 
 type PublicKeyInfo struct {
 	_                   struct{} `cbor:",toarray"`
-	NodeIdentifier      string
-	SigningPublicKey    []byte
-	EncryptionPublicKey []byte
+	NodeIdentifier      string   `json:"node_identifier,omitempty"`
+	SigningPublicKey    []byte   `json:"signing_public_key,omitempty"`
+	EncryptionPublicKey []byte   `json:"encryption_public_key,omitempty"`
 }
 
 // NewValidatorTrustBase creates a verifier to node id map from public key info using the signing public key.

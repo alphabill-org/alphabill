@@ -17,12 +17,12 @@ var (
 )
 
 type PartitionGenesis struct {
-	_                       struct{} `cbor:",toarray"`
-	SystemDescriptionRecord *SystemDescriptionRecord
-	Certificate             *types.UnicityCertificate
-	RootValidators          []*PublicKeyInfo
-	Keys                    []*PublicKeyInfo
-	Params                  []byte
+	_                       struct{}                  `cbor:",toarray"`
+	SystemDescriptionRecord *SystemDescriptionRecord  `json:"system_description_record,omitempty"`
+	Certificate             *types.UnicityCertificate `json:"certificate,omitempty"`
+	RootValidators          []*PublicKeyInfo          `json:"root_validators,omitempty"`
+	Keys                    []*PublicKeyInfo          `json:"keys,omitempty"`
+	Params                  []byte                    `json:"params,omitempty"`
 }
 
 func (x *PartitionGenesis) FindRootPubKeyInfoById(id string) *PublicKeyInfo {

@@ -13,10 +13,10 @@ import (
 var ErrUnicityCertificateIsNil = errors.New("unicity certificate is nil")
 
 type UnicityCertificate struct {
-	_                      struct{} `cbor:",toarray"`
-	InputRecord            *InputRecord
-	UnicityTreeCertificate *UnicityTreeCertificate
-	UnicitySeal            *UnicitySeal
+	_                      struct{}                `cbor:",toarray"`
+	InputRecord            *InputRecord            `json:"input_record,omitempty"`
+	UnicityTreeCertificate *UnicityTreeCertificate `json:"unicity_tree_certificate,omitempty"`
+	UnicitySeal            *UnicitySeal            `json:"unicity_seal,omitempty"`
 }
 
 func (x *UnicityCertificate) IsValid(verifiers map[string]crypto.Verifier, algorithm gocrypto.Hash, systemIdentifier, systemDescriptionHash []byte) error {

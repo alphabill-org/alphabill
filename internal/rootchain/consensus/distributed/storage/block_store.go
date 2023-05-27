@@ -116,7 +116,7 @@ func (x *BlockStore) IsChangeInProgress(sysId protocol.SystemIdentifier) bool {
 	blocks := x.blockTree.GetAllUncommittedNodes()
 	// go through the block we have and make sure that there is no change in progress for this system id
 	for _, b := range blocks {
-		if b.Changed.Find(sysId.Bytes()) == true {
+		if b.Changed.Contains(sysId.Bytes()) {
 			return true
 		}
 	}
@@ -172,7 +172,7 @@ func (x *BlockStore) Add(block *ab_consensus.BlockData, verifier IRChangeReqVeri
 	// verify that block for the round does not exist yet
 	b, err := x.blockTree.FindBlock(block.GetRound())
 	if err == nil {
-		// block was found, ignore if it is the same block, recovery may hava added when state was duplicated
+		// block was found, ignore if it is the same block, recovery may have added it when state was duplicated
 		if proto.Equal(b.BlockData, block) {
 			return nil, nil
 		}
@@ -274,4 +274,16 @@ func (x *BlockStore) RecoverState(rRootBlock *ab_consensus.RecoveryBlock, rNodes
 	// replace block tree
 	x.blockTree = bt
 	return nil
+}
+
+/*
+Block returns block for given round.
+When store doesn't have block for the round it returns error.
+*/
+func (x *BlockStore) Block(round uint64) (*ab_consensus.BlockData, error) {
+	eb, err := x.blockTree.FindBlock(round)
+	if err != nil {
+		return nil, err
+	}
+	return eb.BlockData, nil
 }

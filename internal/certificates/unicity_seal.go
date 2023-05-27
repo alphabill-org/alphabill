@@ -40,7 +40,6 @@ func (x *RootRoundInfo) Bytes() []byte {
 	b.Write(util.Uint64ToBytes(x.ParentRoundNumber))
 	b.Write(x.CurrentRootHash)
 	return b.Bytes()
-
 }
 
 func (x *RootRoundInfo) IsValid() error {

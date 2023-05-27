@@ -15,7 +15,7 @@ type (
 	}
 	// ExponentialTimeInterval exponential back-off
 	// base * exponentBase^"commit gap"
-	// If max exponent is set to 0, then it will output constant value baseMs
+	// If max exponent is set to 0, then it will output constant value (base)
 	ExponentialTimeInterval struct {
 		base         time.Duration
 		exponentBase float64
@@ -34,7 +34,7 @@ type (
 		currentRound uint64
 		// The deadline for the next local timeout event. It is reset every time a new round start, or
 		// a previous deadline expires.
-		roundTimeout time.Time
+		roundDeadline time.Time
 		// Time last proposal was received
 		lastViewChange time.Time
 		// timeout calculator
@@ -65,7 +65,7 @@ func NewPacemaker(lastRound uint64, localTimeout time.Duration, bRate time.Durat
 		blockRate:           bRate,
 		lastQcToCommitRound: lastRound,
 		currentRound:        lastRound + 1,
-		roundTimeout:        time.Now().Add(localTimeout),
+		roundDeadline:       time.Now().Add(localTimeout),
 		lastViewChange:      time.Now(),
 		timeoutCalculator:   ExponentialTimeInterval{base: localTimeout, exponentBase: 1.2, maxExponent: 0},
 		pendingVotes:        NewVoteRegister(),
@@ -110,7 +110,7 @@ func (x *Pacemaker) GetTimeoutVote() *ab_consensus.TimeoutMsg {
 
 // GetRoundTimeout - get round local timeout
 func (x *Pacemaker) GetRoundTimeout() time.Duration {
-	return x.roundTimeout.Sub(time.Now())
+	return time.Until(x.roundDeadline)
 }
 
 // CalcTimeTilNextProposal calculates delay for next round symmetrically, no round
@@ -141,11 +141,11 @@ func (x *Pacemaker) CalcAsyncTimeTilNextProposal(round uint64) time.Duration {
 func (x *Pacemaker) RegisterVote(vote *ab_consensus.VoteMsg, quorum QuorumInfo) (*ab_consensus.QuorumCert, error) {
 	// If the vote is not about the current round then ignore
 	if vote.VoteInfo.RoundNumber != x.currentRound {
-		return nil, fmt.Errorf("received vote is not for cuurent round %v", vote.VoteInfo.RoundNumber)
+		return nil, fmt.Errorf("received vote is for round %d, current round is %d", vote.VoteInfo.RoundNumber, x.currentRound)
 	}
 	qc, err := x.pendingVotes.InsertVote(vote, quorum)
 	if err != nil {
-		return nil, fmt.Errorf("vote register error, %w", err)
+		return nil, fmt.Errorf("vote register error: %w", err)
 	}
 	return qc, nil
 }
@@ -195,5 +195,5 @@ func (x *Pacemaker) startNewRound(round uint64) {
 	x.lastViewChange = time.Now()
 	x.currentRound = round
 	x.pendingVotes.Reset()
-	x.roundTimeout = time.Now().Add(x.timeoutCalculator.GetNextTimeout(x.currentRound - x.lastQcToCommitRound - 1))
+	x.roundDeadline = time.Now().Add(x.timeoutCalculator.GetNextTimeout(x.currentRound - x.lastQcToCommitRound - 1))
 }

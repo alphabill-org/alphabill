@@ -117,7 +117,7 @@ func (s *SafetyModule) MakeVote(block *ab_consensus.BlockData, execStateID []byt
 		return nil, fmt.Errorf("not safe to vote, %w", err)
 	}
 	s.updateHighestQcRound(qcRound)
-	s.increaseHigestVoteRound(votingRound)
+	s.increaseHighestVoteRound(votingRound)
 	// create vote info
 	voteInfo := &certificates.RootRoundInfo{
 		RoundNumber:       block.Round,
@@ -151,7 +151,7 @@ func (s *SafetyModule) SignTimeout(tmoVote *ab_consensus.TimeoutMsg, lastRoundTC
 		return fmt.Errorf("not safe to time-out, %w", err)
 	}
 	// stop voting for this round, all other request to sign a normal vote for this round will be rejected
-	s.increaseHigestVoteRound(round)
+	s.increaseHighestVoteRound(round)
 	// Sign timeout
 	return tmoVote.Sign(s.signer)
 }
@@ -160,7 +160,7 @@ func (s *SafetyModule) SignProposal(proposalMsg *ab_consensus.ProposalMsg) error
 	return proposalMsg.Sign(s.signer)
 }
 
-func (s *SafetyModule) increaseHigestVoteRound(round uint64) {
+func (s *SafetyModule) increaseHighestVoteRound(round uint64) {
 	s.SetHighestVotedRound(util.Max(s.GetHighestVotedRound(), round))
 }
 

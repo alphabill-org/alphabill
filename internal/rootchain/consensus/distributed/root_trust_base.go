@@ -54,7 +54,7 @@ func NewRootTrustBaseFromGenesis(genesisRoot *genesis.GenesisRootRecord) (*RootT
 }
 
 // GetQuorumThreshold returns quorum power needed.
-// Currently, all validators are equal and each vote counts as
+// Currently, all validators are equal and each vote counts as one.
 func (r *RootTrustBase) GetQuorumThreshold() uint32 {
 	return r.quorumThreshold
 }

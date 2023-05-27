@@ -29,6 +29,7 @@ message UnicityTreeCertificate {
   bytes system_description_hash = 3;
 }
 
+// Yellowpaper refers this structure as "vote_info".
 message RootRoundInfo {
   // root chain round number
   uint64 round_number = 1;
@@ -36,9 +37,10 @@ message RootRoundInfo {
   uint64 epoch = 2;
   // timestamp
   uint64 timestamp = 3;
-  // root parent round number
+  // round number of the previous round
   uint64 parent_round_number = 4;
   // latest state hash (only used by root chain)
+  // Yellowpaper refers to it as "exec_state_id" - state hash after executing all tx-s in payload
   bytes current_root_hash = 5;
 }
 

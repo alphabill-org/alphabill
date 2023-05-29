@@ -117,7 +117,7 @@ func TestRunVD(t *testing.T) {
 		txProto = &alphabill.Transaction{Order: txBytes}
 
 		_, err = rpcClient.ProcessTransaction(ctx, txProto, grpc.WaitForReady(true))
-		require.ErrorContains(t, err, "transaction has invalid system identifier")
+		require.ErrorContains(t, err, "invalid transaction system identifier")
 
 		// Close the app
 		ctxCancel()

@@ -28,6 +28,8 @@ func CreateStateFileID(id *uint256.Int, fileID []byte) *uint256.Int {
 }
 
 // NewStateStorage creates an adapter to be used with wasm vm to store and read values from state tree
+// Current understanding is that runtime should not have access to other programs state, hence the state id is derived
+// from program id (the way it is done is TBD, current implementation is just a quick hack)
 func NewStateStorage(state *rma.Tree, eCtx *ExecutionContext) (*StateTreeStorage, error) {
 	if state == nil {
 		return nil, fmt.Errorf("state tree is nil")

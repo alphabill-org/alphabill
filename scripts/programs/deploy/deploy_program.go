@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"crypto/sha256"
+	"encoding/hex"
 	"flag"
 	"fmt"
 	"log"
@@ -30,6 +31,7 @@ func main() {
 	id := flag.String("id", "", "string to be used as program identifier")
 
 	wasmPath := flag.String("wasm-file", "", "path to program wasm code")
+	paramStr := flag.String("param", "", "programs params as hex string (hex, prefixed with '0x')")
 	timeout := flag.Uint64("timeout", 1000, "transaction timeout (block number)")
 	uri := flag.String("alphabill-uri", "localhost:29766", "alphabill node uri where to send the transaction")
 	flag.Parse()
@@ -47,7 +49,16 @@ func main() {
 	if *uri == "" {
 		log.Fatal("alphabill-uri is required")
 	}
-	progID := sha256.New().Sum([]byte(*id))
+	// verify command line parameters
+	var progParams = programs.Uint64ToLEBytes(0)
+	if *paramStr != "" {
+		var err error
+		progParams, err = hex.DecodeString(*paramStr)
+		if err != nil {
+			log.Fatal(err)
+		}
+	}
+	progID := sha256.Sum256([]byte(*id))
 	wasm, err := os.ReadFile(*wasmPath)
 	if err != nil {
 		log.Fatal(fmt.Sprintf("program-file read failed, %v", err))
@@ -74,13 +85,13 @@ func main() {
 	absoluteTimeout := blockNr.RoundNumber + *timeout
 
 	// create tx
-	txDeployOrder, err := programs.NewProgramTransaction(progID,
+	txDeployOrder, err := programs.NewProgramTransaction(progID[:],
 		programs.WithClientMetadata(&txsystem.ClientMetadata{
 			Timeout: absoluteTimeout,
 		}),
 		programs.WithAttributes(&program.PDeployAttributes{
 			Program:  wasm,
-			InitData: programs.Uint64ToLEBytes(0),
+			InitData: progParams,
 		}))
 	if err != nil {
 		log.Fatal(fmt.Sprintf("failed to create program deploy tx, %v", err))

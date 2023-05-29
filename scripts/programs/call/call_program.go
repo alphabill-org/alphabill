@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"crypto/sha256"
+	"encoding/hex"
 	"flag"
 	"fmt"
 	"log"
@@ -28,6 +29,7 @@ func main() {
 	// parse command line parameters
 	id := flag.String("id", "", "string to be used as program identifier")
 	fn := flag.String("func", "", "function to call")
+	inputDataStr := flag.String("input", "", "input data passed to func as hex string (hex, prefixed with '0x')")
 	timeout := flag.Uint64("timeout", 1000, "transaction timeout (block number)")
 	uri := flag.String("alphabill-uri", "localhost:29766", "alphabill node uri where to send the transaction")
 	flag.Parse()
@@ -41,7 +43,16 @@ func main() {
 	if *uri == "" {
 		log.Fatal("alphabill-uri is required")
 	}
-	progID := sha256.New().Sum([]byte(*id))
+	// verify command line parameters
+	var inputData = programs.Uint64ToLEBytes(1)
+	if *inputDataStr != "" {
+		var err error
+		inputData, err = hex.DecodeString(*inputDataStr)
+		if err != nil {
+			log.Fatal(err)
+		}
+	}
+	progID := sha256.Sum256([]byte(*id))
 	ctx := context.Background()
 	conn, err := grpc.DialContext(ctx, *uri, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
@@ -61,13 +72,13 @@ func main() {
 	absoluteTimeout := blockNr.RoundNumber + *timeout
 
 	// create tx
-	txCallOrder, err := programs.NewProgramTransaction(progID,
+	txCallOrder, err := programs.NewProgramTransaction(progID[:],
 		programs.WithClientMetadata(&txsystem.ClientMetadata{
 			Timeout: absoluteTimeout,
 		}),
 		programs.WithAttributes(&program.PCallAttributes{
 			Function: *fn,
-			Input:    programs.Uint64ToLEBytes(1),
+			Input:    inputData,
 		}))
 	if err != nil {
 		log.Fatal(fmt.Sprintf("failed to create program call tx, %v", err))

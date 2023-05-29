@@ -269,6 +269,7 @@ func createTransferTx(pubKey []byte, billID []byte, billValue uint64, fcrID []by
 	tx := &types.TransactionOrder{
 		Payload: &types.Payload{
 			UnitID:     billID,
+			Type:       moneytx.PayloadTypeTransfer,
 			SystemID:   []byte{0, 0, 0, 0},
 			Attributes: attrBytes,
 			ClientMetadata: &types.ClientMetadata{
@@ -305,6 +306,7 @@ func createTransferFC(feeAmount uint64, unitID []byte, targetUnitID []byte, t1, 
 				MaxTransactionFee: 1,
 			},
 		},
+		OwnerProof: script.PredicateArgumentEmpty(),
 	}
 	return tx, nil
 }

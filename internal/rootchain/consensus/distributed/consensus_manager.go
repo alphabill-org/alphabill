@@ -7,6 +7,9 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/libp2p/go-libp2p/core/peer"
+	"golang.org/x/exp/slices"
+
 	"github.com/alphabill-org/alphabill/internal/certificates"
 	"github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/network"
@@ -18,7 +21,6 @@ import (
 	"github.com/alphabill-org/alphabill/internal/rootchain/consensus/distributed/storage"
 	"github.com/alphabill-org/alphabill/internal/rootchain/partitions"
 	"github.com/alphabill-org/alphabill/internal/util"
-	"github.com/libp2p/go-libp2p/core/peer"
 )
 
 type (
@@ -337,15 +339,15 @@ func (x *ConsensusManager) onIRChange(irChange *ab_consensus.IRChangeReqMsg) {
 
 // onVoteMsg handle votes messages from other root validators
 func (x *ConsensusManager) onVoteMsg(ctx context.Context, vote *ab_consensus.VoteMsg) {
+	if vote.VoteInfo.RoundNumber < x.pacemaker.GetCurrentRound() {
+		logger.Warning("%v round %v stale vote, validator %v is behind vote for round %v, ignored",
+			x.peer.String(), x.pacemaker.GetCurrentRound(), vote.Author, vote.VoteInfo.RoundNumber)
+		return
+	}
 	// verify signature on vote
 	err := vote.Verify(x.trustBase.GetQuorumThreshold(), x.trustBase.GetVerifiers())
 	if err != nil {
 		logger.Warning("%v vote verify failed: %v", x.peer.String(), err)
-		return
-	}
-	if vote.VoteInfo.RoundNumber < x.pacemaker.GetCurrentRound() {
-		logger.Warning("%v round %v stale vote, validator %v is behind vote for round %v, ignored",
-			x.peer.String(), x.pacemaker.GetCurrentRound(), vote.Author, vote.VoteInfo.RoundNumber)
 		return
 	}
 	logger.Trace("%v round %v received vote for round %v from %v",
@@ -428,18 +430,16 @@ func (x *ConsensusManager) onVoteMsg(ctx context.Context, vote *ab_consensus.Vot
 // Timeout votes are broadcast to all nodes on local timeout and all validators try to assemble
 // timeout certificate independently.
 func (x *ConsensusManager) onTimeoutMsg(vote *ab_consensus.TimeoutMsg) {
-	// verify signature on vote
-	err := vote.Verify(x.trustBase.GetQuorumThreshold(), x.trustBase.GetVerifiers())
-	if err != nil {
-		logger.Warning("%v timeout vote verify failed: %v", x.peer.String(), err)
-	}
-	// stale drop
 	if vote.Timeout.Round < x.pacemaker.GetCurrentRound() {
 		logger.Trace("%v round %v stale timeout vote, validator %v voted for timeout in round %v, ignored",
 			x.peer.String(), x.pacemaker.GetCurrentRound(), vote.Author, vote.Timeout.Round)
 		return
 	}
-	// Node voted timeout, proceed
+	// verify signature on vote
+	err := vote.Verify(x.trustBase.GetQuorumThreshold(), x.trustBase.GetVerifiers())
+	if err != nil {
+		logger.Warning("%v timeout vote verify failed: %v", x.peer.String(), err)
+	}
 	logger.Trace("%v round %v received timeout vote for round %v from %v",
 		x.peer.String(), x.pacemaker.GetCurrentRound(), vote.Timeout.Round, vote.Author)
 	// SyncState, compare last handled QC
@@ -720,7 +720,7 @@ func (x *ConsensusManager) onStateResponse(ctx context.Context, req *ab_consensu
 		for _, v := range x.voteBuffer {
 			x.onVoteMsg(ctx, v)
 		}
-		// for time out we will do nothing for now
+		x.voteBuffer = nil
 	}
 	// clear recovery, check state on next request received
 	x.recovery = nil
@@ -728,9 +728,14 @@ func (x *ConsensusManager) onStateResponse(ctx context.Context, req *ab_consensu
 
 func addRandomNodeIdFromSignatureMap(nodes []peer.ID, m map[string][]byte) []peer.ID {
 	for k := range m {
-		if id, err := peer.Decode(k); err == nil {
-			return append(nodes, id)
+		id, err := peer.Decode(k)
+		if err != nil {
+			continue
 		}
+		if slices.Contains(nodes, id) {
+			continue
+		}
+		return append(nodes, id)
 	}
 	return nodes
 }
@@ -779,7 +784,7 @@ func (x *ConsensusManager) sendRecoveryRequests(triggerMsg any) error {
 		// add another node to query from last QC
 		nodes = addRandomNodeIdFromSignatureMap(nodes, mt.Timeout.HighQc.Signatures)
 	default:
-		return fmt.Errorf("unknown message, cannot be used for recovery")
+		return fmt.Errorf("unknown message, cannot be used for recovery: %T", mt)
 	}
 	// send both recovery requests
 	if err := x.net.Send(

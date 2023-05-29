@@ -4,9 +4,15 @@ import (
 	"bytes"
 	"context"
 	gocrypto "crypto"
+	"crypto/rand"
 	"fmt"
 	"testing"
 	"time"
+
+	p2pcrypto "github.com/libp2p/go-libp2p/core/crypto"
+	"github.com/libp2p/go-libp2p/core/peer"
+	"github.com/stretchr/testify/require"
+	"golang.org/x/exp/slices"
 
 	"github.com/alphabill-org/alphabill/internal/certificates"
 	"github.com/alphabill-org/alphabill/internal/crypto"
@@ -21,8 +27,6 @@ import (
 	"github.com/alphabill-org/alphabill/internal/rootchain/testutils"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	testnetwork "github.com/alphabill-org/alphabill/internal/testutils/network"
-	"github.com/stretchr/testify/require"
-	"golang.org/x/exp/slices"
 )
 
 var partitionID = []byte{0, 0xFF, 0, 1}
@@ -453,4 +457,72 @@ func TestGetState(t *testing.T) {
 	require.Equal(t, uint64(1), stateMsg.CommittedHead.Block.Round)
 	require.Equal(t, 0, len(stateMsg.BlockNode))
 	require.Len(t, stateMsg.GetCertificates(), 1)
+}
+
+func Test_addRandomNodeIdFromSignatureMap(t *testing.T) {
+
+	clone := func(in []peer.ID) []peer.ID {
+		out := make([]peer.ID, len(in))
+		copy(out, in)
+		return out
+	}
+
+	// generate some valid peer IDs for tests to use
+	peerIDs := make(peer.IDSlice, 3)
+	for i := range peerIDs {
+		_, publicKey, err := p2pcrypto.GenerateSecp256k1Key(rand.Reader)
+		require.NoError(t, err)
+		pubKeyBytes, err := publicKey.Raw()
+		require.NoError(t, err)
+		peerIDs[i], err = network.NodeIDFromPublicKeyBytes(pubKeyBytes)
+		require.NoError(t, err)
+	}
+	idA, idB, idC := peerIDs[0], peerIDs[1], peerIDs[2]
+
+	t.Run("empty inputs", func(t *testing.T) {
+		nodes := addRandomNodeIdFromSignatureMap(nil, nil)
+		require.Empty(t, nodes)
+
+		nodes = addRandomNodeIdFromSignatureMap([]peer.ID{}, map[string][]byte{})
+		require.Empty(t, nodes)
+
+		// when the input slice is not empty it must retain it's value
+		inp := []peer.ID{idA}
+
+		nodes = addRandomNodeIdFromSignatureMap(clone(inp), nil)
+		require.ElementsMatch(t, inp, nodes)
+
+		nodes = addRandomNodeIdFromSignatureMap(clone(inp), map[string][]byte{})
+		require.ElementsMatch(t, inp, nodes)
+	})
+
+	t.Run("no duplicates added", func(t *testing.T) {
+		inp := []peer.ID{idA, idB}
+
+		nodes := addRandomNodeIdFromSignatureMap(clone(inp), map[string][]byte{idA.String(): nil})
+		require.ElementsMatch(t, inp, nodes)
+
+		nodes = addRandomNodeIdFromSignatureMap(clone(inp), map[string][]byte{idA.String(): nil, idB.String(): nil})
+		require.ElementsMatch(t, inp, nodes)
+	})
+
+	t.Run("invalid IDs are ignored", func(t *testing.T) {
+		inp := []peer.ID{idA}
+
+		nodes := addRandomNodeIdFromSignatureMap(clone(inp), map[string][]byte{"foo bar": nil})
+		require.ElementsMatch(t, inp, nodes)
+
+		nodes = addRandomNodeIdFromSignatureMap(clone(inp), map[string][]byte{"foo bar": nil, idB.String(): nil})
+		require.ElementsMatch(t, []peer.ID{idA, idB}, nodes)
+	})
+
+	t.Run("new item is added", func(t *testing.T) {
+		inp := []peer.ID{idA, idB}
+
+		nodes := addRandomNodeIdFromSignatureMap(clone(inp), map[string][]byte{idC.String(): nil})
+		require.ElementsMatch(t, []peer.ID{idA, idB, idC}, nodes)
+
+		nodes = addRandomNodeIdFromSignatureMap(clone(inp), map[string][]byte{idB.String(): nil, idC.String(): nil})
+		require.ElementsMatch(t, []peer.ID{idA, idB, idC}, nodes)
+	})
 }

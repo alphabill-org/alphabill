@@ -16,7 +16,9 @@ import (
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/internal/txsystem/tokens"
 	"github.com/alphabill-org/alphabill/pkg/client"
+	"github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/alphabill-org/alphabill/pkg/wallet/blocksync"
+	"github.com/alphabill-org/alphabill/pkg/wallet/broker"
 	"github.com/alphabill-org/alphabill/pkg/wallet/log"
 )
 
@@ -40,20 +42,20 @@ type Storage interface {
 	GetBlockNumber() (uint64, error)
 	SetBlockNumber(blockNumber uint64) error
 
-	SaveTokenTypeCreator(id TokenTypeID, kind Kind, creator PubKey) error
-	SaveTokenType(data *TokenUnitType, proof *Proof) error
+	SaveTokenTypeCreator(id TokenTypeID, kind Kind, creator wallet.PubKey) error
+	SaveTokenType(data *TokenUnitType, proof *wallet.Proof) error
 	GetTokenType(id TokenTypeID) (*TokenUnitType, error)
-	QueryTokenType(kind Kind, creator PubKey, startKey TokenTypeID, count int) ([]*TokenUnitType, TokenTypeID, error)
+	QueryTokenType(kind Kind, creator wallet.PubKey, startKey TokenTypeID, count int) ([]*TokenUnitType, TokenTypeID, error)
 
-	SaveToken(data *TokenUnit, proof *Proof) error
+	SaveToken(data *TokenUnit, proof *wallet.Proof) error
 	RemoveToken(id TokenID) error
 	GetToken(id TokenID) (*TokenUnit, error)
-	QueryTokens(kind Kind, owner Predicate, startKey TokenID, count int) ([]*TokenUnit, TokenID, error)
+	QueryTokens(kind Kind, owner wallet.Predicate, startKey TokenID, count int) ([]*TokenUnit, TokenID, error)
 
-	GetTxProof(unitID UnitID, txHash TxHash) (*Proof, error)
+	GetTxProof(unitID wallet.UnitID, txHash wallet.TxHash) (*wallet.Proof, error)
 
-	GetFeeCreditBill(unitID UnitID) (*FeeCreditBill, error)
-	SetFeeCreditBill(fcb *FeeCreditBill, proof *Proof) error
+	GetFeeCreditBill(unitID wallet.UnitID) (*FeeCreditBill, error)
+	SetFeeCreditBill(fcb *FeeCreditBill, proof *wallet.Proof) error
 }
 
 /*
@@ -73,13 +75,14 @@ func Run(ctx context.Context, cfg Configuration) error {
 	if err != nil {
 		return fmt.Errorf("failed to create token tx system: %w", err)
 	}
-	abc := cfg.Client()
 
 	g, ctx := errgroup.WithContext(ctx)
+	msgBroker := broker.NewBroker(ctx.Done())
+	abc := cfg.Client()
 
 	g.Go(func() error {
 		logger := cfg.Logger()
-		bp := &blockProcessor{store: db, txs: txs, log: logger}
+		bp := &blockProcessor{store: db, txs: txs, notify: msgBroker.Notify, log: logger}
 		// we act as if all errors returned by block sync are recoverable ie we
 		// just retry in a loop until ctx is cancelled
 		for {
@@ -101,6 +104,7 @@ func Run(ctx context.Context, cfg Configuration) error {
 			db:        db,
 			ab:        abc,
 			convertTx: txs.ConvertTx,
+			streamSSE: msgBroker.StreamSSE,
 			logErr:    cfg.Logger().Error,
 		}
 		return httpsrv.Run(ctx, cfg.HttpServer(api.endpoints()), httpsrv.Listener(cfg.Listener()), httpsrv.ShutdownTimeout(5*time.Second))
@@ -152,9 +156,10 @@ func (c *cfg) HttpServer(endpoints http.Handler) http.Server {
 	return http.Server{
 		Addr:              c.apiAddr,
 		Handler:           endpoints,
+		IdleTimeout:       30 * time.Second,
 		ReadTimeout:       3 * time.Second,
 		ReadHeaderTimeout: time.Second,
-		WriteTimeout:      5 * time.Second,
-		IdleTimeout:       30 * time.Second,
+		// can't set global write timeout here - it'll kill the streaming responses prematurely
+		//WriteTimeout:    5 * time.Second,
 	}
 }

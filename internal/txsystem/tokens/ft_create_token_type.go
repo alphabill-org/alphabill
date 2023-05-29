@@ -15,7 +15,7 @@ var ErrStrUnitIDIsZero = "unit ID cannot be zero"
 
 func handleCreateFungibleTokenTypeTx(options *Options) txsystem.GenericExecuteFunc[*createFungibleTokenTypeWrapper] {
 	return func(tx *createFungibleTokenTypeWrapper, currentBlockNr uint64) error {
-		logger.Debug("Processing Create Fungible Token Type tx: %v", tx)
+		logger.Debug("Processing Create Fungible Token Type tx: %v", tx.transaction.ToLogString(logger))
 		if err := validateCreateFungibleTokenType(tx, options.state); err != nil {
 			return fmt.Errorf("invalid create fungible token tx: %w", err)
 		}

@@ -53,14 +53,16 @@ func (p *SendProtocol) Send(m proto.Message, receiverID peer.ID) error {
 		}()
 
 		if err := w.Write(m); err != nil {
-			doneCh <- fmt.Errorf("write error: %w", err)
+			doneCh <- fmt.Errorf("failed to write request: %v, "+
+				"protocol: %s, receiver peerID: %v, sender peerID: %v", err, p.protocolID, receiverID, p.self.ID())
 		}
 		doneCh <- nil
 	}()
 
 	select {
 	case <-ctx.Done():
-		return fmt.Errorf("send timeout")
+		return fmt.Errorf("timeout: protocol: %v, receiver peerID: %v, sender peerID: %v",
+			p.protocolID, receiverID, p.self.ID())
 	case err := <-doneCh:
 		return err
 	}

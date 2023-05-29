@@ -9,7 +9,7 @@ import (
 
 func handleCloseFeeCreditTx(f *FeeCredit) txsystem.GenericExecuteFunc[*transactions.CloseFeeCreditWrapper] {
 	return func(tx *transactions.CloseFeeCreditWrapper, currentBlockNumber uint64) error {
-		f.logger.Debug("Processing closeFC %v", tx)
+		f.logger.Debug("Processing closeFC %v", tx.Transaction.ToLogString(f.logger))
 		bd, _ := f.state.GetUnit(tx.UnitID())
 		if err := f.txValidator.ValidateCloseFC(&CloseFCValidationContext{Tx: tx, Unit: bd}); err != nil {
 			return fmt.Errorf("closeFC: tx validation failed: %w", err)

@@ -21,7 +21,7 @@ var (
 
 func handleSplitTx(state *rma.Tree, hashAlgorithm crypto.Hash, feeCalc fc.FeeCalculator) txsystem.GenericExecuteFunc[*billSplitWrapper] {
 	return func(tx *billSplitWrapper, currentBlockNumber uint64) error {
-		log.Debug("Processing split %v", tx)
+		log.Debug("Processing split %v", tx.transaction.ToLogString(log))
 		if err := validateSplitTx(tx, state); err != nil {
 			return fmt.Errorf("invalid split transaction: %w", err)
 		}

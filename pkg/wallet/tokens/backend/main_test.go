@@ -166,7 +166,7 @@ func Test_Run_API(t *testing.T) {
 				case tx := <-syncing:
 					rn := currentRoundNumber.Add(1)
 					block := &types.Block{
-						Transactions:       []*types.TransactionRecord{{TransactionOrder: tx}},
+						Transactions:       []*types.TransactionRecord{{TransactionOrder: tx, ServerMetadata: &types.ServerMetadata{ActualFee: 1}}},
 						UnicityCertificate: &types.UnicityCertificate{InputRecord: &types.InputRecord{RoundNumber: rn}},
 					}
 					blockBytes, err := cbor.Marshal(block)
@@ -230,6 +230,7 @@ func Test_Run_API(t *testing.T) {
 
 	// trigger block sync from (mocked) AB with an CreateNonFungibleTokenType tx
 	createNTFTypeTx := randomTx(t, &tokens.CreateNonFungibleTokenTypeAttributes{Symbol: "test"})
+	createNTFTypeTx.Payload.Type = tokens.PayloadTypeCreateNFTType
 	select {
 	case syncing <- createNTFTypeTx:
 	case <-time.After(2 * time.Second):
@@ -269,15 +270,16 @@ func Test_Run_API(t *testing.T) {
 	require.NoError(t, doGet("/kinds/nft/types", http.StatusOK, &typesData))
 	require.ElementsMatch(t, typesData, []*TokenUnitType{cnfttt})
 
-	// post an tx to mint NFT with the existing type
+	// post a tx to mint NFT with the existing type
 	ownerID := test.RandomBytes(33)
 	pubKeyHex := hexutil.Encode(ownerID)
-	message, err := cbor.Marshal(&wallet.Transactions{Transactions: []*types.TransactionOrder{randomTx(t,
+	tx := randomTx(t,
 		&tokens.MintNonFungibleTokenAttributes{
 			Bearer:    script.PredicatePayToPublicKeyHashDefault(hash.Sum256(ownerID)),
 			NFTTypeID: createNTFTypeTx.Payload.UnitID,
-		})},
-	})
+		})
+	tx.Payload.Type = tokens.PayloadTypeMintNFT
+	message, err := cbor.Marshal(&wallet.Transactions{Transactions: []*types.TransactionOrder{tx}})
 	require.NoError(t, err)
 	require.NotEmpty(t, message)
 

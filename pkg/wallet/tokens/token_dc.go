@@ -10,6 +10,7 @@ import (
 	"github.com/alphabill-org/alphabill/pkg/wallet/account"
 	twb "github.com/alphabill-org/alphabill/pkg/wallet/tokens/backend"
 	"github.com/alphabill-org/alphabill/pkg/wallet/txsubmitter"
+	"github.com/fxamacker/cbor/v2"
 )
 
 const maxBurnBatchSize = 100
@@ -78,13 +79,13 @@ func (w *Wallet) joinTokenForDC(ctx context.Context, acc *account.AccountKey, bu
 		InvariantPredicateSignatures: nil,
 	}
 
-	sub, err := w.prepareTxSubmission(ctx, targetTokenID, acc, w.GetRoundNumber, func(tx *types.TransactionOrder) error {
+	sub, err := w.prepareTxSubmission(ctx, tokens.PayloadTypeJoinFungibleToken, targetTokenID, acc, w.GetRoundNumber, func(tx *types.TransactionOrder) error {
 		signatures, err := preparePredicateSignatures(w.GetAccountManager(), invariantPredicateArgs, tx)
 		if err != nil {
 			return err
 		}
 		joinAttrs.SetInvariantPredicateSignatures(signatures)
-		tx.Payload.Attributes, err = joinAttrs.MarshalCBOR()
+		tx.Payload.Attributes, err = cbor.Marshal(joinAttrs)
 		return err
 	})
 	if err != nil {
@@ -102,13 +103,13 @@ func (w *Wallet) burnTokensForDC(ctx context.Context, acc *account.AccountKey, t
 
 	for _, token := range tokensToBurn {
 		attrs := newBurnTxAttrs(token, nonce)
-		sub, err := w.prepareTxSubmission(ctx, sdk.UnitID(token.ID), acc, rnFetcher.getRoundNumber, func(tx *types.TransactionOrder) error {
+		sub, err := w.prepareTxSubmission(ctx, tokens.PayloadTypeBurnFungibleToken, sdk.UnitID(token.ID), acc, rnFetcher.getRoundNumber, func(tx *types.TransactionOrder) error {
 			signatures, err := preparePredicateSignatures(w.GetAccountManager(), invariantPredicateArgs, tx)
 			if err != nil {
 				return err
 			}
 			attrs.SetInvariantPredicateSignatures(signatures)
-			tx.Payload.Attributes, err = attrs.MarshalCBOR()
+			tx.Payload.Attributes, err = cbor.Marshal(attrs)
 			return err
 		})
 		if err != nil {

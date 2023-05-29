@@ -126,11 +126,3 @@ func (u *UpdateNonFungibleTokenAttributes) GetDataUpdateSignatures() [][]byte {
 func (u *UpdateNonFungibleTokenAttributes) SetDataUpdateSignatures(signatures [][]byte) {
 	u.DataUpdateSignatures = signatures
 }
-
-func (u *UpdateNonFungibleTokenAttributes) MarshalCBOR() ([]byte, error) {
-	return cbor.Marshal(u)
-}
-
-func (u *UpdateNonFungibleTokenAttributes) UnmarshalCBOR(data []byte) error {
-	return cbor.Unmarshal(data, u)
-}

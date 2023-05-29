@@ -217,11 +217,3 @@ func (s *SplitFungibleTokenAttributes) GetInvariantPredicateSignatures() [][]byt
 func (s *SplitFungibleTokenAttributes) SetInvariantPredicateSignatures(signatures [][]byte) {
 	s.InvariantPredicateSignatures = signatures
 }
-
-func (s *SplitFungibleTokenAttributes) MarshalCBOR() ([]byte, error) {
-	return cbor.Marshal(s)
-}
-
-func (s *SplitFungibleTokenAttributes) UnmarshalCBOR(data []byte) error {
-	return cbor.Unmarshal(data, s)
-}

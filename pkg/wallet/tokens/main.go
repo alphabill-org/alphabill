@@ -18,6 +18,7 @@ import (
 	"github.com/alphabill-org/alphabill/pkg/wallet/money/tx_builder"
 	"github.com/alphabill-org/alphabill/pkg/wallet/tokens/backend"
 	"github.com/alphabill-org/alphabill/pkg/wallet/tokens/client"
+	"github.com/fxamacker/cbor/v2"
 )
 
 const (
@@ -104,12 +105,12 @@ func (w *Wallet) NewFungibleType(ctx context.Context, accNr uint64, attrs Create
 			return nil, fmt.Errorf("parent type requires %d decimal places, got %d", parentType.DecimalPlaces, attrs.DecimalPlaces)
 		}
 	}
-	return w.newType(ctx, accNr, attrs.toCBOR(), typeId, subtypePredicateArgs)
+	return w.newType(ctx, accNr, tokens.PayloadTypeCreateFungibleTokenType, attrs.toCBOR(), typeId, subtypePredicateArgs)
 }
 
 func (w *Wallet) NewNonFungibleType(ctx context.Context, accNr uint64, attrs CreateNonFungibleTokenTypeAttributes, typeId backend.TokenTypeID, subtypePredicateArgs []*PredicateInput) (backend.TokenTypeID, error) {
 	log.Info("Creating new NFT type")
-	return w.newType(ctx, accNr, attrs.toCBOR(), typeId, subtypePredicateArgs)
+	return w.newType(ctx, accNr, tokens.PayloadTypeCreateNFTType, attrs.toCBOR(), typeId, subtypePredicateArgs)
 }
 
 func (w *Wallet) NewFungibleToken(ctx context.Context, accNr uint64, typeId backend.TokenTypeID, amount uint64, bearerPredicate wallet.Predicate, mintPredicateArgs []*PredicateInput) (backend.TokenID, error) {
@@ -120,7 +121,7 @@ func (w *Wallet) NewFungibleToken(ctx context.Context, accNr uint64, typeId back
 		Value:                            amount,
 		TokenCreationPredicateSignatures: nil,
 	}
-	return w.newToken(ctx, accNr, attrs, nil, mintPredicateArgs)
+	return w.newToken(ctx, accNr, tokens.PayloadTypeMintFungibleToken, attrs, nil, mintPredicateArgs)
 }
 
 func (w *Wallet) NewNFT(ctx context.Context, accNr uint64, attrs MintNonFungibleTokenAttributes, tokenId backend.TokenID, mintPredicateArgs []*PredicateInput) (backend.TokenID, error) {
@@ -137,7 +138,7 @@ func (w *Wallet) NewNFT(ctx context.Context, accNr uint64, attrs MintNonFungible
 	if len(attrs.Data) > dataMaxSize {
 		return nil, errInvalidDataLength
 	}
-	return w.newToken(ctx, accNr, attrs.toCBOR(), tokenId, mintPredicateArgs)
+	return w.newToken(ctx, accNr, tokens.PayloadTypeMintNFT, attrs.toCBOR(), tokenId, mintPredicateArgs)
 }
 
 func (w *Wallet) ListTokenTypes(ctx context.Context, accountNumber uint64, kind backend.Kind) ([]*backend.TokenUnitType, error) {
@@ -277,13 +278,13 @@ func (w *Wallet) TransferNFT(ctx context.Context, accountNumber uint64, tokenId 
 		return err
 	}
 	attrs := newNonFungibleTransferTxAttrs(token, receiverPubKey)
-	sub, err := w.prepareTxSubmission(ctx, wallet.UnitID(tokenId), key, w.GetRoundNumber, func(tx *types.TransactionOrder) error {
+	sub, err := w.prepareTxSubmission(ctx, tokens.PayloadTypeTransferNFT, wallet.UnitID(tokenId), key, w.GetRoundNumber, func(tx *types.TransactionOrder) error {
 		signatures, err := preparePredicateSignatures(w.am, invariantPredicateArgs, tx)
 		if err != nil {
 			return err
 		}
 		attrs.SetInvariantPredicateSignatures(signatures)
-		tx.Payload.Attributes, err = attrs.MarshalCBOR()
+		tx.Payload.Attributes, err = cbor.Marshal(attrs)
 		return err
 	})
 	if err != nil {
@@ -376,13 +377,13 @@ func (w *Wallet) UpdateNFTData(ctx context.Context, accountNumber uint64, tokenI
 		DataUpdateSignatures: nil,
 	}
 
-	sub, err := w.prepareTxSubmission(ctx, tokenId, acc, w.GetRoundNumber, func(tx *types.TransactionOrder) error {
+	sub, err := w.prepareTxSubmission(ctx, tokens.PayloadTypeUpdateNFT, tokenId, acc, w.GetRoundNumber, func(tx *types.TransactionOrder) error {
 		signatures, err := preparePredicateSignatures(w.am, updatePredicateArgs, tx)
 		if err != nil {
 			return err
 		}
 		attrs.SetDataUpdateSignatures(signatures)
-		tx.Payload.Attributes, err = attrs.MarshalCBOR()
+		tx.Payload.Attributes, err = cbor.Marshal(attrs)
 		return err
 	})
 	if err != nil {

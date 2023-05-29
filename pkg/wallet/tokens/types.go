@@ -12,7 +12,6 @@ import (
 	"github.com/alphabill-org/alphabill/pkg/wallet/account"
 	twb "github.com/alphabill-org/alphabill/pkg/wallet/tokens/backend"
 	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/fxamacker/cbor/v2"
 )
 
 const (
@@ -71,18 +70,15 @@ type (
 	}
 
 	MintAttr interface {
-		cbor.Marshaler
 		SetBearer([]byte)
 		SetTokenCreationPredicateSignatures([][]byte)
 	}
 
 	AttrWithSubTypeCreationInputs interface {
-		cbor.Marshaler
 		SetSubTypeCreationPredicateSignatures([][]byte)
 	}
 
 	AttrWithInvariantPredicateInputs interface {
-		cbor.Marshaler
 		SetInvariantPredicateSignatures([][]byte)
 	}
 )

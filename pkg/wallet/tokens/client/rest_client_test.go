@@ -779,9 +779,9 @@ func Test_extractOffsetMarker(t *testing.T) {
 	})
 }
 
-func randomTx(t *testing.T, attr cbor.Marshaler) *types.TransactionOrder {
+func randomTx(t *testing.T, attr interface{}) *types.TransactionOrder {
 	t.Helper()
-	bytes, err := attr.MarshalCBOR()
+	bytes, err := cbor.Marshal(attr)
 	require.NoError(t, err, "failed to marshal tx attributes: %v", err)
 	tx := &types.TransactionOrder{
 		Payload: &types.Payload{

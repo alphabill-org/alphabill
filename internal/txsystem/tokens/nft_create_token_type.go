@@ -188,11 +188,3 @@ func (c *CreateNonFungibleTokenTypeAttributes) GetSubTypeCreationPredicateSignat
 func (c *CreateNonFungibleTokenTypeAttributes) SetSubTypeCreationPredicateSignatures(signatures [][]byte) {
 	c.SubTypeCreationPredicateSignatures = signatures
 }
-
-func (c *CreateNonFungibleTokenTypeAttributes) MarshalCBOR() ([]byte, error) {
-	return cbor.Marshal(c)
-}
-
-func (c *CreateNonFungibleTokenTypeAttributes) UnmarshalCBOR(data []byte) error {
-	return cbor.Unmarshal(data, c)
-}

@@ -130,11 +130,3 @@ func (m *MintFungibleTokenAttributes) GetTokenCreationPredicateSignatures() [][]
 func (m *MintFungibleTokenAttributes) SetTokenCreationPredicateSignatures(signatures [][]byte) {
 	m.TokenCreationPredicateSignatures = signatures
 }
-
-func (m *MintFungibleTokenAttributes) MarshalCBOR() ([]byte, error) {
-	return cbor.Marshal(m)
-}
-
-func (m *MintFungibleTokenAttributes) UnmarshalCBOR(data []byte) error {
-	return cbor.Unmarshal(data, m)
-}

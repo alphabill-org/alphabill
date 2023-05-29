@@ -175,11 +175,3 @@ func (j *JoinFungibleTokenAttributes) GetInvariantPredicateSignatures() [][]byte
 func (j *JoinFungibleTokenAttributes) SetInvariantPredicateSignatures(signatures [][]byte) {
 	j.InvariantPredicateSignatures = signatures
 }
-
-func (j *JoinFungibleTokenAttributes) MarshalCBOR() ([]byte, error) {
-	return cbor.Marshal(j)
-}
-
-func (j *JoinFungibleTokenAttributes) UnmarshalCBOR(data []byte) error {
-	return cbor.Unmarshal(data, j)
-}

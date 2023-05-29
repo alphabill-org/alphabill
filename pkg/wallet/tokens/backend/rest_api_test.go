@@ -73,6 +73,7 @@ func Test_restAPI_postTransaction(t *testing.T) {
 
 	// valid request body with single create-nft-type tx
 	createNTFTypeTx := randomTx(t, &tokens.CreateNonFungibleTokenTypeAttributes{Symbol: "test"})
+	createNTFTypeTx.Payload.Type = tokens.PayloadTypeCreateNFTType
 	createNTFTypeMsg, err := cbor.Marshal(&wallet.Transactions{Transactions: []*types.TransactionOrder{createNTFTypeTx}})
 	require.NoError(t, err)
 	require.NotEmpty(t, createNTFTypeMsg)
@@ -99,36 +100,7 @@ func Test_restAPI_postTransaction(t *testing.T) {
 		if rsp.StatusCode != http.StatusBadRequest {
 			t.Errorf("unexpected status %d", rsp.StatusCode)
 		}
-		expectErrorResponse(t, rsp, http.StatusBadRequest, "request body contained no transactions to process")
-	})
-
-	t.Run("failure to convert tx", func(t *testing.T) {
-		var saveTypeCalls, sendTxCalls int32
-		api := &restAPI{
-			ab: &mockABClient{
-				sendTransaction: func(ctx context.Context, t *types.TransactionOrder) error {
-					atomic.AddInt32(&sendTxCalls, 1)
-					return fmt.Errorf("unexpected call")
-				},
-			},
-			db: &mockStorage{
-				saveTTypeCreator: func(id TokenTypeID, kind Kind, creator wallet.PubKey) error {
-					atomic.AddInt32(&saveTypeCalls, 1)
-					return fmt.Errorf("unexpected call")
-				},
-			},
-		}
-		rsp := makeRequest(api, ownerIDstr, createNTFTypeMsg)
-		if rsp.StatusCode != http.StatusInternalServerError {
-			b, err := httputil.DumpResponse(rsp, true)
-			t.Errorf("unexpected status: %s\n%s\n%v", rsp.Status, b, err)
-		}
-		if saveTypeCalls != 0 {
-			t.Errorf("expected no saveTTypeCreator calls but it was called %d times", saveTypeCalls)
-		}
-		if sendTxCalls != 0 {
-			t.Errorf("expected no sendTransaction calls but it was called %d times", sendTxCalls)
-		}
+		expectErrorResponse(t, rsp, http.StatusBadRequest, "failed to decode request body: unexpected EOF")
 	})
 
 	t.Run("one valid type-creation transaction is sent", func(t *testing.T) {

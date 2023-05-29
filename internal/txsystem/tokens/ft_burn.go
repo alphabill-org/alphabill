@@ -145,11 +145,3 @@ func (b *BurnFungibleTokenAttributes) GetInvariantPredicateSignatures() [][]byte
 func (b *BurnFungibleTokenAttributes) SetInvariantPredicateSignatures(signatures [][]byte) {
 	b.InvariantPredicateSignatures = signatures
 }
-
-func (b *BurnFungibleTokenAttributes) MarshalCBOR() ([]byte, error) {
-	return cbor.Marshal(b)
-}
-
-func (b *BurnFungibleTokenAttributes) UnmarshalCBOR(data []byte) error {
-	return cbor.Unmarshal(data, b)
-}

@@ -97,8 +97,7 @@ func newFungibleTokenData(attr *MintFungibleTokenAttributes, txHash []byte, curr
 func (n *nonFungibleTokenTypeData) AddToHasher(hasher hash.Hash) {
 	hasher.Write([]byte(n.symbol))
 	hasher.Write([]byte(n.name))
-	hasher.Write([]byte(n.icon.Type))
-	hasher.Write(n.icon.Data)
+	n.icon.AddToHasher(hasher)
 	hasher.Write(util.Uint256ToBytes(n.parentTypeId))
 	hasher.Write(n.subTypeCreationPredicate)
 	hasher.Write(n.tokenCreationPredicate)
@@ -129,8 +128,7 @@ func (n *nonFungibleTokenData) Value() rma.SummaryValue {
 func (f *fungibleTokenTypeData) AddToHasher(hasher hash.Hash) {
 	hasher.Write([]byte(f.symbol))
 	hasher.Write([]byte(f.name))
-	hasher.Write([]byte(f.icon.Type))
-	hasher.Write(f.icon.Data)
+	f.icon.AddToHasher(hasher)
 	parentTypeID := f.parentTypeId.Bytes32()
 	hasher.Write(parentTypeID[:])
 	hasher.Write(util.Uint32ToBytes(f.decimalPlaces))
@@ -153,4 +151,12 @@ func (f *fungibleTokenData) AddToHasher(hasher hash.Hash) {
 
 func (f *fungibleTokenData) Value() rma.SummaryValue {
 	return zeroSummaryValue
+}
+
+func (f *Icon) AddToHasher(hasher hash.Hash) {
+	if f == nil {
+		return
+	}
+	hasher.Write([]byte(f.Type))
+	hasher.Write(f.Data)
 }

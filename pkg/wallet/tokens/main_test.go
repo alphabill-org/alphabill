@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strconv"
-	"strings"
 	"testing"
 
 	"github.com/alphabill-org/alphabill/internal/hash"
@@ -249,7 +248,7 @@ func TestNewTypes(t *testing.T) {
 			tx, found := recTxs[string(id)]
 			if found {
 				tokenType := backend.TokenUnitType{ID: tx.UnitID()}
-				if strings.Contains(tx.PayloadType(), "CreateFungibleTokenTypeAttributes") {
+				if tx.PayloadType() == ttxs.PayloadTypeCreateFungibleTokenType {
 					tokenType.Kind = backend.Fungible
 					attrs := &ttxs.CreateFungibleTokenTypeAttributes{}
 					require.NoError(t, tx.UnmarshalAttributes(attrs))

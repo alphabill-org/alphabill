@@ -186,11 +186,3 @@ func (t *TransferFungibleTokenAttributes) GetInvariantPredicateSignatures() [][]
 func (t *TransferFungibleTokenAttributes) SetInvariantPredicateSignatures(signatures [][]byte) {
 	t.InvariantPredicateSignatures = signatures
 }
-
-func (t *TransferFungibleTokenAttributes) MarshalCBOR() ([]byte, error) {
-	return cbor.Marshal(t)
-}
-
-func (t *TransferFungibleTokenAttributes) UnmarshalCBOR(data []byte) error {
-	return cbor.Unmarshal(data, t)
-}

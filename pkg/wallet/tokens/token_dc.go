@@ -79,8 +79,8 @@ func (w *Wallet) joinTokenForDC(ctx context.Context, acc *account.AccountKey, bu
 		InvariantPredicateSignatures: nil,
 	}
 
-	sub, err := w.prepareTxSubmission(ctx, tokens.PayloadTypeJoinFungibleToken, targetTokenID, acc, w.GetRoundNumber, func(tx *types.TransactionOrder) error {
-		signatures, err := preparePredicateSignatures(w.GetAccountManager(), invariantPredicateArgs, tx)
+	sub, err := w.prepareTxSubmission(ctx, tokens.PayloadTypeJoinFungibleToken, joinAttrs, targetTokenID, acc, w.GetRoundNumber, func(tx *types.TransactionOrder) error {
+		signatures, err := preparePredicateSignatures(w.GetAccountManager(), invariantPredicateArgs, tx, joinAttrs)
 		if err != nil {
 			return err
 		}
@@ -103,8 +103,8 @@ func (w *Wallet) burnTokensForDC(ctx context.Context, acc *account.AccountKey, t
 
 	for _, token := range tokensToBurn {
 		attrs := newBurnTxAttrs(token, nonce)
-		sub, err := w.prepareTxSubmission(ctx, tokens.PayloadTypeBurnFungibleToken, sdk.UnitID(token.ID), acc, rnFetcher.getRoundNumber, func(tx *types.TransactionOrder) error {
-			signatures, err := preparePredicateSignatures(w.GetAccountManager(), invariantPredicateArgs, tx)
+		sub, err := w.prepareTxSubmission(ctx, tokens.PayloadTypeBurnFungibleToken, attrs, sdk.UnitID(token.ID), acc, rnFetcher.getRoundNumber, func(tx *types.TransactionOrder) error {
+			signatures, err := preparePredicateSignatures(w.GetAccountManager(), invariantPredicateArgs, tx, attrs)
 			if err != nil {
 				return err
 			}

@@ -278,8 +278,8 @@ func (w *Wallet) TransferNFT(ctx context.Context, accountNumber uint64, tokenId 
 		return err
 	}
 	attrs := newNonFungibleTransferTxAttrs(token, receiverPubKey)
-	sub, err := w.prepareTxSubmission(ctx, tokens.PayloadTypeTransferNFT, wallet.UnitID(tokenId), key, w.GetRoundNumber, func(tx *types.TransactionOrder) error {
-		signatures, err := preparePredicateSignatures(w.am, invariantPredicateArgs, tx)
+	sub, err := w.prepareTxSubmission(ctx, tokens.PayloadTypeTransferNFT, attrs, wallet.UnitID(tokenId), key, w.GetRoundNumber, func(tx *types.TransactionOrder) error {
+		signatures, err := preparePredicateSignatures(w.am, invariantPredicateArgs, tx, attrs)
 		if err != nil {
 			return err
 		}
@@ -377,8 +377,8 @@ func (w *Wallet) UpdateNFTData(ctx context.Context, accountNumber uint64, tokenI
 		DataUpdateSignatures: nil,
 	}
 
-	sub, err := w.prepareTxSubmission(ctx, tokens.PayloadTypeUpdateNFT, tokenId, acc, w.GetRoundNumber, func(tx *types.TransactionOrder) error {
-		signatures, err := preparePredicateSignatures(w.am, updatePredicateArgs, tx)
+	sub, err := w.prepareTxSubmission(ctx, tokens.PayloadTypeUpdateNFT, attrs, tokenId, acc, w.GetRoundNumber, func(tx *types.TransactionOrder) error {
+		signatures, err := preparePredicateSignatures(w.am, updatePredicateArgs, tx, attrs)
 		if err != nil {
 			return err
 		}

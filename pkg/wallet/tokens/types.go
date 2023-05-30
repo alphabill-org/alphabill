@@ -8,6 +8,7 @@ import (
 
 	"github.com/alphabill-org/alphabill/internal/script"
 	"github.com/alphabill-org/alphabill/internal/txsystem/tokens"
+	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/alphabill-org/alphabill/pkg/wallet/account"
 	twb "github.com/alphabill-org/alphabill/pkg/wallet/tokens/backend"
@@ -70,15 +71,18 @@ type (
 	}
 
 	MintAttr interface {
+		types.SigBytesProvider
 		SetBearer([]byte)
 		SetTokenCreationPredicateSignatures([][]byte)
 	}
 
 	AttrWithSubTypeCreationInputs interface {
+		types.SigBytesProvider
 		SetSubTypeCreationPredicateSignatures([][]byte)
 	}
 
 	AttrWithInvariantPredicateInputs interface {
+		types.SigBytesProvider
 		SetInvariantPredicateSignatures([][]byte)
 	}
 )

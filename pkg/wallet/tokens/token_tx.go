@@ -55,8 +55,8 @@ func (w *Wallet) newType(ctx context.Context, accNr uint64, payloadType string, 
 	if err != nil {
 		return nil, err
 	}
-	sub, err := w.prepareTxSubmission(ctx, payloadType, wallet.UnitID(typeId), acc, w.GetRoundNumber, func(tx *types.TransactionOrder) error {
-		signatures, err := preparePredicateSignatures(w.am, subtypePredicateArgs, tx)
+	sub, err := w.prepareTxSubmission(ctx, payloadType, attrs, wallet.UnitID(typeId), acc, w.GetRoundNumber, func(tx *types.TransactionOrder) error {
+		signatures, err := preparePredicateSignatures(w.am, subtypePredicateArgs, tx, attrs)
 		if err != nil {
 			return err
 		}
@@ -74,7 +74,7 @@ func (w *Wallet) newType(ctx context.Context, accNr uint64, payloadType string, 
 	return backend.TokenTypeID(sub.UnitID), nil
 }
 
-func preparePredicateSignatures(am account.Manager, args []*PredicateInput, tx *types.TransactionOrder) ([][]byte, error) {
+func preparePredicateSignatures(am account.Manager, args []*PredicateInput, tx *types.TransactionOrder, attrs types.SigBytesProvider) ([][]byte, error) {
 	signatures := make([][]byte, 0, len(args))
 	for _, input := range args {
 		if len(input.Argument) > 0 {
@@ -84,7 +84,7 @@ func preparePredicateSignatures(am account.Manager, args []*PredicateInput, tx *
 			if err != nil {
 				return nil, err
 			}
-			sig, err := signTx(tx, ac)
+			sig, err := signTx(tx, attrs, ac)
 			if err != nil {
 				return nil, err
 			}
@@ -108,8 +108,8 @@ func (w *Wallet) newToken(ctx context.Context, accNr uint64, payloadType string,
 	if err != nil {
 		return nil, err
 	}
-	sub, err := w.prepareTxSubmission(ctx, payloadType, wallet.UnitID(tokenId), key, w.GetRoundNumber, func(tx *types.TransactionOrder) error {
-		signatures, err := preparePredicateSignatures(w.am, mintPredicateArgs, tx)
+	sub, err := w.prepareTxSubmission(ctx, payloadType, attrs, wallet.UnitID(tokenId), key, w.GetRoundNumber, func(tx *types.TransactionOrder) error {
+		signatures, err := preparePredicateSignatures(w.am, mintPredicateArgs, tx, attrs)
 		if err != nil {
 			return err
 		}
@@ -136,7 +136,7 @@ func RandomID() (wallet.UnitID, error) {
 	return id, nil
 }
 
-func (w *Wallet) prepareTxSubmission(ctx context.Context, payloadType string, unitId wallet.UnitID, ac *account.AccountKey, rn roundNumberFetcher, txps txPreprocessor) (*txsubmitter.TxSubmission, error) {
+func (w *Wallet) prepareTxSubmission(ctx context.Context, payloadType string, attrs types.SigBytesProvider, unitId wallet.UnitID, ac *account.AccountKey, rn roundNumberFetcher, txps txPreprocessor) (*txsubmitter.TxSubmission, error) {
 	var err error
 	if unitId == nil {
 		unitId, err = RandomID()
@@ -158,7 +158,7 @@ func (w *Wallet) prepareTxSubmission(ctx context.Context, payloadType string, un
 			return nil, err
 		}
 	}
-	sig, err := signTx(tx, ac)
+	sig, err := signTx(tx, attrs, ac)
 	if err != nil {
 		return nil, err
 	}
@@ -173,7 +173,7 @@ func (w *Wallet) prepareTxSubmission(ctx context.Context, payloadType string, un
 	return txSub, nil
 }
 
-func signTx(tx *types.TransactionOrder, ac *account.AccountKey) (wallet.Predicate, error) {
+func signTx(tx *types.TransactionOrder, attrs types.SigBytesProvider, ac *account.AccountKey) (wallet.Predicate, error) {
 	if ac == nil {
 		return script.PredicateArgumentEmpty(), nil
 	}
@@ -181,7 +181,7 @@ func signTx(tx *types.TransactionOrder, ac *account.AccountKey) (wallet.Predicat
 	if err != nil {
 		return nil, err
 	}
-	bytes, err := tx.PayloadBytes()
+	bytes, err := tx.Payload.BytesWithAttributeSigBytes(attrs) // TODO: AB-1016
 	if err != nil {
 		return nil, err
 	}
@@ -286,8 +286,8 @@ func (w *Wallet) prepareSplitOrTransferTx(ctx context.Context, acc *account.Acco
 		attrs = newSplitTxAttrs(token, amount, receiverPubKey)
 		payloadType = ttxs.PayloadTypeSplitFungibleToken
 	}
-	sub, err := w.prepareTxSubmission(ctx, payloadType, wallet.UnitID(token.ID), acc, rn, func(tx *types.TransactionOrder) error {
-		signatures, err := preparePredicateSignatures(w.am, invariantPredicateArgs, tx)
+	sub, err := w.prepareTxSubmission(ctx, payloadType, attrs, wallet.UnitID(token.ID), acc, rn, func(tx *types.TransactionOrder) error {
+		signatures, err := preparePredicateSignatures(w.am, invariantPredicateArgs, tx, attrs)
 		if err != nil {
 			return err
 		}

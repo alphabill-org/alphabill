@@ -96,29 +96,19 @@ func (t *transferNFTTokenOwnershipProver) InvariantPredicateSignatures() [][]byt
 }
 
 func (t *transferNFTTokenOwnershipProver) SigBytes() ([]byte, error) {
-	if len(t.attr.InvariantPredicateSignatures) == 0 {
-		return t.tx.PayloadBytes()
-	}
-	// exclude SubTypeCreationPredicateSignatures from the payload hash because otherwise we have "chicken and egg" problem.
+	return t.tx.Payload.BytesWithAttributeSigBytes(t.attr)
+}
+
+func (t *TransferNonFungibleTokenAttributes) SigBytes() ([]byte, error) {
+	// TODO: AB-1016 exclude SubTypeCreationPredicateSignatures from the payload hash because otherwise we have "chicken and egg" problem.
 	signatureAttr := &TransferNonFungibleTokenAttributes{
-		NewBearer:                    t.attr.NewBearer,
-		Nonce:                        t.attr.Nonce,
-		Backlink:                     t.attr.Backlink,
-		NFTTypeID:                    t.attr.NFTTypeID,
+		NewBearer:                    t.NewBearer,
+		Nonce:                        t.Nonce,
+		Backlink:                     t.Backlink,
+		NFTTypeID:                    t.NFTTypeID,
 		InvariantPredicateSignatures: nil,
 	}
-	attrBytes, err := cbor.Marshal(signatureAttr)
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal attributes: %w", err)
-	}
-	payload := &types.Payload{
-		SystemID:       t.tx.Payload.SystemID,
-		Type:           t.tx.Payload.Type,
-		UnitID:         t.tx.Payload.UnitID,
-		Attributes:     attrBytes,
-		ClientMetadata: t.tx.Payload.ClientMetadata,
-	}
-	return payload.Bytes()
+	return cbor.Marshal(signatureAttr)
 }
 
 func (t *TransferNonFungibleTokenAttributes) GetNewBearer() []byte {

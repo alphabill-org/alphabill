@@ -83,39 +83,11 @@ func validateMintNonFungibleToken(tx *types.TransactionOrder, attr *MintNonFungi
 	if err != nil {
 		return err
 	}
-	sigBytes, err := getMintNFTSignedData(tx, attr)
+	sigBytes, err := tx.Payload.BytesWithAttributeSigBytes(attr)
 	if err != nil {
 		return err
 	}
 	return verifyPredicates(predicates, attr.TokenCreationPredicateSignatures, sigBytes)
-}
-
-func getMintNFTSignedData(tx *types.TransactionOrder, attr *MintNonFungibleTokenAttributes) ([]byte, error) {
-	// TODO TokenCreationPredicateSignatures field can not be part of payload attributes.
-	if len(attr.TokenCreationPredicateSignatures) > 0 {
-		// exclude TokenCreationPredicateSignatures from the payload hash because otherwise we have "chicken and egg" problem.
-		signatureAttr := &MintNonFungibleTokenAttributes{
-			Bearer:              attr.Bearer,
-			NFTTypeID:           attr.NFTTypeID,
-			Name:                attr.Name,
-			URI:                 attr.URI,
-			Data:                attr.Data,
-			DataUpdatePredicate: attr.DataUpdatePredicate,
-		}
-		attrBytes, err := cbor.Marshal(signatureAttr)
-		if err != nil {
-			return nil, fmt.Errorf("failed to marshal attributes: %w", err)
-		}
-		payload := &types.Payload{
-			SystemID:       tx.Payload.SystemID,
-			Type:           tx.Payload.Type,
-			UnitID:         tx.Payload.UnitID,
-			Attributes:     attrBytes,
-			ClientMetadata: tx.Payload.ClientMetadata,
-		}
-		return payload.Bytes()
-	}
-	return tx.PayloadBytes()
 }
 
 func (m *MintNonFungibleTokenAttributes) GetBearer() []byte {
@@ -172,4 +144,18 @@ func (m *MintNonFungibleTokenAttributes) GetTokenCreationPredicateSignatures() [
 
 func (m *MintNonFungibleTokenAttributes) SetTokenCreationPredicateSignatures(signatures [][]byte) {
 	m.TokenCreationPredicateSignatures = signatures
+}
+
+func (m *MintNonFungibleTokenAttributes) SigBytes() ([]byte, error) {
+	// TODO: AB-1016 exclude TokenCreationPredicateSignatures from the payload hash because otherwise we have "chicken and egg" problem.
+	signatureAttr := &MintNonFungibleTokenAttributes{
+		Bearer:                           m.Bearer,
+		NFTTypeID:                        m.NFTTypeID,
+		Name:                             m.Name,
+		URI:                              m.URI,
+		Data:                             m.Data,
+		DataUpdatePredicate:              m.DataUpdatePredicate,
+		TokenCreationPredicateSignatures: nil,
+	}
+	return cbor.Marshal(signatureAttr)
 }

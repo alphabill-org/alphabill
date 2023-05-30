@@ -113,30 +113,7 @@ func (t *transferFungibleTokenOwnershipProver) InvariantPredicateSignatures() []
 }
 
 func (t *transferFungibleTokenOwnershipProver) SigBytes() ([]byte, error) {
-	if len(t.attr.InvariantPredicateSignatures) == 0 {
-		return t.tx.PayloadBytes()
-	}
-	// exclude InvariantPredicateSignatures from the payload hash because otherwise we have "chicken and egg" problem.
-	signatureAttr := &TransferFungibleTokenAttributes{
-		NewBearer:                    t.attr.NewBearer,
-		Value:                        t.attr.Value,
-		Nonce:                        t.attr.Nonce,
-		Backlink:                     t.attr.Backlink,
-		TypeID:                       t.attr.TypeID,
-		InvariantPredicateSignatures: nil,
-	}
-	attrBytes, err := cbor.Marshal(signatureAttr)
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal attributes: %w", err)
-	}
-	payload := &types.Payload{
-		SystemID:       t.tx.Payload.SystemID,
-		Type:           t.tx.Payload.Type,
-		UnitID:         t.tx.Payload.UnitID,
-		Attributes:     attrBytes,
-		ClientMetadata: t.tx.Payload.ClientMetadata,
-	}
-	return payload.Bytes()
+	return t.tx.Payload.BytesWithAttributeSigBytes(t.attr)
 }
 
 func (t *TransferFungibleTokenAttributes) GetNewBearer() []byte {
@@ -185,4 +162,17 @@ func (t *TransferFungibleTokenAttributes) GetInvariantPredicateSignatures() [][]
 
 func (t *TransferFungibleTokenAttributes) SetInvariantPredicateSignatures(signatures [][]byte) {
 	t.InvariantPredicateSignatures = signatures
+}
+
+func (t *TransferFungibleTokenAttributes) SigBytes() ([]byte, error) {
+	// TODO: AB-1016 exclude InvariantPredicateSignatures from the payload hash because otherwise we have "chicken and egg" problem.
+	signatureAttr := &TransferFungibleTokenAttributes{
+		NewBearer:                    t.NewBearer,
+		Value:                        t.Value,
+		Nonce:                        t.Nonce,
+		Backlink:                     t.Backlink,
+		TypeID:                       t.TypeID,
+		InvariantPredicateSignatures: nil,
+	}
+	return cbor.Marshal(signatureAttr)
 }

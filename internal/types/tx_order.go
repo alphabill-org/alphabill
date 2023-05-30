@@ -3,6 +3,7 @@ package types
 import (
 	"crypto"
 	"errors"
+	"fmt"
 
 	"github.com/fxamacker/cbor/v2"
 )
@@ -34,6 +35,10 @@ type (
 	}
 
 	RawCBOR []byte
+
+	SigBytesProvider interface {
+		SigBytes() ([]byte, error)
+	}
 )
 
 func (t *TransactionOrder) PayloadBytes() ([]byte, error) {
@@ -102,6 +107,22 @@ func (p *Payload) UnmarshalAttributes(v any) error {
 
 func (p *Payload) Bytes() ([]byte, error) {
 	return cbor.Marshal(p)
+}
+
+// BytesWithAttributeSigBytes TODO: AB-1016 remove this hack
+func (p *Payload) BytesWithAttributeSigBytes(attrs SigBytesProvider) ([]byte, error) {
+	attrBytes, err := attrs.SigBytes()
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal attributes: %w", err)
+	}
+	payload := &Payload{
+		SystemID:       p.SystemID,
+		Type:           p.Type,
+		UnitID:         p.UnitID,
+		Attributes:     attrBytes,
+		ClientMetadata: p.ClientMetadata,
+	}
+	return payload.Bytes()
 }
 
 // MarshalCBOR returns r or CBOR nil if r is nil.

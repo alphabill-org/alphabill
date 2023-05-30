@@ -75,32 +75,11 @@ func validateUpdateNonFungibleToken(tx *types.TransactionOrder, attr *UpdateNonF
 		return err
 	}
 	predicates = append([]Predicate{data.dataUpdatePredicate}, predicates...)
-	sigBytes, err := getUpdateNFTSignedData(tx, attr)
+	sigBytes, err := tx.Payload.BytesWithAttributeSigBytes(attr)
 	if err != nil {
 		return err
 	}
 	return verifyPredicates(predicates, attr.DataUpdateSignatures, sigBytes)
-}
-
-func getUpdateNFTSignedData(tx *types.TransactionOrder, attr *UpdateNonFungibleTokenAttributes) ([]byte, error) {
-	// exclude DataUpdateSignatures from the payload hash because otherwise we have "chicken and egg" problem.
-	signatureAttr := &UpdateNonFungibleTokenAttributes{
-		Data:                 attr.Data,
-		Backlink:             attr.Backlink,
-		DataUpdateSignatures: nil,
-	}
-	attrBytes, err := cbor.Marshal(signatureAttr)
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal attributes: %w", err)
-	}
-	payload := &types.Payload{
-		SystemID:       tx.Payload.SystemID,
-		Type:           tx.Payload.Type,
-		UnitID:         tx.Payload.UnitID,
-		Attributes:     attrBytes,
-		ClientMetadata: tx.Payload.ClientMetadata,
-	}
-	return payload.Bytes()
 }
 
 func (u *UpdateNonFungibleTokenAttributes) GetData() []byte {
@@ -125,4 +104,14 @@ func (u *UpdateNonFungibleTokenAttributes) GetDataUpdateSignatures() [][]byte {
 
 func (u *UpdateNonFungibleTokenAttributes) SetDataUpdateSignatures(signatures [][]byte) {
 	u.DataUpdateSignatures = signatures
+}
+
+func (u *UpdateNonFungibleTokenAttributes) SigBytes() ([]byte, error) {
+	// TODO: AB-1016 exclude DataUpdateSignatures from the payload hash because otherwise we have "chicken and egg" problem.
+	signatureAttr := &UpdateNonFungibleTokenAttributes{
+		Data:                 u.Data,
+		Backlink:             u.Backlink,
+		DataUpdateSignatures: nil,
+	}
+	return cbor.Marshal(signatureAttr)
 }

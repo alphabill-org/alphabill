@@ -135,31 +135,7 @@ func (t *splitFungibleTokenOwnershipProver) InvariantPredicateSignatures() [][]b
 }
 
 func (t *splitFungibleTokenOwnershipProver) SigBytes() ([]byte, error) {
-	if len(t.attr.InvariantPredicateSignatures) == 0 {
-		return t.tx.PayloadBytes()
-	}
-	// exclude InvariantPredicateSignatures from the payload hash because otherwise we have "chicken and egg" problem.
-	signatureAttr := &SplitFungibleTokenAttributes{
-		NewBearer:                    t.attr.NewBearer,
-		TargetValue:                  t.attr.TargetValue,
-		Nonce:                        t.attr.Nonce,
-		Backlink:                     t.attr.Backlink,
-		TypeID:                       t.attr.TypeID,
-		RemainingValue:               t.attr.RemainingValue,
-		InvariantPredicateSignatures: nil,
-	}
-	attrBytes, err := cbor.Marshal(signatureAttr)
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal attributes: %w", err)
-	}
-	payload := &types.Payload{
-		SystemID:       t.tx.Payload.SystemID,
-		Type:           t.tx.Payload.Type,
-		UnitID:         t.tx.Payload.UnitID,
-		Attributes:     attrBytes,
-		ClientMetadata: t.tx.Payload.ClientMetadata,
-	}
-	return payload.Bytes()
+	return t.tx.Payload.BytesWithAttributeSigBytes(t.attr)
 }
 
 func (s *SplitFungibleTokenAttributes) GetNewBearer() []byte {
@@ -216,4 +192,18 @@ func (s *SplitFungibleTokenAttributes) GetInvariantPredicateSignatures() [][]byt
 
 func (s *SplitFungibleTokenAttributes) SetInvariantPredicateSignatures(signatures [][]byte) {
 	s.InvariantPredicateSignatures = signatures
+}
+
+func (s *SplitFungibleTokenAttributes) SigBytes() ([]byte, error) {
+	// TODO: AB-1016 exclude InvariantPredicateSignatures from the payload hash because otherwise we have "chicken and egg" problem.
+	signatureAttr := &SplitFungibleTokenAttributes{
+		NewBearer:                    s.NewBearer,
+		TargetValue:                  s.TargetValue,
+		Nonce:                        s.Nonce,
+		Backlink:                     s.Backlink,
+		TypeID:                       s.TypeID,
+		RemainingValue:               s.RemainingValue,
+		InvariantPredicateSignatures: nil,
+	}
+	return cbor.Marshal(signatureAttr)
 }

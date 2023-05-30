@@ -81,29 +81,19 @@ func (t *burnFungibleTokenOwnershipProver) InvariantPredicateSignatures() [][]by
 }
 
 func (t *burnFungibleTokenOwnershipProver) SigBytes() ([]byte, error) {
-	if len(t.attr.InvariantPredicateSignatures) == 0 {
-		return t.tx.PayloadBytes()
-	}
-	// exclude InvariantPredicateSignatures from the payload hash because otherwise we have "chicken and egg" problem.
+	return t.tx.Payload.BytesWithAttributeSigBytes(t.attr)
+}
+
+func (b *BurnFungibleTokenAttributes) SigBytes() ([]byte, error) {
+	// TODO: AB-1016 exclude InvariantPredicateSignatures from the payload hash because otherwise we have "chicken and egg" problem.
 	signatureAttr := &BurnFungibleTokenAttributes{
-		TypeID:                       t.attr.TypeID,
-		Value:                        t.attr.Value,
-		Nonce:                        t.attr.Nonce,
-		Backlink:                     t.attr.Backlink,
+		TypeID:                       b.TypeID,
+		Value:                        b.Value,
+		Nonce:                        b.Nonce,
+		Backlink:                     b.Backlink,
 		InvariantPredicateSignatures: nil,
 	}
-	attrBytes, err := cbor.Marshal(signatureAttr)
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal attributes: %w", err)
-	}
-	payload := &types.Payload{
-		SystemID:       t.tx.Payload.SystemID,
-		Type:           t.tx.Payload.Type,
-		UnitID:         t.tx.Payload.UnitID,
-		Attributes:     attrBytes,
-		ClientMetadata: t.tx.Payload.ClientMetadata,
-	}
-	return payload.Bytes()
+	return cbor.Marshal(signatureAttr)
 }
 
 func (b *BurnFungibleTokenAttributes) GetTypeID() []byte {

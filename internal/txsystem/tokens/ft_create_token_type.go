@@ -97,42 +97,11 @@ func validateCreateFungibleTokenType(tx *types.TransactionOrder, attr *CreateFun
 		return err
 	}
 
-	sigBytes, err := getCreateFungibleTokenTypeSignedData(tx, attr)
+	sigBytes, err := tx.Payload.BytesWithAttributeSigBytes(attr)
 	if err != nil {
 		return err
 	}
 	return verifyPredicates(predicates, attr.SubTypeCreationPredicateSignatures, sigBytes)
-}
-
-func getCreateFungibleTokenTypeSignedData(tx *types.TransactionOrder, attr *CreateFungibleTokenTypeAttributes) ([]byte, error) {
-	// TODO SubTypeCreationPredicateSignatures field can not be part of payload attributes.
-	if len(attr.SubTypeCreationPredicateSignatures) > 0 {
-		// exclude SubTypeCreationPredicateSignatures from the payload hash because otherwise we have "chicken and egg" problem.
-		signatureAttr := &CreateFungibleTokenTypeAttributes{
-			Symbol:                             attr.Symbol,
-			Name:                               attr.Name,
-			Icon:                               attr.Icon,
-			ParentTypeID:                       attr.ParentTypeID,
-			DecimalPlaces:                      attr.DecimalPlaces,
-			SubTypeCreationPredicate:           attr.SubTypeCreationPredicate,
-			TokenCreationPredicate:             attr.TokenCreationPredicate,
-			InvariantPredicate:                 attr.InvariantPredicate,
-			SubTypeCreationPredicateSignatures: nil,
-		}
-		attrBytes, err := cbor.Marshal(signatureAttr)
-		if err != nil {
-			return nil, fmt.Errorf("failed to marshal attributes: %w", err)
-		}
-		payload := &types.Payload{
-			SystemID:       tx.Payload.SystemID,
-			Type:           tx.Payload.Type,
-			UnitID:         tx.Payload.UnitID,
-			Attributes:     attrBytes,
-			ClientMetadata: tx.Payload.ClientMetadata,
-		}
-		return payload.Bytes()
-	}
-	return tx.PayloadBytes()
 }
 
 func (c *CreateFungibleTokenTypeAttributes) GetSymbol() string {
@@ -205,4 +174,20 @@ func (c *CreateFungibleTokenTypeAttributes) GetSubTypeCreationPredicateSignature
 
 func (c *CreateFungibleTokenTypeAttributes) SetSubTypeCreationPredicateSignatures(signatures [][]byte) {
 	c.SubTypeCreationPredicateSignatures = signatures
+}
+
+func (c *CreateFungibleTokenTypeAttributes) SigBytes() ([]byte, error) {
+	// TODO: AB-1016 exclude SubTypeCreationPredicateSignatures from the payload hash because otherwise we have "chicken and egg" problem.
+	signatureAttr := &CreateFungibleTokenTypeAttributes{
+		Symbol:                             c.Symbol,
+		Name:                               c.Name,
+		Icon:                               c.Icon,
+		ParentTypeID:                       c.ParentTypeID,
+		DecimalPlaces:                      c.DecimalPlaces,
+		SubTypeCreationPredicate:           c.SubTypeCreationPredicate,
+		TokenCreationPredicate:             c.TokenCreationPredicate,
+		InvariantPredicate:                 c.InvariantPredicate,
+		SubTypeCreationPredicateSignatures: nil,
+	}
+	return cbor.Marshal(signatureAttr)
 }

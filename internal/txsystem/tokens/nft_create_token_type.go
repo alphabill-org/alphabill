@@ -79,42 +79,12 @@ func validate(tx *types.TransactionOrder, attr *CreateNonFungibleTokenTypeAttrib
 		return err
 	}
 
-	sigBytes, err := getCreateNFTTypeSignedData(tx, attr)
+	sigBytes, err := tx.Payload.BytesWithAttributeSigBytes(attr)
 	if err != nil {
 		return err
 	}
 
 	return verifyPredicates(predicates, attr.SubTypeCreationPredicateSignatures, sigBytes)
-}
-
-func getCreateNFTTypeSignedData(tx *types.TransactionOrder, attr *CreateNonFungibleTokenTypeAttributes) ([]byte, error) {
-	// TODO SubTypeCreationPredicateSignatures field can not be part of payload attributes.
-	if len(attr.SubTypeCreationPredicateSignatures) > 0 {
-		// exclude SubTypeCreationPredicateSignatures from the payload hash because otherwise we have "chicken and egg" problem.
-		signatureAttr := &CreateNonFungibleTokenTypeAttributes{
-			Symbol:                   attr.Symbol,
-			Name:                     attr.Name,
-			ParentTypeID:             attr.ParentTypeID,
-			SubTypeCreationPredicate: attr.SubTypeCreationPredicate,
-			TokenCreationPredicate:   attr.TokenCreationPredicate,
-			InvariantPredicate:       attr.InvariantPredicate,
-			DataUpdatePredicate:      attr.DataUpdatePredicate,
-			Icon:                     attr.Icon,
-		}
-		attrBytes, err := cbor.Marshal(signatureAttr)
-		if err != nil {
-			return nil, fmt.Errorf("failed to marshal attributes: %w", err)
-		}
-		payload := &types.Payload{
-			SystemID:       tx.Payload.SystemID,
-			Type:           tx.Payload.Type,
-			UnitID:         tx.Payload.UnitID,
-			Attributes:     attrBytes,
-			ClientMetadata: tx.Payload.ClientMetadata,
-		}
-		return payload.Bytes()
-	}
-	return tx.PayloadBytes()
 }
 
 func (c *CreateNonFungibleTokenTypeAttributes) GetSymbol() string {
@@ -187,4 +157,20 @@ func (c *CreateNonFungibleTokenTypeAttributes) GetSubTypeCreationPredicateSignat
 
 func (c *CreateNonFungibleTokenTypeAttributes) SetSubTypeCreationPredicateSignatures(signatures [][]byte) {
 	c.SubTypeCreationPredicateSignatures = signatures
+}
+
+func (c *CreateNonFungibleTokenTypeAttributes) SigBytes() ([]byte, error) {
+	// TODO: AB-1016 exclude SubTypeCreationPredicateSignatures from the payload hash because otherwise we have "chicken and egg" problem.
+	signatureAttr := &CreateNonFungibleTokenTypeAttributes{
+		Symbol:                             c.Symbol,
+		Name:                               c.Name,
+		ParentTypeID:                       c.ParentTypeID,
+		SubTypeCreationPredicate:           c.SubTypeCreationPredicate,
+		TokenCreationPredicate:             c.TokenCreationPredicate,
+		InvariantPredicate:                 c.InvariantPredicate,
+		DataUpdatePredicate:                c.DataUpdatePredicate,
+		Icon:                               c.Icon,
+		SubTypeCreationPredicateSignatures: nil,
+	}
+	return cbor.Marshal(signatureAttr)
 }

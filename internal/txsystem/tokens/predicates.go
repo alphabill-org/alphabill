@@ -5,14 +5,30 @@ import (
 
 	"github.com/alphabill-org/alphabill/internal/rma"
 	"github.com/alphabill-org/alphabill/internal/script"
+	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/holiman/uint256"
 )
 
 type (
 	TokenOwnershipProver interface {
+		types.SigBytesProvider
 		OwnerProof() []byte
 		InvariantPredicateSignatures() [][]byte
-		SigBytes() ([]byte, error)
+	}
+
+	TokenSubtypeCreationProver interface {
+		types.SigBytesProvider
+		GetSubTypeCreationPredicateSignatures() [][]byte
+	}
+
+	TokenCreationProver interface {
+		types.SigBytesProvider
+		GetTokenCreationPredicateSignatures() [][]byte
+	}
+
+	NFTDataUpdateProver interface {
+		types.SigBytesProvider
+		GetDataUpdateSignatures() [][]byte
 	}
 )
 

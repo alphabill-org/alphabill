@@ -164,6 +164,13 @@ func (w *Wallet) prepareTxSubmission(ctx context.Context, payloadType string, at
 	}
 	tx.OwnerProof = sig
 
+	// TODO: AB-1016 remove when fixed
+	sig, err = makeTxFeeProof(tx, ac)
+	if err != nil {
+		return nil, fmt.Errorf("failed to make tx fee proof: %w", err)
+	}
+	tx.FeeProof = sig
+
 	// convert again for hashing as the tx might have been modified
 	txSub := &txsubmitter.TxSubmission{
 		UnitID:      unitId,
@@ -182,6 +189,25 @@ func signTx(tx *types.TransactionOrder, attrs types.SigBytesProvider, ac *accoun
 		return nil, err
 	}
 	bytes, err := tx.Payload.BytesWithAttributeSigBytes(attrs) // TODO: AB-1016
+	if err != nil {
+		return nil, err
+	}
+	sig, err := signer.SignBytes(bytes)
+	if err != nil {
+		return nil, err
+	}
+	return script.PredicateArgumentPayToPublicKeyHashDefault(sig, ac.PubKey), nil
+}
+
+func makeTxFeeProof(tx *types.TransactionOrder, ac *account.AccountKey) (wallet.Predicate, error) {
+	if ac == nil {
+		return script.PredicateArgumentEmpty(), nil
+	}
+	signer, err := abcrypto.NewInMemorySecp256K1SignerFromKey(ac.PrivKey)
+	if err != nil {
+		return nil, err
+	}
+	bytes, err := tx.Payload.Bytes()
 	if err != nil {
 		return nil, err
 	}

@@ -25,7 +25,7 @@ var counterState uint32 = 0xaabbccdd
 //go:embed test_program/counter.wasm
 var counterWasm []byte
 
-func Test_handleSCallTx(t *testing.T) {
+func Test_handlePCallTx(t *testing.T) {
 	type args struct {
 		ctx              context.Context
 		state            *rma.Tree
@@ -102,7 +102,7 @@ func initStateWithBuiltInPrograms(t *testing.T) *rma.Tree {
 		state.AtomicUpdate(
 			rma.AddItem(counterProgramUnitID,
 				script.PredicateAlwaysFalse(),
-				&Program{wasm: counterWasm, progParams: []byte{}},
+				&Program{wasm: counterWasm, progParams: []byte{1, 0, 0, 0, 0, 0, 0, 0}},
 				make([]byte, 32)),
 			rma.AddItem(counterStateId,
 				script.PredicateAlwaysFalse(),

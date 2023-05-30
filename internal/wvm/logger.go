@@ -1,4 +1,4 @@
-package vm
+package wvm
 
 import log "github.com/alphabill-org/alphabill/pkg/logger"
 

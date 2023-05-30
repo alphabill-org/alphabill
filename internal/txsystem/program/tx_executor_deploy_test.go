@@ -36,7 +36,7 @@ func Test_handlePDeployTx(t *testing.T) {
 					testtransaction.WithOwnerProof(nil)),
 				systemIdentifier: systemID,
 			},
-			wantErrStr: "program check failed, wasm program load failed, failed to initiate VM with wasm source, invalid magic number",
+			wantErrStr: "failed to initiate VM with wasm source, invalid magic number",
 		},
 		{
 			name: "ok for now, but must become more strict",

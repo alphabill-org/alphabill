@@ -1,4 +1,4 @@
-package vm
+package wvm
 
 import (
 	"fmt"
@@ -14,6 +14,14 @@ type MemoryStorage struct {
 func NewMemoryStorage() *MemoryStorage {
 	return &MemoryStorage{
 		db: memorydb.New(),
+	}
+}
+
+func NewAlwaysFailsMemoryStorage() *MemoryStorage {
+	mdb := memorydb.New()
+	mdb.MockWriteError(fmt.Errorf("mock db write failed"))
+	return &MemoryStorage{
+		db: mdb,
 	}
 }
 

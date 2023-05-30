@@ -1,4 +1,4 @@
-package vm
+package wvm
 
 import "github.com/tetratelabs/wazero"
 

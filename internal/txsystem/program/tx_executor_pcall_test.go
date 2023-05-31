@@ -3,7 +3,6 @@ package program
 import (
 	"context"
 	"crypto"
-	"crypto/sha256"
 	_ "embed"
 	"encoding/binary"
 	"testing"
@@ -11,16 +10,15 @@ import (
 	"github.com/alphabill-org/alphabill/internal/rma"
 	"github.com/alphabill-org/alphabill/internal/script"
 	testtransaction "github.com/alphabill-org/alphabill/internal/testutils/transaction"
-	txutil "github.com/alphabill-org/alphabill/internal/txsystem/util"
 	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
 )
 
-var systemID = []byte{0, 0, 0, 3}
+const counterState uint32 = 0xaabbccdd
 
+var systemID = []byte{0, 0, 0, 3}
 var counterProgramUnitID = uint256.NewInt(0).SetBytes([]byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 'c', 'o', 'u', 'n', 't', 'e', 'r'})
-var counterState uint32 = 0xaabbccdd
 
 //go:embed test_program/counter.wasm
 var counterWasm []byte
@@ -94,7 +92,7 @@ func Test_handlePCallTx(t *testing.T) {
 
 func initStateWithBuiltInPrograms(t *testing.T) *rma.Tree {
 	state := rma.NewWithSHA256()
-	counterStateId := txutil.SameShardID(counterProgramUnitID, sha256.New().Sum(util.Uint32ToBytes(counterState)))
+	counterStateId := CreateStateFileID(counterProgramUnitID, util.Uint32ToBytes(counterState))
 	cnt := make([]byte, 8)
 	binary.LittleEndian.PutUint64(cnt, 1)
 	// add both state and program

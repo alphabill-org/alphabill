@@ -4,15 +4,16 @@ import (
 	"crypto"
 
 	"github.com/alphabill-org/alphabill/internal/types"
+	"github.com/alphabill-org/alphabill/pkg/wallet"
 )
 
 // txLog helper struct used to track pending/confirmed transactions
 type txLog struct {
-	txsMap map[string]*types.TxProof
+	txsMap map[string]*wallet.Proof
 }
 
 func NewTxLog(pendingTxs []*types.TransactionOrder) *txLog {
-	txsMap := make(map[string]*types.TxProof, len(pendingTxs))
+	txsMap := make(map[string]*wallet.Proof, len(pendingTxs))
 	for _, tx := range pendingTxs {
 		payloadBytes, err := tx.PayloadBytes()
 		if err != nil {
@@ -32,7 +33,7 @@ func (t *txLog) Contains(tx *types.TransactionRecord) bool {
 }
 
 func (t *txLog) RecordTx(tx *types.TransactionRecord, txIdx int, b *types.Block) error {
-	proof, err := types.NewTxProof(b, txIdx, crypto.SHA256)
+	proof, _, err := types.NewTxProof(b, txIdx, crypto.SHA256)
 	if err != nil {
 		return err
 	}
@@ -40,7 +41,10 @@ func (t *txLog) RecordTx(tx *types.TransactionRecord, txIdx int, b *types.Block)
 	if err != nil {
 		panic(err) // TODO
 	}
-	t.txsMap[string(payloadBytes)] = proof
+	t.txsMap[string(payloadBytes)] = &wallet.Proof{
+		TxRecord: tx,
+		TxProof:  proof,
+	}
 	return nil
 }
 
@@ -53,8 +57,8 @@ func (t *txLog) IsAllTxsConfirmed() bool {
 	return true
 }
 
-func (t *txLog) GetAllRecordedProofs() []*types.TxProof {
-	var proofs []*types.TxProof
+func (t *txLog) GetAllRecordedProofs() []*wallet.Proof {
+	var proofs []*wallet.Proof
 	for _, v := range t.txsMap {
 		if v != nil {
 			proofs = append(proofs, v)

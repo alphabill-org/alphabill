@@ -88,6 +88,6 @@ func (m *mockMoneyClient) FetchFeeCreditBill(ctx context.Context, unitID []byte)
 type mockMoneyTxPublisher struct {
 }
 
-func (m *mockMoneyTxPublisher) SendTx(ctx context.Context, tx *types.TransactionOrder, _ []byte) (*types.TxProof, error) {
-	return &types.TxProof{}, nil
+func (m *mockMoneyTxPublisher) SendTx(ctx context.Context, tx *types.TransactionOrder, _ []byte) (*wallet.Proof, error) {
+	return &wallet.Proof{}, nil
 }

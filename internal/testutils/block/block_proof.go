@@ -7,7 +7,6 @@ import (
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 	testcertificates "github.com/alphabill-org/alphabill/internal/testutils/certificates"
-	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/stretchr/testify/require"
 )
@@ -18,7 +17,7 @@ func CreateProof(t *testing.T, tx *types.TransactionRecord, signer abcrypto.Sign
 		b.Transactions = []*types.TransactionRecord{tx}
 	}
 	b.UnicityCertificate = CreateUC(t, b, signer)
-	p, err := types.NewTxProof(b, 0, crypto.SHA256)
+	p, _, err := types.NewTxProof(b, 0, crypto.SHA256)
 	require.NoError(t, err)
 	return p
 }
@@ -41,11 +40,4 @@ func CreateUC(t *testing.T, b *types.Block, signer abcrypto.Signer) *types.Unici
 		make([]byte, 32),
 	)
 	return uc
-}
-
-func CertifyBlock(t *testing.T, b *types.Block) (*types.Block, map[string]abcrypto.Verifier) {
-	signer, verifier := testsig.CreateSignerAndVerifier(t)
-	verifiers := map[string]abcrypto.Verifier{"test": verifier}
-	b.UnicityCertificate = CreateUC(t, b, signer)
-	return b, verifiers
 }

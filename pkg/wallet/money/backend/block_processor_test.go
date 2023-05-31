@@ -326,7 +326,6 @@ func verifyProof(t *testing.T, b *Bill) {
 	require.NotNil(t, p.BlockHeaderHash)
 	require.NotNil(t, p.Chain)
 	require.NotNil(t, p.UnicityCertificate)
-	require.NotNil(t, p.TransactionRecord)
 }
 
 func newUnitID(unitID uint64) []byte {

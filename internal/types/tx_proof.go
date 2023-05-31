@@ -11,12 +11,7 @@ import (
 )
 
 var (
-	ErrBlockIsNil               = errors.New("block is nil")
-	ErrBlockHeaderMissing       = errors.New("block header missing")
-	ErrSystemIdentifierIsNil    = errors.New("system identifier is nil")
-	ErrPrevBlockHeaderHashIsNil = errors.New("previous block header hash is nil")
-	ErrBlockProposerIDIsMissing = errors.New("block proposer node identifier is missing")
-	ErrTransactionsIsNil        = errors.New("transactions is nil")
+	ErrBlockIsNil = errors.New("block is nil")
 )
 
 type (
@@ -26,7 +21,6 @@ type (
 		BlockHeaderHash    []byte
 		Chain              []*GenericChainItem
 		UnicityCertificate *UnicityCertificate
-		TransactionRecord  *TransactionRecord // TODO: remove
 	}
 
 	GenericChainItem struct {
@@ -43,21 +37,21 @@ func (p *TxProof) GetUnicityTreeSystemDescriptionHash() []byte {
 	return p.UnicityCertificate.UnicityTreeCertificate.SystemDescriptionHash
 }
 
-func NewTxProof(block *Block, txIndex int, algorithm crypto.Hash) (*TxProof, error) {
+func NewTxProof(block *Block, txIndex int, algorithm crypto.Hash) (*TxProof, *TransactionRecord, error) {
 	if block == nil {
-		return nil, ErrBlockIsNil
+		return nil, nil, ErrBlockIsNil
 	}
 	if txIndex < 0 || txIndex > len(block.Transactions)-1 {
-		return nil, fmt.Errorf("invalid tx index: %d", txIndex)
+		return nil, nil, fmt.Errorf("invalid tx index: %d", txIndex)
 	}
 	tree, err := mt.New(algorithm, block.Transactions)
 	if err != nil {
-		return nil, fmt.Errorf("failed to calculate merkle tree root hash: %w", err)
+		return nil, nil, fmt.Errorf("failed to calculate merkle tree root hash: %w", err)
 	}
 	headerHash := block.HeaderHash(algorithm)
 	chain, err := tree.GetMerklePath(txIndex)
 	if err != nil {
-		return nil, fmt.Errorf("failed to extract merkle proof: %w", err)
+		return nil, nil, fmt.Errorf("failed to extract merkle proof: %w", err)
 	}
 	items := make([]*GenericChainItem, len(chain))
 	for i, item := range chain {
@@ -70,8 +64,7 @@ func NewTxProof(block *Block, txIndex int, algorithm crypto.Hash) (*TxProof, err
 		BlockHeaderHash:    headerHash,
 		Chain:              items,
 		UnicityCertificate: block.UnicityCertificate,
-		TransactionRecord:  block.Transactions[txIndex],
-	}, nil
+	}, block.Transactions[txIndex], nil
 }
 
 func VerifyTxProof(proof *TxProof, txRecord *TransactionRecord, trustBase map[string]abcrypto.Verifier, hashAlgorithm crypto.Hash) error {

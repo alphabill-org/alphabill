@@ -23,7 +23,7 @@ func NewTxPublisher(backendClient *client.TokenBackend) *TxPublisher {
 }
 
 // SendTx sends tx and waits for confirmation, returns tx proof
-func (w *TxPublisher) SendTx(ctx context.Context, tx *types.TransactionOrder, senderPubKey []byte) (*wallet.TxProof, error) {
+func (w *TxPublisher) SendTx(ctx context.Context, tx *types.TransactionOrder, senderPubKey []byte) (*wallet.Proof, error) {
 	txSub := &txsubmitter.TxSubmission{
 		UnitID:      tx.UnitID(),
 		Transaction: tx,
@@ -34,5 +34,5 @@ func (w *TxPublisher) SendTx(ctx context.Context, tx *types.TransactionOrder, se
 	if err != nil {
 		return nil, err
 	}
-	return txBatch.Submissions()[0].Proof.TxProof, nil
+	return txBatch.Submissions()[0].Proof, nil
 }

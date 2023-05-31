@@ -41,7 +41,7 @@ type (
 )
 
 func NewTxProof(txIdx int, b *types.Block, hashAlgorithm crypto.Hash) (*Proof, error) {
-	txProof, err := types.NewTxProof(b, txIdx, hashAlgorithm)
+	txProof, _, err := types.NewTxProof(b, txIdx, hashAlgorithm)
 	if err != nil {
 		return nil, err
 	}
@@ -178,6 +178,5 @@ func (p *Proof) ToProto() *types.TxProof {
 		BlockHeaderHash:    txProof.BlockHeaderHash,
 		Chain:              txProof.Chain,
 		UnicityCertificate: txProof.UnicityCertificate,
-		TransactionRecord:  p.TxRecord,
 	}
 }

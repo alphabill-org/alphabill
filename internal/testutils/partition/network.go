@@ -372,7 +372,7 @@ func (n *NodePartition) GetTxProof(tx *types.TransactionOrder) (*types.Block, *t
 			}
 			for j, t := range b.Transactions {
 				if reflect.DeepEqual(t.TransactionOrder, tx) {
-					proof, err := types.NewTxProof(b, j, gocrypto.SHA256)
+					proof, _, err := types.NewTxProof(b, j, gocrypto.SHA256)
 					if err != nil {
 						return nil, nil, nil, err
 					}

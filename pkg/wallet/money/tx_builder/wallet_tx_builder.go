@@ -140,11 +140,11 @@ func NewTransferFCTx(amount uint64, targetRecordID []byte, nonce []byte, k *acco
 	return signPayload(txPayload, k)
 }
 
-func NewAddFCTx(unitID []byte, fcProof *types.TxProof, ac *account.AccountKey, systemID []byte, timeout uint64) (*types.TransactionOrder, error) {
+func NewAddFCTx(unitID []byte, fcProof *wallet.Proof, ac *account.AccountKey, systemID []byte, timeout uint64) (*types.TransactionOrder, error) {
 	attr := &transactions.AddFeeCreditAttributes{
 		FeeCreditOwnerCondition: script.PredicatePayToPublicKeyHashDefault(ac.PubKeyHash.Sha256),
-		FeeCreditTransfer:       fcProof.TransactionRecord,
-		FeeCreditTransferProof:  fcProof,
+		FeeCreditTransfer:       fcProof.TxRecord,
+		FeeCreditTransferProof:  fcProof.TxProof,
 	}
 	txPayload, err := newTxPayload(systemID, transactions.PayloadTypeAddFeeCredit, unitID, timeout, nil, attr)
 	if err != nil {
@@ -166,10 +166,10 @@ func NewCloseFCTx(systemID []byte, unitID []byte, timeout uint64, amount uint64,
 	return signPayload(txPayload, k)
 }
 
-func NewReclaimFCTx(systemID []byte, unitID []byte, timeout uint64, fcProof *types.TxProof, backlink []byte, k *account.AccountKey) (*types.TransactionOrder, error) {
+func NewReclaimFCTx(systemID []byte, unitID []byte, timeout uint64, fcProof *wallet.Proof, backlink []byte, k *account.AccountKey) (*types.TransactionOrder, error) {
 	attr := &transactions.ReclaimFeeCreditAttributes{
-		CloseFeeCreditTransfer: fcProof.TransactionRecord,
-		CloseFeeCreditProof:    fcProof,
+		CloseFeeCreditTransfer: fcProof.TxRecord,
+		CloseFeeCreditProof:    fcProof.TxProof,
 		Backlink:               backlink,
 	}
 	txPayload, err := newTxPayload(systemID, transactions.PayloadTypeReclaimFeeCredit, unitID, timeout, nil, attr)

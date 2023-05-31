@@ -36,7 +36,7 @@ func (p *blockProcessor) ProcessBlock(ctx context.Context, b *types.Block) error
 	}
 
 	for idx, tx := range b.Transactions {
-		proof, err := types.NewTxProof(b, idx, crypto.SHA256)
+		proof, _, err := types.NewTxProof(b, idx, crypto.SHA256)
 		if err != nil {
 			return fmt.Errorf("failed to create tx proof for the block: %w", err)
 		}

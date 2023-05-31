@@ -19,7 +19,7 @@ const (
 
 type (
 	TxPublisher interface {
-		SendTx(ctx context.Context, tx *types.TransactionOrder, senderPubKey []byte) (*types.TxProof, error)
+		SendTx(ctx context.Context, tx *types.TransactionOrder, senderPubKey []byte) (*wallet.Proof, error)
 	}
 
 	PartitionDataProvider interface {
@@ -96,7 +96,7 @@ func NewFeeManager(
 // AddFeeCredit creates fee credit for the given amount.
 // Wallet must have a bill large enough for the required amount plus fees.
 // Returns transferFC and addFC transaction proofs.
-func (w *FeeManager) AddFeeCredit(ctx context.Context, cmd AddFeeCmd) ([]*types.TxProof, error) {
+func (w *FeeManager) AddFeeCredit(ctx context.Context, cmd AddFeeCmd) ([]*wallet.Proof, error) {
 	if err := cmd.isValid(); err != nil {
 		return nil, err
 	}
@@ -170,13 +170,13 @@ func (w *FeeManager) AddFeeCredit(ctx context.Context, cmd AddFeeCmd) ([]*types.
 	if err != nil {
 		return nil, err
 	}
-	return []*types.TxProof{transferFCProof, addFCProof}, err
+	return []*wallet.Proof{transferFCProof, addFCProof}, err
 }
 
 // ReclaimFeeCredit reclaims fee credit.
 // Reclaimed fee credit is added to the largest bill in wallet.
 // Returns closeFC and reclaimFC transaction proofs.
-func (w *FeeManager) ReclaimFeeCredit(ctx context.Context, cmd ReclaimFeeCmd) ([]*types.TxProof, error) {
+func (w *FeeManager) ReclaimFeeCredit(ctx context.Context, cmd ReclaimFeeCmd) ([]*wallet.Proof, error) {
 	k, err := w.am.GetAccountKey(cmd.AccountIndex)
 	if err != nil {
 		return nil, err
@@ -246,7 +246,7 @@ func (w *FeeManager) ReclaimFeeCredit(ctx context.Context, cmd ReclaimFeeCmd) ([
 	if err != nil {
 		return nil, err
 	}
-	return []*types.TxProof{closeFCProof, reclaimFCProof}, nil
+	return []*wallet.Proof{closeFCProof, reclaimFCProof}, nil
 }
 
 // GetFeeCreditBill returns fee credit bill for given account,

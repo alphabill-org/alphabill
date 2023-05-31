@@ -27,7 +27,7 @@ func NewTxPublisher(wallet *wallet.Wallet, backend BackendAPI) *TxPublisher {
 }
 
 // SendTx sends tx and waits for confirmation, returns tx proof
-func (w *TxPublisher) SendTx(ctx context.Context, tx *types.TransactionOrder, _ []byte) (*types.TxProof, error) {
+func (w *TxPublisher) SendTx(ctx context.Context, tx *types.TransactionOrder, _ []byte) (*wallet.Proof, error) {
 	roundNumber, err := w.backend.GetRoundNumber(ctx)
 	if err != nil {
 		return nil, err
@@ -43,7 +43,7 @@ func (w *TxPublisher) SendTx(ctx context.Context, tx *types.TransactionOrder, _ 
 	return txProofs[0], nil
 }
 
-func (w *TxPublisher) WaitForConfirmation(ctx context.Context, pendingTxs []*types.TransactionOrder, latestRoundNumber, timeout uint64) ([]*types.TxProof, error) {
+func (w *TxPublisher) WaitForConfirmation(ctx context.Context, pendingTxs []*types.TransactionOrder, latestRoundNumber, timeout uint64) ([]*wallet.Proof, error) {
 	wlog.Info("waiting for confirmation(s)...")
 	latestBlockNumber := latestRoundNumber
 	txsLog := NewTxLog(pendingTxs)
@@ -77,8 +77,7 @@ func (w *TxPublisher) WaitForConfirmation(ctx context.Context, pendingTxs []*typ
 		for txIdx, tx := range block.Transactions {
 			if txsLog.Contains(tx) {
 				wlog.Info("confirmed tx ", hexutil.Encode(tx.TransactionOrder.UnitID()))
-				err = txsLog.RecordTx(tx, txIdx, block)
-				if err != nil {
+				if err = txsLog.RecordTx(tx, txIdx, block); err != nil {
 					return nil, err
 				}
 				if txsLog.IsAllTxsConfirmed() {

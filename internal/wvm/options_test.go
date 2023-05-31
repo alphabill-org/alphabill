@@ -9,7 +9,7 @@ import (
 
 func TestDefault(t *testing.T) {
 	options := defaultOptions()
-	require.Nil(t, options.hostMod)
+	require.Empty(t, options.hostMod)
 }
 
 func TestOverrideWazeroCfg(t *testing.T) {

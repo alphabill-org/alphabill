@@ -9,7 +9,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/rma"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/internal/util"
-	"github.com/alphabill-org/alphabill/internal/wvm/wasmruntime"
+	"github.com/alphabill-org/alphabill/internal/wvm/abruntime"
 )
 
 func handlePCallTx(ctx context.Context, state *rma.Tree, systemIdentifier []byte, hashAlgorithm crypto.Hash) txsystem.GenericExecuteFunc[*PCallTransactionOrder] {
@@ -37,7 +37,7 @@ func handlePCallTx(ctx context.Context, state *rma.Tree, systemIdentifier []byte
 		if err != nil {
 			return fmt.Errorf("program call tx failed, %w", err)
 		}
-		return wasmruntime.Call(ctx, prog.Wasm(), txOrder.attributes.Function, execCtx, s)
+		return abruntime.Call(ctx, prog.Wasm(), txOrder.attributes.Function, execCtx, s)
 	}
 }
 

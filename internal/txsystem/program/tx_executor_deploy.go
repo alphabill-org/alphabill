@@ -10,7 +10,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/script"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/internal/util"
-	"github.com/alphabill-org/alphabill/internal/wvm/wasmruntime"
+	"github.com/alphabill-org/alphabill/internal/wvm/abruntime"
 )
 
 func handlePDeployTx(ctx context.Context, state *rma.Tree, systemIdentifier []byte, hashAlgorithm crypto.Hash) txsystem.GenericExecuteFunc[*PDeployTransactionOrder] {
@@ -29,7 +29,7 @@ func handlePDeployTx(ctx context.Context, state *rma.Tree, systemIdentifier []by
 		if err != nil {
 			return fmt.Errorf("deloy program tx failed, %w", err)
 		}
-		if err = wasmruntime.CheckProgram(ctx, txOrder.attributes.Program, execCtx); err != nil {
+		if err = abruntime.CheckProgram(ctx, txOrder.attributes.Program, execCtx); err != nil {
 			return fmt.Errorf("program check failed, %w", err)
 		}
 		if err = state.AtomicUpdate(rma.AddItem(

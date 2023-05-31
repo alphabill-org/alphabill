@@ -10,7 +10,7 @@ import (
 type (
 	Options struct {
 		cfg     wazero.RuntimeConfig
-		hostMod HostModuleFn
+		hostMod []HostModuleFn
 	}
 
 	Option       func(*Options)
@@ -20,7 +20,7 @@ type (
 func defaultOptions() *Options {
 	return &Options{
 		cfg:     wazero.NewRuntimeConfig().WithCloseOnContextDone(true),
-		hostMod: nil,
+		hostMod: make([]HostModuleFn, 0, 2),
 	}
 }
 
@@ -32,6 +32,6 @@ func WithRuntimeConfig(cfg wazero.RuntimeConfig) Option {
 
 func WithHostModule(hostFn HostModuleFn) Option {
 	return func(c *Options) {
-		c.hostMod = hostFn
+		c.hostMod = append(c.hostMod, hostFn)
 	}
 }

@@ -24,8 +24,8 @@ func New(ctx context.Context, wasmSrc []byte, opts ...Option) (*WasmVM, error) {
 		return nil, fmt.Errorf("wasm src is missing")
 	}
 	rt := wazero.NewRuntimeWithConfig(ctx, options.cfg)
-	if options.hostMod != nil {
-		if _, err := options.hostMod(ctx, rt); err != nil {
+	for _, m := range options.hostMod {
+		if _, err := m(ctx, rt); err != nil {
 			return nil, fmt.Errorf("host module initialization failed, %w", err)
 		}
 	}

@@ -1,4 +1,4 @@
-package wasmruntime
+package abruntime
 
 import (
 	"context"

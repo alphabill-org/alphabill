@@ -47,6 +47,13 @@ func TestNewNoHostModules(t *testing.T) {
 	wvm, err := New(ctx, addWasm)
 	require.NoError(t, err)
 	require.NotNil(t, wvm)
+	fn, err := wvm.GetApiFn("add_one")
+	require.NoError(t, err)
+	require.NotNil(t, fn)
+	res, err := fn.Call(ctx, uint64(3))
+	require.NoError(t, err)
+	require.Len(t, res, 1)
+	require.EqualValues(t, 4, res[0])
 }
 
 func TestNew(t *testing.T) {

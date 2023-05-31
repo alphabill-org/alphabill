@@ -8,7 +8,6 @@ import (
 
 	"github.com/alphabill-org/alphabill/internal/certificates"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/ab_consensus"
-	"github.com/libp2p/go-libp2p/core/peer"
 )
 
 type (
@@ -29,7 +28,7 @@ type (
 		// if 2f+1 or threshold votes, then TC is formed
 		timeoutCert *ab_consensus.TimeoutCert
 		// Helper, to avoid duplicate votes
-		authorToVote map[peer.ID]*ab_consensus.VoteMsg
+		authorToVote map[string][]byte
 	}
 )
 
@@ -39,7 +38,7 @@ func NewVoteRegister() *VoteRegister {
 	return &VoteRegister{
 		hashToSignatures: make(map[string]*ConsensusWithSignatures),
 		timeoutCert:      nil,
-		authorToVote:     make(map[peer.ID]*ab_consensus.VoteMsg),
+		authorToVote:     make(map[string][]byte),
 	}
 }
 
@@ -52,9 +51,7 @@ func (v *VoteRegister) InsertVote(vote *ab_consensus.VoteMsg, quorumInfo QuorumI
 	commitInfoHash := vote.LedgerCommitInfo.Hash(crypto.SHA256)
 
 	// has the author already voted in this round?
-	prevVote, voted := v.authorToVote[peer.ID(vote.Author)]
-	if voted {
-		prevVoteHash := prevVote.LedgerCommitInfo.Hash(crypto.SHA256)
+	if prevVoteHash, voted := v.authorToVote[vote.Author]; voted {
 		// Check if vote has changed
 		if !bytes.Equal(commitInfoHash, prevVoteHash) {
 			// new equivocating vote, this is a security event
@@ -63,7 +60,7 @@ func (v *VoteRegister) InsertVote(vote *ab_consensus.VoteMsg, quorumInfo QuorumI
 		return nil, fmt.Errorf("duplicate vote")
 	}
 	// Store vote from author
-	v.authorToVote[peer.ID(vote.Author)] = vote
+	v.authorToVote[vote.Author] = commitInfoHash
 	// register commit hash
 	// Create new entry if not present
 	if _, present := v.hashToSignatures[string(commitInfoHash)]; !present {
@@ -108,5 +105,5 @@ func (v *VoteRegister) InsertTimeoutVote(timeout *ab_consensus.TimeoutMsg, quoru
 func (v *VoteRegister) Reset() {
 	v.hashToSignatures = make(map[string]*ConsensusWithSignatures)
 	v.timeoutCert = nil
-	v.authorToVote = make(map[peer.ID]*ab_consensus.VoteMsg)
+	v.authorToVote = make(map[string][]byte)
 }

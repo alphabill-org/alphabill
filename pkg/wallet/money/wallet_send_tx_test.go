@@ -8,13 +8,11 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/alphabill-org/alphabill/internal/block"
 	"github.com/alphabill-org/alphabill/internal/hash"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/alphabill-org/alphabill/pkg/client/clientmock"
 	"github.com/alphabill-org/alphabill/pkg/wallet"
-	"github.com/alphabill-org/alphabill/pkg/wallet/backend/bp"
 	"github.com/alphabill-org/alphabill/pkg/wallet/money/backend"
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
@@ -25,10 +23,10 @@ func TestWalletSendFunction(t *testing.T) {
 		balance:   70,
 		billId:    uint256.NewInt(0),
 		billValue: 50,
-		feeCreditBill: &bp.Bill{
+		feeCreditBill: &wallet.Bill{
 			Id:      []byte{},
 			Value:   100 * 1e8,
-			TxProof: &block.TxProof{},
+			TxProof: &wallet.Proof{},
 		}}))
 	validPubKey := make([]byte, 33)
 	amount := uint64(50)
@@ -66,10 +64,10 @@ func TestWalletSendFunction_ClientError(t *testing.T) {
 		balance:   70,
 		billId:    uint256.NewInt(0),
 		billValue: 50,
-		feeCreditBill: &bp.Bill{
+		feeCreditBill: &wallet.Bill{
 			Id:      []byte{},
 			Value:   100 * 1e8,
-			TxProof: &block.TxProof{},
+			TxProof: &wallet.Proof{},
 		},
 	}))
 	validPubKey := make([]byte, 33)
@@ -84,10 +82,10 @@ func TestWalletSendFunction_ClientError(t *testing.T) {
 func TestWalletSendFunction_WaitForConfirmation(t *testing.T) {
 	pubKey := make([]byte, 33)
 	b := &Bill{
-		Id:         uint256.NewInt(0),
-		Value:      100,
-		TxHash:     hash.Sum256([]byte{0x01}),
-		BlockProof: &BlockProof{Proof: &block.BlockProof{}},
+		Id:      uint256.NewInt(0),
+		Value:   100,
+		TxHash:  hash.Sum256([]byte{0x01}),
+		TxProof: &wallet.Proof{},
 	}
 
 	var w *Wallet
@@ -102,22 +100,20 @@ func TestWalletSendFunction_WaitForConfirmation(t *testing.T) {
 		listBills: func(pubKey []byte, includeDCBills bool) (*backend.ListBillsResponse, error) {
 			return createBillListResponse([]*Bill{b}), nil
 		},
-		getBills: func(pubKey []byte) ([]*bp.Bill, error) {
-			return []*bp.Bill{{Id: b.GetID(), Value: b.Value, TxHash: b.TxHash}}, nil
+		getBills: func(pubKey []byte) ([]*wallet.Bill, error) {
+			return []*wallet.Bill{{Id: b.GetID(), Value: b.Value, TxHash: b.TxHash}}, nil
 		},
-		getProof: func(billId []byte) (*bp.Bills, error) {
+		getProof: func(billId []byte) (*wallet.Bills, error) {
 			tx := mockClient.GetRecordedTransactions()[0]
-			gtx, err := NewTxConverter(w.SystemID()).ConvertTx(tx)
-			require.NoError(t, err)
-			b.TxHash = gtx.Hash(crypto.SHA256)
+			b.TxHash = tx.Hash(crypto.SHA256)
 			return createBlockProofResponse(t, b, nil, 0, dcTimeoutBlockCount, nil), nil
 		},
-		fetchFeeCreditBill: func(ctx context.Context, unitID []byte) (*bp.Bill, error) {
+		fetchFeeCreditBill: func(ctx context.Context, unitID []byte) (*wallet.Bill, error) {
 			ac, _ := w.am.GetAccountKey(0)
-			return &bp.Bill{
+			return &wallet.Bill{
 				Id:      ac.PrivKeyHash,
 				Value:   100 * 1e8,
-				TxProof: &block.TxProof{},
+				TxProof: &wallet.Proof{},
 			}, nil
 		},
 	}
@@ -150,22 +146,20 @@ func TestWalletSendFunction_WaitForMultipleTxConfirmations(t *testing.T) {
 		listBills: func(pubKey []byte, includeDCBills bool) (*backend.ListBillsResponse, error) {
 			return createBillListResponse([]*Bill{b1, b2}), nil
 		},
-		getBills: func(pubKey []byte) ([]*bp.Bill, error) {
-			return []*bp.Bill{
+		getBills: func(pubKey []byte) ([]*wallet.Bill, error) {
+			return []*wallet.Bill{
 				{Id: b1.GetID(), Value: b1.Value, TxHash: b1.TxHash},
 				{Id: b2.GetID(), Value: b2.Value, TxHash: b2.TxHash},
 			}, nil
 		},
-		getProof: func(billId []byte) (*bp.Bills, error) {
+		getProof: func(billId []byte) (*wallet.Bills, error) {
 			txs := mockClient.GetRecordedTransactions()
 			var bill *Bill
 			for _, tx := range txs {
-				if bytes.Equal(billId, tx.UnitId) {
+				if bytes.Equal(billId, tx.UnitID()) {
 					bill, _ = bills[string(billId)]
 					if bill != nil {
-						gtx, err := NewTxConverter(w.SystemID()).ConvertTx(tx)
-						require.NoError(t, err)
-						bill.TxHash = gtx.Hash(crypto.SHA256)
+						bill.TxHash = tx.Hash(crypto.SHA256)
 					}
 				}
 			}
@@ -176,8 +170,8 @@ func TestWalletSendFunction_WaitForMultipleTxConfirmations(t *testing.T) {
 				return nil, errors.New("bill not found")
 			}
 		},
-		fetchFeeCreditBill: func(ctx context.Context, unitID []byte) (*bp.Bill, error) {
-			return &bp.Bill{Id: []byte{}, Value: 100 * 1e8, TxProof: &block.TxProof{}}, nil
+		fetchFeeCreditBill: func(ctx context.Context, unitID []byte) (*wallet.Bill, error) {
+			return &wallet.Bill{Id: []byte{}, Value: 100 * 1e8, TxProof: &wallet.Proof{}}, nil
 		},
 	}
 	w, mockClient = CreateTestWallet(t, backendMock)
@@ -210,26 +204,23 @@ func TestWalletSendFunction_WaitForMultipleTxConfirmationsInDifferentBlocks(t *t
 		listBills: func(pubKey []byte, includeDCBills bool) (*backend.ListBillsResponse, error) {
 			return createBillListResponse([]*Bill{b1, b2}), nil
 		},
-		getBills: func(pubKey []byte) ([]*bp.Bill, error) {
-			return []*bp.Bill{
+		getBills: func(pubKey []byte) ([]*wallet.Bill, error) {
+			return []*wallet.Bill{
 				{Id: b1.GetID(), Value: b1.Value, TxHash: b1.TxHash},
 				{Id: b2.GetID(), Value: b2.Value, TxHash: b2.TxHash},
 			}, nil
 		},
-		getProof: func(billId []byte) (*bp.Bills, error) {
+		getProof: func(billId []byte) (*wallet.Bills, error) {
 			txs := mockClient.GetRecordedTransactions()
 			var bill *Bill
 			for _, tx := range txs {
-				if bytes.Equal(billId, tx.UnitId) {
+				if bytes.Equal(billId, tx.UnitID()) {
 					bill, _ = bills[string(billId)]
 					if bill != nil {
-						gtx, err := NewTxConverter(w.SystemID()).ConvertTx(tx)
-						require.NoError(t, err)
-						bill.TxHash = gtx.Hash(crypto.SHA256)
+						bill.TxHash = tx.Hash(crypto.SHA256)
 					}
 				}
 			}
-
 			if bill != nil {
 				nr := blockCounter
 				blockCounter++
@@ -238,9 +229,9 @@ func TestWalletSendFunction_WaitForMultipleTxConfirmationsInDifferentBlocks(t *t
 				return nil, errors.New("bill not found")
 			}
 		},
-		fetchFeeCreditBill: func(ctx context.Context, unitID []byte) (*bp.Bill, error) {
+		fetchFeeCreditBill: func(ctx context.Context, unitID []byte) (*wallet.Bill, error) {
 			ac, _ := w.am.GetAccountKey(0)
-			return &bp.Bill{Id: ac.PrivKeyHash, Value: 100 * 1e8, TxProof: &block.TxProof{}}, nil
+			return &wallet.Bill{Id: ac.PrivKeyHash, Value: 100 * 1e8, TxProof: &wallet.Proof{}}, nil
 		},
 	}
 	w, mockClient = CreateTestWallet(t, backendMock)
@@ -268,11 +259,11 @@ func TestWalletSendFunction_ErrTxFailedToConfirm(t *testing.T) {
 		listBills: func(pubKey []byte, includeDCBills bool) (*backend.ListBillsResponse, error) {
 			return createBillListResponse([]*Bill{b}), nil
 		},
-		getBills: func(pubKey []byte) ([]*bp.Bill, error) {
-			return []*bp.Bill{{Id: b.GetID(), Value: b.Value, TxHash: b.TxHash}}, nil
+		getBills: func(pubKey []byte) ([]*wallet.Bill, error) {
+			return []*wallet.Bill{{Id: b.GetID(), Value: b.Value, TxHash: b.TxHash}}, nil
 		},
-		fetchFeeCreditBill: func(ctx context.Context, unitID []byte) (*bp.Bill, error) {
-			return &bp.Bill{Id: []byte{}, Value: 100 * 1e8, TxProof: &block.TxProof{}}, nil
+		fetchFeeCreditBill: func(ctx context.Context, unitID []byte) (*wallet.Bill, error) {
+			return &wallet.Bill{Id: []byte{}, Value: 100 * 1e8, TxProof: &wallet.Proof{}}, nil
 		},
 	}
 	w, mockClient := CreateTestWallet(t, backendMock)
@@ -293,7 +284,7 @@ func TestWholeBalanceIsSentUsingBillTransferOrder(t *testing.T) {
 		balance:       100,
 		billId:        b.Id,
 		billValue:     b.Value,
-		feeCreditBill: &bp.Bill{Id: []byte{}, Value: 100 * 1e8, TxProof: &block.TxProof{}},
+		feeCreditBill: &wallet.Bill{Id: []byte{}, Value: 100 * 1e8, TxProof: &wallet.Proof{}},
 	}))
 
 	// when whole balance is spent
@@ -317,10 +308,10 @@ func TestWalletSendFunction_RetryTxWhenTxBufferIsFull(t *testing.T) {
 		balance:   100,
 		billId:    b.Id,
 		billValue: b.Value,
-		feeCreditBill: &bp.Bill{
+		feeCreditBill: &wallet.Bill{
 			Id:      []byte{},
 			Value:   100 * 1e8,
-			TxProof: &block.TxProof{},
+			TxProof: &wallet.Proof{},
 		},
 	}))
 
@@ -350,10 +341,10 @@ func TestWalletSendFunction_RetryCanBeCanceledByUser(t *testing.T) {
 		balance:   100,
 		billId:    b.Id,
 		billValue: b.Value,
-		feeCreditBill: &bp.Bill{
+		feeCreditBill: &wallet.Bill{
 			Id:      []byte{},
 			Value:   100 * 1e8,
-			TxProof: &block.TxProof{},
+			TxProof: &wallet.Proof{},
 		},
 	}))
 

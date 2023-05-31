@@ -4,7 +4,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/alphabill-org/alphabill/internal/certificates"
 	"github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/network"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/certification"
@@ -13,9 +12,9 @@ import (
 	testnetwork "github.com/alphabill-org/alphabill/internal/testutils/network"
 	testpeer "github.com/alphabill-org/alphabill/internal/testutils/peer"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
+	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/stretchr/testify/require"
-	"google.golang.org/protobuf/proto"
 )
 
 type TestNode struct {
@@ -31,7 +30,7 @@ func NewTestNode(t *testing.T) *TestNode {
 	return node
 }
 
-func CreatePartitionNodesAndPartitionRecord(t *testing.T, ir *certificates.InputRecord, systemID []byte, nrOfValidators int) (partitionNodes []*TestNode, record *genesis.PartitionRecord) {
+func CreatePartitionNodesAndPartitionRecord(t *testing.T, ir *types.InputRecord, systemID []byte, nrOfValidators int) (partitionNodes []*TestNode, record *genesis.PartitionRecord) {
 	t.Helper()
 	record = &genesis.PartitionRecord{
 		SystemDescriptionRecord: &genesis.SystemDescriptionRecord{
@@ -71,7 +70,7 @@ func CreatePartitionNodesAndPartitionRecord(t *testing.T, ir *certificates.Input
 	return partitionNodes, record
 }
 
-func CreateBlockCertificationRequest(t *testing.T, ir *certificates.InputRecord, sysID []byte, node *TestNode) *certification.BlockCertificationRequest {
+func CreateBlockCertificationRequest(t *testing.T, ir *types.InputRecord, sysID []byte, node *TestNode) *certification.BlockCertificationRequest {
 	t.Helper()
 	r1 := &certification.BlockCertificationRequest{
 		SystemIdentifier: sysID,
@@ -82,7 +81,7 @@ func CreateBlockCertificationRequest(t *testing.T, ir *certificates.InputRecord,
 	return r1
 }
 
-func MockValidatorNetReceives(t *testing.T, net *testnetwork.MockNet, id peer.ID, msgType string, msg proto.Message) {
+func MockValidatorNetReceives(t *testing.T, net *testnetwork.MockNet, id peer.ID, msgType string, msg any) {
 	t.Helper()
 	net.Receive(network.ReceivedMessage{
 		From:     id,
@@ -95,7 +94,7 @@ func MockValidatorNetReceives(t *testing.T, net *testnetwork.MockNet, id peer.ID
 
 func MockAwaitMessage[T any](t *testing.T, net *testnetwork.MockNet, msgType string) T {
 	t.Helper()
-	var msg proto.Message
+	var msg any
 	require.Eventually(t, func() bool {
 		messages := net.SentMessages(msgType)
 		if len(messages) > 0 {

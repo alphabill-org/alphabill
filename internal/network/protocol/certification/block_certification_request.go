@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/alphabill-org/alphabill/internal/crypto"
+	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/internal/util"
 )
 
@@ -15,6 +16,14 @@ var (
 	errVerifierIsNil                  = errors.New("verifier is nil")
 	errEmptyNodeIdentifier            = errors.New("node identifier is empty")
 )
+
+type BlockCertificationRequest struct {
+	_                struct{}           `cbor:",toarray"`
+	SystemIdentifier types.SystemID     `json:"system_identifier,omitempty"`
+	NodeIdentifier   string             `json:"node_identifier,omitempty"`
+	InputRecord      *types.InputRecord `json:"input_record,omitempty"`
+	Signature        []byte             `json:"signature,omitempty"`
+}
 
 func (x *BlockCertificationRequest) IsValid(v crypto.Verifier) error {
 	if x == nil {
@@ -30,7 +39,7 @@ func (x *BlockCertificationRequest) IsValid(v crypto.Verifier) error {
 		return errEmptyNodeIdentifier
 	}
 	if err := x.InputRecord.IsValid(); err != nil {
-		return fmt.Errorf("input record error, %w", err)
+		return fmt.Errorf("input record error: %w", err)
 	}
 	if err := v.VerifyBytes(x.Signature, x.Bytes()); err != nil {
 		return fmt.Errorf("signature verification failed")

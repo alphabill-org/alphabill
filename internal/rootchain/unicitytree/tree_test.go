@@ -6,14 +6,11 @@ import (
 	"testing"
 
 	"github.com/alphabill-org/alphabill/internal/smt"
-	"google.golang.org/protobuf/proto"
-
-	"github.com/alphabill-org/alphabill/internal/certificates"
-
+	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/stretchr/testify/require"
 )
 
-var inputRecord = &certificates.InputRecord{
+var inputRecord = &types.InputRecord{
 	PreviousHash: []byte{0x00},
 	Hash:         []byte{0x01},
 	BlockHash:    []byte{0x02},
@@ -33,7 +30,7 @@ func TestNewUnicityTree(t *testing.T) {
 }
 
 func TestGetCertificate_Ok(t *testing.T) {
-	key := []byte{0x00, 0x00, 0x00, 0x01}
+	key := types.SystemID([]byte{0x00, 0x00, 0x00, 0x01})
 	data := []*Data{
 		{
 			SystemIdentifier:            key,
@@ -58,7 +55,7 @@ func TestGetCertificate_Ok(t *testing.T) {
 	require.Equal(t, unicityTree.GetRootHash(), root)
 	ir, err := unicityTree.GetIR(key)
 	require.NoError(t, err)
-	require.True(t, proto.Equal(ir, data[0].InputRecord))
+	require.EqualValues(t, ir, data[0].InputRecord)
 }
 
 func TestGetCertificate_InvalidKey(t *testing.T) {

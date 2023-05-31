@@ -6,25 +6,25 @@ import (
 	"crypto"
 	"errors"
 	"flag"
+	"fmt"
 	"log"
 	"time"
 
-	"github.com/alphabill-org/alphabill/internal/block"
-	"github.com/alphabill-org/alphabill/internal/hash"
-	"github.com/alphabill-org/alphabill/internal/rpc/alphabill"
-	"github.com/alphabill-org/alphabill/internal/script"
-	"github.com/alphabill-org/alphabill/internal/txsystem"
-	"github.com/alphabill-org/alphabill/internal/txsystem/fc/transactions"
-	billtx "github.com/alphabill-org/alphabill/internal/txsystem/money"
-	"github.com/alphabill-org/alphabill/internal/txsystem/util"
-	"github.com/alphabill-org/alphabill/pkg/wallet/money"
 	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/fxamacker/cbor/v2"
 	"github.com/holiman/uint256"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
-	"google.golang.org/protobuf/proto"
-	"google.golang.org/protobuf/types/known/anypb"
 	"google.golang.org/protobuf/types/known/emptypb"
+
+	"github.com/alphabill-org/alphabill/internal/hash"
+	"github.com/alphabill-org/alphabill/internal/rpc/alphabill"
+	"github.com/alphabill-org/alphabill/internal/script"
+	"github.com/alphabill-org/alphabill/internal/txsystem/fc/transactions"
+	billtx "github.com/alphabill-org/alphabill/internal/txsystem/money"
+	"github.com/alphabill-org/alphabill/internal/txsystem/util"
+	"github.com/alphabill-org/alphabill/internal/types"
+	"github.com/alphabill-org/alphabill/pkg/wallet"
 )
 
 /*
@@ -92,8 +92,14 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+	transferFCBytes, err := cbor.Marshal(transferFC)
+	if err != nil {
+		log.Fatal(err)
+	}
+	protoTransferFC := &alphabill.Transaction{Order: transferFCBytes}
+
 	// send transferFC
-	_, err = txClient.ProcessTransaction(ctx, transferFC)
+	_, err = txClient.ProcessTransaction(ctx, protoTransferFC)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -108,13 +114,18 @@ func main() {
 	}
 
 	// create addFC
-	transferFC.ServerMetadata = &txsystem.ServerMetadata{Fee: txFee} // add server metadata so that hash is correct
-	addFC, err := createAddFC(fcrID, script.PredicateAlwaysTrue(), transferFC, transferFCProof, absoluteTimeout, feeAmount)
+	addFC, err := createAddFC(fcrID, script.PredicateAlwaysTrue(), transferFCProof.TxRecord, transferFCProof.TxProof, absoluteTimeout, feeAmount)
 	if err != nil {
 		log.Fatal(err)
 	}
+	addFCBytes, err := cbor.Marshal(addFC)
+	if err != nil {
+		log.Fatal(err)
+	}
+	protoAddFC := &alphabill.Transaction{Order: addFCBytes}
+
 	// send addFC
-	_, err = txClient.ProcessTransaction(ctx, addFC)
+	_, err = txClient.ProcessTransaction(ctx, protoAddFC)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -129,14 +140,16 @@ func main() {
 	}
 
 	// create transfer tx
-	transferFCWrapper, err := transactions.NewFeeCreditTx(transferFC)
-	if err != nil {
-		log.Fatalf("failed to wrap transferFC %v", err)
-	}
-	tx, err := createTransferTx(pubKey, billID, *billValue-feeAmount-txFee, fcrID, absoluteTimeout, transferFCWrapper.Hash(crypto.SHA256))
+	tx, err := createTransferTx(pubKey, billID, *billValue-feeAmount-txFee, fcrID, absoluteTimeout, transferFC.Hash(crypto.SHA256))
 	if err != nil {
 		log.Fatal(err)
 	}
+	txBytes, err := cbor.Marshal(tx)
+	if err != nil {
+		log.Fatal(err)
+	}
+	protoTransferTx := &alphabill.Transaction{Order: txBytes}
+
 	// get round number for timeout
 	res, err = txClient.GetRoundNumber(ctx, &emptypb.Empty{})
 	if err != nil {
@@ -145,89 +158,96 @@ func main() {
 	absoluteTimeout = res.RoundNumber + *timeout
 
 	// send transfer tx
-	if _, err := txClient.ProcessTransaction(ctx, tx); err != nil {
+	if _, err := txClient.ProcessTransaction(ctx, protoTransferTx); err != nil {
 		log.Fatal(err)
 	}
 	log.Println("successfully sent initial bill transfer transaction")
 }
 
-func createTransferFC(feeAmount uint64, unitID []byte, targetUnitID []byte, t1, t2 uint64) (*txsystem.Transaction, error) {
-	tx := &txsystem.Transaction{
-		UnitId:                unitID,
-		SystemId:              []byte{0, 0, 0, 0},
-		TransactionAttributes: new(anypb.Any),
-		OwnerProof:            script.PredicateArgumentEmpty(),
-		ClientMetadata: &txsystem.ClientMetadata{
-			Timeout: t2,
-			MaxFee:  1,
+func createTransferFC(feeAmount uint64, unitID []byte, targetUnitID []byte, t1, t2 uint64) (*types.TransactionOrder, error) {
+	attr, err := cbor.Marshal(
+		&transactions.TransferFeeCreditAttributes{
+			Amount:                 feeAmount,
+			TargetSystemIdentifier: []byte{0, 0, 0, 0},
+			TargetRecordID:         targetUnitID,
+			EarliestAdditionTime:   t1,
+			LatestAdditionTime:     t2,
 		},
-	}
-	err := anypb.MarshalFrom(tx.TransactionAttributes, &transactions.TransferFeeCreditAttributes{
-		Amount:                 feeAmount,
-		TargetSystemIdentifier: []byte{0, 0, 0, 0},
-		TargetRecordId:         targetUnitID,
-		EarliestAdditionTime:   t1,
-		LatestAdditionTime:     t2,
-	}, proto.MarshalOptions{})
+	)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to marshal transferFC attributes: %w", err)
+	}
+	tx := &types.TransactionOrder{
+		Payload: &types.Payload{
+			SystemID:       []byte{0, 0, 0, 0},
+			Type:           transactions.PayloadTypeTransferFeeCredit,
+			UnitID:         unitID,
+			Attributes:     attr,
+			ClientMetadata: &types.ClientMetadata{Timeout: t2, MaxTransactionFee: 1},
+		},
+		OwnerProof: script.PredicateArgumentEmpty(),
 	}
 	return tx, nil
 }
 
-func createAddFC(unitID []byte, ownerCondition []byte, transferFC *txsystem.Transaction, transferFCProof *block.BlockProof, timeout uint64, maxFee uint64) (*txsystem.Transaction, error) {
-	tx := &txsystem.Transaction{
-		UnitId:                unitID,
-		SystemId:              []byte{0, 0, 0, 0},
-		TransactionAttributes: new(anypb.Any),
-		OwnerProof:            script.PredicateArgumentEmpty(),
-		ClientMetadata: &txsystem.ClientMetadata{
-			Timeout: timeout,
-			MaxFee:  maxFee,
+func createAddFC(unitID []byte, ownerCondition []byte, transferFC *types.TransactionRecord, transferFCProof *types.TxProof, timeout uint64, maxFee uint64) (*types.TransactionOrder, error) {
+	attr, err := cbor.Marshal(
+		&transactions.AddFeeCreditAttributes{
+			FeeCreditTransfer:       transferFC,
+			FeeCreditTransferProof:  transferFCProof,
+			FeeCreditOwnerCondition: ownerCondition,
 		},
-	}
-	err := anypb.MarshalFrom(tx.TransactionAttributes, &transactions.AddFeeCreditAttributes{
-		FeeCreditTransfer:       transferFC,
-		FeeCreditTransferProof:  transferFCProof,
-		FeeCreditOwnerCondition: ownerCondition,
-	}, proto.MarshalOptions{})
+	)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to marshal transferFC attributes: %w", err)
 	}
-	return tx, nil
+	return &types.TransactionOrder{
+		Payload: &types.Payload{
+			SystemID:       []byte{0, 0, 0, 0},
+			Type:           transactions.PayloadTypeAddFeeCredit,
+			UnitID:         unitID,
+			Attributes:     attr,
+			ClientMetadata: &types.ClientMetadata{Timeout: timeout, MaxTransactionFee: maxFee},
+		},
+		OwnerProof: script.PredicateArgumentEmpty(),
+	}, nil
 }
 
-func createTransferTx(pubKey []byte, unitID []byte, billValue uint64, fcrID []byte, timeout uint64, backlink []byte) (*txsystem.Transaction, error) {
-	tx := &txsystem.Transaction{
-		UnitId:                unitID,
-		SystemId:              []byte{0, 0, 0, 0},
-		TransactionAttributes: new(anypb.Any),
-		OwnerProof:            script.PredicateArgumentEmpty(),
-		ClientMetadata: &txsystem.ClientMetadata{
-			Timeout:           timeout,
-			MaxFee:            1,
-			FeeCreditRecordId: fcrID,
+func createTransferTx(pubKey []byte, unitID []byte, billValue uint64, fcrID []byte, timeout uint64, backlink []byte) (*types.TransactionOrder, error) {
+	attr, err := cbor.Marshal(
+		&billtx.TransferAttributes{
+			NewBearer:   script.PredicatePayToPublicKeyHashDefault(hash.Sum256(pubKey)),
+			TargetValue: billValue,
+			Backlink:    backlink,
 		},
-	}
-	err := anypb.MarshalFrom(tx.TransactionAttributes, &billtx.TransferAttributes{
-		NewBearer:   script.PredicatePayToPublicKeyHashDefault(hash.Sum256(pubKey)),
-		TargetValue: billValue,
-		Backlink:    backlink,
-	}, proto.MarshalOptions{})
+	)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to marshal transferFC attributes: %w", err)
 	}
-	return tx, nil
+	return &types.TransactionOrder{
+		Payload: &types.Payload{
+			SystemID:   []byte{0, 0, 0, 0},
+			Type:       billtx.PayloadTypeTransfer,
+			UnitID:     unitID,
+			Attributes: attr,
+			ClientMetadata: &types.ClientMetadata{
+				Timeout:           timeout,
+				MaxTransactionFee: 1,
+				FeeCreditRecordID: fcrID,
+			},
+		},
+		OwnerProof: script.PredicateArgumentEmpty(),
+	}, nil
 }
 
-func waitForConfirmation(ctx context.Context, abClient alphabill.AlphabillServiceClient, pendingTx *txsystem.Transaction, latestRoundNumber, timeout uint64) (*block.BlockProof, error) {
-	txConverter := money.NewTxConverter([]byte{0, 0, 0, 0})
+func waitForConfirmation(ctx context.Context, abClient alphabill.AlphabillServiceClient, pendingTx *types.TransactionOrder, latestRoundNumber, timeout uint64) (*wallet.Proof, error) {
 	for latestRoundNumber <= timeout {
 		res, err := abClient.GetBlock(ctx, &alphabill.GetBlockRequest{BlockNo: latestRoundNumber})
 		if err != nil {
 			return nil, err
 		}
-		if res.Block == nil {
+		blockBytes := res.Block
+		if blockBytes == nil || (len(blockBytes) == 1 && blockBytes[0] == 0xf6) { // 0xf6 cbor Null
 			// block might be empty, check latest round number
 			res, err := abClient.GetRoundNumber(ctx, &emptypb.Empty{})
 			if err != nil {
@@ -245,17 +265,13 @@ func waitForConfirmation(ctx context.Context, abClient alphabill.AlphabillServic
 				}
 			}
 		} else {
-			for _, tx := range res.Block.Transactions {
-				if bytes.Equal(tx.UnitId, pendingTx.UnitId) {
-					genericBlock, err := res.Block.ToGenericBlock(txConverter)
-					if err != nil {
-						return nil, err
-					}
-					proof, err := block.NewPrimaryProof(genericBlock, tx.UnitId, crypto.SHA256)
-					if err != nil {
-						return nil, err
-					}
-					return proof, nil
+			block := &types.Block{}
+			if err := cbor.Unmarshal(blockBytes, block); err != nil {
+				return nil, fmt.Errorf("failed to unmarshal block: %w", err)
+			}
+			for i, tx := range block.Transactions {
+				if bytes.Equal(tx.TransactionOrder.UnitID(), pendingTx.UnitID()) {
+					return wallet.NewTxProof(i, block, crypto.SHA256)
 				}
 			}
 			latestRoundNumber++

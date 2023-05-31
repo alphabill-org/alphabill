@@ -4,37 +4,36 @@ import (
 	"context"
 	gocrypto "crypto"
 	"fmt"
+	"reflect"
 	"testing"
 	"time"
 
-	"github.com/alphabill-org/alphabill/internal/block"
-	"github.com/alphabill-org/alphabill/internal/certificates"
 	"github.com/alphabill-org/alphabill/internal/keyvaluedb/memorydb"
 	"github.com/alphabill-org/alphabill/internal/network"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/replication"
 	"github.com/alphabill-org/alphabill/internal/partition/event"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	testevent "github.com/alphabill-org/alphabill/internal/testutils/partition/event"
-	moneytesttx "github.com/alphabill-org/alphabill/internal/testutils/transaction/money"
+	testtransaction "github.com/alphabill-org/alphabill/internal/testutils/transaction"
 	testtxsystem "github.com/alphabill-org/alphabill/internal/testutils/txsystem"
-	"github.com/alphabill-org/alphabill/internal/txsystem"
+	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/internal/util"
+	"github.com/fxamacker/cbor/v2"
 	"github.com/stretchr/testify/require"
-	"google.golang.org/protobuf/proto"
 )
 
 func TestNode_LedgerReplicationRequestTimeout(t *testing.T) {
 	system := &testtxsystem.CounterTxSystem{}
 	tp := RunSingleNodePartition(t, system)
 	bl := tp.GetLatestBlock(t)
-	transfer := moneytesttx.RandomBillTransfer(t)
-	require.NoError(t, tp.SubmitTx(transfer))
+	order := testtransaction.NewTransactionOrder(t)
+	require.NoError(t, tp.SubmitTx(order))
 
 	// prepare proposal
 	tp.SubmitT1Timeout(t)
 	require.Equal(t, uint64(0), system.RevertCount)
 	// simulate UC with different state hash and block hash
-	ir := &certificates.InputRecord{
+	ir := &types.InputRecord{
 		PreviousHash: bl.UnicityCertificate.InputRecord.Hash,
 		Hash:         test.RandomBytes(32),
 		BlockHash:    test.RandomBytes(32),
@@ -61,14 +60,14 @@ func TestNode_HandleUnicityCertificate_RevertAndStartRecovery_withPendingProposa
 	system := &testtxsystem.CounterTxSystem{}
 	tp := RunSingleNodePartition(t, system)
 	bl := tp.GetLatestBlock(t)
-	transfer := moneytesttx.RandomBillTransfer(t)
-	require.NoError(t, tp.SubmitTx(transfer))
+	order := testtransaction.NewTransactionOrder(t)
+	require.NoError(t, tp.SubmitTx(order))
 
 	// prepare proposal
 	tp.SubmitT1Timeout(t)
 	require.Equal(t, uint64(0), system.RevertCount)
 	// simulate UC with different state hash and block hash
-	ir := &certificates.InputRecord{
+	ir := &types.InputRecord{
 		PreviousHash: bl.UnicityCertificate.InputRecord.Hash,
 		Hash:         test.RandomBytes(32),
 		BlockHash:    test.RandomBytes(32),
@@ -92,7 +91,7 @@ func TestNode_HandleUnicityCertificate_RevertAndStartRecovery_withPendingProposa
 	// send newer UC and check LUC is updated and node still recovering
 	tp.eh.Reset()
 	// increment round number
-	irNew := &certificates.InputRecord{
+	irNew := &types.InputRecord{
 		PreviousHash: ir.Hash,
 		Hash:         test.RandomBytes(32),
 		BlockHash:    test.RandomBytes(32),
@@ -168,7 +167,7 @@ func TestNode_HandleUnicityCertificate_RevertAndStartRecovery_withNoProposal(t *
 	rootRound++
 	partitionRound++
 	newStateHash := test.RandomBytes(32)
-	ir := &certificates.InputRecord{
+	ir := &types.InputRecord{
 		PreviousHash: bl.UnicityCertificate.InputRecord.Hash,
 		Hash:         newStateHash,
 		BlockHash:    test.RandomBytes(32),
@@ -194,7 +193,7 @@ func TestNode_HandleUnicityCertificate_RevertAndStartRecovery_withNoProposal(t *
 	tp.eh.Reset()
 	rootRound++
 	partitionRound++
-	ir = &certificates.InputRecord{
+	ir = &types.InputRecord{
 		PreviousHash: newStateHash,
 		Hash:         test.RandomBytes(32),
 		BlockHash:    test.RandomBytes(32),
@@ -236,8 +235,8 @@ func TestNode_RecoverBlocks(t *testing.T) {
 		From:     req.ID,
 		Protocol: network.ProtocolLedgerReplicationResp,
 		Message: &replication.LedgerReplicationResponse{
-			Status: replication.LedgerReplicationResponse_OK,
-			Blocks: []*block.Block{newBlock1, newBlock2},
+			Status: replication.Ok,
+			Blocks: []*types.Block{newBlock1, newBlock2},
 		},
 	})
 	require.Equal(t, recovering, tp.partition.status.Load())
@@ -247,8 +246,8 @@ func TestNode_RecoverBlocks(t *testing.T) {
 		From:     req.ID,
 		Protocol: network.ProtocolLedgerReplicationResp,
 		Message: &replication.LedgerReplicationResponse{
-			Status: replication.LedgerReplicationResponse_OK,
-			Blocks: []*block.Block{newBlock3},
+			Status: replication.Ok,
+			Blocks: []*types.Block{newBlock3},
 		},
 	})
 	testevent.ContainsEvent(t, tp.eh, event.RecoveryFinished)
@@ -259,23 +258,23 @@ func TestNode_RecoverBlocks(t *testing.T) {
 	require.Equal(t, uint64(4), nr)
 	latestBlock, err := tp.partition.GetLatestBlock()
 	require.NoError(t, err)
-	require.True(t, proto.Equal(latestBlock, newBlock3))
+	require.True(t, reflect.DeepEqual(latestBlock, newBlock3))
 	b, err := tp.partition.GetBlock(context.Background(), 0)
 	require.ErrorContains(t, err, "block number 0 does not exist")
 	require.Nil(t, b)
 	b, err = tp.partition.GetBlock(context.Background(), 1)
 	require.NoError(t, err)
-	require.True(t, proto.Equal(b, genesisBlock))
+	require.True(t, reflect.DeepEqual(b, genesisBlock))
 	b, err = tp.partition.GetBlock(context.Background(), 2)
 	require.NoError(t, err)
-	require.True(t, proto.Equal(b, newBlock1))
+	require.True(t, reflect.DeepEqual(b, newBlock1))
 	b, err = tp.partition.GetBlock(context.Background(), 3)
 	require.NoError(t, err)
-	require.True(t, proto.Equal(b, newBlock2))
+	require.True(t, reflect.DeepEqual(b, newBlock2))
 	b, err = tp.partition.GetBlock(context.Background(), 4)
 	require.NoError(t, err)
-	require.True(t, proto.Equal(b, newBlock3))
-	require.True(t, proto.Equal(b, latestBlock))
+	require.True(t, reflect.DeepEqual(b, newBlock3))
+	require.True(t, reflect.DeepEqual(b, latestBlock))
 	// on not found nil is returned
 	b, err = tp.partition.GetBlock(context.Background(), 5)
 	require.NoError(t, err)
@@ -308,8 +307,8 @@ func TestNode_RecoverSkipsRequiredBlock(t *testing.T) {
 		From:     req.ID,
 		Protocol: network.ProtocolLedgerReplicationResp,
 		Message: &replication.LedgerReplicationResponse{
-			Status: replication.LedgerReplicationResponse_OK,
-			Blocks: []*block.Block{newBlock3},
+			Status: replication.Ok,
+			Blocks: []*types.Block{newBlock3},
 		},
 	})
 	// wait for message to be processed
@@ -349,8 +348,8 @@ func TestNode_RecoverSkipsBlocksAndSendMixedBlocks(t *testing.T) {
 		From:     req.ID,
 		Protocol: network.ProtocolLedgerReplicationResp,
 		Message: &replication.LedgerReplicationResponse{
-			Status: replication.LedgerReplicationResponse_OK,
-			Blocks: []*block.Block{newBlock2, newBlock2},
+			Status: replication.Ok,
+			Blocks: []*types.Block{newBlock2, newBlock2},
 		},
 	})
 	require.Equal(t, recovering, tp.partition.status.Load())
@@ -360,8 +359,8 @@ func TestNode_RecoverSkipsBlocksAndSendMixedBlocks(t *testing.T) {
 		From:     req.ID,
 		Protocol: network.ProtocolLedgerReplicationResp,
 		Message: &replication.LedgerReplicationResponse{
-			Status: replication.LedgerReplicationResponse_OK,
-			Blocks: []*block.Block{newBlock2, newBlock3},
+			Status: replication.Ok,
+			Blocks: []*types.Block{newBlock2, newBlock3},
 		},
 	})
 	require.Equal(t, recovering, tp.partition.status.Load())
@@ -371,8 +370,8 @@ func TestNode_RecoverSkipsBlocksAndSendMixedBlocks(t *testing.T) {
 		From:     req.ID,
 		Protocol: network.ProtocolLedgerReplicationResp,
 		Message: &replication.LedgerReplicationResponse{
-			Status: replication.LedgerReplicationResponse_OK,
-			Blocks: []*block.Block{newBlock4},
+			Status: replication.Ok,
+			Blocks: []*types.Block{newBlock4},
 		},
 	})
 	testevent.ContainsEvent(t, tp.eh, event.RecoveryFinished)
@@ -382,8 +381,8 @@ func TestNode_RecoverSkipsBlocksAndSendMixedBlocks(t *testing.T) {
 		From:     req.ID,
 		Protocol: network.ProtocolLedgerReplicationResp,
 		Message: &replication.LedgerReplicationResponse{
-			Status: replication.LedgerReplicationResponse_OK,
-			Blocks: []*block.Block{newBlock2, newBlock3},
+			Status: replication.Ok,
+			Blocks: []*types.Block{newBlock2, newBlock3},
 		},
 	})
 	// wait for message to be processed and expect recovery finished event
@@ -401,8 +400,8 @@ func TestNode_RecoverReceivesInvalidBlock(t *testing.T) {
 	system := &testtxsystem.CounterTxSystem{}
 	newBlock2 := createNewBlockOutsideNode(t, tp, system, genesisBlock)
 	newBlock3 := createNewBlockOutsideNode(t, tp, system, newBlock2)
-	altBlock3 := proto.Clone(newBlock3).(*block.Block)
-	altBlock3.Transactions = append(altBlock3.Transactions, moneytesttx.RandomBillTransfer(t))
+	altBlock3 := copyBlock(t, newBlock3)
+	altBlock3.Transactions = append(altBlock3.Transactions, testtransaction.NewTransactionRecord(t))
 	newBlock4 := createNewBlockOutsideNode(t, tp, system, newBlock3)
 
 	// prepare proposal, send "newer" UC, revert state and start recovery
@@ -419,8 +418,8 @@ func TestNode_RecoverReceivesInvalidBlock(t *testing.T) {
 		From:     req.ID,
 		Protocol: network.ProtocolLedgerReplicationResp,
 		Message: &replication.LedgerReplicationResponse{
-			Status: replication.LedgerReplicationResponse_OK,
-			Blocks: []*block.Block{newBlock2, altBlock3},
+			Status: replication.Ok,
+			Blocks: []*types.Block{newBlock2, altBlock3},
 		},
 	})
 	req = WaitNodeRequestReceived(t, tp, network.ProtocolLedgerReplicationReq)
@@ -434,8 +433,8 @@ func TestNode_RecoverReceivesInvalidBlock(t *testing.T) {
 		From:     req.ID,
 		Protocol: network.ProtocolLedgerReplicationResp,
 		Message: &replication.LedgerReplicationResponse{
-			Status: replication.LedgerReplicationResponse_OK,
-			Blocks: []*block.Block{newBlock3, newBlock4},
+			Status: replication.Ok,
+			Blocks: []*types.Block{newBlock3, newBlock4},
 		},
 	})
 	// wait for message to be processed and expect recovery finished event
@@ -456,8 +455,8 @@ func TestNode_RecoverReceivesInvalidBlockNoBlockProposerId(t *testing.T) {
 	system := &testtxsystem.CounterTxSystem{}
 	newBlock2 := createNewBlockOutsideNode(t, tp, system, genesisBlock)
 	newBlock3 := createNewBlockOutsideNode(t, tp, system, newBlock2)
-	altBlock3 := proto.Clone(newBlock3).(*block.Block)
-	altBlock3.NodeIdentifier = ""
+	altBlock3 := copyBlock(t, newBlock3)
+	altBlock3.Header.ProposerID = ""
 	newBlock4 := createNewBlockOutsideNode(t, tp, system, newBlock3)
 
 	// prepare proposal, send "newer" UC, revert state and start recovery
@@ -477,8 +476,8 @@ func TestNode_RecoverReceivesInvalidBlockNoBlockProposerId(t *testing.T) {
 		From:     req.ID,
 		Protocol: network.ProtocolLedgerReplicationResp,
 		Message: &replication.LedgerReplicationResponse{
-			Status: replication.LedgerReplicationResponse_OK,
-			Blocks: []*block.Block{newBlock2, altBlock3},
+			Status: replication.Ok,
+			Blocks: []*types.Block{newBlock2, altBlock3},
 		},
 	})
 	// make sure replication request is sent again and that block 3 is asked again
@@ -493,8 +492,8 @@ func TestNode_RecoverReceivesInvalidBlockNoBlockProposerId(t *testing.T) {
 		From:     req.ID,
 		Protocol: network.ProtocolLedgerReplicationResp,
 		Message: &replication.LedgerReplicationResponse{
-			Status: replication.LedgerReplicationResponse_OK,
-			Blocks: []*block.Block{newBlock3, newBlock4},
+			Status: replication.Ok,
+			Blocks: []*types.Block{newBlock3, newBlock4},
 		},
 	})
 	// wait for message to be processed and expect recovery finished event
@@ -511,11 +510,13 @@ func TestNode_RecoverySimulateStorageFailsOnRecovery(t *testing.T) {
 	// used to generate test blocks
 	system := &testtxsystem.CounterTxSystem{}
 	tp := SetupNewSingleNodePartition(t, &testtxsystem.CounterTxSystem{}, WithBlockStore(db))
-	genesisBlock := &block.Block{
-		SystemIdentifier:   tp.nodeDeps.genesis.SystemDescriptionRecord.SystemIdentifier,
-		NodeIdentifier:     "genesis",
-		Transactions:       []*txsystem.Transaction{},
-		UnicityCertificate: tp.nodeDeps.genesis.GetCertificate(),
+	genesisBlock := &types.Block{
+		Header: &types.Header{
+			SystemID:   tp.nodeDeps.genesis.SystemDescriptionRecord.SystemIdentifier,
+			ProposerID: "genesis",
+		},
+		Transactions:       []*types.TransactionRecord{},
+		UnicityCertificate: tp.nodeDeps.genesis.Certificate,
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
@@ -539,8 +540,8 @@ func TestNode_RecoverySimulateStorageFailsOnRecovery(t *testing.T) {
 		From:     req.ID,
 		Protocol: network.ProtocolLedgerReplicationResp,
 		Message: &replication.LedgerReplicationResponse{
-			Status: replication.LedgerReplicationResponse_OK,
-			Blocks: []*block.Block{newBlock2},
+			Status: replication.Ok,
+			Blocks: []*types.Block{newBlock2},
 		},
 	})
 	// wait for message to be processed
@@ -557,8 +558,8 @@ func TestNode_RecoverySimulateStorageFailsOnRecovery(t *testing.T) {
 		From:     req.ID,
 		Protocol: network.ProtocolLedgerReplicationResp,
 		Message: &replication.LedgerReplicationResponse{
-			Status: replication.LedgerReplicationResponse_OK,
-			Blocks: []*block.Block{newBlock3, newBlock4},
+			Status: replication.Ok,
+			Blocks: []*types.Block{newBlock3, newBlock4},
 		},
 	})
 	// wait for message to be processed
@@ -577,8 +578,8 @@ func TestNode_RecoverySimulateStorageFailsOnRecovery(t *testing.T) {
 		From:     req.ID,
 		Protocol: network.ProtocolLedgerReplicationResp,
 		Message: &replication.LedgerReplicationResponse{
-			Status: replication.LedgerReplicationResponse_OK,
-			Blocks: []*block.Block{newBlock3, newBlock4},
+			Status: replication.Ok,
+			Blocks: []*types.Block{newBlock3, newBlock4},
 		},
 	})
 	// wait for message to be processed and expect recovery finished event
@@ -595,11 +596,13 @@ func TestNode_RecoverySimulateStorageFailsDuringBlockFinalizationOnUC(t *testing
 	// used to generate test blocks
 	system := &testtxsystem.CounterTxSystem{}
 	tp := SetupNewSingleNodePartition(t, &testtxsystem.CounterTxSystem{}, WithBlockStore(db))
-	genesisBlock := &block.Block{
-		SystemIdentifier:   tp.nodeDeps.genesis.SystemDescriptionRecord.SystemIdentifier,
-		NodeIdentifier:     "genesis",
-		Transactions:       []*txsystem.Transaction{},
-		UnicityCertificate: tp.nodeDeps.genesis.GetCertificate(),
+	genesisBlock := &types.Block{
+		Header: &types.Header{
+			SystemID:   tp.nodeDeps.genesis.SystemDescriptionRecord.SystemIdentifier,
+			ProposerID: "genesis",
+		},
+		Transactions:       []*types.TransactionRecord{},
+		UnicityCertificate: tp.nodeDeps.genesis.Certificate,
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
@@ -612,7 +615,7 @@ func TestNode_RecoverySimulateStorageFailsDuringBlockFinalizationOnUC(t *testing
 	newBlock2 := createNewBlockOutsideNode(t, tp, system, genesisBlock)
 	require.Len(t, newBlock2.Transactions, 1)
 	// submit transaction
-	require.NoError(t, tp.SubmitTx(newBlock2.Transactions[0]))
+	require.NoError(t, tp.SubmitTx(newBlock2.Transactions[0].TransactionOrder))
 	require.Eventually(t, func() bool {
 		events := tp.eh.GetEvents()
 		for _, e := range events {
@@ -652,8 +655,8 @@ func TestNode_RecoverySimulateStorageFailsDuringBlockFinalizationOnUC(t *testing
 		From:     req.ID,
 		Protocol: network.ProtocolLedgerReplicationResp,
 		Message: &replication.LedgerReplicationResponse{
-			Status: replication.LedgerReplicationResponse_OK,
-			Blocks: []*block.Block{newBlock2},
+			Status: replication.Ok,
+			Blocks: []*types.Block{newBlock2},
 		},
 	})
 	// wait for message to be processed and expect recovery finished event
@@ -670,11 +673,13 @@ func TestNode_CertificationRequestNotSentWhenProposalStoreFails(t *testing.T) {
 	// used to generate test blocks
 	system := &testtxsystem.CounterTxSystem{}
 	tp := SetupNewSingleNodePartition(t, &testtxsystem.CounterTxSystem{}, WithBlockStore(db))
-	genesisBlock := &block.Block{
-		SystemIdentifier:   tp.nodeDeps.genesis.SystemDescriptionRecord.SystemIdentifier,
-		NodeIdentifier:     "genesis",
-		Transactions:       []*txsystem.Transaction{},
-		UnicityCertificate: tp.nodeDeps.genesis.GetCertificate(),
+	genesisBlock := &types.Block{
+		Header: &types.Header{
+			SystemID:   tp.nodeDeps.genesis.SystemDescriptionRecord.SystemIdentifier,
+			ProposerID: "genesis",
+		},
+		Transactions:       []*types.TransactionRecord{},
+		UnicityCertificate: tp.nodeDeps.genesis.Certificate,
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
@@ -688,7 +693,7 @@ func TestNode_CertificationRequestNotSentWhenProposalStoreFails(t *testing.T) {
 	require.Len(t, newBlock2.Transactions, 1)
 	// mock error situation, every next write will fail with error
 	db.MockWriteError(fmt.Errorf("disk full"))
-	require.NoError(t, tp.SubmitTx(newBlock2.Transactions[0]))
+	require.NoError(t, tp.SubmitTx(newBlock2.Transactions[0].TransactionOrder))
 	require.Eventually(t, func() bool {
 		events := tp.eh.GetEvents()
 		for _, e := range events {
@@ -704,7 +709,7 @@ func TestNode_CertificationRequestNotSentWhenProposalStoreFails(t *testing.T) {
 	// no block certification request is sent
 	require.Len(t, tp.mockNet.SentMessages(network.ProtocolBlockCertification), 0)
 	// make no certification request is sent, proposal is not stored
-	var pr block.PendingBlockProposal
+	var pr pendingBlockProposal
 	found, err := db.Read(util.Uint32ToBytes(proposalKey), &pr)
 	require.NoError(t, err)
 	require.False(t, found)
@@ -722,8 +727,8 @@ func TestNode_CertificationRequestNotSentWhenProposalStoreFails(t *testing.T) {
 		From:     req.ID,
 		Protocol: network.ProtocolLedgerReplicationResp,
 		Message: &replication.LedgerReplicationResponse{
-			Status: replication.LedgerReplicationResponse_OK,
-			Blocks: []*block.Block{newBlock2},
+			Status: replication.Ok,
+			Blocks: []*types.Block{newBlock2},
 		},
 	})
 	// wait for message to be processed and expect recovery finished event
@@ -759,43 +764,43 @@ func TestNode_RecoverySendInvalidLedgerReplicationReplies(t *testing.T) {
 		From:     req.ID,
 		Protocol: network.ProtocolLedgerReplicationResp,
 		Message: &replication.LedgerReplicationResponse{
-			Status: replication.LedgerReplicationResponse_OK,
-			Blocks: []*block.Block{nil},
+			Status: replication.Ok,
+			Blocks: []*types.Block{nil},
 		},
 	})
 	require.Equal(t, recovering, tp.partition.status.Load())
-	illegalBlock := proto.Clone(newBlock2).(*block.Block)
-	illegalBlock.SystemIdentifier = []byte{0xFF, 0xFF, 0xFF, 0xFF}
+	illegalBlock := copyBlock(t, newBlock2)
+	illegalBlock.Header.SystemID = []byte{0xFF, 0xFF, 0xFF, 0xFF}
 	// send back the response with nil block
 	tp.mockNet.Receive(network.ReceivedMessage{
 		From:     req.ID,
 		Protocol: network.ProtocolLedgerReplicationResp,
 		Message: &replication.LedgerReplicationResponse{
-			Status: replication.LedgerReplicationResponse_OK,
-			Blocks: []*block.Block{illegalBlock},
+			Status: replication.Ok,
+			Blocks: []*types.Block{illegalBlock},
 		},
 	})
-	illegalBlock = proto.Clone(newBlock2).(*block.Block)
-	illegalBlock.SystemIdentifier = nil
+	illegalBlock = copyBlock(t, newBlock2)
+	illegalBlock.Header.SystemID = nil
 	// send back the response with nil block
 	tp.mockNet.Receive(network.ReceivedMessage{
 		From:     req.ID,
 		Protocol: network.ProtocolLedgerReplicationResp,
 		Message: &replication.LedgerReplicationResponse{
-			Status: replication.LedgerReplicationResponse_OK,
-			Blocks: []*block.Block{illegalBlock},
+			Status: replication.Ok,
+			Blocks: []*types.Block{illegalBlock},
 		},
 	})
 	require.Equal(t, recovering, tp.partition.status.Load())
-	illegalBlock = proto.Clone(newBlock2).(*block.Block)
+	illegalBlock = copyBlock(t, newBlock2)
 	illegalBlock.UnicityCertificate = nil
 	// send back the response with nil block
 	tp.mockNet.Receive(network.ReceivedMessage{
 		From:     req.ID,
 		Protocol: network.ProtocolLedgerReplicationResp,
 		Message: &replication.LedgerReplicationResponse{
-			Status: replication.LedgerReplicationResponse_OK,
-			Blocks: []*block.Block{illegalBlock},
+			Status: replication.Ok,
+			Blocks: []*types.Block{illegalBlock},
 		},
 	})
 	require.Equal(t, recovering, tp.partition.status.Load())
@@ -804,8 +809,8 @@ func TestNode_RecoverySendInvalidLedgerReplicationReplies(t *testing.T) {
 		From:     req.ID,
 		Protocol: network.ProtocolLedgerReplicationResp,
 		Message: &replication.LedgerReplicationResponse{
-			Status: replication.LedgerReplicationResponse_OK,
-			Blocks: []*block.Block{newBlock2, newBlock3, newBlock4},
+			Status: replication.Ok,
+			Blocks: []*types.Block{newBlock2, newBlock3, newBlock4},
 		},
 	})
 	// wait for message to be processed and expect recovery finished event
@@ -824,9 +829,9 @@ func TestNode_RespondToReplicationRequest(t *testing.T) {
 
 	// generate 4 blocks with 3 tx each (but only 2 blocks will be matched and sent)
 	for i := 0; i < 4; i++ {
-		require.NoError(t, tp.SubmitTx(moneytesttx.RandomBillTransfer(t)))
-		require.NoError(t, tp.SubmitTx(moneytesttx.RandomBillTransfer(t)))
-		require.NoError(t, tp.SubmitTx(moneytesttx.RandomBillTransfer(t)))
+		require.NoError(t, tp.SubmitTx(testtransaction.NewTransactionOrder(t)))
+		require.NoError(t, tp.SubmitTx(testtransaction.NewTransactionOrder(t)))
+		require.NoError(t, tp.SubmitTx(testtransaction.NewTransactionOrder(t)))
 		require.Eventually(t, func() bool {
 			count := 0
 			for _, e := range tp.eh.GetEvents() {
@@ -859,7 +864,7 @@ func TestNode_RespondToReplicationRequest(t *testing.T) {
 	resp := WaitNodeRequestReceived(t, tp, network.ProtocolLedgerReplicationResp)
 	require.NotNil(t, resp)
 	require.IsType(t, resp.Message, &replication.LedgerReplicationResponse{})
-	require.Equal(t, replication.LedgerReplicationResponse_OK, resp.Message.(*replication.LedgerReplicationResponse).Status)
+	require.Equal(t, replication.Ok, resp.Message.(*replication.LedgerReplicationResponse).Status)
 	require.Equal(t, tp.nodeDeps.peer.ID().String(), resp.ID.String())
 	require.Equal(t, 2, len(resp.Message.(*replication.LedgerReplicationResponse).Blocks))
 
@@ -880,7 +885,7 @@ func TestNode_RespondToReplicationRequest(t *testing.T) {
 	resp = WaitNodeRequestReceived(t, tp, network.ProtocolLedgerReplicationResp)
 	require.NotNil(t, resp)
 	require.IsType(t, resp.Message, &replication.LedgerReplicationResponse{})
-	require.Equal(t, replication.LedgerReplicationResponse_OK, resp.Message.(*replication.LedgerReplicationResponse).Status)
+	require.Equal(t, replication.Ok, resp.Message.(*replication.LedgerReplicationResponse).Status)
 	require.Equal(t, tp.nodeDeps.peer.ID().String(), resp.ID.String())
 	require.Equal(t, 1, len(resp.Message.(*replication.LedgerReplicationResponse).Blocks))
 }
@@ -893,9 +898,9 @@ func TestNode_RespondToInvalidReplicationRequest(t *testing.T) {
 
 	// generate 4 blocks with 3 tx each (but only 2 blocks will be matched and sent)
 	for i := 0; i < 4; i++ {
-		require.NoError(t, tp.SubmitTx(moneytesttx.RandomBillTransfer(t)))
-		require.NoError(t, tp.SubmitTx(moneytesttx.RandomBillTransfer(t)))
-		require.NoError(t, tp.SubmitTx(moneytesttx.RandomBillTransfer(t)))
+		require.NoError(t, tp.SubmitTx(testtransaction.NewTransactionOrder(t)))
+		require.NoError(t, tp.SubmitTx(testtransaction.NewTransactionOrder(t)))
+		require.NoError(t, tp.SubmitTx(testtransaction.NewTransactionOrder(t)))
 		require.Eventually(t, func() bool {
 			count := 0
 			for _, e := range tp.eh.GetEvents() {
@@ -927,7 +932,7 @@ func TestNode_RespondToInvalidReplicationRequest(t *testing.T) {
 	require.NotNil(t, resp)
 	require.IsType(t, resp.Message, &replication.LedgerReplicationResponse{})
 	msg := resp.Message.(*replication.LedgerReplicationResponse)
-	require.Equal(t, replication.LedgerReplicationResponse_BLOCKS_NOT_FOUND, msg.Status)
+	require.Equal(t, replication.BlocksNotFound, msg.Status)
 	require.Contains(t, msg.Message, "Node does not have block: 11, latest block: 5")
 	tp.mockNet.ResetSentMessages(network.ProtocolLedgerReplicationResp)
 	// system id is valid, but does not match
@@ -945,7 +950,7 @@ func TestNode_RespondToInvalidReplicationRequest(t *testing.T) {
 	require.NotNil(t, resp)
 	require.IsType(t, resp.Message, &replication.LedgerReplicationResponse{})
 	msg = resp.Message.(*replication.LedgerReplicationResponse)
-	require.Equal(t, replication.LedgerReplicationResponse_UNKNOWN_SYSTEM_IDENTIFIER, msg.Status)
+	require.Equal(t, replication.UnknownSystemIdentifier, msg.Status)
 	require.Contains(t, msg.Message, "Unknown system identifier: FFFFFFFF")
 	tp.mockNet.ResetSentMessages(network.ProtocolLedgerReplicationResp)
 	// cases where node does not even respond
@@ -979,24 +984,24 @@ func TestNode_RespondToInvalidReplicationRequest(t *testing.T) {
 	require.ErrorContains(t, tp.partition.handleLedgerReplicationRequest(req), "unknown node, signing public key for id foo not found")
 }
 
-func createNewBlockOutsideNode(t *testing.T, tp *SingleNodePartition, system *testtxsystem.CounterTxSystem, currentBlock *block.Block) *block.Block {
+func createNewBlockOutsideNode(t *testing.T, tp *SingleNodePartition, system *testtxsystem.CounterTxSystem, currentBlock *types.Block) *types.Block {
 	// simulate new block's state
 	system.BeginBlock(currentBlock.UnicityCertificate.InputRecord.RoundNumber + 1)
-	_ = system.Execute(nil)
+	_, _ = system.Execute(nil)
 	state, _ := system.EndBlock()
 	system.Commit()
 
 	// create new block
-	newBlock := proto.Clone(currentBlock).(*block.Block)
+	newBlock := copyBlock(t, currentBlock)
 	newBlock.UnicityCertificate.InputRecord.RoundNumber = currentBlock.UnicityCertificate.InputRecord.RoundNumber + 1
-	newBlock.PreviousBlockHash, _ = currentBlock.Hash(system, gocrypto.SHA256)
-	newBlock.Transactions = make([]*txsystem.Transaction, 1)
-	newBlock.Transactions[0] = moneytesttx.RandomBillTransfer(t)
+	newBlock.Header.PreviousBlockHash, _ = currentBlock.Hash(gocrypto.SHA256)
+	newBlock.Transactions = make([]*types.TransactionRecord, 1)
+	newBlock.Transactions[0] = testtransaction.NewTransactionRecord(t)
 
 	// send UC certifying new block
 	ir := newBlock.UnicityCertificate.InputRecord
 	ir.PreviousHash = ir.Hash
-	ir.BlockHash, _ = newBlock.Hash(system, gocrypto.SHA256)
+	ir.BlockHash, _ = newBlock.Hash(gocrypto.SHA256)
 	ir.Hash = state.Root()
 	ir.SummaryValue = state.Summary()
 
@@ -1006,5 +1011,13 @@ func createNewBlockOutsideNode(t *testing.T, tp *SingleNodePartition, system *te
 	)
 	require.NoError(t, err)
 	newBlock.UnicityCertificate = newUC
+	return newBlock
+}
+
+func copyBlock(t *testing.T, b *types.Block) *types.Block {
+	bytes, err := cbor.Marshal(b)
+	require.NoError(t, err)
+	newBlock := &types.Block{}
+	require.NoError(t, cbor.Unmarshal(bytes, newBlock))
 	return newBlock
 }

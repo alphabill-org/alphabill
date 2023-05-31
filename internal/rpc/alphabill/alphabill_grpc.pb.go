@@ -8,7 +8,6 @@ package alphabill
 
 import (
 	context "context"
-	txsystem "github.com/alphabill-org/alphabill/internal/txsystem"
 	grpc "google.golang.org/grpc"
 	codes "google.golang.org/grpc/codes"
 	status "google.golang.org/grpc/status"
@@ -24,7 +23,7 @@ const _ = grpc.SupportPackageIsVersion7
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type AlphabillServiceClient interface {
-	ProcessTransaction(ctx context.Context, in *txsystem.Transaction, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	ProcessTransaction(ctx context.Context, in *Transaction, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	GetBlock(ctx context.Context, in *GetBlockRequest, opts ...grpc.CallOption) (*GetBlockResponse, error)
 	GetBlocks(ctx context.Context, in *GetBlocksRequest, opts ...grpc.CallOption) (*GetBlocksResponse, error)
 	GetRoundNumber(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*GetRoundNumberResponse, error)
@@ -38,7 +37,7 @@ func NewAlphabillServiceClient(cc grpc.ClientConnInterface) AlphabillServiceClie
 	return &alphabillServiceClient{cc}
 }
 
-func (c *alphabillServiceClient) ProcessTransaction(ctx context.Context, in *txsystem.Transaction, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+func (c *alphabillServiceClient) ProcessTransaction(ctx context.Context, in *Transaction, opts ...grpc.CallOption) (*emptypb.Empty, error) {
 	out := new(emptypb.Empty)
 	err := c.cc.Invoke(ctx, "/abrpc.AlphabillService/ProcessTransaction", in, out, opts...)
 	if err != nil {
@@ -78,7 +77,7 @@ func (c *alphabillServiceClient) GetRoundNumber(ctx context.Context, in *emptypb
 // All implementations must embed UnimplementedAlphabillServiceServer
 // for forward compatibility
 type AlphabillServiceServer interface {
-	ProcessTransaction(context.Context, *txsystem.Transaction) (*emptypb.Empty, error)
+	ProcessTransaction(context.Context, *Transaction) (*emptypb.Empty, error)
 	GetBlock(context.Context, *GetBlockRequest) (*GetBlockResponse, error)
 	GetBlocks(context.Context, *GetBlocksRequest) (*GetBlocksResponse, error)
 	GetRoundNumber(context.Context, *emptypb.Empty) (*GetRoundNumberResponse, error)
@@ -89,7 +88,7 @@ type AlphabillServiceServer interface {
 type UnimplementedAlphabillServiceServer struct {
 }
 
-func (UnimplementedAlphabillServiceServer) ProcessTransaction(context.Context, *txsystem.Transaction) (*emptypb.Empty, error) {
+func (UnimplementedAlphabillServiceServer) ProcessTransaction(context.Context, *Transaction) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ProcessTransaction not implemented")
 }
 func (UnimplementedAlphabillServiceServer) GetBlock(context.Context, *GetBlockRequest) (*GetBlockResponse, error) {
@@ -115,7 +114,7 @@ func RegisterAlphabillServiceServer(s grpc.ServiceRegistrar, srv AlphabillServic
 }
 
 func _AlphabillService_ProcessTransaction_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(txsystem.Transaction)
+	in := new(Transaction)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
@@ -127,7 +126,7 @@ func _AlphabillService_ProcessTransaction_Handler(srv interface{}, ctx context.C
 		FullMethod: "/abrpc.AlphabillService/ProcessTransaction",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(AlphabillServiceServer).ProcessTransaction(ctx, req.(*txsystem.Transaction))
+		return srv.(AlphabillServiceServer).ProcessTransaction(ctx, req.(*Transaction))
 	}
 	return interceptor(ctx, in, info, handler)
 }

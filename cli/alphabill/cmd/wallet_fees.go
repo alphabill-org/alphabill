@@ -6,13 +6,10 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/alphabill-org/alphabill/internal/block"
-	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
 	ttxs "github.com/alphabill-org/alphabill/internal/txsystem/tokens"
 	"github.com/alphabill-org/alphabill/pkg/client"
 	"github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/alphabill-org/alphabill/pkg/wallet/account"
-	"github.com/alphabill-org/alphabill/pkg/wallet/backend/bp"
 	"github.com/alphabill-org/alphabill/pkg/wallet/fees"
 	"github.com/alphabill-org/alphabill/pkg/wallet/money"
 	moneyclient "github.com/alphabill-org/alphabill/pkg/wallet/money/backend/client"
@@ -199,9 +196,9 @@ func reclaimFeeCreditCmdExec(ctx context.Context, cmd *cobra.Command, config *wa
 }
 
 type FeeCreditManager interface {
-	GetFeeCreditBill(ctx context.Context, cmd fees.GetFeeCreditCmd) (*bp.Bill, error)
-	AddFeeCredit(ctx context.Context, cmd fees.AddFeeCmd) ([]*block.TxProof, error)
-	ReclaimFeeCredit(ctx context.Context, cmd fees.ReclaimFeeCmd) ([]*block.TxProof, error)
+	GetFeeCreditBill(ctx context.Context, cmd fees.GetFeeCreditCmd) (*wallet.Bill, error)
+	AddFeeCredit(ctx context.Context, cmd fees.AddFeeCmd) ([]*wallet.Proof, error)
+	ReclaimFeeCredit(ctx context.Context, cmd fees.ReclaimFeeCmd) ([]*wallet.Proof, error)
 }
 
 func listFees(ctx context.Context, accountNumber uint64, am account.Manager, c *cliConf, w FeeCreditManager) error {
@@ -246,8 +243,8 @@ func addFees(ctx context.Context, accountNumber uint64, amountString string, c *
 		return err
 	}
 	consoleWriter.Println("Successfully created", amountString, "fee credits on", c.partitionType, "partition.")
-	consoleWriter.Println("Paid", amountToString(proofs[0].Tx.ServerMetadata.Fee, 8), "fee for TransferFC transaction from wallet balance.")
-	consoleWriter.Println("Paid", amountToString(proofs[1].Tx.ServerMetadata.Fee, 8), "fee for addFC transaction from fee credit balance.")
+	consoleWriter.Println("Paid", amountToString(proofs[0].TxRecord.ServerMetadata.ActualFee, 8), "fee for TransferFC transaction from wallet balance.")
+	consoleWriter.Println("Paid", amountToString(proofs[1].TxRecord.ServerMetadata.ActualFee, 8), "fee for addFC transaction from fee credit balance.")
 	return nil
 }
 
@@ -259,8 +256,8 @@ func reclaimFees(ctx context.Context, accountNumber uint64, c *cliConf, w FeeCre
 		return err
 	}
 	consoleWriter.Println("Successfully reclaimed fee credits on", c.partitionType, "partition.")
-	consoleWriter.Println("Paid", amountToString(proofs[0].Tx.ServerMetadata.Fee, 8), "fee for closeFC transaction from fee credit balance.")
-	consoleWriter.Println("Paid", amountToString(proofs[1].Tx.ServerMetadata.Fee, 8), "fee for reclaimFC transaction from wallet balance.")
+	consoleWriter.Println("Paid", amountToString(proofs[0].TxRecord.ServerMetadata.ActualFee, 8), "fee for closeFC transaction from fee credit balance.")
+	consoleWriter.Println("Paid", amountToString(proofs[1].TxRecord.ServerMetadata.ActualFee, 8), "fee for reclaimFC transaction from wallet balance.")
 	return nil
 }
 
@@ -285,7 +282,7 @@ func (c *cliConf) getPartitionBackendURL() string {
 
 func getFeeCreditManager(c *cliConf, am account.Manager, genericWallet *wallet.Wallet, moneyClient *moneyclient.MoneyBackendClient) (FeeCreditManager, error) {
 	moneySystemID := []byte{0, 0, 0, 0}
-	moneyTxPublisher := money.NewTxPublisher(genericWallet, moneyClient, money.NewTxConverter(moneySystemID))
+	moneyTxPublisher := money.NewTxPublisher(genericWallet, moneyClient)
 	if c.partitionType == moneyType {
 		return fees.NewFeeManager(am, moneySystemID, moneyTxPublisher, moneyClient, moneySystemID, moneyTxPublisher, moneyClient), nil
 	} else if c.partitionType == tokenType {
@@ -298,15 +295,7 @@ func getFeeCreditManager(c *cliConf, am account.Manager, genericWallet *wallet.W
 			return nil, err
 		}
 		tokenBackendClient := tokenclient.New(*addr)
-
-		txs, err := ttxs.New(
-			ttxs.WithSystemIdentifier(ttxs.DefaultTokenTxSystemIdentifier),
-			ttxs.WithTrustBase(map[string]abcrypto.Verifier{"test": nil}),
-		)
-		if err != nil {
-			return nil, err
-		}
-		tokenTxPublisher := tokens.NewTxPublisher(tokenBackendClient, txs)
+		tokenTxPublisher := tokens.NewTxPublisher(tokenBackendClient)
 		return fees.NewFeeManager(am, moneySystemID, moneyTxPublisher, moneyClient, ttxs.DefaultTokenTxSystemIdentifier, tokenTxPublisher, tokenBackendClient), nil
 	} else {
 		panic("invalid \"partition\" flag value: " + c.partitionType)

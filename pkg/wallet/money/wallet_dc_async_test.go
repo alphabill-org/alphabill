@@ -4,13 +4,12 @@ import (
 	"context"
 	"testing"
 
+	"github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
 
-	"github.com/alphabill-org/alphabill/internal/block"
 	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/alphabill-org/alphabill/pkg/wallet/account"
-	"github.com/alphabill-org/alphabill/pkg/wallet/backend/bp"
 )
 
 func TestDcJobWithExistingDcBills(t *testing.T) {
@@ -31,10 +30,10 @@ func TestDcJobWithExistingDcBills(t *testing.T) {
 		balance:        3,
 		customBillList: billsList,
 		proofList:      proofList,
-		feeCreditBill: &bp.Bill{
+		feeCreditBill: &wallet.Bill{
 			Id:      k.PrivKeyHash,
 			Value:   100 * 1e8,
-			TxProof: &block.TxProof{},
+			TxProof: &wallet.Proof{},
 		},
 	}), am)
 	mockClient.SetMaxBlockNumber(100)
@@ -46,14 +45,14 @@ func TestDcJobWithExistingDcBills(t *testing.T) {
 	// then swap tx is broadcast
 	require.Len(t, mockClient.GetRecordedTransactions(), 1)
 	tx := mockClient.GetRecordedTransactions()[0]
-	txSwap := parseSwapTx(t, tx)
+	txAttr := parseSwapTx(t, tx)
 
 	// and verify each dc tx id = nonce = swap.id
-	require.Len(t, txSwap.DcTransfers, 2)
-	for i := 0; i < len(txSwap.DcTransfers); i++ {
-		dcTx := parseDcTx(t, txSwap.DcTransfers[i])
+	require.Len(t, txAttr.DcTransfers, 2)
+	for i := 0; i < len(txAttr.DcTransfers); i++ {
+		dcTx := parseDcTx(t, txAttr.DcTransfers[i].TransactionOrder)
 		require.EqualValues(t, nonce, dcTx.Nonce)
-		require.EqualValues(t, nonce, tx.UnitId)
+		require.EqualValues(t, nonce, tx.UnitID())
 	}
 }
 
@@ -73,10 +72,10 @@ func TestDcJobWithExistingDcAndNonDcBills(t *testing.T) {
 		balance:        3,
 		customBillList: billsList,
 		proofList:      proofList,
-		feeCreditBill: &bp.Bill{
+		feeCreditBill: &wallet.Bill{
 			Id:      k.PrivKeyHash,
 			Value:   100 * 1e8,
-			TxProof: &block.TxProof{},
+			TxProof: &wallet.Proof{},
 		},
 	}), am)
 	mockClient.SetMaxBlockNumber(100)
@@ -88,14 +87,14 @@ func TestDcJobWithExistingDcAndNonDcBills(t *testing.T) {
 	// then swap tx is sent for the timed out dc bill
 	require.Len(t, mockClient.GetRecordedTransactions(), 1)
 	tx := mockClient.GetRecordedTransactions()[0]
-	txSwap := parseSwapTx(t, tx)
+	txAttr := parseSwapTx(t, tx)
 
 	// and verify nonce = swap.id = dc tx id
-	require.Len(t, txSwap.DcTransfers, 1)
-	for i := 0; i < len(txSwap.DcTransfers); i++ {
-		dcTx := parseDcTx(t, txSwap.DcTransfers[i])
+	require.Len(t, txAttr.DcTransfers, 1)
+	for i := 0; i < len(txAttr.DcTransfers); i++ {
+		dcTx := parseDcTx(t, txAttr.DcTransfers[i].TransactionOrder)
 		require.EqualValues(t, nonce, dcTx.Nonce)
-		require.EqualValues(t, nonce, tx.UnitId)
+		require.EqualValues(t, nonce, tx.UnitID())
 	}
 }
 
@@ -116,10 +115,10 @@ func TestDcJobWithExistingNonDcBills(t *testing.T) {
 		balance:        3,
 		customBillList: billsList,
 		proofList:      proofList,
-		feeCreditBill: &bp.Bill{
+		feeCreditBill: &wallet.Bill{
 			Id:      k.PrivKeyHash,
 			Value:   100 * 1e8,
-			TxProof: &block.TxProof{},
+			TxProof: &wallet.Proof{},
 		}}))
 	mockClient.SetMaxBlockNumber(100)
 
@@ -150,10 +149,10 @@ func TestDcJobSendsSwapsIfDcBillTimeoutHasBeenReached(t *testing.T) {
 		balance:        3,
 		customBillList: billsList,
 		proofList:      proofList,
-		feeCreditBill: &bp.Bill{
+		feeCreditBill: &wallet.Bill{
 			Id:      k.PrivKeyHash,
 			Value:   100 * 1e8,
-			TxProof: &block.TxProof{},
+			TxProof: &wallet.Proof{},
 		},
 	}), am)
 
@@ -164,6 +163,7 @@ func TestDcJobSendsSwapsIfDcBillTimeoutHasBeenReached(t *testing.T) {
 	// then 2 swap txs must be broadcast
 	require.Len(t, mockClient.GetRecordedTransactions(), 1)
 	for _, tx := range mockClient.GetRecordedTransactions() {
-		require.NotNil(t, parseSwapTx(t, tx))
+		attr := parseSwapTx(t, tx)
+		require.NotNil(t, attr)
 	}
 }

@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/alphabill-org/alphabill/internal/block"
 	"github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/keyvaluedb"
 	"github.com/alphabill-org/alphabill/internal/keyvaluedb/memorydb"
@@ -16,6 +15,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/partition/event"
 	"github.com/alphabill-org/alphabill/internal/txbuffer"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
+	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/libp2p/go-libp2p/core/peerstore"
 	"github.com/multiformats/go-multiaddr"
@@ -214,12 +214,14 @@ func (c *configuration) initMissingDefaults(peer *network.Peer) error {
 	return nil
 }
 
-func (c *configuration) genesisBlock() *block.Block {
-	return &block.Block{
-		SystemIdentifier:   c.genesis.SystemDescriptionRecord.SystemIdentifier,
-		NodeIdentifier:     "genesis",
-		Transactions:       []*txsystem.Transaction{},
-		UnicityCertificate: c.genesis.GetCertificate(),
+func (c *configuration) genesisBlock() *types.Block {
+	return &types.Block{
+		Header: &types.Header{
+			SystemID:   c.genesis.SystemDescriptionRecord.SystemIdentifier,
+			ProposerID: "genesis",
+		},
+		Transactions:       []*types.TransactionRecord{},
+		UnicityCertificate: c.genesis.Certificate,
 	}
 }
 
@@ -228,7 +230,7 @@ func (c *configuration) isGenesisValid(txs txsystem.TransactionSystem) error {
 		logger.Warning("Invalid partition genesis file: %v", err)
 		return fmt.Errorf("invalid partition genesis file, %w", err)
 	}
-	state, err := txs.State()
+	state, err := txs.StateSummary()
 	if err != nil {
 		return err
 	}

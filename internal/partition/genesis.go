@@ -4,14 +4,13 @@ import (
 	gocrypto "crypto"
 	"errors"
 
-	"github.com/alphabill-org/alphabill/internal/certificates"
 	"github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/certification"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 	pg "github.com/alphabill-org/alphabill/internal/partition/genesis"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
+	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/libp2p/go-libp2p/core/peer"
-	"google.golang.org/protobuf/types/known/anypb"
 )
 
 var ErrSignerIsNil = errors.New("signer is nil")
@@ -26,7 +25,7 @@ type (
 		signer                crypto.Signer
 		encryptionPubKeyBytes []byte
 		t2Timeout             uint32
-		params                *anypb.Any
+		params                []byte
 	}
 
 	GenesisOption func(c *genesisConf)
@@ -84,7 +83,7 @@ func WithT2Timeout(t2Timeout uint32) GenesisOption {
 	}
 }
 
-func WithParams(params *anypb.Any) GenesisOption {
+func WithParams(params []byte) GenesisOption {
 	return func(c *genesisConf) {
 		c.params = params
 	}
@@ -120,7 +119,7 @@ func NewNodeGenesis(txSystem txsystem.TransactionSystem, opts ...GenesisOption) 
 	}
 
 	// create the first round of the tx system
-	state, err := txSystem.State()
+	state, err := txSystem.StateSummary()
 	if err != nil {
 		return nil, err
 	}
@@ -134,7 +133,7 @@ func NewNodeGenesis(txSystem txsystem.TransactionSystem, opts ...GenesisOption) 
 	blockCertificationRequest := &certification.BlockCertificationRequest{
 		SystemIdentifier: c.systemIdentifier,
 		NodeIdentifier:   id,
-		InputRecord: &certificates.InputRecord{
+		InputRecord: &types.InputRecord{
 			PreviousHash: zeroHash, // extend zero hash
 			Hash:         hash,
 			BlockHash:    zeroHash, // first block's hash is zero

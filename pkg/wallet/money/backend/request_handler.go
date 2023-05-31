@@ -10,16 +10,14 @@ import (
 	"sort"
 	"strconv"
 
-	"github.com/alphabill-org/alphabill/internal/txsystem"
-	"github.com/alphabill-org/alphabill/pkg/wallet/backend/bp"
-	_ "github.com/alphabill-org/alphabill/pkg/wallet/money/backend/docs"
-	"github.com/alphabill-org/alphabill/pkg/wallet/log"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
 	httpSwagger "github.com/swaggo/http-swagger"
-	"google.golang.org/protobuf/encoding/protojson"
-	"google.golang.org/protobuf/proto"
+
+	"github.com/alphabill-org/alphabill/pkg/wallet"
+	"github.com/alphabill-org/alphabill/pkg/wallet/log"
+	_ "github.com/alphabill-org/alphabill/pkg/wallet/money/backend/docs"
 )
 
 const (
@@ -142,10 +140,10 @@ func (s *RequestHandler) listBillsFunc(w http.ResponseWriter, r *http.Request) {
 	if offset > len(bills) {
 		offset = len(bills)
 	}
-	if offset + limit > len(bills) {
+	if offset+limit > len(bills) {
 		limit = len(bills) - offset
 	} else {
-		setLinkHeader(r.URL, w, offset + limit)
+		setLinkHeader(r.URL, w, offset+limit)
 	}
 	res := newListBillsResponse(bills, limit, offset)
 	writeAsJson(w, res)
@@ -223,7 +221,7 @@ func (s *RequestHandler) getProofFunc(w http.ResponseWriter, r *http.Request) {
 		writeAsJson(w, ErrorResponse{Message: "bill does not exist"})
 		return
 	}
-	writeAsProtoJson(w, bill.toProtoBills())
+	writeAsJson(w, bill.toProtoBills())
 }
 
 func (s *RequestHandler) handlePubKeyNotFoundError(w http.ResponseWriter, err error) {
@@ -235,18 +233,18 @@ func (s *RequestHandler) handlePubKeyNotFoundError(w http.ResponseWriter, err er
 	}
 }
 
-func (s *RequestHandler) readBillsProto(r *http.Request) (*bp.Bills, error) {
-	b, err := io.ReadAll(r.Body)
-	if err != nil {
-		return nil, err
-	}
-	req := &bp.Bills{}
-	err = protojson.Unmarshal(b, req)
-	if err != nil {
-		return nil, err
-	}
-	return req, nil
-}
+//func (s *RequestHandler) readBillsProto(r *http.Request) (*bp.Bills, error) {
+//	b, err := io.ReadAll(r.Body)
+//	if err != nil {
+//		return nil, err
+//	}
+//	req := &bp.Bills{}
+//	err = protojson.Unmarshal(b, req)
+//	if err != nil {
+//		return nil, err
+//	}
+//	return req, nil
+//}
 
 // @Summary Money partition's latest block number
 // @Id 4
@@ -295,10 +293,10 @@ func (s *RequestHandler) getFeeCreditBillFunc(w http.ResponseWriter, r *http.Req
 		writeAsJson(w, ErrorResponse{Message: "fee credit bill does not exist"})
 		return
 	}
-	writeAsProtoJson(w, fcb.toProto())
+	writeAsJson(w, fcb.toProto())
 }
 
-// @Summary Forward transactions to partiton node(s)
+// @Summary Forward transactions to partition node(s)
 // @Id 6
 // @version 1.0
 // @produce application/json
@@ -328,8 +326,8 @@ func (s *RequestHandler) postTransactions(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	txs := &txsystem.Transactions{}
-	if err = protojson.Unmarshal(buf, txs); err != nil {
+	txs := &wallet.Transactions{}
+	if err = json.Unmarshal(buf, txs); err != nil {
 		log.Debug("failed to decode request body: ", err)
 		w.WriteHeader(http.StatusBadRequest)
 		writeAsJson(w, ErrorResponse{
@@ -337,7 +335,7 @@ func (s *RequestHandler) postTransactions(w http.ResponseWriter, r *http.Request
 		})
 		return
 	}
-	if len(txs.GetTransactions()) == 0 {
+	if len(txs.Transactions) == 0 {
 		log.Debug("request body contained no transactions to process")
 		w.WriteHeader(http.StatusBadRequest)
 		writeAsJson(w, ErrorResponse{
@@ -346,7 +344,7 @@ func (s *RequestHandler) postTransactions(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	if errs := s.Service.SendTransactions(r.Context(), txs.GetTransactions()); len(errs) > 0 {
+	if errs := s.Service.SendTransactions(r.Context(), txs.Transactions); len(errs) > 0 {
 		w.WriteHeader(http.StatusInternalServerError)
 		writeAsJson(w, errs)
 		return
@@ -389,19 +387,19 @@ func writeAsJson(w http.ResponseWriter, res interface{}) {
 	}
 }
 
-func writeAsProtoJson(w http.ResponseWriter, res proto.Message) {
-	w.Header().Set("Content-Type", "application/json")
-	bytes, err := protojson.MarshalOptions{EmitUnpopulated: true}.Marshal(res)
-	if err != nil {
-		log.Error("error encoding response to proto json: ", err)
-		w.WriteHeader(http.StatusInternalServerError)
-		return
-	}
-	_, err = w.Write(bytes)
-	if err != nil {
-		log.Error("error writing proto json to response: ", err)
-	}
-}
+//func writeAsProtoJson(w http.ResponseWriter, res interface{}) {
+//	w.Header().Set("Content-Type", "application/json")
+//	bytes, err := protojson.MarshalOptions{EmitUnpopulated: true}.Marshal(res)
+//	if err != nil {
+//		log.Error("error encoding response to proto json: ", err)
+//		w.WriteHeader(http.StatusInternalServerError)
+//		return
+//	}
+//	_, err = w.Write(bytes)
+//	if err != nil {
+//		log.Error("error writing proto json to response: ", err)
+//	}
+//}
 
 func parsePubKeyQueryParam(r *http.Request) ([]byte, error) {
 	return parsePubKey(r.URL.Query().Get("pubkey"))
@@ -480,8 +478,8 @@ func toBillVMList(bills []*Bill) []*ListBillVM {
 	return billVMs
 }
 
-func (b *ListBillVM) ToProto() *bp.Bill {
-	return &bp.Bill{
+func (b *ListBillVM) ToProto() *wallet.Bill {
+	return &wallet.Bill{
 		Id:       b.Id,
 		Value:    b.Value,
 		TxHash:   b.TxHash,

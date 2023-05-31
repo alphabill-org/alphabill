@@ -2,9 +2,8 @@ package mt
 
 import (
 	"crypto"
+	"errors"
 	"fmt"
-
-	"github.com/alphabill-org/alphabill/internal/errors"
 )
 
 var ErrNilData = errors.New("merkle tree input data is nil")
@@ -39,7 +38,7 @@ type (
 )
 
 // New creates a new canonical Merkle Tree.
-func New(hashAlgorithm crypto.Hash, data []Data) (*MerkleTree, error) {
+func New[T Data](hashAlgorithm crypto.Hash, data []T) (*MerkleTree, error) {
 	if data == nil {
 		return nil, ErrNilData
 	}
@@ -138,7 +137,7 @@ func (s *MerkleTree) output(node *node, prefix string, isTail bool, str *string)
 	}
 }
 
-func createMerkleTree(data []Data, hashAlgorithm crypto.Hash) *node {
+func createMerkleTree[T Data](data []T, hashAlgorithm crypto.Hash) *node {
 	if len(data) == 0 {
 		return &node{hash: make([]byte, hashAlgorithm.Size())}
 	}

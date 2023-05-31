@@ -33,8 +33,7 @@ func TestVerifyPredicates(t *testing.T) {
 			name:       "one predicate, no signatures",
 			predicates: []Predicate{script.PredicateAlwaysFalse()},
 			signatures: [][]byte{},
-			err:        "Number of signatures (0) not equal to number of parent predicates (1)",
-			//err:        "script execution result yielded false",
+			err:        "number of signatures (0) not equal to number of parent predicates (1)",
 		},
 		{
 			name:       "one predicate, one empty signature",

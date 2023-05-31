@@ -120,5 +120,5 @@ func TestTokensGenesis_WithSystemIdentifier(t *testing.T) {
 
 	pn, err := util.ReadJsonFile(nodeGenesisFile, &genesis.PartitionNode{})
 	require.NoError(t, err)
-	require.Equal(t, []byte{1, 1, 1, 1}, pn.BlockCertificationRequest.SystemIdentifier)
+	require.EqualValues(t, []byte{1, 1, 1, 1}, pn.BlockCertificationRequest.SystemIdentifier)
 }

@@ -7,7 +7,7 @@ import (
 
 	"github.com/alphabill-org/alphabill/internal/errors"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
-	"github.com/alphabill-org/alphabill/pkg/wallet/backend/bp"
+	"github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/alphabill-org/alphabill/pkg/wallet/money/backend"
 	"github.com/alphabill-org/alphabill/pkg/wallet/money/backend/client"
 	"github.com/ethereum/go-ethereum/common/hexutil"
@@ -204,7 +204,7 @@ func execExportCmd(cmd *cobra.Command, config *walletConfig) error {
 		return err
 	}
 
-	var bills []*bp.Bill
+	var bills []*wallet.Bill
 	for _, b := range billsList.Bills {
 		proof, err := restClient.GetProof(b.Id)
 		if err != nil {
@@ -223,7 +223,7 @@ func execExportCmd(cmd *cobra.Command, config *walletConfig) error {
 
 // writeBillsToFile writes bill(s) to given directory.
 // Creates outputDir if it does not already exist. Returns output file.
-func writeBillsToFile(outputDir string, bills ...*bp.Bill) (string, error) {
+func writeBillsToFile(outputDir string, bills ...*wallet.Bill) (string, error) {
 	outputFile, err := getOutputFile(outputDir, bills)
 	if err != nil {
 		return "", err
@@ -232,7 +232,7 @@ func writeBillsToFile(outputDir string, bills ...*bp.Bill) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	err = bp.WriteBillsFile(outputFile, &bp.Bills{Bills: bills})
+	err = wallet.WriteBillsFile(outputFile, &wallet.Bills{Bills: bills})
 	if err != nil {
 		return "", err
 	}
@@ -240,12 +240,12 @@ func writeBillsToFile(outputDir string, bills ...*bp.Bill) (string, error) {
 }
 
 // getOutputFile returns filename either bill-<bill-id-hex>.json or bills.json
-func getOutputFile(outputDir string, bills []*bp.Bill) (string, error) {
+func getOutputFile(outputDir string, bills []*wallet.Bill) (string, error) {
 	switch len(bills) {
 	case 0:
 		return "", errors.New("no bills to export")
 	case 1:
-		billId := bills[0].GetId()
+		billId := bills[0].GetID()
 		filename := "bill-" + hexutil.Encode(billId[:]) + ".json"
 		return filepath.Join(outputDir, filename), nil
 	default:

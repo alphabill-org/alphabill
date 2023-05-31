@@ -1,8 +1,6 @@
 syntax = "proto3";
 package abrpc;
 
-import "transaction.proto";
-import "block.proto";
 import "google/protobuf/empty.proto";
 
 option go_package = "github.com/alphabill-org/alphabill/internal/alphabill/alphabill;alphabill";
@@ -14,6 +12,10 @@ service AlphabillService {
   rpc GetRoundNumber(google.protobuf.Empty) returns (GetRoundNumberResponse) {};
 }
 
+message Transaction {
+  bytes order = 1;
+}
+
 message GetBlocksRequest {
   uint64 block_number = 1;
   uint64 block_count = 2;
@@ -22,7 +24,7 @@ message GetBlocksRequest {
 message GetBlocksResponse {
   reserved 1;
   uint64 max_block_number = 2;
-  repeated Block blocks = 3;
+  repeated bytes blocks = 3;
   uint64 max_round_number = 4;
   uint64 batch_max_block_number = 5;
 }
@@ -33,9 +35,10 @@ message GetBlockRequest {
 
 message GetBlockResponse {
   reserved 1;
-  Block block = 2;
+  bytes block = 2;
 }
 
 message GetRoundNumberResponse {
   uint64 round_number = 1;
 }
+

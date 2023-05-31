@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/alphabill-org/alphabill/internal/crypto"
+	"github.com/alphabill-org/alphabill/internal/network/protocol/certification"
 )
 
 var (
@@ -13,6 +14,23 @@ var (
 	ErrSigningPublicKeyIsInvalid    = errors.New("signing public key is invalid")
 	ErrEncryptionPublicKeyIsInvalid = errors.New("encryption public key is invalid")
 )
+
+type PartitionNode struct {
+	_                         struct{}                                 `cbor:",toarray"`
+	NodeIdentifier            string                                   `json:"node_identifier,omitempty"`
+	SigningPublicKey          []byte                                   `json:"signing_public_key,omitempty"`
+	EncryptionPublicKey       []byte                                   `json:"encryption_public_key,omitempty"`
+	BlockCertificationRequest *certification.BlockCertificationRequest `json:"block_certification_request,omitempty"`
+	T2Timeout                 uint32                                   `json:"t2timeout,omitempty"`
+	Params                    []byte                                   `json:"params,omitempty"`
+}
+
+type MoneyPartitionParams struct {
+	_                        struct{} `cbor:",toarray"`
+	InitialBillValue         uint64
+	DcMoneySupplyValue       uint64
+	SystemDescriptionRecords []*SystemDescriptionRecord
+}
 
 func (x *PartitionNode) IsValid() error {
 	if x == nil {

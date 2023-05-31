@@ -121,7 +121,7 @@ func TestFungibleTokens_Sending_Integration(t *testing.T) {
 	require.NoError(t, wlog.InitStdoutLogger(wlog.INFO))
 
 	network := NewAlphabillNetwork(t)
-	moneyPartition, err := network.abNetwork.GetNodePartition(defaultABMoneySystemIdentifier)
+	_, err := network.abNetwork.GetNodePartition(defaultABMoneySystemIdentifier)
 	require.NoError(t, err)
 	moneyBackendURL := network.moneyBackendURL
 	tokensPartition, err := network.abNetwork.GetNodePartition(tokentxs.DefaultTokenTxSystemIdentifier)
@@ -175,12 +175,11 @@ func TestFungibleTokens_Sending_Integration(t *testing.T) {
 	}, "amount='2'")
 
 	// send money to w2 to create fee credits
-	stdout := execWalletCmd(t, moneyPartition.Nodes[0].AddrGRPC, homedirW1, fmt.Sprintf("send --amount 100 --address %s -r %s", hexutil.Encode(w2key.PubKey), moneyBackendURL))
+	stdout := execWalletCmd(t, "", homedirW1, fmt.Sprintf("send --amount 100 --address %s -r %s", hexutil.Encode(w2key.PubKey), moneyBackendURL))
 	verifyStdout(t, stdout, "Successfully confirmed transaction(s)")
-	time.Sleep(2 * time.Second) // TODO confirm through backend instead of node
 
 	// create fee credit on w2
-	stdout, err = execFeesCommand(homedirW2, fmt.Sprintf("--partition token add --amount 50 -u %s -r %s -m %s", moneyPartition.Nodes[0].AddrGRPC, moneyBackendURL, backendUrl))
+	stdout, err = execFeesCommand(homedirW2, fmt.Sprintf("--partition token add --amount 50 -r %s -m %s", moneyBackendURL, backendUrl))
 	require.NoError(t, err)
 	verifyStdout(t, stdout, "Successfully created 50 fee credits on token partition.")
 

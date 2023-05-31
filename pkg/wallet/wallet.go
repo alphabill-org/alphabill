@@ -89,7 +89,7 @@ func (b *Builder) getOrCreateABClient() client.ABClient {
 
 // Sync synchronises wallet from the last known block number with the given alphabill node.
 // The function blocks forever or until alphabill connection is terminated.
-// Returns error if wallet is already synchronizing or any error occured during syncrohronization, otherwise returns nil.
+// Returns error if wallet is already synchronizing or any error occurred during synchronization, otherwise returns nil.
 func (w *Wallet) Sync(ctx context.Context, lastBlockNumber uint64) error {
 	return w.syncLedger(ctx, lastBlockNumber, true)
 }

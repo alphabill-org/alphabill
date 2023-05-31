@@ -209,7 +209,7 @@ func (s *RequestHandler) getProofFunc(w http.ResponseWriter, r *http.Request) {
 		}
 		return
 	}
-	bill, err := s.Service.GetBill(billID)
+	bill, err := s.getBill(billID)
 	if err != nil {
 		log.Error("error on GET /proof: ", err)
 		w.WriteHeader(http.StatusInternalServerError)
@@ -224,6 +224,24 @@ func (s *RequestHandler) getProofFunc(w http.ResponseWriter, r *http.Request) {
 	writeAsJson(w, bill.toProtoBills())
 }
 
+// getBill returns "normal" or "fee credit" bill for given id,
+// this is necessary to facilitate client side tx confirmation,
+// alternatively we could refactor how tx proofs are stored (separately from bills),
+// in that case we could fetch proofs directly and this hack would not be necessary
+func (s *RequestHandler) getBill(billID []byte) (*Bill, error) {
+	bill, err := s.Service.GetBill(billID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch bill: %w", err)
+	}
+	if bill == nil {
+		bill, err = s.Service.GetFeeCreditBill(billID)
+		if err != nil {
+			return nil, fmt.Errorf("failed to fetch bill: %w", err)
+		}
+	}
+	return bill, err
+}
+
 func (s *RequestHandler) handlePubKeyNotFoundError(w http.ResponseWriter, err error) {
 	w.WriteHeader(http.StatusBadRequest)
 	if errors.Is(err, errMissingPubKeyQueryParam) || errors.Is(err, errInvalidPubKeyLength) {
@@ -232,19 +250,6 @@ func (s *RequestHandler) handlePubKeyNotFoundError(w http.ResponseWriter, err er
 		writeAsJson(w, ErrorResponse{Message: "invalid pubkey format"})
 	}
 }
-
-//func (s *RequestHandler) readBillsProto(r *http.Request) (*bp.Bills, error) {
-//	b, err := io.ReadAll(r.Body)
-//	if err != nil {
-//		return nil, err
-//	}
-//	req := &bp.Bills{}
-//	err = protojson.Unmarshal(b, req)
-//	if err != nil {
-//		return nil, err
-//	}
-//	return req, nil
-//}
 
 // @Summary Money partition's latest block number
 // @Id 4
@@ -386,20 +391,6 @@ func writeAsJson(w http.ResponseWriter, res interface{}) {
 		w.WriteHeader(http.StatusInternalServerError)
 	}
 }
-
-//func writeAsProtoJson(w http.ResponseWriter, res interface{}) {
-//	w.Header().Set("Content-Type", "application/json")
-//	bytes, err := protojson.MarshalOptions{EmitUnpopulated: true}.Marshal(res)
-//	if err != nil {
-//		log.Error("error encoding response to proto json: ", err)
-//		w.WriteHeader(http.StatusInternalServerError)
-//		return
-//	}
-//	_, err = w.Write(bytes)
-//	if err != nil {
-//		log.Error("error writing proto json to response: ", err)
-//	}
-//}
 
 func parsePubKeyQueryParam(r *http.Request) ([]byte, error) {
 	return parsePubKey(r.URL.Query().Get("pubkey"))

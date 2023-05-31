@@ -6,7 +6,6 @@ import (
 	"io/ioutil"
 	"math/rand"
 	"testing"
-	"time"
 
 	"github.com/alphabill-org/alphabill/internal/partition/event"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
@@ -23,7 +22,7 @@ func TestNFTs_Integration(t *testing.T) {
 	require.NoError(t, wlog.InitStdoutLogger(wlog.INFO))
 
 	network := NewAlphabillNetwork(t)
-	moneyPartition, err := network.abNetwork.GetNodePartition(defaultABMoneySystemIdentifier)
+	_, err := network.abNetwork.GetNodePartition(defaultABMoneySystemIdentifier)
 	require.NoError(t, err)
 	moneyBackendURL := network.moneyBackendURL
 	tokenPartition, err := network.abNetwork.GetNodePartition(tokens.DefaultTokenTxSystemIdentifier)
@@ -41,12 +40,11 @@ func TestNFTs_Integration(t *testing.T) {
 	w2.Shutdown()
 
 	// send money to w1k2 to create fee credits
-	stdout := execWalletCmd(t, moneyPartition.Nodes[0].AddrGRPC, homedirW1, fmt.Sprintf("send --amount 100 --address %s -r %s", hexutil.Encode(w1key2.PubKey), moneyBackendURL))
+	stdout := execWalletCmd(t, "", homedirW1, fmt.Sprintf("send --amount 100 --address %s -r %s", hexutil.Encode(w1key2.PubKey), moneyBackendURL))
 	verifyStdout(t, stdout, "Successfully confirmed transaction(s)")
-	time.Sleep(2 * time.Second) // TODO confirm through backend instead of node
 
 	// create fee credit on w1k2
-	stdout, err = execFeesCommand(homedirW1, fmt.Sprintf("--partition token add -k 2 --amount 50 -u %s -r %s -m %s", moneyPartition.Nodes[0].AddrGRPC, moneyBackendURL, backendURL))
+	stdout, err = execFeesCommand(homedirW1, fmt.Sprintf("--partition token add -k 2 --amount 50 -r %s -m %s", moneyBackendURL, backendURL))
 	require.NoError(t, err)
 	verifyStdout(t, stdout, "Successfully created 50 fee credits on token partition.")
 
@@ -80,12 +78,11 @@ func TestNFTs_Integration(t *testing.T) {
 	verifyStdout(t, execTokensCmd(t, homedirW1, fmt.Sprintf("list-types non-fungible -r %s", backendURL)), "symbol=ABNFT (nft)")
 
 	// send money to w2 to create fee credits
-	stdout = execWalletCmd(t, moneyPartition.Nodes[0].AddrGRPC, homedirW1, fmt.Sprintf("send --amount 100 --address %s -r %s", hexutil.Encode(w2key.PubKey), moneyBackendURL))
+	stdout = execWalletCmd(t, "", homedirW1, fmt.Sprintf("send --amount 100 --address %s -r %s", hexutil.Encode(w2key.PubKey), moneyBackendURL))
 	verifyStdout(t, stdout, "Successfully confirmed transaction(s)")
-	time.Sleep(2 * time.Second) // TODO confirm through backend instead of node
 
 	// create fee credit on w2
-	stdout, err = execFeesCommand(homedirW2, fmt.Sprintf("--partition token add --amount 50 -u %s -r %s -m %s", moneyPartition.Nodes[0].AddrGRPC, moneyBackendURL, backendURL))
+	stdout, err = execFeesCommand(homedirW2, fmt.Sprintf("--partition token add --amount 50 -r %s -m %s", moneyBackendURL, backendURL))
 	require.NoError(t, err)
 	verifyStdout(t, stdout, "Successfully created 50 fee credits on token partition.")
 

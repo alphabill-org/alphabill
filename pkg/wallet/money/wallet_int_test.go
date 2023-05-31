@@ -229,7 +229,6 @@ func TestCollectDustInMultiAccountWallet(t *testing.T) {
 		AccountIndex: 0,
 	})
 	require.NoError(t, err)
-	time.Sleep(2 * time.Second) // TODO waitForConf should use backend and not block download for confirmations
 
 	// send two bills to account number 2 and 3
 	sendToAccount(t, w, 10*1e8, 0, 1)
@@ -243,7 +242,6 @@ func TestCollectDustInMultiAccountWallet(t *testing.T) {
 		AccountIndex: 1,
 	})
 	require.NoError(t, err)
-	time.Sleep(2 * time.Second) // TODO waitForConf should use backend and not block download for confirmations
 
 	// add fee credit to account 3
 	_, err = w.AddFeeCredit(ctx, fees.AddFeeCmd{
@@ -251,7 +249,6 @@ func TestCollectDustInMultiAccountWallet(t *testing.T) {
 		AccountIndex: 2,
 	})
 	require.NoError(t, err)
-	time.Sleep(2 * time.Second) // TODO waitForConf should use backend and not block download for confirmations
 
 	// start dust collection
 	err = w.CollectDust(ctx, 0)
@@ -336,7 +333,6 @@ func TestCollectDustInMultiAccountWalletWithKeyFlag(t *testing.T) {
 		AccountIndex: 0,
 	})
 	require.NoError(t, err)
-	time.Sleep(2 * time.Second) // TODO waitForConf should use backend and not block download for confirmations
 
 	// send two bills to account number 2 and 3
 	sendToAccount(t, w, 10*1e8, 0, 1)
@@ -350,7 +346,6 @@ func TestCollectDustInMultiAccountWalletWithKeyFlag(t *testing.T) {
 		AccountIndex: 2,
 	})
 	require.NoError(t, err)
-	time.Sleep(2 * time.Second) // TODO waitForConf should use backend and not block download for confirmations
 
 	// start dust collection only for account number 3
 	err = w.CollectDust(ctx, 3)

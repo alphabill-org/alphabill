@@ -9,21 +9,27 @@ import (
 	"github.com/alphabill-org/alphabill/internal/rma"
 	"github.com/alphabill-org/alphabill/internal/script"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
+	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/alphabill-org/alphabill/internal/wvm/wasmruntime"
 )
 
 func handlePDeployTx(ctx context.Context, state *rma.Tree, systemIdentifier []byte, hashAlgorithm crypto.Hash) txsystem.GenericExecuteFunc[*PDeployTransactionOrder] {
 	return func(txOrder *PDeployTransactionOrder, currentBlockNr uint64) error {
 		logger.Debug("Processing pdeploy tx %X", txOrder.UnitID().Bytes())
-
 		if err := validateDeployTx(txOrder, systemIdentifier); err != nil {
 			return fmt.Errorf("invalid program deploy tx, %w", err)
 		}
-		execCtx, err := NewExecCtxFormDeploy(txOrder, state, hashAlgorithm)
+		if _, err := state.GetUnit(txOrder.UnitID()); err == nil {
+			return fmt.Errorf("program unit with id '%X' already exists", util.Uint256ToBytes(txOrder.UnitID()))
+		}
+		if len(txOrder.attributes.Program) < 1 {
+			return fmt.Errorf("unit %X does not contain wasm code", util.Uint256ToBytes(txOrder.UnitID()))
+		}
+		execCtx, err := NewExecCtxFormDeploy(txOrder, hashAlgorithm)
 		if err != nil {
 			return fmt.Errorf("deloy program tx failed, %w", err)
 		}
-		if err = wasmruntime.CheckProgram(ctx, execCtx); err != nil {
+		if err = wasmruntime.CheckProgram(ctx, txOrder.attributes.Program, execCtx); err != nil {
 			return fmt.Errorf("program check failed, %w", err)
 		}
 		if err = state.AtomicUpdate(rma.AddItem(

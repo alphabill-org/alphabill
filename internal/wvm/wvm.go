@@ -18,7 +18,6 @@ type WasmVM struct {
 
 type ExecutionCtx interface {
 	GetProgramID() *uint256.Int
-	Wasm() []byte
 	GetInputData() []byte
 	GetParams() []byte
 	GetTxHash() []byte
@@ -29,7 +28,7 @@ type Storage interface {
 	Write(key []byte, file []byte) error
 }
 
-func New(ctx context.Context, execCtx ExecutionCtx, opts ...Option) (*WasmVM, error) {
+func New(ctx context.Context, wasmSrc []byte, execCtx ExecutionCtx, opts ...Option) (*WasmVM, error) {
 	options := defaultOptions()
 	for _, opt := range opts {
 		opt(options)
@@ -37,14 +36,14 @@ func New(ctx context.Context, execCtx ExecutionCtx, opts ...Option) (*WasmVM, er
 	if options.storage == nil {
 		return nil, fmt.Errorf("storage is nil")
 	}
-	if len(execCtx.Wasm()) < 1 {
+	if len(wasmSrc) < 1 {
 		return nil, fmt.Errorf("wasm src is missing")
 	}
 	rt := wazero.NewRuntimeWithConfig(ctx, options.cfg)
 	if _, err := buildHostModule(ctx, rt, execCtx, options.storage); err != nil {
 		return nil, fmt.Errorf("host module initialization failed, %w", err)
 	}
-	m, err := rt.Instantiate(ctx, execCtx.Wasm())
+	m, err := rt.Instantiate(ctx, wasmSrc)
 	if err != nil {
 		return nil, fmt.Errorf("failed to initiate VM with wasm source, %w", err)
 	}

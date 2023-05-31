@@ -8,6 +8,7 @@ import (
 
 	"github.com/alphabill-org/alphabill/internal/rma"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
+	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/alphabill-org/alphabill/internal/wvm/wasmruntime"
 )
 
@@ -17,7 +18,18 @@ func handlePCallTx(ctx context.Context, state *rma.Tree, systemIdentifier []byte
 		if err := validatePCallTx(txOrder, systemIdentifier); err != nil {
 			return fmt.Errorf("invalid pcall tx, %w", err)
 		}
-		execCtx, err := NewExecCtxFormPCall(txOrder, state, hashAlgorithm)
+		unit, err := state.GetUnit(txOrder.UnitID())
+		if err != nil {
+			return fmt.Errorf("failed to load program '%X': %w", util.Uint256ToBytes(txOrder.UnitID()), err)
+		}
+		prog, ok := unit.Data.(*Program)
+		if !ok {
+			return fmt.Errorf("unit %X does not contain program data type", util.Uint256ToBytes(txOrder.UnitID()))
+		}
+		if len(prog.Wasm()) < 1 {
+			return fmt.Errorf("unit %X does not contain wasm code", util.Uint256ToBytes(txOrder.UnitID()))
+		}
+		execCtx, err := NewExecCtxFormPCall(txOrder, prog.progParams, hashAlgorithm)
 		if err != nil {
 			return fmt.Errorf("program call tx failed, %w", err)
 		}
@@ -25,7 +37,7 @@ func handlePCallTx(ctx context.Context, state *rma.Tree, systemIdentifier []byte
 		if err != nil {
 			return fmt.Errorf("program call tx failed, %w", err)
 		}
-		return wasmruntime.Call(ctx, execCtx, txOrder.attributes.Function, s)
+		return wasmruntime.Call(ctx, prog.Wasm(), txOrder.attributes.Function, execCtx, s)
 	}
 }
 

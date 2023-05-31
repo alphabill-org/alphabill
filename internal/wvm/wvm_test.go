@@ -18,7 +18,6 @@ var emptyWasm []byte
 
 type TestExecCtx struct {
 	id     string
-	wasm   []byte
 	input  []byte
 	params []byte
 	txHash []byte
@@ -26,10 +25,6 @@ type TestExecCtx struct {
 
 func (t TestExecCtx) GetProgramID() *uint256.Int {
 	return uint256.NewInt(0).SetBytes([]byte(t.id))
-}
-
-func (t TestExecCtx) Wasm() []byte {
-	return t.wasm
 }
 
 func (t TestExecCtx) GetInputData() []byte {
@@ -51,12 +46,11 @@ func TestNew(t *testing.T) {
 	binary.LittleEndian.PutUint64(input, 1)
 	execCtx := &TestExecCtx{
 		id:     "counter",
-		wasm:   counterWasm,
 		input:  input,
 		params: make([]byte, 8),
 		txHash: make([]byte, 32),
 	}
-	wvm, err := New(ctx, execCtx, WithStorage(storage))
+	wvm, err := New(ctx, counterWasm, execCtx, WithStorage(storage))
 	require.NoError(t, err)
 	require.NotNil(t, wvm)
 }
@@ -67,12 +61,11 @@ func TestNew_StorageNil(t *testing.T) {
 	binary.LittleEndian.PutUint64(input, 1)
 	execCtx := &TestExecCtx{
 		id:     "counter",
-		wasm:   counterWasm,
 		input:  input,
 		params: make([]byte, 8),
 		txHash: make([]byte, 32),
 	}
-	wvm, err := New(ctx, execCtx, WithStorage(nil))
+	wvm, err := New(ctx, counterWasm, execCtx, WithStorage(nil))
 	require.ErrorContains(t, err, "storage is nil")
 	require.Nil(t, wvm)
 }
@@ -121,12 +114,11 @@ func TestWasmVM_CheckApiCallExists_OK(t *testing.T) {
 
 	execCtx := &TestExecCtx{
 		id:     "counter",
-		wasm:   counterWasm,
 		input:  input,
 		params: make([]byte, 8),
 		txHash: make([]byte, 32),
 	}
-	wvm, err := New(ctx, execCtx, WithStorage(storage))
+	wvm, err := New(ctx, counterWasm, execCtx, WithStorage(storage))
 	require.NoError(t, err)
 	require.NoError(t, wvm.CheckApiCallExists())
 }
@@ -140,12 +132,11 @@ func TestWasmVM_CheckApiCallExists_NOK(t *testing.T) {
 
 	execCtx := &TestExecCtx{
 		id:     "empty",
-		wasm:   emptyWasm,
 		input:  input,
 		params: make([]byte, 8),
 		txHash: make([]byte, 32),
 	}
-	wvm, err := New(ctx, execCtx, WithStorage(storage))
+	wvm, err := New(ctx, emptyWasm, execCtx, WithStorage(storage))
 	require.NoError(t, err)
 	require.ErrorContains(t, wvm.CheckApiCallExists(), "no exported functions")
 }
@@ -158,12 +149,11 @@ func TestWasmVM_GetApiFn(t *testing.T) {
 
 	execCtx := &TestExecCtx{
 		id:     "counter",
-		wasm:   counterWasm,
 		input:  input,
 		params: make([]byte, 8),
 		txHash: make([]byte, 32),
 	}
-	wvm, err := New(ctx, execCtx, WithStorage(storage))
+	wvm, err := New(ctx, counterWasm, execCtx, WithStorage(storage))
 	require.NoError(t, err)
 	require.NoError(t, wvm.CheckApiCallExists())
 	fn, err := wvm.GetApiFn("count")

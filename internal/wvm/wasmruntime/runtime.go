@@ -8,9 +8,9 @@ import (
 )
 
 // Call set-up wasm VM and call function
-func Call(ctx context.Context, execCtx wvm.ExecutionCtx, fName string, storage wvm.Storage) error {
+func Call(ctx context.Context, wasm []byte, fName string, execCtx wvm.ExecutionCtx, storage wvm.Storage) error {
 	// todo: AB-1006 automatic revert of changes when program execution fails,
-	vm, err := wvm.New(ctx, execCtx, wvm.WithStorage(storage))
+	vm, err := wvm.New(ctx, wasm, execCtx, wvm.WithStorage(storage))
 	if err != nil {
 		return fmt.Errorf("wasm program load failed, %w", err)
 	}
@@ -32,9 +32,9 @@ func Call(ctx context.Context, execCtx wvm.ExecutionCtx, fName string, storage w
 	return nil
 }
 
-func CheckProgram(ctx context.Context, execCtx wvm.ExecutionCtx) error {
+func CheckProgram(ctx context.Context, wasm []byte, execCtx wvm.ExecutionCtx) error {
 	// check wasm source, init wasm VM
-	vm, err := wvm.New(ctx, execCtx)
+	vm, err := wvm.New(ctx, wasm, execCtx)
 	if err != nil {
 		return fmt.Errorf("wasm vm init error, %w", err)
 	}

@@ -51,6 +51,7 @@ func (t TestExecutionCtx) GetTxHash() []byte {
 func TestCheckProgram(t *testing.T) {
 	type args struct {
 		ctx     context.Context
+		src     []byte
 		execCtx wvm.ExecutionCtx
 	}
 	tests := []struct {
@@ -73,9 +74,9 @@ func TestCheckProgram(t *testing.T) {
 			name: "wasm src is empty",
 			args: args{
 				ctx: context.Background(),
+				src: []byte{},
 				execCtx: TestExecutionCtx{
-					id:  "test",
-					src: []byte{},
+					id: "test",
 				},
 			},
 			wantErrStr: "wasm vm init error, wasm src is missing",
@@ -84,9 +85,9 @@ func TestCheckProgram(t *testing.T) {
 			name: "wasm src is invalid",
 			args: args{
 				ctx: context.Background(),
+				src: []byte{1, 2, 3, 4},
 				execCtx: TestExecutionCtx{
-					id:  "test",
-					src: []byte{1, 2, 3, 4},
+					id: "test",
 				},
 			},
 			wantErrStr: "wasm vm init error, failed to initiate VM with wasm source, invalid magic number",
@@ -95,9 +96,9 @@ func TestCheckProgram(t *testing.T) {
 			name: "empty wasm module, no public API calls",
 			args: args{
 				ctx: context.Background(),
+				src: loadWasmFile(t, "../testdata/empty.wasm"),
 				execCtx: TestExecutionCtx{
-					id:  "test",
-					src: loadWasmFile(t, "../testdata/empty.wasm"),
+					id: "test",
 				},
 			},
 			wantErrStr: "wasm program error, no exported functions",
@@ -106,9 +107,9 @@ func TestCheckProgram(t *testing.T) {
 			name: "missing host API call",
 			args: args{
 				ctx: context.Background(),
+				src: loadWasmFile(t, "../testdata/invalid_api.wasm"),
 				execCtx: TestExecutionCtx{
-					id:  "test",
-					src: loadWasmFile(t, "../testdata/invalid_api.wasm"),
+					id: "test",
 				},
 			},
 			wantErrStr: "wasm vm init error, failed to initiate VM with wasm source, \"get_test_missing\" is not exported in module \"ab\"",
@@ -117,9 +118,9 @@ func TestCheckProgram(t *testing.T) {
 			name: "missing host module ab_v0",
 			args: args{
 				ctx: context.Background(),
+				src: loadWasmFile(t, "../testdata/missing_module.wasm"),
 				execCtx: TestExecutionCtx{
-					id:  "test",
-					src: loadWasmFile(t, "../testdata/missing_module.wasm"),
+					id: "test",
 				},
 			},
 			wantErrStr: "wasm vm init error, failed to initiate VM with wasm source, module[ab_v0] not instantiated",
@@ -128,16 +129,16 @@ func TestCheckProgram(t *testing.T) {
 			name: "counter ok",
 			args: args{
 				ctx: context.Background(),
+				src: loadWasmFile(t, "../testdata/counter.wasm"),
 				execCtx: TestExecutionCtx{
-					id:  "counter",
-					src: loadWasmFile(t, "../testdata/counter.wasm"),
+					id: "counter",
 				},
 			},
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := CheckProgram(tt.args.ctx, tt.args.execCtx)
+			err := CheckProgram(tt.args.ctx, tt.args.src, tt.args.execCtx)
 			if tt.wantErrStr != "" {
 				require.ErrorContains(t, err, tt.wantErrStr)
 			} else {
@@ -150,8 +151,9 @@ func TestCheckProgram(t *testing.T) {
 func TestCall(t *testing.T) {
 	type args struct {
 		ctx     context.Context
-		execCtx wvm.ExecutionCtx
+		src     []byte
 		fName   string
+		execCtx wvm.ExecutionCtx
 		storage wvm.Storage
 	}
 	tests := []struct {
@@ -162,28 +164,28 @@ func TestCall(t *testing.T) {
 		{
 			name: "counter-ok",
 			args: args{
-				ctx: context.Background(),
+				ctx:   context.Background(),
+				src:   loadWasmFile(t, "../testdata/counter.wasm"),
+				fName: "count",
 				execCtx: TestExecutionCtx{
 					id:        "test",
-					src:       loadWasmFile(t, "../testdata/counter.wasm"),
 					inputData: []byte{1, 0, 0, 0, 0, 0, 0, 0},
 					params:    []byte{1, 0, 0, 0, 0, 0, 0, 0},
 				},
-				fName:   "count",
 				storage: wvm.NewMemoryStorage(),
 			},
 		},
 		{
 			name: "counter invalid input nil",
 			args: args{
-				ctx: context.Background(),
+				ctx:   context.Background(),
+				src:   loadWasmFile(t, "../testdata/counter.wasm"),
+				fName: "count",
 				execCtx: TestExecutionCtx{
 					id:        "test",
-					src:       loadWasmFile(t, "../testdata/counter.wasm"),
 					inputData: nil,
 					params:    []byte{1, 0, 0, 0, 0, 0, 0, 0},
 				},
-				fName:   "count",
 				storage: wvm.NewMemoryStorage(),
 			},
 			wantErrStr: "program call exited with error, program exited with error 4",
@@ -191,14 +193,14 @@ func TestCall(t *testing.T) {
 		{
 			name: "counter invalid input",
 			args: args{
-				ctx: context.Background(),
+				ctx:   context.Background(),
+				src:   loadWasmFile(t, "../testdata/counter.wasm"),
+				fName: "count",
 				execCtx: TestExecutionCtx{
 					id:        "test",
-					src:       loadWasmFile(t, "../testdata/counter.wasm"),
 					inputData: []byte{1},
 					params:    []byte{1, 0, 0, 0, 0, 0, 0, 0},
 				},
-				fName:   "count",
 				storage: wvm.NewMemoryStorage(),
 			},
 			wantErrStr: "program call exited with error, program exited with error 4",
@@ -206,14 +208,14 @@ func TestCall(t *testing.T) {
 		{
 			name: "counter invalid params nil",
 			args: args{
-				ctx: context.Background(),
+				ctx:   context.Background(),
+				src:   loadWasmFile(t, "../testdata/counter.wasm"),
+				fName: "count",
 				execCtx: TestExecutionCtx{
 					id:        "test",
-					src:       loadWasmFile(t, "../testdata/counter.wasm"),
 					inputData: []byte{1, 0, 0, 0, 0, 0, 0, 0},
 					params:    nil,
 				},
-				fName:   "count",
 				storage: wvm.NewMemoryStorage(),
 			},
 			wantErrStr: "program call exited with error, program exited with error 3",
@@ -221,14 +223,14 @@ func TestCall(t *testing.T) {
 		{
 			name: "counter params invalid",
 			args: args{
-				ctx: context.Background(),
+				ctx:   context.Background(),
+				src:   loadWasmFile(t, "../testdata/counter.wasm"),
+				fName: "count",
 				execCtx: TestExecutionCtx{
 					id:        "test",
-					src:       loadWasmFile(t, "../testdata/counter.wasm"),
 					inputData: []byte{1, 0, 0, 0, 0, 0, 0, 0},
 					params:    []byte{1},
 				},
-				fName:   "count",
 				storage: wvm.NewMemoryStorage(),
 			},
 			wantErrStr: "program call exited with error, program exited with error 3",
@@ -236,14 +238,14 @@ func TestCall(t *testing.T) {
 		{
 			name: "counter-invalid-function",
 			args: args{
-				ctx: context.Background(),
+				ctx:   context.Background(),
+				src:   loadWasmFile(t, "../testdata/counter.wasm"),
+				fName: "countt",
 				execCtx: TestExecutionCtx{
 					id:        "test",
-					src:       loadWasmFile(t, "../testdata/counter.wasm"),
 					inputData: []byte{1, 0, 0, 0, 0, 0, 0, 0},
 					params:    []byte{1, 0, 0, 0, 0, 0, 0, 0},
 				},
-				fName:   "countt",
 				storage: wvm.NewMemoryStorage(),
 			},
 			wantErrStr: "program call failed, function countt not found",
@@ -251,12 +253,12 @@ func TestCall(t *testing.T) {
 		{
 			name: "nok",
 			args: args{
-				ctx: context.Background(),
+				ctx:   context.Background(),
+				src:   loadWasmFile(t, "../testdata/empty.wasm"),
+				fName: "whatever",
 				execCtx: TestExecutionCtx{
-					id:  "test",
-					src: loadWasmFile(t, "../testdata/empty.wasm"),
+					id: "test",
 				},
-				fName:   "whatever",
 				storage: wvm.NewMemoryStorage(),
 			},
 			wantErrStr: "program call failed, function whatever not found",
@@ -265,9 +267,9 @@ func TestCall(t *testing.T) {
 			name: "invalid wasm",
 			args: args{
 				ctx: context.Background(),
+				src: []byte{3, 69, 7},
 				execCtx: TestExecutionCtx{
-					id:  "test",
-					src: []byte{3, 69, 7},
+					id: "test",
 				},
 				fName:   "whatever",
 				storage: wvm.NewMemoryStorage(),
@@ -277,7 +279,7 @@ func TestCall(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := Call(tt.args.ctx, tt.args.execCtx, tt.args.fName, tt.args.storage)
+			err := Call(tt.args.ctx, tt.args.src, tt.args.fName, tt.args.execCtx, tt.args.storage)
 			if tt.wantErrStr != "" {
 				require.ErrorContains(t, err, tt.wantErrStr)
 			} else {

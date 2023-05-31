@@ -8,7 +8,6 @@ import (
 
 	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/stretchr/testify/require"
-	"github.com/tetratelabs/wazero"
 )
 
 const stateID = 0xaabbccdd
@@ -17,23 +16,45 @@ const StateWriteError = -2
 const ParamsReadError = -3
 const InputParamsReadError = -4
 
-func Test_buildHostAPI_SetStateFromInput(t *testing.T) {
-	ctx := context.Background()
-	rt := wazero.NewRuntime(ctx)
+func initWvmHostTest(t *testing.T, ctx context.Context, eCtx ExecutionCtx, s Storage) *WasmVM {
 	wasm, err := os.ReadFile("testdata/host_test.wasm")
 	require.NoError(t, err)
-	defer func() { _ = rt.Close(ctx) }()
+	abHostModuleFn, err := BuildABHostModule(eCtx, s)
+	// init WVM
+	wvm, err := New(ctx, wasm, WithHostModule(abHostModuleFn))
+	require.NoError(t, err)
+	return wvm
+}
+
+func Test_BuildABHostModule_StorageNil(t *testing.T) {
+	execCtx := &TestExecCtx{
+		id:     "empty",
+		input:  make([]byte, 8),
+		params: make([]byte, 8),
+		txHash: make([]byte, 32),
+	}
+	abHostModuleFn, err := BuildABHostModule(execCtx, nil)
+	require.ErrorContains(t, err, "storage is nil")
+	require.Nil(t, abHostModuleFn)
+}
+
+func Test_BuildABHostModule_ExecutionCtxNil(t *testing.T) {
 	storage := NewMemoryStorage()
+	abHostModuleFn, err := BuildABHostModule(nil, storage)
+	require.ErrorContains(t, err, "execution context is nil")
+	require.Nil(t, abHostModuleFn)
+}
+
+func Test_buildHostAPI_SetStateFromInput(t *testing.T) {
+	ctx := context.Background()
 	eCtx := TestExecCtx{
 		input:  []byte{1, 0, 0, 0, 0, 0, 0, 0},
 		params: []byte{2, 0, 0, 0, 0, 0, 0, 0},
 	}
-	_, err = buildHostModule(ctx, rt, eCtx, storage)
+	storage := NewMemoryStorage()
+	wvm := initWvmHostTest(t, ctx, eCtx, storage)
+	fn, err := wvm.GetApiFn("set_state_input")
 	require.NoError(t, err)
-	hm, err := rt.Instantiate(ctx, wasm)
-	require.NoError(t, err)
-	fn := hm.ExportedFunction("set_state_input")
-	require.NotNil(t, fn)
 	res, err := fn.Call(ctx)
 	require.NoError(t, err)
 	require.Len(t, res, 1)
@@ -46,21 +67,14 @@ func Test_buildHostAPI_SetStateFromInput(t *testing.T) {
 
 func Test_buildHostAPI_SetStateFromInput_Nil(t *testing.T) {
 	ctx := context.Background()
-	rt := wazero.NewRuntime(ctx)
-	wasm, err := os.ReadFile("testdata/host_test.wasm")
-	require.NoError(t, err)
-	defer func() { _ = rt.Close(ctx) }()
 	storage := NewMemoryStorage()
 	eCtx := TestExecCtx{
 		input:  nil,
 		params: []byte{2, 0, 0, 0, 0, 0, 0, 0},
 	}
-	_, err = buildHostModule(ctx, rt, eCtx, storage)
+	wvm := initWvmHostTest(t, ctx, eCtx, storage)
+	fn, err := wvm.GetApiFn("set_state_input")
 	require.NoError(t, err)
-	hm, err := rt.Instantiate(ctx, wasm)
-	require.NoError(t, err)
-	fn := hm.ExportedFunction("set_state_input")
-	require.NotNil(t, fn)
 	res, err := fn.Call(ctx)
 	require.NoError(t, err)
 	require.Len(t, res, 1)
@@ -73,21 +87,14 @@ func Test_buildHostAPI_SetStateFromInput_Nil(t *testing.T) {
 
 func Test_buildHostAPI_SetStateFromInput_Empty(t *testing.T) {
 	ctx := context.Background()
-	rt := wazero.NewRuntime(ctx)
-	wasm, err := os.ReadFile("testdata/host_test.wasm")
-	require.NoError(t, err)
-	defer func() { _ = rt.Close(ctx) }()
 	storage := NewMemoryStorage()
 	eCtx := TestExecCtx{
 		input:  []byte{},
 		params: []byte{1, 0, 0, 0, 0, 0, 0, 0},
 	}
-	_, err = buildHostModule(ctx, rt, eCtx, storage)
+	wvm := initWvmHostTest(t, ctx, eCtx, storage)
+	fn, err := wvm.GetApiFn("set_state_input")
 	require.NoError(t, err)
-	hm, err := rt.Instantiate(ctx, wasm)
-	require.NoError(t, err)
-	fn := hm.ExportedFunction("set_state_input")
-	require.NotNil(t, fn)
 	res, err := fn.Call(ctx)
 	require.NoError(t, err)
 	require.Len(t, res, 1)
@@ -101,21 +108,14 @@ func Test_buildHostAPI_SetStateFromInput_Empty(t *testing.T) {
 
 func Test_buildHostAPI_SetStateFromInput_TooLong(t *testing.T) {
 	ctx := context.Background()
-	rt := wazero.NewRuntime(ctx)
-	wasm, err := os.ReadFile("testdata/host_test.wasm")
-	require.NoError(t, err)
-	defer func() { _ = rt.Close(ctx) }()
 	storage := NewMemoryStorage()
 	eCtx := TestExecCtx{
 		input:  []byte{1, 0, 0, 0, 0, 0, 0, 0, 1},
 		params: []byte{2, 0, 0, 0, 0, 0, 0, 0},
 	}
-	_, err = buildHostModule(ctx, rt, eCtx, storage)
+	wvm := initWvmHostTest(t, ctx, eCtx, storage)
+	fn, err := wvm.GetApiFn("set_state_input")
 	require.NoError(t, err)
-	hm, err := rt.Instantiate(ctx, wasm)
-	require.NoError(t, err)
-	fn := hm.ExportedFunction("set_state_input")
-	require.NotNil(t, fn)
 	res, err := fn.Call(ctx)
 	require.NoError(t, err)
 	require.Len(t, res, 1)
@@ -129,21 +129,14 @@ func Test_buildHostAPI_SetStateFromInput_TooLong(t *testing.T) {
 
 func Test_buildHostAPI_SetStateFromParams(t *testing.T) {
 	ctx := context.Background()
-	rt := wazero.NewRuntime(ctx)
-	wasm, err := os.ReadFile("testdata/host_test.wasm")
-	require.NoError(t, err)
-	defer func() { _ = rt.Close(ctx) }()
 	storage := NewMemoryStorage()
 	eCtx := TestExecCtx{
 		input:  []byte{1, 0, 0, 0, 0, 0, 0, 0},
 		params: []byte{2, 0, 0, 0, 0, 0, 0, 0},
 	}
-	_, err = buildHostModule(ctx, rt, eCtx, storage)
+	wvm := initWvmHostTest(t, ctx, eCtx, storage)
+	fn, err := wvm.GetApiFn("set_state_params")
 	require.NoError(t, err)
-	hm, err := rt.Instantiate(ctx, wasm)
-	require.NoError(t, err)
-	fn := hm.ExportedFunction("set_state_params")
-	require.NotNil(t, fn)
 	res, err := fn.Call(ctx)
 	require.NoError(t, err)
 	require.Len(t, res, 1)
@@ -156,21 +149,14 @@ func Test_buildHostAPI_SetStateFromParams(t *testing.T) {
 
 func Test_buildHostAPI_SetStateFromParams_TooBig(t *testing.T) {
 	ctx := context.Background()
-	rt := wazero.NewRuntime(ctx)
-	wasm, err := os.ReadFile("testdata/host_test.wasm")
-	require.NoError(t, err)
-	defer func() { _ = rt.Close(ctx) }()
-	storage := NewMemoryStorage()
 	eCtx := TestExecCtx{
 		input:  []byte{1, 0, 0, 0, 0, 0, 0, 0},
 		params: []byte{2, 0, 0, 0, 0, 0, 0, 0, 1},
 	}
-	_, err = buildHostModule(ctx, rt, eCtx, storage)
+	storage := NewMemoryStorage()
+	wvm := initWvmHostTest(t, ctx, eCtx, storage)
+	fn, err := wvm.GetApiFn("set_state_params")
 	require.NoError(t, err)
-	hm, err := rt.Instantiate(ctx, wasm)
-	require.NoError(t, err)
-	fn := hm.ExportedFunction("set_state_params")
-	require.NotNil(t, fn)
 	res, err := fn.Call(ctx)
 	require.NoError(t, err)
 	require.Len(t, res, 1)
@@ -181,20 +167,14 @@ func Test_buildHostAPI_SetStateFromParams_TooBig(t *testing.T) {
 
 func Test_buildHostAPI_SetStateFromParams_Nil(t *testing.T) {
 	ctx := context.Background()
-	rt := wazero.NewRuntime(ctx)
-	wasm, err := os.ReadFile("testdata/host_test.wasm")
-	require.NoError(t, err)
-	defer func() { _ = rt.Close(ctx) }()
 	storage := NewMemoryStorage()
 	eCtx := TestExecCtx{
 		input:  []byte{1, 0, 0, 0, 0, 0, 0, 0},
 		params: nil,
 	}
-	_, err = buildHostModule(ctx, rt, eCtx, storage)
+	wvm := initWvmHostTest(t, ctx, eCtx, storage)
+	fn, err := wvm.GetApiFn("set_state_params")
 	require.NoError(t, err)
-	hm, err := rt.Instantiate(ctx, wasm)
-	require.NoError(t, err)
-	fn := hm.ExportedFunction("set_state_params")
 	require.NotNil(t, fn)
 	res, err := fn.Call(ctx)
 	require.NoError(t, err)
@@ -204,22 +184,15 @@ func Test_buildHostAPI_SetStateFromParams_Nil(t *testing.T) {
 
 func Test_buildHostAPI_GetState(t *testing.T) {
 	ctx := context.Background()
-	rt := wazero.NewRuntime(ctx)
-	wasm, err := os.ReadFile("testdata/host_test.wasm")
-	require.NoError(t, err)
-	defer func() { _ = rt.Close(ctx) }()
 	storage := NewMemoryStorage()
 	eCtx := TestExecCtx{
 		input:  []byte{1, 0, 0, 0, 0, 0, 0, 0},
 		params: []byte{2, 0, 0, 0, 0, 0, 0, 0},
 	}
-	_, err = buildHostModule(ctx, rt, eCtx, storage)
-	require.NoError(t, err)
-	hm, err := rt.Instantiate(ctx, wasm)
-	require.NoError(t, err)
 	require.NoError(t, storage.Write(util.Uint32ToBytes(stateID), []byte{6, 0, 0, 0, 0, 0, 0, 0}))
-	fn := hm.ExportedFunction("get_state")
-	require.NotNil(t, fn)
+	wvm := initWvmHostTest(t, ctx, eCtx, storage)
+	fn, err := wvm.GetApiFn("get_state")
+	require.NoError(t, err)
 	res, err := fn.Call(ctx)
 	require.NoError(t, err)
 	require.Len(t, res, 1)
@@ -228,21 +201,14 @@ func Test_buildHostAPI_GetState(t *testing.T) {
 
 func Test_buildHostAPI_GetState_Missing(t *testing.T) {
 	ctx := context.Background()
-	rt := wazero.NewRuntime(ctx)
-	wasm, err := os.ReadFile("testdata/host_test.wasm")
-	require.NoError(t, err)
-	defer func() { _ = rt.Close(ctx) }()
 	storage := NewMemoryStorage()
 	eCtx := TestExecCtx{
 		input:  []byte{1, 0, 0, 0, 0, 0, 0, 0},
 		params: []byte{2, 0, 0, 0, 0, 0, 0, 0},
 	}
-	_, err = buildHostModule(ctx, rt, eCtx, storage)
+	wvm := initWvmHostTest(t, ctx, eCtx, storage)
+	fn, err := wvm.GetApiFn("get_state")
 	require.NoError(t, err)
-	hm, err := rt.Instantiate(ctx, wasm)
-	require.NoError(t, err)
-	fn := hm.ExportedFunction("get_state")
-	require.NotNil(t, fn)
 	res, err := fn.Call(ctx)
 	require.NoError(t, err)
 	require.Len(t, res, 1)
@@ -251,22 +217,15 @@ func Test_buildHostAPI_GetState_Missing(t *testing.T) {
 
 func Test_buildHostAPI_GetState_TooLong(t *testing.T) {
 	ctx := context.Background()
-	rt := wazero.NewRuntime(ctx)
-	wasm, err := os.ReadFile("testdata/host_test.wasm")
-	require.NoError(t, err)
-	defer func() { _ = rt.Close(ctx) }()
 	storage := NewMemoryStorage()
 	eCtx := TestExecCtx{
 		input:  []byte{1, 0, 0, 0, 0, 0, 0, 0},
 		params: []byte{2, 0, 0, 0, 0, 0, 0, 0},
 	}
-	_, err = buildHostModule(ctx, rt, eCtx, storage)
-	require.NoError(t, err)
-	hm, err := rt.Instantiate(ctx, wasm)
-	require.NoError(t, err)
 	require.NoError(t, storage.Write(util.Uint32ToBytes(stateID), []byte{6, 0, 0, 0, 0, 0, 0, 0, 1}))
-	fn := hm.ExportedFunction("get_state")
-	require.NotNil(t, fn)
+	wvm := initWvmHostTest(t, ctx, eCtx, storage)
+	fn, err := wvm.GetApiFn("get_state")
+	require.NoError(t, err)
 	res, err := fn.Call(ctx)
 	require.NoError(t, err)
 	require.Len(t, res, 1)
@@ -275,21 +234,14 @@ func Test_buildHostAPI_GetState_TooLong(t *testing.T) {
 
 func Test_buildHostAPI_SetStateFromParamsDBWriteFails(t *testing.T) {
 	ctx := context.Background()
-	rt := wazero.NewRuntime(ctx)
-	wasm, err := os.ReadFile("testdata/host_test.wasm")
-	require.NoError(t, err)
-	defer func() { _ = rt.Close(ctx) }()
 	storage := NewAlwaysFailsMemoryStorage()
 	eCtx := TestExecCtx{
 		input:  []byte{1, 0, 0, 0, 0, 0, 0, 0},
 		params: []byte{2, 0, 0, 0, 0, 0, 0, 0},
 	}
-	_, err = buildHostModule(ctx, rt, eCtx, storage)
+	wvm := initWvmHostTest(t, ctx, eCtx, storage)
+	fn, err := wvm.GetApiFn("set_state_params")
 	require.NoError(t, err)
-	hm, err := rt.Instantiate(ctx, wasm)
-	require.NoError(t, err)
-	fn := hm.ExportedFunction("set_state_params")
-	require.NotNil(t, fn)
 	res, err := fn.Call(ctx)
 	require.NoError(t, err)
 	require.Len(t, res, 1)

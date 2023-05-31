@@ -16,6 +16,9 @@ var counterWasm []byte
 //go:embed testdata/empty.wasm
 var emptyWasm []byte
 
+//go:embed testdata/add_one.wasm
+var addWasm []byte
+
 type TestExecCtx struct {
 	id     string
 	input  []byte
@@ -39,6 +42,13 @@ func (t TestExecCtx) GetTxHash() []byte {
 	return t.txHash
 }
 
+func TestNewNoHostModules(t *testing.T) {
+	ctx := context.Background()
+	wvm, err := New(ctx, addWasm)
+	require.NoError(t, err)
+	require.NotNil(t, wvm)
+}
+
 func TestNew(t *testing.T) {
 	ctx := context.Background()
 	storage := NewMemoryStorage()
@@ -50,24 +60,11 @@ func TestNew(t *testing.T) {
 		params: make([]byte, 8),
 		txHash: make([]byte, 32),
 	}
-	wvm, err := New(ctx, counterWasm, execCtx, WithStorage(storage))
+	abHostModuleFn, err := BuildABHostModule(execCtx, storage)
+	require.NoError(t, err)
+	wvm, err := New(ctx, counterWasm, WithHostModule(abHostModuleFn))
 	require.NoError(t, err)
 	require.NotNil(t, wvm)
-}
-
-func TestNew_StorageNil(t *testing.T) {
-	ctx := context.Background()
-	input := make([]byte, 8)
-	binary.LittleEndian.PutUint64(input, 1)
-	execCtx := &TestExecCtx{
-		id:     "counter",
-		input:  input,
-		params: make([]byte, 8),
-		txHash: make([]byte, 32),
-	}
-	wvm, err := New(ctx, counterWasm, execCtx, WithStorage(nil))
-	require.ErrorContains(t, err, "storage is nil")
-	require.Nil(t, wvm)
 }
 
 func TestValidateResult(t *testing.T) {
@@ -118,7 +115,9 @@ func TestWasmVM_CheckApiCallExists_OK(t *testing.T) {
 		params: make([]byte, 8),
 		txHash: make([]byte, 32),
 	}
-	wvm, err := New(ctx, counterWasm, execCtx, WithStorage(storage))
+	abHostModuleFn, err := BuildABHostModule(execCtx, storage)
+	require.NoError(t, err)
+	wvm, err := New(ctx, counterWasm, WithHostModule(abHostModuleFn))
 	require.NoError(t, err)
 	require.NoError(t, wvm.CheckApiCallExists())
 }
@@ -136,7 +135,9 @@ func TestWasmVM_CheckApiCallExists_NOK(t *testing.T) {
 		params: make([]byte, 8),
 		txHash: make([]byte, 32),
 	}
-	wvm, err := New(ctx, emptyWasm, execCtx, WithStorage(storage))
+	abHostModuleFn, err := BuildABHostModule(execCtx, storage)
+	require.NoError(t, err)
+	wvm, err := New(ctx, emptyWasm, WithHostModule(abHostModuleFn))
 	require.NoError(t, err)
 	require.ErrorContains(t, wvm.CheckApiCallExists(), "no exported functions")
 }
@@ -153,7 +154,9 @@ func TestWasmVM_GetApiFn(t *testing.T) {
 		params: make([]byte, 8),
 		txHash: make([]byte, 32),
 	}
-	wvm, err := New(ctx, counterWasm, execCtx, WithStorage(storage))
+	abHostModuleFn, err := BuildABHostModule(execCtx, storage)
+	require.NoError(t, err)
+	wvm, err := New(ctx, counterWasm, WithHostModule(abHostModuleFn))
 	require.NoError(t, err)
 	require.NoError(t, wvm.CheckApiCallExists())
 	fn, err := wvm.GetApiFn("count")

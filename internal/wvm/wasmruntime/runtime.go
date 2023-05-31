@@ -10,7 +10,11 @@ import (
 // Call set-up wasm VM and call function
 func Call(ctx context.Context, wasm []byte, fName string, execCtx wvm.ExecutionCtx, storage wvm.Storage) error {
 	// todo: AB-1006 automatic revert of changes when program execution fails,
-	vm, err := wvm.New(ctx, wasm, execCtx, wvm.WithStorage(storage))
+	abHostMod, err := wvm.BuildABHostModule(execCtx, storage)
+	if err != nil {
+		return fmt.Errorf("failed to intialize ab host module, %w", err)
+	}
+	vm, err := wvm.New(ctx, wasm, wvm.WithHostModule(abHostMod))
 	if err != nil {
 		return fmt.Errorf("wasm program load failed, %w", err)
 	}
@@ -34,7 +38,11 @@ func Call(ctx context.Context, wasm []byte, fName string, execCtx wvm.ExecutionC
 
 func CheckProgram(ctx context.Context, wasm []byte, execCtx wvm.ExecutionCtx) error {
 	// check wasm source, init wasm VM
-	vm, err := wvm.New(ctx, wasm, execCtx)
+	abHostMod, err := wvm.BuildABHostModule(execCtx, wvm.NewMemoryStorage())
+	if err != nil {
+		return fmt.Errorf("failed to intialize ab host module, %w", err)
+	}
+	vm, err := wvm.New(ctx, wasm, wvm.WithHostModule(abHostMod))
 	if err != nil {
 		return fmt.Errorf("wasm vm init error, %w", err)
 	}

@@ -9,7 +9,7 @@ import (
 
 func TestDefault(t *testing.T) {
 	options := defaultOptions()
-	require.NotNil(t, options.storage)
+	require.Nil(t, options.hostMod)
 }
 
 func TestOverrideWazeroCfg(t *testing.T) {
@@ -21,12 +21,18 @@ func TestOverrideWazeroCfg(t *testing.T) {
 	// There seems to be no good way to check configuration settings applied
 }
 
-func TestOverrideStorage(t *testing.T) {
+func TestAddHostModule(t *testing.T) {
 	// just to prove it can be done
-	var args = []Option{WithStorage(nil)}
+	eCtx := TestExecCtx{
+		input:  []byte{1, 0, 0, 0, 0, 0, 0, 0},
+		params: []byte{2, 0, 0, 0, 0, 0, 0, 0},
+	}
+	abHostModuleFn, err := BuildABHostModule(eCtx, NewMemoryStorage())
+	require.NoError(t, err)
+	var args = []Option{WithHostModule(abHostModuleFn)}
 	options := defaultOptions()
 	for _, arg := range args {
 		arg(options)
 	}
-	require.Nil(t, options.storage)
+	require.NotNil(t, options.hostMod)
 }

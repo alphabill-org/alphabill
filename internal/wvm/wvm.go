@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/holiman/uint256"
 	"github.com/tetratelabs/wazero"
 	"github.com/tetratelabs/wazero/api"
 )
@@ -16,32 +15,19 @@ type WasmVM struct {
 	mod     api.Module
 }
 
-type ExecutionCtx interface {
-	GetProgramID() *uint256.Int
-	GetInputData() []byte
-	GetParams() []byte
-	GetTxHash() []byte
-}
-
-type Storage interface {
-	Read(key []byte) ([]byte, error)
-	Write(key []byte, file []byte) error
-}
-
-func New(ctx context.Context, wasmSrc []byte, execCtx ExecutionCtx, opts ...Option) (*WasmVM, error) {
+func New(ctx context.Context, wasmSrc []byte, opts ...Option) (*WasmVM, error) {
 	options := defaultOptions()
 	for _, opt := range opts {
 		opt(options)
-	}
-	if options.storage == nil {
-		return nil, fmt.Errorf("storage is nil")
 	}
 	if len(wasmSrc) < 1 {
 		return nil, fmt.Errorf("wasm src is missing")
 	}
 	rt := wazero.NewRuntimeWithConfig(ctx, options.cfg)
-	if _, err := buildHostModule(ctx, rt, execCtx, options.storage); err != nil {
-		return nil, fmt.Errorf("host module initialization failed, %w", err)
+	if options.hostMod != nil {
+		if _, err := options.hostMod(ctx, rt); err != nil {
+			return nil, fmt.Errorf("host module initialization failed, %w", err)
+		}
 	}
 	m, err := rt.Instantiate(ctx, wasmSrc)
 	if err != nil {

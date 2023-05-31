@@ -2,8 +2,10 @@ package wvm
 
 import (
 	"context"
+	"errors"
 
 	"github.com/alphabill-org/alphabill/internal/util"
+	"github.com/holiman/uint256"
 	"github.com/tetratelabs/wazero"
 	"github.com/tetratelabs/wazero/api"
 )
@@ -16,13 +18,33 @@ const (
 	getInputParameters = "get_input_params"
 )
 
-func buildHostModule(ctx context.Context, rt wazero.Runtime, eCtx ExecutionCtx, storage Storage) (api.Module, error) {
-	return rt.NewHostModuleBuilder(abModule).
-		NewFunctionBuilder().WithGoModuleFunction(buildGetStateHostFn(ctx, storage), []api.ValueType{api.ValueTypeI32, api.ValueTypeI32, api.ValueTypeI32}, []api.ValueType{api.ValueTypeI32}).Export(getState).
-		NewFunctionBuilder().WithGoModuleFunction(buildSetStateHostFn(ctx, storage), []api.ValueType{api.ValueTypeI32, api.ValueTypeI32, api.ValueTypeI32}, []api.ValueType{api.ValueTypeI32}).Export(setState).
-		NewFunctionBuilder().WithGoModuleFunction(buildGetParamsHostFn(ctx, eCtx), []api.ValueType{api.ValueTypeI32, api.ValueTypeI32}, []api.ValueType{api.ValueTypeI32}).Export(getParams).
-		NewFunctionBuilder().WithGoModuleFunction(buildGetInputParametersFn(ctx, eCtx), []api.ValueType{api.ValueTypeI32, api.ValueTypeI32}, []api.ValueType{api.ValueTypeI32}).Export(getInputParameters).
-		Instantiate(ctx)
+type ExecutionCtx interface {
+	GetProgramID() *uint256.Int
+	GetInputData() []byte
+	GetParams() []byte
+	GetTxHash() []byte
+}
+
+type Storage interface {
+	Read(key []byte) ([]byte, error)
+	Write(key []byte, file []byte) error
+}
+
+func BuildABHostModule(eCtx ExecutionCtx, storage Storage) (HostModuleFn, error) {
+	if eCtx == nil {
+		return nil, errors.New("execution context is nil")
+	}
+	if storage == nil {
+		return nil, errors.New("storage is nil")
+	}
+	return func(ctx context.Context, rt wazero.Runtime) (api.Module, error) {
+		return rt.NewHostModuleBuilder(abModule).
+			NewFunctionBuilder().WithGoModuleFunction(buildGetStateHostFn(ctx, storage), []api.ValueType{api.ValueTypeI32, api.ValueTypeI32, api.ValueTypeI32}, []api.ValueType{api.ValueTypeI32}).Export(getState).
+			NewFunctionBuilder().WithGoModuleFunction(buildSetStateHostFn(ctx, storage), []api.ValueType{api.ValueTypeI32, api.ValueTypeI32, api.ValueTypeI32}, []api.ValueType{api.ValueTypeI32}).Export(setState).
+			NewFunctionBuilder().WithGoModuleFunction(buildGetParamsHostFn(ctx, eCtx), []api.ValueType{api.ValueTypeI32, api.ValueTypeI32}, []api.ValueType{api.ValueTypeI32}).Export(getParams).
+			NewFunctionBuilder().WithGoModuleFunction(buildGetInputParametersFn(ctx, eCtx), []api.ValueType{api.ValueTypeI32, api.ValueTypeI32}, []api.ValueType{api.ValueTypeI32}).Export(getInputParameters).
+			Instantiate(ctx)
+	}, nil
 }
 
 func buildGetStateHostFn(_ context.Context, storage Storage) api.GoModuleFunc {

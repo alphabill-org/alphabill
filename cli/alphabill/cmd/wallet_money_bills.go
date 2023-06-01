@@ -155,7 +155,7 @@ func execExportCmd(cmd *cobra.Command, config *walletConfig) error {
 	if err != nil {
 		return err
 	}
-	billId, err := cmd.Flags().GetBytesHex(billIdCmdName)
+	billID, err := cmd.Flags().GetBytesHex(billIdCmdName)
 	if err != nil {
 		return err
 	}
@@ -186,10 +186,13 @@ func execExportCmd(cmd *cobra.Command, config *walletConfig) error {
 		return err
 	}
 	// export bill using --bill-id if present
-	if len(billId) > 0 {
-		proof, err := restClient.GetProof(billId)
+	if len(billID) > 0 {
+		proof, err := restClient.GetProof(billID)
 		if err != nil {
 			return err
+		}
+		if proof == nil {
+			return fmt.Errorf("proof not found for bill 0x%X", billID)
 		}
 		outputFile, err := writeBillsToFile(outputPath, proof.Bills...)
 		if err != nil {
@@ -209,6 +212,9 @@ func execExportCmd(cmd *cobra.Command, config *walletConfig) error {
 		proof, err := restClient.GetProof(b.Id)
 		if err != nil {
 			return err
+		}
+		if proof == nil {
+			return fmt.Errorf("proof not found for bill 0x%X", billID)
 		}
 		bills = append(bills, proof.Bills[0])
 	}

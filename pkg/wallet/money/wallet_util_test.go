@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"strings"
 	"testing"
 
 	"github.com/alphabill-org/alphabill/internal/hash"
@@ -27,17 +28,18 @@ import (
 
 type (
 	backendMockReturnConf struct {
-		balance        uint64
-		blockHeight    uint64
-		billId         *uint256.Int
-		billValue      uint64
-		billTxHash     string
-		proofList      []string
-		customBillList string
-		customPath     string
-		customFullPath string
-		customResponse string
-		feeCreditBill  *wallet.Bill
+		balance                  uint64
+		blockHeight              uint64
+		billId                   *uint256.Int
+		billValue                uint64
+		billTxHash               string
+		proofList                []string
+		customBillList           string
+		customPath               string
+		customFullPath           string
+		customResponse           string
+		feeCreditBill            *wallet.Bill
+		postTransactionsResponse interface{}
 	}
 )
 
@@ -91,28 +93,37 @@ func mockBackendCalls(br *backendMockReturnConf) (*httptest.Server, *url.URL) {
 			w.WriteHeader(http.StatusOK)
 			w.Write([]byte(br.customResponse))
 		} else {
-			switch r.URL.Path {
-			case "/" + beclient.BalancePath:
+			path := r.URL.Path
+			switch {
+			case path == "/"+beclient.BalancePath:
 				w.WriteHeader(http.StatusOK)
 				w.Write([]byte(fmt.Sprintf(`{"balance": "%d"}`, br.balance)))
-			case "/" + beclient.RoundNumberPath:
+			case path == "/"+beclient.RoundNumberPath:
 				w.WriteHeader(http.StatusOK)
 				w.Write([]byte(fmt.Sprintf(`{"blockHeight": "%d"}`, br.blockHeight)))
-			case "/" + beclient.ProofPath:
+			case path == "/"+beclient.ProofPath:
 				w.WriteHeader(http.StatusOK)
 				w.Write([]byte(br.proofList[proofCount%len(br.proofList)]))
 				proofCount++
-			case "/" + beclient.ListBillsPath:
+			case path == "/"+beclient.ListBillsPath:
 				w.WriteHeader(http.StatusOK)
 				if br.customBillList != "" {
 					w.Write([]byte(br.customBillList))
 				} else {
 					w.Write([]byte(fmt.Sprintf(`{"total": 1, "bills": [{"id":"%s","value":"%d","txHash":"%s","isDcBill":false}]}`, toBillId(br.billId), br.billValue, br.billTxHash)))
 				}
-			case "/" + beclient.FeeCreditPath:
+			case path == "/"+beclient.FeeCreditPath:
 				w.WriteHeader(http.StatusOK)
 				fcb, _ := json.Marshal(br.feeCreditBill)
 				w.Write(fcb)
+			case strings.Contains(path, beclient.TransactionsPath):
+				if br.postTransactionsResponse == nil {
+					w.WriteHeader(http.StatusAccepted)
+				} else {
+					w.WriteHeader(http.StatusInternalServerError)
+					res, _ := json.Marshal(br.postTransactionsResponse)
+					w.Write(res)
+				}
 			default:
 				w.WriteHeader(http.StatusNotFound)
 			}
@@ -194,6 +205,7 @@ type backendAPIMock struct {
 	getProof           func(billId []byte) (*wallet.Bills, error)
 	getRoundNumber     func() (uint64, error)
 	fetchFeeCreditBill func(ctx context.Context, unitID []byte) (*wallet.Bill, error)
+	postTransactions   func(ctx context.Context, pubKey wallet.PubKey, txs *wallet.Transactions) error
 }
 
 func (b *backendAPIMock) GetBills(pubKey []byte) ([]*wallet.Bill, error) {
@@ -236,4 +248,19 @@ func (b *backendAPIMock) GetProof(billId []byte) (*wallet.Bills, error) {
 		return b.getProof(billId)
 	}
 	return nil, errors.New("getProof not implemented")
+}
+
+func (b *backendAPIMock) GetTxProof(_ context.Context, unitID wallet.UnitID, _ wallet.TxHash) (*wallet.Proof, error) {
+	proof, err := b.GetProof(unitID)
+	if err != nil {
+		return nil, err
+	}
+	return proof.Bills[0].TxProof, nil
+}
+
+func (b *backendAPIMock) PostTransactions(ctx context.Context, pubKey wallet.PubKey, txs *wallet.Transactions) error {
+	if b.postTransactions != nil {
+		return b.postTransactions(ctx, pubKey, txs)
+	}
+	return nil
 }

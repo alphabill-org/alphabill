@@ -141,7 +141,7 @@ func TestWalletBillsExportCmd_Error(t *testing.T) {
 
 	// verify exporting non-existent bill returns error
 	_, err := execBillsCommand(homedir, "export --bill-id=00 --alphabill-api-uri "+addr.Host)
-	require.ErrorContains(t, err, "bill does not exist")
+	require.ErrorContains(t, err, "proof not found for bill 0x00")
 }
 
 func TestWalletBillsExportCmd_BillIdFlag(t *testing.T) {

@@ -11,6 +11,7 @@ import (
 	"strconv"
 
 	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/fxamacker/cbor/v2"
 	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
 	httpSwagger "github.com/swaggo/http-swagger"
@@ -106,7 +107,7 @@ func (s *RequestHandler) Router() *mux.Router {
 // @Param limit query int false "limits how many bills are returned in response" default(100)
 // @Param offset query int false "response will include bills starting after offset" default(0)
 // @Success 200 {object} ListBillsResponse
-// @Failure 400 {object} backend.ErrorResponse
+// @Failure 400 {object} ErrorResponse
 // @Failure 500
 // @Router /list-bills [get]
 func (s *RequestHandler) listBillsFunc(w http.ResponseWriter, r *http.Request) {
@@ -155,7 +156,7 @@ func (s *RequestHandler) listBillsFunc(w http.ResponseWriter, r *http.Request) {
 // @produce application/json
 // @Param pubkey query string true "Public key prefixed with 0x"
 // @Success 200 {object} BalanceResponse
-// @Failure 400 {object} backend.ErrorResponse
+// @Failure 400 {object} ErrorResponse
 // @Failure 500
 // @Router /balance [get]
 func (s *RequestHandler) balanceFunc(w http.ResponseWriter, r *http.Request) {
@@ -192,9 +193,9 @@ func (s *RequestHandler) balanceFunc(w http.ResponseWriter, r *http.Request) {
 // @version 1.0
 // @produce application/json
 // @Param bill_id query string true "ID of the bill (hex)"
-// @Success 200 {object} bp.Bills
-// @Failure 400 {object} backend.ErrorResponse
-// @Failure 404 {object} backend.ErrorResponse
+// @Success 200 {object} wallet.Bills
+// @Failure 400 {object} ErrorResponse
+// @Failure 404 {object} ErrorResponse
 // @Failure 500
 // @Router /proof [get]
 func (s *RequestHandler) getProofFunc(w http.ResponseWriter, r *http.Request) {
@@ -209,7 +210,7 @@ func (s *RequestHandler) getProofFunc(w http.ResponseWriter, r *http.Request) {
 		}
 		return
 	}
-	bill, err := s.Service.GetBill(billID)
+	bill, err := s.getBill(billID)
 	if err != nil {
 		log.Error("error on GET /proof: ", err)
 		w.WriteHeader(http.StatusInternalServerError)
@@ -224,6 +225,24 @@ func (s *RequestHandler) getProofFunc(w http.ResponseWriter, r *http.Request) {
 	writeAsJson(w, bill.toProtoBills())
 }
 
+// getBill returns "normal" or "fee credit" bill for given id,
+// this is necessary to facilitate client side tx confirmation,
+// alternatively we could refactor how tx proofs are stored (separately from bills),
+// in that case we could fetch proofs directly and this hack would not be necessary
+func (s *RequestHandler) getBill(billID []byte) (*Bill, error) {
+	bill, err := s.Service.GetBill(billID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch bill: %w", err)
+	}
+	if bill == nil {
+		bill, err = s.Service.GetFeeCreditBill(billID)
+		if err != nil {
+			return nil, fmt.Errorf("failed to fetch fee credit bill: %w", err)
+		}
+	}
+	return bill, err
+}
+
 func (s *RequestHandler) handlePubKeyNotFoundError(w http.ResponseWriter, err error) {
 	w.WriteHeader(http.StatusBadRequest)
 	if errors.Is(err, errMissingPubKeyQueryParam) || errors.Is(err, errInvalidPubKeyLength) {
@@ -232,19 +251,6 @@ func (s *RequestHandler) handlePubKeyNotFoundError(w http.ResponseWriter, err er
 		writeAsJson(w, ErrorResponse{Message: "invalid pubkey format"})
 	}
 }
-
-//func (s *RequestHandler) readBillsProto(r *http.Request) (*bp.Bills, error) {
-//	b, err := io.ReadAll(r.Body)
-//	if err != nil {
-//		return nil, err
-//	}
-//	req := &bp.Bills{}
-//	err = protojson.Unmarshal(b, req)
-//	if err != nil {
-//		return nil, err
-//	}
-//	return req, nil
-//}
 
 // @Summary Money partition's latest block number
 // @Id 4
@@ -327,7 +333,7 @@ func (s *RequestHandler) postTransactions(w http.ResponseWriter, r *http.Request
 	}
 
 	txs := &wallet.Transactions{}
-	if err = json.Unmarshal(buf, txs); err != nil {
+	if err = cbor.Unmarshal(buf, txs); err != nil {
 		log.Debug("failed to decode request body: ", err)
 		w.WriteHeader(http.StatusBadRequest)
 		writeAsJson(w, ErrorResponse{
@@ -386,20 +392,6 @@ func writeAsJson(w http.ResponseWriter, res interface{}) {
 		w.WriteHeader(http.StatusInternalServerError)
 	}
 }
-
-//func writeAsProtoJson(w http.ResponseWriter, res interface{}) {
-//	w.Header().Set("Content-Type", "application/json")
-//	bytes, err := protojson.MarshalOptions{EmitUnpopulated: true}.Marshal(res)
-//	if err != nil {
-//		log.Error("error encoding response to proto json: ", err)
-//		w.WriteHeader(http.StatusInternalServerError)
-//		return
-//	}
-//	_, err = w.Write(bytes)
-//	if err != nil {
-//		log.Error("error writing proto json to response: ", err)
-//	}
-//}
 
 func parsePubKeyQueryParam(r *http.Request) ([]byte, error) {
 	return parsePubKey(r.URL.Query().Get("pubkey"))

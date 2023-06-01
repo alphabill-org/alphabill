@@ -358,7 +358,7 @@ func Test_GetTokens(t *testing.T) {
 		require.Empty(t, offset)
 	})
 
-	createClient := func(t *testing.T, respBody []backend.TokenUnit) *TokenBackend {
+	createClient := func(t *testing.T, respBody []*backend.TokenUnit) *TokenBackend {
 		return &TokenBackend{
 			hc: &http.Client{
 				Transport: &mockRoundTripper{
@@ -381,7 +381,7 @@ func Test_GetTokens(t *testing.T) {
 	})
 
 	t.Run("data in the response", func(t *testing.T) {
-		expData := []backend.TokenUnit{{ID: []byte{0, 1}, Symbol: "test", Amount: 42}}
+		expData := []*backend.TokenUnit{{ID: []byte{0, 1}, Symbol: "test", Amount: 42}}
 		cli := createClient(t, expData)
 		data, offset, err := cli.GetTokens(context.Background(), backend.Any, ownerID, "", 20)
 		require.NoError(t, err)
@@ -422,7 +422,7 @@ func Test_GetTokenTypes(t *testing.T) {
 		require.Empty(t, offset)
 	})
 
-	createClient := func(t *testing.T, respBody []backend.TokenUnitType) *TokenBackend {
+	createClient := func(t *testing.T, respBody []*backend.TokenUnitType) *TokenBackend {
 		return &TokenBackend{
 			hc: &http.Client{
 				Transport: &mockRoundTripper{
@@ -447,7 +447,7 @@ func Test_GetTokenTypes(t *testing.T) {
 	})
 
 	t.Run("data in the response", func(t *testing.T) {
-		expData := []backend.TokenUnitType{{ID: []byte{0, 1}, Symbol: "test"}}
+		expData := []*backend.TokenUnitType{{ID: []byte{0, 1}, Symbol: "test"}}
 		cli := createClient(t, expData)
 		data, offset, err := cli.GetTokenTypes(context.Background(), backend.Any, ownerID, "", 20)
 		require.NoError(t, err)
@@ -487,7 +487,7 @@ func Test_GetTypeHierarchy(t *testing.T) {
 		require.Empty(t, data)
 	})
 
-	createClient := func(t *testing.T, respBody []backend.TokenUnitType) *TokenBackend {
+	createClient := func(t *testing.T, respBody []*backend.TokenUnitType) *TokenBackend {
 		return &TokenBackend{
 			hc: &http.Client{
 				Transport: &mockRoundTripper{
@@ -516,7 +516,7 @@ func Test_GetTypeHierarchy(t *testing.T) {
 	})
 
 	t.Run("type with given id exists", func(t *testing.T) {
-		expData := []backend.TokenUnitType{{ID: []byte{0, 1}, Symbol: "test"}}
+		expData := []*backend.TokenUnitType{{ID: []byte{0, 1}, Symbol: "test"}}
 		cli := createClient(t, expData)
 		data, err := cli.GetTypeHierarchy(context.Background(), typeID)
 		require.NoError(t, err)

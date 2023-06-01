@@ -47,9 +47,9 @@ type (
 
 	TokenBackend interface {
 		GetToken(ctx context.Context, id backend.TokenID) (*backend.TokenUnit, error)
-		GetTokens(ctx context.Context, kind backend.Kind, owner wallet.PubKey, offsetKey string, limit int) ([]backend.TokenUnit, string, error)
-		GetTokenTypes(ctx context.Context, kind backend.Kind, creator wallet.PubKey, offsetKey string, limit int) ([]backend.TokenUnitType, string, error)
-		GetTypeHierarchy(ctx context.Context, id backend.TokenTypeID) ([]backend.TokenUnitType, error)
+		GetTokens(ctx context.Context, kind backend.Kind, owner wallet.PubKey, offsetKey string, limit int) ([]*backend.TokenUnit, string, error)
+		GetTokenTypes(ctx context.Context, kind backend.Kind, creator wallet.PubKey, offsetKey string, limit int) ([]*backend.TokenUnitType, string, error)
+		GetTypeHierarchy(ctx context.Context, id backend.TokenTypeID) ([]*backend.TokenUnitType, error)
 		GetRoundNumber(ctx context.Context) (uint64, error)
 		PostTransactions(ctx context.Context, pubKey wallet.PubKey, txs *wallet.Transactions) error
 		GetTxProof(ctx context.Context, unitID wallet.UnitID, txHash wallet.TxHash) (*wallet.Proof, error)
@@ -149,7 +149,7 @@ func (w *Wallet) ListTokenTypes(ctx context.Context, accountNumber uint64, kind 
 	allTokenTypes := make([]*backend.TokenUnitType, 0)
 	fetchForPubKey := func(pubKey []byte) ([]*backend.TokenUnitType, error) {
 		allTokenTypesForKey := make([]*backend.TokenUnitType, 0)
-		var types []backend.TokenUnitType
+		var types []*backend.TokenUnitType
 		offsetKey := ""
 		var err error
 		for {
@@ -157,9 +157,7 @@ func (w *Wallet) ListTokenTypes(ctx context.Context, accountNumber uint64, kind 
 			if err != nil {
 				return nil, err
 			}
-			for i := range types {
-				allTokenTypesForKey = append(allTokenTypesForKey, &types[i])
-			}
+			allTokenTypesForKey = append(allTokenTypesForKey, types...)
 			if offsetKey == "" {
 				break
 			}
@@ -186,7 +184,7 @@ func (w *Wallet) GetTokenType(ctx context.Context, typeId backend.TokenTypeID) (
 	}
 	for i := range types {
 		if bytes.Equal(types[i].ID, typeId) {
-			return &types[i], nil
+			return types[i], nil
 		}
 	}
 	return nil, fmt.Errorf("token type %X not found", typeId)
@@ -238,7 +236,7 @@ func (w *Wallet) getAccounts(accountNumber uint64) ([]*accountKey, error) {
 
 func (w *Wallet) getTokens(ctx context.Context, kind backend.Kind, pubKey wallet.PubKey) ([]*backend.TokenUnit, error) {
 	allTokens := make([]*backend.TokenUnit, 0)
-	var ts []backend.TokenUnit
+	var ts []*backend.TokenUnit
 	offsetKey := ""
 	var err error
 	for {
@@ -246,9 +244,7 @@ func (w *Wallet) getTokens(ctx context.Context, kind backend.Kind, pubKey wallet
 		if err != nil {
 			return nil, err
 		}
-		for i := range ts {
-			allTokens = append(allTokens, &ts[i])
-		}
+		allTokens = append(allTokens, ts...)
 		if offsetKey == "" {
 			break
 		}

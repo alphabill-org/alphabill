@@ -387,18 +387,16 @@ func ensureTokenIndexed(t *testing.T, ctx context.Context, api *client.TokenBack
 	var res *backend.TokenUnit
 	require.Eventually(t, func() bool {
 		offsetKey := ""
-		var tokens []backend.TokenUnit
-		var err error
 		for {
-			tokens, offsetKey, err = api.GetTokens(ctx, backend.Any, ownerPubKey, offsetKey, 0)
+			tokens, offsetKey, err := api.GetTokens(ctx, backend.Any, ownerPubKey, offsetKey, 0)
 			require.NoError(t, err)
 			for _, token := range tokens {
 				if tokenID == nil {
-					res = &token
+					res = token
 					return true
 				}
 				if bytes.Equal(token.ID, tokenID) {
-					res = &token
+					res = token
 					return true
 				}
 			}
@@ -415,14 +413,12 @@ func ensureTokenTypeIndexed(t *testing.T, ctx context.Context, api *client.Token
 	var res *backend.TokenUnitType
 	require.Eventually(t, func() bool {
 		offsetKey := ""
-		var types []backend.TokenUnitType
-		var err error
 		for {
-			types, offsetKey, err = api.GetTokenTypes(ctx, backend.Any, creatorPubKey, offsetKey, 0)
+			types, offsetKey, err := api.GetTokenTypes(ctx, backend.Any, creatorPubKey, offsetKey, 0)
 			require.NoError(t, err)
 			for _, t := range types {
 				if bytes.Equal(t.ID, typeID) {
-					res = &t
+					res = t
 					return true
 				}
 			}

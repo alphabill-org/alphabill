@@ -276,6 +276,19 @@ func TestCall(t *testing.T) {
 			},
 			wantErrStr: "wasm program load failed, failed to initiate VM with wasm source, invalid magic number",
 		},
+		{
+			name: "infinite loop",
+			args: args{
+				ctx:   context.Background(),
+				src:   loadWasmFile(t, "../testdata/infinite.wasm"),
+				fName: "ab_main",
+				execCtx: TestExecutionCtx{
+					id: "test",
+				},
+				storage: wvm.NewMemoryStorage(),
+			},
+			wantErrStr: "program call failed, module closed with context deadline exceeded",
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

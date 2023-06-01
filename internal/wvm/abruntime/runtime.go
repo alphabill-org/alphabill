@@ -3,6 +3,7 @@ package abruntime
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/alphabill-org/alphabill/internal/wvm"
 )
@@ -27,6 +28,7 @@ func Call(ctx context.Context, wasm []byte, fName string, execCtx wvm.ExecutionC
 	if err != nil {
 		return fmt.Errorf("failed to intialize ab host module, %w", err)
 	}
+
 	vm, err := wvm.New(ctx, wasm, wvm.WithHostModule(abHostMod))
 	if err != nil {
 		return fmt.Errorf("wasm program load failed, %w", err)
@@ -39,6 +41,9 @@ func Call(ctx context.Context, wasm []byte, fName string, execCtx wvm.ExecutionC
 	// copy input data
 	var result []uint64
 	// API calls have no parameters, there is a host callback to get input parameters
+	// Add function-scoped timeouts however you like.
+	ctx, cancel := context.WithTimeout(ctx, 100*time.Millisecond)
+	defer cancel()
 	result, err = fn.Call(ctx)
 	if err != nil {
 		return fmt.Errorf("program call failed, %w", err)

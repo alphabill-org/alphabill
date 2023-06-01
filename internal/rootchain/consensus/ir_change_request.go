@@ -5,9 +5,9 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/alphabill-org/alphabill/internal/certificates"
 	"github.com/alphabill-org/alphabill/internal/network/protocol"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/certification"
+	"github.com/alphabill-org/alphabill/internal/types"
 )
 
 type CertReqReason uint8
@@ -25,8 +25,7 @@ type (
 	}
 )
 
-
-func CheckBlockCertificationRequest(req *certification.BlockCertificationRequest, luc *certificates.UnicityCertificate) error {
+func CheckBlockCertificationRequest(req *certification.BlockCertificationRequest, luc *types.UnicityCertificate) error {
 	if req == nil {
 		return errors.New("block certification request is nil")
 	}

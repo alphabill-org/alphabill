@@ -10,13 +10,14 @@ import (
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	testtxsystem "github.com/alphabill-org/alphabill/internal/testutils/txsystem"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
+	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/btcsuite/btcd/btcutil/base58"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/stretchr/testify/require"
 )
 
 var zeroHash = make([]byte, 32)
-var systemIdentifier = []byte{0, 0, 0, 1}
+var systemIdentifier = types.SystemID([]byte{0, 0, 0, 1})
 var nodeID peer.ID = "test"
 
 func TestNewGenesisPartitionNode_NotOk(t *testing.T) {

@@ -4,15 +4,11 @@ import (
 	gocrypto "crypto"
 	"testing"
 
-	test "github.com/alphabill-org/alphabill/internal/testutils"
-
-	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
-
-	"github.com/stretchr/testify/require"
-
-	"github.com/alphabill-org/alphabill/internal/certificates"
-
 	"github.com/alphabill-org/alphabill/internal/crypto"
+	test "github.com/alphabill-org/alphabill/internal/testutils"
+	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
+	"github.com/alphabill-org/alphabill/internal/types"
+	"github.com/stretchr/testify/require"
 )
 
 func TestPartitionGenesis_IsValid(t *testing.T) {
@@ -34,7 +30,7 @@ func TestPartitionGenesis_IsValid(t *testing.T) {
 
 	type fields struct {
 		SystemDescriptionRecord *SystemDescriptionRecord
-		Certificate             *certificates.UnicityCertificate
+		Certificate             *types.UnicityCertificate
 		RootValidators          []*PublicKeyInfo
 		Keys                    []*PublicKeyInfo
 	}

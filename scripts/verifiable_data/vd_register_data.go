@@ -6,7 +6,8 @@ import (
 	"log"
 
 	"github.com/alphabill-org/alphabill/internal/rpc/alphabill"
-	"github.com/alphabill-org/alphabill/internal/txsystem"
+	"github.com/alphabill-org/alphabill/internal/types"
+	"github.com/fxamacker/cbor/v2"
 	"github.com/holiman/uint256"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
@@ -70,18 +71,25 @@ func main() {
 		log.Fatal(err)
 	}
 
+	txBytes, err := cbor.Marshal(tx)
+	if err != nil {
+		log.Fatal(err)
+	}
+
 	// send tx
-	if _, err := txClient.ProcessTransaction(ctx, tx); err != nil {
+	if _, err := txClient.ProcessTransaction(ctx, &alphabill.Transaction{Order: txBytes}); err != nil {
 		log.Fatal(err)
 	}
 	log.Println("successfully sent transaction")
 }
 
-func createRegisterDataTx(hash []byte, timeout uint64) (*txsystem.Transaction, error) {
-	tx := &txsystem.Transaction{
-		UnitId:         hash,
-		SystemId:       []byte{0, 0, 0, 1},
-		ClientMetadata: &txsystem.ClientMetadata{Timeout: timeout},
+func createRegisterDataTx(hash []byte, timeout uint64) (*types.TransactionOrder, error) {
+	tx := &types.TransactionOrder{
+		Payload: &types.Payload{
+			UnitID:         hash,
+			SystemID:       []byte{0, 0, 0, 1},
+			ClientMetadata: &types.ClientMetadata{Timeout: timeout},
+		},
 	}
 	return tx, nil
 }

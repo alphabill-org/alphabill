@@ -9,9 +9,9 @@ import (
 	"log"
 
 	"github.com/alphabill-org/alphabill/internal/rpc/alphabill"
-	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/internal/txsystem/program"
-	"github.com/alphabill-org/alphabill/scripts/programs"
+	"github.com/alphabill-org/alphabill/internal/types"
+	"github.com/fxamacker/cbor/v2"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/protobuf/types/known/emptypb"
@@ -43,8 +43,8 @@ func main() {
 	if *uri == "" {
 		log.Fatal("alphabill-uri is required")
 	}
+	var inputData = make([]byte, 0)
 	// verify command line parameters
-	var inputData = programs.Uint64ToLEBytes(1)
 	if *inputDataStr != "" {
 		var err error
 		inputData, err = hex.DecodeString(*inputDataStr)
@@ -72,20 +72,43 @@ func main() {
 	absoluteTimeout := blockNr.RoundNumber + *timeout
 
 	// create tx
-	txCallOrder, err := programs.NewProgramTransaction(progID[:],
-		programs.WithClientMetadata(&txsystem.ClientMetadata{
-			Timeout: absoluteTimeout,
-		}),
-		programs.WithAttributes(&program.PCallAttributes{
-			Function: *fn,
-			Input:    inputData,
-		}))
+	tx, err := createProgramCallTx(progID[:], *fn, inputData, absoluteTimeout)
+	if err != nil {
+		log.Fatal(fmt.Sprintf("failed to create program deploy tx, %v", err))
+	}
+	txBytes, err := cbor.Marshal(tx)
+	if err != nil {
+		log.Fatal(err)
+	}
+	protoTransferTx := &alphabill.Transaction{Order: txBytes}
 	if err != nil {
 		log.Fatal(fmt.Sprintf("failed to create program call tx, %v", err))
 	}
 	// send tx
-	if _, err = txClient.ProcessTransaction(ctx, txCallOrder); err != nil {
+	if _, err = txClient.ProcessTransaction(ctx, protoTransferTx); err != nil {
 		log.Fatal(err)
 	}
 	log.Println("successfully sent transaction")
+}
+
+func createProgramCallTx(unitID []byte, fName string, inputData []byte, t1 uint64) (*types.TransactionOrder, error) {
+	attr, err := cbor.Marshal(
+		&program.PCallAttributes{
+			FuncName:  fName,
+			InputData: inputData,
+		},
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal transferFC attributes: %w", err)
+	}
+	tx := &types.TransactionOrder{
+		Payload: &types.Payload{
+			SystemID:       program.DefaultProgramsSystemIdentifier,
+			Type:           program.ProgramCall,
+			UnitID:         unitID,
+			Attributes:     attr,
+			ClientMetadata: &types.ClientMetadata{Timeout: t1, MaxTransactionFee: 1},
+		},
+	}
+	return tx, nil
 }

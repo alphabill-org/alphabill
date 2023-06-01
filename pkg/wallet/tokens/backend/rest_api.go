@@ -14,14 +14,15 @@ import (
 	"sync"
 	"time"
 
+	"github.com/alphabill-org/alphabill/internal/types"
+	"github.com/fxamacker/cbor/v2"
 	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
 	"golang.org/x/sync/semaphore"
-	"google.golang.org/protobuf/encoding/protojson"
+	_ "google.golang.org/protobuf/encoding/protojson"
 
 	"github.com/alphabill-org/alphabill/internal/hash"
 	"github.com/alphabill-org/alphabill/internal/script"
-	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/internal/txsystem/tokens"
 	"github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/alphabill-org/alphabill/pkg/wallet/broker"
@@ -38,14 +39,13 @@ type dataSource interface {
 }
 
 type abClient interface {
-	SendTransaction(ctx context.Context, tx *txsystem.Transaction) error
+	SendTransaction(ctx context.Context, tx *types.TransactionOrder) error
 	GetRoundNumber(ctx context.Context) (uint64, error)
 }
 
 type restAPI struct {
 	db        dataSource
 	ab        abClient
-	convertTx func(tx *txsystem.Transaction) (txsystem.GenericTransaction, error)
 	streamSSE func(ctx context.Context, owner broker.PubKey, w http.ResponseWriter) error
 	logErr    func(a ...any)
 }
@@ -243,17 +243,17 @@ func (api *restAPI) postTransactions(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	txs := &txsystem.Transactions{}
-	if err = protojson.Unmarshal(buf, txs); err != nil {
+	txs := &wallet.Transactions{}
+	if err = cbor.Unmarshal(buf, txs); err != nil {
 		api.errorResponse(w, http.StatusBadRequest, fmt.Errorf("failed to decode request body: %w", err))
 		return
 	}
-	if len(txs.GetTransactions()) == 0 {
+	if len(txs.Transactions) == 0 {
 		api.errorResponse(w, http.StatusBadRequest, fmt.Errorf("request body contained no transactions to process"))
 		return
 	}
 
-	if errs := api.saveTxs(r.Context(), txs.GetTransactions(), owner); len(errs) > 0 {
+	if errs := api.saveTxs(r.Context(), txs.Transactions, owner); len(errs) > 0 {
 		w.WriteHeader(http.StatusInternalServerError)
 		api.writeResponse(w, errs)
 		return
@@ -261,7 +261,7 @@ func (api *restAPI) postTransactions(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusAccepted)
 }
 
-func (api *restAPI) saveTxs(ctx context.Context, txs []*txsystem.Transaction, owner []byte) map[string]string {
+func (api *restAPI) saveTxs(ctx context.Context, txs []*types.TransactionOrder, owner []byte) map[string]string {
 	errs := make(map[string]string)
 	var m sync.Mutex
 
@@ -271,11 +271,11 @@ func (api *restAPI) saveTxs(ctx context.Context, txs []*txsystem.Transaction, ow
 		if err := sem.Acquire(ctx, 1); err != nil {
 			break
 		}
-		go func(tx *txsystem.Transaction) {
+		go func(tx *types.TransactionOrder) {
 			defer sem.Release(1)
 			if err := api.saveTx(ctx, tx, owner); err != nil {
 				m.Lock()
-				errs[hex.EncodeToString(tx.GetUnitId())] = err.Error()
+				errs[hex.EncodeToString(tx.UnitID())] = err.Error()
 				m.Unlock()
 			}
 		}(tx)
@@ -311,21 +311,17 @@ func (api *restAPI) getFeeCreditBill(w http.ResponseWriter, r *http.Request) {
 	api.writeResponse(w, fcb)
 }
 
-func (api *restAPI) saveTx(ctx context.Context, tx *txsystem.Transaction, owner []byte) error {
+func (api *restAPI) saveTx(ctx context.Context, tx *types.TransactionOrder, owner []byte) error {
 	// if "creator type tx" then save the type->owner relation
-	gtx, err := api.convertTx(tx)
-	if err != nil {
-		return fmt.Errorf("failed to convert transaction: %w", err)
-	}
 	kind := Any
-	switch gtx.(type) {
-	case tokens.CreateFungibleTokenType:
+	switch tx.PayloadType() {
+	case tokens.PayloadTypeCreateFungibleTokenType:
 		kind = Fungible
-	case tokens.CreateNonFungibleTokenType:
+	case tokens.PayloadTypeCreateNFTType:
 		kind = NonFungible
 	}
 	if kind != Any {
-		if err := api.db.SaveTokenTypeCreator(tx.UnitId, kind, owner); err != nil {
+		if err := api.db.SaveTokenTypeCreator(tx.UnitID(), kind, owner); err != nil {
 			return fmt.Errorf("failed to save creator relation: %w", err)
 		}
 	}

@@ -5,8 +5,8 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/alphabill-org/alphabill/internal/block"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
+	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/pkg/client/clientmock"
 	"github.com/stretchr/testify/require"
 )
@@ -38,6 +38,6 @@ func TestWalletShutdownTerminatesSync(t *testing.T) {
 type dummyBlockProcessor struct {
 }
 
-func (p dummyBlockProcessor) ProcessBlock(*block.Block) error {
+func (p dummyBlockProcessor) ProcessBlock(*types.Block) error {
 	return nil
 }

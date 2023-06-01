@@ -4,25 +4,22 @@ import (
 	"context"
 	"crypto"
 	"encoding/hex"
-	"errors"
 	"fmt"
 	"math/rand"
 	"net/http"
 	"sync"
 	"time"
 
+	"github.com/ainvaltin/httpsrv"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/sync/semaphore"
 
-	"github.com/ainvaltin/httpsrv"
-	"github.com/alphabill-org/alphabill/internal/block"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/internal/script"
-	"github.com/alphabill-org/alphabill/internal/txsystem"
+	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/pkg/client"
 	"github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/alphabill-org/alphabill/pkg/wallet/account"
-	"github.com/alphabill-org/alphabill/pkg/wallet/backend/bp"
 	"github.com/alphabill-org/alphabill/pkg/wallet/blocksync"
 	wlog "github.com/alphabill-org/alphabill/pkg/wallet/log"
 )
@@ -38,7 +35,7 @@ type (
 		GetBill(unitID []byte) (*Bill, error)
 		GetRoundNumber(ctx context.Context) (uint64, error)
 		GetFeeCreditBill(unitID []byte) (*Bill, error)
-		SendTransactions(ctx context.Context, txs []*txsystem.Transaction) map[string]string
+		SendTransactions(ctx context.Context, txs []*types.TransactionOrder) map[string]string
 	}
 
 	WalletBackend struct {
@@ -56,19 +53,13 @@ type (
 		TxHash   []byte `json:"txHash"`
 		IsDCBill bool   `json:"isDcBill"`
 		// OrderNumber insertion order of given bill in pubkey => list of bills bucket, needed for determistic paging
-		OrderNumber    uint64   `json:"orderNumber"`
-		TxProof        *TxProof `json:"txProof"`
-		OwnerPredicate []byte   `json:"OwnerPredicate"`
+		OrderNumber    uint64        `json:"orderNumber"`
+		TxProof        *wallet.Proof `json:"txProof"`
+		OwnerPredicate []byte        `json:"OwnerPredicate"`
 
 		// fcb specific fields
 		// FCBlockNumber block number when fee credit bill balance was last updated
 		FCBlockNumber uint64 `json:"fcBlockNumber"`
-	}
-
-	TxProof struct {
-		BlockNumber uint64                `json:"blockNumber"`
-		Tx          *txsystem.Transaction `json:"tx"`
-		Proof       *block.BlockProof     `json:"proof"`
 	}
 
 	Pubkey struct {
@@ -188,7 +179,7 @@ func Run(ctx context.Context, config *Config) error {
 	})
 
 	g.Go(func() error {
-		blockProcessor, err := NewBlockProcessor(store, NewTxConverter(config.ABMoneySystemIdentifier), config.ABMoneySystemIdentifier)
+		blockProcessor, err := NewBlockProcessor(store, config.ABMoneySystemIdentifier)
 		if err != nil {
 			return fmt.Errorf("failed to create block processor: %w", err)
 		}
@@ -255,7 +246,7 @@ func (w *WalletBackend) GetRoundNumber(ctx context.Context) (uint64, error) {
 
 // TODO: Share functionaly with tokens partiton
 // SendTransactions forwards transactions to partiton node(s).
-func (w *WalletBackend) SendTransactions(ctx context.Context, txs []*txsystem.Transaction) map[string]string {
+func (w *WalletBackend) SendTransactions(ctx context.Context, txs []*types.TransactionOrder) map[string]string {
 	errs := make(map[string]string)
 	var m sync.Mutex
 
@@ -265,11 +256,11 @@ func (w *WalletBackend) SendTransactions(ctx context.Context, txs []*txsystem.Tr
 		if err := sem.Acquire(ctx, 1); err != nil {
 			break
 		}
-		go func(tx *txsystem.Transaction) {
+		go func(tx *types.TransactionOrder) {
 			defer sem.Release(1)
 			if err := w.genericWallet.SendTransaction(ctx, tx, nil); err != nil {
 				m.Lock()
-				errs[hex.EncodeToString(tx.GetUnitId())] =
+				errs[hex.EncodeToString(tx.UnitID())] =
 					fmt.Errorf("failed to forward tx: %w", err).Error()
 				m.Unlock()
 			}
@@ -286,29 +277,30 @@ func (w *WalletBackend) SendTransactions(ctx context.Context, txs []*txsystem.Tr
 	return errs
 }
 
-func (b *Bill) toProto() *bp.Bill {
-	return &bp.Bill{
+func (b *Bill) toProto() *wallet.Bill {
+	return &wallet.Bill{
 		Id:            b.Id,
 		Value:         b.Value,
 		TxHash:        b.TxHash,
 		IsDcBill:      b.IsDCBill,
-		TxProof:       b.TxProof.toProto(),
+		TxProof:       b.TxProof,
 		FcBlockNumber: b.FCBlockNumber,
 	}
 }
 
-func (b *Bill) toProtoBills() *bp.Bills {
-	return &bp.Bills{
-		Bills: []*bp.Bill{
+func (b *Bill) toProtoBills() *wallet.Bills {
+	return &wallet.Bills{
+		Bills: []*wallet.Bill{
 			b.toProto(),
 		},
 	}
 }
 
-func (b *Bill) addProof(bl *block.GenericBlock, txPb *txsystem.Transaction) error {
-	proof, err := createProof(b.Id, txPb, bl, crypto.SHA256)
+func (b *Bill) addProof(txIdx int, bl *types.Block) error {
+	proof, err := wallet.NewTxProof(txIdx, bl, crypto.SHA256)
 	if err != nil {
 		return err
+
 	}
 	b.TxProof = proof
 	return nil
@@ -333,36 +325,6 @@ func (b *Bill) getFCBlockNumber() uint64 {
 		return b.FCBlockNumber
 	}
 	return 0
-}
-
-func (b *TxProof) toProto() *block.TxProof {
-	return &block.TxProof{
-		BlockNumber: b.BlockNumber,
-		Tx:          b.Tx,
-		Proof:       b.Proof,
-	}
-}
-
-func createProof(unitID []byte, tx *txsystem.Transaction, b *block.GenericBlock, hashAlgorithm crypto.Hash) (*TxProof, error) {
-	proof, err := block.NewPrimaryProof(b, unitID, hashAlgorithm)
-	if err != nil {
-		return nil, err
-	}
-	return newTxProof(tx, proof, b.GetRoundNumber())
-}
-
-func newTxProof(tx *txsystem.Transaction, proof *block.BlockProof, blockNumber uint64) (*TxProof, error) {
-	if tx == nil {
-		return nil, errors.New("tx is nil")
-	}
-	if proof == nil {
-		return nil, errors.New("proof is nil")
-	}
-	return &TxProof{
-		Tx:          tx,
-		Proof:       proof,
-		BlockNumber: blockNumber,
-	}, nil
 }
 
 func newOwnerPredicates(hashes *account.KeyHashes) *p2pkhOwnerPredicates {

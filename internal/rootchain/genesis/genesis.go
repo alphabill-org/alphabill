@@ -7,11 +7,11 @@ import (
 	"fmt"
 	"sort"
 
-	"github.com/alphabill-org/alphabill/internal/certificates"
 	"github.com/alphabill-org/alphabill/internal/crypto"
-	p "github.com/alphabill-org/alphabill/internal/network/protocol"
+	"github.com/alphabill-org/alphabill/internal/network/protocol"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/internal/rootchain/unicitytree"
+	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/internal/util"
 )
 
@@ -37,7 +37,7 @@ type (
 
 	Option func(c *rootGenesisConf)
 
-	UnicitySealFunc func(rootHash []byte) (*certificates.UnicitySeal, error)
+	UnicitySealFunc func(rootHash []byte) (*types.UnicitySeal, error)
 )
 
 func (c *rootGenesisConf) QuorumThreshold() uint32 {
@@ -108,7 +108,7 @@ func WithHashAlgorithm(hashAlgorithm gocrypto.Hash) Option {
 	}
 }
 
-func createUnicityCertificates(utData []*unicitytree.Data, hash gocrypto.Hash, sealFn UnicitySealFunc) (map[p.SystemIdentifier]*certificates.UnicityCertificate, error) {
+func createUnicityCertificates(utData []*unicitytree.Data, hash gocrypto.Hash, sealFn UnicitySealFunc) (map[protocol.SystemIdentifier]*types.UnicityCertificate, error) {
 	// calculate unicity tree
 	ut, err := unicitytree.New(hash.New(), utData)
 	if err != nil {
@@ -120,23 +120,23 @@ func createUnicityCertificates(utData []*unicitytree.Data, hash gocrypto.Hash, s
 	if err != nil {
 		return nil, err
 	}
-	certs := make(map[p.SystemIdentifier]*certificates.UnicityCertificate)
+	certs := make(map[protocol.SystemIdentifier]*types.UnicityCertificate)
 	// extract certificates
 	for _, d := range utData {
 		utCert, err := ut.GetCertificate(d.SystemIdentifier)
 		if err != nil {
 			return nil, fmt.Errorf("get unicity tree certificate error: %w", err)
 		}
-		uc := &certificates.UnicityCertificate{
+		uc := &types.UnicityCertificate{
 			InputRecord: d.InputRecord,
-			UnicityTreeCertificate: &certificates.UnicityTreeCertificate{
+			UnicityTreeCertificate: &types.UnicityTreeCertificate{
 				SystemIdentifier:      utCert.SystemIdentifier,
 				SiblingHashes:         utCert.SiblingHashes,
 				SystemDescriptionHash: utCert.SystemDescriptionHash,
 			},
 			UnicitySeal: seal,
 		}
-		certs[p.SystemIdentifier(d.SystemIdentifier)] = uc
+		certs[protocol.SystemIdentifier(d.SystemIdentifier)] = uc
 	}
 	return certs, nil
 }
@@ -147,7 +147,7 @@ func NewPartitionRecordFromNodes(nodes []*genesis.PartitionNode) ([]*genesis.Par
 		if err := n.IsValid(); err != nil {
 			return nil, err
 		}
-		si := string(n.GetBlockCertificationRequest().GetSystemIdentifier())
+		si := string(n.BlockCertificationRequest.SystemIdentifier)
 		partitionNodesMap[si] = append(partitionNodesMap[si], n)
 	}
 
@@ -198,14 +198,14 @@ func NewRootGenesis(id string, s crypto.Signer, encPubKey []byte, partitions []*
 	// iterate over all partitions and make sure that all requests are matching and every node is represented
 	ucData := make([]*unicitytree.Data, len(partitions))
 	// remember system description records hashes and system id for verification
-	sdrhs := make(map[p.SystemIdentifier][]byte, len(partitions))
+	sdrhs := make(map[protocol.SystemIdentifier][]byte, len(partitions))
 	for i, partition := range partitions {
 		// Check that partition is valid: required fields sent and no duplicate node, all requests with same system id
 		if err = partition.IsValid(); err != nil {
 			return nil, nil, fmt.Errorf("invalid partition record: %w", err)
 		}
 		sdrh := partition.SystemDescriptionRecord.Hash(c.hashAlgorithm)
-		sdrhs[p.SystemIdentifier(partition.SystemDescriptionRecord.SystemIdentifier)] = sdrh
+		sdrhs[protocol.SystemIdentifier(partition.SystemDescriptionRecord.SystemIdentifier)] = sdrh
 		// if it is valid it must have at least one validator with a valid certification request
 		// if there is more, all input records are matching
 		ucData[i] = &unicitytree.Data{
@@ -215,8 +215,8 @@ func NewRootGenesis(id string, s crypto.Signer, encPubKey []byte, partitions []*
 		}
 	}
 	// if all requests match then consensus is present
-	sealFn := func(rootHash []byte) (*certificates.UnicitySeal, error) {
-		uSeal := &certificates.UnicitySeal{
+	sealFn := func(rootHash []byte) (*types.UnicitySeal, error) {
+		uSeal := &types.UnicitySeal{
 			RootChainRoundNumber: genesis.RootRound,
 			Timestamp:            util.GenesisTime,
 			Hash:                 rootHash,
@@ -254,7 +254,7 @@ func NewRootGenesis(id string, s crypto.Signer, encPubKey []byte, partitions []*
 	}
 	// generate genesis structs
 	for i, partition := range partitions {
-		id := p.SystemIdentifier(partition.SystemDescriptionRecord.SystemIdentifier)
+		id := protocol.SystemIdentifier(partition.SystemDescriptionRecord.SystemIdentifier)
 		certificate, f := certs[id]
 		if !f {
 			return nil, nil, err

@@ -10,8 +10,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/alphabill-org/alphabill/internal/block"
-	"github.com/alphabill-org/alphabill/internal/certificates"
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/hash"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
@@ -27,6 +25,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/txsystem/fc"
 	moneytx "github.com/alphabill-org/alphabill/internal/txsystem/money"
 	moneytestutils "github.com/alphabill-org/alphabill/internal/txsystem/money/testutils"
+	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/internal/util"
 	abclient "github.com/alphabill-org/alphabill/pkg/client"
 	"github.com/alphabill-org/alphabill/pkg/wallet"
@@ -127,11 +126,13 @@ func TestCollectDustTimeoutReached(t *testing.T) {
 	waitForExpectedSwap(w)
 
 	for blockNo := uint64(1); blockNo <= dcTimeoutBlockCount; blockNo++ {
-		b := &block.Block{
-			SystemIdentifier:   w.SystemID(),
-			PreviousBlockHash:  hash.Sum256([]byte{}),
-			Transactions:       []*txsystem.Transaction{},
-			UnicityCertificate: &certificates.UnicityCertificate{InputRecord: &certificates.InputRecord{RoundNumber: blockNo}},
+		b := &types.Block{
+			Header: &types.Header{
+				SystemID:          w.SystemID(),
+				PreviousBlockHash: hash.Sum256([]byte{}),
+			},
+			Transactions:       []*types.TransactionRecord{},
+			UnicityCertificate: &types.UnicityCertificate{InputRecord: &types.InputRecord{RoundNumber: blockNo}},
 		}
 		serverService.SetBlock(blockNo, b)
 	}
@@ -228,7 +229,6 @@ func TestCollectDustInMultiAccountWallet(t *testing.T) {
 		AccountIndex: 0,
 	})
 	require.NoError(t, err)
-	time.Sleep(2 * time.Second) // TODO waitForConf should use backend and not block download for confirmations
 
 	// send two bills to account number 2 and 3
 	sendToAccount(t, w, 10*1e8, 0, 1)
@@ -242,7 +242,6 @@ func TestCollectDustInMultiAccountWallet(t *testing.T) {
 		AccountIndex: 1,
 	})
 	require.NoError(t, err)
-	time.Sleep(2 * time.Second) // TODO waitForConf should use backend and not block download for confirmations
 
 	// add fee credit to account 3
 	_, err = w.AddFeeCredit(ctx, fees.AddFeeCmd{
@@ -250,7 +249,6 @@ func TestCollectDustInMultiAccountWallet(t *testing.T) {
 		AccountIndex: 2,
 	})
 	require.NoError(t, err)
-	time.Sleep(2 * time.Second) // TODO waitForConf should use backend and not block download for confirmations
 
 	// start dust collection
 	err = w.CollectDust(ctx, 0)
@@ -335,7 +333,6 @@ func TestCollectDustInMultiAccountWalletWithKeyFlag(t *testing.T) {
 		AccountIndex: 0,
 	})
 	require.NoError(t, err)
-	time.Sleep(2 * time.Second) // TODO waitForConf should use backend and not block download for confirmations
 
 	// send two bills to account number 2 and 3
 	sendToAccount(t, w, 10*1e8, 0, 1)
@@ -349,17 +346,16 @@ func TestCollectDustInMultiAccountWalletWithKeyFlag(t *testing.T) {
 		AccountIndex: 2,
 	})
 	require.NoError(t, err)
-	time.Sleep(2 * time.Second) // TODO waitForConf should use backend and not block download for confirmations
 
 	// start dust collection only for account number 3
 	err = w.CollectDust(ctx, 3)
 	require.NoError(t, err)
 
-	// verify that there is only one swap tx and it belongs to account number 3
+	// verify that there is only one swap tx, and it belongs to account number 3
 	b, _ := moneyPart.Nodes[0].GetLatestBlock()
 	require.Len(t, b.Transactions, 1)
 	attrs := &moneytx.SwapDCAttributes{}
-	err = b.Transactions[0].TransactionAttributes.UnmarshalTo(attrs)
+	err = b.Transactions[0].TransactionOrder.UnmarshalAttributes(attrs)
 	require.NoError(t, err)
 	k, _ := am.GetAccountKey(2)
 	require.EqualValues(t, script.PredicatePayToPublicKeyHashDefault(k.PubKeyHash.Sha256), attrs.OwnerCondition)

@@ -3,16 +3,16 @@ package client
 import (
 	"context"
 	"encoding/base64"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"strings"
 	"testing"
 
-	"github.com/alphabill-org/alphabill/pkg/wallet/backend/bp"
+	"github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/stretchr/testify/require"
-	"google.golang.org/protobuf/encoding/protojson"
 )
 
 const pubKeyHex = "0x038003e218eea360cbf580ebb90cc8c8caf0ccef4bf660ea9ab4fc06b5c367b038"
@@ -219,12 +219,12 @@ func mockGetFeeCreditBillCall(t *testing.T) *url.URL {
 
 func getFeeCreditBillJsonBytes() []byte {
 	unitID, _ := base64.StdEncoding.DecodeString(billId)
-	res := &bp.Bill{
+	res := &wallet.Bill{
 		Id:            unitID,
 		Value:         10,
 		TxHash:        []byte{1},
 		FcBlockNumber: 100,
 	}
-	jsonBytes, _ := protojson.Marshal(res)
+	jsonBytes, _ := json.Marshal(res)
 	return jsonBytes
 }

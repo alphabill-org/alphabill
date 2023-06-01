@@ -3,6 +3,8 @@ package program
 import (
 	"crypto"
 
+	"github.com/alphabill-org/alphabill/internal/types"
+	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/holiman/uint256"
 )
 
@@ -14,24 +16,23 @@ type ExecutionContext struct {
 	txHash        []byte
 }
 
-func NewExecCtxFormPCall(txOrder *PCallTransactionOrder, params []byte, hash crypto.Hash) (*ExecutionContext, error) {
+func NewExecCtxFormPCall(tx *types.TransactionOrder, attr *PCallAttributes, params []byte, hash crypto.Hash) (*ExecutionContext, error) {
 	return &ExecutionContext{
-		programID:     txOrder.UnitID(),
-		inputParams:   txOrder.attributes.Input,
+		programID:     util.BytesToUint256(tx.UnitID()),
+		inputParams:   attr.InputData,
 		progParams:    params,
 		hashAlgorithm: hash,
-		txHash:        txOrder.Hash(hash),
+		txHash:        tx.Hash(hash),
 	}, nil
 }
 
-func NewExecCtxFormDeploy(txOrder *PDeployTransactionOrder, hash crypto.Hash) (*ExecutionContext, error) {
-
+func NewExecCtxFormDeploy(tx *types.TransactionOrder, attr *PDeployAttributes, hash crypto.Hash) (*ExecutionContext, error) {
 	return &ExecutionContext{
 		hashAlgorithm: hash,
-		programID:     txOrder.UnitID(),
-		inputParams:   txOrder.attributes.InitData,
-		progParams:    txOrder.attributes.InitData,
-		txHash:        txOrder.Hash(hash),
+		programID:     util.BytesToUint256(tx.UnitID()),
+		inputParams:   []byte{},
+		progParams:    attr.ProgParams,
+		txHash:        tx.Hash(hash),
 	}, nil
 }
 

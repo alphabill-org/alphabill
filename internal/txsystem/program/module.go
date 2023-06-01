@@ -9,6 +9,8 @@ import (
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 )
 
+var _ txsystem.Module = &Module{}
+
 type Module struct {
 	ctx              context.Context
 	state            *rma.Tree
@@ -28,10 +30,10 @@ func NewProgramModule(ctx context.Context, systemIdentifier []byte, options *Opt
 	}, nil
 }
 
-func (s *Module) TxExecutors() []txsystem.TxExecutor {
-	return []txsystem.TxExecutor{
-		handlePDeployTx(s.ctx, s.state, s.systemIdentifier, s.hashAlgorithm),
-		handlePCallTx(s.ctx, s.state, s.systemIdentifier, s.hashAlgorithm),
+func (s *Module) TxExecutors() map[string]txsystem.TxExecutor {
+	return map[string]txsystem.TxExecutor{
+		"pdeploy": handlePDeployTx(s.ctx, s.state, s.systemIdentifier, s.hashAlgorithm),
+		"pcall":   handlePCallTx(s.ctx, s.state, s.systemIdentifier, s.hashAlgorithm),
 	}
 }
 
@@ -45,31 +47,4 @@ func (s *Module) GenericTransactionValidator() txsystem.GenericTransactionValida
 		})
 	}
 
-}
-
-func (s *Module) TxConverter() txsystem.TxConverters {
-	return txsystem.TxConverters{
-		typeURLPCall:   convertPCallTx(),
-		typeURLPDeploy: convertPDeployTx(),
-	}
-}
-
-func convertPCallTx() func(tx *txsystem.Transaction) (txsystem.GenericTransaction, error) {
-	return func(tx *txsystem.Transaction) (txsystem.GenericTransaction, error) {
-		attr := &PCallAttributes{}
-		if err := tx.TransactionAttributes.UnmarshalTo(attr); err != nil {
-			return nil, fmt.Errorf("invalid tx attributes: %w", err)
-		}
-		return &PCallTransactionOrder{attributes: attr, txOrder: tx}, nil
-	}
-}
-
-func convertPDeployTx() func(tx *txsystem.Transaction) (txsystem.GenericTransaction, error) {
-	return func(tx *txsystem.Transaction) (txsystem.GenericTransaction, error) {
-		attr := &PDeployAttributes{}
-		if err := tx.TransactionAttributes.UnmarshalTo(attr); err != nil {
-			return nil, fmt.Errorf("invalid tx attributes: %w", err)
-		}
-		return &PDeployTransactionOrder{attributes: attr, txOrder: tx}, nil
-	}
 }

@@ -10,9 +10,9 @@ import (
 	"os"
 
 	"github.com/alphabill-org/alphabill/internal/rpc/alphabill"
-	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/internal/txsystem/program"
-	"github.com/alphabill-org/alphabill/scripts/programs"
+	"github.com/alphabill-org/alphabill/internal/types"
+	"github.com/fxamacker/cbor/v2"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/protobuf/types/known/emptypb"
@@ -50,7 +50,7 @@ func main() {
 		log.Fatal("alphabill-uri is required")
 	}
 	// verify command line parameters
-	var progParams = programs.Uint64ToLEBytes(0)
+	var progParams = make([]byte, 8)
 	if *paramStr != "" {
 		var err error
 		progParams, err = hex.DecodeString(*paramStr)
@@ -85,20 +85,40 @@ func main() {
 	absoluteTimeout := blockNr.RoundNumber + *timeout
 
 	// create tx
-	txDeployOrder, err := programs.NewProgramTransaction(progID[:],
-		programs.WithClientMetadata(&txsystem.ClientMetadata{
-			Timeout: absoluteTimeout,
-		}),
-		programs.WithAttributes(&program.PDeployAttributes{
-			Program:  wasm,
-			InitData: progParams,
-		}))
+	tx, err := createProgramDeployTx(progID[:], wasm, progParams, absoluteTimeout)
 	if err != nil {
 		log.Fatal(fmt.Sprintf("failed to create program deploy tx, %v", err))
 	}
+	txBytes, err := cbor.Marshal(tx)
+	if err != nil {
+		log.Fatal(err)
+	}
+	protoTransferTx := &alphabill.Transaction{Order: txBytes}
 	// send tx
-	if _, err = txClient.ProcessTransaction(ctx, txDeployOrder); err != nil {
+	if _, err = txClient.ProcessTransaction(ctx, protoTransferTx); err != nil {
 		log.Fatal(err)
 	}
 	log.Println("successfully sent transaction")
+}
+
+func createProgramDeployTx(unitID []byte, wasm []byte, params []byte, t1 uint64) (*types.TransactionOrder, error) {
+	attr, err := cbor.Marshal(
+		&program.PDeployAttributes{
+			ProgModule: wasm,
+			ProgParams: params,
+		},
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal transferFC attributes: %w", err)
+	}
+	tx := &types.TransactionOrder{
+		Payload: &types.Payload{
+			SystemID:       program.DefaultProgramsSystemIdentifier,
+			Type:           program.ProgramDeploy,
+			UnitID:         unitID,
+			Attributes:     attr,
+			ClientMetadata: &types.ClientMetadata{Timeout: t1, MaxTransactionFee: 1},
+		},
+	}
+	return tx, nil
 }

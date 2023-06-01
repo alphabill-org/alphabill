@@ -3,14 +3,13 @@ package replication
 import (
 	"testing"
 
-	"github.com/alphabill-org/alphabill/internal/block"
-	"github.com/alphabill-org/alphabill/internal/certificates"
+	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/stretchr/testify/require"
 )
 
 func TestLedgerReplicationResponse_Pretty_okEmpty(t *testing.T) {
 	r := &LedgerReplicationResponse{
-		Status:  LedgerReplicationResponse_OK,
+		Status:  Ok,
 		Message: "",
 		Blocks:  nil,
 	}
@@ -22,14 +21,14 @@ func TestLedgerReplicationResponse_Pretty_okEmpty(t *testing.T) {
 
 func TestLedgerReplicationResponse_Pretty_okWithBlocks(t *testing.T) {
 	r := &LedgerReplicationResponse{
-		Status:  LedgerReplicationResponse_OK,
+		Status:  Ok,
 		Message: "",
-		Blocks: []*block.Block{
+		Blocks: []*types.Block{
 			{
-				UnicityCertificate: &certificates.UnicityCertificate{InputRecord: &certificates.InputRecord{RoundNumber: 1}},
+				UnicityCertificate: &types.UnicityCertificate{InputRecord: &types.InputRecord{RoundNumber: 1}},
 			},
 			{
-				UnicityCertificate: &certificates.UnicityCertificate{InputRecord: &certificates.InputRecord{RoundNumber: 2}},
+				UnicityCertificate: &types.UnicityCertificate{InputRecord: &types.InputRecord{RoundNumber: 2}},
 			},
 		},
 	}
@@ -41,9 +40,9 @@ func TestLedgerReplicationResponse_Pretty_okWithBlocks(t *testing.T) {
 
 func TestLedgerReplicationResponse_Pretty_error(t *testing.T) {
 	r := &LedgerReplicationResponse{
-		Status:  LedgerReplicationResponse_INVALID_REQUEST_PARAMETERS,
+		Status:  InvalidRequestParameters,
 		Message: "something bad",
-		Blocks:  []*block.Block{{}},
+		Blocks:  []*types.Block{{}},
 	}
 	res := r.Pretty()
 	require.Contains(t, res, "status")

@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"os"
@@ -114,7 +115,7 @@ func TestProgramGenesis_WithSystemIdentifier(t *testing.T) {
 
 	pn, err := util.ReadJsonFile(nodeGenesisFile, &genesis.PartitionNode{})
 	require.NoError(t, err)
-	require.Equal(t, []byte{1, 1, 1, 1}, pn.BlockCertificationRequest.SystemIdentifier)
+	require.True(t, bytes.Equal([]byte{1, 1, 1, 1}, pn.BlockCertificationRequest.SystemIdentifier))
 }
 
 func setupHome(t *testing.T, dir string) string {

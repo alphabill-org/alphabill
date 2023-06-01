@@ -4,9 +4,7 @@ import (
 	"testing"
 
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
-
-	"github.com/alphabill-org/alphabill/internal/certificates"
-
+	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/stretchr/testify/require"
 )
 
@@ -19,7 +17,7 @@ func TestBlockCertificationRequest_IsValid_VerifierIsNil(t *testing.T) {
 	p1 := &BlockCertificationRequest{
 		SystemIdentifier: []byte{0, 0, 0, 0},
 		NodeIdentifier:   "1",
-		InputRecord:      &certificates.InputRecord{},
+		InputRecord:      &types.InputRecord{},
 	}
 	require.ErrorIs(t, p1.IsValid(nil), errVerifierIsNil)
 }
@@ -29,7 +27,7 @@ func TestBlockCertificationRequest_IsValid_InvalidSystemIdentifier(t *testing.T)
 	p1 := &BlockCertificationRequest{
 		SystemIdentifier: []byte{0},
 		NodeIdentifier:   "11",
-		InputRecord:      &certificates.InputRecord{},
+		InputRecord:      &types.InputRecord{},
 	}
 	require.ErrorIs(t, p1.IsValid(verifier), errInvalidSystemIdentifierLength)
 }
@@ -39,7 +37,7 @@ func TestBlockCertificationRequest_IsValid_EmptyNodeIdentifier(t *testing.T) {
 	p1 := &BlockCertificationRequest{
 		SystemIdentifier: []byte{0, 0, 0, 0},
 		NodeIdentifier:   "",
-		InputRecord:      &certificates.InputRecord{},
+		InputRecord:      &types.InputRecord{},
 	}
 	require.ErrorIs(t, p1.IsValid(verifier), errEmptyNodeIdentifier)
 }
@@ -51,7 +49,7 @@ func TestBlockCertificationRequest_IsValid_InvalidInputRecord(t *testing.T) {
 		NodeIdentifier:   "1",
 		InputRecord:      nil,
 	}
-	require.ErrorIs(t, p1.IsValid(verifier), certificates.ErrInputRecordIsNil)
+	require.ErrorContains(t, p1.IsValid(verifier), types.ErrInputRecordIsNil.Error())
 }
 
 func TestBlockCertificationRequest_IsValid_InvalidSignature(t *testing.T) {
@@ -59,7 +57,7 @@ func TestBlockCertificationRequest_IsValid_InvalidSignature(t *testing.T) {
 	p1 := &BlockCertificationRequest{
 		SystemIdentifier: []byte{0, 0, 0, 0},
 		NodeIdentifier:   "1",
-		InputRecord: &certificates.InputRecord{
+		InputRecord: &types.InputRecord{
 			PreviousHash: []byte{},
 			Hash:         []byte{},
 			BlockHash:    []byte{},
@@ -78,7 +76,7 @@ func TestBlockCertificationRequest_ValidRequest(t *testing.T) {
 	p1 := &BlockCertificationRequest{
 		SystemIdentifier: []byte{0, 0, 0, 0},
 		NodeIdentifier:   "1",
-		InputRecord: &certificates.InputRecord{
+		InputRecord: &types.InputRecord{
 			PreviousHash: []byte{},
 			Hash:         []byte{},
 			BlockHash:    []byte{},

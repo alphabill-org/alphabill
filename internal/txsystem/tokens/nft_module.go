@@ -7,35 +7,24 @@ import (
 var _ txsystem.Module = &NonFungibleTokensModule{}
 
 type NonFungibleTokensModule struct {
-	txExecutors []txsystem.TxExecutor
-	txConverter txsystem.TxConverters
+	txExecutors map[string]txsystem.TxExecutor
 }
 
 func NewNonFungibleTokensModule(options *Options) (*NonFungibleTokensModule, error) {
 	return &NonFungibleTokensModule{
-		txExecutors: []txsystem.TxExecutor{
-			handleCreateNoneFungibleTokenTx(options),
-			handleMintNonFungibleTokenTx(options),
-			handleTransferNonFungibleTokenTx(options),
-			handleUpdateNonFungibleTokenTx(options),
-		},
-		txConverter: map[string]txsystem.TxConverter{
-			typeURLCreateNonFungibleTokenTypeAttributes: convertCreateNonFungibleTokenType,
-			typeURLMintNonFungibleTokenAttributes:       convertMintNonFungibleToken,
-			typeURLTransferNonFungibleTokenAttributes:   convertTransferNonFungibleToken,
-			typeURLUpdateNonFungibleTokenAttributes:     convertUpdateNonFungibleToken,
+		txExecutors: map[string]txsystem.TxExecutor{
+			PayloadTypeCreateNFTType: handleCreateNoneFungibleTokenTx(options),
+			PayloadTypeMintNFT:       handleMintNonFungibleTokenTx(options),
+			PayloadTypeTransferNFT:   handleTransferNonFungibleTokenTx(options),
+			PayloadTypeUpdateNFT:     handleUpdateNonFungibleTokenTx(options),
 		},
 	}, nil
 }
 
-func (n *NonFungibleTokensModule) TxExecutors() []txsystem.TxExecutor {
+func (n *NonFungibleTokensModule) TxExecutors() map[string]txsystem.TxExecutor {
 	return n.txExecutors
 }
 
 func (n *NonFungibleTokensModule) GenericTransactionValidator() txsystem.GenericTransactionValidator {
 	return ValidateGenericTransaction
-}
-
-func (n *NonFungibleTokensModule) TxConverter() txsystem.TxConverters {
-	return n.txConverter
 }

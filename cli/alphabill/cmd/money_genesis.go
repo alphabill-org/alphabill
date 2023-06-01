@@ -14,10 +14,10 @@ import (
 	"github.com/alphabill-org/alphabill/internal/script"
 	"github.com/alphabill-org/alphabill/internal/txsystem/money"
 	"github.com/alphabill-org/alphabill/internal/util"
+	"github.com/fxamacker/cbor/v2"
 	"github.com/holiman/uint256"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/spf13/cobra"
-	"google.golang.org/protobuf/types/known/anypb"
 )
 
 const (
@@ -147,8 +147,7 @@ func (c *moneyGenesisConfig) getNodeGenesisFileLocation(home string) string {
 	return filepath.Join(home, vdGenesisFileName)
 }
 
-func (c *moneyGenesisConfig) getPartitionParams() (*anypb.Any, error) {
-	dst := new(anypb.Any)
+func (c *moneyGenesisConfig) getPartitionParams() ([]byte, error) {
 	sdrFiles, err := c.getSDRFiles()
 	if err != nil {
 		return nil, err
@@ -158,11 +157,11 @@ func (c *moneyGenesisConfig) getPartitionParams() (*anypb.Any, error) {
 		DcMoneySupplyValue:       c.DCMoneySupplyValue,
 		SystemDescriptionRecords: sdrFiles,
 	}
-	err = dst.MarshalFrom(src)
+	res, err := cbor.Marshal(src)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to marshal money partition params: %w", err)
 	}
-	return dst, nil
+	return res, nil
 }
 
 func (c *moneyGenesisConfig) getSDRFiles() ([]*genesis.SystemDescriptionRecord, error) {

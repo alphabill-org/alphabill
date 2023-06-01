@@ -13,17 +13,15 @@ import (
 	"time"
 
 	"github.com/ainvaltin/httpsrv"
-	"github.com/alphabill-org/alphabill/pkg/wallet/backend/bp"
-	"github.com/alphabill-org/alphabill/internal/block"
+	"github.com/stretchr/testify/require"
+
 	testhttp "github.com/alphabill-org/alphabill/internal/testutils/http"
 	"github.com/alphabill-org/alphabill/internal/testutils/net"
 	testtransaction "github.com/alphabill-org/alphabill/internal/testutils/transaction"
-	"github.com/alphabill-org/alphabill/internal/testutils/transaction/money"
-	"github.com/alphabill-org/alphabill/internal/txsystem"
+	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/pkg/client"
 	"github.com/alphabill-org/alphabill/pkg/client/clientmock"
 	"github.com/alphabill-org/alphabill/pkg/wallet"
-	"github.com/stretchr/testify/require"
 )
 
 const (
@@ -336,22 +334,20 @@ func TestProofRequest_Ok(t *testing.T) {
 		Value:          1,
 		TxHash:         []byte{0},
 		OwnerPredicate: getOwnerPredicate(pubkeyHex),
-		TxProof: &TxProof{
-			BlockNumber: 1,
-			Tx:          testtransaction.NewTransaction(t),
-			Proof: &block.BlockProof{
-				BlockHeaderHash: []byte{0},
-				BlockTreeHashChain: &block.BlockTreeHashChain{
-					Items: []*block.ChainItem{{Val: []byte{0}, Hash: []byte{0}}},
-				},
+		TxProof: &wallet.Proof{
+			TxRecord: testtransaction.NewTransactionRecord(t),
+			TxProof: &types.TxProof{
+				BlockHeaderHash:    []byte{0},
+				Chain:              []*types.GenericChainItem{{Hash: []byte{0}}},
+				UnicityCertificate: &types.UnicityCertificate{InputRecord: &types.InputRecord{RoundNumber: 1}},
 			},
 		},
 	}
 	walletBackend := newWalletBackend(t, withBills(b))
 	port := startServer(t, walletBackend)
 
-	response := &bp.Bills{}
-	httpRes, err := testhttp.DoGetProto(fmt.Sprintf("http://localhost:%d/api/v1/proof?bill_id=%s", port, billId), response)
+	response := &wallet.Bills{}
+	httpRes, err := testhttp.DoGet(fmt.Sprintf("http://localhost:%d/api/v1/proof?bill_id=%s", port, billId), response)
 	require.NoError(t, err)
 	require.Equal(t, http.StatusOK, httpRes.StatusCode)
 	require.Len(t, response.Bills, 1)
@@ -362,9 +358,9 @@ func TestProofRequest_Ok(t *testing.T) {
 
 	ep := b.TxProof
 	ap := res.TxProof
-	require.Equal(t, ep.BlockNumber, ap.BlockNumber)
-	require.EqualValues(t, ep.Tx.UnitId, ap.Tx.UnitId)
-	require.EqualValues(t, ep.Proof.BlockHeaderHash, ap.Proof.BlockHeaderHash)
+	require.Equal(t, ep.TxProof.UnicityCertificate.GetRoundNumber(), ap.TxProof.UnicityCertificate.GetRoundNumber())
+	require.EqualValues(t, ep.TxRecord.TransactionOrder.UnitID(), ap.TxRecord.TransactionOrder.UnitID())
+	require.EqualValues(t, ep.TxProof.BlockHeaderHash, ap.TxProof.BlockHeaderHash)
 }
 
 func TestProofRequest_MissingBillId(t *testing.T) {
@@ -449,22 +445,19 @@ func TestGetFeeCreditBillRequest_Ok(t *testing.T) {
 		TxHash:         []byte{0},
 		OwnerPredicate: getOwnerPredicate(pubkeyHex),
 		FCBlockNumber:  1,
-		TxProof: &TxProof{
-			BlockNumber: 1,
-			Tx:          testtransaction.NewTransaction(t),
-			Proof: &block.BlockProof{
+		TxProof: &wallet.Proof{
+			TxRecord: testtransaction.NewTransactionRecord(t),
+			TxProof: &types.TxProof{
 				BlockHeaderHash: []byte{0},
-				BlockTreeHashChain: &block.BlockTreeHashChain{
-					Items: []*block.ChainItem{{Val: []byte{0}, Hash: []byte{0}}},
-				},
+				Chain:           []*types.GenericChainItem{{Hash: []byte{0}}},
 			},
 		},
 	}
 	walletBackend := newWalletBackend(t, withFeeCreditBills(b))
 	port := startServer(t, walletBackend)
 
-	response := &bp.Bill{}
-	httpRes, err := testhttp.DoGetProto(fmt.Sprintf("http://localhost:%d/api/v1/fee-credit-bill?bill_id=%s", port, billId), response)
+	response := &wallet.Bill{}
+	httpRes, err := testhttp.DoGet(fmt.Sprintf("http://localhost:%d/api/v1/fee-credit-bill?bill_id=%s", port, billId), response)
 	require.NoError(t, err)
 	require.Equal(t, http.StatusOK, httpRes.StatusCode)
 	require.Equal(t, b.Id, response.Id)
@@ -475,9 +468,9 @@ func TestGetFeeCreditBillRequest_Ok(t *testing.T) {
 
 	ep := b.TxProof
 	ap := response.TxProof
-	require.Equal(t, ep.BlockNumber, ap.BlockNumber)
-	require.EqualValues(t, ep.Tx.UnitId, ap.Tx.UnitId)
-	require.EqualValues(t, ep.Proof.BlockHeaderHash, ap.Proof.BlockHeaderHash)
+	require.Equal(t, ep.TxProof.UnicityCertificate.GetRoundNumber(), ap.TxProof.UnicityCertificate.GetRoundNumber())
+	require.EqualValues(t, ep.TxRecord.TransactionOrder.UnitID(), ap.TxRecord.TransactionOrder.UnitID())
+	require.EqualValues(t, ep.TxProof.BlockHeaderHash, ap.TxProof.BlockHeaderHash)
 }
 
 func TestGetFeeCreditBillRequest_MissingBillId(t *testing.T) {
@@ -531,7 +524,7 @@ func TestPostTransactionsRequest_InvalidPubkey(t *testing.T) {
 	port := startServer(t, walletBackend)
 
 	res := &ErrorResponse{}
-	httpRes, err := testhttp.DoPostProto(fmt.Sprintf("http://localhost:%d/api/v1/transactions/%s", port, "invalid"), nil, res)
+	httpRes, err := testhttp.DoPost(fmt.Sprintf("http://localhost:%d/api/v1/transactions/%s", port, "invalid"), nil, res)
 	require.NoError(t, err)
 	require.Equal(t, http.StatusBadRequest, httpRes.StatusCode)
 	require.Contains(t, res.Message, "failed to parse sender pubkey")
@@ -542,36 +535,23 @@ func TestPostTransactionsRequest_EmptyBody(t *testing.T) {
 	port := startServer(t, walletBackend)
 
 	res := &ErrorResponse{}
-	httpRes, err := testhttp.DoPostProto(fmt.Sprintf("http://localhost:%d/api/v1/transactions/%s", port, pubkeyHex), nil, res)
+	httpRes, err := testhttp.DoPostCBOR(fmt.Sprintf("http://localhost:%d/api/v1/transactions/%s", port, pubkeyHex), nil, res)
 	require.NoError(t, err)
 	require.Equal(t, http.StatusBadRequest, httpRes.StatusCode)
 	require.Equal(t, "request body contained no transactions to process", res.Message)
-}
-
-func TestPostTransactionsRequest_InvalidTransactions(t *testing.T) {
-	walletBackend := newWalletBackend(t)
-	port := startServer(t, walletBackend)
-
-	txs := money.RandomBillTransfer(t)
-
-	res := &ErrorResponse{}
-	httpRes, err := testhttp.DoPostProto(fmt.Sprintf("http://localhost:%d/api/v1/transactions/%s", port, pubkeyHex), txs, res)
-	require.NoError(t, err)
-	require.Equal(t, http.StatusBadRequest, httpRes.StatusCode)
-	require.Contains(t, res.Message, "failed to decode request body")
 }
 
 func TestPostTransactionsRequest_Ok(t *testing.T) {
 	walletBackend := newWalletBackend(t)
 	port := startServer(t, walletBackend)
 
-	txs := &txsystem.Transactions{Transactions: []*txsystem.Transaction{
-		money.RandomBillTransfer(t),
-		money.RandomBillTransfer(t),
-		money.RandomBillTransfer(t),
+	txs := &wallet.Transactions{Transactions: []*types.TransactionOrder{
+		testtransaction.NewTransactionOrder(t),
+		testtransaction.NewTransactionOrder(t),
+		testtransaction.NewTransactionOrder(t),
 	}}
 
-	httpRes, err := testhttp.DoPostProto(fmt.Sprintf("http://localhost:%d/api/v1/transactions/%s", port, pubkeyHex), txs, nil)
+	httpRes, err := testhttp.DoPostCBOR(fmt.Sprintf("http://localhost:%d/api/v1/transactions/%s", port, pubkeyHex), txs, nil)
 	require.NoError(t, err)
 	require.Equal(t, http.StatusAccepted, httpRes.StatusCode)
 }

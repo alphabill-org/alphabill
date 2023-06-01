@@ -5,8 +5,8 @@ import (
 	"errors"
 	"sync"
 
-	"github.com/alphabill-org/alphabill/internal/certificates"
 	"github.com/alphabill-org/alphabill/internal/network"
+	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/holiman/uint256"
 	"github.com/libp2p/go-libp2p/core/peer"
 )
@@ -19,8 +19,8 @@ const (
 
 type (
 	LeaderSelector interface {
-		UpdateLeader(uc *certificates.UnicityCertificate)
-		LeaderFunc(uc *certificates.UnicityCertificate) peer.ID
+		UpdateLeader(uc *types.UnicityCertificate)
+		LeaderFunc(uc *types.UnicityCertificate) peer.ID
 		IsCurrentNodeLeader() bool
 		GetLeaderID() peer.ID
 		SelfID() peer.ID
@@ -64,7 +64,7 @@ func (l *DefaultLeaderSelector) GetLeaderID() peer.ID {
 }
 
 // UpdateLeader updates the next block proposer. If input is nil then leader is set to UnknownLeader.
-func (l *DefaultLeaderSelector) UpdateLeader(uc *certificates.UnicityCertificate) {
+func (l *DefaultLeaderSelector) UpdateLeader(uc *types.UnicityCertificate) {
 	l.mutex.Lock()
 	defer l.mutex.Unlock()
 	l.leader = l.LeaderFunc(uc)
@@ -73,7 +73,7 @@ func (l *DefaultLeaderSelector) UpdateLeader(uc *certificates.UnicityCertificate
 
 // LeaderFunc calculates new leader from Unicity Certificate
 // For details see Yellowpaper Algorithm 1 "State and Initialization" - "function leaderfunc(uc)" description
-func (l *DefaultLeaderSelector) LeaderFunc(uc *certificates.UnicityCertificate) peer.ID {
+func (l *DefaultLeaderSelector) LeaderFunc(uc *types.UnicityCertificate) peer.ID {
 	// We don't need the lock because we don't change the state of the struct.
 	if uc == nil {
 		return UnknownLeader

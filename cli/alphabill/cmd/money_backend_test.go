@@ -14,9 +14,9 @@ import (
 	testpartition "github.com/alphabill-org/alphabill/internal/testutils/partition"
 	moneytx "github.com/alphabill-org/alphabill/internal/txsystem/money"
 	"github.com/alphabill-org/alphabill/internal/util"
-	"github.com/alphabill-org/alphabill/pkg/wallet/backend/bp"
-	"github.com/alphabill-org/alphabill/pkg/wallet/money/backend"
+	"github.com/alphabill-org/alphabill/pkg/wallet"
 	wlog "github.com/alphabill-org/alphabill/pkg/wallet/log"
+	"github.com/alphabill-org/alphabill/pkg/wallet/money/backend"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
@@ -78,8 +78,8 @@ func TestMoneyBackendCLI(t *testing.T) {
 	require.NotNil(t, b.TxHash)
 
 	// verify /proof
-	resBlockProof := &bp.Bills{}
-	httpRes, err = testhttp.DoGetProto(fmt.Sprintf("http://%s/api/v1/proof?bill_id=%s", serverAddr, initialBillHex), resBlockProof)
+	resBlockProof := &wallet.Bills{}
+	httpRes, err = testhttp.DoGet(fmt.Sprintf("http://%s/api/v1/proof?bill_id=%s", serverAddr, initialBillHex), resBlockProof)
 	require.NoError(t, err)
 	require.EqualValues(t, 200, httpRes.StatusCode)
 	require.Len(t, resBlockProof.Bills, 1)

@@ -8,43 +8,48 @@ import (
 	"github.com/alphabill-org/alphabill/internal/rma"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/internal/txsystem/fc"
+	"github.com/alphabill-org/alphabill/internal/types"
+	"github.com/alphabill-org/alphabill/internal/util"
+	"github.com/fxamacker/cbor/v2"
 	"github.com/holiman/uint256"
 )
 
-func handleUpdateNonFungibleTokenTx(options *Options) txsystem.GenericExecuteFunc[*updateNonFungibleTokenWrapper] {
-	return func(tx *updateNonFungibleTokenWrapper, currentBlockNr uint64) error {
-		logger.Debug("Processing Update Non-Fungible Token tx: %v", tx.transaction.ToLogString(logger))
-		if err := validateUpdateNonFungibleToken(tx, options.state); err != nil {
-			return fmt.Errorf("invalid update none-fungible token tx: %w", err)
+func handleUpdateNonFungibleTokenTx(options *Options) txsystem.GenericExecuteFunc[UpdateNonFungibleTokenAttributes] {
+	return func(tx *types.TransactionOrder, attr *UpdateNonFungibleTokenAttributes, currentBlockNr uint64) (*types.ServerMetadata, error) {
+		logger.Debug("Processing Update Non-Fungible Token tx: %v", tx)
+		if err := validateUpdateNonFungibleToken(tx, attr, options.state); err != nil {
+			return nil, fmt.Errorf("invalid update none-fungible token tx: %w", err)
 		}
 		fee := options.feeCalculator()
-		tx.SetServerMetadata(&txsystem.ServerMetadata{Fee: fee})
-
-		// calculate hash after setting server metadata
+		// TODO calculate hash after setting server metadata
 		h := tx.Hash(options.hashAlgorithm)
 
 		// update state
-		fcrID := tx.transaction.GetClientFeeCreditRecordID()
-		return options.state.AtomicUpdate(
+		fcrID := util.BytesToUint256(tx.GetClientFeeCreditRecordID())
+		unitID := util.BytesToUint256(tx.UnitID())
+		if err := options.state.AtomicUpdate(
 			fc.DecrCredit(fcrID, fee, h),
-			rma.UpdateData(tx.UnitID(), func(data rma.UnitData) (newData rma.UnitData) {
+			rma.UpdateData(unitID, func(data rma.UnitData) (newData rma.UnitData) {
 				d, ok := data.(*nonFungibleTokenData)
 				if !ok {
 					return data
 				}
-				d.data = tx.attributes.Data
+				d.data = attr.Data
 				d.t = currentBlockNr
 				d.backlink = tx.Hash(options.hashAlgorithm)
 				return data
-			}, h))
+			}, h)); err != nil {
+			return nil, err
+		}
+		return &types.ServerMetadata{ActualFee: fee}, nil
 	}
 }
 
-func validateUpdateNonFungibleToken(tx *updateNonFungibleTokenWrapper, state *rma.Tree) error {
-	if len(tx.attributes.Data) > dataMaxSize {
+func validateUpdateNonFungibleToken(tx *types.TransactionOrder, attr *UpdateNonFungibleTokenAttributes, state *rma.Tree) error {
+	if len(attr.Data) > dataMaxSize {
 		return fmt.Errorf("data exceeds the maximum allowed size of %v KB", dataMaxSize)
 	}
-	unitID := tx.UnitID()
+	unitID := util.BytesToUint256(tx.UnitID())
 	u, err := state.GetUnit(unitID)
 	if err != nil {
 		return err
@@ -53,7 +58,7 @@ func validateUpdateNonFungibleToken(tx *updateNonFungibleTokenWrapper, state *rm
 	if !ok {
 		return fmt.Errorf("unit %v is not a non-fungible token type", unitID)
 	}
-	if !bytes.Equal(data.backlink, tx.attributes.Backlink) {
+	if !bytes.Equal(data.backlink, attr.Backlink) {
 		return errors.New("invalid backlink")
 	}
 	predicates, err := getChainedPredicates[*nonFungibleTokenTypeData](
@@ -70,5 +75,43 @@ func validateUpdateNonFungibleToken(tx *updateNonFungibleTokenWrapper, state *rm
 		return err
 	}
 	predicates = append([]Predicate{data.dataUpdatePredicate}, predicates...)
-	return verifyPredicates(predicates, tx.DataUpdateSignatures(), tx.SigBytes())
+	sigBytes, err := tx.Payload.BytesWithAttributeSigBytes(attr)
+	if err != nil {
+		return err
+	}
+	return verifyPredicates(predicates, attr.DataUpdateSignatures, sigBytes)
+}
+
+func (u *UpdateNonFungibleTokenAttributes) GetData() []byte {
+	return u.Data
+}
+
+func (u *UpdateNonFungibleTokenAttributes) SetData(data []byte) {
+	u.Data = data
+}
+
+func (u *UpdateNonFungibleTokenAttributes) GetBacklink() []byte {
+	return u.Backlink
+}
+
+func (u *UpdateNonFungibleTokenAttributes) SetBacklink(backlink []byte) {
+	u.Backlink = backlink
+}
+
+func (u *UpdateNonFungibleTokenAttributes) GetDataUpdateSignatures() [][]byte {
+	return u.DataUpdateSignatures
+}
+
+func (u *UpdateNonFungibleTokenAttributes) SetDataUpdateSignatures(signatures [][]byte) {
+	u.DataUpdateSignatures = signatures
+}
+
+func (u *UpdateNonFungibleTokenAttributes) SigBytes() ([]byte, error) {
+	// TODO: AB-1016 exclude DataUpdateSignatures from the payload hash because otherwise we have "chicken and egg" problem.
+	signatureAttr := &UpdateNonFungibleTokenAttributes{
+		Data:                 u.Data,
+		Backlink:             u.Backlink,
+		DataUpdateSignatures: nil,
+	}
+	return cbor.Marshal(signatureAttr)
 }

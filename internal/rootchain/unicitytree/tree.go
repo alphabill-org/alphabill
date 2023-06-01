@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"hash"
 
-	"github.com/alphabill-org/alphabill/internal/certificates"
 	"github.com/alphabill-org/alphabill/internal/smt"
+	"github.com/alphabill-org/alphabill/internal/types"
 )
 
 const systemIdentifierLength = 4
@@ -16,7 +16,7 @@ var ErrInvalidSystemIdentifierLength = errors.New("invalid system identifier len
 type (
 	Data struct {
 		SystemIdentifier            []byte
-		InputRecord                 *certificates.InputRecord
+		InputRecord                 *types.InputRecord
 		SystemDescriptionRecordHash []byte
 	}
 
@@ -47,7 +47,7 @@ func (u *UnicityTree) GetRootHash() []byte {
 }
 
 // GetCertificate returns an unicity tree certificate for given system identifier.
-func (u *UnicityTree) GetCertificate(systemIdentifier []byte) (*certificates.UnicityTreeCertificate, error) {
+func (u *UnicityTree) GetCertificate(systemIdentifier []byte) (*types.UnicityTreeCertificate, error) {
 	if len(systemIdentifier) != systemIdentifierLength {
 		return nil, ErrInvalidSystemIdentifierLength
 	}
@@ -64,7 +64,7 @@ func (u *UnicityTree) GetCertificate(systemIdentifier []byte) (*certificates.Uni
 	}
 	dhash := leafData.SystemDescriptionRecordHash
 
-	return &certificates.UnicityTreeCertificate{
+	return &types.UnicityTreeCertificate{
 		SystemIdentifier:      systemIdentifier,
 		SystemDescriptionHash: dhash,
 		SiblingHashes:         path,
@@ -72,7 +72,7 @@ func (u *UnicityTree) GetCertificate(systemIdentifier []byte) (*certificates.Uni
 }
 
 // GetIR returns Input Record for system identifier.
-func (u *UnicityTree) GetIR(systemIdentifier []byte) (*certificates.InputRecord, error) {
+func (u *UnicityTree) GetIR(systemIdentifier []byte) (*types.InputRecord, error) {
 	if len(systemIdentifier) != systemIdentifierLength {
 		return nil, ErrInvalidSystemIdentifierLength
 	}

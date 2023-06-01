@@ -7,7 +7,7 @@ import (
 	"sync"
 
 	"github.com/alphabill-org/alphabill/internal/metrics"
-	"github.com/alphabill-org/alphabill/internal/txsystem"
+	"github.com/alphabill-org/alphabill/internal/types"
 )
 
 var (
@@ -25,15 +25,15 @@ type (
 	// TxBuffer is an in-memory data structure containing the set of unconfirmed transactions.
 	TxBuffer struct {
 		mutex          sync.Mutex
-		transactions   map[string]txsystem.GenericTransaction // map containing valid pending transactions.
-		transactionsCh chan txsystem.GenericTransaction
+		transactions   map[string]*types.TransactionOrder // map containing valid pending transactions.
+		transactionsCh chan *types.TransactionOrder
 		hashAlgorithm  gocrypto.Hash
 	}
 
 	// TxHandler handles the transaction. Return value should indicate whether the tx was processed
 	// successfully (and thus removed from buffer) but currently this value is ignored - after callback
 	// returns the tx is always removed from internal buffer.
-	TxHandler func(tx txsystem.GenericTransaction) bool
+	TxHandler func(tx *types.TransactionOrder) bool
 )
 
 // New creates a new instance of the TxBuffer. MaxSize specifies the total number of transactions the TxBuffer may
@@ -44,8 +44,8 @@ func New(maxSize uint32, hashAlgorithm gocrypto.Hash) (*TxBuffer, error) {
 	}
 	return &TxBuffer{
 		hashAlgorithm:  hashAlgorithm,
-		transactions:   make(map[string]txsystem.GenericTransaction),
-		transactionsCh: make(chan txsystem.GenericTransaction, maxSize),
+		transactions:   make(map[string]*types.TransactionOrder),
+		transactionsCh: make(chan *types.TransactionOrder, maxSize),
 	}, nil
 }
 
@@ -59,7 +59,7 @@ func (t *TxBuffer) Capacity() uint32 {
 
 // Add adds the given transaction to the transaction buffer. Returns an error if the transaction isn't valid, is
 // already present in the TxBuffer, or TxBuffer is full.
-func (t *TxBuffer) Add(tx txsystem.GenericTransaction) error {
+func (t *TxBuffer) Add(tx *types.TransactionOrder) error {
 	if tx == nil {
 		return ErrTxIsNil
 	}

@@ -15,14 +15,13 @@ import (
 	"github.com/alphabill-org/alphabill/internal/testutils/net"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	testtime "github.com/alphabill-org/alphabill/internal/testutils/time"
-	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/internal/txsystem/program"
+	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/internal/util"
+	"github.com/fxamacker/cbor/v2"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
-	"google.golang.org/protobuf/proto"
-	"google.golang.org/protobuf/types/known/anypb"
 )
 
 func TestRunPrograms(t *testing.T) {
@@ -76,25 +75,32 @@ func TestRunPrograms(t *testing.T) {
 		require.NoError(t, err)
 		defer conn.Close()
 		rpcClient := alphabill.NewAlphabillServiceClient(conn)
-		tx := &txsystem.Transaction{
-			UnitId:                make([]byte, 32),
-			TransactionAttributes: new(anypb.Any),
-			ClientMetadata:        &txsystem.ClientMetadata{Timeout: 10},
-			OwnerProof:            nil,
-			SystemId:              program.DefaultProgramsSystemIdentifier,
-		}
-		call := &program.PCallAttributes{
-			Function: "test",
-			Input:    []byte{},
-		}
-		err = anypb.MarshalFrom(tx.TransactionAttributes, call, proto.MarshalOptions{})
-		require.NoError(t, err)
-		_, err = rpcClient.ProcessTransaction(ctx, tx, grpc.WaitForReady(true))
-		// tx is sent, but it will fail as the program does not exist, this is just to make sure that node has started
-		require.NoError(t, err)
+		makeProgramDeploy(t, ctx, rpcClient)
 		// Close the app
 		ctxCancel()
 		// Wait for test asserts to be completed
 		appStoppedWg.Wait()
 	})
+}
+
+func makeProgramDeploy(t *testing.T, ctx context.Context, txClient alphabill.AlphabillServiceClient) {
+	// this is a not valid application, but the tx is accepted as it is and proves that the node is running
+	attr := &program.PDeployAttributes{
+		ProgModule: []byte{1, 2, 3},
+		ProgParams: []byte{0, 0, 0, 0, 0, 0, 0, 0},
+	}
+	attrBytes, _ := cbor.Marshal(attr)
+	tx := &types.TransactionOrder{
+		Payload: &types.Payload{
+			Type:           program.ProgramDeploy,
+			UnitID:         make([]byte, 32),
+			ClientMetadata: &types.ClientMetadata{Timeout: 10},
+			SystemID:       []byte{0, 0, 0, 3},
+			Attributes:     attrBytes,
+		},
+	}
+	txBytes, _ := cbor.Marshal(tx)
+	protoTx := &alphabill.Transaction{Order: txBytes}
+	_, err := txClient.ProcessTransaction(ctx, protoTx, grpc.WaitForReady(true))
+	require.NoError(t, err)
 }

@@ -14,6 +14,7 @@ require (
 	github.com/btcsuite/btcd v0.23.2
 	github.com/btcsuite/btcd/btcutil v1.1.2
 	github.com/ethereum/go-ethereum v1.10.25
+	github.com/fxamacker/cbor/v2 v2.4.0
 	github.com/gorilla/handlers v1.5.1
 	github.com/gorilla/mux v1.8.0
 	github.com/holiman/uint256 v1.2.1
@@ -156,6 +157,7 @@ require (
 	github.com/tklauser/go-sysconf v0.3.5 // indirect
 	github.com/tklauser/numcpus v0.2.2 // indirect
 	github.com/whyrusleeping/go-keyspace v0.0.0-20160322163242-5b898ac5add1 // indirect
+	github.com/x448/float16 v0.8.4 // indirect
 	go.opencensus.io v0.24.0 // indirect
 	go.opentelemetry.io/otel v1.14.0 // indirect
 	go.opentelemetry.io/otel/trace v1.14.0 // indirect

@@ -9,50 +9,50 @@ import (
 	"github.com/alphabill-org/alphabill/internal/rma"
 	"github.com/alphabill-org/alphabill/internal/script"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
+	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/alphabill-org/alphabill/internal/wvm/abruntime"
 )
 
-func handlePDeployTx(ctx context.Context, state *rma.Tree, systemIdentifier []byte, hashAlgorithm crypto.Hash) txsystem.GenericExecuteFunc[*PDeployTransactionOrder] {
-	return func(txOrder *PDeployTransactionOrder, currentBlockNr uint64) error {
-		logger.Debug("Processing pdeploy tx %X", txOrder.UnitID().Bytes())
-		if err := validateDeployTx(txOrder, systemIdentifier); err != nil {
-			return fmt.Errorf("invalid program deploy tx, %w", err)
+func handlePDeployTx(ctx context.Context, state *rma.Tree, systemIdentifier []byte, hashAlgorithm crypto.Hash) txsystem.GenericExecuteFunc[PDeployAttributes] {
+	return func(tx *types.TransactionOrder, attr *PDeployAttributes, currentBlockNr uint64) (*types.ServerMetadata, error) {
+		logger.Debug("Processing pdeploy tx %X", tx.UnitID())
+		if err := validateDeployTx(tx, attr, systemIdentifier); err != nil {
+			return nil, fmt.Errorf("invalid program deploy tx, %w", err)
 		}
-		if _, err := state.GetUnit(txOrder.UnitID()); err == nil {
-			return fmt.Errorf("program unit with id '%X' already exists", util.Uint256ToBytes(txOrder.UnitID()))
+		if _, err := state.GetUnit(util.BytesToUint256(tx.UnitID())); err == nil {
+			return nil, fmt.Errorf("program unit with id '%X' already exists", tx.UnitID())
 		}
-		if len(txOrder.attributes.Program) < 1 {
-			return fmt.Errorf("unit %X does not contain wasm code", util.Uint256ToBytes(txOrder.UnitID()))
-		}
-		execCtx, err := NewExecCtxFormDeploy(txOrder, hashAlgorithm)
+		execCtx, err := NewExecCtxFormDeploy(tx, attr, hashAlgorithm)
 		if err != nil {
-			return fmt.Errorf("deloy program tx failed, %w", err)
+			return nil, fmt.Errorf("deloy program tx failed, %w", err)
 		}
-		if err = abruntime.CheckProgram(ctx, txOrder.attributes.Program, execCtx); err != nil {
-			return fmt.Errorf("program check failed, %w", err)
+		if err = abruntime.CheckProgram(ctx, attr.ProgModule, execCtx); err != nil {
+			return nil, fmt.Errorf("program check failed, %w", err)
 		}
 		if err = state.AtomicUpdate(rma.AddItem(
-			txOrder.UnitID(),
+			util.BytesToUint256(tx.UnitID()),
 			script.PredicateAlwaysFalse(),
-			&Program{wasm: txOrder.attributes.Program, progParams: txOrder.attributes.InitData},
+			&Program{wasm: attr.ProgModule, progParams: attr.ProgParams},
 			make([]byte, 32))); err != nil {
-			return fmt.Errorf("failed to save program to state, %w", err)
+			return nil, fmt.Errorf("failed to save program to state, %w", err)
 		}
-		return nil
+		return &types.ServerMetadata{}, nil
 	}
 }
 
-func validateDeployTx(tx *PDeployTransactionOrder, sysID []byte) error {
+func validateDeployTx(tx *types.TransactionOrder, attr *PDeployAttributes, sysID []byte) error {
 	// TODO verify type from extended identifier (AB-416)
-	// TODO: owner proof is missing for programs
+	if len(tx.OwnerProof) != 0 {
+		return fmt.Errorf("owner proof present")
+	}
 	if !bytes.Equal(sysID, tx.SystemID()) {
 		return fmt.Errorf("tx system id does not match tx system id")
 	}
-	if len(tx.attributes.Program) < 1 {
+	if len(attr.ProgModule) < 1 {
 		return fmt.Errorf("wasm module is missing")
 	}
-	if tx.attributes.InitData == nil {
+	if attr.ProgParams == nil {
 		return fmt.Errorf("program init data is missing")
 	}
 	return nil

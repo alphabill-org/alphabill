@@ -5,7 +5,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/alphabill-org/alphabill/internal/certificates"
 	"github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/keyvaluedb/memorydb"
 	"github.com/alphabill-org/alphabill/internal/network"
@@ -16,6 +15,7 @@ import (
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	testtxsystem "github.com/alphabill-org/alphabill/internal/testutils/txsystem"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
+	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/stretchr/testify/require"
 )
@@ -236,11 +236,11 @@ func TestGetGenesisBlock(t *testing.T) {
 type mockLeaderSelector struct {
 }
 
-func (m mockLeaderSelector) LeaderFunc(uc *certificates.UnicityCertificate) peer.ID {
+func (m mockLeaderSelector) LeaderFunc(uc *types.UnicityCertificate) peer.ID {
 	return ""
 }
 
-func (m mockLeaderSelector) UpdateLeader(*certificates.UnicityCertificate) {
+func (m mockLeaderSelector) UpdateLeader(*types.UnicityCertificate) {
 }
 
 func (m mockLeaderSelector) IsCurrentNodeLeader() bool {

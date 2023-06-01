@@ -10,6 +10,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/rma"
 	"github.com/alphabill-org/alphabill/internal/script"
 	testtransaction "github.com/alphabill-org/alphabill/internal/testutils/transaction"
+	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
@@ -25,9 +26,10 @@ var counterWasm []byte
 
 func Test_handlePCallTx(t *testing.T) {
 	type args struct {
-		ctx              context.Context
-		state            *rma.Tree
-		transactionOrder *PCallTransactionOrder
+		ctx   context.Context
+		state *rma.Tree
+		tx    *types.TransactionOrder
+		attr  *PCallAttributes
 	}
 	tests := []struct {
 		name       string
@@ -39,8 +41,19 @@ func Test_handlePCallTx(t *testing.T) {
 			args: args{
 				ctx:   context.Background(),
 				state: rma.NewWithSHA256(),
-				transactionOrder: newPCallTxOrder(t, "count", testtransaction.WithSystemID(systemID),
-					testtransaction.WithOwnerProof(testtransaction.RandomBytes(64))),
+				tx: &types.TransactionOrder{
+					Payload: &types.Payload{
+						SystemID:       systemID,
+						Type:           ProgramCall,
+						UnitID:         counterProgramUnitID.Bytes(),
+						ClientMetadata: &types.ClientMetadata{Timeout: 10, MaxTransactionFee: 2},
+					},
+					OwnerProof: testtransaction.RandomBytes(64),
+				},
+				attr: &PCallAttributes{
+					FuncName:  "count",
+					InputData: uint64ToLEBytes(1),
+				},
 			},
 			wantErrStr: "owner proof present",
 		},
@@ -49,9 +62,19 @@ func Test_handlePCallTx(t *testing.T) {
 			args: args{
 				ctx:   context.Background(),
 				state: rma.NewWithSHA256(),
-				transactionOrder: newPCallTxOrder(t, "count", testtransaction.WithUnitId(make([]byte, 32)),
-					testtransaction.WithSystemID(systemID),
-					testtransaction.WithOwnerProof(nil)),
+				tx: &types.TransactionOrder{
+					Payload: &types.Payload{
+						SystemID:       systemID,
+						Type:           ProgramCall,
+						UnitID:         testtransaction.RandomBytes(32),
+						ClientMetadata: &types.ClientMetadata{Timeout: 10, MaxTransactionFee: 2},
+					},
+					OwnerProof: nil,
+				},
+				attr: &PCallAttributes{
+					FuncName:  "count",
+					InputData: uint64ToLEBytes(1),
+				},
 			},
 			wantErrStr: "failed to load program",
 		},
@@ -60,9 +83,19 @@ func Test_handlePCallTx(t *testing.T) {
 			args: args{
 				ctx:   context.Background(),
 				state: initStateWithBuiltInPrograms(t),
-				transactionOrder: newPCallTxOrder(t, "count", testtransaction.WithUnitId(uint256.NewInt(0).PaddedBytes(32)),
-					testtransaction.WithSystemID(systemID),
-					testtransaction.WithOwnerProof(nil)),
+				tx: &types.TransactionOrder{
+					Payload: &types.Payload{
+						SystemID:       systemID,
+						Type:           ProgramCall,
+						UnitID:         make([]byte, 32),
+						ClientMetadata: &types.ClientMetadata{Timeout: 10, MaxTransactionFee: 2},
+					},
+					OwnerProof: nil,
+				},
+				attr: &PCallAttributes{
+					FuncName:  "count",
+					InputData: uint64ToLEBytes(1),
+				},
 			},
 			wantErrStr: "failed to load program",
 		},
@@ -71,15 +104,25 @@ func Test_handlePCallTx(t *testing.T) {
 			args: args{
 				ctx:   context.Background(),
 				state: initStateWithBuiltInPrograms(t),
-				transactionOrder: newPCallTxOrder(t, "count", testtransaction.WithUnitId(counterProgramUnitID.Bytes()),
-					testtransaction.WithSystemID(systemID),
-					testtransaction.WithOwnerProof(nil)),
+				tx: &types.TransactionOrder{
+					Payload: &types.Payload{
+						SystemID:       systemID,
+						Type:           ProgramCall,
+						UnitID:         counterProgramUnitID.Bytes(),
+						ClientMetadata: &types.ClientMetadata{Timeout: 10, MaxTransactionFee: 2},
+					},
+					OwnerProof: nil,
+				},
+				attr: &PCallAttributes{
+					FuncName:  "count",
+					InputData: uint64ToLEBytes(1),
+				},
 			},
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := handlePCallTx(tt.args.ctx, tt.args.state, systemID, crypto.SHA256)(tt.args.transactionOrder, 10)
+			_, err := handlePCallTx(tt.args.ctx, tt.args.state, systemID, crypto.SHA256)(tt.args.tx, tt.args.attr, 10)
 			if tt.wantErrStr != "" {
 				require.ErrorContains(t, err, tt.wantErrStr)
 			} else {
@@ -109,15 +152,4 @@ func initStateWithBuiltInPrograms(t *testing.T) *rma.Tree {
 		))
 	state.Commit()
 	return state
-}
-
-func newPCallTxOrder(t *testing.T, fName string, opts ...testtransaction.Option) *PCallTransactionOrder {
-	order := testtransaction.NewTransaction(t, opts...)
-	return &PCallTransactionOrder{
-		txOrder: order,
-		attributes: &PCallAttributes{
-			Function: fName,
-			Input:    uint64ToLEBytes(1),
-		},
-	}
 }

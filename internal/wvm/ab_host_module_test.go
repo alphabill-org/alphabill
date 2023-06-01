@@ -11,10 +11,6 @@ import (
 )
 
 const stateID = 0xaabbccdd
-const StateReadError = -1
-const StateWriteError = -2
-const ParamsReadError = -3
-const InputParamsReadError = -4
 
 func initWvmHostTest(t *testing.T, ctx context.Context, eCtx ExecutionCtx, s Storage) *WasmVM {
 	wasm, err := os.ReadFile("testdata/host_test.wasm")
@@ -58,7 +54,7 @@ func Test_buildHostAPI_SetStateFromInput(t *testing.T) {
 	res, err := fn.Call(ctx)
 	require.NoError(t, err)
 	require.Len(t, res, 1)
-	require.EqualValues(t, WasmSuccess, res[0])
+	require.EqualValues(t, Success, res[0])
 	// verify state was written to db
 	val, err := storage.Read(util.Uint32ToBytes(stateID))
 	require.NoError(t, err)
@@ -140,7 +136,7 @@ func Test_buildHostAPI_SetStateFromParams(t *testing.T) {
 	res, err := fn.Call(ctx)
 	require.NoError(t, err)
 	require.Len(t, res, 1)
-	require.EqualValues(t, WasmSuccess, res[0])
+	require.EqualValues(t, 0, res[0])
 	// verify state was written to db
 	val, err := storage.Read(util.Uint32ToBytes(stateID))
 	require.NoError(t, err)

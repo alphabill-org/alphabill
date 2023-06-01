@@ -8,13 +8,12 @@ import (
 	"github.com/tetratelabs/wazero/api"
 )
 
-const WasmSuccess = 0
-
 type WasmVM struct {
 	runtime wazero.Runtime
 	mod     api.Module
 }
 
+// New - creates new wazero based wasm vm
 func New(ctx context.Context, wasmSrc []byte, opts ...Option) (*WasmVM, error) {
 	options := defaultOptions()
 	for _, opt := range opts {
@@ -39,6 +38,7 @@ func New(ctx context.Context, wasmSrc []byte, opts ...Option) (*WasmVM, error) {
 	}, nil
 }
 
+// CheckApiCallExists check if wasm module exports any function calls
 func (vm *WasmVM) CheckApiCallExists() error {
 	if len(vm.mod.ExportedFunctionDefinitions()) < 1 {
 		return fmt.Errorf("no exported functions")
@@ -46,21 +46,11 @@ func (vm *WasmVM) CheckApiCallExists() error {
 	return nil
 }
 
+// GetApiFn find function "fnName" and return it
 func (vm *WasmVM) GetApiFn(fnName string) (api.Function, error) {
 	fn := vm.mod.ExportedFunction(fnName)
 	if fn == nil {
 		return nil, fmt.Errorf("function %v not found", fnName)
 	}
 	return fn, nil
-}
-
-func ValidateResult(retVal []uint64) error {
-	if len(retVal) > 1 {
-		return fmt.Errorf("unexpected return value length %v", len(retVal))
-	}
-	// todo: translate error code to go error
-	if retVal[0] != WasmSuccess {
-		return fmt.Errorf("program exited with error %v", retVal[0])
-	}
-	return nil
 }

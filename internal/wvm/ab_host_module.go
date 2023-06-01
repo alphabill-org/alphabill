@@ -18,6 +18,14 @@ const (
 	getInputParameters = "get_input_params"
 )
 
+const (
+	Success              = 0
+	StateReadError       = -1
+	StateWriteError      = -2
+	ParamsReadError      = -3
+	InputParamsReadError = -4
+)
+
 type ExecutionCtx interface {
 	GetProgramID() *uint256.Int
 	GetInputData() []byte

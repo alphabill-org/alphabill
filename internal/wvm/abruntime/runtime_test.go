@@ -288,3 +288,39 @@ func TestCall(t *testing.T) {
 		})
 	}
 }
+
+func TestValidateResult(t *testing.T) {
+	type args struct {
+		retVal []uint64
+	}
+	tests := []struct {
+		name       string
+		args       args
+		wantErrStr string
+	}{
+		{
+			name: "ok",
+			args: args{retVal: []uint64{wvm.Success}},
+		},
+		{
+			name:       "unexpected number of return values",
+			args:       args{retVal: []uint64{1, 2}},
+			wantErrStr: "unexpected return value length 2",
+		},
+		{
+			name:       "error code",
+			args:       args{retVal: []uint64{2}},
+			wantErrStr: "program exited with error 2",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := validateResult(tt.args.retVal)
+			if tt.wantErrStr != "" {
+				require.ErrorContains(t, err, tt.wantErrStr)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
+}

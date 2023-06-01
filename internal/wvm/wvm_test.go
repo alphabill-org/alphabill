@@ -56,6 +56,13 @@ func TestNewNoHostModules(t *testing.T) {
 	require.EqualValues(t, 4, res[0])
 }
 
+func TestNew_RequiresABModuleAndFails(t *testing.T) {
+	ctx := context.Background()
+	wvm, err := New(ctx, counterWasm)
+	require.ErrorContains(t, err, "failed to initiate VM with wasm source, module[ab] not instantiated")
+	require.Nil(t, wvm)
+}
+
 func TestNew(t *testing.T) {
 	ctx := context.Background()
 	storage := NewMemoryStorage()
@@ -72,42 +79,6 @@ func TestNew(t *testing.T) {
 	wvm, err := New(ctx, counterWasm, WithHostModule(abHostModuleFn))
 	require.NoError(t, err)
 	require.NotNil(t, wvm)
-}
-
-func TestValidateResult(t *testing.T) {
-	type args struct {
-		retVal []uint64
-	}
-	tests := []struct {
-		name       string
-		args       args
-		wantErrStr string
-	}{
-		{
-			name: "ok",
-			args: args{retVal: []uint64{WasmSuccess}},
-		},
-		{
-			name:       "unexpected number of return values",
-			args:       args{retVal: []uint64{1, 2}},
-			wantErrStr: "unexpected return value length 2",
-		},
-		{
-			name:       "error code",
-			args:       args{retVal: []uint64{2}},
-			wantErrStr: "program exited with error 2",
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			err := ValidateResult(tt.args.retVal)
-			if tt.wantErrStr != "" {
-				require.ErrorContains(t, err, tt.wantErrStr)
-			} else {
-				require.NoError(t, err)
-			}
-		})
-	}
 }
 
 func TestWasmVM_CheckApiCallExists_OK(t *testing.T) {

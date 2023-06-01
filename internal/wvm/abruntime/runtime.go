@@ -7,6 +7,19 @@ import (
 	"github.com/alphabill-org/alphabill/internal/wvm"
 )
 
+// ValidateResult interpret program return value. Currently only return code is expected, but
+// this should be most likely be based on the application and hence should be moved to alphabill specific runtime
+func validateResult(retVal []uint64) error {
+	if len(retVal) > 1 {
+		return fmt.Errorf("unexpected return value length %v", len(retVal))
+	}
+	// todo: translate error code to go error
+	if retVal[0] != wvm.Success {
+		return fmt.Errorf("program exited with error %v", retVal[0])
+	}
+	return nil
+}
+
 // Call set-up wasm VM and call function
 func Call(ctx context.Context, wasm []byte, fName string, execCtx wvm.ExecutionCtx, storage wvm.Storage) error {
 	// todo: AB-1006 automatic revert of changes when program execution fails,
@@ -30,7 +43,7 @@ func Call(ctx context.Context, wasm []byte, fName string, execCtx wvm.ExecutionC
 	if err != nil {
 		return fmt.Errorf("program call failed, %w", err)
 	}
-	if err = wvm.ValidateResult(result); err != nil {
+	if err = validateResult(result); err != nil {
 		return fmt.Errorf("program call exited with error, %w", err)
 	}
 	return nil

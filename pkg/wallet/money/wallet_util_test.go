@@ -11,6 +11,8 @@ import (
 	"net/url"
 	"testing"
 
+	"github.com/alphabill-org/alphabill/pkg/wallet"
+
 	"github.com/alphabill-org/alphabill/internal/block"
 	"github.com/alphabill-org/alphabill/internal/certificates"
 	"github.com/alphabill-org/alphabill/internal/hash"
@@ -238,4 +240,31 @@ func (b *backendAPIMock) GetProof(billId []byte) (*bp.Bills, error) {
 		return b.getProof(billId)
 	}
 	return nil, errors.New("getProof not implemented")
+}
+
+type mockSubmitterBackend struct {
+	getRoundNumber   func(ctx context.Context) (uint64, error)
+	postTransactions func(ctx context.Context, pubKey wallet.PubKey, txs *txsystem.Transactions) error
+	getTxProof       func(ctx context.Context, unitID wallet.UnitID, txHash wallet.TxHash) (*wallet.Proof, error)
+}
+
+func (m *mockSubmitterBackend) GetRoundNumber(ctx context.Context) (uint64, error) {
+	if m.getRoundNumber != nil {
+		return m.getRoundNumber(ctx)
+	}
+	return 0, fmt.Errorf("GetRoundNumber not implemented")
+}
+
+func (m *mockSubmitterBackend) PostTransactions(ctx context.Context, pubKey wallet.PubKey, txs *txsystem.Transactions) error {
+	if m.postTransactions != nil {
+		return m.postTransactions(ctx, pubKey, txs)
+	}
+	return fmt.Errorf("PostTransactions not implemented")
+}
+
+func (m *mockSubmitterBackend) GetTxProof(ctx context.Context, unitID wallet.UnitID, txHash wallet.TxHash) (*wallet.Proof, error) {
+	if m.getTxProof != nil {
+		return m.getTxProof(ctx, unitID, txHash)
+	}
+	return nil, fmt.Errorf("GetTxProof not implemented")
 }

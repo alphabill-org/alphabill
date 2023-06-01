@@ -63,7 +63,7 @@ func buildGetStateHostFn(_ context.Context, storage Storage) api.GoModuleFunc {
 		logger.Debug("program state file request, %v", fileID)
 		file, err := storage.Read(util.Uint32ToBytes(fileID))
 		if err != nil {
-			logger.Warning("get state from system failed, %v", err)
+			logger.Warning("get state from storage failed, %v", err)
 			stack[0] = api.EncodeI32(-1)
 			return
 		}
@@ -94,7 +94,7 @@ func buildSetStateHostFn(_ context.Context, storage Storage) api.GoModuleFunc {
 		}
 		logger.Debug("set state, %v id, new state: %v", fileID, fBytes)
 		if err := storage.Write(util.Uint32ToBytes(fileID), fBytes); err != nil {
-			logger.Warning("failed to persist program file")
+			logger.Warning("failed to persist program state")
 			stack[0] = api.EncodeI32(-1)
 			return
 		}

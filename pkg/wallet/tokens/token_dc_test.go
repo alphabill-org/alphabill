@@ -54,16 +54,12 @@ func TestFungibleTokenDC(t *testing.T) {
 	}
 
 	be := &mockTokenBackend{
-		getTokens: func(_ context.Context, _ twb.Kind, owner sdk.PubKey, _ string, _ int) ([]twb.TokenUnit, string, error) {
+		getTokens: func(_ context.Context, _ twb.Kind, owner sdk.PubKey, _ string, _ int) ([]*twb.TokenUnit, string, error) {
 			tokens, found := accTokens[string(owner)]
 			if !found {
 				return nil, "", fmt.Errorf("no tokens for pubkey '%X'", owner)
 			}
-			var res []twb.TokenUnit
-			for _, tok := range tokens {
-				res = append(res, *tok)
-			}
-			return res, "", nil
+			return tokens, "", nil
 		},
 		postTransactions: func(ctx context.Context, pubKey sdk.PubKey, txs *sdk.Transactions) error {
 			for _, tx := range txs.Transactions {
@@ -132,14 +128,14 @@ func TestGetTokensForDC(t *testing.T) {
 	}
 
 	be := &mockTokenBackend{
-		getTokens: func(_ context.Context, kind twb.Kind, owner sdk.PubKey, _ string, _ int) ([]twb.TokenUnit, string, error) {
+		getTokens: func(_ context.Context, kind twb.Kind, owner sdk.PubKey, _ string, _ int) ([]*twb.TokenUnit, string, error) {
 			require.Equal(t, twb.Fungible, kind)
-			var res []twb.TokenUnit
+			var res []*twb.TokenUnit
 			for _, tok := range allTokens {
 				if tok.Kind != kind {
 					continue
 				}
-				res = append(res, *tok)
+				res = append(res, tok)
 			}
 			return res, "", nil
 		},

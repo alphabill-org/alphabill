@@ -70,11 +70,11 @@ Returns:
   - offsetKey for the next batch (if empty then there is no more data to query);
   - non-nil error when something failed;
 */
-func (tb *TokenBackend) GetTokens(ctx context.Context, kind backend.Kind, owner wallet.PubKey, offsetKey string, limit int) ([]backend.TokenUnit, string, error) {
+func (tb *TokenBackend) GetTokens(ctx context.Context, kind backend.Kind, owner wallet.PubKey, offsetKey string, limit int) ([]*backend.TokenUnit, string, error) {
 	addr := tb.getURL(apiPathPrefix, "kinds", kind.String(), "owners", hexutil.Encode(owner), "tokens")
 	setPaginationParams(addr, offsetKey, limit)
 
-	var rspData []backend.TokenUnit
+	rspData := make([]*backend.TokenUnit, 0)
 	pm, err := tb.get(ctx, addr, &rspData, true)
 	if err != nil {
 		return nil, "", fmt.Errorf("get tokens request failed: %w", err)
@@ -92,7 +92,7 @@ Returns:
   - offsetKey for the next batch (if empty then there is no more data to query);
   - non-nil error when something failed;
 */
-func (tb *TokenBackend) GetTokenTypes(ctx context.Context, kind backend.Kind, creator wallet.PubKey, offsetKey string, limit int) ([]backend.TokenUnitType, string, error) {
+func (tb *TokenBackend) GetTokenTypes(ctx context.Context, kind backend.Kind, creator wallet.PubKey, offsetKey string, limit int) ([]*backend.TokenUnitType, string, error) {
 	addr := tb.getURL(apiPathPrefix, "kinds", kind.String(), "types")
 	if len(creator) > 0 {
 		q := addr.Query()
@@ -101,7 +101,7 @@ func (tb *TokenBackend) GetTokenTypes(ctx context.Context, kind backend.Kind, cr
 	}
 	setPaginationParams(addr, offsetKey, limit)
 
-	var rspData []backend.TokenUnitType
+	rspData := make([]*backend.TokenUnitType, 0)
 	pm, err := tb.get(ctx, addr, &rspData, true)
 	if err != nil {
 		return nil, "", fmt.Errorf("get token types request failed: %w", err)
@@ -109,8 +109,8 @@ func (tb *TokenBackend) GetTokenTypes(ctx context.Context, kind backend.Kind, cr
 	return rspData, pm, nil
 }
 
-func (tb *TokenBackend) GetTypeHierarchy(ctx context.Context, id backend.TokenTypeID) ([]backend.TokenUnitType, error) {
-	var rspData []backend.TokenUnitType
+func (tb *TokenBackend) GetTypeHierarchy(ctx context.Context, id backend.TokenTypeID) ([]*backend.TokenUnitType, error) {
+	rspData := make([]*backend.TokenUnitType, 0)
 	_, err := tb.get(ctx, tb.getURL(apiPathPrefix, "types", hexutil.Encode(id), "hierarchy"), &rspData, true)
 	if err != nil {
 		return nil, fmt.Errorf("get token type hierarchy request failed: %w", err)

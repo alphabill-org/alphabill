@@ -16,6 +16,7 @@ import (
 	"github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/alphabill-org/alphabill/pkg/wallet/money/backend"
 	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/fxamacker/cbor/v2"
 )
 
 type (
@@ -215,7 +216,7 @@ func (c *MoneyBackendClient) FetchFeeCreditBill(_ context.Context, unitID []byte
 }
 
 func (c *MoneyBackendClient) PostTransactions(ctx context.Context, pubKey wallet.PubKey, txs *wallet.Transactions) error {
-	b, err := json.Marshal(txs)
+	b, err := cbor.Marshal(txs)
 	if err != nil {
 		return fmt.Errorf("failed to encode transactions: %w", err)
 	}

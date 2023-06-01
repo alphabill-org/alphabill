@@ -11,6 +11,7 @@ import (
 	"strconv"
 
 	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/fxamacker/cbor/v2"
 	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
 	httpSwagger "github.com/swaggo/http-swagger"
@@ -106,7 +107,7 @@ func (s *RequestHandler) Router() *mux.Router {
 // @Param limit query int false "limits how many bills are returned in response" default(100)
 // @Param offset query int false "response will include bills starting after offset" default(0)
 // @Success 200 {object} ListBillsResponse
-// @Failure 400 {object} backend.ErrorResponse
+// @Failure 400 {object} ErrorResponse
 // @Failure 500
 // @Router /list-bills [get]
 func (s *RequestHandler) listBillsFunc(w http.ResponseWriter, r *http.Request) {
@@ -155,7 +156,7 @@ func (s *RequestHandler) listBillsFunc(w http.ResponseWriter, r *http.Request) {
 // @produce application/json
 // @Param pubkey query string true "Public key prefixed with 0x"
 // @Success 200 {object} BalanceResponse
-// @Failure 400 {object} backend.ErrorResponse
+// @Failure 400 {object} ErrorResponse
 // @Failure 500
 // @Router /balance [get]
 func (s *RequestHandler) balanceFunc(w http.ResponseWriter, r *http.Request) {
@@ -192,9 +193,9 @@ func (s *RequestHandler) balanceFunc(w http.ResponseWriter, r *http.Request) {
 // @version 1.0
 // @produce application/json
 // @Param bill_id query string true "ID of the bill (hex)"
-// @Success 200 {object} bp.Bills
-// @Failure 400 {object} backend.ErrorResponse
-// @Failure 404 {object} backend.ErrorResponse
+// @Success 200 {object} wallet.Bills
+// @Failure 400 {object} ErrorResponse
+// @Failure 404 {object} ErrorResponse
 // @Failure 500
 // @Router /proof [get]
 func (s *RequestHandler) getProofFunc(w http.ResponseWriter, r *http.Request) {
@@ -236,7 +237,7 @@ func (s *RequestHandler) getBill(billID []byte) (*Bill, error) {
 	if bill == nil {
 		bill, err = s.Service.GetFeeCreditBill(billID)
 		if err != nil {
-			return nil, fmt.Errorf("failed to fetch bill: %w", err)
+			return nil, fmt.Errorf("failed to fetch fee credit bill: %w", err)
 		}
 	}
 	return bill, err
@@ -332,7 +333,7 @@ func (s *RequestHandler) postTransactions(w http.ResponseWriter, r *http.Request
 	}
 
 	txs := &wallet.Transactions{}
-	if err = json.Unmarshal(buf, txs); err != nil {
+	if err = cbor.Unmarshal(buf, txs); err != nil {
 		log.Debug("failed to decode request body: ", err)
 		w.WriteHeader(http.StatusBadRequest)
 		writeAsJson(w, ErrorResponse{

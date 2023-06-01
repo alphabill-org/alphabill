@@ -524,7 +524,7 @@ func TestPostTransactionsRequest_InvalidPubkey(t *testing.T) {
 	port := startServer(t, walletBackend)
 
 	res := &ErrorResponse{}
-	httpRes, err := testhttp.DoPostProto(fmt.Sprintf("http://localhost:%d/api/v1/transactions/%s", port, "invalid"), nil, res)
+	httpRes, err := testhttp.DoPost(fmt.Sprintf("http://localhost:%d/api/v1/transactions/%s", port, "invalid"), nil, res)
 	require.NoError(t, err)
 	require.Equal(t, http.StatusBadRequest, httpRes.StatusCode)
 	require.Contains(t, res.Message, "failed to parse sender pubkey")
@@ -535,26 +535,11 @@ func TestPostTransactionsRequest_EmptyBody(t *testing.T) {
 	port := startServer(t, walletBackend)
 
 	res := &ErrorResponse{}
-	httpRes, err := testhttp.DoPostProto(fmt.Sprintf("http://localhost:%d/api/v1/transactions/%s", port, pubkeyHex), nil, res)
+	httpRes, err := testhttp.DoPostCBOR(fmt.Sprintf("http://localhost:%d/api/v1/transactions/%s", port, pubkeyHex), nil, res)
 	require.NoError(t, err)
 	require.Equal(t, http.StatusBadRequest, httpRes.StatusCode)
 	require.Equal(t, "request body contained no transactions to process", res.Message)
 }
-
-//func TestPostTransactionsRequest_InvalidTransactions(t *testing.T) {
-//	walletBackend := newWalletBackend(t)
-//	port := startServer(t, walletBackend)
-//
-//	txs := &wallet.Transactions{Transactions: []*types.TransactionOrder{
-//		testtransaction.NewTransactionOrder(t),
-//	}}
-//
-//	res := &ErrorResponse{}
-//	httpRes, err := testhttp.DoPost(fmt.Sprintf("http://localhost:%d/api/v1/transactions/%s", port, pubkeyHex), txs, res)
-//	require.NoError(t, err)
-//	require.Equal(t, http.StatusBadRequest, httpRes.StatusCode)
-//	require.Contains(t, res.Message, "failed to decode request body")
-//}
 
 func TestPostTransactionsRequest_Ok(t *testing.T) {
 	walletBackend := newWalletBackend(t)
@@ -566,7 +551,7 @@ func TestPostTransactionsRequest_Ok(t *testing.T) {
 		testtransaction.NewTransactionOrder(t),
 	}}
 
-	httpRes, err := testhttp.DoPost(fmt.Sprintf("http://localhost:%d/api/v1/transactions/%s", port, pubkeyHex), txs, nil)
+	httpRes, err := testhttp.DoPostCBOR(fmt.Sprintf("http://localhost:%d/api/v1/transactions/%s", port, pubkeyHex), txs, nil)
 	require.NoError(t, err)
 	require.Equal(t, http.StatusAccepted, httpRes.StatusCode)
 }

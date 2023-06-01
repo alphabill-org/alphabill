@@ -6,8 +6,7 @@ import (
 	"io/ioutil"
 	"net/http"
 
-	"google.golang.org/protobuf/encoding/protojson"
-	"google.golang.org/protobuf/proto"
+	"github.com/fxamacker/cbor/v2"
 )
 
 func DoGet(url string, response interface{}) (*http.Response, error) {
@@ -22,18 +21,6 @@ func DoGet(url string, response interface{}) (*http.Response, error) {
 	return httpRes, nil
 }
 
-func DoGetProto(url string, response proto.Message) (*http.Response, error) {
-	httpRes, resBytes, err := doGet(url)
-	if err != nil {
-		return nil, err
-	}
-	err = protojson.Unmarshal(resBytes, response)
-	if err != nil {
-		return nil, err
-	}
-	return httpRes, nil
-}
-
 func DoPost(url string, req interface{}, res interface{}) (*http.Response, error) {
 	reqBody, err := json.Marshal(req)
 	if err != nil {
@@ -42,8 +29,8 @@ func DoPost(url string, req interface{}, res interface{}) (*http.Response, error
 	return doPost(url, reqBody, res)
 }
 
-func DoPostProto(url string, req proto.Message, res interface{}) (*http.Response, error) {
-	reqBody, err := protojson.Marshal(req)
+func DoPostCBOR(url string, req interface{}, res interface{}) (*http.Response, error) {
+	reqBody, err := cbor.Marshal(req)
 	if err != nil {
 		return nil, err
 	}

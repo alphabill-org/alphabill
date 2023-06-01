@@ -2,24 +2,28 @@ package cmd
 
 import (
 	"context"
-	"math/rand"
 	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
 	"time"
 
+	"github.com/alphabill-org/alphabill/internal/hash"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 	rootgenesis "github.com/alphabill-org/alphabill/internal/rootchain/genesis"
 	"github.com/alphabill-org/alphabill/internal/rpc/alphabill"
+	test "github.com/alphabill-org/alphabill/internal/testutils"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	testtime "github.com/alphabill-org/alphabill/internal/testutils/time"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
+	"github.com/alphabill-org/alphabill/internal/txsystem/vd"
 	"github.com/alphabill-org/alphabill/internal/util"
-	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
+
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/anypb"
 )
 
 func TestRunVD(t *testing.T) {
@@ -77,7 +81,6 @@ func TestRunVD(t *testing.T) {
 		// start the node in background
 		appStoppedWg.Add(1)
 		go func() {
-
 			cmd = New()
 			args = "vd --home " + homeDirVD + " -g " + partitionGenesisFileLocation + " -k " + keysFileLocation + " --server-address " + listenAddr
 			cmd.baseCmd.SetArgs(strings.Split(args, " "))
@@ -96,13 +99,9 @@ func TestRunVD(t *testing.T) {
 
 		// Test
 		// green path
-		id := uint256.NewInt(rand.Uint64()).Bytes32()
-		tx := &txsystem.Transaction{
-			UnitId:                id[:],
-			TransactionAttributes: nil,
-			ClientMetadata:        &txsystem.ClientMetadata{Timeout: 10},
-			SystemId:              []byte{0, 0, 0, 1},
-		}
+
+		tx, err := createVDTransaction()
+		require.NoError(t, err)
 
 		_, err = rpcClient.ProcessTransaction(ctx, tx, grpc.WaitForReady(true))
 		require.NoError(t, err)
@@ -110,11 +109,28 @@ func TestRunVD(t *testing.T) {
 		// failing case
 		tx.SystemId = []byte{0, 0, 0, 0} // incorrect system id
 		_, err = rpcClient.ProcessTransaction(ctx, tx, grpc.WaitForReady(true))
-		require.ErrorContains(t, err, "transaction has invalid system identifier")
+		require.ErrorContains(t, err, "invalid transaction system identifier")
 
 		// Close the app
 		ctxCancel()
 		// Wait for test asserts to be completed
 		appStoppedWg.Wait()
 	})
+}
+
+func createVDTransaction() (*txsystem.Transaction, error) {
+	tx := &txsystem.Transaction{
+		SystemId:              vd.DefaultSystemIdentifier,
+		UnitId:                hash.Sum256(test.RandomBytes(32)),
+		TransactionAttributes: new(anypb.Any),
+		ClientMetadata:        &txsystem.ClientMetadata{
+			Timeout:           20,
+		},
+	}
+
+	err := anypb.MarshalFrom(tx.TransactionAttributes, &vd.RegisterDataAttributes{}, proto.MarshalOptions{})
+	if err != nil {
+		return nil, err
+	}
+	return tx, nil
 }

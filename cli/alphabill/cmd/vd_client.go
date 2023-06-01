@@ -5,11 +5,12 @@ import (
 
 	"github.com/spf13/cobra"
 
-	vdclient "github.com/alphabill-org/alphabill/pkg/wallet/vd/client"
+	"github.com/alphabill-org/alphabill/pkg/wallet/account"
+	vdclient "github.com/alphabill-org/alphabill/pkg/wallet/vd"
 	wlog "github.com/alphabill-org/alphabill/pkg/wallet/log"
 )
 
-const timeoutDelta = 100 // TODO make timeout configurable?
+const timeoutDelta = 10 // TODO make timeout configurable?
 
 func vdCmd(config *walletConfig) *cobra.Command {
 	var vdCmd = &cobra.Command{
@@ -25,13 +26,13 @@ func vdCmd(config *walletConfig) *cobra.Command {
 		return nil
 	}
 
-	vdCmd.AddCommand(regCmd(&wait))
-	vdCmd.AddCommand(listBlocksCmd(&wait))
+	vdCmd.AddCommand(regCmd(config, &wait))
+	vdCmd.AddCommand(listBlocksCmd(config, &wait))
 
 	return vdCmd
 }
 
-func regCmd(wait *bool) *cobra.Command {
+func regCmd(config *walletConfig, wait *bool) *cobra.Command {
 	var sync bool
 	cmd := &cobra.Command{
 		Use:   "register",
@@ -45,12 +46,15 @@ func regCmd(wait *bool) *cobra.Command {
 			if err != nil {
 				return err
 			}
-
 			if hash != "" && file != "" {
 				return errors.New("'hash' and 'file' flags are mutually exclusive")
 			}
+			accountKey, err := loadAccountKey(cmd, config)
+			if err != nil {
+				return err
+			}
 
-			vdClient, err := initVDClient(cmd, wait, sync)
+			vdClient, err := initVDClient(cmd, config.WalletHomeDir, accountKey, wait, sync)
 			if err != nil {
 				return err
 			}
@@ -67,17 +71,18 @@ func regCmd(wait *bool) *cobra.Command {
 	cmd.Flags().StringP("hash", "d", "", "register data hash (hex with or without 0x prefix)")
 	cmd.Flags().StringP("file", "f", "", "create sha256 hash of the file contents and register data hash")
 	// cmd.MarkFlagsMutuallyExclusive("hash", "file") TODO use once 1.5.0 is released
+	cmd.Flags().Uint64P(keyCmdName, "k", 1, "the account number used to pay fees")
 	cmd.Flags().BoolVarP(&sync, "sync", "s", false, "synchronize ledger until block with given tx")
 
 	return cmd
 }
 
-func listBlocksCmd(wait *bool) *cobra.Command {
+func listBlocksCmd(config *walletConfig, wait *bool) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "list-blocks",
 		Short: "prints all non-empty blocks from the ledger",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			vdClient, err := initVDClient(cmd, wait, false)
+			vdClient, err := initVDClient(cmd, config.WalletHomeDir, nil, wait, false)
 			if err != nil {
 				return err
 			}
@@ -92,24 +97,40 @@ func listBlocksCmd(wait *bool) *cobra.Command {
 	return cmd
 }
 
-func initVDClient(cmd *cobra.Command, wait *bool, sync bool) (*vdclient.VDClient, error) {
+func initVDClient(cmd *cobra.Command, walletHomeDir string, accountKey *account.AccountKey, wait *bool, confirmTx bool) (*vdclient.VDClient, error) {
 	vdNodeURL, err := cmd.Flags().GetString(alphabillNodeURLCmdName)
 	if err != nil {
 		return nil, err
 	}
-
 	err = wlog.InitStdoutLogger(wlog.INFO)
 	if err != nil {
 		return nil, err
 	}
 
 	vdClient, err := vdclient.New(&vdclient.VDClientConfig{
-		VDNodeURL:    vdNodeURL,
-		WaitBlock:    sync,
-		BlockTimeout: timeoutDelta,
+		VDNodeURL:         vdNodeURL,
+		WaitForReady:      *wait,
+		ConfirmTx:         confirmTx,
+		ConfirmTxTimeout:  timeoutDelta,
+		AccountKey:        accountKey,
+		WalletHomeDir:     walletHomeDir,
 	})
 	if err != nil {
 		return nil, err
 	}
 	return vdClient, nil
+}
+
+func loadAccountKey(cmd *cobra.Command, config *walletConfig) (*account.AccountKey, error) {
+	accountNumber, err := cmd.Flags().GetUint64(keyCmdName)
+	if err != nil {
+		return nil, err
+	}
+	am, err := loadExistingAccountManager(cmd, config.WalletHomeDir)
+	if err != nil {
+		return nil, err
+	}
+	defer am.Close()
+
+	return am.GetAccountKey(accountNumber - 1)
 }

@@ -71,11 +71,15 @@ func TestVD_UseClientForTx(t *testing.T) {
 		time.Sleep(1 * time.Second)
 
 		fmt.Println("Starting VD clients")
+
+		// Create temporary wallet
+		walletHomeDir := t.TempDir()
+		require.NoError(t, createTempWallet(ctx, walletHomeDir))
 		// Start VD Client
-		require.NoError(t, sendTxWithClient(ctx, dialAddr))
+		require.NoError(t, sendTxWithClient(ctx, dialAddr, walletHomeDir))
 
 		// failing case, send same stuff once again
-		err = sendTxWithClient(ctx, dialAddr)
+		err = sendTxWithClient(ctx, dialAddr, walletHomeDir)
 		// There are two cases, then second 'register tx' gets rejected:
 		if err != nil {
 			// first, when both txs end up in the same block, this error is propagated here:
@@ -95,9 +99,20 @@ func TestVD_UseClientForTx(t *testing.T) {
 	})
 }
 
-func sendTxWithClient(ctx context.Context, dialAddr string) error {
+func createTempWallet(ctx context.Context, walletHomeDir string) error {
 	cmd := New()
-	args := "wallet vd register --hash " + "0x67588D4D37BF6F4D6C63CE4BDA38DA2B869012B1BC131DB07AA1D2B5BFD810DD" + " -u " + dialAddr + " --wait"
+	args := "wallet create -l " + walletHomeDir
+	cmd.baseCmd.SetArgs(strings.Split(args, " "))
+	return cmd.addAndExecuteCommand(ctx)
+}
+
+func sendTxWithClient(ctx context.Context, dialAddr string, walletHomeDir string) error {
+	cmd := New()
+	args := "wallet vd register " +
+		" --hash 0x67588D4D37BF6F4D6C63CE4BDA38DA2B869012B1BC131DB07AA1D2B5BFD810DD" +
+		" -u " + dialAddr +
+		" -l " + walletHomeDir +
+		" --wait"
 	cmd.baseCmd.SetArgs(strings.Split(args, " "))
 	return cmd.addAndExecuteCommand(ctx)
 }

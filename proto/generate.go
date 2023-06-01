@@ -6,6 +6,8 @@ package proto
 
 //go:generate protoc -I=. --go_out=paths=source_relative:../internal/txsystem/money/. money_tx.proto
 
+//go:generate protoc -I=. --go_out=paths=source_relative:../internal/txsystem/vd/. vd_tx.proto
+
 //go:generate protoc -I=. --go_out=paths=source_relative:../internal/txsystem/tokens/. token_tx.proto
 
 //go:generate protoc -I=. --go_out=paths=source_relative:../internal/txsystem/sc/. sc_attributes.proto

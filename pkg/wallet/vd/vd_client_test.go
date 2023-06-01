@@ -1,4 +1,4 @@
-package client
+package wallet
 
 import (
 	"context"
@@ -8,14 +8,18 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/alphabill-org/alphabill/internal/certificates"
-	"github.com/alphabill-org/alphabill/internal/util"
-
 	"github.com/alphabill-org/alphabill/internal/block"
+	"github.com/alphabill-org/alphabill/internal/certificates"
+	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/rpc/alphabill"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	testfile "github.com/alphabill-org/alphabill/internal/testutils/file"
+	testtransaction "github.com/alphabill-org/alphabill/internal/testutils/transaction"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
+	testfc "github.com/alphabill-org/alphabill/internal/txsystem/fc/testutils"
+	"github.com/alphabill-org/alphabill/internal/txsystem/vd"
+	"github.com/alphabill-org/alphabill/internal/util"
+	"github.com/alphabill-org/alphabill/pkg/wallet/account"
 	"github.com/alphabill-org/alphabill/pkg/wallet/log"
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
@@ -32,16 +36,23 @@ type abClientMock struct {
 	block          func(nr uint64) *block.Block
 }
 
-func testConf() *VDClientConfig {
+func testConf(t *testing.T) *VDClientConfig {
+	tmpDir := t.TempDir()
+	am := initAccountManager(t, tmpDir)
+	accountKey, _ := am.GetAccountKey(0)
+
 	return &VDClientConfig{
-		VDNodeURL:    "test",
-		MoneyNodeURL: "test",
-		WaitBlock:    false,
-		BlockTimeout: 1}
+		VDNodeURL:        "test",
+		MoneyNodeURL:     "test",
+		ConfirmTx:        false,
+		ConfirmTxTimeout: 1,
+		AccountKey:       accountKey,
+		WalletHomeDir:    tmpDir,
+	}
 }
 
 func TestVDClient_Create(t *testing.T) {
-	vdClient, err := New(testConf())
+	vdClient, err := New(testConf(t))
 	require.NoError(t, err)
 	require.NotNil(t, vdClient)
 	require.NotNil(t, vdClient.moneyNodeClient)
@@ -49,9 +60,26 @@ func TestVDClient_Create(t *testing.T) {
 }
 
 func TestVdClient_RegisterHash(t *testing.T) {
-	vdClient, err := New(testConf())
+	vdClient, err := New(testConf(t))
 	require.NoError(t, err)
-	mock := &abClientMock{maxBlock: 1, maxRoundNumber: 100}
+	mock := &abClientMock{maxBlock: 1, maxRoundNumber: 1}
+
+	signer, err := abcrypto.NewInMemorySecp256K1Signer()
+	require.NoError(t, err)
+	addFC := testfc.NewAddFC(t, signer, nil,
+		testtransaction.WithUnitId(vdClient.accountKey.PrivKeyHash),
+		testtransaction.WithSystemID(vd.DefaultSystemIdentifier))
+
+	mock.block = func(round uint64) *block.Block {
+		return &block.Block{
+			SystemIdentifier: vd.DefaultSystemIdentifier,
+			UnicityCertificate: &certificates.UnicityCertificate{
+				InputRecord: &certificates.InputRecord{RoundNumber: round},
+			},
+			Transactions: []*txsystem.Transaction{addFC.Transaction},
+		}
+	}
+
 	vdClient.moneyNodeClient = mock
 	vdClient.vdNodeClient = mock
 
@@ -62,30 +90,35 @@ func TestVdClient_RegisterHash(t *testing.T) {
 	dataHash, err := uint256.FromHex(hashHex)
 	require.NoError(t, err)
 	require.EqualValues(t, util.Uint256ToBytes(dataHash), mock.tx.UnitId)
-	require.Equal(t, mock.maxRoundNumber+vdClient.timeoutDelta, mock.tx.Timeout())
+	require.Equal(t, mock.maxRoundNumber+vdClient.confirmTxTimeout, mock.tx.Timeout())
 }
 
 func TestVdClient_RegisterHash_SyncBlocks(t *testing.T) {
 	require.NoError(t, log.InitStdoutLogger(log.INFO))
-	conf := testConf()
-	conf.WaitBlock = true
-	conf.BlockTimeout = 5
-	callbackCalled := false
-	conf.OnBlockCallback = func(b *VDBlock) {
-		require.NotNil(t, b)
-		require.Equal(t, conf.BlockTimeout-1, b.GetBlockNumber())
-		callbackCalled = true
-	}
+	conf := testConf(t)
+	conf.ConfirmTx = true
+	conf.ConfirmTxTimeout = 5
 	vdClient, err := New(conf)
 	require.NoError(t, err)
-	mock := &abClientMock{}
+
+	signer, err := abcrypto.NewInMemorySecp256K1Signer()
+	require.NoError(t, err)
+	addFC := testfc.NewAddFC(t, signer, nil,
+		testtransaction.WithUnitId(vdClient.accountKey.PrivKeyHash),
+		testtransaction.WithSystemID(vd.DefaultSystemIdentifier))
+
+	mock := &abClientMock{maxBlock: 2, maxRoundNumber: 2}
 	mock.incrementBlock = true
 	mock.block = func(nr uint64) *block.Block {
 		var txs []*txsystem.Transaction
-		if nr == conf.BlockTimeout-1 && mock.tx != nil {
+		if nr == conf.ConfirmTxTimeout-1 && mock.tx != nil {
 			txs = append(txs, mock.tx)
 		}
+		if nr == 1 {
+			txs = append(txs, addFC.ToProtoBuf())
+		}
 		return &block.Block{
+			SystemIdentifier:   vd.DefaultSystemIdentifier,
 			UnicityCertificate: &certificates.UnicityCertificate{InputRecord: &certificates.InputRecord{RoundNumber: nr}},
 			Transactions:       txs,
 		}
@@ -112,14 +145,12 @@ func TestVdClient_RegisterHash_SyncBlocks(t *testing.T) {
 		wg.Wait()
 		return true
 	}, test.WaitDuration, test.WaitTick)
-
-	require.True(t, callbackCalled)
 }
 
 func TestVdClient_RegisterHash_LeadingZeroes(t *testing.T) {
-	vdClient, err := New(testConf())
+	vdClient, err := New(testConf(t))
 	require.NoError(t, err)
-	mock := &abClientMock{}
+	mock := getABClientMock(t, vdClient)
 	vdClient.moneyNodeClient = mock
 	vdClient.vdNodeClient = mock
 
@@ -134,7 +165,7 @@ func TestVdClient_RegisterHash_LeadingZeroes(t *testing.T) {
 }
 
 func TestVdClient_RegisterHash_TooShort(t *testing.T) {
-	vdClient, err := New(testConf())
+	vdClient, err := New(testConf(t))
 	require.NoError(t, err)
 	mock := &abClientMock{}
 	vdClient.moneyNodeClient = mock
@@ -149,7 +180,7 @@ func TestVdClient_RegisterHash_TooShort(t *testing.T) {
 }
 
 func TestVdClient_RegisterHash_TooLong(t *testing.T) {
-	vdClient, err := New(testConf())
+	vdClient, err := New(testConf(t))
 	require.NoError(t, err)
 	mock := &abClientMock{}
 	vdClient.moneyNodeClient = mock
@@ -164,9 +195,9 @@ func TestVdClient_RegisterHash_TooLong(t *testing.T) {
 }
 
 func TestVdClient_RegisterHash_NoPrefix(t *testing.T) {
-	vdClient, err := New(testConf())
+	vdClient, err := New(testConf(t))
 	require.NoError(t, err)
-	mock := &abClientMock{}
+	mock := getABClientMock(t, vdClient)
 	vdClient.moneyNodeClient = mock
 	vdClient.vdNodeClient = mock
 
@@ -176,7 +207,7 @@ func TestVdClient_RegisterHash_NoPrefix(t *testing.T) {
 }
 
 func TestVdClient_RegisterHash_BadHash(t *testing.T) {
-	vdClient, err := New(testConf())
+	vdClient, err := New(testConf(t))
 	require.NoError(t, err)
 	mock := &abClientMock{}
 	vdClient.moneyNodeClient = mock
@@ -188,9 +219,10 @@ func TestVdClient_RegisterHash_BadHash(t *testing.T) {
 }
 
 func TestVdClient_RegisterHash_BadResponse(t *testing.T) {
-	vdClient, err := New(testConf())
+	vdClient, err := New(testConf(t))
 	require.NoError(t, err)
-	mock := &abClientMock{fail: true}
+	mock := getABClientMock(t, vdClient)
+	mock.fail = true
 	vdClient.moneyNodeClient = mock
 	vdClient.vdNodeClient = mock
 
@@ -200,9 +232,9 @@ func TestVdClient_RegisterHash_BadResponse(t *testing.T) {
 }
 
 func TestVdClient_RegisterFileHash(t *testing.T) {
-	vdClient, err := New(testConf())
+	vdClient, err := New(testConf(t))
 	require.NoError(t, err)
-	mock := &abClientMock{}
+	mock := getABClientMock(t, vdClient)
 	vdClient.moneyNodeClient = mock
 	vdClient.vdNodeClient = mock
 
@@ -217,23 +249,15 @@ func TestVdClient_RegisterFileHash(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, mock.tx)
 	require.EqualValues(t, hasher.Sum(nil), mock.tx.UnitId)
-	require.Nil(t, mock.tx.TransactionAttributes)
 }
 
 func TestVdClient_ListAllBlocksWithTx(t *testing.T) {
 	require.NoError(t, log.InitStdoutLogger(log.INFO))
-	conf := testConf()
-	conf.WaitBlock = true
+	conf := testConf(t)
+	conf.ConfirmTx = true
 	vdClient, err := New(conf)
 	require.NoError(t, err)
-	mock := &abClientMock{}
-	mock.maxBlock = 1
-	mock.incrementBlock = true
-	mock.block = func(nr uint64) *block.Block {
-		return &block.Block{
-			UnicityCertificate: &certificates.UnicityCertificate{InputRecord: &certificates.InputRecord{RoundNumber: nr}},
-		}
-	}
+	mock := getABClientMock(t, vdClient)
 
 	vdClient.moneyNodeClient = mock
 	vdClient.vdNodeClient = mock
@@ -277,7 +301,12 @@ func (a *abClientMock) GetBlock(ctx context.Context, n uint64) (*block.Block, er
 }
 
 func (a *abClientMock) GetBlocks(ctx context.Context, blockNumber, blockCount uint64) (*alphabill.GetBlocksResponse, error) {
-	return &alphabill.GetBlocksResponse{MaxBlockNumber: a.maxBlock, Blocks: []*block.Block{a.block(blockNumber)}}, nil
+	return &alphabill.GetBlocksResponse{
+		BatchMaxBlockNumber: blockNumber,
+		MaxBlockNumber: a.maxBlock,
+		MaxRoundNumber: a.maxBlock,
+		Blocks: []*block.Block{a.block(blockNumber)},
+	}, nil
 }
 
 func (a *abClientMock) GetRoundNumber(ctx context.Context) (uint64, error) {
@@ -301,4 +330,30 @@ func (a *abClientMock) Close() error {
 func (a *abClientMock) IsClosed() bool {
 	fmt.Println("IsShutdown", a.shutdown)
 	return a.shutdown
+}
+
+func getABClientMock(t *testing.T, vdClient *VDClient) *abClientMock {
+	signer, err := abcrypto.NewInMemorySecp256K1Signer()
+	require.NoError(t, err)
+	addFC := testfc.NewAddFC(t, signer, nil,
+		testtransaction.WithUnitId(vdClient.accountKey.PrivKeyHash),
+		testtransaction.WithSystemID(vd.DefaultSystemIdentifier))
+
+	mock := &abClientMock{maxBlock: 1, maxRoundNumber: 1}
+	mock.block = func(nr uint64) *block.Block {
+		return &block.Block{
+			SystemIdentifier:   vd.DefaultSystemIdentifier,
+			UnicityCertificate: &certificates.UnicityCertificate{InputRecord: &certificates.InputRecord{RoundNumber: nr}},
+			Transactions:       []*txsystem.Transaction{addFC.Transaction},
+		}
+	}
+	return mock
+}
+
+func initAccountManager(t *testing.T, dir string) account.Manager {
+	t.Helper()
+	am, err := account.NewManager(dir, "", true)
+	require.NoError(t, err)
+	require.NoError(t, am.CreateKeys(""))
+	return am
 }

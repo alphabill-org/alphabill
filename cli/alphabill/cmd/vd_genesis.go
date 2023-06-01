@@ -8,6 +8,7 @@ import (
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/spf13/cobra"
 
+	"github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/errors"
 	"github.com/alphabill-org/alphabill/internal/partition"
 	"github.com/alphabill-org/alphabill/internal/txsystem/vd"
@@ -66,7 +67,10 @@ func vdGenesisRunFun(_ context.Context, config *vdGenesisConfig) error {
 		return errors.Wrapf(err, "failed to load keys %v", config.Keys.GetKeyFileLocation())
 	}
 
-	txSystem, err := vd.NewTxSystem(config.SystemIdentifier)
+	txSystem, err := vd.NewTxSystem(
+		vd.WithSystemIdentifier(config.SystemIdentifier),
+		vd.WithTrustBase(map[string]crypto.Verifier{"genesis": nil}),
+	)
 	if err != nil {
 		return err
 	}

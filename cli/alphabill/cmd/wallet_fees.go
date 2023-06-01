@@ -20,7 +20,6 @@ import (
 	tokenswallet "github.com/alphabill-org/alphabill/pkg/wallet/tokens"
 	tokensclient "github.com/alphabill-org/alphabill/pkg/wallet/tokens/client"
 	vdwallet "github.com/alphabill-org/alphabill/pkg/wallet/vd"
-	vdclient "github.com/alphabill-org/alphabill/pkg/wallet/vd/client"
 	"github.com/spf13/cobra"
 )
 
@@ -48,7 +47,7 @@ func newWalletFeesCmd(ctx context.Context, config *walletConfig) *cobra.Command 
 	cmd.AddCommand(addFeeCreditCmd(ctx, config, cliConfig))
 	cmd.AddCommand(reclaimFeeCreditCmd(ctx, config, cliConfig))
 
-	cmd.PersistentFlags().VarP(&cliConfig.partitionType, partitionCmdName, "n", "partition name for which to manage fees [money|tokens]")
+	cmd.PersistentFlags().VarP(&cliConfig.partitionType, partitionCmdName, "n", "partition name for which to manage fees [money|tokens|vd]")
 	cmd.PersistentFlags().StringP(alphabillApiURLCmdName, "r", defaultAlphabillApiURL, apiUsage)
 
 	// TODO remove when tx broadcasting through backend api is implemented
@@ -95,7 +94,7 @@ func addFeeCreditCmdExec(ctx context.Context, cmd *cobra.Command, config *wallet
 	}
 	defer am.Close()
 
-	fm, err := getFeeCreditManager(c, am, moneyNodeURL, moneyBackendURL)
+	fm, err := getFeeCreditManager(c, am, moneyNodeURL, moneyBackendURL, config.WalletHomeDir)
 	if err != nil {
 		return err
 	}
@@ -131,7 +130,7 @@ func listFeesCmdExec(ctx context.Context, cmd *cobra.Command, config *walletConf
 	}
 	defer am.Close()
 
-	fm, err := getFeeCreditManager(c, am, "", moneyBackendURL)
+	fm, err := getFeeCreditManager(c, am, "", moneyBackendURL, config.WalletHomeDir)
 	if err != nil {
 		return err
 	}
@@ -171,7 +170,7 @@ func reclaimFeeCreditCmdExec(ctx context.Context, cmd *cobra.Command, config *wa
 	}
 	defer am.Close()
 
-	fm, err := getFeeCreditManager(c, am, moneyNodeURL, moneyBackendURL)
+	fm, err := getFeeCreditManager(c, am, moneyNodeURL, moneyBackendURL, config.WalletHomeDir)
 	if err != nil {
 		return err
 	}
@@ -270,7 +269,7 @@ func (c *cliConf) getPartitionBackendURL() string {
 
 // Creates a fees.FeeManager that needs to be closed with the Close() method.
 // Does not close the account.Manager passed as an argument.
-func getFeeCreditManager(c *cliConf, am account.Manager, moneyNodeURL string, moneyBackendURL string) (FeeCreditManager, error) {
+func getFeeCreditManager(c *cliConf, am account.Manager, moneyNodeURL, moneyBackendURL, walletHomeDir string) (FeeCreditManager, error) {
 	moneySystemID := money.DefaultSystemIdentifier
 	moneyBackendClient, err := moneyclient.New(moneyBackendURL)
 	if err != nil {
@@ -318,9 +317,10 @@ func getFeeCreditManager(c *cliConf, am account.Manager, moneyNodeURL string, mo
 			tokenBackendClient,
 		), nil
 	} else if c.partitionType == vdType {
-		vdClient, err := vdclient.New(&vdclient.VDClientConfig{
-			MoneyNodeURL: moneyNodeURL,
-			VDNodeURL:    c.getPartitionBackendURL(),
+		vdClient, err := vdwallet.New(&vdwallet.VDClientConfig{
+			MoneyNodeURL:      moneyNodeURL,
+			VDNodeURL:         c.getPartitionBackendURL(),
+			WalletHomeDir:     walletHomeDir,
 		})
 		if err != nil {
 			return nil, err

@@ -2,6 +2,7 @@ package abruntime
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -22,7 +23,7 @@ func validateResult(retVal []uint64) error {
 }
 
 // Call set-up wasm VM and call function
-func Call(ctx context.Context, wasm []byte, fName string, execCtx wvm.ExecutionCtx, storage wvm.Storage) error {
+func Call(ctx context.Context, wasm []byte, fName string, execCtx wvm.ExecutionCtx, storage wvm.Storage) (err error) {
 	// todo: AB-1006 automatic revert of changes when program execution fails,
 	abHostMod, err := wvm.BuildABHostModule(execCtx, storage)
 	if err != nil {
@@ -33,6 +34,7 @@ func Call(ctx context.Context, wasm []byte, fName string, execCtx wvm.ExecutionC
 	if err != nil {
 		return fmt.Errorf("wasm program load failed, %w", err)
 	}
+	defer func() { err = errors.Join(err, vm.Close(ctx)) }()
 	// check API
 	fn, err := vm.GetApiFn(fName)
 	if err != nil {

@@ -54,3 +54,7 @@ func (vm *WasmVM) GetApiFn(fnName string) (api.Function, error) {
 	}
 	return fn, nil
 }
+
+func (vm *WasmVM) Close(ctx context.Context) error {
+	return vm.runtime.Close(ctx)
+}

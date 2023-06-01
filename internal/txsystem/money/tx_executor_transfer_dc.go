@@ -15,6 +15,7 @@ func handleTransferDCTx(state *rma.Tree, dustCollector *DustCollector, hashAlgor
 	return func(tx *types.TransactionOrder, attr *TransferDCAttributes, currentBlockNumber uint64) (*types.ServerMetadata, error) {
 		log.Debug("Processing transferDC %v", tx)
 		if err := validateTransferDCTx(tx, attr, state); err != nil {
+			return nil, fmt.Errorf("invalid transferDC tx: %w", err)
 		}
 		// calculate actual tx fee cost
 		fee := feeCalc()

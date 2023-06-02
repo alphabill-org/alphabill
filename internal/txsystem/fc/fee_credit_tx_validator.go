@@ -106,7 +106,7 @@ func (v *DefaultFeeCreditTxValidator) ValidateAddFeeCredit(ctx *AddFCValidationC
 	// 7. (S.N[P.ι] = ⊥ ∧ P.A.P.A.η = ⊥) ∨ (S.N[P.ι] != ⊥ ∧ P.A.P.A.η = S.N[P.ι].λ) – bill transfer order contains correct nonce
 	var backlink []byte
 	if unit != nil {
-		backlink = unit.StateHash
+		backlink = unit.Data.(*FeeCreditRecord).Hash
 	}
 	if !bytes.Equal(transferTxAttr.Nonce, backlink) {
 		return fmt.Errorf("invalid transferFC nonce: transferFC.nonce=%X unit.backlink=%X", transferTxAttr.Nonce, backlink)

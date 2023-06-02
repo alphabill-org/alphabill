@@ -17,7 +17,6 @@ import (
 	"golang.org/x/term"
 
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
-	"github.com/alphabill-org/alphabill/pkg/client"
 	"github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/alphabill-org/alphabill/pkg/wallet/account"
 	wlog "github.com/alphabill-org/alphabill/pkg/wallet/log"
@@ -182,7 +181,7 @@ func execSendCmd(ctx context.Context, cmd *cobra.Command, config *walletConfig) 
 	if err != nil {
 		return err
 	}
-	w, err := money.LoadExistingWallet(client.AlphabillClientConfig{}, am, restClient)
+	w, err := money.LoadExistingWallet(am, restClient)
 	if err != nil {
 		return err
 	}
@@ -302,7 +301,7 @@ func execGetBalanceCmd(cmd *cobra.Command, config *walletConfig) error {
 	if err != nil {
 		return err
 	}
-	w, err := money.LoadExistingWallet(client.AlphabillClientConfig{}, am, restClient)
+	w, err := money.LoadExistingWallet(am, restClient)
 	if err != nil {
 		return err
 	}
@@ -400,17 +399,12 @@ func collectDustCmd(config *walletConfig) *cobra.Command {
 			return execCollectDust(cmd, config)
 		},
 	}
-	cmd.Flags().StringP(alphabillNodeURLCmdName, "u", defaultAlphabillNodeURL, "alphabill uri to connect to")
 	cmd.Flags().StringP(alphabillApiURLCmdName, "r", defaultAlphabillApiURL, "alphabill API uri to connect to")
 	cmd.Flags().Uint64P(keyCmdName, "k", 0, "which key to use for dust collection, 0 for all bills from all accounts")
 	return cmd
 }
 
 func execCollectDust(cmd *cobra.Command, config *walletConfig) error {
-	nodeUri, err := cmd.Flags().GetString(alphabillNodeURLCmdName)
-	if err != nil {
-		return err
-	}
 	apiUri, err := cmd.Flags().GetString(alphabillApiURLCmdName)
 	if err != nil {
 		return err
@@ -428,7 +422,7 @@ func execCollectDust(cmd *cobra.Command, config *walletConfig) error {
 		return err
 	}
 
-	w, err := money.LoadExistingWallet(client.AlphabillClientConfig{Uri: nodeUri}, am, restClient)
+	w, err := money.LoadExistingWallet(am, restClient)
 	if err != nil {
 		return err
 	}

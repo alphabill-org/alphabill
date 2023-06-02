@@ -16,12 +16,9 @@ import (
 	"time"
 
 	"github.com/alphabill-org/alphabill/pkg/wallet"
-	"github.com/alphabill-org/alphabill/pkg/wallet/backend/bp"
-	"github.com/ethereum/go-ethereum/common/hexutil"
-	"google.golang.org/protobuf/encoding/protojson"
-
-	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/pkg/wallet/tokens/backend"
+	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/fxamacker/cbor/v2"
 )
 
 var (
@@ -73,11 +70,11 @@ Returns:
   - offsetKey for the next batch (if empty then there is no more data to query);
   - non-nil error when something failed;
 */
-func (tb *TokenBackend) GetTokens(ctx context.Context, kind backend.Kind, owner wallet.PubKey, offsetKey string, limit int) ([]backend.TokenUnit, string, error) {
+func (tb *TokenBackend) GetTokens(ctx context.Context, kind backend.Kind, owner wallet.PubKey, offsetKey string, limit int) ([]*backend.TokenUnit, string, error) {
 	addr := tb.getURL(apiPathPrefix, "kinds", kind.String(), "owners", hexutil.Encode(owner), "tokens")
 	setPaginationParams(addr, offsetKey, limit)
 
-	var rspData []backend.TokenUnit
+	rspData := make([]*backend.TokenUnit, 0)
 	pm, err := tb.get(ctx, addr, &rspData, true)
 	if err != nil {
 		return nil, "", fmt.Errorf("get tokens request failed: %w", err)
@@ -95,7 +92,7 @@ Returns:
   - offsetKey for the next batch (if empty then there is no more data to query);
   - non-nil error when something failed;
 */
-func (tb *TokenBackend) GetTokenTypes(ctx context.Context, kind backend.Kind, creator wallet.PubKey, offsetKey string, limit int) ([]backend.TokenUnitType, string, error) {
+func (tb *TokenBackend) GetTokenTypes(ctx context.Context, kind backend.Kind, creator wallet.PubKey, offsetKey string, limit int) ([]*backend.TokenUnitType, string, error) {
 	addr := tb.getURL(apiPathPrefix, "kinds", kind.String(), "types")
 	if len(creator) > 0 {
 		q := addr.Query()
@@ -104,7 +101,7 @@ func (tb *TokenBackend) GetTokenTypes(ctx context.Context, kind backend.Kind, cr
 	}
 	setPaginationParams(addr, offsetKey, limit)
 
-	var rspData []backend.TokenUnitType
+	rspData := make([]*backend.TokenUnitType, 0)
 	pm, err := tb.get(ctx, addr, &rspData, true)
 	if err != nil {
 		return nil, "", fmt.Errorf("get token types request failed: %w", err)
@@ -112,8 +109,8 @@ func (tb *TokenBackend) GetTokenTypes(ctx context.Context, kind backend.Kind, cr
 	return rspData, pm, nil
 }
 
-func (tb *TokenBackend) GetTypeHierarchy(ctx context.Context, id backend.TokenTypeID) ([]backend.TokenUnitType, error) {
-	var rspData []backend.TokenUnitType
+func (tb *TokenBackend) GetTypeHierarchy(ctx context.Context, id backend.TokenTypeID) ([]*backend.TokenUnitType, error) {
+	rspData := make([]*backend.TokenUnitType, 0)
 	_, err := tb.get(ctx, tb.getURL(apiPathPrefix, "types", hexutil.Encode(id), "hierarchy"), &rspData, true)
 	if err != nil {
 		return nil, fmt.Errorf("get token type hierarchy request failed: %w", err)
@@ -142,8 +139,8 @@ func (tb *TokenBackend) GetRoundNumber(ctx context.Context) (uint64, error) {
 	return rn.RoundNumber, nil
 }
 
-func (tb *TokenBackend) PostTransactions(ctx context.Context, pubKey wallet.PubKey, txs *txsystem.Transactions) error {
-	b, err := protojson.Marshal(txs)
+func (tb *TokenBackend) PostTransactions(ctx context.Context, pubKey wallet.PubKey, txs *wallet.Transactions) error {
+	b, err := cbor.Marshal(txs)
 	if err != nil {
 		return fmt.Errorf("failed to encode transactions: %w", err)
 	}
@@ -176,7 +173,7 @@ func (tb *TokenBackend) GetFeeCreditBill(ctx context.Context, unitID wallet.Unit
 	return fcb, nil
 }
 
-func (tb *TokenBackend) FetchFeeCreditBill(ctx context.Context, unitID []byte) (*bp.Bill, error) {
+func (tb *TokenBackend) FetchFeeCreditBill(ctx context.Context, unitID []byte) (*wallet.Bill, error) {
 	fcb, err := tb.GetFeeCreditBill(ctx, unitID)
 	if err != nil {
 		return nil, err
@@ -184,7 +181,7 @@ func (tb *TokenBackend) FetchFeeCreditBill(ctx context.Context, unitID []byte) (
 	if fcb == nil {
 		return nil, nil
 	}
-	return &bp.Bill{
+	return &wallet.Bill{
 		Id:            fcb.Id,
 		Value:         fcb.Value,
 		TxHash:        fcb.TxHash,
@@ -201,7 +198,7 @@ func (tb *TokenBackend) getURL(pathElements ...string) *url.URL {
 /*
 get executes GET request to given "addr" and decodes response body into "data" (which has to be a pointer
 of the data type expected in the response).
-When "allowEmptyResponse" is false then response must have a non empty body with JSON content.
+When "allowEmptyResponse" is false then response must have a non empty body with CBOR content.
 
 It returns value of the offsetKey parameter from the Link header (empty string when header is not
 present, ie missing header is not error).

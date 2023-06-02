@@ -4,14 +4,11 @@ import (
 	gocrypto "crypto"
 	"testing"
 
-	"github.com/alphabill-org/alphabill/internal/network/protocol/certification"
-
-	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
-
-	"github.com/alphabill-org/alphabill/internal/certificates"
-	"github.com/stretchr/testify/require"
-
 	"github.com/alphabill-org/alphabill/internal/crypto"
+	"github.com/alphabill-org/alphabill/internal/network/protocol/certification"
+	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
+	"github.com/alphabill-org/alphabill/internal/types"
+	"github.com/stretchr/testify/require"
 )
 
 func TestGenesisPartitionRecord_IsValid(t *testing.T) {
@@ -26,7 +23,7 @@ func TestGenesisPartitionRecord_IsValid(t *testing.T) {
 
 	type fields struct {
 		Nodes                   []*PartitionNode
-		Certificate             *certificates.UnicityCertificate
+		Certificate             *types.UnicityCertificate
 		SystemDescriptionRecord *SystemDescriptionRecord
 	}
 	type args struct {
@@ -145,7 +142,7 @@ func createPartitionNode(t *testing.T, nodeID string, signingKey crypto.Signer, 
 	request := &certification.BlockCertificationRequest{
 		SystemIdentifier: []byte{0, 0, 0, 0},
 		NodeIdentifier:   nodeID,
-		InputRecord: &certificates.InputRecord{
+		InputRecord: &types.InputRecord{
 			PreviousHash: make([]byte, 32),
 			Hash:         make([]byte, 32),
 			BlockHash:    make([]byte, 32),

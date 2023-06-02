@@ -4,79 +4,85 @@ import (
 	"math/rand"
 	"testing"
 
-	"github.com/alphabill-org/alphabill/internal/script"
-	"github.com/alphabill-org/alphabill/internal/txsystem"
+	"github.com/alphabill-org/alphabill/internal/types"
+	"github.com/fxamacker/cbor/v2"
 	"github.com/stretchr/testify/require"
-	"google.golang.org/protobuf/proto"
-	"google.golang.org/protobuf/types/known/anypb"
 )
 
-var moneySystemID = []byte{0, 0, 0, 0}
+var defaultSystemID = []byte{0, 0, 0, 0}
 
-func defaultTx() *txsystem.Transaction {
-	return &txsystem.Transaction{
-		SystemId:              moneySystemID,
-		TransactionAttributes: new(anypb.Any),
-		UnitId:                RandomBytes(32),
-		OwnerProof:            script.PredicateArgumentEmpty(),
-		ClientMetadata:        &txsystem.ClientMetadata{Timeout: 10, MaxFee: 2},
-		ServerMetadata:        &txsystem.ServerMetadata{Fee: 1},
+func defaultTx() *types.TransactionOrder {
+	attributes, _ := cbor.Marshal(nil)
+	payload := &types.Payload{
+		SystemID:       defaultSystemID,
+		Type:           "test",
+		UnitID:         RandomBytes(32),
+		Attributes:     attributes,
+		ClientMetadata: &types.ClientMetadata{Timeout: 10, MaxTransactionFee: 2},
+	}
+
+	return &types.TransactionOrder{
+		Payload:    payload,
+		OwnerProof: RandomBytes(3),
 	}
 }
 
-type Option func(*txsystem.Transaction) error
+type Option func(*types.TransactionOrder) error
 
-type ConvertTx func(*txsystem.Transaction) (txsystem.GenericTransaction, error)
-
-func WithSystemID(id []byte) Option {
-	return func(tx *txsystem.Transaction) error {
-		tx.SystemId = id
+func WithSystemID(id types.SystemID) Option {
+	return func(tx *types.TransactionOrder) error {
+		tx.Payload.SystemID = id
 		return nil
 	}
 }
 
 func WithUnitId(id []byte) Option {
-	return func(tx *txsystem.Transaction) error {
-		tx.UnitId = id
+	return func(tx *types.TransactionOrder) error {
+		tx.Payload.UnitID = id
+		return nil
+	}
+}
+
+func WithPayloadType(t string) Option {
+	return func(tx *types.TransactionOrder) error {
+		tx.Payload.Type = t
 		return nil
 	}
 }
 
 func WithOwnerProof(ownerProof []byte) Option {
-	return func(tx *txsystem.Transaction) error {
+	return func(tx *types.TransactionOrder) error {
 		tx.OwnerProof = ownerProof
 		return nil
 	}
 }
 
 func WithFeeProof(feeProof []byte) Option {
-	return func(tx *txsystem.Transaction) error {
+	return func(tx *types.TransactionOrder) error {
 		tx.FeeProof = feeProof
 		return nil
 	}
 }
 
-func WithClientMetadata(m *txsystem.ClientMetadata) Option {
-	return func(tx *txsystem.Transaction) error {
-		tx.ClientMetadata = m
+func WithClientMetadata(m *types.ClientMetadata) Option {
+	return func(tx *types.TransactionOrder) error {
+		tx.Payload.ClientMetadata = m
 		return nil
 	}
 }
 
-func WithServerMetadata(m *txsystem.ServerMetadata) Option {
-	return func(tx *txsystem.Transaction) error {
-		tx.ServerMetadata = m
+func WithAttributes(attr any) Option {
+	return func(tx *types.TransactionOrder) error {
+		bytes, err := cbor.Marshal(attr)
+		if err != nil {
+			return err
+		}
+		tx.Payload.Attributes = bytes
 		return nil
 	}
 }
 
-func WithAttributes(attr proto.Message) Option {
-	return func(tx *txsystem.Transaction) error {
-		return tx.TransactionAttributes.MarshalFrom(attr)
-	}
-}
-
-func NewTransaction(t *testing.T, options ...Option) *txsystem.Transaction {
+func NewTransactionOrder(t *testing.T, options ...Option) *types.TransactionOrder {
 	tx := defaultTx()
 	for _, o := range options {
 		require.NoError(t, o(tx))
@@ -84,11 +90,18 @@ func NewTransaction(t *testing.T, options ...Option) *txsystem.Transaction {
 	return tx
 }
 
-func NewGenericTransaction(t *testing.T, c ConvertTx, options ...Option) txsystem.GenericTransaction {
-	tx := NewTransaction(t, options...)
-	genTx, err := c(tx)
-	require.NoError(t, err)
-	return genTx
+func NewTransactionRecord(t *testing.T, options ...Option) *types.TransactionRecord {
+	tx := defaultTx()
+	for _, o := range options {
+		require.NoError(t, o(tx))
+	}
+	return &types.TransactionRecord{
+		TransactionOrder: tx,
+		ServerMetadata: &types.ServerMetadata{
+			ActualFee:   1,
+			TargetUnits: []types.UnitID{tx.UnitID()},
+		},
+	}
 }
 
 func RandomBytes(len int) []byte {

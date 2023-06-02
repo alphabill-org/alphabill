@@ -7,6 +7,7 @@ import (
 
 	"github.com/alphabill-org/alphabill/internal/rma"
 	"github.com/alphabill-org/alphabill/internal/script"
+	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/holiman/uint256"
 )
 
@@ -22,7 +23,7 @@ type (
 		systemIdentifier []byte
 		hashAlgorithm    crypto.Hash
 		state            *rma.Tree
-		txOrder          *SCallTransactionOrder
+		txOrder          *types.TransactionOrder
 	}
 )
 

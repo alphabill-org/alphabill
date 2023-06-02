@@ -6,14 +6,13 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/alphabill-org/alphabill/pkg/wallet"
-	twb "github.com/alphabill-org/alphabill/pkg/wallet/tokens/backend"
-	"github.com/ethereum/go-ethereum/common/hexutil"
-	"google.golang.org/protobuf/proto"
-
 	"github.com/alphabill-org/alphabill/internal/script"
 	"github.com/alphabill-org/alphabill/internal/txsystem/tokens"
+	"github.com/alphabill-org/alphabill/internal/types"
+	"github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/alphabill-org/alphabill/pkg/wallet/account"
+	twb "github.com/alphabill-org/alphabill/pkg/wallet/tokens/backend"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 )
 
 const (
@@ -72,18 +71,18 @@ type (
 	}
 
 	MintAttr interface {
-		proto.Message
+		types.SigBytesProvider
 		SetBearer([]byte)
 		SetTokenCreationPredicateSignatures([][]byte)
 	}
 
 	AttrWithSubTypeCreationInputs interface {
-		proto.Message
+		types.SigBytesProvider
 		SetSubTypeCreationPredicateSignatures([][]byte)
 	}
 
 	AttrWithInvariantPredicateInputs interface {
-		proto.Message
+		types.SigBytesProvider
 		SetInvariantPredicateSignatures([][]byte)
 	}
 )
@@ -187,7 +186,7 @@ func ParsePredicateClause(clause string, keyNr uint64, am account.Manager) ([]by
 	return nil, fmt.Errorf("invalid predicate clause: '%s'", clause)
 }
 
-func (c *CreateFungibleTokenTypeAttributes) toProtobuf() *tokens.CreateFungibleTokenTypeAttributes {
+func (c *CreateFungibleTokenTypeAttributes) toCBOR() *tokens.CreateFungibleTokenTypeAttributes {
 	var icon *tokens.Icon
 	if c.Icon != nil {
 		icon = &tokens.Icon{Type: c.Icon.Type, Data: c.Icon.Data}
@@ -197,14 +196,14 @@ func (c *CreateFungibleTokenTypeAttributes) toProtobuf() *tokens.CreateFungibleT
 		Icon:                     icon,
 		Symbol:                   c.Symbol,
 		DecimalPlaces:            c.DecimalPlaces,
-		ParentTypeId:             c.ParentTypeId,
+		ParentTypeID:             c.ParentTypeId,
 		SubTypeCreationPredicate: c.SubTypeCreationPredicate,
 		TokenCreationPredicate:   c.TokenCreationPredicate,
 		InvariantPredicate:       c.InvariantPredicate,
 	}
 }
 
-func (c *CreateNonFungibleTokenTypeAttributes) toProtobuf() *tokens.CreateNonFungibleTokenTypeAttributes {
+func (c *CreateNonFungibleTokenTypeAttributes) toCBOR() *tokens.CreateNonFungibleTokenTypeAttributes {
 	var icon *tokens.Icon
 	if c.Icon != nil {
 		icon = &tokens.Icon{Type: c.Icon.Type, Data: c.Icon.Data}
@@ -213,7 +212,7 @@ func (c *CreateNonFungibleTokenTypeAttributes) toProtobuf() *tokens.CreateNonFun
 		Symbol:                   c.Symbol,
 		Name:                     c.Name,
 		Icon:                     icon,
-		ParentTypeId:             c.ParentTypeId,
+		ParentTypeID:             c.ParentTypeId,
 		SubTypeCreationPredicate: c.SubTypeCreationPredicate,
 		TokenCreationPredicate:   c.TokenCreationPredicate,
 		InvariantPredicate:       c.InvariantPredicate,
@@ -221,11 +220,11 @@ func (c *CreateNonFungibleTokenTypeAttributes) toProtobuf() *tokens.CreateNonFun
 	}
 }
 
-func (a *MintNonFungibleTokenAttributes) toProtobuf() *tokens.MintNonFungibleTokenAttributes {
+func (a *MintNonFungibleTokenAttributes) toCBOR() *tokens.MintNonFungibleTokenAttributes {
 	return &tokens.MintNonFungibleTokenAttributes{
 		Name:                a.Name,
-		NftType:             a.NftType,
-		Uri:                 a.Uri,
+		NFTTypeID:           a.NftType,
+		URI:                 a.Uri,
 		Data:                a.Data,
 		Bearer:              a.Bearer,
 		DataUpdatePredicate: a.DataUpdatePredicate,

@@ -17,6 +17,12 @@ var (
 	ErrPartitionsNotFound     = errors.New("root genesis has no partitions records")
 )
 
+type RootGenesis struct {
+	_          struct{}                  `cbor:",toarray"`
+	Root       *GenesisRootRecord        `json:"root,omitempty"`
+	Partitions []*GenesisPartitionRecord `json:"partitions,omitempty"`
+}
+
 type SystemDescriptionRecordGetter interface {
 	GetSystemDescriptionRecord() *SystemDescriptionRecord
 }
@@ -24,7 +30,8 @@ type SystemDescriptionRecordGetter interface {
 func CheckPartitionSystemIdentifiersUnique[T SystemDescriptionRecordGetter](records []T) error {
 	var ids = make(map[string][]byte)
 	for _, rec := range records {
-		id := rec.GetSystemDescriptionRecord().GetSystemIdentifier()
+		record := rec.GetSystemDescriptionRecord()
+		id := record.SystemIdentifier
 		if _, f := ids[string(id)]; f {
 			return fmt.Errorf("duplicated system identifier: %X", id)
 		}
@@ -98,7 +105,7 @@ func (x *RootGenesis) Verify() error {
 			return fmt.Errorf("root genesis partition record %v error: %w", i, err)
 		}
 		// make sure all root validators have signed the UC Seal
-		if len(p.Certificate.UnicitySeal.Signatures) != len(x.Root.RootValidators) {
+		if len(x.Partitions[0].Certificate.UnicitySeal.Signatures) != len(x.Root.RootValidators) {
 			return fmt.Errorf("partition %X UC Seal is not signed by all root nodes",
 				p.SystemDescriptionRecord.SystemIdentifier)
 		}

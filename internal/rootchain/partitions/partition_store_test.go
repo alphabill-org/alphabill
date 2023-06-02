@@ -88,8 +88,8 @@ func TestPartitionStore(t *testing.T) {
 				require.NoError(t, err)
 				if tt.want.nodeCounts != nil {
 					require.Equal(t, tt.want.nodeCounts[i], int(tb.GetTotalNodes()))
-					require.Equal(t, tt.args.partitions[i].SystemDescriptionRecord.SystemIdentifier, sysDesc.GetSystemIdentifier())
-					require.Equal(t, tt.args.partitions[i].SystemDescriptionRecord.T2Timeout, sysDesc.GetT2Timeout())
+					require.Equal(t, tt.args.partitions[i].SystemDescriptionRecord.SystemIdentifier, sysDesc.SystemIdentifier)
+					require.Equal(t, tt.args.partitions[i].SystemDescriptionRecord.T2Timeout, sysDesc.T2Timeout)
 				}
 			}
 			for _, id := range tt.want.doesNotContainPartitions {

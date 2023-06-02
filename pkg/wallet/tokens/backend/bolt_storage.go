@@ -2,12 +2,12 @@ package backend
 
 import (
 	"bytes"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"time"
 
 	"github.com/alphabill-org/alphabill/pkg/wallet"
+	"github.com/fxamacker/cbor/v2"
 	bolt "go.etcd.io/bbolt"
 
 	"github.com/alphabill-org/alphabill/internal/util"
@@ -59,7 +59,7 @@ func (s *storage) QueryTokenType(kind Kind, creator wallet.PubKey, startKey Toke
 		c := tx.Bucket(bucketTokenType).Cursor()
 		for k, v := setPosition(c, startKey); k != nil; k, v = c.Next() {
 			item := &TokenUnitType{}
-			if err := json.Unmarshal(v, item); err != nil {
+			if err := cbor.Unmarshal(v, item); err != nil {
 				return fmt.Errorf("failed to deserialize token type data (%x: %s): %w", k, v, err)
 			}
 			// does the item match our query?
@@ -108,7 +108,7 @@ func (s *storage) tokenTypesByCreator(creator wallet.PubKey, kind Kind, startKey
 }
 
 func (s *storage) SaveTokenType(tokenType *TokenUnitType, proof *wallet.Proof) error {
-	tokenData, err := json.Marshal(tokenType)
+	tokenData, err := cbor.Marshal(tokenType)
 	if err != nil {
 		return fmt.Errorf("failed to serialize token type data: %w", err)
 	}
@@ -131,7 +131,7 @@ func (s *storage) GetTokenType(id TokenTypeID) (*TokenUnitType, error) {
 		if data == nil {
 			return fmt.Errorf("failed to read token type data %s[%x]: %w", bucketTokenType, id, errRecordNotFound)
 		}
-		if err := json.Unmarshal(data, d); err != nil {
+		if err := cbor.Unmarshal(data, d); err != nil {
 			return fmt.Errorf("failed to deserialize token type data (%x): %w", id, err)
 		}
 		return nil
@@ -143,7 +143,7 @@ func (s *storage) GetTokenType(id TokenTypeID) (*TokenUnitType, error) {
 }
 
 func (s *storage) SaveToken(token *TokenUnit, proof *wallet.Proof) error {
-	tokenData, err := json.Marshal(token)
+	tokenData, err := cbor.Marshal(token)
 	if err != nil {
 		return fmt.Errorf("failed to serialize token unit data: %w", err)
 	}
@@ -225,6 +225,10 @@ func (s *storage) QueryTokens(kind Kind, owner wallet.Predicate, startKey TokenI
 				if err != nil {
 					return err
 				}
+				if item.Burned {
+					// burned tokens are not owned by anyone, thus skipped
+					continue
+				}
 				rsp = append(rsp, item)
 				if count--; count == 0 {
 					next, _ = obc.Next()
@@ -282,7 +286,7 @@ func (s *storage) GetFeeCreditBill(unitID wallet.UnitID) (*FeeCreditBill, error)
 		if fcbBytes == nil {
 			return nil
 		}
-		return json.Unmarshal(fcbBytes, &fcb)
+		return cbor.Unmarshal(fcbBytes, &fcb)
 	})
 	return fcb, err
 }
@@ -297,7 +301,7 @@ func (s *storage) SetFeeCreditBill(fcb *FeeCreditBill, proof *wallet.Proof) erro
 				return err
 			}
 		}
-		fcbBytes, err := json.Marshal(fcb)
+		fcbBytes, err := cbor.Marshal(fcb)
 		if err != nil {
 			return err
 		}
@@ -311,7 +315,7 @@ func (s *storage) getTokenType(tx *bolt.Tx, id TokenTypeID) (*TokenUnitType, err
 		return nil, fmt.Errorf("failed to read token type data %s[%X]: %w", bucketTokenType, id, errRecordNotFound)
 	}
 	tokenType := &TokenUnitType{}
-	if err := json.Unmarshal(data, tokenType); err != nil {
+	if err := cbor.Unmarshal(data, tokenType); err != nil {
 		return nil, fmt.Errorf("failed to deserialize token type data (%X): %w", id, err)
 	}
 	return tokenType, nil
@@ -323,14 +327,14 @@ func (s *storage) getToken(tx *bolt.Tx, id TokenID) (*TokenUnit, error) {
 		return nil, fmt.Errorf("failed to read token data %s[%X]: %w", bucketTokenUnit, id, errRecordNotFound)
 	}
 	token := &TokenUnit{}
-	if err := json.Unmarshal(data, token); err != nil {
+	if err := cbor.Unmarshal(data, token); err != nil {
 		return nil, fmt.Errorf("failed to deserialize token data (%x): %w", id, err)
 	}
 	return token, nil
 }
 
 func (s *storage) storeUnitBlockProof(tx *bolt.Tx, unitID wallet.UnitID, txHash wallet.TxHash, proof *wallet.Proof) error {
-	proofData, err := json.Marshal(proof)
+	proofData, err := cbor.Marshal(proof)
 	if err != nil {
 		return fmt.Errorf("failed to serialize proof data: %w", err)
 	}
@@ -393,7 +397,7 @@ func (s *storage) getUnitBlockProof(dbTx *bolt.Tx, id []byte, txHash wallet.TxHa
 		return nil, nil
 	}
 	proof := &wallet.Proof{}
-	if err := json.Unmarshal(proofData, proof); err != nil {
+	if err := cbor.Unmarshal(proofData, proof); err != nil {
 		return nil, fmt.Errorf("failed to deserialize proof data: %w", err)
 	}
 	return proof, nil

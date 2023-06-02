@@ -96,7 +96,7 @@ func TestListTokensCommandInputs(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			exec := false
-			cmd := tokenCmdList(&walletConfig{}, func(cmd *cobra.Command, config *walletConfig, kind backend.Kind, accountNumber *uint64) error {
+			cmd := tokenCmdList(&walletConfig{}, func(cmd *cobra.Command, config *walletConfig, accountNumber *uint64, kind backend.Kind) error {
 				require.Equal(t, tt.accountNumber, *accountNumber)
 				require.Equal(t, tt.expectedKind, kind)
 				if len(tt.expectedPass) > 0 {
@@ -117,10 +117,11 @@ func TestListTokensCommandInputs(t *testing.T) {
 
 func TestListTokensTypesCommandInputs(t *testing.T) {
 	tests := []struct {
-		name         string
-		args         []string
-		expectedKind backend.Kind
-		expectedPass string
+		name          string
+		args          []string
+		expectedAccNr uint64
+		expectedKind  backend.Kind
+		expectedPass  string
 	}{
 		{
 			name:         "list all tokens",
@@ -134,32 +135,37 @@ func TestListTokensTypesCommandInputs(t *testing.T) {
 			expectedPass: "test pass phrase",
 		},
 		{
-			name:         "list all fungible tokens",
-			args:         []string{"fungible"},
-			expectedKind: backend.Fungible,
+			name:          "list all fungible tokens",
+			args:          []string{"fungible", "-k", "0"},
+			expectedKind:  backend.Fungible,
+			expectedAccNr: 0,
 		},
 		{
-			name:         "list all fungible tokens, encrypted wallet",
-			args:         []string{"fungible", "--pn", "test pass phrase"},
-			expectedKind: backend.Fungible,
-			expectedPass: "test pass phrase",
+			name:          "list all fungible tokens, encrypted wallet",
+			args:          []string{"fungible", "--pn", "test pass phrase"},
+			expectedKind:  backend.Fungible,
+			expectedPass:  "test pass phrase",
+			expectedAccNr: 0,
 		},
 		{
-			name:         "list all non-fungible tokens",
-			args:         []string{"non-fungible"},
-			expectedKind: backend.NonFungible,
+			name:          "list all non-fungible tokens",
+			args:          []string{"non-fungible", "--key", "1"},
+			expectedKind:  backend.NonFungible,
+			expectedAccNr: 1,
 		},
 		{
-			name:         "list all non-fungible tokens, encrypted wallet",
-			args:         []string{"non-fungible", "--pn", "test pass phrase"},
-			expectedKind: backend.NonFungible,
-			expectedPass: "test pass phrase",
+			name:          "list all non-fungible tokens, encrypted wallet",
+			args:          []string{"non-fungible", "--pn", "test pass phrase", "-k", "2"},
+			expectedKind:  backend.NonFungible,
+			expectedPass:  "test pass phrase",
+			expectedAccNr: 2,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			exec := false
-			cmd := tokenCmdListTypes(&walletConfig{}, func(cmd *cobra.Command, config *walletConfig, kind backend.Kind) error {
+			cmd := tokenCmdListTypes(&walletConfig{}, func(cmd *cobra.Command, config *walletConfig, accountNumber *uint64, kind backend.Kind) error {
+				require.Equal(t, tt.expectedAccNr, *accountNumber)
 				require.Equal(t, tt.expectedKind, kind)
 				if len(tt.expectedPass) != 0 {
 					passwordFromArg, err := cmd.Flags().GetString(passwordArgCmdName)
@@ -381,18 +387,16 @@ func ensureTokenIndexed(t *testing.T, ctx context.Context, api *client.TokenBack
 	var res *backend.TokenUnit
 	require.Eventually(t, func() bool {
 		offsetKey := ""
-		var tokens []backend.TokenUnit
-		var err error
 		for {
-			tokens, offsetKey, err = api.GetTokens(ctx, backend.Any, ownerPubKey, offsetKey, 0)
+			tokens, offsetKey, err := api.GetTokens(ctx, backend.Any, ownerPubKey, offsetKey, 0)
 			require.NoError(t, err)
 			for _, token := range tokens {
 				if tokenID == nil {
-					res = &token
+					res = token
 					return true
 				}
 				if bytes.Equal(token.ID, tokenID) {
-					res = &token
+					res = token
 					return true
 				}
 			}
@@ -409,14 +413,12 @@ func ensureTokenTypeIndexed(t *testing.T, ctx context.Context, api *client.Token
 	var res *backend.TokenUnitType
 	require.Eventually(t, func() bool {
 		offsetKey := ""
-		var types []backend.TokenUnitType
-		var err error
 		for {
-			types, offsetKey, err = api.GetTokenTypes(ctx, backend.Any, creatorPubKey, offsetKey, 0)
+			types, offsetKey, err := api.GetTokenTypes(ctx, backend.Any, creatorPubKey, offsetKey, 0)
 			require.NoError(t, err)
 			for _, t := range types {
 				if bytes.Equal(t.ID, typeID) {
-					res = &t
+					res = t
 					return true
 				}
 			}

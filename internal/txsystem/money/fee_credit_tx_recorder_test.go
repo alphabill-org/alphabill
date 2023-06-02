@@ -5,13 +5,12 @@ import (
 
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
 	testtransaction "github.com/alphabill-org/alphabill/internal/testutils/transaction"
-	"github.com/alphabill-org/alphabill/internal/txsystem"
 	testfc "github.com/alphabill-org/alphabill/internal/txsystem/fc/testutils"
+	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/stretchr/testify/require"
 )
 
 var (
-	moneySystemID         = []byte{0, 0, 0, 0}
 	moneySystemIDString   = string(moneySystemID)
 	systemIDUnknown       = []byte{1, 2, 3, 4}
 	unknownSystemIDString = string(systemIDUnknown)
@@ -23,26 +22,39 @@ func TestTxRecording(t *testing.T) {
 
 	transferFCAmount := uint64(10)
 	transferFCFee := uint64(1)
+	attr := testfc.NewTransferFCAttr(testfc.WithAmount(transferFCAmount))
 	f.recordTransferFC(
-		testfc.NewTransferFC(t,
-			testfc.NewTransferFCAttr(testfc.WithAmount(transferFCAmount)),
-			testtransaction.WithSystemID(moneySystemID),
-			testtransaction.WithServerMetadata(&txsystem.ServerMetadata{Fee: transferFCFee}),
-		),
+		&transferFeeCreditTx{
+			tx: testfc.NewTransferFC(t,
+				attr,
+				testtransaction.WithSystemID(moneySystemID),
+			),
+			fee:  transferFCFee,
+			attr: attr,
+		},
 	)
 
 	closeFCAmount := uint64(20)
 	closeFCFee := uint64(2)
 	reclaimFCFee := uint64(3)
-	f.recordReclaimFC(testfc.NewReclaimFC(t, signer,
-		testfc.NewReclaimFCAttr(t, signer, testfc.WithReclaimFCClosureTx(
-			testfc.NewCloseFC(t,
-				testfc.NewCloseFCAttr(testfc.WithCloseFCAmount(closeFCAmount)),
-				testtransaction.WithServerMetadata(&txsystem.ServerMetadata{Fee: closeFCFee})).Transaction,
-		)),
-		testtransaction.WithSystemID(moneySystemID),
-		testtransaction.WithServerMetadata(&txsystem.ServerMetadata{Fee: reclaimFCFee}),
-	))
+
+	closeFCAttr := testfc.NewCloseFCAttr(testfc.WithCloseFCAmount(closeFCAmount))
+	closureTx := testfc.WithReclaimFCClosureTx(
+		&types.TransactionRecord{
+			TransactionOrder: testfc.NewCloseFC(t, closeFCAttr),
+			ServerMetadata:   &types.ServerMetadata{ActualFee: closeFCFee},
+		},
+	)
+	newReclaimFCAttr := testfc.NewReclaimFCAttr(t, signer, closureTx)
+	f.recordReclaimFC(
+		&reclaimFeeCreditTx{
+			tx:                  testfc.NewReclaimFC(t, signer, newReclaimFCAttr, testtransaction.WithSystemID(moneySystemID)),
+			attr:                newReclaimFCAttr,
+			closeFCTransferAttr: closeFCAttr,
+			reclaimFee:          reclaimFCFee,
+			closeFee:            closeFCFee,
+		},
+	)
 
 	addedCredit := f.getAddedCredit(moneySystemIDString)
 	require.EqualValues(t, transferFCAmount, addedCredit)

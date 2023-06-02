@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	test "github.com/alphabill-org/alphabill/internal/testutils"
-	"github.com/alphabill-org/alphabill/internal/txsystem"
+	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/alphabill-org/alphabill/pkg/wallet/txsubmitter"
 	"github.com/stretchr/testify/require"
@@ -14,12 +14,12 @@ import (
 
 func TestConfirmUnitsTx_skip(t *testing.T) {
 	backend := &mockTokenBackend{
-		postTransactions: func(ctx context.Context, pubKey wallet.PubKey, txs *txsystem.Transactions) error {
+		postTransactions: func(ctx context.Context, pubKey wallet.PubKey, txs *wallet.Transactions) error {
 			return nil
 		},
 	}
 	batch := txsubmitter.NewBatch(nil, backend)
-	batch.Add(&txsubmitter.TxSubmission{Transaction: &txsystem.Transaction{ClientMetadata: &txsystem.ClientMetadata{Timeout: 1}}})
+	batch.Add(&txsubmitter.TxSubmission{Transaction: &types.TransactionOrder{Payload: &types.Payload{ClientMetadata: &types.ClientMetadata{Timeout: 1}}}})
 	err := batch.SendTx(context.Background(), false)
 	require.NoError(t, err)
 
@@ -29,7 +29,7 @@ func TestConfirmUnitsTx_ok(t *testing.T) {
 	getRoundNumberCalled := false
 	getTxProofCalled := false
 	backend := &mockTokenBackend{
-		postTransactions: func(ctx context.Context, pubKey wallet.PubKey, txs *txsystem.Transactions) error {
+		postTransactions: func(ctx context.Context, pubKey wallet.PubKey, txs *wallet.Transactions) error {
 			return nil
 		},
 		getRoundNumber: func(ctx context.Context) (uint64, error) {
@@ -42,7 +42,7 @@ func TestConfirmUnitsTx_ok(t *testing.T) {
 		},
 	}
 	batch := txsubmitter.NewBatch(nil, backend)
-	batch.Add(&txsubmitter.TxSubmission{Transaction: &txsystem.Transaction{ClientMetadata: &txsystem.ClientMetadata{Timeout: 101}}})
+	batch.Add(&txsubmitter.TxSubmission{Transaction: &types.TransactionOrder{Payload: &types.Payload{ClientMetadata: &types.ClientMetadata{Timeout: 101}}}})
 	err := batch.SendTx(context.Background(), true)
 	require.NoError(t, err)
 	require.True(t, getRoundNumberCalled)
@@ -54,7 +54,7 @@ func TestConfirmUnitsTx_timeout(t *testing.T) {
 	getTxProofCalled := 0
 	randomID1 := test.RandomBytes(32)
 	backend := &mockTokenBackend{
-		postTransactions: func(ctx context.Context, pubKey wallet.PubKey, txs *txsystem.Transactions) error {
+		postTransactions: func(ctx context.Context, pubKey wallet.PubKey, txs *wallet.Transactions) error {
 			return nil
 		},
 		getRoundNumber: func(ctx context.Context) (uint64, error) {
@@ -73,9 +73,9 @@ func TestConfirmUnitsTx_timeout(t *testing.T) {
 		},
 	}
 	batch := txsubmitter.NewBatch(nil, backend)
-	sub1 := &txsubmitter.TxSubmission{Transaction: &txsystem.Transaction{ClientMetadata: &txsystem.ClientMetadata{Timeout: 101}}, UnitID: randomID1}
+	sub1 := &txsubmitter.TxSubmission{Transaction: &types.TransactionOrder{Payload: &types.Payload{ClientMetadata: &types.ClientMetadata{Timeout: 101}}}, UnitID: randomID1}
 	batch.Add(sub1)
-	sub2 := &txsubmitter.TxSubmission{Transaction: &txsystem.Transaction{ClientMetadata: &txsystem.ClientMetadata{Timeout: 102}}}
+	sub2 := &txsubmitter.TxSubmission{Transaction: &types.TransactionOrder{Payload: &types.Payload{ClientMetadata: &types.ClientMetadata{Timeout: 102}}}}
 	batch.Add(sub2)
 	err := batch.SendTx(context.Background(), true)
 	require.ErrorContains(t, err, "confirmation timeout")
@@ -83,4 +83,23 @@ func TestConfirmUnitsTx_timeout(t *testing.T) {
 	require.EqualValues(t, 2, getTxProofCalled)
 	require.True(t, sub1.Confirmed())
 	require.False(t, sub2.Confirmed())
+}
+
+func TestCachingRoundNumberFetcher(t *testing.T) {
+	getRoundNumberCalled := 0
+	backend := &mockTokenBackend{
+		getRoundNumber: func(ctx context.Context) (uint64, error) {
+			getRoundNumberCalled++
+			return 100, nil
+		},
+	}
+	fetcher := &cachingRoundNumberFetcher{delegate: backend.GetRoundNumber}
+	num, err := fetcher.getRoundNumber(context.Background())
+	require.NoError(t, err)
+	require.EqualValues(t, 100, num)
+	require.EqualValues(t, 1, getRoundNumberCalled)
+	num, err = fetcher.getRoundNumber(context.Background())
+	require.NoError(t, err)
+	require.EqualValues(t, 100, num)
+	require.EqualValues(t, 1, getRoundNumberCalled)
 }

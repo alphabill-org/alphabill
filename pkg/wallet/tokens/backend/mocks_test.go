@@ -13,17 +13,15 @@ import (
 	"testing"
 	"time"
 
-	"github.com/alphabill-org/alphabill/pkg/wallet"
-	"github.com/holiman/uint256"
-	"google.golang.org/protobuf/proto"
-	"google.golang.org/protobuf/types/known/anypb"
-
 	"github.com/alphabill-org/alphabill/internal/rpc/alphabill"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
-	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/internal/txsystem/tokens"
+	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/internal/util"
+	"github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/alphabill-org/alphabill/pkg/wallet/log"
+	"github.com/fxamacker/cbor/v2"
+	"github.com/stretchr/testify/require"
 )
 
 func decodeResponse(t *testing.T, rsp *http.Response, code int, data any) error {
@@ -64,29 +62,30 @@ func expectErrorResponse(t *testing.T, rsp *http.Response, code int, msg string)
 	}
 }
 
-func randomTx(t *testing.T, attr proto.Message) *txsystem.Transaction {
+func randomTx(t *testing.T, attr interface{}) *types.TransactionOrder {
 	t.Helper()
-	tx := &txsystem.Transaction{
-		SystemId:              tokens.DefaultTokenTxSystemIdentifier,
-		TransactionAttributes: new(anypb.Any),
-		UnitId:                test.RandomBytes(32),
-		OwnerProof:            test.RandomBytes(3),
-		ClientMetadata:        &txsystem.ClientMetadata{Timeout: 10, FeeCreditRecordId: util.Uint256ToBytes(uint256.NewInt(1))},
-		ServerMetadata:        &txsystem.ServerMetadata{Fee: 1},
-	}
-	if err := tx.TransactionAttributes.MarshalFrom(attr); err != nil {
-		t.Errorf("failed to marshal tx attributes: %v", err)
+	attrBytes, err := cbor.Marshal(attr)
+	require.NoError(t, err, "failed to marshal tx attributes")
+
+	tx := &types.TransactionOrder{
+		Payload: &types.Payload{
+			SystemID:       tokens.DefaultTokenTxSystemIdentifier,
+			UnitID:         test.RandomBytes(32),
+			Attributes:     attrBytes,
+			ClientMetadata: &types.ClientMetadata{Timeout: 10, FeeCreditRecordID: util.Uint64ToBytes32(1)},
+		},
+		OwnerProof: test.RandomBytes(3),
 	}
 	return tx
 }
 
 type mockABClient struct {
 	getBlocks       func(ctx context.Context, blockNumber, blockCount uint64) (*alphabill.GetBlocksResponse, error)
-	sendTransaction func(ctx context.Context, tx *txsystem.Transaction) error
+	sendTransaction func(ctx context.Context, tx *types.TransactionOrder) error
 	roundNumber     func(ctx context.Context) (uint64, error)
 }
 
-func (abc *mockABClient) SendTransaction(ctx context.Context, tx *txsystem.Transaction) error {
+func (abc *mockABClient) SendTransaction(ctx context.Context, tx *types.TransactionOrder) error {
 	if abc.sendTransaction != nil {
 		return abc.sendTransaction(ctx, tx)
 	}

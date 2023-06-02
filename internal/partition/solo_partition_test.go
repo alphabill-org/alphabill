@@ -10,12 +10,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/alphabill-org/alphabill/internal/block"
-	"github.com/alphabill-org/alphabill/internal/certificates"
 	"github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/keyvaluedb"
 	"github.com/alphabill-org/alphabill/internal/network"
-	p "github.com/alphabill-org/alphabill/internal/network/protocol"
+	"github.com/alphabill-org/alphabill/internal/network/protocol"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/blockproposal"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/certification"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
@@ -28,11 +26,11 @@ import (
 	testevent "github.com/alphabill-org/alphabill/internal/testutils/partition/event"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
+	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/internal/util"
 	p2pcrypto "github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/stretchr/testify/require"
-	"google.golang.org/protobuf/proto"
 )
 
 type AlwaysValidBlockProposalValidator struct{}
@@ -44,7 +42,7 @@ type SingleNodePartition struct {
 	partition  *Node
 	nodeDeps   *partitionStartupDependencies
 	rootRound  uint64
-	certs      map[p.SystemIdentifier]*certificates.UnicityCertificate
+	certs      map[protocol.SystemIdentifier]*types.UnicityCertificate
 	rootSigner crypto.Signer
 	mockNet    *testnetwork.MockNet
 	eh         *testevent.TestEventHandler
@@ -59,7 +57,7 @@ type partitionStartupDependencies struct {
 	nodeOptions []NodeOption
 }
 
-func (t *AlwaysValidTransactionValidator) Validate(txsystem.GenericTransaction, uint64) error {
+func (t *AlwaysValidTransactionValidator) Validate(_ *types.TransactionOrder, _ uint64) error {
 	return nil
 }
 
@@ -98,7 +96,7 @@ func SetupNewSingleNodePartition(t *testing.T, txSystem txsystem.TransactionSyst
 	require.NoError(t, err)
 
 	// root state
-	var certs = make(map[p.SystemIdentifier]*certificates.UnicityCertificate)
+	var certs = make(map[protocol.SystemIdentifier]*types.UnicityCertificate)
 	for _, partition := range rootGenesis.Partitions {
 		certs[partition.GetSystemIdentifierString()] = partition.Certificate
 	}
@@ -173,7 +171,7 @@ func (sn *SingleNodePartition) newNode() error {
 	return nil
 }
 
-func (sn *SingleNodePartition) SubmitTx(tx *txsystem.Transaction) error {
+func (sn *SingleNodePartition) SubmitTx(tx *types.TransactionOrder) error {
 	sn.mockNet.Receive(network.ReceivedMessage{
 		From:     "from-test",
 		Protocol: network.ProtocolInputForward,
@@ -182,11 +180,11 @@ func (sn *SingleNodePartition) SubmitTx(tx *txsystem.Transaction) error {
 	return nil
 }
 
-func (sn *SingleNodePartition) SubmitTxFromRPC(tx *txsystem.Transaction) error {
+func (sn *SingleNodePartition) SubmitTxFromRPC(tx *types.TransactionOrder) error {
 	return sn.partition.SubmitTx(context.Background(), tx)
 }
 
-func (sn *SingleNodePartition) SubmitUnicityCertificate(uc *certificates.UnicityCertificate) {
+func (sn *SingleNodePartition) SubmitUnicityCertificate(uc *types.UnicityCertificate) {
 	sn.mockNet.Receive(network.ReceivedMessage{
 		From:     "from-test",
 		Protocol: network.ProtocolUnicityCertificates,
@@ -203,7 +201,7 @@ func (sn *SingleNodePartition) SubmitBlockProposal(prop *blockproposal.BlockProp
 	})
 }
 
-func (sn *SingleNodePartition) CreateUnicityCertificate(ir *certificates.InputRecord, roundNumber uint64) (*certificates.UnicityCertificate, error) {
+func (sn *SingleNodePartition) CreateUnicityCertificate(ir *types.InputRecord, roundNumber uint64) (*types.UnicityCertificate, error) {
 	sdr := sn.nodeDeps.genesis.SystemDescriptionRecord
 	sdrHash := sdr.Hash(gocrypto.SHA256)
 	data := []*unicitytree.Data{{
@@ -228,9 +226,9 @@ func (sn *SingleNodePartition) CreateUnicityCertificate(ir *certificates.InputRe
 		panic(err)
 	}
 
-	return &certificates.UnicityCertificate{
+	return &types.UnicityCertificate{
 		InputRecord: ir,
-		UnicityTreeCertificate: &certificates.UnicityTreeCertificate{
+		UnicityTreeCertificate: &types.UnicityTreeCertificate{
 			SystemIdentifier:      cert.SystemIdentifier,
 			SiblingHashes:         cert.SiblingHashes,
 			SystemDescriptionHash: sdrHash,
@@ -239,8 +237,8 @@ func (sn *SingleNodePartition) CreateUnicityCertificate(ir *certificates.InputRe
 	}, nil
 }
 
-func (sn *SingleNodePartition) createUnicitySeal(roundNumber uint64, rootHash []byte) (*certificates.UnicitySeal, error) {
-	u := &certificates.UnicitySeal{
+func (sn *SingleNodePartition) createUnicitySeal(roundNumber uint64, rootHash []byte) (*types.UnicitySeal, error) {
+	u := &types.UnicitySeal{
 		RootChainRoundNumber: roundNumber,
 		Timestamp:            util.MakeTimestamp(),
 		Hash:                 rootHash,
@@ -248,14 +246,14 @@ func (sn *SingleNodePartition) createUnicitySeal(roundNumber uint64, rootHash []
 	return u, u.Sign("test", sn.rootSigner)
 }
 
-func (sn *SingleNodePartition) GetLatestBlock(t *testing.T) *block.Block {
+func (sn *SingleNodePartition) GetLatestBlock(t *testing.T) *types.Block {
 	dbIt := sn.store.Last()
 	defer func() {
 		if err := dbIt.Close(); err != nil {
 			logger.Warning("Unexpected DB iterator error %v", err)
 		}
 	}()
-	var bl block.Block
+	var bl types.Block
 	require.NoError(t, dbIt.Value(&bl))
 	return &bl
 }
@@ -265,7 +263,7 @@ func (sn *SingleNodePartition) CreateBlock(t *testing.T) {
 	sn.SubmitUC(t, sn.IssueBlockUC(t))
 }
 
-func (sn *SingleNodePartition) SubmitUC(t *testing.T, uc *certificates.UnicityCertificate) {
+func (sn *SingleNodePartition) SubmitUC(t *testing.T, uc *types.UnicityCertificate) {
 	sn.eh.Reset()
 	sn.mockNet.Receive(network.ReceivedMessage{
 		From:     "from-test",
@@ -275,10 +273,10 @@ func (sn *SingleNodePartition) SubmitUC(t *testing.T, uc *certificates.UnicityCe
 	testevent.ContainsEvent(t, sn.eh, event.BlockFinalized)
 }
 
-func (sn *SingleNodePartition) IssueBlockUC(t *testing.T) *certificates.UnicityCertificate {
+func (sn *SingleNodePartition) IssueBlockUC(t *testing.T) *types.UnicityCertificate {
 	req := sn.mockNet.SentMessages(network.ProtocolBlockCertification)[0].Message.(*certification.BlockCertificationRequest)
 	sn.mockNet.ResetSentMessages(network.ProtocolBlockCertification)
-	luc, found := sn.certs[p.SystemIdentifier(req.SystemIdentifier)]
+	luc, found := sn.certs[protocol.SystemIdentifier(req.SystemIdentifier)]
 	require.True(t, found)
 	err := consensus.CheckBlockCertificationRequest(req, luc)
 	require.NoError(t, err)
@@ -286,7 +284,7 @@ func (sn *SingleNodePartition) IssueBlockUC(t *testing.T) *certificates.UnicityC
 	require.NoError(t, err)
 	// update state
 	sn.rootRound = uc.UnicitySeal.RootChainRoundNumber
-	sn.certs[p.SystemIdentifier(req.SystemIdentifier)] = uc
+	sn.certs[protocol.SystemIdentifier(req.SystemIdentifier)] = uc
 	return uc
 }
 
@@ -321,7 +319,7 @@ func (l *TestLeaderSelector) IsCurrentNodeLeader() bool {
 	return l.leader == l.SelfID()
 }
 
-func (l *TestLeaderSelector) UpdateLeader(seal *certificates.UnicityCertificate) {
+func (l *TestLeaderSelector) UpdateLeader(seal *types.UnicityCertificate) {
 	l.mutex.Lock()
 	defer l.mutex.Unlock()
 	if seal == nil {
@@ -337,7 +335,7 @@ func (l *TestLeaderSelector) GetLeaderID() peer.ID {
 	return l.leader
 }
 
-func (l *TestLeaderSelector) LeaderFunc(seal *certificates.UnicityCertificate) peer.ID {
+func (l *TestLeaderSelector) LeaderFunc(seal *types.UnicityCertificate) peer.ID {
 	if seal == nil {
 		return ""
 	}
@@ -372,7 +370,7 @@ func createPeer(t *testing.T) *network.Peer {
 	return newPeer
 }
 
-func NextBlockReceived(t *testing.T, tp *SingleNodePartition, prevBlock *block.Block) func() bool {
+func NextBlockReceived(t *testing.T, tp *SingleNodePartition, prevBlock *types.Block) func() bool {
 	t.Helper()
 	return func() bool {
 		// Empty blocks are not persisted, assume new block is received if new last UC round is bigger than block UC round
@@ -381,9 +379,9 @@ func NextBlockReceived(t *testing.T, tp *SingleNodePartition, prevBlock *block.B
 	}
 }
 
-func ContainsTransaction(block *block.Block, tx *txsystem.Transaction) bool {
+func ContainsTransaction(block *types.Block, tx *types.TransactionOrder) bool {
 	for _, t := range block.Transactions {
-		if reflect.DeepEqual(t, tx) {
+		if reflect.DeepEqual(t.TransactionOrder, tx) {
 			return true
 		}
 	}
@@ -437,7 +435,7 @@ func WaitNodeRequestReceived(t *testing.T, tp *SingleNodePartition, req string) 
 		ID: reqs[len(reqs)-1].ID,
 		OutputMessage: network.OutputMessage{
 			Protocol: reqs[len(reqs)-1].Protocol,
-			Message:  proto.Clone(reqs[len(reqs)-1].Message),
+			Message:  reqs[len(reqs)-1].Message,
 		},
 	}
 }

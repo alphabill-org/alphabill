@@ -3,15 +3,15 @@ package consensus
 import (
 	"testing"
 
-	"github.com/alphabill-org/alphabill/internal/certificates"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/certification"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
+	"github.com/alphabill-org/alphabill/internal/types"
 )
 
 func TestCheckBlockCertificationRequest(t *testing.T) {
 	type args struct {
 		req *certification.BlockCertificationRequest
-		luc *certificates.UnicityCertificate
+		luc *types.UnicityCertificate
 	}
 	tests := []struct {
 		name    string
@@ -27,7 +27,7 @@ func TestCheckBlockCertificationRequest(t *testing.T) {
 			name: "luc nil",
 			args: args{
 				req: &certification.BlockCertificationRequest{
-					InputRecord: &certificates.InputRecord{
+					InputRecord: &types.InputRecord{
 						RoundNumber: 1,
 					},
 				},
@@ -39,12 +39,12 @@ func TestCheckBlockCertificationRequest(t *testing.T) {
 			name: "invalid partition round",
 			args: args{
 				req: &certification.BlockCertificationRequest{
-					InputRecord: &certificates.InputRecord{
+					InputRecord: &types.InputRecord{
 						RoundNumber: 1,
 					},
 				},
-				luc: &certificates.UnicityCertificate{
-					InputRecord: &certificates.InputRecord{
+				luc: &types.UnicityCertificate{
+					InputRecord: &types.InputRecord{
 						RoundNumber: 1,
 					},
 				},
@@ -55,13 +55,13 @@ func TestCheckBlockCertificationRequest(t *testing.T) {
 			name: "hash mismatch",
 			args: args{
 				req: &certification.BlockCertificationRequest{
-					InputRecord: &certificates.InputRecord{
+					InputRecord: &types.InputRecord{
 						PreviousHash: test.RandomBytes(32),
 						RoundNumber:  2,
 					},
 				},
-				luc: &certificates.UnicityCertificate{
-					InputRecord: &certificates.InputRecord{
+				luc: &types.UnicityCertificate{
+					InputRecord: &types.InputRecord{
 						RoundNumber: 1,
 						Hash:        test.RandomBytes(32),
 					},
@@ -73,13 +73,13 @@ func TestCheckBlockCertificationRequest(t *testing.T) {
 			name: "ok",
 			args: args{
 				req: &certification.BlockCertificationRequest{
-					InputRecord: &certificates.InputRecord{
+					InputRecord: &types.InputRecord{
 						PreviousHash: make([]byte, 32),
 						RoundNumber:  2,
 					},
 				},
-				luc: &certificates.UnicityCertificate{
-					InputRecord: &certificates.InputRecord{
+				luc: &types.UnicityCertificate{
+					InputRecord: &types.InputRecord{
 						RoundNumber: 1,
 						Hash:        make([]byte, 32),
 					},

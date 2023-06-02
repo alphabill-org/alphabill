@@ -16,15 +16,14 @@ import (
 	"github.com/alphabill-org/alphabill/internal/script"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	test "github.com/alphabill-org/alphabill/internal/testutils/time"
-	"github.com/alphabill-org/alphabill/internal/txsystem"
 	billtx "github.com/alphabill-org/alphabill/internal/txsystem/money"
+	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/internal/util"
+	"github.com/fxamacker/cbor/v2"
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
-	"google.golang.org/protobuf/proto"
-	"google.golang.org/protobuf/types/known/anypb"
 )
 
 type envVar [2]string
@@ -354,45 +353,47 @@ func TestRunMoneyNode_Ok(t *testing.T) {
 
 func makeSuccessfulPayment(t *testing.T, ctx context.Context, txClient alphabill.AlphabillServiceClient) {
 	initialBillID := uint256.NewInt(defaultInitialBillId).Bytes32()
-
-	tx := &txsystem.Transaction{
-		UnitId:                initialBillID[:],
-		TransactionAttributes: new(anypb.Any),
-		ClientMetadata:        &txsystem.ClientMetadata{Timeout: 10},
-		OwnerProof:            script.PredicateArgumentEmpty(),
-		SystemId:              []byte{0, 0, 0, 0},
-	}
-	bt := &billtx.TransferAttributes{
+	attr := &billtx.TransferAttributes{
 		NewBearer:   script.PredicateAlwaysTrue(),
 		TargetValue: defaultInitialBillValue,
-		Backlink:    nil,
 	}
-	err := anypb.MarshalFrom(tx.TransactionAttributes, bt, proto.MarshalOptions{})
-	require.NoError(t, err)
-
-	_, err = txClient.ProcessTransaction(ctx, tx, grpc.WaitForReady(true))
+	attrBytes, _ := cbor.Marshal(attr)
+	tx := &types.TransactionOrder{
+		Payload: &types.Payload{
+			Type:           billtx.PayloadTypeTransfer,
+			UnitID:         initialBillID[:],
+			ClientMetadata: &types.ClientMetadata{Timeout: 10},
+			SystemID:       []byte{0, 0, 0, 0},
+			Attributes:     attrBytes,
+		},
+		OwnerProof: script.PredicateArgumentEmpty(),
+	}
+	txBytes, _ := cbor.Marshal(tx)
+	protoTx := &alphabill.Transaction{Order: txBytes}
+	_, err := txClient.ProcessTransaction(ctx, protoTx, grpc.WaitForReady(true))
 	require.NoError(t, err)
 }
 
 func makeFailingPayment(t *testing.T, ctx context.Context, txClient alphabill.AlphabillServiceClient) {
 	wrongBillID := uint256.NewInt(6).Bytes32()
-
-	tx := &txsystem.Transaction{
-		UnitId:                wrongBillID[:],
-		TransactionAttributes: new(anypb.Any),
-		ClientMetadata:        &txsystem.ClientMetadata{Timeout: 10},
-		OwnerProof:            script.PredicateArgumentEmpty(),
-		SystemId:              []byte{0},
-	}
-	bt := &billtx.TransferAttributes{
+	attr := &billtx.TransferAttributes{
 		NewBearer:   script.PredicateAlwaysTrue(),
 		TargetValue: defaultInitialBillValue,
-		Backlink:    nil,
 	}
-	err := anypb.MarshalFrom(tx.TransactionAttributes, bt, proto.MarshalOptions{})
-	require.NoError(t, err)
-
-	response, err := txClient.ProcessTransaction(ctx, tx, grpc.WaitForReady(true))
+	attrBytes, _ := cbor.Marshal(attr)
+	tx := &types.TransactionOrder{
+		Payload: &types.Payload{
+			Type:           billtx.PayloadTypeTransfer,
+			UnitID:         wrongBillID[:],
+			ClientMetadata: &types.ClientMetadata{Timeout: 10},
+			SystemID:       []byte{0},
+			Attributes:     attrBytes,
+		},
+		OwnerProof: script.PredicateArgumentEmpty(),
+	}
+	txBytes, _ := cbor.Marshal(tx)
+	protoTx := &alphabill.Transaction{Order: txBytes}
+	response, err := txClient.ProcessTransaction(ctx, protoTx, grpc.WaitForReady(true))
 	require.Error(t, err)
 	require.Nil(t, response, "Failing payment should not return response")
 }

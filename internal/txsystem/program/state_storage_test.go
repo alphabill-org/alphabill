@@ -2,6 +2,7 @@ package program
 
 import (
 	"bytes"
+	"encoding/hex"
 	"reflect"
 	"testing"
 
@@ -9,6 +10,13 @@ import (
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
 )
+
+func decodeID(t *testing.T, hexStr string) []byte {
+	t.Helper()
+	b, err := hex.DecodeString(hexStr)
+	require.NoError(t, err)
+	return b
+}
 
 func TestExecIDToStateFileID(t *testing.T) {
 	type args struct {
@@ -26,31 +34,29 @@ func TestExecIDToStateFileID(t *testing.T) {
 				id:      uint256.NewInt(1),
 				stateID: []byte{1, 2, 3, 4},
 			},
-			want: uint256.NewInt(0).SetBytes([]byte{
-				1, 0, 0, 0, 0, 0, 0, 0,
-				0, 0, 0, 0, 0, 0, 0, 0,
-				0, 0, 0, 0, 0, 0, 0, 0,
-				0, 0, 0, 0, 1, 2, 3, 4,
-			}),
+			want: uint256.NewInt(0).SetBytes(decodeID(t, "3D459E0FCF22CFCD1D7EED46BCFA68193C009BEC3D53CBE69E5997632CCF6F54")),
 		},
 		{
-			name: "error - invalid state id",
+			name: "works with any number of bytes",
 			args: args{
 				id:      uint256.NewInt(1),
 				stateID: []byte{1, 2, 3},
 			},
-			want: uint256.NewInt(0).SetBytes([]byte{
-				1, 0, 0, 0, 0, 0, 0, 0,
-				0, 0, 0, 0, 0, 0, 0, 0,
-				0, 0, 0, 0, 0, 0, 0, 0,
-				0, 0, 0, 0, 0, 1, 2, 3,
-			}),
+			want: uint256.NewInt(0).SetBytes(decodeID(t, "9184ABD2BB318731D717E972057240EAE26CCA202A8D35DBE9D2176F526886A0")),
+		},
+		{
+			name: "file id is 0",
+			args: args{
+				id:      uint256.NewInt(1),
+				stateID: []byte{0, 0, 0, 0},
+			},
+			want: uint256.NewInt(0).SetBytes(decodeID(t, "957B88B12730E646E0F33D3618B77DFA579E8231E3C59C7104BE7165611C8027")),
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			if got := CreateStateFileID(tt.args.id, tt.args.stateID); !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("CreateStateFileID() = %v, want %v", got, tt.want)
+				t.Errorf("CreateStateFileID() = %X, want %X", got.Bytes32(), tt.want.Bytes32())
 			}
 		})
 	}

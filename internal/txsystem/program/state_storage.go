@@ -1,6 +1,7 @@
 package program
 
 import (
+	"crypto/sha256"
 	"errors"
 	"fmt"
 
@@ -15,16 +16,11 @@ type StateTreeStorage struct {
 }
 
 func CreateStateFileID(id *uint256.Int, fileID []byte) *uint256.Int {
-	stateId := make([]byte, 32)
-	copy(stateId, id.Bytes())
-	// should never happen, but handle it for now
-	if len(fileID) < 4 {
-		copy(stateId[32-len(fileID):], fileID)
-	} else {
-		// for now just overwrite last program id bytes with 4 bytes from file ID
-		copy(stateId[28:], fileID[:4])
-	}
-	return uint256.NewInt(0).SetBytes(stateId)
+	stateBuf := make([]byte, 0, 32+len(fileID))
+	stateBuf = append(stateBuf, id.Bytes()...)
+	stateBuf = append(stateBuf, fileID...)
+	stateID := sha256.Sum256(stateBuf)
+	return uint256.NewInt(0).SetBytes(stateID[:])
 }
 
 // NewStateStorage creates an adapter to be used with wasm vm to store and read values from state tree

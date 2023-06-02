@@ -48,10 +48,10 @@ func TestSmartContractPartition_Ok(t *testing.T) {
 	// counter is initiated to 2 and count is called 3x times each incrementing the count+1
 	// counter ID constant comes from counter program
 	const cntStateID uint32 = 0xaabbccdd
-	counterFileID := CreateStateFileID(counterProgramUnitID, util.Uint32ToBytes(cntStateID))
+	counterFileID := CreateStateDataID(counterProgramUnitID, util.Uint32ToBytes(cntStateID))
 	u, err := state.GetUnit(counterFileID)
 	require.NoError(t, err)
-	stateFile, ok := u.Data.(*StateFile)
+	stateFile, ok := u.Data.(*Data)
 	require.True(t, ok)
 	require.EqualValues(t, 3, binary.LittleEndian.Uint64(stateFile.bytes))
 
@@ -61,7 +61,7 @@ func TestSmartContractPartition_Ok(t *testing.T) {
 	require.Eventually(t, testpartition.BlockchainContainsTx(scPrt, callTx), test.WaitDuration, test.WaitTick)
 	u, err = state.GetUnit(counterFileID)
 	require.NoError(t, err)
-	stateFile, ok = u.Data.(*StateFile)
+	stateFile, ok = u.Data.(*Data)
 	require.True(t, ok)
 	require.EqualValues(t, 5, binary.LittleEndian.Uint64(stateFile.bytes))
 }

@@ -11,7 +11,7 @@ type Program struct {
 	progParams []byte
 }
 
-type StateFile struct {
+type Data struct {
 	bytes []byte
 }
 
@@ -31,14 +31,14 @@ func (p *Program) ProgParams() []byte {
 	return p.progParams
 }
 
-func (s *StateFile) AddToHasher(hasher hash.Hash) {
+func (s *Data) AddToHasher(hasher hash.Hash) {
 	hasher.Write(s.bytes)
 }
 
-func (s *StateFile) Value() rma.SummaryValue {
+func (s *Data) Value() rma.SummaryValue {
 	return rma.Uint64SummaryValue(0)
 }
 
-func (s *StateFile) GetBytes() []byte {
+func (s *Data) Bytes() []byte {
 	return s.bytes
 }

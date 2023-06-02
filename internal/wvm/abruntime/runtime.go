@@ -43,7 +43,8 @@ func Call(ctx context.Context, wasm []byte, fName string, execCtx wvm.ExecutionC
 	// copy input data
 	var result []uint64
 	// API calls have no parameters, there is a host callback to get input parameters
-	// Add function-scoped timeouts however you like.
+	// all programs must complete in 100 ms, this will later be replaced with gas cost
+	// for now just set a hard limit to make sure programs do not run forever
 	ctx, cancel := context.WithTimeout(ctx, 100*time.Millisecond)
 	defer cancel()
 	result, err = fn.Call(ctx)

@@ -135,7 +135,7 @@ func Test_handlePCallTx(t *testing.T) {
 
 func initStateWithBuiltInPrograms(t *testing.T) *rma.Tree {
 	state := rma.NewWithSHA256()
-	counterStateId := CreateStateFileID(counterProgramUnitID, util.Uint32ToBytes(counterState))
+	counterStateId := CreateStateDataID(counterProgramUnitID, util.Uint32ToBytes(counterState))
 	cnt := make([]byte, 8)
 	binary.LittleEndian.PutUint64(cnt, 1)
 	// add both state and program
@@ -147,7 +147,7 @@ func initStateWithBuiltInPrograms(t *testing.T) *rma.Tree {
 				make([]byte, 32)),
 			rma.AddItem(counterStateId,
 				script.PredicateAlwaysFalse(),
-				&StateFile{bytes: cnt},
+				&Data{bytes: cnt},
 				make([]byte, 32)),
 		))
 	state.Commit()

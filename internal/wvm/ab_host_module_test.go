@@ -56,7 +56,7 @@ func Test_buildHostAPI_SetStateFromInput(t *testing.T) {
 	require.Len(t, res, 1)
 	require.EqualValues(t, Success, res[0])
 	// verify state was written to db
-	val, err := storage.Read(util.Uint32ToBytes(stateID))
+	val, err := storage.Get(util.Uint32ToBytes(stateID))
 	require.NoError(t, err)
 	require.True(t, bytes.Equal(val, eCtx.input))
 }
@@ -76,7 +76,7 @@ func Test_buildHostAPI_SetStateFromInput_Nil(t *testing.T) {
 	require.Len(t, res, 1)
 	require.EqualValues(t, InputParamsReadError, int64(res[0]))
 	// verify state was written to db
-	val, err := storage.Read(util.Uint32ToBytes(stateID))
+	val, err := storage.Get(util.Uint32ToBytes(stateID))
 	require.Error(t, err)
 	require.Nil(t, val)
 }
@@ -97,7 +97,7 @@ func Test_buildHostAPI_SetStateFromInput_Empty(t *testing.T) {
 	// program expects 8 bytes
 	require.EqualValues(t, InputParamsReadError, int64(res[0]))
 	// verify state was written to db
-	val, err := storage.Read(util.Uint32ToBytes(stateID))
+	val, err := storage.Get(util.Uint32ToBytes(stateID))
 	require.Error(t, err)
 	require.Nil(t, val)
 }
@@ -118,7 +118,7 @@ func Test_buildHostAPI_SetStateFromInput_TooLong(t *testing.T) {
 	// program expects 8 bytes
 	require.EqualValues(t, InputParamsReadError, int64(res[0]))
 	// verify state was written to db
-	val, err := storage.Read(util.Uint32ToBytes(stateID))
+	val, err := storage.Get(util.Uint32ToBytes(stateID))
 	require.Error(t, err)
 	require.Nil(t, val)
 }
@@ -138,7 +138,7 @@ func Test_buildHostAPI_SetStateFromParams(t *testing.T) {
 	require.Len(t, res, 1)
 	require.EqualValues(t, 0, res[0])
 	// verify state was written to db
-	val, err := storage.Read(util.Uint32ToBytes(stateID))
+	val, err := storage.Get(util.Uint32ToBytes(stateID))
 	require.NoError(t, err)
 	require.True(t, bytes.Equal(val, eCtx.params))
 }
@@ -185,7 +185,7 @@ func Test_buildHostAPI_GetState(t *testing.T) {
 		input:  []byte{1, 0, 0, 0, 0, 0, 0, 0},
 		params: []byte{2, 0, 0, 0, 0, 0, 0, 0},
 	}
-	require.NoError(t, storage.Write(util.Uint32ToBytes(stateID), []byte{6, 0, 0, 0, 0, 0, 0, 0}))
+	require.NoError(t, storage.Put(util.Uint32ToBytes(stateID), []byte{6, 0, 0, 0, 0, 0, 0, 0}))
 	wvm := initWvmHostTest(t, ctx, eCtx, storage)
 	fn, err := wvm.GetApiFn("get_state")
 	require.NoError(t, err)
@@ -218,7 +218,7 @@ func Test_buildHostAPI_GetState_TooLong(t *testing.T) {
 		input:  []byte{1, 0, 0, 0, 0, 0, 0, 0},
 		params: []byte{2, 0, 0, 0, 0, 0, 0, 0},
 	}
-	require.NoError(t, storage.Write(util.Uint32ToBytes(stateID), []byte{6, 0, 0, 0, 0, 0, 0, 0, 1}))
+	require.NoError(t, storage.Put(util.Uint32ToBytes(stateID), []byte{6, 0, 0, 0, 0, 0, 0, 0, 1}))
 	wvm := initWvmHostTest(t, ctx, eCtx, storage)
 	fn, err := wvm.GetApiFn("get_state")
 	require.NoError(t, err)

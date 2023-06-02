@@ -57,8 +57,8 @@ func TestExecIDToStateFileID(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := CreateStateFileID(tt.args.id, tt.args.stateID); !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("CreateStateFileID() = %X, want %X", got.Bytes32(), tt.want.Bytes32())
+			if got := CreateStateDataID(tt.args.id, tt.args.stateID); !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("CreateStateDataID() = %X, want %X", got.Bytes32(), tt.want.Bytes32())
 			}
 		})
 	}
@@ -80,17 +80,17 @@ func TestNewStateStorage(t *testing.T) {
 		inputParams: uint64ToLEBytes(1),
 	}
 	s, err := NewStateStorage(rma.NewWithSHA256(), eCtx)
-	buf, err := s.Read([]byte("test"))
+	buf, err := s.Get([]byte("test"))
 	require.ErrorContains(t, err, rma.ErrUnitNotFound.Error())
 	// add key
-	require.NoError(t, s.Write([]byte("test"), []byte{1, 2, 3}))
+	require.NoError(t, s.Put([]byte("test"), []byte{1, 2, 3}))
 	// read key
-	buf, err = s.Read([]byte("test"))
+	buf, err = s.Get([]byte("test"))
 	require.NoError(t, err)
 	require.True(t, bytes.Equal(buf, []byte{1, 2, 3}))
 	// update key
-	require.NoError(t, s.Write([]byte("test"), []byte{2, 3, 4}))
-	buf, err = s.Read([]byte("test"))
+	require.NoError(t, s.Put([]byte("test"), []byte{2, 3, 4}))
+	buf, err = s.Get([]byte("test"))
 	require.NoError(t, err)
 	require.True(t, bytes.Equal(buf, []byte{2, 3, 4}))
 }

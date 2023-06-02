@@ -34,8 +34,8 @@ type ExecutionCtx interface {
 }
 
 type Storage interface {
-	Read(key []byte) ([]byte, error)
-	Write(key []byte, file []byte) error
+	Get(key []byte) ([]byte, error)
+	Put(key []byte, file []byte) error
 }
 
 func BuildABHostModule(eCtx ExecutionCtx, storage Storage) (HostModuleFn, error) {
@@ -61,7 +61,7 @@ func buildGetStateHostFn(_ context.Context, storage Storage) api.GoModuleFunc {
 		offset := api.DecodeU32(stack[1]) // read the parameter from the stack
 		size := api.DecodeU32(stack[2])   // read the parameter from the stack
 		logger.Debug("program state file request, %v", fileID)
-		file, err := storage.Read(util.Uint32ToBytes(fileID))
+		file, err := storage.Get(util.Uint32ToBytes(fileID))
 		if err != nil {
 			logger.Warning("get state from storage failed, %v", err)
 			stack[0] = api.EncodeI32(-1)
@@ -86,14 +86,14 @@ func buildSetStateHostFn(_ context.Context, storage Storage) api.GoModuleFunc {
 		fileID := api.DecodeU32(stack[0]) // read the parameter from the stack
 		offset := api.DecodeU32(stack[1]) // read the parameter from the stack
 		size := api.DecodeU32(stack[2])   // read the parameter from the stack
-		fBytes, ok := m.Memory().Read(offset, size)
+		data, ok := m.Memory().Read(offset, size)
 		if !ok {
 			logger.Warning("failed to read state from program memory")
 			stack[0] = api.EncodeI32(-1)
 			return
 		}
-		logger.Debug("set state, %v id, new state: %v", fileID, fBytes)
-		if err := storage.Write(util.Uint32ToBytes(fileID), fBytes); err != nil {
+		logger.Debug("set state, %v id, new state: %v", fileID, data)
+		if err := storage.Put(util.Uint32ToBytes(fileID), data); err != nil {
 			logger.Warning("failed to persist program state")
 			stack[0] = api.EncodeI32(-1)
 			return

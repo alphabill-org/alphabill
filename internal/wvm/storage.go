@@ -25,7 +25,7 @@ func NewAlwaysFailsMemoryStorage() *MemoryStorage {
 	}
 }
 
-func (s *MemoryStorage) Read(key []byte) ([]byte, error) {
+func (s *MemoryStorage) Get(key []byte) ([]byte, error) {
 	var stateFile = make([]byte, 0)
 	found, err := s.db.Read(key, &stateFile)
 	if err != nil {
@@ -37,7 +37,7 @@ func (s *MemoryStorage) Read(key []byte) ([]byte, error) {
 	return stateFile, nil
 }
 
-func (s *MemoryStorage) Write(key []byte, file []byte) error {
+func (s *MemoryStorage) Put(key []byte, file []byte) error {
 	if err := s.db.Write(key, file); err != nil {
 		return fmt.Errorf("storage write failed, %w", err)
 	}

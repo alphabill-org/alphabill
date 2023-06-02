@@ -2,6 +2,7 @@ package program
 
 import (
 	"bytes"
+	"crypto/sha256"
 	"encoding/hex"
 	"reflect"
 	"testing"
@@ -19,6 +20,7 @@ func decodeID(t *testing.T, hexStr string) []byte {
 }
 
 func TestExecIDToStateFileID(t *testing.T) {
+	programID := sha256.Sum256([]byte("test"))
 	type args struct {
 		id      *uint256.Int
 		stateID []byte
@@ -31,26 +33,26 @@ func TestExecIDToStateFileID(t *testing.T) {
 		{
 			name: "generate state id",
 			args: args{
-				id:      uint256.NewInt(1),
+				id:      uint256.NewInt(0).SetBytes(programID[:]),
 				stateID: []byte{1, 2, 3, 4},
 			},
-			want: uint256.NewInt(0).SetBytes(decodeID(t, "3D459E0FCF22CFCD1D7EED46BCFA68193C009BEC3D53CBE69E5997632CCF6F54")),
+			want: uint256.NewInt(0).SetBytes(decodeID(t, "9F86D081E1B97F131FABB6B447296C9B6F0201E79FB3C5356E6C77E89B6A806A")),
 		},
 		{
 			name: "works with any number of bytes",
 			args: args{
-				id:      uint256.NewInt(1),
+				id:      uint256.NewInt(0).SetBytes(programID[:]),
 				stateID: []byte{1, 2, 3},
 			},
-			want: uint256.NewInt(0).SetBytes(decodeID(t, "9184ABD2BB318731D717E972057240EAE26CCA202A8D35DBE9D2176F526886A0")),
+			want: uint256.NewInt(0).SetBytes(decodeID(t, "9F86D081F2C0CB492C533B0A4D14EF77CC0F78ABCCCED5287D84A1A2011CFB81")),
 		},
 		{
 			name: "file id is 0",
 			args: args{
-				id:      uint256.NewInt(1),
+				id:      uint256.NewInt(0).SetBytes(programID[:]),
 				stateID: []byte{0, 0, 0, 0},
 			},
-			want: uint256.NewInt(0).SetBytes(decodeID(t, "957B88B12730E646E0F33D3618B77DFA579E8231E3C59C7104BE7165611C8027")),
+			want: uint256.NewInt(0).SetBytes(decodeID(t, "9F86D08104A92FDB4057192DC43DD748EA778ADC52BC498CE80524C014B81119")),
 		},
 	}
 	for _, tt := range tests {

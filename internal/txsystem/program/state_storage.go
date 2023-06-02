@@ -7,6 +7,7 @@ import (
 
 	"github.com/alphabill-org/alphabill/internal/rma"
 	"github.com/alphabill-org/alphabill/internal/script"
+	utiltx "github.com/alphabill-org/alphabill/internal/txsystem/util"
 	"github.com/holiman/uint256"
 )
 
@@ -15,12 +16,11 @@ type StateTreeStorage struct {
 	execCtx *ExecutionContext
 }
 
+// CreateStateFileID - creates new program state file ID from program ID and file ID.
+// Todo: add task here - There is no specification for this yet, so this is just a quick solution to get up and running
 func CreateStateFileID(id *uint256.Int, fileID []byte) *uint256.Int {
-	stateBuf := make([]byte, 0, 32+len(fileID))
-	stateBuf = append(stateBuf, id.Bytes()...)
-	stateBuf = append(stateBuf, fileID...)
-	stateID := sha256.Sum256(stateBuf)
-	return uint256.NewInt(0).SetBytes(stateID[:])
+	fileIDHash := sha256.Sum256(fileID)
+	return uint256.NewInt(0).SetBytes(utiltx.SameShardIDBytes(id, fileIDHash[:]))
 }
 
 // NewStateStorage creates an adapter to be used with wasm vm to store and read values from state tree

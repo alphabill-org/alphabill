@@ -176,10 +176,35 @@ func TestListBillsRequest_DCBillsExcluded(t *testing.T) {
 	require.False(t, bill.IsDCBill)
 }
 
+func TestListBillsRequest_ZeroValueBillsExcluded(t *testing.T) {
+	walletBackend := newWalletBackend(t, withBills(
+		&Bill{
+			Id:             newUnitID(1),
+			Value:          1,
+			OwnerPredicate: getOwnerPredicate(pubkeyHex),
+		},
+		&Bill{
+			Id:             newUnitID(2),
+			Value:          0,
+			OwnerPredicate: getOwnerPredicate(pubkeyHex),
+		},
+	))
+	port := startServer(t, walletBackend)
+
+	res := &ListBillsResponse{}
+	httpRes, err := testhttp.DoGet(fmt.Sprintf("http://localhost:%d/api/v1/list-bills?pubkey=%s", port, pubkeyHex), res)
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, httpRes.StatusCode)
+	require.Equal(t, 1, res.Total)
+	require.Len(t, res.Bills, 1)
+	bill := res.Bills[0]
+	require.EqualValues(t, 1, bill.Value)
+}
+
 func TestListBillsRequest_Paging(t *testing.T) {
 	// given set of bills
 	var bills []*Bill
-	for i := uint64(0); i < 200; i++ {
+	for i := uint64(1); i <= 200; i++ {
 		bills = append(bills, &Bill{
 			Id:             newUnitID(i),
 			Value:          i,
@@ -197,8 +222,8 @@ func TestListBillsRequest_Paging(t *testing.T) {
 	require.Equal(t, http.StatusOK, httpRes.StatusCode)
 	require.Equal(t, len(bills), res.Total)
 	require.Len(t, res.Bills, 100)
-	require.EqualValues(t, 0, res.Bills[0].Value)
-	require.EqualValues(t, 99, res.Bills[99].Value)
+	require.EqualValues(t, 1, res.Bills[0].Value)
+	require.EqualValues(t, 100, res.Bills[99].Value)
 
 	// verify offset=100 returns next 100 elements
 	res = &ListBillsResponse{}
@@ -207,8 +232,8 @@ func TestListBillsRequest_Paging(t *testing.T) {
 	require.Equal(t, http.StatusOK, httpRes.StatusCode)
 	require.Equal(t, len(bills), res.Total)
 	require.Len(t, res.Bills, 100)
-	require.EqualValues(t, 100, res.Bills[0].Value)
-	require.EqualValues(t, 199, res.Bills[99].Value)
+	require.EqualValues(t, 101, res.Bills[0].Value)
+	require.EqualValues(t, 200, res.Bills[99].Value)
 
 	// verify Link header of the response
 	var linkHdrMatcher = regexp.MustCompile("<(.*)>")
@@ -232,8 +257,8 @@ func TestListBillsRequest_Paging(t *testing.T) {
 	require.Equal(t, http.StatusOK, httpRes.StatusCode)
 	require.Equal(t, len(bills), res.Total)
 	require.Len(t, res.Bills, 50)
-	require.EqualValues(t, 100, res.Bills[0].Value)
-	require.EqualValues(t, 149, res.Bills[49].Value)
+	require.EqualValues(t, 101, res.Bills[0].Value)
+	require.EqualValues(t, 150, res.Bills[49].Value)
 
 	// verify out of bounds offset returns nothing
 	res = &ListBillsResponse{}
@@ -250,8 +275,8 @@ func TestListBillsRequest_Paging(t *testing.T) {
 	require.Equal(t, http.StatusOK, httpRes.StatusCode)
 	require.Equal(t, len(bills), res.Total)
 	require.Len(t, res.Bills, 100)
-	require.EqualValues(t, 0, res.Bills[0].Value)
-	require.EqualValues(t, 99, res.Bills[99].Value)
+	require.EqualValues(t, 1, res.Bills[0].Value)
+	require.EqualValues(t, 100, res.Bills[99].Value)
 
 	// verify out of bounds offset+limit return all available data
 	res = &ListBillsResponse{}
@@ -260,8 +285,8 @@ func TestListBillsRequest_Paging(t *testing.T) {
 	require.Equal(t, http.StatusOK, httpRes.StatusCode)
 	require.Equal(t, len(bills), res.Total)
 	require.Len(t, res.Bills, 10)
-	require.EqualValues(t, 190, res.Bills[0].Value)
-	require.EqualValues(t, 199, res.Bills[9].Value)
+	require.EqualValues(t, 191, res.Bills[0].Value)
+	require.EqualValues(t, 200, res.Bills[9].Value)
 
 	// verify no Link header in the response
 	if link := httpRes.Header.Get("Link"); link != "" {

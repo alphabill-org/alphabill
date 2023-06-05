@@ -29,8 +29,13 @@ var (
 )
 
 const (
+	userAgentHeader = "User-Agent"
 	clientUserAgent = "Token Wallet Backend API Client/0.1"
-	apiPathPrefix   = "/api/v1"
+
+	contentTypeHeader = "Content-Type"
+	applicationCbor   = "application/cbor"
+
+	apiPathPrefix = "/api/v1"
 )
 
 type TokenBackend struct {
@@ -231,7 +236,8 @@ func (tb *TokenBackend) post(ctx context.Context, u *url.URL, body io.Reader, rs
 	if err != nil {
 		return fmt.Errorf("failed to build http request: %w", err)
 	}
-	req.Header.Set("User-Agent", clientUserAgent)
+	req.Header.Set(userAgentHeader, clientUserAgent)
+	req.Header.Set(contentTypeHeader, applicationCbor)
 
 	rsp, err := tb.hc.Do(req)
 	if err != nil {

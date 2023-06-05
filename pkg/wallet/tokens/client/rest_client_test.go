@@ -67,7 +67,7 @@ func Test_get(t *testing.T) {
 					if r.URL.String() != `http://localhost:8000/api/v1/path?queryParam=foo` {
 						t.Errorf("unexpected request URL: %s", r.URL.String())
 					}
-					if ua := r.Header.Get("User-Agent"); ua != clientUserAgent {
+					if ua := r.Header.Get(userAgentHeader); ua != clientUserAgent {
 						t.Errorf("expected User-Agent header %q, got %q", clientUserAgent, ua)
 					}
 
@@ -197,7 +197,7 @@ func Test_GetRoundNumber(t *testing.T) {
 					if r.URL.String() != `http://localhost/api/v1/round-number` {
 						t.Errorf("unexpected request URL: %s", r.URL.String())
 					}
-					if ua := r.Header.Get("User-Agent"); ua != clientUserAgent {
+					if ua := r.Header.Get(userAgentHeader); ua != clientUserAgent {
 						t.Errorf("expected User-Agent header %q, got %q", clientUserAgent, ua)
 					}
 
@@ -269,7 +269,7 @@ func Test_GetToken(t *testing.T) {
 					if r.URL.String() != expURL {
 						t.Errorf("expected request URL %q, got %q", expURL, r.URL.String())
 					}
-					if ua := r.Header.Get("User-Agent"); ua != clientUserAgent {
+					if ua := r.Header.Get(userAgentHeader); ua != clientUserAgent {
 						t.Errorf("expected User-Agent header %q, got %q", clientUserAgent, ua)
 					}
 
@@ -341,7 +341,7 @@ func Test_GetTokens(t *testing.T) {
 					if r.URL.String() != expURL {
 						t.Errorf("expected request URL %q, got %q", expURL, r.URL.String())
 					}
-					if ua := r.Header.Get("User-Agent"); ua != clientUserAgent {
+					if ua := r.Header.Get(userAgentHeader); ua != clientUserAgent {
 						t.Errorf("expected User-Agent header %q, got %q", clientUserAgent, ua)
 					}
 
@@ -405,7 +405,7 @@ func Test_GetTokenTypes(t *testing.T) {
 					if r.URL.String() != expURL {
 						t.Errorf("expected request URL %q, got %q", expURL, r.URL.String())
 					}
-					if ua := r.Header.Get("User-Agent"); ua != clientUserAgent {
+					if ua := r.Header.Get(userAgentHeader); ua != clientUserAgent {
 						t.Errorf("expected User-Agent header %q, got %q", clientUserAgent, ua)
 					}
 
@@ -471,7 +471,7 @@ func Test_GetTypeHierarchy(t *testing.T) {
 					if r.URL.String() != expURL {
 						t.Errorf("expected request URL %q, got %q", expURL, r.URL.String())
 					}
-					if ua := r.Header.Get("User-Agent"); ua != clientUserAgent {
+					if ua := r.Header.Get(userAgentHeader); ua != clientUserAgent {
 						t.Errorf("expected User-Agent header %q, got %q", clientUserAgent, ua)
 					}
 
@@ -541,7 +541,7 @@ func Test_GetTxProof(t *testing.T) {
 					if r.URL.String() != fmt.Sprintf("http://localhost/api/v1/units/%s/transactions/%s/proof", unitIDHex, txHashHex) {
 						t.Errorf("unexpected request URL: %s", r.URL.String())
 					}
-					if ua := r.Header.Get("User-Agent"); ua != clientUserAgent {
+					if ua := r.Header.Get(userAgentHeader); ua != clientUserAgent {
 						t.Errorf("expected User-Agent header %q, got %q", clientUserAgent, ua)
 					}
 
@@ -627,7 +627,7 @@ func Test_PostTransactions(t *testing.T) {
 					if r.URL.String() != `http://localhost/api/v1/transactions/`+pubKeyHex {
 						t.Errorf("unexpected request URL: %s", r.URL.String())
 					}
-					if ua := r.Header.Get("User-Agent"); ua != clientUserAgent {
+					if ua := r.Header.Get(userAgentHeader); ua != clientUserAgent {
 						t.Errorf("expected User-Agent header %q, got %q", clientUserAgent, ua)
 					}
 

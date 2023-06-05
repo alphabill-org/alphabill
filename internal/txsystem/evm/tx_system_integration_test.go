@@ -2,7 +2,6 @@ package evm
 
 import (
 	"bytes"
-	"fmt"
 	"math/big"
 	"testing"
 
@@ -59,7 +58,6 @@ func TestEVMPartition_DeployAndCallContract(t *testing.T) {
 	callContractTx := createCallContractTx(from, contractAddr, t)
 	require.NoError(t, evmPartition.SubmitTx(callContractTx))
 	require.Eventually(t, testpartition.BlockchainContainsTx(evmPartition, callContractTx), test.WaitDuration, test.WaitTick)
-	fmt.Printf("")
 }
 
 func createTransferTx(t *testing.T, from []byte, to []byte) *types.TransactionOrder {

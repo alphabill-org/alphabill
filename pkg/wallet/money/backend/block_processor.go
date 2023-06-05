@@ -14,7 +14,10 @@ import (
 	"github.com/holiman/uint256"
 )
 
-const DustBillDeletionTimeout = 65536
+const (
+	DustBillDeletionTimeout    = 65536
+	ExpiredBillDeletionTimeout = 65536
+)
 
 type BlockProcessor struct {
 	store    BillStore
@@ -179,7 +182,7 @@ func (p *BlockProcessor) processTx(txr *types.TransactionRecord, b *types.Block,
 		wlog.Info(fmt.Sprintf("received transferFC order (UnitID=%x)", txo.UnitID()))
 		bill, err := dbTx.GetBill(txo.UnitID())
 		if err != nil {
-			return err
+			return fmt.Errorf("failed to get bill: %w", err)
 		}
 		if bill == nil {
 			return fmt.Errorf("unit not found for transferFC tx (unitID=%X)", txo.UnitID())
@@ -187,27 +190,34 @@ func (p *BlockProcessor) processTx(txr *types.TransactionRecord, b *types.Block,
 		attr := &transactions.TransferFeeCreditAttributes{}
 		err = txo.UnmarshalAttributes(attr)
 		if err != nil {
-			return err
+			return fmt.Errorf("failed to unmarshal transferFC attributes: %w", err)
 		}
+
 		v := attr.Amount + txr.ServerMetadata.ActualFee
-		if v < bill.Value {
-			bill.Value -= v
-			bill.TxHash = txo.Hash(crypto.SHA256)
-			err = p.saveBillWithProof(txIdx, b, dbTx, bill)
+		bill.Value -= v
+		bill.TxHash = txo.Hash(crypto.SHA256)
+		if bill.Value == 0 {
+			// mark bill to be deleted far in the future (approx 1 day)
+			// so that bill (proof) can be used for confirmation and follow-up transaction
+			// alternatively we can save proofs separately from bills and this hack can be removed
+			err = dbTx.SetBillExpirationTime(roundNumber+ExpiredBillDeletionTimeout, txo.UnitID())
 			if err != nil {
-				return err
+				return fmt.Errorf("failed to set bill expiration time: %w", err)
 			}
-		} else {
-			err = dbTx.RemoveBill(bill.Id)
-			if err != nil {
-				return err
-			}
+		}
+		err = p.saveBillWithProof(txIdx, b, dbTx, bill)
+		if err != nil {
+			return fmt.Errorf("failed to save transferFC bill with proof: %w", err)
 		}
 		err = p.addTransferredCreditToPartitionFeeBill(attr, dbTx)
 		if err != nil {
-			return err
+			return fmt.Errorf("failed to add transferred fee credit to partition fee bill: %w", err)
 		}
-		return p.addTxFeesToMoneyFeeBill(dbTx, txr)
+		err = p.addTxFeesToMoneyFeeBill(dbTx, txr)
+		if err != nil {
+			return fmt.Errorf("failed to add tx fees to money fee bill: %w", err)
+		}
+		return nil
 	case transactions.PayloadTypeAddFeeCredit:
 		wlog.Info(fmt.Sprintf("received addFC order (UnitID=%x)", txo.UnitID()))
 		fcb, err := dbTx.GetFeeCreditBill(txo.UnitID())

@@ -165,10 +165,10 @@ func TestBlockProcessor_EachTxTypeCanBeProcessed(t *testing.T) {
 	require.NoError(t, err)
 	require.EqualValues(t, 194, fcb.Value)
 
-	// verify tx1 unit is deleted (zero value bills are not allowed)
+	// verify tx1 unit is zero value (whole bill transferred to fee credit)
 	unit1, err := store.Do().GetBill(tx1.TransactionOrder.UnitID())
 	require.NoError(t, err)
-	require.Nil(t, unit1)
+	require.EqualValues(t, 0, unit1.Value)
 
 	// process closeFC + reclaimFC (reclaim all credits to bill no 4)
 	closeFCAttr := testfc.NewCloseFCAttr(
@@ -209,6 +209,18 @@ func TestBlockProcessor_EachTxTypeCanBeProcessed(t *testing.T) {
 	unit, err := store.Do().GetBill(tx4.TransactionOrder.UnitID())
 	require.NoError(t, err)
 	require.EqualValues(t, 292, unit.Value)
+
+	// verify zero value bill is deleted at first block after blocknumber+DustBillDeletionTimeout
+	b = &types.Block{
+		UnicityCertificate: &types.UnicityCertificate{InputRecord: &types.InputRecord{RoundNumber: ExpiredBillDeletionTimeout + b.GetRoundNumber()}},
+		Transactions:       []*types.TransactionRecord{},
+	}
+	err = blockProcessor.ProcessBlock(context.Background(), b)
+	require.NoError(t, err)
+
+	unit1, err = store.Do().GetBill(tx1.TransactionOrder.UnitID())
+	require.NoError(t, err)
+	require.Nil(t, unit1)
 }
 
 func TestBlockProcessor_TransferFCAndReclaimFC(t *testing.T) {

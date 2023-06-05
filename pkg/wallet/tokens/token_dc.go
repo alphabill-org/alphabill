@@ -56,14 +56,14 @@ func (w *Wallet) collectDust(ctx context.Context, acc *account.AccountKey, typed
 
 		// check batch overflow before burning the tokens
 		totalAmountToBeJoined := totalAmountJoined
+		var err error
 		for _, token := range burnBatch {
-			sum := totalAmountToBeJoined + token.Amount
-			if sum < totalAmountToBeJoined {
-				log.Error("uint64 overflow when joining tokens of type '%X', account key '0x%X'", token.TypeID, acc.PubKey)
+			totalAmountToBeJoined, err = sdk.AddUint64(totalAmountToBeJoined, token.Amount)
+			if err != nil {
+				log.Error("failed to join tokens of type '%X', account key '0x%X': %v", token.TypeID, acc.PubKey, err)
 				// just stop without returning error, so that we can continue with other token types
 				return nil
 			}
-			totalAmountToBeJoined = sum
 		}
 
 		burnBatchAmount, proofs, err := w.burnTokensForDC(ctx, acc, burnBatch, targetTokenBacklink, invariantPredicateArgs)

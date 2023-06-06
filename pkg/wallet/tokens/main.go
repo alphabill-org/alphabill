@@ -53,7 +53,7 @@ type (
 		GetRoundNumber(ctx context.Context) (uint64, error)
 		PostTransactions(ctx context.Context, pubKey wallet.PubKey, txs *wallet.Transactions) error
 		GetTxProof(ctx context.Context, unitID wallet.UnitID, txHash wallet.TxHash) (*wallet.Proof, error)
-		GetFeeCreditBill(ctx context.Context, unitID wallet.UnitID) (*backend.FeeCreditBill, error)
+		GetFeeCreditBill(ctx context.Context, unitID wallet.UnitID) (*wallet.Bill, error)
 	}
 
 	MoneyDataProvider interface {
@@ -401,19 +401,7 @@ func (w *Wallet) GetFeeCreditBill(ctx context.Context, cmd fees.GetFeeCreditCmd)
 // FetchFeeCreditBill returns fee credit bill for given unitID
 // can return nil if fee credit bill has not been created yet.
 func (w *Wallet) FetchFeeCreditBill(ctx context.Context, unitID []byte) (*wallet.Bill, error) {
-	fcb, err := w.backend.GetFeeCreditBill(ctx, unitID)
-	if err != nil {
-		return nil, err
-	}
-	if fcb == nil {
-		return nil, nil
-	}
-	return &wallet.Bill{
-		Id:            fcb.Id,
-		Value:         fcb.Value,
-		TxHash:        fcb.TxHash,
-		FcBlockNumber: fcb.FCBlockNumber,
-	}, nil
+	return w.backend.GetFeeCreditBill(ctx, unitID)
 }
 
 func (w *Wallet) GetRoundNumber(ctx context.Context) (uint64, error) {

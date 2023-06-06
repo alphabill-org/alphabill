@@ -388,19 +388,19 @@ func (w *Wallet) UpdateNFTData(ctx context.Context, accountNumber uint64, tokenI
 	return sub.ToBatch(w.backend, acc.PubKey).SendTx(ctx, w.confirmTx)
 }
 
-// GetFeeCreditBill returns fee credit bill for given account,
+// GetFeeCredit returns fee credit bill for given account,
 // can return nil if fee credit bill has not been created yet.
-func (w *Wallet) GetFeeCreditBill(ctx context.Context, cmd fees.GetFeeCreditCmd) (*wallet.Bill, error) {
+func (w *Wallet) GetFeeCredit(ctx context.Context, cmd fees.GetFeeCreditCmd) (*wallet.Bill, error) {
 	accountKey, err := w.am.GetAccountKey(cmd.AccountIndex)
 	if err != nil {
 		return nil, err
 	}
-	return w.FetchFeeCreditBill(ctx, accountKey.PrivKeyHash)
+	return w.GetFeeCreditBill(ctx, accountKey.PrivKeyHash)
 }
 
-// FetchFeeCreditBill returns fee credit bill for given unitID
+// GetFeeCreditBill returns fee credit bill for given unitID
 // can return nil if fee credit bill has not been created yet.
-func (w *Wallet) FetchFeeCreditBill(ctx context.Context, unitID []byte) (*wallet.Bill, error) {
+func (w *Wallet) GetFeeCreditBill(ctx context.Context, unitID []byte) (*wallet.Bill, error) {
 	return w.backend.GetFeeCreditBill(ctx, unitID)
 }
 
@@ -417,7 +417,7 @@ func (w *Wallet) ReclaimFeeCredit(ctx context.Context, cmd fees.ReclaimFeeCmd) (
 }
 
 func (w *Wallet) ensureFeeCredit(ctx context.Context, accountKey *account.AccountKey, txCount int) error {
-	fcb, err := w.FetchFeeCreditBill(ctx, accountKey.PrivKeyHash)
+	fcb, err := w.GetFeeCreditBill(ctx, accountKey.PrivKeyHash)
 	if err != nil {
 		return err
 	}

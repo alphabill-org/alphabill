@@ -180,7 +180,7 @@ func (c *MoneyBackendClient) GetRoundNumber(_ context.Context) (uint64, error) {
 	return responseObject.RoundNumber, nil
 }
 
-func (c *MoneyBackendClient) FetchFeeCreditBill(_ context.Context, unitID []byte) (*wallet.Bill, error) {
+func (c *MoneyBackendClient) GetFeeCreditBill(_ context.Context, unitID wallet.UnitID) (*wallet.Bill, error) {
 	urlPath := c.feeCreditBillURL.JoinPath(hexutil.Encode(unitID)).String()
 	req, err := http.NewRequest(http.MethodGet, urlPath, nil)
 	if err != nil {

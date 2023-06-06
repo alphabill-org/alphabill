@@ -178,10 +178,6 @@ func (tb *TokenBackend) GetFeeCreditBill(ctx context.Context, unitID wallet.Unit
 	return fcb, nil
 }
 
-func (tb *TokenBackend) FetchFeeCreditBill(ctx context.Context, unitID []byte) (*wallet.Bill, error) {
-	return tb.GetFeeCreditBill(ctx, unitID)
-}
-
 func (tb *TokenBackend) getURL(pathElements ...string) *url.URL {
 	u := tb.addr
 	u.Path = path.Join(pathElements...)

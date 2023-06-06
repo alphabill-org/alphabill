@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto"
 	"errors"
+	"sync"
 	"testing"
 
 	"github.com/alphabill-org/alphabill/internal/hash"
@@ -30,7 +31,7 @@ func TestDustCollectionWontRunForSingleBill(t *testing.T) {
 	w, mockClient := CreateTestWallet(t, withBackendMock(t, &backendMockReturnConf{balance: 3, customBillList: billsList}))
 
 	// when dc runs
-	err := w.collectDust(context.Background(), false, 0)
+	err := w.collectDust(context.Background(), 0)
 	require.NoError(t, err)
 
 	// then no txs are broadcast
@@ -97,7 +98,7 @@ func TestDustCollectionMaxBillCount(t *testing.T) {
 	w, _ := CreateTestWalletWithManager(t, backendMock, am)
 
 	// when dc runs
-	err = w.collectDust(context.Background(), false, 0)
+	err = w.collectDust(context.Background(), 0)
 	require.NoError(t, err)
 
 	// then dc total tx count should be equal to the maximum allowed bills plus 1 for the swap
@@ -175,7 +176,7 @@ func TestDustCollectionMaxBillCountOverLimit(t *testing.T) {
 	w, _ := CreateTestWalletWithManager(t, backendMock, am)
 
 	// when dc runs
-	err = w.collectDust(context.Background(), false, 0)
+	err = w.collectDust(context.Background(), 0)
 	require.NoError(t, err)
 
 	// then dc total tx count should be equal to the maximum allowed bills plus 4:
@@ -252,7 +253,7 @@ func TestBasicDustCollection(t *testing.T) {
 	w, _ := CreateTestWalletWithManager(t, backendMock, am)
 
 	// when dc runs
-	err = w.collectDust(context.Background(), false, 0)
+	err = w.collectDust(context.Background(), 0)
 	require.NoError(t, err)
 
 	// then two dc txs are broadcast plus one swap
@@ -339,7 +340,7 @@ func TestDustCollectionWithSwap(t *testing.T) {
 	w, _ := CreateTestWalletWithManager(t, backendMock, am)
 
 	// when dc runs
-	err = w.collectDust(context.Background(), false, 0)
+	err = w.collectDust(context.Background(), 0)
 	require.NoError(t, err)
 
 	// then two dc txs + one swap tx are broadcast
@@ -383,7 +384,7 @@ func TestSwapWithExistingDCBillsBeforeDCTimeout(t *testing.T) {
 	mockClient.SetMaxRoundNumber(roundNr)
 
 	// when dc runs
-	err = w.collectDust(context.Background(), false, 0)
+	err = w.collectDust(context.Background(), 0)
 	require.NoError(t, err)
 
 	// then a swap tx is broadcast
@@ -450,7 +451,7 @@ func TestSwapWithExistingExpiredDCBills(t *testing.T) {
 	w, _ := CreateTestWalletWithManager(t, backendMock, am)
 
 	// when dc runs
-	err = w.collectDust(context.Background(), false, 0)
+	err = w.collectDust(context.Background(), 0)
 	require.NoError(t, err)
 
 	// then a swap tx is broadcast
@@ -585,7 +586,7 @@ func TestSwapContainsUnconfirmedDustBillIds(t *testing.T) {
 	w, _ := CreateTestWalletWithManager(t, backendMock, am)
 
 	// when dc runs
-	err = w.collectDust(context.Background(), false, 0)
+	err = w.collectDust(context.Background(), 0)
 	require.NoError(t, err)
 
 	// and three dc txs are broadcast
@@ -604,6 +605,202 @@ func TestSwapContainsUnconfirmedDustBillIds(t *testing.T) {
 		require.NotNil(t, recordedDCs[string(swapOrder.DcTransfers[1].TransactionOrder.UnitID())])
 		require.NotNil(t, recordedDCs[string(swapOrder.DcTransfers[2].TransactionOrder.UnitID())])
 	}
+}
+
+func TestBlockingDcWithNormalBills(t *testing.T) {
+	// wallet contains 2 normal bills
+	bills := []*Bill{addBill(1), addBill(2)}
+	nonce := calculateDcNonce(bills)
+	am, err := account.NewManager(t.TempDir(), "", true)
+	require.NoError(t, err)
+	billsList := createBillListResponse(bills)
+
+	recordedTxs := make(map[string]*types.TransactionOrder, 0)
+	billListCallFlag := false
+	backendMock := &backendAPIMock{
+		getRoundNumber: func() (uint64, error) {
+			return 0, nil
+		},
+		listBills: func(pubKey []byte, includeDCBills bool) (*backend.ListBillsResponse, error) {
+			if billListCallFlag {
+				return createBillListResponse([]*Bill{addBill(3)}), nil
+			}
+			billListCallFlag = true
+			return billsList, nil
+		},
+		getProof: func(billId []byte) (*wallet.Bills, error) {
+			for _, b := range bills {
+				if bytes.Equal(util.Uint256ToBytes(b.Id), billId) {
+					return createBlockProofResponse(t, b, nil, 0, dcTimeoutBlockCount, nil), nil
+				}
+			}
+			return nil, nil
+		},
+		fetchFeeCreditBill: func(ctx context.Context, unitID []byte) (*wallet.Bill, error) {
+			k, _ := am.GetAccountKey(0)
+			return &wallet.Bill{
+				Id:      k.PrivKeyHash,
+				Value:   100 * 1e8,
+				TxProof: &wallet.Proof{},
+			}, nil
+		},
+		postTransactions: func(ctx context.Context, pubKey wallet.PubKey, txs *wallet.Transactions) error {
+			for _, tx := range txs.Transactions {
+				recordedTxs[string(tx.UnitID())] = tx
+			}
+			return nil
+		},
+		getTxProof: func(ctx context.Context, unitID wallet.UnitID, txHash wallet.TxHash) (*wallet.Proof, error) {
+			tx, found := recordedTxs[string(unitID)]
+			if !found {
+				return nil, errors.New("tx not found")
+			}
+			return &wallet.Proof{TxRecord: &types.TransactionRecord{TransactionOrder: tx, ServerMetadata: &types.ServerMetadata{ActualFee: 1}}}, nil
+		},
+	}
+
+	w, _ := CreateTestWalletWithManager(t, backendMock, am)
+
+	// when blocking dust collector runs
+	wg := runBlockingDc(t, w)
+	wg.Wait()
+
+	// and dc + swap txs should be sent
+	require.Len(t, recordedTxs, 3)
+	for _, tx := range recordedTxs {
+		if tx.PayloadType() == "transDC" {
+			dcTx := parseDcTx(t, tx)
+			require.EqualValues(t, nonce, dcTx.Nonce)
+		} else {
+			swapTx := parseSwapTx(t, tx)
+			require.EqualValues(t, 3, swapTx.TargetValue)
+		}
+	}
+}
+
+func TestBlockingDCWithDCBillsBeforeDCTimeout(t *testing.T) {
+	t.SkipNow()
+	// create wallet with 2 dc bills
+	tempNonce := uint256.NewInt(1)
+	am, err := account.NewManager(t.TempDir(), "", true)
+	require.NoError(t, err)
+	_ = am.CreateKeys("")
+	k, _ := am.GetAccountKey(0)
+	bills := []*Bill{addDcBill(t, k, tempNonce, util.Uint256ToBytes(tempNonce), 1, dcTimeoutBlockCount), addDcBill(t, k, tempNonce, util.Uint256ToBytes(tempNonce), 2, dcTimeoutBlockCount)}
+	billsList := createBillListResponse(bills)
+
+	recordedTxs := make(map[string]*types.TransactionOrder, 0)
+	backendMock := &backendAPIMock{
+		getRoundNumber: func() (uint64, error) {
+			return 5, nil
+		},
+		listBills: func(pubKey []byte, includeDCBills bool) (*backend.ListBillsResponse, error) {
+			return billsList, nil
+		},
+		getProof: func(billId []byte) (*wallet.Bills, error) {
+			for _, b := range bills {
+				if bytes.Equal(util.Uint256ToBytes(b.Id), billId) {
+					return createBlockProofResponse(t, b, nil, 0, dcTimeoutBlockCount, nil), nil
+				}
+			}
+			return nil, nil
+		},
+		fetchFeeCreditBill: func(ctx context.Context, unitID []byte) (*wallet.Bill, error) {
+			k, _ := am.GetAccountKey(0)
+			return &wallet.Bill{
+				Id:      k.PrivKeyHash,
+				Value:   100 * 1e8,
+				TxProof: &wallet.Proof{},
+			}, nil
+		},
+	}
+
+	w, _ := CreateTestWalletWithManager(t, backendMock, am)
+
+	// when blocking dust collector runs
+	_ = runBlockingDc(t, w)
+
+	// and swap tx should be sent
+	for _, tx := range recordedTxs {
+		if tx.PayloadType() == "swapDC" {
+			swapTx := parseSwapTx(t, tx)
+			require.EqualValues(t, 3, swapTx.TargetValue)
+		}
+	}
+}
+
+func TestBlockingDCWithExistingExpiredDCBills(t *testing.T) {
+	// create wallet with 2 timed out dc bills
+	tempNonce := uint256.NewInt(1)
+	am, err := account.NewManager(t.TempDir(), "", true)
+	require.NoError(t, err)
+	_ = am.CreateKeys("")
+	k, _ := am.GetAccountKey(0)
+	bills := []*Bill{addDcBill(t, k, uint256.NewInt(1), util.Uint256ToBytes(tempNonce), 1, 0), addDcBill(t, k, uint256.NewInt(2), util.Uint256ToBytes(tempNonce), 2, 0)}
+	billsList := createBillListResponse(bills)
+
+	recordedTxs := make(map[string]*types.TransactionOrder, 0)
+	backendMock := &backendAPIMock{
+		getRoundNumber: func() (uint64, error) {
+			return dcTimeoutBlockCount, nil
+		},
+		listBills: func(pubKey []byte, includeDCBills bool) (*backend.ListBillsResponse, error) {
+			return billsList, nil
+		},
+		getProof: func(billId []byte) (*wallet.Bills, error) {
+			for _, b := range bills {
+				if bytes.Equal(util.Uint256ToBytes(b.Id), billId) {
+					return createBlockProofResponse(t, b, util.Uint256ToBytes(tempNonce), 0, dcTimeoutBlockCount, nil), nil
+				}
+			}
+			return nil, nil
+		},
+		fetchFeeCreditBill: func(ctx context.Context, unitID []byte) (*wallet.Bill, error) {
+			k, _ := am.GetAccountKey(0)
+			return &wallet.Bill{
+				Id:      k.PrivKeyHash,
+				Value:   100 * 1e8,
+				TxProof: &wallet.Proof{},
+			}, nil
+		},
+		postTransactions: func(ctx context.Context, pubKey wallet.PubKey, txs *wallet.Transactions) error {
+			for _, tx := range txs.Transactions {
+				recordedTxs[string(tx.UnitID())] = tx
+			}
+			return nil
+		},
+		getTxProof: func(ctx context.Context, unitID wallet.UnitID, txHash wallet.TxHash) (*wallet.Proof, error) {
+			tx, found := recordedTxs[string(unitID)]
+			if !found {
+				return nil, errors.New("tx not found")
+			}
+			return &wallet.Proof{TxRecord: &types.TransactionRecord{TransactionOrder: tx, ServerMetadata: &types.ServerMetadata{ActualFee: 1}}}, nil
+		},
+	}
+
+	w, _ := CreateTestWalletWithManager(t, backendMock, am)
+
+	// when blocking dust collector runs
+	_ = runBlockingDc(t, w)
+
+	// and swap tx should be sent
+	for _, tx := range recordedTxs {
+		if tx.PayloadType() == "swapDC" {
+			swapTx := parseSwapTx(t, tx)
+			require.EqualValues(t, 3, swapTx.TargetValue)
+		}
+	}
+}
+
+func runBlockingDc(t *testing.T, w *Wallet) *sync.WaitGroup {
+	wg := sync.WaitGroup{}
+	wg.Add(1)
+	go func() {
+		err := w.collectDust(context.Background(), 0)
+		require.NoError(t, err)
+		wg.Done()
+	}()
+	return &wg
 }
 
 func addBill(value uint64) *Bill {

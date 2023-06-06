@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	"testing"
 
 	test "github.com/alphabill-org/alphabill/internal/testutils"
@@ -21,25 +22,33 @@ func TestFungibleTokenDC(t *testing.T) {
 	require.NoError(t, err)
 	_, pubKey1, err := am.AddAccount()
 	require.NoError(t, err)
+	_, pubKey2, err := am.AddAccount()
+	require.NoError(t, err)
 	typeID1 := test.RandomBytes(32)
 	typeID2 := test.RandomBytes(32)
 	typeID3 := test.RandomBytes(32)
 
-	resetFunc := func() (uint64, map[string][]*twb.TokenUnit, map[string]*types.TransactionOrder) {
-		return uint64(0), map[string][]*twb.TokenUnit{
-			string(pubKey0): {
-				&twb.TokenUnit{ID: test.RandomBytes(32), Kind: twb.Fungible, Symbol: "AB1", TypeID: typeID1, Amount: 100},
-				&twb.TokenUnit{ID: test.RandomBytes(32), Kind: twb.Fungible, Symbol: "AB3", TypeID: typeID3, Amount: 100},
-				&twb.TokenUnit{ID: test.RandomBytes(32), Kind: twb.Fungible, Symbol: "AB3", TypeID: typeID3, Amount: 100},
-				&twb.TokenUnit{ID: test.RandomBytes(32), Kind: twb.Fungible, Symbol: "AB3", TypeID: typeID3, Amount: 100},
+	resetFunc := func() (map[string]uint64, map[string][]*twb.TokenUnit, map[string]*types.TransactionOrder) {
+		return map[string]uint64{
+				string(pubKey0): 0,
+				string(pubKey1): 0,
+				string(pubKey2): 0,
 			},
-			string(pubKey1): {
-				&twb.TokenUnit{ID: test.RandomBytes(32), Kind: twb.Fungible, Symbol: "AB2", TypeID: typeID2, Amount: 100},
+			map[string][]*twb.TokenUnit{
+				string(pubKey0): {
+					&twb.TokenUnit{ID: test.RandomBytes(32), Kind: twb.Fungible, Symbol: "AB1", TypeID: typeID1, Amount: 100},
+					&twb.TokenUnit{ID: test.RandomBytes(32), Kind: twb.Fungible, Symbol: "AB3", TypeID: typeID3, Amount: 100},
+					&twb.TokenUnit{ID: test.RandomBytes(32), Kind: twb.Fungible, Symbol: "AB3", TypeID: typeID3, Amount: 100},
+					&twb.TokenUnit{ID: test.RandomBytes(32), Kind: twb.Fungible, Symbol: "AB3", TypeID: typeID3, Amount: 100},
+				},
+				string(pubKey1): {
+					&twb.TokenUnit{ID: test.RandomBytes(32), Kind: twb.Fungible, Symbol: "AB2", TypeID: typeID2, Amount: 100},
+				},
 			},
-		}, make(map[string]*types.TransactionOrder, 0)
+			make(map[string]*types.TransactionOrder, 0)
 	}
 
-	burnedValue, accTokens, recordedTx := resetFunc()
+	burnedValues, accTokens, recordedTx := resetFunc()
 
 	findToken := func(pubKey sdk.PubKey, id twb.TokenID) *twb.TokenUnit {
 		tokens, found := accTokens[string(pubKey)]
@@ -53,11 +62,24 @@ func TestFungibleTokenDC(t *testing.T) {
 		return nil
 	}
 
+	removeToken := func(pubKey sdk.PubKey, id twb.TokenID) {
+		tokens, found := accTokens[string(pubKey)]
+		require.True(t, found, fmt.Sprintf("key %X not found", pubKey))
+		// remove token
+		for i, token := range tokens {
+			if bytes.Equal(token.ID, id) {
+				accTokens[string(pubKey)] = append(tokens[:i], tokens[i+1:]...)
+				return
+			}
+		}
+		t.Fatalf("unit %X not found", id)
+	}
+
 	be := &mockTokenBackend{
 		getTokens: func(_ context.Context, _ twb.Kind, owner sdk.PubKey, _ string, _ int) ([]*twb.TokenUnit, string, error) {
 			tokens, found := accTokens[string(owner)]
 			if !found {
-				return nil, "", fmt.Errorf("no tokens for pubkey '%X'", owner)
+				return nil, "", nil
 			}
 			return tokens, "", nil
 		},
@@ -69,12 +91,16 @@ func TestFungibleTokenDC(t *testing.T) {
 				case ttxs.PayloadTypeBurnFungibleToken:
 					tok := findToken(pubKey, unitID)
 					tok.Burned = true
-					burnedValue += tok.Amount
+					burnedValues[string(pubKey)] += tok.Amount
+					removeToken(pubKey, unitID)
 				case ttxs.PayloadTypeJoinFungibleToken:
 					tok := findToken(pubKey, unitID)
 					attrs := &ttxs.JoinFungibleTokenAttributes{}
 					require.NoError(t, tx.UnmarshalAttributes(attrs))
-					require.Equal(t, uint64(300), tok.Amount+burnedValue)
+					tok.Amount += burnedValues[string(pubKey)]
+					if bytes.Equal(pubKey1, pubKey) {
+						require.Equal(t, uint64(300), tok.Amount)
+					}
 				default:
 					return errors.New("unexpected tx")
 				}
@@ -107,11 +133,37 @@ func TestFungibleTokenDC(t *testing.T) {
 
 	// this should only join tokens with type typeID3
 	require.NoError(t, tw.CollectDust(ctx, AllAccounts, nil, nil))
+	require.Len(t, recordedTx, 3) // 2 burns, 1 join
 	// tx validation is done in postTransactions()
 
 	// repeat, but with the specific account number
-	burnedValue, accTokens, recordedTx = resetFunc()
+	burnedValues, accTokens, recordedTx = resetFunc()
 	require.NoError(t, tw.CollectDust(ctx, 1, nil, nil))
+	require.Len(t, recordedTx, 3) // 2 burns, 1 join
+
+	// DC amount uint64 overflow, single batch
+	burnedValues, accTokens, recordedTx = resetFunc()
+	accTokens[string(pubKey2)] = []*twb.TokenUnit{
+		{ID: test.RandomBytes(32), Kind: twb.Fungible, Symbol: "AB2", TypeID: typeID1, Amount: math.MaxUint64},
+		{ID: test.RandomBytes(32), Kind: twb.Fungible, Symbol: "AB2", TypeID: typeID1, Amount: 1},
+	}
+	require.NoError(t, tw.CollectDust(ctx, 3, nil, nil))
+	require.Empty(t, recordedTx, "no tx should be recorded if uint64 overflow occurs")
+
+	// DC amount uint64 overflow, two batches, second one causes overflow
+	burnedValues, accTokens, recordedTx = resetFunc()
+	expectedToJoinInFirstBatch := uint64(0)
+	for i := 0; i <= maxBurnBatchSize; i++ {
+		token := &twb.TokenUnit{ID: test.RandomBytes(32), Kind: twb.Fungible, Symbol: "AB2", TypeID: typeID1, Amount: uint64(i + 1)}
+		accTokens[string(pubKey2)] = append(accTokens[string(pubKey2)], token)
+		expectedToJoinInFirstBatch += token.Amount
+	}
+	accTokens[string(pubKey2)] = append(accTokens[string(pubKey2)], &twb.TokenUnit{ID: test.RandomBytes(32), Kind: twb.Fungible, Symbol: "AB2", TypeID: typeID1, Amount: math.MaxUint64})
+	require.NoError(t, tw.CollectDust(ctx, 3, nil, nil))
+	require.Len(t, recordedTx, 101)               // 100 burns, 1 join from the first batch
+	require.Len(t, accTokens[string(pubKey2)], 2) // 1 token joined and 1 left from the second batch
+	require.Equal(t, expectedToJoinInFirstBatch, accTokens[string(pubKey2)][0].Amount)
+	require.EqualValues(t, uint64(math.MaxUint64), accTokens[string(pubKey2)][1].Amount)
 }
 
 func TestGetTokensForDC(t *testing.T) {

@@ -129,24 +129,29 @@ func (s *RequestHandler) listBillsFunc(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
-	if !includeDCBills {
-		for i, b := range bills {
-			if b.IsDCBill {
-				bills = append(bills[:i], bills[i+1:]...)
-			}
+	var filteredBills []*Bill
+	for _, b := range bills {
+		// filter dc bills
+		if b.IsDCBill && !includeDCBills {
+			continue
 		}
+		// filter zero value bills
+		if b.Value == 0 {
+			continue
+		}
+		filteredBills = append(filteredBills, b)
 	}
 	limit, offset := s.parsePagingParams(r)
 	// if offset and limit go out of bounds just return what we have
-	if offset > len(bills) {
-		offset = len(bills)
+	if offset > len(filteredBills) {
+		offset = len(filteredBills)
 	}
-	if offset+limit > len(bills) {
-		limit = len(bills) - offset
+	if offset+limit > len(filteredBills) {
+		limit = len(filteredBills) - offset
 	} else {
 		setLinkHeader(r.URL, w, offset+limit)
 	}
-	res := newListBillsResponse(bills, limit, offset)
+	res := newListBillsResponse(filteredBills, limit, offset)
 	writeAsJson(w, res)
 }
 

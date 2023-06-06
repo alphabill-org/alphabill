@@ -45,6 +45,7 @@ const (
 	defaultScheme   = "http://"
 	contentType     = "Content-Type"
 	applicationJson = "application/json"
+	applicationCbor = "application/cbor"
 )
 
 var (
@@ -224,6 +225,7 @@ func (c *MoneyBackendClient) PostTransactions(ctx context.Context, pubKey wallet
 	if err != nil {
 		return fmt.Errorf("failed to create send transactions request: %w", err)
 	}
+	req.Header.Set(contentType, applicationCbor)
 	res, err := c.HttpClient.Do(req)
 	if err != nil {
 		return fmt.Errorf("failed to send transactions (technical error): %w", err)

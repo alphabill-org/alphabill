@@ -1,7 +1,6 @@
 package backend
 
 import (
-	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -317,10 +316,9 @@ func (s *BoltBillStoreTx) getUnit(tx *bolt.Tx, unitID []byte) (*Bill, error) {
 // getExpiredBills returns map[bill_id_string]block_number_bytes of all bills that expiry block number is less than or equal to the given block number
 func (s *BoltBillStoreTx) getExpiredBills(tx *bolt.Tx, maxBlockNumber uint64) (map[string][]byte, error) {
 	res := make(map[string][]byte)
-	maxBlockNumberBytes := util.Uint64ToBytes(maxBlockNumber)
 	expiredBillBucket := tx.Bucket(expiredBillsBucket)
 	c := expiredBillBucket.Cursor()
-	for blockNumber, _ := c.First(); blockNumber != nil && bytes.Compare(blockNumber, maxBlockNumberBytes) <= 0; blockNumber, _ = c.Next() {
+	for blockNumber, _ := c.First(); blockNumber != nil && util.BytesToUint64(blockNumber) <= maxBlockNumber; blockNumber, _ = c.Next() {
 		expiredUnitIDsBucket := expiredBillBucket.Bucket(blockNumber)
 		err := expiredUnitIDsBucket.ForEach(func(unitID, _ []byte) error {
 			res[string(unitID)] = blockNumber

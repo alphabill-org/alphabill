@@ -194,9 +194,10 @@ func (p *BlockProcessor) processTx(txr *types.TransactionRecord, b *types.Block,
 		}
 
 		v := attr.Amount + txr.ServerMetadata.ActualFee
-		bill.Value -= v
-		bill.TxHash = txo.Hash(crypto.SHA256)
-		if bill.Value == 0 {
+		if v < bill.Value {
+			bill.Value -= v
+		} else {
+			bill.Value = 0
 			// mark bill to be deleted far in the future (approx 1 day)
 			// so that bill (proof) can be used for confirmation and follow-up transaction
 			// alternatively we can save proofs separately from bills and this hack can be removed
@@ -205,6 +206,7 @@ func (p *BlockProcessor) processTx(txr *types.TransactionRecord, b *types.Block,
 				return fmt.Errorf("failed to set bill expiration time: %w", err)
 			}
 		}
+		bill.TxHash = txo.Hash(crypto.SHA256)
 		err = p.saveBillWithProof(txIdx, b, dbTx, bill)
 		if err != nil {
 			return fmt.Errorf("failed to save transferFC bill with proof: %w", err)

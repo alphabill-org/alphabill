@@ -482,7 +482,7 @@ func TestGetFeeCreditBillRequest_Ok(t *testing.T) {
 	port := startServer(t, walletBackend)
 
 	response := &wallet.Bill{}
-	httpRes, err := testhttp.DoGet(fmt.Sprintf("http://localhost:%d/api/v1/fee-credit-bill?bill_id=%s", port, billId), response)
+	httpRes, err := testhttp.DoGet(fmt.Sprintf("http://localhost:%d/api/v1/fee-credit-bills/%s", port, billId), response)
 	require.NoError(t, err)
 	require.Equal(t, http.StatusOK, httpRes.StatusCode)
 	require.Equal(t, b.Id, response.Id)
@@ -498,37 +498,27 @@ func TestGetFeeCreditBillRequest_Ok(t *testing.T) {
 	require.EqualValues(t, ep.TxProof.BlockHeaderHash, ap.TxProof.BlockHeaderHash)
 }
 
-func TestGetFeeCreditBillRequest_MissingBillId(t *testing.T) {
-	port := startServer(t, newWalletBackend(t))
-
-	res := &ErrorResponse{}
-	httpRes, err := testhttp.DoGet(fmt.Sprintf("http://localhost:%d/api/v1/fee-credit-bill", port), res)
-	require.NoError(t, err)
-	require.Equal(t, http.StatusBadRequest, httpRes.StatusCode)
-	require.Equal(t, "missing required bill_id query parameter", res.Message)
-}
-
 func TestGetFeeCreditBillRequest_InvalidBillIdLength(t *testing.T) {
 	port := startServer(t, newWalletBackend(t))
 
 	// verify bill id larger than 32 bytes returns error
 	res := &ErrorResponse{}
 	billId := "0x000000000000000000000000000000000000000000000000000000000000000001"
-	httpRes, err := testhttp.DoGet(fmt.Sprintf("http://localhost:%d/api/v1/fee-credit-bill?bill_id=%s", port, billId), res)
+	httpRes, err := testhttp.DoGet(fmt.Sprintf("http://localhost:%d/api/v1/fee-credit-bills/%s", port, billId), res)
 	require.NoError(t, err)
 	require.Equal(t, http.StatusBadRequest, httpRes.StatusCode)
 	require.Equal(t, errInvalidBillIDLength.Error(), res.Message)
 
 	// verify bill id smaller than 32 bytes returns error
 	res = &ErrorResponse{}
-	httpRes, err = testhttp.DoGet(fmt.Sprintf("http://localhost:%d/api/v1/fee-credit-bill?bill_id=0x01", port), res)
+	httpRes, err = testhttp.DoGet(fmt.Sprintf("http://localhost:%d/api/v1/fee-credit-bills/0x01", port), res)
 	require.NoError(t, err)
 	require.Equal(t, http.StatusBadRequest, httpRes.StatusCode)
 	require.Equal(t, errInvalidBillIDLength.Error(), res.Message)
 
 	// verify bill id with correct length but missing prefix returns error
 	res = &ErrorResponse{}
-	httpRes, err = testhttp.DoGet(fmt.Sprintf("http://localhost:%d/api/v1/fee-credit-bill?bill_id=%s", port, billId), res)
+	httpRes, err = testhttp.DoGet(fmt.Sprintf("http://localhost:%d/api/v1/fee-credit-bills/%s", port, billId), res)
 	require.NoError(t, err)
 	require.Equal(t, http.StatusBadRequest, httpRes.StatusCode)
 	require.Equal(t, errInvalidBillIDLength.Error(), res.Message)
@@ -538,7 +528,7 @@ func TestGetFeeCreditBillRequest_BillDoesNotExist(t *testing.T) {
 	port := startServer(t, newWalletBackend(t))
 
 	res := &ErrorResponse{}
-	httpRes, err := testhttp.DoGet(fmt.Sprintf("http://localhost:%d/api/v1/fee-credit-bill?bill_id=%s", port, billId), res)
+	httpRes, err := testhttp.DoGet(fmt.Sprintf("http://localhost:%d/api/v1/fee-credit-bills/%s", port, billId), res)
 	require.NoError(t, err)
 	require.Equal(t, http.StatusNotFound, httpRes.StatusCode)
 	require.Equal(t, "fee credit bill does not exist", res.Message)

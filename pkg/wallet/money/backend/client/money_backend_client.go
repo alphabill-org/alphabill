@@ -34,7 +34,7 @@ const (
 	ListBillsPath    = "api/v1/list-bills"
 	ProofPath        = "api/v1/proof"
 	RoundNumberPath  = "api/v1/round-number"
-	FeeCreditPath    = "api/v1/fee-credit-bill"
+	FeeCreditPath    = "api/v1/fee-credit-bills"
 	TransactionsPath = "api/v1/transactions"
 
 	balanceUrlFormat     = "%v/%v?pubkey=%v&includedcbills=%v"
@@ -181,16 +181,12 @@ func (c *MoneyBackendClient) GetRoundNumber(_ context.Context) (uint64, error) {
 }
 
 func (c *MoneyBackendClient) FetchFeeCreditBill(_ context.Context, unitID []byte) (*wallet.Bill, error) {
-	req, err := http.NewRequest(http.MethodGet, c.feeCreditBillURL.String(), nil)
+	urlPath := c.feeCreditBillURL.JoinPath(hexutil.Encode(unitID)).String()
+	req, err := http.NewRequest(http.MethodGet, urlPath, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to build get fee credit request: %w", err)
 	}
 	req.Header.Set(contentType, applicationJson)
-
-	// set bill_id query param
-	params := url.Values{}
-	params.Add("bill_id", hexutil.Encode(unitID))
-	req.URL.RawQuery = params.Encode()
 
 	response, err := c.HttpClient.Do(req)
 	if err != nil {

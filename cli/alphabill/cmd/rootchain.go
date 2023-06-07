@@ -29,13 +29,12 @@ const (
 
 type rootNodeConfig struct {
 	Base              *baseConfiguration
-	KeyFile           string            // path to rootchain chain key file
-	GenesisFile       string            // path to rootchain-genesis.json file
-	PartitionListener string            // partition validator node address (libp2p multiaddress format)
-	RootListener      string            // Root validator node address (libp2p multiaddress format)
-	Validators        map[string]string // root node addresses
-	StoragePath       string            // path to Bolt storage file
-	MaxRequests       uint              // validator partition certification request channel capacity
+	KeyFile           string // path to rootchain chain key file
+	GenesisFile       string // path to rootchain-genesis.json file
+	PartitionListener string // partition validator node address (libp2p multiaddress format)
+	RootListener      string // Root validator node address (libp2p multiaddress format)
+	StoragePath       string // path to Bolt storage file
+	MaxRequests       uint   // validator partition certification request channel capacity
 }
 
 // newRootNodeCmd creates a new cobra command for root chain node
@@ -57,7 +56,6 @@ func newRootNodeCmd(baseConfig *baseConfiguration) *cobra.Command {
 	cmd.Flags().StringVar(&config.PartitionListener, "partition-listener", "/ip4/127.0.0.1/tcp/26662", "validator address in libp2p multiaddress-format")
 	cmd.Flags().StringVar(&config.RootListener, rootPortCmdFlag, "/ip4/127.0.0.1/tcp/29666", "validator address in libp2p multiaddress-format")
 	cmd.Flags().MarkHidden(rootPortCmdFlag)
-	cmd.Flags().StringToStringVarP(&config.Validators, "peers", "p", nil, "a map of root node identifiers and addresses. must contain all genesis validator addresses")
 	cmd.Flags().UintVar(&config.MaxRequests, "max-requests", 1000, "request buffer capacity")
 	return cmd
 }

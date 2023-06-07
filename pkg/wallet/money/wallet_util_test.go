@@ -135,7 +135,7 @@ func toBillId(i *uint256.Int) string {
 	return base64.StdEncoding.EncodeToString(util.Uint256ToBytes(i))
 }
 
-func createBlockProofResponse(t *testing.T, b *Bill, overrideNonce []byte, blockNumber, timeout uint64, k *account.AccountKey) *wallet.Bills {
+func createBlockProofResponse(t *testing.T, b *Bill, overrideNonce []byte, timeout uint64, k *account.AccountKey) *wallet.Bills {
 	w, mockClient := CreateTestWallet(t, nil)
 	if k == nil {
 		k, _ = w.am.GetAccountKey(0)
@@ -164,16 +164,6 @@ func createBlockProofResponse(t *testing.T, b *Bill, overrideNonce []byte, block
 		},
 	}
 	return &wallet.Bills{Bills: []*wallet.Bill{{Id: util.Uint256ToBytes(b.Id), Value: b.Value, IsDcBill: b.IsDcBill, TxProof: txProof, TxHash: b.TxHash}}}
-}
-
-func createBlockProofJsonResponse(t *testing.T, bills []*Bill, overrideNonce []byte, blockNumber, timeout uint64, k *account.AccountKey) []string {
-	var jsonList []string
-	for _, b := range bills {
-		bills := createBlockProofResponse(t, b, overrideNonce, blockNumber, timeout, k)
-		res, _ := json.Marshal(bills)
-		jsonList = append(jsonList, string(res))
-	}
-	return jsonList
 }
 
 func createBillListResponse(bills []*Bill) *backend.ListBillsResponse {

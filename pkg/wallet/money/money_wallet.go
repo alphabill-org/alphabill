@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"sort"
+	"time"
 
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/txsystem/money"
@@ -324,23 +325,25 @@ func (w *Wallet) collectDust(ctx context.Context, accountIndex uint64) error {
 	dcBillGroups := groupDcBills(bills)
 	if len(dcBillGroups) > 0 {
 		for _, v := range dcBillGroups {
-			if roundNr >= v.dcTimeout {
-				swapTimeout := roundNr + swapTimeoutBlockCount
-				billIds := getBillIds(v.dcBills)
-				if err := w.swapDcBills(ctx, v.dcBills, v.dcNonce, billIds, swapTimeout, accountIndex); err != nil {
-					return err
+			if roundNr < v.dcTimeout {
+				log.Info("waiting for dc confirmation(s)...")
+				for roundNr <= v.dcTimeout {
+					select {
+					case <-time.After(500 * time.Millisecond):
+						roundNr, err = w.backend.GetRoundNumber(ctx)
+						if err != nil {
+							return err
+						}
+						continue
+					case <-ctx.Done():
+						return nil
+					}
 				}
-			} else {
-				// TODO: implement solution for this edge case that does not depend on AB client
-				// expecting to receive swap during dcTimeout
-				//expectedSwaps = append(expectedSwaps, expectedSwap{dcNonce: v.dcNonce, timeout: v.dcTimeout, dcSum: v.valueSum})
-				//w.dcWg.AddExpectedSwaps(expectedSwaps)
-				//err = w.doSwap(ctx, accountIndex, v.dcTimeout)
-				//if err != nil {
-				//	return err
-				//}
-				log.Info("Account ", accountIndex, " has bills still waiting for dust collection timeout. Please try again shortly")
-				return nil
+			}
+			swapTimeout := roundNr + swapTimeoutBlockCount
+			billIds := getBillIds(v.dcBills)
+			if err := w.swapDcBills(ctx, v.dcBills, v.dcNonce, billIds, swapTimeout, accountIndex); err != nil {
+				return err
 			}
 		}
 	} else {

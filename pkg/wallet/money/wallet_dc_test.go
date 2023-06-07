@@ -72,7 +72,7 @@ func TestDustCollectionMaxBillCount(t *testing.T) {
 			}
 			return nil, nil
 		},
-		fetchFeeCreditBill: func(ctx context.Context, unitID []byte) (*wallet.Bill, error) {
+		getFeeCreditBill: func(ctx context.Context, unitID []byte) (*wallet.Bill, error) {
 			k, _ := am.GetAccountKey(0)
 			return &wallet.Bill{
 				Id:      k.PrivKeyHash,
@@ -150,7 +150,7 @@ func TestDustCollectionMaxBillCountOverLimit(t *testing.T) {
 			}
 			return nil, nil
 		},
-		fetchFeeCreditBill: func(ctx context.Context, unitID []byte) (*wallet.Bill, error) {
+		getFeeCreditBill: func(ctx context.Context, unitID []byte) (*wallet.Bill, error) {
 			k, _ := am.GetAccountKey(0)
 			return &wallet.Bill{
 				Id:      k.PrivKeyHash,
@@ -221,7 +221,7 @@ func TestBasicDustCollection(t *testing.T) {
 			}
 			return nil, nil
 		},
-		fetchFeeCreditBill: func(ctx context.Context, unitID []byte) (*wallet.Bill, error) {
+		getFeeCreditBill: func(ctx context.Context, unitID []byte) (*wallet.Bill, error) {
 			k, _ := am.GetAccountKey(0)
 			return &wallet.Bill{
 				Id:      k.PrivKeyHash,
@@ -308,7 +308,7 @@ func TestDustCollectionWithSwap(t *testing.T) {
 			}
 			return nil, nil
 		},
-		fetchFeeCreditBill: func(ctx context.Context, unitID []byte) (*wallet.Bill, error) {
+		getFeeCreditBill: func(ctx context.Context, unitID []byte) (*wallet.Bill, error) {
 			k, _ := am.GetAccountKey(0)
 			return &wallet.Bill{
 				Id:      k.PrivKeyHash,
@@ -388,7 +388,7 @@ func TestSwapWithExistingDCBillsBeforeDCTimeout(t *testing.T) {
 			}
 			return nil, nil
 		},
-		fetchFeeCreditBill: func(ctx context.Context, unitID []byte) (*wallet.Bill, error) {
+		getFeeCreditBill: func(ctx context.Context, unitID []byte) (*wallet.Bill, error) {
 			k, _ := am.GetAccountKey(0)
 			return &wallet.Bill{
 				Id:      k.PrivKeyHash,
@@ -460,7 +460,7 @@ func TestSwapWithExistingExpiredDCBills(t *testing.T) {
 			}
 			return nil, nil
 		},
-		fetchFeeCreditBill: func(ctx context.Context, unitID []byte) (*wallet.Bill, error) {
+		getFeeCreditBill: func(ctx context.Context, unitID []byte) (*wallet.Bill, error) {
 			k, _ := am.GetAccountKey(0)
 			return &wallet.Bill{
 				Id:      k.PrivKeyHash,
@@ -589,7 +589,7 @@ func TestSwapContainsUnconfirmedDustBillIds(t *testing.T) {
 			}
 			return nil, nil
 		},
-		fetchFeeCreditBill: func(ctx context.Context, unitID []byte) (*wallet.Bill, error) {
+		getFeeCreditBill: func(ctx context.Context, unitID []byte) (*wallet.Bill, error) {
 			k, _ := am.GetAccountKey(0)
 			return &wallet.Bill{
 				Id:      k.PrivKeyHash,
@@ -671,7 +671,7 @@ func TestBlockingDcWithNormalBills(t *testing.T) {
 			}
 			return nil, nil
 		},
-		fetchFeeCreditBill: func(ctx context.Context, unitID []byte) (*wallet.Bill, error) {
+		getFeeCreditBill: func(ctx context.Context, unitID []byte) (*wallet.Bill, error) {
 			k, _ := am.GetAccountKey(0)
 			return &wallet.Bill{
 				Id:      k.PrivKeyHash,
@@ -739,7 +739,7 @@ func TestBlockingDCWithExistingExpiredDCBills(t *testing.T) {
 			}
 			return nil, nil
 		},
-		fetchFeeCreditBill: func(ctx context.Context, unitID []byte) (*wallet.Bill, error) {
+		getFeeCreditBill: func(ctx context.Context, unitID []byte) (*wallet.Bill, error) {
 			k, _ := am.GetAccountKey(0)
 			return &wallet.Bill{
 				Id:      k.PrivKeyHash,

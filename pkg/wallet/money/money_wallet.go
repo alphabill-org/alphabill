@@ -18,7 +18,6 @@ import (
 	"github.com/alphabill-org/alphabill/pkg/wallet/fees"
 	"github.com/alphabill-org/alphabill/pkg/wallet/log"
 	"github.com/alphabill-org/alphabill/pkg/wallet/money/backend"
-	"github.com/alphabill-org/alphabill/pkg/wallet/money/backend/client"
 	"github.com/alphabill-org/alphabill/pkg/wallet/money/tx_builder"
 	"github.com/alphabill-org/alphabill/pkg/wallet/txsubmitter"
 	"github.com/ethereum/go-ethereum/common/hexutil"
@@ -55,7 +54,7 @@ type (
 		GetBills(pubKey []byte) ([]*wallet.Bill, error)
 		GetProof(billId []byte) (*wallet.Bills, error)
 		GetRoundNumber(ctx context.Context) (uint64, error)
-		FetchFeeCreditBill(ctx context.Context, unitID []byte) (*wallet.Bill, error)
+		GetFeeCreditBill(ctx context.Context, unitID wallet.UnitID) (*wallet.Bill, error)
 		PostTransactions(ctx context.Context, pubKey wallet.PubKey, txs *wallet.Transactions) error
 		GetTxProof(ctx context.Context, unitID wallet.UnitID, txHash wallet.TxHash) (*wallet.Proof, error)
 	}
@@ -195,7 +194,7 @@ func (w *Wallet) Send(ctx context.Context, cmd SendCmd) ([]*wallet.Proof, error)
 		return nil, err
 	}
 
-	fcb, err := w.GetFeeCreditBill(ctx, fees.GetFeeCreditCmd{AccountIndex: cmd.AccountIndex})
+	fcb, err := w.GetFeeCredit(ctx, fees.GetFeeCreditCmd{AccountIndex: cmd.AccountIndex})
 	if err != nil {
 		return nil, err
 	}
@@ -276,27 +275,20 @@ func (w *Wallet) ReclaimFeeCredit(ctx context.Context, cmd fees.ReclaimFeeCmd) (
 	return w.feeManager.ReclaimFeeCredit(ctx, cmd)
 }
 
-// GetFeeCreditBill returns fee credit bill for given account,
+// GetFeeCredit returns fee credit bill for given account,
 // can return nil if fee credit bill has not been created yet.
-func (w *Wallet) GetFeeCreditBill(ctx context.Context, cmd fees.GetFeeCreditCmd) (*wallet.Bill, error) {
+func (w *Wallet) GetFeeCredit(ctx context.Context, cmd fees.GetFeeCreditCmd) (*wallet.Bill, error) {
 	accountKey, err := w.am.GetAccountKey(cmd.AccountIndex)
 	if err != nil {
 		return nil, err
 	}
-	return w.FetchFeeCreditBill(ctx, accountKey.PrivKeyHash)
+	return w.GetFeeCreditBill(ctx, accountKey.PrivKeyHash)
 }
 
-// FetchFeeCreditBill returns fee credit bill for given unitID
+// GetFeeCreditBill returns fee credit bill for given unitID
 // can return nil if fee credit bill has not been created yet.
-func (w *Wallet) FetchFeeCreditBill(ctx context.Context, unitID []byte) (*wallet.Bill, error) {
-	fcb, err := w.backend.FetchFeeCreditBill(ctx, unitID)
-	if err != nil {
-		if errors.Is(err, client.ErrMissingFeeCreditBill) {
-			return nil, nil
-		}
-		return nil, err
-	}
-	return fcb, nil
+func (w *Wallet) GetFeeCreditBill(ctx context.Context, unitID wallet.UnitID) (*wallet.Bill, error) {
+	return w.backend.GetFeeCreditBill(ctx, unitID)
 }
 
 // collectDust sends dust transfer for every bill for given account in wallet.
@@ -412,7 +404,7 @@ func (w *Wallet) swapDcBills(ctx context.Context, dcBills []*Bill, dcNonce []byt
 	if err != nil {
 		return err
 	}
-	fcb, err := w.GetFeeCreditBill(ctx, fees.GetFeeCreditCmd{AccountIndex: accountIndex})
+	fcb, err := w.GetFeeCredit(ctx, fees.GetFeeCreditCmd{AccountIndex: accountIndex})
 	if err != nil {
 		return err
 	}

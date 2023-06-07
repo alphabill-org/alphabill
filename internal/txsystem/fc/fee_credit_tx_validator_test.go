@@ -109,7 +109,7 @@ func TestAddFC(t *testing.T) {
 			wantErrMsg: "invalid transferFC target record id",
 		},
 		{
-			name: "Invalid nonce",
+			name: "Invalid nonce (fee credit record does not exist)",
 			tx: testfc.NewAddFC(t, signer,
 				testfc.NewAddFCAttr(t, signer,
 					testfc.WithTransferFCTx(
@@ -121,6 +121,34 @@ func TestAddFC(t *testing.T) {
 				),
 			),
 			wantErrMsg: "invalid transferFC nonce",
+		},
+		{
+			name: "Invalid nonce (tx nonce equals to fee credit record state hash and NOT backlink)",
+			tx: testfc.NewAddFC(t, signer,
+				testfc.NewAddFCAttr(t, signer,
+					testfc.WithTransferFCTx(
+						&types.TransactionRecord{
+							TransactionOrder: testfc.NewTransferFC(t, testfc.NewTransferFCAttr(testfc.WithNonce([]byte("sent nonce")))),
+							ServerMetadata:   nil,
+						},
+					),
+				),
+			),
+			unit:       &rma.Unit{Data: &FeeCreditRecord{Hash: []byte("actual nonce")}, StateHash: []byte("sent nonce")},
+			wantErrMsg: "invalid transferFC nonce",
+		},
+		{
+			name: "ok nonce (tx nonce equals fee credit record nonce)",
+			tx: testfc.NewAddFC(t, signer,
+				testfc.NewAddFCAttr(t, signer,
+					testfc.WithTransferFCTx(
+						&types.TransactionRecord{
+							TransactionOrder: testfc.NewTransferFC(t, testfc.NewTransferFCAttr(testfc.WithNonce([]byte("actual nonce")))),
+						},
+					),
+				),
+			),
+			unit: &rma.Unit{Data: &FeeCreditRecord{Hash: []byte("actual nonce")}},
 		},
 		{
 			name: "EarliestAdditionTime in the future NOK",

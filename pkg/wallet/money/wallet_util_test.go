@@ -109,7 +109,7 @@ func mockBackendCalls(br *backendMockReturnConf) (*httptest.Server, *url.URL) {
 				} else {
 					w.Write([]byte(fmt.Sprintf(`{"total": 1, "bills": [{"id":"%s","value":"%d","txHash":"%s","isDcBill":false}]}`, toBillId(br.billId), br.billValue, br.billTxHash)))
 				}
-			case path == "/"+beclient.FeeCreditPath:
+			case strings.Contains(path, beclient.FeeCreditPath):
 				w.WriteHeader(http.StatusOK)
 				fcb, _ := json.Marshal(br.feeCreditBill)
 				w.Write(fcb)
@@ -186,14 +186,14 @@ func createBillListJsonResponse(bills []*Bill) string {
 }
 
 type backendAPIMock struct {
-	getBalance         func(pubKey []byte, includeDCBills bool) (uint64, error)
-	listBills          func(pubKey []byte, includeDCBills bool) (*backend.ListBillsResponse, error)
-	getBills           func(pubKey []byte) ([]*wallet.Bill, error)
-	getProof           func(billId []byte) (*wallet.Bills, error)
-	getRoundNumber     func() (uint64, error)
-	getTxProof         func(ctx context.Context, unitID wallet.UnitID, txHash wallet.TxHash) (*wallet.Proof, error)
-	fetchFeeCreditBill func(ctx context.Context, unitID []byte) (*wallet.Bill, error)
-	postTransactions   func(ctx context.Context, pubKey wallet.PubKey, txs *wallet.Transactions) error
+	getBalance       func(pubKey []byte, includeDCBills bool) (uint64, error)
+	listBills        func(pubKey []byte, includeDCBills bool) (*backend.ListBillsResponse, error)
+	getBills         func(pubKey []byte) ([]*wallet.Bill, error)
+	getProof         func(billId []byte) (*wallet.Bills, error)
+	getRoundNumber   func() (uint64, error)
+	getTxProof       func(ctx context.Context, unitID wallet.UnitID, txHash wallet.TxHash) (*wallet.Proof, error)
+	getFeeCreditBill func(ctx context.Context, unitID []byte) (*wallet.Bill, error)
+	postTransactions func(ctx context.Context, pubKey wallet.PubKey, txs *wallet.Transactions) error
 }
 
 func (b *backendAPIMock) GetBills(pubKey []byte) ([]*wallet.Bill, error) {
@@ -210,11 +210,11 @@ func (b *backendAPIMock) GetRoundNumber(ctx context.Context) (uint64, error) {
 	return 0, errors.New("getRoundNumber not implemented")
 }
 
-func (b *backendAPIMock) FetchFeeCreditBill(ctx context.Context, unitID []byte) (*wallet.Bill, error) {
-	if b.fetchFeeCreditBill != nil {
-		return b.fetchFeeCreditBill(ctx, unitID)
+func (b *backendAPIMock) GetFeeCreditBill(ctx context.Context, unitID wallet.UnitID) (*wallet.Bill, error) {
+	if b.getFeeCreditBill != nil {
+		return b.getFeeCreditBill(ctx, unitID)
 	}
-	return nil, errors.New("fetchFeeCreditBill not implemented")
+	return nil, errors.New("getFeeCreditBill not implemented")
 }
 
 func (b *backendAPIMock) GetBalance(pubKey []byte, includeDCBills bool) (uint64, error) {

@@ -122,3 +122,23 @@ func (f *FeeCreditBill) GetValue() uint64 {
 	}
 	return 0
 }
+
+func (f *FeeCreditBill) GetTxHash() []byte {
+	if f != nil {
+		return f.TxHash
+	}
+	return nil
+}
+
+func (f *FeeCreditBill) ToGenericBill(txProof *wallet.Proof) *wallet.Bill {
+	if f == nil {
+		return nil
+	}
+	return &wallet.Bill{
+		Id:            f.Id,
+		Value:         f.Value,
+		TxHash:        f.TxHash,
+		FcBlockNumber: f.FCBlockNumber,
+		TxProof:       txProof,
+	}
+}

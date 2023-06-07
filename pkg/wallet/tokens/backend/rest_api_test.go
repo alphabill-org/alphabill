@@ -787,16 +787,44 @@ func Test_restAPI_getFeeCreditBill(t *testing.T) {
 		expectErrorResponse(t, rsp, http.StatusInternalServerError, "failed to load fee credit bill for ID 0x01: error fetching fee credit bill")
 	})
 
-	t.Run("404 fee credit bill not found", func(t *testing.T) {
+	t.Run("500 error fetching fee credit bill proof", func(t *testing.T) {
 		api := &restAPI{
 			db: &mockStorage{
 				getFeeCreditBill: func(unitID wallet.UnitID) (*FeeCreditBill, error) {
+					return &FeeCreditBill{
+						Id:            []byte{1},
+						Value:         2,
+						TxHash:        []byte{3},
+						FCBlockNumber: 4,
+					}, nil
+				},
+				getTxProof: func(unitID wallet.UnitID, txHash wallet.TxHash) (*wallet.Proof, error) {
+					return nil, errors.New("some error")
+				},
+			},
+		}
+		rsp := makeRequest(api, "0x01")
+		expectErrorResponse(t, rsp, http.StatusInternalServerError, "failed to load fee credit bill proof for ID 0x01 and TxHash 0x03: some error")
+	})
+
+	t.Run("404 fee credit bill proof not found", func(t *testing.T) {
+		api := &restAPI{
+			db: &mockStorage{
+				getFeeCreditBill: func(unitID wallet.UnitID) (*FeeCreditBill, error) {
+					return &FeeCreditBill{
+						Id:            []byte{1},
+						Value:         2,
+						TxHash:        []byte{3},
+						FCBlockNumber: 4,
+					}, nil
+				},
+				getTxProof: func(unitID wallet.UnitID, txHash wallet.TxHash) (*wallet.Proof, error) {
 					return nil, nil
 				},
 			},
 		}
 		rsp := makeRequest(api, "0x01")
-		expectErrorResponse(t, rsp, http.StatusNotFound, "bill does not exist")
+		expectErrorResponse(t, rsp, http.StatusNotFound, "fee credit bill proof does not exist")
 	})
 
 	t.Run("ok", func(t *testing.T) {
@@ -806,10 +834,14 @@ func Test_restAPI_getFeeCreditBill(t *testing.T) {
 			TxHash:        []byte{3},
 			FCBlockNumber: 4,
 		}
+		fcbProof := &wallet.Proof{}
 		api := &restAPI{
 			db: &mockStorage{
 				getFeeCreditBill: func(unitID wallet.UnitID) (*FeeCreditBill, error) {
 					return fcb, nil
+				},
+				getTxProof: func(unitID wallet.UnitID, txHash wallet.TxHash) (*wallet.Proof, error) {
+					return fcbProof, nil
 				},
 			},
 		}
@@ -817,11 +849,10 @@ func Test_restAPI_getFeeCreditBill(t *testing.T) {
 		require.Equal(t, http.StatusOK, rsp.StatusCode, "unexpected status")
 		defer rsp.Body.Close()
 
-		fcbFromAPI := &FeeCreditBill{}
+		fcbFromAPI := &wallet.Bill{}
 		if err := json.NewDecoder(rsp.Body).Decode(fcbFromAPI); err != nil {
 			t.Fatalf("failed to decode response body: %v", err)
 		}
-
-		require.Equal(t, fcb, fcbFromAPI)
+		require.Equal(t, fcb.ToGenericBill(fcbProof), fcbFromAPI)
 	})
 }

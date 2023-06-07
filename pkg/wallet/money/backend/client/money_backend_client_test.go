@@ -126,7 +126,7 @@ func Test_NewClient(t *testing.T) {
 func TestGetFeeCreditBill(t *testing.T) {
 	serverURL := mockGetFeeCreditBillCall(t)
 	restClient, _ := New(serverURL.Host)
-	response, err := restClient.FetchFeeCreditBill(context.Background(), []byte{})
+	response, err := restClient.GetFeeCreditBill(context.Background(), []byte{})
 	require.NoError(t, err)
 
 	expectedBillID, _ := base64.StdEncoding.DecodeString(billId)

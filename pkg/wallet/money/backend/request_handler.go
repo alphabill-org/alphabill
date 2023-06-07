@@ -86,7 +86,7 @@ func (s *RequestHandler) Router() *mux.Router {
 	apiV1.HandleFunc("/balance", s.balanceFunc).Methods("GET", "OPTIONS")
 	apiV1.HandleFunc("/proof", s.getProofFunc).Methods("GET", "OPTIONS")
 	apiV1.HandleFunc("/round-number", s.blockHeightFunc).Methods("GET", "OPTIONS")
-	apiV1.HandleFunc("/fee-credit-bill", s.getFeeCreditBillFunc).Methods("GET", "OPTIONS")
+	apiV1.HandleFunc("/fee-credit-bills/{billId}", s.getFeeCreditBillFunc).Methods("GET", "OPTIONS")
 	apiV1.HandleFunc("/transactions/{pubkey}", s.postTransactions).Methods("POST", "OPTIONS")
 
 	apiV1.PathPrefix("/swagger/").Handler(httpSwagger.Handler(
@@ -277,15 +277,16 @@ func (s *RequestHandler) blockHeightFunc(w http.ResponseWriter, r *http.Request)
 // @Id 5
 // @version 1.0
 // @produce application/json
-// @Param bill_id query string true "ID of the bill (hex)"
-// @Success 200 {object} bp.Bill
-// @Router /fee-credit-bill [get]
+// @Param billId path string true "ID of the bill (hex)"
+// @Success 200 {object} wallet.Bill
+// @Router /fee-credit-bills [get]
 func (s *RequestHandler) getFeeCreditBillFunc(w http.ResponseWriter, r *http.Request) {
-	billID, err := parseBillID(r)
+	vars := mux.Vars(r)
+	billID, err := decodeBillIdHex(vars["billId"])
 	if err != nil {
-		log.Debug("error parsing GET /fee-credit-bill request: ", err)
+		log.Debug("error parsing GET /fee-credit-bills request: ", err)
 		w.WriteHeader(http.StatusBadRequest)
-		if errors.Is(err, errMissingBillIDQueryParam) || errors.Is(err, errInvalidBillIDLength) {
+		if errors.Is(err, errInvalidBillIDLength) {
 			writeAsJson(w, ErrorResponse{Message: err.Error()})
 		} else {
 			writeAsJson(w, ErrorResponse{Message: "invalid bill_id format"})

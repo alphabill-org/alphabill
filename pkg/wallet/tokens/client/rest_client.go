@@ -165,8 +165,8 @@ func (tb *TokenBackend) PostTransactions(ctx context.Context, pubKey wallet.PubK
 	return nil
 }
 
-func (tb *TokenBackend) GetFeeCreditBill(ctx context.Context, unitID wallet.UnitID) (*backend.FeeCreditBill, error) {
-	var fcb *backend.FeeCreditBill
+func (tb *TokenBackend) GetFeeCreditBill(ctx context.Context, unitID wallet.UnitID) (*wallet.Bill, error) {
+	var fcb *wallet.Bill
 	addr := tb.getURL(apiPathPrefix, "fee-credit-bills", hexutil.Encode(unitID))
 	_, err := tb.get(ctx, addr, &fcb, false)
 	if err != nil {
@@ -176,22 +176,6 @@ func (tb *TokenBackend) GetFeeCreditBill(ctx context.Context, unitID wallet.Unit
 		return nil, fmt.Errorf("get fee credit bill request failed: %w", err)
 	}
 	return fcb, nil
-}
-
-func (tb *TokenBackend) FetchFeeCreditBill(ctx context.Context, unitID []byte) (*wallet.Bill, error) {
-	fcb, err := tb.GetFeeCreditBill(ctx, unitID)
-	if err != nil {
-		return nil, err
-	}
-	if fcb == nil {
-		return nil, nil
-	}
-	return &wallet.Bill{
-		Id:            fcb.Id,
-		Value:         fcb.Value,
-		TxHash:        fcb.TxHash,
-		FcBlockNumber: fcb.FCBlockNumber,
-	}, nil
 }
 
 func (tb *TokenBackend) getURL(pathElements ...string) *url.URL {

@@ -43,7 +43,7 @@
                 }
             }
         },
-        "/fee-credit-bill": {
+        "/fee-credit-bills": {
             "get": {
                 "produces": [
                     "application/json"
@@ -54,8 +54,8 @@
                     {
                         "type": "string",
                         "description": "ID of the bill (hex)",
-                        "name": "bill_id",
-                        "in": "query",
+                        "name": "billId",
+                        "in": "path",
                         "required": true
                     }
                 ],
@@ -63,7 +63,7 @@
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/bp.Bill"
+                            "$ref": "#/definitions/wallet.Bill"
                         }
                     }
                 }
@@ -139,7 +139,7 @@
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/bp.Bills"
+                            "$ref": "#/definitions/wallet.Bills"
                         }
                     },
                     "400": {
@@ -182,7 +182,7 @@
                 "produces": [
                     "application/json"
                 ],
-                "summary": "Forward transactions to partiton node(s)",
+                "summary": "Forward transactions to partition node(s)",
                 "operationId": "6",
                 "parameters": [
                     {
@@ -202,22 +202,6 @@
         }
     },
     "definitions": {
-        "anypb.Any": {
-            "type": "object",
-            "properties": {
-                "type_url": {
-                    "description": "A URL/resource name that uniquely identifies the type of the serialized\nprotocol buffer message. This string must contain at least\none \"/\" character. The last segment of the URL's path must represent\nthe fully qualified name of the type (as in\n`path/google.protobuf.Duration`). The name should be in a canonical form\n(e.g., leading \".\" is not accepted).\n\nIn practice, teams usually precompile into the binary all types that they\nexpect it to use in the context of Any. However, for URLs which use the\nscheme `http`, `https`, or no scheme, one can optionally set up a type\nserver that maps type URLs to message definitions as follows:\n\n  - If no scheme is provided, `https` is assumed.\n  - An HTTP GET on the URL must yield a [google.protobuf.Type][]\n    value in binary format, or produce an error.\n  - Applications are allowed to cache lookup results based on the\n    URL, or have them precompiled into a binary to avoid any\n    lookup. Therefore, binary compatibility needs to be preserved\n    on changes to types. (Use versioned type names to manage\n    breaking changes.)\n\nNote: this functionality is not currently available in the official\nprotobuf release, and it is not used for type URLs beginning with\ntype.googleapis.com.\n\nSchemes other than `http`, `https` (or the empty scheme) might be\nused with implementation specific semantics.",
-                    "type": "string"
-                },
-                "value": {
-                    "description": "Must be a valid serialized protocol buffer of the above specified type.",
-                    "type": "array",
-                    "items": {
-                        "type": "integer"
-                    }
-                }
-            }
-        },
         "backend.BalanceResponse": {
             "type": "object",
             "properties": {
@@ -282,54 +266,24 @@
                 }
             }
         },
-        "block.BlockProof": {
+        "types.ClientMetadata": {
             "type": "object",
             "properties": {
-                "block_header_hash": {
+                "feeCreditRecordID": {
                     "type": "array",
                     "items": {
                         "type": "integer"
                     }
                 },
-                "block_tree_hash_chain": {
-                    "$ref": "#/definitions/block.BlockTreeHashChain"
+                "maxTransactionFee": {
+                    "type": "integer"
                 },
-                "hash_value": {
-                    "description": "hash value of either primary tx or secondary txs or zero hash, depending on proof type",
-                    "type": "array",
-                    "items": {
-                        "type": "integer"
-                    }
-                },
-                "proof_type": {
-                    "$ref": "#/definitions/block.ProofType"
-                },
-                "sec_tree_hash_chain": {
-                    "$ref": "#/definitions/block.SecTreeHashChain"
-                },
-                "transactions_hash": {
-                    "type": "array",
-                    "items": {
-                        "type": "integer"
-                    }
-                },
-                "unicity_certificate": {
-                    "$ref": "#/definitions/certificates.UnicityCertificate"
+                "timeout": {
+                    "type": "integer"
                 }
             }
         },
-        "block.BlockTreeHashChain": {
-            "type": "object",
-            "properties": {
-                "items": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/block.ChainItem"
-                    }
-                }
-            }
-        },
-        "block.ChainItem": {
+        "types.GenericChainItem": {
             "type": "object",
             "properties": {
                 "hash": {
@@ -338,114 +292,12 @@
                         "type": "integer"
                     }
                 },
-                "val": {
-                    "type": "array",
-                    "items": {
-                        "type": "integer"
-                    }
-                }
-            }
-        },
-        "block.MerklePathItem": {
-            "type": "object",
-            "properties": {
-                "direction_left": {
-                    "description": "DirectionLeft direction from parent node; left=true right=false",
+                "left": {
                     "type": "boolean"
-                },
-                "path_item": {
-                    "description": "PathItem Hash of Merkle Tree node",
-                    "type": "array",
-                    "items": {
-                        "type": "integer"
-                    }
                 }
             }
         },
-        "block.ProofType": {
-            "type": "integer",
-            "enum": [
-                0,
-                1,
-                2,
-                3,
-                4
-            ],
-            "x-enum-varnames": [
-                "ProofType_PRIM",
-                "ProofType_SEC",
-                "ProofType_ONLYSEC",
-                "ProofType_NOTRANS",
-                "ProofType_EMPTYBLOCK"
-            ]
-        },
-        "block.SecTreeHashChain": {
-            "type": "object",
-            "properties": {
-                "items": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/block.MerklePathItem"
-                    }
-                }
-            }
-        },
-        "block.TxProof": {
-            "type": "object",
-            "properties": {
-                "block_number": {
-                    "type": "integer"
-                },
-                "proof": {
-                    "$ref": "#/definitions/block.BlockProof"
-                },
-                "tx": {
-                    "$ref": "#/definitions/txsystem.Transaction"
-                }
-            }
-        },
-        "bp.Bill": {
-            "type": "object",
-            "properties": {
-                "fc_block_number": {
-                    "description": "block number when fee credit bill balance was last updated",
-                    "type": "integer"
-                },
-                "id": {
-                    "type": "array",
-                    "items": {
-                        "type": "integer"
-                    }
-                },
-                "is_dc_bill": {
-                    "type": "boolean"
-                },
-                "tx_hash": {
-                    "type": "array",
-                    "items": {
-                        "type": "integer"
-                    }
-                },
-                "tx_proof": {
-                    "$ref": "#/definitions/block.TxProof"
-                },
-                "value": {
-                    "type": "integer"
-                }
-            }
-        },
-        "bp.Bills": {
-            "type": "object",
-            "properties": {
-                "bills": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/bp.Bill"
-                    }
-                }
-            }
-        },
-        "certificates.InputRecord": {
+        "types.InputRecord": {
             "type": "object",
             "properties": {
                 "block_hash": {
@@ -486,21 +338,118 @@
                 }
             }
         },
-        "certificates.UnicityCertificate": {
+        "types.Payload": {
             "type": "object",
             "properties": {
-                "input_record": {
-                    "$ref": "#/definitions/certificates.InputRecord"
+                "attributes": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
                 },
-                "unicity_seal": {
-                    "$ref": "#/definitions/certificates.UnicitySeal"
+                "clientMetadata": {
+                    "$ref": "#/definitions/types.ClientMetadata"
                 },
-                "unicity_tree_certificate": {
-                    "$ref": "#/definitions/certificates.UnicityTreeCertificate"
+                "systemID": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                },
+                "type": {
+                    "type": "string"
+                },
+                "unitID": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
                 }
             }
         },
-        "certificates.UnicitySeal": {
+        "types.ServerMetadata": {
+            "type": "object",
+            "properties": {
+                "actualFee": {
+                    "type": "integer"
+                },
+                "targetUnits": {
+                    "type": "array",
+                    "items": {
+                        "type": "array",
+                        "items": {
+                            "type": "integer"
+                        }
+                    }
+                }
+            }
+        },
+        "types.TransactionOrder": {
+            "type": "object",
+            "properties": {
+                "feeProof": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                },
+                "ownerProof": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                },
+                "payload": {
+                    "$ref": "#/definitions/types.Payload"
+                }
+            }
+        },
+        "types.TransactionRecord": {
+            "type": "object",
+            "properties": {
+                "serverMetadata": {
+                    "$ref": "#/definitions/types.ServerMetadata"
+                },
+                "transactionOrder": {
+                    "$ref": "#/definitions/types.TransactionOrder"
+                }
+            }
+        },
+        "types.TxProof": {
+            "type": "object",
+            "properties": {
+                "blockHeaderHash": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                },
+                "chain": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/types.GenericChainItem"
+                    }
+                },
+                "unicityCertificate": {
+                    "$ref": "#/definitions/types.UnicityCertificate"
+                }
+            }
+        },
+        "types.UnicityCertificate": {
+            "type": "object",
+            "properties": {
+                "input_record": {
+                    "$ref": "#/definitions/types.InputRecord"
+                },
+                "unicity_seal": {
+                    "$ref": "#/definitions/types.UnicitySeal"
+                },
+                "unicity_tree_certificate": {
+                    "$ref": "#/definitions/types.UnicityTreeCertificate"
+                }
+            }
+        },
+        "types.UnicitySeal": {
             "type": "object",
             "properties": {
                 "hash": {
@@ -532,7 +481,7 @@
                 }
             }
         },
-        "certificates.UnicityTreeCertificate": {
+        "types.UnicityTreeCertificate": {
             "type": "object",
             "properties": {
                 "sibling_hashes": {
@@ -558,81 +507,57 @@
                 }
             }
         },
-        "txsystem.ClientMetadata": {
+        "wallet.Bill": {
             "type": "object",
             "properties": {
-                "fee_credit_record_id": {
-                    "description": "fee credit record identifier (should be empty for fee credit transactions)",
+                "fc_block_number": {
+                    "description": "block number when fee credit bill balance was last updated",
+                    "type": "string",
+                    "example": "0"
+                },
+                "id": {
                     "type": "array",
                     "items": {
                         "type": "integer"
                     }
                 },
-                "max_fee": {
-                    "description": "maximum fee the user is willing to pay for the execution of this transaction",
-                    "type": "integer"
+                "is_dc_bill": {
+                    "type": "boolean"
                 },
-                "timeout": {
-                    "description": "transaction timeout block height",
-                    "type": "integer"
+                "tx_hash": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                },
+                "tx_proof": {
+                    "$ref": "#/definitions/wallet.Proof"
+                },
+                "value": {
+                    "type": "string",
+                    "example": "0"
                 }
             }
         },
-        "txsystem.ServerMetadata": {
+        "wallet.Bills": {
             "type": "object",
             "properties": {
-                "fee": {
-                    "description": "actual transaction fee charged",
-                    "type": "integer"
+                "bills": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/wallet.Bill"
+                    }
                 }
             }
         },
-        "txsystem.Transaction": {
+        "wallet.Proof": {
             "type": "object",
             "properties": {
-                "client_metadata": {
-                    "description": "transaction metadata added by user",
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/txsystem.ClientMetadata"
-                        }
-                    ]
+                "txProof": {
+                    "$ref": "#/definitions/types.TxProof"
                 },
-                "fee_proof": {
-                    "description": "optional fee authorization proof (omitted when the main owner proof also satisfies the fee owner condition)",
-                    "type": "array",
-                    "items": {
-                        "type": "integer"
-                    }
-                },
-                "owner_proof": {
-                    "type": "array",
-                    "items": {
-                        "type": "integer"
-                    }
-                },
-                "server_metadata": {
-                    "description": "transaction metadata added by node",
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/txsystem.ServerMetadata"
-                        }
-                    ]
-                },
-                "system_id": {
-                    "type": "array",
-                    "items": {
-                        "type": "integer"
-                    }
-                },
-                "transaction_attributes": {
-                    "$ref": "#/definitions/anypb.Any"
-                },
-                "unit_id": {
-                    "type": "array",
-                    "items": {
-                        "type": "integer"
-                    }
+                "txRecord": {
+                    "$ref": "#/definitions/types.TransactionRecord"
                 }
             }
         }

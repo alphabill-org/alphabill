@@ -108,11 +108,11 @@ func TestAdd_Rotations(t *testing.T) {
 		{
 			name: "rotate left right",
 			prepareValues: []value{
-				//		┌───┤ key=30, depth=1, value=30, total=30
-				//	────┤ key=20, depth=3, value=20, total=20
+				//		┌───┤ key=30, depth=1, value=30
+				//	────┤ key=20, depth=3, value=20
 				//		│	┌───┤ key=15, depth=1, value=1
-				//		└───┤ key=10, depth=2, value=10, total=10
-				//			└───┤ key=1, depth=1, value=10, total=10
+				//		└───┤ key=10, depth=2, value=10
+				//			└───┤ key=1, depth=1, value=10
 				{key: 20, value: 20},
 				{key: 10, value: 10},
 				{key: 30, value: 30},
@@ -122,12 +122,12 @@ func TestAdd_Rotations(t *testing.T) {
 			valueToAdd:    value{12, 12},
 			expectedTotal: 88,
 			expectedOrder: []order{
-				//			┌───┤ key=30, depth=1, value=30, total=30, clean=true
-				//		┌───┤ key=20, depth=2, value=20, total=76, clean=false
-				//	────┤ key=15, depth=3, value=15, total=15, clean=false
-				//		│	┌───┤ key=12, depth=1, value=12, total=12, clean=false
-				//		└───┤ key=10, depth=2, value=10, total=26, clean=false
-				//			└───┤ key=1, depth=1, value=1, total=1, clean=true
+				//			┌───┤ key=30, depth=1, value=30
+				//		┌───┤ key=20, depth=2, value=20
+				//	────┤ key=15, depth=3, value=15
+				//		│	┌───┤ key=12, depth=1, value=12
+				//		└───┤ key=10, depth=2, value=10
+				//			└───┤ key=1, depth=1, value=1
 				{value: value{key: 1, value: 1}, clean: true, depth: 1},
 				{value: value{key: 12, value: 12}, clean: false, depth: 1},
 				{value: value{key: 10, value: 10}, clean: false, depth: 2},
@@ -139,11 +139,11 @@ func TestAdd_Rotations(t *testing.T) {
 		{
 			name: "rotate right left",
 			prepareValues: []value{
-				//			┌───┤ key=31, depth=1, value=31, total=31, clean=true
-				//		┌───┤ key=30, depth=2, value=30, total=86, clean=true
-				//		│	└───┤ key=25, depth=1, value=25, total=25, clean=true
-				//	────┤ key=20, depth=3, value=20, total=116, clean=true
-				//		└───┤ key=10, depth=1, value=10, total=10, clean=true
+				//			┌───┤ key=31, depth=1, value=31
+				//		┌───┤ key=30, depth=2, value=30
+				//		│	└───┤ key=25, depth=1, value=25
+				//	────┤ key=20, depth=3, value=20
+				//		└───┤ key=10, depth=1, value=10
 				{key: 20, value: 20},
 				{key: 10, value: 10},
 				{key: 30, value: 30},
@@ -153,12 +153,12 @@ func TestAdd_Rotations(t *testing.T) {
 			valueToAdd:    value{24, 24},
 			expectedTotal: 140,
 			expectedOrder: []order{
-				//			┌───┤ key=31, depth=1, value=31, total=31, clean=true
-				//		┌───┤ key=30, depth=2, value=30, total=86, clean=false
-				//	────┤ key=25, depth=3, value=25, total=25, clean=false
-				//		│	┌───┤ key=24, depth=1, value=24, total=24, clean=false
-				//		└───┤ key=20, depth=2, value=20, total=116, clean=false
-				//			└───┤ key=10, depth=1, value=10, total=10, clean=true
+				//			┌───┤ key=31, depth=1, value=31
+				//		┌───┤ key=30, depth=2, value=30
+				//	────┤ key=25, depth=3, value=25
+				//		│	┌───┤ key=24, depth=1, value=24
+				//		└───┤ key=20, depth=2, value=20
+				//			└───┤ key=10, depth=1, value=10
 				{value: value{key: 10, value: 10}, clean: true, depth: 1},
 				{value: value{key: 24, value: 24}, clean: false, depth: 1},
 				{value: value{key: 20, value: 20}, clean: false, depth: 2},

@@ -17,7 +17,7 @@ func (t *Tree[K, V]) Delete(key K) error {
 
 func delete[K Key[K], V Value[V]](node *Node[K, V], key K) (*Node[K, V], error) {
 	if node == nil {
-		return nil, fmt.Errorf("key %v does not exist", key)
+		return nil, fmt.Errorf("%w: key %v does not exist", ErrNotFound, key)
 	}
 	if node.clean {
 		node = newDirtyNode[K, V](node)

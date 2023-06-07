@@ -19,7 +19,7 @@ func (t *Tree[K, V]) Update(key K, value V) error {
 
 func update[K Key[K], V Value[V]](node *Node[K, V], key K, value V) (*Node[K, V], error) {
 	if node == nil {
-		return nil, fmt.Errorf("key %v does not exist", key)
+		return nil, fmt.Errorf("%w: key %v does not exist", ErrNotFound, key)
 	}
 	if node.clean {
 		node = newDirtyNode(node)

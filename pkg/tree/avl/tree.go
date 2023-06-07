@@ -75,8 +75,12 @@ func (p *PostOrderCommitTraverser[K, V]) Traverse(n *Node[K, V]) error {
 	if n == nil || n.clean {
 		return nil
 	}
-	p.Traverse(n.left)
-	p.Traverse(n.right)
+	if err := p.Traverse(n.left); err != nil {
+		return err
+	}
+	if err := p.Traverse(n.right); err != nil {
+		return err
+	}
 	n.clean = true
 	return nil
 }

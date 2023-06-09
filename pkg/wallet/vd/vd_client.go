@@ -116,7 +116,7 @@ func (v *VDClient) GetTxProof(ctx context.Context, unitID wallet.UnitID, txHash 
 	}
 }
 
-func (v *VDClient) FetchFeeCreditBill(ctx context.Context, unitID []byte) (*wallet.Bill, error) {
+func (v *VDClient) GetFeeCreditBill(ctx context.Context, unitID wallet.UnitID) (*wallet.Bill, error) {
 	dbFilePath := filepath.Join(v.walletHomeDir, vdStorageFileName)
 	db, err := newBoltStore(dbFilePath)
 	if err != nil {
@@ -246,7 +246,7 @@ func (v *VDClient) registerHashTx(ctx context.Context, hash []byte) error {
 }
 
 func (v *VDClient) ensureFeeCredit(ctx context.Context, accountKey *account.AccountKey) error {
-	fcb, err := v.FetchFeeCreditBill(ctx, accountKey.PrivKeyHash)
+	fcb, err := v.GetFeeCreditBill(ctx, accountKey.PrivKeyHash)
 	if err != nil {
 		return err
 	}

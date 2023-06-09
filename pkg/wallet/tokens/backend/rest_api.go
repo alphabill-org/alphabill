@@ -14,7 +14,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/fxamacker/cbor/v2"
 	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
@@ -23,6 +22,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/hash"
 	"github.com/alphabill-org/alphabill/internal/script"
 	"github.com/alphabill-org/alphabill/internal/txsystem/tokens"
+	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/alphabill-org/alphabill/pkg/wallet/broker"
 )
@@ -304,10 +304,20 @@ func (api *restAPI) getFeeCreditBill(w http.ResponseWriter, r *http.Request) {
 	}
 	if fcb == nil {
 		w.WriteHeader(http.StatusNotFound)
-		api.writeResponse(w, ErrorResponse{Message: "bill does not exist"})
+		api.writeResponse(w, ErrorResponse{Message: "fee credit bill does not exist"})
 		return
 	}
-	api.writeResponse(w, fcb)
+	fcbProof, err := api.db.GetTxProof(unitID, fcb.TxHash)
+	if err != nil {
+		api.writeErrorResponse(w, fmt.Errorf("failed to load fee credit bill proof for ID 0x%X and TxHash 0x%X: %w", unitID, fcb.GetTxHash(), err))
+		return
+	}
+	if fcbProof == nil {
+		w.WriteHeader(http.StatusNotFound)
+		api.writeResponse(w, ErrorResponse{Message: "fee credit bill proof does not exist"})
+		return
+	}
+	api.writeResponse(w, fcb.ToGenericBill(fcbProof))
 }
 
 func (api *restAPI) saveTx(ctx context.Context, tx *types.TransactionOrder, owner []byte) error {

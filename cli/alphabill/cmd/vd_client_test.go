@@ -15,7 +15,6 @@ import (
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/internal/txsystem/money"
 	"github.com/alphabill-org/alphabill/internal/txsystem/vd"
-	abclient "github.com/alphabill-org/alphabill/pkg/client"
 	"github.com/alphabill-org/alphabill/pkg/wallet/account"
 	"github.com/alphabill-org/alphabill/pkg/wallet/fees"
 	moneywallet "github.com/alphabill-org/alphabill/pkg/wallet/money"
@@ -94,7 +93,7 @@ func NewVDAlphabillNetwork(t *testing.T, ctx context.Context) *VDAlphabillNetwor
 	require.NoError(t, am.CreateKeys(""))
 	accountKey, err := am.GetAccountKey(0)
 
-	moneyWallet, err := moneywallet.LoadExistingWallet(abclient.AlphabillClientConfig{Uri: moneyPartition.Nodes[0].AddrGRPC}, am, moneyBackendClient)
+	moneyWallet, err := moneywallet.LoadExistingWallet(am, moneyBackendClient)
 	require.NoError(t, err)
 	t.Cleanup(moneyWallet.Close)
 

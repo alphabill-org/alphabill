@@ -25,7 +25,7 @@ type (
 
 	PartitionDataProvider interface {
 		GetRoundNumber(ctx context.Context) (uint64, error)
-		FetchFeeCreditBill(ctx context.Context, unitID []byte) (*wallet.Bill, error)
+		GetFeeCreditBill(ctx context.Context, unitID wallet.UnitID) (*wallet.Bill, error)
 	}
 
 	MoneyClient interface {
@@ -125,7 +125,7 @@ func (w *FeeManager) AddFeeCredit(ctx context.Context, cmd AddFeeCmd) ([]*wallet
 	}
 
 	// fetch fee credit bill
-	fcb, err := w.GetFeeCreditBill(ctx, GetFeeCreditCmd{AccountIndex: cmd.AccountIndex})
+	fcb, err := w.GetFeeCredit(ctx, GetFeeCreditCmd{AccountIndex: cmd.AccountIndex})
 	if err != nil {
 		return nil, err
 	}
@@ -194,7 +194,7 @@ func (w *FeeManager) ReclaimFeeCredit(ctx context.Context, cmd ReclaimFeeCmd) ([
 	}
 
 	// fetch fee credit bill
-	fcb, err := w.GetFeeCreditBill(ctx, GetFeeCreditCmd{AccountIndex: cmd.AccountIndex})
+	fcb, err := w.GetFeeCredit(ctx, GetFeeCreditCmd{AccountIndex: cmd.AccountIndex})
 	if err != nil {
 		return nil, err
 	}
@@ -250,14 +250,14 @@ func (w *FeeManager) ReclaimFeeCredit(ctx context.Context, cmd ReclaimFeeCmd) ([
 	return []*wallet.Proof{closeFCProof, reclaimFCProof}, nil
 }
 
-// GetFeeCreditBill returns fee credit bill for given account,
+// GetFeeCredit returns fee credit bill for given account,
 // can return nil if fee credit bill has not been created yet.
-func (w *FeeManager) GetFeeCreditBill(ctx context.Context, cmd GetFeeCreditCmd) (*wallet.Bill, error) {
+func (w *FeeManager) GetFeeCredit(ctx context.Context, cmd GetFeeCreditCmd) (*wallet.Bill, error) {
 	accountKey, err := w.am.GetAccountKey(cmd.AccountIndex)
 	if err != nil {
 		return nil, err
 	}
-	return w.userPartitionBackendClient.FetchFeeCreditBill(ctx, accountKey.PrivKeyHash)
+	return w.userPartitionBackendClient.GetFeeCreditBill(ctx, accountKey.PrivKeyHash)
 }
 
 func (w *FeeManager) Close() {

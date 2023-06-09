@@ -81,7 +81,7 @@ func (m *mockMoneyClient) GetBills(pubKey []byte) ([]*wallet.Bill, error) {
 	return m.bills, nil
 }
 
-func (m *mockMoneyClient) FetchFeeCreditBill(ctx context.Context, unitID []byte) (*wallet.Bill, error) {
+func (m *mockMoneyClient) GetFeeCreditBill(ctx context.Context, unitID wallet.UnitID) (*wallet.Bill, error) {
 	return nil, nil
 }
 

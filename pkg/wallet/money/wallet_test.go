@@ -5,7 +5,6 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	abclient "github.com/alphabill-org/alphabill/pkg/client"
 	"github.com/alphabill-org/alphabill/pkg/wallet/account"
 	beclient "github.com/alphabill-org/alphabill/pkg/wallet/money/backend/client"
 	"github.com/ethereum/go-ethereum/common/hexutil"
@@ -27,7 +26,7 @@ func TestExistingWalletCanBeLoaded(t *testing.T) {
 	}))
 	restClient, err := beclient.New(server.URL)
 	require.NoError(t, err)
-	_, err = LoadExistingWallet(abclient.AlphabillClientConfig{}, am, restClient)
+	_, err = LoadExistingWallet(am, restClient)
 	require.NoError(t, err)
 }
 

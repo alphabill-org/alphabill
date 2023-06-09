@@ -165,6 +165,11 @@ func (w *Wallet) GetBalances(cmd GetBalanceCmd) ([]uint64, uint64, error) {
 	return totals, sum, err
 }
 
+// GetRoundNumber returns latest round number known to the wallet, including empty rounds.
+func (w *Wallet) GetRoundNumber(ctx context.Context) (uint64, error) {
+	return w.backend.GetRoundNumber(ctx)
+}
+
 // Send creates, signs and broadcasts transactions, in total for the given amount,
 // to the given public key, the public key must be in compressed secp256k1 format.
 // Sends one transaction per bill, prioritizing larger bills.

@@ -5,7 +5,6 @@ import (
 	"context"
 	"crypto"
 	"errors"
-	"sync"
 	"testing"
 
 	"github.com/alphabill-org/alphabill/internal/hash"
@@ -696,9 +695,9 @@ func TestBlockingDcWithNormalBills(t *testing.T) {
 
 	w, _ := CreateTestWalletWithManager(t, backendMock, am)
 
-	// when blocking dust collector runs
-	wg := runBlockingDc(t, w)
-	wg.Wait()
+	// when dc runs
+	err = w.collectDust(context.Background(), 0)
+	require.NoError(t, err)
 
 	// and dc + swap txs should be sent
 	require.Len(t, recordedTxs, 3)
@@ -764,8 +763,9 @@ func TestBlockingDCWithExistingExpiredDCBills(t *testing.T) {
 
 	w, _ := CreateTestWalletWithManager(t, backendMock, am)
 
-	// when blocking dust collector runs
-	_ = runBlockingDc(t, w)
+	// when dc runs
+	err = w.collectDust(context.Background(), 0)
+	require.NoError(t, err)
 
 	// and swap tx should be sent
 	for _, tx := range recordedTxs {
@@ -774,17 +774,6 @@ func TestBlockingDCWithExistingExpiredDCBills(t *testing.T) {
 			require.EqualValues(t, 3, swapTx.TargetValue)
 		}
 	}
-}
-
-func runBlockingDc(t *testing.T, w *Wallet) *sync.WaitGroup {
-	wg := sync.WaitGroup{}
-	wg.Add(1)
-	go func() {
-		err := w.collectDust(context.Background(), 0)
-		require.NoError(t, err)
-		wg.Done()
-	}()
-	return &wg
 }
 
 func addBill(value uint64) *Bill {

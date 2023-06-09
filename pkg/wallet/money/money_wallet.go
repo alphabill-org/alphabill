@@ -295,8 +295,6 @@ func (w *Wallet) GetFeeCreditBill(ctx context.Context, unitID wallet.UnitID) (*w
 // collectDust sends dust transfer for every bill for given account in wallet.
 // Returns immediately without error if there's already 1 or 0 bills.
 // Once the dust transfers get confirmed on the ledger then swap transfer is broadcast.
-// If blocking is true then the function blocks until swap has been completed or timed out,
-// if blocking is false then the function returns after sending the dc transfers.
 func (w *Wallet) collectDust(ctx context.Context, accountIndex uint64) error {
 	log.Info("starting dust collection for account=", accountIndex)
 	roundNr, err := w.backend.GetRoundNumber(ctx)

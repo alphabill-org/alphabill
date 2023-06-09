@@ -7,10 +7,10 @@ import (
 	"net"
 	"sync"
 
-	"github.com/alphabill-org/alphabill/internal/block"
 	"github.com/alphabill-org/alphabill/internal/rpc/alphabill"
-	"github.com/alphabill-org/alphabill/internal/txsystem"
+	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/internal/util"
+	"github.com/fxamacker/cbor/v2"
 	"google.golang.org/grpc"
 	"google.golang.org/protobuf/types/known/emptypb"
 )
@@ -20,20 +20,25 @@ type TestAlphabillServiceServer struct {
 	mu             sync.Mutex
 	pubKey         []byte
 	maxBlockHeight uint64
-	processedTxs   []*txsystem.Transaction
+	processedTxs   []*types.TransactionOrder
 	processTxError error
-	blocks         map[uint64]func() *block.Block
+	blocks         map[uint64]func() *types.Block
 	alphabill.UnimplementedAlphabillServiceServer
 }
 
 func NewTestAlphabillServiceServer() *TestAlphabillServiceServer {
-	return &TestAlphabillServiceServer{blocks: make(map[uint64]func() *block.Block, 100)}
+	return &TestAlphabillServiceServer{blocks: make(map[uint64]func() *types.Block, 100)}
 }
 
-func (s *TestAlphabillServiceServer) ProcessTransaction(_ context.Context, tx *txsystem.Transaction) (*emptypb.Empty, error) {
+func (s *TestAlphabillServiceServer) ProcessTransaction(_ context.Context, tx *alphabill.Transaction) (*emptypb.Empty, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.processedTxs = append(s.processedTxs, tx)
+
+	txo := &types.TransactionOrder{}
+	if err := cbor.Unmarshal(tx.Order, txo); err != nil {
+		return &emptypb.Empty{}, err
+	}
+	s.processedTxs = append(s.processedTxs, txo)
 	return &emptypb.Empty{}, s.processTxError
 }
 
@@ -44,20 +49,37 @@ func (s *TestAlphabillServiceServer) GetBlock(_ context.Context, req *alphabill.
 	if !ok {
 		return nil, fmt.Errorf("block with number %d not found", req.BlockNo)
 	}
-	return &alphabill.GetBlockResponse{Block: blockFunc()}, nil
+	block := blockFunc()
+	blockBytes, err := toBytes(block)
+	if err != nil {
+		return nil, err
+	}
+	return &alphabill.GetBlockResponse{Block: blockBytes}, nil
+}
+
+func toBytes(block *types.Block) ([]byte, error) {
+	blockBytes, err := cbor.Marshal(block)
+	if err != nil {
+		return nil, err
+	}
+	return blockBytes, nil
 }
 
 func (s *TestAlphabillServiceServer) GetBlocks(_ context.Context, req *alphabill.GetBlocksRequest) (*alphabill.GetBlocksResponse, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	blocks := make([]*block.Block, 0, req.BlockCount)
+	blocks := make([][]byte, 0, req.BlockCount)
 	maxBlockNumber := util.Min(s.maxBlockHeight, req.BlockNumber+req.BlockCount-1)
 	for i := req.BlockNumber; i <= maxBlockNumber; i++ {
 		blockFunc, f := s.blocks[i]
 		if !f {
 			return nil, fmt.Errorf("block with number %v not found", i)
 		}
-		blocks = append(blocks, blockFunc())
+		bytes, err := toBytes(blockFunc())
+		if err != nil {
+			return nil, err
+		}
+		blocks = append(blocks, bytes)
 	}
 	return &alphabill.GetBlocksResponse{Blocks: blocks, MaxBlockNumber: s.maxBlockHeight}, nil
 }
@@ -86,27 +108,27 @@ func (s *TestAlphabillServiceServer) SetMaxBlockNumber(maxBlockHeight uint64) {
 	s.maxBlockHeight = maxBlockHeight
 }
 
-func (s *TestAlphabillServiceServer) GetProcessedTransactions() []*txsystem.Transaction {
+func (s *TestAlphabillServiceServer) GetProcessedTransactions() []*types.TransactionOrder {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.processedTxs
 }
 
-func (s *TestAlphabillServiceServer) GetAllBlocks() map[uint64]func() *block.Block {
+func (s *TestAlphabillServiceServer) GetAllBlocks() map[uint64]func() *types.Block {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.blocks
 }
 
-func (s *TestAlphabillServiceServer) SetBlock(blockNo uint64, b *block.Block) {
+func (s *TestAlphabillServiceServer) SetBlock(blockNo uint64, b *types.Block) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.blocks[blockNo] = func() *block.Block {
+	s.blocks[blockNo] = func() *types.Block {
 		return b
 	}
 }
 
-func (s *TestAlphabillServiceServer) SetBlockFunc(blockNo uint64, blockFunc func() *block.Block) {
+func (s *TestAlphabillServiceServer) SetBlockFunc(blockNo uint64, blockFunc func() *types.Block) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.blocks[blockNo] = blockFunc

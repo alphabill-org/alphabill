@@ -8,6 +8,8 @@ import (
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 )
 
+var _ txsystem.Module = &SmartContractModule{}
+
 type SmartContractModule struct {
 	state            *rma.Tree
 	systemIdentifier []byte
@@ -28,8 +30,10 @@ func NewSmartContractModule(systemIdentifier []byte, options *Options) (txsystem
 	}, nil
 }
 
-func (s *SmartContractModule) TxExecutors() []txsystem.TxExecutor {
-	return []txsystem.TxExecutor{handleSCallTx(s.state, s.programs, s.systemIdentifier, s.hashAlgorithm)}
+func (s *SmartContractModule) TxExecutors() map[string]txsystem.TxExecutor {
+	return map[string]txsystem.TxExecutor{
+		"scall": handleSCallTx(s.state, s.programs, s.systemIdentifier, s.hashAlgorithm),
+	}
 }
 
 func (s *SmartContractModule) GenericTransactionValidator() txsystem.GenericTransactionValidator {
@@ -42,20 +46,4 @@ func (s *SmartContractModule) GenericTransactionValidator() txsystem.GenericTran
 		})
 	}
 
-}
-
-func (s *SmartContractModule) TxConverter() txsystem.TxConverters {
-	return txsystem.TxConverters{
-		typeURLSCall: convertSCallTx(),
-	}
-}
-
-func convertSCallTx() func(tx *txsystem.Transaction) (txsystem.GenericTransaction, error) {
-	return func(tx *txsystem.Transaction) (txsystem.GenericTransaction, error) {
-		attr := &SCallAttributes{}
-		if err := tx.TransactionAttributes.UnmarshalTo(attr); err != nil {
-			return nil, fmt.Errorf("invalid tx attributes: %w", err)
-		}
-		return &SCallTransactionOrder{attributes: attr, txOrder: tx}, nil
-	}
 }

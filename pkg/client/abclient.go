@@ -8,11 +8,11 @@ import (
 	"time"
 	"strings"
 
-	"github.com/alphabill-org/alphabill/internal/block"
 	"github.com/alphabill-org/alphabill/internal/errors"
 	"github.com/alphabill-org/alphabill/internal/rpc/alphabill"
-	"github.com/alphabill-org/alphabill/internal/txsystem"
+	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/pkg/wallet/log"
+	"github.com/fxamacker/cbor/v2"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/protobuf/types/known/emptypb"
@@ -26,9 +26,9 @@ const (
 
 // ABClient manages connection to alphabill node and implements RPC methods
 type ABClient interface {
-	SendTransaction(ctx context.Context, tx *txsystem.Transaction) error
-	SendTransactionWithRetry(ctx context.Context, tx *txsystem.Transaction, maxTries int) error
-	GetBlock(ctx context.Context, blockNumber uint64) (*block.Block, error)
+	SendTransaction(ctx context.Context, tx *types.TransactionOrder) error
+	SendTransactionWithRetry(ctx context.Context, tx *types.TransactionOrder, maxTries int) error
+	GetBlock(ctx context.Context, blockNumber uint64) ([]byte, error)
 	GetBlocks(ctx context.Context, blockNumber, blockCount uint64) (*alphabill.GetBlocksResponse, error)
 	GetRoundNumber(ctx context.Context) (uint64, error)
 	Close() error
@@ -53,18 +53,23 @@ func New(config AlphabillClientConfig) *AlphabillClient {
 	return &AlphabillClient{config: config}
 }
 
-func (c *AlphabillClient) SendTransaction(ctx context.Context, tx *txsystem.Transaction) error {
+func (c *AlphabillClient) SendTransaction(ctx context.Context, tx *types.TransactionOrder) error {
 	defer trackExecutionTime(time.Now(), "sending transaction")
+
+	txBytes, err := cbor.Marshal(tx)
+	if err != nil {
+		return err
+	}
+	protoTx := &alphabill.Transaction{Order: txBytes}
 
 	if err := c.connect(); err != nil {
 		return err
 	}
-
-	_, err := c.client.ProcessTransaction(ctx, tx)
+	_, err = c.client.ProcessTransaction(ctx, protoTx)
 	return err
 }
 
-func (c *AlphabillClient) SendTransactionWithRetry(ctx context.Context, tx *txsystem.Transaction, maxTries int) error {
+func (c *AlphabillClient) SendTransactionWithRetry(ctx context.Context, tx *types.TransactionOrder, maxTries int) error {
 	for try := 0; try < maxTries; try++ {
 		err := c.SendTransaction(ctx, tx)
 		if err == nil {
@@ -85,7 +90,7 @@ func (c *AlphabillClient) SendTransactionWithRetry(ctx context.Context, tx *txsy
 	return fmt.Errorf(ErrFailedToBroadcastTx)
 }
 
-func (c *AlphabillClient) GetBlock(ctx context.Context, blockNumber uint64) (*block.Block, error) {
+func (c *AlphabillClient) GetBlock(ctx context.Context, blockNumber uint64) ([]byte, error) {
 	defer trackExecutionTime(time.Now(), fmt.Sprintf("downloading block %d", blockNumber))
 
 	if err := c.connect(); err != nil {

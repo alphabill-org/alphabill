@@ -10,13 +10,10 @@ import (
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/alphabill-org/alphabill/internal/testutils/peer"
 	testtransaction "github.com/alphabill-org/alphabill/internal/testutils/transaction"
-	moneytesttx "github.com/alphabill-org/alphabill/internal/testutils/transaction/money"
-	"github.com/alphabill-org/alphabill/internal/txsystem"
-	"github.com/alphabill-org/alphabill/internal/txsystem/money"
+	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/ethereum/go-ethereum/metrics"
+	"github.com/fxamacker/cbor/v2"
 	"github.com/stretchr/testify/require"
-	"google.golang.org/protobuf/encoding/protojson"
-	"google.golang.org/protobuf/proto"
 )
 
 const MaxBodySize int64 = 1 << 20 // 1 MB
@@ -56,67 +53,39 @@ func TestMetrics_OK(t *testing.T) {
 }
 
 func TestRestServer_SubmitTransaction(t *testing.T) {
-	tests := []struct {
-		name            string
-		givenAttributes proto.Message
-		expectedType    proto.Message
-	}{
-		{
-			name:            "transfer",
-			givenAttributes: moneytesttx.RandomTransferAttributes(),
-			expectedType:    &money.TransferAttributes{},
-		},
-		{
-			name:            "split",
-			givenAttributes: moneytesttx.RandomSplitAttributes(),
-			expectedType:    &money.SplitAttributes{},
-		},
-		{
-			name:            "transferDC",
-			givenAttributes: moneytesttx.RandomTransferDCAttributes(),
-			expectedType:    &money.TransferDCAttributes{},
-		},
-		{
-			name:            "swap",
-			givenAttributes: moneytesttx.CreateRandomSwapDCAttributes(t, 2),
-			expectedType:    &money.SwapDCAttributes{},
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			node := &MockNode{}
-			p := peer.CreatePeer(t)
-			s, err := NewRESTServer(node, "", MaxBodySize, p)
-			require.NoError(t, err)
-			transaction := testtransaction.NewTransaction(t,
-				testtransaction.WithAttributes(tt.givenAttributes),
-				testtransaction.WithUnitId([]byte{0, 0, 0, 1}),
-				testtransaction.WithSystemID([]byte{0, 0, 0, 0}),
-				testtransaction.WithOwnerProof([]byte{0, 0, 0, 2}),
-				testtransaction.WithClientMetadata(&txsystem.ClientMetadata{Timeout: 100}),
-			)
-			message, err := protojson.MarshalOptions{EmitUnpopulated: true}.Marshal(transaction)
-			require.NoError(t, err)
+	node := &MockNode{}
+	p := peer.CreatePeer(t)
+	s, err := NewRESTServer(node, "", MaxBodySize, p)
+	require.NoError(t, err)
+	transaction := createTxOrder(t)
+	message, err := cbor.Marshal(transaction)
+	require.NoError(t, err)
 
-			require.NoError(t, err)
-			req := httptest.NewRequest(http.MethodPost, "/api/v1/transactions", bytes.NewReader(message))
-			req.Header.Set("Content-Type", "application/json")
-			recorder := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/transactions", bytes.NewReader(message))
+	recorder := httptest.NewRecorder()
 
-			s.Handler.ServeHTTP(recorder, req)
-			require.Equal(t, http.StatusAccepted, recorder.Code)
-			require.Equal(t, 1, len(node.transactions))
-			tx := node.transactions[0]
-			require.Equal(t, transaction.SystemId, tx.SystemId)
-			require.Equal(t, transaction.UnitId, tx.UnitId)
-			require.Equal(t, transaction.OwnerProof, tx.OwnerProof)
-			require.Equal(t, transaction.Timeout(), tx.Timeout())
+	s.Handler.ServeHTTP(recorder, req)
+	require.Equal(t, http.StatusAccepted, recorder.Code)
+	require.Equal(t, 1, len(node.transactions))
+	tx := node.transactions[0]
+	require.Equal(t, transaction.SystemID(), tx.SystemID())
+	require.Equal(t, transaction.UnitID(), tx.UnitID())
+	require.Equal(t, transaction.OwnerProof, tx.OwnerProof)
+	require.Equal(t, transaction.Timeout(), tx.Timeout())
+	require.Equal(t, transaction.PayloadType(), tx.PayloadType())
+	require.Equal(t, transaction.Payload.Attributes, tx.Payload.Attributes)
+}
 
-			err = tx.TransactionAttributes.UnmarshalTo(tt.expectedType)
-			require.NoError(t, err)
-			require.True(t, proto.Equal(tt.givenAttributes, tt.expectedType))
-		})
-	}
+func createTxOrder(t *testing.T) *types.TransactionOrder {
+	transaction := testtransaction.NewTransactionOrder(t,
+		testtransaction.WithAttributes([]byte{0, 0, 0, 0, 0, 0, 0}),
+		testtransaction.WithUnitId([]byte{0, 0, 0, 1}),
+		testtransaction.WithSystemID([]byte{0, 0, 0, 0}),
+		testtransaction.WithOwnerProof([]byte{0, 0, 0, 2}),
+		testtransaction.WithClientMetadata(&types.ClientMetadata{Timeout: 100}),
+		testtransaction.WithPayloadType("test"),
+	)
+	return transaction
 }
 
 func TestRestServer_TransactionOptions(t *testing.T) {
@@ -141,7 +110,7 @@ func TestNewRESTServer_NotFound(t *testing.T) {
 	s, err := NewRESTServer(&MockNode{}, "", MaxBodySize, peer)
 	require.NoError(t, err)
 
-	transferTx, err := json.Marshal(moneytesttx.RandomBillTransfer(t))
+	transferTx, err := cbor.Marshal(createTxOrder(t))
 	require.NoError(t, err)
 	req := httptest.NewRequest(http.MethodPost, "/notfound", bytes.NewReader(transferTx))
 	recorder := httptest.NewRecorder()
@@ -157,7 +126,6 @@ func TestNewRESTServer_InvalidTx(t *testing.T) {
 	require.NoError(t, err)
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/transactions", bytes.NewReader(test.RandomBytes(102)))
-	req.Header.Set("Content-Type", "application/json")
 	recorder := httptest.NewRecorder()
 
 	s.Handler.ServeHTTP(recorder, req)
@@ -169,10 +137,9 @@ func TestNewRESTServer_RequestBodyTooLarge(t *testing.T) {
 	p := peer.CreatePeer(t)
 	s, err := NewRESTServer(&MockNode{}, "", 10, p)
 	require.NoError(t, err)
-	transferTx, err := json.Marshal(moneytesttx.RandomBillTransfer(t))
+	transferTx, err := cbor.Marshal(createTxOrder(t))
 	require.NoError(t, err)
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/transactions", bytes.NewReader(transferTx))
-	req.Header.Set("Content-Type", "application/json")
 	recorder := httptest.NewRecorder()
 
 	s.Handler.ServeHTTP(recorder, req)
@@ -184,9 +151,7 @@ func TestRESTServer_RequestInfo(t *testing.T) {
 	p := peer.CreatePeer(t)
 	s, err := NewRESTServer(&MockNode{}, "", 10, p)
 	require.NoError(t, err)
-	transferTx, err := json.Marshal(moneytesttx.RandomBillTransfer(t))
-	require.NoError(t, err)
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/info", bytes.NewReader(transferTx))
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/info", bytes.NewReader([]byte{}))
 	req.Header.Set("Content-Type", "application/json")
 	recorder := httptest.NewRecorder()
 

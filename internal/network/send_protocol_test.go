@@ -6,11 +6,10 @@ import (
 	"time"
 
 	test "github.com/alphabill-org/alphabill/internal/testutils"
-	moneytesttx "github.com/alphabill-org/alphabill/internal/testutils/transaction/money"
-	"github.com/alphabill-org/alphabill/internal/txsystem"
+	testtransaction "github.com/alphabill-org/alphabill/internal/testutils/transaction"
+	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/libp2p/go-libp2p/core/peerstore"
 	"github.com/stretchr/testify/require"
-	"google.golang.org/protobuf/proto"
 )
 
 func TestNewSendProtocol_NotOk(t *testing.T) {
@@ -61,7 +60,7 @@ func TestSend_UnknownPeer(t *testing.T) {
 	peer2Protocol, err := NewSendProtocol(peer2, testProtocolID, time.Second)
 	require.NoError(t, err)
 
-	err = peer2Protocol.Send(moneytesttx.RandomBillTransfer(t), peer1.ID())
+	err = peer2Protocol.Send(testtransaction.NewTransactionOrder(t), peer1.ID())
 	require.Error(t, err)
 	require.ErrorContains(t, err, "open stream error")
 }
@@ -84,7 +83,7 @@ func TestSend_ConnectionRefused(t *testing.T) {
 	peer2Protocol, err := NewSendProtocol(peer2, testProtocolID, time.Second)
 	require.NoError(t, err)
 
-	err = peer2Protocol.Send(moneytesttx.RandomBillTransfer(t), peer1.ID())
+	err = peer2Protocol.Send(testtransaction.NewTransactionOrder(t), peer1.ID())
 	require.Error(t, err)
 	require.ErrorContains(t, err, "connection refused")
 }
@@ -110,8 +109,8 @@ func TestSend_Ok(t *testing.T) {
 	defer close(ch)
 
 	// init receive protocol
-	receive, err := NewReceiverProtocol[*txsystem.Transaction](peer1, testProtocolID, ch, func() *txsystem.Transaction {
-		return &txsystem.Transaction{}
+	receive, err := NewReceiverProtocol[*types.TransactionOrder](peer1, testProtocolID, ch, func() *types.TransactionOrder {
+		return &types.TransactionOrder{}
 	})
 	require.NoError(t, err)
 	defer receive.Close()
@@ -123,13 +122,12 @@ func TestSend_Ok(t *testing.T) {
 	require.NotEmpty(t, peer2.Network().Conns())
 
 	// peer2 forwards tx to peer1
-	transfer := moneytesttx.RandomBillTransfer(t)
-	err = p.Send(transfer, peer1.ID())
-	require.NoError(t, err)
+	transfer := testtransaction.NewTransactionOrder(t)
+	require.NoError(t, p.Send(transfer, peer1.ID()))
 	require.Eventually(t, func() bool {
 		m := <-ch
 		require.Equal(t, testProtocolID, m.Protocol)
-		require.True(t, proto.Equal(transfer, m.Message))
+		require.Equal(t, transfer, m.Message)
 		return true
 	}, test.WaitDuration, test.WaitTick)
 }

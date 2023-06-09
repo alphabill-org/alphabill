@@ -4,10 +4,9 @@ import (
 	"context"
 	"testing"
 
-	"github.com/alphabill-org/alphabill/internal/block"
-	"github.com/alphabill-org/alphabill/internal/txsystem"
+	"github.com/alphabill-org/alphabill/internal/types"
+	"github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/alphabill-org/alphabill/pkg/wallet/account"
-	"github.com/alphabill-org/alphabill/pkg/wallet/backend/bp"
 	"github.com/stretchr/testify/require"
 )
 
@@ -26,7 +25,7 @@ func TestAddFeeCredit_SpendEntireBill_OK(t *testing.T) {
 	require.NoError(t, err)
 
 	moneyTxPublisher := &mockMoneyTxPublisher{}
-	moneyBackendClient := &mockMoneyClient{bills: []*bp.Bill{{
+	moneyBackendClient := &mockMoneyClient{bills: []*wallet.Bill{{
 		Id:            []byte{1},
 		Value:         100000002,
 		TxHash:        []byte{2},
@@ -57,7 +56,7 @@ func TestAddFeeCredit_NoBillsReturnsError(t *testing.T) {
 	require.NoError(t, err)
 
 	moneyTxPublisher := &mockMoneyTxPublisher{}
-	moneyBackendClient := &mockMoneyClient{bills: []*bp.Bill{}}
+	moneyBackendClient := &mockMoneyClient{bills: []*wallet.Bill{}}
 	feeManager := newMoneyPartitionFeeManager(am, moneyTxPublisher, moneyBackendClient)
 
 	// verify that error is returned
@@ -71,26 +70,26 @@ func newMoneyPartitionFeeManager(am account.Manager, moneyTxPublisher TxPublishe
 }
 
 type mockMoneyClient struct {
-	bills []*bp.Bill
+	bills []*wallet.Bill
 }
 
 func (m *mockMoneyClient) GetRoundNumber(ctx context.Context) (uint64, error) {
 	return 0, nil
 }
 
-func (m *mockMoneyClient) GetBills(pubKey []byte) ([]*bp.Bill, error) {
+func (m *mockMoneyClient) GetBills(pubKey []byte) ([]*wallet.Bill, error) {
 	return m.bills, nil
 }
 
-func (m *mockMoneyClient) FetchFeeCreditBill(ctx context.Context, unitID []byte) (*bp.Bill, error) {
+func (m *mockMoneyClient) FetchFeeCreditBill(ctx context.Context, unitID []byte) (*wallet.Bill, error) {
 	return nil, nil
 }
 
 type mockMoneyTxPublisher struct {
 }
 
-func (m *mockMoneyTxPublisher) SendTx(ctx context.Context, tx *txsystem.Transaction, _ []byte) (*block.TxProof, error) {
-	return &block.TxProof{Tx: tx, Proof: &block.BlockProof{}}, nil
+func (m *mockMoneyTxPublisher) SendTx(ctx context.Context, tx *types.TransactionOrder, _ []byte) (*wallet.Proof, error) {
+	return &wallet.Proof{}, nil
 }
 
 func (m *mockMoneyTxPublisher) Close() {

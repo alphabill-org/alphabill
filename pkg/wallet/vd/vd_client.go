@@ -13,18 +13,14 @@ import (
 
 	"github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/script"
-	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/internal/txsystem/vd"
+	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/pkg/client"
 	"github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/alphabill-org/alphabill/pkg/wallet/account"
-	"github.com/alphabill-org/alphabill/pkg/wallet/backend/bp"
 	"github.com/alphabill-org/alphabill/pkg/wallet/blocksync"
 	"github.com/alphabill-org/alphabill/pkg/wallet/log"
 	"github.com/alphabill-org/alphabill/pkg/wallet/money/tx_builder"
-
-	"google.golang.org/protobuf/proto"
-	"google.golang.org/protobuf/types/known/anypb"
 )
 
 const (
@@ -40,7 +36,6 @@ var (
 type (
 	VDClient struct {
 		vdNodeClient     client.ABClient
-		moneyNodeClient  client.ABClient
 		confirmTx        bool
 		confirmTxTimeout uint64
 		accountKey       *account.AccountKey
@@ -50,8 +45,6 @@ type (
 	VDClientConfig struct {
 		// VDNodeURL URL of the vd node to connect
 		VDNodeURL string
-		// MoneyNodeURL URL of the money node to connect
-		MoneyNodeURL string
 		// WaitForReady if true, VD node client waits for the node to be ready
 		WaitForReady bool
 		// ConfirmTx upon hash submission, waits until the transaction is included in a block, or timeout is reached
@@ -66,16 +59,12 @@ type (
 )
 
 func New(conf *VDClientConfig) (*VDClient, error) {
-	moneyNodeClient := client.New(client.AlphabillClientConfig{
-		Uri: conf.MoneyNodeURL,
-	})
 	vdNodeClient := client.New(client.AlphabillClientConfig{
 		Uri: conf.VDNodeURL,
 		WaitForReady: conf.WaitForReady,
 	})
 
 	return &VDClient{
-		moneyNodeClient:  moneyNodeClient,
 		vdNodeClient:     vdNodeClient,
 		confirmTx:        conf.ConfirmTx,
 		confirmTxTimeout: conf.ConfirmTxTimeout,
@@ -94,7 +83,7 @@ func (v *VDClient) GetRoundNumber(ctx context.Context) (uint64, error) {
 	return v.vdNodeClient.GetRoundNumber(ctx)
 }
 
-func (v *VDClient) PostTransactions(ctx context.Context, pubKey wallet.PubKey, txs *txsystem.Transactions) error {
+func (v *VDClient) PostTransactions(ctx context.Context, pubKey wallet.PubKey, txs *wallet.Transactions) error {
 	for _, tx := range txs.Transactions {
 		err := v.vdNodeClient.SendTransaction(ctx, tx)
 		if err != nil {
@@ -127,7 +116,7 @@ func (v *VDClient) GetTxProof(ctx context.Context, unitID wallet.UnitID, txHash 
 	}
 }
 
-func (v *VDClient) FetchFeeCreditBill(ctx context.Context, unitID []byte) (*bp.Bill, error) {
+func (v *VDClient) FetchFeeCreditBill(ctx context.Context, unitID []byte) (*wallet.Bill, error) {
 	dbFilePath := filepath.Join(v.walletHomeDir, vdStorageFileName)
 	db, err := newBoltStore(dbFilePath)
 	if err != nil {
@@ -145,11 +134,12 @@ func (v *VDClient) FetchFeeCreditBill(ctx context.Context, unitID []byte) (*bp.B
 		return nil, fmt.Errorf("failed to get latest round number from node: %w", err)
 	}
 
-	blockProcessor := NewBlockProcessor(db)
-	err = blocksync.Run(ctx, v.vdNodeClient.GetBlocks, lastBlockNumber + 1, maxBlockNumber, blockSyncBatchSize, blockProcessor.ProcessBlock)
-
-	if err != nil {
-		return nil, err
+	if lastBlockNumber < maxBlockNumber {
+		blockProcessor := NewBlockProcessor(db)
+		err = blocksync.Run(ctx, v.vdNodeClient.GetBlocks, lastBlockNumber + 1, maxBlockNumber, blockSyncBatchSize, blockProcessor.ProcessBlock)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	fcb, err := db.GetFeeCreditBill(unitID)
@@ -161,7 +151,7 @@ func (v *VDClient) FetchFeeCreditBill(ctx context.Context, unitID []byte) (*bp.B
 		return nil, nil
 	}
 
-	return &bp.Bill{
+	return &wallet.Bill{
 		Id:            fcb.Id,
 		Value:         fcb.Value,
 		TxHash:        fcb.TxHash,
@@ -230,7 +220,6 @@ func (v *VDClient) registerHashTx(ctx context.Context, hash []byte) error {
 	if err != nil {
 		return err
 	}
-
 	log.Info("Current block #: ", currentRoundNumber)
 	timeout := currentRoundNumber + v.confirmTxTimeout
 
@@ -246,7 +235,8 @@ func (v *VDClient) registerHashTx(ctx context.Context, hash []byte) error {
 	if v.confirmTx {
 		proof, err := v.GetTxProof(ctx, hash, nil, currentRoundNumber, timeout)
 		if proof != nil {
-			log.Info(fmt.Sprintf("Tx in block #%d, hash: %s", proof.BlockNumber, hex.EncodeToString(hash)))
+			log.Info(fmt.Sprintf("Tx in block #%d, hash: %s",
+				proof.TxProof.UnicityCertificate.GetRoundNumber(), hex.EncodeToString(hash)))
 		}
 		if err != nil {
 			return fmt.Errorf("failed to confirm transaction: %w", err)
@@ -270,57 +260,44 @@ func (v *VDClient) ensureFeeCredit(ctx context.Context, accountKey *account.Acco
 	return nil
 }
 
-func (v *VDClient) createRegisterDataTx(data []byte, timeout uint64) (*txsystem.Transaction, error) {
-	tx := &txsystem.Transaction{
-		SystemId:              v.SystemID(),
-		UnitId:                data,
-		TransactionAttributes: new(anypb.Any),
-		ClientMetadata: &txsystem.ClientMetadata{
+func (v *VDClient) createRegisterDataTx(data []byte, timeout uint64) (*types.TransactionOrder, error) {
+	payload := &types.Payload{
+		SystemID:       v.SystemID(),
+		Type:           vd.PayloadTypeRegisterData,
+		UnitID:         data,
+		ClientMetadata: &types.ClientMetadata{
 			Timeout:           timeout,
-			MaxFee:            tx_builder.MaxFee,
-			FeeCreditRecordId: v.accountKey.PrivKeyHash,
+			MaxTransactionFee: tx_builder.MaxFee,
+			FeeCreditRecordID: v.accountKey.PrivKeyHash,
 		},
 	}
 
-	err := anypb.MarshalFrom(tx.TransactionAttributes, &vd.RegisterDataAttributes{}, proto.MarshalOptions{})
-	if err != nil {
-		return nil, err
-	}
-
-	err = v.signTx(tx)
-	if err != nil {
-		return nil, err
-	}
-
-	return tx, nil
+	return v.signPayload(payload)
 }
 
-func (v *VDClient) signTx(tx *txsystem.Transaction) error {
+func (v *VDClient) signPayload(payload *types.Payload) (*types.TransactionOrder, error) {
 	signer, err := crypto.NewInMemorySecp256K1SignerFromKey(v.accountKey.PrivKey)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	gtx, err := vd.NewVDTx(v.SystemID(), tx)
+	payloadBytes, err := payload.Bytes()
 	if err != nil {
-		return err
+		return nil, err
 	}
-	sig, err := signer.SignBytes(gtx.SigBytes())
+	sig, err := signer.SignBytes(payloadBytes)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	tx.FeeProof = script.PredicateArgumentPayToPublicKeyHashDefault(sig, v.accountKey.PubKey)
-
-	return nil
+	return &types.TransactionOrder{
+		Payload:  payload,
+		FeeProof: script.PredicateArgumentPayToPublicKeyHashDefault(sig, v.accountKey.PubKey),
+	}, nil
 }
 
 func (v *VDClient) Close() {
 	log.Info("Shutting down")
-	err := v.moneyNodeClient.Close()
-	if err != nil {
-		log.Error(err)
-	}
-	err = v.vdNodeClient.Close()
+	err := v.vdNodeClient.Close()
 	if err != nil {
 		log.Error(err)
 	}

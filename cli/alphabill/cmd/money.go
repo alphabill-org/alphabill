@@ -10,6 +10,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/script"
 	"github.com/alphabill-org/alphabill/internal/txsystem/money"
 	"github.com/alphabill-org/alphabill/pkg/logger"
+	"github.com/fxamacker/cbor/v2"
 	"github.com/holiman/uint256"
 	"github.com/spf13/cobra"
 )
@@ -66,9 +67,9 @@ func runMoneyNode(ctx context.Context, cfg *moneyNodeConfiguration) error {
 	}
 
 	params := &genesis.MoneyPartitionParams{}
-	err = pg.Params.UnmarshalTo(params)
+	err = cbor.Unmarshal(pg.Params, params)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to unmarshal money partition params: %w", err)
 	}
 
 	ib := &money.InitialBill{
@@ -82,7 +83,7 @@ func runMoneyNode(ctx context.Context, cfg *moneyNodeConfiguration) error {
 	}
 
 	txs, err := money.NewTxSystem(
-		money.WithSystemIdentifier(pg.GetSystemDescriptionRecord().GetSystemIdentifier()),
+	        money.WithSystemIdentifier(pg.SystemDescriptionRecord.SystemIdentifier),
 		money.WithHashAlgorithm(crypto.SHA256),
 		money.WithInitialBill(ib),
 		money.WithSystemDescriptionRecords(params.SystemDescriptionRecords),

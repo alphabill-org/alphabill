@@ -2,28 +2,25 @@ package tx_builder
 
 import (
 	"bytes"
+	"errors"
+	"fmt"
 	"sort"
 
-	"github.com/alphabill-org/alphabill/internal/block"
 	"github.com/alphabill-org/alphabill/internal/crypto"
-	"github.com/alphabill-org/alphabill/internal/errors"
 	"github.com/alphabill-org/alphabill/internal/hash"
 	"github.com/alphabill-org/alphabill/internal/script"
-	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/internal/txsystem/fc/transactions"
 	"github.com/alphabill-org/alphabill/internal/txsystem/money"
+	"github.com/alphabill-org/alphabill/internal/types"
+	"github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/alphabill-org/alphabill/pkg/wallet/account"
-	"github.com/alphabill-org/alphabill/pkg/wallet/backend/bp"
-	"google.golang.org/protobuf/proto"
-	"google.golang.org/protobuf/types/known/anypb"
+	"github.com/fxamacker/cbor/v2"
 )
 
 const MaxFee = uint64(1)
 
-var ErrInsufficientBalance = errors.New("insufficient balance for transaction")
-
-func CreateTransactions(pubKey []byte, amount uint64, systemId []byte, bills []*bp.Bill, k *account.AccountKey, timeout uint64, fcrID []byte) ([]*txsystem.Transaction, error) {
-	var txs []*txsystem.Transaction
+func CreateTransactions(pubKey []byte, amount uint64, systemID []byte, bills []*wallet.Bill, k *account.AccountKey, timeout uint64, fcrID []byte) ([]*types.TransactionOrder, error) {
+	var txs []*types.TransactionOrder
 	var accumulatedSum uint64
 	// sort bills by value in descending order
 	sort.Slice(bills, func(i, j int) bool {
@@ -31,7 +28,7 @@ func CreateTransactions(pubKey []byte, amount uint64, systemId []byte, bills []*
 	})
 	for _, b := range bills {
 		remainingAmount := amount - accumulatedSum
-		tx, err := CreateTransaction(pubKey, k, remainingAmount, systemId, b, timeout, fcrID)
+		tx, err := CreateTransaction(pubKey, k, remainingAmount, systemID, b, timeout, fcrID)
 		if err != nil {
 			return nil, err
 		}
@@ -41,158 +38,58 @@ func CreateTransactions(pubKey []byte, amount uint64, systemId []byte, bills []*
 			return txs, nil
 		}
 	}
-	return nil, ErrInsufficientBalance
+	return nil, fmt.Errorf("insufficient balance for transaction, trying to send %d have %d", amount, accumulatedSum)
 }
 
-func CreateTransaction(pubKey []byte, k *account.AccountKey, amount uint64, systemId []byte, b *bp.Bill, timeout uint64, fcrID []byte) (*txsystem.Transaction, error) {
+func CreateTransaction(receiverPubKey []byte, k *account.AccountKey, amount uint64, systemID []byte, b *wallet.Bill, timeout uint64, fcrID []byte) (*types.TransactionOrder, error) {
 	if b.Value <= amount {
-		return CreateTransferTx(pubKey, k, systemId, b, timeout, fcrID)
+		return NewTransferTx(receiverPubKey, k, systemID, b, timeout, fcrID)
 	}
-	return CreateSplitTx(amount, pubKey, k, systemId, b, timeout, fcrID)
+	return NewSplitTx(amount, receiverPubKey, k, systemID, b, timeout, fcrID)
 }
 
-func CreateTransferTx(pubKey []byte, k *account.AccountKey, systemId []byte, bill *bp.Bill, timeout uint64, fcrID []byte) (*txsystem.Transaction, error) {
-	tx := CreateGenericTx(systemId, bill.GetId(), timeout, fcrID)
-	err := anypb.MarshalFrom(tx.TransactionAttributes, &money.TransferAttributes{
-		NewBearer:   script.PredicatePayToPublicKeyHashDefault(hash.Sum256(pubKey)),
+func NewTransferTx(receiverPubKey []byte, k *account.AccountKey, systemID []byte, bill *wallet.Bill, timeout uint64, fcrID []byte) (*types.TransactionOrder, error) {
+	attr := &money.TransferAttributes{
+		NewBearer:   script.PredicatePayToPublicKeyHashDefault(hash.Sum256(receiverPubKey)),
 		TargetValue: bill.Value,
 		Backlink:    bill.TxHash,
-	}, proto.MarshalOptions{})
+	}
+	txPayload, err := newTxPayload(systemID, money.PayloadTypeTransfer, bill.GetID(), timeout, fcrID, attr)
 	if err != nil {
 		return nil, err
 	}
-	err = signTx(systemId, tx, k)
-	if err != nil {
-		return nil, err
-	}
-	return tx, nil
+	return signPayload(txPayload, k)
 }
 
-func CreateTransferFCTx(amount uint64, targetRecordID []byte, nonce []byte, k *account.AccountKey, moneySystemID, targetSystemID []byte, unit *bp.Bill, timeout, t1, t2 uint64) (*txsystem.Transaction, error) {
-	tx := CreateGenericTx(moneySystemID, unit.GetId(), timeout, nil)
-	transferFC := &transactions.TransferFeeCreditAttributes{
-		Amount:                 amount,
-		TargetSystemIdentifier: targetSystemID,
-		TargetRecordId:         targetRecordID,
-		EarliestAdditionTime:   t1,
-		LatestAdditionTime:     t2,
-		Nonce:                  nonce,
-		Backlink:               unit.TxHash,
-	}
-	err := anypb.MarshalFrom(tx.TransactionAttributes, transferFC, proto.MarshalOptions{})
-	if err != nil {
-		return nil, err
-	}
-	err = signTx(moneySystemID, tx, k)
-	if err != nil {
-		return nil, err
-	}
-	return tx, nil
-}
-
-func CreateAddFCTx(unitID []byte, fcProof *block.TxProof, k *account.AccountKey, systemId []byte, timeout uint64) (*txsystem.Transaction, error) {
-	tx := CreateGenericTx(systemId, unitID, timeout, nil)
-	err := anypb.MarshalFrom(tx.TransactionAttributes, &transactions.AddFeeCreditAttributes{
-		FeeCreditOwnerCondition: script.PredicatePayToPublicKeyHashDefault(k.PubKeyHash.Sha256),
-		FeeCreditTransfer:       fcProof.Tx,
-		FeeCreditTransferProof:  fcProof.Proof,
-	}, proto.MarshalOptions{})
-	if err != nil {
-		return nil, err
-	}
-	err = signTx(systemId, tx, k)
-	if err != nil {
-		return nil, err
-	}
-	return tx, nil
-}
-
-func CreateCloseFCTx(systemId []byte, unitID []byte, timeout uint64, amount uint64, targetUnitID, nonce []byte, k *account.AccountKey) (*txsystem.Transaction, error) {
-	tx := CreateGenericTx(systemId, unitID, timeout, nil)
-	closeFC := &transactions.CloseFeeCreditAttributes{
-		Amount:       amount,
-		TargetUnitId: targetUnitID,
-		Nonce:        nonce,
-	}
-	err := anypb.MarshalFrom(tx.TransactionAttributes, closeFC, proto.MarshalOptions{})
-	if err != nil {
-		return nil, err
-	}
-	err = signTx(systemId, tx, k)
-	if err != nil {
-		return nil, err
-	}
-	return tx, nil
-}
-
-func CreateReclaimFCTx(systemID []byte, unitID []byte, timeout uint64, fcProof *block.TxProof, backlink []byte, k *account.AccountKey) (*txsystem.Transaction, error) {
-	tx := CreateGenericTx(systemID, unitID, timeout, nil)
-	err := anypb.MarshalFrom(tx.TransactionAttributes, &transactions.ReclaimFeeCreditAttributes{
-		CloseFeeCreditTransfer: fcProof.Tx,
-		CloseFeeCreditProof:    fcProof.Proof,
-		Backlink:               backlink,
-	}, proto.MarshalOptions{})
-	if err != nil {
-		return nil, err
-	}
-	err = signTx(systemID, tx, k)
-	if err != nil {
-		return nil, err
-	}
-	return tx, nil
-}
-
-func CreateGenericTx(systemId, unitId []byte, timeout uint64, fcrID []byte) *txsystem.Transaction {
-	return &txsystem.Transaction{
-		SystemId:              systemId,
-		UnitId:                unitId,
-		TransactionAttributes: new(anypb.Any),
-		ClientMetadata: &txsystem.ClientMetadata{
-			Timeout:           timeout,
-			MaxFee:            MaxFee,
-			FeeCreditRecordId: fcrID,
-		},
-		// OwnerProof is added after whole transaction is built
-	}
-}
-
-func CreateSplitTx(amount uint64, pubKey []byte, k *account.AccountKey, systemId []byte, bill *bp.Bill, timeout uint64, fcrID []byte) (*txsystem.Transaction, error) {
-	tx := CreateGenericTx(systemId, bill.GetId(), timeout, fcrID)
-	err := anypb.MarshalFrom(tx.TransactionAttributes, &money.SplitAttributes{
+func NewSplitTx(amount uint64, pubKey []byte, k *account.AccountKey, systemID []byte, bill *wallet.Bill, timeout uint64, fcrID []byte) (*types.TransactionOrder, error) {
+	attr := &money.SplitAttributes{
 		Amount:         amount,
 		TargetBearer:   script.PredicatePayToPublicKeyHashDefault(hash.Sum256(pubKey)),
 		RemainingValue: bill.Value - amount,
 		Backlink:       bill.TxHash,
-	}, proto.MarshalOptions{})
+	}
+	txPayload, err := newTxPayload(systemID, money.PayloadTypeSplit, bill.GetID(), timeout, fcrID, attr)
 	if err != nil {
 		return nil, err
 	}
-	err = signTx(systemId, tx, k)
-	if err != nil {
-		return nil, err
-	}
-	return tx, nil
+	return signPayload(txPayload, k)
 }
 
-func CreateDustTx(k *account.AccountKey, systemId []byte, bill *bp.Bill, nonce []byte, timeout uint64) (*txsystem.Transaction, error) {
-	tx := CreateGenericTx(systemId, bill.GetId(), timeout, k.PrivKeyHash)
-	err := anypb.MarshalFrom(tx.TransactionAttributes, &money.TransferDCAttributes{
+func NewDustTx(ac *account.AccountKey, systemID []byte, bill *wallet.Bill, nonce []byte, timeout uint64) (*types.TransactionOrder, error) {
+	attr := &money.TransferDCAttributes{
 		TargetValue:  bill.Value,
-		TargetBearer: script.PredicatePayToPublicKeyHashDefault(k.PubKeyHash.Sha256),
+		TargetBearer: script.PredicatePayToPublicKeyHashDefault(ac.PubKeyHash.Sha256),
 		Backlink:     bill.TxHash,
 		Nonce:        nonce,
-	}, proto.MarshalOptions{})
+	}
+	txPayload, err := newTxPayload(systemID, money.PayloadTypeTransDC, bill.GetID(), timeout, ac.PrivKeyHash, attr)
 	if err != nil {
 		return nil, err
 	}
-	err = signTx(systemId, tx, k)
-	if err != nil {
-		return nil, err
-	}
-	return tx, nil
+	return signPayload(txPayload, ac)
 }
 
-func CreateSwapTx(k *account.AccountKey, systemId []byte, dcBills []*bp.Bill, dcNonce []byte, billIds [][]byte, timeout uint64) (*txsystem.Transaction, error) {
+func NewSwapTx(k *account.AccountKey, systemID []byte, dcBills []*wallet.Bill, dcNonce []byte, billIds [][]byte, timeout uint64) (*types.TransactionOrder, error) {
 	if len(dcBills) == 0 {
 		return nil, errors.New("cannot create swap transaction as no dust bills exist")
 	}
@@ -201,49 +98,120 @@ func CreateSwapTx(k *account.AccountKey, systemId []byte, dcBills []*bp.Bill, dc
 		return bytes.Compare(billIds[i], billIds[j]) < 0
 	})
 	sort.Slice(dcBills, func(i, j int) bool {
-		return bytes.Compare(dcBills[i].GetId(), dcBills[j].GetId()) < 0
+		return bytes.Compare(dcBills[i].GetID(), dcBills[j].GetID()) < 0
 	})
 
-	var dustTransferProofs []*block.BlockProof
-	var dustTransferOrders []*txsystem.Transaction
+	var dustTransferProofs []*types.TxProof
+	var dustTransferRecords []*types.TransactionRecord
 	var billValueSum uint64
 	for _, b := range dcBills {
-		dustTransferOrders = append(dustTransferOrders, b.TxProof.Tx)
-		dustTransferProofs = append(dustTransferProofs, b.TxProof.Proof)
+		dustTransferRecords = append(dustTransferRecords, b.TxProof.TxRecord)
+		dustTransferProofs = append(dustTransferProofs, b.TxProof.TxProof)
 		billValueSum += b.Value
 	}
-
-	swapTx := CreateGenericTx(systemId, dcNonce, timeout, k.PrivKeyHash)
-	err := anypb.MarshalFrom(swapTx.TransactionAttributes, &money.SwapDCAttributes{
+	attr := &money.SwapDCAttributes{
 		OwnerCondition:  script.PredicatePayToPublicKeyHashDefault(k.PubKeyHash.Sha256),
 		BillIdentifiers: billIds,
-		DcTransfers:     dustTransferOrders,
+		DcTransfers:     dustTransferRecords,
 		Proofs:          dustTransferProofs,
 		TargetValue:     billValueSum,
-	}, proto.MarshalOptions{})
+	}
+	swapTx, err := newTxPayload(systemID, money.PayloadTypeSwapDC, dcNonce, timeout, k.PrivKeyHash, attr)
 	if err != nil {
 		return nil, err
 	}
-	err = signTx(systemId, swapTx, k)
-	if err != nil {
-		return nil, err
-	}
-	return swapTx, nil
+	return signPayload(swapTx, k)
 }
 
-func signTx(systemId []byte, tx *txsystem.Transaction, ac *account.AccountKey) error {
+func NewTransferFCTx(amount uint64, targetRecordID []byte, nonce []byte, k *account.AccountKey, moneySystemID, targetSystemID []byte, unit *wallet.Bill, timeout, t1, t2 uint64) (*types.TransactionOrder, error) {
+	attr := &transactions.TransferFeeCreditAttributes{
+		Amount:                 amount,
+		TargetSystemIdentifier: targetSystemID,
+		TargetRecordID:         targetRecordID,
+		EarliestAdditionTime:   t1,
+		LatestAdditionTime:     t2,
+		Nonce:                  nonce,
+		Backlink:               unit.TxHash,
+	}
+	txPayload, err := newTxPayload(moneySystemID, transactions.PayloadTypeTransferFeeCredit, unit.GetID(), timeout, nil, attr)
+	if err != nil {
+		return nil, err
+	}
+	return signPayload(txPayload, k)
+}
+
+func NewAddFCTx(unitID []byte, fcProof *wallet.Proof, ac *account.AccountKey, systemID []byte, timeout uint64) (*types.TransactionOrder, error) {
+	attr := &transactions.AddFeeCreditAttributes{
+		FeeCreditOwnerCondition: script.PredicatePayToPublicKeyHashDefault(ac.PubKeyHash.Sha256),
+		FeeCreditTransfer:       fcProof.TxRecord,
+		FeeCreditTransferProof:  fcProof.TxProof,
+	}
+	txPayload, err := newTxPayload(systemID, transactions.PayloadTypeAddFeeCredit, unitID, timeout, nil, attr)
+	if err != nil {
+		return nil, err
+	}
+	return signPayload(txPayload, ac)
+}
+
+func NewCloseFCTx(systemID []byte, unitID []byte, timeout uint64, amount uint64, targetUnitID, nonce []byte, k *account.AccountKey) (*types.TransactionOrder, error) {
+	attr := &transactions.CloseFeeCreditAttributes{
+		Amount:       amount,
+		TargetUnitID: targetUnitID,
+		Nonce:        nonce,
+	}
+	txPayload, err := newTxPayload(systemID, transactions.PayloadTypeCloseFeeCredit, unitID, timeout, nil, attr)
+	if err != nil {
+		return nil, err
+	}
+	return signPayload(txPayload, k)
+}
+
+func NewReclaimFCTx(systemID []byte, unitID []byte, timeout uint64, fcProof *wallet.Proof, backlink []byte, k *account.AccountKey) (*types.TransactionOrder, error) {
+	attr := &transactions.ReclaimFeeCreditAttributes{
+		CloseFeeCreditTransfer: fcProof.TxRecord,
+		CloseFeeCreditProof:    fcProof.TxProof,
+		Backlink:               backlink,
+	}
+	txPayload, err := newTxPayload(systemID, transactions.PayloadTypeReclaimFeeCredit, unitID, timeout, nil, attr)
+	if err != nil {
+		return nil, err
+	}
+	return signPayload(txPayload, k)
+}
+
+func newTxPayload(systemID []byte, txType string, unitID []byte, timeout uint64, fcrID []byte, attr interface{}) (*types.Payload, error) {
+	attrBytes, err := cbor.Marshal(attr)
+	if err != nil {
+		return nil, err
+	}
+	return &types.Payload{
+		SystemID:   systemID,
+		Type:       txType,
+		UnitID:     unitID,
+		Attributes: attrBytes,
+		ClientMetadata: &types.ClientMetadata{
+			Timeout:           timeout,
+			MaxTransactionFee: MaxFee,
+			FeeCreditRecordID: fcrID,
+		},
+	}, nil
+}
+
+func signPayload(payload *types.Payload, ac *account.AccountKey) (*types.TransactionOrder, error) {
 	signer, err := crypto.NewInMemorySecp256K1SignerFromKey(ac.PrivKey)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	gtx, err := money.NewMoneyTx(systemId, tx)
+	payloadBytes, err := payload.Bytes()
 	if err != nil {
-		return err
+		return nil, err
 	}
-	sig, err := signer.SignBytes(gtx.SigBytes())
+	sig, err := signer.SignBytes(payloadBytes)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	tx.OwnerProof = script.PredicateArgumentPayToPublicKeyHashDefault(sig, ac.PubKey)
-	return nil
+	return &types.TransactionOrder{
+		Payload:    payload,
+		OwnerProof: script.PredicateArgumentPayToPublicKeyHashDefault(sig, ac.PubKey),
+	}, nil
 }

@@ -17,14 +17,14 @@ import (
 	"github.com/alphabill-org/alphabill/internal/testutils/net"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	testtime "github.com/alphabill-org/alphabill/internal/testutils/time"
-	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/internal/txsystem/tokens"
+	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/internal/util"
+	"github.com/fxamacker/cbor/v2"
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
-	"google.golang.org/protobuf/types/known/anypb"
 )
 
 func TestRunTokensNode(t *testing.T) {
@@ -84,27 +84,35 @@ func TestRunTokensNode(t *testing.T) {
 		// Test
 		// green path
 		id := uint256.NewInt(rand.Uint64()).Bytes32()
-		tx := &txsystem.Transaction{
-			UnitId:                id[:],
-			TransactionAttributes: new(anypb.Any),
-			ClientMetadata:        &txsystem.ClientMetadata{Timeout: 10},
-			SystemId:              tokens.DefaultSystemIdentifier,
-		}
-		require.NoError(t, tx.TransactionAttributes.MarshalFrom(&tokens.CreateNonFungibleTokenTypeAttributes{
+
+		attr := &tokens.CreateNonFungibleTokenTypeAttributes{
 			Symbol:                   "Test",
-			ParentTypeId:             []byte{0},
+			ParentTypeID:             []byte{0},
 			SubTypeCreationPredicate: script.PredicateAlwaysTrue(),
 			TokenCreationPredicate:   script.PredicateAlwaysTrue(),
 			InvariantPredicate:       script.PredicateAlwaysTrue(),
 			DataUpdatePredicate:      script.PredicateAlwaysTrue(),
-		}))
-
-		_, err = rpcClient.ProcessTransaction(ctx, tx, grpc.WaitForReady(true))
+		}
+		attrBytes, _ := cbor.Marshal(attr)
+		tx := &types.TransactionOrder{
+			Payload: &types.Payload{
+				SystemID:       tokens.DefaultSystemIdentifier,
+				Type:           tokens.PayloadTypeCreateNFTType,
+				UnitID:         id[:],
+				Attributes:     attrBytes,
+				ClientMetadata: &types.ClientMetadata{Timeout: 10},
+			},
+		}
+		txBytes, _ := cbor.Marshal(tx)
+		protoTx := &alphabill.Transaction{Order: txBytes}
+		_, err = rpcClient.ProcessTransaction(ctx, protoTx, grpc.WaitForReady(true))
 		require.NoError(t, err)
 
 		// failing case
-		tx.SystemId = []byte{1, 0, 0, 0} // incorrect system id
-		_, err = rpcClient.ProcessTransaction(ctx, tx, grpc.WaitForReady(true))
+		tx.Payload.SystemID = []byte{1, 0, 0, 0} // incorrect system id
+		txBytes, _ = cbor.Marshal(tx)
+		protoTx = &alphabill.Transaction{Order: txBytes}
+		_, err = rpcClient.ProcessTransaction(ctx, protoTx, grpc.WaitForReady(true))
 		require.ErrorContains(t, err, "invalid transaction system identifier")
 	})
 }

@@ -53,7 +53,6 @@ func regCmd(config *walletConfig, wait *bool) *cobra.Command {
 			if err != nil {
 				return err
 			}
-
 			vdClient, err := initVDClient(cmd, config.WalletHomeDir, accountKey, wait, sync)
 			if err != nil {
 				return err

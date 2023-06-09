@@ -7,14 +7,14 @@ import (
 	"math/rand"
 	"time"
 
-	"golang.org/x/sync/errgroup"
-
-	"github.com/alphabill-org/alphabill/internal/block"
 	"github.com/alphabill-org/alphabill/internal/rpc/alphabill"
+	"github.com/alphabill-org/alphabill/internal/types"
+	"github.com/fxamacker/cbor/v2"
+	"golang.org/x/sync/errgroup"
 )
 
 type BlocksLoaderFunc func(ctx context.Context, blockNumber, batchSize uint64) (*alphabill.GetBlocksResponse, error)
-type BlockProcessorFunc func(context.Context, *block.Block) error
+type BlockProcessorFunc func(context.Context, *types.Block) error
 
 /*
 Run loads blocks using "getBlocks" and processes them using "processor" until:
@@ -45,7 +45,7 @@ func Run(ctx context.Context, getBlocks BlocksLoaderFunc, startingBlockNumber, m
 		getBlocks = loadUntilBlockNumber(maxBlockNumber, getBlocks)
 	}
 
-	blocks := make(chan *block.Block, batchSize)
+	blocks := make(chan *types.Block, batchSize)
 	g, ctx := errgroup.WithContext(ctx)
 
 	g.Go(func() error {
@@ -64,7 +64,7 @@ func Run(ctx context.Context, getBlocks BlocksLoaderFunc, startingBlockNumber, m
 	return g.Wait()
 }
 
-func fetchBlocks(ctx context.Context, getBlocks BlocksLoaderFunc, blockNumber uint64, out chan<- *block.Block) error {
+func fetchBlocks(ctx context.Context, getBlocks BlocksLoaderFunc, blockNumber uint64, out chan<- *types.Block) error {
 	for {
 		if err := ctx.Err(); err != nil {
 			return err
@@ -74,7 +74,11 @@ func fetchBlocks(ctx context.Context, getBlocks BlocksLoaderFunc, blockNumber ui
 			return fmt.Errorf("failed to fetch blocks [%d...]: %w", blockNumber, err)
 		}
 		for _, b := range rsp.Blocks {
-			out <- b
+			block := &types.Block{}
+			if err := cbor.Unmarshal(b, block); err != nil {
+				return fmt.Errorf("failed to unmarshal block: %w", err)
+			}
+			out <- block
 		}
 		blockNumber = rsp.BatchMaxBlockNumber + 1
 		if rsp.MaxRoundNumber < blockNumber {
@@ -88,10 +92,10 @@ func fetchBlocks(ctx context.Context, getBlocks BlocksLoaderFunc, blockNumber ui
 	}
 }
 
-func processBlocks(ctx context.Context, blocks <-chan *block.Block, processor BlockProcessorFunc) error {
+func processBlocks(ctx context.Context, blocks <-chan *types.Block, processor BlockProcessorFunc) error {
 	for b := range blocks {
 		if err := processor(ctx, b); err != nil {
-			return fmt.Errorf("failed to process block {%x : %d}: %w", b.SystemIdentifier, b.GetRoundNumber(), err)
+			return fmt.Errorf("failed to process block {%x : %d}: %w", b.SystemID(), b.GetRoundNumber(), err)
 		}
 	}
 	return nil

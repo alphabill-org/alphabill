@@ -12,20 +12,18 @@ import (
 	"testing"
 	"time"
 
-	"github.com/alphabill-org/alphabill/internal/block"
-	"github.com/alphabill-org/alphabill/internal/certificates"
-	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/hash"
 	"github.com/alphabill-org/alphabill/internal/rpc/alphabill"
 	"github.com/alphabill-org/alphabill/internal/script"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
-	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/internal/txsystem/tokens"
+	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/internal/util"
+	"github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/alphabill-org/alphabill/pkg/wallet/log"
 	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/fxamacker/cbor/v2"
 	"github.com/stretchr/testify/require"
-	"google.golang.org/protobuf/encoding/protojson"
 )
 
 func Test_Run(t *testing.T) {
@@ -141,7 +139,7 @@ func Test_Run_API(t *testing.T) {
 	require.NoError(t, err)
 
 	var currentRoundNumber atomic.Uint64
-	syncing := make(chan *txsystem.Transaction, 1)
+	syncing := make(chan *types.TransactionOrder, 1)
 	boltStore, err := newBoltStore(filepath.Join(t.TempDir(), "tokens.db"))
 	require.NoError(t, err)
 
@@ -159,7 +157,7 @@ func Test_Run_API(t *testing.T) {
 		log: logger,
 		db:  boltStore,
 		abc: &mockABClient{
-			sendTransaction: func(ctx context.Context, tx *txsystem.Transaction) error {
+			sendTransaction: func(ctx context.Context, tx *types.TransactionOrder) error {
 				syncing <- tx
 				return nil
 			},
@@ -167,15 +165,17 @@ func Test_Run_API(t *testing.T) {
 				select {
 				case tx := <-syncing:
 					rn := currentRoundNumber.Add(1)
+					block := &types.Block{
+						Transactions:       []*types.TransactionRecord{{TransactionOrder: tx, ServerMetadata: &types.ServerMetadata{ActualFee: 1}}},
+						UnicityCertificate: &types.UnicityCertificate{InputRecord: &types.InputRecord{RoundNumber: rn}},
+					}
+					blockBytes, err := cbor.Marshal(block)
+					require.NoError(t, err)
 					return &alphabill.GetBlocksResponse{
 						MaxBlockNumber:      blockNumber,
 						BatchMaxBlockNumber: rn,
 						MaxRoundNumber:      rn,
-						Blocks: []*block.Block{{
-							SystemIdentifier:   tx.SystemId,
-							Transactions:       []*txsystem.Transaction{tx},
-							UnicityCertificate: &certificates.UnicityCertificate{InputRecord: &certificates.InputRecord{RoundNumber: rn}},
-						}},
+						Blocks:              [][]byte{blockBytes},
 					}, nil
 				default:
 					// signal "no new blocks"
@@ -230,6 +230,7 @@ func Test_Run_API(t *testing.T) {
 
 	// trigger block sync from (mocked) AB with an CreateNonFungibleTokenType tx
 	createNTFTypeTx := randomTx(t, &tokens.CreateNonFungibleTokenTypeAttributes{Symbol: "test"})
+	createNTFTypeTx.Payload.Type = tokens.PayloadTypeCreateNFTType
 	select {
 	case syncing <- createNTFTypeTx:
 	case <-time.After(2 * time.Second):
@@ -238,30 +239,22 @@ func Test_Run_API(t *testing.T) {
 
 	// syncing with mocked AB backend should have us now on round-number 1
 	waitForRoundNumberToBeStored(1, 1500*time.Millisecond)
-
+	attrs := &tokens.CreateNonFungibleTokenTypeAttributes{}
+	require.NoError(t, createNTFTypeTx.UnmarshalAttributes(attrs))
 	// we synced NTF token type from backend, check that it is returned:
 	// first convert the txsystem.Transaction to the type we have in indexing backend...
-	txs, err := tokens.NewTxSystem(tokens.WithTrustBase(map[string]abcrypto.Verifier{"test": nil}))
-	if err != nil {
-		t.Errorf("failed to create token tx system: %v", err)
-	}
-	gtx, err := txs.ConvertTx(createNTFTypeTx)
-	if err != nil {
-		t.Fatalf("failed to convert tx: %v", err)
-	}
-	tx := gtx.(tokens.CreateNonFungibleTokenType)
 	cnfttt := &TokenUnitType{
 		Kind:                     NonFungible,
-		ID:                       util.Uint256ToBytes(gtx.UnitID()),
-		ParentTypeID:             tx.ParentTypeID(),
-		Symbol:                   tx.Symbol(),
-		Name:                     tx.Name(),
-		Icon:                     tx.Icon(),
-		SubTypeCreationPredicate: tx.SubTypeCreationPredicate(),
-		TokenCreationPredicate:   tx.TokenCreationPredicate(),
-		InvariantPredicate:       tx.InvariantPredicate(),
-		NftDataUpdatePredicate:   tx.DataUpdatePredicate(),
-		TxHash:                   gtx.Hash(crypto.SHA256),
+		ID:                       TokenTypeID(createNTFTypeTx.Payload.UnitID),
+		ParentTypeID:             attrs.ParentTypeID,
+		Symbol:                   attrs.Symbol,
+		Name:                     attrs.Name,
+		Icon:                     attrs.Icon,
+		SubTypeCreationPredicate: attrs.SubTypeCreationPredicate,
+		TokenCreationPredicate:   attrs.TokenCreationPredicate,
+		InvariantPredicate:       attrs.InvariantPredicate,
+		NftDataUpdatePredicate:   attrs.DataUpdatePredicate,
+		TxHash:                   createNTFTypeTx.Hash(crypto.SHA256),
 	}
 	//...and check do we get it back via API
 	// get all kind of types
@@ -277,16 +270,16 @@ func Test_Run_API(t *testing.T) {
 	require.NoError(t, doGet("/kinds/nft/types", http.StatusOK, &typesData))
 	require.ElementsMatch(t, typesData, []*TokenUnitType{cnfttt})
 
-	// post an tx to mint NFT with the existing type
+	// post a tx to mint NFT with the existing type
 	ownerID := test.RandomBytes(33)
 	pubKeyHex := hexutil.Encode(ownerID)
-	message, err := protojson.MarshalOptions{EmitUnpopulated: true}.Marshal(&txsystem.Transactions{
-		Transactions: []*txsystem.Transaction{randomTx(t,
-			&tokens.MintNonFungibleTokenAttributes{
-				Bearer:  script.PredicatePayToPublicKeyHashDefault(hash.Sum256(ownerID)),
-				NftType: createNTFTypeTx.UnitId,
-			})},
-	})
+	tx := randomTx(t,
+		&tokens.MintNonFungibleTokenAttributes{
+			Bearer:    script.PredicatePayToPublicKeyHashDefault(hash.Sum256(ownerID)),
+			NFTTypeID: createNTFTypeTx.Payload.UnitID,
+		})
+	tx.Payload.Type = tokens.PayloadTypeMintNFT
+	message, err := cbor.Marshal(&wallet.Transactions{Transactions: []*types.TransactionOrder{tx}})
 	require.NoError(t, err)
 	require.NotEmpty(t, message)
 

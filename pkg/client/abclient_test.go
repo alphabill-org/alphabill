@@ -2,22 +2,17 @@ package client
 
 import (
 	"context"
-	"crypto/sha256"
 	"errors"
 	"sync"
 	"testing"
 	"time"
 
-	"github.com/alphabill-org/alphabill/internal/block"
-	"github.com/alphabill-org/alphabill/internal/certificates"
 	"github.com/alphabill-org/alphabill/internal/hash"
 	"github.com/alphabill-org/alphabill/internal/script"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	testserver "github.com/alphabill-org/alphabill/internal/testutils/server"
-	"github.com/alphabill-org/alphabill/internal/txsystem"
-	billtx "github.com/alphabill-org/alphabill/internal/txsystem/money"
+	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/stretchr/testify/require"
-	"google.golang.org/protobuf/types/known/anypb"
 )
 
 // TestRaceConditions meant to be run with -race flag
@@ -68,12 +63,14 @@ func TestTimeout(t *testing.T) {
 	defer cancel()
 
 	// make GetBlock request wait for some time
-	server.SetBlockFunc(0, func() *block.Block {
+	server.SetBlockFunc(0, func() *types.Block {
 		time.Sleep(100 * time.Millisecond)
-		return &block.Block{
-			PreviousBlockHash:  hash.Sum256([]byte{}),
-			Transactions:       []*txsystem.Transaction{},
-			UnicityCertificate: &certificates.UnicityCertificate{},
+		return &types.Block{
+			Header: &types.Header{
+				PreviousBlockHash: hash.Sum256([]byte{}),
+			},
+			Transactions:       []*types.TransactionRecord{},
+			UnicityCertificate: &types.UnicityCertificate{},
 		}
 	})
 
@@ -141,21 +138,13 @@ func TestSendTransactionWithRetry_RetryCanBeCanceledByUser(t *testing.T) {
 	require.Len(t, server.GetProcessedTransactions(), 0)
 }
 
-func createRandomTransfer() *anypb.Any {
-	tx, _ := anypb.New(&billtx.TransferAttributes{
-		TargetValue: 100,
-		NewBearer:   script.PredicatePayToPublicKeyHashDefault(sha256.New().Sum([]byte{0})),
-		Backlink:    hash.Sum256([]byte{}),
-	})
-	return tx
-}
-
-func createRandomTx() *txsystem.Transaction {
-	return &txsystem.Transaction{
-		UnitId:                hash.Sum256([]byte{0x00}),
-		TransactionAttributes: createRandomTransfer(),
-		ClientMetadata:        &txsystem.ClientMetadata{Timeout: 1000},
-		OwnerProof:            script.PredicateArgumentEmpty(),
+func createRandomTx() *types.TransactionOrder {
+	return &types.TransactionOrder{
+		Payload: &types.Payload{
+			UnitID:         hash.Sum256([]byte{0x00}),
+			ClientMetadata: &types.ClientMetadata{Timeout: 1000},
+		},
+		OwnerProof: script.PredicateArgumentEmpty(),
 	}
 }
 

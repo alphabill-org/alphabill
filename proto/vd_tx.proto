@@ -1,7 +1,0 @@
-syntax = "proto3";
-package alphabill.vd.v1;
-
-option go_package = "github.com/alphabill-org/alphabill/internal/txsystem/vd/;vd";
-
-message RegisterDataAttributes {
-}

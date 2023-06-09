@@ -5,12 +5,12 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/alphabill-org/alphabill/internal/certificates"
 	"github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/certification"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 	pg "github.com/alphabill-org/alphabill/internal/partition/genesis"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
+	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/stretchr/testify/require"
 )
 
@@ -69,7 +69,7 @@ func createInputRequest(t *testing.T, systemIdentifier []byte, nodeID string, pa
 	req := &certification.BlockCertificationRequest{
 		SystemIdentifier: systemIdentifier,
 		NodeIdentifier:   nodeID,
-		InputRecord: &certificates.InputRecord{
+		InputRecord: &types.InputRecord{
 			PreviousHash: make([]byte, 32),
 			Hash:         make([]byte, 32),
 			BlockHash:    make([]byte, 32),

@@ -2,28 +2,27 @@ package cmd
 
 import (
 	"context"
+	"math/rand"
 	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
 	"time"
 
-	"github.com/alphabill-org/alphabill/internal/hash"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 	rootgenesis "github.com/alphabill-org/alphabill/internal/rootchain/genesis"
 	"github.com/alphabill-org/alphabill/internal/rpc/alphabill"
-	test "github.com/alphabill-org/alphabill/internal/testutils"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	testtime "github.com/alphabill-org/alphabill/internal/testutils/time"
-	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/internal/txsystem/vd"
+	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/internal/util"
+	"github.com/fxamacker/cbor/v2"
+	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
-	"google.golang.org/protobuf/proto"
-	"google.golang.org/protobuf/types/known/anypb"
 )
 
 func TestRunVD(t *testing.T) {
@@ -99,16 +98,27 @@ func TestRunVD(t *testing.T) {
 
 		// Test
 		// green path
+		id := uint256.NewInt(rand.Uint64()).Bytes32()
+		tx := &types.TransactionOrder{
+			Payload: &types.Payload{
+				SystemID:       vd.DefaultSystemIdentifier,
+				Type:           vd.PayloadTypeRegisterData,
+				UnitID:         id[:],
+				ClientMetadata: &types.ClientMetadata{Timeout: 10},
+			},
+		}
+		txBytes, _ := cbor.Marshal(tx)
+		txProto := &alphabill.Transaction{Order: txBytes}
 
-		tx, err := createVDTransaction()
-		require.NoError(t, err)
-
-		_, err = rpcClient.ProcessTransaction(ctx, tx, grpc.WaitForReady(true))
+		_, err = rpcClient.ProcessTransaction(ctx, txProto, grpc.WaitForReady(true))
 		require.NoError(t, err)
 
 		// failing case
-		tx.SystemId = []byte{0, 0, 0, 0} // incorrect system id
-		_, err = rpcClient.ProcessTransaction(ctx, tx, grpc.WaitForReady(true))
+		tx.Payload.SystemID = []byte{0, 0, 0, 0} // incorrect system id
+		txBytes, _ = cbor.Marshal(tx)
+		txProto = &alphabill.Transaction{Order: txBytes}
+
+		_, err = rpcClient.ProcessTransaction(ctx, txProto, grpc.WaitForReady(true))
 		require.ErrorContains(t, err, "invalid transaction system identifier")
 
 		// Close the app
@@ -116,21 +126,4 @@ func TestRunVD(t *testing.T) {
 		// Wait for test asserts to be completed
 		appStoppedWg.Wait()
 	})
-}
-
-func createVDTransaction() (*txsystem.Transaction, error) {
-	tx := &txsystem.Transaction{
-		SystemId:              vd.DefaultSystemIdentifier,
-		UnitId:                hash.Sum256(test.RandomBytes(32)),
-		TransactionAttributes: new(anypb.Any),
-		ClientMetadata:        &txsystem.ClientMetadata{
-			Timeout:           20,
-		},
-	}
-
-	err := anypb.MarshalFrom(tx.TransactionAttributes, &vd.RegisterDataAttributes{}, proto.MarshalOptions{})
-	if err != nil {
-		return nil, err
-	}
-	return tx, nil
 }

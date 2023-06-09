@@ -8,8 +8,8 @@ import (
 	"testing"
 
 	test "github.com/alphabill-org/alphabill/internal/testutils"
-	"github.com/alphabill-org/alphabill/internal/txsystem"
 	ttxs "github.com/alphabill-org/alphabill/internal/txsystem/tokens"
+	"github.com/alphabill-org/alphabill/internal/types"
 	sdk "github.com/alphabill-org/alphabill/pkg/wallet"
 	twb "github.com/alphabill-org/alphabill/pkg/wallet/tokens/backend"
 	"github.com/stretchr/testify/require"
@@ -25,7 +25,7 @@ func TestFungibleTokenDC(t *testing.T) {
 	typeID2 := test.RandomBytes(32)
 	typeID3 := test.RandomBytes(32)
 
-	resetFunc := func() (uint64, map[string][]*twb.TokenUnit, map[string]*txsystem.Transaction) {
+	resetFunc := func() (uint64, map[string][]*twb.TokenUnit, map[string]*types.TransactionOrder) {
 		return uint64(0), map[string][]*twb.TokenUnit{
 			string(pubKey0): {
 				&twb.TokenUnit{ID: test.RandomBytes(32), Kind: twb.Fungible, Symbol: "AB1", TypeID: typeID1, Amount: 100},
@@ -36,7 +36,7 @@ func TestFungibleTokenDC(t *testing.T) {
 			string(pubKey1): {
 				&twb.TokenUnit{ID: test.RandomBytes(32), Kind: twb.Fungible, Symbol: "AB2", TypeID: typeID2, Amount: 100},
 			},
-		}, make(map[string]*txsystem.Transaction, 0)
+		}, make(map[string]*types.TransactionOrder, 0)
 	}
 
 	burnedValue, accTokens, recordedTx := resetFunc()
@@ -54,30 +54,26 @@ func TestFungibleTokenDC(t *testing.T) {
 	}
 
 	be := &mockTokenBackend{
-		getTokens: func(_ context.Context, _ twb.Kind, owner sdk.PubKey, _ string, _ int) ([]twb.TokenUnit, string, error) {
+		getTokens: func(_ context.Context, _ twb.Kind, owner sdk.PubKey, _ string, _ int) ([]*twb.TokenUnit, string, error) {
 			tokens, found := accTokens[string(owner)]
 			if !found {
 				return nil, "", fmt.Errorf("no tokens for pubkey '%X'", owner)
 			}
-			var res []twb.TokenUnit
-			for _, tok := range tokens {
-				res = append(res, *tok)
-			}
-			return res, "", nil
+			return tokens, "", nil
 		},
-		postTransactions: func(ctx context.Context, pubKey sdk.PubKey, txs *txsystem.Transactions) error {
+		postTransactions: func(ctx context.Context, pubKey sdk.PubKey, txs *sdk.Transactions) error {
 			for _, tx := range txs.Transactions {
-				unitID := tx.UnitId
+				unitID := tx.UnitID()
 				recordedTx[string(unitID)] = tx
-				switch tx.TransactionAttributes.TypeUrl {
-				case "type.googleapis.com/alphabill.tokens.v1.BurnFungibleTokenAttributes":
+				switch tx.PayloadType() {
+				case ttxs.PayloadTypeBurnFungibleToken:
 					tok := findToken(pubKey, unitID)
 					tok.Burned = true
 					burnedValue += tok.Amount
-				case "type.googleapis.com/alphabill.tokens.v1.JoinFungibleTokenAttributes":
+				case ttxs.PayloadTypeJoinFungibleToken:
 					tok := findToken(pubKey, unitID)
 					attrs := &ttxs.JoinFungibleTokenAttributes{}
-					require.NoError(t, tx.TransactionAttributes.UnmarshalTo(attrs))
+					require.NoError(t, tx.UnmarshalAttributes(attrs))
 					require.Equal(t, uint64(300), tok.Amount+burnedValue)
 				default:
 					return errors.New("unexpected tx")
@@ -90,7 +86,7 @@ func TestFungibleTokenDC(t *testing.T) {
 			if !found {
 				return nil, errors.New("tx not found")
 			}
-			return &sdk.Proof{BlockNumber: 1, Tx: recordedTx, Proof: nil}, nil
+			return &sdk.Proof{TxRecord: &types.TransactionRecord{TransactionOrder: recordedTx}, TxProof: nil}, nil
 		},
 		getRoundNumber: func(ctx context.Context) (uint64, error) {
 			return 1, nil
@@ -132,14 +128,14 @@ func TestGetTokensForDC(t *testing.T) {
 	}
 
 	be := &mockTokenBackend{
-		getTokens: func(_ context.Context, kind twb.Kind, owner sdk.PubKey, _ string, _ int) ([]twb.TokenUnit, string, error) {
+		getTokens: func(_ context.Context, kind twb.Kind, owner sdk.PubKey, _ string, _ int) ([]*twb.TokenUnit, string, error) {
 			require.Equal(t, twb.Fungible, kind)
-			var res []twb.TokenUnit
+			var res []*twb.TokenUnit
 			for _, tok := range allTokens {
 				if tok.Kind != kind {
 					continue
 				}
-				res = append(res, *tok)
+				res = append(res, tok)
 			}
 			return res, "", nil
 		},

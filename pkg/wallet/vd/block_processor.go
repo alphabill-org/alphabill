@@ -5,11 +5,9 @@ import (
 	"context"
 	"crypto"
 	"encoding/hex"
-	"errors"
 	"fmt"
 
-	"github.com/alphabill-org/alphabill/internal/block"
-	"github.com/alphabill-org/alphabill/internal/txsystem"
+	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/internal/txsystem/vd"
 	fc "github.com/alphabill-org/alphabill/internal/txsystem/fc/transactions"
 	"github.com/alphabill-org/alphabill/pkg/wallet"
@@ -18,44 +16,35 @@ import (
 )
 
 type BlockProcessor struct {
-	txConverter *TxConverter
-	db          *storage
+	db *storage
 }
 
 func NewBlockProcessor(db *storage) *BlockProcessor {
-	return &BlockProcessor{
-		txConverter: NewTxConverter(vd.DefaultSystemIdentifier),
-		db: db,
-	}
+	return &BlockProcessor{db: db}
 }
 
 func NewProofFinder(unitID wallet.UnitID, txHash wallet.TxHash, proofCh chan<- *wallet.Proof) blocksync.BlockProcessorFunc {
-	return func(_ context.Context, b *block.Block) error {
+	return func(_ context.Context, b *types.Block) error {
 		log.Debug("Processing block #", b.GetRoundNumber())
 
-		genericBlock, err := b.ToGenericBlock(NewTxConverter(b.SystemIdentifier))
-		if err != nil {
-			return fmt.Errorf("failed to convert block to generic block: %w", err)
-		}
-
-		for _, gtx := range genericBlock.Transactions {
-			tx := gtx.ToProtoBuf()
-
-			if unitID != nil && !bytes.Equal(tx.UnitId, unitID){
+		for idx, txr := range b.Transactions {
+			txo := txr.TransactionOrder
+			if unitID != nil && !bytes.Equal(txo.UnitID(), unitID){
 				continue
 			}
 			if txHash != nil {
-				gtxHash := gtx.Hash(crypto.SHA256)
-				if !bytes.Equal(gtxHash, txHash) {
+				txoHash := txo.Hash(crypto.SHA256)
+				if !bytes.Equal(txoHash, txHash) {
 					continue
 				}
 			}
-			proof, err := createProof(tx.UnitId, tx, genericBlock, crypto.SHA256)
+
+			txProof, _, err := types.NewTxProof(b, idx, crypto.SHA256)
 			if err != nil {
-				return err
+				return fmt.Errorf("failed to create tx proof for the block: %w", err)
 			}
 
-			proofCh <- proof
+			proofCh <- &wallet.Proof{TxRecord: txr, TxProof: txProof}
 			return nil
 		}
 
@@ -64,11 +53,12 @@ func NewProofFinder(unitID wallet.UnitID, txHash wallet.TxHash, proofCh chan<- *
 }
 
 func NewTxPrinter() blocksync.BlockProcessorFunc {
-	return func(_ context.Context, b *block.Block) error {
+	return func(_ context.Context, b *types.Block) error {
 		log.Debug("Processing block #", b.GetRoundNumber())
 		for _, tx := range b.Transactions {
-			if vd.TypeURLRegisterDataAttributes == tx.TransactionAttributes.TypeUrl {
-				log.Info(fmt.Sprintf("Tx in block #%d, hash: %s", b.GetRoundNumber(), hex.EncodeToString(tx.GetUnitId())))
+			txo := tx.TransactionOrder
+			if vd.PayloadTypeRegisterData == txo.PayloadType() {
+				log.Info(fmt.Sprintf("Tx in block #%d, hash: %s", b.GetRoundNumber(), hex.EncodeToString(txo.UnitID())))
 			}
 		}
 
@@ -76,7 +66,7 @@ func NewTxPrinter() blocksync.BlockProcessorFunc {
 	}
 }
 
-func (p *BlockProcessor) ProcessBlock(_ context.Context, b *block.Block) error {
+func (p *BlockProcessor) ProcessBlock(_ context.Context, b *types.Block) error {
 	log.Debug("Processing block #", b.GetRoundNumber())
 
 	lastBlockNumber, err := p.db.GetBlockNumber()
@@ -98,78 +88,65 @@ func (p *BlockProcessor) ProcessBlock(_ context.Context, b *block.Block) error {
 	return p.db.SetBlockNumber(b.GetRoundNumber())
 }
 
-func (p *BlockProcessor) processTx(inTx *txsystem.Transaction, b *block.Block) error {
-	gtx, err := p.txConverter.ConvertTx(inTx)
-	if err != nil {
-		return err
-	}
+func (p *BlockProcessor) processTx(txr *types.TransactionRecord, b *types.Block) error {
+	txo := txr.TransactionOrder
 
-	switch tx := gtx.(type) {
-	case vd.RegisterData:
-		return p.updateFCB(inTx, b.GetRoundNumber(), tx.Hash(crypto.SHA256))
-	case *fc.AddFeeCreditWrapper:
-		fcb, err := p.db.GetFeeCreditBill(inTx.UnitId)
+	switch txo.PayloadType() {
+	case vd.PayloadTypeRegisterData:
+		return p.updateFCB(txr, b.GetRoundNumber())
+	case fc.PayloadTypeAddFeeCredit:
+		addFeeCreditAttributes := &fc.AddFeeCreditAttributes{}
+		if err := txo.UnmarshalAttributes(addFeeCreditAttributes); err != nil {
+			return err
+		}
+		transferFeeCreditAttributes := &fc.TransferFeeCreditAttributes{}
+		if err := addFeeCreditAttributes.FeeCreditTransfer.TransactionOrder.UnmarshalAttributes(transferFeeCreditAttributes); err != nil {
+			return err
+		}
+		fcb, err := p.db.GetFeeCreditBill(txo.UnitID())
 		if err != nil {
 			return err
 		}
 		return p.db.SetFeeCreditBill(&FeeCreditBill{
-			Id:            inTx.UnitId,
-			Value:         fcb.GetValue() + tx.TransferFC.TransferFC.Amount - tx.Transaction.ServerMetadata.Fee,
-			TxHash:        tx.Hash(crypto.SHA256),
+			Id:            txo.UnitID(),
+			Value:         fcb.GetValue() + transferFeeCreditAttributes.Amount - txr.ServerMetadata.ActualFee,
+			TxHash:        txo.Hash(crypto.SHA256),
 			FCBlockNumber: b.GetRoundNumber(),
 		})
-	case *fc.CloseFeeCreditWrapper:
-		fcb, err := p.db.GetFeeCreditBill(inTx.UnitId)
+	case fc.PayloadTypeCloseFeeCredit:
+		closeFeeCreditAttributes := &fc.CloseFeeCreditAttributes{}
+		if err := txo.UnmarshalAttributes(closeFeeCreditAttributes); err != nil {
+			return err
+		}
+		fcb, err := p.db.GetFeeCreditBill(txo.UnitID())
 		if err != nil {
 			return err
 		}
 		return p.db.SetFeeCreditBill(&FeeCreditBill{
-			Id:            inTx.UnitId,
-			Value:         fcb.GetValue() - tx.CloseFC.Amount,
-			TxHash:        tx.Hash(crypto.SHA256),
+			Id:            txo.UnitID(),
+			Value:         fcb.GetValue() - closeFeeCreditAttributes.Amount,
+			TxHash:        txo.Hash(crypto.SHA256),
 			FCBlockNumber: b.GetRoundNumber(),
 		})
 	default:
-		log.Warning(fmt.Sprintf("received unknown transaction type, skipping processing: %s", tx))
+		log.Warning(fmt.Sprintf("received unknown transaction type, skipping processing: %s", txo.PayloadType()))
 		return nil
 	}
 }
 
-func (p *BlockProcessor) updateFCB(tx *txsystem.Transaction, roundNumber uint64, txHash []byte) error {
-	fcb, err := p.db.GetFeeCreditBill(tx.ClientMetadata.FeeCreditRecordId)
+func (p *BlockProcessor) updateFCB(txr *types.TransactionRecord, roundNumber uint64) error {
+	txo := txr.TransactionOrder
+	fcb, err := p.db.GetFeeCreditBill(txo.Payload.ClientMetadata.FeeCreditRecordID)
 	if err != nil {
 		return err
 	}
 	if fcb == nil {
-		return fmt.Errorf("fee credit bill not found: %X", tx.ClientMetadata.FeeCreditRecordId)
+		return fmt.Errorf("fee credit bill not found: %X", txo.Payload.ClientMetadata.FeeCreditRecordID)
 	}
-	if fcb.Value < tx.ServerMetadata.Fee {
-		return fmt.Errorf("fee credit bill value cannot go negative; value=%d fee=%d", fcb.Value, tx.ServerMetadata.Fee)
+	if fcb.Value < txr.ServerMetadata.ActualFee {
+		return fmt.Errorf("fee credit bill value cannot go negative; value=%d fee=%d", fcb.Value, txr.ServerMetadata.ActualFee)
 	}
-	fcb.Value -= tx.ServerMetadata.Fee
+	fcb.Value -= txr.ServerMetadata.ActualFee
 	fcb.FCBlockNumber = roundNumber
-	fcb.TxHash = txHash
 	return p.db.SetFeeCreditBill(fcb)
-}
-
-func createProof(unitID []byte, tx *txsystem.Transaction, b *block.GenericBlock, hashAlgorithm crypto.Hash) (*wallet.Proof, error) {
-	proof, err := block.NewPrimaryProof(b, unitID, hashAlgorithm)
-	if err != nil {
-		return nil, err
-	}
-	return newTxProof(tx, proof, b.GetRoundNumber())
-}
-
-func newTxProof(tx *txsystem.Transaction, proof *block.BlockProof, blockNumber uint64) (*wallet.Proof, error) {
-	if tx == nil {
-		return nil, errors.New("tx is nil")
-	}
-	if proof == nil {
-		return nil, errors.New("proof is nil")
-	}
-	return &wallet.Proof{
-		Tx:          tx,
-		Proof:       proof,
-		BlockNumber: blockNumber,
-	}, nil
 }

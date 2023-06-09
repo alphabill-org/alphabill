@@ -4,12 +4,10 @@ import (
 	gocrypto "crypto"
 	"testing"
 
-	"github.com/alphabill-org/alphabill/internal/certificates"
 	"github.com/alphabill-org/alphabill/internal/crypto"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
-	moneytesttx "github.com/alphabill-org/alphabill/internal/testutils/transaction/money"
-	"github.com/alphabill-org/alphabill/internal/txsystem"
+	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/stretchr/testify/require"
 )
 
@@ -21,8 +19,8 @@ func TestBlockProposal_IsValid_NotOk(t *testing.T) {
 	type fields struct {
 		SystemIdentifier   []byte
 		NodeIdentifier     string
-		UnicityCertificate *certificates.UnicityCertificate
-		Transactions       []*txsystem.Transaction
+		UnicityCertificate *types.UnicityCertificate
+		Transactions       []*types.TransactionRecord
 	}
 	type args struct {
 		nodeSignatureVerifier crypto.Verifier
@@ -43,7 +41,7 @@ func TestBlockProposal_IsValid_NotOk(t *testing.T) {
 			fields: fields{
 				SystemIdentifier: systemIdentifier,
 				NodeIdentifier:   "1",
-				Transactions:     []*txsystem.Transaction{},
+				Transactions:     []*types.TransactionRecord{},
 			},
 			args: args{
 				nodeSignatureVerifier: nil,
@@ -59,7 +57,7 @@ func TestBlockProposal_IsValid_NotOk(t *testing.T) {
 			fields: fields{
 				SystemIdentifier: systemIdentifier,
 				NodeIdentifier:   "1",
-				Transactions:     []*txsystem.Transaction{},
+				Transactions:     []*types.TransactionRecord{},
 			},
 			args: args{
 				nodeSignatureVerifier: nodeVerifier,
@@ -75,7 +73,7 @@ func TestBlockProposal_IsValid_NotOk(t *testing.T) {
 			fields: fields{
 				SystemIdentifier: systemIdentifier,
 				NodeIdentifier:   "1",
-				Transactions:     []*txsystem.Transaction{},
+				Transactions:     []*types.TransactionRecord{},
 			},
 			args: args{
 				nodeSignatureVerifier: nodeVerifier,
@@ -90,7 +88,7 @@ func TestBlockProposal_IsValid_NotOk(t *testing.T) {
 			name: "block proposer id is missing",
 			fields: fields{
 				SystemIdentifier: systemIdentifier,
-				Transactions:     []*txsystem.Transaction{},
+				Transactions:     []*types.TransactionRecord{},
 			},
 			args: args{
 				nodeSignatureVerifier: nodeVerifier,
@@ -107,7 +105,7 @@ func TestBlockProposal_IsValid_NotOk(t *testing.T) {
 				SystemIdentifier:   systemIdentifier,
 				NodeIdentifier:     "1",
 				UnicityCertificate: nil,
-				Transactions:       []*txsystem.Transaction{},
+				Transactions:       []*types.TransactionRecord{},
 			},
 			args: args{
 				nodeSignatureVerifier: nodeVerifier,
@@ -116,7 +114,7 @@ func TestBlockProposal_IsValid_NotOk(t *testing.T) {
 				systemIdentifier:      systemIdentifier,
 				systemDescriptionHash: test.RandomBytes(32),
 			},
-			wantErr: certificates.ErrUnicityCertificateIsNil,
+			wantErr: types.ErrUnicityCertificateIsNil,
 		},
 	}
 	for _, tt := range tests {
@@ -144,7 +142,7 @@ func TestBlockProposal_IsValid_BlockProposalIsNil(t *testing.T) {
 func TestBlockProposal_SignAndVerify(t *testing.T) {
 	signer, verifier := testsig.CreateSignerAndVerifier(t)
 	sdrHash := test.RandomBytes(32)
-	seal := &certificates.UnicitySeal{
+	seal := &types.UnicitySeal{
 		RootChainRoundNumber: 1,
 		PreviousHash:         test.RandomBytes(32),
 		Hash:                 test.RandomBytes(32),
@@ -153,21 +151,36 @@ func TestBlockProposal_SignAndVerify(t *testing.T) {
 	bp := &BlockProposal{
 		SystemIdentifier: systemIdentifier,
 		NodeIdentifier:   "1",
-		UnicityCertificate: &certificates.UnicityCertificate{
-			InputRecord: &certificates.InputRecord{
+		UnicityCertificate: &types.UnicityCertificate{
+			InputRecord: &types.InputRecord{
 				PreviousHash: test.RandomBytes(32),
 				Hash:         test.RandomBytes(32),
 				BlockHash:    test.RandomBytes(32),
 				SummaryValue: test.RandomBytes(32),
 			},
-			UnicityTreeCertificate: &certificates.UnicityTreeCertificate{
+			UnicityTreeCertificate: &types.UnicityTreeCertificate{
 				SystemIdentifier:      systemIdentifier,
 				SiblingHashes:         [][]byte{test.RandomBytes(32)},
 				SystemDescriptionHash: sdrHash,
 			},
 			UnicitySeal: seal,
 		},
-		Transactions: []*txsystem.Transaction{moneytesttx.RandomBillTransfer(t)},
+		Transactions: []*types.TransactionRecord{{
+			TransactionOrder: &types.TransactionOrder{
+				Payload: &types.Payload{
+					SystemID:       nil,
+					Type:           "test",
+					UnitID:         nil,
+					Attributes:     nil,
+					ClientMetadata: nil,
+				},
+				OwnerProof: nil,
+				FeeProof:   nil,
+			},
+			ServerMetadata: &types.ServerMetadata{
+				ActualFee: 10,
+			},
+		}},
 	}
 	err := bp.Sign(gocrypto.SHA256, signer)
 	require.NoError(t, err)
@@ -179,7 +192,7 @@ func TestBlockProposal_SignAndVerify(t *testing.T) {
 func TestBlockProposal_InvalidSignature(t *testing.T) {
 	signer, verifier := testsig.CreateSignerAndVerifier(t)
 	sdrHash := test.RandomBytes(32)
-	seal := &certificates.UnicitySeal{
+	seal := &types.UnicitySeal{
 		RootChainRoundNumber: 1,
 		PreviousHash:         test.RandomBytes(32),
 		Hash:                 test.RandomBytes(32),
@@ -188,21 +201,34 @@ func TestBlockProposal_InvalidSignature(t *testing.T) {
 	bp := &BlockProposal{
 		SystemIdentifier: systemIdentifier,
 		NodeIdentifier:   "1",
-		UnicityCertificate: &certificates.UnicityCertificate{
-			InputRecord: &certificates.InputRecord{
+		UnicityCertificate: &types.UnicityCertificate{
+			InputRecord: &types.InputRecord{
 				PreviousHash: test.RandomBytes(32),
 				Hash:         test.RandomBytes(32),
 				BlockHash:    test.RandomBytes(32),
 				SummaryValue: test.RandomBytes(32),
 			},
-			UnicityTreeCertificate: &certificates.UnicityTreeCertificate{
+			UnicityTreeCertificate: &types.UnicityTreeCertificate{
 				SystemIdentifier:      systemIdentifier,
 				SiblingHashes:         [][]byte{test.RandomBytes(32)},
 				SystemDescriptionHash: sdrHash,
 			},
 			UnicitySeal: seal,
 		},
-		Transactions: []*txsystem.Transaction{moneytesttx.RandomBillTransfer(t)},
+		Transactions: []*types.TransactionRecord{{TransactionOrder: &types.TransactionOrder{
+			Payload: &types.Payload{
+				SystemID:       nil,
+				Type:           "test",
+				UnitID:         nil,
+				Attributes:     nil,
+				ClientMetadata: nil,
+			},
+			OwnerProof: nil,
+			FeeProof:   nil,
+		},
+			ServerMetadata: &types.ServerMetadata{
+				ActualFee: 10,
+			}}},
 	}
 	err := bp.Sign(gocrypto.SHA256, signer)
 	require.NoError(t, err)

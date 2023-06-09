@@ -5,10 +5,9 @@ import (
 	"errors"
 	"sort"
 
-	"github.com/alphabill-org/alphabill/internal/block"
-	"github.com/alphabill-org/alphabill/internal/txsystem"
+	"github.com/alphabill-org/alphabill/internal/types"
+	"github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/alphabill-org/alphabill/pkg/wallet/account"
-	"github.com/alphabill-org/alphabill/pkg/wallet/backend/bp"
 	"github.com/alphabill-org/alphabill/pkg/wallet/log"
 	txbuilder "github.com/alphabill-org/alphabill/pkg/wallet/money/tx_builder"
 )
@@ -20,17 +19,17 @@ const (
 
 type (
 	TxPublisher interface {
-		SendTx(ctx context.Context, tx *txsystem.Transaction, senderPubKey []byte) (*block.TxProof, error)
+		SendTx(ctx context.Context, tx *types.TransactionOrder, senderPubKey []byte) (*wallet.Proof, error)
 		Close()
 	}
 
 	PartitionDataProvider interface {
 		GetRoundNumber(ctx context.Context) (uint64, error)
-		FetchFeeCreditBill(ctx context.Context, unitID []byte) (*bp.Bill, error)
+		FetchFeeCreditBill(ctx context.Context, unitID []byte) (*wallet.Bill, error)
 	}
 
 	MoneyClient interface {
-		GetBills(pubKey []byte) ([]*bp.Bill, error)
+		GetBills(pubKey []byte) ([]*wallet.Bill, error)
 		PartitionDataProvider
 	}
 
@@ -98,7 +97,7 @@ func NewFeeManager(
 // AddFeeCredit creates fee credit for the given amount.
 // Wallet must have a bill large enough for the required amount plus fees.
 // Returns transferFC and addFC transaction proofs.
-func (w *FeeManager) AddFeeCredit(ctx context.Context, cmd AddFeeCmd) ([]*block.TxProof, error) {
+func (w *FeeManager) AddFeeCredit(ctx context.Context, cmd AddFeeCmd) ([]*wallet.Proof, error) {
 	if err := cmd.isValid(); err != nil {
 		return nil, err
 	}
@@ -153,7 +152,7 @@ func (w *FeeManager) AddFeeCredit(ctx context.Context, cmd AddFeeCmd) ([]*block.
 
 	// send transferFC to money partition
 	log.Info("sending transfer fee credit transaction")
-	tx, err := txbuilder.CreateTransferFCTx(cmd.Amount, accountKey.PrivKeyHash, fcb.GetTxHash(), accountKey, w.moneySystemID, w.userPartitionSystemID, billToTransfer, moneyTimeout, userPartitionRoundNumber, userPartitionTimeout)
+	tx, err := txbuilder.NewTransferFCTx(cmd.Amount, accountKey.PrivKeyHash, fcb.GetTxHash(), accountKey, w.moneySystemID, w.userPartitionSystemID, billToTransfer, moneyTimeout, userPartitionRoundNumber, userPartitionTimeout)
 	if err != nil {
 		return nil, err
 	}
@@ -164,7 +163,7 @@ func (w *FeeManager) AddFeeCredit(ctx context.Context, cmd AddFeeCmd) ([]*block.
 
 	// send addFC to user partition
 	log.Info("sending add fee credit transaction")
-	addFCTx, err := txbuilder.CreateAddFCTx(accountKey.PrivKeyHash, transferFCProof, accountKey, w.userPartitionSystemID, userPartitionTimeout)
+	addFCTx, err := txbuilder.NewAddFCTx(accountKey.PrivKeyHash, transferFCProof, accountKey, w.userPartitionSystemID, userPartitionTimeout)
 	if err != nil {
 		return nil, err
 	}
@@ -172,13 +171,13 @@ func (w *FeeManager) AddFeeCredit(ctx context.Context, cmd AddFeeCmd) ([]*block.
 	if err != nil {
 		return nil, err
 	}
-	return []*block.TxProof{transferFCProof, addFCProof}, err
+	return []*wallet.Proof{transferFCProof, addFCProof}, err
 }
 
 // ReclaimFeeCredit reclaims fee credit.
 // Reclaimed fee credit is added to the largest bill in wallet.
 // Returns closeFC and reclaimFC transaction proofs.
-func (w *FeeManager) ReclaimFeeCredit(ctx context.Context, cmd ReclaimFeeCmd) ([]*block.TxProof, error) {
+func (w *FeeManager) ReclaimFeeCredit(ctx context.Context, cmd ReclaimFeeCmd) ([]*wallet.Proof, error) {
 	k, err := w.am.GetAccountKey(cmd.AccountIndex)
 	if err != nil {
 		return nil, err
@@ -219,7 +218,7 @@ func (w *FeeManager) ReclaimFeeCredit(ctx context.Context, cmd ReclaimFeeCmd) ([
 
 	// send closeFC tx to user partition
 	log.Info("sending close fee credit transaction")
-	tx, err := txbuilder.CreateCloseFCTx(w.userPartitionSystemID, fcb.GetId(), userPartitionTimeout, fcb.Value, targetBill.GetId(), targetBill.TxHash, k)
+	tx, err := txbuilder.NewCloseFCTx(w.userPartitionSystemID, fcb.GetID(), userPartitionTimeout, fcb.Value, targetBill.GetID(), targetBill.TxHash, k)
 	if err != nil {
 		return nil, err
 	}
@@ -240,7 +239,7 @@ func (w *FeeManager) ReclaimFeeCredit(ctx context.Context, cmd ReclaimFeeCmd) ([
 
 	// send reclaimFC tx to money partition
 	log.Info("sending reclaim fee credit transaction")
-	reclaimFCTx, err := txbuilder.CreateReclaimFCTx(w.moneySystemID, targetBill.GetId(), moneyTimeout, closeFCProof, targetBill.TxHash, k)
+	reclaimFCTx, err := txbuilder.NewReclaimFCTx(w.moneySystemID, targetBill.GetID(), moneyTimeout, closeFCProof, targetBill.TxHash, k)
 	if err != nil {
 		return nil, err
 	}
@@ -248,12 +247,12 @@ func (w *FeeManager) ReclaimFeeCredit(ctx context.Context, cmd ReclaimFeeCmd) ([
 	if err != nil {
 		return nil, err
 	}
-	return []*block.TxProof{closeFCProof, reclaimFCProof}, nil
+	return []*wallet.Proof{closeFCProof, reclaimFCProof}, nil
 }
 
 // GetFeeCreditBill returns fee credit bill for given account,
 // can return nil if fee credit bill has not been created yet.
-func (w *FeeManager) GetFeeCreditBill(ctx context.Context, cmd GetFeeCreditCmd) (*bp.Bill, error) {
+func (w *FeeManager) GetFeeCreditBill(ctx context.Context, cmd GetFeeCreditCmd) (*wallet.Bill, error) {
 	accountKey, err := w.am.GetAccountKey(cmd.AccountIndex)
 	if err != nil {
 		return nil, err

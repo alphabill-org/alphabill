@@ -1,16 +1,41 @@
 package tokens
 
 import (
-	"github.com/alphabill-org/alphabill/internal/errors"
+	"fmt"
+
 	"github.com/alphabill-org/alphabill/internal/rma"
 	"github.com/alphabill-org/alphabill/internal/script"
+	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/holiman/uint256"
+)
+
+type (
+	TokenOwnershipProver interface {
+		types.SigBytesProvider
+		OwnerProof() []byte
+		InvariantPredicateSignatures() [][]byte
+	}
+
+	TokenSubtypeCreationProver interface {
+		types.SigBytesProvider
+		GetSubTypeCreationPredicateSignatures() [][]byte
+	}
+
+	TokenCreationProver interface {
+		types.SigBytesProvider
+		GetTokenCreationPredicateSignatures() [][]byte
+	}
+
+	NFTDataUpdateProver interface {
+		types.SigBytesProvider
+		GetDataUpdateSignatures() [][]byte
+	}
 )
 
 func verifyPredicates(predicates []Predicate, signatures [][]byte, sigData []byte) error {
 	if len(predicates) != 0 {
 		if len(predicates) != len(signatures) {
-			return errors.Errorf("Number of signatures (%v) not equal to number of parent predicates (%v)", len(signatures), len(predicates))
+			return fmt.Errorf("number of signatures (%v) not equal to number of parent predicates (%v)", len(signatures), len(predicates))
 		}
 		for i := 0; i < len(predicates); i++ {
 			err := script.RunScript(signatures[i], predicates[i], sigData)
@@ -49,19 +74,17 @@ func getUnit[T rma.UnitData](state *rma.Tree, unitID *uint256.Int) (*rma.Unit, T
 	}
 	d, ok := u.Data.(T)
 	if !ok {
-		return nil, *new(T), errors.Errorf("unit %v data is not of type %T", unitID, *new(T))
+		return nil, *new(T), fmt.Errorf("unit %v data is not of type %T", unitID, *new(T))
 	}
 	return u, d, nil
-}
-
-type TokenOwnershipProver interface {
-	OwnerProof() []byte
-	InvariantPredicateSignatures() [][]byte
-	SigBytes() []byte
 }
 
 func verifyOwnership(bearer Predicate, invariants []Predicate, prover TokenOwnershipProver) error {
 	predicates := append([]Predicate{bearer}, invariants...)
 	proofs := append([][]byte{prover.OwnerProof()}, prover.InvariantPredicateSignatures()...)
-	return verifyPredicates(predicates, proofs, prover.SigBytes())
+	sigBytes, err := prover.SigBytes()
+	if err != nil {
+		return err
+	}
+	return verifyPredicates(predicates, proofs, sigBytes)
 }

@@ -84,7 +84,6 @@ func TestRunTokensNode(t *testing.T) {
 		// Test
 		// green path
 		id := uint256.NewInt(rand.Uint64()).Bytes32()
-
 		attr := &tokens.CreateNonFungibleTokenTypeAttributes{
 			Symbol:                   "Test",
 			ParentTypeID:             []byte{0},

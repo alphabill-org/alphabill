@@ -24,10 +24,10 @@ type (
 	}
 
 	FeeCreditBill struct {
-		Id            []byte // unitID
-		Value         uint64 // fee credit balance
-		TxHash        []byte // hash of the transaction that last updated fee credit balance
-		FCBlockNumber uint64 // number of the block that last updated fee credit balance
+		Id            []byte `json:"id"`                   // unitID
+		Value         uint64 `json:"value,string"`         // fee credit balance
+		TxHash        []byte `json:"txHash"`               // hash of the transaction that last updated fee credit balance
+		FCBlockNumber uint64 `json:"fcBlockNumber,string"` // number of the block that last updated fee credit balance
 	}
 )
 

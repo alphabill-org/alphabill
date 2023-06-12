@@ -39,6 +39,7 @@ func handleTransferFeeCreditTx(state *rma.Tree, hashAlgorithm crypto.Hash, feeCr
 		if err := validateTransferFC(tx, attr, billData); err != nil {
 			return nil, fmt.Errorf("transferFC: validation failed: %w", err)
 		}
+
 		// calculate actual tx fee cost
 		fee := feeCalc()
 

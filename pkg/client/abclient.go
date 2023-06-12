@@ -2,13 +2,13 @@ package client
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math"
+	"strings"
 	"sync"
 	"time"
-	"strings"
 
-	"github.com/alphabill-org/alphabill/internal/errors"
 	"github.com/alphabill-org/alphabill/internal/rpc/alphabill"
 	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/pkg/wallet/log"
@@ -82,12 +82,12 @@ func (c *AlphabillClient) SendTransactionWithRetry(ctx context.Context, tx *type
 			case <-time.After(time.Second):
 				continue
 			case <-ctx.Done():
-				return fmt.Errorf(ErrTxRetryCanceled)
+				return errors.New(ErrTxRetryCanceled)
 			}
 		}
 		return fmt.Errorf("failed to send transaction: %w", err)
 	}
-	return fmt.Errorf(ErrFailedToBroadcastTx)
+	return errors.New(ErrFailedToBroadcastTx)
 }
 
 func (c *AlphabillClient) GetBlock(ctx context.Context, blockNumber uint64) ([]byte, error) {
@@ -147,7 +147,7 @@ func (c *AlphabillClient) Close() error {
 		c.connection = nil
 		c.client = nil
 		if err := con.Close(); err != nil {
-			return errors.Wrap(err, "error shutting down alphabill client")
+			return fmt.Errorf("error shutting down alphabill client: %w", err)
 		}
 	}
 	return nil

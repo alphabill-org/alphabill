@@ -1,6 +1,7 @@
 package money
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -83,4 +84,11 @@ func TestWallet_GetBalances(t *testing.T) {
 	require.EqualValues(t, 10, balances[0])
 	require.EqualValues(t, 10, balances[1])
 	require.EqualValues(t, 20, sum)
+}
+
+func TestWallet_GetRoundNumber(t *testing.T) {
+	w, _ := CreateTestWalletFromSeed(t, &backendMockReturnConf{roundNumber: 10})
+	roundNumber, err := w.GetRoundNumber(context.Background())
+	require.NoError(t, err)
+	require.EqualValues(t, 10, roundNumber)
 }

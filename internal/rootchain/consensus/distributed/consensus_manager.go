@@ -731,7 +731,7 @@ func (x *ConsensusManager) onStateResponse(ctx context.Context, req *ab_consensu
 		}
 		if err := x.leaderSelector.Update(block.GetQc(), block.Round); err != nil {
 			// failing to elect leader is not critical error here, carry on until we're on the last block in storage
-			logger.Error("restoring leader selector state, failed to update leader with block %d: %v", round, err)
+			logger.Warning("restoring leader selector state, failed to update leader with block of round %d: %v", round, err)
 		}
 	}
 

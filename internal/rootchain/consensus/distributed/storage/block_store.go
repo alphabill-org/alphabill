@@ -162,7 +162,9 @@ func (x *BlockStore) ProcessQc(qc *ab_consensus.QuorumCert) (map[protocol.System
 		return nil, fmt.Errorf("commit block %v error, %w", committedBlock.GetRound(), err)
 	}
 	// update current certificates
-	x.updateCertificateCache(ucs)
+	if err := x.updateCertificateCache(ucs); err != nil {
+		return nil, fmt.Errorf("failed to update certificate cache: %w", err)
+	}
 	// commit blocks, the newly committed block becomes the new root in chain
 	return ucs, nil
 }

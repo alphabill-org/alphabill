@@ -267,10 +267,9 @@ func TestNewTypes(t *testing.T) {
 		},
 		getFeeCreditBill: func(ctx context.Context, unitID wallet.UnitID) (*wallet.Bill, error) {
 			return &wallet.Bill{
-				Id:            []byte{1},
-				Value:         100000,
-				TxHash:        []byte{2},
-				FcBlockNumber: 3,
+				Id:     []byte{1},
+				Value:  100000,
+				TxHash: []byte{2},
 			}, nil
 		},
 	}
@@ -353,10 +352,9 @@ func TestMintFungibleToken(t *testing.T) {
 		},
 		getFeeCreditBill: func(ctx context.Context, unitID wallet.UnitID) (*wallet.Bill, error) {
 			return &wallet.Bill{
-				Id:            []byte{1},
-				Value:         100000,
-				TxHash:        []byte{2},
-				FcBlockNumber: 3,
+				Id:     []byte{1},
+				Value:  100000,
+				TxHash: []byte{2},
 			}, nil
 		},
 	}
@@ -412,10 +410,9 @@ func TestSendFungible(t *testing.T) {
 		},
 		getFeeCreditBill: func(ctx context.Context, unitID wallet.UnitID) (*wallet.Bill, error) {
 			return &wallet.Bill{
-				Id:            []byte{1},
-				Value:         100000,
-				TxHash:        []byte{2},
-				FcBlockNumber: 3,
+				Id:     []byte{1},
+				Value:  100000,
+				TxHash: []byte{2},
 			}, nil
 		},
 		postTransactions: func(ctx context.Context, pubKey wallet.PubKey, txs *wallet.Transactions) error {
@@ -561,10 +558,9 @@ func TestMintNFT(t *testing.T) {
 		},
 		getFeeCreditBill: func(ctx context.Context, unitID wallet.UnitID) (*wallet.Bill, error) {
 			return &wallet.Bill{
-				Id:            []byte{1},
-				Value:         100000,
-				TxHash:        []byte{2},
-				FcBlockNumber: 3,
+				Id:     []byte{1},
+				Value:  100000,
+				TxHash: []byte{2},
 			}, nil
 		},
 	}
@@ -655,10 +651,9 @@ func TestTransferNFT(t *testing.T) {
 		},
 		getFeeCreditBill: func(ctx context.Context, unitID wallet.UnitID) (*wallet.Bill, error) {
 			return &wallet.Bill{
-				Id:            []byte{1},
-				Value:         100000,
-				TxHash:        []byte{2},
-				FcBlockNumber: 3,
+				Id:     []byte{1},
+				Value:  100000,
+				TxHash: []byte{2},
 			}, nil
 		},
 	}
@@ -725,10 +720,9 @@ func TestUpdateNFTData(t *testing.T) {
 		},
 		getFeeCreditBill: func(ctx context.Context, unitID wallet.UnitID) (*wallet.Bill, error) {
 			return &wallet.Bill{
-				Id:            []byte{1},
-				Value:         100000,
-				TxHash:        []byte{2},
-				FcBlockNumber: 3,
+				Id:     []byte{1},
+				Value:  100000,
+				TxHash: []byte{2},
 			}, nil
 		},
 	}

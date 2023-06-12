@@ -51,7 +51,6 @@ func (p *blockProcessor) ProcessBlock(ctx context.Context, b *types.Block) error
 func (p *blockProcessor) processTx(tr *types.TransactionRecord, proof *wallet.TxProof) error {
 	var err error
 	tx := tr.TransactionOrder
-	rn := proof.UnicityCertificate.GetRoundNumber()
 	id := tx.UnitID()
 	txProof := &wallet.Proof{TxRecord: tr, TxProof: proof}
 	txHash := tx.Hash(crypto.SHA256)
@@ -73,10 +72,10 @@ func (p *blockProcessor) processTx(tr *types.TransactionRecord, proof *wallet.Tx
 			return err
 		}
 		return p.store.SetFeeCreditBill(&FeeCreditBill{
-			Id:            id,
-			Value:         fcb.GetValue() + transferFeeCreditAttributes.Amount - tr.ServerMetadata.ActualFee,
-			TxHash:        tx.Hash(crypto.SHA256),
-			FCBlockNumber: rn,
+			Id:          id,
+			Value:       fcb.GetValue() + transferFeeCreditAttributes.Amount - tr.ServerMetadata.ActualFee,
+			TxHash:      txHash,
+			AddFCTxHash: txHash,
 		}, txProof)
 	case transactions.PayloadTypeCloseFeeCredit:
 		closeFeeCreditAttributes := &transactions.CloseFeeCreditAttributes{}
@@ -88,14 +87,14 @@ func (p *blockProcessor) processTx(tr *types.TransactionRecord, proof *wallet.Tx
 			return err
 		}
 		return p.store.SetFeeCreditBill(&FeeCreditBill{
-			Id:            id,
-			Value:         fcb.GetValue() - closeFeeCreditAttributes.Amount,
-			TxHash:        tx.Hash(crypto.SHA256),
-			FCBlockNumber: rn,
+			Id:          id,
+			Value:       fcb.GetValue() - closeFeeCreditAttributes.Amount,
+			TxHash:      txHash,
+			AddFCTxHash: fcb.GetAddFCTxHash(),
 		}, txProof)
 	default:
 		// decrement fee credit bill value if tx is not fee credit tx i.e. a normal tx
-		if err := p.updateFCB(tr, rn); err != nil {
+		if err := p.updateFCB(tr); err != nil {
 			return fmt.Errorf("failed to update fee credit bill %w", err)
 		}
 	}
@@ -337,7 +336,7 @@ func (p *blockProcessor) saveToken(unit *TokenUnit, proof *wallet.Proof) error {
 	return nil
 }
 
-func (p *blockProcessor) updateFCB(tx *types.TransactionRecord, roundNumber uint64) error {
+func (p *blockProcessor) updateFCB(tx *types.TransactionRecord) error {
 	fcb, err := p.store.GetFeeCreditBill(tx.TransactionOrder.GetClientFeeCreditRecordID())
 	if err != nil {
 		return err
@@ -349,6 +348,5 @@ func (p *blockProcessor) updateFCB(tx *types.TransactionRecord, roundNumber uint
 		return fmt.Errorf("insufficient fee credit - fee is %d but remaining credit is only %d", tx.ServerMetadata.ActualFee, fcb.Value)
 	}
 	fcb.Value -= tx.ServerMetadata.ActualFee
-	fcb.FCBlockNumber = roundNumber
 	return p.store.SetFeeCreditBill(fcb, nil)
 }

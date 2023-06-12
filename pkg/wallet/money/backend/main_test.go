@@ -29,7 +29,7 @@ func TestWalletBackend_BillsCanBeIndexedByPredicates(t *testing.T) {
 	bearer1 := script.PredicatePayToPublicKeyHashDefault(hash.Sum256(pubkey1))
 	bearer2 := script.PredicatePayToPublicKeyHashDefault(hash.Sum256(pubkey2))
 	fcbID := newUnitID(101)
-	fcb := &Bill{Id: fcbID, Value: 100, FCBlockNumber: 1}
+	fcb := &Bill{Id: fcbID, Value: 100}
 
 	abclient := clientmock.NewMockAlphabillClient(
 		clientmock.WithMaxBlockNumber(1),
@@ -120,7 +120,6 @@ func TestGetBills_OK(t *testing.T) {
 		Id:             tx.UnitID(),
 		Value:          txValue,
 		TxHash:         txHash,
-		OrderNumber:    1,
 		OwnerPredicate: bearer,
 		TxProof: &wallet.Proof{
 			TxRecord: &types.TransactionRecord{TransactionOrder: tx},
@@ -159,7 +158,6 @@ func TestGetBills_SHA512_OK(t *testing.T) {
 	b := &Bill{
 		Id:             tx.UnitID(),
 		Value:          txValue,
-		OrderNumber:    1,
 		OwnerPredicate: bearer,
 	}
 	err = store.Do().SetBill(b)

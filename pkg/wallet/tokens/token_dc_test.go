@@ -119,10 +119,9 @@ func TestFungibleTokenDC(t *testing.T) {
 		},
 		getFeeCreditBill: func(ctx context.Context, unitID sdk.UnitID) (*sdk.Bill, error) {
 			return &sdk.Bill{
-				Id:            []byte{1},
-				Value:         100000,
-				TxHash:        []byte{2},
-				FcBlockNumber: 3,
+				Id:     []byte{1},
+				Value:  100000,
+				TxHash: []byte{2},
 			}, nil
 		},
 	}

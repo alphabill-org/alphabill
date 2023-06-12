@@ -9,6 +9,7 @@ import (
 
 	"github.com/libp2p/go-libp2p/core/peer"
 	"golang.org/x/exp/slices"
+	"google.golang.org/protobuf/proto"
 
 	"github.com/alphabill-org/alphabill/internal/certificates"
 	"github.com/alphabill-org/alphabill/internal/crypto"
@@ -26,7 +27,7 @@ import (
 type (
 	recoveryInfo struct {
 		toRound    uint64
-		triggerMsg any
+		triggerMsg proto.Message
 	}
 
 	RootNet interface {
@@ -482,6 +483,7 @@ func (x *ConsensusManager) checkRecoveryNeeded(qc *ab_consensus.QuorumCert) bool
 	if err != nil {
 		logger.Warning("%v round %v unknown block in round %v, recover",
 			x.peer.String(), qc.VoteInfo.RoundNumber)
+		return true
 	}
 	if !bytes.Equal(qc.VoteInfo.CurrentRootHash, rootHash) {
 		logger.Warning("%v round %v state is different expected %X, local %X, recover state",
@@ -494,16 +496,15 @@ func (x *ConsensusManager) checkRecoveryNeeded(qc *ab_consensus.QuorumCert) bool
 // onProposalMsg handles block proposal messages from other validators.
 // Only a proposal made by the leader of this view/round shall be accepted and processed
 func (x *ConsensusManager) onProposalMsg(ctx context.Context, proposal *ab_consensus.ProposalMsg) {
+	if proposal.Block.Round < x.pacemaker.GetCurrentRound() {
+		logger.Debug("%v round %v stale proposal, validator %v is behind and proposed round %v, ignored",
+			x.peer.String(), x.pacemaker.GetCurrentRound(), proposal.Block.Author, proposal.Block.Round)
+		return
+	}
 	// verify signature on proposal (does not verify partition request signatures)
 	err := proposal.Verify(x.trustBase.GetQuorumThreshold(), x.trustBase.GetVerifiers())
 	if err != nil {
 		logger.Warning("%v invalid Proposal message, verify failed: %v", x.peer.String(), err)
-		return
-	}
-	// stale drop
-	if proposal.Block.Round < x.pacemaker.GetCurrentRound() {
-		logger.Debug("%v round %v stale proposal, validator %v is behind and proposed round %v, ignored",
-			x.peer.String(), x.pacemaker.GetCurrentRound(), proposal.Block.Author, proposal.Block.Round)
 		return
 	}
 	logger.Trace("%v round %v received proposal message from %v",
@@ -649,6 +650,10 @@ func (x *ConsensusManager) processNewRoundEvent() {
 }
 
 func (x *ConsensusManager) onStateReq(req *ab_consensus.GetStateMsg) {
+	if x.recovery != nil {
+		return
+	}
+
 	logger.Trace("%v round %v received state request from %v",
 		x.peer.String(), x.pacemaker.GetCurrentRound(), req.NodeId)
 	certs := x.blockStore.GetCertificates()
@@ -691,11 +696,11 @@ func (x *ConsensusManager) onStateReq(req *ab_consensus.GetStateMsg) {
 }
 
 func (x *ConsensusManager) onStateResponse(ctx context.Context, req *ab_consensus.StateMsg) {
-	logger.Trace("%v round %v received state response",
-		x.peer.String(), x.pacemaker.GetCurrentRound())
+	logger.Trace("%v round %v received state response", x.peer.String(), x.pacemaker.GetCurrentRound())
 	if x.recovery == nil {
 		return
 	}
+
 	// check validity
 	ucs := req.GetCertificates()
 	for _, c := range ucs {
@@ -707,23 +712,96 @@ func (x *ConsensusManager) onStateResponse(ctx context.Context, req *ab_consensu
 	x.blockStore.UpdateCertificates(ucs)
 	if err := x.blockStore.RecoverState(req.CommittedHead, req.BlockNode, x.irReqVerifier); err != nil {
 		logger.Warning("state response failed, %v", err)
+		return
 	}
-	if x.recovery.toRound != x.blockStore.GetRoot().GetRound() {
-		logger.Warning("state recovery failed, needed round %d, but recovered to round %v",
-			x.recovery.toRound, x.blockStore.GetRoot().GetRound())
+
+	round := x.blockStore.GetHighQc().GetVoteInfo().GetRoundNumber()
+	x.pacemaker = NewPacemaker(round, x.params.LocalTimeout, x.params.BlockRate)
+
+	for ; ; round++ {
+		block, err := x.blockStore.Block(round)
+		if err != nil {
+			logger.Error("restoring leader selector state, failed to load block for round %d: %v", round, err)
+			// we could get error because blocks are not consecutive or we have reached to the last block we
+			// have (ie got "block not found" error) so do not return but break ie carry on and act as if
+			// restore was a success. If we managed to restore pacemaker and blockStore state we might be able
+			// to fully recover by just processing proposals and votes from now on? If not then recovery will
+			// be triggered again...
+			break
+		}
+		if err := x.leaderSelector.Update(block.GetQc(), block.Round); err != nil {
+			// failing to elect leader is not critical error here, carry on until we're on the last block in storage
+			logger.Warning("restoring leader selector state, failed to update leader with block of round %d: %v", round, err)
+		}
 	}
-	switch mt := x.recovery.triggerMsg.(type) {
+
+	// exit recovery status and replay buffered messages
+	triggerMsg := x.recovery.triggerMsg
+	x.recovery = nil
+
+	switch mt := triggerMsg.(type) {
 	case *ab_consensus.ProposalMsg:
 		x.onProposalMsg(ctx, mt)
 	case *ab_consensus.VoteMsg:
-		// apply buffered vote messages
-		for _, v := range x.voteBuffer {
-			x.onVoteMsg(ctx, v)
-		}
-		x.voteBuffer = nil
+		x.onVoteMsg(ctx, mt)
 	}
-	// clear recovery, check state on next request received
-	x.recovery = nil
+
+	for _, v := range x.voteBuffer {
+		x.onVoteMsg(ctx, v)
+	}
+	x.voteBuffer = nil
+}
+
+func (x *ConsensusManager) sendRecoveryRequests(triggerMsg proto.Message) error {
+	info, author, signatures, err := msgToRecoveryInfo(triggerMsg)
+	if err != nil {
+		return fmt.Errorf("failed to extract recovery info: %w", err)
+	}
+	if x.recovery != nil && x.recovery.toRound >= info.toRound {
+		return fmt.Errorf("already in recovery to round %d, ignoring request to recover to round %d", x.recovery.toRound, info.toRound)
+	}
+
+	authorID, err := peer.Decode(author)
+	if err != nil {
+		return fmt.Errorf("failed to decode message author as peer ID: %w", err)
+	}
+	nodes := addRandomNodeIdFromSignatureMap([]peer.ID{authorID}, signatures)
+
+	// set recovery status - when send fails we won't check did we fail to send to just one peer or to
+	// all of them... if we completely failed to send we'll (re)enter to recovery status with higher
+	// destination round when receiving proposal or vote for the next round...
+	x.recovery = info
+
+	if err := x.net.Send(
+		network.OutputMessage{
+			Protocol: network.ProtocolRootStateReq,
+			Message:  &ab_consensus.GetStateMsg{NodeId: x.peer.ID().String()}}, nodes); err != nil {
+		return fmt.Errorf("failed to send recovery request: %w", err)
+	}
+	return nil
+}
+
+func msgToRecoveryInfo(msg proto.Message) (info *recoveryInfo, author string, signatures map[string][]byte, err error) {
+	info = &recoveryInfo{triggerMsg: msg}
+
+	switch mt := msg.(type) {
+	case *ab_consensus.ProposalMsg:
+		info.toRound = mt.Block.Round
+		author = mt.Block.Author
+		signatures = mt.Block.Qc.Signatures
+	case *ab_consensus.VoteMsg:
+		info.toRound = mt.VoteInfo.RoundNumber
+		author = mt.Author
+		signatures = mt.HighQc.Signatures
+	case *ab_consensus.TimeoutMsg:
+		info.toRound = mt.Timeout.HighQc.VoteInfo.RoundNumber
+		author = mt.Author
+		signatures = mt.Timeout.HighQc.Signatures
+	default:
+		return nil, "", nil, fmt.Errorf("unknown message type, cannot be used for recovery: %T", mt)
+	}
+
+	return info, author, signatures, nil
 }
 
 func addRandomNodeIdFromSignatureMap(nodes []peer.ID, m map[string][]byte) []peer.ID {
@@ -738,60 +816,4 @@ func addRandomNodeIdFromSignatureMap(nodes []peer.ID, m map[string][]byte) []pee
 		return append(nodes, id)
 	}
 	return nodes
-}
-
-func (x *ConsensusManager) sendRecoveryRequests(triggerMsg any) error {
-	var nodes = make([]peer.ID, 0, 2)
-	switch mt := triggerMsg.(type) {
-	case *ab_consensus.ProposalMsg:
-		x.recovery = &recoveryInfo{
-			toRound:    mt.Block.Round,
-			triggerMsg: mt,
-		}
-		// it is highly unlikely that decode fails, as this is a verified message
-		authorID, err := peer.Decode(mt.Block.Author)
-		if err != nil {
-			return fmt.Errorf("proposal author decode failed, %w", err)
-		}
-		nodes = append(nodes, authorID)
-		// add another node to query from last QC
-		nodes = addRandomNodeIdFromSignatureMap(nodes, mt.Block.Qc.Signatures)
-	case *ab_consensus.VoteMsg:
-		x.recovery = &recoveryInfo{
-			toRound:    mt.VoteInfo.RoundNumber,
-			triggerMsg: mt,
-		}
-		// it is highly unlikely that decode fails, as this is a verified message
-		authorID, err := peer.Decode(mt.Author)
-		if err != nil {
-			return fmt.Errorf("decode author id from vote message failed, %w", err)
-		}
-		nodes = append(nodes, authorID)
-		// add another node to query from last QC
-		nodes = addRandomNodeIdFromSignatureMap(nodes, mt.HighQc.Signatures)
-	case *ab_consensus.TimeoutMsg:
-		x.recovery = &recoveryInfo{
-			toRound:    mt.Timeout.HighQc.VoteInfo.RoundNumber,
-			triggerMsg: triggerMsg,
-		}
-		// it is highly unlikely that decode fails, as this is a verified message
-		authorID, err := peer.Decode(mt.Author)
-		if err != nil {
-			return fmt.Errorf("decode author id from timeout message failed, %w", err)
-
-		}
-		nodes = append(nodes, authorID)
-		// add another node to query from last QC
-		nodes = addRandomNodeIdFromSignatureMap(nodes, mt.Timeout.HighQc.Signatures)
-	default:
-		return fmt.Errorf("unknown message, cannot be used for recovery: %T", mt)
-	}
-	// send both recovery requests
-	if err := x.net.Send(
-		network.OutputMessage{
-			Protocol: network.ProtocolRootStateReq,
-			Message:  &ab_consensus.GetStateMsg{NodeId: x.peer.ID().String()}}, nodes); err != nil {
-		logger.Warning("%v failed to send state response message, network error: %v", x.peer.String(), err)
-	}
-	return nil
 }

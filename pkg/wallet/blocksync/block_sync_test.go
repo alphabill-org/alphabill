@@ -357,8 +357,8 @@ func Test_fetchBlocks(t *testing.T) {
 				// there have been 3 iterations, cancel the ctx, this should stop the test
 				cancel()
 			}
-			// always respond that the latest block is 3
-			return &alphabill.GetBlocksResponse{MaxBlockNumber: 3, BatchMaxBlockNumber: 3}, nil
+			// always respond that the latest block is 3 and the latest round is also 3
+			return &alphabill.GetBlocksResponse{MaxRoundNumber: 3, MaxBlockNumber: 3, BatchMaxBlockNumber: 3}, nil
 		}
 
 		blocks := make(chan *types.Block)

@@ -19,6 +19,15 @@ var (
 )
 
 type (
+	Storage interface {
+		Close() error
+		GetBlockNumber() (uint64, error)
+		SetBlockNumber(blockNumber uint64) error
+
+		GetFeeCreditBill(unitID wallet.UnitID) (*FeeCreditBill, error)
+		SetFeeCreditBill(fcb *FeeCreditBill) error
+	}
+
 	storage struct {
 		db *bolt.DB
 	}

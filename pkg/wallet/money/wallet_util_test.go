@@ -28,7 +28,7 @@ import (
 type (
 	backendMockReturnConf struct {
 		balance                  uint64
-		blockHeight              uint64
+		roundNumber              uint64
 		billId                   *uint256.Int
 		billValue                uint64
 		billTxHash               string
@@ -97,7 +97,7 @@ func mockBackendCalls(br *backendMockReturnConf) (*httptest.Server, *url.URL) {
 				w.Write([]byte(fmt.Sprintf(`{"balance": "%d"}`, br.balance)))
 			case path == "/"+beclient.RoundNumberPath:
 				w.WriteHeader(http.StatusOK)
-				w.Write([]byte(fmt.Sprintf(`{"blockHeight": "%d"}`, br.blockHeight)))
+				w.Write([]byte(fmt.Sprintf(`{"roundNumber": "%d"}`, br.roundNumber)))
 			case path == "/"+beclient.ProofPath:
 				w.WriteHeader(http.StatusOK)
 				w.Write([]byte(br.proofList[proofCount%len(br.proofList)]))

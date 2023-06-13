@@ -19,6 +19,7 @@ import (
 	"github.com/alphabill-org/alphabill/pkg/wallet/account"
 	"github.com/alphabill-org/alphabill/pkg/wallet/tokens/backend"
 	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/ethereum/go-ethereum/common/math"
 	"github.com/stretchr/testify/require"
 )
 
@@ -401,6 +402,7 @@ func TestMintFungibleToken(t *testing.T) {
 func TestSendFungible(t *testing.T) {
 	recTxs := make([]*types.TransactionOrder, 0)
 	typeId := test.RandomBytes(32)
+	typeIdForOverflow := test.RandomBytes(32)
 	be := &mockTokenBackend{
 		getTokens: func(ctx context.Context, kind backend.Kind, owner wallet.PubKey, offsetKey string, limit int) ([]*backend.TokenUnit, string, error) {
 			return []*backend.TokenUnit{
@@ -408,6 +410,8 @@ func TestSendFungible(t *testing.T) {
 				{ID: test.RandomBytes(32), Kind: backend.Fungible, Symbol: "AB", TypeID: typeId, Amount: 5},
 				{ID: test.RandomBytes(32), Kind: backend.Fungible, Symbol: "AB", TypeID: typeId, Amount: 7},
 				{ID: test.RandomBytes(32), Kind: backend.Fungible, Symbol: "AB", TypeID: typeId, Amount: 18},
+				{ID: test.RandomBytes(32), Kind: backend.Fungible, Symbol: "AB2", TypeID: typeIdForOverflow, Amount: math.MaxUint64},
+				{ID: test.RandomBytes(32), Kind: backend.Fungible, Symbol: "AB2", TypeID: typeIdForOverflow, Amount: 1},
 			}, "", nil
 		},
 		getFeeCreditBill: func(ctx context.Context, unitID wallet.UnitID) (*wallet.Bill, error) {
@@ -432,12 +436,14 @@ func TestSendFungible(t *testing.T) {
 
 	tests := []struct {
 		name               string
+		tokenTypeID        backend.TokenTypeID
 		targetAmount       uint64
 		expectedErrorMsg   string
 		verifyTransactions func(t *testing.T)
 	}{
 		{
 			name:         "one bill is transferred",
+			tokenTypeID:  typeId,
 			targetAmount: 3,
 			verifyTransactions: func(t *testing.T) {
 				require.Equal(t, 1, len(recTxs))
@@ -449,6 +455,7 @@ func TestSendFungible(t *testing.T) {
 		},
 		{
 			name:         "one bill is split",
+			tokenTypeID:  typeId,
 			targetAmount: 4,
 			verifyTransactions: func(t *testing.T) {
 				require.Equal(t, 1, len(recTxs))
@@ -460,6 +467,7 @@ func TestSendFungible(t *testing.T) {
 		},
 		{
 			name:         "both split and transfer are submitted",
+			tokenTypeID:  typeId,
 			targetAmount: 26,
 			verifyTransactions: func(t *testing.T) {
 				var total = uint64(0)
@@ -482,15 +490,59 @@ func TestSendFungible(t *testing.T) {
 		},
 		{
 			name:             "insufficient balance",
+			tokenTypeID:      typeId,
 			targetAmount:     60,
 			expectedErrorMsg: "insufficient value",
+		},
+		{
+			name:             "zero amount",
+			tokenTypeID:      typeId,
+			targetAmount:     0,
+			expectedErrorMsg: "invalid amount",
+		},
+		{
+			name:         "total balance uint64 overflow, transfer is submitted",
+			tokenTypeID:  typeIdForOverflow,
+			targetAmount: 1,
+			verifyTransactions: func(t *testing.T) {
+				require.Equal(t, 1, len(recTxs))
+				tx := recTxs[0]
+				newTransfer := &ttxs.TransferFungibleTokenAttributes{}
+				require.NoError(t, tx.UnmarshalAttributes(newTransfer))
+				require.Equal(t, uint64(1), newTransfer.Value)
+			},
+		},
+		{
+			name:         "total balance uint64 overflow, transfer is submitted with maxuint64",
+			tokenTypeID:  typeIdForOverflow,
+			targetAmount: math.MaxUint64,
+			verifyTransactions: func(t *testing.T) {
+				require.Equal(t, 1, len(recTxs))
+				tx := recTxs[0]
+				newTransfer := &ttxs.TransferFungibleTokenAttributes{}
+				require.NoError(t, tx.UnmarshalAttributes(newTransfer))
+				require.Equal(t, uint64(math.MaxUint64), newTransfer.Value)
+			},
+		},
+		{
+			name:         "total balance uint64 overflow, split is submitted",
+			tokenTypeID:  typeIdForOverflow,
+			targetAmount: 2,
+			verifyTransactions: func(t *testing.T) {
+				require.Equal(t, 1, len(recTxs))
+				tx := recTxs[0]
+				newSplit := &ttxs.SplitFungibleTokenAttributes{}
+				require.NoError(t, tx.UnmarshalAttributes(newSplit))
+				require.Equal(t, uint64(2), newSplit.TargetValue)
+				require.Equal(t, uint64(math.MaxUint64-2), newSplit.RemainingValue)
+			},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			recTxs = make([]*types.TransactionOrder, 0)
-			err := tw.SendFungible(context.Background(), 1, typeId, tt.targetAmount, nil, nil)
+			err := tw.SendFungible(context.Background(), 1, tt.tokenTypeID, tt.targetAmount, nil, nil)
 			if tt.expectedErrorMsg != "" {
 				require.ErrorContains(t, err, tt.expectedErrorMsg)
 				return

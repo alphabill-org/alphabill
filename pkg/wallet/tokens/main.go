@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	"net/url"
 	"strings"
 
@@ -290,6 +291,9 @@ func (w *Wallet) TransferNFT(ctx context.Context, accountNumber uint64, tokenId 
 }
 
 func (w *Wallet) SendFungible(ctx context.Context, accountNumber uint64, typeId backend.TokenTypeID, targetAmount uint64, receiverPubKey []byte, invariantPredicateArgs []*PredicateInput) error {
+	if targetAmount == 0 {
+		return fmt.Errorf("invalid amount: 0")
+	}
 	if accountNumber < 1 {
 		return fmt.Errorf("invalid account number: %d", accountNumber)
 	}
@@ -319,7 +323,12 @@ func (w *Wallet) SendFungible(ctx context.Context, accountNumber uint64, typeId 
 		}
 		if typeId.Equal(token.TypeID) {
 			matchingTokens = append(matchingTokens, token)
-			totalBalance += token.Amount
+			var overflow bool
+			totalBalance, overflow, _ = wallet.AddUint64(totalBalance, token.Amount)
+			if overflow {
+				// capping the total balance to maxUint64 should be enough to perform the transfer
+				totalBalance = math.MaxUint64
+			}
 			if closestMatch == nil {
 				closestMatch = token
 			} else {

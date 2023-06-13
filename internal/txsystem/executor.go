@@ -2,41 +2,42 @@ package txsystem
 
 import (
 	"fmt"
-	"reflect"
+
+	"github.com/alphabill-org/alphabill/internal/types"
 )
 
 type (
-	TxExecutors map[reflect.Type]ExecuteFunc
+	TxExecutors map[string]TxExecutor
 
 	TxExecutor interface {
-		Type() reflect.Type
 		ExecuteFunc() ExecuteFunc
 	}
 
-	ExecuteFunc func(tx GenericTransaction, currentBlockNr uint64) error
+	ExecuteFunc func(tx *types.TransactionOrder, currentBlockNr uint64) (*types.ServerMetadata, error)
 
-	GenericExecuteFunc[T GenericTransaction] func(t T, currentBlockNr uint64) error
+	GenericExecuteFunc[T any] func(tx *types.TransactionOrder, attributes *T, currentBlockNr uint64) (*types.ServerMetadata, error)
 )
 
-func (g GenericExecuteFunc[T]) Type() reflect.Type {
-	return reflect.TypeOf(*new(T))
-}
-
 func (g GenericExecuteFunc[T]) ExecuteFunc() ExecuteFunc {
-	return func(tx GenericTransaction, currentBlockNr uint64) error {
-		return g(tx.(T), currentBlockNr)
+	return func(tx *types.TransactionOrder, currentBlockNr uint64) (*types.ServerMetadata, error) {
+		p := new(T)
+		if err := tx.UnmarshalAttributes(p); err != nil {
+			return nil, fmt.Errorf("failed to unmarshal payload: %w", err)
+		}
+		return g(tx, p, currentBlockNr)
 	}
 }
 
-func (e TxExecutors) Execute(g GenericTransaction, currentBlockNr uint64) error {
-	txType := reflect.TypeOf(g)
-	executor, found := e[txType]
+func (e TxExecutors) Execute(g *types.TransactionOrder, currentBlockNr uint64) (*types.ServerMetadata, error) {
+	executor, found := e[g.PayloadType()]
 	if !found {
-		return fmt.Errorf("unknown transaction type %T", g)
+		return nil, fmt.Errorf("unknown transaction type %s", g.PayloadType())
 	}
-	err := executor(g, currentBlockNr)
+
+	f := executor.ExecuteFunc()
+	sm, err := f(g, currentBlockNr)
 	if err != nil {
-		return fmt.Errorf("tx of type %T execution failed: %w", g, err)
+		return nil, fmt.Errorf("tx order execution failed: %w", err)
 	}
-	return nil
+	return sm, nil
 }

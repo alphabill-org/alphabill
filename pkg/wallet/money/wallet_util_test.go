@@ -1,65 +1,70 @@
 package money
 
 import (
+	"context"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"strings"
 	"testing"
 
-	"github.com/alphabill-org/alphabill/internal/block"
-	"github.com/alphabill-org/alphabill/internal/certificates"
 	"github.com/alphabill-org/alphabill/internal/hash"
-	"github.com/alphabill-org/alphabill/internal/txsystem"
+	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/internal/util"
-	abclient "github.com/alphabill-org/alphabill/pkg/client"
 	"github.com/alphabill-org/alphabill/pkg/client/clientmock"
+	"github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/alphabill-org/alphabill/pkg/wallet/account"
-	"github.com/alphabill-org/alphabill/pkg/wallet/backend/bp"
 	"github.com/alphabill-org/alphabill/pkg/wallet/money/backend"
 	beclient "github.com/alphabill-org/alphabill/pkg/wallet/money/backend/client"
 	txbuilder "github.com/alphabill-org/alphabill/pkg/wallet/money/tx_builder"
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
-	"google.golang.org/protobuf/encoding/protojson"
 )
 
 type (
 	backendMockReturnConf struct {
-		balance        uint64
-		blockHeight    uint64
-		billId         *uint256.Int
-		billValue      uint64
-		billTxHash     string
-		proofList      []string
-		customBillList string
-		customPath     string
-		customFullPath string
-		customResponse string
-		feeCreditBill  *bp.Bill
+		balance                  uint64
+		roundNumber              uint64
+		billId                   *uint256.Int
+		billValue                uint64
+		billTxHash               string
+		proofList                []string
+		customBillList           string
+		customPath               string
+		customFullPath           string
+		customResponse           string
+		feeCreditBill            *wallet.Bill
+		postTransactionsResponse interface{}
 	}
 )
 
-func CreateTestWalletWithManager(t *testing.T, br *backendMockReturnConf, am account.Manager) (*Wallet, *clientmock.MockAlphabillClient) {
+func CreateTestWallet(t *testing.T, backend BackendAPI) (*Wallet, *clientmock.MockAlphabillClient) {
+	dir := t.TempDir()
+	am, err := account.NewManager(dir, "", true)
+	require.NoError(t, err)
+
+	return CreateTestWalletWithManager(t, backend, am)
+}
+
+func CreateTestWalletWithManager(t *testing.T, backend BackendAPI, am account.Manager) (*Wallet, *clientmock.MockAlphabillClient) {
 	err := CreateNewWallet(am, "")
 	require.NoError(t, err)
 
-	mockClient := clientmock.NewMockAlphabillClient(clientmock.WithMaxBlockNumber(0), clientmock.WithBlocks(map[uint64]*block.Block{}))
-	_, serverAddr := mockBackendCalls(br)
-	restClient, err := beclient.New(serverAddr.Host)
+	mockClient := clientmock.NewMockAlphabillClient(clientmock.WithMaxBlockNumber(0), clientmock.WithBlocks(map[uint64]*types.Block{}))
+	w, err := LoadExistingWallet(am, backend)
 	require.NoError(t, err)
-	w, err := LoadExistingWallet(abclient.AlphabillClientConfig{}, am, restClient)
-	require.NoError(t, err)
-	w.AlphabillClient = mockClient
 	return w, mockClient
 }
 
-func CreateTestWallet(t *testing.T, br *backendMockReturnConf) (*Wallet, *clientmock.MockAlphabillClient) {
-	am, err := account.NewManager(t.TempDir(), "", true)
+func withBackendMock(t *testing.T, br *backendMockReturnConf) BackendAPI {
+	_, serverAddr := mockBackendCalls(br)
+	restClient, err := beclient.New(serverAddr.Host)
 	require.NoError(t, err)
-	return CreateTestWalletWithManager(t, br, am)
+	return restClient
 }
 
 func CreateTestWalletFromSeed(t *testing.T, br *backendMockReturnConf) (*Wallet, *clientmock.MockAlphabillClient) {
@@ -73,9 +78,8 @@ func CreateTestWalletFromSeed(t *testing.T, br *backendMockReturnConf) (*Wallet,
 	_, serverAddr := mockBackendCalls(br)
 	restClient, err := beclient.New(serverAddr.Host)
 	require.NoError(t, err)
-	w, err := LoadExistingWallet(abclient.AlphabillClientConfig{}, am, restClient)
+	w, err := LoadExistingWallet(am, restClient)
 	require.NoError(t, err)
-	w.AlphabillClient = mockClient
 	return w, mockClient
 }
 
@@ -86,28 +90,37 @@ func mockBackendCalls(br *backendMockReturnConf) (*httptest.Server, *url.URL) {
 			w.WriteHeader(http.StatusOK)
 			w.Write([]byte(br.customResponse))
 		} else {
-			switch r.URL.Path {
-			case "/" + beclient.BalancePath:
+			path := r.URL.Path
+			switch {
+			case path == "/"+beclient.BalancePath:
 				w.WriteHeader(http.StatusOK)
 				w.Write([]byte(fmt.Sprintf(`{"balance": "%d"}`, br.balance)))
-			case "/" + beclient.RoundNumberPath:
+			case path == "/"+beclient.RoundNumberPath:
 				w.WriteHeader(http.StatusOK)
-				w.Write([]byte(fmt.Sprintf(`{"blockHeight": "%d"}`, br.blockHeight)))
-			case "/" + beclient.ProofPath:
+				w.Write([]byte(fmt.Sprintf(`{"roundNumber": "%d"}`, br.roundNumber)))
+			case path == "/"+beclient.ProofPath:
 				w.WriteHeader(http.StatusOK)
 				w.Write([]byte(br.proofList[proofCount%len(br.proofList)]))
 				proofCount++
-			case "/" + beclient.ListBillsPath:
+			case path == "/"+beclient.ListBillsPath:
 				w.WriteHeader(http.StatusOK)
 				if br.customBillList != "" {
 					w.Write([]byte(br.customBillList))
 				} else {
 					w.Write([]byte(fmt.Sprintf(`{"total": 1, "bills": [{"id":"%s","value":"%d","txHash":"%s","isDcBill":false}]}`, toBillId(br.billId), br.billValue, br.billTxHash)))
 				}
-			case "/" + beclient.FeeCreditPath:
+			case strings.Contains(path, beclient.FeeCreditPath):
 				w.WriteHeader(http.StatusOK)
-				fcb, _ := protojson.Marshal(br.feeCreditBill)
+				fcb, _ := json.Marshal(br.feeCreditBill)
 				w.Write(fcb)
+			case strings.Contains(path, beclient.TransactionsPath):
+				if br.postTransactionsResponse == nil {
+					w.WriteHeader(http.StatusAccepted)
+				} else {
+					w.WriteHeader(http.StatusInternalServerError)
+					res, _ := json.Marshal(br.postTransactionsResponse)
+					w.Write(res)
+				}
 			default:
 				w.WriteHeader(http.StatusNotFound)
 			}
@@ -122,44 +135,38 @@ func toBillId(i *uint256.Int) string {
 	return base64.StdEncoding.EncodeToString(util.Uint256ToBytes(i))
 }
 
-func createBlockProofJsonResponse(t *testing.T, bills []*Bill, overrideNonce []byte, blockNumber, timeout uint64, k *account.AccountKey) []string {
-	var jsonList []string
-	for _, b := range bills {
-		w, mockClient := CreateTestWallet(t, nil)
-		if k == nil {
-			k, _ = w.am.GetAccountKey(0)
-		}
-		var dcTx *txsystem.Transaction
-		if overrideNonce != nil {
-			dcTx, _ = txbuilder.CreateDustTx(k, w.SystemID(), b.ToProto(), overrideNonce, timeout)
-		} else {
-			dcTx, _ = txbuilder.CreateDustTx(k, w.SystemID(), b.ToProto(), calculateDcNonce([]*Bill{b}), timeout)
-		}
-		mockClient.SetBlock(&block.Block{
-			SystemIdentifier:   w.SystemID(),
-			PreviousBlockHash:  hash.Sum256([]byte{}),
-			Transactions:       []*txsystem.Transaction{dcTx},
-			UnicityCertificate: &certificates.UnicityCertificate{InputRecord: &certificates.InputRecord{RoundNumber: timeout}},
-		})
-		tp := &block.TxProof{
-			BlockNumber: blockNumber,
-			Tx:          dcTx,
-			Proof: &block.BlockProof{
-				BlockHeaderHash: []byte{0},
-				BlockTreeHashChain: &block.BlockTreeHashChain{
-					Items: []*block.ChainItem{{Val: []byte{0}, Hash: []byte{0}}},
-				},
-			},
-		}
-		b := &bp.Bill{Id: b.GetID(), Value: b.Value, IsDcBill: b.IsDcBill, TxProof: tp, TxHash: b.TxHash}
-		bills := &bp.Bills{Bills: []*bp.Bill{b}}
-		res, _ := protojson.MarshalOptions{EmitUnpopulated: true}.Marshal(bills)
-		jsonList = append(jsonList, string(res))
+func createBlockProofResponse(t *testing.T, b *Bill, overrideNonce []byte, timeout uint64, k *account.AccountKey) *wallet.Bills {
+	w, mockClient := CreateTestWallet(t, nil)
+	if k == nil {
+		k, _ = w.am.GetAccountKey(0)
 	}
-	return jsonList
+	var dcTx *types.TransactionOrder
+	if overrideNonce != nil {
+		dcTx, _ = txbuilder.NewDustTx(k, w.SystemID(), b.ToProto(), overrideNonce, timeout)
+	} else {
+		dcTx, _ = txbuilder.NewDustTx(k, w.SystemID(), b.ToProto(), calculateDcNonce([]*Bill{b}), timeout)
+	}
+	txRecord := &types.TransactionRecord{TransactionOrder: dcTx}
+	mockClient.SetBlock(&types.Block{
+		Header: &types.Header{
+			SystemID:          w.SystemID(),
+			PreviousBlockHash: hash.Sum256([]byte{}),
+		},
+		Transactions:       []*types.TransactionRecord{txRecord},
+		UnicityCertificate: &types.UnicityCertificate{InputRecord: &types.InputRecord{RoundNumber: timeout}},
+	})
+	txProof := &wallet.Proof{
+		TxRecord: txRecord,
+		TxProof: &types.TxProof{
+			BlockHeaderHash:    []byte{0},
+			Chain:              []*types.GenericChainItem{{Hash: []byte{0}}},
+			UnicityCertificate: &types.UnicityCertificate{InputRecord: &types.InputRecord{RoundNumber: timeout}},
+		},
+	}
+	return &wallet.Bills{Bills: []*wallet.Bill{{Id: util.Uint256ToBytes(b.Id), Value: b.Value, IsDcBill: b.IsDcBill, TxProof: txProof, TxHash: b.TxHash}}}
 }
 
-func createBillListJsonResponse(bills []*Bill) string {
+func createBillListResponse(bills []*Bill) *backend.ListBillsResponse {
 	billVMs := make([]*backend.ListBillVM, len(bills))
 	for i, b := range bills {
 		billVMs[i] = &backend.ListBillVM{
@@ -169,7 +176,85 @@ func createBillListJsonResponse(bills []*Bill) string {
 			IsDCBill: b.IsDcBill,
 		}
 	}
-	billsResponse := &backend.ListBillsResponse{Bills: billVMs, Total: len(bills)}
+	return &backend.ListBillsResponse{Bills: billVMs, Total: len(bills)}
+}
+
+func createBillListJsonResponse(bills []*Bill) string {
+	billsResponse := createBillListResponse(bills)
 	res, _ := json.Marshal(billsResponse)
 	return string(res)
+}
+
+type backendAPIMock struct {
+	getBalance       func(pubKey []byte, includeDCBills bool) (uint64, error)
+	listBills        func(pubKey []byte, includeDCBills bool) (*backend.ListBillsResponse, error)
+	getBills         func(pubKey []byte) ([]*wallet.Bill, error)
+	getProof         func(billId []byte) (*wallet.Bills, error)
+	getRoundNumber   func() (uint64, error)
+	getTxProof       func(ctx context.Context, unitID wallet.UnitID, txHash wallet.TxHash) (*wallet.Proof, error)
+	getFeeCreditBill func(ctx context.Context, unitID []byte) (*wallet.Bill, error)
+	postTransactions func(ctx context.Context, pubKey wallet.PubKey, txs *wallet.Transactions) error
+}
+
+func (b *backendAPIMock) GetBills(pubKey []byte) ([]*wallet.Bill, error) {
+	if b.getBills != nil {
+		return b.getBills(pubKey)
+	}
+	return nil, errors.New("getBills not implemented")
+}
+
+func (b *backendAPIMock) GetRoundNumber(ctx context.Context) (uint64, error) {
+	if b.getRoundNumber != nil {
+		return b.getRoundNumber()
+	}
+	return 0, errors.New("getRoundNumber not implemented")
+}
+
+func (b *backendAPIMock) GetFeeCreditBill(ctx context.Context, unitID wallet.UnitID) (*wallet.Bill, error) {
+	if b.getFeeCreditBill != nil {
+		return b.getFeeCreditBill(ctx, unitID)
+	}
+	return nil, errors.New("getFeeCreditBill not implemented")
+}
+
+func (b *backendAPIMock) GetBalance(pubKey []byte, includeDCBills bool) (uint64, error) {
+	if b.getBalance != nil {
+		return b.getBalance(pubKey, includeDCBills)
+	}
+	return 0, errors.New("getBalance not implemented")
+}
+
+func (b *backendAPIMock) ListBills(pubKey []byte, includeDCBills bool) (*backend.ListBillsResponse, error) {
+	if b.listBills != nil {
+		return b.listBills(pubKey, includeDCBills)
+	}
+	return nil, errors.New("listBills not implemented")
+}
+
+func (b *backendAPIMock) GetProof(billId []byte) (*wallet.Bills, error) {
+	if b.getProof != nil {
+		return b.getProof(billId)
+	}
+	return nil, errors.New("getProof not implemented")
+}
+
+func (b *backendAPIMock) GetTxProof(ctx context.Context, unitID wallet.UnitID, txHash wallet.TxHash) (*wallet.Proof, error) {
+	if b.getTxProof != nil {
+		return b.getTxProof(ctx, unitID, txHash)
+	}
+	proof, err := b.GetProof(unitID)
+	if err != nil {
+		return nil, err
+	}
+	if proof == nil {
+		return nil, nil
+	}
+	return proof.Bills[0].TxProof, nil
+}
+
+func (b *backendAPIMock) PostTransactions(ctx context.Context, pubKey wallet.PubKey, txs *wallet.Transactions) error {
+	if b.postTransactions != nil {
+		return b.postTransactions(ctx, pubKey, txs)
+	}
+	return nil
 }

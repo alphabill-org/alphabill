@@ -4,11 +4,9 @@ import (
 	gocrypto "crypto"
 	"testing"
 
-	"github.com/alphabill-org/alphabill/internal/certificates"
-	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
-
 	"github.com/alphabill-org/alphabill/internal/crypto"
-
+	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
+	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/stretchr/testify/require"
 )
 
@@ -82,20 +80,6 @@ func TestRootGenesis_IsValid(t *testing.T) {
 			wantErr: ErrPartitionsNotFound.Error(),
 		},
 		{
-			name: "genesis partition record is nil",
-			args: args{
-				verifier: verifier,
-			},
-			fields: fields{
-				Root: &GenesisRootRecord{
-					RootValidators: []*PublicKeyInfo{rootKeyInfo},
-					Consensus:      rootConsensus,
-				},
-				Partitions: []*GenesisPartitionRecord{nil},
-			},
-			wantErr: ErrGenesisPartitionRecordIsNil.Error(),
-		},
-		{
 			name: "genesis partition record duplicate system id",
 			args: args{
 				verifier: verifier,
@@ -165,27 +149,20 @@ func TestRootGenesis(t *testing.T) {
 	rEncPubKey, err := rEncryption.MarshalPublicKey()
 	require.NoError(t, err)
 	rootID := "root"
-	// create root record
-	roundInfo := &certificates.RootRoundInfo{
-		RoundNumber:       2,
-		ParentRoundNumber: 1,
-		Timestamp:         10000,
-		CurrentRootHash:   hash,
-	}
-	unicitySeal := &certificates.UnicitySeal{
-		RootRoundInfo: roundInfo,
-		CommitInfo: &certificates.CommitInfo{
-			RootRoundInfoHash: roundInfo.Hash(gocrypto.SHA256),
-			RootHash:          hash,
-		},
+	unicitySeal := &types.UnicitySeal{
+		RootInternalInfo:     make([]byte, 32),
+		RootChainRoundNumber: 2,
+		Timestamp:            1000,
+		Hash:                 hash,
+		Epoch:                0,
 	}
 	unicitySeal.Sign(rootID, rSigner)
 	rg := &RootGenesis{
 		Partitions: []*GenesisPartitionRecord{
 			{
 				Nodes: []*PartitionNode{node},
-				Certificate: &certificates.UnicityCertificate{
-					InputRecord: &certificates.InputRecord{},
+				Certificate: &types.UnicityCertificate{
+					InputRecord: &types.InputRecord{},
 					UnicitySeal: unicitySeal,
 				},
 				SystemDescriptionRecord: systemDescription,
@@ -227,16 +204,16 @@ func TestRootGenesis(t *testing.T) {
 		Partitions: []*GenesisPartitionRecord{
 			{
 				Nodes: []*PartitionNode{node},
-				Certificate: &certificates.UnicityCertificate{
-					InputRecord: &certificates.InputRecord{},
+				Certificate: &types.UnicityCertificate{
+					InputRecord: &types.InputRecord{},
 					UnicitySeal: unicitySeal,
 				},
 				SystemDescriptionRecord: systemDescription,
 			},
 			{
 				Nodes: []*PartitionNode{node},
-				Certificate: &certificates.UnicityCertificate{
-					InputRecord: &certificates.InputRecord{},
+				Certificate: &types.UnicityCertificate{
+					InputRecord: &types.InputRecord{},
 					UnicitySeal: unicitySeal,
 				},
 				SystemDescriptionRecord: systemDescription,

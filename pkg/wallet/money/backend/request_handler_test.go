@@ -13,17 +13,15 @@ import (
 	"time"
 
 	"github.com/ainvaltin/httpsrv"
-	"github.com/alphabill-org/alphabill/pkg/wallet/backend/bp"
-	"github.com/alphabill-org/alphabill/internal/block"
+	"github.com/stretchr/testify/require"
+
 	testhttp "github.com/alphabill-org/alphabill/internal/testutils/http"
 	"github.com/alphabill-org/alphabill/internal/testutils/net"
 	testtransaction "github.com/alphabill-org/alphabill/internal/testutils/transaction"
-	"github.com/alphabill-org/alphabill/internal/testutils/transaction/money"
-	"github.com/alphabill-org/alphabill/internal/txsystem"
+	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/pkg/client"
 	"github.com/alphabill-org/alphabill/pkg/client/clientmock"
 	"github.com/alphabill-org/alphabill/pkg/wallet"
-	"github.com/stretchr/testify/require"
 )
 
 const (
@@ -178,10 +176,35 @@ func TestListBillsRequest_DCBillsExcluded(t *testing.T) {
 	require.False(t, bill.IsDCBill)
 }
 
+func TestListBillsRequest_ZeroValueBillsExcluded(t *testing.T) {
+	walletBackend := newWalletBackend(t, withBills(
+		&Bill{
+			Id:             newUnitID(1),
+			Value:          1,
+			OwnerPredicate: getOwnerPredicate(pubkeyHex),
+		},
+		&Bill{
+			Id:             newUnitID(2),
+			Value:          0,
+			OwnerPredicate: getOwnerPredicate(pubkeyHex),
+		},
+	))
+	port := startServer(t, walletBackend)
+
+	res := &ListBillsResponse{}
+	httpRes, err := testhttp.DoGet(fmt.Sprintf("http://localhost:%d/api/v1/list-bills?pubkey=%s", port, pubkeyHex), res)
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, httpRes.StatusCode)
+	require.Equal(t, 1, res.Total)
+	require.Len(t, res.Bills, 1)
+	bill := res.Bills[0]
+	require.EqualValues(t, 1, bill.Value)
+}
+
 func TestListBillsRequest_Paging(t *testing.T) {
 	// given set of bills
 	var bills []*Bill
-	for i := uint64(0); i < 200; i++ {
+	for i := uint64(1); i <= 200; i++ {
 		bills = append(bills, &Bill{
 			Id:             newUnitID(i),
 			Value:          i,
@@ -199,8 +222,8 @@ func TestListBillsRequest_Paging(t *testing.T) {
 	require.Equal(t, http.StatusOK, httpRes.StatusCode)
 	require.Equal(t, len(bills), res.Total)
 	require.Len(t, res.Bills, 100)
-	require.EqualValues(t, 0, res.Bills[0].Value)
-	require.EqualValues(t, 99, res.Bills[99].Value)
+	require.EqualValues(t, 1, res.Bills[0].Value)
+	require.EqualValues(t, 100, res.Bills[99].Value)
 
 	// verify offset=100 returns next 100 elements
 	res = &ListBillsResponse{}
@@ -209,8 +232,8 @@ func TestListBillsRequest_Paging(t *testing.T) {
 	require.Equal(t, http.StatusOK, httpRes.StatusCode)
 	require.Equal(t, len(bills), res.Total)
 	require.Len(t, res.Bills, 100)
-	require.EqualValues(t, 100, res.Bills[0].Value)
-	require.EqualValues(t, 199, res.Bills[99].Value)
+	require.EqualValues(t, 101, res.Bills[0].Value)
+	require.EqualValues(t, 200, res.Bills[99].Value)
 
 	// verify Link header of the response
 	var linkHdrMatcher = regexp.MustCompile("<(.*)>")
@@ -234,8 +257,8 @@ func TestListBillsRequest_Paging(t *testing.T) {
 	require.Equal(t, http.StatusOK, httpRes.StatusCode)
 	require.Equal(t, len(bills), res.Total)
 	require.Len(t, res.Bills, 50)
-	require.EqualValues(t, 100, res.Bills[0].Value)
-	require.EqualValues(t, 149, res.Bills[49].Value)
+	require.EqualValues(t, 101, res.Bills[0].Value)
+	require.EqualValues(t, 150, res.Bills[49].Value)
 
 	// verify out of bounds offset returns nothing
 	res = &ListBillsResponse{}
@@ -252,8 +275,8 @@ func TestListBillsRequest_Paging(t *testing.T) {
 	require.Equal(t, http.StatusOK, httpRes.StatusCode)
 	require.Equal(t, len(bills), res.Total)
 	require.Len(t, res.Bills, 100)
-	require.EqualValues(t, 0, res.Bills[0].Value)
-	require.EqualValues(t, 99, res.Bills[99].Value)
+	require.EqualValues(t, 1, res.Bills[0].Value)
+	require.EqualValues(t, 100, res.Bills[99].Value)
 
 	// verify out of bounds offset+limit return all available data
 	res = &ListBillsResponse{}
@@ -262,8 +285,8 @@ func TestListBillsRequest_Paging(t *testing.T) {
 	require.Equal(t, http.StatusOK, httpRes.StatusCode)
 	require.Equal(t, len(bills), res.Total)
 	require.Len(t, res.Bills, 10)
-	require.EqualValues(t, 190, res.Bills[0].Value)
-	require.EqualValues(t, 199, res.Bills[9].Value)
+	require.EqualValues(t, 191, res.Bills[0].Value)
+	require.EqualValues(t, 200, res.Bills[9].Value)
 
 	// verify no Link header in the response
 	if link := httpRes.Header.Get("Link"); link != "" {
@@ -336,22 +359,20 @@ func TestProofRequest_Ok(t *testing.T) {
 		Value:          1,
 		TxHash:         []byte{0},
 		OwnerPredicate: getOwnerPredicate(pubkeyHex),
-		TxProof: &TxProof{
-			BlockNumber: 1,
-			Tx:          testtransaction.NewTransaction(t),
-			Proof: &block.BlockProof{
-				BlockHeaderHash: []byte{0},
-				BlockTreeHashChain: &block.BlockTreeHashChain{
-					Items: []*block.ChainItem{{Val: []byte{0}, Hash: []byte{0}}},
-				},
+		TxProof: &wallet.Proof{
+			TxRecord: testtransaction.NewTransactionRecord(t),
+			TxProof: &types.TxProof{
+				BlockHeaderHash:    []byte{0},
+				Chain:              []*types.GenericChainItem{{Hash: []byte{0}}},
+				UnicityCertificate: &types.UnicityCertificate{InputRecord: &types.InputRecord{RoundNumber: 1}},
 			},
 		},
 	}
 	walletBackend := newWalletBackend(t, withBills(b))
 	port := startServer(t, walletBackend)
 
-	response := &bp.Bills{}
-	httpRes, err := testhttp.DoGetProto(fmt.Sprintf("http://localhost:%d/api/v1/proof?bill_id=%s", port, billId), response)
+	response := &wallet.Bills{}
+	httpRes, err := testhttp.DoGet(fmt.Sprintf("http://localhost:%d/api/v1/proof?bill_id=%s", port, billId), response)
 	require.NoError(t, err)
 	require.Equal(t, http.StatusOK, httpRes.StatusCode)
 	require.Len(t, response.Bills, 1)
@@ -362,9 +383,9 @@ func TestProofRequest_Ok(t *testing.T) {
 
 	ep := b.TxProof
 	ap := res.TxProof
-	require.Equal(t, ep.BlockNumber, ap.BlockNumber)
-	require.EqualValues(t, ep.Tx.UnitId, ap.Tx.UnitId)
-	require.EqualValues(t, ep.Proof.BlockHeaderHash, ap.Proof.BlockHeaderHash)
+	require.Equal(t, ep.TxProof.UnicityCertificate.GetRoundNumber(), ap.TxProof.UnicityCertificate.GetRoundNumber())
+	require.EqualValues(t, ep.TxRecord.TransactionOrder.UnitID(), ap.TxRecord.TransactionOrder.UnitID())
+	require.EqualValues(t, ep.TxProof.BlockHeaderHash, ap.TxProof.BlockHeaderHash)
 }
 
 func TestProofRequest_MissingBillId(t *testing.T) {
@@ -449,22 +470,19 @@ func TestGetFeeCreditBillRequest_Ok(t *testing.T) {
 		TxHash:         []byte{0},
 		OwnerPredicate: getOwnerPredicate(pubkeyHex),
 		FCBlockNumber:  1,
-		TxProof: &TxProof{
-			BlockNumber: 1,
-			Tx:          testtransaction.NewTransaction(t),
-			Proof: &block.BlockProof{
+		TxProof: &wallet.Proof{
+			TxRecord: testtransaction.NewTransactionRecord(t),
+			TxProof: &types.TxProof{
 				BlockHeaderHash: []byte{0},
-				BlockTreeHashChain: &block.BlockTreeHashChain{
-					Items: []*block.ChainItem{{Val: []byte{0}, Hash: []byte{0}}},
-				},
+				Chain:           []*types.GenericChainItem{{Hash: []byte{0}}},
 			},
 		},
 	}
 	walletBackend := newWalletBackend(t, withFeeCreditBills(b))
 	port := startServer(t, walletBackend)
 
-	response := &bp.Bill{}
-	httpRes, err := testhttp.DoGetProto(fmt.Sprintf("http://localhost:%d/api/v1/fee-credit-bill?bill_id=%s", port, billId), response)
+	response := &wallet.Bill{}
+	httpRes, err := testhttp.DoGet(fmt.Sprintf("http://localhost:%d/api/v1/fee-credit-bills/%s", port, billId), response)
 	require.NoError(t, err)
 	require.Equal(t, http.StatusOK, httpRes.StatusCode)
 	require.Equal(t, b.Id, response.Id)
@@ -475,19 +493,9 @@ func TestGetFeeCreditBillRequest_Ok(t *testing.T) {
 
 	ep := b.TxProof
 	ap := response.TxProof
-	require.Equal(t, ep.BlockNumber, ap.BlockNumber)
-	require.EqualValues(t, ep.Tx.UnitId, ap.Tx.UnitId)
-	require.EqualValues(t, ep.Proof.BlockHeaderHash, ap.Proof.BlockHeaderHash)
-}
-
-func TestGetFeeCreditBillRequest_MissingBillId(t *testing.T) {
-	port := startServer(t, newWalletBackend(t))
-
-	res := &ErrorResponse{}
-	httpRes, err := testhttp.DoGet(fmt.Sprintf("http://localhost:%d/api/v1/fee-credit-bill", port), res)
-	require.NoError(t, err)
-	require.Equal(t, http.StatusBadRequest, httpRes.StatusCode)
-	require.Equal(t, "missing required bill_id query parameter", res.Message)
+	require.Equal(t, ep.TxProof.UnicityCertificate.GetRoundNumber(), ap.TxProof.UnicityCertificate.GetRoundNumber())
+	require.EqualValues(t, ep.TxRecord.TransactionOrder.UnitID(), ap.TxRecord.TransactionOrder.UnitID())
+	require.EqualValues(t, ep.TxProof.BlockHeaderHash, ap.TxProof.BlockHeaderHash)
 }
 
 func TestGetFeeCreditBillRequest_InvalidBillIdLength(t *testing.T) {
@@ -496,21 +504,21 @@ func TestGetFeeCreditBillRequest_InvalidBillIdLength(t *testing.T) {
 	// verify bill id larger than 32 bytes returns error
 	res := &ErrorResponse{}
 	billId := "0x000000000000000000000000000000000000000000000000000000000000000001"
-	httpRes, err := testhttp.DoGet(fmt.Sprintf("http://localhost:%d/api/v1/fee-credit-bill?bill_id=%s", port, billId), res)
+	httpRes, err := testhttp.DoGet(fmt.Sprintf("http://localhost:%d/api/v1/fee-credit-bills/%s", port, billId), res)
 	require.NoError(t, err)
 	require.Equal(t, http.StatusBadRequest, httpRes.StatusCode)
 	require.Equal(t, errInvalidBillIDLength.Error(), res.Message)
 
 	// verify bill id smaller than 32 bytes returns error
 	res = &ErrorResponse{}
-	httpRes, err = testhttp.DoGet(fmt.Sprintf("http://localhost:%d/api/v1/fee-credit-bill?bill_id=0x01", port), res)
+	httpRes, err = testhttp.DoGet(fmt.Sprintf("http://localhost:%d/api/v1/fee-credit-bills/0x01", port), res)
 	require.NoError(t, err)
 	require.Equal(t, http.StatusBadRequest, httpRes.StatusCode)
 	require.Equal(t, errInvalidBillIDLength.Error(), res.Message)
 
 	// verify bill id with correct length but missing prefix returns error
 	res = &ErrorResponse{}
-	httpRes, err = testhttp.DoGet(fmt.Sprintf("http://localhost:%d/api/v1/fee-credit-bill?bill_id=%s", port, billId), res)
+	httpRes, err = testhttp.DoGet(fmt.Sprintf("http://localhost:%d/api/v1/fee-credit-bills/%s", port, billId), res)
 	require.NoError(t, err)
 	require.Equal(t, http.StatusBadRequest, httpRes.StatusCode)
 	require.Equal(t, errInvalidBillIDLength.Error(), res.Message)
@@ -520,7 +528,7 @@ func TestGetFeeCreditBillRequest_BillDoesNotExist(t *testing.T) {
 	port := startServer(t, newWalletBackend(t))
 
 	res := &ErrorResponse{}
-	httpRes, err := testhttp.DoGet(fmt.Sprintf("http://localhost:%d/api/v1/fee-credit-bill?bill_id=%s", port, billId), res)
+	httpRes, err := testhttp.DoGet(fmt.Sprintf("http://localhost:%d/api/v1/fee-credit-bills/%s", port, billId), res)
 	require.NoError(t, err)
 	require.Equal(t, http.StatusNotFound, httpRes.StatusCode)
 	require.Equal(t, "fee credit bill does not exist", res.Message)
@@ -531,7 +539,7 @@ func TestPostTransactionsRequest_InvalidPubkey(t *testing.T) {
 	port := startServer(t, walletBackend)
 
 	res := &ErrorResponse{}
-	httpRes, err := testhttp.DoPostProto(fmt.Sprintf("http://localhost:%d/api/v1/transactions/%s", port, "invalid"), nil, res)
+	httpRes, err := testhttp.DoPost(fmt.Sprintf("http://localhost:%d/api/v1/transactions/%s", port, "invalid"), nil, res)
 	require.NoError(t, err)
 	require.Equal(t, http.StatusBadRequest, httpRes.StatusCode)
 	require.Contains(t, res.Message, "failed to parse sender pubkey")
@@ -542,36 +550,23 @@ func TestPostTransactionsRequest_EmptyBody(t *testing.T) {
 	port := startServer(t, walletBackend)
 
 	res := &ErrorResponse{}
-	httpRes, err := testhttp.DoPostProto(fmt.Sprintf("http://localhost:%d/api/v1/transactions/%s", port, pubkeyHex), nil, res)
+	httpRes, err := testhttp.DoPostCBOR(fmt.Sprintf("http://localhost:%d/api/v1/transactions/%s", port, pubkeyHex), nil, res)
 	require.NoError(t, err)
 	require.Equal(t, http.StatusBadRequest, httpRes.StatusCode)
 	require.Equal(t, "request body contained no transactions to process", res.Message)
-}
-
-func TestPostTransactionsRequest_InvalidTransactions(t *testing.T) {
-	walletBackend := newWalletBackend(t)
-	port := startServer(t, walletBackend)
-
-	txs := money.RandomBillTransfer(t)
-
-	res := &ErrorResponse{}
-	httpRes, err := testhttp.DoPostProto(fmt.Sprintf("http://localhost:%d/api/v1/transactions/%s", port, pubkeyHex), txs, res)
-	require.NoError(t, err)
-	require.Equal(t, http.StatusBadRequest, httpRes.StatusCode)
-	require.Contains(t, res.Message, "failed to decode request body")
 }
 
 func TestPostTransactionsRequest_Ok(t *testing.T) {
 	walletBackend := newWalletBackend(t)
 	port := startServer(t, walletBackend)
 
-	txs := &txsystem.Transactions{Transactions: []*txsystem.Transaction{
-		money.RandomBillTransfer(t),
-		money.RandomBillTransfer(t),
-		money.RandomBillTransfer(t),
+	txs := &wallet.Transactions{Transactions: []*types.TransactionOrder{
+		testtransaction.NewTransactionOrder(t),
+		testtransaction.NewTransactionOrder(t),
+		testtransaction.NewTransactionOrder(t),
 	}}
 
-	httpRes, err := testhttp.DoPostProto(fmt.Sprintf("http://localhost:%d/api/v1/transactions/%s", port, pubkeyHex), txs, nil)
+	httpRes, err := testhttp.DoPostCBOR(fmt.Sprintf("http://localhost:%d/api/v1/transactions/%s", port, pubkeyHex), txs, nil)
 	require.NoError(t, err)
 	require.Equal(t, http.StatusAccepted, httpRes.StatusCode)
 }

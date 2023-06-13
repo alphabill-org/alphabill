@@ -7,20 +7,17 @@ import (
 	"net"
 	"testing"
 
-	"github.com/alphabill-org/alphabill/internal/block"
-	"github.com/alphabill-org/alphabill/internal/certificates"
 	"github.com/alphabill-org/alphabill/internal/rpc/alphabill"
 	"github.com/alphabill-org/alphabill/internal/script"
-	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/internal/txsystem/money"
+	"github.com/alphabill-org/alphabill/internal/types"
+	"github.com/fxamacker/cbor/v2"
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/test/bufconn"
-	"google.golang.org/protobuf/proto"
-	"google.golang.org/protobuf/types/known/anypb"
 )
 
 var failingTransactionID = uint256.NewInt(5).Bytes32()
@@ -28,12 +25,12 @@ var failingTransactionID = uint256.NewInt(5).Bytes32()
 type (
 	MockNode struct {
 		maxBlockNumber uint64
-		transactions   []*txsystem.Transaction
+		transactions   []*types.TransactionOrder
 	}
 )
 
-func (mn *MockNode) SubmitTx(_ context.Context, tx *txsystem.Transaction) error {
-	if bytes.Equal(tx.UnitId, failingTransactionID[:]) {
+func (mn *MockNode) SubmitTx(_ context.Context, tx *types.TransactionOrder) error {
+	if bytes.Equal(tx.UnitID(), failingTransactionID[:]) {
 		return errors.New("failed")
 	}
 	if tx != nil {
@@ -42,11 +39,11 @@ func (mn *MockNode) SubmitTx(_ context.Context, tx *txsystem.Transaction) error 
 	return nil
 }
 
-func (mn *MockNode) GetBlock(_ context.Context, blockNumber uint64) (*block.Block, error) {
-	return &block.Block{UnicityCertificate: &certificates.UnicityCertificate{InputRecord: &certificates.InputRecord{RoundNumber: blockNumber}}}, nil
+func (mn *MockNode) GetBlock(_ context.Context, blockNumber uint64) (*types.Block, error) {
+	return &types.Block{UnicityCertificate: &types.UnicityCertificate{InputRecord: &types.InputRecord{RoundNumber: blockNumber}}}, nil
 }
 
-func (mn *MockNode) GetLatestBlock() (*block.Block, error) {
+func (mn *MockNode) GetLatestBlock() (*types.Block, error) {
 	return mn.GetBlock(context.Background(), mn.maxBlockNumber)
 }
 
@@ -102,7 +99,7 @@ func TestRpcServer_ProcessTransaction_Fails(t *testing.T) {
 	ctx := context.Background()
 	con, client := createRpcClient(t, ctx)
 	defer con.Close()
-	response, err := client.ProcessTransaction(ctx, createTransaction(failingTransactionID))
+	response, err := client.ProcessTransaction(ctx, &alphabill.Transaction{Order: createTransactionOrder(t, failingTransactionID)})
 	assert.Nil(t, response)
 	assert.Errorf(t, err, "failed")
 }
@@ -112,8 +109,8 @@ func TestRpcServer_ProcessTransaction_Ok(t *testing.T) {
 	con, client := createRpcClient(t, ctx)
 	defer con.Close()
 
-	req := createTransaction(uint256.NewInt(1).Bytes32())
-	response, err := client.ProcessTransaction(ctx, req)
+	req := createTransactionOrder(t, uint256.NewInt(1).Bytes32())
+	response, err := client.ProcessTransaction(ctx, &alphabill.Transaction{Order: req})
 	assert.Nil(t, err)
 	assert.NotNil(t, response)
 }
@@ -141,22 +138,25 @@ func createRpcClient(t *testing.T, ctx context.Context) (*grpc.ClientConn, alpha
 	return conn, alphabill.NewAlphabillServiceClient(conn)
 }
 
-func createTransaction(id [32]byte) *txsystem.Transaction {
-	tx := &txsystem.Transaction{
-		UnitId:                id[:],
-		TransactionAttributes: new(anypb.Any),
-		ClientMetadata:        &txsystem.ClientMetadata{Timeout: 0},
-		OwnerProof:            []byte{1},
-	}
+func createTransactionOrder(t *testing.T, id [32]byte) []byte {
 	bt := &money.TransferAttributes{
 		NewBearer:   script.PredicateAlwaysTrue(),
 		TargetValue: 1,
 		Backlink:    nil,
 	}
 
-	err := anypb.MarshalFrom(tx.TransactionAttributes, bt, proto.MarshalOptions{})
-	if err != nil {
-		panic(err)
-	}
-	return tx
+	attBytes, err := cbor.Marshal(bt)
+	require.NoError(t, err)
+
+	order, err := cbor.Marshal(&types.TransactionOrder{
+		Payload: &types.Payload{
+			UnitID:         id[:],
+			Type:           money.PayloadTypeTransfer,
+			Attributes:     attBytes,
+			ClientMetadata: &types.ClientMetadata{Timeout: 0},
+		},
+		OwnerProof: []byte{1},
+	})
+	require.NoError(t, err)
+	return order
 }

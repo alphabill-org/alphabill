@@ -7,11 +7,12 @@ import (
 	"fmt"
 	"sort"
 
-	"github.com/alphabill-org/alphabill/internal/certificates"
 	"github.com/alphabill-org/alphabill/internal/crypto"
 	p "github.com/alphabill-org/alphabill/internal/network/protocol"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
+	abtypes "github.com/alphabill-org/alphabill/internal/rootchain/consensus/abdrc/types"
 	"github.com/alphabill-org/alphabill/internal/rootchain/unicitytree"
+	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/internal/util"
 )
 
@@ -37,7 +38,7 @@ type (
 
 	Option func(c *rootGenesisConf)
 
-	UnicitySealFunc func(rootHash []byte) (*certificates.UnicitySeal, error)
+	UnicitySealFunc func(rootHash []byte) (*types.UnicitySeal, error)
 )
 
 func (c *rootGenesisConf) QuorumThreshold() uint32 {
@@ -108,7 +109,7 @@ func WithHashAlgorithm(hashAlgorithm gocrypto.Hash) Option {
 	}
 }
 
-func createUnicityCertificates(utData []*unicitytree.Data, hash gocrypto.Hash, sealFn UnicitySealFunc) (map[p.SystemIdentifier]*certificates.UnicityCertificate, error) {
+func createUnicityCertificates(utData []*unicitytree.Data, hash gocrypto.Hash, sealFn UnicitySealFunc) (map[p.SystemIdentifier]*types.UnicityCertificate, error) {
 	// calculate unicity tree
 	ut, err := unicitytree.New(hash.New(), utData)
 	if err != nil {
@@ -120,16 +121,16 @@ func createUnicityCertificates(utData []*unicitytree.Data, hash gocrypto.Hash, s
 	if err != nil {
 		return nil, fmt.Errorf("unicity seal generation failed, %w", err)
 	}
-	certs := make(map[p.SystemIdentifier]*certificates.UnicityCertificate)
+	certs := make(map[p.SystemIdentifier]*types.UnicityCertificate)
 	// extract certificates
 	for _, d := range utData {
 		utCert, err := ut.GetCertificate(d.SystemIdentifier)
 		if err != nil {
 			return nil, fmt.Errorf("get unicity tree certificate error: %w", err)
 		}
-		uc := &certificates.UnicityCertificate{
+		uc := &types.UnicityCertificate{
 			InputRecord: d.InputRecord,
-			UnicityTreeCertificate: &certificates.UnicityTreeCertificate{
+			UnicityTreeCertificate: &types.UnicityTreeCertificate{
 				SystemIdentifier:      utCert.SystemIdentifier,
 				SiblingHashes:         utCert.SiblingHashes,
 				SystemDescriptionHash: utCert.SystemDescriptionHash,
@@ -147,7 +148,7 @@ func NewPartitionRecordFromNodes(nodes []*genesis.PartitionNode) ([]*genesis.Par
 		if err := n.IsValid(); err != nil {
 			return nil, fmt.Errorf("partition node %s validation failed, %w", n.NodeIdentifier, err)
 		}
-		si := string(n.GetBlockCertificationRequest().GetSystemIdentifier())
+		si := string(n.BlockCertificationRequest.SystemIdentifier)
 		partitionNodesMap[si] = append(partitionNodesMap[si], n)
 	}
 
@@ -215,20 +216,20 @@ func NewRootGenesis(id string, s crypto.Signer, encPubKey []byte, partitions []*
 		}
 	}
 	// if all requests match then consensus is present
-	sealFn := func(rootHash []byte) (*certificates.UnicitySeal, error) {
-		roundMeta := &certificates.RootRoundInfo{
+	sealFn := func(rootHash []byte) (*types.UnicitySeal, error) {
+		roundMeta := &abtypes.RoundInfo{
 			RoundNumber:       genesis.RootRound,
 			Epoch:             0,
 			Timestamp:         util.GenesisTime,
 			ParentRoundNumber: 0,
 			CurrentRootHash:   rootHash,
 		}
-		uSeal := &certificates.UnicitySeal{
-			RootRoundInfo: roundMeta,
-			CommitInfo: &certificates.CommitInfo{
-				RootRoundInfoHash: roundMeta.Hash(gocrypto.SHA256),
-				RootHash:          rootHash,
-			},
+		uSeal := &types.UnicitySeal{
+			RootChainRoundNumber: genesis.RootRound,
+			Timestamp:            util.GenesisTime,
+			RootInternalInfo:     roundMeta.Hash(gocrypto.SHA256),
+			Epoch:                0,
+			Hash:                 rootHash,
 		}
 		return uSeal, uSeal.Sign(c.peerID, c.signer)
 	}

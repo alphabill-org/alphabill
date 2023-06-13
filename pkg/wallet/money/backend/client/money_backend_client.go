@@ -1,6 +1,7 @@
 package client
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -12,11 +13,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ethereum/go-ethereum/common/hexutil"
-	"google.golang.org/protobuf/encoding/protojson"
-
-	"github.com/alphabill-org/alphabill/pkg/wallet/backend/bp"
+	"github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/alphabill-org/alphabill/pkg/wallet/money/backend"
+	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/fxamacker/cbor/v2"
 )
 
 type (
@@ -24,16 +24,18 @@ type (
 		BaseUrl    string
 		HttpClient http.Client
 
-		feeCreditBillURL string
+		feeCreditBillURL *url.URL
+		transactionsURL  *url.URL
 	}
 )
 
 const (
-	BalancePath     = "api/v1/balance"
-	ListBillsPath   = "api/v1/list-bills"
-	ProofPath       = "api/v1/proof"
-	RoundNumberPath = "api/v1/round-number"
-	FeeCreditPath   = "api/v1/fee-credit-bill"
+	BalancePath      = "api/v1/balance"
+	ListBillsPath    = "api/v1/list-bills"
+	ProofPath        = "api/v1/proof"
+	RoundNumberPath  = "api/v1/round-number"
+	FeeCreditPath    = "api/v1/fee-credit-bills"
+	TransactionsPath = "api/v1/transactions"
 
 	balanceUrlFormat     = "%v/%v?pubkey=%v&includedcbills=%v"
 	listBillsUrlFormat   = "%v/%v?pubkey=%v&includedcbills=%v"
@@ -43,6 +45,7 @@ const (
 	defaultScheme   = "http://"
 	contentType     = "Content-Type"
 	applicationJson = "application/json"
+	applicationCbor = "application/cbor"
 )
 
 var (
@@ -57,11 +60,11 @@ func New(baseUrl string) (*MoneyBackendClient, error) {
 	if err != nil {
 		return nil, fmt.Errorf("error parsing Money Backend Client base URL (%s): %w", baseUrl, err)
 	}
-	feeCreditURL := u.JoinPath(FeeCreditPath)
 	return &MoneyBackendClient{
 		BaseUrl:          u.String(),
 		HttpClient:       http.Client{Timeout: time.Minute},
-		feeCreditBillURL: feeCreditURL.String(),
+		feeCreditBillURL: u.JoinPath(FeeCreditPath),
+		transactionsURL:  u.JoinPath(TransactionsPath),
 	}, nil
 }
 
@@ -110,19 +113,19 @@ func (c *MoneyBackendClient) ListBills(pubKey []byte, includeDCBills bool) (*bac
 	return finalResponse, nil
 }
 
-func (c *MoneyBackendClient) GetBills(pubKey []byte) ([]*bp.Bill, error) {
+func (c *MoneyBackendClient) GetBills(pubKey []byte) ([]*wallet.Bill, error) {
 	bills, err := c.ListBills(pubKey, false)
 	if err != nil {
 		return nil, err
 	}
-	var res []*bp.Bill
+	var res []*wallet.Bill
 	for _, b := range bills.Bills {
 		res = append(res, b.ToProto())
 	}
 	return res, nil
 }
 
-func (c *MoneyBackendClient) GetProof(billId []byte) (*bp.Bills, error) {
+func (c *MoneyBackendClient) GetProof(billId []byte) (*wallet.Bills, error) {
 	req, err := http.NewRequest(http.MethodGet, fmt.Sprintf(proofUrlFormat, c.BaseUrl, ProofPath, hexutil.Encode(billId)), nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to build get proof request: %w", err)
@@ -132,10 +135,10 @@ func (c *MoneyBackendClient) GetProof(billId []byte) (*bp.Bills, error) {
 	if err != nil {
 		return nil, fmt.Errorf("request GetProof failed: %w", err)
 	}
+	if response.StatusCode == http.StatusNotFound {
+		return nil, nil
+	}
 	if response.StatusCode != http.StatusOK {
-		if response.StatusCode == http.StatusNotFound {
-			return nil, fmt.Errorf("bill does not exist")
-		}
 		return nil, fmt.Errorf("unexpected response status code: %d", response.StatusCode)
 	}
 
@@ -143,8 +146,8 @@ func (c *MoneyBackendClient) GetProof(billId []byte) (*bp.Bills, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to read GetProof response: %w", err)
 	}
-	var responseObject bp.Bills
-	err = protojson.Unmarshal(responseData, &responseObject)
+	var responseObject wallet.Bills
+	err = json.Unmarshal(responseData, &responseObject)
 	if err != nil {
 		return nil, fmt.Errorf("failed to unmarshall GetProof response data: %w", err)
 	}
@@ -177,17 +180,13 @@ func (c *MoneyBackendClient) GetRoundNumber(_ context.Context) (uint64, error) {
 	return responseObject.RoundNumber, nil
 }
 
-func (c *MoneyBackendClient) FetchFeeCreditBill(_ context.Context, unitID []byte) (*bp.Bill, error) {
-	req, err := http.NewRequest(http.MethodGet, c.feeCreditBillURL, nil)
+func (c *MoneyBackendClient) GetFeeCreditBill(_ context.Context, unitID wallet.UnitID) (*wallet.Bill, error) {
+	urlPath := c.feeCreditBillURL.JoinPath(hexutil.Encode(unitID)).String()
+	req, err := http.NewRequest(http.MethodGet, urlPath, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to build get fee credit request: %w", err)
 	}
 	req.Header.Set(contentType, applicationJson)
-
-	// set bill_id query param
-	params := url.Values{}
-	params.Add("bill_id", hexutil.Encode(unitID))
-	req.URL.RawQuery = params.Encode()
 
 	response, err := c.HttpClient.Do(req)
 	if err != nil {
@@ -205,12 +204,53 @@ func (c *MoneyBackendClient) FetchFeeCreditBill(_ context.Context, unitID []byte
 	if err != nil {
 		return nil, fmt.Errorf("failed to read get credit bill response: %w", err)
 	}
-	var res bp.Bill
-	err = protojson.Unmarshal(responseData, &res)
+	var res wallet.Bill
+	err = json.Unmarshal(responseData, &res)
 	if err != nil {
 		return nil, fmt.Errorf("failed to unmarshall get fee credit bill response data: %w", err)
 	}
 	return &res, nil
+}
+
+func (c *MoneyBackendClient) PostTransactions(ctx context.Context, pubKey wallet.PubKey, txs *wallet.Transactions) error {
+	b, err := cbor.Marshal(txs)
+	if err != nil {
+		return fmt.Errorf("failed to encode transactions: %w", err)
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.transactionsURL.JoinPath(hexutil.Encode(pubKey)).String(), bytes.NewBuffer(b))
+	if err != nil {
+		return fmt.Errorf("failed to create send transactions request: %w", err)
+	}
+	req.Header.Set(contentType, applicationCbor)
+	res, err := c.HttpClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("failed to send transactions (technical error): %w", err)
+	}
+	defer res.Body.Close() // have to close request body in case of nil error
+
+	if res.StatusCode != http.StatusAccepted {
+		return fmt.Errorf("failed to send transactions: status %s", res.Status)
+	}
+	return nil
+}
+
+// GetTxProof wrapper for GetProof method to satisfy txsubmitter interface, also verifies txHash
+func (c *MoneyBackendClient) GetTxProof(_ context.Context, unitID wallet.UnitID, txHash wallet.TxHash) (*wallet.Proof, error) {
+	proof, err := c.GetProof(unitID)
+	if err != nil {
+		return nil, err
+	}
+	if proof == nil {
+		return nil, nil
+	}
+	if len(proof.Bills) == 0 {
+		return nil, fmt.Errorf("get proof request returned empty proof array for unit id 0x%X", unitID)
+	}
+	if !bytes.Equal(proof.Bills[0].TxHash, txHash) {
+		// proof exists for given unitID but probably for old tx
+		return nil, nil
+	}
+	return proof.Bills[0].TxProof, nil
 }
 
 func (c *MoneyBackendClient) retrieveBills(pubKey []byte, includeDCBills bool, offset int) (*backend.ListBillsResponse, error) {

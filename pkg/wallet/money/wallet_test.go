@@ -1,11 +1,11 @@
 package money
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
-	abclient "github.com/alphabill-org/alphabill/pkg/client"
 	"github.com/alphabill-org/alphabill/pkg/wallet/account"
 	beclient "github.com/alphabill-org/alphabill/pkg/wallet/money/backend/client"
 	"github.com/ethereum/go-ethereum/common/hexutil"
@@ -27,7 +27,7 @@ func TestExistingWalletCanBeLoaded(t *testing.T) {
 	}))
 	restClient, err := beclient.New(server.URL)
 	require.NoError(t, err)
-	_, err = LoadExistingWallet(abclient.AlphabillClientConfig{}, am, restClient)
+	_, err = LoadExistingWallet(am, restClient)
 	require.NoError(t, err)
 }
 
@@ -84,4 +84,11 @@ func TestWallet_GetBalances(t *testing.T) {
 	require.EqualValues(t, 10, balances[0])
 	require.EqualValues(t, 10, balances[1])
 	require.EqualValues(t, 20, sum)
+}
+
+func TestWallet_GetRoundNumber(t *testing.T) {
+	w, _ := CreateTestWalletFromSeed(t, &backendMockReturnConf{roundNumber: 10})
+	roundNumber, err := w.GetRoundNumber(context.Background())
+	require.NoError(t, err)
+	require.EqualValues(t, 10, roundNumber)
 }

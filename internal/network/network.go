@@ -5,15 +5,13 @@ import (
 	"fmt"
 	"time"
 
-	uc "github.com/alphabill-org/alphabill/internal/certificates"
-	"github.com/alphabill-org/alphabill/internal/network/protocol/ab_consensus"
+	"github.com/alphabill-org/alphabill/internal/network/protocol/abdrc"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/blockproposal"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/certification"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/handshake"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/replication"
-	"github.com/alphabill-org/alphabill/internal/txsystem"
+	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/libp2p/go-libp2p/core/peer"
-	"google.golang.org/protobuf/proto"
 )
 
 var DefaultValidatorNetOptions = ValidatorNetOptions{
@@ -30,15 +28,15 @@ type (
 
 	// OutputMessage represents a message that will be sent to other nodes.
 	OutputMessage struct {
-		Protocol string        // protocol to use to send the message
-		Message  proto.Message // message to send
+		Protocol string // protocol to use to send the message
+		Message  any    // message to send
 	}
 
 	// ReceivedMessage represents a message received over the network.
 	ReceivedMessage struct {
 		From     peer.ID
 		Protocol string
-		Message  proto.Message
+		Message  any
 	}
 
 	ValidatorNetOptions struct {
@@ -58,13 +56,13 @@ type (
 
 	receiveProtocolDescription struct {
 		protocolID string
-		typeFn     TypeFunc[proto.Message]
+		typeFn     TypeFunc[any]
 	}
 )
 
 type LibP2PNetwork struct {
 	self             *Peer
-	receiveProtocols map[string]*ReceiveProtocol[proto.Message]
+	receiveProtocols map[string]*ReceiveProtocol[any]
 	sendProtocols    map[string]*SendProtocol
 	ReceivedMsgCh    chan ReceivedMessage // messages from LibP2PNetwork to other components.
 }
@@ -78,7 +76,7 @@ func NewLibP2PNetwork(self *Peer, capacity uint) (*LibP2PNetwork, error) {
 	n := &LibP2PNetwork{
 		self:             self,
 		sendProtocols:    make(map[string]*SendProtocol),
-		receiveProtocols: make(map[string]*ReceiveProtocol[proto.Message]),
+		receiveProtocols: make(map[string]*ReceiveProtocol[any]),
 		ReceivedMsgCh:    receivedChannel,
 	}
 	return n, nil
@@ -105,23 +103,23 @@ func NewLibP2PValidatorNetwork(self *Peer, opts ValidatorNetOptions) (*LibP2PNet
 	receiveProtocolDescriptions := []receiveProtocolDescription{
 		{
 			protocolID: ProtocolBlockProposal,
-			typeFn:     func() proto.Message { return &blockproposal.BlockProposal{} },
+			typeFn:     func() any { return &blockproposal.BlockProposal{} },
 		},
 		{
 			protocolID: ProtocolInputForward,
-			typeFn:     func() proto.Message { return &txsystem.Transaction{} },
+			typeFn:     func() any { return &types.TransactionOrder{} },
 		},
 		{
 			protocolID: ProtocolUnicityCertificates,
-			typeFn:     func() proto.Message { return &uc.UnicityCertificate{} },
+			typeFn:     func() any { return &types.UnicityCertificate{} },
 		},
 		{
 			protocolID: ProtocolLedgerReplicationReq,
-			typeFn:     func() proto.Message { return &replication.LedgerReplicationRequest{} },
+			typeFn:     func() any { return &replication.LedgerReplicationRequest{} },
 		},
 		{
 			protocolID: ProtocolLedgerReplicationResp,
-			typeFn:     func() proto.Message { return &replication.LedgerReplicationResponse{} },
+			typeFn:     func() any { return &replication.LedgerReplicationResponse{} },
 		},
 	}
 	err = initReceiveProtocols(self, n, receiveProtocolDescriptions)
@@ -146,11 +144,11 @@ func NewLibP2PRootChainNetwork(self *Peer, capacity uint, sendCertificateTimeout
 	receiveProtocolDescriptions := []receiveProtocolDescription{
 		{
 			protocolID: ProtocolBlockCertification,
-			typeFn:     func() proto.Message { return &certification.BlockCertificationRequest{} },
+			typeFn:     func() any { return &certification.BlockCertificationRequest{} },
 		},
 		{
 			protocolID: ProtocolHandshake,
-			typeFn:     func() proto.Message { return &handshake.Handshake{} },
+			typeFn:     func() any { return &handshake.Handshake{} },
 		},
 	}
 	err = initReceiveProtocols(self, n, receiveProtocolDescriptions)
@@ -180,27 +178,27 @@ func NewLibP2RootConsensusNetwork(self *Peer, capacity uint, sendTimeout time.Du
 	receiveProtocolDescriptions := []receiveProtocolDescription{
 		{
 			protocolID: ProtocolRootIrChangeReq,
-			typeFn:     func() proto.Message { return &ab_consensus.IRChangeReqMsg{} },
+			typeFn:     func() any { return &abdrc.IRChangeReqMsg{} },
 		},
 		{
 			protocolID: ProtocolRootProposal,
-			typeFn:     func() proto.Message { return &ab_consensus.ProposalMsg{} },
+			typeFn:     func() any { return &abdrc.ProposalMsg{} },
 		},
 		{
 			protocolID: ProtocolRootVote,
-			typeFn:     func() proto.Message { return &ab_consensus.VoteMsg{} },
+			typeFn:     func() any { return &abdrc.VoteMsg{} },
 		},
 		{
 			protocolID: ProtocolRootTimeout,
-			typeFn:     func() proto.Message { return &ab_consensus.TimeoutMsg{} },
+			typeFn:     func() any { return &abdrc.TimeoutMsg{} },
 		},
 		{
 			protocolID: ProtocolRootStateReq,
-			typeFn:     func() proto.Message { return &ab_consensus.GetStateMsg{} },
+			typeFn:     func() any { return &abdrc.GetStateMsg{} },
 		},
 		{
 			protocolID: ProtocolRootStateResp,
-			typeFn:     func() proto.Message { return &ab_consensus.StateMsg{} },
+			typeFn:     func() any { return &abdrc.StateMsg{} },
 		},
 	}
 	err = initReceiveProtocols(self, n, receiveProtocolDescriptions)
@@ -221,7 +219,7 @@ func (n *LibP2PNetwork) ReceivedChannel() <-chan ReceivedMessage {
 	return n.ReceivedMsgCh
 }
 
-func (n *LibP2PNetwork) registerReceiveProtocol(receiveProtocol *ReceiveProtocol[proto.Message]) error {
+func (n *LibP2PNetwork) registerReceiveProtocol(receiveProtocol *ReceiveProtocol[any]) error {
 	if receiveProtocol == nil {
 		return errors.New("receiver protocol is nil")
 	}
@@ -260,7 +258,7 @@ func (n *LibP2PNetwork) Send(out OutputMessage, receivers []peer.ID) error {
 	return nil
 }
 
-func (n *LibP2PNetwork) send(protocol *SendProtocol, m proto.Message, receivers []peer.ID) {
+func (n *LibP2PNetwork) send(protocol *SendProtocol, m any, receivers []peer.ID) {
 	for _, receiver := range receivers {
 		// loop-back for self messages
 		if receiver == n.self.ID() {
@@ -294,7 +292,7 @@ func initReceiveProtocols(self *Peer, n *LibP2PNetwork, receiveProtocolDescripti
 	return nil
 }
 
-func initReceiveProtocol(self *Peer, protocolID string, typeFn TypeFunc[proto.Message], n *LibP2PNetwork) error {
+func initReceiveProtocol(self *Peer, protocolID string, typeFn TypeFunc[any], n *LibP2PNetwork) error {
 	p, err := NewReceiverProtocol(self, protocolID, n.ReceivedMsgCh, typeFn)
 	if err != nil {
 		return fmt.Errorf("new receive protocol error, %w", err)

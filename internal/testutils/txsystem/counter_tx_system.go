@@ -4,6 +4,7 @@ import (
 	"encoding/binary"
 
 	"github.com/alphabill-org/alphabill/internal/txsystem"
+	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/internal/util"
 	log "github.com/alphabill-org/alphabill/pkg/logger"
 )
@@ -41,7 +42,7 @@ func (s *Summary) Summary() []byte {
 	return s.summary
 }
 
-func (m *CounterTxSystem) State() (txsystem.State, error) {
+func (m *CounterTxSystem) StateSummary() (txsystem.State, error) {
 	logger.Debug("CounterTxSystem: State()")
 	bytes := make([]byte, 32)
 	var state = m.InitCount + m.ExecuteCount
@@ -89,13 +90,8 @@ func (m *CounterTxSystem) Commit() {
 	m.BeginBlockCount += m.BeginBlockCountDelta
 }
 
-func (m *CounterTxSystem) Execute(_ txsystem.GenericTransaction) error {
+func (m *CounterTxSystem) Execute(_ *types.TransactionOrder) (*types.ServerMetadata, error) {
 	logger.Debug("CounterTxSystem: Execute()")
 	m.ExecuteCountDelta++
-	return nil
-}
-
-func (m *CounterTxSystem) ConvertTx(tx *txsystem.Transaction) (txsystem.GenericTransaction, error) {
-	logger.Debug("CounterTxSystem: ConvertTx()")
-	return txsystem.NewDefaultGenericTransaction(tx)
+	return &types.ServerMetadata{}, nil
 }

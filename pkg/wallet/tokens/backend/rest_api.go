@@ -14,36 +14,38 @@ import (
 	"sync"
 	"time"
 
+	"github.com/fxamacker/cbor/v2"
 	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
 	"golang.org/x/sync/semaphore"
-	"google.golang.org/protobuf/encoding/protojson"
 
 	"github.com/alphabill-org/alphabill/internal/hash"
 	"github.com/alphabill-org/alphabill/internal/script"
-	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/internal/txsystem/tokens"
+	"github.com/alphabill-org/alphabill/internal/types"
+	"github.com/alphabill-org/alphabill/pkg/wallet"
+	"github.com/alphabill-org/alphabill/pkg/wallet/broker"
 )
 
 type dataSource interface {
 	GetTokenType(id TokenTypeID) (*TokenUnitType, error)
-	QueryTokenType(kind Kind, creator PubKey, startKey TokenTypeID, count int) ([]*TokenUnitType, TokenTypeID, error)
+	QueryTokenType(kind Kind, creator wallet.PubKey, startKey TokenTypeID, count int) ([]*TokenUnitType, TokenTypeID, error)
 	GetToken(id TokenID) (*TokenUnit, error)
-	QueryTokens(kind Kind, owner Predicate, startKey TokenID, count int) ([]*TokenUnit, TokenID, error)
-	SaveTokenTypeCreator(id TokenTypeID, kind Kind, creator PubKey) error
-	GetTxProof(unitID UnitID, txHash TxHash) (*Proof, error)
-	GetFeeCreditBill(unitID UnitID) (*FeeCreditBill, error)
+	QueryTokens(kind Kind, owner wallet.Predicate, startKey TokenID, count int) ([]*TokenUnit, TokenID, error)
+	SaveTokenTypeCreator(id TokenTypeID, kind Kind, creator wallet.PubKey) error
+	GetTxProof(unitID wallet.UnitID, txHash wallet.TxHash) (*wallet.Proof, error)
+	GetFeeCreditBill(unitID wallet.UnitID) (*FeeCreditBill, error)
 }
 
 type abClient interface {
-	SendTransaction(ctx context.Context, tx *txsystem.Transaction) error
+	SendTransaction(ctx context.Context, tx *types.TransactionOrder) error
 	GetRoundNumber(ctx context.Context) (uint64, error)
 }
 
 type restAPI struct {
 	db        dataSource
 	ab        abClient
-	convertTx func(tx *txsystem.Transaction) (txsystem.GenericTransaction, error)
+	streamSSE func(ctx context.Context, owner broker.PubKey, w http.ResponseWriter) error
 	logErr    func(a ...any)
 }
 
@@ -72,6 +74,7 @@ func (api *restAPI) endpoints() http.Handler {
 	apiV1.HandleFunc("/kinds/{kind}/types", api.listTypes).Methods("GET", "OPTIONS")
 	apiV1.HandleFunc("/round-number", api.getRoundNumber).Methods("GET", "OPTIONS")
 	apiV1.HandleFunc("/transactions/{pubkey}", api.postTransactions).Methods("POST", "OPTIONS")
+	apiV1.HandleFunc("/events/{pubkey}/subscribe", api.subscribeEvents).Methods("GET", "OPTIONS")
 	apiV1.HandleFunc("/units/{unitId}/transactions/{txHash}/proof", api.getTxProof).Methods("GET", "OPTIONS")
 	apiV1.HandleFunc("/fee-credit-bills/{unitId}", api.getFeeCreditBill).Methods("GET", "OPTIONS")
 
@@ -211,6 +214,19 @@ func (api *restAPI) getRoundNumber(w http.ResponseWriter, r *http.Request) {
 	api.writeResponse(w, RoundNumberResponse{RoundNumber: rn})
 }
 
+func (api *restAPI) subscribeEvents(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	ownerPK, err := parsePubKey(vars["pubkey"], true)
+	if err != nil {
+		api.invalidParamResponse(w, "pubkey", err)
+		return
+	}
+
+	if err := api.streamSSE(r.Context(), broker.PubKey(ownerPK), w); err != nil {
+		api.writeErrorResponse(w, fmt.Errorf("event streaming failed: %w", err))
+	}
+}
+
 func (api *restAPI) postTransactions(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
 	buf, err := io.ReadAll(r.Body)
@@ -226,17 +242,17 @@ func (api *restAPI) postTransactions(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	txs := &txsystem.Transactions{}
-	if err = protojson.Unmarshal(buf, txs); err != nil {
+	txs := &wallet.Transactions{}
+	if err = cbor.Unmarshal(buf, txs); err != nil {
 		api.errorResponse(w, http.StatusBadRequest, fmt.Errorf("failed to decode request body: %w", err))
 		return
 	}
-	if len(txs.GetTransactions()) == 0 {
+	if len(txs.Transactions) == 0 {
 		api.errorResponse(w, http.StatusBadRequest, fmt.Errorf("request body contained no transactions to process"))
 		return
 	}
 
-	if errs := api.saveTxs(r.Context(), txs.GetTransactions(), owner); len(errs) > 0 {
+	if errs := api.saveTxs(r.Context(), txs.Transactions, owner); len(errs) > 0 {
 		w.WriteHeader(http.StatusInternalServerError)
 		api.writeResponse(w, errs)
 		return
@@ -244,7 +260,7 @@ func (api *restAPI) postTransactions(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusAccepted)
 }
 
-func (api *restAPI) saveTxs(ctx context.Context, txs []*txsystem.Transaction, owner []byte) map[string]string {
+func (api *restAPI) saveTxs(ctx context.Context, txs []*types.TransactionOrder, owner []byte) map[string]string {
 	errs := make(map[string]string)
 	var m sync.Mutex
 
@@ -254,11 +270,11 @@ func (api *restAPI) saveTxs(ctx context.Context, txs []*txsystem.Transaction, ow
 		if err := sem.Acquire(ctx, 1); err != nil {
 			break
 		}
-		go func(tx *txsystem.Transaction) {
+		go func(tx *types.TransactionOrder) {
 			defer sem.Release(1)
 			if err := api.saveTx(ctx, tx, owner); err != nil {
 				m.Lock()
-				errs[hex.EncodeToString(tx.GetUnitId())] = err.Error()
+				errs[hex.EncodeToString(tx.UnitID())] = err.Error()
 				m.Unlock()
 			}
 		}(tx)
@@ -276,7 +292,7 @@ func (api *restAPI) saveTxs(ctx context.Context, txs []*txsystem.Transaction, ow
 
 func (api *restAPI) getFeeCreditBill(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
-	unitID, err := parseHex[UnitID](vars["unitId"], true)
+	unitID, err := parseHex[wallet.UnitID](vars["unitId"], true)
 	if err != nil {
 		api.invalidParamResponse(w, "unitId", err)
 		return
@@ -288,27 +304,33 @@ func (api *restAPI) getFeeCreditBill(w http.ResponseWriter, r *http.Request) {
 	}
 	if fcb == nil {
 		w.WriteHeader(http.StatusNotFound)
-		api.writeResponse(w, ErrorResponse{Message: "bill does not exist"})
+		api.writeResponse(w, ErrorResponse{Message: "fee credit bill does not exist"})
 		return
 	}
-	api.writeResponse(w, fcb)
+	fcbProof, err := api.db.GetTxProof(unitID, fcb.TxHash)
+	if err != nil {
+		api.writeErrorResponse(w, fmt.Errorf("failed to load fee credit bill proof for ID 0x%X and TxHash 0x%X: %w", unitID, fcb.GetTxHash(), err))
+		return
+	}
+	if fcbProof == nil {
+		w.WriteHeader(http.StatusNotFound)
+		api.writeResponse(w, ErrorResponse{Message: "fee credit bill proof does not exist"})
+		return
+	}
+	api.writeResponse(w, fcb.ToGenericBill(fcbProof))
 }
 
-func (api *restAPI) saveTx(ctx context.Context, tx *txsystem.Transaction, owner []byte) error {
+func (api *restAPI) saveTx(ctx context.Context, tx *types.TransactionOrder, owner []byte) error {
 	// if "creator type tx" then save the type->owner relation
-	gtx, err := api.convertTx(tx)
-	if err != nil {
-		return fmt.Errorf("failed to convert transaction: %w", err)
-	}
 	kind := Any
-	switch gtx.(type) {
-	case tokens.CreateFungibleTokenType:
+	switch tx.PayloadType() {
+	case tokens.PayloadTypeCreateFungibleTokenType:
 		kind = Fungible
-	case tokens.CreateNonFungibleTokenType:
+	case tokens.PayloadTypeCreateNFTType:
 		kind = NonFungible
 	}
 	if kind != Any {
-		if err := api.db.SaveTokenTypeCreator(tx.UnitId, kind, owner); err != nil {
+		if err := api.db.SaveTokenTypeCreator(tx.UnitID(), kind, owner); err != nil {
 			return fmt.Errorf("failed to save creator relation: %w", err)
 		}
 	}
@@ -321,12 +343,12 @@ func (api *restAPI) saveTx(ctx context.Context, tx *txsystem.Transaction, owner 
 
 func (api *restAPI) getTxProof(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
-	unitID, err := parseHex[UnitID](vars["unitId"], true)
+	unitID, err := parseHex[wallet.UnitID](vars["unitId"], true)
 	if err != nil {
 		api.invalidParamResponse(w, "unitId", err)
 		return
 	}
-	txHash, err := parseHex[TxHash](vars["txHash"], true)
+	txHash, err := parseHex[wallet.TxHash](vars["txHash"], true)
 	if err != nil {
 		api.invalidParamResponse(w, "txHash", err)
 		return

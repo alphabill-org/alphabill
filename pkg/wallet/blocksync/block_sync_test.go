@@ -8,9 +8,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/alphabill-org/alphabill/internal/block"
-	"github.com/alphabill-org/alphabill/internal/certificates"
 	"github.com/alphabill-org/alphabill/internal/rpc/alphabill"
+	"github.com/alphabill-org/alphabill/internal/types"
+	"github.com/fxamacker/cbor/v2"
 )
 
 func Test_Run(t *testing.T) {
@@ -28,7 +28,7 @@ func Test_Run(t *testing.T) {
 				},
 				0,     // starting block, must be > 0
 				0, 10, // max block and batch size
-				func(ctx context.Context, b *block.Block) error { return nil })
+				func(ctx context.Context, b *types.Block) error { return nil })
 		}()
 
 		select {
@@ -53,7 +53,7 @@ func Test_Run(t *testing.T) {
 				},
 				1, 0, // starting block and max block
 				0, // batch size, must be > 0
-				func(ctx context.Context, b *block.Block) error { return nil })
+				func(ctx context.Context, b *types.Block) error { return nil })
 		}()
 
 		select {
@@ -78,7 +78,7 @@ func Test_Run(t *testing.T) {
 				},
 				10, 9, // starting block and max block
 				10, // batch size, must be > 0
-				func(ctx context.Context, b *block.Block) error { return nil })
+				func(ctx context.Context, b *types.Block) error { return nil })
 		}()
 
 		select {
@@ -99,10 +99,12 @@ func Test_Run(t *testing.T) {
 		getBlocks := func(ctx context.Context, blockNumber, batchSize uint64) (*alphabill.GetBlocksResponse, error) {
 			// on first call return a block, next call(s) return error
 			if blockNumber == 1 {
+				blockBytes, err := getBlockBytes(blockNumber)
+				if err != nil {
+					return nil, err
+				}
 				return &alphabill.GetBlocksResponse{
-					Blocks: []*block.Block{
-						{UnicityCertificate: &certificates.UnicityCertificate{InputRecord: &certificates.InputRecord{RoundNumber: blockNumber}}},
-					},
+					Blocks:              [][]byte{blockBytes},
 					MaxBlockNumber:      blockNumber + batchSize,
 					BatchMaxBlockNumber: blockNumber,
 				}, nil
@@ -110,7 +112,7 @@ func Test_Run(t *testing.T) {
 			return nil, expErr
 		}
 
-		processor := func(ctx context.Context, b *block.Block) error {
+		processor := func(ctx context.Context, b *types.Block) error {
 			// just consume everithing
 			return nil
 		}
@@ -137,18 +139,20 @@ func Test_Run(t *testing.T) {
 		getBlocks := func(ctx context.Context, blockNumber, batchSize uint64) (*alphabill.GetBlocksResponse, error) {
 			// must have sleep not to starve CPU so that context cancel can take effect
 			time.Sleep(time.Millisecond)
+			blockBytes, err := getBlockBytes(blockNumber)
+			if err != nil {
+				return nil, err
+			}
 			// ignore batchSize and send always single block
 			return &alphabill.GetBlocksResponse{
-				Blocks: []*block.Block{
-					{UnicityCertificate: &certificates.UnicityCertificate{InputRecord: &certificates.InputRecord{RoundNumber: blockNumber}}},
-				},
+				Blocks:              [][]byte{blockBytes},
 				MaxBlockNumber:      blockNumber + batchSize, //always signal there is one more batch
 				BatchMaxBlockNumber: blockNumber,
 			}, nil
 		}
 
 		expErr := fmt.Errorf("failed to process block")
-		processor := func(ctx context.Context, b *block.Block) error {
+		processor := func(ctx context.Context, b *types.Block) error {
 			// consume first two blocks, then return error
 			if b.UnicityCertificate.InputRecord.RoundNumber < 3 {
 				return nil
@@ -184,11 +188,13 @@ func Test_Run(t *testing.T) {
 				return &alphabill.GetBlocksResponse{MaxBlockNumber: blockNumber, BatchMaxBlockNumber: blockNumber}, nil
 			}
 			// ignore batchSize and send number of blocks based on which iteration it is
-			var b []*block.Block
+			var b [][]byte
 			for i := 0; i < int(n); i++ {
-				b = append(b, &block.Block{
-					UnicityCertificate: &certificates.UnicityCertificate{InputRecord: &certificates.InputRecord{RoundNumber: blockNumber + uint64(i)}},
-				})
+				blockBytes, err := getBlockBytes(blockNumber + uint64(i))
+				if err != nil {
+					return nil, err
+				}
+				b = append(b, blockBytes)
 			}
 			return &alphabill.GetBlocksResponse{
 				Blocks:              b,
@@ -198,7 +204,7 @@ func Test_Run(t *testing.T) {
 		}
 
 		var lastBN uint64
-		processor := func(ctx context.Context, b *block.Block) error {
+		processor := func(ctx context.Context, b *types.Block) error {
 			cbn := atomic.LoadUint64(&lastBN)
 			if cbn >= b.UnicityCertificate.InputRecord.RoundNumber {
 				return fmt.Errorf("unexpected block order: last %d current %d", cbn, b.UnicityCertificate.InputRecord.RoundNumber)
@@ -231,11 +237,13 @@ func Test_Run(t *testing.T) {
 		defer cancel()
 
 		getBlocks := func(ctx context.Context, blockNumber, batchSize uint64) (*alphabill.GetBlocksResponse, error) {
-			var b []*block.Block
+			var b [][]byte
 			for i := 0; i < int(batchSize); i++ {
-				b = append(b, &block.Block{
-					UnicityCertificate: &certificates.UnicityCertificate{InputRecord: &certificates.InputRecord{RoundNumber: blockNumber + uint64(i)}},
-				})
+				blockBytes, err := getBlockBytes(blockNumber + uint64(i))
+				if err != nil {
+					return nil, err
+				}
+				b = append(b, blockBytes)
 			}
 			return &alphabill.GetBlocksResponse{
 				Blocks:              b,
@@ -245,7 +253,7 @@ func Test_Run(t *testing.T) {
 		}
 
 		var lastBN uint64
-		processor := func(ctx context.Context, b *block.Block) error {
+		processor := func(ctx context.Context, b *types.Block) error {
 			cbn := atomic.LoadUint64(&lastBN)
 			if cbn >= b.UnicityCertificate.InputRecord.RoundNumber {
 				return fmt.Errorf("unexpected block order: last %d current %d", cbn, b.UnicityCertificate.InputRecord.RoundNumber)
@@ -276,6 +284,12 @@ func Test_Run(t *testing.T) {
 	})
 }
 
+func getBlockBytes(blockNumber uint64) ([]byte, error) {
+	block := &types.Block{UnicityCertificate: &types.UnicityCertificate{InputRecord: &types.InputRecord{RoundNumber: blockNumber}}}
+	blockBytes, err := cbor.Marshal(block)
+	return blockBytes, err
+}
+
 func Test_fetchBlocks(t *testing.T) {
 	t.Parallel()
 
@@ -283,7 +297,7 @@ func Test_fetchBlocks(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		cancel()
 
-		blocks := make(chan *block.Block)
+		blocks := make(chan *types.Block)
 		done := make(chan error, 1)
 		go func() {
 			done <- fetchBlocks(ctx, func(ctx context.Context, blockNumber, batchSize uint64) (*alphabill.GetBlocksResponse, error) {
@@ -310,7 +324,7 @@ func Test_fetchBlocks(t *testing.T) {
 			return nil, expErr
 		}
 
-		blocks := make(chan *block.Block)
+		blocks := make(chan *types.Block)
 		done := make(chan error, 1)
 		go func() {
 			done <- fetchBlocks(ctx, getBlocks, 1, blocks)
@@ -343,7 +357,7 @@ func Test_fetchBlocks(t *testing.T) {
 			return &alphabill.GetBlocksResponse{MaxBlockNumber: 3, BatchMaxBlockNumber: 3}, nil
 		}
 
-		blocks := make(chan *block.Block)
+		blocks := make(chan *types.Block)
 		done := make(chan error, 1)
 		go func() {
 			done <- fetchBlocks(ctx, getBlocks, 4, blocks)
@@ -374,17 +388,19 @@ func Test_fetchBlocks(t *testing.T) {
 			if blockNumber != n {
 				return nil, fmt.Errorf("expected that block %d is requested, got %d", n, blockNumber)
 			}
+			blockBytes, err := getBlockBytes(blockNumber)
+			if err != nil {
+				return nil, err
+			}
 			// ignore batchSize and send only one block
 			return &alphabill.GetBlocksResponse{
-				Blocks: []*block.Block{
-					{UnicityCertificate: &certificates.UnicityCertificate{InputRecord: &certificates.InputRecord{RoundNumber: blockNumber}}},
-				},
+				Blocks:              [][]byte{blockBytes},
 				MaxBlockNumber:      4,
 				BatchMaxBlockNumber: blockNumber,
 			}, nil
 		}
 
-		blocks := make(chan *block.Block, 4) // buf must be big enough that all blocks can be sent!
+		blocks := make(chan *types.Block, 4) // buf must be big enough that all blocks can be sent!
 		done := make(chan error, 1)
 		go func() {
 			done <- fetchBlocks(ctx, getBlocks, 1, blocks)
@@ -407,10 +423,10 @@ func Test_processBlocks(t *testing.T) {
 	t.Parallel()
 
 	t.Run("closing data chan returns nil", func(t *testing.T) {
-		blocks := make(chan *block.Block)
+		blocks := make(chan *types.Block)
 		done := make(chan error, 1)
 		go func() {
-			done <- processBlocks(context.Background(), blocks, func(ctx context.Context, b *block.Block) error { return nil })
+			done <- processBlocks(context.Background(), blocks, func(ctx context.Context, b *types.Block) error { return nil })
 		}()
 
 		close(blocks)
@@ -426,13 +442,13 @@ func Test_processBlocks(t *testing.T) {
 
 	t.Run("sending to chan calls processBlocks", func(t *testing.T) {
 		expErr := fmt.Errorf("failed to process block")
-		blocks := make(chan *block.Block)
+		blocks := make(chan *types.Block)
 		done := make(chan error, 1)
 		go func() {
-			done <- processBlocks(context.Background(), blocks, func(ctx context.Context, b *block.Block) error { return expErr })
+			done <- processBlocks(context.Background(), blocks, func(ctx context.Context, b *types.Block) error { return expErr })
 		}()
 
-		go func() { blocks <- &block.Block{} }()
+		go func() { blocks <- &types.Block{} }()
 
 		select {
 		case err := <-done:

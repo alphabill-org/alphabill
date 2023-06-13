@@ -8,15 +8,13 @@ import (
 	"testing"
 	"time"
 
-	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/script"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	testpartition "github.com/alphabill-org/alphabill/internal/testutils/partition"
-	"github.com/alphabill-org/alphabill/internal/txsystem"
 	moneytx "github.com/alphabill-org/alphabill/internal/txsystem/money"
 	tokentxs "github.com/alphabill-org/alphabill/internal/txsystem/tokens"
+	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/internal/util"
-	abclient "github.com/alphabill-org/alphabill/pkg/client"
 	"github.com/alphabill-org/alphabill/pkg/wallet/account"
 	"github.com/alphabill-org/alphabill/pkg/wallet/fees"
 	wlog "github.com/alphabill-org/alphabill/pkg/wallet/log"
@@ -49,8 +47,8 @@ func TestFungibleToken_Subtyping_Integration(t *testing.T) {
 	typeID14 := randomID(t)
 	//push bool false, equal; to satisfy: 5100
 	execTokensCmd(t, homedirW1, fmt.Sprintf("new-type fungible -r %s --symbol %s --type %X --subtype-clause 0x53510087", backendURL, symbol1, typeID11))
-	require.Eventually(t, testpartition.BlockchainContains(tokensPartition, func(tx *txsystem.Transaction) bool {
-		return bytes.Equal(tx.UnitId, typeID11)
+	require.Eventually(t, testpartition.BlockchainContains(tokensPartition, func(tx *types.TransactionOrder) bool {
+		return bytes.Equal(tx.UnitID(), typeID11)
 	}), test.WaitDuration, test.WaitTick)
 	ensureTokenTypeIndexed(t, ctx, backendClient, w1key.PubKey, typeID11)
 	//second type
@@ -60,20 +58,20 @@ func TestFungibleToken_Subtyping_Integration(t *testing.T) {
 	execTokensCmdWithError(t, homedirW1, fmt.Sprintf("new-type fungible -r %s --symbol %s --type %X --subtype-clause %s --subtype-input %s", backendURL, symbol1, typeID12, "ptpkh", "0x535100"), "missing [parent-type]")
 	//inheriting the first one and setting subtype clause to ptpkh
 	execTokensCmd(t, homedirW1, fmt.Sprintf("new-type fungible -r %s --symbol %s --type %X --subtype-clause %s --parent-type %X --subtype-input %s", backendURL, symbol1, typeID12, "ptpkh", typeID11, "0x535100"))
-	require.Eventually(t, testpartition.BlockchainContains(tokensPartition, func(tx *txsystem.Transaction) bool {
-		return bytes.Equal(tx.UnitId, typeID12)
+	require.Eventually(t, testpartition.BlockchainContains(tokensPartition, func(tx *types.TransactionOrder) bool {
+		return bytes.Equal(tx.UnitID(), typeID12)
 	}), test.WaitDuration, test.WaitTick)
 	ensureTokenTypeIndexed(t, ctx, backendClient, w1key.PubKey, typeID12)
 	//third type needs to satisfy both parents, immediate parent with ptpkh, grandparent with 0x535100
 	execTokensCmd(t, homedirW1, fmt.Sprintf("new-type fungible -r %s --symbol %s --type %X --subtype-clause %s --parent-type %X --subtype-input %s", backendURL, symbol1, typeID13, "true", typeID12, "ptpkh,0x535100"))
-	require.Eventually(t, testpartition.BlockchainContains(tokensPartition, func(tx *txsystem.Transaction) bool {
-		return bytes.Equal(tx.UnitId, typeID13)
+	require.Eventually(t, testpartition.BlockchainContains(tokensPartition, func(tx *types.TransactionOrder) bool {
+		return bytes.Equal(tx.UnitID(), typeID13)
 	}), test.WaitDuration, test.WaitTick)
 	ensureTokenTypeIndexed(t, ctx, backendClient, w1key.PubKey, typeID13)
 	//4th type
 	execTokensCmd(t, homedirW1, fmt.Sprintf("new-type fungible -r %s --symbol %s --type %X --subtype-clause %s --parent-type %X --subtype-input %s", backendURL, symbol1, typeID14, "true", typeID13, "empty,ptpkh,0x535100"))
-	require.Eventually(t, testpartition.BlockchainContains(tokensPartition, func(tx *txsystem.Transaction) bool {
-		return bytes.Equal(tx.UnitId, typeID14)
+	require.Eventually(t, testpartition.BlockchainContains(tokensPartition, func(tx *types.TransactionOrder) bool {
+		return bytes.Equal(tx.UnitID(), typeID14)
 	}), test.WaitDuration, test.WaitTick)
 	ensureTokenTypeIndexed(t, ctx, backendClient, w1key.PubKey, typeID14)
 }
@@ -98,20 +96,20 @@ func TestFungibleToken_InvariantPredicate_Integration(t *testing.T) {
 	typeID11 := randomID(t)
 	typeID12 := randomID(t)
 	execTokensCmd(t, homedirW1, fmt.Sprintf("new-type fungible -r %s  --symbol %s --type %X --decimals 0 --inherit-bearer-clause %s", backendUrl, symbol1, typeID11, predicatePtpkh))
-	require.Eventually(t, testpartition.BlockchainContains(tokensPartition, func(tx *txsystem.Transaction) bool {
-		return bytes.Equal(tx.UnitId, typeID11)
+	require.Eventually(t, testpartition.BlockchainContains(tokensPartition, func(tx *types.TransactionOrder) bool {
+		return bytes.Equal(tx.UnitID(), typeID11)
 	}), test.WaitDuration, test.WaitTick)
 	ensureTokenTypeIndexed(t, ctx, backendClient, w1key.PubKey, typeID11)
 	//second type inheriting the first one and leaves inherit-bearer clause to default (true)
 	execTokensCmd(t, homedirW1, fmt.Sprintf("new-type fungible -r %s  --symbol %s --type %X --decimals 0 --parent-type %X --subtype-input %s", backendUrl, symbol1, typeID12, typeID11, predicateTrue))
-	require.Eventually(t, testpartition.BlockchainContains(tokensPartition, func(tx *txsystem.Transaction) bool {
-		return bytes.Equal(tx.UnitId, typeID12)
+	require.Eventually(t, testpartition.BlockchainContains(tokensPartition, func(tx *types.TransactionOrder) bool {
+		return bytes.Equal(tx.UnitID(), typeID12)
 	}), test.WaitDuration, test.WaitTick)
 	ensureTokenTypeIndexed(t, ctx, backendClient, w1key.PubKey, typeID12)
 	//mint
 	execTokensCmd(t, homedirW1, fmt.Sprintf("new fungible -r %s  --type %X --amount %v --mint-input %s,%s", backendUrl, typeID12, 1000, predicatePtpkh, predicatePtpkh))
 	ensureTokenIndexed(t, ctx, backendClient, w1key.PubKey, nil)
-	verifyStdout(t, execTokensCmd(t, homedirW1, fmt.Sprintf("list fungible -r %s", backendUrl)), "amount='1000'")
+	verifyStdout(t, execTokensCmd(t, homedirW1, fmt.Sprintf("list fungible -r %s", backendUrl)), "amount='1'000'")
 	//send to w2
 	execTokensCmd(t, homedirW1, fmt.Sprintf("send fungible -r %s --type %X --amount 100 --address 0x%X -k 1 --inherit-bearer-input %s,%s", backendUrl, typeID12, w2key.PubKey, predicateTrue, predicatePtpkh))
 	ensureTokenIndexed(t, ctx, backendClient, w2key.PubKey, nil)
@@ -122,7 +120,7 @@ func TestFungibleTokens_Sending_Integration(t *testing.T) {
 	require.NoError(t, wlog.InitStdoutLogger(wlog.INFO))
 
 	network := NewAlphabillNetwork(t)
-	moneyPartition, err := network.abNetwork.GetNodePartition(defaultABMoneySystemIdentifier)
+	_, err := network.abNetwork.GetNodePartition(defaultABMoneySystemIdentifier)
 	require.NoError(t, err)
 	moneyBackendURL := network.moneyBackendURL
 	tokensPartition, err := network.abNetwork.GetNodePartition(tokentxs.DefaultTokenTxSystemIdentifier)
@@ -143,11 +141,11 @@ func TestFungibleTokens_Sending_Integration(t *testing.T) {
 	execTokensCmd(t, homedirW1, fmt.Sprintf("new-type fungible  --symbol %s -r %s --type %X --decimals 0", symbol1, backendUrl, typeID1))
 	verifyStdout(t, execTokensCmd(t, homedirW1, fmt.Sprintf("list-types fungible -r %s", backendUrl)), "symbol=AB (fungible)")
 	// mint tokens
-	crit := func(amount uint64) func(tx *txsystem.Transaction) bool {
-		return func(tx *txsystem.Transaction) bool {
-			if tx.TransactionAttributes.GetTypeUrl() == "type.googleapis.com/alphabill.tokens.v1.MintFungibleTokenAttributes" {
+	crit := func(amount uint64) func(tx *types.TransactionOrder) bool {
+		return func(tx *types.TransactionOrder) bool {
+			if tx.PayloadType() == tokentxs.PayloadTypeMintFungibleToken {
 				attrs := &tokentxs.MintFungibleTokenAttributes{}
-				require.NoError(t, tx.TransactionAttributes.UnmarshalTo(attrs))
+				require.NoError(t, tx.UnmarshalAttributes(attrs))
 				return attrs.Value == amount
 			}
 			return false
@@ -176,12 +174,11 @@ func TestFungibleTokens_Sending_Integration(t *testing.T) {
 	}, "amount='2'")
 
 	// send money to w2 to create fee credits
-	stdout := execWalletCmd(t, moneyPartition.Nodes[0].AddrGRPC, homedirW1, fmt.Sprintf("send --amount 100 --address %s -r %s", hexutil.Encode(w2key.PubKey), moneyBackendURL))
+	stdout := execWalletCmd(t, "", homedirW1, fmt.Sprintf("send --amount 100 --address %s -r %s", hexutil.Encode(w2key.PubKey), moneyBackendURL))
 	verifyStdout(t, stdout, "Successfully confirmed transaction(s)")
-	time.Sleep(2 * time.Second) // TODO confirm through backend instead of node
 
 	// create fee credit on w2
-	stdout, err = execFeesCommand(homedirW2, fmt.Sprintf("--partition token add --amount 50 -u %s -r %s -m %s", moneyPartition.Nodes[0].AddrGRPC, moneyBackendURL, backendUrl))
+	stdout, err = execFeesCommand(homedirW2, fmt.Sprintf("--partition token add --amount 50 -r %s -m %s", moneyBackendURL, backendUrl))
 	require.NoError(t, err)
 	verifyStdout(t, stdout, "Successfully created 50 fee credits on token partition.")
 
@@ -193,11 +190,11 @@ func TestFungibleTokens_Sending_Integration(t *testing.T) {
 func TestWalletCreateFungibleTokenTypeAndTokenAndSendCmd_IntegrationTest(t *testing.T) {
 	const decimals = 3
 	// mint tokens
-	crit := func(amount uint64) func(tx *txsystem.Transaction) bool {
-		return func(tx *txsystem.Transaction) bool {
-			if tx.TransactionAttributes.GetTypeUrl() == "type.googleapis.com/alphabill.tokens.v1.MintFungibleTokenAttributes" {
+	crit := func(amount uint64) func(tx *types.TransactionOrder) bool {
+		return func(tx *types.TransactionOrder) bool {
+			if tx.PayloadType() == tokentxs.PayloadTypeMintFungibleToken {
 				attrs := &tokentxs.MintFungibleTokenAttributes{}
-				require.NoError(t, tx.TransactionAttributes.UnmarshalTo(attrs))
+				require.NoError(t, tx.UnmarshalAttributes(attrs))
 				return attrs.Value == amount
 			}
 			return false
@@ -215,7 +212,7 @@ func TestWalletCreateFungibleTokenTypeAndTokenAndSendCmd_IntegrationTest(t *test
 	tokenBackendClient := network.tokenBackendClient
 	ctx := network.ctx
 
-	w2, _ := createNewTokenWallet(t, backendUrl) // homedirW2
+	w2, homedirW2 := createNewTokenWallet(t, backendUrl)
 	w2key, err := w2.GetAccountManager().GetAccountKey(0)
 	require.NoError(t, err)
 	w2.Shutdown()
@@ -248,6 +245,10 @@ func TestWalletCreateFungibleTokenTypeAndTokenAndSendCmd_IntegrationTest(t *test
 	require.Eventually(t, testpartition.BlockchainContains(tokensPart, crit(1100)), test.WaitDuration, test.WaitTick)
 	require.Eventually(t, testpartition.BlockchainContains(tokensPart, crit(1110)), test.WaitDuration, test.WaitTick)
 	require.Eventually(t, testpartition.BlockchainContains(tokensPart, crit(1111)), test.WaitDuration, test.WaitTick)
+	// mint tokens from w1 and set the owner to w2
+	execTokensCmd(t, homedir, fmt.Sprintf("new fungible  -r %s --type %X --amount 2.222 --bearer-clause ptpkh:0x%X", backendUrl, typeID, w2key.PubKeyHash.Sha256))
+	require.Eventually(t, testpartition.BlockchainContains(tokensPart, crit(2222)), test.WaitDuration, test.WaitTick)
+	verifyStdout(t, execTokensCmd(t, homedirW2, fmt.Sprintf("list fungible -r %s", backendUrl)), "amount='2.222'")
 
 	// test send fails
 	execTokensCmdWithError(t, homedir, fmt.Sprintf("send fungible -r %s --type %X --amount 2 --address 0x%X -k 1", backendUrl, nonExistingTypeId, w2key.PubKey), fmt.Sprintf("failed to load type with id %X", nonExistingTypeId))
@@ -269,16 +270,23 @@ func TestFungibleTokens_CollectDust_Integration(t *testing.T) {
 	symbol1 := "AB"
 	execTokensCmd(t, homedir, fmt.Sprintf("new-type fungible --symbol %s -r %s --type %X --decimals 0", symbol1, backendUrl, typeID1))
 	verifyStdout(t, execTokensCmd(t, homedir, fmt.Sprintf("list-types fungible -r %s", backendUrl)), "symbol=AB (fungible)")
-	// mint tokens
-	execTokensCmd(t, homedir, fmt.Sprintf("new fungible -r %s --type %X --amount 300", backendUrl, typeID1))
-	execTokensCmd(t, homedir, fmt.Sprintf("new fungible -r %s --type %X --amount 700", backendUrl, typeID1))
-	execTokensCmd(t, homedir, fmt.Sprintf("new fungible -r %s --type %X --amount 1000", backendUrl, typeID1))
+	// mint tokens (without confirming, for speed)
+	mintIterations := 110
+	expectedAmounts := make([]string, 0, mintIterations)
+	expectedTotal := 0
+	for i := 1; i <= mintIterations; i++ {
+		execTokensCmd(t, homedir, fmt.Sprintf("new fungible -r %s --type %X --amount %v -w false", backendUrl, typeID1, i))
+		expectedAmounts = append(expectedAmounts, fmt.Sprintf("amount='%v'", i))
+		expectedTotal += i
+	}
 	//check w1
-	verifyStdout(t, execTokensCmd(t, homedir, fmt.Sprintf("list fungible -r %s", backendUrl)), "amount='300'", "amount='700'", "amount='1000'")
+	verifyStdoutEventually(t, func() *testConsoleWriter {
+		return execTokensCmd(t, homedir, fmt.Sprintf("list fungible -r %s", backendUrl))
+	}, expectedAmounts...)
 	// DC
 	execTokensCmd(t, homedir, fmt.Sprintf("collect-dust -r %s", backendUrl))
 
-	verifyStdout(t, execTokensCmd(t, homedir, fmt.Sprintf("list fungible -r %s", backendUrl)), "amount='2000'")
+	verifyStdout(t, execTokensCmd(t, homedir, fmt.Sprintf("list fungible -r %s", backendUrl)), fmt.Sprintf("amount='%v'", insertSeparator(fmt.Sprint(expectedTotal), false)))
 }
 
 type AlphabillNetwork struct {
@@ -291,6 +299,7 @@ type AlphabillNetwork struct {
 
 	walletHomedir string
 	walletKey1    *account.AccountKey
+	walletKey2    *account.AccountKey
 	ctx           context.Context
 }
 
@@ -319,15 +328,11 @@ func NewAlphabillNetwork(t *testing.T) *AlphabillNetwork {
 	require.NoError(t, err)
 	require.NoError(t, am.CreateKeys(""))
 
-	moneyWallet, err := money.LoadExistingWallet(abclient.AlphabillClientConfig{Uri: moneyPartition.Nodes[0].AddrGRPC}, am, moneyBackendClient)
+	moneyWallet, err := money.LoadExistingWallet(am, moneyBackendClient)
 	require.NoError(t, err)
 	t.Cleanup(moneyWallet.Shutdown)
 
-	tokenTxConverter, err := tokentxs.New(
-		tokentxs.WithSystemIdentifier(tokentxs.DefaultTokenTxSystemIdentifier),
-		tokentxs.WithTrustBase(map[string]abcrypto.Verifier{"test": nil}),
-	)
-	tokenTxPublisher := tokens.NewTxPublisher(tokenBackendClient, tokenTxConverter)
+	tokenTxPublisher := tokens.NewTxPublisher(tokenBackendClient)
 	tokenFeeManager := fees.NewFeeManager(am, defaultABMoneySystemIdentifier, moneyWallet, moneyBackendClient, tokentxs.DefaultTokenTxSystemIdentifier, tokenTxPublisher, tokenBackendClient)
 
 	w1, err := tokens.New(tokentxs.DefaultTokenTxSystemIdentifier, tokenBackendURL, am, true, tokenFeeManager)
@@ -335,16 +340,19 @@ func NewAlphabillNetwork(t *testing.T) *AlphabillNetwork {
 	require.NotNil(t, w1)
 	t.Cleanup(w1.Shutdown)
 	w1key, err := w1.GetAccountManager().GetAccountKey(0)
+	_, _, err = am.AddAccount()
+	require.NoError(t, err)
+	w1key2, err := w1.GetAccountManager().GetAccountKey(1)
 
 	spendInitialBillWithFeeCredits(t, abNet, initialBill, hexutil.Encode(w1key.PubKey))
 	time.Sleep(2 * time.Second) // TODO dynamic sleep
 
 	// create fees on money partition
-	_, err = moneyWallet.AddFeeCredit(ctx, fees.AddFeeCmd{Amount: 100})
+	_, err = moneyWallet.AddFeeCredit(ctx, fees.AddFeeCmd{Amount: 1000})
 	require.NoError(t, err)
 
 	// create fees on token partition
-	_, err = w1.AddFeeCredit(ctx, fees.AddFeeCmd{Amount: 100})
+	_, err = w1.AddFeeCredit(ctx, fees.AddFeeCmd{Amount: 1000})
 	require.NoError(t, err)
 	w1.Shutdown()
 
@@ -356,6 +364,7 @@ func NewAlphabillNetwork(t *testing.T) *AlphabillNetwork {
 		tokenBackendURL:    tokenBackendURL,
 		walletHomedir:      homedirW1,
 		walletKey1:         w1key,
+		walletKey2:         w1key2,
 		ctx:                ctx,
 	}
 }

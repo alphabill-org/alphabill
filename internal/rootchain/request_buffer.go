@@ -5,15 +5,15 @@ import (
 	"errors"
 	"sync"
 
-	"github.com/alphabill-org/alphabill/internal/certificates"
-	p "github.com/alphabill-org/alphabill/internal/network/protocol"
+	"github.com/alphabill-org/alphabill/internal/network/protocol"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/certification"
 	"github.com/alphabill-org/alphabill/internal/rootchain/partitions"
+	"github.com/alphabill-org/alphabill/internal/types"
 )
 
 type CertRequestBuffer struct {
 	mu    sync.RWMutex
-	store map[p.SystemIdentifier]*requestBuffer
+	store map[protocol.SystemIdentifier]*requestBuffer
 }
 
 // requestBuffer keeps track of received certification requests and counts state hashes.
@@ -25,7 +25,7 @@ type requestBuffer struct {
 // NewCertificationRequestBuffer create new certification requests buffer
 func NewCertificationRequestBuffer() *CertRequestBuffer {
 	return &CertRequestBuffer{
-		store: make(map[p.SystemIdentifier]*requestBuffer),
+		store: make(map[protocol.SystemIdentifier]*requestBuffer),
 	}
 }
 
@@ -34,12 +34,12 @@ func NewCertificationRequestBuffer() *CertRequestBuffer {
 func (c *CertRequestBuffer) Add(request *certification.BlockCertificationRequest) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	rs := c.get(p.SystemIdentifier(request.SystemIdentifier))
+	rs := c.get(protocol.SystemIdentifier(request.SystemIdentifier))
 	return rs.add(request)
 }
 
 // GetRequests returns all stored requests per system identifier
-func (c *CertRequestBuffer) GetRequests(id p.SystemIdentifier) []*certification.BlockCertificationRequest {
+func (c *CertRequestBuffer) GetRequests(id protocol.SystemIdentifier) []*certification.BlockCertificationRequest {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	rs := c.get(id)
@@ -51,7 +51,7 @@ func (c *CertRequestBuffer) GetRequests(id p.SystemIdentifier) []*certification.
 }
 
 // IsConsensusReceived has partition with id reached consensus. Required nrOfNodes as input to calculate consensus
-func (c *CertRequestBuffer) IsConsensusReceived(id p.SystemIdentifier, tb partitions.PartitionTrustBase) (*certificates.InputRecord, bool) {
+func (c *CertRequestBuffer) IsConsensusReceived(id protocol.SystemIdentifier, tb partitions.PartitionTrustBase) (*types.InputRecord, bool) {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	rs := c.get(id)
@@ -68,7 +68,7 @@ func (c *CertRequestBuffer) Reset() {
 }
 
 // Clear clears requests in one partition
-func (c *CertRequestBuffer) Clear(id p.SystemIdentifier) {
+func (c *CertRequestBuffer) Clear(id protocol.SystemIdentifier) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	rs := c.get(id)
@@ -76,7 +76,7 @@ func (c *CertRequestBuffer) Clear(id p.SystemIdentifier) {
 }
 
 // get returns an existing store for system identifier or registers and returns a new one if none existed
-func (c *CertRequestBuffer) get(id p.SystemIdentifier) *requestBuffer {
+func (c *CertRequestBuffer) get(id protocol.SystemIdentifier) *requestBuffer {
 	rs, f := c.store[id]
 	if !f {
 		rs = newRequestStore()
@@ -117,7 +117,7 @@ func (rs *requestBuffer) reset() {
 	rs.hashCounts = make(map[string]uint)
 }
 
-func (rs *requestBuffer) isConsensusReceived(tb partitions.PartitionTrustBase) (*certificates.InputRecord, bool) {
+func (rs *requestBuffer) isConsensusReceived(tb partitions.PartitionTrustBase) (*types.InputRecord, bool) {
 	var h []byte
 	var c uint = 0
 	for hash, count := range rs.hashCounts {

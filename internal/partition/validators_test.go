@@ -4,14 +4,13 @@ import (
 	gocrypto "crypto"
 	"testing"
 
-	"github.com/alphabill-org/alphabill/internal/certificates"
 	"github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/blockproposal"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 	testcertificates "github.com/alphabill-org/alphabill/internal/testutils/certificates"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
-	moneytesttx "github.com/alphabill-org/alphabill/internal/testutils/transaction/money"
-	"github.com/alphabill-org/alphabill/internal/txsystem"
+	testtransaction "github.com/alphabill-org/alphabill/internal/testutils/transaction"
+	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/stretchr/testify/require"
 )
 
@@ -48,7 +47,7 @@ func TestNewDefaultUnicityCertificateValidator_NotOk(t *testing.T) {
 				rootTrustBase:     nil,
 				algorithm:         gocrypto.SHA256,
 			},
-			wantErr: certificates.ErrRootValidatorInfoMissing,
+			wantErr: types.ErrRootValidatorInfoMissing,
 		},
 	}
 	for _, tt := range tests {
@@ -65,7 +64,7 @@ func TestDefaultUnicityCertificateValidator_ValidateNotOk(t *testing.T) {
 	rootTrust := map[string]crypto.Verifier{"test": verifier}
 	v, err := NewDefaultUnicityCertificateValidator(systemDescription, rootTrust, gocrypto.SHA256)
 	require.NoError(t, err)
-	require.ErrorIs(t, v.Validate(nil), certificates.ErrUnicityCertificateIsNil)
+	require.ErrorIs(t, v.Validate(nil), types.ErrUnicityCertificateIsNil)
 }
 
 func TestDefaultUnicityCertificateValidator_ValidateOk(t *testing.T) {
@@ -73,7 +72,7 @@ func TestDefaultUnicityCertificateValidator_ValidateOk(t *testing.T) {
 	rootTrust := map[string]crypto.Verifier{"test": verifier}
 	v, err := NewDefaultUnicityCertificateValidator(systemDescription, rootTrust, gocrypto.SHA256)
 	require.NoError(t, err)
-	ir := &certificates.InputRecord{
+	ir := &types.InputRecord{
 		PreviousHash: make([]byte, 32),
 		Hash:         make([]byte, 32),
 		BlockHash:    make([]byte, 32),
@@ -119,7 +118,7 @@ func TestNewDefaultBlockProposalValidator_NotOk(t *testing.T) {
 				trustBase:         nil,
 				algorithm:         gocrypto.SHA256,
 			},
-			wantErr: certificates.ErrRootValidatorInfoMissing,
+			wantErr: types.ErrRootValidatorInfoMissing,
 		},
 	}
 	for _, tt := range tests {
@@ -145,7 +144,7 @@ func TestDefaultNewDefaultBlockProposalValidator_ValidateOk(t *testing.T) {
 	rootTrust := map[string]crypto.Verifier{"test": verifier}
 	v, err := NewDefaultBlockProposalValidator(systemDescription, rootTrust, gocrypto.SHA256)
 	require.NoError(t, err)
-	ir := &certificates.InputRecord{
+	ir := &types.InputRecord{
 		PreviousHash: make([]byte, 32),
 		Hash:         make([]byte, 32),
 		BlockHash:    make([]byte, 32),
@@ -165,7 +164,14 @@ func TestDefaultNewDefaultBlockProposalValidator_ValidateOk(t *testing.T) {
 		SystemIdentifier:   uc.UnicityTreeCertificate.SystemIdentifier,
 		NodeIdentifier:     "1",
 		UnicityCertificate: uc,
-		Transactions:       []*txsystem.Transaction{moneytesttx.RandomBillTransfer(t)},
+		Transactions: []*types.TransactionRecord{
+			{
+				TransactionOrder: testtransaction.NewTransactionOrder(t),
+				ServerMetadata: &types.ServerMetadata{
+					ActualFee: 10,
+				},
+			},
+		},
 	}
 	err = bp.Sign(gocrypto.SHA256, nodeSigner)
 	require.NoError(t, err)
@@ -175,7 +181,7 @@ func TestDefaultNewDefaultBlockProposalValidator_ValidateOk(t *testing.T) {
 func TestDefaultTxValidator_ValidateNotOk(t *testing.T) {
 	tests := []struct {
 		name                     string
-		tx                       txsystem.GenericTransaction
+		tx                       *types.TransactionOrder
 		latestBlockNumber        uint64
 		expectedSystemIdentifier []byte
 		errStr                   string
@@ -189,14 +195,14 @@ func TestDefaultTxValidator_ValidateNotOk(t *testing.T) {
 		},
 		{
 			name:                     "invalid system identifier",
-			tx:                       moneytesttx.RandomGenericBillTransfer(t), // default systemID is 0000
+			tx:                       testtransaction.NewTransactionOrder(t), // default systemID is 0000
 			latestBlockNumber:        10,
 			expectedSystemIdentifier: []byte{1, 2, 3, 4},
 			errStr:                   "expected 01020304, got 00000000: invalid transaction system identifier",
 		},
 		{
 			name:                     "expired transaction",
-			tx:                       moneytesttx.RandomGenericBillTransfer(t), // default timeout is 10
+			tx:                       testtransaction.NewTransactionOrder(t), // default timeout is 10
 			latestBlockNumber:        11,
 			expectedSystemIdentifier: []byte{0, 0, 0, 0},
 			errStr:                   "transaction has timed out: transaction timeout round is 10, current round is 11",

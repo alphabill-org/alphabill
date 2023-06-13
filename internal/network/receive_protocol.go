@@ -4,10 +4,9 @@ import (
 	"errors"
 
 	libp2pNetwork "github.com/libp2p/go-libp2p/core/network"
-	"google.golang.org/protobuf/proto"
 )
 
-func NewReceiverProtocol[T proto.Message](self *Peer, protocolID string, outCh chan<- ReceivedMessage, typeFunc TypeFunc[T]) (*ReceiveProtocol[T], error) {
+func NewReceiverProtocol[T any](self *Peer, protocolID string, outCh chan<- ReceivedMessage, typeFunc TypeFunc[T]) (*ReceiveProtocol[T], error) {
 	if self == nil {
 		return nil, errors.New(ErrStrPeerIsNil)
 	}
@@ -34,7 +33,7 @@ func (p *ReceiveProtocol[T]) ID() string {
 }
 
 func (p *ReceiveProtocol[T]) HandleStream(s libp2pNetwork.Stream) {
-	r := NewProtoBufReader(s)
+	r := NewCBORReader(s)
 	defer func() {
 		err := s.Close()
 		if err != nil {
@@ -42,8 +41,8 @@ func (p *ReceiveProtocol[T]) HandleStream(s libp2pNetwork.Stream) {
 		}
 	}()
 	t := p.typeFunc()
-	err := r.Read(t)
-	if err != nil {
+
+	if err := r.Read(t); err != nil {
 		logger.Warning("Failed to read message: %v", err)
 		return
 	}

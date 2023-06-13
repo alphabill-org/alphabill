@@ -7,6 +7,8 @@ import (
 	"fmt"
 
 	"github.com/alphabill-org/alphabill/internal/crypto"
+	"github.com/alphabill-org/alphabill/internal/types"
+	"github.com/fxamacker/cbor/v2"
 )
 
 var (
@@ -17,6 +19,15 @@ var (
 	ErrInvalidSystemIdentifier = errors.New("invalid system identifier")
 	errBlockProposerIDMissing  = errors.New("block proposer id is missing")
 )
+
+type BlockProposal struct {
+	_                  struct{} `cbor:",toarray"`
+	SystemIdentifier   []byte
+	NodeIdentifier     string
+	UnicityCertificate *types.UnicityCertificate
+	Transactions       []*types.TransactionRecord
+	Signature          []byte
+}
 
 func (x *BlockProposal) IsValid(nodeSignatureVerifier crypto.Verifier, ucTrustBase map[string]crypto.Verifier, algorithm gocrypto.Hash, systemIdentifier []byte, systemDescriptionHash []byte) error {
 	if x == nil {
@@ -44,9 +55,18 @@ func (x *BlockProposal) Hash(algorithm gocrypto.Hash) ([]byte, error) {
 	hasher := algorithm.New()
 	hasher.Write(x.SystemIdentifier)
 	hasher.Write([]byte(x.NodeIdentifier))
-	x.UnicityCertificate.AddToHasher(hasher)
+
+	ucBytes, err := cbor.Marshal(x.UnicityCertificate)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal unicity certificate: %w", err)
+	}
+	hasher.Write(ucBytes)
 	for _, tx := range x.Transactions {
-		hasher.Write(tx.Bytes())
+		txBytes, err := tx.Bytes()
+		if err != nil {
+			return nil, fmt.Errorf("failed to marshal transaction record: %w", err)
+		}
+		hasher.Write(txBytes)
 	}
 	return hasher.Sum(nil), nil
 }

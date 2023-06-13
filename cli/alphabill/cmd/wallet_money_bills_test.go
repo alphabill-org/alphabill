@@ -7,24 +7,20 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/holiman/uint256"
-	"github.com/stretchr/testify/require"
-	"google.golang.org/protobuf/proto"
-	"google.golang.org/protobuf/types/known/anypb"
-
-	"github.com/alphabill-org/alphabill/internal/block"
 	"github.com/alphabill-org/alphabill/internal/hash"
 	"github.com/alphabill-org/alphabill/internal/script"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	testpartition "github.com/alphabill-org/alphabill/internal/testutils/partition"
-	"github.com/alphabill-org/alphabill/internal/txsystem"
-	"github.com/alphabill-org/alphabill/internal/txsystem/fc"
 	"github.com/alphabill-org/alphabill/internal/txsystem/fc/transactions"
 	moneytx "github.com/alphabill-org/alphabill/internal/txsystem/money"
 	utiltx "github.com/alphabill-org/alphabill/internal/txsystem/util"
+	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/alphabill-org/alphabill/pkg/wallet/money/backend/client"
+	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/fxamacker/cbor/v2"
+	"github.com/holiman/uint256"
+	"github.com/stretchr/testify/require"
 )
 
 func TestWalletBillsListCmd_EmptyWallet(t *testing.T) {
@@ -61,10 +57,10 @@ func TestWalletBillsListCmd_Multiple(t *testing.T) {
 	stdout, err := execBillsCommand(homedir, "list --alphabill-api-uri "+addr.Host)
 	require.NoError(t, err)
 	verifyStdout(t, stdout, "Account #1")
-	verifyStdout(t, stdout, "#1 0x0000000000000000000000000000000000000000000000000000000000000001 0.00000001")
-	verifyStdout(t, stdout, "#2 0x0000000000000000000000000000000000000000000000000000000000000002 0.00000002")
-	verifyStdout(t, stdout, "#3 0x0000000000000000000000000000000000000000000000000000000000000003 0.00000003")
-	verifyStdout(t, stdout, "#4 0x0000000000000000000000000000000000000000000000000000000000000004 0.00000004")
+	verifyStdout(t, stdout, "#1 0x0000000000000000000000000000000000000000000000000000000000000001 0.000'000'01")
+	verifyStdout(t, stdout, "#2 0x0000000000000000000000000000000000000000000000000000000000000002 0.000'000'02")
+	verifyStdout(t, stdout, "#3 0x0000000000000000000000000000000000000000000000000000000000000003 0.000'000'03")
+	verifyStdout(t, stdout, "#4 0x0000000000000000000000000000000000000000000000000000000000000004 0.000'000'04")
 	require.Len(t, stdout.lines, 5)
 }
 
@@ -124,7 +120,7 @@ func TestWalletBillsListCmd_ShowUnswappedFlag(t *testing.T) {
 
 	stdout, err = execBillsCommand(homedir, "list --alphabill-api-uri "+addr.Host)
 	require.NoError(t, err)
-	verifyStdout(t, stdout, "#1 0x 0.22222222")
+	verifyStdout(t, stdout, "#1 0x 0.222'222'22")
 	mockServer.Close()
 
 	// verify -s flag sends includedcbills=true
@@ -134,7 +130,7 @@ func TestWalletBillsListCmd_ShowUnswappedFlag(t *testing.T) {
 
 	stdout, err = execBillsCommand(homedir, "list --alphabill-api-uri "+addr.Host+" -s")
 	require.NoError(t, err)
-	verifyStdout(t, stdout, "#1 0x 0.33333333")
+	verifyStdout(t, stdout, "#1 0x 0.333'333'33")
 	mockServer.Close()
 }
 
@@ -145,7 +141,7 @@ func TestWalletBillsExportCmd_Error(t *testing.T) {
 
 	// verify exporting non-existent bill returns error
 	_, err := execBillsCommand(homedir, "export --bill-id=00 --alphabill-api-uri "+addr.Host)
-	require.ErrorContains(t, err, "bill does not exist")
+	require.ErrorContains(t, err, "proof not found for bill 0x00")
 }
 
 func TestWalletBillsExportCmd_BillIdFlag(t *testing.T) {
@@ -222,33 +218,34 @@ func spendInitialBillWithFeeCredits(t *testing.T, abNet *testpartition.Alphabill
 	unitID := util.Uint256ToBytes(initialBill.ID)
 	money, err := abNet.GetNodePartition(defaultABMoneySystemIdentifier)
 	require.NoError(t, err)
+
 	// create transferFC
 	transferFC, err := createTransferFC(feeAmount, unitID, fcrID, 0, absoluteTimeout)
 	require.NoError(t, err)
+
 	// send transferFC
 	err = money.SubmitTx(transferFC)
 	require.NoError(t, err)
 	require.Eventually(t, testpartition.BlockchainContainsTx(money, transferFC), test.WaitDuration, test.WaitTick)
-	transferFCProof := getBlockProof(t, transferFC, money)
+	_, transferFCProof, transferFCRecord, err := money.GetTxProof(transferFC)
+	require.NoError(t, err)
 
 	// verify proof
-	gtx, err := moneytx.NewMoneyTx([]byte{0, 0, 0, 0}, transferFC)
+	err = types.VerifyTxProof(transferFCProof, transferFCRecord, abNet.RootPartition.TrustBase, crypto.SHA256)
 	require.NoError(t, err)
-	require.NoError(t, transferFCProof.Verify(unitID, gtx, abNet.RootPartition.TrustBase, crypto.SHA256))
 
 	// create addFC
-	addFC, err := createAddFC(fcrID, script.PredicateAlwaysTrue(), transferFC, transferFCProof, absoluteTimeout, feeAmount)
+	addFC, err := createAddFC(fcrID, script.PredicateAlwaysTrue(), transferFCRecord, transferFCProof, absoluteTimeout, feeAmount)
 	require.NoError(t, err)
+
 	// send addFC
 	err = money.SubmitTx(addFC)
 	require.NoError(t, err)
 	require.Eventually(t, testpartition.BlockchainContainsTx(money, addFC), test.WaitDuration, test.WaitTick)
 
 	// create transfer tx
-	transferFCWrapper, err := transactions.NewFeeCreditTx(transferFC)
-	require.NoError(t, err)
 	remainingValue := initialBill.Value - feeAmount - txFee
-	tx, err := createTransferTx(pubkeyBytes, unitID, remainingValue, fcrID, absoluteTimeout, transferFCWrapper.Hash(crypto.SHA256))
+	tx, err := createTransferTx(pubkeyBytes, unitID, remainingValue, fcrID, absoluteTimeout, transferFC.Hash(crypto.SHA256))
 	require.NoError(t, err)
 
 	// send transfer tx
@@ -259,83 +256,85 @@ func spendInitialBillWithFeeCredits(t *testing.T, abNet *testpartition.Alphabill
 	return remainingValue
 }
 
-func createTransferTx(pubKey []byte, billId []byte, billValue uint64, fcrID []byte, timeout uint64, backlink []byte) (*txsystem.Transaction, error) {
-	tx := &txsystem.Transaction{
-		UnitId:                billId,
-		SystemId:              []byte{0, 0, 0, 0},
-		TransactionAttributes: new(anypb.Any),
-		OwnerProof:            script.PredicateArgumentEmpty(),
-		ClientMetadata: &txsystem.ClientMetadata{
-			Timeout:           timeout,
-			MaxFee:            1,
-			FeeCreditRecordId: fcrID,
-		},
-	}
-	err := anypb.MarshalFrom(tx.TransactionAttributes, &moneytx.TransferAttributes{
+func createTransferTx(pubKey []byte, billID []byte, billValue uint64, fcrID []byte, timeout uint64, backlink []byte) (*types.TransactionOrder, error) {
+	attr := &moneytx.TransferAttributes{
 		NewBearer:   script.PredicatePayToPublicKeyHashDefault(hash.Sum256(pubKey)),
 		TargetValue: billValue,
 		Backlink:    backlink,
-	}, proto.MarshalOptions{})
+	}
+	attrBytes, err := cbor.Marshal(attr)
 	if err != nil {
 		return nil, err
+	}
+	tx := &types.TransactionOrder{
+		Payload: &types.Payload{
+			UnitID:     billID,
+			Type:       moneytx.PayloadTypeTransfer,
+			SystemID:   []byte{0, 0, 0, 0},
+			Attributes: attrBytes,
+			ClientMetadata: &types.ClientMetadata{
+				Timeout:           timeout,
+				MaxTransactionFee: 1,
+				FeeCreditRecordID: fcrID,
+			},
+		},
+		OwnerProof: script.PredicateArgumentEmpty(),
 	}
 	return tx, nil
 }
 
-func createTransferFC(feeAmount uint64, unitID []byte, targetUnitID []byte, t1, t2 uint64) (*txsystem.Transaction, error) {
-	tx := &txsystem.Transaction{
-		UnitId:                unitID,
-		SystemId:              []byte{0, 0, 0, 0},
-		TransactionAttributes: new(anypb.Any),
-		OwnerProof:            script.PredicateArgumentEmpty(),
-		ClientMetadata: &txsystem.ClientMetadata{
-			Timeout: t2,
-			MaxFee:  fc.FixedFee(1)(),
-		},
-	}
-	err := anypb.MarshalFrom(tx.TransactionAttributes, &transactions.TransferFeeCreditAttributes{
+func createTransferFC(feeAmount uint64, unitID []byte, targetUnitID []byte, t1, t2 uint64) (*types.TransactionOrder, error) {
+	attr := &transactions.TransferFeeCreditAttributes{
 		Amount:                 feeAmount,
 		TargetSystemIdentifier: []byte{0, 0, 0, 0},
-		TargetRecordId:         targetUnitID,
+		TargetRecordID:         targetUnitID,
 		EarliestAdditionTime:   t1,
 		LatestAdditionTime:     t2,
-	}, proto.MarshalOptions{})
+	}
+	attrBytes, err := cbor.Marshal(attr)
 	if err != nil {
 		return nil, err
+	}
+	tx := &types.TransactionOrder{
+		Payload: &types.Payload{
+			SystemID:   []byte{0, 0, 0, 0},
+			Type:       transactions.PayloadTypeTransferFeeCredit,
+			UnitID:     unitID,
+			Attributes: attrBytes,
+			ClientMetadata: &types.ClientMetadata{
+				Timeout:           t2,
+				MaxTransactionFee: 1,
+			},
+		},
+		OwnerProof: script.PredicateArgumentEmpty(),
 	}
 	return tx, nil
 }
 
-func createAddFC(unitID []byte, ownerCondition []byte, transferFC *txsystem.Transaction, transferFCProof *block.BlockProof, timeout uint64, maxFee uint64) (*txsystem.Transaction, error) {
-	tx := &txsystem.Transaction{
-		UnitId:                unitID,
-		SystemId:              []byte{0, 0, 0, 0},
-		TransactionAttributes: new(anypb.Any),
-		OwnerProof:            script.PredicateArgumentEmpty(),
-		ClientMetadata: &txsystem.ClientMetadata{
-			Timeout: timeout,
-			MaxFee:  maxFee,
-		},
-	}
-	err := anypb.MarshalFrom(tx.TransactionAttributes, &transactions.AddFeeCreditAttributes{
+func createAddFC(unitID []byte, ownerCondition []byte, transferFC *types.TransactionRecord, transferFCProof *types.TxProof, timeout uint64, maxFee uint64) (*types.TransactionOrder, error) {
+	attr := &transactions.AddFeeCreditAttributes{
 		FeeCreditTransfer:       transferFC,
 		FeeCreditTransferProof:  transferFCProof,
 		FeeCreditOwnerCondition: ownerCondition,
-	}, proto.MarshalOptions{})
+	}
+	attrBytes, err := cbor.Marshal(attr)
 	if err != nil {
 		return nil, err
 	}
-	return tx, nil
-}
-
-func getBlockProof(t *testing.T, tx *txsystem.Transaction, partition *testpartition.NodePartition) *block.BlockProof {
-	// create adapter for conversion interface
-	txConverter := func(tx *txsystem.Transaction) (txsystem.GenericTransaction, error) {
-		return moneytx.NewMoneyTx([]byte{0, 0, 0, 0}, tx)
+	tx := &types.TransactionOrder{
+		Payload: &types.Payload{
+			SystemID:   []byte{0, 0, 0, 0},
+			Type:       transactions.PayloadTypeAddFeeCredit,
+			UnitID:     unitID,
+			Attributes: attrBytes,
+			ClientMetadata: &types.ClientMetadata{
+				Timeout:           timeout,
+				MaxTransactionFee: maxFee,
+			},
+		},
+		OwnerProof: script.PredicateArgumentEmpty(),
 	}
-	_, ttt, err := partition.GetBlockProof(tx, txConverter)
-	require.NoError(t, err)
-	return ttt
+	return tx, nil
 }
 
 func execBillsCommand(homeDir, command string) (*testConsoleWriter, error) {

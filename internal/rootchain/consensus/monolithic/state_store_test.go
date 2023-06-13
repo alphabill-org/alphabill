@@ -5,32 +5,31 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/alphabill-org/alphabill/internal/certificates"
 	"github.com/alphabill-org/alphabill/internal/keyvaluedb/boltdb"
 	"github.com/alphabill-org/alphabill/internal/keyvaluedb/memorydb"
 	"github.com/alphabill-org/alphabill/internal/network/protocol"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
+	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/stretchr/testify/require"
-	"google.golang.org/protobuf/proto"
 )
 
 var zeroHash = make([]byte, gocrypto.SHA256.Size())
-var mockUc = &certificates.UnicityCertificate{
-	InputRecord: &certificates.InputRecord{
+var mockUc = &types.UnicityCertificate{
+	InputRecord: &types.InputRecord{
 		RoundNumber:  1,
 		Hash:         zeroHash,
 		PreviousHash: zeroHash,
 		BlockHash:    zeroHash,
 		SummaryValue: []byte{0, 0, 0, 0},
 	},
-	UnicityTreeCertificate: &certificates.UnicityTreeCertificate{
+	UnicityTreeCertificate: &types.UnicityTreeCertificate{
 		SystemIdentifier:      sysID0,
 		SiblingHashes:         nil,
 		SystemDescriptionHash: nil,
 	},
-	UnicitySeal: &certificates.UnicitySeal{
-		RootRoundInfo: &certificates.RootRoundInfo{RoundNumber: 1},
-		CommitInfo:    &certificates.CommitInfo{RootHash: make([]byte, gocrypto.SHA256.Size())},
+	UnicitySeal: &types.UnicitySeal{
+		RootChainRoundNumber: 1,
+		Hash:                 make([]byte, gocrypto.SHA256.Size()),
 	},
 }
 
@@ -66,9 +65,9 @@ func storeTest(t *testing.T, store *StateStore) {
 	require.Error(t, store.Init(nil))
 	// Update genesis state
 	require.NoError(t, store.Init(testGenesis))
-	lastCert, err := store.GetCertificate(protocol.SystemIdentifier(sysID0))
+	lastCert, err := store.GetCertificate(sysID0)
 	require.NoError(t, err)
-	require.True(t, proto.Equal(lastCert, mockUc))
+	require.Equal(t, mockUc, lastCert)
 	round, err = store.GetRound()
 	require.NoError(t, err)
 	require.Equal(t, uint64(1), round)
@@ -80,34 +79,37 @@ func storeTest(t *testing.T, store *StateStore) {
 	// Root round number can skip rounds, but must not be smaller or equal
 	require.Error(t, store.Update(1, nil))
 	require.Error(t, store.Update(2, nil))
-	newUC := proto.Clone(mockUc).(*certificates.UnicityCertificate)
-	newUC.InputRecord = &certificates.InputRecord{
-		RoundNumber:  2,
-		Hash:         []byte{1, 2, 3},
-		PreviousHash: []byte{3, 2, 1},
-		SummaryValue: []byte{2, 4, 6, 8},
-		BlockHash:    []byte{3, 3, 3},
-	}
-	update := map[protocol.SystemIdentifier]*certificates.UnicityCertificate{
+
+	newUC := &types.UnicityCertificate{
+		UnicityTreeCertificate: mockUc.UnicityTreeCertificate,
+		UnicitySeal:            mockUc.UnicitySeal,
+		InputRecord: &types.InputRecord{
+			RoundNumber:  2,
+			Hash:         []byte{1, 2, 3},
+			PreviousHash: []byte{3, 2, 1},
+			SummaryValue: []byte{2, 4, 6, 8},
+			BlockHash:    []byte{3, 3, 3},
+		}}
+	update := map[protocol.SystemIdentifier]*types.UnicityCertificate{
 		protocol.SystemIdentifier(sysID0): newUC,
 	}
 	require.NoError(t, store.Update(3, update))
-	lastCert, err = store.GetCertificate(protocol.SystemIdentifier(sysID0))
+	lastCert, err = store.GetCertificate(sysID0)
 	require.NoError(t, err)
-	require.True(t, proto.Equal(lastCert, newUC))
+	require.Equal(t, lastCert, newUC)
 	IRmap, err := store.GetLastCertifiedInputRecords()
 	require.NoError(t, err)
 	require.Contains(t, IRmap, protocol.SystemIdentifier(sysID0))
 	ir := IRmap[protocol.SystemIdentifier(sysID0)]
-	require.True(t, proto.Equal(ir, mockUc.InputRecord))
+	require.Equal(t, ir, mockUc.InputRecord)
 	// read non-existing system id
-	lastCert, err = store.GetCertificate(protocol.SystemIdentifier(sysID2))
+	lastCert, err = store.GetCertificate(sysID2)
 	require.ErrorContains(t, err, "id 00000002 not in DB")
 	require.Nil(t, lastCert)
 	// read sys id 1
-	lastCert, err = store.GetCertificate(protocol.SystemIdentifier(sysID1))
+	lastCert, err = store.GetCertificate(sysID1)
 	require.NoError(t, err)
-	require.True(t, proto.Equal(lastCert, mockUc))
+	require.Equal(t, lastCert, mockUc)
 }
 
 func TestInMemState(t *testing.T) {

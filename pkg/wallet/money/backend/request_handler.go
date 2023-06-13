@@ -10,16 +10,15 @@ import (
 	"sort"
 	"strconv"
 
-	"github.com/alphabill-org/alphabill/internal/txsystem"
-	"github.com/alphabill-org/alphabill/pkg/wallet/backend/bp"
-	_ "github.com/alphabill-org/alphabill/pkg/wallet/money/backend/docs"
-	"github.com/alphabill-org/alphabill/pkg/wallet/log"
 	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/fxamacker/cbor/v2"
 	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
 	httpSwagger "github.com/swaggo/http-swagger"
-	"google.golang.org/protobuf/encoding/protojson"
-	"google.golang.org/protobuf/proto"
+
+	"github.com/alphabill-org/alphabill/pkg/wallet"
+	"github.com/alphabill-org/alphabill/pkg/wallet/log"
+	_ "github.com/alphabill-org/alphabill/pkg/wallet/money/backend/docs"
 )
 
 const (
@@ -87,7 +86,7 @@ func (s *RequestHandler) Router() *mux.Router {
 	apiV1.HandleFunc("/balance", s.balanceFunc).Methods("GET", "OPTIONS")
 	apiV1.HandleFunc("/proof", s.getProofFunc).Methods("GET", "OPTIONS")
 	apiV1.HandleFunc("/round-number", s.blockHeightFunc).Methods("GET", "OPTIONS")
-	apiV1.HandleFunc("/fee-credit-bill", s.getFeeCreditBillFunc).Methods("GET", "OPTIONS")
+	apiV1.HandleFunc("/fee-credit-bills/{billId}", s.getFeeCreditBillFunc).Methods("GET", "OPTIONS")
 	apiV1.HandleFunc("/transactions/{pubkey}", s.postTransactions).Methods("POST", "OPTIONS")
 
 	apiV1.PathPrefix("/swagger/").Handler(httpSwagger.Handler(
@@ -108,7 +107,7 @@ func (s *RequestHandler) Router() *mux.Router {
 // @Param limit query int false "limits how many bills are returned in response" default(100)
 // @Param offset query int false "response will include bills starting after offset" default(0)
 // @Success 200 {object} ListBillsResponse
-// @Failure 400 {object} backend.ErrorResponse
+// @Failure 400 {object} ErrorResponse
 // @Failure 500
 // @Router /list-bills [get]
 func (s *RequestHandler) listBillsFunc(w http.ResponseWriter, r *http.Request) {
@@ -130,24 +129,29 @@ func (s *RequestHandler) listBillsFunc(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
-	if !includeDCBills {
-		for i, b := range bills {
-			if b.IsDCBill {
-				bills = append(bills[:i], bills[i+1:]...)
-			}
+	var filteredBills []*Bill
+	for _, b := range bills {
+		// filter dc bills
+		if b.IsDCBill && !includeDCBills {
+			continue
 		}
+		// filter zero value bills
+		if b.Value == 0 {
+			continue
+		}
+		filteredBills = append(filteredBills, b)
 	}
 	limit, offset := s.parsePagingParams(r)
 	// if offset and limit go out of bounds just return what we have
-	if offset > len(bills) {
-		offset = len(bills)
+	if offset > len(filteredBills) {
+		offset = len(filteredBills)
 	}
-	if offset + limit > len(bills) {
-		limit = len(bills) - offset
+	if offset+limit > len(filteredBills) {
+		limit = len(filteredBills) - offset
 	} else {
-		setLinkHeader(r.URL, w, offset + limit)
+		setLinkHeader(r.URL, w, offset+limit)
 	}
-	res := newListBillsResponse(bills, limit, offset)
+	res := newListBillsResponse(filteredBills, limit, offset)
 	writeAsJson(w, res)
 }
 
@@ -157,7 +161,7 @@ func (s *RequestHandler) listBillsFunc(w http.ResponseWriter, r *http.Request) {
 // @produce application/json
 // @Param pubkey query string true "Public key prefixed with 0x"
 // @Success 200 {object} BalanceResponse
-// @Failure 400 {object} backend.ErrorResponse
+// @Failure 400 {object} ErrorResponse
 // @Failure 500
 // @Router /balance [get]
 func (s *RequestHandler) balanceFunc(w http.ResponseWriter, r *http.Request) {
@@ -194,9 +198,9 @@ func (s *RequestHandler) balanceFunc(w http.ResponseWriter, r *http.Request) {
 // @version 1.0
 // @produce application/json
 // @Param bill_id query string true "ID of the bill (hex)"
-// @Success 200 {object} bp.Bills
-// @Failure 400 {object} backend.ErrorResponse
-// @Failure 404 {object} backend.ErrorResponse
+// @Success 200 {object} wallet.Bills
+// @Failure 400 {object} ErrorResponse
+// @Failure 404 {object} ErrorResponse
 // @Failure 500
 // @Router /proof [get]
 func (s *RequestHandler) getProofFunc(w http.ResponseWriter, r *http.Request) {
@@ -211,7 +215,7 @@ func (s *RequestHandler) getProofFunc(w http.ResponseWriter, r *http.Request) {
 		}
 		return
 	}
-	bill, err := s.Service.GetBill(billID)
+	bill, err := s.getBill(billID)
 	if err != nil {
 		log.Error("error on GET /proof: ", err)
 		w.WriteHeader(http.StatusInternalServerError)
@@ -223,7 +227,25 @@ func (s *RequestHandler) getProofFunc(w http.ResponseWriter, r *http.Request) {
 		writeAsJson(w, ErrorResponse{Message: "bill does not exist"})
 		return
 	}
-	writeAsProtoJson(w, bill.toProtoBills())
+	writeAsJson(w, bill.toProtoBills())
+}
+
+// getBill returns "normal" or "fee credit" bill for given id,
+// this is necessary to facilitate client side tx confirmation,
+// alternatively we could refactor how tx proofs are stored (separately from bills),
+// in that case we could fetch proofs directly and this hack would not be necessary
+func (s *RequestHandler) getBill(billID []byte) (*Bill, error) {
+	bill, err := s.Service.GetBill(billID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch bill: %w", err)
+	}
+	if bill == nil {
+		bill, err = s.Service.GetFeeCreditBill(billID)
+		if err != nil {
+			return nil, fmt.Errorf("failed to fetch fee credit bill: %w", err)
+		}
+	}
+	return bill, err
 }
 
 func (s *RequestHandler) handlePubKeyNotFoundError(w http.ResponseWriter, err error) {
@@ -233,19 +255,6 @@ func (s *RequestHandler) handlePubKeyNotFoundError(w http.ResponseWriter, err er
 	} else {
 		writeAsJson(w, ErrorResponse{Message: "invalid pubkey format"})
 	}
-}
-
-func (s *RequestHandler) readBillsProto(r *http.Request) (*bp.Bills, error) {
-	b, err := io.ReadAll(r.Body)
-	if err != nil {
-		return nil, err
-	}
-	req := &bp.Bills{}
-	err = protojson.Unmarshal(b, req)
-	if err != nil {
-		return nil, err
-	}
-	return req, nil
 }
 
 // @Summary Money partition's latest block number
@@ -268,15 +277,16 @@ func (s *RequestHandler) blockHeightFunc(w http.ResponseWriter, r *http.Request)
 // @Id 5
 // @version 1.0
 // @produce application/json
-// @Param bill_id query string true "ID of the bill (hex)"
-// @Success 200 {object} bp.Bill
-// @Router /fee-credit-bill [get]
+// @Param billId path string true "ID of the bill (hex)"
+// @Success 200 {object} wallet.Bill
+// @Router /fee-credit-bills [get]
 func (s *RequestHandler) getFeeCreditBillFunc(w http.ResponseWriter, r *http.Request) {
-	billID, err := parseBillID(r)
+	vars := mux.Vars(r)
+	billID, err := decodeBillIdHex(vars["billId"])
 	if err != nil {
-		log.Debug("error parsing GET /fee-credit-bill request: ", err)
+		log.Debug("error parsing GET /fee-credit-bills request: ", err)
 		w.WriteHeader(http.StatusBadRequest)
-		if errors.Is(err, errMissingBillIDQueryParam) || errors.Is(err, errInvalidBillIDLength) {
+		if errors.Is(err, errInvalidBillIDLength) {
 			writeAsJson(w, ErrorResponse{Message: err.Error()})
 		} else {
 			writeAsJson(w, ErrorResponse{Message: "invalid bill_id format"})
@@ -295,10 +305,10 @@ func (s *RequestHandler) getFeeCreditBillFunc(w http.ResponseWriter, r *http.Req
 		writeAsJson(w, ErrorResponse{Message: "fee credit bill does not exist"})
 		return
 	}
-	writeAsProtoJson(w, fcb.toProto())
+	writeAsJson(w, fcb.toProto())
 }
 
-// @Summary Forward transactions to partiton node(s)
+// @Summary Forward transactions to partition node(s)
 // @Id 6
 // @version 1.0
 // @produce application/json
@@ -328,8 +338,8 @@ func (s *RequestHandler) postTransactions(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	txs := &txsystem.Transactions{}
-	if err = protojson.Unmarshal(buf, txs); err != nil {
+	txs := &wallet.Transactions{}
+	if err = cbor.Unmarshal(buf, txs); err != nil {
 		log.Debug("failed to decode request body: ", err)
 		w.WriteHeader(http.StatusBadRequest)
 		writeAsJson(w, ErrorResponse{
@@ -337,7 +347,7 @@ func (s *RequestHandler) postTransactions(w http.ResponseWriter, r *http.Request
 		})
 		return
 	}
-	if len(txs.GetTransactions()) == 0 {
+	if len(txs.Transactions) == 0 {
 		log.Debug("request body contained no transactions to process")
 		w.WriteHeader(http.StatusBadRequest)
 		writeAsJson(w, ErrorResponse{
@@ -346,7 +356,7 @@ func (s *RequestHandler) postTransactions(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	if errs := s.Service.SendTransactions(r.Context(), txs.GetTransactions()); len(errs) > 0 {
+	if errs := s.Service.SendTransactions(r.Context(), txs.Transactions); len(errs) > 0 {
 		w.WriteHeader(http.StatusInternalServerError)
 		writeAsJson(w, errs)
 		return
@@ -386,20 +396,6 @@ func writeAsJson(w http.ResponseWriter, res interface{}) {
 	if err != nil {
 		log.Error("error encoding response to json ", err)
 		w.WriteHeader(http.StatusInternalServerError)
-	}
-}
-
-func writeAsProtoJson(w http.ResponseWriter, res proto.Message) {
-	w.Header().Set("Content-Type", "application/json")
-	bytes, err := protojson.MarshalOptions{EmitUnpopulated: true}.Marshal(res)
-	if err != nil {
-		log.Error("error encoding response to proto json: ", err)
-		w.WriteHeader(http.StatusInternalServerError)
-		return
-	}
-	_, err = w.Write(bytes)
-	if err != nil {
-		log.Error("error writing proto json to response: ", err)
 	}
 }
 
@@ -480,8 +476,8 @@ func toBillVMList(bills []*Bill) []*ListBillVM {
 	return billVMs
 }
 
-func (b *ListBillVM) ToProto() *bp.Bill {
-	return &bp.Bill{
+func (b *ListBillVM) ToProto() *wallet.Bill {
+	return &wallet.Bill{
 		Id:       b.Id,
 		Value:    b.Value,
 		TxHash:   b.TxHash,

@@ -3,21 +3,18 @@ package money
 import (
 	"crypto"
 
-	"github.com/alphabill-org/alphabill/internal/block"
-	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
-	"github.com/alphabill-org/alphabill/internal/errors"
-	"github.com/alphabill-org/alphabill/internal/txsystem"
+	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/internal/util"
-	moneytx "github.com/alphabill-org/alphabill/pkg/wallet/backend/bp"
+	"github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/holiman/uint256"
 )
 
 type (
 	Bill struct {
-		Id         *uint256.Int `json:"id"`
-		Value      uint64       `json:"value"`
-		TxHash     []byte       `json:"txHash"`
-		BlockProof *BlockProof  `json:"blockProof"`
+		Id      *uint256.Int  `json:"id"`
+		Value   uint64        `json:"value,string"`
+		TxHash  []byte        `json:"txHash"`
+		TxProof *wallet.Proof `json:"txProof"`
 
 		// dc bill specific fields
 		IsDcBill  bool   `json:"dcBill"`
@@ -28,57 +25,24 @@ type (
 
 		// fcb specific fields
 		// FCBlockNumber block number when fee credit bill balance was last updated
-		FCBlockNumber uint64 `json:"fcBlockNumber"`
-	}
-
-	BlockProof struct {
-		Tx          *txsystem.Transaction `json:"tx"`
-		Proof       *block.BlockProof     `json:"proof"`
-		BlockNumber uint64                `json:"blockNumber"`
+		FCBlockNumber uint64 `json:"fcBlockNumber,string"`
 	}
 )
 
-func NewBlockProof(tx *txsystem.Transaction, proof *block.BlockProof, blockNumber uint64) (*BlockProof, error) {
-	if tx == nil {
-		return nil, errors.New("tx is nil")
-	}
-	if proof == nil {
-		return nil, errors.New("proof is nil")
-	}
-	return &BlockProof{
-		Tx:          tx,
-		Proof:       proof,
-		BlockNumber: blockNumber,
-	}, nil
-}
-
-func (b *BlockProof) Verify(unitID []byte, verifiers map[string]abcrypto.Verifier, hashAlgorithm crypto.Hash, txConverter *TxConverter) error {
-	gtx, err := txConverter.ConvertTx(b.Tx)
-	if err != nil {
-		return err
-	}
-	return b.Proof.Verify(unitID, gtx, verifiers, hashAlgorithm)
-}
-
 // GetID returns bill id in 32-byte big endian array
 func (b *Bill) GetID() []byte {
-	return util.Uint256ToBytes(b.Id)
+	if b != nil {
+		return util.Uint256ToBytes(b.Id)
+	}
+	return nil
 }
 
-func (b *Bill) ToProto() *moneytx.Bill {
-	return &moneytx.Bill{
+func (b *Bill) ToProto() *wallet.Bill {
+	return &wallet.Bill{
 		Id:      b.GetID(),
 		Value:   b.Value,
 		TxHash:  b.TxHash,
-		TxProof: b.BlockProof.ToSchema(),
-	}
-}
-
-func (b *BlockProof) ToSchema() *block.TxProof {
-	return &block.TxProof{
-		Tx:          b.Tx,
-		Proof:       b.Proof,
-		BlockNumber: b.BlockNumber,
+		TxProof: b.TxProof,
 	}
 }
 
@@ -87,21 +51,13 @@ func (b *Bill) isExpired(blockHeight uint64) bool {
 	return b.IsDcBill && blockHeight >= b.DcExpirationTimeout
 }
 
-func (b *Bill) addProof(bl *block.Block, txPb *txsystem.Transaction, txConverter *TxConverter) error {
-	proof, err := createProof(b.GetID(), txPb, bl, txConverter, crypto.SHA256)
+func (b *Bill) addProof(txIdx int, bl *types.Block) error {
+	proof, err := wallet.NewTxProof(txIdx, bl, crypto.SHA256)
 	if err != nil {
 		return err
 	}
-	b.BlockProof = proof
+	b.TxProof = proof
 	return nil
-}
-
-func createProof(unitID []byte, tx *txsystem.Transaction, b *block.Block, txc *TxConverter, hashAlgorithm crypto.Hash) (*BlockProof, error) {
-	proof, err := b.GetPrimaryProof(unitID, txc, hashAlgorithm)
-	if err != nil {
-		return nil, err
-	}
-	return NewBlockProof(tx, proof, b.UnicityCertificate.InputRecord.RoundNumber)
 }
 
 func (b *Bill) GetTxHash() []byte {

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"hash"
 
+	"github.com/alphabill-org/alphabill/internal/network/protocol"
 	"github.com/alphabill-org/alphabill/internal/util"
 )
 
@@ -15,6 +16,19 @@ var (
 	ErrSystemDescriptionIsNil = errors.New("system description record is nil")
 	ErrT2TimeoutIsNil         = errors.New("t2 timeout is zero")
 )
+
+type SystemDescriptionRecord struct {
+	_                struct{}       `cbor:",toarray"`
+	SystemIdentifier []byte         `json:"system_identifier,omitempty"`
+	T2Timeout        uint32         `json:"t2timeout,omitempty"`
+	FeeCreditBill    *FeeCreditBill `json:"fee_credit_bill,omitempty"`
+}
+
+type FeeCreditBill struct {
+	_              struct{} `cbor:",toarray"`
+	UnitId         []byte   `json:"unit_id,omitempty"`
+	OwnerPredicate []byte   `json:"owner_predicate,omitempty"`
+}
 
 func (x *SystemDescriptionRecord) IsValid() error {
 	if x == nil {
@@ -41,6 +55,10 @@ func (x *SystemDescriptionRecord) Hash(hashAlgorithm gocrypto.Hash) []byte {
 	return hasher.Sum(nil)
 }
 
-func (x *SystemDescriptionRecord) GetSystemIdentifierString() string {
-	return string(x.SystemIdentifier)
+func (x *SystemDescriptionRecord) GetSystemIdentifierString() protocol.SystemIdentifier {
+	return protocol.SystemIdentifier(x.SystemIdentifier)
+}
+
+func (x *SystemDescriptionRecord) GetSystemIdentifier() []byte {
+	return x.SystemIdentifier
 }

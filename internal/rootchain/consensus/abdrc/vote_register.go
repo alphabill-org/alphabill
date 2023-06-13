@@ -2,12 +2,13 @@ package abdrc
 
 import (
 	"bytes"
-	"crypto"
+	"crypto/sha256"
 	"errors"
 	"fmt"
 
 	"github.com/alphabill-org/alphabill/internal/network/protocol/abdrc"
 	abtypes "github.com/alphabill-org/alphabill/internal/rootchain/consensus/abdrc/types"
+	"github.com/alphabill-org/alphabill/internal/types"
 )
 
 type (
@@ -17,7 +18,7 @@ type (
 
 	ConsensusWithSignatures struct {
 		voteInfo   *abtypes.RoundInfo
-		commitInfo *abtypes.CommitInfo
+		commitInfo *types.UnicitySeal
 		signatures map[string][]byte
 	}
 
@@ -48,30 +49,30 @@ func (v *VoteRegister) InsertVote(vote *abdrc.VoteMsg, quorumInfo QuorumInfo) (*
 	}
 
 	// Get hash of consensus structure
-	commitInfoHash := vote.LedgerCommitInfo.Hash(crypto.SHA256)
+	commitInfoHash := sha256.Sum256(vote.LedgerCommitInfo.Bytes())
 
 	// has the author already voted in this round?
 	if prevVoteHash, voted := v.authorToVote[vote.Author]; voted {
 		// Check if vote has changed
-		if !bytes.Equal(commitInfoHash, prevVoteHash) {
+		if !bytes.Equal(commitInfoHash[:], prevVoteHash) {
 			// new equivocating vote, this is a security event
 			return nil, fmt.Errorf("equivocating vote, previous %X, new %X", prevVoteHash, commitInfoHash)
 		}
 		return nil, fmt.Errorf("duplicate vote")
 	}
 	// Store vote from author
-	v.authorToVote[vote.Author] = commitInfoHash
+	v.authorToVote[vote.Author] = commitInfoHash[:]
 	// register commit hash
 	// Create new entry if not present
-	if _, present := v.hashToSignatures[string(commitInfoHash)]; !present {
-		v.hashToSignatures[string(commitInfoHash)] = &ConsensusWithSignatures{
+	if _, present := v.hashToSignatures[string(commitInfoHash[:])]; !present {
+		v.hashToSignatures[string(commitInfoHash[:])] = &ConsensusWithSignatures{
 			commitInfo: vote.LedgerCommitInfo,
 			voteInfo:   vote.VoteInfo,
 			signatures: make(map[string][]byte),
 		}
 	}
 	// Add signature from vote
-	quorum := v.hashToSignatures[string(commitInfoHash)]
+	quorum := v.hashToSignatures[string(commitInfoHash[:])]
 	quorum.signatures[vote.Author] = vote.Signature
 	// Check QC
 	if uint32(len(quorum.signatures)) >= quorumInfo.GetQuorumThreshold() {

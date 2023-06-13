@@ -2,11 +2,13 @@ package abdrc
 
 import (
 	gocrypto "crypto"
+	"crypto/sha256"
 	"strconv"
 	"testing"
 
 	"github.com/alphabill-org/alphabill/internal/crypto"
 	abtypes "github.com/alphabill-org/alphabill/internal/rootchain/consensus/abdrc/types"
+	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/stretchr/testify/require"
 )
@@ -186,7 +188,7 @@ func TestRootNodeTrustBase_ValidateQuorum(t *testing.T) {
 
 func TestRootNodeTrustBase_VerifyBytes(t *testing.T) {
 	signers, validators := generateSignersAndVerifiers(4)
-	commitInfo := &abtypes.CommitInfo{RootRoundInfoHash: []byte{0, 1, 2}, RootHash: []byte{2, 3, 4}}
+	commitInfo := &types.UnicitySeal{RootInternalInfo: []byte{0, 1, 2}, Hash: []byte{2, 3, 4}}
 	bytes := commitInfo.Bytes()
 	signer := signers["0"]
 	sig, err := signer.SignBytes(bytes)
@@ -198,7 +200,6 @@ func TestRootNodeTrustBase_VerifyBytes(t *testing.T) {
 	// modify bytes, so signature becomes invalid
 	bytes = append(bytes, 1)
 	require.ErrorContains(t, verifier.VerifyBytes(bytes, sig, "0"), "signature verify failed")
-
 }
 
 func TestRootNodeTrustBase_VerifyQuorumSignatures(t *testing.T) {
@@ -207,25 +208,25 @@ func TestRootNodeTrustBase_VerifyQuorumSignatures(t *testing.T) {
 	require.NoError(t, err)
 	voteInfo := NewDummyVoteInfo(4, []byte{0, 1, 1, 2, 3})
 	commitInfo := NewDummyLedgerCommitInfo(voteInfo)
-	hash := commitInfo.Hash(gocrypto.SHA256)
-	signatures := createSignatures(t, hash, signers)
+	hash := sha256.Sum256(commitInfo.Bytes())
+	signatures := createSignatures(t, hash[:], signers)
 	qc := &abtypes.QuorumCert{VoteInfo: voteInfo, LedgerCommitInfo: commitInfo, Signatures: signatures}
-	require.NoError(t, verifier.VerifyQuorumSignatures(hash, qc.Signatures))
+	require.NoError(t, verifier.VerifyQuorumSignatures(hash[:], qc.Signatures))
 	// add an unknown signature
 	signatures["5"] = []byte{0, 1, 2, 3, 4}
-	require.ErrorContains(t, verifier.VerifyQuorumSignatures(hash, qc.Signatures), "quorum verify failed: more signatures")
+	require.ErrorContains(t, verifier.VerifyQuorumSignatures(hash[:], qc.Signatures), "quorum verify failed: more signatures")
 	// remove two so that there are less than quorum of signatures
 	delete(signatures, "5")
 	delete(signatures, "3")
 	delete(signatures, "2")
-	require.ErrorContains(t, verifier.VerifyQuorumSignatures(hash, qc.Signatures), "quorum verify failed: no quorum")
+	require.ErrorContains(t, verifier.VerifyQuorumSignatures(hash[:], qc.Signatures), "quorum verify failed: no quorum")
 	// add invalid signer
 	signatures["5"] = []byte{0, 1, 2, 3, 4}
-	require.ErrorContains(t, verifier.VerifyQuorumSignatures(hash, qc.Signatures), "quorum verify failed: failed to find public key for author")
+	require.ErrorContains(t, verifier.VerifyQuorumSignatures(hash[:], qc.Signatures), "quorum verify failed: failed to find public key for author")
 	delete(signatures, "5")
 	// add invalid signature
 	signatures["3"] = []byte{0, 1, 2, 3, 4}
-	require.ErrorContains(t, verifier.VerifyQuorumSignatures(hash, qc.Signatures), "quorum verify failed: signature length")
+	require.ErrorContains(t, verifier.VerifyQuorumSignatures(hash[:], qc.Signatures), "quorum verify failed: signature length")
 }
 
 func TestRootNodeTrustBase_VerifySignature(t *testing.T) {
@@ -241,7 +242,7 @@ func TestRootNodeTrustBase_VerifySignature(t *testing.T) {
 		Payload:   &abtypes.Payload{},
 		Qc: &abtypes.QuorumCert{
 			VoteInfo:         roundInfo,
-			LedgerCommitInfo: &abtypes.CommitInfo{RootRoundInfoHash: roundInfo.Hash(gocrypto.SHA256)},
+			LedgerCommitInfo: &types.UnicitySeal{RootInternalInfo: roundInfo.Hash(gocrypto.SHA256)},
 			Signatures:       map[string][]byte{"0": {1, 2, 3}},
 		},
 	}

@@ -8,13 +8,14 @@ import (
 	"github.com/alphabill-org/alphabill/internal/rootchain/consensus/abdrc/testutils"
 	abtypes "github.com/alphabill-org/alphabill/internal/rootchain/consensus/abdrc/types"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
+	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/stretchr/testify/require"
 )
 
 func TestVoteMsg_AddSignature(t *testing.T) {
 	type fields struct {
 		VoteInfo         *abtypes.RoundInfo
-		LedgerCommitInfo *abtypes.CommitInfo
+		LedgerCommitInfo *types.UnicitySeal
 		HighQc           *abtypes.QuorumCert
 		Author           string
 	}
@@ -33,7 +34,7 @@ func TestVoteMsg_AddSignature(t *testing.T) {
 			name: "Sign ok",
 			fields: fields{
 				VoteInfo:         voteInfo,
-				LedgerCommitInfo: &abtypes.CommitInfo{RootRoundInfoHash: voteInfo.Hash(gocrypto.SHA256)},
+				LedgerCommitInfo: &types.UnicitySeal{RootInternalInfo: voteInfo.Hash(gocrypto.SHA256)},
 				HighQc:           &abtypes.QuorumCert{},
 				Author:           "test",
 			},
@@ -44,7 +45,7 @@ func TestVoteMsg_AddSignature(t *testing.T) {
 			name: "Vote info hash is nil",
 			fields: fields{
 				VoteInfo:         nil,
-				LedgerCommitInfo: &abtypes.CommitInfo{RootRoundInfoHash: nil, RootHash: nil},
+				LedgerCommitInfo: &types.UnicitySeal{RootInternalInfo: nil, Hash: nil},
 				HighQc:           &abtypes.QuorumCert{},
 				Author:           "test",
 			},
@@ -55,7 +56,7 @@ func TestVoteMsg_AddSignature(t *testing.T) {
 			name: "Signer is nil",
 			fields: fields{
 				VoteInfo:         nil,
-				LedgerCommitInfo: &abtypes.CommitInfo{RootRoundInfoHash: nil, RootHash: nil},
+				LedgerCommitInfo: &types.UnicitySeal{RootInternalInfo: nil, Hash: nil},
 				HighQc:           &abtypes.QuorumCert{},
 				Author:           "test",
 			},
@@ -84,7 +85,7 @@ func TestVoteMsg_AddSignature(t *testing.T) {
 func TestVoteMsg_Verify(t *testing.T) {
 	type fields struct {
 		VoteInfo         *abtypes.RoundInfo
-		LedgerCommitInfo *abtypes.CommitInfo
+		LedgerCommitInfo *types.UnicitySeal
 		HighQc           *abtypes.QuorumCert
 		Author           string
 		Signature        []byte
@@ -123,7 +124,7 @@ func TestVoteMsg_Verify(t *testing.T) {
 			name: "Vote info error",
 			fields: fields{
 				VoteInfo:         nil,
-				LedgerCommitInfo: &abtypes.CommitInfo{RootRoundInfoHash: nil, RootHash: nil},
+				LedgerCommitInfo: &types.UnicitySeal{RootInternalInfo: nil, Hash: nil},
 				HighQc:           &abtypes.QuorumCert{},
 				Author:           "test",
 				Signature:        nil,
@@ -135,7 +136,7 @@ func TestVoteMsg_Verify(t *testing.T) {
 			name: "Vote info invalid",
 			fields: fields{
 				VoteInfo:         &abtypes.RoundInfo{RoundNumber: 8, ParentRoundNumber: 9},
-				LedgerCommitInfo: &abtypes.CommitInfo{RootRoundInfoHash: nil, RootHash: nil},
+				LedgerCommitInfo: &types.UnicitySeal{RootInternalInfo: nil, Hash: nil},
 				HighQc:           &abtypes.QuorumCert{},
 				Author:           "test",
 				Signature:        nil,
@@ -147,7 +148,7 @@ func TestVoteMsg_Verify(t *testing.T) {
 			name: "Vote info hash error",
 			fields: fields{
 				VoteInfo:         voteMsgInfo,
-				LedgerCommitInfo: &abtypes.CommitInfo{RootRoundInfoHash: []byte{0, 1, 3}, RootHash: nil},
+				LedgerCommitInfo: &types.UnicitySeal{RootInternalInfo: []byte{0, 1, 3}, Hash: nil},
 				HighQc:           &abtypes.QuorumCert{},
 				Author:           "test",
 				Signature:        nil,
@@ -234,8 +235,8 @@ func TestVoteMsg_VerifyOk(t *testing.T) {
 	voteMsgInfo := testutils.NewDummyRootRoundInfo(votedRound)
 	voteMsg := &VoteMsg{
 		VoteInfo: voteMsgInfo,
-		LedgerCommitInfo: &abtypes.CommitInfo{
-			RootRoundInfoHash: voteMsgInfo.Hash(gocrypto.SHA256),
+		LedgerCommitInfo: &types.UnicitySeal{
+			RootInternalInfo: voteMsgInfo.Hash(gocrypto.SHA256),
 		},
 		HighQc: highQc,
 		Author: "1",

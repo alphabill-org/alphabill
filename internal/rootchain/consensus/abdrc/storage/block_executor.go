@@ -82,12 +82,12 @@ func QcFromGenesisState(partitionRecords []*genesis.GenesisPartitionRecord) *abt
 				ParentRoundNumber: 0,
 				CurrentRootHash:   p.Certificate.UnicitySeal.Hash,
 			},
-			LedgerCommitInfo: &abtypes.CommitInfo{
-				RootRoundInfoHash: p.Certificate.UnicitySeal.RootInternalInfo,
-				Round:             p.Certificate.UnicitySeal.RootChainRoundNumber,
-				RootHash:          p.Certificate.UnicitySeal.Hash,
-				Timestamp:         p.Certificate.UnicitySeal.Timestamp,
-				Epoch:             0,
+			LedgerCommitInfo: &types.UnicitySeal{
+				RootInternalInfo:     p.Certificate.UnicitySeal.RootInternalInfo,
+				RootChainRoundNumber: p.Certificate.UnicitySeal.RootChainRoundNumber,
+				Hash:                 p.Certificate.UnicitySeal.Hash,
+				Timestamp:            p.Certificate.UnicitySeal.Timestamp,
+				Epoch:                0,
 			},
 			Signatures: p.Certificate.UnicitySeal.Signatures,
 		}
@@ -118,7 +118,7 @@ func NewExecutedBlockFromGenesis(hash gocrypto.Hash, pg []*genesis.GenesisPartit
 		CurrentIR: data,
 		Changed:   make([][]byte, 0),
 		HashAlgo:  hash,
-		RootHash:  qc.LedgerCommitInfo.RootHash,
+		RootHash:  qc.LedgerCommitInfo.Hash,
 		Qc:        qc, // qc to itself
 		CommitQc:  qc, // use same qc to itself for genesis block
 	}
@@ -166,7 +166,7 @@ func NewExecutedBlockFromRecovery(hash gocrypto.Hash, recoverBlock *abdrc.Recove
 		}
 	}
 	if recoverBlock.CommitQc != nil {
-		if !bytes.Equal(root, recoverBlock.CommitQc.LedgerCommitInfo.RootHash) {
+		if !bytes.Equal(root, recoverBlock.CommitQc.LedgerCommitInfo.Hash) {
 			return nil, fmt.Errorf("invalid recovery data, commit qc state hash does not match input records")
 		}
 	}
@@ -250,16 +250,16 @@ func (x *ExecutedBlock) GenerateCertificates(commitQc *abtypes.QuorumCert) (map[
 		return nil, fmt.Errorf("unexpected error, root hash does not match previously calculated root hash")
 	}
 	// sanity check, if root hashes do not match then fall back to recovery
-	if !bytes.Equal(rootHash, commitQc.LedgerCommitInfo.RootHash) {
+	if !bytes.Equal(rootHash, commitQc.LedgerCommitInfo.Hash) {
 		return nil, fmt.Errorf("commit of block round %v failed, root hash mismatch", commitQc.VoteInfo.ParentRoundNumber)
 	}
 	// Commit pending state if it has the same root hash as committed state
 	// create UnicitySeal for pending certificates
 	uSeal := &types.UnicitySeal{
-		RootChainRoundNumber: commitQc.LedgerCommitInfo.Round,
-		Hash:                 commitQc.LedgerCommitInfo.RootHash,
+		RootChainRoundNumber: commitQc.LedgerCommitInfo.RootChainRoundNumber,
+		Hash:                 commitQc.LedgerCommitInfo.Hash,
 		Timestamp:            commitQc.LedgerCommitInfo.Timestamp,
-		RootInternalInfo:     commitQc.LedgerCommitInfo.RootRoundInfoHash,
+		RootInternalInfo:     commitQc.LedgerCommitInfo.RootInternalInfo,
 		Signatures:           commitQc.Signatures,
 	}
 	ucs := map[protocol.SystemIdentifier]*types.UnicityCertificate{}

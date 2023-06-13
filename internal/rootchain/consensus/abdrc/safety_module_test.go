@@ -8,6 +8,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/keyvaluedb/memorydb"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/abdrc"
 	abtypes "github.com/alphabill-org/alphabill/internal/rootchain/consensus/abdrc/types"
+	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/stretchr/testify/require"
 )
 
@@ -357,7 +358,7 @@ func TestSafetyModule_constructLedgerCommitInfo(t *testing.T) {
 		name   string
 		fields fields
 		args   args
-		want   *abtypes.CommitInfo
+		want   *types.UnicitySeal
 	}{
 		{
 			name:   "To be committed",
@@ -368,7 +369,7 @@ func TestSafetyModule_constructLedgerCommitInfo(t *testing.T) {
 					VoteInfo: &abtypes.RoundInfo{RoundNumber: 2, ParentRoundNumber: 1, CurrentRootHash: []byte{0, 1, 2, 3}},
 				}},
 				voteInfoHash: []byte{2, 2, 2, 2}},
-			want: &abtypes.CommitInfo{RootRoundInfoHash: []byte{2, 2, 2, 2}, Round: 2, RootHash: []byte{0, 1, 2, 3}},
+			want: &types.UnicitySeal{RootInternalInfo: []byte{2, 2, 2, 2}, RootChainRoundNumber: 2, Hash: []byte{0, 1, 2, 3}},
 		},
 		{
 			name:   "Not to be committed",
@@ -379,7 +380,7 @@ func TestSafetyModule_constructLedgerCommitInfo(t *testing.T) {
 					VoteInfo: &abtypes.RoundInfo{RoundNumber: 1, ParentRoundNumber: 0, CurrentRootHash: []byte{0, 1, 2, 3}},
 				}},
 				voteInfoHash: []byte{2, 2, 2, 2}},
-			want: &abtypes.CommitInfo{RootRoundInfoHash: []byte{2, 2, 2, 2}},
+			want: &types.UnicitySeal{RootInternalInfo: []byte{2, 2, 2, 2}},
 		},
 	}
 	for _, tt := range tests {

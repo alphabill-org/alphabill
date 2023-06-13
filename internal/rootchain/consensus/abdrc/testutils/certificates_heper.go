@@ -7,6 +7,7 @@ import (
 
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
 	abtypes "github.com/alphabill-org/alphabill/internal/rootchain/consensus/abdrc/types"
+	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/stretchr/testify/require"
 )
@@ -27,9 +28,9 @@ func CalcVoteInfoHash(t *testing.T, algo gocrypto.Hash, voteInfo *abtypes.RoundI
 	return voteInfo.Hash(algo)
 }
 
-func NewDummyCommitInfo(algo gocrypto.Hash, voteInfo *abtypes.RoundInfo) *abtypes.CommitInfo {
+func NewDummyCommitInfo(algo gocrypto.Hash, voteInfo *abtypes.RoundInfo) *types.UnicitySeal {
 	hash := voteInfo.Hash(algo)
-	return &abtypes.CommitInfo{RootRoundInfoHash: hash, RootHash: nil}
+	return &types.UnicitySeal{RootInternalInfo: hash, Hash: nil}
 }
 
 type RoundInfoOption func(info *abtypes.RoundInfo)

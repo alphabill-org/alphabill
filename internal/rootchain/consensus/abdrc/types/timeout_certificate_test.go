@@ -8,6 +8,7 @@ import (
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
+	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/stretchr/testify/require"
 )
@@ -37,7 +38,7 @@ func TestTimeoutCert_Add(t *testing.T) {
 			Round: 10,
 			HighQc: &QuorumCert{
 				VoteInfo:         voteInfo,
-				LedgerCommitInfo: &CommitInfo{RootRoundInfoHash: voteInfo.Hash(gocrypto.SHA256)},
+				LedgerCommitInfo: &types.UnicitySeal{RootInternalInfo: voteInfo.Hash(gocrypto.SHA256)},
 				Signatures:       map[string][]byte{"1": {1, 2, 1}},
 			},
 		},
@@ -48,7 +49,7 @@ func TestTimeoutCert_Add(t *testing.T) {
 		Round: 10,
 		HighQc: &QuorumCert{
 			VoteInfo:         voteInfo,
-			LedgerCommitInfo: &CommitInfo{RootRoundInfoHash: voteInfo.Hash(gocrypto.SHA256)},
+			LedgerCommitInfo: &types.UnicitySeal{RootInternalInfo: voteInfo.Hash(gocrypto.SHA256)},
 			Signatures:       map[string][]byte{"1": {1, 2, 1}, "2": {1, 2, 3}, "3": {1, 2, 3}},
 		},
 	}
@@ -68,7 +69,7 @@ func TestTimeoutCert_Add(t *testing.T) {
 		Round: 10,
 		HighQc: &QuorumCert{
 			VoteInfo:         voteInfo,
-			LedgerCommitInfo: &CommitInfo{RootRoundInfoHash: voteInfo.Hash(gocrypto.SHA256)},
+			LedgerCommitInfo: &types.UnicitySeal{RootInternalInfo: voteInfo.Hash(gocrypto.SHA256)},
 			Signatures:       map[string][]byte{"1": {1, 2, 1}, "2": {1, 2, 3}, "3": {1, 2, 3}},
 		},
 	}
@@ -89,7 +90,7 @@ func TestTimeoutCert_Add(t *testing.T) {
 		Round: 10,
 		HighQc: &QuorumCert{
 			VoteInfo:         voteInfo,
-			LedgerCommitInfo: &CommitInfo{RootRoundInfoHash: voteInfo.Hash(gocrypto.SHA256)},
+			LedgerCommitInfo: &types.UnicitySeal{RootInternalInfo: voteInfo.Hash(gocrypto.SHA256)},
 			Signatures:       map[string][]byte{"1": {1, 2, 1}, "2": {1, 2, 3}, "3": {1, 2, 3}},
 		},
 	}
@@ -125,7 +126,7 @@ func TestTimeoutCert_Verify(t *testing.T) {
 		Epoch:             0,
 		Timestamp:         1670314583523,
 		CurrentRootHash:   test.RandomBytes(32)}
-	commitInfo := &CommitInfo{RootRoundInfoHash: voteInfo.Hash(gocrypto.SHA256)}
+	commitInfo := &types.UnicitySeal{RootInternalInfo: voteInfo.Hash(gocrypto.SHA256)}
 	sig1, err := s1.SignBytes(commitInfo.Bytes())
 	require.NoError(t, err)
 	sig2, err := s2.SignBytes(commitInfo.Bytes())

@@ -9,6 +9,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/network/protocol"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 	abtypes "github.com/alphabill-org/alphabill/internal/rootchain/consensus/abdrc/types"
+	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/stretchr/testify/require"
 )
 
@@ -126,8 +127,8 @@ func TestBlockStoreAdd(t *testing.T) {
 	}
 	qc := &abtypes.QuorumCert{
 		VoteInfo: vInfo,
-		LedgerCommitInfo: &abtypes.CommitInfo{
-			RootHash: rBlock.RootHash,
+		LedgerCommitInfo: &types.UnicitySeal{
+			Hash: rBlock.RootHash,
 		},
 	}
 	// qc for round 2, does not commit a round
@@ -151,8 +152,8 @@ func TestBlockStoreAdd(t *testing.T) {
 	}
 	qc = &abtypes.QuorumCert{
 		VoteInfo: vInfo,
-		LedgerCommitInfo: &abtypes.CommitInfo{
-			RootHash: rBlock.RootHash,
+		LedgerCommitInfo: &types.UnicitySeal{
+			Hash: rBlock.RootHash,
 		},
 	}
 	// qc for round 2, does not commit a round

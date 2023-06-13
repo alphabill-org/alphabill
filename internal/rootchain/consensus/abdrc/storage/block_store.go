@@ -147,7 +147,7 @@ func (x *BlockStore) ProcessQc(qc *abtypes.QuorumCert) (map[protocol.SystemIdent
 		return nil, fmt.Errorf("block store qc handling failed, %w", err)
 	}
 	// This QC does not serve as commit QC, then we are done
-	if qc.GetRound() == genesis.RootRound || qc.LedgerCommitInfo.RootHash == nil {
+	if qc.GetRound() == genesis.RootRound || qc.LedgerCommitInfo.Hash == nil {
 		// NB! exception, no commit for genesis round
 		return nil, nil
 	}

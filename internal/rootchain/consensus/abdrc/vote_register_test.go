@@ -6,6 +6,7 @@ import (
 
 	"github.com/alphabill-org/alphabill/internal/network/protocol/abdrc"
 	abtypes "github.com/alphabill-org/alphabill/internal/rootchain/consensus/abdrc/types"
+	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/stretchr/testify/require"
 )
 
@@ -30,10 +31,10 @@ func NewDummyVoteInfo(round uint64, rootHash []byte) *abtypes.RoundInfo {
 	}
 }
 
-func NewDummyLedgerCommitInfo(voteInfo *abtypes.RoundInfo) *abtypes.CommitInfo {
-	return &abtypes.CommitInfo{
-		RootRoundInfoHash: voteInfo.Hash(gocrypto.SHA256),
-		RootHash:          nil,
+func NewDummyLedgerCommitInfo(voteInfo *abtypes.RoundInfo) *types.UnicitySeal {
+	return &types.UnicitySeal{
+		RootInternalInfo: voteInfo.Hash(gocrypto.SHA256),
+		Hash:             nil,
 	}
 }
 

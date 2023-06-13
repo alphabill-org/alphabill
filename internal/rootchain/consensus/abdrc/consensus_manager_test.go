@@ -151,7 +151,7 @@ func TestIRChangeRequestFromRootValidator_RootTimeoutOnFirstRound(t *testing.T) 
 	// round 3 is skipped, as it timeouts
 	require.Equal(t, uint64(1), lastVoteMsg.VoteInfo.ParentRoundNumber)
 	require.Equal(t, uint64(0), lastVoteMsg.VoteInfo.Epoch)
-	require.Nil(t, lastVoteMsg.LedgerCommitInfo.RootHash)
+	require.Nil(t, lastVoteMsg.LedgerCommitInfo.Hash)
 }
 
 func TestIRChangeRequestFromRootValidator_RootTimeout(t *testing.T) {
@@ -197,7 +197,7 @@ func TestIRChangeRequestFromRootValidator_RootTimeout(t *testing.T) {
 	require.Equal(t, uint64(2), lastVoteMsg.VoteInfo.RoundNumber)
 	require.Equal(t, uint64(1), lastVoteMsg.VoteInfo.ParentRoundNumber)
 	require.Equal(t, uint64(0), lastVoteMsg.VoteInfo.Epoch)
-	require.NotNil(t, lastVoteMsg.LedgerCommitInfo.RootHash)
+	require.NotNil(t, lastVoteMsg.LedgerCommitInfo.Hash)
 
 	// send vote back to validator
 	testutils.MockValidatorNetReceives(t, mockNet, rootNode.Peer.ID(), network.ProtocolRootVote, lastVoteMsg)
@@ -211,7 +211,7 @@ func TestIRChangeRequestFromRootValidator_RootTimeout(t *testing.T) {
 	// wait for the vote message
 	lastVoteMsg = testutils.MockAwaitMessage[*abdrc.VoteMsg](t, mockNet, network.ProtocolRootVote)
 	require.Equal(t, uint64(3), lastVoteMsg.VoteInfo.RoundNumber)
-	require.NotNil(t, lastVoteMsg.LedgerCommitInfo.RootHash)
+	require.NotNil(t, lastVoteMsg.LedgerCommitInfo.Hash)
 
 	// Do not route the vote back, instead simulate round/view timeout
 	// simulate local timeout by calling the method -> race/hack accessing from different go routines not safe
@@ -243,7 +243,7 @@ func TestIRChangeRequestFromRootValidator_RootTimeout(t *testing.T) {
 	// await vote
 	lastVoteMsg = testutils.MockAwaitMessage[*abdrc.VoteMsg](t, mockNet, network.ProtocolRootVote)
 	require.Equal(t, uint64(4), lastVoteMsg.VoteInfo.RoundNumber)
-	require.Nil(t, lastVoteMsg.LedgerCommitInfo.RootHash)
+	require.Nil(t, lastVoteMsg.LedgerCommitInfo.Hash)
 	// Check state before routing vote back to root
 	testutils.MockValidatorNetReceives(t, mockNet, rootNode.Peer.ID(), network.ProtocolRootStateReq, getStateMsg)
 	stateMsg := testutils.MockAwaitMessage[*abdrc.StateMsg](t, mockNet, network.ProtocolRootStateResp)
@@ -265,7 +265,7 @@ func TestIRChangeRequestFromRootValidator_RootTimeout(t *testing.T) {
 
 	lastVoteMsg = testutils.MockAwaitMessage[*abdrc.VoteMsg](t, mockNet, network.ProtocolRootVote)
 	require.Equal(t, uint64(5), lastVoteMsg.VoteInfo.RoundNumber)
-	require.NotNil(t, lastVoteMsg.LedgerCommitInfo.RootHash)
+	require.NotNil(t, lastVoteMsg.LedgerCommitInfo.Hash)
 	// Check state before routing vote back to root
 	testutils.MockValidatorNetReceives(t, mockNet, rootNode.Peer.ID(), network.ProtocolRootStateReq, getStateMsg)
 	stateMsg = testutils.MockAwaitMessage[*abdrc.StateMsg](t, mockNet, network.ProtocolRootStateResp)
@@ -353,7 +353,7 @@ func TestIRChangeRequestFromRootValidator(t *testing.T) {
 	require.Equal(t, uint64(2), lastVoteMsg.VoteInfo.RoundNumber)
 	require.Equal(t, uint64(1), lastVoteMsg.VoteInfo.ParentRoundNumber)
 	require.Equal(t, uint64(0), lastVoteMsg.VoteInfo.Epoch)
-	require.NotNil(t, lastVoteMsg.LedgerCommitInfo.RootHash)
+	require.NotNil(t, lastVoteMsg.LedgerCommitInfo.Hash)
 
 	// send vote back to validator
 	testutils.MockValidatorNetReceives(t, mockNet, rootNode.Peer.ID(), network.ProtocolRootVote, lastVoteMsg)
@@ -367,7 +367,7 @@ func TestIRChangeRequestFromRootValidator(t *testing.T) {
 	// wait for the vote message
 	lastVoteMsg = testutils.MockAwaitMessage[*abdrc.VoteMsg](t, mockNet, network.ProtocolRootVote)
 	require.Equal(t, uint64(3), lastVoteMsg.VoteInfo.RoundNumber)
-	require.NotNil(t, lastVoteMsg.LedgerCommitInfo.RootHash)
+	require.NotNil(t, lastVoteMsg.LedgerCommitInfo.Hash)
 	// send vote back to validator
 	testutils.MockValidatorNetReceives(t, mockNet, rootNode.Peer.ID(), network.ProtocolRootVote, lastVoteMsg)
 	// after two successful rounds the IR change will be committed and UC is returned

@@ -93,8 +93,8 @@ func mockExecutedBlock(round, qcRound, qcParentRound uint64) *ExecutedBlock {
 					Epoch:             0,
 					CurrentRootHash:   zeroHash,
 				},
-				LedgerCommitInfo: &abtypes.CommitInfo{
-					RootHash: zeroHash,
+				LedgerCommitInfo: &types.UnicitySeal{
+					Hash: zeroHash,
 				},
 			},
 		},
@@ -141,7 +141,7 @@ func TestNewBlockTreeFromDb(t *testing.T) {
 		CurrentIR: gBlock.CurrentIR,
 		Changed:   make([][]byte, 0),
 		HashAlgo:  gocrypto.SHA256,
-		RootHash:  gBlock.Qc.LedgerCommitInfo.RootHash,
+		RootHash:  gBlock.Qc.LedgerCommitInfo.Hash,
 		Qc:        nil, // qc to genesis
 		CommitQc:  nil, // does not commit a block
 	}
@@ -169,9 +169,9 @@ func TestNewBlockTreeFromDbChain3Blocks(t *testing.T) {
 	}
 	qcBlock2 := &abtypes.QuorumCert{
 		VoteInfo: voteInfoB2,
-		LedgerCommitInfo: &abtypes.CommitInfo{
-			RootRoundInfoHash: voteInfoB2.Hash(gocrypto.SHA256),
-			RootHash:          gBlock.RootHash,
+		LedgerCommitInfo: &types.UnicitySeal{
+			RootInternalInfo: voteInfoB2.Hash(gocrypto.SHA256),
+			Hash:             gBlock.RootHash,
 		},
 	}
 	// create a new block
@@ -187,7 +187,7 @@ func TestNewBlockTreeFromDbChain3Blocks(t *testing.T) {
 		CurrentIR: gBlock.CurrentIR,
 		Changed:   make([][]byte, 0),
 		HashAlgo:  gocrypto.SHA256,
-		RootHash:  gBlock.Qc.LedgerCommitInfo.RootHash,
+		RootHash:  gBlock.Qc.LedgerCommitInfo.Hash,
 		Qc:        qcBlock2,
 		CommitQc:  qcBlock2,
 	}
@@ -203,7 +203,7 @@ func TestNewBlockTreeFromDbChain3Blocks(t *testing.T) {
 		CurrentIR: gBlock.CurrentIR,
 		Changed:   make([][]byte, 0),
 		HashAlgo:  gocrypto.SHA256,
-		RootHash:  gBlock.Qc.LedgerCommitInfo.RootHash,
+		RootHash:  gBlock.Qc.LedgerCommitInfo.Hash,
 	}
 	require.NoError(t, db.Write(blockKey(block2.BlockData.Round), block2))
 	require.NoError(t, db.Write(blockKey(block3.BlockData.Round), block3))
@@ -284,9 +284,9 @@ func TestAddAndCommit(t *testing.T) {
 			RoundNumber:       5,
 			ParentRoundNumber: 4,
 		},
-		LedgerCommitInfo: &abtypes.CommitInfo{
-			RootRoundInfoHash: []byte{1, 2, 3},
-			RootHash:          zeroHash,
+		LedgerCommitInfo: &types.UnicitySeal{
+			RootInternalInfo: []byte{1, 2, 3},
+			Hash:             zeroHash,
 		},
 	}
 	cBlock, err := bTree.Commit(commitQc)

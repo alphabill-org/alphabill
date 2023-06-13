@@ -8,6 +8,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/keyvaluedb"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/abdrc"
 	abtypes "github.com/alphabill-org/alphabill/internal/rootchain/consensus/abdrc/types"
+	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/internal/util"
 )
 
@@ -100,17 +101,17 @@ func (s *SafetyModule) isSafeToVote(block *abtypes.BlockData, lastRoundTC *abtyp
 	return nil
 }
 
-func (s *SafetyModule) constructCommitInfo(block *abtypes.BlockData, voteInfoHash []byte) *abtypes.CommitInfo {
-	commitInfo := s.isCommitCandidate(block)
-	if commitInfo == nil {
-		return &abtypes.CommitInfo{RootRoundInfoHash: voteInfoHash}
+func (s *SafetyModule) constructCommitInfo(block *abtypes.BlockData, voteInfoHash []byte) *types.UnicitySeal {
+	committedRound := s.isCommitCandidate(block)
+	if committedRound == nil {
+		return &types.UnicitySeal{RootInternalInfo: voteInfoHash}
 	}
-	return &abtypes.CommitInfo{
-		RootRoundInfoHash: voteInfoHash,
-		Round:             commitInfo.RoundNumber,
-		Epoch:             commitInfo.Epoch,
-		Timestamp:         commitInfo.Timestamp,
-		RootHash:          commitInfo.CurrentRootHash,
+	return &types.UnicitySeal{
+		RootInternalInfo:     voteInfoHash,
+		RootChainRoundNumber: committedRound.RoundNumber,
+		Epoch:                committedRound.Epoch,
+		Timestamp:            committedRound.Timestamp,
+		Hash:                 committedRound.CurrentRootHash,
 	}
 }
 

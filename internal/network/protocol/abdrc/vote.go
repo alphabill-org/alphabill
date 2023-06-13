@@ -7,12 +7,13 @@ import (
 
 	"github.com/alphabill-org/alphabill/internal/crypto"
 	abtypes "github.com/alphabill-org/alphabill/internal/rootchain/consensus/abdrc/types"
+	"github.com/alphabill-org/alphabill/internal/types"
 )
 
 type VoteMsg struct {
 	_                struct{}            `cbor:",toarray"`
 	VoteInfo         *abtypes.RoundInfo  `json:"vote_info,omitempty"`          // Proposed block hash and resulting state hash
-	LedgerCommitInfo *abtypes.CommitInfo `json:"ledger_commit_info,omitempty"` // Commit info
+	LedgerCommitInfo *types.UnicitySeal  `json:"ledger_commit_info,omitempty"` // Commit info
 	HighQc           *abtypes.QuorumCert `json:"high_qc,omitempty"`            // Sync with highest QC
 	Author           string              `json:"author,omitempty"`             // Voter node identifier
 	Signature        []byte              `json:"signature,omitempty"`          // Vote signature on hash of consensus info
@@ -23,7 +24,7 @@ func (x *VoteMsg) Sign(signer crypto.Signer) error {
 		return errSignerIsNil
 	}
 	// sanity check, make sure commit info round info hash is set
-	if len(x.LedgerCommitInfo.RootRoundInfoHash) < 1 {
+	if len(x.LedgerCommitInfo.RootInternalInfo) < 1 {
 		return fmt.Errorf("invalid round info hash")
 	}
 	signature, err := signer.SignBytes(x.LedgerCommitInfo.Bytes())
@@ -43,7 +44,7 @@ func (x *VoteMsg) Verify(quorum uint32, rootTrust map[string]crypto.Verifier) er
 	}
 	// Verify hash of vote info
 	hash := x.VoteInfo.Hash(gocrypto.SHA256)
-	if !bytes.Equal(hash, x.LedgerCommitInfo.RootRoundInfoHash) {
+	if !bytes.Equal(hash, x.LedgerCommitInfo.RootInternalInfo) {
 		return fmt.Errorf("vote info hash does not match hash in commit info")
 	}
 	if len(x.Author) == 0 {

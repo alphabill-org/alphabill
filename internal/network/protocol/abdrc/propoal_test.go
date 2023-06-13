@@ -8,6 +8,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/rootchain/consensus/abdrc/testutils"
 	abtypes "github.com/alphabill-org/alphabill/internal/rootchain/consensus/abdrc/types"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
+	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/stretchr/testify/require"
 )
 
@@ -121,7 +122,7 @@ func TestProposalMsg_Sign_SignerIsNil(t *testing.T) {
 			Payload:   &abtypes.Payload{},
 			Qc: &abtypes.QuorumCert{
 				VoteInfo:         prevRoundInfo,
-				LedgerCommitInfo: &abtypes.CommitInfo{RootRoundInfoHash: prevRoundInfo.Hash(gocrypto.SHA256)},
+				LedgerCommitInfo: &types.UnicitySeal{RootInternalInfo: prevRoundInfo.Hash(gocrypto.SHA256)},
 				Signatures:       map[string][]byte{"1": {1, 2, 3}},
 			},
 		},
@@ -142,7 +143,7 @@ func TestProposalMsg_Sign_InvalidBlock(t *testing.T) {
 			Payload:   &abtypes.Payload{},
 			Qc: &abtypes.QuorumCert{
 				VoteInfo:         qcInfo,
-				LedgerCommitInfo: &abtypes.CommitInfo{RootRoundInfoHash: qcInfo.Hash(gocrypto.SHA256)},
+				LedgerCommitInfo: &types.UnicitySeal{RootInternalInfo: qcInfo.Hash(gocrypto.SHA256)},
 				Signatures:       map[string][]byte{"1": {1, 2, 3}},
 			},
 		},
@@ -164,7 +165,7 @@ func TestProposalMsg_Sign_Ok(t *testing.T) {
 			Payload:   &abtypes.Payload{},
 			Qc: &abtypes.QuorumCert{
 				VoteInfo:         qcInfo,
-				LedgerCommitInfo: &abtypes.CommitInfo{RootRoundInfoHash: qcInfo.Hash(gocrypto.SHA256)},
+				LedgerCommitInfo: &types.UnicitySeal{RootInternalInfo: qcInfo.Hash(gocrypto.SHA256)},
 				Signatures:       map[string][]byte{"1": {1, 2, 3}},
 			},
 		},
@@ -238,7 +239,7 @@ func TestProposalMsg_Verify_BlockQcNoQuorum(t *testing.T) {
 	lastRoundVoteInfo := testutils.NewDummyRootRoundInfo(9)
 	lastRoundQc := &abtypes.QuorumCert{
 		VoteInfo:         lastRoundVoteInfo,
-		LedgerCommitInfo: &abtypes.CommitInfo{RootRoundInfoHash: lastRoundVoteInfo.Hash(gocrypto.SHA256)},
+		LedgerCommitInfo: &types.UnicitySeal{RootInternalInfo: lastRoundVoteInfo.Hash(gocrypto.SHA256)},
 		Signatures:       map[string][]byte{},
 	}
 	addQCSignature(t, lastRoundQc, "1", s1)
@@ -266,7 +267,7 @@ func TestProposalMsg_Verify_InvalidSignature(t *testing.T) {
 	lastRoundVoteInfo := testutils.NewDummyRootRoundInfo(9)
 	lastRoundQc := &abtypes.QuorumCert{
 		VoteInfo:         lastRoundVoteInfo,
-		LedgerCommitInfo: &abtypes.CommitInfo{RootRoundInfoHash: lastRoundVoteInfo.Hash(gocrypto.SHA256)},
+		LedgerCommitInfo: &types.UnicitySeal{RootInternalInfo: lastRoundVoteInfo.Hash(gocrypto.SHA256)},
 		Signatures:       map[string][]byte{},
 	}
 	addQCSignature(t, lastRoundQc, "1", s1)
@@ -296,7 +297,7 @@ func TestProposalMsg_Verify_OK(t *testing.T) {
 	lastRoundVoteInfo := testutils.NewDummyRootRoundInfo(9)
 	lastRoundQc := &abtypes.QuorumCert{
 		VoteInfo:         lastRoundVoteInfo,
-		LedgerCommitInfo: &abtypes.CommitInfo{RootRoundInfoHash: lastRoundVoteInfo.Hash(gocrypto.SHA256)},
+		LedgerCommitInfo: &types.UnicitySeal{RootInternalInfo: lastRoundVoteInfo.Hash(gocrypto.SHA256)},
 		Signatures:       map[string][]byte{},
 	}
 	addQCSignature(t, lastRoundQc, "1", s1)
@@ -325,7 +326,7 @@ func TestProposalMsg_Verify_OkWithTc(t *testing.T) {
 	lastRoundVoteInfo := testutils.NewDummyRootRoundInfo(8)
 	lastRoundQc := &abtypes.QuorumCert{
 		VoteInfo:         lastRoundVoteInfo,
-		LedgerCommitInfo: &abtypes.CommitInfo{RootRoundInfoHash: lastRoundVoteInfo.Hash(gocrypto.SHA256)},
+		LedgerCommitInfo: &types.UnicitySeal{RootInternalInfo: lastRoundVoteInfo.Hash(gocrypto.SHA256)},
 		Signatures:       map[string][]byte{},
 	}
 	addQCSignature(t, lastRoundQc, "1", s1)

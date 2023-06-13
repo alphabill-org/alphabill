@@ -9,22 +9,24 @@ import (
 	"sort"
 
 	"github.com/alphabill-org/alphabill/internal/crypto"
+	"github.com/alphabill-org/alphabill/internal/types"
 )
 
 var (
 	errVoteInfoIsNil         = errors.New("vote info is nil")
 	errLedgerCommitInfoIsNil = errors.New("ledger commit info is nil")
 	errQcIsMissingSignatures = errors.New("qc is missing signatures")
+	errInvalidRoundInfoHash  = errors.New("round info has is missing")
 )
 
 type QuorumCert struct {
-	_                struct{}          `cbor:",toarray"`
-	VoteInfo         *RoundInfo        `json:"vote_info,omitempty"`          // Consensus data
-	LedgerCommitInfo *CommitInfo       `json:"ledger_commit_info,omitempty"` // Commit info
-	Signatures       map[string][]byte `json:"signatures,omitempty"`         // Node identifier to signature map (NB! aggregated signature schema in spec)
+	_                struct{}           `cbor:",toarray"`
+	VoteInfo         *RoundInfo         `json:"vote_info,omitempty"`          // Consensus data
+	LedgerCommitInfo *types.UnicitySeal `json:"ledger_commit_info,omitempty"` // Commit info
+	Signatures       map[string][]byte  `json:"signatures,omitempty"`         // Node identifier to signature map (NB! aggregated signature schema in spec)
 }
 
-func NewQuorumCertificateFromVote(voteInfo *RoundInfo, commitInfo *CommitInfo, signatures map[string][]byte) *QuorumCert {
+func NewQuorumCertificateFromVote(voteInfo *RoundInfo, commitInfo *types.UnicitySeal, signatures map[string][]byte) *QuorumCert {
 	return &QuorumCert{
 		VoteInfo:         voteInfo,
 		LedgerCommitInfo: commitInfo,
@@ -35,7 +37,7 @@ func NewQuorumCertificateFromVote(voteInfo *RoundInfo, commitInfo *CommitInfo, s
 func NewQuorumCertificate(voteInfo *RoundInfo, commitHash []byte) *QuorumCert {
 	return &QuorumCert{
 		VoteInfo:         voteInfo,
-		LedgerCommitInfo: &CommitInfo{RootRoundInfoHash: voteInfo.Hash(gocrypto.SHA256), RootHash: commitHash},
+		LedgerCommitInfo: &types.UnicitySeal{RootInternalInfo: voteInfo.Hash(gocrypto.SHA256), Hash: commitHash},
 		Signatures:       map[string][]byte{},
 	}
 }
@@ -67,7 +69,7 @@ func (x *QuorumCert) IsValid() error {
 		return errLedgerCommitInfoIsNil
 	}
 	// For root validator commit state id can be empty
-	if len(x.LedgerCommitInfo.RootRoundInfoHash) < 1 {
+	if len(x.LedgerCommitInfo.RootInternalInfo) < 1 {
 		return errInvalidRoundInfoHash
 	}
 	if len(x.Signatures) < 1 {
@@ -82,7 +84,7 @@ func (x *QuorumCert) Verify(quorum uint32, rootTrust map[string]crypto.Verifier)
 	}
 	// check vote info hash
 	h := x.VoteInfo.Hash(gocrypto.SHA256)
-	if !bytes.Equal(h, x.LedgerCommitInfo.RootRoundInfoHash) {
+	if !bytes.Equal(h, x.LedgerCommitInfo.RootInternalInfo) {
 		return fmt.Errorf("vote info hash verification failed")
 	}
 	// Check quorum, if not fail without checking signatures itself

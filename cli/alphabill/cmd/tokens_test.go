@@ -95,7 +95,7 @@ func TestRunTokensNode(t *testing.T) {
 		attrBytes, _ := cbor.Marshal(attr)
 		tx := &types.TransactionOrder{
 			Payload: &types.Payload{
-				SystemID:       tokens.DefaultTokenTxSystemIdentifier,
+				SystemID:       tokens.DefaultSystemIdentifier,
 				Type:           tokens.PayloadTypeCreateNFTType,
 				UnitID:         id[:],
 				Attributes:     attrBytes,

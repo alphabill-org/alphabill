@@ -3,9 +3,12 @@ package cmd
 import (
 	"context"
 
-	"github.com/alphabill-org/alphabill/internal/txsystem/verifiable_data"
+	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
+	"github.com/alphabill-org/alphabill/internal/txsystem/vd"
 	"github.com/spf13/cobra"
 )
+
+const defaultVDNodeURL = "localhost:27766"
 
 type (
 	vdConfiguration struct {
@@ -47,7 +50,15 @@ func runVDNode(ctx context.Context, cfg *vdConfiguration) error {
 	if err != nil {
 		return err
 	}
-	txs, err := verifiable_data.New(pg.SystemDescriptionRecord.GetSystemIdentifier())
+	trustBase, err := genesis.NewValidatorTrustBase(pg.RootValidators)
+	if err != nil {
+		return err
+	}
+	txs, err := vd.NewTxSystem(
+		vd.WithSystemIdentifier(pg.SystemDescriptionRecord.GetSystemIdentifier()),
+		vd.WithTrustBase(trustBase),
+
+	)
 	if err != nil {
 		return err
 	}

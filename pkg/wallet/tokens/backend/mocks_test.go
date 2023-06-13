@@ -69,7 +69,7 @@ func randomTx(t *testing.T, attr interface{}) *types.TransactionOrder {
 
 	tx := &types.TransactionOrder{
 		Payload: &types.Payload{
-			SystemID:       tokens.DefaultTokenTxSystemIdentifier,
+			SystemID:       tokens.DefaultSystemIdentifier,
 			UnitID:         test.RandomBytes(32),
 			Attributes:     attrBytes,
 			ClientMetadata: &types.ClientMetadata{Timeout: 10, FeeCreditRecordID: util.Uint64ToBytes32(1)},

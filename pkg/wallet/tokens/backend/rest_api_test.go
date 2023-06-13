@@ -737,7 +737,10 @@ func Test_restAPI_txProof(t *testing.T) {
 		unitID := []byte{0x01}
 		txHash := []byte{0xFF}
 
-		proof := &wallet.Proof{&types.TransactionRecord{TransactionOrder: &types.TransactionOrder{Payload: &types.Payload{UnitID: unitID}}}, &types.TxProof{}}
+		proof := &wallet.Proof{
+			TxRecord: &types.TransactionRecord{TransactionOrder: &types.TransactionOrder{Payload: &types.Payload{UnitID: unitID}}},
+			TxProof: &types.TxProof{},
+		}
 		api := &restAPI{
 			db: &mockStorage{
 				getTxProof: func(unitID wallet.UnitID, txHash wallet.TxHash) (*wallet.Proof, error) {

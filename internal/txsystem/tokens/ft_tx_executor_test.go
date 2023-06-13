@@ -1006,7 +1006,7 @@ func createTx(t *testing.T, unitID *uint256.Int, attributes any, payloadType str
 	return testtransaction.NewTransactionOrder(
 		t,
 		testtransaction.WithUnitId(id[:]),
-		testtransaction.WithSystemID(DefaultTokenTxSystemIdentifier),
+		testtransaction.WithSystemID(DefaultSystemIdentifier),
 		testtransaction.WithOwnerProof(script.PredicateArgumentEmpty()),
 		testtransaction.WithFeeProof(script.PredicateArgumentEmpty()),
 		testtransaction.WithAttributes(attributes),
@@ -1019,7 +1019,7 @@ func createTxRecord(t *testing.T, unitID *uint256.Int, attributes any, payloadTy
 	return testtransaction.NewTransactionRecord(
 		t,
 		testtransaction.WithUnitId(id[:]),
-		testtransaction.WithSystemID(DefaultTokenTxSystemIdentifier),
+		testtransaction.WithSystemID(DefaultSystemIdentifier),
 		testtransaction.WithOwnerProof(script.PredicateArgumentEmpty()),
 		testtransaction.WithFeeProof(script.PredicateArgumentEmpty()),
 		testtransaction.WithAttributes(attributes),
@@ -1033,7 +1033,7 @@ func createTransactionOrder(t *testing.T, attr any, payloadType string, unitID *
 		testtransaction.WithUnitId(util.Uint256ToBytes(unitID)),
 		testtransaction.WithPayloadType(payloadType),
 		testtransaction.WithAttributes(attr),
-		testtransaction.WithSystemID(DefaultTokenTxSystemIdentifier),
+		testtransaction.WithSystemID(DefaultSystemIdentifier),
 		testtransaction.WithOwnerProof(script.PredicateArgumentEmpty()),
 		testtransaction.WithFeeProof(script.PredicateArgumentEmpty()),
 		testtransaction.WithClientMetadata(&types.ClientMetadata{
@@ -1042,5 +1042,4 @@ func createTransactionOrder(t *testing.T, attr any, payloadType string, unitID *
 			FeeCreditRecordID: util.Uint256ToBytes(feeCreditID),
 		}),
 	)
-
 }

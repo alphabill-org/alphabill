@@ -61,8 +61,9 @@ func (p *BlockProcessor) ProcessBlock(_ context.Context, b *types.Block) error {
 }
 
 func (p *BlockProcessor) processTx(txr *types.TransactionRecord, b *types.Block, txIdx int, dbTx BillStoreTx) error {
-	roundNumber := b.GetRoundNumber()
 	txo := txr.TransactionOrder
+	roundNumber := b.GetRoundNumber()
+
 	switch txo.PayloadType() {
 	case moneytx.PayloadTypeTransfer:
 		wlog.Info(fmt.Sprintf("received transfer order (UnitID=%x)", txo.UnitID()))

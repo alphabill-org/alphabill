@@ -91,3 +91,6 @@ type mockMoneyTxPublisher struct {
 func (m *mockMoneyTxPublisher) SendTx(ctx context.Context, tx *types.TransactionOrder, _ []byte) (*wallet.Proof, error) {
 	return &wallet.Proof{}, nil
 }
+
+func (m *mockMoneyTxPublisher) Close() {
+}

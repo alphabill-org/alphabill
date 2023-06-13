@@ -33,3 +33,6 @@ func (w *TxPublisher) SendTx(ctx context.Context, tx *types.TransactionOrder, se
 	}
 	return txBatch.Submissions()[0].Proof, nil
 }
+
+func (w *TxPublisher) Close() {
+}

@@ -71,13 +71,6 @@ func New(systemID []byte, backendUrl string, am account.Manager, confirmTx bool,
 	if err != nil {
 		return nil, err
 	}
-	//txs, err := tokens.New(
-	//	tokens.WithSystemIdentifier(systemID),
-	//	tokens.WithTrustBase(map[string]abcrypto.Verifier{"test": nil}),
-	//)
-	if err != nil {
-		return nil, err
-	}
 	return &Wallet{
 		systemID:   systemID,
 		am:         am,

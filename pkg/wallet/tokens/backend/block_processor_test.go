@@ -88,7 +88,7 @@ func Test_blockProcessor_ProcessBlock(t *testing.T) {
 	})
 
 	t.Run("failure to process tx", func(t *testing.T) {
-		txs, err := tokens.New(
+		txs, err := tokens.NewTxSystem(
 			tokens.WithTrustBase(map[string]abcrypto.Verifier{"test": nil}),
 		)
 		require.NoError(t, err)
@@ -137,7 +137,7 @@ func Test_blockProcessor_processTx(t *testing.T) {
 
 	logger, err := log.New(log.DEBUG, io.Discard)
 	require.NoError(t, err)
-	txs, err := tokens.New(
+	txs, err := tokens.NewTxSystem(
 		tokens.WithTrustBase(map[string]abcrypto.Verifier{"test": nil}),
 	)
 	require.NoError(t, err)
@@ -483,7 +483,7 @@ func createBlockProcessor(t *testing.T) *blockProcessor {
 	logger, err := log.New(log.DEBUG, io.Discard)
 	require.NoError(t, err)
 
-	txSystem, err := tokens.New(tokens.WithTrustBase(map[string]abcrypto.Verifier{"test": nil}))
+	txSystem, err := tokens.NewTxSystem(tokens.WithTrustBase(map[string]abcrypto.Verifier{"test": nil}))
 	require.NoError(t, err)
 
 	return &blockProcessor{log: logger, txs: txSystem, store: db}

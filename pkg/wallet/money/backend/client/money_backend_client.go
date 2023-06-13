@@ -246,6 +246,7 @@ func (c *MoneyBackendClient) GetTxProof(_ context.Context, unitID wallet.UnitID,
 	if len(proof.Bills) == 0 {
 		return nil, fmt.Errorf("get proof request returned empty proof array for unit id 0x%X", unitID)
 	}
+
 	if !bytes.Equal(proof.Bills[0].TxHash, txHash) {
 		// proof exists for given unitID but probably for old tx
 		return nil, nil

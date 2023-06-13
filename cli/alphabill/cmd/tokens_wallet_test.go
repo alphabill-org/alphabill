@@ -437,13 +437,13 @@ func createTokensPartition(t *testing.T) *testpartition.NodePartition {
 
 	network, err := testpartition.NewPartition(1,
 		func(tb map[string]abcrypto.Verifier) txsystem.TransactionSystem {
-			system, err := tokens.New(
+			system, err := tokens.NewTxSystem(
 				tokens.WithState(tokensState),
 				tokens.WithTrustBase(tb),
 			)
 			require.NoError(t, err)
 			return system
-		}, tokens.DefaultTokenTxSystemIdentifier,
+		}, tokens.DefaultSystemIdentifier,
 	)
 	require.NoError(t, err)
 
@@ -489,7 +489,7 @@ func createNewTokenWalletWithFeeManager(t *testing.T, addr string, feeManager *f
 	require.NoError(t, err)
 	require.NoError(t, am.CreateKeys(""))
 
-	w, err := tw.New(tokens.DefaultTokenTxSystemIdentifier, addr, am, false, feeManager)
+	w, err := tw.New(tokens.DefaultSystemIdentifier, addr, am, false, feeManager)
 	require.NoError(t, err)
 	require.NotNil(t, w)
 

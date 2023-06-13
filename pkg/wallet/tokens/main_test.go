@@ -34,7 +34,7 @@ func Test_Load(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	w, err := New(ttxs.DefaultTokenTxSystemIdentifier, srv.URL, nil, false, nil)
+	w, err := New(ttxs.DefaultSystemIdentifier, srv.URL, nil, false, nil)
 	require.NoError(t, err)
 
 	rn, err := w.GetRoundNumber(context.Background())

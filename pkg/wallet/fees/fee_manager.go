@@ -20,6 +20,7 @@ const (
 type (
 	TxPublisher interface {
 		SendTx(ctx context.Context, tx *types.TransactionOrder, senderPubKey []byte) (*wallet.Proof, error)
+		Close()
 	}
 
 	PartitionDataProvider interface {
@@ -257,6 +258,11 @@ func (w *FeeManager) GetFeeCredit(ctx context.Context, cmd GetFeeCreditCmd) (*wa
 		return nil, err
 	}
 	return w.userPartitionBackendClient.GetFeeCreditBill(ctx, accountKey.PrivKeyHash)
+}
+
+func (w *FeeManager) Close() {
+	w.moneyTxPublisher.Close()
+	w.userPartitionTxPublisher.Close()
 }
 
 func (c *AddFeeCmd) isValid() error {

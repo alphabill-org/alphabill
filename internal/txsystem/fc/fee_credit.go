@@ -60,22 +60,15 @@ func NewFeeCreditModule(opts ...Option) (*FeeCredit, error) {
 	return m, nil
 }
 
-func (f *FeeCredit) TxExecutors() []txsystem.TxExecutor {
-	return []txsystem.TxExecutor{
-		handleAddFeeCreditTx(f),
-		handleCloseFeeCreditTx(f),
+func (f *FeeCredit) TxExecutors() map[string]txsystem.TxExecutor {
+	return map[string]txsystem.TxExecutor{
+		transactions.PayloadTypeAddFeeCredit:   handleAddFeeCreditTx(f),
+		transactions.PayloadTypeCloseFeeCredit: handleCloseFeeCreditTx(f),
 	}
 }
 
 func (f *FeeCredit) GenericTransactionValidator() txsystem.GenericTransactionValidator {
 	return checkFeeCreditBalance(f.state, f.feeCalculator)
-}
-
-func (f *FeeCredit) TxConverter() txsystem.TxConverters {
-	return map[string]txsystem.TxConverter{
-		transactions.TypeURLAddFeeCreditOrder:   transactions.ConvertAddFeeCredit,
-		transactions.TypeURLCloseFeeCreditOrder: transactions.ConvertCloseFeeCredit,
-	}
 }
 
 func validConfiguration(m *FeeCredit) error {

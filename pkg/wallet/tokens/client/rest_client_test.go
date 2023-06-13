@@ -11,17 +11,14 @@ import (
 	"path"
 	"testing"
 
-	"github.com/alphabill-org/alphabill/internal/block"
-	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/stretchr/testify/require"
-	"google.golang.org/protobuf/encoding/protojson"
-	"google.golang.org/protobuf/proto"
-	"google.golang.org/protobuf/types/known/anypb"
-
 	test "github.com/alphabill-org/alphabill/internal/testutils"
-	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/internal/txsystem/tokens"
+	"github.com/alphabill-org/alphabill/internal/types"
+	"github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/alphabill-org/alphabill/pkg/wallet/tokens/backend"
+	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/fxamacker/cbor/v2"
+	"github.com/stretchr/testify/require"
 )
 
 func Test_setPaginationParams(t *testing.T) {
@@ -70,7 +67,7 @@ func Test_get(t *testing.T) {
 					if r.URL.String() != `http://localhost:8000/api/v1/path?queryParam=foo` {
 						t.Errorf("unexpected request URL: %s", r.URL.String())
 					}
-					if ua := r.Header.Get("User-Agent"); ua != clientUserAgent {
+					if ua := r.Header.Get(userAgentHeader); ua != clientUserAgent {
 						t.Errorf("expected User-Agent header %q, got %q", clientUserAgent, ua)
 					}
 
@@ -200,7 +197,7 @@ func Test_GetRoundNumber(t *testing.T) {
 					if r.URL.String() != `http://localhost/api/v1/round-number` {
 						t.Errorf("unexpected request URL: %s", r.URL.String())
 					}
-					if ua := r.Header.Get("User-Agent"); ua != clientUserAgent {
+					if ua := r.Header.Get(userAgentHeader); ua != clientUserAgent {
 						t.Errorf("expected User-Agent header %q, got %q", clientUserAgent, ua)
 					}
 
@@ -272,7 +269,7 @@ func Test_GetToken(t *testing.T) {
 					if r.URL.String() != expURL {
 						t.Errorf("expected request URL %q, got %q", expURL, r.URL.String())
 					}
-					if ua := r.Header.Get("User-Agent"); ua != clientUserAgent {
+					if ua := r.Header.Get(userAgentHeader); ua != clientUserAgent {
 						t.Errorf("expected User-Agent header %q, got %q", clientUserAgent, ua)
 					}
 
@@ -344,7 +341,7 @@ func Test_GetTokens(t *testing.T) {
 					if r.URL.String() != expURL {
 						t.Errorf("expected request URL %q, got %q", expURL, r.URL.String())
 					}
-					if ua := r.Header.Get("User-Agent"); ua != clientUserAgent {
+					if ua := r.Header.Get(userAgentHeader); ua != clientUserAgent {
 						t.Errorf("expected User-Agent header %q, got %q", clientUserAgent, ua)
 					}
 
@@ -361,7 +358,7 @@ func Test_GetTokens(t *testing.T) {
 		require.Empty(t, offset)
 	})
 
-	createClient := func(t *testing.T, respBody []backend.TokenUnit) *TokenBackend {
+	createClient := func(t *testing.T, respBody []*backend.TokenUnit) *TokenBackend {
 		return &TokenBackend{
 			hc: &http.Client{
 				Transport: &mockRoundTripper{
@@ -384,7 +381,7 @@ func Test_GetTokens(t *testing.T) {
 	})
 
 	t.Run("data in the response", func(t *testing.T) {
-		expData := []backend.TokenUnit{{ID: []byte{0, 1}, Symbol: "test", Amount: 42}}
+		expData := []*backend.TokenUnit{{ID: []byte{0, 1}, Symbol: "test", Amount: 42}}
 		cli := createClient(t, expData)
 		data, offset, err := cli.GetTokens(context.Background(), backend.Any, ownerID, "", 20)
 		require.NoError(t, err)
@@ -408,7 +405,7 @@ func Test_GetTokenTypes(t *testing.T) {
 					if r.URL.String() != expURL {
 						t.Errorf("expected request URL %q, got %q", expURL, r.URL.String())
 					}
-					if ua := r.Header.Get("User-Agent"); ua != clientUserAgent {
+					if ua := r.Header.Get(userAgentHeader); ua != clientUserAgent {
 						t.Errorf("expected User-Agent header %q, got %q", clientUserAgent, ua)
 					}
 
@@ -425,7 +422,7 @@ func Test_GetTokenTypes(t *testing.T) {
 		require.Empty(t, offset)
 	})
 
-	createClient := func(t *testing.T, respBody []backend.TokenUnitType) *TokenBackend {
+	createClient := func(t *testing.T, respBody []*backend.TokenUnitType) *TokenBackend {
 		return &TokenBackend{
 			hc: &http.Client{
 				Transport: &mockRoundTripper{
@@ -450,7 +447,7 @@ func Test_GetTokenTypes(t *testing.T) {
 	})
 
 	t.Run("data in the response", func(t *testing.T) {
-		expData := []backend.TokenUnitType{{ID: []byte{0, 1}, Symbol: "test"}}
+		expData := []*backend.TokenUnitType{{ID: []byte{0, 1}, Symbol: "test"}}
 		cli := createClient(t, expData)
 		data, offset, err := cli.GetTokenTypes(context.Background(), backend.Any, ownerID, "", 20)
 		require.NoError(t, err)
@@ -474,7 +471,7 @@ func Test_GetTypeHierarchy(t *testing.T) {
 					if r.URL.String() != expURL {
 						t.Errorf("expected request URL %q, got %q", expURL, r.URL.String())
 					}
-					if ua := r.Header.Get("User-Agent"); ua != clientUserAgent {
+					if ua := r.Header.Get(userAgentHeader); ua != clientUserAgent {
 						t.Errorf("expected User-Agent header %q, got %q", clientUserAgent, ua)
 					}
 
@@ -490,7 +487,7 @@ func Test_GetTypeHierarchy(t *testing.T) {
 		require.Empty(t, data)
 	})
 
-	createClient := func(t *testing.T, respBody []backend.TokenUnitType) *TokenBackend {
+	createClient := func(t *testing.T, respBody []*backend.TokenUnitType) *TokenBackend {
 		return &TokenBackend{
 			hc: &http.Client{
 				Transport: &mockRoundTripper{
@@ -519,7 +516,7 @@ func Test_GetTypeHierarchy(t *testing.T) {
 	})
 
 	t.Run("type with given id exists", func(t *testing.T) {
-		expData := []backend.TokenUnitType{{ID: []byte{0, 1}, Symbol: "test"}}
+		expData := []*backend.TokenUnitType{{ID: []byte{0, 1}, Symbol: "test"}}
 		cli := createClient(t, expData)
 		data, err := cli.GetTypeHierarchy(context.Background(), typeID)
 		require.NoError(t, err)
@@ -533,7 +530,7 @@ func Test_GetTxProof(t *testing.T) {
 	unitID := test.RandomBytes(32)
 	txHash := test.RandomBytes(32)
 
-	createClient := func(t *testing.T, proof *backend.Proof) *TokenBackend {
+	createClient := func(t *testing.T, proof *wallet.Proof) *TokenBackend {
 		return &TokenBackend{
 			addr: url.URL{Scheme: "http", Host: "localhost"},
 			hc: &http.Client{Transport: &mockRoundTripper{
@@ -544,7 +541,7 @@ func Test_GetTxProof(t *testing.T) {
 					if r.URL.String() != fmt.Sprintf("http://localhost/api/v1/units/%s/transactions/%s/proof", unitIDHex, txHashHex) {
 						t.Errorf("unexpected request URL: %s", r.URL.String())
 					}
-					if ua := r.Header.Get("User-Agent"); ua != clientUserAgent {
+					if ua := r.Header.Get(userAgentHeader); ua != clientUserAgent {
 						t.Errorf("expected User-Agent header %q, got %q", clientUserAgent, ua)
 					}
 
@@ -565,10 +562,9 @@ func Test_GetTxProof(t *testing.T) {
 	}
 
 	t.Run("valid proof returned", func(t *testing.T) {
-		proof := &backend.Proof{
-			BlockNumber: 1,
-			Tx:          &txsystem.Transaction{UnitId: unitID},
-			Proof:       &block.BlockProof{TransactionsHash: txHash},
+		proof := &wallet.Proof{
+			TxRecord: &types.TransactionRecord{TransactionOrder: &types.TransactionOrder{Payload: &types.Payload{UnitID: unitID}}},
+			TxProof:  &types.TxProof{ /*TransactionsHash: txHash*/ },
 		}
 
 		proofFromClient, err := createClient(t, proof).GetTxProof(context.Background(), unitID, txHash)
@@ -621,7 +617,7 @@ func Test_PostTransactions(t *testing.T) {
 	ownerID := test.RandomBytes(33)
 
 	t.Run("valid request is built", func(t *testing.T) {
-		var receivedData txsystem.Transactions
+		var receivedData wallet.Transactions
 
 		cli := &TokenBackend{
 			addr: url.URL{Scheme: "http", Host: "localhost"},
@@ -631,7 +627,7 @@ func Test_PostTransactions(t *testing.T) {
 					if r.URL.String() != `http://localhost/api/v1/transactions/`+pubKeyHex {
 						t.Errorf("unexpected request URL: %s", r.URL.String())
 					}
-					if ua := r.Header.Get("User-Agent"); ua != clientUserAgent {
+					if ua := r.Header.Get(userAgentHeader); ua != clientUserAgent {
 						t.Errorf("expected User-Agent header %q, got %q", clientUserAgent, ua)
 					}
 
@@ -640,7 +636,8 @@ func Test_PostTransactions(t *testing.T) {
 					if err != nil {
 						return nil, fmt.Errorf("failed to read request body: %w", err)
 					}
-					if err := protojson.Unmarshal(buf, &receivedData); err != nil {
+
+					if err := cbor.Unmarshal(buf, &receivedData); err != nil {
 						return nil, fmt.Errorf("failed to decode request data: %w", err)
 					}
 
@@ -651,7 +648,7 @@ func Test_PostTransactions(t *testing.T) {
 			}},
 		}
 
-		data := &txsystem.Transactions{Transactions: []*txsystem.Transaction{randomTx(t, &tokens.CreateNonFungibleTokenTypeAttributes{Symbol: "test"})}}
+		data := &wallet.Transactions{Transactions: []*types.TransactionOrder{randomTx(t, &tokens.CreateNonFungibleTokenTypeAttributes{Symbol: "test"})}}
 		err := cli.PostTransactions(context.Background(), ownerID, data)
 		require.NoError(t, err)
 		require.Equal(t, data, &receivedData)
@@ -672,7 +669,7 @@ func Test_PostTransactions(t *testing.T) {
 			}},
 		}
 
-		err := cli.PostTransactions(context.Background(), ownerID, &txsystem.Transactions{})
+		err := cli.PostTransactions(context.Background(), ownerID, &wallet.Transactions{})
 		require.EqualError(t, err, `failed to send transactions: backend responded 400 Bad Request: something is wrong: invalid request`)
 		require.ErrorIs(t, err, ErrInvalidRequest)
 	})
@@ -693,7 +690,7 @@ func Test_PostTransactions(t *testing.T) {
 			}},
 		}
 
-		data := &txsystem.Transactions{}
+		data := &wallet.Transactions{}
 		err := cli.PostTransactions(context.Background(), ownerID, data)
 		require.EqualError(t, err, "failed to process some of the transactions:\n100001: invalid id")
 	})
@@ -710,7 +707,7 @@ func Test_PostTransactions(t *testing.T) {
 			}},
 		}
 
-		data := &txsystem.Transactions{}
+		data := &wallet.Transactions{}
 		err := cli.PostTransactions(context.Background(), ownerID, data)
 		require.NoError(t, err)
 	})
@@ -782,17 +779,18 @@ func Test_extractOffsetMarker(t *testing.T) {
 	})
 }
 
-func randomTx(t *testing.T, attr proto.Message) *txsystem.Transaction {
+func randomTx(t *testing.T, attr interface{}) *types.TransactionOrder {
 	t.Helper()
-	tx := &txsystem.Transaction{
-		SystemId:              tokens.DefaultTokenTxSystemIdentifier,
-		TransactionAttributes: new(anypb.Any),
-		UnitId:                test.RandomBytes(32),
-		OwnerProof:            test.RandomBytes(32),
-		ClientMetadata:        &txsystem.ClientMetadata{Timeout: 10},
-	}
-	if err := tx.TransactionAttributes.MarshalFrom(attr); err != nil {
-		t.Errorf("failed to marshal tx attributes: %v", err)
+	bytes, err := cbor.Marshal(attr)
+	require.NoError(t, err, "failed to marshal tx attributes: %v", err)
+	tx := &types.TransactionOrder{
+		Payload: &types.Payload{
+			SystemID:       tokens.DefaultTokenTxSystemIdentifier,
+			Attributes:     bytes,
+			UnitID:         test.RandomBytes(32),
+			ClientMetadata: &types.ClientMetadata{Timeout: 10},
+		},
+		OwnerProof: test.RandomBytes(32),
 	}
 	return tx
 }

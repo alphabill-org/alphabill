@@ -4,23 +4,22 @@ import (
 	gocrypto "crypto"
 	"testing"
 
-	"github.com/alphabill-org/alphabill/internal/util"
-
-	"github.com/alphabill-org/alphabill/internal/certificates"
 	"github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/internal/rootchain/unicitytree"
+	"github.com/alphabill-org/alphabill/internal/types"
+	"github.com/alphabill-org/alphabill/internal/util"
 )
 
 func CreateUnicityCertificate(
 	t *testing.T,
 	signer crypto.Signer,
-	ir *certificates.InputRecord,
+	ir *types.InputRecord,
 	systemDescription *genesis.SystemDescriptionRecord,
 	roundNumber uint64,
 	previousRoundRootHash []byte,
 
-) *certificates.UnicityCertificate {
+) *types.UnicityCertificate {
 	t.Helper()
 	data := []*unicitytree.Data{{
 		SystemIdentifier:            systemDescription.SystemIdentifier,
@@ -41,9 +40,9 @@ func CreateUnicityCertificate(
 	if err != nil {
 		t.Error(err)
 	}
-	return &certificates.UnicityCertificate{
+	return &types.UnicityCertificate{
 		InputRecord: ir,
-		UnicityTreeCertificate: &certificates.UnicityTreeCertificate{
+		UnicityTreeCertificate: &types.UnicityTreeCertificate{
 			SystemIdentifier:      cert.SystemIdentifier,
 			SiblingHashes:         cert.SiblingHashes,
 			SystemDescriptionHash: systemDescription.Hash(gocrypto.SHA256),
@@ -52,19 +51,12 @@ func CreateUnicityCertificate(
 	}
 }
 
-func createUnicitySeal(rootHash []byte, roundNumber uint64, previousRoundRootHash []byte) *certificates.UnicitySeal {
-	roundMeta := &certificates.RootRoundInfo{
-		RoundNumber:       roundNumber,
-		Epoch:             0,
-		Timestamp:         util.MakeTimestamp(),
-		ParentRoundNumber: roundNumber - 1,
-		CurrentRootHash:   rootHash,
-	}
-	return &certificates.UnicitySeal{
-		RootRoundInfo: roundMeta,
-		CommitInfo: &certificates.CommitInfo{
-			RootRoundInfoHash: roundMeta.Hash(gocrypto.SHA256),
-			RootHash:          rootHash,
-		},
+func createUnicitySeal(rootHash []byte, roundNumber uint64, previousRoundRootHash []byte) *types.UnicitySeal {
+	return &types.UnicitySeal{
+		RootInternalInfo:     make([]byte, 32),
+		RootChainRoundNumber: roundNumber,
+		Hash:                 rootHash,
+		Timestamp:            util.MakeTimestamp(),
+		Epoch:                0,
 	}
 }

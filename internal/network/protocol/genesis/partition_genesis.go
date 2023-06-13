@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/alphabill-org/alphabill/internal/crypto"
+	"github.com/alphabill-org/alphabill/internal/types"
 )
 
 var (
@@ -14,6 +15,15 @@ var (
 	ErrMissingRootValidators            = errors.New("missing root nodes")
 	ErrPartitionUnicityCertificateIsNil = errors.New("partition unicity certificate is nil")
 )
+
+type PartitionGenesis struct {
+	_                       struct{}                  `cbor:",toarray"`
+	SystemDescriptionRecord *SystemDescriptionRecord  `json:"system_description_record,omitempty"`
+	Certificate             *types.UnicityCertificate `json:"certificate,omitempty"`
+	RootValidators          []*PublicKeyInfo          `json:"root_validators,omitempty"`
+	Keys                    []*PublicKeyInfo          `json:"keys,omitempty"`
+	Params                  []byte                    `json:"params,omitempty"`
+}
 
 func (x *PartitionGenesis) FindRootPubKeyInfoById(id string) *PublicKeyInfo {
 	// linear search for id

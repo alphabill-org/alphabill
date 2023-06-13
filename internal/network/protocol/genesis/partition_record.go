@@ -5,13 +5,26 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/alphabill-org/alphabill/internal/certificates"
+	"github.com/alphabill-org/alphabill/internal/network/protocol"
 )
 
 var (
 	errPartitionRecordIsNil = errors.New("partition record is nil")
 	errValidatorsMissing    = errors.New("validators are missing")
 )
+
+type PartitionRecord struct {
+	_                       struct{}                 `cbor:",toarray"`
+	SystemDescriptionRecord *SystemDescriptionRecord `json:"system_description_record,omitempty"`
+	Validators              []*PartitionNode         `json:"validators,omitempty"`
+}
+
+func (x *PartitionRecord) GetSystemDescriptionRecord() *SystemDescriptionRecord {
+	if x == nil {
+		return nil
+	}
+	return x.SystemDescriptionRecord
+}
 
 func (x *PartitionRecord) IsValid() error {
 	if x == nil {
@@ -24,7 +37,7 @@ func (x *PartitionRecord) IsValid() error {
 		return errValidatorsMissing
 	}
 	id := x.GetSystemIdentifier()
-	var ir *certificates.InputRecord = nil
+	var irBytes []byte
 	for _, node := range x.Validators {
 		if err := node.IsValid(); err != nil {
 			return fmt.Errorf("validators list error, %w", err)
@@ -34,12 +47,12 @@ func (x *PartitionRecord) IsValid() error {
 		}
 		// Input record of different validator nodes must match
 		// remember first
-		if ir == nil {
-			ir = node.BlockCertificationRequest.InputRecord
+		if irBytes == nil {
+			irBytes = node.BlockCertificationRequest.InputRecord.Bytes()
 			continue
 		}
 		// more than one node, compare input record to fist node record
-		if !bytes.Equal(ir.Bytes(), node.BlockCertificationRequest.InputRecord.Bytes()) {
+		if !bytes.Equal(irBytes, node.BlockCertificationRequest.InputRecord.Bytes()) {
 			return fmt.Errorf("system id %X node %v input record is different", id, node.BlockCertificationRequest.NodeIdentifier)
 		}
 	}
@@ -53,7 +66,7 @@ func (x *PartitionRecord) GetSystemIdentifier() []byte {
 	return x.SystemDescriptionRecord.SystemIdentifier
 }
 
-func (x *PartitionRecord) GetSystemIdentifierString() string {
+func (x *PartitionRecord) GetSystemIdentifierString() protocol.SystemIdentifier {
 	return x.SystemDescriptionRecord.GetSystemIdentifierString()
 }
 

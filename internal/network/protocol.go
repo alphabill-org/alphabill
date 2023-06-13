@@ -2,8 +2,6 @@ package network
 
 import (
 	"time"
-
-	"google.golang.org/protobuf/proto"
 )
 
 const (
@@ -33,19 +31,19 @@ type (
 		protocolID string
 	}
 
-	// SendProtocol is used to send protobuf messages to other peers in the network.
+	// SendProtocol is used to send cbor messages to other peers in the network.
 	SendProtocol struct {
 		*protocol
 		timeout time.Duration
 	}
 
-	// ReceiveProtocol is used to receive protobuf messages from other peers in the network.
-	ReceiveProtocol[T proto.Message] struct {
+	// ReceiveProtocol is used to receive cbor messages from other peers in the network.
+	ReceiveProtocol[T any] struct {
 		*protocol
 		outCh    chan<- ReceivedMessage
 		typeFunc TypeFunc[T]
 	}
 
-	// TypeFunc creates a new instance of protobuf message.
-	TypeFunc[T proto.Message] func() T
+	// TypeFunc creates a new instance of cbor message.
+	TypeFunc[T any] func() T
 )

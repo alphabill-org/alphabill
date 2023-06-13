@@ -17,7 +17,7 @@ var (
 	unitsBucket        = []byte("unitsBucket")        // unitID => unit_bytes
 	predicatesBucket   = []byte("predicatesBucket")   // predicate => bucket[unitID]nil
 	metaBucket         = []byte("metaBucket")         // block_number_key => block_number_val
-	expiredBillsBucket = []byte("expiredBillsBucket") // block_number => list of expired bill ids
+	expiredBillsBucket = []byte("expiredBillsBucket") // block_number => bucket[unitID]nil
 	feeUnitsBucket     = []byte("feeUnitsBucket")     // unitID => unit_bytes (for free credit units)
 	sdrBucket          = []byte("sdrBucket")          // []genesis.SystemDescriptionRecord
 )
@@ -38,10 +38,6 @@ type (
 	BoltBillStoreTx struct {
 		db *BoltBillStore
 		tx *bolt.Tx
-	}
-
-	expiredBill struct {
-		UnitID []byte `json:"unitId"`
 	}
 )
 
@@ -171,30 +167,31 @@ func (s *BoltBillStoreTx) RemoveBill(unitID []byte) error {
 
 func (s *BoltBillStoreTx) SetBillExpirationTime(blockNumber uint64, unitID []byte) error {
 	return s.withTx(s.tx, func(tx *bolt.Tx) error {
-		expiredBills, err := s.getExpiredBills(tx, blockNumber)
-		if err != nil {
-			return err
-		}
-		expiredBills = append(expiredBills, &expiredBill{UnitID: unitID})
-		return s.setExpiredBills(tx, blockNumber, expiredBills)
+		return s.addExpiredBill(tx, blockNumber, unitID)
 	}, true)
 }
 
-func (s *BoltBillStoreTx) DeleteExpiredBills(blockNumber uint64) error {
+func (s *BoltBillStoreTx) DeleteExpiredBills(maxBlockNumber uint64) error {
 	return s.withTx(s.tx, func(tx *bolt.Tx) error {
-		expiredBills, err := s.getExpiredBills(tx, blockNumber)
+		expiredBills, err := s.getExpiredBills(tx, maxBlockNumber)
 		if err != nil {
 			return err
 		}
 		// delete bills if not already deleted/swapped
-		for _, bill := range expiredBills {
-			err := s.removeUnit(tx, bill.UnitID)
-			if err != nil {
+		for unitIDStr, blockNumber := range expiredBills {
+			// delete unit from main bucket
+			unitID := []byte(unitIDStr)
+			if err := s.removeUnit(tx, unitID); err != nil {
 				return err
 			}
+			// delete expired bill metadata
+			if err := tx.Bucket(expiredBillsBucket).DeleteBucket(blockNumber); err != nil {
+				if !errors.Is(err, bolt.ErrBucketNotFound) {
+					return err
+				}
+			}
 		}
-		// delete metadata
-		return tx.Bucket(expiredBillsBucket).Delete(util.Uint64ToBytes(blockNumber))
+		return nil
 	}, true)
 }
 
@@ -316,25 +313,30 @@ func (s *BoltBillStoreTx) getUnit(tx *bolt.Tx, unitID []byte) (*Bill, error) {
 	return unit, nil
 }
 
-func (s *BoltBillStoreTx) getExpiredBills(tx *bolt.Tx, blockNumber uint64) ([]*expiredBill, error) {
-	var expiredBills []*expiredBill
-	b := tx.Bucket(expiredBillsBucket).Get(util.Uint64ToBytes(blockNumber))
-	if b == nil {
-		return nil, nil
+// getExpiredBills returns map[bill_id_string]block_number_bytes of all bills that expiry block number is less than or equal to the given block number
+func (s *BoltBillStoreTx) getExpiredBills(tx *bolt.Tx, maxBlockNumber uint64) (map[string][]byte, error) {
+	res := make(map[string][]byte)
+	expiredBillBucket := tx.Bucket(expiredBillsBucket)
+	c := expiredBillBucket.Cursor()
+	for blockNumber, _ := c.First(); blockNumber != nil && util.BytesToUint64(blockNumber) <= maxBlockNumber; blockNumber, _ = c.Next() {
+		expiredUnitIDsBucket := expiredBillBucket.Bucket(blockNumber)
+		err := expiredUnitIDsBucket.ForEach(func(unitID, _ []byte) error {
+			res[string(unitID)] = blockNumber
+			return nil
+		})
+		if err != nil {
+			return nil, err
+		}
 	}
-	err := json.Unmarshal(b, &expiredBills)
-	if err != nil {
-		return expiredBills, err
-	}
-	return expiredBills, nil
+	return res, nil
 }
 
-func (s *BoltBillStoreTx) setExpiredBills(tx *bolt.Tx, blockNumber uint64, bills []*expiredBill) error {
-	b, err := json.Marshal(bills)
+func (s *BoltBillStoreTx) addExpiredBill(tx *bolt.Tx, blockNumber uint64, unitID []byte) error {
+	b, err := tx.Bucket(expiredBillsBucket).CreateBucketIfNotExists(util.Uint64ToBytes(blockNumber))
 	if err != nil {
 		return err
 	}
-	return tx.Bucket(expiredBillsBucket).Put(util.Uint64ToBytes(blockNumber), b)
+	return b.Put(unitID, nil)
 }
 
 func (s *BoltBillStoreTx) withTx(dbTx *bolt.Tx, myFunc func(tx *bolt.Tx) error, writeTx bool) error {

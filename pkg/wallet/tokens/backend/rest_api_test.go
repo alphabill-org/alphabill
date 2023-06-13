@@ -16,17 +16,16 @@ import (
 	"sync/atomic"
 	"testing"
 
+	"github.com/alphabill-org/alphabill/internal/types"
+	"github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/fxamacker/cbor/v2"
 	"github.com/gorilla/mux"
 	"github.com/stretchr/testify/require"
-	"google.golang.org/protobuf/encoding/protojson"
 
-	"github.com/alphabill-org/alphabill/internal/block"
-	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/hash"
 	"github.com/alphabill-org/alphabill/internal/script"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
-	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/internal/txsystem/tokens"
 )
 
@@ -74,7 +73,8 @@ func Test_restAPI_postTransaction(t *testing.T) {
 
 	// valid request body with single create-nft-type tx
 	createNTFTypeTx := randomTx(t, &tokens.CreateNonFungibleTokenTypeAttributes{Symbol: "test"})
-	createNTFTypeMsg, err := protojson.MarshalOptions{EmitUnpopulated: true}.Marshal(&txsystem.Transactions{Transactions: []*txsystem.Transaction{createNTFTypeTx}})
+	createNTFTypeTx.Payload.Type = tokens.PayloadTypeCreateNFTType
+	createNTFTypeMsg, err := cbor.Marshal(&wallet.Transactions{Transactions: []*types.TransactionOrder{createNTFTypeTx}})
 	require.NoError(t, err)
 	require.NotEmpty(t, createNTFTypeMsg)
 
@@ -100,61 +100,26 @@ func Test_restAPI_postTransaction(t *testing.T) {
 		if rsp.StatusCode != http.StatusBadRequest {
 			t.Errorf("unexpected status %d", rsp.StatusCode)
 		}
-		expectErrorResponse(t, rsp, http.StatusBadRequest, "request body contained no transactions to process")
-	})
-
-	t.Run("failure to convert tx", func(t *testing.T) {
-		expErr := fmt.Errorf("can't convert tx")
-		var saveTypeCalls, sendTxCalls int32
-		api := &restAPI{
-			convertTx: func(tx *txsystem.Transaction) (txsystem.GenericTransaction, error) { return nil, expErr },
-			ab: &mockABClient{
-				sendTransaction: func(ctx context.Context, t *txsystem.Transaction) error {
-					atomic.AddInt32(&sendTxCalls, 1)
-					return fmt.Errorf("unexpected call")
-				},
-			},
-			db: &mockStorage{
-				saveTTypeCreator: func(id TokenTypeID, kind Kind, creator PubKey) error {
-					atomic.AddInt32(&saveTypeCalls, 1)
-					return fmt.Errorf("unexpected call")
-				},
-			},
-		}
-		rsp := makeRequest(api, ownerIDstr, createNTFTypeMsg)
-		if rsp.StatusCode != http.StatusInternalServerError {
-			b, err := httputil.DumpResponse(rsp, true)
-			t.Errorf("unexpected status: %s\n%s\n%v", rsp.Status, b, err)
-		}
-		if saveTypeCalls != 0 {
-			t.Errorf("expected no saveTTypeCreator calls but it was called %d times", saveTypeCalls)
-		}
-		if sendTxCalls != 0 {
-			t.Errorf("expected no sendTransaction calls but it was called %d times", sendTxCalls)
-		}
+		expectErrorResponse(t, rsp, http.StatusBadRequest, "failed to decode request body: unexpected EOF")
 	})
 
 	t.Run("one valid type-creation transaction is sent", func(t *testing.T) {
-		txsys, err := tokens.New(
-			tokens.WithTrustBase(map[string]abcrypto.Verifier{"test": nil}),
-		)
 		if err != nil {
 			t.Fatalf("failed to create token tx system: %v", err)
 		}
 
 		var saveTypeCalls, sendTxCalls int32
 		api := &restAPI{
-			convertTx: txsys.ConvertTx,
 			ab: &mockABClient{
-				sendTransaction: func(ctx context.Context, t *txsystem.Transaction) error {
+				sendTransaction: func(ctx context.Context, t *types.TransactionOrder) error {
 					atomic.AddInt32(&sendTxCalls, 1)
 					return nil
 				},
 			},
 			db: &mockStorage{
-				saveTTypeCreator: func(id TokenTypeID, kind Kind, creator PubKey) error {
+				saveTTypeCreator: func(id TokenTypeID, kind Kind, creator wallet.PubKey) error {
 					atomic.AddInt32(&saveTypeCalls, 1)
-					if !bytes.Equal(id, createNTFTypeTx.UnitId) {
+					if !bytes.Equal(id, createNTFTypeTx.UnitID()) {
 						t.Errorf("unexpected unit ID %x", id)
 					}
 					return nil
@@ -171,30 +136,26 @@ func Test_restAPI_postTransaction(t *testing.T) {
 	})
 
 	t.Run("valid non-type-creation request", func(t *testing.T) {
-		txs := &txsystem.Transactions{Transactions: []*txsystem.Transaction{
+		txs := &wallet.Transactions{Transactions: []*types.TransactionOrder{
 			randomTx(t, &tokens.MintFungibleTokenAttributes{Value: 42}),
 		}}
-		message, err := protojson.MarshalOptions{EmitUnpopulated: true}.Marshal(txs)
+		message, err := cbor.Marshal(txs)
 		require.NoError(t, err)
 
-		txsys, err := tokens.New(
-			tokens.WithTrustBase(map[string]abcrypto.Verifier{"test": nil}),
-		)
 		if err != nil {
 			t.Fatalf("failed to create token tx system: %v", err)
 		}
 
 		var saveTypeCalls, sendTxCalls int32
 		api := &restAPI{
-			convertTx: txsys.ConvertTx,
 			ab: &mockABClient{
-				sendTransaction: func(ctx context.Context, t *txsystem.Transaction) error {
+				sendTransaction: func(ctx context.Context, t *types.TransactionOrder) error {
 					atomic.AddInt32(&sendTxCalls, 1)
 					return nil
 				},
 			},
 			db: &mockStorage{
-				saveTTypeCreator: func(id TokenTypeID, kind Kind, creator PubKey) error {
+				saveTTypeCreator: func(id TokenTypeID, kind Kind, creator wallet.PubKey) error {
 					atomic.AddInt32(&saveTypeCalls, 1)
 					return nil
 				},
@@ -292,7 +253,7 @@ func Test_restAPI_listTokens(t *testing.T) {
 		}
 
 		api := &restAPI{db: &mockStorage{
-			queryTokens: func(kind Kind, owner Predicate, startKey TokenID, count int) ([]*TokenUnit, TokenID, error) {
+			queryTokens: func(kind Kind, owner wallet.Predicate, startKey TokenID, count int) ([]*TokenUnit, TokenID, error) {
 				t.Error("unexpected QueryTokens call")
 				return nil, nil, fmt.Errorf("unexpected QueryTokens(%s, %x, %x, %d) call", kind, owner, startKey, count)
 			},
@@ -329,7 +290,7 @@ func Test_restAPI_listTokens(t *testing.T) {
 			{ID: []byte("3333"), Kind: Fungible},
 		}
 		ds := &mockStorage{
-			queryTokens: func(kind Kind, owner Predicate, startKey TokenID, count int) ([]*TokenUnit, TokenID, error) {
+			queryTokens: func(kind Kind, owner wallet.Predicate, startKey TokenID, count int) ([]*TokenUnit, TokenID, error) {
 				require.EqualValues(t, script.PredicatePayToPublicKeyHashDefault(hash.Sum256(ownerID)), owner, "unexpected owner key in the query")
 				return data, data[len(data)-1].ID, nil
 			},
@@ -359,7 +320,7 @@ func Test_restAPI_listTokens(t *testing.T) {
 
 	t.Run("no data", func(t *testing.T) {
 		ds := &mockStorage{
-			queryTokens: func(kind Kind, owner Predicate, startKey TokenID, count int) ([]*TokenUnit, TokenID, error) {
+			queryTokens: func(kind Kind, owner wallet.Predicate, startKey TokenID, count int) ([]*TokenUnit, TokenID, error) {
 				return nil, nil, nil
 			},
 		}
@@ -414,7 +375,7 @@ func Test_restAPI_listTypes(t *testing.T) {
 		}
 
 		api := &restAPI{db: &mockStorage{
-			queryTTypes: func(kind Kind, creator PubKey, startKey TokenTypeID, count int) ([]*TokenUnitType, TokenTypeID, error) {
+			queryTTypes: func(kind Kind, creator wallet.PubKey, startKey TokenTypeID, count int) ([]*TokenUnitType, TokenTypeID, error) {
 				t.Error("unexpected QueryTokenType call")
 				return nil, nil, fmt.Errorf("unexpected QueryTokenType call")
 			},
@@ -440,7 +401,7 @@ func Test_restAPI_listTypes(t *testing.T) {
 		}
 		for _, tc := range cases {
 			ds := &mockStorage{
-				queryTTypes: func(kind Kind, creator PubKey, startKey TokenTypeID, count int) ([]*TokenUnitType, TokenTypeID, error) {
+				queryTTypes: func(kind Kind, creator wallet.PubKey, startKey TokenTypeID, count int) ([]*TokenUnitType, TokenTypeID, error) {
 					require.Equal(t, tc.value, count, "unexpected count sent to the query func with param %q", tc.qpar)
 					return nil, nil, nil
 				},
@@ -459,7 +420,7 @@ func Test_restAPI_listTypes(t *testing.T) {
 		require.EqualValues(t, len(creatorID), n)
 
 		ds := &mockStorage{
-			queryTTypes: func(kind Kind, creator PubKey, startKey TokenTypeID, count int) ([]*TokenUnitType, TokenTypeID, error) {
+			queryTTypes: func(kind Kind, creator wallet.PubKey, startKey TokenTypeID, count int) ([]*TokenUnitType, TokenTypeID, error) {
 				require.EqualValues(t, creatorID, creator)
 				require.Empty(t, startKey)
 				require.True(t, count > 0, "expected count to be > 0, got %d", count)
@@ -479,7 +440,7 @@ func Test_restAPI_listTypes(t *testing.T) {
 		require.EqualValues(t, len(currentID), n)
 
 		ds := &mockStorage{
-			queryTTypes: func(kind Kind, creator PubKey, startKey TokenTypeID, count int) ([]*TokenUnitType, TokenTypeID, error) {
+			queryTTypes: func(kind Kind, creator wallet.PubKey, startKey TokenTypeID, count int) ([]*TokenUnitType, TokenTypeID, error) {
 				require.EqualValues(t, currentID, startKey)
 				require.Empty(t, creator)
 				require.True(t, count > 0, "expected count to be > 0, got %d", count)
@@ -495,7 +456,7 @@ func Test_restAPI_listTypes(t *testing.T) {
 	t.Run("kind parameter is sent to the query", func(t *testing.T) {
 		for _, tc := range []Kind{Any, Fungible, NonFungible} {
 			ds := &mockStorage{
-				queryTTypes: func(kind Kind, creator PubKey, startKey TokenTypeID, count int) ([]*TokenUnitType, TokenTypeID, error) {
+				queryTTypes: func(kind Kind, creator wallet.PubKey, startKey TokenTypeID, count int) ([]*TokenUnitType, TokenTypeID, error) {
 					require.Equal(t, kind, tc, "unexpected token kind sent to the query func")
 					return nil, nil, nil
 				},
@@ -509,7 +470,7 @@ func Test_restAPI_listTypes(t *testing.T) {
 
 	t.Run("invalid kind parameter is sent", func(t *testing.T) {
 		ds := &mockStorage{
-			queryTTypes: func(kind Kind, creator PubKey, startKey TokenTypeID, count int) ([]*TokenUnitType, TokenTypeID, error) {
+			queryTTypes: func(kind Kind, creator wallet.PubKey, startKey TokenTypeID, count int) ([]*TokenUnitType, TokenTypeID, error) {
 				t.Error("unexpected queryTTypes call")
 				return nil, nil, nil
 			},
@@ -528,7 +489,7 @@ func Test_restAPI_listTypes(t *testing.T) {
 	t.Run("query returns error", func(t *testing.T) {
 		expErr := fmt.Errorf("failed to query database")
 		ds := &mockStorage{
-			queryTTypes: func(kind Kind, creator PubKey, startKey TokenTypeID, count int) ([]*TokenUnitType, TokenTypeID, error) {
+			queryTTypes: func(kind Kind, creator wallet.PubKey, startKey TokenTypeID, count int) ([]*TokenUnitType, TokenTypeID, error) {
 				return nil, nil, expErr
 			},
 		}
@@ -539,7 +500,7 @@ func Test_restAPI_listTypes(t *testing.T) {
 
 	t.Run("no data matches the query", func(t *testing.T) {
 		ds := &mockStorage{
-			queryTTypes: func(kind Kind, creator PubKey, startKey TokenTypeID, count int) ([]*TokenUnitType, TokenTypeID, error) {
+			queryTTypes: func(kind Kind, creator wallet.PubKey, startKey TokenTypeID, count int) ([]*TokenUnitType, TokenTypeID, error) {
 				return nil, nil, nil
 			},
 		}
@@ -561,7 +522,7 @@ func Test_restAPI_listTypes(t *testing.T) {
 			{ID: []byte("3333"), Kind: Fungible},
 		}
 		ds := &mockStorage{
-			queryTTypes: func(kind Kind, creator PubKey, startKey TokenTypeID, count int) ([]*TokenUnitType, TokenTypeID, error) {
+			queryTTypes: func(kind Kind, creator wallet.PubKey, startKey TokenTypeID, count int) ([]*TokenUnitType, TokenTypeID, error) {
 				return data, data[len(data)-1].ID, nil
 			},
 		}
@@ -751,7 +712,7 @@ func Test_restAPI_txProof(t *testing.T) {
 	t.Run("error fetching proof", func(t *testing.T) {
 		api := &restAPI{
 			db: &mockStorage{
-				getTxProof: func(unitID UnitID, txHash TxHash) (*Proof, error) {
+				getTxProof: func(unitID wallet.UnitID, txHash wallet.TxHash) (*wallet.Proof, error) {
 					return nil, errors.New("error fetching proof")
 				},
 			},
@@ -763,7 +724,7 @@ func Test_restAPI_txProof(t *testing.T) {
 	t.Run("no proof with given inputs", func(t *testing.T) {
 		api := &restAPI{
 			db: &mockStorage{
-				getTxProof: func(unitID UnitID, txHash TxHash) (*Proof, error) {
+				getTxProof: func(unitID wallet.UnitID, txHash wallet.TxHash) (*wallet.Proof, error) {
 					return nil, nil
 				},
 			},
@@ -776,20 +737,20 @@ func Test_restAPI_txProof(t *testing.T) {
 		unitID := []byte{0x01}
 		txHash := []byte{0xFF}
 
-		proof := &Proof{1, &txsystem.Transaction{UnitId: unitID}, &block.BlockProof{TransactionsHash: txHash}}
+		proof := &wallet.Proof{&types.TransactionRecord{TransactionOrder: &types.TransactionOrder{Payload: &types.Payload{UnitID: unitID}}}, &types.TxProof{}}
 		api := &restAPI{
 			db: &mockStorage{
-				getTxProof: func(unitID UnitID, txHash TxHash) (*Proof, error) {
+				getTxProof: func(unitID wallet.UnitID, txHash wallet.TxHash) (*wallet.Proof, error) {
 					return proof, nil
 				},
 			},
 		}
-		rsp := makeRequest(api, encodeHex[UnitID](unitID), encodeHex[TxHash](txHash))
+		rsp := makeRequest(api, encodeHex[wallet.UnitID](unitID), encodeHex[wallet.TxHash](txHash))
 		require.Equal(t, http.StatusOK, rsp.StatusCode, "unexpected status")
 
 		defer rsp.Body.Close()
 
-		proofFromApi := &Proof{}
+		proofFromApi := &wallet.Proof{}
 		if err := json.NewDecoder(rsp.Body).Decode(proofFromApi); err != nil {
 			t.Fatalf("failed to decode response body: %v", err)
 		}
@@ -817,7 +778,7 @@ func Test_restAPI_getFeeCreditBill(t *testing.T) {
 	t.Run("500 error fetching fee credit bill", func(t *testing.T) {
 		api := &restAPI{
 			db: &mockStorage{
-				getFeeCreditBill: func(unitID UnitID) (*FeeCreditBill, error) {
+				getFeeCreditBill: func(unitID wallet.UnitID) (*FeeCreditBill, error) {
 					return nil, errors.New("error fetching fee credit bill")
 				},
 			},
@@ -826,16 +787,44 @@ func Test_restAPI_getFeeCreditBill(t *testing.T) {
 		expectErrorResponse(t, rsp, http.StatusInternalServerError, "failed to load fee credit bill for ID 0x01: error fetching fee credit bill")
 	})
 
-	t.Run("404 fee credit bill not found", func(t *testing.T) {
+	t.Run("500 error fetching fee credit bill proof", func(t *testing.T) {
 		api := &restAPI{
 			db: &mockStorage{
-				getFeeCreditBill: func(unitID UnitID) (*FeeCreditBill, error) {
+				getFeeCreditBill: func(unitID wallet.UnitID) (*FeeCreditBill, error) {
+					return &FeeCreditBill{
+						Id:            []byte{1},
+						Value:         2,
+						TxHash:        []byte{3},
+						FCBlockNumber: 4,
+					}, nil
+				},
+				getTxProof: func(unitID wallet.UnitID, txHash wallet.TxHash) (*wallet.Proof, error) {
+					return nil, errors.New("some error")
+				},
+			},
+		}
+		rsp := makeRequest(api, "0x01")
+		expectErrorResponse(t, rsp, http.StatusInternalServerError, "failed to load fee credit bill proof for ID 0x01 and TxHash 0x03: some error")
+	})
+
+	t.Run("404 fee credit bill proof not found", func(t *testing.T) {
+		api := &restAPI{
+			db: &mockStorage{
+				getFeeCreditBill: func(unitID wallet.UnitID) (*FeeCreditBill, error) {
+					return &FeeCreditBill{
+						Id:            []byte{1},
+						Value:         2,
+						TxHash:        []byte{3},
+						FCBlockNumber: 4,
+					}, nil
+				},
+				getTxProof: func(unitID wallet.UnitID, txHash wallet.TxHash) (*wallet.Proof, error) {
 					return nil, nil
 				},
 			},
 		}
 		rsp := makeRequest(api, "0x01")
-		expectErrorResponse(t, rsp, http.StatusNotFound, "bill does not exist")
+		expectErrorResponse(t, rsp, http.StatusNotFound, "fee credit bill proof does not exist")
 	})
 
 	t.Run("ok", func(t *testing.T) {
@@ -845,22 +834,25 @@ func Test_restAPI_getFeeCreditBill(t *testing.T) {
 			TxHash:        []byte{3},
 			FCBlockNumber: 4,
 		}
+		fcbProof := &wallet.Proof{}
 		api := &restAPI{
 			db: &mockStorage{
-				getFeeCreditBill: func(unitID UnitID) (*FeeCreditBill, error) {
+				getFeeCreditBill: func(unitID wallet.UnitID) (*FeeCreditBill, error) {
 					return fcb, nil
+				},
+				getTxProof: func(unitID wallet.UnitID, txHash wallet.TxHash) (*wallet.Proof, error) {
+					return fcbProof, nil
 				},
 			},
 		}
-		rsp := makeRequest(api, encodeHex[UnitID](fcb.Id))
+		rsp := makeRequest(api, encodeHex[wallet.UnitID](fcb.Id))
 		require.Equal(t, http.StatusOK, rsp.StatusCode, "unexpected status")
 		defer rsp.Body.Close()
 
-		fcbFromAPI := &FeeCreditBill{}
+		fcbFromAPI := &wallet.Bill{}
 		if err := json.NewDecoder(rsp.Body).Decode(fcbFromAPI); err != nil {
 			t.Fatalf("failed to decode response body: %v", err)
 		}
-
-		require.Equal(t, fcb, fcbFromAPI)
+		require.Equal(t, fcb.ToGenericBill(fcbProof), fcbFromAPI)
 	})
 }

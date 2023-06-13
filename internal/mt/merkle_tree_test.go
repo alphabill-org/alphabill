@@ -19,7 +19,8 @@ func (t *TestData) Hash(hash crypto.Hash) []byte {
 }
 
 func TestNewMTWithNilData(t *testing.T) {
-	mt, err := New(crypto.SHA256, nil)
+	var data []Data = nil
+	mt, err := New(crypto.SHA256, data)
 	require.Nil(t, mt)
 	require.ErrorIs(t, err, ErrNilData)
 }

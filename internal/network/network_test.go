@@ -7,7 +7,6 @@ import (
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/stretchr/testify/require"
-	"google.golang.org/protobuf/proto"
 )
 
 func TestNewLibP2PNetwork_Ok(t *testing.T) {
@@ -73,7 +72,7 @@ func TestNewRootNodeLibP2PNetwork_SendToSelf(t *testing.T) {
 	require.Eventually(t, func() bool {
 		m := <-net.ReceivedChannel()
 		require.Equal(t, ProtocolRootVote, m.Protocol)
-		require.True(t, proto.Equal(nil, m.Message))
+		require.Nil(t, m.Message)
 		return true
 	}, test.WaitDuration, test.WaitTick)
 }

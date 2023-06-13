@@ -4,14 +4,14 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/alphabill-org/alphabill/internal/certificates"
 	"github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/network"
-	proto "github.com/alphabill-org/alphabill/internal/network/protocol"
+	"github.com/alphabill-org/alphabill/internal/network/protocol"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/certification"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/handshake"
 	"github.com/alphabill-org/alphabill/internal/rootchain/consensus"
 	"github.com/alphabill-org/alphabill/internal/rootchain/partitions"
+	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"golang.org/x/sync/errgroup"
@@ -110,12 +110,13 @@ func (v *Node) loop(ctx context.Context) error {
 	}
 }
 
-func (v *Node) sendResponse(nodeID string, uc *certificates.UnicityCertificate) error {
+func (v *Node) sendResponse(nodeID string, uc *types.UnicityCertificate) error {
 	peerID, err := peer.Decode(nodeID)
 	if err != nil {
 		logger.Warning("%v invalid node identifier: '%s'", nodeID)
 		return err
 	}
+
 	logger.Debug("%v sending unicity certificate to partition %X node '%s', IR Hash: %X, Block Hash: %X",
 		v.peer.String(), uc.UnicityTreeCertificate.SystemIdentifier, nodeID, uc.InputRecord.Hash, uc.InputRecord.BlockHash)
 	return v.net.Send(
@@ -133,13 +134,12 @@ func (v *Node) onHandshake(req *handshake.Handshake) {
 		return
 	}
 	// process
-	sysID := proto.SystemIdentifier(req.SystemIdentifier)
-	latestUnicityCertificate, err := v.consensusManager.GetLatestUnicityCertificate(sysID)
+	latestUnicityCertificate, err := v.consensusManager.GetLatestUnicityCertificate(req.SystemIdentifier)
 	if err != nil {
-		logger.Warning("%v handshake error, partition %X certificate read failed, %v", v.peer.String(), sysID.Bytes(), err)
+		logger.Warning("%v handshake error, partition %X certificate read failed, %v", v.peer.String(), req.SystemIdentifier, err)
 		return
 	}
-	v.subscription.Subscribe(proto.SystemIdentifier(req.SystemIdentifier), req.NodeIdentifier)
+	v.subscription.Subscribe(protocol.SystemIdentifier(req.SystemIdentifier), req.NodeIdentifier)
 	if err = v.sendResponse(req.NodeIdentifier, latestUnicityCertificate); err != nil {
 		logger.Warning("%v handshake error, failed to send response, %v", v.peer.String(), err)
 		return
@@ -153,7 +153,7 @@ func (v *Node) onBlockCertificationRequest(req *certification.BlockCertification
 		logger.Warning("%v invalid block certification request system id is nil, rejected", v.peer.String())
 		return
 	}
-	sysID := proto.SystemIdentifier(req.SystemIdentifier)
+	sysID := protocol.SystemIdentifier(req.SystemIdentifier)
 	_, ver, err := v.partitions.GetInfo(sysID)
 	if err != nil {
 		logger.Warning("%v block certification request from %X node %v rejected: %v",
@@ -165,7 +165,7 @@ func (v *Node) onBlockCertificationRequest(req *certification.BlockCertification
 			v.peer.String(), req.SystemIdentifier, req.NodeIdentifier, err)
 		return
 	}
-	latestUnicityCertificate, err := v.consensusManager.GetLatestUnicityCertificate(sysID)
+	latestUnicityCertificate, err := v.consensusManager.GetLatestUnicityCertificate(req.SystemIdentifier)
 	if err != nil {
 		logger.Warning("%v block certification request from %X node %v rejected, failed to read last certified state %v",
 			v.peer.String(), req.SystemIdentifier, req.NodeIdentifier, err)
@@ -204,7 +204,7 @@ func (v *Node) onBlockCertificationRequest(req *certification.BlockCertification
 			v.peer.String(), sysID.Bytes(), ir.Hash)
 		requests := v.incomingRequests.GetRequests(sysID)
 		v.consensusManager.RequestCertification() <- consensus.IRChangeRequest{
-			SystemIdentifier: sysID,
+			SystemIdentifier: sysID.Bytes(),
 			Reason:           consensus.Quorum,
 			Requests:         requests,
 		}
@@ -216,7 +216,7 @@ func (v *Node) onBlockCertificationRequest(req *certification.BlockCertification
 		// add all requests to prove that no consensus is possible
 		requests := v.incomingRequests.GetRequests(sysID)
 		v.consensusManager.RequestCertification() <- consensus.IRChangeRequest{
-			SystemIdentifier: sysID,
+			SystemIdentifier: sysID.Bytes(),
 			Reason:           consensus.QuorumNotPossible,
 			Requests:         requests,
 		}
@@ -241,8 +241,8 @@ func (v *Node) handleConsensus(ctx context.Context) error {
 	}
 }
 
-func (v *Node) onCertificationResult(certificate *certificates.UnicityCertificate) {
-	sysID := proto.SystemIdentifier(certificate.UnicityTreeCertificate.SystemIdentifier)
+func (v *Node) onCertificationResult(certificate *types.UnicityCertificate) {
+	sysID := protocol.SystemIdentifier(certificate.UnicityTreeCertificate.SystemIdentifier)
 	// remember to clear the incoming buffer to accept new requests
 	// NB! this will try and reset the store also in the case when system id is unknown, but this is fine
 	defer func() {

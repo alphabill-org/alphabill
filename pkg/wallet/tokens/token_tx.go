@@ -4,76 +4,77 @@ import (
 	"context"
 	"crypto"
 	"crypto/rand"
-	"errors"
 	"fmt"
-	"reflect"
 	"sort"
-	"time"
 
-	"github.com/alphabill-org/alphabill/internal/block"
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/hash"
 	"github.com/alphabill-org/alphabill/internal/script"
-	"github.com/alphabill-org/alphabill/internal/txsystem"
 	ttxs "github.com/alphabill-org/alphabill/internal/txsystem/tokens"
+	"github.com/alphabill-org/alphabill/internal/types"
+	"github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/alphabill-org/alphabill/pkg/wallet/account"
 	"github.com/alphabill-org/alphabill/pkg/wallet/log"
 	"github.com/alphabill-org/alphabill/pkg/wallet/money/tx_builder"
 	"github.com/alphabill-org/alphabill/pkg/wallet/tokens/backend"
-	"google.golang.org/protobuf/proto"
-	"google.golang.org/protobuf/types/known/anypb"
+	twb "github.com/alphabill-org/alphabill/pkg/wallet/tokens/backend"
+	"github.com/alphabill-org/alphabill/pkg/wallet/txsubmitter"
+	"github.com/fxamacker/cbor/v2"
 )
 
 type (
-	txSubmission struct {
-		id        backend.UnitID
-		txHash    backend.TxHash
-		tx        *txsystem.Transaction
-		confirmed bool
-		txProof   *block.BlockProof
-	}
+	txPreprocessor     func(tx *types.TransactionOrder) error
+	roundNumberFetcher func(ctx context.Context) (uint64, error)
 
-	txSubmissionBatch struct {
-		sender      backend.PubKey
-		submissions []*txSubmission
-		maxTimeout  uint64
-		backend     TokenBackend
+	cachingRoundNumberFetcher struct {
+		roundNumber uint64
+		delegate    roundNumberFetcher
 	}
-
-	txPreprocessor func(tx *txsystem.Transaction, gtx txsystem.GenericTransaction) error
 )
 
-func (w *Wallet) newType(ctx context.Context, accNr uint64, attrs AttrWithSubTypeCreationInputs, typeId backend.TokenTypeID, subtypePredicateArgs []*PredicateInput) (backend.TokenTypeID, error) {
+func (f *cachingRoundNumberFetcher) getRoundNumber(ctx context.Context) (uint64, error) {
+	if f.roundNumber == 0 {
+		var err error
+		f.roundNumber, err = f.delegate(ctx)
+		if err != nil {
+			return 0, err
+		}
+	}
+	return f.roundNumber, nil
+}
+
+func (w *Wallet) newType(ctx context.Context, accNr uint64, payloadType string, attrs AttrWithSubTypeCreationInputs, typeId backend.TokenTypeID, subtypePredicateArgs []*PredicateInput) (backend.TokenTypeID, error) {
 	if accNr < 1 {
 		return nil, fmt.Errorf("invalid account number: %d", accNr)
-	}
-	err := w.ensureFeeCredit(ctx, accNr-1, 1)
-	if err != nil {
-		return nil, err
 	}
 	acc, err := w.am.GetAccountKey(accNr - 1)
 	if err != nil {
 		return nil, err
 	}
-	sub, err := w.prepareTx(ctx, backend.UnitID(typeId), attrs, acc, func(tx *txsystem.Transaction, gtx txsystem.GenericTransaction) error {
-		signatures, err := preparePredicateSignatures(w.am, subtypePredicateArgs, gtx)
+	err = w.ensureFeeCredit(ctx, acc, 1)
+	if err != nil {
+		return nil, err
+	}
+	sub, err := w.prepareTxSubmission(ctx, payloadType, attrs, wallet.UnitID(typeId), acc, w.GetRoundNumber, func(tx *types.TransactionOrder) error {
+		signatures, err := preparePredicateSignatures(w.am, subtypePredicateArgs, tx, attrs)
 		if err != nil {
 			return err
 		}
 		attrs.SetSubTypeCreationPredicateSignatures(signatures)
-		return anypb.MarshalFrom(tx.TransactionAttributes, attrs, proto.MarshalOptions{})
+		tx.Payload.Attributes, err = cbor.Marshal(attrs)
+		return err
 	})
 	if err != nil {
 		return nil, err
 	}
-	err = sub.toBatch(w.backend, acc.PubKey).sendTx(ctx, w.confirmTx)
+	err = sub.ToBatch(w.backend, acc.PubKey).SendTx(ctx, w.confirmTx)
 	if err != nil {
 		return nil, err
 	}
-	return backend.TokenTypeID(sub.id), nil
+	return backend.TokenTypeID(sub.UnitID), nil
 }
 
-func preparePredicateSignatures(am account.Manager, args []*PredicateInput, gtx txsystem.GenericTransaction) ([][]byte, error) {
+func preparePredicateSignatures(am account.Manager, args []*PredicateInput, tx *types.TransactionOrder, attrs types.SigBytesProvider) ([][]byte, error) {
 	signatures := make([][]byte, 0, len(args))
 	for _, input := range args {
 		if len(input.Argument) > 0 {
@@ -83,7 +84,7 @@ func preparePredicateSignatures(am account.Manager, args []*PredicateInput, gtx 
 			if err != nil {
 				return nil, err
 			}
-			sig, err := signTx(gtx, ac)
+			sig, err := signTx(tx, attrs, ac)
 			if err != nil {
 				return nil, err
 			}
@@ -95,41 +96,38 @@ func preparePredicateSignatures(am account.Manager, args []*PredicateInput, gtx 
 	return signatures, nil
 }
 
-func (w *Wallet) newToken(ctx context.Context, accNr uint64, attrs MintAttr, tokenId backend.TokenID, mintPredicateArgs []*PredicateInput) (backend.TokenID, error) {
-	var keyHash []byte
+func (w *Wallet) newToken(ctx context.Context, accNr uint64, payloadType string, attrs MintAttr, tokenId backend.TokenID, mintPredicateArgs []*PredicateInput) (backend.TokenID, error) {
 	if accNr < 1 {
 		return nil, fmt.Errorf("invalid account number: %d", accNr)
-	}
-	err := w.ensureFeeCredit(ctx, accNr-1, 1)
-	if err != nil {
-		return nil, err
 	}
 	key, err := w.am.GetAccountKey(accNr - 1)
 	if err != nil {
 		return nil, err
 	}
-	keyHash = key.PubKeyHash.Sha256
-	attrs.SetBearer(bearerPredicateFromHash(keyHash))
-
-	sub, err := w.prepareTx(ctx, backend.UnitID(tokenId), attrs, key, func(tx *txsystem.Transaction, gtx txsystem.GenericTransaction) error {
-		signatures, err := preparePredicateSignatures(w.am, mintPredicateArgs, gtx)
+	err = w.ensureFeeCredit(ctx, key, 1)
+	if err != nil {
+		return nil, err
+	}
+	sub, err := w.prepareTxSubmission(ctx, payloadType, attrs, wallet.UnitID(tokenId), key, w.GetRoundNumber, func(tx *types.TransactionOrder) error {
+		signatures, err := preparePredicateSignatures(w.am, mintPredicateArgs, tx, attrs)
 		if err != nil {
 			return err
 		}
 		attrs.SetTokenCreationPredicateSignatures(signatures)
-		return anypb.MarshalFrom(tx.TransactionAttributes, attrs, proto.MarshalOptions{})
+		tx.Payload.Attributes, err = cbor.Marshal(attrs)
+		return err
 	})
 	if err != nil {
 		return nil, err
 	}
-	err = sub.toBatch(w.backend, key.PubKey).sendTx(ctx, w.confirmTx)
+	err = sub.ToBatch(w.backend, key.PubKey).SendTx(ctx, w.confirmTx)
 	if err != nil {
 		return nil, err
 	}
-	return backend.TokenID(sub.id), nil
+	return backend.TokenID(sub.UnitID), nil
 }
 
-func RandomID() (backend.UnitID, error) {
+func RandomID() (wallet.UnitID, error) {
 	id := make([]byte, 32)
 	_, err := rand.Read(id)
 	if err != nil {
@@ -138,7 +136,7 @@ func RandomID() (backend.UnitID, error) {
 	return id, nil
 }
 
-func (w *Wallet) prepareTx(ctx context.Context, unitId backend.UnitID, attrs proto.Message, ac *account.AccountKey, txps txPreprocessor) (*txSubmission, error) {
+func (w *Wallet) prepareTxSubmission(ctx context.Context, payloadType string, attrs types.SigBytesProvider, unitId wallet.UnitID, ac *account.AccountKey, rn roundNumberFetcher, txps txPreprocessor) (*txsubmitter.TxSubmission, error) {
 	var err error
 	if unitId == nil {
 		unitId, err = RandomID()
@@ -146,134 +144,43 @@ func (w *Wallet) prepareTx(ctx context.Context, unitId backend.UnitID, attrs pro
 			return nil, err
 		}
 	}
-	log.Info(fmt.Sprintf("Preparing to send token tx, UnitID=%X, attributes: %v", unitId, reflect.TypeOf(attrs)))
+	log.Info(fmt.Sprintf("Preparing to send token tx, UnitID=%X", unitId))
 
-	roundNumber, err := w.getRoundNumber(ctx)
+	roundNumber, err := rn(ctx)
 	if err != nil {
 		return nil, err
 	}
-	tx := createTx(w.systemID, unitId, roundNumber+txTimeoutRoundCount, ac.PrivKeyHash)
-	err = anypb.MarshalFrom(tx.TransactionAttributes, attrs, proto.MarshalOptions{})
-	if err != nil {
-		return nil, err
-	}
-	gtx, err := ttxs.NewGenericTx(tx)
-	if err != nil {
-		return nil, err
-	}
+	tx := createTx(w.systemID, payloadType, unitId, roundNumber+txTimeoutRoundCount, ac.PrivKeyHash)
 	if txps != nil {
 		// set fields before tx is signed
-		err = txps(tx, gtx)
+		err = txps(tx)
 		if err != nil {
 			return nil, err
 		}
 	}
-	sig, err := signTx(gtx, ac)
+	sig, err := signTx(tx, attrs, ac)
 	if err != nil {
 		return nil, err
 	}
 	tx.OwnerProof = sig
-	gtx, err = ttxs.NewGenericTx(tx)
+
+	// TODO: AB-1016 remove when fixed
+	sig, err = makeTxFeeProof(tx, ac)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to make tx fee proof: %w", err)
 	}
-	// TODO should not rely on server metadata
-	gtx.SetServerMetadata(&txsystem.ServerMetadata{Fee: 1})
+	tx.FeeProof = sig
 
 	// convert again for hashing as the tx might have been modified
-	txSub := &txSubmission{
-		id:     unitId,
-		tx:     tx,
-		txHash: gtx.Hash(crypto.SHA256),
+	txSub := &txsubmitter.TxSubmission{
+		UnitID:      unitId,
+		Transaction: tx,
+		TxHash:      tx.Hash(crypto.SHA256),
 	}
 	return txSub, nil
 }
 
-func (s *txSubmission) toBatch(backend TokenBackend, sender backend.PubKey) *txSubmissionBatch {
-	return &txSubmissionBatch{
-		sender:      sender,
-		backend:     backend,
-		submissions: []*txSubmission{s},
-		maxTimeout:  s.tx.ClientMetadata.Timeout,
-	}
-}
-
-func (t *txSubmissionBatch) add(sub *txSubmission) {
-	t.submissions = append(t.submissions, sub)
-	if sub.tx.ClientMetadata.Timeout > t.maxTimeout {
-		t.maxTimeout = sub.tx.ClientMetadata.Timeout
-	}
-}
-
-func (t *txSubmissionBatch) transactions() []*txsystem.Transaction {
-	txs := make([]*txsystem.Transaction, 0, len(t.submissions))
-	for _, sub := range t.submissions {
-		txs = append(txs, sub.tx)
-	}
-	return txs
-}
-
-func (t *txSubmissionBatch) sendTx(ctx context.Context, confirmTx bool) error {
-	if len(t.submissions) == 0 {
-		return errors.New("no transactions to send")
-	}
-	err := t.backend.PostTransactions(ctx, t.sender, &txsystem.Transactions{Transactions: t.transactions()})
-	if err != nil {
-		return err
-	}
-	if confirmTx {
-		return t.confirmUnitsTx(ctx)
-	}
-	return nil
-}
-
-func (t *txSubmissionBatch) confirmUnitsTx(ctx context.Context) error {
-	log.Info("Confirming submitted transactions")
-
-	for {
-		if err := ctx.Err(); err != nil {
-			return fmt.Errorf("confirming transactions interrupted: %w", err)
-		}
-
-		roundNr, err := t.backend.GetRoundNumber(ctx)
-		if err != nil {
-			return err
-		}
-		if roundNr >= t.maxTimeout {
-			log.Info(fmt.Sprintf("Tx confirmation timeout is reached, block (#%v)", roundNr))
-			for _, sub := range t.submissions {
-				if !sub.confirmed {
-					log.Info(fmt.Sprintf("Tx not confirmed for UnitID=%X", sub.id))
-				}
-			}
-			return errors.New("confirmation timeout")
-		}
-		unconfirmed := false
-		for _, sub := range t.submissions {
-			if sub.confirmed || roundNr >= sub.tx.ClientMetadata.Timeout {
-				continue
-			}
-			proof, err := t.backend.GetTxProof(ctx, sub.id, sub.txHash)
-			if err != nil {
-				return err
-			}
-			if proof != nil {
-				log.Debug(fmt.Sprintf("UnitID=%X is confirmed", sub.id))
-				sub.confirmed = true
-				sub.txProof = proof.Proof
-			}
-			unconfirmed = unconfirmed || !sub.confirmed
-		}
-		if unconfirmed {
-			time.Sleep(500 * time.Millisecond)
-		} else {
-			log.Info("All transactions confirmed")
-			return nil
-		}
-	}
-}
-
-func signTx(gtx txsystem.GenericTransaction, ac *account.AccountKey) (ttxs.Predicate, error) {
+func signTx(tx *types.TransactionOrder, attrs types.SigBytesProvider, ac *account.AccountKey) (wallet.Predicate, error) {
 	if ac == nil {
 		return script.PredicateArgumentEmpty(), nil
 	}
@@ -281,7 +188,30 @@ func signTx(gtx txsystem.GenericTransaction, ac *account.AccountKey) (ttxs.Predi
 	if err != nil {
 		return nil, err
 	}
-	sig, err := signer.SignBytes(gtx.SigBytes())
+	bytes, err := tx.Payload.BytesWithAttributeSigBytes(attrs) // TODO: AB-1016
+	if err != nil {
+		return nil, err
+	}
+	sig, err := signer.SignBytes(bytes)
+	if err != nil {
+		return nil, err
+	}
+	return script.PredicateArgumentPayToPublicKeyHashDefault(sig, ac.PubKey), nil
+}
+
+func makeTxFeeProof(tx *types.TransactionOrder, ac *account.AccountKey) (wallet.Predicate, error) {
+	if ac == nil {
+		return script.PredicateArgumentEmpty(), nil
+	}
+	signer, err := abcrypto.NewInMemorySecp256K1SignerFromKey(ac.PrivKey)
+	if err != nil {
+		return nil, err
+	}
+	bytes, err := tx.Payload.Bytes()
+	if err != nil {
+		return nil, err
+	}
+	sig, err := signer.SignBytes(bytes)
 	if err != nil {
 		return nil, err
 	}
@@ -291,8 +221,8 @@ func signTx(gtx txsystem.GenericTransaction, ac *account.AccountKey) (ttxs.Predi
 func newFungibleTransferTxAttrs(token *backend.TokenUnit, receiverPubKey []byte) *ttxs.TransferFungibleTokenAttributes {
 	log.Info(fmt.Sprintf("Creating transfer with bl=%X", token.TxHash))
 	return &ttxs.TransferFungibleTokenAttributes{
-		Type:                         token.TypeID,
-		NewBearer:                    bearerPredicateFromPubKey(receiverPubKey),
+		TypeID:                       token.TypeID,
+		NewBearer:                    BearerPredicateFromPubKey(receiverPubKey),
 		Value:                        token.Amount,
 		Backlink:                     token.TxHash,
 		InvariantPredicateSignatures: nil,
@@ -302,21 +232,21 @@ func newFungibleTransferTxAttrs(token *backend.TokenUnit, receiverPubKey []byte)
 func newNonFungibleTransferTxAttrs(token *backend.TokenUnit, receiverPubKey []byte) *ttxs.TransferNonFungibleTokenAttributes {
 	log.Info(fmt.Sprintf("Creating NFT transfer with bl=%X", token.TxHash))
 	return &ttxs.TransferNonFungibleTokenAttributes{
-		NftType:                      token.TypeID,
-		NewBearer:                    bearerPredicateFromPubKey(receiverPubKey),
+		NFTTypeID:                    token.TypeID,
+		NewBearer:                    BearerPredicateFromPubKey(receiverPubKey),
 		Backlink:                     token.TxHash,
 		InvariantPredicateSignatures: nil,
 	}
 }
 
-func bearerPredicateFromHash(receiverPubKeyHash []byte) ttxs.Predicate {
+func bearerPredicateFromHash(receiverPubKeyHash []byte) wallet.Predicate {
 	if receiverPubKeyHash != nil {
 		return script.PredicatePayToPublicKeyHashDefault(receiverPubKeyHash)
 	}
 	return script.PredicateAlwaysTrue()
 }
 
-func bearerPredicateFromPubKey(receiverPubKey backend.PubKey) ttxs.Predicate {
+func BearerPredicateFromPubKey(receiverPubKey wallet.PubKey) wallet.Predicate {
 	var h []byte
 	if receiverPubKey != nil {
 		h = hash.Sum256(receiverPubKey)
@@ -327,8 +257,8 @@ func bearerPredicateFromPubKey(receiverPubKey backend.PubKey) ttxs.Predicate {
 func newSplitTxAttrs(token *backend.TokenUnit, amount uint64, receiverPubKey []byte) *ttxs.SplitFungibleTokenAttributes {
 	log.Info(fmt.Sprintf("Creating split with bl=%X, new value=%v", token.TxHash, amount))
 	return &ttxs.SplitFungibleTokenAttributes{
-		Type:                         token.TypeID,
-		NewBearer:                    bearerPredicateFromPubKey(receiverPubKey),
+		TypeID:                       token.TypeID,
+		NewBearer:                    BearerPredicateFromPubKey(receiverPubKey),
 		TargetValue:                  amount,
 		RemainingValue:               token.Amount - amount,
 		Backlink:                     token.TxHash,
@@ -339,7 +269,7 @@ func newSplitTxAttrs(token *backend.TokenUnit, amount uint64, receiverPubKey []b
 func newBurnTxAttrs(token *backend.TokenUnit, targetStateHash []byte) *ttxs.BurnFungibleTokenAttributes {
 	log.Info(fmt.Sprintf("Creating burn tx of unit=%X with bl=%X, new value=%v", token.ID, token.TxHash, token.Amount))
 	return &ttxs.BurnFungibleTokenAttributes{
-		Type:                         token.TypeID,
+		TypeID:                       token.TypeID,
 		Value:                        token.Amount,
 		Nonce:                        targetStateHash,
 		Backlink:                     token.TxHash,
@@ -353,39 +283,43 @@ func (w *Wallet) doSendMultiple(ctx context.Context, amount uint64, tokens []*ba
 	sort.Slice(tokens, func(i, j int) bool {
 		return tokens[i].Amount > tokens[j].Amount
 	})
-	batch := &txSubmissionBatch{
-		sender:  acc.PubKey,
-		backend: w.backend,
-	}
+
+	batch := txsubmitter.NewBatch(acc.PubKey, w.backend)
+	rnFetcher := &cachingRoundNumberFetcher{delegate: w.GetRoundNumber}
+
 	for _, t := range tokens {
 		remainingAmount := amount - accumulatedSum
-		sub, err := w.prepareSplitOrTransferTx(ctx, acc, remainingAmount, t, receiverPubKey, invariantPredicateArgs)
+		sub, err := w.prepareSplitOrTransferTx(ctx, acc, remainingAmount, t, receiverPubKey, invariantPredicateArgs, rnFetcher.getRoundNumber)
 		if err != nil {
 			return err
 		}
-		batch.add(sub)
+		batch.Add(sub)
 		accumulatedSum += t.Amount
 		if accumulatedSum >= amount {
 			break
 		}
 	}
-	return batch.sendTx(ctx, w.confirmTx)
+	return batch.SendTx(ctx, w.confirmTx)
 }
 
-func (w *Wallet) prepareSplitOrTransferTx(ctx context.Context, acc *account.AccountKey, amount uint64, token *backend.TokenUnit, receiverPubKey []byte, invariantPredicateArgs []*PredicateInput) (*txSubmission, error) {
+func (w *Wallet) prepareSplitOrTransferTx(ctx context.Context, acc *account.AccountKey, amount uint64, token *twb.TokenUnit, receiverPubKey []byte, invariantPredicateArgs []*PredicateInput, rn roundNumberFetcher) (*txsubmitter.TxSubmission, error) {
 	var attrs AttrWithInvariantPredicateInputs
+	var payloadType string
 	if amount >= token.Amount {
 		attrs = newFungibleTransferTxAttrs(token, receiverPubKey)
+		payloadType = ttxs.PayloadTypeTransferFungibleToken
 	} else {
 		attrs = newSplitTxAttrs(token, amount, receiverPubKey)
+		payloadType = ttxs.PayloadTypeSplitFungibleToken
 	}
-	sub, err := w.prepareTx(ctx, backend.UnitID(token.ID), attrs, acc, func(tx *txsystem.Transaction, gtx txsystem.GenericTransaction) error {
-		signatures, err := preparePredicateSignatures(w.am, invariantPredicateArgs, gtx)
+	sub, err := w.prepareTxSubmission(ctx, payloadType, attrs, wallet.UnitID(token.ID), acc, rn, func(tx *types.TransactionOrder) error {
+		signatures, err := preparePredicateSignatures(w.am, invariantPredicateArgs, tx, attrs)
 		if err != nil {
 			return err
 		}
 		attrs.SetInvariantPredicateSignatures(signatures)
-		return anypb.MarshalFrom(tx.TransactionAttributes, attrs, proto.MarshalOptions{})
+		tx.Payload.Attributes, err = cbor.Marshal(attrs)
+		return err
 	})
 	if err != nil {
 		return nil, err
@@ -393,15 +327,17 @@ func (w *Wallet) prepareSplitOrTransferTx(ctx context.Context, acc *account.Acco
 	return sub, nil
 }
 
-func createTx(systemID []byte, unitId []byte, timeout uint64, fcrID []byte) *txsystem.Transaction {
-	return &txsystem.Transaction{
-		SystemId:              systemID,
-		UnitId:                unitId,
-		TransactionAttributes: new(anypb.Any),
-		ClientMetadata: &txsystem.ClientMetadata{
-			Timeout:           timeout,
-			MaxFee:            tx_builder.MaxFee,
-			FeeCreditRecordId: fcrID,
+func createTx(systemID []byte, payloadType string, unitId []byte, timeout uint64, fcrID []byte) *types.TransactionOrder {
+	return &types.TransactionOrder{
+		Payload: &types.Payload{
+			SystemID: systemID,
+			Type:     payloadType,
+			UnitID:   unitId,
+			ClientMetadata: &types.ClientMetadata{
+				Timeout:           timeout,
+				MaxTransactionFee: tx_builder.MaxFee,
+				FeeCreditRecordID: fcrID,
+			},
 		},
 		// OwnerProof is added after whole transaction is built
 	}

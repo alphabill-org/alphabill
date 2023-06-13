@@ -3,6 +3,16 @@ package replication
 import (
 	"errors"
 	"fmt"
+
+	"github.com/alphabill-org/alphabill/internal/types"
+)
+
+const (
+	Ok Status = iota
+	InvalidRequestParameters
+	UnknownSystemIdentifier
+	BlocksNotFound
+	Unknown
 )
 
 var (
@@ -11,6 +21,25 @@ var (
 	ErrLedgerReplicationReqIsNil  = errors.New("ledger replication requests is nil")
 	ErrInvalidSystemIdentifier    = errors.New("invalid system identifier")
 	ErrNodeIdentifierIsMissing    = errors.New("node identifier is missing")
+)
+
+type (
+	LedgerReplicationRequest struct {
+		_                struct{} `cbor:",toarray"`
+		SystemIdentifier []byte
+		NodeIdentifier   string
+		BeginBlockNumber uint64
+		EndBlockNumber   uint64
+	}
+
+	LedgerReplicationResponse struct {
+		_       struct{} `cbor:",toarray"`
+		Status  Status
+		Message string
+		Blocks  []*types.Block
+	}
+
+	Status int
 )
 
 func (r *LedgerReplicationResponse) Pretty() string {
@@ -46,4 +75,20 @@ func (r *LedgerReplicationRequest) IsValid() error {
 		return fmt.Errorf("invalid block request range from %v to %v", r.BeginBlockNumber, r.EndBlockNumber)
 	}
 	return nil
+}
+
+func (s Status) String() string {
+	switch s {
+	case Ok:
+		return "OK"
+	case BlocksNotFound:
+		return "Blocks Not Found"
+	case InvalidRequestParameters:
+		return "Invalid Request Parameters"
+	case UnknownSystemIdentifier:
+		return "Unknown System Identifier"
+	case Unknown:
+		return "Unknown"
+	}
+	return "Unknown Status Code"
 }

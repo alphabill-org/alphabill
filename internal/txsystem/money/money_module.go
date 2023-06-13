@@ -68,17 +68,17 @@ func NewMoneyModule(systemIdentifier []byte, options *Options) (*Module, error) 
 	}, nil
 }
 
-func (m *Module) TxExecutors() []txsystem.TxExecutor {
-	return []txsystem.TxExecutor{
+func (m *Module) TxExecutors() map[string]txsystem.TxExecutor {
+	return map[string]txsystem.TxExecutor{
 		// money partition tx handlers
-		handleTransferTx(m.state, m.hashAlgorithm, m.feeCalculator),
-		handleTransferDCTx(m.state, m.dustCollector, m.hashAlgorithm, m.feeCalculator),
-		handleSplitTx(m.state, m.hashAlgorithm, m.feeCalculator),
-		handleSwapDCTx(m.state, m.hashAlgorithm, m.trustBase, m.feeCalculator),
+		PayloadTypeTransfer: handleTransferTx(m.state, m.hashAlgorithm, m.feeCalculator),
+		PayloadTypeSplit:    handleSplitTx(m.state, m.hashAlgorithm, m.feeCalculator),
+		PayloadTypeTransDC:  handleTransferDCTx(m.state, m.dustCollector, m.hashAlgorithm, m.feeCalculator),
+		PayloadTypeSwapDC:   handleSwapDCTx(m.state, m.hashAlgorithm, m.trustBase, m.feeCalculator),
 
 		// fee credit related transaction handlers (credit transfers and reclaims only!)
-		handleTransferFeeCreditTx(m.state, m.hashAlgorithm, m.feeCreditTxRecorder, m.feeCalculator),
-		handleReclaimFeeCreditTx(m.state, m.hashAlgorithm, m.trustBase, m.feeCreditTxRecorder, m.feeCalculator),
+		transactions.PayloadTypeTransferFeeCredit: handleTransferFeeCreditTx(m.state, m.hashAlgorithm, m.feeCreditTxRecorder, m.feeCalculator),
+		transactions.PayloadTypeReclaimFeeCredit:  handleReclaimFeeCreditTx(m.state, m.hashAlgorithm, m.trustBase, m.feeCreditTxRecorder, m.feeCalculator),
 	}
 }
 
@@ -101,17 +101,6 @@ func (m *Module) EndBlockFuncs() []func(blockNumber uint64) error {
 
 func (m *Module) GenericTransactionValidator() txsystem.GenericTransactionValidator {
 	return txsystem.ValidateGenericTransaction
-}
-
-func (m *Module) TxConverter() txsystem.TxConverters {
-	return map[string]txsystem.TxConverter{
-		typeURLTransferOrder:                       convertTransferTx,
-		typeURLTransferDCOrder:                     convertTransferDCTx,
-		typeURLSplitOrder:                          convertSplitTx,
-		typeURLSwapOrder:                           convertSwapDCTx,
-		transactions.TypeURLTransferFeeCreditOrder: transactions.ConvertTransferFeeCreditTx,
-		transactions.TypeURLReclaimFeeCreditOrder:  transactions.ConvertReclaimFeeCreditTx,
-	}
 }
 
 func addInitialBill(initialBill *InitialBill, state *rma.Tree) error {
@@ -140,12 +129,14 @@ func addInitialFeeCredits(records []*genesis.SystemDescriptionRecord, initialBil
 		if bytes.Equal(feeCreditBill.UnitId, util.Uint256ToBytes(dustCollectorMoneySupplyID)) || bytes.Equal(feeCreditBill.UnitId, util.Uint256ToBytes(initialBillID)) {
 			return ErrInvalidFeeCreditBillID
 		}
-		return state.AtomicUpdate(rma.AddItem(uint256.NewInt(0).SetBytes(feeCreditBill.UnitId), feeCreditBill.OwnerPredicate, &BillData{
+		err := state.AtomicUpdate(rma.AddItem(uint256.NewInt(0).SetBytes(feeCreditBill.UnitId), feeCreditBill.OwnerPredicate, &BillData{
 			V:        0,
 			T:        0,
 			Backlink: nil,
 		}, nil))
-
+		if err != nil {
+			return err
+		}
 	}
 	return nil
 }

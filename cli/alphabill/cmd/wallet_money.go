@@ -11,18 +11,17 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/alphabill-org/alphabill/pkg/wallet/backend/bp"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/spf13/cobra"
 	"github.com/tyler-smith/go-bip39"
 	"golang.org/x/term"
 
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
-	"github.com/alphabill-org/alphabill/pkg/client"
+	"github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/alphabill-org/alphabill/pkg/wallet/account"
-	moneyclient "github.com/alphabill-org/alphabill/pkg/wallet/money/backend/client"
 	wlog "github.com/alphabill-org/alphabill/pkg/wallet/log"
 	"github.com/alphabill-org/alphabill/pkg/wallet/money"
+	moneyclient "github.com/alphabill-org/alphabill/pkg/wallet/money/backend/client"
 )
 
 type walletConfig struct {
@@ -153,7 +152,6 @@ func sendCmd(config *walletConfig) *cobra.Command {
 	}
 	cmd.Flags().StringP(addressCmdName, "a", "", "compressed secp256k1 public key of the receiver in hexadecimal format, must start with 0x and be 68 characters in length")
 	cmd.Flags().StringP(amountCmdName, "v", "", "the amount to send to the receiver")
-	cmd.Flags().StringP(alphabillNodeURLCmdName, "u", defaultAlphabillNodeURL, "alphabill uri to connect to")
 	cmd.Flags().StringP(alphabillApiURLCmdName, "r", defaultAlphabillApiURL, "alphabill API uri to connect to")
 	cmd.Flags().Uint64P(keyCmdName, "k", 1, "which key to use for sending the transaction")
 	// use string instead of boolean as boolean requires equals sign between name and value e.g. w=[true|false]
@@ -171,10 +169,6 @@ func sendCmd(config *walletConfig) *cobra.Command {
 }
 
 func execSendCmd(ctx context.Context, cmd *cobra.Command, config *walletConfig) error {
-	nodeUri, err := cmd.Flags().GetString(alphabillNodeURLCmdName)
-	if err != nil {
-		return err
-	}
 	apiUri, err := cmd.Flags().GetString(alphabillApiURLCmdName)
 	if err != nil {
 		return err
@@ -187,7 +181,7 @@ func execSendCmd(ctx context.Context, cmd *cobra.Command, config *walletConfig) 
 	if err != nil {
 		return err
 	}
-	w, err := money.LoadExistingWallet(client.AlphabillClientConfig{Uri: nodeUri}, am, restClient)
+	w, err := money.LoadExistingWallet(am, restClient)
 	if err != nil {
 		return err
 	}
@@ -248,16 +242,21 @@ func execSendCmd(ctx context.Context, cmd *cobra.Command, config *walletConfig) 
 		}
 	}
 
-	bills, err := w.Send(ctx, money.SendCmd{ReceiverPubKey: receiverPubKey, Amount: amount, WaitForConfirmation: waitForConf, AccountIndex: accountNumber - 1})
+	proofs, err := w.Send(ctx, money.SendCmd{ReceiverPubKey: receiverPubKey, Amount: amount, WaitForConfirmation: waitForConf, AccountIndex: accountNumber - 1})
 	if err != nil {
 		return err
 	}
 	if waitForConf {
 		consoleWriter.Println("Successfully confirmed transaction(s)")
 		if outputPath != "" {
-			var outputBills []*bp.Bill
-			for _, b := range bills {
-				outputBills = append(outputBills, b.ToProto())
+			// convert wallet.Proofs to wallet.Bills, alternatively remove bill export as it's deprecated functionality
+			var outputBills []*wallet.Bill
+			for _, b := range proofs {
+				proof, err := restClient.GetProof(b.TxRecord.TransactionOrder.UnitID())
+				if err != nil {
+					return err
+				}
+				outputBills = append(outputBills, proof.Bills[0])
 			}
 			outputFile, err := writeBillsToFile(outputPath, outputBills...)
 			if err != nil {
@@ -302,7 +301,7 @@ func execGetBalanceCmd(cmd *cobra.Command, config *walletConfig) error {
 	if err != nil {
 		return err
 	}
-	w, err := money.LoadExistingWallet(client.AlphabillClientConfig{}, am, restClient)
+	w, err := money.LoadExistingWallet(am, restClient)
 	if err != nil {
 		return err
 	}
@@ -400,17 +399,12 @@ func collectDustCmd(config *walletConfig) *cobra.Command {
 			return execCollectDust(cmd, config)
 		},
 	}
-	cmd.Flags().StringP(alphabillNodeURLCmdName, "u", defaultAlphabillNodeURL, "alphabill uri to connect to")
 	cmd.Flags().StringP(alphabillApiURLCmdName, "r", defaultAlphabillApiURL, "alphabill API uri to connect to")
 	cmd.Flags().Uint64P(keyCmdName, "k", 0, "which key to use for dust collection, 0 for all bills from all accounts")
 	return cmd
 }
 
 func execCollectDust(cmd *cobra.Command, config *walletConfig) error {
-	nodeUri, err := cmd.Flags().GetString(alphabillNodeURLCmdName)
-	if err != nil {
-		return err
-	}
 	apiUri, err := cmd.Flags().GetString(alphabillApiURLCmdName)
 	if err != nil {
 		return err
@@ -428,7 +422,7 @@ func execCollectDust(cmd *cobra.Command, config *walletConfig) error {
 		return err
 	}
 
-	w, err := money.LoadExistingWallet(client.AlphabillClientConfig{Uri: nodeUri}, am, restClient)
+	w, err := money.LoadExistingWallet(am, restClient)
 	if err != nil {
 		return err
 	}

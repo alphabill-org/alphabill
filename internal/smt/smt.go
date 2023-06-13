@@ -2,12 +2,11 @@ package smt
 
 import (
 	"crypto"
+	"errors"
 	"fmt"
 	"hash"
 
 	"github.com/alphabill-org/alphabill/internal/util"
-
-	"github.com/alphabill-org/alphabill/internal/errors"
 )
 
 var ErrInvalidKeyLength = errors.New("invalid key length")
@@ -95,10 +94,10 @@ func CalculatePathRoot(path [][]byte, leafHash []byte, key []byte, hashAlgorithm
 		return nil, ErrInvalidKeyLength
 	}
 	if len(path) != len(key)*8 {
-		return nil, errors.Errorf("invalid path/key combination: path length=%v, key length=%v", len(path), len(key))
+		return nil, fmt.Errorf("invalid path/key combination: path length=%v, key length=%v", len(path), len(key))
 	}
 	if len(leafHash) != hashAlgorithm.Size() {
-		return nil, errors.Errorf("invalid leaf hash length: leaf length=%v, hash length=%v", len(leafHash), hashAlgorithm.Size())
+		return nil, fmt.Errorf("invalid leaf hash length: leaf length=%v, hash length=%v", len(leafHash), hashAlgorithm.Size())
 	}
 	hasher := hashAlgorithm.New()
 	h := leafHash

@@ -5,9 +5,9 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/alphabill-org/alphabill/internal/certificates"
 	"github.com/alphabill-org/alphabill/internal/keyvaluedb"
 	p "github.com/alphabill-org/alphabill/internal/network/protocol"
+	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/stretchr/testify/require"
 )
 
@@ -15,17 +15,17 @@ const (
 	round uint64 = 1
 )
 
-var sysID = p.SystemIdentifier([]byte{0, 0, 0, 1})
-var unicityMap = map[p.SystemIdentifier]*certificates.UnicityCertificate{
-	sysID: {
-		UnicityTreeCertificate: &certificates.UnicityTreeCertificate{
-			SystemIdentifier:      []byte(sysID),
+var sysID = types.SystemID{0, 0, 0, 1}
+var unicityMap = map[p.SystemIdentifier]*types.UnicityCertificate{
+	p.SystemIdentifier(sysID): {
+		UnicityTreeCertificate: &types.UnicityTreeCertificate{
+			SystemIdentifier:      sysID,
 			SiblingHashes:         nil,
 			SystemDescriptionHash: nil,
 		},
-		UnicitySeal: &certificates.UnicitySeal{
-			RootRoundInfo: &certificates.RootRoundInfo{RoundNumber: round},
-			CommitInfo:    &certificates.CommitInfo{RootHash: make([]byte, gocrypto.SHA256.Size())},
+		UnicitySeal: &types.UnicitySeal{
+			RootChainRoundNumber: round,
+			Hash:                 make([]byte, gocrypto.SHA256.Size()),
 		},
 	},
 }
@@ -54,12 +54,12 @@ func TestMemDB_TestIsEmpty(t *testing.T) {
 func TestMemDB_TestEmptyValue(t *testing.T) {
 	db := New()
 	require.NotNil(t, db)
-	var uc certificates.UnicityCertificate
+	var uc types.UnicityCertificate
 	found, err := db.Read([]byte("certificate"), &uc)
 	require.NoError(t, err)
 	require.False(t, found)
 	require.NoError(t, db.Write([]byte("certificate"), &uc))
-	var back certificates.UnicityCertificate
+	var back types.UnicityCertificate
 	found, err = db.Read([]byte("certificate"), &back)
 	require.NoError(t, err)
 	require.True(t, found)
@@ -69,7 +69,7 @@ func TestMemDB_TestEmptyValue(t *testing.T) {
 func TestMemDB_TestInvalidWriteAndRead(t *testing.T) {
 	db := New()
 	require.NotNil(t, db)
-	var uc *certificates.UnicityCertificate = nil
+	var uc *types.UnicityCertificate = nil
 	require.Error(t, db.Write([]byte("certificate"), uc))
 	require.Error(t, db.Write([]byte(""), nil))
 	var value uint64 = 1
@@ -144,28 +144,28 @@ func TestMemDB_WriteReadComplexStruct(t *testing.T) {
 	require.True(t, isEmpty(t, db))
 	// write a complex struct
 	require.NoError(t, db.Write([]byte("certificates"), unicityMap))
-	ucs := make(map[p.SystemIdentifier]*certificates.UnicityCertificate)
+	ucs := make(map[p.SystemIdentifier]*types.UnicityCertificate)
 	present, err := db.Read([]byte("certificates"), &ucs)
 	require.NoError(t, err)
 	require.True(t, present)
 	// check that initial state was saved as intended
 	require.Len(t, ucs, 1)
-	require.Contains(t, ucs, sysID)
-	uc, _ := ucs[sysID]
-	original, _ := unicityMap[sysID]
+	require.Contains(t, ucs, p.SystemIdentifier(sysID))
+	uc, _ := ucs[p.SystemIdentifier(sysID)]
+	original, _ := unicityMap[p.SystemIdentifier(sysID)]
 	require.Equal(t, original, uc)
 	// update
-	uc.UnicitySeal.CommitInfo.RootHash = []byte{1}
-	newUC := map[p.SystemIdentifier]*certificates.UnicityCertificate{sysID: uc}
+	uc.UnicitySeal.Hash = []byte{1}
+	newUC := map[p.SystemIdentifier]*types.UnicityCertificate{p.SystemIdentifier(sysID): uc}
 	err = db.Write([]byte("certificates"), newUC)
 	require.NoError(t, err)
 	present, err = db.Read([]byte("certificates"), &ucs)
 	require.NoError(t, err)
 	require.True(t, present)
 	require.Len(t, ucs, 1)
-	require.Contains(t, ucs, sysID)
-	uc, _ = ucs[sysID]
-	require.Equal(t, []byte{1}, uc.UnicitySeal.CommitInfo.RootHash)
+	require.Contains(t, ucs, p.SystemIdentifier(sysID))
+	uc, _ = ucs[p.SystemIdentifier(sysID)]
+	require.Equal(t, []byte{1}, uc.UnicitySeal.Hash)
 }
 
 func TestMemDB_StartTxNil(t *testing.T) {

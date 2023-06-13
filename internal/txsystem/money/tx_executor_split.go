@@ -10,6 +10,8 @@ import (
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/internal/txsystem/fc"
 	txutil "github.com/alphabill-org/alphabill/internal/txsystem/util"
+	"github.com/alphabill-org/alphabill/internal/types"
+	"github.com/alphabill-org/alphabill/internal/util"
 )
 
 var (
@@ -19,76 +21,87 @@ var (
 	ErrInvalidDataType        = errors.New("invalid data type")
 )
 
-func handleSplitTx(state *rma.Tree, hashAlgorithm crypto.Hash, feeCalc fc.FeeCalculator) txsystem.GenericExecuteFunc[*billSplitWrapper] {
-	return func(tx *billSplitWrapper, currentBlockNumber uint64) error {
+func handleSplitTx(state *rma.Tree, hashAlgorithm crypto.Hash, feeCalc fc.FeeCalculator) txsystem.GenericExecuteFunc[SplitAttributes] {
+	return func(tx *types.TransactionOrder, attr *SplitAttributes, currentBlockNumber uint64) (*types.ServerMetadata, error) {
 		log.Debug("Processing split %v", tx)
-		if err := validateSplitTx(tx, state); err != nil {
-			return fmt.Errorf("invalid split transaction: %w", err)
+		if err := validateSplitTx(tx, attr, state); err != nil {
+			return nil, fmt.Errorf("invalid split transaction: %w", err)
 		}
 
-		newItemId := txutil.SameShardID(tx.UnitID(), tx.HashForIdCalculation(hashAlgorithm))
+		unitID := util.BytesToUint256(tx.UnitID())
+		newItemId := txutil.SameShardID(unitID, HashForIDCalculation(util.Uint256ToBytes(unitID), tx.Payload.Attributes, tx.Timeout(), hashAlgorithm))
 
 		// calculate actual tx fee cost
 		fee := feeCalc()
-		tx.SetServerMetadata(&txsystem.ServerMetadata{Fee: fee})
 
-		// calculate hash after setting server metadata
+		// TODO calculate hash after setting server metadata
 		h := tx.Hash(hashAlgorithm)
 
 		// update state
-		fcrID := tx.transaction.GetClientFeeCreditRecordID()
-		return state.AtomicUpdate(
+		fcrID := util.BytesToUint256(tx.GetClientFeeCreditRecordID())
+		if err := state.AtomicUpdate(
 			fc.DecrCredit(fcrID, fee, h),
-			rma.UpdateData(tx.UnitID(),
+			rma.UpdateData(unitID,
 				func(data rma.UnitData) (newData rma.UnitData) {
 					bd, ok := data.(*BillData)
 					if !ok {
 						return data // todo return error
 					}
 					return &BillData{
-						V:        bd.V - tx.Amount(),
+						V:        bd.V - attr.Amount,
 						T:        currentBlockNumber,
 						Backlink: tx.Hash(hashAlgorithm),
 					}
 				}, h),
-			rma.AddItem(newItemId, tx.TargetBearer(), &BillData{
-				V:        tx.Amount(),
+			rma.AddItem(newItemId, attr.TargetBearer, &BillData{
+				V:        attr.Amount,
 				T:        currentBlockNumber,
 				Backlink: h,
-			}, h))
+			}, h)); err != nil {
+			return nil, fmt.Errorf("unit update failed: %w", err)
+		}
+		return &types.ServerMetadata{ActualFee: fee}, nil
 	}
 }
 
-func validateSplitTx(tx *billSplitWrapper, state *rma.Tree) error {
-	data, err := state.GetUnit(tx.UnitID())
+func HashForIDCalculation(idBytes []byte, attr []byte, timeout uint64, hashFunc crypto.Hash) []byte {
+	hasher := hashFunc.New()
+	hasher.Write(idBytes)
+	hasher.Write(attr)
+	hasher.Write(util.Uint64ToBytes(timeout))
+	return hasher.Sum(nil)
+}
+
+func validateSplitTx(tx *types.TransactionOrder, attr *SplitAttributes, state *rma.Tree) error {
+	data, err := state.GetUnit(util.BytesToUint256(tx.UnitID()))
 	if err != nil {
 		return err
 	}
-	return validateSplit(data.Data, tx)
+	return validateSplit(data.Data, attr)
 }
 
-func validateSplit(data rma.UnitData, tx *billSplitWrapper) error {
+func validateSplit(data rma.UnitData, attr *SplitAttributes) error {
 	bd, ok := data.(*BillData)
 	if !ok {
 		return ErrInvalidDataType
 	}
-	if !bytes.Equal(tx.Backlink(), bd.Backlink) {
+	if !bytes.Equal(attr.Backlink, bd.Backlink) {
 		return ErrInvalidBacklink
 	}
 
-	if tx.Amount() == 0 {
+	if attr.Amount == 0 {
 		return ErrSplitBillZeroAmount
 	}
-	if tx.RemainingValue() == 0 {
+	if attr.RemainingValue == 0 {
 		return ErrSplitBillZeroRemainder
 	}
 
 	// amount does not exceed value of the bill
-	if tx.Amount() >= bd.V {
+	if attr.Amount >= bd.V {
 		return ErrInvalidBillValue
 	}
 	// remaining value equals the previous value minus the amount
-	if tx.RemainingValue() != bd.V-tx.Amount() {
+	if attr.RemainingValue != bd.V-attr.Amount {
 		return ErrInvalidBillValue
 	}
 	return nil

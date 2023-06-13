@@ -1,0 +1,200 @@
+package abdrc
+
+import (
+	"fmt"
+	"math"
+	"time"
+
+	"github.com/alphabill-org/alphabill/internal/network/protocol/abdrc"
+	abtypes "github.com/alphabill-org/alphabill/internal/rootchain/consensus/abdrc/types"
+	"github.com/alphabill-org/alphabill/internal/util"
+)
+
+type (
+	TimeoutCalculator interface {
+		GetNextTimeout(roundIndexAfterCommit uint64) time.Duration
+	}
+	// ExponentialTimeInterval exponential back-off
+	// base * exponentBase^"commit gap"
+	// If max exponent is set to 0, then it will output constant value (base)
+	ExponentialTimeInterval struct {
+		base         time.Duration
+		exponentBase float64
+		maxExponent  uint8
+	}
+
+	// Pacemaker tracks the current round/view number. The number is incremented when new quorum are
+	// received. A new round/view starts if there is a quorum certificate or timeout certificate for previous round.
+	// In addition, it also calculates the local timeout interval based on how many rounds have failed and keeps track
+	// of validator data related to the active round (votes received if next leader or votes sent if follower).
+	Pacemaker struct {
+		blockRate time.Duration
+		// Last commit.
+		lastQcToCommitRound uint64
+		// Current round is max(highest QC, highest TC) + 1.
+		currentRound uint64
+		// The deadline for the next local timeout event. It is reset every time a new round start, or
+		// a previous deadline expires.
+		roundDeadline time.Time
+		// Time last proposal was received
+		lastViewChange time.Time
+		// timeout calculator
+		timeoutCalculator TimeoutCalculator
+		// Collection of votes (when node is the next leader)
+		pendingVotes *VoteRegister
+		// Last round timeout certificate
+		lastRoundTC *abtypes.TimeoutCert
+		// Store for votes sent in the ongoing round.
+		voteSent    *abdrc.VoteMsg
+		timeoutVote *abdrc.TimeoutMsg
+	}
+)
+
+func (x *Pacemaker) LastRoundTC() *abtypes.TimeoutCert {
+	return x.lastRoundTC
+}
+
+func (x ExponentialTimeInterval) GetNextTimeout(roundsAfterLastCommit uint64) time.Duration {
+	exp := util.Min(uint64(x.maxExponent), roundsAfterLastCommit)
+	mul := math.Pow(x.exponentBase, float64(exp))
+	return time.Duration(float64(x.base) * mul)
+}
+
+// NewPacemaker Needs to be constructed from last QC!
+func NewPacemaker(lastRound uint64, localTimeout time.Duration, bRate time.Duration) *Pacemaker {
+	return &Pacemaker{
+		blockRate:           bRate,
+		lastQcToCommitRound: lastRound,
+		currentRound:        lastRound + 1,
+		roundDeadline:       time.Now().Add(localTimeout),
+		lastViewChange:      time.Now(),
+		timeoutCalculator:   ExponentialTimeInterval{base: localTimeout, exponentBase: 1.2, maxExponent: 0},
+		pendingVotes:        NewVoteRegister(),
+		lastRoundTC:         nil,
+		voteSent:            nil,
+		timeoutVote:         nil,
+	}
+}
+
+func (x *Pacemaker) clear() {
+	x.voteSent = nil
+	x.timeoutVote = nil
+}
+
+func (x *Pacemaker) GetCurrentRound() uint64 {
+	return x.currentRound
+}
+
+// SetVoted - remember vote sent in this view
+func (x *Pacemaker) SetVoted(vote *abdrc.VoteMsg) {
+	if vote.VoteInfo.RoundNumber == x.currentRound {
+		x.voteSent = vote
+	}
+}
+
+// GetVoted - has the node voted in this round, returns either vote or nil
+func (x *Pacemaker) GetVoted() *abdrc.VoteMsg {
+	return x.voteSent
+}
+
+// SetTimeoutVote - remember timeout vote sent in this view
+func (x *Pacemaker) SetTimeoutVote(vote *abdrc.TimeoutMsg) {
+	if vote.Timeout.Round == x.currentRound {
+		x.timeoutVote = vote
+	}
+}
+
+// GetTimeoutVote - has the node voted for timeout in this round, returns either vote or nil
+func (x *Pacemaker) GetTimeoutVote() *abdrc.TimeoutMsg {
+	return x.timeoutVote
+}
+
+// GetRoundTimeout - get round local timeout
+func (x *Pacemaker) GetRoundTimeout() time.Duration {
+	return time.Until(x.roundDeadline)
+}
+
+// CalcTimeTilNextProposal calculates delay for next round symmetrically, no round
+// should take less than half of block rate - two consecutive rounds not less than block rate
+func (x *Pacemaker) CalcTimeTilNextProposal() time.Duration {
+	//symmetric delay
+	now := time.Now()
+	if now.Sub(x.lastViewChange) >= x.blockRate/2 {
+		return 0
+	}
+	return x.lastViewChange.Add(x.blockRate / 2).Sub(now)
+}
+
+/*
+// CalcAsyncTimeTilNextProposal - delays every second round, 2 consecutive rounds
+// must never be faster that block rate.
+func (x *Pacemaker) CalcAsyncTimeTilNextProposal(round uint64) time.Duration {
+	now := time.Now()
+	// according to spec. in case of 2-chain-rule finality the wait is every 2nd block
+	if now.Sub(x.lastViewChange) >= time.Duration(round%2)*x.blockRate {
+		return 0
+	}
+	return x.lastViewChange.Add(x.blockRate).Sub(now)
+}
+*/
+
+// RegisterVote - register vote from another root node, this node is the leader and assembles votes for quorum certificate
+func (x *Pacemaker) RegisterVote(vote *abdrc.VoteMsg, quorum QuorumInfo) (*abtypes.QuorumCert, error) {
+	// If the vote is not about the current round then ignore
+	if vote.VoteInfo.RoundNumber != x.currentRound {
+		return nil, fmt.Errorf("received vote is for round %d, current round is %d", vote.VoteInfo.RoundNumber, x.currentRound)
+	}
+	qc, err := x.pendingVotes.InsertVote(vote, quorum)
+	if err != nil {
+		return nil, fmt.Errorf("vote register error: %w", err)
+	}
+	return qc, nil
+}
+
+// RegisterTimeoutVote - register time-out vote from another root node, this node is the leader and tries to assemble
+// a timeout quorum certificate for this round
+func (x *Pacemaker) RegisterTimeoutVote(vote *abdrc.TimeoutMsg, quorum QuorumInfo) (*abtypes.TimeoutCert, error) {
+	tc, err := x.pendingVotes.InsertTimeoutVote(vote, quorum)
+	if err != nil {
+		return nil, fmt.Errorf("timeout vote register failed, %w", err)
+	}
+	return tc, nil
+}
+
+// AdvanceRoundQC - trigger next round/view on quorum certificate
+func (x *Pacemaker) AdvanceRoundQC(qc *abtypes.QuorumCert) bool {
+	if qc == nil {
+		return false
+	}
+	// Same QC can only advance the round number once
+	if qc.VoteInfo.RoundNumber < x.currentRound {
+		return false
+	}
+	x.lastRoundTC = nil
+	// only increment high committed round if QC commits a state
+	if qc.LedgerCommitInfo.RootHash != nil {
+		x.lastQcToCommitRound = qc.VoteInfo.RoundNumber
+	}
+	x.startNewRound(qc.VoteInfo.RoundNumber + 1)
+	return true
+}
+
+// AdvanceRoundTC - trigger next round/view on timeout certificate
+func (x *Pacemaker) AdvanceRoundTC(tc *abtypes.TimeoutCert) {
+	// no timeout cert or is from old view/round - ignore
+	if tc == nil || tc.Timeout.Round < x.currentRound {
+		return
+	}
+	x.lastRoundTC = tc
+	x.startNewRound(tc.Timeout.Round + 1)
+}
+
+// startNewRound - starts new round, sets new round number, resets all stores and
+// calculates the new round timeout
+func (x *Pacemaker) startNewRound(round uint64) {
+	x.clear()
+	x.lastViewChange = time.Now()
+	x.currentRound = round
+	x.pendingVotes.Reset()
+	x.roundDeadline = time.Now().Add(x.timeoutCalculator.GetNextTimeout(x.currentRound - x.lastQcToCommitRound - 1))
+}

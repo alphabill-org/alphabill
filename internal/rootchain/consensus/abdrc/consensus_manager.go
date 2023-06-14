@@ -66,7 +66,7 @@ type (
 )
 
 // NewDistributedAbConsensusManager creates new "Atomic Broadcast" protocol based distributed consensus manager
-func NewDistributedAbConsensusManager(host *network.Peer, rg *genesis.RootGenesis,
+func NewDistributedAbConsensusManager(nodeID peer.ID, rg *genesis.RootGenesis,
 	partitionStore partitions.PartitionConfiguration, net RootNet, signer crypto.Signer, opts ...consensus.Option) (*ConsensusManager, error) {
 	// Sanity checks
 	if rg == nil {
@@ -93,12 +93,12 @@ func NewDistributedAbConsensusManager(host *network.Peer, rg *genesis.RootGenesi
 		return nil, fmt.Errorf("failed to create T2 timeout generator: %w", err)
 	}
 	hqcRound := bStore.GetHighQc().VoteInfo.RoundNumber
-	safetyModule, err := NewSafetyModule(host.ID().String(), signer, optional.Storage)
+	safetyModule, err := NewSafetyModule(nodeID.String(), signer, optional.Storage)
 	if err != nil {
 		return nil, err
 	}
 
-	l, err := leaderSelector(host.Configuration().Validators, bStore.Block)
+	leader, err := leaderSelector(rg, bStore.Block)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create consensus leader selector: %w", err)
 	}
@@ -111,10 +111,10 @@ func NewDistributedAbConsensusManager(host *network.Peer, rg *genesis.RootGenesi
 		certReqCh:      make(chan consensus.IRChangeRequest),
 		certResultCh:   make(chan *types.UnicityCertificate),
 		params:         cParams,
-		id:             host.ID(),
+		id:             nodeID,
 		net:            net,
 		pacemaker:      NewPacemaker(hqcRound, cParams.LocalTimeout, cParams.BlockRate),
-		leaderSelector: l,
+		leaderSelector: leader,
 		trustBase:      tb,
 		irReqBuffer:    NewIrReqBuffer(),
 		safety:         safetyModule,
@@ -127,16 +127,22 @@ func NewDistributedAbConsensusManager(host *network.Peer, rg *genesis.RootGenesi
 	return consensusManager, nil
 }
 
-func leaderSelector(rootNodes []peer.ID, blockLoader leader.BlockLoader) (ls Leader, err error) {
+func leaderSelector(rg *genesis.RootGenesis, blockLoader leader.BlockLoader) (ls Leader, err error) {
 	// NB! both leader selector algorithms make the assumption that the rootNodes slice is
 	// sorted and it's content doesn't change!
+	rootNodes, err := rg.NodeIDs()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get root node IDs: %w", err)
+	}
+	slices.Sort(rootNodes)
+
 	switch len(rootNodes) {
 	case 0:
 		return nil, errors.New("number of peers must be greater than zero")
 	case 1:
-		// really should have "constant leader" algorithm but... we need this case as some
-		// tests create only one root node. Could use reputation based selection with
-		// excludeSize=0 but round-robin is more efficient...
+		// really should have "constant leader" algorithm but this shouldn't happen IRL.
+		// we need this case as some tests create only one root node. Could use reputation
+		// based selection with excludeSize=0 but round-robin is more efficient...
 		return leader.NewRoundRobin(rootNodes, 1)
 	default:
 		// we're limited to window size and exclude size 1 as our block loader (block store) doesn't

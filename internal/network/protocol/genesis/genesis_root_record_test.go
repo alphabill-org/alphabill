@@ -195,6 +195,7 @@ func TestGenesisRootRecord_IsValidMissingPublicKeyInfo(t *testing.T) {
 	err = consensus.Sign("test2", signer2)
 	require.NoError(t, err)
 	pubKey, err := verifier.MarshalPublicKey()
+	require.NoError(t, err)
 	x := &GenesisRootRecord{
 		RootValidators: []*PublicKeyInfo{{NodeIdentifier: "test", SigningPublicKey: pubKey, EncryptionPublicKey: pubKey}},
 		Consensus:      consensus,

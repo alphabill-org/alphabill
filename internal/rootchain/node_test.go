@@ -132,7 +132,7 @@ func TestRootValidatorTest_ConstructWithDistributedManager(t *testing.T) {
 	rootNetMock := testnetwork.NewMockNetwork()
 	partitionStore, err := partitions.NewPartitionStoreFromGenesis(rootGenesis.Partitions)
 	require.NoError(t, err)
-	cm, err := abdrc.NewDistributedAbConsensusManager(rootHost.Peer,
+	cm, err := abdrc.NewDistributedAbConsensusManager(rootHost.Peer.ID(),
 		rootGenesis,
 		partitionStore,
 		rootNetMock,

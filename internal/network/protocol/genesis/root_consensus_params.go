@@ -70,7 +70,7 @@ func (x *ConsensusParams) IsValid() error {
 			x.QuorumThreshold, x.TotalRootValidators)
 	}
 	hashAlgo := gocrypto.Hash(x.HashAlgorithm)
-	if hashAlgo.Available() == false {
+	if !hashAlgo.Available() {
 		return ErrUnknownHashAlgorithm
 	}
 	return nil

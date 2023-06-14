@@ -164,7 +164,7 @@ func loadNetworkConfiguration(ctx context.Context, keys *Keys, pg *genesis.Parti
 	if err != nil {
 		return nil, err
 	}
-	bootstrapPeers := []peer.AddrInfo{{bootstrapNodeID, []multiaddr.Multiaddr{bootstrapNodeAddress}}}
+	bootstrapPeers := []peer.AddrInfo{{ID: bootstrapNodeID, Addrs: []multiaddr.Multiaddr{bootstrapNodeAddress}}}
 
 	peerConfiguration := &network.PeerConfiguration{
 		Address:        cfg.Address,

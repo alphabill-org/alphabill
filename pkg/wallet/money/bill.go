@@ -24,8 +24,8 @@ type (
 		DcExpirationTimeout uint64 `json:"dcExpirationTimeout"`
 
 		// fcb specific fields
-		// FCBlockNumber block number when fee credit bill balance was last updated
-		FCBlockNumber uint64 `json:"fcBlockNumber,string"`
+		// AddFCTxHash last add fee credit tx hash
+		AddFCTxHash []byte `json:"addFcTxHash,omitempty"`
 	}
 )
 
@@ -37,12 +37,13 @@ func (b *Bill) GetID() []byte {
 	return nil
 }
 
-func (b *Bill) ToProto() *wallet.Bill {
+func (b *Bill) ToGenericBill() *wallet.Bill {
 	return &wallet.Bill{
-		Id:      b.GetID(),
-		Value:   b.Value,
-		TxHash:  b.TxHash,
-		TxProof: b.TxProof,
+		Id:          b.GetID(),
+		Value:       b.Value,
+		TxHash:      b.TxHash,
+		TxProof:     b.TxProof,
+		AddFCTxHash: b.AddFCTxHash,
 	}
 }
 
@@ -72,4 +73,11 @@ func (b *Bill) GetValue() uint64 {
 		return b.Value
 	}
 	return 0
+}
+
+func (b *Bill) GetAddFCTxHash() []byte {
+	if b != nil {
+		return b.AddFCTxHash
+	}
+	return nil
 }

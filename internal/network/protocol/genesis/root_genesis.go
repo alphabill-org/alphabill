@@ -4,6 +4,8 @@ import (
 	gocrypto "crypto"
 	"errors"
 	"fmt"
+
+	"github.com/libp2p/go-libp2p/core/peer"
 )
 
 const (
@@ -28,14 +30,14 @@ type SystemDescriptionRecordGetter interface {
 }
 
 func CheckPartitionSystemIdentifiersUnique[T SystemDescriptionRecordGetter](records []T) error {
-	var ids = make(map[string][]byte)
+	ids := make(map[string]struct{}, len(records))
 	for _, rec := range records {
 		record := rec.GetSystemDescriptionRecord()
-		id := record.SystemIdentifier
-		if _, f := ids[string(id)]; f {
-			return fmt.Errorf("duplicated system identifier: %X", id)
+		id := string(record.SystemIdentifier)
+		if _, f := ids[id]; f {
+			return fmt.Errorf("duplicated system identifier: %X", record.SystemIdentifier)
 		}
-		ids[string(id)] = id
+		ids[id] = struct{}{}
 	}
 	return nil
 }
@@ -48,21 +50,23 @@ func (x *RootGenesis) IsValid() error {
 	if x.Root == nil {
 		return ErrRootGenesisRecordIsNil
 	}
-	// check the root genesis record is valid
-	err := x.Root.IsValid()
-	if err != nil {
+	if err := x.Root.IsValid(); err != nil {
 		return fmt.Errorf("root genesis record verification failed: %w", err)
 	}
-	// Verify that UC Seal has been correctly signed
-	alg := gocrypto.Hash(x.Root.Consensus.HashAlgorithm)
+
 	if len(x.Partitions) == 0 {
 		return ErrPartitionsNotFound
 	}
 	// Check that all partition id's are unique
-	if err = CheckPartitionSystemIdentifiersUnique(x.Partitions); err != nil {
+	if err := CheckPartitionSystemIdentifiersUnique(x.Partitions); err != nil {
 		return fmt.Errorf("root genesis duplicate partition record error: %w", err)
 	}
+
+	alg := gocrypto.Hash(x.Root.Consensus.HashAlgorithm)
 	trustBase, err := NewValidatorTrustBase(x.Root.RootValidators)
+	if err != nil {
+		return fmt.Errorf("failed to create trust base from root validators: %w", err)
+	}
 	for _, p := range x.Partitions {
 		if err = p.IsValid(trustBase, alg); err != nil {
 			return err
@@ -81,8 +85,7 @@ func (x *RootGenesis) Verify() error {
 		return ErrRootGenesisRecordIsNil
 	}
 	// Verify that the root genesis record is valid and signed by all validators
-	err := x.Root.Verify()
-	if err != nil {
+	if err := x.Root.Verify(); err != nil {
 		return fmt.Errorf("root genesis record error: %w", err)
 	}
 	// Check that the number of signatures on partition UC Seal matches the number of root validators
@@ -90,7 +93,7 @@ func (x *RootGenesis) Verify() error {
 		return ErrPartitionsNotFound
 	}
 	// Check that all partition id's are unique
-	if err = CheckPartitionSystemIdentifiersUnique(x.Partitions); err != nil {
+	if err := CheckPartitionSystemIdentifiersUnique(x.Partitions); err != nil {
 		return fmt.Errorf("root genesis duplicate partition error: %w", err)
 	}
 	// Check all signatures on Partition UC Seals
@@ -105,7 +108,7 @@ func (x *RootGenesis) Verify() error {
 			return fmt.Errorf("root genesis partition record %v error: %w", i, err)
 		}
 		// make sure all root validators have signed the UC Seal
-		if len(x.Partitions[0].Certificate.UnicitySeal.Signatures) != len(x.Root.RootValidators) {
+		if len(p.Certificate.UnicitySeal.Signatures) != len(x.Root.RootValidators) {
 			return fmt.Errorf("partition %X UC Seal is not signed by all root nodes",
 				p.SystemDescriptionRecord.SystemIdentifier)
 		}
@@ -130,4 +133,19 @@ func (x *RootGenesis) GetPartitionRecords() []*PartitionRecord {
 		}
 	}
 	return records
+}
+
+/*
+NodeIDs returns IDs of all root validator nodes.
+*/
+func (x *RootGenesis) NodeIDs() ([]peer.ID, error) {
+	IDs := make([]peer.ID, len(x.Root.RootValidators))
+	for n, v := range x.Root.RootValidators {
+		id, err := peer.Decode(v.NodeIdentifier)
+		if err != nil {
+			return nil, fmt.Errorf("failed to convert node ID %q: %w", v.NodeIdentifier, err)
+		}
+		IDs[n] = id
+	}
+	return IDs, nil
 }

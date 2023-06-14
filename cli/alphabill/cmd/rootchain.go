@@ -153,7 +153,7 @@ func defaultRootNodeRunFunc(ctx context.Context, config *rootNodeConfig) error {
 			return fmt.Errorf("failed initiate root network, %w", err)
 		}
 		// Create distributed consensus manager function
-		cm, err = abdrc.NewDistributedAbConsensusManager(rootHost,
+		cm, err = abdrc.NewDistributedAbConsensusManager(rootHost.ID(),
 			rootGenesis,
 			partitionCfg,
 			rootNet,

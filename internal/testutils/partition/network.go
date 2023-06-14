@@ -223,7 +223,7 @@ func (r *RootPartition) start(ctx context.Context) error {
 		if err != nil {
 			return fmt.Errorf("failed to init consensus network, %w", err)
 		}
-		cm, err := abdrc.NewDistributedAbConsensusManager(rootPeers[i], r.rcGenesis, partitionStore, rootConsensusNet, rn.RootSigner)
+		cm, err := abdrc.NewDistributedAbConsensusManager(rootPeers[i].ID(), r.rcGenesis, partitionStore, rootConsensusNet, rn.RootSigner)
 		if err != nil {
 			return fmt.Errorf("consensus manager initialization failed, %w", err)
 		}

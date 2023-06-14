@@ -7,7 +7,6 @@ import (
 	"io"
 	"net/http"
 	"net/url"
-	"sort"
 	"strconv"
 
 	"github.com/ethereum/go-ethereum/common/hexutil"
@@ -227,7 +226,7 @@ func (s *RequestHandler) getProofFunc(w http.ResponseWriter, r *http.Request) {
 		writeAsJson(w, ErrorResponse{Message: "bill does not exist"})
 		return
 	}
-	writeAsJson(w, bill.toProtoBills())
+	writeAsJson(w, bill.ToGenericBills())
 }
 
 // getBill returns "normal" or "fee credit" bill for given id,
@@ -305,7 +304,7 @@ func (s *RequestHandler) getFeeCreditBillFunc(w http.ResponseWriter, r *http.Req
 		writeAsJson(w, ErrorResponse{Message: "fee credit bill does not exist"})
 		return
 	}
-	writeAsJson(w, fcb.toProto())
+	writeAsJson(w, fcb.ToGenericBill())
 }
 
 // @Summary Forward transactions to partition node(s)
@@ -457,9 +456,6 @@ func parseInt(str string, def int) int {
 }
 
 func newListBillsResponse(bills []*Bill, limit, offset int) *ListBillsResponse {
-	sort.Slice(bills, func(i, j int) bool {
-		return bills[i].OrderNumber < bills[j].OrderNumber
-	})
 	billVMs := toBillVMList(bills)
 	return &ListBillsResponse{Bills: billVMs[offset : offset+limit], Total: len(bills)}
 }
@@ -477,7 +473,7 @@ func toBillVMList(bills []*Bill) []*ListBillVM {
 	return billVMs
 }
 
-func (b *ListBillVM) ToProto() *wallet.Bill {
+func (b *ListBillVM) ToGenericBill() *wallet.Bill {
 	return &wallet.Bill{
 		Id:       b.Id,
 		Value:    b.Value,

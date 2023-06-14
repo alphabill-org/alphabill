@@ -533,7 +533,7 @@ func TestSwapTxValuesAreCalculatedInCorrectBillOrder(t *testing.T) {
 
 	var protoDcBills []*wallet.Bill
 	for _, b := range dcBills {
-		protoDcBills = append(protoDcBills, b.ToProto())
+		protoDcBills = append(protoDcBills, b.ToGenericBill())
 	}
 
 	swapTxOrder, err := txbuilder.NewSwapTx(k, w.SystemID(), protoDcBills, dcNonce, dcBillIds, 10)
@@ -794,7 +794,7 @@ func addDcBill(t *testing.T, k *account.AccountKey, id *uint256.Int, nonce []byt
 		TxProof: &wallet.Proof{},
 	}
 
-	tx, err := txbuilder.NewDustTx(k, []byte{0, 0, 0, 0}, b.ToProto(), nonce, timeout)
+	tx, err := txbuilder.NewDustTx(k, []byte{0, 0, 0, 0}, b.ToGenericBill(), nonce, timeout)
 	require.NoError(t, err)
 	b.TxProof = &wallet.Proof{TxRecord: &types.TransactionRecord{TransactionOrder: tx}}
 

@@ -401,6 +401,11 @@ components:
         symbol:
           type: string
           example: foo bar
+        name:
+          type: string
+          example: A name for the token type
+        icon:
+          $ref: '#/components/schemas/Icon'
         subTypeCreationPredicate:
           $ref: '#/components/schemas/Predicate'
         tokenCreationPredicate:
@@ -445,6 +450,8 @@ components:
           minimum: 0
           maximum: 8
           description: only when "kind" is "fungible"
+        nftName:
+          type: string
         nftUri:
           type: string
           description: only when "kind" is "nft"
@@ -494,6 +501,16 @@ components:
         message:
           type: string
           example: something went wrong
+    Icon:
+      type: object
+      properties:
+        type:
+          type: string
+          example: image/png
+        data:
+          type: string
+          format: binary
+          example: base64encodeddata
     transaction.Transaction:
       description: Transaction is a generic transaction order, same for all transaction systems.
       type: object

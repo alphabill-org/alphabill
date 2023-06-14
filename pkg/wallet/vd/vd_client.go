@@ -25,7 +25,7 @@ import (
 
 const (
 	blockSyncBatchSize = 600
-	vdStorageFileName = "vd.db"
+	vdStorageFileName  = "vd.db"
 )
 
 var (
@@ -60,7 +60,7 @@ type (
 
 func New(conf *VDClientConfig) (*VDClient, error) {
 	vdNodeClient := client.New(client.AlphabillClientConfig{
-		Uri: conf.VDNodeURL,
+		Uri:          conf.VDNodeURL,
 		WaitForReady: conf.WaitForReady,
 	})
 
@@ -136,7 +136,7 @@ func (v *VDClient) GetFeeCreditBill(ctx context.Context, unitID wallet.UnitID) (
 
 	if lastBlockNumber < maxBlockNumber {
 		blockProcessor := NewBlockProcessor(db)
-		err = blocksync.Run(ctx, v.vdNodeClient.GetBlocks, lastBlockNumber + 1, maxBlockNumber, blockSyncBatchSize, blockProcessor.ProcessBlock)
+		err = blocksync.Run(ctx, v.vdNodeClient.GetBlocks, lastBlockNumber+1, maxBlockNumber, blockSyncBatchSize, blockProcessor.ProcessBlock)
 		if err != nil {
 			return nil, err
 		}
@@ -152,10 +152,10 @@ func (v *VDClient) GetFeeCreditBill(ctx context.Context, unitID wallet.UnitID) (
 	}
 
 	return &wallet.Bill{
-		Id:            fcb.Id,
-		Value:         fcb.Value,
-		TxHash:        fcb.TxHash,
-		FcBlockNumber: fcb.FCBlockNumber,
+		Id:          fcb.Id,
+		Value:       fcb.Value,
+		TxHash:      fcb.TxHash,
+		AddFCTxHash: fcb.AddFCTxHash,
 	}, nil
 }
 
@@ -262,9 +262,9 @@ func (v *VDClient) ensureFeeCredit(ctx context.Context, accountKey *account.Acco
 
 func (v *VDClient) createRegisterDataTx(data []byte, timeout uint64) (*types.TransactionOrder, error) {
 	payload := &types.Payload{
-		SystemID:       v.SystemID(),
-		Type:           vd.PayloadTypeRegisterData,
-		UnitID:         data,
+		SystemID: v.SystemID(),
+		Type:     vd.PayloadTypeRegisterData,
+		UnitID:   data,
 		ClientMetadata: &types.ClientMetadata{
 			Timeout:           timeout,
 			MaxTransactionFee: tx_builder.MaxFee,

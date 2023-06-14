@@ -234,7 +234,7 @@ paths:
         - token type
         - token
       summary: post transactions
-      description: Allows to send transactions to the AB.
+      description: Allows to send raw CBOR encoded transactions to AB.
       operationId: postTransactions
       parameters:
         - name: pubkey
@@ -244,7 +244,12 @@ paths:
           schema:
             $ref: '#/components/schemas/PublicKeyParam'
       requestBody:
-        $ref: '#/components/requestBodies/TransactionArray'
+        description: CBOR encoded array of TransactionOrders
+        content:
+          application/cbor:
+            schema:
+              type: string
+              format: binary
       responses:
         '200':
           description: successful operation
@@ -512,13 +517,6 @@ components:
             - $ref: '#/components/schemas/txAttributesTypeID'
             - $ref: '#/components/schemas/txAttributesStruct'
             - description: Value of the `@type` field determines which other attributes the object has. All the attributes are on the same level as the `@type` field, not as sub-object!
-    transaction.Transactions:
-      type: object
-      properties:
-        transactions:
-          type: array
-          items:
-            $ref: '#/components/schemas/transaction.Transaction'
     txAttributesTypeID:
       properties:
         "@type":
@@ -1018,14 +1016,6 @@ components:
       - 3
       - 4
 
-  requestBodies:
-    TransactionArray:
-      description: List of transaction objects
-      required: true
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/transaction.Transactions'
   responses:
     ErrorResponse:
       description: |-

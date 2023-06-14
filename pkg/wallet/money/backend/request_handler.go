@@ -310,9 +310,10 @@ func (s *RequestHandler) getFeeCreditBillFunc(w http.ResponseWriter, r *http.Req
 
 // @Summary Forward transactions to partition node(s)
 // @Id 6
-// @version 1.0
-// @produce application/json
+// @Version 1.0
+// @Accept application/cbor
 // @Param pubkey path string true "Sender public key prefixed with 0x"
+// @Param transactions body nil true "CBOR encoded array of TransactionOrders"
 // @Success 202
 // @Router /transactions [post]
 func (s *RequestHandler) postTransactions(w http.ResponseWriter, r *http.Request) {

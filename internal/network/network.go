@@ -10,6 +10,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/network/protocol/certification"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/handshake"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/replication"
+	drctypes "github.com/alphabill-org/alphabill/internal/rootchain/consensus/abdrc/types"
 	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/libp2p/go-libp2p/core/peer"
 )
@@ -178,7 +179,7 @@ func NewLibP2RootConsensusNetwork(self *Peer, capacity uint, sendTimeout time.Du
 	receiveProtocolDescriptions := []receiveProtocolDescription{
 		{
 			protocolID: ProtocolRootIrChangeReq,
-			typeFn:     func() any { return &abdrc.IRChangeReqMsg{} },
+			typeFn:     func() any { return &drctypes.IRChangeReq{} },
 		},
 		{
 			protocolID: ProtocolRootProposal,

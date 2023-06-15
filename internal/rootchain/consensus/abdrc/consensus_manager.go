@@ -208,7 +208,7 @@ func (x *ConsensusManager) loop(ctx context.Context) error {
 				continue
 			}
 			switch mt := msg.Message.(type) {
-			case *abdrc.IRChangeReqMsg:
+			case *abtypes.IRChangeReq:
 				util.WriteTraceJsonLog(logger, fmt.Sprintf("IR Change Request from %v", msg.From), mt)
 				x.onIRChange(mt)
 			case *abdrc.ProposalMsg:
@@ -282,11 +282,10 @@ func (x *ConsensusManager) onPartitionIRChangeReq(req *consensus.IRChangeRequest
 	if req.Reason == consensus.QuorumNotPossible {
 		reason = abtypes.QuorumNotPossible
 	}
-	irReq := &abdrc.IRChangeReqMsg{
-		IRChangeReq: &abtypes.IRChangeReq{
-			SystemIdentifier: req.SystemIdentifier,
-			CertReason:       reason,
-			Requests:         req.Requests},
+	irReq := &abtypes.IRChangeReq{
+		SystemIdentifier: req.SystemIdentifier,
+		CertReason:       reason,
+		Requests:         req.Requests,
 	}
 	// are we the next leader or leader in current round waiting/throttling to send proposal
 	nextRound := x.pacemaker.GetCurrentRound() + 1
@@ -310,7 +309,7 @@ func (x *ConsensusManager) onPartitionIRChangeReq(req *consensus.IRChangeRequest
 }
 
 // onIRChange handles IR change request from other root nodes
-func (x *ConsensusManager) onIRChange(irChangeMsg *abdrc.IRChangeReqMsg) {
+func (x *ConsensusManager) onIRChange(irChangeMsg *abtypes.IRChangeReq) {
 	if err := irChangeMsg.IsValid(); err != nil {
 		logger.Debug("Receive IR change request is invalid, %w", err)
 		return
@@ -326,8 +325,8 @@ func (x *ConsensusManager) onIRChange(irChangeMsg *abdrc.IRChangeReqMsg) {
 		x.leaderSelector.GetLeaderForRound(x.pacemaker.GetCurrentRound()+2) == x.id {
 		logger.Debug("%v round %v IR change request received", x.id.ShortString(), x.pacemaker.GetCurrentRound())
 		// Verify and buffer and wait for opportunity to make the next proposal
-		if err := x.irReqBuffer.Add(x.pacemaker.GetCurrentRound(), irChangeMsg.IRChangeReq, x.irReqVerifier); err != nil {
-			logger.Warning("%v IR change request from partition %X error: %v", x.id.String(), irChangeMsg.GetSystemID(), err)
+		if err := x.irReqBuffer.Add(x.pacemaker.GetCurrentRound(), irChangeMsg, x.irReqVerifier); err != nil {
+			logger.Warning("%v IR change request from partition %X error: %v", x.id.String(), irChangeMsg.SystemIdentifier, err)
 		}
 		return
 	}

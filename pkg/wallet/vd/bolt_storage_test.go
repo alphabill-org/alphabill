@@ -86,9 +86,9 @@ func testFeeCredits(t *testing.T, db *storage) {
 
 	// set fee credit bills
 	fcbs := []*FeeCreditBill{
-		{Id: []byte{1}, Value: 1, TxHash: []byte{1}, FCBlockNumber: 1},
-		{Id: []byte{2}, Value: 2, TxHash: []byte{2}, FCBlockNumber: 2},
-		{Id: []byte{3}, Value: 3, TxHash: []byte{3}, FCBlockNumber: 3},
+		{Id: []byte{1}, Value: 1, TxHash: []byte{1}, AddFCTxHash: []byte{1}},
+		{Id: []byte{2}, Value: 2, TxHash: []byte{2}, AddFCTxHash: []byte{2}},
+		{Id: []byte{3}, Value: 3, TxHash: []byte{3}, AddFCTxHash: []byte{3}},
 	}
 	for _, b := range fcbs {
 		err = db.SetFeeCreditBill(b)

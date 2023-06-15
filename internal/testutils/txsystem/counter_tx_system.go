@@ -25,6 +25,9 @@ type CounterTxSystem struct {
 
 	// setting this affects the state once EndBlock() is called
 	EndBlockChangesState bool
+
+	// fee charged for each tx
+	Fee uint64
 }
 
 type Summary struct {
@@ -93,5 +96,5 @@ func (m *CounterTxSystem) Commit() {
 func (m *CounterTxSystem) Execute(_ *types.TransactionOrder) (*types.ServerMetadata, error) {
 	logger.Debug("CounterTxSystem: Execute()")
 	m.ExecuteCountDelta++
-	return &types.ServerMetadata{}, nil
+	return &types.ServerMetadata{ActualFee: m.Fee}, nil
 }

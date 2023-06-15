@@ -258,7 +258,7 @@ func verifyTxSystemState(state txsystem.State, sumOfEarnedFees uint64, ucIR *typ
 	} else if !bytes.Equal(ucIR.SummaryValue, state.Summary()) {
 		return fmt.Errorf("tx system summary value %X not equal to unicity certificte value %X", ucIR.SummaryValue, state.Summary())
 	} else if ucIR.SumOfEarnedFees != sumOfEarnedFees {
-		return fmt.Errorf("tx system sum of earned fees %d not equal to unicity certificte value %X", ucIR.SummaryValue, sumOfEarnedFees)
+		return fmt.Errorf("tx system sum of earned fees %d not equal to unicity certificte value %d", ucIR.SumOfEarnedFees, sumOfEarnedFees)
 	}
 	return nil
 }
@@ -540,7 +540,6 @@ func (n *Node) handleBlockProposal(ctx context.Context, prop *blockproposal.Bloc
 		return fmt.Errorf("tx system start state mismatch error, expected: %X, got: %X", txState.Root(), prevHash)
 	}
 	n.transactionSystem.BeginBlock(n.getCurrentRound())
-	n.sumOfEarnedFees = 0
 	for _, tx := range prop.Transactions {
 		if err = n.process(tx.TransactionOrder, n.getCurrentRound()); err != nil {
 			return fmt.Errorf("transaction error %w", err)
@@ -581,7 +580,6 @@ func (n *Node) startNewRound(ctx context.Context, uc *types.UnicityCertificate) 
 	n.transactionSystem.BeginBlock(newRoundNr)
 	n.proposedTransactions = []*types.TransactionRecord{}
 	n.pendingBlockProposal = nil
-	n.sumOfEarnedFees = 0
 	// not a fatal issue, but log anyway
 	if err := n.blockStore.Delete(util.Uint32ToBytes(proposalKey)); err != nil {
 		logger.Debug("DB proposal delete failed, %v", err)
@@ -727,6 +725,7 @@ func (n *Node) revertState() {
 	logger.Warning("Reverting state")
 	n.sendEvent(event.StateReverted, nil)
 	n.transactionSystem.Revert()
+	n.sumOfEarnedFees = 0
 }
 
 func (n *Node) proposalHash(prop *pendingBlockProposal, uc *types.UnicityCertificate) (*types.Block, []byte, error) {
@@ -1076,7 +1075,6 @@ func (n *Node) sendCertificationRequest(blockAuthor string) error {
 		return fmt.Errorf("block hash calculation failed, %w", err)
 	}
 	n.proposedTransactions = []*types.TransactionRecord{}
-	n.sumOfEarnedFees = 0
 
 	req := &certification.BlockCertificationRequest{
 		SystemIdentifier: systemIdentifier,

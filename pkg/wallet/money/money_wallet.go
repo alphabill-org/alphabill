@@ -81,10 +81,12 @@ type (
 	}
 
 	dcBillGroup struct {
-		dcBills   []*Bill
-		valueSum  uint64
-		dcNonce   []byte
-		dcTimeout uint64
+		dcBills         []*Bill
+		valueSum        uint64
+		dcNonce         []byte
+		dcTimeout       uint64
+		billIdentifiers [][]byte
+		dcSum           uint64
 	}
 )
 
@@ -317,10 +319,13 @@ func (w *Wallet) collectDust(ctx context.Context, accountIndex uint64) error {
 		log.Info("Account ", accountIndex, " has less than 2 bills, skipping dust collection")
 		return nil
 	}
-	dcBillGroups := groupDcBills(bills)
+	dcBillGroups, err := groupDcBills(bills)
+	if err != nil {
+		return err
+	}
 	if len(dcBillGroups) > 0 {
 		for _, v := range dcBillGroups {
-			if roundNr < v.dcTimeout {
+			if roundNr < v.dcTimeout && v.valueSum < v.dcSum {
 				log.Info("waiting for dc confirmation(s)...")
 				for roundNr <= v.dcTimeout {
 					select {
@@ -334,10 +339,18 @@ func (w *Wallet) collectDust(ctx context.Context, accountIndex uint64) error {
 						return nil
 					}
 				}
+				bills, err = w.getDetailedBillsList(pubKey)
+				if err != nil {
+					return err
+				}
+				dcBillGroups, err = groupDcBills(bills)
+				if err != nil {
+					return err
+				}
+				v = dcBillGroups[string(v.dcNonce)]
 			}
 			swapTimeout := roundNr + swapTimeoutBlockCount
-			billIds := getBillIds(v.dcBills)
-			if err := w.swapDcBills(ctx, v.dcBills, v.dcNonce, billIds, swapTimeout, accountIndex); err != nil {
+			if err := w.swapDcBills(ctx, v.dcBills, v.dcNonce, v.billIdentifiers, swapTimeout, accountIndex); err != nil {
 				return err
 			}
 		}
@@ -373,8 +386,9 @@ func (w *Wallet) submitDCBatch(ctx context.Context, k *account.AccountKey, bills
 	dcBatch := txsubmitter.NewBatch(k.PubKey, w.backend)
 	dcTimeout := roundNr + dcTimeoutBlockCount
 	dcNonce := calculateDcNonce(bills)
+	billIds, dcSum := getBillIdsAndSum(bills)
 	for _, b := range bills {
-		tx, err := tx_builder.NewDustTx(k, w.SystemID(), &wallet.Bill{Id: b.GetID(), Value: b.Value, TxHash: b.TxHash}, dcNonce, dcTimeout)
+		tx, err := tx_builder.NewDustTx(k, w.SystemID(), &wallet.Bill{Id: b.GetID(), Value: b.Value, TxHash: b.TxHash}, dcNonce, billIds, dcTimeout, dcSum)
 		if err != nil {
 			return err
 		}
@@ -389,7 +403,6 @@ func (w *Wallet) submitDCBatch(ctx context.Context, k *account.AccountKey, bills
 	}
 
 	swapTimeout := roundNr + swapTimeoutBlockCount
-	billIds := getBillIds(bills)
 	for _, sub := range dcBatch.Submissions() {
 		for _, b := range bills {
 			if bytes.Equal(util.Uint256ToBytes(b.Id), sub.UnitID) {
@@ -503,7 +516,7 @@ func createMoneyWallet(mnemonic string, am account.Manager) error {
 }
 
 func calculateDcNonce(bills []*Bill) []byte {
-	billIds := getBillIds(bills)
+	billIds, _ := getBillIdsAndSum(bills)
 
 	// sort billIds in ascending order
 	sort.Slice(billIds, func(i, j int) bool {
@@ -518,7 +531,7 @@ func calculateDcNonce(bills []*Bill) []byte {
 }
 
 // groupDcBills groups bills together by dc nonce
-func groupDcBills(bills []*Bill) map[string]*dcBillGroup {
+func groupDcBills(bills []*Bill) (map[string]*dcBillGroup, error) {
 	m := map[string]*dcBillGroup{}
 	for _, b := range bills {
 		if b.IsDcBill {
@@ -528,21 +541,29 @@ func groupDcBills(bills []*Bill) map[string]*dcBillGroup {
 				billContainer = &dcBillGroup{}
 				m[k] = billContainer
 			}
+			a := &money.TransferDCAttributes{}
+			if err := b.TxProof.TxRecord.TransactionOrder.UnmarshalAttributes(a); err != nil {
+				return nil, fmt.Errorf("invalid DC transfer: %w", err)
+			}
+			billContainer.dcSum = a.DCMetadata.DCSum
+			billContainer.billIdentifiers = a.DCMetadata.BillIdentifiers
 			billContainer.valueSum += b.Value
 			billContainer.dcBills = append(billContainer.dcBills, b)
 			billContainer.dcNonce = b.DcNonce
 			billContainer.dcTimeout = b.DcTimeout
 		}
 	}
-	return m
+	return m, nil
 }
 
-func getBillIds(bills []*Bill) [][]byte {
+func getBillIdsAndSum(bills []*Bill) ([][]byte, uint64) {
 	var billIds [][]byte
+	var sum uint64
 	for _, b := range bills {
+		sum += b.Value
 		billIds = append(billIds, b.GetID())
 	}
-	return billIds
+	return billIds, sum
 }
 
 // converts proto wallet.Bill to money.Bill domain struct

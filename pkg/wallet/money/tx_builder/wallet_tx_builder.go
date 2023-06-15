@@ -75,12 +75,16 @@ func NewSplitTx(amount uint64, pubKey []byte, k *account.AccountKey, systemID []
 	return signPayload(txPayload, k)
 }
 
-func NewDustTx(ac *account.AccountKey, systemID []byte, bill *wallet.Bill, nonce []byte, timeout uint64) (*types.TransactionOrder, error) {
+func NewDustTx(ac *account.AccountKey, systemID []byte, bill *wallet.Bill, nonce []byte, dcBillsIds [][]byte, timeout, dcSum uint64) (*types.TransactionOrder, error) {
 	attr := &money.TransferDCAttributes{
 		TargetValue:  bill.Value,
 		TargetBearer: script.PredicatePayToPublicKeyHashDefault(ac.PubKeyHash.Sha256),
 		Backlink:     bill.TxHash,
 		Nonce:        nonce,
+		DCMetadata: &money.DCMetadata{
+			DCSum:           dcSum,
+			BillIdentifiers: dcBillsIds,
+		},
 	}
 	txPayload, err := newTxPayload(systemID, money.PayloadTypeTransDC, bill.GetID(), timeout, ac.PrivKeyHash, attr)
 	if err != nil {

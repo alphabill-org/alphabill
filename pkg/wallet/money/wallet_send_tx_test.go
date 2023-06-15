@@ -104,7 +104,7 @@ func TestWalletSendFunction_WaitForConfirmation(t *testing.T) {
 		getProof: func(billId []byte) (*wallet.Bills, error) {
 			tx := recordedTransactions[0]
 			b.TxHash = tx.Hash(crypto.SHA256)
-			return createBlockProofResponse(t, b, nil, dcTimeoutBlockCount, nil), nil
+			return createBlockProofResponse(t, b, nil, [][]byte{util.Uint256ToBytes(b.Id)}, dcTimeoutBlockCount, 100, nil), nil
 		},
 		getFeeCreditBill: func(ctx context.Context, unitID []byte) (*wallet.Bill, error) {
 			ac, _ := w.am.GetAccountKey(0)
@@ -138,6 +138,7 @@ func TestWalletSendFunction_WaitForMultipleTxConfirmations(t *testing.T) {
 		string(util.Uint256ToBytes(b1.Id)): b1,
 		string(util.Uint256ToBytes(b2.Id)): b2,
 	}
+	billIds, dcSum := getBillIdsAndSum([]*Bill{b1, b2})
 	var w *Wallet
 	var recordedTransactions []*types.TransactionOrder
 	backendMock := &backendAPIMock{
@@ -168,7 +169,7 @@ func TestWalletSendFunction_WaitForMultipleTxConfirmations(t *testing.T) {
 			}
 
 			if bill != nil {
-				return createBlockProofResponse(t, bill, nil, dcTimeoutBlockCount, nil), nil
+				return createBlockProofResponse(t, bill, nil, billIds, dcTimeoutBlockCount, dcSum, nil), nil
 			} else {
 				return nil, errors.New("bill not found")
 			}
@@ -201,6 +202,8 @@ func TestWalletSendFunction_WaitForMultipleTxConfirmationsInDifferentBlocks(t *t
 		string(util.Uint256ToBytes(b1.Id)): b1,
 		string(util.Uint256ToBytes(b2.Id)): b2,
 	}
+	billIds, dcSum := getBillIdsAndSum([]*Bill{b1, b2})
+
 	var w *Wallet
 	var recordedTransactions []*types.TransactionOrder
 	backendMock := &backendAPIMock{
@@ -231,7 +234,7 @@ func TestWalletSendFunction_WaitForMultipleTxConfirmationsInDifferentBlocks(t *t
 			}
 			if bill != nil {
 				blockCounter++
-				return createBlockProofResponse(t, bill, nil, dcTimeoutBlockCount, nil), nil
+				return createBlockProofResponse(t, bill, nil, billIds, dcTimeoutBlockCount, dcSum, nil), nil
 			} else {
 				return nil, errors.New("bill not found")
 			}

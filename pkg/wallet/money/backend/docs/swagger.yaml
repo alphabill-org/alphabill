@@ -360,6 +360,8 @@ paths:
       summary: Money partition's latest block number
   /transactions:
     post:
+      consumes:
+      - application/cbor
       operationId: "6"
       parameters:
       - description: Sender public key prefixed with 0x
@@ -367,8 +369,10 @@ paths:
         name: pubkey
         required: true
         type: string
-      produces:
-      - application/json
+      - description: CBOR encoded array of TransactionOrders
+        in: body
+        name: transactions
+        required: true
       responses:
         "202":
           description: Accepted

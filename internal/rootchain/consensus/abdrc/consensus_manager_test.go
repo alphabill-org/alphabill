@@ -176,12 +176,10 @@ func TestIRChangeRequestFromRootValidator_RootTimeout(t *testing.T) {
 	}
 	requests[0] = testutils.CreateBlockCertificationRequest(t, newIR, partitionID, partitionNodes[0])
 	requests[1] = testutils.CreateBlockCertificationRequest(t, newIR, partitionID, partitionNodes[1])
-	irChReq := &abdrc.IRChangeReqMsg{
-		IRChangeReq: &abtypes.IRChangeReq{
-			SystemIdentifier: partitionID,
-			CertReason:       abtypes.Quorum,
-			Requests:         requests,
-		},
+	irChReq := &abtypes.IRChangeReq{
+		SystemIdentifier: partitionID,
+		CertReason:       abtypes.Quorum,
+		Requests:         requests,
 	}
 	// simulate IR change request message
 	testutils.MockValidatorNetReceives(t, mockNet, rootNode.Peer.ID(), network.ProtocolRootIrChangeReq, irChReq)
@@ -331,12 +329,10 @@ func TestIRChangeRequestFromRootValidator(t *testing.T) {
 	}
 	requests[0] = testutils.CreateBlockCertificationRequest(t, newIR, partitionID, partitionNodes[0])
 	requests[1] = testutils.CreateBlockCertificationRequest(t, newIR, partitionID, partitionNodes[1])
-	irChReq := &abdrc.IRChangeReqMsg{
-		IRChangeReq: &abtypes.IRChangeReq{
-			SystemIdentifier: partitionID,
-			CertReason:       abtypes.Quorum,
-			Requests:         requests,
-		},
+	irChReq := &abtypes.IRChangeReq{
+		SystemIdentifier: partitionID,
+		CertReason:       abtypes.Quorum,
+		Requests:         requests,
 	}
 
 	// simulate IR change request message

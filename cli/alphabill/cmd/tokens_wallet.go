@@ -41,6 +41,11 @@ const (
 	cmdFlagTokenData                  = "data"
 	cmdFlagTokenDataFile              = "data-file"
 
+	cmdFlagWithAll                    = "with-all"
+	cmdFlagWithTypeName               = "with-type-name"
+	cmdFlagWithTokenURI               = "with-token-uri"
+	cmdFlagWithTokenData              = "with-token-data"
+
 	predicateTrue  = "true"
 	predicatePtpkh = "ptpkh"
 
@@ -709,6 +714,12 @@ func tokenCmdList(config *walletConfig, runner runTokenListCmd) *cobra.Command {
 	// add persistent password flags
 	cmd.PersistentFlags().BoolP(passwordPromptCmdName, "p", false, passwordPromptUsage)
 	cmd.PersistentFlags().String(passwordArgCmdName, "", passwordArgUsage)
+
+	cmd.Flags().Bool(cmdFlagWithAll, false, "Show all available fields for each token")
+	cmd.Flags().Bool(cmdFlagWithTypeName, false, "Show type name field")
+	cmd.Flags().Bool(cmdFlagWithTokenURI, false, "Show non-fungible token URI field")
+	cmd.Flags().Bool(cmdFlagWithTokenData, false, "Show non-fungible token data field")
+
 	// add sub commands
 	cmd.AddCommand(tokenCmdListFungible(config, runner, &accountNumber))
 	cmd.AddCommand(tokenCmdListNonFungible(config, runner, &accountNumber))
@@ -724,6 +735,10 @@ func tokenCmdListFungible(config *walletConfig, runner runTokenListCmd, accountN
 			return runner(cmd, config, accountNumber, backend.Fungible)
 		},
 	}
+
+	cmd.Flags().Bool(cmdFlagWithAll, false, "Show all available fields for each token")
+	cmd.Flags().Bool(cmdFlagWithTypeName, false, "Show type name field")
+
 	return cmd
 }
 
@@ -735,6 +750,12 @@ func tokenCmdListNonFungible(config *walletConfig, runner runTokenListCmd, accou
 			return runner(cmd, config, accountNumber, backend.NonFungible)
 		},
 	}
+
+	cmd.Flags().Bool(cmdFlagWithAll, false, "Show all available fields for each token")
+	cmd.Flags().Bool(cmdFlagWithTypeName, false, "Show type name field")
+	cmd.Flags().Bool(cmdFlagWithTokenURI, false, "Show token URI field")
+	cmd.Flags().Bool(cmdFlagWithTokenData, false, "Show token data field")
+
 	return cmd
 }
 
@@ -748,6 +769,26 @@ func execTokenCmdList(cmd *cobra.Command, config *walletConfig, accountNumber *u
 	res, err := tw.ListTokens(cmd.Context(), kind, *accountNumber)
 	if err != nil {
 		return err
+	}
+
+	withAll, err := cmd.Flags().GetBool(cmdFlagWithAll)
+	if err != nil {
+		return err
+	}
+	withTypeName, err := cmd.Flags().GetBool(cmdFlagWithTypeName)
+	if err != nil {
+		return err
+	}
+	withTokenURI, withTokenData := false, false
+	if kind == backend.Any || kind == backend.NonFungible {
+		withTokenURI, err = cmd.Flags().GetBool(cmdFlagWithTokenURI)
+		if err != nil {
+			return err
+		}
+		withTokenData, err = cmd.Flags().GetBool(cmdFlagWithTokenData)
+		if err != nil {
+			return err
+		}
 	}
 
 	accounts := make([]uint64, 0, len(res))
@@ -774,11 +815,26 @@ func execTokenCmdList(cmd *cobra.Command, config *walletConfig, accountNumber *u
 		})
 		for _, tok := range toks {
 			atLeastOneFound = true
+
+			var typeName, nftURI, nftData string
+			if withAll || withTypeName {
+				typeName = fmt.Sprintf(", token-type-name='%s'", tok.TypeName)
+			}
+			if withAll || withTokenURI {
+				nftURI = fmt.Sprintf(", URI='%s'", tok.NftURI)
+			}
+			if withAll ||  withTokenData {
+				nftData = fmt.Sprintf(", Data='%X'", tok.NftData)
+			}
+			kind := fmt.Sprintf(" (%v)", tok.Kind)
+
 			if tok.Kind == backend.Fungible {
 				amount := amountToString(tok.Amount, tok.Decimals)
-				consoleWriter.Println(fmt.Sprintf("ID='%X', Symbol='%s', amount='%v', token-type='%X' (%v)", tok.ID, tok.Symbol, amount, tok.TypeID, tok.Kind))
+				consoleWriter.Println(fmt.Sprintf("ID='%X', Symbol='%s', amount='%v', token-type='%X'",
+					tok.ID, tok.Symbol, amount, tok.TypeID) + typeName + kind)
 			} else {
-				consoleWriter.Println(fmt.Sprintf("ID='%X', Symbol='%s', token-type='%X', URI='%s' (%v)", tok.ID, tok.Symbol, tok.TypeID, tok.NftURI, tok.Kind))
+				consoleWriter.Println(fmt.Sprintf("ID='%X', Symbol='%s', Name='%s', token-type='%X'",
+					tok.ID, tok.Symbol, tok.NftName, tok.TypeID) + typeName + nftURI + nftData + kind)
 			}
 		}
 	}
@@ -831,7 +887,12 @@ func execTokenCmdListTypes(cmd *cobra.Command, config *walletConfig, accountNumb
 		return err
 	}
 	for _, tok := range res {
-		consoleWriter.Println(fmt.Sprintf("ID=%X, symbol=%s (%v)", tok.ID, tok.Symbol, tok.Kind))
+		name := ""
+		if tok.Name != "" {
+			name = fmt.Sprintf(", name=%s", tok.Name)
+		}
+		kind := fmt.Sprintf(" (%v)", tok.Kind)
+		consoleWriter.Println(fmt.Sprintf("ID=%X, symbol=%s", tok.ID, tok.Symbol) + name + kind)
 	}
 	return nil
 }

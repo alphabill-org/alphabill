@@ -142,9 +142,9 @@ func createBlockProofResponse(t *testing.T, b *Bill, overrideNonce []byte, billI
 	}
 	var dcTx *types.TransactionOrder
 	if overrideNonce != nil {
-		dcTx, _ = txbuilder.NewDustTx(k, w.SystemID(), b.ToProto(), overrideNonce, billIds, timeout, dcSum)
+		dcTx, _ = txbuilder.NewDustTx(k, w.SystemID(), b.ToGenericBill(), overrideNonce, billIds, timeout, dcSum)
 	} else {
-		dcTx, _ = txbuilder.NewDustTx(k, w.SystemID(), b.ToProto(), calculateDcNonce([]*Bill{b}), billIds, timeout, dcSum)
+		dcTx, _ = txbuilder.NewDustTx(k, w.SystemID(), b.ToGenericBill(), calculateDcNonce([]*Bill{b}), billIds, timeout, dcSum)
 	}
 	txRecord := &types.TransactionRecord{TransactionOrder: dcTx}
 	mockClient.SetBlock(&types.Block{

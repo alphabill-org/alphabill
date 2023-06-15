@@ -71,7 +71,7 @@ func Run(ctx context.Context, cfg Configuration) error {
 	}
 	defer db.Close()
 
-	txs, err := tokens.New(tokens.WithTrustBase(map[string]crypto.Verifier{"test": nil}))
+	txs, err := tokens.NewTxSystem(tokens.WithTrustBase(map[string]crypto.Verifier{"test": nil}))
 	if err != nil {
 		return fmt.Errorf("failed to create token tx system: %w", err)
 	}

@@ -98,7 +98,7 @@ func CreateNewWallet(am account.Manager, mnemonic string) error {
 }
 
 func LoadExistingWallet(am account.Manager, backend BackendAPI) (*Wallet, error) {
-	moneySystemID := []byte{0, 0, 0, 0}
+	moneySystemID := money.DefaultSystemIdentifier
 	moneyTxPublisher := NewTxPublisher(backend)
 	feeManager := fees.NewFeeManager(am, moneySystemID, moneyTxPublisher, backend, moneySystemID, moneyTxPublisher, backend)
 	return &Wallet{
@@ -116,12 +116,13 @@ func (w *Wallet) GetAccountManager() account.Manager {
 func (w *Wallet) SystemID() []byte {
 	// TODO: return the default "AlphaBill Money System ID" for now
 	// but this should come from config (base wallet? AB client?)
-	return []byte{0, 0, 0, 0}
+	return money.DefaultSystemIdentifier
 }
 
 // Shutdown terminates connection to alphabill node, closes account manager and cancels any background goroutines.
-func (w *Wallet) Shutdown() {
+func (w *Wallet) Close() {
 	w.am.Close()
+	w.feeManager.Close()
 }
 
 // CollectDust starts the dust collector process for the requested accounts in the wallet.
@@ -590,10 +591,4 @@ func convertBill(b *wallet.Bill) *Bill {
 		IsDcBill: b.IsDcBill,
 		TxProof:  b.TxProof,
 	}
-}
-
-// NewFeeManager helper struct for creating new money partition fee manager
-func NewFeeManager(am account.Manager, systemID []byte, moneyClient BackendAPI) *fees.FeeManager {
-	moneyTxPublisher := NewTxPublisher(moneyClient)
-	return fees.NewFeeManager(am, systemID, moneyTxPublisher, moneyClient, systemID, moneyTxPublisher, moneyClient)
 }

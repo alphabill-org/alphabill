@@ -737,7 +737,10 @@ func Test_restAPI_txProof(t *testing.T) {
 		unitID := []byte{0x01}
 		txHash := []byte{0xFF}
 
-		proof := &wallet.Proof{&types.TransactionRecord{TransactionOrder: &types.TransactionOrder{Payload: &types.Payload{UnitID: unitID}}}, &types.TxProof{}}
+		proof := &wallet.Proof{
+			TxRecord: &types.TransactionRecord{TransactionOrder: &types.TransactionOrder{Payload: &types.Payload{UnitID: unitID}}},
+			TxProof: &types.TxProof{},
+		}
 		api := &restAPI{
 			db: &mockStorage{
 				getTxProof: func(unitID wallet.UnitID, txHash wallet.TxHash) (*wallet.Proof, error) {
@@ -792,10 +795,10 @@ func Test_restAPI_getFeeCreditBill(t *testing.T) {
 			db: &mockStorage{
 				getFeeCreditBill: func(unitID wallet.UnitID) (*FeeCreditBill, error) {
 					return &FeeCreditBill{
-						Id:            []byte{1},
-						Value:         2,
-						TxHash:        []byte{3},
-						FCBlockNumber: 4,
+						Id:          []byte{1},
+						Value:       2,
+						TxHash:      []byte{3},
+						AddFCTxHash: []byte{4},
 					}, nil
 				},
 				getTxProof: func(unitID wallet.UnitID, txHash wallet.TxHash) (*wallet.Proof, error) {
@@ -812,10 +815,10 @@ func Test_restAPI_getFeeCreditBill(t *testing.T) {
 			db: &mockStorage{
 				getFeeCreditBill: func(unitID wallet.UnitID) (*FeeCreditBill, error) {
 					return &FeeCreditBill{
-						Id:            []byte{1},
-						Value:         2,
-						TxHash:        []byte{3},
-						FCBlockNumber: 4,
+						Id:          []byte{1},
+						Value:       2,
+						TxHash:      []byte{3},
+						AddFCTxHash: []byte{4},
 					}, nil
 				},
 				getTxProof: func(unitID wallet.UnitID, txHash wallet.TxHash) (*wallet.Proof, error) {
@@ -829,10 +832,10 @@ func Test_restAPI_getFeeCreditBill(t *testing.T) {
 
 	t.Run("ok", func(t *testing.T) {
 		fcb := &FeeCreditBill{
-			Id:            []byte{1},
-			Value:         2,
-			TxHash:        []byte{3},
-			FCBlockNumber: 4,
+			Id:          []byte{1},
+			Value:       2,
+			TxHash:      []byte{3},
+			AddFCTxHash: []byte{4},
 		}
 		fcbProof := &wallet.Proof{}
 		api := &restAPI{

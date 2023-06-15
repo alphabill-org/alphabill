@@ -11,6 +11,7 @@ import (
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	testpartition "github.com/alphabill-org/alphabill/internal/testutils/partition"
 	testevent "github.com/alphabill-org/alphabill/internal/testutils/partition/event"
+	"github.com/alphabill-org/alphabill/internal/txsystem/money"
 	"github.com/alphabill-org/alphabill/internal/txsystem/tokens"
 	"github.com/alphabill-org/alphabill/internal/types"
 	wlog "github.com/alphabill-org/alphabill/pkg/wallet/log"
@@ -22,10 +23,10 @@ func TestNFTs_Integration(t *testing.T) {
 	require.NoError(t, wlog.InitStdoutLogger(wlog.INFO))
 
 	network := NewAlphabillNetwork(t)
-	_, err := network.abNetwork.GetNodePartition(defaultABMoneySystemIdentifier)
+	_, err := network.abNetwork.GetNodePartition(money.DefaultSystemIdentifier)
 	require.NoError(t, err)
 	moneyBackendURL := network.moneyBackendURL
-	tokenPartition, err := network.abNetwork.GetNodePartition(tokens.DefaultTokenTxSystemIdentifier)
+	tokenPartition, err := network.abNetwork.GetNodePartition(tokens.DefaultSystemIdentifier)
 	require.NoError(t, err)
 	homedirW1 := network.walletHomedir
 	//w1key := network.walletKey1
@@ -44,9 +45,9 @@ func TestNFTs_Integration(t *testing.T) {
 	verifyStdout(t, stdout, "Successfully confirmed transaction(s)")
 
 	// create fee credit on w1k2
-	stdout, err = execFeesCommand(homedirW1, fmt.Sprintf("--partition token add -k 2 --amount 50 -r %s -m %s", moneyBackendURL, backendURL))
+	stdout, err = execFeesCommand(homedirW1, fmt.Sprintf("--partition tokens add -k 2 --amount 50 -r %s -m %s", moneyBackendURL, backendURL))
 	require.NoError(t, err)
-	verifyStdout(t, stdout, "Successfully created 50 fee credits on token partition.")
+	verifyStdout(t, stdout, "Successfully created 50 fee credits on tokens partition.")
 
 	// non-fungible token types
 	typeID := randomID(t)
@@ -82,9 +83,9 @@ func TestNFTs_Integration(t *testing.T) {
 	verifyStdout(t, stdout, "Successfully confirmed transaction(s)")
 
 	// create fee credit on w2
-	stdout, err = execFeesCommand(homedirW2, fmt.Sprintf("--partition token add --amount 50 -r %s -m %s", moneyBackendURL, backendURL))
+	stdout, err = execFeesCommand(homedirW2, fmt.Sprintf("--partition tokens add --amount 50 -r %s -m %s", moneyBackendURL, backendURL))
 	require.NoError(t, err)
-	verifyStdout(t, stdout, "Successfully created 50 fee credits on token partition.")
+	verifyStdout(t, stdout, "Successfully created 50 fee credits on tokens partition.")
 
 	// transfer back
 	execTokensCmd(t, homedirW2, fmt.Sprintf("send non-fungible -r %s --token-identifier %X --address 0x%X -k 1", backendURL, nftID, w1key2.PubKey))
@@ -100,7 +101,7 @@ func TestNFTDataUpdateCmd_Integration(t *testing.T) {
 	require.NoError(t, wlog.InitStdoutLogger(wlog.INFO))
 
 	network := NewAlphabillNetwork(t)
-	tokenPartition, err := network.abNetwork.GetNodePartition(tokens.DefaultTokenTxSystemIdentifier)
+	tokenPartition, err := network.abNetwork.GetNodePartition(tokens.DefaultSystemIdentifier)
 	require.NoError(t, err)
 	homedir := network.walletHomedir
 	w1key := network.walletKey1
@@ -172,7 +173,7 @@ func TestNFT_InvariantPredicate_Integration(t *testing.T) {
 	require.NoError(t, wlog.InitStdoutLogger(wlog.INFO))
 
 	network := NewAlphabillNetwork(t)
-	tokenPartition, err := network.abNetwork.GetNodePartition(tokens.DefaultTokenTxSystemIdentifier)
+	tokenPartition, err := network.abNetwork.GetNodePartition(tokens.DefaultSystemIdentifier)
 	require.NoError(t, err)
 	homedirW1 := network.walletHomedir
 	w1key := network.walletKey1

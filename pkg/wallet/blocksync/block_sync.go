@@ -81,7 +81,7 @@ func fetchBlocks(ctx context.Context, getBlocks BlocksLoaderFunc, blockNumber ui
 			out <- block
 		}
 		blockNumber = rsp.BatchMaxBlockNumber + 1
-		if rsp.MaxBlockNumber < blockNumber {
+		if rsp.MaxRoundNumber < blockNumber {
 			// we have reached to the last block the source currently has - wait a bit before asking for more
 			select {
 			case <-ctx.Done():
@@ -95,7 +95,7 @@ func fetchBlocks(ctx context.Context, getBlocks BlocksLoaderFunc, blockNumber ui
 func processBlocks(ctx context.Context, blocks <-chan *types.Block, processor BlockProcessorFunc) error {
 	for b := range blocks {
 		if err := processor(ctx, b); err != nil {
-			return fmt.Errorf("failed to procces block {%x : %d}: %w", b.SystemID(), b.GetRoundNumber(), err)
+			return fmt.Errorf("failed to process block {%x : %d}: %w", b.SystemID(), b.GetRoundNumber(), err)
 		}
 	}
 	return nil

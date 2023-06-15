@@ -37,7 +37,7 @@ func newUserTokenGenesisCmd(baseConfig *baseConfiguration) *cobra.Command {
 		},
 	}
 
-	cmd.Flags().BytesHexVarP(&config.SystemIdentifier, "system-identifier", "s", tokens.DefaultTokenTxSystemIdentifier, "system identifier in HEX format")
+	cmd.Flags().BytesHexVarP(&config.SystemIdentifier, "system-identifier", "s", tokens.DefaultSystemIdentifier, "system identifier in HEX format")
 	cmd.Flags().StringVarP(&config.Output, "output", "o", "", "path to the output genesis file (default: $AB_HOME/tokens/node-genesis.json)")
 	cmd.Flags().Uint32Var(&config.T2Timeout, "t2-timeout", defaultT2Timeout, "time interval for how long root chain waits before re-issuing unicity certificate, in milliseconds")
 	config.Keys.addCmdFlags(cmd)
@@ -65,7 +65,7 @@ func utGenesisRunFun(_ context.Context, config *userTokenPartitionGenesisConfig)
 		return errors.Wrapf(err, "failed to load keys %v", config.Keys.GetKeyFileLocation())
 	}
 
-	txSystem, err := tokens.New(
+	txSystem, err := tokens.NewTxSystem(
 		tokens.WithSystemIdentifier(config.SystemIdentifier),
 		tokens.WithTrustBase(map[string]abcrypto.Verifier{"genesis": nil}),
 	)

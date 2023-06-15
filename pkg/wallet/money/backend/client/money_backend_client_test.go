@@ -220,10 +220,9 @@ func mockGetFeeCreditBillCall(t *testing.T) *url.URL {
 func getFeeCreditBillJsonBytes() []byte {
 	unitID, _ := base64.StdEncoding.DecodeString(billId)
 	res := &wallet.Bill{
-		Id:            unitID,
-		Value:         10,
-		TxHash:        []byte{1},
-		FcBlockNumber: 100,
+		Id:     unitID,
+		Value:  10,
+		TxHash: []byte{1},
 	}
 	jsonBytes, _ := json.Marshal(res)
 	return jsonBytes

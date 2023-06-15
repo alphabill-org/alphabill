@@ -1,25 +1,40 @@
-package verifiable_data
+package vd
 
 import (
 	"testing"
 
 	"github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/hash"
+	"github.com/alphabill-org/alphabill/internal/rma"
+	"github.com/alphabill-org/alphabill/internal/script"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	testpartition "github.com/alphabill-org/alphabill/internal/testutils/partition"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
+	"github.com/alphabill-org/alphabill/internal/txsystem/fc"
 	"github.com/alphabill-org/alphabill/internal/types"
+	"github.com/alphabill-org/alphabill/internal/util"
+	"github.com/fxamacker/cbor/v2"
+	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
 )
 
-var systemIdentifier = []byte{0, 0, 0, 1}
+var feeCreditID = uint256.NewInt(420)
+var defaultClientMetadata = &types.ClientMetadata{
+	Timeout:           20,
+	MaxTransactionFee: 10,
+	FeeCreditRecordID: util.Uint256ToBytes(feeCreditID),
+}
 
 func TestVDPartition_Ok(t *testing.T) {
 	vdPart, err := testpartition.NewPartition(3, func(trustBase map[string]crypto.Verifier) txsystem.TransactionSystem {
-		system, err := New(systemIdentifier)
+		system, err := NewTxSystem(
+			WithSystemIdentifier(DefaultSystemIdentifier),
+			WithTrustBase(map[string]crypto.Verifier{"test": nil}),
+			WithState(newStateWithFeeCredit(t, feeCreditID)),
+		)
 		require.NoError(t, err)
 		return system
-	}, systemIdentifier)
+	}, DefaultSystemIdentifier)
 	require.NoError(t, err)
 	abNet, err := testpartition.NewAlphabillPartition([]*testpartition.NodePartition{vdPart})
 	require.NoError(t, err)
@@ -37,14 +52,28 @@ func TestVDPartition_Ok(t *testing.T) {
 }
 
 func createVDTransaction() *types.TransactionOrder {
+	attrBytes, _ := cbor.Marshal(&RegisterDataAttributes{})
 	return &types.TransactionOrder{
 		Payload: &types.Payload{
-			Type:           txType,
-			SystemID:       systemIdentifier,
+			Type:           PayloadTypeRegisterData,
+			SystemID:       DefaultSystemIdentifier,
 			UnitID:         hash.Sum256(test.RandomBytes(32)),
-			ClientMetadata: &types.ClientMetadata{Timeout: 100},
-			Attributes:     []byte{0xf6}, // nil
+			ClientMetadata: defaultClientMetadata,
+			Attributes:     attrBytes,
 		},
-		OwnerProof: nil,
+		FeeProof: script.PredicateArgumentEmpty(),
 	}
+}
+
+func newStateWithFeeCredit(t *testing.T, feeCreditID *uint256.Int) *rma.Tree {
+	state := rma.NewWithSHA256()
+	require.NoError(t, state.AtomicUpdate(
+		fc.AddCredit(feeCreditID, script.PredicateAlwaysTrue(), &fc.FeeCreditRecord{
+			Balance: 100,
+			Hash:    make([]byte, 32),
+			Timeout: 1000,
+		}, make([]byte, 32)),
+	))
+	state.Commit()
+	return state
 }

@@ -1,4 +1,4 @@
-package money
+package vd
 
 import (
 	"fmt"
@@ -8,29 +8,33 @@ import (
 )
 
 func NewTxSystem(opts ...Option) (*txsystem.GenericTxSystem, error) {
-	options := DefaultOptions()
+	options, err := defaultOptions()
+	if err != nil {
+		return nil, err
+	}
 	for _, option := range opts {
 		option(options)
 	}
-	money, err := NewMoneyModule(options)
+
+	vdModule, err := NewVDModule(options)
 	if err != nil {
-		return nil, fmt.Errorf("failed to load money module: %w", err)
+		return nil, fmt.Errorf("failed to create vd module: %w", err)
 	}
+
 	feeCreditModule, err := fc.NewFeeCreditModule(
 		fc.WithState(options.state),
 		fc.WithHashAlgorithm(options.hashAlgorithm),
 		fc.WithTrustBase(options.trustBase),
 		fc.WithSystemIdentifier(options.systemIdentifier),
-		fc.WithMoneyTXSystemIdentifier(options.systemIdentifier),
+		fc.WithMoneyTXSystemIdentifier(options.moneySystemIdentifier),
 		fc.WithFeeCalculator(options.feeCalculator),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load fee credit module: %w", err)
 	}
+
 	return txsystem.NewGenericTxSystem(
-		[]txsystem.Module{money, feeCreditModule},
-		txsystem.WithEndBlockFunctions(money.EndBlockFuncs()),
-		txsystem.WithBeginBlockFunctions(money.BeginBlockFuncs()),
+		[]txsystem.Module{vdModule, feeCreditModule},
 		txsystem.WithSystemIdentifier(options.systemIdentifier),
 		txsystem.WithHashAlgorithm(options.hashAlgorithm),
 		txsystem.WithState(options.state),

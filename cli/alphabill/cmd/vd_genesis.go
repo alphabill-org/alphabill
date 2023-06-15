@@ -8,9 +8,10 @@ import (
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/spf13/cobra"
 
+	"github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/errors"
 	"github.com/alphabill-org/alphabill/internal/partition"
-	"github.com/alphabill-org/alphabill/internal/txsystem/verifiable_data"
+	"github.com/alphabill-org/alphabill/internal/txsystem/vd"
 	"github.com/alphabill-org/alphabill/internal/util"
 )
 
@@ -18,8 +19,6 @@ const (
 	vdGenesisFileName = "node-genesis.json"
 	vdDir             = "vd"
 )
-
-var defaultVDSystemIdentifier = []byte{0, 0, 0, 1}
 
 type vdGenesisConfig struct {
 	Base             *baseConfiguration
@@ -40,7 +39,7 @@ func newVDGenesisCmd(baseConfig *baseConfiguration) *cobra.Command {
 		},
 	}
 
-	cmd.Flags().BytesHexVarP(&config.SystemIdentifier, "system-identifier", "s", defaultVDSystemIdentifier, "system identifier in HEX format")
+	cmd.Flags().BytesHexVarP(&config.SystemIdentifier, "system-identifier", "s", vd.DefaultSystemIdentifier, "system identifier in HEX format")
 	cmd.Flags().StringVarP(&config.Output, "output", "o", "", "path to the output genesis file (default: $AB_HOME/vd/node-genesis.json)")
 	cmd.Flags().Uint32Var(&config.T2Timeout, "t2-timeout", defaultT2Timeout, "time interval for how long root chain waits before re-issuing unicity certificate, in milliseconds")
 	config.Keys.addCmdFlags(cmd)
@@ -68,7 +67,10 @@ func vdGenesisRunFun(_ context.Context, config *vdGenesisConfig) error {
 		return errors.Wrapf(err, "failed to load keys %v", config.Keys.GetKeyFileLocation())
 	}
 
-	txSystem, err := verifiable_data.New(config.SystemIdentifier)
+	txSystem, err := vd.NewTxSystem(
+		vd.WithSystemIdentifier(config.SystemIdentifier),
+		vd.WithTrustBase(map[string]crypto.Verifier{"genesis": nil}),
+	)
 	if err != nil {
 		return err
 	}

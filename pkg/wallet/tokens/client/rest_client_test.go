@@ -785,7 +785,7 @@ func randomTx(t *testing.T, attr interface{}) *types.TransactionOrder {
 	require.NoError(t, err, "failed to marshal tx attributes: %v", err)
 	tx := &types.TransactionOrder{
 		Payload: &types.Payload{
-			SystemID:       tokens.DefaultTokenTxSystemIdentifier,
+			SystemID:       tokens.DefaultSystemIdentifier,
 			Attributes:     bytes,
 			UnitID:         test.RandomBytes(32),
 			ClientMetadata: &types.ClientMetadata{Timeout: 10},

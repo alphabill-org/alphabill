@@ -2,6 +2,7 @@ package backend
 
 import (
 	"context"
+	gocrypto "crypto"
 	"testing"
 
 	"github.com/alphabill-org/alphabill/internal/crypto"
@@ -25,11 +26,7 @@ func TestBlockProcessor_EachTxTypeCanBeProcessed(t *testing.T) {
 	pubKeyBytes, _ := hexutil.Decode("0x03c30573dc0c7fd43fcb801289a6a96cb78c27f4ba398b89da91ece23e9a99aca3")
 	pubKeyHash := hash.Sum256(pubKeyBytes)
 	fcbID := newUnitID(101)
-	fcb := &Bill{
-		Id:            fcbID,
-		Value:         100,
-		FCBlockNumber: 1,
-	}
+	fcb := &Bill{Id: fcbID, Value: 100}
 	signer, _ := crypto.NewInMemorySecp256K1Signer()
 	tx1 := &types.TransactionRecord{
 		TransactionOrder: &types.TransactionOrder{
@@ -165,6 +162,11 @@ func TestBlockProcessor_EachTxTypeCanBeProcessed(t *testing.T) {
 	require.NoError(t, err)
 	require.EqualValues(t, 194, fcb.Value)
 
+	// verify FCB AddFCTxHash equals to TxHash
+	addFCTxHash := addFC.Hash(gocrypto.SHA256)
+	require.Equal(t, addFCTxHash, fcb.TxHash)
+	require.Equal(t, addFCTxHash, fcb.AddFCTxHash)
+
 	// verify tx1 unit is zero value (whole bill transferred to fee credit)
 	unit1, err := store.Do().GetBill(tx1.TransactionOrder.UnitID())
 	require.NoError(t, err)
@@ -205,6 +207,9 @@ func TestBlockProcessor_EachTxTypeCanBeProcessed(t *testing.T) {
 	require.NoError(t, err)
 	require.EqualValues(t, 0, fcb.Value)
 
+	// verify FCB AddFCTxHash is not changed
+	require.Equal(t, addFCTxHash, fcb.AddFCTxHash)
+
 	// verify reclaimed fee credits (194) were added to specified unit (tx4 value=100) minus 2x txfee (2)
 	unit, err := store.Do().GetBill(tx4.TransactionOrder.UnitID())
 	require.NoError(t, err)
@@ -225,11 +230,7 @@ func TestBlockProcessor_EachTxTypeCanBeProcessed(t *testing.T) {
 
 func TestBlockProcessor_TransferFCAndReclaimFC(t *testing.T) {
 	fcbID := newUnitID(101)
-	fcb := &Bill{
-		Id:            fcbID,
-		Value:         50,
-		FCBlockNumber: 1,
-	}
+	fcb := &Bill{Id: fcbID, Value: 50}
 	signer, _ := crypto.NewInMemorySecp256K1Signer()
 
 	store, err := createTestBillStore(t)

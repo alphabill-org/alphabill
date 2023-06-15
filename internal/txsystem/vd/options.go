@@ -1,4 +1,4 @@
-package tokens
+package vd
 
 import (
 	gocrypto "crypto"
@@ -9,16 +9,16 @@ import (
 	"github.com/alphabill-org/alphabill/internal/txsystem/money"
 )
 
-var DefaultSystemIdentifier = []byte{0, 0, 0, 2}
+var DefaultSystemIdentifier = []byte{0, 0, 0, 1}
 
 type (
 	Options struct {
-		systemIdentifier        []byte
-		moneyTXSystemIdentifier []byte
-		hashAlgorithm           gocrypto.Hash
-		trustBase               map[string]crypto.Verifier
-		state                   *rma.Tree
-		feeCalculator           fc.FeeCalculator
+		systemIdentifier      []byte
+		moneySystemIdentifier []byte
+		hashAlgorithm         gocrypto.Hash
+		trustBase             map[string]crypto.Verifier
+		state                 *rma.Tree
+		feeCalculator         fc.FeeCalculator
 	}
 
 	Option func(*Options)
@@ -26,12 +26,12 @@ type (
 
 func defaultOptions() (*Options, error) {
 	return &Options{
-		systemIdentifier:        DefaultSystemIdentifier,
-		moneyTXSystemIdentifier: money.DefaultSystemIdentifier,
-		hashAlgorithm:           gocrypto.SHA256,
-		state:                   rma.NewWithSHA256(),
-		feeCalculator:           fc.FixedFee(1),
-		trustBase:               map[string]crypto.Verifier{},
+		systemIdentifier:      DefaultSystemIdentifier,
+		moneySystemIdentifier: money.DefaultSystemIdentifier,
+		hashAlgorithm:         gocrypto.SHA256,
+		trustBase:             map[string]crypto.Verifier{},
+		state:                 rma.NewWithSHA256(),
+		feeCalculator:         fc.FixedFee(1),
 	}, nil
 }
 
@@ -47,9 +47,9 @@ func WithSystemIdentifier(systemIdentifier []byte) Option {
 	}
 }
 
-func WithMoneyTXSystemIdentifier(moneySystemIdentifier []byte) Option {
+func WithMoneySystemIdentifier(moneySystemIdentifier []byte) Option {
 	return func(c *Options) {
-		c.moneyTXSystemIdentifier = moneySystemIdentifier
+		c.moneySystemIdentifier = moneySystemIdentifier
 	}
 }
 

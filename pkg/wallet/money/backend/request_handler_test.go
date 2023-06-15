@@ -208,7 +208,6 @@ func TestListBillsRequest_Paging(t *testing.T) {
 		bills = append(bills, &Bill{
 			Id:             newUnitID(i),
 			Value:          i,
-			OrderNumber:    i,
 			OwnerPredicate: getOwnerPredicate(pubkeyHex),
 		})
 	}
@@ -469,7 +468,6 @@ func TestGetFeeCreditBillRequest_Ok(t *testing.T) {
 		Value:          1,
 		TxHash:         []byte{0},
 		OwnerPredicate: getOwnerPredicate(pubkeyHex),
-		FCBlockNumber:  1,
 		TxProof: &wallet.Proof{
 			TxRecord: testtransaction.NewTransactionRecord(t),
 			TxProof: &types.TxProof{
@@ -489,7 +487,6 @@ func TestGetFeeCreditBillRequest_Ok(t *testing.T) {
 	require.Equal(t, b.Value, response.Value)
 	require.Equal(t, b.TxHash, response.TxHash)
 	require.Equal(t, b.IsDCBill, response.IsDcBill)
-	require.Equal(t, b.FCBlockNumber, response.FcBlockNumber)
 
 	ep := b.TxProof
 	ap := response.TxProof

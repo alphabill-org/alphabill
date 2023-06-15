@@ -82,6 +82,7 @@ func newWalletCmd(baseConfig *baseConfiguration) *cobra.Command {
 	walletCmd.AddCommand(collectDustCmd(config))
 	walletCmd.AddCommand(addKeyCmd(config))
 	walletCmd.AddCommand(tokenCmd(config))
+	walletCmd.AddCommand(vdCmd(config))
 	// add passwords flags for (encrypted)wallet
 	walletCmd.PersistentFlags().BoolP(passwordPromptCmdName, "p", false, passwordPromptUsage)
 	walletCmd.PersistentFlags().String(passwordArgCmdName, "", passwordArgUsage)
@@ -185,7 +186,7 @@ func execSendCmd(ctx context.Context, cmd *cobra.Command, config *walletConfig) 
 	if err != nil {
 		return err
 	}
-	defer w.Shutdown()
+	defer w.Close()
 
 	receiverPubKeyHex, err := cmd.Flags().GetString(addressCmdName)
 	if err != nil {
@@ -305,7 +306,7 @@ func execGetBalanceCmd(cmd *cobra.Command, config *walletConfig) error {
 	if err != nil {
 		return err
 	}
-	defer w.Shutdown()
+	defer w.Close()
 
 	accountNumber, err := cmd.Flags().GetUint64(keyCmdName)
 	if err != nil {
@@ -426,7 +427,7 @@ func execCollectDust(cmd *cobra.Command, config *walletConfig) error {
 	if err != nil {
 		return err
 	}
-	defer w.Shutdown()
+	defer w.Close()
 
 	consoleWriter.Println("Starting dust collection, this may take a while...")
 	err = w.CollectDust(context.Background(), accountNumber)

@@ -12,10 +12,10 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/alphabill-org/alphabill/internal/script"
-	ttxs "github.com/alphabill-org/alphabill/internal/txsystem/tokens"
+	"github.com/alphabill-org/alphabill/internal/txsystem/tokens"
 	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/alphabill-org/alphabill/pkg/wallet/account"
-	"github.com/alphabill-org/alphabill/pkg/wallet/tokens"
+	wallet "github.com/alphabill-org/alphabill/pkg/wallet/tokens"
 	"github.com/alphabill-org/alphabill/pkg/wallet/tokens/backend"
 )
 
@@ -175,7 +175,7 @@ func execTokenCmdNewTypeFungible(cmd *cobra.Command, config *walletConfig) error
 	if err != nil {
 		return err
 	}
-	a := tokens.CreateFungibleTokenTypeAttributes{
+	a := wallet.CreateFungibleTokenTypeAttributes{
 		Symbol:                   symbol,
 		Name:                     name,
 		Icon:                     icon,
@@ -259,7 +259,7 @@ func execTokenCmdNewTypeNonFungible(cmd *cobra.Command, config *walletConfig) er
 	if err != nil {
 		return err
 	}
-	a := tokens.CreateNonFungibleTokenTypeAttributes{
+	a := wallet.CreateNonFungibleTokenTypeAttributes{
 		Symbol:                   symbol,
 		Name:                     name,
 		Icon:                     icon,
@@ -429,7 +429,7 @@ func execTokenCmdNewTokenNonFungible(cmd *cobra.Command, config *walletConfig) e
 	if err != nil {
 		return err
 	}
-	a := tokens.MintNonFungibleTokenAttributes{
+	a := wallet.MintNonFungibleTokenAttributes{
 		Bearer:              bearerPredicate,
 		Name:                name,
 		NftType:             typeId,
@@ -631,7 +631,7 @@ func execTokenCmdDC(cmd *cobra.Command, config *walletConfig, accountNumber *uin
 	}
 	var types []backend.TokenTypeID
 	for _, tokenType := range typeIDStrs {
-		typeBytes, err := tokens.DecodeHexOrEmpty(tokenType)
+		typeBytes, err := wallet.DecodeHexOrEmpty(tokenType)
 		if err != nil {
 			return err
 		}
@@ -836,7 +836,7 @@ func execTokenCmdListTypes(cmd *cobra.Command, config *walletConfig, accountNumb
 	return nil
 }
 
-func initTokensWallet(cmd *cobra.Command, config *walletConfig) (*tokens.Wallet, error) {
+func initTokensWallet(cmd *cobra.Command, config *walletConfig) (*wallet.Wallet, error) {
 	uri, err := cmd.Flags().GetString(alphabillApiURLCmdName)
 	if err != nil {
 		return nil, err
@@ -853,21 +853,21 @@ func initTokensWallet(cmd *cobra.Command, config *walletConfig) (*tokens.Wallet,
 	if err != nil {
 		return nil, err
 	}
-	tw, err := tokens.New(ttxs.DefaultTokenTxSystemIdentifier, uri, am, confirmTx, nil)
+	tw, err := wallet.New(tokens.DefaultSystemIdentifier, uri, am, confirmTx, nil)
 	if err != nil {
 		return nil, err
 	}
 	return tw, nil
 }
 
-func readParentTypeInfo(cmd *cobra.Command, keyNr uint64, am account.Manager) (backend.TokenTypeID, []*tokens.PredicateInput, error) {
+func readParentTypeInfo(cmd *cobra.Command, keyNr uint64, am account.Manager) (backend.TokenTypeID, []*wallet.PredicateInput, error) {
 	parentType, err := getHexFlag(cmd, cmdFlagParentType)
 	if err != nil {
 		return nil, nil, err
 	}
 
 	if len(parentType) == 0 || bytes.Equal(parentType, NoParent) {
-		return NoParent, []*tokens.PredicateInput{{Argument: script.PredicateArgumentEmpty()}}, nil
+		return NoParent, []*wallet.PredicateInput{{Argument: script.PredicateArgumentEmpty()}}, nil
 	}
 
 	creationInputs, err := readPredicateInput(cmd, cmdFlagSybTypeClauseInput, keyNr, am)
@@ -878,15 +878,15 @@ func readParentTypeInfo(cmd *cobra.Command, keyNr uint64, am account.Manager) (b
 	return parentType, creationInputs, nil
 }
 
-func readPredicateInput(cmd *cobra.Command, flag string, keyNr uint64, am account.Manager) ([]*tokens.PredicateInput, error) {
+func readPredicateInput(cmd *cobra.Command, flag string, keyNr uint64, am account.Manager) ([]*wallet.PredicateInput, error) {
 	creationInputStrs, err := cmd.Flags().GetStringSlice(flag)
 	if err != nil {
 		return nil, err
 	}
 	if len(creationInputStrs) == 0 {
-		return []*tokens.PredicateInput{{Argument: script.PredicateArgumentEmpty()}}, nil
+		return []*wallet.PredicateInput{{Argument: script.PredicateArgumentEmpty()}}, nil
 	}
-	creationInputs, err := tokens.ParsePredicates(creationInputStrs, keyNr, am)
+	creationInputs, err := wallet.ParsePredicates(creationInputStrs, keyNr, am)
 	if err != nil {
 		return nil, err
 	}
@@ -905,7 +905,7 @@ func parsePredicateClauseCmd(cmd *cobra.Command, flag string, keyNr uint64, am a
 	if err != nil {
 		return nil, err
 	}
-	return tokens.ParsePredicateClause(clause, keyNr, am)
+	return wallet.ParsePredicateClause(clause, keyNr, am)
 }
 
 func readNFTData(cmd *cobra.Command, required bool) ([]byte, error) {
@@ -941,11 +941,11 @@ func getHexFlag(cmd *cobra.Command, flag string) ([]byte, error) {
 	return res, err
 }
 
-func readIconFile(iconFilePath string) (*tokens.Icon, error) {
+func readIconFile(iconFilePath string) (*wallet.Icon, error) {
 	if len(iconFilePath) == 0 {
 		return nil, nil
 	}
-	icon := &tokens.Icon{}
+	icon := &wallet.Icon{}
 
 	ext := filepath.Ext(iconFilePath)
 	if len(ext) == 0 {

@@ -7,12 +7,12 @@ import (
 
 	bolt "go.etcd.io/bbolt"
 
-	"github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/alphabill-org/alphabill/internal/util"
+	"github.com/alphabill-org/alphabill/pkg/wallet"
 )
 
 var (
-	bucketMetadata = []byte("meta")
+	bucketMetadata   = []byte("meta")
 	bucketFeeCredits = []byte("fee-credits") // UnitID -> json(FeeCreditBill)
 
 	keyBlockNumber = []byte("block-number")
@@ -33,10 +33,10 @@ type (
 	}
 
 	FeeCreditBill struct {
-		Id            []byte `json:"id"`                   // unitID
-		Value         uint64 `json:"value,string"`         // fee credit balance
-		TxHash        []byte `json:"txHash"`               // hash of the transaction that last updated fee credit balance
-		FCBlockNumber uint64 `json:"fcBlockNumber,string"` // number of the block that last updated fee credit balance
+		Id          []byte `json:"id"`           // unitID
+		Value       uint64 `json:"value,string"` // fee credit balance
+		TxHash      []byte `json:"txHash"`       // hash of the transaction that last updated fee credit balance
+		AddFCTxHash []byte `json:"addFcTxHash"`  // last add fee credit tx hash
 	}
 )
 
@@ -113,6 +113,13 @@ func (f *FeeCreditBill) GetValue() uint64 {
 		return f.Value
 	}
 	return 0
+}
+
+func (f *FeeCreditBill) GetAddFCTxHash() []byte {
+	if f != nil {
+		return f.AddFCTxHash
+	}
+	return nil
 }
 
 func newBoltStore(dbFile string) (*storage, error) {

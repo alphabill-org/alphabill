@@ -216,7 +216,7 @@ func (p *BlockProcessor) processTx(txr *types.TransactionRecord, b *types.Block,
 		if err != nil {
 			return fmt.Errorf("failed to add transferred fee credit to partition fee bill: %w", err)
 		}
-		err = p.addTxFeesToMoneyFeeBill(dbTx, txr)
+		err = p.addTxFeeToMoneyFeeBill(dbTx, txr)
 		if err != nil {
 			return fmt.Errorf("failed to add tx fees to money fee bill: %w", err)
 		}
@@ -275,26 +275,29 @@ func (p *BlockProcessor) processTx(txr *types.TransactionRecord, b *types.Block,
 		if err != nil {
 			return err
 		}
-		closeFCTXO := reclaimFCAttr.CloseFeeCreditTransfer.TransactionOrder
+		closeFCTXR := reclaimFCAttr.CloseFeeCreditTransfer
+		closeFCTXO := closeFCTXR.TransactionOrder
 		closeFCAttr := &transactions.CloseFeeCreditAttributes{}
 		err = closeFCTXO.UnmarshalAttributes(closeFCAttr)
 		if err != nil {
 			return err
 		}
 
-		reclaimedValue := closeFCAttr.Amount - reclaimFCAttr.CloseFeeCreditTransfer.ServerMetadata.ActualFee - txr.ServerMetadata.ActualFee
+		// 1. remove reclaimed amount from user bill
+		reclaimedValue := closeFCAttr.Amount - closeFCTXR.ServerMetadata.ActualFee - txr.ServerMetadata.ActualFee
 		bill.Value += reclaimedValue
 		bill.TxHash = txo.Hash(crypto.SHA256)
 		err = p.saveBillWithProof(txIdx, b, dbTx, bill)
 		if err != nil {
 			return err
 		}
-		err = p.removeReclaimedCreditFromPartitionFeeBill(closeFCTXO, closeFCAttr, dbTx)
+		// 2. remove reclaimed amount from partition fee bill
+		err = p.removeReclaimedCreditFromPartitionFeeBill(closeFCTXR, closeFCAttr, dbTx)
 		if err != nil {
 			return err
 		}
-		// add closeFC and reclaimFC txs fees to money partition fee bill
-		return p.addTxFeesToMoneyFeeBill(dbTx, reclaimFCAttr.CloseFeeCreditTransfer, txr)
+		// 3. add reclaimFC tx fee to money partition fee bill
+		return p.addTxFeeToMoneyFeeBill(dbTx, txr)
 	default:
 		wlog.Warning(fmt.Sprintf("received unknown transaction type, skipping processing: %s", txo.PayloadType()))
 		return nil
@@ -318,7 +321,8 @@ func (p *BlockProcessor) addTransferredCreditToPartitionFeeBill(tx *transactions
 	return dbTx.SetBill(partitionFeeBill)
 }
 
-func (p *BlockProcessor) removeReclaimedCreditFromPartitionFeeBill(txo *types.TransactionOrder, attr *transactions.CloseFeeCreditAttributes, dbTx BillStoreTx) error {
+func (p *BlockProcessor) removeReclaimedCreditFromPartitionFeeBill(txr *types.TransactionRecord, attr *transactions.CloseFeeCreditAttributes, dbTx BillStoreTx) error {
+	txo := txr.TransactionOrder
 	sdr, f := p.sdrs[string(txo.SystemID())]
 	if !f {
 		return fmt.Errorf("received reclaimFC for unknown tx system: %x", txo.SystemID())
@@ -328,17 +332,16 @@ func (p *BlockProcessor) removeReclaimedCreditFromPartitionFeeBill(txo *types.Tr
 		return err
 	}
 	partitionFeeBill.Value -= attr.Amount
+	partitionFeeBill.Value += txr.ServerMetadata.ActualFee
 	return dbTx.SetBill(partitionFeeBill)
 }
 
-func (p *BlockProcessor) addTxFeesToMoneyFeeBill(dbTx BillStoreTx, txs ...*types.TransactionRecord) error {
+func (p *BlockProcessor) addTxFeeToMoneyFeeBill(dbTx BillStoreTx, tx *types.TransactionRecord) error {
 	moneyFeeBill, err := dbTx.GetBill(p.moneySDR.FeeCreditBill.UnitId)
 	if err != nil {
 		return err
 	}
-	for _, tx := range txs {
-		moneyFeeBill.Value += tx.ServerMetadata.ActualFee
-	}
+	moneyFeeBill.Value += tx.ServerMetadata.ActualFee
 	return dbTx.SetBill(moneyFeeBill)
 }
 

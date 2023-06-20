@@ -1,6 +1,7 @@
 package verifiable_data
 
 import (
+	"bytes"
 	"crypto"
 	"errors"
 	"fmt"
@@ -9,6 +10,7 @@ import (
 	hasherUtil "github.com/alphabill-org/alphabill/internal/hash"
 	"github.com/alphabill-org/alphabill/internal/rma"
 	"github.com/alphabill-org/alphabill/internal/script"
+	"github.com/alphabill-org/alphabill/internal/state"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/internal/util"
@@ -26,16 +28,9 @@ var (
 )
 
 type (
-	/*
-		vdTransaction struct {
-			transaction *txsystem.Transaction
-			hashFunc    crypto.Hash
-			hashValue   []byte
-		}*/
-
 	txSystem struct {
 		systemIdentifier   []byte
-		stateTree          *rma.Tree
+		stateTree          *state.State
 		hashAlgorithm      crypto.Hash
 		currentBlockNumber uint64
 	}
@@ -47,23 +42,18 @@ type (
 )
 
 func New(systemId []byte) (*txSystem, error) {
-	conf := &rma.Config{HashAlgorithm: crypto.SHA256}
-	s, err := rma.New(conf)
-	if err != nil {
-		return nil, err
-	}
-
+	s := state.NewEmptyState()
 	vdTxSystem := &txSystem{
 		systemIdentifier: systemId,
 		stateTree:        s,
-		hashAlgorithm:    conf.HashAlgorithm,
+		hashAlgorithm:    crypto.SHA256,
 	}
 
 	return vdTxSystem, nil
 }
 
 func (d *txSystem) StateSummary() (txsystem.State, error) {
-	if d.stateTree.ContainsUncommittedChanges() {
+	if !d.stateTree.IsCommitted() {
 		return nil, txsystem.ErrStateContainsUncommittedChanges
 	}
 	return d.getState(), nil
@@ -93,107 +83,47 @@ func (d *txSystem) Execute(tx *types.TransactionOrder) (*types.ServerMetadata, e
 	if tx.PayloadType() != txType {
 		return nil, fmt.Errorf("invalid transaction payload type: got %s, expected %s", tx.PayloadType(), txType)
 	}
-	h := tx.Hash(d.hashAlgorithm)
-	if err := d.stateTree.AtomicUpdate(
-		rma.AddItem(util.BytesToUint256(tx.UnitID()),
+	sm := &types.ServerMetadata{ActualFee: 0, TargetUnits: []types.UnitID{tx.UnitID()}}
+	if err := d.stateTree.Apply(
+		state.AddUnit(tx.UnitID(),
 			script.PredicateAlwaysFalse(),
 			&unit{
 				dataHash:    hasherUtil.Sum256(tx.UnitID()),
 				blockNumber: d.currentBlockNumber,
 			},
-			h,
 		)); err != nil {
-		return nil, fmt.Errorf("could not add item: %v", err)
+		return nil, fmt.Errorf("could not add item: %w", err)
 	}
-	return &types.ServerMetadata{}, nil
+	return sm, nil
 }
 
 func (d *txSystem) getState() txsystem.State {
-	if d.stateTree.GetRootHash() == nil {
-		return txsystem.NewStateSummary(zeroRootHash, zeroSummaryValue.Bytes())
+	sv, root, err := d.stateTree.CalculateRoot()
+	if err != nil {
+		return nil
 	}
-	return txsystem.NewStateSummary(d.stateTree.GetRootHash(), zeroSummaryValue.Bytes())
-}
-
-func (u *unit) AddToHasher(hasher hash.Hash) {
-	hasher.Write(u.dataHash)
-	hasher.Write(util.Uint64ToBytes(u.blockNumber))
+	if root == nil {
+		return txsystem.NewStateSummary(make([]byte, 32), util.Uint64ToBytes(sv))
+	}
+	return txsystem.NewStateSummary(root, util.Uint64ToBytes(sv))
 }
 
 func (u *unit) Value() rma.SummaryValue {
 	return zeroSummaryValue
 }
 
-/*
-func (w *vdTransaction) Hash(hashFunc crypto.Hash) []byte {
-	if w.hashComputed(hashFunc) {
-		return w.hashValue
-	}
-	hasher := hashFunc.New()
-	w.AddToHasher(hasher)
-
-	w.hashValue = hasher.Sum(nil)
-	w.hashFunc = hashFunc
-	return w.hashValue
+func (u *unit) Write(hasher hash.Hash) {
+	hasher.Write(u.dataHash)
+	hasher.Write(util.Uint64ToBytes(u.blockNumber))
 }
 
-
-func (w *vdTransaction) AddToHasher(hasher hash.Hash) {
-	hasher.Write(w.transaction.Bytes())
+func (u *unit) SummaryValueInput() uint64 {
+	return 0
 }
 
-func (w *vdTransaction) SigBytes() []byte {
-	return nil
-}
-
-func (w *vdTransaction) UnitID() *uint256.Int {
-	return uint256.NewInt(0).SetBytes(w.transaction.UnitId)
-}
-
-func (w *vdTransaction) Timeout() uint64 {
-	return w.transaction.Timeout()
-}
-
-func (w *vdTransaction) SystemID() []byte {
-	return w.transaction.SystemId
-}
-
-func (w *vdTransaction) OwnerProof() []byte {
-	return w.transaction.OwnerProof
-}
-
-func (w *vdTransaction) ToProtoBuf() *txsystem.Transaction {
-	return w.transaction
-}
-
-func (w *vdTransaction) IsPrimary() bool {
-	return true
-}
-
-func (w *vdTransaction) TargetUnits(_ crypto.Hash) []*uint256.Int {
-	return []*uint256.Int{w.UnitID()}
-}
-
-func (w *vdTransaction) SetServerMetadata(sm *txsystem.ServerMetadata) {
-	w.ToProtoBuf().ServerMetadata = sm
-	w.resetHasher()
-}
-
-func (w *vdTransaction) resetHasher() {
-	w.hashValue = nil
-}
-
-func (w *vdTransaction) sigBytes(b *bytes.Buffer) {
-	b.Write(w.transaction.SystemId)
-	b.Write(w.transaction.UnitId)
-	if w.transaction.ClientMetadata != nil {
-		b.Write(w.transaction.ClientMetadata.Bytes())
+func (u *unit) Copy() state.UnitData {
+	return &unit{
+		dataHash:    bytes.Clone(u.dataHash),
+		blockNumber: u.blockNumber,
 	}
 }
-
-func (w *vdTransaction) hashComputed(hashFunc crypto.Hash) bool {
-	return w.hashFunc == hashFunc && w.hashValue != nil
-}
-
-
-*/

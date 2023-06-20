@@ -30,11 +30,12 @@ type (
 	// used to be protobuf defined Bill struct used as import/export/download/upload unified schema across applications
 	// possibly can be removed as import/export/download/upoad feature was dropped
 	Bill struct {
-		Id       []byte `json:"id,omitempty"`
-		Value    uint64 `json:"value,omitempty,string"`
-		TxHash   []byte `json:"tx_hash,omitempty"`
-		IsDcBill bool   `json:"is_dc_bill,omitempty"`
-		TxProof  *Proof `json:"tx_proof,omitempty"`
+		Id           []byte `json:"id,omitempty"`
+		Value        uint64 `json:"value,omitempty,string"`
+		TxHash       []byte `json:"tx_hash,omitempty"`
+		TxRecordHash []byte `json:"tx_record_hash,omitempty"`
+		IsDcBill     bool   `json:"is_dc_bill,omitempty"`
+		TxProof      *Proof `json:"tx_proof,omitempty"`
 		// block number when fee credit bill balance was last updated
 		FcBlockNumber uint64 `json:"fc_block_number,omitempty,string"`
 	}
@@ -92,7 +93,7 @@ func (x *Bill) GetValue() uint64 {
 
 func (x *Bill) GetTxHash() []byte {
 	if x != nil {
-		return x.TxHash
+		return x.TxRecordHash
 	}
 	return nil
 }

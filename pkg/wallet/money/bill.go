@@ -11,10 +11,11 @@ import (
 
 type (
 	Bill struct {
-		Id      *uint256.Int  `json:"id"`
-		Value   uint64        `json:"value,string"`
-		TxHash  []byte        `json:"txHash"`
-		TxProof *wallet.Proof `json:"txProof"`
+		Id           *uint256.Int  `json:"id"`
+		Value        uint64        `json:"value,string"`
+		TxHash       []byte        `json:"txHash"`
+		TxRecordHash []byte        `json:"txRecordHash"`
+		TxProof      *wallet.Proof `json:"txProof"`
 
 		// dc bill specific fields
 		IsDcBill  bool   `json:"dcBill"`
@@ -39,10 +40,11 @@ func (b *Bill) GetID() []byte {
 
 func (b *Bill) ToProto() *wallet.Bill {
 	return &wallet.Bill{
-		Id:      b.GetID(),
-		Value:   b.Value,
-		TxHash:  b.TxHash,
-		TxProof: b.TxProof,
+		Id:           b.GetID(),
+		Value:        b.Value,
+		TxHash:       b.TxHash,
+		TxRecordHash: b.TxRecordHash,
+		TxProof:      b.TxProof,
 	}
 }
 
@@ -63,6 +65,13 @@ func (b *Bill) addProof(txIdx int, bl *types.Block) error {
 func (b *Bill) GetTxHash() []byte {
 	if b != nil {
 		return b.TxHash
+	}
+	return nil
+}
+
+func (b *Bill) GetTxRecordHash() []byte {
+	if b != nil {
+		return b.TxRecordHash
 	}
 	return nil
 }

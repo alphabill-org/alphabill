@@ -23,7 +23,7 @@ func NewTxPublisher(backend BackendAPI) *TxPublisher {
 func (w *TxPublisher) SendTx(ctx context.Context, tx *types.TransactionOrder, senderPubKey []byte) (*wallet.Proof, error) {
 	txSub := &txsubmitter.TxSubmission{
 		UnitID:      tx.UnitID(),
-		TxHash:      tx.Hash(crypto.SHA256),
+		TxOrderHash: tx.Hash(crypto.SHA256),
 		Transaction: tx,
 	}
 	txBatch := txSub.ToBatch(w.backend, senderPubKey)

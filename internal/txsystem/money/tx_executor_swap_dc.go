@@ -7,8 +7,8 @@ import (
 	"fmt"
 
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
-	"github.com/alphabill-org/alphabill/internal/rma"
 	"github.com/alphabill-org/alphabill/internal/script"
+	"github.com/alphabill-org/alphabill/internal/state"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/internal/txsystem/fc"
 	"github.com/alphabill-org/alphabill/internal/types"
@@ -34,22 +34,26 @@ type dustCollectorTransfer struct {
 	attributes *TransferDCAttributes
 }
 
-func handleSwapDCTx(state *rma.Tree, hashAlgorithm crypto.Hash, trustBase map[string]abcrypto.Verifier, feeCalc fc.FeeCalculator) txsystem.GenericExecuteFunc[SwapDCAttributes] {
+func handleSwapDCTx(s *state.State, hashAlgorithm crypto.Hash, trustBase map[string]abcrypto.Verifier, feeCalc fc.FeeCalculator) txsystem.GenericExecuteFunc[SwapDCAttributes] {
 	return func(tx *types.TransactionOrder, attr *SwapDCAttributes, currentBlockNumber uint64) (*types.ServerMetadata, error) {
 		log.Debug("Processing swap %v", tx)
-		if err := validateSwapTx(tx, attr, state, hashAlgorithm, trustBase); err != nil {
+		if err := validateSwapTx(tx, attr, s, hashAlgorithm, trustBase); err != nil {
 			return nil, fmt.Errorf("invalid swap transaction: %w", err)
 		}
 		// calculate actual tx fee cost
 		fee := feeCalc()
-
+		sm := &types.ServerMetadata{ActualFee: fee, TargetUnits: []types.UnitID{tx.UnitID()}}
 		// calculate hash after setting server metadata
-		h := tx.Hash(hashAlgorithm)
+		txr := &types.TransactionRecord{
+			TransactionOrder: tx,
+			ServerMetadata:   sm,
+		}
+		h := txr.Hash(hashAlgorithm)
 
 		// set n as the target value
 		n := attr.TargetValue
 		// reduce dc-money supply by n
-		decDustCollectorSupplyFn := func(data rma.UnitData) (newData rma.UnitData) {
+		decDustCollectorSupplyFn := func(data state.UnitData) (newData state.UnitData) {
 			bd, ok := data.(*BillData)
 			if !ok {
 				return bd
@@ -58,28 +62,27 @@ func handleSwapDCTx(state *rma.Tree, hashAlgorithm crypto.Hash, trustBase map[st
 			return bd
 		}
 		// update state
-		fcrID := util.BytesToUint256(tx.GetClientFeeCreditRecordID())
-		if err := state.AtomicUpdate(
-			fc.DecrCredit(fcrID, fee, h),
-			rma.UpdateData(dustCollectorMoneySupplyID, decDustCollectorSupplyFn, []byte{}),
-			rma.AddItem(util.BytesToUint256(tx.UnitID()), attr.OwnerCondition, &BillData{
+		if err := s.Apply(
+			state.UpdateUnitData(dustCollectorMoneySupplyID, decDustCollectorSupplyFn),
+			state.AddUnit(tx.UnitID(), attr.OwnerCondition, &BillData{
 				V:        n,
 				T:        currentBlockNumber,
 				Backlink: h,
-			}, h)); err != nil {
+			})); err != nil {
 			return nil, fmt.Errorf("unit update failed: %w", err)
 		}
-		return &types.ServerMetadata{ActualFee: fee}, nil
+
+		return sm, nil
 	}
 }
 
-func validateSwapTx(tx *types.TransactionOrder, attr *SwapDCAttributes, state *rma.Tree, hashAlgorithm crypto.Hash, trustBase map[string]abcrypto.Verifier) error {
+func validateSwapTx(tx *types.TransactionOrder, attr *SwapDCAttributes, s *state.State, hashAlgorithm crypto.Hash, trustBase map[string]abcrypto.Verifier) error {
 	// 3. there is sufficient DC-money supply
-	dcMoneySupply, err := state.GetUnit(dustCollectorMoneySupplyID)
+	dcMoneySupply, err := s.GetUnit(dustCollectorMoneySupplyID, false)
 	if err != nil {
 		return err
 	}
-	dcMoneySupplyBill, ok := dcMoneySupply.Data.(*BillData)
+	dcMoneySupplyBill, ok := dcMoneySupply.Data().(*BillData)
 	if !ok {
 		return ErrInvalidDataType
 	}
@@ -87,7 +90,7 @@ func validateSwapTx(tx *types.TransactionOrder, attr *SwapDCAttributes, state *r
 		return ErrSwapInsufficientDCMoneySupply
 	}
 	// 4.there exists no bill with identifier
-	if _, err = state.GetUnit(util.BytesToUint256(tx.UnitID())); err == nil {
+	if _, err = s.GetUnit(tx.UnitID(), false); err == nil {
 		return ErrSwapBillAlreadyExists
 	}
 	return validateSwap(tx, attr, hashAlgorithm, trustBase)

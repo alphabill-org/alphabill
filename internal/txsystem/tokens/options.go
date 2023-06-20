@@ -4,7 +4,7 @@ import (
 	gocrypto "crypto"
 
 	"github.com/alphabill-org/alphabill/internal/crypto"
-	"github.com/alphabill-org/alphabill/internal/rma"
+	"github.com/alphabill-org/alphabill/internal/state"
 	"github.com/alphabill-org/alphabill/internal/txsystem/fc"
 )
 
@@ -16,7 +16,7 @@ type (
 		moneyTXSystemIdentifier []byte
 		hashAlgorithm           gocrypto.Hash
 		trustBase               map[string]crypto.Verifier
-		state                   *rma.Tree
+		state                   *state.State
 		feeCalculator           fc.FeeCalculator
 	}
 
@@ -28,15 +28,15 @@ func defaultOptions() (*Options, error) {
 		systemIdentifier:        DefaultTokenTxSystemIdentifier,
 		moneyTXSystemIdentifier: []byte{0, 0, 0, 0},
 		hashAlgorithm:           gocrypto.SHA256,
-		state:                   rma.NewWithSHA256(),
+		state:                   state.NewEmptyState(),
 		feeCalculator:           fc.FixedFee(1),
 		trustBase:               map[string]crypto.Verifier{},
 	}, nil
 }
 
-func WithState(state *rma.Tree) Option {
+func WithState(s *state.State) Option {
 	return func(c *Options) {
-		c.state = state
+		c.state = s
 	}
 }
 

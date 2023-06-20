@@ -1,6 +1,9 @@
 package avl
 
-import "errors"
+import (
+	"errors"
+	"fmt"
+)
 
 var ErrNotFound = errors.New("not found")
 
@@ -8,11 +11,11 @@ var ErrNotFound = errors.New("not found")
 // Returns nil if unable to find that value.
 func (t *Tree[K, V]) Get(key K) (v V, err error) {
 	if t.root == nil {
-		return v, ErrNotFound
+		return v, fmt.Errorf("item %v does not exist: %w", key, ErrNotFound)
 	}
 	node := get[K, V](t.root, key)
 	if node == nil {
-		return v, ErrNotFound
+		return v, fmt.Errorf("item %v does not exist: %w", key, ErrNotFound)
 	}
 	return node.value, nil
 }

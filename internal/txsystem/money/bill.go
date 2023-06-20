@@ -1,11 +1,12 @@
 package money
 
 import (
+	"bytes"
 	"hash"
 
-	"github.com/alphabill-org/alphabill/internal/rma"
+	"github.com/alphabill-org/alphabill/internal/state"
+	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/internal/util"
-	"github.com/holiman/uint256"
 )
 
 type BillData struct {
@@ -14,18 +15,26 @@ type BillData struct {
 	Backlink []byte // Backlink (256-bit hash)
 }
 
-type InitialBill struct {
-	ID    *uint256.Int
-	Value uint64
-	Owner rma.Predicate
-}
-
-func (b *BillData) AddToHasher(hasher hash.Hash) {
+func (b *BillData) Write(hasher hash.Hash) {
 	hasher.Write(util.Uint64ToBytes(b.V))
 	hasher.Write(util.Uint64ToBytes(b.T))
 	hasher.Write(b.Backlink)
 }
 
-func (b *BillData) Value() rma.SummaryValue {
-	return rma.Uint64SummaryValue(b.V)
+func (b *BillData) SummaryValueInput() uint64 {
+	return b.V
+}
+
+func (b *BillData) Copy() state.UnitData {
+	return &BillData{
+		V:        b.V,
+		T:        b.T,
+		Backlink: bytes.Clone(b.Backlink),
+	}
+}
+
+type InitialBill struct {
+	ID    types.UnitID
+	Value uint64
+	Owner state.Predicate
 }

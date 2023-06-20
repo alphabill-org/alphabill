@@ -183,10 +183,11 @@ func createBillListResponse(bills []*Bill) *backend.ListBillsResponse {
 	billVMs := make([]*backend.ListBillVM, len(bills))
 	for i, b := range bills {
 		billVMs[i] = &backend.ListBillVM{
-			Id:       b.GetID(),
-			Value:    b.Value,
-			TxHash:   b.TxHash,
-			IsDCBill: b.IsDcBill,
+			Id:           b.GetID(),
+			Value:        b.Value,
+			TxHash:       b.TxHash,
+			TxRecordHash: b.TxRecordHash,
+			IsDCBill:     b.IsDcBill,
 		}
 	}
 	return &backend.ListBillsResponse{Bills: billVMs, Total: len(bills)}

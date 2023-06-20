@@ -1,6 +1,9 @@
 package tokens
 
 import (
+	"bytes"
+	"strings"
+
 	"github.com/alphabill-org/alphabill/internal/types"
 )
 
@@ -17,7 +20,6 @@ const (
 	PayloadTypeJoinFungibleToken       = "joinFToken"
 )
 
-type Predicate []byte
 type (
 	CreateNonFungibleTokenTypeAttributes struct {
 		_                                  struct{} `cbor:",toarray"`
@@ -124,3 +126,13 @@ type (
 		InvariantPredicateSignatures [][]byte                   // inputs to satisfy the token type invariant predicates down the inheritance chain
 	}
 )
+
+func (i *Icon) Copy() *Icon {
+	if i == nil {
+		return nil
+	}
+	return &Icon{
+		Type: strings.Clone(i.Type),
+		Data: bytes.Clone(i.Data),
+	}
+}

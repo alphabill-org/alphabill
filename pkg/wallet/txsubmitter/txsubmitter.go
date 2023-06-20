@@ -14,7 +14,7 @@ import (
 type (
 	TxSubmission struct {
 		UnitID      wallet.UnitID
-		TxHash      wallet.TxHash
+		TxOrderHash wallet.TxHash
 		Transaction *types.TransactionOrder
 		Proof       *wallet.Proof
 	}
@@ -112,7 +112,7 @@ func (t *TxSubmissionBatch) confirmUnitsTx(ctx context.Context) error {
 			if sub.Confirmed() || roundNr >= sub.Transaction.Timeout() {
 				continue
 			}
-			proof, err := t.backend.GetTxProof(ctx, sub.UnitID, sub.TxHash)
+			proof, err := t.backend.GetTxProof(ctx, sub.UnitID, sub.TxOrderHash)
 			if err != nil {
 				return err
 			}

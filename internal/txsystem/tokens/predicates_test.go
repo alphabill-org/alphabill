@@ -4,52 +4,53 @@ import (
 	"testing"
 
 	"github.com/alphabill-org/alphabill/internal/script"
+	"github.com/alphabill-org/alphabill/internal/state"
 	"github.com/stretchr/testify/require"
 )
 
 func TestVerifyPredicates(t *testing.T) {
 	tests := []*struct {
 		name       string
-		predicates []Predicate
+		predicates []state.Predicate
 		signatures [][]byte
 		err        string
 	}{
 		{
 			name:       "no predicates, no signatures",
-			predicates: []Predicate{},
+			predicates: []state.Predicate{},
 			signatures: [][]byte{},
 		},
 		{
 			name:       "no predicates, one signature",
-			predicates: []Predicate{},
+			predicates: []state.Predicate{},
 			signatures: [][]byte{script.PredicateArgumentEmpty()},
 		},
 		{
 			name:       "one predicate, one default signature",
-			predicates: []Predicate{script.PredicateAlwaysTrue()},
+			predicates: []state.Predicate{script.PredicateAlwaysTrue()},
 			signatures: [][]byte{script.PredicateArgumentEmpty()},
 		},
 		{
 			name:       "one predicate, no signatures",
-			predicates: []Predicate{script.PredicateAlwaysFalse()},
+			predicates: []state.Predicate{script.PredicateAlwaysFalse()},
 			signatures: [][]byte{},
 			err:        "number of signatures (0) not equal to number of parent predicates (1)",
 		},
 		{
 			name:       "one predicate, one empty signature",
-			predicates: []Predicate{script.PredicateAlwaysTrue()},
+			predicates: []state.Predicate{script.PredicateAlwaysTrue()},
 			signatures: [][]byte{{}},
 			err:        "invalid script format",
 		},
 		{
 			name:       "two predicates (true and false), two signatures, unsatisfiable",
-			predicates: []Predicate{script.PredicateAlwaysTrue(), script.PredicateAlwaysFalse()},
+			predicates: []state.Predicate{script.PredicateAlwaysTrue(), script.PredicateAlwaysFalse()},
 			signatures: [][]byte{script.PredicateArgumentEmpty(), script.PredicateArgumentEmpty()},
 			err:        "script execution result yielded false",
 		},
 		{
 			name:       "two predicates, two signatures",
-			predicates: []Predicate{script.PredicateAlwaysTrue(), script.PredicateAlwaysTrue()},
+			predicates: []state.Predicate{script.PredicateAlwaysTrue(), script.PredicateAlwaysTrue()},
 			signatures: [][]byte{script.PredicateArgumentEmpty(), script.PredicateArgumentEmpty()},
 		},
 	}

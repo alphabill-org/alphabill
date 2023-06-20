@@ -4,7 +4,7 @@ import (
 	"crypto"
 	"testing"
 
-	"github.com/alphabill-org/alphabill/internal/rma"
+	"github.com/alphabill-org/alphabill/internal/state"
 	testtransaction "github.com/alphabill-org/alphabill/internal/testutils/transaction"
 	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/holiman/uint256"
@@ -15,7 +15,7 @@ var systemID = []byte{0, 0, 0, 3}
 
 func Test_handleSCallTx(t *testing.T) {
 	type args struct {
-		state    *rma.Tree
+		state    *state.State
 		programs BuiltInPrograms
 		tx       *types.TransactionOrder
 		attr     *SCallAttributes
@@ -28,7 +28,7 @@ func Test_handleSCallTx(t *testing.T) {
 		{
 			name: "owner proof present",
 			args: args{
-				state: rma.NewWithSHA256(),
+				state: state.NewEmptyState(),
 				tx:    newSCallTxOrder(t, testtransaction.WithOwnerProof(testtransaction.RandomBytes(64)), testtransaction.WithPayloadType("scall")),
 				attr: &SCallAttributes{
 					Input: testtransaction.RandomBytes(123),
@@ -39,7 +39,7 @@ func Test_handleSCallTx(t *testing.T) {
 		{
 			name: "program not found",
 			args: args{
-				state: rma.NewWithSHA256(),
+				state: state.NewEmptyState(),
 				tx:    newSCallTxOrder(t, testtransaction.WithUnitId(make([]byte, 32)), testtransaction.WithOwnerProof(nil), testtransaction.WithPayloadType("scall")),
 				attr: &SCallAttributes{
 					Input: testtransaction.RandomBytes(123),

@@ -5,13 +5,10 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/alphabill-org/alphabill/internal/rma"
+	"github.com/alphabill-org/alphabill/internal/state"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
-	"github.com/alphabill-org/alphabill/internal/txsystem/fc"
 	"github.com/alphabill-org/alphabill/internal/types"
-	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/fxamacker/cbor/v2"
-	"github.com/holiman/uint256"
 )
 
 func handleJoinFungibleTokenTx(options *Options) txsystem.GenericExecuteFunc[JoinFungibleTokenAttributes] {
@@ -23,16 +20,15 @@ func handleJoinFungibleTokenTx(options *Options) txsystem.GenericExecuteFunc[Joi
 		}
 		fee := options.feeCalculator()
 
-		// TODO calculate hash after setting server metadata
-		h := tx.Hash(options.hashAlgorithm)
-
 		// update state
-		fcrID := util.BytesToUint256(tx.GetClientFeeCreditRecordID())
-		unitID := util.BytesToUint256(tx.UnitID())
-		if err := options.state.AtomicUpdate(
-			fc.DecrCredit(fcrID, fee, h),
-			rma.UpdateData(unitID,
-				func(data rma.UnitData) rma.UnitData {
+		unitID := tx.UnitID()
+		sm := &types.ServerMetadata{ActualFee: fee, TargetUnits: []types.UnitID{unitID}}
+		txr := &types.TransactionRecord{TransactionOrder: tx, ServerMetadata: sm}
+
+		h := txr.Hash(options.hashAlgorithm)
+		if err := options.state.Apply(
+			state.UpdateUnitData(unitID,
+				func(data state.UnitData) state.UnitData {
 					d, ok := data.(*fungibleTokenData)
 					if !ok {
 						// No change in case of incorrect data type.
@@ -44,15 +40,15 @@ func handleJoinFungibleTokenTx(options *Options) txsystem.GenericExecuteFunc[Joi
 						t:         currentBlockNr,
 						backlink:  h,
 					}
-				}, h)); err != nil {
+				})); err != nil {
 			return nil, err
 		}
-		return &types.ServerMetadata{ActualFee: fee}, nil
+		return sm, nil
 	}
 }
 
 func validateJoinFungibleToken(tx *types.TransactionOrder, attr *JoinFungibleTokenAttributes, options *Options) (uint64, error) {
-	bearer, d, err := getFungibleTokenData(util.BytesToUint256(tx.UnitID()), options.state)
+	bearer, d, err := getFungibleTokenData(tx.UnitID(), options.state, options.hashAlgorithm)
 	if err != nil {
 		return 0, err
 	}
@@ -73,9 +69,8 @@ func validateJoinFungibleToken(tx *types.TransactionOrder, attr *JoinFungibleTok
 		if prevSum > sum { // overflow
 			return 0, errors.New("invalid sum of tokens: uint64 overflow")
 		}
-		tokenTypeID := util.Uint256ToBytes(d.tokenType)
-		if !bytes.Equal(btxAttr.TypeID, tokenTypeID) {
-			return 0, fmt.Errorf("the type of the burned source token does not match the type of target token: expected %X, got %X", tokenTypeID, btxAttr.TypeID)
+		if !bytes.Equal(btxAttr.TypeID, d.tokenType) {
+			return 0, fmt.Errorf("the type of the burned source token does not match the type of target token: expected %X, got %X", d.tokenType, btxAttr.TypeID)
 		}
 
 		if !bytes.Equal(btxAttr.Nonce, attr.Backlink) {
@@ -91,12 +86,13 @@ func validateJoinFungibleToken(tx *types.TransactionOrder, attr *JoinFungibleTok
 		return 0, fmt.Errorf("invalid backlink: expected %X, got %X", d.backlink, attr.Backlink)
 	}
 	predicates, err := getChainedPredicates[*fungibleTokenTypeData](
+		options.hashAlgorithm,
 		options.state,
 		d.tokenType,
 		func(d *fungibleTokenTypeData) []byte {
 			return d.invariantPredicate
 		},
-		func(d *fungibleTokenTypeData) *uint256.Int {
+		func(d *fungibleTokenTypeData) types.UnitID {
 			return d.parentTypeId
 		},
 	)

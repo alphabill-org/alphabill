@@ -66,17 +66,15 @@ func TestListBillsWithPaging(t *testing.T) {
 	require.EqualValues(t, b, billsResponse.Bills[0].Id)
 }
 
-func TestGetProof(t *testing.T) {
-	mockServer, mockAddress := mockGetProofCall(t)
+func TestGetTxProof(t *testing.T) {
+	mockServer, mockAddress := mockGetTxProofCall(t)
 	defer mockServer.Close()
 
 	restClient, _ := New(mockAddress.Host)
-	proofResponse, err := restClient.GetProof([]byte(billId))
+	proofResponse, err := restClient.GetTxProof(context.Background(), []byte{0x00}, []byte{0x01})
 
 	require.NoError(t, err)
-	require.Len(t, proofResponse.Bills, 1)
-	b, _ := base64.StdEncoding.DecodeString(billId)
-	require.EqualValues(t, b, proofResponse.Bills[0].Id)
+	require.NotNil(t, proofResponse)
 }
 
 func TestBlockHeight(t *testing.T) {
@@ -178,13 +176,15 @@ func mockListBillsCallWithPaging(t *testing.T) (*httptest.Server, *url.URL) {
 	return server, serverAddress
 }
 
-func mockGetProofCall(t *testing.T) (*httptest.Server, *url.URL) {
+func mockGetTxProofCall(t *testing.T) (*httptest.Server, *url.URL) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if !strings.HasPrefix(r.URL.Path, "/"+ProofPath) {
+		if !strings.HasPrefix(r.URL.Path, "/api/v1/units/") {
 			t.Errorf("Expected to request '%v', got: %s", ProofPath, r.URL.Path)
 		}
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`{"bills":[{"id":"` + billId + `", "value":"10", "txHash":"MHgwMzgwMDNlMjE4ZWVhMzYwY2JmNTgwZWJiOTBjYzhjOGNhZjBjY2VmNGJmNjYwZWE5YWI0ZmMwNmI1YzM2N2IwMzg=", "isDcBill":false, "txProof":{"blockNumber":1, "tx":{"systemId":"AAAAAA==", "unitId":"Uv38ByGCZU8WP18PmmIdcpVmx00QA3xNe7sEB9Hixkk=", "transactionAttributes":{}, "clientMetadata":{"timeout":10}, "ownerProof":"gYVa"}, "proof":{"proofType":"PRIM", "blockHeaderHash":"AA==", "transactionsHash":"", "hashValue":"", "blockTreeHashChain":{"items":[{"val":"AA==", "hash":"AA=="}]}, "secTreeHashChain":null, "unicityCertificate":null}}}]}`))
+		proof := &wallet.Proof{TxRecord: nil, TxProof: nil}
+		data, _ := json.Marshal(proof)
+		w.Write(data)
 	}))
 
 	serverAddress, _ := url.Parse(server.URL)

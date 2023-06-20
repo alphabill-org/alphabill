@@ -15,7 +15,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/alphabill-org/alphabill/pkg/wallet"
+	sdk "github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/alphabill-org/alphabill/pkg/wallet/tokens/backend"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/fxamacker/cbor/v2"
@@ -75,7 +75,7 @@ Returns:
   - offsetKey for the next batch (if empty then there is no more data to query);
   - non-nil error when something failed;
 */
-func (tb *TokenBackend) GetTokens(ctx context.Context, kind backend.Kind, owner wallet.PubKey, offsetKey string, limit int) ([]*backend.TokenUnit, string, error) {
+func (tb *TokenBackend) GetTokens(ctx context.Context, kind backend.Kind, owner sdk.PubKey, offsetKey string, limit int) ([]*backend.TokenUnit, string, error) {
 	addr := tb.getURL(apiPathPrefix, "kinds", kind.String(), "owners", hexutil.Encode(owner), "tokens")
 	setPaginationParams(addr, offsetKey, limit)
 
@@ -97,7 +97,7 @@ Returns:
   - offsetKey for the next batch (if empty then there is no more data to query);
   - non-nil error when something failed;
 */
-func (tb *TokenBackend) GetTokenTypes(ctx context.Context, kind backend.Kind, creator wallet.PubKey, offsetKey string, limit int) ([]*backend.TokenUnitType, string, error) {
+func (tb *TokenBackend) GetTokenTypes(ctx context.Context, kind backend.Kind, creator sdk.PubKey, offsetKey string, limit int) ([]*backend.TokenUnitType, string, error) {
 	addr := tb.getURL(apiPathPrefix, "kinds", kind.String(), "types")
 	if len(creator) > 0 {
 		q := addr.Query()
@@ -123,8 +123,8 @@ func (tb *TokenBackend) GetTypeHierarchy(ctx context.Context, id backend.TokenTy
 	return rspData, nil
 }
 
-func (tb *TokenBackend) GetTxProof(ctx context.Context, unitID wallet.UnitID, txHash wallet.TxHash) (*wallet.Proof, error) {
-	var proof *wallet.Proof
+func (tb *TokenBackend) GetTxProof(ctx context.Context, unitID sdk.UnitID, txHash sdk.TxHash) (*sdk.Proof, error) {
+	var proof *sdk.Proof
 	addr := tb.getURL(apiPathPrefix, "units", hexutil.Encode(unitID), "transactions", hexutil.Encode(txHash), "proof")
 	_, err := tb.get(ctx, addr, &proof, false)
 	if err != nil {
@@ -144,7 +144,7 @@ func (tb *TokenBackend) GetRoundNumber(ctx context.Context) (uint64, error) {
 	return rn.RoundNumber, nil
 }
 
-func (tb *TokenBackend) PostTransactions(ctx context.Context, pubKey wallet.PubKey, txs *wallet.Transactions) error {
+func (tb *TokenBackend) PostTransactions(ctx context.Context, pubKey sdk.PubKey, txs *sdk.Transactions) error {
 	b, err := cbor.Marshal(txs)
 	if err != nil {
 		return fmt.Errorf("failed to encode transactions: %w", err)
@@ -165,8 +165,8 @@ func (tb *TokenBackend) PostTransactions(ctx context.Context, pubKey wallet.PubK
 	return nil
 }
 
-func (tb *TokenBackend) GetFeeCreditBill(ctx context.Context, unitID wallet.UnitID) (*wallet.Bill, error) {
-	var fcb *wallet.Bill
+func (tb *TokenBackend) GetFeeCreditBill(ctx context.Context, unitID sdk.UnitID) (*sdk.Bill, error) {
+	var fcb *sdk.Bill
 	addr := tb.getURL(apiPathPrefix, "fee-credit-bills", hexutil.Encode(unitID))
 	_, err := tb.get(ctx, addr, &fcb, false)
 	if err != nil {
@@ -248,7 +248,7 @@ func decodeResponse(rsp *http.Response, successStatus int, data any, allowEmptyR
 		return nil
 	}
 
-	var er backend.ErrorResponse
+	var er sdk.ErrorResponse
 	if err := json.NewDecoder(rsp.Body).Decode(&er); err != nil {
 		return fmt.Errorf("failed to decode error from the response body (%s): %w", rsp.Status, err)
 	}

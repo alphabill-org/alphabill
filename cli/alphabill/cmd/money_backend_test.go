@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"context"
+	"crypto"
 	"fmt"
 	"path/filepath"
 	"strings"
@@ -77,12 +78,12 @@ func TestMoneyBackendCLI(t *testing.T) {
 	require.Equal(t, initialBillID, b.Id)
 	require.NotNil(t, b.TxHash)
 
-	// verify /proof
-	resBlockProof := &wallet.Bills{}
-	httpRes, err = testhttp.DoGet(fmt.Sprintf("http://%s/api/v1/proof?bill_id=%s", serverAddr, initialBillHex), resBlockProof)
+	// verify proof
+	resBlockProof := &wallet.Proof{}
+	httpRes, err = testhttp.DoGet(fmt.Sprintf("http://%s/api/v1/units/%s/transactions/0x%x/proof", serverAddr, initialBillHex, b.TxHash), resBlockProof)
 	require.NoError(t, err)
 	require.EqualValues(t, 200, httpRes.StatusCode)
-	require.Len(t, resBlockProof.Bills, 1)
+	require.Equal(t, resBlockProof.TxRecord.TransactionOrder.Hash(crypto.SHA256), b.TxHash)
 }
 
 func TestMoneyBackendConfig_DbFileParentDirsAreCreated(t *testing.T) {

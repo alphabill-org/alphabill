@@ -52,7 +52,6 @@ type (
 		GetBalance(pubKey []byte, includeDCBills bool) (uint64, error)
 		ListBills(pubKey []byte, includeDCBills bool) (*backend.ListBillsResponse, error)
 		GetBills(pubKey []byte) ([]*wallet.Bill, error)
-		GetProof(billId []byte) (*wallet.Bills, error)
 		GetRoundNumber(ctx context.Context) (uint64, error)
 		GetFeeCreditBill(ctx context.Context, unitID wallet.UnitID) (*wallet.Bill, error)
 		PostTransactions(ctx context.Context, pubKey wallet.PubKey, txs *wallet.Transactions) error
@@ -166,11 +165,6 @@ func (w *Wallet) GetBalances(cmd GetBalanceCmd) ([]uint64, uint64, error) {
 	return totals, sum, err
 }
 
-// GetRoundNumber returns latest round number known to the wallet, including empty rounds.
-func (w *Wallet) GetRoundNumber(ctx context.Context) (uint64, error) {
-	return w.backend.GetRoundNumber(ctx)
-}
-
 // Send creates, signs and broadcasts transactions, in total for the given amount,
 // to the given public key, the public key must be in compressed secp256k1 format.
 // Sends one transaction per bill, prioritizing larger bills.
@@ -243,30 +237,6 @@ func (w *Wallet) Send(ctx context.Context, cmd SendCmd) ([]*wallet.Proof, error)
 	return proofs, nil
 }
 
-func (w *Wallet) PostTransactions(ctx context.Context, pubkey wallet.PubKey, txs *wallet.Transactions) error {
-	return w.backend.PostTransactions(ctx, pubkey, txs)
-}
-
-func (w *Wallet) GetTxProof(_ context.Context, unitID wallet.UnitID, txHash wallet.TxHash) (*wallet.Proof, error) {
-	resp, err := w.backend.GetProof(unitID)
-	if err != nil {
-		return nil, err
-	}
-	if resp == nil {
-		// confirmation expects nil (not error) if there's no proof for the given tx hash (yet)
-		return nil, nil
-	}
-	if len(resp.Bills) != 1 {
-		return nil, fmt.Errorf("unexpected number of proofs: %d, bill ID: %X", len(resp.Bills), unitID)
-	}
-	bill := resp.Bills[0]
-	if !bytes.Equal(bill.TxHash, txHash) {
-		// confirmation expects nil (not error) if there's no proof for the given tx hash (yet)
-		return nil, nil
-	}
-	return bill.TxProof, nil
-}
-
 // AddFeeCredit creates fee credit for the given amount.
 // Wallet must have a bill large enough for the required amount plus fees.
 // Returns transferFC and addFC transaction proofs.
@@ -310,7 +280,7 @@ func (w *Wallet) collectDust(ctx context.Context, accountIndex uint64) error {
 	if err != nil {
 		return err
 	}
-	bills, err := w.getDetailedBillsList(pubKey)
+	bills, err := w.getDetailedBillsList(ctx, pubKey)
 	if err != nil {
 		return err
 	}
@@ -357,7 +327,7 @@ func (w *Wallet) collectDust(ctx context.Context, accountIndex uint64) error {
 			if err != nil {
 				return err
 			}
-			bills, err = w.getDetailedBillsList(pubKey)
+			bills, err = w.getDetailedBillsList(ctx, pubKey)
 			if err != nil {
 				return err
 			}
@@ -440,7 +410,7 @@ func (w *Wallet) SendTx(ctx context.Context, tx *types.TransactionOrder, senderP
 	return w.TxPublisher.SendTx(ctx, tx, senderPubKey)
 }
 
-func (w *Wallet) getDetailedBillsList(pubKey []byte) ([]*Bill, error) {
+func (w *Wallet) getDetailedBillsList(ctx context.Context, pubKey []byte) ([]*Bill, error) {
 	billResponse, err := w.backend.ListBills(pubKey, true)
 	if err != nil {
 		return nil, err
@@ -450,15 +420,14 @@ func (w *Wallet) getDetailedBillsList(pubKey []byte) ([]*Bill, error) {
 		return bills, nil
 	}
 	for _, b := range billResponse.Bills {
+		var proof *wallet.Proof
 		if b.IsDCBill {
-			proof, err := w.backend.GetProof(b.Id)
+			proof, err = w.backend.GetTxProof(ctx, b.Id, b.TxHash)
 			if err != nil {
 				return nil, err
 			}
-			bills = append(bills, convertBill(proof.Bills[0]))
-		} else {
-			bills = append(bills, &Bill{Id: util.BytesToUint256(b.Id), Value: b.Value, TxHash: b.TxHash, IsDcBill: b.IsDCBill})
 		}
+		bills = append(bills, &Bill{Id: util.BytesToUint256(b.Id), Value: b.Value, TxHash: b.TxHash, IsDcBill: b.IsDCBill, TxProof: proof})
 	}
 
 	return bills, nil

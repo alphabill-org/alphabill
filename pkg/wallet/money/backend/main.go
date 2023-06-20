@@ -33,8 +33,8 @@ type (
 	WalletBackendService interface {
 		GetBills(ownerCondition []byte) ([]*Bill, error)
 		GetBill(unitID []byte) (*Bill, error)
-		GetRoundNumber(ctx context.Context) (uint64, error)
 		GetFeeCreditBill(unitID []byte) (*Bill, error)
+		GetRoundNumber(ctx context.Context) (uint64, error)
 		SendTransactions(ctx context.Context, txs []*types.TransactionOrder) map[string]string
 	}
 
@@ -55,7 +55,7 @@ type (
 		// OrderNumber insertion order of given bill in pubkey => list of bills bucket, needed for determistic paging
 		OrderNumber    uint64        `json:"orderNumber"`
 		TxProof        *wallet.Proof `json:"txProof"`
-		OwnerPredicate []byte        `json:"OwnerPredicate"`
+		OwnerPredicate []byte        `json:"ownerPredicate"`
 
 		// fcb specific fields
 		// FCBlockNumber block number when fee credit bill balance was last updated
@@ -165,7 +165,7 @@ func Run(ctx context.Context, config *Config) error {
 		walletBackend := &WalletBackend{store: store, genericWallet: wallet.New().SetABClient(abc).Build()}
 		defer walletBackend.genericWallet.Shutdown()
 
-		handler := &RequestHandler{Service: walletBackend, ListBillsPageLimit: config.ListBillsPageLimit}
+		handler := &moneyRestAPI{Service: walletBackend, ListBillsPageLimit: config.ListBillsPageLimit, rw: &wallet.ResponseWriter{LogErr: wlog.Error}}
 		server := http.Server{
 			Addr:              config.ServerAddr,
 			Handler:           handler.Router(),

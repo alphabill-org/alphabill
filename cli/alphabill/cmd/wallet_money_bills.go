@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"bytes"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -185,22 +186,7 @@ func execExportCmd(cmd *cobra.Command, config *walletConfig) error {
 	if err != nil {
 		return err
 	}
-	// export bill using --bill-id if present
-	if len(billID) > 0 {
-		proof, err := restClient.GetProof(billID)
-		if err != nil {
-			return err
-		}
-		if proof == nil {
-			return fmt.Errorf("proof not found for bill 0x%X", billID)
-		}
-		outputFile, err := writeBillsToFile(outputPath, proof.Bills...)
-		if err != nil {
-			return err
-		}
-		consoleWriter.Println("Exported bill(s) to: " + outputFile)
-		return nil
-	}
+
 	// export all bills if neither --bill-id or --bill-order-number are given
 	billsList, err := restClient.ListBills(pk, showUnswapped)
 	if err != nil {
@@ -209,14 +195,18 @@ func execExportCmd(cmd *cobra.Command, config *walletConfig) error {
 
 	var bills []*wallet.Bill
 	for _, b := range billsList.Bills {
-		proof, err := restClient.GetProof(b.Id)
+		// export bill using --bill-id if present
+		if len(billID) > 0 && !bytes.Equal(billID, b.Id) {
+			continue
+		}
+		proof, err := restClient.GetTxProof(cmd.Context(), b.Id, b.TxHash)
 		if err != nil {
 			return err
 		}
 		if proof == nil {
 			return fmt.Errorf("proof not found for bill 0x%X", billID)
 		}
-		bills = append(bills, proof.Bills[0])
+		bills = append(bills, &wallet.Bill{Id: b.Id, Value: b.Value, IsDcBill: b.IsDCBill, TxHash: b.TxHash, TxProof: proof})
 	}
 
 	outputFile, err := writeBillsToFile(outputPath, bills...)

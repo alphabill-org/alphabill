@@ -62,6 +62,7 @@ func (p *BlockProcessor) ProcessBlock(_ context.Context, b *types.Block) error {
 
 func (p *BlockProcessor) processTx(txr *types.TransactionRecord, b *types.Block, txIdx int, dbTx BillStoreTx) error {
 	txo := txr.TransactionOrder
+	txHash := txo.Hash(crypto.SHA256)
 	roundNumber := b.GetRoundNumber()
 
 	switch txo.PayloadType() {
@@ -79,7 +80,7 @@ func (p *BlockProcessor) processTx(txr *types.TransactionRecord, b *types.Block,
 		err = p.saveBillWithProof(txIdx, b, dbTx, &Bill{
 			Id:             txo.UnitID(),
 			Value:          attr.TargetValue,
-			TxHash:         txo.Hash(crypto.SHA256),
+			TxHash:         txHash,
 			OwnerPredicate: attr.NewBearer,
 		})
 		if err != nil {
@@ -99,7 +100,7 @@ func (p *BlockProcessor) processTx(txr *types.TransactionRecord, b *types.Block,
 		err = p.saveBillWithProof(txIdx, b, dbTx, &Bill{
 			Id:             txo.UnitID(),
 			Value:          attr.TargetValue,
-			TxHash:         txo.Hash(crypto.SHA256),
+			TxHash:         txHash,
 			IsDCBill:       true,
 			OwnerPredicate: attr.TargetBearer,
 		})
@@ -130,7 +131,7 @@ func (p *BlockProcessor) processTx(txr *types.TransactionRecord, b *types.Block,
 			err = p.saveBillWithProof(txIdx, b, dbTx, &Bill{
 				Id:             txo.UnitID(),
 				Value:          attr.RemainingValue,
-				TxHash:         txo.Hash(crypto.SHA256),
+				TxHash:         txHash,
 				OwnerPredicate: oldBill.OwnerPredicate,
 			})
 			if err != nil {
@@ -147,7 +148,7 @@ func (p *BlockProcessor) processTx(txr *types.TransactionRecord, b *types.Block,
 		err = p.saveBillWithProof(txIdx, b, dbTx, &Bill{
 			Id:             newID,
 			Value:          attr.Amount,
-			TxHash:         txo.Hash(crypto.SHA256),
+			TxHash:         txHash,
 			OwnerPredicate: attr.TargetBearer,
 		})
 		if err != nil {
@@ -167,7 +168,7 @@ func (p *BlockProcessor) processTx(txr *types.TransactionRecord, b *types.Block,
 		err = p.saveBillWithProof(txIdx, b, dbTx, &Bill{
 			Id:             txo.UnitID(),
 			Value:          attr.TargetValue,
-			TxHash:         txo.Hash(crypto.SHA256),
+			TxHash:         txHash,
 			OwnerPredicate: attr.OwnerCondition,
 		})
 		if err != nil {
@@ -180,7 +181,7 @@ func (p *BlockProcessor) processTx(txr *types.TransactionRecord, b *types.Block,
 			}
 		}
 	case transactions.PayloadTypeTransferFeeCredit:
-		wlog.Info(fmt.Sprintf("received transferFC order (UnitID=%x)", txo.UnitID()))
+		wlog.Info(fmt.Sprintf("received transferFC order (UnitID=%x), hash: '%X'", txo.UnitID(), txHash))
 		bill, err := dbTx.GetBill(txo.UnitID())
 		if err != nil {
 			return fmt.Errorf("failed to get bill: %w", err)
@@ -207,7 +208,7 @@ func (p *BlockProcessor) processTx(txr *types.TransactionRecord, b *types.Block,
 				return fmt.Errorf("failed to set bill expiration time: %w", err)
 			}
 		}
-		bill.TxHash = txo.Hash(crypto.SHA256)
+		bill.TxHash = txHash
 		err = p.saveBillWithProof(txIdx, b, dbTx, bill)
 		if err != nil {
 			return fmt.Errorf("failed to save transferFC bill with proof: %w", err)
@@ -222,7 +223,7 @@ func (p *BlockProcessor) processTx(txr *types.TransactionRecord, b *types.Block,
 		}
 		return nil
 	case transactions.PayloadTypeAddFeeCredit:
-		wlog.Info(fmt.Sprintf("received addFC order (UnitID=%x)", txo.UnitID()))
+		wlog.Info(fmt.Sprintf("received addFC order (UnitID=%x), hash: '%X'", txo.UnitID(), txHash))
 		fcb, err := dbTx.GetFeeCreditBill(txo.UnitID())
 		if err != nil {
 			return err
@@ -240,7 +241,7 @@ func (p *BlockProcessor) processTx(txr *types.TransactionRecord, b *types.Block,
 		return p.saveFCBWithProof(txIdx, b, dbTx, &Bill{
 			Id:            txo.UnitID(),
 			Value:         fcb.getValue() + transferFCAttr.Amount - txr.ServerMetadata.ActualFee,
-			TxHash:        txo.Hash(crypto.SHA256),
+			TxHash:        txHash,
 			FCBlockNumber: roundNumber,
 		})
 	case transactions.PayloadTypeCloseFeeCredit:
@@ -257,7 +258,7 @@ func (p *BlockProcessor) processTx(txr *types.TransactionRecord, b *types.Block,
 		return p.saveFCBWithProof(txIdx, b, dbTx, &Bill{
 			Id:            txo.UnitID(),
 			Value:         fcb.getValue() - attr.Amount,
-			TxHash:        txo.Hash(crypto.SHA256),
+			TxHash:        txHash,
 			FCBlockNumber: roundNumber,
 		})
 	case transactions.PayloadTypeReclaimFeeCredit:
@@ -283,7 +284,7 @@ func (p *BlockProcessor) processTx(txr *types.TransactionRecord, b *types.Block,
 
 		reclaimedValue := closeFCAttr.Amount - reclaimFCAttr.CloseFeeCreditTransfer.ServerMetadata.ActualFee - txr.ServerMetadata.ActualFee
 		bill.Value += reclaimedValue
-		bill.TxHash = txo.Hash(crypto.SHA256)
+		bill.TxHash = txHash
 		err = p.saveBillWithProof(txIdx, b, dbTx, bill)
 		if err != nil {
 			return err

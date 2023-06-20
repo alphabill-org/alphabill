@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"context"
+	"crypto"
 	"errors"
 	"fmt"
 	"io"
@@ -250,14 +251,10 @@ func execSendCmd(ctx context.Context, cmd *cobra.Command, config *walletConfig) 
 	if waitForConf {
 		consoleWriter.Println("Successfully confirmed transaction(s)")
 		if outputPath != "" {
-			// convert wallet.Proofs to wallet.Bills, alternatively remove bill export as it's deprecated functionality
+			// convert wallet.Proofs to wallet.Bills, TODO: alternatively remove bill export as it's deprecated functionality
 			var outputBills []*wallet.Bill
 			for _, b := range proofs {
-				proof, err := restClient.GetProof(b.TxRecord.TransactionOrder.UnitID())
-				if err != nil {
-					return err
-				}
-				outputBills = append(outputBills, proof.Bills[0])
+				outputBills = append(outputBills, &wallet.Bill{Id: b.TxRecord.TransactionOrder.UnitID(), TxHash: b.TxRecord.TransactionOrder.Hash(crypto.SHA256), TxProof: b})
 			}
 			outputFile, err := writeBillsToFile(outputPath, outputBills...)
 			if err != nil {

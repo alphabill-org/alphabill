@@ -2,6 +2,7 @@ package backend
 
 import (
 	"context"
+	"crypto"
 	"errors"
 	"fmt"
 	"net/http"
@@ -13,6 +14,7 @@ import (
 	"time"
 
 	"github.com/ainvaltin/httpsrv"
+	test "github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/stretchr/testify/require"
 
 	testhttp "github.com/alphabill-org/alphabill/internal/testutils/http"
@@ -21,7 +23,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/pkg/client"
 	"github.com/alphabill-org/alphabill/pkg/client/clientmock"
-	"github.com/alphabill-org/alphabill/pkg/wallet"
+	sdk "github.com/alphabill-org/alphabill/pkg/wallet"
 )
 
 const (
@@ -37,7 +39,7 @@ func newWalletBackend(t *testing.T, options ...option) *WalletBackend {
 	storage, err := createTestBillStore(t)
 	require.NoError(t, err)
 
-	service := &WalletBackend{store: storage, genericWallet: wallet.New().SetABClient(&clientmock.MockAlphabillClient{}).Build()}
+	service := &WalletBackend{store: storage, genericWallet: sdk.New().SetABClient(&clientmock.MockAlphabillClient{}).Build()}
 	for _, o := range options {
 		err := o(service)
 		require.NoError(t, err)
@@ -101,22 +103,22 @@ func TestListBillsRequest_Ok(t *testing.T) {
 func TestListBillsRequest_NilPubKey(t *testing.T) {
 	port := startServer(t, newWalletBackend(t))
 
-	res := &ErrorResponse{}
+	res := &sdk.ErrorResponse{}
 	httpRes, err := testhttp.DoGet(fmt.Sprintf("http://localhost:%d/api/v1/list-bills", port), res)
 	require.NoError(t, err)
 	require.Equal(t, http.StatusBadRequest, httpRes.StatusCode)
-	require.Equal(t, "missing required pubkey query parameter", res.Message)
+	require.Contains(t, res.Message, "must be 68 characters long (including 0x prefix), got 0 characters")
 }
 
 func TestListBillsRequest_InvalidPubKey(t *testing.T) {
 	port := startServer(t, newWalletBackend(t))
 
-	res := &ErrorResponse{}
+	res := &sdk.ErrorResponse{}
 	pk := "0x00"
 	httpRes, err := testhttp.DoGet(fmt.Sprintf("http://localhost:%d/api/v1/list-bills?pubkey=%s", port, pk), res)
 	require.NoError(t, err)
 	require.Equal(t, http.StatusBadRequest, httpRes.StatusCode)
-	require.Equal(t, "pubkey hex string must be 68 characters long (with 0x prefix)", res.Message)
+	require.Contains(t, res.Message, "must be 68 characters long (including 0x prefix), got 4 characters starting 0x00")
 }
 
 func TestListBillsRequest_DCBillsIncluded(t *testing.T) {
@@ -312,22 +314,22 @@ func TestBalanceRequest_Ok(t *testing.T) {
 func TestBalanceRequest_NilPubKey(t *testing.T) {
 	port := startServer(t, newWalletBackend(t))
 
-	res := &ErrorResponse{}
+	res := &sdk.ErrorResponse{}
 	httpRes, err := testhttp.DoGet(fmt.Sprintf("http://localhost:%d/api/v1/balance", port), res)
 	require.NoError(t, err)
 	require.Equal(t, http.StatusBadRequest, httpRes.StatusCode)
-	require.Equal(t, "missing required pubkey query parameter", res.Message)
+	require.Contains(t, res.Message, "must be 68 characters long (including 0x prefix), got 0 characters")
 }
 
 func TestBalanceRequest_InvalidPubKey(t *testing.T) {
 	port := startServer(t, newWalletBackend(t))
 
-	res := &ErrorResponse{}
+	res := &sdk.ErrorResponse{}
 	pk := "0x00"
 	httpRes, err := testhttp.DoGet(fmt.Sprintf("http://localhost:%d/api/v1/balance?pubkey=%s", port, pk), res)
 	require.NoError(t, err)
 	require.Equal(t, http.StatusBadRequest, httpRes.StatusCode)
-	require.Equal(t, "pubkey hex string must be 68 characters long (with 0x prefix)", res.Message)
+	require.Contains(t, res.Message, "must be 68 characters long (including 0x prefix), got 4 characters starting 0x00")
 }
 
 func TestBalanceRequest_DCBillNotIncluded(t *testing.T) {
@@ -354,13 +356,15 @@ func TestBalanceRequest_DCBillNotIncluded(t *testing.T) {
 }
 
 func TestProofRequest_Ok(t *testing.T) {
+	tr := testtransaction.NewTransactionRecord(t)
+	txHash := tr.TransactionOrder.Hash(crypto.SHA256)
 	b := &Bill{
 		Id:             newUnitID(1),
 		Value:          1,
-		TxHash:         []byte{0},
+		TxHash:         txHash,
 		OwnerPredicate: getOwnerPredicate(pubkeyHex),
-		TxProof: &wallet.Proof{
-			TxRecord: testtransaction.NewTransactionRecord(t),
+		TxProof: &sdk.Proof{
+			TxRecord: tr,
 			TxProof: &types.TxProof{
 				BlockHeaderHash:    []byte{0},
 				Chain:              []*types.GenericChainItem{{Hash: []byte{0}}},
@@ -371,67 +375,51 @@ func TestProofRequest_Ok(t *testing.T) {
 	walletBackend := newWalletBackend(t, withBills(b))
 	port := startServer(t, walletBackend)
 
-	response := &wallet.Bills{}
-	httpRes, err := testhttp.DoGet(fmt.Sprintf("http://localhost:%d/api/v1/proof?bill_id=%s", port, billId), response)
+	response := &sdk.Proof{}
+	httpRes, err := testhttp.DoGet(fmt.Sprintf("http://localhost:%d/api/v1/units/%s/transactions/0x%x/proof", port, billId, b.TxHash), response)
 	require.NoError(t, err)
 	require.Equal(t, http.StatusOK, httpRes.StatusCode)
-	require.Len(t, response.Bills, 1)
-	res := response.Bills[0]
-	require.Equal(t, b.Id, res.Id)
-	require.Equal(t, b.Value, res.Value)
-	require.Equal(t, b.TxHash, res.TxHash)
-
-	ep := b.TxProof
-	ap := res.TxProof
-	require.Equal(t, ep.TxProof.UnicityCertificate.GetRoundNumber(), ap.TxProof.UnicityCertificate.GetRoundNumber())
-	require.EqualValues(t, ep.TxRecord.TransactionOrder.UnitID(), ap.TxRecord.TransactionOrder.UnitID())
-	require.EqualValues(t, ep.TxProof.BlockHeaderHash, ap.TxProof.BlockHeaderHash)
-}
-
-func TestProofRequest_MissingBillId(t *testing.T) {
-	port := startServer(t, newWalletBackend(t))
-
-	res := &ErrorResponse{}
-	httpRes, err := testhttp.DoGet(fmt.Sprintf("http://localhost:%d/api/v1/proof", port), res)
-	require.NoError(t, err)
-	require.Equal(t, http.StatusBadRequest, httpRes.StatusCode)
-	require.Equal(t, "missing required bill_id query parameter", res.Message)
+	require.Equal(t, b.TxHash, response.TxRecord.TransactionOrder.Hash(crypto.SHA256))
+	//
+	require.Equal(t, b.TxProof.TxProof.UnicityCertificate.GetRoundNumber(), response.TxProof.UnicityCertificate.GetRoundNumber())
+	require.EqualValues(t, b.TxProof.TxRecord.TransactionOrder.UnitID(), response.TxRecord.TransactionOrder.UnitID())
+	require.EqualValues(t, b.TxProof.TxProof.BlockHeaderHash, response.TxProof.BlockHeaderHash)
 }
 
 func TestProofRequest_InvalidBillIdLength(t *testing.T) {
 	port := startServer(t, newWalletBackend(t))
 
 	// verify bill id larger than 32 bytes returns error
-	res := &ErrorResponse{}
-	billId := "0x000000000000000000000000000000000000000000000000000000000000000001"
-	httpRes, err := testhttp.DoGet(fmt.Sprintf("http://localhost:%d/api/v1/proof?bill_id=%s", port, billId), res)
+	res := &sdk.ErrorResponse{}
+	billId := test.RandomBytes(34)
+	httpRes, err := testhttp.DoGet(fmt.Sprintf("http://localhost:%d/api/v1/units/0x%x/transactions/0x00/proof", port, billId), res)
 	require.NoError(t, err)
 	require.Equal(t, http.StatusBadRequest, httpRes.StatusCode)
 	require.Equal(t, errInvalidBillIDLength.Error(), res.Message)
 
 	// verify bill id smaller than 32 bytes returns error
-	res = &ErrorResponse{}
-	httpRes, err = testhttp.DoGet(fmt.Sprintf("http://localhost:%d/api/v1/proof?bill_id=0x01", port), res)
+	res = &sdk.ErrorResponse{}
+	httpRes, err = testhttp.DoGet(fmt.Sprintf("http://localhost:%d/api/v1/units/0x01/transactions/0x00/proof", port), res)
 	require.NoError(t, err)
 	require.Equal(t, http.StatusBadRequest, httpRes.StatusCode)
 	require.Equal(t, errInvalidBillIDLength.Error(), res.Message)
 
 	// verify bill id with correct length but missing prefix returns error
-	res = &ErrorResponse{}
-	httpRes, err = testhttp.DoGet(fmt.Sprintf("http://localhost:%d/api/v1/proof?bill_id=%s", port, billId), res)
+	res = &sdk.ErrorResponse{}
+	httpRes, err = testhttp.DoGet(fmt.Sprintf("http://localhost:%d/api/v1/units/%x/transactions/0x00/proof", port, billId), res)
 	require.NoError(t, err)
 	require.Equal(t, http.StatusBadRequest, httpRes.StatusCode)
-	require.Equal(t, errInvalidBillIDLength.Error(), res.Message)
+	require.Contains(t, res.Message, "hex string without 0x prefix")
 }
 
 func TestProofRequest_ProofDoesNotExist(t *testing.T) {
 	port := startServer(t, newWalletBackend(t))
 
-	res := &ErrorResponse{}
-	httpRes, err := testhttp.DoGet(fmt.Sprintf("http://localhost:%d/api/v1/proof?bill_id=%s", port, billId), res)
+	res := &sdk.ErrorResponse{}
+	httpRes, err := testhttp.DoGet(fmt.Sprintf("http://localhost:%d/api/v1/units/%s/transactions/0x00/proof", port, billId), res)
 	require.NoError(t, err)
 	require.Equal(t, http.StatusNotFound, httpRes.StatusCode)
-	require.Equal(t, "bill does not exist", res.Message)
+	require.Contains(t, res.Message, fmt.Sprintf("bill (id %s) does not exist", billId))
 }
 
 func TestBlockHeightRequest_Ok(t *testing.T) {
@@ -470,7 +458,7 @@ func TestGetFeeCreditBillRequest_Ok(t *testing.T) {
 		TxHash:         []byte{0},
 		OwnerPredicate: getOwnerPredicate(pubkeyHex),
 		FCBlockNumber:  1,
-		TxProof: &wallet.Proof{
+		TxProof: &sdk.Proof{
 			TxRecord: testtransaction.NewTransactionRecord(t),
 			TxProof: &types.TxProof{
 				BlockHeaderHash: []byte{0},
@@ -481,7 +469,7 @@ func TestGetFeeCreditBillRequest_Ok(t *testing.T) {
 	walletBackend := newWalletBackend(t, withFeeCreditBills(b))
 	port := startServer(t, walletBackend)
 
-	response := &wallet.Bill{}
+	response := &sdk.Bill{}
 	httpRes, err := testhttp.DoGet(fmt.Sprintf("http://localhost:%d/api/v1/fee-credit-bills/%s", port, billId), response)
 	require.NoError(t, err)
 	require.Equal(t, http.StatusOK, httpRes.StatusCode)
@@ -502,32 +490,32 @@ func TestGetFeeCreditBillRequest_InvalidBillIdLength(t *testing.T) {
 	port := startServer(t, newWalletBackend(t))
 
 	// verify bill id larger than 32 bytes returns error
-	res := &ErrorResponse{}
+	res := &sdk.ErrorResponse{}
 	billId := "0x000000000000000000000000000000000000000000000000000000000000000001"
 	httpRes, err := testhttp.DoGet(fmt.Sprintf("http://localhost:%d/api/v1/fee-credit-bills/%s", port, billId), res)
 	require.NoError(t, err)
 	require.Equal(t, http.StatusBadRequest, httpRes.StatusCode)
-	require.Equal(t, errInvalidBillIDLength.Error(), res.Message)
+	require.Equal(t, "bill_id hex string must be 66 characters long (with 0x prefix)", res.Message)
 
 	// verify bill id smaller than 32 bytes returns error
-	res = &ErrorResponse{}
+	res = &sdk.ErrorResponse{}
 	httpRes, err = testhttp.DoGet(fmt.Sprintf("http://localhost:%d/api/v1/fee-credit-bills/0x01", port), res)
 	require.NoError(t, err)
 	require.Equal(t, http.StatusBadRequest, httpRes.StatusCode)
-	require.Equal(t, errInvalidBillIDLength.Error(), res.Message)
+	require.Equal(t, "bill_id hex string must be 66 characters long (with 0x prefix)", res.Message)
 
 	// verify bill id with correct length but missing prefix returns error
-	res = &ErrorResponse{}
+	res = &sdk.ErrorResponse{}
 	httpRes, err = testhttp.DoGet(fmt.Sprintf("http://localhost:%d/api/v1/fee-credit-bills/%s", port, billId), res)
 	require.NoError(t, err)
 	require.Equal(t, http.StatusBadRequest, httpRes.StatusCode)
-	require.Equal(t, errInvalidBillIDLength.Error(), res.Message)
+	require.Equal(t, "bill_id hex string must be 66 characters long (with 0x prefix)", res.Message)
 }
 
 func TestGetFeeCreditBillRequest_BillDoesNotExist(t *testing.T) {
 	port := startServer(t, newWalletBackend(t))
 
-	res := &ErrorResponse{}
+	res := &sdk.ErrorResponse{}
 	httpRes, err := testhttp.DoGet(fmt.Sprintf("http://localhost:%d/api/v1/fee-credit-bills/%s", port, billId), res)
 	require.NoError(t, err)
 	require.Equal(t, http.StatusNotFound, httpRes.StatusCode)
@@ -538,7 +526,7 @@ func TestPostTransactionsRequest_InvalidPubkey(t *testing.T) {
 	walletBackend := newWalletBackend(t)
 	port := startServer(t, walletBackend)
 
-	res := &ErrorResponse{}
+	res := &sdk.ErrorResponse{}
 	httpRes, err := testhttp.DoPost(fmt.Sprintf("http://localhost:%d/api/v1/transactions/%s", port, "invalid"), nil, res)
 	require.NoError(t, err)
 	require.Equal(t, http.StatusBadRequest, httpRes.StatusCode)
@@ -549,7 +537,7 @@ func TestPostTransactionsRequest_EmptyBody(t *testing.T) {
 	walletBackend := newWalletBackend(t)
 	port := startServer(t, walletBackend)
 
-	res := &ErrorResponse{}
+	res := &sdk.ErrorResponse{}
 	httpRes, err := testhttp.DoPostCBOR(fmt.Sprintf("http://localhost:%d/api/v1/transactions/%s", port, pubkeyHex), nil, res)
 	require.NoError(t, err)
 	require.Equal(t, http.StatusBadRequest, httpRes.StatusCode)
@@ -560,7 +548,7 @@ func TestPostTransactionsRequest_Ok(t *testing.T) {
 	walletBackend := newWalletBackend(t)
 	port := startServer(t, walletBackend)
 
-	txs := &wallet.Transactions{Transactions: []*types.TransactionOrder{
+	txs := &sdk.Transactions{Transactions: []*types.TransactionOrder{
 		testtransaction.NewTransactionOrder(t),
 		testtransaction.NewTransactionOrder(t),
 		testtransaction.NewTransactionOrder(t),
@@ -578,7 +566,7 @@ func startServer(t *testing.T, service WalletBackendService) int {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	go func() {
-		handler := &RequestHandler{Service: service, ListBillsPageLimit: 100}
+		handler := &moneyRestAPI{Service: service, ListBillsPageLimit: 100, rw: &sdk.ResponseWriter{}}
 		server := http.Server{
 			Addr:              fmt.Sprintf("localhost:%d", port),
 			Handler:           handler.Router(),

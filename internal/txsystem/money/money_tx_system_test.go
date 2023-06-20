@@ -8,7 +8,6 @@ import (
 
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
-	"github.com/alphabill-org/alphabill/internal/rma"
 	"github.com/alphabill-org/alphabill/internal/script"
 	"github.com/alphabill-org/alphabill/internal/state"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
@@ -279,37 +278,6 @@ func TestBillData_AddToHasher(t *testing.T) {
 	expectedHash := hasher.Sum(nil)
 	hasher.Reset()
 	bd.Write(hasher)
-	actualHash := hasher.Sum(nil)
-	require.Equal(t, expectedHash, actualHash)
-}
-
-func TestBillSummary_Concatenate(t *testing.T) {
-	self := rma.Uint64SummaryValue(10)
-	left := rma.Uint64SummaryValue(2)
-	right := rma.Uint64SummaryValue(3)
-
-	actualSum := self.Concatenate(left, right)
-	require.Equal(t, rma.Uint64SummaryValue(15), actualSum)
-
-	actualSum = self.Concatenate(nil, nil)
-	require.Equal(t, rma.Uint64SummaryValue(10), actualSum)
-
-	actualSum = self.Concatenate(left, nil)
-	require.Equal(t, rma.Uint64SummaryValue(12), actualSum)
-
-	actualSum = self.Concatenate(nil, right)
-	require.Equal(t, rma.Uint64SummaryValue(13), actualSum)
-}
-
-func TestBillSummary_AddToHasher(t *testing.T) {
-	bs := rma.Uint64SummaryValue(10)
-
-	hasher := crypto.SHA256.New()
-	hasher.Write(util.Uint64ToBytes(10))
-	expectedHash := hasher.Sum(nil)
-	hasher.Reset()
-
-	bs.AddToHasher(hasher)
 	actualHash := hasher.Sum(nil)
 	require.Equal(t, expectedHash, actualHash)
 }

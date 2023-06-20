@@ -3,7 +3,6 @@ package sc
 import (
 	"hash"
 
-	"github.com/alphabill-org/alphabill/internal/rma"
 	"github.com/alphabill-org/alphabill/internal/state"
 )
 
@@ -22,12 +21,4 @@ func (p *Program) Copy() state.UnitData {
 
 type StateVariable struct {
 	value []byte
-}
-
-func (s *StateVariable) AddToHasher(hasher hash.Hash) {
-	hasher.Write(s.value)
-}
-
-func (s *StateVariable) Value() rma.SummaryValue {
-	return rma.Uint64SummaryValue(0)
 }

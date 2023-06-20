@@ -8,7 +8,6 @@ import (
 	"hash"
 
 	hasherUtil "github.com/alphabill-org/alphabill/internal/hash"
-	"github.com/alphabill-org/alphabill/internal/rma"
 	"github.com/alphabill-org/alphabill/internal/script"
 	"github.com/alphabill-org/alphabill/internal/state"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
@@ -17,14 +16,10 @@ import (
 	"github.com/alphabill-org/alphabill/pkg/logger"
 )
 
-const zeroSummaryValue = rma.Uint64SummaryValue(0)
-
 var (
 	ErrOwnerProofPresent = errors.New("'register data' transaction cannot have an owner proof")
 	log                  = logger.CreateForPackage()
-	zeroRootHash         = make([]byte, 32)
-
-	txType = "reg"
+	txType               = "reg"
 )
 
 type (
@@ -106,10 +101,6 @@ func (d *txSystem) getState() txsystem.State {
 		return txsystem.NewStateSummary(make([]byte, 32), util.Uint64ToBytes(sv))
 	}
 	return txsystem.NewStateSummary(root, util.Uint64ToBytes(sv))
-}
-
-func (u *unit) Value() rma.SummaryValue {
-	return zeroSummaryValue
 }
 
 func (u *unit) Write(hasher hash.Hash) {

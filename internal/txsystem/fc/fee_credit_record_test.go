@@ -4,7 +4,6 @@ import (
 	"crypto"
 	"testing"
 
-	"github.com/alphabill-org/alphabill/internal/rma"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/alphabill-org/alphabill/internal/txsystem/fc/unit"
 	"github.com/alphabill-org/alphabill/internal/util"
@@ -38,5 +37,5 @@ func TestFCR_SummaryValueIsZero(t *testing.T) {
 		Hash:    test.RandomBytes(32),
 		Timeout: 2,
 	}
-	require.Equal(t, rma.Uint64SummaryValue(0), fcr.Value())
+	require.Equal(t, uint64(0), fcr.SummaryValueInput())
 }

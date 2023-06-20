@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"hash"
 
-	"github.com/alphabill-org/alphabill/internal/rma"
 	"github.com/alphabill-org/alphabill/internal/state"
 	"github.com/alphabill-org/alphabill/internal/util"
 )
@@ -34,9 +33,4 @@ func (b *FeeCreditRecord) Copy() state.UnitData {
 		Hash:    bytes.Clone(b.Hash),
 		Timeout: b.Timeout,
 	}
-}
-
-func (b *FeeCreditRecord) Value() rma.SummaryValue {
-	// Fee Credit Record value is not included in money invariant.
-	return rma.Uint64SummaryValue(0)
 }

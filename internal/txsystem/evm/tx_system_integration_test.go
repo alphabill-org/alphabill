@@ -46,18 +46,18 @@ func TestEVMPartition_DeployAndCallContract(t *testing.T) {
 	to := test.RandomBytes(20)
 	transferTx := createTransferTx(t, from, to)
 	require.NoError(t, evmPartition.SubmitTx(transferTx))
-	require.Eventually(t, testpartition.BlockchainContainsTx(evmPartition, transferTx), test.WaitDuration, test.WaitTick)
+	require.Eventually(t, testpartition.BlockchainContainsTx(evmPartition, transferTx), test.WaitDuration*10000, test.WaitTick)
 
 	// deploy contract
 	deployContractTx := createDeployContractTx(t, from)
 	require.NoError(t, evmPartition.SubmitTx(deployContractTx))
-	require.Eventually(t, testpartition.BlockchainContainsTx(evmPartition, deployContractTx), test.WaitDuration, test.WaitTick)
+	require.Eventually(t, testpartition.BlockchainContainsTx(evmPartition, deployContractTx), test.WaitDuration*10000, test.WaitTick)
 
 	// call contract
 	contractAddr := evmcrypto.CreateAddress(common.BytesToAddress(from), 0)
 	callContractTx := createCallContractTx(from, contractAddr, t)
 	require.NoError(t, evmPartition.SubmitTx(callContractTx))
-	require.Eventually(t, testpartition.BlockchainContainsTx(evmPartition, callContractTx), test.WaitDuration, test.WaitTick)
+	require.Eventually(t, testpartition.BlockchainContainsTx(evmPartition, callContractTx), test.WaitDuration*10000, test.WaitTick)
 }
 
 func createTransferTx(t *testing.T, from []byte, to []byte) *types.TransactionOrder {

@@ -23,12 +23,20 @@ type Account struct {
 	Nonce    uint64
 }
 
+type FeeBillData struct {
+	Bearer  []byte
+	UnitID  []byte
+	TxHash  []byte
+	Timeout uint64
+}
+
 type StateObject struct {
 	Address   common.Address
 	Account   *Account
 	Storage   state.Storage
 	dirtyCode bool
 	suicided  bool
+	FeeBill   *FeeBillData
 }
 
 func (a *Account) Write(hasher hash.Hash) {
@@ -36,6 +44,13 @@ func (a *Account) Write(hasher hash.Hash) {
 	hasher.Write(a.CodeHash)
 	hasher.Write(a.Code)
 	hasher.Write(util.Uint64ToBytes(a.Nonce))
+}
+
+func (f *FeeBillData) AddToHasher(hasher hash.Hash) {
+	hasher.Write(f.Bearer)
+	hasher.Write(f.UnitID)
+	hasher.Write(f.TxHash)
+	hasher.Write(util.Uint64ToBytes(f.Timeout))
 }
 
 func (s *StateObject) AddToHasher(hasher hash.Hash) {
@@ -55,7 +70,9 @@ func (s *StateObject) AddToHasher(hasher hash.Hash) {
 		hasher.Write(k.Bytes())
 		hasher.Write(s.Storage[k].Bytes())
 	}
-
+	if s.FeeBill != nil {
+		s.FeeBill.AddToHasher(hasher)
+	}
 }
 
 func (s *StateObject) Value() rma.SummaryValue {

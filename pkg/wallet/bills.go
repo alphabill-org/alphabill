@@ -35,8 +35,10 @@ type (
 		TxHash   []byte `json:"tx_hash,omitempty"`
 		IsDcBill bool   `json:"is_dc_bill,omitempty"`
 		TxProof  *Proof `json:"tx_proof,omitempty"`
-		// block number when fee credit bill balance was last updated
-		FcBlockNumber uint64 `json:"fc_block_number,omitempty,string"`
+
+		// fcb specific fields
+		// AddFCTxHash last add fee credit tx hash
+		AddFCTxHash []byte `json:"add_fc_tx_hash,omitempty"`
 	}
 )
 
@@ -97,6 +99,12 @@ func (x *Bill) GetTxHash() []byte {
 	return nil
 }
 
+func (x *Bill) GetAddFCTxHash() []byte {
+	if x != nil {
+		return x.AddFCTxHash
+	}
+	return nil
+}
 func (x *Bill) verifyTx(txr *types.TransactionRecord) error {
 	value, isDCTx, err := x.parseTx(txr)
 	if err != nil {
@@ -169,7 +177,7 @@ func (x *Bill) parseTx(txr *types.TransactionRecord) (uint64, bool, error) {
 	}
 }
 
-func (p *Proof) ToProto() *types.TxProof {
+func (p *Proof) ToGenericProof() *types.TxProof {
 	txProof := p.TxProof
 	if txProof == nil {
 		return nil

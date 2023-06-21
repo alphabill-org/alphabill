@@ -7,9 +7,9 @@ import (
 	"encoding/hex"
 	"fmt"
 
-	"github.com/alphabill-org/alphabill/internal/types"
-	"github.com/alphabill-org/alphabill/internal/txsystem/vd"
 	fc "github.com/alphabill-org/alphabill/internal/txsystem/fc/transactions"
+	"github.com/alphabill-org/alphabill/internal/txsystem/vd"
+	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/alphabill-org/alphabill/pkg/wallet/blocksync"
 	"github.com/alphabill-org/alphabill/pkg/wallet/log"
@@ -29,7 +29,7 @@ func NewProofFinder(unitID wallet.UnitID, txHash wallet.TxHash, proofCh chan<- *
 
 		for idx, txr := range b.Transactions {
 			txo := txr.TransactionOrder
-			if unitID != nil && !bytes.Equal(txo.UnitID(), unitID){
+			if unitID != nil && !bytes.Equal(txo.UnitID(), unitID) {
 				continue
 			}
 			if txHash != nil {
@@ -80,7 +80,7 @@ func (p *blockProcessor) ProcessBlock(_ context.Context, b *types.Block) error {
 	}
 
 	for _, tx := range b.Transactions {
-		if err := p.processTx(tx, b); err != nil {
+		if err := p.processTx(tx); err != nil {
 			return fmt.Errorf("failed to process tx: %w", err)
 		}
 	}
@@ -88,12 +88,12 @@ func (p *blockProcessor) ProcessBlock(_ context.Context, b *types.Block) error {
 	return p.store.SetBlockNumber(b.GetRoundNumber())
 }
 
-func (p *blockProcessor) processTx(txr *types.TransactionRecord, b *types.Block) error {
+func (p *blockProcessor) processTx(txr *types.TransactionRecord) error {
 	txo := txr.TransactionOrder
-
+	txHash := txo.Hash(crypto.SHA256)
 	switch txo.PayloadType() {
 	case vd.PayloadTypeRegisterData:
-		return p.updateFCB(txr, b.GetRoundNumber())
+		return p.updateFCB(txr)
 	case fc.PayloadTypeAddFeeCredit:
 		addFeeCreditAttributes := &fc.AddFeeCreditAttributes{}
 		if err := txo.UnmarshalAttributes(addFeeCreditAttributes); err != nil {
@@ -108,10 +108,10 @@ func (p *blockProcessor) processTx(txr *types.TransactionRecord, b *types.Block)
 			return err
 		}
 		return p.store.SetFeeCreditBill(&FeeCreditBill{
-			Id:            txo.UnitID(),
-			Value:         fcb.GetValue() + transferFeeCreditAttributes.Amount - txr.ServerMetadata.ActualFee,
-			TxHash:        txo.Hash(crypto.SHA256),
-			FCBlockNumber: b.GetRoundNumber(),
+			Id:          txo.UnitID(),
+			Value:       fcb.GetValue() + transferFeeCreditAttributes.Amount - txr.ServerMetadata.ActualFee,
+			TxHash:      txHash,
+			AddFCTxHash: txHash,
 		})
 	case fc.PayloadTypeCloseFeeCredit:
 		closeFeeCreditAttributes := &fc.CloseFeeCreditAttributes{}
@@ -123,10 +123,10 @@ func (p *blockProcessor) processTx(txr *types.TransactionRecord, b *types.Block)
 			return err
 		}
 		return p.store.SetFeeCreditBill(&FeeCreditBill{
-			Id:            txo.UnitID(),
-			Value:         fcb.GetValue() - closeFeeCreditAttributes.Amount,
-			TxHash:        txo.Hash(crypto.SHA256),
-			FCBlockNumber: b.GetRoundNumber(),
+			Id:          txo.UnitID(),
+			Value:       fcb.GetValue() - closeFeeCreditAttributes.Amount,
+			TxHash:      txHash,
+			AddFCTxHash: fcb.GetAddFCTxHash(),
 		})
 	default:
 		log.Warning(fmt.Sprintf("received unknown transaction type, skipping processing: %s", txo.PayloadType()))
@@ -134,7 +134,7 @@ func (p *blockProcessor) processTx(txr *types.TransactionRecord, b *types.Block)
 	}
 }
 
-func (p *blockProcessor) updateFCB(txr *types.TransactionRecord, roundNumber uint64) error {
+func (p *blockProcessor) updateFCB(txr *types.TransactionRecord) error {
 	txo := txr.TransactionOrder
 	fcb, err := p.store.GetFeeCreditBill(txo.Payload.ClientMetadata.FeeCreditRecordID)
 	if err != nil {
@@ -147,6 +147,5 @@ func (p *blockProcessor) updateFCB(txr *types.TransactionRecord, roundNumber uin
 		return fmt.Errorf("fee credit bill value cannot go negative; value=%d fee=%d", fcb.Value, txr.ServerMetadata.ActualFee)
 	}
 	fcb.Value -= txr.ServerMetadata.ActualFee
-	fcb.FCBlockNumber = roundNumber
 	return p.store.SetFeeCreditBill(fcb)
 }

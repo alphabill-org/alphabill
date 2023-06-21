@@ -1014,6 +1014,49 @@ func createNewBlockOutsideNode(t *testing.T, tp *SingleNodePartition, system *te
 	return newBlock
 }
 
+// newer UC is received, putting the node into recovery
+// ledger replication request is sent
+// ledger replication request is received with invalid UC.IR.SumOfEarnedFees => recovery fails
+func TestNode_HandleLedgerReplicationResponse_SumOfEarnedFeesMismatch(t *testing.T) {
+	tp := RunSingleNodePartition(t, &testtxsystem.CounterTxSystem{Fee: 1})
+	genesisBlock := tp.GetLatestBlock(t)
+
+	// create a block with single tx with fee=1 but sumOfEarnedFees=0
+	system := &testtxsystem.CounterTxSystem{}
+	newBlock1 := createNewBlockOutsideNode(t, tp, system, genesisBlock)
+
+	// prepare proposal, send "newer" UC, revert state and start recovery
+	tp.SubmitT1Timeout(t)
+	tp.SubmitUnicityCertificate(newBlock1.UnicityCertificate)
+
+	ContainsError(t, tp, ErrNodeDoesNotHaveLatestBlock.Error())
+	require.Equal(t, recovering, tp.partition.status.Load())
+	testevent.ContainsEvent(t, tp.eh, event.RecoveryStarted)
+
+	// make sure replication request is sent
+	req := WaitNodeRequestReceived(t, tp, network.ProtocolLedgerReplicationReq)
+	require.NotNil(t, req)
+
+	// when the replication response is received
+	tp.mockNet.Receive(network.ReceivedMessage{
+		From:     req.ID,
+		Protocol: network.ProtocolLedgerReplicationResp,
+		Message: &replication.LedgerReplicationResponse{
+			Status: replication.Ok,
+			Blocks: []*types.Block{newBlock1},
+		},
+	})
+
+	// then recovery should fail
+	testevent.ContainsEvent(t, tp.eh, event.StateReverted)
+
+	// and new replication request is sent
+	req = WaitNodeRequestReceived(t, tp, network.ProtocolLedgerReplicationReq)
+	require.NotNil(t, req)
+
+	require.Equal(t, recovering, tp.partition.status.Load())
+}
+
 func copyBlock(t *testing.T, b *types.Block) *types.Block {
 	bytes, err := cbor.Marshal(b)
 	require.NoError(t, err)

@@ -48,18 +48,16 @@ type (
 	}
 
 	Bill struct {
-		Id       []byte `json:"id"`
-		Value    uint64 `json:"value"`
-		TxHash   []byte `json:"txHash"`
-		IsDCBill bool   `json:"isDcBill"`
-		// OrderNumber insertion order of given bill in pubkey => list of bills bucket, needed for determistic paging
-		OrderNumber    uint64        `json:"orderNumber"`
+		Id             []byte        `json:"id"`
+		Value          uint64        `json:"value"`
+		TxHash         []byte        `json:"txHash"`
+		IsDCBill       bool          `json:"isDcBill,omitempty"`
 		TxProof        *wallet.Proof `json:"txProof"`
 		OwnerPredicate []byte        `json:"ownerPredicate"`
 
 		// fcb specific fields
-		// FCBlockNumber block number when fee credit bill balance was last updated
-		FCBlockNumber uint64 `json:"fcBlockNumber"`
+		// AddFCTxHash last add fee credit tx hash
+		AddFCTxHash []byte `json:"addFcTxHash,omitempty"`
 	}
 
 	Pubkey struct {
@@ -277,21 +275,21 @@ func (w *WalletBackend) SendTransactions(ctx context.Context, txs []*types.Trans
 	return errs
 }
 
-func (b *Bill) toProto() *wallet.Bill {
+func (b *Bill) ToGenericBill() *wallet.Bill {
 	return &wallet.Bill{
-		Id:            b.Id,
-		Value:         b.Value,
-		TxHash:        b.TxHash,
-		IsDcBill:      b.IsDCBill,
-		TxProof:       b.TxProof,
-		FcBlockNumber: b.FCBlockNumber,
+		Id:          b.Id,
+		Value:       b.Value,
+		TxHash:      b.TxHash,
+		IsDcBill:    b.IsDCBill,
+		TxProof:     b.TxProof,
+		AddFCTxHash: b.AddFCTxHash,
 	}
 }
 
-func (b *Bill) toProtoBills() *wallet.Bills {
+func (b *Bill) ToGenericBills() *wallet.Bills {
 	return &wallet.Bills{
 		Bills: []*wallet.Bill{
-			b.toProto(),
+			b.ToGenericBill(),
 		},
 	}
 }
@@ -320,11 +318,11 @@ func (b *Bill) getValue() uint64 {
 	return 0
 }
 
-func (b *Bill) getFCBlockNumber() uint64 {
+func (b *Bill) getAddFCTxHash() []byte {
 	if b != nil {
-		return b.FCBlockNumber
+		return b.AddFCTxHash
 	}
-	return 0
+	return nil
 }
 
 func newOwnerPredicates(hashes *account.KeyHashes) *p2pkhOwnerPredicates {

@@ -74,8 +74,8 @@ type (
 
 	Icon struct {
 		_    struct{} `cbor:",toarray"`
-		Type string   // the MIME content type identifying an image format;
-		Data []byte   // the image in the format specified by type;
+		Type string   `json:"type"`     // the MIME content type identifying an image format;
+		Data []byte   `json:"data"`     // the image in the format specified by type;
 	}
 
 	MintFungibleTokenAttributes struct {

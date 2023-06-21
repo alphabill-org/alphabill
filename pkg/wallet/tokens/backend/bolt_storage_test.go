@@ -440,6 +440,7 @@ func randomToken(owner sdk.Predicate, kind Kind) *TokenUnit {
 		ID:                     test.RandomBytes(32),
 		Symbol:                 "AB",
 		TypeID:                 test.RandomBytes(32),
+		TypeName:               "A type name",
 		Owner:                  owner,
 		Amount:                 100,
 		Decimals:               8,

@@ -119,7 +119,7 @@ func (c *MoneyBackendClient) GetBills(pubKey []byte) ([]*wallet.Bill, error) {
 	}
 	var res []*wallet.Bill
 	for _, b := range bills.Bills {
-		res = append(res, b.ToProto())
+		res = append(res, b.ToGenericBill())
 	}
 	return res, nil
 }

@@ -7,7 +7,6 @@ import (
 	"io"
 	"net/http"
 	"net/url"
-	"sort"
 	"strconv"
 
 	"github.com/fxamacker/cbor/v2"
@@ -285,14 +284,15 @@ func (api *moneyRestAPI) getFeeCreditBillFunc(w http.ResponseWriter, r *http.Req
 		api.rw.ErrorResponse(w, http.StatusNotFound, errors.New("fee credit bill does not exist"))
 		return
 	}
-	api.rw.WriteResponse(w, fcb.toProto())
+	api.rw.WriteResponse(w, fcb.ToGenericBill())
 }
 
 // @Summary Forward transactions to partition node(s)
 // @Id 6
-// @version 1.0
-// @produce application/json
+// @Version 1.0
+// @Accept application/cbor
 // @Param pubkey path string true "Sender public key prefixed with 0x"
+// @Param transactions body nil true "CBOR encoded array of TransactionOrders"
 // @Success 202
 // @Router /transactions [post]
 func (api *moneyRestAPI) postTransactions(w http.ResponseWriter, r *http.Request) {
@@ -374,9 +374,6 @@ func parseInt(str string, def int) int {
 }
 
 func newListBillsResponse(bills []*Bill, limit, offset int) *ListBillsResponse {
-	sort.Slice(bills, func(i, j int) bool {
-		return bills[i].OrderNumber < bills[j].OrderNumber
-	})
 	billVMs := toBillVMList(bills)
 	return &ListBillsResponse{Bills: billVMs[offset : offset+limit], Total: len(bills)}
 }
@@ -394,7 +391,7 @@ func toBillVMList(bills []*Bill) []*ListBillVM {
 	return billVMs
 }
 
-func (b *ListBillVM) ToProto() *sdk.Bill {
+func (b *ListBillVM) ToGenericBill() *sdk.Bill {
 	return &sdk.Bill{
 		Id:       b.Id,
 		Value:    b.Value,

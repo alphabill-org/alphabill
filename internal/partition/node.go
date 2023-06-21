@@ -64,6 +64,7 @@ type (
 		luc                         atomic.Pointer[types.UnicityCertificate]
 		lastStoredBlock             *types.Block
 		proposedTransactions        []*types.TransactionRecord
+		sumOfEarnedFees             uint64
 		pendingBlockProposal        *pendingBlockProposal
 		leaderSelector              LeaderSelector
 		txValidator                 TxValidator
@@ -82,11 +83,12 @@ type (
 	}
 
 	pendingBlockProposal struct {
-		RoundNumber    uint64
-		ProposerNodeId string
-		PrevHash       []byte
-		StateHash      []byte
-		Transactions   []*types.TransactionRecord
+		RoundNumber     uint64
+		ProposerNodeId  string
+		PrevHash        []byte
+		StateHash       []byte
+		Transactions    []*types.TransactionRecord
+		SumOfEarnedFees uint64
 	}
 
 	status int
@@ -227,11 +229,12 @@ func initState(n *Node) (err error) {
 				prevBlock.GetRoundNumber(), prevBlock.UnicityCertificate.InputRecord.BlockHash, bl.GetRoundNumber(), bl.Header.PreviousBlockHash)
 		}
 		var state txsystem.State
-		state, err = n.applyBlockTransactions(bl.GetRoundNumber(), bl.Transactions)
+		var sumOfEarnedFees uint64
+		state, sumOfEarnedFees, err = n.applyBlockTransactions(bl.GetRoundNumber(), bl.Transactions)
 		if err != nil {
 			return fmt.Errorf("block %v apply transactions failed, %w", roundNo, err)
 		}
-		if err = verifyTxSystemState(state, bl.UnicityCertificate.InputRecord); err != nil {
+		if err = verifyTxSystemState(state, sumOfEarnedFees, bl.UnicityCertificate.InputRecord); err != nil {
 			return fmt.Errorf("block %v, state mismatch, %w", roundNo, err)
 		}
 		// commit changes
@@ -246,7 +249,7 @@ func initState(n *Node) (err error) {
 	return err
 }
 
-func verifyTxSystemState(state txsystem.State, ucIR *types.InputRecord) error {
+func verifyTxSystemState(state txsystem.State, sumOfEarnedFees uint64, ucIR *types.InputRecord) error {
 	if ucIR == nil {
 		return errors.New("unicity certificate input record is nil")
 	}
@@ -254,18 +257,27 @@ func verifyTxSystemState(state txsystem.State, ucIR *types.InputRecord) error {
 		return fmt.Errorf("tx system state does not match unicity certificate")
 	} else if !bytes.Equal(ucIR.SummaryValue, state.Summary()) {
 		return fmt.Errorf("tx system summary value %X not equal to unicity certificte value %X", ucIR.SummaryValue, state.Summary())
+	} else if ucIR.SumOfEarnedFees != sumOfEarnedFees {
+		return fmt.Errorf("tx system sum of earned fees %d not equal to unicity certificte value %d", ucIR.SumOfEarnedFees, sumOfEarnedFees)
 	}
 	return nil
 }
 
-func (n *Node) applyBlockTransactions(round uint64, txs []*types.TransactionRecord) (txsystem.State, error) {
+func (n *Node) applyBlockTransactions(round uint64, txs []*types.TransactionRecord) (txsystem.State, uint64, error) {
+	var sumOfEarnedFees uint64
 	n.transactionSystem.BeginBlock(round)
 	for _, tx := range txs {
-		if _, err := n.validateAndExecuteTx(tx.TransactionOrder, round); err != nil {
-			return nil, fmt.Errorf("tx '%v' execution error, %w", tx, err)
+		sm, err := n.validateAndExecuteTx(tx.TransactionOrder, round)
+		if err != nil {
+			return nil, 0, fmt.Errorf("tx '%v' execution error, %w", tx, err)
 		}
+		sumOfEarnedFees += sm.ActualFee
 	}
-	return n.transactionSystem.EndBlock()
+	state, err := n.transactionSystem.EndBlock()
+	if err != nil {
+		return nil, 0, err
+	}
+	return state, sumOfEarnedFees, nil
 }
 
 func (n *Node) restoreBlockProposal(prevBlock *types.Block) {
@@ -287,7 +299,7 @@ func (n *Node) restoreBlockProposal(prevBlock *types.Block) {
 	// apply stored proposal to current state
 	logger.Debug("Stored block proposal extends the previous state")
 	roundNo := prevBlock.GetRoundNumber() + 1
-	state, err := n.applyBlockTransactions(roundNo, pr.Transactions)
+	state, sumOfEarnedFees, err := n.applyBlockTransactions(roundNo, pr.Transactions)
 	if err != nil {
 		logger.Warning("Block proposal recovery failed, %v", err)
 		n.revertState()
@@ -295,6 +307,11 @@ func (n *Node) restoreBlockProposal(prevBlock *types.Block) {
 	}
 	if !bytes.Equal(pr.StateHash, state.Root()) {
 		logger.Warning("Block proposal transaction failed, state hash mismatch", err)
+		n.revertState()
+		return
+	}
+	if pr.SumOfEarnedFees != sumOfEarnedFees {
+		logger.Warning("Block proposal transaction failed, sum of earned fees mismatch", err)
 		n.revertState()
 		return
 	}
@@ -436,6 +453,7 @@ func (n *Node) process(tx *types.TransactionOrder, round uint64) error {
 		return fmt.Errorf("tx '%X' execution failed, %w", tx.Hash(n.configuration.hashAlgorithm), err)
 	}
 	n.proposedTransactions = append(n.proposedTransactions, &types.TransactionRecord{TransactionOrder: tx, ServerMetadata: sm})
+	n.sumOfEarnedFees += sm.ActualFee
 	n.sendEvent(event.TransactionProcessed, tx)
 	logger.Debug("Transaction processed by node %v. Proposal size: %v", n.configuration.peer.ID(), len(n.proposedTransactions))
 	return nil
@@ -658,6 +676,12 @@ func (n *Node) handleUnicityCertificate(ctx context.Context, uc *types.UnicityCe
 			n.startRecovery(uc)
 			return ErrNodeDoesNotHaveLatestBlock
 		}
+		// if sumOfEarnedFees does not match - start recovery
+		if uc.InputRecord.SumOfEarnedFees != n.sumOfEarnedFees {
+			logger.Warning("Recovery needed, UC IR.sumOfEarnedFees not equal to state's sumOfEarnedFees: '%d' vs '%d'", uc.InputRecord.SumOfEarnedFees, n.sumOfEarnedFees)
+			n.startRecovery(uc)
+			return ErrNodeDoesNotHaveLatestBlock
+		}
 		logger.Debug("No pending block proposal, UC IR hash is equal to State hash, so are block hashes")
 		n.startNewRound(ctx, uc)
 		return nil
@@ -671,7 +695,8 @@ func (n *Node) handleUnicityCertificate(ctx context.Context, uc *types.UnicityCe
 		n.startRecovery(uc)
 		return fmt.Errorf("recovery needed, block proposal hash calculation failed, %w", err)
 	}
-	if bytes.Equal(uc.InputRecord.Hash, n.pendingBlockProposal.StateHash) {
+	if bytes.Equal(uc.InputRecord.Hash, n.pendingBlockProposal.StateHash) &&
+		uc.InputRecord.SumOfEarnedFees == n.pendingBlockProposal.SumOfEarnedFees {
 		// UC certifies pending block proposal
 		if err = n.finalizeBlock(bl); err != nil {
 			logger.Warning("Recovery needed, block finalize failed, %v", err)
@@ -691,7 +716,7 @@ func (n *Node) handleUnicityCertificate(ctx context.Context, uc *types.UnicityCe
 	}
 	// UC with different IR hash. Node does not have the latest state. Revert changes and start recovery.
 	// revertState is called from startRecovery()
-	logger.Warning("Recovery needed, either proposal state hash or block hash is different")
+	logger.Warning("Recovery needed, either proposal state hash, block hash or sum of earned fees is different")
 	n.startRecovery(uc)
 	return ErrNodeDoesNotHaveLatestBlock
 }
@@ -700,6 +725,7 @@ func (n *Node) revertState() {
 	logger.Warning("Reverting state")
 	n.sendEvent(event.StateReverted, nil)
 	n.transactionSystem.Revert()
+	n.sumOfEarnedFees = 0
 }
 
 func (n *Node) proposalHash(prop *pendingBlockProposal, uc *types.UnicityCertificate) (*types.Block, []byte, error) {
@@ -905,12 +931,13 @@ func (n *Node) handleLedgerReplicationResponse(ctx context.Context, lr *replicat
 			err = fmt.Errorf("received block does not extend current state")
 			break
 		}
-		state, err = n.applyBlockTransactions(b.GetRoundNumber(), b.Transactions)
+		var sumOfEarnedFees uint64
+		state, sumOfEarnedFees, err = n.applyBlockTransactions(b.GetRoundNumber(), b.Transactions)
 		if err != nil {
 			err = fmt.Errorf("block %v apply transactions failed, %w", roundNo, err)
 			break
 		}
-		if err = verifyTxSystemState(state, b.UnicityCertificate.InputRecord); err != nil {
+		if err = verifyTxSystemState(state, sumOfEarnedFees, b.UnicityCertificate.InputRecord); err != nil {
 			err = fmt.Errorf("block %v, state mismatch, %w", roundNo, err)
 			break
 		}
@@ -1028,13 +1055,13 @@ func (n *Node) sendCertificationRequest(blockAuthor string) error {
 	}
 	stateHash := state.Root()
 	summary := state.Summary()
-
 	pendingProposal := &pendingBlockProposal{
-		ProposerNodeId: blockAuthor,
-		RoundNumber:    n.getCurrentRound(),
-		PrevHash:       prevStateHash,
-		StateHash:      stateHash,
-		Transactions:   n.proposedTransactions,
+		ProposerNodeId:  blockAuthor,
+		RoundNumber:     n.getCurrentRound(),
+		PrevHash:        prevStateHash,
+		StateHash:       stateHash,
+		Transactions:    n.proposedTransactions,
+		SumOfEarnedFees: n.sumOfEarnedFees,
 	}
 	if err = n.persistBlockProposal(pendingProposal); err != nil {
 		logger.Error("failed to store proposal, %v", err)
@@ -1059,7 +1086,8 @@ func (n *Node) sendCertificationRequest(blockAuthor string) error {
 			SummaryValue: summary,
 			// latestBlock is the latest non-empty block,
 			// latest UC might have certified an empty block and has the latest round number
-			RoundNumber: pendingProposal.RoundNumber,
+			RoundNumber:     pendingProposal.RoundNumber,
+			SumOfEarnedFees: pendingProposal.SumOfEarnedFees,
 		},
 	}
 	if err = req.Sign(n.configuration.signer); err != nil {

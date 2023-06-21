@@ -92,7 +92,7 @@ func TestListBillsRequest_Ok(t *testing.T) {
 	port := startServer(t, walletBackend)
 
 	res := &ListBillsResponse{}
-	httpRes, err := testhttp.DoGet(fmt.Sprintf("http://localhost:%d/api/v1/list-bills?pubkey=%s", port, pubkeyHex), res)
+	httpRes, err := testhttp.DoGetJson(fmt.Sprintf("http://localhost:%d/api/v1/list-bills?pubkey=%s", port, pubkeyHex), res)
 	require.NoError(t, err)
 	require.Equal(t, http.StatusOK, httpRes.StatusCode)
 	require.Len(t, res.Bills, 1)
@@ -104,7 +104,7 @@ func TestListBillsRequest_NilPubKey(t *testing.T) {
 	port := startServer(t, newWalletBackend(t))
 
 	res := &sdk.ErrorResponse{}
-	httpRes, err := testhttp.DoGet(fmt.Sprintf("http://localhost:%d/api/v1/list-bills", port), res)
+	httpRes, err := testhttp.DoGetJson(fmt.Sprintf("http://localhost:%d/api/v1/list-bills", port), res)
 	require.NoError(t, err)
 	require.Equal(t, http.StatusBadRequest, httpRes.StatusCode)
 	require.Contains(t, res.Message, "must be 68 characters long (including 0x prefix), got 0 characters")
@@ -115,7 +115,7 @@ func TestListBillsRequest_InvalidPubKey(t *testing.T) {
 
 	res := &sdk.ErrorResponse{}
 	pk := "0x00"
-	httpRes, err := testhttp.DoGet(fmt.Sprintf("http://localhost:%d/api/v1/list-bills?pubkey=%s", port, pk), res)
+	httpRes, err := testhttp.DoGetJson(fmt.Sprintf("http://localhost:%d/api/v1/list-bills?pubkey=%s", port, pk), res)
 	require.NoError(t, err)
 	require.Equal(t, http.StatusBadRequest, httpRes.StatusCode)
 	require.Contains(t, res.Message, "must be 68 characters long (including 0x prefix), got 4 characters starting 0x00")
@@ -138,7 +138,7 @@ func TestListBillsRequest_DCBillsIncluded(t *testing.T) {
 	port := startServer(t, walletBackend)
 
 	res := &ListBillsResponse{}
-	httpRes, err := testhttp.DoGet(fmt.Sprintf("http://localhost:%d/api/v1/list-bills?pubkey=%s", port, pubkeyHex), res)
+	httpRes, err := testhttp.DoGetJson(fmt.Sprintf("http://localhost:%d/api/v1/list-bills?pubkey=%s", port, pubkeyHex), res)
 	require.NoError(t, err)
 	require.Equal(t, http.StatusOK, httpRes.StatusCode)
 	require.Equal(t, 2, res.Total)
@@ -168,7 +168,7 @@ func TestListBillsRequest_DCBillsExcluded(t *testing.T) {
 	port := startServer(t, walletBackend)
 
 	res := &ListBillsResponse{}
-	httpRes, err := testhttp.DoGet(fmt.Sprintf("http://localhost:%d/api/v1/list-bills?pubkey=%s&includedcbills=false", port, pubkeyHex), res)
+	httpRes, err := testhttp.DoGetJson(fmt.Sprintf("http://localhost:%d/api/v1/list-bills?pubkey=%s&includedcbills=false", port, pubkeyHex), res)
 	require.NoError(t, err)
 	require.Equal(t, http.StatusOK, httpRes.StatusCode)
 	require.Equal(t, 1, res.Total)
@@ -194,7 +194,7 @@ func TestListBillsRequest_ZeroValueBillsExcluded(t *testing.T) {
 	port := startServer(t, walletBackend)
 
 	res := &ListBillsResponse{}
-	httpRes, err := testhttp.DoGet(fmt.Sprintf("http://localhost:%d/api/v1/list-bills?pubkey=%s", port, pubkeyHex), res)
+	httpRes, err := testhttp.DoGetJson(fmt.Sprintf("http://localhost:%d/api/v1/list-bills?pubkey=%s", port, pubkeyHex), res)
 	require.NoError(t, err)
 	require.Equal(t, http.StatusOK, httpRes.StatusCode)
 	require.Equal(t, 1, res.Total)
@@ -218,7 +218,7 @@ func TestListBillsRequest_Paging(t *testing.T) {
 
 	// verify by default first 100 elements are returned
 	res := &ListBillsResponse{}
-	httpRes, err := testhttp.DoGet(fmt.Sprintf("http://localhost:%d/api/v1/list-bills?pubkey=%s", port, pubkeyHex), res)
+	httpRes, err := testhttp.DoGetJson(fmt.Sprintf("http://localhost:%d/api/v1/list-bills?pubkey=%s", port, pubkeyHex), res)
 	require.NoError(t, err)
 	require.Equal(t, http.StatusOK, httpRes.StatusCode)
 	require.Equal(t, len(bills), res.Total)
@@ -228,7 +228,7 @@ func TestListBillsRequest_Paging(t *testing.T) {
 
 	// verify offset=100 returns next 100 elements
 	res = &ListBillsResponse{}
-	httpRes, err = testhttp.DoGet(fmt.Sprintf("http://localhost:%d/api/v1/list-bills?pubkey=%s&offset=100", port, pubkeyHex), res)
+	httpRes, err = testhttp.DoGetJson(fmt.Sprintf("http://localhost:%d/api/v1/list-bills?pubkey=%s&offset=100", port, pubkeyHex), res)
 	require.NoError(t, err)
 	require.Equal(t, http.StatusOK, httpRes.StatusCode)
 	require.Equal(t, len(bills), res.Total)
@@ -253,7 +253,7 @@ func TestListBillsRequest_Paging(t *testing.T) {
 
 	// verify limit limits result size
 	res = &ListBillsResponse{}
-	httpRes, err = testhttp.DoGet(fmt.Sprintf("http://localhost:%d/api/v1/list-bills?pubkey=%s&offset=100&limit=50", port, pubkeyHex), res)
+	httpRes, err = testhttp.DoGetJson(fmt.Sprintf("http://localhost:%d/api/v1/list-bills?pubkey=%s&offset=100&limit=50", port, pubkeyHex), res)
 	require.NoError(t, err)
 	require.Equal(t, http.StatusOK, httpRes.StatusCode)
 	require.Equal(t, len(bills), res.Total)
@@ -263,7 +263,7 @@ func TestListBillsRequest_Paging(t *testing.T) {
 
 	// verify out of bounds offset returns nothing
 	res = &ListBillsResponse{}
-	httpRes, err = testhttp.DoGet(fmt.Sprintf("http://localhost:%d/api/v1/list-bills?pubkey=%s&offset=200", port, pubkeyHex), res)
+	httpRes, err = testhttp.DoGetJson(fmt.Sprintf("http://localhost:%d/api/v1/list-bills?pubkey=%s&offset=200", port, pubkeyHex), res)
 	require.NoError(t, err)
 	require.Equal(t, http.StatusOK, httpRes.StatusCode)
 	require.Equal(t, len(bills), res.Total)
@@ -271,7 +271,7 @@ func TestListBillsRequest_Paging(t *testing.T) {
 
 	// verify limit gets capped to 100
 	res = &ListBillsResponse{}
-	httpRes, err = testhttp.DoGet(fmt.Sprintf("http://localhost:%d/api/v1/list-bills?pubkey=%s&offset=0&limit=200", port, pubkeyHex), res)
+	httpRes, err = testhttp.DoGetJson(fmt.Sprintf("http://localhost:%d/api/v1/list-bills?pubkey=%s&offset=0&limit=200", port, pubkeyHex), res)
 	require.NoError(t, err)
 	require.Equal(t, http.StatusOK, httpRes.StatusCode)
 	require.Equal(t, len(bills), res.Total)
@@ -281,7 +281,7 @@ func TestListBillsRequest_Paging(t *testing.T) {
 
 	// verify out of bounds offset+limit return all available data
 	res = &ListBillsResponse{}
-	httpRes, err = testhttp.DoGet(fmt.Sprintf("http://localhost:%d/api/v1/list-bills?pubkey=%s&offset=190&limit=100", port, pubkeyHex), res)
+	httpRes, err = testhttp.DoGetJson(fmt.Sprintf("http://localhost:%d/api/v1/list-bills?pubkey=%s&offset=190&limit=100", port, pubkeyHex), res)
 	require.NoError(t, err)
 	require.Equal(t, http.StatusOK, httpRes.StatusCode)
 	require.Equal(t, len(bills), res.Total)
@@ -304,7 +304,7 @@ func TestBalanceRequest_Ok(t *testing.T) {
 		})))
 
 	res := &BalanceResponse{}
-	httpRes, err := testhttp.DoGet(fmt.Sprintf("http://localhost:%d/api/v1/balance?pubkey=%s", port, pubkeyHex), res)
+	httpRes, err := testhttp.DoGetJson(fmt.Sprintf("http://localhost:%d/api/v1/balance?pubkey=%s", port, pubkeyHex), res)
 	require.NoError(t, err)
 	require.Equal(t, http.StatusOK, httpRes.StatusCode)
 	require.EqualValues(t, 1, res.Balance)
@@ -314,7 +314,7 @@ func TestBalanceRequest_NilPubKey(t *testing.T) {
 	port := startServer(t, newWalletBackend(t))
 
 	res := &sdk.ErrorResponse{}
-	httpRes, err := testhttp.DoGet(fmt.Sprintf("http://localhost:%d/api/v1/balance", port), res)
+	httpRes, err := testhttp.DoGetJson(fmt.Sprintf("http://localhost:%d/api/v1/balance", port), res)
 	require.NoError(t, err)
 	require.Equal(t, http.StatusBadRequest, httpRes.StatusCode)
 	require.Contains(t, res.Message, "must be 68 characters long (including 0x prefix), got 0 characters")
@@ -325,7 +325,7 @@ func TestBalanceRequest_InvalidPubKey(t *testing.T) {
 
 	res := &sdk.ErrorResponse{}
 	pk := "0x00"
-	httpRes, err := testhttp.DoGet(fmt.Sprintf("http://localhost:%d/api/v1/balance?pubkey=%s", port, pk), res)
+	httpRes, err := testhttp.DoGetJson(fmt.Sprintf("http://localhost:%d/api/v1/balance?pubkey=%s", port, pk), res)
 	require.NoError(t, err)
 	require.Equal(t, http.StatusBadRequest, httpRes.StatusCode)
 	require.Contains(t, res.Message, "must be 68 characters long (including 0x prefix), got 4 characters starting 0x00")
@@ -348,7 +348,7 @@ func TestBalanceRequest_DCBillNotIncluded(t *testing.T) {
 	port := startServer(t, walletBackend)
 
 	res := &BalanceResponse{}
-	httpRes, err := testhttp.DoGet(fmt.Sprintf("http://localhost:%d/api/v1/balance?pubkey=%s", port, pubkeyHex), res)
+	httpRes, err := testhttp.DoGetJson(fmt.Sprintf("http://localhost:%d/api/v1/balance?pubkey=%s", port, pubkeyHex), res)
 	require.NoError(t, err)
 	require.Equal(t, http.StatusOK, httpRes.StatusCode)
 	require.EqualValues(t, 1, res.Balance)
@@ -375,7 +375,7 @@ func TestProofRequest_Ok(t *testing.T) {
 	port := startServer(t, walletBackend)
 
 	response := &sdk.Proof{}
-	httpRes, err := testhttp.DoGet(fmt.Sprintf("http://localhost:%d/api/v1/units/%s/transactions/0x%x/proof", port, billId, b.TxHash), response)
+	httpRes, err := testhttp.DoGetCbor(fmt.Sprintf("http://localhost:%d/api/v1/units/%s/transactions/0x%x/proof", port, billId, b.TxHash), response)
 	require.NoError(t, err)
 	require.Equal(t, http.StatusOK, httpRes.StatusCode)
 	require.Equal(t, b.TxHash, response.TxRecord.TransactionOrder.Hash(crypto.SHA256))
@@ -391,21 +391,21 @@ func TestProofRequest_InvalidBillIdLength(t *testing.T) {
 	// verify bill id larger than 32 bytes returns error
 	res := &sdk.ErrorResponse{}
 	billId := test.RandomBytes(34)
-	httpRes, err := testhttp.DoGet(fmt.Sprintf("http://localhost:%d/api/v1/units/0x%x/transactions/0x00/proof", port, billId), res)
+	httpRes, err := testhttp.DoGetJson(fmt.Sprintf("http://localhost:%d/api/v1/units/0x%x/transactions/0x00/proof", port, billId), res)
 	require.NoError(t, err)
 	require.Equal(t, http.StatusBadRequest, httpRes.StatusCode)
 	require.Equal(t, errInvalidBillIDLength.Error(), res.Message)
 
 	// verify bill id smaller than 32 bytes returns error
 	res = &sdk.ErrorResponse{}
-	httpRes, err = testhttp.DoGet(fmt.Sprintf("http://localhost:%d/api/v1/units/0x01/transactions/0x00/proof", port), res)
+	httpRes, err = testhttp.DoGetJson(fmt.Sprintf("http://localhost:%d/api/v1/units/0x01/transactions/0x00/proof", port), res)
 	require.NoError(t, err)
 	require.Equal(t, http.StatusBadRequest, httpRes.StatusCode)
 	require.Equal(t, errInvalidBillIDLength.Error(), res.Message)
 
 	// verify bill id with correct length but missing prefix returns error
 	res = &sdk.ErrorResponse{}
-	httpRes, err = testhttp.DoGet(fmt.Sprintf("http://localhost:%d/api/v1/units/%x/transactions/0x00/proof", port, billId), res)
+	httpRes, err = testhttp.DoGetJson(fmt.Sprintf("http://localhost:%d/api/v1/units/%x/transactions/0x00/proof", port, billId), res)
 	require.NoError(t, err)
 	require.Equal(t, http.StatusBadRequest, httpRes.StatusCode)
 	require.Contains(t, res.Message, "hex string without 0x prefix")
@@ -415,7 +415,7 @@ func TestProofRequest_ProofDoesNotExist(t *testing.T) {
 	port := startServer(t, newWalletBackend(t))
 
 	res := &sdk.ErrorResponse{}
-	httpRes, err := testhttp.DoGet(fmt.Sprintf("http://localhost:%d/api/v1/units/%s/transactions/0x00/proof", port, billId), res)
+	httpRes, err := testhttp.DoGetJson(fmt.Sprintf("http://localhost:%d/api/v1/units/%s/transactions/0x00/proof", port, billId), res)
 	require.NoError(t, err)
 	require.Equal(t, http.StatusNotFound, httpRes.StatusCode)
 	require.Contains(t, res.Message, fmt.Sprintf("bill (id %s) does not exist", billId))
@@ -430,7 +430,7 @@ func TestBlockHeightRequest_Ok(t *testing.T) {
 	port := startServer(t, service)
 
 	res := &RoundNumberResponse{}
-	httpRes, err := testhttp.DoGet(fmt.Sprintf("http://localhost:%d/api/v1/round-number", port), res)
+	httpRes, err := testhttp.DoGetJson(fmt.Sprintf("http://localhost:%d/api/v1/round-number", port), res)
 	require.NoError(t, err)
 	require.Equal(t, http.StatusOK, httpRes.StatusCode)
 	require.EqualValues(t, roundNumber, res.RoundNumber)
@@ -468,7 +468,7 @@ func TestGetFeeCreditBillRequest_Ok(t *testing.T) {
 	port := startServer(t, walletBackend)
 
 	response := &sdk.Bill{}
-	httpRes, err := testhttp.DoGet(fmt.Sprintf("http://localhost:%d/api/v1/fee-credit-bills/%s", port, billId), response)
+	httpRes, err := testhttp.DoGetJson(fmt.Sprintf("http://localhost:%d/api/v1/fee-credit-bills/%s", port, billId), response)
 	require.NoError(t, err)
 	require.Equal(t, http.StatusOK, httpRes.StatusCode)
 	require.Equal(t, b.Id, response.Id)
@@ -489,21 +489,21 @@ func TestGetFeeCreditBillRequest_InvalidBillIdLength(t *testing.T) {
 	// verify bill id larger than 32 bytes returns error
 	res := &sdk.ErrorResponse{}
 	billId := "0x000000000000000000000000000000000000000000000000000000000000000001"
-	httpRes, err := testhttp.DoGet(fmt.Sprintf("http://localhost:%d/api/v1/fee-credit-bills/%s", port, billId), res)
+	httpRes, err := testhttp.DoGetJson(fmt.Sprintf("http://localhost:%d/api/v1/fee-credit-bills/%s", port, billId), res)
 	require.NoError(t, err)
 	require.Equal(t, http.StatusBadRequest, httpRes.StatusCode)
 	require.Equal(t, "bill_id hex string must be 66 characters long (with 0x prefix)", res.Message)
 
 	// verify bill id smaller than 32 bytes returns error
 	res = &sdk.ErrorResponse{}
-	httpRes, err = testhttp.DoGet(fmt.Sprintf("http://localhost:%d/api/v1/fee-credit-bills/0x01", port), res)
+	httpRes, err = testhttp.DoGetJson(fmt.Sprintf("http://localhost:%d/api/v1/fee-credit-bills/0x01", port), res)
 	require.NoError(t, err)
 	require.Equal(t, http.StatusBadRequest, httpRes.StatusCode)
 	require.Equal(t, "bill_id hex string must be 66 characters long (with 0x prefix)", res.Message)
 
 	// verify bill id with correct length but missing prefix returns error
 	res = &sdk.ErrorResponse{}
-	httpRes, err = testhttp.DoGet(fmt.Sprintf("http://localhost:%d/api/v1/fee-credit-bills/%s", port, billId), res)
+	httpRes, err = testhttp.DoGetJson(fmt.Sprintf("http://localhost:%d/api/v1/fee-credit-bills/%s", port, billId), res)
 	require.NoError(t, err)
 	require.Equal(t, http.StatusBadRequest, httpRes.StatusCode)
 	require.Equal(t, "bill_id hex string must be 66 characters long (with 0x prefix)", res.Message)
@@ -513,7 +513,7 @@ func TestGetFeeCreditBillRequest_BillDoesNotExist(t *testing.T) {
 	port := startServer(t, newWalletBackend(t))
 
 	res := &sdk.ErrorResponse{}
-	httpRes, err := testhttp.DoGet(fmt.Sprintf("http://localhost:%d/api/v1/fee-credit-bills/%s", port, billId), res)
+	httpRes, err := testhttp.DoGetJson(fmt.Sprintf("http://localhost:%d/api/v1/fee-credit-bills/%s", port, billId), res)
 	require.NoError(t, err)
 	require.Equal(t, http.StatusNotFound, httpRes.StatusCode)
 	require.Equal(t, "fee credit bill does not exist", res.Message)

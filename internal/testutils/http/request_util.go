@@ -9,12 +9,24 @@ import (
 	"github.com/fxamacker/cbor/v2"
 )
 
-func DoGet(url string, response interface{}) (*http.Response, error) {
+func DoGetJson(url string, response interface{}) (*http.Response, error) {
 	httpRes, resBytes, err := doGet(url)
 	if err != nil {
 		return nil, err
 	}
 	err = json.NewDecoder(bytes.NewReader(resBytes)).Decode(response)
+	if err != nil {
+		return nil, err
+	}
+	return httpRes, nil
+}
+
+func DoGetCbor(url string, response interface{}) (*http.Response, error) {
+	httpRes, resBytes, err := doGet(url)
+	if err != nil {
+		return nil, err
+	}
+	err = cbor.NewDecoder(bytes.NewReader(resBytes)).Decode(response)
 	if err != nil {
 		return nil, err
 	}

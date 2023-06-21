@@ -12,6 +12,7 @@ import (
 
 	"github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/fxamacker/cbor/v2"
 	"github.com/stretchr/testify/require"
 )
 
@@ -183,7 +184,7 @@ func mockGetTxProofCall(t *testing.T) (*httptest.Server, *url.URL) {
 		}
 		w.WriteHeader(http.StatusOK)
 		proof := &wallet.Proof{TxRecord: nil, TxProof: nil}
-		data, _ := json.Marshal(proof)
+		data, _ := cbor.Marshal(proof)
 		w.Write(data)
 	}))
 

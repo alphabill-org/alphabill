@@ -211,7 +211,7 @@ func (c *MoneyBackendClient) GetTxProof(_ context.Context, unitID wallet.UnitID,
 	if err != nil {
 		return nil, fmt.Errorf("failed to build get tx proof request: %w", err)
 	}
-	req.Header.Set(contentType, applicationJson)
+	//req.Header.Set(contentType, applicationJson)
 	response, err := c.HttpClient.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("request GetTxProof failed: %w", err)
@@ -228,7 +228,7 @@ func (c *MoneyBackendClient) GetTxProof(_ context.Context, unitID wallet.UnitID,
 	}
 
 	var proof *wallet.Proof
-	err = json.Unmarshal(responseData, &proof)
+	err = cbor.Unmarshal(responseData, &proof)
 	if err != nil {
 		return nil, fmt.Errorf("failed to unmarshall GetTxProof response data: %w", err)
 	}

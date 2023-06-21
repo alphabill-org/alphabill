@@ -30,6 +30,7 @@ type TxProof = types.TxProof
 
 // Proof wrapper struct around TxRecord and TxProof
 type Proof struct {
+	_        struct{}                 `cbor:",toarray"`
 	TxRecord *types.TransactionRecord `json:"txRecord"`
 	TxProof  *types.TxProof           `json:"txProof"`
 }

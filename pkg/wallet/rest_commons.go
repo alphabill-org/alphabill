@@ -7,11 +7,13 @@ import (
 	"net/http"
 
 	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/fxamacker/cbor/v2"
 )
 
 const (
 	ContentType     = "Content-Type"
 	ApplicationJson = "application/json"
+	ApplicationCbor = "application/cbor"
 )
 
 type (
@@ -38,6 +40,13 @@ func (rw *ResponseWriter) WriteResponse(w http.ResponseWriter, data any) {
 	w.Header().Set(ContentType, ApplicationJson)
 	if err := json.NewEncoder(w).Encode(data); err != nil {
 		rw.logError(fmt.Errorf("failed to encode response data as json: %w", err))
+	}
+}
+
+func (rw *ResponseWriter) WriteCborResponse(w http.ResponseWriter, data any) {
+	w.Header().Set(ContentType, ApplicationCbor)
+	if err := cbor.NewEncoder(w).Encode(data); err != nil {
+		rw.logError(fmt.Errorf("failed to encode response data as cbor: %w", err))
 	}
 }
 

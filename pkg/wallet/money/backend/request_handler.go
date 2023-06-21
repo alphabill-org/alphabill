@@ -214,7 +214,7 @@ func (api *moneyRestAPI) getTxProof(w http.ResponseWriter, r *http.Request) {
 		api.rw.ErrorResponse(w, http.StatusNotFound, fmt.Errorf("no proof found for tx 0x%X (unit 0x%X)", txHash, unitID))
 		return
 	}
-	api.rw.WriteResponse(w, bill.TxProof)
+	api.rw.WriteCborResponse(w, bill.TxProof)
 }
 
 // getBill returns "normal" or "fee credit" bill for given id,

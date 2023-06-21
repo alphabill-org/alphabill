@@ -362,7 +362,7 @@ func (api *tokensRestAPI) getTxProof(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	api.rw.WriteResponse(w, proof)
+	api.rw.WriteCborResponse(w, proof)
 }
 
 func setLinkHeader(u *url.URL, w http.ResponseWriter, next string) {

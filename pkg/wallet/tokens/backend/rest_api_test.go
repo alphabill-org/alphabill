@@ -738,7 +738,7 @@ func Test_restAPI_txProof(t *testing.T) {
 		txHash := []byte{0xFF}
 
 		proof := &sdk.Proof{
-			TxRecord: &types.TransactionRecord{TransactionOrder: &types.TransactionOrder{Payload: &types.Payload{UnitID: unitID}}},
+			TxRecord: &types.TransactionRecord{TransactionOrder: &types.TransactionOrder{Payload: &types.Payload{UnitID: unitID, Attributes: []byte{0x00}}}},
 			TxProof:  &types.TxProof{},
 		}
 		api := &tokensRestAPI{
@@ -754,7 +754,7 @@ func Test_restAPI_txProof(t *testing.T) {
 		defer rsp.Body.Close()
 
 		proofFromApi := &sdk.Proof{}
-		if err := json.NewDecoder(rsp.Body).Decode(proofFromApi); err != nil {
+		if err := cbor.NewDecoder(rsp.Body).Decode(proofFromApi); err != nil {
 			t.Fatalf("failed to decode response body: %v", err)
 		}
 

@@ -239,9 +239,18 @@ In case of some other response status body is expected to contain error response
 */
 func decodeResponse(rsp *http.Response, successStatus int, data any, allowEmptyResponse bool) error {
 	defer rsp.Body.Close()
-
+	type Decoder interface {
+		Decode(val interface{}) error
+	}
+	var dec Decoder
+	contentType := rsp.Header.Get(contentTypeHeader)
+	if contentType == applicationCbor {
+		dec = cbor.NewDecoder(rsp.Body)
+	} else {
+		dec = json.NewDecoder(rsp.Body)
+	}
 	if rsp.StatusCode == successStatus {
-		err := json.NewDecoder(rsp.Body).Decode(data)
+		err := dec.Decode(data)
 		if err != nil && (!errors.Is(err, io.EOF) || !allowEmptyResponse) {
 			return fmt.Errorf("failed to decode response body: %w", err)
 		}

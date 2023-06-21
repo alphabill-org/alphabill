@@ -550,10 +550,11 @@ func Test_GetTxProof(t *testing.T) {
 						w.WriteHeader(http.StatusNotFound)
 						w.WriteString(`{"message":"no proof found"}`)
 					} else {
-						if err := json.NewEncoder(w).Encode(proof); err != nil {
+						w.Header().Set(contentTypeHeader, applicationCbor)
+						w.WriteHeader(http.StatusOK)
+						if err := cbor.NewEncoder(w).Encode(proof); err != nil {
 							return nil, fmt.Errorf("failed to write response body: %v", err)
 						}
-						w.WriteHeader(http.StatusOK)
 					}
 					return w.Result(), nil
 				},
@@ -563,7 +564,7 @@ func Test_GetTxProof(t *testing.T) {
 
 	t.Run("valid proof returned", func(t *testing.T) {
 		proof := &wallet.Proof{
-			TxRecord: &types.TransactionRecord{TransactionOrder: &types.TransactionOrder{Payload: &types.Payload{UnitID: unitID}}},
+			TxRecord: &types.TransactionRecord{TransactionOrder: &types.TransactionOrder{Payload: &types.Payload{UnitID: unitID, Attributes: []byte{0x00}}}},
 			TxProof:  &types.TxProof{ /*TransactionsHash: txHash*/ },
 		}
 

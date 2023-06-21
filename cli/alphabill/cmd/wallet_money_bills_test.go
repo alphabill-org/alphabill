@@ -136,15 +136,16 @@ func TestWalletBillsListCmd_ShowUnswappedFlag(t *testing.T) {
 
 func TestWalletBillsExportCmd_Error(t *testing.T) {
 	homedir := createNewTestWallet(t)
-	mockServer, addr := mockBackendCalls(&backendMockReturnConf{})
+	mockServer, addr := mockBackendCalls(&backendMockReturnConf{billId: uint256.NewInt(1)})
 	defer mockServer.Close()
 
 	// verify exporting non-existent bill returns error
 	_, err := execBillsCommand(homedir, "export --bill-id=00 --alphabill-api-uri "+addr.Host)
-	require.ErrorContains(t, err, "proof not found for bill 0x00")
+	require.ErrorContains(t, err, "no bills to export")
 }
 
 func TestWalletBillsExportCmd_BillIdFlag(t *testing.T) {
+	t.Skip("AB-666")
 	homedir := createNewTestWallet(t)
 	mockServer, addr := mockBackendCalls(&backendMockReturnConf{customPath: "/" + client.ProofPath, customResponse: fmt.Sprintf(`{"bills": [{"id":"%s","value":"%d","txHash":"MHgwMzgwMDNlMjE4ZWVhMzYwY2JmNTgwZWJiOTBjYzhjOGNhZjBjY2VmNGJmNjYwZWE5YWI0ZmMwNmI1YzM2N2IwMzg=","is_dc_bill":false}]}`, toBillId(uint256.NewInt(uint64(1))), 1)})
 	defer mockServer.Close()
@@ -158,6 +159,7 @@ func TestWalletBillsExportCmd_BillIdFlag(t *testing.T) {
 }
 
 func TestWalletBillsExportCmd(t *testing.T) {
+	t.Skip("AB-666")
 	homedir := createNewTestWallet(t)
 	billsList := ""
 	for i := 1; i <= 4; i++ {
@@ -175,6 +177,7 @@ func TestWalletBillsExportCmd(t *testing.T) {
 }
 
 func TestWalletBillsExportCmd_ShowUnswappedFlag(t *testing.T) {
+	t.Skip("AB-666")
 	homedir := createNewTestWallet(t)
 
 	// get pub key

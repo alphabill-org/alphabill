@@ -385,9 +385,8 @@ func (w *Wallet) submitDCBatch(ctx context.Context, k *account.AccountKey, bills
 	dcBatch := txsubmitter.NewBatch(k.PubKey, w.backend)
 	dcTimeout := roundNr + dcTimeoutBlockCount
 	dcNonce := calculateDcNonce(bills)
-	billIds, dcSum := getBillIdsAndSum(bills)
 	for _, b := range bills {
-		tx, err := tx_builder.NewDustTx(k, w.SystemID(), &wallet.Bill{Id: b.GetID(), Value: b.Value, TxHash: b.TxHash}, dcNonce, billIds, dcTimeout, dcSum)
+		tx, err := tx_builder.NewDustTx(k, w.SystemID(), &wallet.Bill{Id: b.GetID(), Value: b.Value, TxHash: b.TxHash}, dcNonce, dcTimeout)
 		if err != nil {
 			return err
 		}
@@ -411,7 +410,7 @@ func (w *Wallet) submitDCBatch(ctx context.Context, k *account.AccountKey, bills
 		}
 	}
 
-	return w.swapDcBills(ctx, bills, dcNonce, billIds, swapTimeout, accountIndex)
+	return w.swapDcBills(ctx, bills, dcNonce, getBillIds(bills), swapTimeout, accountIndex)
 }
 
 func (w *Wallet) swapDcBills(ctx context.Context, dcBills []*Bill, dcNonce []byte, billIds [][]byte, timeout, accountIndex uint64) error {
@@ -515,7 +514,7 @@ func createMoneyWallet(mnemonic string, am account.Manager) error {
 }
 
 func calculateDcNonce(bills []*Bill) []byte {
-	billIds, _ := getBillIdsAndSum(bills)
+	billIds := getBillIds(bills)
 
 	// sort billIds in ascending order
 	sort.Slice(billIds, func(i, j int) bool {
@@ -549,14 +548,14 @@ func groupDcBills(bills []*Bill) (map[string]*dcBillGroup, error) {
 	return m, nil
 }
 
-func getBillIdsAndSum(bills []*Bill) ([][]byte, uint64) {
+func getBillIds(bills []*Bill) [][]byte {
 	var billIds [][]byte
 	var sum uint64
 	for _, b := range bills {
 		sum += b.Value
 		billIds = append(billIds, b.GetID())
 	}
-	return billIds, sum
+	return billIds
 }
 
 // converts proto wallet.Bill to money.Bill domain struct

@@ -49,7 +49,6 @@ func TestDustCollectionMaxBillCount(t *testing.T) {
 		bills[i] = addBill(uint64(i))
 	}
 	billsList := createBillListResponse(bills, nil)
-	billIds, dcSum := getBillIdsAndSum(bills)
 
 	recordedTxs := make(map[string]*types.TransactionOrder, 0)
 	billListCallFlag := false
@@ -67,7 +66,7 @@ func TestDustCollectionMaxBillCount(t *testing.T) {
 		getProof: func(billId []byte) (*wallet.Bills, error) {
 			for _, b := range bills {
 				if bytes.Equal(util.Uint256ToBytes(b.Id), billId) {
-					return createBlockProofResponse(t, b, nonceBytes, billIds, dcTimeoutBlockCount, dcSum, nil), nil
+					return createBlockProofResponse(t, b, nonceBytes, dcTimeoutBlockCount, nil), nil
 				}
 			}
 			return nil, nil
@@ -116,7 +115,6 @@ func TestDustCollectionMaxBillCountOverLimit(t *testing.T) {
 	for i := 0; i < maxBillsForDustCollection+1; i++ {
 		bills[i] = addBill(uint64(i))
 	}
-	billIds, dcSum := getBillIdsAndSum(bills)
 
 	recordedTxs := make(map[string]*types.TransactionOrder, 0)
 	billListCounter := 0
@@ -146,7 +144,7 @@ func TestDustCollectionMaxBillCountOverLimit(t *testing.T) {
 		getProof: func(billId []byte) (*wallet.Bills, error) {
 			for _, b := range bills {
 				if bytes.Equal(util.Uint256ToBytes(b.Id), billId) {
-					return createBlockProofResponse(t, b, nonceBytes, billIds, dcTimeoutBlockCount, dcSum, nil), nil
+					return createBlockProofResponse(t, b, nonceBytes, dcTimeoutBlockCount, nil), nil
 				}
 			}
 			return nil, nil
@@ -198,7 +196,6 @@ func TestBasicDustCollection(t *testing.T) {
 	bills := []*Bill{addBill(1), addBill(2)}
 	billsList := createBillListResponse(bills, nil)
 	expectedDcNonce := calculateDcNonce(bills)
-	billIds, dcSum := getBillIdsAndSum(bills)
 
 	recordedTxs := make(map[string]*types.TransactionOrder, 0)
 	recordedSwaps := make(map[string]*types.TransactionOrder, 0)
@@ -218,7 +215,7 @@ func TestBasicDustCollection(t *testing.T) {
 		getProof: func(billId []byte) (*wallet.Bills, error) {
 			for _, b := range bills {
 				if bytes.Equal(util.Uint256ToBytes(b.Id), billId) {
-					return createBlockProofResponse(t, b, nonceBytes, billIds, dcTimeoutBlockCount, dcSum, nil), nil
+					return createBlockProofResponse(t, b, nonceBytes, dcTimeoutBlockCount, nil), nil
 				}
 			}
 			return nil, nil
@@ -286,7 +283,6 @@ func TestDustCollectionWithSwap(t *testing.T) {
 	bills := []*Bill{addBill(1), addBill(2)}
 	expectedDcNonce := calculateDcNonce(bills)
 	billsList := createBillListResponse(bills, nil)
-	billIds, dcSum := getBillIdsAndSum(bills)
 
 	recordedTxs := make(map[string]*types.TransactionOrder, 0)
 	recordedSwaps := make(map[string]*types.TransactionOrder, 0)
@@ -306,7 +302,7 @@ func TestDustCollectionWithSwap(t *testing.T) {
 		getProof: func(billId []byte) (*wallet.Bills, error) {
 			for _, b := range bills {
 				if bytes.Equal(util.Uint256ToBytes(b.Id), billId) {
-					return createBlockProofResponse(t, b, expectedDcNonce, billIds, dcTimeoutBlockCount, dcSum, nil), nil
+					return createBlockProofResponse(t, b, expectedDcNonce, dcTimeoutBlockCount, nil), nil
 				}
 			}
 			return nil, nil
@@ -370,12 +366,11 @@ func TestSwapWithExistingDCBillsBeforeDCTimeout(t *testing.T) {
 	_ = am.CreateKeys("")
 	k, _ := am.GetAccountKey(0)
 	ids := [][]byte{util.Uint256ToBytes(uint256.NewInt(1)), util.Uint256ToBytes(uint256.NewInt(2))}
-	bills := []*Bill{addDcBill(t, k, uint256.NewInt(1), nonceBytes, ids, 1, dcTimeoutBlockCount, 3), addDcBill(t, k, uint256.NewInt(2), nonceBytes, ids, 2, dcTimeoutBlockCount, 3)}
+	bills := []*Bill{addDcBill(t, k, uint256.NewInt(1), nonceBytes, 1, dcTimeoutBlockCount), addDcBill(t, k, uint256.NewInt(2), nonceBytes, 2, dcTimeoutBlockCount)}
 	expectedDcNonce := calculateDcNonce(bills)
 	dcMetadataMap := make(map[string]*backend.DCMetadata)
 	dcMetadataMap[string(expectedDcNonce)] = &backend.DCMetadata{BillIdentifiers: ids, DCSum: 3}
 	billsList := createBillListResponse(bills, dcMetadataMap)
-	billIds, dcSum := getBillIdsAndSum(bills)
 
 	recordedTxs := make(map[string]*types.TransactionOrder, 0)
 	roundNr := uint64(5)
@@ -390,7 +385,7 @@ func TestSwapWithExistingDCBillsBeforeDCTimeout(t *testing.T) {
 		getProof: func(billId []byte) (*wallet.Bills, error) {
 			for _, b := range bills {
 				if bytes.Equal(util.Uint256ToBytes(b.Id), billId) {
-					return createBlockProofResponse(t, b, expectedDcNonce, billIds, dcTimeoutBlockCount, dcSum, nil), nil
+					return createBlockProofResponse(t, b, expectedDcNonce, dcTimeoutBlockCount, nil), nil
 				}
 			}
 			return nil, nil
@@ -448,12 +443,11 @@ func TestSwapWithExistingExpiredDCBills(t *testing.T) {
 	_ = am.CreateKeys("")
 	k, _ := am.GetAccountKey(0)
 	ids := [][]byte{util.Uint256ToBytes(uint256.NewInt(1)), util.Uint256ToBytes(uint256.NewInt(2))}
-	bills := []*Bill{addDcBill(t, k, uint256.NewInt(1), nonceBytes, ids, 1, 0, 3), addDcBill(t, k, uint256.NewInt(2), nonceBytes, ids, 2, 0, 3)}
+	bills := []*Bill{addDcBill(t, k, uint256.NewInt(1), nonceBytes, 1, 0), addDcBill(t, k, uint256.NewInt(2), nonceBytes, 2, 0)}
 	expectedDcNonce := calculateDcNonce(bills)
 	dcMetadataMap := make(map[string]*backend.DCMetadata)
 	dcMetadataMap[string(expectedDcNonce)] = &backend.DCMetadata{BillIdentifiers: ids, DCSum: 3}
 	billsList := createBillListResponse(bills, dcMetadataMap)
-	billIds, dcSum := getBillIdsAndSum(bills)
 
 	recordedTxs := make(map[string]*types.TransactionOrder, 0)
 	backendMock := &backendAPIMock{
@@ -466,7 +460,7 @@ func TestSwapWithExistingExpiredDCBills(t *testing.T) {
 		getProof: func(billId []byte) (*wallet.Bills, error) {
 			for _, b := range bills {
 				if bytes.Equal(util.Uint256ToBytes(b.Id), billId) {
-					return createBlockProofResponse(t, b, expectedDcNonce, billIds, dcTimeoutBlockCount, dcSum, nil), nil
+					return createBlockProofResponse(t, b, expectedDcNonce, dcTimeoutBlockCount, nil), nil
 				}
 			}
 			return nil, nil
@@ -576,7 +570,6 @@ func TestSwapContainsUnconfirmedDustBillIds(t *testing.T) {
 	require.NoError(t, err)
 	_ = am.CreateKeys("")
 	billsList := createBillListResponse(bills, nil)
-	billIds, dcSum := getBillIdsAndSum(bills)
 
 	recordedTxs := make(map[string]*types.TransactionOrder, 0)
 	recordedSwaps := make(map[string]*types.TransactionOrder, 0)
@@ -596,7 +589,7 @@ func TestSwapContainsUnconfirmedDustBillIds(t *testing.T) {
 		getProof: func(billId []byte) (*wallet.Bills, error) {
 			for _, b := range bills {
 				if bytes.Equal(util.Uint256ToBytes(b.Id), billId) {
-					return createBlockProofResponse(t, b, nil, billIds, dcTimeoutBlockCount, dcSum, nil), nil
+					return createBlockProofResponse(t, b, nil, dcTimeoutBlockCount, nil), nil
 				}
 			}
 			return nil, nil
@@ -661,7 +654,6 @@ func TestBlockingDcWithNormalBills(t *testing.T) {
 	am, err := account.NewManager(t.TempDir(), "", true)
 	require.NoError(t, err)
 	billsList := createBillListResponse(bills, nil)
-	billIds, dcSum := getBillIdsAndSum(bills)
 
 	recordedTxs := make(map[string]*types.TransactionOrder, 0)
 	billListCallFlag := false
@@ -679,7 +671,7 @@ func TestBlockingDcWithNormalBills(t *testing.T) {
 		getProof: func(billId []byte) (*wallet.Bills, error) {
 			for _, b := range bills {
 				if bytes.Equal(util.Uint256ToBytes(b.Id), billId) {
-					return createBlockProofResponse(t, b, nil, billIds, dcTimeoutBlockCount, dcSum, nil), nil
+					return createBlockProofResponse(t, b, nil, dcTimeoutBlockCount, nil), nil
 				}
 			}
 			return nil, nil
@@ -735,7 +727,7 @@ func TestBlockingDCWithExistingExpiredDCBills(t *testing.T) {
 	_ = am.CreateKeys("")
 	k, _ := am.GetAccountKey(0)
 	ids := [][]byte{util.Uint256ToBytes(uint256.NewInt(1)), util.Uint256ToBytes(uint256.NewInt(2))}
-	bills := []*Bill{addDcBill(t, k, uint256.NewInt(1), nonceBytes, ids, 1, 0, 3), addDcBill(t, k, uint256.NewInt(2), nonceBytes, ids, 2, 0, 3)}
+	bills := []*Bill{addDcBill(t, k, uint256.NewInt(1), nonceBytes, 1, 0), addDcBill(t, k, uint256.NewInt(2), nonceBytes, 2, 0)}
 	dcMetadataMap := make(map[string]*backend.DCMetadata)
 	dcMetadataMap[string(nonceBytes)] = &backend.DCMetadata{BillIdentifiers: ids, DCSum: 3}
 	billsList := createBillListResponse(bills, dcMetadataMap)
@@ -751,7 +743,7 @@ func TestBlockingDCWithExistingExpiredDCBills(t *testing.T) {
 		getProof: func(billId []byte) (*wallet.Bills, error) {
 			for _, b := range bills {
 				if bytes.Equal(util.Uint256ToBytes(b.Id), billId) {
-					return createBlockProofResponse(t, b, util.Uint256ToBytes(tempNonce), ids, dcTimeoutBlockCount, 3, nil), nil
+					return createBlockProofResponse(t, b, util.Uint256ToBytes(tempNonce), dcTimeoutBlockCount, nil), nil
 				}
 			}
 			return nil, nil
@@ -804,7 +796,7 @@ func addBill(value uint64) *Bill {
 	return &b1
 }
 
-func addDcBill(t *testing.T, k *account.AccountKey, id *uint256.Int, nonce []byte, billIds [][]byte, value, timeout, dcSum uint64) *Bill {
+func addDcBill(t *testing.T, k *account.AccountKey, id *uint256.Int, nonce []byte, value, timeout uint64) *Bill {
 	b := Bill{
 		Id:      id,
 		Value:   value,
@@ -812,7 +804,7 @@ func addDcBill(t *testing.T, k *account.AccountKey, id *uint256.Int, nonce []byt
 		TxProof: &wallet.Proof{},
 	}
 
-	tx, err := txbuilder.NewDustTx(k, []byte{0, 0, 0, 0}, b.ToGenericBill(), nonce, billIds, timeout, dcSum)
+	tx, err := txbuilder.NewDustTx(k, []byte{0, 0, 0, 0}, b.ToGenericBill(), nonce, timeout)
 	require.NoError(t, err)
 	b.TxProof = &wallet.Proof{TxRecord: &types.TransactionRecord{TransactionOrder: tx}}
 

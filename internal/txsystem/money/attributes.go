@@ -25,7 +25,6 @@ type (
 		TargetBearer []byte
 		TargetValue  uint64
 		Backlink     []byte
-		DCMetadata   *DCMetadata
 	}
 
 	SplitAttributes struct {
@@ -43,11 +42,5 @@ type (
 		DcTransfers     []*types.TransactionRecord
 		Proofs          []*types.TxProof
 		TargetValue     uint64
-	}
-
-	DCMetadata struct {
-		_               struct{} `cbor:",toarray"`
-		BillIdentifiers [][]byte
-		DCSum           uint64
 	}
 )

@@ -135,16 +135,16 @@ func toBillId(i *uint256.Int) string {
 	return base64.StdEncoding.EncodeToString(util.Uint256ToBytes(i))
 }
 
-func createBlockProofResponse(t *testing.T, b *Bill, overrideNonce []byte, billIds [][]byte, timeout, dcSum uint64, k *account.AccountKey) *wallet.Bills {
+func createBlockProofResponse(t *testing.T, b *Bill, overrideNonce []byte, timeout uint64, k *account.AccountKey) *wallet.Bills {
 	w, mockClient := CreateTestWallet(t, nil)
 	if k == nil {
 		k, _ = w.am.GetAccountKey(0)
 	}
 	var dcTx *types.TransactionOrder
 	if overrideNonce != nil {
-		dcTx, _ = txbuilder.NewDustTx(k, w.SystemID(), b.ToGenericBill(), overrideNonce, billIds, timeout, dcSum)
+		dcTx, _ = txbuilder.NewDustTx(k, w.SystemID(), b.ToGenericBill(), overrideNonce, timeout)
 	} else {
-		dcTx, _ = txbuilder.NewDustTx(k, w.SystemID(), b.ToGenericBill(), calculateDcNonce([]*Bill{b}), billIds, timeout, dcSum)
+		dcTx, _ = txbuilder.NewDustTx(k, w.SystemID(), b.ToGenericBill(), calculateDcNonce([]*Bill{b}), timeout)
 	}
 	txRecord := &types.TransactionRecord{TransactionOrder: dcTx}
 	mockClient.SetBlock(&types.Block{

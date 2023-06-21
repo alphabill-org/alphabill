@@ -775,22 +775,24 @@ func execTokenCmdList(cmd *cobra.Command, config *walletConfig, accountNumber *u
 	if err != nil {
 		return err
 	}
-	withTypeName, err := cmd.Flags().GetBool(cmdFlagWithTypeName)
-	if err != nil {
-		return err
-	}
-	withTokenURI, withTokenData := false, false
-	if kind == backend.Any || kind == backend.NonFungible {
-		withTokenURI, err = cmd.Flags().GetBool(cmdFlagWithTokenURI)
-		if err != nil {
-			return err
-		}
-		withTokenData, err = cmd.Flags().GetBool(cmdFlagWithTokenData)
-		if err != nil {
-			return err
-		}
-	}
 
+	withTypeName, withTokenURI, withTokenData := false, false, false
+	if !withAll {
+		withTypeName, err = cmd.Flags().GetBool(cmdFlagWithTypeName)
+		if err != nil {
+			return err
+		}
+		if kind == backend.Any || kind == backend.NonFungible {
+			withTokenURI, err = cmd.Flags().GetBool(cmdFlagWithTokenURI)
+			if err != nil {
+				return err
+			}
+			withTokenData, err = cmd.Flags().GetBool(cmdFlagWithTokenData)
+			if err != nil {
+				return err
+			}
+		}
+	}
 	accounts := make([]uint64, 0, len(res))
 	for accNr := range res {
 		accounts = append(accounts, accNr)

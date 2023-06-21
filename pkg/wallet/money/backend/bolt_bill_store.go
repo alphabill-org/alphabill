@@ -20,6 +20,7 @@ var (
 	expiredBillsBucket = []byte("expiredBillsBucket") // block_number => bucket[unitID]nil
 	feeUnitsBucket     = []byte("feeUnitsBucket")     // unitID => unit_bytes (for free credit units)
 	sdrBucket          = []byte("sdrBucket")          // []genesis.SystemDescriptionRecord
+	dcBucket           = []byte("dcBucket")           // nonce => dc metadata bytes
 )
 
 var (
@@ -279,6 +280,31 @@ func (s *BoltBillStoreTx) SetSystemDescriptionRecords(sdrs []*genesis.SystemDesc
 	}, true)
 }
 
+func (s *BoltBillStoreTx) GetDCMetadata(nonce []byte) (*DCMetadata, error) {
+	var data *DCMetadata
+	err := s.withTx(s.tx, func(tx *bolt.Tx) error {
+		dcBytes := tx.Bucket(dcBucket).Get(nonce)
+		if dcBytes == nil {
+			return nil
+		}
+		return json.Unmarshal(dcBytes, &data)
+	}, false)
+	if err != nil {
+		return nil, err
+	}
+	return data, nil
+}
+
+func (s *BoltBillStoreTx) SetDCMetadata(nonce []byte, data *DCMetadata) error {
+	return s.withTx(s.tx, func(tx *bolt.Tx) error {
+		dcBytes, err := json.Marshal(data)
+		if err != nil {
+			return err
+		}
+		return tx.Bucket(dcBucket).Put(nonce, dcBytes)
+	}, true)
+}
+
 func (s *BoltBillStoreTx) removeUnit(tx *bolt.Tx, unitID []byte) error {
 	unit, err := s.getUnit(tx, unitID)
 	if err != nil {
@@ -372,6 +398,10 @@ func (s *BoltBillStore) createBuckets() error {
 			return err
 		}
 		_, err = tx.CreateBucketIfNotExists(sdrBucket)
+		if err != nil {
+			return err
+		}
+		_, err = tx.CreateBucketIfNotExists(dcBucket)
 		if err != nil {
 			return err
 		}

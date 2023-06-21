@@ -38,7 +38,7 @@ const (
 	TransactionsPath = "api/v1/transactions"
 
 	balanceUrlFormat     = "%v/%v?pubkey=%v&includedcbills=%v"
-	listBillsUrlFormat   = "%v/%v?pubkey=%v&includedcbills=%v"
+	listBillsUrlFormat   = "%v/%v?pubkey=%v&includedcbills=%v&includedcmetadata=%v"
 	proofUrlFormat       = "%v/%v?bill_id=%v"
 	roundNumberUrlFormat = "%v/%v"
 
@@ -94,9 +94,9 @@ func (c *MoneyBackendClient) GetBalance(pubKey []byte, includeDCBills bool) (uin
 	return responseObject.Balance, nil
 }
 
-func (c *MoneyBackendClient) ListBills(pubKey []byte, includeDCBills bool) (*backend.ListBillsResponse, error) {
+func (c *MoneyBackendClient) ListBills(pubKey []byte, includeDCBills, includeDCMetadata bool) (*backend.ListBillsResponse, error) {
 	offset := 0
-	responseObject, err := c.retrieveBills(pubKey, includeDCBills, offset)
+	responseObject, err := c.retrieveBills(pubKey, includeDCBills, includeDCMetadata, offset)
 	if err != nil {
 		return nil, err
 	}
@@ -104,7 +104,7 @@ func (c *MoneyBackendClient) ListBills(pubKey []byte, includeDCBills bool) (*bac
 
 	for len(finalResponse.Bills) < finalResponse.Total {
 		offset += len(responseObject.Bills)
-		responseObject, err = c.retrieveBills(pubKey, includeDCBills, offset)
+		responseObject, err = c.retrieveBills(pubKey, includeDCBills, includeDCMetadata, offset)
 		if err != nil {
 			return nil, err
 		}
@@ -114,7 +114,7 @@ func (c *MoneyBackendClient) ListBills(pubKey []byte, includeDCBills bool) (*bac
 }
 
 func (c *MoneyBackendClient) GetBills(pubKey []byte) ([]*wallet.Bill, error) {
-	bills, err := c.ListBills(pubKey, false)
+	bills, err := c.ListBills(pubKey, false, false)
 	if err != nil {
 		return nil, err
 	}
@@ -254,8 +254,8 @@ func (c *MoneyBackendClient) GetTxProof(_ context.Context, unitID wallet.UnitID,
 	return proof.Bills[0].TxProof, nil
 }
 
-func (c *MoneyBackendClient) retrieveBills(pubKey []byte, includeDCBills bool, offset int) (*backend.ListBillsResponse, error) {
-	reqUrl := fmt.Sprintf(listBillsUrlFormat, c.BaseUrl, ListBillsPath, hexutil.Encode(pubKey), includeDCBills)
+func (c *MoneyBackendClient) retrieveBills(pubKey []byte, includeDCBills, includeDCMetadata bool, offset int) (*backend.ListBillsResponse, error) {
+	reqUrl := fmt.Sprintf(listBillsUrlFormat, c.BaseUrl, ListBillsPath, hexutil.Encode(pubKey), includeDCBills, includeDCMetadata)
 	if offset > 0 {
 		reqUrl = fmt.Sprintf("%v&offset=%v", reqUrl, offset)
 	}

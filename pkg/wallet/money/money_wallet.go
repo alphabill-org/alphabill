@@ -50,7 +50,7 @@ type (
 
 	BackendAPI interface {
 		GetBalance(pubKey []byte, includeDCBills bool) (uint64, error)
-		ListBills(pubKey []byte, includeDCBills bool) (*backend.ListBillsResponse, error)
+		ListBills(pubKey []byte, includeDCBills, includeDCMetadata bool) (*backend.ListBillsResponse, error)
 		GetBills(pubKey []byte) ([]*wallet.Bill, error)
 		GetProof(billId []byte) (*wallet.Bills, error)
 		GetRoundNumber(ctx context.Context) (uint64, error)
@@ -81,12 +81,10 @@ type (
 	}
 
 	dcBillGroup struct {
-		dcBills         []*Bill
-		valueSum        uint64
-		dcNonce         []byte
-		dcTimeout       uint64
-		billIdentifiers [][]byte
-		dcSum           uint64
+		dcBills   []*Bill
+		valueSum  uint64
+		dcNonce   []byte
+		dcTimeout uint64
 	}
 )
 
@@ -312,7 +310,7 @@ func (w *Wallet) collectDust(ctx context.Context, accountIndex uint64) error {
 	if err != nil {
 		return err
 	}
-	bills, err := w.getDetailedBillsList(pubKey)
+	bills, dcMetadataMap, err := w.getDetailedBillsList(pubKey)
 	if err != nil {
 		return err
 	}
@@ -326,7 +324,7 @@ func (w *Wallet) collectDust(ctx context.Context, accountIndex uint64) error {
 	}
 	if len(dcBillGroups) > 0 {
 		for _, v := range dcBillGroups {
-			if roundNr < v.dcTimeout && v.valueSum < v.dcSum {
+			if roundNr < v.dcTimeout && v.valueSum < dcMetadataMap[string(v.dcNonce)].DCSum {
 				log.Info("waiting for dc confirmation(s)...")
 				for roundNr <= v.dcTimeout {
 					select {
@@ -340,7 +338,7 @@ func (w *Wallet) collectDust(ctx context.Context, accountIndex uint64) error {
 						return nil
 					}
 				}
-				bills, err = w.getDetailedBillsList(pubKey)
+				bills, dcMetadataMap, err = w.getDetailedBillsList(pubKey)
 				if err != nil {
 					return err
 				}
@@ -351,7 +349,7 @@ func (w *Wallet) collectDust(ctx context.Context, accountIndex uint64) error {
 				v = dcBillGroups[string(v.dcNonce)]
 			}
 			swapTimeout := roundNr + swapTimeoutBlockCount
-			if err := w.swapDcBills(ctx, v.dcBills, v.dcNonce, v.billIdentifiers, swapTimeout, accountIndex); err != nil {
+			if err := w.swapDcBills(ctx, v.dcBills, v.dcNonce, dcMetadataMap[string(v.dcNonce)].BillIdentifiers, swapTimeout, accountIndex); err != nil {
 				return err
 			}
 		}
@@ -370,7 +368,7 @@ func (w *Wallet) collectDust(ctx context.Context, accountIndex uint64) error {
 			if err != nil {
 				return err
 			}
-			bills, err = w.getDetailedBillsList(pubKey)
+			bills, _, err = w.getDetailedBillsList(pubKey)
 			if err != nil {
 				return err
 			}
@@ -453,20 +451,20 @@ func (w *Wallet) SendTx(ctx context.Context, tx *types.TransactionOrder, senderP
 	return w.TxPublisher.SendTx(ctx, tx, senderPubKey)
 }
 
-func (w *Wallet) getDetailedBillsList(pubKey []byte) ([]*Bill, error) {
-	billResponse, err := w.backend.ListBills(pubKey, true)
+func (w *Wallet) getDetailedBillsList(pubKey []byte) ([]*Bill, map[string]*backend.DCMetadata, error) {
+	billResponse, err := w.backend.ListBills(pubKey, true, true)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	bills := make([]*Bill, 0)
 	if len(billResponse.Bills) < 2 {
-		return bills, nil
+		return bills, nil, nil
 	}
 	for _, b := range billResponse.Bills {
 		if b.IsDCBill {
 			proof, err := w.backend.GetProof(b.Id)
 			if err != nil {
-				return nil, err
+				return nil, nil, err
 			}
 			bills = append(bills, convertBill(proof.Bills[0]))
 		} else {
@@ -474,7 +472,7 @@ func (w *Wallet) getDetailedBillsList(pubKey []byte) ([]*Bill, error) {
 		}
 	}
 
-	return bills, nil
+	return bills, billResponse.DCMetadata, nil
 }
 
 func (c *SendCmd) isValid() error {
@@ -542,12 +540,6 @@ func groupDcBills(bills []*Bill) (map[string]*dcBillGroup, error) {
 				billContainer = &dcBillGroup{}
 				m[k] = billContainer
 			}
-			a := &money.TransferDCAttributes{}
-			if err := b.TxProof.TxRecord.TransactionOrder.UnmarshalAttributes(a); err != nil {
-				return nil, fmt.Errorf("invalid DC transfer: %w", err)
-			}
-			billContainer.dcSum = a.DCMetadata.DCSum
-			billContainer.billIdentifiers = a.DCMetadata.BillIdentifiers
 			billContainer.valueSum += b.Value
 			billContainer.dcBills = append(billContainer.dcBills, b)
 			billContainer.dcNonce = b.DcNonce

@@ -8,8 +8,8 @@ import (
 	"testing"
 
 	"github.com/alphabill-org/alphabill/internal/hash"
-	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/alphabill-org/alphabill/internal/types"
+	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/alphabill-org/alphabill/pkg/wallet/money/backend"
 	"github.com/holiman/uint256"
@@ -95,8 +95,8 @@ func TestWalletSendFunction_WaitForConfirmation(t *testing.T) {
 		getRoundNumber: func() (uint64, error) {
 			return 0, nil
 		},
-		listBills: func(pubKey []byte, includeDCBills bool) (*backend.ListBillsResponse, error) {
-			return createBillListResponse([]*Bill{b}), nil
+		listBills: func(pubKey []byte, includeDCBills, includeDCMetadata bool) (*backend.ListBillsResponse, error) {
+			return createBillListResponse([]*Bill{b}, nil), nil
 		},
 		getBills: func(pubKey []byte) ([]*wallet.Bill, error) {
 			return []*wallet.Bill{{Id: b.GetID(), Value: b.Value, TxHash: b.TxHash}}, nil
@@ -148,8 +148,8 @@ func TestWalletSendFunction_WaitForMultipleTxConfirmations(t *testing.T) {
 		getRoundNumber: func() (uint64, error) {
 			return 0, nil
 		},
-		listBills: func(pubKey []byte, includeDCBills bool) (*backend.ListBillsResponse, error) {
-			return createBillListResponse([]*Bill{b1, b2}), nil
+		listBills: func(pubKey []byte, includeDCBills, includeDCMetadata bool) (*backend.ListBillsResponse, error) {
+			return createBillListResponse([]*Bill{b1, b2}, nil), nil
 		},
 		getBills: func(pubKey []byte) ([]*wallet.Bill, error) {
 			return []*wallet.Bill{
@@ -213,8 +213,8 @@ func TestWalletSendFunction_WaitForMultipleTxConfirmationsInDifferentBlocks(t *t
 		getRoundNumber: func() (uint64, error) {
 			return blockCounter, nil
 		},
-		listBills: func(pubKey []byte, includeDCBills bool) (*backend.ListBillsResponse, error) {
-			return createBillListResponse([]*Bill{b1, b2}), nil
+		listBills: func(pubKey []byte, includeDCBills, includeDCMetadata bool) (*backend.ListBillsResponse, error) {
+			return createBillListResponse([]*Bill{b1, b2}, nil), nil
 		},
 		getBills: func(pubKey []byte) ([]*wallet.Bill, error) {
 			return []*wallet.Bill{
@@ -272,8 +272,8 @@ func TestWalletSendFunction_ErrTxFailedToConfirm(t *testing.T) {
 			}
 			return 2 * txTimeoutBlockCount, nil
 		},
-		listBills: func(pubKey []byte, includeDCBills bool) (*backend.ListBillsResponse, error) {
-			return createBillListResponse([]*Bill{b}), nil
+		listBills: func(pubKey []byte, includeDCBills, includeDCMetadata bool) (*backend.ListBillsResponse, error) {
+			return createBillListResponse([]*Bill{b}, nil), nil
 		},
 		getBills: func(pubKey []byte) ([]*wallet.Bill, error) {
 			return []*wallet.Bill{{Id: b.GetID(), Value: b.Value, TxHash: b.TxHash}}, nil
@@ -313,8 +313,8 @@ func TestWholeBalanceIsSentUsingBillTransferOrder(t *testing.T) {
 		getRoundNumber: func() (uint64, error) {
 			return 0, nil
 		},
-		listBills: func(pubKey []byte, includeDCBills bool) (*backend.ListBillsResponse, error) {
-			return createBillListResponse([]*Bill{b}), nil
+		listBills: func(pubKey []byte, includeDCBills, includeDCMetadata bool) (*backend.ListBillsResponse, error) {
+			return createBillListResponse([]*Bill{b}, nil), nil
 		},
 		getBills: func(pubKey []byte) ([]*wallet.Bill, error) {
 			return []*wallet.Bill{{Id: b.GetID(), Value: b.Value, TxHash: b.TxHash}}, nil

@@ -15,6 +15,7 @@ import (
 	"github.com/gorilla/mux"
 	httpSwagger "github.com/swaggo/http-swagger"
 
+	"github.com/alphabill-org/alphabill/internal/txsystem/money"
 	"github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/alphabill-org/alphabill/pkg/wallet/log"
 	_ "github.com/alphabill-org/alphabill/pkg/wallet/money/backend/docs"
@@ -32,8 +33,9 @@ type (
 
 	// TODO: perhaps pass the total number of elements in a response header
 	ListBillsResponse struct {
-		Total int           `json:"total" example:"1"`
-		Bills []*ListBillVM `json:"bills"`
+		Total      int                    `json:"total" example:"1"`
+		Bills      []*ListBillVM          `json:"bills"`
+		DCMetadata map[string]*DCMetadata `json:"dcMetadata,omitempty"`
 	}
 
 	ListBillVM struct {
@@ -105,6 +107,8 @@ func (s *RequestHandler) Router() *mux.Router {
 // @Param pubkey query string true "Public key prefixed with 0x" example(0x000000000000000000000000000000000000000000000000000000000000000123)
 // @Param limit query int false "limits how many bills are returned in response" default(100)
 // @Param offset query int false "response will include bills starting after offset" default(0)
+// @Param includedcbills query bool false "response will include DC bills" default(true)
+// @Param includedcmetadata query bool false "response will include DC Metadata info (includedcbills param must also be true)" default(false)
 // @Success 200 {object} ListBillsResponse
 // @Failure 400 {object} ErrorResponse
 // @Failure 500
@@ -118,8 +122,14 @@ func (s *RequestHandler) listBillsFunc(w http.ResponseWriter, r *http.Request) {
 	}
 	includeDCBills, err := parseIncludeDCBillsQueryParam(r, true)
 	if err != nil {
-		log.Debug("error parsing GET /balance request: ", err)
-		w.WriteHeader(http.StatusInternalServerError)
+		log.Debug("error parsing GET /list-bills request: ", err)
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+	includeDCMetadata, err := parseIncludeDCMetadataQueryParam(r)
+	if err != nil {
+		log.Debug("error parsing GET /list-bills request: ", err)
+		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
 	bills, err := s.Service.GetBills(pk)
@@ -129,14 +139,32 @@ func (s *RequestHandler) listBillsFunc(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var filteredBills []*Bill
+	dcMetadataMap := make(map[string]*DCMetadata)
 	for _, b := range bills {
-		// filter dc bills
-		if b.IsDCBill && !includeDCBills {
-			continue
-		}
 		// filter zero value bills
 		if b.Value == 0 {
 			continue
+		}
+		// filter dc bills
+		if b.IsDCBill {
+			if !includeDCBills {
+				continue
+			}
+			if includeDCMetadata {
+				attrs := &money.TransferDCAttributes{}
+				if err := b.TxProof.TxRecord.TransactionOrder.UnmarshalAttributes(attrs); err != nil {
+					log.Error("error on GET /list-bills: ", err)
+					w.WriteHeader(http.StatusInternalServerError)
+					return
+				}
+				dcMetadata, err := s.Service.GetDCMetadata(attrs.Nonce)
+				if err != nil {
+					log.Error("error on GET /list-bills: ", err)
+					w.WriteHeader(http.StatusInternalServerError)
+					return
+				}
+				dcMetadataMap[string(attrs.Nonce)] = dcMetadata
+			}
 		}
 		filteredBills = append(filteredBills, b)
 	}
@@ -355,6 +383,15 @@ func (s *RequestHandler) postTransactions(w http.ResponseWriter, r *http.Request
 		return
 	}
 
+	if err = s.Service.StoreDCMetadata(txs.Transactions); err != nil {
+		log.Debug("failed to store DC metadata: ", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		writeAsJson(w, ErrorResponse{
+			Message: fmt.Errorf("failed to store DC metadata: %w", err).Error(),
+		})
+		return
+	}
+
 	if errs := s.Service.SendTransactions(r.Context(), txs.Transactions); len(errs) > 0 {
 		w.WriteHeader(http.StatusInternalServerError)
 		writeAsJson(w, errs)
@@ -425,6 +462,13 @@ func parseIncludeDCBillsQueryParam(r *http.Request, defaultValue bool) (bool, er
 		return strconv.ParseBool(r.URL.Query().Get("includedcbills"))
 	}
 	return defaultValue, nil
+}
+
+func parseIncludeDCMetadataQueryParam(r *http.Request) (bool, error) {
+	if r.URL.Query().Has("includedcmetadata") {
+		return strconv.ParseBool(r.URL.Query().Get("includedcmetadata"))
+	}
+	return false, nil
 }
 
 func parseBillID(r *http.Request) ([]byte, error) {

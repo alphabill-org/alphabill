@@ -41,7 +41,7 @@ func TestListBills(t *testing.T) {
 	restClient, err := New(mockAddress.Host)
 	require.NoError(t, err)
 
-	billsResponse, err := restClient.ListBills(pubKey, true)
+	billsResponse, err := restClient.ListBills(pubKey, true, false)
 	require.NoError(t, err)
 	require.Len(t, billsResponse.Bills, 8)
 	require.EqualValues(t, 8, billsResponse.Total)
@@ -58,7 +58,7 @@ func TestListBillsWithPaging(t *testing.T) {
 	restClient, err := New(mockAddress.Host)
 	require.NoError(t, err)
 
-	billsResponse, err := restClient.ListBills(pubKey, true)
+	billsResponse, err := restClient.ListBills(pubKey, true, false)
 	require.NoError(t, err)
 	require.Len(t, billsResponse.Bills, 13)
 	require.EqualValues(t, 13, billsResponse.Total)

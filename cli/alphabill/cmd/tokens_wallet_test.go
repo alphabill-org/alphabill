@@ -34,12 +34,19 @@ func TestListTokensCommandInputs(t *testing.T) {
 		accountNumber uint64
 		expectedKind  backend.Kind
 		expectedPass  string
+		expectedFlags []string
 	}{
 		{
 			name:          "list all tokens",
 			args:          []string{},
 			accountNumber: 0, // all tokens
 			expectedKind:  backend.Any,
+		},
+		{
+			name:          "list all tokens with flags",
+			args:          []string{"--with-all", "--with-type-name", "--with-token-uri", "--with-token-data"},
+			expectedKind:  backend.Any,
+			expectedFlags: []string{cmdFlagWithAll, cmdFlagWithTypeName, cmdFlagWithTokenURI, cmdFlagWithTokenData},
 		},
 		{
 			name:          "list all tokens, encrypted wallet",
@@ -74,10 +81,22 @@ func TestListTokensCommandInputs(t *testing.T) {
 			expectedPass:  "some pass phrase",
 		},
 		{
+			name:          "list all fungible tokens with falgs",
+			args:          []string{"fungible", "--with-all", "--with-type-name"},
+			expectedKind:  backend.Fungible,
+			expectedFlags: []string{cmdFlagWithAll, cmdFlagWithTypeName},
+		},
+		{
 			name:          "list all non-fungible tokens",
 			args:          []string{"non-fungible"},
 			accountNumber: 0,
 			expectedKind:  backend.NonFungible,
+		},
+		{
+			name:          "list all non-fungible tokens with flags",
+			args:          []string{"non-fungible", "--with-all", "--with-type-name", "--with-token-uri", "--with-token-data"},
+			expectedKind:  backend.NonFungible,
+			expectedFlags: []string{cmdFlagWithAll, cmdFlagWithTypeName, cmdFlagWithTokenURI, cmdFlagWithTokenData},
 		},
 		{
 			name:          "list account non-fungible tokens",
@@ -86,7 +105,7 @@ func TestListTokensCommandInputs(t *testing.T) {
 			expectedKind:  backend.NonFungible,
 		},
 		{
-			name:          "list account non-fungible tokens, encrypted walled",
+			name:          "list account non-fungible tokens, encrypted wallet",
 			args:          []string{"non-fungible", "--key", "5", "--pn", "some pass phrase"},
 			accountNumber: 5,
 			expectedKind:  backend.NonFungible,
@@ -103,6 +122,13 @@ func TestListTokensCommandInputs(t *testing.T) {
 					passwordFromArg, err := cmd.Flags().GetString(passwordArgCmdName)
 					require.NoError(t, err)
 					require.Equal(t, tt.expectedPass, passwordFromArg)
+				}
+				if len(tt.expectedFlags) > 0 {
+					for _, flag := range tt.expectedFlags {
+						flagValue, err := cmd.Flags().GetBool(flag)
+						require.NoError(t, err)
+						require.True(t, flagValue)
+					}
 				}
 				exec = true
 				return nil

@@ -132,6 +132,7 @@ func (p *blockProcessor) processTx(tr *types.TransactionRecord, proof *wallet.Tx
 			&TokenUnit{
 				ID:       id,
 				TypeID:   attrs.TypeID,
+				TypeName: tokenType.Name,
 				Amount:   attrs.Value,
 				Kind:     tokenType.Kind,
 				Symbol:   tokenType.Symbol,
@@ -181,6 +182,7 @@ func (p *blockProcessor) processTx(tr *types.TransactionRecord, proof *wallet.Tx
 			ID:       txutil.SameShardIDBytes(uint256.NewInt(0).SetBytes(id), tokens.HashForIDCalculation(tx, crypto.SHA256)),
 			Symbol:   token.Symbol,
 			TypeID:   token.TypeID,
+			TypeName: token.TypeName,
 			Kind:     token.Kind,
 			Amount:   attrs.TargetValue,
 			Decimals: token.Decimals,
@@ -282,6 +284,7 @@ func (p *blockProcessor) processTx(tr *types.TransactionRecord, proof *wallet.Tx
 			ID:                     id,
 			Kind:                   tokenType.Kind,
 			TypeID:                 attrs.NFTTypeID,
+			TypeName:               tokenType.Name,
 			Symbol:                 tokenType.Symbol,
 			NftName:                attrs.Name,
 			NftURI:                 attrs.URI,

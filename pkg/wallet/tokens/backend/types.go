@@ -32,10 +32,11 @@ type (
 
 	TokenUnit struct {
 		// common
-		ID     TokenID          `json:"id"`
-		Symbol string           `json:"symbol"`
-		TypeID TokenTypeID      `json:"typeId"`
-		Owner  wallet.Predicate `json:"owner"`
+		ID       TokenID          `json:"id"`
+		Symbol   string           `json:"symbol"`
+		TypeID   TokenTypeID      `json:"typeId"`
+		TypeName string           `json:"typeName"`
+		Owner    wallet.Predicate `json:"owner"`
 		// fungible only
 		Amount   uint64 `json:"amount,omitempty,string"`
 		Decimals uint32 `json:"decimals,omitempty"`

@@ -808,7 +808,6 @@ func addDcBill(t *testing.T, k *account.AccountKey, id *uint256.Int, nonce []byt
 	require.NoError(t, err)
 	b.TxProof = &wallet.Proof{TxRecord: &types.TransactionRecord{TransactionOrder: tx}}
 
-	b.IsDcBill = true
 	b.DcNonce = nonce
 	b.DcTimeout = timeout
 	b.DcExpirationTimeout = dustBillDeletionTimeout

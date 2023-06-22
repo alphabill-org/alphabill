@@ -100,7 +100,7 @@ func (p *BlockProcessor) processTx(txr *types.TransactionRecord, b *types.Block,
 			Id:             txo.UnitID(),
 			Value:          attr.TargetValue,
 			TxHash:         txo.Hash(crypto.SHA256),
-			IsDCBill:       true,
+			DcNonce:        attr.Nonce,
 			OwnerPredicate: attr.TargetBearer,
 		})
 		if err != nil {

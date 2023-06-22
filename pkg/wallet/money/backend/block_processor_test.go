@@ -117,7 +117,7 @@ func TestBlockProcessor_EachTxTypeCanBeProcessed(t *testing.T) {
 	// verify tx2 is dcBill
 	bill, err := store.Do().GetBill(tx2.TransactionOrder.UnitID())
 	require.NoError(t, err)
-	require.True(t, bill.IsDCBill)
+	require.NotNil(t, bill.DcNonce)
 
 	// verify fcb is reduced by 4x txFee
 	fcb, err = store.Do().GetFeeCreditBill(fcbID)
@@ -360,6 +360,7 @@ func dustTxAttr(pubKeyHash []byte) []byte {
 		TargetValue:  100,
 		TargetBearer: script.PredicatePayToPublicKeyHashDefault(pubKeyHash),
 		Backlink:     hash.Sum256([]byte{}),
+		Nonce:        []byte{0},
 	}
 	attrBytes, _ := cbor.Marshal(attr)
 	return attrBytes

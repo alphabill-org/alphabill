@@ -54,7 +54,7 @@ type (
 		Id             []byte        `json:"id"`
 		Value          uint64        `json:"value"`
 		TxHash         []byte        `json:"txHash"`
-		IsDCBill       bool          `json:"isDcBill,omitempty"`
+		DcNonce        []byte        `json:"dcNonce,omitempty"`
 		TxProof        *wallet.Proof `json:"txProof"`
 		OwnerPredicate []byte        `json:"OwnerPredicate"`
 
@@ -286,22 +286,25 @@ func (w *WalletBackend) SendTransactions(ctx context.Context, txs []*types.Trans
 }
 
 func (w *WalletBackend) StoreDCMetadata(txs []*types.TransactionOrder) error {
-	if txs[0].PayloadType() != money.PayloadTypeTransDC {
-		return nil
-	}
 	var nonce []byte
 	var billIds [][]byte
 	var dcSum uint64
 	for _, tx := range txs {
-		attrs := &money.TransferDCAttributes{}
-		if err := tx.UnmarshalAttributes(attrs); err != nil {
-			return fmt.Errorf("invalid DC transfer: %w", err)
+		if tx.PayloadType() == money.PayloadTypeTransDC {
+			attrs := &money.TransferDCAttributes{}
+			if err := tx.UnmarshalAttributes(attrs); err != nil {
+				return fmt.Errorf("invalid DC transfer: %w", err)
+			}
+			nonce = attrs.Nonce
+			dcSum += attrs.TargetValue
+			billIds = append(billIds, tx.UnitID())
 		}
-		nonce = attrs.Nonce
-		dcSum += attrs.TargetValue
-		billIds = append(billIds, tx.UnitID())
 	}
-	return w.store.Do().SetDCMetadata(nonce, &DCMetadata{BillIdentifiers: billIds, DCSum: dcSum})
+	if dcSum > 0 {
+		return w.store.Do().SetDCMetadata(nonce, &DCMetadata{BillIdentifiers: billIds, DCSum: dcSum})
+	}
+	return nil
+
 }
 
 func (w *WalletBackend) GetDCMetadata(nonce []byte) (*DCMetadata, error) {
@@ -313,7 +316,7 @@ func (b *Bill) ToGenericBill() *wallet.Bill {
 		Id:          b.Id,
 		Value:       b.Value,
 		TxHash:      b.TxHash,
-		IsDcBill:    b.IsDCBill,
+		DcNonce:     b.DcNonce,
 		TxProof:     b.TxProof,
 		AddFCTxHash: b.AddFCTxHash,
 	}

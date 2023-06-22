@@ -460,14 +460,14 @@ func (w *Wallet) getDetailedBillsList(pubKey []byte) ([]*Bill, map[string]*backe
 		return bills, nil, nil
 	}
 	for _, b := range billResponse.Bills {
-		if b.IsDCBill {
+		if b.DcNonce != nil {
 			proof, err := w.backend.GetProof(b.Id)
 			if err != nil {
 				return nil, nil, err
 			}
 			bills = append(bills, convertBill(proof.Bills[0]))
 		} else {
-			bills = append(bills, &Bill{Id: util.BytesToUint256(b.Id), Value: b.Value, TxHash: b.TxHash, IsDcBill: b.IsDCBill})
+			bills = append(bills, &Bill{Id: util.BytesToUint256(b.Id), Value: b.Value, TxHash: b.TxHash, DcNonce: b.DcNonce})
 		}
 	}
 
@@ -532,7 +532,7 @@ func calculateDcNonce(bills []*Bill) []byte {
 func groupDcBills(bills []*Bill) (map[string]*dcBillGroup, error) {
 	m := map[string]*dcBillGroup{}
 	for _, b := range bills {
-		if b.IsDcBill {
+		if b.DcNonce != nil {
 			k := string(b.DcNonce)
 			billContainer, exists := m[k]
 			if !exists {
@@ -560,26 +560,20 @@ func getBillIds(bills []*Bill) [][]byte {
 
 // converts proto wallet.Bill to money.Bill domain struct
 func convertBill(b *wallet.Bill) *Bill {
-	if b.IsDcBill {
-		attrs := &money.TransferDCAttributes{}
-		if err := b.TxProof.TxRecord.TransactionOrder.UnmarshalAttributes(attrs); err != nil {
-			return nil
-		}
+	if b.DcNonce != nil {
 		return &Bill{
 			Id:        util.BytesToUint256(b.Id),
 			Value:     b.Value,
 			TxHash:    b.TxHash,
-			IsDcBill:  b.IsDcBill,
-			DcNonce:   attrs.Nonce,
+			DcNonce:   b.DcNonce,
 			DcTimeout: b.TxProof.TxRecord.TransactionOrder.Timeout(),
 			TxProof:   b.TxProof,
 		}
 	}
 	return &Bill{
-		Id:       util.BytesToUint256(b.Id),
-		Value:    b.Value,
-		TxHash:   b.TxHash,
-		IsDcBill: b.IsDcBill,
-		TxProof:  b.TxProof,
+		Id:      util.BytesToUint256(b.Id),
+		Value:   b.Value,
+		TxHash:  b.TxHash,
+		TxProof: b.TxProof,
 	}
 }

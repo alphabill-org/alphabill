@@ -34,9 +34,9 @@ func TestBillVerifyTransferTx(t *testing.T) {
 	require.ErrorIs(t, err, ErrInvalidValue)
 
 	// test invalid DCBillFlag
-	b = &Bill{Value: targetValue, IsDcBill: true}
+	b = &Bill{Value: targetValue, DcNonce: []byte{0}}
 	err = b.verifyTx(tx)
-	require.ErrorIs(t, err, ErrInvalidDCBillFlag)
+	require.NotErrorIs(t, err, ErrMissingDCNonce)
 
 	// test invalid txHash
 	b = &Bill{Value: targetValue}
@@ -58,22 +58,22 @@ func TestBillVerifyDCTransferTx(t *testing.T) {
 		}))
 
 	// test invalid value
-	b := &Bill{Value: targetValue - 1, IsDcBill: true}
+	b := &Bill{Value: targetValue - 1}
 	err := b.verifyTx(tx)
 	require.ErrorIs(t, err, ErrInvalidValue)
 
 	// test invalid DCBillFlag
-	b = &Bill{Value: targetValue, IsDcBill: false}
+	b = &Bill{Value: targetValue}
 	err = b.verifyTx(tx)
-	require.ErrorIs(t, err, ErrInvalidDCBillFlag)
+	require.ErrorIs(t, err, ErrMissingDCNonce)
 
 	// test invalid txHash
-	b = &Bill{Value: targetValue, IsDcBill: true}
+	b = &Bill{Value: targetValue, DcNonce: []byte{0}}
 	err = b.verifyTx(tx)
 	require.ErrorIs(t, err, ErrInvalidTxHash)
 
 	// test ok
-	b = &Bill{Value: targetValue, IsDcBill: true, TxHash: tx.Hash(crypto.SHA256)}
+	b = &Bill{Value: targetValue, DcNonce: []byte{0}, TxHash: tx.Hash(crypto.SHA256)}
 	err = b.verifyTx(tx)
 	require.NoError(t, err)
 }
@@ -96,9 +96,9 @@ func TestBillVerifySplitTransferTx_OldBill(t *testing.T) {
 	require.ErrorIs(t, err, ErrInvalidValue)
 
 	// test invalid DCBillFlag
-	b = &Bill{Id: tx.TransactionOrder.UnitID(), Value: remainingValue, IsDcBill: true}
+	b = &Bill{Id: tx.TransactionOrder.UnitID(), Value: remainingValue, DcNonce: []byte{0}}
 	err = b.verifyTx(tx)
-	require.ErrorIs(t, err, ErrInvalidDCBillFlag)
+	require.NotErrorIs(t, err, ErrMissingDCNonce)
 
 	// test invalid txHash
 	b = &Bill{Id: tx.TransactionOrder.UnitID(), Value: remainingValue}
@@ -131,9 +131,9 @@ func TestBillVerifySplitTransferTx_NewBill(t *testing.T) {
 	require.ErrorIs(t, err, ErrInvalidValue)
 
 	// test invalid DCBillFlag
-	b = &Bill{Id: newUnitID, Value: amount, IsDcBill: true}
+	b = &Bill{Id: newUnitID, Value: amount, DcNonce: []byte{0}}
 	err = b.verifyTx(tx)
-	require.ErrorIs(t, err, ErrInvalidDCBillFlag)
+	require.NotErrorIs(t, err, ErrMissingDCNonce)
 
 	// test invalid txHash
 	b = &Bill{Id: newUnitID, Value: amount}
@@ -161,9 +161,9 @@ func TestBillVerifySwapTransferTx(t *testing.T) {
 	require.ErrorIs(t, err, ErrInvalidValue)
 
 	// test invalid DCBillFlag
-	b = &Bill{Value: targetValue, IsDcBill: true}
+	b = &Bill{Value: targetValue, DcNonce: []byte{0}}
 	err = b.verifyTx(tx)
-	require.ErrorIs(t, err, ErrInvalidDCBillFlag)
+	require.NotErrorIs(t, err, ErrMissingDCNonce)
 
 	// test invalid txHash
 	b = &Bill{Value: targetValue}

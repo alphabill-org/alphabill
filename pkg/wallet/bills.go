@@ -14,11 +14,11 @@ import (
 )
 
 var (
-	ErrTxProofNil        = errors.New("tx proof is nil")
-	ErrInvalidValue      = errors.New("invalid value")
-	ErrInvalidDCBillFlag = errors.New("invalid isDcBill flag")
-	ErrInvalidTxHash     = errors.New("bill txHash is not equal to actual transaction hash")
-	ErrInvalidTxType     = errors.New("invalid tx type")
+	ErrTxProofNil     = errors.New("tx proof is nil")
+	ErrInvalidValue   = errors.New("invalid value")
+	ErrMissingDCNonce = errors.New("dcNonce is missing")
+	ErrInvalidTxHash  = errors.New("bill txHash is not equal to actual transaction hash")
+	ErrInvalidTxType  = errors.New("invalid tx type")
 )
 
 type (
@@ -30,11 +30,11 @@ type (
 	// used to be protobuf defined Bill struct used as import/export/download/upload unified schema across applications
 	// possibly can be removed as import/export/download/upoad feature was dropped
 	Bill struct {
-		Id       []byte `json:"id,omitempty"`
-		Value    uint64 `json:"value,omitempty,string"`
-		TxHash   []byte `json:"tx_hash,omitempty"`
-		IsDcBill bool   `json:"is_dc_bill,omitempty"`
-		TxProof  *Proof `json:"tx_proof,omitempty"`
+		Id      []byte `json:"id,omitempty"`
+		Value   uint64 `json:"value,omitempty,string"`
+		TxHash  []byte `json:"tx_hash,omitempty"`
+		DcNonce []byte `json:"dc_nonce,omitempty"`
+		TxProof *Proof `json:"tx_proof,omitempty"`
 
 		// fcb specific fields
 		// AddFCTxHash last add fee credit tx hash
@@ -113,8 +113,8 @@ func (x *Bill) verifyTx(txr *types.TransactionRecord) error {
 	if x.Value != value {
 		return ErrInvalidValue
 	}
-	if x.IsDcBill != isDCTx {
-		return ErrInvalidDCBillFlag
+	if isDCTx && x.DcNonce == nil {
+		return ErrMissingDCNonce
 	}
 	if !bytes.Equal(x.TxHash, txr.Hash(crypto.SHA256)) {
 		return ErrInvalidTxHash

@@ -369,7 +369,7 @@ func TestSwapWithExistingDCBillsBeforeDCTimeout(t *testing.T) {
 	bills := []*Bill{addDcBill(t, k, uint256.NewInt(1), nonceBytes, 1, dcTimeoutBlockCount), addDcBill(t, k, uint256.NewInt(2), nonceBytes, 2, dcTimeoutBlockCount)}
 	expectedDcNonce := calculateDcNonce(bills)
 	dcMetadataMap := make(map[string]*backend.DCMetadata)
-	dcMetadataMap[string(expectedDcNonce)] = &backend.DCMetadata{BillIdentifiers: ids, DCSum: 3}
+	dcMetadataMap[string(nonceBytes)] = &backend.DCMetadata{BillIdentifiers: ids, DCSum: 3}
 	billsList := createBillListResponse(bills, dcMetadataMap)
 
 	recordedTxs := make(map[string]*types.TransactionOrder, 0)
@@ -446,7 +446,7 @@ func TestSwapWithExistingExpiredDCBills(t *testing.T) {
 	bills := []*Bill{addDcBill(t, k, uint256.NewInt(1), nonceBytes, 1, 0), addDcBill(t, k, uint256.NewInt(2), nonceBytes, 2, 0)}
 	expectedDcNonce := calculateDcNonce(bills)
 	dcMetadataMap := make(map[string]*backend.DCMetadata)
-	dcMetadataMap[string(expectedDcNonce)] = &backend.DCMetadata{BillIdentifiers: ids, DCSum: 3}
+	dcMetadataMap[string(nonceBytes)] = &backend.DCMetadata{BillIdentifiers: ids, DCSum: 3}
 	billsList := createBillListResponse(bills, dcMetadataMap)
 
 	recordedTxs := make(map[string]*types.TransactionOrder, 0)

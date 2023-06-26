@@ -40,7 +40,7 @@ type (
 		// Commit signals the successful consensus round. Called after the block was approved by the root chain. When called
 		// the transaction system must commit all the changes made during the BeginBlock, ValidatorGeneratedTransactions,
 		// EndBlock, and Execute method calls.
-		Commit()
+		Commit() error
 	}
 
 	// State represents the root hash and summary value of the transaction system.

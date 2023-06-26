@@ -69,8 +69,8 @@ func (d *txSystem) Revert() {
 	d.stateTree.Revert()
 }
 
-func (d *txSystem) Commit() {
-	d.stateTree.Commit()
+func (d *txSystem) Commit() error {
+	return d.stateTree.Commit()
 }
 
 func (d *txSystem) Execute(tx *types.TransactionOrder) (*types.ServerMetadata, error) {

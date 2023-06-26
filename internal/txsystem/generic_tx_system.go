@@ -206,20 +206,9 @@ func (m *GenericTxSystem) Revert() {
 	m.state.Revert()
 }
 
-func (m *GenericTxSystem) Commit() {
+func (m *GenericTxSystem) Commit() error {
 	m.logPruner.Remove(m.currentBlockNumber - 1)
-	if !m.state.IsCommitted() {
-		_, _, err := m.state.CalculateRoot()
-		if err != nil {
-			//TODO
-			panic(err)
-		}
-	}
-	err := m.state.Commit()
-	if err != nil {
-		//TODO
-		panic(err)
-	}
+	return m.state.Commit()
 }
 
 func pruneExecutorFunc(pruner *state.LogPruner) GenericExecuteFunc[any] {

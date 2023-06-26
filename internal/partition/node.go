@@ -235,7 +235,9 @@ func initState(n *Node) (err error) {
 			return fmt.Errorf("block %v, state mismatch, %w", roundNo, err)
 		}
 		// commit changes
-		n.transactionSystem.Commit()
+		if err = n.transactionSystem.Commit(); err != nil {
+			return fmt.Errorf("unable to commit block %v: %w", roundNo, err)
+		}
 		prevBlock = &bl
 	}
 	logger.Info("State initialised from persistent store up to block %v", prevBlock.GetRoundNumber())
@@ -742,7 +744,9 @@ func (n *Node) finalizeBlock(b *types.Block) error {
 	// cache last stored non-empty block, but only if store succeeds
 	// NB! only cache and commit if persist is successful
 	n.lastStoredBlock = b
-	n.transactionSystem.Commit()
+	if err := n.transactionSystem.Commit(); err != nil {
+		return err
+	}
 	validTransactionsCounter.Inc(int64(len(b.Transactions)))
 	n.sendEvent(event.BlockFinalized, b)
 	return nil

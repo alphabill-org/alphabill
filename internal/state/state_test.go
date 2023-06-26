@@ -142,7 +142,8 @@ func TestState_GetUnit(t *testing.T) {
 	s := NewState(t)
 
 	require.NoError(t, s.Apply(AddUnit(unitID, test.RandomBytes(20), unitData)))
-	require.NoError(t, s.AddUnitLog(unitID, test.RandomBytes(32)))
+	_, err := s.AddUnitLog(unitID, test.RandomBytes(32))
+	require.NoError(t, err)
 
 	u, err := s.GetUnit(unitID, false)
 	require.NoError(t, err)
@@ -172,9 +173,11 @@ func TestState_AddUnitLog_OK(t *testing.T) {
 	s := NewState(t)
 
 	require.NoError(t, s.Apply(AddUnit(unitID, test.RandomBytes(20), unitData)))
-	require.NoError(t, s.AddUnitLog(unitID, test.RandomBytes(32)))
+	_, err := s.AddUnitLog(unitID, test.RandomBytes(32))
+	require.NoError(t, err)
 	txrHash := test.RandomBytes(32)
-	require.NoError(t, s.AddUnitLog(unitID, txrHash))
+	_, err = s.AddUnitLog(unitID, txrHash)
+	require.NoError(t, err)
 
 	u, err := s.GetUnit(unitID, false)
 	require.NoError(t, err)
@@ -185,16 +188,20 @@ func TestState_AddUnitLog_OK(t *testing.T) {
 func TestState_CommitTreeWithLeftAndRightChildNodes(t *testing.T) {
 	s := NewState(t)
 	require.NoError(t, s.Apply(AddUnit([]byte{0, 0, 0, 1}, test.RandomBytes(20), &TestData{Value: 10})))
-	require.NoError(t, s.AddUnitLog([]byte{0, 0, 0, 1}, test.RandomBytes(32)))
+	_, err := s.AddUnitLog([]byte{0, 0, 0, 1}, test.RandomBytes(32))
+	require.NoError(t, err)
 
 	require.NoError(t, s.Apply(AddUnit([]byte{0, 0, 0, 2}, test.RandomBytes(20), &TestData{Value: 20})))
-	require.NoError(t, s.AddUnitLog([]byte{0, 0, 0, 2}, test.RandomBytes(32)))
+	_, err = s.AddUnitLog([]byte{0, 0, 0, 2}, test.RandomBytes(32))
+	require.NoError(t, err)
 
 	require.NoError(t, s.Apply(AddUnit([]byte{0, 0, 0, 3}, test.RandomBytes(20), &TestData{Value: 30})))
-	require.NoError(t, s.AddUnitLog([]byte{0, 0, 0, 3}, test.RandomBytes(32)))
+	_, err = s.AddUnitLog([]byte{0, 0, 0, 3}, test.RandomBytes(32))
+	require.NoError(t, err)
 
 	require.NoError(t, s.Apply(AddUnit([]byte{0, 0, 0, 4}, test.RandomBytes(20), &TestData{Value: 42})))
-	require.NoError(t, s.AddUnitLog([]byte{0, 0, 0, 4}, test.RandomBytes(32)))
+	_, err = s.AddUnitLog([]byte{0, 0, 0, 4}, test.RandomBytes(32))
+	require.NoError(t, err)
 
 	summary, rootHash, err := s.CalculateRoot()
 	require.NoError(t, err)
@@ -205,7 +212,8 @@ func TestState_CommitTreeWithLeftAndRightChildNodes(t *testing.T) {
 func TestState_AddUnitLog_UnitDoesNotExist(t *testing.T) {
 	unitID := []byte{0, 0, 0, 1}
 	s := NewState(t)
-	require.ErrorContains(t, s.AddUnitLog(unitID, test.RandomBytes(32)), "unable to add unit log for unit 00000001")
+	_, err := s.AddUnitLog(unitID, test.RandomBytes(32))
+	require.ErrorContains(t, err, "unable to add unit log for unit 00000001")
 }
 
 func TestState_PruneLog(t *testing.T) {
@@ -214,13 +222,15 @@ func TestState_PruneLog(t *testing.T) {
 	s := NewState(t)
 
 	require.NoError(t, s.Apply(AddUnit(unitID, test.RandomBytes(20), unitData)))
-	require.NoError(t, s.AddUnitLog(unitID, test.RandomBytes(32)))
+	_, err := s.AddUnitLog(unitID, test.RandomBytes(32))
+	require.NoError(t, err)
 
 	require.NoError(t, s.Apply(UpdateUnitData(unitID, func(data UnitData) UnitData {
 		data.(*TestData).Value = 100
 		return data
 	})))
-	require.NoError(t, s.AddUnitLog(unitID, test.RandomBytes(32)))
+	_, err = s.AddUnitLog(unitID, test.RandomBytes(32))
+	require.NoError(t, err)
 	u, err := s.GetUnit(unitID, false)
 	require.NoError(t, err)
 	require.Len(t, u.logs, 2)

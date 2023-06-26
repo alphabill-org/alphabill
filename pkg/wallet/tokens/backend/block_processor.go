@@ -97,6 +97,8 @@ func (p *blockProcessor) processTx(tr *types.TransactionRecord, proof *wallet.Tx
 			TxRecordHash:  trHash,
 			FCBlockNumber: rn,
 		}, txProof)
+	case txsystem.PayloadTypePruneStates:
+		return nil
 	default:
 		// decrement fee credit bill value if tx is not fee credit tx i.e. a normal tx
 		if err := p.updateFCB(tr, rn); err != nil {

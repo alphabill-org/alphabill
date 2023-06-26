@@ -13,7 +13,9 @@ import (
 	"github.com/alphabill-org/alphabill/internal/util"
 )
 
-var _ TransactionSystem = &GenericTxSystem{}
+const PayloadTypePruneStates = "pruneStates"
+
+var _ TransactionSystem = (*GenericTxSystem)(nil)
 
 // SystemDescriptions is map of system description records indexed by System Identifiers
 type SystemDescriptions map[string]*genesis.SystemDescriptionRecord
@@ -27,6 +29,7 @@ type GenericTxSystem struct {
 	systemIdentifier    []byte
 	hashAlgorithm       crypto.Hash
 	state               *state.State
+	logPruner           *state.LogPruner
 	currentBlockNumber  uint64
 	executors           TxExecutors
 	genericTxValidators []GenericTransactionValidator
@@ -43,6 +46,7 @@ func NewGenericTxSystem(modules []Module, opts ...Option) (*GenericTxSystem, err
 		systemIdentifier:    options.systemIdentifier,
 		hashAlgorithm:       options.hashAlgorithm,
 		state:               options.state,
+		logPruner:           state.NewLogPruner(options.state),
 		beginBlockFunctions: options.beginBlockFunctions,
 		endBlockFunctions:   options.endBlockFunctions,
 		executors:           make(map[string]TxExecutor),
@@ -68,6 +72,7 @@ func NewGenericTxSystem(modules []Module, opts ...Option) (*GenericTxSystem, err
 			txs.executors[k] = executor
 		}
 	}
+	txs.executors[PayloadTypePruneStates] = pruneExecutorFunc(txs.logPruner)
 	return txs, nil
 }
 
@@ -104,7 +109,30 @@ func (m *GenericTxSystem) BeginBlock(blockNr uint64) {
 	m.currentBlockNumber = blockNr
 }
 
+func (m *GenericTxSystem) ValidatorGeneratedTransactions() ([]*types.TransactionRecord, error) {
+	if m.logPruner.Count(m.currentBlockNumber-1) == 0 {
+		return nil, nil
+	}
+	if err := m.logPruner.Prune(m.currentBlockNumber - 1); err != nil {
+		return nil, fmt.Errorf("unable to prune state: %w", err)
+	}
+	return []*types.TransactionRecord{
+		{
+			TransactionOrder: &types.TransactionOrder{
+				Payload: &types.Payload{
+					SystemID:       m.systemIdentifier,
+					Type:           PayloadTypePruneStates,
+					ClientMetadata: &types.ClientMetadata{Timeout: m.currentBlockNumber + 1},
+				},
+			},
+		},
+	}, nil
+}
+
 func (m *GenericTxSystem) Execute(tx *types.TransactionOrder) (sm *types.ServerMetadata, err error) {
+	if tx.PayloadType() == PayloadTypePruneStates {
+		return m.executors.Execute(tx, m.currentBlockNumber)
+	}
 	u, _ := m.state.GetUnit(tx.UnitID(), false)
 	ctx := &TxValidationContext{
 		Tx:               tx,
@@ -142,11 +170,16 @@ func (m *GenericTxSystem) Execute(tx *types.TransactionOrder) (sm *types.ServerM
 		}
 		for _, targetID := range targets {
 			// add log for each target unit
-			if err = m.state.AddUnitLog(targetID, trx.Hash(m.hashAlgorithm)); err != nil {
+			unitLogSize, err := m.state.AddUnitLog(targetID, trx.Hash(m.hashAlgorithm))
+			if err != nil {
 				m.state.RollbackSavepoint()
 				return
 			}
+			if unitLogSize > 1 {
+				m.logPruner.Add(m.currentBlockNumber, targetID)
+			}
 		}
+
 		// transaction execution succeeded
 		m.state.ReleaseSavepoint()
 	}()
@@ -169,10 +202,12 @@ func (m *GenericTxSystem) EndBlock() (State, error) {
 }
 
 func (m *GenericTxSystem) Revert() {
+	m.logPruner.Remove(m.currentBlockNumber)
 	m.state.Revert()
 }
 
 func (m *GenericTxSystem) Commit() {
+	m.logPruner.Remove(m.currentBlockNumber - 1)
 	if !m.state.IsCommitted() {
 		_, _, err := m.state.CalculateRoot()
 		if err != nil {
@@ -184,5 +219,11 @@ func (m *GenericTxSystem) Commit() {
 	if err != nil {
 		//TODO
 		panic(err)
+	}
+}
+
+func pruneExecutorFunc(pruner *state.LogPruner) GenericExecuteFunc[any] {
+	return func(tx *types.TransactionOrder, attributes *any, currentBlockNr uint64) (*types.ServerMetadata, error) {
+		return nil, pruner.Prune(currentBlockNr - 1)
 	}
 }

@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
+	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/internal/txsystem/fc/transactions"
 	moneytx "github.com/alphabill-org/alphabill/internal/txsystem/money"
 	utiltx "github.com/alphabill-org/alphabill/internal/txsystem/util"
@@ -303,6 +304,8 @@ func (p *BlockProcessor) processTx(txr *types.TransactionRecord, b *types.Block,
 		}
 		// add closeFC and reclaimFC txs fees to money partition fee bill
 		return p.addTxFeesToMoneyFeeBill(dbTx, reclaimFCAttr.CloseFeeCreditTransfer, txr)
+	case txsystem.PayloadTypePruneStates:
+		return nil
 	default:
 		wlog.Warning(fmt.Sprintf("received unknown transaction type, skipping processing: %s", txo.PayloadType()))
 		return nil

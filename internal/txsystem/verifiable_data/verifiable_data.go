@@ -57,6 +57,9 @@ func (d *txSystem) StateSummary() (txsystem.State, error) {
 func (d *txSystem) BeginBlock(blockNumber uint64) {
 	d.currentBlockNumber = blockNumber
 }
+func (d *txSystem) ValidatorGeneratedTransactions() ([]*types.TransactionRecord, error) {
+	return nil, nil
+}
 
 func (d *txSystem) EndBlock() (txsystem.State, error) {
 	return d.getState(), nil

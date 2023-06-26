@@ -73,13 +73,13 @@ func (s *State) GetUnit(id types.UnitID, committed bool) (*Unit, error) {
 	return s.latestSavepoint().Get(id)
 }
 
-func (s *State) AddUnitLog(id types.UnitID, transactionRecordHash []byte) error {
+func (s *State) AddUnitLog(id types.UnitID, transactionRecordHash []byte) (int, error) {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
 	u, err := s.latestSavepoint().Get(id)
 	if err != nil {
-		return fmt.Errorf("unable to add unit log for unit %v: %w", id, err)
+		return 0, fmt.Errorf("unable to add unit log for unit %v: %w", id, err)
 	}
 	unit := u.Clone()
 	logsCount := len(unit.logs)
@@ -96,7 +96,7 @@ func (s *State) AddUnitLog(id types.UnitID, transactionRecordHash []byte) error 
 		newBearer:          bytes.Clone(unit.bearer),
 		newUnitData:        copyData(unit.data),
 	})
-	return s.latestSavepoint().Update(id, unit)
+	return len(unit.logs), s.latestSavepoint().Update(id, unit)
 }
 
 // Apply applies given actions to the state. All Action functions are executed together as a single atomic operation. If
@@ -193,6 +193,9 @@ func (s *State) PruneLog(id types.UnitID) error {
 		return err
 	}
 	logSize := len(u.logs)
+	if logSize <= 1 {
+		return nil
+	}
 	latestLog := u.logs[logSize-1]
 	unit := u.Clone()
 	unit.unitLedgerHeadHash = bytes.Clone(latestLog.unitLedgerHeadHash)

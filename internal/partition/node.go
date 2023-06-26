@@ -567,6 +567,13 @@ func (n *Node) startNewRound(ctx context.Context, uc *types.UnicityCertificate) 
 		logger.Debug("DB proposal delete failed, %v", err)
 	}
 	n.leaderSelector.UpdateLeader(uc)
+	if n.leaderSelector.IsCurrentNodeLeader() {
+		txrs, err := n.transactionSystem.ValidatorGeneratedTransactions()
+		if err != nil {
+			logger.Warning("Failed to get validator generated transactions: %w", err)
+		}
+		n.proposedTransactions = append(n.proposedTransactions, txrs...)
+	}
 	n.startHandleOrForwardTransactions(ctx)
 	n.sendEvent(event.NewRoundStarted, newRoundNr)
 }

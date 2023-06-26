@@ -292,7 +292,7 @@ func (s *StateDB) ForEachStorage(address common.Address, f func(common.Hash, com
 	panic("implement ForEachStorage")
 }
 
-func (s *StateDB) SetFeeData(address common.Address, fee *FeeBillData) {
+func (s *StateDB) SetAlphaBillData(address common.Address, fee *AlphaBillLink) {
 	unitID := util.BytesToUint256(address.Bytes())
 	stateObject := s.getStateObject(unitID)
 	if stateObject == nil {
@@ -301,18 +301,18 @@ func (s *StateDB) SetFeeData(address common.Address, fee *FeeBillData) {
 	log.Trace("Setting fee data for account: %v", address)
 	s.errDB = s.tree.AtomicUpdate(rma.UpdateData(
 		unitID, func(data rma.UnitData) rma.UnitData {
-			data.(*StateObject).FeeBill = fee
+			data.(*StateObject).AlphaBill = fee
 			return data
 		},
 		make([]byte, 32),
 	))
 }
 
-func (s *StateDB) GetFeeData(address common.Address) *FeeBillData {
+func (s *StateDB) GetAlphaBillData(address common.Address) *AlphaBillLink {
 	unitID := util.BytesToUint256(address.Bytes())
 	stateObject := s.getStateObject(unitID)
-	if stateObject != nil && stateObject.FeeBill != nil {
-		return stateObject.FeeBill
+	if stateObject != nil && stateObject.AlphaBill != nil {
+		return stateObject.AlphaBill
 	}
 	return nil
 }

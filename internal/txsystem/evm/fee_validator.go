@@ -25,11 +25,11 @@ func checkFeeAccountBalance(state *rma.Tree) txsystem.GenericTransactionValidato
 				return fmt.Errorf("failed to extract address from public key bytes, %w", err)
 			}
 			stateDB := statedb.NewStateDB(state)
-			feeData := stateDB.GetFeeData(addr)
-			if feeData == nil && ctx.Tx.PayloadType() == transactions.PayloadTypeCloseFeeCredit {
+			abFeeBillData := stateDB.GetAlphaBillData(addr)
+			if abFeeBillData == nil && ctx.Tx.PayloadType() == transactions.PayloadTypeCloseFeeCredit {
 				return fmt.Errorf("no fee credit info found for unit %X", ctx.Tx.UnitID())
 			}
-			if feeData == nil && ctx.Tx.PayloadType() == transactions.PayloadTypeAddFeeCredit {
+			if abFeeBillData == nil && ctx.Tx.PayloadType() == transactions.PayloadTypeAddFeeCredit {
 				// account creation
 				return nil
 			}
@@ -39,7 +39,7 @@ func checkFeeAccountBalance(state *rma.Tree) txsystem.GenericTransactionValidato
 				return fmt.Errorf("failed to marshal payload bytes: %w", err)
 			}
 
-			if err = script.RunScript(ctx.Tx.OwnerProof, feeData.Bearer, payloadBytes); err != nil {
+			if err = script.RunScript(ctx.Tx.OwnerProof, abFeeBillData.Bearer, payloadBytes); err != nil {
 				return fmt.Errorf("invalid owner proof: %w", err)
 			}
 		}

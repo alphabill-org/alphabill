@@ -176,6 +176,12 @@ func (v *DefaultFeeCreditTxValidator) ValidateCloseFC(ctx *CloseFCValidationCont
 	if err := tx.UnmarshalAttributes(closFCAttributes); err != nil {
 		return fmt.Errorf("failed to unmarshal transaction attributes: %w", err)
 	}
+	if closFCAttributes.TargetUnitID == nil {
+		return errors.New("close attributes target unit is nil")
+	}
+	if closFCAttributes.Nonce == nil {
+		return errors.New("close attributes nonce is nil")
+	}
 	if closFCAttributes.Amount != fcr.Balance {
 		return fmt.Errorf("invalid amount: amount=%d fcr.Balance=%d", closFCAttributes.Amount, fcr.Balance)
 	}

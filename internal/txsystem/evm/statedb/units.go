@@ -23,7 +23,7 @@ type Account struct {
 	Nonce    uint64
 }
 
-type FeeBillData struct {
+type AlphaBillLink struct {
 	Bearer  []byte
 	UnitID  []byte
 	TxHash  []byte
@@ -36,7 +36,7 @@ type StateObject struct {
 	Storage   state.Storage
 	dirtyCode bool
 	suicided  bool
-	FeeBill   *FeeBillData
+	AlphaBill *AlphaBillLink
 }
 
 func (a *Account) Write(hasher hash.Hash) {
@@ -46,7 +46,7 @@ func (a *Account) Write(hasher hash.Hash) {
 	hasher.Write(util.Uint64ToBytes(a.Nonce))
 }
 
-func (f *FeeBillData) AddToHasher(hasher hash.Hash) {
+func (f *AlphaBillLink) AddToHasher(hasher hash.Hash) {
 	hasher.Write(f.Bearer)
 	hasher.Write(f.UnitID)
 	hasher.Write(f.TxHash)
@@ -70,8 +70,8 @@ func (s *StateObject) AddToHasher(hasher hash.Hash) {
 		hasher.Write(k.Bytes())
 		hasher.Write(s.Storage[k].Bytes())
 	}
-	if s.FeeBill != nil {
-		s.FeeBill.AddToHasher(hasher)
+	if s.AlphaBill != nil {
+		s.AlphaBill.AddToHasher(hasher)
 	}
 }
 

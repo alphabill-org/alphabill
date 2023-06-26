@@ -28,7 +28,7 @@ const CompressedSecp256K1PublicKeySize = 33
 // NewVerifierSecp256k1 creates new verifier from an existing Secp256k1 compressed public key.
 func NewVerifierSecp256k1(compressedPubKey []byte) (Verifier, error) {
 	if len(compressedPubKey) != CompressedSecp256K1PublicKeySize {
-		return nil, fmt.Errorf("%w, pubkey must be %d bytes long, but is %d", errors.ErrInvalidArgument, CompressedSecp256K1PublicKeySize, len(compressedPubKey))
+		return nil, fmt.Errorf("pubkey must be %d bytes long, but is %d, %w", CompressedSecp256K1PublicKeySize, len(compressedPubKey), errors.ErrInvalidArgument)
 	}
 	x, y := secp256k1.DecompressPubkey(compressedPubKey)
 	if x == nil && y == nil {

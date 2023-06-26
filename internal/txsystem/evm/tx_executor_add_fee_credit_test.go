@@ -3,6 +3,7 @@ package evm
 import (
 	"crypto"
 	"crypto/sha256"
+	"math/big"
 	"testing"
 
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
@@ -10,6 +11,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/script"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	testtransaction "github.com/alphabill-org/alphabill/internal/testutils/transaction"
+	"github.com/alphabill-org/alphabill/internal/txsystem/evm/statedb"
 	"github.com/alphabill-org/alphabill/internal/txsystem/fc"
 	testfc "github.com/alphabill-org/alphabill/internal/txsystem/fc/testutils"
 	"github.com/alphabill-org/alphabill/internal/txsystem/fc/transactions"
@@ -58,7 +60,7 @@ func newAddFCTx(t *testing.T, unitID []byte, attr *transactions.AddFeeCreditAttr
 	}
 }
 
-func feeCalculator() uint64 {
+func evmTestFeeCalculator() uint64 {
 	return 2
 }
 
@@ -76,7 +78,7 @@ func Test_addFeeCreditTx(t *testing.T) {
 	addExecFn := addFeeCreditTx(
 		rma.NewWithSHA256(),
 		crypto.SHA256,
-		feeCalculator,
+		evmTestFeeCalculator,
 		fc.NewDefaultFeeCreditTxValidator([]byte{0, 0, 0, 0}, DefaultEvmTxSystemIdentifier, crypto.SHA256, tb))
 
 	tests := []struct {
@@ -156,7 +158,7 @@ func Test_getTransferPayloadAttributes(t *testing.T) {
 			wantErr: true,
 		},
 		{
-			name:    "nil",
+			name:    "incorrect type",
 			args:    args{transfer: newReclaimFCAttr.CloseFeeCreditTransfer},
 			wantErr: true,
 		},
@@ -175,4 +177,58 @@ func Test_getTransferPayloadAttributes(t *testing.T) {
 			}
 		})
 	}
+}
+
+func Test_addFeeCreditTxAndUpdate(t *testing.T) {
+	stateTree := rma.NewWithSHA256()
+	signer, ver := testsig.CreateSignerAndVerifier(t)
+	tb := map[string]abcrypto.Verifier{"test": ver}
+	pubKeyBytes, err := ver.MarshalPublicKey()
+	require.NoError(t, err)
+	pubHash := sha256.Sum256(pubKeyBytes)
+	privKeyHash := hashOfPrivateKey(t, signer)
+	addExecFn := addFeeCreditTx(
+		stateTree,
+		crypto.SHA256,
+		evmTestFeeCalculator,
+		fc.NewDefaultFeeCreditTxValidator([]byte{0, 0, 0, 0}, DefaultEvmTxSystemIdentifier, crypto.SHA256, tb))
+	addFeeOrder := newAddFCTx(t,
+		privKeyHash,
+		testfc.NewAddFCAttr(t, signer, testfc.WithTransferFCTx(
+			&types.TransactionRecord{
+				TransactionOrder: testfc.NewTransferFC(t, testfc.NewTransferFCAttr(testfc.WithAmount(100), testfc.WithTargetRecordID(privKeyHash), testfc.WithTargetSystemID(DefaultEvmTxSystemIdentifier)),
+					testtransaction.WithSystemID([]byte{0, 0, 0, 0}), testtransaction.WithOwnerProof(script.PredicatePayToPublicKeyHashDefault(pubHash[:]))),
+				ServerMetadata: nil,
+			})),
+		signer, 7)
+	backlink := addFeeOrder.Hash(crypto.SHA256)
+	attr := new(transactions.AddFeeCreditAttributes)
+	require.NoError(t, addFeeOrder.UnmarshalAttributes(attr))
+	metaData, err := addExecFn(addFeeOrder, attr, 5)
+	require.NoError(t, err)
+	require.NotNil(t, metaData)
+	require.EqualValues(t, evmTestFeeCalculator(), metaData.ActualFee)
+	// validate stateDB
+	stateDB := statedb.NewStateDB(stateTree)
+	addr, err := generateAddress(pubKeyBytes)
+	require.NoError(t, err)
+	balance := stateDB.GetBalance(addr)
+	// balance is equal to 100-"fee = 2" to wei
+	require.EqualValues(t, balance, new(big.Int).Sub(alphaToWei(100), alphaToWei(evmTestFeeCalculator())))
+	// add more funds
+	addFeeOrder = newAddFCTx(t,
+		privKeyHash,
+		testfc.NewAddFCAttr(t, signer, testfc.WithTransferFCTx(
+			&types.TransactionRecord{
+				TransactionOrder: testfc.NewTransferFC(t, testfc.NewTransferFCAttr(testfc.WithAmount(10), testfc.WithTargetRecordID(privKeyHash), testfc.WithTargetSystemID(DefaultEvmTxSystemIdentifier), testfc.WithNonce(backlink)),
+					testtransaction.WithSystemID([]byte{0, 0, 0, 0}), testtransaction.WithOwnerProof(script.PredicatePayToPublicKeyHashDefault(pubHash[:]))),
+				ServerMetadata: nil,
+			})),
+		signer, 7)
+	require.NoError(t, addFeeOrder.UnmarshalAttributes(attr))
+	metaData, err = addExecFn(addFeeOrder, attr, 5)
+	require.NoError(t, err)
+	balance = stateDB.GetBalance(addr)
+	// balance is equal to 100-"fee = 2" to wei
+	require.EqualValues(t, balance, new(big.Int).Sub(alphaToWei(110), alphaToWei(2*evmTestFeeCalculator())))
 }

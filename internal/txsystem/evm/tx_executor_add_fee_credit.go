@@ -36,7 +36,7 @@ func addFeeCreditTx(tree *rma.Tree, hashAlgorithm crypto.Hash, calcFee FeeCalcul
 		if err != nil {
 			return nil, fmt.Errorf("failed to extract address from public key bytes, %w", err)
 		}
-		feeData := stateDB.GetFeeData(addr)
+		feeData := stateDB.GetAlphaBillData(addr)
 		// hack to be able to use a common validator for now
 		var unit *rma.Unit = nil
 		if feeData != nil {
@@ -68,7 +68,7 @@ func addFeeCreditTx(tree *rma.Tree, hashAlgorithm crypto.Hash, calcFee FeeCalcul
 		stateDB.AddBalance(addr, alphaToWei(v))
 		// This is an EOA account so in theory it does not have any other storage so there should be no conflicts
 		// update fee data
-		stateDB.SetFeeData(addr, &statedb.FeeBillData{
+		stateDB.SetAlphaBillData(addr, &statedb.AlphaBillLink{
 			Bearer:  attr.FeeCreditOwnerCondition,
 			UnitID:  tx.UnitID(),
 			TxHash:  tx.Hash(hashAlgorithm),

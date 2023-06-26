@@ -1,7 +1,7 @@
 package script
 
 import (
-	"reflect"
+	"bytes"
 	"testing"
 
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
@@ -64,7 +64,7 @@ func TestExtractPubKeyFromPredicateArgument(t *testing.T) {
 				require.Nil(t, got)
 			} else {
 				require.NoError(t, err)
-				require.True(t, !reflect.DeepEqual(got, tt.want))
+				require.True(t, bytes.Equal(got, tt.want))
 			}
 		})
 	}

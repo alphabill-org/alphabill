@@ -24,16 +24,16 @@ func closeFeeCreditTx(tree *rma.Tree, calcFee FeeCalculator, validator *fc.Defau
 		if err != nil {
 			return nil, fmt.Errorf("failed to extract address from public key bytes, %w", err)
 		}
-		feeData := stateDB.GetFeeData(addr)
+		abFeeBillData := stateDB.GetAlphaBillData(addr)
 		var unit *rma.Unit = nil
-		if feeData != nil {
+		if abFeeBillData != nil {
 			data := &fc.FeeCreditRecord{
 				Balance: weiToAlpha(stateDB.GetBalance(addr)),
-				Hash:    feeData.TxHash,
-				Timeout: feeData.Timeout,
+				Hash:    abFeeBillData.TxHash,
+				Timeout: abFeeBillData.Timeout,
 			}
 			unit = &rma.Unit{
-				Bearer: feeData.Bearer,
+				Bearer: abFeeBillData.Bearer,
 				Data:   data,
 			}
 		}

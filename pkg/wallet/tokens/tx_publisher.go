@@ -27,7 +27,7 @@ func (w *TxPublisher) SendTx(ctx context.Context, tx *types.TransactionOrder, se
 	txSub := &txsubmitter.TxSubmission{
 		UnitID:      tx.UnitID(),
 		Transaction: tx,
-		TxHash:      tx.Hash(crypto.SHA256),
+		TxOrderHash: tx.Hash(crypto.SHA256),
 	}
 	txBatch := txSub.ToBatch(w.backend, senderPubKey)
 	err := txBatch.SendTx(ctx, true)

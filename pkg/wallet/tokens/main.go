@@ -369,7 +369,7 @@ func (w *Wallet) UpdateNFTData(ctx context.Context, accountNumber uint64, tokenI
 
 	attrs := &tokens.UpdateNonFungibleTokenAttributes{
 		Data:                 data,
-		Backlink:             t.TxHash,
+		Backlink:             t.TxRecordHash,
 		DataUpdateSignatures: nil,
 	}
 
@@ -412,6 +412,7 @@ func (w *Wallet) FetchFeeCreditBill(ctx context.Context, unitID []byte) (*wallet
 		Id:            fcb.Id,
 		Value:         fcb.Value,
 		TxHash:        fcb.TxHash,
+		TxRecordHash:  fcb.TxRecordHash,
 		FcBlockNumber: fcb.FCBlockNumber,
 	}, nil
 }

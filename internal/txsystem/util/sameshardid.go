@@ -1,15 +1,17 @@
 package util
 
-import "github.com/holiman/uint256"
+import (
+	"github.com/alphabill-org/alphabill/internal/types"
+)
 
 // SameShardID creates ID that resides in the same shard.
 // By taking first 4 bytes from id and last 28 bytes from the hashValue.
-func SameShardID(id *uint256.Int, hashValue []byte) *uint256.Int {
-	return uint256.NewInt(0).SetBytes(SameShardIDBytes(id, hashValue))
+func SameShardID(id types.UnitID, hashValue []byte) types.UnitID {
+	return SameShardIDBytes(id, hashValue)
 }
 
-func SameShardIDBytes(id *uint256.Int, hashValue []byte) []byte {
-	idBytes := id.Bytes32()
+func SameShardIDBytes(id types.UnitID, hashValue []byte) []byte {
+	idBytes := []byte(id)
 	newIdBytes := make([]byte, 4)
 	copy(newIdBytes, idBytes[:4])
 

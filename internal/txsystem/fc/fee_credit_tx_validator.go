@@ -7,8 +7,9 @@ import (
 	"fmt"
 
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
-	"github.com/alphabill-org/alphabill/internal/rma"
+	"github.com/alphabill-org/alphabill/internal/state"
 	"github.com/alphabill-org/alphabill/internal/txsystem/fc/transactions"
+	fcunit "github.com/alphabill-org/alphabill/internal/txsystem/fc/unit"
 	"github.com/alphabill-org/alphabill/internal/types"
 )
 
@@ -24,13 +25,13 @@ type (
 
 	AddFCValidationContext struct {
 		Tx                 *types.TransactionOrder
-		Unit               *rma.Unit
+		Unit               *state.Unit
 		CurrentRoundNumber uint64
 	}
 
 	CloseFCValidationContext struct {
 		Tx   *types.TransactionOrder
-		Unit *rma.Unit
+		Unit *state.Unit
 	}
 )
 
@@ -74,8 +75,8 @@ func (v *DefaultFeeCreditTxValidator) ValidateAddFeeCredit(ctx *AddFCValidationC
 
 	// 2. S.N[P.ι] = ⊥ ∨ S.N[P.ι].φ = P.A.φ – if the target exists, the owner condition matches
 	unit := ctx.Unit
-	if unit != nil && !bytes.Equal(unit.Bearer, attr.FeeCreditOwnerCondition) {
-		return fmt.Errorf("invalid owner condition: expected=%X actual=%X", unit.Bearer, attr.FeeCreditOwnerCondition)
+	if unit != nil && !bytes.Equal(unit.Bearer(), attr.FeeCreditOwnerCondition) {
+		return fmt.Errorf("invalid owner condition: expected=%X actual=%X", unit.Bearer(), attr.FeeCreditOwnerCondition)
 	}
 
 	// 4. P.A.P.α = P.αmoney ∧ P.A.P.τ = transFC – bill was transferred to fee credits
@@ -106,7 +107,7 @@ func (v *DefaultFeeCreditTxValidator) ValidateAddFeeCredit(ctx *AddFCValidationC
 	// 7. (S.N[P.ι] = ⊥ ∧ P.A.P.A.η = ⊥) ∨ (S.N[P.ι] != ⊥ ∧ P.A.P.A.η = S.N[P.ι].λ) – bill transfer order contains correct nonce
 	var backlink []byte
 	if unit != nil {
-		backlink = unit.Data.(*FeeCreditRecord).Hash
+		backlink = unit.Data().(*fcunit.FeeCreditRecord).Hash
 	}
 	if !bytes.Equal(transferTxAttr.Nonce, backlink) {
 		return fmt.Errorf("invalid transferFC nonce: transferFC.nonce=%X unit.backlink=%X", transferTxAttr.Nonce, backlink)
@@ -158,7 +159,7 @@ func (v *DefaultFeeCreditTxValidator) ValidateCloseFC(ctx *CloseFCValidationCont
 	if ctx.Unit == nil {
 		return errors.New("unit is nil")
 	}
-	fcr, ok := ctx.Unit.Data.(*FeeCreditRecord)
+	fcr, ok := ctx.Unit.Data().(*fcunit.FeeCreditRecord)
 	if !ok {
 		return errors.New("unit data is not of type fee credit record")
 	}

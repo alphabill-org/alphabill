@@ -7,13 +7,13 @@ import (
 	"testing"
 
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
-	"github.com/alphabill-org/alphabill/internal/rma"
 	"github.com/alphabill-org/alphabill/internal/script"
+	"github.com/alphabill-org/alphabill/internal/state"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	testblock "github.com/alphabill-org/alphabill/internal/testutils/block"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	testtransaction "github.com/alphabill-org/alphabill/internal/testutils/transaction"
-	"github.com/alphabill-org/alphabill/internal/txsystem/fc"
+	"github.com/alphabill-org/alphabill/internal/txsystem/fc/unit"
 	txutil "github.com/alphabill-org/alphabill/internal/txsystem/util"
 	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/internal/util"
@@ -28,7 +28,6 @@ const (
 	validSymbol     = "BETA"
 	validName       = "Long name for BETA"
 	validIconType   = "image/png"
-	validUnitID     = 0x0000000000000000000000000000000000000000000000000000000000000064
 
 	existingTokenUnitID = 2
 	existingTokenValue  = 1000
@@ -37,18 +36,16 @@ const (
 )
 
 var (
-	existingTokenTypeUnitID      = uint256.NewInt(1)
-	existingTokenTypeUnitIDBytes = util.Uint256ToBytes(existingTokenTypeUnitID)
-
-	existingTokenTypeUnitID2      = uint256.NewInt(1001)
-	existingTokenTypeUnitIDBytes2 = util.Uint256ToBytes(existingTokenTypeUnitID2)
+	validUnitID              = []byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 100}
+	existingTokenTypeUnitID  = []byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1}
+	existingTokenTypeUnitID2 = []byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1}
 )
 
 func TestCreateFungibleTokenType_NotOk(t *testing.T) {
 	validTxOrder := &types.TransactionOrder{
 		Payload: &types.Payload{
 			Type:   PayloadTypeCreateFungibleTokenType,
-			UnitID: util.Uint256ToBytes(uint256.NewInt(validUnitID)),
+			UnitID: validUnitID,
 		},
 	}
 	tests := []struct {
@@ -63,7 +60,7 @@ func TestCreateFungibleTokenType_NotOk(t *testing.T) {
 			tx: &types.TransactionOrder{
 				Payload: &types.Payload{
 					Type:   PayloadTypeCreateFungibleTokenType,
-					UnitID: util.Uint256ToBytes(uint256.NewInt(0)),
+					UnitID: make([]byte, 32),
 				},
 			},
 			attr:       &CreateFungibleTokenTypeAttributes{},
@@ -117,27 +114,26 @@ func TestCreateFungibleTokenType_NotOk(t *testing.T) {
 			tx: &types.TransactionOrder{
 				Payload: &types.Payload{
 					Type:   PayloadTypeCreateFungibleTokenType,
-					UnitID: util.Uint256ToBytes(existingTokenTypeUnitID),
+					UnitID: existingTokenTypeUnitID,
 				},
 			},
 			attr:       &CreateFungibleTokenTypeAttributes{Symbol: validSymbol, DecimalPlaces: 5},
 			options:    defaultOpts(t),
-			wantErrStr: fmt.Sprintf("unit %v exists", existingTokenTypeUnitID),
+			wantErrStr: fmt.Sprintf("unit %X exists", existingTokenTypeUnitID),
 		},
 		{
 			name:       "parent.decimals != tx.attributes.decimalPlaces",
 			tx:         validTxOrder,
-			attr:       &CreateFungibleTokenTypeAttributes{Symbol: validSymbol, DecimalPlaces: 6, ParentTypeID: existingTokenTypeUnitIDBytes[:]},
+			attr:       &CreateFungibleTokenTypeAttributes{Symbol: validSymbol, DecimalPlaces: 6, ParentTypeID: existingTokenTypeUnitID},
 			options:    defaultOpts(t),
 			wantErrStr: "invalid decimal places. allowed 5, got 6",
 		},
 		{
-			name: "parent does not exist",
-
+			name:       "parent does not exist",
 			tx:         validTxOrder,
-			attr:       &CreateFungibleTokenTypeAttributes{Symbol: validSymbol, DecimalPlaces: 6, ParentTypeID: util.Uint256ToBytes(uint256.NewInt(100))},
+			attr:       &CreateFungibleTokenTypeAttributes{Symbol: validSymbol, DecimalPlaces: 6, ParentTypeID: validUnitID},
 			options:    defaultOpts(t),
-			wantErrStr: fmt.Sprintf("item %X does not exist", util.Uint256ToBytes(uint256.NewInt(validUnitID))),
+			wantErrStr: fmt.Sprintf("item %X does not exist", validUnitID),
 		},
 	}
 	for _, tt := range tests {
@@ -155,14 +151,14 @@ func TestCreateFungibleTokenType_CreateSingleType_Ok(t *testing.T) {
 		Symbol:                   validSymbol,
 		Name:                     validName,
 		Icon:                     &Icon{Type: validIconType, Data: []byte{1, 2, 3}},
-		ParentTypeID:             nil,
+		ParentTypeID:             make([]byte, 32),
 		DecimalPlaces:            6,
 		SubTypeCreationPredicate: script.PredicateAlwaysFalse(),
 		TokenCreationPredicate:   script.PredicateAlwaysTrue(),
 		InvariantPredicate:       script.PredicatePayToPublicKeyHashDefault(make([]byte, 32)),
 	}
 
-	uID := uint256.NewInt(validUnitID)
+	uID := validUnitID
 	sm, err := handleCreateFungibleTokenTypeTx(opts)(
 		createTransactionOrder(t, attributes, PayloadTypeCreateFungibleTokenType, uID),
 		attributes,
@@ -171,12 +167,12 @@ func TestCreateFungibleTokenType_CreateSingleType_Ok(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, sm)
 
-	u, err := opts.state.GetUnit(uID)
+	u, err := opts.state.GetUnit(uID, false)
 	require.NoError(t, err)
 	require.NotNil(t, u)
 
-	require.IsType(t, &fungibleTokenTypeData{}, u.Data)
-	d := u.Data.(*fungibleTokenTypeData)
+	require.IsType(t, &fungibleTokenTypeData{}, u.Data())
+	d := u.Data().(*fungibleTokenTypeData)
 	require.Equal(t, attributes.Symbol, d.symbol)
 	require.Equal(t, attributes.Name, d.name)
 	require.Equal(t, attributes.Icon.Type, d.icon.Type)
@@ -185,7 +181,7 @@ func TestCreateFungibleTokenType_CreateSingleType_Ok(t *testing.T) {
 	require.Equal(t, attributes.SubTypeCreationPredicate, d.subTypeCreationPredicate)
 	require.Equal(t, attributes.TokenCreationPredicate, d.tokenCreationPredicate)
 	require.Equal(t, attributes.InvariantPredicate, d.invariantPredicate)
-	require.Equal(t, uint256.NewInt(0), d.parentTypeId)
+	require.Equal(t, types.UnitID(make([]byte, 32)), d.parentTypeId)
 }
 
 func TestCreateFungibleTokenType_CreateTokenTypeChain_Ok(t *testing.T) {
@@ -195,22 +191,22 @@ func TestCreateFungibleTokenType_CreateTokenTypeChain_Ok(t *testing.T) {
 		Symbol:                   validSymbol,
 		Name:                     validName,
 		Icon:                     &Icon{Type: validIconType, Data: []byte{1, 2, 3}},
-		ParentTypeID:             nil,
+		ParentTypeID:             make([]byte, 32),
 		DecimalPlaces:            6,
 		SubTypeCreationPredicate: script.PredicateAlwaysTrue(),
 		TokenCreationPredicate:   script.PredicateAlwaysFalse(),
 		InvariantPredicate:       script.PredicatePayToPublicKeyHashDefault(make([]byte, 32)),
 	}
-	parentID := uint256.NewInt(validUnitID)
+	parentID := validUnitID
 
 	parentTx := createTransactionOrder(t, parentAttributes, PayloadTypeCreateFungibleTokenType, parentID)
 
-	childID := uint256.NewInt(20)
+	childID := util.Uint256ToBytes(uint256.NewInt(20))
 	childAttributes := &CreateFungibleTokenTypeAttributes{
 		Symbol:                             validSymbol + "_CHILD",
 		Name:                               validName + "_CHILD",
 		Icon:                               &Icon{Type: validIconType, Data: []byte{1, 2, 3}},
-		ParentTypeID:                       util.Uint256ToBytes(parentID),
+		ParentTypeID:                       parentID,
 		DecimalPlaces:                      6,
 		SubTypeCreationPredicate:           script.PredicateAlwaysFalse(),
 		TokenCreationPredicate:             script.PredicateAlwaysTrue(),
@@ -226,12 +222,12 @@ func TestCreateFungibleTokenType_CreateTokenTypeChain_Ok(t *testing.T) {
 	sm, err = handleCreateFungibleTokenTypeTx(opts)(childTx, childAttributes, 11)
 	require.NoError(t, err)
 	require.NotNil(t, sm)
-	u, err := opts.state.GetUnit(childID)
+	u, err := opts.state.GetUnit(childID, false)
 	require.NoError(t, err)
 	require.NotNil(t, u)
 
-	require.IsType(t, &fungibleTokenTypeData{}, u.Data)
-	d := u.Data.(*fungibleTokenTypeData)
+	require.IsType(t, &fungibleTokenTypeData{}, u.Data())
+	d := u.Data().(*fungibleTokenTypeData)
 	require.Equal(t, childAttributes.Symbol, d.symbol)
 	require.Equal(t, childAttributes.Name, d.name)
 	require.Equal(t, childAttributes.Icon.Type, d.icon.Type)
@@ -240,7 +236,7 @@ func TestCreateFungibleTokenType_CreateTokenTypeChain_Ok(t *testing.T) {
 	require.Equal(t, childAttributes.SubTypeCreationPredicate, d.subTypeCreationPredicate)
 	require.Equal(t, childAttributes.TokenCreationPredicate, d.tokenCreationPredicate)
 	require.Equal(t, childAttributes.InvariantPredicate, d.invariantPredicate)
-	require.Equal(t, parentID, d.parentTypeId)
+	require.Equal(t, types.UnitID(parentID), d.parentTypeId)
 }
 
 func TestCreateFungibleTokenType_CreateTokenTypeChain_InvalidCreationPredicateSignature(t *testing.T) {
@@ -248,21 +244,20 @@ func TestCreateFungibleTokenType_CreateTokenTypeChain_InvalidCreationPredicateSi
 
 	parentAttributes := &CreateFungibleTokenTypeAttributes{
 		Symbol:                   validSymbol,
-		ParentTypeID:             nil,
+		ParentTypeID:             make([]byte, 32),
 		DecimalPlaces:            6,
 		SubTypeCreationPredicate: script.PredicateAlwaysTrue(),
 		TokenCreationPredicate:   script.PredicateAlwaysFalse(),
 		InvariantPredicate:       script.PredicatePayToPublicKeyHashDefault(make([]byte, 32)),
 	}
-	parentID := uint256.NewInt(validUnitID)
+	parentID := validUnitID
 
 	parentTx := createTransactionOrder(t, parentAttributes, PayloadTypeCreateFungibleTokenType, parentID)
 
-	parentIDBytes := parentID.Bytes32()
-	childID := uint256.NewInt(20)
+	childID := util.Uint256ToBytes(uint256.NewInt(20))
 	childAttributes := &CreateFungibleTokenTypeAttributes{
 		Symbol:                             validSymbol + "_CHILD",
-		ParentTypeID:                       parentIDBytes[:],
+		ParentTypeID:                       parentID,
 		DecimalPlaces:                      6,
 		SubTypeCreationPredicate:           script.PredicateAlwaysFalse(),
 		TokenCreationPredicate:             script.PredicateAlwaysTrue(),
@@ -292,7 +287,7 @@ func TestMintFungibleToken_NotOk(t *testing.T) {
 			tx: &types.TransactionOrder{
 				Payload: &types.Payload{
 					Type:   PayloadTypeMintFungibleToken,
-					UnitID: util.Uint256ToBytes(uint256.NewInt(0)),
+					UnitID: make([]byte, 32),
 				},
 			},
 			attr:       &MintFungibleTokenAttributes{},
@@ -303,39 +298,39 @@ func TestMintFungibleToken_NotOk(t *testing.T) {
 			tx: &types.TransactionOrder{
 				Payload: &types.Payload{
 					Type:   PayloadTypeMintFungibleToken,
-					UnitID: util.Uint256ToBytes(existingTokenTypeUnitID),
+					UnitID: existingTokenTypeUnitID,
 				},
 			},
 			attr:       &MintFungibleTokenAttributes{},
-			wantErrStr: fmt.Sprintf("unit with id %v already exists", existingTokenTypeUnitID),
+			wantErrStr: fmt.Sprintf("unit with id %X already exists", existingTokenTypeUnitID),
 		},
 		{
 			name: "parent does not exist",
 			tx: &types.TransactionOrder{
 				Payload: &types.Payload{
 					Type:   PayloadTypeMintFungibleToken,
-					UnitID: util.Uint256ToBytes(uint256.NewInt(validUnitID)),
+					UnitID: validUnitID,
 				},
 			},
 			attr: &MintFungibleTokenAttributes{
 				Bearer:                           script.PredicateAlwaysTrue(),
-				TypeID:                           util.Uint256ToBytes(uint256.NewInt(100)),
+				TypeID:                           validUnitID,
 				Value:                            1000,
 				TokenCreationPredicateSignatures: [][]byte{script.PredicateArgumentEmpty()},
 			},
-			wantErrStr: fmt.Sprintf("item %X does not exist", util.Uint256ToBytes(uint256.NewInt(validUnitID))),
+			wantErrStr: fmt.Sprintf("item %X does not exist", validUnitID),
 		},
 		{
 			name: "invalid token creation predicate argument",
 			tx: &types.TransactionOrder{
 				Payload: &types.Payload{
 					Type:   PayloadTypeMintFungibleToken,
-					UnitID: util.Uint256ToBytes(uint256.NewInt(validUnitID)),
+					UnitID: validUnitID,
 				},
 			},
 			attr: &MintFungibleTokenAttributes{
 				Bearer:                           script.PredicateAlwaysTrue(),
-				TypeID:                           existingTokenTypeUnitIDBytes[:],
+				TypeID:                           existingTokenTypeUnitID,
 				Value:                            1000,
 				TokenCreationPredicateSignatures: [][]byte{script.PredicateAlwaysFalse()},
 			},
@@ -346,12 +341,12 @@ func TestMintFungibleToken_NotOk(t *testing.T) {
 			tx: &types.TransactionOrder{
 				Payload: &types.Payload{
 					Type:   PayloadTypeMintFungibleToken,
-					UnitID: util.Uint256ToBytes(uint256.NewInt(validUnitID)),
+					UnitID: validUnitID,
 				},
 			},
 			attr: &MintFungibleTokenAttributes{
 				Bearer:                           script.PredicateAlwaysTrue(),
-				TypeID:                           existingTokenTypeUnitIDBytes,
+				TypeID:                           existingTokenTypeUnitID,
 				Value:                            0,
 				TokenCreationPredicateSignatures: [][]byte{script.PredicateArgumentEmpty()},
 			},
@@ -372,33 +367,33 @@ func TestMintFungibleToken_Ok(t *testing.T) {
 	opts := defaultOpts(t)
 	attributes := &MintFungibleTokenAttributes{
 		Bearer:                           script.PredicateAlwaysTrue(),
-		TypeID:                           existingTokenTypeUnitIDBytes[:],
+		TypeID:                           existingTokenTypeUnitID,
 		Value:                            1000,
 		TokenCreationPredicateSignatures: [][]byte{script.PredicateArgumentEmpty()},
 	}
-	tokenID := uint256.NewInt(validUnitID)
+	tokenID := validUnitID
 	tx := createTransactionOrder(t, attributes, PayloadTypeMintFungibleToken, tokenID)
 
 	sm, err := handleMintFungibleTokenTx(opts)(tx, attributes, 10)
 	require.NoError(t, err)
 	require.NotNil(t, sm)
-
-	unit, err := opts.state.GetUnit(tokenID)
+	txr := types.TransactionRecord{TransactionOrder: tx, ServerMetadata: sm}
+	u, err := opts.state.GetUnit(tokenID, false)
 	require.NoError(t, err)
-	require.NotNil(t, unit)
-	require.IsType(t, &fungibleTokenData{}, unit.Data)
+	require.NotNil(t, u)
+	require.IsType(t, &fungibleTokenData{}, u.Data())
 
-	d := unit.Data.(*fungibleTokenData)
-	require.Equal(t, attributes.TypeID, d.tokenType.PaddedBytes(32))
+	d := u.Data().(*fungibleTokenData)
+	require.Equal(t, types.UnitID(attributes.TypeID), d.tokenType)
 	require.Equal(t, attributes.Value, d.value)
-	require.Equal(t, tx.Hash(gocrypto.SHA256), d.backlink)
+	require.Equal(t, txr.Hash(gocrypto.SHA256), d.backlink)
 	require.Equal(t, uint64(10), d.t)
-	require.Equal(t, attributes.Bearer, []byte(unit.Bearer))
+	require.Equal(t, attributes.Bearer, []byte(u.Bearer()))
 }
 
 func TestTransferFungibleToken_NotOk(t *testing.T) {
 	attr := &TransferFungibleTokenAttributes{
-		TypeID:                       existingTokenTypeUnitIDBytes,
+		TypeID:                       existingTokenTypeUnitID,
 		NewBearer:                    script.PredicateAlwaysTrue(),
 		Value:                        existingTokenValue,
 		Nonce:                        test.RandomBytes(32),
@@ -413,26 +408,26 @@ func TestTransferFungibleToken_NotOk(t *testing.T) {
 	}{
 		{
 			name:       "unit ID is 0",
-			tx:         createTransactionOrder(t, nil, PayloadTypeTransferFungibleToken, uint256.NewInt(0)),
+			tx:         createTransactionOrder(t, nil, PayloadTypeTransferFungibleToken, make([]byte, 32)),
 			attr:       &TransferFungibleTokenAttributes{},
 			wantErrStr: "unit ID cannot be zero",
 		},
 		{
 			name:       "fungible token does not exists",
-			tx:         createTransactionOrder(t, nil, PayloadTypeTransferFungibleToken, uint256.NewInt(42)),
+			tx:         createTransactionOrder(t, nil, PayloadTypeTransferFungibleToken, util.Uint256ToBytes(uint256.NewInt(42))),
 			attr:       &TransferFungibleTokenAttributes{},
-			wantErrStr: "unit 42 does not exist",
+			wantErrStr: fmt.Sprintf("unit %X does not exist", util.Uint256ToBytes(uint256.NewInt(42))),
 		},
 
 		{
 			name:       "unit isn't fungible token",
 			tx:         createTransactionOrder(t, nil, PayloadTypeTransferFungibleToken, existingTokenTypeUnitID),
 			attr:       &TransferFungibleTokenAttributes{},
-			wantErrStr: fmt.Sprintf("unit %v is not fungible token data", existingTokenTypeUnitID),
+			wantErrStr: fmt.Sprintf("unit %X is not fungible token data", existingTokenTypeUnitID),
 		},
 		{
 			name: "invalid value",
-			tx:   createTransactionOrder(t, &TransferFungibleTokenAttributes{}, PayloadTypeTransferFungibleToken, uint256.NewInt(existingTokenUnitID)),
+			tx:   createTransactionOrder(t, &TransferFungibleTokenAttributes{}, PayloadTypeTransferFungibleToken, util.Uint256ToBytes(uint256.NewInt(existingTokenUnitID))),
 			attr: &TransferFungibleTokenAttributes{
 				NewBearer:                    script.PredicateAlwaysTrue(),
 				Value:                        existingTokenValue - 1,
@@ -444,7 +439,7 @@ func TestTransferFungibleToken_NotOk(t *testing.T) {
 		},
 		{
 			name: "invalid backlink",
-			tx:   createTransactionOrder(t, &TransferFungibleTokenAttributes{}, PayloadTypeTransferFungibleToken, uint256.NewInt(existingTokenUnitID)),
+			tx:   createTransactionOrder(t, &TransferFungibleTokenAttributes{}, PayloadTypeTransferFungibleToken, util.Uint256ToBytes(uint256.NewInt(existingTokenUnitID))),
 			attr: &TransferFungibleTokenAttributes{
 				NewBearer:                    script.PredicateAlwaysTrue(),
 				Value:                        existingTokenValue,
@@ -456,7 +451,7 @@ func TestTransferFungibleToken_NotOk(t *testing.T) {
 		},
 		{
 			name: "empty token type id",
-			tx:   createTransactionOrder(t, &TransferFungibleTokenAttributes{}, PayloadTypeTransferFungibleToken, uint256.NewInt(existingTokenUnitID)),
+			tx:   createTransactionOrder(t, &TransferFungibleTokenAttributes{}, PayloadTypeTransferFungibleToken, util.Uint256ToBytes(uint256.NewInt(existingTokenUnitID))),
 			attr: &TransferFungibleTokenAttributes{
 				TypeID:                       nil,
 				NewBearer:                    script.PredicateAlwaysTrue(),
@@ -469,9 +464,9 @@ func TestTransferFungibleToken_NotOk(t *testing.T) {
 		},
 		{
 			name: "invalid token type id",
-			tx:   createTransactionOrder(t, &TransferFungibleTokenAttributes{}, PayloadTypeTransferFungibleToken, uint256.NewInt(existingTokenUnitID)),
+			tx:   createTransactionOrder(t, &TransferFungibleTokenAttributes{}, PayloadTypeTransferFungibleToken, util.Uint256ToBytes(uint256.NewInt(existingTokenUnitID))),
 			attr: &TransferFungibleTokenAttributes{
-				TypeID:                       existingTokenTypeUnitIDBytes2,
+				TypeID:                       existingTokenTypeUnitID2,
 				NewBearer:                    script.PredicateAlwaysTrue(),
 				Value:                        existingTokenValue,
 				Nonce:                        test.RandomBytes(32),
@@ -482,7 +477,7 @@ func TestTransferFungibleToken_NotOk(t *testing.T) {
 		},
 		{
 			name:       "invalid token invariant predicate argument",
-			tx:         createTransactionOrder(t, attr, PayloadTypeTransferFungibleToken, uint256.NewInt(existingTokenUnitID)),
+			tx:         createTransactionOrder(t, attr, PayloadTypeTransferFungibleToken, util.Uint256ToBytes(uint256.NewInt(existingTokenUnitID))),
 			attr:       attr,
 			wantErrStr: "script execution result yielded false or non-clean stack",
 		},
@@ -499,30 +494,30 @@ func TestTransferFungibleToken_NotOk(t *testing.T) {
 func TestTransferFungibleToken_Ok(t *testing.T) {
 	opts := defaultOpts(t)
 	transferAttributes := &TransferFungibleTokenAttributes{
-		TypeID:                       util.Uint256ToBytes(existingTokenTypeUnitID),
+		TypeID:                       existingTokenTypeUnitID,
 		NewBearer:                    script.PredicatePayToPublicKeyHashDefault(test.RandomBytes(32)),
 		Value:                        existingTokenValue,
 		Nonce:                        test.RandomBytes(32),
 		Backlink:                     make([]byte, 32),
 		InvariantPredicateSignatures: [][]byte{script.PredicateArgumentEmpty()},
 	}
-	uID := uint256.NewInt(existingTokenUnitID)
+	uID := util.Uint256ToBytes(uint256.NewInt(existingTokenUnitID))
 	tx := createTransactionOrder(t, transferAttributes, PayloadTypeTransferFungibleToken, uID)
 
 	var roundNr uint64 = 10
 	sm, err := handleTransferFungibleTokenTx(opts)(tx, transferAttributes, roundNr)
 	require.NoError(t, err)
 	require.NotNil(t, sm)
-
-	u, err := opts.state.GetUnit(uID)
+	txr := &types.TransactionRecord{TransactionOrder: tx, ServerMetadata: sm}
+	u, err := opts.state.GetUnit(uID, false)
 	require.NoError(t, err)
 	require.NotNil(t, u)
-	require.IsType(t, &fungibleTokenData{}, u.Data)
-	d := u.Data.(*fungibleTokenData)
+	require.IsType(t, &fungibleTokenData{}, u.Data())
+	d := u.Data().(*fungibleTokenData)
 
-	require.Equal(t, transferAttributes.NewBearer, []byte(u.Bearer))
+	require.Equal(t, transferAttributes.NewBearer, []byte(u.Bearer()))
 	require.Equal(t, transferAttributes.Value, d.value)
-	require.Equal(t, tx.Hash(gocrypto.SHA256), d.backlink)
+	require.Equal(t, txr.Hash(gocrypto.SHA256), d.backlink)
 	require.Equal(t, roundNr, d.t)
 }
 
@@ -535,25 +530,25 @@ func TestSplitFungibleToken_NotOk(t *testing.T) {
 	}{
 		{
 			name:       "unit ID is 0",
-			tx:         createTransactionOrder(t, nil, PayloadTypeSplitFungibleToken, uint256.NewInt(0)),
+			tx:         createTransactionOrder(t, nil, PayloadTypeSplitFungibleToken, util.Uint256ToBytes(uint256.NewInt(0))),
 			attr:       &SplitFungibleTokenAttributes{},
 			wantErrStr: "unit ID cannot be zero",
 		},
 		{
 			name:       "fungible token does not exists",
-			tx:         createTransactionOrder(t, nil, PayloadTypeSplitFungibleToken, uint256.NewInt(42)),
+			tx:         createTransactionOrder(t, nil, PayloadTypeSplitFungibleToken, util.Uint256ToBytes(uint256.NewInt(42))),
 			attr:       &SplitFungibleTokenAttributes{},
-			wantErrStr: "unit 42 does not exist",
+			wantErrStr: fmt.Sprintf("unit %X does not exist", util.Uint256ToBytes(uint256.NewInt(42))),
 		},
 		{
 			name:       "unit isn't fungible token",
 			tx:         createTransactionOrder(t, nil, PayloadTypeSplitFungibleToken, existingTokenTypeUnitID),
 			attr:       &SplitFungibleTokenAttributes{},
-			wantErrStr: fmt.Sprintf("unit %v is not fungible token data", existingTokenTypeUnitID),
+			wantErrStr: fmt.Sprintf("unit %X is not fungible token data", existingTokenTypeUnitID),
 		},
 		{
 			name: "invalid target value - exceeds the max value",
-			tx:   createTransactionOrder(t, nil, PayloadTypeSplitFungibleToken, uint256.NewInt(existingTokenUnitID)),
+			tx:   createTransactionOrder(t, nil, PayloadTypeSplitFungibleToken, util.Uint256ToBytes(uint256.NewInt(existingTokenUnitID))),
 			attr: &SplitFungibleTokenAttributes{
 				NewBearer:                    script.PredicateAlwaysTrue(),
 				TargetValue:                  existingTokenValue + 1,
@@ -566,7 +561,7 @@ func TestSplitFungibleToken_NotOk(t *testing.T) {
 		},
 		{
 			name: "invalid value: target + remainder < original value",
-			tx:   createTransactionOrder(t, nil, PayloadTypeSplitFungibleToken, uint256.NewInt(existingTokenUnitID)),
+			tx:   createTransactionOrder(t, nil, PayloadTypeSplitFungibleToken, util.Uint256ToBytes(uint256.NewInt(existingTokenUnitID))),
 			attr: &SplitFungibleTokenAttributes{
 				NewBearer:                    script.PredicateAlwaysTrue(),
 				TargetValue:                  existingTokenValue - 2,
@@ -579,9 +574,9 @@ func TestSplitFungibleToken_NotOk(t *testing.T) {
 		},
 		{
 			name: "invalid value - remaining value is zero",
-			tx:   createTransactionOrder(t, nil, PayloadTypeSplitFungibleToken, uint256.NewInt(existingTokenUnitID)),
+			tx:   createTransactionOrder(t, nil, PayloadTypeSplitFungibleToken, util.Uint256ToBytes(uint256.NewInt(existingTokenUnitID))),
 			attr: &SplitFungibleTokenAttributes{
-				TypeID:                       existingTokenTypeUnitIDBytes,
+				TypeID:                       existingTokenTypeUnitID,
 				NewBearer:                    script.PredicateAlwaysTrue(),
 				TargetValue:                  existingTokenValue,
 				RemainingValue:               0,
@@ -593,9 +588,9 @@ func TestSplitFungibleToken_NotOk(t *testing.T) {
 		},
 		{
 			name: "invalid value - target value is zero",
-			tx:   createTransactionOrder(t, nil, PayloadTypeSplitFungibleToken, uint256.NewInt(existingTokenUnitID)),
+			tx:   createTransactionOrder(t, nil, PayloadTypeSplitFungibleToken, util.Uint256ToBytes(uint256.NewInt(existingTokenUnitID))),
 			attr: &SplitFungibleTokenAttributes{
-				TypeID:                       existingTokenTypeUnitIDBytes,
+				TypeID:                       existingTokenTypeUnitID,
 				NewBearer:                    script.PredicateAlwaysTrue(),
 				RemainingValue:               existingTokenValue,
 				TargetValue:                  0,
@@ -607,7 +602,7 @@ func TestSplitFungibleToken_NotOk(t *testing.T) {
 		},
 		{
 			name: "invalid backlink",
-			tx:   createTransactionOrder(t, nil, PayloadTypeSplitFungibleToken, uint256.NewInt(existingTokenUnitID)),
+			tx:   createTransactionOrder(t, nil, PayloadTypeSplitFungibleToken, util.Uint256ToBytes(uint256.NewInt(existingTokenUnitID))),
 			attr: &SplitFungibleTokenAttributes{
 				NewBearer:                    script.PredicateAlwaysTrue(),
 				TargetValue:                  existingTokenValue - 1,
@@ -620,7 +615,7 @@ func TestSplitFungibleToken_NotOk(t *testing.T) {
 		},
 		{
 			name: "empty token type id",
-			tx:   createTransactionOrder(t, nil, PayloadTypeSplitFungibleToken, uint256.NewInt(existingTokenUnitID)),
+			tx:   createTransactionOrder(t, nil, PayloadTypeSplitFungibleToken, util.Uint256ToBytes(uint256.NewInt(existingTokenUnitID))),
 			attr: &SplitFungibleTokenAttributes{
 				TypeID:                       nil,
 				NewBearer:                    script.PredicateAlwaysTrue(),
@@ -634,9 +629,9 @@ func TestSplitFungibleToken_NotOk(t *testing.T) {
 		},
 		{
 			name: "invalid token type id",
-			tx:   createTransactionOrder(t, nil, PayloadTypeSplitFungibleToken, uint256.NewInt(existingTokenUnitID)),
+			tx:   createTransactionOrder(t, nil, PayloadTypeSplitFungibleToken, util.Uint256ToBytes(uint256.NewInt(existingTokenUnitID))),
 			attr: &SplitFungibleTokenAttributes{
-				TypeID:                       existingTokenTypeUnitIDBytes2,
+				TypeID:                       existingTokenTypeUnitID2,
 				NewBearer:                    script.PredicateAlwaysTrue(),
 				TargetValue:                  existingTokenValue - 1,
 				RemainingValue:               1,
@@ -648,9 +643,9 @@ func TestSplitFungibleToken_NotOk(t *testing.T) {
 		},
 		{
 			name: "invalid token invariant predicate argument",
-			tx:   createTransactionOrder(t, nil, PayloadTypeSplitFungibleToken, uint256.NewInt(existingTokenUnitID)),
+			tx:   createTransactionOrder(t, nil, PayloadTypeSplitFungibleToken, util.Uint256ToBytes(uint256.NewInt(existingTokenUnitID))),
 			attr: &SplitFungibleTokenAttributes{
-				TypeID:                       existingTokenTypeUnitIDBytes,
+				TypeID:                       existingTokenTypeUnitID,
 				NewBearer:                    script.PredicateAlwaysTrue(),
 				TargetValue:                  existingTokenValue - 1,
 				RemainingValue:               1,
@@ -676,7 +671,7 @@ func TestSplitFungibleToken_Ok(t *testing.T) {
 
 	var remainingBillValue uint64 = 10
 	attr := &SplitFungibleTokenAttributes{
-		TypeID:                       existingTokenTypeUnitIDBytes,
+		TypeID:                       existingTokenTypeUnitID,
 		NewBearer:                    script.PredicatePayToPublicKeyHashDefault(test.RandomBytes(32)),
 		TargetValue:                  existingTokenValue - remainingBillValue,
 		RemainingValue:               remainingBillValue,
@@ -684,35 +679,35 @@ func TestSplitFungibleToken_Ok(t *testing.T) {
 		Backlink:                     make([]byte, 32),
 		InvariantPredicateSignatures: [][]byte{script.PredicateArgumentEmpty()},
 	}
-	uID := uint256.NewInt(existingTokenUnitID)
+	uID := util.Uint256ToBytes(uint256.NewInt(existingTokenUnitID))
 	tx := createTransactionOrder(t, attr, PayloadTypeSplitFungibleToken, uID)
 	var roundNr uint64 = 10
 	sm, err := handleSplitFungibleTokenTx(opts)(tx, attr, roundNr)
 	require.NoError(t, err)
 	require.NotNil(t, sm)
-
-	u, err := opts.state.GetUnit(uID)
+	txr := &types.TransactionRecord{TransactionOrder: tx, ServerMetadata: sm}
+	u, err := opts.state.GetUnit(uID, false)
 	require.NoError(t, err)
 	require.NotNil(t, u)
-	require.IsType(t, &fungibleTokenData{}, u.Data)
-	d := u.Data.(*fungibleTokenData)
+	require.IsType(t, &fungibleTokenData{}, u.Data())
+	d := u.Data().(*fungibleTokenData)
 
-	require.Equal(t, script.PredicateAlwaysTrue(), []byte(u.Bearer))
+	require.Equal(t, script.PredicateAlwaysTrue(), []byte(u.Bearer()))
 	require.Equal(t, remainingBillValue, d.value)
-	require.Equal(t, tx.Hash(gocrypto.SHA256), d.backlink)
+	require.Equal(t, txr.Hash(gocrypto.SHA256), d.backlink)
 	require.Equal(t, roundNr, d.t)
 
 	newUnitID := txutil.SameShardID(uID, HashForIDCalculation(tx, opts.hashAlgorithm))
-	newUnit, err := opts.state.GetUnit(newUnitID)
+	newUnit, err := opts.state.GetUnit(newUnitID, false)
 	require.NoError(t, err)
 	require.NotNil(t, newUnit)
-	require.IsType(t, &fungibleTokenData{}, newUnit.Data)
+	require.IsType(t, &fungibleTokenData{}, newUnit.Data())
 
-	newUnitData := newUnit.Data.(*fungibleTokenData)
+	newUnitData := newUnit.Data().(*fungibleTokenData)
 
-	require.Equal(t, attr.NewBearer, []byte(newUnit.Bearer))
+	require.Equal(t, attr.NewBearer, []byte(newUnit.Bearer()))
 	require.Equal(t, existingTokenValue-remainingBillValue, newUnitData.value)
-	require.Equal(t, tx.Hash(gocrypto.SHA256), newUnitData.backlink)
+	require.Equal(t, txr.Hash(gocrypto.SHA256), newUnitData.backlink)
 	require.Equal(t, roundNr, newUnitData.t)
 }
 
@@ -725,27 +720,27 @@ func TestBurnFungibleToken_NotOk(t *testing.T) {
 	}{
 		{
 			name:       "unit ID is 0",
-			tx:         createTransactionOrder(t, nil, PayloadTypeBurnFungibleToken, uint256.NewInt(0)),
+			tx:         createTransactionOrder(t, nil, PayloadTypeBurnFungibleToken, util.Uint256ToBytes(uint256.NewInt(0))),
 			attr:       &BurnFungibleTokenAttributes{},
 			wantErrStr: "unit ID cannot be zero",
 		},
 		{
 			name:       "fungible token does not exists",
-			tx:         createTransactionOrder(t, nil, PayloadTypeBurnFungibleToken, uint256.NewInt(42)),
+			tx:         createTransactionOrder(t, nil, PayloadTypeBurnFungibleToken, util.Uint256ToBytes(uint256.NewInt(42))),
 			attr:       &BurnFungibleTokenAttributes{},
-			wantErrStr: "unit 42 does not exist",
+			wantErrStr: fmt.Sprintf("unit %X does not exist", util.Uint256ToBytes(uint256.NewInt(42))),
 		},
 		{
 			name:       "unit isn't fungible token",
 			tx:         createTransactionOrder(t, nil, PayloadTypeBurnFungibleToken, existingTokenTypeUnitID),
 			attr:       &BurnFungibleTokenAttributes{},
-			wantErrStr: fmt.Sprintf("unit %v is not fungible token data", existingTokenTypeUnitID),
+			wantErrStr: fmt.Sprintf("unit %X is not fungible token data", existingTokenTypeUnitID),
 		},
 		{
 			name: "invalid value",
-			tx:   createTransactionOrder(t, nil, PayloadTypeBurnFungibleToken, uint256.NewInt(existingTokenUnitID)),
+			tx:   createTransactionOrder(t, nil, PayloadTypeBurnFungibleToken, util.Uint256ToBytes(uint256.NewInt(existingTokenUnitID))),
 			attr: &BurnFungibleTokenAttributes{
-				TypeID:                       existingTokenTypeUnitIDBytes[:],
+				TypeID:                       existingTokenTypeUnitID,
 				Value:                        existingTokenValue - 1,
 				Nonce:                        test.RandomBytes(32),
 				Backlink:                     make([]byte, 32),
@@ -755,9 +750,9 @@ func TestBurnFungibleToken_NotOk(t *testing.T) {
 		},
 		{
 			name: "invalid backlink",
-			tx:   createTransactionOrder(t, nil, PayloadTypeBurnFungibleToken, uint256.NewInt(existingTokenUnitID)),
+			tx:   createTransactionOrder(t, nil, PayloadTypeBurnFungibleToken, util.Uint256ToBytes(uint256.NewInt(existingTokenUnitID))),
 			attr: &BurnFungibleTokenAttributes{
-				TypeID:                       existingTokenTypeUnitIDBytes[:],
+				TypeID:                       existingTokenTypeUnitID,
 				Value:                        existingTokenValue,
 				Nonce:                        test.RandomBytes(32),
 				Backlink:                     test.RandomBytes(32),
@@ -767,9 +762,9 @@ func TestBurnFungibleToken_NotOk(t *testing.T) {
 		},
 		{
 			name: "invalid token invariant predicate argument",
-			tx:   createTransactionOrder(t, nil, PayloadTypeBurnFungibleToken, uint256.NewInt(existingTokenUnitID)),
+			tx:   createTransactionOrder(t, nil, PayloadTypeBurnFungibleToken, util.Uint256ToBytes(uint256.NewInt(existingTokenUnitID))),
 			attr: &BurnFungibleTokenAttributes{
-				TypeID:                       existingTokenTypeUnitIDBytes[:],
+				TypeID:                       existingTokenTypeUnitID,
 				Value:                        existingTokenValue,
 				Nonce:                        test.RandomBytes(32),
 				Backlink:                     make([]byte, 32),
@@ -779,7 +774,7 @@ func TestBurnFungibleToken_NotOk(t *testing.T) {
 		},
 		{
 			name: "invalid token type",
-			tx:   createTransactionOrder(t, nil, PayloadTypeBurnFungibleToken, uint256.NewInt(existingTokenUnitID)),
+			tx:   createTransactionOrder(t, nil, PayloadTypeBurnFungibleToken, util.Uint256ToBytes(uint256.NewInt(existingTokenUnitID))),
 			attr: &BurnFungibleTokenAttributes{
 				TypeID: func() []byte {
 					r := uint256.NewInt(42).Bytes32()
@@ -805,22 +800,22 @@ func TestBurnFungibleToken_NotOk(t *testing.T) {
 func TestBurnFungibleToken_Ok(t *testing.T) {
 	opts := defaultOpts(t)
 	burnAttributes := &BurnFungibleTokenAttributes{
-		TypeID:                       existingTokenTypeUnitIDBytes[:],
+		TypeID:                       existingTokenTypeUnitID,
 		Value:                        existingTokenValue,
 		Nonce:                        test.RandomBytes(32),
 		Backlink:                     make([]byte, 32),
 		InvariantPredicateSignatures: [][]byte{script.PredicateArgumentEmpty()},
 	}
-	uID := uint256.NewInt(existingTokenUnitID)
+	uID := util.Uint256ToBytes(uint256.NewInt(existingTokenUnitID))
 	tx := createTransactionOrder(t, burnAttributes, PayloadTypeBurnFungibleToken, uID)
 	var roundNr uint64 = 10
 	sm, err := handleBurnFungibleTokenTx(opts)(tx, burnAttributes, roundNr)
 	require.NoError(t, err)
 	require.NotNil(t, sm)
 
-	u, err := opts.state.GetUnit(uID)
+	u, err := opts.state.GetUnit(uID, false)
 	require.Nil(t, u)
-	require.ErrorContains(t, err, fmt.Sprintf("item %X does not exist", util.Uint256ToBytes(uID)))
+	require.ErrorContains(t, err, fmt.Sprintf("item %X does not exist", uID))
 }
 
 func TestJoinFungibleToken_NotOk(t *testing.T) {
@@ -829,21 +824,21 @@ func TestJoinFungibleToken_NotOk(t *testing.T) {
 	opts.trustBase = map[string]abcrypto.Verifier{"test": verifier}
 
 	burnTxInvalidSource := createTxRecord(t, uint256.NewInt(existingTokenUnitID), &BurnFungibleTokenAttributes{
-		TypeID:                       existingTokenTypeUnitIDBytes[:],
+		TypeID:                       existingTokenTypeUnitID,
 		Value:                        existingTokenValue,
 		Nonce:                        test.RandomBytes(32),
 		Backlink:                     make([]byte, 32),
 		InvariantPredicateSignatures: [][]byte{script.PredicateArgumentEmpty()},
 	}, PayloadTypeBurnFungibleToken)
 	burnTx := createTxRecord(t, uint256.NewInt(existingTokenUnitID), &BurnFungibleTokenAttributes{
-		TypeID:                       existingTokenTypeUnitIDBytes[:],
+		TypeID:                       existingTokenTypeUnitID,
 		Value:                        existingTokenValue,
 		Nonce:                        make([]byte, 32),
 		Backlink:                     make([]byte, 32),
 		InvariantPredicateSignatures: [][]byte{script.PredicateArgumentEmpty()},
 	}, PayloadTypeBurnFungibleToken)
 	burnTx2 := createTxRecord(t, uint256.NewInt(existingTokenUnitID2), &BurnFungibleTokenAttributes{
-		TypeID:                       existingTokenTypeUnitIDBytes2[:],
+		TypeID:                       existingTokenTypeUnitID2,
 		Value:                        existingTokenValue,
 		Nonce:                        test.RandomBytes(32),
 		Backlink:                     make([]byte, 32),
@@ -851,7 +846,7 @@ func TestJoinFungibleToken_NotOk(t *testing.T) {
 	}, PayloadTypeBurnFungibleToken)
 	maxUintValueTokenID := uint64(existingTokenUnitID2 + 1)
 	burnTx3 := createTxRecord(t, uint256.NewInt(maxUintValueTokenID), &BurnFungibleTokenAttributes{
-		TypeID:                       existingTokenTypeUnitIDBytes2[:],
+		TypeID:                       existingTokenTypeUnitID2,
 		Value:                        math.MaxUint64,
 		Nonce:                        make([]byte, 32),
 		Backlink:                     make([]byte, 32),
@@ -869,19 +864,19 @@ func TestJoinFungibleToken_NotOk(t *testing.T) {
 	}{
 		{
 			name:       "unit ID is 0",
-			tx:         createTransactionOrder(t, &JoinFungibleTokenAttributes{}, PayloadTypeJoinFungibleToken, uint256.NewInt(0)),
+			tx:         createTransactionOrder(t, &JoinFungibleTokenAttributes{}, PayloadTypeJoinFungibleToken, util.Uint256ToBytes(uint256.NewInt(0))),
 			wantErrStr: "unit ID cannot be zero",
 		},
 		{
 			name:       "fungible token does not exists",
-			tx:         createTransactionOrder(t, &JoinFungibleTokenAttributes{}, PayloadTypeJoinFungibleToken, uint256.NewInt(42)),
-			wantErrStr: "unit 42 does not exist",
+			tx:         createTransactionOrder(t, &JoinFungibleTokenAttributes{}, PayloadTypeJoinFungibleToken, util.Uint256ToBytes(uint256.NewInt(42))),
+			wantErrStr: fmt.Sprintf("unit %X does not exist", util.Uint256ToBytes(uint256.NewInt(42))),
 		},
 
 		{
 			name:       "unit isn't fungible token",
 			tx:         createTransactionOrder(t, &JoinFungibleTokenAttributes{}, PayloadTypeJoinFungibleToken, existingTokenTypeUnitID),
-			wantErrStr: fmt.Sprintf("unit %v is not fungible token data", existingTokenTypeUnitID),
+			wantErrStr: fmt.Sprintf("unit %X is not fungible token data", existingTokenTypeUnitID),
 		},
 		{
 			name: "invalid backlink",
@@ -951,54 +946,51 @@ func defaultOpts(t *testing.T) *Options {
 	return o
 }
 
-func initState(t *testing.T) *rma.Tree {
-	state, err := rma.New(&rma.Config{
-		HashAlgorithm: gocrypto.SHA256,
-	})
-	require.NoError(t, err)
-	err = state.AtomicUpdate(rma.AddItem(existingTokenTypeUnitID, script.PredicateAlwaysTrue(), &fungibleTokenTypeData{
+func initState(t *testing.T) *state.State {
+	s := state.NewEmptyState()
+	err := s.Apply(state.AddUnit(existingTokenTypeUnitID, script.PredicateAlwaysTrue(), &fungibleTokenTypeData{
 		symbol:                   "ALPHA",
 		name:                     "A long name for ALPHA",
 		icon:                     &Icon{Type: validIconType, Data: test.RandomBytes(10)},
-		parentTypeId:             uint256.NewInt(0),
+		parentTypeId:             util.Uint256ToBytes(uint256.NewInt(0)),
 		decimalPlaces:            5,
 		subTypeCreationPredicate: script.PredicateAlwaysTrue(),
 		tokenCreationPredicate:   script.PredicateAlwaysTrue(),
 		invariantPredicate:       script.PredicateAlwaysTrue(),
-	}, make([]byte, 32)))
+	}))
 	require.NoError(t, err)
-	err = state.AtomicUpdate(rma.AddItem(existingTokenTypeUnitID2, script.PredicateAlwaysTrue(), &fungibleTokenTypeData{
+	err = s.Apply(state.AddUnit(existingTokenTypeUnitID2, script.PredicateAlwaysTrue(), &fungibleTokenTypeData{
 		symbol:                   "ALPHA2",
 		name:                     "A long name for ALPHA2",
 		icon:                     &Icon{Type: validIconType, Data: test.RandomBytes(10)},
-		parentTypeId:             uint256.NewInt(0),
+		parentTypeId:             util.Uint256ToBytes(uint256.NewInt(0)),
 		decimalPlaces:            5,
 		subTypeCreationPredicate: script.PredicateAlwaysTrue(),
 		tokenCreationPredicate:   script.PredicateAlwaysTrue(),
 		invariantPredicate:       script.PredicateAlwaysTrue(),
-	}, make([]byte, 32)))
+	}))
 	require.NoError(t, err)
-	err = state.AtomicUpdate(rma.AddItem(uint256.NewInt(existingTokenUnitID), script.PredicateAlwaysTrue(), &fungibleTokenData{
+	err = s.Apply(state.AddUnit(util.Uint256ToBytes(uint256.NewInt(existingTokenUnitID)), script.PredicateAlwaysTrue(), &fungibleTokenData{
 		tokenType: existingTokenTypeUnitID,
 		value:     existingTokenValue,
 		t:         0,
 		backlink:  make([]byte, 32),
-	}, make([]byte, 32)))
+	}))
 	require.NoError(t, err)
-	err = state.AtomicUpdate(rma.AddItem(uint256.NewInt(existingTokenUnitID2), script.PredicateAlwaysTrue(), &fungibleTokenData{
+	err = s.Apply(state.AddUnit(util.Uint256ToBytes(uint256.NewInt(existingTokenUnitID2)), script.PredicateAlwaysTrue(), &fungibleTokenData{
 		tokenType: existingTokenTypeUnitID2,
 		value:     existingTokenValue,
 		t:         0,
 		backlink:  make([]byte, 32),
-	}, make([]byte, 32)))
+	}))
 	require.NoError(t, err)
-	err = state.AtomicUpdate(rma.AddItem(feeCreditID, script.PredicateAlwaysTrue(), &fc.FeeCreditRecord{
+	err = s.Apply(state.AddUnit(feeCreditID, script.PredicateAlwaysTrue(), &unit.FeeCreditRecord{
 		Balance: 100,
 		Hash:    make([]byte, 32),
 		Timeout: 100,
-	}, make([]byte, 32)))
+	}))
 	require.NoError(t, err)
-	return state
+	return s
 }
 
 func createTx(t *testing.T, unitID *uint256.Int, attributes any, payloadType string) *types.TransactionOrder {
@@ -1027,10 +1019,10 @@ func createTxRecord(t *testing.T, unitID *uint256.Int, attributes any, payloadTy
 	)
 }
 
-func createTransactionOrder(t *testing.T, attr any, payloadType string, unitID *uint256.Int) *types.TransactionOrder {
+func createTransactionOrder(t *testing.T, attr any, payloadType string, unitID types.UnitID) *types.TransactionOrder {
 	return testtransaction.NewTransactionOrder(
 		t,
-		testtransaction.WithUnitId(util.Uint256ToBytes(unitID)),
+		testtransaction.WithUnitId(unitID),
 		testtransaction.WithPayloadType(payloadType),
 		testtransaction.WithAttributes(attr),
 		testtransaction.WithSystemID(DefaultTokenTxSystemIdentifier),
@@ -1039,7 +1031,7 @@ func createTransactionOrder(t *testing.T, attr any, payloadType string, unitID *
 		testtransaction.WithClientMetadata(&types.ClientMetadata{
 			Timeout:           1000,
 			MaxTransactionFee: 10,
-			FeeCreditRecordID: util.Uint256ToBytes(feeCreditID),
+			FeeCreditRecordID: feeCreditID,
 		}),
 	)
 

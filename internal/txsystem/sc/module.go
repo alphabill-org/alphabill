@@ -4,14 +4,14 @@ import (
 	gocrypto "crypto"
 	"fmt"
 
-	"github.com/alphabill-org/alphabill/internal/rma"
+	"github.com/alphabill-org/alphabill/internal/state"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 )
 
 var _ txsystem.Module = &SmartContractModule{}
 
 type SmartContractModule struct {
-	state            *rma.Tree
+	state            *state.State
 	systemIdentifier []byte
 	hashAlgorithm    gocrypto.Hash
 	programs         BuiltInPrograms

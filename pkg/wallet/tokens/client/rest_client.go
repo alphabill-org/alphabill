@@ -190,6 +190,7 @@ func (tb *TokenBackend) FetchFeeCreditBill(ctx context.Context, unitID []byte) (
 		Id:            fcb.Id,
 		Value:         fcb.Value,
 		TxHash:        fcb.TxHash,
+		TxRecordHash:  fcb.TxRecordHash,
 		FcBlockNumber: fcb.FCBlockNumber,
 	}, nil
 }

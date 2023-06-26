@@ -3,13 +3,13 @@ package txsystem
 import (
 	"crypto"
 
-	"github.com/alphabill-org/alphabill/internal/rma"
+	"github.com/alphabill-org/alphabill/internal/state"
 )
 
 type Options struct {
 	systemIdentifier    []byte
 	hashAlgorithm       crypto.Hash
-	state               *rma.Tree
+	state               *state.State
 	beginBlockFunctions []func(blockNumber uint64)
 	endBlockFunctions   []func(blockNumber uint64) error
 }
@@ -19,7 +19,7 @@ type Option func(*Options)
 func DefaultOptions() *Options {
 	return &Options{
 		hashAlgorithm:       crypto.SHA256,
-		state:               rma.NewWithSHA256(),
+		state:               state.NewEmptyState(),
 		beginBlockFunctions: make([]func(blockNumber uint64), 0),
 		endBlockFunctions:   make([]func(blockNumber uint64) error, 0),
 	}
@@ -49,7 +49,7 @@ func WithHashAlgorithm(hashAlgorithm crypto.Hash) Option {
 	}
 }
 
-func WithState(s *rma.Tree) Option {
+func WithState(s *state.State) Option {
 	return func(g *Options) {
 		g.state = s
 	}

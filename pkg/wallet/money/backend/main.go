@@ -48,10 +48,11 @@ type (
 	}
 
 	Bill struct {
-		Id       []byte `json:"id"`
-		Value    uint64 `json:"value"`
-		TxHash   []byte `json:"txHash"`
-		IsDCBill bool   `json:"isDcBill"`
+		Id           []byte `json:"id"`
+		Value        uint64 `json:"value"`
+		TxHash       []byte `json:"txHash"`
+		TxRecordHash []byte `json:"txRecordHash"`
+		IsDCBill     bool   `json:"isDcBill"`
 		// OrderNumber insertion order of given bill in pubkey => list of bills bucket, needed for determistic paging
 		OrderNumber    uint64        `json:"orderNumber"`
 		TxProof        *wallet.Proof `json:"txProof"`
@@ -285,6 +286,7 @@ func (b *Bill) toProto() *wallet.Bill {
 		IsDcBill:      b.IsDCBill,
 		TxProof:       b.TxProof,
 		FcBlockNumber: b.FCBlockNumber,
+		TxRecordHash:  b.TxRecordHash,
 	}
 }
 

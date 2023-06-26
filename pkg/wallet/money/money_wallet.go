@@ -242,7 +242,7 @@ func (w *Wallet) Send(ctx context.Context, cmd SendCmd) ([]*wallet.Proof, error)
 	for _, tx := range txs {
 		batch.Add(&txsubmitter.TxSubmission{
 			UnitID:      tx.UnitID(),
-			TxHash:      tx.Hash(crypto.SHA256),
+			TxOrderHash: tx.Hash(crypto.SHA256),
 			Transaction: tx,
 		})
 	}
@@ -390,7 +390,7 @@ func (w *Wallet) collectDust(ctx context.Context, blocking bool, accountIndex ui
 		var dcValueSum uint64
 		for _, b := range bills {
 			dcValueSum += b.Value
-			tx, err := tx_builder.NewDustTx(k, w.SystemID(), &wallet.Bill{Id: b.GetID(), Value: b.Value, TxHash: b.TxHash}, dcNonce, dcTimeout)
+			tx, err := tx_builder.NewDustTx(k, w.SystemID(), &wallet.Bill{Id: b.GetID(), Value: b.Value, TxHash: b.TxHash, TxRecordHash: b.TxRecordHash}, dcNonce, dcTimeout)
 			if err != nil {
 				return err
 			}
@@ -648,21 +648,23 @@ func convertBill(b *wallet.Bill) *Bill {
 			return nil
 		}
 		return &Bill{
-			Id:        util.BytesToUint256(b.Id),
-			Value:     b.Value,
-			TxHash:    b.TxHash,
-			IsDcBill:  b.IsDcBill,
-			DcNonce:   attrs.Nonce,
-			DcTimeout: b.TxProof.TxRecord.TransactionOrder.Timeout(),
-			TxProof:   b.TxProof,
+			Id:           util.BytesToUint256(b.Id),
+			Value:        b.Value,
+			TxHash:       b.TxHash,
+			TxRecordHash: b.TxRecordHash,
+			IsDcBill:     b.IsDcBill,
+			DcNonce:      attrs.Nonce,
+			DcTimeout:    b.TxProof.TxRecord.TransactionOrder.Timeout(),
+			TxProof:      b.TxProof,
 		}
 	}
 	return &Bill{
-		Id:       util.BytesToUint256(b.Id),
-		Value:    b.Value,
-		TxHash:   b.TxHash,
-		IsDcBill: b.IsDcBill,
-		TxProof:  b.TxProof,
+		Id:           util.BytesToUint256(b.Id),
+		Value:        b.Value,
+		TxHash:       b.TxHash,
+		TxRecordHash: b.TxRecordHash,
+		IsDcBill:     b.IsDcBill,
+		TxProof:      b.TxProof,
 	}
 }
 

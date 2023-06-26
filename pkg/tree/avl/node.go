@@ -1,6 +1,8 @@
 package avl
 
-import "fmt"
+import (
+	"fmt"
+)
 
 type (
 
@@ -80,6 +82,24 @@ func (n *Node[K, V]) Value() V {
 
 func (n *Node[K, V]) Key() K {
 	return n.key
+}
+
+func (n *Node[K, V]) Clean() bool {
+	return n.clean
+}
+
+func (n *Node[K, V]) Left() *Node[K, V] {
+	if n == nil {
+		return nil
+	}
+	return n.left
+}
+
+func (n *Node[K, V]) Right() *Node[K, V] {
+	if n == nil {
+		return nil
+	}
+	return n.right
 }
 
 func (n *Node[K, V]) String() string {

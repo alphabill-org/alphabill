@@ -2,59 +2,59 @@ package tokens
 
 import (
 	"bytes"
+	"crypto"
 	"errors"
 	"fmt"
 
-	"github.com/alphabill-org/alphabill/internal/rma"
+	"github.com/alphabill-org/alphabill/internal/state"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
-	"github.com/alphabill-org/alphabill/internal/txsystem/fc"
 	"github.com/alphabill-org/alphabill/internal/types"
-	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/fxamacker/cbor/v2"
-	"github.com/holiman/uint256"
 )
 
 func handleUpdateNonFungibleTokenTx(options *Options) txsystem.GenericExecuteFunc[UpdateNonFungibleTokenAttributes] {
 	return func(tx *types.TransactionOrder, attr *UpdateNonFungibleTokenAttributes, currentBlockNr uint64) (*types.ServerMetadata, error) {
 		logger.Debug("Processing Update Non-Fungible Token tx: %v", tx)
-		if err := validateUpdateNonFungibleToken(tx, attr, options.state); err != nil {
+		if err := validateUpdateNonFungibleToken(tx, attr, options.state, options.hashAlgorithm); err != nil {
 			return nil, fmt.Errorf("invalid update none-fungible token tx: %w", err)
 		}
 		fee := options.feeCalculator()
-		// TODO calculate hash after setting server metadata
-		h := tx.Hash(options.hashAlgorithm)
+		unitID := tx.UnitID()
+		sm := &types.ServerMetadata{ActualFee: fee}
+		txr := &types.TransactionRecord{
+			TransactionOrder: tx,
+			ServerMetadata:   sm,
+		}
 
 		// update state
-		fcrID := util.BytesToUint256(tx.GetClientFeeCreditRecordID())
-		unitID := util.BytesToUint256(tx.UnitID())
-		if err := options.state.AtomicUpdate(
-			fc.DecrCredit(fcrID, fee, h),
-			rma.UpdateData(unitID, func(data rma.UnitData) (newData rma.UnitData) {
+		if err := options.state.Apply(
+			state.UpdateUnitData(unitID, func(data state.UnitData) (newData state.UnitData) {
 				d, ok := data.(*nonFungibleTokenData)
 				if !ok {
 					return data
 				}
 				d.data = attr.Data
 				d.t = currentBlockNr
-				d.backlink = tx.Hash(options.hashAlgorithm)
+				d.backlink = txr.Hash(options.hashAlgorithm)
 				return data
-			}, h)); err != nil {
+			})); err != nil {
 			return nil, err
 		}
-		return &types.ServerMetadata{ActualFee: fee}, nil
+
+		return sm, nil
 	}
 }
 
-func validateUpdateNonFungibleToken(tx *types.TransactionOrder, attr *UpdateNonFungibleTokenAttributes, state *rma.Tree) error {
+func validateUpdateNonFungibleToken(tx *types.TransactionOrder, attr *UpdateNonFungibleTokenAttributes, s *state.State, hashAlgorithm crypto.Hash) error {
 	if len(attr.Data) > dataMaxSize {
 		return fmt.Errorf("data exceeds the maximum allowed size of %v KB", dataMaxSize)
 	}
-	unitID := util.BytesToUint256(tx.UnitID())
-	u, err := state.GetUnit(unitID)
+	unitID := types.UnitID(tx.UnitID())
+	u, err := s.GetUnit(unitID, false)
 	if err != nil {
 		return err
 	}
-	data, ok := u.Data.(*nonFungibleTokenData)
+	data, ok := u.Data().(*nonFungibleTokenData)
 	if !ok {
 		return fmt.Errorf("unit %v is not a non-fungible token type", unitID)
 	}
@@ -62,19 +62,20 @@ func validateUpdateNonFungibleToken(tx *types.TransactionOrder, attr *UpdateNonF
 		return errors.New("invalid backlink")
 	}
 	predicates, err := getChainedPredicates[*nonFungibleTokenTypeData](
-		state,
+		hashAlgorithm,
+		s,
 		data.nftType,
 		func(d *nonFungibleTokenTypeData) []byte {
 			return d.dataUpdatePredicate
 		},
-		func(d *nonFungibleTokenTypeData) *uint256.Int {
+		func(d *nonFungibleTokenTypeData) types.UnitID {
 			return d.parentTypeId
 		},
 	)
 	if err != nil {
 		return err
 	}
-	predicates = append([]Predicate{data.dataUpdatePredicate}, predicates...)
+	predicates = append([]state.Predicate{data.dataUpdatePredicate}, predicates...)
 	sigBytes, err := tx.Payload.BytesWithAttributeSigBytes(attr)
 	if err != nil {
 		return err

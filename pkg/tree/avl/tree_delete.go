@@ -7,7 +7,7 @@ import "fmt"
 //
 // This method should NOT be called concurrently!
 func (t *Tree[K, V]) Delete(key K) error {
-	node, err := delete[K, V](t.root, key)
+	node, err := remove[K, V](t.root, key)
 	if err != nil {
 		return err
 	}
@@ -15,7 +15,7 @@ func (t *Tree[K, V]) Delete(key K) error {
 	return nil
 }
 
-func delete[K Key[K], V Value[V]](node *Node[K, V], key K) (*Node[K, V], error) {
+func remove[K Key[K], V Value[V]](node *Node[K, V], key K) (*Node[K, V], error) {
 	if node == nil {
 		return nil, fmt.Errorf("%w: key %v does not exist", ErrNotFound, key)
 	}
@@ -26,14 +26,14 @@ func delete[K Key[K], V Value[V]](node *Node[K, V], key K) (*Node[K, V], error) 
 	i := node.key.Compare(key)
 	if i > 0 {
 		// go to left subtree
-		left, err := delete(node.left, key)
+		left, err := remove(node.left, key)
 		if err != nil {
 			return nil, err
 		}
 		node.left = left
 	} else if i < 0 {
 		// go to right subtree
-		right, err := delete(node.right, key)
+		right, err := remove(node.right, key)
 		if err != nil {
 			return nil, err
 		}

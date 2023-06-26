@@ -4,7 +4,7 @@ import (
 	"crypto"
 
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
-	"github.com/alphabill-org/alphabill/internal/rma"
+	"github.com/alphabill-org/alphabill/internal/state"
 	"github.com/alphabill-org/alphabill/pkg/logger"
 )
 
@@ -22,9 +22,9 @@ func WithMoneyTXSystemIdentifier(moneyTxSystemID []byte) Option {
 	}
 }
 
-func WithState(state *rma.Tree) Option {
+func WithState(s *state.State) Option {
 	return func(f *FeeCredit) {
-		f.state = state
+		f.state = s
 	}
 }
 

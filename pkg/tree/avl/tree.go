@@ -31,9 +31,12 @@ type (
 // - K is the type of the node's key (e.g. IntKey)
 // - V is the type of the node's data (e.g. any kind of value that implements Value interface)
 func New[K Key[K], V Value[V]]() *Tree[K, V] {
-	return &Tree[K, V]{
-		traverser: &PostOrderCommitTraverser[K, V]{},
-	}
+	return NewWithTraverser[K, V](&PostOrderCommitTraverser[K, V]{})
+}
+
+// NewWithTraverser creates a new AVL tree with a custom Traverser.
+func NewWithTraverser[K Key[K], V Value[V]](traverser Traverser[K, V]) *Tree[K, V] {
+	return &Tree[K, V]{traverser: traverser}
 }
 
 // Clone clones the AVL tree, lazily.
@@ -81,6 +84,13 @@ func (p *PostOrderCommitTraverser[K, V]) Traverse(n *Node[K, V]) error {
 	if err := p.Traverse(n.right); err != nil {
 		return err
 	}
-	n.clean = true
+	p.SetClean(n)
 	return nil
+}
+
+func (p *PostOrderCommitTraverser[K, V]) SetClean(n *Node[K, V]) {
+	if n == nil || n.clean {
+		return
+	}
+	n.clean = true
 }

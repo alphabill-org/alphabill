@@ -5,13 +5,13 @@ import (
 
 	"github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
-	"github.com/alphabill-org/alphabill/internal/rma"
+	"github.com/alphabill-org/alphabill/internal/state"
 	"github.com/alphabill-org/alphabill/internal/txsystem/fc"
 )
 
 type (
 	Options struct {
-		state                    *rma.Tree
+		state                    *state.State
 		hashAlgorithm            gocrypto.Hash
 		trustBase                map[string]crypto.Verifier
 		initialBill              *InitialBill
@@ -26,16 +26,16 @@ type (
 func DefaultOptions() *Options {
 	return &Options{
 		hashAlgorithm: gocrypto.SHA256,
-		state:         rma.NewWithSHA256(),
+		state:         state.NewEmptyState(),
 		trustBase:     make(map[string]crypto.Verifier),
 		dcMoneyAmount: 0,
 		feeCalculator: fc.FixedFee(1),
 	}
 }
 
-func WithState(state *rma.Tree) Option {
+func WithState(s *state.State) Option {
 	return func(g *Options) {
-		g.state = state
+		g.state = s
 	}
 }
 

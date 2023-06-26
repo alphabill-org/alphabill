@@ -44,7 +44,7 @@ var moneySysId = []byte{0, 0, 0, 0}
 func TestCollectDustTimeoutReached(t *testing.T) {
 	// start server
 	initialBill := &moneytx.InitialBill{
-		ID:    uint256.NewInt(1),
+		ID:    util.Uint256ToBytes(uint256.NewInt(1)),
 		Value: 10000 * 1e8,
 		Owner: script.PredicateAlwaysTrue(),
 	}
@@ -69,7 +69,7 @@ func TestCollectDustTimeoutReached(t *testing.T) {
 				DbFile:                  filepath.Join(t.TempDir(), backend.BoltBillStoreFileName),
 				ListBillsPageLimit:      100,
 				InitialBill: backend.InitialBill{
-					Id:        util.Uint256ToBytes(initialBill.ID),
+					Id:        initialBill.ID,
 					Value:     initialBill.Value,
 					Predicate: script.PredicateAlwaysTrue(),
 				},
@@ -95,7 +95,7 @@ func TestCollectDustTimeoutReached(t *testing.T) {
 	// create fee credit for initial bill transfer
 	txFee := fc.FixedFee(1)()
 	fcrAmount := testmoney.FCRAmount
-	transferFC := testmoney.CreateFeeCredit(t, util.Uint256ToBytes(initialBill.ID), abNet)
+	transferFC := testmoney.CreateFeeCredit(t, initialBill.ID, abNet)
 	initialBillBacklink := transferFC.Hash(crypto.SHA256)
 	initialBillValue := initialBill.Value - fcrAmount - txFee
 
@@ -154,7 +154,7 @@ wallet account 2 and 3 should have only single bill
 func TestCollectDustInMultiAccountWallet(t *testing.T) {
 	// start network
 	initialBill := &moneytx.InitialBill{
-		ID:    uint256.NewInt(1),
+		ID:    util.Uint256ToBytes(uint256.NewInt(1)),
 		Value: 10000 * 1e8,
 		Owner: script.PredicateAlwaysTrue(),
 	}
@@ -176,7 +176,7 @@ func TestCollectDustInMultiAccountWallet(t *testing.T) {
 				DbFile:                  filepath.Join(t.TempDir(), backend.BoltBillStoreFileName),
 				ListBillsPageLimit:      100,
 				InitialBill: backend.InitialBill{
-					Id:        util.Uint256ToBytes(initialBill.ID),
+					Id:        initialBill.ID,
 					Value:     initialBill.Value,
 					Predicate: script.PredicateAlwaysTrue(),
 				},
@@ -207,7 +207,7 @@ func TestCollectDustInMultiAccountWallet(t *testing.T) {
 	// create fee credit for initial bill transfer
 	txFee := fc.FixedFee(1)()
 	fcrAmount := testmoney.FCRAmount
-	transferFC := testmoney.CreateFeeCredit(t, util.Uint256ToBytes(initialBill.ID), network)
+	transferFC := testmoney.CreateFeeCredit(t, initialBill.ID, network)
 	initialBillBacklink := transferFC.Hash(crypto.SHA256)
 	initialBillValue := initialBill.Value - fcrAmount - txFee
 
@@ -258,7 +258,7 @@ func TestCollectDustInMultiAccountWallet(t *testing.T) {
 func TestCollectDustInMultiAccountWalletWithKeyFlag(t *testing.T) {
 	// start network
 	initialBill := &moneytx.InitialBill{
-		ID:    uint256.NewInt(1),
+		ID:    util.Uint256ToBytes(uint256.NewInt(1)),
 		Value: 10000 * 1e8,
 		Owner: script.PredicateAlwaysTrue(),
 	}
@@ -280,7 +280,7 @@ func TestCollectDustInMultiAccountWalletWithKeyFlag(t *testing.T) {
 				DbFile:                  filepath.Join(t.TempDir(), backend.BoltBillStoreFileName),
 				ListBillsPageLimit:      100,
 				InitialBill: backend.InitialBill{
-					Id:        util.Uint256ToBytes(initialBill.ID),
+					Id:        initialBill.ID,
 					Value:     initialBill.Value,
 					Predicate: script.PredicateAlwaysTrue(),
 				},
@@ -311,7 +311,7 @@ func TestCollectDustInMultiAccountWalletWithKeyFlag(t *testing.T) {
 	// create fee credit for initial bill transfer
 	txFee := fc.FixedFee(1)()
 	fcrAmount := testmoney.FCRAmount
-	transferFC := testmoney.CreateFeeCredit(t, util.Uint256ToBytes(initialBill.ID), network)
+	transferFC := testmoney.CreateFeeCredit(t, initialBill.ID, network)
 	initialBillBacklink := transferFC.Hash(crypto.SHA256)
 	initialBillValue := initialBill.Value - fcrAmount - txFee
 

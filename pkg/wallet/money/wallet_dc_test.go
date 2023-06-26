@@ -106,7 +106,7 @@ func TestBasicDustCollection(t *testing.T) {
 		require.NotNil(t, dcTx)
 		require.EqualValues(t, expectedDcNonce, dcTx.Nonce)
 		require.EqualValues(t, bills[i].Value, dcTx.TargetValue)
-		require.EqualValues(t, bills[i].TxHash, dcTx.Backlink)
+		require.EqualValues(t, bills[i].TxRecordHash, dcTx.Backlink)
 		require.EqualValues(t, script.PredicatePayToPublicKeyHashDefault(k.PubKeyHash.Sha256), dcTx.TargetBearer)
 	}
 

@@ -90,6 +90,7 @@ type (
 		SetSystemDescriptionRecords(sdrs []*genesis.SystemDescriptionRecord) error
 		GetDCMetadata(nonce []byte) (*DCMetadata, error)
 		SetDCMetadata(nonce []byte, data *DCMetadata) error
+		DeleteDCMetadata(nonce []byte) error
 	}
 
 	p2pkhOwnerPredicates struct {
@@ -286,25 +287,30 @@ func (w *WalletBackend) SendTransactions(ctx context.Context, txs []*types.Trans
 }
 
 func (w *WalletBackend) StoreDCMetadata(txs []*types.TransactionOrder) error {
-	var nonce []byte
-	var billIds [][]byte
-	var dcSum uint64
+	dcMetadataMap := make(map[string]*DCMetadata)
 	for _, tx := range txs {
 		if tx.PayloadType() == money.PayloadTypeTransDC {
 			attrs := &money.TransferDCAttributes{}
 			if err := tx.UnmarshalAttributes(attrs); err != nil {
 				return fmt.Errorf("invalid DC transfer: %w", err)
 			}
-			nonce = attrs.Nonce
-			dcSum += attrs.TargetValue
-			billIds = append(billIds, tx.UnitID())
+			dcMetadata := dcMetadataMap[string(attrs.Nonce)]
+			if dcMetadata == nil {
+				dcMetadata = &DCMetadata{}
+			}
+			dcMetadata.DCSum += attrs.TargetValue
+			dcMetadata.BillIdentifiers = append(dcMetadata.BillIdentifiers, tx.UnitID())
+			dcMetadataMap[string(attrs.Nonce)] = dcMetadata
 		}
 	}
-	if dcSum > 0 {
-		return w.store.Do().SetDCMetadata(nonce, &DCMetadata{BillIdentifiers: billIds, DCSum: dcSum})
+	for nonce, metadata := range dcMetadataMap {
+		err := w.store.Do().SetDCMetadata([]byte(nonce), metadata)
+		if err != nil {
+			return err
+		}
 	}
-	return nil
 
+	return nil
 }
 
 func (w *WalletBackend) GetDCMetadata(nonce []byte) (*DCMetadata, error) {

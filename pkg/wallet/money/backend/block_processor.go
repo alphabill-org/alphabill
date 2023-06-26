@@ -179,6 +179,10 @@ func (p *BlockProcessor) processTx(txr *types.TransactionRecord, b *types.Block,
 				return err
 			}
 		}
+		err = dbTx.DeleteDCMetadata(txo.UnitID())
+		if err != nil {
+			return err
+		}
 	case transactions.PayloadTypeTransferFeeCredit:
 		wlog.Info(fmt.Sprintf("received transferFC order (UnitID=%x)", txo.UnitID()))
 		bill, err := dbTx.GetBill(txo.UnitID())

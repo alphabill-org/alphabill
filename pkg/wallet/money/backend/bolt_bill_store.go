@@ -305,6 +305,12 @@ func (s *BoltBillStoreTx) SetDCMetadata(nonce []byte, data *DCMetadata) error {
 	}, true)
 }
 
+func (s *BoltBillStoreTx) DeleteDCMetadata(nonce []byte) error {
+	return s.withTx(s.tx, func(tx *bolt.Tx) error {
+		return tx.Bucket(dcBucket).Delete(nonce)
+	}, true)
+}
+
 func (s *BoltBillStoreTx) removeUnit(tx *bolt.Tx, unitID []byte) error {
 	unit, err := s.getUnit(tx, unitID)
 	if err != nil {

@@ -469,13 +469,6 @@ func parseIncludeDCBillsQueryParam(r *http.Request, defaultValue bool) (bool, er
 	return defaultValue, nil
 }
 
-func parseIncludeDCMetadataQueryParam(r *http.Request) (bool, error) {
-	if r.URL.Query().Has("includedcmetadata") {
-		return strconv.ParseBool(r.URL.Query().Get("includedcmetadata"))
-	}
-	return false, nil
-}
-
 func parseBillID(r *http.Request) ([]byte, error) {
 	billIdHex := r.URL.Query().Get("bill_id")
 	if billIdHex == "" {

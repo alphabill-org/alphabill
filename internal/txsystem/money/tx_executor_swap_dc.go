@@ -53,13 +53,13 @@ func handleSwapDCTx(s *state.State, hashAlgorithm crypto.Hash, trustBase map[str
 		// set n as the target value
 		n := attr.TargetValue
 		// reduce dc-money supply by n
-		decDustCollectorSupplyFn := func(data state.UnitData) (newData state.UnitData) {
+		decDustCollectorSupplyFn := func(data state.UnitData) (state.UnitData, error) {
 			bd, ok := data.(*BillData)
 			if !ok {
-				return bd
+				return nil, fmt.Errorf("unit %v does not contain bill data", dustCollectorMoneySupplyID)
 			}
 			bd.V -= n
-			return bd
+			return bd, nil
 		}
 		// update state
 		if err := s.Apply(

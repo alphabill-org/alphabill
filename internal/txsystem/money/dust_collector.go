@@ -1,6 +1,8 @@
 package money
 
 import (
+	"fmt"
+
 	abHasher "github.com/alphabill-org/alphabill/internal/hash"
 	"github.com/alphabill-org/alphabill/internal/script"
 	"github.com/alphabill-org/alphabill/internal/state"
@@ -65,13 +67,13 @@ func (d *DustCollector) consolidateDust(currentBlockNumber uint64) error {
 	}
 	if valueToTransfer > 0 {
 		err := d.state.Apply(state.UpdateUnitData(dustCollectorMoneySupplyID,
-			func(data state.UnitData) (newData state.UnitData) {
+			func(data state.UnitData) (state.UnitData, error) {
 				bd, ok := data.(*BillData)
 				if !ok {
-					return bd
+					return nil, fmt.Errorf("unit %v does not contain bill data", dustCollectorMoneySupplyID)
 				}
 				bd.V += valueToTransfer
-				return bd
+				return bd, nil
 			}))
 		if err != nil {
 			return err

@@ -28,18 +28,17 @@ func handleJoinFungibleTokenTx(options *Options) txsystem.GenericExecuteFunc[Joi
 		h := txr.Hash(options.hashAlgorithm)
 		if err := options.state.Apply(
 			state.UpdateUnitData(unitID,
-				func(data state.UnitData) state.UnitData {
+				func(data state.UnitData) (state.UnitData, error) {
 					d, ok := data.(*fungibleTokenData)
 					if !ok {
-						// No change in case of incorrect data type.
-						return data
+						return nil, fmt.Errorf("unit %v does not contain fungible token data", unitID)
 					}
 					return &fungibleTokenData{
 						tokenType: d.tokenType,
 						value:     sum,
 						t:         currentBlockNr,
 						backlink:  h,
-					}
+					}, nil
 				})); err != nil {
 			return nil, err
 		}

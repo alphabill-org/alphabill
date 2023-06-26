@@ -46,18 +46,17 @@ func handleSplitFungibleTokenTx(options *Options) txsystem.GenericExecuteFunc[Sp
 					backlink:  txHash,
 				}),
 			state.UpdateUnitData(unitID,
-				func(data state.UnitData) (newData state.UnitData) {
+				func(data state.UnitData) (state.UnitData, error) {
 					d, ok := data.(*fungibleTokenData)
 					if !ok {
-						// No change in case of incorrect data type.
-						return data
+						return nil, fmt.Errorf("unit %v does not contain fungible token data", unitID)
 					}
 					return &fungibleTokenData{
 						tokenType: d.tokenType,
 						value:     d.value - attr.TargetValue,
 						t:         currentBlockNr,
 						backlink:  txHash,
-					}
+					}, nil
 				})); err != nil {
 			return nil, err
 		}

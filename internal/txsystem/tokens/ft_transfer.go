@@ -28,14 +28,14 @@ func handleTransferFungibleTokenTx(options *Options) txsystem.GenericExecuteFunc
 		if err := options.state.Apply(
 			state.SetOwner(unitID, attr.NewBearer),
 			state.UpdateUnitData(unitID,
-				func(data state.UnitData) (newData state.UnitData) {
+				func(data state.UnitData) (state.UnitData, error) {
 					d, ok := data.(*fungibleTokenData)
 					if !ok {
-						return data
+						return nil, fmt.Errorf("unit %v does not contain fungible token data", unitID)
 					}
 					d.t = currentBlockNr
 					d.backlink = txr.Hash(options.hashAlgorithm)
-					return data
+					return d, nil
 				})); err != nil {
 			return nil, err
 		}

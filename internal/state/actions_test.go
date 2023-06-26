@@ -104,8 +104,8 @@ func TestUpdate(t *testing.T) {
 			name: "not found",
 			args: args{
 				id: []byte{1},
-				f: func(data UnitData) UnitData {
-					return data
+				f: func(data UnitData) (UnitData, error) {
+					return data, nil
 				},
 			},
 			initialState:    newEmptyState(t),
@@ -123,8 +123,8 @@ func TestUpdate(t *testing.T) {
 			name: "ok",
 			args: args{
 				id: []byte{1, 1, 1, 1},
-				f: func(data UnitData) UnitData {
-					return &TestData{Value: 200}
+				f: func(data UnitData) (UnitData, error) {
+					return &TestData{Value: 200}, nil
 				},
 			},
 			initialState: newStateWithUnits(t),

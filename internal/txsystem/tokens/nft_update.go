@@ -28,15 +28,15 @@ func handleUpdateNonFungibleTokenTx(options *Options) txsystem.GenericExecuteFun
 
 		// update state
 		if err := options.state.Apply(
-			state.UpdateUnitData(unitID, func(data state.UnitData) (newData state.UnitData) {
+			state.UpdateUnitData(unitID, func(data state.UnitData) (state.UnitData, error) {
 				d, ok := data.(*nonFungibleTokenData)
 				if !ok {
-					return data
+					return nil, fmt.Errorf("unit %v does not contain non fungible token data", unitID)
 				}
 				d.data = attr.Data
 				d.t = currentBlockNr
 				d.backlink = txr.Hash(options.hashAlgorithm)
-				return data
+				return d, nil
 			})); err != nil {
 			return nil, err
 		}

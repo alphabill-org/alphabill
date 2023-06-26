@@ -89,11 +89,11 @@ func createStateWithUnits(t *testing.T) *State {
 	}
 
 	require.NoError(t, s.Apply(
-		UpdateUnitData(unitID2, func(data UnitData) (newData UnitData) {
-			return &pruneUnitData{i: 22}
+		UpdateUnitData(unitID2, func(data UnitData) (UnitData, error) {
+			return &pruneUnitData{i: 22}, nil
 		}),
-		UpdateUnitData(unitID3, func(data UnitData) (newData UnitData) {
-			return &pruneUnitData{i: 32}
+		UpdateUnitData(unitID3, func(data UnitData) (UnitData, error) {
+			return &pruneUnitData{i: 32}, nil
 		}),
 	))
 

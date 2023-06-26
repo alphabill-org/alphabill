@@ -114,8 +114,8 @@ func TestState_Apply_RevertsChangesAfterActionReturnsError(t *testing.T) {
 	s := NewState(t)
 	require.ErrorContains(t, s.Apply(
 		AddUnit([]byte{0, 0, 0, 1}, test.RandomBytes(20), unitData),
-		UpdateUnitData([]byte{0, 0, 0, 2}, func(data UnitData) (newData UnitData) {
-			return data
+		UpdateUnitData([]byte{0, 0, 0, 2}, func(data UnitData) (UnitData, error) {
+			return data, nil
 		})), "failed to get unit: item 00000002")
 
 	u, err := s.GetUnit([]byte{0, 0, 0, 1}, false)
@@ -225,9 +225,9 @@ func TestState_PruneLog(t *testing.T) {
 	_, err := s.AddUnitLog(unitID, test.RandomBytes(32))
 	require.NoError(t, err)
 
-	require.NoError(t, s.Apply(UpdateUnitData(unitID, func(data UnitData) UnitData {
+	require.NoError(t, s.Apply(UpdateUnitData(unitID, func(data UnitData) (UnitData, error) {
 		data.(*TestData).Value = 100
-		return data
+		return data, nil
 	})))
 	_, err = s.AddUnitLog(unitID, test.RandomBytes(32))
 	require.NoError(t, err)

@@ -26,3 +26,10 @@ func (b *FeeCreditRecord) Value() rma.SummaryValue {
 	// Fee Credit Record value is not included in money invariant.
 	return rma.Uint64SummaryValue(0)
 }
+
+func (b *FeeCreditRecord) GetHash() []byte {
+	if b == nil {
+		return nil
+	}
+	return b.Hash
+}

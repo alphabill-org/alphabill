@@ -68,7 +68,7 @@ func TestWalletBackend_BillsCanBeIndexedByPredicates(t *testing.T) {
 	storage, err := createTestBillStore(t)
 	require.NoError(t, err)
 
-	err = storage.Do().SetFeeCreditBill(fcb)
+	err = storage.Do().SetFeeCreditBill(fcb, nil)
 	require.NoError(t, err)
 
 	getBlockNumber := func() (uint64, error) { return storage.Do().GetBlockNumber() }
@@ -121,12 +121,11 @@ func TestGetBills_OK(t *testing.T) {
 		Value:          txValue,
 		TxHash:         txHash,
 		OwnerPredicate: bearer,
-		TxProof: &wallet.Proof{
-			TxRecord: &types.TransactionRecord{TransactionOrder: tx},
-			TxProof:  &types.TxProof{UnicityCertificate: &types.UnicityCertificate{InputRecord: &types.InputRecord{RoundNumber: 1}}},
-		},
 	}
-	err = store.Do().SetBill(b)
+	err = store.Do().SetBill(b, &wallet.Proof{
+		TxRecord: &types.TransactionRecord{TransactionOrder: tx},
+		TxProof:  &types.TxProof{UnicityCertificate: &types.UnicityCertificate{InputRecord: &types.InputRecord{RoundNumber: 1}}},
+	})
 	require.NoError(t, err)
 
 	// verify bill can be queried by id
@@ -160,7 +159,7 @@ func TestGetBills_SHA512_OK(t *testing.T) {
 		Value:          txValue,
 		OwnerPredicate: bearer,
 	}
-	err = store.Do().SetBill(b)
+	err = store.Do().SetBill(b, nil)
 	require.NoError(t, err)
 
 	// verify bill can be queried by pubkey

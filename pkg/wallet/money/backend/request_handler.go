@@ -1,7 +1,6 @@
 package backend
 
 import (
-	"bytes"
 	"errors"
 	"fmt"
 	"io"
@@ -199,22 +198,17 @@ func (api *moneyRestAPI) getTxProof(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	bill, err := api.getBill(unitID)
+	proof, err := api.Service.GetTxProof(unitID, txHash)
 	if err != nil {
-		api.rw.WriteErrorResponse(w, fmt.Errorf("failed to load bill (id 0x%X): %w", unitID, err))
+		api.rw.WriteErrorResponse(w, fmt.Errorf("failed to load proof of tx 0x%X (unit 0x%X): %w", txHash, unitID, err))
 		return
 	}
-	if bill == nil {
-		log.Debug("error on GET /proof: ", err)
-		api.rw.ErrorResponse(w, http.StatusNotFound, fmt.Errorf("bill (id 0x%X) does not exist", unitID))
-		return
-	}
-	log.Info(fmt.Sprintf("getTxProof: bill.TxHash: %x, txHash: %x", bill.TxHash, txHash))
-	if !bytes.Equal(bill.TxHash, txHash) {
+	if proof == nil {
 		api.rw.ErrorResponse(w, http.StatusNotFound, fmt.Errorf("no proof found for tx 0x%X (unit 0x%X)", txHash, unitID))
 		return
 	}
-	api.rw.WriteCborResponse(w, bill.TxProof)
+
+	api.rw.WriteCborResponse(w, proof)
 }
 
 // getBill returns "normal" or "fee credit" bill for given id,

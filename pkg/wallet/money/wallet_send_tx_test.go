@@ -22,9 +22,8 @@ func TestWalletSendFunction(t *testing.T) {
 		billId:    uint256.NewInt(0),
 		billValue: 50,
 		feeCreditBill: &wallet.Bill{
-			Id:      []byte{},
-			Value:   100 * 1e8,
-			TxProof: &wallet.Proof{},
+			Id:    []byte{},
+			Value: 100 * 1e8,
 		}}))
 	validPubKey := make([]byte, 33)
 	amount := uint64(50)
@@ -63,9 +62,8 @@ func TestWalletSendFunction_ClientError(t *testing.T) {
 		billId:    uint256.NewInt(0),
 		billValue: 50,
 		feeCreditBill: &wallet.Bill{
-			Id:      []byte{},
-			Value:   100 * 1e8,
-			TxProof: &wallet.Proof{},
+			Id:    []byte{},
+			Value: 100 * 1e8,
 		},
 		postTransactionsResponse: map[string]string{"message": "some error"},
 	}))
@@ -109,9 +107,8 @@ func TestWalletSendFunction_WaitForConfirmation(t *testing.T) {
 		getFeeCreditBill: func(ctx context.Context, unitID []byte) (*wallet.Bill, error) {
 			ac, _ := w.am.GetAccountKey(0)
 			return &wallet.Bill{
-				Id:      ac.PrivKeyHash,
-				Value:   100 * 1e8,
-				TxProof: &wallet.Proof{},
+				Id:    ac.PrivKeyHash,
+				Value: 100 * 1e8,
 			}, nil
 		},
 		postTransactions: func(ctx context.Context, pubKey wallet.PubKey, txs *wallet.Transactions) error {
@@ -174,7 +171,7 @@ func TestWalletSendFunction_WaitForMultipleTxConfirmations(t *testing.T) {
 			}
 		},
 		getFeeCreditBill: func(ctx context.Context, unitID []byte) (*wallet.Bill, error) {
-			return &wallet.Bill{Id: []byte{}, Value: 100 * 1e8, TxProof: &wallet.Proof{}}, nil
+			return &wallet.Bill{Id: []byte{}, Value: 100 * 1e8}, nil
 		},
 		postTransactions: func(ctx context.Context, pubKey wallet.PubKey, txs *wallet.Transactions) error {
 			for _, tx := range txs.Transactions {
@@ -238,7 +235,7 @@ func TestWalletSendFunction_WaitForMultipleTxConfirmationsInDifferentBlocks(t *t
 		},
 		getFeeCreditBill: func(ctx context.Context, unitID []byte) (*wallet.Bill, error) {
 			ac, _ := w.am.GetAccountKey(0)
-			return &wallet.Bill{Id: ac.PrivKeyHash, Value: 100 * 1e8, TxProof: &wallet.Proof{}}, nil
+			return &wallet.Bill{Id: ac.PrivKeyHash, Value: 100 * 1e8}, nil
 		},
 		postTransactions: func(ctx context.Context, pubKey wallet.PubKey, txs *wallet.Transactions) error {
 			for _, tx := range txs.Transactions {
@@ -276,7 +273,7 @@ func TestWalletSendFunction_ErrTxFailedToConfirm(t *testing.T) {
 			return []*wallet.Bill{{Id: b.GetID(), Value: b.Value, TxHash: b.TxHash}}, nil
 		},
 		getFeeCreditBill: func(ctx context.Context, unitID []byte) (*wallet.Bill, error) {
-			return &wallet.Bill{Id: []byte{}, Value: 100 * 1e8, TxProof: &wallet.Proof{}}, nil
+			return &wallet.Bill{Id: []byte{}, Value: 100 * 1e8}, nil
 		},
 		getTxProof: func(ctx context.Context, unitID wallet.UnitID, txHash wallet.TxHash) (*wallet.Proof, error) {
 			return nil, nil
@@ -317,7 +314,7 @@ func TestWholeBalanceIsSentUsingBillTransferOrder(t *testing.T) {
 			return []*wallet.Bill{{Id: b.GetID(), Value: b.Value, TxHash: b.TxHash}}, nil
 		},
 		getFeeCreditBill: func(ctx context.Context, unitID []byte) (*wallet.Bill, error) {
-			return &wallet.Bill{Id: []byte{}, Value: 100 * 1e8, TxProof: &wallet.Proof{}}, nil
+			return &wallet.Bill{Id: []byte{}, Value: 100 * 1e8}, nil
 		},
 		getTxProof: func(ctx context.Context, unitID wallet.UnitID, txHash wallet.TxHash) (*wallet.Proof, error) {
 			return nil, nil

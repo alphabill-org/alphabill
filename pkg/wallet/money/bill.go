@@ -1,9 +1,6 @@
 package money
 
 import (
-	"crypto"
-
-	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/holiman/uint256"
@@ -37,14 +34,13 @@ func (b *Bill) GetID() []byte {
 	return nil
 }
 
-func (b *Bill) ToGenericBill() *wallet.Bill {
-	return &wallet.Bill{
+func (b *Bill) ToGenericBillProof() *wallet.BillProof {
+	return &wallet.BillProof{Bill: &wallet.Bill{
 		Id:          b.GetID(),
 		Value:       b.Value,
 		TxHash:      b.TxHash,
-		TxProof:     b.TxProof,
 		AddFCTxHash: b.AddFCTxHash,
-	}
+	}, TxProof: b.TxProof}
 }
 
 // isExpired returns true if dcBill, that was left unswapped, should be deleted
@@ -52,14 +48,14 @@ func (b *Bill) isExpired(blockHeight uint64) bool {
 	return b.IsDcBill && blockHeight >= b.DcExpirationTimeout
 }
 
-func (b *Bill) addProof(txIdx int, bl *types.Block) error {
-	proof, err := wallet.NewTxProof(txIdx, bl, crypto.SHA256)
-	if err != nil {
-		return err
-	}
-	b.TxProof = proof
-	return nil
-}
+//func (b *Bill) addProof(txIdx int, bl *types.Block) error {
+//	proof, err := wallet.NewTxProof(txIdx, bl, crypto.SHA256)
+//	if err != nil {
+//		return err
+//	}
+//	b.TxProof = proof
+//	return nil
+//}
 
 func (b *Bill) GetTxHash() []byte {
 	if b != nil {

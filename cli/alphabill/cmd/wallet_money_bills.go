@@ -193,7 +193,7 @@ func execExportCmd(cmd *cobra.Command, config *walletConfig) error {
 		return err
 	}
 
-	var bills []*wallet.Bill
+	var bills []*wallet.BillProof
 	for _, b := range billsList.Bills {
 		// export bill using --bill-id if present
 		if len(billID) > 0 && !bytes.Equal(billID, b.Id) {
@@ -206,10 +206,10 @@ func execExportCmd(cmd *cobra.Command, config *walletConfig) error {
 		if proof == nil {
 			return fmt.Errorf("proof not found for bill 0x%X", billID)
 		}
-		bills = append(bills, &wallet.Bill{Id: b.Id, Value: b.Value, IsDcBill: b.IsDCBill, TxHash: b.TxHash, TxProof: proof})
+		bills = append(bills, &wallet.BillProof{Bill: &wallet.Bill{Id: b.Id, Value: b.Value, IsDcBill: b.IsDCBill, TxHash: b.TxHash}, TxProof: proof})
 	}
 
-	outputFile, err := writeBillsToFile(outputPath, bills...)
+	outputFile, err := writeProofsToFile(outputPath, bills...)
 	if err != nil {
 		return err
 	}
@@ -217,10 +217,10 @@ func execExportCmd(cmd *cobra.Command, config *walletConfig) error {
 	return nil
 }
 
-// writeBillsToFile writes bill(s) to given directory.
+// writeProofsToFile writes bill(s) to given directory.
 // Creates outputDir if it does not already exist. Returns output file.
-func writeBillsToFile(outputDir string, bills ...*wallet.Bill) (string, error) {
-	outputFile, err := getOutputFile(outputDir, bills)
+func writeProofsToFile(outputDir string, proofs ...*wallet.BillProof) (string, error) {
+	outputFile, err := getOutputFile(outputDir, proofs)
 	if err != nil {
 		return "", err
 	}
@@ -228,7 +228,7 @@ func writeBillsToFile(outputDir string, bills ...*wallet.Bill) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	err = wallet.WriteBillsFile(outputFile, &wallet.Bills{Bills: bills})
+	err = wallet.WriteBillsFile(outputFile, proofs)
 	if err != nil {
 		return "", err
 	}
@@ -236,7 +236,7 @@ func writeBillsToFile(outputDir string, bills ...*wallet.Bill) (string, error) {
 }
 
 // getOutputFile returns filename either bill-<bill-id-hex>.json or bills.json
-func getOutputFile(outputDir string, bills []*wallet.Bill) (string, error) {
+func getOutputFile(outputDir string, bills []*wallet.BillProof) (string, error) {
 	switch len(bills) {
 	case 0:
 		return "", errors.New("no bills to export")

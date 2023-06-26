@@ -2,7 +2,6 @@ package backend
 
 import (
 	"context"
-	"crypto"
 	"encoding/hex"
 	"fmt"
 	"math/rand"
@@ -18,7 +17,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/script"
 	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/pkg/client"
-	"github.com/alphabill-org/alphabill/pkg/wallet"
+	sdk "github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/alphabill-org/alphabill/pkg/wallet/account"
 	"github.com/alphabill-org/alphabill/pkg/wallet/blocksync"
 	wlog "github.com/alphabill-org/alphabill/pkg/wallet/log"
@@ -36,11 +35,12 @@ type (
 		GetFeeCreditBill(unitID []byte) (*Bill, error)
 		GetRoundNumber(ctx context.Context) (uint64, error)
 		SendTransactions(ctx context.Context, txs []*types.TransactionOrder) map[string]string
+		GetTxProof(unitID sdk.UnitID, txHash sdk.TxHash) (*sdk.Proof, error)
 	}
 
 	WalletBackend struct {
 		store         BillStore
-		genericWallet *wallet.Wallet
+		genericWallet *sdk.Wallet
 	}
 
 	Bills struct {
@@ -48,12 +48,12 @@ type (
 	}
 
 	Bill struct {
-		Id             []byte        `json:"id"`
-		Value          uint64        `json:"value"`
-		TxHash         []byte        `json:"txHash"`
-		IsDCBill       bool          `json:"isDcBill,omitempty"`
-		TxProof        *wallet.Proof `json:"txProof"`
-		OwnerPredicate []byte        `json:"ownerPredicate"`
+		Id       []byte `json:"id"`
+		Value    uint64 `json:"value"`
+		TxHash   []byte `json:"txHash"`
+		IsDCBill bool   `json:"isDcBill,omitempty"`
+		//TxProof        *wallet.Proof `json:"txProof"`
+		OwnerPredicate []byte `json:"ownerPredicate"`
 
 		// fcb specific fields
 		// AddFCTxHash last add fee credit tx hash
@@ -77,14 +77,15 @@ type (
 		SetBlockNumber(blockNumber uint64) error
 		GetBill(unitID []byte) (*Bill, error)
 		GetBills(ownerCondition []byte) ([]*Bill, error)
-		SetBill(bill *Bill) error
+		SetBill(bill *Bill, proof *sdk.Proof) error
 		RemoveBill(unitID []byte) error
 		SetBillExpirationTime(blockNumber uint64, unitID []byte) error
 		DeleteExpiredBills(blockNumber uint64) error
 		GetFeeCreditBill(unitID []byte) (*Bill, error)
-		SetFeeCreditBill(fcb *Bill) error
+		SetFeeCreditBill(fcb *Bill, proof *sdk.Proof) error
 		GetSystemDescriptionRecords() ([]*genesis.SystemDescriptionRecord, error)
 		SetSystemDescriptionRecords(sdrs []*genesis.SystemDescriptionRecord) error
+		GetTxProof(unitID sdk.UnitID, txHash sdk.TxHash) (*sdk.Proof, error)
 	}
 
 	p2pkhOwnerPredicates struct {
@@ -110,7 +111,7 @@ type (
 )
 
 func Run(ctx context.Context, config *Config) error {
-	store, err := NewBoltBillStore(config.DbFile)
+	store, err := newBoltBillStore(config.DbFile)
 	if err != nil {
 		return fmt.Errorf("failed to get storage: %w", err)
 	}
@@ -131,7 +132,7 @@ func Run(ctx context.Context, config *Config) error {
 			Id:             ib.Id,
 			Value:          ib.Value,
 			OwnerPredicate: ib.Predicate,
-		})
+		}, nil)
 		if err != nil {
 			return fmt.Errorf("failed to store initial bill: %w", err)
 		}
@@ -144,7 +145,7 @@ func Run(ctx context.Context, config *Config) error {
 			err = txc.SetBill(&Bill{
 				Id:             sdr.FeeCreditBill.UnitId,
 				OwnerPredicate: sdr.FeeCreditBill.OwnerPredicate,
-			})
+			}, nil)
 			if err != nil {
 				return err
 			}
@@ -160,10 +161,10 @@ func Run(ctx context.Context, config *Config) error {
 	g, ctx := errgroup.WithContext(ctx)
 
 	g.Go(func() error {
-		walletBackend := &WalletBackend{store: store, genericWallet: wallet.New().SetABClient(abc).Build()}
+		walletBackend := &WalletBackend{store: store, genericWallet: sdk.New().SetABClient(abc).Build()}
 		defer walletBackend.genericWallet.Shutdown()
 
-		handler := &moneyRestAPI{Service: walletBackend, ListBillsPageLimit: config.ListBillsPageLimit, rw: &wallet.ResponseWriter{LogErr: wlog.Error}}
+		handler := &moneyRestAPI{Service: walletBackend, ListBillsPageLimit: config.ListBillsPageLimit, rw: &sdk.ResponseWriter{LogErr: wlog.Error}}
 		server := http.Server{
 			Addr:              config.ServerAddr,
 			Handler:           handler.Router(),
@@ -232,6 +233,10 @@ func (w *WalletBackend) GetBill(unitID []byte) (*Bill, error) {
 	return w.store.Do().GetBill(unitID)
 }
 
+func (w *WalletBackend) GetTxProof(unitID sdk.UnitID, txHash sdk.TxHash) (*sdk.Proof, error) {
+	return w.store.Do().GetTxProof(unitID, txHash)
+}
+
 // GetFeeCreditBill returns most recently seen fee credit bill with given unit id.
 func (w *WalletBackend) GetFeeCreditBill(unitID []byte) (*Bill, error) {
 	return w.store.Do().GetFeeCreditBill(unitID)
@@ -275,33 +280,22 @@ func (w *WalletBackend) SendTransactions(ctx context.Context, txs []*types.Trans
 	return errs
 }
 
-func (b *Bill) ToGenericBill() *wallet.Bill {
-	return &wallet.Bill{
+func (b *Bill) ToGenericBill() *sdk.Bill {
+	return &sdk.Bill{
 		Id:          b.Id,
 		Value:       b.Value,
 		TxHash:      b.TxHash,
 		IsDcBill:    b.IsDCBill,
-		TxProof:     b.TxProof,
 		AddFCTxHash: b.AddFCTxHash,
 	}
 }
 
-func (b *Bill) ToGenericBills() *wallet.Bills {
-	return &wallet.Bills{
-		Bills: []*wallet.Bill{
+func (b *Bill) ToGenericBills() *sdk.Bills {
+	return &sdk.Bills{
+		Bills: []*sdk.Bill{
 			b.ToGenericBill(),
 		},
 	}
-}
-
-func (b *Bill) addProof(txIdx int, bl *types.Block) error {
-	proof, err := wallet.NewTxProof(txIdx, bl, crypto.SHA256)
-	if err != nil {
-		return err
-
-	}
-	b.TxProof = proof
-	return nil
 }
 
 func (b *Bill) getTxHash() []byte {

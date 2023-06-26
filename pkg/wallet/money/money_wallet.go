@@ -386,9 +386,9 @@ func (w *Wallet) swapDcBills(ctx context.Context, dcBills []*Bill, dcNonce []byt
 		return ErrInsufficientFeeCredit
 	}
 
-	var bpBills []*wallet.Bill
+	var bpBills []*wallet.BillProof
 	for _, b := range dcBills {
-		bpBills = append(bpBills, &wallet.Bill{Id: b.GetID(), Value: b.Value, TxProof: b.TxProof})
+		bpBills = append(bpBills, &wallet.BillProof{Bill: &wallet.Bill{Id: b.GetID(), Value: b.Value}, TxProof: b.TxProof})
 	}
 	swapTx, err := tx_builder.NewSwapTx(k, w.SystemID(), bpBills, dcNonce, billIds, timeout)
 	if err != nil {
@@ -516,10 +516,10 @@ func getBillIds(bills []*Bill) [][]byte {
 }
 
 // converts proto wallet.Bill to money.Bill domain struct
-func convertBill(b *wallet.Bill) *Bill {
+func convertBill(b *wallet.Bill, p *wallet.Proof) *Bill {
 	if b.IsDcBill {
 		attrs := &money.TransferDCAttributes{}
-		if err := b.TxProof.TxRecord.TransactionOrder.UnmarshalAttributes(attrs); err != nil {
+		if err := p.TxRecord.TransactionOrder.UnmarshalAttributes(attrs); err != nil {
 			return nil
 		}
 		return &Bill{
@@ -528,8 +528,7 @@ func convertBill(b *wallet.Bill) *Bill {
 			TxHash:    b.TxHash,
 			IsDcBill:  b.IsDcBill,
 			DcNonce:   attrs.Nonce,
-			DcTimeout: b.TxProof.TxRecord.TransactionOrder.Timeout(),
-			TxProof:   b.TxProof,
+			DcTimeout: p.TxRecord.TransactionOrder.Timeout(),
 		}
 	}
 	return &Bill{
@@ -537,6 +536,5 @@ func convertBill(b *wallet.Bill) *Bill {
 		Value:    b.Value,
 		TxHash:   b.TxHash,
 		IsDcBill: b.IsDcBill,
-		TxProof:  b.TxProof,
 	}
 }

@@ -51,7 +51,26 @@ func withBills(bills ...*Bill) option {
 	return func(s *WalletBackend) error {
 		return s.store.WithTransaction(func(tx BillStoreTx) error {
 			for _, bill := range bills {
-				err := tx.SetBill(bill)
+				err := tx.SetBill(bill, nil)
+				if err != nil {
+					return err
+				}
+			}
+			return nil
+		})
+	}
+}
+
+type billProof struct {
+	bill  *Bill
+	proof *sdk.Proof
+}
+
+func withBillProofss(bills ...*billProof) option {
+	return func(s *WalletBackend) error {
+		return s.store.WithTransaction(func(tx BillStoreTx) error {
+			for _, bill := range bills {
+				err := tx.SetBill(bill.bill, bill.proof)
 				if err != nil {
 					return err
 				}
@@ -72,7 +91,7 @@ func withFeeCreditBills(bills ...*Bill) option {
 	return func(s *WalletBackend) error {
 		return s.store.WithTransaction(func(tx BillStoreTx) error {
 			for _, bill := range bills {
-				err := tx.SetFeeCreditBill(bill)
+				err := tx.SetFeeCreditBill(bill, nil)
 				if err != nil {
 					return err
 				}
@@ -362,16 +381,16 @@ func TestProofRequest_Ok(t *testing.T) {
 		Value:          1,
 		TxHash:         txHash,
 		OwnerPredicate: getOwnerPredicate(pubkeyHex),
-		TxProof: &sdk.Proof{
-			TxRecord: tr,
-			TxProof: &types.TxProof{
-				BlockHeaderHash:    []byte{0},
-				Chain:              []*types.GenericChainItem{{Hash: []byte{0}}},
-				UnicityCertificate: &types.UnicityCertificate{InputRecord: &types.InputRecord{RoundNumber: 1}},
-			},
+	}
+	p := &sdk.Proof{
+		TxRecord: tr,
+		TxProof: &types.TxProof{
+			BlockHeaderHash:    []byte{0},
+			Chain:              []*types.GenericChainItem{{Hash: []byte{0}}},
+			UnicityCertificate: &types.UnicityCertificate{InputRecord: &types.InputRecord{RoundNumber: 1}},
 		},
 	}
-	walletBackend := newWalletBackend(t, withBills(b))
+	walletBackend := newWalletBackend(t, withBillProofss(&billProof{b, p}))
 	port := startServer(t, walletBackend)
 
 	response := &sdk.Proof{}
@@ -380,9 +399,9 @@ func TestProofRequest_Ok(t *testing.T) {
 	require.Equal(t, http.StatusOK, httpRes.StatusCode)
 	require.Equal(t, b.TxHash, response.TxRecord.TransactionOrder.Hash(crypto.SHA256))
 	//
-	require.Equal(t, b.TxProof.TxProof.UnicityCertificate.GetRoundNumber(), response.TxProof.UnicityCertificate.GetRoundNumber())
-	require.EqualValues(t, b.TxProof.TxRecord.TransactionOrder.UnitID(), response.TxRecord.TransactionOrder.UnitID())
-	require.EqualValues(t, b.TxProof.TxProof.BlockHeaderHash, response.TxProof.BlockHeaderHash)
+	require.Equal(t, p.TxProof.UnicityCertificate.GetRoundNumber(), response.TxProof.UnicityCertificate.GetRoundNumber())
+	require.EqualValues(t, p.TxRecord.TransactionOrder.UnitID(), response.TxRecord.TransactionOrder.UnitID())
+	require.EqualValues(t, p.TxProof.BlockHeaderHash, response.TxProof.BlockHeaderHash)
 }
 
 func TestProofRequest_InvalidBillIdLength(t *testing.T) {
@@ -418,7 +437,7 @@ func TestProofRequest_ProofDoesNotExist(t *testing.T) {
 	httpRes, err := testhttp.DoGetJson(fmt.Sprintf("http://localhost:%d/api/v1/units/%s/transactions/0x00/proof", port, billId), res)
 	require.NoError(t, err)
 	require.Equal(t, http.StatusNotFound, httpRes.StatusCode)
-	require.Contains(t, res.Message, fmt.Sprintf("bill (id %s) does not exist", billId))
+	require.Contains(t, res.Message, fmt.Sprintf("no proof found for tx 0x00 (unit %s)", billId))
 }
 
 func TestBlockHeightRequest_Ok(t *testing.T) {
@@ -456,14 +475,14 @@ func TestGetFeeCreditBillRequest_Ok(t *testing.T) {
 		Value:          1,
 		TxHash:         []byte{0},
 		OwnerPredicate: getOwnerPredicate(pubkeyHex),
-		TxProof: &sdk.Proof{
-			TxRecord: testtransaction.NewTransactionRecord(t),
-			TxProof: &types.TxProof{
-				BlockHeaderHash: []byte{0},
-				Chain:           []*types.GenericChainItem{{Hash: []byte{0}}},
-			},
-		},
 	}
+	//p := &sdk.Proof{
+	//	TxRecord: testtransaction.NewTransactionRecord(t),
+	//	TxProof: &types.TxProof{
+	//		BlockHeaderHash: []byte{0},
+	//		Chain:           []*types.GenericChainItem{{Hash: []byte{0}}},
+	//	},
+	//}
 	walletBackend := newWalletBackend(t, withFeeCreditBills(b))
 	port := startServer(t, walletBackend)
 
@@ -476,11 +495,11 @@ func TestGetFeeCreditBillRequest_Ok(t *testing.T) {
 	require.Equal(t, b.TxHash, response.TxHash)
 	require.Equal(t, b.IsDCBill, response.IsDcBill)
 
-	ep := b.TxProof
-	ap := response.TxProof
-	require.Equal(t, ep.TxProof.UnicityCertificate.GetRoundNumber(), ap.TxProof.UnicityCertificate.GetRoundNumber())
-	require.EqualValues(t, ep.TxRecord.TransactionOrder.UnitID(), ap.TxRecord.TransactionOrder.UnitID())
-	require.EqualValues(t, ep.TxProof.BlockHeaderHash, ap.TxProof.BlockHeaderHash)
+	//ep := b.TxProof
+	//ap := response.TxProof
+	//require.Equal(t, ep.TxProof.UnicityCertificate.GetRoundNumber(), ap.TxProof.UnicityCertificate.GetRoundNumber())
+	//require.EqualValues(t, ep.TxRecord.TransactionOrder.UnitID(), ap.TxRecord.TransactionOrder.UnitID())
+	//require.EqualValues(t, ep.TxProof.BlockHeaderHash, ap.TxProof.BlockHeaderHash)
 }
 
 func TestGetFeeCreditBillRequest_InvalidBillIdLength(t *testing.T) {

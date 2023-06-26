@@ -252,11 +252,11 @@ func execSendCmd(ctx context.Context, cmd *cobra.Command, config *walletConfig) 
 		consoleWriter.Println("Successfully confirmed transaction(s)")
 		if outputPath != "" {
 			// convert wallet.Proofs to wallet.Bills, TODO: alternatively remove bill export as it's deprecated functionality
-			var outputBills []*wallet.Bill
+			var outputBills []*wallet.BillProof
 			for _, b := range proofs {
-				outputBills = append(outputBills, &wallet.Bill{Id: b.TxRecord.TransactionOrder.UnitID(), TxHash: b.TxRecord.TransactionOrder.Hash(crypto.SHA256), TxProof: b})
+				outputBills = append(outputBills, &wallet.BillProof{Bill: &wallet.Bill{Id: b.TxRecord.TransactionOrder.UnitID(), TxHash: b.TxRecord.TransactionOrder.Hash(crypto.SHA256)}, TxProof: b})
 			}
-			outputFile, err := writeBillsToFile(outputPath, outputBills...)
+			outputFile, err := writeProofsToFile(outputPath, outputBills...)
 			if err != nil {
 				return err
 			}

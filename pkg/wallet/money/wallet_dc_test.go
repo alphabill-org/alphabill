@@ -66,9 +66,8 @@ func TestDustCollectionMaxBillCount(t *testing.T) {
 		getFeeCreditBill: func(ctx context.Context, unitID []byte) (*wallet.Bill, error) {
 			k, _ := am.GetAccountKey(0)
 			return &wallet.Bill{
-				Id:      k.PrivKeyHash,
-				Value:   100 * 1e8,
-				TxProof: &wallet.Proof{},
+				Id:    k.PrivKeyHash,
+				Value: 100 * 1e8,
 			}, nil
 		},
 		postTransactions: func(ctx context.Context, pubKey wallet.PubKey, txs *wallet.Transactions) error {
@@ -141,9 +140,8 @@ func TestDustCollectionMaxBillCountOverLimit(t *testing.T) {
 		getFeeCreditBill: func(ctx context.Context, unitID []byte) (*wallet.Bill, error) {
 			k, _ := am.GetAccountKey(0)
 			return &wallet.Bill{
-				Id:      k.PrivKeyHash,
-				Value:   100 * 1e8,
-				TxProof: &wallet.Proof{},
+				Id:    k.PrivKeyHash,
+				Value: 100 * 1e8,
 			}, nil
 		},
 		postTransactions: func(ctx context.Context, pubKey wallet.PubKey, txs *wallet.Transactions) error {
@@ -209,9 +207,8 @@ func TestBasicDustCollection(t *testing.T) {
 		getFeeCreditBill: func(ctx context.Context, unitID []byte) (*wallet.Bill, error) {
 			k, _ := am.GetAccountKey(0)
 			return &wallet.Bill{
-				Id:      k.PrivKeyHash,
-				Value:   100 * 1e8,
-				TxProof: &wallet.Proof{},
+				Id:    k.PrivKeyHash,
+				Value: 100 * 1e8,
 			}, nil
 		},
 		postTransactions: func(ctx context.Context, pubKey wallet.PubKey, txs *wallet.Transactions) error {
@@ -293,9 +290,8 @@ func TestDustCollectionWithSwap(t *testing.T) {
 		getFeeCreditBill: func(ctx context.Context, unitID []byte) (*wallet.Bill, error) {
 			k, _ := am.GetAccountKey(0)
 			return &wallet.Bill{
-				Id:      k.PrivKeyHash,
-				Value:   100 * 1e8,
-				TxProof: &wallet.Proof{},
+				Id:    k.PrivKeyHash,
+				Value: 100 * 1e8,
 			}, nil
 		},
 		postTransactions: func(ctx context.Context, pubKey wallet.PubKey, txs *wallet.Transactions) error {
@@ -370,9 +366,8 @@ func TestSwapWithExistingDCBillsBeforeDCTimeout(t *testing.T) {
 		getFeeCreditBill: func(ctx context.Context, unitID []byte) (*wallet.Bill, error) {
 			k, _ := am.GetAccountKey(0)
 			return &wallet.Bill{
-				Id:      k.PrivKeyHash,
-				Value:   100 * 1e8,
-				TxProof: &wallet.Proof{},
+				Id:    k.PrivKeyHash,
+				Value: 100 * 1e8,
 			}, nil
 		},
 		postTransactions: func(ctx context.Context, pubKey wallet.PubKey, txs *wallet.Transactions) error {
@@ -439,9 +434,8 @@ func TestSwapWithExistingExpiredDCBills(t *testing.T) {
 		getFeeCreditBill: func(ctx context.Context, unitID []byte) (*wallet.Bill, error) {
 			k, _ := am.GetAccountKey(0)
 			return &wallet.Bill{
-				Id:      k.PrivKeyHash,
-				Value:   100 * 1e8,
-				TxProof: &wallet.Proof{},
+				Id:    k.PrivKeyHash,
+				Value: 100 * 1e8,
 			}, nil
 		},
 		postTransactions: func(ctx context.Context, pubKey wallet.PubKey, txs *wallet.Transactions) error {
@@ -513,9 +507,9 @@ func TestSwapTxValuesAreCalculatedInCorrectBillOrder(t *testing.T) {
 		dcBillIds = append(dcBillIds, dcBill.GetID())
 	}
 
-	var protoDcBills []*wallet.Bill
+	var protoDcBills []*wallet.BillProof
 	for _, b := range dcBills {
-		protoDcBills = append(protoDcBills, b.ToGenericBill())
+		protoDcBills = append(protoDcBills, b.ToGenericBillProof())
 	}
 
 	swapTxOrder, err := txbuilder.NewSwapTx(k, w.SystemID(), protoDcBills, dcNonce, dcBillIds, 10)
@@ -565,9 +559,8 @@ func TestSwapContainsUnconfirmedDustBillIds(t *testing.T) {
 		getFeeCreditBill: func(ctx context.Context, unitID []byte) (*wallet.Bill, error) {
 			k, _ := am.GetAccountKey(0)
 			return &wallet.Bill{
-				Id:      k.PrivKeyHash,
-				Value:   100 * 1e8,
-				TxProof: &wallet.Proof{},
+				Id:    k.PrivKeyHash,
+				Value: 100 * 1e8,
 			}, nil
 		},
 		postTransactions: func(ctx context.Context, pubKey wallet.PubKey, txs *wallet.Transactions) error {
@@ -644,9 +637,8 @@ func TestBlockingDcWithNormalBills(t *testing.T) {
 		getFeeCreditBill: func(ctx context.Context, unitID []byte) (*wallet.Bill, error) {
 			k, _ := am.GetAccountKey(0)
 			return &wallet.Bill{
-				Id:      k.PrivKeyHash,
-				Value:   100 * 1e8,
-				TxProof: &wallet.Proof{},
+				Id:    k.PrivKeyHash,
+				Value: 100 * 1e8,
 			}, nil
 		},
 		postTransactions: func(ctx context.Context, pubKey wallet.PubKey, txs *wallet.Transactions) error {
@@ -709,9 +701,8 @@ func TestBlockingDCWithExistingExpiredDCBills(t *testing.T) {
 		getFeeCreditBill: func(ctx context.Context, unitID []byte) (*wallet.Bill, error) {
 			k, _ := am.GetAccountKey(0)
 			return &wallet.Bill{
-				Id:      k.PrivKeyHash,
-				Value:   100 * 1e8,
-				TxProof: &wallet.Proof{},
+				Id:    k.PrivKeyHash,
+				Value: 100 * 1e8,
 			}, nil
 		},
 		postTransactions: func(ctx context.Context, pubKey wallet.PubKey, txs *wallet.Transactions) error {
@@ -767,7 +758,7 @@ func addDcBill(t *testing.T, k *account.AccountKey, id *uint256.Int, nonce []byt
 		TxProof: &wallet.Proof{},
 	}
 
-	tx, err := txbuilder.NewDustTx(k, []byte{0, 0, 0, 0}, b.ToGenericBill(), nonce, timeout)
+	tx, err := txbuilder.NewDustTx(k, []byte{0, 0, 0, 0}, b.ToGenericBillProof().Bill, nonce, timeout)
 	require.NoError(t, err)
 	b.TxProof = &wallet.Proof{TxRecord: &types.TransactionRecord{TransactionOrder: tx}}
 

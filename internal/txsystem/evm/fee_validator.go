@@ -43,7 +43,6 @@ func checkFeeAccountBalance(state *rma.Tree) txsystem.GenericTransactionValidato
 				return fmt.Errorf("invalid owner proof: %w", err)
 			}
 		}
-		// todo: To be defined: TX is either deploy or call SC
 		return nil
 	}
 }

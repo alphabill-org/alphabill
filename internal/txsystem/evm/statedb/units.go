@@ -23,6 +23,7 @@ type Account struct {
 	Nonce    uint64
 }
 
+// AlphaBillLink links Account to AB bill
 type AlphaBillLink struct {
 	Bearer  []byte
 	UnitID  []byte

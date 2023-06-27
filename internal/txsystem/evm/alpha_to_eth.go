@@ -38,11 +38,12 @@ func getAddressFromPredicateArg(predArg []byte) (common.Address, error) {
 	return generateAddress(pubKey)
 }
 
+// 10^-8 or 10 µ alpha = 1 mia
 // 1 ETH = 1 ALPHA, from that ETH/ALPHA = 1 and also 10^18 wei / 10^8 mia = 1
 // That means 1 mia = 10^10 wei and 1 wei = 10^-10 mia
 
 // alphaToWei - converts from alpha to wei, assuming 1:1 exchange
-// 1 wei = mia / 10^10
+// 1 wei = 1 mia / 10^10
 func alphaToWei(alpha uint64) *big.Int {
 	amount := decimal.NewFromFloat(float64(alpha))
 	result := amount.Mul(alpha2Wei)

@@ -3,7 +3,6 @@ package backend
 import (
 	"bytes"
 	"context"
-	"embed"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -51,9 +50,6 @@ type restAPI struct {
 
 const maxResponseItems = 100
 
-//go:embed swagger/*
-var swaggerFiles embed.FS
-
 func (api *restAPI) endpoints() http.Handler {
 	apiRouter := mux.NewRouter().StrictSlash(true).PathPrefix("/api").Subrouter()
 
@@ -78,9 +74,19 @@ func (api *restAPI) endpoints() http.Handler {
 	apiV1.HandleFunc("/units/{unitId}/transactions/{txHash}/proof", api.getTxProof).Methods("GET", "OPTIONS")
 	apiV1.HandleFunc("/fee-credit-bills/{unitId}", api.getFeeCreditBill).Methods("GET", "OPTIONS")
 
-	apiV1.Handle("/swagger/{.*}", http.StripPrefix("/api/v1/", http.FileServer(http.FS(swaggerFiles)))).Methods("GET", "OPTIONS")
+	apiV1.Handle("/swagger/swagger-initializer.js", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		initializer := "swagger/swagger-initializer-tokens.js"
+		f, err := wallet.SwaggerFiles.ReadFile(initializer)
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			fmt.Fprintf(w, "failed to read %v file: %v", initializer, err)
+			return
+		}
+		http.ServeContent(w, r, "swagger-initializer.js", time.Time{}, bytes.NewReader(f))
+	})).Methods("GET", "OPTIONS")
+	apiV1.Handle("/swagger/{.*}", http.StripPrefix("/api/v1/", http.FileServer(http.FS(wallet.SwaggerFiles)))).Methods("GET", "OPTIONS")
 	apiV1.Handle("/swagger/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		f, err := swaggerFiles.ReadFile("swagger/index.html")
+		f, err := wallet.SwaggerFiles.ReadFile("swagger/index.html")
 		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
 			fmt.Fprintf(w, "failed to read swagger/index.html file: %v", err)

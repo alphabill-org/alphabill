@@ -1,6 +1,7 @@
 package backend
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -8,16 +9,15 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
+	"time"
 
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/fxamacker/cbor/v2"
 	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
-	httpSwagger "github.com/swaggo/http-swagger"
 
 	"github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/alphabill-org/alphabill/pkg/wallet/log"
-	_ "github.com/alphabill-org/alphabill/pkg/wallet/money/backend/docs"
 )
 
 const (
@@ -88,27 +88,30 @@ func (s *RequestHandler) Router() *mux.Router {
 	apiV1.HandleFunc("/fee-credit-bills/{billId}", s.getFeeCreditBillFunc).Methods("GET", "OPTIONS")
 	apiV1.HandleFunc("/transactions/{pubkey}", s.postTransactions).Methods("POST", "OPTIONS")
 
-	apiV1.PathPrefix("/swagger/").Handler(httpSwagger.Handler(
-		httpSwagger.URL("/api/v1/swagger/doc.json"), //The url pointing to API definition
-		httpSwagger.DeepLinking(true),
-		httpSwagger.DocExpansion("list"),
-		httpSwagger.DomID("swagger-ui"),
-	)).Methods(http.MethodGet)
+	apiV1.Handle("/swagger/swagger-initializer.js", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		initializer := "swagger/swagger-initializer-money.js"
+		f, err := wallet.SwaggerFiles.ReadFile(initializer)
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			fmt.Fprintf(w, "failed to read %v file: %v", initializer, err)
+			return
+		}
+		http.ServeContent(w, r, "swagger-initializer.js", time.Time{}, bytes.NewReader(f))
+	})).Methods("GET", "OPTIONS")
+	apiV1.Handle("/swagger/{.*}", http.StripPrefix("/api/v1/", http.FileServer(http.FS(wallet.SwaggerFiles)))).Methods("GET", "OPTIONS")
+	apiV1.Handle("/swagger/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		f, err := wallet.SwaggerFiles.ReadFile("swagger/index.html")
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			fmt.Fprintf(w, "failed to read swagger/index.html file: %v", err)
+			return
+		}
+		http.ServeContent(w, r, "index.html", time.Time{}, bytes.NewReader(f))
+	})).Methods("GET", "OPTIONS")
 
 	return router
 }
 
-// @Summary List bills
-// @Id 1
-// @version 1.0
-// @produce application/json
-// @Param pubkey query string true "Public key prefixed with 0x" example(0x000000000000000000000000000000000000000000000000000000000000000123)
-// @Param limit query int false "limits how many bills are returned in response" default(100)
-// @Param offset query int false "response will include bills starting after offset" default(0)
-// @Success 200 {object} ListBillsResponse
-// @Failure 400 {object} ErrorResponse
-// @Failure 500
-// @Router /list-bills [get]
 func (s *RequestHandler) listBillsFunc(w http.ResponseWriter, r *http.Request) {
 	pk, err := parsePubKeyQueryParam(r)
 	if err != nil {
@@ -154,15 +157,6 @@ func (s *RequestHandler) listBillsFunc(w http.ResponseWriter, r *http.Request) {
 	writeAsJson(w, res)
 }
 
-// @Summary Get balance
-// @Id 2
-// @version 1.0
-// @produce application/json
-// @Param pubkey query string true "Public key prefixed with 0x"
-// @Success 200 {object} BalanceResponse
-// @Failure 400 {object} ErrorResponse
-// @Failure 500
-// @Router /balance [get]
 func (s *RequestHandler) balanceFunc(w http.ResponseWriter, r *http.Request) {
 	pk, err := parsePubKeyQueryParam(r)
 	if err != nil {
@@ -192,16 +186,6 @@ func (s *RequestHandler) balanceFunc(w http.ResponseWriter, r *http.Request) {
 	writeAsJson(w, res)
 }
 
-// @Summary Get proof
-// @Id 3
-// @version 1.0
-// @produce application/json
-// @Param bill_id query string true "ID of the bill (hex)"
-// @Success 200 {object} wallet.Bills
-// @Failure 400 {object} ErrorResponse
-// @Failure 404 {object} ErrorResponse
-// @Failure 500
-// @Router /proof [get]
 func (s *RequestHandler) getProofFunc(w http.ResponseWriter, r *http.Request) {
 	billID, err := parseBillID(r)
 	if err != nil {
@@ -256,12 +240,6 @@ func (s *RequestHandler) handlePubKeyNotFoundError(w http.ResponseWriter, err er
 	}
 }
 
-// @Summary Money partition's latest block number
-// @Id 4
-// @version 1.0
-// @produce application/json
-// @Success 200 {object} RoundNumberResponse
-// @Router /round-number [get]
 func (s *RequestHandler) blockHeightFunc(w http.ResponseWriter, r *http.Request) {
 	lastRoundNumber, err := s.Service.GetRoundNumber(r.Context())
 	if err != nil {
@@ -272,13 +250,6 @@ func (s *RequestHandler) blockHeightFunc(w http.ResponseWriter, r *http.Request)
 	}
 }
 
-// @Summary Get Fee Credit Bill
-// @Id 5
-// @version 1.0
-// @produce application/json
-// @Param billId path string true "ID of the bill (hex)"
-// @Success 200 {object} wallet.Bill
-// @Router /fee-credit-bills [get]
 func (s *RequestHandler) getFeeCreditBillFunc(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	billID, err := decodeBillIdHex(vars["billId"])
@@ -307,14 +278,6 @@ func (s *RequestHandler) getFeeCreditBillFunc(w http.ResponseWriter, r *http.Req
 	writeAsJson(w, fcb.ToGenericBill())
 }
 
-// @Summary Forward transactions to partition node(s)
-// @Id 6
-// @Version 1.0
-// @Accept application/cbor
-// @Param pubkey path string true "Sender public key prefixed with 0x"
-// @Param transactions body nil true "CBOR encoded array of TransactionOrders"
-// @Success 202
-// @Router /transactions [post]
 func (s *RequestHandler) postTransactions(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
 	buf, err := io.ReadAll(r.Body)

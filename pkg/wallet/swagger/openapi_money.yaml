@@ -1,0 +1,207 @@
+openapi: 3.1.0
+info:
+  title: Money Partition Indexing Backend API
+  description: |-
+    Money partition indexing backend processes blocks from the money
+    partition and indexes ownership of the bills. This API provides
+    access to the indexed data.
+  version: '1.0'
+servers:
+  - url: /api/v1
+  - url: http://localhost:{port}/api/v1
+    variables:
+      port:
+        default: '9654'
+paths:
+  /round-number:
+    get:
+      summary: Get the latest round number of the money partition
+      description: |-
+        Returns the round number of the latest certified round known
+        to the partition node which indexing backend is connected
+        to. Useful for calculating transaction timeout values.
+      responses:
+        '200':
+          description: successful operation
+          content:
+            application/json:
+              schema:
+                $ref: 'components.yaml#/schemas/RoundNumberResponse'
+        '500':
+          $ref: 'components.yaml#/responses/ErrorResponse'
+  /balance:
+    get:
+      summary: Get the balance for a single public key
+      description: |-
+        Returns the sum of all bills owned by the given public key.
+      parameters:
+        - description: Public key prefixed with 0x
+          in: query
+          name: pubkey
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: successful operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BalanceResponse'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: 'components.yaml#/schemas/ErrorResponse'
+        '500':
+          description: Internal Server Error
+  /list-bills:
+    get:
+      summary: List bills owned by a public key
+      description: |-
+        Returns all bills owned by the given public key.
+      parameters:
+        - description: Public key prefixed with 0x
+          example: '0x000000000000000000000000000000000000000000000000000000000000000123'
+          in: query
+          name: pubkey
+          required: true
+          schema:
+            type: string
+        - description: limits how many bills are returned in response
+          in: query
+          name: limit
+          schema:
+            type: integer
+            default: 100
+        - description: response will include bills starting after offset
+          in: query
+          name: offset
+          schema:
+            type: integer
+            default: 0
+      responses:
+        '200':
+          description: successful operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ListBillsResponse'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: 'components.yaml#/schemas/ErrorResponse'
+        '500':
+          description: Internal Server Error
+  /proof:
+    get:
+      summary: Get a bill and its latest transaction proof by bill ID
+      description: |-
+        Returns the bill together with the latest transaction proof
+        for it.
+      parameters:
+        - description: ID of the bill (hex)
+          in: query
+          name: bill_id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: successful operation
+          content:
+            application/json:
+              schema:
+                $ref: 'components.yaml#/schemas/wallet.Bills'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: 'components.yaml#/schemas/ErrorResponse'
+        '404':
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: 'components.yaml#/schemas/ErrorResponse'
+        '500':
+          description: Internal Server Error
+  /fee-credit-bills:
+    get:
+      summary: Get a fee credit bill and its latest transaction proof by bill ID
+      description: |-
+        Returns the fee credit bill together with the latest
+        transaction proof for it.
+      parameters:
+        - description: ID of the bill (hex)
+          in: path
+          name: billId
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: successful operation
+          content:
+            application/json:
+              schema:
+                $ref: 'components.yaml#/schemas/wallet.Bill'
+  /transactions:
+    post:
+      summary: Forward transactions to partition node
+      description: |-
+        Allows to send raw CBOR encoded transactions to partition node.
+      parameters:
+        - description: Sender public key prefixed with 0x
+          in: path
+          name: pubkey
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/cbor: {}
+        description: CBOR encoded array of TransactionOrders
+        required: true
+      responses:
+        '202':
+          description: Accepted
+components:
+  schemas:
+    BalanceResponse:
+      type: object
+      properties:
+        balance:
+          type: string
+          example: '0'
+    ListBillsResponse:
+      type: object
+      properties:
+        bills:
+          type: array
+          items:
+            $ref: '#/components/schemas/ListBillsItem'
+        total:
+          example: 5
+          type: integer
+    ListBillsItem:
+      type: object
+      properties:
+        id:
+          type: string
+          example: AAAAAAgwv3UA1HfGO4qc1T3I3EOvqxfcrhMjJpr9Tn4=
+          format: base64
+        isDcBill:
+          type: boolean
+          example: false
+        txHash:
+          type: string
+          example: Q4ShCITC0ODXPR+j1Zl/teYcoU3/mAPy0x8uSsvQFM8=
+          format: base64
+        value:
+          type: string
+          example: '999'

@@ -57,6 +57,9 @@ func (d *txSystem) StateSummary() (txsystem.State, error) {
 func (d *txSystem) BeginBlock(blockNumber uint64) {
 	d.currentBlockNumber = blockNumber
 }
+func (d *txSystem) ValidatorGeneratedTransactions() ([]*types.TransactionRecord, error) {
+	return nil, nil
+}
 
 func (d *txSystem) EndBlock() (txsystem.State, error) {
 	return d.getState(), nil
@@ -66,8 +69,8 @@ func (d *txSystem) Revert() {
 	d.stateTree.Revert()
 }
 
-func (d *txSystem) Commit() {
-	d.stateTree.Commit()
+func (d *txSystem) Commit() error {
+	return d.stateTree.Commit()
 }
 
 func (d *txSystem) Execute(tx *types.TransactionOrder) (*types.ServerMetadata, error) {

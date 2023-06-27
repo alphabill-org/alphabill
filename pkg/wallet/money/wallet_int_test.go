@@ -353,9 +353,17 @@ func TestCollectDustInMultiAccountWalletWithKeyFlag(t *testing.T) {
 
 	// verify that there is only one swap tx, and it belongs to account number 3
 	b, _ := moneyPart.Nodes[0].GetLatestBlock()
-	require.Len(t, b.Transactions, 1)
+	var swapDCTx *types.TransactionRecord
+	for _, tx := range b.Transactions {
+		if tx.TransactionOrder.PayloadType() == moneytx.PayloadTypeSwapDC {
+			if swapDCTx != nil {
+				require.Fail(t, "found multiple swapDC transactions")
+			}
+			swapDCTx = tx
+		}
+	}
 	attrs := &moneytx.SwapDCAttributes{}
-	err = b.Transactions[0].TransactionOrder.UnmarshalAttributes(attrs)
+	err = swapDCTx.TransactionOrder.UnmarshalAttributes(attrs)
 	require.NoError(t, err)
 	k, _ := am.GetAccountKey(2)
 	require.EqualValues(t, script.PredicatePayToPublicKeyHashDefault(k.PubKeyHash.Sha256), attrs.OwnerCondition)

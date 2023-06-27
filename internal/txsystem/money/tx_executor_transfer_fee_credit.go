@@ -48,15 +48,15 @@ func handleTransferFeeCreditTx(s *state.State, hashAlgorithm crypto.Hash, feeCre
 		var action state.Action
 		v := attr.Amount + fee
 		if v < billData.V {
-			action = state.UpdateUnitData(unitID, func(data state.UnitData) (newData state.UnitData) {
+			action = state.UpdateUnitData(unitID, func(data state.UnitData) (state.UnitData, error) {
 				newBillData, ok := data.(*BillData)
 				if !ok {
-					return data // TODO should return error instead
+					return nil, fmt.Errorf("unit %v does not contain bill data", unitID)
 				}
 				newBillData.V -= v
 				newBillData.T = currentBlockNumber
 				newBillData.Backlink = txr.Hash(hashAlgorithm)
-				return newBillData
+				return newBillData, nil
 			})
 		} else {
 			action = state.DeleteUnit(unitID)

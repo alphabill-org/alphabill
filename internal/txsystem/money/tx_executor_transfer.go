@@ -65,14 +65,15 @@ func validateAnyTransfer(data state.UnitData, backlink []byte, targetValue uint6
 }
 
 func updateBillDataFunc(tx *types.TransactionRecord, currentBlockNumber uint64, hashAlgorithm crypto.Hash) state.Action {
-	return state.UpdateUnitData(tx.TransactionOrder.UnitID(),
-		func(data state.UnitData) (newData state.UnitData) {
+	unitID := tx.TransactionOrder.UnitID()
+	return state.UpdateUnitData(unitID,
+		func(data state.UnitData) (state.UnitData, error) {
 			bd, ok := data.(*BillData)
 			if !ok {
-				return data // TODO return error
+				return nil, fmt.Errorf("unit %v does not contain bill data", unitID)
 			}
 			bd.T = currentBlockNumber
 			bd.Backlink = tx.Hash(hashAlgorithm)
-			return bd
+			return bd, nil
 		})
 }

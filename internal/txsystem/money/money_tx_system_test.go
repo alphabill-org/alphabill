@@ -161,7 +161,7 @@ func TestExecute_SplitOk(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, sm)
 
-	splitOkTransacrionRecord := &types.TransactionRecord{
+	splitOkTransactionRecord := &types.TransactionRecord{
 		TransactionOrder: splitOk,
 		ServerMetadata:   sm,
 	}
@@ -186,7 +186,7 @@ func TestExecute_SplitOk(t *testing.T) {
 	require.NotNil(t, newBill)
 	require.NotNil(t, bd)
 	require.Equal(t, amount, bd.V)
-	require.EqualValues(t, splitOkTransacrionRecord.Hash(crypto.SHA256), bd.Backlink)
+	require.EqualValues(t, splitOkTransactionRecord.Hash(crypto.SHA256), bd.Backlink)
 	require.Equal(t, state.Predicate(splitAttr.TargetBearer), newBill.Bearer())
 	require.Equal(t, roundNumber, bd.T)
 }

@@ -49,15 +49,15 @@ func handleReclaimFeeCreditTx(s *state.State, hashAlgorithm crypto.Hash, trustBa
 
 		// add reclaimed value to source unit
 		v := closeFCAttr.Amount - closeFeeCreditTransfer.ServerMetadata.ActualFee - fee
-		updateFunc := func(data state.UnitData) (newData state.UnitData) {
+		updateFunc := func(data state.UnitData) (state.UnitData, error) {
 			newBillData, ok := data.(*BillData)
 			if !ok {
-				return data // TODO should return error instead
+				return nil, fmt.Errorf("unit %v does not contain bill data", unitID)
 			}
 			newBillData.V += v
 			newBillData.T = currentBlockNumber
 			newBillData.Backlink = txr.Hash(hashAlgorithm)
-			return newBillData
+			return newBillData, nil
 		}
 		updateAction := state.UpdateUnitData(unitID, updateFunc)
 

@@ -61,6 +61,10 @@ func (m *CounterTxSystem) BeginBlock(_ uint64) {
 	m.ExecuteCountDelta = 0
 }
 
+func (m *CounterTxSystem) ValidatorGeneratedTransactions() ([]*types.TransactionRecord, error) {
+	return nil, nil
+}
+
 func (m *CounterTxSystem) Revert() {
 	logger.Debug("CounterTxSystem: Revert()")
 	m.ExecuteCountDelta = 0
@@ -83,11 +87,12 @@ func (m *CounterTxSystem) EndBlock() (txsystem.State, error) {
 	}, nil
 }
 
-func (m *CounterTxSystem) Commit() {
+func (m *CounterTxSystem) Commit() error {
 	logger.Debug("CounterTxSystem: Commit()")
 	m.ExecuteCount += m.ExecuteCountDelta
 	m.EndBlockCount += m.EndBlockCountDelta
 	m.BeginBlockCount += m.BeginBlockCountDelta
+	return nil
 }
 
 func (m *CounterTxSystem) Execute(_ *types.TransactionOrder) (*types.ServerMetadata, error) {

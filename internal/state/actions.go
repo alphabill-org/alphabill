@@ -21,7 +21,7 @@ type (
 	Action func(s ShardState, hashAlgorithm crypto.Hash) error
 
 	// UpdateFunction is a function for updating the data of an item. Taken in previous UnitData and returns new UnitData.
-	UpdateFunction func(data UnitData) (newData UnitData)
+	UpdateFunction func(data UnitData) (newData UnitData, err error)
 )
 
 // AddUnit adds a new unit with given identifier, owner condition, unit data.
@@ -68,7 +68,11 @@ func UpdateUnitData(id types.UnitID, f UpdateFunction) Action {
 		}
 
 		cloned := u.Clone()
-		cloned.data = f(cloned.data)
+		newData, err := f(cloned.data)
+		if err != nil {
+			return fmt.Errorf("unable to update unit data: %w", err)
+		}
+		cloned.data = newData
 		if err = s.Update(id, cloned); err != nil {
 			return fmt.Errorf("unable to update unit: %w", err)
 		}

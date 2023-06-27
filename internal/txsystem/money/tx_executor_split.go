@@ -44,16 +44,16 @@ func handleSplitTx(s *state.State, hashAlgorithm crypto.Hash, feeCalc fc.FeeCalc
 		// update state
 		if err := s.Apply(
 			state.UpdateUnitData(unitID,
-				func(data state.UnitData) (newData state.UnitData) {
+				func(data state.UnitData) (state.UnitData, error) {
 					bd, ok := data.(*BillData)
 					if !ok {
-						return data // todo return error
+						return nil, fmt.Errorf("unit %v does not contain bill data", unitID)
 					}
 					return &BillData{
 						V:        bd.V - attr.Amount,
 						T:        currentBlockNumber,
 						Backlink: h,
-					}
+					}, nil
 				}),
 			state.AddUnit(newItemID, attr.TargetBearer, &BillData{
 				V:        attr.Amount,

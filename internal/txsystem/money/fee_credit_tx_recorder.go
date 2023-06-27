@@ -108,14 +108,13 @@ func (f *feeCreditTxRecorder) consolidateFees() error {
 			return err
 		}
 		updateData := state.UpdateUnitData(fcUnitID,
-			func(data state.UnitData) (newData state.UnitData) {
+			func(data state.UnitData) (state.UnitData, error) {
 				bd, ok := data.(*BillData)
 				if !ok {
-					// TODO updateData should return error
-					return data
+					return nil, fmt.Errorf("unit %v does not contain bill data", fcUnitID)
 				}
 				bd.V = bd.V + addedCredit - reclaimedCredit
-				return bd
+				return bd, nil
 			})
 		err = f.state.Apply(updateData)
 		if err != nil {
@@ -132,14 +131,13 @@ func (f *feeCreditTxRecorder) consolidateFees() error {
 			return fmt.Errorf("could not find money fee credit bill: %w", err)
 		}
 		updateData := state.UpdateUnitData(moneyFCUnitID,
-			func(data state.UnitData) (newData state.UnitData) {
+			func(data state.UnitData) (state.UnitData, error) {
 				bd, ok := data.(*BillData)
 				if !ok {
-					// TODO updateData should return error
-					return data
+					return nil, fmt.Errorf("unit %v does not contain bill data", moneyFCUnitID)
 				}
 				bd.V = bd.V + spentFeeSum
-				return bd
+				return bd, nil
 			})
 		err = f.state.Apply(updateData)
 		if err != nil {

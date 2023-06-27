@@ -18,21 +18,25 @@ func BenchmarkCallContract(b *testing.B) {
 	state := rma.NewWithSHA256()
 	from := test.RandomBytes(20)
 	stateDB := statedb.NewStateDB(state)
-
+	fromAddr := common.BytesToAddress(from)
+	stateDB.CreateAccount(fromAddr)
+	stateDB.AddBalance(fromAddr, big.NewInt(1000000000000000000)) // add 1 ETH
 	_, err := execute(1, stateDB, &TxAttributes{
-		From:  from,
+		From:  fromAddr.Bytes(),
 		Data:  common.Hex2Bytes(counterContractCode),
+		Gas:   10000000,
 		Value: big.NewInt(0),
 	}, systemIdentifier)
 	require.NoError(b, err)
+	scAddr := evmcrypto.CreateAddress(common.BytesToAddress(from), 0)
 	cABI, err := abi.JSON(bytes.NewBuffer([]byte(counterABI)))
 	require.NoError(b, err)
-	addr := evmcrypto.CreateAddress(common.BytesToAddress(from), 0)
 	inc := cABI.Methods["increment"]
 	callContract := &TxAttributes{
 		From:  from,
-		To:    addr.Bytes(),
+		To:    scAddr.Bytes(),
 		Data:  inc.ID,
+		Gas:   10000000,
 		Value: big.NewInt(0),
 	}
 	b.ResetTimer()

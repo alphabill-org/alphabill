@@ -14,6 +14,7 @@ type (
 	TimeoutCalculator interface {
 		GetNextTimeout(roundIndexAfterCommit uint64) time.Duration
 	}
+
 	// ExponentialTimeInterval exponential back-off
 	// base * exponentBase^"commit gap"
 	// If max exponent is set to 0, then it will output constant value (base)
@@ -50,10 +51,6 @@ type (
 	}
 )
 
-func (x *Pacemaker) LastRoundTC() *abtypes.TimeoutCert {
-	return x.lastRoundTC
-}
-
 func (x ExponentialTimeInterval) GetNextTimeout(roundsAfterLastCommit uint64) time.Duration {
 	exp := util.Min(uint64(x.maxExponent), roundsAfterLastCommit)
 	mul := math.Pow(x.exponentBase, float64(exp))
@@ -76,9 +73,15 @@ func NewPacemaker(lastRound uint64, localTimeout time.Duration, bRate time.Durat
 	}
 }
 
-func (x *Pacemaker) clear() {
-	x.voteSent = nil
-	x.timeoutVote = nil
+// Reset is meant to be used by recovery procedure to reset pacemaker's round.
+func (x *Pacemaker) Reset(highQCRound uint64) {
+	x.lastQcToCommitRound = highQCRound
+	x.lastRoundTC = nil
+	x.startNewRound(highQCRound + 1)
+}
+
+func (x *Pacemaker) LastRoundTC() *abtypes.TimeoutCert {
+	return x.lastRoundTC
 }
 
 func (x *Pacemaker) GetCurrentRound() uint64 {
@@ -192,7 +195,8 @@ func (x *Pacemaker) AdvanceRoundTC(tc *abtypes.TimeoutCert) {
 // startNewRound - starts new round, sets new round number, resets all stores and
 // calculates the new round timeout
 func (x *Pacemaker) startNewRound(round uint64) {
-	x.clear()
+	x.voteSent = nil
+	x.timeoutVote = nil
 	x.lastViewChange = time.Now()
 	x.currentRound = round
 	x.pendingVotes.Reset()

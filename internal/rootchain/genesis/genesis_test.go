@@ -255,14 +255,14 @@ func TestNewGenesis_Ok(t *testing.T) {
 
 	partition := createPartition(t, id, "1", partitionSigner)
 	require.NoError(t, err)
+
 	rootChainSigner, err := crypto.NewInMemorySecp256K1Signer()
-	require.NoError(t, err)
-	//rootChainVerifier, err := rootChainSigner.Verifier()
 	require.NoError(t, err)
 
 	_, verifier := testsig.CreateSignerAndVerifier(t)
 	rootPubKeyBytes, err := verifier.MarshalPublicKey()
 	require.NoError(t, err)
+
 	rg, ps, err := NewRootGenesis("test", rootChainSigner, rootPubKeyBytes, []*genesis.PartitionRecord{partition})
 	require.NoError(t, err)
 	require.NotNil(t, rg)
@@ -294,7 +294,6 @@ func TestNewGenesis_ConsensusNotPossible(t *testing.T) {
 	}
 	partition.Validators = append(partition.Validators, pr)
 
-	require.NoError(t, err)
 	rootChainSigner, err := crypto.NewInMemorySecp256K1Signer()
 	require.NoError(t, err)
 	_, encPubKey := testsig.CreateSignerAndVerifier(t)
@@ -309,6 +308,7 @@ func TestNewGenesisFromPartitionNodes_Ok(t *testing.T) {
 	partitionSigner, err := crypto.NewInMemorySecp256K1Signer()
 	require.NoError(t, err)
 	partitionSigner2, err := crypto.NewInMemorySecp256K1Signer()
+	require.NoError(t, err)
 
 	pn1 := createPartitionNode(t, id, "1", partitionSigner)
 	pn2 := createPartitionNode(t, id, "2", partitionSigner2)

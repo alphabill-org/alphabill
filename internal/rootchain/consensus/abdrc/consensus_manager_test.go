@@ -9,25 +9,25 @@ import (
 	"testing"
 	"time"
 
-	"github.com/alphabill-org/alphabill/internal/network"
-	"github.com/alphabill-org/alphabill/internal/network/protocol/abdrc"
-	abtypes "github.com/alphabill-org/alphabill/internal/rootchain/consensus/abdrc/types"
-	"github.com/alphabill-org/alphabill/internal/types"
 	p2pcrypto "github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/exp/slices"
 
 	"github.com/alphabill-org/alphabill/internal/crypto"
+	"github.com/alphabill-org/alphabill/internal/network"
 	p "github.com/alphabill-org/alphabill/internal/network/protocol"
+	"github.com/alphabill-org/alphabill/internal/network/protocol/abdrc"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/certification"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/internal/rootchain/consensus"
+	abtypes "github.com/alphabill-org/alphabill/internal/rootchain/consensus/abdrc/types"
 	rootgenesis "github.com/alphabill-org/alphabill/internal/rootchain/genesis"
 	"github.com/alphabill-org/alphabill/internal/rootchain/partitions"
 	"github.com/alphabill-org/alphabill/internal/rootchain/testutils"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	testnetwork "github.com/alphabill-org/alphabill/internal/testutils/network"
+	"github.com/alphabill-org/alphabill/internal/types"
 )
 
 var partitionID = types.SystemID{0, 0xFF, 0, 1}
@@ -222,7 +222,7 @@ func TestIRChangeRequestFromRootValidator_RootTimeout(t *testing.T) {
 	// this will immediately trigger timeout certificate for the round
 	// the following must be true now:
 	// round is advanced
-	require.Equal(t, uint64(4), cm.pacemaker.currentRound)
+	require.Equal(t, uint64(4), cm.pacemaker.GetCurrentRound())
 	// only changes from round 3 are removed, rest will still be active
 	require.True(t, cm.blockStore.IsChangeInProgress(p.SystemIdentifier(partitionID)))
 	// await the next proposal as well, the proposal must contain TC

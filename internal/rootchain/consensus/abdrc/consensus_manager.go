@@ -7,6 +7,9 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/libp2p/go-libp2p/core/peer"
+	"golang.org/x/exp/slices"
+
 	"github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/network"
 	p "github.com/alphabill-org/alphabill/internal/network/protocol"
@@ -19,8 +22,6 @@ import (
 	"github.com/alphabill-org/alphabill/internal/rootchain/partitions"
 	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/internal/util"
-	"github.com/libp2p/go-libp2p/core/peer"
-	"golang.org/x/exp/slices"
 )
 
 type (
@@ -43,6 +44,21 @@ type (
 		Update(qc *abtypes.QuorumCert, currentRound uint64) error
 	}
 
+	PaceMaker interface {
+		GetCurrentRound() uint64
+		GetRoundTimeout() time.Duration
+		CalcTimeTilNextProposal() time.Duration
+		SetVoted(vote *abdrc.VoteMsg)
+		GetTimeoutVote() *abdrc.TimeoutMsg
+		SetTimeoutVote(vote *abdrc.TimeoutMsg)
+		RegisterVote(vote *abdrc.VoteMsg, quorum QuorumInfo) (*abtypes.QuorumCert, error)
+		RegisterTimeoutVote(vote *abdrc.TimeoutMsg, quorum QuorumInfo) (*abtypes.TimeoutCert, error)
+		AdvanceRoundQC(qc *abtypes.QuorumCert) bool
+		AdvanceRoundTC(tc *abtypes.TimeoutCert)
+		LastRoundTC() *abtypes.TimeoutCert
+		Reset(highQCRound uint64)
+	}
+
 	ConsensusManager struct {
 		certReqCh      chan consensus.IRChangeRequest
 		certResultCh   chan *types.UnicityCertificate
@@ -50,7 +66,7 @@ type (
 		id             peer.ID
 		localTimeout   *time.Ticker
 		net            RootNet
-		pacemaker      *Pacemaker
+		pacemaker      PaceMaker
 		leaderSelector Leader
 		trustBase      *RootTrustBase
 		irReqBuffer    *IrReqBuffer
@@ -203,10 +219,6 @@ func (x *ConsensusManager) loop(ctx context.Context) error {
 					x.id.ShortString())
 				return fmt.Errorf("exit drc consensus, network channel closed")
 			}
-			if msg.Message == nil {
-				logger.Warning("%v root network received message is nil", x.id.ShortString())
-				continue
-			}
 			switch mt := msg.Message.(type) {
 			case *abtypes.IRChangeReq:
 				util.WriteTraceJsonLog(logger, fmt.Sprintf("IR Change Request from %v", msg.From), mt)
@@ -278,14 +290,13 @@ func (x *ConsensusManager) onLocalTimeout() {
 func (x *ConsensusManager) onPartitionIRChangeReq(req *consensus.IRChangeRequest) {
 	logger.Debug("%v round %v, IR change request from partition",
 		x.id.String(), x.pacemaker.GetCurrentRound())
-	reason := abtypes.Quorum
-	if req.Reason == consensus.QuorumNotPossible {
-		reason = abtypes.QuorumNotPossible
-	}
 	irReq := &abtypes.IRChangeReq{
 		SystemIdentifier: req.SystemIdentifier,
-		CertReason:       reason,
+		CertReason:       abtypes.Quorum,
 		Requests:         req.Requests,
+	}
+	if req.Reason == consensus.QuorumNotPossible {
+		irReq.CertReason = abtypes.QuorumNotPossible
 	}
 	// are we the next leader or leader in current round waiting/throttling to send proposal
 	nextRound := x.pacemaker.GetCurrentRound() + 1
@@ -311,7 +322,7 @@ func (x *ConsensusManager) onPartitionIRChangeReq(req *consensus.IRChangeRequest
 // onIRChange handles IR change request from other root nodes
 func (x *ConsensusManager) onIRChange(irChangeMsg *abtypes.IRChangeReq) {
 	if err := irChangeMsg.IsValid(); err != nil {
-		logger.Debug("Receive IR change request is invalid, %w", err)
+		logger.Debug("Receive IR change request is invalid: %v", err)
 		return
 	}
 	currentLeader := x.leaderSelector.GetLeaderForRound(x.pacemaker.GetCurrentRound())
@@ -369,6 +380,8 @@ func (x *ConsensusManager) onVoteMsg(ctx context.Context, vote *abdrc.VoteMsg) {
 	// as ie round-robin can).
 	if vote.VoteInfo.RoundNumber == x.pacemaker.GetCurrentRound()+1 {
 		// vote received before proposal, buffer
+		// NB! we should check that the same peer doesn't send multiple votes, otherwise it is possible
+		// to trick instance into recovery mode?
 		logger.Debug("%v round %v received vote for round %v before proposal, buffering vote",
 			x.id.ShortString(), x.pacemaker.GetCurrentRound(), vote.VoteInfo.RoundNumber)
 		x.voteBuffer = append(x.voteBuffer, vote)
@@ -376,7 +389,7 @@ func (x *ConsensusManager) onVoteMsg(ctx context.Context, vote *abdrc.VoteMsg) {
 		if len(x.voteBuffer) > x.trustBase.GetMaxFaultyNodes()+2 {
 			logger.Warning("%v vote, have received %v votes, but no proposal, entering recovery", x.id.ShortString(), len(x.voteBuffer))
 			if err = x.sendRecoveryRequests(vote); err != nil {
-				logger.Warning("send recovery request failed, %w", err)
+				logger.Warning("send recovery request failed: %v", err)
 			}
 		}
 		return
@@ -393,19 +406,19 @@ func (x *ConsensusManager) onVoteMsg(ctx context.Context, vote *abdrc.VoteMsg) {
 		return
 	}
 	// SyncState, compare last handled QC
-	if x.checkRecoveryNeeded(vote.HighQc) {
+	if err := x.checkRecoveryNeeded(vote.HighQc); err != nil {
 		// this will only happen if the node somehow gets a different state hash
 		// should be quite unlikely, during normal operation
-		logger.Info("%v vote, recovery needed", x.id.ShortString())
+		logger.Warning("%v vote triggers recovery: %v", x.id.ShortString(), err)
 		if err = x.sendRecoveryRequests(vote); err != nil {
-			logger.Warning("%v recovery requests send failed, %w", x.id.ShortString(), err)
+			logger.Warning("%v sending recovery requests failed: %v", x.id.ShortString(), err)
 		}
 		return
 	}
 	// Store vote, check for QC
 	qc, err := x.pacemaker.RegisterVote(vote, x.trustBase)
 	if err != nil {
-		logger.Warning("%v round %v vote from error, %w",
+		logger.Warning("%v round %v failed to register vote from %v: %v",
 			x.id.ShortString(), x.pacemaker.GetCurrentRound(), vote.Author, err)
 		return
 	}
@@ -421,8 +434,7 @@ func (x *ConsensusManager) onVoteMsg(ctx context.Context, vote *abdrc.VoteMsg) {
 	// advance view/round on QC
 	x.processQC(qc)
 	if slowDownTime > 0 {
-		logger.Debug("%v round %v node %v wait %v before proposing",
-			x.id.ShortString(), x.pacemaker.GetCurrentRound(), x.id.String(), slowDownTime)
+		logger.Debug("%v round %v wait %v before proposing", x.id.ShortString(), x.pacemaker.GetCurrentRound(), slowDownTime)
 		x.waitPropose = true
 		go func() {
 			select {
@@ -454,16 +466,16 @@ func (x *ConsensusManager) onTimeoutMsg(vote *abdrc.TimeoutMsg) {
 	logger.Trace("%v round %v received timeout vote for round %v from %v",
 		x.id.ShortString(), x.pacemaker.GetCurrentRound(), vote.Timeout.Round, vote.Author)
 	// SyncState, compare last handled QC
-	if x.checkRecoveryNeeded(vote.Timeout.HighQc) {
-		logger.Info("%v timeout vote, recovery needed", x.id.ShortString())
+	if err := x.checkRecoveryNeeded(vote.Timeout.HighQc); err != nil {
+		logger.Warning("%v timeout vote triggers recovery: %v", x.id.ShortString(), err)
 		if err = x.sendRecoveryRequests(vote); err != nil {
-			logger.Warning("%v recovery requests send failed, %w", x.id.ShortString(), err)
+			logger.Warning("%v sending recovery requests failed: %v", x.id.ShortString(), err)
 		}
 		return
 	}
 	tc, err := x.pacemaker.RegisterTimeoutVote(vote, x.trustBase)
 	if err != nil {
-		logger.Warning("%v round %v vote message from %v error: %w",
+		logger.Warning("%v round %v vote message from %v error: %v",
 			x.id.ShortString(), x.pacemaker.GetCurrentRound(), vote.Author, err)
 		return
 	}
@@ -485,22 +497,20 @@ func (x *ConsensusManager) onTimeoutMsg(vote *abdrc.TimeoutMsg) {
 	}
 }
 
-// checkRecoveryNeeded verify current state against received state and determine if the validator needs to
-// recover or not. Basically either the state is different or validator is behind (has skipped some views/rounds)
-func (x *ConsensusManager) checkRecoveryNeeded(qc *abtypes.QuorumCert) bool {
-	// Get block and check if we have the same state
+/*
+checkRecoveryNeeded verify current state against received state and determine if the validator needs to
+recover or not. Basically either the state is different or validator is behind (has skipped some views/rounds).
+Returns nil when no recovery is needed and error describing the reason to trigger the recovery otherwise.
+*/
+func (x *ConsensusManager) checkRecoveryNeeded(qc *abtypes.QuorumCert) error {
 	rootHash, err := x.blockStore.GetBlockRootHash(qc.VoteInfo.RoundNumber)
 	if err != nil {
-		logger.Warning("%v round %v unknown block in round %v, recover",
-			x.id.ShortString(), qc.VoteInfo.RoundNumber)
-		return true
+		return fmt.Errorf("failed to read root hash for round %d from local block store: %w", qc.VoteInfo.RoundNumber, err)
 	}
 	if !bytes.Equal(qc.VoteInfo.CurrentRootHash, rootHash) {
-		logger.Warning("%v round %v state is different expected %X, local %X, recover state",
-			x.id.ShortString(), qc.VoteInfo.RoundNumber, qc.VoteInfo.CurrentRootHash, rootHash)
-		return true
+		return fmt.Errorf("unexpected round %d state - expected %X, local %X", qc.VoteInfo.RoundNumber, qc.VoteInfo.CurrentRootHash, rootHash)
 	}
-	return false
+	return nil
 }
 
 // onProposalMsg handles block proposal messages from other validators.
@@ -526,10 +536,10 @@ func (x *ConsensusManager) onProposalMsg(ctx context.Context, proposal *abdrc.Pr
 		return
 	}
 	// Check current state against new QC
-	if x.checkRecoveryNeeded(proposal.Block.Qc) {
-		logger.Info("%v node starting recovery", x.id.ShortString())
+	if err := x.checkRecoveryNeeded(proposal.Block.Qc); err != nil {
+		logger.Warning("%v proposal triggers recovery: %v", x.id.ShortString(), err)
 		if err = x.sendRecoveryRequests(proposal); err != nil {
-			logger.Warning("%v recovery requests send failed, %w", x.id.ShortString(), err)
+			logger.Warning("%v sending recovery requests failed: %v", x.id.ShortString(), err)
 		}
 		return
 	}
@@ -591,7 +601,9 @@ func (x *ConsensusManager) processQC(qc *abtypes.QuorumCert) {
 		x.certResultCh <- uc
 	}
 
-	x.pacemaker.AdvanceRoundQC(qc)
+	if !x.pacemaker.AdvanceRoundQC(qc) {
+		return
+	}
 	// progress is made, restart timeout (move to pacemaker)
 	x.localTimeout.Reset(x.pacemaker.GetRoundTimeout())
 
@@ -706,9 +718,8 @@ func (x *ConsensusManager) onStateReq(req *abdrc.GetStateMsg) {
 }
 
 func (x *ConsensusManager) onStateResponse(ctx context.Context, req *abdrc.StateMsg) {
-	logger.Trace("%v round %v received state response",
-		x.id.String(), x.pacemaker.GetCurrentRound())
-	if x.recovery == nil {
+	logger.Trace("%v round %v received state response", x.id.String(), x.pacemaker.GetCurrentRound())
+	if x.recovery == nil || req.CommittedHead == nil || req.CommittedHead.CommitQc == nil || x.recovery.toRound > req.CommittedHead.CommitQc.GetRound() {
 		return
 	}
 
@@ -726,25 +737,6 @@ func (x *ConsensusManager) onStateResponse(ctx context.Context, req *abdrc.State
 		return
 	}
 
-	round := x.blockStore.GetHighQc().GetRound()
-	x.pacemaker = NewPacemaker(round, x.params.LocalTimeout, x.params.BlockRate)
-
-	for ; ; round++ {
-		block, err := x.blockStore.Block(round)
-		if err != nil {
-			logger.Error("restoring leader selector state, failed to load block for round %d: %v", round, err)
-			// we could get error because blocks are not consecutive or we have reached to the last block we
-			// have (ie got "block not found" error) so do not return but break ie carry on and act as if
-			// restore was a success. If we managed to restore pacemaker and blockStore state we might be able
-			// to fully recover by just processing proposals and votes from now on? If not then recovery will
-			// be triggered again...
-			break
-		}
-		if err := x.leaderSelector.Update(block.Qc, block.Round); err != nil {
-			// failing to elect leader is not critical error here, carry on until we're on the last block in storage
-			logger.Warning("restoring leader selector state, failed to update leader with block of round %d: %v", round, err)
-		}
-	}
 	// exit recovery status and replay buffered messages
 	triggerMsg := x.recovery.triggerMsg
 	x.recovery = nil
@@ -754,6 +746,8 @@ func (x *ConsensusManager) onStateResponse(ctx context.Context, req *abdrc.State
 		x.onProposalMsg(ctx, mt)
 	case *abdrc.VoteMsg:
 		x.onVoteMsg(ctx, mt)
+	case *abdrc.TimeoutMsg:
+		x.pacemaker.Reset(x.blockStore.GetHighQc().GetRound())
 	}
 
 	for _, v := range x.voteBuffer {
@@ -796,11 +790,11 @@ func msgToRecoveryInfo(msg any) (info *recoveryInfo, author string, signatures m
 
 	switch mt := msg.(type) {
 	case *abdrc.ProposalMsg:
-		info.toRound = mt.Block.Round
+		info.toRound = mt.Block.Qc.GetRound()
 		author = mt.Block.Author
 		signatures = mt.Block.Qc.Signatures
 	case *abdrc.VoteMsg:
-		info.toRound = mt.VoteInfo.RoundNumber
+		info.toRound = mt.HighQc.GetRound()
 		author = mt.Author
 		signatures = mt.HighQc.Signatures
 	case *abdrc.TimeoutMsg:
@@ -826,4 +820,11 @@ func addRandomNodeIdFromSignatureMap(nodes []peer.ID, m map[string][]byte) []pee
 		return append(nodes, id)
 	}
 	return nodes
+}
+
+func (ri *recoveryInfo) String() string {
+	if ri == nil {
+		return "<nil>"
+	}
+	return fmt.Sprintf("toRound: %d trigger %T", ri.toRound, ri.triggerMsg)
 }

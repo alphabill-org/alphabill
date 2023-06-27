@@ -745,7 +745,7 @@ func (n *Node) finalizeBlock(b *types.Block) error {
 	// NB! only cache and commit if persist is successful
 	n.lastStoredBlock = b
 	if err := n.transactionSystem.Commit(); err != nil {
-		return err
+		return fmt.Errorf("unable to finalize block %v: %w", b.GetRoundNumber(), err)
 	}
 	validTransactionsCounter.Inc(int64(len(b.Transactions)))
 	n.sendEvent(event.BlockFinalized, b)

@@ -21,6 +21,7 @@ func NewEVMTxSystem(systemIdentifier []byte, opts ...Option) (*txsystem.GenericT
 	}
 	return txsystem.NewGenericTxSystem(
 		[]txsystem.Module{evm, fees},
+		txsystem.WithBeginBlockFunctions(evm.BeginBlockFunc()),
 		txsystem.WithSystemIdentifier(systemIdentifier),
 		txsystem.WithHashAlgorithm(options.hashAlgorithm),
 		txsystem.WithState(options.state),

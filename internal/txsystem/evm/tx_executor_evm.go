@@ -15,6 +15,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/math"
 	"github.com/ethereum/go-ethereum/core"
+	ethtypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
 	ethcrypto "github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/eth/tracers/logger"
@@ -22,27 +23,29 @@ import (
 )
 
 const (
+	blockGasLimit                = 15000000
+	defaultGasPrice              = 210000000
 	txGasContractCreation uint64 = 53000 // Per transaction that creates a contract
 )
 
 var (
 	emptyCodeHash = ethcrypto.Keccak256Hash(nil)
 	// todo: initial constant, needs fine tuning
-	gasUnitPrice = big.NewInt(210000000)
+	gasUnitPrice = big.NewInt(defaultGasPrice)
 
 	ErrInsufficientFunds = errors.New("insufficient funds")
 	ErrSenderNotEOA      = errors.New("sender not an eoa")
 	ErrGasOverflow       = errors.New("gas uint64 overflow")
 )
 
-func handleEVMTx(tree *rma.Tree, algorithm crypto.Hash, systemIdentifier []byte, trustBase map[string]abcrypto.Verifier) txsystem.GenericExecuteFunc[TxAttributes] {
+func handleEVMTx(tree *rma.Tree, algorithm crypto.Hash, systemIdentifier []byte, trustBase map[string]abcrypto.Verifier, blockGas *core.GasPool) txsystem.GenericExecuteFunc[TxAttributes] {
 	return func(tx *types.TransactionOrder, attr *TxAttributes, currentBlockNumber uint64) (*types.ServerMetadata, error) {
 		from := common.BytesToAddress(attr.From)
 		stateDB := statedb.NewStateDB(tree)
 		if !stateDB.Exist(from) {
 			return nil, fmt.Errorf(" address %v does not exist", from)
 		}
-		return execute(currentBlockNumber, stateDB, attr, systemIdentifier)
+		return execute(currentBlockNumber, stateDB, attr, systemIdentifier, blockGas)
 	}
 }
 
@@ -51,15 +54,23 @@ func calcGasPrice(gas uint64) *big.Int {
 	return cost.Mul(cost, gasUnitPrice)
 }
 
-func execute(currentBlockNumber uint64, stateDB *statedb.StateDB, attr *TxAttributes, systemIdentifier []byte) (*types.ServerMetadata, error) {
+func execute(currentBlockNumber uint64, stateDB *statedb.StateDB, attr *TxAttributes, systemIdentifier []byte, gp *core.GasPool) (*types.ServerMetadata, error) {
 	if err := validate(stateDB, attr); err != nil {
 		return nil, fmt.Errorf("evm tx validation failed, %w", err)
 	}
+	if err := gp.SubGas(attr.Gas); err != nil {
+		return nil, fmt.Errorf("block limit error: %w", err)
+	}
 	var (
-		sender             = vm.AccountRef(attr.From)
-		gasRemaining       = attr.Gas
-		isContractCreation = attr.To == nil
+		sender                             = vm.AccountRef(attr.From)
+		gasRemaining                       = attr.Gas
+		isContractCreation                 = attr.To == nil
+		to                 *common.Address = nil
 	)
+	if !isContractCreation {
+		toAddr := common.BytesToAddress(attr.To)
+		to = &toAddr
+	}
 	// todo: "gas handling": Subtract the max gas cost from callers balance, will be refunded later in case less is used
 	// stateDB.SubBalance(sender.Address(), calcGasPrice(attr.Gas))
 	// calculate initial gas cost per tx type and input data
@@ -68,11 +79,13 @@ func execute(currentBlockNumber uint64, stateDB *statedb.StateDB, attr *TxAttrib
 		return nil, fmt.Errorf("evm tx intrinsic gas calcluation failed, %w", err)
 	}
 	if gasRemaining < gas {
-		return nil, fmt.Errorf("%w: address %v", ErrInsufficientFunds, sender.Address().Hex())
+		return nil, fmt.Errorf("%w: address %v, tx intrinsic cost higher than max gas", ErrInsufficientFunds, sender.Address().Hex())
 	}
 	gasRemaining -= gas
 	blockCtx := newBlockContext(currentBlockNumber)
 	evm := vm.NewEVM(blockCtx, newTxContext(attr), stateDB, newChainConfig(new(big.Int).SetBytes(systemIdentifier)), newVMConfig())
+	rules := evm.ChainConfig().Rules(evm.Context.BlockNumber, evm.Context.Random != nil)
+	stateDB.PrepareAccessList(sender.Address(), to, vm.ActivePrecompiles(rules), ethtypes.AccessList{})
 	var vmErr error
 	if isContractCreation {
 		// contract creation
@@ -97,7 +110,8 @@ func execute(currentBlockNumber uint64, stateDB *statedb.StateDB, attr *TxAttrib
 	log.Trace("total gas: %v gas units", attr.Gas-gasRemaining)
 	log.Trace("total tx cost: %v mia", weiToAlpha(txPrice))
 	stateDB.SubBalance(sender.Address(), txPrice)
-
+	// add remaining back to block gas pool
+	gp.AddGas(gasRemaining)
 	return &types.ServerMetadata{}, nil
 }
 
@@ -109,9 +123,8 @@ func newBlockContext(currentBlockNumber uint64) vm.BlockContext {
 			// TODO implement after integrating a new AVLTree
 			panic("get hash")
 		},
-		Coinbase: common.Address{},
-		// TODO gas
-		GasLimit:    10000000000000,
+		Coinbase:    common.Address{},
+		GasLimit:    blockGasLimit,
 		BlockNumber: new(big.Int).SetUint64(currentBlockNumber),
 		Time:        big.NewInt(1),
 		Difficulty:  big.NewInt(0),
@@ -173,6 +186,9 @@ func calcIntrinsicGas(data []byte, isContractCreation bool) (uint64, error) {
 func validate(stateDB *statedb.StateDB, attr *TxAttributes) error {
 	if attr.From == nil {
 		return fmt.Errorf("invalid evm tx, from addr is nil")
+	}
+	if attr.Value == nil {
+		return fmt.Errorf("invalid evm tx, value is nil")
 	}
 	from := vm.AccountRef(attr.From)
 	// todo: add nonce/backlink to attributes and validate here

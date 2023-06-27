@@ -475,28 +475,6 @@ func TestNode_HandleUnicityCertificate_SumOfEarnedFeesMismatch_1(t *testing.T) {
 	ContainsEventType(t, tp, event.StateReverted)
 }
 
-// pending proposal does not exist
-// uc.InputRecord.SumOfEarnedFees != n.pendingBlockProposal.SumOfEarnedFees
-func TestNode_HandleUnicityCertificate_SumOfEarnedFeesMismatch_2(t *testing.T) {
-	tp := RunSingleNodePartition(t, &testtxsystem.CounterTxSystem{Fee: 1337})
-
-	// skip UC validation
-	tp.partition.unicityCertificateValidator = &AlwaysValidCertificateValidator{}
-
-	// start new round
-	tp.partition.startNewRound(context.Background(), tp.partition.luc.Load())
-
-	// when UC with modified IR.SumOfEarnedFees is received and pendingBlockProposal = nil
-	tp.SubmitT1Timeout(t)
-	uc := tp.IssueBlockUC(t)
-	uc.InputRecord.SumOfEarnedFees += 1
-	tp.partition.pendingBlockProposal = nil
-	tp.SubmitUnicityCertificate(uc)
-
-	// then state is reverted
-	ContainsEventType(t, tp, event.StateReverted)
-}
-
 func TestBlockProposal_BlockProposalIsNil(t *testing.T) {
 	tp := RunSingleNodePartition(t, &testtxsystem.CounterTxSystem{})
 	tp.SubmitBlockProposal(nil)

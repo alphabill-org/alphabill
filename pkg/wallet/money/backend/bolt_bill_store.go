@@ -24,6 +24,7 @@ var (
 	feeUnitsBucket     = []byte("feeUnitsBucket")     // unitID => unit_bytes (for free credit units)
 	sdrBucket          = []byte("sdrBucket")          // []genesis.SystemDescriptionRecord
 	bucketTxHistory    = []byte("tx-history")         // unitID => [txHash => cbor(block proof)]
+	dcBucket           = []byte("dcBucket")           // nonce => dc metadata bytes
 )
 
 var (
@@ -55,7 +56,7 @@ func newBoltBillStore(dbFile string) (*boltBillStore, error) {
 		return nil, fmt.Errorf("failed to open bolt DB: %w", err)
 	}
 	s := &boltBillStore{db: db}
-	err = sdk.CreateBuckets(db.Update, unitsBucket, predicatesBucket, metaBucket, expiredBillsBucket, feeUnitsBucket, sdrBucket, bucketTxHistory)
+	err = sdk.CreateBuckets(db.Update, unitsBucket, predicatesBucket, metaBucket, expiredBillsBucket, feeUnitsBucket, sdrBucket, bucketTxHistory, dcBucket)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create db buckets: %w", err)
 	}
@@ -295,6 +296,37 @@ func (s *boltBillStoreTx) SetSystemDescriptionRecords(sdrs []*genesis.SystemDesc
 			}
 		}
 		return nil
+	}, true)
+}
+
+func (s *boltBillStoreTx) GetDCMetadata(nonce []byte) (*DCMetadata, error) {
+	var data *DCMetadata
+	err := s.withTx(s.tx, func(tx *bolt.Tx) error {
+		dcBytes := tx.Bucket(dcBucket).Get(nonce)
+		if dcBytes == nil {
+			return nil
+		}
+		return json.Unmarshal(dcBytes, &data)
+	}, false)
+	if err != nil {
+		return nil, err
+	}
+	return data, nil
+}
+
+func (s *boltBillStoreTx) SetDCMetadata(nonce []byte, data *DCMetadata) error {
+	return s.withTx(s.tx, func(tx *bolt.Tx) error {
+		dcBytes, err := json.Marshal(data)
+		if err != nil {
+			return err
+		}
+		return tx.Bucket(dcBucket).Put(nonce, dcBytes)
+	}, true)
+}
+
+func (s *boltBillStoreTx) DeleteDCMetadata(nonce []byte) error {
+	return s.withTx(s.tx, func(tx *bolt.Tx) error {
+		return tx.Bucket(dcBucket).Delete(nonce)
 	}, true)
 }
 

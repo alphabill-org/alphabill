@@ -64,18 +64,24 @@ func (v *DefaultFeeCreditTxValidator) ValidateAddFeeCredit(ctx *AddFCValidationC
 		return errors.New("fee tx cannot contain fee authorization proof")
 	}
 
-	// 1. ExtrType(P.ι) = fcr – target unit is a fee credit record
-	// TODO
-
 	attr := &transactions.AddFeeCreditAttributes{}
 	if err := tx.UnmarshalAttributes(attr); err != nil {
 		return fmt.Errorf("failed to unmarshal add fee credit attributes: %w", err)
 	}
 
-	// 2. S.N[P.ι] = ⊥ ∨ S.N[P.ι].φ = P.A.φ – if the target exists, the owner condition matches
-	unit := ctx.Unit
-	if unit != nil && !bytes.Equal(unit.Bearer, attr.FeeCreditOwnerCondition) {
-		return fmt.Errorf("invalid owner condition: expected=%X actual=%X", unit.Bearer, attr.FeeCreditOwnerCondition)
+	var fcr *FeeCreditRecord
+	if ctx.Unit != nil {
+		// 1. ExtrType(P.ι) = fcr – target unit is a fee credit record
+		var ok bool
+		fcr, ok = ctx.Unit.Data.(*FeeCreditRecord)
+		if !ok {
+			return errors.New("invalid unit type: unit is not fee credit record")
+		}
+
+		// 2. S.N[P.ι] = ⊥ ∨ S.N[P.ι].φ = P.A.φ – if the target exists, the owner condition matches
+		if !bytes.Equal(ctx.Unit.Bearer, attr.FeeCreditOwnerCondition) {
+			return fmt.Errorf("invalid owner condition: expected=%X actual=%X", ctx.Unit.Bearer, attr.FeeCreditOwnerCondition)
+		}
 	}
 
 	// 4. P.A.P.α = P.αmoney ∧ P.A.P.τ = transFC – bill was transferred to fee credits
@@ -104,12 +110,8 @@ func (v *DefaultFeeCreditTxValidator) ValidateAddFeeCredit(ctx *AddFCValidationC
 	}
 
 	// 7. (S.N[P.ι] = ⊥ ∧ P.A.P.A.η = ⊥) ∨ (S.N[P.ι] != ⊥ ∧ P.A.P.A.η = S.N[P.ι].λ) – bill transfer order contains correct nonce
-	var backlink []byte
-	if unit != nil {
-		backlink = unit.Data.(*FeeCreditRecord).Hash
-	}
-	if !bytes.Equal(transferTxAttr.Nonce, backlink) {
-		return fmt.Errorf("invalid transferFC nonce: transferFC.nonce=%X unit.backlink=%X", transferTxAttr.Nonce, backlink)
+	if !bytes.Equal(transferTxAttr.Nonce, fcr.GetHash()) {
+		return fmt.Errorf("invalid transferFC nonce: transferFC.nonce=%X unit.backlink=%X", transferTxAttr.Nonce, fcr.GetHash())
 	}
 
 	// 8. P.A.P.A.tb ≤ t ≤ P.A.P.A.te, where t is the number of the current block being composed – bill transfer is valid to be used in this block

@@ -15,6 +15,7 @@ import (
 
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/internal/script"
+	"github.com/alphabill-org/alphabill/internal/txsystem/money"
 	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/pkg/client"
 	sdk "github.com/alphabill-org/alphabill/pkg/wallet"
@@ -36,6 +37,8 @@ type (
 		GetRoundNumber(ctx context.Context) (uint64, error)
 		SendTransactions(ctx context.Context, txs []*types.TransactionOrder) map[string]string
 		GetTxProof(unitID sdk.UnitID, txHash sdk.TxHash) (*sdk.Proof, error)
+		GetDCMetadata(nonce []byte) (*DCMetadata, error)
+		StoreDCMetadata(txs []*types.TransactionOrder) error
 	}
 
 	WalletBackend struct {
@@ -48,12 +51,11 @@ type (
 	}
 
 	Bill struct {
-		Id       []byte `json:"id"`
-		Value    uint64 `json:"value"`
-		TxHash   []byte `json:"txHash"`
-		IsDCBill bool   `json:"isDcBill,omitempty"`
-		//TxProof        *wallet.Proof `json:"txProof"`
-		OwnerPredicate []byte `json:"ownerPredicate"`
+		Id             []byte        `json:"id"`
+		Value          uint64        `json:"value"`
+		TxHash         []byte        `json:"txHash"`
+		DcNonce        []byte        `json:"dcNonce,omitempty"`
+		OwnerPredicate []byte        `json:"ownerPredicate"`
 
 		// fcb specific fields
 		// AddFCTxHash last add fee credit tx hash
@@ -86,6 +88,9 @@ type (
 		GetSystemDescriptionRecords() ([]*genesis.SystemDescriptionRecord, error)
 		SetSystemDescriptionRecords(sdrs []*genesis.SystemDescriptionRecord) error
 		GetTxProof(unitID sdk.UnitID, txHash sdk.TxHash) (*sdk.Proof, error)
+		GetDCMetadata(nonce []byte) (*DCMetadata, error)
+		SetDCMetadata(nonce []byte, data *DCMetadata) error
+		DeleteDCMetadata(nonce []byte) error
 	}
 
 	p2pkhOwnerPredicates struct {
@@ -107,6 +112,11 @@ type (
 		Id        []byte
 		Value     uint64
 		Predicate []byte
+	}
+
+	DCMetadata struct {
+		BillIdentifiers [][]byte `json:"billIdentifiers,omitempty"`
+		DCSum           uint64   `json:"dcSum,string,omitempty"`
 	}
 )
 
@@ -280,12 +290,43 @@ func (w *WalletBackend) SendTransactions(ctx context.Context, txs []*types.Trans
 	return errs
 }
 
+func (w *WalletBackend) StoreDCMetadata(txs []*types.TransactionOrder) error {
+	dcMetadataMap := make(map[string]*DCMetadata)
+	for _, tx := range txs {
+		if tx.PayloadType() == money.PayloadTypeTransDC {
+			attrs := &money.TransferDCAttributes{}
+			if err := tx.UnmarshalAttributes(attrs); err != nil {
+				return fmt.Errorf("invalid DC transfer: %w", err)
+			}
+			dcMetadata := dcMetadataMap[string(attrs.Nonce)]
+			if dcMetadata == nil {
+				dcMetadata = &DCMetadata{}
+				dcMetadataMap[string(attrs.Nonce)] = dcMetadata
+			}
+			dcMetadata.DCSum += attrs.TargetValue
+			dcMetadata.BillIdentifiers = append(dcMetadata.BillIdentifiers, tx.UnitID())
+		}
+	}
+	for nonce, metadata := range dcMetadataMap {
+		err := w.store.Do().SetDCMetadata([]byte(nonce), metadata)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (w *WalletBackend) GetDCMetadata(nonce []byte) (*DCMetadata, error) {
+	return w.store.Do().GetDCMetadata(nonce)
+}
+
 func (b *Bill) ToGenericBill() *sdk.Bill {
 	return &sdk.Bill{
 		Id:          b.Id,
 		Value:       b.Value,
 		TxHash:      b.TxHash,
-		IsDcBill:    b.IsDCBill,
+		DcNonce:     b.DcNonce,
 		AddFCTxHash: b.AddFCTxHash,
 	}
 }

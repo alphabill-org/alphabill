@@ -106,7 +106,7 @@ func (p *BlockProcessor) processTx(txr *types.TransactionRecord, b *types.Block,
 			Id:             txo.UnitID(),
 			Value:          attr.TargetValue,
 			TxHash:         txHash,
-			IsDCBill:       true,
+			DcNonce:        attr.Nonce,
 			OwnerPredicate: attr.TargetBearer,
 		}, proof)
 		if err != nil {
@@ -184,6 +184,10 @@ func (p *BlockProcessor) processTx(txr *types.TransactionRecord, b *types.Block,
 			if err != nil {
 				return err
 			}
+		}
+		err = dbTx.DeleteDCMetadata(txo.UnitID())
+		if err != nil {
+			return err
 		}
 	case transactions.PayloadTypeTransferFeeCredit:
 		wlog.Info(fmt.Sprintf("received transferFC order (UnitID=%x), hash: '%X'", txo.UnitID(), txHash))

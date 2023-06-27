@@ -14,7 +14,6 @@ type (
 		TxProof *wallet.Proof `json:"txProof"`
 
 		// dc bill specific fields
-		IsDcBill  bool   `json:"dcBill"`
 		DcTimeout uint64 `json:"dcTimeout"`
 		DcNonce   []byte `json:"dcNonce"`
 		// DcExpirationTimeout blockHeight when dc bill gets removed from state tree
@@ -45,7 +44,7 @@ func (b *Bill) ToGenericBillProof() *wallet.BillProof {
 
 // isExpired returns true if dcBill, that was left unswapped, should be deleted
 func (b *Bill) isExpired(blockHeight uint64) bool {
-	return b.IsDcBill && blockHeight >= b.DcExpirationTimeout
+	return b.DcNonce != nil && blockHeight >= b.DcExpirationTimeout
 }
 
 //func (b *Bill) addProof(txIdx int, bl *types.Block) error {

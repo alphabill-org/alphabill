@@ -8,13 +8,17 @@ import (
 	"github.com/alphabill-org/alphabill/internal/rma"
 )
 
+var DefaultEvmTxSystemIdentifier = []byte{0, 0, 0, 3}
+
 type (
 	Options struct {
-		state                 *rma.Tree
-		hashAlgorithm         gocrypto.Hash
-		trustBase             map[string]crypto.Verifier
-		initialAccountAddress []byte
-		initialAccountBalance *big.Int
+		systemIdentifier        []byte
+		moneyTXSystemIdentifier []byte
+		state                   *rma.Tree
+		hashAlgorithm           gocrypto.Hash
+		trustBase               map[string]crypto.Verifier
+		initialAccountAddress   []byte
+		initialAccountBalance   *big.Int
 	}
 
 	Option func(*Options)
@@ -22,11 +26,13 @@ type (
 
 func DefaultOptions() *Options {
 	return &Options{
-		state:                 rma.NewWithSHA256(),
-		hashAlgorithm:         gocrypto.SHA256,
-		trustBase:             nil,
-		initialAccountAddress: make([]byte, 20),
-		initialAccountBalance: big.NewInt(100000000000),
+		systemIdentifier:        DefaultEvmTxSystemIdentifier,
+		moneyTXSystemIdentifier: []byte{0, 0, 0, 0},
+		state:                   rma.NewWithSHA256(),
+		hashAlgorithm:           gocrypto.SHA256,
+		trustBase:               nil,
+		initialAccountAddress:   make([]byte, 20),
+		initialAccountBalance:   big.NewInt(100000000000),
 	}
 }
 
@@ -52,5 +58,17 @@ func WithInitialAddressAndBalance(address []byte, balance *big.Int) Option {
 	return func(o *Options) {
 		o.initialAccountAddress = address
 		o.initialAccountBalance = balance
+	}
+}
+
+func WithSystemIdentifier(systemIdentifier []byte) Option {
+	return func(o *Options) {
+		o.systemIdentifier = systemIdentifier
+	}
+}
+
+func WithMoneyTXSystemIdentifier(moneyTxSystemID []byte) Option {
+	return func(o *Options) {
+		o.moneyTXSystemIdentifier = moneyTxSystemID
 	}
 }

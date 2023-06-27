@@ -24,7 +24,7 @@ func newChainConfig(chainID *big.Int) *params.ChainConfig {
 		IstanbulBlock:           big.NewInt(0),
 		MuirGlacierBlock:        big.NewInt(0),
 		BerlinBlock:             big.NewInt(0),
-		LondonBlock:             big.NewInt(0),
+		LondonBlock:             big.NewInt(0), // todo: This should be disabled, no burning of fees
 		ArrowGlacierBlock:       big.NewInt(0),
 		GrayGlacierBlock:        big.NewInt(0),
 		MergeNetsplitBlock:      big.NewInt(0),

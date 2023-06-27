@@ -2,13 +2,11 @@ package evm
 
 import (
 	"crypto"
-	"math/big"
+	"fmt"
 
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/rma"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
-	"github.com/alphabill-org/alphabill/internal/txsystem/evm/statedb"
-	"github.com/ethereum/go-ethereum/common"
 )
 
 var _ txsystem.Module = &Module{}
@@ -24,13 +22,9 @@ type (
 
 func NewEVMModule(systemIdentifier []byte, options *Options) (*Module, error) {
 	state := options.state
-	if len(options.initialAccountAddress) > 0 && options.initialAccountBalance.Cmp(big.NewInt(0)) > 0 {
-		address := common.BytesToAddress(options.initialAccountAddress)
-		log.Info("Adding an initial account %v with balance %v", address, options.initialAccountBalance)
-		stateDB := statedb.NewStateDB(state)
-		stateDB.CreateAccount(address)
-		stateDB.AddBalance(address, options.initialAccountBalance)
-		state.Commit()
+
+	if state == nil {
+		return nil, fmt.Errorf("evm module init failed, state tree is nil")
 	}
 
 	return &Module{

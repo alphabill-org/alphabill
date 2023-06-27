@@ -32,7 +32,7 @@ var systemIdentifier = []byte{0, 0, 4, 2}
 func TestEVMPartition_DeployAndCallContract(t *testing.T) {
 	from := test.RandomBytes(20)
 	evmPartition, err := testpartition.NewPartition(3, func(trustBase map[string]crypto.Verifier) txsystem.TransactionSystem {
-		system, err := NewEVMTxSystem(systemIdentifier, WithInitialAddressAndBalance(from, big.NewInt(10000000)))
+		system, err := NewEVMTxSystem(systemIdentifier, WithInitialAddressAndBalance(from, big.NewInt(1000000000000000000))) // 1 ETH
 		require.NoError(t, err)
 		return system
 	}, systemIdentifier)
@@ -65,6 +65,7 @@ func createTransferTx(t *testing.T, from []byte, to []byte) *types.TransactionOr
 		From:  from,
 		To:    to,
 		Value: big.NewInt(1000),
+		Gas:   10000000,
 	}
 	attrBytes, err := cbor.Marshal(evmAttr)
 	require.NoError(t, err)
@@ -90,6 +91,7 @@ func createCallContractTx(from []byte, addr common.Address, t *testing.T) *types
 		To:    addr.Bytes(),
 		Data:  inc.ID,
 		Value: big.NewInt(0),
+		Gas:   10000000,
 	}
 	attrBytes, err := cbor.Marshal(evmAttr)
 	require.NoError(t, err)
@@ -110,6 +112,7 @@ func createDeployContractTx(t *testing.T, from []byte) *types.TransactionOrder {
 		From:  from,
 		Data:  common.Hex2Bytes(counterContractCode),
 		Value: big.NewInt(0),
+		Gas:   10000000,
 	}
 	attrBytes, err := cbor.Marshal(evmAttr)
 	require.NoError(t, err)

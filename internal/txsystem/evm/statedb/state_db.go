@@ -39,7 +39,7 @@ func (s *StateDB) CreateAccount(address common.Address) {
 		s.errDB = s.tree.AtomicUpdate(rma.AddItem(
 			unitID,
 			script.PredicateAlwaysFalse(),
-			&StateObject{Account: &Account{Nonce: 0, Balance: big.NewInt(0), CodeHash: emptyCodeHash}, Storage: map[common.Hash]common.Hash{}},
+			&StateObject{Address: address, Account: &Account{Nonce: 0, Balance: big.NewInt(0), CodeHash: emptyCodeHash}, Storage: map[common.Hash]common.Hash{}},
 			make([]byte, 32),
 		))
 	}
@@ -290,6 +290,31 @@ func (s *StateDB) AddPreimage(_ common.Hash, _ []byte) {
 
 func (s *StateDB) ForEachStorage(address common.Address, f func(common.Hash, common.Hash) bool) error {
 	panic("implement ForEachStorage")
+}
+
+func (s *StateDB) SetAlphaBillData(address common.Address, fee *AlphaBillLink) {
+	unitID := util.BytesToUint256(address.Bytes())
+	stateObject := s.getStateObject(unitID)
+	if stateObject == nil {
+		return
+	}
+	log.Trace("Setting fee data for account: %v", address)
+	s.errDB = s.tree.AtomicUpdate(rma.UpdateData(
+		unitID, func(data rma.UnitData) rma.UnitData {
+			data.(*StateObject).AlphaBill = fee
+			return data
+		},
+		make([]byte, 32),
+	))
+}
+
+func (s *StateDB) GetAlphaBillData(address common.Address) *AlphaBillLink {
+	unitID := util.BytesToUint256(address.Bytes())
+	stateObject := s.getStateObject(unitID)
+	if stateObject != nil && stateObject.AlphaBill != nil {
+		return stateObject.AlphaBill
+	}
+	return nil
 }
 
 func (s *StateDB) getStateObject(unitID *uint256.Int) *StateObject {

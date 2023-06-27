@@ -23,12 +23,21 @@ type Account struct {
 	Nonce    uint64
 }
 
+// AlphaBillLink links Account to AB bill
+type AlphaBillLink struct {
+	Bearer  []byte
+	UnitID  []byte
+	TxHash  []byte
+	Timeout uint64
+}
+
 type StateObject struct {
 	Address   common.Address
 	Account   *Account
 	Storage   state.Storage
 	dirtyCode bool
 	suicided  bool
+	AlphaBill *AlphaBillLink
 }
 
 func (a *Account) Write(hasher hash.Hash) {
@@ -36,6 +45,13 @@ func (a *Account) Write(hasher hash.Hash) {
 	hasher.Write(a.CodeHash)
 	hasher.Write(a.Code)
 	hasher.Write(util.Uint64ToBytes(a.Nonce))
+}
+
+func (f *AlphaBillLink) AddToHasher(hasher hash.Hash) {
+	hasher.Write(f.Bearer)
+	hasher.Write(f.UnitID)
+	hasher.Write(f.TxHash)
+	hasher.Write(util.Uint64ToBytes(f.Timeout))
 }
 
 func (s *StateObject) AddToHasher(hasher hash.Hash) {
@@ -55,7 +71,9 @@ func (s *StateObject) AddToHasher(hasher hash.Hash) {
 		hasher.Write(k.Bytes())
 		hasher.Write(s.Storage[k].Bytes())
 	}
-
+	if s.AlphaBill != nil {
+		s.AlphaBill.AddToHasher(hasher)
+	}
 }
 
 func (s *StateObject) Value() rma.SummaryValue {

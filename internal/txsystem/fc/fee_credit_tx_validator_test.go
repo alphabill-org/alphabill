@@ -7,6 +7,7 @@ import (
 
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/rma"
+	"github.com/alphabill-org/alphabill/internal/script"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	testtransaction "github.com/alphabill-org/alphabill/internal/testutils/transaction"
 	testfc "github.com/alphabill-org/alphabill/internal/txsystem/fc/testutils"
@@ -134,7 +135,7 @@ func TestAddFC(t *testing.T) {
 					),
 				),
 			),
-			unit:       &rma.Unit{Data: &FeeCreditRecord{Hash: []byte("actual nonce")}, StateHash: []byte("sent nonce")},
+			unit:       &rma.Unit{Bearer: script.PredicateArgumentEmpty(), Data: &FeeCreditRecord{Hash: []byte("actual nonce")}, StateHash: []byte("sent nonce")},
 			wantErrMsg: "invalid transferFC nonce",
 		},
 		{
@@ -148,7 +149,7 @@ func TestAddFC(t *testing.T) {
 					),
 				),
 			),
-			unit: &rma.Unit{Data: &FeeCreditRecord{Hash: []byte("actual nonce")}},
+			unit: &rma.Unit{Bearer: script.PredicateArgumentEmpty(), Data: &FeeCreditRecord{Hash: []byte("actual nonce")}},
 		},
 		{
 			name: "EarliestAdditionTime in the future NOK",

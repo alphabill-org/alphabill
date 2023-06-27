@@ -15,9 +15,12 @@ func NewEVMTxSystem(systemIdentifier []byte, opts ...Option) (*txsystem.GenericT
 	if err != nil {
 		return nil, fmt.Errorf("failed to load EVM module: %w", err)
 	}
-	// TODO add fee credit support
+	fees, err := newFeeModule(systemIdentifier, options)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load EVM fee module: %w", err)
+	}
 	return txsystem.NewGenericTxSystem(
-		[]txsystem.Module{evm},
+		[]txsystem.Module{evm, fees},
 		txsystem.WithSystemIdentifier(systemIdentifier),
 		txsystem.WithHashAlgorithm(options.hashAlgorithm),
 		txsystem.WithState(options.state),

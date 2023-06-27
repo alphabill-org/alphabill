@@ -71,7 +71,15 @@ func (v *DefaultFeeCreditTxValidator) ValidateAddFeeCredit(ctx *AddFCValidationC
 	if err := tx.UnmarshalAttributes(attr); err != nil {
 		return fmt.Errorf("failed to unmarshal add fee credit attributes: %w", err)
 	}
-
+	if attr.FeeCreditOwnerCondition == nil {
+		return errors.New("fee credit owner condition is nil")
+	}
+	if attr.FeeCreditTransfer == nil {
+		return errors.New("fee credit transfer is nil")
+	}
+	if attr.FeeCreditTransferProof == nil {
+		return errors.New("fee credit transfer proof is nil")
+	}
 	// 2. S.N[P.ι] = ⊥ ∨ S.N[P.ι].φ = P.A.φ – if the target exists, the owner condition matches
 	unit := ctx.Unit
 	if unit != nil && !bytes.Equal(unit.Bearer, attr.FeeCreditOwnerCondition) {
@@ -167,6 +175,12 @@ func (v *DefaultFeeCreditTxValidator) ValidateCloseFC(ctx *CloseFCValidationCont
 	closFCAttributes := &transactions.CloseFeeCreditAttributes{}
 	if err := tx.UnmarshalAttributes(closFCAttributes); err != nil {
 		return fmt.Errorf("failed to unmarshal transaction attributes: %w", err)
+	}
+	if closFCAttributes.TargetUnitID == nil {
+		return errors.New("close attributes target unit is nil")
+	}
+	if closFCAttributes.Nonce == nil {
+		return errors.New("close attributes nonce is nil")
 	}
 	if closFCAttributes.Amount != fcr.Balance {
 		return fmt.Errorf("invalid amount: amount=%d fcr.Balance=%d", closFCAttributes.Amount, fcr.Balance)

@@ -394,9 +394,6 @@ func (s *boltBillStoreTx) storeUnitBlockProof(tx *bolt.Tx, unitID sdk.UnitID, tx
 	if txHash == nil || proof == nil {
 		return nil
 	}
-	//if txHash == nil {
-	//	return fmt.Errorf("tx hash is nil")
-	//}
 	proofData, err := cbor.Marshal(proof)
 	if err != nil {
 		return fmt.Errorf("failed to serialize proof data: %w", err)

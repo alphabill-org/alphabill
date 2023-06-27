@@ -304,16 +304,6 @@ func (api *tokensRestAPI) getFeeCreditBill(w http.ResponseWriter, r *http.Reques
 		api.rw.WriteResponse(w, sdk.ErrorResponse{Message: "fee credit bill does not exist"})
 		return
 	}
-	//fcbProof, err := api.db.GetTxProof(unitID, fcb.TxHash)
-	//if err != nil {
-	//	api.rw.WriteErrorResponse(w, fmt.Errorf("failed to load fee credit bill proof for ID 0x%X and TxHash 0x%X: %w", unitID, fcb.GetTxHash(), err))
-	//	return
-	//}
-	//if fcbProof == nil {
-	//	w.WriteHeader(http.StatusNotFound)
-	//	api.rw.WriteResponse(w, sdk.ErrorResponse{Message: "fee credit bill proof does not exist"})
-	//	return
-	//}
 	api.rw.WriteResponse(w, fcb.ToGenericBill())
 }
 

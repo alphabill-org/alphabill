@@ -63,30 +63,6 @@ func NewTxProof(txIdx int, b *types.Block, hashAlgorithm crypto.Hash) (*Proof, e
 	}, nil
 }
 
-//// Verify validates struct and verifies proofs.
-//func (x *Bills) Verify(verifiers map[string]abcrypto.Verifier) error {
-//	for _, bill := range x.Bills {
-//		err := bill.Verify(verifiers)
-//		if err != nil {
-//			return err
-//		}
-//	}
-//	return nil
-//}
-//
-//// Verify validates struct and verifies proof.
-//func (x *Bill) Verify(verifiers map[string]abcrypto.Verifier, proof *Proof) error {
-//	if proof == nil {
-//		return ErrTxProofNil
-//	}
-//	txr := proof.TxRecord
-//	err := x.verifyTx(txr)
-//	if err != nil {
-//		return err
-//	}
-//	return types.VerifyTxProof(proof.TxProof, txr, verifiers, crypto.SHA256)
-//}
-
 func (x *Bill) GetID() []byte {
 	if x != nil {
 		return x.Id

@@ -47,15 +47,6 @@ func (b *Bill) isExpired(blockHeight uint64) bool {
 	return b.DcNonce != nil && blockHeight >= b.DcExpirationTimeout
 }
 
-//func (b *Bill) addProof(txIdx int, bl *types.Block) error {
-//	proof, err := wallet.NewTxProof(txIdx, bl, crypto.SHA256)
-//	if err != nil {
-//		return err
-//	}
-//	b.TxProof = proof
-//	return nil
-//}
-
 func (b *Bill) GetTxHash() []byte {
 	if b != nil {
 		return b.TxHash

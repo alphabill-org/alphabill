@@ -476,13 +476,6 @@ func TestGetFeeCreditBillRequest_Ok(t *testing.T) {
 		TxHash:         []byte{0},
 		OwnerPredicate: getOwnerPredicate(pubkeyHex),
 	}
-	//p := &sdk.Proof{
-	//	TxRecord: testtransaction.NewTransactionRecord(t),
-	//	TxProof: &types.TxProof{
-	//		BlockHeaderHash: []byte{0},
-	//		Chain:           []*types.GenericChainItem{{Hash: []byte{0}}},
-	//	},
-	//}
 	walletBackend := newWalletBackend(t, withFeeCreditBills(b))
 	port := startServer(t, walletBackend)
 
@@ -494,12 +487,6 @@ func TestGetFeeCreditBillRequest_Ok(t *testing.T) {
 	require.Equal(t, b.Value, response.Value)
 	require.Equal(t, b.TxHash, response.TxHash)
 	require.Equal(t, b.DcNonce, response.DcNonce)
-
-	//ep := b.TxProof
-	//ap := response.TxProof
-	//require.Equal(t, ep.TxProof.UnicityCertificate.GetRoundNumber(), ap.TxProof.UnicityCertificate.GetRoundNumber())
-	//require.EqualValues(t, ep.TxRecord.TransactionOrder.UnitID(), ap.TxRecord.TransactionOrder.UnitID())
-	//require.EqualValues(t, ep.TxProof.BlockHeaderHash, ap.TxProof.BlockHeaderHash)
 }
 
 func TestGetFeeCreditBillRequest_InvalidBillIdLength(t *testing.T) {

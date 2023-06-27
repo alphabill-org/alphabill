@@ -2,6 +2,7 @@ package evm
 
 import (
 	"crypto"
+	"fmt"
 
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/rma"
@@ -21,6 +22,10 @@ type (
 
 func NewEVMModule(systemIdentifier []byte, options *Options) (*Module, error) {
 	state := options.state
+
+	if state == nil {
+		return nil, fmt.Errorf("evm module init failed, state tree is nil")
+	}
 
 	return &Module{
 		state:            state,

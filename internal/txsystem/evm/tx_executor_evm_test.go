@@ -48,3 +48,83 @@ func BenchmarkCallContract(b *testing.B) {
 		}
 	})
 }
+
+func initStateDBWithAccountAndSC(t *testing.T, state *rma.Tree, eoaAddr common.Address, balance uint64) *statedb.StateDB {
+	t.Helper()
+	stateDB := statedb.NewStateDB(state)
+	stateDB.CreateAccount(eoaAddr)
+	stateDB.AddBalance(eoaAddr, big.NewInt(int64(balance)))
+	// create a contract
+	scAddr := evmcrypto.CreateAddress(common.BytesToAddress(eoaAddr.Bytes()), 0)
+	stateDB.CreateAccount(scAddr)
+	stateDB.SetCode(scAddr, common.Hex2Bytes(counterContractCode))
+	return stateDB
+}
+
+func Test_validate(t *testing.T) {
+	state := rma.NewWithSHA256()
+	fromAddr := common.BytesToAddress(test.RandomBytes(20))
+	type args struct {
+		stateDB *statedb.StateDB
+		attr    *TxAttributes
+	}
+	tests := []struct {
+		name       string
+		args       args
+		wantErrStr string
+	}{
+		{
+			name: "err - invalid attributes from is nil",
+			args: args{
+				attr: &TxAttributes{
+					From: nil,
+					Gas:  10,
+				},
+				stateDB: statedb.NewStateDB(state),
+			},
+			wantErrStr: "invalid evm tx, from addr is nil",
+		},
+		{
+			name: "err - from address is account with code",
+			args: args{
+				attr: &TxAttributes{
+					From: evmcrypto.CreateAddress(common.BytesToAddress(fromAddr.Bytes()), 0).Bytes(),
+					Gas:  1000000,
+				},
+				stateDB: initStateDBWithAccountAndSC(t, state, fromAddr, 1000000000000),
+			},
+			wantErrStr: ErrSenderNotEOA.Error(),
+		},
+		{
+			name: "err - insufficient funds",
+			args: args{
+				attr: &TxAttributes{
+					From: fromAddr.Bytes(),
+					Gas:  1000000,
+				},
+				stateDB: initStateDBWithAccountAndSC(t, state, fromAddr, 10),
+			},
+			wantErrStr: ErrInsufficientFunds.Error(),
+		},
+		{
+			name: "ok",
+			args: args{
+				attr: &TxAttributes{
+					From: fromAddr.Bytes(),
+					Gas:  10,
+				},
+				stateDB: initStateDBWithAccountAndSC(t, state, fromAddr, 10000),
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := validate(tt.args.stateDB, tt.args.attr)
+			if tt.wantErrStr != "" {
+				require.ErrorContains(t, err, tt.wantErrStr)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
+}

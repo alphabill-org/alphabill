@@ -39,7 +39,7 @@ func (s *StateDB) CreateAccount(address common.Address) {
 		s.errDB = s.tree.AtomicUpdate(rma.AddItem(
 			unitID,
 			script.PredicateAlwaysFalse(),
-			&StateObject{Account: &Account{Nonce: 0, Balance: big.NewInt(0), CodeHash: emptyCodeHash}, Storage: map[common.Hash]common.Hash{}},
+			&StateObject{Address: address, Account: &Account{Nonce: 0, Balance: big.NewInt(0), CodeHash: emptyCodeHash}, Storage: map[common.Hash]common.Hash{}},
 			make([]byte, 32),
 		))
 	}

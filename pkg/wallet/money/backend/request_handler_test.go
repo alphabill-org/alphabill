@@ -129,7 +129,7 @@ func TestListBillsRequest_DCBillsIncluded(t *testing.T) {
 		&Bill{
 			Id:             newUnitID(2),
 			Value:          2,
-			IsDCBill:       true,
+			DcNonce:        []byte{2},
 			OwnerPredicate: getOwnerPredicate(pubkeyHex),
 		},
 	))
@@ -143,10 +143,10 @@ func TestListBillsRequest_DCBillsIncluded(t *testing.T) {
 	require.Len(t, res.Bills, 2)
 	bill := res.Bills[0]
 	require.EqualValues(t, 1, bill.Value)
-	require.False(t, bill.IsDCBill)
+	require.Nil(t, bill.DcNonce)
 	bill = res.Bills[1]
 	require.EqualValues(t, 2, bill.Value)
-	require.True(t, bill.IsDCBill)
+	require.NotNil(t, bill.DcNonce)
 }
 
 func TestListBillsRequest_DCBillsExcluded(t *testing.T) {
@@ -159,7 +159,7 @@ func TestListBillsRequest_DCBillsExcluded(t *testing.T) {
 		&Bill{
 			Id:             newUnitID(2),
 			Value:          2,
-			IsDCBill:       true,
+			DcNonce:        []byte{2},
 			OwnerPredicate: getOwnerPredicate(pubkeyHex),
 		},
 	))
@@ -173,7 +173,7 @@ func TestListBillsRequest_DCBillsExcluded(t *testing.T) {
 	require.Len(t, res.Bills, 1)
 	bill := res.Bills[0]
 	require.EqualValues(t, 1, bill.Value)
-	require.False(t, bill.IsDCBill)
+	require.Nil(t, bill.DcNonce)
 }
 
 func TestListBillsRequest_ZeroValueBillsExcluded(t *testing.T) {
@@ -339,7 +339,7 @@ func TestBalanceRequest_DCBillNotIncluded(t *testing.T) {
 		&Bill{
 			Id:             newUnitID(2),
 			Value:          2,
-			IsDCBill:       true,
+			DcNonce:        []byte{2},
 			OwnerPredicate: getOwnerPredicate(pubkeyHex),
 		}),
 	)
@@ -486,7 +486,7 @@ func TestGetFeeCreditBillRequest_Ok(t *testing.T) {
 	require.Equal(t, b.Id, response.Id)
 	require.Equal(t, b.Value, response.Value)
 	require.Equal(t, b.TxHash, response.TxHash)
-	require.Equal(t, b.IsDCBill, response.IsDcBill)
+	require.Equal(t, b.DcNonce, response.DcNonce)
 
 	ep := b.TxProof
 	ap := response.TxProof

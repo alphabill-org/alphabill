@@ -9,6 +9,8 @@ import (
 	"net/url"
 	"strconv"
 
+	"golang.org/x/sync/errgroup"
+
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/fxamacker/cbor/v2"
 	"github.com/gorilla/handlers"
@@ -32,15 +34,16 @@ type (
 
 	// TODO: perhaps pass the total number of elements in a response header
 	ListBillsResponse struct {
-		Total int           `json:"total" example:"1"`
-		Bills []*ListBillVM `json:"bills"`
+		Total      int                    `json:"total" example:"1"`
+		Bills      []*ListBillVM          `json:"bills"`
+		DCMetadata map[string]*DCMetadata `json:"dcMetadata,omitempty"`
 	}
 
 	ListBillVM struct {
-		Id       []byte `json:"id" swaggertype:"string" format:"base64" example:"AAAAAAgwv3UA1HfGO4qc1T3I3EOvqxfcrhMjJpr9Tn4="`
-		Value    uint64 `json:"value,string" example:"1000"`
-		TxHash   []byte `json:"txHash" swaggertype:"string" format:"base64" example:"Q4ShCITC0ODXPR+j1Zl/teYcoU3/mAPy0x8uSsvQFM8="`
-		IsDCBill bool   `json:"isDcBill" example:"false"`
+		Id      []byte `json:"id" swaggertype:"string" format:"base64" example:"AAAAAAgwv3UA1HfGO4qc1T3I3EOvqxfcrhMjJpr9Tn4="`
+		Value   uint64 `json:"value,string" example:"1000"`
+		TxHash  []byte `json:"txHash" swaggertype:"string" format:"base64" example:"Q4ShCITC0ODXPR+j1Zl/teYcoU3/mAPy0x8uSsvQFM8="`
+		DcNonce []byte `json:"dcNonce" swaggertype:"string" format:"base64" example:"YWZhIHNmc2RmYXNkZmFzIGRmc2FzZiBhc2RmIGFzZGZzYSBkZg=="`
 	}
 
 	BalanceResponse struct {
@@ -105,6 +108,8 @@ func (s *RequestHandler) Router() *mux.Router {
 // @Param pubkey query string true "Public key prefixed with 0x" example(0x000000000000000000000000000000000000000000000000000000000000000123)
 // @Param limit query int false "limits how many bills are returned in response" default(100)
 // @Param offset query int false "response will include bills starting after offset" default(0)
+// @Param includedcbills query bool false "response will include DC bills" default(true)
+// @Param includedcmetadata query bool false "response will include DC Metadata info (includedcbills param must also be true)" default(false)
 // @Success 200 {object} ListBillsResponse
 // @Failure 400 {object} ErrorResponse
 // @Failure 500
@@ -118,9 +123,18 @@ func (s *RequestHandler) listBillsFunc(w http.ResponseWriter, r *http.Request) {
 	}
 	includeDCBills, err := parseIncludeDCBillsQueryParam(r, true)
 	if err != nil {
-		log.Debug("error parsing GET /balance request: ", err)
-		w.WriteHeader(http.StatusInternalServerError)
+		log.Debug("error parsing GET /list-bills request: ", err)
+		w.WriteHeader(http.StatusBadRequest)
 		return
+	}
+	var includeDCMetadata bool
+	if r.URL.Query().Has("includedcmetadata") {
+		includeDCMetadata, err = strconv.ParseBool(r.URL.Query().Get("includedcmetadata"))
+		if err != nil {
+			log.Debug("error parsing GET /list-bills request: ", err)
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
 	}
 	bills, err := s.Service.GetBills(pk)
 	if err != nil {
@@ -129,14 +143,28 @@ func (s *RequestHandler) listBillsFunc(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var filteredBills []*Bill
+	dcMetadataMap := make(map[string]*DCMetadata)
 	for _, b := range bills {
-		// filter dc bills
-		if b.IsDCBill && !includeDCBills {
-			continue
-		}
 		// filter zero value bills
 		if b.Value == 0 {
 			continue
+		}
+		// filter dc bills
+		if b.DcNonce != nil {
+			if !includeDCBills {
+				continue
+			}
+			if includeDCMetadata {
+				if dcMetadataMap[string(b.DcNonce)] == nil {
+					dcMetadata, err := s.Service.GetDCMetadata(b.DcNonce)
+					if err != nil {
+						log.Error("error on GET /list-bills: ", err)
+						w.WriteHeader(http.StatusInternalServerError)
+						return
+					}
+					dcMetadataMap[string(b.DcNonce)] = dcMetadata
+				}
+			}
 		}
 		filteredBills = append(filteredBills, b)
 	}
@@ -184,7 +212,7 @@ func (s *RequestHandler) balanceFunc(w http.ResponseWriter, r *http.Request) {
 	}
 	var sum uint64
 	for _, b := range bills {
-		if !b.IsDCBill || includeDCBills {
+		if b.DcNonce == nil || includeDCBills {
 			sum += b.Value
 		}
 	}
@@ -356,9 +384,23 @@ func (s *RequestHandler) postTransactions(w http.ResponseWriter, r *http.Request
 		return
 	}
 
+	egp, _ := errgroup.WithContext(r.Context())
+	egp.Go(func() error {
+		return s.Service.StoreDCMetadata(txs.Transactions)
+	})
+
 	if errs := s.Service.SendTransactions(r.Context(), txs.Transactions); len(errs) > 0 {
 		w.WriteHeader(http.StatusInternalServerError)
 		writeAsJson(w, errs)
+		return
+	}
+
+	if err = egp.Wait(); err != nil {
+		log.Debug("failed to store DC metadata: ", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		writeAsJson(w, ErrorResponse{
+			Message: fmt.Errorf("failed to store DC metadata: %w", err).Error(),
+		})
 		return
 	}
 	w.WriteHeader(http.StatusAccepted)
@@ -464,10 +506,10 @@ func toBillVMList(bills []*Bill) []*ListBillVM {
 	billVMs := make([]*ListBillVM, len(bills))
 	for i, b := range bills {
 		billVMs[i] = &ListBillVM{
-			Id:       b.Id,
-			Value:    b.Value,
-			TxHash:   b.TxHash,
-			IsDCBill: b.IsDCBill,
+			Id:      b.Id,
+			Value:   b.Value,
+			TxHash:  b.TxHash,
+			DcNonce: b.DcNonce,
 		}
 	}
 	return billVMs
@@ -475,9 +517,9 @@ func toBillVMList(bills []*Bill) []*ListBillVM {
 
 func (b *ListBillVM) ToGenericBill() *wallet.Bill {
 	return &wallet.Bill{
-		Id:       b.Id,
-		Value:    b.Value,
-		TxHash:   b.TxHash,
-		IsDcBill: b.IsDCBill,
+		Id:      b.Id,
+		Value:   b.Value,
+		TxHash:  b.TxHash,
+		DcNonce: b.DcNonce,
 	}
 }

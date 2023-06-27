@@ -50,7 +50,7 @@ type (
 
 	BackendAPI interface {
 		GetBalance(pubKey []byte, includeDCBills bool) (uint64, error)
-		ListBills(pubKey []byte, includeDCBills bool) (*backend.ListBillsResponse, error)
+		ListBills(pubKey []byte, includeDCBills, includeDCMetadata bool) (*backend.ListBillsResponse, error)
 		GetBills(pubKey []byte) ([]*wallet.Bill, error)
 		GetProof(billId []byte) (*wallet.Bills, error)
 		GetRoundNumber(ctx context.Context) (uint64, error)
@@ -310,7 +310,7 @@ func (w *Wallet) collectDust(ctx context.Context, accountIndex uint64) error {
 	if err != nil {
 		return err
 	}
-	bills, err := w.getDetailedBillsList(pubKey)
+	bills, dcMetadataMap, err := w.getDetailedBillsList(pubKey)
 	if err != nil {
 		return err
 	}
@@ -318,10 +318,13 @@ func (w *Wallet) collectDust(ctx context.Context, accountIndex uint64) error {
 		log.Info("Account ", accountIndex, " has less than 2 bills, skipping dust collection")
 		return nil
 	}
-	dcBillGroups := groupDcBills(bills)
+	dcBillGroups, err := groupDcBills(bills)
+	if err != nil {
+		return err
+	}
 	if len(dcBillGroups) > 0 {
 		for _, v := range dcBillGroups {
-			if roundNr < v.dcTimeout {
+			if roundNr < v.dcTimeout && v.valueSum < dcMetadataMap[string(v.dcNonce)].DCSum {
 				log.Info("waiting for dc confirmation(s)...")
 				for roundNr <= v.dcTimeout {
 					select {
@@ -335,10 +338,18 @@ func (w *Wallet) collectDust(ctx context.Context, accountIndex uint64) error {
 						return nil
 					}
 				}
+				bills, dcMetadataMap, err = w.getDetailedBillsList(pubKey)
+				if err != nil {
+					return err
+				}
+				dcBillGroups, err = groupDcBills(bills)
+				if err != nil {
+					return err
+				}
+				v = dcBillGroups[string(v.dcNonce)]
 			}
 			swapTimeout := roundNr + swapTimeoutBlockCount
-			billIds := getBillIds(v.dcBills)
-			if err := w.swapDcBills(ctx, v.dcBills, v.dcNonce, billIds, swapTimeout, accountIndex); err != nil {
+			if err := w.swapDcBills(ctx, v.dcBills, v.dcNonce, dcMetadataMap[string(v.dcNonce)].BillIdentifiers, swapTimeout, accountIndex); err != nil {
 				return err
 			}
 		}
@@ -357,7 +368,7 @@ func (w *Wallet) collectDust(ctx context.Context, accountIndex uint64) error {
 			if err != nil {
 				return err
 			}
-			bills, err = w.getDetailedBillsList(pubKey)
+			bills, _, err = w.getDetailedBillsList(pubKey)
 			if err != nil {
 				return err
 			}
@@ -390,7 +401,6 @@ func (w *Wallet) submitDCBatch(ctx context.Context, k *account.AccountKey, bills
 	}
 
 	swapTimeout := roundNr + swapTimeoutBlockCount
-	billIds := getBillIds(bills)
 	for _, sub := range dcBatch.Submissions() {
 		for _, b := range bills {
 			if bytes.Equal(util.Uint256ToBytes(b.Id), sub.UnitID) {
@@ -400,7 +410,7 @@ func (w *Wallet) submitDCBatch(ctx context.Context, k *account.AccountKey, bills
 		}
 	}
 
-	return w.swapDcBills(ctx, bills, dcNonce, billIds, swapTimeout, accountIndex)
+	return w.swapDcBills(ctx, bills, dcNonce, getBillIds(bills), swapTimeout, accountIndex)
 }
 
 func (w *Wallet) swapDcBills(ctx context.Context, dcBills []*Bill, dcNonce []byte, billIds [][]byte, timeout, accountIndex uint64) error {
@@ -440,28 +450,28 @@ func (w *Wallet) SendTx(ctx context.Context, tx *types.TransactionOrder, senderP
 	return w.TxPublisher.SendTx(ctx, tx, senderPubKey)
 }
 
-func (w *Wallet) getDetailedBillsList(pubKey []byte) ([]*Bill, error) {
-	billResponse, err := w.backend.ListBills(pubKey, true)
+func (w *Wallet) getDetailedBillsList(pubKey []byte) ([]*Bill, map[string]*backend.DCMetadata, error) {
+	billResponse, err := w.backend.ListBills(pubKey, true, true)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	bills := make([]*Bill, 0)
 	if len(billResponse.Bills) < 2 {
-		return bills, nil
+		return bills, nil, nil
 	}
 	for _, b := range billResponse.Bills {
-		if b.IsDCBill {
+		if b.DcNonce != nil {
 			proof, err := w.backend.GetProof(b.Id)
 			if err != nil {
-				return nil, err
+				return nil, nil, err
 			}
 			bills = append(bills, convertBill(proof.Bills[0]))
 		} else {
-			bills = append(bills, &Bill{Id: util.BytesToUint256(b.Id), Value: b.Value, TxHash: b.TxHash, IsDcBill: b.IsDCBill})
+			bills = append(bills, &Bill{Id: util.BytesToUint256(b.Id), Value: b.Value, TxHash: b.TxHash, DcNonce: b.DcNonce})
 		}
 	}
 
-	return bills, nil
+	return bills, billResponse.DCMetadata, nil
 }
 
 func (c *SendCmd) isValid() error {
@@ -519,10 +529,10 @@ func calculateDcNonce(bills []*Bill) []byte {
 }
 
 // groupDcBills groups bills together by dc nonce
-func groupDcBills(bills []*Bill) map[string]*dcBillGroup {
+func groupDcBills(bills []*Bill) (map[string]*dcBillGroup, error) {
 	m := map[string]*dcBillGroup{}
 	for _, b := range bills {
-		if b.IsDcBill {
+		if b.DcNonce != nil {
 			k := string(b.DcNonce)
 			billContainer, exists := m[k]
 			if !exists {
@@ -535,12 +545,14 @@ func groupDcBills(bills []*Bill) map[string]*dcBillGroup {
 			billContainer.dcTimeout = b.DcTimeout
 		}
 	}
-	return m
+	return m, nil
 }
 
 func getBillIds(bills []*Bill) [][]byte {
 	var billIds [][]byte
+	var sum uint64
 	for _, b := range bills {
+		sum += b.Value
 		billIds = append(billIds, b.GetID())
 	}
 	return billIds
@@ -548,26 +560,20 @@ func getBillIds(bills []*Bill) [][]byte {
 
 // converts proto wallet.Bill to money.Bill domain struct
 func convertBill(b *wallet.Bill) *Bill {
-	if b.IsDcBill {
-		attrs := &money.TransferDCAttributes{}
-		if err := b.TxProof.TxRecord.TransactionOrder.UnmarshalAttributes(attrs); err != nil {
-			return nil
-		}
+	if b.DcNonce != nil {
 		return &Bill{
 			Id:        util.BytesToUint256(b.Id),
 			Value:     b.Value,
 			TxHash:    b.TxHash,
-			IsDcBill:  b.IsDcBill,
-			DcNonce:   attrs.Nonce,
+			DcNonce:   b.DcNonce,
 			DcTimeout: b.TxProof.TxRecord.TransactionOrder.Timeout(),
 			TxProof:   b.TxProof,
 		}
 	}
 	return &Bill{
-		Id:       util.BytesToUint256(b.Id),
-		Value:    b.Value,
-		TxHash:   b.TxHash,
-		IsDcBill: b.IsDcBill,
-		TxProof:  b.TxProof,
+		Id:      util.BytesToUint256(b.Id),
+		Value:   b.Value,
+		TxHash:  b.TxHash,
+		TxProof: b.TxProof,
 	}
 }

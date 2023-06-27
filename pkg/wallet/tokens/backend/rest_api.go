@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"net/url"
 	"sync"
 	"time"
 
@@ -105,15 +104,15 @@ func (api *tokensRestAPI) listTokens(w http.ResponseWriter, r *http.Request) {
 	}
 
 	qp := r.URL.Query()
-	startKey, err := sdk.ParseHex[sdk.UnitID](qp.Get("offsetKey"), false)
+	startKey, err := sdk.ParseHex[sdk.UnitID](qp.Get(sdk.QueryParamOffsetKey), false)
 	if err != nil {
-		api.rw.InvalidParamResponse(w, "offsetKey", err)
+		api.rw.InvalidParamResponse(w, sdk.QueryParamOffsetKey, err)
 		return
 	}
 
-	limit, err := parseMaxResponseItems(qp.Get("limit"), maxResponseItems)
+	limit, err := sdk.ParseMaxResponseItems(qp.Get(sdk.QueryParamLimit), maxResponseItems)
 	if err != nil {
-		api.rw.InvalidParamResponse(w, "limit", err)
+		api.rw.InvalidParamResponse(w, sdk.QueryParamLimit, err)
 		return
 	}
 
@@ -126,7 +125,7 @@ func (api *tokensRestAPI) listTokens(w http.ResponseWriter, r *http.Request) {
 		api.rw.WriteErrorResponse(w, err)
 		return
 	}
-	setLinkHeader(r.URL, w, sdk.EncodeHex(sdk.UnitID(next)))
+	sdk.SetLinkHeader(r.URL, w, sdk.EncodeHex(next))
 	api.rw.WriteResponse(w, data)
 }
 
@@ -161,15 +160,15 @@ func (api *tokensRestAPI) listTypes(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	startKey, err := sdk.ParseHex[sdk.UnitID](qp.Get("offsetKey"), false)
+	startKey, err := sdk.ParseHex[sdk.UnitID](qp.Get(sdk.QueryParamOffsetKey), false)
 	if err != nil {
-		api.rw.InvalidParamResponse(w, "offsetKey", err)
+		api.rw.InvalidParamResponse(w, sdk.QueryParamOffsetKey, err)
 		return
 	}
 
-	limit, err := parseMaxResponseItems(qp.Get("limit"), maxResponseItems)
+	limit, err := sdk.ParseMaxResponseItems(qp.Get(sdk.QueryParamLimit), maxResponseItems)
 	if err != nil {
-		api.rw.InvalidParamResponse(w, "limit", err)
+		api.rw.InvalidParamResponse(w, sdk.QueryParamLimit, err)
 		return
 	}
 
@@ -178,7 +177,7 @@ func (api *tokensRestAPI) listTypes(w http.ResponseWriter, r *http.Request) {
 		api.rw.WriteErrorResponse(w, err)
 		return
 	}
-	setLinkHeader(r.URL, w, sdk.EncodeHex(sdk.UnitID(next)))
+	sdk.SetLinkHeader(r.URL, w, sdk.EncodeHex(next))
 	api.rw.WriteResponse(w, data)
 }
 
@@ -363,17 +362,6 @@ func (api *tokensRestAPI) getTxProof(w http.ResponseWriter, r *http.Request) {
 	}
 
 	api.rw.WriteCborResponse(w, proof)
-}
-
-func setLinkHeader(u *url.URL, w http.ResponseWriter, next string) {
-	if next == "" {
-		w.Header().Del("Link")
-		return
-	}
-	qp := u.Query()
-	qp.Set("offsetKey", next)
-	u.RawQuery = qp.Encode()
-	w.Header().Set("Link", fmt.Sprintf(`<%s>; rel="next"`, u))
 }
 
 type (

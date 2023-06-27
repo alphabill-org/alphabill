@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"net/url"
 	"strconv"
 
 	"github.com/fxamacker/cbor/v2"
@@ -129,7 +128,16 @@ func (api *moneyRestAPI) listBillsFunc(w http.ResponseWriter, r *http.Request) {
 		}
 		filteredBills = append(filteredBills, b)
 	}
-	limit, offset := parsePagingParams(api.ListBillsPageLimit, r)
+	qp := r.URL.Query()
+	limit, err := sdk.ParseMaxResponseItems(qp.Get(sdk.QueryParamLimit), api.ListBillsPageLimit)
+	if err != nil {
+		api.rw.InvalidParamResponse(w, sdk.QueryParamLimit, err)
+		return
+	}
+	offset := sdk.ParseIntParam(qp.Get(sdk.QueryParamOffsetKey), 0)
+	if offset < 0 {
+		offset = 0
+	}
 	// if offset and limit go out of bounds just return what we have
 	if offset > len(filteredBills) {
 		offset = len(filteredBills)
@@ -137,7 +145,7 @@ func (api *moneyRestAPI) listBillsFunc(w http.ResponseWriter, r *http.Request) {
 	if offset+limit > len(filteredBills) {
 		limit = len(filteredBills) - offset
 	} else {
-		setLinkHeader(r.URL, w, offset+limit)
+		sdk.SetLinkHeader(r.URL, w, strconv.Itoa(offset+limit))
 	}
 	res := newListBillsResponse(filteredBills, limit, offset)
 	api.rw.WriteResponse(w, res)
@@ -331,40 +339,6 @@ func parseIncludeDCBillsQueryParam(r *http.Request, defaultValue bool) (bool, er
 		return strconv.ParseBool(r.URL.Query().Get("includedcbills"))
 	}
 	return defaultValue, nil
-}
-
-func parsePagingParams(pageLimit int, r *http.Request) (int, int) {
-	limit := parseInt(r.URL.Query().Get("limit"), pageLimit)
-	if limit < 0 {
-		limit = 0
-	}
-	if limit > pageLimit {
-		limit = pageLimit
-	}
-	offset := parseInt(r.URL.Query().Get("offset"), 0)
-	if offset < 0 {
-		offset = 0
-	}
-	return limit, offset
-}
-
-func setLinkHeader(u *url.URL, w http.ResponseWriter, offset int) {
-	if offset < 0 {
-		w.Header().Del("Link")
-		return
-	}
-	qp := u.Query()
-	qp.Set("offset", strconv.Itoa(offset))
-	u.RawQuery = qp.Encode()
-	w.Header().Set("Link", fmt.Sprintf(`<%s>; rel="next"`, u))
-}
-
-func parseInt(str string, def int) int {
-	num, err := strconv.Atoi(str)
-	if err != nil {
-		return def
-	}
-	return num
 }
 
 func newListBillsResponse(bills []*Bill, limit, offset int) *ListBillsResponse {

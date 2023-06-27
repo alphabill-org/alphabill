@@ -104,7 +104,7 @@ const docTemplate = `{
                         "type": "integer",
                         "default": 0,
                         "description": "response will include bills starting after offset",
-                        "name": "offset",
+                        "name": "offsetKey",
                         "in": "query"
                     }
                 ],

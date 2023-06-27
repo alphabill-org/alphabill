@@ -238,7 +238,7 @@ func (c *MoneyBackendClient) GetTxProof(_ context.Context, unitID wallet.UnitID,
 func (c *MoneyBackendClient) retrieveBills(pubKey []byte, includeDCBills bool, offset int) (*backend.ListBillsResponse, error) {
 	reqUrl := fmt.Sprintf(listBillsUrlFormat, c.BaseUrl, ListBillsPath, hexutil.Encode(pubKey), includeDCBills)
 	if offset > 0 {
-		reqUrl = fmt.Sprintf("%v&offset=%v", reqUrl, offset)
+		reqUrl = fmt.Sprintf("%v&%s=%v", reqUrl, wallet.QueryParamOffsetKey, offset)
 	}
 	req, err := http.NewRequest(http.MethodGet, reqUrl, nil)
 	if err != nil {

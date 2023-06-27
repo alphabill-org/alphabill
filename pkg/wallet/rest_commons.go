@@ -5,6 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
+	"strconv"
 
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/fxamacker/cbor/v2"
@@ -14,6 +16,11 @@ const (
 	ContentType     = "Content-Type"
 	ApplicationJson = "application/json"
 	ApplicationCbor = "application/cbor"
+
+	QueryParamOffsetKey   = "offsetKey"
+	QueryParamLimit       = "limit"
+	HeaderLink            = "Link"
+	HeaderLinkValueFormat = `<%s>; rel="next"`
 )
 
 type (
@@ -122,4 +129,47 @@ func EncodeHex(value []byte) string {
 		return ""
 	}
 	return hexutil.Encode(value)
+}
+
+func SetLinkHeader(u *url.URL, w http.ResponseWriter, next string) {
+	if next == "" {
+		w.Header().Del(HeaderLink)
+		return
+	}
+	qp := u.Query()
+	qp.Set(QueryParamOffsetKey, next)
+	u.RawQuery = qp.Encode()
+	w.Header().Set(HeaderLink, fmt.Sprintf(HeaderLinkValueFormat, u))
+}
+
+/*
+parseMaxResponseItems parses input "s" as integer.
+When empty string or int over "maxValue" is sent in "maxValue" is returned.
+In case of invalid int or value smaller than 1 error is returned.
+*/
+func ParseMaxResponseItems(s string, maxValue int) (int, error) {
+	if s == "" {
+		return maxValue, nil
+	}
+
+	v, err := strconv.Atoi(s)
+	if err != nil {
+		return 0, fmt.Errorf("failed to parse %q as integer: %w", s, err)
+	}
+	if v <= 0 {
+		return 0, fmt.Errorf("value must be greater than zero, got %d", v)
+	}
+
+	if v > maxValue {
+		return maxValue, nil
+	}
+	return v, nil
+}
+
+func ParseIntParam(str string, def int) int {
+	num, err := strconv.Atoi(str)
+	if err != nil {
+		return def
+	}
+	return num
 }

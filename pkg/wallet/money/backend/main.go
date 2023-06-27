@@ -297,10 +297,10 @@ func (w *WalletBackend) StoreDCMetadata(txs []*types.TransactionOrder) error {
 			dcMetadata := dcMetadataMap[string(attrs.Nonce)]
 			if dcMetadata == nil {
 				dcMetadata = &DCMetadata{}
+				dcMetadataMap[string(attrs.Nonce)] = dcMetadata
 			}
 			dcMetadata.DCSum += attrs.TargetValue
 			dcMetadata.BillIdentifiers = append(dcMetadata.BillIdentifiers, tx.UnitID())
-			dcMetadataMap[string(attrs.Nonce)] = dcMetadata
 		}
 	}
 	for nonce, metadata := range dcMetadataMap {

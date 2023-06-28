@@ -48,11 +48,12 @@ func (m *Module) GenericTransactionValidator() txsystem.GenericTransactionValida
 	return txsystem.ValidateGenericTransaction
 }
 
-func (m *Module) BeginBlockFunc() []func(blockNr uint64) {
+func (m *Module) StartBlock() []func(blockNr uint64) {
 	return []func(blockNr uint64){
 		func(blockNr uint64) {
 			// reset block gas limit
-			m.blockGasLimit = new(core.GasPool).AddGas(blockGasLimit)
+			log.Trace("previous block gas limit: %v, used %v", m.blockGasLimit.Gas(), blockGasLimit-m.blockGasLimit.Gas())
+			*m.blockGasLimit = blockGasLimit
 		},
 	}
 }

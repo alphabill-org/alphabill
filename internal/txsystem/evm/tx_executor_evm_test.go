@@ -204,7 +204,7 @@ func Test_execute(t *testing.T) {
 			wantErrStr: "block limit error: gas limit reached",
 		},
 		{
-			name: "err - not enough to pay intrinsic cost",
+			name: "err - not enough to pay intrinsic cost", // contract creation intrinsic cost is higher than max gas
 			args: args{
 				attr: &TxAttributes{
 					From:  fromAddr.Bytes(),
@@ -215,6 +215,20 @@ func Test_execute(t *testing.T) {
 				stateDB: initStateDBWithAccountAndSC(t, fromAddr, 1000*defaultGasPrice+1),
 			},
 			wantErrStr: "tx intrinsic cost higher than max gas",
+		},
+		{
+			name: "err - runtime out of gas", // intrinsic cost is 0 as there is no data
+			args: args{
+				attr: &TxAttributes{
+					From:  fromAddr.Bytes(),
+					To:    evmcrypto.CreateAddress(common.BytesToAddress(fromAddr.Bytes()), 0).Bytes(),
+					Value: big.NewInt(0),
+					Gas:   2300,
+				},
+				gp:      new(core.GasPool).AddGas(100000),
+				stateDB: initStateDBWithAccountAndSC(t, fromAddr, 2500*defaultGasPrice),
+			},
+			wantErrStr: "evm runtime error: out of gas",
 		},
 		{
 			name: "ok",

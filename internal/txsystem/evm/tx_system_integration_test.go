@@ -65,7 +65,7 @@ func createTransferTx(t *testing.T, from []byte, to []byte) *types.TransactionOr
 		From:  from,
 		To:    to,
 		Value: big.NewInt(1000),
-		Gas:   10000000,
+		Gas:   0, // transfer does not cost gas
 	}
 	attrBytes, err := cbor.Marshal(evmAttr)
 	require.NoError(t, err)
@@ -91,7 +91,7 @@ func createCallContractTx(from []byte, addr common.Address, t *testing.T) *types
 		To:    addr.Bytes(),
 		Data:  inc.ID,
 		Value: big.NewInt(0),
-		Gas:   10000000,
+		Gas:   100000,
 	}
 	attrBytes, err := cbor.Marshal(evmAttr)
 	require.NoError(t, err)
@@ -112,7 +112,7 @@ func createDeployContractTx(t *testing.T, from []byte) *types.TransactionOrder {
 		From:  from,
 		Data:  common.Hex2Bytes(counterContractCode),
 		Value: big.NewInt(0),
-		Gas:   10000000,
+		Gas:   1000000,
 	}
 	attrBytes, err := cbor.Marshal(evmAttr)
 	require.NoError(t, err)

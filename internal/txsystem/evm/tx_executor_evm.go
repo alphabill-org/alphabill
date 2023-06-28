@@ -23,6 +23,7 @@ import (
 )
 
 const (
+	// todo: initial constants, need fine-tuning
 	blockGasLimit                = 15000000
 	defaultGasPrice              = 210000000
 	txGasContractCreation uint64 = 53000 // Per transaction that creates a contract
@@ -30,8 +31,7 @@ const (
 
 var (
 	emptyCodeHash = ethcrypto.Keccak256Hash(nil)
-	// todo: initial constant, needs fine tuning
-	gasUnitPrice = big.NewInt(defaultGasPrice)
+	gasUnitPrice  = big.NewInt(defaultGasPrice)
 
 	ErrInsufficientFunds = errors.New("insufficient funds")
 	ErrSenderNotEOA      = errors.New("sender not an eoa")
@@ -62,15 +62,11 @@ func execute(currentBlockNumber uint64, stateDB *statedb.StateDB, attr *TxAttrib
 		return nil, fmt.Errorf("block limit error: %w", err)
 	}
 	var (
-		sender                             = vm.AccountRef(attr.From)
-		gasRemaining                       = attr.Gas
-		isContractCreation                 = attr.To == nil
-		to                 *common.Address = nil
+		sender             = vm.AccountRef(attr.GetFromAddr())
+		gasRemaining       = attr.Gas
+		isContractCreation = attr.To == nil
+		toAddr             = attr.GetToAddr()
 	)
-	if !isContractCreation {
-		toAddr := common.BytesToAddress(attr.To)
-		to = &toAddr
-	}
 	// todo: "gas handling": Subtract the max gas cost from callers balance, will be refunded later in case less is used
 	// stateDB.SubBalance(sender.Address(), calcGasPrice(attr.Gas))
 	// calculate initial gas cost per tx type and input data
@@ -85,7 +81,10 @@ func execute(currentBlockNumber uint64, stateDB *statedb.StateDB, attr *TxAttrib
 	blockCtx := newBlockContext(currentBlockNumber)
 	evm := vm.NewEVM(blockCtx, newTxContext(attr), stateDB, newChainConfig(new(big.Int).SetBytes(systemIdentifier)), newVMConfig())
 	rules := evm.ChainConfig().Rules(evm.Context.BlockNumber, evm.Context.Random != nil)
-	stateDB.PrepareAccessList(sender.Address(), to, vm.ActivePrecompiles(rules), ethtypes.AccessList{})
+	// todo: investigate access lists and whether or not we should support them
+	if rules.IsBerlin {
+		stateDB.PrepareAccessList(sender.Address(), toAddr, vm.ActivePrecompiles(rules), ethtypes.AccessList{})
+	}
 	var vmErr error
 	if isContractCreation {
 		// contract creation
@@ -99,7 +98,7 @@ func execute(currentBlockNumber uint64, stateDB *statedb.StateDB, attr *TxAttrib
 	// todo: "gas handling" Refund ETH for remaining gas, exchanged at the original rate.
 	// stateDB.AddBalance(sender.Address(), calcGasPrice(gasRemaining))
 	if vmErr != nil {
-		return nil, vmErr
+		return nil, fmt.Errorf("evm runtime error: %w", vmErr)
 	}
 	if stateDB.DBError() != nil {
 		return nil, stateDB.DBError()

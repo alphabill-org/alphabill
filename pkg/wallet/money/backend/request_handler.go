@@ -128,7 +128,7 @@ func (api *moneyRestAPI) listBillsFunc(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var filteredBills []*Bill
-	dcMetadataMap := make(map[string]*DCMetadata)
+	var dcMetadataMap map[string]*DCMetadata
 	for _, b := range bills {
 		// filter zero value bills
 		if b.Value == 0 {
@@ -140,6 +140,9 @@ func (api *moneyRestAPI) listBillsFunc(w http.ResponseWriter, r *http.Request) {
 				continue
 			}
 			if includeDCMetadata {
+				if dcMetadataMap == nil {
+					dcMetadataMap = make(map[string]*DCMetadata)
+				}
 				if dcMetadataMap[string(b.DcNonce)] == nil {
 					dcMetadata, err := api.Service.GetDCMetadata(b.DcNonce)
 					if err != nil {
@@ -172,8 +175,8 @@ func (api *moneyRestAPI) listBillsFunc(w http.ResponseWriter, r *http.Request) {
 	} else {
 		sdk.SetLinkHeader(r.URL, w, strconv.Itoa(offset+limit))
 	}
-	res := newListBillsResponse(filteredBills, limit, offset)
-	api.rw.WriteResponse(w, res)
+	billVMs := toBillVMList(filteredBills)
+	api.rw.WriteResponse(w, &ListBillsResponse{Bills: billVMs[offset : offset+limit], Total: len(billVMs), DCMetadata: dcMetadataMap})
 }
 
 // @Summary Get balance
@@ -375,11 +378,6 @@ func parseIncludeDCBillsQueryParam(r *http.Request, defaultValue bool) (bool, er
 		return strconv.ParseBool(r.URL.Query().Get("includedcbills"))
 	}
 	return defaultValue, nil
-}
-
-func newListBillsResponse(bills []*Bill, limit, offset int) *ListBillsResponse {
-	billVMs := toBillVMList(bills)
-	return &ListBillsResponse{Bills: billVMs[offset : offset+limit], Total: len(bills)}
 }
 
 func toBillVMList(bills []*Bill) []*ListBillVM {

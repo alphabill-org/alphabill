@@ -54,10 +54,7 @@ type (
 )
 
 var (
-	errMissingPubKeyQueryParam = errors.New("missing required pubkey query parameter")
-	errInvalidPubKeyLength     = errors.New("pubkey hex string must be 68 characters long (with 0x prefix)")
-	errMissingBillIDQueryParam = errors.New("missing required bill_id query parameter")
-	errInvalidBillIDLength     = errors.New("bill_id hex string must be 66 characters long (with 0x prefix)")
+	errInvalidBillIDLength = errors.New("bill_id hex string must be 66 characters long (with 0x prefix)")
 )
 
 func (api *moneyRestAPI) Router() *mux.Router {

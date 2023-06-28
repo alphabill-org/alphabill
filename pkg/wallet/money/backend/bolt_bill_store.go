@@ -35,7 +35,7 @@ var (
 	ErrOwnerPredicateIsNil = errors.New("unit owner predicate is nil")
 )
 
-var _ BillStoreTx = (*boltBillStoreTx)(nil) // compile-time interface check
+var _ BillStoreTx = (*boltBillStoreTx)(nil)
 
 type (
 	boltBillStore struct {

@@ -206,12 +206,10 @@ func (c *MoneyBackendClient) PostTransactions(ctx context.Context, pubKey wallet
 
 // GetTxProof wrapper for GetProof method to satisfy txsubmitter interface, also verifies txHash
 func (c *MoneyBackendClient) GetTxProof(_ context.Context, unitID wallet.UnitID, txHash wallet.TxHash) (*wallet.Proof, error) {
-	fmt.Printf("GetTxProof: unitID: %x, txHash: %x\n", unitID, txHash)
 	req, err := http.NewRequest(http.MethodGet, fmt.Sprintf("%s/api/v1/units/0x%x/transactions/0x%x/proof", c.BaseUrl, unitID, txHash), nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to build get tx proof request: %w", err)
 	}
-	//req.Header.Set(contentType, applicationJson)
 	response, err := c.HttpClient.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("request GetTxProof failed: %w", err)

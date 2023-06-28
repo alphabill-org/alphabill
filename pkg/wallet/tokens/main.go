@@ -48,8 +48,8 @@ type (
 
 	TokenBackend interface {
 		GetToken(ctx context.Context, id backend.TokenID) (*backend.TokenUnit, error)
-		GetTokens(ctx context.Context, kind backend.Kind, owner wallet.PubKey, offsetKey string, limit int) ([]*backend.TokenUnit, string, error)
-		GetTokenTypes(ctx context.Context, kind backend.Kind, creator wallet.PubKey, offsetKey string, limit int) ([]*backend.TokenUnitType, string, error)
+		GetTokens(ctx context.Context, kind backend.Kind, owner wallet.PubKey, offset string, limit int) ([]*backend.TokenUnit, string, error)
+		GetTokenTypes(ctx context.Context, kind backend.Kind, creator wallet.PubKey, offset string, limit int) ([]*backend.TokenUnitType, string, error)
 		GetTypeHierarchy(ctx context.Context, id backend.TokenTypeID) ([]*backend.TokenUnitType, error)
 		GetRoundNumber(ctx context.Context) (uint64, error)
 		PostTransactions(ctx context.Context, pubKey wallet.PubKey, txs *wallet.Transactions) error
@@ -144,15 +144,15 @@ func (w *Wallet) ListTokenTypes(ctx context.Context, accountNumber uint64, kind 
 	fetchForPubKey := func(pubKey []byte) ([]*backend.TokenUnitType, error) {
 		allTokenTypesForKey := make([]*backend.TokenUnitType, 0)
 		var types []*backend.TokenUnitType
-		offsetKey := ""
+		offset := ""
 		var err error
 		for {
-			types, offsetKey, err = w.backend.GetTokenTypes(ctx, kind, pubKey, offsetKey, 0)
+			types, offset, err = w.backend.GetTokenTypes(ctx, kind, pubKey, offset, 0)
 			if err != nil {
 				return nil, err
 			}
 			allTokenTypesForKey = append(allTokenTypesForKey, types...)
-			if offsetKey == "" {
+			if offset == "" {
 				break
 			}
 		}
@@ -231,15 +231,15 @@ func (w *Wallet) getAccounts(accountNumber uint64) ([]*accountKey, error) {
 func (w *Wallet) getTokens(ctx context.Context, kind backend.Kind, pubKey wallet.PubKey) ([]*backend.TokenUnit, error) {
 	allTokens := make([]*backend.TokenUnit, 0)
 	var ts []*backend.TokenUnit
-	offsetKey := ""
+	offset := ""
 	var err error
 	for {
-		ts, offsetKey, err = w.backend.GetTokens(ctx, kind, pubKey, offsetKey, 0)
+		ts, offset, err = w.backend.GetTokens(ctx, kind, pubKey, offset, 0)
 		if err != nil {
 			return nil, err
 		}
 		allTokens = append(allTokens, ts...)
-		if offsetKey == "" {
+		if offset == "" {
 			break
 		}
 	}

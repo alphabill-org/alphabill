@@ -245,9 +245,9 @@ func TestListBillsRequest_Paging(t *testing.T) {
 	require.EqualValues(t, 1, res.Bills[0].Value)
 	require.EqualValues(t, 100, res.Bills[99].Value)
 
-	// verify offsetKey=100 returns next 100 elements
+	// verify offset=100 returns next 100 elements
 	res = &ListBillsResponse{}
-	httpRes, err = testhttp.DoGetJson(fmt.Sprintf("http://localhost:%d/api/v1/list-bills?pubkey=%s&offsetKey=100", port, pubkeyHex), res)
+	httpRes, err = testhttp.DoGetJson(fmt.Sprintf("http://localhost:%d/api/v1/list-bills?pubkey=%s&offset=100", port, pubkeyHex), res)
 	require.NoError(t, err)
 	require.Equal(t, http.StatusOK, httpRes.StatusCode)
 	require.Equal(t, len(bills), res.Total)
@@ -272,7 +272,7 @@ func TestListBillsRequest_Paging(t *testing.T) {
 
 	// verify limit limits result size
 	res = &ListBillsResponse{}
-	httpRes, err = testhttp.DoGetJson(fmt.Sprintf("http://localhost:%d/api/v1/list-bills?pubkey=%s&offsetKey=100&limit=50", port, pubkeyHex), res)
+	httpRes, err = testhttp.DoGetJson(fmt.Sprintf("http://localhost:%d/api/v1/list-bills?pubkey=%s&offset=100&limit=50", port, pubkeyHex), res)
 	require.NoError(t, err)
 	require.Equal(t, http.StatusOK, httpRes.StatusCode)
 	require.Equal(t, len(bills), res.Total)
@@ -282,7 +282,7 @@ func TestListBillsRequest_Paging(t *testing.T) {
 
 	// verify out of bounds offset returns nothing
 	res = &ListBillsResponse{}
-	httpRes, err = testhttp.DoGetJson(fmt.Sprintf("http://localhost:%d/api/v1/list-bills?pubkey=%s&offsetKey=200", port, pubkeyHex), res)
+	httpRes, err = testhttp.DoGetJson(fmt.Sprintf("http://localhost:%d/api/v1/list-bills?pubkey=%s&offset=200", port, pubkeyHex), res)
 	require.NoError(t, err)
 	require.Equal(t, http.StatusOK, httpRes.StatusCode)
 	require.Equal(t, len(bills), res.Total)
@@ -290,7 +290,7 @@ func TestListBillsRequest_Paging(t *testing.T) {
 
 	// verify limit gets capped to 100
 	res = &ListBillsResponse{}
-	httpRes, err = testhttp.DoGetJson(fmt.Sprintf("http://localhost:%d/api/v1/list-bills?pubkey=%s&offsetKey=0&limit=200", port, pubkeyHex), res)
+	httpRes, err = testhttp.DoGetJson(fmt.Sprintf("http://localhost:%d/api/v1/list-bills?pubkey=%s&offset=0&limit=200", port, pubkeyHex), res)
 	require.NoError(t, err)
 	require.Equal(t, http.StatusOK, httpRes.StatusCode)
 	require.Equal(t, len(bills), res.Total)
@@ -300,7 +300,7 @@ func TestListBillsRequest_Paging(t *testing.T) {
 
 	// verify out of bounds offset+limit return all available data
 	res = &ListBillsResponse{}
-	httpRes, err = testhttp.DoGetJson(fmt.Sprintf("http://localhost:%d/api/v1/list-bills?pubkey=%s&offsetKey=190&limit=100", port, pubkeyHex), res)
+	httpRes, err = testhttp.DoGetJson(fmt.Sprintf("http://localhost:%d/api/v1/list-bills?pubkey=%s&offset=190&limit=100", port, pubkeyHex), res)
 	require.NoError(t, err)
 	require.Equal(t, http.StatusOK, httpRes.StatusCode)
 	require.Equal(t, len(bills), res.Total)

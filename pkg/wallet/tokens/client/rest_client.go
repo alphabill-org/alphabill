@@ -65,19 +65,19 @@ func (tb *TokenBackend) GetToken(ctx context.Context, id backend.TokenID) (*back
 
 /*
 GetTokens returns tokens owned by "owner" and matching "kind" (may be Any, ie all kinds).
-For batched querying "offsetKey" must be set to the value returned by previous batch, empty
+For batched querying "offset" must be set to the value returned by previous batch, empty
 string means "start from the beginning of the dataset". The "limit" parameter allows to set
 the max batch size (but smaller resultset might be returned even when there is more data in
-the backend ie the "offsetKey" returned is not empty).
+the backend ie the "offset" returned is not empty).
 
 Returns:
   - tokens matching the query;
-  - offsetKey for the next batch (if empty then there is no more data to query);
+  - offset for the next batch (if empty then there is no more data to query);
   - non-nil error when something failed;
 */
-func (tb *TokenBackend) GetTokens(ctx context.Context, kind backend.Kind, owner sdk.PubKey, offsetKey string, limit int) ([]*backend.TokenUnit, string, error) {
+func (tb *TokenBackend) GetTokens(ctx context.Context, kind backend.Kind, owner sdk.PubKey, offset string, limit int) ([]*backend.TokenUnit, string, error) {
 	addr := tb.getURL(apiPathPrefix, "kinds", kind.String(), "owners", hexutil.Encode(owner), "tokens")
-	setPaginationParams(addr, offsetKey, limit)
+	setPaginationParams(addr, offset, limit)
 
 	rspData := make([]*backend.TokenUnit, 0)
 	pm, err := tb.get(ctx, addr, &rspData, true)
@@ -90,21 +90,21 @@ func (tb *TokenBackend) GetTokens(ctx context.Context, kind backend.Kind, owner 
 /*
 GetTokenTypes returns token types of particular kind (may be Any, ie all kinds), the optional "creator"
 parameter allows to further filter the types by it's creator public key.
-The "offsetKey" and "limit" parameters are for batched / paginated query support.
+The "offset" and "limit" parameters are for batched / paginated query support.
 
 Returns:
   - token types matching the query;
-  - offsetKey for the next batch (if empty then there is no more data to query);
+  - offset for the next batch (if empty then there is no more data to query);
   - non-nil error when something failed;
 */
-func (tb *TokenBackend) GetTokenTypes(ctx context.Context, kind backend.Kind, creator sdk.PubKey, offsetKey string, limit int) ([]*backend.TokenUnitType, string, error) {
+func (tb *TokenBackend) GetTokenTypes(ctx context.Context, kind backend.Kind, creator sdk.PubKey, offset string, limit int) ([]*backend.TokenUnitType, string, error) {
 	addr := tb.getURL(apiPathPrefix, "kinds", kind.String(), "types")
 	if len(creator) > 0 {
 		q := addr.Query()
 		q.Add("creator", hexutil.Encode(creator))
 		addr.RawQuery = q.Encode()
 	}
-	setPaginationParams(addr, offsetKey, limit)
+	setPaginationParams(addr, offset, limit)
 
 	rspData := make([]*backend.TokenUnitType, 0)
 	pm, err := tb.get(ctx, addr, &rspData, true)
@@ -189,7 +189,7 @@ get executes GET request to given "addr" and decodes response body into "data" (
 of the data type expected in the response).
 When "allowEmptyResponse" is false then response must have a non empty body with CBOR content.
 
-It returns value of the offsetKey parameter from the Link header (empty string when header is not
+It returns value of the offset parameter from the Link header (empty string when header is not
 present, ie missing header is not error).
 */
 func (tb *TokenBackend) get(ctx context.Context, addr *url.URL, data any, allowEmptyResponse bool) (string, error) {
@@ -272,10 +272,10 @@ func decodeResponse(rsp *http.Response, successStatus int, data any, allowEmptyR
 	return errors.New(msg)
 }
 
-func setPaginationParams(u *url.URL, offsetKey string, limit int) {
+func setPaginationParams(u *url.URL, offset string, limit int) {
 	q := u.Query()
-	if offsetKey != "" {
-		q.Add("offsetKey", offsetKey)
+	if offset != "" {
+		q.Add("offset", offset)
 	}
 	if limit > 0 {
 		q.Add("limit", strconv.Itoa(limit))
@@ -300,5 +300,5 @@ func extractOffsetMarker(rsp *http.Response) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("failed to parse Link header as URL: %w", err)
 	}
-	return u.Query().Get("offsetKey"), nil
+	return u.Query().Get("offset"), nil
 }

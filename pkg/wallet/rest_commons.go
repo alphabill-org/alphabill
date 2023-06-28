@@ -17,7 +17,7 @@ const (
 	ApplicationJson = "application/json"
 	ApplicationCbor = "application/cbor"
 
-	QueryParamOffsetKey   = "offsetKey"
+	QueryParamOffsetKey   = "offset"
 	QueryParamLimit       = "limit"
 	HeaderLink            = "Link"
 	HeaderLinkValueFormat = `<%s>; rel="next"`

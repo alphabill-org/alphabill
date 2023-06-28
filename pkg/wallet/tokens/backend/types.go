@@ -138,7 +138,7 @@ func (f *FeeCreditBill) GetAddFCTxHash() []byte {
 	return nil
 }
 
-func (f *FeeCreditBill) ToGenericBill(txProof *wallet.Proof) *wallet.Bill {
+func (f *FeeCreditBill) ToGenericBill() *wallet.Bill {
 	if f == nil {
 		return nil
 	}
@@ -147,6 +147,5 @@ func (f *FeeCreditBill) ToGenericBill(txProof *wallet.Proof) *wallet.Bill {
 		Value:       f.Value,
 		TxHash:      f.TxHash,
 		AddFCTxHash: f.AddFCTxHash,
-		TxProof:     txProof,
 	}
 }

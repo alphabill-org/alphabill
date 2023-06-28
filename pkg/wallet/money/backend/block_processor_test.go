@@ -14,6 +14,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/txsystem/money"
 	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/internal/util"
+	sdk "github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/fxamacker/cbor/v2"
 	"github.com/holiman/uint256"
@@ -86,7 +87,7 @@ func TestBlockProcessor_EachTxTypeCanBeProcessed(t *testing.T) {
 
 	store, err := createTestBillStore(t)
 	require.NoError(t, err)
-	err = store.Do().SetFeeCreditBill(fcb)
+	err = store.Do().SetFeeCreditBill(fcb, nil)
 	require.NoError(t, err)
 	err = store.Do().SetSystemDescriptionRecords([]*genesis.SystemDescriptionRecord{
 		{
@@ -112,7 +113,9 @@ func TestBlockProcessor_EachTxTypeCanBeProcessed(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, bills, 4)
 	for _, bill := range bills {
-		verifyProof(t, bill)
+		proof, err := store.Do().GetTxProof(bill.Id, bill.TxHash)
+		require.NoError(t, err)
+		verifyProof(t, bill, proof)
 	}
 
 	// verify tx2 is dcBill
@@ -250,7 +253,7 @@ func TestBlockProcessor_TransferAndReclaimFeeCycle_TargetMoneyPartition(t *testi
 		Value:          100,
 		TxHash:         []byte{2},
 		OwnerPredicate: script.PredicateAlwaysTrue(),
-	})
+	}, nil)
 	require.NoError(t, err)
 
 	moneyPartitionFeeBillID := util.Uint256ToBytes(uint256.NewInt(2))
@@ -270,7 +273,7 @@ func TestBlockProcessor_TransferAndReclaimFeeCycle_TargetMoneyPartition(t *testi
 		Id:             moneyPartitionFeeBillID,
 		OwnerPredicate: script.PredicateAlwaysTrue(),
 		Value:          0,
-	})
+	}, nil)
 	require.NoError(t, err)
 
 	blockProcessor, err := NewBlockProcessor(store, moneySystemID)
@@ -418,7 +421,7 @@ func TestBlockProcessor_TransferAndReclaimFeeCycle_TargetTokenPartition(t *testi
 		Value:          100,
 		TxHash:         []byte{2},
 		OwnerPredicate: script.PredicateAlwaysTrue(),
-	})
+	}, nil)
 	require.NoError(t, err)
 
 	moneyPartitionFeeBillID := util.Uint256ToBytes(uint256.NewInt(2))
@@ -447,13 +450,13 @@ func TestBlockProcessor_TransferAndReclaimFeeCycle_TargetTokenPartition(t *testi
 		Id:             moneyPartitionFeeBillID,
 		OwnerPredicate: script.PredicateAlwaysTrue(),
 		Value:          0,
-	})
+	}, nil)
 	require.NoError(t, err)
 	err = store.Do().SetBill(&Bill{
 		Id:             tokenPartitionFeeBillID,
 		OwnerPredicate: script.PredicateAlwaysTrue(),
 		Value:          0,
-	})
+	}, nil)
 	require.NoError(t, err)
 
 	blockProcessor, err := NewBlockProcessor(store, moneySystemID)
@@ -602,9 +605,8 @@ func TestBlockProcessor_TransferAndReclaimFeeCycle_TargetTokenPartition(t *testi
 	require.EqualValues(t, 0, fcb.Value)
 }
 
-func verifyProof(t *testing.T, b *Bill) {
+func verifyProof(t *testing.T, b *Bill, txProof *sdk.Proof) {
 	require.NotNil(t, b)
-	txProof := b.TxProof
 	require.NotNil(t, txProof)
 	require.NotNil(t, txProof.TxRecord)
 

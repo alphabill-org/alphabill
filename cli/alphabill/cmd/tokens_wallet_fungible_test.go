@@ -346,7 +346,7 @@ func NewAlphabillNetwork(t *testing.T) *AlphabillNetwork {
 	w1key2, err := w1.GetAccountManager().GetAccountKey(1)
 
 	spendInitialBillWithFeeCredits(t, abNet, initialBill, hexutil.Encode(w1key.PubKey))
-	time.Sleep(2 * time.Second) // TODO dynamic sleep
+	time.Sleep(4 * time.Second) // TODO dynamic sleep
 
 	// create fees on money partition
 	_, err = moneyWallet.AddFeeCredit(ctx, fees.AddFeeCmd{Amount: 1000})

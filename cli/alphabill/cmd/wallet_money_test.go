@@ -26,8 +26,8 @@ import (
 	"github.com/alphabill-org/alphabill/internal/txsystem/money"
 	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/alphabill-org/alphabill/pkg/wallet/account"
-	"github.com/alphabill-org/alphabill/pkg/wallet/money/backend/client"
 	wallet "github.com/alphabill-org/alphabill/pkg/wallet/money"
+	"github.com/alphabill-org/alphabill/pkg/wallet/money/backend/client"
 )
 
 type (
@@ -354,7 +354,7 @@ func mockBackendCalls(br *backendMockReturnConf) (*httptest.Server, *url.URL) {
 			case "/" + client.RoundNumberPath:
 				w.WriteHeader(http.StatusOK)
 				w.Write([]byte(fmt.Sprintf(`{"blockHeight": "%d"}`, br.blockHeight)))
-			case "/" + client.ProofPath:
+			case "/api/v1/units/":
 				if br.proofList != "" {
 					w.WriteHeader(http.StatusOK)
 					w.Write([]byte(br.proofList))

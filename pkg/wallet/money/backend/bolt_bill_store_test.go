@@ -57,7 +57,7 @@ func TestBillStore_GetSetBills(t *testing.T) {
 		newBillWithValueAndOwner(3, ownerPredicate1),
 	}
 	for _, b := range billsOwner1 {
-		err = bs.Do().SetBill(b)
+		err = bs.Do().SetBill(b, nil)
 		require.NoError(t, err)
 	}
 
@@ -68,7 +68,7 @@ func TestBillStore_GetSetBills(t *testing.T) {
 		newBillWithValueAndOwner(6, ownerPredicate2),
 	}
 	for _, b := range billsOwner2 {
-		err = bs.Do().SetBill(b)
+		err = bs.Do().SetBill(b, nil)
 		require.NoError(t, err)
 	}
 
@@ -101,7 +101,7 @@ func TestBillStore_GetSetBills(t *testing.T) {
 	// when bill owner changes
 	b := billsOwner1[0]
 	b.OwnerPredicate = ownerPredicate2
-	err = bs.Do().SetBill(b)
+	err = bs.Do().SetBill(b, nil)
 	require.NoError(t, err)
 
 	// then secondary indexes are updated
@@ -125,7 +125,7 @@ func TestBillStore_DeleteBill(t *testing.T) {
 
 	// add bill
 	bill := newBillWithValueAndOwner(1, p1)
-	err := bs.Do().SetBill(bill)
+	err := bs.Do().SetBill(bill, nil)
 	require.NoError(t, err)
 
 	// verify bill is added
@@ -156,7 +156,7 @@ func TestBillStore_DeleteExpiredBills(t *testing.T) {
 
 	// add three bills and set expiration time
 	for _, unitID := range unitIDs {
-		err := s.Do().SetBill(&Bill{Id: unitID, OwnerPredicate: bearer})
+		err := s.Do().SetBill(&Bill{Id: unitID, OwnerPredicate: bearer}, nil)
 		require.NoError(t, err)
 
 		err = s.Do().SetBillExpirationTime(expirationBlockNo, unitID)
@@ -198,7 +198,7 @@ func TestBillStore_GetSetFeeCreditBills(t *testing.T) {
 		newBillWithValueAndOwner(3, ownerPredicate),
 	}
 	for _, b := range fcbs {
-		err = bs.Do().SetFeeCreditBill(b)
+		err = bs.Do().SetFeeCreditBill(b, nil)
 		require.NoError(t, err)
 	}
 
@@ -267,9 +267,9 @@ func TestBillStore_GetSetDeleteDCMetadata(t *testing.T) {
 	require.Nil(t, deletedMetadata)
 }
 
-func createTestBillStore(t *testing.T) (*BoltBillStore, error) {
+func createTestBillStore(t *testing.T) (*boltBillStore, error) {
 	dbFile := filepath.Join(t.TempDir(), BoltBillStoreFileName)
-	return NewBoltBillStore(dbFile)
+	return newBoltBillStore(dbFile)
 }
 
 func getOwnerPredicate(pubkey string) []byte {

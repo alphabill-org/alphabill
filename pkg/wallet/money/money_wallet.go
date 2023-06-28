@@ -52,7 +52,6 @@ type (
 		GetBalance(pubKey []byte, includeDCBills bool) (uint64, error)
 		ListBills(pubKey []byte, includeDCBills, includeDCMetadata bool) (*backend.ListBillsResponse, error)
 		GetBills(pubKey []byte) ([]*wallet.Bill, error)
-		GetProof(billId []byte) (*wallet.Bills, error)
 		GetRoundNumber(ctx context.Context) (uint64, error)
 		GetFeeCreditBill(ctx context.Context, unitID wallet.UnitID) (*wallet.Bill, error)
 		PostTransactions(ctx context.Context, pubKey wallet.PubKey, txs *wallet.Transactions) error
@@ -243,30 +242,6 @@ func (w *Wallet) Send(ctx context.Context, cmd SendCmd) ([]*wallet.Proof, error)
 	return proofs, nil
 }
 
-func (w *Wallet) PostTransactions(ctx context.Context, pubkey wallet.PubKey, txs *wallet.Transactions) error {
-	return w.backend.PostTransactions(ctx, pubkey, txs)
-}
-
-func (w *Wallet) GetTxProof(_ context.Context, unitID wallet.UnitID, txHash wallet.TxHash) (*wallet.Proof, error) {
-	resp, err := w.backend.GetProof(unitID)
-	if err != nil {
-		return nil, err
-	}
-	if resp == nil {
-		// confirmation expects nil (not error) if there's no proof for the given tx hash (yet)
-		return nil, nil
-	}
-	if len(resp.Bills) != 1 {
-		return nil, fmt.Errorf("unexpected number of proofs: %d, bill ID: %X", len(resp.Bills), unitID)
-	}
-	bill := resp.Bills[0]
-	if !bytes.Equal(bill.TxHash, txHash) {
-		// confirmation expects nil (not error) if there's no proof for the given tx hash (yet)
-		return nil, nil
-	}
-	return bill.TxProof, nil
-}
-
 // AddFeeCredit creates fee credit for the given amount.
 // Wallet must have a bill large enough for the required amount plus fees.
 // Returns transferFC and addFC transaction proofs.
@@ -310,7 +285,7 @@ func (w *Wallet) collectDust(ctx context.Context, accountIndex uint64) error {
 	if err != nil {
 		return err
 	}
-	bills, dcMetadataMap, err := w.getDetailedBillsList(pubKey)
+	bills, dcMetadataMap, err := w.getDetailedBillsList(ctx, pubKey)
 	if err != nil {
 		return err
 	}
@@ -338,7 +313,7 @@ func (w *Wallet) collectDust(ctx context.Context, accountIndex uint64) error {
 						return nil
 					}
 				}
-				bills, dcMetadataMap, err = w.getDetailedBillsList(pubKey)
+				bills, dcMetadataMap, err = w.getDetailedBillsList(ctx, pubKey)
 				if err != nil {
 					return err
 				}
@@ -368,7 +343,7 @@ func (w *Wallet) collectDust(ctx context.Context, accountIndex uint64) error {
 			if err != nil {
 				return err
 			}
-			bills, _, err = w.getDetailedBillsList(pubKey)
+			bills, _, err = w.getDetailedBillsList(ctx, pubKey)
 			if err != nil {
 				return err
 			}
@@ -426,9 +401,9 @@ func (w *Wallet) swapDcBills(ctx context.Context, dcBills []*Bill, dcNonce []byt
 		return ErrInsufficientFeeCredit
 	}
 
-	var bpBills []*wallet.Bill
+	var bpBills []*wallet.BillProof
 	for _, b := range dcBills {
-		bpBills = append(bpBills, &wallet.Bill{Id: b.GetID(), Value: b.Value, TxProof: b.TxProof})
+		bpBills = append(bpBills, &wallet.BillProof{Bill: &wallet.Bill{Id: b.GetID(), Value: b.Value}, TxProof: b.TxProof})
 	}
 	swapTx, err := tx_builder.NewSwapTx(k, w.SystemID(), bpBills, dcNonce, billIds, timeout)
 	if err != nil {
@@ -450,7 +425,7 @@ func (w *Wallet) SendTx(ctx context.Context, tx *types.TransactionOrder, senderP
 	return w.TxPublisher.SendTx(ctx, tx, senderPubKey)
 }
 
-func (w *Wallet) getDetailedBillsList(pubKey []byte) ([]*Bill, map[string]*backend.DCMetadata, error) {
+func (w *Wallet) getDetailedBillsList(ctx context.Context, pubKey []byte) ([]*Bill, map[string]*backend.DCMetadata, error) {
 	billResponse, err := w.backend.ListBills(pubKey, true, true)
 	if err != nil {
 		return nil, nil, err
@@ -460,15 +435,14 @@ func (w *Wallet) getDetailedBillsList(pubKey []byte) ([]*Bill, map[string]*backe
 		return bills, nil, nil
 	}
 	for _, b := range billResponse.Bills {
+		var proof *wallet.Proof
 		if b.DcNonce != nil {
-			proof, err := w.backend.GetProof(b.Id)
+			proof, err = w.backend.GetTxProof(ctx, b.Id, b.TxHash)
 			if err != nil {
 				return nil, nil, err
 			}
-			bills = append(bills, convertBill(proof.Bills[0]))
-		} else {
-			bills = append(bills, &Bill{Id: util.BytesToUint256(b.Id), Value: b.Value, TxHash: b.TxHash, DcNonce: b.DcNonce})
 		}
+		bills = append(bills, &Bill{Id: util.BytesToUint256(b.Id), Value: b.Value, TxHash: b.TxHash, DcNonce: b.DcNonce, TxProof: proof})
 	}
 
 	return bills, billResponse.DCMetadata, nil
@@ -556,24 +530,4 @@ func getBillIds(bills []*Bill) [][]byte {
 		billIds = append(billIds, b.GetID())
 	}
 	return billIds
-}
-
-// converts proto wallet.Bill to money.Bill domain struct
-func convertBill(b *wallet.Bill) *Bill {
-	if b.DcNonce != nil {
-		return &Bill{
-			Id:        util.BytesToUint256(b.Id),
-			Value:     b.Value,
-			TxHash:    b.TxHash,
-			DcNonce:   b.DcNonce,
-			DcTimeout: b.TxProof.TxRecord.TransactionOrder.Timeout(),
-			TxProof:   b.TxProof,
-		}
-	}
-	return &Bill{
-		Id:      util.BytesToUint256(b.Id),
-		Value:   b.Value,
-		TxHash:  b.TxHash,
-		TxProof: b.TxProof,
-	}
 }

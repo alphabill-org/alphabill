@@ -43,7 +43,6 @@ func (p *stateHasher) Traverse(n *avl.Node[types.UnitID, *Unit]) error {
 	}
 
 	unit := n.Value()
-	unit.unitLedgerHeadHash = unit.latestUnitLedgerHeadHash()
 
 	// h_s - calculate state log root hash
 	merkleTree, err := mt.New(p.hashAlgorithm, unit.logs)

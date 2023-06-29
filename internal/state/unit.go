@@ -10,9 +10,8 @@ type (
 
 	// Unit is a node in the state tree. It is used to build state tree and unit ledgers.
 	Unit struct {
-		unitLedgerHeadHash  []byte    // the initial head hash of the unit ledger. may be zero hash.
 		logs                logs      // state changes of the unit.
-		logRoot             []byte    // root value of the hash tree built on the state log. may be zero hash.
+		logRoot             []byte    // root value of the hash tree built on the state log.
 		bearer              Predicate // current bearer condition
 		data                UnitData  // current data of the unit
 		subTreeSummaryValue uint64    // current summary value of the sub-tree rooted at this node
@@ -52,7 +51,6 @@ func (u *Unit) Clone() *Unit {
 		return nil
 	}
 	return &Unit{
-		unitLedgerHeadHash:  bytes.Clone(u.unitLedgerHeadHash),
 		logs:                copyLogs(u.logs),
 		logRoot:             bytes.Clone(u.logRoot),
 		bearer:              bytes.Clone(u.bearer),
@@ -114,12 +112,4 @@ func (u *Unit) latestUnitData() UnitData {
 		return u.data
 	}
 	return u.logs[l-1].newUnitData
-}
-
-func (u *Unit) latestUnitLedgerHeadHash() []byte {
-	l := len(u.logs)
-	if l == 0 {
-		return u.unitLedgerHeadHash
-	}
-	return u.logs[l-1].unitLedgerHeadHash
 }

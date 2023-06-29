@@ -83,19 +83,19 @@ func (s *State) AddUnitLog(id types.UnitID, transactionRecordHash []byte) (int, 
 	}
 	unit := u.Clone()
 	logsCount := len(unit.logs)
+	l := &log{
+		txRecordHash: transactionRecordHash,
+		newBearer:    bytes.Clone(unit.bearer),
+		newUnitData:  copyData(unit.data),
+	}
 	if logsCount == 0 {
 		// newly created unit
-		unit.unitLedgerHeadHash = hasherUtil.Sum(s.hashAlgorithm, transactionRecordHash)
+		l.unitLedgerHeadHash = hasherUtil.Sum(s.hashAlgorithm, nil, transactionRecordHash)
 	} else {
 		// a pre-existing unit
-		unit.unitLedgerHeadHash = hasherUtil.Sum(s.hashAlgorithm, unit.logs[logsCount-1].unitLedgerHeadHash, transactionRecordHash)
+		l.unitLedgerHeadHash = hasherUtil.Sum(s.hashAlgorithm, unit.logs[logsCount-1].unitLedgerHeadHash, transactionRecordHash)
 	}
-	unit.logs = append(unit.logs, &log{
-		txRecordHash:       bytes.Clone(transactionRecordHash),
-		unitLedgerHeadHash: bytes.Clone(unit.unitLedgerHeadHash),
-		newBearer:          bytes.Clone(unit.bearer),
-		newUnitData:        copyData(unit.data),
-	})
+	unit.logs = append(unit.logs, l)
 	return len(unit.logs), s.latestSavepoint().Update(id, unit)
 }
 
@@ -198,10 +198,9 @@ func (s *State) PruneLog(id types.UnitID) error {
 	}
 	latestLog := u.logs[logSize-1]
 	unit := u.Clone()
-	unit.unitLedgerHeadHash = bytes.Clone(latestLog.unitLedgerHeadHash)
 	unit.logs = []*log{{
 		txRecordHash:       nil,
-		unitLedgerHeadHash: bytes.Clone(unit.unitLedgerHeadHash),
+		unitLedgerHeadHash: bytes.Clone(latestLog.unitLedgerHeadHash),
 		newBearer:          bytes.Clone(unit.Bearer()),
 		newUnitData:        copyData(unit.Data()),
 	}}

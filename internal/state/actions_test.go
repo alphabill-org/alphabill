@@ -55,7 +55,6 @@ func TestAdd(t *testing.T) {
 			},
 			initialState: newEmptyState(t),
 			expectedUnit: &Unit{
-				unitLedgerHeadHash:  nil,
 				logs:                nil,
 				logRoot:             nil,
 				bearer:              script.PredicateAlwaysTrue(),
@@ -129,7 +128,6 @@ func TestUpdate(t *testing.T) {
 			},
 			initialState: newStateWithUnits(t),
 			expectedUnit: &Unit{
-				unitLedgerHeadHash:  nil,
 				logs:                nil,
 				logRoot:             nil,
 				bearer:              script.PredicateAlwaysTrue(),
@@ -229,7 +227,6 @@ func TestSetOwner(t *testing.T) {
 			},
 			initialState: newStateWithUnits(t),
 			expectedUnit: &Unit{
-				unitLedgerHeadHash:  nil,
 				logs:                nil,
 				logRoot:             nil,
 				bearer:              []byte{1, 2, 3, 4, 5},
@@ -276,7 +273,7 @@ func assertUnit(t *testing.T, state *State, unitID types.UnitID, expectedUnit *U
 	unit, err := state.latestSavepoint().Get(unitID)
 	require.NoError(t, err)
 	require.NotNil(t, unit)
-	assertUnitEqual(t, expectedUnit, unit, committed)
+	assertUnitEqual(t, expectedUnit, unit)
 
 	committedUnit, err := state.committedTree.Get(unitID)
 	if !committed {
@@ -284,17 +281,12 @@ func assertUnit(t *testing.T, state *State, unitID types.UnitID, expectedUnit *U
 	} else {
 		require.NoError(t, err)
 		require.NotNil(t, committedUnit)
-		assertUnitEqual(t, expectedUnit, unit, committed)
+		assertUnitEqual(t, expectedUnit, unit)
 	}
 }
 
-func assertUnitEqual(t *testing.T, expectedUnit *Unit, unit *Unit, committed bool) {
+func assertUnitEqual(t *testing.T, expectedUnit *Unit, unit *Unit) {
 	require.Equal(t, expectedUnit.data, unit.data)
-	if !committed {
-		require.Nil(t, unit.unitLedgerHeadHash)
-	} else {
-		require.NotNil(t, unit.unitLedgerHeadHash)
-	}
 	require.Equal(t, expectedUnit.subTreeSummaryValue, unit.subTreeSummaryValue)
 	require.Equal(t, expectedUnit.bearer, unit.bearer)
 }

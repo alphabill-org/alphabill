@@ -8,17 +8,16 @@ import (
 	"os"
 	"path/filepath"
 
-	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/txsystem/money"
 	"github.com/alphabill-org/alphabill/internal/types"
 )
 
 var (
-	ErrTxProofNil        = errors.New("tx proof is nil")
-	ErrInvalidValue      = errors.New("invalid value")
-	ErrInvalidDCBillFlag = errors.New("invalid isDcBill flag")
-	ErrInvalidTxHash     = errors.New("bill txHash is not equal to actual transaction hash")
-	ErrInvalidTxType     = errors.New("invalid tx type")
+	ErrTxProofNil     = errors.New("tx proof is nil")
+	ErrInvalidValue   = errors.New("invalid value")
+	ErrMissingDCNonce = errors.New("dcNonce is missing")
+	ErrInvalidTxHash  = errors.New("bill txHash is not equal to actual transaction hash")
+	ErrInvalidTxType  = errors.New("invalid tx type")
 )
 
 type (
@@ -30,17 +29,28 @@ type (
 	// used to be protobuf defined Bill struct used as import/export/download/upload unified schema across applications
 	// possibly can be removed as import/export/download/upoad feature was dropped
 	Bill struct {
-		Id       []byte `json:"id,omitempty"`
-		Value    uint64 `json:"value,omitempty,string"`
-		TxHash   []byte `json:"tx_hash,omitempty"`
-		IsDcBill bool   `json:"is_dc_bill,omitempty"`
-		TxProof  *Proof `json:"tx_proof,omitempty"`
+		Id      []byte `json:"id,omitempty"`
+		Value   uint64 `json:"value,omitempty,string"`
+		TxHash  []byte `json:"tx_hash,omitempty"`
+		DcNonce []byte `json:"dc_nonce,omitempty"`
 
 		// fcb specific fields
 		// AddFCTxHash last add fee credit tx hash
 		AddFCTxHash []byte `json:"add_fc_tx_hash,omitempty"`
 	}
+
+	BillProof struct {
+		Bill    *Bill
+		TxProof *Proof
+	}
 )
+
+func (bp *BillProof) GetID() []byte {
+	if bp != nil && bp.Bill != nil {
+		return bp.Bill.Id
+	}
+	return nil
+}
 
 func NewTxProof(txIdx int, b *types.Block, hashAlgorithm crypto.Hash) (*Proof, error) {
 	txProof, _, err := types.NewTxProof(b, txIdx, hashAlgorithm)
@@ -51,31 +61,6 @@ func NewTxProof(txIdx int, b *types.Block, hashAlgorithm crypto.Hash) (*Proof, e
 		TxRecord: b.Transactions[txIdx],
 		TxProof:  txProof,
 	}, nil
-}
-
-// Verify validates struct and verifies proofs.
-func (x *Bills) Verify(verifiers map[string]abcrypto.Verifier) error {
-	for _, bill := range x.Bills {
-		err := bill.Verify(verifiers)
-		if err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-// Verify validates struct and verifies proof.
-func (x *Bill) Verify(verifiers map[string]abcrypto.Verifier) error {
-	proof := x.TxProof
-	if proof == nil {
-		return ErrTxProofNil
-	}
-	txr := proof.TxRecord
-	err := x.verifyTx(txr)
-	if err != nil {
-		return err
-	}
-	return types.VerifyTxProof(proof.TxProof, txr, verifiers, crypto.SHA256)
 }
 
 func (x *Bill) GetID() []byte {
@@ -113,8 +98,8 @@ func (x *Bill) verifyTx(txr *types.TransactionRecord) error {
 	if x.Value != value {
 		return ErrInvalidValue
 	}
-	if x.IsDcBill != isDCTx {
-		return ErrInvalidDCBillFlag
+	if isDCTx && x.DcNonce == nil {
+		return ErrMissingDCNonce
 	}
 	if !bytes.Equal(x.TxHash, txr.Hash(crypto.SHA256)) {
 		return ErrInvalidTxHash
@@ -135,7 +120,7 @@ func ReadBillsFile(path string) (*Bills, error) {
 	return res, nil
 }
 
-func WriteBillsFile(path string, res *Bills) error {
+func WriteBillsFile(path string, res []*BillProof) error {
 	b, err := json.Marshal(res)
 	if err != nil {
 		return err

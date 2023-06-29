@@ -580,6 +580,7 @@ func (n *Node) startNewRound(ctx context.Context, uc *types.UnicityCertificate) 
 	n.transactionSystem.BeginBlock(newRoundNr)
 	n.proposedTransactions = []*types.TransactionRecord{}
 	n.pendingBlockProposal = nil
+	n.sumOfEarnedFees = 0
 	// not a fatal issue, but log anyway
 	if err := n.blockStore.Delete(util.Uint32ToBytes(proposalKey)); err != nil {
 		logger.Debug("DB proposal delete failed, %v", err)
@@ -639,8 +640,8 @@ func (n *Node) handleUnicityCertificate(ctx context.Context, uc *types.UnicityCe
 	// validation must make sure all mandatory fields are present and UC is cryptographically sound
 	// from this point fields can be logged, that must not be nil can be logged
 	luc := n.luc.Load()
-	logger.Debug("Received Unicity Certificate:\nH:\t%X\nH':\t%X\nHb:\t%X", uc.InputRecord.Hash, uc.InputRecord.PreviousHash, uc.InputRecord.BlockHash)
-	logger.Debug("LUC:\nH:\t%X\nH':\t%X\nHb:\t%X", luc.InputRecord.Hash, luc.InputRecord.PreviousHash, luc.InputRecord.BlockHash)
+	logger.Debug("Received Unicity Certificate:\nH:\t%X\nH':\t%X\nHb:\t%X\nfees:\t%d", uc.InputRecord.Hash, uc.InputRecord.PreviousHash, uc.InputRecord.BlockHash, uc.InputRecord.SumOfEarnedFees)
+	logger.Debug("LUC:\nH:\t%X\nH':\t%X\nHb:\t%X\nfees:\t%d", luc.InputRecord.Hash, luc.InputRecord.PreviousHash, luc.InputRecord.BlockHash, luc.InputRecord.SumOfEarnedFees)
 	// ignore duplicates
 	if bytes.Equal(luc.InputRecord.Bytes(), uc.InputRecord.Bytes()) {
 		if n.status.Load() == initializing {
@@ -676,20 +677,14 @@ func (n *Node) handleUnicityCertificate(ctx context.Context, uc *types.UnicityCe
 			n.startRecovery(uc)
 			return ErrNodeDoesNotHaveLatestBlock
 		}
-		// if sumOfEarnedFees does not match - start recovery
-		if uc.InputRecord.SumOfEarnedFees != n.sumOfEarnedFees {
-			logger.Warning("Recovery needed, UC IR.sumOfEarnedFees not equal to state's sumOfEarnedFees: '%d' vs '%d'", uc.InputRecord.SumOfEarnedFees, n.sumOfEarnedFees)
-			n.startRecovery(uc)
-			return ErrNodeDoesNotHaveLatestBlock
-		}
 		logger.Debug("No pending block proposal, UC IR hash is equal to State hash, so are block hashes")
 		n.startNewRound(ctx, uc)
 		return nil
 	}
 	// Check pending block proposal
 	bl, blockHash, err := n.proposalHash(n.pendingBlockProposal, uc)
-	logger.Debug("Pending proposal: \nH:\t%X\nH':\t%X\nHb:\t%X\nround:\t%v",
-		n.pendingBlockProposal.StateHash, n.pendingBlockProposal.PrevHash, blockHash, n.pendingBlockProposal.RoundNumber)
+	logger.Debug("Pending proposal: \nH:\t%X\nH':\t%X\nHb:\t%X\nround:\t%v\nfees:\t%d",
+		n.pendingBlockProposal.StateHash, n.pendingBlockProposal.PrevHash, blockHash, n.pendingBlockProposal.RoundNumber, n.pendingBlockProposal.SumOfEarnedFees)
 	if err != nil {
 		logger.Warning("Recovery needed, block proposal hash calculation error, %v", err)
 		n.startRecovery(uc)
@@ -1075,6 +1070,7 @@ func (n *Node) sendCertificationRequest(blockAuthor string) error {
 		return fmt.Errorf("block hash calculation failed, %w", err)
 	}
 	n.proposedTransactions = []*types.TransactionRecord{}
+	n.sumOfEarnedFees = 0
 
 	req := &certification.BlockCertificationRequest{
 		SystemIdentifier: systemIdentifier,
@@ -1093,8 +1089,8 @@ func (n *Node) sendCertificationRequest(blockAuthor string) error {
 	if err = req.Sign(n.configuration.signer); err != nil {
 		return fmt.Errorf("failed to sign certification req, %w", err)
 	}
-	logger.Info("Round %v sending block certification request to root chain, IR hash %X, Block Hash %X",
-		pendingProposal.RoundNumber, stateHash, blockHash)
+	logger.Info("Round %v sending block certification request to root chain, IR hash %X, Block Hash %X, fee sum %d",
+		pendingProposal.RoundNumber, stateHash, blockHash, pendingProposal.SumOfEarnedFees)
 	util.WriteTraceJsonLog(logger, "Block Certification req:", req)
 
 	return n.network.Send(network.OutputMessage{

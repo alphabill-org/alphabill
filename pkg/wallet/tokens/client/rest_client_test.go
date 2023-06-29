@@ -32,9 +32,9 @@ func Test_setPaginationParams(t *testing.T) {
 		{pos: "", limit: 0, res: ""},
 		{pos: "", limit: -1, res: ""},
 		{pos: "", limit: 10, res: "?limit=10"},
-		{pos: "a01b", limit: 0, res: "?offsetKey=a01b"},
-		{pos: "a01b", limit: -2, res: "?offsetKey=a01b"},
-		{pos: "a01b", limit: 20, res: "?limit=20&offsetKey=a01b"},
+		{pos: "a01b", limit: 0, res: "?offset=a01b"},
+		{pos: "a01b", limit: -2, res: "?offset=a01b"},
+		{pos: "a01b", limit: 20, res: "?limit=20&offset=a01b"},
 	}
 
 	for x, tc := range cases {
@@ -178,7 +178,7 @@ func Test_get(t *testing.T) {
 	})
 
 	t.Run("position marker is extracted correctly", func(t *testing.T) {
-		cli := clientWithHeader(t, 200, `<http://localhost/something?offsetKey=abc&some=garbage>; rel="next"`)
+		cli := clientWithHeader(t, 200, `<http://localhost/something?offset=abc&some=garbage>; rel="next"`)
 		var data int
 		pos, err := cli.get(context.Background(), &url.URL{Scheme: "http", Host: "localhost"}, &data, true)
 		require.NoError(t, err)
@@ -550,10 +550,11 @@ func Test_GetTxProof(t *testing.T) {
 						w.WriteHeader(http.StatusNotFound)
 						w.WriteString(`{"message":"no proof found"}`)
 					} else {
-						if err := json.NewEncoder(w).Encode(proof); err != nil {
+						w.Header().Set(contentTypeHeader, applicationCbor)
+						w.WriteHeader(http.StatusOK)
+						if err := cbor.NewEncoder(w).Encode(proof); err != nil {
 							return nil, fmt.Errorf("failed to write response body: %v", err)
 						}
-						w.WriteHeader(http.StatusOK)
 					}
 					return w.Result(), nil
 				},
@@ -563,7 +564,7 @@ func Test_GetTxProof(t *testing.T) {
 
 	t.Run("valid proof returned", func(t *testing.T) {
 		proof := &wallet.Proof{
-			TxRecord: &types.TransactionRecord{TransactionOrder: &types.TransactionOrder{Payload: &types.Payload{UnitID: unitID}}},
+			TxRecord: &types.TransactionRecord{TransactionOrder: &types.TransactionOrder{Payload: &types.Payload{UnitID: unitID, Attributes: []byte{0x00}}}},
 			TxProof:  &types.TxProof{ /*TransactionsHash: txHash*/ },
 		}
 
@@ -762,7 +763,7 @@ func Test_extractOffsetMarker(t *testing.T) {
 		require.Empty(t, marker)
 	})
 
-	t.Run("offsetKey is not present", func(t *testing.T) {
+	t.Run("offset is not present", func(t *testing.T) {
 		w := httptest.NewRecorder()
 		w.Header().Set("Link", `<http://localhost/foo/bar>; rel="next"`)
 		marker, err := extractOffsetMarker(w.Result())
@@ -770,9 +771,9 @@ func Test_extractOffsetMarker(t *testing.T) {
 		require.Empty(t, marker)
 	})
 
-	t.Run("offsetKey is present", func(t *testing.T) {
+	t.Run("offset is present", func(t *testing.T) {
 		w := httptest.NewRecorder()
-		w.Header().Set("Link", `<http://localhost/foo/bar?offsetKey=ABC>; rel="next"`)
+		w.Header().Set("Link", `<http://localhost/foo/bar?offset=ABC>; rel="next"`)
 		marker, err := extractOffsetMarker(w.Result())
 		require.NoError(t, err)
 		require.Equal(t, "ABC", marker)

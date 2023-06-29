@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/alphabill-org/alphabill/pkg/wallet"
+	sdk "github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/stretchr/testify/require"
 
 	"github.com/alphabill-org/alphabill/internal/script"
@@ -64,7 +64,7 @@ func Test_storage(t *testing.T) {
 
 func testTokenTypeCreator(t *testing.T, db *storage) {
 	typeID := []byte{0x01}
-	creatorKey := wallet.PubKey{0x02}
+	creatorKey := sdk.PubKey{0x02}
 
 	err := db.SaveTokenTypeCreator(nil, Fungible, creatorKey)
 	require.EqualError(t, err, `key required`)
@@ -76,7 +76,7 @@ func testTokenTypeCreator(t *testing.T, db *storage) {
 }
 
 func testTokenType(t *testing.T, db *storage) {
-	proof := &wallet.Proof{}
+	proof := &sdk.Proof{}
 	typeUnit := &TokenUnitType{
 		ID:                       test.RandomBytes(32),
 		ParentTypeID:             test.RandomBytes(32),
@@ -100,7 +100,7 @@ func testTokenType(t *testing.T, db *storage) {
 
 	// empty db, shouldn't find anything
 	typeFromDB, err := db.GetTokenType(typeUnit.ID)
-	require.ErrorIs(t, err, errRecordNotFound)
+	require.ErrorIs(t, err, sdk.ErrRecordNotFound)
 	require.Nil(t, typeFromDB)
 
 	// save a record...
@@ -110,24 +110,24 @@ func testTokenType(t *testing.T, db *storage) {
 	require.NoError(t, err)
 	require.Equal(t, typeUnit, typeFromDB)
 
-	proofFromDB, err := db.GetTxProof(wallet.UnitID(typeUnit.ID), typeUnit.TxHash)
+	proofFromDB, err := db.GetTxProof(sdk.UnitID(typeUnit.ID), typeUnit.TxHash)
 	require.NoError(t, err)
 	require.Equal(t, proof, proofFromDB)
 }
 
 func testSaveToken(t *testing.T, db *storage) {
 	tokenFromDB, err := db.GetToken(nil)
-	require.ErrorIs(t, err, errRecordNotFound)
+	require.ErrorIs(t, err, sdk.ErrRecordNotFound)
 	require.EqualError(t, err, `failed to read token data token-unit[]: not found`)
 	require.Nil(t, tokenFromDB)
 
 	tokenFromDB, err = db.GetToken(test.RandomBytes(32))
-	require.ErrorIs(t, err, errRecordNotFound)
+	require.ErrorIs(t, err, sdk.ErrRecordNotFound)
 	require.Nil(t, tokenFromDB)
 
 	owner := script.PredicatePayToPublicKeyHashDefault(test.RandomBytes(32))
 	token := randomToken(owner, Fungible)
-	proof := &wallet.Proof{}
+	proof := &sdk.Proof{}
 
 	require.NoError(t, db.SaveToken(token, proof))
 
@@ -145,22 +145,22 @@ func testSaveToken(t *testing.T, db *storage) {
 	require.NoError(t, err)
 	require.Equal(t, token, tokenFromDB)
 
-	proofFromDB, err := db.GetTxProof(wallet.UnitID(token.ID), token.TxHash)
+	proofFromDB, err := db.GetTxProof(sdk.UnitID(token.ID), token.TxHash)
 	require.NoError(t, err)
 	require.Equal(t, proof, proofFromDB)
 }
 
 func testRemoveToken(t *testing.T, db *storage) {
 	err := db.RemoveToken(nil)
-	require.ErrorIs(t, err, errRecordNotFound)
+	require.ErrorIs(t, err, sdk.ErrRecordNotFound)
 	require.EqualError(t, err, `failed to read token data token-unit[]: not found`)
 
 	err = db.RemoveToken(test.RandomBytes(32))
-	require.ErrorIs(t, err, errRecordNotFound)
+	require.ErrorIs(t, err, sdk.ErrRecordNotFound)
 
 	owner := script.PredicatePayToPublicKeyHashDefault(test.RandomBytes(32))
 	token := randomToken(owner, Fungible)
-	require.NoError(t, db.SaveToken(token, &wallet.Proof{}))
+	require.NoError(t, db.SaveToken(token, &sdk.Proof{}))
 
 	tokenFromDB, err := db.GetToken(token.ID)
 	require.NoError(t, err)
@@ -170,12 +170,12 @@ func testRemoveToken(t *testing.T, db *storage) {
 	require.NoError(t, db.RemoveToken(token.ID))
 
 	tokenFromDB, err = db.GetToken(token.ID)
-	require.ErrorIs(t, err, errRecordNotFound)
+	require.ErrorIs(t, err, sdk.ErrRecordNotFound)
 	require.Nil(t, tokenFromDB)
 
 	// second attempt should fail
 	err = db.RemoveToken(token.ID)
-	require.ErrorIs(t, err, errRecordNotFound)
+	require.ErrorIs(t, err, sdk.ErrRecordNotFound)
 	require.EqualError(t, err, fmt.Sprintf("failed to read token data token-unit[%X]: not found", token.ID))
 }
 
@@ -244,7 +244,7 @@ func testFeeCredits(t *testing.T, db *storage) {
 func Test_storage_QueryTokenType(t *testing.T) {
 	t.Parallel()
 
-	proof := &wallet.Proof{}
+	proof := &sdk.Proof{}
 	ctorA := test.RandomBytes(32)
 
 	db := initTestStorage(t)
@@ -322,7 +322,7 @@ func Test_storage_QueryTokens(t *testing.T) {
 
 	db := initTestStorage(t)
 
-	proof := &wallet.Proof{}
+	proof := &sdk.Proof{}
 	ownerA := script.PredicatePayToPublicKeyHashDefault(test.RandomBytes(32))
 	ownerB := script.PredicatePayToPublicKeyHashDefault(test.RandomBytes(32))
 
@@ -435,7 +435,7 @@ func randomTokenType(kind Kind) *TokenUnitType {
 	}
 }
 
-func randomToken(owner wallet.Predicate, kind Kind) *TokenUnit {
+func randomToken(owner sdk.Predicate, kind Kind) *TokenUnit {
 	return &TokenUnit{
 		ID:                     test.RandomBytes(32),
 		Symbol:                 "AB",

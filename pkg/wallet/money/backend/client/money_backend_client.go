@@ -32,14 +32,13 @@ type (
 const (
 	BalancePath      = "api/v1/balance"
 	ListBillsPath    = "api/v1/list-bills"
-	ProofPath        = "api/v1/proof"
+	ProofPath        = "api/v1/units/{unitId}/transactions/{txHash}/proof"
 	RoundNumberPath  = "api/v1/round-number"
 	FeeCreditPath    = "api/v1/fee-credit-bills"
 	TransactionsPath = "api/v1/transactions"
 
 	balanceUrlFormat     = "%v/%v?pubkey=%v&includedcbills=%v"
-	listBillsUrlFormat   = "%v/%v?pubkey=%v&includedcbills=%v"
-	proofUrlFormat       = "%v/%v?bill_id=%v"
+	listBillsUrlFormat   = "%v/%v?pubkey=%v&includedcbills=%v&includedcmetadata=%v"
 	roundNumberUrlFormat = "%v/%v"
 
 	defaultScheme   = "http://"
@@ -94,9 +93,9 @@ func (c *MoneyBackendClient) GetBalance(pubKey []byte, includeDCBills bool) (uin
 	return responseObject.Balance, nil
 }
 
-func (c *MoneyBackendClient) ListBills(pubKey []byte, includeDCBills bool) (*backend.ListBillsResponse, error) {
+func (c *MoneyBackendClient) ListBills(pubKey []byte, includeDCBills, includeDCMetadata bool) (*backend.ListBillsResponse, error) {
 	offset := 0
-	responseObject, err := c.retrieveBills(pubKey, includeDCBills, offset)
+	responseObject, err := c.retrieveBills(pubKey, includeDCBills, includeDCMetadata, offset)
 	if err != nil {
 		return nil, err
 	}
@@ -104,7 +103,7 @@ func (c *MoneyBackendClient) ListBills(pubKey []byte, includeDCBills bool) (*bac
 
 	for len(finalResponse.Bills) < finalResponse.Total {
 		offset += len(responseObject.Bills)
-		responseObject, err = c.retrieveBills(pubKey, includeDCBills, offset)
+		responseObject, err = c.retrieveBills(pubKey, includeDCBills, includeDCMetadata, offset)
 		if err != nil {
 			return nil, err
 		}
@@ -114,7 +113,7 @@ func (c *MoneyBackendClient) ListBills(pubKey []byte, includeDCBills bool) (*bac
 }
 
 func (c *MoneyBackendClient) GetBills(pubKey []byte) ([]*wallet.Bill, error) {
-	bills, err := c.ListBills(pubKey, false)
+	bills, err := c.ListBills(pubKey, false, false)
 	if err != nil {
 		return nil, err
 	}
@@ -123,35 +122,6 @@ func (c *MoneyBackendClient) GetBills(pubKey []byte) ([]*wallet.Bill, error) {
 		res = append(res, b.ToGenericBill())
 	}
 	return res, nil
-}
-
-func (c *MoneyBackendClient) GetProof(billId []byte) (*wallet.Bills, error) {
-	req, err := http.NewRequest(http.MethodGet, fmt.Sprintf(proofUrlFormat, c.BaseUrl, ProofPath, hexutil.Encode(billId)), nil)
-	if err != nil {
-		return nil, fmt.Errorf("failed to build get proof request: %w", err)
-	}
-	req.Header.Set(contentType, applicationJson)
-	response, err := c.HttpClient.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("request GetProof failed: %w", err)
-	}
-	if response.StatusCode == http.StatusNotFound {
-		return nil, nil
-	}
-	if response.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("unexpected response status code: %d", response.StatusCode)
-	}
-
-	responseData, err := io.ReadAll(response.Body)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read GetProof response: %w", err)
-	}
-	var responseObject wallet.Bills
-	err = json.Unmarshal(responseData, &responseObject)
-	if err != nil {
-		return nil, fmt.Errorf("failed to unmarshall GetProof response data: %w", err)
-	}
-	return &responseObject, nil
 }
 
 func (c *MoneyBackendClient) GetRoundNumber(_ context.Context) (uint64, error) {
@@ -236,28 +206,37 @@ func (c *MoneyBackendClient) PostTransactions(ctx context.Context, pubKey wallet
 
 // GetTxProof wrapper for GetProof method to satisfy txsubmitter interface, also verifies txHash
 func (c *MoneyBackendClient) GetTxProof(_ context.Context, unitID wallet.UnitID, txHash wallet.TxHash) (*wallet.Proof, error) {
-	proof, err := c.GetProof(unitID)
+	req, err := http.NewRequest(http.MethodGet, fmt.Sprintf("%s/api/v1/units/0x%x/transactions/0x%x/proof", c.BaseUrl, unitID, txHash), nil)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to build get tx proof request: %w", err)
 	}
-	if proof == nil {
+	response, err := c.HttpClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("request GetTxProof failed: %w", err)
+	}
+	if response.StatusCode == http.StatusNotFound {
 		return nil, nil
 	}
-	if len(proof.Bills) == 0 {
-		return nil, fmt.Errorf("get proof request returned empty proof array for unit id 0x%X", unitID)
+	if response.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("unexpected response status code: %d", response.StatusCode)
+	}
+	responseData, err := io.ReadAll(response.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read GetTxProof response: %w", err)
 	}
 
-	if !bytes.Equal(proof.Bills[0].TxHash, txHash) {
-		// proof exists for given unitID but probably for old tx
-		return nil, nil
+	var proof *wallet.Proof
+	err = cbor.Unmarshal(responseData, &proof)
+	if err != nil {
+		return nil, fmt.Errorf("failed to unmarshall GetTxProof response data: %w", err)
 	}
-	return proof.Bills[0].TxProof, nil
+	return proof, nil
 }
 
-func (c *MoneyBackendClient) retrieveBills(pubKey []byte, includeDCBills bool, offset int) (*backend.ListBillsResponse, error) {
-	reqUrl := fmt.Sprintf(listBillsUrlFormat, c.BaseUrl, ListBillsPath, hexutil.Encode(pubKey), includeDCBills)
+func (c *MoneyBackendClient) retrieveBills(pubKey []byte, includeDCBills, includeDCMetadata bool, offset int) (*backend.ListBillsResponse, error) {
+	reqUrl := fmt.Sprintf(listBillsUrlFormat, c.BaseUrl, ListBillsPath, hexutil.Encode(pubKey), includeDCBills, includeDCMetadata)
 	if offset > 0 {
-		reqUrl = fmt.Sprintf("%v&offset=%v", reqUrl, offset)
+		reqUrl = fmt.Sprintf("%v&%s=%v", reqUrl, wallet.QueryParamOffsetKey, offset)
 	}
 	req, err := http.NewRequest(http.MethodGet, reqUrl, nil)
 	if err != nil {

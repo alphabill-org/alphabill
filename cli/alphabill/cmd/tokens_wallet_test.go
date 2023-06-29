@@ -412,9 +412,9 @@ func TestWalletUpdateNonFungibleTokenDataCmd_Flags(t *testing.T) {
 func ensureTokenIndexed(t *testing.T, ctx context.Context, api *client.TokenBackend, ownerPubKey []byte, tokenID backend.TokenID) *backend.TokenUnit {
 	var res *backend.TokenUnit
 	require.Eventually(t, func() bool {
-		offsetKey := ""
+		offset := ""
 		for {
-			tokens, offsetKey, err := api.GetTokens(ctx, backend.Any, ownerPubKey, offsetKey, 0)
+			tokens, offset, err := api.GetTokens(ctx, backend.Any, ownerPubKey, offset, 0)
 			require.NoError(t, err)
 			for _, token := range tokens {
 				if tokenID == nil {
@@ -426,7 +426,7 @@ func ensureTokenIndexed(t *testing.T, ctx context.Context, api *client.TokenBack
 					return true
 				}
 			}
-			if offsetKey == "" {
+			if offset == "" {
 				break
 			}
 		}
@@ -438,9 +438,9 @@ func ensureTokenIndexed(t *testing.T, ctx context.Context, api *client.TokenBack
 func ensureTokenTypeIndexed(t *testing.T, ctx context.Context, api *client.TokenBackend, creatorPubKey []byte, typeID backend.TokenTypeID) *backend.TokenUnitType {
 	var res *backend.TokenUnitType
 	require.Eventually(t, func() bool {
-		offsetKey := ""
+		offset := ""
 		for {
-			types, offsetKey, err := api.GetTokenTypes(ctx, backend.Any, creatorPubKey, offsetKey, 0)
+			types, offset, err := api.GetTokenTypes(ctx, backend.Any, creatorPubKey, offset, 0)
 			require.NoError(t, err)
 			for _, t := range types {
 				if bytes.Equal(t.ID, typeID) {
@@ -448,7 +448,7 @@ func ensureTokenTypeIndexed(t *testing.T, ctx context.Context, api *client.Token
 					return true
 				}
 			}
-			if offsetKey == "" {
+			if offset == "" {
 				break
 			}
 		}

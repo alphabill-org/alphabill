@@ -2,7 +2,6 @@ package backend
 
 import (
 	"context"
-	"crypto"
 	"encoding/hex"
 	"fmt"
 	"math/rand"
@@ -16,9 +15,10 @@ import (
 
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/internal/script"
+	"github.com/alphabill-org/alphabill/internal/txsystem/money"
 	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/pkg/client"
-	"github.com/alphabill-org/alphabill/pkg/wallet"
+	sdk "github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/alphabill-org/alphabill/pkg/wallet/account"
 	"github.com/alphabill-org/alphabill/pkg/wallet/blocksync"
 	wlog "github.com/alphabill-org/alphabill/pkg/wallet/log"
@@ -33,14 +33,17 @@ type (
 	WalletBackendService interface {
 		GetBills(ownerCondition []byte) ([]*Bill, error)
 		GetBill(unitID []byte) (*Bill, error)
-		GetRoundNumber(ctx context.Context) (uint64, error)
 		GetFeeCreditBill(unitID []byte) (*Bill, error)
+		GetRoundNumber(ctx context.Context) (uint64, error)
 		SendTransactions(ctx context.Context, txs []*types.TransactionOrder) map[string]string
+		GetTxProof(unitID sdk.UnitID, txHash sdk.TxHash) (*sdk.Proof, error)
+		GetDCMetadata(nonce []byte) (*DCMetadata, error)
+		StoreDCMetadata(txs []*types.TransactionOrder) error
 	}
 
 	WalletBackend struct {
 		store         BillStore
-		genericWallet *wallet.Wallet
+		genericWallet *sdk.Wallet
 	}
 
 	Bills struct {
@@ -51,9 +54,8 @@ type (
 		Id             []byte        `json:"id"`
 		Value          uint64        `json:"value"`
 		TxHash         []byte        `json:"txHash"`
-		IsDCBill       bool          `json:"isDcBill,omitempty"`
-		TxProof        *wallet.Proof `json:"txProof"`
-		OwnerPredicate []byte        `json:"OwnerPredicate"`
+		DcNonce        []byte        `json:"dcNonce,omitempty"`
+		OwnerPredicate []byte        `json:"ownerPredicate"`
 
 		// fcb specific fields
 		// AddFCTxHash last add fee credit tx hash
@@ -77,14 +79,18 @@ type (
 		SetBlockNumber(blockNumber uint64) error
 		GetBill(unitID []byte) (*Bill, error)
 		GetBills(ownerCondition []byte) ([]*Bill, error)
-		SetBill(bill *Bill) error
+		SetBill(bill *Bill, proof *sdk.Proof) error
 		RemoveBill(unitID []byte) error
 		SetBillExpirationTime(blockNumber uint64, unitID []byte) error
 		DeleteExpiredBills(blockNumber uint64) error
 		GetFeeCreditBill(unitID []byte) (*Bill, error)
-		SetFeeCreditBill(fcb *Bill) error
+		SetFeeCreditBill(fcb *Bill, proof *sdk.Proof) error
 		GetSystemDescriptionRecords() ([]*genesis.SystemDescriptionRecord, error)
 		SetSystemDescriptionRecords(sdrs []*genesis.SystemDescriptionRecord) error
+		GetTxProof(unitID sdk.UnitID, txHash sdk.TxHash) (*sdk.Proof, error)
+		GetDCMetadata(nonce []byte) (*DCMetadata, error)
+		SetDCMetadata(nonce []byte, data *DCMetadata) error
+		DeleteDCMetadata(nonce []byte) error
 	}
 
 	p2pkhOwnerPredicates struct {
@@ -107,10 +113,15 @@ type (
 		Value     uint64
 		Predicate []byte
 	}
+
+	DCMetadata struct {
+		BillIdentifiers [][]byte `json:"billIdentifiers,omitempty"`
+		DCSum           uint64   `json:"dcSum,string,omitempty"`
+	}
 )
 
 func Run(ctx context.Context, config *Config) error {
-	store, err := NewBoltBillStore(config.DbFile)
+	store, err := newBoltBillStore(config.DbFile)
 	if err != nil {
 		return fmt.Errorf("failed to get storage: %w", err)
 	}
@@ -131,7 +142,7 @@ func Run(ctx context.Context, config *Config) error {
 			Id:             ib.Id,
 			Value:          ib.Value,
 			OwnerPredicate: ib.Predicate,
-		})
+		}, nil)
 		if err != nil {
 			return fmt.Errorf("failed to store initial bill: %w", err)
 		}
@@ -144,7 +155,7 @@ func Run(ctx context.Context, config *Config) error {
 			err = txc.SetBill(&Bill{
 				Id:             sdr.FeeCreditBill.UnitId,
 				OwnerPredicate: sdr.FeeCreditBill.OwnerPredicate,
-			})
+			}, nil)
 			if err != nil {
 				return err
 			}
@@ -160,10 +171,10 @@ func Run(ctx context.Context, config *Config) error {
 	g, ctx := errgroup.WithContext(ctx)
 
 	g.Go(func() error {
-		walletBackend := &WalletBackend{store: store, genericWallet: wallet.New().SetABClient(abc).Build()}
+		walletBackend := &WalletBackend{store: store, genericWallet: sdk.New().SetABClient(abc).Build()}
 		defer walletBackend.genericWallet.Shutdown()
 
-		handler := &RequestHandler{Service: walletBackend, ListBillsPageLimit: config.ListBillsPageLimit}
+		handler := &moneyRestAPI{Service: walletBackend, ListBillsPageLimit: config.ListBillsPageLimit, rw: &sdk.ResponseWriter{LogErr: wlog.Error}}
 		server := http.Server{
 			Addr:              config.ServerAddr,
 			Handler:           handler.Router(),
@@ -232,6 +243,10 @@ func (w *WalletBackend) GetBill(unitID []byte) (*Bill, error) {
 	return w.store.Do().GetBill(unitID)
 }
 
+func (w *WalletBackend) GetTxProof(unitID sdk.UnitID, txHash sdk.TxHash) (*sdk.Proof, error) {
+	return w.store.Do().GetTxProof(unitID, txHash)
+}
+
 // GetFeeCreditBill returns most recently seen fee credit bill with given unit id.
 func (w *WalletBackend) GetFeeCreditBill(unitID []byte) (*Bill, error) {
 	return w.store.Do().GetFeeCreditBill(unitID)
@@ -275,33 +290,53 @@ func (w *WalletBackend) SendTransactions(ctx context.Context, txs []*types.Trans
 	return errs
 }
 
-func (b *Bill) ToGenericBill() *wallet.Bill {
-	return &wallet.Bill{
+func (w *WalletBackend) StoreDCMetadata(txs []*types.TransactionOrder) error {
+	dcMetadataMap := make(map[string]*DCMetadata)
+	for _, tx := range txs {
+		if tx.PayloadType() == money.PayloadTypeTransDC {
+			attrs := &money.TransferDCAttributes{}
+			if err := tx.UnmarshalAttributes(attrs); err != nil {
+				return fmt.Errorf("invalid DC transfer: %w", err)
+			}
+			dcMetadata := dcMetadataMap[string(attrs.Nonce)]
+			if dcMetadata == nil {
+				dcMetadata = &DCMetadata{}
+				dcMetadataMap[string(attrs.Nonce)] = dcMetadata
+			}
+			dcMetadata.DCSum += attrs.TargetValue
+			dcMetadata.BillIdentifiers = append(dcMetadata.BillIdentifiers, tx.UnitID())
+		}
+	}
+	for nonce, metadata := range dcMetadataMap {
+		err := w.store.Do().SetDCMetadata([]byte(nonce), metadata)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (w *WalletBackend) GetDCMetadata(nonce []byte) (*DCMetadata, error) {
+	return w.store.Do().GetDCMetadata(nonce)
+}
+
+func (b *Bill) ToGenericBill() *sdk.Bill {
+	return &sdk.Bill{
 		Id:          b.Id,
 		Value:       b.Value,
 		TxHash:      b.TxHash,
-		IsDcBill:    b.IsDCBill,
-		TxProof:     b.TxProof,
+		DcNonce:     b.DcNonce,
 		AddFCTxHash: b.AddFCTxHash,
 	}
 }
 
-func (b *Bill) ToGenericBills() *wallet.Bills {
-	return &wallet.Bills{
-		Bills: []*wallet.Bill{
+func (b *Bill) ToGenericBills() *sdk.Bills {
+	return &sdk.Bills{
+		Bills: []*sdk.Bill{
 			b.ToGenericBill(),
 		},
 	}
-}
-
-func (b *Bill) addProof(txIdx int, bl *types.Block) error {
-	proof, err := wallet.NewTxProof(txIdx, bl, crypto.SHA256)
-	if err != nil {
-		return err
-
-	}
-	b.TxProof = proof
-	return nil
 }
 
 func (b *Bill) getTxHash() []byte {

@@ -1,6 +1,7 @@
 package backend
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"io"
@@ -28,15 +29,8 @@ type (
 	// TODO: perhaps pass the total number of elements in a response header
 	ListBillsResponse struct {
 		Total      int                    `json:"total" example:"1"`
-		Bills      []*ListBillVM          `json:"bills"`
+		Bills      []*sdk.Bill            `json:"bills"`
 		DCMetadata map[string]*DCMetadata `json:"dcMetadata,omitempty"`
-	}
-
-	ListBillVM struct {
-		Id      []byte `json:"id" swaggertype:"string" format:"base64" example:"AAAAAAgwv3UA1HfGO4qc1T3I3EOvqxfcrhMjJpr9Tn4="`
-		Value   uint64 `json:"value,string" example:"1000"`
-		TxHash  []byte `json:"txHash" swaggertype:"string" format:"base64" example:"Q4ShCITC0ODXPR+j1Zl/teYcoU3/mAPy0x8uSsvQFM8="`
-		DcNonce []byte `json:"dcNonce" swaggertype:"string" format:"base64" example:"YWZhIHNmc2RmYXNkZmFzIGRmc2FzZiBhc2RmIGFzZGZzYSBkZg=="`
 	}
 
 	BalanceResponse struct {
@@ -77,7 +71,7 @@ func (api *moneyRestAPI) Router() *mux.Router {
 
 	apiV1.Handle("/swagger/swagger-initializer.js", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		initializer := "swagger/swagger-initializer-money.js"
-		f, err := wallet.SwaggerFiles.ReadFile(initializer)
+		f, err := sdk.SwaggerFiles.ReadFile(initializer)
 		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
 			fmt.Fprintf(w, "failed to read %v file: %v", initializer, err)
@@ -85,9 +79,9 @@ func (api *moneyRestAPI) Router() *mux.Router {
 		}
 		http.ServeContent(w, r, "swagger-initializer.js", time.Time{}, bytes.NewReader(f))
 	})).Methods("GET", "OPTIONS")
-	apiV1.Handle("/swagger/{.*}", http.StripPrefix("/api/v1/", http.FileServer(http.FS(wallet.SwaggerFiles)))).Methods("GET", "OPTIONS")
+	apiV1.Handle("/swagger/{.*}", http.StripPrefix("/api/v1/", http.FileServer(http.FS(sdk.SwaggerFiles)))).Methods("GET", "OPTIONS")
 	apiV1.Handle("/swagger/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		f, err := wallet.SwaggerFiles.ReadFile("swagger/index.html")
+		f, err := sdk.SwaggerFiles.ReadFile("swagger/index.html")
 		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
 			fmt.Fprintf(w, "failed to read swagger/index.html file: %v", err)
@@ -127,7 +121,7 @@ func (api *moneyRestAPI) listBillsFunc(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
-	var filteredBills []*Bill
+	var filteredBills []*sdk.Bill
 	var dcMetadataMap map[string]*DCMetadata
 	for _, b := range bills {
 		// filter zero value bills
@@ -154,7 +148,7 @@ func (api *moneyRestAPI) listBillsFunc(w http.ResponseWriter, r *http.Request) {
 				}
 			}
 		}
-		filteredBills = append(filteredBills, b)
+		filteredBills = append(filteredBills, b.ToGenericBill())
 	}
 	qp := r.URL.Query()
 	limit, err := sdk.ParseMaxResponseItems(qp.Get(sdk.QueryParamLimit), api.ListBillsPageLimit)
@@ -175,8 +169,12 @@ func (api *moneyRestAPI) listBillsFunc(w http.ResponseWriter, r *http.Request) {
 	} else {
 		sdk.SetLinkHeader(r.URL, w, strconv.Itoa(offset+limit))
 	}
-	billVMs := toBillVMList(filteredBills)
-	api.rw.WriteResponse(w, &ListBillsResponse{Bills: billVMs[offset : offset+limit], Total: len(billVMs), DCMetadata: dcMetadataMap})
+
+	api.rw.WriteResponse(w, &ListBillsResponse{
+		Bills: filteredBills[offset : offset+limit],
+		Total: len(filteredBills),
+		DCMetadata: dcMetadataMap,
+	})
 }
 
 func (api *moneyRestAPI) balanceFunc(w http.ResponseWriter, r *http.Request) {
@@ -348,26 +346,4 @@ func parseIncludeDCBillsQueryParam(r *http.Request, defaultValue bool) (bool, er
 		return strconv.ParseBool(r.URL.Query().Get("includedcbills"))
 	}
 	return defaultValue, nil
-}
-
-func toBillVMList(bills []*Bill) []*ListBillVM {
-	billVMs := make([]*ListBillVM, len(bills))
-	for i, b := range bills {
-		billVMs[i] = &ListBillVM{
-			Id:      b.Id,
-			Value:   b.Value,
-			TxHash:  b.TxHash,
-			DcNonce: b.DcNonce,
-		}
-	}
-	return billVMs
-}
-
-func (b *ListBillVM) ToGenericBill() *sdk.Bill {
-	return &sdk.Bill{
-		Id:      b.Id,
-		Value:   b.Value,
-		TxHash:  b.TxHash,
-		DcNonce: b.DcNonce,
-	}
 }

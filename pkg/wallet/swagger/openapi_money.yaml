@@ -81,6 +81,18 @@ paths:
           schema:
             type: integer
             default: 0
+        - description: response will include DC bills
+          in: query
+          name: includedcbills
+          schema:
+            type: bool
+            default: false
+        - description: response will include DC Metadata info (includedcbills param must also be true)
+          in: query
+          name: includedcmetadata
+          schema:
+            type: bool
+            default: false
       responses:
         '200':
           description: successful operation
@@ -115,7 +127,8 @@ paths:
           content:
             application/json:
               schema:
-                $ref: 'components.yaml#/schemas/wallet.Bills'
+                # TODO
+                # application/cbor: {}
         '400':
           description: Bad Request
           content:
@@ -149,7 +162,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: 'components.yaml#/schemas/wallet.Bill'
+                $ref: 'components.yaml#/schemas/Bill'
   /transactions:
     post:
       summary: Forward transactions to partition node
@@ -184,24 +197,15 @@ components:
         bills:
           type: array
           items:
-            $ref: '#/components/schemas/ListBillsItem'
+            $ref: 'components.yaml#/schemas/Bill'
+        dcMetadata:
+          type: object
+          description: TODO
+          properties:
+            billIdentifiers:
+              type: array
+            dcSum:
+              type: string
         total:
           example: 5
           type: integer
-    ListBillsItem:
-      type: object
-      properties:
-        id:
-          type: string
-          example: AAAAAAgwv3UA1HfGO4qc1T3I3EOvqxfcrhMjJpr9Tn4=
-          format: base64
-        isDcBill:
-          type: boolean
-          example: false
-        txHash:
-          type: string
-          example: Q4ShCITC0ODXPR+j1Zl/teYcoU3/mAPy0x8uSsvQFM8=
-          format: base64
-        value:
-          type: string
-          example: '999'

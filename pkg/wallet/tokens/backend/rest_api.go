@@ -73,7 +73,7 @@ func (api *tokensRestAPI) endpoints() http.Handler {
 
 	apiV1.Handle("/swagger/swagger-initializer.js", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		initializer := "swagger/swagger-initializer-tokens.js"
-		f, err := wallet.SwaggerFiles.ReadFile(initializer)
+		f, err := sdk.SwaggerFiles.ReadFile(initializer)
 		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
 			fmt.Fprintf(w, "failed to read %v file: %v", initializer, err)
@@ -81,9 +81,9 @@ func (api *tokensRestAPI) endpoints() http.Handler {
 		}
 		http.ServeContent(w, r, "swagger-initializer.js", time.Time{}, bytes.NewReader(f))
 	})).Methods("GET", "OPTIONS")
-	apiV1.Handle("/swagger/{.*}", http.StripPrefix("/api/v1/", http.FileServer(http.FS(wallet.SwaggerFiles)))).Methods("GET", "OPTIONS")
+	apiV1.Handle("/swagger/{.*}", http.StripPrefix("/api/v1/", http.FileServer(http.FS(sdk.SwaggerFiles)))).Methods("GET", "OPTIONS")
 	apiV1.Handle("/swagger/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		f, err := wallet.SwaggerFiles.ReadFile("swagger/index.html")
+		f, err := sdk.SwaggerFiles.ReadFile("swagger/index.html")
 		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
 			fmt.Fprintf(w, "failed to read swagger/index.html file: %v", err)

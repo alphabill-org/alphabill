@@ -197,9 +197,7 @@ paths:
           content:
             application/json:
               schema:
-                type: array
-                items:
-                  $ref: 'components.yaml#/schemas/wallet.Proof'
+                # TODO
         '404':
           description: transaction is not in the index
           content:
@@ -256,7 +254,7 @@ paths:
               schema:
                 type: object
                 items:
-                  $ref: 'components.yaml#/schemas/wallet.Bill'
+                  $ref: 'components.yaml#/schemas/Bill'
         '404':
           description: fee credit bill was not found for given bill id
           content:

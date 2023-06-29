@@ -13,201 +13,28 @@ schemas:
         type: string
         description: value is uint64 encoded as string
         example: '265'
-  types.ClientMetadata:
-    properties:
-      feeCreditRecordID:
-        items:
-          type: integer
-        type: array
-      maxTransactionFee:
-        type: integer
-      timeout:
-        type: integer
+  Bill:
     type: object
-  types.GenericChainItem:
-    properties:
-      hash:
-        items:
-          type: integer
-        type: array
-      left:
-        type: boolean
-    type: object
-  types.InputRecord:
-    properties:
-      block_hash:
-        description: hash of the block
-        items:
-          type: integer
-        type: array
-      hash:
-        description: state hash to be certified
-        items:
-          type: integer
-        type: array
-      previous_hash:
-        description: previously certified state hash
-        items:
-          type: integer
-        type: array
-      round_number:
-        description: transaction system's round number
-        type: integer
-      sum_of_earned_fees:
-        description: sum of the actual fees over all transaction records in the block
-        type: integer
-      summary_value:
-        description: summary value to certified
-        items:
-          type: integer
-        type: array
-    type: object
-  types.Payload:
-    properties:
-      attributes:
-        items:
-          type: integer
-        type: array
-      clientMetadata:
-        $ref: '#/schemas/types.ClientMetadata'
-      systemID:
-        items:
-          type: integer
-        type: array
-      type:
-        type: string
-      unitID:
-        items:
-          type: integer
-        type: array
-    type: object
-  types.ServerMetadata:
-    properties:
-      actualFee:
-        type: integer
-      targetUnits:
-        items:
-          items:
-            type: integer
-          type: array
-        type: array
-    type: object
-  types.TransactionOrder:
-    properties:
-      feeProof:
-        items:
-          type: integer
-        type: array
-      ownerProof:
-        items:
-          type: integer
-        type: array
-      payload:
-        $ref: '#/schemas/types.Payload'
-    type: object
-  types.TransactionRecord:
-    properties:
-      serverMetadata:
-        $ref: '#/schemas/types.ServerMetadata'
-      transactionOrder:
-        $ref: '#/schemas/types.TransactionOrder'
-    type: object
-  types.TxProof:
-    properties:
-      blockHeaderHash:
-        items:
-          type: integer
-        type: array
-      chain:
-        items:
-          $ref: '#/schemas/types.GenericChainItem'
-        type: array
-      unicityCertificate:
-        $ref: '#/schemas/types.UnicityCertificate'
-    type: object
-  types.UnicityCertificate:
-    properties:
-      input_record:
-        $ref: '#/schemas/types.InputRecord'
-      unicity_seal:
-        $ref: '#/schemas/types.UnicitySeal'
-      unicity_tree_certificate:
-        $ref: '#/schemas/types.UnicityTreeCertificate'
-    type: object
-  types.UnicitySeal:
-    properties:
-      hash:
-        items:
-          type: integer
-        type: array
-      previous_hash:
-        items:
-          type: integer
-        type: array
-      root_chain_round_number:
-        type: integer
-      signatures:
-        additionalProperties:
-          items:
-            type: integer
-          type: array
-        type: object
-      timestamp:
-        type: integer
-    type: object
-  types.UnicityTreeCertificate:
-    properties:
-      sibling_hashes:
-        items:
-          items:
-            type: integer
-          type: array
-        type: array
-      system_description_hash:
-        items:
-          type: integer
-        type: array
-      system_identifier:
-        items:
-          type: integer
-        type: array
-    type: object
-  wallet.Bill:
     properties:
       id:
+        type: array
         items:
           type: integer
+      value:
+        type: string
+        example: '0'
+      tx_hash:
         type: array
-      fc_block_number:
+        items:
+          type: integer
+      add_fc_tx_hash:
+        type: string
         description: block number when fee credit bill balance was last updated
         example: '0'
-        type: string
-      is_dc_bill:
-        type: boolean
-      tx_hash:
+      dc_nonce:
+        type: array
         items:
           type: integer
-        type: array
-      tx_proof:
-        $ref: '#/schemas/wallet.Proof'
-      value:
-        example: '0'
-        type: string
-    type: object
-  wallet.Bills:
-    properties:
-      bills:
-        items:
-          $ref: '#/schemas/wallet.Bill'
-        type: array
-    type: object
-  wallet.Proof:
-    properties:
-      txProof:
-        $ref: '#/schemas/types.TxProof'
-      txRecord:
-        $ref: '#/schemas/types.TransactionRecord'
-    type: object
 responses:
   ErrorResponse:
     description: |-

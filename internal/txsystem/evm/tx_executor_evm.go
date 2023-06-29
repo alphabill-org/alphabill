@@ -36,6 +36,9 @@ var (
 	ErrInsufficientFunds = errors.New("insufficient funds")
 	ErrSenderNotEOA      = errors.New("sender not an eoa")
 	ErrGasOverflow       = errors.New("gas uint64 overflow")
+	ErrNonceTooLow       = errors.New("nonce too low")
+	ErrNonceTooHigh      = errors.New("nonce too high")
+	ErrNonceMax          = errors.New("nonce has max value")
 )
 
 func handleEVMTx(tree *rma.Tree, algorithm crypto.Hash, systemIdentifier []byte, trustBase map[string]abcrypto.Verifier, blockGas *core.GasPool) txsystem.GenericExecuteFunc[TxAttributes] {
@@ -62,10 +65,10 @@ func execute(currentBlockNumber uint64, stateDB *statedb.StateDB, attr *TxAttrib
 		return nil, fmt.Errorf("block limit error: %w", err)
 	}
 	var (
-		sender             = vm.AccountRef(attr.GetFromAddr())
+		sender             = vm.AccountRef(attr.FromAddr())
 		gasRemaining       = attr.Gas
 		isContractCreation = attr.To == nil
-		toAddr             = attr.GetToAddr()
+		toAddr             = attr.ToAddr()
 	)
 	// todo: "gas handling": Subtract the max gas cost from callers balance, will be refunded later in case less is used
 	// stateDB.SubBalance(sender.Address(), calcGasPrice(attr.Gas))
@@ -81,7 +84,7 @@ func execute(currentBlockNumber uint64, stateDB *statedb.StateDB, attr *TxAttrib
 	blockCtx := newBlockContext(currentBlockNumber)
 	evm := vm.NewEVM(blockCtx, newTxContext(attr), stateDB, newChainConfig(new(big.Int).SetBytes(systemIdentifier)), newVMConfig())
 	rules := evm.ChainConfig().Rules(evm.Context.BlockNumber, evm.Context.Random != nil)
-	// todo: investigate access lists and whether or not we should support them
+	// todo: investigate access lists and whether we should support it
 	if rules.IsBerlin {
 		stateDB.PrepareAccessList(sender.Address(), toAddr, vm.ActivePrecompiles(rules), ethtypes.AccessList{})
 	}
@@ -91,12 +94,14 @@ func execute(currentBlockNumber uint64, stateDB *statedb.StateDB, attr *TxAttrib
 		_, _, gasRemaining, vmErr = evm.Create(sender, attr.Data, gasRemaining, attr.Value)
 		// TODO handle "deploy contract" result
 	} else {
-		// TODO set nonce
+		stateDB.SetNonce(sender.Address(), stateDB.GetNonce(sender.Address())+1)
 		_, gasRemaining, vmErr = evm.Call(sender, vm.AccountRef(attr.To).Address(), attr.Data, gasRemaining, attr.Value)
 		// TODO handle call result
 	}
 	// todo: "gas handling" Refund ETH for remaining gas, exchanged at the original rate.
 	// stateDB.AddBalance(sender.Address(), calcGasPrice(gasRemaining))
+	// add remaining back to block gas pool
+	gp.AddGas(gasRemaining)
 	if vmErr != nil {
 		return nil, fmt.Errorf("evm runtime error: %w", vmErr)
 	}
@@ -109,8 +114,6 @@ func execute(currentBlockNumber uint64, stateDB *statedb.StateDB, attr *TxAttrib
 	log.Trace("total gas: %v gas units", attr.Gas-gasRemaining)
 	log.Trace("total tx cost: %v mia", weiToAlpha(txPrice))
 	stateDB.SubBalance(sender.Address(), txPrice)
-	// add remaining back to block gas pool
-	gp.AddGas(gasRemaining)
 	return &types.ServerMetadata{}, nil
 }
 
@@ -189,18 +192,27 @@ func validate(stateDB *statedb.StateDB, attr *TxAttributes) error {
 	if attr.Value == nil {
 		return fmt.Errorf("invalid evm tx, value is nil")
 	}
-	from := vm.AccountRef(attr.From)
-	// todo: add nonce/backlink to attributes and validate here
-
+	// Make sure this transaction's nonce is correct.
+	stNonce := stateDB.GetNonce(attr.FromAddr())
+	if msgNonce := attr.Nonce; stNonce < msgNonce {
+		return fmt.Errorf("%w: address %v, tx: %d state: %d", ErrNonceTooHigh,
+			attr.FromAddr().Hex(), msgNonce, stNonce)
+	} else if stNonce > msgNonce {
+		return fmt.Errorf("%w: address %v, tx: %d state: %d", ErrNonceTooLow,
+			attr.FromAddr().Hex(), msgNonce, stNonce)
+	} else if stNonce+1 < stNonce {
+		return fmt.Errorf("%w: address %v, nonce: %d", ErrNonceMax,
+			attr.FromAddr().Hex(), stNonce)
+	}
 	// Make sure that calling account is not smart contract, user call cannot be a smart contract account
-	if codeHash := stateDB.GetCodeHash(from.Address()); codeHash != emptyCodeHash && codeHash != (common.Hash{}) {
+	if codeHash := stateDB.GetCodeHash(attr.FromAddr()); codeHash != emptyCodeHash && codeHash != (common.Hash{}) {
 		return fmt.Errorf("%w: address %v, codehash: %s", ErrSenderNotEOA,
-			from.Address().Hex(), codeHash)
+			attr.FromAddr().Hex(), codeHash)
 	}
 	// Verify enough funds to run
 	// If the sender account does not have enough to pay for max gas, then do not execute
-	if have, want := stateDB.GetBalance(from.Address()), calcGasPrice(attr.Gas); have.Cmp(want) < 0 {
-		return fmt.Errorf("%w: address %v have %v want %v", ErrInsufficientFunds, from.Address().Hex(), have, want)
+	if have, want := stateDB.GetBalance(attr.FromAddr()), calcGasPrice(attr.Gas); have.Cmp(want) < 0 {
+		return fmt.Errorf("%w: address %v have %v want %v", ErrInsufficientFunds, attr.FromAddr().Hex(), have, want)
 	}
 	return nil
 }

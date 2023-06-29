@@ -2,6 +2,7 @@ package evm
 
 import (
 	"bytes"
+	"math"
 	"math/big"
 	"testing"
 
@@ -23,12 +24,13 @@ func BenchmarkCallContract(b *testing.B) {
 	fromAddr := common.BytesToAddress(from)
 	stateDB.CreateAccount(fromAddr)
 	stateDB.AddBalance(fromAddr, big.NewInt(1000000000000000000)) // add 1 ETH
-	gasPool := new(core.GasPool).AddGas(blockGasLimit)
+	gasPool := new(core.GasPool).AddGas(1000000000000000000)
 	_, err := execute(1, stateDB, &TxAttributes{
 		From:  fromAddr.Bytes(),
 		Data:  common.Hex2Bytes(counterContractCode),
 		Gas:   10000000,
 		Value: big.NewInt(0),
+		Nonce: 0,
 	}, systemIdentifier, gasPool)
 	require.NoError(b, err)
 	scAddr := evmcrypto.CreateAddress(common.BytesToAddress(from), 0)
@@ -41,6 +43,7 @@ func BenchmarkCallContract(b *testing.B) {
 		Data:  inc.ID,
 		Gas:   10000000,
 		Value: big.NewInt(0),
+		Nonce: 1,
 	}
 	b.ResetTimer()
 	b.Run("call counter contract", func(b *testing.B) {
@@ -48,18 +51,26 @@ func BenchmarkCallContract(b *testing.B) {
 			if _, err := execute(2, stateDB, callContract, systemIdentifier, gasPool); err != nil {
 				b.Fatal("call transaction failed, %w", err)
 			}
+			callContract.Nonce += 1
 		}
 	})
 }
 
-func initStateDBWithAccountAndSC(t *testing.T, eoaAddr common.Address, balance uint64) *statedb.StateDB {
+type testAccount struct {
+	Addr    common.Address
+	Balance uint64
+	Nonce   uint64
+}
+
+func initStateDBWithAccountAndSC(t *testing.T, eoa *testAccount) *statedb.StateDB {
 	t.Helper()
 	state := rma.NewWithSHA256()
 	stateDB := statedb.NewStateDB(state)
-	stateDB.CreateAccount(eoaAddr)
-	stateDB.AddBalance(eoaAddr, big.NewInt(int64(balance)))
+	stateDB.CreateAccount(eoa.Addr)
+	stateDB.AddBalance(eoa.Addr, big.NewInt(int64(eoa.Balance)))
+	stateDB.SetNonce(eoa.Addr, eoa.Nonce)
 	// create a contract
-	scAddr := evmcrypto.CreateAddress(common.BytesToAddress(eoaAddr.Bytes()), 0)
+	scAddr := evmcrypto.CreateAddress(common.BytesToAddress(eoa.Addr.Bytes()), 0)
 	stateDB.CreateAccount(scAddr)
 	stateDB.SetCode(scAddr, common.Hex2Bytes(counterContractCode))
 	return stateDB
@@ -84,6 +95,7 @@ func Test_validate(t *testing.T) {
 					From:  nil,
 					Value: big.NewInt(0),
 					Gas:   10,
+					Nonce: 0,
 				},
 				stateDB: statedb.NewStateDB(state),
 			},
@@ -96,6 +108,7 @@ func Test_validate(t *testing.T) {
 					From:  fromAddr.Bytes(),
 					Value: nil,
 					Gas:   10,
+					Nonce: 0,
 				},
 				stateDB: statedb.NewStateDB(state),
 			},
@@ -108,8 +121,9 @@ func Test_validate(t *testing.T) {
 					From:  evmcrypto.CreateAddress(common.BytesToAddress(fromAddr.Bytes()), 0).Bytes(),
 					Value: big.NewInt(0),
 					Gas:   1000000,
+					Nonce: 0,
 				},
-				stateDB: initStateDBWithAccountAndSC(t, fromAddr, 1000000000000),
+				stateDB: initStateDBWithAccountAndSC(t, &testAccount{Addr: fromAddr, Balance: 1000000000000}),
 			},
 			wantErrStr: ErrSenderNotEOA.Error(),
 		},
@@ -120,10 +134,50 @@ func Test_validate(t *testing.T) {
 					From:  fromAddr.Bytes(),
 					Value: big.NewInt(0),
 					Gas:   1000000,
+					Nonce: 0,
 				},
-				stateDB: initStateDBWithAccountAndSC(t, fromAddr, 10),
+				stateDB: initStateDBWithAccountAndSC(t, &testAccount{Addr: fromAddr, Balance: 10}),
 			},
 			wantErrStr: ErrInsufficientFunds.Error(),
+		},
+		{
+			name: "err - nonce too high",
+			args: args{
+				attr: &TxAttributes{
+					From:  fromAddr.Bytes(),
+					Value: big.NewInt(0),
+					Gas:   10,
+					Nonce: 1,
+				},
+				stateDB: initStateDBWithAccountAndSC(t, &testAccount{Addr: fromAddr, Balance: 10 * defaultGasPrice}),
+			},
+			wantErrStr: "nonce too high",
+		},
+		{
+			name: "err - nonce too low",
+			args: args{
+				attr: &TxAttributes{
+					From:  fromAddr.Bytes(),
+					Value: big.NewInt(0),
+					Gas:   10,
+					Nonce: 1,
+				},
+				stateDB: initStateDBWithAccountAndSC(t, &testAccount{Addr: fromAddr, Balance: 10 * defaultGasPrice, Nonce: 2}),
+			},
+			wantErrStr: "nonce too low",
+		},
+		{
+			name: "err - nonce overflow",
+			args: args{
+				attr: &TxAttributes{
+					From:  fromAddr.Bytes(),
+					Value: big.NewInt(0),
+					Gas:   10,
+					Nonce: math.MaxUint64,
+				},
+				stateDB: initStateDBWithAccountAndSC(t, &testAccount{Addr: fromAddr, Balance: 10 * defaultGasPrice, Nonce: math.MaxUint64}),
+			},
+			wantErrStr: "nonce has max value",
 		},
 		{
 			name: "ok - exact amount",
@@ -132,8 +186,9 @@ func Test_validate(t *testing.T) {
 					From:  fromAddr.Bytes(),
 					Value: big.NewInt(0),
 					Gas:   10,
+					Nonce: 0,
 				},
-				stateDB: initStateDBWithAccountAndSC(t, fromAddr, 10*defaultGasPrice),
+				stateDB: initStateDBWithAccountAndSC(t, &testAccount{Addr: fromAddr, Balance: 10 * defaultGasPrice}),
 			},
 		},
 	}
@@ -186,7 +241,7 @@ func Test_execute(t *testing.T) {
 					Value: big.NewInt(0),
 					Gas:   10,
 				},
-				stateDB: initStateDBWithAccountAndSC(t, fromAddr, 1000000),
+				stateDB: initStateDBWithAccountAndSC(t, &testAccount{Addr: fromAddr, Balance: 1000000}),
 			},
 			wantErrStr: ErrInsufficientFunds.Error(),
 		},
@@ -199,7 +254,7 @@ func Test_execute(t *testing.T) {
 					Gas:   1000,
 				},
 				gp:      new(core.GasPool).AddGas(100),
-				stateDB: initStateDBWithAccountAndSC(t, fromAddr, 1000*defaultGasPrice+1),
+				stateDB: initStateDBWithAccountAndSC(t, &testAccount{Addr: fromAddr, Balance: 1000*defaultGasPrice + 1}),
 			},
 			wantErrStr: "block limit error: gas limit reached",
 		},
@@ -212,7 +267,7 @@ func Test_execute(t *testing.T) {
 					Gas:   1000,
 				},
 				gp:      new(core.GasPool).AddGas(100000),
-				stateDB: initStateDBWithAccountAndSC(t, fromAddr, 1000*defaultGasPrice+1),
+				stateDB: initStateDBWithAccountAndSC(t, &testAccount{Addr: fromAddr, Balance: 1000*defaultGasPrice + 1}),
 			},
 			wantErrStr: "tx intrinsic cost higher than max gas",
 		},
@@ -226,7 +281,7 @@ func Test_execute(t *testing.T) {
 					Gas:   2300,
 				},
 				gp:      new(core.GasPool).AddGas(100000),
-				stateDB: initStateDBWithAccountAndSC(t, fromAddr, 2500*defaultGasPrice),
+				stateDB: initStateDBWithAccountAndSC(t, &testAccount{Addr: fromAddr, Balance: 2500 * defaultGasPrice}),
 			},
 			wantErrStr: "evm runtime error: out of gas",
 		},
@@ -240,7 +295,7 @@ func Test_execute(t *testing.T) {
 					Gas:   53000,
 				},
 				gp:      new(core.GasPool).AddGas(100000),
-				stateDB: initStateDBWithAccountAndSC(t, fromAddr, 53000*defaultGasPrice+1),
+				stateDB: initStateDBWithAccountAndSC(t, &testAccount{Addr: fromAddr, Balance: 53000*defaultGasPrice + 1}),
 			},
 		},
 	}

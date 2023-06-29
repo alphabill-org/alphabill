@@ -9,28 +9,28 @@ import (
 const PayloadTypeEVMCall = "evm"
 
 type TxAttributes struct {
-	_        struct{} `cbor:",toarray"`
-	From     []byte
-	To       []byte
-	Data     []byte
-	Value    *big.Int
-	Gas      uint64
-	GasPrice *big.Int
+	_     struct{} `cbor:",toarray"`
+	From  []byte
+	To    []byte
+	Data  []byte
+	Value *big.Int
+	Gas   uint64
+	Nonce uint64
 }
 
-// GetFromAddr - returns From as Address, if nil empty address is returned
+// FromAddr - returns From as Address, if nil empty address is returned
 // From is mandatory field and must not be nil in a valid TxAttributes
-func (t *TxAttributes) GetFromAddr() common.Address {
+func (t *TxAttributes) FromAddr() common.Address {
 	if t == nil || t.From == nil {
 		return common.Address{}
 	}
 	return common.BytesToAddress(t.From)
 }
 
-// GetToAddr - returns To as Address pointer.
+// ToAddr - returns To as Address pointer.
 // To field is optional and not present on contract creation calls.
 // If To is nil then nil pointer is returned
-func (t *TxAttributes) GetToAddr() *common.Address {
+func (t *TxAttributes) ToAddr() *common.Address {
 	if t == nil || t.To == nil {
 		return nil
 	}

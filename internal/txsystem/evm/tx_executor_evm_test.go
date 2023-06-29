@@ -312,3 +312,58 @@ func Test_execute(t *testing.T) {
 		})
 	}
 }
+
+func Test_ReplayContractCreation(t *testing.T) {
+	state := rma.NewWithSHA256()
+	from := test.RandomBytes(20)
+	stateDB := statedb.NewStateDB(state)
+	fromAddr := common.BytesToAddress(from)
+	stateDB.CreateAccount(fromAddr)
+	stateDB.AddBalance(fromAddr, big.NewInt(1000000000000000000)) // add 1 ETH
+	gasPool := new(core.GasPool).AddGas(blockGasLimit)
+	createCounterAttr := &TxAttributes{
+		From:  fromAddr.Bytes(),
+		Data:  common.Hex2Bytes(counterContractCode),
+		Gas:   10000000,
+		Value: big.NewInt(0),
+		Nonce: 0}
+	_, err := execute(1, stateDB, createCounterAttr, systemIdentifier, gasPool)
+	require.NoError(t, err)
+	// Try to replay
+	_, err = execute(1, stateDB, createCounterAttr, systemIdentifier, gasPool)
+	require.ErrorContains(t, err, "evm tx validation failed, nonce too low")
+}
+
+func Test_ReplayCall(t *testing.T) {
+	state := rma.NewWithSHA256()
+	from := test.RandomBytes(20)
+	stateDB := statedb.NewStateDB(state)
+	fromAddr := common.BytesToAddress(from)
+	stateDB.CreateAccount(fromAddr)
+	stateDB.AddBalance(fromAddr, big.NewInt(1000000000000000000)) // add 1 ETH
+	gasPool := new(core.GasPool).AddGas(blockGasLimit)
+	createCounterAttr := &TxAttributes{
+		From:  fromAddr.Bytes(),
+		Data:  common.Hex2Bytes(counterContractCode),
+		Gas:   10000000,
+		Value: big.NewInt(0),
+		Nonce: 0}
+	_, err := execute(1, stateDB, createCounterAttr, systemIdentifier, gasPool)
+	require.NoError(t, err)
+	scAddr := evmcrypto.CreateAddress(common.BytesToAddress(from), 0)
+	cABI, err := abi.JSON(bytes.NewBuffer([]byte(counterABI)))
+	inc := cABI.Methods["increment"]
+	callContract := &TxAttributes{
+		From:  from,
+		To:    scAddr.Bytes(),
+		Data:  inc.ID,
+		Gas:   10000000,
+		Value: big.NewInt(0),
+		Nonce: 1,
+	}
+	_, err = execute(2, stateDB, callContract, systemIdentifier, gasPool)
+	require.NoError(t, err)
+	// try to replay
+	_, err = execute(2, stateDB, callContract, systemIdentifier, gasPool)
+	require.ErrorContains(t, err, "evm tx validation failed, nonce too low")
+}

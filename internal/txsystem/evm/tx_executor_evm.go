@@ -68,9 +68,8 @@ func execute(currentBlockNumber uint64, stateDB *statedb.StateDB, attr *TxAttrib
 		sender             = vm.AccountRef(attr.FromAddr())
 		gasRemaining       = attr.Gas
 		isContractCreation = attr.To == nil
-		toAddr             = attr.ToAddr()
 	)
-	// todo: "gas handling": Subtract the max gas cost from callers balance, will be refunded later in case less is used
+	// todo: AB-1026 "gas handling": Subtract the max gas cost from callers balance, will be refunded later in case less is used
 	// stateDB.SubBalance(sender.Address(), calcGasPrice(attr.Gas))
 	// calculate initial gas cost per tx type and input data
 	gas, err := calcIntrinsicGas(attr.Data, isContractCreation)
@@ -86,7 +85,7 @@ func execute(currentBlockNumber uint64, stateDB *statedb.StateDB, attr *TxAttrib
 	rules := evm.ChainConfig().Rules(evm.Context.BlockNumber, evm.Context.Random != nil)
 	// todo: investigate access lists and whether we should support it
 	if rules.IsBerlin {
-		stateDB.PrepareAccessList(sender.Address(), toAddr, vm.ActivePrecompiles(rules), ethtypes.AccessList{})
+		stateDB.PrepareAccessList(sender.Address(), attr.ToAddr(), vm.ActivePrecompiles(rules), ethtypes.AccessList{})
 	}
 	var vmErr error
 	if isContractCreation {
@@ -98,7 +97,7 @@ func execute(currentBlockNumber uint64, stateDB *statedb.StateDB, attr *TxAttrib
 		_, gasRemaining, vmErr = evm.Call(sender, vm.AccountRef(attr.To).Address(), attr.Data, gasRemaining, attr.Value)
 		// TODO handle call result
 	}
-	// todo: "gas handling" Refund ETH for remaining gas, exchanged at the original rate.
+	// todo: AB-1026 "gas handling" Refund ETH for remaining gas, exchanged at the original rate.
 	// stateDB.AddBalance(sender.Address(), calcGasPrice(gasRemaining))
 	// add remaining back to block gas pool
 	gp.AddGas(gasRemaining)
@@ -108,7 +107,7 @@ func execute(currentBlockNumber uint64, stateDB *statedb.StateDB, attr *TxAttrib
 	if stateDB.DBError() != nil {
 		return nil, stateDB.DBError()
 	}
-	// todo: "gas handling" currently failing transactions are not added to block, hence we can only charge for successful calls
+	// todo: AB-1026  "gas handling" currently failing transactions are not added to block, hence we can only charge for successful calls
 	// calculate gas price for used gas
 	txPrice := calcGasPrice(attr.Gas - gasRemaining)
 	log.Trace("total gas: %v gas units", attr.Gas-gasRemaining)

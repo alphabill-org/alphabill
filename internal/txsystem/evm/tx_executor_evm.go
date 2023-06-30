@@ -33,12 +33,13 @@ var (
 	emptyCodeHash = ethcrypto.Keccak256Hash(nil)
 	gasUnitPrice  = big.NewInt(defaultGasPrice)
 
-	ErrInsufficientFunds = errors.New("insufficient funds")
-	ErrSenderNotEOA      = errors.New("sender not an eoa")
-	ErrGasOverflow       = errors.New("gas uint64 overflow")
-	ErrNonceTooLow       = errors.New("nonce too low")
-	ErrNonceTooHigh      = errors.New("nonce too high")
-	ErrNonceMax          = errors.New("nonce has max value")
+	ErrInsufficientFunds            = errors.New("insufficient funds")
+	ErrSenderNotEOA                 = errors.New("sender not an eoa")
+	ErrGasOverflow                  = errors.New("gas uint64 overflow")
+	ErrNonceTooLow                  = errors.New("nonce too low")
+	ErrNonceTooHigh                 = errors.New("nonce too high")
+	ErrNonceMax                     = errors.New("nonce has max value")
+	ErrInsufficientFundsForTransfer = errors.New("insufficient funds for transfer")
 )
 
 func handleEVMTx(tree *rma.Tree, algorithm crypto.Hash, systemIdentifier []byte, trustBase map[string]abcrypto.Verifier, blockGas *core.GasPool) txsystem.GenericExecuteFunc[TxAttributes] {
@@ -82,8 +83,11 @@ func execute(currentBlockNumber uint64, stateDB *statedb.StateDB, attr *TxAttrib
 	gasRemaining -= gas
 	blockCtx := newBlockContext(currentBlockNumber)
 	evm := vm.NewEVM(blockCtx, newTxContext(attr), stateDB, newChainConfig(new(big.Int).SetBytes(systemIdentifier)), newVMConfig())
-	rules := evm.ChainConfig().Rules(evm.Context.BlockNumber, evm.Context.Random != nil)
-	// todo: investigate access lists and whether we should support it
+	rules := evm.ChainConfig().Rules(evm.Context.BlockNumber, evm.Context.Random != nil) // todo: investigate access lists and whether we should support it
+	// Check caller has enough balance to cover asset transfer for **topmost** call
+	if attr.Value.Sign() > 0 && !evm.Context.CanTransfer(stateDB, attr.FromAddr(), attr.Value) {
+		return nil, fmt.Errorf("%w: address %v", ErrInsufficientFundsForTransfer, attr.FromAddr().Hex())
+	}
 	if rules.IsBerlin {
 		stateDB.PrepareAccessList(sender.Address(), attr.ToAddr(), vm.ActivePrecompiles(rules), ethtypes.AccessList{})
 	}

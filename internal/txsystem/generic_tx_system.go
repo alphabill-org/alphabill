@@ -212,8 +212,8 @@ func (m *GenericTxSystem) Commit() error {
 	return m.state.Commit()
 }
 
-func pruneExecutorFunc(pruner *state.LogPruner) GenericExecuteFunc[any] {
-	return func(tx *types.TransactionOrder, attributes *any, currentBlockNr uint64) (*types.ServerMetadata, error) {
+func pruneExecutorFunc(pruner *state.LogPruner) ExecuteFunc {
+	return func(tx *types.TransactionOrder, currentBlockNr uint64) (*types.ServerMetadata, error) {
 		return &types.ServerMetadata{ActualFee: 0}, pruner.Prune(currentBlockNr - 1)
 	}
 }

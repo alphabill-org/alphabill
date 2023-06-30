@@ -2,6 +2,7 @@ package backend
 
 import (
 	"context"
+	gocrypto "crypto"
 	"testing"
 
 	"github.com/alphabill-org/alphabill/internal/crypto"
@@ -13,6 +14,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/txsystem/money"
 	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/internal/util"
+	sdk "github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/fxamacker/cbor/v2"
 	"github.com/holiman/uint256"
@@ -20,16 +22,13 @@ import (
 )
 
 var moneySystemID = []byte{0, 0, 0, 0}
+var tokenSystemID = []byte{0, 0, 0, 2}
 
 func TestBlockProcessor_EachTxTypeCanBeProcessed(t *testing.T) {
 	pubKeyBytes, _ := hexutil.Decode("0x03c30573dc0c7fd43fcb801289a6a96cb78c27f4ba398b89da91ece23e9a99aca3")
 	pubKeyHash := hash.Sum256(pubKeyBytes)
 	fcbID := newUnitID(101)
-	fcb := &Bill{
-		Id:            fcbID,
-		Value:         100,
-		FCBlockNumber: 1,
-	}
+	fcb := &Bill{Id: fcbID, Value: 100}
 	signer, _ := crypto.NewInMemorySecp256K1Signer()
 	tx1 := &types.TransactionRecord{
 		TransactionOrder: &types.TransactionOrder{
@@ -88,7 +87,7 @@ func TestBlockProcessor_EachTxTypeCanBeProcessed(t *testing.T) {
 
 	store, err := createTestBillStore(t)
 	require.NoError(t, err)
-	err = store.Do().SetFeeCreditBill(fcb)
+	err = store.Do().SetFeeCreditBill(fcb, nil)
 	require.NoError(t, err)
 	err = store.Do().SetSystemDescriptionRecords([]*genesis.SystemDescriptionRecord{
 		{
@@ -114,13 +113,15 @@ func TestBlockProcessor_EachTxTypeCanBeProcessed(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, bills, 4)
 	for _, bill := range bills {
-		verifyProof(t, bill)
+		proof, err := store.Do().GetTxProof(bill.Id, bill.TxHash)
+		require.NoError(t, err)
+		verifyProof(t, bill, proof)
 	}
 
 	// verify tx2 is dcBill
 	bill, err := store.Do().GetBill(tx2.TransactionOrder.UnitID())
 	require.NoError(t, err)
-	require.True(t, bill.IsDCBill)
+	require.NotNil(t, bill.DcNonce)
 
 	// verify fcb is reduced by 4x txFee
 	fcb, err = store.Do().GetFeeCreditBill(fcbID)
@@ -165,6 +166,13 @@ func TestBlockProcessor_EachTxTypeCanBeProcessed(t *testing.T) {
 	require.NoError(t, err)
 	require.EqualValues(t, 194, fcb.Value)
 
+	// verify FCB AddFCTxHash equals to TxHash
+	addFCTxHash := addFC.Hash(gocrypto.SHA256)
+	require.Equal(t, addFCTxHash, fcb.TxHash)
+
+	addFCTxRecordHash := addFCRecord.Hash(gocrypto.SHA256)
+	require.Equal(t, addFCTxRecordHash, fcb.AddFCTxHash)
+
 	// verify tx1 unit is zero value (whole bill transferred to fee credit)
 	unit1, err := store.Do().GetBill(tx1.TransactionOrder.UnitID())
 	require.NoError(t, err)
@@ -205,6 +213,9 @@ func TestBlockProcessor_EachTxTypeCanBeProcessed(t *testing.T) {
 	require.NoError(t, err)
 	require.EqualValues(t, 0, fcb.Value)
 
+	// verify FCB AddFCTxHash is not changed
+	require.Equal(t, addFCTxRecordHash, fcb.AddFCTxHash)
+
 	// verify reclaimed fee credits (194) were added to specified unit (tx4 value=100) minus 2x txfee (2)
 	unit, err := store.Do().GetBill(tx4.TransactionOrder.UnitID())
 	require.NoError(t, err)
@@ -223,19 +234,19 @@ func TestBlockProcessor_EachTxTypeCanBeProcessed(t *testing.T) {
 	require.Nil(t, unit1)
 }
 
-func TestBlockProcessor_TransferFCAndReclaimFC(t *testing.T) {
+// start state
+// user bill: 100
+//
+// add 50 fee credit and reclaim
+//
+// end state
+// user bill: 96
+// money partition fee bill: 4
+func TestBlockProcessor_TransferAndReclaimFeeCycle_TargetMoneyPartition(t *testing.T) {
 	fcbID := newUnitID(101)
-	fcb := &Bill{
-		Id:            fcbID,
-		Value:         50,
-		FCBlockNumber: 1,
-	}
 	signer, _ := crypto.NewInMemorySecp256K1Signer()
 
 	store, err := createTestBillStore(t)
-	require.NoError(t, err)
-
-	err = store.Do().SetFeeCreditBill(fcb)
 	require.NoError(t, err)
 
 	userBillID := []byte{1}
@@ -244,7 +255,7 @@ func TestBlockProcessor_TransferFCAndReclaimFC(t *testing.T) {
 		Value:          100,
 		TxHash:         []byte{2},
 		OwnerPredicate: script.PredicateAlwaysTrue(),
-	})
+	}, nil)
 	require.NoError(t, err)
 
 	moneyPartitionFeeBillID := util.Uint256ToBytes(uint256.NewInt(2))
@@ -264,7 +275,7 @@ func TestBlockProcessor_TransferFCAndReclaimFC(t *testing.T) {
 		Id:             moneyPartitionFeeBillID,
 		OwnerPredicate: script.PredicateAlwaysTrue(),
 		Value:          0,
-	})
+	}, nil)
 	require.NoError(t, err)
 
 	blockProcessor, err := NewBlockProcessor(store, moneySystemID)
@@ -293,9 +304,43 @@ func TestBlockProcessor_TransferFCAndReclaimFC(t *testing.T) {
 	require.NoError(t, err)
 	require.EqualValues(t, 51, moneyPartitionFeeBill.Value)
 
-	// process closeFC + reclaimFC (reclaim all credits)
+	// and user bill (100) is decreased by transferFC.amount (50) and transfer fee amount (1)
+	userBill, err := store.Do().GetBill(userBillID)
+	require.NoError(t, err)
+	require.EqualValues(t, 49, userBill.Value)
+
+	// process addFC
+	addFCOrder := testfc.NewAddFC(t, signer,
+		testfc.NewAddFCAttr(t, signer, testfc.WithTransferFCTx(transferFCRecord)),
+		testtransaction.WithUnitId(fcbID),
+		testtransaction.WithSystemID(moneySystemID),
+	)
+	addFCRecord := &types.TransactionRecord{TransactionOrder: addFCOrder, ServerMetadata: &types.ServerMetadata{ActualFee: 1}}
+	b = &types.Block{
+		Transactions:       []*types.TransactionRecord{addFCRecord},
+		UnicityCertificate: &types.UnicityCertificate{InputRecord: &types.InputRecord{RoundNumber: 2}},
+	}
+	err = blockProcessor.ProcessBlock(context.Background(), b)
+	require.NoError(t, err)
+
+	// verify money partition fee bill does not change
+	moneyPartitionFeeBill, err = store.Do().GetBill(moneyPartitionFeeBillID)
+	require.NoError(t, err)
+	require.EqualValues(t, 51, moneyPartitionFeeBill.Value)
+
+	// and user bill does not change
+	userBill, err = store.Do().GetBill(userBillID)
+	require.NoError(t, err)
+	require.EqualValues(t, 49, userBill.Value)
+
+	// and user fee credit bill is created by transferFC.amount (50) minus fee(1) = (49)
+	fcb, err := store.Do().GetFeeCreditBill(fcbID)
+	require.NoError(t, err)
+	require.EqualValues(t, 49, fcb.Value)
+
+	// process closeFC
 	closeFCAttr := testfc.NewCloseFCAttr(
-		testfc.WithCloseFCAmount(30),
+		testfc.WithCloseFCAmount(49),
 		testfc.WithCloseFCTargetUnitID(transferFC.UnitID()),
 	)
 	closeFC := testfc.NewCloseFC(t, closeFCAttr,
@@ -303,7 +348,29 @@ func TestBlockProcessor_TransferFCAndReclaimFC(t *testing.T) {
 		testtransaction.WithUnitId(fcbID),
 	)
 	closeFCRecord := &types.TransactionRecord{TransactionOrder: closeFC, ServerMetadata: &types.ServerMetadata{ActualFee: 1}}
+	b = &types.Block{
+		Transactions:       []*types.TransactionRecord{closeFCRecord},
+		UnicityCertificate: &types.UnicityCertificate{InputRecord: &types.InputRecord{RoundNumber: 3}},
+	}
+	err = blockProcessor.ProcessBlock(context.Background(), b)
+	require.NoError(t, err)
 
+	// verify money partition fee bill does not change
+	moneyPartitionFeeBill, err = store.Do().GetBill(moneyPartitionFeeBillID)
+	require.NoError(t, err)
+	require.EqualValues(t, 51, moneyPartitionFeeBill.Value)
+
+	// and user bill does not change
+	userBill, err = store.Do().GetBill(userBillID)
+	require.NoError(t, err)
+	require.EqualValues(t, 49, userBill.Value)
+
+	// and user fee credit bill is decreased by closeFC.amount (49)
+	fcb, err = store.Do().GetFeeCreditBill(fcbID)
+	require.NoError(t, err)
+	require.EqualValues(t, 0, fcb.Value)
+
+	// process reclaimFC
 	reclaimFCAttr := testfc.NewReclaimFCAttr(t, signer,
 		testfc.WithReclaimFCClosureTx(closeFCRecord),
 	)
@@ -314,21 +381,234 @@ func TestBlockProcessor_TransferFCAndReclaimFC(t *testing.T) {
 	reclaimFCRecord := &types.TransactionRecord{TransactionOrder: reclaimFC, ServerMetadata: &types.ServerMetadata{ActualFee: 1}}
 
 	b = &types.Block{
-		Transactions:       []*types.TransactionRecord{closeFCRecord, reclaimFCRecord},
+		Transactions:       []*types.TransactionRecord{reclaimFCRecord},
+		UnicityCertificate: &types.UnicityCertificate{InputRecord: &types.InputRecord{RoundNumber: 4}},
+	}
+	err = blockProcessor.ProcessBlock(context.Background(), b)
+	require.NoError(t, err)
+
+	// verify money partition fee bill value (51) is decreased by closeFC amount (49) and increased by closeFC fee amount (1) and reclaimFC fee amount(1)
+	moneyPartitionFeeBill, err = store.Do().GetBill(moneyPartitionFeeBillID)
+	require.NoError(t, err)
+	require.EqualValues(t, 4, moneyPartitionFeeBill.Value)
+
+	// verify user bill (49) is increased closeFC amount (49) and decreased by closeFC fee amount (1) and reclaimFC fee amount(1)
+	// i.e. user spent total 4 tx worth of fees
+	userBill, err = store.Do().GetBill(userBillID)
+	require.NoError(t, err)
+	require.EqualValues(t, 96, userBill.Value)
+
+	// and user fee credit bill is not changed
+	fcb, err = store.Do().GetFeeCreditBill(fcbID)
+	require.NoError(t, err)
+	require.EqualValues(t, 0, fcb.Value)
+}
+
+// start state
+// user bill: 100
+//
+// end state
+// user bill: 96
+// token partition fee bill: 4
+func TestBlockProcessor_TransferAndReclaimFeeCycle_TargetTokenPartition(t *testing.T) {
+	fcbID := newUnitID(101)
+	signer, _ := crypto.NewInMemorySecp256K1Signer()
+
+	store, err := createTestBillStore(t)
+	require.NoError(t, err)
+
+	userBillID := []byte{1}
+	err = store.Do().SetBill(&Bill{
+		Id:             userBillID,
+		Value:          100,
+		TxHash:         []byte{2},
+		OwnerPredicate: script.PredicateAlwaysTrue(),
+	}, nil)
+	require.NoError(t, err)
+
+	moneyPartitionFeeBillID := util.Uint256ToBytes(uint256.NewInt(2))
+	tokenPartitionFeeBillID := util.Uint256ToBytes(uint256.NewInt(3))
+	err = store.Do().SetSystemDescriptionRecords([]*genesis.SystemDescriptionRecord{
+		{
+			SystemIdentifier: moneySystemID,
+			T2Timeout:        2500,
+			FeeCreditBill: &genesis.FeeCreditBill{
+				UnitId:         moneyPartitionFeeBillID,
+				OwnerPredicate: script.PredicateAlwaysTrue(),
+			},
+		},
+		{
+			SystemIdentifier: tokenSystemID,
+			T2Timeout:        2500,
+			FeeCreditBill: &genesis.FeeCreditBill{
+				UnitId:         tokenPartitionFeeBillID,
+				OwnerPredicate: script.PredicateAlwaysTrue(),
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	err = store.Do().SetBill(&Bill{
+		Id:             moneyPartitionFeeBillID,
+		OwnerPredicate: script.PredicateAlwaysTrue(),
+		Value:          0,
+	}, nil)
+	require.NoError(t, err)
+	err = store.Do().SetBill(&Bill{
+		Id:             tokenPartitionFeeBillID,
+		OwnerPredicate: script.PredicateAlwaysTrue(),
+		Value:          0,
+	}, nil)
+	require.NoError(t, err)
+
+	blockProcessor, err := NewBlockProcessor(store, moneySystemID)
+	require.NoError(t, err)
+
+	// process transferFC of 20 billy from userBillID
+	transferFCAttr := testfc.NewTransferFCAttr(
+		testfc.WithTargetRecordID(fcbID),
+		testfc.WithTargetSystemID(tokenSystemID),
+		testfc.WithAmount(20),
+	)
+	transferFC := testfc.NewTransferFC(t, transferFCAttr,
+		testtransaction.WithUnitId(userBillID),
+		testtransaction.WithSystemID(tokenSystemID),
+	)
+	transferFCRecord := &types.TransactionRecord{TransactionOrder: transferFC, ServerMetadata: &types.ServerMetadata{ActualFee: 1}}
+	b := &types.Block{
+		Transactions:       []*types.TransactionRecord{transferFCRecord},
+		UnicityCertificate: &types.UnicityCertificate{InputRecord: &types.InputRecord{RoundNumber: 1}},
+	}
+	err = blockProcessor.ProcessBlock(context.Background(), b)
+	require.NoError(t, err)
+
+	// verify token partition fee bill value (0) is increased by transferFC amount (20)
+	tokenPartitionFeeBill, err := store.Do().GetBill(tokenPartitionFeeBillID)
+	require.NoError(t, err)
+	require.EqualValues(t, 20, tokenPartitionFeeBill.Value)
+
+	// and money partition fee bill value (0) is increased by tx fee amount (1)
+	moneyPartitionFeeBill, err := store.Do().GetBill(moneyPartitionFeeBillID)
+	require.NoError(t, err)
+	require.EqualValues(t, 1, moneyPartitionFeeBill.Value)
+
+	// and user bill (100) is decreased by transferFC.amount (20) and transfer fee amount (1)
+	userBill, err := store.Do().GetBill(userBillID)
+	require.NoError(t, err)
+	require.EqualValues(t, 79, userBill.Value)
+
+	// process addFC
+	addFCOrder := testfc.NewAddFC(t, signer,
+		testfc.NewAddFCAttr(t, signer, testfc.WithTransferFCTx(transferFCRecord)),
+		testtransaction.WithUnitId(fcbID),
+		testtransaction.WithSystemID(tokenSystemID),
+	)
+	addFCRecord := &types.TransactionRecord{TransactionOrder: addFCOrder, ServerMetadata: &types.ServerMetadata{ActualFee: 1}}
+	b = &types.Block{
+		Transactions:       []*types.TransactionRecord{addFCRecord},
+		UnicityCertificate: &types.UnicityCertificate{InputRecord: &types.InputRecord{RoundNumber: 2}},
+	}
+	err = blockProcessor.ProcessBlock(context.Background(), b)
+	require.NoError(t, err)
+
+	// verify money partition fee bill does not change
+	moneyPartitionFeeBill, err = store.Do().GetBill(moneyPartitionFeeBillID)
+	require.NoError(t, err)
+	require.EqualValues(t, 1, moneyPartitionFeeBill.Value)
+
+	// and token partition fee bill does not change
+	tokenPartitionFeeBill, err = store.Do().GetBill(tokenPartitionFeeBillID)
+	require.NoError(t, err)
+	require.EqualValues(t, 20, tokenPartitionFeeBill.Value)
+
+	// and user bill does not change
+	userBill, err = store.Do().GetBill(userBillID)
+	require.NoError(t, err)
+	require.EqualValues(t, 79, userBill.Value)
+
+	// and user fee credit bill is created by transferFC.amount (20) minus fee(1) = (19)
+	fcb, err := store.Do().GetFeeCreditBill(fcbID)
+	require.NoError(t, err)
+	require.EqualValues(t, 19, fcb.Value)
+
+	// process closeFC
+	closeFCAttr := testfc.NewCloseFCAttr(
+		testfc.WithCloseFCAmount(19),
+		testfc.WithCloseFCTargetUnitID(transferFC.UnitID()),
+	)
+	closeFC := testfc.NewCloseFC(t, closeFCAttr,
+		testtransaction.WithSystemID(tokenSystemID),
+		testtransaction.WithUnitId(fcbID),
+	)
+	closeFCRecord := &types.TransactionRecord{TransactionOrder: closeFC, ServerMetadata: &types.ServerMetadata{ActualFee: 1}}
+	b = &types.Block{
+		Transactions:       []*types.TransactionRecord{closeFCRecord},
 		UnicityCertificate: &types.UnicityCertificate{InputRecord: &types.InputRecord{RoundNumber: 3}},
 	}
 	err = blockProcessor.ProcessBlock(context.Background(), b)
 	require.NoError(t, err)
 
-	// verify money partition fee bill value (51) is decreased by closeFC amount (30) and increased by closeFC fee amount (1) and reclaimFC fee amount(1)
+	// verify money partition fee bill does not change
 	moneyPartitionFeeBill, err = store.Do().GetBill(moneyPartitionFeeBillID)
 	require.NoError(t, err)
-	require.EqualValues(t, 23, moneyPartitionFeeBill.Value)
+	require.EqualValues(t, 1, moneyPartitionFeeBill.Value)
+
+	// and token partition fee bill does not change
+	tokenPartitionFeeBill, err = store.Do().GetBill(tokenPartitionFeeBillID)
+	require.NoError(t, err)
+	require.EqualValues(t, 20, tokenPartitionFeeBill.Value)
+
+	// and user bill does not change
+	userBill, err = store.Do().GetBill(userBillID)
+	require.NoError(t, err)
+	require.EqualValues(t, 79, userBill.Value)
+
+	// and user fee credit bill (19) is decreased by closeFC.amount (19)
+	fcb, err = store.Do().GetFeeCreditBill(fcbID)
+	require.NoError(t, err)
+	require.EqualValues(t, 0, fcb.Value)
+
+	// process reclaimFC
+	reclaimFCAttr := testfc.NewReclaimFCAttr(t, signer,
+		testfc.WithReclaimFCClosureTx(closeFCRecord),
+	)
+	reclaimFC := testfc.NewReclaimFC(t, signer, reclaimFCAttr,
+		testtransaction.WithSystemID(moneySystemID),
+		testtransaction.WithUnitId(transferFC.UnitID()),
+	)
+	reclaimFCRecord := &types.TransactionRecord{TransactionOrder: reclaimFC, ServerMetadata: &types.ServerMetadata{ActualFee: 1}}
+
+	b = &types.Block{
+		Transactions:       []*types.TransactionRecord{reclaimFCRecord},
+		UnicityCertificate: &types.UnicityCertificate{InputRecord: &types.InputRecord{RoundNumber: 4}},
+	}
+	err = blockProcessor.ProcessBlock(context.Background(), b)
+	require.NoError(t, err)
+
+	// verify money partition fee bill is increased by reclaimFC fee
+	moneyPartitionFeeBill, err = store.Do().GetBill(moneyPartitionFeeBillID)
+	require.NoError(t, err)
+	require.EqualValues(t, 2, moneyPartitionFeeBill.Value)
+
+	// verify token partition fee bill value (20) is decreased by closeFC amount (19) and increased by closeFC fee amount (1)
+	tokenPartitionFeeBill, err = store.Do().GetBill(tokenPartitionFeeBillID)
+	require.NoError(t, err)
+	require.EqualValues(t, 2, tokenPartitionFeeBill.Value)
+
+	// verify user bill (79) is increased by closeFC amount (19) and decreased by closeFC fee amount (1) and reclaimFC fee amount(1)
+	// i.e. user spent total 4 tx worth of fees
+	userBill, err = store.Do().GetBill(userBillID)
+	require.NoError(t, err)
+	require.EqualValues(t, 96, userBill.Value)
+
+	// and user fee credit bill is not changed
+	fcb, err = store.Do().GetFeeCreditBill(fcbID)
+	require.NoError(t, err)
+	require.EqualValues(t, 0, fcb.Value)
 }
 
-func verifyProof(t *testing.T, b *Bill) {
+func verifyProof(t *testing.T, b *Bill, txProof *sdk.Proof) {
 	require.NotNil(t, b)
-	txProof := b.TxProof
 	require.NotNil(t, txProof)
 	require.NotNil(t, txProof.TxRecord)
 
@@ -359,6 +639,7 @@ func dustTxAttr(pubKeyHash []byte) []byte {
 		TargetValue:  100,
 		TargetBearer: script.PredicatePayToPublicKeyHashDefault(pubKeyHash),
 		Backlink:     hash.Sum256([]byte{}),
+		Nonce:        []byte{0},
 	}
 	attrBytes, _ := cbor.Marshal(attr)
 	return attrBytes

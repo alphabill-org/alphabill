@@ -125,6 +125,7 @@ func (m *GenericTxSystem) ValidatorGeneratedTransactions() ([]*types.Transaction
 					ClientMetadata: &types.ClientMetadata{Timeout: m.currentBlockNumber + 1},
 				},
 			},
+			ServerMetadata: &types.ServerMetadata{ActualFee: 0},
 		},
 	}, nil
 }
@@ -213,6 +214,6 @@ func (m *GenericTxSystem) Commit() error {
 
 func pruneExecutorFunc(pruner *state.LogPruner) GenericExecuteFunc[any] {
 	return func(tx *types.TransactionOrder, attributes *any, currentBlockNr uint64) (*types.ServerMetadata, error) {
-		return nil, pruner.Prune(currentBlockNr - 1)
+		return &types.ServerMetadata{ActualFee: 0}, pruner.Prune(currentBlockNr - 1)
 	}
 }

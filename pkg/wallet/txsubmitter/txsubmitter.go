@@ -102,7 +102,7 @@ func (t *TxSubmissionBatch) confirmUnitsTx(ctx context.Context) error {
 			log.Info(fmt.Sprintf("Tx confirmation timeout is reached, block (#%v)", roundNr))
 			for _, sub := range t.submissions {
 				if !sub.Confirmed() {
-					log.Info(fmt.Sprintf("Tx not confirmed for UnitID=%X", sub.UnitID))
+					log.Info(fmt.Sprintf("Tx not confirmed for UnitID=%X, hash=%X", sub.UnitID, sub.TxOrderHash))
 				}
 			}
 			return errors.New("confirmation timeout")

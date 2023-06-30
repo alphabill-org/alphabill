@@ -6,9 +6,10 @@ import (
 	"github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/state"
 	"github.com/alphabill-org/alphabill/internal/txsystem/fc"
+	"github.com/alphabill-org/alphabill/internal/txsystem/money"
 )
 
-var DefaultTokenTxSystemIdentifier = []byte{0, 0, 0, 2}
+var DefaultSystemIdentifier = []byte{0, 0, 0, 2}
 
 type (
 	Options struct {
@@ -25,8 +26,8 @@ type (
 
 func defaultOptions() (*Options, error) {
 	return &Options{
-		systemIdentifier:        DefaultTokenTxSystemIdentifier,
-		moneyTXSystemIdentifier: []byte{0, 0, 0, 0},
+		systemIdentifier:        DefaultSystemIdentifier,
+		moneyTXSystemIdentifier: money.DefaultSystemIdentifier,
 		hashAlgorithm:           gocrypto.SHA256,
 		state:                   state.NewEmptyState(),
 		feeCalculator:           fc.FixedFee(1),

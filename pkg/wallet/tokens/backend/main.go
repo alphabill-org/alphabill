@@ -16,7 +16,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/rpc/alphabill"
 	"github.com/alphabill-org/alphabill/internal/txsystem/tokens"
 	"github.com/alphabill-org/alphabill/pkg/client"
-	"github.com/alphabill-org/alphabill/pkg/wallet"
+	sdk "github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/alphabill-org/alphabill/pkg/wallet/blocksync"
 	"github.com/alphabill-org/alphabill/pkg/wallet/broker"
 	"github.com/alphabill-org/alphabill/pkg/wallet/log"
@@ -42,20 +42,20 @@ type Storage interface {
 	GetBlockNumber() (uint64, error)
 	SetBlockNumber(blockNumber uint64) error
 
-	SaveTokenTypeCreator(id TokenTypeID, kind Kind, creator wallet.PubKey) error
-	SaveTokenType(data *TokenUnitType, proof *wallet.Proof) error
+	SaveTokenTypeCreator(id TokenTypeID, kind Kind, creator sdk.PubKey) error
+	SaveTokenType(data *TokenUnitType, proof *sdk.Proof) error
 	GetTokenType(id TokenTypeID) (*TokenUnitType, error)
-	QueryTokenType(kind Kind, creator wallet.PubKey, startKey TokenTypeID, count int) ([]*TokenUnitType, TokenTypeID, error)
+	QueryTokenType(kind Kind, creator sdk.PubKey, startKey TokenTypeID, count int) ([]*TokenUnitType, TokenTypeID, error)
 
-	SaveToken(data *TokenUnit, proof *wallet.Proof) error
+	SaveToken(data *TokenUnit, proof *sdk.Proof) error
 	RemoveToken(id TokenID) error
 	GetToken(id TokenID) (*TokenUnit, error)
-	QueryTokens(kind Kind, owner wallet.Predicate, startKey TokenID, count int) ([]*TokenUnit, TokenID, error)
+	QueryTokens(kind Kind, owner sdk.Predicate, startKey TokenID, count int) ([]*TokenUnit, TokenID, error)
 
-	GetTxProof(unitID wallet.UnitID, txHash wallet.TxHash) (*wallet.Proof, error)
+	GetTxProof(unitID sdk.UnitID, txHash sdk.TxHash) (*sdk.Proof, error)
 
-	GetFeeCreditBill(unitID wallet.UnitID) (*FeeCreditBill, error)
-	SetFeeCreditBill(fcb *FeeCreditBill, proof *wallet.Proof) error
+	GetFeeCreditBill(unitID sdk.UnitID) (*FeeCreditBill, error)
+	SetFeeCreditBill(fcb *FeeCreditBill, proof *sdk.Proof) error
 }
 
 /*
@@ -71,7 +71,7 @@ func Run(ctx context.Context, cfg Configuration) error {
 	}
 	defer db.Close()
 
-	txs, err := tokens.New(tokens.WithTrustBase(map[string]crypto.Verifier{"test": nil}))
+	txs, err := tokens.NewTxSystem(tokens.WithTrustBase(map[string]crypto.Verifier{"test": nil}))
 	if err != nil {
 		return fmt.Errorf("failed to create token tx system: %w", err)
 	}
@@ -100,11 +100,11 @@ func Run(ctx context.Context, cfg Configuration) error {
 	})
 
 	g.Go(func() error {
-		api := &restAPI{
+		api := &tokensRestAPI{
 			db:        db,
 			ab:        abc,
 			streamSSE: msgBroker.StreamSSE,
-			logErr:    cfg.Logger().Error,
+			rw:        sdk.ResponseWriter{LogErr: cfg.Logger().Error},
 		}
 		return httpsrv.Run(ctx, cfg.HttpServer(api.endpoints()), httpsrv.Listener(cfg.Listener()), httpsrv.ShutdownTimeout(5*time.Second))
 	})

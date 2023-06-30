@@ -1,44 +1,5 @@
 basePath: /api/v1
 definitions:
-  anypb.Any:
-    properties:
-      type_url:
-        description: |-
-          A URL/resource name that uniquely identifies the type of the serialized
-          protocol buffer message. This string must contain at least
-          one "/" character. The last segment of the URL's path must represent
-          the fully qualified name of the type (as in
-          `path/google.protobuf.Duration`). The name should be in a canonical form
-          (e.g., leading "." is not accepted).
-
-          In practice, teams usually precompile into the binary all types that they
-          expect it to use in the context of Any. However, for URLs which use the
-          scheme `http`, `https`, or no scheme, one can optionally set up a type
-          server that maps type URLs to message definitions as follows:
-
-            - If no scheme is provided, `https` is assumed.
-            - An HTTP GET on the URL must yield a [google.protobuf.Type][]
-              value in binary format, or produce an error.
-            - Applications are allowed to cache lookup results based on the
-              URL, or have them precompiled into a binary to avoid any
-              lookup. Therefore, binary compatibility needs to be preserved
-              on changes to types. (Use versioned type names to manage
-              breaking changes.)
-
-          Note: this functionality is not currently available in the official
-          protobuf release, and it is not used for type URLs beginning with
-          type.googleapis.com.
-
-          Schemes other than `http`, `https` (or the empty scheme) might be
-          used with implementation specific semantics.
-        type: string
-      value:
-        description: Must be a valid serialized protocol buffer of the above specified
-          type.
-        items:
-          type: integer
-        type: array
-    type: object
   backend.BalanceResponse:
     properties:
       balance:
@@ -83,118 +44,27 @@ definitions:
         example: "0"
         type: string
     type: object
-  block.BlockProof:
+  types.ClientMetadata:
     properties:
-      block_header_hash:
+      feeCreditRecordID:
         items:
           type: integer
         type: array
-      block_tree_hash_chain:
-        $ref: '#/definitions/block.BlockTreeHashChain'
-      hash_value:
-        description: hash value of either primary tx or secondary txs or zero hash,
-          depending on proof type
-        items:
-          type: integer
-        type: array
-      proof_type:
-        $ref: '#/definitions/block.ProofType'
-      sec_tree_hash_chain:
-        $ref: '#/definitions/block.SecTreeHashChain'
-      transactions_hash:
-        items:
-          type: integer
-        type: array
-      unicity_certificate:
-        $ref: '#/definitions/certificates.UnicityCertificate'
+      maxTransactionFee:
+        type: integer
+      timeout:
+        type: integer
     type: object
-  block.BlockTreeHashChain:
-    properties:
-      items:
-        items:
-          $ref: '#/definitions/block.ChainItem'
-        type: array
-    type: object
-  block.ChainItem:
+  types.GenericChainItem:
     properties:
       hash:
         items:
           type: integer
         type: array
-      val:
-        items:
-          type: integer
-        type: array
-    type: object
-  block.MerklePathItem:
-    properties:
-      direction_left:
-        description: DirectionLeft direction from parent node; left=true right=false
+      left:
         type: boolean
-      path_item:
-        description: PathItem Hash of Merkle Tree node
-        items:
-          type: integer
-        type: array
     type: object
-  block.ProofType:
-    enum:
-    - 0
-    - 1
-    - 2
-    - 3
-    - 4
-    type: integer
-    x-enum-varnames:
-    - ProofType_PRIM
-    - ProofType_SEC
-    - ProofType_ONLYSEC
-    - ProofType_NOTRANS
-    - ProofType_EMPTYBLOCK
-  block.SecTreeHashChain:
-    properties:
-      items:
-        items:
-          $ref: '#/definitions/block.MerklePathItem'
-        type: array
-    type: object
-  block.TxProof:
-    properties:
-      block_number:
-        type: integer
-      proof:
-        $ref: '#/definitions/block.BlockProof'
-      tx:
-        $ref: '#/definitions/txsystem.Transaction'
-    type: object
-  bp.Bill:
-    properties:
-      fc_block_number:
-        description: block number when fee credit bill balance was last updated
-        type: integer
-      id:
-        items:
-          type: integer
-        type: array
-      is_dc_bill:
-        type: boolean
-      tx_hash:
-        items:
-          type: integer
-        type: array
-      tx_proof:
-        $ref: '#/definitions/block.TxProof'
-      value:
-        type: integer
-    type: object
-  bp.Bills:
-    properties:
-      bills:
-        items:
-          $ref: '#/definitions/bp.Bill'
-        type: array
-    type: object
-  certificates.InputRecord:
+  types.InputRecord:
     properties:
       block_hash:
         description: hash of the block
@@ -223,16 +93,79 @@ definitions:
           type: integer
         type: array
     type: object
-  certificates.UnicityCertificate:
+  types.Payload:
+    properties:
+      attributes:
+        items:
+          type: integer
+        type: array
+      clientMetadata:
+        $ref: '#/definitions/types.ClientMetadata'
+      systemID:
+        items:
+          type: integer
+        type: array
+      type:
+        type: string
+      unitID:
+        items:
+          type: integer
+        type: array
+    type: object
+  types.ServerMetadata:
+    properties:
+      actualFee:
+        type: integer
+      targetUnits:
+        items:
+          items:
+            type: integer
+          type: array
+        type: array
+    type: object
+  types.TransactionOrder:
+    properties:
+      feeProof:
+        items:
+          type: integer
+        type: array
+      ownerProof:
+        items:
+          type: integer
+        type: array
+      payload:
+        $ref: '#/definitions/types.Payload'
+    type: object
+  types.TransactionRecord:
+    properties:
+      serverMetadata:
+        $ref: '#/definitions/types.ServerMetadata'
+      transactionOrder:
+        $ref: '#/definitions/types.TransactionOrder'
+    type: object
+  types.TxProof:
+    properties:
+      blockHeaderHash:
+        items:
+          type: integer
+        type: array
+      chain:
+        items:
+          $ref: '#/definitions/types.GenericChainItem'
+        type: array
+      unicityCertificate:
+        $ref: '#/definitions/types.UnicityCertificate'
+    type: object
+  types.UnicityCertificate:
     properties:
       input_record:
-        $ref: '#/definitions/certificates.InputRecord'
+        $ref: '#/definitions/types.InputRecord'
       unicity_seal:
-        $ref: '#/definitions/certificates.UnicitySeal'
+        $ref: '#/definitions/types.UnicitySeal'
       unicity_tree_certificate:
-        $ref: '#/definitions/certificates.UnicityTreeCertificate'
+        $ref: '#/definitions/types.UnicityTreeCertificate'
     type: object
-  certificates.UnicitySeal:
+  types.UnicitySeal:
     properties:
       hash:
         items:
@@ -253,7 +186,7 @@ definitions:
       timestamp:
         type: integer
     type: object
-  certificates.UnicityTreeCertificate:
+  types.UnicityTreeCertificate:
     properties:
       sibling_hashes:
         items:
@@ -270,58 +203,41 @@ definitions:
           type: integer
         type: array
     type: object
-  txsystem.ClientMetadata:
+  wallet.Bill:
     properties:
-      fee_credit_record_id:
-        description: fee credit record identifier (should be empty for fee credit
-          transactions)
+      fc_block_number:
+        description: block number when fee credit bill balance was last updated
+        example: "0"
+        type: string
+      id:
         items:
           type: integer
         type: array
-      max_fee:
-        description: maximum fee the user is willing to pay for the execution of this
-          transaction
-        type: integer
-      timeout:
-        description: transaction timeout block height
-        type: integer
+      is_dc_bill:
+        type: boolean
+      tx_hash:
+        items:
+          type: integer
+        type: array
+      tx_proof:
+        $ref: '#/definitions/wallet.Proof'
+      value:
+        example: "0"
+        type: string
     type: object
-  txsystem.ServerMetadata:
+  wallet.Bills:
     properties:
-      fee:
-        description: actual transaction fee charged
-        type: integer
+      bills:
+        items:
+          $ref: '#/definitions/wallet.Bill'
+        type: array
     type: object
-  txsystem.Transaction:
+  wallet.Proof:
     properties:
-      client_metadata:
-        allOf:
-        - $ref: '#/definitions/txsystem.ClientMetadata'
-        description: transaction metadata added by user
-      fee_proof:
-        description: optional fee authorization proof (omitted when the main owner
-          proof also satisfies the fee owner condition)
-        items:
-          type: integer
-        type: array
-      owner_proof:
-        items:
-          type: integer
-        type: array
-      server_metadata:
-        allOf:
-        - $ref: '#/definitions/txsystem.ServerMetadata'
-        description: transaction metadata added by node
-      system_id:
-        items:
-          type: integer
-        type: array
-      transaction_attributes:
-        $ref: '#/definitions/anypb.Any'
-      unit_id:
-        items:
-          type: integer
-        type: array
+      txProof:
+        $ref: '#/definitions/types.TxProof'
+      txRecord:
+        $ref: '#/definitions/types.TransactionRecord'
     type: object
 info:
   contact: {}
@@ -353,13 +269,13 @@ paths:
         "500":
           description: Internal Server Error
       summary: Get balance
-  /fee-credit-bill:
+  /fee-credit-bills:
     get:
       operationId: "5"
       parameters:
       - description: ID of the bill (hex)
-        in: query
-        name: bill_id
+        in: path
+        name: billId
         required: true
         type: string
       produces:
@@ -368,7 +284,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/bp.Bill'
+            $ref: '#/definitions/wallet.Bill'
       summary: Get Fee Credit Bill
   /list-bills:
     get:
@@ -419,7 +335,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/bp.Bills'
+            $ref: '#/definitions/wallet.Bills'
         "400":
           description: Bad Request
           schema:
@@ -444,6 +360,8 @@ paths:
       summary: Money partition's latest block number
   /transactions:
     post:
+      consumes:
+      - application/cbor
       operationId: "6"
       parameters:
       - description: Sender public key prefixed with 0x
@@ -451,10 +369,12 @@ paths:
         name: pubkey
         required: true
         type: string
-      produces:
-      - application/json
+      - description: CBOR encoded array of TransactionOrders
+        in: body
+        name: transactions
+        required: true
       responses:
         "202":
           description: Accepted
-      summary: Forward transactions to partiton node(s)
+      summary: Forward transactions to partition node(s)
 swagger: "2.0"

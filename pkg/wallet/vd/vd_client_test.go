@@ -1,4 +1,4 @@
-package verifiable_data
+package wallet
 
 import (
 	"context"
@@ -8,13 +8,18 @@ import (
 	"sync"
 	"testing"
 
+	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
+	testfc "github.com/alphabill-org/alphabill/internal/txsystem/fc/testutils"
 	"github.com/alphabill-org/alphabill/internal/rpc/alphabill"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	testfile "github.com/alphabill-org/alphabill/internal/testutils/file"
+	testtransaction "github.com/alphabill-org/alphabill/internal/testutils/transaction"
+	"github.com/alphabill-org/alphabill/internal/txsystem/vd"
 	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/internal/util"
-	"github.com/alphabill-org/alphabill/pkg/client"
+	"github.com/alphabill-org/alphabill/pkg/wallet/account"
 	"github.com/alphabill-org/alphabill/pkg/wallet/log"
+
 	"github.com/fxamacker/cbor/v2"
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
@@ -31,71 +36,80 @@ type abClientMock struct {
 	block          func(nr uint64) *types.Block
 }
 
-func testConf() *VDClientConfig {
+func testConf(t *testing.T) *VDClientConfig {
+	tmpDir := t.TempDir()
+	am := initAccountManager(t, tmpDir)
+	accountKey, _ := am.GetAccountKey(0)
+
 	return &VDClientConfig{
-		AbConf: &client.AlphabillClientConfig{
-			Uri: "test",
-		},
-		WaitBlock:    false,
-		BlockTimeout: 1}
+		VDNodeURL:        "test",
+		ConfirmTx:        false,
+		ConfirmTxTimeout: 1,
+		AccountKey:       accountKey,
+		WalletHomeDir:    tmpDir,
+	}
 }
 
 func TestVDClient_Create(t *testing.T) {
-	vdClient, err := New(context.Background(), testConf())
+	vdClient, err := New(testConf(t))
 	require.NoError(t, err)
 	require.NotNil(t, vdClient)
-	require.NotNil(t, vdClient.abClient)
+	require.NotNil(t, vdClient.vdNodeClient)
 }
 
 func TestVdClient_RegisterHash(t *testing.T) {
-	vdClient, err := New(context.Background(), testConf())
+	vdClient, err := New(testConf(t))
 	require.NoError(t, err)
-	mock := &abClientMock{maxBlock: 1, maxRoundNumber: 100}
-	vdClient.abClient = mock
+	mock := getABClientMock(t, vdClient)
+	vdClient.vdNodeClient = mock
 
 	hashHex := "0x67588D4D37BF6F4D6C63CE4BDA38DA2B869012B1BC131DB07AA1D2B5BFD810DD"
-	err = vdClient.RegisterHash(hashHex)
+	err = vdClient.RegisterHash(context.Background(), hashHex)
 	require.NoError(t, err)
 	require.NotNil(t, mock.tx)
 	dataHash, err := uint256.FromHex(hashHex)
 	require.NoError(t, err)
 	require.EqualValues(t, util.Uint256ToBytes(dataHash), mock.tx.UnitID())
-	require.Equal(t, mock.maxRoundNumber+vdClient.timeoutDelta, mock.tx.Timeout())
+	require.Equal(t, mock.maxRoundNumber+vdClient.confirmTxTimeout, mock.tx.Timeout())
 }
 
 func TestVdClient_RegisterHash_SyncBlocks(t *testing.T) {
 	require.NoError(t, log.InitStdoutLogger(log.INFO))
-	conf := testConf()
-	conf.WaitBlock = true
-	conf.BlockTimeout = 5
-	callbackCalled := false
-	conf.OnBlockCallback = func(b *VDBlock) {
-		require.NotNil(t, b)
-		require.Equal(t, conf.BlockTimeout-1, b.GetBlockNumber())
-		callbackCalled = true
-	}
-	vdClient, err := New(context.Background(), conf)
+	conf := testConf(t)
+	conf.ConfirmTx = true
+	conf.ConfirmTxTimeout = 5
+	vdClient, err := New(conf)
 	require.NoError(t, err)
-	mock := &abClientMock{}
+
+	signer, err := abcrypto.NewInMemorySecp256K1Signer()
+	require.NoError(t, err)
+	// TODO: correct?
+	addFC := testfc.NewAddFC(t, signer, nil,
+		testtransaction.WithUnitId(vdClient.accountKey.PrivKeyHash),
+		testtransaction.WithSystemID(vd.DefaultSystemIdentifier))
+
+	mock := &abClientMock{maxBlock: 2, maxRoundNumber: 2}
 	mock.incrementBlock = true
 	mock.block = func(nr uint64) *types.Block {
 		var txs []*types.TransactionRecord
-		if nr == conf.BlockTimeout-1 && mock.tx != nil {
-			txs = append(txs, &types.TransactionRecord{TransactionOrder: mock.tx})
+		if nr == conf.ConfirmTxTimeout-1 && mock.tx != nil {
+			txs = append(txs, &types.TransactionRecord{TransactionOrder: mock.tx, ServerMetadata: &types.ServerMetadata{ActualFee: 1}})
+		}
+		if nr == 1 {
+			txs = append(txs, &types.TransactionRecord{TransactionOrder: addFC, ServerMetadata: &types.ServerMetadata{ActualFee: 1}})
 		}
 		return &types.Block{
 			UnicityCertificate: &types.UnicityCertificate{InputRecord: &types.InputRecord{RoundNumber: nr}},
 			Transactions:       txs,
 		}
 	}
-
-	vdClient.abClient = mock
+	vdClient.vdNodeClient = mock
 
 	hashHex := "0x67588D4D37BF6F4D6C63CE4BDA38DA2B869012B1BC131DB07AA1D2B5BFD810DD"
 	wg := sync.WaitGroup{}
 	wg.Add(1)
 	go func() {
-		err = vdClient.RegisterHash(hashHex)
+		err = vdClient.RegisterHash(context.Background(), hashHex)
 		require.NoError(t, err)
 		require.NotNil(t, mock.tx)
 		dataHash, err := uint256.FromHex(hashHex)
@@ -109,18 +123,16 @@ func TestVdClient_RegisterHash_SyncBlocks(t *testing.T) {
 		wg.Wait()
 		return true
 	}, test.WaitDuration, test.WaitTick)
-
-	require.True(t, callbackCalled)
 }
 
 func TestVdClient_RegisterHash_LeadingZeroes(t *testing.T) {
-	vdClient, err := New(context.Background(), testConf())
+	vdClient, err := New(testConf(t))
 	require.NoError(t, err)
-	mock := &abClientMock{}
-	vdClient.abClient = mock
+	mock := getABClientMock(t, vdClient)
+	vdClient.vdNodeClient = mock
 
 	hashHex := "0x00508D4D37BF6F4D6C63CE4BDA38DA2B869012B1BC131DB07AA1D2B5BFD810DD"
-	err = vdClient.RegisterHash(hashHex)
+	err = vdClient.RegisterHash(context.Background(), hashHex)
 	require.NoError(t, err)
 	require.NotNil(t, mock.tx)
 
@@ -130,67 +142,72 @@ func TestVdClient_RegisterHash_LeadingZeroes(t *testing.T) {
 }
 
 func TestVdClient_RegisterHash_TooShort(t *testing.T) {
-	vdClient, err := New(context.Background(), testConf())
+	vdClient, err := New(testConf(t))
 	require.NoError(t, err)
 	mock := &abClientMock{}
-	vdClient.abClient = mock
+	vdClient.vdNodeClient = mock
 
 	hashHex := "0x00508D4D37BF6F4D6C63CE4B"
-	err = vdClient.RegisterHash(hashHex)
+	err = vdClient.RegisterHash(context.Background(), hashHex)
+	vdClient.Close()
+
 	require.ErrorContains(t, err, "invalid hash length, expected 32 bytes, got 12")
-	require.True(t, mock.IsShutdown())
+	require.True(t, mock.IsClosed())
 }
 
 func TestVdClient_RegisterHash_TooLong(t *testing.T) {
-	vdClient, err := New(context.Background(), testConf())
+	vdClient, err := New(testConf(t))
 	require.NoError(t, err)
 	mock := &abClientMock{}
-	vdClient.abClient = mock
+	vdClient.vdNodeClient = mock
 
 	hashHex := "0x0067588D4D37BF6F4D6C63CE4BDA38DA2B869012B1BC131DB07AA1D2B5BFD810DD"
-	err = vdClient.RegisterHash(hashHex)
+	err = vdClient.RegisterHash(context.Background(), hashHex)
+	vdClient.Close()
+
 	require.ErrorContains(t, err, "invalid hash length, expected 32 bytes, got 33")
-	require.True(t, mock.IsShutdown())
+	require.True(t, mock.IsClosed())
 }
 
 func TestVdClient_RegisterHash_NoPrefix(t *testing.T) {
-	vdClient, err := New(context.Background(), testConf())
+	vdClient, err := New(testConf(t))
 	require.NoError(t, err)
-	mock := &abClientMock{}
-	vdClient.abClient = mock
+	mock := getABClientMock(t, vdClient)
+	vdClient.vdNodeClient = mock
 
 	hashHex := "67588D4D37BF6F4D6C63CE4BDA38DA2B869012B1BC131DB07AA1D2B5BFD810DD"
-	err = vdClient.RegisterHash(hashHex)
+	err = vdClient.RegisterHash(context.Background(), hashHex)
 	require.NoError(t, err)
 }
 
 func TestVdClient_RegisterHash_BadHash(t *testing.T) {
-	vdClient, err := New(context.Background(), testConf())
+	vdClient, err := New(testConf(t))
 	require.NoError(t, err)
 	mock := &abClientMock{}
-	vdClient.abClient = mock
+	vdClient.vdNodeClient = mock
 
 	hashHex := "0x67588D4D37BF6F4D6C63CE4BDA38DA2B869012B1BC131DB07AA1D2B5BFD810QQ"
-	err = vdClient.RegisterHash(hashHex)
+	err = vdClient.RegisterHash(context.Background(), hashHex)
 	require.ErrorContains(t, err, "invalid byte:")
 }
 
 func TestVdClient_RegisterHash_BadResponse(t *testing.T) {
-	vdClient, err := New(context.Background(), testConf())
+	vdClient, err := New(testConf(t))
 	require.NoError(t, err)
-	mock := &abClientMock{fail: true}
-	vdClient.abClient = mock
+	mock := getABClientMock(t, vdClient)
+	mock.fail = true
+	vdClient.vdNodeClient = mock
 
 	hashHex := "67588D4D37BF6F4D6C63CE4BDA38DA2B869012B1BC131DB07AA1D2B5BFD810DD"
-	err = vdClient.RegisterHash(hashHex)
+	err = vdClient.RegisterHash(context.Background(), hashHex)
 	require.ErrorContains(t, err, "error while submitting the hash: boom")
 }
 
 func TestVdClient_RegisterFileHash(t *testing.T) {
-	vdClient, err := New(context.Background(), testConf())
+	vdClient, err := New(testConf(t))
 	require.NoError(t, err)
-	mock := &abClientMock{}
-	vdClient.abClient = mock
+	mock := getABClientMock(t, vdClient)
+	vdClient.vdNodeClient = mock
 
 	fileName := fmt.Sprintf("%s%cab-test-tmp", os.TempDir(), os.PathSeparator)
 	content := "alphabill"
@@ -198,35 +215,26 @@ func TestVdClient_RegisterFileHash(t *testing.T) {
 	hasher.Write([]byte(content))
 	testfile.CreateTempFileWithContent(t, fileName, content)
 
-	err = vdClient.RegisterFileHash(fileName)
+	err = vdClient.RegisterFileHash(context.Background(), fileName)
 
 	require.NoError(t, err)
 	require.NotNil(t, mock.tx)
 	require.EqualValues(t, hasher.Sum(nil), mock.tx.UnitID())
-	require.Nil(t, mock.tx.Payload.Attributes)
 }
 
 func TestVdClient_ListAllBlocksWithTx(t *testing.T) {
 	require.NoError(t, log.InitStdoutLogger(log.INFO))
-	conf := testConf()
-	conf.WaitBlock = true
-	vdClient, err := New(context.Background(), conf)
+	conf := testConf(t)
+	conf.ConfirmTx = true
+	vdClient, err := New(conf)
 	require.NoError(t, err)
-	mock := &abClientMock{}
-	mock.maxBlock = 1
-	mock.incrementBlock = true
-	mock.block = func(nr uint64) *types.Block {
-		return &types.Block{
-			UnicityCertificate: &types.UnicityCertificate{InputRecord: &types.InputRecord{RoundNumber: nr}},
-		}
-	}
-
-	vdClient.abClient = mock
+	mock := getABClientMock(t, vdClient)
+	vdClient.vdNodeClient = mock
 
 	wg := sync.WaitGroup{}
 	wg.Add(1)
 	go func() {
-		err = vdClient.ListAllBlocksWithTx()
+		err = vdClient.ListAllBlocksWithTx(context.Background())
 		require.NoError(t, err)
 		wg.Done()
 	}()
@@ -244,6 +252,10 @@ func (a *abClientMock) SendTransaction(ctx context.Context, tx *types.Transactio
 		return fmt.Errorf("boom")
 	}
 	return nil
+}
+
+func (a *abClientMock) SendTransactionWithRetry(ctx context.Context, tx *types.TransactionOrder, maxTries int) error {
+	return a.SendTransaction(ctx, tx)
 }
 
 func (a *abClientMock) GetBlock(ctx context.Context, n uint64) ([]byte, error) {
@@ -266,7 +278,12 @@ func (a *abClientMock) GetBlocks(ctx context.Context, blockNumber, blockCount ui
 	if err != nil {
 		return nil, err
 	}
-	return &alphabill.GetBlocksResponse{MaxBlockNumber: a.maxBlock, Blocks: [][]byte{blockBytes}}, nil
+	return &alphabill.GetBlocksResponse{
+		BatchMaxBlockNumber: blockNumber,
+		MaxBlockNumber: a.maxBlock,
+		MaxRoundNumber: a.maxBlock,
+		Blocks: [][]byte{blockBytes},
+	}, nil
 }
 
 func (a *abClientMock) GetRoundNumber(ctx context.Context) (uint64, error) {
@@ -281,13 +298,40 @@ func (a *abClientMock) GetRoundNumber(ctx context.Context) (uint64, error) {
 	return a.maxRoundNumber, nil
 }
 
-func (a *abClientMock) Shutdown() error {
+func (a *abClientMock) Close() error {
 	fmt.Println("Shutdown")
 	a.shutdown = true
 	return nil
 }
 
-func (a *abClientMock) IsShutdown() bool {
+func (a *abClientMock) IsClosed() bool {
 	fmt.Println("IsShutdown", a.shutdown)
 	return a.shutdown
+}
+
+func getABClientMock(t *testing.T, vdClient *VDClient) *abClientMock {
+	signer, err := abcrypto.NewInMemorySecp256K1Signer()
+	require.NoError(t, err)
+	addFC := testfc.NewAddFC(t, signer, nil,
+		testtransaction.WithUnitId(vdClient.accountKey.PrivKeyHash),
+		testtransaction.WithSystemID(vd.DefaultSystemIdentifier))
+
+	mock := &abClientMock{maxBlock: 1, maxRoundNumber: 1}
+	mock.block = func(nr uint64) *types.Block {
+		return &types.Block{
+			UnicityCertificate: &types.UnicityCertificate{InputRecord: &types.InputRecord{RoundNumber: nr}},
+			Transactions:       []*types.TransactionRecord{
+				{TransactionOrder: addFC, ServerMetadata: &types.ServerMetadata{ActualFee: 1}},
+			},
+		}
+	}
+	return mock
+}
+
+func initAccountManager(t *testing.T, dir string) account.Manager {
+	t.Helper()
+	am, err := account.NewManager(dir, "", true)
+	require.NoError(t, err)
+	require.NoError(t, am.CreateKeys(""))
+	return am
 }

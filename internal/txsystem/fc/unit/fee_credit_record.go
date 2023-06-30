@@ -34,3 +34,10 @@ func (b *FeeCreditRecord) Copy() state.UnitData {
 		Timeout: b.Timeout,
 	}
 }
+
+func (b *FeeCreditRecord) GetHash() []byte {
+	if b == nil {
+		return nil
+	}
+	return b.Hash
+}

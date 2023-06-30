@@ -36,7 +36,7 @@ type (
 	}
 )
 
-func NewMoneyModule(systemIdentifier []byte, options *Options) (m *Module, err error) {
+func NewMoneyModule(options *Options) (m *Module, err error) {
 	if options == nil {
 		return nil, errors.New("money module options are missing")
 	}
@@ -73,7 +73,7 @@ func NewMoneyModule(systemIdentifier []byte, options *Options) (m *Module, err e
 		state:               s,
 		trustBase:           options.trustBase,
 		hashAlgorithm:       options.hashAlgorithm,
-		feeCreditTxRecorder: newFeeCreditTxRecorder(s, systemIdentifier, options.systemDescriptionRecords),
+		feeCreditTxRecorder: newFeeCreditTxRecorder(s, options.systemIdentifier, options.systemDescriptionRecords),
 		dustCollector:       NewDustCollector(s),
 		feeCalculator:       options.feeCalculator,
 	}

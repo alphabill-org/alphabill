@@ -52,7 +52,6 @@ func (p *blockProcessor) ProcessBlock(ctx context.Context, b *types.Block) error
 func (p *blockProcessor) processTx(tr *types.TransactionRecord, proof *wallet.TxProof) error {
 	var err error
 	tx := tr.TransactionOrder
-	rn := proof.UnicityCertificate.GetRoundNumber()
 	id := tx.UnitID()
 	txProof := &wallet.Proof{TxRecord: tr, TxProof: proof}
 	txHash := tx.Hash(crypto.SHA256)
@@ -75,11 +74,11 @@ func (p *blockProcessor) processTx(tr *types.TransactionRecord, proof *wallet.Tx
 			return err
 		}
 		return p.store.SetFeeCreditBill(&FeeCreditBill{
-			Id:            id,
-			Value:         fcb.GetValue() + transferFeeCreditAttributes.Amount - tr.ServerMetadata.ActualFee,
-			TxHash:        tx.Hash(crypto.SHA256),
-			TxRecordHash:  trHash,
-			FCBlockNumber: rn,
+			Id:           id,
+			Value:        fcb.GetValue() + transferFeeCreditAttributes.Amount - tr.ServerMetadata.ActualFee,
+			TxHash:       txHash,
+			TxRecordHash: trHash,
+			AddFCTxHash:  trHash,
 		}, txProof)
 	case transactions.PayloadTypeCloseFeeCredit:
 		closeFeeCreditAttributes := &transactions.CloseFeeCreditAttributes{}
@@ -91,17 +90,17 @@ func (p *blockProcessor) processTx(tr *types.TransactionRecord, proof *wallet.Tx
 			return err
 		}
 		return p.store.SetFeeCreditBill(&FeeCreditBill{
-			Id:            id,
-			Value:         fcb.GetValue() - closeFeeCreditAttributes.Amount,
-			TxHash:        tx.Hash(crypto.SHA256),
-			TxRecordHash:  trHash,
-			FCBlockNumber: rn,
+			Id:           id,
+			Value:        fcb.GetValue() - closeFeeCreditAttributes.Amount,
+			TxHash:       txHash,
+			TxRecordHash: trHash,
+			AddFCTxHash:  fcb.GetAddFCTxHash(),
 		}, txProof)
 	case txsystem.PayloadTypePruneStates:
 		return nil
 	default:
 		// decrement fee credit bill value if tx is not fee credit tx i.e. a normal tx
-		if err := p.updateFCB(tr, rn); err != nil {
+		if err := p.updateFCB(tr); err != nil {
 			return fmt.Errorf("failed to update fee credit bill %w", err)
 		}
 	}
@@ -140,6 +139,7 @@ func (p *blockProcessor) processTx(tr *types.TransactionRecord, proof *wallet.Tx
 			&TokenUnit{
 				ID:           id,
 				TypeID:       attrs.TypeID,
+				TypeName:     tokenType.Name,
 				Amount:       attrs.Value,
 				Kind:         tokenType.Kind,
 				Symbol:       tokenType.Symbol,
@@ -192,6 +192,7 @@ func (p *blockProcessor) processTx(tr *types.TransactionRecord, proof *wallet.Tx
 			ID:           txutil.SameShardIDBytes(util.Uint256ToBytes(uint256.NewInt(0).SetBytes(id)), tokens.HashForIDCalculation(tx, crypto.SHA256)),
 			Symbol:       token.Symbol,
 			TypeID:       token.TypeID,
+			TypeName:     token.TypeName,
 			Kind:         token.Kind,
 			Amount:       attrs.TargetValue,
 			Decimals:     token.Decimals,
@@ -297,6 +298,7 @@ func (p *blockProcessor) processTx(tr *types.TransactionRecord, proof *wallet.Tx
 			ID:                     id,
 			Kind:                   tokenType.Kind,
 			TypeID:                 attrs.NFTTypeID,
+			TypeName:               tokenType.Name,
 			Symbol:                 tokenType.Symbol,
 			NftName:                attrs.Name,
 			NftURI:                 attrs.URI,
@@ -354,7 +356,7 @@ func (p *blockProcessor) saveToken(unit *TokenUnit, proof *wallet.Proof) error {
 	return nil
 }
 
-func (p *blockProcessor) updateFCB(tx *types.TransactionRecord, roundNumber uint64) error {
+func (p *blockProcessor) updateFCB(tx *types.TransactionRecord) error {
 	fcb, err := p.store.GetFeeCreditBill(tx.TransactionOrder.GetClientFeeCreditRecordID())
 	if err != nil {
 		return err
@@ -366,6 +368,5 @@ func (p *blockProcessor) updateFCB(tx *types.TransactionRecord, roundNumber uint
 		return fmt.Errorf("insufficient fee credit - fee is %d but remaining credit is only %d", tx.ServerMetadata.ActualFee, fcb.Value)
 	}
 	fcb.Value -= tx.ServerMetadata.ActualFee
-	fcb.FCBlockNumber = roundNumber
 	return p.store.SetFeeCreditBill(fcb, nil)
 }

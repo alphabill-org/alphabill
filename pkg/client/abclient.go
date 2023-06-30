@@ -2,12 +2,13 @@ package client
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math"
+	"strings"
 	"sync"
 	"time"
 
-	"github.com/alphabill-org/alphabill/internal/errors"
 	"github.com/alphabill-org/alphabill/internal/rpc/alphabill"
 	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/pkg/wallet/log"
@@ -17,13 +18,20 @@ import (
 	"google.golang.org/protobuf/types/known/emptypb"
 )
 
+const (
+	ErrFailedToBroadcastTx = "failed to broadcast transaction"
+	ErrTxBufferFull        = "tx buffer is full"
+	ErrTxRetryCanceled     = "user canceled tx retry"
+)
+
 // ABClient manages connection to alphabill node and implements RPC methods
 type ABClient interface {
 	SendTransaction(ctx context.Context, tx *types.TransactionOrder) error
+	SendTransactionWithRetry(ctx context.Context, tx *types.TransactionOrder, maxTries int) error
 	GetBlock(ctx context.Context, blockNumber uint64) ([]byte, error)
 	GetBlocks(ctx context.Context, blockNumber, blockCount uint64) (*alphabill.GetBlocksResponse, error)
 	GetRoundNumber(ctx context.Context) (uint64, error)
-	Shutdown() error
+	Close() error
 }
 
 type AlphabillClientConfig struct {
@@ -59,6 +67,27 @@ func (c *AlphabillClient) SendTransaction(ctx context.Context, tx *types.Transac
 	}
 	_, err = c.client.ProcessTransaction(ctx, protoTx)
 	return err
+}
+
+func (c *AlphabillClient) SendTransactionWithRetry(ctx context.Context, tx *types.TransactionOrder, maxTries int) error {
+	for try := 0; try < maxTries; try++ {
+		err := c.SendTransaction(ctx, tx)
+		if err == nil {
+			return nil
+		}
+		// error message can also contain stacktrace when node returns aberror, so we check prefix instead of exact match
+		if strings.Contains(err.Error(), ErrTxBufferFull) {
+			log.Debug("tx buffer full, waiting 1s to retry...")
+			select {
+			case <-time.After(time.Second):
+				continue
+			case <-ctx.Done():
+				return errors.New(ErrTxRetryCanceled)
+			}
+		}
+		return fmt.Errorf("failed to send transaction: %w", err)
+	}
+	return errors.New(ErrFailedToBroadcastTx)
 }
 
 func (c *AlphabillClient) GetBlock(ctx context.Context, blockNumber uint64) ([]byte, error) {
@@ -110,7 +139,7 @@ func (c *AlphabillClient) GetRoundNumber(ctx context.Context) (uint64, error) {
 	return res.RoundNumber, nil
 }
 
-func (c *AlphabillClient) Shutdown() error {
+func (c *AlphabillClient) Close() error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if c.connection != nil {
@@ -118,7 +147,7 @@ func (c *AlphabillClient) Shutdown() error {
 		c.connection = nil
 		c.client = nil
 		if err := con.Close(); err != nil {
-			return errors.Wrap(err, "error shutting down alphabill client")
+			return fmt.Errorf("error shutting down alphabill client: %w", err)
 		}
 	}
 	return nil

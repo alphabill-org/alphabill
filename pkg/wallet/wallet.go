@@ -2,9 +2,7 @@ package wallet
 
 import (
 	"context"
-	"errors"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/fxamacker/cbor/v2"
@@ -21,12 +19,6 @@ const (
 	sleepTimeAtMaxBlockHeightMs = 500
 	blockDownloadMaxBatchSize   = 100
 	maxTxFailedTries            = 3
-	txBufferFullErrMsg          = "tx buffer is full"
-)
-
-var (
-	ErrFailedToBroadcastTx = errors.New("failed to broadcast transaction")
-	ErrTxRetryCanceled     = errors.New("user canceled tx retry")
 )
 
 type (
@@ -103,9 +95,9 @@ func (w *Wallet) GetRoundNumber(ctx context.Context) (uint64, error) {
 // Returns nil if transaction was successfully accepted by node, otherwise returns error.
 func (w *Wallet) SendTransaction(ctx context.Context, tx *types.TransactionOrder, opts *SendOpts) error {
 	if opts == nil || !opts.RetryOnFullTxBuffer {
-		return w.sendTx(ctx, tx, 1)
+		return w.AlphabillClient.SendTransactionWithRetry(ctx, tx, 1)
 	}
-	return w.sendTx(ctx, tx, maxTxFailedTries)
+	return w.AlphabillClient.SendTransactionWithRetry(ctx, tx, maxTxFailedTries)
 }
 
 // Shutdown terminates connection to alphabill node and cancels any background goroutines.
@@ -113,7 +105,7 @@ func (w *Wallet) Shutdown() {
 	log.Debug("shutting down wallet")
 
 	if w.AlphabillClient != nil {
-		err := w.AlphabillClient.Shutdown()
+		err := w.AlphabillClient.Close()
 		if err != nil {
 			log.Error("error shutting down wallet: ", err)
 		}
@@ -234,25 +226,4 @@ func (w *Wallet) processBlocks(ch <-chan *types.Block) error {
 		}
 	}
 	return nil
-}
-
-func (w *Wallet) sendTx(ctx context.Context, tx *types.TransactionOrder, maxRetries int) error {
-	for failedTries := 0; failedTries < maxRetries; failedTries++ {
-		err := w.AlphabillClient.SendTransaction(ctx, tx)
-		if err == nil {
-			return nil
-		}
-		// error message can also contain stacktrace when node returns aberror, so we check prefix instead of exact match
-		if strings.HasPrefix(err.Error(), txBufferFullErrMsg) {
-			log.Debug("tx buffer full, waiting 1s to retry...")
-			select {
-			case <-time.After(time.Second):
-				continue
-			case <-ctx.Done():
-				return ErrTxRetryCanceled
-			}
-		}
-		return fmt.Errorf("failed to send transaction: %w", err)
-	}
-	return ErrFailedToBroadcastTx
 }

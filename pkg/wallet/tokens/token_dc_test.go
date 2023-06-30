@@ -117,12 +117,11 @@ func TestFungibleTokenDC(t *testing.T) {
 		getRoundNumber: func(ctx context.Context) (uint64, error) {
 			return 1, nil
 		},
-		getFeeCreditBill: func(ctx context.Context, unitID sdk.UnitID) (*twb.FeeCreditBill, error) {
-			return &twb.FeeCreditBill{
-				Id:            []byte{1},
-				Value:         100000,
-				TxHash:        []byte{2},
-				FCBlockNumber: 3,
+		getFeeCreditBill: func(ctx context.Context, unitID sdk.UnitID) (*sdk.Bill, error) {
+			return &sdk.Bill{
+				Id:     []byte{1},
+				Value:  100000,
+				TxHash: []byte{2},
 			}, nil
 		},
 	}

@@ -26,7 +26,7 @@ const (
 	ErrStrInvalidIconDataLength = "icon data length exceeds the allowed maximum of 64 KiB"
 )
 
-func New(opts ...Option) (*txsystem.GenericTxSystem, error) {
+func NewTxSystem(opts ...Option) (*txsystem.GenericTxSystem, error) {
 	options, err := defaultOptions()
 	if err != nil {
 		return nil, err

@@ -9,8 +9,11 @@ import (
 	"github.com/alphabill-org/alphabill/internal/txsystem/fc"
 )
 
+var DefaultSystemIdentifier = []byte{0, 0, 0, 0}
+
 type (
 	Options struct {
+		systemIdentifier         []byte
 		state                    *state.State
 		hashAlgorithm            gocrypto.Hash
 		trustBase                map[string]crypto.Verifier
@@ -25,11 +28,18 @@ type (
 
 func DefaultOptions() *Options {
 	return &Options{
-		hashAlgorithm: gocrypto.SHA256,
-		state:         state.NewEmptyState(),
-		trustBase:     make(map[string]crypto.Verifier),
-		dcMoneyAmount: 0,
-		feeCalculator: fc.FixedFee(1),
+		systemIdentifier: DefaultSystemIdentifier,
+		hashAlgorithm:    gocrypto.SHA256,
+		state:            state.NewEmptyState(),
+		trustBase:        make(map[string]crypto.Verifier),
+		dcMoneyAmount:    0,
+		feeCalculator:    fc.FixedFee(1),
+	}
+}
+
+func WithSystemIdentifier(systemIdentifier []byte) Option {
+	return func(g *Options) {
+		g.systemIdentifier = systemIdentifier
 	}
 }
 

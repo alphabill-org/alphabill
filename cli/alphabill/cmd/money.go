@@ -83,8 +83,8 @@ func runMoneyNode(ctx context.Context, cfg *moneyNodeConfiguration) error {
 		return fmt.Errorf("failed to create trust base validator: %w", err)
 	}
 
-	txs, err := money.NewMoneyTxSystem(
-		pg.SystemDescriptionRecord.SystemIdentifier,
+	txs, err := money.NewTxSystem(
+	        money.WithSystemIdentifier(pg.SystemDescriptionRecord.SystemIdentifier),
 		money.WithHashAlgorithm(crypto.SHA256),
 		money.WithInitialBill(ib),
 		money.WithSystemDescriptionRecords(params.SystemDescriptionRecords),

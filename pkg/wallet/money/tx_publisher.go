@@ -3,9 +3,11 @@ package money
 import (
 	"context"
 	"crypto"
+	"fmt"
 
 	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/pkg/wallet"
+	wlog "github.com/alphabill-org/alphabill/pkg/wallet/log"
 	"github.com/alphabill-org/alphabill/pkg/wallet/txsubmitter"
 )
 
@@ -26,10 +28,14 @@ func (w *TxPublisher) SendTx(ctx context.Context, tx *types.TransactionOrder, se
 		TxOrderHash: tx.Hash(crypto.SHA256),
 		Transaction: tx,
 	}
+	wlog.Info(fmt.Sprintf("Sending tx '%s' with hash: '%X'", tx.PayloadType(), tx.Hash(crypto.SHA256)))
 	txBatch := txSub.ToBatch(w.backend, senderPubKey)
 	err := txBatch.SendTx(ctx, true)
 	if err != nil {
 		return nil, err
 	}
 	return txBatch.Submissions()[0].Proof, nil
+}
+
+func (w *TxPublisher) Close() {
 }

@@ -22,7 +22,7 @@ import (
 )
 
 var (
-	systemIdentifier = []byte{0, 0, 0, 0}
+	systemIdentifier = DefaultSystemIdentifier
 
 	pubKey1  = "0x0212911c7341399e876800a268855c894c43eb849a72ac5a9d26a0091041c107f0"
 	privKey1 = "0xa5e8bff9733ebc751a45ca4b8cc6ce8e76c8316a5eb556f738092df6232e78de"
@@ -41,7 +41,8 @@ func TestPartition_Ok(t *testing.T) {
 	}
 	txFee := fc.FixedFee(1)
 	moneyPrt, err := testpartition.NewPartition(3, func(tb map[string]abcrypto.Verifier) txsystem.TransactionSystem {
-		system, err := NewMoneyTxSystem(systemIdentifier,
+		system, err := NewTxSystem(
+			WithSystemIdentifier(systemIdentifier),
 			WithHashAlgorithm(crypto.SHA256),
 			WithInitialBill(initialBill),
 			WithSystemDescriptionRecords(createSDRs(2)),
@@ -104,8 +105,9 @@ func TestPartition_SwapDCOk(t *testing.T) {
 	moneyPrt, err := testpartition.NewPartition(3, func(tb map[string]abcrypto.Verifier) txsystem.TransactionSystem {
 		var err error
 		txsState = state.NewEmptyState()
-		//	trustBase = tb
-		system, err := NewMoneyTxSystem(systemIdentifier,
+		// trustBase = tb
+		system, err := NewTxSystem(
+			WithSystemIdentifier(systemIdentifier),
 			WithHashAlgorithm(crypto.SHA256),
 			WithInitialBill(initialBill),
 			WithSystemDescriptionRecords(createSDRs(2)),

@@ -28,10 +28,10 @@ var defaultClientMetadata = &types.ClientMetadata{
 
 func TestInitPartitionAndCreateNFTType_Ok(t *testing.T) {
 	tokenPrt, err := testpartition.NewPartition(3, func(trustBase map[string]crypto.Verifier) txsystem.TransactionSystem {
-		system, err := New(WithTrustBase(trustBase), WithState(newStateWithFeeCredit(t, feeCreditID)))
+		system, err := NewTxSystem(WithTrustBase(trustBase), WithState(newStateWithFeeCredit(t, feeCreditID)))
 		require.NoError(t, err)
 		return system
-	}, DefaultTokenTxSystemIdentifier)
+	}, DefaultSystemIdentifier)
 	require.NoError(t, err)
 	abNet, err := testpartition.NewAlphabillPartition([]*testpartition.NodePartition{tokenPrt})
 	require.NoError(t, err)
@@ -40,7 +40,7 @@ func TestInitPartitionAndCreateNFTType_Ok(t *testing.T) {
 
 	tx := testtransaction.NewTransactionOrder(t,
 		testtransaction.WithPayloadType(PayloadTypeCreateNFTType),
-		testtransaction.WithSystemID(DefaultTokenTxSystemIdentifier),
+		testtransaction.WithSystemID(DefaultSystemIdentifier),
 		testtransaction.WithUnitId([]byte{0, 0, 0, 1}),
 		testtransaction.WithOwnerProof(script.PredicateArgumentEmpty()),
 		testtransaction.WithAttributes(
@@ -79,11 +79,11 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 	tokenPrt, err := testpartition.NewPartition(1, func(tb map[string]crypto.Verifier) txsystem.TransactionSystem {
 		trustBase = tb
 		s := newStateWithFeeCredit(t, feeCreditID)
-		system, err := New(WithState(s), WithTrustBase(tb))
+		system, err := NewTxSystem(WithState(s), WithTrustBase(tb))
 		require.NoError(t, err)
 		states = append(states, s)
 		return system
-	}, DefaultTokenTxSystemIdentifier)
+	}, DefaultSystemIdentifier)
 	require.NoError(t, err)
 	// the tx system lambda is called once for node genesis, but this is not interesting so clear the states before node
 	// is started
@@ -96,7 +96,7 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 
 	// create fungible token type
 	createTypeTx := testtransaction.NewTransactionOrder(t,
-		testtransaction.WithSystemID(DefaultTokenTxSystemIdentifier),
+		testtransaction.WithSystemID(DefaultSystemIdentifier),
 		testtransaction.WithUnitId(fungibleTokenTypeID),
 		testtransaction.WithPayloadType(PayloadTypeCreateFungibleTokenType),
 		testtransaction.WithAttributes(
@@ -131,7 +131,7 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 
 	// mint token
 	mintTx := testtransaction.NewTransactionOrder(t,
-		testtransaction.WithSystemID(DefaultTokenTxSystemIdentifier),
+		testtransaction.WithSystemID(DefaultSystemIdentifier),
 		testtransaction.WithUnitId(fungibleTokenID1),
 		testtransaction.WithPayloadType(PayloadTypeMintFungibleToken),
 		testtransaction.WithAttributes(
@@ -163,7 +163,7 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 
 	// split token
 	splitTx1 := testtransaction.NewTransactionOrder(t,
-		testtransaction.WithSystemID(DefaultTokenTxSystemIdentifier),
+		testtransaction.WithSystemID(DefaultSystemIdentifier),
 		testtransaction.WithUnitId(fungibleTokenID1),
 		testtransaction.WithOwnerProof(script.PredicateArgumentEmpty()),
 		testtransaction.WithPayloadType(PayloadTypeSplitFungibleToken),
@@ -208,7 +208,7 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 	})
 
 	splitTx2 := testtransaction.NewTransactionOrder(t,
-		testtransaction.WithSystemID(DefaultTokenTxSystemIdentifier),
+		testtransaction.WithSystemID(DefaultSystemIdentifier),
 		testtransaction.WithUnitId(fungibleTokenID1),
 		testtransaction.WithOwnerProof(script.PredicateArgumentEmpty()),
 		testtransaction.WithPayloadType(PayloadTypeSplitFungibleToken),
@@ -253,7 +253,7 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 
 	// Transfer token
 	transferTx := testtransaction.NewTransactionOrder(t,
-		testtransaction.WithSystemID(DefaultTokenTxSystemIdentifier),
+		testtransaction.WithSystemID(DefaultSystemIdentifier),
 		testtransaction.WithUnitId(fungibleTokenID1),
 		testtransaction.WithOwnerProof(script.PredicateArgumentEmpty()),
 		testtransaction.WithPayloadType(PayloadTypeTransferFungibleToken),
@@ -288,8 +288,8 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 
 	// burn token x 2
 	burnTx := testtransaction.NewTransactionOrder(t,
-		testtransaction.WithSystemID(DefaultTokenTxSystemIdentifier),
 		testtransaction.WithUnitId(sUnitID1),
+		testtransaction.WithSystemID(DefaultSystemIdentifier),
 		testtransaction.WithOwnerProof(script.PredicateArgumentEmpty()),
 		testtransaction.WithPayloadType(PayloadTypeBurnFungibleToken),
 		testtransaction.WithAttributes(
@@ -309,8 +309,8 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 	verifyProof(t, burnTx, tokenPrt, trustBase, hashAlgorithm)
 
 	burnTx2 := testtransaction.NewTransactionOrder(t,
-		testtransaction.WithSystemID(DefaultTokenTxSystemIdentifier),
 		testtransaction.WithUnitId(sUnitID2),
+		testtransaction.WithSystemID(DefaultSystemIdentifier),
 		testtransaction.WithOwnerProof(script.PredicateArgumentEmpty()),
 		testtransaction.WithPayloadType(PayloadTypeBurnFungibleToken),
 		testtransaction.WithAttributes(
@@ -339,7 +339,7 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, types.VerifyTxProof(burnProof2, burnTxRecord2, trustBase, hashAlgorithm))
 	joinTx := testtransaction.NewTransactionOrder(t,
-		testtransaction.WithSystemID(DefaultTokenTxSystemIdentifier),
+		testtransaction.WithSystemID(DefaultSystemIdentifier),
 		testtransaction.WithUnitId(fungibleTokenID1),
 		testtransaction.WithOwnerProof(script.PredicateArgumentEmpty()),
 		testtransaction.WithPayloadType(PayloadTypeJoinFungibleToken),

@@ -6,14 +6,17 @@ import (
 	"net/url"
 	"strings"
 
-	ttxs "github.com/alphabill-org/alphabill/internal/txsystem/tokens"
+	"github.com/alphabill-org/alphabill/internal/txsystem/money"
+	"github.com/alphabill-org/alphabill/internal/txsystem/tokens"
+	"github.com/alphabill-org/alphabill/internal/txsystem/vd"
 	"github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/alphabill-org/alphabill/pkg/wallet/account"
 	"github.com/alphabill-org/alphabill/pkg/wallet/fees"
-	"github.com/alphabill-org/alphabill/pkg/wallet/money"
+	moneywallet "github.com/alphabill-org/alphabill/pkg/wallet/money"
 	moneyclient "github.com/alphabill-org/alphabill/pkg/wallet/money/backend/client"
-	"github.com/alphabill-org/alphabill/pkg/wallet/tokens"
-	tokenclient "github.com/alphabill-org/alphabill/pkg/wallet/tokens/client"
+	tokenswallet "github.com/alphabill-org/alphabill/pkg/wallet/tokens"
+	tokensclient "github.com/alphabill-org/alphabill/pkg/wallet/tokens/client"
+	vdwallet "github.com/alphabill-org/alphabill/pkg/wallet/vd"
 	"github.com/spf13/cobra"
 )
 
@@ -39,7 +42,7 @@ func newWalletFeesCmd(ctx context.Context, config *walletConfig) *cobra.Command 
 	cmd.AddCommand(addFeeCreditCmd(ctx, config, cliConfig))
 	cmd.AddCommand(reclaimFeeCreditCmd(ctx, config, cliConfig))
 
-	cmd.PersistentFlags().VarP(&cliConfig.partitionType, partitionCmdName, "n", "partition name for which to manage fees [money|token]")
+	cmd.PersistentFlags().VarP(&cliConfig.partitionType, partitionCmdName, "n", "partition name for which to manage fees [money|tokens|vd]")
 	cmd.PersistentFlags().StringP(alphabillApiURLCmdName, "r", defaultAlphabillApiURL, apiUsage)
 
 	usage := fmt.Sprintf("partition backend url for which to manage fees (default: [%s|%s] based on --partition flag)", defaultAlphabillApiURL, defaultTokensBackendApiURL)
@@ -61,7 +64,7 @@ func addFeeCreditCmd(ctx context.Context, config *walletConfig, c *cliConf) *cob
 }
 
 func addFeeCreditCmdExec(ctx context.Context, cmd *cobra.Command, config *walletConfig, c *cliConf) error {
-	apiURL, err := cmd.Flags().GetString(alphabillApiURLCmdName)
+	moneyBackendURL, err := cmd.Flags().GetString(alphabillApiURLCmdName)
 	if err != nil {
 		return err
 	}
@@ -73,21 +76,19 @@ func addFeeCreditCmdExec(ctx context.Context, cmd *cobra.Command, config *wallet
 	if err != nil {
 		return err
 	}
-	moneyBackendClient, err := moneyclient.New(apiURL)
-	if err != nil {
-		return err
-	}
 	am, err := loadExistingAccountManager(cmd, config.WalletHomeDir)
 	if err != nil {
 		return err
 	}
 	defer am.Close()
 
-	w, err := getFeeCreditManager(c, am, moneyBackendClient)
+	fm, err := getFeeCreditManager(c, am, moneyBackendURL, config.WalletHomeDir)
 	if err != nil {
 		return err
 	}
-	return addFees(ctx, accountNumber, amountString, c, w)
+	defer fm.Close()
+
+	return addFees(ctx, accountNumber, amountString, c, fm)
 }
 
 func listFeesCmd(ctx context.Context, config *walletConfig, c *cliConf) *cobra.Command {
@@ -111,21 +112,19 @@ func listFeesCmdExec(ctx context.Context, cmd *cobra.Command, config *walletConf
 	if err != nil {
 		return err
 	}
-	moneyBackendClient, err := moneyclient.New(moneyBackendURL)
-	if err != nil {
-		return err
-	}
 	am, err := loadExistingAccountManager(cmd, config.WalletHomeDir)
 	if err != nil {
 		return err
 	}
 	defer am.Close()
 
-	w, err := getFeeCreditManager(c, am, moneyBackendClient)
+	fm, err := getFeeCreditManager(c, am, moneyBackendURL, config.WalletHomeDir)
 	if err != nil {
 		return err
 	}
-	return listFees(ctx, accountNumber, am, c, w)
+	defer fm.Close()
+
+	return listFees(ctx, accountNumber, am, c, fm)
 }
 
 func reclaimFeeCreditCmd(ctx context.Context, config *walletConfig, c *cliConf) *cobra.Command {
@@ -141,15 +140,11 @@ func reclaimFeeCreditCmd(ctx context.Context, config *walletConfig, c *cliConf) 
 }
 
 func reclaimFeeCreditCmdExec(ctx context.Context, cmd *cobra.Command, config *walletConfig, c *cliConf) error {
-	moneyBackendApiURL, err := cmd.Flags().GetString(alphabillApiURLCmdName)
+	moneyBackendURL, err := cmd.Flags().GetString(alphabillApiURLCmdName)
 	if err != nil {
 		return err
 	}
 	accountNumber, err := cmd.Flags().GetUint64(keyCmdName)
-	if err != nil {
-		return err
-	}
-	moneyBackendClient, err := moneyclient.New(moneyBackendApiURL)
 	if err != nil {
 		return err
 	}
@@ -159,17 +154,20 @@ func reclaimFeeCreditCmdExec(ctx context.Context, cmd *cobra.Command, config *wa
 	}
 	defer am.Close()
 
-	w, err := getFeeCreditManager(c, am, moneyBackendClient)
+	fm, err := getFeeCreditManager(c, am, moneyBackendURL, config.WalletHomeDir)
 	if err != nil {
 		return err
 	}
-	return reclaimFees(ctx, accountNumber, c, w)
+	defer fm.Close()
+
+	return reclaimFees(ctx, accountNumber, c, fm)
 }
 
 type FeeCreditManager interface {
-	GetFeeCreditBill(ctx context.Context, cmd fees.GetFeeCreditCmd) (*wallet.Bill, error)
+	GetFeeCredit(ctx context.Context, cmd fees.GetFeeCreditCmd) (*wallet.Bill, error)
 	AddFeeCredit(ctx context.Context, cmd fees.AddFeeCmd) ([]*wallet.Proof, error)
 	ReclaimFeeCredit(ctx context.Context, cmd fees.ReclaimFeeCmd) ([]*wallet.Proof, error)
+	Close()
 }
 
 func listFees(ctx context.Context, accountNumber uint64, am account.Manager, c *cliConf, w FeeCreditManager) error {
@@ -180,7 +178,7 @@ func listFees(ctx context.Context, accountNumber uint64, am account.Manager, c *
 		}
 		consoleWriter.Println("Partition: " + c.partitionType)
 		for accountIndex := range pubKeys {
-			fcb, err := w.GetFeeCreditBill(ctx, fees.GetFeeCreditCmd{AccountIndex: uint64(accountIndex)})
+			fcb, err := w.GetFeeCredit(ctx, fees.GetFeeCreditCmd{AccountIndex: uint64(accountIndex)})
 			if err != nil {
 				return err
 			}
@@ -190,7 +188,7 @@ func listFees(ctx context.Context, accountNumber uint64, am account.Manager, c *
 		}
 	} else {
 		accountIndex := accountNumber - 1
-		fcb, err := w.GetFeeCreditBill(ctx, fees.GetFeeCreditCmd{AccountIndex: accountIndex})
+		fcb, err := w.GetFeeCredit(ctx, fees.GetFeeCreditCmd{AccountIndex: accountIndex})
 		if err != nil {
 			return err
 		}
@@ -252,26 +250,72 @@ func (c *cliConf) getPartitionBackendURL() string {
 	switch c.partitionType {
 	case moneyType:
 		return defaultAlphabillApiURL
-	case tokenType:
+	case tokensType:
 		return defaultTokensBackendApiURL
+	case vdType:
+		return defaultVDNodeURL
 	default:
 		panic("invalid \"partition\" flag value: " + c.partitionType)
 	}
 }
 
-func getFeeCreditManager(c *cliConf, am account.Manager, moneyClient *moneyclient.MoneyBackendClient) (FeeCreditManager, error) {
-	moneySystemID := []byte{0, 0, 0, 0}
-	moneyTxPublisher := money.NewTxPublisher(moneyClient)
+// Creates a fees.FeeManager that needs to be closed with the Close() method.
+// Does not close the account.Manager passed as an argument.
+func getFeeCreditManager(c *cliConf, am account.Manager, moneyBackendURL, walletHomeDir string) (FeeCreditManager, error) {
+	moneySystemID := money.DefaultSystemIdentifier
+	moneyBackendClient, err := moneyclient.New(moneyBackendURL)
+	if err != nil {
+		return nil, err
+	}
+	moneyTxPublisher := moneywallet.NewTxPublisher(moneyBackendClient)
+
 	if c.partitionType == moneyType {
-		return money.NewFeeManager(am, moneySystemID, moneyClient), nil
-	} else if c.partitionType == tokenType {
+		return fees.NewFeeManager(
+			am,
+			moneySystemID,
+			moneyTxPublisher,
+			moneyBackendClient,
+			moneySystemID,
+			moneyTxPublisher,
+			moneyBackendClient,
+		), nil
+	} else if c.partitionType == tokensType {
 		backendURL, err := c.parsePartitionBackendURL()
 		if err != nil {
-			return nil, fmt.Errorf("failed to parse --%s", partitionBackendUrlCmdName)
+			return nil, err
 		}
-		tokenBackendClient := tokenclient.New(*backendURL)
-		tokenTxPublisher := tokens.NewTxPublisher(tokenBackendClient)
-		return fees.NewFeeManager(am, moneySystemID, moneyTxPublisher, moneyClient, ttxs.DefaultTokenTxSystemIdentifier, tokenTxPublisher, tokenBackendClient), nil
+		tokenBackendClient := tokensclient.New(*backendURL)
+		tokenTxPublisher := tokenswallet.NewTxPublisher(tokenBackendClient)
+
+		return fees.NewFeeManager(
+			am,
+			moneySystemID,
+			moneyTxPublisher,
+			moneyBackendClient,
+			tokens.DefaultSystemIdentifier,
+			tokenTxPublisher,
+			tokenBackendClient,
+		), nil
+	} else if c.partitionType == vdType {
+		vdClient, err := vdwallet.New(&vdwallet.VDClientConfig{
+			VDNodeURL:         c.getPartitionBackendURL(),
+			WalletHomeDir:     walletHomeDir,
+		})
+		if err != nil {
+			return nil, err
+		}
+
+		vdTxPublisher := vdwallet.NewTxPublisher(vdClient)
+
+		return fees.NewFeeManager(
+			am,
+			moneySystemID,
+			moneyTxPublisher,
+			moneyBackendClient,
+			vd.DefaultSystemIdentifier,
+			vdTxPublisher,
+			vdClient,
+		), nil
 	} else {
 		panic("invalid \"partition\" flag value: " + c.partitionType)
 	}

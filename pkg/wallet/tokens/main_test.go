@@ -19,6 +19,7 @@ import (
 	"github.com/alphabill-org/alphabill/pkg/wallet/account"
 	"github.com/alphabill-org/alphabill/pkg/wallet/tokens/backend"
 	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/ethereum/go-ethereum/common/math"
 	"github.com/stretchr/testify/require"
 )
 
@@ -33,7 +34,7 @@ func Test_Load(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	w, err := New(ttxs.DefaultTokenTxSystemIdentifier, srv.URL, nil, false, nil)
+	w, err := New(ttxs.DefaultSystemIdentifier, srv.URL, nil, false, nil)
 	require.NoError(t, err)
 
 	rn, err := w.GetRoundNumber(context.Background())
@@ -110,8 +111,8 @@ func Test_ListTokens_offset(t *testing.T) {
 	}
 
 	be := &mockTokenBackend{
-		getTokens: func(ctx context.Context, kind backend.Kind, _ wallet.PubKey, offsetKey string, _ int) ([]*backend.TokenUnit, string, error) {
-			return getSubarray(allTokens, offsetKey)
+		getTokens: func(ctx context.Context, kind backend.Kind, _ wallet.PubKey, offset string, _ int) ([]*backend.TokenUnit, string, error) {
+			return getSubarray(allTokens, offset)
 		},
 	}
 
@@ -219,8 +220,8 @@ func Test_ListTokenTypes_offset(t *testing.T) {
 		},
 	}
 	be := &mockTokenBackend{
-		getTokenTypes: func(ctx context.Context, _ backend.Kind, _ wallet.PubKey, offsetKey string, _ int) ([]*backend.TokenUnitType, string, error) {
-			return getSubarray(allTypes, offsetKey)
+		getTokenTypes: func(ctx context.Context, _ backend.Kind, _ wallet.PubKey, offset string, _ int) ([]*backend.TokenUnitType, string, error) {
+			return getSubarray(allTypes, offset)
 		},
 	}
 
@@ -265,12 +266,11 @@ func TestNewTypes(t *testing.T) {
 		getRoundNumber: func(ctx context.Context) (uint64, error) {
 			return 1, nil
 		},
-		getFeeCreditBill: func(ctx context.Context, unitID wallet.UnitID) (*backend.FeeCreditBill, error) {
-			return &backend.FeeCreditBill{
-				Id:            []byte{1},
-				Value:         100000,
-				TxHash:        []byte{2},
-				FCBlockNumber: 3,
+		getFeeCreditBill: func(ctx context.Context, unitID wallet.UnitID) (*wallet.Bill, error) {
+			return &wallet.Bill{
+				Id:     []byte{1},
+				Value:  100000,
+				TxHash: []byte{2},
 			}, nil
 		},
 	}
@@ -351,12 +351,11 @@ func TestMintFungibleToken(t *testing.T) {
 		getRoundNumber: func(ctx context.Context) (uint64, error) {
 			return 1, nil
 		},
-		getFeeCreditBill: func(ctx context.Context, unitID wallet.UnitID) (*backend.FeeCreditBill, error) {
-			return &backend.FeeCreditBill{
-				Id:            []byte{1},
-				Value:         100000,
-				TxHash:        []byte{2},
-				FCBlockNumber: 3,
+		getFeeCreditBill: func(ctx context.Context, unitID wallet.UnitID) (*wallet.Bill, error) {
+			return &wallet.Bill{
+				Id:     []byte{1},
+				Value:  100000,
+				TxHash: []byte{2},
 			}, nil
 		},
 	}
@@ -401,21 +400,23 @@ func TestMintFungibleToken(t *testing.T) {
 func TestSendFungible(t *testing.T) {
 	recTxs := make([]*types.TransactionOrder, 0)
 	typeId := test.RandomBytes(32)
+	typeIdForOverflow := test.RandomBytes(32)
 	be := &mockTokenBackend{
-		getTokens: func(ctx context.Context, kind backend.Kind, owner wallet.PubKey, offsetKey string, limit int) ([]*backend.TokenUnit, string, error) {
+		getTokens: func(ctx context.Context, kind backend.Kind, owner wallet.PubKey, offset string, limit int) ([]*backend.TokenUnit, string, error) {
 			return []*backend.TokenUnit{
 				{ID: test.RandomBytes(32), Kind: backend.Fungible, Symbol: "AB", TypeID: typeId, Amount: 3},
 				{ID: test.RandomBytes(32), Kind: backend.Fungible, Symbol: "AB", TypeID: typeId, Amount: 5},
 				{ID: test.RandomBytes(32), Kind: backend.Fungible, Symbol: "AB", TypeID: typeId, Amount: 7},
 				{ID: test.RandomBytes(32), Kind: backend.Fungible, Symbol: "AB", TypeID: typeId, Amount: 18},
+				{ID: test.RandomBytes(32), Kind: backend.Fungible, Symbol: "AB2", TypeID: typeIdForOverflow, Amount: math.MaxUint64},
+				{ID: test.RandomBytes(32), Kind: backend.Fungible, Symbol: "AB2", TypeID: typeIdForOverflow, Amount: 1},
 			}, "", nil
 		},
-		getFeeCreditBill: func(ctx context.Context, unitID wallet.UnitID) (*backend.FeeCreditBill, error) {
-			return &backend.FeeCreditBill{
-				Id:            []byte{1},
-				Value:         100000,
-				TxHash:        []byte{2},
-				FCBlockNumber: 3,
+		getFeeCreditBill: func(ctx context.Context, unitID wallet.UnitID) (*wallet.Bill, error) {
+			return &wallet.Bill{
+				Id:     []byte{1},
+				Value:  100000,
+				TxHash: []byte{2},
 			}, nil
 		},
 		postTransactions: func(ctx context.Context, pubKey wallet.PubKey, txs *wallet.Transactions) error {
@@ -432,12 +433,14 @@ func TestSendFungible(t *testing.T) {
 
 	tests := []struct {
 		name               string
+		tokenTypeID        backend.TokenTypeID
 		targetAmount       uint64
 		expectedErrorMsg   string
 		verifyTransactions func(t *testing.T)
 	}{
 		{
 			name:         "one bill is transferred",
+			tokenTypeID:  typeId,
 			targetAmount: 3,
 			verifyTransactions: func(t *testing.T) {
 				require.Equal(t, 1, len(recTxs))
@@ -449,6 +452,7 @@ func TestSendFungible(t *testing.T) {
 		},
 		{
 			name:         "one bill is split",
+			tokenTypeID:  typeId,
 			targetAmount: 4,
 			verifyTransactions: func(t *testing.T) {
 				require.Equal(t, 1, len(recTxs))
@@ -460,6 +464,7 @@ func TestSendFungible(t *testing.T) {
 		},
 		{
 			name:         "both split and transfer are submitted",
+			tokenTypeID:  typeId,
 			targetAmount: 26,
 			verifyTransactions: func(t *testing.T) {
 				var total = uint64(0)
@@ -482,15 +487,59 @@ func TestSendFungible(t *testing.T) {
 		},
 		{
 			name:             "insufficient balance",
+			tokenTypeID:      typeId,
 			targetAmount:     60,
 			expectedErrorMsg: "insufficient value",
+		},
+		{
+			name:             "zero amount",
+			tokenTypeID:      typeId,
+			targetAmount:     0,
+			expectedErrorMsg: "invalid amount",
+		},
+		{
+			name:         "total balance uint64 overflow, transfer is submitted",
+			tokenTypeID:  typeIdForOverflow,
+			targetAmount: 1,
+			verifyTransactions: func(t *testing.T) {
+				require.Equal(t, 1, len(recTxs))
+				tx := recTxs[0]
+				newTransfer := &ttxs.TransferFungibleTokenAttributes{}
+				require.NoError(t, tx.UnmarshalAttributes(newTransfer))
+				require.Equal(t, uint64(1), newTransfer.Value)
+			},
+		},
+		{
+			name:         "total balance uint64 overflow, transfer is submitted with maxuint64",
+			tokenTypeID:  typeIdForOverflow,
+			targetAmount: math.MaxUint64,
+			verifyTransactions: func(t *testing.T) {
+				require.Equal(t, 1, len(recTxs))
+				tx := recTxs[0]
+				newTransfer := &ttxs.TransferFungibleTokenAttributes{}
+				require.NoError(t, tx.UnmarshalAttributes(newTransfer))
+				require.Equal(t, uint64(math.MaxUint64), newTransfer.Value)
+			},
+		},
+		{
+			name:         "total balance uint64 overflow, split is submitted",
+			tokenTypeID:  typeIdForOverflow,
+			targetAmount: 2,
+			verifyTransactions: func(t *testing.T) {
+				require.Equal(t, 1, len(recTxs))
+				tx := recTxs[0]
+				newSplit := &ttxs.SplitFungibleTokenAttributes{}
+				require.NoError(t, tx.UnmarshalAttributes(newSplit))
+				require.Equal(t, uint64(2), newSplit.TargetValue)
+				require.Equal(t, uint64(math.MaxUint64-2), newSplit.RemainingValue)
+			},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			recTxs = make([]*types.TransactionOrder, 0)
-			err := tw.SendFungible(context.Background(), 1, typeId, tt.targetAmount, nil, nil)
+			err := tw.SendFungible(context.Background(), 1, tt.tokenTypeID, tt.targetAmount, nil, nil)
 			if tt.expectedErrorMsg != "" {
 				require.ErrorContains(t, err, tt.expectedErrorMsg)
 				return
@@ -559,12 +608,11 @@ func TestMintNFT(t *testing.T) {
 		getRoundNumber: func(ctx context.Context) (uint64, error) {
 			return 1, nil
 		},
-		getFeeCreditBill: func(ctx context.Context, unitID wallet.UnitID) (*backend.FeeCreditBill, error) {
-			return &backend.FeeCreditBill{
-				Id:            []byte{1},
-				Value:         100000,
-				TxHash:        []byte{2},
-				FCBlockNumber: 3,
+		getFeeCreditBill: func(ctx context.Context, unitID wallet.UnitID) (*wallet.Bill, error) {
+			return &wallet.Bill{
+				Id:     []byte{1},
+				Value:  100000,
+				TxHash: []byte{2},
 			}, nil
 		},
 	}
@@ -653,12 +701,11 @@ func TestTransferNFT(t *testing.T) {
 		getRoundNumber: func(ctx context.Context) (uint64, error) {
 			return 1, nil
 		},
-		getFeeCreditBill: func(ctx context.Context, unitID wallet.UnitID) (*backend.FeeCreditBill, error) {
-			return &backend.FeeCreditBill{
-				Id:            []byte{1},
-				Value:         100000,
-				TxHash:        []byte{2},
-				FCBlockNumber: 3,
+		getFeeCreditBill: func(ctx context.Context, unitID wallet.UnitID) (*wallet.Bill, error) {
+			return &wallet.Bill{
+				Id:     []byte{1},
+				Value:  100000,
+				TxHash: []byte{2},
 			}, nil
 		},
 	}
@@ -723,12 +770,11 @@ func TestUpdateNFTData(t *testing.T) {
 		getRoundNumber: func(ctx context.Context) (uint64, error) {
 			return 1, nil
 		},
-		getFeeCreditBill: func(ctx context.Context, unitID wallet.UnitID) (*backend.FeeCreditBill, error) {
-			return &backend.FeeCreditBill{
-				Id:            []byte{1},
-				Value:         100000,
-				TxHash:        []byte{2},
-				FCBlockNumber: 3,
+		getFeeCreditBill: func(ctx context.Context, unitID wallet.UnitID) (*wallet.Bill, error) {
+			return &wallet.Bill{
+				Id:     []byte{1},
+				Value:  100000,
+				TxHash: []byte{2},
 			}, nil
 		},
 	}
@@ -786,13 +832,13 @@ func initAccountManager(t *testing.T) account.Manager {
 
 type mockTokenBackend struct {
 	getToken         func(ctx context.Context, id backend.TokenID) (*backend.TokenUnit, error)
-	getTokens        func(ctx context.Context, kind backend.Kind, owner wallet.PubKey, offsetKey string, limit int) ([]*backend.TokenUnit, string, error)
-	getTokenTypes    func(ctx context.Context, kind backend.Kind, creator wallet.PubKey, offsetKey string, limit int) ([]*backend.TokenUnitType, string, error)
+	getTokens        func(ctx context.Context, kind backend.Kind, owner wallet.PubKey, offset string, limit int) ([]*backend.TokenUnit, string, error)
+	getTokenTypes    func(ctx context.Context, kind backend.Kind, creator wallet.PubKey, offset string, limit int) ([]*backend.TokenUnitType, string, error)
 	getRoundNumber   func(ctx context.Context) (uint64, error)
 	postTransactions func(ctx context.Context, pubKey wallet.PubKey, txs *wallet.Transactions) error
 	getTypeHierarchy func(ctx context.Context, id backend.TokenTypeID) ([]*backend.TokenUnitType, error)
 	getTxProof       func(ctx context.Context, unitID wallet.UnitID, txHash wallet.TxHash) (*wallet.Proof, error)
-	getFeeCreditBill func(ctx context.Context, unitID wallet.UnitID) (*backend.FeeCreditBill, error)
+	getFeeCreditBill func(ctx context.Context, unitID wallet.UnitID) (*wallet.Bill, error)
 }
 
 func (m *mockTokenBackend) GetToken(ctx context.Context, id backend.TokenID) (*backend.TokenUnit, error) {
@@ -802,16 +848,16 @@ func (m *mockTokenBackend) GetToken(ctx context.Context, id backend.TokenID) (*b
 	return nil, fmt.Errorf("GetToken not implemented")
 }
 
-func (m *mockTokenBackend) GetTokens(ctx context.Context, kind backend.Kind, owner wallet.PubKey, offsetKey string, limit int) ([]*backend.TokenUnit, string, error) {
+func (m *mockTokenBackend) GetTokens(ctx context.Context, kind backend.Kind, owner wallet.PubKey, offset string, limit int) ([]*backend.TokenUnit, string, error) {
 	if m.getTokens != nil {
-		return m.getTokens(ctx, kind, owner, offsetKey, limit)
+		return m.getTokens(ctx, kind, owner, offset, limit)
 	}
 	return nil, "", fmt.Errorf("GetTokens not implemented")
 }
 
-func (m *mockTokenBackend) GetTokenTypes(ctx context.Context, kind backend.Kind, creator wallet.PubKey, offsetKey string, limit int) ([]*backend.TokenUnitType, string, error) {
+func (m *mockTokenBackend) GetTokenTypes(ctx context.Context, kind backend.Kind, creator wallet.PubKey, offset string, limit int) ([]*backend.TokenUnitType, string, error) {
 	if m.getTokenTypes != nil {
-		return m.getTokenTypes(ctx, kind, creator, offsetKey, limit)
+		return m.getTokenTypes(ctx, kind, creator, offset, limit)
 	}
 	return nil, "", fmt.Errorf("GetTokenTypes not implemented")
 }
@@ -844,7 +890,7 @@ func (m *mockTokenBackend) GetTxProof(ctx context.Context, unitID wallet.UnitID,
 	return nil, fmt.Errorf("GetTxProof not implemented")
 }
 
-func (m *mockTokenBackend) GetFeeCreditBill(ctx context.Context, unitID wallet.UnitID) (*backend.FeeCreditBill, error) {
+func (m *mockTokenBackend) GetFeeCreditBill(ctx context.Context, unitID wallet.UnitID) (*wallet.Bill, error) {
 	if m.getFeeCreditBill != nil {
 		return m.getFeeCreditBill(ctx, unitID)
 	}

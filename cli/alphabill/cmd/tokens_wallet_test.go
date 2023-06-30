@@ -34,12 +34,19 @@ func TestListTokensCommandInputs(t *testing.T) {
 		accountNumber uint64
 		expectedKind  backend.Kind
 		expectedPass  string
+		expectedFlags []string
 	}{
 		{
 			name:          "list all tokens",
 			args:          []string{},
 			accountNumber: 0, // all tokens
 			expectedKind:  backend.Any,
+		},
+		{
+			name:          "list all tokens with flags",
+			args:          []string{"--with-all", "--with-type-name", "--with-token-uri", "--with-token-data"},
+			expectedKind:  backend.Any,
+			expectedFlags: []string{cmdFlagWithAll, cmdFlagWithTypeName, cmdFlagWithTokenURI, cmdFlagWithTokenData},
 		},
 		{
 			name:          "list all tokens, encrypted wallet",
@@ -74,10 +81,22 @@ func TestListTokensCommandInputs(t *testing.T) {
 			expectedPass:  "some pass phrase",
 		},
 		{
+			name:          "list all fungible tokens with falgs",
+			args:          []string{"fungible", "--with-all", "--with-type-name"},
+			expectedKind:  backend.Fungible,
+			expectedFlags: []string{cmdFlagWithAll, cmdFlagWithTypeName},
+		},
+		{
 			name:          "list all non-fungible tokens",
 			args:          []string{"non-fungible"},
 			accountNumber: 0,
 			expectedKind:  backend.NonFungible,
+		},
+		{
+			name:          "list all non-fungible tokens with flags",
+			args:          []string{"non-fungible", "--with-all", "--with-type-name", "--with-token-uri", "--with-token-data"},
+			expectedKind:  backend.NonFungible,
+			expectedFlags: []string{cmdFlagWithAll, cmdFlagWithTypeName, cmdFlagWithTokenURI, cmdFlagWithTokenData},
 		},
 		{
 			name:          "list account non-fungible tokens",
@@ -86,7 +105,7 @@ func TestListTokensCommandInputs(t *testing.T) {
 			expectedKind:  backend.NonFungible,
 		},
 		{
-			name:          "list account non-fungible tokens, encrypted walled",
+			name:          "list account non-fungible tokens, encrypted wallet",
 			args:          []string{"non-fungible", "--key", "5", "--pn", "some pass phrase"},
 			accountNumber: 5,
 			expectedKind:  backend.NonFungible,
@@ -103,6 +122,13 @@ func TestListTokensCommandInputs(t *testing.T) {
 					passwordFromArg, err := cmd.Flags().GetString(passwordArgCmdName)
 					require.NoError(t, err)
 					require.Equal(t, tt.expectedPass, passwordFromArg)
+				}
+				if len(tt.expectedFlags) > 0 {
+					for _, flag := range tt.expectedFlags {
+						flagValue, err := cmd.Flags().GetBool(flag)
+						require.NoError(t, err)
+						require.True(t, flagValue)
+					}
 				}
 				exec = true
 				return nil
@@ -386,9 +412,9 @@ func TestWalletUpdateNonFungibleTokenDataCmd_Flags(t *testing.T) {
 func ensureTokenIndexed(t *testing.T, ctx context.Context, api *client.TokenBackend, ownerPubKey []byte, tokenID backend.TokenID) *backend.TokenUnit {
 	var res *backend.TokenUnit
 	require.Eventually(t, func() bool {
-		offsetKey := ""
+		offset := ""
 		for {
-			tokens, offsetKey, err := api.GetTokens(ctx, backend.Any, ownerPubKey, offsetKey, 0)
+			tokens, offset, err := api.GetTokens(ctx, backend.Any, ownerPubKey, offset, 0)
 			require.NoError(t, err)
 			for _, token := range tokens {
 				if tokenID == nil {
@@ -400,7 +426,7 @@ func ensureTokenIndexed(t *testing.T, ctx context.Context, api *client.TokenBack
 					return true
 				}
 			}
-			if offsetKey == "" {
+			if offset == "" {
 				break
 			}
 		}
@@ -412,9 +438,9 @@ func ensureTokenIndexed(t *testing.T, ctx context.Context, api *client.TokenBack
 func ensureTokenTypeIndexed(t *testing.T, ctx context.Context, api *client.TokenBackend, creatorPubKey []byte, typeID backend.TokenTypeID) *backend.TokenUnitType {
 	var res *backend.TokenUnitType
 	require.Eventually(t, func() bool {
-		offsetKey := ""
+		offset := ""
 		for {
-			types, offsetKey, err := api.GetTokenTypes(ctx, backend.Any, creatorPubKey, offsetKey, 0)
+			types, offset, err := api.GetTokenTypes(ctx, backend.Any, creatorPubKey, offset, 0)
 			require.NoError(t, err)
 			for _, t := range types {
 				if bytes.Equal(t.ID, typeID) {
@@ -422,7 +448,7 @@ func ensureTokenTypeIndexed(t *testing.T, ctx context.Context, api *client.Token
 					return true
 				}
 			}
-			if offsetKey == "" {
+			if offset == "" {
 				break
 			}
 		}
@@ -435,13 +461,13 @@ func createTokensPartition(t *testing.T) *testpartition.NodePartition {
 	tokensState := state.NewEmptyState()
 	network, err := testpartition.NewPartition(1,
 		func(tb map[string]abcrypto.Verifier) txsystem.TransactionSystem {
-			system, err := tokens.New(
+			system, err := tokens.NewTxSystem(
 				tokens.WithState(tokensState),
 				tokens.WithTrustBase(tb),
 			)
 			require.NoError(t, err)
 			return system
-		}, tokens.DefaultTokenTxSystemIdentifier,
+		}, tokens.DefaultSystemIdentifier,
 	)
 	require.NoError(t, err)
 
@@ -487,7 +513,7 @@ func createNewTokenWalletWithFeeManager(t *testing.T, addr string, feeManager *f
 	require.NoError(t, err)
 	require.NoError(t, am.CreateKeys(""))
 
-	w, err := tw.New(tokens.DefaultTokenTxSystemIdentifier, addr, am, false, feeManager)
+	w, err := tw.New(tokens.DefaultSystemIdentifier, addr, am, false, feeManager)
 	require.NoError(t, err)
 	require.NotNil(t, w)
 

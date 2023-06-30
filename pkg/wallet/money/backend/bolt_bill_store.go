@@ -23,7 +23,7 @@ var (
 	expiredBillsBucket = []byte("expiredBillsBucket") // block_number => bucket[unitID]nil
 	feeUnitsBucket     = []byte("feeUnitsBucket")     // unitID => unit_bytes (for free credit units)
 	sdrBucket          = []byte("sdrBucket")          // []genesis.SystemDescriptionRecord
-	bucketTxHistory    = []byte("tx-history")         // unitID => [txHash => cbor(block proof)]
+	txProofsBucket     = []byte("txProofs")           // unitID => [txHash => cbor(block proof)]
 	dcBucket           = []byte("dcBucket")           // nonce => dc metadata bytes
 )
 
@@ -56,7 +56,7 @@ func newBoltBillStore(dbFile string) (*boltBillStore, error) {
 		return nil, fmt.Errorf("failed to open bolt DB: %w", err)
 	}
 	s := &boltBillStore{db: db}
-	err = sdk.CreateBuckets(db.Update, unitsBucket, predicatesBucket, metaBucket, expiredBillsBucket, feeUnitsBucket, sdrBucket, bucketTxHistory, dcBucket)
+	err = sdk.CreateBuckets(db.Update, unitsBucket, predicatesBucket, metaBucket, expiredBillsBucket, feeUnitsBucket, sdrBucket, txProofsBucket, dcBucket)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create db buckets: %w", err)
 	}
@@ -398,7 +398,7 @@ func (s *boltBillStoreTx) storeUnitBlockProof(tx *bolt.Tx, unitID sdk.UnitID, tx
 	if err != nil {
 		return fmt.Errorf("failed to serialize proof data: %w", err)
 	}
-	b, err := sdk.EnsureSubBucket(tx, bucketTxHistory, unitID, false)
+	b, err := sdk.EnsureSubBucket(tx, txProofsBucket, unitID, false)
 	if err != nil {
 		return err
 	}
@@ -406,7 +406,7 @@ func (s *boltBillStoreTx) storeUnitBlockProof(tx *bolt.Tx, unitID sdk.UnitID, tx
 }
 
 func (s *boltBillStoreTx) getUnitBlockProof(dbTx *bolt.Tx, id []byte, txHash sdk.TxHash) (*sdk.Proof, error) {
-	b, err := sdk.EnsureSubBucket(dbTx, bucketTxHistory, id, true)
+	b, err := sdk.EnsureSubBucket(dbTx, txProofsBucket, id, true)
 	if err != nil {
 		return nil, err
 	}

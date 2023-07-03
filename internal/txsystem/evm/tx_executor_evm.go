@@ -1,14 +1,11 @@
 package evm
 
 import (
-	"crypto"
 	"errors"
 	"fmt"
 	"math/big"
 	"os"
 
-	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
-	"github.com/alphabill-org/alphabill/internal/rma"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/internal/txsystem/evm/statedb"
 	"github.com/alphabill-org/alphabill/internal/types"
@@ -24,38 +21,35 @@ import (
 
 const (
 	// todo: initial constants, need fine-tuning
-	blockGasLimit                = 15000000
-	defaultGasPrice              = 210000000
 	txGasContractCreation uint64 = 53000 // Per transaction that creates a contract
 )
 
 var (
 	emptyCodeHash = ethcrypto.Keccak256Hash(nil)
-	gasUnitPrice  = big.NewInt(defaultGasPrice)
 
 	ErrInsufficientFunds = errors.New("insufficient funds")
 	ErrSenderNotEOA      = errors.New("sender not an eoa")
 	ErrGasOverflow       = errors.New("gas uint64 overflow")
 )
 
-func handleEVMTx(tree *rma.Tree, algorithm crypto.Hash, systemIdentifier []byte, trustBase map[string]abcrypto.Verifier, blockGas *core.GasPool) txsystem.GenericExecuteFunc[TxAttributes] {
+func handleEVMTx(systemIdentifier []byte, opts *Options, blockGas *core.GasPool) txsystem.GenericExecuteFunc[TxAttributes] {
 	return func(tx *types.TransactionOrder, attr *TxAttributes, currentBlockNumber uint64) (*types.ServerMetadata, error) {
 		from := common.BytesToAddress(attr.From)
-		stateDB := statedb.NewStateDB(tree)
+		stateDB := statedb.NewStateDB(opts.state)
 		if !stateDB.Exist(from) {
 			return nil, fmt.Errorf(" address %v does not exist", from)
 		}
-		return execute(currentBlockNumber, stateDB, attr, systemIdentifier, blockGas)
+		return execute(currentBlockNumber, stateDB, attr, systemIdentifier, blockGas, opts.gasUnitPrice)
 	}
 }
 
-func calcGasPrice(gas uint64) *big.Int {
+func calcGasPrice(gas uint64, gasPrice *big.Int) *big.Int {
 	cost := new(big.Int).SetUint64(gas)
-	return cost.Mul(cost, gasUnitPrice)
+	return cost.Mul(cost, gasPrice)
 }
 
-func execute(currentBlockNumber uint64, stateDB *statedb.StateDB, attr *TxAttributes, systemIdentifier []byte, gp *core.GasPool) (*types.ServerMetadata, error) {
-	if err := validate(stateDB, attr); err != nil {
+func execute(currentBlockNumber uint64, stateDB *statedb.StateDB, attr *TxAttributes, systemIdentifier []byte, gp *core.GasPool, gasUnitPrice *big.Int) (*types.ServerMetadata, error) {
+	if err := validate(stateDB, attr, gasUnitPrice); err != nil {
 		return nil, fmt.Errorf("evm tx validation failed, %w", err)
 	}
 	if err := gp.SubGas(attr.Gas); err != nil {
@@ -79,7 +73,7 @@ func execute(currentBlockNumber uint64, stateDB *statedb.StateDB, attr *TxAttrib
 	}
 	gasRemaining -= gas
 	blockCtx := newBlockContext(currentBlockNumber)
-	evm := vm.NewEVM(blockCtx, newTxContext(attr), stateDB, newChainConfig(new(big.Int).SetBytes(systemIdentifier)), newVMConfig())
+	evm := vm.NewEVM(blockCtx, newTxContext(attr, gasUnitPrice), stateDB, newChainConfig(new(big.Int).SetBytes(systemIdentifier)), newVMConfig())
 	rules := evm.ChainConfig().Rules(evm.Context.BlockNumber, evm.Context.Random != nil)
 	// todo: investigate access lists and whether or not we should support them
 	if rules.IsBerlin {
@@ -105,7 +99,7 @@ func execute(currentBlockNumber uint64, stateDB *statedb.StateDB, attr *TxAttrib
 	}
 	// todo: "gas handling" currently failing transactions are not added to block, hence we can only charge for successful calls
 	// calculate gas price for used gas
-	txPrice := calcGasPrice(attr.Gas - gasRemaining)
+	txPrice := calcGasPrice(attr.Gas-gasRemaining, gasUnitPrice)
 	log.Trace("total gas: %v gas units", attr.Gas-gasRemaining)
 	log.Trace("total tx cost: %v mia", weiToAlpha(txPrice))
 	stateDB.SubBalance(sender.Address(), txPrice)
@@ -123,7 +117,7 @@ func newBlockContext(currentBlockNumber uint64) vm.BlockContext {
 			panic("get hash")
 		},
 		Coinbase:    common.Address{},
-		GasLimit:    blockGasLimit,
+		GasLimit:    DefaultBlockGasLimit,
 		BlockNumber: new(big.Int).SetUint64(currentBlockNumber),
 		Time:        big.NewInt(1),
 		Difficulty:  big.NewInt(0),
@@ -132,11 +126,10 @@ func newBlockContext(currentBlockNumber uint64) vm.BlockContext {
 	}
 }
 
-func newTxContext(attr *TxAttributes) vm.TxContext {
+func newTxContext(attr *TxAttributes, gasPrice *big.Int) vm.TxContext {
 	return vm.TxContext{
-		Origin: common.BytesToAddress(attr.From),
-		// TODO: using hardcoded gas price, should come from system description record instead?
-		GasPrice: gasUnitPrice,
+		Origin:   common.BytesToAddress(attr.From),
+		GasPrice: gasPrice,
 	}
 }
 
@@ -182,7 +175,7 @@ func calcIntrinsicGas(data []byte, isContractCreation bool) (uint64, error) {
 }
 
 // validate - validate EVM call attributes
-func validate(stateDB *statedb.StateDB, attr *TxAttributes) error {
+func validate(stateDB *statedb.StateDB, attr *TxAttributes, gasPrice *big.Int) error {
 	if attr.From == nil {
 		return fmt.Errorf("invalid evm tx, from addr is nil")
 	}
@@ -199,7 +192,7 @@ func validate(stateDB *statedb.StateDB, attr *TxAttributes) error {
 	}
 	// Verify enough funds to run
 	// If the sender account does not have enough to pay for max gas, then do not execute
-	if have, want := stateDB.GetBalance(from.Address()), calcGasPrice(attr.Gas); have.Cmp(want) < 0 {
+	if have, want := stateDB.GetBalance(from.Address()), calcGasPrice(attr.Gas, gasPrice); have.Cmp(want) < 0 {
 		return fmt.Errorf("%w: address %v have %v want %v", ErrInsufficientFunds, from.Address().Hex(), have, want)
 	}
 	return nil

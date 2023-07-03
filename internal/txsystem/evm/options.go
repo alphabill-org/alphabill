@@ -8,17 +8,21 @@ import (
 	"github.com/alphabill-org/alphabill/internal/rma"
 )
 
+const DefaultBlockGasLimit = 15000000
+const DefaultGasPrice = 210000000
+
 var DefaultEvmTxSystemIdentifier = []byte{0, 0, 0, 3}
 
 type (
 	Options struct {
-		systemIdentifier        []byte
 		moneyTXSystemIdentifier []byte
 		state                   *rma.Tree
 		hashAlgorithm           gocrypto.Hash
 		trustBase               map[string]crypto.Verifier
 		initialAccountAddress   []byte
 		initialAccountBalance   *big.Int
+		blockGasLimit           uint64
+		gasUnitPrice            *big.Int
 	}
 
 	Option func(*Options)
@@ -26,13 +30,14 @@ type (
 
 func DefaultOptions() *Options {
 	return &Options{
-		systemIdentifier:        DefaultEvmTxSystemIdentifier,
 		moneyTXSystemIdentifier: []byte{0, 0, 0, 0},
 		state:                   rma.NewWithSHA256(),
 		hashAlgorithm:           gocrypto.SHA256,
 		trustBase:               nil,
 		initialAccountAddress:   make([]byte, 20),
 		initialAccountBalance:   big.NewInt(100000000000),
+		blockGasLimit:           DefaultBlockGasLimit,
+		gasUnitPrice:            big.NewInt(DefaultGasPrice),
 	}
 }
 
@@ -61,14 +66,21 @@ func WithInitialAddressAndBalance(address []byte, balance *big.Int) Option {
 	}
 }
 
-func WithSystemIdentifier(systemIdentifier []byte) Option {
-	return func(o *Options) {
-		o.systemIdentifier = systemIdentifier
-	}
-}
-
 func WithMoneyTXSystemIdentifier(moneyTxSystemID []byte) Option {
 	return func(o *Options) {
 		o.moneyTXSystemIdentifier = moneyTxSystemID
+	}
+}
+
+func WithGasPrice(gasPrice uint64) Option {
+	return func(o *Options) {
+		// todo: conversion problem uint64 -> int64, make sure that argument over int64 max is not provided
+		o.gasUnitPrice = big.NewInt(int64(gasPrice))
+	}
+}
+
+func WithBlockGasLimit(limit uint64) Option {
+	return func(o *Options) {
+		o.blockGasLimit = limit
 	}
 }

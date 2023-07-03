@@ -1,6 +1,7 @@
 package wallet
 
 import (
+	"github.com/alphabill-org/alphabill/internal/hash"
 	"github.com/alphabill-org/alphabill/internal/types"
 )
 
@@ -17,13 +18,13 @@ type Transactions struct {
 	Transactions []*types.TransactionOrder
 }
 
-type TxAttributes types.RawCBOR
-
 type UnitID []byte
 
 type Predicate []byte
 
 type PubKey []byte
+
+type PubKeyHash []byte
 
 // TxProof type alias for block.TxProof, can be removed once block package is moved out of internal
 type TxProof = types.TxProof
@@ -34,3 +35,25 @@ type Proof struct {
 	TxRecord *types.TransactionRecord `json:"txRecord"`
 	TxProof  *types.TxProof           `json:"txProof"`
 }
+
+func (pk PubKey) Hash() PubKeyHash {
+	return hash.Sum256(pk)
+}
+
+type (
+	TxHistoryRecord struct {
+		_            struct{} `cbor:",toarray"`
+		UnitID       UnitID
+		TxHash       TxHash
+		CounterParty PubKeyHash
+		Confirmed    bool
+		Kind         TxHistoryRecordKind
+	}
+
+	TxHistoryRecordKind uint8
+)
+
+const (
+	OUTGOING TxHistoryRecordKind = iota
+	INCOMING
+)

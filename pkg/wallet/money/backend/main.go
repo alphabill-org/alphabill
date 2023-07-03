@@ -51,11 +51,11 @@ type (
 	}
 
 	Bill struct {
-		Id             []byte        `json:"id"`
-		Value          uint64        `json:"value"`
-		TxHash         []byte        `json:"txHash"`
-		DcNonce        []byte        `json:"dcNonce,omitempty"`
-		OwnerPredicate []byte        `json:"ownerPredicate"`
+		Id             []byte `json:"id"`
+		Value          uint64 `json:"value"`
+		TxHash         []byte `json:"txHash"`
+		DcNonce        []byte `json:"dcNonce,omitempty"`
+		OwnerPredicate []byte `json:"ownerPredicate"`
 
 		// fcb specific fields
 		// AddFCTxHash last add fee credit tx hash
@@ -91,6 +91,8 @@ type (
 		GetDCMetadata(nonce []byte) (*DCMetadata, error)
 		SetDCMetadata(nonce []byte, data *DCMetadata) error
 		DeleteDCMetadata(nonce []byte) error
+		StoreTxHistoryRecord(hash sdk.PubKeyHash, rec *sdk.TxHistoryRecord) error
+		GetTxHistoryRecords(hash sdk.PubKeyHash, dbStartKey []byte, count int) ([]*sdk.TxHistoryRecord, []byte, error)
 	}
 
 	p2pkhOwnerPredicates struct {

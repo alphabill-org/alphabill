@@ -116,7 +116,7 @@ func (w *Wallet) SystemID() []byte {
 	return money.DefaultSystemIdentifier
 }
 
-// Shutdown terminates connection to alphabill node, closes account manager and cancels any background goroutines.
+// Close terminates connection to alphabill node, closes account manager and cancels any background goroutines.
 func (w *Wallet) Close() {
 	w.am.Close()
 	w.feeManager.Close()

@@ -166,12 +166,12 @@ func (v *DefaultFeeCreditTxValidator) ValidateCloseFC(ctx *CloseFCValidationCont
 	}
 
 	// P.A.v = S.N[ι].b - the amount is the current balance of the record
-	closFCAttributes := &transactions.CloseFeeCreditAttributes{}
-	if err := tx.UnmarshalAttributes(closFCAttributes); err != nil {
+	closeFCAttributes := &transactions.CloseFeeCreditAttributes{}
+	if err := tx.UnmarshalAttributes(closeFCAttributes); err != nil {
 		return fmt.Errorf("failed to unmarshal transaction attributes: %w", err)
 	}
-	if closFCAttributes.Amount != fcr.Balance {
-		return fmt.Errorf("invalid amount: amount=%d fcr.Balance=%d", closFCAttributes.Amount, fcr.Balance)
+	if closeFCAttributes.Amount != fcr.Balance {
+		return fmt.Errorf("invalid amount: amount=%d fcr.Balance=%d", closeFCAttributes.Amount, fcr.Balance)
 	}
 
 	// P.MC.fm ≤ S.N[ι].b - the transaction fee can’t exceed the current balance of the record

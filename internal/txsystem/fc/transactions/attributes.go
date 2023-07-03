@@ -27,7 +27,7 @@ type (
 		EarliestAdditionTime   uint64   // earliest round when the corresponding “add fee credit” transaction can be executed in the target system
 		LatestAdditionTime     uint64   // latest round when the corresponding “add fee credit” transaction can be executed in the target system
 		Nonce                  []byte   // the current state hash of the target credit record if the record exists, or to nil if the record does not exist yet
-		Backlink               []byte   // hash of this unit's previous transacton
+		Backlink               []byte   // hash of this unit's previous transaction
 	}
 
 	CloseFeeCreditAttributes struct {
@@ -42,6 +42,6 @@ type (
 		_                      struct{}                 `cbor:",toarray"`
 		CloseFeeCreditTransfer *types.TransactionRecord // bill transfer record of type "close fee credit"
 		CloseFeeCreditProof    *types.TxProof           // transaction proof of "close fee credit" transaction
-		Backlink               []byte                   // hash of this unit's previous transacton
+		Backlink               []byte                   // hash of this unit's previous transaction
 	}
 )

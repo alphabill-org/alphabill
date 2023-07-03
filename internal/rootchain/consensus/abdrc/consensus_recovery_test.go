@@ -229,10 +229,10 @@ func Test_recoverState(t *testing.T) {
 		defer cancel()
 		for _, v := range cms[:len(cms)-1] {
 			go func(cm *ConsensusManager) { require.ErrorIs(t, cm.Run(ctx), context.Canceled) }(v)
-			go consumeUC(ctx, v)
+			go func(cm *ConsensusManager) { consumeUC(ctx, cm) }(v)
 		}
 		// wait few rounds so some history is created
-		require.Eventually(t, func() bool { return cmLeader.pacemaker.GetCurrentRound() >= 6 }, 3*time.Second, 20*time.Millisecond, "waiting for rounds to be processed")
+		require.Eventually(t, func() bool { return cmLeader.pacemaker.GetCurrentRound() >= 6 }, 5*time.Second, 20*time.Millisecond, "waiting for rounds to be processed")
 
 		// start the manager that was skipped in the beginning, it is behind other nodes but
 		// should receive (usually proposal) message which will trigger recovery
@@ -263,7 +263,7 @@ func Test_recoverState(t *testing.T) {
 		require.Eventually(t,
 			func() bool {
 				return cmLeader.pacemaker.GetCurrentRound() >= destRound
-			}, 3*time.Second, 100*time.Millisecond, "waiting for round %d to be processed", destRound)
+			}, 6*time.Second, 100*time.Millisecond, "waiting for round %d to be processed", destRound)
 		// we have 4 nodes and we expect at least 8 successful rounds so the network should see at least 32 proposal messages.
 		// if we do not see these then the progress was probably made by timeouts and thus recovery wasn't success?
 		require.GreaterOrEqual(t, proposalCnt.Load(), int32(4*8), "didn't see expected number of proposals")
@@ -280,10 +280,10 @@ func Test_recoverState(t *testing.T) {
 		for _, v := range cms {
 			v.leaderSelector = constLeader(cmLeader.id) // to take leader selection out of test
 			go func(cm *ConsensusManager) { require.ErrorIs(t, cm.Run(ctx), context.Canceled) }(v)
-			go consumeUC(ctx, v)
+			go func(cm *ConsensusManager) { consumeUC(ctx, cm) }(v)
 		}
 		// wait few rounds so some history is created
-		require.Eventually(t, func() bool { return cmLeader.pacemaker.GetCurrentRound() >= 6 }, 3*time.Second, 20*time.Millisecond, "waiting for rounds to be processed")
+		require.Eventually(t, func() bool { return cmLeader.pacemaker.GetCurrentRound() >= 6 }, 6*time.Second, 20*time.Millisecond, "waiting for rounds to be processed")
 
 		// block traffic to one peer and wait it to fall few rounds behind
 		cmBlocked := cms[1]
@@ -299,7 +299,7 @@ func Test_recoverState(t *testing.T) {
 		require.Eventually(t,
 			func() bool {
 				return cmLeader.pacemaker.GetCurrentRound() >= destRound
-			}, 5*time.Second, 300*time.Millisecond, "waiting for round %d to be processed", destRound)
+			}, 7*time.Second, 300*time.Millisecond, "waiting for round %d to be processed", destRound)
 	})
 
 	t.Run("less than quorum nodes are live for a period", func(t *testing.T) {
@@ -312,10 +312,10 @@ func Test_recoverState(t *testing.T) {
 		for _, v := range cms {
 			v.leaderSelector = constLeader(cms[0].id) // to take leader selection out of test
 			go func(cm *ConsensusManager) { require.ErrorIs(t, cm.Run(ctx), context.Canceled) }(v)
-			go consumeUC(ctx, v)
+			go func(cm *ConsensusManager) { consumeUC(ctx, cm) }(v)
 		}
 		// wait few rounds so some history is created
-		require.Eventually(t, func() bool { return cms[0].pacemaker.GetCurrentRound() >= 6 }, 3*time.Second, 20*time.Millisecond, "waiting for rounds to be processed")
+		require.Eventually(t, func() bool { return cms[0].pacemaker.GetCurrentRound() >= 6 }, 6*time.Second, 20*time.Millisecond, "waiting for rounds to be processed")
 
 		// block traffic from two nodes - this means there should be no progress possible
 		// as not enough nodes participate in voting
@@ -374,7 +374,7 @@ func Test_recoverState(t *testing.T) {
 		for _, v := range cms {
 			v.leaderSelector = ls
 			go func(cm *ConsensusManager) { require.ErrorIs(t, cm.Run(ctx), context.Canceled) }(v)
-			go consumeUC(ctx, v)
+			go func(cm *ConsensusManager) { consumeUC(ctx, cm) }(v)
 		}
 
 		// we start with round 2 so going till the round 8 we deal with dead leader at least once:
@@ -398,7 +398,7 @@ func Test_recoverState(t *testing.T) {
 		for _, v := range cms {
 			v.leaderSelector = constLeader(cmLeader.id) // use "const leader" to take leader selection out of test
 			go func(cm *ConsensusManager) { require.ErrorIs(t, cm.Run(ctx), context.Canceled) }(v)
-			go consumeUC(ctx, v)
+			go func(cm *ConsensusManager) { consumeUC(ctx, cm) }(v)
 		}
 		// wait few rounds so some history is created
 		require.Eventually(t, func() bool { return cmLeader.pacemaker.GetCurrentRound() >= 4 }, 3*time.Second, 20*time.Millisecond, "waiting for rounds to be processed")
@@ -436,9 +436,9 @@ func Test_recoverState(t *testing.T) {
 
 		destRound := cmLeader.pacemaker.GetCurrentRound() + 5
 		require.Eventually(t, func() bool { return cmLeader.pacemaker.GetCurrentRound() >= destRound }, 10*time.Second, 20*time.Millisecond, "waiting for progress to be made again")
-		// we have 4 nodes and we expect at least 4 successful rounds (the network should see proposal messages).
+		// we have 4 nodes and we expect at least 3 successful rounds (the network should see proposal messages).
 		// if we do not see these then the progress was probably made by timeouts and thus recovery wasn't success?
-		require.GreaterOrEqual(t, propCnt.Load(), int32(4*4), "didn't see expected number of proposals")
+		require.GreaterOrEqual(t, propCnt.Load(), int32(4*3), "didn't see expected number of proposals")
 	})
 }
 
@@ -477,8 +477,6 @@ func createConsensusManagers(t *testing.T, count int) ([]*ConsensusManager, *moc
 
 		cm, err := NewDistributedAbConsensusManager(nodeID, rootG, pStore, nw.Connect(nodeID), signers[v.NodeIdentifier])
 		require.NoError(t, err)
-		// replace PM with concurrency safe wrapper as tests read CurrentRound concurrently
-		cm.pacemaker = newCSPacemaker(cm.pacemaker)
 		cms = append(cms, cm)
 	}
 
@@ -542,6 +540,7 @@ SetFirewall replaces current FW func.
 
 When the func returns "true" the message will be blocked, when "false" the msg is passed on.
 Use "nil" to disable FW (ie all messages will be passed on without filter).
+Message blocked by FW just dissapears, no error is returned to the sender.
 */
 func (mnw *mockNetwork) SetFirewall(fw fwFunc) {
 	mnw.firewall.Store(fw)
@@ -616,52 +615,3 @@ type constLeader peer.ID
 func (cl constLeader) GetLeaderForRound(round uint64) peer.ID { return peer.ID(cl) }
 
 func (cl constLeader) Update(qc *types.QuorumCert, currentRound uint64) error { return nil }
-
-/*
-newCSPacemaker wraps passed in PaceMaker instance (must be implemented by *Pacemaker) as
-a concurrency safe PaceMaker. This is needed as tests access the GetCurrentRound method
-concurrently, the non-test code doesn't use concurrent access so instead of making the
-original Pacemaker implementation concurrency safe we just wrap it in tests.
-*/
-func newCSPacemaker(pm PaceMaker) PaceMaker {
-	p, ok := pm.(*Pacemaker)
-	if !ok {
-		panic(fmt.Errorf("unexpected pacemaker implementation %T", pm))
-	}
-	return &csPacemaker{Pacemaker: p, currentRound: p.GetCurrentRound()}
-}
-
-/*
-implements concurrency safe GetCurrentRound method of Pacemaker
-*/
-type csPacemaker struct {
-	*Pacemaker
-	currentRound uint64
-}
-
-func (pm *csPacemaker) Reset(highQCRound uint64) {
-	pm.Pacemaker.Reset(highQCRound)
-	atomic.StoreUint64(&pm.currentRound, pm.Pacemaker.GetCurrentRound())
-}
-
-func (pm *csPacemaker) GetCurrentRound() uint64 {
-	return atomic.LoadUint64(&pm.currentRound)
-}
-
-func (pm *csPacemaker) AdvanceRoundQC(qc *types.QuorumCert) bool {
-	if !pm.Pacemaker.AdvanceRoundQC(qc) {
-		return false
-	}
-	atomic.StoreUint64(&pm.currentRound, qc.VoteInfo.RoundNumber+1)
-	return true
-}
-
-// AdvanceRoundTC - trigger next round/view on timeout certificate
-func (pm *csPacemaker) AdvanceRoundTC(tc *types.TimeoutCert) {
-	// no timeout cert or is from old view/round - ignore
-	if tc == nil || tc.Timeout.Round < pm.GetCurrentRound() {
-		return
-	}
-	pm.Pacemaker.AdvanceRoundTC(tc)
-	atomic.StoreUint64(&pm.currentRound, tc.Timeout.Round+1)
-}

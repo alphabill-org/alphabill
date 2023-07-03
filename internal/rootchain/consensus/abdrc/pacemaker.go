@@ -1,83 +1,83 @@
 package abdrc
 
 import (
+	"context"
 	"fmt"
-	"math"
+	"sync/atomic"
 	"time"
 
 	"github.com/alphabill-org/alphabill/internal/network/protocol/abdrc"
 	abtypes "github.com/alphabill-org/alphabill/internal/rootchain/consensus/abdrc/types"
-	"github.com/alphabill-org/alphabill/internal/util"
 )
 
-type (
-	TimeoutCalculator interface {
-		GetNextTimeout(roundIndexAfterCommit uint64) time.Duration
-	}
+/*
+Pacemaker tracks the current round/view number - a new round/view starts if there is a quorum
+certificate or timeout certificate for the previous round.
+It also provides "round clock" which allows to make sure that rounds are not produced too fast
+but also do not take too long (timeout).
+In addition it keeps track of validator data related to the active round (votes received if
+next leader or votes sent if follower).
+*/
+type Pacemaker struct {
+	// minimum round duration, ie rounds shouldn't advance faster than that
+	minRoundLen time.Duration
+	// max round duration, after that round is considered to be timed out
+	maxRoundLen time.Duration
+	// Last commit.
+	lastQcToCommitRound uint64
+	// Current round is max(highest QC, highest TC) + 1.
+	currentRound atomic.Uint64
+	// Collection of votes (when node is the next leader)
+	pendingVotes *VoteRegister
+	// Last round timeout certificate
+	lastRoundTC *abtypes.TimeoutCert
+	// Store for votes sent in the ongoing round.
+	voteSent    *abdrc.VoteMsg
+	timeoutVote *abdrc.TimeoutMsg
+	currentQC   *abtypes.QuorumCert
 
-	// ExponentialTimeInterval exponential back-off
-	// base * exponentBase^"commit gap"
-	// If max exponent is set to 0, then it will output constant value (base)
-	ExponentialTimeInterval struct {
-		base         time.Duration
-		exponentBase float64
-		maxExponent  uint8
-	}
-
-	// Pacemaker tracks the current round/view number. The number is incremented when new quorum are
-	// received. A new round/view starts if there is a quorum certificate or timeout certificate for previous round.
-	// In addition, it also calculates the local timeout interval based on how many rounds have failed and keeps track
-	// of validator data related to the active round (votes received if next leader or votes sent if follower).
-	Pacemaker struct {
-		blockRate time.Duration
-		// Last commit.
-		lastQcToCommitRound uint64
-		// Current round is max(highest QC, highest TC) + 1.
-		currentRound uint64
-		// The deadline for the next local timeout event. It is reset every time a new round start, or
-		// a previous deadline expires.
-		roundDeadline time.Time
-		// Time last proposal was received
-		lastViewChange time.Time
-		// timeout calculator
-		timeoutCalculator TimeoutCalculator
-		// Collection of votes (when node is the next leader)
-		pendingVotes *VoteRegister
-		// Last round timeout certificate
-		lastRoundTC *abtypes.TimeoutCert
-		// Store for votes sent in the ongoing round.
-		voteSent    *abdrc.VoteMsg
-		timeoutVote *abdrc.TimeoutMsg
-	}
-)
-
-func (x ExponentialTimeInterval) GetNextTimeout(roundsAfterLastCommit uint64) time.Duration {
-	exp := util.Min(uint64(x.maxExponent), roundsAfterLastCommit)
-	mul := math.Pow(x.exponentBase, float64(exp))
-	return time.Duration(float64(x.base) * mul)
+	status         atomic.Uint32
+	statusChan     chan paceMakerStatus
+	ticker         *time.Ticker
+	stopRoundClock context.CancelFunc
 }
 
-// NewPacemaker Needs to be constructed from last QC!
-func NewPacemaker(lastRound uint64, localTimeout time.Duration, bRate time.Duration) *Pacemaker {
-	return &Pacemaker{
-		blockRate:           bRate,
-		lastQcToCommitRound: lastRound,
-		currentRound:        lastRound + 1,
-		roundDeadline:       time.Now().Add(localTimeout),
-		lastViewChange:      time.Now(),
-		timeoutCalculator:   ExponentialTimeInterval{base: localTimeout, exponentBase: 1.2, maxExponent: 0},
-		pendingVotes:        NewVoteRegister(),
-		lastRoundTC:         nil,
-		voteSent:            nil,
-		timeoutVote:         nil,
+/*
+NewPacemaker initializes new Pacemaker instance (zero value is not usable).
+
+  - minRoundLen is the minimum round duration, rounds shouldn't advance faster than that;
+  - maxRoundLen is maximum round duration, after that round is considered to be timed out;
+
+The maxRoundLen must be greater than minRoundLen or the Pacemaker will crash at some point!
+*/
+func NewPacemaker(minRoundLen, maxRoundLen time.Duration) *Pacemaker {
+	pm := &Pacemaker{
+		minRoundLen:    minRoundLen,
+		maxRoundLen:    maxRoundLen,
+		pendingVotes:   NewVoteRegister(),
+		statusChan:     make(chan paceMakerStatus),
+		ticker:         time.NewTicker(maxRoundLen),
+		stopRoundClock: func() {},
 	}
+	pm.ticker.Stop()
+	return pm
 }
 
-// Reset is meant to be used by recovery procedure to reset pacemaker's round.
+/*
+Reset sets the pacemaker's "last committed round" and starts next round.
+This method should only used to start the pacemaker and reset it's status
+on system recovery, during normal operation current round is advanced by
+calling AdvanceRoundQC or AdvanceRoundTC.
+*/
 func (x *Pacemaker) Reset(highQCRound uint64) {
-	x.lastQcToCommitRound = highQCRound
 	x.lastRoundTC = nil
+	x.lastQcToCommitRound = highQCRound
 	x.startNewRound(highQCRound + 1)
+}
+
+func (x *Pacemaker) Stop() {
+	x.ticker.Stop()
+	x.stopRoundClock()
 }
 
 func (x *Pacemaker) LastRoundTC() *abtypes.TimeoutCert {
@@ -85,12 +85,12 @@ func (x *Pacemaker) LastRoundTC() *abtypes.TimeoutCert {
 }
 
 func (x *Pacemaker) GetCurrentRound() uint64 {
-	return x.currentRound
+	return x.currentRound.Load()
 }
 
 // SetVoted - remember vote sent in this view
 func (x *Pacemaker) SetVoted(vote *abdrc.VoteMsg) {
-	if vote.VoteInfo.RoundNumber == x.currentRound {
+	if vote.VoteInfo.RoundNumber == x.currentRound.Load() {
 		x.voteSent = vote
 	}
 }
@@ -102,7 +102,7 @@ func (x *Pacemaker) GetVoted() *abdrc.VoteMsg {
 
 // SetTimeoutVote - remember timeout vote sent in this view
 func (x *Pacemaker) SetTimeoutVote(vote *abdrc.TimeoutMsg) {
-	if vote.Timeout.Round == x.currentRound {
+	if vote.Timeout.Round == x.currentRound.Load() {
 		x.timeoutVote = vote
 	}
 }
@@ -112,46 +112,30 @@ func (x *Pacemaker) GetTimeoutVote() *abdrc.TimeoutMsg {
 	return x.timeoutVote
 }
 
-// GetRoundTimeout - get round local timeout
-func (x *Pacemaker) GetRoundTimeout() time.Duration {
-	return time.Until(x.roundDeadline)
-}
-
-// CalcTimeTilNextProposal calculates delay for next round symmetrically, no round
-// should take less than half of block rate - two consecutive rounds not less than block rate
-func (x *Pacemaker) CalcTimeTilNextProposal() time.Duration {
-	//symmetric delay
-	now := time.Now()
-	if now.Sub(x.lastViewChange) >= x.blockRate/2 {
-		return 0
-	}
-	return x.lastViewChange.Add(x.blockRate / 2).Sub(now)
+/*
+RoundQC returns the latest QC produced by calling RegisterVote.
+*/
+func (x *Pacemaker) RoundQC() *abtypes.QuorumCert {
+	return x.currentQC
 }
 
 /*
-// CalcAsyncTimeTilNextProposal - delays every second round, 2 consecutive rounds
-// must never be faster that block rate.
-func (x *Pacemaker) CalcAsyncTimeTilNextProposal(round uint64) time.Duration {
-	now := time.Now()
-	// according to spec. in case of 2-chain-rule finality the wait is every 2nd block
-	if now.Sub(x.lastViewChange) >= time.Duration(round%2)*x.blockRate {
-		return 0
-	}
-	return x.lastViewChange.Add(x.blockRate).Sub(now)
-}
+RegisterVote register vote for the round and assembles quorum certificate when quorum condition is met.
+It returns non nil QC in case of quorum is achieved.
+It also returns bool which indicates is the round "mature", ie it has lasted at least the minimum
+required amount of time to make proposal.
 */
-
-// RegisterVote - register vote from another root node, this node is the leader and assembles votes for quorum certificate
-func (x *Pacemaker) RegisterVote(vote *abdrc.VoteMsg, quorum QuorumInfo) (*abtypes.QuorumCert, error) {
+func (x *Pacemaker) RegisterVote(vote *abdrc.VoteMsg, quorum QuorumInfo) (*abtypes.QuorumCert, bool, error) {
 	// If the vote is not about the current round then ignore
-	if vote.VoteInfo.RoundNumber != x.currentRound {
-		return nil, fmt.Errorf("received vote is for round %d, current round is %d", vote.VoteInfo.RoundNumber, x.currentRound)
+	if round := x.currentRound.Load(); vote.VoteInfo.RoundNumber != round {
+		return nil, false, fmt.Errorf("received vote is for round %d, current round is %d", vote.VoteInfo.RoundNumber, round)
 	}
 	qc, err := x.pendingVotes.InsertVote(vote, quorum)
 	if err != nil {
-		return nil, fmt.Errorf("vote register error: %w", err)
+		return nil, false, fmt.Errorf("vote register error: %w", err)
 	}
-	return qc, nil
+	x.currentQC = qc
+	return qc, x.roundIsMature(), nil
 }
 
 // RegisterTimeoutVote - register time-out vote from another root node, this node is the leader and tries to assemble
@@ -170,7 +154,7 @@ func (x *Pacemaker) AdvanceRoundQC(qc *abtypes.QuorumCert) bool {
 		return false
 	}
 	// Same QC can only advance the round number once
-	if qc.VoteInfo.RoundNumber < x.currentRound {
+	if qc.VoteInfo.RoundNumber < x.currentRound.Load() {
 		return false
 	}
 	x.lastRoundTC = nil
@@ -185,20 +169,122 @@ func (x *Pacemaker) AdvanceRoundQC(qc *abtypes.QuorumCert) bool {
 // AdvanceRoundTC - trigger next round/view on timeout certificate
 func (x *Pacemaker) AdvanceRoundTC(tc *abtypes.TimeoutCert) {
 	// no timeout cert or is from old view/round - ignore
-	if tc == nil || tc.Timeout.Round < x.currentRound {
+	if tc == nil || tc.Timeout.Round < x.currentRound.Load() {
 		return
 	}
 	x.lastRoundTC = tc
 	x.startNewRound(tc.Timeout.Round + 1)
 }
 
-// startNewRound - starts new round, sets new round number, resets all stores and
-// calculates the new round timeout
+/*
+startNewRound - sets new current round number, resets all stores and
+starts round clock which produces events into StatusEvents channel.
+*/
 func (x *Pacemaker) startNewRound(round uint64) {
+	x.currentQC = nil
 	x.voteSent = nil
 	x.timeoutVote = nil
-	x.lastViewChange = time.Now()
-	x.currentRound = round
 	x.pendingVotes.Reset()
-	x.roundDeadline = time.Now().Add(x.timeoutCalculator.GetNextTimeout(x.currentRound - x.lastQcToCommitRound - 1))
+	x.currentRound.Store(round)
+
+	x.stopRoundClock()
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan struct{})
+	x.stopRoundClock = func() {
+		cancel()
+		<-done
+	}
+	go func() {
+		defer close(done)
+		x.startRoundClock(ctx, x.minRoundLen, x.maxRoundLen)
+	}()
 }
+
+func (x *Pacemaker) startRoundClock(ctx context.Context, minRoundLen, maxRoundLen time.Duration) {
+	x.status.Store(uint32(pmsRoundInProgress))
+	x.ticker.Reset(minRoundLen)
+	select {
+	case <-x.ticker.C:
+	default:
+	}
+
+	var cancelStatusEvent context.CancelFunc = func() {}
+	for {
+		select {
+		case <-ctx.Done():
+			cancelStatusEvent()
+			return
+		case <-x.ticker.C:
+			cancelStatusEvent()
+			switch paceMakerStatus(x.status.Load()) {
+			case pmsRoundInProgress:
+				cancelStatusEvent = x.setStatus(ctx, pmsRoundMatured)
+				x.ticker.Reset(maxRoundLen - minRoundLen)
+			case pmsRoundMatured:
+				cancelStatusEvent = x.setStatus(ctx, pmsRoundTimeout)
+				x.ticker.Reset(maxRoundLen)
+			case pmsRoundTimeout:
+				cancelStatusEvent = x.setStatus(ctx, pmsRoundTimeout)
+			}
+		}
+	}
+}
+
+func (x *Pacemaker) setStatus(ctx context.Context, status paceMakerStatus) context.CancelFunc {
+	x.status.Store(uint32(status))
+
+	eventCtx, cancel := context.WithCancel(ctx)
+	done := make(chan struct{})
+	go func() {
+		select {
+		case <-eventCtx.Done():
+		case x.statusChan <- status:
+		}
+		close(done)
+	}()
+
+	return func() {
+		cancel()
+		<-done
+	}
+}
+
+/*
+StatusEvents returns channel into which events are posted when round state changes.
+
+Events are produced once per state change, except pmsRoundTimeout which will be repeated
+every time maxRoundLen elapses and new round hasn't been started yet.
+
+pmsRoundInProgress (ie new round started) event is never produced!
+*/
+func (x *Pacemaker) StatusEvents() <-chan paceMakerStatus { return x.statusChan }
+
+/*
+roundIsMature returns true when round is "mature enough" (ie has lasted longer than minRoundLen)
+to advance system into next round. Note that timed out round is "ready" too!
+*/
+func (x *Pacemaker) roundIsMature() bool { return x.status.Load() != uint32(pmsRoundInProgress) }
+
+// pacemaker round statuses
+type paceMakerStatus uint32
+
+func (pms paceMakerStatus) String() string {
+	switch pms {
+	case pmsRoundInProgress:
+		return "pmsRoundInProgress"
+	case pmsRoundMatured:
+		return "pmsRoundMatured"
+	case pmsRoundTimeout:
+		return "pmsRoundTimeout"
+	}
+	return fmt.Sprintf("unknown status %d", uint32(pms))
+}
+
+const (
+	// round clock has been started, need to wait for the minimum round duration to pass
+	pmsRoundInProgress paceMakerStatus = 1
+	// minimum round duration has elapsed, it's ok to finish the round as soon as quorum is achieved
+	pmsRoundMatured paceMakerStatus = 2
+	// round has lasted longer than max round duration
+	pmsRoundTimeout paceMakerStatus = 3
+)

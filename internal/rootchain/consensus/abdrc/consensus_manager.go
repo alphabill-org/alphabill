@@ -5,7 +5,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"time"
 
 	"github.com/libp2p/go-libp2p/core/peer"
 	"golang.org/x/exp/slices"
@@ -44,29 +43,13 @@ type (
 		Update(qc *abtypes.QuorumCert, currentRound uint64) error
 	}
 
-	PaceMaker interface {
-		GetCurrentRound() uint64
-		GetRoundTimeout() time.Duration
-		CalcTimeTilNextProposal() time.Duration
-		SetVoted(vote *abdrc.VoteMsg)
-		GetTimeoutVote() *abdrc.TimeoutMsg
-		SetTimeoutVote(vote *abdrc.TimeoutMsg)
-		RegisterVote(vote *abdrc.VoteMsg, quorum QuorumInfo) (*abtypes.QuorumCert, error)
-		RegisterTimeoutVote(vote *abdrc.TimeoutMsg, quorum QuorumInfo) (*abtypes.TimeoutCert, error)
-		AdvanceRoundQC(qc *abtypes.QuorumCert) bool
-		AdvanceRoundTC(tc *abtypes.TimeoutCert)
-		LastRoundTC() *abtypes.TimeoutCert
-		Reset(highQCRound uint64)
-	}
-
 	ConsensusManager struct {
 		certReqCh      chan consensus.IRChangeRequest
 		certResultCh   chan *types.UnicityCertificate
 		params         *consensus.Parameters
 		id             peer.ID
-		localTimeout   *time.Ticker
 		net            RootNet
-		pacemaker      PaceMaker
+		pacemaker      *Pacemaker
 		leaderSelector Leader
 		trustBase      *RootTrustBase
 		irReqBuffer    *IrReqBuffer
@@ -75,7 +58,6 @@ type (
 		partitions     partitions.PartitionConfiguration
 		irReqVerifier  *IRChangeReqVerifier
 		t2Timeouts     *PartitionTimeoutGenerator
-		waitPropose    bool
 		voteBuffer     []*abdrc.VoteMsg
 		recovery       *recoveryInfo
 	}
@@ -108,7 +90,6 @@ func NewDistributedAbConsensusManager(nodeID peer.ID, rg *genesis.RootGenesis,
 	if err != nil {
 		return nil, fmt.Errorf("failed to create T2 timeout generator: %w", err)
 	}
-	hqcRound := bStore.GetHighQc().VoteInfo.RoundNumber
 	safetyModule, err := NewSafetyModule(nodeID.String(), signer, optional.Storage)
 	if err != nil {
 		return nil, err
@@ -129,7 +110,7 @@ func NewDistributedAbConsensusManager(nodeID peer.ID, rg *genesis.RootGenesis,
 		params:         cParams,
 		id:             nodeID,
 		net:            net,
-		pacemaker:      NewPacemaker(hqcRound, cParams.LocalTimeout, cParams.BlockRate),
+		pacemaker:      NewPacemaker(cParams.BlockRate/2, cParams.LocalTimeout),
 		leaderSelector: leader,
 		trustBase:      tb,
 		irReqBuffer:    NewIrReqBuffer(),
@@ -138,7 +119,6 @@ func NewDistributedAbConsensusManager(nodeID peer.ID, rg *genesis.RootGenesis,
 		partitions:     partitionStore,
 		irReqVerifier:  reqVerifier,
 		t2Timeouts:     t2TimeoutGen,
-		waitPropose:    false,
 	}
 	return consensusManager, nil
 }
@@ -185,25 +165,10 @@ func (x *ConsensusManager) GetLatestUnicityCertificate(id types.SystemID) (*type
 }
 
 func (x *ConsensusManager) Run(ctx context.Context) error {
-	// Start timers and network processing
-	x.localTimeout = time.NewTicker(x.params.LocalTimeout)
-	// Am I the leader?
+	defer x.pacemaker.Stop()
+	x.pacemaker.Reset(x.blockStore.GetHighQc().VoteInfo.RoundNumber)
 	currentRound := x.pacemaker.GetCurrentRound()
-	if x.leaderSelector.GetLeaderForRound(currentRound) == x.id {
-		logger.Info("%v round %v root node started as leader, waiting to propose", x.id.ShortString(), currentRound)
-		// on start wait a bit before making a proposal
-		x.waitPropose = true
-		go func() {
-			select {
-			case <-time.After(x.params.BlockRate):
-				x.processNewRoundEvent()
-			case <-ctx.Done():
-			}
-		}()
-	} else {
-		logger.Info("%v round %v root node started, waiting for proposal from leader %v",
-			x.id.ShortString(), currentRound, x.leaderSelector.GetLeaderForRound(currentRound).String())
-	}
+	logger.Info("%s round %d root node starting, leader is %s", x.id.ShortString(), currentRound, x.leaderSelector.GetLeaderForRound(currentRound))
 	return x.loop(ctx)
 }
 
@@ -247,8 +212,21 @@ func (x *ConsensusManager) loop(ctx context.Context) error {
 				return fmt.Errorf("exit drc consensus, certification channel closed")
 			}
 			x.onPartitionIRChangeReq(&req)
-		case <-x.localTimeout.C:
-			x.onLocalTimeout()
+		case event := <-x.pacemaker.StatusEvents():
+			switch event {
+			case pmsRoundMatured:
+				currentRound := x.pacemaker.GetCurrentRound()
+				leader := x.leaderSelector.GetLeaderForRound(currentRound + 1)
+				logger.Debug("%v round %d has lasted minimum required duration; next leader %s", x.id.ShortString(), currentRound, leader.ShortString())
+				if leader == x.id || (currentRound == 2 && x.id == x.leaderSelector.GetLeaderForRound(2)) {
+					if qc := x.pacemaker.RoundQC(); qc != nil || currentRound == 2 {
+						x.processQC(qc)
+						x.processNewRoundEvent()
+					}
+				}
+			case pmsRoundTimeout:
+				x.onLocalTimeout()
+			}
 		}
 	}
 }
@@ -298,17 +276,17 @@ func (x *ConsensusManager) onPartitionIRChangeReq(req *consensus.IRChangeRequest
 	if req.Reason == consensus.QuorumNotPossible {
 		irReq.CertReason = abtypes.QuorumNotPossible
 	}
-	// are we the next leader or leader in current round waiting/throttling to send proposal
-	nextRound := x.pacemaker.GetCurrentRound() + 1
-	nextLeader := x.leaderSelector.GetLeaderForRound(nextRound)
-	if nextLeader == x.id || x.waitPropose {
+
+	currentLeader := x.leaderSelector.GetLeaderForRound(x.pacemaker.GetCurrentRound())
+	nextLeader := x.leaderSelector.GetLeaderForRound(x.pacemaker.GetCurrentRound() + 1)
+	if currentLeader == x.id || nextLeader == x.id {
 		// store the request in local buffer
 		x.onIRChange(irReq)
 		return
 	}
 	// route the IR change to the next root chain leader
-	logger.Debug("%v round %v forwarding IR change request to next leader in round %v - %v",
-		x.id.ShortString(), x.pacemaker.GetCurrentRound(), nextRound, nextLeader.String())
+	logger.Debug("%v round %v forwarding IR change request to the next leader %v",
+		x.id.ShortString(), x.pacemaker.GetCurrentRound(), nextLeader.String())
 	err := x.net.Send(
 		network.OutputMessage{
 			Protocol: network.ProtocolRootIrChangeReq,
@@ -322,18 +300,14 @@ func (x *ConsensusManager) onPartitionIRChangeReq(req *consensus.IRChangeRequest
 // onIRChange handles IR change request from other root nodes
 func (x *ConsensusManager) onIRChange(irChangeMsg *abtypes.IRChangeReq) {
 	if err := irChangeMsg.IsValid(); err != nil {
-		logger.Debug("Receive IR change request is invalid: %v", err)
+		logger.Debug("Received IR change request is invalid: %v", err)
 		return
 	}
 	currentLeader := x.leaderSelector.GetLeaderForRound(x.pacemaker.GetCurrentRound())
 	nextLeader := x.leaderSelector.GetLeaderForRound(x.pacemaker.GetCurrentRound() + 1)
 	// todo: if in recovery then forward to next?
-	// if the node is leader and has not yet proposed or is the next leader - then buffer the request to include in the next block proposal
-	// there is a race between proposal (received in reverse order) and IR change request, due to this the node could also be the leader in round+2
-	// However, we can't reliably find +2 leader when using reputation based election!
-	if (currentLeader == x.id && x.waitPropose) ||
-		nextLeader == x.id ||
-		x.leaderSelector.GetLeaderForRound(x.pacemaker.GetCurrentRound()+2) == x.id {
+	// if the node is leader or will be the next leader then buffer the request to be included in the block proposal
+	if currentLeader == x.id || nextLeader == x.id {
 		logger.Debug("%v round %v IR change request received", x.id.ShortString(), x.pacemaker.GetCurrentRound())
 		// Verify and buffer and wait for opportunity to make the next proposal
 		if err := x.irReqBuffer.Add(x.pacemaker.GetCurrentRound(), irChangeMsg, x.irReqVerifier); err != nil {
@@ -343,13 +317,8 @@ func (x *ConsensusManager) onIRChange(irChangeMsg *abtypes.IRChangeReq) {
 	}
 	// todo: AB-549 add max hop count or some sort of TTL?
 	// either this is a completely lost message or because of race we just proposed, try to forward again to the next leader
-	if currentLeader == x.id && !x.waitPropose {
-		logger.Warning("%v is the leader in round %v, but proposal has been already sent, forward request to next leader %v",
-			x.id.ShortString(), x.pacemaker.GetCurrentRound(), nextLeader.String())
-	} else {
-		logger.Warning("%v is not leader in next round %v, IR change req forwarded again %v",
-			x.id.ShortString(), x.pacemaker.GetCurrentRound()+1, nextLeader.String())
-	}
+	logger.Warning("%v is not leader in next round %v, IR change req forwarded again %v",
+		x.id.ShortString(), x.pacemaker.GetCurrentRound()+1, nextLeader.String())
 	if err := x.net.Send(
 		network.OutputMessage{
 			Protocol: network.ProtocolRootIrChangeReq,
@@ -415,38 +384,19 @@ func (x *ConsensusManager) onVoteMsg(ctx context.Context, vote *abdrc.VoteMsg) {
 		}
 		return
 	}
-	// Store vote, check for QC
-	qc, err := x.pacemaker.RegisterVote(vote, x.trustBase)
+
+	qc, mature, err := x.pacemaker.RegisterVote(vote, x.trustBase)
 	if err != nil {
 		logger.Warning("%v round %v failed to register vote from %v: %v",
 			x.id.ShortString(), x.pacemaker.GetCurrentRound(), vote.Author, err)
 		return
 	}
-	if qc == nil {
-		logger.Trace("%v round %v processed vote for round %v, no quorum yet",
-			x.id.ShortString(), x.pacemaker.GetCurrentRound(), vote.VoteInfo.RoundNumber)
-		return
+	logger.Trace("%v round %v processed vote for round %v, quorum: %t, mature: %t",
+		x.id.ShortString(), x.pacemaker.GetCurrentRound(), vote.VoteInfo.RoundNumber, qc != nil, mature)
+	if qc != nil && mature {
+		x.processQC(qc)
+		x.processNewRoundEvent()
 	}
-	logger.Debug("%v round %v quorum achieved", x.id.ShortString(), vote.VoteInfo.RoundNumber)
-	// since the root chain must not run faster than block-rate, calculate
-	// time from last proposal and see if we need to wait
-	slowDownTime := x.pacemaker.CalcTimeTilNextProposal()
-	// advance view/round on QC
-	x.processQC(qc)
-	if slowDownTime > 0 {
-		logger.Debug("%v round %v wait %v before proposing", x.id.ShortString(), x.pacemaker.GetCurrentRound(), slowDownTime)
-		x.waitPropose = true
-		go func() {
-			select {
-			case <-time.After(slowDownTime):
-				x.processNewRoundEvent()
-			case <-ctx.Done():
-			}
-		}()
-		return
-	}
-	// trigger new round immediately
-	x.processNewRoundEvent()
 }
 
 // onTimeoutMsg handles timeout vote messages from other root validators
@@ -604,14 +554,12 @@ func (x *ConsensusManager) processQC(qc *abtypes.QuorumCert) {
 	if !x.pacemaker.AdvanceRoundQC(qc) {
 		return
 	}
-	// progress is made, restart timeout (move to pacemaker)
-	x.localTimeout.Reset(x.pacemaker.GetRoundTimeout())
 
 	// in the "DiemBFT v4" pseudo-code the process_certificate_qc first calls
 	// leaderSelector.Update and after that pacemaker.AdvanceRound - we do it the
 	// other way around as otherwise current leader goes out of sync with peers...
 	if err := x.leaderSelector.Update(qc, x.pacemaker.GetCurrentRound()); err != nil {
-		logger.Error("failed to update leader selector: %v", err)
+		logger.Error("%v failed to update leader selector: %v", x.id.ShortString(), err)
 	}
 }
 
@@ -630,9 +578,6 @@ func (x *ConsensusManager) processTC(tc *abtypes.TimeoutCert) {
 // triggers a new round. If this node is the leader in the new view/round, then make a proposal otherwise
 // wait for a proposal from a leader in this round/view
 func (x *ConsensusManager) processNewRoundEvent() {
-	// to counteract throttling (find a better solution)
-	x.waitPropose = false
-	x.localTimeout.Reset(x.pacemaker.GetRoundTimeout())
 	round := x.pacemaker.GetCurrentRound()
 	if x.leaderSelector.GetLeaderForRound(round) != x.id {
 		logger.Info("%v round %v new round start, not leader awaiting proposal", x.id.ShortString(), round)

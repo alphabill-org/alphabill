@@ -11,7 +11,7 @@ import (
 )
 
 type (
-	programConfiguration struct {
+	evmConfiguration struct {
 		baseNodeConfiguration
 		Node       *startNodeConfiguration
 		RPCServer  *grpcServerConfiguration
@@ -20,7 +20,7 @@ type (
 )
 
 func newEvmNodeCmd(baseConfig *baseConfiguration) *cobra.Command {
-	config := &programConfiguration{
+	config := &evmConfiguration{
 		baseNodeConfiguration: baseNodeConfiguration{
 			Base: baseConfig,
 		},
@@ -45,7 +45,7 @@ func newEvmNodeCmd(baseConfig *baseConfiguration) *cobra.Command {
 	return nodeCmd
 }
 
-func runEvmNode(ctx context.Context, cfg *programConfiguration) error {
+func runEvmNode(ctx context.Context, cfg *evmConfiguration) error {
 	pg, err := loadPartitionGenesis(cfg.Node.Genesis)
 	if err != nil {
 		return err

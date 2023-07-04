@@ -31,7 +31,7 @@ type evmGenesisConfig struct {
 	GasUnitPrice     uint64
 }
 
-// newProgramGenesisCmd creates a new cobra command for the vd genesis.
+// newEvmGenesisCmd creates a new cobra command for the vd genesis.
 func newEvmGenesisCmd(baseConfig *baseConfiguration) *cobra.Command {
 	config := &evmGenesisConfig{Base: baseConfig, Keys: NewKeysConf(baseConfig, evmDir)}
 	var cmd = &cobra.Command{
@@ -43,7 +43,7 @@ func newEvmGenesisCmd(baseConfig *baseConfiguration) *cobra.Command {
 	}
 
 	cmd.Flags().BytesHexVarP(&config.SystemIdentifier, "system-identifier", "s", evm.DefaultEvmTxSystemIdentifier, "system identifier in HEX format")
-	cmd.Flags().StringVarP(&config.Output, "output", "o", "", "path to the output genesis file (default: $AB_HOME/programs/node-genesis.json)")
+	cmd.Flags().StringVarP(&config.Output, "output", "o", "", "path to the output genesis file (default: $AB_HOME/evm/node-genesis.json)")
 	cmd.Flags().Uint32Var(&config.T2Timeout, "t2-timeout", defaultT2Timeout, "time interval for how long root chain waits before re-issuing unicity certificate, in milliseconds")
 	cmd.Flags().Uint64Var(&config.BlockGasLimit, "gas-limit", evm.DefaultBlockGasLimit, "max units of gas processed in each block")
 	cmd.Flags().Uint64Var(&config.GasUnitPrice, "gas-price", evm.DefaultGasPrice, "gas unit price in wei")

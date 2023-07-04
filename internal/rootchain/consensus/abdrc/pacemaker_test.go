@@ -1,124 +1,66 @@
 package abdrc
 
 import (
+	"context"
 	"testing"
 	"time"
 
-	abdrc "github.com/alphabill-org/alphabill/internal/rootchain/consensus/abdrc/types"
 	"github.com/stretchr/testify/require"
+
+	"github.com/alphabill-org/alphabill/internal/network/protocol/abdrc"
+	abtypes "github.com/alphabill-org/alphabill/internal/rootchain/consensus/abdrc/types"
 )
 
 const testLocalTimeout = time.Duration(10000) * time.Millisecond
 const testBlockRate = time.Duration(1000) * time.Millisecond
 
-func TestExponentialTimeInterval_GetNextTimeout(t *testing.T) {
-	type fields struct {
-		base         time.Duration
-		exponentBase float64
-		maxExponent  uint8
-	}
-	tests := []struct {
-		name   string
-		fields fields
-		want   []time.Duration
-	}{
-		{
-			name: "Get constant timeout",
-			fields: fields{
-				base:         time.Duration(500) * time.Millisecond,
-				exponentBase: 1.2,
-				maxExponent:  0,
-			},
-			want: []time.Duration{
-				time.Duration(500) * time.Millisecond,
-				time.Duration(500) * time.Millisecond,
-				time.Duration(500) * time.Millisecond,
-			},
-		},
-		{
-			name: "Get exponential backoff timeout",
-			fields: fields{
-				base:         time.Duration(500) * time.Millisecond,
-				exponentBase: 1.2,
-				maxExponent:  3,
-			},
-			want: []time.Duration{
-				time.Duration(500) * time.Millisecond,
-				time.Duration(600) * time.Millisecond,
-				time.Duration(720) * time.Millisecond,
-				time.Duration(864) * time.Millisecond,
-				time.Duration(864) * time.Millisecond,
-			},
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			x := ExponentialTimeInterval{
-				base:         tt.fields.base,
-				exponentBase: tt.fields.exponentBase,
-				maxExponent:  tt.fields.maxExponent,
-			}
-			for i, duration := range tt.want {
-				if got := x.GetNextTimeout(uint64(i)); got != duration {
-					t.Errorf("%v GetNextTimeout() = %v, want %v", i, got, duration)
-				}
-			}
-		})
-	}
-}
-
-func TestNewRoundState(t *testing.T) {
-	const lastCommittedRound = uint64(2)
-	testStartTime := time.Now()
-	pacemaker := NewPacemaker(lastCommittedRound, testLocalTimeout, testBlockRate)
-	// bad test, but there is a need to have some hysteresis, because clock is ticking
-	require.True(t, testStartTime.Add(testLocalTimeout).Sub(pacemaker.roundDeadline.Round(time.Millisecond)) < 5*time.Millisecond)
-	require.Equal(t, lastCommittedRound, pacemaker.lastQcToCommitRound)
-	require.Equal(t, lastCommittedRound+1, pacemaker.currentRound)
-	require.Nil(t, pacemaker.lastRoundTC)
-	require.NotNil(t, pacemaker.pendingVotes)
-	require.Nil(t, pacemaker.voteSent)
-}
-
 func TestRoundState_AdvanceRoundQC(t *testing.T) {
 	const lastCommittedRound = uint64(6)
-	pacemaker := NewPacemaker(lastCommittedRound, testLocalTimeout, testBlockRate)
-	require.Nil(t, pacemaker.GetVoted())
-	// create QC
-	voteInfo := NewDummyVoteInfo(4, []byte{0, 1, 2, 3})
-	staleQc := abdrc.NewQuorumCertificate(voteInfo, nil)
-	vote := NewDummyVote("test", 7, []byte{2, 2, 2, 2})
+	pacemaker := NewPacemaker(testBlockRate, testLocalTimeout)
+	defer pacemaker.Stop()
+	pacemaker.Reset(lastCommittedRound)
+
 	// record vote
+	require.Nil(t, pacemaker.GetVoted())
+	vote := NewDummyVote("test", 7, []byte{2, 2, 2, 2})
 	pacemaker.SetVoted(vote)
-	require.NotNil(t, pacemaker.GetVoted())
+	require.Equal(t, vote, pacemaker.GetVoted())
+
 	// nil
 	require.False(t, pacemaker.AdvanceRoundQC(nil))
+	require.NotNil(t, pacemaker.GetVoted())
+
 	// old QC
+	voteInfo := NewDummyVoteInfo(4, []byte{0, 1, 2, 3})
+	staleQc := abtypes.NewQuorumCertificate(voteInfo, nil)
 	require.False(t, pacemaker.AdvanceRoundQC(staleQc))
 	require.NotNil(t, pacemaker.GetVoted())
-	require.Equal(t, pacemaker.GetCurrentRound(), lastCommittedRound+1)
+	require.EqualValues(t, lastCommittedRound+1, pacemaker.GetCurrentRound())
+
+	// ok QC
 	voteInfo = NewDummyVoteInfo(8, []byte{1, 2, 3, 4})
-	qc := abdrc.NewQuorumCertificate(voteInfo, nil)
+	qc := abtypes.NewQuorumCertificate(voteInfo, nil)
 	require.True(t, pacemaker.AdvanceRoundQC(qc))
 	require.Equal(t, pacemaker.GetCurrentRound(), uint64(9))
-	// vote is reset when view is changed
-	require.Nil(t, pacemaker.GetVoted())
+	require.Nil(t, pacemaker.GetVoted(), "expected vote to be reset when view changes")
 }
 
 func TestRoundState_AdvanceRoundTC(t *testing.T) {
 	const lastCommittedRound = uint64(6)
-	pacemaker := NewPacemaker(lastCommittedRound, testLocalTimeout, testBlockRate)
+	pacemaker := NewPacemaker(testBlockRate, testLocalTimeout)
+	defer pacemaker.Stop()
+	pacemaker.Reset(lastCommittedRound)
 	require.Equal(t, pacemaker.GetCurrentRound(), lastCommittedRound+1)
+
 	// record a vote in current round
 	vote := NewDummyVote("test", 7, []byte{2, 2, 2, 2})
-	// record vote
 	pacemaker.SetVoted(vote)
 	pacemaker.AdvanceRoundTC(nil)
 	// no change
-	require.Equal(t, pacemaker.GetCurrentRound(), lastCommittedRound+1)
-	require.Equal(t, pacemaker.GetVoted(), vote)
+	require.Equal(t, lastCommittedRound+1, pacemaker.GetCurrentRound())
+	require.Equal(t, vote, pacemaker.GetVoted())
 	voteInfo := NewDummyVoteInfo(4, []byte{0, 1, 2, 3})
-	staleQc := abdrc.NewQuorumCertificate(voteInfo, nil)
+	staleQc := abtypes.NewQuorumCertificate(voteInfo, nil)
 	staleTc := NewDummyTc(4, staleQc)
 	pacemaker.AdvanceRoundTC(staleTc)
 	require.NotNil(t, pacemaker.GetVoted())
@@ -126,7 +68,7 @@ func TestRoundState_AdvanceRoundTC(t *testing.T) {
 	require.Equal(t, pacemaker.GetCurrentRound(), lastCommittedRound+1)
 	// create a valid qc for current
 	voteInfo = NewDummyVoteInfo(pacemaker.GetCurrentRound()-1, []byte{0, 1, 2, 3})
-	qc := abdrc.NewQuorumCertificate(voteInfo, nil)
+	qc := abtypes.NewQuorumCertificate(voteInfo, nil)
 	tc := NewDummyTc(pacemaker.GetCurrentRound(), qc)
 	pacemaker.AdvanceRoundTC(tc)
 	require.Equal(t, pacemaker.GetCurrentRound(), lastCommittedRound+2)
@@ -135,45 +77,30 @@ func TestRoundState_AdvanceRoundTC(t *testing.T) {
 	require.Nil(t, pacemaker.GetVoted())
 	// Now advance with qc for round 7
 	voteInfo = NewDummyVoteInfo(pacemaker.GetCurrentRound(), []byte{0, 1, 2, 3})
-	qc = abdrc.NewQuorumCertificate(voteInfo, nil)
+	qc = abtypes.NewQuorumCertificate(voteInfo, nil)
 	require.True(t, pacemaker.AdvanceRoundQC(qc))
 	// now also last round TC is reset
 	require.Nil(t, pacemaker.LastRoundTC())
 }
 
-func TestRoundState_GetRoundTimeout(t *testing.T) {
-	const lastCommittedRound = uint64(6)
-	const localTimeout = time.Duration(10000) * time.Millisecond
-	pacemaker := NewPacemaker(lastCommittedRound, testLocalTimeout, testBlockRate)
-	require.Equal(t, pacemaker.GetCurrentRound(), lastCommittedRound+1)
-	// round to ms, a few ns have passed, but the timeout should be still round localTimeout
-	roundTimeout := pacemaker.GetRoundTimeout().Round(time.Millisecond)
-	require.Equal(t, localTimeout, roundTimeout)
-	voteInfo := NewDummyVoteInfo(pacemaker.GetCurrentRound()-1, []byte{0, 1, 2, 3})
-	qc := abdrc.NewQuorumCertificate(voteInfo, nil)
-	tc := NewDummyTc(pacemaker.GetCurrentRound(), qc)
-	pacemaker.AdvanceRoundTC(tc)
-	require.Equal(t, pacemaker.GetCurrentRound(), lastCommittedRound+2)
-	roundTimeout = pacemaker.GetRoundTimeout().Round(time.Millisecond)
-	require.Equal(t, localTimeout, roundTimeout)
-}
-
 func TestRoundState_RegisterVote(t *testing.T) {
 	const lastCommittedRound = uint64(6)
 	quorum := NewDummyQuorum(3)
-	pacemaker := NewPacemaker(lastCommittedRound, testLocalTimeout, testBlockRate)
+	pacemaker := NewPacemaker(testBlockRate, testLocalTimeout)
+	defer pacemaker.Stop()
+	pacemaker.Reset(lastCommittedRound)
 	require.Equal(t, pacemaker.GetCurrentRound(), lastCommittedRound+1)
 	vote := NewDummyVote("node1", 7, []byte{2, 2, 2, 2})
-	qc, err := pacemaker.RegisterVote(vote, quorum)
+	qc, _, err := pacemaker.RegisterVote(vote, quorum)
 	require.NoError(t, err)
 	require.Nil(t, qc)
 	vote = NewDummyVote("node2", 7, []byte{2, 2, 2, 2})
-	qc, err = pacemaker.RegisterVote(vote, quorum)
+	qc, _, err = pacemaker.RegisterVote(vote, quorum)
 	require.NoError(t, err)
 	require.Nil(t, qc)
 	vote = NewDummyVote("node3", 7, []byte{2, 2, 2, 2})
 	require.NotNil(t, vote)
-	qc, err = pacemaker.RegisterVote(vote, quorum)
+	qc, _, err = pacemaker.RegisterVote(vote, quorum)
 	require.NoError(t, err)
 	require.NotNil(t, qc)
 }
@@ -181,10 +108,12 @@ func TestRoundState_RegisterVote(t *testing.T) {
 func TestRoundState_RegisterTimeoutVote(t *testing.T) {
 	const lastCommittedRound = uint64(5)
 	quorum := NewDummyQuorum(3)
-	pacemaker := NewPacemaker(lastCommittedRound, testLocalTimeout, testBlockRate)
+	pacemaker := NewPacemaker(testBlockRate, testLocalTimeout)
+	defer pacemaker.Stop()
+	pacemaker.Reset(lastCommittedRound)
 	require.Equal(t, pacemaker.GetCurrentRound(), lastCommittedRound+1)
 	voteInfo := NewDummyVoteInfo(5, []byte{0, 1, 2, 3})
-	hQc := abdrc.NewQuorumCertificate(voteInfo, nil)
+	hQc := abtypes.NewQuorumCertificate(voteInfo, nil)
 	vote := NewDummyTimeoutVote(hQc, 6, "node1")
 	tc, err := pacemaker.RegisterTimeoutVote(vote, quorum)
 	require.NoError(t, err)
@@ -203,28 +132,318 @@ func TestRoundState_RegisterTimeoutVote(t *testing.T) {
 	require.NotNil(t, tc)
 }
 
-func TestRoundState_OddRoundCalcTimeTilProposal(t *testing.T) {
-	const lastCommittedRound = uint64(2)
-	pacemaker := NewPacemaker(lastCommittedRound, testLocalTimeout, testBlockRate)
-	require.Equal(t, uint64(3), pacemaker.GetCurrentRound())
-	timeout := pacemaker.CalcTimeTilNextProposal()
-	// symmetric delay (half of block rate) in each view/round
-	// subtract some small amount of time to reduce race
-	// expected delay is bigger than 495 ms when half of block rate is 500 ms
-	require.Greater(t, timeout, testBlockRate/2-(time.Duration(5)*time.Millisecond))
-	// in case of asymmetric delay
-	// require.Equal(t, timeout, time.Duration(0))
+func TestPacemaker_setup(t *testing.T) {
+	t.Parallel()
+
+	t.Run("state of new instance", func(t *testing.T) {
+		minRoundLen := 500 * time.Millisecond
+		roundTO := time.Second
+		pacemaker := NewPacemaker(minRoundLen, roundTO)
+		require.NotNil(t, pacemaker)
+		require.Equal(t, minRoundLen, pacemaker.minRoundLen)
+		require.Equal(t, roundTO, pacemaker.maxRoundLen)
+		require.EqualValues(t, 0, pacemaker.lastQcToCommitRound)
+		require.EqualValues(t, 0, pacemaker.GetCurrentRound())
+		require.EqualValues(t, 0, pacemaker.status.Load())
+		require.Nil(t, pacemaker.lastRoundTC)
+		require.Nil(t, pacemaker.voteSent)
+		require.Nil(t, pacemaker.timeoutVote)
+		require.Nil(t, pacemaker.currentQC)
+		require.NotNil(t, pacemaker.pendingVotes)
+		require.NotNil(t, pacemaker.statusChan)
+		require.NotNil(t, pacemaker.stopRoundClock)
+		require.NotNil(t, pacemaker.ticker)
+		// ticker shouldn't be ticking
+		select {
+		case <-time.After(2 * roundTO):
+		case <-pacemaker.ticker.C:
+			t.Error("unexpected tick")
+		case e := <-pacemaker.StatusEvents():
+			t.Errorf("unexpected event %v", e)
+		}
+	})
+
+	t.Run("Reset and Stop", func(t *testing.T) {
+		minRoundLen := 500 * time.Millisecond
+		roundTO := time.Second
+		pacemaker := NewPacemaker(minRoundLen, roundTO)
+		require.NotNil(t, pacemaker)
+
+		// assign some values to fields, we do not care about validity, we
+		// just want to make sure that Reset sets them nil again
+		pacemaker.lastRoundTC = &abtypes.TimeoutCert{}
+		pacemaker.currentQC = &abtypes.QuorumCert{}
+		pacemaker.voteSent = &abdrc.VoteMsg{}
+		pacemaker.timeoutVote = &abdrc.TimeoutMsg{}
+		// we haven't called Reset yet so clock should not be ticking
+		select {
+		case <-time.After(roundTO):
+		case <-pacemaker.ticker.C:
+			t.Error("unexpected tick")
+		case e := <-pacemaker.StatusEvents():
+			t.Errorf("got unexpected event %v", e)
+		}
+
+		// start the clock
+		pacemaker.Reset(10)
+		require.EqualValues(t, 10, pacemaker.lastQcToCommitRound)
+		require.EqualValues(t, 11, pacemaker.GetCurrentRound())
+		require.Nil(t, pacemaker.LastRoundTC())
+		require.Nil(t, pacemaker.GetVoted())
+		require.Nil(t, pacemaker.GetTimeoutVote())
+		require.Nil(t, pacemaker.RoundQC())
+		// values Reset should not touch
+		require.Equal(t, minRoundLen, pacemaker.minRoundLen)
+		require.Equal(t, roundTO, pacemaker.maxRoundLen)
+		// we have called Reset so clock must be ticking
+		select {
+		case <-time.After(roundTO):
+			t.Error("unexpectedly haven't got any event")
+		case <-pacemaker.StatusEvents():
+		}
+
+		// stop the clock
+		pacemaker.Stop()
+		select {
+		case <-time.After(2 * roundTO):
+		case <-pacemaker.ticker.C:
+			t.Error("unexpected tick")
+		case e := <-pacemaker.StatusEvents():
+			t.Errorf("unexpected event %v", e)
+		}
+	})
 }
 
-func TestRoundState_EvenRoundCalcTimeTilProposal(t *testing.T) {
-	const lastCommittedRound = uint64(1)
-	pacemaker := NewPacemaker(lastCommittedRound, testLocalTimeout, testBlockRate)
-	require.Equal(t, uint64(2), pacemaker.GetCurrentRound())
-	timeout := pacemaker.CalcTimeTilNextProposal()
-	// symmetric delay (half of block rate) in each view/round
-	// subtract some small amount of time to reduce race
-	// expected delay is bigger than 495 ms when half of block rate is 500 ms
-	require.Greater(t, timeout, testBlockRate/2-(time.Duration(5)*time.Millisecond))
-	// in case of asymmetric delay
-	// require.Greater(t, timeout, testBlockRate-(time.Duration(5)*time.Millisecond))
+func TestPacemaker_startRoundClock(t *testing.T) {
+	t.Parallel()
+
+	t.Run("stepping through statuses", func(t *testing.T) {
+		minRoundLen := 500 * time.Millisecond
+		roundTO := time.Second
+		pacemaker := NewPacemaker(minRoundLen, roundTO)
+
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		srcDone := make(chan struct{})
+		go func() {
+			pacemaker.startRoundClock(ctx, minRoundLen, roundTO)
+			close(srcDone)
+		}()
+		firstTOevent := time.After(roundTO)
+
+		// there should be no event until minRoundLen has elapsed (we wait a bit less to lessen the timing inaccuracies)
+		select {
+		case <-time.After(minRoundLen - 20*time.Millisecond):
+		case e := <-pacemaker.StatusEvents():
+			t.Errorf("unexpected event %v before round matures", e)
+		}
+		// but we should get pmsRoundMatured before timeout arrives (pretty much instantly now)
+		select {
+		case <-firstTOevent:
+			t.Error("expected to get event before first TO is triggered")
+		case e := <-pacemaker.StatusEvents():
+			if e != pmsRoundMatured {
+				t.Errorf("expected event %v got %v", pmsRoundMatured, e)
+			}
+		}
+		// we should get first timeout now - the time it took for the round to mature (minRoundLen) is
+		// also part of the first TO so we should get it faster than full "roundTO"
+		select {
+		case e := <-pacemaker.StatusEvents():
+			if e != pmsRoundTimeout {
+				t.Errorf("expected event %v got %v", pmsRoundTimeout, e)
+			}
+		case <-time.After(roundTO):
+			t.Errorf("expected to get first TO event before %s elapses", roundTO)
+		}
+		//...and next TO should arrive after roundTO
+		select {
+		case e := <-pacemaker.StatusEvents():
+			if e != pmsRoundTimeout {
+				t.Errorf("expected event %v got %v", pmsRoundTimeout, e)
+			}
+		case <-time.After(roundTO + 50*time.Millisecond):
+			t.Errorf("expected to get second TO event after %s", roundTO)
+		}
+
+		// stop the clock
+		cancel()
+		select {
+		case <-srcDone:
+		case <-time.After(time.Second):
+			t.Error("the round clock func hasn't stopped")
+		}
+	})
+
+	t.Run("cancelling ctx stops next event being sent", func(t *testing.T) {
+		minRoundLen := 500 * time.Millisecond
+		roundTO := time.Second
+		pacemaker := NewPacemaker(minRoundLen, roundTO)
+
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		srcDone := make(chan struct{})
+		go func() {
+			pacemaker.startRoundClock(ctx, minRoundLen, roundTO)
+			close(srcDone)
+		}()
+
+		select {
+		case <-time.After(roundTO):
+			t.Error("haven't got the expected event")
+		case e := <-pacemaker.StatusEvents():
+			if e != pmsRoundMatured {
+				t.Errorf("expected event %v got %v", pmsRoundMatured, e)
+			}
+		}
+
+		// stop the clock
+		cancel()
+		select {
+		case <-srcDone:
+		case <-time.After(time.Second):
+			t.Error("the round clock func hasn't stopped")
+		}
+
+		// shouldn't get any events now
+		select {
+		case <-time.After(2 * roundTO):
+		case e := <-pacemaker.StatusEvents():
+			t.Errorf("unexpected event %v", e)
+		}
+	})
+
+	t.Run("no leftover ticks", func(t *testing.T) {
+		// testing the implementation detail that we use "global ticker" rather than
+		// creating new ticker per round - make sure that ticks from previous round
+		// do not "leak" into next round triggering event early
+		minRoundLen := 500 * time.Millisecond
+		roundTO := time.Second
+		pacemaker := NewPacemaker(minRoundLen, roundTO)
+
+		ctx, cancel := context.WithCancel(context.Background())
+		srcDone := make(chan struct{})
+		go func() {
+			pacemaker.startRoundClock(ctx, minRoundLen, roundTO)
+			close(srcDone)
+		}()
+
+		select {
+		case <-time.After(roundTO):
+			t.Error("haven't got the expected event")
+		case e := <-pacemaker.StatusEvents():
+			if e != pmsRoundMatured {
+				t.Errorf("expected event %v got %v", pmsRoundMatured, e)
+			}
+		}
+
+		// stop the clock - this stops the round events being created when
+		// ticker ticks...
+		cancel()
+		select {
+		case <-srcDone:
+		case <-time.After(time.Second):
+			t.Error("the round clock func hasn't stopped")
+		}
+		// ...and wait long enough that ticker should generate new tick
+		time.Sleep(roundTO)
+
+		// start new round clock
+		ctx, cancel = context.WithCancel(context.Background())
+		srcDone = make(chan struct{})
+		var start time.Time
+		go func() {
+			start = time.Now()
+			pacemaker.startRoundClock(ctx, minRoundLen, roundTO)
+			close(srcDone)
+		}()
+
+		// we should get pmsRoundMatured but not sooner than minRoundLen
+		select {
+		case <-time.After(roundTO):
+			t.Error("haven't got the expected event")
+		case e := <-pacemaker.StatusEvents():
+			waited := time.Since(start)
+			if e != pmsRoundMatured {
+				t.Errorf("expected event %v got %v after %s", pmsRoundMatured, e, waited)
+			}
+			if waited < minRoundLen {
+				t.Errorf("expected that it will take at least %s before receiving event, it took only %s", minRoundLen, waited)
+			}
+		}
+
+		// stop the clock
+		cancel()
+		select {
+		case <-srcDone:
+		case <-time.After(time.Second):
+			t.Error("the round clock func hasn't stopped")
+		}
+	})
+}
+
+func TestPacemaker_startNewRound(t *testing.T) {
+	t.Parallel()
+
+	t.Run("field values", func(t *testing.T) {
+		// test do fields which need to be reset when new round starts do
+		// get reset and fields which need to retain their value do
+		minRoundLen := 500 * time.Millisecond
+		roundTO := time.Second
+		pacemaker := NewPacemaker(minRoundLen, roundTO)
+		pacemaker.Reset(4)
+		defer pacemaker.Stop()
+
+		// assign some values to fields, we do not care about validity, we
+		// just want to make sure that starting new round sets them nil
+		pacemaker.lastRoundTC = &abtypes.TimeoutCert{}
+		pacemaker.currentQC = &abtypes.QuorumCert{}
+		pacemaker.voteSent = &abdrc.VoteMsg{}
+		pacemaker.timeoutVote = &abdrc.TimeoutMsg{}
+
+		pacemaker.startNewRound(6)
+		require.Equal(t, minRoundLen, pacemaker.minRoundLen)
+		require.Equal(t, roundTO, pacemaker.maxRoundLen)
+		require.EqualValues(t, 4, pacemaker.lastQcToCommitRound)
+		require.EqualValues(t, 6, pacemaker.GetCurrentRound())
+		require.EqualValues(t, pmsRoundInProgress, pacemaker.status.Load())
+		require.Nil(t, pacemaker.voteSent)
+		require.Nil(t, pacemaker.timeoutVote)
+		require.Nil(t, pacemaker.currentQC)
+		require.NotNil(t, pacemaker.lastRoundTC)
+		require.NotNil(t, pacemaker.pendingVotes)
+		require.NotNil(t, pacemaker.statusChan)
+		require.NotNil(t, pacemaker.stopRoundClock)
+		require.NotNil(t, pacemaker.ticker)
+	})
+
+	t.Run("unread event from previous round is cancelled", func(t *testing.T) {
+		// when starting new round (unread) event of the previous round must be
+		// cancelled (ie disappear from event chan)
+		minRoundLen := 500 * time.Millisecond
+		roundTO := time.Second
+		pacemaker := NewPacemaker(minRoundLen, roundTO)
+		pacemaker.Reset(4)
+		defer pacemaker.Stop()
+
+		// Reset started new round, wait until timeout without consuming events
+		time.Sleep(roundTO + 50*time.Millisecond)
+
+		// starting new round should cancel the event of the previous round so
+		// it should take at least minRoundLen before we get pmsRoundMatured
+		start := time.Now()
+		pacemaker.startNewRound(6)
+		select {
+		case <-time.After(roundTO):
+			t.Errorf("expected to get event before %s", roundTO)
+		case e := <-pacemaker.StatusEvents():
+			waited := time.Since(start)
+			if e != pmsRoundMatured {
+				t.Errorf("expected event %v got %v after %s", pmsRoundMatured, e, waited)
+			}
+			if waited < minRoundLen {
+				t.Errorf("expected that it will take at least %s before receiving event, it took only %s", minRoundLen, waited)
+			}
+		}
+	})
 }

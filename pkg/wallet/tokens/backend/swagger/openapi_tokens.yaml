@@ -490,7 +490,7 @@ components:
           type: string
           format: byte
           example: ux5oRDOUCKFCb06vuDOcGPspoBxTYOq9G97mzPAdQxc=
-        addFcTxHash:
+        lastAddFcTxHash:
           type: string
           format: byte
           description: hash of last "add fee credit" transaction

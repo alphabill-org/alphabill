@@ -249,10 +249,10 @@ func (p *BlockProcessor) processTx(txr *types.TransactionRecord, b *types.Block,
 		}
 		txHash := txo.Hash(crypto.SHA256)
 		return dbTx.SetFeeCreditBill(&Bill{
-			Id:          txo.UnitID(),
-			Value:       fcb.getValue() + transferFCAttr.Amount - txr.ServerMetadata.ActualFee,
-			TxHash:      txHash,
-			AddFCTxHash: txHash,
+			Id:              txo.UnitID(),
+			Value:           fcb.getValue() + transferFCAttr.Amount - txr.ServerMetadata.ActualFee,
+			TxHash:          txHash,
+			LastAddFCTxHash: txHash,
 		}, proof)
 	case transactions.PayloadTypeCloseFeeCredit:
 		wlog.Info(fmt.Sprintf("received closeFC order (UnitID=%x)", txo.UnitID()))
@@ -266,10 +266,10 @@ func (p *BlockProcessor) processTx(txr *types.TransactionRecord, b *types.Block,
 			return err
 		}
 		return dbTx.SetFeeCreditBill(&Bill{
-			Id:          txo.UnitID(),
-			TxHash:      txHash,
-			Value:       fcb.getValue() - attr.Amount,
-			AddFCTxHash: fcb.getAddFCTxHash(),
+			Id:              txo.UnitID(),
+			TxHash:          txHash,
+			Value:           fcb.getValue() - attr.Amount,
+			LastAddFCTxHash: fcb.getLastAddFCTxHash(),
 		}, proof)
 	case transactions.PayloadTypeReclaimFeeCredit:
 		wlog.Info(fmt.Sprintf("received reclaimFC order (UnitID=%x)", txo.UnitID()))

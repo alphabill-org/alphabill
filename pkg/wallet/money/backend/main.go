@@ -51,15 +51,15 @@ type (
 	}
 
 	Bill struct {
-		Id             []byte        `json:"id"`
-		Value          uint64        `json:"value"`
-		TxHash         []byte        `json:"txHash"`
-		DcNonce        []byte        `json:"dcNonce,omitempty"`
-		OwnerPredicate []byte        `json:"ownerPredicate"`
+		Id             []byte `json:"id"`
+		Value          uint64 `json:"value"`
+		TxHash         []byte `json:"txHash"`
+		DcNonce        []byte `json:"dcNonce,omitempty"`
+		OwnerPredicate []byte `json:"ownerPredicate"`
 
 		// fcb specific fields
-		// AddFCTxHash last add fee credit tx hash
-		AddFCTxHash []byte `json:"addFcTxHash,omitempty"`
+		// LastAddFCTxHash last add fee credit tx hash
+		LastAddFCTxHash []byte `json:"lastAddFcTxHash,omitempty"`
 	}
 
 	Pubkey struct {
@@ -323,11 +323,11 @@ func (w *WalletBackend) GetDCMetadata(nonce []byte) (*DCMetadata, error) {
 
 func (b *Bill) ToGenericBill() *sdk.Bill {
 	return &sdk.Bill{
-		Id:          b.Id,
-		Value:       b.Value,
-		TxHash:      b.TxHash,
-		DcNonce:     b.DcNonce,
-		AddFCTxHash: b.AddFCTxHash,
+		Id:              b.Id,
+		Value:           b.Value,
+		TxHash:          b.TxHash,
+		DcNonce:         b.DcNonce,
+		LastAddFCTxHash: b.LastAddFCTxHash,
 	}
 }
 
@@ -353,9 +353,9 @@ func (b *Bill) getValue() uint64 {
 	return 0
 }
 
-func (b *Bill) getAddFCTxHash() []byte {
+func (b *Bill) getLastAddFCTxHash() []byte {
 	if b != nil {
-		return b.AddFCTxHash
+		return b.LastAddFCTxHash
 	}
 	return nil
 }

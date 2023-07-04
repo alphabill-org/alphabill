@@ -177,9 +177,9 @@ func Test_blockProcessor_processTx(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, uint256.NewInt(1), uint256.NewInt(0).SetBytes(fcb.Id))
 		require.EqualValues(t, 49, fcb.GetValue())
-		addFCTxHash := addFC.Hash(crypto.SHA256)
-		require.Equal(t, addFCTxHash, fcb.AddFCTxHash)
-		require.Equal(t, addFCTxHash, fcb.TxHash)
+		lastAddFCTxHash := addFC.Hash(crypto.SHA256)
+		require.Equal(t, lastAddFCTxHash, fcb.LastAddFCTxHash)
+		require.Equal(t, lastAddFCTxHash, fcb.TxHash)
 
 		// when closeFC tx is processed
 		closeFC := testfc.NewCloseFC(t,
@@ -197,7 +197,7 @@ func Test_blockProcessor_processTx(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, uint256.NewInt(1), uint256.NewInt(0).SetBytes(fcb.Id))
 		require.EqualValues(t, 39, fcb.GetValue())
-		require.EqualValues(t, addFCTxHash, fcb.GetAddFCTxHash())
+		require.EqualValues(t, lastAddFCTxHash, fcb.GetLastAddFCTxHash())
 		require.Equal(t, closeFC.Hash(crypto.SHA256), fcb.TxHash)
 	})
 }
@@ -210,10 +210,10 @@ func createBlockProcessor(t *testing.T) *blockProcessor {
 
 func getFeeCreditBillFunc(unitID wallet.UnitID) (*FeeCreditBill, error) {
 	return &FeeCreditBill{
-		Id:          unitID,
-		Value:       50,
-		TxHash:      []byte{1},
-		AddFCTxHash: []byte{2},
+		Id:              unitID,
+		Value:           50,
+		TxHash:          []byte{1},
+		LastAddFCTxHash: []byte{2},
 	}, nil
 }
 

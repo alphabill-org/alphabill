@@ -792,10 +792,10 @@ func Test_restAPI_getFeeCreditBill(t *testing.T) {
 
 	t.Run("ok", func(t *testing.T) {
 		fcb := &FeeCreditBill{
-			Id:          []byte{1},
-			Value:       2,
-			TxHash:      []byte{3},
-			AddFCTxHash: []byte{4},
+			Id:              []byte{1},
+			Value:           2,
+			TxHash:          []byte{3},
+			LastAddFCTxHash: []byte{4},
 		}
 		fcbProof := &sdk.Proof{}
 		api := &tokensRestAPI{

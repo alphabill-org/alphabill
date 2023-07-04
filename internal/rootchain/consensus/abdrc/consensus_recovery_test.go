@@ -299,7 +299,7 @@ func Test_recoverState(t *testing.T) {
 		require.Eventually(t,
 			func() bool {
 				return cmLeader.pacemaker.GetCurrentRound() >= destRound
-			}, 7*time.Second, 300*time.Millisecond, "waiting for round %d to be processed", destRound)
+			}, 9*time.Second, 300*time.Millisecond, "waiting for round %d to be processed", destRound)
 	})
 
 	t.Run("less than quorum nodes are live for a period", func(t *testing.T) {
@@ -540,7 +540,7 @@ SetFirewall replaces current FW func.
 
 When the func returns "true" the message will be blocked, when "false" the msg is passed on.
 Use "nil" to disable FW (ie all messages will be passed on without filter).
-Message blocked by FW just dissapears, no error is returned to the sender.
+Message blocked by FW just disappears, no error is returned to the sender.
 */
 func (mnw *mockNetwork) SetFirewall(fw fwFunc) {
 	mnw.firewall.Store(fw)

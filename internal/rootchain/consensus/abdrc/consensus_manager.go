@@ -169,55 +169,52 @@ func (x *ConsensusManager) Run(ctx context.Context) error {
 	x.pacemaker.Reset(x.blockStore.GetHighQc().VoteInfo.RoundNumber)
 	currentRound := x.pacemaker.GetCurrentRound()
 	logger.Info("%s round %d root node starting, leader is %s", x.id.ShortString(), currentRound, x.leaderSelector.GetLeaderForRound(currentRound))
-	return x.loop(ctx)
+	err := x.loop(ctx)
+	logger.Info("%v exited distributed consensus manager main loop: %v", x.id.ShortString(), err)
+	return err
 }
 
 func (x *ConsensusManager) loop(ctx context.Context) error {
 	for {
 		select {
 		case <-ctx.Done():
-			logger.Info("%v exiting distributed consensus manager main loop", x.id.ShortString())
 			return ctx.Err()
 		case msg, ok := <-x.net.ReceivedChannel():
 			if !ok {
-				logger.Warning("%v root network received channel closed, exiting distributed consensus main loop",
-					x.id.ShortString())
-				return fmt.Errorf("exit drc consensus, network channel closed")
+				return fmt.Errorf("root network received channel has been closed")
 			}
+			util.WriteTraceJsonLog(logger, fmt.Sprintf("%s received %T from %v", x.id.ShortString(), msg.Message, msg.From), msg.Message)
 			switch mt := msg.Message.(type) {
 			case *abtypes.IRChangeReq:
-				util.WriteTraceJsonLog(logger, fmt.Sprintf("IR Change Request from %v", msg.From), mt)
-				x.onIRChange(mt)
+				if err := x.onIRChange(mt); err != nil {
+					logger.Warning("%v failed to process IR change message: %v", x.id.ShortString(), err)
+				}
 			case *abdrc.ProposalMsg:
-				util.WriteTraceJsonLog(logger, fmt.Sprintf("Proposal from %v", msg.From), mt)
 				x.onProposalMsg(ctx, mt)
 			case *abdrc.VoteMsg:
-				util.WriteTraceJsonLog(logger, fmt.Sprintf("Vote from %v", msg.From), mt)
 				x.onVoteMsg(ctx, mt)
 			case *abdrc.TimeoutMsg:
-				util.WriteTraceJsonLog(logger, fmt.Sprintf("Timeout vote from %v", msg.From), mt)
 				x.onTimeoutMsg(mt)
 			case *abdrc.GetStateMsg:
-				util.WriteTraceJsonLog(logger, fmt.Sprintf("Recovery state request from %v", msg.From), mt)
 				x.onStateReq(mt)
 			case *abdrc.StateMsg:
-				util.WriteTraceJsonLog(logger, fmt.Sprintf("Received recovery response from %v", msg.From), mt)
 				x.onStateResponse(ctx, mt)
 			default:
 				logger.Warning("%v unknown protocol req %s %T from %v", x.id.ShortString(), msg.Protocol, mt, msg.From)
 			}
-		case req, ok := <-x.certReqCh:
-			if !ok {
-				logger.Warning("%v certification channel closed, exiting distributed consensus main loop", x.id.ShortString())
-				return fmt.Errorf("exit drc consensus, certification channel closed")
+		case req := <-x.certReqCh:
+			if err := x.onPartitionIRChangeReq(&req); err != nil {
+				logger.Warning("%v failed to process IR change request from partition: %v", x.id.ShortString(), err)
 			}
-			x.onPartitionIRChangeReq(&req)
 		case event := <-x.pacemaker.StatusEvents():
 			switch event {
 			case pmsRoundMatured:
 				currentRound := x.pacemaker.GetCurrentRound()
 				leader := x.leaderSelector.GetLeaderForRound(currentRound + 1)
 				logger.Debug("%v round %d has lasted minimum required duration; next leader %s", x.id.ShortString(), currentRound, leader.ShortString())
+				// round 2 is system bootstrap and is a special case - as there is no proposal no-one is sending
+				// votes and thus leader won't see quorum and make next proposal (and round would time out).
+				// So the round 2 leader has to trigger next round when it's mature without having QC.
 				if leader == x.id || (currentRound == 2 && x.id == x.leaderSelector.GetLeaderForRound(2)) {
 					if qc := x.pacemaker.RoundQC(); qc != nil || currentRound == 2 {
 						x.processQC(qc)
@@ -265,43 +262,28 @@ func (x *ConsensusManager) onLocalTimeout() {
 
 // onPartitionIRChangeReq handle partition change requests. Received from go routine handling
 // partition communication when either partition reaches consensus or cannot reach consensus.
-func (x *ConsensusManager) onPartitionIRChangeReq(req *consensus.IRChangeRequest) {
-	logger.Debug("%v round %v, IR change request from partition",
-		x.id.String(), x.pacemaker.GetCurrentRound())
+func (x *ConsensusManager) onPartitionIRChangeReq(req *consensus.IRChangeRequest) error {
+	logger.Debug("%v round %v, IR change request from partition", x.id.String(), x.pacemaker.GetCurrentRound())
 	irReq := &abtypes.IRChangeReq{
 		SystemIdentifier: req.SystemIdentifier,
-		CertReason:       abtypes.Quorum,
 		Requests:         req.Requests,
 	}
-	if req.Reason == consensus.QuorumNotPossible {
+	switch req.Reason {
+	case consensus.Quorum:
+		irReq.CertReason = abtypes.Quorum
+	case consensus.QuorumNotPossible:
 		irReq.CertReason = abtypes.QuorumNotPossible
+	default:
+		return fmt.Errorf("unexpected IR change request reason: %v", req.Reason)
 	}
 
-	currentLeader := x.leaderSelector.GetLeaderForRound(x.pacemaker.GetCurrentRound())
-	nextLeader := x.leaderSelector.GetLeaderForRound(x.pacemaker.GetCurrentRound() + 1)
-	if currentLeader == x.id || nextLeader == x.id {
-		// store the request in local buffer
-		x.onIRChange(irReq)
-		return
-	}
-	// route the IR change to the next root chain leader
-	logger.Debug("%v round %v forwarding IR change request to the next leader %v",
-		x.id.ShortString(), x.pacemaker.GetCurrentRound(), nextLeader.String())
-	err := x.net.Send(
-		network.OutputMessage{
-			Protocol: network.ProtocolRootIrChangeReq,
-			Message:  irReq,
-		}, []peer.ID{nextLeader})
-	if err != nil {
-		logger.Warning("%v failed to forward IR Change request: %v", x.id.ShortString(), err)
-	}
+	return x.onIRChange(irReq)
 }
 
-// onIRChange handles IR change request from other root nodes
-func (x *ConsensusManager) onIRChange(irChangeMsg *abtypes.IRChangeReq) {
+// onIRChange handles IR change request
+func (x *ConsensusManager) onIRChange(irChangeMsg *abtypes.IRChangeReq) error {
 	if err := irChangeMsg.IsValid(); err != nil {
-		logger.Debug("Received IR change request is invalid: %v", err)
-		return
+		return fmt.Errorf("invalid IR change request: %w", err)
 	}
 	currentLeader := x.leaderSelector.GetLeaderForRound(x.pacemaker.GetCurrentRound())
 	nextLeader := x.leaderSelector.GetLeaderForRound(x.pacemaker.GetCurrentRound() + 1)
@@ -309,11 +291,10 @@ func (x *ConsensusManager) onIRChange(irChangeMsg *abtypes.IRChangeReq) {
 	// if the node is leader or will be the next leader then buffer the request to be included in the block proposal
 	if currentLeader == x.id || nextLeader == x.id {
 		logger.Debug("%v round %v IR change request received", x.id.ShortString(), x.pacemaker.GetCurrentRound())
-		// Verify and buffer and wait for opportunity to make the next proposal
 		if err := x.irReqBuffer.Add(x.pacemaker.GetCurrentRound(), irChangeMsg, x.irReqVerifier); err != nil {
-			logger.Warning("%v IR change request from partition %X error: %v", x.id.String(), irChangeMsg.SystemIdentifier, err)
+			return fmt.Errorf("failed to add IR change request into buffer: %w", err)
 		}
-		return
+		return nil
 	}
 	// todo: AB-549 add max hop count or some sort of TTL?
 	// either this is a completely lost message or because of race we just proposed, try to forward again to the next leader
@@ -324,8 +305,9 @@ func (x *ConsensusManager) onIRChange(irChangeMsg *abtypes.IRChangeReq) {
 			Protocol: network.ProtocolRootIrChangeReq,
 			Message:  irChangeMsg,
 		}, []peer.ID{nextLeader}); err != nil {
-		logger.Warning("%v failed to forward ir chang message: %v", x.id.ShortString(), err)
+		return fmt.Errorf("failed to forward IR change message to the next leader: %w", err)
 	}
+	return nil
 }
 
 // onVoteMsg handle votes messages from other root validators

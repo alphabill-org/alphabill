@@ -427,7 +427,7 @@ func TestPacemaker_startNewRound(t *testing.T) {
 		defer pacemaker.Stop()
 
 		// Reset started new round, wait until timeout without consuming events
-		time.Sleep(roundTO + 50*time.Millisecond)
+		time.Sleep(roundTO + minRoundLen/2)
 
 		// starting new round should cancel the event of the previous round so
 		// it should take at least minRoundLen before we get pmsRoundMatured
@@ -445,5 +445,46 @@ func TestPacemaker_startNewRound(t *testing.T) {
 				t.Errorf("expected that it will take at least %s before receiving event, it took only %s", minRoundLen, waited)
 			}
 		}
+	})
+
+	t.Run("timeout event is repeated", func(t *testing.T) {
+		const TOcycles = 3 // test length, ie how many timeout cycles to count events
+		minRoundLen := 200 * time.Millisecond
+		roundTO := 600 * time.Millisecond
+		pacemaker := NewPacemaker(minRoundLen, roundTO)
+		pacemaker.Reset(4)
+		defer pacemaker.Stop()
+
+		var timeoutCnt, matureCnt, otherCnt int
+		done := make(chan struct{})
+		go func() {
+			defer close(done)
+			stopCounting := time.After(TOcycles*roundTO + 50*time.Millisecond)
+			for {
+				select {
+				case <-stopCounting:
+					return
+				case e := <-pacemaker.StatusEvents():
+					switch e {
+					case pmsRoundMatured:
+						matureCnt++
+					case pmsRoundTimeout:
+						timeoutCnt++
+					default:
+						otherCnt++
+					}
+				}
+			}
+		}()
+
+		select {
+		case <-time.After((TOcycles + 1) * roundTO):
+			t.Error("counting events haven't stopped within timeout")
+		case <-done:
+		}
+
+		require.Zero(t, otherCnt, `number of "other" events`)
+		require.EqualValues(t, 1, matureCnt, "number of %s events", pmsRoundMatured)
+		require.EqualValues(t, TOcycles, timeoutCnt, "number of %s events", pmsRoundTimeout)
 	})
 }

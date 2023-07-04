@@ -81,14 +81,10 @@ func TestNewConsensusManager_Ok(t *testing.T) {
 	require.NotNil(t, rg)
 }
 
-func TestIRChangeRequestFromPartition(t *testing.T) {
+func Test_ConsensusManager_onPartitionIRChangeReq(t *testing.T) {
 	mockNet := testnetwork.NewMockNetwork()
 	cm, _, partitionNodes, rg := initConsensusManager(t, mockNet)
-	ctx, ctxCancel := context.WithCancel(context.Background())
-	defer ctxCancel()
-	go func() { require.ErrorIs(t, cm.Run(ctx), context.Canceled) }()
 
-	requests := make([]*certification.BlockCertificationRequest, 2)
 	newIR := &types.InputRecord{
 		PreviousHash: rg.Partitions[0].Nodes[0].BlockCertificationRequest.InputRecord.Hash,
 		Hash:         test.RandomBytes(32),
@@ -96,17 +92,22 @@ func TestIRChangeRequestFromPartition(t *testing.T) {
 		SummaryValue: rg.Partitions[0].Nodes[0].BlockCertificationRequest.InputRecord.SummaryValue,
 		RoundNumber:  2,
 	}
+	requests := make([]*certification.BlockCertificationRequest, 2)
 	requests[0] = testutils.CreateBlockCertificationRequest(t, newIR, partitionID, partitionNodes[0])
 	requests[1] = testutils.CreateBlockCertificationRequest(t, newIR, partitionID, partitionNodes[1])
 	req := consensus.IRChangeRequest{
 		SystemIdentifier: partitionID,
 		Reason:           consensus.Quorum,
-		Requests:         requests}
-	cm.RequestCertification() <- req
+		Requests:         requests,
+	}
+
+	// we need to init pacemaker into correct round, otherwise IR validation fails
+	cm.pacemaker.Reset(cm.blockStore.GetHighQc().VoteInfo.RoundNumber)
+	defer cm.pacemaker.Stop()
+
+	require.NoError(t, cm.onPartitionIRChangeReq(&req))
 	// since there is only one root node, it is the next leader, the request will be buffered
-	require.Eventually(t, func() bool {
-		return cm.irReqBuffer.IsChangeInBuffer(p.SystemIdentifier(partitionID))
-	}, test.WaitDuration, test.WaitTick)
+	require.True(t, cm.irReqBuffer.IsChangeInBuffer(p.SystemIdentifier(partitionID)))
 }
 
 func TestIRChangeRequestFromRootValidator_RootTimeoutOnFirstRound(t *testing.T) {
@@ -580,9 +581,9 @@ func Test_rootNetworkRunning(t *testing.T) {
 	require.Eventually(t, func() bool { return cm.pacemaker.GetCurrentRound() >= roundCount }, maxTestDuration, 100*time.Millisecond, "waiting for round %d to be achieved", roundCount)
 	stop := time.Now()
 	// when calculating expected message counts keep in mind that last round might not be complete
-	// ie the test ended before all nodes had a chanche to post their message. so use -1 rounds!
+	// ie the test ended before all nodes had a chance to post their message. so use -1 rounds!
 	// and we start from round 2 so thats another -1 completed rounds.
-	completeRounds := roundCount - 2
+	completeRounds := cm.pacemaker.GetCurrentRound() - 2
 	avgRoundLen := time.Duration(int64(stop.Sub(start)) / int64(completeRounds))
 
 	// output some statistics

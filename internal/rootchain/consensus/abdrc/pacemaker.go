@@ -55,7 +55,7 @@ func NewPacemaker(minRoundLen, maxRoundLen time.Duration) *Pacemaker {
 		minRoundLen:    minRoundLen,
 		maxRoundLen:    maxRoundLen,
 		pendingVotes:   NewVoteRegister(),
-		statusChan:     make(chan paceMakerStatus),
+		statusChan:     make(chan paceMakerStatus, 1),
 		ticker:         time.NewTicker(maxRoundLen),
 		stopRoundClock: func() {},
 	}
@@ -208,7 +208,17 @@ func (x *Pacemaker) startRoundClock(ctx context.Context, minRoundLen, maxRoundLe
 	default:
 	}
 
-	var cancelStatusEvent context.CancelFunc = func() {}
+	cancelStatusEvent := func() {
+		select {
+		case <-x.statusChan:
+		default:
+		}
+	}
+	setStatus := func(status paceMakerStatus) {
+		x.status.Store(uint32(status))
+		x.statusChan <- status
+	}
+
 	for {
 		select {
 		case <-ctx.Done():
@@ -218,34 +228,15 @@ func (x *Pacemaker) startRoundClock(ctx context.Context, minRoundLen, maxRoundLe
 			cancelStatusEvent()
 			switch paceMakerStatus(x.status.Load()) {
 			case pmsRoundInProgress:
-				cancelStatusEvent = x.setStatus(ctx, pmsRoundMatured)
+				setStatus(pmsRoundMatured)
 				x.ticker.Reset(maxRoundLen - minRoundLen)
 			case pmsRoundMatured:
-				cancelStatusEvent = x.setStatus(ctx, pmsRoundTimeout)
+				setStatus(pmsRoundTimeout)
 				x.ticker.Reset(maxRoundLen)
 			case pmsRoundTimeout:
-				cancelStatusEvent = x.setStatus(ctx, pmsRoundTimeout)
+				setStatus(pmsRoundTimeout)
 			}
 		}
-	}
-}
-
-func (x *Pacemaker) setStatus(ctx context.Context, status paceMakerStatus) context.CancelFunc {
-	x.status.Store(uint32(status))
-
-	eventCtx, cancel := context.WithCancel(ctx)
-	done := make(chan struct{})
-	go func() {
-		select {
-		case <-eventCtx.Done():
-		case x.statusChan <- status:
-		}
-		close(done)
-	}()
-
-	return func() {
-		cancel()
-		<-done
 	}
 }
 

@@ -2,6 +2,7 @@ package evm
 
 import (
 	"bytes"
+	"math"
 	"math/big"
 	"testing"
 
@@ -23,13 +24,14 @@ func BenchmarkCallContract(b *testing.B) {
 	fromAddr := common.BytesToAddress(from)
 	stateDB.CreateAccount(fromAddr)
 	stateDB.AddBalance(fromAddr, big.NewInt(1000000000000000000)) // add 1 ETH
-	gasPool := new(core.GasPool).AddGas(blockGasLimit)
+	gasPool := new(core.GasPool).AddGas(math.MaxUint64)
+	gasPrice := big.NewInt(DefaultGasPrice)
 	_, err := execute(1, stateDB, &TxAttributes{
 		From:  fromAddr.Bytes(),
 		Data:  common.Hex2Bytes(counterContractCode),
 		Gas:   10000000,
 		Value: big.NewInt(0),
-	}, systemIdentifier, gasPool)
+	}, systemIdentifier, gasPool, gasPrice)
 	require.NoError(b, err)
 	scAddr := evmcrypto.CreateAddress(common.BytesToAddress(from), 0)
 	cABI, err := abi.JSON(bytes.NewBuffer([]byte(counterABI)))
@@ -45,7 +47,7 @@ func BenchmarkCallContract(b *testing.B) {
 	b.ResetTimer()
 	b.Run("call counter contract", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
-			if _, err := execute(2, stateDB, callContract, systemIdentifier, gasPool); err != nil {
+			if _, err = execute(2, stateDB, callContract, systemIdentifier, gasPool, gasPrice); err != nil {
 				b.Fatal("call transaction failed, %w", err)
 			}
 		}
@@ -68,6 +70,7 @@ func initStateDBWithAccountAndSC(t *testing.T, eoaAddr common.Address, balance u
 func Test_validate(t *testing.T) {
 	state := rma.NewWithSHA256()
 	fromAddr := common.BytesToAddress(test.RandomBytes(20))
+	gasPrice := big.NewInt(DefaultGasPrice)
 	type args struct {
 		stateDB *statedb.StateDB
 		attr    *TxAttributes
@@ -133,13 +136,13 @@ func Test_validate(t *testing.T) {
 					Value: big.NewInt(0),
 					Gas:   10,
 				},
-				stateDB: initStateDBWithAccountAndSC(t, fromAddr, 10*defaultGasPrice),
+				stateDB: initStateDBWithAccountAndSC(t, fromAddr, 10*DefaultGasPrice),
 			},
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := validate(tt.args.stateDB, tt.args.attr)
+			err := validate(tt.args.stateDB, tt.args.attr, gasPrice)
 			if tt.wantErrStr != "" {
 				require.ErrorContains(t, err, tt.wantErrStr)
 			} else {
@@ -152,6 +155,7 @@ func Test_validate(t *testing.T) {
 func Test_execute(t *testing.T) {
 	state := rma.NewWithSHA256()
 	fromAddr := common.BytesToAddress(test.RandomBytes(20))
+	gasPrice := big.NewInt(DefaultGasPrice)
 
 	type args struct {
 		currentBlockNumber uint64
@@ -199,7 +203,7 @@ func Test_execute(t *testing.T) {
 					Gas:   1000,
 				},
 				gp:      new(core.GasPool).AddGas(100),
-				stateDB: initStateDBWithAccountAndSC(t, fromAddr, 1000*defaultGasPrice+1),
+				stateDB: initStateDBWithAccountAndSC(t, fromAddr, 1000*DefaultGasPrice+1),
 			},
 			wantErrStr: "block limit error: gas limit reached",
 		},
@@ -212,7 +216,7 @@ func Test_execute(t *testing.T) {
 					Gas:   1000,
 				},
 				gp:      new(core.GasPool).AddGas(100000),
-				stateDB: initStateDBWithAccountAndSC(t, fromAddr, 1000*defaultGasPrice+1),
+				stateDB: initStateDBWithAccountAndSC(t, fromAddr, 1000*DefaultGasPrice+1),
 			},
 			wantErrStr: "tx intrinsic cost higher than max gas",
 		},
@@ -226,7 +230,7 @@ func Test_execute(t *testing.T) {
 					Gas:   2300,
 				},
 				gp:      new(core.GasPool).AddGas(100000),
-				stateDB: initStateDBWithAccountAndSC(t, fromAddr, 2500*defaultGasPrice),
+				stateDB: initStateDBWithAccountAndSC(t, fromAddr, 2500*DefaultGasPrice),
 			},
 			wantErrStr: "evm runtime error: out of gas",
 		},
@@ -240,13 +244,13 @@ func Test_execute(t *testing.T) {
 					Gas:   53000,
 				},
 				gp:      new(core.GasPool).AddGas(100000),
-				stateDB: initStateDBWithAccountAndSC(t, fromAddr, 53000*defaultGasPrice+1),
+				stateDB: initStateDBWithAccountAndSC(t, fromAddr, 53000*DefaultGasPrice+1),
 			},
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			metadata, err := execute(tt.args.currentBlockNumber, tt.args.stateDB, tt.args.attr, tt.args.systemIdentifier, tt.args.gp)
+			metadata, err := execute(tt.args.currentBlockNumber, tt.args.stateDB, tt.args.attr, tt.args.systemIdentifier, tt.args.gp, gasPrice)
 			if tt.wantErrStr != "" {
 				require.ErrorContains(t, err, tt.wantErrStr)
 				require.Nil(t, metadata)

@@ -212,8 +212,13 @@ func addFees(ctx context.Context, accountNumber uint64, amountString string, c *
 		return err
 	}
 	consoleWriter.Println("Successfully created", amountString, "fee credits on", c.partitionType, "partition.")
-	consoleWriter.Println("Paid", amountToString(proofs[0].TxRecord.ServerMetadata.ActualFee, 8), "fee for transferFC transaction from wallet balance.")
-	consoleWriter.Println("Paid", amountToString(proofs[1].TxRecord.ServerMetadata.ActualFee, 8), "fee for addFC transaction from fee credit balance.")
+	if len(proofs) == 2 {
+		consoleWriter.Println("Paid", amountToString(proofs[0].TxRecord.ServerMetadata.ActualFee, 8), "fee for transferFC transaction from wallet balance.")
+		consoleWriter.Println("Paid", amountToString(proofs[1].TxRecord.ServerMetadata.ActualFee, 8), "fee for addFC transaction from fee credit balance.")
+	} else if len(proofs) == 1 {
+		consoleWriter.Println("Used previously locked unit to create fee credit.")
+		consoleWriter.Println("Paid", amountToString(proofs[0].TxRecord.ServerMetadata.ActualFee, 8), "fee for addFC transaction from fee credit balance.")
+	}
 	return nil
 }
 
@@ -298,8 +303,8 @@ func getFeeCreditManager(c *cliConf, am account.Manager, moneyBackendURL, wallet
 		), nil
 	} else if c.partitionType == vdType {
 		vdClient, err := vdwallet.New(&vdwallet.VDClientConfig{
-			VDNodeURL:         c.getPartitionBackendURL(),
-			WalletHomeDir:     walletHomeDir,
+			VDNodeURL:     c.getPartitionBackendURL(),
+			WalletHomeDir: walletHomeDir,
 		})
 		if err != nil {
 			return nil, err

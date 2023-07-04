@@ -34,6 +34,7 @@ type (
 		GetBills(ownerCondition []byte) ([]*Bill, error)
 		GetBill(unitID []byte) (*Bill, error)
 		GetFeeCreditBill(unitID []byte) (*Bill, error)
+		GetLockedFeeCredit(systemID, fcbID []byte) (*types.TransactionRecord, error)
 		GetRoundNumber(ctx context.Context) (uint64, error)
 		SendTransactions(ctx context.Context, txs []*types.TransactionOrder) map[string]string
 		GetTxProof(unitID sdk.UnitID, txHash sdk.TxHash) (*sdk.Proof, error)
@@ -85,6 +86,8 @@ type (
 		DeleteExpiredBills(blockNumber uint64) error
 		GetFeeCreditBill(unitID []byte) (*Bill, error)
 		SetFeeCreditBill(fcb *Bill, proof *sdk.Proof) error
+		GetLockedFeeCredit(systemID, fcbID []byte) (*types.TransactionRecord, error)
+		SetLockedFeeCredit(systemID, fcbID []byte, txr *types.TransactionRecord) error
 		GetSystemDescriptionRecords() ([]*genesis.SystemDescriptionRecord, error)
 		SetSystemDescriptionRecords(sdrs []*genesis.SystemDescriptionRecord) error
 		GetTxProof(unitID sdk.UnitID, txHash sdk.TxHash) (*sdk.Proof, error)
@@ -250,6 +253,11 @@ func (w *WalletBackend) GetTxProof(unitID sdk.UnitID, txHash sdk.TxHash) (*sdk.P
 // GetFeeCreditBill returns most recently seen fee credit bill with given unit id.
 func (w *WalletBackend) GetFeeCreditBill(unitID []byte) (*Bill, error) {
 	return w.store.Do().GetFeeCreditBill(unitID)
+}
+
+// GetLockedFeeCredit returns most recently seen transferFC transaction for given system ID and fee credit bill ID.
+func (w *WalletBackend) GetLockedFeeCredit(systemID, fcbID []byte) (*types.TransactionRecord, error) {
+	return w.store.Do().GetLockedFeeCredit(systemID, fcbID)
 }
 
 // GetRoundNumber returns latest round number.

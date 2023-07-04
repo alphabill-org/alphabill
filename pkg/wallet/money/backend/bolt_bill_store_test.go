@@ -4,11 +4,12 @@ import (
 	"path/filepath"
 	"testing"
 
-	test "github.com/alphabill-org/alphabill/internal/testutils"
-
 	"github.com/alphabill-org/alphabill/internal/hash"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/internal/script"
+	test "github.com/alphabill-org/alphabill/internal/testutils"
+	"github.com/alphabill-org/alphabill/internal/txsystem/fc/testutils"
+	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/holiman/uint256"
@@ -265,6 +266,30 @@ func TestBillStore_GetSetDeleteDCMetadata(t *testing.T) {
 	deletedMetadata, err := bs.Do().GetDCMetadata(nonce)
 	require.NoError(t, err)
 	require.Nil(t, deletedMetadata)
+}
+
+func TestBillStore_GetSetLockedFeeCredit(t *testing.T) {
+	bs, _ := createTestBillStore(t)
+	systemID := []byte{0, 0, 0, 0}
+	fcbID := test.NewUnitID(1)
+
+	// verify GetLockedFeeCredit no result returns no error
+	lfc, err := bs.Do().GetLockedFeeCredit(systemID, fcbID)
+	require.NoError(t, err)
+	require.Nil(t, lfc)
+
+	// add locked fee credit
+	transferFC := &types.TransactionRecord{
+		TransactionOrder: testutils.NewTransferFC(t, nil),
+		ServerMetadata:   &types.ServerMetadata{ActualFee: 1},
+	}
+	err = bs.Do().SetLockedFeeCredit(systemID, fcbID, transferFC)
+	require.NoError(t, err)
+
+	// verify GetFeeCreditBill is not nil
+	lfc, err = bs.Do().GetLockedFeeCredit(systemID, fcbID)
+	require.NoError(t, err)
+	require.Equal(t, lfc, transferFC)
 }
 
 func createTestBillStore(t *testing.T) (*boltBillStore, error) {

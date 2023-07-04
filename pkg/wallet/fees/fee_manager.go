@@ -1,10 +1,14 @@
 package fees
 
 import (
+	"bytes"
 	"context"
+	"crypto"
 	"errors"
+	"fmt"
 	"sort"
 
+	"github.com/alphabill-org/alphabill/internal/txsystem/fc/transactions"
 	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/alphabill-org/alphabill/pkg/wallet/account"
@@ -13,8 +17,9 @@ import (
 )
 
 const (
-	maxFee              = uint64(1)
-	txTimeoutBlockCount = 10
+	maxFee                        = uint64(1)
+	txTimeoutBlockCount           = 10
+	xPartitionTxTimeoutBlockCount = 60 // one minute to do x-partition tx
 )
 
 type (
@@ -30,6 +35,8 @@ type (
 
 	MoneyClient interface {
 		GetBills(pubKey []byte) ([]*wallet.Bill, error)
+		GetLockedFeeCredit(ctx context.Context, systemID []byte, fcbID []byte) (*types.TransactionRecord, error)
+		GetTxProof(ctx context.Context, unitID wallet.UnitID, txHash wallet.TxHash) (*wallet.Proof, error)
 		PartitionDataProvider
 	}
 
@@ -96,17 +103,97 @@ func NewFeeManager(
 
 // AddFeeCredit creates fee credit for the given amount.
 // Wallet must have a bill large enough for the required amount plus fees.
-// Returns transferFC and addFC transaction proofs.
+// Returns transferFC and/or addFC transaction proofs.
 func (w *FeeManager) AddFeeCredit(ctx context.Context, cmd AddFeeCmd) ([]*wallet.Proof, error) {
 	if err := cmd.isValid(); err != nil {
 		return nil, err
 	}
 
-	// fetch bills
 	accountKey, err := w.am.GetAccountKey(cmd.AccountIndex)
 	if err != nil {
 		return nil, err
 	}
+
+	// fetch fee credit bill
+	fcb, err := w.GetFeeCredit(ctx, GetFeeCreditCmd{AccountIndex: cmd.AccountIndex})
+	if err != nil {
+		return nil, err
+	}
+
+	// fetch user partition round number for timeouts
+	userPartitionRoundNumber, err := w.userPartitionBackendClient.GetRoundNumber(ctx)
+	if err != nil {
+		return nil, err
+	}
+	userPartitionTimeout := userPartitionRoundNumber + xPartitionTxTimeoutBlockCount
+
+	// fetch existing locked credit or create new transfer
+	var proofs []*wallet.Proof
+	transferFCProof, err := w.getExistingTransferFCProof(ctx, accountKey, fcb, userPartitionRoundNumber, cmd.Amount)
+	if err != nil {
+		return nil, err
+	}
+	if transferFCProof == nil {
+		transferFCProof, err = w.sendTransferFC(ctx, cmd, accountKey, fcb, userPartitionRoundNumber, userPartitionTimeout)
+		if err != nil {
+			return nil, err
+		}
+		proofs = append(proofs, transferFCProof) // add transferFC proof only if we create new transferFC
+	}
+
+	// send addFC to user partition
+	log.Info("sending add fee credit transaction")
+	addFCTx, err := txbuilder.NewAddFCTx(accountKey.PrivKeyHash, transferFCProof, accountKey, w.userPartitionSystemID, userPartitionTimeout)
+	if err != nil {
+		return nil, err
+	}
+	addFCProof, err := w.userPartitionTxPublisher.SendTx(ctx, addFCTx, accountKey.PubKey)
+	if err != nil {
+		return nil, err
+	}
+	proofs = append(proofs, addFCProof)
+	return proofs, nil
+}
+
+func (w *FeeManager) getExistingTransferFCProof(ctx context.Context, accountKey *account.AccountKey, fcb *wallet.Bill, userPartitionRoundNumber uint64, amount uint64) (*wallet.Proof, error) {
+	// fetch last transferFC
+	txr, err := w.moneyBackendClient.GetLockedFeeCredit(ctx, w.userPartitionSystemID, accountKey.PrivKeyHash)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch locked fee credit: %w", err)
+	}
+	if txr == nil {
+		return nil, nil
+	}
+	txo := txr.TransactionOrder
+	attr := &transactions.TransferFeeCreditAttributes{}
+	if err = txo.UnmarshalAttributes(attr); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal tx attributes: %w", err)
+	}
+
+	// the transferFC.nonce must match the FeeCreditRecord.Hash i.e. no new AddFC has been confirmed in the meanwhile
+	if !bytes.Equal(attr.Nonce, fcb.GetLastAddFCTxHash()) {
+		return nil, nil
+	}
+	// and the timeout cannot be exceeded
+	if userPartitionRoundNumber < attr.EarliestAdditionTime || userPartitionRoundNumber >= attr.LatestAdditionTime {
+		return nil, nil
+	}
+	// and the amount must match
+	if attr.Amount != amount {
+		return nil, fmt.Errorf("invalid amount: locked fee credit exists for amount %d but user specified %d", attr.Amount, amount)
+	}
+	log.Info(fmt.Sprintf("found existing transferFC: partition=%X earliest=%d latest=%d current=%d nonce=%X lastAddFCTxHash=%X",
+		w.userPartitionSystemID, attr.EarliestAdditionTime, attr.LatestAdditionTime, userPartitionRoundNumber, attr.Nonce, fcb.GetLastAddFCTxHash()))
+
+	transferFCProof, err := w.moneyBackendClient.GetTxProof(ctx, txo.UnitID(), txo.Hash(crypto.SHA256))
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch tx proof: %w", err)
+	}
+	return transferFCProof, nil
+}
+
+func (w *FeeManager) sendTransferFC(ctx context.Context, cmd AddFeeCmd, accountKey *account.AccountKey, fcb *wallet.Bill, userPartitionRoundNumber uint64, userPartitionTimeout uint64) (*wallet.Proof, error) {
+	// fetch bills
 	bills, err := w.moneyBackendClient.GetBills(accountKey.PubKey)
 	if err != nil {
 		return nil, err
@@ -122,22 +209,6 @@ func (w *FeeManager) AddFeeCredit(ctx context.Context, cmd AddFeeCmd) ([]*wallet
 	billToTransfer := bills[0]
 	if billToTransfer.Value < cmd.Amount+maxFee {
 		return nil, errors.New("wallet does not have a bill large enough for fee transfer")
-	}
-
-	// fetch fee credit bill
-	fcb, err := w.GetFeeCredit(ctx, GetFeeCreditCmd{AccountIndex: cmd.AccountIndex})
-	if err != nil {
-		return nil, err
-	}
-
-	// fetch user partition round number for timeouts
-	userPartitionRoundNumber, err := w.userPartitionBackendClient.GetRoundNumber(ctx)
-	if err != nil {
-		return nil, err
-	}
-	userPartitionTimeout := userPartitionRoundNumber + txTimeoutBlockCount
-	if err != nil {
-		return nil, err
 	}
 
 	// fetch money round number for timeouts
@@ -156,22 +227,7 @@ func (w *FeeManager) AddFeeCredit(ctx context.Context, cmd AddFeeCmd) ([]*wallet
 	if err != nil {
 		return nil, err
 	}
-	transferFCProof, err := w.moneyTxPublisher.SendTx(ctx, tx, accountKey.PubKey)
-	if err != nil {
-		return nil, err
-	}
-
-	// send addFC to user partition
-	log.Info("sending add fee credit transaction")
-	addFCTx, err := txbuilder.NewAddFCTx(accountKey.PrivKeyHash, transferFCProof, accountKey, w.userPartitionSystemID, userPartitionTimeout)
-	if err != nil {
-		return nil, err
-	}
-	addFCProof, err := w.userPartitionTxPublisher.SendTx(ctx, addFCTx, accountKey.PubKey)
-	if err != nil {
-		return nil, err
-	}
-	return []*wallet.Proof{transferFCProof, addFCProof}, err
+	return w.moneyTxPublisher.SendTx(ctx, tx, accountKey.PubKey)
 }
 
 // ReclaimFeeCredit reclaims fee credit.
@@ -188,10 +244,7 @@ func (w *FeeManager) ReclaimFeeCredit(ctx context.Context, cmd ReclaimFeeCmd) ([
 	if err != nil {
 		return nil, err
 	}
-	userPartitionTimeout := userPartitionRoundNumber + txTimeoutBlockCount
-	if err != nil {
-		return nil, err
-	}
+	userPartitionTimeout := userPartitionRoundNumber + xPartitionTxTimeoutBlockCount
 
 	// fetch fee credit bill
 	fcb, err := w.GetFeeCredit(ctx, GetFeeCreditCmd{AccountIndex: cmd.AccountIndex})
@@ -233,9 +286,6 @@ func (w *FeeManager) ReclaimFeeCredit(ctx context.Context, cmd ReclaimFeeCmd) ([
 		return nil, err
 	}
 	moneyTimeout := moneyRoundNumber + txTimeoutBlockCount
-	if err != nil {
-		return nil, err
-	}
 
 	// send reclaimFC tx to money partition
 	log.Info("sending reclaim fee credit transaction")

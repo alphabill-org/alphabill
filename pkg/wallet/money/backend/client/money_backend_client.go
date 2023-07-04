@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -13,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/alphabill-org/alphabill/pkg/wallet/money/backend"
 	"github.com/ethereum/go-ethereum/common/hexutil"
@@ -24,18 +24,20 @@ type (
 		BaseUrl    string
 		HttpClient http.Client
 
-		feeCreditBillURL *url.URL
-		transactionsURL  *url.URL
+		feeCreditBillURL   *url.URL
+		lockedFeeCreditURL *url.URL
+		transactionsURL    *url.URL
 	}
 )
 
 const (
-	BalancePath      = "api/v1/balance"
-	ListBillsPath    = "api/v1/list-bills"
-	ProofPath        = "api/v1/units/{unitId}/transactions/{txHash}/proof"
-	RoundNumberPath  = "api/v1/round-number"
-	FeeCreditPath    = "api/v1/fee-credit-bills"
-	TransactionsPath = "api/v1/transactions"
+	BalancePath         = "api/v1/balance"
+	ListBillsPath       = "api/v1/list-bills"
+	ProofPath           = "api/v1/units/{unitId}/transactions/{txHash}/proof"
+	RoundNumberPath     = "api/v1/round-number"
+	FeeCreditPath       = "api/v1/fee-credit-bills"
+	LockedFeeCreditPath = "api/v1/locked-fee-credit"
+	TransactionsPath    = "api/v1/transactions"
 
 	balanceUrlFormat     = "%v/%v?pubkey=%v&includedcbills=%v"
 	listBillsUrlFormat   = "%v/%v?pubkey=%v&includedcbills=%v&includedcmetadata=%v"
@@ -47,10 +49,6 @@ const (
 	applicationCbor = "application/cbor"
 )
 
-var (
-	ErrMissingFeeCreditBill = errors.New("fee credit bill does not exist")
-)
-
 func New(baseUrl string) (*MoneyBackendClient, error) {
 	if !strings.HasPrefix(baseUrl, "http://") && !strings.HasPrefix(baseUrl, "https://") {
 		baseUrl = defaultScheme + baseUrl
@@ -60,10 +58,11 @@ func New(baseUrl string) (*MoneyBackendClient, error) {
 		return nil, fmt.Errorf("error parsing Money Backend Client base URL (%s): %w", baseUrl, err)
 	}
 	return &MoneyBackendClient{
-		BaseUrl:          u.String(),
-		HttpClient:       http.Client{Timeout: time.Minute},
-		feeCreditBillURL: u.JoinPath(FeeCreditPath),
-		transactionsURL:  u.JoinPath(TransactionsPath),
+		BaseUrl:            u.String(),
+		HttpClient:         http.Client{Timeout: time.Minute},
+		feeCreditBillURL:   u.JoinPath(FeeCreditPath),
+		lockedFeeCreditURL: u.JoinPath(LockedFeeCreditPath),
+		transactionsURL:    u.JoinPath(TransactionsPath),
 	}, nil
 }
 
@@ -180,6 +179,41 @@ func (c *MoneyBackendClient) GetFeeCreditBill(_ context.Context, unitID wallet.U
 		return nil, fmt.Errorf("failed to unmarshall get fee credit bill response data: %w", err)
 	}
 	return &res, nil
+}
+
+func (c *MoneyBackendClient) GetLockedFeeCredit(_ context.Context, systemID []byte, fcbID []byte) (*types.TransactionRecord, error) {
+	urlPath := c.lockedFeeCreditURL.
+		JoinPath(hexutil.Encode(systemID)).
+		JoinPath(hexutil.Encode(fcbID)).
+		String()
+	req, err := http.NewRequest(http.MethodGet, urlPath, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to build get locked fee credit request: %w", err)
+	}
+	req.Header.Set(contentType, applicationJson)
+
+	response, err := c.HttpClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("request get locked fee credit failed: %w", err)
+	}
+	if response.StatusCode != http.StatusOK {
+		if response.StatusCode == http.StatusNotFound {
+			return nil, nil
+		}
+		responseStr, _ := httputil.DumpResponse(response, true)
+		return nil, fmt.Errorf("unexpected response: %s", responseStr)
+	}
+
+	responseData, err := io.ReadAll(response.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read get locked fee credit response: %w", err)
+	}
+	var res *types.TransactionRecord
+	err = json.Unmarshal(responseData, &res)
+	if err != nil {
+		return nil, fmt.Errorf("failed to unmarshall get locked fee credit response data: %w", err)
+	}
+	return res, nil
 }
 
 func (c *MoneyBackendClient) PostTransactions(ctx context.Context, pubKey wallet.PubKey, txs *wallet.Transactions) error {

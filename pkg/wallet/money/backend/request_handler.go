@@ -74,6 +74,7 @@ func (api *moneyRestAPI) Router() *mux.Router {
 	apiV1.HandleFunc("/units/{unitId}/transactions/{txHash}/proof", api.getTxProof).Methods("GET", "OPTIONS")
 	apiV1.HandleFunc("/round-number", api.blockHeightFunc).Methods("GET", "OPTIONS")
 	apiV1.HandleFunc("/fee-credit-bills/{billId}", api.getFeeCreditBillFunc).Methods("GET", "OPTIONS")
+	apiV1.HandleFunc("/locked-fee-credit/{systemId}/{billId}", api.getLockedFeeCreditFunc).Methods("GET", "OPTIONS")
 	apiV1.HandleFunc("/transactions/{pubkey}", api.postTransactions).Methods("POST", "OPTIONS")
 
 	apiV1.PathPrefix("/swagger/").Handler(httpSwagger.Handler(
@@ -367,6 +368,41 @@ func (api *moneyRestAPI) postTransactions(w http.ResponseWriter, r *http.Request
 		return
 	}
 	w.WriteHeader(http.StatusAccepted)
+}
+
+// @Summary Returns last seen transferFC transaction for given partition and fee credit bill
+// @Id 7
+// @version 1.0
+// @produce application/json
+// @Param systemId path string true "Target Fee Credit System ID of the TransferFC transaction (hex)"
+// @Param billId path string true "Target fee credit bill ID (hex)"
+// @Success 200 {object} wallet
+// @Router /locked-fee-credit/{systemId}/{billId} [get]
+func (api *moneyRestAPI) getLockedFeeCreditFunc(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	systemID, err := sdk.ParseHex[sdk.UnitID](vars["systemId"], true)
+	if err != nil {
+		log.Debug("error parsing GET /locked-fee-credit request systemId param: ", err)
+		api.rw.InvalidParamResponse(w, "systemId", err)
+		return
+	}
+	fcbID, err := sdk.ParseHex[sdk.UnitID](vars["billId"], true)
+	if err != nil {
+		log.Debug("error parsing GET /fee-credit-bills request billId param: ", err)
+		api.rw.InvalidParamResponse(w, "billId", err)
+		return
+	}
+	lfc, err := api.Service.GetLockedFeeCredit(systemID, fcbID)
+	if err != nil {
+		log.Error("error on GET /locked-fee-credit: ", err)
+		api.rw.WriteErrorResponse(w, err)
+		return
+	}
+	if lfc == nil {
+		api.rw.ErrorResponse(w, http.StatusNotFound, errors.New("locked fee credit does not exist"))
+		return
+	}
+	api.rw.WriteResponse(w, lfc)
 }
 
 func parsePubKeyQueryParam(r *http.Request) ([]byte, error) {

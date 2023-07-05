@@ -34,7 +34,7 @@ type (
 		_ struct{} `cbor:",toarray"`
 
 		Amount       uint64 // current balance of the fee credit record
-		TargetUnitID []byte // unit id of the fee credit record in money partition
+		TargetUnitID []byte // target unit id in money partition
 		Nonce        []byte // the current state hash of the target unit in money partition
 	}
 

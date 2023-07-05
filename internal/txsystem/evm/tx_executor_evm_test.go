@@ -105,6 +105,18 @@ func Test_validate(t *testing.T) {
 			wantErrStr: "invalid evm tx, value is nil",
 		},
 		{
+			name: "err - invalid negative value",
+			args: args{
+				attr: &TxAttributes{
+					From:  fromAddr.Bytes(),
+					Value: big.NewInt(-2),
+					Gas:   0,
+				},
+				stateDB: statedb.NewStateDB(state),
+			},
+			wantErrStr: "invalid evm tx, value is negative",
+		},
+		{
 			name: "err - from address is account with code",
 			args: args{
 				attr: &TxAttributes{
@@ -114,7 +126,7 @@ func Test_validate(t *testing.T) {
 				},
 				stateDB: initStateDBWithAccountAndSC(t, fromAddr, 1000000000000),
 			},
-			wantErrStr: ErrSenderNotEOA.Error(),
+			wantErrStr: errSenderNotEOA.Error(),
 		},
 		{
 			name: "err - insufficient funds",
@@ -126,7 +138,7 @@ func Test_validate(t *testing.T) {
 				},
 				stateDB: initStateDBWithAccountAndSC(t, fromAddr, 10),
 			},
-			wantErrStr: ErrInsufficientFunds.Error(),
+			wantErrStr: errInsufficientFunds.Error(),
 		},
 		{
 			name: "ok - exact amount",
@@ -192,7 +204,7 @@ func Test_execute(t *testing.T) {
 				},
 				stateDB: initStateDBWithAccountAndSC(t, fromAddr, 1000000),
 			},
-			wantErrStr: ErrInsufficientFunds.Error(),
+			wantErrStr: errInsufficientFunds.Error(),
 		},
 		{
 			name: "err - block gas limit reached",
@@ -233,6 +245,33 @@ func Test_execute(t *testing.T) {
 				stateDB: initStateDBWithAccountAndSC(t, fromAddr, 2500*DefaultGasPrice),
 			},
 			wantErrStr: "evm runtime error: out of gas",
+		},
+		{
+			name: "err - not enough funds for transfer",
+			args: args{
+				attr: &TxAttributes{
+					From:  fromAddr.Bytes(),
+					To:    test.RandomBytes(20),
+					Value: big.NewInt(10),
+					Gas:   0,
+				},
+				gp:      new(core.GasPool).AddGas(100),
+				stateDB: initStateDBWithAccountAndSC(t, fromAddr, 1),
+			},
+			wantErrStr: "insufficient funds for transfer",
+		},
+		{
+			name: "ok - transfer to unknown recipient address",
+			args: args{
+				attr: &TxAttributes{
+					From:  fromAddr.Bytes(),
+					To:    test.RandomBytes(20),
+					Value: big.NewInt(10),
+					Gas:   0,
+				},
+				gp:      new(core.GasPool).AddGas(100),
+				stateDB: initStateDBWithAccountAndSC(t, fromAddr, 100),
+			},
 		},
 		{
 			name: "ok",

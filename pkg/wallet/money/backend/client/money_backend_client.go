@@ -13,7 +13,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/alphabill-org/alphabill/pkg/wallet"
+	sdk "github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/alphabill-org/alphabill/pkg/wallet/money/backend"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/fxamacker/cbor/v2"
@@ -32,6 +32,7 @@ type (
 const (
 	BalancePath      = "api/v1/balance"
 	ListBillsPath    = "api/v1/list-bills"
+	TxHistoryPath    = "api/v1/tx-history"
 	ProofPath        = "api/v1/units/{unitId}/transactions/{txHash}/proof"
 	RoundNumberPath  = "api/v1/round-number"
 	FeeCreditPath    = "api/v1/fee-credit-bills"
@@ -112,12 +113,12 @@ func (c *MoneyBackendClient) ListBills(pubKey []byte, includeDCBills, includeDCM
 	return finalResponse, nil
 }
 
-func (c *MoneyBackendClient) GetBills(pubKey []byte) ([]*wallet.Bill, error) {
+func (c *MoneyBackendClient) GetBills(pubKey []byte) ([]*sdk.Bill, error) {
 	bills, err := c.ListBills(pubKey, false, false)
 	if err != nil {
 		return nil, err
 	}
-	var res []*wallet.Bill
+	var res []*sdk.Bill
 	for _, b := range bills.Bills {
 		res = append(res, b.ToGenericBill())
 	}
@@ -150,7 +151,7 @@ func (c *MoneyBackendClient) GetRoundNumber(_ context.Context) (uint64, error) {
 	return responseObject.RoundNumber, nil
 }
 
-func (c *MoneyBackendClient) GetFeeCreditBill(_ context.Context, unitID wallet.UnitID) (*wallet.Bill, error) {
+func (c *MoneyBackendClient) GetFeeCreditBill(_ context.Context, unitID sdk.UnitID) (*sdk.Bill, error) {
 	urlPath := c.feeCreditBillURL.JoinPath(hexutil.Encode(unitID)).String()
 	req, err := http.NewRequest(http.MethodGet, urlPath, nil)
 	if err != nil {
@@ -174,7 +175,7 @@ func (c *MoneyBackendClient) GetFeeCreditBill(_ context.Context, unitID wallet.U
 	if err != nil {
 		return nil, fmt.Errorf("failed to read get credit bill response: %w", err)
 	}
-	var res wallet.Bill
+	var res sdk.Bill
 	err = json.Unmarshal(responseData, &res)
 	if err != nil {
 		return nil, fmt.Errorf("failed to unmarshall get fee credit bill response data: %w", err)
@@ -182,7 +183,7 @@ func (c *MoneyBackendClient) GetFeeCreditBill(_ context.Context, unitID wallet.U
 	return &res, nil
 }
 
-func (c *MoneyBackendClient) PostTransactions(ctx context.Context, pubKey wallet.PubKey, txs *wallet.Transactions) error {
+func (c *MoneyBackendClient) PostTransactions(ctx context.Context, pubKey sdk.PubKey, txs *sdk.Transactions) error {
 	b, err := cbor.Marshal(txs)
 	if err != nil {
 		return fmt.Errorf("failed to encode transactions: %w", err)
@@ -205,7 +206,7 @@ func (c *MoneyBackendClient) PostTransactions(ctx context.Context, pubKey wallet
 }
 
 // GetTxProof wrapper for GetProof method to satisfy txsubmitter interface, also verifies txHash
-func (c *MoneyBackendClient) GetTxProof(_ context.Context, unitID wallet.UnitID, txHash wallet.TxHash) (*wallet.Proof, error) {
+func (c *MoneyBackendClient) GetTxProof(_ context.Context, unitID sdk.UnitID, txHash sdk.TxHash) (*sdk.Proof, error) {
 	req, err := http.NewRequest(http.MethodGet, fmt.Sprintf("%s/api/v1/units/0x%x/transactions/0x%x/proof", c.BaseUrl, unitID, txHash), nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to build get tx proof request: %w", err)
@@ -225,7 +226,7 @@ func (c *MoneyBackendClient) GetTxProof(_ context.Context, unitID wallet.UnitID,
 		return nil, fmt.Errorf("failed to read GetTxProof response: %w", err)
 	}
 
-	var proof *wallet.Proof
+	var proof *sdk.Proof
 	err = cbor.Unmarshal(responseData, &proof)
 	if err != nil {
 		return nil, fmt.Errorf("failed to unmarshall GetTxProof response data: %w", err)
@@ -233,10 +234,49 @@ func (c *MoneyBackendClient) GetTxProof(_ context.Context, unitID wallet.UnitID,
 	return proof, nil
 }
 
+func (c *MoneyBackendClient) GetTxHistory(_ context.Context, pubKey sdk.PubKey, offset string, limit int) ([]*sdk.TxHistoryRecord, string, error) {
+	addr, err := url.Parse(c.BaseUrl)
+	if err != nil {
+		return nil, "", fmt.Errorf("failed to parse base url: %w", err)
+	}
+	u := sdk.GetURL(*addr, TxHistoryPath, hexutil.Encode(pubKey))
+	sdk.SetPaginationParams(u, offset, limit)
+
+	req, err := http.NewRequest(http.MethodGet, u.String(), nil)
+	if err != nil {
+		return nil, "", fmt.Errorf("failed to build get tx proof request: %w", err)
+	}
+	response, err := c.HttpClient.Do(req)
+	if err != nil {
+		return nil, "", fmt.Errorf("request GetTxProof failed: %w", err)
+	}
+	if response.StatusCode == http.StatusNotFound {
+		return nil, "", nil
+	}
+	if response.StatusCode != http.StatusOK {
+		return nil, "", fmt.Errorf("unexpected response status code: %d", response.StatusCode)
+	}
+	responseData, err := io.ReadAll(response.Body)
+	if err != nil {
+		return nil, "", fmt.Errorf("failed to read GetTxProof response: %w", err)
+	}
+	var result []*sdk.TxHistoryRecord
+	err = cbor.Unmarshal(responseData, &result)
+	if err != nil {
+		return nil, "", fmt.Errorf("failed to unmarshall GetTxProof response data: %w", err)
+	}
+
+	pm, err := sdk.ExtractOffsetMarker(response)
+	if err != nil {
+		return nil, "", fmt.Errorf("failed to extract position marker: %w", err)
+	}
+	return result, pm, nil
+}
+
 func (c *MoneyBackendClient) retrieveBills(pubKey []byte, includeDCBills, includeDCMetadata bool, offset int) (*backend.ListBillsResponse, error) {
 	reqUrl := fmt.Sprintf(listBillsUrlFormat, c.BaseUrl, ListBillsPath, hexutil.Encode(pubKey), includeDCBills, includeDCMetadata)
 	if offset > 0 {
-		reqUrl = fmt.Sprintf("%v&%s=%v", reqUrl, wallet.QueryParamOffsetKey, offset)
+		reqUrl = fmt.Sprintf("%v&%s=%v", reqUrl, sdk.QueryParamOffsetKey, offset)
 	}
 	req, err := http.NewRequest(http.MethodGet, reqUrl, nil)
 	if err != nil {

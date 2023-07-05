@@ -2,6 +2,7 @@ package backend
 
 import (
 	"context"
+	"crypto"
 	"encoding/hex"
 	"fmt"
 	"math/rand"
@@ -38,7 +39,8 @@ type (
 		SendTransactions(ctx context.Context, txs []*types.TransactionOrder) map[string]string
 		GetTxProof(unitID sdk.UnitID, txHash sdk.TxHash) (*sdk.Proof, error)
 		GetDCMetadata(nonce []byte) (*DCMetadata, error)
-		StoreDCMetadata(txs []*types.TransactionOrder) error
+		HandleTransactionsSubmission(egp *errgroup.Group, sender sdk.PubKey, txs []*types.TransactionOrder)
+		GetTxHistoryRecords(hash sdk.PubKeyHash, dbStartKey []byte, count int) ([]*sdk.TxHistoryRecord, []byte, error)
 	}
 
 	WalletBackend struct {
@@ -292,7 +294,77 @@ func (w *WalletBackend) SendTransactions(ctx context.Context, txs []*types.Trans
 	return errs
 }
 
-func (w *WalletBackend) StoreDCMetadata(txs []*types.TransactionOrder) error {
+func (w *WalletBackend) GetTxHistoryRecords(hash sdk.PubKeyHash, dbStartKey []byte, count int) ([]*sdk.TxHistoryRecord, []byte, error) {
+	return w.store.Do().GetTxHistoryRecords(hash, dbStartKey, count)
+}
+
+func (w *WalletBackend) HandleTransactionsSubmission(egp *errgroup.Group, sender sdk.PubKey, txs []*types.TransactionOrder) {
+	egp.Go(func() error { return w.storeDCMetadata(txs) })
+	egp.Go(func() error { return w.storeIncomingTransactions(sender, txs) })
+}
+
+func (w *WalletBackend) storeIncomingTransactions(sender sdk.PubKey, txs []*types.TransactionOrder) error {
+	for _, tx := range txs {
+		var newOwner sdk.Predicate
+		switch tx.PayloadType() {
+		case money.PayloadTypeTransfer:
+			attrs := &money.TransferAttributes{}
+			err := tx.UnmarshalAttributes(attrs)
+			if err != nil {
+				return err
+			}
+			newOwner = attrs.NewBearer
+		case money.PayloadTypeSplit:
+			attrs := &money.SplitAttributes{}
+			err := tx.UnmarshalAttributes(attrs)
+			if err != nil {
+				return err
+			}
+			newOwner = attrs.TargetBearer
+		default:
+			continue
+		}
+
+		_, bearer := extractOwnerFromP2pkh(newOwner)
+		rec := &sdk.TxHistoryRecord{
+			UnitID:       tx.UnitID(),
+			TxHash:       tx.Hash(crypto.SHA256),
+			Timeout:      tx.Timeout(),
+			State:        sdk.UNCONFIRMED,
+			Kind:         sdk.OUTGOING,
+			CounterParty: bearer,
+		}
+		if err := w.store.Do().StoreTxHistoryRecord(sender.Hash(), rec); err != nil {
+			return fmt.Errorf("failed to store tx history record: %w", err)
+		}
+	}
+	return nil
+}
+
+// extractOwnerFromP2pkh extracts owner from p2pkh predicate.
+func extractOwnerFromP2pkh(bearer sdk.Predicate) (bool, sdk.Predicate) {
+	// p2pkh owner predicate must be 10 + (32 or 64) (SHA256 or SHA512) bytes long
+	if len(bearer) != 42 && len(bearer) != 74 {
+		return false, bearer
+	}
+	// 6th byte is HashAlgo 0x01 or 0x02 for SHA256 and SHA512 respectively
+	hashAlgo := bearer[5]
+	if hashAlgo == script.HashAlgSha256 {
+		return true, bearer[6:38]
+	} else if hashAlgo == script.HashAlgSha512 {
+		return true, bearer[6:70]
+	}
+	return false, bearer
+}
+
+func extractOwnerFromProof(signature sdk.Predicate) (bool, sdk.PubKey) {
+	if len(signature) == 101 && signature[67] == script.OpPushPubKey && signature[68] == script.SigSchemeSecp256k1 {
+		return true, sdk.PubKey(signature[69:101])
+	}
+	return false, nil
+}
+
+func (w *WalletBackend) storeDCMetadata(txs []*types.TransactionOrder) error {
 	dcMetadataMap := make(map[string]*DCMetadata)
 	for _, tx := range txs {
 		if tx.PayloadType() == money.PayloadTypeTransDC {

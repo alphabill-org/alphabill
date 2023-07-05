@@ -45,15 +45,23 @@ type (
 		_            struct{} `cbor:",toarray"`
 		UnitID       UnitID
 		TxHash       TxHash
-		CounterParty PubKeyHash
-		Confirmed    bool
+		CounterParty []byte
+		Timeout      uint64
+		State        TxHistoryRecordState
 		Kind         TxHistoryRecordKind
 	}
 
-	TxHistoryRecordKind uint8
+	TxHistoryRecordState byte
+	TxHistoryRecordKind  byte
 )
 
 const (
 	OUTGOING TxHistoryRecordKind = iota
 	INCOMING
+)
+
+const (
+	UNCONFIRMED TxHistoryRecordState = iota
+	CONFIRMED
+	FAILED
 )

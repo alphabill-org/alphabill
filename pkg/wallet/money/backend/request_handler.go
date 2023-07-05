@@ -71,6 +71,7 @@ func (api *moneyRestAPI) Router() *mux.Router {
 	apiV1 := apiRouter.PathPrefix("/v1").Subrouter()
 	apiV1.HandleFunc("/list-bills", api.listBillsFunc).Methods("GET", "OPTIONS")
 	apiV1.HandleFunc("/balance", api.balanceFunc).Methods("GET", "OPTIONS")
+	apiV1.HandleFunc("/tx-history/{pubkey}", api.txHistoryFunc).Methods("GET", "OPTIONS")
 	apiV1.HandleFunc("/units/{unitId}/transactions/{txHash}/proof", api.getTxProof).Methods("GET", "OPTIONS")
 	apiV1.HandleFunc("/round-number", api.blockHeightFunc).Methods("GET", "OPTIONS")
 	apiV1.HandleFunc("/fee-credit-bills/{billId}", api.getFeeCreditBillFunc).Methods("GET", "OPTIONS")
@@ -177,6 +178,36 @@ func (api *moneyRestAPI) listBillsFunc(w http.ResponseWriter, r *http.Request) {
 	}
 	billVMs := toBillVMList(filteredBills)
 	api.rw.WriteResponse(w, &ListBillsResponse{Bills: billVMs[offset : offset+limit], Total: len(billVMs), DCMetadata: dcMetadataMap})
+}
+
+func (api *moneyRestAPI) txHistoryFunc(w http.ResponseWriter, r *http.Request) {
+	pk, err := parsePubKeyQueryParam(r)
+	if err != nil {
+		log.Debug("error parsing GET /balance request: ", err)
+		api.rw.InvalidParamResponse(w, "pubkey", err)
+		return
+	}
+	qp := r.URL.Query()
+	startKey, err := sdk.ParseHex[[]byte](qp.Get(sdk.QueryParamOffsetKey), false)
+	if err != nil {
+		api.rw.InvalidParamResponse(w, sdk.QueryParamOffsetKey, err)
+		return
+	}
+
+	limit, err := sdk.ParseMaxResponseItems(qp.Get(sdk.QueryParamLimit), api.ListBillsPageLimit)
+	if err != nil {
+		api.rw.InvalidParamResponse(w, sdk.QueryParamLimit, err)
+		return
+	}
+	recs, nextKey, err := api.Service.GetTxHistoryRecords(pk.Hash(), startKey, limit)
+	if err != nil {
+		log.Error("error on GET /tx-history: ", err)
+		api.rw.WriteErrorResponse(w, fmt.Errorf("error on GET /tx-history: %w", err))
+		return
+	}
+
+	sdk.SetLinkHeader(r.URL, w, sdk.EncodeHex(nextKey))
+	api.rw.WriteCborResponse(w, recs)
 }
 
 // @Summary Get balance
@@ -334,7 +365,7 @@ func (api *moneyRestAPI) postTransactions(w http.ResponseWriter, r *http.Request
 	}
 
 	vars := mux.Vars(r)
-	_, err = sdk.DecodePubKeyHex(vars["pubkey"])
+	senderPubkey, err := sdk.DecodePubKeyHex(vars["pubkey"])
 	if err != nil {
 		api.rw.InvalidParamResponse(w, "pubkey", fmt.Errorf("failed to parse sender pubkey: %w", err))
 		return
@@ -351,9 +382,7 @@ func (api *moneyRestAPI) postTransactions(w http.ResponseWriter, r *http.Request
 	}
 
 	egp, _ := errgroup.WithContext(r.Context())
-	egp.Go(func() error {
-		return api.Service.StoreDCMetadata(txs.Transactions)
-	})
+	api.Service.HandleTransactionsSubmission(egp, senderPubkey, txs.Transactions)
 
 	if errs := api.Service.SendTransactions(r.Context(), txs.Transactions); len(errs) > 0 {
 		w.WriteHeader(http.StatusInternalServerError)
@@ -369,7 +398,7 @@ func (api *moneyRestAPI) postTransactions(w http.ResponseWriter, r *http.Request
 	w.WriteHeader(http.StatusAccepted)
 }
 
-func parsePubKeyQueryParam(r *http.Request) ([]byte, error) {
+func parsePubKeyQueryParam(r *http.Request) (sdk.PubKey, error) {
 	return sdk.DecodePubKeyHex(r.URL.Query().Get("pubkey"))
 }
 

@@ -7,9 +7,11 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"strconv"
 	"strings"
 	"testing"
 
+	test "github.com/alphabill-org/alphabill/internal/testutils"
 	sdk "github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/fxamacker/cbor/v2"
@@ -65,6 +67,52 @@ func TestListBillsWithPaging(t *testing.T) {
 	require.EqualValues(t, 13, billsResponse.Total)
 	b, _ := base64.StdEncoding.DecodeString(billId)
 	require.EqualValues(t, b, billsResponse.Bills[0].Id)
+}
+
+func TestTxHistoryWithPaging(t *testing.T) {
+	limit := 2
+	offset := "foo"
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !strings.HasPrefix(r.URL.Path, "/"+TxHistoryPath) {
+			t.Errorf("Expected to request '%v', got: %s", TxHistoryPath, r.URL.Path)
+			w.WriteHeader(http.StatusBadRequest)
+		} else {
+			require.Equal(t, r.URL.Query().Get(sdk.QueryParamOffsetKey), offset)
+			require.Equal(t, r.URL.Query().Get(sdk.QueryParamLimit), strconv.Itoa(limit))
+			w.WriteHeader(http.StatusOK)
+			w.Header().Set(sdk.ContentType, sdk.ApplicationCbor)
+			res := []*sdk.TxHistoryRecord{
+				{
+					TxHash: test.RandomBytes(32),
+					UnitID: test.RandomBytes(32),
+					Kind:   sdk.INCOMING,
+				},
+				{
+					TxHash: test.RandomBytes(32),
+					UnitID: test.RandomBytes(32),
+					Kind:   sdk.OUTGOING,
+				},
+			}
+			bytes, err := cbor.Marshal(res)
+			require.NoError(t, err)
+			_, _ = w.Write(bytes)
+		}
+	}))
+
+	serverAddress, _ := url.Parse(server.URL)
+
+	defer server.Close()
+
+	pubKey, err := hexutil.Decode(pubKeyHex)
+	require.NoError(t, err)
+	restClient, err := New(serverAddress.Host)
+	require.NoError(t, err)
+
+	historyResponse, offset, err := restClient.GetTxHistory(context.Background(), pubKey, offset, limit)
+	require.NoError(t, err)
+	require.Equal(t, "", offset)
+	require.Len(t, historyResponse, 2)
 }
 
 func TestGetTxProof(t *testing.T) {

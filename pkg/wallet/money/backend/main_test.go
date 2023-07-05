@@ -196,7 +196,7 @@ func TestStoreDCMetadata_OK(t *testing.T) {
 
 	// call store metadata on txs
 	service := &WalletBackend{store: store}
-	err = service.StoreDCMetadata([]*types.TransactionOrder{tx1, tx2, tx3})
+	err = service.storeDCMetadata([]*types.TransactionOrder{tx1, tx2, tx3})
 	require.NoError(t, err)
 
 	// verify metadata for both nonces is correct
@@ -212,4 +212,13 @@ func TestStoreDCMetadata_OK(t *testing.T) {
 	require.Equal(t, tx3Value, dcMetadata2.DCSum)
 	require.Len(t, dcMetadata2.BillIdentifiers, 1)
 	require.Contains(t, dcMetadata2.BillIdentifiers, tx3.UnitID())
+}
+
+func Test_extractOwnerFromProof(t *testing.T) {
+	sig := test.RandomBytes(64)
+	pubkey := test.RandomBytes(32)
+	predicate := script.PredicateArgumentPayToPublicKeyHashDefault(sig, pubkey)
+	b, owner := extractOwnerFromProof(predicate)
+	require.True(t, b)
+	require.EqualValues(t, pubkey, owner)
 }

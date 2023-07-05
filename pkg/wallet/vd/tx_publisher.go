@@ -15,7 +15,7 @@ const (
 
 type (
 	TxPublisher struct {
-		vdClient    *VDClient
+		vdClient *VDClient
 	}
 
 	// A single use backend that records the round number before each send
@@ -34,7 +34,7 @@ func NewTxPublisher(vdClient *VDClient) *TxPublisher {
 
 func (w *TxPublisher) SendTx(ctx context.Context, tx *types.TransactionOrder, senderPubKey []byte) (*wallet.Proof, error) {
 	vdBackend := &VDBackend{
-		vdClient: w.vdClient,
+		vdClient:  w.vdClient,
 		txTimeout: tx.Timeout(),
 	}
 	txSub := &txsubmitter.TxSubmission{
@@ -73,5 +73,5 @@ func (v *VDBackend) PostTransactions(ctx context.Context, pubKey wallet.PubKey, 
 }
 
 func (v *VDBackend) GetTxProof(ctx context.Context, unitID wallet.UnitID, txHash wallet.TxHash) (*wallet.Proof, error) {
-	return v.vdClient.GetTxProof(ctx, unitID, txHash, v.startRoundNumber, v.txTimeout)
+	return v.vdClient.GetTxProofFromBlock(ctx, unitID, txHash, v.startRoundNumber, v.txTimeout)
 }

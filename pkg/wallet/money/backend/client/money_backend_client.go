@@ -206,8 +206,8 @@ func (c *MoneyBackendClient) PostTransactions(ctx context.Context, pubKey sdk.Pu
 }
 
 // GetTxProof wrapper for GetProof method to satisfy txsubmitter interface, also verifies txHash
-func (c *MoneyBackendClient) GetTxProof(_ context.Context, unitID sdk.UnitID, txHash sdk.TxHash) (*sdk.Proof, error) {
-	req, err := http.NewRequest(http.MethodGet, fmt.Sprintf("%s/api/v1/units/0x%x/transactions/0x%x/proof", c.BaseUrl, unitID, txHash), nil)
+func (c *MoneyBackendClient) GetTxProof(ctx context.Context, unitID sdk.UnitID, txHash sdk.TxHash) (*sdk.Proof, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, fmt.Sprintf("%s/api/v1/units/0x%x/transactions/0x%x/proof", c.BaseUrl, unitID, txHash), nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to build get tx proof request: %w", err)
 	}
@@ -234,7 +234,7 @@ func (c *MoneyBackendClient) GetTxProof(_ context.Context, unitID sdk.UnitID, tx
 	return proof, nil
 }
 
-func (c *MoneyBackendClient) GetTxHistory(_ context.Context, pubKey sdk.PubKey, offset string, limit int) ([]*sdk.TxHistoryRecord, string, error) {
+func (c *MoneyBackendClient) GetTxHistory(ctx context.Context, pubKey sdk.PubKey, offset string, limit int) ([]*sdk.TxHistoryRecord, string, error) {
 	addr, err := url.Parse(c.BaseUrl)
 	if err != nil {
 		return nil, "", fmt.Errorf("failed to parse base url: %w", err)
@@ -242,7 +242,7 @@ func (c *MoneyBackendClient) GetTxHistory(_ context.Context, pubKey sdk.PubKey, 
 	u := sdk.GetURL(*addr, TxHistoryPath, hexutil.Encode(pubKey))
 	sdk.SetPaginationParams(u, offset, limit)
 
-	req, err := http.NewRequest(http.MethodGet, u.String(), nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
 	if err != nil {
 		return nil, "", fmt.Errorf("failed to build get tx proof request: %w", err)
 	}

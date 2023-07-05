@@ -325,14 +325,13 @@ func (w *WalletBackend) storeIncomingTransactions(sender sdk.PubKey, txs []*type
 			continue
 		}
 
-		_, bearer := extractOwnerFromP2pkh(newOwner)
 		rec := &sdk.TxHistoryRecord{
 			UnitID:       tx.UnitID(),
 			TxHash:       tx.Hash(crypto.SHA256),
 			Timeout:      tx.Timeout(),
 			State:        sdk.UNCONFIRMED,
 			Kind:         sdk.OUTGOING,
-			CounterParty: bearer,
+			CounterParty: extractOwnerHashFromP2pkh(newOwner),
 		}
 		if err := w.store.Do().StoreTxHistoryRecord(sender.Hash(), rec); err != nil {
 			return fmt.Errorf("failed to store tx history record: %w", err)
@@ -342,26 +341,26 @@ func (w *WalletBackend) storeIncomingTransactions(sender sdk.PubKey, txs []*type
 }
 
 // extractOwnerFromP2pkh extracts owner from p2pkh predicate.
-func extractOwnerFromP2pkh(bearer sdk.Predicate) (bool, sdk.Predicate) {
+func extractOwnerHashFromP2pkh(bearer sdk.Predicate) sdk.PubKeyHash {
 	// p2pkh owner predicate must be 10 + (32 or 64) (SHA256 or SHA512) bytes long
 	if len(bearer) != 42 && len(bearer) != 74 {
-		return false, bearer
+		return nil
 	}
 	// 6th byte is HashAlgo 0x01 or 0x02 for SHA256 and SHA512 respectively
 	hashAlgo := bearer[5]
 	if hashAlgo == script.HashAlgSha256 {
-		return true, bearer[6:38]
+		return sdk.PubKeyHash(bearer[6:38])
 	} else if hashAlgo == script.HashAlgSha512 {
-		return true, bearer[6:70]
+		return sdk.PubKeyHash(bearer[6:70])
 	}
-	return false, bearer
+	return nil
 }
 
-func extractOwnerFromProof(signature sdk.Predicate) (bool, sdk.PubKey) {
+func extractOwnerKeyFromProof(signature sdk.Predicate) sdk.PubKey {
 	if len(signature) == 101 && signature[67] == script.OpPushPubKey && signature[68] == script.SigSchemeSecp256k1 {
-		return true, sdk.PubKey(signature[69:101])
+		return sdk.PubKey(signature[69:101])
 	}
-	return false, nil
+	return nil
 }
 
 func (w *WalletBackend) storeDCMetadata(txs []*types.TransactionOrder) error {

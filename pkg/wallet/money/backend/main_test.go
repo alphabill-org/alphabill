@@ -218,7 +218,6 @@ func Test_extractOwnerFromProof(t *testing.T) {
 	sig := test.RandomBytes(64)
 	pubkey := test.RandomBytes(32)
 	predicate := script.PredicateArgumentPayToPublicKeyHashDefault(sig, pubkey)
-	b, owner := extractOwnerFromProof(predicate)
-	require.True(t, b)
+	owner := extractOwnerKeyFromProof(predicate)
 	require.EqualValues(t, pubkey, owner)
 }

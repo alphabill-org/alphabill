@@ -181,10 +181,10 @@ func (api *moneyRestAPI) listBillsFunc(w http.ResponseWriter, r *http.Request) {
 }
 
 func (api *moneyRestAPI) txHistoryFunc(w http.ResponseWriter, r *http.Request) {
-	pk, err := parsePubKeyQueryParam(r)
+	vars := mux.Vars(r)
+	senderPubkey, err := sdk.DecodePubKeyHex(vars["pubkey"])
 	if err != nil {
-		log.Debug("error parsing GET /balance request: ", err)
-		api.rw.InvalidParamResponse(w, "pubkey", err)
+		api.rw.InvalidParamResponse(w, "pubkey", fmt.Errorf("failed to parse sender pubkey: %w", err))
 		return
 	}
 	qp := r.URL.Query()
@@ -199,7 +199,7 @@ func (api *moneyRestAPI) txHistoryFunc(w http.ResponseWriter, r *http.Request) {
 		api.rw.InvalidParamResponse(w, sdk.QueryParamLimit, err)
 		return
 	}
-	recs, nextKey, err := api.Service.GetTxHistoryRecords(pk.Hash(), startKey, limit)
+	recs, nextKey, err := api.Service.GetTxHistoryRecords(senderPubkey.Hash(), startKey, limit)
 	if err != nil {
 		log.Error("error on GET /tx-history: ", err)
 		api.rw.WriteErrorResponse(w, fmt.Errorf("error on GET /tx-history: %w", err))

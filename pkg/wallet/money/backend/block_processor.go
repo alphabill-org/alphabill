@@ -319,17 +319,15 @@ func (p *BlockProcessor) processTx(txr *types.TransactionRecord, b *types.Block,
 }
 
 func saveTx(dbTx BillStoreTx, bearer sdk.Predicate, txo *types.TransactionOrder, txHash sdk.TxHash) error {
-	isP2pkh, bearer := extractOwnerFromP2pkh(bearer)
-	if isP2pkh {
-		_, sender := extractOwnerFromProof(txo.OwnerProof)
-		hash := sdk.PubKey(bearer).Hash()
-		if err := dbTx.StoreTxHistoryRecord(hash, &sdk.TxHistoryRecord{
+	bearerKeyHash := extractOwnerHashFromP2pkh(bearer)
+	if bearerKeyHash != nil {
+		if err := dbTx.StoreTxHistoryRecord(bearerKeyHash, &sdk.TxHistoryRecord{
 			UnitID:       txo.UnitID(),
 			TxHash:       txHash,
 			Timeout:      txo.Timeout(),
 			State:        sdk.CONFIRMED,
 			Kind:         sdk.INCOMING,
-			CounterParty: sender,
+			CounterParty: extractOwnerKeyFromProof(txo.OwnerProof),
 		}); err != nil {
 			return err
 		}

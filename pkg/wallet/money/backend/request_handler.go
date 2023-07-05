@@ -202,10 +202,33 @@ func (api *moneyRestAPI) txHistoryFunc(w http.ResponseWriter, r *http.Request) {
 	recs, nextKey, err := api.Service.GetTxHistoryRecords(senderPubkey.Hash(), startKey, limit)
 	if err != nil {
 		log.Error("error on GET /tx-history: ", err)
-		api.rw.WriteErrorResponse(w, fmt.Errorf("error on GET /tx-history: %w", err))
+		api.rw.WriteErrorResponse(w, fmt.Errorf("unable to fetch tx history records: %w", err))
 		return
 	}
-
+	// check if unconfirmed tx-s are now confirmed or failed
+	var roundNr uint64 = 0
+	for _, rec := range recs {
+		// TODO: update db if stage changes to confirmed or failed
+		if rec.State == sdk.UNCONFIRMED {
+			proof, err := api.Service.GetTxProof(rec.UnitID, rec.TxHash)
+			if err != nil {
+				api.rw.WriteErrorResponse(w, fmt.Errorf("failed to fetch tx proof: %w", err))
+			}
+			if proof != nil {
+				rec.State = sdk.CONFIRMED
+			} else {
+				if roundNr == 0 {
+					roundNr, err = api.Service.GetRoundNumber(r.Context())
+					if err != nil {
+						api.rw.WriteErrorResponse(w, fmt.Errorf("unable to fetch latest round number: %w", err))
+					}
+				}
+				if roundNr > rec.Timeout {
+					rec.State = sdk.FAILED
+				}
+			}
+		}
+	}
 	sdk.SetLinkHeader(r.URL, w, sdk.EncodeHex(nextKey))
 	api.rw.WriteCborResponse(w, recs)
 }

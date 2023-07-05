@@ -180,14 +180,14 @@ func TestSendingMoneyUsingWallets_integration(t *testing.T) {
 		return
 	}
 	require.NotNil(t, w1TxHistory)
-	require.NotEmpty(t, w1TxHistory)
+	require.Len(t, w1TxHistory, 8)
 
 	w2TxHistory, _, err := moneyRestClient.GetTxHistory(context.Background(), w2PubKey, "", 0)
 	if err != nil {
 		return
 	}
 	require.NotNil(t, w2TxHistory)
-	require.NotEmpty(t, w2TxHistory)
+	require.Len(t, w2TxHistory, 4)
 }
 
 func waitForBalanceCLI(t *testing.T, homedir string, url string, expectedBalance uint64, accountIndex uint64) {

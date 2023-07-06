@@ -71,6 +71,7 @@ func (api *moneyRestAPI) Router() *mux.Router {
 	apiV1 := apiRouter.PathPrefix("/v1").Subrouter()
 	apiV1.HandleFunc("/list-bills", api.listBillsFunc).Methods("GET", "OPTIONS")
 	apiV1.HandleFunc("/balance", api.balanceFunc).Methods("GET", "OPTIONS")
+	apiV1.HandleFunc("/tx-history/{pubkey}", api.txHistoryFunc).Methods("GET", "OPTIONS")
 	apiV1.HandleFunc("/units/{unitId}/transactions/{txHash}/proof", api.getTxProof).Methods("GET", "OPTIONS")
 	apiV1.HandleFunc("/round-number", api.blockHeightFunc).Methods("GET", "OPTIONS")
 	apiV1.HandleFunc("/fee-credit-bills/{billId}", api.getFeeCreditBillFunc).Methods("GET", "OPTIONS")
@@ -177,6 +178,59 @@ func (api *moneyRestAPI) listBillsFunc(w http.ResponseWriter, r *http.Request) {
 	}
 	billVMs := toBillVMList(filteredBills)
 	api.rw.WriteResponse(w, &ListBillsResponse{Bills: billVMs[offset : offset+limit], Total: len(billVMs), DCMetadata: dcMetadataMap})
+}
+
+func (api *moneyRestAPI) txHistoryFunc(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	senderPubkey, err := sdk.DecodePubKeyHex(vars["pubkey"])
+	if err != nil {
+		api.rw.InvalidParamResponse(w, "pubkey", fmt.Errorf("failed to parse sender pubkey: %w", err))
+		return
+	}
+	qp := r.URL.Query()
+	startKey, err := sdk.ParseHex[[]byte](qp.Get(sdk.QueryParamOffsetKey), false)
+	if err != nil {
+		api.rw.InvalidParamResponse(w, sdk.QueryParamOffsetKey, err)
+		return
+	}
+
+	limit, err := sdk.ParseMaxResponseItems(qp.Get(sdk.QueryParamLimit), api.ListBillsPageLimit)
+	if err != nil {
+		api.rw.InvalidParamResponse(w, sdk.QueryParamLimit, err)
+		return
+	}
+	recs, nextKey, err := api.Service.GetTxHistoryRecords(senderPubkey.Hash(), startKey, limit)
+	if err != nil {
+		log.Error("error on GET /tx-history: ", err)
+		api.rw.WriteErrorResponse(w, fmt.Errorf("unable to fetch tx history records: %w", err))
+		return
+	}
+	// check if unconfirmed tx-s are now confirmed or failed
+	var roundNr uint64 = 0
+	for _, rec := range recs {
+		// TODO: update db if stage changes to confirmed or failed
+		if rec.State == sdk.UNCONFIRMED {
+			proof, err := api.Service.GetTxProof(rec.UnitID, rec.TxHash)
+			if err != nil {
+				api.rw.WriteErrorResponse(w, fmt.Errorf("failed to fetch tx proof: %w", err))
+			}
+			if proof != nil {
+				rec.State = sdk.CONFIRMED
+			} else {
+				if roundNr == 0 {
+					roundNr, err = api.Service.GetRoundNumber(r.Context())
+					if err != nil {
+						api.rw.WriteErrorResponse(w, fmt.Errorf("unable to fetch latest round number: %w", err))
+					}
+				}
+				if roundNr > rec.Timeout {
+					rec.State = sdk.FAILED
+				}
+			}
+		}
+	}
+	sdk.SetLinkHeader(r.URL, w, sdk.EncodeHex(nextKey))
+	api.rw.WriteCborResponse(w, recs)
 }
 
 // @Summary Get balance
@@ -334,7 +388,7 @@ func (api *moneyRestAPI) postTransactions(w http.ResponseWriter, r *http.Request
 	}
 
 	vars := mux.Vars(r)
-	_, err = sdk.DecodePubKeyHex(vars["pubkey"])
+	senderPubkey, err := sdk.DecodePubKeyHex(vars["pubkey"])
 	if err != nil {
 		api.rw.InvalidParamResponse(w, "pubkey", fmt.Errorf("failed to parse sender pubkey: %w", err))
 		return
@@ -351,9 +405,7 @@ func (api *moneyRestAPI) postTransactions(w http.ResponseWriter, r *http.Request
 	}
 
 	egp, _ := errgroup.WithContext(r.Context())
-	egp.Go(func() error {
-		return api.Service.StoreDCMetadata(txs.Transactions)
-	})
+	api.Service.HandleTransactionsSubmission(egp, senderPubkey, txs.Transactions)
 
 	if errs := api.Service.SendTransactions(r.Context(), txs.Transactions); len(errs) > 0 {
 		w.WriteHeader(http.StatusInternalServerError)
@@ -369,7 +421,7 @@ func (api *moneyRestAPI) postTransactions(w http.ResponseWriter, r *http.Request
 	w.WriteHeader(http.StatusAccepted)
 }
 
-func parsePubKeyQueryParam(r *http.Request) ([]byte, error) {
+func parsePubKeyQueryParam(r *http.Request) (sdk.PubKey, error) {
 	return sdk.DecodePubKeyHex(r.URL.Query().Get("pubkey"))
 }
 

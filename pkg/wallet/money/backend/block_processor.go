@@ -10,7 +10,7 @@ import (
 	moneytx "github.com/alphabill-org/alphabill/internal/txsystem/money"
 	utiltx "github.com/alphabill-org/alphabill/internal/txsystem/util"
 	"github.com/alphabill-org/alphabill/internal/types"
-	"github.com/alphabill-org/alphabill/pkg/wallet"
+	sdk "github.com/alphabill-org/alphabill/pkg/wallet"
 	wlog "github.com/alphabill-org/alphabill/pkg/wallet/log"
 	"github.com/holiman/uint256"
 )
@@ -65,7 +65,7 @@ func (p *BlockProcessor) processTx(txr *types.TransactionRecord, b *types.Block,
 	txo := txr.TransactionOrder
 	txHash := txo.Hash(crypto.SHA256)
 	roundNumber := b.GetRoundNumber()
-	proof, err := wallet.NewTxProof(txIdx, b, crypto.SHA256)
+	proof, err := sdk.NewTxProof(txIdx, b, crypto.SHA256)
 	if err != nil {
 		return err
 	}
@@ -73,22 +73,22 @@ func (p *BlockProcessor) processTx(txr *types.TransactionRecord, b *types.Block,
 	switch txo.PayloadType() {
 	case moneytx.PayloadTypeTransfer:
 		wlog.Info(fmt.Sprintf("received transfer order (UnitID=%x)", txo.UnitID()))
-		err := p.updateFCB(dbTx, txr)
-		if err != nil {
+		if err = p.updateFCB(dbTx, txr); err != nil {
 			return err
 		}
 		attr := &moneytx.TransferAttributes{}
-		err = txo.UnmarshalAttributes(attr)
-		if err != nil {
+		if err = txo.UnmarshalAttributes(attr); err != nil {
 			return err
 		}
-		err = dbTx.SetBill(&Bill{
+		if err = dbTx.SetBill(&Bill{
 			Id:             txo.UnitID(),
 			Value:          attr.TargetValue,
 			TxHash:         txHash,
 			OwnerPredicate: attr.NewBearer,
-		}, proof)
-		if err != nil {
+		}, proof); err != nil {
+			return err
+		}
+		if err = saveTx(dbTx, attr.NewBearer, txo, txHash); err != nil {
 			return err
 		}
 	case moneytx.PayloadTypeTransDC:
@@ -157,6 +157,9 @@ func (p *BlockProcessor) processTx(txr *types.TransactionRecord, b *types.Block,
 			OwnerPredicate: attr.TargetBearer,
 		}, proof)
 		if err != nil {
+			return err
+		}
+		if err = saveTx(dbTx, attr.TargetBearer, txo, txHash); err != nil {
 			return err
 		}
 	case moneytx.PayloadTypeSwapDC:
@@ -315,7 +318,24 @@ func (p *BlockProcessor) processTx(txr *types.TransactionRecord, b *types.Block,
 	return nil
 }
 
-func (p *BlockProcessor) addTransferredCreditToPartitionFeeBill(dbTx BillStoreTx, tx *transactions.TransferFeeCreditAttributes, proof *wallet.Proof) error {
+func saveTx(dbTx BillStoreTx, bearer sdk.Predicate, txo *types.TransactionOrder, txHash sdk.TxHash) error {
+	bearerKeyHash := extractOwnerHashFromP2pkh(bearer)
+	if bearerKeyHash != nil {
+		if err := dbTx.StoreTxHistoryRecord(bearerKeyHash, &sdk.TxHistoryRecord{
+			UnitID:       txo.UnitID(),
+			TxHash:       txHash,
+			Timeout:      txo.Timeout(),
+			State:        sdk.CONFIRMED,
+			Kind:         sdk.INCOMING,
+			CounterParty: extractOwnerKeyFromProof(txo.OwnerProof),
+		}); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (p *BlockProcessor) addTransferredCreditToPartitionFeeBill(dbTx BillStoreTx, tx *transactions.TransferFeeCreditAttributes, proof *sdk.Proof) error {
 	sdr, f := p.sdrs[string(tx.TargetSystemIdentifier)]
 	if !f {
 		return fmt.Errorf("received transferFC for unknown tx system: %x", tx.TargetSystemIdentifier)
@@ -331,7 +351,7 @@ func (p *BlockProcessor) addTransferredCreditToPartitionFeeBill(dbTx BillStoreTx
 	return dbTx.SetBill(partitionFeeBill, proof)
 }
 
-func (p *BlockProcessor) removeReclaimedCreditFromPartitionFeeBill(dbTx BillStoreTx, txr *types.TransactionRecord, attr *transactions.CloseFeeCreditAttributes, proof *wallet.Proof) error {
+func (p *BlockProcessor) removeReclaimedCreditFromPartitionFeeBill(dbTx BillStoreTx, txr *types.TransactionRecord, attr *transactions.CloseFeeCreditAttributes, proof *sdk.Proof) error {
 	txo := txr.TransactionOrder
 	sdr, f := p.sdrs[string(txo.SystemID())]
 	if !f {
@@ -346,7 +366,7 @@ func (p *BlockProcessor) removeReclaimedCreditFromPartitionFeeBill(dbTx BillStor
 	return dbTx.SetBill(partitionFeeBill, proof)
 }
 
-func (p *BlockProcessor) addTxFeeToMoneyFeeBill(dbTx BillStoreTx, tx *types.TransactionRecord, proof *wallet.Proof) error {
+func (p *BlockProcessor) addTxFeeToMoneyFeeBill(dbTx BillStoreTx, tx *types.TransactionRecord, proof *sdk.Proof) error {
 	moneyFeeBill, err := dbTx.GetBill(p.moneySDR.FeeCreditBill.UnitId)
 	if err != nil {
 		return err

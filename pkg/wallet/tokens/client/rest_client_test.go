@@ -14,7 +14,7 @@ import (
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/alphabill-org/alphabill/internal/txsystem/tokens"
 	"github.com/alphabill-org/alphabill/internal/types"
-	"github.com/alphabill-org/alphabill/pkg/wallet"
+	sdk "github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/alphabill-org/alphabill/pkg/wallet/tokens/backend"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/fxamacker/cbor/v2"
@@ -39,7 +39,7 @@ func Test_setPaginationParams(t *testing.T) {
 
 	for x, tc := range cases {
 		u := url.URL{}
-		setPaginationParams(&u, tc.pos, tc.limit)
+		sdk.SetPaginationParams(&u, tc.pos, tc.limit)
 		if r := u.String(); r != tc.res {
 			t.Errorf("test case [%d] expected %q, got %q", x, tc.res, r)
 		}
@@ -530,7 +530,7 @@ func Test_GetTxProof(t *testing.T) {
 	unitID := test.RandomBytes(32)
 	txHash := test.RandomBytes(32)
 
-	createClient := func(t *testing.T, proof *wallet.Proof) *TokenBackend {
+	createClient := func(t *testing.T, proof *sdk.Proof) *TokenBackend {
 		return &TokenBackend{
 			addr: url.URL{Scheme: "http", Host: "localhost"},
 			hc: &http.Client{Transport: &mockRoundTripper{
@@ -563,7 +563,7 @@ func Test_GetTxProof(t *testing.T) {
 	}
 
 	t.Run("valid proof returned", func(t *testing.T) {
-		proof := &wallet.Proof{
+		proof := &sdk.Proof{
 			TxRecord: &types.TransactionRecord{TransactionOrder: &types.TransactionOrder{Payload: &types.Payload{UnitID: unitID, Attributes: []byte{0x00}}}},
 			TxProof:  &types.TxProof{ /*TransactionsHash: txHash*/ },
 		}
@@ -618,7 +618,7 @@ func Test_PostTransactions(t *testing.T) {
 	ownerID := test.RandomBytes(33)
 
 	t.Run("valid request is built", func(t *testing.T) {
-		var receivedData wallet.Transactions
+		var receivedData sdk.Transactions
 
 		cli := &TokenBackend{
 			addr: url.URL{Scheme: "http", Host: "localhost"},
@@ -649,7 +649,7 @@ func Test_PostTransactions(t *testing.T) {
 			}},
 		}
 
-		data := &wallet.Transactions{Transactions: []*types.TransactionOrder{randomTx(t, &tokens.CreateNonFungibleTokenTypeAttributes{Symbol: "test"})}}
+		data := &sdk.Transactions{Transactions: []*types.TransactionOrder{randomTx(t, &tokens.CreateNonFungibleTokenTypeAttributes{Symbol: "test"})}}
 		err := cli.PostTransactions(context.Background(), ownerID, data)
 		require.NoError(t, err)
 		require.Equal(t, data, &receivedData)
@@ -670,7 +670,7 @@ func Test_PostTransactions(t *testing.T) {
 			}},
 		}
 
-		err := cli.PostTransactions(context.Background(), ownerID, &wallet.Transactions{})
+		err := cli.PostTransactions(context.Background(), ownerID, &sdk.Transactions{})
 		require.EqualError(t, err, `failed to send transactions: backend responded 400 Bad Request: something is wrong: invalid request`)
 		require.ErrorIs(t, err, ErrInvalidRequest)
 	})
@@ -691,7 +691,7 @@ func Test_PostTransactions(t *testing.T) {
 			}},
 		}
 
-		data := &wallet.Transactions{}
+		data := &sdk.Transactions{}
 		err := cli.PostTransactions(context.Background(), ownerID, data)
 		require.EqualError(t, err, "failed to process some of the transactions:\n100001: invalid id")
 	})
@@ -708,7 +708,7 @@ func Test_PostTransactions(t *testing.T) {
 			}},
 		}
 
-		data := &wallet.Transactions{}
+		data := &sdk.Transactions{}
 		err := cli.PostTransactions(context.Background(), ownerID, data)
 		require.NoError(t, err)
 	})
@@ -742,7 +742,7 @@ func Test_extractOffsetMarker(t *testing.T) {
 
 	t.Run("no header", func(t *testing.T) {
 		w := httptest.NewRecorder()
-		marker, err := extractOffsetMarker(w.Result())
+		marker, err := sdk.ExtractOffsetMarker(w.Result())
 		require.NoError(t, err)
 		require.Empty(t, marker)
 	})
@@ -750,7 +750,7 @@ func Test_extractOffsetMarker(t *testing.T) {
 	t.Run("not matching the expected format", func(t *testing.T) {
 		w := httptest.NewRecorder()
 		w.Header().Set("Link", `unexpected header`)
-		marker, err := extractOffsetMarker(w.Result())
+		marker, err := sdk.ExtractOffsetMarker(w.Result())
 		require.EqualError(t, err, "link header didn't result in expected match\nHeader: unexpected header\nmatches: []")
 		require.Empty(t, marker)
 	})
@@ -758,7 +758,7 @@ func Test_extractOffsetMarker(t *testing.T) {
 	t.Run("invalid link", func(t *testing.T) {
 		w := httptest.NewRecorder()
 		w.Header().Set("Link", `<://no.scheme>; rel="next"`)
-		marker, err := extractOffsetMarker(w.Result())
+		marker, err := sdk.ExtractOffsetMarker(w.Result())
 		require.EqualError(t, err, `failed to parse Link header as URL: parse "://no.scheme": missing protocol scheme`)
 		require.Empty(t, marker)
 	})
@@ -766,7 +766,7 @@ func Test_extractOffsetMarker(t *testing.T) {
 	t.Run("offset is not present", func(t *testing.T) {
 		w := httptest.NewRecorder()
 		w.Header().Set("Link", `<http://localhost/foo/bar>; rel="next"`)
-		marker, err := extractOffsetMarker(w.Result())
+		marker, err := sdk.ExtractOffsetMarker(w.Result())
 		require.NoError(t, err)
 		require.Empty(t, marker)
 	})
@@ -774,7 +774,7 @@ func Test_extractOffsetMarker(t *testing.T) {
 	t.Run("offset is present", func(t *testing.T) {
 		w := httptest.NewRecorder()
 		w.Header().Set("Link", `<http://localhost/foo/bar?offset=ABC>; rel="next"`)
-		marker, err := extractOffsetMarker(w.Result())
+		marker, err := sdk.ExtractOffsetMarker(w.Result())
 		require.NoError(t, err)
 		require.Equal(t, "ABC", marker)
 	})

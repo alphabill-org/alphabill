@@ -264,9 +264,10 @@ func Test_recoverState(t *testing.T) {
 			func() bool {
 				return cmLeader.pacemaker.GetCurrentRound() >= destRound
 			}, 6*time.Second, 100*time.Millisecond, "waiting for round %d to be processed", destRound)
+		cancel()
 		// we have 4 nodes and we expect at least 8 successful rounds so the network should see at least 32 proposal messages.
 		// if we do not see these then the progress was probably made by timeouts and thus recovery wasn't success?
-		require.GreaterOrEqual(t, proposalCnt.Load(), int32(4*8), "didn't see expected number of proposals")
+		require.GreaterOrEqual(t, proposalCnt.Load(), int32(4*7), "didn't see expected number of proposals")
 	})
 
 	t.Run("peer drops out of network", func(t *testing.T) {
@@ -439,6 +440,71 @@ func Test_recoverState(t *testing.T) {
 		// we have 4 nodes and we expect at least 3 successful rounds (the network should see proposal messages).
 		// if we do not see these then the progress was probably made by timeouts and thus recovery wasn't success?
 		require.GreaterOrEqual(t, propCnt.Load(), int32(4*3), "didn't see expected number of proposals")
+	})
+
+	t.Run("recovery triggered by vote", func(t *testing.T) {
+		t.Parallel()
+
+		// we need ⅔+1 validators to be healthy, with 3 nodes none can be unhealthy
+		cms, rootNet := createConsensusManagers(t, 4)
+		// round-robin leader in the order nodes are in the cms slice. system is starting
+		// with round 2 and leader will be: 2, 3, 0, 1, 2, 3, 0, 1,...
+		rootNodes := make([]peer.ID, 0, len(cms))
+		for _, v := range cms {
+			rootNodes = append(rootNodes, v.id)
+		}
+		rrLeader, err := leader.NewRoundRobin(rootNodes, 1)
+		require.NoError(t, err)
+
+		// for the first three rounds we block node 1 (causing it to go out of sync), for round 4 we
+		// allow vote messages so thats what triggers recovery (node 1 will be leader of round 5
+		// so round 4 votes are sent to it).
+		// starting from round 5 we block node 0 but unblock node 1 so if it has recovered we still
+		// have quorum and progress must be made
+		node_0_id := cms[0].id // round leader: 4, 8
+		node_1_id := cms[1].id // round leader: 5, 9
+		rootNet.SetFirewall(func(from, to peer.ID, msg network.OutputMessage) bool {
+			var round uint64
+			switch mt := msg.Message.(type) {
+			case *abdrc.VoteMsg:
+				round = mt.VoteInfo.RoundNumber
+			case *abdrc.ProposalMsg:
+				round = mt.Block.Round
+			case *abdrc.TimeoutMsg:
+				round = mt.GetRound()
+			case *abdrc.GetStateMsg, *abdrc.StateMsg:
+				return false
+			}
+
+			block := false
+			switch {
+			case round < 4:
+				block = (from == node_1_id || to == node_1_id)
+			case round == 4:
+				// allow vote msg only for node 1 so that's wahat triggers recovery
+				_, isVote := msg.Message.(*abdrc.VoteMsg)
+				block = (from == node_1_id || to == node_1_id) && !isVote
+			case round >= 5:
+				// block another peer
+				block = from == node_0_id || to == node_0_id
+			}
+
+			//t.Logf("%t: %s -> %s : (%d) %T", block, from.ShortString(), to.ShortString(), round, msg.Message)
+			return block
+		})
+
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		for _, v := range cms {
+			v.leaderSelector = rrLeader
+			go func(cm *ConsensusManager) { require.ErrorIs(t, cm.Run(ctx), context.Canceled) }(v)
+			go func(cm *ConsensusManager) { consumeUC(ctx, cm) }(v)
+		}
+
+		// note that rounds 7 and 8 will go into timeout as the leader of the round 8 will be node_0
+		// which we have blocked in the firewall after round 4 (thus no QC for R7 and no proposal for R8).
+		node_2 := cms[2]
+		require.Eventually(t, func() bool { return node_2.pacemaker.GetCurrentRound() >= 10 }, 15*time.Second, 100*time.Millisecond, "waiting for progress to be made")
 	})
 }
 

@@ -210,7 +210,7 @@ func (x *BlockStore) updateCertificateCache(certs map[protocol.SystemIdentifier]
 	for id, uc := range certs {
 		// persist changes
 		if err := x.storage.Write(certKey(id.Bytes()), uc); err != nil {
-			return fmt.Errorf("failed to update certificates, %w", err)
+			return fmt.Errorf("failed to write certificate into storage: %w", err)
 		}
 		// update cache
 		x.certificates[id] = uc
@@ -238,7 +238,7 @@ func (x *BlockStore) GetRoot() *ExecutedBlock {
 	return x.blockTree.Root()
 }
 
-func (x *BlockStore) UpdateCertificates(cert []*types.UnicityCertificate) {
+func (x *BlockStore) UpdateCertificates(cert []*types.UnicityCertificate) error {
 	newerCerts := make(map[protocol.SystemIdentifier]*types.UnicityCertificate)
 	for _, c := range cert {
 		id := protocol.SystemIdentifier(c.UnicityTreeCertificate.SystemIdentifier)
@@ -249,7 +249,10 @@ func (x *BlockStore) UpdateCertificates(cert []*types.UnicityCertificate) {
 	}
 	// non-functional requirements? what should the root node do if it fails to persist state?
 	// todo: AB-795 persistent storage failure?
-	x.updateCertificateCache(newerCerts)
+	if err := x.updateCertificateCache(newerCerts); err != nil {
+		return fmt.Errorf("failed to update certificate cache: %w", err)
+	}
+	return nil
 }
 
 func ToRecoveryInputData(data []*InputData) []*abdrc.InputData {
@@ -271,20 +274,20 @@ func (x *BlockStore) GetPendingBlocks() []*ExecutedBlock {
 func (x *BlockStore) RecoverState(rRootBlock *abdrc.RecoveryBlock, rNodes []*abdrc.RecoveryBlock, verifier IRChangeReqVerifier) error {
 	rootNode, err := NewExecutedBlockFromRecovery(x.hash, rRootBlock, verifier)
 	if err != nil {
-		return fmt.Errorf("state recovery failed, %w", err)
+		return fmt.Errorf("failed to create new root node: %w", err)
 	}
 	nodes := make([]*ExecutedBlock, len(rNodes))
 	for i, n := range rNodes {
 		var executedBlock *ExecutedBlock
 		executedBlock, err = NewExecutedBlockFromRecovery(x.hash, n, verifier)
 		if err != nil {
-			return fmt.Errorf("state recovery failed, %w", err)
+			return fmt.Errorf("failed to create node from recovery block: %w", err)
 		}
 		nodes[i] = executedBlock
 	}
 	bt, err := NewBlockTreeFromRecovery(rootNode, nodes, x.storage)
 	if err != nil {
-		return fmt.Errorf("state recovery, failed to create block tree from recovered blocks, %w", err)
+		return fmt.Errorf("failed to create block tree from recovery data: %w", err)
 	}
 	// replace block tree
 	x.blockTree = bt

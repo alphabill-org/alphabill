@@ -292,6 +292,30 @@ func TestBillStore_GetSetLockedFeeCredit(t *testing.T) {
 	require.Equal(t, lfc, transferFC)
 }
 
+func TestBillStore_GetSetClosedFeeCredit(t *testing.T) {
+	bs, _ := createTestBillStore(t)
+	systemID := []byte{0, 0, 0, 0}
+	fcbID := test.NewUnitID(1)
+
+	// verify GetLockedFeeCredit no result returns no error
+	lfc, err := bs.Do().GetLockedFeeCredit(systemID, fcbID)
+	require.NoError(t, err)
+	require.Nil(t, lfc)
+
+	// add locked fee credit
+	transferFC := &types.TransactionRecord{
+		TransactionOrder: testutils.NewTransferFC(t, nil),
+		ServerMetadata:   &types.ServerMetadata{ActualFee: 1},
+	}
+	err = bs.Do().SetLockedFeeCredit(systemID, fcbID, transferFC)
+	require.NoError(t, err)
+
+	// verify GetFeeCreditBill is not nil
+	lfc, err = bs.Do().GetLockedFeeCredit(systemID, fcbID)
+	require.NoError(t, err)
+	require.Equal(t, lfc, transferFC)
+}
+
 func createTestBillStore(t *testing.T) (*boltBillStore, error) {
 	dbFile := filepath.Join(t.TempDir(), BoltBillStoreFileName)
 	return newBoltBillStore(dbFile)

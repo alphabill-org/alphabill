@@ -26,6 +26,7 @@ type (
 
 		feeCreditBillURL   *url.URL
 		lockedFeeCreditURL *url.URL
+		closedFeeCreditURL *url.URL
 		transactionsURL    *url.URL
 	}
 )
@@ -37,6 +38,7 @@ const (
 	RoundNumberPath     = "api/v1/round-number"
 	FeeCreditPath       = "api/v1/fee-credit-bills"
 	LockedFeeCreditPath = "api/v1/locked-fee-credit"
+	ClosedFeeCreditPath = "api/v1/closed-fee-credit"
 	TransactionsPath    = "api/v1/transactions"
 
 	balanceUrlFormat     = "%v/%v?pubkey=%v&includedcbills=%v"
@@ -62,6 +64,7 @@ func New(baseUrl string) (*MoneyBackendClient, error) {
 		HttpClient:         http.Client{Timeout: time.Minute},
 		feeCreditBillURL:   u.JoinPath(FeeCreditPath),
 		lockedFeeCreditURL: u.JoinPath(LockedFeeCreditPath),
+		closedFeeCreditURL: u.JoinPath(ClosedFeeCreditPath),
 		transactionsURL:    u.JoinPath(TransactionsPath),
 	}, nil
 }
@@ -212,6 +215,40 @@ func (c *MoneyBackendClient) GetLockedFeeCredit(_ context.Context, systemID []by
 	err = json.Unmarshal(responseData, &res)
 	if err != nil {
 		return nil, fmt.Errorf("failed to unmarshall get locked fee credit response data: %w", err)
+	}
+	return res, nil
+}
+
+func (c *MoneyBackendClient) GetClosedFeeCredit(ctx context.Context, fcbID []byte) (*types.TransactionRecord, error) {
+	urlPath := c.closedFeeCreditURL.
+		JoinPath(hexutil.Encode(fcbID)).
+		String()
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, urlPath, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to build get closed fee credit request: %w", err)
+	}
+	req.Header.Set(contentType, applicationJson)
+
+	response, err := c.HttpClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("request get closed fee credit failed: %w", err)
+	}
+	if response.StatusCode != http.StatusOK {
+		if response.StatusCode == http.StatusNotFound {
+			return nil, nil
+		}
+		responseStr, _ := httputil.DumpResponse(response, true)
+		return nil, fmt.Errorf("unexpected response: %s", responseStr)
+	}
+
+	responseData, err := io.ReadAll(response.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read get closed fee credit response: %w", err)
+	}
+	var res *types.TransactionRecord
+	err = json.Unmarshal(responseData, &res)
+	if err != nil {
+		return nil, fmt.Errorf("failed to unmarshall get closed fee credit response data: %w", err)
 	}
 	return res, nil
 }

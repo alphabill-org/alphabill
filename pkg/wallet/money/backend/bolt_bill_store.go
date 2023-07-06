@@ -23,7 +23,8 @@ var (
 	metaBucket            = []byte("metaBucket")            // block_number_key => block_number_val
 	expiredBillsBucket    = []byte("expiredBillsBucket")    // block_number => bucket[unitID]nil
 	feeUnitsBucket        = []byte("feeUnitsBucket")        // unitID => unit_bytes (for free credit units)
-	lockedFeeCreditBucket = []byte("lockedFeeCreditBucket") // systemID => [unitID => transferFC]
+	lockedFeeCreditBucket = []byte("lockedFeeCreditBucket") // systemID => [unitID => transferFC record]
+	closedFeeCreditBucket = []byte("closedFeeCreditBucket") // unitID => closeFC record
 	sdrBucket             = []byte("sdrBucket")             // []genesis.SystemDescriptionRecord
 	bucketTxHistory       = []byte("tx-history")            // unitID => [txHash => cbor(block proof)]
 	dcBucket              = []byte("dcBucket")              // nonce => dc metadata bytes
@@ -58,7 +59,10 @@ func newBoltBillStore(dbFile string) (*boltBillStore, error) {
 		return nil, fmt.Errorf("failed to open bolt DB: %w", err)
 	}
 	s := &boltBillStore{db: db}
-	err = sdk.CreateBuckets(db.Update, unitsBucket, predicatesBucket, metaBucket, expiredBillsBucket, feeUnitsBucket, lockedFeeCreditBucket, sdrBucket, bucketTxHistory, dcBucket)
+	err = sdk.CreateBuckets(db.Update,
+		unitsBucket, predicatesBucket, metaBucket, expiredBillsBucket, feeUnitsBucket,
+		lockedFeeCreditBucket, closedFeeCreditBucket, sdrBucket, bucketTxHistory, dcBucket,
+	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create db buckets: %w", err)
 	}
@@ -296,6 +300,31 @@ func (s *boltBillStoreTx) SetLockedFeeCredit(systemID, fcbID []byte, txr *types.
 			return fmt.Errorf("failed to create bucket: %w", err)
 		}
 		return lockedCreditBucket.Put(fcbID, txBytes)
+	}, true)
+}
+
+func (s *boltBillStoreTx) GetClosedFeeCredit(unitID []byte) (*types.TransactionRecord, error) {
+	var res *types.TransactionRecord
+	err := s.withTx(s.tx, func(tx *bolt.Tx) error {
+		txBytes := tx.Bucket(closedFeeCreditBucket).Get(unitID)
+		if txBytes == nil {
+			return nil
+		}
+		return json.Unmarshal(txBytes, &res)
+	}, false)
+	if err != nil {
+		return nil, err
+	}
+	return res, nil
+}
+
+func (s *boltBillStoreTx) SetClosedFeeCredit(unitID []byte, txr *types.TransactionRecord) error {
+	return s.withTx(s.tx, func(tx *bolt.Tx) error {
+		txBytes, err := json.Marshal(txr)
+		if err != nil {
+			return err
+		}
+		return tx.Bucket(closedFeeCreditBucket).Put(unitID, txBytes)
 	}, true)
 }
 

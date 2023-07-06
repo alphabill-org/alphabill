@@ -55,7 +55,7 @@ func TestAddFeeCredit_NoBillsReturnsError(t *testing.T) {
 	require.ErrorContains(t, err, "wallet does not contain any bills")
 }
 
-func TestAddFeeCredit_PreviousTransferFC_OK(t *testing.T) {
+func TestAddFeeCredit_LockedFeeCredit_OK(t *testing.T) {
 	// create fee manager
 	am := newAccountManager(t)
 	moneyTxPublisher := &mockMoneyTxPublisher{}
@@ -64,7 +64,7 @@ func TestAddFeeCredit_PreviousTransferFC_OK(t *testing.T) {
 		ServerMetadata:   &types.ServerMetadata{ActualFee: 1},
 	}
 	txrProof := &wallet.Proof{TxRecord: lfc, TxProof: &types.TxProof{}}
-	moneyBackendClient := &mockMoneyClient{lfc: lfc, proof: txrProof}
+	moneyBackendClient := &mockMoneyClient{lockedFeeCredit: lfc, proof: txrProof}
 	feeManager := newMoneyPartitionFeeManager(am, moneyTxPublisher, moneyBackendClient)
 
 	// when add fee credit is called
@@ -80,7 +80,7 @@ func TestAddFeeCredit_PreviousTransferFC_OK(t *testing.T) {
 	require.Equal(t, lfc, actualAttr.FeeCreditTransfer)
 }
 
-func TestAddFeeCredit_PreviousTransferFC_InvalidTimeout(t *testing.T) {
+func TestAddFeeCredit_LockedFeeCredit_InvalidTimeout(t *testing.T) {
 	// create fee manager
 	am := newAccountManager(t)
 	moneyTxPublisher := &mockMoneyTxPublisher{}
@@ -89,7 +89,7 @@ func TestAddFeeCredit_PreviousTransferFC_InvalidTimeout(t *testing.T) {
 		ServerMetadata:   &types.ServerMetadata{ActualFee: 1},
 	}
 	txrProof := &wallet.Proof{TxRecord: txr, TxProof: &types.TxProof{}}
-	moneyBackendClient := &mockMoneyClient{lfc: txr, proof: txrProof, roundNumber: 10, bills: []*wallet.Bill{{
+	moneyBackendClient := &mockMoneyClient{lockedFeeCredit: txr, proof: txrProof, roundNumber: 10, bills: []*wallet.Bill{{
 		Id:     []byte{1},
 		Value:  100000002,
 		TxHash: []byte{2},
@@ -106,7 +106,7 @@ func TestAddFeeCredit_PreviousTransferFC_InvalidTimeout(t *testing.T) {
 	require.Equal(t, transactions.PayloadTypeAddFeeCredit, proofs[1].TxRecord.TransactionOrder.PayloadType())
 }
 
-func TestAddFeeCredit_PreviousTransferFC_InvalidAmount(t *testing.T) {
+func TestAddFeeCredit_LockedFeeCredit_InvalidAmount(t *testing.T) {
 	// create fee manager
 	am := newAccountManager(t)
 	moneyTxPublisher := &mockMoneyTxPublisher{}
@@ -115,12 +115,108 @@ func TestAddFeeCredit_PreviousTransferFC_InvalidAmount(t *testing.T) {
 		ServerMetadata:   &types.ServerMetadata{ActualFee: 1},
 	}
 	txrProof := &wallet.Proof{TxRecord: lfc, TxProof: &types.TxProof{}}
-	moneyBackendClient := &mockMoneyClient{lfc: lfc, proof: txrProof}
+	moneyBackendClient := &mockMoneyClient{lockedFeeCredit: lfc, proof: txrProof}
 	feeManager := newMoneyPartitionFeeManager(am, moneyTxPublisher, moneyBackendClient)
 
 	// when add fee credit is called with incorrect amount
 	_, err := feeManager.AddFeeCredit(context.Background(), AddFeeCmd{Amount: 51})
 	require.Errorf(t, err, "invalid amount: locked fee credit exists for amount %d but user specified %d", 50, 51)
+}
+
+func TestAddFeeCredit_ClosedFeeCredit_OK(t *testing.T) {
+	// create fee manager with existing closeFC tx
+	am := newAccountManager(t)
+	moneyTxPublisher := &mockMoneyTxPublisher{}
+	closeFCAttr := testutils.NewCloseFCAttr(
+		testutils.WithCloseFCTargetUnitID([]byte{1}),
+		testutils.WithCloseFCAmount(50),
+		testutils.WithCloseFCNonce([]byte{3}),
+	)
+	cfc := &types.TransactionRecord{
+		TransactionOrder: testutils.NewCloseFC(t, closeFCAttr),
+		ServerMetadata:   &types.ServerMetadata{ActualFee: 1},
+	}
+	txrProof := &wallet.Proof{TxRecord: cfc, TxProof: &types.TxProof{}}
+	moneyBackendClient := &mockMoneyClient{closedFeeCredit: cfc, proof: txrProof, bills: []*wallet.Bill{{
+		Id:     closeFCAttr.TargetUnitID,
+		Value:  closeFCAttr.Amount,
+		TxHash: closeFCAttr.Nonce,
+	}}}
+	feeManager := newMoneyPartitionFeeManager(am, moneyTxPublisher, moneyBackendClient)
+
+	// when reclaim fee credit is called with existing closeFC tx
+	proofs, err := feeManager.ReclaimFeeCredit(context.Background(), ReclaimFeeCmd{})
+	require.NoError(t, err)
+
+	// then reclaimFC tx must be sent using the existing closeFC tx
+	require.Len(t, proofs, 1)
+	require.Equal(t, transactions.PayloadTypeReclaimFeeCredit, proofs[0].TxRecord.TransactionOrder.PayloadType())
+	actualAttr := &transactions.ReclaimFeeCreditAttributes{}
+	err = proofs[0].TxRecord.TransactionOrder.UnmarshalAttributes(actualAttr)
+	require.NoError(t, err)
+	require.Equal(t, cfc, actualAttr.CloseFeeCreditTransfer)
+}
+
+func TestAddFeeCredit_ClosedFeeCredit_InvalidTargetUnitID(t *testing.T) {
+	// create fee manager with existing closeFC tx
+	am := newAccountManager(t)
+	moneyTxPublisher := &mockMoneyTxPublisher{}
+	closeFCAttr := testutils.NewCloseFCAttr(
+		testutils.WithCloseFCTargetUnitID([]byte{1}),
+		testutils.WithCloseFCAmount(50),
+		testutils.WithCloseFCNonce([]byte{3}),
+	)
+	cfc := &types.TransactionRecord{
+		TransactionOrder: testutils.NewCloseFC(t, closeFCAttr),
+		ServerMetadata:   &types.ServerMetadata{ActualFee: 1},
+	}
+	txrProof := &wallet.Proof{TxRecord: cfc, TxProof: &types.TxProof{}}
+	moneyBackendClient := &mockMoneyClient{closedFeeCredit: cfc, proof: txrProof, bills: []*wallet.Bill{{
+		Id:     []byte{2}, // bill for closeFC.TargetUnitID does not exist
+		Value:  closeFCAttr.Amount,
+		TxHash: closeFCAttr.Nonce,
+	}}, fcb: &wallet.Bill{Value: 1}}
+	feeManager := newMoneyPartitionFeeManager(am, moneyTxPublisher, moneyBackendClient)
+
+	// when reclaim fee credit is called with existing closeFC tx but invalid ID
+	proofs, err := feeManager.ReclaimFeeCredit(context.Background(), ReclaimFeeCmd{})
+	require.NoError(t, err)
+
+	// then new closeFC tx must be created
+	require.Len(t, proofs, 2)
+	require.Equal(t, transactions.PayloadTypeCloseFeeCredit, proofs[0].TxRecord.TransactionOrder.PayloadType())
+	require.Equal(t, transactions.PayloadTypeReclaimFeeCredit, proofs[1].TxRecord.TransactionOrder.PayloadType())
+}
+
+func TestAddFeeCredit_ClosedFeeCredit_InvalidTargetTxHash(t *testing.T) {
+	// create fee manager with existing closeFC tx
+	am := newAccountManager(t)
+	moneyTxPublisher := &mockMoneyTxPublisher{}
+	closeFCAttr := testutils.NewCloseFCAttr(
+		testutils.WithCloseFCTargetUnitID([]byte{1}),
+		testutils.WithCloseFCAmount(50),
+		testutils.WithCloseFCNonce([]byte{3}),
+	)
+	cfc := &types.TransactionRecord{
+		TransactionOrder: testutils.NewCloseFC(t, closeFCAttr),
+		ServerMetadata:   &types.ServerMetadata{ActualFee: 1},
+	}
+	txrProof := &wallet.Proof{TxRecord: cfc, TxProof: &types.TxProof{}}
+	moneyBackendClient := &mockMoneyClient{closedFeeCredit: cfc, proof: txrProof, bills: []*wallet.Bill{{
+		Id:     closeFCAttr.TargetUnitID,
+		Value:  closeFCAttr.Amount,
+		TxHash: []byte{4}, // bill for closeFC.TargetUnitID does not exist
+	}}, fcb: &wallet.Bill{Value: 1}}
+	feeManager := newMoneyPartitionFeeManager(am, moneyTxPublisher, moneyBackendClient)
+
+	// when reclaim fee credit is called with existing closeFC tx but invalid txHash (e.g. target bill has been used)
+	proofs, err := feeManager.ReclaimFeeCredit(context.Background(), ReclaimFeeCmd{})
+	require.NoError(t, err)
+
+	// then new closeFC tx must be created
+	require.Len(t, proofs, 2)
+	require.Equal(t, transactions.PayloadTypeCloseFeeCredit, proofs[0].TxRecord.TransactionOrder.PayloadType())
+	require.Equal(t, transactions.PayloadTypeReclaimFeeCredit, proofs[1].TxRecord.TransactionOrder.PayloadType())
 }
 
 func newMoneyPartitionFeeManager(am account.Manager, moneyTxPublisher TxPublisher, moneyBackendClient MoneyClient) *FeeManager {
@@ -138,10 +234,12 @@ func newAccountManager(t *testing.T) account.Manager {
 }
 
 type mockMoneyClient struct {
-	bills       []*wallet.Bill
-	lfc         *types.TransactionRecord
-	proof       *wallet.Proof
-	roundNumber uint64
+	bills           []*wallet.Bill
+	lockedFeeCredit *types.TransactionRecord
+	closedFeeCredit *types.TransactionRecord
+	proof           *wallet.Proof
+	roundNumber     uint64
+	fcb             *wallet.Bill
 }
 
 func (m *mockMoneyClient) GetRoundNumber(ctx context.Context) (uint64, error) {
@@ -153,11 +251,15 @@ func (m *mockMoneyClient) GetBills(pubKey []byte) ([]*wallet.Bill, error) {
 }
 
 func (m *mockMoneyClient) GetFeeCreditBill(ctx context.Context, unitID wallet.UnitID) (*wallet.Bill, error) {
-	return nil, nil
+	return m.fcb, nil
 }
 
 func (m *mockMoneyClient) GetLockedFeeCredit(ctx context.Context, unitID []byte, fcbID []byte) (*types.TransactionRecord, error) {
-	return m.lfc, nil
+	return m.lockedFeeCredit, nil
+}
+
+func (m *mockMoneyClient) GetClosedFeeCredit(ctx context.Context, fcbID []byte) (*types.TransactionRecord, error) {
+	return m.closedFeeCredit, nil
 }
 
 func (m *mockMoneyClient) GetTxProof(ctx context.Context, unitID wallet.UnitID, txHash wallet.TxHash) (*wallet.Proof, error) {

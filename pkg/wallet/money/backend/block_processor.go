@@ -268,6 +268,10 @@ func (p *BlockProcessor) processTx(txr *types.TransactionRecord, b *types.Block,
 		if err != nil {
 			return err
 		}
+		err = p.addClosedFeeCredit(dbTx, txo.UnitID(), txr)
+		if err != nil {
+			return err
+		}
 		return dbTx.SetFeeCreditBill(&Bill{
 			Id:              txo.UnitID(),
 			TxHash:          txHash,
@@ -376,4 +380,8 @@ func (p *BlockProcessor) updateFCB(dbTx BillStoreTx, txr *types.TransactionRecor
 
 func (p *BlockProcessor) addLockedFeeCredit(dbTx BillStoreTx, systemID, targetRecordID []byte, txr *types.TransactionRecord) error {
 	return dbTx.SetLockedFeeCredit(systemID, targetRecordID, txr)
+}
+
+func (p *BlockProcessor) addClosedFeeCredit(dbTx BillStoreTx, targetRecordID []byte, txr *types.TransactionRecord) error {
+	return dbTx.SetClosedFeeCredit(targetRecordID, txr)
 }

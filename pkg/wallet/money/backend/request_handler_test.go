@@ -110,6 +110,14 @@ func withLockedFeeCredit(systemID, fcbID []byte, txr *types.TransactionRecord) o
 	}
 }
 
+func withClosedFeeCredit(fcbID []byte, txr *types.TransactionRecord) option {
+	return func(s *WalletBackend) error {
+		return s.store.WithTransaction(func(tx BillStoreTx) error {
+			return tx.SetClosedFeeCredit(fcbID, txr)
+		})
+	}
+}
+
 func TestListBillsRequest_Ok(t *testing.T) {
 	expectedBill := &Bill{
 		Id:             newUnitID(1),
@@ -669,6 +677,34 @@ func TestGetLockedFeeCreditRequest(t *testing.T) {
 	// verify invalid unitID returns 400 (removed 0x prefix)
 	response = &types.TransactionRecord{}
 	httpRes, err = testhttp.DoGetJson(fmt.Sprintf("http://localhost:%d/api/v1/locked-fee-credit/0x%X/%X", port, systemID, targetUnitID), response)
+	require.NoError(t, err)
+	require.Equal(t, http.StatusBadRequest, httpRes.StatusCode)
+}
+
+func TestGetClosedFeeCreditRequest(t *testing.T) {
+	closeFC := &types.TransactionRecord{
+		TransactionOrder: testutils.NewCloseFC(t, nil),
+		ServerMetadata:   &types.ServerMetadata{ActualFee: 1},
+	}
+	fcbID := test.NewUnitID(1)
+	walletBackend := newWalletBackend(t, withClosedFeeCredit(fcbID, closeFC))
+	port := startServer(t, walletBackend)
+
+	response := &types.TransactionRecord{}
+	httpRes, err := testhttp.DoGetJson(fmt.Sprintf("http://localhost:%d/api/v1/closed-fee-credit/0x%X", port, fcbID), response)
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, httpRes.StatusCode)
+	require.Equal(t, closeFC, response)
+
+	// verify missing fcb returns 404
+	response = &types.TransactionRecord{}
+	httpRes, err = testhttp.DoGetJson(fmt.Sprintf("http://localhost:%d/api/v1/closed-fee-credit/0x%X", port, []byte{0}), response)
+	require.NoError(t, err)
+	require.Equal(t, http.StatusNotFound, httpRes.StatusCode)
+
+	// verify invalid fcb returns 400 (removed 0x prefix)
+	response = &types.TransactionRecord{}
+	httpRes, err = testhttp.DoGetJson(fmt.Sprintf("http://localhost:%d/api/v1/closed-fee-credit/%X", port, fcbID), response)
 	require.NoError(t, err)
 	require.Equal(t, http.StatusBadRequest, httpRes.StatusCode)
 }

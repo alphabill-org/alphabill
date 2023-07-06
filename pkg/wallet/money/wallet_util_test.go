@@ -216,7 +216,11 @@ func (b *backendAPIMock) GetFeeCreditBill(ctx context.Context, unitID wallet.Uni
 	return nil, errors.New("getFeeCreditBill not implemented")
 }
 
-func (b *backendAPIMock) GetLockedFeeCredit(ctx context.Context, unitID []byte, fcbID []byte) (*types.TransactionRecord, error) {
+func (b *backendAPIMock) GetLockedFeeCredit(ctx context.Context, systemID []byte, fcbID []byte) (*types.TransactionRecord, error) {
+	return nil, nil
+}
+
+func (b *backendAPIMock) GetClosedFeeCredit(ctx context.Context, fcbID []byte) (*types.TransactionRecord, error) {
 	return nil, nil
 }
 

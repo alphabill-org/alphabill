@@ -75,6 +75,7 @@ func (api *moneyRestAPI) Router() *mux.Router {
 	apiV1.HandleFunc("/round-number", api.blockHeightFunc).Methods("GET", "OPTIONS")
 	apiV1.HandleFunc("/fee-credit-bills/{billId}", api.getFeeCreditBillFunc).Methods("GET", "OPTIONS")
 	apiV1.HandleFunc("/locked-fee-credit/{systemId}/{billId}", api.getLockedFeeCreditFunc).Methods("GET", "OPTIONS")
+	apiV1.HandleFunc("/closed-fee-credit/{billId}", api.getClosedFeeCreditFunc).Methods("GET", "OPTIONS")
 	apiV1.HandleFunc("/transactions/{pubkey}", api.postTransactions).Methods("POST", "OPTIONS")
 
 	apiV1.PathPrefix("/swagger/").Handler(httpSwagger.Handler(
@@ -403,6 +404,34 @@ func (api *moneyRestAPI) getLockedFeeCreditFunc(w http.ResponseWriter, r *http.R
 		return
 	}
 	api.rw.WriteResponse(w, lfc)
+}
+
+// @Summary Returns last seen closeFC transaction for given fee credit bill
+// @Id 8
+// @version 1.0
+// @produce application/json
+// @Param billId path string true "Target fee credit bill ID (hex)"
+// @Success 200 {object} wallet
+// @Router /closed-fee-credit/{billId} [get]
+func (api *moneyRestAPI) getClosedFeeCreditFunc(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	fcbID, err := sdk.ParseHex[sdk.UnitID](vars["billId"], true)
+	if err != nil {
+		log.Debug("error parsing GET /closed-fee-credit request billId param: ", err)
+		api.rw.InvalidParamResponse(w, "billId", err)
+		return
+	}
+	cfc, err := api.Service.GetClosedFeeCredit(fcbID)
+	if err != nil {
+		log.Error("error on GET /closed-fee-credit: ", err)
+		api.rw.WriteErrorResponse(w, err)
+		return
+	}
+	if cfc == nil {
+		api.rw.ErrorResponse(w, http.StatusNotFound, errors.New("closed fee credit does not exist"))
+		return
+	}
+	api.rw.WriteResponse(w, cfc)
 }
 
 func parsePubKeyQueryParam(r *http.Request) ([]byte, error) {

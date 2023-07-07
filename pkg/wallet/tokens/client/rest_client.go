@@ -180,18 +180,16 @@ func (tb *TokenBackend) GetFeeCreditBill(ctx context.Context, unitID sdk.UnitID)
 }
 
 func (tb *TokenBackend) GetClosedFeeCredit(ctx context.Context, fcbID []byte) (*types.TransactionRecord, error) {
-	// TODO impl
-	return nil, nil
-	//var fcb *types.TransactionRecord
-	//addr := tb.getURL(apiPathPrefix, "closed-fee-credit", hexutil.Encode(systemID), hexutil.Encode(fcbID))
-	//_, err := tb.get(ctx, addr, &fcb, false)
-	//if err != nil {
-	//	if errors.Is(err, ErrNotFound) {
-	//		return nil, nil
-	//	}
-	//	return nil, fmt.Errorf("get closed fee credit request failed: %w", err)
-	//}
-	//return fcb, nil
+	var fcb *types.TransactionRecord
+	addr := tb.getURL(apiPathPrefix, "closed-fee-credit", hexutil.Encode(fcbID))
+	_, err := tb.get(ctx, addr, &fcb, false)
+	if err != nil {
+		if errors.Is(err, ErrNotFound) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("get closed fee credit request failed: %w", err)
+	}
+	return fcb, nil
 }
 
 func (tb *TokenBackend) getURL(pathElements ...string) *url.URL {

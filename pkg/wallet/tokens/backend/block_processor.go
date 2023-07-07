@@ -86,6 +86,10 @@ func (p *blockProcessor) processTx(tr *types.TransactionRecord, proof *wallet.Tx
 		if err != nil {
 			return err
 		}
+		err = p.store.SetClosedFeeCredit(id, tr)
+		if err != nil {
+			return err
+		}
 		return p.store.SetFeeCreditBill(&FeeCreditBill{
 			Id:              id,
 			Value:           fcb.GetValue() - closeFeeCreditAttributes.Amount,

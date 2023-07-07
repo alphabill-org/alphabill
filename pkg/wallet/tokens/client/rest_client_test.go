@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	test "github.com/alphabill-org/alphabill/internal/testutils"
+	"github.com/alphabill-org/alphabill/internal/txsystem/fc/testutils"
 	"github.com/alphabill-org/alphabill/internal/txsystem/tokens"
 	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/pkg/wallet"
@@ -252,6 +253,50 @@ func Test_GetRoundNumber(t *testing.T) {
 		rn, err := cli.GetRoundNumber(context.Background())
 		require.NoError(t, err)
 		require.EqualValues(t, 3, rn)
+	})
+}
+
+func Test_GetClosedFeeCredit(t *testing.T) {
+	t.Parallel()
+
+	createClient := func(t *testing.T, status int, respBody []byte) *TokenBackend {
+		t.Helper()
+		return &TokenBackend{
+			hc: &http.Client{
+				Transport: &mockRoundTripper{
+					do: func(r *http.Request) (*http.Response, error) {
+						w := httptest.NewRecorder()
+						if status > 0 {
+							w.WriteHeader(status)
+						}
+						if _, err := w.Write(respBody); err != nil {
+							t.Errorf("failed to write response body: %v", err)
+						}
+						return w.Result(), nil
+					},
+				},
+			},
+		}
+	}
+
+	t.Run("backend returns 404 => response is nil", func(t *testing.T) {
+		notExistsJson, _ := json.Marshal(wallet.ErrorResponse{Message: "closed fee credit does not exist"})
+		api := createClient(t, 404, notExistsJson)
+		rn, err := api.GetClosedFeeCredit(context.Background(), test.NewUnitID(1))
+		require.NoError(t, err)
+		require.Nil(t, rn)
+	})
+
+	t.Run("ok", func(t *testing.T) {
+		closeFC := testutils.NewCloseFC(t, nil)
+		closeFCTxr := &types.TransactionRecord{TransactionOrder: closeFC}
+		txBytes, err := json.Marshal(closeFCTxr)
+		require.NoError(t, err)
+
+		cli := createClient(t, 200, txBytes)
+		closedFeeCredit, err := cli.GetClosedFeeCredit(context.Background(), test.NewUnitID(1))
+		require.NoError(t, err)
+		require.Equal(t, closeFCTxr, closedFeeCredit)
 	})
 }
 

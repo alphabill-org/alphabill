@@ -461,9 +461,10 @@ func Test_blockProcessor_ProcessFeeCreditTxs(t *testing.T) {
 	closeFC := testfc.NewCloseFC(t,
 		testfc.NewCloseFCAttr(testfc.WithCloseFCAmount(10)),
 	)
+	closeFCTxRecord := &types.TransactionRecord{TransactionOrder: closeFC, ServerMetadata: &types.ServerMetadata{ActualFee: 1}}
 	b = &types.Block{
 		UnicityCertificate: &types.UnicityCertificate{InputRecord: &types.InputRecord{RoundNumber: 5}},
-		Transactions:       []*types.TransactionRecord{{TransactionOrder: closeFC, ServerMetadata: &types.ServerMetadata{ActualFee: 1}}},
+		Transactions:       []*types.TransactionRecord{closeFCTxRecord},
 	}
 	err = bp.ProcessBlock(context.Background(), b)
 	require.NoError(t, err)
@@ -475,6 +476,11 @@ func Test_blockProcessor_ProcessFeeCreditTxs(t *testing.T) {
 	require.EqualValues(t, 39, fcb.GetValue())
 	require.Equal(t, closeFC.Hash(crypto.SHA256), fcb.TxHash)
 	require.Equal(t, expectedAddFCHash, fcb.LastAddFCTxHash)
+
+	// and closeFC tx is recorded
+	actualCloseFCTxRecord, err := bp.store.GetClosedFeeCredit(fcb.Id)
+	require.NoError(t, err)
+	require.Equal(t, closeFCTxRecord, actualCloseFCTxRecord)
 }
 
 func createBlockProcessor(t *testing.T) *blockProcessor {

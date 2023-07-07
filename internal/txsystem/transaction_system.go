@@ -20,10 +20,10 @@ type (
 		StateSummary() (State, error)
 
 		// BeginBlock signals the start of a new block and is invoked before any Execute method calls.
-		BeginBlock(uint64)
+		BeginBlock(uint64) error
 
-		// ValidatorGeneratedTransactions returns a list of validator generated transactions.
-		ValidatorGeneratedTransactions() ([]*types.TransactionRecord, error)
+		// SystemGeneratedTransactions returns a list of validator generated transactions.
+		SystemGeneratedTransactions() ([]*types.TransactionRecord, error)
 
 		// Execute method executes the transaction order. An error must be returned if the transaction order execution
 		// was not successful.

@@ -46,13 +46,13 @@ func (d *DustCollector) RemoveDustBills(blockNumber uint64) {
 	delete(d.dustCollectorBills, blockNumber)
 }
 
-func (d *DustCollector) consolidateDust(currentBlockNumber uint64) error {
+func (d *DustCollector) consolidateDust(currentBlockNumber uint64) ([]*types.TransactionRecord, error) {
 	dustBills := d.GetDustBills(currentBlockNumber)
 	var valueToTransfer uint64
 	for _, billID := range dustBills {
 		u, err := d.state.GetUnit(billID, false)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		bd, ok := u.Data().(*BillData)
 		if !ok {
@@ -62,7 +62,7 @@ func (d *DustCollector) consolidateDust(currentBlockNumber uint64) error {
 		valueToTransfer += bd.V
 		err = d.state.Apply(state.DeleteUnit(billID))
 		if err != nil {
-			return err
+			return nil, err
 		}
 	}
 	if valueToTransfer > 0 {
@@ -76,9 +76,9 @@ func (d *DustCollector) consolidateDust(currentBlockNumber uint64) error {
 				return bd, nil
 			}))
 		if err != nil {
-			return err
+			return nil, err
 		}
 	}
 	d.RemoveDustBills(currentBlockNumber)
-	return nil
+	return nil, nil // TODO: return the dust collector transaction record
 }

@@ -11,6 +11,8 @@ import (
 
 var logger = log.CreateForPackage()
 
+var _ txsystem.TransactionSystem = (*CounterTxSystem)(nil)
+
 type CounterTxSystem struct {
 	InitCount       uint64
 	BeginBlockCount uint64
@@ -58,13 +60,14 @@ func (m *CounterTxSystem) StateSummary() (txsystem.State, error) {
 	}, nil
 }
 
-func (m *CounterTxSystem) BeginBlock(_ uint64) {
+func (m *CounterTxSystem) BeginBlock(_ uint64) error {
 	logger.Debug("CounterTxSystem: BeginBlock()")
 	m.BeginBlockCountDelta++
 	m.ExecuteCountDelta = 0
+	return nil
 }
 
-func (m *CounterTxSystem) ValidatorGeneratedTransactions() ([]*types.TransactionRecord, error) {
+func (m *CounterTxSystem) SystemGeneratedTransactions() ([]*types.TransactionRecord, error) {
 	return nil, nil
 }
 

@@ -15,7 +15,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/types"
 )
 
-var _ txsystem.Module = &Module{}
+var _ txsystem.Module = (*Module)(nil)
 
 var (
 	ErrInitialBillIsNil                  = errors.New("initial bill may not be nil")
@@ -94,19 +94,20 @@ func (m *Module) TxExecutors() map[string]txsystem.TxExecutor {
 	}
 }
 
-func (m *Module) BeginBlockFuncs() []func(blockNr uint64) {
-	return []func(blockNr uint64){
-		func(blockNr uint64) {
+func (m *Module) BeginBlockFuncs() []txsystem.TxEmitter {
+	return []txsystem.TxEmitter{
+		func(blockNr uint64) ([]*types.TransactionRecord, error) {
 			m.feeCreditTxRecorder.reset()
+			return nil, nil
 		},
 	}
 }
 
-func (m *Module) EndBlockFuncs() []func(blockNumber uint64) error {
-	return []func(blockNumber uint64) error{
+func (m *Module) EndBlockFuncs() []txsystem.TxEmitter {
+	return []txsystem.TxEmitter{
 		m.dustCollector.consolidateDust,
-		func(blockNr uint64) error {
-			return m.feeCreditTxRecorder.consolidateFees()
+		func(blockNr uint64) ([]*types.TransactionRecord, error) {
+			return nil, m.feeCreditTxRecorder.consolidateFees()
 		},
 	}
 }

@@ -582,6 +582,7 @@ func (n *Node) startNewRound(ctx context.Context, uc *types.UnicityCertificate) 
 	}
 	n.status.Store(normal)
 	newRoundNr := uc.InputRecord.RoundNumber + 1
+	n.leaderSelector.UpdateLeader(uc)
 	n.transactionSystem.BeginBlock(newRoundNr)
 	n.proposedTransactions = []*types.TransactionRecord{}
 	n.pendingBlockProposal = nil
@@ -591,13 +592,6 @@ func (n *Node) startNewRound(ctx context.Context, uc *types.UnicityCertificate) 
 		logger.Debug("DB proposal delete failed, %v", err)
 	}
 	n.leaderSelector.UpdateLeader(uc)
-	if n.leaderSelector.IsCurrentNodeLeader() {
-		txrs, err := n.transactionSystem.ValidatorGeneratedTransactions()
-		if err != nil {
-			logger.Warning("Failed to get validator generated transactions: %w", err)
-		}
-		n.proposedTransactions = append(n.proposedTransactions, txrs...)
-	}
 	n.startHandleOrForwardTransactions(ctx)
 	n.sendEvent(event.NewRoundStarted, newRoundNr)
 }
@@ -792,6 +786,13 @@ func (n *Node) handleT1TimeoutEvent() {
 		return
 	}
 	logger.Debug("Current node is the leader.")
+
+	txrs, err := n.transactionSystem.SystemGeneratedTransactions()
+	if err != nil {
+		logger.Warning("Failed to get validator generated transactions: %w", err)
+	}
+	n.proposedTransactions = append(n.proposedTransactions, txrs...)
+
 	if err := n.sendBlockProposal(); err != nil {
 		logger.Warning("Failed to send BlockProposal: %v", err)
 		return

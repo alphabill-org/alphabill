@@ -23,12 +23,11 @@ import (
 
 	"github.com/alphabill-org/alphabill/internal/script"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
-	"github.com/alphabill-org/alphabill/internal/txsystem/money"
-	test "github.com/alphabill-org/alphabill/internal/testutils"
 	testhttp "github.com/alphabill-org/alphabill/internal/testutils/http"
 	"github.com/alphabill-org/alphabill/internal/testutils/net"
 	testtransaction "github.com/alphabill-org/alphabill/internal/testutils/transaction"
 	"github.com/alphabill-org/alphabill/internal/txsystem/fc/testutils"
+	"github.com/alphabill-org/alphabill/internal/txsystem/money"
 	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/pkg/client"
 	"github.com/alphabill-org/alphabill/pkg/client/clientmock"
@@ -700,7 +699,7 @@ func TestGetLockedFeeCreditRequest(t *testing.T) {
 	systemID := []byte{0, 0, 0, 0}
 	targetUnitID := test.NewUnitID(1)
 	walletBackend := newWalletBackend(t, withLockedFeeCredit(systemID, targetUnitID, transferFC))
-	port := startServer(t, walletBackend)
+	port, _ := startServer(t, walletBackend)
 
 	response := &types.TransactionRecord{}
 	httpRes, err := testhttp.DoGetJson(fmt.Sprintf("http://localhost:%d/api/v1/locked-fee-credit/0x%X/0x%X", port, systemID, targetUnitID), response)
@@ -740,7 +739,7 @@ func TestGetClosedFeeCreditRequest(t *testing.T) {
 	}
 	fcbID := test.NewUnitID(1)
 	walletBackend := newWalletBackend(t, withClosedFeeCredit(fcbID, closeFC))
-	port := startServer(t, walletBackend)
+	port, _ := startServer(t, walletBackend)
 
 	response := &types.TransactionRecord{}
 	httpRes, err := testhttp.DoGetJson(fmt.Sprintf("http://localhost:%d/api/v1/closed-fee-credit/0x%X", port, fcbID), response)

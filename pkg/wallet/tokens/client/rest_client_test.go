@@ -280,7 +280,7 @@ func Test_GetClosedFeeCredit(t *testing.T) {
 	}
 
 	t.Run("backend returns 404 => response is nil", func(t *testing.T) {
-		notExistsJson, _ := json.Marshal(wallet.ErrorResponse{Message: "closed fee credit does not exist"})
+		notExistsJson, _ := json.Marshal(sdk.ErrorResponse{Message: "closed fee credit does not exist"})
 		api := createClient(t, 404, notExistsJson)
 		rn, err := api.GetClosedFeeCredit(context.Background(), test.NewUnitID(1))
 		require.NoError(t, err)

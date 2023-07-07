@@ -3,10 +3,12 @@ package state
 import (
 	"bytes"
 	"crypto"
+	"errors"
 	"fmt"
 	"sync"
 
 	hasherUtil "github.com/alphabill-org/alphabill/internal/hash"
+	"github.com/alphabill-org/alphabill/internal/mt"
 	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/pkg/tree/avl"
 )
@@ -123,7 +125,7 @@ func (s *State) Commit() error {
 
 	sp := s.latestSavepoint()
 	if !sp.IsClean() {
-		return fmt.Errorf("call CalculateRoot method befaore commiting a state")
+		return errors.New("call CalculateRoot method before committing a state")
 	}
 	s.committedTree = sp.Clone()
 	s.savepoints = []*savepoint{sp}
@@ -207,6 +209,109 @@ func (s *State) PruneLog(id types.UnitID) error {
 	return s.latestSavepoint().Update(id, unit)
 }
 
+func (s *State) CreateUnitStateProof(id types.UnitID, logIndex int, uc *types.UnicityCertificate) (*UnitStateProof, error) {
+	s.mutex.RLock()
+	defer s.mutex.RUnlock()
+	unit, err := s.committedTree.Get(id)
+	if err != nil {
+		return nil, fmt.Errorf("unable to get unit %v: %w", id, err)
+	}
+
+	if len(unit.logs) < logIndex {
+		return nil, fmt.Errorf("invalid unit %v log index: %d", id, logIndex)
+	}
+	// if unit was created then we do not have a previous unit ledger state hash and this variable is nil.
+	var unitLedgerHeadHash []byte
+	if logIndex > 0 {
+		// existing unit was updated by a transaction
+		unitLedgerHeadHash = unit.logs[logIndex-1].unitLedgerHeadHash
+	} else if unit.logs[0].txRecordHash == nil {
+		// initial state was copied from previous round
+		unitLedgerHeadHash = unit.logs[0].unitLedgerHeadHash
+	}
+	unitTreeCert, err := s.createUnitTreeCert(unit, logIndex)
+	if err != nil {
+		return nil, fmt.Errorf("unable to extract unit tee cert for unit %v: %w", id, err)
+	}
+	stateTreeCert, err := s.createStateTreeCert(id)
+	if err != nil {
+		return nil, fmt.Errorf("unable to extract unit state tree cert for unit %v: %w", id, err)
+	}
+	var summaryValueInput uint64
+	if unit.data != nil {
+		summaryValueInput = unit.data.SummaryValueInput()
+	}
+	return &UnitStateProof{
+		unitID:             id,
+		previousStateHash:  unitLedgerHeadHash,
+		unitTreeCert:       unitTreeCert,
+		dataSummary:        summaryValueInput,
+		stateTreeCert:      stateTreeCert,
+		unicityCertificate: uc,
+	}, nil
+}
+
+func (s *State) createUnitTreeCert(unit *Unit, logIndex int) (*UnitTreeCert, error) {
+	merkle := mt.New(s.hashAlgorithm, unit.logs)
+	path, err := merkle.GetMerklePath(logIndex)
+	if err != nil {
+		return nil, err
+	}
+	l := unit.logs[logIndex]
+	dataHasher := s.hashAlgorithm.New()
+	dataHasher.Write(l.newBearer)
+	l.newUnitData.Write(dataHasher)
+	return &UnitTreeCert{
+		transactionRecordHash: l.txRecordHash,
+		unitDataHash:          dataHasher.Sum(nil),
+		path:                  path,
+	}, nil
+}
+
+func (s *State) createStateTreeCert(id types.UnitID) (*StateTreeCert, error) {
+	var path []*StateTreePathItem
+	node := s.committedTree.Root()
+	for node != nil && !id.Eq(node.Key()) {
+		nodeKey := node.Key()
+		v := getSummaryValueInput(node)
+		var item *StateTreePathItem
+		if id.Compare(nodeKey) == -1 {
+			nodeRight := node.Right()
+			item = &StateTreePathItem{
+				id:                  nodeKey,
+				hash:                getSubTreeLogRootHash(node),
+				nodeSummaryInput:    v,
+				siblingHash:         getSubTreeSummaryHash(nodeRight),
+				subTreeSummaryValue: getSubTreeSummaryValue(nodeRight),
+			}
+			node = node.Left()
+		} else {
+			nodeLeft := node.Left()
+			item = &StateTreePathItem{
+				id:                  nodeKey,
+				hash:                getSubTreeLogRootHash(node),
+				nodeSummaryInput:    v,
+				siblingHash:         getSubTreeSummaryHash(nodeLeft),
+				subTreeSummaryValue: getSubTreeSummaryValue(nodeLeft),
+			}
+			node = node.Right()
+		}
+		path = append([]*StateTreePathItem{item}, path...)
+	}
+	if id.Eq(node.Key()) {
+		nodeLeft := node.Left()
+		nodeRight := node.Right()
+		return &StateTreeCert{
+			leftHash:          getSubTreeSummaryHash(nodeLeft),
+			leftSummaryValue:  getSubTreeSummaryValue(nodeLeft),
+			rightHash:         getSubTreeSummaryHash(nodeRight),
+			rightSummaryValue: getSubTreeSummaryValue(nodeRight),
+			path:              path,
+		}, nil
+	}
+	return nil, fmt.Errorf("unable to extract unit state tree cert for unit %v", id)
+}
+
 func (s *State) createSavepoint() {
 	s.savepoints = append(s.savepoints, s.latestSavepoint().Clone())
 }
@@ -237,4 +342,32 @@ func (s *State) isCommitted() bool {
 func (s *State) latestSavepoint() *savepoint {
 	l := len(s.savepoints)
 	return s.savepoints[l-1]
+}
+
+func getSubTreeLogRootHash(n *avl.Node[types.UnitID, *Unit]) []byte {
+	if n == nil || n.Value() == nil {
+		return nil
+	}
+	return n.Value().logRoot
+}
+
+func getSubTreeSummaryValue(n *avl.Node[types.UnitID, *Unit]) uint64 {
+	if n == nil || n.Value() == nil {
+		return 0
+	}
+	return n.Value().subTreeSummaryValue
+}
+
+func getSummaryValueInput(node *avl.Node[types.UnitID, *Unit]) uint64 {
+	if node == nil || node.Value() == nil || node.Value().data == nil {
+		return 0
+	}
+	return node.Value().data.SummaryValueInput()
+}
+
+func getSubTreeSummaryHash(node *avl.Node[types.UnitID, *Unit]) []byte {
+	if node == nil || node.Value() == nil {
+		return nil
+	}
+	return node.Value().subTreeSummaryHash
 }

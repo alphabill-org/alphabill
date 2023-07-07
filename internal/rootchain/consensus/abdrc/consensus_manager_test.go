@@ -580,6 +580,7 @@ func Test_rootNetworkRunning(t *testing.T) {
 	start := time.Now()
 	require.Eventually(t, func() bool { return cm.pacemaker.GetCurrentRound() >= roundCount }, maxTestDuration, 100*time.Millisecond, "waiting for round %d to be achieved", roundCount)
 	stop := time.Now()
+	cancel()
 	// when calculating expected message counts keep in mind that last round might not be complete
 	// ie the test ended before all nodes had a chance to post their message. so use -1 rounds!
 	// and we start from round 2 so thats another -1 completed rounds.
@@ -587,12 +588,12 @@ func Test_rootNetworkRunning(t *testing.T) {
 	avgRoundLen := time.Duration(int64(stop.Sub(start)) / int64(completeRounds))
 
 	// output some statistics
-	t.Logf("total msg count: %d, average round duration %s", totalMsgCnt.Load(), avgRoundLen)
+	t.Logf("total msg count: %d during %s", totalMsgCnt.Load(), stop.Sub(start))
 
 	// check some expectations
 	// we expect to see proposal + vote per node per round. when some round timeouts msg count is higher!
 	require.GreaterOrEqual(t, totalMsgCnt.Load(), uint32(completeRounds*rootNodeCnt*2), "total number of messages in the network")
 	// average round duration should be between minRoundLen and maxRoundLen (aka timeout)
-	require.GreaterOrEqual(t, avgRoundLen, cm.pacemaker.minRoundLen, "minimum round duration")
-	require.GreaterOrEqual(t, cm.pacemaker.maxRoundLen, avgRoundLen, "maximum round duration")
+	require.GreaterOrEqual(t, avgRoundLen, cm.pacemaker.minRoundLen, "minimum round duration for %d rounds", completeRounds)
+	require.GreaterOrEqual(t, cm.pacemaker.maxRoundLen, avgRoundLen, "maximum round duration for %d rounds", completeRounds)
 }

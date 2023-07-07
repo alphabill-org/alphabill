@@ -198,7 +198,9 @@ func (x *ConsensusManager) loop(ctx context.Context) error {
 			case *abdrc.GetStateMsg:
 				x.onStateReq(mt)
 			case *abdrc.StateMsg:
-				x.onStateResponse(ctx, mt)
+				if err := x.onStateResponse(ctx, mt); err != nil {
+					logger.Warning("%v failed to process state recovery response: %v", x.id.ShortString(), err)
+				}
 			default:
 				logger.Warning("%v unknown protocol req %s %T from %v", x.id.ShortString(), msg.Protocol, mt, msg.From)
 			}
@@ -212,9 +214,10 @@ func (x *ConsensusManager) loop(ctx context.Context) error {
 				currentRound := x.pacemaker.GetCurrentRound()
 				leader := x.leaderSelector.GetLeaderForRound(currentRound + 1)
 				logger.Debug("%v round %d has lasted minimum required duration; next leader %s", x.id.ShortString(), currentRound, leader.ShortString())
-				// round 2 is system bootstrap and is a special case - as there is no proposal no-one is sending
-				// votes and thus leader won't see quorum and make next proposal (and round would time out).
-				// So the round 2 leader has to trigger next round when it's mature without having QC.
+				// round 2 is system bootstrap and is a special case - as there is no proposal no one is sending votes
+				// and thus leader won't achieve quorum and doesn't make next proposal (and the round would time out).
+				// So we just have the round 2 leader to trigger next round when it's mature (root genesis QC will be
+				// used as HighQc in the proposal).
 				if leader == x.id || (currentRound == 2 && x.id == x.leaderSelector.GetLeaderForRound(2)) {
 					if qc := x.pacemaker.RoundQC(); qc != nil || currentRound == 2 {
 						x.processQC(qc)
@@ -361,6 +364,10 @@ func (x *ConsensusManager) onVoteMsg(ctx context.Context, vote *abdrc.VoteMsg) {
 		// this will only happen if the node somehow gets a different state hash
 		// should be quite unlikely, during normal operation
 		logger.Warning("%v vote triggers recovery: %v", x.id.ShortString(), err)
+		// we need to buffer the vote(s) so that when recovery succeeds we can "replay"
+		// them - otherwise there might not be enough votes to achieve quorum and round
+		// will time out
+		x.voteBuffer = append(x.voteBuffer, vote)
 		if err = x.sendRecoveryRequests(vote); err != nil {
 			logger.Warning("%v sending recovery requests failed: %v", x.id.ShortString(), err)
 		}
@@ -644,43 +651,42 @@ func (x *ConsensusManager) onStateReq(req *abdrc.GetStateMsg) {
 	}
 }
 
-func (x *ConsensusManager) onStateResponse(ctx context.Context, req *abdrc.StateMsg) {
-	logger.Trace("%v round %v received state response", x.id.String(), x.pacemaker.GetCurrentRound())
+func (x *ConsensusManager) onStateResponse(ctx context.Context, req *abdrc.StateMsg) error {
+	logger.Trace("%v round %v received state response; %s", x.id.ShortString(), x.pacemaker.GetCurrentRound(), x.recovery)
 	if x.recovery == nil || req.CommittedHead == nil || req.CommittedHead.CommitQc == nil || x.recovery.toRound > req.CommittedHead.CommitQc.GetRound() {
-		return
+		// we do send out multiple state recovery request so do not return error when we ignore the ones after successful recovery...
+		return nil
 	}
 
-	// check validity
-	ucs := req.Certificates
-	for _, c := range ucs {
+	for _, c := range req.Certificates {
 		if err := c.IsValid(x.trustBase.GetVerifiers(), x.params.HashAlgorithm, c.UnicityTreeCertificate.SystemIdentifier, c.UnicityTreeCertificate.SystemDescriptionHash); err != nil {
-			logger.Warning("received invalid certificate, discarding whole message")
-			return
+			return fmt.Errorf("one of the certificates is invalid: %w", err)
 		}
 	}
-	x.blockStore.UpdateCertificates(ucs)
+	if err := x.blockStore.UpdateCertificates(req.Certificates); err != nil {
+		return fmt.Errorf("updating block store failed: %w", err)
+	}
 	if err := x.blockStore.RecoverState(req.CommittedHead, req.BlockNode, x.irReqVerifier); err != nil {
-		logger.Warning("state response failed, %v", err)
-		return
+		return fmt.Errorf("recovering state in block store failed: %w", err)
 	}
 
+	x.pacemaker.Reset(x.blockStore.GetHighQc().GetRound())
+
 	// exit recovery status and replay buffered messages
+	logger.Debug("%v completed recovery to round %d", x.id.ShortString(), x.pacemaker.GetCurrentRound())
 	triggerMsg := x.recovery.triggerMsg
 	x.recovery = nil
 
-	switch mt := triggerMsg.(type) {
-	case *abdrc.ProposalMsg:
-		x.onProposalMsg(ctx, mt)
-	case *abdrc.VoteMsg:
-		x.onVoteMsg(ctx, mt)
-	case *abdrc.TimeoutMsg:
-		x.pacemaker.Reset(x.blockStore.GetHighQc().GetRound())
+	if prop, ok := triggerMsg.(*abdrc.ProposalMsg); ok {
+		x.onProposalMsg(ctx, prop)
 	}
 
 	for _, v := range x.voteBuffer {
 		x.onVoteMsg(ctx, v)
 	}
 	x.voteBuffer = nil
+
+	return nil
 }
 
 func (x *ConsensusManager) sendRecoveryRequests(triggerMsg any) error {

@@ -23,10 +23,10 @@ import (
 	"github.com/alphabill-org/alphabill/internal/script"
 	testpartition "github.com/alphabill-org/alphabill/internal/testutils/partition"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
-	moneytx "github.com/alphabill-org/alphabill/internal/txsystem/money"
+	"github.com/alphabill-org/alphabill/internal/txsystem/money"
 	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/alphabill-org/alphabill/pkg/wallet/account"
-	"github.com/alphabill-org/alphabill/pkg/wallet/money"
+	wallet "github.com/alphabill-org/alphabill/pkg/wallet/money"
 	"github.com/alphabill-org/alphabill/pkg/wallet/money/backend/client"
 )
 
@@ -183,18 +183,18 @@ func TestSendingFailsWithInsufficientBalance(t *testing.T) {
 	defer mockServer.Close()
 
 	_, err := execCommand(homedir, "send --amount 10 --address "+hexutil.Encode(pubKey)+" --alphabill-api-uri "+addr.Host)
-	require.ErrorIs(t, err, money.ErrInsufficientBalance)
+	require.ErrorIs(t, err, wallet.ErrInsufficientBalance)
 }
 
-func createMoneyPartition(t *testing.T, initialBill *moneytx.InitialBill) *testpartition.NodePartition {
+func createMoneyPartition(t *testing.T, initialBill *money.InitialBill) *testpartition.NodePartition {
 	moneyPart, err := testpartition.NewPartition(1, func(tb map[string]abcrypto.Verifier) txsystem.TransactionSystem {
-		system, err := moneytx.NewMoneyTxSystem(
-			defaultABMoneySystemIdentifier,
-			moneytx.WithHashAlgorithm(crypto.SHA256),
-			moneytx.WithInitialBill(initialBill),
-			moneytx.WithSystemDescriptionRecords([]*genesis.SystemDescriptionRecord{
+		system, err := money.NewTxSystem(
+			money.WithSystemIdentifier(money.DefaultSystemIdentifier),
+			money.WithHashAlgorithm(crypto.SHA256),
+			money.WithInitialBill(initialBill),
+			money.WithSystemDescriptionRecords([]*genesis.SystemDescriptionRecord{
 				{
-					SystemIdentifier: defaultABMoneySystemIdentifier,
+					SystemIdentifier: money.DefaultSystemIdentifier,
 					T2Timeout:        defaultT2Timeout,
 					FeeCreditBill: &genesis.FeeCreditBill{
 						UnitId:         util.Uint256ToBytes(uint256.NewInt(2)),
@@ -202,8 +202,8 @@ func createMoneyPartition(t *testing.T, initialBill *moneytx.InitialBill) *testp
 					},
 				},
 			}),
-			moneytx.WithDCMoneyAmount(10000),
-			moneytx.WithTrustBase(tb),
+			money.WithDCMoneyAmount(10000),
+			money.WithTrustBase(tb),
 		)
 		require.NoError(t, err)
 		return system
@@ -354,7 +354,7 @@ func mockBackendCalls(br *backendMockReturnConf) (*httptest.Server, *url.URL) {
 			case "/" + client.RoundNumberPath:
 				w.WriteHeader(http.StatusOK)
 				w.Write([]byte(fmt.Sprintf(`{"blockHeight": "%d"}`, br.blockHeight)))
-			case "/" + client.ProofPath:
+			case "/api/v1/units/":
 				if br.proofList != "" {
 					w.WriteHeader(http.StatusOK)
 					w.Write([]byte(br.proofList))

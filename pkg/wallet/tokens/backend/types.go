@@ -32,10 +32,11 @@ type (
 
 	TokenUnit struct {
 		// common
-		ID     TokenID          `json:"id"`
-		Symbol string           `json:"symbol"`
-		TypeID TokenTypeID      `json:"typeId"`
-		Owner  wallet.Predicate `json:"owner"`
+		ID       TokenID          `json:"id"`
+		Symbol   string           `json:"symbol"`
+		TypeID   TokenTypeID      `json:"typeId"`
+		TypeName string           `json:"typeName"`
+		Owner    wallet.Predicate `json:"owner"`
 		// fungible only
 		Amount   uint64 `json:"amount,omitempty,string"`
 		Decimals uint32 `json:"decimals,omitempty"`
@@ -55,10 +56,10 @@ type (
 	Kind        byte
 
 	FeeCreditBill struct {
-		Id            []byte `json:"id"`
-		Value         uint64 `json:"value,string"`
-		TxHash        []byte `json:"txHash"`
-		FCBlockNumber uint64 `json:"fcBlockNumber,string"`
+		Id          []byte `json:"id"`
+		Value       uint64 `json:"value,string"`
+		TxHash      []byte `json:"txHash"`
+		AddFCTxHash []byte `json:"addFcTxHash"`
 	}
 )
 
@@ -130,15 +131,21 @@ func (f *FeeCreditBill) GetTxHash() []byte {
 	return nil
 }
 
-func (f *FeeCreditBill) ToGenericBill(txProof *wallet.Proof) *wallet.Bill {
+func (f *FeeCreditBill) GetAddFCTxHash() []byte {
+	if f != nil {
+		return f.AddFCTxHash
+	}
+	return nil
+}
+
+func (f *FeeCreditBill) ToGenericBill() *wallet.Bill {
 	if f == nil {
 		return nil
 	}
 	return &wallet.Bill{
-		Id:            f.Id,
-		Value:         f.Value,
-		TxHash:        f.TxHash,
-		FcBlockNumber: f.FCBlockNumber,
-		TxProof:       txProof,
+		Id:          f.Id,
+		Value:       f.Value,
+		TxHash:      f.TxHash,
+		AddFCTxHash: f.AddFCTxHash,
 	}
 }

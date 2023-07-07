@@ -63,7 +63,7 @@ func TestCollectDustTimeoutReached(t *testing.T) {
 	go func() {
 		err := backend.Run(ctx,
 			&backend.Config{
-				ABMoneySystemIdentifier: []byte{0, 0, 0, 0},
+				ABMoneySystemIdentifier: moneytx.DefaultSystemIdentifier,
 				AlphabillUrl:            addr,
 				ServerAddr:              restAddr,
 				DbFile:                  filepath.Join(t.TempDir(), backend.BoltBillStoreFileName),
@@ -391,8 +391,8 @@ func sendToAccount(t *testing.T, w *Wallet, amount, fromAccount, toAccount uint6
 
 func startMoneyOnlyAlphabillPartition(t *testing.T, initialBill *moneytx.InitialBill) *testpartition.AlphabillNetwork {
 	mPart, err := testpartition.NewPartition(1, func(tb map[string]abcrypto.Verifier) txsystem.TransactionSystem {
-		system, err := moneytx.NewMoneyTxSystem(
-			moneySysId,
+		system, err := moneytx.NewTxSystem(
+			moneytx.WithSystemIdentifier(moneytx.DefaultSystemIdentifier),
 			moneytx.WithInitialBill(initialBill),
 			moneytx.WithSystemDescriptionRecords(createSDRs(2)),
 			moneytx.WithDCMoneyAmount(10000*1e8),

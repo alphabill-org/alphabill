@@ -48,7 +48,7 @@ func TestDustCollectionMaxBillCount(t *testing.T) {
 	for i := 0; i < maxBillsForDustCollection; i++ {
 		bills[i] = addBill(uint64(i))
 	}
-	billsList := createBillListResponse(bills)
+	billsList := createBillListResponse(bills, nil)
 
 	recordedTxs := make(map[string]*types.TransactionOrder, 0)
 	billListCallFlag := false
@@ -56,27 +56,18 @@ func TestDustCollectionMaxBillCount(t *testing.T) {
 		getRoundNumber: func() (uint64, error) {
 			return 0, nil
 		},
-		listBills: func(pubKey []byte, includeDCBills bool) (*backend.ListBillsResponse, error) {
+		listBills: func(pubKey []byte, includeDCBills, includeDCMetadata bool) (*backend.ListBillsResponse, error) {
 			if billListCallFlag {
-				return createBillListResponse([]*Bill{addBill(uint64(maxBillsForDustCollection + 1))}), nil
+				return createBillListResponse([]*Bill{addBill(uint64(maxBillsForDustCollection + 1))}, nil), nil
 			}
 			billListCallFlag = true
 			return billsList, nil
 		},
-		getProof: func(billId []byte) (*wallet.Bills, error) {
-			for _, b := range bills {
-				if bytes.Equal(util.Uint256ToBytes(b.Id), billId) {
-					return createBlockProofResponse(t, b, nonceBytes, dcTimeoutBlockCount, nil), nil
-				}
-			}
-			return nil, nil
-		},
 		getFeeCreditBill: func(ctx context.Context, unitID []byte) (*wallet.Bill, error) {
 			k, _ := am.GetAccountKey(0)
 			return &wallet.Bill{
-				Id:      k.PrivKeyHash,
-				Value:   100 * 1e8,
-				TxProof: &wallet.Proof{},
+				Id:    k.PrivKeyHash,
+				Value: 100 * 1e8,
 			}, nil
 		},
 		postTransactions: func(ctx context.Context, pubKey wallet.PubKey, txs *wallet.Transactions) error {
@@ -86,6 +77,11 @@ func TestDustCollectionMaxBillCount(t *testing.T) {
 			return nil
 		},
 		getTxProof: func(ctx context.Context, unitID wallet.UnitID, txHash wallet.TxHash) (*wallet.Proof, error) {
+			for _, b := range bills {
+				if bytes.Equal(util.Uint256ToBytes(b.Id), unitID) {
+					return createBlockProofResponse(t, b, nonceBytes, dcTimeoutBlockCount, nil), nil
+				}
+			}
 			tx, found := recordedTxs[string(unitID)]
 			if !found {
 				return nil, errors.New("tx not found")
@@ -122,39 +118,30 @@ func TestDustCollectionMaxBillCountOverLimit(t *testing.T) {
 		getRoundNumber: func() (uint64, error) {
 			return 0, nil
 		},
-		listBills: func(pubKey []byte, includeDCBills bool) (*backend.ListBillsResponse, error) {
+		listBills: func(pubKey []byte, includeDCBills, includeDCMetadata bool) (*backend.ListBillsResponse, error) {
 			// simulate progress during multiple calls for dc processing:
 			switch billListCounter {
 			case 0:
 				// First call: 100 bills
 				billListCounter++
-				return createBillListResponse(bills), nil
+				return createBillListResponse(bills, nil), nil
 			case 1:
 				// Second call: 1 original bill + 1 new bill (simulate swap)
 				bills = append(bills, addBill(uint64(maxBillsForDustCollection+1)))
 				billListCounter++
-				return createBillListResponse(bills[maxBillsForDustCollection:]), nil
+				return createBillListResponse(bills[maxBillsForDustCollection:], nil), nil
 			case 2:
 				// Third call: 1 new bill (final swap)
 				bills = append(bills, addBill(uint64(maxBillsForDustCollection+2)))
-				return createBillListResponse(bills[maxBillsForDustCollection+2:]), nil
-			}
-			return nil, nil
-		},
-		getProof: func(billId []byte) (*wallet.Bills, error) {
-			for _, b := range bills {
-				if bytes.Equal(util.Uint256ToBytes(b.Id), billId) {
-					return createBlockProofResponse(t, b, nonceBytes, dcTimeoutBlockCount, nil), nil
-				}
+				return createBillListResponse(bills[maxBillsForDustCollection+2:], nil), nil
 			}
 			return nil, nil
 		},
 		getFeeCreditBill: func(ctx context.Context, unitID []byte) (*wallet.Bill, error) {
 			k, _ := am.GetAccountKey(0)
 			return &wallet.Bill{
-				Id:      k.PrivKeyHash,
-				Value:   100 * 1e8,
-				TxProof: &wallet.Proof{},
+				Id:    k.PrivKeyHash,
+				Value: 100 * 1e8,
 			}, nil
 		},
 		postTransactions: func(ctx context.Context, pubKey wallet.PubKey, txs *wallet.Transactions) error {
@@ -164,6 +151,11 @@ func TestDustCollectionMaxBillCountOverLimit(t *testing.T) {
 			return nil
 		},
 		getTxProof: func(ctx context.Context, unitID wallet.UnitID, txHash wallet.TxHash) (*wallet.Proof, error) {
+			for _, b := range bills {
+				if bytes.Equal(util.Uint256ToBytes(b.Id), unitID) {
+					return createBlockProofResponse(t, b, nonceBytes, dcTimeoutBlockCount, nil), nil
+				}
+			}
 			tx, found := recordedTxs[string(unitID)]
 			if !found {
 				return nil, errors.New("tx not found")
@@ -194,7 +186,7 @@ func TestBasicDustCollection(t *testing.T) {
 	_ = am.CreateKeys("")
 	k, _ := am.GetAccountKey(0)
 	bills := []*Bill{addBill(1), addBill(2)}
-	billsList := createBillListResponse(bills)
+	billsList := createBillListResponse(bills, nil)
 	expectedDcNonce := calculateDcNonce(bills)
 
 	recordedTxs := make(map[string]*types.TransactionOrder, 0)
@@ -205,27 +197,18 @@ func TestBasicDustCollection(t *testing.T) {
 		getRoundNumber: func() (uint64, error) {
 			return 0, nil
 		},
-		listBills: func(pubKey []byte, includeDCBills bool) (*backend.ListBillsResponse, error) {
+		listBills: func(pubKey []byte, includeDCBills, includeDCMetadata bool) (*backend.ListBillsResponse, error) {
 			if billListCallFlag {
-				return createBillListResponse([]*Bill{addBill(3)}), nil
+				return createBillListResponse([]*Bill{addBill(3)}, nil), nil
 			}
 			billListCallFlag = true
 			return billsList, nil
 		},
-		getProof: func(billId []byte) (*wallet.Bills, error) {
-			for _, b := range bills {
-				if bytes.Equal(util.Uint256ToBytes(b.Id), billId) {
-					return createBlockProofResponse(t, b, nonceBytes, dcTimeoutBlockCount, nil), nil
-				}
-			}
-			return nil, nil
-		},
 		getFeeCreditBill: func(ctx context.Context, unitID []byte) (*wallet.Bill, error) {
 			k, _ := am.GetAccountKey(0)
 			return &wallet.Bill{
-				Id:      k.PrivKeyHash,
-				Value:   100 * 1e8,
-				TxProof: &wallet.Proof{},
+				Id:    k.PrivKeyHash,
+				Value: 100 * 1e8,
 			}, nil
 		},
 		postTransactions: func(ctx context.Context, pubKey wallet.PubKey, txs *wallet.Transactions) error {
@@ -241,6 +224,11 @@ func TestBasicDustCollection(t *testing.T) {
 			return nil
 		},
 		getTxProof: func(ctx context.Context, unitID wallet.UnitID, txHash wallet.TxHash) (*wallet.Proof, error) {
+			for _, b := range bills {
+				if bytes.Equal(util.Uint256ToBytes(b.Id), unitID) {
+					return createBlockProofResponse(t, b, nonceBytes, dcTimeoutBlockCount, nil), nil
+				}
+			}
 			tx, found := recordedTxs[string(unitID)]
 			if !found {
 				return nil, errors.New("tx not found")
@@ -282,7 +270,7 @@ func TestDustCollectionWithSwap(t *testing.T) {
 	k, _ := am.GetAccountKey(0)
 	bills := []*Bill{addBill(1), addBill(2)}
 	expectedDcNonce := calculateDcNonce(bills)
-	billsList := createBillListResponse(bills)
+	billsList := createBillListResponse(bills, nil)
 
 	recordedTxs := make(map[string]*types.TransactionOrder, 0)
 	recordedSwaps := make(map[string]*types.TransactionOrder, 0)
@@ -292,27 +280,18 @@ func TestDustCollectionWithSwap(t *testing.T) {
 		getRoundNumber: func() (uint64, error) {
 			return 0, nil
 		},
-		listBills: func(pubKey []byte, includeDCBills bool) (*backend.ListBillsResponse, error) {
+		listBills: func(pubKey []byte, includeDCBills, includeDCMetadata bool) (*backend.ListBillsResponse, error) {
 			if billListCallFlag {
-				return createBillListResponse([]*Bill{addBill(3)}), nil
+				return createBillListResponse([]*Bill{addBill(3)}, nil), nil
 			}
 			billListCallFlag = true
 			return billsList, nil
 		},
-		getProof: func(billId []byte) (*wallet.Bills, error) {
-			for _, b := range bills {
-				if bytes.Equal(util.Uint256ToBytes(b.Id), billId) {
-					return createBlockProofResponse(t, b, expectedDcNonce, dcTimeoutBlockCount, nil), nil
-				}
-			}
-			return nil, nil
-		},
 		getFeeCreditBill: func(ctx context.Context, unitID []byte) (*wallet.Bill, error) {
 			k, _ := am.GetAccountKey(0)
 			return &wallet.Bill{
-				Id:      k.PrivKeyHash,
-				Value:   100 * 1e8,
-				TxProof: &wallet.Proof{},
+				Id:    k.PrivKeyHash,
+				Value: 100 * 1e8,
 			}, nil
 		},
 		postTransactions: func(ctx context.Context, pubKey wallet.PubKey, txs *wallet.Transactions) error {
@@ -328,6 +307,11 @@ func TestDustCollectionWithSwap(t *testing.T) {
 			return nil
 		},
 		getTxProof: func(ctx context.Context, unitID wallet.UnitID, txHash wallet.TxHash) (*wallet.Proof, error) {
+			for _, b := range bills {
+				if bytes.Equal(util.Uint256ToBytes(b.Id), unitID) {
+					return createBlockProofResponse(t, b, expectedDcNonce, dcTimeoutBlockCount, nil), nil
+				}
+			}
 			tx, found := recordedTxs[string(unitID)]
 			if !found {
 				return nil, errors.New("tx not found")
@@ -365,9 +349,12 @@ func TestSwapWithExistingDCBillsBeforeDCTimeout(t *testing.T) {
 	require.NoError(t, err)
 	_ = am.CreateKeys("")
 	k, _ := am.GetAccountKey(0)
+	ids := [][]byte{util.Uint256ToBytes(uint256.NewInt(1)), util.Uint256ToBytes(uint256.NewInt(2))}
 	bills := []*Bill{addDcBill(t, k, uint256.NewInt(1), nonceBytes, 1, dcTimeoutBlockCount), addDcBill(t, k, uint256.NewInt(2), nonceBytes, 2, dcTimeoutBlockCount)}
-	billsList := createBillListResponse(bills)
 	expectedDcNonce := calculateDcNonce(bills)
+	dcMetadataMap := make(map[string]*backend.DCMetadata)
+	dcMetadataMap[string(nonceBytes)] = &backend.DCMetadata{BillIdentifiers: ids, DCSum: 3}
+	billsList := createBillListResponse(bills, dcMetadataMap)
 
 	recordedTxs := make(map[string]*types.TransactionOrder, 0)
 	roundNr := uint64(5)
@@ -376,23 +363,14 @@ func TestSwapWithExistingDCBillsBeforeDCTimeout(t *testing.T) {
 			roundNr++
 			return roundNr, nil
 		},
-		listBills: func(pubKey []byte, includeDCBills bool) (*backend.ListBillsResponse, error) {
+		listBills: func(pubKey []byte, includeDCBills, includeDCMetadata bool) (*backend.ListBillsResponse, error) {
 			return billsList, nil
-		},
-		getProof: func(billId []byte) (*wallet.Bills, error) {
-			for _, b := range bills {
-				if bytes.Equal(util.Uint256ToBytes(b.Id), billId) {
-					return createBlockProofResponse(t, b, expectedDcNonce, dcTimeoutBlockCount, nil), nil
-				}
-			}
-			return nil, nil
 		},
 		getFeeCreditBill: func(ctx context.Context, unitID []byte) (*wallet.Bill, error) {
 			k, _ := am.GetAccountKey(0)
 			return &wallet.Bill{
-				Id:      k.PrivKeyHash,
-				Value:   100 * 1e8,
-				TxProof: &wallet.Proof{},
+				Id:    k.PrivKeyHash,
+				Value: 100 * 1e8,
 			}, nil
 		},
 		postTransactions: func(ctx context.Context, pubKey wallet.PubKey, txs *wallet.Transactions) error {
@@ -402,6 +380,11 @@ func TestSwapWithExistingDCBillsBeforeDCTimeout(t *testing.T) {
 			return nil
 		},
 		getTxProof: func(ctx context.Context, unitID wallet.UnitID, txHash wallet.TxHash) (*wallet.Proof, error) {
+			for _, b := range bills {
+				if bytes.Equal(util.Uint256ToBytes(b.Id), unitID) {
+					return createBlockProofResponse(t, b, expectedDcNonce, dcTimeoutBlockCount, nil), nil
+				}
+			}
 			tx, found := recordedTxs[string(unitID)]
 			if !found {
 				return nil, errors.New("tx not found")
@@ -439,32 +422,26 @@ func TestSwapWithExistingExpiredDCBills(t *testing.T) {
 	require.NoError(t, err)
 	_ = am.CreateKeys("")
 	k, _ := am.GetAccountKey(0)
+	ids := [][]byte{util.Uint256ToBytes(uint256.NewInt(1)), util.Uint256ToBytes(uint256.NewInt(2))}
 	bills := []*Bill{addDcBill(t, k, uint256.NewInt(1), nonceBytes, 1, 0), addDcBill(t, k, uint256.NewInt(2), nonceBytes, 2, 0)}
-	billsList := createBillListResponse(bills)
 	expectedDcNonce := calculateDcNonce(bills)
+	dcMetadataMap := make(map[string]*backend.DCMetadata)
+	dcMetadataMap[string(nonceBytes)] = &backend.DCMetadata{BillIdentifiers: ids, DCSum: 3}
+	billsList := createBillListResponse(bills, dcMetadataMap)
 
 	recordedTxs := make(map[string]*types.TransactionOrder, 0)
 	backendMock := &backendAPIMock{
 		getRoundNumber: func() (uint64, error) {
 			return dcTimeoutBlockCount, nil
 		},
-		listBills: func(pubKey []byte, includeDCBills bool) (*backend.ListBillsResponse, error) {
+		listBills: func(pubKey []byte, includeDCBills, includeDCMetadata bool) (*backend.ListBillsResponse, error) {
 			return billsList, nil
-		},
-		getProof: func(billId []byte) (*wallet.Bills, error) {
-			for _, b := range bills {
-				if bytes.Equal(util.Uint256ToBytes(b.Id), billId) {
-					return createBlockProofResponse(t, b, expectedDcNonce, dcTimeoutBlockCount, nil), nil
-				}
-			}
-			return nil, nil
 		},
 		getFeeCreditBill: func(ctx context.Context, unitID []byte) (*wallet.Bill, error) {
 			k, _ := am.GetAccountKey(0)
 			return &wallet.Bill{
-				Id:      k.PrivKeyHash,
-				Value:   100 * 1e8,
-				TxProof: &wallet.Proof{},
+				Id:    k.PrivKeyHash,
+				Value: 100 * 1e8,
 			}, nil
 		},
 		postTransactions: func(ctx context.Context, pubKey wallet.PubKey, txs *wallet.Transactions) error {
@@ -474,6 +451,11 @@ func TestSwapWithExistingExpiredDCBills(t *testing.T) {
 			return nil
 		},
 		getTxProof: func(ctx context.Context, unitID wallet.UnitID, txHash wallet.TxHash) (*wallet.Proof, error) {
+			for _, b := range bills {
+				if bytes.Equal(util.Uint256ToBytes(b.Id), unitID) {
+					return createBlockProofResponse(t, b, expectedDcNonce, dcTimeoutBlockCount, nil), nil
+				}
+			}
 			tx, found := recordedTxs[string(unitID)]
 			if !found {
 				return nil, errors.New("tx not found")
@@ -531,9 +513,9 @@ func TestSwapTxValuesAreCalculatedInCorrectBillOrder(t *testing.T) {
 		dcBillIds = append(dcBillIds, dcBill.GetID())
 	}
 
-	var protoDcBills []*wallet.Bill
+	var protoDcBills []*wallet.BillProof
 	for _, b := range dcBills {
-		protoDcBills = append(protoDcBills, b.ToProto())
+		protoDcBills = append(protoDcBills, b.ToGenericBillProof())
 	}
 
 	swapTxOrder, err := txbuilder.NewSwapTx(k, w.SystemID(), protoDcBills, dcNonce, dcBillIds, 10)
@@ -563,7 +545,7 @@ func TestSwapContainsUnconfirmedDustBillIds(t *testing.T) {
 	am, err := account.NewManager(t.TempDir(), "", true)
 	require.NoError(t, err)
 	_ = am.CreateKeys("")
-	billsList := createBillListResponse(bills)
+	billsList := createBillListResponse(bills, nil)
 
 	recordedTxs := make(map[string]*types.TransactionOrder, 0)
 	recordedSwaps := make(map[string]*types.TransactionOrder, 0)
@@ -573,27 +555,18 @@ func TestSwapContainsUnconfirmedDustBillIds(t *testing.T) {
 		getRoundNumber: func() (uint64, error) {
 			return 0, nil
 		},
-		listBills: func(pubKey []byte, includeDCBills bool) (*backend.ListBillsResponse, error) {
+		listBills: func(pubKey []byte, includeDCBills, includeDCMetadata bool) (*backend.ListBillsResponse, error) {
 			if billListCallFlag {
-				return createBillListResponse([]*Bill{addBill(4)}), nil
+				return createBillListResponse([]*Bill{addBill(4)}, nil), nil
 			}
 			billListCallFlag = true
 			return billsList, nil
 		},
-		getProof: func(billId []byte) (*wallet.Bills, error) {
-			for _, b := range bills {
-				if bytes.Equal(util.Uint256ToBytes(b.Id), billId) {
-					return createBlockProofResponse(t, b, nil, dcTimeoutBlockCount, nil), nil
-				}
-			}
-			return nil, nil
-		},
 		getFeeCreditBill: func(ctx context.Context, unitID []byte) (*wallet.Bill, error) {
 			k, _ := am.GetAccountKey(0)
 			return &wallet.Bill{
-				Id:      k.PrivKeyHash,
-				Value:   100 * 1e8,
-				TxProof: &wallet.Proof{},
+				Id:    k.PrivKeyHash,
+				Value: 100 * 1e8,
 			}, nil
 		},
 		postTransactions: func(ctx context.Context, pubKey wallet.PubKey, txs *wallet.Transactions) error {
@@ -609,6 +582,11 @@ func TestSwapContainsUnconfirmedDustBillIds(t *testing.T) {
 			return nil
 		},
 		getTxProof: func(ctx context.Context, unitID wallet.UnitID, txHash wallet.TxHash) (*wallet.Proof, error) {
+			for _, b := range bills {
+				if bytes.Equal(util.Uint256ToBytes(b.Id), unitID) {
+					return createBlockProofResponse(t, b, nil, dcTimeoutBlockCount, nil), nil
+				}
+			}
 			tx, found := recordedTxs[string(unitID)]
 			if !found {
 				return nil, errors.New("tx not found")
@@ -647,7 +625,7 @@ func TestBlockingDcWithNormalBills(t *testing.T) {
 	nonce := calculateDcNonce(bills)
 	am, err := account.NewManager(t.TempDir(), "", true)
 	require.NoError(t, err)
-	billsList := createBillListResponse(bills)
+	billsList := createBillListResponse(bills, nil)
 
 	recordedTxs := make(map[string]*types.TransactionOrder, 0)
 	billListCallFlag := false
@@ -655,27 +633,18 @@ func TestBlockingDcWithNormalBills(t *testing.T) {
 		getRoundNumber: func() (uint64, error) {
 			return 0, nil
 		},
-		listBills: func(pubKey []byte, includeDCBills bool) (*backend.ListBillsResponse, error) {
+		listBills: func(pubKey []byte, includeDCBills, includeDCMetadata bool) (*backend.ListBillsResponse, error) {
 			if billListCallFlag {
-				return createBillListResponse([]*Bill{addBill(3)}), nil
+				return createBillListResponse([]*Bill{addBill(3)}, nil), nil
 			}
 			billListCallFlag = true
 			return billsList, nil
 		},
-		getProof: func(billId []byte) (*wallet.Bills, error) {
-			for _, b := range bills {
-				if bytes.Equal(util.Uint256ToBytes(b.Id), billId) {
-					return createBlockProofResponse(t, b, nil, dcTimeoutBlockCount, nil), nil
-				}
-			}
-			return nil, nil
-		},
 		getFeeCreditBill: func(ctx context.Context, unitID []byte) (*wallet.Bill, error) {
 			k, _ := am.GetAccountKey(0)
 			return &wallet.Bill{
-				Id:      k.PrivKeyHash,
-				Value:   100 * 1e8,
-				TxProof: &wallet.Proof{},
+				Id:    k.PrivKeyHash,
+				Value: 100 * 1e8,
 			}, nil
 		},
 		postTransactions: func(ctx context.Context, pubKey wallet.PubKey, txs *wallet.Transactions) error {
@@ -685,6 +654,11 @@ func TestBlockingDcWithNormalBills(t *testing.T) {
 			return nil
 		},
 		getTxProof: func(ctx context.Context, unitID wallet.UnitID, txHash wallet.TxHash) (*wallet.Proof, error) {
+			for _, b := range bills {
+				if bytes.Equal(util.Uint256ToBytes(b.Id), unitID) {
+					return createBlockProofResponse(t, b, nil, dcTimeoutBlockCount, nil), nil
+				}
+			}
 			tx, found := recordedTxs[string(unitID)]
 			if !found {
 				return nil, errors.New("tx not found")
@@ -715,35 +689,30 @@ func TestBlockingDcWithNormalBills(t *testing.T) {
 func TestBlockingDCWithExistingExpiredDCBills(t *testing.T) {
 	// create wallet with 2 timed out dc bills
 	tempNonce := uint256.NewInt(1)
+	nonceBytes := util.Uint256ToBytes(tempNonce)
 	am, err := account.NewManager(t.TempDir(), "", true)
 	require.NoError(t, err)
 	_ = am.CreateKeys("")
 	k, _ := am.GetAccountKey(0)
-	bills := []*Bill{addDcBill(t, k, uint256.NewInt(1), util.Uint256ToBytes(tempNonce), 1, 0), addDcBill(t, k, uint256.NewInt(2), util.Uint256ToBytes(tempNonce), 2, 0)}
-	billsList := createBillListResponse(bills)
+	ids := [][]byte{util.Uint256ToBytes(uint256.NewInt(1)), util.Uint256ToBytes(uint256.NewInt(2))}
+	bills := []*Bill{addDcBill(t, k, uint256.NewInt(1), nonceBytes, 1, 0), addDcBill(t, k, uint256.NewInt(2), nonceBytes, 2, 0)}
+	dcMetadataMap := make(map[string]*backend.DCMetadata)
+	dcMetadataMap[string(nonceBytes)] = &backend.DCMetadata{BillIdentifiers: ids, DCSum: 3}
+	billsList := createBillListResponse(bills, dcMetadataMap)
 
 	recordedTxs := make(map[string]*types.TransactionOrder, 0)
 	backendMock := &backendAPIMock{
 		getRoundNumber: func() (uint64, error) {
 			return dcTimeoutBlockCount, nil
 		},
-		listBills: func(pubKey []byte, includeDCBills bool) (*backend.ListBillsResponse, error) {
+		listBills: func(pubKey []byte, includeDCBills, includeDCMetadata bool) (*backend.ListBillsResponse, error) {
 			return billsList, nil
-		},
-		getProof: func(billId []byte) (*wallet.Bills, error) {
-			for _, b := range bills {
-				if bytes.Equal(util.Uint256ToBytes(b.Id), billId) {
-					return createBlockProofResponse(t, b, util.Uint256ToBytes(tempNonce), dcTimeoutBlockCount, nil), nil
-				}
-			}
-			return nil, nil
 		},
 		getFeeCreditBill: func(ctx context.Context, unitID []byte) (*wallet.Bill, error) {
 			k, _ := am.GetAccountKey(0)
 			return &wallet.Bill{
-				Id:      k.PrivKeyHash,
-				Value:   100 * 1e8,
-				TxProof: &wallet.Proof{},
+				Id:    k.PrivKeyHash,
+				Value: 100 * 1e8,
 			}, nil
 		},
 		postTransactions: func(ctx context.Context, pubKey wallet.PubKey, txs *wallet.Transactions) error {
@@ -753,6 +722,11 @@ func TestBlockingDCWithExistingExpiredDCBills(t *testing.T) {
 			return nil
 		},
 		getTxProof: func(ctx context.Context, unitID wallet.UnitID, txHash wallet.TxHash) (*wallet.Proof, error) {
+			for _, b := range bills {
+				if bytes.Equal(util.Uint256ToBytes(b.Id), unitID) {
+					return createBlockProofResponse(t, b, util.Uint256ToBytes(tempNonce), dcTimeoutBlockCount, nil), nil
+				}
+			}
 			tx, found := recordedTxs[string(unitID)]
 			if !found {
 				return nil, errors.New("tx not found")
@@ -786,7 +760,7 @@ func addBill(value uint64) *Bill {
 	return &b1
 }
 
-func addDcBill(t *testing.T, k *account.AccountKey, id *uint256.Int, nonce []byte, value uint64, timeout uint64) *Bill {
+func addDcBill(t *testing.T, k *account.AccountKey, id *uint256.Int, nonce []byte, value, timeout uint64) *Bill {
 	b := Bill{
 		Id:      id,
 		Value:   value,
@@ -794,11 +768,10 @@ func addDcBill(t *testing.T, k *account.AccountKey, id *uint256.Int, nonce []byt
 		TxProof: &wallet.Proof{},
 	}
 
-	tx, err := txbuilder.NewDustTx(k, []byte{0, 0, 0, 0}, b.ToProto(), nonce, timeout)
+	tx, err := txbuilder.NewDustTx(k, []byte{0, 0, 0, 0}, b.ToGenericBillProof().Bill, nonce, timeout)
 	require.NoError(t, err)
 	b.TxProof = &wallet.Proof{TxRecord: &types.TransactionRecord{TransactionOrder: tx}}
 
-	b.IsDcBill = true
 	b.DcNonce = nonce
 	b.DcTimeout = timeout
 	b.DcExpirationTimeout = dustBillDeletionTimeout

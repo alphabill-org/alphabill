@@ -88,7 +88,7 @@ func Test_blockProcessor_ProcessBlock(t *testing.T) {
 	})
 
 	t.Run("failure to process tx", func(t *testing.T) {
-		txs, err := tokens.New(
+		txs, err := tokens.NewTxSystem(
 			tokens.WithTrustBase(map[string]abcrypto.Verifier{"test": nil}),
 		)
 		require.NoError(t, err)
@@ -137,7 +137,7 @@ func Test_blockProcessor_processTx(t *testing.T) {
 
 	logger, err := log.New(log.DEBUG, io.Discard)
 	require.NoError(t, err)
-	txs, err := tokens.New(
+	txs, err := tokens.NewTxSystem(
 		tokens.WithTrustBase(map[string]abcrypto.Verifier{"test": nil}),
 	)
 	require.NoError(t, err)
@@ -453,8 +453,9 @@ func Test_blockProcessor_ProcessFeeCreditTxs(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, uint256.NewInt(1), uint256.NewInt(0).SetBytes(fcb.Id))
 	require.EqualValues(t, 49, fcb.GetValue())
-	require.EqualValues(t, 4, fcb.FCBlockNumber)
-	require.Equal(t, addFC.Hash(crypto.SHA256), fcb.TxHash)
+	expectedAddFCHash := addFC.Hash(crypto.SHA256)
+	require.Equal(t, expectedAddFCHash, fcb.TxHash)
+	require.Equal(t, expectedAddFCHash, fcb.AddFCTxHash)
 
 	// when closeFC tx is processed
 	closeFC := testfc.NewCloseFC(t,
@@ -472,8 +473,8 @@ func Test_blockProcessor_ProcessFeeCreditTxs(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, uint256.NewInt(1), uint256.NewInt(0).SetBytes(fcb.Id))
 	require.EqualValues(t, 39, fcb.GetValue())
-	require.EqualValues(t, 5, fcb.FCBlockNumber)
 	require.Equal(t, closeFC.Hash(crypto.SHA256), fcb.TxHash)
+	require.Equal(t, expectedAddFCHash, fcb.AddFCTxHash)
 }
 
 func createBlockProcessor(t *testing.T) *blockProcessor {
@@ -483,7 +484,7 @@ func createBlockProcessor(t *testing.T) *blockProcessor {
 	logger, err := log.New(log.DEBUG, io.Discard)
 	require.NoError(t, err)
 
-	txSystem, err := tokens.New(tokens.WithTrustBase(map[string]abcrypto.Verifier{"test": nil}))
+	txSystem, err := tokens.NewTxSystem(tokens.WithTrustBase(map[string]abcrypto.Verifier{"test": nil}))
 	require.NoError(t, err)
 
 	return &blockProcessor{log: logger, txs: txSystem, store: db}
@@ -491,10 +492,10 @@ func createBlockProcessor(t *testing.T) *blockProcessor {
 
 func getFeeCreditBillFunc(unitID wallet.UnitID) (*FeeCreditBill, error) {
 	return &FeeCreditBill{
-		Id:            unitID,
-		Value:         50,
-		TxHash:        []byte{1},
-		FCBlockNumber: 3,
+		Id:          unitID,
+		Value:       50,
+		TxHash:      []byte{1},
+		AddFCTxHash: []byte{2},
 	}, nil
 }
 

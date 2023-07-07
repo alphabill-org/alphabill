@@ -449,6 +449,32 @@ func TestNode_HandleUnicityCertificate_Revert(t *testing.T) {
 	require.Equal(t, uint64(1), system.RevertCount)
 }
 
+// pending proposal exists
+// uc.InputRecord.SumOfEarnedFees != n.pendingBlockProposal.SumOfEarnedFees
+func TestNode_HandleUnicityCertificate_SumOfEarnedFeesMismatch_1(t *testing.T) {
+	tp := RunSingleNodePartition(t, &testtxsystem.CounterTxSystem{Fee: 1337})
+
+	// skip UC validation
+	tp.partition.unicityCertificateValidator = &AlwaysValidCertificateValidator{}
+
+	// create the first block
+	tp.CreateBlock(t)
+
+	// send transaction that has a fee
+	transferTx := testtransaction.NewTransactionOrder(t)
+	require.NoError(t, tp.SubmitTx(transferTx))
+	testevent.ContainsEvent(t, tp.eh, event.TransactionProcessed)
+
+	// when UC with modified IR.SumOfEarnedFees is received
+	tp.SubmitT1Timeout(t)
+	uc := tp.IssueBlockUC(t)
+	uc.InputRecord.SumOfEarnedFees += 1
+	tp.SubmitUnicityCertificate(uc)
+
+	// then state is reverted
+	ContainsEventType(t, tp, event.StateReverted)
+}
+
 func TestBlockProposal_BlockProposalIsNil(t *testing.T) {
 	tp := RunSingleNodePartition(t, &testtxsystem.CounterTxSystem{})
 	tp.SubmitBlockProposal(nil)

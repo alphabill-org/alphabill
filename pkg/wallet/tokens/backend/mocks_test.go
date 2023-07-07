@@ -18,7 +18,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/txsystem/tokens"
 	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/internal/util"
-	"github.com/alphabill-org/alphabill/pkg/wallet"
+	sdk "github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/alphabill-org/alphabill/pkg/wallet/log"
 	"github.com/fxamacker/cbor/v2"
 	"github.com/stretchr/testify/require"
@@ -51,7 +51,7 @@ we expect that the rsp.Body contains ErrorResponse with given message.
 */
 func expectErrorResponse(t *testing.T, rsp *http.Response, code int, msg string) {
 	t.Helper()
-	er := &ErrorResponse{}
+	er := &sdk.ErrorResponse{}
 	if err := decodeResponse(t, rsp, code, er); err != nil {
 		t.Errorf(err.Error())
 		return
@@ -69,7 +69,7 @@ func randomTx(t *testing.T, attr interface{}) *types.TransactionOrder {
 
 	tx := &types.TransactionOrder{
 		Payload: &types.Payload{
-			SystemID:       tokens.DefaultTokenTxSystemIdentifier,
+			SystemID:       tokens.DefaultSystemIdentifier,
 			UnitID:         test.RandomBytes(32),
 			Attributes:     attrBytes,
 			ClientMetadata: &types.ClientMetadata{Timeout: 10, FeeCreditRecordID: util.Uint64ToBytes32(1)},
@@ -165,17 +165,17 @@ func (c *mockCfg) HttpURL(pathAndQuery string) string {
 type mockStorage struct {
 	getBlockNumber   func() (uint64, error)
 	setBlockNumber   func(blockNumber uint64) error
-	saveTokenType    func(data *TokenUnitType, proof *wallet.Proof) error
-	saveToken        func(data *TokenUnit, proof *wallet.Proof) error
+	saveTokenType    func(data *TokenUnitType, proof *sdk.Proof) error
+	saveToken        func(data *TokenUnit, proof *sdk.Proof) error
 	removeToken      func(id TokenID) error
 	getToken         func(id TokenID) (*TokenUnit, error)
-	queryTokens      func(kind Kind, owner wallet.Predicate, startKey TokenID, count int) ([]*TokenUnit, TokenID, error)
+	queryTokens      func(kind Kind, owner sdk.Predicate, startKey TokenID, count int) ([]*TokenUnit, TokenID, error)
 	getTokenType     func(id TokenTypeID) (*TokenUnitType, error)
-	queryTTypes      func(kind Kind, creator wallet.PubKey, startKey TokenTypeID, count int) ([]*TokenUnitType, TokenTypeID, error)
-	saveTTypeCreator func(id TokenTypeID, kind Kind, creator wallet.PubKey) error
-	getTxProof       func(unitID wallet.UnitID, txHash wallet.TxHash) (*wallet.Proof, error)
-	getFeeCreditBill func(unitID wallet.UnitID) (*FeeCreditBill, error)
-	setFeeCreditBill func(fcb *FeeCreditBill, proof *wallet.Proof) error
+	queryTTypes      func(kind Kind, creator sdk.PubKey, startKey TokenTypeID, count int) ([]*TokenUnitType, TokenTypeID, error)
+	saveTTypeCreator func(id TokenTypeID, kind Kind, creator sdk.PubKey) error
+	getTxProof       func(unitID sdk.UnitID, txHash sdk.TxHash) (*sdk.Proof, error)
+	getFeeCreditBill func(unitID sdk.UnitID) (*FeeCreditBill, error)
+	setFeeCreditBill func(fcb *FeeCreditBill, proof *sdk.Proof) error
 }
 
 func (ms *mockStorage) Close() error { return nil }
@@ -194,14 +194,14 @@ func (ms *mockStorage) SetBlockNumber(blockNumber uint64) error {
 	return fmt.Errorf("unexpected SetBlockNumber(%d) call", blockNumber)
 }
 
-func (ms *mockStorage) SaveTokenTypeCreator(id TokenTypeID, kind Kind, creator wallet.PubKey) error {
+func (ms *mockStorage) SaveTokenTypeCreator(id TokenTypeID, kind Kind, creator sdk.PubKey) error {
 	if ms.saveTTypeCreator != nil {
 		return ms.saveTTypeCreator(id, kind, creator)
 	}
 	return fmt.Errorf("unexpected SaveTokenTypeCreator(%x, %d, %x) call", id, kind, creator)
 }
 
-func (ms *mockStorage) SaveTokenType(data *TokenUnitType, proof *wallet.Proof) error {
+func (ms *mockStorage) SaveTokenType(data *TokenUnitType, proof *sdk.Proof) error {
 	if ms.saveTokenType != nil {
 		return ms.saveTokenType(data, proof)
 	}
@@ -215,14 +215,14 @@ func (ms *mockStorage) GetTokenType(id TokenTypeID) (*TokenUnitType, error) {
 	return nil, fmt.Errorf("unexpected GetTokenType(%x) call", id)
 }
 
-func (ms *mockStorage) QueryTokenType(kind Kind, creator wallet.PubKey, startKey TokenTypeID, count int) ([]*TokenUnitType, TokenTypeID, error) {
+func (ms *mockStorage) QueryTokenType(kind Kind, creator sdk.PubKey, startKey TokenTypeID, count int) ([]*TokenUnitType, TokenTypeID, error) {
 	if ms.queryTTypes != nil {
 		return ms.queryTTypes(kind, creator, startKey, count)
 	}
 	return nil, nil, fmt.Errorf("unexpected QueryTokenType call")
 }
 
-func (ms *mockStorage) SaveToken(data *TokenUnit, proof *wallet.Proof) error {
+func (ms *mockStorage) SaveToken(data *TokenUnit, proof *sdk.Proof) error {
 	if ms.saveToken != nil {
 		return ms.saveToken(data, proof)
 	}
@@ -243,28 +243,28 @@ func (ms *mockStorage) GetToken(id TokenID) (*TokenUnit, error) {
 	return nil, fmt.Errorf("unexpected GetToken(%x) call", id)
 }
 
-func (ms *mockStorage) QueryTokens(kind Kind, owner wallet.Predicate, startKey TokenID, count int) ([]*TokenUnit, TokenID, error) {
+func (ms *mockStorage) QueryTokens(kind Kind, owner sdk.Predicate, startKey TokenID, count int) ([]*TokenUnit, TokenID, error) {
 	if ms.queryTokens != nil {
 		return ms.queryTokens(kind, owner, startKey, count)
 	}
 	return nil, nil, fmt.Errorf("unexpected QueryTokens call")
 }
 
-func (ms *mockStorage) GetTxProof(unitID wallet.UnitID, txHash wallet.TxHash) (*wallet.Proof, error) {
+func (ms *mockStorage) GetTxProof(unitID sdk.UnitID, txHash sdk.TxHash) (*sdk.Proof, error) {
 	if ms.getTxProof != nil {
 		return ms.getTxProof(unitID, txHash)
 	}
 	return nil, fmt.Errorf("unexpected GetTxProof call")
 }
 
-func (ms *mockStorage) GetFeeCreditBill(unitID wallet.UnitID) (*FeeCreditBill, error) {
+func (ms *mockStorage) GetFeeCreditBill(unitID sdk.UnitID) (*FeeCreditBill, error) {
 	if ms.getFeeCreditBill != nil {
 		return ms.getFeeCreditBill(unitID)
 	}
 	return nil, fmt.Errorf("unexpected GetFeeCredit call")
 }
 
-func (ms *mockStorage) SetFeeCreditBill(fcb *FeeCreditBill, proof *wallet.Proof) error {
+func (ms *mockStorage) SetFeeCreditBill(fcb *FeeCreditBill, proof *sdk.Proof) error {
 	if ms.setFeeCreditBill != nil {
 		return ms.setFeeCreditBill(fcb, proof)
 	}

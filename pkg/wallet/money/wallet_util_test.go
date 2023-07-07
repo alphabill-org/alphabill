@@ -135,16 +135,16 @@ func toBillId(i *uint256.Int) string {
 	return base64.StdEncoding.EncodeToString(util.Uint256ToBytes(i))
 }
 
-func createBlockProofResponse(t *testing.T, b *Bill, overrideNonce []byte, timeout uint64, k *account.AccountKey) *wallet.Bills {
+func createBlockProofResponse(t *testing.T, b *Bill, overrideNonce []byte, timeout uint64, k *account.AccountKey) *wallet.Proof {
 	w, mockClient := CreateTestWallet(t, nil)
 	if k == nil {
 		k, _ = w.am.GetAccountKey(0)
 	}
 	var dcTx *types.TransactionOrder
 	if overrideNonce != nil {
-		dcTx, _ = txbuilder.NewDustTx(k, w.SystemID(), b.ToProto(), overrideNonce, timeout)
+		dcTx, _ = txbuilder.NewDustTx(k, w.SystemID(), b.ToGenericBillProof().Bill, overrideNonce, timeout)
 	} else {
-		dcTx, _ = txbuilder.NewDustTx(k, w.SystemID(), b.ToProto(), calculateDcNonce([]*Bill{b}), timeout)
+		dcTx, _ = txbuilder.NewDustTx(k, w.SystemID(), b.ToGenericBillProof().Bill, calculateDcNonce([]*Bill{b}), timeout)
 	}
 	txRecord := &types.TransactionRecord{TransactionOrder: dcTx}
 	mockClient.SetBlock(&types.Block{
@@ -163,33 +163,32 @@ func createBlockProofResponse(t *testing.T, b *Bill, overrideNonce []byte, timeo
 			UnicityCertificate: &types.UnicityCertificate{InputRecord: &types.InputRecord{RoundNumber: timeout}},
 		},
 	}
-	return &wallet.Bills{Bills: []*wallet.Bill{{Id: util.Uint256ToBytes(b.Id), Value: b.Value, IsDcBill: b.IsDcBill, TxProof: txProof, TxHash: b.TxHash}}}
+	return txProof
 }
 
-func createBillListResponse(bills []*Bill) *backend.ListBillsResponse {
+func createBillListResponse(bills []*Bill, dcMetadata map[string]*backend.DCMetadata) *backend.ListBillsResponse {
 	billVMs := make([]*backend.ListBillVM, len(bills))
 	for i, b := range bills {
 		billVMs[i] = &backend.ListBillVM{
-			Id:       b.GetID(),
-			Value:    b.Value,
-			TxHash:   b.TxHash,
-			IsDCBill: b.IsDcBill,
+			Id:      b.GetID(),
+			Value:   b.Value,
+			TxHash:  b.TxHash,
+			DcNonce: b.DcNonce,
 		}
 	}
-	return &backend.ListBillsResponse{Bills: billVMs, Total: len(bills)}
+	return &backend.ListBillsResponse{Bills: billVMs, Total: len(bills), DCMetadata: dcMetadata}
 }
 
 func createBillListJsonResponse(bills []*Bill) string {
-	billsResponse := createBillListResponse(bills)
+	billsResponse := createBillListResponse(bills, nil)
 	res, _ := json.Marshal(billsResponse)
 	return string(res)
 }
 
 type backendAPIMock struct {
 	getBalance       func(pubKey []byte, includeDCBills bool) (uint64, error)
-	listBills        func(pubKey []byte, includeDCBills bool) (*backend.ListBillsResponse, error)
+	listBills        func(pubKey []byte, includeDCBills, includeDCMetadata bool) (*backend.ListBillsResponse, error)
 	getBills         func(pubKey []byte) ([]*wallet.Bill, error)
-	getProof         func(billId []byte) (*wallet.Bills, error)
 	getRoundNumber   func() (uint64, error)
 	getTxProof       func(ctx context.Context, unitID wallet.UnitID, txHash wallet.TxHash) (*wallet.Proof, error)
 	getFeeCreditBill func(ctx context.Context, unitID []byte) (*wallet.Bill, error)
@@ -224,32 +223,18 @@ func (b *backendAPIMock) GetBalance(pubKey []byte, includeDCBills bool) (uint64,
 	return 0, errors.New("getBalance not implemented")
 }
 
-func (b *backendAPIMock) ListBills(pubKey []byte, includeDCBills bool) (*backend.ListBillsResponse, error) {
+func (b *backendAPIMock) ListBills(pubKey []byte, includeDCBills, includeDCMetadata bool) (*backend.ListBillsResponse, error) {
 	if b.listBills != nil {
-		return b.listBills(pubKey, includeDCBills)
+		return b.listBills(pubKey, includeDCBills, includeDCMetadata)
 	}
 	return nil, errors.New("listBills not implemented")
-}
-
-func (b *backendAPIMock) GetProof(billId []byte) (*wallet.Bills, error) {
-	if b.getProof != nil {
-		return b.getProof(billId)
-	}
-	return nil, errors.New("getProof not implemented")
 }
 
 func (b *backendAPIMock) GetTxProof(ctx context.Context, unitID wallet.UnitID, txHash wallet.TxHash) (*wallet.Proof, error) {
 	if b.getTxProof != nil {
 		return b.getTxProof(ctx, unitID, txHash)
 	}
-	proof, err := b.GetProof(unitID)
-	if err != nil {
-		return nil, err
-	}
-	if proof == nil {
-		return nil, nil
-	}
-	return proof.Bills[0].TxProof, nil
+	return nil, errors.New("getTxProof not implemented")
 }
 
 func (b *backendAPIMock) PostTransactions(ctx context.Context, pubKey wallet.PubKey, txs *wallet.Transactions) error {

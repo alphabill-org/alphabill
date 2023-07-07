@@ -1,11 +1,14 @@
 package backend
 
 import (
+	"bytes"
 	"context"
 	"crypto"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
+	"net/http/httptest"
 	"net/url"
 	"regexp"
 	"strconv"
@@ -14,8 +17,13 @@ import (
 	"time"
 
 	"github.com/ainvaltin/httpsrv"
+	"github.com/fxamacker/cbor/v2"
+	"github.com/gorilla/mux"
 	"github.com/stretchr/testify/require"
 
+	"github.com/alphabill-org/alphabill/internal/script"
+	test "github.com/alphabill-org/alphabill/internal/testutils"
+	"github.com/alphabill-org/alphabill/internal/txsystem/money"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	testhttp "github.com/alphabill-org/alphabill/internal/testutils/http"
 	"github.com/alphabill-org/alphabill/internal/testutils/net"
@@ -125,7 +133,7 @@ func TestListBillsRequest_Ok(t *testing.T) {
 		OwnerPredicate: getOwnerPredicate(pubkeyHex),
 	}
 	walletBackend := newWalletBackend(t, withBills(expectedBill))
-	port := startServer(t, walletBackend)
+	port, _ := startServer(t, walletBackend)
 
 	res := &ListBillsResponse{}
 	httpRes, err := testhttp.DoGetJson(fmt.Sprintf("http://localhost:%d/api/v1/list-bills?pubkey=%s", port, pubkeyHex), res)
@@ -137,7 +145,7 @@ func TestListBillsRequest_Ok(t *testing.T) {
 }
 
 func TestListBillsRequest_NilPubKey(t *testing.T) {
-	port := startServer(t, newWalletBackend(t))
+	port, _ := startServer(t, newWalletBackend(t))
 
 	res := &sdk.ErrorResponse{}
 	httpRes, err := testhttp.DoGetJson(fmt.Sprintf("http://localhost:%d/api/v1/list-bills", port), res)
@@ -147,7 +155,7 @@ func TestListBillsRequest_NilPubKey(t *testing.T) {
 }
 
 func TestListBillsRequest_InvalidPubKey(t *testing.T) {
-	port := startServer(t, newWalletBackend(t))
+	port, _ := startServer(t, newWalletBackend(t))
 
 	res := &sdk.ErrorResponse{}
 	pk := "0x00"
@@ -171,7 +179,7 @@ func TestListBillsRequest_DCBillsIncluded(t *testing.T) {
 			OwnerPredicate: getOwnerPredicate(pubkeyHex),
 		},
 	))
-	port := startServer(t, walletBackend)
+	port, _ := startServer(t, walletBackend)
 
 	res := &ListBillsResponse{}
 	httpRes, err := testhttp.DoGetJson(fmt.Sprintf("http://localhost:%d/api/v1/list-bills?pubkey=%s", port, pubkeyHex), res)
@@ -201,7 +209,7 @@ func TestListBillsRequest_DCBillsExcluded(t *testing.T) {
 			OwnerPredicate: getOwnerPredicate(pubkeyHex),
 		},
 	))
-	port := startServer(t, walletBackend)
+	port, _ := startServer(t, walletBackend)
 
 	res := &ListBillsResponse{}
 	httpRes, err := testhttp.DoGetJson(fmt.Sprintf("http://localhost:%d/api/v1/list-bills?pubkey=%s&includedcbills=false", port, pubkeyHex), res)
@@ -242,7 +250,7 @@ func TestListBillsRequest_DCMetadataIncluded(t *testing.T) {
 			})
 		},
 	)
-	port := startServer(t, walletBackend)
+	port, _ := startServer(t, walletBackend)
 
 	res := &ListBillsResponse{}
 	httpRes, err := testhttp.DoGetJson(fmt.Sprintf("http://localhost:%d/api/v1/list-bills?pubkey=%s&includedcmetadata=true", port, pubkeyHex), res)
@@ -288,7 +296,7 @@ func TestListBillsRequest_ZeroValueBillsExcluded(t *testing.T) {
 			OwnerPredicate: getOwnerPredicate(pubkeyHex),
 		},
 	))
-	port := startServer(t, walletBackend)
+	port, _ := startServer(t, walletBackend)
 
 	res := &ListBillsResponse{}
 	httpRes, err := testhttp.DoGetJson(fmt.Sprintf("http://localhost:%d/api/v1/list-bills?pubkey=%s", port, pubkeyHex), res)
@@ -298,6 +306,50 @@ func TestListBillsRequest_ZeroValueBillsExcluded(t *testing.T) {
 	require.Len(t, res.Bills, 1)
 	bill := res.Bills[0]
 	require.EqualValues(t, 1, bill.Value)
+}
+
+func Test_txHistory(t *testing.T) {
+	walletService := newWalletBackend(t)
+	port, api := startServer(t, walletService)
+
+	makePostTxRequest := func(owner sdk.PubKey, body []byte) *http.Response {
+		req := httptest.NewRequest("POST", fmt.Sprintf("http://localhost:%d/api/v1/transactions/0x%x", port, owner), bytes.NewReader(body))
+		req = mux.SetURLVars(req, map[string]string{"pubkey": sdk.EncodeHex(owner)})
+		w := httptest.NewRecorder()
+		api.postTransactions(w, req)
+		return w.Result()
+	}
+
+	makeTxHistoryRequest := func(pubkey sdk.PubKey) *http.Response {
+		req := httptest.NewRequest("GET", fmt.Sprintf("http://localhost:%d/api/v1/tx-history/0x%x", port, pubkey), nil)
+		req = mux.SetURLVars(req, map[string]string{"pubkey": sdk.EncodeHex(pubkey)})
+		w := httptest.NewRecorder()
+		api.txHistoryFunc(w, req)
+		return w.Result()
+	}
+
+	pubkey := sdk.PubKey(test.RandomBytes(33))
+	pubkey2 := sdk.PubKey(test.RandomBytes(33))
+	bearerPredicate := script.PredicatePayToPublicKeyHashDefault(pubkey2.Hash())
+	attrs := &money.TransferAttributes{NewBearer: bearerPredicate}
+	b, err := cbor.Marshal(sdk.Transactions{Transactions: []*types.TransactionOrder{
+		testtransaction.NewTransactionOrder(t, testtransaction.WithPayloadType(money.PayloadTypeTransfer), testtransaction.WithAttributes(attrs))},
+	})
+	require.NoError(t, err)
+	resp := makePostTxRequest(pubkey, b)
+	require.Equal(t, http.StatusAccepted, resp.StatusCode)
+
+	txHistResp := makeTxHistoryRequest(pubkey)
+	require.Equal(t, http.StatusOK, txHistResp.StatusCode)
+
+	buf, err := io.ReadAll(txHistResp.Body)
+	require.NoError(t, err)
+	var txHistory []*sdk.TxHistoryRecord
+	require.NoError(t, cbor.Unmarshal(buf, &txHistory))
+	require.Len(t, txHistory, 1)
+	require.Equal(t, sdk.OUTGOING, txHistory[0].Kind)
+	require.Equal(t, sdk.UNCONFIRMED, txHistory[0].State)
+	require.EqualValues(t, pubkey2.Hash(), txHistory[0].CounterParty)
 }
 
 func TestListBillsRequest_Paging(t *testing.T) {
@@ -311,7 +363,7 @@ func TestListBillsRequest_Paging(t *testing.T) {
 		})
 	}
 	walletService := newWalletBackend(t, withBills(bills...))
-	port := startServer(t, walletService)
+	port, _ := startServer(t, walletService)
 
 	// verify by default first 100 elements are returned
 	res := &ListBillsResponse{}
@@ -393,7 +445,7 @@ func TestListBillsRequest_Paging(t *testing.T) {
 }
 
 func TestBalanceRequest_Ok(t *testing.T) {
-	port := startServer(t, newWalletBackend(t, withBills(
+	port, _ := startServer(t, newWalletBackend(t, withBills(
 		&Bill{
 			Id:             newUnitID(1),
 			Value:          1,
@@ -408,7 +460,7 @@ func TestBalanceRequest_Ok(t *testing.T) {
 }
 
 func TestBalanceRequest_NilPubKey(t *testing.T) {
-	port := startServer(t, newWalletBackend(t))
+	port, _ := startServer(t, newWalletBackend(t))
 
 	res := &sdk.ErrorResponse{}
 	httpRes, err := testhttp.DoGetJson(fmt.Sprintf("http://localhost:%d/api/v1/balance", port), res)
@@ -418,7 +470,7 @@ func TestBalanceRequest_NilPubKey(t *testing.T) {
 }
 
 func TestBalanceRequest_InvalidPubKey(t *testing.T) {
-	port := startServer(t, newWalletBackend(t))
+	port, _ := startServer(t, newWalletBackend(t))
 
 	res := &sdk.ErrorResponse{}
 	pk := "0x00"
@@ -442,7 +494,7 @@ func TestBalanceRequest_DCBillNotIncluded(t *testing.T) {
 			OwnerPredicate: getOwnerPredicate(pubkeyHex),
 		}),
 	)
-	port := startServer(t, walletBackend)
+	port, _ := startServer(t, walletBackend)
 
 	res := &BalanceResponse{}
 	httpRes, err := testhttp.DoGetJson(fmt.Sprintf("http://localhost:%d/api/v1/balance?pubkey=%s", port, pubkeyHex), res)
@@ -469,7 +521,7 @@ func TestProofRequest_Ok(t *testing.T) {
 		},
 	}
 	walletBackend := newWalletBackend(t, withBillProofs(&billProof{b, p}))
-	port := startServer(t, walletBackend)
+	port, _ := startServer(t, walletBackend)
 
 	response := &sdk.Proof{}
 	httpRes, err := testhttp.DoGetCbor(fmt.Sprintf("http://localhost:%d/api/v1/units/%s/transactions/0x%x/proof", port, billId, b.TxHash), response)
@@ -483,7 +535,7 @@ func TestProofRequest_Ok(t *testing.T) {
 }
 
 func TestProofRequest_InvalidBillIdLength(t *testing.T) {
-	port := startServer(t, newWalletBackend(t))
+	port, _ := startServer(t, newWalletBackend(t))
 
 	// verify bill id larger than 32 bytes returns error
 	res := &sdk.ErrorResponse{}
@@ -509,7 +561,7 @@ func TestProofRequest_InvalidBillIdLength(t *testing.T) {
 }
 
 func TestProofRequest_ProofDoesNotExist(t *testing.T) {
-	port := startServer(t, newWalletBackend(t))
+	port, _ := startServer(t, newWalletBackend(t))
 
 	res := &sdk.ErrorResponse{}
 	httpRes, err := testhttp.DoGetJson(fmt.Sprintf("http://localhost:%d/api/v1/units/%s/transactions/0x00/proof", port, billId), res)
@@ -524,7 +576,7 @@ func TestBlockHeightRequest_Ok(t *testing.T) {
 		clientmock.WithMaxRoundNumber(roundNumber),
 	)
 	service := newWalletBackend(t, withABClient(alphabillClient))
-	port := startServer(t, service)
+	port, _ := startServer(t, service)
 
 	res := &RoundNumberResponse{}
 	httpRes, err := testhttp.DoGetJson(fmt.Sprintf("http://localhost:%d/api/v1/round-number", port), res)
@@ -534,7 +586,7 @@ func TestBlockHeightRequest_Ok(t *testing.T) {
 }
 
 func TestInvalidUrl_NotFound(t *testing.T) {
-	port := startServer(t, newWalletBackend(t))
+	port, _ := startServer(t, newWalletBackend(t))
 
 	// verify request to to non-existent /api2 endpoint returns 404
 	httpRes, err := http.Get(fmt.Sprintf("http://localhost:%d/api2/v1/list-bills", port))
@@ -555,7 +607,7 @@ func TestGetFeeCreditBillRequest_Ok(t *testing.T) {
 		OwnerPredicate: getOwnerPredicate(pubkeyHex),
 	}
 	walletBackend := newWalletBackend(t, withFeeCreditBills(b))
-	port := startServer(t, walletBackend)
+	port, _ := startServer(t, walletBackend)
 
 	response := &sdk.Bill{}
 	httpRes, err := testhttp.DoGetJson(fmt.Sprintf("http://localhost:%d/api/v1/fee-credit-bills/%s", port, billId), response)
@@ -568,7 +620,7 @@ func TestGetFeeCreditBillRequest_Ok(t *testing.T) {
 }
 
 func TestGetFeeCreditBillRequest_InvalidBillIdLength(t *testing.T) {
-	port := startServer(t, newWalletBackend(t))
+	port, _ := startServer(t, newWalletBackend(t))
 
 	// verify bill id larger than 32 bytes returns error
 	res := &sdk.ErrorResponse{}
@@ -594,7 +646,7 @@ func TestGetFeeCreditBillRequest_InvalidBillIdLength(t *testing.T) {
 }
 
 func TestGetFeeCreditBillRequest_BillDoesNotExist(t *testing.T) {
-	port := startServer(t, newWalletBackend(t))
+	port, _ := startServer(t, newWalletBackend(t))
 
 	res := &sdk.ErrorResponse{}
 	httpRes, err := testhttp.DoGetJson(fmt.Sprintf("http://localhost:%d/api/v1/fee-credit-bills/%s", port, billId), res)
@@ -605,7 +657,7 @@ func TestGetFeeCreditBillRequest_BillDoesNotExist(t *testing.T) {
 
 func TestPostTransactionsRequest_InvalidPubkey(t *testing.T) {
 	walletBackend := newWalletBackend(t)
-	port := startServer(t, walletBackend)
+	port, _ := startServer(t, walletBackend)
 
 	res := &sdk.ErrorResponse{}
 	httpRes, err := testhttp.DoPost(fmt.Sprintf("http://localhost:%d/api/v1/transactions/%s", port, "invalid"), nil, res)
@@ -616,7 +668,7 @@ func TestPostTransactionsRequest_InvalidPubkey(t *testing.T) {
 
 func TestPostTransactionsRequest_EmptyBody(t *testing.T) {
 	walletBackend := newWalletBackend(t)
-	port := startServer(t, walletBackend)
+	port, _ := startServer(t, walletBackend)
 
 	res := &sdk.ErrorResponse{}
 	httpRes, err := testhttp.DoPostCBOR(fmt.Sprintf("http://localhost:%d/api/v1/transactions/%s", port, pubkeyHex), nil, res)
@@ -627,7 +679,7 @@ func TestPostTransactionsRequest_EmptyBody(t *testing.T) {
 
 func TestPostTransactionsRequest_Ok(t *testing.T) {
 	walletBackend := newWalletBackend(t)
-	port := startServer(t, walletBackend)
+	port, _ := startServer(t, walletBackend)
 
 	txs := &sdk.Transactions{Transactions: []*types.TransactionOrder{
 		testtransaction.NewTransactionOrder(t),
@@ -709,17 +761,18 @@ func TestGetClosedFeeCreditRequest(t *testing.T) {
 	require.Equal(t, http.StatusBadRequest, httpRes.StatusCode)
 }
 
-func startServer(t *testing.T, service WalletBackendService) int {
-	port, err := net.GetFreePort()
+func startServer(t *testing.T, service WalletBackendService) (port int, api *moneyRestAPI) {
+	var err error
+	port, err = net.GetFreePort()
 	require.NoError(t, err)
 
 	ctx, cancel := context.WithCancel(context.Background())
 
 	go func() {
-		handler := &moneyRestAPI{Service: service, ListBillsPageLimit: 100, rw: &sdk.ResponseWriter{}}
+		api = &moneyRestAPI{Service: service, ListBillsPageLimit: 100, rw: &sdk.ResponseWriter{}}
 		server := http.Server{
 			Addr:              fmt.Sprintf("localhost:%d", port),
-			Handler:           handler.Router(),
+			Handler:           api.Router(),
 			ReadTimeout:       3 * time.Second,
 			ReadHeaderTimeout: time.Second,
 			WriteTimeout:      5 * time.Second,
@@ -740,7 +793,7 @@ func startServer(t *testing.T, service WalletBackendService) int {
 				t.Fatalf("unexpected error from http server: %v", err)
 			}
 		} else {
-			return port
+			return port, api
 		}
 
 		select {

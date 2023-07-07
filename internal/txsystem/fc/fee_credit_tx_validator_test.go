@@ -57,8 +57,14 @@ func TestAddFC(t *testing.T) {
 			wantErrMsg: "fee tx cannot contain fee authorization proof",
 		},
 		{
+			name:       "Invalid unit type",
+			unit:       &rma.Unit{Data: &testData{}}, // add unit with wrong type
+			tx:         testfc.NewAddFC(t, signer, nil),
+			wantErrMsg: "invalid unit type: unit is not fee credit record",
+		},
+		{
 			name: "Invalid fee credit owner condition",
-			unit: &rma.Unit{Bearer: bearer},
+			unit: &rma.Unit{Bearer: bearer, Data: &FeeCreditRecord{}},
 			tx: testfc.NewAddFC(t, signer,
 				testfc.NewAddFCAttr(t, signer,
 					testfc.WithFCOwnerCondition([]byte("wrong bearer")),

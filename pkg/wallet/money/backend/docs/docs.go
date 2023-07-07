@@ -187,8 +187,8 @@ const docTemplate = `{
         },
         "/transactions": {
             "post": {
-                "produces": [
-                    "application/json"
+                "consumes": [
+                    "application/cbor"
                 ],
                 "summary": "Forward transactions to partition node(s)",
                 "operationId": "6",
@@ -198,6 +198,12 @@ const docTemplate = `{
                         "description": "Sender public key prefixed with 0x",
                         "name": "pubkey",
                         "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "CBOR encoded array of TransactionOrders",
+                        "name": "transactions",
+                        "in": "body",
                         "required": true
                     }
                 ],

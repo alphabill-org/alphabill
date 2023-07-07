@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"context"
+	"crypto"
 	"errors"
 	"fmt"
 	"io"
@@ -82,6 +83,7 @@ func newWalletCmd(baseConfig *baseConfiguration) *cobra.Command {
 	walletCmd.AddCommand(collectDustCmd(config))
 	walletCmd.AddCommand(addKeyCmd(config))
 	walletCmd.AddCommand(tokenCmd(config))
+	walletCmd.AddCommand(vdCmd(config))
 	// add passwords flags for (encrypted)wallet
 	walletCmd.PersistentFlags().BoolP(passwordPromptCmdName, "p", false, passwordPromptUsage)
 	walletCmd.PersistentFlags().String(passwordArgCmdName, "", passwordArgUsage)
@@ -185,7 +187,7 @@ func execSendCmd(ctx context.Context, cmd *cobra.Command, config *walletConfig) 
 	if err != nil {
 		return err
 	}
-	defer w.Shutdown()
+	defer w.Close()
 
 	receiverPubKeyHex, err := cmd.Flags().GetString(addressCmdName)
 	if err != nil {
@@ -249,16 +251,12 @@ func execSendCmd(ctx context.Context, cmd *cobra.Command, config *walletConfig) 
 	if waitForConf {
 		consoleWriter.Println("Successfully confirmed transaction(s)")
 		if outputPath != "" {
-			// convert wallet.Proofs to wallet.Bills, alternatively remove bill export as it's deprecated functionality
-			var outputBills []*wallet.Bill
+			// convert wallet.Proofs to wallet.Bills, TODO: alternatively remove bill export as it's deprecated functionality
+			var outputBills []*wallet.BillProof
 			for _, b := range proofs {
-				proof, err := restClient.GetProof(b.TxRecord.TransactionOrder.UnitID())
-				if err != nil {
-					return err
-				}
-				outputBills = append(outputBills, proof.Bills[0])
+				outputBills = append(outputBills, &wallet.BillProof{Bill: &wallet.Bill{Id: b.TxRecord.TransactionOrder.UnitID(), TxHash: b.TxRecord.TransactionOrder.Hash(crypto.SHA256)}, TxProof: b})
 			}
-			outputFile, err := writeBillsToFile(outputPath, outputBills...)
+			outputFile, err := writeProofsToFile(outputPath, outputBills...)
 			if err != nil {
 				return err
 			}
@@ -305,7 +303,7 @@ func execGetBalanceCmd(cmd *cobra.Command, config *walletConfig) error {
 	if err != nil {
 		return err
 	}
-	defer w.Shutdown()
+	defer w.Close()
 
 	accountNumber, err := cmd.Flags().GetUint64(keyCmdName)
 	if err != nil {
@@ -426,7 +424,7 @@ func execCollectDust(cmd *cobra.Command, config *walletConfig) error {
 	if err != nil {
 		return err
 	}
-	defer w.Shutdown()
+	defer w.Close()
 
 	consoleWriter.Println("Starting dust collection, this may take a while...")
 	err = w.CollectDust(context.Background(), accountNumber)

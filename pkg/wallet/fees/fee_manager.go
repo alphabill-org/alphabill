@@ -20,6 +20,7 @@ const (
 type (
 	TxPublisher interface {
 		SendTx(ctx context.Context, tx *types.TransactionOrder, senderPubKey []byte) (*wallet.Proof, error)
+		Close()
 	}
 
 	PartitionDataProvider interface {
@@ -151,7 +152,7 @@ func (w *FeeManager) AddFeeCredit(ctx context.Context, cmd AddFeeCmd) ([]*wallet
 
 	// send transferFC to money partition
 	log.Info("sending transfer fee credit transaction")
-	tx, err := txbuilder.NewTransferFCTx(cmd.Amount, accountKey.PrivKeyHash, fcb.GetTxHash(), accountKey, w.moneySystemID, w.userPartitionSystemID, billToTransfer, moneyTimeout, userPartitionRoundNumber, userPartitionTimeout)
+	tx, err := txbuilder.NewTransferFCTx(cmd.Amount, accountKey.PrivKeyHash, fcb.GetAddFCTxHash(), accountKey, w.moneySystemID, w.userPartitionSystemID, billToTransfer, moneyTimeout, userPartitionRoundNumber, userPartitionTimeout)
 	if err != nil {
 		return nil, err
 	}
@@ -257,6 +258,11 @@ func (w *FeeManager) GetFeeCredit(ctx context.Context, cmd GetFeeCreditCmd) (*wa
 		return nil, err
 	}
 	return w.userPartitionBackendClient.GetFeeCreditBill(ctx, accountKey.PrivKeyHash)
+}
+
+func (w *FeeManager) Close() {
+	w.moneyTxPublisher.Close()
+	w.userPartitionTxPublisher.Close()
 }
 
 func (c *AddFeeCmd) isValid() error {

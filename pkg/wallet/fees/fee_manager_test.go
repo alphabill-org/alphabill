@@ -26,10 +26,9 @@ func TestAddFeeCredit_SpendEntireBill_OK(t *testing.T) {
 
 	moneyTxPublisher := &mockMoneyTxPublisher{}
 	moneyBackendClient := &mockMoneyClient{bills: []*wallet.Bill{{
-		Id:            []byte{1},
-		Value:         100000002,
-		TxHash:        []byte{2},
-		FcBlockNumber: 3,
+		Id:     []byte{1},
+		Value:  100000002,
+		TxHash: []byte{2},
 	}}}
 	feeManager := newMoneyPartitionFeeManager(am, moneyTxPublisher, moneyBackendClient)
 
@@ -90,4 +89,7 @@ type mockMoneyTxPublisher struct {
 
 func (m *mockMoneyTxPublisher) SendTx(ctx context.Context, tx *types.TransactionOrder, _ []byte) (*wallet.Proof, error) {
 	return &wallet.Proof{}, nil
+}
+
+func (m *mockMoneyTxPublisher) Close() {
 }

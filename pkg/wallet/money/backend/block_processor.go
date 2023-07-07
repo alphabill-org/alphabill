@@ -10,6 +10,7 @@ import (
 	moneytx "github.com/alphabill-org/alphabill/internal/txsystem/money"
 	utiltx "github.com/alphabill-org/alphabill/internal/txsystem/util"
 	"github.com/alphabill-org/alphabill/internal/types"
+	sdk "github.com/alphabill-org/alphabill/pkg/wallet"
 	wlog "github.com/alphabill-org/alphabill/pkg/wallet/log"
 	"github.com/holiman/uint256"
 )
@@ -61,32 +62,38 @@ func (p *BlockProcessor) ProcessBlock(_ context.Context, b *types.Block) error {
 }
 
 func (p *BlockProcessor) processTx(txr *types.TransactionRecord, b *types.Block, txIdx int, dbTx BillStoreTx) error {
-	roundNumber := b.GetRoundNumber()
 	txo := txr.TransactionOrder
+	txHash := txo.Hash(crypto.SHA256)
+	roundNumber := b.GetRoundNumber()
+	proof, err := sdk.NewTxProof(txIdx, b, crypto.SHA256)
+	if err != nil {
+		return err
+	}
+
 	switch txo.PayloadType() {
 	case moneytx.PayloadTypeTransfer:
 		wlog.Info(fmt.Sprintf("received transfer order (UnitID=%x)", txo.UnitID()))
-		err := p.updateFCB(txr, roundNumber, dbTx)
-		if err != nil {
+		if err = p.updateFCB(dbTx, txr); err != nil {
 			return err
 		}
 		attr := &moneytx.TransferAttributes{}
-		err = txo.UnmarshalAttributes(attr)
-		if err != nil {
+		if err = txo.UnmarshalAttributes(attr); err != nil {
 			return err
 		}
-		err = p.saveBillWithProof(txIdx, b, dbTx, &Bill{
+		if err = dbTx.SetBill(&Bill{
 			Id:             txo.UnitID(),
 			Value:          attr.TargetValue,
-			TxHash:         txo.Hash(crypto.SHA256),
+			TxHash:         txHash,
 			OwnerPredicate: attr.NewBearer,
-		})
-		if err != nil {
+		}, proof); err != nil {
+			return err
+		}
+		if err = saveTx(dbTx, attr.NewBearer, txo, txHash); err != nil {
 			return err
 		}
 	case moneytx.PayloadTypeTransDC:
 		wlog.Info(fmt.Sprintf("received TransferDC order (UnitID=%x)", txo.UnitID()))
-		err := p.updateFCB(txr, roundNumber, dbTx)
+		err := p.updateFCB(dbTx, txr)
 		if err != nil {
 			return err
 		}
@@ -95,13 +102,13 @@ func (p *BlockProcessor) processTx(txr *types.TransactionRecord, b *types.Block,
 		if err != nil {
 			return err
 		}
-		err = p.saveBillWithProof(txIdx, b, dbTx, &Bill{
+		err = dbTx.SetBill(&Bill{
 			Id:             txo.UnitID(),
 			Value:          attr.TargetValue,
-			TxHash:         txo.Hash(crypto.SHA256),
-			IsDCBill:       true,
+			TxHash:         txHash,
+			DcNonce:        attr.Nonce,
 			OwnerPredicate: attr.TargetBearer,
-		})
+		}, proof)
 		if err != nil {
 			return err
 		}
@@ -110,7 +117,7 @@ func (p *BlockProcessor) processTx(txr *types.TransactionRecord, b *types.Block,
 			return err
 		}
 	case moneytx.PayloadTypeSplit:
-		err := p.updateFCB(txr, roundNumber, dbTx)
+		err := p.updateFCB(dbTx, txr)
 		if err != nil {
 			return err
 		}
@@ -126,12 +133,12 @@ func (p *BlockProcessor) processTx(txr *types.TransactionRecord, b *types.Block,
 		}
 		if oldBill != nil {
 			wlog.Info(fmt.Sprintf("received split order (existing UnitID=%x)", txo.UnitID()))
-			err = p.saveBillWithProof(txIdx, b, dbTx, &Bill{
+			err = dbTx.SetBill(&Bill{
 				Id:             txo.UnitID(),
 				Value:          attr.RemainingValue,
-				TxHash:         txo.Hash(crypto.SHA256),
+				TxHash:         txHash,
 				OwnerPredicate: oldBill.OwnerPredicate,
-			})
+			}, proof)
 			if err != nil {
 				return err
 			}
@@ -143,17 +150,20 @@ func (p *BlockProcessor) processTx(txr *types.TransactionRecord, b *types.Block,
 		// new bill
 		newID := utiltx.SameShardIDBytes(uint256.NewInt(0).SetBytes(txo.UnitID()), moneytx.HashForIDCalculation(txo.UnitID(), txo.Payload.Attributes, txo.Timeout(), crypto.SHA256))
 		wlog.Info(fmt.Sprintf("received split order (new UnitID=%x)", newID))
-		err = p.saveBillWithProof(txIdx, b, dbTx, &Bill{
+		err = dbTx.SetBill(&Bill{
 			Id:             newID,
 			Value:          attr.Amount,
-			TxHash:         txo.Hash(crypto.SHA256),
+			TxHash:         txHash,
 			OwnerPredicate: attr.TargetBearer,
-		})
+		}, proof)
 		if err != nil {
 			return err
 		}
+		if err = saveTx(dbTx, attr.TargetBearer, txo, txHash); err != nil {
+			return err
+		}
 	case moneytx.PayloadTypeSwapDC:
-		err := p.updateFCB(txr, roundNumber, dbTx)
+		err := p.updateFCB(dbTx, txr)
 		if err != nil {
 			return err
 		}
@@ -163,12 +173,12 @@ func (p *BlockProcessor) processTx(txr *types.TransactionRecord, b *types.Block,
 			return err
 		}
 		wlog.Info(fmt.Sprintf("received swap order (UnitID=%x)", txo.UnitID()))
-		err = p.saveBillWithProof(txIdx, b, dbTx, &Bill{
+		err = dbTx.SetBill(&Bill{
 			Id:             txo.UnitID(),
 			Value:          attr.TargetValue,
-			TxHash:         txo.Hash(crypto.SHA256),
+			TxHash:         txHash,
 			OwnerPredicate: attr.OwnerCondition,
-		})
+		}, proof)
 		if err != nil {
 			return err
 		}
@@ -178,8 +188,12 @@ func (p *BlockProcessor) processTx(txr *types.TransactionRecord, b *types.Block,
 				return err
 			}
 		}
+		err = dbTx.DeleteDCMetadata(txo.UnitID())
+		if err != nil {
+			return err
+		}
 	case transactions.PayloadTypeTransferFeeCredit:
-		wlog.Info(fmt.Sprintf("received transferFC order (UnitID=%x)", txo.UnitID()))
+		wlog.Info(fmt.Sprintf("received transferFC order (UnitID=%x), hash: '%X'", txo.UnitID(), txHash))
 		bill, err := dbTx.GetBill(txo.UnitID())
 		if err != nil {
 			return fmt.Errorf("failed to get bill: %w", err)
@@ -206,22 +220,22 @@ func (p *BlockProcessor) processTx(txr *types.TransactionRecord, b *types.Block,
 				return fmt.Errorf("failed to set bill expiration time: %w", err)
 			}
 		}
-		bill.TxHash = txo.Hash(crypto.SHA256)
-		err = p.saveBillWithProof(txIdx, b, dbTx, bill)
+		bill.TxHash = txHash
+		err = dbTx.SetBill(bill, proof)
 		if err != nil {
 			return fmt.Errorf("failed to save transferFC bill with proof: %w", err)
 		}
-		err = p.addTransferredCreditToPartitionFeeBill(attr, dbTx)
+		err = p.addTransferredCreditToPartitionFeeBill(dbTx, attr, proof)
 		if err != nil {
 			return fmt.Errorf("failed to add transferred fee credit to partition fee bill: %w", err)
 		}
-		err = p.addTxFeesToMoneyFeeBill(dbTx, txr)
+		err = p.addTxFeeToMoneyFeeBill(dbTx, txr, proof)
 		if err != nil {
 			return fmt.Errorf("failed to add tx fees to money fee bill: %w", err)
 		}
 		return nil
 	case transactions.PayloadTypeAddFeeCredit:
-		wlog.Info(fmt.Sprintf("received addFC order (UnitID=%x)", txo.UnitID()))
+		wlog.Info(fmt.Sprintf("received addFC order (UnitID=%x), hash: '%X'", txo.UnitID(), txHash))
 		fcb, err := dbTx.GetFeeCreditBill(txo.UnitID())
 		if err != nil {
 			return err
@@ -236,12 +250,13 @@ func (p *BlockProcessor) processTx(txr *types.TransactionRecord, b *types.Block,
 		if err != nil {
 			return err
 		}
-		return p.saveFCBWithProof(txIdx, b, dbTx, &Bill{
-			Id:            txo.UnitID(),
-			Value:         fcb.getValue() + transferFCAttr.Amount - txr.ServerMetadata.ActualFee,
-			TxHash:        txo.Hash(crypto.SHA256),
-			FCBlockNumber: roundNumber,
-		})
+		txHash := txo.Hash(crypto.SHA256)
+		return dbTx.SetFeeCreditBill(&Bill{
+			Id:          txo.UnitID(),
+			Value:       fcb.getValue() + transferFCAttr.Amount - txr.ServerMetadata.ActualFee,
+			TxHash:      txHash,
+			AddFCTxHash: txHash,
+		}, proof)
 	case transactions.PayloadTypeCloseFeeCredit:
 		wlog.Info(fmt.Sprintf("received closeFC order (UnitID=%x)", txo.UnitID()))
 		fcb, err := dbTx.GetFeeCreditBill(txo.UnitID())
@@ -253,12 +268,12 @@ func (p *BlockProcessor) processTx(txr *types.TransactionRecord, b *types.Block,
 		if err != nil {
 			return err
 		}
-		return p.saveFCBWithProof(txIdx, b, dbTx, &Bill{
-			Id:            txo.UnitID(),
-			Value:         fcb.getValue() - attr.Amount,
-			TxHash:        txo.Hash(crypto.SHA256),
-			FCBlockNumber: roundNumber,
-		})
+		return dbTx.SetFeeCreditBill(&Bill{
+			Id:          txo.UnitID(),
+			TxHash:      txHash,
+			Value:       fcb.getValue() - attr.Amount,
+			AddFCTxHash: fcb.getAddFCTxHash(),
+		}, proof)
 	case transactions.PayloadTypeReclaimFeeCredit:
 		wlog.Info(fmt.Sprintf("received reclaimFC order (UnitID=%x)", txo.UnitID()))
 		bill, err := dbTx.GetBill(txo.UnitID())
@@ -273,26 +288,29 @@ func (p *BlockProcessor) processTx(txr *types.TransactionRecord, b *types.Block,
 		if err != nil {
 			return err
 		}
-		closeFCTXO := reclaimFCAttr.CloseFeeCreditTransfer.TransactionOrder
+		closeFCTXR := reclaimFCAttr.CloseFeeCreditTransfer
+		closeFCTXO := closeFCTXR.TransactionOrder
 		closeFCAttr := &transactions.CloseFeeCreditAttributes{}
 		err = closeFCTXO.UnmarshalAttributes(closeFCAttr)
 		if err != nil {
 			return err
 		}
 
-		reclaimedValue := closeFCAttr.Amount - reclaimFCAttr.CloseFeeCreditTransfer.ServerMetadata.ActualFee - txr.ServerMetadata.ActualFee
+		// 1. remove reclaimed amount from user bill
+		reclaimedValue := closeFCAttr.Amount - closeFCTXR.ServerMetadata.ActualFee - txr.ServerMetadata.ActualFee
 		bill.Value += reclaimedValue
-		bill.TxHash = txo.Hash(crypto.SHA256)
-		err = p.saveBillWithProof(txIdx, b, dbTx, bill)
+		bill.TxHash = txHash
+		err = dbTx.SetBill(bill, proof)
 		if err != nil {
 			return err
 		}
-		err = p.removeReclaimedCreditFromPartitionFeeBill(closeFCTXO, closeFCAttr, dbTx)
+		// 2. remove reclaimed amount from partition fee bill
+		err = p.removeReclaimedCreditFromPartitionFeeBill(dbTx, closeFCTXR, closeFCAttr, proof)
 		if err != nil {
 			return err
 		}
-		// add closeFC and reclaimFC txs fees to money partition fee bill
-		return p.addTxFeesToMoneyFeeBill(dbTx, reclaimFCAttr.CloseFeeCreditTransfer, txr)
+		// 3. add reclaimFC tx fee to money partition fee bill
+		return p.addTxFeeToMoneyFeeBill(dbTx, txr, proof)
 	default:
 		wlog.Warning(fmt.Sprintf("received unknown transaction type, skipping processing: %s", txo.PayloadType()))
 		return nil
@@ -300,7 +318,24 @@ func (p *BlockProcessor) processTx(txr *types.TransactionRecord, b *types.Block,
 	return nil
 }
 
-func (p *BlockProcessor) addTransferredCreditToPartitionFeeBill(tx *transactions.TransferFeeCreditAttributes, dbTx BillStoreTx) error {
+func saveTx(dbTx BillStoreTx, bearer sdk.Predicate, txo *types.TransactionOrder, txHash sdk.TxHash) error {
+	bearerKeyHash := extractOwnerHashFromP2pkh(bearer)
+	if bearerKeyHash != nil {
+		if err := dbTx.StoreTxHistoryRecord(bearerKeyHash, &sdk.TxHistoryRecord{
+			UnitID:       txo.UnitID(),
+			TxHash:       txHash,
+			Timeout:      txo.Timeout(),
+			State:        sdk.CONFIRMED,
+			Kind:         sdk.INCOMING,
+			CounterParty: extractOwnerKeyFromProof(txo.OwnerProof),
+		}); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (p *BlockProcessor) addTransferredCreditToPartitionFeeBill(dbTx BillStoreTx, tx *transactions.TransferFeeCreditAttributes, proof *sdk.Proof) error {
 	sdr, f := p.sdrs[string(tx.TargetSystemIdentifier)]
 	if !f {
 		return fmt.Errorf("received transferFC for unknown tx system: %x", tx.TargetSystemIdentifier)
@@ -313,10 +348,11 @@ func (p *BlockProcessor) addTransferredCreditToPartitionFeeBill(tx *transactions
 		return fmt.Errorf("partition fee bill not found: %x", sdr.FeeCreditBill.UnitId)
 	}
 	partitionFeeBill.Value += tx.Amount
-	return dbTx.SetBill(partitionFeeBill)
+	return dbTx.SetBill(partitionFeeBill, proof)
 }
 
-func (p *BlockProcessor) removeReclaimedCreditFromPartitionFeeBill(txo *types.TransactionOrder, attr *transactions.CloseFeeCreditAttributes, dbTx BillStoreTx) error {
+func (p *BlockProcessor) removeReclaimedCreditFromPartitionFeeBill(dbTx BillStoreTx, txr *types.TransactionRecord, attr *transactions.CloseFeeCreditAttributes, proof *sdk.Proof) error {
+	txo := txr.TransactionOrder
 	sdr, f := p.sdrs[string(txo.SystemID())]
 	if !f {
 		return fmt.Errorf("received reclaimFC for unknown tx system: %x", txo.SystemID())
@@ -326,37 +362,20 @@ func (p *BlockProcessor) removeReclaimedCreditFromPartitionFeeBill(txo *types.Tr
 		return err
 	}
 	partitionFeeBill.Value -= attr.Amount
-	return dbTx.SetBill(partitionFeeBill)
+	partitionFeeBill.Value += txr.ServerMetadata.ActualFee
+	return dbTx.SetBill(partitionFeeBill, proof)
 }
 
-func (p *BlockProcessor) addTxFeesToMoneyFeeBill(dbTx BillStoreTx, txs ...*types.TransactionRecord) error {
+func (p *BlockProcessor) addTxFeeToMoneyFeeBill(dbTx BillStoreTx, tx *types.TransactionRecord, proof *sdk.Proof) error {
 	moneyFeeBill, err := dbTx.GetBill(p.moneySDR.FeeCreditBill.UnitId)
 	if err != nil {
 		return err
 	}
-	for _, tx := range txs {
-		moneyFeeBill.Value += tx.ServerMetadata.ActualFee
-	}
-	return dbTx.SetBill(moneyFeeBill)
+	moneyFeeBill.Value += tx.ServerMetadata.ActualFee
+	return dbTx.SetBill(moneyFeeBill, proof)
 }
 
-func (p *BlockProcessor) saveBillWithProof(txIdx int, b *types.Block, dbTx BillStoreTx, bill *Bill) error {
-	err := bill.addProof(txIdx, b)
-	if err != nil {
-		return err
-	}
-	return dbTx.SetBill(bill)
-}
-
-func (p *BlockProcessor) saveFCBWithProof(txIdx int, b *types.Block, dbTx BillStoreTx, fcb *Bill) error {
-	err := fcb.addProof(txIdx, b)
-	if err != nil {
-		return err
-	}
-	return dbTx.SetFeeCreditBill(fcb)
-}
-
-func (p *BlockProcessor) updateFCB(txr *types.TransactionRecord, roundNumber uint64, dbTx BillStoreTx) error {
+func (p *BlockProcessor) updateFCB(dbTx BillStoreTx, txr *types.TransactionRecord) error {
 	txo := txr.TransactionOrder
 	fcb, err := dbTx.GetFeeCreditBill(txo.Payload.ClientMetadata.FeeCreditRecordID)
 	if err != nil {
@@ -369,6 +388,5 @@ func (p *BlockProcessor) updateFCB(txr *types.TransactionRecord, roundNumber uin
 		return fmt.Errorf("fee credit bill value cannot go negative; value=%d fee=%d", fcb.Value, txr.ServerMetadata.ActualFee)
 	}
 	fcb.Value -= txr.ServerMetadata.ActualFee
-	fcb.FCBlockNumber = roundNumber
-	return dbTx.SetFeeCreditBill(fcb)
+	return dbTx.SetFeeCreditBill(fcb, nil)
 }

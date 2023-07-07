@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"context"
+	"crypto"
 	"fmt"
 	"path/filepath"
 	"strings"
@@ -62,13 +63,13 @@ func TestMoneyBackendCLI(t *testing.T) {
 	require.Eventually(t, func() bool {
 		// verify balance
 		res := &backend.BalanceResponse{}
-		httpRes, _ := testhttp.DoGet(fmt.Sprintf("http://%s/api/v1/balance?pubkey=%s", serverAddr, pk), res)
+		httpRes, _ := testhttp.DoGetJson(fmt.Sprintf("http://%s/api/v1/balance?pubkey=%s", serverAddr, pk), res)
 		return httpRes != nil && httpRes.StatusCode == 200 && res.Balance == initialBillValue
 	}, test.WaitDuration, test.WaitTick)
 
 	// verify /list-bills
 	resListBills := &backend.ListBillsResponse{}
-	httpRes, err := testhttp.DoGet(fmt.Sprintf("http://%s/api/v1/list-bills?pubkey=%s", serverAddr, pk), resListBills)
+	httpRes, err := testhttp.DoGetJson(fmt.Sprintf("http://%s/api/v1/list-bills?pubkey=%s", serverAddr, pk), resListBills)
 	require.NoError(t, err)
 	require.EqualValues(t, 200, httpRes.StatusCode)
 	require.Len(t, resListBills.Bills, 1)
@@ -77,12 +78,12 @@ func TestMoneyBackendCLI(t *testing.T) {
 	require.Equal(t, initialBillID, b.Id)
 	require.NotNil(t, b.TxHash)
 
-	// verify /proof
-	resBlockProof := &wallet.Bills{}
-	httpRes, err = testhttp.DoGet(fmt.Sprintf("http://%s/api/v1/proof?bill_id=%s", serverAddr, initialBillHex), resBlockProof)
+	// verify proof
+	resBlockProof := &wallet.Proof{}
+	httpRes, err = testhttp.DoGetCbor(fmt.Sprintf("http://%s/api/v1/units/%s/transactions/0x%x/proof", serverAddr, initialBillHex, b.TxHash), resBlockProof)
 	require.NoError(t, err)
 	require.EqualValues(t, 200, httpRes.StatusCode)
-	require.Len(t, resBlockProof.Bills, 1)
+	require.Equal(t, resBlockProof.TxRecord.TransactionOrder.Hash(crypto.SHA256), b.TxHash)
 }
 
 func TestMoneyBackendConfig_DbFileParentDirsAreCreated(t *testing.T) {

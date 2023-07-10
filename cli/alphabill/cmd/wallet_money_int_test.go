@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"context"
 	"crypto"
 	"fmt"
 	"testing"
@@ -29,7 +30,7 @@ Test scenario 3: wallet-1 sends tx without confirming
 */
 func TestSendingMoneyUsingWallets_integration(t *testing.T) {
 	initialBill := &moneytx.InitialBill{
-		ID:    uint256.NewInt(1),
+		ID:    util.Uint256ToBytes(uint256.NewInt(1)),
 		Value: 1e18,
 		Owner: script.PredicateAlwaysTrue(),
 	}
@@ -38,7 +39,7 @@ func TestSendingMoneyUsingWallets_integration(t *testing.T) {
 	startPartitionRPCServers(t, moneyPartition)
 
 	// start wallet backend
-	apiAddr, _ := startMoneyBackend(t, moneyPartition, initialBill)
+	apiAddr, moneyRestClient := startMoneyBackend(t, moneyPartition, initialBill)
 
 	// create 2 wallets
 	err := wlog.InitStdoutLogger(wlog.INFO)
@@ -55,7 +56,7 @@ func TestSendingMoneyUsingWallets_integration(t *testing.T) {
 	// create fee credit for initial bill transfer
 	txFeeBilly := uint64(1)
 	fcrAmount := testmoney.FCRAmount
-	transferFC := testmoney.CreateFeeCredit(t, util.Uint256ToBytes(initialBill.ID), network)
+	transferFC := testmoney.CreateFeeCredit(t, initialBill.ID, network)
 	initialBillBacklink := transferFC.Hash(crypto.SHA256)
 	w1BalanceBilly := initialBill.Value - fcrAmount - txFeeBilly
 
@@ -173,6 +174,20 @@ func TestSendingMoneyUsingWallets_integration(t *testing.T) {
 	// verify transaction is broadcast immediately without confirmation
 	stdout = execWalletCmd(t, "", homedir1, fmt.Sprintf("send -w false --amount 2 --address %s --alphabill-api-uri %s", pubKey2Hex, apiAddr))
 	verifyStdout(t, stdout, "Successfully sent transaction(s)")
+
+	w1TxHistory, _, err := moneyRestClient.GetTxHistory(context.Background(), w1PubKey, "", 0)
+	if err != nil {
+		return
+	}
+	require.NotNil(t, w1TxHistory)
+	require.Len(t, w1TxHistory, 8)
+
+	w2TxHistory, _, err := moneyRestClient.GetTxHistory(context.Background(), w2PubKey, "", 0)
+	if err != nil {
+		return
+	}
+	require.NotNil(t, w2TxHistory)
+	require.Len(t, w2TxHistory, 4)
 }
 
 func waitForBalanceCLI(t *testing.T, homedir string, url string, expectedBalance uint64, accountIndex uint64) {

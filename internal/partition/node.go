@@ -238,7 +238,9 @@ func initState(n *Node) (err error) {
 			return fmt.Errorf("block %v, state mismatch, %w", roundNo, err)
 		}
 		// commit changes
-		n.transactionSystem.Commit()
+		if err = n.transactionSystem.Commit(); err != nil {
+			return fmt.Errorf("unable to commit block %v: %w", roundNo, err)
+		}
 		prevBlock = &bl
 	}
 	logger.Info("State initialised from persistent store up to block %v", prevBlock.GetRoundNumber())
@@ -453,7 +455,7 @@ func (n *Node) process(tx *types.TransactionOrder, round uint64) error {
 		return fmt.Errorf("tx '%X' execution failed, %w", tx.Hash(n.configuration.hashAlgorithm), err)
 	}
 	n.proposedTransactions = append(n.proposedTransactions, &types.TransactionRecord{TransactionOrder: tx, ServerMetadata: sm})
-	n.sumOfEarnedFees += sm.ActualFee
+	n.sumOfEarnedFees += sm.GetActualFee()
 	n.sendEvent(event.TransactionProcessed, tx)
 	logger.Debug("Transaction processed by node %v. Proposal size: %v", n.configuration.peer.ID(), len(n.proposedTransactions))
 	return nil
@@ -586,6 +588,13 @@ func (n *Node) startNewRound(ctx context.Context, uc *types.UnicityCertificate) 
 		logger.Debug("DB proposal delete failed, %v", err)
 	}
 	n.leaderSelector.UpdateLeader(uc)
+	if n.leaderSelector.IsCurrentNodeLeader() {
+		txrs, err := n.transactionSystem.ValidatorGeneratedTransactions()
+		if err != nil {
+			logger.Warning("Failed to get validator generated transactions: %w", err)
+		}
+		n.proposedTransactions = append(n.proposedTransactions, txrs...)
+	}
 	n.startHandleOrForwardTransactions(ctx)
 	n.sendEvent(event.NewRoundStarted, newRoundNr)
 }
@@ -756,7 +765,9 @@ func (n *Node) finalizeBlock(b *types.Block) error {
 	// cache last stored non-empty block, but only if store succeeds
 	// NB! only cache and commit if persist is successful
 	n.lastStoredBlock = b
-	n.transactionSystem.Commit()
+	if err := n.transactionSystem.Commit(); err != nil {
+		return fmt.Errorf("unable to finalize block %v: %w", b.GetRoundNumber(), err)
+	}
 	validTransactionsCounter.Inc(int64(len(b.Transactions)))
 	n.sendEvent(event.BlockFinalized, b)
 	return nil

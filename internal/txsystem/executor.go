@@ -28,6 +28,10 @@ func (g GenericExecuteFunc[T]) ExecuteFunc() ExecuteFunc {
 	}
 }
 
+func (e ExecuteFunc) ExecuteFunc() ExecuteFunc {
+	return e
+}
+
 func (e TxExecutors) Execute(g *types.TransactionOrder, currentBlockNr uint64) (*types.ServerMetadata, error) {
 	executor, found := e[g.PayloadType()]
 	if !found {

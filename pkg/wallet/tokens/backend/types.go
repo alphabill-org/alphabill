@@ -2,6 +2,7 @@ package backend
 
 import (
 	"bytes"
+	"crypto"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -26,8 +27,9 @@ type (
 		// nft only
 		NftDataUpdatePredicate wallet.Predicate `json:"nftDataUpdatePredicate,omitempty"`
 		// meta
-		Kind   Kind          `json:"kind"`
-		TxHash wallet.TxHash `json:"txHash"`
+		Kind         Kind          `json:"kind"`
+		TxHash       wallet.TxHash `json:"txHash"`
+		TxRecordHash wallet.TxHash `json:"txRecordHash"`
 	}
 
 	TokenUnit struct {
@@ -47,8 +49,9 @@ type (
 		NftData                []byte           `json:"nftData,omitempty"`
 		NftDataUpdatePredicate wallet.Predicate `json:"nftDataUpdatePredicate,omitempty"`
 		// meta
-		Kind   Kind          `json:"kind"`
-		TxHash wallet.TxHash `json:"txHash"`
+		Kind         Kind          `json:"kind"`
+		TxHash       wallet.TxHash `json:"txHash"`
+		TxRecordHash wallet.TxHash `json:"txRecordHash"`
 	}
 
 	TokenID     wallet.UnitID
@@ -56,10 +59,11 @@ type (
 	Kind        byte
 
 	FeeCreditBill struct {
-		Id          []byte `json:"id"`
-		Value       uint64 `json:"value,string"`
-		TxHash      []byte `json:"txHash"`
-		AddFCTxHash []byte `json:"addFcTxHash"`
+		Id           []byte `json:"id"`
+		Value        uint64 `json:"value,string"`
+		TxHash       []byte `json:"txHash"`
+		TxRecordHash []byte `json:"txRecordHash"`
+		AddFCTxHash  []byte `json:"addFcTxHash"`
 	}
 )
 
@@ -70,7 +74,7 @@ const (
 )
 
 var (
-	NoParent = TokenTypeID{0x00}
+	NoParent = TokenTypeID(make([]byte, crypto.SHA256.Size()))
 )
 
 func (tu *TokenUnit) WriteSSE(w io.Writer) error {
@@ -143,9 +147,10 @@ func (f *FeeCreditBill) ToGenericBill() *wallet.Bill {
 		return nil
 	}
 	return &wallet.Bill{
-		Id:          f.Id,
-		Value:       f.Value,
-		TxHash:      f.TxHash,
-		AddFCTxHash: f.AddFCTxHash,
+		Id:           f.Id,
+		Value:        f.Value,
+		TxHash:       f.TxHash,
+		TxRecordHash: f.TxRecordHash,
+		AddFCTxHash:  f.AddFCTxHash,
 	}
 }

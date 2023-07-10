@@ -14,6 +14,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/testutils/net"
 	testpartition "github.com/alphabill-org/alphabill/internal/testutils/partition"
 	moneytx "github.com/alphabill-org/alphabill/internal/txsystem/money"
+	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/alphabill-org/alphabill/pkg/wallet"
 	wlog "github.com/alphabill-org/alphabill/pkg/wallet/log"
@@ -27,11 +28,11 @@ func TestMoneyBackendCLI(t *testing.T) {
 	// create ab network
 	_ = wlog.InitStdoutLogger(wlog.INFO)
 	initialBill := &moneytx.InitialBill{
-		ID:    uint256.NewInt(1),
+		ID:    util.Uint256ToBytes(uint256.NewInt(1)),
 		Value: 1e18,
 		Owner: script.PredicateAlwaysTrue(),
 	}
-	initialBillID := util.Uint256ToBytes(initialBill.ID)
+	initialBillID := initialBill.ID
 	initialBillHex := hexutil.Encode(initialBillID)
 	moneyPartition := createMoneyPartition(t, initialBill)
 	abNet := startAlphabill(t, []*testpartition.NodePartition{moneyPartition})
@@ -75,7 +76,7 @@ func TestMoneyBackendCLI(t *testing.T) {
 	require.Len(t, resListBills.Bills, 1)
 	b := resListBills.Bills[0]
 	require.Equal(t, initialBillValue, b.Value)
-	require.Equal(t, initialBillID, b.Id)
+	require.Equal(t, initialBillID, types.UnitID(b.Id))
 	require.NotNil(t, b.TxHash)
 
 	// verify proof

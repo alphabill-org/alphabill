@@ -4,7 +4,6 @@ import (
 	"crypto"
 	"testing"
 
-	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
 
 	test "github.com/alphabill-org/alphabill/internal/testutils"
@@ -123,7 +122,7 @@ func TestBillVerifySplitTransferTx_NewBill(t *testing.T) {
 			Backlink:       test.RandomBytes(32),
 		}))
 
-	newUnitID := txutil.SameShardIDBytes(uint256.NewInt(0).SetBytes(tx.TransactionOrder.UnitID()), tx.Hash(crypto.SHA256))
+	newUnitID := txutil.SameShardIDBytes(tx.TransactionOrder.UnitID(), tx.Hash(crypto.SHA256))
 
 	// test invalid value
 	b := &Bill{Id: newUnitID, Value: amount - 1}

@@ -9,11 +9,11 @@ import (
 	"testing"
 
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
-	testfc "github.com/alphabill-org/alphabill/internal/txsystem/fc/testutils"
 	"github.com/alphabill-org/alphabill/internal/rpc/alphabill"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	testfile "github.com/alphabill-org/alphabill/internal/testutils/file"
 	testtransaction "github.com/alphabill-org/alphabill/internal/testutils/transaction"
+	testfc "github.com/alphabill-org/alphabill/internal/txsystem/fc/testutils"
 	"github.com/alphabill-org/alphabill/internal/txsystem/vd"
 	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/internal/util"
@@ -280,9 +280,9 @@ func (a *abClientMock) GetBlocks(ctx context.Context, blockNumber, blockCount ui
 	}
 	return &alphabill.GetBlocksResponse{
 		BatchMaxBlockNumber: blockNumber,
-		MaxBlockNumber: a.maxBlock,
-		MaxRoundNumber: a.maxBlock,
-		Blocks: [][]byte{blockBytes},
+		MaxBlockNumber:      a.maxBlock,
+		MaxRoundNumber:      a.maxBlock,
+		Blocks:              [][]byte{blockBytes},
 	}, nil
 }
 
@@ -320,7 +320,7 @@ func getABClientMock(t *testing.T, vdClient *VDClient) *abClientMock {
 	mock.block = func(nr uint64) *types.Block {
 		return &types.Block{
 			UnicityCertificate: &types.UnicityCertificate{InputRecord: &types.InputRecord{RoundNumber: nr}},
-			Transactions:       []*types.TransactionRecord{
+			Transactions: []*types.TransactionRecord{
 				{TransactionOrder: addFC, ServerMetadata: &types.ServerMetadata{ActualFee: 1}},
 			},
 		}

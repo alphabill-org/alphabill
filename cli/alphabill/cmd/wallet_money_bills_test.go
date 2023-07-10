@@ -15,7 +15,6 @@ import (
 	"github.com/alphabill-org/alphabill/internal/txsystem/money"
 	utiltx "github.com/alphabill-org/alphabill/internal/txsystem/util"
 	"github.com/alphabill-org/alphabill/internal/types"
-	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/alphabill-org/alphabill/pkg/wallet/money/backend/client"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/fxamacker/cbor/v2"
@@ -218,7 +217,7 @@ func spendInitialBillWithFeeCredits(t *testing.T, abNet *testpartition.Alphabill
 	txFee := uint64(1)
 	feeAmount := uint64(2)
 	fcrID := utiltx.SameShardIDBytes(initialBill.ID, pubkeyHash)
-	unitID := util.Uint256ToBytes(initialBill.ID)
+	unitID := initialBill.ID
 	moneyPart, err := abNet.GetNodePartition(money.DefaultSystemIdentifier)
 	require.NoError(t, err)
 
@@ -227,8 +226,7 @@ func spendInitialBillWithFeeCredits(t *testing.T, abNet *testpartition.Alphabill
 	require.NoError(t, err)
 
 	// send transferFC
-	err = moneyPart.SubmitTx(transferFC)
-	require.NoError(t, err)
+	require.NoError(t, moneyPart.SubmitTx(transferFC))
 	require.Eventually(t, testpartition.BlockchainContainsTx(moneyPart, transferFC), test.WaitDuration, test.WaitTick)
 	_, transferFCProof, transferFCRecord, err := moneyPart.GetTxProof(transferFC)
 	require.NoError(t, err)
@@ -248,7 +246,7 @@ func spendInitialBillWithFeeCredits(t *testing.T, abNet *testpartition.Alphabill
 
 	// create transfer tx
 	remainingValue := initialBill.Value - feeAmount - txFee
-	tx, err := createTransferTx(pubkeyBytes, unitID, remainingValue, fcrID, absoluteTimeout, transferFC.Hash(crypto.SHA256))
+	tx, err := createTransferTx(pubkeyBytes, unitID, remainingValue, fcrID, absoluteTimeout, transferFCRecord.Hash(crypto.SHA256))
 	require.NoError(t, err)
 
 	// send transfer tx

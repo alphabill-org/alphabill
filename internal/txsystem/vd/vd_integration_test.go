@@ -3,14 +3,15 @@ package vd
 import (
 	"testing"
 
+	"github.com/alphabill-org/alphabill/internal/state"
+	fcunit "github.com/alphabill-org/alphabill/internal/txsystem/fc/unit"
+
 	"github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/hash"
-	"github.com/alphabill-org/alphabill/internal/rma"
 	"github.com/alphabill-org/alphabill/internal/script"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	testpartition "github.com/alphabill-org/alphabill/internal/testutils/partition"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
-	"github.com/alphabill-org/alphabill/internal/txsystem/fc"
 	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/fxamacker/cbor/v2"
@@ -65,15 +66,17 @@ func createVDTransaction() *types.TransactionOrder {
 	}
 }
 
-func newStateWithFeeCredit(t *testing.T, feeCreditID *uint256.Int) *rma.Tree {
-	state := rma.NewWithSHA256()
-	require.NoError(t, state.AtomicUpdate(
-		fc.AddCredit(feeCreditID, script.PredicateAlwaysTrue(), &fc.FeeCreditRecord{
+func newStateWithFeeCredit(t *testing.T, feeCreditID *uint256.Int) *state.State {
+	s := state.NewEmptyState()
+	require.NoError(t, s.Apply(
+		fcunit.AddCredit(util.Uint256ToBytes(feeCreditID), script.PredicateAlwaysTrue(), &fcunit.FeeCreditRecord{
 			Balance: 100,
 			Hash:    make([]byte, 32),
 			Timeout: 1000,
-		}, make([]byte, 32)),
+		}),
 	))
-	state.Commit()
-	return state
+	_, _, err := s.CalculateRoot()
+	require.NoError(t, err)
+	require.NoError(t, s.Commit())
+	return s
 }

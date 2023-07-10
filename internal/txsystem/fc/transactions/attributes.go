@@ -45,3 +45,11 @@ type (
 		Backlink               []byte                   // hash of this unit's previous transacton
 	}
 )
+
+func IsFeeCreditTx(tx *types.TransactionOrder) bool {
+	typeUrl := tx.PayloadType()
+	return typeUrl == PayloadTypeTransferFeeCredit ||
+		typeUrl == PayloadTypeAddFeeCredit ||
+		typeUrl == PayloadTypeCloseFeeCredit ||
+		typeUrl == PayloadTypeReclaimFeeCredit
+}

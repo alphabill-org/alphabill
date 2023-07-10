@@ -219,11 +219,6 @@ func (w *Wallet) Send(ctx context.Context, cmd SendCmd) ([]*wallet.Proof, error)
 		return nil, fmt.Errorf("failed to create transactions: %w", err)
 	}
 
-	txsCost := tx_builder.MaxFee * uint64(len(batch.Submissions()))
-	if fcb.Value < txsCost {
-		return nil, ErrInsufficientFeeCredit
-	}
-
 	for _, tx := range txs {
 		batch.Add(&txsubmitter.TxSubmission{
 			UnitID:      tx.UnitID(),
@@ -231,6 +226,12 @@ func (w *Wallet) Send(ctx context.Context, cmd SendCmd) ([]*wallet.Proof, error)
 			Transaction: tx,
 		})
 	}
+
+	txsCost := tx_builder.MaxFee * uint64(len(batch.Submissions()))
+	if fcb.Value < txsCost {
+		return nil, ErrInsufficientFeeCredit
+	}
+
 	if err = batch.SendTx(ctx, cmd.WaitForConfirmation); err != nil {
 		return nil, err
 	}
@@ -285,6 +286,13 @@ func (w *Wallet) collectDust(ctx context.Context, accountIndex uint64) error {
 	if err != nil {
 		return err
 	}
+	fcb, err := w.GetFeeCredit(ctx, fees.GetFeeCreditCmd{AccountIndex: accountIndex})
+	if err != nil {
+		return err
+	}
+	if fcb == nil {
+		return ErrNoFeeCredit
+	}
 	bills, dcMetadataMap, err := w.getDetailedBillsList(ctx, pubKey)
 	if err != nil {
 		return err
@@ -323,6 +331,9 @@ func (w *Wallet) collectDust(ctx context.Context, accountIndex uint64) error {
 				}
 				v = dcBillGroups[string(v.dcNonce)]
 			}
+			if fcb.GetValue() < tx_builder.MaxFee {
+				return ErrInsufficientFeeCredit
+			}
 			swapTimeout := roundNr + swapTimeoutBlockCount
 			if err := w.swapDcBills(ctx, v.dcBills, v.dcNonce, dcMetadataMap[string(v.dcNonce)].BillIdentifiers, swapTimeout, accountIndex); err != nil {
 				return err
@@ -339,7 +350,7 @@ func (w *Wallet) collectDust(ctx context.Context, accountIndex uint64) error {
 			if offset > billCount {
 				offset = billCount
 			}
-			err = w.submitDCBatch(ctx, k, bills[:offset], roundNr, accountIndex)
+			err = w.submitDCBatch(ctx, k, bills[:offset], fcb.Value, roundNr, accountIndex)
 			if err != nil {
 				return err
 			}
@@ -356,7 +367,7 @@ func (w *Wallet) collectDust(ctx context.Context, accountIndex uint64) error {
 	return nil
 }
 
-func (w *Wallet) submitDCBatch(ctx context.Context, k *account.AccountKey, bills []*Bill, roundNr, accountIndex uint64) error {
+func (w *Wallet) submitDCBatch(ctx context.Context, k *account.AccountKey, bills []*Bill, fcbValue, roundNr, accountIndex uint64) error {
 	dcBatch := txsubmitter.NewBatch(k.PubKey, w.backend)
 	dcTimeout := roundNr + dcTimeoutBlockCount
 	dcNonce := calculateDcNonce(bills)
@@ -371,6 +382,12 @@ func (w *Wallet) submitDCBatch(ctx context.Context, k *account.AccountKey, bills
 			Transaction: tx,
 		})
 	}
+
+	txsCost := tx_builder.MaxFee * uint64(len(dcBatch.Submissions()))
+	if fcbValue < txsCost {
+		return ErrInsufficientFeeCredit
+	}
+
 	if err := dcBatch.SendTx(ctx, true); err != nil {
 		return err
 	}
@@ -393,14 +410,6 @@ func (w *Wallet) swapDcBills(ctx context.Context, dcBills []*Bill, dcNonce []byt
 	if err != nil {
 		return err
 	}
-	fcb, err := w.GetFeeCredit(ctx, fees.GetFeeCreditCmd{AccountIndex: accountIndex})
-	if err != nil {
-		return err
-	}
-	if fcb.GetValue() < tx_builder.MaxFee {
-		return ErrInsufficientFeeCredit
-	}
-
 	var bpBills []*wallet.BillProof
 	for _, b := range dcBills {
 		bpBills = append(bpBills, &wallet.BillProof{Bill: &wallet.Bill{Id: b.GetID(), Value: b.Value}, TxProof: b.TxProof})

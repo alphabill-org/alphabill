@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	test "github.com/alphabill-org/alphabill/internal/testutils"
+	sdk "github.com/alphabill-org/alphabill/pkg/wallet"
 
 	"github.com/alphabill-org/alphabill/internal/hash"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
@@ -265,6 +266,40 @@ func TestBillStore_GetSetDeleteDCMetadata(t *testing.T) {
 	deletedMetadata, err := bs.Do().GetDCMetadata(nonce)
 	require.NoError(t, err)
 	require.Nil(t, deletedMetadata)
+}
+
+func TestBillStore_StoreTxHistoryRecord(t *testing.T) {
+	bs, _ := createTestBillStore(t)
+	hash := test.RandomBytes(32)
+	max := byte(10)
+	for i := byte(1); i <= max; i++ {
+		txHistoryRecord := &sdk.TxHistoryRecord{
+			TxHash: test.RandomBytes(32),
+			UnitID: []byte{i},
+		}
+		// store tx history record
+		err := bs.Do().StoreTxHistoryRecord(hash, txHistoryRecord)
+		require.NoError(t, err)
+	}
+	// verify tx history records are retrieved, two most recent records
+	actualTxHistoryRecords, key, err := bs.Do().GetTxHistoryRecords(hash, nil, 2)
+	require.NoError(t, err)
+	require.Len(t, actualTxHistoryRecords, 2)
+	require.EqualValues(t, actualTxHistoryRecords[0].UnitID, []byte{max})
+	require.NotNil(t, key)
+
+	// verify tx history records are retrieved, all records
+	var allTxHistoryRecords []*sdk.TxHistoryRecord
+	key = nil
+	for {
+		actualTxHistoryRecords, key, err = bs.Do().GetTxHistoryRecords(hash, key, 2)
+		require.NoError(t, err)
+		allTxHistoryRecords = append(allTxHistoryRecords, actualTxHistoryRecords...)
+		if key == nil {
+			break
+		}
+	}
+	require.Len(t, allTxHistoryRecords, int(max))
 }
 
 func createTestBillStore(t *testing.T) (*boltBillStore, error) {

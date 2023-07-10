@@ -7,7 +7,7 @@
     - [Money Partition](#money-partition)
       - [Transfer Bill](#transfer-bill)
       - [Split Bill](#split-bill)
-      - [Transfer Bills to Dust Collector](#transfer-bills-to-dust-collector)
+      - [Transfer Bill to Dust Collector](#transfer-bill-to-dust-collector)
       - [Swap Bills With Dust Collector](#swap-bills-with-dust-collector)
       - [Transfer to Fee Credit](#transfer-to-fee-credit)
       - [Add Fee Credit](#add-fee-credit)
@@ -96,7 +96,7 @@ transaction. *SystemIdentifier*s currently in use:
 their corresponding *Attributes*.
 
 3. *UnitID* (byte string) specifies the unit involved in the
-   transaction. (TODO: length limits?)
+   transaction.
 
 4. *Attributes* (array) is an array of transaction attributes that
 depends on the transaction type and are described in section
@@ -134,12 +134,24 @@ Data items in the *ClientMetadata* array:
 
 ### Transaction Types
 
-Each partition defines its own transaction types (*TransactionOrder*.*Payload*.*Type*) and the corresponding
+Each partition defines its own transaction types
+(*TransactionOrder*.*Payload*.*Type*) and the corresponding
 transaction attributes (*TransactionOrder*.*Payload*.*Attributes*).
+
+> TODO: Talk a bit more about partitions and their parameters like
+> hash algorithm and unit types. Currently the general part talks about units,
+> but money partition talks about bills.
+
+> TODO: explain backlinks here and not under every transaction type
 
 #### Money Partition
 
+Money partiton has two types of units: bills and fee credit records.
+
 ##### Transfer Bill
+
+This transaction transfers a bill to a new owner. The value of the
+transferred bill is unchanged.
 
 *TransactionOrder*.*Payload*.*Type* = "trans"\
 *TransactionOrder*.*Payload*.*Attributes* contains:
@@ -151,11 +163,23 @@ transaction attributes (*TransactionOrder*.*Payload*.*Attributes*).
 ]
 ```
 
-1. *TargetOwner* (byte string) is the owner condition of the new bill.
-2. *TargetValue* (unsigned integer) is the value of the new bill.
-3. *Backlink* (byte string) is the backlink to the previous transaction with this bill.
+1. *TargetOwner* (byte string) is the new owner condition of the bill.
+2. *TargetValue* (unsigned integer) must be equal to the value of the
+   bill. The reason for including the value of the bill in the
+   transaction order is to enable the recipient of the transaction to
+   learn the received amount without having to look up the bill.
+3. *Backlink* (byte string) is the SHA-256 hash of the previous
+   transaction with the bill. The hash is calculated over the raw CBOR
+   encoded bytes of the *TransactionOrder* data item.
 
 ##### Split Bill
+
+This transaction splits a bill in two, creating a new bill with its
+own owner condition (*TargetOwner*) and a value (*TargetValue*). The
+value of the bill being split is reduced by the value of the new bill
+and is stored in the *RemainingValue* attribute. The sum of values
+specified by *TargetValue* and *RemainingValue* attributes must be
+equal to the value of the bill before the split.
 
 *TransactionOrder*.*Payload*.*Type* = "split"\
 *TransactionOrder*.*Payload*.*Attributes* contains:
@@ -168,30 +192,58 @@ transaction attributes (*TransactionOrder*.*Payload*.*Attributes*).
 ]
 ```
 
-1. *TargetValue* (unsigned integer) is the value of the bill value.
+1. *TargetValue* (unsigned integer) is the value of the new bill.
 2. *TargetOwner* (byte string) is the owner condition of the new bill.
-3. *RemainingValue* (unsigned integer) is the value of the remaining bill.
-4. *Backlink* (byte string) is the backlink to the previous transaction with this bill.
+3. *RemainingValue* (unsigned integer) is the remaining value of the
+   bill being split.
+   > TODO: Why is this needed? The recipient of this transaction does not need to know the *RemainingValue* as is the case with *TargetValue* in Transfer Bill transaction. Also, Transfer to Fee Credit has no such field (and can't have), although it is very similar to a split.)
+4. *Backlink* (byte string) is the hash of the previous transaction
+   with the bill being split. The hash is calculated over raw CBOR
+   encoded bytes of the *TransactionOrder* data item.
 
-##### Transfer Bills to Dust Collector
+##### Transfer Bill to Dust Collector
+
+This transaction transfers a bill to a special owner - Dust Collector
+(DC). After transferring multiple bills to DC, a single, larger-value
+bill can be obtained from DC with the [Swap Bills With Dust
+Collector](#swap-bills-with-dust-collector) transaction. The set of
+bills being swapped needs to be decided beforehand, as the *UnitID* of
+the new bill obtained from DC is calculated from the *UnitID*s of the
+bills being swapped, and specified in the *Nonce* attribute of this
+transaction.
+
+Dust is not defined, any bills can be sent to DC and swapped for a
+larger-value bill.
 
 *TransactionOrder*.*Payload*.*Type* = "transDC"\
 *TransactionOrder*.*Payload*.*Attributes* contains:
 ```
 /transDCAttributes/ [
-    /Nonce/ h'',
-    /TargetOwner/     h'',
-    /TargetValue/     999999899999999996,
-    /Backlink/        h'2C8E1F55FC20A44687AB5D18D11F5E3544D2989DFFBB8250AA6EBA5EF4CEC319'
+    /Nonce/       h'',
+    /TargetOwner/ h'',
+    /TargetValue/ 999999899999999996,
+    /Backlink/    h'2C8E1F55FC20A44687AB5D18D11F5E3544D2989DFFBB8250AA6EBA5EF4CEC319'
 ]
 ```
 
-1. *Nonce* (byte string) contains the UnitIDs of the bills being swapped.
-2. *TargetOwner* (byte string) is the owner condition of the new bill.
-3. *TargetValue* (unsigned integer) is the value of the new bill.
-4. *Backlink* (byte string) is the backlink to the previous transaction with this bill.
+1. *Nonce* (byte string) is the *UnitID* of the new bill to be
+   obtained from DC with the [Swap Bills With Dust
+   Collector](#swap-bills-with-dust-collector) transaction. Calculated
+   as the hash of concatenated *UnitID*s of the bills being swapped,
+   sorted in ascending order.
+2. *TargetOwner* (byte string) is the owner condition of the new bill
+   later obtained with the [Swap Bills With Dust
+   Collector](#swap-bills-with-dust-collector) transaction.
+3. *TargetValue* (unsigned integer) is the value of the bill
+   transferred to DC with this transaction.
+4. *Backlink* (byte string) is the hash of the previous transaction
+   with the bill transferred to DC with this transaction. The hash is
+   calculated over raw CBOR encoded bytes of the *TransactionOrder*
+   data item.
 
 ##### Swap Bills With Dust Collector
+
+> TODO
 
 *TransactionOrder*.*Payload*.*Type* = "swapDC"\
 *TransactionOrder*.*Payload*.*Attributes* contains:
@@ -208,17 +260,37 @@ transaction attributes (*TransactionOrder*.*Payload*.*Attributes*).
 1. *TargetOwner* (byte string) is the owner condition of the new bill.
 2. *BillIdentifiers* (array of byte strings) is a variable length array
    of bill identifiers that are being swapped.
-3. *DcTransfers* (array of TransactionRecords) is TODO
-4. *Proofs* (array of TxProofs) is TODO
+3. *DcTransfers* (array of TransactionRecords) is TODO should be opaque byte string
+4. *Proofs* (array of TxProofs) is TODO does API return array? can client handle it as opaque byte string?
 5. *TargetValue* (unsigned integer) is the value of the new bill. 
 
 ##### Transfer to Fee Credit
 
 This transaction reserves money on the money partition to be paid as
 fees on a target partition. Money partition can also be the target
-partition. Note that a [Add Fee Credit](#add-fee-credit) transaction 
+partition. If the sum of the transferred amount and transaction fee is
+less than the value of the bill, it is similar to the [Split
+Bill](#split-bill) transaction in that both reduce the value of an
+existing bill and transfer it to a new owner. In this case, the new
+owner is a special fee credit record, managed by the target
+partition. In case the remaining value of the bill is 0, the bill is
+deleted.
 
+To bootstrap a fee credit record on the money partition, the fees for
+this transaction are handled outside the fee credit system. That is,
+the value of the bill used to make this transfer is reduced by the
+*Amount* transferred, and by the amount paid in fees for this
+transaction.
+
+Note that an [Add Fee Credit](#add-fee-credit) transaction
+needs to be executed on the target partition after each [Transfer to
+Fee Credit](#transfer-to-fee-credit) transaction. If any other
+transaction is executed with the bill between those two, the value
+transferred to fee credit is lost.
+
+*TransactionOrder*.*FeeProof* = `null`\
 *TransactionOrder*.*Payload*.*Type* = "transFC"\
+*TransactionOrder*.*Payload*.*ClientMetadata*.*FeeCreditRecordID* = `null`\
 *TransactionOrder*.*Payload*.*Attributes* contains:
 ```
 /transFCAttributes/ [
@@ -233,7 +305,9 @@ partition. Note that a [Add Fee Credit](#add-fee-credit) transaction
 ```
 
 1. *Amount* (unsigned integer) is the amount of money to reserve for
-   paying fees in the target partition.
+   paying fees in the target partition. Has to be less than the value
+   of the bill +
+   *TransactionOrder*.*Payload*.*ClientMetadata*.*MaxTransactionFee*.
 2. *TargetSystemIdentifier* (byte string) is the system identifier of
    the target partition where the amount can be spent on fees.
 3. *TargetRecordID* (byte string) is the target fee credit record
@@ -258,16 +332,18 @@ partition. Note that a [Add Fee Credit](#add-fee-credit) transaction
 
 ##### Add Fee Credit
 
-This transaction presents the proof of fee credit, reserved in the
-money partition with [Transfer to Fee Credit](#transfer-to-fee-credit)
-transaction, to the target partition (the partition this transaction
-is executed on). As a result, a fee credit record is created or
-updated on the target partition and execution of other fee paying
-transactions becomes possible.
+This transaction creates or updates a fee credit record on the target
+partition (the partition this transaction is executed on), by
+presenting a proof of fee credit, reserved in the money partition with
+[Transfer to Fee Credit](#transfer-to-fee-credit) transaction. As a
+result, execution of other fee paying transactions becomes possible.
 
-*TransactionOrder*.*FeeProof* must be `null` for this transaction.
+The fee for this transaction will also be paid from the fee credit
+record being created/updated.
 
+*TransactionOrder*.*FeeProof* = `null`\
 *TransactionOrder*.*Payload*.*Type* = "addFC"\
+*TransactionOrder*.*Payload*.*ClientMetadata*.*FeeCreditRecordID* = `null`\
 *TransactionOrder*.*Payload*.*Attributes* contains:
 ```
 /addFCAttributes/ [
@@ -277,17 +353,34 @@ transactions becomes possible.
 ]
 ```
 
-1. *FeeCreditOwnerCondition* (byte string) is the target fee credit
-   record owner condition (optional) which the
-   *TransactionOrder*.*FeeProof* needs to satisfy.
+1. *FeeCreditOwnerCondition* (byte string, optional) is the owner
+   condition for the created fee credit record. It needs to be
+   satisifed by the *TransactionOrder*.*FeeProof* data item of the
+   transactions using the record to pay fees.
+   > TODO: What if fee credit record is being updated? Is it allowed? Needs to have same value as before?
 2. *FeeCreditTransfer* (array) is the transaction record of the
-   [Transfer To Fee Credit](#transfer-to-fee-credit) transaction.
+   [Transfer To Fee Credit](#transfer-to-fee-credit) transaction. It
+   is constructed by a node when the transaction is executed and
+   included in a block. Necessary for the target partition to verify
+   the amount reserved as fee credit in the money partiton.
 3. *FeeCreditTransferProof* (array) is the proof of execution of the
-   [Transfer To Fee Credit](#transfer-to-fee-credit) transaction.
+    transaction provided in *FeeCreditTransfer* attribute. Necessary
+    for the target partition to verify the amount reserved as fee
+    credit in the money partiton.
+
+> TODO: change the types of *FeeCreditTransfer* and *FeeCreditTransferProof* to byte string.
 
 ##### Close Fee Credit
 
+This transaction closes a fee credit record and makes it possible to
+reclaim the money with the [Reclaim Fee Credit](#reclaim-fee-credit)
+transaction on the money partition.
+
+Note that fee credit records cannot be closed partially. 
+
+*TransactionOrder*.*FeeProof* = `null`\
 *TransactionOrder*.*Payload*.*Type* = "closeFC"\
+*TransactionOrder*.*Payload*.*ClientMetadata*.*FeeCreditRecordID* = `null`\
 *TransactionOrder*.*Payload*.*Attributes* contains:
 ```
 /closeFCAttributes/ [
@@ -297,11 +390,17 @@ transactions becomes possible.
 ]
 ```
 
-1. *Amount* - current balance of the fee credit record
-2. *TargetUnitID* - unit id of the fee credit record in money partition
-3. *Nonce* - the current state hash of the target unit in money partition (bill backlink that will be changed in your money account)
+1. *Amount* (unsigned integer) is the current balance of the fee
+   credit record.
+2. *FeeCreditRecordID* (byte string) is the identifier of the fee
+   credit record to be closed.
+3. *Nonce* (byte string) is the hash of the last transaction executed
+   with the bill in money partition that will be used to reclaim the
+   fee credit.
 
 ##### Reclaim Fee Credit
+
+> TODO
 
 *TransactionOrder*.*Payload*.*Type* = "reclFC"\
 *TransactionOrder*.*Payload*.*Attributes* contains:
@@ -584,6 +683,12 @@ Extended Diagnostic Notation with annotations:
     /FeeProof/   null
 ]
 ```
+
+[
+    [
+        h'00000000',
+        "split",
+        h'0000000000000000000000000000000000000000000000000000000000000001', [500000000, h'5376A8014F01411DBB429D60228CACDEA90D4B5F1C0B022D7F03D9CB9E5042BE3F74B7A8C23A8769AC01', 999999999399999996, h'52F43127F58992B6FCFA27A64C980E70D26C2CDE0281AC93435D10EB8034B695'], [23, 1, h'A0227AC5202427DB551B8ABE08645378347A3C5F70E0E5734F147AD45CBC1BA5']], h'53540184A1455D7D3A3F4E7EC9B0CAA67C416874EC2F0B5116BEAD0F5DA1094E0B50D212CA66B0DE771F4E3F9B5B5DA307FD2C856D673FD88EE3509FD7C84CC3E380300155010227E874B800CA319B7BC384DFC63F915E098417B549EDB43525AEE511A6DBBD9C', null]
 
 ### Split Bill
 

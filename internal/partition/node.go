@@ -455,10 +455,7 @@ func (n *Node) process(tx *types.TransactionOrder, round uint64) error {
 		return fmt.Errorf("tx '%X' execution failed, %w", tx.Hash(n.configuration.hashAlgorithm), err)
 	}
 	n.proposedTransactions = append(n.proposedTransactions, &types.TransactionRecord{TransactionOrder: tx, ServerMetadata: sm})
-	if sm == nil {
-		panic("sm is nil")
-	}
-	n.sumOfEarnedFees += sm.ActualFee
+	n.sumOfEarnedFees += sm.GetActualFee()
 	n.sendEvent(event.TransactionProcessed, tx)
 	logger.Debug("Transaction processed by node %v. Proposal size: %v", n.configuration.peer.ID(), len(n.proposedTransactions))
 	return nil

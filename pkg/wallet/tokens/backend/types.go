@@ -2,6 +2,7 @@ package backend
 
 import (
 	"bytes"
+	"crypto"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -70,7 +71,7 @@ const (
 )
 
 var (
-	NoParent = TokenTypeID{0x00}
+	NoParent = TokenTypeID(make([]byte, crypto.SHA256.Size()))
 )
 
 func (tu *TokenUnit) WriteSSE(w io.Writer) error {

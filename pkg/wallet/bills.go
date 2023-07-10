@@ -101,7 +101,7 @@ func (x *Bill) verifyTx(txr *types.TransactionRecord) error {
 	if isDCTx && x.DcNonce == nil {
 		return ErrMissingDCNonce
 	}
-	if !bytes.Equal(x.TxHash, txr.Hash(crypto.SHA256)) {
+	if !bytes.Equal(x.TxHash, txr.TransactionOrder.Hash(crypto.SHA256)) {
 		return ErrInvalidTxHash
 	}
 	return nil

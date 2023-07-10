@@ -1,52 +1,48 @@
 package tokens
 
 import (
+	"crypto"
 	"errors"
 	"fmt"
 
-	"github.com/alphabill-org/alphabill/internal/rma"
+	"github.com/alphabill-org/alphabill/internal/state"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
-	"github.com/alphabill-org/alphabill/internal/txsystem/fc"
 	"github.com/alphabill-org/alphabill/internal/types"
-	"github.com/alphabill-org/alphabill/internal/util"
+	"github.com/alphabill-org/alphabill/pkg/tree/avl"
 	"github.com/fxamacker/cbor/v2"
-	"github.com/holiman/uint256"
 )
 
 func handleMintFungibleTokenTx(options *Options) txsystem.GenericExecuteFunc[MintFungibleTokenAttributes] {
 	return func(tx *types.TransactionOrder, attr *MintFungibleTokenAttributes, currentBlockNr uint64) (*types.ServerMetadata, error) {
 		logger.Debug("Processing Mint Fungible Token tx: %v", tx)
-		if err := validateMintFungibleToken(tx, attr, options.state); err != nil {
+		if err := validateMintFungibleToken(tx, attr, options.state, options.hashAlgorithm); err != nil {
 			return nil, fmt.Errorf("invalid mint fungible token tx: %w", err)
 		}
 		fee := options.feeCalculator()
 
-		// TODO calculate hash after setting server metadata
+		unitID := tx.UnitID()
 		h := tx.Hash(options.hashAlgorithm)
 
 		// update state
-		fcrID := util.BytesToUint256(tx.GetClientFeeCreditRecordID())
-		unitID := util.BytesToUint256(tx.UnitID())
-		if err := options.state.AtomicUpdate(
-			fc.DecrCredit(fcrID, fee, h),
-			rma.AddItem(unitID, attr.Bearer, newFungibleTokenData(attr, h, currentBlockNr), h),
+		if err := options.state.Apply(
+			state.AddUnit(unitID, attr.Bearer, newFungibleTokenData(attr, h, currentBlockNr)),
 		); err != nil {
 			return nil, err
 		}
-		return &types.ServerMetadata{ActualFee: fee}, nil
+		return &types.ServerMetadata{ActualFee: fee, TargetUnits: []types.UnitID{unitID}}, nil
 	}
 }
 
-func validateMintFungibleToken(tx *types.TransactionOrder, attr *MintFungibleTokenAttributes, state *rma.Tree) error {
-	unitID := util.BytesToUint256(tx.UnitID())
-	if unitID.IsZero() {
+func validateMintFungibleToken(tx *types.TransactionOrder, attr *MintFungibleTokenAttributes, s *state.State, hashAlgorithm crypto.Hash) error {
+	unitID := types.UnitID(tx.UnitID())
+	if unitID.IsZero(hashAlgorithm.Size()) {
 		return errors.New(ErrStrUnitIDIsZero)
 	}
-	u, err := state.GetUnit(unitID)
+	u, err := s.GetUnit(unitID, false)
 	if u != nil {
 		return fmt.Errorf("unit with id %v already exists", unitID)
 	}
-	if !errors.Is(err, rma.ErrUnitNotFound) {
+	if !errors.Is(err, avl.ErrNotFound) {
 		return err
 	}
 	if attr.Value == 0 {
@@ -55,12 +51,13 @@ func validateMintFungibleToken(tx *types.TransactionOrder, attr *MintFungibleTok
 
 	// existence of the parent type is checked by the getChainedPredicates
 	predicates, err := getChainedPredicates[*fungibleTokenTypeData](
-		state,
-		util.BytesToUint256(attr.TypeID),
+		hashAlgorithm,
+		s,
+		attr.TypeID,
 		func(d *fungibleTokenTypeData) []byte {
 			return d.tokenCreationPredicate
 		},
-		func(d *fungibleTokenTypeData) *uint256.Int {
+		func(d *fungibleTokenTypeData) types.UnitID {
 			return d.parentTypeId
 		},
 	)

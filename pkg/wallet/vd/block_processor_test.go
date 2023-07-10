@@ -7,17 +7,17 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/alphabill-org/alphabill/internal/types"
+	"github.com/fxamacker/cbor/v2"
+	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
 
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	testfc "github.com/alphabill-org/alphabill/internal/txsystem/fc/testutils"
 	"github.com/alphabill-org/alphabill/internal/txsystem/vd"
+	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/alphabill-org/alphabill/pkg/wallet"
-	"github.com/fxamacker/cbor/v2"
-	"github.com/holiman/uint256"
 )
 
 func Test_ProofFinder(t *testing.T) {
@@ -178,8 +178,8 @@ func Test_blockProcessor_processTx(t *testing.T) {
 		require.Equal(t, uint256.NewInt(1), uint256.NewInt(0).SetBytes(fcb.Id))
 		require.EqualValues(t, 49, fcb.GetValue())
 		lastAddFCTxHash := addFC.Hash(crypto.SHA256)
-		require.Equal(t, lastAddFCTxHash, fcb.LastAddFCTxHash)
 		require.Equal(t, lastAddFCTxHash, fcb.TxHash)
+		require.Equal(t, lastAddFCTxHash, fcb.LastAddFCTxHash)
 
 		// when closeFC tx is processed
 		closeFC := testfc.NewCloseFC(t,

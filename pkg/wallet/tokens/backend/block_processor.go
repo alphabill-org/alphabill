@@ -11,6 +11,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/txsystem/tokens"
 	txutil "github.com/alphabill-org/alphabill/internal/txsystem/util"
 	"github.com/alphabill-org/alphabill/internal/types"
+	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/alphabill-org/alphabill/pkg/wallet/broker"
 	"github.com/alphabill-org/alphabill/pkg/wallet/log"
@@ -96,6 +97,8 @@ func (p *blockProcessor) processTx(tr *types.TransactionRecord, proof *wallet.Tx
 			TxHash:          txHash,
 			LastAddFCTxHash: fcb.GetLastAddFCTxHash(),
 		}, txProof)
+	case txsystem.PayloadTypePruneStates:
+		return nil
 	default:
 		// decrement fee credit bill value if tx is not fee credit tx i.e. a normal tx
 		if err := p.updateFCB(tr); err != nil {
@@ -183,7 +186,7 @@ func (p *blockProcessor) processTx(tr *types.TransactionRecord, proof *wallet.Tx
 
 		// save new token created by the split
 		newToken := &TokenUnit{
-			ID:       txutil.SameShardIDBytes(uint256.NewInt(0).SetBytes(id), tokens.HashForIDCalculation(tx, crypto.SHA256)),
+			ID:       txutil.SameShardIDBytes(util.Uint256ToBytes(uint256.NewInt(0).SetBytes(id)), tokens.HashForIDCalculation(tx, crypto.SHA256)),
 			Symbol:   token.Symbol,
 			TypeID:   token.TypeID,
 			TypeName: token.TypeName,

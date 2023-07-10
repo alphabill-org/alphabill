@@ -3,18 +3,18 @@ package fc
 import (
 	"fmt"
 
-	"github.com/alphabill-org/alphabill/internal/rma"
+	"github.com/alphabill-org/alphabill/internal/state"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/internal/txsystem/fc/transactions"
+	fcunit "github.com/alphabill-org/alphabill/internal/txsystem/fc/unit"
 	"github.com/alphabill-org/alphabill/internal/types"
-	"github.com/alphabill-org/alphabill/internal/util"
 )
 
 func handleAddFeeCreditTx(f *FeeCredit) txsystem.GenericExecuteFunc[transactions.AddFeeCreditAttributes] {
 	return func(tx *types.TransactionOrder, attr *transactions.AddFeeCreditAttributes, currentBlockNumber uint64) (*types.ServerMetadata, error) {
 		f.logger.Debug("Processing addFC %v", tx)
-		unitID := util.BytesToUint256(tx.UnitID())
-		bd, _ := f.state.GetUnit(unitID)
+		unitID := tx.UnitID()
+		bd, _ := f.state.GetUnit(unitID, false)
 		if err := f.txValidator.ValidateAddFeeCredit(&AddFCValidationContext{
 			Tx:                 tx,
 			Unit:               bd,
@@ -32,24 +32,25 @@ func handleAddFeeCreditTx(f *FeeCredit) txsystem.GenericExecuteFunc[transactions
 		}
 		v := transferFc.Amount - fee
 
-		var updateFunc rma.Action
+		txHash := tx.Hash(f.hashAlgorithm)
+		var updateFunc state.Action
 		if bd == nil {
 			// add credit
-			fcr := &FeeCreditRecord{
+			fcr := &fcunit.FeeCreditRecord{
 				Balance: v,
-				Hash:    tx.Hash(f.hashAlgorithm),
+				Hash:    txHash,
 				Timeout: transferFc.LatestAdditionTime + 1,
 			}
-			updateFunc = AddCredit(unitID, attr.FeeCreditOwnerCondition, fcr, tx.Hash(f.hashAlgorithm))
+			updateFunc = fcunit.AddCredit(unitID, attr.FeeCreditOwnerCondition, fcr)
 		} else {
 			// increment credit
-			updateFunc = IncrCredit(unitID, v, transferFc.LatestAdditionTime+1, tx.Hash(f.hashAlgorithm))
+			updateFunc = fcunit.IncrCredit(unitID, v, transferFc.LatestAdditionTime+1, txHash)
 		}
 
-		if err := f.state.AtomicUpdate(updateFunc); err != nil {
+		if err = f.state.Apply(updateFunc); err != nil {
 			return nil, fmt.Errorf("addFC state update failed: %w", err)
 		}
-		return &types.ServerMetadata{ActualFee: fee}, nil
+		return &types.ServerMetadata{ActualFee: fee, TargetUnits: []types.UnitID{unitID}}, nil
 	}
 }
 

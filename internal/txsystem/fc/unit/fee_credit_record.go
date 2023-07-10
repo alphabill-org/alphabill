@@ -1,9 +1,10 @@
-package fc
+package unit
 
 import (
+	"bytes"
 	"hash"
 
-	"github.com/alphabill-org/alphabill/internal/rma"
+	"github.com/alphabill-org/alphabill/internal/state"
 	"github.com/alphabill-org/alphabill/internal/util"
 )
 
@@ -16,15 +17,22 @@ type FeeCreditRecord struct {
 	Timeout uint64 // the earliest round number when this record may be “garbage collected” if the balance goes to zero
 }
 
-func (b *FeeCreditRecord) AddToHasher(hasher hash.Hash) {
+func (b *FeeCreditRecord) Write(hasher hash.Hash) {
 	hasher.Write(util.Uint64ToBytes(b.Balance))
 	hasher.Write(b.Hash)
 	hasher.Write(util.Uint64ToBytes(b.Timeout))
 }
 
-func (b *FeeCreditRecord) Value() rma.SummaryValue {
-	// Fee Credit Record value is not included in money invariant.
-	return rma.Uint64SummaryValue(0)
+func (b *FeeCreditRecord) SummaryValueInput() uint64 {
+	return 0
+}
+
+func (b *FeeCreditRecord) Copy() state.UnitData {
+	return &FeeCreditRecord{
+		Balance: b.Balance,
+		Hash:    bytes.Clone(b.Hash),
+		Timeout: b.Timeout,
+	}
 }
 
 func (b *FeeCreditRecord) GetHash() []byte {

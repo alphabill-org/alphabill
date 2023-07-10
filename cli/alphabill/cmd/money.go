@@ -9,6 +9,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/internal/script"
 	"github.com/alphabill-org/alphabill/internal/txsystem/money"
+	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/alphabill-org/alphabill/pkg/logger"
 	"github.com/fxamacker/cbor/v2"
 	"github.com/holiman/uint256"
@@ -73,7 +74,7 @@ func runMoneyNode(ctx context.Context, cfg *moneyNodeConfiguration) error {
 	}
 
 	ib := &money.InitialBill{
-		ID:    uint256.NewInt(defaultInitialBillId),
+		ID:    util.Uint256ToBytes(uint256.NewInt(defaultInitialBillId)),
 		Value: params.InitialBillValue,
 		Owner: script.PredicateAlwaysTrue(),
 	}

@@ -308,7 +308,7 @@ type AlphabillNetwork struct {
 // creates fee credit on money wallet and token wallet
 func NewAlphabillNetwork(t *testing.T) *AlphabillNetwork {
 	initialBill := &money.InitialBill{
-		ID:    uint256.NewInt(1),
+		ID:    util.Uint256ToBytes(uint256.NewInt(1)),
 		Value: 1e18,
 		Owner: script.PredicateAlwaysTrue(),
 	}

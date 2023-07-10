@@ -2,64 +2,59 @@ package tokens
 
 import (
 	"bytes"
+	"crypto"
 	"errors"
 	"fmt"
 
-	"github.com/alphabill-org/alphabill/internal/rma"
+	"github.com/alphabill-org/alphabill/internal/state"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
-	"github.com/alphabill-org/alphabill/internal/txsystem/fc"
 	"github.com/alphabill-org/alphabill/internal/types"
-	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/fxamacker/cbor/v2"
-	"github.com/holiman/uint256"
 )
 
 func handleTransferNonFungibleTokenTx(options *Options) txsystem.GenericExecuteFunc[TransferNonFungibleTokenAttributes] {
 	return func(tx *types.TransactionOrder, attr *TransferNonFungibleTokenAttributes, currentBlockNr uint64) (*types.ServerMetadata, error) {
 		logger.Debug("Processing Transfer Non-Fungible Token tx: %v", tx)
-		if err := validateTransferNonFungibleToken(tx, attr, options.state); err != nil {
+		if err := validateTransferNonFungibleToken(tx, attr, options.state, options.hashAlgorithm); err != nil {
 			return nil, fmt.Errorf("invalid transfer none-fungible token tx: %w", err)
 		}
 		fee := options.feeCalculator()
 
-		// TODO calculate hash after setting server metadata
-		h := tx.Hash(options.hashAlgorithm)
+		unitID := tx.UnitID()
 
 		// update state
-		fcrID := util.BytesToUint256(tx.GetClientFeeCreditRecordID())
-		unitID := util.BytesToUint256(tx.UnitID())
-		if err := options.state.AtomicUpdate(
-			fc.DecrCredit(fcrID, fee, h),
-			rma.SetOwner(unitID, attr.NewBearer, h),
-			rma.UpdateData(unitID, func(data rma.UnitData) (newData rma.UnitData) {
+		if err := options.state.Apply(
+			state.SetOwner(unitID, attr.NewBearer),
+			state.UpdateUnitData(unitID, func(data state.UnitData) (state.UnitData, error) {
 				d, ok := data.(*nonFungibleTokenData)
 				if !ok {
-					return data
+					return nil, fmt.Errorf("unit %v does not contain non fungible token data", unitID)
 				}
 				d.t = currentBlockNr
 				d.backlink = tx.Hash(options.hashAlgorithm)
-				return data
-			}, h)); err != nil {
+				return d, nil
+			})); err != nil {
 			return nil, err
 		}
-		return &types.ServerMetadata{ActualFee: fee}, nil
+
+		return &types.ServerMetadata{ActualFee: fee, TargetUnits: []types.UnitID{unitID}}, nil
 	}
 }
 
-func validateTransferNonFungibleToken(tx *types.TransactionOrder, attr *TransferNonFungibleTokenAttributes, state *rma.Tree) error {
-	unitID := util.BytesToUint256(tx.UnitID())
-	u, err := state.GetUnit(unitID)
+func validateTransferNonFungibleToken(tx *types.TransactionOrder, attr *TransferNonFungibleTokenAttributes, s *state.State, hashAlgorithm crypto.Hash) error {
+	unitID := types.UnitID(tx.UnitID())
+	u, err := s.GetUnit(unitID, false)
 	if err != nil {
 		return err
 	}
-	data, ok := u.Data.(*nonFungibleTokenData)
+	data, ok := u.Data().(*nonFungibleTokenData)
 	if !ok {
 		return fmt.Errorf("validate nft transfer: unit %v is not a non-fungible token type", unitID)
 	}
 	if !bytes.Equal(data.backlink, attr.Backlink) {
 		return errors.New("validate nft transfer: invalid backlink")
 	}
-	tokenTypeID := util.Uint256ToBytes(data.nftType)
+	tokenTypeID := data.nftType
 	if !bytes.Equal(attr.NFTTypeID, tokenTypeID) {
 		return fmt.Errorf("invalid type identifier: expected '%X', got '%X'", tokenTypeID, attr.NFTTypeID)
 	}
@@ -67,19 +62,20 @@ func validateTransferNonFungibleToken(tx *types.TransactionOrder, attr *Transfer
 	// signature given in the transaction request satisfies the predicate obtained by concatenating all the token
 	// invariant clauses along the type inheritance chain.
 	predicates, err := getChainedPredicates(
-		state,
+		hashAlgorithm,
+		s,
 		data.nftType,
 		func(d *nonFungibleTokenTypeData) []byte {
 			return d.invariantPredicate
 		},
-		func(d *nonFungibleTokenTypeData) *uint256.Int {
+		func(d *nonFungibleTokenTypeData) types.UnitID {
 			return d.parentTypeId
 		},
 	)
 	if err != nil {
 		return err
 	}
-	return verifyOwnership(Predicate(u.Bearer), predicates, &transferNFTTokenOwnershipProver{tx: tx, attr: attr})
+	return verifyOwnership(u.Bearer(), predicates, &transferNFTTokenOwnershipProver{tx: tx, attr: attr})
 }
 
 type transferNFTTokenOwnershipProver struct {

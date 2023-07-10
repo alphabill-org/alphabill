@@ -9,6 +9,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/alphabill-org/alphabill/internal/util"
+
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/script"
 	testpartition "github.com/alphabill-org/alphabill/internal/testutils/partition"
@@ -74,7 +76,7 @@ type VDAlphabillNetwork struct {
 // Adds fee credit on vd partition.
 func NewVDAlphabillNetwork(t *testing.T, ctx context.Context) *VDAlphabillNetwork {
 	initialBill := &money.InitialBill{
-		ID:    uint256.NewInt(1),
+		ID:    util.Uint256ToBytes(uint256.NewInt(1)),
 		Value: 1e18,
 		Owner: script.PredicateAlwaysTrue(),
 	}
@@ -98,12 +100,12 @@ func NewVDAlphabillNetwork(t *testing.T, ctx context.Context) *VDAlphabillNetwor
 	t.Cleanup(moneyWallet.Close)
 
 	vdClient, err := vdwallet.New(&vdwallet.VDClientConfig{
-		VDNodeURL: vdPartition.Nodes[0].AddrGRPC,
-		WaitForReady: true,
-		ConfirmTx: true,
+		VDNodeURL:        vdPartition.Nodes[0].AddrGRPC,
+		WaitForReady:     true,
+		ConfirmTx:        true,
 		ConfirmTxTimeout: 10,
-		AccountKey: accountKey,
-		WalletHomeDir: walletHomeDir,
+		AccountKey:       accountKey,
+		WalletHomeDir:    walletHomeDir,
 	})
 	require.NoError(t, err)
 	require.NotNil(t, vdClient)

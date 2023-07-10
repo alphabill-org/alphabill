@@ -12,8 +12,7 @@ import (
 
 var FCRID = uint256.NewInt(88)
 
-func CreateInitialBillTransferTx(pubKey []byte, billId *uint256.Int, billValue uint64, timeout uint64, backlink []byte) (*types.TransactionOrder, error) {
-	billId32 := billId.Bytes32()
+func CreateInitialBillTransferTx(pubKey []byte, billID types.UnitID, billValue uint64, timeout uint64, backlink []byte) (*types.TransactionOrder, error) {
 	attr := &moneytx.TransferAttributes{
 		NewBearer:   script.PredicatePayToPublicKeyHashDefault(hash.Sum256(pubKey)),
 		TargetValue: billValue,
@@ -27,7 +26,7 @@ func CreateInitialBillTransferTx(pubKey []byte, billId *uint256.Int, billValue u
 		Payload: &types.Payload{
 			SystemID:   []byte{0, 0, 0, 0},
 			Type:       moneytx.PayloadTypeTransfer,
-			UnitID:     billId32[:],
+			UnitID:     billID,
 			Attributes: attrBytes,
 			ClientMetadata: &types.ClientMetadata{
 				Timeout:           timeout,

@@ -4,7 +4,6 @@ import (
 	"crypto"
 	"testing"
 
-	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
 
 	test "github.com/alphabill-org/alphabill/internal/testutils"
@@ -44,7 +43,7 @@ func TestBillVerifyTransferTx(t *testing.T) {
 	require.ErrorIs(t, err, ErrInvalidTxHash)
 
 	// test ok
-	b = &Bill{Value: targetValue, TxHash: tx.Hash(crypto.SHA256)}
+	b = &Bill{Value: targetValue, TxHash: tx.TransactionOrder.Hash(crypto.SHA256)}
 	err = b.verifyTx(tx)
 	require.NoError(t, err)
 }
@@ -73,7 +72,7 @@ func TestBillVerifyDCTransferTx(t *testing.T) {
 	require.ErrorIs(t, err, ErrInvalidTxHash)
 
 	// test ok
-	b = &Bill{Value: targetValue, DcNonce: []byte{0}, TxHash: tx.Hash(crypto.SHA256)}
+	b = &Bill{Value: targetValue, DcNonce: []byte{0}, TxHash: tx.TransactionOrder.Hash(crypto.SHA256)}
 	err = b.verifyTx(tx)
 	require.NoError(t, err)
 }
@@ -106,7 +105,7 @@ func TestBillVerifySplitTransferTx_OldBill(t *testing.T) {
 	require.ErrorIs(t, err, ErrInvalidTxHash)
 
 	// test ok
-	b = &Bill{Id: tx.TransactionOrder.UnitID(), Value: remainingValue, TxHash: tx.Hash(crypto.SHA256)}
+	b = &Bill{Id: tx.TransactionOrder.UnitID(), Value: remainingValue, TxHash: tx.TransactionOrder.Hash(crypto.SHA256)}
 	err = b.verifyTx(tx)
 	require.NoError(t, err)
 }
@@ -123,7 +122,7 @@ func TestBillVerifySplitTransferTx_NewBill(t *testing.T) {
 			Backlink:       test.RandomBytes(32),
 		}))
 
-	newUnitID := txutil.SameShardIDBytes(uint256.NewInt(0).SetBytes(tx.TransactionOrder.UnitID()), tx.Hash(crypto.SHA256))
+	newUnitID := txutil.SameShardIDBytes(tx.TransactionOrder.UnitID(), tx.TransactionOrder.Hash(crypto.SHA256))
 
 	// test invalid value
 	b := &Bill{Id: newUnitID, Value: amount - 1}
@@ -141,7 +140,7 @@ func TestBillVerifySplitTransferTx_NewBill(t *testing.T) {
 	require.ErrorIs(t, err, ErrInvalidTxHash)
 
 	// test ok
-	b = &Bill{Id: newUnitID, Value: amount, TxHash: tx.Hash(crypto.SHA256)}
+	b = &Bill{Id: newUnitID, Value: amount, TxHash: tx.TransactionOrder.Hash(crypto.SHA256)}
 	err = b.verifyTx(tx)
 	require.NoError(t, err)
 }
@@ -171,7 +170,7 @@ func TestBillVerifySwapTransferTx(t *testing.T) {
 	require.ErrorIs(t, err, ErrInvalidTxHash)
 
 	// test ok
-	b = &Bill{Value: targetValue, TxHash: tx.Hash(crypto.SHA256)}
+	b = &Bill{Value: targetValue, TxHash: tx.TransactionOrder.Hash(crypto.SHA256)}
 	err = b.verifyTx(tx)
 	require.NoError(t, err)
 }
@@ -190,7 +189,7 @@ func TestBillVerify_NotMoneyTxType(t *testing.T) {
 	)
 
 	// test invalid type
-	b := &Bill{Value: targetValue, TxHash: tx.Hash(crypto.SHA256)}
+	b := &Bill{Value: targetValue, TxHash: tx.TransactionOrder.Hash(crypto.SHA256)}
 	err := b.verifyTx(tx)
 	require.ErrorIs(t, err, ErrInvalidTxType)
 }

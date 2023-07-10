@@ -7,8 +7,9 @@ import (
 	"fmt"
 
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
-	"github.com/alphabill-org/alphabill/internal/rma"
+	"github.com/alphabill-org/alphabill/internal/state"
 	"github.com/alphabill-org/alphabill/internal/txsystem/fc/transactions"
+	"github.com/alphabill-org/alphabill/internal/txsystem/fc/unit"
 	"github.com/alphabill-org/alphabill/internal/types"
 )
 
@@ -24,13 +25,13 @@ type (
 
 	AddFCValidationContext struct {
 		Tx                 *types.TransactionOrder
-		Unit               *rma.Unit
+		Unit               *state.Unit
 		CurrentRoundNumber uint64
 	}
 
 	CloseFCValidationContext struct {
 		Tx   *types.TransactionOrder
-		Unit *rma.Unit
+		Unit *state.Unit
 	}
 )
 
@@ -69,18 +70,18 @@ func (v *DefaultFeeCreditTxValidator) ValidateAddFeeCredit(ctx *AddFCValidationC
 		return fmt.Errorf("failed to unmarshal add fee credit attributes: %w", err)
 	}
 
-	var fcr *FeeCreditRecord
+	var fcr *unit.FeeCreditRecord
 	if ctx.Unit != nil {
 		// 1. ExtrType(P.ι) = fcr – target unit is a fee credit record
 		var ok bool
-		fcr, ok = ctx.Unit.Data.(*FeeCreditRecord)
+		fcr, ok = ctx.Unit.Data().(*unit.FeeCreditRecord)
 		if !ok {
 			return errors.New("invalid unit type: unit is not fee credit record")
 		}
 
 		// 2. S.N[P.ι] = ⊥ ∨ S.N[P.ι].φ = P.A.φ – if the target exists, the owner condition matches
-		if !bytes.Equal(ctx.Unit.Bearer, attr.FeeCreditOwnerCondition) {
-			return fmt.Errorf("invalid owner condition: expected=%X actual=%X", ctx.Unit.Bearer, attr.FeeCreditOwnerCondition)
+		if !bytes.Equal(ctx.Unit.Bearer(), attr.FeeCreditOwnerCondition) {
+			return fmt.Errorf("invalid owner condition: expected=%X actual=%X", ctx.Unit.Bearer(), attr.FeeCreditOwnerCondition)
 		}
 	}
 
@@ -160,7 +161,7 @@ func (v *DefaultFeeCreditTxValidator) ValidateCloseFC(ctx *CloseFCValidationCont
 	if ctx.Unit == nil {
 		return errors.New("unit is nil")
 	}
-	fcr, ok := ctx.Unit.Data.(*FeeCreditRecord)
+	fcr, ok := ctx.Unit.Data().(*unit.FeeCreditRecord)
 	if !ok {
 		return errors.New("unit data is not of type fee credit record")
 	}

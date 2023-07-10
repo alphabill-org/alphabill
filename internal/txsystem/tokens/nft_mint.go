@@ -21,9 +21,7 @@ func handleMintNonFungibleTokenTx(options *Options) txsystem.GenericExecuteFunc[
 		}
 		fee := options.feeCalculator()
 		unitID := tx.UnitID()
-		sm := &types.ServerMetadata{ActualFee: fee, TargetUnits: []types.UnitID{}}
-		txr := &types.TransactionRecord{TransactionOrder: tx, ServerMetadata: sm}
-		h := txr.Hash(options.hashAlgorithm)
+		h := tx.Hash(options.hashAlgorithm)
 
 		// update state
 		if err := options.state.Apply(
@@ -31,7 +29,7 @@ func handleMintNonFungibleTokenTx(options *Options) txsystem.GenericExecuteFunc[
 			return nil, err
 		}
 
-		return sm, nil
+		return &types.ServerMetadata{ActualFee: fee, TargetUnits: []types.UnitID{}}, nil
 	}
 }
 

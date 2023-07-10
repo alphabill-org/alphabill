@@ -8,11 +8,10 @@ import (
 
 type (
 	Bill struct {
-		Id           *uint256.Int  `json:"id"`
-		Value        uint64        `json:"value,string"`
-		TxHash       []byte        `json:"txHash"`
-		TxRecordHash []byte        `json:"txRecordHash"`
-		TxProof      *wallet.Proof `json:"txProof"`
+		Id      *uint256.Int  `json:"id"`
+		Value   uint64        `json:"value,string"`
+		TxHash  []byte        `json:"txHash"`
+		TxProof *wallet.Proof `json:"txProof"`
 
 		// dc bill specific fields
 		DcTimeout uint64 `json:"dcTimeout"`
@@ -36,11 +35,10 @@ func (b *Bill) GetID() []byte {
 
 func (b *Bill) ToGenericBillProof() *wallet.BillProof {
 	return &wallet.BillProof{Bill: &wallet.Bill{
-		Id:           b.GetID(),
-		Value:        b.Value,
-		TxHash:       b.TxHash,
-		TxRecordHash: b.TxRecordHash,
-		AddFCTxHash:  b.AddFCTxHash,
+		Id:          b.GetID(),
+		Value:       b.Value,
+		TxHash:      b.TxHash,
+		AddFCTxHash: b.AddFCTxHash,
 	}, TxProof: b.TxProof}
 }
 
@@ -52,13 +50,6 @@ func (b *Bill) isExpired(blockHeight uint64) bool {
 func (b *Bill) GetTxHash() []byte {
 	if b != nil {
 		return b.TxHash
-	}
-	return nil
-}
-
-func (b *Bill) GetTxRecordHash() []byte {
-	if b != nil {
-		return b.TxRecordHash
 	}
 	return nil
 }

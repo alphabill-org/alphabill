@@ -133,18 +133,13 @@ func TestExecute_TransferOk(t *testing.T) {
 	_, err = txSystem.EndBlock()
 	require.NoError(t, err)
 	require.NotNil(t, serverMetadata)
-	txSystem.Commit()
-
-	trx := &types.TransactionRecord{
-		TransactionOrder: transferOk,
-		ServerMetadata:   serverMetadata,
-	}
+	require.NoError(t, txSystem.Commit())
 
 	unit2, data2 := getBill(t, rmaTree, initialBill.ID)
 	require.Equal(t, data.SummaryValueInput(), data2.SummaryValueInput())
 	require.NotEqual(t, transferOk.OwnerProof, unit2.Bearer())
 	require.Equal(t, roundNumber, data2.T)
-	require.EqualValues(t, trx.Hash(crypto.SHA256), data2.Backlink)
+	require.EqualValues(t, transferOk.Hash(crypto.SHA256), data2.Backlink)
 }
 
 func TestExecute_SplitOk(t *testing.T) {
@@ -160,11 +155,6 @@ func TestExecute_SplitOk(t *testing.T) {
 	sm, err := txSystem.Execute(splitOk)
 	require.NoError(t, err)
 	require.NotNil(t, sm)
-
-	splitOkTransactionRecord := &types.TransactionRecord{
-		TransactionOrder: splitOk,
-		ServerMetadata:   sm,
-	}
 
 	txSystem.Commit()
 	initBillAfterUpdate, initBillDataAfterUpdate := getBill(t, rmaTree, initialBill.ID)
@@ -186,7 +176,7 @@ func TestExecute_SplitOk(t *testing.T) {
 	require.NotNil(t, newBill)
 	require.NotNil(t, bd)
 	require.Equal(t, amount, bd.V)
-	require.EqualValues(t, splitOkTransactionRecord.Hash(crypto.SHA256), bd.Backlink)
+	require.EqualValues(t, splitOk.Hash(crypto.SHA256), bd.Backlink)
 	require.Equal(t, state.Predicate(splitAttr.TargetBearer), newBill.Bearer())
 	require.Equal(t, roundNumber, bd.T)
 }
@@ -212,16 +202,11 @@ func TestExecuteTransferDC_OK(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, sm)
 
-	transferDCTransactionRecord := &types.TransactionRecord{
-		TransactionOrder: transferDCOk,
-		ServerMetadata:   sm,
-	}
-
 	transferDCBill, transferDCBillData := getBill(t, rmaTree, billID)
 	require.NotEqual(t, dustCollectorPredicate, transferDCBill.Bearer())
 	require.Equal(t, splitBillData.SummaryValueInput(), transferDCBillData.SummaryValueInput())
 	require.Equal(t, roundNumber, transferDCBillData.T)
-	require.EqualValues(t, transferDCTransactionRecord.Hash(crypto.SHA256), transferDCBillData.Backlink)
+	require.EqualValues(t, transferDCOk.Hash(crypto.SHA256), transferDCBillData.Backlink)
 }
 
 func TestExecute_SwapOk(t *testing.T) {
@@ -350,15 +335,11 @@ func TestEndBlock_FeesConsolidation(t *testing.T) {
 		testtransaction.WithOwnerProof(script.PredicateArgumentEmpty()),
 	)
 
-	sm, err := txSystem.Execute(transferFC)
-	transferFCRecord := &types.TransactionRecord{
-		TransactionOrder: transferFC,
-		ServerMetadata:   sm,
-	}
+	_, err := txSystem.Execute(transferFC)
 	require.NoError(t, err)
 	_, err = txSystem.EndBlock()
 	require.NoError(t, err)
-	txSystem.Commit()
+	require.NoError(t, txSystem.Commit())
 
 	// verify that money fee credit bill is 50+1=51
 	moneyFCUnitID := []byte{2}
@@ -369,7 +350,7 @@ func TestEndBlock_FeesConsolidation(t *testing.T) {
 	// process reclaimFC (with closeFC amount=50 and fee=1)
 	txSystem.BeginBlock(0)
 
-	transferFCHash := transferFCRecord.Hash(crypto.SHA256)
+	transferFCHash := transferFC.Hash(crypto.SHA256)
 	closeFC := testfc.NewCloseFC(t,
 		testfc.NewCloseFCAttr(
 			testfc.WithCloseFCAmount(50),
@@ -397,7 +378,7 @@ func TestEndBlock_FeesConsolidation(t *testing.T) {
 	require.NoError(t, err)
 	_, err = txSystem.EndBlock()
 	require.NoError(t, err)
-	txSystem.Commit()
+	require.NoError(t, txSystem.Commit())
 
 	// verify that moneyFCB=51-50+1+1=3 (moneyFCB - closeAmount + closeFee + reclaimFee)
 	moneyFCUnit, err = rmaTree.GetUnit(moneyFCUnitID, false)
@@ -530,7 +511,7 @@ func TestExecute_FeeCreditSequence_OK(t *testing.T) {
 	require.Equal(t, txFee, sm.ActualFee)
 
 	// send closeFC
-	transferFCHash := transferFCTransactionRecord.Hash(crypto.SHA256)
+	transferFCHash := transferFC.Hash(crypto.SHA256)
 	closeFC := testfc.NewCloseFC(t,
 		testfc.NewCloseFCAttr(
 			testfc.WithCloseFCAmount(remainingValue),

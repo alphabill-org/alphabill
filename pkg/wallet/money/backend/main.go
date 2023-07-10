@@ -56,7 +56,6 @@ type (
 		Id             []byte `json:"id"`
 		Value          uint64 `json:"value"`
 		TxHash         []byte `json:"txHash"`
-		TxRecordHash   []byte `json:"txRecordHash"`
 		DcNonce        []byte `json:"dcNonce,omitempty"`
 		OwnerPredicate []byte `json:"ownerPredicate"`
 
@@ -397,12 +396,11 @@ func (w *WalletBackend) GetDCMetadata(nonce []byte) (*DCMetadata, error) {
 
 func (b *Bill) ToGenericBill() *sdk.Bill {
 	return &sdk.Bill{
-		Id:           b.Id,
-		Value:        b.Value,
-		TxHash:       b.TxHash,
-		TxRecordHash: b.TxRecordHash,
-		DcNonce:      b.DcNonce,
-		AddFCTxHash:  b.AddFCTxHash,
+		Id:          b.Id,
+		Value:       b.Value,
+		TxHash:      b.TxHash,
+		DcNonce:     b.DcNonce,
+		AddFCTxHash: b.AddFCTxHash,
 	}
 }
 

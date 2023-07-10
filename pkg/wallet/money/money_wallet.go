@@ -222,7 +222,7 @@ func (w *Wallet) Send(ctx context.Context, cmd SendCmd) ([]*wallet.Proof, error)
 	for _, tx := range txs {
 		batch.Add(&txsubmitter.TxSubmission{
 			UnitID:      tx.UnitID(),
-			TxOrderHash: tx.Hash(crypto.SHA256),
+			TxHash:      tx.Hash(crypto.SHA256),
 			Transaction: tx,
 		})
 	}
@@ -373,13 +373,13 @@ func (w *Wallet) submitDCBatch(ctx context.Context, k *account.AccountKey, bills
 	dcTimeout := roundNr + dcTimeoutBlockCount
 	dcNonce := calculateDcNonce(bills)
 	for _, b := range bills {
-		tx, err := tx_builder.NewDustTx(k, w.SystemID(), &wallet.Bill{Id: b.GetID(), Value: b.Value, TxHash: b.TxHash, TxRecordHash: b.TxRecordHash}, dcNonce, dcTimeout)
+		tx, err := tx_builder.NewDustTx(k, w.SystemID(), &wallet.Bill{Id: b.GetID(), Value: b.Value, TxHash: b.TxHash}, dcNonce, dcTimeout)
 		if err != nil {
 			return err
 		}
 		dcBatch.Add(&txsubmitter.TxSubmission{
 			UnitID:      tx.UnitID(),
-			TxOrderHash: tx.Hash(crypto.SHA256),
+			TxHash:      tx.Hash(crypto.SHA256),
 			Transaction: tx,
 		})
 	}
@@ -423,7 +423,7 @@ func (w *Wallet) swapDcBills(ctx context.Context, dcBills []*Bill, dcNonce []byt
 	dcBatch := txsubmitter.NewBatch(k.PubKey, w.backend)
 	dcBatch.Add(&txsubmitter.TxSubmission{
 		UnitID:      swapTx.UnitID(),
-		TxOrderHash: swapTx.Hash(crypto.SHA256),
+		TxHash:      swapTx.Hash(crypto.SHA256),
 		Transaction: swapTx,
 	})
 
@@ -452,7 +452,7 @@ func (w *Wallet) getDetailedBillsList(ctx context.Context, pubKey []byte) ([]*Bi
 				return nil, nil, err
 			}
 		}
-		bills = append(bills, &Bill{Id: util.BytesToUint256(b.Id), Value: b.Value, TxHash: b.TxHash, TxRecordHash: b.TxRecordHash, DcNonce: b.DcNonce, TxProof: proof})
+		bills = append(bills, &Bill{Id: util.BytesToUint256(b.Id), Value: b.Value, TxHash: b.TxHash, DcNonce: b.DcNonce, TxProof: proof})
 	}
 
 	return bills, billResponse.DCMetadata, nil

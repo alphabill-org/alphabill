@@ -20,12 +20,7 @@ func handleTransferTx(s *state.State, hashAlgorithm crypto.Hash, feeCalc fc.FeeC
 		// calculate actual tx fee cost
 		fee := feeCalc()
 		// update state
-		sm := &types.ServerMetadata{ActualFee: fee, TargetUnits: []types.UnitID{tx.UnitID()}}
-		txr := &types.TransactionRecord{
-			TransactionOrder: tx,
-			ServerMetadata:   sm,
-		}
-		updateDataFunc := updateBillDataFunc(txr, currentBlockNumber, hashAlgorithm)
+		updateDataFunc := updateBillDataFunc(tx, currentBlockNumber, hashAlgorithm)
 		setOwnerFunc := state.SetOwner(tx.UnitID(), attr.NewBearer)
 		if err := s.Apply(
 			setOwnerFunc,
@@ -34,7 +29,7 @@ func handleTransferTx(s *state.State, hashAlgorithm crypto.Hash, feeCalc fc.FeeC
 			return nil, fmt.Errorf("transfer: failed to update state: %w", err)
 		}
 
-		return sm, nil
+		return &types.ServerMetadata{ActualFee: fee, TargetUnits: []types.UnitID{tx.UnitID()}}, nil
 	}
 }
 
@@ -64,8 +59,8 @@ func validateAnyTransfer(data state.UnitData, backlink []byte, targetValue uint6
 	return nil
 }
 
-func updateBillDataFunc(tx *types.TransactionRecord, currentBlockNumber uint64, hashAlgorithm crypto.Hash) state.Action {
-	unitID := tx.TransactionOrder.UnitID()
+func updateBillDataFunc(tx *types.TransactionOrder, currentBlockNumber uint64, hashAlgorithm crypto.Hash) state.Action {
+	unitID := tx.UnitID()
 	return state.UpdateUnitData(unitID,
 		func(data state.UnitData) (state.UnitData, error) {
 			bd, ok := data.(*BillData)

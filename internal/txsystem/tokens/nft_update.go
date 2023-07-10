@@ -20,11 +20,6 @@ func handleUpdateNonFungibleTokenTx(options *Options) txsystem.GenericExecuteFun
 		}
 		fee := options.feeCalculator()
 		unitID := tx.UnitID()
-		sm := &types.ServerMetadata{ActualFee: fee}
-		txr := &types.TransactionRecord{
-			TransactionOrder: tx,
-			ServerMetadata:   sm,
-		}
 
 		// update state
 		if err := options.state.Apply(
@@ -35,13 +30,13 @@ func handleUpdateNonFungibleTokenTx(options *Options) txsystem.GenericExecuteFun
 				}
 				d.data = attr.Data
 				d.t = currentBlockNr
-				d.backlink = txr.Hash(options.hashAlgorithm)
+				d.backlink = tx.Hash(options.hashAlgorithm)
 				return d, nil
 			})); err != nil {
 			return nil, err
 		}
 
-		return sm, nil
+		return &types.ServerMetadata{ActualFee: fee}, nil
 	}
 }
 

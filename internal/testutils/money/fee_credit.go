@@ -21,7 +21,7 @@ var (
 )
 
 // CreateFeeCredit creates fee credit to be able to spend initial bill
-func CreateFeeCredit(t *testing.T, initialBillID []byte, network *testpartition.AlphabillNetwork) *types.TransactionRecord {
+func CreateFeeCredit(t *testing.T, initialBillID []byte, network *testpartition.AlphabillNetwork) *types.TransactionOrder {
 	// send transferFC
 	transferFC := testfc.NewTransferFC(t,
 		testfc.NewTransferFCAttr(
@@ -55,5 +55,5 @@ func CreateFeeCredit(t *testing.T, initialBillID []byte, network *testpartition.
 	err = moneyPartition.SubmitTx(addFC)
 	require.NoError(t, err)
 	require.Eventually(t, testpartition.BlockchainContainsTx(moneyPartition, addFC), test.WaitDuration, test.WaitTick)
-	return transferFCRecord
+	return transferFCRecord.TransactionOrder
 }

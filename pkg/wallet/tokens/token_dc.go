@@ -44,7 +44,7 @@ func (w *Wallet) collectDust(ctx context.Context, acc *account.AccountKey, typed
 	// first token to be joined into
 	targetToken := typedTokens[0]
 	targetTokenID := sdk.UnitID(targetToken.ID)
-	targetTokenBacklink := targetToken.TxRecordHash
+	targetTokenBacklink := targetToken.TxHash
 	totalAmountJoined := targetToken.Amount
 	burnTokens := typedTokens[1:]
 
@@ -114,7 +114,7 @@ func (w *Wallet) joinTokenForDC(ctx context.Context, acc *account.AccountKey, bu
 		return nil, err
 	}
 
-	return sub.Proof.TxRecord.Hash(crypto.SHA256), nil
+	return sub.Proof.TxRecord.TransactionOrder.Hash(crypto.SHA256), nil
 }
 
 func (w *Wallet) burnTokensForDC(ctx context.Context, acc *account.AccountKey, tokensToBurn []*twb.TokenUnit, nonce sdk.TxHash, invariantPredicateArgs []*PredicateInput) (uint64, []*sdk.Proof, error) {

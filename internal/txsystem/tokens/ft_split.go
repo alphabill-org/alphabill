@@ -31,9 +31,7 @@ func handleSplitFungibleTokenTx(options *Options) txsystem.GenericExecuteFunc[Sp
 		logger.Debug("Adding a fungible token with ID %v", newTokenID)
 
 		fee := options.feeCalculator()
-		sm := &types.ServerMetadata{ActualFee: fee, TargetUnits: []types.UnitID{unitID, newTokenID}}
-		txr := types.TransactionRecord{TransactionOrder: tx, ServerMetadata: sm}
-		txHash := txr.Hash(options.hashAlgorithm)
+		txHash := tx.Hash(options.hashAlgorithm)
 
 		// update state
 		if err := options.state.Apply(
@@ -61,7 +59,7 @@ func handleSplitFungibleTokenTx(options *Options) txsystem.GenericExecuteFunc[Sp
 			return nil, err
 		}
 
-		return sm, nil
+		return &types.ServerMetadata{ActualFee: fee, TargetUnits: []types.UnitID{unitID, newTokenID}}, nil
 	}
 }
 

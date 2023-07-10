@@ -42,13 +42,8 @@ func handleSwapDCTx(s *state.State, hashAlgorithm crypto.Hash, trustBase map[str
 		}
 		// calculate actual tx fee cost
 		fee := feeCalc()
-		sm := &types.ServerMetadata{ActualFee: fee, TargetUnits: []types.UnitID{tx.UnitID()}}
-		// calculate hash after setting server metadata
-		txr := &types.TransactionRecord{
-			TransactionOrder: tx,
-			ServerMetadata:   sm,
-		}
-		h := txr.Hash(hashAlgorithm)
+
+		h := tx.Hash(hashAlgorithm)
 
 		// set n as the target value
 		n := attr.TargetValue
@@ -72,7 +67,7 @@ func handleSwapDCTx(s *state.State, hashAlgorithm crypto.Hash, trustBase map[str
 			return nil, fmt.Errorf("unit update failed: %w", err)
 		}
 
-		return sm, nil
+		return &types.ServerMetadata{ActualFee: fee, TargetUnits: []types.UnitID{tx.UnitID()}}, nil
 	}
 }
 

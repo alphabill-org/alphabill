@@ -371,7 +371,7 @@ func (w *Wallet) UpdateNFTData(ctx context.Context, accountNumber uint64, tokenI
 
 	attrs := &tokens.UpdateNonFungibleTokenAttributes{
 		Data:                 data,
-		Backlink:             t.TxRecordHash,
+		Backlink:             t.TxHash,
 		DataUpdateSignatures: nil,
 	}
 

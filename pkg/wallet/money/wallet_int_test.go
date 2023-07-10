@@ -104,7 +104,7 @@ func TestCollectDustTimeoutReached(t *testing.T) {
 	batch := txsubmitter.NewBatch(pubKeys[0], w.backend)
 	batch.Add(&txsubmitter.TxSubmission{
 		UnitID:      transferInitialBillTx.UnitID(),
-		TxOrderHash: transferInitialBillTx.Hash(crypto.SHA256),
+		TxHash:      transferInitialBillTx.Hash(crypto.SHA256),
 		Transaction: transferInitialBillTx,
 	})
 	err = batch.SendTx(ctx, false)
@@ -217,7 +217,7 @@ func TestCollectDustInMultiAccountWallet(t *testing.T) {
 	batch := txsubmitter.NewBatch(pubKeys[0], w.backend)
 	batch.Add(&txsubmitter.TxSubmission{
 		UnitID:      transferInitialBillTx.UnitID(),
-		TxOrderHash: transferInitialBillTx.Hash(crypto.SHA256),
+		TxHash:      transferInitialBillTx.Hash(crypto.SHA256),
 		Transaction: transferInitialBillTx,
 	})
 	err = batch.SendTx(ctx, false)
@@ -327,7 +327,7 @@ func TestCollectDustInMultiAccountWalletWithKeyFlag(t *testing.T) {
 	batch := txsubmitter.NewBatch(pubKeys[0], w.backend)
 	batch.Add(&txsubmitter.TxSubmission{
 		UnitID:      transferInitialBillTx.UnitID(),
-		TxOrderHash: transferInitialBillTx.Hash(crypto.SHA256),
+		TxHash:      transferInitialBillTx.Hash(crypto.SHA256),
 		Transaction: transferInitialBillTx,
 	})
 	err = batch.SendTx(ctx, false)

@@ -22,10 +22,7 @@ func handleJoinFungibleTokenTx(options *Options) txsystem.GenericExecuteFunc[Joi
 
 		// update state
 		unitID := tx.UnitID()
-		sm := &types.ServerMetadata{ActualFee: fee, TargetUnits: []types.UnitID{unitID}}
-		txr := &types.TransactionRecord{TransactionOrder: tx, ServerMetadata: sm}
-
-		h := txr.Hash(options.hashAlgorithm)
+		h := tx.Hash(options.hashAlgorithm)
 		if err := options.state.Apply(
 			state.UpdateUnitData(unitID,
 				func(data state.UnitData) (state.UnitData, error) {
@@ -42,7 +39,7 @@ func handleJoinFungibleTokenTx(options *Options) txsystem.GenericExecuteFunc[Joi
 				})); err != nil {
 			return nil, err
 		}
-		return sm, nil
+		return &types.ServerMetadata{ActualFee: fee, TargetUnits: []types.UnitID{unitID}}, nil
 	}
 }
 

@@ -21,8 +21,6 @@ func handleTransferNonFungibleTokenTx(options *Options) txsystem.GenericExecuteF
 		fee := options.feeCalculator()
 
 		unitID := tx.UnitID()
-		sm := &types.ServerMetadata{ActualFee: fee, TargetUnits: []types.UnitID{unitID}}
-		txr := types.TransactionRecord{TransactionOrder: tx, ServerMetadata: sm}
 
 		// update state
 		if err := options.state.Apply(
@@ -33,13 +31,13 @@ func handleTransferNonFungibleTokenTx(options *Options) txsystem.GenericExecuteF
 					return nil, fmt.Errorf("unit %v does not contain non fungible token data", unitID)
 				}
 				d.t = currentBlockNr
-				d.backlink = txr.Hash(options.hashAlgorithm)
+				d.backlink = tx.Hash(options.hashAlgorithm)
 				return d, nil
 			})); err != nil {
 			return nil, err
 		}
 
-		return sm, nil
+		return &types.ServerMetadata{ActualFee: fee, TargetUnits: []types.UnitID{unitID}}, nil
 	}
 }
 

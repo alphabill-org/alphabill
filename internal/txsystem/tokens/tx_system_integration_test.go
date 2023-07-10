@@ -150,7 +150,7 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 
 	_, _, mintTXR, err := tokenPrt.GetTxProof(mintTx)
 	require.NoError(t, err)
-	txHash := mintTXR.Hash(gocrypto.SHA256)
+	txHash := mintTXR.TransactionOrder.Hash(gocrypto.SHA256)
 
 	RequireFungibleTokenState(t, state0, fungibleTokenUnitData{
 		unitID:     fungibleTokenID1,
@@ -186,7 +186,7 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 
 	_, _, split1GenTXR, err := tokenPrt.GetTxProof(splitTx1)
 	require.NoError(t, err)
-	split1GenTxHash := split1GenTXR.Hash(gocrypto.SHA256)
+	split1GenTxHash := split1GenTXR.TransactionOrder.Hash(gocrypto.SHA256)
 
 	require.NoError(t, err)
 	RequireFungibleTokenState(t, state0, fungibleTokenUnitData{
@@ -219,7 +219,7 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 				TargetValue:                  splitValue2,
 				RemainingValue:               totalValue - (splitValue1 + splitValue2),
 				Nonce:                        nil,
-				Backlink:                     split1GenTXR.Hash(hashAlgorithm),
+				Backlink:                     split1GenTXR.TransactionOrder.Hash(hashAlgorithm),
 				InvariantPredicateSignatures: [][]byte{script.PredicateArgumentEmpty()},
 			},
 		),
@@ -232,7 +232,7 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 
 	_, _, split2GenTXR, err := tokenPrt.GetTxProof(splitTx2)
 	require.NoError(t, err)
-	splitGenTx2Hash := split2GenTXR.Hash(gocrypto.SHA256)
+	splitGenTx2Hash := split2GenTXR.TransactionOrder.Hash(gocrypto.SHA256)
 
 	RequireFungibleTokenState(t, state0, fungibleTokenUnitData{
 		unitID:     fungibleTokenID1,
@@ -276,7 +276,7 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 
 	_, _, transferTXR, err := tokenPrt.GetTxProof(transferTx)
 	require.NoError(t, err)
-	transferGenTxHash := transferTXR.Hash(gocrypto.SHA256)
+	transferGenTxHash := transferTXR.TransactionOrder.Hash(gocrypto.SHA256)
 
 	RequireFungibleTokenState(t, state0, fungibleTokenUnitData{
 		unitID:     fungibleTokenID1,
@@ -317,7 +317,7 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 			&BurnFungibleTokenAttributes{
 				TypeID:                       fungibleTokenTypeID,
 				Value:                        splitValue2,
-				Nonce:                        transferTXR.Hash(hashAlgorithm),
+				Nonce:                        transferTXR.TransactionOrder.Hash(hashAlgorithm),
 				Backlink:                     splitGenTx2Hash,
 				InvariantPredicateSignatures: [][]byte{script.PredicateArgumentEmpty()},
 			},
@@ -347,7 +347,7 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 			&JoinFungibleTokenAttributes{
 				BurnTransactions:             []*types.TransactionRecord{burnTxRecord, burnTxRecord2},
 				Proofs:                       []*types.TxProof{burnProof1, burnProof2},
-				Backlink:                     transferTXR.Hash(hashAlgorithm),
+				Backlink:                     transferTXR.TransactionOrder.Hash(hashAlgorithm),
 				InvariantPredicateSignatures: [][]byte{script.PredicateArgumentEmpty()},
 			},
 		),
@@ -359,7 +359,7 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 
 	_, _, joinTXR, err := tokenPrt.GetTxProof(joinTx)
 	require.NoError(t, err)
-	joinTXRHash := joinTXR.Hash(gocrypto.SHA256)
+	joinTXRHash := joinTXR.TransactionOrder.Hash(gocrypto.SHA256)
 
 	u, err := states[0].GetUnit(fungibleTokenID1, true)
 	require.NoError(t, err)

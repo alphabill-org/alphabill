@@ -152,11 +152,10 @@ func (v *VDClient) GetFeeCreditBill(ctx context.Context, unitID wallet.UnitID) (
 	}
 
 	return &wallet.Bill{
-		Id:           fcb.Id,
-		Value:        fcb.Value,
-		TxHash:       fcb.TxHash,
-		TxRecordHash: fcb.TxRecordHash,
-		AddFCTxHash:  fcb.AddFCTxHash,
+		Id:          fcb.Id,
+		Value:       fcb.Value,
+		TxHash:      fcb.TxHash,
+		AddFCTxHash: fcb.AddFCTxHash,
 	}, nil
 }
 

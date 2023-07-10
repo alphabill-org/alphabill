@@ -39,8 +39,7 @@ func handleReclaimFeeCreditTx(s *state.State, hashAlgorithm crypto.Hash, trustBa
 
 		// calculate actual tx fee cost
 		fee := feeCalc()
-		sm := &types.ServerMetadata{ActualFee: fee, TargetUnits: []types.UnitID{unitID}}
-		txr := &types.TransactionRecord{TransactionOrder: tx, ServerMetadata: sm}
+
 		closeFCAttr := &transactions.CloseFeeCreditAttributes{}
 		closeFeeCreditTransfer := attr.CloseFeeCreditTransfer
 		if err := closeFeeCreditTransfer.TransactionOrder.UnmarshalAttributes(closeFCAttr); err != nil {
@@ -56,7 +55,7 @@ func handleReclaimFeeCreditTx(s *state.State, hashAlgorithm crypto.Hash, trustBa
 			}
 			newBillData.V += v
 			newBillData.T = currentBlockNumber
-			newBillData.Backlink = txr.Hash(hashAlgorithm)
+			newBillData.Backlink = tx.Hash(hashAlgorithm)
 			return newBillData, nil
 		}
 		updateAction := state.UpdateUnitData(unitID, updateFunc)
@@ -68,7 +67,7 @@ func handleReclaimFeeCreditTx(s *state.State, hashAlgorithm crypto.Hash, trustBa
 			&reclaimFeeCreditTx{
 				tx: tx, attr: attr, closeFCTransferAttr: closeFCAttr, reclaimFee: fee, closeFee: closeFeeCreditTransfer.ServerMetadata.ActualFee})
 
-		return sm, nil
+		return &types.ServerMetadata{ActualFee: fee, TargetUnits: []types.UnitID{unitID}}, nil
 	}
 }
 

@@ -256,7 +256,7 @@ func (m *mockMoneyClient) GetRoundNumber(ctx context.Context) (uint64, error) {
 	return m.roundNumber, nil
 }
 
-func (m *mockMoneyClient) GetBills(pubKey []byte) ([]*wallet.Bill, error) {
+func (m *mockMoneyClient) GetBills(ctx context.Context, pubKey []byte) ([]*wallet.Bill, error) {
 	return m.bills, nil
 }
 

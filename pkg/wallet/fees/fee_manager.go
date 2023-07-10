@@ -36,7 +36,7 @@ type (
 	}
 
 	MoneyClient interface {
-		GetBills(pubKey []byte) ([]*wallet.Bill, error)
+		GetBills(ctx context.Context, pubKey []byte) ([]*wallet.Bill, error)
 		GetLockedFeeCredit(ctx context.Context, systemID []byte, fcbID []byte) (*types.TransactionRecord, error)
 		PartitionDataProvider
 	}
@@ -174,7 +174,7 @@ func (w *FeeManager) ReclaimFeeCredit(ctx context.Context, cmd ReclaimFeeCmd) (*
 	if err != nil {
 		return nil, err
 	}
-	bills, err := w.getSortedBills(accountKey)
+	bills, err := w.getSortedBills(ctx, accountKey)
 	if err != nil {
 		return nil, err
 	}
@@ -219,7 +219,7 @@ func (w *FeeManager) Close() {
 }
 
 func (w *FeeManager) sendTransferFC(ctx context.Context, cmd AddFeeCmd, accountKey *account.AccountKey, fcb *wallet.Bill, userPartitionRoundNumber uint64, userPartitionTimeout uint64) (*wallet.Proof, error) {
-	bills, err := w.getSortedBills(accountKey)
+	bills, err := w.getSortedBills(ctx, accountKey)
 	if err != nil {
 		return nil, err
 	}
@@ -296,8 +296,8 @@ func (w *FeeManager) sendReclaimFCTx(ctx context.Context, closeFCProof *wallet.P
 	return w.moneyTxPublisher.SendTx(ctx, reclaimFCTx, accountKey.PubKey)
 }
 
-func (w *FeeManager) getSortedBills(k *account.AccountKey) ([]*wallet.Bill, error) {
-	bills, err := w.moneyBackendClient.GetBills(k.PubKey)
+func (w *FeeManager) getSortedBills(ctx context.Context, k *account.AccountKey) ([]*wallet.Bill, error) {
+	bills, err := w.moneyBackendClient.GetBills(ctx, k.PubKey)
 	if err != nil {
 		return nil, err
 	}

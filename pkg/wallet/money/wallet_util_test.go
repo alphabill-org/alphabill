@@ -195,7 +195,7 @@ type backendAPIMock struct {
 	postTransactions func(ctx context.Context, pubKey wallet.PubKey, txs *wallet.Transactions) error
 }
 
-func (b *backendAPIMock) GetBills(pubKey []byte) ([]*wallet.Bill, error) {
+func (b *backendAPIMock) GetBills(ctx context.Context, pubKey []byte) ([]*wallet.Bill, error) {
 	if b.getBills != nil {
 		return b.getBills(pubKey)
 	}
@@ -224,14 +224,14 @@ func (b *backendAPIMock) GetClosedFeeCredit(ctx context.Context, fcbID []byte) (
 	return nil, nil
 }
 
-func (b *backendAPIMock) GetBalance(pubKey []byte, includeDCBills bool) (uint64, error) {
+func (b *backendAPIMock) GetBalance(ctx context.Context, pubKey []byte, includeDCBills bool) (uint64, error) {
 	if b.getBalance != nil {
 		return b.getBalance(pubKey, includeDCBills)
 	}
 	return 0, errors.New("getBalance not implemented")
 }
 
-func (b *backendAPIMock) ListBills(pubKey []byte, includeDCBills, includeDCMetadata bool) (*backend.ListBillsResponse, error) {
+func (b *backendAPIMock) ListBills(ctx context.Context, pubKey []byte, includeDCBills, includeDCMetadata bool) (*backend.ListBillsResponse, error) {
 	if b.listBills != nil {
 		return b.listBills(pubKey, includeDCBills, includeDCMetadata)
 	}

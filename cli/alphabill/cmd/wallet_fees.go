@@ -27,7 +27,7 @@ const (
 )
 
 // newWalletFeesCmd creates a new cobra command for the wallet fees component.
-func newWalletFeesCmd(ctx context.Context, config *walletConfig) *cobra.Command {
+func newWalletFeesCmd(config *walletConfig) *cobra.Command {
 	var cliConfig = &cliConf{
 		partitionType: moneyType, // shows default value in help context
 	}
@@ -38,9 +38,9 @@ func newWalletFeesCmd(ctx context.Context, config *walletConfig) *cobra.Command 
 			consoleWriter.Println("Error: must specify a subcommand")
 		},
 	}
-	cmd.AddCommand(listFeesCmd(ctx, config, cliConfig))
-	cmd.AddCommand(addFeeCreditCmd(ctx, config, cliConfig))
-	cmd.AddCommand(reclaimFeeCreditCmd(ctx, config, cliConfig))
+	cmd.AddCommand(listFeesCmd(config, cliConfig))
+	cmd.AddCommand(addFeeCreditCmd(config, cliConfig))
+	cmd.AddCommand(reclaimFeeCreditCmd(config, cliConfig))
 
 	cmd.PersistentFlags().VarP(&cliConfig.partitionType, partitionCmdName, "n", "partition name for which to manage fees [money|tokens|vd]")
 	cmd.PersistentFlags().StringP(alphabillApiURLCmdName, "r", defaultAlphabillApiURL, apiUsage)
@@ -50,12 +50,12 @@ func newWalletFeesCmd(ctx context.Context, config *walletConfig) *cobra.Command 
 	return cmd
 }
 
-func addFeeCreditCmd(ctx context.Context, config *walletConfig, c *cliConf) *cobra.Command {
+func addFeeCreditCmd(config *walletConfig, c *cliConf) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "add",
 		Short: "adds fee credit to the wallet",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return addFeeCreditCmdExec(ctx, cmd, config, c)
+			return addFeeCreditCmdExec(cmd, config, c)
 		},
 	}
 	cmd.Flags().Uint64P(keyCmdName, "k", 1, "specifies to which account to add the fee credit")
@@ -63,7 +63,7 @@ func addFeeCreditCmd(ctx context.Context, config *walletConfig, c *cliConf) *cob
 	return cmd
 }
 
-func addFeeCreditCmdExec(ctx context.Context, cmd *cobra.Command, config *walletConfig, c *cliConf) error {
+func addFeeCreditCmdExec(cmd *cobra.Command, config *walletConfig, c *cliConf) error {
 	moneyBackendURL, err := cmd.Flags().GetString(alphabillApiURLCmdName)
 	if err != nil {
 		return err
@@ -88,22 +88,22 @@ func addFeeCreditCmdExec(ctx context.Context, cmd *cobra.Command, config *wallet
 	}
 	defer fm.Close()
 
-	return addFees(ctx, accountNumber, amountString, c, fm)
+	return addFees(cmd.Context(), accountNumber, amountString, c, fm)
 }
 
-func listFeesCmd(ctx context.Context, config *walletConfig, c *cliConf) *cobra.Command {
+func listFeesCmd(config *walletConfig, c *cliConf) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "list",
 		Short: "lists fee credit of the wallet",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return listFeesCmdExec(ctx, cmd, config, c)
+			return listFeesCmdExec(cmd, config, c)
 		},
 	}
 	cmd.Flags().Uint64P(keyCmdName, "k", 0, "specifies which account fee bills to list (default: all accounts)")
 	return cmd
 }
 
-func listFeesCmdExec(ctx context.Context, cmd *cobra.Command, config *walletConfig, c *cliConf) error {
+func listFeesCmdExec(cmd *cobra.Command, config *walletConfig, c *cliConf) error {
 	accountNumber, err := cmd.Flags().GetUint64(keyCmdName)
 	if err != nil {
 		return err
@@ -124,22 +124,22 @@ func listFeesCmdExec(ctx context.Context, cmd *cobra.Command, config *walletConf
 	}
 	defer fm.Close()
 
-	return listFees(ctx, accountNumber, am, c, fm)
+	return listFees(cmd.Context(), accountNumber, am, c, fm)
 }
 
-func reclaimFeeCreditCmd(ctx context.Context, config *walletConfig, c *cliConf) *cobra.Command {
+func reclaimFeeCreditCmd(config *walletConfig, c *cliConf) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "reclaim",
 		Short: "reclaims fee credit of the wallet",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return reclaimFeeCreditCmdExec(ctx, cmd, config, c)
+			return reclaimFeeCreditCmdExec(cmd, config, c)
 		},
 	}
 	cmd.Flags().Uint64P(keyCmdName, "k", 1, "specifies to which account to reclaim the fee credit")
 	return cmd
 }
 
-func reclaimFeeCreditCmdExec(ctx context.Context, cmd *cobra.Command, config *walletConfig, c *cliConf) error {
+func reclaimFeeCreditCmdExec(cmd *cobra.Command, config *walletConfig, c *cliConf) error {
 	moneyBackendURL, err := cmd.Flags().GetString(alphabillApiURLCmdName)
 	if err != nil {
 		return err
@@ -160,7 +160,7 @@ func reclaimFeeCreditCmdExec(ctx context.Context, cmd *cobra.Command, config *wa
 	}
 	defer fm.Close()
 
-	return reclaimFees(ctx, accountNumber, c, fm)
+	return reclaimFees(cmd.Context(), accountNumber, c, fm)
 }
 
 type FeeCreditManager interface {

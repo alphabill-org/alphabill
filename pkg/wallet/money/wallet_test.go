@@ -1,6 +1,7 @@
 package money
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -68,7 +69,7 @@ func TestWallet_AddKey(t *testing.T) {
 
 func TestWallet_GetBalance(t *testing.T) {
 	w, _ := CreateTestWalletFromSeed(t, &backendMockReturnConf{balance: 10})
-	balance, err := w.GetBalance(GetBalanceCmd{})
+	balance, err := w.GetBalance(context.Background(), GetBalanceCmd{})
 	require.NoError(t, err)
 	require.EqualValues(t, 10, balance)
 }
@@ -78,7 +79,7 @@ func TestWallet_GetBalances(t *testing.T) {
 	_, _, err := w.am.AddAccount()
 	require.NoError(t, err)
 
-	balances, sum, err := w.GetBalances(GetBalanceCmd{})
+	balances, sum, err := w.GetBalances(context.Background(), GetBalanceCmd{})
 	require.NoError(t, err)
 	require.EqualValues(t, 10, balances[0])
 	require.EqualValues(t, 10, balances[1])

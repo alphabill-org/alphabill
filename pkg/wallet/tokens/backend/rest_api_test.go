@@ -863,7 +863,7 @@ func Test_restAPI_getClosedCredit(t *testing.T) {
 		defer rsp.Body.Close()
 
 		closedFCFromAPI := closedFCTx
-		if err := json.NewDecoder(rsp.Body).Decode(closedFCFromAPI); err != nil {
+		if err := cbor.NewDecoder(rsp.Body).Decode(closedFCFromAPI); err != nil {
 			t.Fatalf("failed to decode response body: %v", err)
 		}
 		require.Equal(t, closedFCTx, closedFCFromAPI)

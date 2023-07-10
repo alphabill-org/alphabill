@@ -283,7 +283,7 @@ func (s *boltBillStoreTx) GetLockedFeeCredit(systemID, fcbID []byte) (*types.Tra
 		if txBytes == nil {
 			return nil
 		}
-		return json.Unmarshal(txBytes, &res)
+		return cbor.Unmarshal(txBytes, &res)
 	}, false)
 	if err != nil {
 		return nil, err
@@ -293,7 +293,7 @@ func (s *boltBillStoreTx) GetLockedFeeCredit(systemID, fcbID []byte) (*types.Tra
 
 func (s *boltBillStoreTx) SetLockedFeeCredit(systemID, fcbID []byte, txr *types.TransactionRecord) error {
 	return s.withTx(s.tx, func(tx *bolt.Tx) error {
-		txBytes, err := json.Marshal(txr)
+		txBytes, err := cbor.Marshal(txr)
 		if err != nil {
 			return err
 		}
@@ -312,7 +312,7 @@ func (s *boltBillStoreTx) GetClosedFeeCredit(unitID []byte) (*types.TransactionR
 		if txBytes == nil {
 			return nil
 		}
-		return json.Unmarshal(txBytes, &res)
+		return cbor.Unmarshal(txBytes, &res)
 	}, false)
 	if err != nil {
 		return nil, err
@@ -322,7 +322,7 @@ func (s *boltBillStoreTx) GetClosedFeeCredit(unitID []byte) (*types.TransactionR
 
 func (s *boltBillStoreTx) SetClosedFeeCredit(unitID []byte, txr *types.TransactionRecord) error {
 	return s.withTx(s.tx, func(tx *bolt.Tx) error {
-		txBytes, err := json.Marshal(txr)
+		txBytes, err := cbor.Marshal(txr)
 		if err != nil {
 			return err
 		}

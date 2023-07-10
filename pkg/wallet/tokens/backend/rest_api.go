@@ -326,7 +326,7 @@ func (api *tokensRestAPI) getClosedFeeCredit(w http.ResponseWriter, r *http.Requ
 		api.rw.WriteResponse(w, sdk.ErrorResponse{Message: "closed fee credit does not exist"})
 		return
 	}
-	api.rw.WriteResponse(w, cfc)
+	api.rw.WriteCborResponse(w, cfc)
 }
 
 func (api *tokensRestAPI) saveTx(ctx context.Context, tx *types.TransactionOrder, owner []byte) error {

@@ -426,7 +426,7 @@ func (api *moneyRestAPI) postTransactions(w http.ResponseWriter, r *http.Request
 // @Summary Returns last seen transferFC transaction for given partition and fee credit bill
 // @Id 7
 // @version 1.0
-// @produce application/json
+// @produce application/cbor
 // @Param systemId path string true "Target Fee Credit System ID of the TransferFC transaction (hex)"
 // @Param billId path string true "Target fee credit bill ID (hex)"
 // @Success 200 {object} wallet
@@ -455,7 +455,7 @@ func (api *moneyRestAPI) getLockedFeeCreditFunc(w http.ResponseWriter, r *http.R
 		api.rw.ErrorResponse(w, http.StatusNotFound, errors.New("locked fee credit does not exist"))
 		return
 	}
-	api.rw.WriteResponse(w, lfc)
+	api.rw.WriteCborResponse(w, lfc)
 }
 
 // @Summary Returns last seen closeFC transaction for given fee credit bill
@@ -483,7 +483,7 @@ func (api *moneyRestAPI) getClosedFeeCreditFunc(w http.ResponseWriter, r *http.R
 		api.rw.ErrorResponse(w, http.StatusNotFound, errors.New("closed fee credit does not exist"))
 		return
 	}
-	api.rw.WriteResponse(w, cfc)
+	api.rw.WriteCborResponse(w, cfc)
 }
 
 func parsePubKeyQueryParam(r *http.Request) (sdk.PubKey, error) {

@@ -194,7 +194,7 @@ func (c *MoneyBackendClient) GetLockedFeeCredit(ctx context.Context, systemID []
 	if err != nil {
 		return nil, fmt.Errorf("failed to build get locked fee credit request: %w", err)
 	}
-	req.Header.Set(contentType, applicationJson)
+	req.Header.Set(contentType, applicationCbor)
 
 	response, err := c.HttpClient.Do(req)
 	if err != nil {
@@ -213,7 +213,7 @@ func (c *MoneyBackendClient) GetLockedFeeCredit(ctx context.Context, systemID []
 		return nil, fmt.Errorf("failed to read get locked fee credit response: %w", err)
 	}
 	var res *types.TransactionRecord
-	err = json.Unmarshal(responseData, &res)
+	err = cbor.Unmarshal(responseData, &res)
 	if err != nil {
 		return nil, fmt.Errorf("failed to unmarshall get locked fee credit response data: %w", err)
 	}
@@ -228,7 +228,7 @@ func (c *MoneyBackendClient) GetClosedFeeCredit(ctx context.Context, fcbID []byt
 	if err != nil {
 		return nil, fmt.Errorf("failed to build get closed fee credit request: %w", err)
 	}
-	req.Header.Set(contentType, applicationJson)
+	req.Header.Set(contentType, applicationCbor)
 
 	response, err := c.HttpClient.Do(req)
 	if err != nil {
@@ -247,7 +247,7 @@ func (c *MoneyBackendClient) GetClosedFeeCredit(ctx context.Context, fcbID []byt
 		return nil, fmt.Errorf("failed to read get closed fee credit response: %w", err)
 	}
 	var res *types.TransactionRecord
-	err = json.Unmarshal(responseData, &res)
+	err = cbor.Unmarshal(responseData, &res)
 	if err != nil {
 		return nil, fmt.Errorf("failed to unmarshall get closed fee credit response data: %w", err)
 	}

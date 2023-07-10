@@ -702,7 +702,7 @@ func TestGetLockedFeeCreditRequest(t *testing.T) {
 	port, _ := startServer(t, walletBackend)
 
 	response := &types.TransactionRecord{}
-	httpRes, err := testhttp.DoGetJson(fmt.Sprintf("http://localhost:%d/api/v1/locked-fee-credit/0x%X/0x%X", port, systemID, targetUnitID), response)
+	httpRes, err := testhttp.DoGetCbor(fmt.Sprintf("http://localhost:%d/api/v1/locked-fee-credit/0x%X/0x%X", port, systemID, targetUnitID), response)
 	require.NoError(t, err)
 	require.Equal(t, http.StatusOK, httpRes.StatusCode)
 	require.Equal(t, transferFC, response)
@@ -742,7 +742,7 @@ func TestGetClosedFeeCreditRequest(t *testing.T) {
 	port, _ := startServer(t, walletBackend)
 
 	response := &types.TransactionRecord{}
-	httpRes, err := testhttp.DoGetJson(fmt.Sprintf("http://localhost:%d/api/v1/closed-fee-credit/0x%X", port, fcbID), response)
+	httpRes, err := testhttp.DoGetCbor(fmt.Sprintf("http://localhost:%d/api/v1/closed-fee-credit/0x%X", port, fcbID), response)
 	require.NoError(t, err)
 	require.Equal(t, http.StatusOK, httpRes.StatusCode)
 	require.Equal(t, closeFC, response)

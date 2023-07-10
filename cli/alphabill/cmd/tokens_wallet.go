@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"bytes"
+	"crypto"
 	"fmt"
 	"mime"
 	"os"
@@ -9,14 +10,13 @@ import (
 	"sort"
 	"strconv"
 
-	"github.com/spf13/cobra"
-
 	"github.com/alphabill-org/alphabill/internal/script"
 	"github.com/alphabill-org/alphabill/internal/txsystem/tokens"
 	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/alphabill-org/alphabill/pkg/wallet/account"
 	wallet "github.com/alphabill-org/alphabill/pkg/wallet/tokens"
 	"github.com/alphabill-org/alphabill/pkg/wallet/tokens/backend"
+	"github.com/spf13/cobra"
 )
 
 const (
@@ -56,7 +56,7 @@ const (
 	maxDecimalPlaces   = 8
 )
 
-var NoParent = []byte{0x00}
+var NoParent = make([]byte, crypto.SHA256.Size())
 
 type runTokenListTypesCmd func(cmd *cobra.Command, config *walletConfig, accountNumber *uint64, kind backend.Kind) error
 type runTokenListCmd func(cmd *cobra.Command, config *walletConfig, accountNumber *uint64, kind backend.Kind) error

@@ -6,11 +6,12 @@ import (
 	"testing"
 
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
-	"github.com/alphabill-org/alphabill/internal/rma"
+	"github.com/alphabill-org/alphabill/internal/state"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	testtransaction "github.com/alphabill-org/alphabill/internal/testutils/transaction"
 	testfc "github.com/alphabill-org/alphabill/internal/txsystem/fc/testutils"
 	"github.com/alphabill-org/alphabill/internal/txsystem/fc/transactions"
+	"github.com/alphabill-org/alphabill/internal/txsystem/fc/unit"
 	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/stretchr/testify/require"
 )
@@ -30,7 +31,7 @@ func TestAddFC(t *testing.T) {
 
 	tests := []struct {
 		name        string
-		unit        *rma.Unit
+		unit        *state.Unit
 		tx          *types.TransactionOrder
 		roundNumber uint64
 		wantErrMsg  string
@@ -58,13 +59,13 @@ func TestAddFC(t *testing.T) {
 		},
 		{
 			name:       "Invalid unit type",
-			unit:       &rma.Unit{Data: &testData{}}, // add unit with wrong type
+			unit:       state.NewUnit(bearer, &testData{}), // add unit with wrong type
 			tx:         testfc.NewAddFC(t, signer, nil),
 			wantErrMsg: "invalid unit type: unit is not fee credit record",
 		},
 		{
 			name: "Invalid fee credit owner condition",
-			unit: &rma.Unit{Bearer: bearer, Data: &FeeCreditRecord{}},
+			unit: state.NewUnit(bearer, &unit.FeeCreditRecord{}),
 			tx: testfc.NewAddFC(t, signer,
 				testfc.NewAddFCAttr(t, signer,
 					testfc.WithFCOwnerCondition([]byte("wrong bearer")),
@@ -140,7 +141,7 @@ func TestAddFC(t *testing.T) {
 					),
 				),
 			),
-			unit:       &rma.Unit{Data: &FeeCreditRecord{Hash: []byte("actual nonce")}, StateHash: []byte("sent nonce")},
+			unit:       state.NewUnit(nil, &unit.FeeCreditRecord{Hash: []byte("actual nonce")}),
 			wantErrMsg: "invalid transferFC nonce",
 		},
 		{
@@ -154,7 +155,7 @@ func TestAddFC(t *testing.T) {
 					),
 				),
 			),
-			unit: &rma.Unit{Data: &FeeCreditRecord{Hash: []byte("actual nonce")}},
+			unit: state.NewUnit(nil, &unit.FeeCreditRecord{Hash: []byte("actual nonce")}),
 		},
 		{
 			name: "EarliestAdditionTime in the future NOK",
@@ -264,26 +265,26 @@ func TestCloseFC(t *testing.T) {
 
 	tests := []struct {
 		name       string
-		unit       *rma.Unit
+		unit       *state.Unit
 		tx         *types.TransactionOrder
 		wantErr    error
 		wantErrMsg string
 	}{
 		{
 			name:    "Ok",
-			unit:    &rma.Unit{Data: &FeeCreditRecord{Balance: 50}},
+			unit:    state.NewUnit(nil, &unit.FeeCreditRecord{Balance: 50}),
 			tx:      testfc.NewCloseFC(t, nil),
 			wantErr: nil,
 		},
 		{
 			name:       "tx is nil",
-			unit:       &rma.Unit{Data: &FeeCreditRecord{Balance: 50}},
+			unit:       state.NewUnit(nil, &unit.FeeCreditRecord{Balance: 50}),
 			tx:         nil,
 			wantErrMsg: "tx is nil",
 		},
 		{
 			name: "RecordID exists",
-			unit: &rma.Unit{Data: &FeeCreditRecord{Balance: 50}},
+			unit: state.NewUnit(nil, &unit.FeeCreditRecord{Balance: 50}),
 			tx: testfc.NewCloseFC(t, nil,
 				testtransaction.WithClientMetadata(&types.ClientMetadata{FeeCreditRecordID: recordID}),
 			),
@@ -291,7 +292,7 @@ func TestCloseFC(t *testing.T) {
 		},
 		{
 			name: "Fee proof exists",
-			unit: &rma.Unit{Data: &FeeCreditRecord{Balance: 50}},
+			unit: state.NewUnit(nil, &unit.FeeCreditRecord{Balance: 50}),
 			tx: testfc.NewCloseFC(t, nil,
 				testtransaction.WithFeeProof(feeProof),
 			),
@@ -305,19 +306,19 @@ func TestCloseFC(t *testing.T) {
 		},
 		{
 			name:       "Invalid unit type",
-			unit:       &rma.Unit{Data: &testData{}},
+			unit:       state.NewUnit(nil, &testData{}),
 			tx:         testfc.NewCloseFC(t, nil),
 			wantErrMsg: "unit data is not of type fee credit record",
 		},
 		{
 			name:       "Invalid amount",
-			unit:       &rma.Unit{Data: &FeeCreditRecord{Balance: 50}},
+			unit:       state.NewUnit(nil, &unit.FeeCreditRecord{Balance: 50}),
 			tx:         testfc.NewCloseFC(t, testfc.NewCloseFCAttr(testfc.WithCloseFCAmount(51))),
 			wantErrMsg: "invalid amount",
 		},
 		{
 			name: "Invalid fee",
-			unit: &rma.Unit{Data: &FeeCreditRecord{Balance: 50}},
+			unit: state.NewUnit(nil, &unit.FeeCreditRecord{Balance: 50}),
 			tx: testfc.NewCloseFC(t, nil,
 				testtransaction.WithClientMetadata(&types.ClientMetadata{MaxTransactionFee: 51}),
 			),
@@ -351,9 +352,13 @@ func newInvalidProof(t *testing.T, signer abcrypto.Signer) *types.TxProof {
 type testData struct {
 }
 
-func (t *testData) AddToHasher(_ hash.Hash) {
+func (t *testData) Write(hash.Hash) {
 }
 
-func (t *testData) Value() rma.SummaryValue {
-	return rma.Uint64SummaryValue(0)
+func (t *testData) SummaryValueInput() uint64 {
+	return 0
+}
+
+func (t *testData) Copy() state.UnitData {
+	return &testData{}
 }

@@ -11,7 +11,7 @@ import (
 	"testing"
 
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
-	"github.com/alphabill-org/alphabill/internal/rma"
+	"github.com/alphabill-org/alphabill/internal/state"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/alphabill-org/alphabill/internal/testutils/net"
 	testpartition "github.com/alphabill-org/alphabill/internal/testutils/partition"
@@ -458,9 +458,7 @@ func ensureTokenTypeIndexed(t *testing.T, ctx context.Context, api *client.Token
 }
 
 func createTokensPartition(t *testing.T) *testpartition.NodePartition {
-	tokensState := rma.NewWithSHA256()
-	require.NotNil(t, tokensState)
-
+	tokensState := state.NewEmptyState()
 	network, err := testpartition.NewPartition(1,
 		func(tb map[string]abcrypto.Verifier) txsystem.TransactionSystem {
 			system, err := tokens.NewTxSystem(

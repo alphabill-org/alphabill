@@ -218,7 +218,7 @@ func (w *FeeManager) ReclaimFeeCredit(ctx context.Context, cmd ReclaimFeeCmd) ([
 
 	// send closeFC tx to user partition
 	log.Info("sending close fee credit transaction")
-	tx, err := txbuilder.NewCloseFCTx(w.userPartitionSystemID, fcb.GetID(), userPartitionTimeout, fcb.Value, targetBill.GetID(), targetBill.TxHash, k)
+	tx, err := txbuilder.NewCloseFCTx(w.userPartitionSystemID, fcb.GetID(), userPartitionTimeout, fcb.Value, targetBill.GetID(), targetBill.TxRecordHash, k)
 	if err != nil {
 		return nil, err
 	}
@@ -239,7 +239,7 @@ func (w *FeeManager) ReclaimFeeCredit(ctx context.Context, cmd ReclaimFeeCmd) ([
 
 	// send reclaimFC tx to money partition
 	log.Info("sending reclaim fee credit transaction")
-	reclaimFCTx, err := txbuilder.NewReclaimFCTx(w.moneySystemID, targetBill.GetID(), moneyTimeout, closeFCProof, targetBill.TxHash, k)
+	reclaimFCTx, err := txbuilder.NewReclaimFCTx(w.moneySystemID, targetBill.GetID(), moneyTimeout, closeFCProof, targetBill.TxRecordHash, k)
 	if err != nil {
 		return nil, err
 	}

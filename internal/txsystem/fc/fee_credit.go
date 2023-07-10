@@ -6,7 +6,7 @@ import (
 	"fmt"
 
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
-	"github.com/alphabill-org/alphabill/internal/rma"
+	"github.com/alphabill-org/alphabill/internal/state"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/internal/txsystem/fc/transactions"
 	"github.com/alphabill-org/alphabill/pkg/logger"
@@ -27,7 +27,7 @@ type (
 	FeeCredit struct {
 		systemIdentifier        []byte
 		moneyTXSystemIdentifier []byte
-		state                   *rma.Tree
+		state                   *state.State
 		hashAlgorithm           crypto.Hash
 		trustBase               map[string]abcrypto.Verifier
 		logger                  logger.Logger

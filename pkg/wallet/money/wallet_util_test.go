@@ -170,10 +170,11 @@ func createBillListResponse(bills []*Bill, dcMetadata map[string]*backend.DCMeta
 	billVMs := make([]*backend.ListBillVM, len(bills))
 	for i, b := range bills {
 		billVMs[i] = &backend.ListBillVM{
-			Id:      b.GetID(),
-			Value:   b.Value,
-			TxHash:  b.TxHash,
-			DcNonce: b.DcNonce,
+			Id:           b.GetID(),
+			Value:        b.Value,
+			TxHash:       b.TxHash,
+			TxRecordHash: b.TxRecordHash,
+			DcNonce:      b.DcNonce,
 		}
 	}
 	return &backend.ListBillsResponse{Bills: billVMs, Total: len(bills), DCMetadata: dcMetadata}

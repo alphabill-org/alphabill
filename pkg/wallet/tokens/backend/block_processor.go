@@ -11,6 +11,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/txsystem/tokens"
 	txutil "github.com/alphabill-org/alphabill/internal/txsystem/util"
 	"github.com/alphabill-org/alphabill/internal/types"
+	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/alphabill-org/alphabill/pkg/wallet/broker"
 	"github.com/alphabill-org/alphabill/pkg/wallet/log"
@@ -54,6 +55,7 @@ func (p *blockProcessor) processTx(tr *types.TransactionRecord, proof *wallet.Tx
 	id := tx.UnitID()
 	txProof := &wallet.Proof{TxRecord: tr, TxProof: proof}
 	txHash := tx.Hash(crypto.SHA256)
+	trHash := tr.Hash(crypto.SHA256)
 	p.log.Debug(fmt.Sprintf("processTx: UnitID=%x type: %s", id, tx.PayloadType()))
 
 	// handle fee credit txs
@@ -72,10 +74,11 @@ func (p *blockProcessor) processTx(tr *types.TransactionRecord, proof *wallet.Tx
 			return err
 		}
 		return p.store.SetFeeCreditBill(&FeeCreditBill{
-			Id:          id,
-			Value:       fcb.GetValue() + transferFeeCreditAttributes.Amount - tr.ServerMetadata.ActualFee,
-			TxHash:      txHash,
-			AddFCTxHash: txHash,
+			Id:           id,
+			Value:        fcb.GetValue() + transferFeeCreditAttributes.Amount - tr.ServerMetadata.ActualFee,
+			TxHash:       txHash,
+			TxRecordHash: trHash,
+			AddFCTxHash:  trHash,
 		}, txProof)
 	case transactions.PayloadTypeCloseFeeCredit:
 		closeFeeCreditAttributes := &transactions.CloseFeeCreditAttributes{}
@@ -87,11 +90,14 @@ func (p *blockProcessor) processTx(tr *types.TransactionRecord, proof *wallet.Tx
 			return err
 		}
 		return p.store.SetFeeCreditBill(&FeeCreditBill{
-			Id:          id,
-			Value:       fcb.GetValue() - closeFeeCreditAttributes.Amount,
-			TxHash:      txHash,
-			AddFCTxHash: fcb.GetAddFCTxHash(),
+			Id:           id,
+			Value:        fcb.GetValue() - closeFeeCreditAttributes.Amount,
+			TxHash:       txHash,
+			TxRecordHash: trHash,
+			AddFCTxHash:  fcb.GetAddFCTxHash(),
 		}, txProof)
+	case txsystem.PayloadTypePruneStates:
+		return nil
 	default:
 		// decrement fee credit bill value if tx is not fee credit tx i.e. a normal tx
 		if err := p.updateFCB(tr); err != nil {
@@ -118,6 +124,7 @@ func (p *blockProcessor) processTx(tr *types.TransactionRecord, proof *wallet.Tx
 			TokenCreationPredicate:   attrs.TokenCreationPredicate,
 			InvariantPredicate:       attrs.InvariantPredicate,
 			TxHash:                   txHash,
+			TxRecordHash:             trHash,
 		}, txProof)
 	case tokens.PayloadTypeMintFungibleToken:
 		attrs := &tokens.MintFungibleTokenAttributes{}
@@ -130,15 +137,16 @@ func (p *blockProcessor) processTx(tr *types.TransactionRecord, proof *wallet.Tx
 		}
 		return p.saveToken(
 			&TokenUnit{
-				ID:       id,
-				TypeID:   attrs.TypeID,
-				TypeName: tokenType.Name,
-				Amount:   attrs.Value,
-				Kind:     tokenType.Kind,
-				Symbol:   tokenType.Symbol,
-				Decimals: tokenType.DecimalPlaces,
-				TxHash:   txHash,
-				Owner:    attrs.Bearer,
+				ID:           id,
+				TypeID:       attrs.TypeID,
+				TypeName:     tokenType.Name,
+				Amount:       attrs.Value,
+				Kind:         tokenType.Kind,
+				Symbol:       tokenType.Symbol,
+				Decimals:     tokenType.DecimalPlaces,
+				TxHash:       txHash,
+				TxRecordHash: trHash,
+				Owner:        attrs.Bearer,
 			},
 			txProof)
 	case tokens.PayloadTypeTransferFungibleToken:
@@ -151,6 +159,7 @@ func (p *blockProcessor) processTx(tr *types.TransactionRecord, proof *wallet.Tx
 			return fmt.Errorf("fungible transfer tx: failed to get token with id=%X: %w", id, err)
 		}
 		token.TxHash = txHash
+		token.TxRecordHash = trHash
 		token.Owner = attrs.NewBearer
 		return p.saveToken(token, txProof)
 	case tokens.PayloadTypeSplitFungibleToken:
@@ -173,21 +182,23 @@ func (p *blockProcessor) processTx(tr *types.TransactionRecord, proof *wallet.Tx
 
 		token.Amount = remainingValue
 		token.TxHash = txHash
+		token.TxRecordHash = trHash
 		if err = p.saveToken(token, txProof); err != nil {
 			return err
 		}
 
 		// save new token created by the split
 		newToken := &TokenUnit{
-			ID:       txutil.SameShardIDBytes(uint256.NewInt(0).SetBytes(id), tokens.HashForIDCalculation(tx, crypto.SHA256)),
-			Symbol:   token.Symbol,
-			TypeID:   token.TypeID,
-			TypeName: token.TypeName,
-			Kind:     token.Kind,
-			Amount:   attrs.TargetValue,
-			Decimals: token.Decimals,
-			TxHash:   txHash,
-			Owner:    attrs.NewBearer,
+			ID:           txutil.SameShardIDBytes(util.Uint256ToBytes(uint256.NewInt(0).SetBytes(id)), tokens.HashForIDCalculation(tx, crypto.SHA256)),
+			Symbol:       token.Symbol,
+			TypeID:       token.TypeID,
+			TypeName:     token.TypeName,
+			Kind:         token.Kind,
+			Amount:       attrs.TargetValue,
+			Decimals:     token.Decimals,
+			TxHash:       txHash,
+			TxRecordHash: trHash,
+			Owner:        attrs.NewBearer,
 		}
 		return p.saveToken(newToken, txProof)
 	case tokens.PayloadTypeBurnFungibleToken:
@@ -203,6 +214,7 @@ func (p *blockProcessor) processTx(tr *types.TransactionRecord, proof *wallet.Tx
 			return fmt.Errorf("expected burned amount: %v, got %v. token id='%X', type id='%X'", token.Amount, attrs.Value, token.ID, token.TypeID)
 		}
 		token.TxHash = txHash
+		token.TxRecordHash = trHash
 		token.Burned = true
 		return p.saveToken(token, txProof)
 	case tokens.PayloadTypeJoinFungibleToken:
@@ -235,7 +247,7 @@ func (p *blockProcessor) processTx(tr *types.TransactionRecord, proof *wallet.Tx
 			if !bytes.Equal(burnedToken.Owner, joinedToken.Owner) {
 				return fmt.Errorf("expected burned token's bearer '%X', got %X", joinedToken.Owner, burnedToken.Owner)
 			}
-			if !bytes.Equal(joinedToken.TxHash, burnTxAttr.Nonce) {
+			if !bytes.Equal(joinedToken.TxRecordHash, burnTxAttr.Nonce) {
 				return fmt.Errorf("expected burned token's nonce '%X', got %X", joinedToken.TxHash, burnTxAttr.Nonce)
 			}
 			burnedTokensToRemove = append(burnedTokensToRemove, burnedID)
@@ -243,6 +255,7 @@ func (p *blockProcessor) processTx(tr *types.TransactionRecord, proof *wallet.Tx
 		}
 		joinedToken.Amount += burnedValue
 		joinedToken.TxHash = txHash
+		joinedToken.TxRecordHash = trHash
 		if err = p.saveToken(joinedToken, txProof); err != nil {
 			return fmt.Errorf("failed to save joined token: %w", err)
 		}
@@ -269,6 +282,7 @@ func (p *blockProcessor) processTx(tr *types.TransactionRecord, proof *wallet.Tx
 			InvariantPredicate:       attrs.InvariantPredicate,
 			NftDataUpdatePredicate:   attrs.DataUpdatePredicate,
 			TxHash:                   txHash,
+			TxRecordHash:             trHash,
 		}, txProof)
 	case tokens.PayloadTypeMintNFT:
 		attrs := &tokens.MintNonFungibleTokenAttributes{}
@@ -291,6 +305,7 @@ func (p *blockProcessor) processTx(tr *types.TransactionRecord, proof *wallet.Tx
 			NftData:                attrs.Data,
 			NftDataUpdatePredicate: attrs.DataUpdatePredicate,
 			TxHash:                 txHash,
+			TxRecordHash:           trHash,
 			Owner:                  attrs.Bearer,
 		}
 		return p.saveToken(newToken, txProof)
@@ -305,6 +320,7 @@ func (p *blockProcessor) processTx(tr *types.TransactionRecord, proof *wallet.Tx
 		}
 		token.Owner = attrs.NewBearer
 		token.TxHash = txHash
+		token.TxRecordHash = trHash
 		return p.saveToken(token, txProof)
 	case tokens.PayloadTypeUpdateNFT:
 		attrs := &tokens.UpdateNonFungibleTokenAttributes{}
@@ -317,6 +333,7 @@ func (p *blockProcessor) processTx(tr *types.TransactionRecord, proof *wallet.Tx
 		}
 		token.NftData = attrs.Data
 		token.TxHash = txHash
+		token.TxRecordHash = trHash
 		return p.saveToken(token, txProof)
 	default:
 		p.log.Error("received unknown token transaction type, skipped processing:", fmt.Sprintf("data type: %T", tx))

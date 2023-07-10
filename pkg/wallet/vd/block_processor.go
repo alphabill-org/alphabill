@@ -7,6 +7,8 @@ import (
 	"encoding/hex"
 	"fmt"
 
+	"github.com/alphabill-org/alphabill/internal/txsystem"
+
 	fc "github.com/alphabill-org/alphabill/internal/txsystem/fc/transactions"
 	"github.com/alphabill-org/alphabill/internal/txsystem/vd"
 	"github.com/alphabill-org/alphabill/internal/types"
@@ -91,6 +93,7 @@ func (p *blockProcessor) ProcessBlock(_ context.Context, b *types.Block) error {
 func (p *blockProcessor) processTx(txr *types.TransactionRecord) error {
 	txo := txr.TransactionOrder
 	txHash := txo.Hash(crypto.SHA256)
+	txrHash := txr.Hash(crypto.SHA256)
 	switch txo.PayloadType() {
 	case vd.PayloadTypeRegisterData:
 		return p.updateFCB(txr)
@@ -108,10 +111,11 @@ func (p *blockProcessor) processTx(txr *types.TransactionRecord) error {
 			return err
 		}
 		return p.store.SetFeeCreditBill(&FeeCreditBill{
-			Id:          txo.UnitID(),
-			Value:       fcb.GetValue() + transferFeeCreditAttributes.Amount - txr.ServerMetadata.ActualFee,
-			TxHash:      txHash,
-			AddFCTxHash: txHash,
+			Id:           txo.UnitID(),
+			Value:        fcb.GetValue() + transferFeeCreditAttributes.Amount - txr.ServerMetadata.ActualFee,
+			TxHash:       txHash,
+			TxRecordHash: txrHash,
+			AddFCTxHash:  txrHash,
 		})
 	case fc.PayloadTypeCloseFeeCredit:
 		closeFeeCreditAttributes := &fc.CloseFeeCreditAttributes{}
@@ -128,6 +132,8 @@ func (p *blockProcessor) processTx(txr *types.TransactionRecord) error {
 			TxHash:      txHash,
 			AddFCTxHash: fcb.GetAddFCTxHash(),
 		})
+	case txsystem.PayloadTypePruneStates:
+		return nil
 	default:
 		log.Warning(fmt.Sprintf("received unknown transaction type, skipping processing: %s", txo.PayloadType()))
 		return nil

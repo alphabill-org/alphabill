@@ -6,7 +6,6 @@ import (
 	"fmt"
 )
 
-var ErrNilData = errors.New("merkle tree input data is nil")
 var ErrIndexOutOfBounds = errors.New("merkle tree data index out of bounds")
 
 type (
@@ -38,17 +37,38 @@ type (
 )
 
 // New creates a new canonical Merkle Tree.
-func New[T Data](hashAlgorithm crypto.Hash, data []T) (*MerkleTree, error) {
-	if data == nil {
-		return nil, ErrNilData
+func New[T Data](hashAlgorithm crypto.Hash, data []T) *MerkleTree {
+	if len(data) == 0 {
+		return &MerkleTree{root: nil, dataLength: 0}
 	}
-	return &MerkleTree{root: createMerkleTree(data, hashAlgorithm), dataLength: len(data)}, nil
+	return &MerkleTree{root: createMerkleTree(data, hashAlgorithm), dataLength: len(data)}
 }
 
 // EvalMerklePath returns root hash calculated from the given leaf and path items
 func EvalMerklePath(merklePath []*PathItem, leaf Data, hashAlgorithm crypto.Hash) []byte {
 	hasher := hashAlgorithm.New()
 	h := leaf.Hash(hashAlgorithm)
+	for _, item := range merklePath {
+		if item.DirectionLeft {
+			hasher.Write(h)
+			hasher.Write(item.Hash)
+		} else {
+			hasher.Write(item.Hash)
+			hasher.Write(h)
+		}
+		h = hasher.Sum(nil)
+		hasher.Reset()
+	}
+	return h
+}
+
+// PlainTreeOutput calculates the output hash of the chain.
+func PlainTreeOutput(merklePath []*PathItem, input []byte, hashAlgorithm crypto.Hash) []byte {
+	if len(merklePath) == 0 {
+		return input
+	}
+	hasher := hashAlgorithm.New()
+	h := input
 	for _, item := range merklePath {
 		if item.DirectionLeft {
 			hasher.Write(h)

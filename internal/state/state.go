@@ -231,7 +231,7 @@ func (s *State) CreateUnitStateProof(id types.UnitID, logIndex int, uc *types.Un
 	}
 	unitTreeCert, err := s.createUnitTreeCert(unit, logIndex)
 	if err != nil {
-		return nil, fmt.Errorf("unable to extract unit tee cert for unit %v: %w", id, err)
+		return nil, fmt.Errorf("unable to extract unit tree cert for unit %v: %w", id, err)
 	}
 	stateTreeCert, err := s.createStateTreeCert(id)
 	if err != nil {

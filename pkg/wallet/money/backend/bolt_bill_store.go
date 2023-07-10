@@ -7,25 +7,29 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
-	"github.com/alphabill-org/alphabill/internal/util"
-	sdk "github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/fxamacker/cbor/v2"
 	bolt "go.etcd.io/bbolt"
+
+	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
+	"github.com/alphabill-org/alphabill/internal/types"
+	"github.com/alphabill-org/alphabill/internal/util"
+	sdk "github.com/alphabill-org/alphabill/pkg/wallet"
 )
 
 const BoltBillStoreFileName = "bills.db"
 
 var (
-	unitsBucket        = []byte("unitsBucket")        // unitID => unit_bytes
-	predicatesBucket   = []byte("predicatesBucket")   // predicate => bucket[unitID]nil
-	metaBucket         = []byte("metaBucket")         // block_number_key => block_number_val
-	expiredBillsBucket = []byte("expiredBillsBucket") // block_number => bucket[unitID]nil
-	feeUnitsBucket     = []byte("feeUnitsBucket")     // unitID => unit_bytes (for free credit units)
-	sdrBucket          = []byte("sdrBucket")          // []genesis.SystemDescriptionRecord
-	txProofsBucket     = []byte("txProofs")           // unitID => [txHash => cbor(block proof)]
-	dcBucket           = []byte("dcBucket")           // nonce => dc metadata bytes
-	txHistoryBucket    = []byte("txHistory")          // pubKeyHash => [seqNum => cbor(TxHistoryRecord)]
+	unitsBucket           = []byte("unitsBucket")           // unitID => unit_bytes
+	predicatesBucket      = []byte("predicatesBucket")      // predicate => bucket[unitID]nil
+	metaBucket            = []byte("metaBucket")            // block_number_key => block_number_val
+	expiredBillsBucket    = []byte("expiredBillsBucket")    // block_number => bucket[unitID]nil
+	feeUnitsBucket        = []byte("feeUnitsBucket")        // unitID => unit_bytes (for free credit units)
+	lockedFeeCreditBucket = []byte("lockedFeeCreditBucket") // systemID => [unitID => transferFC record]
+	closedFeeCreditBucket = []byte("closedFeeCreditBucket")
+	sdrBucket             = []byte("sdrBucket") // []genesis.SystemDescriptionRecord
+	txProofsBucket        = []byte("txProofs")  // unitID => [txHash => cbor(block proof)]
+	dcBucket              = []byte("dcBucket")  // nonce => dc metadata bytes
+	txHistoryBucket       = []byte("txHistory") // pubKeyHash => [seqNum => cbor(TxHistoryRecord)]
 )
 
 var (
@@ -57,7 +61,10 @@ func newBoltBillStore(dbFile string) (*boltBillStore, error) {
 		return nil, fmt.Errorf("failed to open bolt DB: %w", err)
 	}
 	s := &boltBillStore{db: db}
-	err = sdk.CreateBuckets(db.Update, unitsBucket, predicatesBucket, metaBucket, expiredBillsBucket, feeUnitsBucket, sdrBucket, txProofsBucket, dcBucket, txHistoryBucket)
+	err = sdk.CreateBuckets(db.Update,
+		unitsBucket, predicatesBucket, metaBucket, expiredBillsBucket, feeUnitsBucket,
+		lockedFeeCreditBucket, closedFeeCreditBucket, sdrBucket, txProofsBucket, dcBucket, txHistoryBucket,
+	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create db buckets: %w", err)
 	}
@@ -262,6 +269,64 @@ func (s *boltBillStoreTx) SetFeeCreditBill(fcb *Bill, proof *sdk.Proof) error {
 			return err
 		}
 		return s.storeUnitBlockProof(tx, fcb.Id, fcb.TxHash, proof)
+	}, true)
+}
+
+func (s *boltBillStoreTx) GetLockedFeeCredit(systemID, fcbID []byte) (*types.TransactionRecord, error) {
+	var res *types.TransactionRecord
+	err := s.withTx(s.tx, func(tx *bolt.Tx) error {
+		lockedCreditBucket := tx.Bucket(lockedFeeCreditBucket).Bucket(systemID)
+		if lockedCreditBucket == nil {
+			return nil
+		}
+		txBytes := lockedCreditBucket.Get(fcbID)
+		if txBytes == nil {
+			return nil
+		}
+		return cbor.Unmarshal(txBytes, &res)
+	}, false)
+	if err != nil {
+		return nil, err
+	}
+	return res, nil
+}
+
+func (s *boltBillStoreTx) SetLockedFeeCredit(systemID, fcbID []byte, txr *types.TransactionRecord) error {
+	return s.withTx(s.tx, func(tx *bolt.Tx) error {
+		txBytes, err := cbor.Marshal(txr)
+		if err != nil {
+			return err
+		}
+		lockedCreditBucket, err := tx.Bucket(lockedFeeCreditBucket).CreateBucketIfNotExists(systemID)
+		if err != nil {
+			return fmt.Errorf("failed to create bucket: %w", err)
+		}
+		return lockedCreditBucket.Put(fcbID, txBytes)
+	}, true)
+}
+
+func (s *boltBillStoreTx) GetClosedFeeCredit(unitID []byte) (*types.TransactionRecord, error) {
+	var res *types.TransactionRecord
+	err := s.withTx(s.tx, func(tx *bolt.Tx) error {
+		txBytes := tx.Bucket(closedFeeCreditBucket).Get(unitID)
+		if txBytes == nil {
+			return nil
+		}
+		return cbor.Unmarshal(txBytes, &res)
+	}, false)
+	if err != nil {
+		return nil, err
+	}
+	return res, nil
+}
+
+func (s *boltBillStoreTx) SetClosedFeeCredit(unitID []byte, txr *types.TransactionRecord) error {
+	return s.withTx(s.tx, func(tx *bolt.Tx) error {
+		txBytes, err := cbor.Marshal(txr)
+		if err != nil {
+			return err
+		}
+		return tx.Bucket(closedFeeCreditBucket).Put(unitID, txBytes)
 	}, true)
 }
 

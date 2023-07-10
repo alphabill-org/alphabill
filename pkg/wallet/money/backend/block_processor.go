@@ -235,6 +235,10 @@ func (p *BlockProcessor) processTx(txr *types.TransactionRecord, b *types.Block,
 		if err != nil {
 			return fmt.Errorf("failed to add tx fees to money fee bill: %w", err)
 		}
+		err = p.addLockedFeeCredit(dbTx, attr.TargetSystemIdentifier, attr.TargetRecordID, txr)
+		if err != nil {
+			return fmt.Errorf("failed to add locked fee credit: %w", err)
+		}
 		return nil
 	case transactions.PayloadTypeAddFeeCredit:
 		wlog.Info(fmt.Sprintf("received addFC order (UnitID=%x), hash: '%X'", txo.UnitID(), txHash))
@@ -252,12 +256,11 @@ func (p *BlockProcessor) processTx(txr *types.TransactionRecord, b *types.Block,
 		if err != nil {
 			return err
 		}
-		txHash := txo.Hash(crypto.SHA256)
 		return dbTx.SetFeeCreditBill(&Bill{
-			Id:          txo.UnitID(),
-			Value:       fcb.getValue() + transferFCAttr.Amount - txr.ServerMetadata.ActualFee,
-			TxHash:      txHash,
-			AddFCTxHash: txHash,
+			Id:              txo.UnitID(),
+			Value:           fcb.getValue() + transferFCAttr.Amount - txr.ServerMetadata.ActualFee,
+			TxHash:          txHash,
+			LastAddFCTxHash: txHash,
 		}, proof)
 	case transactions.PayloadTypeCloseFeeCredit:
 		wlog.Info(fmt.Sprintf("received closeFC order (UnitID=%x)", txo.UnitID()))
@@ -270,11 +273,15 @@ func (p *BlockProcessor) processTx(txr *types.TransactionRecord, b *types.Block,
 		if err != nil {
 			return err
 		}
+		err = p.addClosedFeeCredit(dbTx, txo.UnitID(), txr)
+		if err != nil {
+			return err
+		}
 		return dbTx.SetFeeCreditBill(&Bill{
-			Id:          txo.UnitID(),
-			TxHash:      txHash,
-			Value:       fcb.getValue() - attr.Amount,
-			AddFCTxHash: fcb.getAddFCTxHash(),
+			Id:              txo.UnitID(),
+			TxHash:          txHash,
+			Value:           fcb.getValue() - attr.Amount,
+			LastAddFCTxHash: fcb.getLastAddFCTxHash(),
 		}, proof)
 	case transactions.PayloadTypeReclaimFeeCredit:
 		wlog.Info(fmt.Sprintf("received reclaimFC order (UnitID=%x)", txo.UnitID()))
@@ -393,4 +400,12 @@ func (p *BlockProcessor) updateFCB(dbTx BillStoreTx, txr *types.TransactionRecor
 	}
 	fcb.Value -= txr.ServerMetadata.ActualFee
 	return dbTx.SetFeeCreditBill(fcb, nil)
+}
+
+func (p *BlockProcessor) addLockedFeeCredit(dbTx BillStoreTx, systemID, targetRecordID []byte, txr *types.TransactionRecord) error {
+	return dbTx.SetLockedFeeCredit(systemID, targetRecordID, txr)
+}
+
+func (p *BlockProcessor) addClosedFeeCredit(dbTx BillStoreTx, targetRecordID []byte, txr *types.TransactionRecord) error {
+	return dbTx.SetClosedFeeCredit(targetRecordID, txr)
 }

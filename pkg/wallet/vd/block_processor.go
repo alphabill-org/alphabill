@@ -110,10 +110,10 @@ func (p *blockProcessor) processTx(txr *types.TransactionRecord) error {
 			return err
 		}
 		return p.store.SetFeeCreditBill(&FeeCreditBill{
-			Id:          txo.UnitID(),
-			Value:       fcb.GetValue() + transferFeeCreditAttributes.Amount - txr.ServerMetadata.ActualFee,
-			TxHash:      txHash,
-			AddFCTxHash: txHash,
+			Id:              txo.UnitID(),
+			Value:           fcb.GetValue() + transferFeeCreditAttributes.Amount - txr.ServerMetadata.ActualFee,
+			TxHash:          txHash,
+			LastAddFCTxHash: txHash,
 		})
 	case fc.PayloadTypeCloseFeeCredit:
 		closeFeeCreditAttributes := &fc.CloseFeeCreditAttributes{}
@@ -125,10 +125,10 @@ func (p *blockProcessor) processTx(txr *types.TransactionRecord) error {
 			return err
 		}
 		return p.store.SetFeeCreditBill(&FeeCreditBill{
-			Id:          txo.UnitID(),
-			Value:       fcb.GetValue() - closeFeeCreditAttributes.Amount,
-			TxHash:      txHash,
-			AddFCTxHash: fcb.GetAddFCTxHash(),
+			Id:              txo.UnitID(),
+			Value:           fcb.GetValue() - closeFeeCreditAttributes.Amount,
+			TxHash:          txHash,
+			LastAddFCTxHash: fcb.GetLastAddFCTxHash(),
 		})
 	case txsystem.PayloadTypePruneStates:
 		return nil

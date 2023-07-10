@@ -176,6 +176,8 @@ type mockStorage struct {
 	getTxProof       func(unitID sdk.UnitID, txHash sdk.TxHash) (*sdk.Proof, error)
 	getFeeCreditBill func(unitID sdk.UnitID) (*FeeCreditBill, error)
 	setFeeCreditBill func(fcb *FeeCreditBill, proof *sdk.Proof) error
+	getClosedFC      func(fcbID sdk.UnitID) (*types.TransactionRecord, error)
+	setClosedFC      func(fcbID sdk.UnitID, tx *types.TransactionRecord) error
 }
 
 func (ms *mockStorage) Close() error { return nil }
@@ -269,4 +271,18 @@ func (ms *mockStorage) SetFeeCreditBill(fcb *FeeCreditBill, proof *sdk.Proof) er
 		return ms.setFeeCreditBill(fcb, proof)
 	}
 	return fmt.Errorf("unexpected SetFeeCreditBill(%X) call", fcb.GetID())
+}
+
+func (ms *mockStorage) GetClosedFeeCredit(unitID sdk.UnitID) (*types.TransactionRecord, error) {
+	if ms.getClosedFC != nil {
+		return ms.getClosedFC(unitID)
+	}
+	return nil, fmt.Errorf("unexpected GetClosedFeeCredit call")
+}
+
+func (ms *mockStorage) SetClosedFeeCredit(fcbID sdk.UnitID, tx *types.TransactionRecord) error {
+	if ms.getClosedFC != nil {
+		return ms.setClosedFC(fcbID, tx)
+	}
+	return fmt.Errorf("unexpected SetFeeCreditBill(%X) call", fcbID)
 }

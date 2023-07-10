@@ -114,7 +114,7 @@ func TestCollectDustTimeoutReached(t *testing.T) {
 
 	// verify initial bill tx is received by wallet
 	require.Eventually(t, func() bool {
-		balance, _ := w.GetBalance(GetBalanceCmd{})
+		balance, _ := w.GetBalance(ctx, GetBalanceCmd{})
 		return balance == initialBillValue
 	}, test.WaitDuration*2, time.Second)
 
@@ -226,7 +226,7 @@ func TestCollectDustInMultiAccountWallet(t *testing.T) {
 
 	// verify initial bill tx is received by wallet
 	require.Eventually(t, func() bool {
-		balance, _ := w.GetBalance(GetBalanceCmd{})
+		balance, _ := w.GetBalance(ctx, GetBalanceCmd{})
 		return balance == initialBillValue
 	}, test.WaitDuration, time.Second)
 
@@ -336,7 +336,7 @@ func TestCollectDustInMultiAccountWalletWithKeyFlag(t *testing.T) {
 
 	// verify initial bill tx is received by wallet
 	require.Eventually(t, func() bool {
-		balance, _ := w.GetBalance(GetBalanceCmd{})
+		balance, _ := w.GetBalance(ctx, GetBalanceCmd{})
 		return balance == initialBillValue
 	}, test.WaitDuration, time.Second)
 
@@ -386,13 +386,13 @@ func sendToAccount(t *testing.T, w *Wallet, amount, fromAccount, toAccount uint6
 	receiverPubkey, err := w.am.GetPublicKey(toAccount)
 	require.NoError(t, err)
 
-	prevBalance, err := w.GetBalance(GetBalanceCmd{AccountIndex: toAccount})
+	prevBalance, err := w.GetBalance(context.Background(), GetBalanceCmd{AccountIndex: toAccount})
 	require.NoError(t, err)
 
 	_, err = w.Send(context.Background(), SendCmd{ReceiverPubKey: receiverPubkey, Amount: amount, AccountIndex: fromAccount})
 	require.NoError(t, err)
 	require.Eventually(t, func() bool {
-		balance, _ := w.GetBalance(GetBalanceCmd{AccountIndex: toAccount})
+		balance, _ := w.GetBalance(context.Background(), GetBalanceCmd{AccountIndex: toAccount})
 		return balance > prevBalance
 	}, test.WaitDuration, time.Second)
 }

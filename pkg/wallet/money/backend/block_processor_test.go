@@ -166,10 +166,10 @@ func TestBlockProcessor_EachTxTypeCanBeProcessed(t *testing.T) {
 	require.NoError(t, err)
 	require.EqualValues(t, 194, fcb.Value)
 
-	// verify FCB AddFCTxHash equals to TxHash
-	addFCTxHash := addFC.Hash(gocrypto.SHA256)
-	require.Equal(t, addFCTxHash, fcb.TxHash)
-	require.Equal(t, addFCTxHash, fcb.AddFCTxHash)
+	// verify FCB LastAddFCTxHash equals to TxHash
+	lastAddFCTxHash := addFC.Hash(gocrypto.SHA256)
+	require.Equal(t, lastAddFCTxHash, fcb.TxHash)
+	require.Equal(t, lastAddFCTxHash, fcb.LastAddFCTxHash)
 
 	// verify tx1 unit is zero value (whole bill transferred to fee credit)
 	unit1, err := store.Do().GetBill(tx1.TransactionOrder.UnitID())
@@ -211,8 +211,8 @@ func TestBlockProcessor_EachTxTypeCanBeProcessed(t *testing.T) {
 	require.NoError(t, err)
 	require.EqualValues(t, 0, fcb.Value)
 
-	// verify FCB AddFCTxHash is not changed
-	require.Equal(t, addFCTxHash, fcb.AddFCTxHash)
+	// verify FCB LastAddFCTxHash is not changed
+	require.Equal(t, lastAddFCTxHash, fcb.LastAddFCTxHash)
 
 	// verify reclaimed fee credits (194) were added to specified unit (tx4 value=100) minus 2x txfee (2)
 	unit, err := store.Do().GetBill(tx4.TransactionOrder.UnitID())
@@ -603,6 +603,87 @@ func TestBlockProcessor_TransferAndReclaimFeeCycle_TargetTokenPartition(t *testi
 	fcb, err = store.Do().GetFeeCreditBill(fcbID)
 	require.NoError(t, err)
 	require.EqualValues(t, 0, fcb.Value)
+}
+
+func TestBlockProcessor_LockedAndClosedFeeCredit_CanBeSaved(t *testing.T) {
+	fcbID := newUnitID(101)
+	store, err := createTestBillStore(t)
+	require.NoError(t, err)
+
+	userBillID := []byte{1}
+	err = store.Do().SetBill(&Bill{
+		Id:             userBillID,
+		Value:          100,
+		TxHash:         []byte{2},
+		OwnerPredicate: script.PredicateAlwaysTrue(),
+	}, nil)
+	require.NoError(t, err)
+
+	moneyPartitionFeeBillID := util.Uint256ToBytes(uint256.NewInt(2))
+	err = store.Do().SetSystemDescriptionRecords([]*genesis.SystemDescriptionRecord{
+		{
+			SystemIdentifier: moneySystemID,
+			T2Timeout:        2500,
+			FeeCreditBill: &genesis.FeeCreditBill{
+				UnitId:         moneyPartitionFeeBillID,
+				OwnerPredicate: script.PredicateAlwaysTrue(),
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	err = store.Do().SetBill(&Bill{
+		Id:             moneyPartitionFeeBillID,
+		OwnerPredicate: script.PredicateAlwaysTrue(),
+		Value:          0,
+	}, nil)
+	require.NoError(t, err)
+
+	blockProcessor, err := NewBlockProcessor(store, moneySystemID)
+	require.NoError(t, err)
+
+	// when transferFC is processed
+	transferFCAttr := testfc.NewTransferFCAttr(
+		testfc.WithTargetRecordID(fcbID),
+		testfc.WithTargetSystemID(moneySystemID),
+	)
+	transferFC := testfc.NewTransferFC(t, transferFCAttr,
+		testtransaction.WithUnitId(userBillID),
+		testtransaction.WithSystemID(moneySystemID),
+	)
+	transferFCRecord := &types.TransactionRecord{TransactionOrder: transferFC, ServerMetadata: &types.ServerMetadata{ActualFee: 1}}
+	b := &types.Block{
+		Transactions:       []*types.TransactionRecord{transferFCRecord},
+		UnicityCertificate: &types.UnicityCertificate{InputRecord: &types.InputRecord{RoundNumber: 1}},
+	}
+	err = blockProcessor.ProcessBlock(context.Background(), b)
+	require.NoError(t, err)
+
+	// then locked fee credit is added
+	lockedFeeCredit, err := store.Do().GetLockedFeeCredit(moneySystemID, fcbID)
+	require.NoError(t, err)
+	require.Equal(t, transferFCRecord, lockedFeeCredit)
+
+	// when closeFC is processed
+	closeFCAttr := testfc.NewCloseFCAttr(
+		testfc.WithCloseFCTargetUnitID(transferFC.UnitID()),
+	)
+	closeFC := testfc.NewCloseFC(t, closeFCAttr,
+		testtransaction.WithSystemID(moneySystemID),
+		testtransaction.WithUnitId(fcbID),
+	)
+	closeFCRecord := &types.TransactionRecord{TransactionOrder: closeFC, ServerMetadata: &types.ServerMetadata{ActualFee: 1}}
+	b = &types.Block{
+		Transactions:       []*types.TransactionRecord{closeFCRecord},
+		UnicityCertificate: &types.UnicityCertificate{InputRecord: &types.InputRecord{RoundNumber: 3}},
+	}
+	err = blockProcessor.ProcessBlock(context.Background(), b)
+	require.NoError(t, err)
+
+	// then closed fee credit is added
+	closedFeeCredit, err := store.Do().GetClosedFeeCredit(fcbID)
+	require.NoError(t, err)
+	require.Equal(t, closeFCRecord, closedFeeCredit)
 }
 
 func verifyProof(t *testing.T, b *Bill, txProof *sdk.Proof) {

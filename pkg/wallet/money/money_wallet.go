@@ -49,11 +49,13 @@ type (
 	}
 
 	BackendAPI interface {
-		GetBalance(pubKey []byte, includeDCBills bool) (uint64, error)
-		ListBills(pubKey []byte, includeDCBills, includeDCMetadata bool) (*backend.ListBillsResponse, error)
-		GetBills(pubKey []byte) ([]*wallet.Bill, error)
+		GetBalance(ctx context.Context, pubKey []byte, includeDCBills bool) (uint64, error)
+		ListBills(ctx context.Context, pubKey []byte, includeDCBills, includeDCMetadata bool) (*backend.ListBillsResponse, error)
+		GetBills(ctx context.Context, pubKey []byte) ([]*wallet.Bill, error)
 		GetRoundNumber(ctx context.Context) (uint64, error)
 		GetFeeCreditBill(ctx context.Context, unitID wallet.UnitID) (*wallet.Bill, error)
+		GetLockedFeeCredit(ctx context.Context, systemID []byte, unitID []byte) (*types.TransactionRecord, error)
+		GetClosedFeeCredit(ctx context.Context, fcbID []byte) (*types.TransactionRecord, error)
 		PostTransactions(ctx context.Context, pubKey wallet.PubKey, txs *wallet.Transactions) error
 		GetTxProof(ctx context.Context, unitID wallet.UnitID, txHash wallet.TxHash) (*wallet.Proof, error)
 	}
@@ -116,7 +118,7 @@ func (w *Wallet) SystemID() []byte {
 	return money.DefaultSystemIdentifier
 }
 
-// Shutdown terminates connection to alphabill node, closes account manager and cancels any background goroutines.
+// Close terminates connection to alphabill node, closes account manager and cancels any background goroutines.
 func (w *Wallet) Close() {
 	w.am.Close()
 	w.feeManager.Close()
@@ -140,22 +142,22 @@ func (w *Wallet) CollectDust(ctx context.Context, accountNumber uint64) error {
 
 // GetBalance returns sum value of all bills currently owned by the wallet, for given account.
 // The value returned is the smallest denomination of alphabills.
-func (w *Wallet) GetBalance(cmd GetBalanceCmd) (uint64, error) {
+func (w *Wallet) GetBalance(ctx context.Context, cmd GetBalanceCmd) (uint64, error) {
 	pubKey, err := w.am.GetPublicKey(cmd.AccountIndex)
 	if err != nil {
 		return 0, err
 	}
-	return w.backend.GetBalance(pubKey, cmd.CountDCBills)
+	return w.backend.GetBalance(ctx, pubKey, cmd.CountDCBills)
 }
 
 // GetBalances returns sum value of all bills currently owned by the wallet, for all accounts.
 // The value returned is the smallest denomination of alphabills.
-func (w *Wallet) GetBalances(cmd GetBalanceCmd) ([]uint64, uint64, error) {
+func (w *Wallet) GetBalances(ctx context.Context, cmd GetBalanceCmd) ([]uint64, uint64, error) {
 	pubKeys, err := w.am.GetPublicKeys()
 	totals := make([]uint64, len(pubKeys))
 	sum := uint64(0)
 	for accountIndex, pubKey := range pubKeys {
-		balance, err := w.backend.GetBalance(pubKey, cmd.CountDCBills)
+		balance, err := w.backend.GetBalance(ctx, pubKey, cmd.CountDCBills)
 		if err != nil {
 			return nil, 0, err
 		}
@@ -181,7 +183,7 @@ func (w *Wallet) Send(ctx context.Context, cmd SendCmd) ([]*wallet.Proof, error)
 	}
 
 	pubKey, _ := w.am.GetPublicKey(cmd.AccountIndex)
-	balance, err := w.backend.GetBalance(pubKey, true)
+	balance, err := w.backend.GetBalance(ctx, pubKey, true)
 	if err != nil {
 		return nil, err
 	}
@@ -207,7 +209,7 @@ func (w *Wallet) Send(ctx context.Context, cmd SendCmd) ([]*wallet.Proof, error)
 		return nil, ErrNoFeeCredit
 	}
 
-	bills, err := w.backend.GetBills(pubKey)
+	bills, err := w.backend.GetBills(ctx, pubKey)
 	if err != nil {
 		return nil, err
 	}
@@ -246,14 +248,14 @@ func (w *Wallet) Send(ctx context.Context, cmd SendCmd) ([]*wallet.Proof, error)
 // AddFeeCredit creates fee credit for the given amount.
 // Wallet must have a bill large enough for the required amount plus fees.
 // Returns transferFC and addFC transaction proofs.
-func (w *Wallet) AddFeeCredit(ctx context.Context, cmd fees.AddFeeCmd) ([]*wallet.Proof, error) {
+func (w *Wallet) AddFeeCredit(ctx context.Context, cmd fees.AddFeeCmd) (*fees.AddFeeCmdResponse, error) {
 	return w.feeManager.AddFeeCredit(ctx, cmd)
 }
 
 // ReclaimFeeCredit reclaims fee credit.
 // Reclaimed fee credit is added to the largest bill in wallet.
 // Returns closeFC and reclaimFC transaction proofs.
-func (w *Wallet) ReclaimFeeCredit(ctx context.Context, cmd fees.ReclaimFeeCmd) ([]*wallet.Proof, error) {
+func (w *Wallet) ReclaimFeeCredit(ctx context.Context, cmd fees.ReclaimFeeCmd) (*fees.ReclaimFeeCmdResponse, error) {
 	return w.feeManager.ReclaimFeeCredit(ctx, cmd)
 }
 
@@ -436,7 +438,7 @@ func (w *Wallet) SendTx(ctx context.Context, tx *types.TransactionOrder, senderP
 }
 
 func (w *Wallet) getDetailedBillsList(ctx context.Context, pubKey []byte) ([]*Bill, map[string]*backend.DCMetadata, error) {
-	billResponse, err := w.backend.ListBills(pubKey, true, true)
+	billResponse, err := w.backend.ListBills(ctx, pubKey, true, true)
 	if err != nil {
 		return nil, nil, err
 	}

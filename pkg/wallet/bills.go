@@ -35,8 +35,8 @@ type (
 		DcNonce []byte `json:"dc_nonce,omitempty"`
 
 		// fcb specific fields
-		// AddFCTxHash last add fee credit tx hash
-		AddFCTxHash []byte `json:"add_fc_tx_hash,omitempty"`
+		// LastAddFCTxHash last add fee credit tx hash
+		LastAddFCTxHash []byte `json:"last_add_fc_tx_hash,omitempty"`
 	}
 
 	BillProof struct {
@@ -84,9 +84,9 @@ func (x *Bill) GetTxHash() []byte {
 	return nil
 }
 
-func (x *Bill) GetAddFCTxHash() []byte {
+func (x *Bill) GetLastAddFCTxHash() []byte {
 	if x != nil {
-		return x.AddFCTxHash
+		return x.LastAddFCTxHash
 	}
 	return nil
 }

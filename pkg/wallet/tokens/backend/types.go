@@ -57,10 +57,10 @@ type (
 	Kind        byte
 
 	FeeCreditBill struct {
-		Id          []byte `json:"id"`
-		Value       uint64 `json:"value,string"`
-		TxHash      []byte `json:"txHash"`
-		AddFCTxHash []byte `json:"addFcTxHash"`
+		Id              []byte `json:"id"`
+		Value           uint64 `json:"value,string"`
+		TxHash          []byte `json:"txHash"`
+		LastAddFCTxHash []byte `json:"lastAddFcTxHash"`
 	}
 )
 
@@ -132,9 +132,9 @@ func (f *FeeCreditBill) GetTxHash() []byte {
 	return nil
 }
 
-func (f *FeeCreditBill) GetAddFCTxHash() []byte {
+func (f *FeeCreditBill) GetLastAddFCTxHash() []byte {
 	if f != nil {
-		return f.AddFCTxHash
+		return f.LastAddFCTxHash
 	}
 	return nil
 }
@@ -144,9 +144,9 @@ func (f *FeeCreditBill) ToGenericBill() *wallet.Bill {
 		return nil
 	}
 	return &wallet.Bill{
-		Id:          f.Id,
-		Value:       f.Value,
-		TxHash:      f.TxHash,
-		AddFCTxHash: f.AddFCTxHash,
+		Id:              f.Id,
+		Value:           f.Value,
+		TxHash:          f.TxHash,
+		LastAddFCTxHash: f.LastAddFCTxHash,
 	}
 }

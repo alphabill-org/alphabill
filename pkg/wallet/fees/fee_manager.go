@@ -17,9 +17,9 @@ import (
 )
 
 const (
-	maxFee                        = uint64(1)
-	txTimeoutBlockCount           = 10
-	xPartitionTxTimeoutBlockCount = 60 // one minute to do x-partition tx
+	maxFee                            = uint64(1)
+	txTimeoutBlockCount               = 10
+	crossPartitionTxTimeoutBlockCount = 60 // one minute to do cross-partition tx
 )
 
 type (
@@ -136,7 +136,7 @@ func (w *FeeManager) AddFeeCredit(ctx context.Context, cmd AddFeeCmd) (*AddFeeCm
 	if err != nil {
 		return nil, err
 	}
-	userPartitionTimeout := userPartitionRoundNumber + xPartitionTxTimeoutBlockCount
+	userPartitionTimeout := userPartitionRoundNumber + crossPartitionTxTimeoutBlockCount
 
 	// fetch existing locked credit or create new transfer
 	res := &AddFeeCmdResponse{}
@@ -268,7 +268,7 @@ func (w *FeeManager) sendCloseFC(ctx context.Context, k *account.AccountKey, bil
 	if err != nil {
 		return nil, nil, err
 	}
-	userPartitionTimeout := userPartitionRoundNumber + xPartitionTxTimeoutBlockCount
+	userPartitionTimeout := userPartitionRoundNumber + crossPartitionTxTimeoutBlockCount
 
 	// send closeFC tx to user partition
 	log.Info("sending close fee credit transaction")

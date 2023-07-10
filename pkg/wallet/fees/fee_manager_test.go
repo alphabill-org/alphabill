@@ -72,10 +72,12 @@ func TestAddFeeCredit_LockedFeeCredit_OK(t *testing.T) {
 	require.NoError(t, err)
 
 	// then addFC tx must be sent using the existing transferFC
-	require.Len(t, proofs, 1)
-	require.Equal(t, transactions.PayloadTypeAddFeeCredit, proofs[0].TxRecord.TransactionOrder.PayloadType())
+	require.NotNil(t, proofs)
+	require.Nil(t, proofs.TransferFC)
+	require.NotNil(t, proofs.AddFC)
+	require.Equal(t, transactions.PayloadTypeAddFeeCredit, proofs.AddFC.TxRecord.TransactionOrder.PayloadType())
 	actualAttr := &transactions.AddFeeCreditAttributes{}
-	err = proofs[0].TxRecord.TransactionOrder.UnmarshalAttributes(actualAttr)
+	err = proofs.AddFC.TxRecord.TransactionOrder.UnmarshalAttributes(actualAttr)
 	require.NoError(t, err)
 	require.Equal(t, lfc, actualAttr.FeeCreditTransfer)
 }
@@ -101,9 +103,11 @@ func TestAddFeeCredit_LockedFeeCredit_InvalidTimeout(t *testing.T) {
 	require.NoError(t, err)
 
 	// then new transferFC and addFC must be sent
-	require.Len(t, proofs, 2)
-	require.Equal(t, transactions.PayloadTypeTransferFeeCredit, proofs[0].TxRecord.TransactionOrder.PayloadType())
-	require.Equal(t, transactions.PayloadTypeAddFeeCredit, proofs[1].TxRecord.TransactionOrder.PayloadType())
+	require.NotNil(t, proofs)
+	require.NotNil(t, proofs.TransferFC)
+	require.NotNil(t, proofs.AddFC)
+	require.Equal(t, transactions.PayloadTypeTransferFeeCredit, proofs.TransferFC.TxRecord.TransactionOrder.PayloadType())
+	require.Equal(t, transactions.PayloadTypeAddFeeCredit, proofs.AddFC.TxRecord.TransactionOrder.PayloadType())
 }
 
 func TestAddFeeCredit_LockedFeeCredit_InvalidAmount(t *testing.T) {
@@ -149,10 +153,12 @@ func TestAddFeeCredit_ClosedFeeCredit_OK(t *testing.T) {
 	require.NoError(t, err)
 
 	// then reclaimFC tx must be sent using the existing closeFC tx
-	require.Len(t, proofs, 1)
-	require.Equal(t, transactions.PayloadTypeReclaimFeeCredit, proofs[0].TxRecord.TransactionOrder.PayloadType())
+	require.NotNil(t, proofs)
+	require.Nil(t, proofs.CloseFC)
+	require.NotNil(t, proofs.ReclaimFC)
+	require.Equal(t, transactions.PayloadTypeReclaimFeeCredit, proofs.ReclaimFC.TxRecord.TransactionOrder.PayloadType())
 	actualAttr := &transactions.ReclaimFeeCreditAttributes{}
-	err = proofs[0].TxRecord.TransactionOrder.UnmarshalAttributes(actualAttr)
+	err = proofs.ReclaimFC.TxRecord.TransactionOrder.UnmarshalAttributes(actualAttr)
 	require.NoError(t, err)
 	require.Equal(t, cfc, actualAttr.CloseFeeCreditTransfer)
 }
@@ -183,9 +189,11 @@ func TestAddFeeCredit_ClosedFeeCredit_InvalidTargetUnitID(t *testing.T) {
 	require.NoError(t, err)
 
 	// then new closeFC tx must be created
-	require.Len(t, proofs, 2)
-	require.Equal(t, transactions.PayloadTypeCloseFeeCredit, proofs[0].TxRecord.TransactionOrder.PayloadType())
-	require.Equal(t, transactions.PayloadTypeReclaimFeeCredit, proofs[1].TxRecord.TransactionOrder.PayloadType())
+	require.NotNil(t, proofs)
+	require.NotNil(t, proofs.CloseFC)
+	require.NotNil(t, proofs.ReclaimFC)
+	require.Equal(t, transactions.PayloadTypeCloseFeeCredit, proofs.CloseFC.TxRecord.TransactionOrder.PayloadType())
+	require.Equal(t, transactions.PayloadTypeReclaimFeeCredit, proofs.ReclaimFC.TxRecord.TransactionOrder.PayloadType())
 }
 
 func TestAddFeeCredit_ClosedFeeCredit_InvalidTargetTxHash(t *testing.T) {
@@ -214,9 +222,11 @@ func TestAddFeeCredit_ClosedFeeCredit_InvalidTargetTxHash(t *testing.T) {
 	require.NoError(t, err)
 
 	// then new closeFC tx must be created
-	require.Len(t, proofs, 2)
-	require.Equal(t, transactions.PayloadTypeCloseFeeCredit, proofs[0].TxRecord.TransactionOrder.PayloadType())
-	require.Equal(t, transactions.PayloadTypeReclaimFeeCredit, proofs[1].TxRecord.TransactionOrder.PayloadType())
+	require.NotNil(t, proofs)
+	require.NotNil(t, proofs.CloseFC)
+	require.NotNil(t, proofs.ReclaimFC)
+	require.Equal(t, transactions.PayloadTypeCloseFeeCredit, proofs.CloseFC.TxRecord.TransactionOrder.PayloadType())
+	require.Equal(t, transactions.PayloadTypeReclaimFeeCredit, proofs.ReclaimFC.TxRecord.TransactionOrder.PayloadType())
 }
 
 func newMoneyPartitionFeeManager(am account.Manager, moneyTxPublisher TxPublisher, moneyBackendClient MoneyClient) *FeeManager {

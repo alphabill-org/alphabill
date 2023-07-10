@@ -67,6 +67,16 @@ type (
 	ReclaimFeeCmd struct {
 		AccountIndex uint64
 	}
+
+	AddFeeCmdResponse struct {
+		TransferFC *wallet.Proof
+		AddFC      *wallet.Proof
+	}
+
+	ReclaimFeeCmdResponse struct {
+		CloseFC   *wallet.Proof
+		ReclaimFC *wallet.Proof
+	}
 )
 
 // NewFeeManager creates new fee credit manager.
@@ -105,7 +115,7 @@ func NewFeeManager(
 // AddFeeCredit creates fee credit for the given amount.
 // Wallet must have a bill large enough for the required amount plus fees.
 // Returns transferFC and/or addFC transaction proofs.
-func (w *FeeManager) AddFeeCredit(ctx context.Context, cmd AddFeeCmd) ([]*wallet.Proof, error) {
+func (w *FeeManager) AddFeeCredit(ctx context.Context, cmd AddFeeCmd) (*AddFeeCmdResponse, error) {
 	if err := cmd.isValid(); err != nil {
 		return nil, err
 	}
@@ -129,7 +139,7 @@ func (w *FeeManager) AddFeeCredit(ctx context.Context, cmd AddFeeCmd) ([]*wallet
 	userPartitionTimeout := userPartitionRoundNumber + xPartitionTxTimeoutBlockCount
 
 	// fetch existing locked credit or create new transfer
-	var proofs []*wallet.Proof
+	res := &AddFeeCmdResponse{}
 	transferFCProof, err := w.getUnaddedTransferFCProof(ctx, accountKey, fcb, userPartitionRoundNumber, cmd.Amount)
 	if err != nil {
 		return nil, err
@@ -139,7 +149,7 @@ func (w *FeeManager) AddFeeCredit(ctx context.Context, cmd AddFeeCmd) ([]*wallet
 		if err != nil {
 			return nil, err
 		}
-		proofs = append(proofs, transferFCProof) // add transferFC proof only if we create new transferFC
+		res.TransferFC = transferFCProof // add transferFC proof only if we create new transferFC
 	}
 
 	// send addFC to user partition
@@ -152,14 +162,14 @@ func (w *FeeManager) AddFeeCredit(ctx context.Context, cmd AddFeeCmd) ([]*wallet
 	if err != nil {
 		return nil, err
 	}
-	proofs = append(proofs, addFCProof)
-	return proofs, nil
+	res.AddFC = addFCProof
+	return res, nil
 }
 
 // ReclaimFeeCredit reclaims fee credit.
 // Reclaimed fee credit is added to the largest bill in wallet.
 // Returns closeFC and/or reclaimFC transaction proofs.
-func (w *FeeManager) ReclaimFeeCredit(ctx context.Context, cmd ReclaimFeeCmd) ([]*wallet.Proof, error) {
+func (w *FeeManager) ReclaimFeeCredit(ctx context.Context, cmd ReclaimFeeCmd) (*ReclaimFeeCmdResponse, error) {
 	accountKey, err := w.am.GetAccountKey(cmd.AccountIndex)
 	if err != nil {
 		return nil, err
@@ -170,7 +180,7 @@ func (w *FeeManager) ReclaimFeeCredit(ctx context.Context, cmd ReclaimFeeCmd) ([
 	}
 
 	var targetBill *wallet.Bill
-	var proofs []*wallet.Proof
+	res := &ReclaimFeeCmdResponse{}
 
 	// fetch existing closed credit or create new closeFC tx
 	closeFCProof, targetBill, err := w.getUnreclaimedCloseFCProof(ctx, accountKey, bills)
@@ -182,15 +192,15 @@ func (w *FeeManager) ReclaimFeeCredit(ctx context.Context, cmd ReclaimFeeCmd) ([
 		if err != nil {
 			return nil, err
 		}
-		proofs = append(proofs, closeFCProof) // add closeFC proof only if we create new closeFC
+		res.CloseFC = closeFCProof // add closeFC proof only if we create new closeFC
 	}
 
 	reclaimFCProof, err := w.sendReclaimFCTx(ctx, closeFCProof, targetBill, accountKey)
 	if err != nil {
 		return nil, err
 	}
-	proofs = append(proofs, reclaimFCProof)
-	return proofs, nil
+	res.ReclaimFC = reclaimFCProof
+	return res, nil
 }
 
 // GetFeeCredit returns fee credit bill for given account,

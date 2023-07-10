@@ -60,7 +60,7 @@ func (m *CounterTxSystem) StateSummary() (txsystem.State, error) {
 	}, nil
 }
 
-func (m *CounterTxSystem) BeginBlock(_ uint64) error {
+func (m *CounterTxSystem) BeginBlock(_ uint64, _ txsystem.OnTransactionsFunc) error {
 	logger.Debug("CounterTxSystem: BeginBlock()")
 	m.BeginBlockCountDelta++
 	m.ExecuteCountDelta = 0
@@ -79,7 +79,7 @@ func (m *CounterTxSystem) Revert() {
 	m.RevertCount++
 }
 
-func (m *CounterTxSystem) EndBlock() (txsystem.State, error) {
+func (m *CounterTxSystem) EndBlock(_ txsystem.OnTransactionsFunc) (txsystem.State, error) {
 	logger.Debug("CounterTxSystem: EndBlock()")
 	m.EndBlockCountDelta++
 	bytes := make([]byte, 32)

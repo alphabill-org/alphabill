@@ -26,12 +26,12 @@ type Module interface {
 }
 
 type GenericTxSystem struct {
-	systemIdentifier    []byte
-	hashAlgorithm       crypto.Hash
-	state               *state.State
-	logPruner           *state.LogPruner
-	currentBlockNumber  uint64
-	systemGeneratedTxrs []*types.TransactionRecord
+	systemIdentifier   []byte
+	hashAlgorithm      crypto.Hash
+	state              *state.State
+	logPruner          *state.LogPruner
+	currentBlockNumber uint64
+	//systemGeneratedTxrs []*types.TransactionRecord
 	executors           TxExecutors
 	genericTxValidators []GenericTransactionValidator
 	beginBlockFunctions []TxEmitter
@@ -49,7 +49,7 @@ func NewGenericTxSystem(modules []Module, opts ...Option) (*GenericTxSystem, err
 	}
 
 	options := DefaultOptions()
-	options.beginBlockFunctions = append([]TxEmitter{txs.pruneStates}, options.beginBlockFunctions...)
+	options.beginBlockFunctions = append([]TxEmitter{txs.generatePruneStatesTx}, options.beginBlockFunctions...)
 
 	for _, option := range opts {
 		option(options)
@@ -112,22 +112,20 @@ func (m *GenericTxSystem) getState() (State, error) {
 	return NewStateSummary(hash, util.Uint64ToBytes(sv)), nil
 }
 
-func (m *GenericTxSystem) BeginBlock(blockNr uint64) error {
-	m.resetSystemGeneratedTransactions()
-
+func (m *GenericTxSystem) BeginBlock(blockNr uint64, callback OnTransactionsFunc) error {
 	for _, function := range m.beginBlockFunctions {
 		txs, err := function(blockNr)
 		if err != nil {
 			return fmt.Errorf("begin block function call failed: %w", err)
 		}
-		m.systemGeneratedTxrs = append(m.systemGeneratedTxrs, txs...)
+		if callback != nil {
+			if err = callback(txs...); err != nil {
+				return err
+			}
+		}
 	}
 	m.currentBlockNumber = blockNr
 	return nil
-}
-
-func (m *GenericTxSystem) SystemGeneratedTransactions() ([]*types.TransactionRecord, error) {
-	return m.systemGeneratedTxrs, nil
 }
 
 func (m *GenericTxSystem) Execute(tx *types.TransactionOrder) (sm *types.ServerMetadata, err error) {
@@ -193,19 +191,22 @@ func (m *GenericTxSystem) Execute(tx *types.TransactionOrder) (sm *types.ServerM
 	return sm, err
 }
 
-func (m *GenericTxSystem) EndBlock() (State, error) {
+func (m *GenericTxSystem) EndBlock(callback OnTransactionsFunc) (State, error) {
 	for _, function := range m.endBlockFunctions {
 		txs, err := function(m.currentBlockNumber)
 		if err != nil {
 			return nil, fmt.Errorf("end block function call failed: %w", err)
 		}
-		m.systemGeneratedTxrs = append(m.systemGeneratedTxrs, txs...)
+		if callback != nil {
+			if err = callback(txs...); err != nil {
+				return nil, err
+			}
+		}
 	}
 	return m.getState()
 }
 
 func (m *GenericTxSystem) Revert() {
-	m.resetSystemGeneratedTransactions()
 	m.logPruner.Remove(m.currentBlockNumber)
 	m.state.Revert()
 }
@@ -221,16 +222,9 @@ func pruneExecutorFunc(pruner *state.LogPruner) ExecuteFunc {
 	}
 }
 
-func (m *GenericTxSystem) resetSystemGeneratedTransactions() {
-	m.systemGeneratedTxrs = nil
-}
-
-func (m *GenericTxSystem) pruneStates(blockNumber uint64) ([]*types.TransactionRecord, error) {
+func (m *GenericTxSystem) generatePruneStatesTx(blockNumber uint64) ([]*types.TransactionRecord, error) {
 	if m.logPruner.Count(blockNumber-1) == 0 {
 		return nil, nil
-	}
-	if err := m.logPruner.Prune(blockNumber - 1); err != nil {
-		return nil, fmt.Errorf("unable to prune state: %w", err)
 	}
 	return []*types.TransactionRecord{
 		{

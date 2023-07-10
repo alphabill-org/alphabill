@@ -20,10 +20,10 @@ type (
 		StateSummary() (State, error)
 
 		// BeginBlock signals the start of a new block and is invoked before any Execute method calls.
-		BeginBlock(uint64) error
+		BeginBlock(uint64, OnTransactionsFunc) error
 
 		// SystemGeneratedTransactions returns a list of validator generated transactions.
-		SystemGeneratedTransactions() ([]*types.TransactionRecord, error)
+		//SystemGeneratedTransactions() ([]*types.TransactionRecord, error)
 
 		// Execute method executes the transaction order. An error must be returned if the transaction order execution
 		// was not successful.
@@ -31,7 +31,7 @@ type (
 
 		// EndBlock signals the end of the block and is called after all transactions have been delivered to the
 		// transaction system.
-		EndBlock() (State, error)
+		EndBlock(OnTransactionsFunc) (State, error)
 
 		// Revert signals the unsuccessful consensus round. When called the transaction system must revert all the changes
 		// made during the BeginBlock, ValidatorGeneratedTransactions, EndBlock, and Execute method calls.
@@ -42,6 +42,8 @@ type (
 		// EndBlock, and Execute method calls.
 		Commit() error
 	}
+
+	OnTransactionsFunc func(...*types.TransactionRecord) error
 
 	// State represents the root hash and summary value of the transaction system.
 	State interface {

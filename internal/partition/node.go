@@ -265,9 +265,22 @@ func verifyTxSystemState(state txsystem.State, sumOfEarnedFees uint64, ucIR *typ
 	return nil
 }
 
+func (n *Node) onSystemGeneratedTransactions(txs ...*types.TransactionRecord) error {
+	for _, tx := range txs {
+		err := n.process(tx.TransactionOrder, n.getCurrentRound())
+		if err != nil {
+			return fmt.Errorf("system generated tx '%v' execution error, %w", tx, err)
+		}
+	}
+	return nil
+}
+
 func (n *Node) applyBlockTransactions(round uint64, txs []*types.TransactionRecord) (txsystem.State, uint64, error) {
 	var sumOfEarnedFees uint64
-	n.transactionSystem.BeginBlock(round)
+	err := n.transactionSystem.BeginBlock(round, n.onSystemGeneratedTransactions)
+	if err != nil {
+		return nil, 0, err
+	}
 	for _, tx := range txs {
 		sm, err := n.validateAndExecuteTx(tx.TransactionOrder, round)
 		if err != nil {
@@ -275,7 +288,7 @@ func (n *Node) applyBlockTransactions(round uint64, txs []*types.TransactionReco
 		}
 		sumOfEarnedFees += sm.ActualFee
 	}
-	state, err := n.transactionSystem.EndBlock()
+	state, err := n.transactionSystem.EndBlock(n.onSystemGeneratedTransactions)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -544,13 +557,18 @@ func (n *Node) handleBlockProposal(ctx context.Context, prop *blockproposal.Bloc
 	if !bytes.Equal(prevHash, txState.Root()) {
 		return fmt.Errorf("tx system start state mismatch error, expected: %X, got: %X", txState.Root(), prevHash)
 	}
-	n.transactionSystem.BeginBlock(n.getCurrentRound())
+
+	n.transactionSystem.BeginBlock(n.getCurrentRound(), n.onSystemGeneratedTransactions)
 	for _, tx := range prop.Transactions {
 		if err = n.process(tx.TransactionOrder, n.getCurrentRound()); err != nil {
 			return fmt.Errorf("transaction error %w", err)
 		}
 	}
-	if err = n.sendCertificationRequest(prop.NodeIdentifier); err != nil {
+	state, err := n.transactionSystem.EndBlock(n.onSystemGeneratedTransactions)
+	if err != nil {
+		return fmt.Errorf("tx system failed to end block, %w", err)
+	}
+	if err = n.sendCertificationRequest(prop.NodeIdentifier, state); err != nil {
 		return fmt.Errorf("certification request send failed, %w", err)
 	}
 	return nil
@@ -583,7 +601,7 @@ func (n *Node) startNewRound(ctx context.Context, uc *types.UnicityCertificate) 
 	n.status.Store(normal)
 	newRoundNr := uc.InputRecord.RoundNumber + 1
 	n.leaderSelector.UpdateLeader(uc)
-	n.transactionSystem.BeginBlock(newRoundNr)
+	n.transactionSystem.BeginBlock(newRoundNr, n.onSystemGeneratedTransactions)
 	n.proposedTransactions = []*types.TransactionRecord{}
 	n.pendingBlockProposal = nil
 	n.sumOfEarnedFees = 0
@@ -787,17 +805,16 @@ func (n *Node) handleT1TimeoutEvent() {
 	}
 	logger.Debug("Current node is the leader.")
 
-	txrs, err := n.transactionSystem.SystemGeneratedTransactions()
+	state, err := n.transactionSystem.EndBlock(n.onSystemGeneratedTransactions)
 	if err != nil {
-		logger.Warning("Failed to get validator generated transactions: %w", err)
+		panic(fmt.Errorf("tx system failed to end block, %w", err))
 	}
-	n.proposedTransactions = append(n.proposedTransactions, txrs...)
 
 	if err := n.sendBlockProposal(); err != nil {
 		logger.Warning("Failed to send BlockProposal: %v", err)
 		return
 	}
-	if err := n.sendCertificationRequest(n.leaderSelector.SelfID().String()); err != nil {
+	if err := n.sendCertificationRequest(n.leaderSelector.SelfID().String(), state); err != nil {
 		logger.Warning("Failed to send certification request: %v", err)
 	}
 }
@@ -1054,26 +1071,24 @@ func (n *Node) persistBlockProposal(pr *pendingBlockProposal) error {
 	return nil
 }
 
-func (n *Node) sendCertificationRequest(blockAuthor string) error {
+func (n *Node) sendCertificationRequest(blockAuthor string, state txsystem.State) error {
 	defer trackExecutionTime(time.Now(), "Sending CertificationRequest")
 	systemIdentifier := n.configuration.GetSystemIdentifier()
 	nodeId := n.leaderSelector.SelfID()
 	prevStateHash := n.luc.Load().InputRecord.Hash
-	state, err := n.transactionSystem.EndBlock()
-	if err != nil {
-		return fmt.Errorf("tx system failed to end block, %w", err)
-	}
+	round := n.getCurrentRound()
+
 	stateHash := state.Root()
 	summary := state.Summary()
 	pendingProposal := &pendingBlockProposal{
 		ProposerNodeId:  blockAuthor,
-		RoundNumber:     n.getCurrentRound(),
+		RoundNumber:     round,
 		PrevHash:        prevStateHash,
 		StateHash:       stateHash,
 		Transactions:    n.proposedTransactions,
 		SumOfEarnedFees: n.sumOfEarnedFees,
 	}
-	if err = n.persistBlockProposal(pendingProposal); err != nil {
+	if err := n.persistBlockProposal(pendingProposal); err != nil {
 		logger.Error("failed to store proposal, %v", err)
 		return fmt.Errorf("failed to store pending block proposal, %w", err)
 	}

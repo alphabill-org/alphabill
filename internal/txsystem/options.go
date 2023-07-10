@@ -12,6 +12,7 @@ type Options struct {
 	state               *state.State
 	beginBlockFunctions []TxEmitter
 	endBlockFunctions   []TxEmitter
+	systemGeneratedTxs  map[string]bool
 }
 
 type Option func(*Options)
@@ -22,6 +23,15 @@ func DefaultOptions() *Options {
 		state:               state.NewEmptyState(),
 		beginBlockFunctions: make([]TxEmitter, 0),
 		endBlockFunctions:   make([]TxEmitter, 0),
+		systemGeneratedTxs:  make(map[string]bool),
+	}
+}
+
+func WithSystemGeneratedTxs(txs map[string]bool) Option {
+	return func(g *Options) {
+		for k, v := range txs {
+			g.systemGeneratedTxs[k] = v
+		}
 	}
 }
 

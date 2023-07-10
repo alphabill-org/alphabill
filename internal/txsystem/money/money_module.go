@@ -74,7 +74,7 @@ func NewMoneyModule(options *Options) (m *Module, err error) {
 		trustBase:           options.trustBase,
 		hashAlgorithm:       options.hashAlgorithm,
 		feeCreditTxRecorder: newFeeCreditTxRecorder(s, options.systemIdentifier, options.systemDescriptionRecords),
-		dustCollector:       NewDustCollector(s),
+		dustCollector:       NewDustCollector(s, options.systemIdentifier),
 		feeCalculator:       options.feeCalculator,
 	}
 	return
@@ -87,6 +87,9 @@ func (m *Module) TxExecutors() map[string]txsystem.TxExecutor {
 		PayloadTypeSplit:    handleSplitTx(m.state, m.hashAlgorithm, m.feeCalculator),
 		PayloadTypeTransDC:  handleTransferDCTx(m.state, m.dustCollector, m.hashAlgorithm, m.feeCalculator),
 		PayloadTypeSwapDC:   handleSwapDCTx(m.state, m.hashAlgorithm, m.trustBase, m.feeCalculator),
+
+		// system generated tx handlers
+		PayloadTypePruneDC: m.dustCollector.handleDust(),
 
 		// fee credit related transaction handlers (credit transfers and reclaims only!)
 		transactions.PayloadTypeTransferFeeCredit: handleTransferFeeCreditTx(m.state, m.hashAlgorithm, m.feeCreditTxRecorder, m.feeCalculator),
@@ -105,7 +108,7 @@ func (m *Module) BeginBlockFuncs() []txsystem.TxEmitter {
 
 func (m *Module) EndBlockFuncs() []txsystem.TxEmitter {
 	return []txsystem.TxEmitter{
-		m.dustCollector.consolidateDust,
+		m.dustCollector.generateDcTx,
 		func(blockNr uint64) ([]*types.TransactionRecord, error) {
 			return nil, m.feeCreditTxRecorder.consolidateFees()
 		},

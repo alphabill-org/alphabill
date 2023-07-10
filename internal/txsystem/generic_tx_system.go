@@ -26,12 +26,12 @@ type Module interface {
 }
 
 type GenericTxSystem struct {
-	systemIdentifier   []byte
-	hashAlgorithm      crypto.Hash
-	state              *state.State
-	logPruner          *state.LogPruner
-	currentBlockNumber uint64
-	//systemGeneratedTxrs []*types.TransactionRecord
+	systemIdentifier    []byte
+	hashAlgorithm       crypto.Hash
+	state               *state.State
+	logPruner           *state.LogPruner
+	currentBlockNumber  uint64
+	systemGeneratedTxs  map[string]bool
 	executors           TxExecutors
 	genericTxValidators []GenericTransactionValidator
 	beginBlockFunctions []TxEmitter
@@ -48,8 +48,10 @@ func NewGenericTxSystem(modules []Module, opts ...Option) (*GenericTxSystem, err
 		genericTxValidators: []GenericTransactionValidator{},
 	}
 
+	opts = append(opts, WithSystemGeneratedTxs(txs.systemGeneratedTxs))
+	opts = append(opts, WithBeginBlockFunctions([]TxEmitter{txs.generatePruneStatesTx}))
+
 	options := DefaultOptions()
-	options.beginBlockFunctions = append([]TxEmitter{txs.generatePruneStatesTx}, options.beginBlockFunctions...)
 
 	for _, option := range opts {
 		option(options)
@@ -61,6 +63,7 @@ func NewGenericTxSystem(modules []Module, opts ...Option) (*GenericTxSystem, err
 	txs.logPruner = state.NewLogPruner(options.state)
 	txs.beginBlockFunctions = options.beginBlockFunctions
 	txs.endBlockFunctions = options.endBlockFunctions
+	txs.systemGeneratedTxs = options.systemGeneratedTxs
 
 	for _, module := range modules {
 		validator := module.GenericTransactionValidator()
@@ -129,9 +132,10 @@ func (m *GenericTxSystem) BeginBlock(blockNr uint64, callback OnTransactionsFunc
 }
 
 func (m *GenericTxSystem) Execute(tx *types.TransactionOrder) (sm *types.ServerMetadata, err error) {
-	if tx.PayloadType() == PayloadTypePruneStates {
+	if m.systemGeneratedTxs[tx.PayloadType()] {
 		return m.executors.Execute(tx, m.currentBlockNumber)
 	}
+
 	u, _ := m.state.GetUnit(tx.UnitID(), false)
 	ctx := &TxValidationContext{
 		Tx:               tx,

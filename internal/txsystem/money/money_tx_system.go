@@ -27,8 +27,10 @@ func NewTxSystem(opts ...Option) (*txsystem.GenericTxSystem, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to load fee credit module: %w", err)
 	}
+
 	return txsystem.NewGenericTxSystem(
 		[]txsystem.Module{money, feeCreditModule},
+		txsystem.WithSystemGeneratedTxs(map[string]bool{PayloadTypePruneDC: true}),
 		txsystem.WithEndBlockFunctions(money.EndBlockFuncs()),
 		txsystem.WithBeginBlockFunctions(money.BeginBlockFuncs()),
 		txsystem.WithSystemIdentifier(options.systemIdentifier),

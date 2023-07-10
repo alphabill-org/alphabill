@@ -750,6 +750,47 @@ func TestBlockingDCWithExistingExpiredDCBills(t *testing.T) {
 	}
 }
 
+func TestDustCollectionNotEnoughFeeCredit(t *testing.T) {
+	// create wallet with 2 normal bills but only enough fee credit for 1 tx
+	am, err := account.NewManager(t.TempDir(), "", true)
+	require.NoError(t, err)
+	_ = am.CreateKeys("")
+	bills := []*Bill{addBill(1), addBill(2)}
+	billsList := createBillListResponse(bills, nil)
+
+	billListCallFlag := false
+	backendMock := &backendAPIMock{
+		getRoundNumber: func() (uint64, error) {
+			return 0, nil
+		},
+		listBills: func(pubKey []byte, includeDCBills, includeDCMetadata bool) (*backend.ListBillsResponse, error) {
+			if billListCallFlag {
+				return createBillListResponse([]*Bill{addBill(3)}, nil), nil
+			}
+			billListCallFlag = true
+			return billsList, nil
+		},
+		getFeeCreditBill: func(ctx context.Context, unitID []byte) (*wallet.Bill, error) {
+			k, _ := am.GetAccountKey(0)
+			return &wallet.Bill{
+				Id:    k.PrivKeyHash,
+				Value: txbuilder.MaxFee,
+			}, nil
+		},
+		postTransactions: func(ctx context.Context, pubKey wallet.PubKey, txs *wallet.Transactions) error {
+			return errors.New("no transaction should be submitted")
+		},
+	}
+
+	w, _ := CreateTestWalletWithManager(t, backendMock, am)
+
+	// when dc runs
+	err = w.collectDust(context.Background(), 0)
+
+	// wallet returns insufficient fee credit error and no tx is submitted
+	require.ErrorIs(t, err, ErrInsufficientFeeCredit)
+}
+
 func addBill(value uint64) *Bill {
 	b1 := Bill{
 		Id:      uint256.NewInt(value),

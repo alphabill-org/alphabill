@@ -48,8 +48,8 @@ func NewGenericTxSystem(modules []Module, opts ...Option) (*GenericTxSystem, err
 		genericTxValidators: []GenericTransactionValidator{},
 	}
 
-	opts = append(opts, WithSystemGeneratedTxs(txs.systemGeneratedTxs))
-	opts = append(opts, WithBeginBlockFunctions([]TxEmitter{txs.generatePruneStatesTx}))
+	opts = append(opts, WithSystemGeneratedTxTypes(PayloadTypePruneStates))
+	opts = append(opts, WithBeginBlockFunctions(txs.generatePruneStatesTx))
 
 	options := DefaultOptions()
 

@@ -27,21 +27,21 @@ func DefaultOptions() *Options {
 	}
 }
 
-func WithSystemGeneratedTxs(txs map[string]bool) Option {
+func WithSystemGeneratedTxTypes(payloadTypes ...string) Option {
 	return func(g *Options) {
-		for k, v := range txs {
-			g.systemGeneratedTxs[k] = v
+		for _, payloadType := range payloadTypes {
+			g.systemGeneratedTxs[payloadType] = true
 		}
 	}
 }
 
-func WithBeginBlockFunctions(funcs []TxEmitter) Option {
+func WithBeginBlockFunctions(funcs ...TxEmitter) Option {
 	return func(g *Options) {
 		g.beginBlockFunctions = append(g.beginBlockFunctions, funcs...)
 	}
 }
 
-func WithEndBlockFunctions(funcs []TxEmitter) Option {
+func WithEndBlockFunctions(funcs ...TxEmitter) Option {
 	return func(g *Options) {
 		g.endBlockFunctions = append(g.endBlockFunctions, funcs...)
 	}

@@ -40,7 +40,7 @@ type (
 		Commit() error
 	}
 
-	OnTransactionsFunc func(...*types.TransactionRecord) error
+	OnTransactionsFunc func(uint64, ...*types.TransactionRecord) error
 
 	// State represents the root hash and summary value of the transaction system.
 	State interface {

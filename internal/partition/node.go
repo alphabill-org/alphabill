@@ -265,9 +265,9 @@ func verifyTxSystemState(state txsystem.State, sumOfEarnedFees uint64, ucIR *typ
 	return nil
 }
 
-func (n *Node) onSystemGeneratedTransactions(txs ...*types.TransactionRecord) error {
+func (n *Node) onSystemGeneratedTransactions(round uint64, txs ...*types.TransactionRecord) error {
 	for _, tx := range txs {
-		err := n.process(tx.TransactionOrder, n.getCurrentRound())
+		err := n.process(tx.TransactionOrder, round)
 		if err != nil {
 			return fmt.Errorf("system generated tx '%v' execution error, %w", tx, err)
 		}

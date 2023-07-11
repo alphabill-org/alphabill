@@ -122,7 +122,7 @@ func (m *GenericTxSystem) BeginBlock(blockNr uint64, callback OnTransactionsFunc
 			return fmt.Errorf("begin block function call failed: %w", err)
 		}
 		if callback != nil {
-			if err = callback(txs...); err != nil {
+			if err = callback(blockNr, txs...); err != nil {
 				return err
 			}
 		}
@@ -202,7 +202,7 @@ func (m *GenericTxSystem) EndBlock(callback OnTransactionsFunc) (State, error) {
 			return nil, fmt.Errorf("end block function call failed: %w", err)
 		}
 		if callback != nil {
-			if err = callback(txs...); err != nil {
+			if err = callback(m.currentBlockNumber, txs...); err != nil {
 				return nil, err
 			}
 		}

@@ -215,9 +215,19 @@ func TestStoreDCMetadata_OK(t *testing.T) {
 }
 
 func Test_extractOwnerFromProof(t *testing.T) {
-	sig := test.RandomBytes(64)
-	pubkey := test.RandomBytes(32)
+	sig := test.RandomBytes(65)
+	pubkey := test.RandomBytes(33)
 	predicate := script.PredicateArgumentPayToPublicKeyHashDefault(sig, pubkey)
 	owner := extractOwnerKeyFromProof(predicate)
 	require.EqualValues(t, pubkey, owner)
+	k1 := "0x535401099C0E835B9C9B62CA5E321E796D445DDBD80626BA600EBBCF3C647D7FBD2FFE2758ACC7476B38783365B7274A385EFC7CFFC3EB63A696928EBDBD4D5516078F00550103D8242EE6544CC1F98EA8B8E572D089A95917800A37E3207A725DECDAD6002E52"
+	k2 := "0x535401090300B7CDC7F75A9E51998EA5C52A7014979BAD2205C8DD0552BF16C4F273E0723CD87CD6C4C8AEF33E7B659EE8FD897D6E8A1CEB89E8E4C2C94ACEB2FEF7CF00550102E2CF1D2C5E0CD7EFD27DBA8B21225E6866B185E97E8A415ACC6FC9CB57743B3A"
+	k1bytes, err := hexutil.Decode(k1)
+	require.NoError(t, err)
+	k2bytes, err := hexutil.Decode(k2)
+	require.NoError(t, err)
+	owner1 := extractOwnerKeyFromProof(k1bytes)
+	require.NotNil(t, owner1)
+	owner2 := extractOwnerKeyFromProof(k2bytes)
+	require.NotNil(t, owner2)
 }

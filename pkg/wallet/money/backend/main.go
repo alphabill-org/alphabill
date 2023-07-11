@@ -373,8 +373,8 @@ func extractOwnerHashFromP2pkh(bearer sdk.Predicate) sdk.PubKeyHash {
 }
 
 func extractOwnerKeyFromProof(signature sdk.Predicate) sdk.PubKey {
-	if len(signature) == 101 && signature[67] == script.OpPushPubKey && signature[68] == script.SigSchemeSecp256k1 {
-		return sdk.PubKey(signature[69:101])
+	if len(signature) == 103 && signature[68] == script.OpPushPubKey && signature[69] == script.SigSchemeSecp256k1 {
+		return sdk.PubKey(signature[70:])
 	}
 	return nil
 }

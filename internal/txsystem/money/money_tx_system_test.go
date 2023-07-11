@@ -301,12 +301,21 @@ func TestEndBlock_DustBillsAreRemoved(t *testing.T) {
 	require.Equal(t, uint64(10), newBillData.V)
 	_, dustBill := getBill(t, rmaTree, dustCollectorMoneySupplyID)
 	require.Equal(t, uint64(10), initialDustCollectorMoneyAmount-dustBill.V)
-	_, err = txSystem.EndBlock(nil)
+
+	sysGenTxrsCallback := func(u uint64, records ...*types.TransactionRecord) error {
+		for _, txr := range records {
+			_, err = txSystem.Execute(txr.TransactionOrder)
+			require.NoError(t, err)
+		}
+		return nil
+	}
+	_, err = txSystem.EndBlock(sysGenTxrsCallback)
+
 	require.NoError(t, err)
 	txSystem.Commit()
 
 	txSystem.BeginBlock(defaultDustBillDeletionTimeout+10, nil)
-	_, err = txSystem.EndBlock(nil)
+	_, err = txSystem.EndBlock(sysGenTxrsCallback)
 	require.NoError(t, err)
 	txSystem.Commit()
 

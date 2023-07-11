@@ -16,9 +16,8 @@ import (
 )
 
 const (
-	billIdCmdName        = "bill-id"
-	outputPathCmdName    = "output-path"
-	trustBaseFileCmdName = "trust-base-file"
+	billIdCmdName     = "bill-id"
+	outputPathCmdName = "output-path"
 )
 
 type (

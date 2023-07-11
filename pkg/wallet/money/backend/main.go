@@ -2,6 +2,7 @@ package backend
 
 import (
 	"context"
+	"crypto"
 	"encoding/hex"
 	"fmt"
 	"math/rand"
@@ -34,11 +35,14 @@ type (
 		GetBills(ownerCondition []byte) ([]*Bill, error)
 		GetBill(unitID []byte) (*Bill, error)
 		GetFeeCreditBill(unitID []byte) (*Bill, error)
+		GetLockedFeeCredit(systemID, fcbID []byte) (*types.TransactionRecord, error)
+		GetClosedFeeCredit(fcbID []byte) (*types.TransactionRecord, error)
 		GetRoundNumber(ctx context.Context) (uint64, error)
 		SendTransactions(ctx context.Context, txs []*types.TransactionOrder) map[string]string
 		GetTxProof(unitID sdk.UnitID, txHash sdk.TxHash) (*sdk.Proof, error)
 		GetDCMetadata(nonce []byte) (*DCMetadata, error)
-		StoreDCMetadata(txs []*types.TransactionOrder) error
+		HandleTransactionsSubmission(egp *errgroup.Group, sender sdk.PubKey, txs []*types.TransactionOrder)
+		GetTxHistoryRecords(hash sdk.PubKeyHash, dbStartKey []byte, count int) ([]*sdk.TxHistoryRecord, []byte, error)
 	}
 
 	WalletBackend struct {
@@ -54,13 +58,12 @@ type (
 		Id             []byte `json:"id"`
 		Value          uint64 `json:"value"`
 		TxHash         []byte `json:"txHash"`
-		TxRecordHash   []byte `json:"txRecordHash"`
 		DcNonce        []byte `json:"dcNonce,omitempty"`
 		OwnerPredicate []byte `json:"ownerPredicate"`
 
 		// fcb specific fields
-		// AddFCTxHash last add fee credit tx hash
-		AddFCTxHash []byte `json:"addFcTxHash,omitempty"`
+		// LastAddFCTxHash last add fee credit tx hash
+		LastAddFCTxHash []byte `json:"lastAddFcTxHash,omitempty"`
 	}
 
 	Pubkey struct {
@@ -86,12 +89,18 @@ type (
 		DeleteExpiredBills(blockNumber uint64) error
 		GetFeeCreditBill(unitID []byte) (*Bill, error)
 		SetFeeCreditBill(fcb *Bill, proof *sdk.Proof) error
+		GetLockedFeeCredit(systemID, fcbID []byte) (*types.TransactionRecord, error)
+		SetLockedFeeCredit(systemID, fcbID []byte, txr *types.TransactionRecord) error
+		GetClosedFeeCredit(unitID []byte) (*types.TransactionRecord, error)
+		SetClosedFeeCredit(unitID []byte, txr *types.TransactionRecord) error
 		GetSystemDescriptionRecords() ([]*genesis.SystemDescriptionRecord, error)
 		SetSystemDescriptionRecords(sdrs []*genesis.SystemDescriptionRecord) error
 		GetTxProof(unitID sdk.UnitID, txHash sdk.TxHash) (*sdk.Proof, error)
 		GetDCMetadata(nonce []byte) (*DCMetadata, error)
 		SetDCMetadata(nonce []byte, data *DCMetadata) error
 		DeleteDCMetadata(nonce []byte) error
+		StoreTxHistoryRecord(hash sdk.PubKeyHash, rec *sdk.TxHistoryRecord) error
+		GetTxHistoryRecords(hash sdk.PubKeyHash, dbStartKey []byte, count int) ([]*sdk.TxHistoryRecord, []byte, error)
 	}
 
 	p2pkhOwnerPredicates struct {
@@ -253,6 +262,16 @@ func (w *WalletBackend) GetFeeCreditBill(unitID []byte) (*Bill, error) {
 	return w.store.Do().GetFeeCreditBill(unitID)
 }
 
+// GetLockedFeeCredit returns most recently seen transferFC transaction for given system ID and fee credit bill ID.
+func (w *WalletBackend) GetLockedFeeCredit(systemID, fcbID []byte) (*types.TransactionRecord, error) {
+	return w.store.Do().GetLockedFeeCredit(systemID, fcbID)
+}
+
+// GetClosedFeeCredit returns most recently seen closeFC transaction for given fee credit bill ID.
+func (w *WalletBackend) GetClosedFeeCredit(fcbID []byte) (*types.TransactionRecord, error) {
+	return w.store.Do().GetClosedFeeCredit(fcbID)
+}
+
 // GetRoundNumber returns latest round number.
 func (w *WalletBackend) GetRoundNumber(ctx context.Context) (uint64, error) {
 	return w.genericWallet.GetRoundNumber(ctx)
@@ -291,7 +310,76 @@ func (w *WalletBackend) SendTransactions(ctx context.Context, txs []*types.Trans
 	return errs
 }
 
-func (w *WalletBackend) StoreDCMetadata(txs []*types.TransactionOrder) error {
+func (w *WalletBackend) GetTxHistoryRecords(hash sdk.PubKeyHash, dbStartKey []byte, count int) ([]*sdk.TxHistoryRecord, []byte, error) {
+	return w.store.Do().GetTxHistoryRecords(hash, dbStartKey, count)
+}
+
+func (w *WalletBackend) HandleTransactionsSubmission(egp *errgroup.Group, sender sdk.PubKey, txs []*types.TransactionOrder) {
+	egp.Go(func() error { return w.storeDCMetadata(txs) })
+	egp.Go(func() error { return w.storeIncomingTransactions(sender, txs) })
+}
+
+func (w *WalletBackend) storeIncomingTransactions(sender sdk.PubKey, txs []*types.TransactionOrder) error {
+	for _, tx := range txs {
+		var newOwner sdk.Predicate
+		switch tx.PayloadType() {
+		case money.PayloadTypeTransfer:
+			attrs := &money.TransferAttributes{}
+			err := tx.UnmarshalAttributes(attrs)
+			if err != nil {
+				return err
+			}
+			newOwner = attrs.NewBearer
+		case money.PayloadTypeSplit:
+			attrs := &money.SplitAttributes{}
+			err := tx.UnmarshalAttributes(attrs)
+			if err != nil {
+				return err
+			}
+			newOwner = attrs.TargetBearer
+		default:
+			continue
+		}
+
+		rec := &sdk.TxHistoryRecord{
+			UnitID:       tx.UnitID(),
+			TxHash:       tx.Hash(crypto.SHA256),
+			Timeout:      tx.Timeout(),
+			State:        sdk.UNCONFIRMED,
+			Kind:         sdk.OUTGOING,
+			CounterParty: extractOwnerHashFromP2pkh(newOwner),
+		}
+		if err := w.store.Do().StoreTxHistoryRecord(sender.Hash(), rec); err != nil {
+			return fmt.Errorf("failed to store tx history record: %w", err)
+		}
+	}
+	return nil
+}
+
+// extractOwnerFromP2pkh extracts owner from p2pkh predicate.
+func extractOwnerHashFromP2pkh(bearer sdk.Predicate) sdk.PubKeyHash {
+	// p2pkh owner predicate must be 10 + (32 or 64) (SHA256 or SHA512) bytes long
+	if len(bearer) != 42 && len(bearer) != 74 {
+		return nil
+	}
+	// 6th byte is HashAlgo 0x01 or 0x02 for SHA256 and SHA512 respectively
+	hashAlgo := bearer[5]
+	if hashAlgo == script.HashAlgSha256 {
+		return sdk.PubKeyHash(bearer[6:38])
+	} else if hashAlgo == script.HashAlgSha512 {
+		return sdk.PubKeyHash(bearer[6:70])
+	}
+	return nil
+}
+
+func extractOwnerKeyFromProof(signature sdk.Predicate) sdk.PubKey {
+	if len(signature) == 101 && signature[67] == script.OpPushPubKey && signature[68] == script.SigSchemeSecp256k1 {
+		return sdk.PubKey(signature[69:101])
+	}
+	return nil
+}
+
+func (w *WalletBackend) storeDCMetadata(txs []*types.TransactionOrder) error {
 	dcMetadataMap := make(map[string]*DCMetadata)
 	for _, tx := range txs {
 		if tx.PayloadType() == money.PayloadTypeTransDC {
@@ -324,12 +412,11 @@ func (w *WalletBackend) GetDCMetadata(nonce []byte) (*DCMetadata, error) {
 
 func (b *Bill) ToGenericBill() *sdk.Bill {
 	return &sdk.Bill{
-		Id:           b.Id,
-		Value:        b.Value,
-		TxHash:       b.TxHash,
-		TxRecordHash: b.TxRecordHash,
-		DcNonce:      b.DcNonce,
-		AddFCTxHash:  b.AddFCTxHash,
+		Id:              b.Id,
+		Value:           b.Value,
+		TxHash:          b.TxHash,
+		DcNonce:         b.DcNonce,
+		LastAddFCTxHash: b.LastAddFCTxHash,
 	}
 }
 
@@ -355,9 +442,9 @@ func (b *Bill) getValue() uint64 {
 	return 0
 }
 
-func (b *Bill) getAddFCTxHash() []byte {
+func (b *Bill) getLastAddFCTxHash() []byte {
 	if b != nil {
-		return b.AddFCTxHash
+		return b.LastAddFCTxHash
 	}
 	return nil
 }

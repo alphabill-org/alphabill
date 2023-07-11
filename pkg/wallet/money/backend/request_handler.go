@@ -34,11 +34,10 @@ type (
 	}
 
 	ListBillVM struct {
-		Id           []byte `json:"id" swaggertype:"string" format:"base64" example:"AAAAAAgwv3UA1HfGO4qc1T3I3EOvqxfcrhMjJpr9Tn4="`
-		Value        uint64 `json:"value,string" example:"1000"`
-		TxHash       []byte `json:"txHash" swaggertype:"string" format:"base64" example:"Q4ShCITC0ODXPR+j1Zl/teYcoU3/mAPy0x8uSsvQFM8="`
-		TxRecordHash []byte `json:"txRecordHash" swaggertype:"string" format:"base64" example:"Q4ShCITC0ODXPR+j1Zl/teYcoU3/mAPy0x8uSsvQFM8="`
-		DcNonce      []byte `json:"dcNonce" swaggertype:"string" format:"base64" example:"YWZhIHNmc2RmYXNkZmFzIGRmc2FzZiBhc2RmIGFzZGZzYSBkZg=="`
+		Id      []byte `json:"id" swaggertype:"string" format:"base64" example:"AAAAAAgwv3UA1HfGO4qc1T3I3EOvqxfcrhMjJpr9Tn4="`
+		Value   uint64 `json:"value,string" example:"1000"`
+		TxHash  []byte `json:"txHash" swaggertype:"string" format:"base64" example:"Q4ShCITC0ODXPR+j1Zl/teYcoU3/mAPy0x8uSsvQFM8="`
+		DcNonce []byte `json:"dcNonce" swaggertype:"string" format:"base64" example:"YWZhIHNmc2RmYXNkZmFzIGRmc2FzZiBhc2RmIGFzZGZzYSBkZg=="`
 	}
 
 	BalanceResponse struct {
@@ -72,9 +71,12 @@ func (api *moneyRestAPI) Router() *mux.Router {
 	apiV1 := apiRouter.PathPrefix("/v1").Subrouter()
 	apiV1.HandleFunc("/list-bills", api.listBillsFunc).Methods("GET", "OPTIONS")
 	apiV1.HandleFunc("/balance", api.balanceFunc).Methods("GET", "OPTIONS")
+	apiV1.HandleFunc("/tx-history/{pubkey}", api.txHistoryFunc).Methods("GET", "OPTIONS")
 	apiV1.HandleFunc("/units/{unitId}/transactions/{txHash}/proof", api.getTxProof).Methods("GET", "OPTIONS")
 	apiV1.HandleFunc("/round-number", api.blockHeightFunc).Methods("GET", "OPTIONS")
 	apiV1.HandleFunc("/fee-credit-bills/{billId}", api.getFeeCreditBillFunc).Methods("GET", "OPTIONS")
+	apiV1.HandleFunc("/locked-fee-credit/{systemId}/{billId}", api.getLockedFeeCreditFunc).Methods("GET", "OPTIONS")
+	apiV1.HandleFunc("/closed-fee-credit/{billId}", api.getClosedFeeCreditFunc).Methods("GET", "OPTIONS")
 	apiV1.HandleFunc("/transactions/{pubkey}", api.postTransactions).Methods("POST", "OPTIONS")
 
 	apiV1.PathPrefix("/swagger/").Handler(httpSwagger.Handler(
@@ -178,6 +180,59 @@ func (api *moneyRestAPI) listBillsFunc(w http.ResponseWriter, r *http.Request) {
 	}
 	billVMs := toBillVMList(filteredBills)
 	api.rw.WriteResponse(w, &ListBillsResponse{Bills: billVMs[offset : offset+limit], Total: len(billVMs), DCMetadata: dcMetadataMap})
+}
+
+func (api *moneyRestAPI) txHistoryFunc(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	senderPubkey, err := sdk.DecodePubKeyHex(vars["pubkey"])
+	if err != nil {
+		api.rw.InvalidParamResponse(w, "pubkey", fmt.Errorf("failed to parse sender pubkey: %w", err))
+		return
+	}
+	qp := r.URL.Query()
+	startKey, err := sdk.ParseHex[[]byte](qp.Get(sdk.QueryParamOffsetKey), false)
+	if err != nil {
+		api.rw.InvalidParamResponse(w, sdk.QueryParamOffsetKey, err)
+		return
+	}
+
+	limit, err := sdk.ParseMaxResponseItems(qp.Get(sdk.QueryParamLimit), api.ListBillsPageLimit)
+	if err != nil {
+		api.rw.InvalidParamResponse(w, sdk.QueryParamLimit, err)
+		return
+	}
+	recs, nextKey, err := api.Service.GetTxHistoryRecords(senderPubkey.Hash(), startKey, limit)
+	if err != nil {
+		log.Error("error on GET /tx-history: ", err)
+		api.rw.WriteErrorResponse(w, fmt.Errorf("unable to fetch tx history records: %w", err))
+		return
+	}
+	// check if unconfirmed tx-s are now confirmed or failed
+	var roundNr uint64 = 0
+	for _, rec := range recs {
+		// TODO: update db if stage changes to confirmed or failed
+		if rec.State == sdk.UNCONFIRMED {
+			proof, err := api.Service.GetTxProof(rec.UnitID, rec.TxHash)
+			if err != nil {
+				api.rw.WriteErrorResponse(w, fmt.Errorf("failed to fetch tx proof: %w", err))
+			}
+			if proof != nil {
+				rec.State = sdk.CONFIRMED
+			} else {
+				if roundNr == 0 {
+					roundNr, err = api.Service.GetRoundNumber(r.Context())
+					if err != nil {
+						api.rw.WriteErrorResponse(w, fmt.Errorf("unable to fetch latest round number: %w", err))
+					}
+				}
+				if roundNr > rec.Timeout {
+					rec.State = sdk.FAILED
+				}
+			}
+		}
+	}
+	sdk.SetLinkHeader(r.URL, w, sdk.EncodeHex(nextKey))
+	api.rw.WriteCborResponse(w, recs)
 }
 
 // @Summary Get balance
@@ -335,7 +390,7 @@ func (api *moneyRestAPI) postTransactions(w http.ResponseWriter, r *http.Request
 	}
 
 	vars := mux.Vars(r)
-	_, err = sdk.DecodePubKeyHex(vars["pubkey"])
+	senderPubkey, err := sdk.DecodePubKeyHex(vars["pubkey"])
 	if err != nil {
 		api.rw.InvalidParamResponse(w, "pubkey", fmt.Errorf("failed to parse sender pubkey: %w", err))
 		return
@@ -352,9 +407,7 @@ func (api *moneyRestAPI) postTransactions(w http.ResponseWriter, r *http.Request
 	}
 
 	egp, _ := errgroup.WithContext(r.Context())
-	egp.Go(func() error {
-		return api.Service.StoreDCMetadata(txs.Transactions)
-	})
+	api.Service.HandleTransactionsSubmission(egp, senderPubkey, txs.Transactions)
 
 	if errs := api.Service.SendTransactions(r.Context(), txs.Transactions); len(errs) > 0 {
 		w.WriteHeader(http.StatusInternalServerError)
@@ -370,7 +423,70 @@ func (api *moneyRestAPI) postTransactions(w http.ResponseWriter, r *http.Request
 	w.WriteHeader(http.StatusAccepted)
 }
 
-func parsePubKeyQueryParam(r *http.Request) ([]byte, error) {
+// @Summary Returns last seen transferFC transaction for given partition and fee credit bill
+// @Id 7
+// @version 1.0
+// @produce application/cbor
+// @Param systemId path string true "Target Fee Credit System ID of the TransferFC transaction (hex)"
+// @Param billId path string true "Target fee credit bill ID (hex)"
+// @Success 200 {object} wallet
+// @Router /locked-fee-credit/{systemId}/{billId} [get]
+func (api *moneyRestAPI) getLockedFeeCreditFunc(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	systemID, err := sdk.ParseHex[sdk.UnitID](vars["systemId"], true)
+	if err != nil {
+		log.Debug("error parsing GET /locked-fee-credit request systemId param: ", err)
+		api.rw.InvalidParamResponse(w, "systemId", err)
+		return
+	}
+	fcbID, err := sdk.ParseHex[sdk.UnitID](vars["billId"], true)
+	if err != nil {
+		log.Debug("error parsing GET /fee-credit-bills request billId param: ", err)
+		api.rw.InvalidParamResponse(w, "billId", err)
+		return
+	}
+	lfc, err := api.Service.GetLockedFeeCredit(systemID, fcbID)
+	if err != nil {
+		log.Error("error on GET /locked-fee-credit: ", err)
+		api.rw.WriteErrorResponse(w, err)
+		return
+	}
+	if lfc == nil {
+		api.rw.ErrorResponse(w, http.StatusNotFound, errors.New("locked fee credit does not exist"))
+		return
+	}
+	api.rw.WriteCborResponse(w, lfc)
+}
+
+// @Summary Returns last seen closeFC transaction for given fee credit bill
+// @Id 8
+// @version 1.0
+// @produce application/json
+// @Param billId path string true "Target fee credit bill ID (hex)"
+// @Success 200 {object} wallet
+// @Router /closed-fee-credit/{billId} [get]
+func (api *moneyRestAPI) getClosedFeeCreditFunc(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	fcbID, err := sdk.ParseHex[sdk.UnitID](vars["billId"], true)
+	if err != nil {
+		log.Debug("error parsing GET /closed-fee-credit request billId param: ", err)
+		api.rw.InvalidParamResponse(w, "billId", err)
+		return
+	}
+	cfc, err := api.Service.GetClosedFeeCredit(fcbID)
+	if err != nil {
+		log.Error("error on GET /closed-fee-credit: ", err)
+		api.rw.WriteErrorResponse(w, err)
+		return
+	}
+	if cfc == nil {
+		api.rw.ErrorResponse(w, http.StatusNotFound, errors.New("closed fee credit does not exist"))
+		return
+	}
+	api.rw.WriteCborResponse(w, cfc)
+}
+
+func parsePubKeyQueryParam(r *http.Request) (sdk.PubKey, error) {
 	return sdk.DecodePubKeyHex(r.URL.Query().Get("pubkey"))
 }
 
@@ -385,11 +501,10 @@ func toBillVMList(bills []*Bill) []*ListBillVM {
 	billVMs := make([]*ListBillVM, len(bills))
 	for i, b := range bills {
 		billVMs[i] = &ListBillVM{
-			Id:           b.Id,
-			Value:        b.Value,
-			TxHash:       b.TxHash,
-			TxRecordHash: b.TxRecordHash,
-			DcNonce:      b.DcNonce,
+			Id:      b.Id,
+			Value:   b.Value,
+			TxHash:  b.TxHash,
+			DcNonce: b.DcNonce,
 		}
 	}
 	return billVMs
@@ -397,10 +512,9 @@ func toBillVMList(bills []*Bill) []*ListBillVM {
 
 func (b *ListBillVM) ToGenericBill() *sdk.Bill {
 	return &sdk.Bill{
-		Id:           b.Id,
-		Value:        b.Value,
-		TxHash:       b.TxHash,
-		TxRecordHash: b.TxRecordHash,
-		DcNonce:      b.DcNonce,
+		Id:      b.Id,
+		Value:   b.Value,
+		TxHash:  b.TxHash,
+		DcNonce: b.DcNonce,
 	}
 }

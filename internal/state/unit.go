@@ -3,6 +3,7 @@ package state
 import (
 	"bytes"
 	"crypto"
+	"fmt"
 	"hash"
 )
 
@@ -59,6 +60,10 @@ func (u *Unit) Clone() *Unit {
 	}
 }
 
+func (u *Unit) String() string {
+	return fmt.Sprintf("nodeSummary=%d, subtreeSummary=%d", u.data.SummaryValueInput(), u.subTreeSummaryValue)
+}
+
 func (u *Unit) Bearer() Predicate {
 	return bytes.Clone(u.bearer)
 }
@@ -91,10 +96,12 @@ func (l *log) Hash(algorithm crypto.Hash) []byte {
 	hasher := algorithm.New()
 	hasher.Write(l.newBearer)
 	l.newUnitData.Write(hasher)
+	//y_j
 	dataHash := hasher.Sum(nil)
 	hasher.Reset()
 	hasher.Write(l.unitLedgerHeadHash)
 	hasher.Write(dataHash)
+	// z_j
 	return hasher.Sum(nil)
 }
 

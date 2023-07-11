@@ -218,7 +218,7 @@ func TestPartition_SwapDCOk(t *testing.T) {
 }
 
 func createSplitTx(t *testing.T, fromID []byte, prevTx *types.TransactionRecord, amount, remaining uint64) *types.TransactionOrder {
-	backlink := prevTx.Hash(crypto.SHA256)
+	backlink := prevTx.TransactionOrder.Hash(crypto.SHA256)
 	tx, _ := createSplit(t, fromID, amount, remaining, script.PredicatePayToPublicKeyHashDefault(decodeAndHashHex(pubKey2)), backlink)
 	signer, _ := abcrypto.NewInMemorySecp256K1SignerFromKey(decodeHex(privKey1))
 	sigBytes, err := tx.PayloadBytes()

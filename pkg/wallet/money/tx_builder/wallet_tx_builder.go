@@ -52,7 +52,7 @@ func NewTransferTx(receiverPubKey []byte, k *account.AccountKey, systemID []byte
 	attr := &money.TransferAttributes{
 		NewBearer:   script.PredicatePayToPublicKeyHashDefault(hash.Sum256(receiverPubKey)),
 		TargetValue: bill.Value,
-		Backlink:    bill.TxRecordHash,
+		Backlink:    bill.TxHash,
 	}
 	txPayload, err := newTxPayload(systemID, money.PayloadTypeTransfer, bill.GetID(), timeout, fcrID, attr)
 	if err != nil {
@@ -66,7 +66,7 @@ func NewSplitTx(amount uint64, pubKey []byte, k *account.AccountKey, systemID []
 		Amount:         amount,
 		TargetBearer:   script.PredicatePayToPublicKeyHashDefault(hash.Sum256(pubKey)),
 		RemainingValue: bill.Value - amount,
-		Backlink:       bill.TxRecordHash,
+		Backlink:       bill.TxHash,
 	}
 	txPayload, err := newTxPayload(systemID, money.PayloadTypeSplit, bill.GetID(), timeout, fcrID, attr)
 	if err != nil {
@@ -79,7 +79,7 @@ func NewDustTx(ac *account.AccountKey, systemID []byte, bill *wallet.Bill, nonce
 	attr := &money.TransferDCAttributes{
 		TargetValue:  bill.Value,
 		TargetBearer: script.PredicatePayToPublicKeyHashDefault(ac.PubKeyHash.Sha256),
-		Backlink:     bill.TxRecordHash,
+		Backlink:     bill.TxHash,
 		Nonce:        nonce,
 	}
 	txPayload, err := newTxPayload(systemID, money.PayloadTypeTransDC, bill.GetID(), timeout, ac.PrivKeyHash, attr)
@@ -131,7 +131,7 @@ func NewTransferFCTx(amount uint64, targetRecordID []byte, nonce []byte, k *acco
 		EarliestAdditionTime:   t1,
 		LatestAdditionTime:     t2,
 		Nonce:                  nonce,
-		Backlink:               unit.TxRecordHash,
+		Backlink:               unit.TxHash,
 	}
 	txPayload, err := newTxPayload(moneySystemID, transactions.PayloadTypeTransferFeeCredit, unit.GetID(), timeout, nil, attr)
 	if err != nil {

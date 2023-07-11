@@ -4,16 +4,19 @@ import (
 	"path/filepath"
 	"testing"
 
-	test "github.com/alphabill-org/alphabill/internal/testutils"
-
-	"github.com/alphabill-org/alphabill/internal/hash"
-	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
-	"github.com/alphabill-org/alphabill/internal/script"
-	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
 	bolt "go.etcd.io/bbolt"
+
+	"github.com/alphabill-org/alphabill/internal/hash"
+	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
+	"github.com/alphabill-org/alphabill/internal/script"
+	test "github.com/alphabill-org/alphabill/internal/testutils"
+	"github.com/alphabill-org/alphabill/internal/txsystem/fc/testutils"
+	"github.com/alphabill-org/alphabill/internal/types"
+	"github.com/alphabill-org/alphabill/internal/util"
+	sdk "github.com/alphabill-org/alphabill/pkg/wallet"
 )
 
 func TestBillStore_CanBeCreated(t *testing.T) {
@@ -265,6 +268,88 @@ func TestBillStore_GetSetDeleteDCMetadata(t *testing.T) {
 	deletedMetadata, err := bs.Do().GetDCMetadata(nonce)
 	require.NoError(t, err)
 	require.Nil(t, deletedMetadata)
+}
+
+func TestBillStore_GetSetLockedFeeCredit(t *testing.T) {
+	bs, _ := createTestBillStore(t)
+	systemID := []byte{0, 0, 0, 0}
+	fcbID := test.NewUnitID(1)
+
+	// verify GetLockedFeeCredit no result returns no error
+	lfc, err := bs.Do().GetLockedFeeCredit(systemID, fcbID)
+	require.NoError(t, err)
+	require.Nil(t, lfc)
+
+	// add locked fee credit
+	transferFC := &types.TransactionRecord{
+		TransactionOrder: testutils.NewTransferFC(t, nil),
+		ServerMetadata:   &types.ServerMetadata{ActualFee: 1},
+	}
+	err = bs.Do().SetLockedFeeCredit(systemID, fcbID, transferFC)
+	require.NoError(t, err)
+
+	// verify GetFeeCreditBill is not nil
+	lfc, err = bs.Do().GetLockedFeeCredit(systemID, fcbID)
+	require.NoError(t, err)
+	require.Equal(t, lfc, transferFC)
+}
+
+func TestBillStore_GetSetClosedFeeCredit(t *testing.T) {
+	bs, _ := createTestBillStore(t)
+	systemID := []byte{0, 0, 0, 0}
+	fcbID := test.NewUnitID(1)
+
+	// verify GetLockedFeeCredit no result returns no error
+	lfc, err := bs.Do().GetLockedFeeCredit(systemID, fcbID)
+	require.NoError(t, err)
+	require.Nil(t, lfc)
+
+	// add locked fee credit
+	transferFC := &types.TransactionRecord{
+		TransactionOrder: testutils.NewTransferFC(t, nil),
+		ServerMetadata:   &types.ServerMetadata{ActualFee: 1},
+	}
+	err = bs.Do().SetLockedFeeCredit(systemID, fcbID, transferFC)
+	require.NoError(t, err)
+
+	// verify GetFeeCreditBill is not nil
+	lfc, err = bs.Do().GetLockedFeeCredit(systemID, fcbID)
+	require.NoError(t, err)
+	require.Equal(t, lfc, transferFC)
+}
+
+func TestBillStore_StoreTxHistoryRecord(t *testing.T) {
+	bs, _ := createTestBillStore(t)
+	hash := test.RandomBytes(32)
+	max := byte(10)
+	for i := byte(1); i <= max; i++ {
+		txHistoryRecord := &sdk.TxHistoryRecord{
+			TxHash: test.RandomBytes(32),
+			UnitID: []byte{i},
+		}
+		// store tx history record
+		err := bs.Do().StoreTxHistoryRecord(hash, txHistoryRecord)
+		require.NoError(t, err)
+	}
+	// verify tx history records are retrieved, two most recent records
+	actualTxHistoryRecords, key, err := bs.Do().GetTxHistoryRecords(hash, nil, 2)
+	require.NoError(t, err)
+	require.Len(t, actualTxHistoryRecords, 2)
+	require.EqualValues(t, actualTxHistoryRecords[0].UnitID, []byte{max})
+	require.NotNil(t, key)
+
+	// verify tx history records are retrieved, all records
+	var allTxHistoryRecords []*sdk.TxHistoryRecord
+	key = nil
+	for {
+		actualTxHistoryRecords, key, err = bs.Do().GetTxHistoryRecords(hash, key, 2)
+		require.NoError(t, err)
+		allTxHistoryRecords = append(allTxHistoryRecords, actualTxHistoryRecords...)
+		if key == nil {
+			break
+		}
+	}
+	require.Len(t, allTxHistoryRecords, int(max))
 }
 
 func createTestBillStore(t *testing.T) (*boltBillStore, error) {

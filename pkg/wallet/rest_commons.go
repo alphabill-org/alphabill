@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"path"
+	"regexp"
 	"strconv"
 
 	"github.com/ethereum/go-ethereum/common/hexutil"
@@ -109,7 +111,7 @@ func DecodePubKeyHex(pubKey string) (PubKey, error) {
 	return bytes, nil
 }
 
-func ParseHex[T UnitID | TxHash](value string, required bool) (T, error) {
+func ParseHex[T UnitID | TxHash | []byte](value string, required bool) (T, error) {
 	if value == "" {
 		if required {
 			return nil, fmt.Errorf("parameter is required")
@@ -172,4 +174,40 @@ func ParseIntParam(str string, def int) int {
 		return def
 	}
 	return num
+}
+
+func GetURL(url url.URL, pathElements ...string) *url.URL {
+	url.Path = path.Join(pathElements...)
+	return &url
+}
+
+func SetPaginationParams(u *url.URL, offset string, limit int) {
+	q := u.Query()
+	if offset != "" {
+		q.Add("offset", offset)
+	}
+	if limit > 0 {
+		q.Add("limit", strconv.Itoa(limit))
+	}
+	u.RawQuery = q.Encode()
+}
+
+var linkHdrMatcher = regexp.MustCompile(`<(.*)>; rel="next"`)
+
+func ExtractOffsetMarker(rsp *http.Response) (string, error) {
+	lh := rsp.Header.Get("Link")
+	if lh == "" {
+		return "", nil
+	}
+
+	match := linkHdrMatcher.FindStringSubmatch(lh)
+	if len(match) != 2 {
+		return "", fmt.Errorf("link header didn't result in expected match\nHeader: %s\nmatches: %v", lh, match)
+	}
+
+	u, err := url.Parse(match[1])
+	if err != nil {
+		return "", fmt.Errorf("failed to parse Link header as URL: %w", err)
+	}
+	return u.Query().Get("offset"), nil
 }

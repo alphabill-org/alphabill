@@ -19,13 +19,8 @@ func handleTransferDCTx(s *state.State, dustCollector *DustCollector, hashAlgori
 		// calculate actual tx fee cost
 		fee := feeCalc()
 		unitID := tx.UnitID()
-		sm := &types.ServerMetadata{ActualFee: fee, TargetUnits: []types.UnitID{unitID}}
-		txr := &types.TransactionRecord{
-			TransactionOrder: tx,
-			ServerMetadata:   sm,
-		}
 		// update state
-		updateDataFunc := updateBillDataFunc(txr, currentBlockNumber, hashAlgorithm)
+		updateDataFunc := updateBillDataFunc(tx, currentBlockNumber, hashAlgorithm)
 
 		setOwnerFunc := state.SetOwner(unitID, dustCollectorPredicate)
 		if err := s.Apply(
@@ -37,7 +32,7 @@ func handleTransferDCTx(s *state.State, dustCollector *DustCollector, hashAlgori
 
 		// record dust bills for later deletion
 		dustCollector.AddDustBill(unitID, currentBlockNumber)
-		return sm, nil
+		return &types.ServerMetadata{ActualFee: fee, TargetUnits: []types.UnitID{unitID}}, nil
 	}
 }
 

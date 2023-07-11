@@ -9,12 +9,10 @@ import (
 	"io"
 	"net/http"
 	"net/url"
-	"path"
-	"regexp"
-	"strconv"
 	"strings"
 	"time"
 
+	"github.com/alphabill-org/alphabill/internal/types"
 	sdk "github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/alphabill-org/alphabill/pkg/wallet/tokens/backend"
 	"github.com/ethereum/go-ethereum/common/hexutil"
@@ -77,7 +75,7 @@ Returns:
 */
 func (tb *TokenBackend) GetTokens(ctx context.Context, kind backend.Kind, owner sdk.PubKey, offset string, limit int) ([]*backend.TokenUnit, string, error) {
 	addr := tb.getURL(apiPathPrefix, "kinds", kind.String(), "owners", hexutil.Encode(owner), "tokens")
-	setPaginationParams(addr, offset, limit)
+	sdk.SetPaginationParams(addr, offset, limit)
 
 	rspData := make([]*backend.TokenUnit, 0)
 	pm, err := tb.get(ctx, addr, &rspData, true)
@@ -104,7 +102,7 @@ func (tb *TokenBackend) GetTokenTypes(ctx context.Context, kind backend.Kind, cr
 		q.Add("creator", hexutil.Encode(creator))
 		addr.RawQuery = q.Encode()
 	}
-	setPaginationParams(addr, offset, limit)
+	sdk.SetPaginationParams(addr, offset, limit)
 
 	rspData := make([]*backend.TokenUnitType, 0)
 	pm, err := tb.get(ctx, addr, &rspData, true)
@@ -178,10 +176,21 @@ func (tb *TokenBackend) GetFeeCreditBill(ctx context.Context, unitID sdk.UnitID)
 	return fcb, nil
 }
 
+func (tb *TokenBackend) GetClosedFeeCredit(ctx context.Context, fcbID []byte) (*types.TransactionRecord, error) {
+	var fcb *types.TransactionRecord
+	addr := tb.getURL(apiPathPrefix, "closed-fee-credit", hexutil.Encode(fcbID))
+	_, err := tb.get(ctx, addr, &fcb, false)
+	if err != nil {
+		if errors.Is(err, ErrNotFound) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("get closed fee credit request failed: %w", err)
+	}
+	return fcb, nil
+}
+
 func (tb *TokenBackend) getURL(pathElements ...string) *url.URL {
-	u := tb.addr
-	u.Path = path.Join(pathElements...)
-	return &u
+	return sdk.GetURL(tb.addr, pathElements...)
 }
 
 /*
@@ -207,7 +216,7 @@ func (tb *TokenBackend) get(ctx context.Context, addr *url.URL, data any, allowE
 		return "", err
 	}
 
-	pm, err := extractOffsetMarker(rsp)
+	pm, err := sdk.ExtractOffsetMarker(rsp)
 	if err != nil {
 		return "", fmt.Errorf("failed to extract position marker: %w", err)
 	}
@@ -270,35 +279,4 @@ func decodeResponse(rsp *http.Response, successStatus int, data any, allowEmptyR
 		return fmt.Errorf("%s: %w", msg, ErrInvalidRequest)
 	}
 	return errors.New(msg)
-}
-
-func setPaginationParams(u *url.URL, offset string, limit int) {
-	q := u.Query()
-	if offset != "" {
-		q.Add("offset", offset)
-	}
-	if limit > 0 {
-		q.Add("limit", strconv.Itoa(limit))
-	}
-	u.RawQuery = q.Encode()
-}
-
-var linkHdrMatcher = regexp.MustCompile(`<(.*)>; rel="next"`)
-
-func extractOffsetMarker(rsp *http.Response) (string, error) {
-	lh := rsp.Header.Get("Link")
-	if lh == "" {
-		return "", nil
-	}
-
-	match := linkHdrMatcher.FindStringSubmatch(lh)
-	if len(match) != 2 {
-		return "", fmt.Errorf("link header didn't result in expected match\nHeader: %s\nmatches: %v", lh, match)
-	}
-
-	u, err := url.Parse(match[1])
-	if err != nil {
-		return "", fmt.Errorf("failed to parse Link header as URL: %w", err)
-	}
-	return u.Query().Get("offset"), nil
 }

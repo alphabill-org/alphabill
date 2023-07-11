@@ -41,8 +41,6 @@ func handleTransferFeeCreditTx(s *state.State, hashAlgorithm crypto.Hash, feeCre
 
 		// calculate actual tx fee cost
 		fee := feeCalc()
-		sm := &types.ServerMetadata{ActualFee: fee, TargetUnits: []types.UnitID{tx.UnitID()}}
-		txr := &types.TransactionRecord{TransactionOrder: tx, ServerMetadata: sm}
 
 		// remove value from source unit, or delete source bill entirely
 		var action state.Action
@@ -55,7 +53,7 @@ func handleTransferFeeCreditTx(s *state.State, hashAlgorithm crypto.Hash, feeCre
 				}
 				newBillData.V -= v
 				newBillData.T = currentBlockNumber
-				newBillData.Backlink = txr.Hash(hashAlgorithm)
+				newBillData.Backlink = tx.Hash(hashAlgorithm)
 				return newBillData, nil
 			})
 		} else {
@@ -70,7 +68,7 @@ func handleTransferFeeCreditTx(s *state.State, hashAlgorithm crypto.Hash, feeCre
 			attr: attr,
 			fee:  fee,
 		})
-		return sm, nil
+		return &types.ServerMetadata{ActualFee: fee, TargetUnits: []types.UnitID{tx.UnitID()}}, nil
 	}
 }
 

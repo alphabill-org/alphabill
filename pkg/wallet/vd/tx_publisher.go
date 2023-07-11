@@ -39,7 +39,7 @@ func (w *TxPublisher) SendTx(ctx context.Context, tx *types.TransactionOrder, se
 	}
 	txSub := &txsubmitter.TxSubmission{
 		UnitID:      tx.UnitID(),
-		TxOrderHash: tx.Hash(crypto.SHA256),
+		TxHash:      tx.Hash(crypto.SHA256),
 		Transaction: tx,
 	}
 	txBatch := txSub.ToBatch(vdBackend, senderPubKey)
@@ -73,5 +73,5 @@ func (v *VDBackend) PostTransactions(ctx context.Context, pubKey wallet.PubKey, 
 }
 
 func (v *VDBackend) GetTxProof(ctx context.Context, unitID wallet.UnitID, txHash wallet.TxHash) (*wallet.Proof, error) {
-	return v.vdClient.GetTxProof(ctx, unitID, txHash, v.startRoundNumber, v.txTimeout)
+	return v.vdClient.GetTxProofFromBlock(ctx, unitID, txHash, v.startRoundNumber, v.txTimeout)
 }

@@ -29,15 +29,14 @@ type (
 	// used to be protobuf defined Bill struct used as import/export/download/upload unified schema across applications
 	// possibly can be removed as import/export/download/upoad feature was dropped
 	Bill struct {
-		Id           []byte `json:"id,omitempty"`
-		Value        uint64 `json:"value,omitempty,string"`
-		TxHash       []byte `json:"tx_hash,omitempty"`
-		TxRecordHash []byte `json:"tx_record_hash,omitempty"`
-		DcNonce      []byte `json:"dc_nonce,omitempty"`
+		Id      []byte `json:"id,omitempty"`
+		Value   uint64 `json:"value,omitempty,string"`
+		TxHash  []byte `json:"tx_hash,omitempty"`
+		DcNonce []byte `json:"dc_nonce,omitempty"`
 
 		// fcb specific fields
-		// AddFCTxHash last add fee credit tx hash
-		AddFCTxHash []byte `json:"add_fc_tx_hash,omitempty"`
+		// LastAddFCTxHash last add fee credit tx hash
+		LastAddFCTxHash []byte `json:"last_add_fc_tx_hash,omitempty"`
 	}
 
 	BillProof struct {
@@ -80,14 +79,14 @@ func (x *Bill) GetValue() uint64 {
 
 func (x *Bill) GetTxHash() []byte {
 	if x != nil {
-		return x.TxRecordHash
+		return x.TxHash
 	}
 	return nil
 }
 
-func (x *Bill) GetAddFCTxHash() []byte {
+func (x *Bill) GetLastAddFCTxHash() []byte {
 	if x != nil {
-		return x.AddFCTxHash
+		return x.LastAddFCTxHash
 	}
 	return nil
 }
@@ -102,7 +101,7 @@ func (x *Bill) verifyTx(txr *types.TransactionRecord) error {
 	if isDCTx && x.DcNonce == nil {
 		return ErrMissingDCNonce
 	}
-	if !bytes.Equal(x.TxHash, txr.Hash(crypto.SHA256)) {
+	if !bytes.Equal(x.TxHash, txr.TransactionOrder.Hash(crypto.SHA256)) {
 		return ErrInvalidTxHash
 	}
 	return nil

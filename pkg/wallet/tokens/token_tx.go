@@ -175,7 +175,7 @@ func (w *Wallet) prepareTxSubmission(ctx context.Context, payloadType string, at
 	txSub := &txsubmitter.TxSubmission{
 		UnitID:      unitId,
 		Transaction: tx,
-		TxOrderHash: tx.Hash(crypto.SHA256),
+		TxHash:      tx.Hash(crypto.SHA256),
 	}
 	return txSub, nil
 }
@@ -224,7 +224,7 @@ func newFungibleTransferTxAttrs(token *backend.TokenUnit, receiverPubKey []byte)
 		TypeID:                       token.TypeID,
 		NewBearer:                    BearerPredicateFromPubKey(receiverPubKey),
 		Value:                        token.Amount,
-		Backlink:                     token.TxRecordHash,
+		Backlink:                     token.TxHash,
 		InvariantPredicateSignatures: nil,
 	}
 }
@@ -234,7 +234,7 @@ func newNonFungibleTransferTxAttrs(token *backend.TokenUnit, receiverPubKey []by
 	return &ttxs.TransferNonFungibleTokenAttributes{
 		NFTTypeID:                    token.TypeID,
 		NewBearer:                    BearerPredicateFromPubKey(receiverPubKey),
-		Backlink:                     token.TxRecordHash,
+		Backlink:                     token.TxHash,
 		InvariantPredicateSignatures: nil,
 	}
 }
@@ -261,7 +261,7 @@ func newSplitTxAttrs(token *backend.TokenUnit, amount uint64, receiverPubKey []b
 		NewBearer:                    BearerPredicateFromPubKey(receiverPubKey),
 		TargetValue:                  amount,
 		RemainingValue:               token.Amount - amount,
-		Backlink:                     token.TxRecordHash,
+		Backlink:                     token.TxHash,
 		InvariantPredicateSignatures: [][]byte{script.PredicateArgumentEmpty()},
 	}
 }
@@ -272,7 +272,7 @@ func newBurnTxAttrs(token *backend.TokenUnit, targetStateHash []byte) *ttxs.Burn
 		TypeID:                       token.TypeID,
 		Value:                        token.Amount,
 		Nonce:                        targetStateHash,
-		Backlink:                     token.TxRecordHash,
+		Backlink:                     token.TxHash,
 		InvariantPredicateSignatures: nil,
 	}
 }

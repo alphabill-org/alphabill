@@ -8,11 +8,14 @@ import (
 	"testing"
 	"time"
 
-	sdk "github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/stretchr/testify/require"
 
 	"github.com/alphabill-org/alphabill/internal/script"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
+	testtransaction "github.com/alphabill-org/alphabill/internal/testutils/transaction"
+	"github.com/alphabill-org/alphabill/internal/txsystem/fc/testutils"
+	"github.com/alphabill-org/alphabill/internal/types"
+	sdk "github.com/alphabill-org/alphabill/pkg/wallet"
 )
 
 func Test_storage(t *testing.T) {
@@ -59,6 +62,10 @@ func Test_storage(t *testing.T) {
 
 	t.Run("fee credits", func(t *testing.T) {
 		testFeeCredits(t, db)
+	})
+
+	t.Run("closed fee credits", func(t *testing.T) {
+		testClosedFeeCredits(t, db)
 	})
 }
 
@@ -238,6 +245,36 @@ func testFeeCredits(t *testing.T, db *storage) {
 		actualFCB, err := db.GetFeeCreditBill(expectedFCB.Id)
 		require.NoError(t, err)
 		require.Equal(t, expectedFCB, actualFCB)
+	}
+}
+
+func testClosedFeeCredits(t *testing.T, db *storage) {
+	// nil key returns nil
+	fcb, err := db.GetClosedFeeCredit(nil)
+	require.NoError(t, err)
+	require.Nil(t, fcb)
+
+	// unknown key returns nil
+	fcb, err = db.GetClosedFeeCredit([]byte{0})
+	require.NoError(t, err)
+	require.Nil(t, fcb)
+
+	// set close fee credit txs
+	closeFCTxs := []*types.TransactionRecord{
+		{TransactionOrder: testutils.NewCloseFC(t, nil, testtransaction.WithUnitId([]byte{1}))},
+		{TransactionOrder: testutils.NewCloseFC(t, nil, testtransaction.WithUnitId([]byte{2}))},
+		{TransactionOrder: testutils.NewCloseFC(t, nil, testtransaction.WithUnitId([]byte{3}))},
+	}
+	for _, closeFC := range closeFCTxs {
+		err = db.SetClosedFeeCredit(closeFC.TransactionOrder.UnitID(), closeFC)
+		require.NoError(t, err)
+	}
+
+	// verify close fee credit txs
+	for _, expectedTx := range closeFCTxs {
+		actualTx, err := db.GetClosedFeeCredit(expectedTx.TransactionOrder.UnitID())
+		require.NoError(t, err)
+		require.Equal(t, expectedTx, actualTx)
 	}
 }
 

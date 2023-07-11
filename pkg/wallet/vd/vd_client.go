@@ -93,7 +93,7 @@ func (v *VDClient) PostTransactions(ctx context.Context, pubKey wallet.PubKey, t
 	return nil
 }
 
-func (v *VDClient) GetTxProof(ctx context.Context, unitID wallet.UnitID, txHash wallet.TxHash, startRoundNumber, timeout uint64) (*wallet.Proof, error) {
+func (v *VDClient) GetTxProofFromBlock(ctx context.Context, unitID wallet.UnitID, txHash wallet.TxHash, startRoundNumber, timeout uint64) (*wallet.Proof, error) {
 	proofCh := make(chan *wallet.Proof)
 	defer close(proofCh)
 
@@ -152,12 +152,21 @@ func (v *VDClient) GetFeeCreditBill(ctx context.Context, unitID wallet.UnitID) (
 	}
 
 	return &wallet.Bill{
-		Id:           fcb.Id,
-		Value:        fcb.Value,
-		TxHash:       fcb.TxHash,
-		TxRecordHash: fcb.TxRecordHash,
-		AddFCTxHash:  fcb.AddFCTxHash,
+		Id:              fcb.Id,
+		Value:           fcb.Value,
+		TxHash:          fcb.TxHash,
+		LastAddFCTxHash: fcb.LastAddFCTxHash,
 	}, nil
+}
+
+func (v *VDClient) GetClosedFeeCredit(ctx context.Context, fcbID []byte) (*types.TransactionRecord, error) {
+	// TODO impl
+	return nil, nil
+}
+
+func (v *VDClient) GetTxProof(ctx context.Context, unitID wallet.UnitID, txHash wallet.TxHash) (*wallet.Proof, error) {
+	// TODO impl
+	return nil, nil
 }
 
 func (v *VDClient) RegisterFileHash(ctx context.Context, filePath string) error {
@@ -234,7 +243,7 @@ func (v *VDClient) registerHashTx(ctx context.Context, hash []byte) error {
 	}
 
 	if v.confirmTx {
-		proof, err := v.GetTxProof(ctx, hash, nil, currentRoundNumber, timeout)
+		proof, err := v.GetTxProofFromBlock(ctx, hash, nil, currentRoundNumber, timeout)
 		if proof != nil {
 			log.Info(fmt.Sprintf("Tx in block #%d, hash: %s",
 				proof.TxProof.UnicityCertificate.GetRoundNumber(), hex.EncodeToString(hash)))

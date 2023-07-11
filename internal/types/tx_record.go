@@ -37,3 +37,10 @@ func (t *TransactionRecord) Hash(algorithm crypto.Hash) []byte {
 func (t *TransactionRecord) Bytes() ([]byte, error) {
 	return cbor.Marshal(t)
 }
+
+func (sm *ServerMetadata) GetActualFee() uint64 {
+	if sm == nil {
+		return 0
+	}
+	return sm.ActualFee
+}

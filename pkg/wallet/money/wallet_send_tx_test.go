@@ -123,7 +123,7 @@ func TestWalletSendFunction_WaitForConfirmation(t *testing.T) {
 	// test send successfully waits for confirmation
 	_, err := w.Send(context.Background(), SendCmd{ReceiverPubKey: pubKey, Amount: b.Value, WaitForConfirmation: true, AccountIndex: 0})
 	require.NoError(t, err)
-	balance, _ := w.GetBalance(GetBalanceCmd{})
+	balance, _ := w.GetBalance(context.Background(), GetBalanceCmd{})
 	require.EqualValues(t, 100, balance)
 }
 

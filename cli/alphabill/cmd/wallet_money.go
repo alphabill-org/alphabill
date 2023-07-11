@@ -75,7 +75,7 @@ func newWalletCmd(baseConfig *baseConfiguration) *cobra.Command {
 		},
 	}
 	walletCmd.AddCommand(newWalletBillsCmd(config))
-	walletCmd.AddCommand(newWalletFeesCmd(context.Background(), config))
+	walletCmd.AddCommand(newWalletFeesCmd(config))
 	walletCmd.AddCommand(createCmd(config))
 	walletCmd.AddCommand(sendCmd(config))
 	walletCmd.AddCommand(getPubKeysCmd(config))
@@ -325,7 +325,7 @@ func execGetBalanceCmd(cmd *cobra.Command, config *walletConfig) error {
 		quiet = false // quiet is supposed to work only when total or key flag is provided
 	}
 	if accountNumber == 0 {
-		totals, sum, err := w.GetBalances(money.GetBalanceCmd{CountDCBills: showUnswapped})
+		totals, sum, err := w.GetBalances(cmd.Context(), money.GetBalanceCmd{CountDCBills: showUnswapped})
 		if err != nil {
 			return err
 		}
@@ -341,7 +341,7 @@ func execGetBalanceCmd(cmd *cobra.Command, config *walletConfig) error {
 			consoleWriter.Println(fmt.Sprintf("Total %s", sumStr))
 		}
 	} else {
-		balance, err := w.GetBalance(money.GetBalanceCmd{AccountIndex: accountNumber - 1, CountDCBills: showUnswapped})
+		balance, err := w.GetBalance(cmd.Context(), money.GetBalanceCmd{AccountIndex: accountNumber - 1, CountDCBills: showUnswapped})
 		if err != nil {
 			return err
 		}
@@ -427,7 +427,7 @@ func execCollectDust(cmd *cobra.Command, config *walletConfig) error {
 	defer w.Close()
 
 	consoleWriter.Println("Starting dust collection, this may take a while...")
-	err = w.CollectDust(context.Background(), accountNumber)
+	err = w.CollectDust(cmd.Context(), accountNumber)
 
 	if err != nil {
 		consoleWriter.Println("Failed to collect dust: " + err.Error())

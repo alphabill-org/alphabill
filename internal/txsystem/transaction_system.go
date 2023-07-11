@@ -22,9 +22,6 @@ type (
 		// BeginBlock signals the start of a new block and is invoked before any Execute method calls.
 		BeginBlock(uint64, OnTransactionsFunc) error
 
-		// SystemGeneratedTransactions returns a list of validator generated transactions.
-		//SystemGeneratedTransactions() ([]*types.TransactionRecord, error)
-
 		// Execute method executes the transaction order. An error must be returned if the transaction order execution
 		// was not successful.
 		Execute(order *types.TransactionOrder) (*types.ServerMetadata, error)

@@ -36,7 +36,7 @@ func handleUpdateNonFungibleTokenTx(options *Options) txsystem.GenericExecuteFun
 			return nil, err
 		}
 
-		return &types.ServerMetadata{ActualFee: fee}, nil
+		return &types.ServerMetadata{ActualFee: fee, TargetUnits: []types.UnitID{unitID}}, nil
 	}
 }
 

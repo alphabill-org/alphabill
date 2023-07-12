@@ -204,7 +204,7 @@ func TestExecuteTransferDC_OK(t *testing.T) {
 
 	transferDCBill, transferDCBillData := getBill(t, rmaTree, billID)
 	require.NotEqual(t, dustCollectorPredicate, transferDCBill.Bearer())
-	require.Equal(t, splitBillData.SummaryValueInput(), transferDCBillData.SummaryValueInput())
+	require.EqualValues(t, 0, transferDCBillData.SummaryValueInput()) // dust transfer sets bill value to 0
 	require.Equal(t, roundNumber, transferDCBillData.T)
 	require.EqualValues(t, transferDCOk.Hash(crypto.SHA256), transferDCBillData.Backlink)
 }
@@ -234,8 +234,8 @@ func TestExecute_SwapOk(t *testing.T) {
 	require.NotNil(t, sm)
 	_, billData := getBill(t, rmaTree, swapTx.UnitID())
 	require.Equal(t, amount, billData.V)
-	_, dustBill := getBill(t, rmaTree, dustCollectorMoneySupplyID)
-	require.Equal(t, amount, initialDustCollectorMoneyAmount-dustBill.V)
+	_, dustCollectorBill := getBill(t, rmaTree, dustCollectorMoneySupplyID)
+	require.Equal(t, initialDustCollectorMoneyAmount, dustCollectorBill.V) // dust collector money supply is the same after swap
 }
 
 func TestBillData_Value(t *testing.T) {
@@ -253,12 +253,14 @@ func TestBillData_AddToHasher(t *testing.T) {
 	bd := &BillData{
 		V:        10,
 		T:        50,
+		TDust:    20,
 		Backlink: []byte("backlink"),
 	}
 
 	hasher := crypto.SHA256.New()
 	hasher.Write(util.Uint64ToBytes(bd.V))
 	hasher.Write(util.Uint64ToBytes(bd.T))
+	hasher.Write(util.Uint64ToBytes(bd.TDust))
 	hasher.Write(bd.Backlink)
 	expectedHash := hasher.Sum(nil)
 	hasher.Reset()
@@ -299,8 +301,8 @@ func TestEndBlock_DustBillsAreRemoved(t *testing.T) {
 	require.NoError(t, err)
 	_, newBillData := getBill(t, rmaTree, swapTx.UnitID())
 	require.Equal(t, uint64(10), newBillData.V)
-	_, dustBill := getBill(t, rmaTree, dustCollectorMoneySupplyID)
-	require.Equal(t, uint64(10), initialDustCollectorMoneyAmount-dustBill.V)
+	_, dustCollectorBill := getBill(t, rmaTree, dustCollectorMoneySupplyID)
+	require.Equal(t, initialDustCollectorMoneyAmount, dustCollectorBill.V)
 	_, err = txSystem.EndBlock()
 	require.NoError(t, err)
 	txSystem.Commit()
@@ -310,8 +312,8 @@ func TestEndBlock_DustBillsAreRemoved(t *testing.T) {
 	require.NoError(t, err)
 	txSystem.Commit()
 
-	_, dustBill = getBill(t, rmaTree, dustCollectorMoneySupplyID)
-	require.Equal(t, initialDustCollectorMoneyAmount, dustBill.V)
+	_, dustCollectorBill = getBill(t, rmaTree, dustCollectorMoneySupplyID)
+	require.Equal(t, initialDustCollectorMoneyAmount, dustCollectorBill.V)
 }
 
 // Test scenario:
@@ -390,12 +392,9 @@ func TestValidateSwap_InsufficientDcMoneySupply(t *testing.T) {
 	rmaTree, txSystem, signer := createStateAndTxSystem(t)
 	roundNumber := uint64(10)
 	txSystem.BeginBlock(roundNumber)
-	dcTransfers, swapTx := createDCTransferAndSwapTxs(t, []types.UnitID{initialBill.ID}, rmaTree, signer)
+	_, swapTx := createDCTransferAndSwapTxs(t, []types.UnitID{initialBill.ID}, rmaTree, signer)
 
-	for _, dcTransfer := range dcTransfers {
-		_, err := txSystem.Execute(dcTransfer.TransactionOrder)
-		require.NoError(t, err)
-	}
+	// send execute swap without executing transfers so that money supply is not increased by swaps
 	_, err := txSystem.Execute(swapTx)
 	require.ErrorIs(t, err, ErrSwapInsufficientDCMoneySupply)
 }
@@ -657,6 +656,7 @@ func createDCTransfer(t *testing.T, fromID types.UnitID, targetValue uint64, bac
 		TargetBearer: targetBearer,
 		TargetValue:  targetValue,
 		Backlink:     backlink,
+		SwapTimeout:  20,
 	}
 	rawBytes, err := cbor.Marshal(bt)
 	require.NoError(t, err)

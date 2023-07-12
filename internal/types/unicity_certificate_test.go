@@ -123,3 +123,48 @@ func TestUnicityCertificate_UCIsNil(t *testing.T) {
 	var uc *UnicityCertificate
 	require.ErrorIs(t, uc.IsValid(nil, gocrypto.SHA256, nil, nil), ErrUnicityCertificateIsNil)
 }
+
+func TestUnicityCertificate_isRepeat(t *testing.T) {
+	uc := &UnicityCertificate{
+		InputRecord: &InputRecord{
+			PreviousHash:    []byte{0, 0, 1},
+			Hash:            []byte{0, 0, 2},
+			BlockHash:       []byte{0, 0, 3},
+			SummaryValue:    []byte{0, 0, 4},
+			RoundNumber:     6,
+			SumOfEarnedFees: 20,
+		},
+	}
+	// everything is equal, this is the same UC and not repeat
+	require.False(t, isRepeat(uc, uc))
+	ruc := &UnicityCertificate{
+		InputRecord: uc.InputRecord.NewRepeatUC(),
+	}
+	// now it is repeat of previous round
+	require.True(t, isRepeat(uc, ruc))
+	ruc.InputRecord.RoundNumber++
+	// still is considered a repeat uc
+	require.True(t, isRepeat(uc, ruc))
+	// if anything else changes, it is no longer considered repeat
+	require.False(t, isRepeat(uc, &UnicityCertificate{
+		InputRecord: &InputRecord{
+			Hash:            []byte{0, 0, 2},
+			BlockHash:       []byte{0, 0, 3},
+			SummaryValue:    []byte{0, 0, 4},
+			RoundNumber:     6,
+			SumOfEarnedFees: 20,
+		},
+	}))
+	require.False(t, isRepeat(uc, &UnicityCertificate{
+		InputRecord: &InputRecord{
+			PreviousHash:    []byte{0, 0, 1},
+			Hash:            []byte{0, 0, 2},
+			BlockHash:       []byte{0, 0, 3},
+			SummaryValue:    []byte{0, 0, 4},
+			RoundNumber:     6,
+			SumOfEarnedFees: 2,
+		},
+	}))
+	// also not if order is opposite
+	require.False(t, isRepeat(ruc, uc))
+}

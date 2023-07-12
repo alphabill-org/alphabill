@@ -385,7 +385,8 @@ func TestNode_HandleUnicityCertificate_SameIR_DifferentBlockHash_StateReverted(t
 	require.Equal(t, uint64(0), txs.RevertCount)
 
 	// simulate receiving repeat UC
-	ir := types.NewRepeatInputRecord(*latestUC.InputRecord)
+	ir := latestUC.InputRecord.NewRepeatUC()
+	ir.RoundNumber++
 	uc, err := tp.CreateUnicityCertificate(
 		ir,
 		latestUC.UnicitySeal.RootChainRoundNumber+1,

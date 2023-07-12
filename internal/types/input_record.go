@@ -36,18 +36,15 @@ func isZeroHash(hash []byte) bool {
 	return true
 }
 
-func NewRepeatInputRecord(lastIR *InputRecord) (*InputRecord, error) {
-	if lastIR == nil {
-		return nil, ErrInputRecordIsNil
-	}
+func NewRepeatInputRecord(lastIR InputRecord) *InputRecord {
 	return &InputRecord{
-		PreviousHash:    lastIR.Hash,
+		PreviousHash:    lastIR.PreviousHash,
 		Hash:            lastIR.Hash,
-		BlockHash:       make([]byte, len(lastIR.BlockHash)),
+		BlockHash:       lastIR.BlockHash,
 		SummaryValue:    lastIR.SummaryValue,
 		RoundNumber:     lastIR.RoundNumber + 1,
 		SumOfEarnedFees: lastIR.SumOfEarnedFees,
-	}, nil
+	}
 }
 
 func (x *InputRecord) IsValid() error {

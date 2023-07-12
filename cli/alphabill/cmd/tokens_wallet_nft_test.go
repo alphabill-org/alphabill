@@ -2,9 +2,9 @@ package cmd
 
 import (
 	"bytes"
+	"crypto/rand"
 	"fmt"
-	"io/ioutil"
-	"math/rand"
+	"os"
 	"testing"
 
 	"github.com/alphabill-org/alphabill/internal/partition/event"
@@ -117,8 +117,10 @@ func TestNFTDataUpdateCmd_Integration(t *testing.T) {
 	// create non-fungible token from using data-file
 	nftID := randomID(t)
 	data := make([]byte, 1024)
-	rand.Read(data)
-	tmpfile, err := ioutil.TempFile(t.TempDir(), "test")
+	n, err := rand.Read(data)
+	require.NoError(t, err)
+	require.EqualValues(t, n, len(data))
+	tmpfile, err := os.CreateTemp(t.TempDir(), "test")
 	require.NoError(t, err)
 	_, err = tmpfile.Write(data)
 	require.NoError(t, err)
@@ -137,9 +139,11 @@ func TestNFTDataUpdateCmd_Integration(t *testing.T) {
 	require.Equal(t, data, nft.NftData)
 	// generate new data
 	data2 := make([]byte, 1024)
-	rand.Read(data2)
-	require.NotEqual(t, data, data2)
-	tmpfile, err = ioutil.TempFile(t.TempDir(), "test")
+	n, err = rand.Read(data2)
+	require.NoError(t, err)
+	require.EqualValues(t, n, len(data2))
+	require.False(t, bytes.Equal(data, data2))
+	tmpfile, err = os.CreateTemp(t.TempDir(), "test")
 	require.NoError(t, err)
 	_, err = tmpfile.Write(data2)
 	require.NoError(t, err)

@@ -918,6 +918,7 @@ func (n *Node) handleLedgerReplicationResponse(ctx context.Context, lr *replicat
 			err = fmt.Errorf("ledger replication response contains invalid block for round %v, %w", b.GetRoundNumber(), err)
 			break
 		}
+		latestStoredBlockUc := n.lastStoredBlock.UnicityCertificate
 		// it could be that we receive blocks from earlier time or later time, make sure to extend from what is missing
 		roundNo := b.GetRoundNumber()
 		// skip earlier blocks
@@ -937,8 +938,12 @@ func (n *Node) handleLedgerReplicationResponse(ctx context.Context, lr *replicat
 			err = fmt.Errorf("received block does not extend current state")
 			break
 		}
+		if !bytes.Equal(b.UnicityCertificate.InputRecord.PreviousHash, latestStoredBlockUc.InputRecord.Hash) {
+			err = fmt.Errorf("received block does not extend last unicity certificate")
+			break
+		}
 		var sumOfEarnedFees uint64
-		state, sumOfEarnedFees, err = n.applyBlockTransactions(b.GetRoundNumber(), b.Transactions)
+		state, sumOfEarnedFees, err = n.applyBlockTransactions(latestStoredBlockUc.GetRoundNumber()+1, b.Transactions)
 		if err != nil {
 			err = fmt.Errorf("block %v apply transactions failed, %w", roundNo, err)
 			break

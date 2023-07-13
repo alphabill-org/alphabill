@@ -110,7 +110,7 @@ func CheckNonEquivocatingCertificates(prevUC, newUC *UnicityCertificate) error {
 		!bytes.Equal(newUC.InputRecord.PreviousHash, prevUC.InputRecord.Hash) {
 		return fmt.Errorf("new certificate does not extend previous state hash")
 	}
-	// 4. uc.IR.h′ = uc′.IR.h -> new cert state does not change, the new certificate is for empty block
+	// 4. uc.IR.h′ = uc.IR.h -> new cert state does not change, the new certificate is for empty block
 	if bytes.Equal(newUC.InputRecord.PreviousHash, newUC.InputRecord.Hash) {
 		// then block must be empty and thus hash of block is 0H
 		if !isZeroHash(newUC.InputRecord.BlockHash) {

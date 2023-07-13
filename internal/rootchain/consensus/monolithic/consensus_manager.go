@@ -149,7 +149,7 @@ func (x *ConsensusManager) onIRChangeReq(req *consensus.IRChangeRequest) error {
 		}
 		// repeat UC, ignore error here as we found the luc, and it cannot be nil
 		// in repeat UC just advance partition/shard round number
-		newInputRecord = luc.InputRecord.NewRepeatUC()
+		newInputRecord = luc.InputRecord.NewRepeatIR()
 	default:
 		return fmt.Errorf("invalid certfification reason %v", req.Reason)
 	}
@@ -207,7 +207,7 @@ func (x *ConsensusManager) checkT2Timeout(round uint64) error {
 				time.Duration(partInfo.T2Timeout)*time.Millisecond {
 				// timeout
 				logger.Info("Round %v, partition %X T2 timeout", round, id.Bytes())
-				repeatIR := lastCert.InputRecord.NewRepeatUC()
+				repeatIR := lastCert.InputRecord.NewRepeatIR()
 				x.changes[id] = repeatIR
 			}
 		}

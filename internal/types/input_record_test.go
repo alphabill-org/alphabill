@@ -113,7 +113,7 @@ func TestInputRecord_AddToHasher(t *testing.T) {
 }
 
 func TestInputRecord_NewRepeatUC(t *testing.T) {
-	repeatUC := ir.NewRepeatUC()
+	repeatUC := ir.NewRepeatIR()
 	require.NotNil(t, repeatUC)
 	// only round number is advance by 1
 	ir.RoundNumber++

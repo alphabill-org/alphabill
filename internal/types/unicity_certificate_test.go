@@ -138,7 +138,7 @@ func TestUnicityCertificate_isRepeat(t *testing.T) {
 	// everything is equal, this is the same UC and not repeat
 	require.False(t, isRepeat(uc, uc))
 	ruc := &UnicityCertificate{
-		InputRecord: uc.InputRecord.NewRepeatUC(),
+		InputRecord: uc.InputRecord.NewRepeatIR(),
 	}
 	// now it is repeat of previous round
 	require.True(t, isRepeat(uc, ruc))

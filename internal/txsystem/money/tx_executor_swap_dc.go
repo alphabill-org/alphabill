@@ -78,9 +78,6 @@ func validateSwapTx(tx *types.TransactionOrder, attr *SwapDCAttributes, s *state
 	if err != nil {
 		return nil, fmt.Errorf("failed to extract DC transfers: %w", err)
 	}
-	if len(dustTransfers) == 0 {
-		return nil, errors.New("tx does not contain any dust transfers")
-	}
 	// 3. there is sufficient DC-money supply
 	dcMoneySupply, err := s.GetUnit(dustCollectorMoneySupplyID, false)
 	if err != nil {
@@ -188,8 +185,14 @@ func toUint256(ids [][]byte) []*uint256.Int {
 }
 
 func getDCTransfers(attr *SwapDCAttributes) ([]*dustCollectorTransfer, error) {
+	if len(attr.DcTransfers) == 0 {
+		return nil, errors.New("tx does not contain any dust transfers")
+	}
 	transfers := make([]*dustCollectorTransfer, len(attr.DcTransfers))
 	for i, t := range attr.DcTransfers {
+		if t == nil {
+			return nil, fmt.Errorf("dc tx is nil: %d", i)
+		}
 		a := &TransferDCAttributes{}
 		if t.TransactionOrder.PayloadType() != PayloadTypeTransDC {
 			return nil, fmt.Errorf("invalid transfer DC payload type: %s", t.TransactionOrder.PayloadType())

@@ -72,7 +72,8 @@ func (x *UnicityCertificate) GetRoundNumber() uint64 {
 }
 
 // CheckNonEquivocatingCertificates checks if provided certificates are equivocating
-// NB! order is important, and it is assumed that validity is checked before
+// NB! order is important, also it is assumed that validity of both UCs is checked before
+// The algorithm is based on Yellowpaper: "Algorithm 6 Checking two UC-s for equivocation"
 func CheckNonEquivocatingCertificates(prevUC, newUC *UnicityCertificate) error {
 	if newUC == nil {
 		return errUCIsNil

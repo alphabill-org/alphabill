@@ -28,8 +28,11 @@ func Test_requestStore_add(t *testing.T) {
 	require.ErrorContains(t, rs.add(&certification.BlockCertificationRequest{NodeIdentifier: "1", InputRecord: IR1}), "duplicated request")
 	require.ErrorContains(t, rs.add(&certification.BlockCertificationRequest{NodeIdentifier: "1", InputRecord: IR2}), "equivocating request with different hash")
 	require.NoError(t, rs.add(&certification.BlockCertificationRequest{NodeIdentifier: "2", InputRecord: IR2}))
+	require.Equal(t, 2, len(rs.nodeRequest))
 	require.Equal(t, 2, len(rs.requests))
-	require.Equal(t, 2, len(rs.hashCounts))
+	for _, certReq := range rs.requests {
+		require.Len(t, certReq, 1)
+	}
 }
 
 func Test_requestStore_isConsensusReceived(t *testing.T) {
@@ -142,7 +145,7 @@ func TestCertRequestStore_isConsensusReceived_TwoNodes(t *testing.T) {
 	_, possible := cs.IsConsensusReceived(protocol.SystemIdentifier(SysID1), trustBase)
 	require.False(t, possible)
 	cs.Clear(protocol.SystemIdentifier(SysID1))
-	// test all requests cleared
+	// test all nodeRequest cleared
 	require.Empty(t, cs.GetRequests(protocol.SystemIdentifier(SysID1)))
 	require.NoError(t, cs.Add(&certification.BlockCertificationRequest{SystemIdentifier: SysID1, NodeIdentifier: "1", InputRecord: IR1}))
 	require.NoError(t, cs.Add(&certification.BlockCertificationRequest{SystemIdentifier: SysID1, NodeIdentifier: "2", InputRecord: IR1}))
@@ -170,7 +173,7 @@ func TestCertRequestStore_isConsensusReceived_MultipleSystemId(t *testing.T) {
 	require.Equal(t, len(cs.GetRequests(protocol.SystemIdentifier(SysID2))), 2)
 	// Reset resets both stores
 	cs.Reset()
-	// test all requests cleared
+	// test all nodeRequest cleared
 	require.Empty(t, cs.GetRequests(protocol.SystemIdentifier(SysID1)))
 	require.Empty(t, cs.GetRequests(protocol.SystemIdentifier(SysID2)))
 	ir3, possible3 := cs.IsConsensusReceived(protocol.SystemIdentifier(SysID1), trustBase)

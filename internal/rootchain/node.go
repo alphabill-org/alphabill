@@ -147,7 +147,7 @@ func (v *Node) onHandshake(req *handshake.Handshake) {
 	}
 }
 
-// OnBlockCertificationRequest handle certification requests from partition nodes.
+// OnBlockCertificationRequest handle certification nodeRequest from partition nodes.
 // Partition nodes can only extend the stored/certified state
 func (v *Node) onBlockCertificationRequest(req *certification.BlockCertificationRequest) {
 	if req.SystemIdentifier == nil {
@@ -182,7 +182,7 @@ func (v *Node) onBlockCertificationRequest(req *certification.BlockCertification
 		}
 		return
 	}
-	// check if consensus is already achieved
+	// check if consensus is already achieved, then store, but it will not be used as proof
 	if ir, _ := v.incomingRequests.IsConsensusReceived(sysID, ver); ir != nil {
 		// stale request buffer, but no need to add extra proof
 		if err = v.incomingRequests.Add(req); err != nil {
@@ -214,7 +214,7 @@ func (v *Node) onBlockCertificationRequest(req *certification.BlockCertification
 	if !consensusPossible {
 		logger.Debug("%v partition %X consensus not possible, repeat UC",
 			v.peer.String(), sysID.Bytes())
-		// add all requests to prove that no consensus is possible
+		// add all nodeRequest to prove that no consensus is possible
 		requests := v.incomingRequests.GetRequests(sysID)
 		v.consensusManager.RequestCertification() <- consensus.IRChangeRequest{
 			SystemIdentifier: sysID,
@@ -244,7 +244,7 @@ func (v *Node) handleConsensus(ctx context.Context) error {
 
 func (v *Node) onCertificationResult(certificate *types.UnicityCertificate) {
 	sysID := protocol.SystemIdentifier(certificate.UnicityTreeCertificate.SystemIdentifier)
-	// remember to clear the incoming buffer to accept new requests
+	// remember to clear the incoming buffer to accept new nodeRequest
 	// NB! this will try and reset the store also in the case when system id is unknown, but this is fine
 	defer func() {
 		v.incomingRequests.Clear(sysID)

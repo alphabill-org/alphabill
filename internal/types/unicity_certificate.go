@@ -97,37 +97,33 @@ func CheckNonEquivocatingCertificates(prevUC, newUC *UnicityCertificate) error {
 		// ok, these are just duplicates
 		return nil
 	}
-	// 2. uc.IR.h′ = uc′.IR.h -> state does not change, the new certificate is either empty block or repeat of empty block
-	if bytes.Equal(newUC.InputRecord.PreviousHash, newUC.InputRecord.Hash) {
-		// then block must be empty and thus hash of block is 0H
-		if !isZeroHash(newUC.InputRecord.BlockHash) {
-			return fmt.Errorf("invalid new certificate, non-empty block, but state hash does not change")
-		}
-		// for both new empty block and repeat of empty block uc.IR.h' = uc'.IR.h
-		if (newUC.InputRecord.RoundNumber == prevUC.InputRecord.RoundNumber+1 || isRepeat(prevUC, newUC)) &&
-			!bytes.Equal(newUC.InputRecord.PreviousHash, prevUC.InputRecord.Hash) {
-			return fmt.Errorf("new empty block certificate does not extend previous state")
-		}
-		return nil
-	}
-	// 3. uc.IR.h' != uc.IR.h - state changes, new UC with new state or repeat of previous UC
-	// a. block hash must not be 0H
-	if isZeroHash(newUC.InputRecord.BlockHash) {
-		return fmt.Errorf("invalid new certificate, block can not be empty if state changes")
-	}
-	// b. if this is a repeat of previous state, then there is nothing more to check they are the same cert only round
+	// 2. if this is a repeat of previous state, then there is nothing more to check they are the same cert only round
 	// number is bigger in the newer certificate
 	if isRepeat(prevUC, newUC) {
 		// new is repeat of previous UC, only round number is bigger, all is fine
 		return nil
 	}
-	// c. not a repeat UC, then it must extend from previous state if certificates are from consecutive rounds,
+	// 3. not a repeat UC, then it must extend from previous state if certificates are from consecutive rounds,
 	// if it is not from consecutive rounds then it is simply not possible to make any conclusions
 	if newUC.InputRecord.RoundNumber == prevUC.InputRecord.RoundNumber+1 &&
 		!bytes.Equal(newUC.InputRecord.PreviousHash, prevUC.InputRecord.Hash) {
 		return fmt.Errorf("new certificate does not extend previous state hash")
 	}
-	// d. block hash must not repeat
+	// 4. uc.IR.h′ = uc′.IR.h -> new cert state does not change, the new certificate is for empty block
+	if bytes.Equal(newUC.InputRecord.PreviousHash, newUC.InputRecord.Hash) {
+		// then block must be empty and thus hash of block is 0H
+		if !isZeroHash(newUC.InputRecord.BlockHash) {
+			return fmt.Errorf("invalid new certificate, non-empty block, but state hash does not change")
+		}
+		// done, nothing more to check
+		return nil
+	}
+	// 5. uc.IR.h' != uc.IR.h - state changes, new UC with new state
+	// a. block hash must not be empty and thus block hash must not be 0h
+	if isZeroHash(newUC.InputRecord.BlockHash) {
+		return fmt.Errorf("invalid new certificate, block can not be empty if state changes")
+	}
+	// b. block hash must not repeat
 	if bytes.Equal(newUC.InputRecord.BlockHash, prevUC.InputRecord.BlockHash) {
 		return fmt.Errorf("new certificate repeats previous block hash")
 	}

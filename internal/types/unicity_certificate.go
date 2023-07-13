@@ -75,10 +75,10 @@ func (x *UnicityCertificate) GetRoundNumber() uint64 {
 // NB! order is important, and it is assumed that validity is checked before
 func CheckNonEquivocatingCertificates(prevUC, newUC *UnicityCertificate) error {
 	if newUC == nil {
-		return ErrUCIsNil
+		return errUCIsNil
 	}
 	if prevUC == nil {
-		return ErrLastUCIsNil
+		return errLastUCIsNil
 	}
 	// verify order, check both partition round and root round
 	if newUC.UnicitySeal.RootChainRoundNumber < prevUC.UnicitySeal.RootChainRoundNumber {
@@ -92,7 +92,7 @@ func CheckNonEquivocatingCertificates(prevUC, newUC *UnicityCertificate) error {
 	// 1. uc.IR.n = uc′.IR.n - if the partition round number is the same then input records must also match
 	if newUC.InputRecord.RoundNumber == prevUC.InputRecord.RoundNumber {
 		if !bytes.Equal(newUC.InputRecord.Bytes(), prevUC.InputRecord.Bytes()) {
-			return fmt.Errorf("different input records for same partition round %v", newUC.InputRecord.RoundNumber)
+			return fmt.Errorf("equivocating UC, different input records for same partition round %v", newUC.InputRecord.RoundNumber)
 		}
 		// ok, these are just duplicates
 		return nil
@@ -101,11 +101,12 @@ func CheckNonEquivocatingCertificates(prevUC, newUC *UnicityCertificate) error {
 	if bytes.Equal(newUC.InputRecord.PreviousHash, newUC.InputRecord.Hash) {
 		// then block must be empty and thus hash of block is 0H
 		if !isZeroHash(newUC.InputRecord.BlockHash) {
-			return fmt.Errorf("invalid new certificate, non-empty block does not change state")
+			return fmt.Errorf("invalid new certificate, non-empty block, but state hash does not change")
 		}
-		// for both empty block and repeat of empty block uc.IR.h' = uc'.IR.h
-		if !bytes.Equal(newUC.InputRecord.PreviousHash, prevUC.InputRecord.Hash) {
-			return fmt.Errorf("new certificate does not extend previous state")
+		// for both new empty block and repeat of empty block uc.IR.h' = uc'.IR.h
+		if (newUC.InputRecord.RoundNumber == prevUC.InputRecord.RoundNumber+1 || isRepeat(prevUC, newUC)) &&
+			!bytes.Equal(newUC.InputRecord.PreviousHash, prevUC.InputRecord.Hash) {
+			return fmt.Errorf("new empty block certificate does not extend previous state")
 		}
 		return nil
 	}
@@ -124,7 +125,7 @@ func CheckNonEquivocatingCertificates(prevUC, newUC *UnicityCertificate) error {
 	// if it is not from consecutive rounds then it is simply not possible to make any conclusions
 	if newUC.InputRecord.RoundNumber == prevUC.InputRecord.RoundNumber+1 &&
 		!bytes.Equal(newUC.InputRecord.PreviousHash, prevUC.InputRecord.Hash) {
-		return fmt.Errorf("new certiticte does not extend previous state hash")
+		return fmt.Errorf("new certificate does not extend previous state hash")
 	}
 	// d. block hash must not repeat
 	if bytes.Equal(newUC.InputRecord.BlockHash, prevUC.InputRecord.BlockHash) {

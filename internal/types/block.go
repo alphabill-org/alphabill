@@ -86,7 +86,7 @@ func (b *Block) IsValid(v func(uc *UnicityCertificate) error) error {
 		return errTransactionsIsNil
 	}
 	if b.UnicityCertificate == nil {
-		return ErrUCIsNil
+		return errUCIsNil
 	}
 	if err := v(b.UnicityCertificate); err != nil {
 		return fmt.Errorf("unicity certificate validation failed, %w", err)

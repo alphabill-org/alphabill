@@ -15,12 +15,13 @@ import (
 	"github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/network"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/abdrc"
+	"github.com/alphabill-org/alphabill/internal/network/protocol/certification"
 	protocgenesis "github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/internal/rootchain/consensus/abdrc/leader"
 	"github.com/alphabill-org/alphabill/internal/rootchain/consensus/abdrc/types"
 	"github.com/alphabill-org/alphabill/internal/rootchain/genesis"
 	"github.com/alphabill-org/alphabill/internal/rootchain/partitions"
-	"github.com/alphabill-org/alphabill/internal/rootchain/testutils"
+	abtypes "github.com/alphabill-org/alphabill/internal/types"
 )
 
 func Test_ConsensusManager_sendRecoveryRequests(t *testing.T) {
@@ -128,22 +129,19 @@ func Test_msgToRecoveryInfo(t *testing.T) {
 	t.Parallel()
 
 	t.Run("invalid input", func(t *testing.T) {
-		info, author, sig, err := msgToRecoveryInfo(nil)
+		info, sig, err := msgToRecoveryInfo(nil)
 		require.Empty(t, info)
-		require.Empty(t, author)
 		require.Empty(t, sig)
 		require.EqualError(t, err, `unknown message type, cannot be used for recovery: <nil>`)
 
-		info, author, sig, err = msgToRecoveryInfo(42)
+		info, sig, err = msgToRecoveryInfo(42)
 		require.Empty(t, info)
-		require.Empty(t, author)
 		require.Empty(t, sig)
 		require.EqualError(t, err, `unknown message type, cannot be used for recovery: int`)
 
 		var msg = struct{ s string }{""}
-		info, author, sig, err = msgToRecoveryInfo(msg)
+		info, sig, err = msgToRecoveryInfo(msg)
 		require.Empty(t, info)
-		require.Empty(t, author)
 		require.Empty(t, sig)
 		require.EqualError(t, err, `unknown message type, cannot be used for recovery: struct { s string }`)
 	})
@@ -151,7 +149,7 @@ func Test_msgToRecoveryInfo(t *testing.T) {
 	t.Run("valid input", func(t *testing.T) {
 		nodeID := "16Uiu2HAm2qoNCweXVbxXPHAQxdJnEXEYYQ1bRfBwEi6nUhZMhWxD"
 		signatures := map[string][]byte{"16Uiu2HAm4r9uRwS67kwJEFuZWByM2YUNjW9j179n9Di9z58NTBEj": {4, 3, 2, 1}}
-		quorumCert := &types.QuorumCert{Signatures: signatures, VoteInfo: &types.RoundInfo{RoundNumber: 7}}
+		quorumCert := &types.QuorumCert{Signatures: signatures, VoteInfo: &types.RoundInfo{RoundNumber: 7, ParentRoundNumber: 6}}
 
 		proposalMsg := &abdrc.ProposalMsg{Block: &types.BlockData{Round: 5, Author: nodeID, Qc: quorumCert}}
 		voteMsg := &abdrc.VoteMsg{Author: nodeID, VoteInfo: &types.RoundInfo{RoundNumber: 8}, HighQc: quorumCert}
@@ -161,38 +159,39 @@ func Test_msgToRecoveryInfo(t *testing.T) {
 			name       string
 			input      any
 			info       *recoveryInfo
-			author     string
 			signatures map[string][]byte
 		}{
 			{
 				name:       "proposal message",
 				input:      proposalMsg,
 				info:       &recoveryInfo{toRound: proposalMsg.Block.Qc.GetRound(), triggerMsg: proposalMsg},
-				author:     proposalMsg.Block.Author,
 				signatures: signatures,
 			},
 			{
 				name:       "vote message",
 				input:      voteMsg,
 				info:       &recoveryInfo{toRound: voteMsg.HighQc.GetRound(), triggerMsg: voteMsg},
-				author:     voteMsg.Author,
 				signatures: signatures,
 			},
 			{
 				name:       "timeout message",
 				input:      toMsg,
 				info:       &recoveryInfo{toRound: toMsg.Timeout.GetHqcRound(), triggerMsg: toMsg},
-				author:     toMsg.Author,
+				signatures: signatures,
+			},
+			{
+				name:       "quorum certificate",
+				input:      quorumCert,
+				info:       &recoveryInfo{toRound: quorumCert.GetParentRound(), triggerMsg: quorumCert},
 				signatures: signatures,
 			},
 		}
 
 		for _, tc := range tests {
 			t.Run(tc.name, func(t *testing.T) {
-				info, author, sig, err := msgToRecoveryInfo(tc.input)
+				info, sig, err := msgToRecoveryInfo(tc.input)
 				require.NoError(t, err)
 				require.Equal(t, tc.info, info)
-				require.Equal(t, tc.author, author)
 				require.Equal(t, tc.signatures, sig)
 			})
 		}
@@ -214,10 +213,16 @@ func Test_recoverState(t *testing.T) {
 		}
 	}
 
+	partitionRecs := []*protocgenesis.PartitionRecord{
+		createPartitionRecord(t, partitionID, partitionInputRecord, 2),
+	}
+
 	t.Run("late joiner catches up", func(t *testing.T) {
 		t.Parallel()
+		// test scenario requires to be able to have quorum while "stopping" exactly one manager
 		// for quorum we need ⅔+1 validators to be healthy thus with 4 nodes one can be unhealthy
-		cms, rootNet := createConsensusManagers(t, 4)
+		cms, rootNet, rootG := createConsensusManagers(t, 4, partitionRecs)
+		require.EqualValues(t, rootG.Root.Consensus.QuorumThreshold, len(cms)-1, `there must be "quorum + 1" consensus managers`)
 
 		// tweak configurations - use "constant leader" to take leader selection out of test
 		cmLeader := cms[0]
@@ -265,15 +270,18 @@ func Test_recoverState(t *testing.T) {
 				return cmLeader.pacemaker.GetCurrentRound() >= destRound
 			}, 6*time.Second, 100*time.Millisecond, "waiting for round %d to be processed", destRound)
 		cancel()
-		// we have 4 nodes and we expect at least 8 successful rounds so the network should see at least 32 proposal messages.
-		// if we do not see these then the progress was probably made by timeouts and thus recovery wasn't success?
-		require.GreaterOrEqual(t, proposalCnt.Load(), int32(4*7), "didn't see expected number of proposals")
+		// we have 4 nodes and we expect at least 6 successful rounds (proposal for the first round might be
+		// already sent and for the last round we might not see all messages as test ends as soon as one the
+		// node we check reaches that round).
+		require.GreaterOrEqual(t, proposalCnt.Load(), int32(4*6), "didn't see expected number of proposals")
 	})
 
 	t.Run("peer drops out of network", func(t *testing.T) {
 		t.Parallel()
-		// we need ⅔+1 validators to be healthy, with 4 nodes one can be unhealthy
-		cms, rootNet := createConsensusManagers(t, 4)
+		// test scenario requires to be able to have quorum while "stopping" exactly one manager
+		// for quorum we need ⅔+1 validators to be healthy thus with 4 nodes one can be unhealthy
+		cms, rootNet, rootG := createConsensusManagers(t, 4, partitionRecs)
+		require.EqualValues(t, rootG.Root.Consensus.QuorumThreshold, len(cms)-1, `there must be "quorum + 1" consensus managers`)
 
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
@@ -305,8 +313,10 @@ func Test_recoverState(t *testing.T) {
 
 	t.Run("less than quorum nodes are live for a period", func(t *testing.T) {
 		t.Parallel()
-		// we need ⅔+1 validators to be healthy, with 4 nodes one can be unhealthy
-		cms, rootNet := createConsensusManagers(t, 4)
+		// test scenario requires to be able to have quorum while "stopping" exactly one manager
+		// for quorum we need ⅔+1 validators to be healthy thus with 4 nodes one can be unhealthy
+		cms, rootNet, rootG := createConsensusManagers(t, 4, partitionRecs)
+		require.EqualValues(t, rootG.Root.Consensus.QuorumThreshold, len(cms)-1, `there must be "quorum + 1" consensus managers`)
 
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
@@ -344,18 +354,20 @@ func Test_recoverState(t *testing.T) {
 			func() bool {
 				return cms[0].pacemaker.GetCurrentRound() >= destRound
 			}, 10*time.Second, 300*time.Millisecond, "waiting for round %d to be processed", destRound)
-		// we have 4 nodes and we expect at least 7 successful rounds (depending on the timing occasionally
-		// round 7 times out too so thats one less proposed round out of the 8 we wait after re-enabling traffic).
-		// if we do not see these then the progress was probably made by timeouts and thus recovery wasn't success?
-		require.GreaterOrEqual(t, proposalCnt.Load(), int32(4*7), "didn't see expected number of proposals")
+		// we have 4 nodes and we expect at least 6 successful rounds (proposal for the first round might be
+		// already sent and for the last round we might not see all messages as test ends as soon as one the
+		// node we check reaches that round).
+		require.GreaterOrEqual(t, proposalCnt.Load(), int32(4*6), "didn't see expected number of proposals")
 	})
 
 	t.Run("dead leader", func(t *testing.T) {
 		t.Parallel()
 		// testing what happens when leader "goes dark". easiest to simulate is using
 		// round-robin leader selector where one node is not responsive.
+		// test scenario requires to be able to have quorum while "stopping" exactly one manager
 		// for quorum we need ⅔+1 validators to be healthy thus with 4 nodes one can be unhealthy
-		cms, rootNet := createConsensusManagers(t, 4)
+		cms, rootNet, rootG := createConsensusManagers(t, 4, partitionRecs)
+		require.EqualValues(t, rootG.Root.Consensus.QuorumThreshold, len(cms)-1, `there must be "quorum + 1" consensus managers`)
 		deadID := cms[1].id
 		rootNet.SetFirewall(func(from, to peer.ID, msg network.OutputMessage) bool {
 			return from == deadID || to == deadID
@@ -390,8 +402,10 @@ func Test_recoverState(t *testing.T) {
 
 	t.Run("recovery triggered by timeout", func(t *testing.T) {
 		t.Parallel()
-		// we need ⅔+1 validators to be healthy, with 3 nodes none can be unhealthy
-		cms, rootNet := createConsensusManagers(t, 4)
+		// test scenario requires to be able to have quorum while "stopping" exactly one manager
+		// for quorum we need ⅔+1 validators to be healthy thus with 4 nodes one can be unhealthy
+		cms, rootNet, rootG := createConsensusManagers(t, 4, partitionRecs)
+		require.EqualValues(t, rootG.Root.Consensus.QuorumThreshold, len(cms)-1, `there must be "quorum + 1" consensus managers`)
 
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
@@ -445,8 +459,10 @@ func Test_recoverState(t *testing.T) {
 	t.Run("recovery triggered by vote", func(t *testing.T) {
 		t.Parallel()
 
-		// we need ⅔+1 validators to be healthy, with 3 nodes none can be unhealthy
-		cms, rootNet := createConsensusManagers(t, 4)
+		// test scenario requires to be able to have quorum while "stopping" exactly one manager
+		// for quorum we need ⅔+1 validators to be healthy thus with 4 nodes one can be unhealthy
+		cms, rootNet, rootG := createConsensusManagers(t, 4, partitionRecs)
+		require.EqualValues(t, rootG.Root.Consensus.QuorumThreshold, len(cms)-1, `there must be "quorum + 1" consensus managers`)
 		// round-robin leader in the order nodes are in the cms slice. system is starting
 		// with round 2 and leader will be: 2, 3, 0, 1, 2, 3, 0, 1,...
 		rootNodes := make([]peer.ID, 0, len(cms))
@@ -481,7 +497,7 @@ func Test_recoverState(t *testing.T) {
 			case round < 4:
 				block = (from == node_1_id || to == node_1_id)
 			case round == 4:
-				// allow vote msg only for node 1 so that's wahat triggers recovery
+				// allow vote msg only for node 1 so that's what triggers recovery
 				_, isVote := msg.Message.(*abdrc.VoteMsg)
 				block = (from == node_1_id || to == node_1_id) && !isVote
 			case round >= 5:
@@ -508,18 +524,14 @@ func Test_recoverState(t *testing.T) {
 	})
 }
 
-func createConsensusManagers(t *testing.T, count int) ([]*ConsensusManager, *mockNetwork) {
+func createConsensusManagers(t *testing.T, count int, partitionRecs []*protocgenesis.PartitionRecord) ([]*ConsensusManager, *mockNetwork, *protocgenesis.RootGenesis) {
 	t.Helper()
-
-	// shortcut to create partition records, we do not need partition nodes...
-	_, partitionRecord := testutils.CreatePartitionNodesAndPartitionRecord(t, partitionInputRecord, partitionID, 1)
-	require.NotNil(t, partitionRecord, "unexpectedly got nil partition record")
 
 	signers := map[string]crypto.Signer{}
 	var rgr []*protocgenesis.RootGenesis
 	for i := 0; i < count; i++ {
 		nodeID, signer, _, pubKey := generatePeerData(t)
-		rootG, _, err := genesis.NewRootGenesis(nodeID.String(), signer, pubKey, []*protocgenesis.PartitionRecord{partitionRecord}, genesis.WithTotalNodes(uint32(count)), genesis.WithConsensusTimeout(2500))
+		rootG, _, err := genesis.NewRootGenesis(nodeID.String(), signer, pubKey, partitionRecs, genesis.WithTotalNodes(uint32(count)), genesis.WithConsensusTimeout(2500))
 		require.NoError(t, err, "failed to create root genesis")
 		require.NotNil(t, rootG)
 		rgr = append(rgr, rootG)
@@ -530,8 +542,6 @@ func createConsensusManagers(t *testing.T, count int) ([]*ConsensusManager, *moc
 	require.NoError(t, err, "failed to merge root genesis records")
 	require.NotNil(t, partG)
 	require.NotNil(t, rootG)
-	// we need to be able to have quorum while "stopping" one manager
-	require.LessOrEqual(t, rootG.Root.Consensus.QuorumThreshold, uint32(count-1), "QuorumThreshold too high")
 
 	nw := newMockNetwork()
 	cms := make([]*ConsensusManager, 0, len(rootG.Root.RootValidators))
@@ -546,7 +556,37 @@ func createConsensusManagers(t *testing.T, count int) ([]*ConsensusManager, *moc
 		cms = append(cms, cm)
 	}
 
-	return cms, nw
+	return cms, nw, rootG
+}
+
+func createPartitionRecord(t *testing.T, systemID []byte, ir *abtypes.InputRecord, nrOfValidators int) *protocgenesis.PartitionRecord {
+	t.Helper()
+	record := &protocgenesis.PartitionRecord{
+		SystemDescriptionRecord: &protocgenesis.SystemDescriptionRecord{
+			SystemIdentifier: systemID,
+			T2Timeout:        2500,
+		},
+	}
+
+	for i := 0; i < nrOfValidators; i++ {
+		nodeID, signer, _, pubKey := generatePeerData(t)
+
+		req := &certification.BlockCertificationRequest{
+			SystemIdentifier: systemID,
+			NodeIdentifier:   nodeID.String(),
+			InputRecord:      ir,
+		}
+		require.NoError(t, req.Sign(signer))
+
+		record.Validators = append(record.Validators, &protocgenesis.PartitionNode{
+			NodeIdentifier:            nodeID.String(),
+			SigningPublicKey:          pubKey,
+			EncryptionPublicKey:       pubKey,
+			BlockCertificationRequest: req,
+		})
+	}
+
+	return record
 }
 
 func generatePeerData(t *testing.T) (peer.ID, crypto.Signer, crypto.Verifier, []byte) {

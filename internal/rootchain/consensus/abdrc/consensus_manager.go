@@ -196,10 +196,12 @@ func (x *ConsensusManager) loop(ctx context.Context) error {
 			case *abdrc.TimeoutMsg:
 				x.onTimeoutMsg(mt)
 			case *abdrc.GetStateMsg:
-				x.onStateReq(mt)
+				if err := x.onStateReq(mt); err != nil {
+					logger.Warning("%s failed to process state request from %s: %v", x.id.ShortString(), msg.From.ShortString(), err)
+				}
 			case *abdrc.StateMsg:
 				if err := x.onStateResponse(ctx, mt); err != nil {
-					logger.Warning("%v failed to process state recovery response: %v", x.id.ShortString(), err)
+					logger.Warning("%s failed to process state recovery response from %s: %v", x.id.ShortString(), msg.From.ShortString(), err)
 				}
 			default:
 				logger.Warning("%v unknown protocol req %s %T from %v", x.id.ShortString(), msg.Protocol, mt, msg.From)
@@ -234,7 +236,6 @@ func (x *ConsensusManager) loop(ctx context.Context) error {
 // onLocalTimeout handle local timeout, either no proposal is received or voting does not
 // reach consensus. Triggers timeout voting.
 func (x *ConsensusManager) onLocalTimeout() {
-	// the ticker is automatically restarted, the timeout may need adjustment depending on algorithm and throttling
 	logger.Info("%v round %v local timeout", x.id.ShortString(), x.pacemaker.GetCurrentRound())
 	// has the validator voted in this round, if true send the same (timeout)vote
 	// maybe less than quorum of nodes where operational the last time
@@ -248,7 +249,6 @@ func (x *ConsensusManager) onLocalTimeout() {
 			logger.Warning("%v local timeout error, %v", x.id.ShortString(), err)
 			return
 		}
-		// Record vote
 		x.pacemaker.SetTimeoutVote(timeoutVoteMsg)
 	}
 	// in the case root chain has not made any progress (less than quorum nodes online), broadcast the same vote again
@@ -259,7 +259,7 @@ func (x *ConsensusManager) onLocalTimeout() {
 			Protocol: network.ProtocolRootTimeout,
 			Message:  timeoutVoteMsg,
 		}); err != nil {
-		logger.Warning("%v failed to forward ir change message: %v", x.id.ShortString(), err)
+		logger.Warning("%v error on broadcasting timeout vote: %v", x.id.ShortString(), err)
 	}
 }
 
@@ -340,6 +340,11 @@ func (x *ConsensusManager) onVoteMsg(ctx context.Context, vote *abdrc.VoteMsg) {
 			x.id.ShortString(), x.pacemaker.GetCurrentRound(), vote.VoteInfo.RoundNumber)
 		x.voteBuffer = append(x.voteBuffer, vote)
 		// if we have received f+2 votes, but no proposal yet, then try and recover the proposal
+		// NB! setting the condition to f+1 votes makes some (DC related integration?) tests flaky - it
+		// seems that it's quite common that votes arrive before proposal and going into recovery adds
+		// so much time that tests fail (condition not met before timeout). It probably makes more sense
+		// to go to recovery when we have quorum votes but not proposal? Or do not trigger recovery here
+		// at all - if we're lucky proposal will arrive on time, otherwise round will likely TO anyway?
 		if len(x.voteBuffer) > x.trustBase.GetMaxFaultyNodes()+2 {
 			logger.Warning("%v vote, have received %v votes, but no proposal, entering recovery", x.id.ShortString(), len(x.voteBuffer))
 			if err = x.sendRecoveryRequests(vote); err != nil {
@@ -414,8 +419,8 @@ func (x *ConsensusManager) onTimeoutMsg(vote *abdrc.TimeoutMsg) {
 	}
 	tc, err := x.pacemaker.RegisterTimeoutVote(vote, x.trustBase)
 	if err != nil {
-		logger.Warning("%v round %v vote message from %v error: %v",
-			x.id.ShortString(), x.pacemaker.GetCurrentRound(), vote.Author, err)
+		logger.Warning("%v round %v vote message from %v for round %d error: %v",
+			x.id.ShortString(), x.pacemaker.GetCurrentRound(), vote.Author, vote.GetRound(), err)
 		return
 	}
 	if tc == nil {
@@ -532,8 +537,10 @@ func (x *ConsensusManager) processQC(qc *abtypes.QuorumCert) {
 	}
 	certs, err := x.blockStore.ProcessQc(qc)
 	if err != nil {
-		// todo: recovery
-		logger.Warning("%v round %v failed to process QC (aborting but should try to recover): %v", x.id.ShortString(), x.pacemaker.GetCurrentRound(), err)
+		logger.Warning("%v round %v failure to process QC triggers recovery: %v", x.id.ShortString(), x.pacemaker.GetCurrentRound(), err)
+		if err := x.sendRecoveryRequests(qc); err != nil {
+			logger.Warning("%v sending recovery requests failed: %v", x.id.ShortString(), err)
+		}
 		return
 	}
 	for _, uc := range certs {
@@ -605,13 +612,11 @@ func (x *ConsensusManager) processNewRoundEvent() {
 	}
 }
 
-func (x *ConsensusManager) onStateReq(req *abdrc.GetStateMsg) {
+func (x *ConsensusManager) onStateReq(req *abdrc.GetStateMsg) error {
 	if x.recovery != nil {
-		return
+		return fmt.Errorf("node is in recovery state")
 	}
 
-	logger.Trace("%v round %v received state request from %v",
-		x.id.ShortString(), x.pacemaker.GetCurrentRound(), req.NodeId)
 	certs := x.blockStore.GetCertificates()
 	ucs := make([]*types.UnicityCertificate, 0, len(certs))
 	for _, c := range certs {
@@ -640,33 +645,31 @@ func (x *ConsensusManager) onStateReq(req *abdrc.GetStateMsg) {
 	}
 	peerID, err := peer.Decode(req.NodeId)
 	if err != nil {
-		logger.Warning("%v invalid node identifier: '%s'", req.NodeId)
-		return
+		return fmt.Errorf("invalid receiver identifier %q: %w", req.NodeId, err)
 	}
 	if err = x.net.Send(
 		network.OutputMessage{
 			Protocol: network.ProtocolRootStateResp,
 			Message:  respMsg}, []peer.ID{peerID}); err != nil {
-		logger.Warning("%v failed to send state response message, network error: %v", x.id.ShortString(), err)
+		return fmt.Errorf("failed to send state response message: %w", err)
 	}
+	return nil
 }
 
-func (x *ConsensusManager) onStateResponse(ctx context.Context, req *abdrc.StateMsg) error {
+func (x *ConsensusManager) onStateResponse(ctx context.Context, rsp *abdrc.StateMsg) error {
 	logger.Trace("%v round %v received state response; %s", x.id.ShortString(), x.pacemaker.GetCurrentRound(), x.recovery)
-	if x.recovery == nil || req.CommittedHead == nil || req.CommittedHead.CommitQc == nil || x.recovery.toRound > req.CommittedHead.CommitQc.GetRound() {
+	if x.recovery == nil {
 		// we do send out multiple state recovery request so do not return error when we ignore the ones after successful recovery...
 		return nil
 	}
-
-	for _, c := range req.Certificates {
-		if err := c.IsValid(x.trustBase.GetVerifiers(), x.params.HashAlgorithm, c.UnicityTreeCertificate.SystemIdentifier, c.UnicityTreeCertificate.SystemDescriptionHash); err != nil {
-			return fmt.Errorf("one of the certificates is invalid: %w", err)
-		}
+	if err := rsp.CanRecoverToRound(x.recovery.toRound, x.params.HashAlgorithm, x.trustBase.GetVerifiers()); err != nil {
+		return fmt.Errorf("state message not suitable for recovery to round %d: %w", x.recovery.toRound, err)
 	}
-	if err := x.blockStore.UpdateCertificates(req.Certificates); err != nil {
+
+	if err := x.blockStore.UpdateCertificates(rsp.Certificates); err != nil {
 		return fmt.Errorf("updating block store failed: %w", err)
 	}
-	if err := x.blockStore.RecoverState(req.CommittedHead, req.BlockNode, x.irReqVerifier); err != nil {
+	if err := x.blockStore.RecoverState(rsp.CommittedHead, rsp.BlockNode, x.irReqVerifier); err != nil {
 		return fmt.Errorf("recovering state in block store failed: %w", err)
 	}
 
@@ -690,19 +693,13 @@ func (x *ConsensusManager) onStateResponse(ctx context.Context, req *abdrc.State
 }
 
 func (x *ConsensusManager) sendRecoveryRequests(triggerMsg any) error {
-	info, author, signatures, err := msgToRecoveryInfo(triggerMsg)
+	info, signatures, err := msgToRecoveryInfo(triggerMsg)
 	if err != nil {
 		return fmt.Errorf("failed to extract recovery info: %w", err)
 	}
 	if x.recovery != nil && x.recovery.toRound >= info.toRound {
 		return fmt.Errorf("already in recovery to round %d, ignoring request to recover to round %d", x.recovery.toRound, info.toRound)
 	}
-
-	authorID, err := peer.Decode(author)
-	if err != nil {
-		return fmt.Errorf("failed to decode message author as peer ID: %w", err)
-	}
-	nodes := addRandomNodeIdFromSignatureMap([]peer.ID{authorID}, signatures)
 
 	// set recovery status - when send fails we won't check did we fail to send to just one peer or to
 	// all of them... if we completely failed to send we'll (re)enter to recovery status with higher
@@ -712,36 +709,45 @@ func (x *ConsensusManager) sendRecoveryRequests(triggerMsg any) error {
 	if err := x.net.Send(
 		network.OutputMessage{
 			Protocol: network.ProtocolRootStateReq,
-			Message:  &abdrc.GetStateMsg{NodeId: x.id.String()}}, nodes); err != nil {
+			Message:  &abdrc.GetStateMsg{NodeId: x.id.String()}},
+		selectRandomNodeIdsFromSignatureMap(signatures, 2)); err != nil {
 		return fmt.Errorf("failed to send recovery request: %w", err)
 	}
 	return nil
 }
 
-func msgToRecoveryInfo(msg any) (info *recoveryInfo, author string, signatures map[string][]byte, err error) {
+func msgToRecoveryInfo(msg any) (info *recoveryInfo, signatures map[string][]byte, err error) {
 	info = &recoveryInfo{triggerMsg: msg}
 
 	switch mt := msg.(type) {
 	case *abdrc.ProposalMsg:
 		info.toRound = mt.Block.Qc.GetRound()
-		author = mt.Block.Author
 		signatures = mt.Block.Qc.Signatures
 	case *abdrc.VoteMsg:
 		info.toRound = mt.HighQc.GetRound()
-		author = mt.Author
 		signatures = mt.HighQc.Signatures
 	case *abdrc.TimeoutMsg:
 		info.toRound = mt.Timeout.HighQc.VoteInfo.RoundNumber
-		author = mt.Author
 		signatures = mt.Timeout.HighQc.Signatures
+	case *abtypes.QuorumCert:
+		info.toRound = mt.GetParentRound()
+		signatures = mt.Signatures
 	default:
-		return nil, "", nil, fmt.Errorf("unknown message type, cannot be used for recovery: %T", mt)
+		return nil, nil, fmt.Errorf("unknown message type, cannot be used for recovery: %T", mt)
 	}
 
-	return info, author, signatures, nil
+	return info, signatures, nil
 }
 
-func addRandomNodeIdFromSignatureMap(nodes []peer.ID, m map[string][]byte) []peer.ID {
+/*
+selectRandomNodeIdsFromSignatureMap returns slice with up to "count" random keys
+from "m" without duplicates. The "count" assumed to be greater than zero, iow the
+function always returns at least one item (given that map is not empty).
+The key of the "m" must be of type peer.ID encoded as string (if it's not it is ignored).
+When "m" has less items than "count" then len(m) items is returned (iow all map keys),
+when "m" is empty then empty/nil slice is returned.
+*/
+func selectRandomNodeIdsFromSignatureMap(m map[string][]byte, count int) (nodes []peer.ID) {
 	for k := range m {
 		id, err := peer.Decode(k)
 		if err != nil {
@@ -750,7 +756,10 @@ func addRandomNodeIdFromSignatureMap(nodes []peer.ID, m map[string][]byte) []pee
 		if slices.Contains(nodes, id) {
 			continue
 		}
-		return append(nodes, id)
+		nodes = append(nodes, id)
+		if count--; count == 0 {
+			return nodes
+		}
 	}
 	return nodes
 }

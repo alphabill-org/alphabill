@@ -459,7 +459,7 @@ func TestPacemaker_startNewRound(t *testing.T) {
 		done := make(chan struct{})
 		go func() {
 			defer close(done)
-			stopCounting := time.After(TOcycles*roundTO + 50*time.Millisecond)
+			stopCounting := time.After(TOcycles*roundTO + 100*time.Millisecond)
 			for {
 				select {
 				case <-stopCounting:

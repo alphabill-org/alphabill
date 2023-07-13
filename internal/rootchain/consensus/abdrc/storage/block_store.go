@@ -144,7 +144,7 @@ func (x *BlockStore) ProcessQc(qc *abtypes.QuorumCert) (map[protocol.SystemIdent
 	// add Qc to block tree
 	err := x.blockTree.InsertQc(qc, x.storage)
 	if err != nil {
-		return nil, fmt.Errorf("block store qc handling failed, %w", err)
+		return nil, fmt.Errorf("failed to insert QC into block tree: %w", err)
 	}
 	// This QC does not serve as commit QC, then we are done
 	if qc.GetRound() == genesis.RootRound || qc.LedgerCommitInfo.Hash == nil {
@@ -160,7 +160,7 @@ func (x *BlockStore) ProcessQc(qc *abtypes.QuorumCert) (map[protocol.SystemIdent
 	// generate certificates for all partitions that have changes in progress
 	ucs, err := committedBlock.GenerateCertificates(qc)
 	if err != nil {
-		return nil, fmt.Errorf("commit block %v error, %w", committedBlock.GetRound(), err)
+		return nil, fmt.Errorf("commit block failed to generate certificates for round %v: %w", committedBlock.GetRound(), err)
 	}
 	// update current certificates
 	if err := x.updateCertificateCache(ucs); err != nil {
@@ -210,6 +210,8 @@ func (x *BlockStore) updateCertificateCache(certs map[protocol.SystemIdentifier]
 	for id, uc := range certs {
 		// persist changes
 		if err := x.storage.Write(certKey(id.Bytes()), uc); err != nil {
+			// non-functional requirements? what should the root node do if it fails to persist state?
+			// todo: AB-795 persistent storage failure?
 			return fmt.Errorf("failed to write certificate into storage: %w", err)
 		}
 		// update cache
@@ -247,8 +249,6 @@ func (x *BlockStore) UpdateCertificates(cert []*types.UnicityCertificate) error 
 			newerCerts[id] = c
 		}
 	}
-	// non-functional requirements? what should the root node do if it fails to persist state?
-	// todo: AB-795 persistent storage failure?
 	if err := x.updateCertificateCache(newerCerts); err != nil {
 		return fmt.Errorf("failed to update certificate cache: %w", err)
 	}

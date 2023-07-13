@@ -34,10 +34,11 @@ type (
 	}
 
 	ListBillVM struct {
-		Id      []byte `json:"id" swaggertype:"string" format:"base64" example:"AAAAAAgwv3UA1HfGO4qc1T3I3EOvqxfcrhMjJpr9Tn4="`
-		Value   uint64 `json:"value,string" example:"1000"`
-		TxHash  []byte `json:"txHash" swaggertype:"string" format:"base64" example:"Q4ShCITC0ODXPR+j1Zl/teYcoU3/mAPy0x8uSsvQFM8="`
-		DcNonce []byte `json:"dcNonce" swaggertype:"string" format:"base64" example:"YWZhIHNmc2RmYXNkZmFzIGRmc2FzZiBhc2RmIGFzZGZzYSBkZg=="`
+		Id          []byte `json:"id" swaggertype:"string" format:"base64" example:"AAAAAAgwv3UA1HfGO4qc1T3I3EOvqxfcrhMjJpr9Tn4="`
+		Value       uint64 `json:"value,string" example:"1000"`
+		TxHash      []byte `json:"txHash" swaggertype:"string" format:"base64" example:"Q4ShCITC0ODXPR+j1Zl/teYcoU3/mAPy0x8uSsvQFM8="`
+		DcNonce     []byte `json:"dcNonce" swaggertype:"string" format:"base64" example:"YWZhIHNmc2RmYXNkZmFzIGRmc2FzZiBhc2RmIGFzZGZzYSBkZg=="`
+		SwapTimeout uint64 `json:"swapTimeout,string,omitempty" example:"1000"`
 	}
 
 	BalanceResponse struct {
@@ -501,10 +502,11 @@ func toBillVMList(bills []*Bill) []*ListBillVM {
 	billVMs := make([]*ListBillVM, len(bills))
 	for i, b := range bills {
 		billVMs[i] = &ListBillVM{
-			Id:      b.Id,
-			Value:   b.Value,
-			TxHash:  b.TxHash,
-			DcNonce: b.DcNonce,
+			Id:          b.Id,
+			Value:       b.Value,
+			TxHash:      b.TxHash,
+			DcNonce:     b.DcNonce,
+			SwapTimeout: b.SwapTimeout,
 		}
 	}
 	return billVMs
@@ -512,9 +514,10 @@ func toBillVMList(bills []*Bill) []*ListBillVM {
 
 func (b *ListBillVM) ToGenericBill() *sdk.Bill {
 	return &sdk.Bill{
-		Id:      b.Id,
-		Value:   b.Value,
-		TxHash:  b.TxHash,
-		DcNonce: b.DcNonce,
+		Id:          b.Id,
+		Value:       b.Value,
+		TxHash:      b.TxHash,
+		DcNonce:     b.DcNonce,
+		SwapTimeout: b.SwapTimeout,
 	}
 }

@@ -29,10 +29,11 @@ type (
 	// used to be protobuf defined Bill struct used as import/export/download/upload unified schema across applications
 	// possibly can be removed as import/export/download/upoad feature was dropped
 	Bill struct {
-		Id      []byte `json:"id,omitempty"`
-		Value   uint64 `json:"value,omitempty,string"`
-		TxHash  []byte `json:"tx_hash,omitempty"`
-		DcNonce []byte `json:"dc_nonce,omitempty"`
+		Id          []byte `json:"id,omitempty"`
+		Value       uint64 `json:"value,omitempty,string"`
+		TxHash      []byte `json:"tx_hash,omitempty"`
+		DcNonce     []byte `json:"dc_nonce,omitempty"`
+		SwapTimeout uint64 `json:"swap_timeout,string,omitempty"`
 
 		// fcb specific fields
 		// LastAddFCTxHash last add fee credit tx hash

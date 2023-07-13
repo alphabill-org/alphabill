@@ -81,6 +81,7 @@ func NewDustTx(ac *account.AccountKey, systemID []byte, bill *wallet.Bill, nonce
 		TargetBearer: script.PredicatePayToPublicKeyHashDefault(ac.PubKeyHash.Sha256),
 		Backlink:     bill.TxHash,
 		Nonce:        nonce,
+		SwapTimeout:  bill.SwapTimeout,
 	}
 	txPayload, err := newTxPayload(systemID, money.PayloadTypeTransDC, bill.GetID(), timeout, ac.PrivKeyHash, attr)
 	if err != nil {

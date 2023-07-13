@@ -68,6 +68,22 @@ func initConsensusManager(t *testing.T, net RootNet) (*ConsensusManager, *testut
 	return cm, rootNode, partitionNodes, rootGenesis
 }
 
+func buildBlockCertificationRequest(t *testing.T, rg *genesis.RootGenesis, partitionNodes []*testutils.TestNode) []*certification.BlockCertificationRequest {
+	t.Helper()
+	newIR := &types.InputRecord{
+		PreviousHash: rg.Partitions[0].Nodes[0].BlockCertificationRequest.InputRecord.Hash,
+		Hash:         test.RandomBytes(32),
+		BlockHash:    test.RandomBytes(32),
+		SummaryValue: rg.Partitions[0].Nodes[0].BlockCertificationRequest.InputRecord.SummaryValue,
+		RoundNumber:  2,
+	}
+	requests := make([]*certification.BlockCertificationRequest, len(partitionNodes))
+	for i, n := range partitionNodes {
+		requests[i] = testutils.CreateBlockCertificationRequest(t, newIR, partitionID, n)
+	}
+	return requests
+}
+
 func TestNewConsensusManager_Ok(t *testing.T) {
 	mockNet := testnetwork.NewMockNetwork()
 	cm, root, partitionNodes, rg := initConsensusManager(t, mockNet)
@@ -85,27 +101,17 @@ func Test_ConsensusManager_onPartitionIRChangeReq(t *testing.T) {
 	mockNet := testnetwork.NewMockNetwork()
 	cm, _, partitionNodes, rg := initConsensusManager(t, mockNet)
 
-	newIR := &types.InputRecord{
-		PreviousHash: rg.Partitions[0].Nodes[0].BlockCertificationRequest.InputRecord.Hash,
-		Hash:         test.RandomBytes(32),
-		BlockHash:    test.RandomBytes(32),
-		SummaryValue: rg.Partitions[0].Nodes[0].BlockCertificationRequest.InputRecord.SummaryValue,
-		RoundNumber:  2,
-	}
-	requests := make([]*certification.BlockCertificationRequest, 2)
-	requests[0] = testutils.CreateBlockCertificationRequest(t, newIR, partitionID, partitionNodes[0])
-	requests[1] = testutils.CreateBlockCertificationRequest(t, newIR, partitionID, partitionNodes[1])
-	req := consensus.IRChangeRequest{
+	req := &consensus.IRChangeRequest{
 		SystemIdentifier: partitionID,
 		Reason:           consensus.Quorum,
-		Requests:         requests,
+		Requests:         buildBlockCertificationRequest(t, rg, partitionNodes),
 	}
 
 	// we need to init pacemaker into correct round, otherwise IR validation fails
 	cm.pacemaker.Reset(cm.blockStore.GetHighQc().VoteInfo.RoundNumber)
 	defer cm.pacemaker.Stop()
 
-	require.NoError(t, cm.onPartitionIRChangeReq(&req))
+	require.NoError(t, cm.onPartitionIRChangeReq(req))
 	// since there is only one root node, it is the next leader, the request will be buffered
 	require.True(t, cm.irReqBuffer.IsChangeInBuffer(p.SystemIdentifier(partitionID)))
 }
@@ -167,23 +173,12 @@ func TestIRChangeRequestFromRootValidator_RootTimeout(t *testing.T) {
 	defer ctxCancel()
 	go func() { require.ErrorIs(t, cm.Run(ctx), context.Canceled) }()
 
-	// generate mock requests from partitions
-	requests := make([]*certification.BlockCertificationRequest, 2)
-	newIR := &types.InputRecord{
-		PreviousHash: rg.Partitions[0].Nodes[0].BlockCertificationRequest.InputRecord.Hash,
-		Hash:         test.RandomBytes(32),
-		BlockHash:    test.RandomBytes(32),
-		SummaryValue: rg.Partitions[0].Nodes[0].BlockCertificationRequest.InputRecord.SummaryValue,
-		RoundNumber:  2,
-	}
-	requests[0] = testutils.CreateBlockCertificationRequest(t, newIR, partitionID, partitionNodes[0])
-	requests[1] = testutils.CreateBlockCertificationRequest(t, newIR, partitionID, partitionNodes[1])
+	// simulate IR change request message
 	irChReq := &abtypes.IRChangeReq{
 		SystemIdentifier: partitionID,
 		CertReason:       abtypes.Quorum,
-		Requests:         requests,
+		Requests:         buildBlockCertificationRequest(t, rg, partitionNodes[0:2]),
 	}
-	// simulate IR change request message
 	testutils.MockValidatorNetReceives(t, mockNet, rootNode.Peer.ID(), network.ProtocolRootIrChangeReq, irChReq)
 	// As the node is the leader, next round will trigger a proposal
 	lastProposalMsg = testutils.MockAwaitMessage[*abdrc.ProposalMsg](t, mockNet, network.ProtocolRootProposal)
@@ -320,24 +315,12 @@ func TestIRChangeRequestFromRootValidator(t *testing.T) {
 	defer ctxCancel()
 	go func() { require.ErrorIs(t, cm.Run(ctx), context.Canceled) }()
 
-	// generate mock requests from partitions
-	requests := make([]*certification.BlockCertificationRequest, 2)
-	newIR := &types.InputRecord{
-		PreviousHash: rg.Partitions[0].Nodes[0].BlockCertificationRequest.InputRecord.Hash,
-		Hash:         test.RandomBytes(32),
-		BlockHash:    test.RandomBytes(32),
-		SummaryValue: rg.Partitions[0].Nodes[0].BlockCertificationRequest.InputRecord.SummaryValue,
-		RoundNumber:  2,
-	}
-	requests[0] = testutils.CreateBlockCertificationRequest(t, newIR, partitionID, partitionNodes[0])
-	requests[1] = testutils.CreateBlockCertificationRequest(t, newIR, partitionID, partitionNodes[1])
+	// simulate IR change request message
 	irChReq := &abtypes.IRChangeReq{
 		SystemIdentifier: partitionID,
 		CertReason:       abtypes.Quorum,
-		Requests:         requests,
+		Requests:         buildBlockCertificationRequest(t, rg, partitionNodes[0:2]),
 	}
-
-	// simulate IR change request message
 	testutils.MockValidatorNetReceives(t, mockNet, rootNode.Peer.ID(), network.ProtocolRootIrChangeReq, irChReq)
 	// As the node is the leader, next round will trigger a proposal
 	lastProposalMsg = testutils.MockAwaitMessage[*abdrc.ProposalMsg](t, mockNet, network.ProtocolRootProposal)
@@ -464,14 +447,131 @@ func TestGetState(t *testing.T) {
 	require.Len(t, stateMsg.Certificates, 1)
 }
 
-func Test_addRandomNodeIdFromSignatureMap(t *testing.T) {
+func Test_ConsensusManager_messages(t *testing.T) {
 	t.Parallel()
 
-	clone := func(in []peer.ID) []peer.ID {
-		out := make([]peer.ID, len(in))
-		copy(out, in)
-		return out
-	}
+	// partition data used/shared by tests
+	partitionNodes, partitionRecord := testutils.CreatePartitionNodesAndPartitionRecord(t, partitionInputRecord, partitionID, 2)
+
+	t.Run("IR change request from partition included in proposal", func(t *testing.T) {
+		cms, rootNet, rootG := createConsensusManagers(t, 1, []*genesis.PartitionRecord{partitionRecord})
+
+		// proposal will be broadcasted so eavesdrop the network and make copy of it
+		propCh := make(chan *abdrc.ProposalMsg, 1)
+		rootNet.SetFirewall(func(from, to peer.ID, msg network.OutputMessage) bool {
+			if msg, ok := msg.Message.(*abdrc.ProposalMsg); ok {
+				propCh <- msg
+			}
+			return false
+		})
+
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		go func() { require.ErrorIs(t, cms[0].Run(ctx), context.Canceled) }()
+
+		// simulate root validator node sending IRCR to consensus manager
+		irCReq := consensus.IRChangeRequest{
+			SystemIdentifier: partitionID,
+			Reason:           consensus.Quorum,
+			Requests:         buildBlockCertificationRequest(t, rootG, partitionNodes),
+		}
+
+		select {
+		case <-time.After(cms[0].pacemaker.minRoundLen):
+			t.Fatal("CM doesn't consume IR change request")
+		case cms[0].RequestCertification() <- irCReq:
+		}
+
+		// IRCR must be included into proposal
+		select {
+		case <-time.After(cms[0].pacemaker.maxRoundLen):
+			t.Fatal("haven't got the proposal before timeout")
+		case prop := <-propCh:
+			require.NotNil(t, prop)
+			require.NotNil(t, prop.Block)
+			require.NotNil(t, prop.Block.Payload)
+			require.Len(t, prop.Block.Payload.Requests, 1)
+			require.EqualValues(t, irCReq.SystemIdentifier, prop.Block.Payload.Requests[0].SystemIdentifier)
+			require.ElementsMatch(t, irCReq.Requests, prop.Block.Payload.Requests[0].Requests)
+		}
+	})
+
+	t.Run("IR change request forwarded by peer included in proposal", func(t *testing.T) {
+		cms, rootNet, rootG := createConsensusManagers(t, 1, []*genesis.PartitionRecord{partitionRecord})
+		cmLeader := cms[0]
+
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		go func() { require.ErrorIs(t, cmLeader.Run(ctx), context.Canceled) }()
+
+		// simulate "other root node" forwarding IRCR to leader
+		irCReq := &abtypes.IRChangeReq{
+			SystemIdentifier: partitionID,
+			CertReason:       abtypes.Quorum,
+			Requests:         buildBlockCertificationRequest(t, rootG, partitionNodes),
+		}
+
+		cmBid, _, _, _ := generatePeerData(t)
+		cmBnet := rootNet.Connect(cmBid)
+		msg := network.OutputMessage{
+			Protocol: network.ProtocolRootIrChangeReq,
+			Message:  irCReq,
+		}
+		require.NoError(t, cmBnet.Send(msg, []peer.ID{cmLeader.id}))
+
+		// IRCR must be included into broadcasted proposal, either this or next round
+		sawIRCR := false
+		for cnt := 0; cnt < 2 && !sawIRCR; cnt++ {
+			select {
+			case <-time.After(cmLeader.pacemaker.maxRoundLen):
+				t.Fatal("haven't got the proposal before timeout")
+			case msg := <-cmBnet.ReceivedChannel():
+				prop := msg.Message.(*abdrc.ProposalMsg)
+				require.NotNil(t, prop)
+				require.NotNil(t, prop.Block)
+				require.NotNil(t, prop.Block.Payload)
+				if len(prop.Block.Payload.Requests) == 1 {
+					require.EqualValues(t, irCReq.SystemIdentifier, prop.Block.Payload.Requests[0].SystemIdentifier)
+					require.ElementsMatch(t, irCReq.Requests, prop.Block.Payload.Requests[0].Requests)
+					sawIRCR = true
+				}
+			}
+		}
+		require.True(t, sawIRCR, "expected to see the IRCR in one of the next two proposals")
+	})
+
+	t.Run("state request triggers response", func(t *testing.T) {
+		cms, _, _ := createConsensusManagers(t, 2, []*genesis.PartitionRecord{partitionRecord})
+		cmA, cmB := cms[0], cms[1]
+
+		// only launch cmA, we manage cmB "manually"
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		go func() { require.ErrorIs(t, cmA.Run(ctx), context.Canceled) }()
+
+		// cmB sends state request to cmA
+		msg := network.OutputMessage{
+			Protocol: network.ProtocolRootStateReq,
+			Message:  &abdrc.GetStateMsg{NodeId: cmB.id.String()},
+		}
+		require.NoError(t, cmB.net.Send(msg, []peer.ID{cmA.id}))
+
+		// cmB should receive state response
+		select {
+		case <-time.After(1000 * time.Millisecond):
+			t.Fatal("timeout while waiting for recovery response")
+		case msg := <-cmB.net.ReceivedChannel():
+			state := msg.Message.(*abdrc.StateMsg)
+			require.NotNil(t, state)
+			require.EqualValues(t, 1, state.CommittedHead.Block.Round)
+			require.Empty(t, state.BlockNode)
+			require.Len(t, state.Certificates, 1)
+		}
+	})
+}
+
+func Test_selectRandomNodeIdsFromSignatureMap(t *testing.T) {
+	t.Parallel()
 
 	// generate some valid peer IDs for tests to use
 	peerIDs := make(peer.IDSlice, 3)
@@ -486,50 +586,41 @@ func Test_addRandomNodeIdFromSignatureMap(t *testing.T) {
 	idA, idB, idC := peerIDs[0], peerIDs[1], peerIDs[2]
 
 	t.Run("empty inputs", func(t *testing.T) {
-		nodes := addRandomNodeIdFromSignatureMap(nil, nil)
+		nodes := selectRandomNodeIdsFromSignatureMap(nil, 2)
 		require.Empty(t, nodes)
 
-		nodes = addRandomNodeIdFromSignatureMap([]peer.ID{}, map[string][]byte{})
+		nodes = selectRandomNodeIdsFromSignatureMap(map[string][]byte{}, 2)
 		require.Empty(t, nodes)
-
-		// when the input slice is not empty it must retain it's value
-		inp := []peer.ID{idA}
-
-		nodes = addRandomNodeIdFromSignatureMap(clone(inp), nil)
-		require.ElementsMatch(t, inp, nodes)
-
-		nodes = addRandomNodeIdFromSignatureMap(clone(inp), map[string][]byte{})
-		require.ElementsMatch(t, inp, nodes)
 	})
 
 	t.Run("no duplicates added", func(t *testing.T) {
-		inp := []peer.ID{idA, idB}
+		nodes := selectRandomNodeIdsFromSignatureMap(map[string][]byte{idA.String(): nil}, 2)
+		require.ElementsMatch(t, []peer.ID{idA}, nodes)
 
-		nodes := addRandomNodeIdFromSignatureMap(clone(inp), map[string][]byte{idA.String(): nil})
-		require.ElementsMatch(t, inp, nodes)
+		nodes = selectRandomNodeIdsFromSignatureMap(map[string][]byte{idA.String(): nil, idB.String(): nil}, 2)
+		require.ElementsMatch(t, []peer.ID{idA, idB}, nodes)
 
-		nodes = addRandomNodeIdFromSignatureMap(clone(inp), map[string][]byte{idA.String(): nil, idB.String(): nil})
-		require.ElementsMatch(t, inp, nodes)
-	})
-
-	t.Run("invalid IDs are ignored", func(t *testing.T) {
-		inp := []peer.ID{idA}
-
-		nodes := addRandomNodeIdFromSignatureMap(clone(inp), map[string][]byte{"foo bar": nil})
-		require.ElementsMatch(t, inp, nodes)
-
-		nodes = addRandomNodeIdFromSignatureMap(clone(inp), map[string][]byte{"foo bar": nil, idB.String(): nil})
+		nodes = selectRandomNodeIdsFromSignatureMap(map[string][]byte{idA.String(): nil, idB.String(): nil}, 3)
 		require.ElementsMatch(t, []peer.ID{idA, idB}, nodes)
 	})
 
-	t.Run("new item is added", func(t *testing.T) {
-		inp := []peer.ID{idA, idB}
+	t.Run("invalid IDs are ignored", func(t *testing.T) {
+		nodes := selectRandomNodeIdsFromSignatureMap(map[string][]byte{"foo bar": nil}, 1)
+		require.Empty(t, nodes)
 
-		nodes := addRandomNodeIdFromSignatureMap(clone(inp), map[string][]byte{idC.String(): nil})
-		require.ElementsMatch(t, []peer.ID{idA, idB, idC}, nodes)
+		nodes = selectRandomNodeIdsFromSignatureMap(map[string][]byte{"foo bar": nil, idB.String(): nil}, 2)
+		require.ElementsMatch(t, []peer.ID{idB}, nodes)
+	})
 
-		nodes = addRandomNodeIdFromSignatureMap(clone(inp), map[string][]byte{idB.String(): nil, idC.String(): nil})
-		require.ElementsMatch(t, []peer.ID{idA, idB, idC}, nodes)
+	t.Run("max count items is returned", func(t *testing.T) {
+		inp := map[string][]byte{idA.String(): nil, idB.String(): nil, idC.String(): nil}
+
+		nodes := selectRandomNodeIdsFromSignatureMap(inp, 1)
+		require.Len(t, nodes, 1)
+
+		nodes = selectRandomNodeIdsFromSignatureMap(inp, 2)
+		require.Len(t, nodes, 2)
+		require.NotEqual(t, nodes[0], nodes[1])
 	})
 }
 
@@ -540,9 +631,9 @@ func Test_rootNetworkRunning(t *testing.T) {
 
 	// for quorum we need ⅔+1 validators (root nodes) to be healthy
 	const rootNodeCnt = 4
-	// how many rounds (minimum) the test should run. test stops as soon as one
-	// node is in that round so last round might be "incomplete".
-	const roundCount = 10
+	// destination round - until which round (minimum) the test should run. test stops as soon as
+	// one node is in that round so last round might be "incomplete". System starts with round 2.
+	const destRound = 10
 
 	// consumeUC acts as a validator node consuming the UC-s generated by CM (until ctx is cancelled).
 	// UC-s need to be consumed as otherwise CM blocks where it tries to send them, ie T2 timeout!
@@ -557,7 +648,11 @@ func Test_rootNetworkRunning(t *testing.T) {
 		}
 	}
 
-	cms, rootNet := createConsensusManagers(t, rootNodeCnt)
+	partitionRecs := []*genesis.PartitionRecord{
+		createPartitionRecord(t, partitionID, partitionInputRecord, 1),
+	}
+
+	cms, rootNet, _ := createConsensusManagers(t, rootNodeCnt, partitionRecs)
 
 	var totalMsgCnt atomic.Uint32
 	rootNet.SetFirewall(func(from, to peer.ID, msg network.OutputMessage) bool {
@@ -569,6 +664,7 @@ func Test_rootNetworkRunning(t *testing.T) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
+	start := time.Now()
 	for _, v := range cms {
 		go func(cm *ConsensusManager) { require.ErrorIs(t, cm.Run(ctx), context.Canceled) }(v)
 		go func(cm *ConsensusManager) { consumeUC(ctx, cm) }(v)
@@ -576,9 +672,8 @@ func Test_rootNetworkRunning(t *testing.T) {
 
 	cm := cms[0]
 	// assume rounds are successful and each round takes between minRoundLen and roundTimeout on average
-	maxTestDuration := roundCount * (cm.pacemaker.minRoundLen + (cm.pacemaker.maxRoundLen-cm.pacemaker.minRoundLen)/2)
-	start := time.Now()
-	require.Eventually(t, func() bool { return cm.pacemaker.GetCurrentRound() >= roundCount }, maxTestDuration, 100*time.Millisecond, "waiting for round %d to be achieved", roundCount)
+	maxTestDuration := destRound * (cm.pacemaker.minRoundLen + (cm.pacemaker.maxRoundLen-cm.pacemaker.minRoundLen)/2)
+	require.Eventually(t, func() bool { return cm.pacemaker.GetCurrentRound() >= destRound }, maxTestDuration, 100*time.Millisecond, "waiting for round %d to be achieved", destRound)
 	stop := time.Now()
 	cancel()
 	// when calculating expected message counts keep in mind that last round might not be complete
@@ -594,6 +689,7 @@ func Test_rootNetworkRunning(t *testing.T) {
 	// we expect to see proposal + vote per node per round. when some round timeouts msg count is higher!
 	require.GreaterOrEqual(t, totalMsgCnt.Load(), uint32(completeRounds*rootNodeCnt*2), "total number of messages in the network")
 	// average round duration should be between minRoundLen and maxRoundLen (aka timeout)
+	// potentially flaky as there is delay between starting CMs and starting the clock!
 	require.GreaterOrEqual(t, avgRoundLen, cm.pacemaker.minRoundLen, "minimum round duration for %d rounds", completeRounds)
 	require.GreaterOrEqual(t, cm.pacemaker.maxRoundLen, avgRoundLen, "maximum round duration for %d rounds", completeRounds)
 }

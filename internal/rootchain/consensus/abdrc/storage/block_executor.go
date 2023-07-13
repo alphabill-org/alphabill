@@ -125,14 +125,17 @@ func NewExecutedBlockFromGenesis(hash gocrypto.Hash, pg []*genesis.GenesisPartit
 }
 
 func NewExecutedBlockFromRecovery(hash gocrypto.Hash, recoverBlock *abdrc.RecoveryBlock, verifier IRChangeReqVerifier) (*ExecutedBlock, error) {
-	changes := make([][]byte, 0, len(recoverBlock.Block.Payload.Requests))
-	// verify requests for IR change and proof of consensus
-	for _, irChReq := range recoverBlock.Block.Payload.Requests {
-		_, err := verifier.VerifyIRChangeReq(recoverBlock.Block.GetRound(), irChReq)
-		if err != nil {
-			return nil, fmt.Errorf("new block verification in round %v error, %w", recoverBlock.Block.Round, err)
+	var changes [][]byte
+	if recoverBlock.Block.Payload != nil {
+		changes = make([][]byte, 0, len(recoverBlock.Block.Payload.Requests))
+		// verify requests for IR change and proof of consensus
+		for _, irChReq := range recoverBlock.Block.Payload.Requests {
+			_, err := verifier.VerifyIRChangeReq(recoverBlock.Block.GetRound(), irChReq)
+			if err != nil {
+				return nil, fmt.Errorf("new block verification in round %v error, %w", recoverBlock.Block.Round, err)
+			}
+			changes = append(changes, irChReq.SystemIdentifier)
 		}
-		changes = append(changes, irChReq.SystemIdentifier)
 	}
 	// recover input records
 	irState := make(InputRecords, len(recoverBlock.Ir))

@@ -65,6 +65,12 @@ func NewTxProof(block *Block, txIndex int, algorithm crypto.Hash) (*TxProof, *Tr
 }
 
 func VerifyTxProof(proof *TxProof, txRecord *TransactionRecord, trustBase map[string]abcrypto.Verifier, hashAlgorithm crypto.Hash) error {
+	if proof == nil {
+		return errors.New("tx proof is nil")
+	}
+	if txRecord == nil {
+		return errors.New("tx record is nil")
+	}
 	merklePath := make([]*mt.PathItem, len(proof.Chain))
 	for i, item := range proof.Chain {
 		merklePath[i] = &mt.PathItem{

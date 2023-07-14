@@ -350,7 +350,7 @@ func TestSwapWithExistingDCBillsBeforeDCTimeout(t *testing.T) {
 	_ = am.CreateKeys("")
 	k, _ := am.GetAccountKey(0)
 	ids := [][]byte{util.Uint256ToBytes(uint256.NewInt(1)), util.Uint256ToBytes(uint256.NewInt(2))}
-	bills := []*Bill{addDcBill(t, k, uint256.NewInt(1), nonceBytes, 1, dcTimeoutBlockCount), addDcBill(t, k, uint256.NewInt(2), nonceBytes, 2, dcTimeoutBlockCount)}
+	bills := []*Bill{addDcBill(t, k, uint256.NewInt(1), nonceBytes, 1, dcTimeoutBlockCount, swapTimeoutBlockCount), addDcBill(t, k, uint256.NewInt(2), nonceBytes, 2, dcTimeoutBlockCount, swapTimeoutBlockCount)}
 	expectedDcNonce := calculateDcNonce(bills)
 	dcMetadataMap := make(map[string]*backend.DCMetadata)
 	dcMetadataMap[string(nonceBytes)] = &backend.DCMetadata{BillIdentifiers: ids, DCSum: 3}
@@ -423,7 +423,7 @@ func TestSwapWithExistingExpiredDCBills(t *testing.T) {
 	_ = am.CreateKeys("")
 	k, _ := am.GetAccountKey(0)
 	ids := [][]byte{util.Uint256ToBytes(uint256.NewInt(1)), util.Uint256ToBytes(uint256.NewInt(2))}
-	bills := []*Bill{addDcBill(t, k, uint256.NewInt(1), nonceBytes, 1, 0), addDcBill(t, k, uint256.NewInt(2), nonceBytes, 2, 0)}
+	bills := []*Bill{addDcBill(t, k, uint256.NewInt(1), nonceBytes, 1, 0, 60), addDcBill(t, k, uint256.NewInt(2), nonceBytes, 2, 0, 60)}
 	expectedDcNonce := calculateDcNonce(bills)
 	dcMetadataMap := make(map[string]*backend.DCMetadata)
 	dcMetadataMap[string(nonceBytes)] = &backend.DCMetadata{BillIdentifiers: ids, DCSum: 3}
@@ -686,7 +686,7 @@ func TestBlockingDcWithNormalBills(t *testing.T) {
 	}
 }
 
-func TestBlockingDCWithExistingExpiredDCBills(t *testing.T) {
+func TestDCWithExpiredDCBills(t *testing.T) {
 	// create wallet with 2 timed out dc bills
 	tempNonce := uint256.NewInt(1)
 	nonceBytes := util.Uint256ToBytes(tempNonce)
@@ -695,7 +695,7 @@ func TestBlockingDCWithExistingExpiredDCBills(t *testing.T) {
 	_ = am.CreateKeys("")
 	k, _ := am.GetAccountKey(0)
 	ids := [][]byte{util.Uint256ToBytes(uint256.NewInt(1)), util.Uint256ToBytes(uint256.NewInt(2))}
-	bills := []*Bill{addDcBill(t, k, uint256.NewInt(1), nonceBytes, 1, 0), addDcBill(t, k, uint256.NewInt(2), nonceBytes, 2, 0)}
+	bills := []*Bill{addDcBill(t, k, uint256.NewInt(1), nonceBytes, 1, 0, 60), addDcBill(t, k, uint256.NewInt(2), nonceBytes, 2, 0, 60)}
 	dcMetadataMap := make(map[string]*backend.DCMetadata)
 	dcMetadataMap[string(nonceBytes)] = &backend.DCMetadata{BillIdentifiers: ids, DCSum: 3}
 	billsList := createBillListResponse(bills, dcMetadataMap)
@@ -801,7 +801,7 @@ func addBill(value uint64) *Bill {
 	return &b1
 }
 
-func addDcBill(t *testing.T, k *account.AccountKey, id *uint256.Int, nonce []byte, value, timeout uint64) *Bill {
+func addDcBill(t *testing.T, k *account.AccountKey, id *uint256.Int, nonce []byte, value, timeout uint64, swapTimeout uint64) *Bill {
 	b := Bill{
 		Id:      id,
 		Value:   value,
@@ -816,6 +816,7 @@ func addDcBill(t *testing.T, k *account.AccountKey, id *uint256.Int, nonce []byt
 	b.DcNonce = nonce
 	b.DcTimeout = timeout
 	b.DcExpirationTimeout = dustBillDeletionTimeout
+	b.SwapTimeout = swapTimeout
 
 	require.NoError(t, err)
 	return &b

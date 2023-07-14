@@ -24,6 +24,7 @@ type (
 		Nonce        []byte
 		TargetBearer []byte
 		TargetValue  uint64
+		SwapTimeout  uint64
 		Backlink     []byte
 	}
 

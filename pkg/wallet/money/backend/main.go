@@ -59,6 +59,7 @@ type (
 		Value          uint64 `json:"value"`
 		TxHash         []byte `json:"txHash"`
 		DcNonce        []byte `json:"dcNonce,omitempty"`
+		SwapTimeout    uint64 `json:"swapTimeout,string,omitempty"`
 		OwnerPredicate []byte `json:"ownerPredicate"`
 
 		// fcb specific fields

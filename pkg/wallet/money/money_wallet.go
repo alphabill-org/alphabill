@@ -25,7 +25,8 @@ import (
 
 const (
 	dcTimeoutBlockCount       = 10
-	swapTimeoutBlockCount     = 60
+	swapTimeoutBlockCount     = 60 // swap timeout (after which dust bills can be deleted)
+	swapTxTimeoutBlockCount   = 60 // swap tx message timeout (client metadata)
 	txTimeoutBlockCount       = 10
 	maxBillsForDustCollection = 100
 	dustBillDeletionTimeout   = 65536
@@ -82,10 +83,11 @@ type (
 	}
 
 	dcBillGroup struct {
-		dcBills   []*Bill
-		valueSum  uint64
-		dcNonce   []byte
-		dcTimeout uint64
+		dcBills     []*Bill
+		valueSum    uint64
+		dcNonce     []byte
+		dcTimeout   uint64
+		swapTimeout uint64
 	}
 )
 
@@ -303,7 +305,7 @@ func (w *Wallet) collectDust(ctx context.Context, accountIndex uint64) error {
 		log.Info("Account ", accountIndex, " has less than 2 bills, skipping dust collection")
 		return nil
 	}
-	dcBillGroups, err := groupDcBills(bills)
+	dcBillGroups, err := groupDcBills(bills, roundNr)
 	if err != nil {
 		return err
 	}
@@ -327,7 +329,7 @@ func (w *Wallet) collectDust(ctx context.Context, accountIndex uint64) error {
 				if err != nil {
 					return err
 				}
-				dcBillGroups, err = groupDcBills(bills)
+				dcBillGroups, err = groupDcBills(bills, roundNr)
 				if err != nil {
 					return err
 				}
@@ -336,7 +338,7 @@ func (w *Wallet) collectDust(ctx context.Context, accountIndex uint64) error {
 			if fcb.GetValue() < tx_builder.MaxFee {
 				return ErrInsufficientFeeCredit
 			}
-			swapTimeout := roundNr + swapTimeoutBlockCount
+			swapTimeout := util.Min(roundNr+swapTxTimeoutBlockCount, v.swapTimeout)
 			if err := w.swapDcBills(ctx, v.dcBills, v.dcNonce, dcMetadataMap[string(v.dcNonce)].BillIdentifiers, swapTimeout, accountIndex); err != nil {
 				return err
 			}
@@ -349,10 +351,7 @@ func (w *Wallet) collectDust(ctx context.Context, accountIndex uint64) error {
 
 		billCount := len(bills)
 		for billCount > 1 {
-			offset := maxBillsForDustCollection
-			if offset > billCount {
-				offset = billCount
-			}
+			offset := util.Min(billCount, maxBillsForDustCollection)
 			err = w.submitDCBatch(ctx, k, bills[:offset], fcb.Value, roundNr, accountIndex)
 			if err != nil {
 				return err
@@ -373,9 +372,11 @@ func (w *Wallet) collectDust(ctx context.Context, accountIndex uint64) error {
 func (w *Wallet) submitDCBatch(ctx context.Context, k *account.AccountKey, bills []*Bill, fcbValue, roundNr, accountIndex uint64) error {
 	dcBatch := txsubmitter.NewBatch(k.PubKey, w.backend)
 	dcTimeout := roundNr + dcTimeoutBlockCount
+	swapTimeout := roundNr + swapTimeoutBlockCount
+	swapTxTimeout := roundNr + swapTxTimeoutBlockCount
 	dcNonce := calculateDcNonce(bills)
 	for _, b := range bills {
-		tx, err := tx_builder.NewDustTx(k, w.SystemID(), &wallet.Bill{Id: b.GetID(), Value: b.Value, TxHash: b.TxHash}, dcNonce, dcTimeout)
+		tx, err := tx_builder.NewDustTx(k, w.SystemID(), &wallet.Bill{Id: b.GetID(), Value: b.Value, TxHash: b.TxHash, SwapTimeout: swapTimeout}, dcNonce, dcTimeout)
 		if err != nil {
 			return err
 		}
@@ -395,7 +396,6 @@ func (w *Wallet) submitDCBatch(ctx context.Context, k *account.AccountKey, bills
 		return err
 	}
 
-	swapTimeout := roundNr + swapTimeoutBlockCount
 	for _, sub := range dcBatch.Submissions() {
 		for _, b := range bills {
 			if bytes.Equal(util.Uint256ToBytes(b.Id), sub.UnitID) {
@@ -405,7 +405,7 @@ func (w *Wallet) submitDCBatch(ctx context.Context, k *account.AccountKey, bills
 		}
 	}
 
-	return w.swapDcBills(ctx, bills, dcNonce, getBillIds(bills), swapTimeout, accountIndex)
+	return w.swapDcBills(ctx, bills, dcNonce, getBillIds(bills), swapTxTimeout, accountIndex)
 }
 
 func (w *Wallet) swapDcBills(ctx context.Context, dcBills []*Bill, dcNonce []byte, billIds [][]byte, timeout, accountIndex uint64) error {
@@ -454,7 +454,7 @@ func (w *Wallet) getDetailedBillsList(ctx context.Context, pubKey []byte) ([]*Bi
 				return nil, nil, err
 			}
 		}
-		bills = append(bills, &Bill{Id: util.BytesToUint256(b.Id), Value: b.Value, TxHash: b.TxHash, DcNonce: b.DcNonce, TxProof: proof})
+		bills = append(bills, &Bill{Id: util.BytesToUint256(b.Id), Value: b.Value, TxHash: b.TxHash, DcNonce: b.DcNonce, SwapTimeout: b.SwapTimeout, TxProof: proof})
 	}
 
 	return bills, billResponse.DCMetadata, nil
@@ -515,9 +515,12 @@ func calculateDcNonce(bills []*Bill) []byte {
 }
 
 // groupDcBills groups bills together by dc nonce
-func groupDcBills(bills []*Bill) (map[string]*dcBillGroup, error) {
+func groupDcBills(bills []*Bill, roundNumber uint64) (map[string]*dcBillGroup, error) {
 	m := map[string]*dcBillGroup{}
 	for _, b := range bills {
+		if b.SwapTimeout > 0 && b.SwapTimeout <= roundNumber {
+			continue // node and backend do not currently delete expired dc bills, so we just ignore them
+		}
 		if b.DcNonce != nil {
 			k := string(b.DcNonce)
 			billContainer, exists := m[k]
@@ -529,6 +532,7 @@ func groupDcBills(bills []*Bill) (map[string]*dcBillGroup, error) {
 			billContainer.dcBills = append(billContainer.dcBills, b)
 			billContainer.dcNonce = b.DcNonce
 			billContainer.dcTimeout = b.DcTimeout
+			billContainer.swapTimeout = b.SwapTimeout
 		}
 	}
 	return m, nil

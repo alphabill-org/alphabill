@@ -109,6 +109,7 @@ func (p *BlockProcessor) processTx(txr *types.TransactionRecord, b *types.Block,
 			Value:          attr.TargetValue,
 			TxHash:         txHash,
 			DcNonce:        attr.Nonce,
+			SwapTimeout:    attr.SwapTimeout,
 			OwnerPredicate: attr.TargetBearer,
 		}, proof)
 		if err != nil {

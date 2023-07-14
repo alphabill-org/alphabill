@@ -147,7 +147,7 @@ func (v *Node) onHandshake(req *handshake.Handshake) {
 	}
 }
 
-// OnBlockCertificationRequest handle certification nodeRequest from partition nodes.
+// onBlockCertificationRequest handles certification nodeRequest from partition nodes.
 // Partition nodes can only extend the stored/certified state
 func (v *Node) onBlockCertificationRequest(req *certification.BlockCertificationRequest) {
 	if req.SystemIdentifier == nil {

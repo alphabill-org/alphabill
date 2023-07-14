@@ -48,7 +48,7 @@ func (c *CertRequestBuffer) Add(request *certification.BlockCertificationRequest
 	return rs.add(request, tb)
 }
 
-// IsConsensusReceived has partition with id reached consensus. Required nrOfNodes as input to calculate consensus
+// IsConsensusReceived has partition with id reached consensus
 func (c *CertRequestBuffer) IsConsensusReceived(id protocol.SystemIdentifier, tb partitions.PartitionTrustBase) QuorumResult {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
@@ -66,7 +66,7 @@ func (c *CertRequestBuffer) Reset() {
 	}
 }
 
-// Clear clears nodeRequest in one partition
+// Clear clears node request in one partition
 func (c *CertRequestBuffer) Clear(id protocol.SystemIdentifier) {
 	c.mu.Lock()
 	defer c.mu.Unlock()

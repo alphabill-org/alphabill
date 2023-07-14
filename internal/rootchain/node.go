@@ -207,7 +207,6 @@ func (v *Node) onBlockCertificationRequest(req *certification.BlockCertification
 			Reason:           consensus.Quorum,
 			Requests:         proof,
 		}
-		break
 	case QuorumNotPossible:
 		logger.Debug("%v partition %X consensus not possible, repeat UC",
 			v.peer.String(), sysID.Bytes())
@@ -217,11 +216,9 @@ func (v *Node) onBlockCertificationRequest(req *certification.BlockCertification
 			Reason:           consensus.QuorumNotPossible,
 			Requests:         proof,
 		}
-		break
 	case QuorumInProgress:
 		logger.Debug("%v partition %X quorum not yet reached, but possible in the future",
 			v.peer.String(), sysID.Bytes())
-		break
 	}
 }
 

@@ -20,6 +20,7 @@ type (
 		_           struct{} `cbor:",toarray"`
 		ActualFee   uint64
 		TargetUnits []UnitID
+		Result      []byte
 	}
 )
 

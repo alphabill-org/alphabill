@@ -85,13 +85,16 @@ func execute(currentBlockNumber uint64, stateDB *statedb.StateDB, attr *TxAttrib
 		stateDB.PrepareAccessList(sender.Address(), toAddr, vm.ActivePrecompiles(rules), ethtypes.AccessList{})
 	}
 	var vmErr error
+	var ret []byte
 	if isContractCreation {
 		// contract creation
-		_, _, gasRemaining, vmErr = evm.Create(sender, attr.Data, gasRemaining, attr.Value)
+		var cAddr common.Address
+		ret, cAddr, gasRemaining, vmErr = evm.Create(sender, attr.Data, gasRemaining, attr.Value)
+		log.Info("new emv contract address %x", cAddr.Bytes())
 		// TODO handle "deploy contract" result
 	} else {
 		// TODO set nonce
-		_, gasRemaining, vmErr = evm.Call(sender, vm.AccountRef(attr.To).Address(), attr.Data, gasRemaining, attr.Value)
+		ret, gasRemaining, vmErr = evm.Call(sender, vm.AccountRef(attr.To).Address(), attr.Data, gasRemaining, attr.Value)
 		// TODO handle call result
 	}
 	// todo: "gas handling" Refund ETH for remaining gas, exchanged at the original rate.
@@ -99,18 +102,20 @@ func execute(currentBlockNumber uint64, stateDB *statedb.StateDB, attr *TxAttrib
 	if vmErr != nil {
 		return nil, fmt.Errorf("evm runtime error: %w", vmErr)
 	}
+	log.Info("emv contract success: result %x ", ret)
 	if stateDB.DBError() != nil {
 		return nil, stateDB.DBError()
 	}
 	// todo: "gas handling" currently failing transactions are not added to block, hence we can only charge for successful calls
 	// calculate gas price for used gas
-	txPrice := calcGasPrice(attr.Gas-gasRemaining, gasUnitPrice)
-	log.Trace("total gas: %v gas units", attr.Gas-gasRemaining)
+	gasUsed := attr.Gas - gasRemaining
+	txPrice := calcGasPrice(gasUsed, gasUnitPrice)
+	log.Trace("total gas: %v gas units", gasUsed)
 	log.Trace("total tx cost: %v mia", weiToAlpha(txPrice))
 	stateDB.SubBalance(sender.Address(), txPrice)
 	// add remaining back to block gas pool
 	gp.AddGas(gasRemaining)
-	return &types.ServerMetadata{}, nil
+	return &types.ServerMetadata{ActualFee: gasUsed, Result: ret}, nil
 }
 
 func newBlockContext(currentBlockNumber uint64) vm.BlockContext {

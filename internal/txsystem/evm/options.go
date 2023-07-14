@@ -35,7 +35,7 @@ func DefaultOptions() *Options {
 		hashAlgorithm:           gocrypto.SHA256,
 		trustBase:               nil,
 		initialAccountAddress:   make([]byte, 20),
-		initialAccountBalance:   big.NewInt(100000000000),
+		initialAccountBalance:   big.NewInt(1000000000000000000), //1-ETH
 		blockGasLimit:           DefaultBlockGasLimit,
 		gasUnitPrice:            big.NewInt(DefaultGasPrice),
 	}

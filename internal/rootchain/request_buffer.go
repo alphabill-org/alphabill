@@ -8,10 +8,11 @@ import (
 	"github.com/alphabill-org/alphabill/internal/network/protocol"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/certification"
 	"github.com/alphabill-org/alphabill/internal/rootchain/partitions"
-	"github.com/alphabill-org/alphabill/internal/types"
 )
 
 type (
+	QuorumResult uint8
+
 	CertRequestBuffer struct {
 		mu    sync.RWMutex
 		store map[protocol.SystemIdentifier]*requestBuffer
@@ -25,6 +26,12 @@ type (
 	}
 )
 
+const (
+	QuorumInProgress QuorumResult = iota
+	Quorum
+	QuorumNotPossible
+)
+
 // NewCertificationRequestBuffer create new certification nodeRequest buffer
 func NewCertificationRequestBuffer() *CertRequestBuffer {
 	return &CertRequestBuffer{
@@ -34,31 +41,20 @@ func NewCertificationRequestBuffer() *CertRequestBuffer {
 
 // Add request to certification store. Per node id first valid request is stored. Rest are either duplicate or
 // equivocating and in both cases error is returned. Clear or Reset in order to receive new nodeRequest
-func (c *CertRequestBuffer) Add(request *certification.BlockCertificationRequest) error {
+func (c *CertRequestBuffer) Add(request *certification.BlockCertificationRequest, tb partitions.PartitionTrustBase) (QuorumResult, []*certification.BlockCertificationRequest, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	rs := c.get(protocol.SystemIdentifier(request.SystemIdentifier))
-	return rs.add(request)
-}
-
-// GetRequests returns all stored nodeRequest per system identifier
-func (c *CertRequestBuffer) GetRequests(id protocol.SystemIdentifier) []*certification.BlockCertificationRequest {
-	c.mu.RLock()
-	defer c.mu.RUnlock()
-	rs := c.get(id)
-	allReq := make([]*certification.BlockCertificationRequest, 0, len(rs.nodeRequest))
-	for _, req := range rs.requests {
-		allReq = append(allReq, req...)
-	}
-	return allReq
+	return rs.add(request, tb)
 }
 
 // IsConsensusReceived has partition with id reached consensus. Required nrOfNodes as input to calculate consensus
-func (c *CertRequestBuffer) IsConsensusReceived(id protocol.SystemIdentifier, tb partitions.PartitionTrustBase) (*types.InputRecord, bool) {
+func (c *CertRequestBuffer) IsConsensusReceived(id protocol.SystemIdentifier, tb partitions.PartitionTrustBase) QuorumResult {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	rs := c.get(id)
-	return rs.isConsensusReceived(tb)
+	_, res := rs.isConsensusReceived(tb)
+	return res
 }
 
 // Reset removed all incoming nodeRequest from all stores
@@ -91,24 +87,26 @@ func (c *CertRequestBuffer) get(id protocol.SystemIdentifier) *requestBuffer {
 // newRequestStore creates a new empty requestBuffer.
 func newRequestStore() *requestBuffer {
 	s := &requestBuffer{
-		nodeRequest: make(map[string]sha256Hash),
-		requests:    make(map[sha256Hash][]*certification.BlockCertificationRequest),
+		nodeRequest: make(map[string]sha256Hash),                                     // request per node is allowed per partition round
+		requests:    make(map[sha256Hash][]*certification.BlockCertificationRequest), // count matching requests
 	}
 	return s
 }
 
 // add stores a new input record received from the node.
-func (rs *requestBuffer) add(req *certification.BlockCertificationRequest) error {
+func (rs *requestBuffer) add(req *certification.BlockCertificationRequest, tb partitions.PartitionTrustBase) (QuorumResult, []*certification.BlockCertificationRequest, error) {
 	_, f := rs.nodeRequest[req.NodeIdentifier]
 	if f {
-		return errors.New("request in this round already stored, rejected")
+		proof, res := rs.isConsensusReceived(tb)
+		return res, proof, errors.New("request in this round already stored, rejected")
 	}
 	// first request, calculate hash of IR and store
 	hash := sha256.Sum256(req.InputRecord.Bytes())
 	// no request in buffered yet, add
 	rs.nodeRequest[req.NodeIdentifier] = hash
 	rs.requests[hash] = append(rs.requests[hash], req)
-	return nil
+	proof, res := rs.isConsensusReceived(tb)
+	return res, proof, nil
 }
 
 func (rs *requestBuffer) reset() {
@@ -116,31 +114,33 @@ func (rs *requestBuffer) reset() {
 	rs.requests = make(map[sha256Hash][]*certification.BlockCertificationRequest)
 }
 
-func (rs *requestBuffer) isConsensusReceived(tb partitions.PartitionTrustBase) (*types.InputRecord, bool) {
+func (rs *requestBuffer) isConsensusReceived(tb partitions.PartitionTrustBase) ([]*certification.BlockCertificationRequest, QuorumResult) {
 	var (
-		reqCount = 0
-		irHash   []byte
+		reqCount                                            = 0
 		bcReqs   []*certification.BlockCertificationRequest = nil
 	)
 	// find IR hash that has with most matching requests
-	for hash, reqs := range rs.requests {
+	for _, reqs := range rs.requests {
 		if reqCount < len(reqs) {
 			reqCount = len(reqs)
-			irHash = hash[:]
 			bcReqs = reqs
 		}
 	}
 	quorum := int(tb.GetQuorum())
 	if reqCount >= quorum {
 		// consensus received
-		return bcReqs[0].InputRecord, true
+		return bcReqs, Quorum
 	}
 	// enough nodes have voted and even if the rest of the votes are for the most popular, quorum is still not possible
 	if int(tb.GetTotalNodes())-len(rs.nodeRequest)+reqCount < quorum {
 		// consensus not possible
-		return nil, false
+		allReq := make([]*certification.BlockCertificationRequest, 0, len(rs.nodeRequest))
+		for _, req := range rs.requests {
+			allReq = append(allReq, req...)
+		}
+		return allReq, QuorumNotPossible
 	}
 	// consensus possible in the future
-	logger.Trace("Consensus possible in the future, hash count: %v, needed count: %v, hash:%X", reqCount, quorum, irHash)
-	return nil, true
+	logger.Trace("Consensus possible in the future, hash count: %v, needed count: %v", reqCount, quorum)
+	return nil, QuorumInProgress
 }

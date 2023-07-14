@@ -155,13 +155,13 @@ func (v *Node) onBlockCertificationRequest(req *certification.BlockCertification
 		return
 	}
 	sysID := protocol.SystemIdentifier(req.SystemIdentifier)
-	_, ver, err := v.partitions.GetInfo(sysID)
+	_, pTrustBase, err := v.partitions.GetInfo(sysID)
 	if err != nil {
 		logger.Warning("%v block certification request from %X node %v rejected: %v",
 			v.peer.String(), req.SystemIdentifier, req.NodeIdentifier, err)
 		return
 	}
-	if err = ver.Verify(req.NodeIdentifier, req); err != nil {
+	if err = pTrustBase.Verify(req.NodeIdentifier, req); err != nil {
 		logger.Warning("%v block certification request from %X node %v rejected: %v",
 			v.peer.String(), req.SystemIdentifier, req.NodeIdentifier, err)
 		return
@@ -183,45 +183,45 @@ func (v *Node) onBlockCertificationRequest(req *certification.BlockCertification
 		return
 	}
 	// check if consensus is already achieved, then store, but it will not be used as proof
-	if ir, _ := v.incomingRequests.IsConsensusReceived(sysID, ver); ir != nil {
+	if res := v.incomingRequests.IsConsensusReceived(sysID, pTrustBase); res != QuorumInProgress {
 		// stale request buffer, but no need to add extra proof
-		if err = v.incomingRequests.Add(req); err != nil {
+		if _, _, err = v.incomingRequests.Add(req, pTrustBase); err != nil {
 			logger.Warning("%v stale block certification request from %X node %v could not be stored, %v",
 				v.peer.String(), err.Error())
 		}
 		return
 	}
-
-	if err = v.incomingRequests.Add(req); err != nil {
+	// store new request and see if quorum is achieved
+	res, proof, err := v.incomingRequests.Add(req, pTrustBase)
+	if err != nil {
 		logger.Warning("%v block certification request from %X node %v could not be stored, %v",
 			v.peer.String(), err.Error())
 		return
 	}
-	// There has to be at least one node in the partition, otherwise we could not have verified the request
-	ir, consensusPossible := v.incomingRequests.IsConsensusReceived(sysID, ver)
-	// In case of quorum or no quorum possible forward the IR change request to consensus manager
-	if ir != nil {
+	switch res {
+	case Quorum:
 		logger.Debug("%v partition %X reached consensus, new InputHash: %X",
-			v.peer.String(), sysID.Bytes(), ir.Hash)
-		requests := v.incomingRequests.GetRequests(sysID)
+			v.peer.String(), sysID.Bytes(), proof[0].InputRecord.Hash)
 		v.consensusManager.RequestCertification() <- consensus.IRChangeRequest{
 			SystemIdentifier: sysID,
 			Reason:           consensus.Quorum,
-			Requests:         requests,
+			Requests:         proof,
 		}
-		return
-	}
-	if !consensusPossible {
+		break
+	case QuorumNotPossible:
 		logger.Debug("%v partition %X consensus not possible, repeat UC",
 			v.peer.String(), sysID.Bytes())
 		// add all nodeRequest to prove that no consensus is possible
-		requests := v.incomingRequests.GetRequests(sysID)
 		v.consensusManager.RequestCertification() <- consensus.IRChangeRequest{
 			SystemIdentifier: sysID,
 			Reason:           consensus.QuorumNotPossible,
-			Requests:         requests,
+			Requests:         proof,
 		}
-		return
+		break
+	case QuorumInProgress:
+		logger.Debug("%v partition %X quorum not yet reached, but possible in the future",
+			v.peer.String(), sysID.Bytes())
+		break
 	}
 }
 

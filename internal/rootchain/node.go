@@ -147,7 +147,7 @@ func (v *Node) onHandshake(req *handshake.Handshake) {
 	}
 }
 
-// OnBlockCertificationRequest handle certification requests from partition nodes.
+// onBlockCertificationRequest handles certification nodeRequest from partition nodes.
 // Partition nodes can only extend the stored/certified state
 func (v *Node) onBlockCertificationRequest(req *certification.BlockCertificationRequest) {
 	if req.SystemIdentifier == nil {
@@ -155,13 +155,13 @@ func (v *Node) onBlockCertificationRequest(req *certification.BlockCertification
 		return
 	}
 	sysID := protocol.SystemIdentifier(req.SystemIdentifier)
-	_, ver, err := v.partitions.GetInfo(sysID)
+	_, pTrustBase, err := v.partitions.GetInfo(sysID)
 	if err != nil {
 		logger.Warning("%v block certification request from %X node %v rejected: %v",
 			v.peer.String(), req.SystemIdentifier, req.NodeIdentifier, err)
 		return
 	}
-	if err = ver.Verify(req.NodeIdentifier, req); err != nil {
+	if err = pTrustBase.Verify(req.NodeIdentifier, req); err != nil {
 		logger.Warning("%v block certification request from %X node %v rejected: %v",
 			v.peer.String(), req.SystemIdentifier, req.NodeIdentifier, err)
 		return
@@ -182,46 +182,43 @@ func (v *Node) onBlockCertificationRequest(req *certification.BlockCertification
 		}
 		return
 	}
-	// check if consensus is already achieved
-	if ir, _ := v.incomingRequests.IsConsensusReceived(sysID, ver); ir != nil {
+	// check if consensus is already achieved, then store, but it will not be used as proof
+	if res := v.incomingRequests.IsConsensusReceived(sysID, pTrustBase); res != QuorumInProgress {
 		// stale request buffer, but no need to add extra proof
-		if err = v.incomingRequests.Add(req); err != nil {
+		if _, _, err = v.incomingRequests.Add(req, pTrustBase); err != nil {
 			logger.Warning("%v stale block certification request from %X node %v could not be stored, %v",
 				v.peer.String(), err.Error())
 		}
 		return
 	}
-
-	if err = v.incomingRequests.Add(req); err != nil {
+	// store new request and see if quorum is achieved
+	res, proof, err := v.incomingRequests.Add(req, pTrustBase)
+	if err != nil {
 		logger.Warning("%v block certification request from %X node %v could not be stored, %v",
 			v.peer.String(), err.Error())
 		return
 	}
-	// There has to be at least one node in the partition, otherwise we could not have verified the request
-	ir, consensusPossible := v.incomingRequests.IsConsensusReceived(sysID, ver)
-	// In case of quorum or no quorum possible forward the IR change request to consensus manager
-	if ir != nil {
+	switch res {
+	case QuorumAchieved:
 		logger.Debug("%v partition %X reached consensus, new InputHash: %X",
-			v.peer.String(), sysID.Bytes(), ir.Hash)
-		requests := v.incomingRequests.GetRequests(sysID)
+			v.peer.String(), sysID.Bytes(), proof[0].InputRecord.Hash)
 		v.consensusManager.RequestCertification() <- consensus.IRChangeRequest{
 			SystemIdentifier: sysID,
 			Reason:           consensus.Quorum,
-			Requests:         requests,
+			Requests:         proof,
 		}
-		return
-	}
-	if !consensusPossible {
+	case QuorumNotPossible:
 		logger.Debug("%v partition %X consensus not possible, repeat UC",
 			v.peer.String(), sysID.Bytes())
-		// add all requests to prove that no consensus is possible
-		requests := v.incomingRequests.GetRequests(sysID)
+		// add all nodeRequest to prove that no consensus is possible
 		v.consensusManager.RequestCertification() <- consensus.IRChangeRequest{
 			SystemIdentifier: sysID,
 			Reason:           consensus.QuorumNotPossible,
-			Requests:         requests,
+			Requests:         proof,
 		}
-		return
+	case QuorumInProgress:
+		logger.Debug("%v partition %X quorum not yet reached, but possible in the future",
+			v.peer.String(), sysID.Bytes())
 	}
 }
 
@@ -244,7 +241,7 @@ func (v *Node) handleConsensus(ctx context.Context) error {
 
 func (v *Node) onCertificationResult(certificate *types.UnicityCertificate) {
 	sysID := protocol.SystemIdentifier(certificate.UnicityTreeCertificate.SystemIdentifier)
-	// remember to clear the incoming buffer to accept new requests
+	// remember to clear the incoming buffer to accept new nodeRequest
 	// NB! this will try and reset the store also in the case when system id is unknown, but this is fine
 	defer func() {
 		v.incomingRequests.Clear(sysID)

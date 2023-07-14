@@ -168,6 +168,7 @@ func (m *GenericTxSystem) Execute(tx *types.TransactionOrder) (sm *types.ServerM
 				m.state.RollbackSavepoint()
 				return
 			}
+			targets = append(targets, feeCreditRecordID)
 		}
 		for _, targetID := range targets {
 			// add log for each target unit

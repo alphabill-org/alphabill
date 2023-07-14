@@ -125,6 +125,19 @@ func (w *FeeManager) AddFeeCredit(ctx context.Context, cmd AddFeeCmd) (*AddFeeCm
 		return nil, err
 	}
 
+	// edge case: do not allow adding more fees if wallet has unreclaimed fees
+	bills, err := w.getSortedBills(ctx, accountKey)
+	if err != nil {
+		return nil, err
+	}
+	proof, _, err := w.getUnreclaimedCloseFCProof(ctx, accountKey, bills)
+	if err != nil {
+		return nil, err
+	}
+	if proof != nil {
+		return nil, errors.New("wallet contains unreclaimed fee credit, run the reclaim command before adding fee credit")
+	}
+
 	// fetch fee credit bill
 	fcb, err := w.GetFeeCredit(ctx, GetFeeCreditCmd{AccountIndex: cmd.AccountIndex})
 	if err != nil {
@@ -145,7 +158,7 @@ func (w *FeeManager) AddFeeCredit(ctx context.Context, cmd AddFeeCmd) (*AddFeeCm
 		return nil, err
 	}
 	if transferFCProof == nil {
-		transferFCProof, err = w.sendTransferFC(ctx, cmd, accountKey, fcb, userPartitionRoundNumber, userPartitionTimeout)
+		transferFCProof, err = w.sendTransferFC(ctx, cmd, accountKey, fcb, bills, userPartitionRoundNumber, userPartitionTimeout)
 		if err != nil {
 			return nil, err
 		}
@@ -218,11 +231,7 @@ func (w *FeeManager) Close() {
 	w.userPartitionTxPublisher.Close()
 }
 
-func (w *FeeManager) sendTransferFC(ctx context.Context, cmd AddFeeCmd, accountKey *account.AccountKey, fcb *wallet.Bill, userPartitionRoundNumber uint64, userPartitionTimeout uint64) (*wallet.Proof, error) {
-	bills, err := w.getSortedBills(ctx, accountKey)
-	if err != nil {
-		return nil, err
-	}
+func (w *FeeManager) sendTransferFC(ctx context.Context, cmd AddFeeCmd, accountKey *account.AccountKey, fcb *wallet.Bill, bills []*wallet.Bill, userPartitionRoundNumber uint64, userPartitionTimeout uint64) (*wallet.Proof, error) {
 	if len(bills) == 0 {
 		return nil, errors.New("wallet does not contain any bills")
 	}

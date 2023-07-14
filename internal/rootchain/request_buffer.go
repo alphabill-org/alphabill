@@ -28,7 +28,7 @@ type (
 
 const (
 	QuorumInProgress QuorumStatus = iota
-	Quorum
+	QuorumAchieved
 	QuorumNotPossible
 )
 
@@ -129,7 +129,7 @@ func (rs *requestBuffer) isConsensusReceived(tb partitions.PartitionTrustBase) (
 	quorum := int(tb.GetQuorum())
 	if reqCount >= quorum {
 		// consensus received
-		return bcReqs, Quorum
+		return bcReqs, QuorumAchieved
 	}
 	// enough nodes have voted and even if the rest of the votes are for the most popular, quorum is still not possible
 	if int(tb.GetTotalNodes())-len(rs.nodeRequest)+reqCount < quorum {

@@ -1,6 +1,7 @@
 package rootchain
 
 import (
+	"bytes"
 	"testing"
 
 	"github.com/alphabill-org/alphabill/internal/crypto"
@@ -41,12 +42,12 @@ func Test_requestStore_add(t *testing.T) {
 	// node 2 request
 	res, proof, err = rs.add(&certification.BlockCertificationRequest{NodeIdentifier: "2", InputRecord: IR1}, trustBase)
 	require.NoError(t, err)
-	require.Equal(t, Quorum, res)
+	require.Equal(t, QuorumAchieved, res)
 	require.Len(t, proof, 2)
 	require.Equal(t, 2, len(rs.nodeRequest))
 	require.Equal(t, 1, len(rs.requests))
 	_, res = rs.isConsensusReceived(trustBase)
-	require.Equal(t, Quorum, res)
+	require.Equal(t, QuorumAchieved, res)
 	for _, certReq := range rs.requests {
 		require.Len(t, certReq, 2)
 	}
@@ -73,7 +74,7 @@ func TestRequestStore_isConsensusReceived_SingleNode(t *testing.T) {
 	trustBase := partitions.NewPartitionTrustBase(map[string]crypto.Verifier{"1": nil})
 	res, proof, err := rs.add(&certification.BlockCertificationRequest{NodeIdentifier: "1", InputRecord: IR1}, trustBase)
 	require.NoError(t, err)
-	require.Equal(t, Quorum, res)
+	require.Equal(t, QuorumAchieved, res)
 	require.NotNil(t, proof)
 	require.Len(t, proof, 1)
 	require.Equal(t, req1.InputRecord, proof[0].InputRecord)
@@ -97,7 +98,7 @@ func TestRequestStore_isConsensusReceived_TwoNodes(t *testing.T) {
 	require.Nil(t, proof)
 	res, proof, err = rs.add(&certification.BlockCertificationRequest{NodeIdentifier: "2", InputRecord: IR1}, trustBase)
 	require.NoError(t, err)
-	require.Equal(t, Quorum, res)
+	require.Equal(t, QuorumAchieved, res)
 	require.NotNil(t, proof)
 	require.Len(t, proof, 2)
 	require.Equal(t, req1.InputRecord, proof[0].InputRecord)
@@ -119,20 +120,20 @@ func TestRequestStore_isConsensusReceived_FiveNodes(t *testing.T) {
 	// 3.
 	res, proof, err = rs.add(&certification.BlockCertificationRequest{NodeIdentifier: "3", InputRecord: IR1}, trustBase)
 	require.NoError(t, err)
-	require.Equal(t, Quorum, res)
+	require.Equal(t, QuorumAchieved, res)
 	require.NotNil(t, proof)
 	require.Len(t, proof, 3)
-	// 4.
-	res, proof, err = rs.add(&certification.BlockCertificationRequest{NodeIdentifier: "4", InputRecord: IR2}, trustBase)
+	// 4. change one filed and make sure it is not part of consensus
+	res, proof, err = rs.add(&certification.BlockCertificationRequest{NodeIdentifier: "4", InputRecord: &types.InputRecord{Hash: bytes.Clone(IR1.Hash), SumOfEarnedFees: 10}}, trustBase)
 	require.NoError(t, err)
-	require.Equal(t, Quorum, res)
+	require.Equal(t, QuorumAchieved, res)
 	require.NotNil(t, proof)
 	// proof is still 3, do not include invalid requests in quorum proof (at the moment)
 	require.Len(t, proof, 3)
 	// 5.
 	res, proof, err = rs.add(&certification.BlockCertificationRequest{NodeIdentifier: "5", InputRecord: IR1}, trustBase)
 	require.NoError(t, err)
-	require.Equal(t, Quorum, res)
+	require.Equal(t, QuorumAchieved, res)
 	require.NotNil(t, proof)
 	// proof is still 3, do not include invalid requests in quorum proof (at the moment)
 	require.Len(t, proof, 4)
@@ -193,7 +194,7 @@ func TestCertRequestStore_isConsensusReceived_TwoNodes(t *testing.T) {
 	require.Nil(t, proof)
 	res, proof, err = cs.Add(&certification.BlockCertificationRequest{SystemIdentifier: SysID1, NodeIdentifier: "2", InputRecord: IR1}, trustBase)
 	require.NoError(t, err)
-	require.Equal(t, Quorum, res)
+	require.Equal(t, QuorumAchieved, res)
 	require.NotNil(t, proof)
 	require.Len(t, proof, 2)
 	require.Equal(t, req1.InputRecord, proof[0].InputRecord)
@@ -216,17 +217,17 @@ func TestCertRequestStore_isConsensusReceived_MultipleSystemId(t *testing.T) {
 	// add more requests
 	res, proof, err = cs.Add(&certification.BlockCertificationRequest{SystemIdentifier: SysID1, NodeIdentifier: "2", InputRecord: IR1}, trustBase)
 	require.NoError(t, err)
-	require.Equal(t, Quorum, res)
+	require.Equal(t, QuorumAchieved, res)
 	require.NotNil(t, proof)
 	require.Len(t, proof, 2)
 	require.Equal(t, IR1, proof[0].InputRecord)
 	require.Equal(t, IR1, proof[1].InputRecord)
 	res, proof, err = cs.Add(&certification.BlockCertificationRequest{SystemIdentifier: SysID2, NodeIdentifier: "2", InputRecord: IR2}, trustBase)
 	require.NoError(t, err)
-	require.Equal(t, Quorum, res)
+	require.Equal(t, QuorumAchieved, res)
 	require.NotNil(t, proof)
-	require.Equal(t, Quorum, cs.IsConsensusReceived(protocol.SystemIdentifier(SysID1), trustBase))
-	require.Equal(t, Quorum, cs.IsConsensusReceived(protocol.SystemIdentifier(SysID2), trustBase))
+	require.Equal(t, QuorumAchieved, cs.IsConsensusReceived(protocol.SystemIdentifier(SysID1), trustBase))
+	require.Equal(t, QuorumAchieved, cs.IsConsensusReceived(protocol.SystemIdentifier(SysID2), trustBase))
 	require.Len(t, proof, 2)
 	require.Equal(t, IR2, proof[0].InputRecord)
 	require.Equal(t, IR2, proof[1].InputRecord)
@@ -254,17 +255,17 @@ func TestCertRequestStore_clearOne(t *testing.T) {
 	require.Nil(t, proof)
 	res, proof, err = cs.Add(&certification.BlockCertificationRequest{SystemIdentifier: SysID1, NodeIdentifier: "2", InputRecord: IR1}, trustBase)
 	require.NoError(t, err)
-	require.Equal(t, Quorum, res)
+	require.Equal(t, QuorumAchieved, res)
 	require.NotNil(t, proof)
 	res, proof, err = cs.Add(&certification.BlockCertificationRequest{SystemIdentifier: SysID2, NodeIdentifier: "2", InputRecord: IR2}, trustBase)
 	require.NoError(t, err)
-	require.Equal(t, Quorum, res)
+	require.Equal(t, QuorumAchieved, res)
 	require.NotNil(t, proof)
 	// clear sys id 1
 	cs.Clear(protocol.SystemIdentifier(SysID1))
 	require.Empty(t, cs.get(protocol.SystemIdentifier(SysID1)).requests)
 	require.Empty(t, cs.get(protocol.SystemIdentifier(SysID1)).nodeRequest)
-	require.Equal(t, Quorum, cs.IsConsensusReceived(protocol.SystemIdentifier(SysID2), trustBase))
+	require.Equal(t, QuorumAchieved, cs.IsConsensusReceived(protocol.SystemIdentifier(SysID2), trustBase))
 	require.Equal(t, QuorumInProgress, cs.IsConsensusReceived(protocol.SystemIdentifier(SysID1), trustBase))
 }
 

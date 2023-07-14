@@ -199,7 +199,7 @@ func (v *Node) onBlockCertificationRequest(req *certification.BlockCertification
 		return
 	}
 	switch res {
-	case Quorum:
+	case QuorumAchieved:
 		logger.Debug("%v partition %X reached consensus, new InputHash: %X",
 			v.peer.String(), sysID.Bytes(), proof[0].InputRecord.Hash)
 		v.consensusManager.RequestCertification() <- consensus.IRChangeRequest{

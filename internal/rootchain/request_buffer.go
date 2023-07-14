@@ -11,7 +11,7 @@ import (
 )
 
 type (
-	QuorumResult uint8
+	QuorumStatus uint8
 
 	CertRequestBuffer struct {
 		mu    sync.RWMutex
@@ -27,7 +27,7 @@ type (
 )
 
 const (
-	QuorumInProgress QuorumResult = iota
+	QuorumInProgress QuorumStatus = iota
 	Quorum
 	QuorumNotPossible
 )
@@ -41,7 +41,7 @@ func NewCertificationRequestBuffer() *CertRequestBuffer {
 
 // Add request to certification store. Per node id first valid request is stored. Rest are either duplicate or
 // equivocating and in both cases error is returned. Clear or Reset in order to receive new nodeRequest
-func (c *CertRequestBuffer) Add(request *certification.BlockCertificationRequest, tb partitions.PartitionTrustBase) (QuorumResult, []*certification.BlockCertificationRequest, error) {
+func (c *CertRequestBuffer) Add(request *certification.BlockCertificationRequest, tb partitions.PartitionTrustBase) (QuorumStatus, []*certification.BlockCertificationRequest, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	rs := c.get(protocol.SystemIdentifier(request.SystemIdentifier))
@@ -49,7 +49,7 @@ func (c *CertRequestBuffer) Add(request *certification.BlockCertificationRequest
 }
 
 // IsConsensusReceived has partition with id reached consensus
-func (c *CertRequestBuffer) IsConsensusReceived(id protocol.SystemIdentifier, tb partitions.PartitionTrustBase) QuorumResult {
+func (c *CertRequestBuffer) IsConsensusReceived(id protocol.SystemIdentifier, tb partitions.PartitionTrustBase) QuorumStatus {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	rs := c.get(id)
@@ -94,7 +94,7 @@ func newRequestStore() *requestBuffer {
 }
 
 // add stores a new input record received from the node.
-func (rs *requestBuffer) add(req *certification.BlockCertificationRequest, tb partitions.PartitionTrustBase) (QuorumResult, []*certification.BlockCertificationRequest, error) {
+func (rs *requestBuffer) add(req *certification.BlockCertificationRequest, tb partitions.PartitionTrustBase) (QuorumStatus, []*certification.BlockCertificationRequest, error) {
 	_, f := rs.nodeRequest[req.NodeIdentifier]
 	if f {
 		proof, res := rs.isConsensusReceived(tb)
@@ -114,12 +114,12 @@ func (rs *requestBuffer) reset() {
 	rs.requests = make(map[sha256Hash][]*certification.BlockCertificationRequest)
 }
 
-func (rs *requestBuffer) isConsensusReceived(tb partitions.PartitionTrustBase) ([]*certification.BlockCertificationRequest, QuorumResult) {
+func (rs *requestBuffer) isConsensusReceived(tb partitions.PartitionTrustBase) ([]*certification.BlockCertificationRequest, QuorumStatus) {
 	var (
 		reqCount                                            = 0
 		bcReqs   []*certification.BlockCertificationRequest = nil
 	)
-	// find IR hash that has with most matching requests
+	// find IR hash that has most matching requests
 	for _, reqs := range rs.requests {
 		if reqCount < len(reqs) {
 			reqCount = len(reqs)

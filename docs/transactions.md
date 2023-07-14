@@ -55,17 +55,17 @@ Data items in the top level array:
 1. *Payload* (array) is described in section [*Payload*](#payload).
 
 2. *OwnerProof* (byte string) contains the arguments to satisfy the
-owner condition of the unit specified by *UnitID* in the
-*Payload*. The most common example of *OwnerProof* is a digital
-signature signing the CBOR encoded *Payload*.
+owner condition of the unit specified by *Payload*.*UnitID*. The most
+common example of *OwnerProof* is a digital signature signing the CBOR
+encoded *Payload*.
 
 3. *FeeProof* (byte string) contains the arguments to satisfy the
 owner condition of the fee credit record specified by
-*FeeCreditRecordID* in the *ClientMetadata* of the *Payload*. The most
-common example of *FeeProof* is a digital signature signing the CBOR
-encoded *Payload*. *FeeProof* can be set to ```null``` (CBOR simple
-value 22) in case *OwnerProof* also satisfies the owner condition of
-the fee credit record.
+*Payload*.*ClientMetadata*.*FeeCreditRecordID*. The most common
+example of *FeeProof* is a digital signature signing the CBOR encoded
+*Payload*. *FeeProof* can be set to ```null``` (CBOR simple value 22)
+in case *OwnerProof* also satisfies the owner condition of the fee
+credit record.
 
 ### *Payload*
 
@@ -96,7 +96,8 @@ transaction. *SystemIdentifier*s currently in use:
 their corresponding *Attributes*.
 
 3. *UnitID* (byte string) specifies the unit involved in the
-   transaction.
+   transaction. Partitions can have different types of units, but they
+   are all identified by this data item.
 
 4. *Attributes* (array) is an array of transaction attributes that
 depends on the transaction type and are described in section
@@ -107,9 +108,9 @@ depends on the transaction type and are described in section
 
 #### *ClientMetadata*
 
-*ClientMetadata* is an array of data items that set the conditions for
-the execution of the transaction. It consists of the following (with
-example values):
+*ClientMetadata* is an array of data items that sets the conditions
+for the execution of the transaction. It consists of the following
+(with example values):
 
 ```
 /ClientMetadata/ [
@@ -130,23 +131,31 @@ Data items in the *ClientMetadata* array:
 
 3. *FeeCreditRecordID* (byte string) is an optional identifier of the
    fee credit record used to pay for the execution of this
-   transaction.
+   transaction. Fee credit records are created with [Transfer to Fee
+   Credit](#transfer-to-fee-credit) and [Add Fee
+   Credit](#add-fee-credit) transactions.
 
 ### Transaction Types
 
-Each partition defines its own transaction types
-(*TransactionOrder*.*Payload*.*Type*) and the corresponding
-transaction attributes (*TransactionOrder*.*Payload*.*Attributes*).
+Each partition defines its own unit types. For each unit type, a set
+of valid transaction types is defined. And for each transaction type,
+an array of valid attributes is defined.
 
-> TODO: Talk a bit more about partitions and their parameters like
-> hash algorithm and unit types. Currently the general part talks about units,
-> but money partition talks about bills.
-
-> TODO: explain backlinks here and not under every transaction type
+A common attribute for many transaction types is *Backlink*, which
+links the transaction back to the previous transaction with the same
+unit and thus makes the order of transactions unambiguous. *Backlink*
+is calculated as the hash of the raw CBOR encoded bytes of the
+*TransactionOrder* data item. Hash algorithm is defined by each
+partiton.
 
 #### Money Partition
 
 Money partiton has two types of units: bills and fee credit records.
+
+Hash algorithm: SHA-256\
+Required data items for all transactions:
+
+*TransactionOrder*.*Payload*.*SystemIdentifier* = h'00000000'
 
 ##### Transfer Bill
 
@@ -168,16 +177,15 @@ transferred bill is unchanged.
    bill. The reason for including the value of the bill in the
    transaction order is to enable the recipient of the transaction to
    learn the received amount without having to look up the bill.
-3. *Backlink* (byte string) is the SHA-256 hash of the previous
-   transaction with the bill. The hash is calculated over the raw CBOR
-   encoded bytes of the *TransactionOrder* data item.
+3. *Backlink* (byte string) is the backlink to the previous
+   transaction with the bill.
 
 ##### Split Bill
 
 This transaction splits a bill in two, creating a new bill with its
-own owner condition (*TargetOwner*) and a value (*TargetValue*). The
+own owner condition (*TargetOwner*) and value (*TargetValue*). The
 value of the bill being split is reduced by the value of the new bill
-and is stored in the *RemainingValue* attribute. The sum of values
+and is specified in the *RemainingValue* attribute. The sum of values
 specified by *TargetValue* and *RemainingValue* attributes must be
 equal to the value of the bill before the split.
 
@@ -196,10 +204,9 @@ equal to the value of the bill before the split.
 2. *TargetOwner* (byte string) is the owner condition of the new bill.
 3. *RemainingValue* (unsigned integer) is the remaining value of the
    bill being split.
-   > TODO: Why is this needed? The recipient of this transaction does not need to know the *RemainingValue* as is the case with *TargetValue* in Transfer Bill transaction. Also, Transfer to Fee Credit has no such field (and can't have), although it is very similar to a split.)
-4. *Backlink* (byte string) is the hash of the previous transaction
-   with the bill being split. The hash is calculated over raw CBOR
-   encoded bytes of the *TransactionOrder* data item.
+    > TODO: Why is this needed? The recipient of this transaction does not need to know the *RemainingValue* as is the case with *TargetValue* in Transfer Bill transaction. Also, Transfer to Fee Credit has no such field (and can't have), although it is very similar to a split.)
+4. *Backlink* (byte string) is the backlink to the previous transaction
+   with the bill.
 
 ##### Transfer Bill to Dust Collector
 
@@ -212,8 +219,8 @@ the new bill obtained from DC is calculated from the *UnitID*s of the
 bills being swapped, and specified in the *Nonce* attribute of this
 transaction.
 
-Dust is not defined, any bills can be sent to DC and swapped for a
-larger-value bill.
+Dust is not defined, any bills can be transferred to DC and swapped
+for a larger-value bill.
 
 *TransactionOrder*.*Payload*.*Type* = "transDC"\
 *TransactionOrder*.*Payload*.*Attributes* contains:
@@ -236,33 +243,41 @@ larger-value bill.
    Collector](#swap-bills-with-dust-collector) transaction.
 3. *TargetValue* (unsigned integer) is the value of the bill
    transferred to DC with this transaction.
-4. *Backlink* (byte string) is the hash of the previous transaction
-   with the bill transferred to DC with this transaction. The hash is
-   calculated over raw CBOR encoded bytes of the *TransactionOrder*
-   data item.
+4. *Backlink* (byte string) is the backlink to the previous transaction
+   with the bill.
 
 ##### Swap Bills With Dust Collector
 
-> TODO
+This transaction swaps the bills previously [transferred to
+DC](#transfer-bill-to-dust-collector) for a new, larger-value bill.
 
 *TransactionOrder*.*Payload*.*Type* = "swapDC"\
 *TransactionOrder*.*Payload*.*Attributes* contains:
 ```
 /swapDCAttributes/ [
-    /TargetOwner/     h'',
-    /BillIdentifiers/ [/TODO/],
-    /DcTransfers/     [/TODO/],
-    /Proofs/          [/TODO/],
-    /TargetValue/     3
+    /TargetOwner/      h'',
+    /BillIdentifiers/  [h''],
+    /DcTransfers/      [/omitted/],
+    /DcTransferProofs/ [/omitted/],
+    /TargetValue/      3
 ]
 ```
 
 1. *TargetOwner* (byte string) is the owner condition of the new bill.
-2. *BillIdentifiers* (array of byte strings) is a variable length array
-   of bill identifiers that are being swapped.
-3. *DcTransfers* (array of TransactionRecords) is TODO should be opaque byte string
-4. *Proofs* (array of TxProofs) is TODO does API return array? can client handle it as opaque byte string?
-5. *TargetValue* (unsigned integer) is the value of the new bill. 
+2. *BillIdentifiers* (array of byte strings) is a variable length
+   array of bill identifiers that are being swapped.
+   > TODO: Order is not important?
+3. *DcTransfers* (array) is an array of [Transfer Bill to Dust
+   Collector](#transfer-bill-to-dust-collector) transaction records
+   ordered in strictly increasing order of bill identifiers.
+4. *DcTransferProofs* (array) is an array of [Transfer Bill to Dust
+   Collector](#transfer-bill-to-dust-collector) transaction proofs.
+   The order of this array must match the order of *DcTransfers*
+   array, so that a transaction and its corresponding proof have the
+   same index.
+5. *TargetValue* (unsigned integer) is the value of the new bill and
+   must be equal to the sum of the values of the bills transferred to
+   DC for this swap.
 
 ##### Transfer to Fee Credit
 
@@ -327,8 +342,7 @@ transferred to fee credit is lost.
    *TargetRecordID* in the target partition, or `null` if it does not
    exist yet.
 7. *Backlink* (byte string) is the backlink to the previous
-   transaction with this bill (the bill being transferred to fee
-   credit).
+   transaction with the bill.
 
 ##### Add Fee Credit
 
@@ -368,8 +382,6 @@ record being created/updated.
     for the target partition to verify the amount reserved as fee
     credit in the money partiton.
 
-> TODO: change the types of *FeeCreditTransfer* and *FeeCreditTransferProof* to byte string.
-
 ##### Close Fee Credit
 
 This transaction closes a fee credit record and makes it possible to
@@ -384,9 +396,9 @@ Note that fee credit records cannot be closed partially.
 *TransactionOrder*.*Payload*.*Attributes* contains:
 ```
 /closeFCAttributes/ [
-    /Amount/       100000000,
-    /TargetUnitID/ h'A0227AC5202427DB551B8ABE08645378347A3C5F70E0E5734F147AD45CBC1BA5',
-    /Nonce/        null
+    /Amount/            100000000,
+    /FeeCreditRecordID/ h'A0227AC5202427DB551B8ABE08645378347A3C5F70E0E5734F147AD45CBC1BA5',
+    /Nonce/             null
 ]
 ```
 
@@ -400,25 +412,47 @@ Note that fee credit records cannot be closed partially.
 
 ##### Reclaim Fee Credit
 
-> TODO
+This transaction reclaims the fee credit previously closed with the
+[Close Fee Credit](#close-fee-credit) transaction in a target
+partition to an existing bill in the money partition.
 
+*TransactionOrder*.*FeeProof* = `null`\
 *TransactionOrder*.*Payload*.*Type* = "reclFC"\
+*TransactionOrder*.*Payload*.*ClientMetadata*.*FeeCreditRecordID* = `null`\
 *TransactionOrder*.*Payload*.*Attributes* contains:
 ```
 /reclFCAttributes/ [
-    /CloseFeeCreditTransfer/ [/TransactionRecord/],
-    /CloseFeeCreditProof/    [/TransactionProof/],
-    /Backlink/               h''
+    /CloseFeeCredit/      [/TransactionRecord/],
+    /CloseFeeCreditProof/ [/TransactionProof/],
+    /Backlink/            h''
 ]
 ```
 
-1. *CloseFeeCreditTransfer* - bill transfer record of type "close fee credit" (based on closed bill GET /proof)
-2. *CloseFeeCreditProof* - transaction proof of "close fee credit" transaction (based on closed bill GET /proof)
-3. *Backlink* - hash of this unit's previous transacton (bill backlink that will be changed in your money account)
+1. *CloseFeeCredit* (array) is the transaction record of the [Close
+   Fee Credit](#close-fee-credit) transaction. It is constructed by a
+   node when the transaction is executed and included in a
+   block. Necessary for the money partition to verify the amount
+   closed as fee credit in the target partition.
+2. *CloseFeeCreditProof* (array) is the proof of execution of the
+    transaction provided in *CloseFeeCredit* attribute. Necessary for
+    the target partition to verify the amount closed as fee credit in
+    the target partiton.
+3. *Backlink* (byte string) is the backlink to the previous
+   transaction with the bill receiving the reclaimed fee credit.
 
 #### Tokens Partition
 
+Tokens partiton has five types of units: fungible and non-fungible
+token types, fungible and non-fungible tokens, and fee credit records.
+
+Hash algorithm: SHA-256.
+Required data items for all transactions:
+
+*TransactionOrder*.*Payload*.*SystemIdentifier* = h'00000002'
+
 ##### Create Non-fungible Token Type
+
+This transaction creates a non-fungible token type.
 
 *TransactionOrder*.*Payload*.*Type* = "createNType"\
 *TransactionOrder*.*Payload*.*Attributes* contains:
@@ -426,7 +460,7 @@ Note that fee credit records cannot be closed partially.
 /createNTypeAttributes/ [
     /Symbol/                             "symbol",
     /Name/                               "long name",
-    /Icon/                               ["image/png", h''],
+    /Icon/                               [/Type/ "image/png", /Data/ h''],
     /ParentTypeID/                       h'00',
     /SubTypeCreationPredicate/           h'535101',
     /TokenCreationPredicate/             h'5376A8014F01B327E2D37F0BFB6BABF6ACC758A101C6D8EB03991ABE7F137C62B253C5A5CFA08769AC01',
@@ -436,61 +470,88 @@ Note that fee credit records cannot be closed partially.
 ]
 ```
 
-1. Symbol - the symbol (short name) of this token type; note that the symbols are not guaranteed to be unique;
-2. Name - the long name of this token type;
-3. Icon - the icon of this token type
-    1. Type - the MIME content type identifying an image format
-    2. Data - the image in the format specified by type
-4. ParentTypeID - identifies the parent type that this type derives from; 0 indicates there is no parent type;
-5. SubTypeCreationPredicate - the predicate clause that controls defining new sub-types of this type;
-6. TokenCreationPredicate - the predicate clause that controls creating new tokens of this type
-7. InvariantPredicate - the invariant predicate clause that all tokens of this type (and of sub- types of this type) inherit into their owner condition;
-8. DataUpdatePredicate - the clause that all tokens of this type (and of sub-types of this type) inherit into their data update predicates
-9. SubTypeCreationPredicateSignatures - inputs to satisfy the sub-type creation predicates of all parents.
+1. *Symbol* (text string) is the symbol (short name) of this token
+   type. Symbols are not guaranteed to be unique.
+2. *Name* (text string) is the long name of this token type.
+3. *Icon* (array) is the icon of this token type. Consists of two data
+   items:
+    1. *Type* (text string) is the MIME content type of the image in *Data*.
+    2. *Data* (byte string) is the image in the format specified by *Type*.
+4. *ParentTypeID* (byte string) is the *UnitID* of the parent type
+   that this type derives from. A byte with value 0 indicates there is
+   no parent type.
+5. *SubTypeCreationPredicate* (byte string) is the predicate clause that
+   controls defining new subtypes of this type.
+6. *TokenCreationPredicate* (byte string) is the predicate clause that
+   controls creating new tokens of this type.
+7. *InvariantPredicate* (byte string) is the invariant predicate
+   clause that all tokens of this type (and of subtypes) inherit into
+   their owner condition.
+8. *DataUpdatePredicate* (byte string) is the clause that all tokens
+   of this type (and of subtypes) inherit into their data update
+   predicates.
+9. SubTypeCreationPredicateSignatures (array of byte strings) is an
+   array of inputs to satisfy the subtype creation predicates of all
+   parents.
 
 ##### Create Non-fungible Token
+
+This transaction creates a new non-fungible token.
 
 *TransactionOrder*.*Payload*.*Type* = "createNToken"\
 *TransactionOrder*.*Payload*.*Attributes* contains:
 ```
 /createNTokenAttributes/ [
-    /OwnerCondition/                     h'',
-    /NFTTypeID/                          h'',
-    /Name/                               "",
-    /URI/                                "",
-    /Data/                               h'',
-    /DataUpdatePredicate/                h'',
-    /TokenCreationPredicateSignatures/   [h'']
+    /OwnerCondition/                   h'',
+    /TypeID/                           h'',
+    /Name/                             "",
+    /URI/                              "",
+    /Data/                             h'',
+    /DataUpdatePredicate/              h'',
+    /TokenCreationPredicateSignatures/ [h'']
 ]
 ```
 
-1. OwnerCondition - the initial owner condition of the new token
-2. NFTTypeID - identifies the type of the new token
-3. Name - the name of the new token
-4. URI - the optional URI of an external resource associated with the new token
-5. Data - the optional data associated with the new token
-6. DataUpdatePredicate - the data update predicate of the new token
-7. TokenCreationPredicateSignatures - inputs to satisfy the token creation predicates of all parent types
+1. *OwnerCondition* (byte string) is the initial owner condition of
+   the new token.
+2. *TypeID* (byte string) is the *UnitID* of the type of the new
+   token.
+3. *Name* (text string) is the name of the new token.
+4. *URI* (text string) is the optional URI of an external resource
+   associated with the new token.
+5. *Data* (byte string) is the optional data associated with the new
+   token.
+6. *DataUpdatePredicate* (byte string) is the data update predicate of
+   the new token.
+7. *TokenCreationPredicateSignatures* (array of byte string) is an
+   array of inputs to satisfy the token creation predicates of all
+   parent types.
 
 ##### Transfer Non-fungible Token
+
+This transaction transfers a non-fungible token to a new owner.
 
 *TransactionOrder*.*Payload*.*Type* = "transNToken"\
 *TransactionOrder*.*Payload*.*Attributes* contains:
 ```
 /transNTokenAttributes/ [
-    /NewOwnerCondition/            h'',
+    /TargetOwner/                  h'',
     /Nonce/                        h'',
     /Backlink/                     h'',
-    /NFTTypeID/                    h'',
+    /TypeID/                       h'',
     /InvariantPredicateSignatures/ [h'']
 ]
 ```
 
-1. NewOwnerCondition - the owner condition of the token
-2. Nonce - optional nonce
-3. Backlink - the backlink to the previous transaction with the token
-4. NFTTypeID - identifies the type of the token
-5. InvariantPredicateSignatures - inputs to satisfy the token type invariant predicates down the inheritance chain
+1. *TargetOwner* (byte string) is the new owner condition of the
+   token.
+2. *Nonce* (byte string) is an optional nonce.
+3. *Backlink* (byte string) is the backlink to the previous
+   transaction with the token.
+4. *TypeID* (byte string) is the type of the token.
+5. *InvariantPredicateSignatures* (array of byte strings) is an array
+   of inputs to satisfy the token type invariant predicates down the
+   inheritance chain.
 
 ##### Update Non-fungible Token
 
@@ -510,6 +571,8 @@ Note that fee credit records cannot be closed partially.
 
 ##### Create Fungible Token Type
 
+This transaction creates a fungible token type.
+
 *TransactionOrder*.*Payload*.*Type* = "createFType"\
 *TransactionOrder*.*Payload*.*Attributes* contains:
 ```
@@ -526,42 +589,64 @@ Note that fee credit records cannot be closed partially.
 ]
 ```
 
-1. Symbol - the symbol (short name) of this token type; note that the symbols are not guaranteed to be unique
-2. Name - the long name of this token type
-3. Icon - the icon of this token type
-4. ParentTypeID - identifies the parent type that this type derives from; 0 indicates there is no parent type
-5. DecimalPlaces - the number of decimal places to display for values of tokens of the new type
-6. SubTypeCreationPredicate - the predicate clause that controls defining new sub-types of this type;
-7. TokenCreationPredicate - the predicate clause that controls creating new tokens of this type
-8. InvariantPredicate - the invariant predicate clause that all tokens of this type (and of sub- types of this type) inherit into their owner condition;
-9. SubTypeCreationPredicateSignatures - inputs to satisfy the sub-type creation predicates of all parents.
+1. *Symbol* (text string) is the symbol (short name) of this token
+   type. Symbols are not guaranteed to be unique.
+2. *Name* (text string) is the long name of this token type.
+3. *Icon* (array) is the icon of this token type. Consists of two data
+   items:
+    1. *Type* (text string) is the MIME content type of the image in *Data*.
+    2. *Data* (byte string) is the image in the format specified by *Type*.
+4. *ParentTypeID* (byte string) is the *UnitID* of the parent type
+   that this type derives from. A byte with value 0 indicates there is
+   no parent type.
+5. *DecimalPlaces* (unsigned integer) is the number of decimal places to
+   display for values of tokens of the this type.
+6. *SubTypeCreationPredicate* (byte string) is the predicate clause that
+   controls defining new subtypes of this type.
+7. *TokenCreationPredicate* (byte string) is the predicate clause that
+   controls creating new tokens of this type.
+8. *InvariantPredicate* (byte string) is the invariant predicate
+   clause that all tokens of this type (and of subtypes) inherit into
+   their owner condition.
+9. SubTypeCreationPredicateSignatures (array of byte strings) is an
+   array of inputs to satisfy the subtype creation predicates of all
+   parents.
 
 ##### Create Fungible Token
+
+This transaction creates a new fungible token.
 
 *TransactionOrder*.*Payload*.*Type* = "createFToken"\
 *TransactionOrder*.*Payload*.*Attributes* contains:
 ```
 /createFTokenAttributes/ [
-    /OwnerCondition/                     h'',
-    /TypeID/                             h'',
-    /Value/                              1000,
-    /TokenCreationPredicateSignatures/   [h'']
+    /TargetOwner/                      h'',
+    /TypeID/                           h'',
+    /TargetValue/                      1000,
+    /TokenCreationPredicateSignatures/ [h'']
 ]
 ```
 
-1. OwnerCondition - the initial owner condition of the new token
-2. TypeID - identifies the type of the new token
-3. Value  - the value of the new token
-4. TokenCreationPredicateSignatures - inputs to satisfy the token creation predicates of all parent types
+1. *TargetOwner* (byte string) is the initial owner condition of
+   the new token.
+2. *TypeID* (byte string) is the *UnitID* of the type of the new
+   token.
+3. *TargetValue* (unsinged integer) is the value of the new token.
+7. *TokenCreationPredicateSignatures* (array of byte string) is an
+   array of inputs to satisfy the token creation predicates of all
+   parent types.
 
 ##### Transfer Fungible Token
+
+This transaction transfers a fungible token to a new owner. The value
+of the transferred token is unchanged.
 
 *TransactionOrder*.*Payload*.*Type* = "transFToken"\
 *TransactionOrder*.*Payload*.*Attributes* contains:
 ```
 /transFTokenAttributes/ [
-    /NewBearer/                    h'',
-    /Value/                        5,
+    /TargetOwner/                  h'',
+    /TargetValue/                  5,
     /Nonce/                        h'',
     /Backlink/                     h'',
     /TypeID/                       h'',
@@ -569,20 +654,35 @@ Note that fee credit records cannot be closed partially.
 ]
 ```
 
-1. NewBearer - the initial bearer predicate of the new token
-2. Value - the value to transfer
-3. Nonce - optional nonce
-4. Backlink - the backlink to the previous transaction with this token
-5. TypeID - identifies the type of the token;
-6. InvariantPredicateSignatures - inputs to satisfy the token type invariant predicates down the inheritance chain
+1. *TargetOwner* (byte string) is the new owner condition of the
+   token.
+2. *TargetValue* (unsigned integer) must be equal to the value of the
+   token. The reason for including the value of the token in the
+   transaction order is to enable the recipient of the transaction to
+   learn the received amount without having to look up the token.
+3. *Nonce* (byte string) is an optional nonce.
+4. *Backlink* (byte string) is the backlink to the previous
+   transaction with the token.
+5. *TypeID* (byte string) is the type of the token.
+6. *InvariantPredicateSignatures* (array of byte strings) is an array
+   of inputs to satisfy the token type invariant predicates down the
+   inheritance chain.
 
 ##### Split Fungible Token
+
+This transaction splits a fungible token in two, creating a new
+fungible token with its own owner condition (*TargetOwner*) and value
+(*TargetValue*). The value of the token being split is reduced by the
+value of the new token and is specified in the *RemainingValue*
+attribute. The sum of values specified by *TargetValue* and
+*RemainingValue* attributes must be equal to the value of the token
+before the split.
 
 *TransactionOrder*.*Payload*.*Type* = "splitFToken"\
 *TransactionOrder*.*Payload*.*Attributes* contains:
 ```
 /splitFTokenAttributes/ [
-    /NewBearer/                    h'00',
+    /TargetOwner/                  h'00',
     /TargetValue/                  600,
     /Nonce/                        h'',
     /Backlink/                     h'',
@@ -592,15 +692,24 @@ Note that fee credit records cannot be closed partially.
 ]
 ```
 
-1. NewBearer - the bearer predicate of the new token;
-2. TargetValue - the value of the new token
-3. Nonce - optional nonce
-4. Backlink - the backlink to the previous transaction with this token
-5. TypeID - identifies the type of the token;
-6. RemainingValue - new value of the source token
-7. InvariantPredicateSignatures - inputs to satisfy the token type invariant predicates down the inheritance chain
+1. *TargetOwner* (byte string) is the owner condition of the new
+   token.
+2. *TargetValue* (unsigned integer) is the value of the new token.
+3. *Nonce* (byte string) is an optional nonce.
+4. *Backlink* (byte string) is the backlink to the previous
+   transaction with the token being split.
+5. *TypeID* (byte string) is the type of the token.
+6. *RemainingValue* (unsigned integer) is new remaining value of the
+   token being split.
+6. *InvariantPredicateSignatures* (array of byte strings) is an array
+   of inputs to satisfy the token type invariant predicates down the
+   inheritance chain.
 
 ##### Burn Fungible Token
+
+This transaction "burns" (deletes) a fungible token to be later joined
+into a larger-value fungible token with the [Join Fungible
+Token](#join-fungible-tokens) transaction.
 
 *TransactionOrder*.*Payload*.*Type* = "burnFToken"\
 *TransactionOrder*.*Payload*.*Attributes* contains:
@@ -614,29 +723,50 @@ Note that fee credit records cannot be closed partially.
 ]
 ```
 
-1. TypeID - identifies the type of the token to burn;
-2. Value - the value to burn
-3. Nonce - optional nonce
-4. Backlink - the backlink to the previous transaction with this token
-5. InvariantPredicateSignatures - inputs to satisfy the token type invariant predicates down the inheritance chain
+1. *TypeID* (byte string) is the type of the token.
+2. *Value* (unsigned integer) is the value of the token.
+3. *Nonce* (byte string) is the current state hash of the target
+   token.
+   > TODO:
+4. *Backlink* (byte string) is the backlink to the previous
+   transaction with the token.
+5. *InvariantPredicateSignatures* (array of byte strings) is an array
+   of inputs to satisfy the token type invariant predicates down the
+   inheritance chain.
 
 ##### Join Fungible Tokens
+
+This transaction joins the values of [burned
+tokens](#burn-fungible-token) into a target token of the same type.
 
 *TransactionOrder*.*Payload*.*Type* = "joinFToken"\
 *TransactionOrder*.*Payload*.*Attributes* contains:
 ```
 /joinFTokenAttributes/ [
-    /BurnTransactions/             [/TODO/],
-    /Proofs/                       [/TODO/],
+    /Burns/                        [/omitted/],
+    /BurnProofs/                   [/omitted/],
     /Backlink/                     h'',
     /InvariantPredicateSignatures/ [h'']
 ]
 ```
 
-1. BurnTransactions - the transactions that burned the source tokens
-2. Proofs - block proofs for burn transactions
-3. Backlink - the backlink to the previous transaction with this token
-4. InvariantPredicateSignatures - inputs to satisfy the token type invariant predicates down the inheritance chain
+4. *DcTransferProofs* (array) is an array of [Transfer Bill to Dust
+   Collector](#transfer-bill-to-dust-collector) transaction proofs.
+   The order of this array must match the order of *DcTransfers*
+   array, so that a proof and the corresponding transfer have the same
+   index.
+
+1. *Burns* (array) is an array of [Burn Fungible
+   Token](#burn-fungible-token) transaction records.
+2. *BurnProofs* (array) is an array of [Burn Fungible
+   Token](#burn-fungible-token) transaction proofs. The order of this
+   array must match the order of *Burns* array, so that a transaction
+   and its corresponding proof have the same index.
+3. *Backlink* (byte string) is the backlink to the previous
+   transaction with the target token.
+4. *InvariantPredicateSignatures* (array of byte strings) is an array
+   of inputs to satisfy the token type invariant predicates down the
+   inheritance chain.
 
 ##### Add Fee Credit
 
@@ -732,8 +862,9 @@ Extended Diagnostic Notation with annotations:
 - Mention libraries used for CBOR encoding/decoding, especially those used by validators.
   * BE: https://github.com/fxamacker/cbor
   * FE: https://github.com/kriszyp/cbor-x
-- Describe dependencies between transactions, which transactions need to be executed in which order to get some job done.
+- Rename Transfer to Fee Credit -> Transfer Bill to Fee Credit for consistency?
 - More examples, like *transFC* and *addFC*.
+- Explain owner conditions (predicates) somewhere
 
 ## References
 

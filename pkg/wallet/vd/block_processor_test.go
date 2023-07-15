@@ -7,17 +7,17 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/alphabill-org/alphabill/internal/types"
+	"github.com/fxamacker/cbor/v2"
+	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
 
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	testfc "github.com/alphabill-org/alphabill/internal/txsystem/fc/testutils"
 	"github.com/alphabill-org/alphabill/internal/txsystem/vd"
+	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/alphabill-org/alphabill/pkg/wallet"
-	"github.com/fxamacker/cbor/v2"
-	"github.com/holiman/uint256"
 )
 
 func Test_ProofFinder(t *testing.T) {
@@ -177,14 +177,9 @@ func Test_blockProcessor_processTx(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, uint256.NewInt(1), uint256.NewInt(0).SetBytes(fcb.Id))
 		require.EqualValues(t, 49, fcb.GetValue())
-		addFCTxHash := addFC.Hash(crypto.SHA256)
-		require.Equal(t, addFCTxHash, fcb.TxHash)
-
-		addFCTxRecord := &types.TransactionRecord{TransactionOrder: addFC, ServerMetadata: &types.ServerMetadata{ActualFee: 1}}
-
-		addFCTxRecordHash := addFCTxRecord.Hash(crypto.SHA256)
-		require.Equal(t, addFCTxRecordHash, fcb.AddFCTxHash)
-		require.Equal(t, addFCTxRecordHash, fcb.TxRecordHash)
+		lastAddFCTxHash := addFC.Hash(crypto.SHA256)
+		require.Equal(t, lastAddFCTxHash, fcb.TxHash)
+		require.Equal(t, lastAddFCTxHash, fcb.LastAddFCTxHash)
 
 		// when closeFC tx is processed
 		closeFC := testfc.NewCloseFC(t,
@@ -202,7 +197,7 @@ func Test_blockProcessor_processTx(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, uint256.NewInt(1), uint256.NewInt(0).SetBytes(fcb.Id))
 		require.EqualValues(t, 39, fcb.GetValue())
-		require.EqualValues(t, addFCTxRecordHash, fcb.GetAddFCTxHash())
+		require.EqualValues(t, lastAddFCTxHash, fcb.GetLastAddFCTxHash())
 		require.Equal(t, closeFC.Hash(crypto.SHA256), fcb.TxHash)
 	})
 }
@@ -215,10 +210,10 @@ func createBlockProcessor(t *testing.T) *blockProcessor {
 
 func getFeeCreditBillFunc(unitID wallet.UnitID) (*FeeCreditBill, error) {
 	return &FeeCreditBill{
-		Id:          unitID,
-		Value:       50,
-		TxHash:      []byte{1},
-		AddFCTxHash: []byte{2},
+		Id:              unitID,
+		Value:           50,
+		TxHash:          []byte{1},
+		LastAddFCTxHash: []byte{2},
 	}, nil
 }
 

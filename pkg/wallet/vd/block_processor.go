@@ -93,7 +93,6 @@ func (p *blockProcessor) ProcessBlock(_ context.Context, b *types.Block) error {
 func (p *blockProcessor) processTx(txr *types.TransactionRecord) error {
 	txo := txr.TransactionOrder
 	txHash := txo.Hash(crypto.SHA256)
-	txrHash := txr.Hash(crypto.SHA256)
 	switch txo.PayloadType() {
 	case vd.PayloadTypeRegisterData:
 		return p.updateFCB(txr)
@@ -111,11 +110,10 @@ func (p *blockProcessor) processTx(txr *types.TransactionRecord) error {
 			return err
 		}
 		return p.store.SetFeeCreditBill(&FeeCreditBill{
-			Id:           txo.UnitID(),
-			Value:        fcb.GetValue() + transferFeeCreditAttributes.Amount - txr.ServerMetadata.ActualFee,
-			TxHash:       txHash,
-			TxRecordHash: txrHash,
-			AddFCTxHash:  txrHash,
+			Id:              txo.UnitID(),
+			Value:           fcb.GetValue() + transferFeeCreditAttributes.Amount - txr.ServerMetadata.ActualFee,
+			TxHash:          txHash,
+			LastAddFCTxHash: txHash,
 		})
 	case fc.PayloadTypeCloseFeeCredit:
 		closeFeeCreditAttributes := &fc.CloseFeeCreditAttributes{}
@@ -127,10 +125,10 @@ func (p *blockProcessor) processTx(txr *types.TransactionRecord) error {
 			return err
 		}
 		return p.store.SetFeeCreditBill(&FeeCreditBill{
-			Id:          txo.UnitID(),
-			Value:       fcb.GetValue() - closeFeeCreditAttributes.Amount,
-			TxHash:      txHash,
-			AddFCTxHash: fcb.GetAddFCTxHash(),
+			Id:              txo.UnitID(),
+			Value:           fcb.GetValue() - closeFeeCreditAttributes.Amount,
+			TxHash:          txHash,
+			LastAddFCTxHash: fcb.GetLastAddFCTxHash(),
 		})
 	case txsystem.PayloadTypePruneStates:
 		return nil

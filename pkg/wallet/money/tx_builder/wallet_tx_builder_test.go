@@ -51,7 +51,7 @@ func TestSplitTransactionAmount(t *testing.T) {
 	require.Equal(t, amount, so.Amount)
 	require.EqualValues(t, script.PredicatePayToPublicKeyHashDefault(receiverPubKeyHash), so.TargetBearer)
 	require.EqualValues(t, 350, so.RemainingValue)
-	require.EqualValues(t, b.TxRecordHash, so.Backlink)
+	require.EqualValues(t, b.TxHash, so.Backlink)
 }
 
 func TestCreateTransactions(t *testing.T) {

@@ -133,18 +133,13 @@ func TestExecute_TransferOk(t *testing.T) {
 	_, err = txSystem.EndBlock()
 	require.NoError(t, err)
 	require.NotNil(t, serverMetadata)
-	txSystem.Commit()
-
-	trx := &types.TransactionRecord{
-		TransactionOrder: transferOk,
-		ServerMetadata:   serverMetadata,
-	}
+	require.NoError(t, txSystem.Commit())
 
 	unit2, data2 := getBill(t, rmaTree, initialBill.ID)
 	require.Equal(t, data.SummaryValueInput(), data2.SummaryValueInput())
 	require.NotEqual(t, transferOk.OwnerProof, unit2.Bearer())
 	require.Equal(t, roundNumber, data2.T)
-	require.EqualValues(t, trx.Hash(crypto.SHA256), data2.Backlink)
+	require.EqualValues(t, transferOk.Hash(crypto.SHA256), data2.Backlink)
 }
 
 func TestExecute_SplitOk(t *testing.T) {
@@ -160,11 +155,6 @@ func TestExecute_SplitOk(t *testing.T) {
 	sm, err := txSystem.Execute(splitOk)
 	require.NoError(t, err)
 	require.NotNil(t, sm)
-
-	splitOkTransactionRecord := &types.TransactionRecord{
-		TransactionOrder: splitOk,
-		ServerMetadata:   sm,
-	}
 
 	txSystem.Commit()
 	initBillAfterUpdate, initBillDataAfterUpdate := getBill(t, rmaTree, initialBill.ID)
@@ -186,7 +176,7 @@ func TestExecute_SplitOk(t *testing.T) {
 	require.NotNil(t, newBill)
 	require.NotNil(t, bd)
 	require.Equal(t, amount, bd.V)
-	require.EqualValues(t, splitOkTransactionRecord.Hash(crypto.SHA256), bd.Backlink)
+	require.EqualValues(t, splitOk.Hash(crypto.SHA256), bd.Backlink)
 	require.Equal(t, state.Predicate(splitAttr.TargetBearer), newBill.Bearer())
 	require.Equal(t, roundNumber, bd.T)
 }
@@ -212,16 +202,11 @@ func TestExecuteTransferDC_OK(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, sm)
 
-	transferDCTransactionRecord := &types.TransactionRecord{
-		TransactionOrder: transferDCOk,
-		ServerMetadata:   sm,
-	}
-
 	transferDCBill, transferDCBillData := getBill(t, rmaTree, billID)
 	require.NotEqual(t, dustCollectorPredicate, transferDCBill.Bearer())
-	require.Equal(t, splitBillData.SummaryValueInput(), transferDCBillData.SummaryValueInput())
+	require.EqualValues(t, 0, transferDCBillData.SummaryValueInput()) // dust transfer sets bill value to 0
 	require.Equal(t, roundNumber, transferDCBillData.T)
-	require.EqualValues(t, transferDCTransactionRecord.Hash(crypto.SHA256), transferDCBillData.Backlink)
+	require.EqualValues(t, transferDCOk.Hash(crypto.SHA256), transferDCBillData.Backlink)
 }
 
 func TestExecute_SwapOk(t *testing.T) {
@@ -249,8 +234,8 @@ func TestExecute_SwapOk(t *testing.T) {
 	require.NotNil(t, sm)
 	_, billData := getBill(t, rmaTree, swapTx.UnitID())
 	require.Equal(t, amount, billData.V)
-	_, dustBill := getBill(t, rmaTree, dustCollectorMoneySupplyID)
-	require.Equal(t, amount, initialDustCollectorMoneyAmount-dustBill.V)
+	_, dustCollectorBill := getBill(t, rmaTree, dustCollectorMoneySupplyID)
+	require.Equal(t, initialDustCollectorMoneyAmount, dustCollectorBill.V) // dust collector money supply is the same after swap
 }
 
 func TestBillData_Value(t *testing.T) {
@@ -268,12 +253,14 @@ func TestBillData_AddToHasher(t *testing.T) {
 	bd := &BillData{
 		V:        10,
 		T:        50,
+		TDust:    20,
 		Backlink: []byte("backlink"),
 	}
 
 	hasher := crypto.SHA256.New()
 	hasher.Write(util.Uint64ToBytes(bd.V))
 	hasher.Write(util.Uint64ToBytes(bd.T))
+	hasher.Write(util.Uint64ToBytes(bd.TDust))
 	hasher.Write(bd.Backlink)
 	expectedHash := hasher.Sum(nil)
 	hasher.Reset()
@@ -314,8 +301,8 @@ func TestEndBlock_DustBillsAreRemoved(t *testing.T) {
 	require.NoError(t, err)
 	_, newBillData := getBill(t, rmaTree, swapTx.UnitID())
 	require.Equal(t, uint64(10), newBillData.V)
-	_, dustBill := getBill(t, rmaTree, dustCollectorMoneySupplyID)
-	require.Equal(t, uint64(10), initialDustCollectorMoneyAmount-dustBill.V)
+	_, dustCollectorBill := getBill(t, rmaTree, dustCollectorMoneySupplyID)
+	require.Equal(t, initialDustCollectorMoneyAmount, dustCollectorBill.V)
 	_, err = txSystem.EndBlock()
 	require.NoError(t, err)
 	txSystem.Commit()
@@ -325,8 +312,8 @@ func TestEndBlock_DustBillsAreRemoved(t *testing.T) {
 	require.NoError(t, err)
 	txSystem.Commit()
 
-	_, dustBill = getBill(t, rmaTree, dustCollectorMoneySupplyID)
-	require.Equal(t, initialDustCollectorMoneyAmount, dustBill.V)
+	_, dustCollectorBill = getBill(t, rmaTree, dustCollectorMoneySupplyID)
+	require.Equal(t, initialDustCollectorMoneyAmount, dustCollectorBill.V)
 }
 
 // Test scenario:
@@ -350,15 +337,11 @@ func TestEndBlock_FeesConsolidation(t *testing.T) {
 		testtransaction.WithOwnerProof(script.PredicateArgumentEmpty()),
 	)
 
-	sm, err := txSystem.Execute(transferFC)
-	transferFCRecord := &types.TransactionRecord{
-		TransactionOrder: transferFC,
-		ServerMetadata:   sm,
-	}
+	_, err := txSystem.Execute(transferFC)
 	require.NoError(t, err)
 	_, err = txSystem.EndBlock()
 	require.NoError(t, err)
-	txSystem.Commit()
+	require.NoError(t, txSystem.Commit())
 
 	// verify that money fee credit bill is 50+1=51
 	moneyFCUnitID := []byte{2}
@@ -369,7 +352,7 @@ func TestEndBlock_FeesConsolidation(t *testing.T) {
 	// process reclaimFC (with closeFC amount=50 and fee=1)
 	txSystem.BeginBlock(0)
 
-	transferFCHash := transferFCRecord.Hash(crypto.SHA256)
+	transferFCHash := transferFC.Hash(crypto.SHA256)
 	closeFC := testfc.NewCloseFC(t,
 		testfc.NewCloseFCAttr(
 			testfc.WithCloseFCAmount(50),
@@ -397,7 +380,7 @@ func TestEndBlock_FeesConsolidation(t *testing.T) {
 	require.NoError(t, err)
 	_, err = txSystem.EndBlock()
 	require.NoError(t, err)
-	txSystem.Commit()
+	require.NoError(t, txSystem.Commit())
 
 	// verify that moneyFCB=51-50+1+1=3 (moneyFCB - closeAmount + closeFee + reclaimFee)
 	moneyFCUnit, err = rmaTree.GetUnit(moneyFCUnitID, false)
@@ -409,12 +392,9 @@ func TestValidateSwap_InsufficientDcMoneySupply(t *testing.T) {
 	rmaTree, txSystem, signer := createStateAndTxSystem(t)
 	roundNumber := uint64(10)
 	txSystem.BeginBlock(roundNumber)
-	dcTransfers, swapTx := createDCTransferAndSwapTxs(t, []types.UnitID{initialBill.ID}, rmaTree, signer)
+	_, swapTx := createDCTransferAndSwapTxs(t, []types.UnitID{initialBill.ID}, rmaTree, signer)
 
-	for _, dcTransfer := range dcTransfers {
-		_, err := txSystem.Execute(dcTransfer.TransactionOrder)
-		require.NoError(t, err)
-	}
+	// send execute swap without executing transfers so that money supply is not increased by swaps
 	_, err := txSystem.Execute(swapTx)
 	require.ErrorIs(t, err, ErrSwapInsufficientDCMoneySupply)
 }
@@ -530,7 +510,7 @@ func TestExecute_FeeCreditSequence_OK(t *testing.T) {
 	require.Equal(t, txFee, sm.ActualFee)
 
 	// send closeFC
-	transferFCHash := transferFCTransactionRecord.Hash(crypto.SHA256)
+	transferFCHash := transferFC.Hash(crypto.SHA256)
 	closeFC := testfc.NewCloseFC(t,
 		testfc.NewCloseFCAttr(
 			testfc.WithCloseFCAmount(remainingValue),
@@ -676,6 +656,7 @@ func createDCTransfer(t *testing.T, fromID types.UnitID, targetValue uint64, bac
 		TargetBearer: targetBearer,
 		TargetValue:  targetValue,
 		Backlink:     backlink,
+		SwapTimeout:  20,
 	}
 	rawBytes, err := cbor.Marshal(bt)
 	require.NoError(t, err)

@@ -377,7 +377,6 @@ func TestMintFungibleToken_Ok(t *testing.T) {
 	sm, err := handleMintFungibleTokenTx(opts)(tx, attributes, 10)
 	require.NoError(t, err)
 	require.NotNil(t, sm)
-	txr := types.TransactionRecord{TransactionOrder: tx, ServerMetadata: sm}
 	u, err := opts.state.GetUnit(tokenID, false)
 	require.NoError(t, err)
 	require.NotNil(t, u)
@@ -386,7 +385,7 @@ func TestMintFungibleToken_Ok(t *testing.T) {
 	d := u.Data().(*fungibleTokenData)
 	require.Equal(t, types.UnitID(attributes.TypeID), d.tokenType)
 	require.Equal(t, attributes.Value, d.value)
-	require.Equal(t, txr.Hash(gocrypto.SHA256), d.backlink)
+	require.Equal(t, tx.Hash(gocrypto.SHA256), d.backlink)
 	require.Equal(t, uint64(10), d.t)
 	require.Equal(t, attributes.Bearer, []byte(u.Bearer()))
 }
@@ -508,7 +507,6 @@ func TestTransferFungibleToken_Ok(t *testing.T) {
 	sm, err := handleTransferFungibleTokenTx(opts)(tx, transferAttributes, roundNr)
 	require.NoError(t, err)
 	require.NotNil(t, sm)
-	txr := &types.TransactionRecord{TransactionOrder: tx, ServerMetadata: sm}
 	u, err := opts.state.GetUnit(uID, false)
 	require.NoError(t, err)
 	require.NotNil(t, u)
@@ -517,7 +515,7 @@ func TestTransferFungibleToken_Ok(t *testing.T) {
 
 	require.Equal(t, transferAttributes.NewBearer, []byte(u.Bearer()))
 	require.Equal(t, transferAttributes.Value, d.value)
-	require.Equal(t, txr.Hash(gocrypto.SHA256), d.backlink)
+	require.Equal(t, tx.Hash(gocrypto.SHA256), d.backlink)
 	require.Equal(t, roundNr, d.t)
 }
 
@@ -685,7 +683,6 @@ func TestSplitFungibleToken_Ok(t *testing.T) {
 	sm, err := handleSplitFungibleTokenTx(opts)(tx, attr, roundNr)
 	require.NoError(t, err)
 	require.NotNil(t, sm)
-	txr := &types.TransactionRecord{TransactionOrder: tx, ServerMetadata: sm}
 	u, err := opts.state.GetUnit(uID, false)
 	require.NoError(t, err)
 	require.NotNil(t, u)
@@ -694,7 +691,7 @@ func TestSplitFungibleToken_Ok(t *testing.T) {
 
 	require.Equal(t, script.PredicateAlwaysTrue(), []byte(u.Bearer()))
 	require.Equal(t, remainingBillValue, d.value)
-	require.Equal(t, txr.Hash(gocrypto.SHA256), d.backlink)
+	require.Equal(t, tx.Hash(gocrypto.SHA256), d.backlink)
 	require.Equal(t, roundNr, d.t)
 
 	newUnitID := txutil.SameShardID(uID, HashForIDCalculation(tx, opts.hashAlgorithm))
@@ -707,7 +704,7 @@ func TestSplitFungibleToken_Ok(t *testing.T) {
 
 	require.Equal(t, attr.NewBearer, []byte(newUnit.Bearer()))
 	require.Equal(t, existingTokenValue-remainingBillValue, newUnitData.value)
-	require.Equal(t, txr.Hash(gocrypto.SHA256), newUnitData.backlink)
+	require.Equal(t, tx.Hash(gocrypto.SHA256), newUnitData.backlink)
 	require.Equal(t, roundNr, newUnitData.t)
 }
 

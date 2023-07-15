@@ -8,21 +8,22 @@ import (
 
 type (
 	Bill struct {
-		Id           *uint256.Int  `json:"id"`
-		Value        uint64        `json:"value,string"`
-		TxHash       []byte        `json:"txHash"`
-		TxRecordHash []byte        `json:"txRecordHash"`
-		TxProof      *wallet.Proof `json:"txProof"`
+		Id      *uint256.Int  `json:"id"`
+		Value   uint64        `json:"value,string"`
+		TxHash  []byte        `json:"txHash"`
+		TxProof *wallet.Proof `json:"txProof"`
 
 		// dc bill specific fields
 		DcTimeout uint64 `json:"dcTimeout"`
 		DcNonce   []byte `json:"dcNonce"`
-		// DcExpirationTimeout blockHeight when dc bill gets removed from state tree
+		// DcExpirationTimeout blockHeight when dc bill gets removed from state tree (old spec)
 		DcExpirationTimeout uint64 `json:"dcExpirationTimeout"`
+		// DcExpirationTimeout block number when dc bill can be removed from state tree (system-generated txs)
+		SwapTimeout uint64 `json:"swapTimeout"`
 
 		// fcb specific fields
-		// AddFCTxHash last add fee credit tx hash
-		AddFCTxHash []byte `json:"addFcTxHash,omitempty"`
+		// LastAddFCTxHash last add fee credit tx hash
+		LastAddFCTxHash []byte `json:"lastAddFcTxHash,omitempty"`
 	}
 )
 
@@ -36,11 +37,10 @@ func (b *Bill) GetID() []byte {
 
 func (b *Bill) ToGenericBillProof() *wallet.BillProof {
 	return &wallet.BillProof{Bill: &wallet.Bill{
-		Id:           b.GetID(),
-		Value:        b.Value,
-		TxHash:       b.TxHash,
-		TxRecordHash: b.TxRecordHash,
-		AddFCTxHash:  b.AddFCTxHash,
+		Id:              b.GetID(),
+		Value:           b.Value,
+		TxHash:          b.TxHash,
+		LastAddFCTxHash: b.LastAddFCTxHash,
 	}, TxProof: b.TxProof}
 }
 
@@ -56,13 +56,6 @@ func (b *Bill) GetTxHash() []byte {
 	return nil
 }
 
-func (b *Bill) GetTxRecordHash() []byte {
-	if b != nil {
-		return b.TxRecordHash
-	}
-	return nil
-}
-
 func (b *Bill) GetValue() uint64 {
 	if b != nil {
 		return b.Value
@@ -70,9 +63,9 @@ func (b *Bill) GetValue() uint64 {
 	return 0
 }
 
-func (b *Bill) GetAddFCTxHash() []byte {
+func (b *Bill) GetLastAddFCTxHash() []byte {
 	if b != nil {
-		return b.AddFCTxHash
+		return b.LastAddFCTxHash
 	}
 	return nil
 }

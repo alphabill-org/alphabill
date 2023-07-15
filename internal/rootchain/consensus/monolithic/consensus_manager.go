@@ -148,7 +148,8 @@ func (x *ConsensusManager) onIRChangeReq(req *consensus.IRChangeRequest) error {
 			return fmt.Errorf("ir change request ignored, read state for system id %X failed, %w", req.SystemIdentifier.Bytes(), err)
 		}
 		// repeat UC, ignore error here as we found the luc, and it cannot be nil
-		newInputRecord, _ = types.NewRepeatInputRecord(luc.InputRecord)
+		// in repeat UC just advance partition/shard round number
+		newInputRecord = luc.InputRecord.NewRepeatIR()
 	default:
 		return fmt.Errorf("invalid certfification reason %v", req.Reason)
 	}
@@ -206,7 +207,7 @@ func (x *ConsensusManager) checkT2Timeout(round uint64) error {
 				time.Duration(partInfo.T2Timeout)*time.Millisecond {
 				// timeout
 				logger.Info("Round %v, partition %X T2 timeout", round, id.Bytes())
-				repeatIR, _ := types.NewRepeatInputRecord(lastCert.InputRecord)
+				repeatIR := lastCert.InputRecord.NewRepeatIR()
 				x.changes[id] = repeatIR
 			}
 		}

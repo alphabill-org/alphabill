@@ -31,30 +31,26 @@ func handleAddFeeCreditTx(f *FeeCredit) txsystem.GenericExecuteFunc[transactions
 			return nil, err
 		}
 		v := transferFc.Amount - fee
-		sm := &types.ServerMetadata{ActualFee: fee, TargetUnits: []types.UnitID{unitID}}
-		txr := &types.TransactionRecord{
-			TransactionOrder: tx,
-			ServerMetadata:   sm,
-		}
-		txrHash := txr.Hash(f.hashAlgorithm)
+
+		txHash := tx.Hash(f.hashAlgorithm)
 		var updateFunc state.Action
 		if bd == nil {
 			// add credit
 			fcr := &fcunit.FeeCreditRecord{
 				Balance: v,
-				Hash:    txrHash,
+				Hash:    txHash,
 				Timeout: transferFc.LatestAdditionTime + 1,
 			}
 			updateFunc = fcunit.AddCredit(unitID, attr.FeeCreditOwnerCondition, fcr)
 		} else {
 			// increment credit
-			updateFunc = fcunit.IncrCredit(unitID, v, transferFc.LatestAdditionTime+1, txrHash)
+			updateFunc = fcunit.IncrCredit(unitID, v, transferFc.LatestAdditionTime+1, txHash)
 		}
 
 		if err = f.state.Apply(updateFunc); err != nil {
 			return nil, fmt.Errorf("addFC state update failed: %w", err)
 		}
-		return sm, nil
+		return &types.ServerMetadata{ActualFee: fee, TargetUnits: []types.UnitID{unitID}}, nil
 	}
 }
 

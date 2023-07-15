@@ -14,7 +14,7 @@ import (
 type (
 	TxSubmission struct {
 		UnitID      wallet.UnitID
-		TxOrderHash wallet.TxHash
+		TxHash      wallet.TxHash
 		Transaction *types.TransactionOrder
 		Proof       *wallet.Proof
 	}
@@ -102,7 +102,7 @@ func (t *TxSubmissionBatch) confirmUnitsTx(ctx context.Context) error {
 			log.Info(fmt.Sprintf("Tx confirmation timeout is reached, block (#%v)", roundNr))
 			for _, sub := range t.submissions {
 				if !sub.Confirmed() {
-					log.Info(fmt.Sprintf("Tx not confirmed for UnitID=%X, hash=%X", sub.UnitID, sub.TxOrderHash))
+					log.Info(fmt.Sprintf("Tx not confirmed for UnitID=%X, hash=%X", sub.UnitID, sub.TxHash))
 				}
 			}
 			return errors.New("confirmation timeout")
@@ -112,7 +112,7 @@ func (t *TxSubmissionBatch) confirmUnitsTx(ctx context.Context) error {
 			if sub.Confirmed() || roundNr >= sub.Transaction.Timeout() {
 				continue
 			}
-			proof, err := t.backend.GetTxProof(ctx, sub.UnitID, sub.TxOrderHash)
+			proof, err := t.backend.GetTxProof(ctx, sub.UnitID, sub.TxHash)
 			if err != nil {
 				return err
 			}

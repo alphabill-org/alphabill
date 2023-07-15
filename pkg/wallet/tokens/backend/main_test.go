@@ -145,10 +145,10 @@ func Test_Run_API(t *testing.T) {
 
 	// add fee credit for user
 	err = boltStore.SetFeeCreditBill(&FeeCreditBill{
-		Id:          util.Uint64ToBytes32(1),
-		Value:       10000000,
-		TxHash:      []byte{1},
-		AddFCTxHash: []byte{2},
+		Id:              util.Uint64ToBytes32(1),
+		Value:           10000000,
+		TxHash:          []byte{1},
+		LastAddFCTxHash: []byte{2},
 	}, nil)
 	require.NoError(t, err)
 
@@ -241,7 +241,6 @@ func Test_Run_API(t *testing.T) {
 	waitForRoundNumberToBeStored(1, 1500*time.Millisecond)
 	attrs := &tokens.CreateNonFungibleTokenTypeAttributes{}
 	require.NoError(t, createNTFTypeTx.UnmarshalAttributes(attrs))
-	trx := &types.TransactionRecord{TransactionOrder: createNTFTypeTx, ServerMetadata: &types.ServerMetadata{ActualFee: 1}}
 	// we synced NTF token type from backend, check that it is returned:
 	// first convert the txsystem.Transaction to the type we have in indexing backend...
 	cnfttt := &TokenUnitType{
@@ -256,7 +255,6 @@ func Test_Run_API(t *testing.T) {
 		InvariantPredicate:       attrs.InvariantPredicate,
 		NftDataUpdatePredicate:   attrs.DataUpdatePredicate,
 		TxHash:                   createNTFTypeTx.Hash(crypto.SHA256),
-		TxRecordHash:             trx.Hash(crypto.SHA256),
 	}
 	//...and check do we get it back via API
 	// get all kind of types

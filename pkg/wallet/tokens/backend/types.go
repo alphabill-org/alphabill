@@ -27,9 +27,8 @@ type (
 		// nft only
 		NftDataUpdatePredicate wallet.Predicate `json:"nftDataUpdatePredicate,omitempty"`
 		// meta
-		Kind         Kind          `json:"kind"`
-		TxHash       wallet.TxHash `json:"txHash"`
-		TxRecordHash wallet.TxHash `json:"txRecordHash"`
+		Kind   Kind          `json:"kind"`
+		TxHash wallet.TxHash `json:"txHash"`
 	}
 
 	TokenUnit struct {
@@ -49,9 +48,8 @@ type (
 		NftData                []byte           `json:"nftData,omitempty"`
 		NftDataUpdatePredicate wallet.Predicate `json:"nftDataUpdatePredicate,omitempty"`
 		// meta
-		Kind         Kind          `json:"kind"`
-		TxHash       wallet.TxHash `json:"txHash"`
-		TxRecordHash wallet.TxHash `json:"txRecordHash"`
+		Kind   Kind          `json:"kind"`
+		TxHash wallet.TxHash `json:"txHash"`
 	}
 
 	TokenID     wallet.UnitID
@@ -59,11 +57,10 @@ type (
 	Kind        byte
 
 	FeeCreditBill struct {
-		Id           []byte `json:"id"`
-		Value        uint64 `json:"value,string"`
-		TxHash       []byte `json:"txHash"`
-		TxRecordHash []byte `json:"txRecordHash"`
-		AddFCTxHash  []byte `json:"addFcTxHash"`
+		Id              []byte `json:"id"`
+		Value           uint64 `json:"value,string"`
+		TxHash          []byte `json:"txHash"`
+		LastAddFCTxHash []byte `json:"lastAddFcTxHash"`
 	}
 )
 
@@ -135,9 +132,9 @@ func (f *FeeCreditBill) GetTxHash() []byte {
 	return nil
 }
 
-func (f *FeeCreditBill) GetAddFCTxHash() []byte {
+func (f *FeeCreditBill) GetLastAddFCTxHash() []byte {
 	if f != nil {
-		return f.AddFCTxHash
+		return f.LastAddFCTxHash
 	}
 	return nil
 }
@@ -147,10 +144,9 @@ func (f *FeeCreditBill) ToGenericBill() *wallet.Bill {
 		return nil
 	}
 	return &wallet.Bill{
-		Id:           f.Id,
-		Value:        f.Value,
-		TxHash:       f.TxHash,
-		TxRecordHash: f.TxRecordHash,
-		AddFCTxHash:  f.AddFCTxHash,
+		Id:              f.Id,
+		Value:           f.Value,
+		TxHash:          f.TxHash,
+		LastAddFCTxHash: f.LastAddFCTxHash,
 	}
 }

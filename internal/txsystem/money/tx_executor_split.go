@@ -33,13 +33,7 @@ func handleSplitTx(s *state.State, hashAlgorithm crypto.Hash, feeCalc fc.FeeCalc
 
 		// calculate actual tx fee cost
 		fee := feeCalc()
-		sm := &types.ServerMetadata{ActualFee: fee, TargetUnits: []types.UnitID{unitID, newItemID}}
-
-		txr := &types.TransactionRecord{
-			TransactionOrder: tx,
-			ServerMetadata:   sm,
-		}
-		h := txr.Hash(hashAlgorithm)
+		h := tx.Hash(hashAlgorithm)
 
 		// update state
 		if err := s.Apply(
@@ -62,7 +56,7 @@ func handleSplitTx(s *state.State, hashAlgorithm crypto.Hash, feeCalc fc.FeeCalc
 			})); err != nil {
 			return nil, fmt.Errorf("unit update failed: %w", err)
 		}
-		return sm, nil
+		return &types.ServerMetadata{ActualFee: fee, TargetUnits: []types.UnitID{unitID, newItemID}}, nil
 	}
 }
 

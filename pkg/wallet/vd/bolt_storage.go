@@ -33,11 +33,10 @@ type (
 	}
 
 	FeeCreditBill struct {
-		Id           []byte `json:"id"`           // unitID
-		Value        uint64 `json:"value,string"` // fee credit balance
-		TxHash       []byte `json:"txHash"`       // hash of the transaction that last updated fee credit balance
-		TxRecordHash []byte `json:"txRecordHash"` // hash of the transaction that last updated fee credit balance
-		AddFCTxHash  []byte `json:"addFcTxHash"`  // last add fee credit tx hash
+		Id              []byte `json:"id"`              // unitID
+		Value           uint64 `json:"value,string"`    // fee credit balance
+		TxHash          []byte `json:"txHash"`          // hash of the transaction that last updated fee credit balance
+		LastAddFCTxHash []byte `json:"lastAddFcTxHash"` // last add fee credit tx hash
 	}
 )
 
@@ -116,9 +115,9 @@ func (f *FeeCreditBill) GetValue() uint64 {
 	return 0
 }
 
-func (f *FeeCreditBill) GetAddFCTxHash() []byte {
+func (f *FeeCreditBill) GetLastAddFCTxHash() []byte {
 	if f != nil {
-		return f.AddFCTxHash
+		return f.LastAddFCTxHash
 	}
 	return nil
 }

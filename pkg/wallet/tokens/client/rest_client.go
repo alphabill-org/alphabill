@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/alphabill-org/alphabill/internal/types"
 	sdk "github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/alphabill-org/alphabill/pkg/wallet/tokens/backend"
 	"github.com/ethereum/go-ethereum/common/hexutil"
@@ -171,6 +172,19 @@ func (tb *TokenBackend) GetFeeCreditBill(ctx context.Context, unitID sdk.UnitID)
 			return nil, nil
 		}
 		return nil, fmt.Errorf("get fee credit bill request failed: %w", err)
+	}
+	return fcb, nil
+}
+
+func (tb *TokenBackend) GetClosedFeeCredit(ctx context.Context, fcbID []byte) (*types.TransactionRecord, error) {
+	var fcb *types.TransactionRecord
+	addr := tb.getURL(apiPathPrefix, "closed-fee-credit", hexutil.Encode(fcbID))
+	_, err := tb.get(ctx, addr, &fcb, false)
+	if err != nil {
+		if errors.Is(err, ErrNotFound) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("get closed fee credit request failed: %w", err)
 	}
 	return fcb, nil
 }

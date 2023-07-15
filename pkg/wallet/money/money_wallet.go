@@ -25,7 +25,8 @@ import (
 
 const (
 	dcTimeoutBlockCount       = 10
-	swapTimeoutBlockCount     = 60
+	swapTimeoutBlockCount     = 60 // swap timeout (after which dust bills can be deleted)
+	swapTxTimeoutBlockCount   = 60 // swap tx message timeout (client metadata)
 	txTimeoutBlockCount       = 10
 	maxBillsForDustCollection = 100
 	dustBillDeletionTimeout   = 65536
@@ -49,11 +50,13 @@ type (
 	}
 
 	BackendAPI interface {
-		GetBalance(pubKey []byte, includeDCBills bool) (uint64, error)
-		ListBills(pubKey []byte, includeDCBills, includeDCMetadata bool) (*backend.ListBillsResponse, error)
-		GetBills(pubKey []byte) ([]*wallet.Bill, error)
+		GetBalance(ctx context.Context, pubKey []byte, includeDCBills bool) (uint64, error)
+		ListBills(ctx context.Context, pubKey []byte, includeDCBills, includeDCMetadata bool) (*backend.ListBillsResponse, error)
+		GetBills(ctx context.Context, pubKey []byte) ([]*wallet.Bill, error)
 		GetRoundNumber(ctx context.Context) (uint64, error)
 		GetFeeCreditBill(ctx context.Context, unitID wallet.UnitID) (*wallet.Bill, error)
+		GetLockedFeeCredit(ctx context.Context, systemID []byte, unitID []byte) (*types.TransactionRecord, error)
+		GetClosedFeeCredit(ctx context.Context, fcbID []byte) (*types.TransactionRecord, error)
 		PostTransactions(ctx context.Context, pubKey wallet.PubKey, txs *wallet.Transactions) error
 		GetTxProof(ctx context.Context, unitID wallet.UnitID, txHash wallet.TxHash) (*wallet.Proof, error)
 	}
@@ -80,10 +83,11 @@ type (
 	}
 
 	dcBillGroup struct {
-		dcBills   []*Bill
-		valueSum  uint64
-		dcNonce   []byte
-		dcTimeout uint64
+		dcBills     []*Bill
+		valueSum    uint64
+		dcNonce     []byte
+		dcTimeout   uint64
+		swapTimeout uint64
 	}
 )
 
@@ -116,7 +120,7 @@ func (w *Wallet) SystemID() []byte {
 	return money.DefaultSystemIdentifier
 }
 
-// Shutdown terminates connection to alphabill node, closes account manager and cancels any background goroutines.
+// Close terminates connection to alphabill node, closes account manager and cancels any background goroutines.
 func (w *Wallet) Close() {
 	w.am.Close()
 	w.feeManager.Close()
@@ -140,22 +144,22 @@ func (w *Wallet) CollectDust(ctx context.Context, accountNumber uint64) error {
 
 // GetBalance returns sum value of all bills currently owned by the wallet, for given account.
 // The value returned is the smallest denomination of alphabills.
-func (w *Wallet) GetBalance(cmd GetBalanceCmd) (uint64, error) {
+func (w *Wallet) GetBalance(ctx context.Context, cmd GetBalanceCmd) (uint64, error) {
 	pubKey, err := w.am.GetPublicKey(cmd.AccountIndex)
 	if err != nil {
 		return 0, err
 	}
-	return w.backend.GetBalance(pubKey, cmd.CountDCBills)
+	return w.backend.GetBalance(ctx, pubKey, cmd.CountDCBills)
 }
 
 // GetBalances returns sum value of all bills currently owned by the wallet, for all accounts.
 // The value returned is the smallest denomination of alphabills.
-func (w *Wallet) GetBalances(cmd GetBalanceCmd) ([]uint64, uint64, error) {
+func (w *Wallet) GetBalances(ctx context.Context, cmd GetBalanceCmd) ([]uint64, uint64, error) {
 	pubKeys, err := w.am.GetPublicKeys()
 	totals := make([]uint64, len(pubKeys))
 	sum := uint64(0)
 	for accountIndex, pubKey := range pubKeys {
-		balance, err := w.backend.GetBalance(pubKey, cmd.CountDCBills)
+		balance, err := w.backend.GetBalance(ctx, pubKey, cmd.CountDCBills)
 		if err != nil {
 			return nil, 0, err
 		}
@@ -181,7 +185,7 @@ func (w *Wallet) Send(ctx context.Context, cmd SendCmd) ([]*wallet.Proof, error)
 	}
 
 	pubKey, _ := w.am.GetPublicKey(cmd.AccountIndex)
-	balance, err := w.backend.GetBalance(pubKey, true)
+	balance, err := w.backend.GetBalance(ctx, pubKey, true)
 	if err != nil {
 		return nil, err
 	}
@@ -207,7 +211,7 @@ func (w *Wallet) Send(ctx context.Context, cmd SendCmd) ([]*wallet.Proof, error)
 		return nil, ErrNoFeeCredit
 	}
 
-	bills, err := w.backend.GetBills(pubKey)
+	bills, err := w.backend.GetBills(ctx, pubKey)
 	if err != nil {
 		return nil, err
 	}
@@ -219,18 +223,19 @@ func (w *Wallet) Send(ctx context.Context, cmd SendCmd) ([]*wallet.Proof, error)
 		return nil, fmt.Errorf("failed to create transactions: %w", err)
 	}
 
+	for _, tx := range txs {
+		batch.Add(&txsubmitter.TxSubmission{
+			UnitID:      tx.UnitID(),
+			TxHash:      tx.Hash(crypto.SHA256),
+			Transaction: tx,
+		})
+	}
+
 	txsCost := tx_builder.MaxFee * uint64(len(batch.Submissions()))
 	if fcb.Value < txsCost {
 		return nil, ErrInsufficientFeeCredit
 	}
 
-	for _, tx := range txs {
-		batch.Add(&txsubmitter.TxSubmission{
-			UnitID:      tx.UnitID(),
-			TxOrderHash: tx.Hash(crypto.SHA256),
-			Transaction: tx,
-		})
-	}
 	if err = batch.SendTx(ctx, cmd.WaitForConfirmation); err != nil {
 		return nil, err
 	}
@@ -245,14 +250,14 @@ func (w *Wallet) Send(ctx context.Context, cmd SendCmd) ([]*wallet.Proof, error)
 // AddFeeCredit creates fee credit for the given amount.
 // Wallet must have a bill large enough for the required amount plus fees.
 // Returns transferFC and addFC transaction proofs.
-func (w *Wallet) AddFeeCredit(ctx context.Context, cmd fees.AddFeeCmd) ([]*wallet.Proof, error) {
+func (w *Wallet) AddFeeCredit(ctx context.Context, cmd fees.AddFeeCmd) (*fees.AddFeeCmdResponse, error) {
 	return w.feeManager.AddFeeCredit(ctx, cmd)
 }
 
 // ReclaimFeeCredit reclaims fee credit.
 // Reclaimed fee credit is added to the largest bill in wallet.
 // Returns closeFC and reclaimFC transaction proofs.
-func (w *Wallet) ReclaimFeeCredit(ctx context.Context, cmd fees.ReclaimFeeCmd) ([]*wallet.Proof, error) {
+func (w *Wallet) ReclaimFeeCredit(ctx context.Context, cmd fees.ReclaimFeeCmd) (*fees.ReclaimFeeCmdResponse, error) {
 	return w.feeManager.ReclaimFeeCredit(ctx, cmd)
 }
 
@@ -285,6 +290,13 @@ func (w *Wallet) collectDust(ctx context.Context, accountIndex uint64) error {
 	if err != nil {
 		return err
 	}
+	fcb, err := w.GetFeeCredit(ctx, fees.GetFeeCreditCmd{AccountIndex: accountIndex})
+	if err != nil {
+		return err
+	}
+	if fcb == nil {
+		return ErrNoFeeCredit
+	}
 	bills, dcMetadataMap, err := w.getDetailedBillsList(ctx, pubKey)
 	if err != nil {
 		return err
@@ -293,7 +305,7 @@ func (w *Wallet) collectDust(ctx context.Context, accountIndex uint64) error {
 		log.Info("Account ", accountIndex, " has less than 2 bills, skipping dust collection")
 		return nil
 	}
-	dcBillGroups, err := groupDcBills(bills)
+	dcBillGroups, err := groupDcBills(bills, roundNr)
 	if err != nil {
 		return err
 	}
@@ -317,13 +329,16 @@ func (w *Wallet) collectDust(ctx context.Context, accountIndex uint64) error {
 				if err != nil {
 					return err
 				}
-				dcBillGroups, err = groupDcBills(bills)
+				dcBillGroups, err = groupDcBills(bills, roundNr)
 				if err != nil {
 					return err
 				}
 				v = dcBillGroups[string(v.dcNonce)]
 			}
-			swapTimeout := roundNr + swapTimeoutBlockCount
+			if fcb.GetValue() < tx_builder.MaxFee {
+				return ErrInsufficientFeeCredit
+			}
+			swapTimeout := util.Min(roundNr+swapTxTimeoutBlockCount, v.swapTimeout)
 			if err := w.swapDcBills(ctx, v.dcBills, v.dcNonce, dcMetadataMap[string(v.dcNonce)].BillIdentifiers, swapTimeout, accountIndex); err != nil {
 				return err
 			}
@@ -336,11 +351,8 @@ func (w *Wallet) collectDust(ctx context.Context, accountIndex uint64) error {
 
 		billCount := len(bills)
 		for billCount > 1 {
-			offset := maxBillsForDustCollection
-			if offset > billCount {
-				offset = billCount
-			}
-			err = w.submitDCBatch(ctx, k, bills[:offset], roundNr, accountIndex)
+			offset := util.Min(billCount, maxBillsForDustCollection)
+			err = w.submitDCBatch(ctx, k, bills[:offset], fcb.Value, roundNr, accountIndex)
 			if err != nil {
 				return err
 			}
@@ -357,26 +369,33 @@ func (w *Wallet) collectDust(ctx context.Context, accountIndex uint64) error {
 	return nil
 }
 
-func (w *Wallet) submitDCBatch(ctx context.Context, k *account.AccountKey, bills []*Bill, roundNr, accountIndex uint64) error {
+func (w *Wallet) submitDCBatch(ctx context.Context, k *account.AccountKey, bills []*Bill, fcbValue, roundNr, accountIndex uint64) error {
 	dcBatch := txsubmitter.NewBatch(k.PubKey, w.backend)
 	dcTimeout := roundNr + dcTimeoutBlockCount
+	swapTimeout := roundNr + swapTimeoutBlockCount
+	swapTxTimeout := roundNr + swapTxTimeoutBlockCount
 	dcNonce := calculateDcNonce(bills)
 	for _, b := range bills {
-		tx, err := tx_builder.NewDustTx(k, w.SystemID(), &wallet.Bill{Id: b.GetID(), Value: b.Value, TxHash: b.TxHash, TxRecordHash: b.TxRecordHash}, dcNonce, dcTimeout)
+		tx, err := tx_builder.NewDustTx(k, w.SystemID(), &wallet.Bill{Id: b.GetID(), Value: b.Value, TxHash: b.TxHash, SwapTimeout: swapTimeout}, dcNonce, dcTimeout)
 		if err != nil {
 			return err
 		}
 		dcBatch.Add(&txsubmitter.TxSubmission{
 			UnitID:      tx.UnitID(),
-			TxOrderHash: tx.Hash(crypto.SHA256),
+			TxHash:      tx.Hash(crypto.SHA256),
 			Transaction: tx,
 		})
 	}
+
+	txsCost := tx_builder.MaxFee * uint64(len(dcBatch.Submissions()))
+	if fcbValue < txsCost {
+		return ErrInsufficientFeeCredit
+	}
+
 	if err := dcBatch.SendTx(ctx, true); err != nil {
 		return err
 	}
 
-	swapTimeout := roundNr + swapTimeoutBlockCount
 	for _, sub := range dcBatch.Submissions() {
 		for _, b := range bills {
 			if bytes.Equal(util.Uint256ToBytes(b.Id), sub.UnitID) {
@@ -386,7 +405,7 @@ func (w *Wallet) submitDCBatch(ctx context.Context, k *account.AccountKey, bills
 		}
 	}
 
-	return w.swapDcBills(ctx, bills, dcNonce, getBillIds(bills), swapTimeout, accountIndex)
+	return w.swapDcBills(ctx, bills, dcNonce, getBillIds(bills), swapTxTimeout, accountIndex)
 }
 
 func (w *Wallet) swapDcBills(ctx context.Context, dcBills []*Bill, dcNonce []byte, billIds [][]byte, timeout, accountIndex uint64) error {
@@ -394,14 +413,6 @@ func (w *Wallet) swapDcBills(ctx context.Context, dcBills []*Bill, dcNonce []byt
 	if err != nil {
 		return err
 	}
-	fcb, err := w.GetFeeCredit(ctx, fees.GetFeeCreditCmd{AccountIndex: accountIndex})
-	if err != nil {
-		return err
-	}
-	if fcb.GetValue() < tx_builder.MaxFee {
-		return ErrInsufficientFeeCredit
-	}
-
 	var bpBills []*wallet.BillProof
 	for _, b := range dcBills {
 		bpBills = append(bpBills, &wallet.BillProof{Bill: &wallet.Bill{Id: b.GetID(), Value: b.Value}, TxProof: b.TxProof})
@@ -414,7 +425,7 @@ func (w *Wallet) swapDcBills(ctx context.Context, dcBills []*Bill, dcNonce []byt
 	dcBatch := txsubmitter.NewBatch(k.PubKey, w.backend)
 	dcBatch.Add(&txsubmitter.TxSubmission{
 		UnitID:      swapTx.UnitID(),
-		TxOrderHash: swapTx.Hash(crypto.SHA256),
+		TxHash:      swapTx.Hash(crypto.SHA256),
 		Transaction: swapTx,
 	})
 
@@ -427,7 +438,7 @@ func (w *Wallet) SendTx(ctx context.Context, tx *types.TransactionOrder, senderP
 }
 
 func (w *Wallet) getDetailedBillsList(ctx context.Context, pubKey []byte) ([]*Bill, map[string]*backend.DCMetadata, error) {
-	billResponse, err := w.backend.ListBills(pubKey, true, true)
+	billResponse, err := w.backend.ListBills(ctx, pubKey, true, true)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -443,7 +454,7 @@ func (w *Wallet) getDetailedBillsList(ctx context.Context, pubKey []byte) ([]*Bi
 				return nil, nil, err
 			}
 		}
-		bills = append(bills, &Bill{Id: util.BytesToUint256(b.Id), Value: b.Value, TxHash: b.TxHash, TxRecordHash: b.TxRecordHash, DcNonce: b.DcNonce, TxProof: proof})
+		bills = append(bills, &Bill{Id: util.BytesToUint256(b.Id), Value: b.Value, TxHash: b.TxHash, DcNonce: b.DcNonce, SwapTimeout: b.SwapTimeout, TxProof: proof})
 	}
 
 	return bills, billResponse.DCMetadata, nil
@@ -504,9 +515,12 @@ func calculateDcNonce(bills []*Bill) []byte {
 }
 
 // groupDcBills groups bills together by dc nonce
-func groupDcBills(bills []*Bill) (map[string]*dcBillGroup, error) {
+func groupDcBills(bills []*Bill, roundNumber uint64) (map[string]*dcBillGroup, error) {
 	m := map[string]*dcBillGroup{}
 	for _, b := range bills {
+		if b.SwapTimeout > 0 && b.SwapTimeout <= roundNumber {
+			continue // node and backend do not currently delete expired dc bills, so we just ignore them
+		}
 		if b.DcNonce != nil {
 			k := string(b.DcNonce)
 			billContainer, exists := m[k]
@@ -518,6 +532,7 @@ func groupDcBills(bills []*Bill) (map[string]*dcBillGroup, error) {
 			billContainer.dcBills = append(billContainer.dcBills, b)
 			billContainer.dcNonce = b.DcNonce
 			billContainer.dcTimeout = b.DcTimeout
+			billContainer.swapTimeout = b.SwapTimeout
 		}
 	}
 	return m, nil

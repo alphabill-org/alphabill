@@ -257,7 +257,7 @@ func TestBasicDustCollection(t *testing.T) {
 		}
 		require.EqualValues(t, expectedDcNonce, dcTx.Nonce)
 		require.EqualValues(t, bill.Value, dcTx.TargetValue)
-		require.EqualValues(t, bill.TxRecordHash, dcTx.Backlink)
+		require.EqualValues(t, bill.TxHash, dcTx.Backlink)
 		require.EqualValues(t, script.PredicatePayToPublicKeyHashDefault(k.PubKeyHash.Sha256), dcTx.TargetBearer)
 	}
 }
@@ -350,7 +350,7 @@ func TestSwapWithExistingDCBillsBeforeDCTimeout(t *testing.T) {
 	_ = am.CreateKeys("")
 	k, _ := am.GetAccountKey(0)
 	ids := [][]byte{util.Uint256ToBytes(uint256.NewInt(1)), util.Uint256ToBytes(uint256.NewInt(2))}
-	bills := []*Bill{addDcBill(t, k, uint256.NewInt(1), nonceBytes, 1, dcTimeoutBlockCount), addDcBill(t, k, uint256.NewInt(2), nonceBytes, 2, dcTimeoutBlockCount)}
+	bills := []*Bill{addDcBill(t, k, uint256.NewInt(1), nonceBytes, 1, dcTimeoutBlockCount, swapTimeoutBlockCount), addDcBill(t, k, uint256.NewInt(2), nonceBytes, 2, dcTimeoutBlockCount, swapTimeoutBlockCount)}
 	expectedDcNonce := calculateDcNonce(bills)
 	dcMetadataMap := make(map[string]*backend.DCMetadata)
 	dcMetadataMap[string(nonceBytes)] = &backend.DCMetadata{BillIdentifiers: ids, DCSum: 3}
@@ -423,7 +423,7 @@ func TestSwapWithExistingExpiredDCBills(t *testing.T) {
 	_ = am.CreateKeys("")
 	k, _ := am.GetAccountKey(0)
 	ids := [][]byte{util.Uint256ToBytes(uint256.NewInt(1)), util.Uint256ToBytes(uint256.NewInt(2))}
-	bills := []*Bill{addDcBill(t, k, uint256.NewInt(1), nonceBytes, 1, 0), addDcBill(t, k, uint256.NewInt(2), nonceBytes, 2, 0)}
+	bills := []*Bill{addDcBill(t, k, uint256.NewInt(1), nonceBytes, 1, 0, 60), addDcBill(t, k, uint256.NewInt(2), nonceBytes, 2, 0, 60)}
 	expectedDcNonce := calculateDcNonce(bills)
 	dcMetadataMap := make(map[string]*backend.DCMetadata)
 	dcMetadataMap[string(nonceBytes)] = &backend.DCMetadata{BillIdentifiers: ids, DCSum: 3}
@@ -686,7 +686,7 @@ func TestBlockingDcWithNormalBills(t *testing.T) {
 	}
 }
 
-func TestBlockingDCWithExistingExpiredDCBills(t *testing.T) {
+func TestDCWithExpiredDCBills(t *testing.T) {
 	// create wallet with 2 timed out dc bills
 	tempNonce := uint256.NewInt(1)
 	nonceBytes := util.Uint256ToBytes(tempNonce)
@@ -695,7 +695,7 @@ func TestBlockingDCWithExistingExpiredDCBills(t *testing.T) {
 	_ = am.CreateKeys("")
 	k, _ := am.GetAccountKey(0)
 	ids := [][]byte{util.Uint256ToBytes(uint256.NewInt(1)), util.Uint256ToBytes(uint256.NewInt(2))}
-	bills := []*Bill{addDcBill(t, k, uint256.NewInt(1), nonceBytes, 1, 0), addDcBill(t, k, uint256.NewInt(2), nonceBytes, 2, 0)}
+	bills := []*Bill{addDcBill(t, k, uint256.NewInt(1), nonceBytes, 1, 0, 60), addDcBill(t, k, uint256.NewInt(2), nonceBytes, 2, 0, 60)}
 	dcMetadataMap := make(map[string]*backend.DCMetadata)
 	dcMetadataMap[string(nonceBytes)] = &backend.DCMetadata{BillIdentifiers: ids, DCSum: 3}
 	billsList := createBillListResponse(bills, dcMetadataMap)
@@ -750,6 +750,47 @@ func TestBlockingDCWithExistingExpiredDCBills(t *testing.T) {
 	}
 }
 
+func TestDustCollectionNotEnoughFeeCredit(t *testing.T) {
+	// create wallet with 2 normal bills but only enough fee credit for 1 tx
+	am, err := account.NewManager(t.TempDir(), "", true)
+	require.NoError(t, err)
+	_ = am.CreateKeys("")
+	bills := []*Bill{addBill(1), addBill(2)}
+	billsList := createBillListResponse(bills, nil)
+
+	billListCallFlag := false
+	backendMock := &backendAPIMock{
+		getRoundNumber: func() (uint64, error) {
+			return 0, nil
+		},
+		listBills: func(pubKey []byte, includeDCBills, includeDCMetadata bool) (*backend.ListBillsResponse, error) {
+			if billListCallFlag {
+				return createBillListResponse([]*Bill{addBill(3)}, nil), nil
+			}
+			billListCallFlag = true
+			return billsList, nil
+		},
+		getFeeCreditBill: func(ctx context.Context, unitID []byte) (*wallet.Bill, error) {
+			k, _ := am.GetAccountKey(0)
+			return &wallet.Bill{
+				Id:    k.PrivKeyHash,
+				Value: txbuilder.MaxFee,
+			}, nil
+		},
+		postTransactions: func(ctx context.Context, pubKey wallet.PubKey, txs *wallet.Transactions) error {
+			return errors.New("no transaction should be submitted")
+		},
+	}
+
+	w, _ := CreateTestWalletWithManager(t, backendMock, am)
+
+	// when dc runs
+	err = w.collectDust(context.Background(), 0)
+
+	// wallet returns insufficient fee credit error and no tx is submitted
+	require.ErrorIs(t, err, ErrInsufficientFeeCredit)
+}
+
 func addBill(value uint64) *Bill {
 	b1 := Bill{
 		Id:      uint256.NewInt(value),
@@ -760,7 +801,7 @@ func addBill(value uint64) *Bill {
 	return &b1
 }
 
-func addDcBill(t *testing.T, k *account.AccountKey, id *uint256.Int, nonce []byte, value, timeout uint64) *Bill {
+func addDcBill(t *testing.T, k *account.AccountKey, id *uint256.Int, nonce []byte, value, timeout uint64, swapTimeout uint64) *Bill {
 	b := Bill{
 		Id:      id,
 		Value:   value,
@@ -775,6 +816,7 @@ func addDcBill(t *testing.T, k *account.AccountKey, id *uint256.Int, nonce []byt
 	b.DcNonce = nonce
 	b.DcTimeout = timeout
 	b.DcExpirationTimeout = dustBillDeletionTimeout
+	b.SwapTimeout = swapTimeout
 
 	require.NoError(t, err)
 	return &b

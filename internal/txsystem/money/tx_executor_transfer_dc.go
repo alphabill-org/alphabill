@@ -19,25 +19,45 @@ func handleTransferDCTx(s *state.State, dustCollector *DustCollector, hashAlgori
 		// calculate actual tx fee cost
 		fee := feeCalc()
 		unitID := tx.UnitID()
-		sm := &types.ServerMetadata{ActualFee: fee, TargetUnits: []types.UnitID{unitID}}
-		txr := &types.TransactionRecord{
-			TransactionOrder: tx,
-			ServerMetadata:   sm,
-		}
-		// update state
-		updateDataFunc := updateBillDataFunc(txr, currentBlockNumber, hashAlgorithm)
 
-		setOwnerFunc := state.SetOwner(unitID, dustCollectorPredicate)
+		// 1. SetOwner(ι, DC)
+		setOwnerFn := state.SetOwner(unitID, dustCollectorPredicate)
+
+		// 2. UpdateData(ι0, f′), where f′ : D.v → D.v + N[ι].D.v – increase DC money supply by N[ι].D.v
+		updateDCMoneySupplyFn := state.UpdateUnitData(dustCollectorMoneySupplyID,
+			func(data state.UnitData) (state.UnitData, error) {
+				bd, ok := data.(*BillData)
+				if !ok {
+					return nil, fmt.Errorf("unit %v does not contain bill data", dustCollectorMoneySupplyID)
+				}
+				bd.V += attr.TargetValue
+				return bd, nil
+			})
+
+		// 3. UpdateData(ι, f), where f(D) = (0, S.n, H(P), D.Tdust)
+		updateUnitFn := state.UpdateUnitData(unitID,
+			func(data state.UnitData) (state.UnitData, error) {
+				bd, ok := data.(*BillData)
+				if !ok {
+					return nil, fmt.Errorf("unit %v does not contain bill data", unitID)
+				}
+				bd.V = 0
+				bd.T = currentBlockNumber
+				bd.Backlink = tx.Hash(hashAlgorithm)
+				return bd, nil
+			})
+
 		if err := s.Apply(
-			updateDataFunc,
-			setOwnerFunc,
+			setOwnerFn,
+			updateDCMoneySupplyFn,
+			updateUnitFn,
 		); err != nil {
 			return nil, fmt.Errorf("transferDC: failed to update state: %w", err)
 		}
 
 		// record dust bills for later deletion
 		dustCollector.AddDustBill(unitID, currentBlockNumber)
-		return sm, nil
+		return &types.ServerMetadata{ActualFee: fee, TargetUnits: []types.UnitID{unitID}}, nil
 	}
 }
 

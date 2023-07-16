@@ -27,9 +27,8 @@
       - [Add Fee Credit](#add-fee-credit-1)
       - [Close Fee Credit](#close-fee-credit-1)
 - [Examples](#examples)
-  - [Transfer Bill](#transfer-bill-1)
   - [Split Bill](#split-bill-1)
-- [TODO](#todo)
+  - [Transfer Bill](#transfer-bill-1)
 - [References](#references)
 
 ## *TransactionOrder*
@@ -142,7 +141,7 @@ of valid transaction types is defined. And for each transaction type,
 an array of valid attributes is defined.
 
 A common attribute for many transaction types is *Backlink*, which
-links the transaction back to the previous transaction with the same
+links a transaction back to the previous transaction with the same
 unit and thus makes the order of transactions unambiguous. *Backlink*
 is calculated as the hash of the raw CBOR encoded bytes of the
 *TransactionOrder* data item. Hash algorithm is defined by each
@@ -150,12 +149,9 @@ partiton.
 
 #### Money Partition
 
-Money partiton has two types of units: bills and fee credit records.
-
-Hash algorithm: SHA-256\
-Required data items for all transactions:
-
-*TransactionOrder*.*Payload*.*SystemIdentifier* = h'00000000'
+System identifier: h'00000000'\
+Unit types: bill, fee credit record\
+Hash algorithm: SHA-256
 
 ##### Transfer Bill
 
@@ -182,12 +178,12 @@ transferred bill is unchanged.
 
 ##### Split Bill
 
-This transaction splits a bill in two, creating a new bill with its
-own owner condition (*TargetOwner*) and value (*TargetValue*). The
-value of the bill being split is reduced by the value of the new bill
-and is specified in the *RemainingValue* attribute. The sum of values
-specified by *TargetValue* and *RemainingValue* attributes must be
-equal to the value of the bill before the split.
+This transaction splits a bill in two, creating a new bill with a new
+owner condition (*TargetOwner*) and value (*TargetValue*). The value
+of the bill being split is reduced by the value of the new bill and is
+specified in the *RemainingValue* attribute. The sum of *TargetValue*
+and *RemainingValue* must be equal to the value of the bill before the
+split.
 
 *TransactionOrder*.*Payload*.*Type* = "split"\
 *TransactionOrder*.*Payload*.*Attributes* contains:
@@ -204,9 +200,8 @@ equal to the value of the bill before the split.
 2. *TargetOwner* (byte string) is the owner condition of the new bill.
 3. *RemainingValue* (unsigned integer) is the remaining value of the
    bill being split.
-    > TODO: Why is this needed? The recipient of this transaction does not need to know the *RemainingValue* as is the case with *TargetValue* in Transfer Bill transaction. Also, Transfer to Fee Credit has no such field (and can't have), although it is very similar to a split.)
-4. *Backlink* (byte string) is the backlink to the previous transaction
-   with the bill.
+4. *Backlink* (byte string) is the backlink to the previous
+   transaction with the bill being split.
 
 ##### Transfer Bill to Dust Collector
 
@@ -266,7 +261,6 @@ DC](#transfer-bill-to-dust-collector) for a new, larger-value bill.
 1. *TargetOwner* (byte string) is the owner condition of the new bill.
 2. *BillIdentifiers* (array of byte strings) is a variable length
    array of bill identifiers that are being swapped.
-   > TODO: Order is not important?
 3. *DcTransfers* (array) is an array of [Transfer Bill to Dust
    Collector](#transfer-bill-to-dust-collector) transaction records
    ordered in strictly increasing order of bill identifiers.
@@ -282,26 +276,20 @@ DC](#transfer-bill-to-dust-collector) for a new, larger-value bill.
 ##### Transfer to Fee Credit
 
 This transaction reserves money on the money partition to be paid as
-fees on a target partition. Money partition can also be the target
-partition. If the sum of the transferred amount and transaction fee is
-less than the value of the bill, it is similar to the [Split
-Bill](#split-bill) transaction in that both reduce the value of an
-existing bill and transfer it to a new owner. In this case, the new
-owner is a special fee credit record, managed by the target
-partition. In case the remaining value of the bill is 0, the bill is
-deleted.
+fees on the target partition. Money partition can also be the target
+partition. A bill can be transferred to fee credit partially.
 
-To bootstrap a fee credit record on the money partition, the fees for
-this transaction are handled outside the fee credit system. That is,
+To bootstrap a fee credit record on the money partition, the fee for
+this transaction is handled outside the fee credit system. That is,
 the value of the bill used to make this transfer is reduced by the
-*Amount* transferred, and by the amount paid in fees for this
-transaction.
+*Amount* transferred **and** the transaction fee. If the remaining
+value is 0, the bill is deleted.
 
-Note that an [Add Fee Credit](#add-fee-credit) transaction
-needs to be executed on the target partition after each [Transfer to
-Fee Credit](#transfer-to-fee-credit) transaction. If any other
-transaction is executed with the bill between those two, the value
-transferred to fee credit is lost.
+Note that an [Add Fee Credit](#add-fee-credit) transaction must be
+executed on the target partition after each [Transfer to Fee
+Credit](#transfer-to-fee-credit) transaction, because the *Nonce*
+attribute in this transaction contains the backlink to the last [Add
+Fee Credit](#add-fee-credit) transaction.
 
 *TransactionOrder*.*FeeProof* = `null`\
 *TransactionOrder*.*Payload*.*Type* = "transFC"\
@@ -324,18 +312,18 @@ transferred to fee credit is lost.
    of the bill +
    *TransactionOrder*.*Payload*.*ClientMetadata*.*MaxTransactionFee*.
 2. *TargetSystemIdentifier* (byte string) is the system identifier of
-   the target partition where the amount can be spent on fees.
+   the target partition where the *Amount* can be spent on fees.
 3. *TargetRecordID* (byte string) is the target fee credit record
    identifier (*FeeCreditRecordID* of the corresponding [Add Fee
    Credit](#add-fee-credit) transaction). Hash of the private key
-   making the transaction is used.
+   signing this transaction is used.
 4. *EarliestAdditionTime* (unsigned integer) is the earliest round
    when the corresponding [Add Fee Credit](#add-fee-credit)
-   transaction can be executed in the target system (usually current
-   round number).
+   transaction can be executed in the target partition (usually
+   current round number).
 5. *LatestAdditionTime* (unsigned integer) is the latest round when
    the corresponding [Add Fee Credit](#add-fee-credit) transaction can
-   be executed in the target system (usually current round number +
+   be executed in the target partition (usually current round number +
    some timeout).
 6. *Nonce* (byte string) is the hash of the last [Add Fee
    Credit](#add-fee-credit) transaction executed for the
@@ -348,9 +336,9 @@ transferred to fee credit is lost.
 
 This transaction creates or updates a fee credit record on the target
 partition (the partition this transaction is executed on), by
-presenting a proof of fee credit, reserved in the money partition with
-[Transfer to Fee Credit](#transfer-to-fee-credit) transaction. As a
-result, execution of other fee paying transactions becomes possible.
+presenting a proof of fee credit reserved in the money partition with
+the [Transfer to Fee Credit](#transfer-to-fee-credit) transaction. As
+a result, execution of other fee paying transactions becomes possible.
 
 The fee for this transaction will also be paid from the fee credit
 record being created/updated.
@@ -361,22 +349,20 @@ record being created/updated.
 *TransactionOrder*.*Payload*.*Attributes* contains:
 ```
 /addFCAttributes/ [
-    /FeeCreditOwnerCondition/ h'5376A8014F01B327E2D37F0BFB6BABF6ACC758A101C6D8EB03991ABE7F137C62B253C5A5CFA08769AC01',
-    /FeeCreditTransfer/       [/omitted/],
-    /FeeCreditTransferProof/  [/omitted/]
+    /TargetOwner/            h'5376A8014F01B327E2D37F0BFB6BABF6ACC758A101C6D8EB03991ABE7F137C62B253C5A5CFA08769AC01',
+    /FeeCreditTransfer/      [/omitted/],
+    /FeeCreditTransferProof/ [/omitted/]
 ]
 ```
 
-1. *FeeCreditOwnerCondition* (byte string, optional) is the owner
+1. *TargetOwner* (byte string, optional) is the owner
    condition for the created fee credit record. It needs to be
    satisifed by the *TransactionOrder*.*FeeProof* data item of the
    transactions using the record to pay fees.
-   > TODO: What if fee credit record is being updated? Is it allowed? Needs to have same value as before?
-2. *FeeCreditTransfer* (array) is the transaction record of the
-   [Transfer To Fee Credit](#transfer-to-fee-credit) transaction. It
-   is constructed by a node when the transaction is executed and
-   included in a block. Necessary for the target partition to verify
-   the amount reserved as fee credit in the money partiton.
+2. *FeeCreditTransfer* (array) is a record of the [Transfer To Fee
+   Credit](#transfer-to-fee-credit) transaction. Necessary for the
+   target partition to verify the amount reserved as fee credit in the
+   money partiton.
 3. *FeeCreditTransferProof* (array) is the proof of execution of the
     transaction provided in *FeeCreditTransfer* attribute. Necessary
     for the target partition to verify the amount reserved as fee
@@ -390,6 +376,12 @@ transaction on the money partition.
 
 Note that fee credit records cannot be closed partially. 
 
+This transaction must be followed by a [Reclaim Fee
+Credit](#reclaim-fee-credit) transaction to avoid losing the closed
+fee credit. The *Nonce* attribute fixes the current state of the bill
+used to reclaim the closed fee credit, and any other transaction with
+the bill would invalidate that backlink.
+
 *TransactionOrder*.*FeeProof* = `null`\
 *TransactionOrder*.*Payload*.*Type* = "closeFC"\
 *TransactionOrder*.*Payload*.*ClientMetadata*.*FeeCreditRecordID* = `null`\
@@ -398,7 +390,7 @@ Note that fee credit records cannot be closed partially.
 /closeFCAttributes/ [
     /Amount/            100000000,
     /FeeCreditRecordID/ h'A0227AC5202427DB551B8ABE08645378347A3C5F70E0E5734F147AD45CBC1BA5',
-    /Nonce/             null
+    /Nonce/             h''
 ]
 ```
 
@@ -406,15 +398,15 @@ Note that fee credit records cannot be closed partially.
    credit record.
 2. *FeeCreditRecordID* (byte string) is the identifier of the fee
    credit record to be closed.
-3. *Nonce* (byte string) is the hash of the last transaction executed
-   with the bill in money partition that will be used to reclaim the
+3. *Nonce* (byte string) is the backlink to the previous transaction
+   with the bill in the money partition that is used to reclaim the
    fee credit.
 
 ##### Reclaim Fee Credit
 
-This transaction reclaims the fee credit previously closed with the
+This transaction reclaims the fee credit, previously closed with a
 [Close Fee Credit](#close-fee-credit) transaction in a target
-partition to an existing bill in the money partition.
+partition, to an existing bill in the money partition.
 
 *TransactionOrder*.*FeeProof* = `null`\
 *TransactionOrder*.*Payload*.*Type* = "reclFC"\
@@ -428,27 +420,22 @@ partition to an existing bill in the money partition.
 ]
 ```
 
-1. *CloseFeeCredit* (array) is the transaction record of the [Close
-   Fee Credit](#close-fee-credit) transaction. It is constructed by a
-   node when the transaction is executed and included in a
-   block. Necessary for the money partition to verify the amount
-   closed as fee credit in the target partition.
+1. *CloseFeeCredit* (array) is a record of the [Close Fee
+   Credit](#close-fee-credit) transaction. Necessary for the money
+   partition to verify the amount closed as fee credit in the target
+   partition.
 2. *CloseFeeCreditProof* (array) is the proof of execution of the
     transaction provided in *CloseFeeCredit* attribute. Necessary for
-    the target partition to verify the amount closed as fee credit in
+    the money partition to verify the amount closed as fee credit in
     the target partiton.
 3. *Backlink* (byte string) is the backlink to the previous
    transaction with the bill receiving the reclaimed fee credit.
 
 #### Tokens Partition
 
-Tokens partiton has five types of units: fungible and non-fungible
-token types, fungible and non-fungible tokens, and fee credit records.
-
-Hash algorithm: SHA-256.
-Required data items for all transactions:
-
-*TransactionOrder*.*Payload*.*SystemIdentifier* = h'00000002'
+System identifier: h'00000002'\
+Unit types: fungible token type, non-fungible token type, fungible token, non-fungible token, fee credit record\
+Hash algorithm: SHA-256
 
 ##### Create Non-fungible Token Type
 
@@ -555,6 +542,8 @@ This transaction transfers a non-fungible token to a new owner.
 
 ##### Update Non-fungible Token
 
+This transaction updates the data of a non-fungible token.
+
 *TransactionOrder*.*Payload*.*Type* = "updateNToken"\
 *TransactionOrder*.*Payload*.*Attributes* contains:
 ```
@@ -565,9 +554,13 @@ This transaction transfers a non-fungible token to a new owner.
 ]
 ```
 
-1. Data - the new data to replace the data currently associated with the token
-2. Backlink - the backlink to the previous transaction with the token
-3. DataUpdateSignatures - inputs to satisfy the token data update predicates down the inheritance chain
+1. Data (byte string) is the new data to replace the data currently
+   associated with the token.
+2. Backlink (byte string) is the backlink to the previous transaction
+   with the token.
+3. DataUpdateSignatures (array of byte strings) is an array of inputs
+   to satisfy the token data update predicates down the inheritance
+   chain.
 
 ##### Create Fungible Token Type
 
@@ -579,7 +572,7 @@ This transaction creates a fungible token type.
 /createFTypeAttributes/ [
     /Symbol/                             "symbol",
     /Name/                               "long name",
-    /Icon/                               ["image/png", h''],
+    /Icon/                               [/Type/ "image/png", /Data/ h''],
     /ParentTypeID/                       h'00',
     /DecimalPlaces/                      8,
     /SubTypeCreationPredicate/           h'535101',
@@ -671,12 +664,11 @@ of the transferred token is unchanged.
 ##### Split Fungible Token
 
 This transaction splits a fungible token in two, creating a new
-fungible token with its own owner condition (*TargetOwner*) and value
+fungible token with a new owner condition (*TargetOwner*) and value
 (*TargetValue*). The value of the token being split is reduced by the
 value of the new token and is specified in the *RemainingValue*
-attribute. The sum of values specified by *TargetValue* and
-*RemainingValue* attributes must be equal to the value of the token
-before the split.
+attribute. The sum of *TargetValue* and *RemainingValue* must be equal
+to the value of the token before the split.
 
 *TransactionOrder*.*Payload*.*Type* = "splitFToken"\
 *TransactionOrder*.*Payload*.*Attributes* contains:
@@ -699,7 +691,7 @@ before the split.
 4. *Backlink* (byte string) is the backlink to the previous
    transaction with the token being split.
 5. *TypeID* (byte string) is the type of the token.
-6. *RemainingValue* (unsigned integer) is new remaining value of the
+6. *RemainingValue* (unsigned integer) is the remaining value of the
    token being split.
 6. *InvariantPredicateSignatures* (array of byte strings) is an array
    of inputs to satisfy the token type invariant predicates down the
@@ -717,7 +709,7 @@ Token](#join-fungible-tokens) transaction.
 /burnFTokenAttributes/ [
     /TypeID/                       h'',
     /Value/                        999,
-    /Nonce/                        h'',
+    /TargetBacklink/               h'',
     /Backlink/                     h'',
     /InvariantPredicateSignatures/ [h'']
 ]
@@ -725,9 +717,9 @@ Token](#join-fungible-tokens) transaction.
 
 1. *TypeID* (byte string) is the type of the token.
 2. *Value* (unsigned integer) is the value of the token.
-3. *Nonce* (byte string) is the current state hash of the target
-   token.
-   > TODO:
+3. *TargetBacklink* (byte string) is the backlink to the previous
+   transaction with the fungible token that this burn is to be [joined
+   into](#join-fungible-tokens).
 4. *Backlink* (byte string) is the backlink to the previous
    transaction with the token.
 5. *InvariantPredicateSignatures* (array of byte strings) is an array
@@ -749,12 +741,6 @@ tokens](#burn-fungible-token) into a target token of the same type.
     /InvariantPredicateSignatures/ [h'']
 ]
 ```
-
-4. *DcTransferProofs* (array) is an array of [Transfer Bill to Dust
-   Collector](#transfer-bill-to-dust-collector) transaction proofs.
-   The order of this array must match the order of *DcTransfers*
-   array, so that a proof and the corresponding transfer have the same
-   index.
 
 1. *Burns* (array) is an array of [Burn Fungible
    Token](#burn-fungible-token) transaction records.
@@ -784,47 +770,38 @@ The raw hex encoded transactions in these examples can be inspected
 with online CBOR decoders[^3][^4]. The same tools can also encode the
 Extended Diagnostic Notation to raw hex encoded CBOR format.
 
-### Transfer Bill
-
-Raw hex encoded transaction:
-```
-83854400000000657472616e735820000000000000000000000000000000000000000000000000000000000000000183582a5376a8014f01411dbb429d60228cacdea90d4b5f1c0b022d7f03d9cb9e5042be3f74b7a8c23a8769ac011b0de0b6851c6c10fc5820f4c65d760da53f0f6d43e06ead2aa6095ccf702a751286fa97ec958afa08583983190540015820a0227ac5202427db551b8abe08645378347a3c5f70e0e5734f147ad45cbc1ba558675354016860a15d094e3ec42c133cb090682c28252b0c6299ad267255f6fb06832107b26286ea6096a0a6b1aaafbd73a748f7e7b1cf6e3ef3db3091925c236ba3c94ff30055010227e874b800ca319b7bc384dfc63f915e098417b549edb43525aee511a6dbbd9cf6
-```
-
-Extended Diagnostic Notation with annotations:
-```
-/TransactionOrder/ [
-    /Payload/ [
-        /SystemIdentifier/ h'00000000',
-        /Type/             "trans",
-        /UnitID/           h'0000000000000000000000000000000000000000000000000000000000000001',
-        /transAttributes/ [
-            /TargetOwner/ h'5376A8014F01411DBB429D60228CACDEA90D4B5F1C0B022D7F03D9CB9E5042BE3F74B7A8C23A8769AC01',
-            /TargetValue/ 999999800099999996,
-            /Backlink/    h'F4C65D760DA53F0F6D43E06EAD2AA6095CCF702A751286FA97EC958AFA085839'
-        ],
-        /ClientMetadata/ [
-            /Timeout/           1344,
-            /MaxTransactionFee/ 1,
-            /FeeCreditRecordID/ h'A0227AC5202427DB551B8ABE08645378347A3C5F70E0E5734F147AD45CBC1BA5'
-        ]
-    ],
-    /OwnerProof/ h'5354016860A15D094E3EC42C133CB090682C28252B0C6299AD267255F6FB06832107B26286EA6096A0A6B1AAAFBD73A748F7E7B1CF6E3EF3DB3091925C236BA3C94FF30055010227E874B800CA319B7BC384DFC63F915E098417B549EDB43525AEE511A6DBBD9C',
-    /FeeProof/   null
-]
-```
-
-[
-    [
-        h'00000000',
-        "split",
-        h'0000000000000000000000000000000000000000000000000000000000000001', [500000000, h'5376A8014F01411DBB429D60228CACDEA90D4B5F1C0B022D7F03D9CB9E5042BE3F74B7A8C23A8769AC01', 999999999399999996, h'52F43127F58992B6FCFA27A64C980E70D26C2CDE0281AC93435D10EB8034B695'], [23, 1, h'A0227AC5202427DB551B8ABE08645378347A3C5F70E0E5734F147AD45CBC1BA5']], h'53540184A1455D7D3A3F4E7EC9B0CAA67C416874EC2F0B5116BEAD0F5DA1094E0B50D212CA66B0DE771F4E3F9B5B5DA307FD2C856D673FD88EE3509FD7C84CC3E380300155010227E874B800CA319B7BC384DFC63F915E098417B549EDB43525AEE511A6DBBD9C', null]
-
 ### Split Bill
 
 Raw hex encoded transaction:
 ```
-838544000000006573706c697458200000000000000000000000000000000000000000000000000000000000000001841b0000001742810700582a5376a8014f0162c5594a5f1e83d7c5611b041999cfb9c67cff2482aefa72e8b636ccf79bbb1d8769ac011b0de0b69c5eed17fc58202c8e1f55fc20a44687ab5d18d11f5e3544d2989dffbb8250aa6eba5ef4cec319831889015820a0227ac5202427db551b8abe08645378347a3c5f70e0e5734f147ad45cbc1ba558675354019e5d3927a7dce3655105277fffe6602d6d9ef2456346c379a702847356b4f7dd6b987a26434b925d66361f396fc0dc927192a48cd394f590bc3cd3bc96a0e0b50155010227e874b800ca319b7bc384dfc63f915e098417b549edb43525aee511a6dbbd9cf6
+838544000000006573706c6974582000000000ffcc5c5d01ca3eff65c2087db3aefd3d58b20f074d52bb664c24ffae841a0bebc200582a5376a8014f0162c5594a5f1e83d7c5611b041999cfb9c67cff2482aefa72e8b636ccf79bbb1d8769ac011a11e1a30058204ddc4678fd0eeefdd6868d99e644c0b43c20ed38292aee3893e4542f0a62aae68318250158208db6886a5d0fa64c2544e65b3f296c07a29f427db8d15517f70f7ff6f825e3dd58675354013f5d8fa1c59cb5b69fea2e82da14fb9f4579e4b49bfb963a3670c1a0d1215669547d1b38418a8b30bf89945ecdaa04adb879496c8ec55d7a274cf4f6f7bfde8f0055010225fd546b19683bed7663a83f97b1a1545a52f180f432ee1748fc3b51090eba5cf6
+```
+
+Same hex encoded data with annotations:
+```
+83                                      # array(3)
+   85                                   # array(5)
+      44                                # bytes(4)
+         00000000                       # "\u0000\u0000\u0000\u0000"
+      65                                # text(5)
+         73706C6974                     # "split"
+      58 20                             # bytes(32)
+         00000000FFCC5C5D01CA3EFF65C2087DB3AEFD3D58B20F074D52BB664C24FFAE # "\u0000\u0000\u0000\u0000\xFF\xCC\\]\u0001\xCA>\xFFe\xC2\b}\xB3\xAE\xFD=X\xB2\u000F\aMR\xBBfL$\xFF\xAE"
+      84                                # array(4)
+         1A 0BEBC200                    # unsigned(200000000)
+         58 2A                          # bytes(42)
+            5376A8014F0162C5594A5F1E83D7C5611B041999CFB9C67CFF2482AEFA72E8B636CCF79BBB1D8769AC01 # "Sv\xA8\u0001O\u0001b\xC5YJ_\u001E\x83\xD7\xC5a\e\u0004\u0019\x99Ϲ\xC6|\xFF$\x82\xAE\xFAr\xE8\xB66\xCC\xF7\x9B\xBB\u001D\x87i\xAC\u0001"
+         1A 11E1A300                    # unsigned(300000000)
+         58 20                          # bytes(32)
+            4DDC4678FD0EEEFDD6868D99E644C0B43C20ED38292AEE3893E4542F0A62AAE6 # "M\xDCFx\xFD\u000E\xEE\xFDֆ\x8D\x99\xE6D\xC0\xB4< \xED8)*\xEE8\x93\xE4T/\nb\xAA\xE6"
+      83                                # array(3)
+         18 25                          # unsigned(37)
+         01                             # unsigned(1)
+         58 20                          # bytes(32)
+            8DB6886A5D0FA64C2544E65B3F296C07A29F427DB8D15517F70F7FF6F825E3DD # "\x8D\xB6\x88j]\u000F\xA6L%D\xE6[?)l\a\xA2\x9FB}\xB8\xD1U\u0017\xF7\u000F\u007F\xF6\xF8%\xE3\xDD"
+   58 67                                # bytes(103)
+      5354013F5D8FA1C59CB5B69FEA2E82DA14FB9F4579E4B49BFB963A3670C1A0D1215669547D1B38418A8B30BF89945ECDAA04ADB879496C8EC55D7A274CF4F6F7BFDE8F0055010225FD546B19683BED7663A83F97B1A1545A52F180F432EE1748FC3B51090EBA5C # "ST\u0001?]\x8F\xA1Ŝ\xB5\xB6\x9F\xEA.\x82\xDA\u0014\xFB\x9FEy䴛\xFB\x96:6p\xC1\xA0\xD1!ViT}\e8A\x8A\x8B0\xBF\x89\x94^ͪ\u0004\xAD\xB8yIl\x8E\xC5]z'L\xF4\xF6\xF7\xBFޏ\u0000U\u0001\u0002%\xFDTk\u0019h;\xEDvc\xA8?\x97\xB1\xA1TZR\xF1\x80\xF42\xEE\u0017H\xFC;Q\t\u000E\xBA\\"
+   F6                                   # primitive(22)
 ```
 
 Extended Diagnostic Notation with annotations:
@@ -833,38 +810,79 @@ Extended Diagnostic Notation with annotations:
     /Payload/ [
         /SystemIdentifier/ h'00000000',
         /Type/             "split",
-        /UnitID/           h'0000000000000000000000000000000000000000000000000000000000000001',
+        /UnitID/           h'00000000FFCC5C5D01CA3EFF65C2087DB3AEFD3D58B20F074D52BB664C24FFAE',
         /splitAttributes/ [
-            /Amount/         99900000000,
-            /TargetBearer/   h'5376A8014F0162C5594A5F1E83D7C5611B041999CFB9C67CFF2482AEFA72E8B636CCF79BBB1D8769AC01',
-            /RemainingValue/ 999999899999999996,
-            /Backlink/       h'2C8E1F55FC20A44687AB5D18D11F5E3544D2989DFFBB8250AA6EBA5EF4CEC319'
+            /Amount/         200000000,
+            /TargetOwner/    h'5376A8014F0162C5594A5F1E83D7C5611B041999CFB9C67CFF2482AEFA72E8B636CCF79BBB1D8769AC01',
+            /RemainingValue/ 300000000,
+            /Backlink/       h'4DDC4678FD0EEEFDD6868D99E644C0B43C20ED38292AEE3893E4542F0A62AAE6'
         ],
         /ClientMetadata/ [
-            /Timeout/           137,
+            /Timeout/           37,
             /MaxTransactionFee/ 1,
-            /FeeCreditRecordID/ h'A0227AC5202427DB551B8ABE08645378347A3C5F70E0E5734F147AD45CBC1BA5'
+            /FeeCreditRecordID/ h'8DB6886A5D0FA64C2544E65B3F296C07A29F427DB8D15517F70F7FF6F825E3DD'
         ]
     ],
-    /OwnerProof/ h'5354019E5D3927A7DCE3655105277FFFE6602D6D9EF2456346C379A702847356B4F7DD6B987A26434B925D66361F396FC0DC927192A48CD394F590BC3CD3BC96A0E0B50155010227E874B800CA319B7BC384DFC63F915E098417B549EDB43525AEE511A6DBBD9C',
+    /OwnerProof/ h'5354013F5D8FA1C59CB5B69FEA2E82DA14FB9F4579E4B49BFB963A3670C1A0D1215669547D1B38418A8B30BF89945ECDAA04ADB879496C8EC55D7A274CF4F6F7BFDE8F0055010225FD546B19683BED7663A83F97B1A1545A52F180F432EE1748FC3B51090EBA5C',
     /FeeProof/   null
 ]
 ```
 
-## TODO
+### Transfer Bill
 
-- Change the order of data items in *Payload* to *SystemIdentifier*, *UnitID*, *Type*, *Attributes*, *ClientMetadata*.
-- Keep TargetOwner and TargetValue attributes in the same order for all transaction types.
-- Change tokens partition *SystemIdentifier* now that h'00000001' is unused after removing VD partition?
-- Add a version field to *Payload* (or *Attributes*/*TransactionOrder*)?
-- Specify optionality of data items. OwnerProof/FeeProof is required for some transactions, optional or prohibited for others.
-- Some data items that we call 'Nonce' are not actually nonces. Rename.
-- Mention libraries used for CBOR encoding/decoding, especially those used by validators.
-  * BE: https://github.com/fxamacker/cbor
-  * FE: https://github.com/kriszyp/cbor-x
-- Rename Transfer to Fee Credit -> Transfer Bill to Fee Credit for consistency?
-- More examples, like *transFC* and *addFC*.
-- Explain owner conditions (predicates) somewhere
+Raw hex encoded transaction:
+```
+83854400000000657472616e73582000000000324af6d6bb8cb598d62e4a5feb09690762c3fa2da39c3050094ffeda83582a5376a8014f01b327e2d37f0bfb6babf6acc758a101c6d8eb03991abe7f137c62b253c5a5cfa08769ac011a0bebc2005820fd198e4b1b5fc67a750a5fcfc6cf9d0ef52af2001d0ca6fb45204a9f3c3bccdf83182801582030f77f7d84ed358247b944644bea3e285f33c441b34d0f915547b3c39e6cfe545867535401a50f4275c9c086dc1e90d6cae58cd7150548d54bbd889c34d5d395b698c3eba35e914267ab21baba49e9e2ed8a13e2389d6f31929af4dc35af0ff04ae42af152015501036b05d39ed407d002c18e9942abf835d12a7bfbe589a35d688933bd0243bf5724f6
+```
+
+Same hex encoded data with annotations:
+```
+83                                      # array(3)
+   85                                   # array(5)
+      44                                # bytes(4)
+         00000000                       # "\u0000\u0000\u0000\u0000"
+      65                                # text(5)
+         7472616E73                     # "trans"
+      58 20                             # bytes(32)
+         00000000324AF6D6BB8CB598D62E4A5FEB09690762C3FA2DA39C3050094FFEDA # "\u0000\u0000\u0000\u00002J\xF6ֻ\x8C\xB5\x98\xD6.J_\xEB\ti\ab\xC3\xFA-\xA3\x9C0P\tO\xFE\xDA"
+      83                                # array(3)
+         58 2A                          # bytes(42)
+            5376A8014F01B327E2D37F0BFB6BABF6ACC758A101C6D8EB03991ABE7F137C62B253C5A5CFA08769AC01 # "Sv\xA8\u0001O\u0001\xB3'\xE2\xD3\u007F\v\xFBk\xAB\xF6\xAC\xC7X\xA1\u0001\xC6\xD8\xEB\u0003\x99\u001A\xBE\u007F\u0013|b\xB2SťϠ\x87i\xAC\u0001"
+         1A 0BEBC200                    # unsigned(200000000)
+         58 20                          # bytes(32)
+            FD198E4B1B5FC67A750A5FCFC6CF9D0EF52AF2001D0CA6FB45204A9F3C3BCCDF # "\xFD\u0019\x8EK\e_\xC6zu\n_\xCF\xC6ϝ\u000E\xF5*\xF2\u0000\u001D\f\xA6\xFBE J\x9F<;\xCC\xDF"
+      83                                # array(3)
+         18 28                          # unsigned(40)
+         01                             # unsigned(1)
+         58 20                          # bytes(32)
+            30F77F7D84ED358247B944644BEA3E285F33C441B34D0F915547B3C39E6CFE54 # "0\xF7\u007F}\x84\xED5\x82G\xB9DdK\xEA>(_3\xC4A\xB3M\u000F\x91UG\xB3Þl\xFET"
+   58 67                                # bytes(103)
+      535401A50F4275C9C086DC1E90D6CAE58CD7150548D54BBD889C34D5D395B698C3EBA35E914267AB21BABA49E9E2ED8A13E2389D6F31929AF4DC35AF0FF04AE42AF152015501036B05D39ED407D002C18E9942ABF835D12A7BFBE589A35D688933BD0243BF5724 # "ST\u0001\xA5\u000FBu\xC9\xC0\x86\xDC\u001E\x90\xD6\xCA\xE5\x8C\xD7\u0015\u0005H\xD5K\xBD\x88\x9C4\xD5ӕ\xB6\x98\xC3\xEB\xA3^\x91Bg\xAB!\xBA\xBAI\xE9\xE2\xED\x8A\u0013\xE28\x9Do1\x92\x9A\xF4\xDC5\xAF\u000F\xF0J\xE4*\xF1R\u0001U\u0001\u0003k\u0005Ӟ\xD4\a\xD0\u0002\xC1\x8E\x99B\xAB\xF85\xD1*{\xFB剣]h\x893\xBD\u0002C\xBFW$"
+   F6                                   # primitive(22)
+```
+
+Extended Diagnostic Notation with annotations:
+```
+/TransactionOrder/ [
+    /Payload/ [
+        /SystemIdentifier/ h'00000000',
+        /Type/             "trans",
+        /UnitID/           h'00000000324AF6D6BB8CB598D62E4A5FEB09690762C3FA2DA39C3050094FFEDA',
+        /transAttributes/ [
+            /TargetOwner/ h'5376A8014F01B327E2D37F0BFB6BABF6ACC758A101C6D8EB03991ABE7F137C62B253C5A5CFA08769AC01',
+            /TargetValue/ 200000000,
+            /Backlink/    h'FD198E4B1B5FC67A750A5FCFC6CF9D0EF52AF2001D0CA6FB45204A9F3C3BCCDF'
+        ],
+        /ClientMetadata/ [
+            /Timeout/           40,
+            /MaxTransactionFee/ 1,
+            /FeeCreditRecordID/ h'30F77F7D84ED358247B944644BEA3E285F33C441B34D0F915547B3C39E6CFE54'
+        ]
+    ],
+    /OwnerProof/ h'535401A50F4275C9C086DC1E90D6CAE58CD7150548D54BBD889C34D5D395B698C3EBA35E914267AB21BABA49E9E2ED8A13E2389D6F31929AF4DC35AF0FF04AE42AF152015501036B05D39ED407D002C18E9942ABF835D12A7BFBE589A35D688933BD0243BF5724',
+    /FeeProof/   null
+]
+```
 
 ## References
 

@@ -175,7 +175,6 @@ func createBillListResponse(bills []*Bill, dcMetadata map[string]*backend.DCMeta
 			TxHash:      b.TxHash,
 			DcNonce:     b.DcNonce,
 			SwapTimeout: b.SwapTimeout,
-
 		}
 	}
 	return &backend.ListBillsResponse{Bills: billVMs, Total: len(bills), DCMetadata: dcMetadata}

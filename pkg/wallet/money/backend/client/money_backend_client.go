@@ -116,15 +116,11 @@ func (c *MoneyBackendClient) ListBills(ctx context.Context, pubKey []byte, inclu
 }
 
 func (c *MoneyBackendClient) GetBills(ctx context.Context, pubKey []byte) ([]*sdk.Bill, error) {
-	bills, err := c.ListBills(ctx, pubKey, false, false)
+	res, err := c.ListBills(ctx, pubKey, false, false)
 	if err != nil {
 		return nil, err
 	}
-	var res []*sdk.Bill
-	for _, b := range bills.Bills {
-		res = append(res, b.ToGenericBill())
-	}
-	return res, nil
+	return res.Bills, nil
 }
 
 func (c *MoneyBackendClient) GetRoundNumber(ctx context.Context) (uint64, error) {

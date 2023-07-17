@@ -16,8 +16,10 @@ type (
 		// dc bill specific fields
 		DcTimeout uint64 `json:"dcTimeout"`
 		DcNonce   []byte `json:"dcNonce"`
-		// DcExpirationTimeout blockHeight when dc bill gets removed from state tree
+		// DcExpirationTimeout blockHeight when dc bill gets removed from state tree (old spec)
 		DcExpirationTimeout uint64 `json:"dcExpirationTimeout"`
+		// DcExpirationTimeout block number when dc bill can be removed from state tree (system-generated txs)
+		SwapTimeout uint64 `json:"swapTimeout"`
 
 		// fcb specific fields
 		// LastAddFCTxHash last add fee credit tx hash

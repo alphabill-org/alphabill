@@ -167,13 +167,14 @@ func createBlockProofResponse(t *testing.T, b *Bill, overrideNonce []byte, timeo
 }
 
 func createBillListResponse(bills []*Bill, dcMetadata map[string]*backend.DCMetadata) *backend.ListBillsResponse {
-	billVMs := make([]*backend.ListBillVM, len(bills))
+	billVMs := make([]*wallet.Bill, len(bills))
 	for i, b := range bills {
-		billVMs[i] = &backend.ListBillVM{
-			Id:      b.GetID(),
-			Value:   b.Value,
-			TxHash:  b.TxHash,
-			DcNonce: b.DcNonce,
+		billVMs[i] = &wallet.Bill{
+			Id:          b.GetID(),
+			Value:       b.Value,
+			TxHash:      b.TxHash,
+			DcNonce:     b.DcNonce,
+			SwapTimeout: b.SwapTimeout,
 		}
 	}
 	return &backend.ListBillsResponse{Bills: billVMs, Total: len(bills), DCMetadata: dcMetadata}

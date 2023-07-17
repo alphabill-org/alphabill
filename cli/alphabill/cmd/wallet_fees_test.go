@@ -189,7 +189,7 @@ func setupMoneyInfraAndWallet(t *testing.T, otherPartitions []*testpartition.Nod
 	wlog.InitStdoutLogger(wlog.DEBUG)
 	homedir := createNewTestWallet(t)
 
-	stdout := execWalletCmd(t, "", homedir, "get-pubkeys")
+	stdout := execWalletCmd(t, homedir, "get-pubkeys")
 	require.Len(t, stdout.lines, 1)
 	pk, _ := strings.CutPrefix(stdout.lines[0], "#1 ")
 

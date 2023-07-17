@@ -25,11 +25,6 @@ import (
 	wlog "github.com/alphabill-org/alphabill/pkg/wallet/log"
 )
 
-// @title           Money Partition Indexing Backend API
-// @version         1.0
-// @description     This service processes blocks from the Money partition and indexes ownership of bills.
-
-// @BasePath  /api/v1
 type (
 	WalletBackendService interface {
 		GetBills(ownerCondition []byte) ([]*Bill, error)
@@ -59,6 +54,7 @@ type (
 		Value          uint64 `json:"value"`
 		TxHash         []byte `json:"txHash"`
 		DcNonce        []byte `json:"dcNonce,omitempty"`
+		SwapTimeout    uint64 `json:"swapTimeout,string,omitempty"`
 		OwnerPredicate []byte `json:"ownerPredicate"`
 
 		// fcb specific fields

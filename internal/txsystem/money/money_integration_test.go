@@ -14,6 +14,7 @@ import (
 	testpartition "github.com/alphabill-org/alphabill/internal/testutils/partition"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/internal/txsystem/fc"
+	"github.com/alphabill-org/alphabill/internal/txsystem/fc/unit"
 	txutil "github.com/alphabill-org/alphabill/internal/txsystem/util"
 	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/ethereum/go-ethereum/common/hexutil"
@@ -40,8 +41,11 @@ func TestPartition_Ok(t *testing.T) {
 		Owner: script.PredicateAlwaysTrue(),
 	}
 	txFee := fc.FixedFee(1)
+	var s *state.State
 	moneyPrt, err := testpartition.NewPartition(3, func(tb map[string]abcrypto.Verifier) txsystem.TransactionSystem {
+		s = state.NewEmptyState()
 		system, err := NewTxSystem(
+			WithState(s),
 			WithSystemIdentifier(systemIdentifier),
 			WithHashAlgorithm(crypto.SHA256),
 			WithInitialBill(initialBill),
@@ -63,6 +67,10 @@ func TestPartition_Ok(t *testing.T) {
 	fcrAmount := testmoneyfc.FCRAmount
 	transferFC := testmoneyfc.CreateFeeCredit(t, initialBill.ID, abNet)
 
+	feeCredit, err := s.GetUnit(testmoneyfc.FCRID, true)
+	require.NoError(t, err)
+	require.Equal(t, fcrAmount-1, feeCredit.Data().(*unit.FeeCreditRecord).Balance)
+
 	// transfer initial bill to pubKey1
 	transferInitialBillTx, _ := createBillTransfer(t, initialBill.ID, total-fcrAmount-txFee(), script.PredicatePayToPublicKeyHashDefault(decodeAndHashHex(pubKey1)), transferFC.Hash(crypto.SHA256))
 	err = moneyPrt.SubmitTx(transferInitialBillTx)
@@ -71,6 +79,9 @@ func TestPartition_Ok(t *testing.T) {
 
 	_, _, transferInitialBillTxRecord, err := moneyPrt.GetTxProof(transferInitialBillTx)
 	require.NoError(t, err)
+	feeCredit, err = s.GetUnit(testmoneyfc.FCRID, true)
+	require.NoError(t, err)
+	require.Equal(t, fcrAmount-2, feeCredit.Data().(*unit.FeeCreditRecord).Balance)
 
 	// split initial bill from pubKey1 to pubKey2
 	amountPK2 := uint64(1000)
@@ -78,6 +89,9 @@ func TestPartition_Ok(t *testing.T) {
 	err = moneyPrt.SubmitTx(tx)
 	require.NoError(t, err)
 	require.Eventually(t, testpartition.BlockchainContainsTx(moneyPrt, tx), test.WaitDuration, test.WaitTick)
+	feeCredit, err = s.GetUnit(testmoneyfc.FCRID, true)
+	require.NoError(t, err)
+	require.Equal(t, fcrAmount-3, feeCredit.Data().(*unit.FeeCreditRecord).Balance)
 
 	// wrong partition tx
 	tx = createSplitTx(t, initialBill.ID, transferInitialBillTxRecord, amountPK2, total-fcrAmount-txFee()-amountPK2)
@@ -85,6 +99,9 @@ func TestPartition_Ok(t *testing.T) {
 	err = moneyPrt.SubmitTx(tx)
 	require.Error(t, err)
 	require.Never(t, testpartition.BlockchainContainsTx(moneyPrt, tx), test.WaitDuration, test.WaitTick)
+	feeCredit, err = s.GetUnit(testmoneyfc.FCRID, true)
+	require.NoError(t, err)
+	require.Equal(t, fcrAmount-3, feeCredit.Data().(*unit.FeeCreditRecord).Balance)
 }
 
 func TestPartition_SwapDCOk(t *testing.T) {

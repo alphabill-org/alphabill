@@ -1,0 +1,46 @@
+schemas:
+  ErrorResponse:
+    type: object
+    description: returned in case of a bad request or an internal error
+    properties:
+      message:
+        type: string
+        example: something went wrong
+  RoundNumberResponse:
+    type: object
+    properties:
+      roundNumber:
+        type: string
+        description: value is uint64 encoded as string
+        example: '265'
+  Bill:
+    type: object
+    properties:
+      id:
+        type: array
+        items:
+          type: integer
+      value:
+        type: string
+        example: '0'
+      tx_hash:
+        type: array
+        items:
+          type: integer
+      add_fc_tx_hash:
+        type: string
+        description: block number when fee credit bill balance was last updated
+        example: '0'
+      dc_nonce:
+        type: array
+        items:
+          type: integer
+responses:
+  ErrorResponse:
+    description: |-
+      Either invalid input parameter (response status 4nn) or something went
+      wrong while processing the request (response status 5nn).
+    content:
+      application/json:
+        schema:
+          $ref: '#/schemas/ErrorResponse'

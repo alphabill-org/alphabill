@@ -234,6 +234,7 @@ func TestExecute_SwapOk(t *testing.T) {
 	require.NotNil(t, sm)
 	_, billData := getBill(t, rmaTree, swapTx.UnitID())
 	require.Equal(t, amount, billData.V)
+	require.Equal(t, swapTx.Hash(crypto.SHA256), billData.Backlink)
 	_, dustCollectorBill := getBill(t, rmaTree, dustCollectorMoneySupplyID)
 	require.Equal(t, initialDustCollectorMoneyAmount, dustCollectorBill.V) // dust collector money supply is the same after swap
 }

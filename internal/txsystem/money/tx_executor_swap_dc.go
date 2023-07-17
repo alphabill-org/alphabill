@@ -63,7 +63,7 @@ func handleSwapDCTx(s *state.State, hashAlgorithm crypto.Hash, trustBase map[str
 		addNewUnitFn := state.AddUnit(tx.UnitID(), attr.OwnerCondition, &BillData{
 			V:        attr.TargetValue,
 			T:        currentBlockNumber,
-			Backlink: make([]byte, hashAlgorithm.Size()), // set backlink to zero-hash
+			Backlink: h,
 			TDust:    dustTransfers[0].attributes.SwapTimeout,
 		})
 		if err := s.Apply(updateDCMoneySupplyFn, addNewUnitFn); err != nil {

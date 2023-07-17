@@ -254,7 +254,7 @@ func startRPCServer(t *testing.T, node *partition.Node) string {
 
 // addAccount calls "add-key" cli function on given wallet and returns the added pubkey hex
 func addAccount(t *testing.T, homedir string) string {
-	stdout := execWalletCmd(t, "", homedir, "add-key")
+	stdout := execWalletCmd(t, homedir, "add-key")
 	for _, line := range stdout.lines {
 		if strings.HasPrefix(line, "Added key #") {
 			return line[13:]
@@ -308,18 +308,12 @@ func execCommand(homeDir, command string) (*testConsoleWriter, error) {
 	return outputWriter, cmd.addAndExecuteCommand(context.Background())
 }
 
-func execWalletCmd(t *testing.T, alphabillNodeAddr, homedir string, command string) *testConsoleWriter {
+func execWalletCmd(t *testing.T, homedir string, command string) *testConsoleWriter {
 	outputWriter := &testConsoleWriter{}
 	consoleWriter = outputWriter
 
 	cmd := New()
-
-	abNodeParam := ""
-	if alphabillNodeAddr != "" {
-		abNodeParam = fmt.Sprintf(" --%s %s", alphabillNodeURLCmdName, alphabillNodeAddr)
-	}
-
-	args := "wallet --home " + homedir + abNodeParam + " " + command
+	args := fmt.Sprintf("wallet --home %s %s", homedir, command)
 	cmd.baseCmd.SetArgs(strings.Split(args, " "))
 
 	err := cmd.addAndExecuteCommand(context.Background())

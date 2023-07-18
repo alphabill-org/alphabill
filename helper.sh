@@ -180,7 +180,7 @@ function start_backend() {
 
     case $1 in
       money)
-        home="testab/backend/money/"
+        home="testab/backend/money"
         cmd="money-backend"
         grpcPort=26766
         sPort=9654
@@ -197,7 +197,7 @@ function start_backend() {
         customArgs=$sdrFiles
         ;;
       tokens)
-        home="testab/backend/vd/"
+        home="testab/backend/tokens"
         cmd="tokens-backend"
         grpcPort=28766
         sPort=9735

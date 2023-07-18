@@ -791,6 +791,70 @@ func TestDustCollectionNotEnoughFeeCredit(t *testing.T) {
 	require.ErrorIs(t, err, ErrInsufficientFeeCredit)
 }
 
+func TestDustCollectionWithoutMetadata(t *testing.T) {
+	// create wallet with 2 timed out dc bills
+	tempNonce := uint256.NewInt(1)
+	nonceBytes := util.Uint256ToBytes(tempNonce)
+	am, err := account.NewManager(t.TempDir(), "", true)
+	require.NoError(t, err)
+	_ = am.CreateKeys("")
+	k, _ := am.GetAccountKey(0)
+	bills := []*Bill{addDcBill(t, k, uint256.NewInt(1), nonceBytes, 1, 0, 60), addDcBill(t, k, uint256.NewInt(2), nonceBytes, 2, 0, 60)}
+
+	// simulate a situation in which the metadata is not available (e.g. nodes are down)
+	dcMetadataMap := make(map[string]*backend.DCMetadata)
+	billsList := createBillListResponse(bills, dcMetadataMap)
+	recordedTxs := make(map[string]*types.TransactionOrder, 0)
+	backendMock := &backendAPIMock{
+		getRoundNumber: func() (uint64, error) {
+			return dcTimeoutBlockCount, nil
+		},
+		listBills: func(pubKey []byte, includeDCBills, includeDCMetadata bool) (*backend.ListBillsResponse, error) {
+			return billsList, nil
+		},
+		getFeeCreditBill: func(ctx context.Context, unitID []byte) (*wallet.Bill, error) {
+			k, _ := am.GetAccountKey(0)
+			return &wallet.Bill{
+				Id:    k.PrivKeyHash,
+				Value: 100 * 1e8,
+			}, nil
+		},
+		postTransactions: func(ctx context.Context, pubKey wallet.PubKey, txs *wallet.Transactions) error {
+			for _, tx := range txs.Transactions {
+				recordedTxs[string(tx.UnitID())] = tx
+			}
+			return nil
+		},
+		getTxProof: func(ctx context.Context, unitID wallet.UnitID, txHash wallet.TxHash) (*wallet.Proof, error) {
+			for _, b := range bills {
+				if bytes.Equal(util.Uint256ToBytes(b.Id), unitID) {
+					return createBlockProofResponse(t, b, util.Uint256ToBytes(tempNonce), dcTimeoutBlockCount, nil), nil
+				}
+			}
+			tx, found := recordedTxs[string(unitID)]
+			if !found {
+				return nil, errors.New("tx not found")
+			}
+			return &wallet.Proof{TxRecord: &types.TransactionRecord{TransactionOrder: tx, ServerMetadata: &types.ServerMetadata{ActualFee: 1}}}, nil
+		},
+	}
+
+	w, _ := CreateTestWalletWithManager(t, backendMock, am)
+
+	// when dc runs
+	err = w.collectDust(context.Background(), 0)
+	require.NoError(t, err)
+
+	// and swap tx should be sent using the data from the dc bills instead of metadata
+	for _, tx := range recordedTxs {
+		if tx.PayloadType() == "swapDC" {
+			swapTx := parseSwapTx(t, tx)
+			require.EqualValues(t, 3, swapTx.TargetValue)
+			require.Equal(t, swapTx.BillIdentifiers, getBillIds(bills))
+		}
+	}
+}
+
 func addBill(value uint64) *Bill {
 	b1 := Bill{
 		Id:      uint256.NewInt(value),

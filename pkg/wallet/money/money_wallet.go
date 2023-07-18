@@ -311,7 +311,8 @@ func (w *Wallet) collectDust(ctx context.Context, accountIndex uint64) error {
 	}
 	if len(dcBillGroups) > 0 {
 		for _, v := range dcBillGroups {
-			if roundNr < v.dcTimeout && v.valueSum < dcMetadataMap[string(v.dcNonce)].DCSum {
+			dcMetadata, dcMetadataFound := dcMetadataMap[string(v.dcNonce)]
+			if roundNr < v.dcTimeout && dcMetadataFound && v.valueSum < dcMetadata.DCSum {
 				log.Info("waiting for dc confirmation(s)...")
 				for roundNr <= v.dcTimeout {
 					select {
@@ -339,7 +340,14 @@ func (w *Wallet) collectDust(ctx context.Context, accountIndex uint64) error {
 				return ErrInsufficientFeeCredit
 			}
 			swapTimeout := util.Min(roundNr+swapTxTimeoutBlockCount, v.swapTimeout)
-			if err := w.swapDcBills(ctx, v.dcBills, v.dcNonce, dcMetadataMap[string(v.dcNonce)].BillIdentifiers, swapTimeout, accountIndex); err != nil {
+			var billsId [][]byte
+			dcMetadata, dcMetadataFound = dcMetadataMap[string(v.dcNonce)]
+			if dcMetadataFound {
+				billsId = dcMetadata.BillIdentifiers
+			} else {
+				billsId = getBillIds(v.dcBills)
+			}
+			if err := w.swapDcBills(ctx, v.dcBills, v.dcNonce, billsId, swapTimeout, accountIndex); err != nil {
 				return err
 			}
 		}

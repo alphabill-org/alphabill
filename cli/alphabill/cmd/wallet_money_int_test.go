@@ -84,7 +84,9 @@ func TestSendingMoneyUsingWallets_integration(t *testing.T) {
 	// TS1:
 	// send two transactions to wallet-2
 	stdout = execWalletCmd(t, homedir1, fmt.Sprintf("send --amount 50 --address 0x%x --alphabill-api-uri %s", w2PubKey, apiAddr))
-	verifyStdout(t, stdout, "Successfully confirmed transaction(s)")
+	verifyStdout(t, stdout,
+		"Successfully confirmed transaction(s)",
+		"Paid 0.000'000'01 fees for transaction(s)")
 
 	// TS1.1: also verify --output-path flag
 	stdout = execWalletCmd(t, homedir1, fmt.Sprintf("send -k 1 --amount 150 --address 0x%x --alphabill-api-uri %s --output-path %s", w2PubKey, apiAddr, homedir1))
@@ -92,6 +94,7 @@ func TestSendingMoneyUsingWallets_integration(t *testing.T) {
 	verifyStdout(t, stdout,
 		"Successfully confirmed transaction(s)",
 		fmt.Sprintf("Transaction proof(s) saved to: %s", proofFile),
+		"Paid 0.000'000'01 fees for transaction(s)",
 	)
 	require.FileExists(t, proofFile)
 

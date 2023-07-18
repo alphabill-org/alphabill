@@ -17,7 +17,7 @@ func handleMintNonFungibleTokenTx(options *Options) txsystem.GenericExecuteFunc[
 	return func(tx *types.TransactionOrder, attr *MintNonFungibleTokenAttributes, currentBlockNr uint64) (*types.ServerMetadata, error) {
 		logger.Debug("Processing Mint Non-Fungible Token tx: %v", tx)
 		if err := validateMintNonFungibleToken(tx, attr, options.state, options.hashAlgorithm); err != nil {
-			return nil, fmt.Errorf("invalid mint none-fungible token tx: %w", err)
+			return nil, fmt.Errorf("invalid mint non-fungible token tx: %w", err)
 		}
 		fee := options.feeCalculator()
 		unitID := tx.UnitID()

@@ -62,11 +62,12 @@ func validMonolithicRootValidatorConfig(dbDir string) *rootNodeConfig {
 			CfgFile:    filepath.Join(alphabillHomeDir(), defaultConfigFile),
 			LogCfgFile: defaultLoggerConfigFile,
 		},
-		KeyFile:      "testdata/root-key.json",
-		GenesisFile:  "testdata/expected/root-genesis.json",
-		RootListener: "/ip4/127.0.0.1/tcp/0",
-		MaxRequests:  1000,
-		StoragePath:  dbDir,
+		KeyFile:           "testdata/root-key.json",
+		GenesisFile:       "testdata/expected/root-genesis.json",
+		RootListener:      "/ip4/127.0.0.1/tcp/0",
+		PartitionListener: "/ip4/127.0.0.1/tcp/0",
+		MaxRequests:       1000,
+		StoragePath:       dbDir,
 	}
 	return conf
 }

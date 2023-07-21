@@ -14,6 +14,7 @@ import (
 type (
 	QuorumInfo interface {
 		GetQuorumThreshold() uint32
+		GetMaxFaultyNodes() uint32
 	}
 
 	ConsensusWithSignatures struct {
@@ -25,7 +26,7 @@ type (
 	VoteRegister struct {
 		// Hash of ConsensusInfo to signatures/votes for it
 		hashToSignatures map[string]*ConsensusWithSignatures
-		// Tracks all timout votes for this round
+		// Tracks all timeout votes for this round
 		// if 2f+1 or threshold votes, then TC is formed
 		timeoutCert *abtypes.TimeoutCert
 		// Helper, to avoid duplicate votes
@@ -83,7 +84,11 @@ func (v *VoteRegister) InsertVote(vote *abdrc.VoteMsg, quorumInfo QuorumInfo) (*
 	return nil, nil
 }
 
-func (v *VoteRegister) InsertTimeoutVote(timeout *abdrc.TimeoutMsg, quorumInfo QuorumInfo) (*abtypes.TimeoutCert, error) {
+/*
+InsertTimeoutVote returns non nil TC when quorum has been achieved.
+Second return value is number of signatures in the TC.
+*/
+func (v *VoteRegister) InsertTimeoutVote(timeout *abdrc.TimeoutMsg, quorumInfo QuorumInfo) (*abtypes.TimeoutCert, uint32, error) {
 	// Create partial timeout cert on first vote received
 	if v.timeoutCert == nil {
 		v.timeoutCert = &abtypes.TimeoutCert{
@@ -93,14 +98,16 @@ func (v *VoteRegister) InsertTimeoutVote(timeout *abdrc.TimeoutMsg, quorumInfo Q
 	}
 	// append signature
 	if err := v.timeoutCert.Add(timeout.Author, timeout.Timeout, timeout.Signature); err != nil {
-		return nil, fmt.Errorf("timeout cert add vote failed, %w", err)
+		return nil, 0, fmt.Errorf("failed to add vote to timeout certificate: %w", err)
 	}
+
 	// Check if TC can be formed
-	if uint32(len(v.timeoutCert.Signatures)) >= quorumInfo.GetQuorumThreshold() {
-		return v.timeoutCert, nil
+	sigCount := uint32(len(v.timeoutCert.Signatures))
+	if sigCount >= quorumInfo.GetQuorumThreshold() {
+		return v.timeoutCert, sigCount, nil
 	}
 	// No quorum yet, but also no error all is fine
-	return nil, nil
+	return nil, sigCount, nil
 }
 
 func (v *VoteRegister) Reset() {

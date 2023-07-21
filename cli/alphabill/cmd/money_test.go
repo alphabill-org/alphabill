@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -14,6 +15,7 @@ import (
 	rootgenesis "github.com/alphabill-org/alphabill/internal/rootchain/genesis"
 	"github.com/alphabill-org/alphabill/internal/rpc/alphabill"
 	"github.com/alphabill-org/alphabill/internal/script"
+	"github.com/alphabill-org/alphabill/internal/testutils/net"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	test "github.com/alphabill-org/alphabill/internal/testutils/time"
 	billtx "github.com/alphabill-org/alphabill/internal/txsystem/money"
@@ -289,12 +291,7 @@ func TestRunMoneyNode_Ok(t *testing.T) {
 	nodeGenesisFileLocation := filepath.Join(homeDirMoney, nodeGenesisFileName)
 	partitionGenesisFileLocation := filepath.Join(homeDirMoney, "partition-genesis.json")
 	test.MustRunInTime(t, 5*time.Second, func() {
-		port := "9543"
-		listenAddr := ":" + port // listen is on all devices, so it would work in CI inside docker too.
-		dialAddr := "localhost:" + port
-
-		conf := defaultMoneyNodeConfiguration()
-		conf.RPCServer.Address = listenAddr
+		moneyNodeAddr := fmt.Sprintf("localhost:%d", net.GetFreeRandomPort(t))
 
 		appStoppedWg := sync.WaitGroup{}
 		ctx, ctxCancel := context.WithCancel(context.Background())
@@ -325,7 +322,7 @@ func TestRunMoneyNode_Ok(t *testing.T) {
 		appStoppedWg.Add(1)
 		go func() {
 			cmd = New()
-			args = "money --home " + homeDirMoney + " -g " + partitionGenesisFileLocation + " -k " + keysFileLocation
+			args = "money --home " + homeDirMoney + " -g " + partitionGenesisFileLocation + " -k " + keysFileLocation + " --server-address " + moneyNodeAddr
 			cmd.baseCmd.SetArgs(strings.Split(args, " "))
 
 			err = cmd.addAndExecuteCommand(ctx)
@@ -335,7 +332,7 @@ func TestRunMoneyNode_Ok(t *testing.T) {
 
 		log.Info("Started money node and dialing...")
 		// Create the gRPC client
-		conn, err := grpc.DialContext(ctx, dialAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+		conn, err := grpc.DialContext(ctx, moneyNodeAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
 		require.NoError(t, err)
 		defer conn.Close()
 		rpcClient := alphabill.NewAlphabillServiceClient(conn)

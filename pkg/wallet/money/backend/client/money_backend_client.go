@@ -267,6 +267,10 @@ func (c *MoneyBackendClient) PostTransactions(ctx context.Context, pubKey sdk.Pu
 	defer res.Body.Close() // have to close request body in case of nil error
 
 	if res.StatusCode != http.StatusAccepted {
+		errorData, err := io.ReadAll(res.Body)
+		if err == nil {
+			return fmt.Errorf("failed to send transactions: status %s - %s", res.Status, string(errorData))
+		}
 		return fmt.Errorf("failed to send transactions: status %s", res.Status)
 	}
 	return nil

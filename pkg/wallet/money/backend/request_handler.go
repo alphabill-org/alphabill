@@ -174,8 +174,8 @@ func (api *moneyRestAPI) listBillsFunc(w http.ResponseWriter, r *http.Request) {
 	}
 
 	api.rw.WriteResponse(w, &ListBillsResponse{
-		Bills: filteredBills[offset : offset+limit],
-		Total: len(filteredBills),
+		Bills:      filteredBills[offset : offset+limit],
+		Total:      len(filteredBills),
 		DCMetadata: dcMetadataMap,
 	})
 }
@@ -353,6 +353,7 @@ func (api *moneyRestAPI) postTransactions(w http.ResponseWriter, r *http.Request
 	defer r.Body.Close()
 	buf, err := io.ReadAll(r.Body)
 	if err != nil {
+		log.Debug("error parsing GET /transactions request: ", err)
 		api.rw.WriteErrorResponse(w, fmt.Errorf("failed to read request body: %w", err))
 		return
 	}
@@ -378,6 +379,7 @@ func (api *moneyRestAPI) postTransactions(w http.ResponseWriter, r *http.Request
 	api.Service.HandleTransactionsSubmission(egp, senderPubkey, txs.Transactions)
 
 	if errs := api.Service.SendTransactions(r.Context(), txs.Transactions); len(errs) > 0 {
+		log.Debug("error on GET /transactions: ", errs)
 		w.WriteHeader(http.StatusInternalServerError)
 		api.rw.WriteResponse(w, errs)
 		return

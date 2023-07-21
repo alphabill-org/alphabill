@@ -12,14 +12,16 @@ import (
 
 type DummyQuorum struct {
 	quorum uint32
+	faulty uint32
 }
 
-func NewDummyQuorum(q uint32) *DummyQuorum {
-	return &DummyQuorum{quorum: q}
+func NewDummyQuorum(q, f uint32) *DummyQuorum {
+	return &DummyQuorum{quorum: q, faulty: f}
 }
 func (d *DummyQuorum) GetQuorumThreshold() uint32 {
 	return d.quorum
 }
+func (d *DummyQuorum) GetMaxFaultyNodes() uint32 { return d.faulty }
 
 func NewDummyVoteInfo(round uint64, rootHash []byte) *abtypes.RoundInfo {
 	return &abtypes.RoundInfo{
@@ -97,7 +99,7 @@ func TestVoteRegister_InsertVote(t *testing.T) {
 		{
 			name: "Add nil vote",
 			args: args{vote: []*abdrc.VoteMsg{nil},
-				quorumInfo: NewDummyQuorum(3)},
+				quorumInfo: NewDummyQuorum(3, 0)},
 			wantQc:  false,
 			wantErr: true,
 		},
@@ -108,7 +110,7 @@ func TestVoteRegister_InsertVote(t *testing.T) {
 				NewDummyVote("node2", 2, []byte{1, 2, 3}),
 				NewDummyVote("node3", 2, []byte{1, 2, 4}),
 			},
-				quorumInfo: NewDummyQuorum(3)},
+				quorumInfo: NewDummyQuorum(3, 0)},
 			wantQc:  false,
 			wantErr: false,
 		},
@@ -119,7 +121,7 @@ func TestVoteRegister_InsertVote(t *testing.T) {
 				NewDummyVote("node2", 2, []byte{1, 2, 3}),
 				NewDummyVote("node3", 2, []byte{1, 2, 3}),
 			},
-				quorumInfo: NewDummyQuorum(3)},
+				quorumInfo: NewDummyQuorum(3, 0)},
 			wantQc:  true,
 			wantErr: false,
 		},
@@ -135,7 +137,7 @@ func TestVoteRegister_InsertVote(t *testing.T) {
 				NewDummyVote("node7", 2, []byte{1, 2, 4}),
 				NewDummyVote("node8", 2, []byte{1, 2, 3}),
 			},
-				quorumInfo: NewDummyQuorum(5)},
+				quorumInfo: NewDummyQuorum(5, 0)},
 			wantQc:  true,
 			wantErr: false,
 		},
@@ -163,7 +165,7 @@ func TestVoteRegister_InsertVote(t *testing.T) {
 }
 
 func TestVoteRegister_Qc(t *testing.T) {
-	quorumInfo := NewDummyQuorum(3)
+	quorumInfo := NewDummyQuorum(3, 0)
 	register := NewVoteRegister()
 	// Add vote from node1
 	vote := NewDummyVote("node1", 2, []byte{1, 2, 3})
@@ -211,21 +213,30 @@ func TestVoteRegister_Tc(t *testing.T) {
 	qcRound3.Signatures = qcSignatures
 
 	register := NewVoteRegister()
-	quorumInfo := NewDummyQuorum(3)
+	quorumInfo := NewDummyQuorum(3, 0)
 	// create dummy timeout vote
 
 	timeoutVoteMsg := NewDummyTimeoutVote(qcRound1, 4, "node1")
-	tc, err := register.InsertTimeoutVote(timeoutVoteMsg, quorumInfo)
+	tc, voteCnt, err := register.InsertTimeoutVote(timeoutVoteMsg, quorumInfo)
 	require.NoError(t, err)
 	require.Nil(t, tc)
+	require.EqualValues(t, 1, voteCnt)
 	timeoutVote2Msg := NewDummyTimeoutVote(qcRound2, 4, "node2")
-	tc, err = register.InsertTimeoutVote(timeoutVote2Msg, quorumInfo)
+	tc, voteCnt, err = register.InsertTimeoutVote(timeoutVote2Msg, quorumInfo)
 	require.NoError(t, err)
 	require.Nil(t, tc)
+	require.EqualValues(t, 2, voteCnt)
+	// attempt to add vote1 again should fail
+	tc, voteCnt, err = register.InsertTimeoutVote(timeoutVoteMsg, quorumInfo)
+	require.EqualError(t, err, `failed to add vote to timeout certificate: node1 already voted`)
+	require.Nil(t, tc)
+	require.Zero(t, voteCnt)
+	// adding another unique vote should get us quorum
 	timeoutVote3Msg := NewDummyTimeoutVote(qcRound3, 4, "node3")
-	tc, err = register.InsertTimeoutVote(timeoutVote3Msg, quorumInfo)
+	tc, voteCnt, err = register.InsertTimeoutVote(timeoutVote3Msg, quorumInfo)
 	require.NoError(t, err)
 	require.NotNil(t, tc)
+	require.EqualValues(t, 3, voteCnt)
 	require.Equal(t, uint32(len(tc.Signatures)), quorumInfo.GetQuorumThreshold())
 	require.Equal(t, tc.Timeout.Round, uint64(4))
 	require.Equal(t, tc.Timeout.Epoch, uint64(0))
@@ -235,7 +246,7 @@ func TestVoteRegister_Tc(t *testing.T) {
 
 func TestVoteRegister_ErrDuplicateVote(t *testing.T) {
 	register := NewVoteRegister()
-	quorumInfo := NewDummyQuorum(3)
+	quorumInfo := NewDummyQuorum(3, 0)
 	qc, err := register.InsertVote(NewDummyVote("node1", 2, []byte{1, 2, 3}), quorumInfo)
 	require.NoError(t, err)
 	require.Nil(t, qc)
@@ -246,7 +257,7 @@ func TestVoteRegister_ErrDuplicateVote(t *testing.T) {
 
 func TestVoteRegister_ErrEquivocatingVote(t *testing.T) {
 	register := NewVoteRegister()
-	quorumInfo := NewDummyQuorum(3)
+	quorumInfo := NewDummyQuorum(3, 0)
 	qc, err := register.InsertVote(NewDummyVote("node1", 2, []byte{1, 2, 3}), quorumInfo)
 	require.NoError(t, err)
 	require.Nil(t, qc)
@@ -257,7 +268,7 @@ func TestVoteRegister_ErrEquivocatingVote(t *testing.T) {
 
 func TestVoteRegister_Reset(t *testing.T) {
 	register := NewVoteRegister()
-	quorumInfo := NewDummyQuorum(3)
+	quorumInfo := NewDummyQuorum(3, 0)
 	qcSignatures := map[string][]byte{
 		"node1": {0, 1, 2, 3},
 		"node2": {0, 1, 2, 3},
@@ -272,9 +283,11 @@ func TestVoteRegister_Reset(t *testing.T) {
 	require.NoError(t, err)
 	require.Nil(t, qc)
 	timeoutVoteMsg := NewDummyTimeoutVote(qcRound1, 4, "test")
-	tc, err := register.InsertTimeoutVote(timeoutVoteMsg, quorumInfo)
+	tc, voteCnt, err := register.InsertTimeoutVote(timeoutVoteMsg, quorumInfo)
 	require.NoError(t, err)
 	require.Nil(t, tc)
+	require.EqualValues(t, 1, voteCnt)
+
 	register.Reset()
 	require.Empty(t, register.hashToSignatures)
 	require.Empty(t, register.authorToVote)

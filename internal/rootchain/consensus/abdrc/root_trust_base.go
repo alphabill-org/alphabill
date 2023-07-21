@@ -21,12 +21,12 @@ func NewRootTrustBase(keyMap map[string]crypto.Verifier, threshold uint32) (*Roo
 
 	if threshold > nofNodes {
 		// Quorum power is bigger than nof root validators registered
-		return nil, fmt.Errorf("quorum threshold too high %v: only %v root validator keys registered",
+		return nil, fmt.Errorf("quorum threshold %d is too high - only %d root validator keys registered",
 			threshold, nofNodes)
 	}
 	if threshold < minThreshold {
 		// Threshold is configured too low, not safe
-		return nil, fmt.Errorf("quorum threshold too low %v: for %v validators min quorum is %v",
+		return nil, fmt.Errorf("quorum threshold %d is too low, for %d validators min quorum is %d",
 			threshold, nofNodes, minThreshold)
 	}
 	return &RootTrustBase{nodeToPubkeyMap: keyMap, quorumThreshold: threshold}, nil
@@ -35,22 +35,9 @@ func NewRootTrustBase(keyMap map[string]crypto.Verifier, threshold uint32) (*Roo
 func NewRootTrustBaseFromGenesis(genesisRoot *genesis.GenesisRootRecord) (*RootTrustBase, error) {
 	keyMap, err := genesis.NewValidatorTrustBase(genesisRoot.RootValidators)
 	if err != nil {
-		return nil, fmt.Errorf("failed to extract root validator public info from genesis, %w", err)
+		return nil, fmt.Errorf("failed to extract root validator public info from genesis: %w", err)
 	}
-	nofNodes := uint32(len(keyMap))
-	minThreshold := nofNodes*2/3 + 1
-
-	if genesisRoot.Consensus.QuorumThreshold > nofNodes {
-		// Quorum power is bigger than nof root validators registered
-		return nil, fmt.Errorf("quorum threshold too high %v: only %v root validator keys registered",
-			genesisRoot.Consensus.QuorumThreshold, nofNodes)
-	}
-	if genesisRoot.Consensus.QuorumThreshold < minThreshold {
-		// Threshold is configured too low, not safe
-		return nil, fmt.Errorf("quorum threshold too low %v: for %v validators min quorum is %v",
-			genesisRoot.Consensus.QuorumThreshold, nofNodes, minThreshold)
-	}
-	return &RootTrustBase{nodeToPubkeyMap: keyMap, quorumThreshold: genesisRoot.Consensus.QuorumThreshold}, nil
+	return NewRootTrustBase(keyMap, genesisRoot.Consensus.QuorumThreshold)
 }
 
 // GetQuorumThreshold returns quorum power needed.
@@ -60,8 +47,8 @@ func (r *RootTrustBase) GetQuorumThreshold() uint32 {
 }
 
 // GetMaxFaultyNodes a.k.a get max allowed faulty nodes
-func (r *RootTrustBase) GetMaxFaultyNodes() int {
-	return len(r.nodeToPubkeyMap) - int(r.quorumThreshold)
+func (r *RootTrustBase) GetMaxFaultyNodes() uint32 {
+	return uint32(len(r.nodeToPubkeyMap)) - r.quorumThreshold
 }
 
 func (r *RootTrustBase) VerifySignature(hash []byte, sig []byte, author peer.ID) error {

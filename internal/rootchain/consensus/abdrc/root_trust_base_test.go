@@ -73,17 +73,17 @@ func TestNewRootClusterVerifier(t *testing.T) {
 		{
 			name:       "5 nodes threshold 3 - too small",
 			args:       args{keyMap: generateDummyValidatorMap(5), threshold: 3},
-			wantErrStr: "quorum threshold too low",
+			wantErrStr: "quorum threshold 3 is too low, for 5 validators min quorum is 4",
 		},
 		{
 			name:       "Threshold too high",
 			args:       args{keyMap: generateDummyValidatorMap(5), threshold: 6},
-			wantErrStr: "quorum threshold too high",
+			wantErrStr: "quorum threshold 6 is too high - only 5 root validator keys registered",
 		},
 		{
 			name:       "10/6 - too low",
 			args:       args{keyMap: generateDummyValidatorMap(10), threshold: 6},
-			wantErrStr: "quorum threshold too low",
+			wantErrStr: "quorum threshold 6 is too low, for 10 validators min quorum is 7",
 		},
 		{
 			name:       "10/7 - ok",

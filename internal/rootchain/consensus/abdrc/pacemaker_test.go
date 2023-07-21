@@ -85,7 +85,7 @@ func TestRoundState_AdvanceRoundTC(t *testing.T) {
 
 func TestRoundState_RegisterVote(t *testing.T) {
 	const lastCommittedRound = uint64(6)
-	quorum := NewDummyQuorum(3)
+	quorum := NewDummyQuorum(3, 0)
 	pacemaker := NewPacemaker(testBlockRate, testLocalTimeout)
 	defer pacemaker.Stop()
 	pacemaker.Reset(lastCommittedRound)
@@ -107,7 +107,7 @@ func TestRoundState_RegisterVote(t *testing.T) {
 
 func TestRoundState_RegisterTimeoutVote(t *testing.T) {
 	const lastCommittedRound = uint64(5)
-	quorum := NewDummyQuorum(3)
+	quorum := NewDummyQuorum(3, 0)
 	pacemaker := NewPacemaker(testBlockRate, testLocalTimeout)
 	defer pacemaker.Stop()
 	pacemaker.Reset(lastCommittedRound)
@@ -120,7 +120,7 @@ func TestRoundState_RegisterTimeoutVote(t *testing.T) {
 	require.Nil(t, tc)
 	// node 1 send duplicate
 	tc, err = pacemaker.RegisterTimeoutVote(vote, quorum)
-	require.ErrorContains(t, err, "timeout vote register failed, timeout cert add vote failed, node1 already voted")
+	require.ErrorContains(t, err, "inserting to pending votes: failed to add vote to timeout certificate: node1 already voted")
 	require.Nil(t, tc)
 	vote = NewDummyTimeoutVote(hQc, 6, "node2")
 	tc, err = pacemaker.RegisterTimeoutVote(vote, quorum)
@@ -224,11 +224,7 @@ func TestPacemaker_startRoundClock(t *testing.T) {
 
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
-		srcDone := make(chan struct{})
-		go func() {
-			pacemaker.startRoundClock(ctx, minRoundLen, roundTO)
-			close(srcDone)
-		}()
+		srcDone := pacemaker.startRoundClock(ctx, minRoundLen, roundTO)
 		firstTOevent := time.After(roundTO)
 
 		// there should be no event until minRoundLen has elapsed (we wait a bit less to lessen the timing inaccuracies)
@@ -282,11 +278,7 @@ func TestPacemaker_startRoundClock(t *testing.T) {
 
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
-		srcDone := make(chan struct{})
-		go func() {
-			pacemaker.startRoundClock(ctx, minRoundLen, roundTO)
-			close(srcDone)
-		}()
+		srcDone := pacemaker.startRoundClock(ctx, minRoundLen, roundTO)
 
 		select {
 		case <-time.After(roundTO):
@@ -322,11 +314,7 @@ func TestPacemaker_startRoundClock(t *testing.T) {
 		pacemaker := NewPacemaker(minRoundLen, roundTO)
 
 		ctx, cancel := context.WithCancel(context.Background())
-		srcDone := make(chan struct{})
-		go func() {
-			pacemaker.startRoundClock(ctx, minRoundLen, roundTO)
-			close(srcDone)
-		}()
+		srcDone := pacemaker.startRoundClock(ctx, minRoundLen, roundTO)
 
 		select {
 		case <-time.After(roundTO):
@@ -350,13 +338,8 @@ func TestPacemaker_startRoundClock(t *testing.T) {
 
 		// start new round clock
 		ctx, cancel = context.WithCancel(context.Background())
-		srcDone = make(chan struct{})
-		var start time.Time
-		go func() {
-			start = time.Now()
-			pacemaker.startRoundClock(ctx, minRoundLen, roundTO)
-			close(srcDone)
-		}()
+		srcDone = pacemaker.startRoundClock(ctx, minRoundLen, roundTO)
+		start := time.Now()
 
 		// we should get pmsRoundMatured but not sooner than minRoundLen
 		select {
@@ -486,5 +469,111 @@ func TestPacemaker_startNewRound(t *testing.T) {
 		require.Zero(t, otherCnt, `number of "other" events`)
 		require.EqualValues(t, 1, matureCnt, "number of %s events", pmsRoundMatured)
 		require.EqualValues(t, TOcycles, timeoutCnt, "number of %s events", pmsRoundTimeout)
+	})
+
+	t.Run("timeout vote causes timeout status", func(t *testing.T) {
+		minRoundLen := 500 * time.Millisecond
+		roundTO := time.Second
+		pacemaker := NewPacemaker(minRoundLen, roundTO)
+		pacemaker.Reset(4)
+		defer pacemaker.Stop()
+
+		// register TO vote with quorum condition which allow no faulty nodes - this means
+		// that quorum for the round is not possible anymore and PM should go to TO status.
+		// timeout event should be in the event channel right away
+		qcRound1 := abtypes.NewQuorumCertificate(NewDummyVoteInfo(1, []byte{0, 1, 1}), nil)
+		timeoutVoteMsg := NewDummyTimeoutVote(qcRound1, 4, "node1")
+		tc, err := pacemaker.RegisterTimeoutVote(timeoutVoteMsg, NewDummyQuorum(3, 0))
+		require.NoError(t, err)
+		require.Nil(t, tc)
+
+		start := time.Now()
+		select {
+		case e := <-pacemaker.StatusEvents():
+			if e != pmsRoundTimeout {
+				t.Errorf("expected to get pmsRoundTimeout event, got %v", e)
+			}
+		default:
+			t.Fatal("expected to get the event immediately")
+		}
+
+		// next event must be timeout too
+		select {
+		case <-time.After(roundTO + roundTO/2):
+			t.Fatal("didn't get second event before timeout")
+		case e := <-pacemaker.StatusEvents():
+			waited := time.Since(start)
+			if e != pmsRoundTimeout {
+				t.Errorf("expected event %v got %v after %s", pmsRoundTimeout, e, waited)
+			}
+			if maxDur := roundTO + 50*time.Millisecond; roundTO > waited || waited > maxDur {
+				t.Errorf("expected that it will take between %s and %s to receive event, it took %s", roundTO, maxDur, waited)
+			}
+		}
+	})
+}
+
+func TestPacemaker_setState(t *testing.T) {
+	t.Parallel()
+
+	t.Run("already in pmsRoundTimeout state", func(t *testing.T) {
+		roundTO := 500 * time.Millisecond
+		pacemaker := NewPacemaker(100*time.Millisecond, roundTO)
+		defer pacemaker.Stop()
+
+		// "force" status but do not write into event chan (ie event is already consumed)
+		pacemaker.status.Store(uint32(pmsRoundTimeout))
+
+		pacemaker.setState(pmsRoundTimeout, roundTO)
+		start := time.Now()
+		require.EqualValues(t, pmsRoundTimeout, pacemaker.status.Load())
+		select {
+		case e := <-pacemaker.StatusEvents():
+			if e != pmsRoundTimeout {
+				t.Errorf("expected to get pmsRoundTimeout event, got %v", e)
+			}
+		default:
+			t.Error("unexpectedly there is no event in the status event chan")
+		}
+		// clock should be ticking now with roundTO interval
+		select {
+		case <-pacemaker.ticker.C:
+			if waited := time.Since(start); waited < roundTO {
+				t.Errorf("expected to get next tick after %s, got it after %s", roundTO, waited)
+			}
+		case <-time.After(roundTO + 100*time.Millisecond):
+			t.Error("haven't got another tick from clock")
+		}
+	})
+
+	t.Run("switching to pmsRoundTimeout state", func(t *testing.T) {
+		roundTO := 500 * time.Millisecond
+		pacemaker := NewPacemaker(100*time.Millisecond, roundTO)
+		defer pacemaker.Stop()
+
+		// set current status something other than pmsRoundTimeout
+		pacemaker.status.Store(uint32(pmsRoundMatured))
+		pacemaker.statusChan <- pmsRoundMatured
+
+		pacemaker.setState(pmsRoundTimeout, roundTO)
+		start := time.Now()
+		require.EqualValues(t, pmsRoundTimeout, pacemaker.status.Load())
+		select {
+		case e := <-pacemaker.StatusEvents():
+			if e != pmsRoundTimeout {
+				t.Errorf("expected to get pmsRoundTimeout event, got %v", e)
+			}
+		default:
+			t.Error("unexpectedly there is no event in the status event chan")
+		}
+		// seting status must have reset the clock so we should see a tick after roundTO
+		select {
+		case <-pacemaker.ticker.C:
+			if waited := time.Since(start); waited < roundTO {
+				t.Errorf("expected to get next tick after %s, got it after %s", roundTO, waited)
+			}
+		case <-time.After(roundTO + 100*time.Millisecond):
+			t.Error("haven't got another tick from clock")
+		}
 	})
 }

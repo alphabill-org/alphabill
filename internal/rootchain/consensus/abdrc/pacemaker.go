@@ -3,6 +3,7 @@ package abdrc
 import (
 	"context"
 	"fmt"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -36,6 +37,7 @@ type Pacemaker struct {
 	timeoutVote *abdrc.TimeoutMsg
 	currentQC   *abtypes.QuorumCert
 
+	statusUpd      sync.Mutex // lock to sync status (status and statusChan) update
 	status         atomic.Uint32
 	statusChan     chan paceMakerStatus
 	ticker         *time.Ticker
@@ -138,12 +140,18 @@ func (x *Pacemaker) RegisterVote(vote *abdrc.VoteMsg, quorum QuorumInfo) (*abtyp
 	return qc, x.roundIsMature(), nil
 }
 
-// RegisterTimeoutVote - register time-out vote from another root node, this node is the leader and tries to assemble
-// a timeout quorum certificate for this round
+/*
+RegisterTimeoutVote registers time-out vote from root node (including vote from self) and tries to assemble
+a timeout quorum certificate for the round.
+*/
 func (x *Pacemaker) RegisterTimeoutVote(vote *abdrc.TimeoutMsg, quorum QuorumInfo) (*abtypes.TimeoutCert, error) {
-	tc, err := x.pendingVotes.InsertTimeoutVote(vote, quorum)
+	tc, voteCnt, err := x.pendingVotes.InsertTimeoutVote(vote, quorum)
 	if err != nil {
-		return nil, fmt.Errorf("timeout vote register failed, %w", err)
+		return nil, fmt.Errorf("inserting to pending votes: %w", err)
+	}
+	if tc == nil && voteCnt > quorum.GetMaxFaultyNodes() && x.status.Load() != uint32(pmsRoundTimeout) {
+		// there is f+1 votes for TO - jump to TO state as quorum shouldn't be possible now
+		x.setState(pmsRoundTimeout, x.maxRoundLen)
 	}
 	return tc, nil
 }
@@ -189,18 +197,24 @@ func (x *Pacemaker) startNewRound(round uint64) {
 
 	x.stopRoundClock()
 	ctx, cancel := context.WithCancel(context.Background())
-	done := make(chan struct{})
+	stopped := x.startRoundClock(ctx, x.minRoundLen, x.maxRoundLen)
 	x.stopRoundClock = func() {
 		cancel()
-		<-done
+		<-stopped
 	}
-	go func() {
-		defer close(done)
-		x.startRoundClock(ctx, x.minRoundLen, x.maxRoundLen)
-	}()
 }
 
-func (x *Pacemaker) startRoundClock(ctx context.Context, minRoundLen, maxRoundLen time.Duration) {
+/*
+startRoundClock manages round state and generates appropriate events into chan returned by StatusEvents.
+Round state normally changes pmsRoundInProgress -> pmsRoundMatured -> pmsRoundTimeout and then stays in
+timeout state until next round is started. For how long each state lasts is determined by "minRoundLen"
+and "maxRoundLen" parameters.
+
+It returns chan which is closed when round clock has been stopped (the ctx has been cancelled). When
+the clock has been stopped there should be no event in the status event chan but the "status" field
+still stores the last state of the round.
+*/
+func (x *Pacemaker) startRoundClock(ctx context.Context, minRoundLen, maxRoundLen time.Duration) <-chan struct{} {
 	x.status.Store(uint32(pmsRoundInProgress))
 	x.ticker.Reset(minRoundLen)
 	select {
@@ -208,36 +222,45 @@ func (x *Pacemaker) startRoundClock(ctx context.Context, minRoundLen, maxRoundLe
 	default:
 	}
 
-	cancelStatusEvent := func() {
-		select {
-		case <-x.statusChan:
-		default:
-		}
-	}
-	setStatus := func(status paceMakerStatus) {
-		x.status.Store(uint32(status))
-		x.statusChan <- status
-	}
-
-	for {
-		select {
-		case <-ctx.Done():
-			cancelStatusEvent()
-			return
-		case <-x.ticker.C:
-			cancelStatusEvent()
-			switch paceMakerStatus(x.status.Load()) {
-			case pmsRoundInProgress:
-				setStatus(pmsRoundMatured)
-				x.ticker.Reset(maxRoundLen - minRoundLen)
-			case pmsRoundMatured:
-				setStatus(pmsRoundTimeout)
-				x.ticker.Reset(maxRoundLen)
-			case pmsRoundTimeout:
-				setStatus(pmsRoundTimeout)
+	stopped := make(chan struct{})
+	go func() {
+		defer close(stopped)
+		for {
+			select {
+			case <-ctx.Done():
+				select {
+				case <-x.statusChan:
+				default:
+				}
+				return
+			case <-x.ticker.C:
+				switch paceMakerStatus(x.status.Load()) {
+				case pmsRoundInProgress:
+					x.setState(pmsRoundMatured, maxRoundLen-minRoundLen)
+				case pmsRoundMatured:
+					x.setState(pmsRoundTimeout, maxRoundLen)
+				case pmsRoundTimeout:
+					x.setState(pmsRoundTimeout, maxRoundLen)
+				}
 			}
 		}
+	}()
+
+	return stopped
+}
+
+func (x *Pacemaker) setState(state paceMakerStatus, tillNextState time.Duration) {
+	x.statusUpd.Lock()
+	defer x.statusUpd.Unlock()
+
+	select {
+	case <-x.statusChan:
+	default:
 	}
+
+	x.ticker.Reset(tillNextState)
+	x.status.Store(uint32(state))
+	x.statusChan <- state
 }
 
 /*

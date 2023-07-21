@@ -360,7 +360,7 @@ func (w *Wallet) collectDust(ctx context.Context, accountIndex uint64) error {
 		billCount := len(bills)
 		for billCount > 1 {
 			offset := util.Min(billCount, maxBillsForDustCollection)
-			err = w.submitDCBatch(ctx, k, bills[:offset], fcb.Value, roundNr, accountIndex)
+			err = w.submitDCBatch(ctx, k, bills[:offset], fcb.Value, accountIndex)
 			if err != nil {
 				return err
 			}
@@ -377,7 +377,11 @@ func (w *Wallet) collectDust(ctx context.Context, accountIndex uint64) error {
 	return nil
 }
 
-func (w *Wallet) submitDCBatch(ctx context.Context, k *account.AccountKey, bills []*Bill, fcbValue, roundNr, accountIndex uint64) error {
+func (w *Wallet) submitDCBatch(ctx context.Context, k *account.AccountKey, bills []*Bill, fcbValue, accountIndex uint64) error {
+	roundNr, err := w.backend.GetRoundNumber(ctx)
+	if err != nil {
+		return err
+	}
 	dcBatch := txsubmitter.NewBatch(k.PubKey, w.backend)
 	dcTimeout := roundNr + dcTimeoutBlockCount
 	swapTimeout := roundNr + swapTimeoutBlockCount

@@ -339,13 +339,15 @@ func (w *Wallet) collectDust(ctx context.Context, accountIndex uint64) error {
 			if fcb.GetValue() < tx_builder.MaxFee {
 				return ErrInsufficientFeeCredit
 			}
-			swapTimeout := util.Min(roundNr+swapTxTimeoutBlockCount, v.swapTimeout)
 			var billsId [][]byte
+			var swapTimeout uint64
 			dcMetadata, dcMetadataFound = dcMetadataMap[string(v.dcNonce)]
 			if dcMetadataFound {
 				billsId = dcMetadata.BillIdentifiers
+				swapTimeout = util.Min(roundNr+swapTxTimeoutBlockCount, v.swapTimeout)
 			} else {
 				billsId = getBillIds(v.dcBills)
+				swapTimeout = roundNr + swapTxTimeoutBlockCount
 			}
 			if err := w.swapDcBills(ctx, v.dcBills, v.dcNonce, billsId, swapTimeout, accountIndex); err != nil {
 				return err

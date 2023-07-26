@@ -229,6 +229,32 @@ func TestAddFeeCredit_ClosedFeeCredit_InvalidTargetTxHash(t *testing.T) {
 	require.Equal(t, transactions.PayloadTypeReclaimFeeCredit, proofs.ReclaimFC.TxRecord.TransactionOrder.PayloadType())
 }
 
+func TestAddFeeCredit_CannotAddFeesWhenUnreclaimedFeesExist(t *testing.T) {
+	// create fee manager with existing closeFC tx
+	am := newAccountManager(t)
+	moneyTxPublisher := &mockMoneyTxPublisher{}
+	closeFCAttr := testutils.NewCloseFCAttr(
+		testutils.WithCloseFCTargetUnitID([]byte{1}),
+		testutils.WithCloseFCAmount(50),
+		testutils.WithCloseFCNonce([]byte{3}),
+	)
+	cfc := &types.TransactionRecord{
+		TransactionOrder: testutils.NewCloseFC(t, closeFCAttr),
+		ServerMetadata:   &types.ServerMetadata{ActualFee: 1},
+	}
+	txrProof := &wallet.Proof{TxRecord: cfc, TxProof: &types.TxProof{}}
+	moneyBackendClient := &mockMoneyClient{closedFeeCredit: cfc, proof: txrProof, bills: []*wallet.Bill{{
+		Id:     closeFCAttr.TargetUnitID,
+		Value:  closeFCAttr.Amount,
+		TxHash: closeFCAttr.Nonce,
+	}}}
+	feeManager := newMoneyPartitionFeeManager(am, moneyTxPublisher, moneyBackendClient)
+
+	// when add fee credit is called with existing closeFC tx
+	_, err := feeManager.AddFeeCredit(context.Background(), AddFeeCmd{})
+	require.Errorf(t, err, "wallet contains unreclaimed fee credit, run the reclaim command before adding fee credit")
+}
+
 func newMoneyPartitionFeeManager(am account.Manager, moneyTxPublisher TxPublisher, moneyBackendClient MoneyClient) *FeeManager {
 	moneySystemID := []byte{0, 0, 0, 0}
 	return NewFeeManager(am, moneySystemID, moneyTxPublisher, moneyBackendClient, moneySystemID, moneyTxPublisher, moneyBackendClient)

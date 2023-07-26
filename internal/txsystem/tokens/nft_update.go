@@ -16,7 +16,7 @@ func handleUpdateNonFungibleTokenTx(options *Options) txsystem.GenericExecuteFun
 	return func(tx *types.TransactionOrder, attr *UpdateNonFungibleTokenAttributes, currentBlockNr uint64) (*types.ServerMetadata, error) {
 		logger.Debug("Processing Update Non-Fungible Token tx: %v", tx)
 		if err := validateUpdateNonFungibleToken(tx, attr, options.state, options.hashAlgorithm); err != nil {
-			return nil, fmt.Errorf("invalid update none-fungible token tx: %w", err)
+			return nil, fmt.Errorf("invalid update non-fungible token tx: %w", err)
 		}
 		fee := options.feeCalculator()
 		unitID := tx.UnitID()
@@ -36,7 +36,7 @@ func handleUpdateNonFungibleTokenTx(options *Options) txsystem.GenericExecuteFun
 			return nil, err
 		}
 
-		return &types.ServerMetadata{ActualFee: fee}, nil
+		return &types.ServerMetadata{ActualFee: fee, TargetUnits: []types.UnitID{unitID}}, nil
 	}
 }
 

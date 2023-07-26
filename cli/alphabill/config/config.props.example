@@ -1,3 +1,108 @@
+# alphabill API uri to connect to
+alphabill-api-uri=localhost:9654
+# alphabill node url
+alphabill-uri=localhost:9543
+# mnemonic seed, the number of words should be 12, 15, 18, 21 or 24
+seed=hour cereal comic kangaroo satisfy giggle hybrid differ renew curtain page steak
+# specifies how much fee credit to create in ALPHA
+amount=1
+# password (interactive from prompt)
+password=true
+# log file path (default output to stderr)
+log-file=/home/test/ab.log
+# logging level (DEBUG, INFO, NOTICE, WARNING, ERROR)
+log-level=DEBUG
+# wallet home directory (default $AB_HOME/wallet)
+wallet-location=/home/test
+# waits for transaction confirmation on the blockchain, otherwise just broadcasts the transaction
+wait-for-confirmation=true
+# if specified shows only total balance over all accounts
+total=true
+# hides info irrelevant for scripting, e.g. account key numbers
+quiet=false
+# compressed secp256k1 public key of the receiver in hexadecimal format, must start with 0x and be 68 characters in length
+address=0x032e1d3db2c46b17722351ce722286325eab4c4882b4429709f29c90fb70f7e548
+# includes unswapped dust bills in balance output
+show-unswapped=true
+# specifies which account key to use in the command
+key=1
+# bill ID in hex format (without 0x prefix)
+bill-id=6173666166206144464b4b4c494c494c4b4c4b620614b4c1ce72
+# output directory for bills, directory is created if it does not exist (default: CWD)
+output-path=/home/test
+# partition name for which to manage fees [money|tokens|vd]
+partition=money
+# partition backend url for which to manage fees
+partition-backend-url=localhost:27766
+# The gRPC server listen address with port.
 server-address=localhost:9543
+# Maximum number of bytes the incoming message may be.
 server-max-recv-msg-size=9999
-trust-base=0212911c7341399e876800a268855c894c43eb849a72ac5a9d26a0091041c107f0
+# Maximum number of bytes the outgoing message may be.
+server-max-send-msg-size=9999
+# a duration for the maximum amount of time a connection may exist before it will be closed by sending a GoAway in milliseconds. 0 means forever.
+server-max-connection-age-ms=9999
+# an additive period after MaxConnectionAgeMs after which the connection will be forcibly closed in milliseconds. 0 means no grace period.
+server-max-connection-age-grace-ms=9999
+# the max allowed block count for the GetBlocks rpc function.
+server-max-get-blocks-batch-size=9999
+# Specifies the TCP address for the REST server to listen on, in the form "host:port"
+rest-server-address=localhost:9523
+# The maximum duration for reading the entire request, including the body. A zero or negative value means there will be no timeout.
+rest-server-read-timeout=9999
+# The amount of time allowed to read request headers. If rest-server-read-header-timeout is zero, the value of rest-server-read-timeout is used. If both are zero, there is no timeout.
+rest-server-read-header-timeout=9999
+# The maximum duration before timing out writes of the response. A zero or negative value means there will be no timeout.
+rest-server-write-timeout=9999
+# The maximum amount of time to wait for the next request when keep-alives are enabled. If rest-server-idle-timeout is zero, the value of rest-server-read-timeout is used. If both are zero, there is no timeout.
+rest-server-idle-timeout=9999
+# Controls the maximum number of bytes the server will read parsing the request header's keys and values, including the request line.
+rest-server-max-header=9999
+# Controls the maximum number of bytes the server will read parsing the request body.
+rest-server-max-body=9999
+# symbol (short name) of the token type
+symbol=ALPHA
+# full name of the token type
+name=Alphabill
+# icon file name for the token type
+icon-file=icon.svgz
+# number of token decimals
+decimals=8
+# unit identifier of a parent type in hexadecimal format
+parent-type=0x032e1d3db2c46b17722351ce722286325eab4c4882b4429709f29c90fb70f7e548
+# predicate to control sub typing, values <true|false|ptpkh>
+subtype-clause=true
+# input to satisfy the parent type creation clause
+subtype-input=
+# predicate to control minting of this type, values <true|false|ptpkh>
+mint-clause=false
+# predicate that defines the ownership of this fungible token, values <true|false|ptpkh>
+bearer-clause=true
+# input to satisfy the type's minting clause
+mint-input=
+# predicate that will be inherited by subtypes into their bearer clauses, values <true|false|ptpkh>
+inherit-bearer-clause=false
+# input to satisfy the type's invariant clause
+inherit-bearer-input=
+# data update predicate, values <true|false|ptpkh>
+data-update-clause=true
+# input to satisfy the data-update clauses
+data-update-input=
+# type unit identifier (hex)
+type=0xf9d99948a8361258556cf863072c845a2ba750fd167d26f550242f3e105609ae
+# token identifier (hex)
+token-identifier=0x0cfe8483062c50b620370d6ce1edf03ee1dfa8ff7483e4978d7bdff833917596
+# URI to associated resource, ie. jpg file on IPFS
+token-uri=
+# custom token data (hex)
+data=0x8c442d12f94e2b9a4413421566a3099b
+# custom token data file (max 64Kb) path
+data-file=/home/test/data.txt
+# Show all available fields for each token
+with-all=true
+# Show type name field
+with-type-name=true
+# Show token URI field
+with-token-uri=true
+# Show token data field
+with-token-data=true

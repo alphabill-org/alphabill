@@ -1,22 +1,22 @@
 package backend
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"strconv"
+	"time"
 
 	"golang.org/x/sync/errgroup"
 
 	"github.com/fxamacker/cbor/v2"
 	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
-	httpSwagger "github.com/swaggo/http-swagger"
 
 	sdk "github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/alphabill-org/alphabill/pkg/wallet/log"
-	_ "github.com/alphabill-org/alphabill/pkg/wallet/money/backend/docs"
 )
 
 type (
@@ -29,15 +29,8 @@ type (
 	// TODO: perhaps pass the total number of elements in a response header
 	ListBillsResponse struct {
 		Total      int                    `json:"total" example:"1"`
-		Bills      []*ListBillVM          `json:"bills"`
+		Bills      []*sdk.Bill            `json:"bills"`
 		DCMetadata map[string]*DCMetadata `json:"dcMetadata,omitempty"`
-	}
-
-	ListBillVM struct {
-		Id      []byte `json:"id" swaggertype:"string" format:"base64" example:"AAAAAAgwv3UA1HfGO4qc1T3I3EOvqxfcrhMjJpr9Tn4="`
-		Value   uint64 `json:"value,string" example:"1000"`
-		TxHash  []byte `json:"txHash" swaggertype:"string" format:"base64" example:"Q4ShCITC0ODXPR+j1Zl/teYcoU3/mAPy0x8uSsvQFM8="`
-		DcNonce []byte `json:"dcNonce" swaggertype:"string" format:"base64" example:"YWZhIHNmc2RmYXNkZmFzIGRmc2FzZiBhc2RmIGFzZGZzYSBkZg=="`
 	}
 
 	BalanceResponse struct {
@@ -79,29 +72,30 @@ func (api *moneyRestAPI) Router() *mux.Router {
 	apiV1.HandleFunc("/closed-fee-credit/{billId}", api.getClosedFeeCreditFunc).Methods("GET", "OPTIONS")
 	apiV1.HandleFunc("/transactions/{pubkey}", api.postTransactions).Methods("POST", "OPTIONS")
 
-	apiV1.PathPrefix("/swagger/").Handler(httpSwagger.Handler(
-		httpSwagger.URL("/api/v1/swagger/doc.json"), //The url pointing to API definition
-		httpSwagger.DeepLinking(true),
-		httpSwagger.DocExpansion("list"),
-		httpSwagger.DomID("swagger-ui"),
-	)).Methods(http.MethodGet)
+	apiV1.Handle("/swagger/swagger-initializer.js", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		initializer := "swagger/swagger-initializer-money.js"
+		f, err := sdk.SwaggerFiles.ReadFile(initializer)
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			fmt.Fprintf(w, "failed to read %v file: %v", initializer, err)
+			return
+		}
+		http.ServeContent(w, r, "swagger-initializer.js", time.Time{}, bytes.NewReader(f))
+	})).Methods("GET", "OPTIONS")
+	apiV1.Handle("/swagger/{.*}", http.StripPrefix("/api/v1/", http.FileServer(http.FS(sdk.SwaggerFiles)))).Methods("GET", "OPTIONS")
+	apiV1.Handle("/swagger/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		f, err := sdk.SwaggerFiles.ReadFile("swagger/index.html")
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			fmt.Fprintf(w, "failed to read swagger/index.html file: %v", err)
+			return
+		}
+		http.ServeContent(w, r, "index.html", time.Time{}, bytes.NewReader(f))
+	})).Methods("GET", "OPTIONS")
 
 	return router
 }
 
-// @Summary List bills
-// @Id 1
-// @version 1.0
-// @produce application/json
-// @Param pubkey query string true "Public key prefixed with 0x" example(0x000000000000000000000000000000000000000000000000000000000000000123)
-// @Param limit query int false "limits how many bills are returned in response" default(100)
-// @Param offset query int false "response will include bills starting after offset" default(0)
-// @Param includedcbills query bool false "response will include DC bills" default(true)
-// @Param includedcmetadata query bool false "response will include DC Metadata info (includedcbills param must also be true)" default(false)
-// @Success 200 {object} ListBillsResponse
-// @Failure 400 {object} ErrorResponse
-// @Failure 500
-// @Router /list-bills [get]
 func (api *moneyRestAPI) listBillsFunc(w http.ResponseWriter, r *http.Request) {
 	pk, err := parsePubKeyQueryParam(r)
 	if err != nil {
@@ -130,7 +124,7 @@ func (api *moneyRestAPI) listBillsFunc(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
-	var filteredBills []*Bill
+	var filteredBills []*sdk.Bill
 	var dcMetadataMap map[string]*DCMetadata
 	for _, b := range bills {
 		// filter zero value bills
@@ -157,7 +151,7 @@ func (api *moneyRestAPI) listBillsFunc(w http.ResponseWriter, r *http.Request) {
 				}
 			}
 		}
-		filteredBills = append(filteredBills, b)
+		filteredBills = append(filteredBills, b.ToGenericBill())
 	}
 	qp := r.URL.Query()
 	limit, err := sdk.ParseMaxResponseItems(qp.Get(sdk.QueryParamLimit), api.ListBillsPageLimit)
@@ -178,8 +172,12 @@ func (api *moneyRestAPI) listBillsFunc(w http.ResponseWriter, r *http.Request) {
 	} else {
 		sdk.SetLinkHeader(r.URL, w, strconv.Itoa(offset+limit))
 	}
-	billVMs := toBillVMList(filteredBills)
-	api.rw.WriteResponse(w, &ListBillsResponse{Bills: billVMs[offset : offset+limit], Total: len(billVMs), DCMetadata: dcMetadataMap})
+
+	api.rw.WriteResponse(w, &ListBillsResponse{
+		Bills:      filteredBills[offset : offset+limit],
+		Total:      len(filteredBills),
+		DCMetadata: dcMetadataMap,
+	})
 }
 
 func (api *moneyRestAPI) txHistoryFunc(w http.ResponseWriter, r *http.Request) {
@@ -235,15 +233,6 @@ func (api *moneyRestAPI) txHistoryFunc(w http.ResponseWriter, r *http.Request) {
 	api.rw.WriteCborResponse(w, recs)
 }
 
-// @Summary Get balance
-// @Id 2
-// @version 1.0
-// @produce application/json
-// @Param pubkey query string true "Public key prefixed with 0x"
-// @Success 200 {object} BalanceResponse
-// @Failure 400 {object} ErrorResponse
-// @Failure 500
-// @Router /balance [get]
 func (api *moneyRestAPI) balanceFunc(w http.ResponseWriter, r *http.Request) {
 	pk, err := parsePubKeyQueryParam(r)
 	if err != nil {
@@ -321,12 +310,6 @@ func (api *moneyRestAPI) getBill(billID []byte) (*Bill, error) {
 	return bill, err
 }
 
-// @Summary Money partition's latest block number
-// @Id 4
-// @version 1.0
-// @produce application/json
-// @Success 200 {object} RoundNumberResponse
-// @Router /round-number [get]
 func (api *moneyRestAPI) blockHeightFunc(w http.ResponseWriter, r *http.Request) {
 	lastRoundNumber, err := api.Service.GetRoundNumber(r.Context())
 	if err != nil {
@@ -337,13 +320,6 @@ func (api *moneyRestAPI) blockHeightFunc(w http.ResponseWriter, r *http.Request)
 	}
 }
 
-// @Summary Get Fee Credit Bill
-// @Id 5
-// @version 1.0
-// @produce application/json
-// @Param billId path string true "ID of the bill (hex)"
-// @Success 200 {object} wallet.Bill
-// @Router /fee-credit-bills [get]
 func (api *moneyRestAPI) getFeeCreditBillFunc(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	billID, err := sdk.ParseHex[sdk.UnitID](vars["billId"], true)
@@ -373,18 +349,11 @@ func (api *moneyRestAPI) getFeeCreditBillFunc(w http.ResponseWriter, r *http.Req
 	api.rw.WriteResponse(w, fcb.ToGenericBill())
 }
 
-// @Summary Forward transactions to partition node(s)
-// @Id 6
-// @Version 1.0
-// @Accept application/cbor
-// @Param pubkey path string true "Sender public key prefixed with 0x"
-// @Param transactions body nil true "CBOR encoded array of TransactionOrders"
-// @Success 202
-// @Router /transactions [post]
 func (api *moneyRestAPI) postTransactions(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
 	buf, err := io.ReadAll(r.Body)
 	if err != nil {
+		log.Debug("error parsing GET /transactions request: ", err)
 		api.rw.WriteErrorResponse(w, fmt.Errorf("failed to read request body: %w", err))
 		return
 	}
@@ -410,6 +379,7 @@ func (api *moneyRestAPI) postTransactions(w http.ResponseWriter, r *http.Request
 	api.Service.HandleTransactionsSubmission(egp, senderPubkey, txs.Transactions)
 
 	if errs := api.Service.SendTransactions(r.Context(), txs.Transactions); len(errs) > 0 {
+		log.Debug("error on GET /transactions: ", errs)
 		w.WriteHeader(http.StatusInternalServerError)
 		api.rw.WriteResponse(w, errs)
 		return
@@ -495,26 +465,4 @@ func parseIncludeDCBillsQueryParam(r *http.Request, defaultValue bool) (bool, er
 		return strconv.ParseBool(r.URL.Query().Get("includedcbills"))
 	}
 	return defaultValue, nil
-}
-
-func toBillVMList(bills []*Bill) []*ListBillVM {
-	billVMs := make([]*ListBillVM, len(bills))
-	for i, b := range bills {
-		billVMs[i] = &ListBillVM{
-			Id:      b.Id,
-			Value:   b.Value,
-			TxHash:  b.TxHash,
-			DcNonce: b.DcNonce,
-		}
-	}
-	return billVMs
-}
-
-func (b *ListBillVM) ToGenericBill() *sdk.Bill {
-	return &sdk.Bill{
-		Id:      b.Id,
-		Value:   b.Value,
-		TxHash:  b.TxHash,
-		DcNonce: b.DcNonce,
-	}
 }

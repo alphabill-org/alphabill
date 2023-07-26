@@ -2,9 +2,9 @@ package cmd
 
 import (
 	"bytes"
+	"crypto/rand"
 	"fmt"
-	"io/ioutil"
-	"math/rand"
+	"os"
 	"testing"
 
 	"github.com/alphabill-org/alphabill/internal/partition/event"
@@ -41,7 +41,7 @@ func TestNFTs_Integration(t *testing.T) {
 	w2.Shutdown()
 
 	// send money to w1k2 to create fee credits
-	stdout := execWalletCmd(t, "", homedirW1, fmt.Sprintf("send --amount 100 --address %s -r %s", hexutil.Encode(w1key2.PubKey), moneyBackendURL))
+	stdout := execWalletCmd(t, homedirW1, fmt.Sprintf("send --amount 100 --address %s -r %s", hexutil.Encode(w1key2.PubKey), moneyBackendURL))
 	verifyStdout(t, stdout, "Successfully confirmed transaction(s)")
 
 	// create fee credit on w1k2
@@ -79,7 +79,7 @@ func TestNFTs_Integration(t *testing.T) {
 	verifyStdout(t, execTokensCmd(t, homedirW1, fmt.Sprintf("list-types non-fungible -r %s", backendURL)), "symbol=ABNFT (nft)")
 
 	// send money to w2 to create fee credits
-	stdout = execWalletCmd(t, "", homedirW1, fmt.Sprintf("send --amount 100 --address %s -r %s", hexutil.Encode(w2key.PubKey), moneyBackendURL))
+	stdout = execWalletCmd(t, homedirW1, fmt.Sprintf("send --amount 100 --address %s -r %s", hexutil.Encode(w2key.PubKey), moneyBackendURL))
 	verifyStdout(t, stdout, "Successfully confirmed transaction(s)")
 
 	// create fee credit on w2
@@ -117,8 +117,10 @@ func TestNFTDataUpdateCmd_Integration(t *testing.T) {
 	// create non-fungible token from using data-file
 	nftID := randomID(t)
 	data := make([]byte, 1024)
-	rand.Read(data)
-	tmpfile, err := ioutil.TempFile(t.TempDir(), "test")
+	n, err := rand.Read(data)
+	require.NoError(t, err)
+	require.EqualValues(t, n, len(data))
+	tmpfile, err := os.CreateTemp(t.TempDir(), "test")
 	require.NoError(t, err)
 	_, err = tmpfile.Write(data)
 	require.NoError(t, err)
@@ -137,9 +139,11 @@ func TestNFTDataUpdateCmd_Integration(t *testing.T) {
 	require.Equal(t, data, nft.NftData)
 	// generate new data
 	data2 := make([]byte, 1024)
-	rand.Read(data2)
-	require.NotEqual(t, data, data2)
-	tmpfile, err = ioutil.TempFile(t.TempDir(), "test")
+	n, err = rand.Read(data2)
+	require.NoError(t, err)
+	require.EqualValues(t, n, len(data2))
+	require.False(t, bytes.Equal(data, data2))
+	tmpfile, err = os.CreateTemp(t.TempDir(), "test")
 	require.NoError(t, err)
 	_, err = tmpfile.Write(data2)
 	require.NoError(t, err)

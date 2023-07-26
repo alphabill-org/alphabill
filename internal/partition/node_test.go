@@ -317,7 +317,7 @@ func TestNode_HandleEquivocatingUnicityCertificate_SameRoundDifferentIRHashes(t 
 	require.NoError(t, err)
 
 	tp.SubmitUnicityCertificate(equivocatingUC)
-	ContainsError(t, tp, "equivocating certificate, different input records for same partition round")
+	ContainsError(t, tp, "equivocating UC, different input records for same partition round")
 }
 
 func copyIR(record *types.InputRecord) *types.InputRecord {
@@ -360,7 +360,7 @@ func TestNode_HandleEquivocatingUnicityCertificate_SameIRPreviousHashDifferentIR
 	require.NoError(t, err)
 
 	tp.SubmitUnicityCertificate(equivocatingUC)
-	ContainsError(t, tp, "equivocating certificate, different input records for same partition round 2")
+	ContainsError(t, tp, "equivocating UC, different input records for same partition round")
 }
 
 // state does not change in case of no transactions in money partition
@@ -385,7 +385,7 @@ func TestNode_HandleUnicityCertificate_SameIR_DifferentBlockHash_StateReverted(t
 	require.Equal(t, uint64(0), txs.RevertCount)
 
 	// simulate receiving repeat UC
-	ir, _ := types.NewRepeatInputRecord(latestUC.InputRecord)
+	ir := latestUC.InputRecord.NewRepeatIR()
 	uc, err := tp.CreateUnicityCertificate(
 		ir,
 		latestUC.UnicitySeal.RootChainRoundNumber+1,

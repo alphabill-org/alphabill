@@ -262,6 +262,12 @@ func execSendCmd(ctx context.Context, cmd *cobra.Command, config *walletConfig) 
 			}
 			consoleWriter.Println("Transaction proof(s) saved to: " + outputFile)
 		}
+
+		var feeSum uint64
+		for _, proof := range proofs {
+			feeSum += proof.TxRecord.ServerMetadata.GetActualFee()
+		}
+		consoleWriter.Println("Paid", amountToString(feeSum, 8), "fees for transaction(s).")
 	} else {
 		consoleWriter.Println("Successfully sent transaction(s)")
 	}

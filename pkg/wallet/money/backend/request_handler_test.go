@@ -139,7 +139,7 @@ func TestListBillsRequest_Ok(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, http.StatusOK, httpRes.StatusCode)
 	require.Len(t, res.Bills, 1)
-	expectedRes := toBillVMList([]*Bill{expectedBill})
+	expectedRes := expectedBill.ToGenericBills().Bills
 	require.Equal(t, expectedRes, res.Bills)
 }
 

@@ -25,11 +25,6 @@ import (
 	wlog "github.com/alphabill-org/alphabill/pkg/wallet/log"
 )
 
-// @title           Money Partition Indexing Backend API
-// @version         1.0
-// @description     This service processes blocks from the Money partition and indexes ownership of bills.
-
-// @BasePath  /api/v1
 type (
 	WalletBackendService interface {
 		GetBills(ownerCondition []byte) ([]*Bill, error)
@@ -59,6 +54,7 @@ type (
 		Value          uint64 `json:"value"`
 		TxHash         []byte `json:"txHash"`
 		DcNonce        []byte `json:"dcNonce,omitempty"`
+		SwapTimeout    uint64 `json:"swapTimeout,string,omitempty"`
 		OwnerPredicate []byte `json:"ownerPredicate"`
 
 		// fcb specific fields
@@ -373,8 +369,8 @@ func extractOwnerHashFromP2pkh(bearer sdk.Predicate) sdk.PubKeyHash {
 }
 
 func extractOwnerKeyFromProof(signature sdk.Predicate) sdk.PubKey {
-	if len(signature) == 101 && signature[67] == script.OpPushPubKey && signature[68] == script.SigSchemeSecp256k1 {
-		return sdk.PubKey(signature[69:101])
+	if len(signature) == 103 && signature[68] == script.OpPushPubKey && signature[69] == script.SigSchemeSecp256k1 {
+		return sdk.PubKey(signature[70:])
 	}
 	return nil
 }

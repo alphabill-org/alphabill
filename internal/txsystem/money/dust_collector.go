@@ -96,6 +96,10 @@ func (d *DustCollector) consolidateDust(currentBlockNumber uint64) error {
 }
 
 func (d *DustCollector) generateDcTx(blockNumber uint64) ([]*types.TransactionRecord, error) {
+	if len(d.GetDustBills(blockNumber)) == 0 {
+		return nil, nil
+	}
+
 	return []*types.TransactionRecord{
 		{
 			TransactionOrder: &types.TransactionOrder{

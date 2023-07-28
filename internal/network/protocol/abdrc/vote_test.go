@@ -4,12 +4,13 @@ import (
 	gocrypto "crypto"
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/rootchain/consensus/abdrc/testutils"
 	abtypes "github.com/alphabill-org/alphabill/internal/rootchain/consensus/abdrc/types"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	"github.com/alphabill-org/alphabill/internal/types"
-	"github.com/stretchr/testify/require"
 )
 
 func TestVoteMsg_AddSignature(t *testing.T) {
@@ -82,20 +83,8 @@ func TestVoteMsg_AddSignature(t *testing.T) {
 	}
 }
 
-func TestVoteMsg_Verify(t *testing.T) {
-	type fields struct {
-		VoteInfo         *abtypes.RoundInfo
-		LedgerCommitInfo *types.UnicitySeal
-		HighQc           *abtypes.QuorumCert
-		Author           string
-		Signature        []byte
-	}
-	type args struct {
-		quorum    uint32
-		rootTrust map[string]crypto.Verifier
-	}
+func Test_VoteMsg_Verify(t *testing.T) {
 	const votedRound = 10
-	const quorum = 3
 	s1, v1 := testsig.CreateSignerAndVerifier(t)
 	s2, v2 := testsig.CreateSignerAndVerifier(t)
 	s3, v3 := testsig.CreateSignerAndVerifier(t)
@@ -108,139 +97,86 @@ func TestVoteMsg_Verify(t *testing.T) {
 	require.NoError(t, err)
 	sig3, err := s3.SignBytes(commitInfo.Bytes())
 	require.NoError(t, err)
-	commitQc := &abtypes.QuorumCert{
-		VoteInfo:         commitQcInfo,
-		LedgerCommitInfo: commitInfo,
-		Signatures:       map[string][]byte{"1": sig1, "2": sig2, "3": sig3},
-	}
-	voteMsgInfo := testutils.NewDummyRootRoundInfo(votedRound)
-	tests := []struct {
-		name       string
-		fields     fields
-		args       args
-		wantErrStr string
-	}{
-		{
-			name: "Vote info error",
-			fields: fields{
-				VoteInfo:         nil,
-				LedgerCommitInfo: &types.UnicitySeal{RootInternalInfo: nil, Hash: nil},
-				HighQc:           &abtypes.QuorumCert{},
-				Author:           "test",
-				Signature:        nil,
-			},
-			args:       args{quorum: quorum, rootTrust: nil},
-			wantErrStr: "invalid vote message, vote info is nil",
-		},
-		{
-			name: "Vote info invalid",
-			fields: fields{
-				VoteInfo:         &abtypes.RoundInfo{RoundNumber: 8, ParentRoundNumber: 9},
-				LedgerCommitInfo: &types.UnicitySeal{RootInternalInfo: nil, Hash: nil},
-				HighQc:           &abtypes.QuorumCert{},
-				Author:           "test",
-				Signature:        nil,
-			},
-			args:       args{quorum: quorum, rootTrust: nil},
-			wantErrStr: "invalid vote message, root round info round number is not valid",
-		},
-		{
-			name: "Vote info hash error",
-			fields: fields{
-				VoteInfo:         voteMsgInfo,
-				LedgerCommitInfo: &types.UnicitySeal{RootInternalInfo: []byte{0, 1, 3}, Hash: nil},
-				HighQc:           &abtypes.QuorumCert{},
-				Author:           "test",
-				Signature:        nil,
-			},
-			args:       args{quorum: quorum, rootTrust: nil},
-			wantErrStr: "vote info hash does not match hash in commit info",
-		},
-		{
-			name: "Vote info no author",
-			fields: fields{
-				VoteInfo:         voteMsgInfo,
-				LedgerCommitInfo: testutils.NewDummyCommitInfo(gocrypto.SHA256, voteMsgInfo),
-				HighQc:           &abtypes.QuorumCert{},
-				Author:           "",
-				Signature:        nil,
-			},
-			args:       args{quorum: quorum, rootTrust: rootTrust},
-			wantErrStr: "invalid vote message, no author",
-		},
-		{
-			name: "Vote info author public key not registered",
-			fields: fields{
-				VoteInfo:         voteMsgInfo,
-				LedgerCommitInfo: testutils.NewDummyCommitInfo(gocrypto.SHA256, voteMsgInfo),
-				HighQc:           commitQc,
-				Author:           "test",
-				Signature:        nil,
-			},
-			args:       args{quorum: quorum, rootTrust: rootTrust},
-			wantErrStr: "failed to find public key for author test",
-		},
-		{
-			name: "Vote info author public key not registered",
-			fields: fields{
-				VoteInfo:         voteMsgInfo,
-				LedgerCommitInfo: testutils.NewDummyCommitInfo(gocrypto.SHA256, voteMsgInfo),
-				HighQc:           commitQc,
-				Author:           "1",
-				Signature:        nil,
-			},
-			args:       args{quorum: quorum, rootTrust: rootTrust},
-			wantErrStr: "message signature verification failed",
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			x := &VoteMsg{
-				VoteInfo:         tt.fields.VoteInfo,
-				LedgerCommitInfo: tt.fields.LedgerCommitInfo,
-				HighQc:           tt.fields.HighQc,
-				Author:           tt.fields.Author,
-				Signature:        tt.fields.Signature,
-			}
-			err := x.Verify(tt.args.quorum, tt.args.rootTrust)
-			if tt.wantErrStr != "" {
-				require.ErrorContains(t, err, tt.wantErrStr)
-				return
-			}
-			require.NoError(t, err)
-		})
-	}
-}
 
-func TestVoteMsg_VerifyOk(t *testing.T) {
-	const votedRound = 10
-	const quorum = 3
-	s1, v1 := testsig.CreateSignerAndVerifier(t)
-	s2, v2 := testsig.CreateSignerAndVerifier(t)
-	s3, v3 := testsig.CreateSignerAndVerifier(t)
-	rootTrust := map[string]crypto.Verifier{"1": v1, "2": v2, "3": v3}
-	commitQcInfo := testutils.NewDummyRootRoundInfo(votedRound - 2)
-	commitInfo := testutils.NewDummyCommitInfo(gocrypto.SHA256, commitQcInfo)
-	sig1, err := s1.SignBytes(commitInfo.Bytes())
-	require.NoError(t, err)
-	sig2, err := s2.SignBytes(commitInfo.Bytes())
-	require.NoError(t, err)
-	sig3, err := s3.SignBytes(commitInfo.Bytes())
-	require.NoError(t, err)
-	highQc := &abtypes.QuorumCert{
-		VoteInfo:         commitQcInfo,
-		LedgerCommitInfo: commitInfo,
-		Signatures:       map[string][]byte{"1": sig1, "2": sig2, "3": sig3},
+	// valid vote obj - each test creates copy of it to make single field invalid
+	validVoteMsg := func(t *testing.T) *VoteMsg {
+		t.Helper()
+		voteMsgInfo := testutils.NewDummyRootRoundInfo(votedRound)
+		vote := &VoteMsg{
+			VoteInfo: voteMsgInfo,
+			LedgerCommitInfo: &types.UnicitySeal{
+				RootInternalInfo: voteMsgInfo.Hash(gocrypto.SHA256),
+			},
+			HighQc: &abtypes.QuorumCert{
+				VoteInfo:         commitQcInfo,
+				LedgerCommitInfo: commitInfo,
+				Signatures:       map[string][]byte{"1": sig1, "2": sig2, "3": sig3},
+			},
+			Author: "1",
+		}
+		require.NoError(t, vote.Sign(s1))
+		return vote
 	}
-	voteMsgInfo := testutils.NewDummyRootRoundInfo(votedRound)
-	voteMsg := &VoteMsg{
-		VoteInfo: voteMsgInfo,
-		LedgerCommitInfo: &types.UnicitySeal{
-			RootInternalInfo: voteMsgInfo.Hash(gocrypto.SHA256),
-		},
-		HighQc: highQc,
-		Author: "1",
-	}
-	require.NoError(t, voteMsg.Sign(s1))
-	require.NoError(t, voteMsg.Verify(quorum, rootTrust))
+	require.NoError(t, validVoteMsg(t).Verify(uint32(len(rootTrust)), rootTrust), "expected validVoteMsg to return valid vote struct")
+
+	t.Run("VoteInfo is missing", func(t *testing.T) {
+		vi := validVoteMsg(t)
+		vi.VoteInfo = nil
+		require.EqualError(t, vi.Verify(3, rootTrust), `vote info is missing`)
+	})
+
+	t.Run("invalid vote info", func(t *testing.T) {
+		vi := validVoteMsg(t)
+		vi.VoteInfo.RoundNumber = 0
+		require.EqualError(t, vi.Verify(3, rootTrust), `invalid vote info: round number is not assigned`)
+	})
+
+	t.Run("missing US", func(t *testing.T) {
+		vi := validVoteMsg(t)
+		vi.LedgerCommitInfo = nil
+		require.EqualError(t, vi.Verify(3, rootTrust), `ledger commit info (unicity seal) is missing`)
+	})
+
+	t.Run("invalid vote info hash", func(t *testing.T) {
+		vi := validVoteMsg(t)
+		vi.VoteInfo.Epoch += 1
+		require.ErrorContains(t, vi.Verify(3, rootTrust), `vote info hash does not match hash in commit info`)
+
+		vi.VoteInfo.Epoch -= 1
+		vi.LedgerCommitInfo.RootInternalInfo = nil
+		require.EqualError(t, vi.Verify(3, rootTrust), `vote info hash does not match hash in commit info`)
+	})
+
+	t.Run("high QC is missing", func(t *testing.T) {
+		vi := validVoteMsg(t)
+		vi.HighQc = nil
+		require.EqualError(t, vi.Verify(3, rootTrust), `high QC is missing`)
+	})
+
+	t.Run("invalid high QC", func(t *testing.T) {
+		vi := validVoteMsg(t)
+		vi.HighQc.VoteInfo = nil
+		require.EqualError(t, vi.Verify(3, rootTrust), `invalid high QC: invalid quorum certificate: vote info is nil`)
+	})
+
+	t.Run("unassigned author", func(t *testing.T) {
+		vi := validVoteMsg(t)
+		vi.Author = ""
+		require.EqualError(t, vi.Verify(3, rootTrust), `author is missing`)
+	})
+
+	t.Run("missing author", func(t *testing.T) {
+		vi := validVoteMsg(t)
+		vi.Author = "unknown"
+		require.EqualError(t, vi.Verify(3, rootTrust), `author "unknown" is not in the trustbase`)
+	})
+
+	t.Run("invalid signature", func(t *testing.T) {
+		vi := validVoteMsg(t)
+		vi.Signature[0] = 0
+		require.ErrorContains(t, vi.Verify(3, rootTrust), `signature verification failed: signature verify failed`)
+
+		vi.Signature = nil
+		require.ErrorContains(t, vi.Verify(3, rootTrust), `signature verification failed: nil argument`)
+	})
 }

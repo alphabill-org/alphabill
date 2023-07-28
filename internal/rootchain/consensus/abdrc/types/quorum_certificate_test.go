@@ -4,11 +4,12 @@ import (
 	gocrypto "crypto"
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/alphabill-org/alphabill/internal/crypto"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	"github.com/alphabill-org/alphabill/internal/types"
-	"github.com/stretchr/testify/require"
 )
 
 type Option func(*RoundInfo)
@@ -58,7 +59,7 @@ func TestQuorumCert_IsValid(t *testing.T) {
 				LedgerCommitInfo: nil,
 				Signatures:       nil,
 			},
-			wantErrStr: "vote info not valid, root round info latest root hash is not valid",
+			wantErrStr: "invalid vote info: parent round number is not assigned",
 		},
 		{
 			name: "QC not  valid - ledger info is nil",
@@ -122,95 +123,67 @@ func TestQuorumCert_Verify(t *testing.T) {
 	s2, v2 := testsig.CreateSignerAndVerifier(t)
 	s3, v3 := testsig.CreateSignerAndVerifier(t)
 	rootTrust := map[string]crypto.Verifier{"1": v1, "2": v2, "3": v3}
-	voteInfo := &RoundInfo{RoundNumber: 10, Epoch: 0,
-		Timestamp: 1670314583523, ParentRoundNumber: 9, CurrentRootHash: test.RandomBytes(32)}
-	commitInfo := &types.UnicitySeal{RootInternalInfo: voteInfo.Hash(gocrypto.SHA256)}
-	sig1, err := s1.SignBytes(commitInfo.Bytes())
-	require.NoError(t, err)
-	sig2, err := s2.SignBytes(commitInfo.Bytes())
-	require.NoError(t, err)
-	sig3, err := s3.SignBytes(commitInfo.Bytes())
-	require.NoError(t, err)
 
-	type fields struct {
-		VoteInfo         *RoundInfo
-		LedgerCommitInfo *types.UnicitySeal
-		Signatures       map[string][]byte
+	validQC := func() *QuorumCert {
+		voteInfo := &RoundInfo{RoundNumber: 10, ParentRoundNumber: 9, Epoch: 0, Timestamp: 1670314583523, CurrentRootHash: test.RandomBytes(32)}
+		commitInfo := &types.UnicitySeal{RootInternalInfo: voteInfo.Hash(gocrypto.SHA256)}
+		cib := commitInfo.Bytes()
+		sig1, err := s1.SignBytes(cib)
+		require.NoError(t, err)
+		sig2, err := s2.SignBytes(cib)
+		require.NoError(t, err)
+		sig3, err := s3.SignBytes(cib)
+		require.NoError(t, err)
+		qc := &QuorumCert{
+			VoteInfo:         voteInfo,
+			LedgerCommitInfo: commitInfo,
+			Signatures:       map[string][]byte{"1": sig1, "2": sig2, "3": sig3},
+		}
+		return qc
 	}
-	type args struct {
-		quorum    uint32
-		rootTrust map[string]crypto.Verifier
-	}
-	tests := []struct {
-		name       string
-		fields     fields
-		args       args
-		wantErrStr string
-	}{
-		{
-			name: "QC not  valid - missing signatures",
-			fields: fields{
-				VoteInfo:         voteInfo,
-				LedgerCommitInfo: commitInfo,
-				Signatures:       nil,
-			},
-			wantErrStr: "qc is missing signatures",
-		},
-		{
-			name: "QC signatures not valid",
-			fields: fields{
-				VoteInfo:         voteInfo,
-				LedgerCommitInfo: commitInfo,
-				Signatures:       map[string][]byte{"1": {0, 1, 2}, "2": {0, 1, 2}, "3": {0, 1, 2}},
-			},
-			args:       args{quorum: 2, rootTrust: rootTrust},
-			wantErrStr: "signature is not valid: signature length is",
-		},
-		{
-			name: "QC no quorum",
-			fields: fields{
-				VoteInfo:         voteInfo,
-				LedgerCommitInfo: commitInfo,
-				Signatures:       map[string][]byte{"1": {0, 1, 2}, "2": {0, 1, 2}},
-			},
-			args:       args{quorum: 3, rootTrust: rootTrust},
-			wantErrStr: "certificate has less signatures 2 than required by quorum 3",
-		},
-		{
-			name: "QC invalid signature means no qc is not valid",
-			fields: fields{
-				VoteInfo:         voteInfo,
-				LedgerCommitInfo: commitInfo,
-				Signatures:       map[string][]byte{"1": sig1, "2": sig2, "3": {0, 1, 2}},
-			},
-			args:       args{quorum: 2, rootTrust: rootTrust},
-			wantErrStr: "node 3 signature is not valid: signature length is",
-		},
-		{
-			name: "QC is valid",
-			fields: fields{
-				VoteInfo:         voteInfo,
-				LedgerCommitInfo: commitInfo,
-				Signatures:       map[string][]byte{"1": sig1, "2": sig2, "3": sig3},
-			},
-			args: args{quorum: 2, rootTrust: rootTrust},
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			x := &QuorumCert{
-				VoteInfo:         tt.fields.VoteInfo,
-				LedgerCommitInfo: tt.fields.LedgerCommitInfo,
-				Signatures:       tt.fields.Signatures,
-			}
-			err = x.Verify(tt.args.quorum, tt.args.rootTrust)
-			if tt.wantErrStr != "" {
-				require.ErrorContains(t, err, tt.wantErrStr)
-				return
-			}
-			require.NoError(t, err)
-		})
-	}
+	require.NoError(t, validQC().Verify(3, rootTrust), `validQC must return valid QC`)
+
+	t.Run("IsValid is called", func(t *testing.T) {
+		// trigger an error from IsValid to make sure it is called - so we do not need
+		// to test for validity conditions here...
+		qc := validQC()
+		qc.VoteInfo = nil
+		require.EqualError(t, qc.Verify(3, rootTrust), `invalid quorum certificate: vote info is nil`)
+	})
+
+	t.Run("invalid vote info hash", func(t *testing.T) {
+		qc := validQC()
+
+		// change vote info so hash should change
+		qc.VoteInfo.Timestamp += 1
+		require.EqualError(t, qc.Verify(3, rootTrust), `vote info hash verification failed`)
+
+		// change stored hash
+		qc.VoteInfo.Timestamp -= 1 // restore original value
+		qc.LedgerCommitInfo.RootInternalInfo[0] = 0
+		require.EqualError(t, qc.Verify(3, rootTrust), `vote info hash verification failed`)
+	})
+
+	t.Run("do we have enough signatures for quorum", func(t *testing.T) {
+		qc := validQC()
+		// we have enough signatures for quorum
+		require.NoError(t, qc.Verify(2, rootTrust))
+		require.NoError(t, qc.Verify(3, rootTrust))
+		// require more signatures than QC has
+		require.EqualError(t, qc.Verify(4, rootTrust), `quorum requires 4 signatures but certificate has 3`)
+	})
+
+	t.Run("unknown signer", func(t *testing.T) {
+		qc := validQC()
+		qc.Signatures["foobar"] = []byte{1, 2, 3}
+		require.EqualError(t, qc.Verify(2, rootTrust), `signer "foobar" is not part of trustbase`)
+	})
+
+	t.Run("invalid signature", func(t *testing.T) {
+		qc := validQC()
+		qc.Signatures["2"] = []byte{1, 2, 3}
+		require.ErrorContains(t, qc.Verify(2, rootTrust), `signer "2" signature is not valid:`)
+	})
 }
 
 func TestQuorumCert_GetRound(t *testing.T) {

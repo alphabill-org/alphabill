@@ -58,8 +58,14 @@ type (
 		partitions     partitions.PartitionConfiguration
 		irReqVerifier  *IRChangeReqVerifier
 		t2Timeouts     *PartitionTimeoutGenerator
-		voteBuffer     []*abdrc.VoteMsg
-		recovery       *recoveryInfo
+		// votes need to be buffered when CM will be the next leader (so other nodes
+		// will send votes to it) but it hasn't got the proposal yet so it can't process
+		// the votes. voteBuffer maps author id to vote so we do not buffer same vote
+		// multiple times (votes are buffered for single round only)
+		voteBuffer map[string]*abdrc.VoteMsg
+		// when set (ie not nil) CM is in recovery mode, trying to get into the same
+		// state as other CMs
+		recovery *recoveryInfo
 	}
 )
 
@@ -119,6 +125,7 @@ func NewDistributedAbConsensusManager(nodeID peer.ID, rg *genesis.RootGenesis,
 		partitions:     partitionStore,
 		irReqVerifier:  reqVerifier,
 		t2Timeouts:     t2TimeoutGen,
+		voteBuffer:     make(map[string]*abdrc.VoteMsg),
 	}
 	return consensusManager, nil
 }
@@ -327,19 +334,18 @@ func (x *ConsensusManager) onVoteMsg(ctx context.Context, vote *abdrc.VoteMsg) e
 	if err != nil {
 		return fmt.Errorf("invalid vote: %w", err)
 	}
-	logger.Trace("%v round %v received vote for round %v from %v",
-		x.id.ShortString(), x.pacemaker.GetCurrentRound(), vote.VoteInfo.RoundNumber, vote.Author)
 	// if a vote is received for the next round it is intended for the node which is going to be the
 	// leader in round current+2. We cache it in the voteBuffer anyway, in hope that this node will
 	// be the leader then (reputation based algorithm can't predict leader for the round current+2
 	// as ie round-robin can).
 	if vote.VoteInfo.RoundNumber == x.pacemaker.GetCurrentRound()+1 {
-		// vote received before proposal, buffer
-		// NB! we should check that the same peer doesn't send multiple votes, otherwise it is possible
-		// to trick instance into recovery mode?
+		// either vote arrived before proposal or we're behind (others think we're the leader of
+		// the round but we haven't seen QC or TC for previous round?)
+		// Votes are buffered for one round only so if we overwrite author's vote it is either stale
+		// or we have received the vote more than once.
 		logger.Debug("%v round %v received vote for round %v before proposal, buffering vote",
 			x.id.ShortString(), x.pacemaker.GetCurrentRound(), vote.VoteInfo.RoundNumber)
-		x.voteBuffer = append(x.voteBuffer, vote)
+		x.voteBuffer[vote.Author] = vote
 		// if we have received quorum votes, but no proposal yet, then try and recover the proposal.
 		// NB! it seems that it's quite common that votes arrive before proposal and going into recovery
 		// too early is counterproductive... maybe do not trigger recovery here at all - if we're lucky
@@ -353,21 +359,22 @@ func (x *ConsensusManager) onVoteMsg(ctx context.Context, vote *abdrc.VoteMsg) e
 		}
 		return nil
 	}
-	// Normal votes are only sent to the next leader,
-	// timeout votes are broadcast to everybody
+
+	// Normal votes are only sent to the next leader (timeout votes are broadcast) is it us?
+	// NB! we assume vote.VoteInfo.RoundNumber == x.pacemaker.GetCurrentRound() but it also could be that VVR > CR+1
 	nextRound := vote.VoteInfo.RoundNumber + 1
-	// verify that the validator is correct leader in next round
 	if x.leaderSelector.GetLeaderForRound(nextRound) != x.id {
-		// this might also be a stale vote, since when we have quorum the round is advanced and the node becomes
-		// the new leader in the current view/round
 		return fmt.Errorf("validator is not the leader for round %d", nextRound)
 	}
+
 	// SyncState, compare last handled QC
+	// this check should be before checking are we the leader for the VVR+1 round as when
+	// we're out of sync the test for the next leader doesn't make sense? add check for VVR>CR+1 ?
 	if err := x.checkRecoveryNeeded(vote.HighQc); err != nil {
 		// we need to buffer the vote(s) so that when recovery succeeds we can "replay"
 		// them - otherwise there might not be enough votes to achieve quorum and round
 		// will time out
-		x.voteBuffer = append(x.voteBuffer, vote)
+		x.voteBuffer[vote.Author] = vote
 		err = fmt.Errorf("vote triggers recovery: %w", err)
 		if e := x.sendRecoveryRequests(vote); e != nil {
 			err = errors.Join(err, fmt.Errorf("sending recovery requests failed: %w", e))
@@ -500,15 +507,9 @@ func (x *ConsensusManager) onProposalMsg(ctx context.Context, proposal *abdrc.Pr
 	if err != nil {
 		return fmt.Errorf("failed to send vote to next leader: %w", err)
 	}
-	// process vote buffer
-	// optimize? only call onVoteMsg when this node will be leader, otherwise just reset the buffer?
-	if len(x.voteBuffer) > 0 {
-		logger.Debug("Handling %v buffered vote messages", len(x.voteBuffer))
-		for _, v := range x.voteBuffer {
-			x.onVoteMsg(ctx, v)
-		}
-		x.voteBuffer = nil
-	}
+
+	x.replayVoteBuffer(ctx)
+
 	return nil
 }
 
@@ -550,6 +551,34 @@ func (x *ConsensusManager) processTC(tc *abtypes.TimeoutCert) {
 		logger.Warning("%v failed to handle timeout certificate: %v", x.id.ShortString(), err)
 	}
 	x.pacemaker.AdvanceRoundTC(tc)
+}
+
+/*
+replayVoteBuffer processes buffered votes. When method returns the buffer should be empty.
+*/
+func (x *ConsensusManager) replayVoteBuffer(ctx context.Context) {
+	voteCnt := len(x.voteBuffer)
+	if voteCnt == 0 {
+		return
+	}
+
+	logger.Debug("%s round %d replaying %d buffered votes", x.id.ShortString(), x.pacemaker.GetCurrentRound(), voteCnt)
+	var errs []error
+	for _, v := range x.voteBuffer {
+		if err := x.onVoteMsg(ctx, v); err != nil {
+			errs = append(errs, err)
+		}
+	}
+	if len(errs) > 0 {
+		// log the error(s) rather than return them as failing to process buffered
+		// votes is not critical from the callers POV but we want to have this info
+		// for debugging
+		logger.Warning("%s round %d out of %d buffered votes %d caused error on replay: %v", x.id.ShortString(), x.pacemaker.GetCurrentRound(), voteCnt, len(errs), errors.Join(errs...))
+	}
+
+	for k := range x.voteBuffer {
+		delete(x.voteBuffer, k)
+	}
 }
 
 // processNewRoundEvent handled new view event, is called when either QC or TC is reached locally and
@@ -666,10 +695,7 @@ func (x *ConsensusManager) onStateResponse(ctx context.Context, rsp *abdrc.State
 		x.onProposalMsg(ctx, prop)
 	}
 
-	for _, v := range x.voteBuffer {
-		x.onVoteMsg(ctx, v)
-	}
-	x.voteBuffer = nil
+	x.replayVoteBuffer(ctx)
 
 	return nil
 }

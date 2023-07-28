@@ -11,7 +11,6 @@ import (
 )
 
 var (
-	errInvalidRound             = errors.New("invalid round number")
 	errMissingPayload           = errors.New("proposed block is missing payload")
 	errMissingQuorumCertificate = errors.New("proposed block is missing quorum certificate")
 )
@@ -36,8 +35,7 @@ type Payload struct {
 
 func (x *Payload) AddToHasher(hasher hash.Hash) {
 	if x != nil {
-		certRequests := x.Requests
-		for _, r := range certRequests {
+		for _, r := range x.Requests {
 			r.AddToHasher(hasher)
 		}
 	}
@@ -45,20 +43,20 @@ func (x *Payload) AddToHasher(hasher hash.Hash) {
 
 func (x *Payload) IsValid() error {
 	// there can only be one request per system identifier in a block
-	sysIdSet := map[string]bool{}
+	sysIdSet := map[string]struct{}{}
 
 	for _, req := range x.Requests {
 		if err := req.IsValid(); err != nil {
-			return fmt.Errorf("IR change request for %X not valid, %w", req.SystemIdentifier, err)
+			return fmt.Errorf("invalid IR change request for %X: %w", req.SystemIdentifier, err)
 		}
 		// Timeout requests do not contain proof
 		if req.CertReason == T2Timeout && len(req.Requests) > 0 {
 			return fmt.Errorf("partition %X timeout proof contains requests", req.SystemIdentifier)
 		}
 		if _, found := sysIdSet[string(req.SystemIdentifier)]; found {
-			return fmt.Errorf("duplicate requests for parition %X", req.SystemIdentifier)
+			return fmt.Errorf("duplicate requests for partition %X", req.SystemIdentifier)
 		}
-		sysIdSet[string(req.SystemIdentifier)] = true
+		sysIdSet[string(req.SystemIdentifier)] = struct{}{}
 	}
 	return nil
 }
@@ -69,33 +67,33 @@ func (x *Payload) IsEmpty() bool {
 
 func (x *BlockData) IsValid() error {
 	if x.Round < 1 {
-		return errInvalidRound
+		return errRoundNumberUnassigned
 	}
 	if x.Payload == nil {
 		return errMissingPayload
 	}
 	// does not verify request signatures, this will need to be done later
 	if err := x.Payload.IsValid(); err != nil {
-		return fmt.Errorf("payload validation failed, %w", err)
+		return fmt.Errorf("invalid payload: %w", err)
 	}
 	if x.Qc == nil {
 		return errMissingQuorumCertificate
 	}
 	if err := x.Qc.IsValid(); err != nil {
-		return fmt.Errorf("quorum certificate validation failed, %w", err)
+		return fmt.Errorf("invalid quorum certificate: %w", err)
 	}
 	if x.Round <= x.Qc.VoteInfo.RoundNumber {
-		return fmt.Errorf("invalid block round %v, round is less or equal to qc round %v", x.Round, x.Qc.VoteInfo.RoundNumber)
+		return fmt.Errorf("invalid block round %d, round is less or equal to QC round %d", x.Round, x.Qc.VoteInfo.RoundNumber)
 	}
 	return nil
 }
 
 func (x *BlockData) Verify(quorum uint32, rootTrust map[string]crypto.Verifier) error {
 	if err := x.IsValid(); err != nil {
-		return fmt.Errorf("block data validation failed, %w", err)
+		return fmt.Errorf("invalid block data: %w", err)
 	}
 	if err := x.Qc.Verify(quorum, rootTrust); err != nil {
-		return fmt.Errorf("block data quorum certificate validation failed, %w", err)
+		return fmt.Errorf("invalid block data QC: %w", err)
 	}
 	return nil
 }
@@ -110,7 +108,7 @@ func (x *BlockData) Hash(algo gocrypto.Hash) []byte {
 	x.Payload.AddToHasher(hasher)
 	// From QC signatures (in the alphabetical order of signer ID!) must be included
 	// Genesis block does not have a QC
-	x.Qc.AddSignaturesToHasher(hasher)
+	x.Qc.AddSignersToHasher(hasher)
 	return hasher.Sum(nil)
 }
 

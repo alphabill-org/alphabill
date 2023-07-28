@@ -89,7 +89,7 @@ func (m *Module) TxExecutors() map[string]txsystem.TxExecutor {
 		PayloadTypeSwapDC:   handleSwapDCTx(m.state, m.hashAlgorithm, m.trustBase, m.feeCalculator),
 
 		// system generated tx handlers
-		PayloadTypePruneDC: m.dustCollector.handleDust(),
+		PayloadTypeDeleteDustBills: m.dustCollector.handleDust(),
 
 		// fee credit related transaction handlers (credit transfers and reclaims only!)
 		transactions.PayloadTypeTransferFeeCredit: handleTransferFeeCreditTx(m.state, m.hashAlgorithm, m.feeCreditTxRecorder, m.feeCalculator),

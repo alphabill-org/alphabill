@@ -30,7 +30,7 @@ func NewTxSystem(opts ...Option) (*txsystem.GenericTxSystem, error) {
 
 	return txsystem.NewGenericTxSystem(
 		[]txsystem.Module{money, feeCreditModule},
-		txsystem.WithSystemGeneratedTxTypes(PayloadTypePruneDC),
+		txsystem.WithSystemGeneratedTxTypes(PayloadTypeDeleteDustBills),
 		txsystem.WithEndBlockFunctions(money.EndBlockFuncs()...),
 		txsystem.WithBeginBlockFunctions(money.BeginBlockFuncs()...),
 		txsystem.WithSystemIdentifier(options.systemIdentifier),

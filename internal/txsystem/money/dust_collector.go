@@ -12,7 +12,7 @@ import (
 
 const (
 	defaultDustBillDeletionTimeout uint64 = 65536
-	PayloadTypePruneDC                    = "pruneMoneyDC"
+	PayloadTypeDeleteDustBills            = "deleteDustBills"
 )
 
 var (
@@ -105,7 +105,7 @@ func (d *DustCollector) generateDcTx(blockNumber uint64) ([]*types.TransactionRe
 			TransactionOrder: &types.TransactionOrder{
 				Payload: &types.Payload{
 					SystemID:       d.systemIdentifier,
-					Type:           PayloadTypePruneDC,
+					Type:           PayloadTypeDeleteDustBills,
 					ClientMetadata: &types.ClientMetadata{Timeout: blockNumber + 1},
 				},
 			},

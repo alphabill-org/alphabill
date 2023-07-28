@@ -52,81 +52,50 @@ func TestRoundInfo_Hash(t *testing.T) {
 	require.NotNil(t, x.Hash(gocrypto.SHA256))
 }
 
-func TestRootRoundInfo_IsValid(t *testing.T) {
-	type fields struct {
-		RoundNumber       uint64
-		Epoch             uint64
-		Timestamp         uint64
-		ParentRoundNumber uint64
-		CurrentRootHash   []byte
+func TestRoundInfo_IsValid(t *testing.T) {
+	// valid round info obj - each test creates copy of it to make single field invalid
+	validRI := RoundInfo{
+		ParentRoundNumber: 22,
+		RoundNumber:       23,
+		Epoch:             0,
+		Timestamp:         1257894000,
+		CurrentRootHash:   []byte{0, 1, 2, 5},
 	}
-	tests := []struct {
-		name    string
-		fields  fields
-		wantErr bool
-		errIs   error
-	}{
-		{
-			name: "valid",
-			fields: fields{
-				RoundNumber:       23,
-				Epoch:             0,
-				Timestamp:         11,
-				ParentRoundNumber: 22,
-				CurrentRootHash:   []byte{0, 1, 2, 5},
-			},
-			wantErr: false,
-			errIs:   nil,
-		},
-		{
-			name: "Parent round must be strictly smaller than current round",
-			fields: fields{
-				RoundNumber:       22,
-				Epoch:             0,
-				Timestamp:         11,
-				ParentRoundNumber: 22,
-				CurrentRootHash:   []byte{0, 1, 2, 5},
-			},
-			wantErr: true,
-			errIs:   ErrRootInfoInvalidRound,
-		},
-		{
-			name: "current root hash is nil",
-			fields: fields{
-				RoundNumber:       23,
-				Epoch:             0,
-				Timestamp:         11,
-				ParentRoundNumber: 22,
-				CurrentRootHash:   nil,
-			},
-			wantErr: true,
-			errIs:   ErrInvalidRootRoundInfoHash,
-		},
-		{
-			name: "current root hash is empty",
-			fields: fields{
-				RoundNumber:       23,
-				Epoch:             0,
-				Timestamp:         11,
-				ParentRoundNumber: 22,
-				CurrentRootHash:   []byte{},
-			},
-			wantErr: true,
-			errIs:   ErrInvalidRootRoundInfoHash,
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			x := &RoundInfo{
-				RoundNumber:       tt.fields.RoundNumber,
-				Epoch:             tt.fields.Epoch,
-				Timestamp:         tt.fields.Timestamp,
-				ParentRoundNumber: tt.fields.ParentRoundNumber,
-				CurrentRootHash:   tt.fields.CurrentRootHash,
-			}
-			if err := x.IsValid(); (err != nil) != tt.wantErr {
-				t.Errorf("IsValid() error = %v, wantErr %v", err, tt.wantErr)
-			}
-		})
-	}
+	require.NoError(t, validRI.IsValid())
+
+	t.Run("parent round number is unassigned", func(t *testing.T) {
+		ri := validRI
+		ri.ParentRoundNumber = 0
+		require.ErrorIs(t, ri.IsValid(), errParentRoundUnassigned)
+	})
+
+	t.Run("round number is unassigned", func(t *testing.T) {
+		ri := validRI
+		ri.RoundNumber = 0
+		require.ErrorIs(t, ri.IsValid(), errRoundNumberUnassigned)
+	})
+
+	t.Run("parent round must be strictly smaller than current round", func(t *testing.T) {
+		ri := validRI
+		ri.RoundNumber = ri.ParentRoundNumber
+		require.EqualError(t, ri.IsValid(), `invalid round number 22 - must be greater than parent round 22`)
+
+		ri.RoundNumber = ri.ParentRoundNumber - 1
+		require.EqualError(t, ri.IsValid(), `invalid round number 21 - must be greater than parent round 22`)
+	})
+
+	t.Run("root hash is empty", func(t *testing.T) {
+		ri := validRI
+		ri.CurrentRootHash = nil
+		require.ErrorIs(t, ri.IsValid(), errRootHashUnassigned)
+
+		ri.CurrentRootHash = []byte{}
+		require.ErrorIs(t, ri.IsValid(), errRootHashUnassigned)
+	})
+
+	t.Run("timestamp unassigned", func(t *testing.T) {
+		ri := validRI
+		ri.Timestamp = 0
+		require.ErrorIs(t, ri.IsValid(), errRoundCreationTimeNotSet)
+	})
 }

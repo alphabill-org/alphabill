@@ -53,178 +53,65 @@ func TestBlockDataHash(t *testing.T) {
 }
 
 func TestBlockData_IsValid(t *testing.T) {
-	type fields struct {
-		Id        []byte
-		Author    string
-		Round     uint64
-		Epoch     uint64
-		Timestamp uint64
-		Payload   *Payload
-		Qc        *QuorumCert
+	// returns valid BlockData obj - each test creates copy of it to
+	// make single field/condition invalid
+	validBlockData := func() *BlockData {
+		return &BlockData{
+			Author:    "author",
+			Round:     8,
+			Epoch:     0,
+			Timestamp: 123456789000,
+			Payload:   &Payload{}, // empty payload is OK
+			Qc: &QuorumCert{
+				VoteInfo:         &RoundInfo{ParentRoundNumber: 6, RoundNumber: 7, Timestamp: 1111, CurrentRootHash: []byte{0, 1, 3}},
+				LedgerCommitInfo: &types.UnicitySeal{RootInternalInfo: []byte{0, 2, 1}},
+				Signatures:       map[string][]byte{"1": {0, 1, 2}},
+			},
+		}
 	}
-	type args struct {
-		quorum    uint32
-		rootTrust map[string]abcrypto.Verifier
-	}
-	tests := []struct {
-		name       string
-		fields     fields
-		args       args
-		wantErrStr string
-	}{
-		{
-			name: "Invalid block round",
-			fields: fields{
-				Id:        nil,
-				Author:    "test",
-				Round:     2,
-				Epoch:     0,
-				Timestamp: 0x0102030405060708,
-				Payload:   &Payload{}, // empty payload
-				Qc: &QuorumCert{
-					VoteInfo:         &RoundInfo{RoundNumber: 0, CurrentRootHash: []byte{0, 1, 3}},
-					LedgerCommitInfo: &types.UnicitySeal{RootInternalInfo: []byte{0, 2, 1}},
-				},
-			},
-			args:       args{quorum: 1, rootTrust: nil},
-			wantErrStr: "root round info round number is not valid",
-		},
-		{
-			name: "Invalid round number",
-			fields: fields{
-				Id:        []byte{0, 1, 2},
-				Author:    "test",
-				Round:     0,
-				Epoch:     0,
-				Timestamp: 0x0102030405060708,
-				Payload:   &Payload{}, // empty payload
-				Qc: &QuorumCert{
-					VoteInfo:         &RoundInfo{RoundNumber: 1, CurrentRootHash: []byte{0, 1, 3}},
-					LedgerCommitInfo: &types.UnicitySeal{RootInternalInfo: []byte{0, 2, 1}},
-				},
-			},
-			args:       args{quorum: 1, rootTrust: nil},
-			wantErrStr: errInvalidRound.Error(),
-		},
-		{
-			name: "Invalid payload",
-			fields: fields{
-				Id:        []byte{0, 1, 2},
-				Author:    "test",
-				Round:     2,
-				Epoch:     0,
-				Timestamp: 0x0102030405060708,
-				Payload:   nil, // empty payload
-				Qc: &QuorumCert{
-					VoteInfo:         &RoundInfo{RoundNumber: 1, CurrentRootHash: []byte{0, 1, 3}},
-					LedgerCommitInfo: &types.UnicitySeal{RootInternalInfo: []byte{0, 2, 1}},
-				},
-			},
-			args:       args{quorum: 1, rootTrust: nil},
-			wantErrStr: errMissingPayload.Error(),
-		},
-		{
-			name: "Invalid QC is nil",
-			fields: fields{
-				Id:        []byte{0, 1, 2},
-				Author:    "test",
-				Round:     2,
-				Epoch:     0,
-				Timestamp: 0x0102030405060708,
-				Payload:   &Payload{}, // empty payload
-				Qc:        nil,
-			},
-			args:       args{quorum: 1, rootTrust: nil},
-			wantErrStr: errMissingQuorumCertificate.Error(),
-		},
-		{
-			name: "Invalid timestamp missing",
-			fields: fields{
-				Id:        []byte{0, 1, 2},
-				Author:    "test",
-				Round:     2,
-				Epoch:     0,
-				Timestamp: 0x0102030405060708,
-				Payload:   &Payload{}, // empty payload
-				Qc: &QuorumCert{
-					VoteInfo:         &RoundInfo{RoundNumber: 1, CurrentRootHash: []byte{0, 1, 3}},
-					LedgerCommitInfo: &types.UnicitySeal{RootInternalInfo: []byte{0, 2, 1}},
-				},
-			},
-			args:       args{quorum: 1, rootTrust: nil},
-			wantErrStr: "round creation time not set",
-		},
-		{
-			name: "Invalid timestamp missing",
-			fields: fields{
-				Id:        []byte{0, 1, 2},
-				Author:    "test",
-				Round:     2,
-				Epoch:     0,
-				Timestamp: 0x0102030405060708,
-				Payload:   &Payload{}, // empty payload
-				Qc: &QuorumCert{
-					VoteInfo:         &RoundInfo{RoundNumber: 1, CurrentRootHash: []byte{0, 1, 3}},
-					LedgerCommitInfo: &types.UnicitySeal{RootInternalInfo: []byte{0, 2, 1}},
-				},
-			},
-			args:       args{quorum: 1, rootTrust: nil},
-			wantErrStr: "round creation time not set",
-		},
-		{
-			name: "Invalid block round, Qc round is higher",
-			fields: fields{
-				Id:        []byte{0, 1, 2},
-				Author:    "test",
-				Round:     2,
-				Epoch:     0,
-				Timestamp: 0x0102030405060708,
-				Payload:   &Payload{}, // empty payload
-				Qc: &QuorumCert{
-					VoteInfo:         &RoundInfo{RoundNumber: 3, Timestamp: 1111, CurrentRootHash: []byte{0, 1, 3}},
-					LedgerCommitInfo: &types.UnicitySeal{RootInternalInfo: []byte{0, 2, 1}},
-					Signatures:       map[string][]byte{"1": {0, 1, 2}},
-				},
-			},
-			args:       args{quorum: 1, rootTrust: nil},
-			wantErrStr: "invalid block round 2, round is less or equal to qc round 3",
-		},
-		{
-			name: "Valid",
-			fields: fields{
-				Id:        []byte{0, 1, 2},
-				Author:    "test",
-				Round:     2,
-				Epoch:     0,
-				Timestamp: 0x0102030405060708,
-				Payload:   &Payload{}, // empty payload
-				Qc: &QuorumCert{
-					VoteInfo:         &RoundInfo{RoundNumber: 1, Timestamp: 1111, CurrentRootHash: []byte{0, 1, 3}},
-					LedgerCommitInfo: &types.UnicitySeal{RootInternalInfo: []byte{0, 2, 1}},
-					Signatures:       map[string][]byte{"1": {0, 1, 2}},
-				},
-			},
-			args: args{quorum: 1, rootTrust: nil},
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			x := &BlockData{
-				Author:    tt.fields.Author,
-				Round:     tt.fields.Round,
-				Epoch:     tt.fields.Epoch,
-				Timestamp: tt.fields.Timestamp,
-				Payload:   tt.fields.Payload,
-				Qc:        tt.fields.Qc,
-			}
-			err := x.IsValid()
-			if tt.wantErrStr != "" {
-				require.ErrorContains(t, err, tt.wantErrStr)
-				return
-			}
-			require.NoError(t, err)
-		})
-	}
+	require.NoError(t, validBlockData().IsValid(), "validBlockData must return valid BlockData struct")
+
+	t.Run("block round unassigned", func(t *testing.T) {
+		bd := validBlockData()
+		bd.Round = 0
+		require.ErrorIs(t, bd.IsValid(), errRoundNumberUnassigned)
+	})
+
+	t.Run("block round must be greater than QC round", func(t *testing.T) {
+		bd := validBlockData()
+		bd.Round = bd.Qc.GetRound()
+		err := bd.IsValid()
+		require.EqualError(t, err, `invalid block round 7, round is less or equal to QC round 7`)
+
+		bd.Round = bd.Qc.GetRound() - 1
+		err = bd.IsValid()
+		require.EqualError(t, err, `invalid block round 6, round is less or equal to QC round 7`)
+	})
+
+	t.Run("missing payload", func(t *testing.T) {
+		bd := validBlockData()
+		bd.Payload = nil
+		require.ErrorIs(t, bd.IsValid(), errMissingPayload)
+	})
+
+	t.Run("invalid payload", func(t *testing.T) {
+		bd := validBlockData()
+		bd.Payload.Requests = []*IRChangeReq{{SystemIdentifier: []byte{1}}}
+		err := bd.IsValid()
+		require.EqualError(t, err, `invalid payload: invalid IR change request for 01: invalid system identifier [1]`)
+	})
+
+	t.Run("missing QC", func(t *testing.T) {
+		bd := validBlockData()
+		bd.Qc = nil
+		require.ErrorIs(t, bd.IsValid(), errMissingQuorumCertificate)
+	})
+
+	t.Run("invalid QC", func(t *testing.T) {
+		bd := validBlockData()
+		bd.Qc.VoteInfo = nil
+		require.ErrorIs(t, bd.IsValid(), errVoteInfoIsNil) // invalid quorum certificate: vote info is nil
+	})
 }
 
 func TestBlockData_Verify(t *testing.T) {
@@ -249,7 +136,7 @@ func TestBlockData_Verify(t *testing.T) {
 	require.NoError(t, block.Verify(3, rootTrust))
 	// remove a signature from QC
 	delete(block.Qc.Signatures, "2")
-	require.ErrorContains(t, block.Verify(3, rootTrust), "block data quorum certificate validation failed, certificate has less signatures 2 than required by quorum 3")
+	require.ErrorContains(t, block.Verify(3, rootTrust), "invalid block data QC: quorum requires 3 signatures but certificate has 2")
 }
 
 func TestPayload_IsEmpty(t *testing.T) {

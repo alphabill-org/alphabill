@@ -4,12 +4,13 @@ import (
 	gocrypto "crypto"
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/rootchain/consensus/abdrc/testutils"
 	abtypes "github.com/alphabill-org/alphabill/internal/rootchain/consensus/abdrc/types"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	"github.com/alphabill-org/alphabill/internal/types"
-	"github.com/stretchr/testify/require"
 )
 
 func addQCSignature(t *testing.T, qc *abtypes.QuorumCert, author string, signer crypto.Signer) {
@@ -48,7 +49,7 @@ func TestProposalMsg_IsValid(t *testing.T) {
 					Qc:        nil,
 				},
 			},
-			wantErrStr: "block not valid: invalid round number",
+			wantErrStr: "invalid block: round number is not assigned",
 		},
 		{
 			name: "Invalid block round, does not follow QC",
@@ -150,11 +151,11 @@ func TestProposalMsg_Sign_InvalidBlock(t *testing.T) {
 		LastRoundTc: nil,
 	}
 	s1, _ := testsig.CreateSignerAndVerifier(t)
-	require.ErrorContains(t, proposeMsg.Sign(s1), "invalid round")
+	require.ErrorContains(t, proposeMsg.Sign(s1), "round number is not assigned")
 }
 
 func TestProposalMsg_Sign_Ok(t *testing.T) {
-	qcInfo := testutils.NewDummyRootRoundInfo(8)
+	qcInfo := testutils.NewDummyRootRoundInfo(9)
 
 	proposeMsg := &ProposalMsg{
 		Block: &abtypes.BlockData{
@@ -175,147 +176,63 @@ func TestProposalMsg_Sign_Ok(t *testing.T) {
 	require.NoError(t, proposeMsg.Sign(s1))
 }
 
-func TestProposalMsg_Verify_UnknownSigner(t *testing.T) {
+func TestProposalMsg_Verify(t *testing.T) {
 	s1, v1 := testsig.CreateSignerAndVerifier(t)
 	s2, v2 := testsig.CreateSignerAndVerifier(t)
 	s3, v3 := testsig.CreateSignerAndVerifier(t)
 	rootTrust := map[string]crypto.Verifier{"1": v1, "2": v2, "3": v3}
-	voteInfo := testutils.NewDummyRootRoundInfo(9)
-	lastRoundQc := abtypes.NewQuorumCertificate(voteInfo, nil)
-	addQCSignature(t, lastRoundQc, "1", s1)
-	addQCSignature(t, lastRoundQc, "2", s2)
-	addQCSignature(t, lastRoundQc, "3", s3)
-	proposeMsg := &ProposalMsg{
-		Block: &abtypes.BlockData{
-			Author:    "12",
-			Round:     10,
-			Epoch:     0,
-			Timestamp: 1234,
-			Payload:   &abtypes.Payload{},
-			Qc:        lastRoundQc,
-		},
-		LastRoundTc: nil,
-	}
-	require.NoError(t, proposeMsg.Sign(s1))
-	require.ErrorContains(t, proposeMsg.Verify(3, rootTrust), "unknown root validator 12")
-}
 
-func TestProposalMsg_Verify_ErrorInBlockHash(t *testing.T) {
-	s1, v1 := testsig.CreateSignerAndVerifier(t)
-	s2, v2 := testsig.CreateSignerAndVerifier(t)
-	s3, v3 := testsig.CreateSignerAndVerifier(t)
-	rootTrust := map[string]crypto.Verifier{"1": v1, "2": v2, "3": v3}
-	lastRoundVoteInfo := testutils.NewDummyRootRoundInfo(9)
-	lastRoundQc := &abtypes.QuorumCert{
-		VoteInfo:         lastRoundVoteInfo,
-		LedgerCommitInfo: testutils.NewDummyCommitInfo(gocrypto.SHA256, lastRoundVoteInfo),
-		Signatures:       map[string][]byte{},
+	validProposal := func(t *testing.T) *ProposalMsg {
+		t.Helper()
+		voteInfo := testutils.NewDummyRootRoundInfo(9)
+		lastRoundQc := abtypes.NewQuorumCertificate(voteInfo, nil)
+		addQCSignature(t, lastRoundQc, "1", s1)
+		addQCSignature(t, lastRoundQc, "2", s2)
+		addQCSignature(t, lastRoundQc, "3", s3)
+		proposeMsg := &ProposalMsg{
+			Block: &abtypes.BlockData{
+				Author:    "1",
+				Round:     10,
+				Epoch:     0,
+				Timestamp: 1234,
+				Payload:   &abtypes.Payload{},
+				Qc:        lastRoundQc,
+			},
+			LastRoundTc: nil,
+		}
+		require.NoError(t, proposeMsg.Sign(s1))
+		return proposeMsg
 	}
-	addQCSignature(t, lastRoundQc, "1", s1)
-	addQCSignature(t, lastRoundQc, "2", s2)
-	addQCSignature(t, lastRoundQc, "3", s3)
-	proposeMsg := &ProposalMsg{
-		Block: &abtypes.BlockData{
-			Author:    "1",
-			Round:     10,
-			Epoch:     0,
-			Timestamp: 1234,
-			Payload:   &abtypes.Payload{},
-			Qc:        lastRoundQc,
-		},
-		LastRoundTc: nil,
-	}
-	require.NoError(t, proposeMsg.Sign(s1))
-	// change block after signing
-	proposeMsg.Block.Timestamp = 0x11111111
-	require.ErrorContains(t, proposeMsg.Verify(3, rootTrust), "message signature verification failed")
-}
 
-func TestProposalMsg_Verify_BlockQcNoQuorum(t *testing.T) {
-	s1, v1 := testsig.CreateSignerAndVerifier(t)
-	s2, v2 := testsig.CreateSignerAndVerifier(t)
-	_, v3 := testsig.CreateSignerAndVerifier(t)
-	rootTrust := map[string]crypto.Verifier{"1": v1, "2": v2, "3": v3}
-	lastRoundVoteInfo := testutils.NewDummyRootRoundInfo(9)
-	lastRoundQc := &abtypes.QuorumCert{
-		VoteInfo:         lastRoundVoteInfo,
-		LedgerCommitInfo: &types.UnicitySeal{RootInternalInfo: lastRoundVoteInfo.Hash(gocrypto.SHA256)},
-		Signatures:       map[string][]byte{},
-	}
-	addQCSignature(t, lastRoundQc, "1", s1)
-	addQCSignature(t, lastRoundQc, "2", s2)
-	proposeMsg := &ProposalMsg{
-		Block: &abtypes.BlockData{
-			Author:    "1",
-			Round:     10,
-			Epoch:     0,
-			Timestamp: 1234,
-			Payload:   &abtypes.Payload{},
-			Qc:        lastRoundQc,
-		},
-		LastRoundTc: nil,
-	}
-	require.NoError(t, proposeMsg.Sign(s1))
-	require.ErrorContains(t, proposeMsg.Verify(3, rootTrust), "block verification failed")
-}
+	require.NoError(t, validProposal(t).Verify(3, rootTrust))
 
-func TestProposalMsg_Verify_InvalidSignature(t *testing.T) {
-	s1, v1 := testsig.CreateSignerAndVerifier(t)
-	s2, v2 := testsig.CreateSignerAndVerifier(t)
-	s3, v3 := testsig.CreateSignerAndVerifier(t)
-	rootTrust := map[string]crypto.Verifier{"1": v1, "2": v2, "3": v3}
-	lastRoundVoteInfo := testutils.NewDummyRootRoundInfo(9)
-	lastRoundQc := &abtypes.QuorumCert{
-		VoteInfo:         lastRoundVoteInfo,
-		LedgerCommitInfo: &types.UnicitySeal{RootInternalInfo: lastRoundVoteInfo.Hash(gocrypto.SHA256)},
-		Signatures:       map[string][]byte{},
-	}
-	addQCSignature(t, lastRoundQc, "1", s1)
-	addQCSignature(t, lastRoundQc, "2", s2)
-	addQCSignature(t, lastRoundQc, "3", s3)
-	proposeMsg := &ProposalMsg{
-		Block: &abtypes.BlockData{
-			Author:    "1",
-			Round:     10,
-			Epoch:     0,
-			Timestamp: 1234,
-			Payload:   &abtypes.Payload{},
-			Qc:        lastRoundQc,
-		},
-		LastRoundTc: nil,
-	}
-	require.NoError(t, proposeMsg.Sign(s1))
-	proposeMsg.Signature = []byte{0, 1, 2, 3, 4}
-	require.ErrorContains(t, proposeMsg.Verify(3, rootTrust), "signature verification failed")
-}
+	t.Run("IsValid is called", func(t *testing.T) {
+		prop := validProposal(t)
+		prop.Block = nil
+		require.EqualError(t, prop.Verify(3, rootTrust), `validation failed: block is nil`)
+	})
 
-func TestProposalMsg_Verify_OK(t *testing.T) {
-	s1, v1 := testsig.CreateSignerAndVerifier(t)
-	s2, v2 := testsig.CreateSignerAndVerifier(t)
-	s3, v3 := testsig.CreateSignerAndVerifier(t)
-	rootTrust := map[string]crypto.Verifier{"1": v1, "2": v2, "3": v3}
-	lastRoundVoteInfo := testutils.NewDummyRootRoundInfo(9)
-	lastRoundQc := &abtypes.QuorumCert{
-		VoteInfo:         lastRoundVoteInfo,
-		LedgerCommitInfo: &types.UnicitySeal{RootInternalInfo: lastRoundVoteInfo.Hash(gocrypto.SHA256)},
-		Signatures:       map[string][]byte{},
-	}
-	addQCSignature(t, lastRoundQc, "1", s1)
-	addQCSignature(t, lastRoundQc, "2", s2)
-	addQCSignature(t, lastRoundQc, "3", s3)
-	proposeMsg := &ProposalMsg{
-		Block: &abtypes.BlockData{
-			Author:    "1",
-			Round:     10,
-			Epoch:     0,
-			Timestamp: 1234,
-			Payload:   &abtypes.Payload{},
-			Qc:        lastRoundQc,
-		},
-		LastRoundTc: nil,
-	}
-	require.NoError(t, proposeMsg.Sign(s1))
-	require.NoError(t, proposeMsg.Verify(3, rootTrust))
+	t.Run("unknown signer", func(t *testing.T) {
+		prop := validProposal(t)
+		prop.Block.Author = "xyz"
+		require.EqualError(t, prop.Verify(3, rootTrust), `unknown root validator "xyz"`)
+	})
+
+	t.Run("invalid signature", func(t *testing.T) {
+		prop := validProposal(t)
+		prop.Block.Timestamp = 0x11111111 // changing block after signing makes signature invalid
+		require.ErrorContains(t, prop.Verify(3, rootTrust), `invalid signature: signature verify failed`)
+
+		prop.Signature = []byte{0, 1, 2, 3, 4}
+		require.ErrorContains(t, prop.Verify(3, rootTrust), `invalid signature: signature length is 5 b (expected 64 b)`)
+	})
+
+	t.Run("no quorum signatures", func(t *testing.T) {
+		// this basically tests that Block.Verify is called
+		prop := validProposal(t)
+		delete(prop.Block.Qc.Signatures, "3")
+		require.ErrorContains(t, prop.Verify(3, rootTrust), `block verification failed: invalid block data QC: quorum requires 3 signatures but certificate has 2`)
+	})
 }
 
 func TestProposalMsg_Verify_OkWithTc(t *testing.T) {

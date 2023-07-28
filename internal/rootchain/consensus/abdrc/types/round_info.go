@@ -4,14 +4,16 @@ import (
 	"bytes"
 	gocrypto "crypto"
 	"errors"
+	"fmt"
 
 	"github.com/alphabill-org/alphabill/internal/util"
 )
 
 var (
-	ErrRoundCreationTimeNotSet  = errors.New("round creation time not set")
-	ErrRootInfoInvalidRound     = errors.New("root round info round number is not valid")
-	ErrInvalidRootRoundInfoHash = errors.New("root round info latest root hash is not valid")
+	errRoundNumberUnassigned   = errors.New("round number is not assigned")
+	errParentRoundUnassigned   = errors.New("parent round number is not assigned")
+	errRootHashUnassigned      = errors.New("root hash is not assigned")
+	errRoundCreationTimeNotSet = errors.New("round creation time is not set")
 )
 
 type RoundInfo struct {
@@ -54,14 +56,20 @@ func (x *RoundInfo) Bytes() []byte {
 }
 
 func (x *RoundInfo) IsValid() error {
-	if x.RoundNumber < 1 || x.RoundNumber <= x.ParentRoundNumber {
-		return ErrRootInfoInvalidRound
+	if x.RoundNumber == 0 {
+		return errRoundNumberUnassigned
+	}
+	if x.ParentRoundNumber == 0 && x.RoundNumber > 1 {
+		return errParentRoundUnassigned
+	}
+	if x.RoundNumber <= x.ParentRoundNumber {
+		return fmt.Errorf("invalid round number %d - must be greater than parent round %d", x.RoundNumber, x.ParentRoundNumber)
 	}
 	if len(x.CurrentRootHash) < 1 {
-		return ErrInvalidRootRoundInfoHash
+		return errRootHashUnassigned
 	}
 	if x.Timestamp == 0 {
-		return ErrRoundCreationTimeNotSet
+		return errRoundCreationTimeNotSet
 	}
 	return nil
 }

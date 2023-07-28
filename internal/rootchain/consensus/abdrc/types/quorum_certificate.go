@@ -62,7 +62,7 @@ func (x *QuorumCert) IsValid() error {
 		return errVoteInfoIsNil
 	}
 	if err := x.VoteInfo.IsValid(); err != nil {
-		return fmt.Errorf("vote info not valid, %w", err)
+		return fmt.Errorf("invalid vote info: %w", err)
 	}
 	// and must have valid ledger commit info
 	if x.LedgerCommitInfo == nil {
@@ -80,7 +80,7 @@ func (x *QuorumCert) IsValid() error {
 
 func (x *QuorumCert) Verify(quorum uint32, rootTrust map[string]crypto.Verifier) error {
 	if err := x.IsValid(); err != nil {
-		return fmt.Errorf("quorum certificate validation failed, %w", err)
+		return fmt.Errorf("invalid quorum certificate: %w", err)
 	}
 	// check vote info hash
 	h := x.VoteInfo.Hash(gocrypto.SHA256)
@@ -89,26 +89,24 @@ func (x *QuorumCert) Verify(quorum uint32, rootTrust map[string]crypto.Verifier)
 	}
 	// Check quorum, if not fail without checking signatures itself
 	if uint32(len(x.Signatures)) < quorum {
-		return fmt.Errorf("certificate has less signatures %d than required by quorum %d",
-			len(x.Signatures), quorum)
+		return fmt.Errorf("quorum requires %d signatures but certificate has %d", quorum, len(x.Signatures))
 	}
 	// Verify all signatures
 	for author, sig := range x.Signatures {
 		ver, f := rootTrust[author]
 		if !f {
-			return fmt.Errorf("failed to find public key for author %v", author)
+			return fmt.Errorf("signer %q is not part of trustbase", author)
 		}
-		err := ver.VerifyBytes(sig, x.LedgerCommitInfo.Bytes())
-		if err != nil {
-			return fmt.Errorf("node %v signature is not valid: %w", author, err)
+		if err := ver.VerifyBytes(sig, x.LedgerCommitInfo.Bytes()); err != nil {
+			return fmt.Errorf("signer %q signature is not valid: %w", author, err)
 		}
 	}
 	return nil
 }
 
-func (x *QuorumCert) AddSignaturesToHasher(hasher hash.Hash) {
+func (x *QuorumCert) AddSignersToHasher(hasher hash.Hash) {
 	if x != nil {
-		// From QC signatures (in the alphabetical order of signer ID!) must be included
+		// From QC signers (in the alphabetical order of signer ID!) must be included
 		signatures := x.Signatures
 		authors := make([]string, 0, len(signatures))
 		for k := range signatures {

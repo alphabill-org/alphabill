@@ -148,6 +148,8 @@ func New(
 
 	n.status.Store(initializing)
 
+	n.transactionSystem.SetSystemGeneratedTxHandler(n.onSystemGeneratedTransactions)
+
 	if n.eventHandler != nil {
 		n.eventCh = make(chan event.Event, conf.eventChCapacity)
 	}
@@ -277,7 +279,7 @@ func (n *Node) onSystemGeneratedTransactions(round uint64, txs ...*types.Transac
 
 func (n *Node) applyBlockTransactions(round uint64, txs []*types.TransactionRecord) (txsystem.State, uint64, error) {
 	var sumOfEarnedFees uint64
-	err := n.transactionSystem.BeginBlock(round, n.onSystemGeneratedTransactions)
+	err := n.transactionSystem.BeginBlock(round)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -288,7 +290,7 @@ func (n *Node) applyBlockTransactions(round uint64, txs []*types.TransactionReco
 		}
 		sumOfEarnedFees += sm.ActualFee
 	}
-	state, err := n.transactionSystem.EndBlock(n.onSystemGeneratedTransactions)
+	state, err := n.transactionSystem.EndBlock()
 	if err != nil {
 		return nil, 0, err
 	}
@@ -555,13 +557,13 @@ func (n *Node) handleBlockProposal(ctx context.Context, prop *blockproposal.Bloc
 		return fmt.Errorf("tx system start state mismatch error, expected: %X, got: %X", txState.Root(), prevHash)
 	}
 
-	n.transactionSystem.BeginBlock(n.getCurrentRound(), n.onSystemGeneratedTransactions)
+	n.transactionSystem.BeginBlock(n.getCurrentRound())
 	for _, tx := range prop.Transactions {
 		if err = n.process(tx.TransactionOrder, n.getCurrentRound()); err != nil {
 			return fmt.Errorf("transaction error %w", err)
 		}
 	}
-	state, err := n.transactionSystem.EndBlock(n.onSystemGeneratedTransactions)
+	state, err := n.transactionSystem.EndBlock()
 	if err != nil {
 		return fmt.Errorf("tx system failed to end block, %w", err)
 	}
@@ -598,7 +600,7 @@ func (n *Node) startNewRound(ctx context.Context, uc *types.UnicityCertificate) 
 	n.status.Store(normal)
 	newRoundNr := uc.InputRecord.RoundNumber + 1
 	n.leaderSelector.UpdateLeader(uc)
-	n.transactionSystem.BeginBlock(newRoundNr, n.onSystemGeneratedTransactions)
+	n.transactionSystem.BeginBlock(newRoundNr)
 	n.proposedTransactions = []*types.TransactionRecord{}
 	n.pendingBlockProposal = nil
 	n.sumOfEarnedFees = 0
@@ -802,7 +804,7 @@ func (n *Node) handleT1TimeoutEvent() {
 	}
 	logger.Debug("Current node is the leader.")
 
-	state, err := n.transactionSystem.EndBlock(n.onSystemGeneratedTransactions)
+	state, err := n.transactionSystem.EndBlock()
 	if err != nil {
 		panic(fmt.Errorf("tx system failed to end block, %w", err))
 	}

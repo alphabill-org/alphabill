@@ -36,6 +36,7 @@ type GenericTxSystem struct {
 	genericTxValidators []GenericTransactionValidator
 	beginBlockFunctions []TxEmitter
 	endBlockFunctions   []TxEmitter
+	sysGenTxHandler     OnTransactionsFunc
 }
 
 type (
@@ -89,6 +90,10 @@ func NewGenericTxSystem(modules []Module, opts ...Option) (*GenericTxSystem, err
 	return txs, nil
 }
 
+func (m *GenericTxSystem) SetSystemGeneratedTxHandler(handler OnTransactionsFunc) {
+	m.sysGenTxHandler = handler
+}
+
 func (m *GenericTxSystem) GetState() *state.State {
 	return m.state
 }
@@ -115,12 +120,13 @@ func (m *GenericTxSystem) getState() (State, error) {
 	return NewStateSummary(hash, util.Uint64ToBytes(sv)), nil
 }
 
-func (m *GenericTxSystem) BeginBlock(blockNr uint64, callback OnTransactionsFunc) error {
+func (m *GenericTxSystem) BeginBlock(blockNr uint64) error {
 	for _, function := range m.beginBlockFunctions {
 		txs, err := function(blockNr)
 		if err != nil {
 			return fmt.Errorf("begin block function call failed: %w", err)
 		}
+		callback := m.sysGenTxHandler
 		if callback != nil {
 			if err = callback(blockNr, txs...); err != nil {
 				return err
@@ -196,12 +202,13 @@ func (m *GenericTxSystem) Execute(tx *types.TransactionOrder) (sm *types.ServerM
 	return sm, err
 }
 
-func (m *GenericTxSystem) EndBlock(callback OnTransactionsFunc) (State, error) {
+func (m *GenericTxSystem) EndBlock() (State, error) {
 	for _, function := range m.endBlockFunctions {
 		txs, err := function(m.currentBlockNumber)
 		if err != nil {
 			return nil, fmt.Errorf("end block function call failed: %w", err)
 		}
+		callback := m.sysGenTxHandler
 		if callback != nil {
 			if err = callback(m.currentBlockNumber, txs...); err != nil {
 				return nil, err

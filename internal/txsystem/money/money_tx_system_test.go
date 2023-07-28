@@ -126,11 +126,11 @@ func TestExecute_TransferOk(t *testing.T) {
 
 	transferOk, _ := createBillTransfer(t, initialBill.ID, initialBill.Value, script.PredicateAlwaysFalse(), nil)
 	roundNumber := uint64(10)
-	txSystem.BeginBlock(roundNumber, nil)
+	txSystem.BeginBlock(roundNumber)
 	serverMetadata, err := txSystem.Execute(transferOk)
 	require.NoError(t, err)
 
-	_, err = txSystem.EndBlock(nil)
+	_, err = txSystem.EndBlock()
 	require.NoError(t, err)
 	require.NotNil(t, serverMetadata)
 	require.NoError(t, txSystem.Commit())
@@ -151,7 +151,7 @@ func TestExecute_SplitOk(t *testing.T) {
 	amount := initialBill.Value - remaining
 	splitOk, splitAttr := createSplit(t, initialBill.ID, amount, remaining, script.PredicateAlwaysTrue(), initBillData.Backlink)
 	roundNumber := uint64(1)
-	txSystem.BeginBlock(roundNumber, nil)
+	txSystem.BeginBlock(roundNumber)
 	sm, err := txSystem.Execute(splitOk)
 	require.NoError(t, err)
 	require.NotNil(t, sm)
@@ -188,7 +188,7 @@ func TestExecuteTransferDC_OK(t *testing.T) {
 	amount := initialBill.Value - remaining
 	splitOk, _ := createSplit(t, initialBill.ID, amount, remaining, script.PredicateAlwaysTrue(), initBillData.Backlink)
 	roundNumber := uint64(10)
-	txSystem.BeginBlock(roundNumber, nil)
+	txSystem.BeginBlock(roundNumber)
 	sm, err := txSystem.Execute(splitOk)
 	require.NoError(t, err)
 	require.NotNil(t, sm)
@@ -216,7 +216,7 @@ func TestExecute_SwapOk(t *testing.T) {
 	amount := initialBill.Value - remaining
 	splitOk, _ := createSplit(t, initialBill.ID, amount, remaining, script.PredicateAlwaysTrue(), initBillData.Backlink)
 	roundNumber := uint64(10)
-	txSystem.BeginBlock(roundNumber, nil)
+	txSystem.BeginBlock(roundNumber)
 	sm, err := txSystem.Execute(splitOk)
 	require.NoError(t, err)
 	require.NotNil(t, sm)
@@ -280,7 +280,7 @@ func TestEndBlock_DustBillsAreRemoved(t *testing.T) {
 		remaining--
 		splitOk, _ := createSplit(t, initialBill.ID, 1, remaining, script.PredicateAlwaysTrue(), backlink)
 		roundNumber := uint64(10)
-		txSystem.BeginBlock(roundNumber, nil)
+		txSystem.BeginBlock(roundNumber)
 		_, err := txSystem.Execute(splitOk)
 		require.NoError(t, err)
 		splitBillIDs[i] = txutil.SameShardID(splitOk.UnitID(), unitIdFromTransaction(splitOk))
@@ -311,12 +311,13 @@ func TestEndBlock_DustBillsAreRemoved(t *testing.T) {
 		}
 		return nil
 	}
-	_, err = txSystem.EndBlock(sysGenTxrsCallback)
+	txSystem.SetSystemGeneratedTxHandler(sysGenTxrsCallback)
+	_, err = txSystem.EndBlock()
 	require.NoError(t, err)
 	txSystem.Commit()
 
-	txSystem.BeginBlock(defaultDustBillDeletionTimeout+10, nil)
-	_, err = txSystem.EndBlock(sysGenTxrsCallback)
+	txSystem.BeginBlock(defaultDustBillDeletionTimeout + 10)
+	_, err = txSystem.EndBlock()
 	require.NoError(t, err)
 	txSystem.Commit()
 
@@ -336,7 +337,7 @@ func TestEndBlock_FeesConsolidation(t *testing.T) {
 	rmaTree, txSystem, signer := createStateAndTxSystem(t)
 
 	// process transferFC with amount 50 and fees 1
-	txSystem.BeginBlock(0, nil)
+	txSystem.BeginBlock(0)
 	transferFC := testfc.NewTransferFC(t,
 		testfc.NewTransferFCAttr(
 			testfc.WithBacklink(nil),
@@ -347,7 +348,7 @@ func TestEndBlock_FeesConsolidation(t *testing.T) {
 
 	_, err := txSystem.Execute(transferFC)
 	require.NoError(t, err)
-	_, err = txSystem.EndBlock(nil)
+	_, err = txSystem.EndBlock()
 	require.NoError(t, err)
 	require.NoError(t, txSystem.Commit())
 
@@ -358,7 +359,7 @@ func TestEndBlock_FeesConsolidation(t *testing.T) {
 	require.EqualValues(t, 51, moneyFCUnit.Data().SummaryValueInput())
 
 	// process reclaimFC (with closeFC amount=50 and fee=1)
-	txSystem.BeginBlock(0, nil)
+	txSystem.BeginBlock(0)
 
 	transferFCHash := transferFC.Hash(crypto.SHA256)
 	closeFC := testfc.NewCloseFC(t,
@@ -386,7 +387,7 @@ func TestEndBlock_FeesConsolidation(t *testing.T) {
 	)
 	_, err = txSystem.Execute(reclaimFC)
 	require.NoError(t, err)
-	_, err = txSystem.EndBlock(nil)
+	_, err = txSystem.EndBlock()
 	require.NoError(t, err)
 	require.NoError(t, txSystem.Commit())
 
@@ -399,7 +400,7 @@ func TestEndBlock_FeesConsolidation(t *testing.T) {
 func TestValidateSwap_InsufficientDcMoneySupply(t *testing.T) {
 	rmaTree, txSystem, signer := createStateAndTxSystem(t)
 	roundNumber := uint64(10)
-	txSystem.BeginBlock(roundNumber, nil)
+	txSystem.BeginBlock(roundNumber)
 	_, swapTx := createDCTransferAndSwapTxs(t, []types.UnitID{initialBill.ID}, rmaTree, signer)
 
 	// send execute swap without executing transfers so that money supply is not increased by swaps
@@ -411,12 +412,12 @@ func TestValidateSwap_SwapBillAlreadyExists(t *testing.T) {
 	rmaTree, txSystem, signer := createStateAndTxSystem(t)
 	_, initBillData := getBill(t, rmaTree, initialBill.ID)
 	roundNumber := uint64(10)
-	txSystem.BeginBlock(roundNumber, nil)
+	txSystem.BeginBlock(roundNumber)
 
 	var remaining uint64 = 99
 	amount := initialBill.Value - remaining
 	splitOk, _ := createSplit(t, initialBill.ID, amount, remaining, script.PredicateAlwaysTrue(), initBillData.Backlink)
-	txSystem.BeginBlock(roundNumber, nil)
+	txSystem.BeginBlock(roundNumber)
 	sm, err := txSystem.Execute(splitOk)
 	require.NoError(t, err)
 	require.NotNil(t, sm)
@@ -447,7 +448,7 @@ func TestRegisterData_Revert(t *testing.T) {
 	splitOk, _ := createSplit(t, initialBill.ID, amount, remaining, script.PredicateAlwaysTrue(), initBillData.Backlink)
 	require.NoError(t, err)
 	roundNumber := uint64(10)
-	txSystem.BeginBlock(roundNumber, nil)
+	txSystem.BeginBlock(roundNumber)
 	sm, err := txSystem.Execute(splitOk)
 	require.NoError(t, err)
 	require.NotNil(t, sm)
@@ -468,7 +469,7 @@ func TestExecute_FeeCreditSequence_OK(t *testing.T) {
 	fcrUnitID := util.Uint256ToBytes(uint256.NewInt(100))
 	txAmount := uint64(20)
 
-	txSystem.BeginBlock(1, nil)
+	txSystem.BeginBlock(1)
 
 	// transfer 20 alphas to FCB
 	transferFC := testfc.NewTransferFC(t,
@@ -733,7 +734,7 @@ func createStateAndTxSystem(t *testing.T) (*state.State, *txsystem.GenericTxSyst
 	}
 	err = s.Apply(unit.AddCredit(fcrID, script.PredicateAlwaysTrue(), fcrData))
 	require.NoError(t, err)
-	_, err = mss.EndBlock(nil)
+	_, err = mss.EndBlock()
 	require.NoError(t, err)
 	mss.Commit()
 

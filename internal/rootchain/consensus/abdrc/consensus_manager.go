@@ -233,7 +233,7 @@ func (x *ConsensusManager) handleRootNetMsg(ctx context.Context, msg any) error 
 	case *abdrc.ProposalMsg:
 		return x.onProposalMsg(ctx, mt)
 	case *abdrc.VoteMsg:
-		return x.onVoteMsg(ctx, mt)
+		return x.onVoteMsg(mt)
 	case *abdrc.TimeoutMsg:
 		return x.onTimeoutMsg(mt)
 	case *abdrc.GetStateMsg:
@@ -325,7 +325,7 @@ func (x *ConsensusManager) onIRChange(irChangeMsg *abtypes.IRChangeReq) error {
 }
 
 // onVoteMsg handle votes messages from other root validators
-func (x *ConsensusManager) onVoteMsg(ctx context.Context, vote *abdrc.VoteMsg) error {
+func (x *ConsensusManager) onVoteMsg(vote *abdrc.VoteMsg) error {
 	if vote.VoteInfo.RoundNumber < x.pacemaker.GetCurrentRound() {
 		return fmt.Errorf("stale vote for round %d from %s", vote.VoteInfo.RoundNumber, vote.Author)
 	}
@@ -508,7 +508,7 @@ func (x *ConsensusManager) onProposalMsg(ctx context.Context, proposal *abdrc.Pr
 		return fmt.Errorf("failed to send vote to next leader: %w", err)
 	}
 
-	x.replayVoteBuffer(ctx)
+	x.replayVoteBuffer()
 
 	return nil
 }
@@ -556,7 +556,7 @@ func (x *ConsensusManager) processTC(tc *abtypes.TimeoutCert) {
 /*
 replayVoteBuffer processes buffered votes. When method returns the buffer should be empty.
 */
-func (x *ConsensusManager) replayVoteBuffer(ctx context.Context) {
+func (x *ConsensusManager) replayVoteBuffer() {
 	voteCnt := len(x.voteBuffer)
 	if voteCnt == 0 {
 		return
@@ -565,7 +565,7 @@ func (x *ConsensusManager) replayVoteBuffer(ctx context.Context) {
 	logger.Debug("%s round %d replaying %d buffered votes", x.id.ShortString(), x.pacemaker.GetCurrentRound(), voteCnt)
 	var errs []error
 	for _, v := range x.voteBuffer {
-		if err := x.onVoteMsg(ctx, v); err != nil {
+		if err := x.onVoteMsg(v); err != nil {
 			errs = append(errs, err)
 		}
 	}
@@ -692,10 +692,12 @@ func (x *ConsensusManager) onStateResponse(ctx context.Context, rsp *abdrc.State
 	x.recovery = nil
 
 	if prop, ok := triggerMsg.(*abdrc.ProposalMsg); ok {
-		x.onProposalMsg(ctx, prop)
+		if err := x.onProposalMsg(ctx, prop); err != nil {
+			logger.Debug("%s replaying proposal which triggered recovery returned error: %v", x.id.ShortString(), err)
+		}
 	}
 
-	x.replayVoteBuffer(ctx)
+	x.replayVoteBuffer()
 
 	return nil
 }

@@ -489,7 +489,7 @@ func Test_ConsensusManager_onVoteMsg(t *testing.T) {
 		defer cms[0].pacemaker.Stop()
 
 		vote := makeVoteMsg(t, cms, 7)
-		err := cms[0].onVoteMsg(context.Background(), vote)
+		err := cms[0].onVoteMsg(vote)
 		require.EqualError(t, err, `stale vote for round 7 from `+cms[0].id.String())
 		require.Empty(t, cms[0].voteBuffer)
 	})
@@ -504,7 +504,7 @@ func Test_ConsensusManager_onVoteMsg(t *testing.T) {
 
 		vote := makeVoteMsg(t, cms, votedRound)
 		vote.Author = "foobar"
-		err := cms[0].onVoteMsg(context.Background(), vote)
+		err := cms[0].onVoteMsg(vote)
 		require.EqualError(t, err, `invalid vote: author "foobar" is not in the trustbase`)
 		require.Empty(t, cms[0].voteBuffer)
 	})
@@ -518,7 +518,7 @@ func Test_ConsensusManager_onVoteMsg(t *testing.T) {
 		defer cms[0].pacemaker.Stop()
 
 		vote := makeVoteMsg(t, cms, votedRound+1)
-		err := cms[0].onVoteMsg(context.Background(), vote)
+		err := cms[0].onVoteMsg(vote)
 		require.NoError(t, err)
 		require.Equal(t, vote, cms[0].voteBuffer[vote.Author])
 	})
@@ -532,11 +532,11 @@ func Test_ConsensusManager_onVoteMsg(t *testing.T) {
 		defer cms[0].pacemaker.Stop()
 
 		vote := makeVoteMsg(t, cms, votedRound+1)
-		err := cms[0].onVoteMsg(context.Background(), vote)
+		err := cms[0].onVoteMsg(vote)
 		require.NoError(t, err)
 		require.Equal(t, vote, cms[0].voteBuffer[vote.Author])
 		// send the vote again - should not trigger recovery ie vote is not counted again
-		require.NoError(t, cms[0].onVoteMsg(context.Background(), vote))
+		require.NoError(t, cms[0].onVoteMsg(vote))
 		require.Equal(t, vote, cms[0].voteBuffer[vote.Author], "expected original vote still to be in the buffer")
 		require.Len(t, cms[0].voteBuffer, 1, "expected only one vote to be buffered")
 	})
@@ -550,7 +550,7 @@ func Test_ConsensusManager_onVoteMsg(t *testing.T) {
 		// as we have single CM vote means quorum and recovery should be triggered as CM hasn't
 		// seen proposal yet
 		vote := makeVoteMsg(t, cms, votedRound+1)
-		err := cms[0].onVoteMsg(context.Background(), vote)
+		err := cms[0].onVoteMsg(vote)
 		require.EqualError(t, err, `have received 1 votes but no proposal, entering recovery`)
 		require.Equal(t, vote, cms[0].voteBuffer[vote.Author], "expected vote to be buffered")
 	})
@@ -563,7 +563,7 @@ func Test_ConsensusManager_onVoteMsg(t *testing.T) {
 		defer cms[0].pacemaker.Stop()
 
 		vote := makeVoteMsg(t, cms, votedRound)
-		err := cms[0].onVoteMsg(context.Background(), vote)
+		err := cms[0].onVoteMsg(vote)
 		require.EqualError(t, err, fmt.Sprintf("validator is not the leader for round %d", votedRound+1))
 		require.Empty(t, cms[0].voteBuffer)
 	})

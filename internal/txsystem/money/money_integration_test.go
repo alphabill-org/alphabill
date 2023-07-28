@@ -7,11 +7,13 @@ import (
 	"testing"
 
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
+	"github.com/alphabill-org/alphabill/internal/partition/event"
 	"github.com/alphabill-org/alphabill/internal/script"
 	"github.com/alphabill-org/alphabill/internal/state"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	testmoneyfc "github.com/alphabill-org/alphabill/internal/testutils/money"
 	testpartition "github.com/alphabill-org/alphabill/internal/testutils/partition"
+	testevent "github.com/alphabill-org/alphabill/internal/testutils/partition/event"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/internal/txsystem/fc"
 	"github.com/alphabill-org/alphabill/internal/txsystem/fc/unit"
@@ -102,6 +104,10 @@ func TestPartition_Ok(t *testing.T) {
 	feeCredit, err = s.GetUnit(testmoneyfc.FCRID, true)
 	require.NoError(t, err)
 	require.Equal(t, fcrAmount-3, feeCredit.Data().(*unit.FeeCreditRecord).Balance)
+
+	for _, n := range moneyPrt.Nodes {
+		testevent.NotContainsEvent(t, n.EventHandler, event.RecoveryStarted)
+	}
 }
 
 func TestPartition_SwapDCOk(t *testing.T) {

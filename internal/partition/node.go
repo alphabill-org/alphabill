@@ -6,6 +6,7 @@ import (
 	gocrypto "crypto"
 	"errors"
 	"fmt"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -268,6 +269,14 @@ func verifyTxSystemState(state txsystem.State, sumOfEarnedFees uint64, ucIR *typ
 }
 
 func (n *Node) onSystemGeneratedTransactions(round uint64, txs ...*types.TransactionRecord) error {
+
+	if n.status.Load() == normal && !n.leaderSelector.IsCurrentNodeLeader() {
+		logger.Debug("Ignoring system generated txs, not the leader and not recovering, NodeId=%v", n.leaderSelector.SelfID().String())
+		return nil
+	}
+	if len(txs) > 0 {
+		logger.Debug("Processing system generated txs, NodeId=%v", n.leaderSelector.SelfID().String())
+	}
 	for _, tx := range txs {
 		err := n.process(tx.TransactionOrder, round)
 		if err != nil {
@@ -557,12 +566,17 @@ func (n *Node) handleBlockProposal(ctx context.Context, prop *blockproposal.Bloc
 		return fmt.Errorf("tx system start state mismatch error, expected: %X, got: %X", txState.Root(), prevHash)
 	}
 
-	n.transactionSystem.BeginBlock(n.getCurrentRound())
+	logger.Debug("Calling BeginBlock by node %s", n.leaderSelector.SelfID().String())
+	if err = n.transactionSystem.BeginBlock(n.getCurrentRound()); err != nil {
+		return fmt.Errorf("tx system failed to begin block, %w", err)
+	}
+
 	for _, tx := range prop.Transactions {
 		if err = n.process(tx.TransactionOrder, n.getCurrentRound()); err != nil {
 			return fmt.Errorf("transaction error %w", err)
 		}
 	}
+	logger.Debug("Calling EndBlock by node %s", n.leaderSelector.SelfID().String())
 	state, err := n.transactionSystem.EndBlock()
 	if err != nil {
 		return fmt.Errorf("tx system failed to end block, %w", err)
@@ -600,15 +614,16 @@ func (n *Node) startNewRound(ctx context.Context, uc *types.UnicityCertificate) 
 	n.status.Store(normal)
 	newRoundNr := uc.InputRecord.RoundNumber + 1
 	n.leaderSelector.UpdateLeader(uc)
-	n.transactionSystem.BeginBlock(newRoundNr)
 	n.proposedTransactions = []*types.TransactionRecord{}
 	n.pendingBlockProposal = nil
 	n.sumOfEarnedFees = 0
+	if err := n.transactionSystem.BeginBlock(newRoundNr); err != nil {
+		logger.Debug("Tx system begin block failed, %v", err)
+	}
 	// not a fatal issue, but log anyway
 	if err := n.blockStore.Delete(util.Uint32ToBytes(proposalKey)); err != nil {
 		logger.Debug("DB proposal delete failed, %v", err)
 	}
-	n.leaderSelector.UpdateLeader(uc)
 	n.startHandleOrForwardTransactions(ctx)
 	n.sendEvent(event.NewRoundStarted, newRoundNr)
 }
@@ -663,8 +678,8 @@ func (n *Node) handleUnicityCertificate(ctx context.Context, uc *types.UnicityCe
 	// validation must make sure all mandatory fields are present and UC is cryptographically sound
 	// from this point fields can be logged, that must not be nil can be logged
 	luc := n.luc.Load()
-	logger.Debug("Received Unicity Certificate:\nH:\t%X\nH':\t%X\nHb:\t%X\nfees:\t%d", uc.InputRecord.Hash, uc.InputRecord.PreviousHash, uc.InputRecord.BlockHash, uc.InputRecord.SumOfEarnedFees)
-	logger.Debug("LUC:\nH:\t%X\nH':\t%X\nHb:\t%X\nfees:\t%d", luc.InputRecord.Hash, luc.InputRecord.PreviousHash, luc.InputRecord.BlockHash, luc.InputRecord.SumOfEarnedFees)
+	logger.Debug("Received Unicity Certificate (NodeID: %s):\nH:\t%X\nH':\t%X\nHb:\t%X\nfees:\t%d", n.leaderSelector.SelfID().String(), uc.InputRecord.Hash, uc.InputRecord.PreviousHash, uc.InputRecord.BlockHash, uc.InputRecord.SumOfEarnedFees)
+	logger.Debug("LUC (NodeID: %s):\nH:\t%X\nH':\t%X\nHb:\t%X\nfees:\t%d", n.leaderSelector.SelfID().String(), luc.InputRecord.Hash, luc.InputRecord.PreviousHash, luc.InputRecord.BlockHash, luc.InputRecord.SumOfEarnedFees)
 	// ignore duplicates
 	if bytes.Equal(luc.InputRecord.Bytes(), uc.InputRecord.Bytes()) {
 		if n.status.Load() == initializing {
@@ -704,10 +719,23 @@ func (n *Node) handleUnicityCertificate(ctx context.Context, uc *types.UnicityCe
 		n.startNewRound(ctx, uc)
 		return nil
 	}
+
+	logProposalTxTypes := func() string {
+		if n.pendingBlockProposal == nil || len(n.pendingBlockProposal.Transactions) == 0 {
+			return "0"
+		}
+
+		var txTypes []string
+		for _, tx := range n.pendingBlockProposal.Transactions {
+			txTypes = append(txTypes, tx.TransactionOrder.PayloadType())
+		}
+		return fmt.Sprintf("%v (%s)", len(n.pendingBlockProposal.Transactions), strings.Join(txTypes, ", "))
+	}
+
 	// Check pending block proposal
 	bl, blockHash, err := n.proposalHash(n.pendingBlockProposal, uc)
-	logger.Debug("Pending proposal: \nH:\t%X\nH':\t%X\nHb:\t%X\nround:\t%v\nfees:\t%d",
-		n.pendingBlockProposal.StateHash, n.pendingBlockProposal.PrevHash, blockHash, n.pendingBlockProposal.RoundNumber, n.pendingBlockProposal.SumOfEarnedFees)
+	logger.Debug("Pending proposal (NodeID: %s): \nH:\t%X\nH':\t%X\nHb:\t%X\nround:\t%v\nfees:\t%d\ntx:\t%s", n.leaderSelector.SelfID().String(),
+		n.pendingBlockProposal.StateHash, n.pendingBlockProposal.PrevHash, blockHash, n.pendingBlockProposal.RoundNumber, n.pendingBlockProposal.SumOfEarnedFees, logProposalTxTypes())
 	if err != nil {
 		logger.Warning("Recovery needed, block proposal hash calculation error, %v", err)
 		n.startRecovery(uc)
@@ -723,7 +751,15 @@ func (n *Node) handleUnicityCertificate(ctx context.Context, uc *types.UnicityCe
 		}
 		n.startNewRound(ctx, uc)
 		return nil
+	} else {
+		logger.Warning("Failing NodeID: %s", n.leaderSelector.SelfID().String())
+		if uc.InputRecord.SumOfEarnedFees == n.pendingBlockProposal.SumOfEarnedFees {
+			logger.Error("UC IR hash is not equal to pending block proposal's state hash: '%X' vs '%X'", uc.InputRecord.Hash, n.pendingBlockProposal.StateHash)
+		} else {
+			logger.Error("UC IR hash is equal to pending block proposal's state hash, but SumOfEarnedFees is different: '%v' vs '%v'", uc.InputRecord.SumOfEarnedFees, n.pendingBlockProposal.SumOfEarnedFees)
+		}
 	}
+
 	// repeat UC
 	if bytes.Equal(uc.InputRecord.Hash, n.pendingBlockProposal.PrevHash) {
 		// UC certifies the IR before pending block proposal ("repeat UC"). state is rolled back to previous state.
@@ -731,7 +767,11 @@ func (n *Node) handleUnicityCertificate(ctx context.Context, uc *types.UnicityCe
 		n.revertState()
 		n.startNewRound(ctx, uc)
 		return nil
+	} else {
+		logger.Warning("Failing NodeID: %s", n.leaderSelector.SelfID().String())
+		logger.Error("UC IR hash not equal to pending block proposal's previous state hash: '%X' vs '%X'", uc.InputRecord.Hash, n.pendingBlockProposal.PrevHash)
 	}
+
 	// UC with different IR hash. Node does not have the latest state. Revert changes and start recovery.
 	// revertState is called from startRecovery()
 	logger.Warning("Recovery needed, either proposal state hash, block hash or sum of earned fees is different")
@@ -1102,6 +1142,9 @@ func (n *Node) sendCertificationRequest(blockAuthor string, state txsystem.State
 	blockHash, err := n.hashProposedBlock(latestBlockHash, blockAuthor)
 	if err != nil {
 		return fmt.Errorf("block hash calculation failed, %w", err)
+	}
+	if bytes.Equal(prevStateHash, stateHash) && !bytes.Equal(blockHash, make([]byte, 32)) {
+		println()
 	}
 	n.proposedTransactions = []*types.TransactionRecord{}
 	n.sumOfEarnedFees = 0

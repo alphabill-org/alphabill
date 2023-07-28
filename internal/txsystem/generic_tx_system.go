@@ -236,8 +236,10 @@ func pruneExecutorFunc(pruner *state.LogPruner) ExecuteFunc {
 
 func (m *GenericTxSystem) generatePruneStatesTx(blockNumber uint64) ([]*types.TransactionRecord, error) {
 	if m.logPruner.Count(blockNumber-1) == 0 {
+		log.Info("generatePruneStatesTx: no prune states needed, block: %d", blockNumber)
 		return nil, nil
 	}
+	log.Info("generatePruneStatesTx: creating prune states transaction, block: %d", blockNumber)
 	return []*types.TransactionRecord{
 		{
 			TransactionOrder: &types.TransactionOrder{

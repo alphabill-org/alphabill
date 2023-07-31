@@ -10,24 +10,24 @@ import (
 	testfc "github.com/alphabill-org/alphabill/internal/txsystem/fc/testutils"
 	"github.com/alphabill-org/alphabill/internal/txsystem/fc/transactions"
 	"github.com/alphabill-org/alphabill/internal/types"
+	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
 )
 
 var (
-	FCRID     = uint256.NewInt(88)
+	FCRID     = util.Uint256ToBytes(uint256.NewInt(88))
 	FCRAmount = uint64(1e8)
 )
 
 // CreateFeeCredit creates fee credit to be able to spend initial bill
 func CreateFeeCredit(t *testing.T, initialBillID []byte, network *testpartition.AlphabillNetwork) *types.TransactionOrder {
 	// send transferFC
-	fcrIDBytes := FCRID.Bytes32()
 	transferFC := testfc.NewTransferFC(t,
 		testfc.NewTransferFCAttr(
 			testfc.WithBacklink(nil),
 			testfc.WithAmount(FCRAmount),
-			testfc.WithTargetRecordID(fcrIDBytes[:]),
+			testfc.WithTargetRecordID(FCRID),
 		),
 		testtransaction.WithUnitId(initialBillID),
 		testtransaction.WithOwnerProof(script.PredicateArgumentEmpty()),
@@ -48,12 +48,12 @@ func CreateFeeCredit(t *testing.T, initialBillID []byte, network *testpartition.
 			testfc.WithTransferFCProof(transferFCProof),
 			testfc.WithFCOwnerCondition(script.PredicateAlwaysTrue()),
 		),
-		testtransaction.WithUnitId(fcrIDBytes[:]),
+		testtransaction.WithUnitId(FCRID),
 		testtransaction.WithOwnerProof(script.PredicateArgumentEmpty()),
 		testtransaction.WithPayloadType(transactions.PayloadTypeAddFeeCredit),
 	)
 	err = moneyPartition.SubmitTx(addFC)
 	require.NoError(t, err)
 	require.Eventually(t, testpartition.BlockchainContainsTx(moneyPartition, addFC), test.WaitDuration, test.WaitTick)
-	return transferFC
+	return transferFCRecord.TransactionOrder
 }

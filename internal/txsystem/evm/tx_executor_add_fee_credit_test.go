@@ -6,8 +6,9 @@ import (
 	"math/big"
 	"testing"
 
+	"github.com/alphabill-org/alphabill/internal/state"
+
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
-	"github.com/alphabill-org/alphabill/internal/rma"
 	"github.com/alphabill-org/alphabill/internal/script"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	testtransaction "github.com/alphabill-org/alphabill/internal/testutils/transaction"
@@ -76,7 +77,7 @@ func Test_addFeeCreditTx(t *testing.T) {
 	pubHash := sha256.Sum256(pubKeyBytes)
 	privKeyHash := hashOfPrivateKey(t, signer)
 	addExecFn := addFeeCreditTx(
-		rma.NewWithSHA256(),
+		state.NewEmptyState(),
 		crypto.SHA256,
 		evmTestFeeCalculator,
 		fc.NewDefaultFeeCreditTxValidator([]byte{0, 0, 0, 0}, DefaultEvmTxSystemIdentifier, crypto.SHA256, tb))
@@ -180,7 +181,7 @@ func Test_getTransferPayloadAttributes(t *testing.T) {
 }
 
 func Test_addFeeCreditTxAndUpdate(t *testing.T) {
-	stateTree := rma.NewWithSHA256()
+	stateTree := state.NewEmptyState()
 	signer, ver := testsig.CreateSignerAndVerifier(t)
 	tb := map[string]abcrypto.Verifier{"test": ver}
 	pubKeyBytes, err := ver.MarshalPublicKey()

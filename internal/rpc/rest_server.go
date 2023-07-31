@@ -204,7 +204,7 @@ func (s *RestServer) getBootstrapNodes() []peerInfo {
 	return infos
 }
 
-func notFound(w http.ResponseWriter, r *http.Request) {
+func notFound(w http.ResponseWriter, _ *http.Request) {
 	writeError(w, errors.New("request path doesn't match any endpoint"), http.StatusNotFound)
 }
 

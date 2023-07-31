@@ -8,12 +8,11 @@ import (
 
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
-	"github.com/alphabill-org/alphabill/internal/rma"
+	"github.com/alphabill-org/alphabill/internal/state"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/internal/txsystem/fc"
 	"github.com/alphabill-org/alphabill/internal/txsystem/fc/transactions"
-	"github.com/alphabill-org/alphabill/internal/util"
-	"github.com/holiman/uint256"
+	"github.com/alphabill-org/alphabill/internal/types"
 )
 
 var _ txsystem.Module = &Module{}
@@ -28,7 +27,7 @@ var (
 
 type (
 	Module struct {
-		state               *rma.Tree
+		state               *state.State
 		trustBase           map[string]abcrypto.Verifier
 		hashAlgorithm       crypto.Hash
 		dustCollector       *DustCollector
@@ -37,35 +36,48 @@ type (
 	}
 )
 
-func NewMoneyModule(systemIdentifier []byte, options *Options) (*Module, error) {
+func NewMoneyModule(options *Options) (m *Module, err error) {
 	if options == nil {
 		return nil, errors.New("money module options are missing")
 	}
-	state := options.state
+	s := options.state
 
 	if options.feeCalculator == nil {
 		return nil, errors.New("fee calculator function is nil")
 	}
-
-	if err := addInitialBill(options.initialBill, state); err != nil {
+	s.Savepoint()
+	defer func() {
+		if err != nil {
+			s.RollbackSavepoint()
+			return
+		}
+		s.ReleaseSavepoint()
+		_, _, err = s.CalculateRoot()
+		if err != nil {
+			return
+		}
+		err = s.Commit()
+	}()
+	if err = addInitialBill(options.initialBill, s); err != nil {
 		return nil, fmt.Errorf("could not set initial bill: %w", err)
 	}
 
-	if err := addInitialDustCollectorMoneySupply(options.dcMoneyAmount, state); err != nil {
+	if err = addInitialDustCollectorMoneySupply(options.dcMoneyAmount, s); err != nil {
 		return nil, fmt.Errorf("could not set DC money supply: %w", err)
 	}
 
-	if err := addInitialFeeCredits(options.systemDescriptionRecords, options.initialBill.ID, state); err != nil {
+	if err = addInitialFeeCredits(options.systemDescriptionRecords, options.initialBill.ID, s); err != nil {
 		return nil, fmt.Errorf("could not set initial fee credits: %w", err)
 	}
-	return &Module{
-		state:               state,
+	m = &Module{
+		state:               s,
 		trustBase:           options.trustBase,
 		hashAlgorithm:       options.hashAlgorithm,
-		feeCreditTxRecorder: newFeeCreditTxRecorder(state, systemIdentifier, options.systemDescriptionRecords),
-		dustCollector:       NewDustCollector(state),
+		feeCreditTxRecorder: newFeeCreditTxRecorder(s, options.systemIdentifier, options.systemDescriptionRecords),
+		dustCollector:       NewDustCollector(s),
 		feeCalculator:       options.feeCalculator,
-	}, nil
+	}
+	return
 }
 
 func (m *Module) TxExecutors() map[string]txsystem.TxExecutor {
@@ -103,21 +115,21 @@ func (m *Module) GenericTransactionValidator() txsystem.GenericTransactionValida
 	return txsystem.ValidateGenericTransaction
 }
 
-func addInitialBill(initialBill *InitialBill, state *rma.Tree) error {
+func addInitialBill(initialBill *InitialBill, s *state.State) error {
 	if initialBill == nil {
 		return ErrInitialBillIsNil
 	}
 	if dustCollectorMoneySupplyID.Eq(initialBill.ID) {
 		return ErrInvalidInitialBillID
 	}
-	return state.AtomicUpdate(rma.AddItem(initialBill.ID, initialBill.Owner, &BillData{
+	return s.Apply(state.AddUnit(initialBill.ID, initialBill.Owner, &BillData{
 		V:        initialBill.Value,
 		T:        0,
 		Backlink: nil,
-	}, nil))
+	}))
 }
 
-func addInitialFeeCredits(records []*genesis.SystemDescriptionRecord, initialBillID *uint256.Int, state *rma.Tree) error {
+func addInitialFeeCredits(records []*genesis.SystemDescriptionRecord, initialBillID types.UnitID, s *state.State) error {
 	if len(records) == 0 {
 		return ErrUndefinedSystemDescriptionRecords
 	}
@@ -126,14 +138,14 @@ func addInitialFeeCredits(records []*genesis.SystemDescriptionRecord, initialBil
 		if feeCreditBill == nil {
 			return ErrNilFeeCreditBill
 		}
-		if bytes.Equal(feeCreditBill.UnitId, util.Uint256ToBytes(dustCollectorMoneySupplyID)) || bytes.Equal(feeCreditBill.UnitId, util.Uint256ToBytes(initialBillID)) {
+		if bytes.Equal(feeCreditBill.UnitId, dustCollectorMoneySupplyID) || bytes.Equal(feeCreditBill.UnitId, initialBillID) {
 			return ErrInvalidFeeCreditBillID
 		}
-		err := state.AtomicUpdate(rma.AddItem(uint256.NewInt(0).SetBytes(feeCreditBill.UnitId), feeCreditBill.OwnerPredicate, &BillData{
+		err := s.Apply(state.AddUnit(feeCreditBill.UnitId, feeCreditBill.OwnerPredicate, &BillData{
 			V:        0,
 			T:        0,
 			Backlink: nil,
-		}, nil))
+		}))
 		if err != nil {
 			return err
 		}
@@ -141,10 +153,10 @@ func addInitialFeeCredits(records []*genesis.SystemDescriptionRecord, initialBil
 	return nil
 }
 
-func addInitialDustCollectorMoneySupply(dcMoneyAmount uint64, state *rma.Tree) error {
-	return state.AtomicUpdate(rma.AddItem(dustCollectorMoneySupplyID, dustCollectorPredicate, &BillData{
+func addInitialDustCollectorMoneySupply(dcMoneyAmount uint64, s *state.State) error {
+	return s.Apply(state.AddUnit(dustCollectorMoneySupplyID, dustCollectorPredicate, &BillData{
 		V:        dcMoneyAmount,
 		T:        0,
 		Backlink: nil,
-	}, nil))
+	}))
 }

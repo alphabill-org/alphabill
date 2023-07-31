@@ -7,8 +7,9 @@ import (
 	"fmt"
 
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
-	"github.com/alphabill-org/alphabill/internal/rma"
+	"github.com/alphabill-org/alphabill/internal/state"
 	"github.com/alphabill-org/alphabill/internal/txsystem/fc/transactions"
+	"github.com/alphabill-org/alphabill/internal/txsystem/fc/unit"
 	"github.com/alphabill-org/alphabill/internal/types"
 )
 
@@ -24,13 +25,13 @@ type (
 
 	AddFCValidationContext struct {
 		Tx                 *types.TransactionOrder
-		Unit               *rma.Unit
+		Unit               *state.Unit
 		CurrentRoundNumber uint64
 	}
 
 	CloseFCValidationContext struct {
 		Tx   *types.TransactionOrder
-		Unit *rma.Unit
+		Unit *state.Unit
 	}
 )
 
@@ -64,9 +65,6 @@ func (v *DefaultFeeCreditTxValidator) ValidateAddFeeCredit(ctx *AddFCValidationC
 		return errors.New("fee tx cannot contain fee authorization proof")
 	}
 
-	// 1. ExtrType(P.ι) = fcr – target unit is a fee credit record
-	// TODO
-
 	attr := &transactions.AddFeeCreditAttributes{}
 	if err := tx.UnmarshalAttributes(attr); err != nil {
 		return fmt.Errorf("failed to unmarshal add fee credit attributes: %w", err)
@@ -81,9 +79,20 @@ func (v *DefaultFeeCreditTxValidator) ValidateAddFeeCredit(ctx *AddFCValidationC
 		return errors.New("fee credit transfer proof is nil")
 	}
 	// 2. S.N[P.ι] = ⊥ ∨ S.N[P.ι].φ = P.A.φ – if the target exists, the owner condition matches
-	unit := ctx.Unit
-	if unit != nil && !bytes.Equal(unit.Bearer, attr.FeeCreditOwnerCondition) {
-		return fmt.Errorf("invalid owner condition: expected=%X actual=%X", unit.Bearer, attr.FeeCreditOwnerCondition)
+	u := ctx.Unit
+	var fcr *unit.FeeCreditRecord
+	if ctx.Unit != nil {
+		// 1. ExtrType(P.ι) = fcr – target unit is a fee credit record
+		var ok bool
+		fcr, ok = u.Data().(*unit.FeeCreditRecord)
+		if !ok {
+			return errors.New("invalid unit type: unit is not fee credit record")
+		}
+
+		// 2. S.N[P.ι] = ⊥ ∨ S.N[P.ι].φ = P.A.φ – if the target exists, the owner condition matches
+		if !bytes.Equal(ctx.Unit.Bearer(), attr.FeeCreditOwnerCondition) {
+			return fmt.Errorf("invalid owner condition: expected=%X actual=%X", ctx.Unit.Bearer(), attr.FeeCreditOwnerCondition)
+		}
 	}
 
 	// 4. P.A.P.α = P.αmoney ∧ P.A.P.τ = transFC – bill was transferred to fee credits
@@ -112,12 +121,8 @@ func (v *DefaultFeeCreditTxValidator) ValidateAddFeeCredit(ctx *AddFCValidationC
 	}
 
 	// 7. (S.N[P.ι] = ⊥ ∧ P.A.P.A.η = ⊥) ∨ (S.N[P.ι] != ⊥ ∧ P.A.P.A.η = S.N[P.ι].λ) – bill transfer order contains correct nonce
-	var backlink []byte
-	if unit != nil {
-		backlink = unit.Data.(*FeeCreditRecord).Hash
-	}
-	if !bytes.Equal(transferTxAttr.Nonce, backlink) {
-		return fmt.Errorf("invalid transferFC nonce: transferFC.nonce=%X unit.backlink=%X", transferTxAttr.Nonce, backlink)
+	if !bytes.Equal(transferTxAttr.Nonce, fcr.GetHash()) {
+		return fmt.Errorf("invalid transferFC nonce: transferFC.nonce=%X unit.backlink=%X", transferTxAttr.Nonce, fcr.GetHash())
 	}
 
 	// 8. P.A.P.A.tb ≤ t ≤ P.A.P.A.te, where t is the number of the current block being composed – bill transfer is valid to be used in this block
@@ -166,29 +171,31 @@ func (v *DefaultFeeCreditTxValidator) ValidateCloseFC(ctx *CloseFCValidationCont
 	if ctx.Unit == nil {
 		return errors.New("unit is nil")
 	}
-	fcr, ok := ctx.Unit.Data.(*FeeCreditRecord)
+	fcr, ok := ctx.Unit.Data().(*unit.FeeCreditRecord)
 	if !ok {
 		return errors.New("unit data is not of type fee credit record")
 	}
 
 	// P.A.v = S.N[ι].b - the amount is the current balance of the record
-	closFCAttributes := &transactions.CloseFeeCreditAttributes{}
-	if err := tx.UnmarshalAttributes(closFCAttributes); err != nil {
+	closeFCAttributes := &transactions.CloseFeeCreditAttributes{}
+	if err := tx.UnmarshalAttributes(closeFCAttributes); err != nil {
 		return fmt.Errorf("failed to unmarshal transaction attributes: %w", err)
 	}
-	if closFCAttributes.TargetUnitID == nil {
+
+	if closeFCAttributes.TargetUnitID == nil {
 		return errors.New("close attributes target unit is nil")
 	}
-	if closFCAttributes.Nonce == nil {
+	if closeFCAttributes.Nonce == nil {
 		return errors.New("close attributes nonce is nil")
 	}
-	if closFCAttributes.Amount != fcr.Balance {
-		return fmt.Errorf("invalid amount: amount=%d fcr.Balance=%d", closFCAttributes.Amount, fcr.Balance)
+	if closeFCAttributes.Amount != fcr.Balance {
+		return fmt.Errorf("invalid amount: amount=%d fcr.Balance=%d", closeFCAttributes.Amount, fcr.Balance)
 	}
 
 	// P.MC.fm ≤ S.N[ι].b - the transaction fee can’t exceed the current balance of the record
 	if tx.Payload.ClientMetadata.MaxTransactionFee > fcr.Balance {
 		return fmt.Errorf("invalid fee: max_fee=%d fcr.Balance=%d", tx.Payload.ClientMetadata.MaxTransactionFee, fcr.Balance)
 	}
+
 	return nil
 }

@@ -3,8 +3,8 @@ package evm
 import (
 	"fmt"
 
-	"github.com/alphabill-org/alphabill/internal/rma"
 	"github.com/alphabill-org/alphabill/internal/script"
+	"github.com/alphabill-org/alphabill/internal/state"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/internal/txsystem/evm/statedb"
 	"github.com/alphabill-org/alphabill/internal/txsystem/fc/transactions"
@@ -17,7 +17,7 @@ func isFeeCreditTx(tx *types.TransactionOrder) bool {
 		typeUrl == transactions.PayloadTypeCloseFeeCredit
 }
 
-func checkFeeAccountBalance(state *rma.Tree) txsystem.GenericTransactionValidator {
+func checkFeeAccountBalance(state *state.State) txsystem.GenericTransactionValidator {
 	return func(ctx *txsystem.TxValidationContext) error {
 		if isFeeCreditTx(ctx.Tx) {
 			addr, err := getAddressFromPredicateArg(ctx.Tx.OwnerProof)

@@ -4,12 +4,12 @@ import (
 	"crypto"
 	"testing"
 
-	"github.com/alphabill-org/alphabill/internal/rma"
+	"github.com/alphabill-org/alphabill/internal/state"
 	"github.com/stretchr/testify/require"
 )
 
 func TestOptions(t *testing.T) {
-	stateSHA512, err := rma.New(&rma.Config{HashAlgorithm: crypto.SHA512})
+	stateSHA512, err := state.New(state.WithHashAlgorithm(crypto.SHA512))
 	require.NoError(t, err)
 	tests := []struct {
 		name string
@@ -29,7 +29,7 @@ func TestOptions(t *testing.T) {
 			args: []Option{},
 			want: Options{
 				hashAlgorithm: crypto.SHA256,
-				state:         rma.NewWithSHA256(),
+				state:         state.NewEmptyState(),
 			},
 		},
 	}

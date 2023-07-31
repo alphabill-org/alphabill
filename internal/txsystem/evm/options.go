@@ -4,8 +4,9 @@ import (
 	gocrypto "crypto"
 	"math/big"
 
+	"github.com/alphabill-org/alphabill/internal/state"
+
 	"github.com/alphabill-org/alphabill/internal/crypto"
-	"github.com/alphabill-org/alphabill/internal/rma"
 )
 
 const DefaultBlockGasLimit = 15000000
@@ -16,7 +17,7 @@ var DefaultEvmTxSystemIdentifier = []byte{0, 0, 0, 3}
 type (
 	Options struct {
 		moneyTXSystemIdentifier []byte
-		state                   *rma.Tree
+		state                   *state.State
 		hashAlgorithm           gocrypto.Hash
 		trustBase               map[string]crypto.Verifier
 		initialAccountAddress   []byte
@@ -31,7 +32,7 @@ type (
 func DefaultOptions() *Options {
 	return &Options{
 		moneyTXSystemIdentifier: []byte{0, 0, 0, 0},
-		state:                   rma.NewWithSHA256(),
+		state:                   state.NewEmptyState(),
 		hashAlgorithm:           gocrypto.SHA256,
 		trustBase:               nil,
 		initialAccountAddress:   make([]byte, 20),
@@ -41,9 +42,9 @@ func DefaultOptions() *Options {
 	}
 }
 
-func WithState(state *rma.Tree) Option {
+func WithState(s *state.State) Option {
 	return func(c *Options) {
-		c.state = state
+		c.state = s
 	}
 }
 

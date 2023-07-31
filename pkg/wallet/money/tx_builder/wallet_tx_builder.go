@@ -81,6 +81,7 @@ func NewDustTx(ac *account.AccountKey, systemID []byte, bill *wallet.Bill, nonce
 		TargetBearer: script.PredicatePayToPublicKeyHashDefault(ac.PubKeyHash.Sha256),
 		Backlink:     bill.TxHash,
 		Nonce:        nonce,
+		SwapTimeout:  bill.SwapTimeout,
 	}
 	txPayload, err := newTxPayload(systemID, money.PayloadTypeTransDC, bill.GetID(), timeout, ac.PrivKeyHash, attr)
 	if err != nil {
@@ -89,7 +90,7 @@ func NewDustTx(ac *account.AccountKey, systemID []byte, bill *wallet.Bill, nonce
 	return signPayload(txPayload, ac)
 }
 
-func NewSwapTx(k *account.AccountKey, systemID []byte, dcBills []*wallet.Bill, dcNonce []byte, billIds [][]byte, timeout uint64) (*types.TransactionOrder, error) {
+func NewSwapTx(k *account.AccountKey, systemID []byte, dcBills []*wallet.BillProof, dcNonce []byte, billIds [][]byte, timeout uint64) (*types.TransactionOrder, error) {
 	if len(dcBills) == 0 {
 		return nil, errors.New("cannot create swap transaction as no dust bills exist")
 	}
@@ -98,7 +99,7 @@ func NewSwapTx(k *account.AccountKey, systemID []byte, dcBills []*wallet.Bill, d
 		return bytes.Compare(billIds[i], billIds[j]) < 0
 	})
 	sort.Slice(dcBills, func(i, j int) bool {
-		return bytes.Compare(dcBills[i].GetID(), dcBills[j].GetID()) < 0
+		return bytes.Compare(dcBills[i].Bill.GetID(), dcBills[j].Bill.GetID()) < 0
 	})
 
 	var dustTransferProofs []*types.TxProof
@@ -107,7 +108,7 @@ func NewSwapTx(k *account.AccountKey, systemID []byte, dcBills []*wallet.Bill, d
 	for _, b := range dcBills {
 		dustTransferRecords = append(dustTransferRecords, b.TxProof.TxRecord)
 		dustTransferProofs = append(dustTransferProofs, b.TxProof.TxProof)
-		billValueSum += b.Value
+		billValueSum += b.Bill.Value
 	}
 	attr := &money.SwapDCAttributes{
 		OwnerCondition:  script.PredicatePayToPublicKeyHashDefault(k.PubKeyHash.Sha256),

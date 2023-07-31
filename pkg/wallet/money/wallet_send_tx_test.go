@@ -22,9 +22,8 @@ func TestWalletSendFunction(t *testing.T) {
 		billId:    uint256.NewInt(0),
 		billValue: 50,
 		feeCreditBill: &wallet.Bill{
-			Id:      []byte{},
-			Value:   100 * 1e8,
-			TxProof: &wallet.Proof{},
+			Id:    []byte{},
+			Value: 100 * 1e8,
 		}}))
 	validPubKey := make([]byte, 33)
 	amount := uint64(50)
@@ -63,9 +62,8 @@ func TestWalletSendFunction_ClientError(t *testing.T) {
 		billId:    uint256.NewInt(0),
 		billValue: 50,
 		feeCreditBill: &wallet.Bill{
-			Id:      []byte{},
-			Value:   100 * 1e8,
-			TxProof: &wallet.Proof{},
+			Id:    []byte{},
+			Value: 100 * 1e8,
 		},
 		postTransactionsResponse: map[string]string{"message": "some error"},
 	}))
@@ -95,23 +93,22 @@ func TestWalletSendFunction_WaitForConfirmation(t *testing.T) {
 		getRoundNumber: func() (uint64, error) {
 			return 0, nil
 		},
-		listBills: func(pubKey []byte, includeDCBills bool) (*backend.ListBillsResponse, error) {
-			return createBillListResponse([]*Bill{b}), nil
+		listBills: func(pubKey []byte, includeDCBills, includeDCMetadata bool) (*backend.ListBillsResponse, error) {
+			return createBillListResponse([]*Bill{b}, nil), nil
 		},
 		getBills: func(pubKey []byte) ([]*wallet.Bill, error) {
 			return []*wallet.Bill{{Id: b.GetID(), Value: b.Value, TxHash: b.TxHash}}, nil
 		},
-		getProof: func(billId []byte) (*wallet.Bills, error) {
+		getTxProof: func(ctx context.Context, unitID wallet.UnitID, txHash wallet.TxHash) (*wallet.Proof, error) {
 			tx := recordedTransactions[0]
 			b.TxHash = tx.Hash(crypto.SHA256)
-			return createBlockProofResponse(t, b, nil, 0, dcTimeoutBlockCount, nil), nil
+			return createBlockProofResponse(t, b, nil, dcTimeoutBlockCount, nil), nil
 		},
-		fetchFeeCreditBill: func(ctx context.Context, unitID []byte) (*wallet.Bill, error) {
+		getFeeCreditBill: func(ctx context.Context, unitID []byte) (*wallet.Bill, error) {
 			ac, _ := w.am.GetAccountKey(0)
 			return &wallet.Bill{
-				Id:      ac.PrivKeyHash,
-				Value:   100 * 1e8,
-				TxProof: &wallet.Proof{},
+				Id:    ac.PrivKeyHash,
+				Value: 100 * 1e8,
 			}, nil
 		},
 		postTransactions: func(ctx context.Context, pubKey wallet.PubKey, txs *wallet.Transactions) error {
@@ -126,7 +123,7 @@ func TestWalletSendFunction_WaitForConfirmation(t *testing.T) {
 	// test send successfully waits for confirmation
 	_, err := w.Send(context.Background(), SendCmd{ReceiverPubKey: pubKey, Amount: b.Value, WaitForConfirmation: true, AccountIndex: 0})
 	require.NoError(t, err)
-	balance, _ := w.GetBalance(GetBalanceCmd{})
+	balance, _ := w.GetBalance(context.Background(), GetBalanceCmd{})
 	require.EqualValues(t, 100, balance)
 }
 
@@ -147,8 +144,8 @@ func TestWalletSendFunction_WaitForMultipleTxConfirmations(t *testing.T) {
 		getRoundNumber: func() (uint64, error) {
 			return 0, nil
 		},
-		listBills: func(pubKey []byte, includeDCBills bool) (*backend.ListBillsResponse, error) {
-			return createBillListResponse([]*Bill{b1, b2}), nil
+		listBills: func(pubKey []byte, includeDCBills, includeDCMetadata bool) (*backend.ListBillsResponse, error) {
+			return createBillListResponse([]*Bill{b1, b2}, nil), nil
 		},
 		getBills: func(pubKey []byte) ([]*wallet.Bill, error) {
 			return []*wallet.Bill{
@@ -156,11 +153,11 @@ func TestWalletSendFunction_WaitForMultipleTxConfirmations(t *testing.T) {
 				{Id: b2.GetID(), Value: b2.Value, TxHash: b2.TxHash},
 			}, nil
 		},
-		getProof: func(billId []byte) (*wallet.Bills, error) {
+		getTxProof: func(ctx context.Context, unitID wallet.UnitID, txHash wallet.TxHash) (*wallet.Proof, error) {
 			var bill *Bill
 			for _, tx := range recordedTransactions {
-				if bytes.Equal(billId, tx.UnitID()) {
-					bill, _ = bills[string(billId)]
+				if bytes.Equal(unitID, tx.UnitID()) {
+					bill, _ = bills[string(unitID)]
 					if bill != nil {
 						bill.TxHash = tx.Hash(crypto.SHA256)
 					}
@@ -168,13 +165,13 @@ func TestWalletSendFunction_WaitForMultipleTxConfirmations(t *testing.T) {
 			}
 
 			if bill != nil {
-				return createBlockProofResponse(t, bill, nil, 0, dcTimeoutBlockCount, nil), nil
+				return createBlockProofResponse(t, bill, nil, dcTimeoutBlockCount, nil), nil
 			} else {
 				return nil, errors.New("bill not found")
 			}
 		},
-		fetchFeeCreditBill: func(ctx context.Context, unitID []byte) (*wallet.Bill, error) {
-			return &wallet.Bill{Id: []byte{}, Value: 100 * 1e8, TxProof: &wallet.Proof{}}, nil
+		getFeeCreditBill: func(ctx context.Context, unitID []byte) (*wallet.Bill, error) {
+			return &wallet.Bill{Id: []byte{}, Value: 100 * 1e8}, nil
 		},
 		postTransactions: func(ctx context.Context, pubKey wallet.PubKey, txs *wallet.Transactions) error {
 			for _, tx := range txs.Transactions {
@@ -201,6 +198,7 @@ func TestWalletSendFunction_WaitForMultipleTxConfirmationsInDifferentBlocks(t *t
 		string(util.Uint256ToBytes(b1.Id)): b1,
 		string(util.Uint256ToBytes(b2.Id)): b2,
 	}
+
 	var w *Wallet
 	var recordedTransactions []*types.TransactionOrder
 	backendMock := &backendAPIMock{
@@ -210,8 +208,8 @@ func TestWalletSendFunction_WaitForMultipleTxConfirmationsInDifferentBlocks(t *t
 		getRoundNumber: func() (uint64, error) {
 			return blockCounter, nil
 		},
-		listBills: func(pubKey []byte, includeDCBills bool) (*backend.ListBillsResponse, error) {
-			return createBillListResponse([]*Bill{b1, b2}), nil
+		listBills: func(pubKey []byte, includeDCBills, includeDCMetadata bool) (*backend.ListBillsResponse, error) {
+			return createBillListResponse([]*Bill{b1, b2}, nil), nil
 		},
 		getBills: func(pubKey []byte) ([]*wallet.Bill, error) {
 			return []*wallet.Bill{
@@ -219,27 +217,26 @@ func TestWalletSendFunction_WaitForMultipleTxConfirmationsInDifferentBlocks(t *t
 				{Id: b2.GetID(), Value: b2.Value, TxHash: b2.TxHash},
 			}, nil
 		},
-		getProof: func(billId []byte) (*wallet.Bills, error) {
+		getTxProof: func(ctx context.Context, unitID wallet.UnitID, txHash wallet.TxHash) (*wallet.Proof, error) {
 			var bill *Bill
 			for _, tx := range recordedTransactions {
-				if bytes.Equal(billId, tx.UnitID()) {
-					bill, _ = bills[string(billId)]
+				if bytes.Equal(unitID, tx.UnitID()) {
+					bill, _ = bills[string(unitID)]
 					if bill != nil {
 						bill.TxHash = tx.Hash(crypto.SHA256)
 					}
 				}
 			}
 			if bill != nil {
-				nr := blockCounter
 				blockCounter++
-				return createBlockProofResponse(t, bill, nil, nr, dcTimeoutBlockCount, nil), nil
+				return createBlockProofResponse(t, bill, nil, dcTimeoutBlockCount, nil), nil
 			} else {
 				return nil, errors.New("bill not found")
 			}
 		},
-		fetchFeeCreditBill: func(ctx context.Context, unitID []byte) (*wallet.Bill, error) {
+		getFeeCreditBill: func(ctx context.Context, unitID []byte) (*wallet.Bill, error) {
 			ac, _ := w.am.GetAccountKey(0)
-			return &wallet.Bill{Id: ac.PrivKeyHash, Value: 100 * 1e8, TxProof: &wallet.Proof{}}, nil
+			return &wallet.Bill{Id: ac.PrivKeyHash, Value: 100 * 1e8}, nil
 		},
 		postTransactions: func(ctx context.Context, pubKey wallet.PubKey, txs *wallet.Transactions) error {
 			for _, tx := range txs.Transactions {
@@ -270,17 +267,17 @@ func TestWalletSendFunction_ErrTxFailedToConfirm(t *testing.T) {
 			}
 			return 2 * txTimeoutBlockCount, nil
 		},
-		listBills: func(pubKey []byte, includeDCBills bool) (*backend.ListBillsResponse, error) {
-			return createBillListResponse([]*Bill{b}), nil
+		listBills: func(pubKey []byte, includeDCBills, includeDCMetadata bool) (*backend.ListBillsResponse, error) {
+			return createBillListResponse([]*Bill{b}, nil), nil
 		},
 		getBills: func(pubKey []byte) ([]*wallet.Bill, error) {
 			return []*wallet.Bill{{Id: b.GetID(), Value: b.Value, TxHash: b.TxHash}}, nil
 		},
-		fetchFeeCreditBill: func(ctx context.Context, unitID []byte) (*wallet.Bill, error) {
-			return &wallet.Bill{Id: []byte{}, Value: 100 * 1e8, TxProof: &wallet.Proof{}}, nil
+		getFeeCreditBill: func(ctx context.Context, unitID []byte) (*wallet.Bill, error) {
+			return &wallet.Bill{Id: []byte{}, Value: 100 * 1e8}, nil
 		},
-		getProof: func(billId []byte) (*wallet.Bills, error) {
-			return &wallet.Bills{Bills: []*wallet.Bill{{Id: b.GetID(), Value: b.Value, TxHash: b.TxHash}}}, nil
+		getTxProof: func(ctx context.Context, unitID wallet.UnitID, txHash wallet.TxHash) (*wallet.Proof, error) {
+			return nil, nil
 		},
 		postTransactions: func(ctx context.Context, pubKey wallet.PubKey, txs *wallet.Transactions) error {
 			for _, tx := range txs.Transactions {
@@ -311,17 +308,17 @@ func TestWholeBalanceIsSentUsingBillTransferOrder(t *testing.T) {
 		getRoundNumber: func() (uint64, error) {
 			return 0, nil
 		},
-		listBills: func(pubKey []byte, includeDCBills bool) (*backend.ListBillsResponse, error) {
-			return createBillListResponse([]*Bill{b}), nil
+		listBills: func(pubKey []byte, includeDCBills, includeDCMetadata bool) (*backend.ListBillsResponse, error) {
+			return createBillListResponse([]*Bill{b}, nil), nil
 		},
 		getBills: func(pubKey []byte) ([]*wallet.Bill, error) {
 			return []*wallet.Bill{{Id: b.GetID(), Value: b.Value, TxHash: b.TxHash}}, nil
 		},
-		fetchFeeCreditBill: func(ctx context.Context, unitID []byte) (*wallet.Bill, error) {
-			return &wallet.Bill{Id: []byte{}, Value: 100 * 1e8, TxProof: &wallet.Proof{}}, nil
+		getFeeCreditBill: func(ctx context.Context, unitID []byte) (*wallet.Bill, error) {
+			return &wallet.Bill{Id: []byte{}, Value: 100 * 1e8}, nil
 		},
-		getProof: func(billId []byte) (*wallet.Bills, error) {
-			return &wallet.Bills{Bills: []*wallet.Bill{{Id: b.GetID(), Value: b.Value, TxHash: b.TxHash}}}, nil
+		getTxProof: func(ctx context.Context, unitID wallet.UnitID, txHash wallet.TxHash) (*wallet.Proof, error) {
+			return nil, nil
 		},
 		postTransactions: func(ctx context.Context, pubKey wallet.PubKey, txs *wallet.Transactions) error {
 			for _, tx := range txs.Transactions {

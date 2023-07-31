@@ -230,8 +230,8 @@ func TestConsensusManager_PartitionTimeout(t *testing.T) {
 	result, err := readResult(cm.CertificationResult(), 4*cm.params.BlockRateMs)
 	require.NoError(t, err)
 	require.Equal(t, uint64(2), result.InputRecord.RoundNumber)
-	require.Equal(t, []byte{0, 0, 0, 0}, result.InputRecord.BlockHash)
-	require.Equal(t, result.InputRecord.Hash, result.InputRecord.PreviousHash)
+	require.Equal(t, partitionInputRecord.BlockHash, result.InputRecord.BlockHash)
+	require.Equal(t, partitionInputRecord.PreviousHash, result.InputRecord.PreviousHash)
 	require.Equal(t, partitionInputRecord.Hash, result.InputRecord.Hash)
 	require.NotNil(t, result.UnicitySeal.Hash)
 	trustBase := map[string]crypto.Verifier{rootNode.Peer.ID().String(): rootNode.Verifier}

@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"context"
+	"crypto"
 	"errors"
 	"fmt"
 	"io"
@@ -17,7 +18,6 @@ import (
 	"golang.org/x/term"
 
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
-	"github.com/alphabill-org/alphabill/pkg/client"
 	"github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/alphabill-org/alphabill/pkg/wallet/account"
 	wlog "github.com/alphabill-org/alphabill/pkg/wallet/log"
@@ -75,7 +75,7 @@ func newWalletCmd(baseConfig *baseConfiguration) *cobra.Command {
 		},
 	}
 	walletCmd.AddCommand(newWalletBillsCmd(config))
-	walletCmd.AddCommand(newWalletFeesCmd(context.Background(), config))
+	walletCmd.AddCommand(newWalletFeesCmd(config))
 	walletCmd.AddCommand(createCmd(config))
 	walletCmd.AddCommand(sendCmd(config))
 	walletCmd.AddCommand(getPubKeysCmd(config))
@@ -83,6 +83,7 @@ func newWalletCmd(baseConfig *baseConfiguration) *cobra.Command {
 	walletCmd.AddCommand(collectDustCmd(config))
 	walletCmd.AddCommand(addKeyCmd(config))
 	walletCmd.AddCommand(tokenCmd(config))
+	walletCmd.AddCommand(vdCmd(config))
 	// add passwords flags for (encrypted)wallet
 	walletCmd.PersistentFlags().BoolP(passwordPromptCmdName, "p", false, passwordPromptUsage)
 	walletCmd.PersistentFlags().String(passwordArgCmdName, "", passwordArgUsage)
@@ -182,11 +183,11 @@ func execSendCmd(ctx context.Context, cmd *cobra.Command, config *walletConfig) 
 	if err != nil {
 		return err
 	}
-	w, err := money.LoadExistingWallet(client.AlphabillClientConfig{}, am, restClient)
+	w, err := money.LoadExistingWallet(am, restClient)
 	if err != nil {
 		return err
 	}
-	defer w.Shutdown()
+	defer w.Close()
 
 	receiverPubKeyHex, err := cmd.Flags().GetString(addressCmdName)
 	if err != nil {
@@ -250,21 +251,23 @@ func execSendCmd(ctx context.Context, cmd *cobra.Command, config *walletConfig) 
 	if waitForConf {
 		consoleWriter.Println("Successfully confirmed transaction(s)")
 		if outputPath != "" {
-			// convert wallet.Proofs to wallet.Bills, alternatively remove bill export as it's deprecated functionality
-			var outputBills []*wallet.Bill
+			// convert wallet.Proofs to wallet.Bills, TODO: alternatively remove bill export as it's deprecated functionality
+			var outputBills []*wallet.BillProof
 			for _, b := range proofs {
-				proof, err := restClient.GetProof(b.TxRecord.TransactionOrder.UnitID())
-				if err != nil {
-					return err
-				}
-				outputBills = append(outputBills, proof.Bills[0])
+				outputBills = append(outputBills, &wallet.BillProof{Bill: &wallet.Bill{Id: b.TxRecord.TransactionOrder.UnitID(), TxHash: b.TxRecord.TransactionOrder.Hash(crypto.SHA256)}, TxProof: b})
 			}
-			outputFile, err := writeBillsToFile(outputPath, outputBills...)
+			outputFile, err := writeProofsToFile(outputPath, outputBills...)
 			if err != nil {
 				return err
 			}
 			consoleWriter.Println("Transaction proof(s) saved to: " + outputFile)
 		}
+
+		var feeSum uint64
+		for _, proof := range proofs {
+			feeSum += proof.TxRecord.ServerMetadata.GetActualFee()
+		}
+		consoleWriter.Println("Paid", amountToString(feeSum, 8), "fees for transaction(s).")
 	} else {
 		consoleWriter.Println("Successfully sent transaction(s)")
 	}
@@ -302,11 +305,11 @@ func execGetBalanceCmd(cmd *cobra.Command, config *walletConfig) error {
 	if err != nil {
 		return err
 	}
-	w, err := money.LoadExistingWallet(client.AlphabillClientConfig{}, am, restClient)
+	w, err := money.LoadExistingWallet(am, restClient)
 	if err != nil {
 		return err
 	}
-	defer w.Shutdown()
+	defer w.Close()
 
 	accountNumber, err := cmd.Flags().GetUint64(keyCmdName)
 	if err != nil {
@@ -328,7 +331,7 @@ func execGetBalanceCmd(cmd *cobra.Command, config *walletConfig) error {
 		quiet = false // quiet is supposed to work only when total or key flag is provided
 	}
 	if accountNumber == 0 {
-		totals, sum, err := w.GetBalances(money.GetBalanceCmd{CountDCBills: showUnswapped})
+		totals, sum, err := w.GetBalances(cmd.Context(), money.GetBalanceCmd{CountDCBills: showUnswapped})
 		if err != nil {
 			return err
 		}
@@ -344,7 +347,7 @@ func execGetBalanceCmd(cmd *cobra.Command, config *walletConfig) error {
 			consoleWriter.Println(fmt.Sprintf("Total %s", sumStr))
 		}
 	} else {
-		balance, err := w.GetBalance(money.GetBalanceCmd{AccountIndex: accountNumber - 1, CountDCBills: showUnswapped})
+		balance, err := w.GetBalance(cmd.Context(), money.GetBalanceCmd{AccountIndex: accountNumber - 1, CountDCBills: showUnswapped})
 		if err != nil {
 			return err
 		}
@@ -400,17 +403,12 @@ func collectDustCmd(config *walletConfig) *cobra.Command {
 			return execCollectDust(cmd, config)
 		},
 	}
-	cmd.Flags().StringP(alphabillNodeURLCmdName, "u", defaultAlphabillNodeURL, "alphabill uri to connect to")
 	cmd.Flags().StringP(alphabillApiURLCmdName, "r", defaultAlphabillApiURL, "alphabill API uri to connect to")
 	cmd.Flags().Uint64P(keyCmdName, "k", 0, "which key to use for dust collection, 0 for all bills from all accounts")
 	return cmd
 }
 
 func execCollectDust(cmd *cobra.Command, config *walletConfig) error {
-	nodeUri, err := cmd.Flags().GetString(alphabillNodeURLCmdName)
-	if err != nil {
-		return err
-	}
 	apiUri, err := cmd.Flags().GetString(alphabillApiURLCmdName)
 	if err != nil {
 		return err
@@ -428,14 +426,14 @@ func execCollectDust(cmd *cobra.Command, config *walletConfig) error {
 		return err
 	}
 
-	w, err := money.LoadExistingWallet(client.AlphabillClientConfig{Uri: nodeUri}, am, restClient)
+	w, err := money.LoadExistingWallet(am, restClient)
 	if err != nil {
 		return err
 	}
-	defer w.Shutdown()
+	defer w.Close()
 
 	consoleWriter.Println("Starting dust collection, this may take a while...")
-	err = w.CollectDust(context.Background(), accountNumber)
+	err = w.CollectDust(cmd.Context(), accountNumber)
 
 	if err != nil {
 		consoleWriter.Println("Failed to collect dust: " + err.Error())

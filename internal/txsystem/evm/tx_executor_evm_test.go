@@ -6,7 +6,8 @@ import (
 	"math/big"
 	"testing"
 
-	"github.com/alphabill-org/alphabill/internal/rma"
+	abstate "github.com/alphabill-org/alphabill/internal/state"
+
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/alphabill-org/alphabill/internal/txsystem/evm/statedb"
 	"github.com/alphabill-org/alphabill/internal/types"
@@ -18,9 +19,9 @@ import (
 )
 
 func BenchmarkCallContract(b *testing.B) {
-	state := rma.NewWithSHA256()
+	s := abstate.NewEmptyState()
 	from := test.RandomBytes(20)
-	stateDB := statedb.NewStateDB(state)
+	stateDB := statedb.NewStateDB(s)
 	fromAddr := common.BytesToAddress(from)
 	stateDB.CreateAccount(fromAddr)
 	stateDB.AddBalance(fromAddr, big.NewInt(1000000000000000000)) // add 1 ETH
@@ -56,8 +57,8 @@ func BenchmarkCallContract(b *testing.B) {
 
 func initStateDBWithAccountAndSC(t *testing.T, eoaAddr common.Address, balance uint64) *statedb.StateDB {
 	t.Helper()
-	state := rma.NewWithSHA256()
-	stateDB := statedb.NewStateDB(state)
+	s := abstate.NewEmptyState()
+	stateDB := statedb.NewStateDB(s)
 	stateDB.CreateAccount(eoaAddr)
 	stateDB.AddBalance(eoaAddr, big.NewInt(int64(balance)))
 	// create a contract
@@ -68,7 +69,7 @@ func initStateDBWithAccountAndSC(t *testing.T, eoaAddr common.Address, balance u
 }
 
 func Test_validate(t *testing.T) {
-	state := rma.NewWithSHA256()
+	s := abstate.NewEmptyState()
 	fromAddr := common.BytesToAddress(test.RandomBytes(20))
 	gasPrice := big.NewInt(DefaultGasPrice)
 	type args struct {
@@ -88,7 +89,7 @@ func Test_validate(t *testing.T) {
 					Value: big.NewInt(0),
 					Gas:   10,
 				},
-				stateDB: statedb.NewStateDB(state),
+				stateDB: statedb.NewStateDB(s),
 			},
 			wantErrStr: "invalid evm tx, from addr is nil",
 		},
@@ -100,7 +101,7 @@ func Test_validate(t *testing.T) {
 					Value: nil,
 					Gas:   10,
 				},
-				stateDB: statedb.NewStateDB(state),
+				stateDB: statedb.NewStateDB(s),
 			},
 			wantErrStr: "invalid evm tx, value is nil",
 		},
@@ -112,7 +113,7 @@ func Test_validate(t *testing.T) {
 					Value: big.NewInt(-2),
 					Gas:   0,
 				},
-				stateDB: statedb.NewStateDB(state),
+				stateDB: statedb.NewStateDB(s),
 			},
 			wantErrStr: "invalid evm tx, value is negative",
 		},
@@ -165,7 +166,7 @@ func Test_validate(t *testing.T) {
 }
 
 func Test_execute(t *testing.T) {
-	state := rma.NewWithSHA256()
+	s := abstate.NewEmptyState()
 	fromAddr := common.BytesToAddress(test.RandomBytes(20))
 	gasPrice := big.NewInt(DefaultGasPrice)
 
@@ -190,7 +191,7 @@ func Test_execute(t *testing.T) {
 					Value: big.NewInt(0),
 					Gas:   10,
 				},
-				stateDB: statedb.NewStateDB(state),
+				stateDB: statedb.NewStateDB(s),
 			},
 			wantErrStr: "invalid evm tx, from addr is nil",
 		},

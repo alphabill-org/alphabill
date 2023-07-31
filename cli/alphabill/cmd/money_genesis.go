@@ -28,9 +28,8 @@ const (
 	defaultT2Timeout          = 2500
 )
 
-var defaultABMoneySystemIdentifier = []byte{0, 0, 0, 0}
 var defaultMoneySDR = &genesis.SystemDescriptionRecord{
-	SystemIdentifier: defaultABMoneySystemIdentifier,
+	SystemIdentifier: money.DefaultSystemIdentifier,
 	T2Timeout:        defaultT2Timeout,
 	FeeCreditBill: &genesis.FeeCreditBill{
 		UnitId:         util.Uint256ToBytes(uint256.NewInt(2)),
@@ -60,7 +59,7 @@ func newMoneyGenesisCmd(baseConfig *baseConfiguration) *cobra.Command {
 		},
 	}
 
-	cmd.Flags().BytesHexVarP(&config.SystemIdentifier, "system-identifier", "s", defaultABMoneySystemIdentifier, "system identifier in HEX format")
+	cmd.Flags().BytesHexVarP(&config.SystemIdentifier, "system-identifier", "s", money.DefaultSystemIdentifier, "system identifier in HEX format")
 	config.Keys.addCmdFlags(cmd)
 	cmd.Flags().StringVarP(&config.Output, "output", "o", "", "path to the output genesis file (default: $AB_HOME/money/node-genesis.json)")
 	cmd.Flags().Uint64Var(&config.InitialBillValue, "initial-bill-value", defaultInitialBillValue, "the initial bill value")
@@ -100,7 +99,7 @@ func abMoneyGenesisRunFun(_ context.Context, config *moneyGenesisConfig) error {
 	}
 
 	ib := &money.InitialBill{
-		ID:    uint256.NewInt(defaultInitialBillId),
+		ID:    util.Uint256ToBytes(uint256.NewInt(defaultInitialBillId)),
 		Value: config.InitialBillValue,
 		Owner: script.PredicateAlwaysTrue(),
 	}
@@ -109,8 +108,8 @@ func abMoneyGenesisRunFun(_ context.Context, config *moneyGenesisConfig) error {
 	if err != nil {
 		return err
 	}
-	txSystem, err := money.NewMoneyTxSystem(
-		config.SystemIdentifier,
+	txSystem, err := money.NewTxSystem(
+		money.WithSystemIdentifier(config.SystemIdentifier),
 		money.WithHashAlgorithm(crypto.SHA256),
 		money.WithInitialBill(ib),
 		money.WithSystemDescriptionRecords(sdrs),

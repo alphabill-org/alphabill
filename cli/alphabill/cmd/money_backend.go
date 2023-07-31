@@ -8,6 +8,7 @@ import (
 
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/internal/script"
+	"github.com/alphabill-org/alphabill/internal/txsystem/money"
 	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/alphabill-org/alphabill/pkg/wallet/money/backend"
 	"github.com/holiman/uint256"
@@ -113,7 +114,7 @@ func execMoneyBackendStartCmd(ctx context.Context, config *moneyBackendConfig) e
 		return err
 	}
 	return backend.Run(ctx, &backend.Config{
-		ABMoneySystemIdentifier: defaultABMoneySystemIdentifier,
+		ABMoneySystemIdentifier: money.DefaultSystemIdentifier,
 		AlphabillUrl:            config.AlphabillUrl,
 		ServerAddr:              config.ServerAddr,
 		DbFile:                  dbFile,

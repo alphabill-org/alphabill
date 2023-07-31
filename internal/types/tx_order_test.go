@@ -2,7 +2,6 @@ package types
 
 import (
 	"encoding/hex"
-	"fmt"
 	"testing"
 
 	"github.com/fxamacker/cbor/v2"
@@ -77,7 +76,6 @@ func TestMarshalNilValuesInPayload(t *testing.T) {
 		ClientMetadata: nil,
 	}, OwnerProof: make([]byte, 32)}
 	payloadBytes, err := order.PayloadBytes()
-	fmt.Printf("%X", payloadBytes)
 	require.NoError(t, err)
 	// 85    # array(5)
 	//   f6 #   null, simple(22)
@@ -87,6 +85,10 @@ func TestMarshalNilValuesInPayload(t *testing.T) {
 	//   f6 #   null, simple(22)
 	//   f6 #   null, simple(22)
 	require.Equal(t, []byte{0x85, 0xf6, 0x60, 0xf6, 0xf6, 0xf6}, payloadBytes)
+
+	payload := &Payload{}
+	require.NoError(t, cbor.Unmarshal(payloadBytes, payload))
+	require.EqualValues(t, order.Payload, payload)
 }
 
 func TestUnmarshalPayload(t *testing.T) {

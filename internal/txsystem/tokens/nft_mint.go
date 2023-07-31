@@ -1,44 +1,41 @@
 package tokens
 
 import (
+	"crypto"
 	"errors"
 	"fmt"
 
-	"github.com/alphabill-org/alphabill/internal/rma"
+	"github.com/alphabill-org/alphabill/internal/state"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
-	"github.com/alphabill-org/alphabill/internal/txsystem/fc"
 	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/internal/util"
+	"github.com/alphabill-org/alphabill/pkg/tree/avl"
 	"github.com/fxamacker/cbor/v2"
-	"github.com/holiman/uint256"
 )
 
 func handleMintNonFungibleTokenTx(options *Options) txsystem.GenericExecuteFunc[MintNonFungibleTokenAttributes] {
 	return func(tx *types.TransactionOrder, attr *MintNonFungibleTokenAttributes, currentBlockNr uint64) (*types.ServerMetadata, error) {
 		logger.Debug("Processing Mint Non-Fungible Token tx: %v", tx)
-		if err := validateMintNonFungibleToken(tx, attr, options.state); err != nil {
-			return nil, fmt.Errorf("invalid mint none-fungible token tx: %w", err)
+		if err := validateMintNonFungibleToken(tx, attr, options.state, options.hashAlgorithm); err != nil {
+			return nil, fmt.Errorf("invalid mint non-fungible token tx: %w", err)
 		}
 		fee := options.feeCalculator()
-
-		// TODO calculate hash after setting server metadata
+		unitID := tx.UnitID()
 		h := tx.Hash(options.hashAlgorithm)
 
 		// update state
-		fcrID := util.BytesToUint256(tx.GetClientFeeCreditRecordID())
-		unitID := util.BytesToUint256(tx.UnitID())
-		if err := options.state.AtomicUpdate(
-			fc.DecrCredit(fcrID, fee, h),
-			rma.AddItem(unitID, attr.Bearer, newNonFungibleTokenData(attr, h, currentBlockNr), h)); err != nil {
+		if err := options.state.Apply(
+			state.AddUnit(unitID, attr.Bearer, newNonFungibleTokenData(attr, h, currentBlockNr))); err != nil {
 			return nil, err
 		}
-		return &types.ServerMetadata{ActualFee: fee}, nil
+
+		return &types.ServerMetadata{ActualFee: fee, TargetUnits: []types.UnitID{}}, nil
 	}
 }
 
-func validateMintNonFungibleToken(tx *types.TransactionOrder, attr *MintNonFungibleTokenAttributes, state *rma.Tree) error {
-	unitID := util.BytesToUint256(tx.UnitID())
-	if unitID.IsZero() {
+func validateMintNonFungibleToken(tx *types.TransactionOrder, attr *MintNonFungibleTokenAttributes, s *state.State, hashAlgorithm crypto.Hash) error {
+	unitID := types.UnitID(tx.UnitID())
+	if unitID.IsZero(hashAlgorithm.Size()) {
 		return errors.New(ErrStrUnitIDIsZero)
 	}
 	if len(attr.Name) > maxNameLength {
@@ -56,27 +53,28 @@ func validateMintNonFungibleToken(tx *types.TransactionOrder, attr *MintNonFungi
 	if len(attr.Data) > dataMaxSize {
 		return fmt.Errorf("data exceeds the maximum allowed size of %v KB", dataMaxSize)
 	}
-	u, err := state.GetUnit(unitID)
+	u, err := s.GetUnit(unitID, false)
 	if u != nil {
 		return fmt.Errorf("unit %v exists", unitID)
 	}
-	if !errors.Is(err, rma.ErrUnitNotFound) {
+	if !errors.Is(err, avl.ErrNotFound) {
 		return err
 	}
-	nftTypeID := util.BytesToUint256(attr.NFTTypeID)
-	if nftTypeID.IsZero() {
+	nftTypeID := types.UnitID(attr.NFTTypeID)
+	if nftTypeID.IsZero(hashAlgorithm.Size()) {
 		return errors.New(ErrStrUnitIDIsZero)
 	}
 
 	// the transaction request satisfies the predicate obtained by concatenating all the token creation clauses along
 	// the type inheritance chain.
 	predicates, err := getChainedPredicates[*nonFungibleTokenTypeData](
-		state,
+		hashAlgorithm,
+		s,
 		nftTypeID,
 		func(d *nonFungibleTokenTypeData) []byte {
 			return d.tokenCreationPredicate
 		},
-		func(d *nonFungibleTokenTypeData) *uint256.Int {
+		func(d *nonFungibleTokenTypeData) types.UnitID {
 			return d.parentTypeId
 		},
 	)

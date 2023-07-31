@@ -85,13 +85,16 @@ func execute(currentBlockNumber uint64, stateDB *statedb.StateDB, attr *TxAttrib
 		stateDB.PrepareAccessList(sender.Address(), toAddr, vm.ActivePrecompiles(rules), ethtypes.AccessList{})
 	}
 	var vmErr error
+
+	var contractAddr common.Address
 	if isContractCreation {
 		// contract creation
-		_, _, gasRemaining, vmErr = evm.Create(sender, attr.Data, gasRemaining, attr.Value)
+		_, contractAddr, gasRemaining, vmErr = evm.Create(sender, attr.Data, gasRemaining, attr.Value)
 		// TODO handle "deploy contract" result
 	} else {
 		// TODO set nonce
-		_, gasRemaining, vmErr = evm.Call(sender, vm.AccountRef(attr.To).Address(), attr.Data, gasRemaining, attr.Value)
+		contractAddr = vm.AccountRef(attr.To).Address()
+		_, gasRemaining, vmErr = evm.Call(sender, contractAddr, attr.Data, gasRemaining, attr.Value)
 		// TODO handle call result
 	}
 	// todo: "gas handling" Refund ETH for remaining gas, exchanged at the original rate.
@@ -110,7 +113,12 @@ func execute(currentBlockNumber uint64, stateDB *statedb.StateDB, attr *TxAttrib
 	stateDB.SubBalance(sender.Address(), txPrice)
 	// add remaining back to block gas pool
 	gp.AddGas(gasRemaining)
-	return &types.ServerMetadata{}, nil
+	// TODO: handle a case when the smart contract calls another smart contract. i
+	targetUnits := []types.UnitID{attr.From}
+	if attr.To != nil {
+		targetUnits = append(targetUnits, attr.To)
+	}
+	return &types.ServerMetadata{TargetUnits: targetUnits}, nil
 }
 
 func newBlockContext(currentBlockNumber uint64) vm.BlockContext {

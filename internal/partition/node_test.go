@@ -317,7 +317,7 @@ func TestNode_HandleEquivocatingUnicityCertificate_SameRoundDifferentIRHashes(t 
 	require.NoError(t, err)
 
 	tp.SubmitUnicityCertificate(equivocatingUC)
-	ContainsError(t, tp, "equivocating certificate, different input records for same partition round")
+	ContainsError(t, tp, "equivocating UC, different input records for same partition round")
 }
 
 func copyIR(record *types.InputRecord) *types.InputRecord {
@@ -360,7 +360,7 @@ func TestNode_HandleEquivocatingUnicityCertificate_SameIRPreviousHashDifferentIR
 	require.NoError(t, err)
 
 	tp.SubmitUnicityCertificate(equivocatingUC)
-	ContainsError(t, tp, "equivocating certificate, different input records for same partition round 2")
+	ContainsError(t, tp, "equivocating UC, different input records for same partition round")
 }
 
 // state does not change in case of no transactions in money partition
@@ -385,7 +385,7 @@ func TestNode_HandleUnicityCertificate_SameIR_DifferentBlockHash_StateReverted(t
 	require.Equal(t, uint64(0), txs.RevertCount)
 
 	// simulate receiving repeat UC
-	ir, _ := types.NewRepeatInputRecord(latestUC.InputRecord)
+	ir := latestUC.InputRecord.NewRepeatIR()
 	uc, err := tp.CreateUnicityCertificate(
 		ir,
 		latestUC.UnicitySeal.RootChainRoundNumber+1,
@@ -447,6 +447,32 @@ func TestNode_HandleUnicityCertificate_Revert(t *testing.T) {
 	tp.SubmitUnicityCertificate(repeatUC)
 	ContainsEventType(t, tp, event.StateReverted)
 	require.Equal(t, uint64(1), system.RevertCount)
+}
+
+// pending proposal exists
+// uc.InputRecord.SumOfEarnedFees != n.pendingBlockProposal.SumOfEarnedFees
+func TestNode_HandleUnicityCertificate_SumOfEarnedFeesMismatch_1(t *testing.T) {
+	tp := RunSingleNodePartition(t, &testtxsystem.CounterTxSystem{Fee: 1337})
+
+	// skip UC validation
+	tp.partition.unicityCertificateValidator = &AlwaysValidCertificateValidator{}
+
+	// create the first block
+	tp.CreateBlock(t)
+
+	// send transaction that has a fee
+	transferTx := testtransaction.NewTransactionOrder(t)
+	require.NoError(t, tp.SubmitTx(transferTx))
+	testevent.ContainsEvent(t, tp.eh, event.TransactionProcessed)
+
+	// when UC with modified IR.SumOfEarnedFees is received
+	tp.SubmitT1Timeout(t)
+	uc := tp.IssueBlockUC(t)
+	uc.InputRecord.SumOfEarnedFees += 1
+	tp.SubmitUnicityCertificate(uc)
+
+	// then state is reverted
+	ContainsEventType(t, tp, event.StateReverted)
 }
 
 func TestBlockProposal_BlockProposalIsNil(t *testing.T) {

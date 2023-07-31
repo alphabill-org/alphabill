@@ -6,8 +6,8 @@ import (
 	"testing"
 
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
-	"github.com/alphabill-org/alphabill/internal/rma"
 	"github.com/alphabill-org/alphabill/internal/script"
+	"github.com/alphabill-org/alphabill/internal/state"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	testtransaction "github.com/alphabill-org/alphabill/internal/testutils/transaction"
 	"github.com/alphabill-org/alphabill/internal/txsystem/evm/statedb"
@@ -34,7 +34,7 @@ func newCloseFCTx(t *testing.T, unitID []byte, attr *transactions.CloseFeeCredit
 	}
 }
 
-func addFeeCredit(t *testing.T, tree *rma.Tree, signer abcrypto.Signer, amount uint64) []byte {
+func addFeeCredit(t *testing.T, tree *state.State, signer abcrypto.Signer, amount uint64) []byte {
 	t.Helper()
 	ver, err := signer.Verifier()
 	require.NoError(t, err)
@@ -73,7 +73,7 @@ func Test_closeFeeCreditTxExecFn(t *testing.T) {
 		order       *types.TransactionOrder
 		blockNumber uint64
 	}
-	stateTree := rma.NewWithSHA256()
+	stateTree := state.NewEmptyState()
 	signer, ver := testsig.CreateSignerAndVerifier(t)
 	tb := map[string]abcrypto.Verifier{"test": ver}
 	privKeyHash := hashOfPrivateKey(t, signer)
@@ -126,7 +126,7 @@ func Test_closeFeeCreditTxExecFn(t *testing.T) {
 }
 
 func Test_closeFeeCreditTx(t *testing.T) {
-	stateTree := rma.NewWithSHA256()
+	stateTree := state.NewEmptyState()
 	signer, ver := testsig.CreateSignerAndVerifier(t)
 	tb := map[string]abcrypto.Verifier{"test": ver}
 	pubKeyBytes, err := ver.MarshalPublicKey()

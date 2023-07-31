@@ -121,6 +121,7 @@ func (m *GenericTxSystem) getState() (State, error) {
 }
 
 func (m *GenericTxSystem) BeginBlock(blockNr uint64) error {
+	m.currentBlockNumber = blockNr
 	for _, function := range m.beginBlockFunctions {
 		txs, err := function(blockNr)
 		if err != nil {
@@ -133,7 +134,6 @@ func (m *GenericTxSystem) BeginBlock(blockNr uint64) error {
 			}
 		}
 	}
-	m.currentBlockNumber = blockNr
 	return nil
 }
 

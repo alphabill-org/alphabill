@@ -1,7 +1,7 @@
 schemas:
   ErrorResponse:
     type: object
-    description: returned in case of a bad request or an internal error
+    description: Returned in case of a bad request or an internal error
     properties:
       message:
         type: string
@@ -11,30 +11,51 @@ schemas:
     properties:
       roundNumber:
         type: string
-        description: value is uint64 encoded as string
+        description: Value is uint64 encoded as string
         example: '265'
   Bill:
     type: object
     properties:
       id:
-        type: array
-        items:
-          type: integer
+        type: string
+        example: 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAE='
       value:
         type: string
-        example: '0'
+        example: '999999998899999978'
       tx_hash:
-        type: array
-        items:
-          type: integer
-      add_fc_tx_hash:
         type: string
-        description: block number when fee credit bill balance was last updated
-        example: '0'
+        example: 'xJNZmYynzM39S6wbzgCkPG4cS4gztXEfSyWOKowSKvQ='
       dc_nonce:
-        type: array
-        items:
-          type: integer
+        type: string
+        example: 'AAAAAF5t6Kd0RXr34lPHRQTTAlaub1lu/jPB+1MKrgg='
+      swap_timeout:
+        type: string
+        example: '59'
+      last_add_fc_tx_hash:
+        type: string
+        description: Hash of the last Add Fee Credit transaction
+        example: ''
+  UnitIDParam:
+    type: string
+    description: |-
+      Unit ID is a 32 byte binary value encoded as hex string, prefixed by `0x` marker.
+      So the valid string representation of the value must be 66 characters long (including 0x prefix).
+
+      This type is used for query input parameters like token ID or token type ID.
+    minLength: 66
+    maxLength: 66
+    # default: 0x
+    example: '0x3a04762909373b3c273ff3726746d7a787836d767733dabc2773619870c081a3'
+  PublicKeyParam:
+    type: string
+    description: |-
+      Hex encoded string of the public key, prefixed by `0x`.
+      Must be 68 characters long (including 0x prefix).
+
+      This type is used for query input parameters.
+    minLength: 68
+    maxLength: 68
+    default: 0x
 responses:
   ErrorResponse:
     description: |-
@@ -44,3 +65,23 @@ responses:
       application/json:
         schema:
           $ref: '#/schemas/ErrorResponse'
+  PostTransactionsErrorResponse:
+    description: |-
+      Server failed to process the request, either some of the
+      transactions posted were invalid or the server itself has
+      problems, ie can't connect to the AB node.
+
+      Response is a map with transaction ID as the key and error
+      message as the value. The error message describes what
+      went wrong when trying to process that
+      transaction. Transactions which are not listed might have
+      been processed successfuly.
+    content:
+      application/json:
+        schema:
+          type: object
+          additionalProperties:
+            type: string
+          example:
+            ZD75s0+XCi3XwxOp3UxccXY6nM4ZhDnDyYNGoJv5K1U=: "failed to convert transaction: bad type name"
+            v8aSJW4nDxgQf7VxvNh/a60ux7CovgAuJUwJJIJNvAk=: "failed to forward tx: connection refused"

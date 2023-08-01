@@ -10,7 +10,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/alphabill-org/alphabill/pkg/wallet/txsubmitter"
+	"github.com/holiman/uint256"
+	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc"
 
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/hash"
@@ -34,9 +36,8 @@ import (
 	"github.com/alphabill-org/alphabill/pkg/wallet/log"
 	"github.com/alphabill-org/alphabill/pkg/wallet/money/backend"
 	beclient "github.com/alphabill-org/alphabill/pkg/wallet/money/backend/client"
-	"github.com/holiman/uint256"
-	"github.com/stretchr/testify/require"
-	"google.golang.org/grpc"
+	"github.com/alphabill-org/alphabill/pkg/wallet/txsubmitter"
+	"github.com/alphabill-org/alphabill/pkg/wallet/unitlock"
 )
 
 var moneySysId = []byte{0, 0, 0, 0}
@@ -87,8 +88,12 @@ func TestCollectDustTimeoutReached(t *testing.T) {
 	require.NoError(t, err)
 	restClient, err := beclient.New(restAddr)
 	require.NoError(t, err)
-	w, err := LoadExistingWallet(am, restClient)
+	unitLocker, err := unitlock.NewUnitLocker(dir)
 	require.NoError(t, err)
+	defer unitLocker.Close()
+	w, err := LoadExistingWallet(am, unitLocker, restClient)
+	require.NoError(t, err)
+	defer w.Close()
 	pubKeys, err := am.GetPublicKeys()
 	require.NoError(t, err)
 
@@ -195,8 +200,12 @@ func TestCollectDustInMultiAccountWallet(t *testing.T) {
 	require.NoError(t, err)
 	restClient, err := beclient.New(restAddr)
 	require.NoError(t, err)
-	w, err := LoadExistingWallet(am, restClient)
+	unitLocker, err := unitlock.NewUnitLocker(dir)
 	require.NoError(t, err)
+	defer unitLocker.Close()
+	w, err := LoadExistingWallet(am, unitLocker, restClient)
+	require.NoError(t, err)
+	defer w.Close()
 
 	_, _, _ = am.AddAccount()
 	_, _, _ = am.AddAccount()
@@ -305,8 +314,12 @@ func TestCollectDustInMultiAccountWalletWithKeyFlag(t *testing.T) {
 	require.NoError(t, err)
 	restClient, err := beclient.New(restAddr)
 	require.NoError(t, err)
-	w, err := LoadExistingWallet(am, restClient)
+	unitLocker, err := unitlock.NewUnitLocker(dir)
 	require.NoError(t, err)
+	defer unitLocker.Close()
+	w, err := LoadExistingWallet(am, unitLocker, restClient)
+	require.NoError(t, err)
+	defer w.Close()
 
 	_, _, _ = am.AddAccount()
 	_, _, _ = am.AddAccount()

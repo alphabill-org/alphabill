@@ -20,6 +20,7 @@ import (
 	"github.com/alphabill-org/alphabill/pkg/wallet/money/backend"
 	"github.com/alphabill-org/alphabill/pkg/wallet/money/tx_builder"
 	"github.com/alphabill-org/alphabill/pkg/wallet/txsubmitter"
+	"github.com/alphabill-org/alphabill/pkg/wallet/unitlock"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 )
 
@@ -47,6 +48,7 @@ type (
 		backend     BackendAPI
 		feeManager  *fees.FeeManager
 		TxPublisher *TxPublisher
+		unitlocker  *unitlock.UnitLocker
 	}
 
 	BackendAPI interface {
@@ -98,7 +100,7 @@ func CreateNewWallet(am account.Manager, mnemonic string) error {
 	return createMoneyWallet(mnemonic, am)
 }
 
-func LoadExistingWallet(am account.Manager, unitLocker fees.UnitLocker, backend BackendAPI) (*Wallet, error) {
+func LoadExistingWallet(am account.Manager, unitLocker *unitlock.UnitLocker, backend BackendAPI) (*Wallet, error) {
 	moneySystemID := money.DefaultSystemIdentifier
 	moneyTxPublisher := NewTxPublisher(backend)
 	feeManager := fees.NewFeeManager(am, unitLocker, moneySystemID, moneyTxPublisher, backend, moneySystemID, moneyTxPublisher, backend)
@@ -107,6 +109,7 @@ func LoadExistingWallet(am account.Manager, unitLocker fees.UnitLocker, backend 
 		backend:     backend,
 		TxPublisher: moneyTxPublisher,
 		feeManager:  feeManager,
+		unitlocker:  unitLocker,
 	}, nil
 }
 
@@ -211,7 +214,7 @@ func (w *Wallet) Send(ctx context.Context, cmd SendCmd) ([]*wallet.Proof, error)
 		return nil, ErrNoFeeCredit
 	}
 
-	bills, err := w.backend.GetBills(ctx, pubKey)
+	bills, err := w.getUnlockedBills(ctx, pubKey)
 	if err != nil {
 		return nil, err
 	}
@@ -472,6 +475,29 @@ func (w *Wallet) getDetailedBillsList(ctx context.Context, pubKey []byte) ([]*Bi
 	}
 
 	return bills, billResponse.DCMetadata, nil
+}
+
+func (w *Wallet) getUnlockedBills(ctx context.Context, pubKey []byte) ([]*wallet.Bill, error) {
+	var unlockedBills []*wallet.Bill
+	bills, err := w.backend.GetBills(ctx, pubKey)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch bills: %w", err)
+	}
+	// sort bills by value largest first
+	sort.Slice(bills, func(i, j int) bool {
+		return bills[i].Value > bills[j].Value
+	})
+	// filter locked bills
+	for _, b := range bills {
+		lockedUnit, err := w.unitlocker.GetUnit(b.GetID())
+		if err != nil {
+			return nil, fmt.Errorf("failed to get locked bill: %w", err)
+		}
+		if lockedUnit == nil {
+			unlockedBills = append(unlockedBills, b)
+		}
+	}
+	return unlockedBills, nil
 }
 
 func (c *SendCmd) isValid() error {

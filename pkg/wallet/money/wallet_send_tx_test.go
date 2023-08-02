@@ -12,6 +12,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/alphabill-org/alphabill/pkg/wallet/money/backend"
+	"github.com/alphabill-org/alphabill/pkg/wallet/unitlock"
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
 )
@@ -337,4 +338,24 @@ func TestWholeBalanceIsSentUsingBillTransferOrder(t *testing.T) {
 	require.Len(t, recordedTransactions, 1)
 	btTx := parseBillTransferTx(t, recordedTransactions[0])
 	require.EqualValues(t, 100, btTx.TargetValue)
+}
+
+func TestWalletSendFunction_LockedBillIsNotUsed(t *testing.T) {
+	unitID := uint256.NewInt(123)
+	w, _ := CreateTestWallet(t, withBackendMock(t, &backendMockReturnConf{
+		balance:       70,
+		billId:        unitID,
+		billValue:     50,
+		feeCreditBill: &wallet.Bill{Value: 1e8},
+	}))
+	validPubKey := make([]byte, 33)
+	ctx := context.Background()
+
+	// lock the only bill in wallet
+	err := w.unitlocker.LockUnit(&unitlock.LockedUnit{UnitID: util.Uint256ToBytes(unitID)})
+	require.NoError(t, err)
+
+	// test send returns error
+	_, err = w.Send(ctx, SendCmd{ReceiverPubKey: validPubKey, Amount: 50})
+	require.ErrorContains(t, err, "insufficient balance for transaction")
 }

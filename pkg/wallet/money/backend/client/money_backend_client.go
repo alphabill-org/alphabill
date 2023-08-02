@@ -42,8 +42,8 @@ const (
 	ClosedFeeCreditPath = "api/v1/closed-fee-credit"
 	TransactionsPath    = "api/v1/transactions"
 
-	balanceUrlFormat     = "%v/%v?pubkey=%v&includedcbills=%v"
-	listBillsUrlFormat   = "%v/%v?pubkey=%v&includedcbills=%v&includedcmetadata=%v"
+	balanceUrlFormat     = "%v/%v?pubkey=%v&includeDcBills=%v"
+	listBillsUrlFormat   = "%v/%v?pubkey=%v&includeDcBills=%v&includeDcMetadata=%v"
 	roundNumberUrlFormat = "%v/%v"
 
 	defaultScheme   = "http://"

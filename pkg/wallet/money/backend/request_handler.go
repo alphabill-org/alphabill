@@ -110,8 +110,8 @@ func (api *moneyRestAPI) listBillsFunc(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var includeDCMetadata bool
-	if r.URL.Query().Has("includedcmetadata") {
-		includeDCMetadata, err = strconv.ParseBool(r.URL.Query().Get("includedcmetadata"))
+	if r.URL.Query().Has("includeDcMetadata") {
+		includeDCMetadata, err = strconv.ParseBool(r.URL.Query().Get("includeDcMetadata"))
 		if err != nil {
 			log.Debug("error parsing GET /list-bills request: ", err)
 			w.WriteHeader(http.StatusBadRequest)
@@ -446,8 +446,8 @@ func parsePubKeyQueryParam(r *http.Request) (sdk.PubKey, error) {
 }
 
 func parseIncludeDCBillsQueryParam(r *http.Request, defaultValue bool) (bool, error) {
-	if r.URL.Query().Has("includedcbills") {
-		return strconv.ParseBool(r.URL.Query().Get("includedcbills"))
+	if r.URL.Query().Has("includeDcBills") {
+		return strconv.ParseBool(r.URL.Query().Get("includeDcBills"))
 	}
 	return defaultValue, nil
 }

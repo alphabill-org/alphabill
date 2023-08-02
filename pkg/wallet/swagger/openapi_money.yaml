@@ -75,14 +75,14 @@ paths:
           schema:
             type: integer
             default: 0
-        - name: includedcbills
+        - name: includeDcBills
           description: Response will include DC bills
           in: query
           schema:
             type: bool
             default: false
-        - name: includedcmetadata
-          description: Response will include DC metadata (includedcbills param must also be true)
+        - name: includeDcMetadata
+          description: Response will include DC metadata (includeDcBills param must also be true)
           in: query
           schema:
             type: bool

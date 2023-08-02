@@ -211,7 +211,7 @@ func TestListBillsRequest_DCBillsExcluded(t *testing.T) {
 	port, _ := startServer(t, walletBackend)
 
 	res := &ListBillsResponse{}
-	httpRes, err := testhttp.DoGetJson(fmt.Sprintf("http://localhost:%d/api/v1/list-bills?pubkey=%s&includedcbills=false", port, pubkeyHex), res)
+	httpRes, err := testhttp.DoGetJson(fmt.Sprintf("http://localhost:%d/api/v1/list-bills?pubkey=%s&includeDcBills=false", port, pubkeyHex), res)
 	require.NoError(t, err)
 	require.Equal(t, http.StatusOK, httpRes.StatusCode)
 	require.Equal(t, 1, res.Total)
@@ -252,7 +252,7 @@ func TestListBillsRequest_DCMetadataIncluded(t *testing.T) {
 	port, _ := startServer(t, walletBackend)
 
 	res := &ListBillsResponse{}
-	httpRes, err := testhttp.DoGetJson(fmt.Sprintf("http://localhost:%d/api/v1/list-bills?pubkey=%s&includedcmetadata=true", port, pubkeyHex), res)
+	httpRes, err := testhttp.DoGetJson(fmt.Sprintf("http://localhost:%d/api/v1/list-bills?pubkey=%s&includeDcMetadata=true", port, pubkeyHex), res)
 	require.NoError(t, err)
 	require.Equal(t, http.StatusOK, httpRes.StatusCode)
 	require.Equal(t, 3, res.Total)
@@ -273,9 +273,9 @@ func TestListBillsRequest_DCMetadataIncluded(t *testing.T) {
 	require.Contains(t, res.DCMetadata[string(nonce)].BillIdentifiers, newUnitID(2))
 	require.Contains(t, res.DCMetadata[string(nonce)].BillIdentifiers, newUnitID(3))
 
-	// make sure metadata is nil if 'includedcbills=false'
+	// make sure metadata is nil if 'includeDcBills=false'
 	res2 := &ListBillsResponse{}
-	httpRes2, err := testhttp.DoGetJson(fmt.Sprintf("http://localhost:%d/api/v1/list-bills?pubkey=%s&includedcbills=false&includedcmetadata=true", port, pubkeyHex), res2)
+	httpRes2, err := testhttp.DoGetJson(fmt.Sprintf("http://localhost:%d/api/v1/list-bills?pubkey=%s&includeDcBills=false&includeDcMetadata=true", port, pubkeyHex), res2)
 	require.NoError(t, err)
 	require.Equal(t, http.StatusOK, httpRes2.StatusCode)
 	require.Equal(t, 1, res2.Total)

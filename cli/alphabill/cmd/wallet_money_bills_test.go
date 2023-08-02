@@ -92,7 +92,7 @@ func TestWalletBillsListCmd_ExtraAccountTotal(t *testing.T) {
 	mockServer, addr := mockBackendCalls(&backendMockReturnConf{
 		billId:         uint256.NewInt(1),
 		billValue:      1e9,
-		customFullPath: "/" + client.ListBillsPath + "?pubkey=" + pubKey2 + "&includedcbills=false&includedcmetadata=false",
+		customFullPath: "/" + client.ListBillsPath + "?pubkey=" + pubKey2 + "&includeDcBills=false&includeDcMetadata=false",
 		customResponse: `{"total": 0, "bills": []}`})
 	defer mockServer.Close()
 
@@ -112,9 +112,9 @@ func TestWalletBillsListCmd_ShowUnswappedFlag(t *testing.T) {
 	require.NoError(t, err)
 	pubKey := strings.Split(stdout.lines[0], " ")[1]
 
-	// verify no -s flag sends includedcbills=false by default
+	// verify no -s flag sends includeDcBills=false by default
 	mockServer, addr := mockBackendCalls(&backendMockReturnConf{
-		customFullPath: "/" + client.ListBillsPath + "?pubkey=" + pubKey + "&includedcbills=false&includedcmetadata=false",
+		customFullPath: "/" + client.ListBillsPath + "?pubkey=" + pubKey + "&includeDcBills=false&includeDcMetadata=false",
 		customResponse: `{"total": 1, "bills": [{"value":"22222222"}]}`})
 
 	stdout, err = execBillsCommand(homedir, "list --alphabill-api-uri "+addr.Host)
@@ -122,9 +122,9 @@ func TestWalletBillsListCmd_ShowUnswappedFlag(t *testing.T) {
 	verifyStdout(t, stdout, "#1 0x 0.222'222'22")
 	mockServer.Close()
 
-	// verify -s flag sends includedcbills=true
+	// verify -s flag sends includeDcBills=true
 	mockServer, addr = mockBackendCalls(&backendMockReturnConf{
-		customFullPath: "/" + client.ListBillsPath + "?pubkey=" + pubKey + "&includedcbills=true&includedcmetadata=false",
+		customFullPath: "/" + client.ListBillsPath + "?pubkey=" + pubKey + "&includeDcBills=true&includeDcMetadata=false",
 		customResponse: `{"total": 1, "bills": [{"value":"33333333"}]}`})
 
 	stdout, err = execBillsCommand(homedir, "list --alphabill-api-uri "+addr.Host+" -s")
@@ -184,10 +184,10 @@ func TestWalletBillsExportCmd_ShowUnswappedFlag(t *testing.T) {
 	require.NoError(t, err)
 	pubKey := strings.Split(stdout.lines[0], " ")[1]
 
-	// verify no -s flag sends includedcbills=false by default
+	// verify no -s flag sends includeDcBills=false by default
 	mockServer, addr := mockBackendCalls(&backendMockReturnConf{
 		proofList:      `{"bills": [{"id":"` + toBillId(uint256.NewInt(uint64(2))) + `","value":"22222222"}]}`,
-		customFullPath: "/" + client.ListBillsPath + "?pubkey=" + pubKey + "&includedcbills=false&includedcmetadata=false",
+		customFullPath: "/" + client.ListBillsPath + "?pubkey=" + pubKey + "&includeDcBills=false&includeDcMetadata=false",
 		customResponse: `{"total": 1, "bills": [{"id":"` + toBillId(uint256.NewInt(uint64(2))) + `","value":"22222222"}]}`})
 
 	stdout, err = execBillsCommand(homedir, "export --output-path "+homedir+" --alphabill-api-uri "+addr.Host)
@@ -196,10 +196,10 @@ func TestWalletBillsExportCmd_ShowUnswappedFlag(t *testing.T) {
 	require.Equal(t, stdout.lines[0], fmt.Sprintf("Exported bill(s) to: %s", billFilePath2))
 	mockServer.Close()
 
-	// verify -s flag sends includedcbills=true
+	// verify -s flag sends includeDcBills=true
 	mockServer, addr = mockBackendCalls(&backendMockReturnConf{
 		proofList:      `{"bills": [{"id":"` + toBillId(uint256.NewInt(uint64(3))) + `","value":"33333333"}]}`,
-		customFullPath: "/" + client.ListBillsPath + "?pubkey=" + pubKey + "&includedcbills=true&includedcmetadata=false",
+		customFullPath: "/" + client.ListBillsPath + "?pubkey=" + pubKey + "&includeDcBills=true&includeDcMetadata=false",
 		customResponse: `{"total": 1, "bills": [{"id":"` + toBillId(uint256.NewInt(uint64(3))) + `","value":"33333333"}]}`})
 
 	stdout, err = execBillsCommand(homedir, "export --output-path "+homedir+" --alphabill-api-uri "+addr.Host+" -s")

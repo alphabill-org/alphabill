@@ -296,8 +296,8 @@ func TestAddFeeCredit_LockedBillForAddFC(t *testing.T) {
 		require.NotNil(t, res.AddFC)
 
 		// then new addFC must be sent using the existing transferFC
-		// new addFC has new tx timeout = round number + crossPartitionTimeout
-		require.EqualValues(t, moneyBackendClient.roundNumber+crossPartitionTxTimeoutBlockCount, res.AddFC.TxRecord.TransactionOrder.Timeout())
+		// new addFC has new tx timeout = round number + txTimeoutBlockCount
+		require.EqualValues(t, moneyBackendClient.roundNumber+txTimeoutBlockCount, res.AddFC.TxRecord.TransactionOrder.Timeout())
 
 		// and bill must be unlocked
 		lockedBill, err := unitLocker.GetUnit(lockedAddFCBill.UnitID)

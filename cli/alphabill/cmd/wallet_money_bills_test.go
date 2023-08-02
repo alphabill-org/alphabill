@@ -15,7 +15,9 @@ import (
 	"github.com/alphabill-org/alphabill/internal/txsystem/money"
 	utiltx "github.com/alphabill-org/alphabill/internal/txsystem/util"
 	"github.com/alphabill-org/alphabill/internal/types"
+	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/alphabill-org/alphabill/pkg/wallet/money/backend/client"
+	"github.com/alphabill-org/alphabill/pkg/wallet/unitlock"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/fxamacker/cbor/v2"
 	"github.com/holiman/uint256"
@@ -39,7 +41,7 @@ func TestWalletBillsListCmd_Single(t *testing.T) {
 	// verify bill in list command
 	stdout, err := execBillsCommand(homedir, "list --alphabill-api-uri "+addr.Host)
 	require.NoError(t, err)
-	verifyStdout(t, stdout, "#1 0x0000000000000000000000000000000000000000000000000000000000000001 1")
+	verifyStdout(t, stdout, "#1 0x0000000000000000000000000000000000000000000000000000000000000001 1.000'000'00")
 }
 
 func TestWalletBillsListCmd_Multiple(t *testing.T) {
@@ -207,6 +209,32 @@ func TestWalletBillsExportCmd_ShowUnswappedFlag(t *testing.T) {
 	billFilePath3 := filepath.Join(homedir, "bill-0x0000000000000000000000000000000000000000000000000000000000000003.json")
 	require.Equal(t, stdout.lines[0], fmt.Sprintf("Exported bill(s) to: %s", billFilePath3))
 	mockServer.Close()
+}
+
+func TestWalletBillsListCmd_ShowLockedBills(t *testing.T) {
+	homedir := createNewTestWallet(t)
+	unitID := uint256.NewInt(1)
+	mockServer, addr := mockBackendCalls(&backendMockReturnConf{billId: unitID, billValue: 1e8})
+	defer mockServer.Close()
+
+	// create unitlock db
+	unitlocker, err := unitlock.NewUnitLocker(filepath.Join(homedir, walletBaseDir))
+	require.NoError(t, err)
+	defer unitlocker.Close()
+
+	// lock unit
+	err = unitlocker.LockUnit(&unitlock.LockedUnit{
+		UnitID:     util.Uint256ToBytes(unitID),
+		LockReason: unitlock.ReasonAddFees,
+	})
+	require.NoError(t, err)
+	err = unitlocker.Close()
+	require.NoError(t, err)
+
+	// verify locked unit is shown in output list
+	stdout, err := execBillsCommand(homedir, "list --alphabill-api-uri "+addr.Host)
+	require.NoError(t, err)
+	verifyStdout(t, stdout, "#1 0x0000000000000000000000000000000000000000000000000000000000000001 1.000'000'00 (locked ReasonAddFees)")
 }
 
 func spendInitialBillWithFeeCredits(t *testing.T, abNet *testpartition.AlphabillNetwork, initialBill *money.InitialBill, pubkey string) uint64 {

@@ -30,6 +30,8 @@ import (
 	"github.com/alphabill-org/alphabill/pkg/wallet/money/backend/client"
 )
 
+const walletBaseDir = "wallet"
+
 type (
 	backendMockReturnConf struct {
 		balance        uint64
@@ -265,7 +267,7 @@ func addAccount(t *testing.T, homedir string) string {
 
 func createNewWallet(t *testing.T) (account.Manager, string) {
 	homeDir := t.TempDir()
-	walletDir := filepath.Join(homeDir, "wallet")
+	walletDir := filepath.Join(homeDir, walletBaseDir)
 	am, err := account.NewManager(walletDir, "", true)
 	require.NoError(t, err)
 	err = am.CreateKeys("")
@@ -275,7 +277,7 @@ func createNewWallet(t *testing.T) (account.Manager, string) {
 
 func createNewTestWallet(t *testing.T) string {
 	homeDir := t.TempDir()
-	walletDir := filepath.Join(homeDir, "wallet")
+	walletDir := filepath.Join(homeDir, walletBaseDir)
 	am, err := account.NewManager(walletDir, "", true)
 	require.NoError(t, err)
 	defer am.Close()

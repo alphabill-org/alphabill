@@ -72,3 +72,15 @@ func (l *UnitLocker) GetUnits() ([]*LockedUnit, error) {
 func (l *UnitLocker) Close() error {
 	return l.db.Close()
 }
+
+func (r LockReason) String() string {
+	switch r {
+	case ReasonAddFees:
+		return "ReasonAddFees"
+	case ReasonReclaimFees:
+		return "ReasonReclaimFees"
+	case ReasonCollectDust:
+		return "ReasonCollectDust"
+	}
+	return ""
+}

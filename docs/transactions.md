@@ -34,12 +34,12 @@
 ## *TransactionOrder*
 
 Alphabill transactions are encoded using a deterministic CBOR data
-format[^1]. The top level data item is *TransactionOrder*, which
+format[^1]. The top-level data item is *TransactionOrder*, which
 instructs Alphabill to execute a transaction with a
 unit. *TransactionOrder* is always encoded as an array of 3 data items
 in the exact order: *Payload*, *OwnerProof* and *FeeProof*. Using the
 CBOR Extended Diagnostic Notation[^2] and omitting the subcontent of
-these array items, the top level array can be expressed as:
+these array items, the top-level array can be expressed as:
 
 ```
 /TransactionOrder/ [
@@ -49,7 +49,7 @@ these array items, the top level array can be expressed as:
 ]
 ```
 
-Data items in the top level array:
+Data items in the top-level array:
 
 1. *Payload* (array) is described in section [*Payload*](#payload).
 
@@ -145,7 +145,7 @@ links a transaction back to the previous transaction with the same
 unit and thus makes the order of transactions unambiguous. *Backlink*
 is calculated as the hash of the raw CBOR encoded bytes of the
 *TransactionOrder* data item. Hash algorithm is defined by each
-partiton.
+partition.
 
 #### Money Partition
 
@@ -338,7 +338,7 @@ This transaction creates or updates a fee credit record on the target
 partition (the partition this transaction is executed on), by
 presenting a proof of fee credit reserved in the money partition with
 the [Transfer to Fee Credit](#transfer-to-fee-credit) transaction. As
-a result, execution of other fee paying transactions becomes possible.
+a result, execution of other fee-paying transactions becomes possible.
 
 The fee for this transaction will also be paid from the fee credit
 record being created/updated.
@@ -357,16 +357,16 @@ record being created/updated.
 
 1. *TargetOwner* (byte string, optional) is the owner
    condition for the created fee credit record. It needs to be
-   satisifed by the *TransactionOrder*.*FeeProof* data item of the
+   satisfied by the *TransactionOrder*.*FeeProof* data item of the
    transactions using the record to pay fees.
-2. *FeeCreditTransfer* (array) is a record of the [Transfer To Fee
+2. *FeeCreditTransfer* (array) is a record of the [Transfer to Fee
    Credit](#transfer-to-fee-credit) transaction. Necessary for the
    target partition to verify the amount reserved as fee credit in the
-   money partiton.
+   money partition.
 3. *FeeCreditTransferProof* (array) is the proof of execution of the
     transaction provided in *FeeCreditTransfer* attribute. Necessary
     for the target partition to verify the amount reserved as fee
-    credit in the money partiton.
+    credit in the money partition.
 
 ##### Close Fee Credit
 
@@ -427,7 +427,7 @@ partition, to an existing bill in the money partition.
 2. *CloseFeeCreditProof* (array) is the proof of execution of the
     transaction provided in *CloseFeeCredit* attribute. Necessary for
     the money partition to verify the amount closed as fee credit in
-    the target partiton.
+    the target partition.
 3. *Backlink* (byte string) is the backlink to the previous
    transaction with the bill receiving the reclaimed fee credit.
 
@@ -477,7 +477,7 @@ This transaction creates a non-fungible token type.
 8. *DataUpdatePredicate* (byte string) is the clause that all tokens
    of this type (and of subtypes) inherit into their data update
    predicates.
-9. SubTypeCreationPredicateSignatures (array of byte strings) is an
+9. *SubTypeCreationPredicateSignatures* (array of byte strings) is an
    array of inputs to satisfy the subtype creation predicates of all
    parents.
 
@@ -554,11 +554,11 @@ This transaction updates the data of a non-fungible token.
 ]
 ```
 
-1. Data (byte string) is the new data to replace the data currently
+1. *Data* (byte string) is the new data to replace the data currently
    associated with the token.
-2. Backlink (byte string) is the backlink to the previous transaction
+2. *Backlink* (byte string) is the backlink to the previous transaction
    with the token.
-3. DataUpdateSignatures (array of byte strings) is an array of inputs
+3. *DataUpdateSignatures* (array of byte strings) is an array of inputs
    to satisfy the token data update predicates down the inheritance
    chain.
 
@@ -592,8 +592,8 @@ This transaction creates a fungible token type.
 4. *ParentTypeID* (byte string) is the *UnitID* of the parent type
    that this type derives from. A byte with value 0 indicates there is
    no parent type.
-5. *DecimalPlaces* (unsigned integer) is the number of decimal places to
-   display for values of tokens of the this type.
+5. *DecimalPlaces* (unsigned integer) is the number of decimal places
+   to display for values of tokens of this type.
 6. *SubTypeCreationPredicate* (byte string) is the predicate clause that
    controls defining new subtypes of this type.
 7. *TokenCreationPredicate* (byte string) is the predicate clause that
@@ -601,7 +601,7 @@ This transaction creates a fungible token type.
 8. *InvariantPredicate* (byte string) is the invariant predicate
    clause that all tokens of this type (and of subtypes) inherit into
    their owner condition.
-9. SubTypeCreationPredicateSignatures (array of byte strings) is an
+9. *SubTypeCreationPredicateSignatures* (array of byte strings) is an
    array of inputs to satisfy the subtype creation predicates of all
    parents.
 
@@ -625,7 +625,7 @@ This transaction creates a new fungible token.
 2. *TypeID* (byte string) is the *UnitID* of the type of the new
    token.
 3. *TargetValue* (unsinged integer) is the value of the new token.
-7. *TokenCreationPredicateSignatures* (array of byte string) is an
+4. *TokenCreationPredicateSignatures* (array of byte string) is an
    array of inputs to satisfy the token creation predicates of all
    parent types.
 
@@ -693,7 +693,7 @@ to the value of the token before the split.
 5. *TypeID* (byte string) is the type of the token.
 6. *RemainingValue* (unsigned integer) is the remaining value of the
    token being split.
-6. *InvariantPredicateSignatures* (array of byte strings) is an array
+7. *InvariantPredicateSignatures* (array of byte strings) is an array
    of inputs to satisfy the token type invariant predicates down the
    inheritance chain.
 

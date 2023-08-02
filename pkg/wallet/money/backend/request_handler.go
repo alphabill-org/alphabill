@@ -393,14 +393,6 @@ func (api *moneyRestAPI) postTransactions(w http.ResponseWriter, r *http.Request
 	w.WriteHeader(http.StatusAccepted)
 }
 
-// @Summary Returns last seen transferFC transaction for given partition and fee credit bill
-// @Id 7
-// @version 1.0
-// @produce application/cbor
-// @Param systemId path string true "Target Fee Credit System ID of the TransferFC transaction (hex)"
-// @Param billId path string true "Target fee credit bill ID (hex)"
-// @Success 200 {object} wallet
-// @Router /locked-fee-credit/{systemId}/{billId} [get]
 func (api *moneyRestAPI) getLockedFeeCreditFunc(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	systemID, err := sdk.ParseHex[sdk.UnitID](vars["systemId"], true)
@@ -428,13 +420,6 @@ func (api *moneyRestAPI) getLockedFeeCreditFunc(w http.ResponseWriter, r *http.R
 	api.rw.WriteCborResponse(w, lfc)
 }
 
-// @Summary Returns last seen closeFC transaction for given fee credit bill
-// @Id 8
-// @version 1.0
-// @produce application/json
-// @Param billId path string true "Target fee credit bill ID (hex)"
-// @Success 200 {object} wallet
-// @Router /closed-fee-credit/{billId} [get]
 func (api *moneyRestAPI) getClosedFeeCreditFunc(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	fcbID, err := sdk.ParseHex[sdk.UnitID](vars["billId"], true)

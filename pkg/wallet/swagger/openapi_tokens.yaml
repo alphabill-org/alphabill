@@ -23,12 +23,12 @@ paths:
         to. Useful for calculating transaction timeout values.
       responses:
         '200':
-          description: successful operation
+          description: Successful operation
           content:
             application/json:
               schema:
                 $ref: "components.yaml#/schemas/RoundNumberResponse"
-        '500':
+        default:
           $ref: 'components.yaml#/responses/ErrorResponse'
   /types/{typeId}/hierarchy:
     get:
@@ -37,13 +37,16 @@ paths:
         Returns the description of a token type together with its ancestors for a given type ID.
       parameters:
         - name: typeId
+          description: |-
+            Hex encoded type ID prefixed with `0x`.
+            Must be 66 characters long (including the `0x` prefix).
           in: path
           required: true
           schema:
-            $ref: '#/components/schemas/UnitIDParam'
+            $ref: 'components.yaml#/schemas/UnitIDParam'
       responses:
         '200':
-          description: token type with given ID was found
+          description: Token type with given ID was found
           content:
             application/json:
               schema:
@@ -51,7 +54,7 @@ paths:
                 items:
                   $ref: '#/components/schemas/TokenType'
         '404':
-          description: either token type with given ID does not exist or failed to load one of the ancestors
+          description: Either token type with given ID does not exist or failed to load one of the ancestors
           content:
             application/json:
               schema:
@@ -72,11 +75,11 @@ paths:
           schema:
             $ref: '#/components/schemas/Kind'
         - name: creator
-          description: Public key of the creator of the token type
+          description: Hex encoded public key of the token type creator, prefixed with `0x`
           in: query
           required: false
           schema:
-            $ref: '#/components/schemas/PublicKeyParam'
+            $ref: 'components.yaml#/schemas/PublicKeyParam'
         - name: offsetKey
           description: When doing batched queries, offset key returned by the previous query
           in: query
@@ -91,34 +94,32 @@ paths:
             type: integer
       responses:
         '200':
-          description: successful operation
+          description: Successful operation
           headers:
             Link:
               schema:
                 type: string
-              description: link to next batch
+              description: Link to next batch
           content:
             application/json:
               schema:
                 type: array
                 items:
                   $ref: '#/components/schemas/TokenType'
-        '400':
-          $ref: 'components.yaml#/responses/ErrorResponse'
-        '500':
+        default:
           $ref: 'components.yaml#/responses/ErrorResponse'
   /tokens/{tokenId}:
     get:
       summary: Get token by ID
       parameters:
         - name: tokenId
+          description: |-
+            Hex encoded token ID prefixed with `0x`.
+            Must be 66 characters long (including the 0x prefix).
           in: path
           required: true
-          description: |-
-            Hex encoded string of the token ID which starts with `0x`.
-            Must be 66 characters long (including 0x prefix).
           schema:
-            $ref: '#/components/schemas/UnitIDParam'
+            $ref: 'components.yaml#/schemas/UnitIDParam'
       responses:
         '200':
           description: Token with given ID was found
@@ -127,7 +128,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/Token'
         '404':
-          description: no token with given id
+          description: Token with given ID not found
           content:
             application/json:
               schema:
@@ -147,45 +148,48 @@ paths:
           schema:
             $ref: '#/components/schemas/Kind'
         - name: owner
+          description: Hex encoded public key of the token owner, prefixed with `0x`
           in: path
           required: true
           schema:
-            $ref: '#/components/schemas/PublicKeyParam'
+            $ref: 'components.yaml#/schemas/PublicKeyParam'
         - name: offsetKey
-          description: when doing batched queries, offset key returned by the previous query
+          description: When doing batched queries, offset key returned by the previous query
           in: query
           required: false
           schema:
             type: string
         - name: limit
-          description: maximum number of items response may contain
+          description: Maximum number of items response may contain
           in: query
           required: false
           schema:
             type: integer
       responses:
         '200':
-          description: successful operation
+          description: Successful operation
           content:
             application/json:
               schema:
                 type: array
                 items:
                   $ref: '#/components/schemas/Token'
-        '400':
-          $ref: 'components.yaml#/responses/ErrorResponse'
-        '500':
+        default:
           $ref: 'components.yaml#/responses/ErrorResponse'
   /units/{unitId}/transactions/{txHash}/proof:
     get:
       summary: Get transaction proof by unit ID and transaction hash
       parameters:
         - name: unitId
+          description: |-
+            Hex encoded unit ID prefixed with `0x`.
+            Must be 66 characters long (including the `0x` prefix).
           in: path
           required: true
           schema:
-            $ref: '#/components/schemas/UnitIDParam'
+            $ref: 'components.yaml#/schemas/UnitIDParam'
         - name: txHash
+          description: Hex encoded hash of the transaction to get proof for, prefixed with `0x`
           in: path
           required: true
           schema:
@@ -193,13 +197,14 @@ paths:
             default: 0x
       responses:
         '200':
-          description: transaction proof was found
+          description: Transaction proof was found
           content:
-            application/json:
+            application/cbor:
               schema:
-                # TODO
+                type: string
+                format: binary
         '404':
-          description: transaction is not in the index
+          description: Transaction is not in the index
           content:
             application/json:
               schema:
@@ -210,7 +215,7 @@ paths:
     get:
       summary: Subscribe to server-sent events (SSE) stream
       description: |-
-        Allows to get events about transactions assosiated with the given public key.
+        Allows to get events about transactions associated with the given public key.
 
         Events are generetaed only for token transactions as token types do not have
         "owner" info attached to them (so we do not know to which subscribers to send
@@ -224,14 +229,14 @@ paths:
          - data: JSON of the [`Token`](#/components/schemas/Token) structure.
       parameters:
         - name: pubkey
+          description: Owner of the tokens to generate events for
           in: path
           required: true
-          description: identifies the "owner" of the transactions about which events are
           schema:
-            $ref: '#/components/schemas/PublicKeyParam'
+            $ref: 'components.yaml#/schemas/PublicKeyParam'
       responses:
         '200':
-          description: successful operation
+          description: Successful operation
         default:
           $ref: 'components.yaml#/responses/ErrorResponse'
   /fee-credit-bills/{unitId}:
@@ -241,14 +246,17 @@ paths:
         Returns fee credit bill for the given unit ID.
       parameters:
         - name: unitId
+          description: |-
+            Hex encoded free credit unit ID (SHA256 hash of private
+            key) prefixed with `0x`.  Must be 66 characters long
+            (including the `0x` prefix).
           in: path
           required: true
-          description: fee credit unit id (SHA256 hash of private key) in hex format
           schema:
-            $ref: '#/components/schemas/UnitIDParam'
+            $ref: 'components.yaml#/schemas/UnitIDParam'
       responses:
         '200':
-          description: fee credit bill returned
+          description: Fee credit bill returned
           content:
             application/json:
               schema:
@@ -256,60 +264,66 @@ paths:
                 items:
                   $ref: 'components.yaml#/schemas/Bill'
         '404':
-          description: fee credit bill was not found for given bill id
+          description: Fee credit bill was not found for given bill ID
           content:
             application/json:
               schema:
                 $ref: 'components.yaml#/schemas/ErrorResponse'
         default:
           $ref: 'components.yaml#/responses/ErrorResponse'
+  /closed-fee-credit/{unitId}:
+    get:
+      summary: Get the last seen closeFC transaction for the given fee credit bill
+      description: Get the last seen closeFC transaction for the given fee credit bill
+      parameters:
+        - name: unitId
+          description: Target fee credit bill ID (hex)
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Successful operation
+          content:
+            application/cbor:
+              schema:
+                type: string
+                format: binary
+        default:
+          $ref: 'components.yaml#/responses/ErrorResponse'
   /transactions/{pubkey}:
     post:
       summary: Forward transactions to partition node
       description: |-
-        Allows to send raw CBOR encoded transactions to partition node.
+        Allows to send raw CBOR encoded transactions to partition
+        node. Request body must be a CBOR encoded array of raw
+        transactions. The documentation for raw transaction format can
+        be found on Alphabill Documentation portal.
       parameters:
         - name: pubkey
+          description: Hex encoded sender public key, prefixed with `0x`
           in: path
           required: true
-          description: sender public key prefixed with 0x
           schema:
-            $ref: '#/components/schemas/PublicKeyParam'
+            $ref: 'components.yaml#/schemas/PublicKeyParam'
       requestBody:
         description: CBOR encoded array of TransactionOrders
+        required: true
         content:
           application/cbor: {}
-        required: true
       responses:
-        '200':
-          description: successful operation
-        '400':
-          $ref: 'components.yaml#/responses/ErrorResponse'
+        '202':
+          description: Successful operation
         '500':
-          description: |-
-            Server failed to process the request, either some of the
-            transactions posted were invalid or the server itself has
-            problems, ie can't connect to the AB node.
-
-            Response is a map with transaction ID as the key and error
-            message as the value. The error message describes what
-            went wrong when trying to process that
-            transaction. Transactions which are not listed might have
-            been processed successfuly.
-          content:
-            application/json:
-              schema:
-                type: object
-                additionalProperties:
-                  type: string
-                example:
-                  ZD75s0+XCi3XwxOp3UxccXY6nM4ZhDnDyYNGoJv5K1U=: "failed to convert transaction: bad type name"
-                  v8aSJW4nDxgQf7VxvNh/a60ux7CovgAuJUwJJIJNvAk=: "failed to forward tx: connection refused"
+          $ref: 'components.yaml#/responses/PostTransactionsErrorResponse'
+        default:
+          $ref: 'components.yaml#/responses/ErrorResponse'
 components:
   schemas:
     Kind:
       type: string
-      description: token kind name, used in queries as a parameter value.
+      description: Token kind name, used in queries as a parameter value
       default: all
       enum:
         - all
@@ -329,27 +343,6 @@ components:
       format: byte
       nullable: false
       example: I+v1+3MrmBCoSuk1zlff0loozI9BHc8fqVb3WGeQrC4=
-    PublicKeyParam:
-      type: string
-      description: |-
-        Hex encoded string of the public key, prefixed by `0x`.
-        Must be 68 characters long (including 0x prefix).
-        
-        This type is used for query input parameters.
-      minLength: 68
-      maxLength: 68
-      # default: 0x
-    UnitIDParam:
-      type: string
-      description: |-
-        Unit ID is a 32 byte binary value encoded as hex string, prefixed by `0x` marker.
-        So the valid string representation of the value must be 66 characters long (including 0x prefix).
-        
-        This type is used for query input parameters like token ID or token type ID.
-      minLength: 66
-      maxLength: 66
-      # default: 0x
-      example: '0x3a04762909373b3c273ff3726746d7a787836d767733dabc2773619870c081a3'
     TxHash:
       type: string
       format: byte
@@ -389,11 +382,11 @@ components:
           format: int32
           minimum: 0
           maximum: 8
-          description: only when "kind" is "fungible"
+          description: Only when "kind" is "fungible"
         nftDataUpdatePredicate:
           allOf:
             - $ref: '#/components/schemas/Predicate'
-            - description: only when "kind" is "nft"
+            - description: Only when "kind" is "nft"
         txHash:
           $ref: '#/components/schemas/TxHash'
     Token:
@@ -412,27 +405,27 @@ components:
           $ref: '#/components/schemas/KindInt'
         amount:
           type: string
-          description: uint64 value encoded as string
+          description: Uint64 value encoded as string
           example: "1000"
         decimals:
           type: integer
           format: int32
           minimum: 0
           maximum: 8
-          description: only when "kind" is "fungible"
+          description: Only when "kind" is "fungible"
         nftName:
           type: string
         nftUri:
           type: string
-          description: only when "kind" is "nft"
+          description: Only when "kind" is "nft"
         nftData:
           type: string
           format: byte
-          description: only when "kind" is "nft"
+          description: Only when "kind" is "nft"
         nftDataUpdatePredicate:
           allOf:
             - $ref: '#/components/schemas/Predicate'
-            - description: only when "kind" is "nft"
+            - description: Only when "kind" is "nft"
         txHash:
           $ref: '#/components/schemas/TxHash'
     Icon:

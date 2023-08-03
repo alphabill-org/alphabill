@@ -168,7 +168,7 @@ func (w *FeeManager) AddFeeCredit(ctx context.Context, cmd AddFeeCmd) (*AddFeeCm
 	latestAdditionTime := userPartitionRoundNumber + transferFCLatestAdditionTime
 
 	// check for any pending add fee credit transactions
-	transferFCProof, addFCProof, err := w.getExistingAddFeeCreditState(ctx, lockedBills, moneyRoundNumber, userPartitionRoundNumber, accountKey)
+	transferFCProof, addFCProof, err := w.getAddFeeCreditState(ctx, lockedBills, moneyRoundNumber, userPartitionRoundNumber, accountKey)
 	if err != nil {
 		return nil, fmt.Errorf("failed to find existing add fee credit state: %w", err)
 	}
@@ -251,7 +251,7 @@ func (w *FeeManager) ReclaimFeeCredit(ctx context.Context, cmd ReclaimFeeCmd) (*
 	}
 	userPartitionTimeout := userPartitionRoundNumber + txTimeoutBlockCount
 
-	closeFCProof, reclaimFCProof, err := w.getExistingReclaimFeeCreditState(ctx, bills, lockedBills, userPartitionRoundNumber, accountKey)
+	closeFCProof, reclaimFCProof, err := w.getReclaimFeeCreditState(ctx, bills, lockedBills, userPartitionRoundNumber, accountKey)
 	if err != nil {
 		return nil, fmt.Errorf("failed to find existing add fee credit state: %w", err)
 	}
@@ -424,7 +424,7 @@ func (w *FeeManager) getMoneyTimeout(ctx context.Context) (uint64, error) {
 	return moneyRoundNumber + txTimeoutBlockCount, nil
 }
 
-func (w *FeeManager) getExistingAddFeeCreditState(ctx context.Context, lockedBills []*unitlock.LockedUnit, moneyRoundNumber uint64, userPartitionRoundNumber uint64, accountKey *account.AccountKey) (*wallet.Proof, *wallet.Proof, error) {
+func (w *FeeManager) getAddFeeCreditState(ctx context.Context, lockedBills []*unitlock.LockedUnit, moneyRoundNumber uint64, userPartitionRoundNumber uint64, accountKey *account.AccountKey) (*wallet.Proof, *wallet.Proof, error) {
 	var transferFCProof *wallet.Proof
 	var addFCProof *wallet.Proof
 	var err error
@@ -447,7 +447,7 @@ func (w *FeeManager) getExistingAddFeeCreditState(ctx context.Context, lockedBil
 	return transferFCProof, addFCProof, nil
 }
 
-func (w *FeeManager) getExistingReclaimFeeCreditState(ctx context.Context, bills []*wallet.Bill, lockedBills []*unitlock.LockedUnit, userPartitionRoundNumber uint64, accountKey *account.AccountKey) (*wallet.Proof, *wallet.Proof, error) {
+func (w *FeeManager) getReclaimFeeCreditState(ctx context.Context, bills []*wallet.Bill, lockedBills []*unitlock.LockedUnit, userPartitionRoundNumber uint64, accountKey *account.AccountKey) (*wallet.Proof, *wallet.Proof, error) {
 	var closeFCProof *wallet.Proof
 	var reclaimFCProof *wallet.Proof
 	var err error

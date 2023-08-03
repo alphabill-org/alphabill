@@ -362,6 +362,7 @@ func createPeer(t *testing.T) *network.Peer {
 			PrivateKey: privateKeyBytes,
 		},
 		Validators: []peer.ID{id},
+		Address:    "/ip4/127.0.0.1/tcp/0",
 	}
 	newPeer, err := network.NewPeer(context.Background(), conf)
 	require.NoError(t, err)

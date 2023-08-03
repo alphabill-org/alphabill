@@ -69,6 +69,7 @@ func TestNewPeer_LoadsKeyPairCorrectly(t *testing.T) {
 			PrivateKey: keyBytes,
 			PublicKey:  pubKeyBytes,
 		},
+		Address: randomTestAddressStr,
 	}
 	peer, err := NewPeer(context.Background(), conf)
 	require.NoError(t, err)

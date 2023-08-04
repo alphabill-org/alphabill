@@ -25,15 +25,15 @@ func DefaultOptions() *Options {
 	}
 }
 
-func WithBeginBlockFunctions(funcs []func(blockNumber uint64)) Option {
+func WithBeginBlockFunctions(funcs ...func(blockNumber uint64)) Option {
 	return func(g *Options) {
-		g.beginBlockFunctions = funcs
+		g.beginBlockFunctions = append(g.beginBlockFunctions, funcs...)
 	}
 }
 
-func WithEndBlockFunctions(funcs []func(blockNumber uint64) error) Option {
+func WithEndBlockFunctions(funcs ...func(blockNumber uint64) error) Option {
 	return func(g *Options) {
-		g.endBlockFunctions = funcs
+		g.endBlockFunctions = append(g.endBlockFunctions, funcs...)
 	}
 }
 

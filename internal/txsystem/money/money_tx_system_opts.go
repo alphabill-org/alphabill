@@ -19,6 +19,7 @@ type (
 		trustBase                map[string]crypto.Verifier
 		initialBill              *InitialBill
 		dcMoneyAmount            uint64
+		dustBillDeletionTimeout  uint64
 		systemDescriptionRecords []*genesis.SystemDescriptionRecord
 		feeCalculator            fc.FeeCalculator
 	}
@@ -28,12 +29,13 @@ type (
 
 func DefaultOptions() *Options {
 	return &Options{
-		systemIdentifier: DefaultSystemIdentifier,
-		hashAlgorithm:    gocrypto.SHA256,
-		state:            state.NewEmptyState(),
-		trustBase:        make(map[string]crypto.Verifier),
-		dcMoneyAmount:    0,
-		feeCalculator:    fc.FixedFee(1),
+		systemIdentifier:        DefaultSystemIdentifier,
+		hashAlgorithm:           gocrypto.SHA256,
+		state:                   state.NewEmptyState(),
+		trustBase:               make(map[string]crypto.Verifier),
+		dcMoneyAmount:           0,
+		dustBillDeletionTimeout: defaultDustBillDeletionTimeout,
+		feeCalculator:           fc.FixedFee(1),
 	}
 }
 
@@ -70,6 +72,12 @@ func WithInitialBill(bill *InitialBill) Option {
 func WithDCMoneyAmount(a uint64) Option {
 	return func(g *Options) {
 		g.dcMoneyAmount = a
+	}
+}
+
+func WithDCBillDeletionTimeout(t uint64) Option {
+	return func(g *Options) {
+		g.dustBillDeletionTimeout = t
 	}
 }
 

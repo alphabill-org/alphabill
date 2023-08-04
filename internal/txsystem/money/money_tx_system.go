@@ -29,8 +29,8 @@ func NewTxSystem(opts ...Option) (*txsystem.GenericTxSystem, error) {
 	}
 	return txsystem.NewGenericTxSystem(
 		[]txsystem.Module{money, feeCreditModule},
-		txsystem.WithEndBlockFunctions(money.EndBlockFuncs()),
-		txsystem.WithBeginBlockFunctions(money.BeginBlockFuncs()),
+		txsystem.WithEndBlockFunctions(money.EndBlockFuncs()...),
+		txsystem.WithBeginBlockFunctions(money.BeginBlockFuncs()...),
 		txsystem.WithSystemIdentifier(options.systemIdentifier),
 		txsystem.WithHashAlgorithm(options.hashAlgorithm),
 		txsystem.WithState(options.state),

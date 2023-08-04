@@ -15,7 +15,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/types"
 )
 
-var _ txsystem.Module = &Module{}
+var _ txsystem.Module = (*Module)(nil)
 
 var (
 	ErrInitialBillIsNil                  = errors.New("initial bill may not be nil")
@@ -74,7 +74,7 @@ func NewMoneyModule(options *Options) (m *Module, err error) {
 		trustBase:           options.trustBase,
 		hashAlgorithm:       options.hashAlgorithm,
 		feeCreditTxRecorder: newFeeCreditTxRecorder(s, options.systemIdentifier, options.systemDescriptionRecords),
-		dustCollector:       NewDustCollector(s),
+		dustCollector:       NewDustCollector(s, options.dustBillDeletionTimeout),
 		feeCalculator:       options.feeCalculator,
 	}
 	return

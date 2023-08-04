@@ -64,10 +64,6 @@ func (m *CounterTxSystem) BeginBlock(_ uint64) {
 	m.ExecuteCountDelta = 0
 }
 
-func (m *CounterTxSystem) ValidatorGeneratedTransactions() ([]*types.TransactionRecord, error) {
-	return nil, nil
-}
-
 func (m *CounterTxSystem) Revert() {
 	logger.Debug("CounterTxSystem: Revert()")
 	m.ExecuteCountDelta = 0

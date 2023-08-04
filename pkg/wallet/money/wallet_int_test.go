@@ -364,22 +364,25 @@ func TestCollectDustInMultiAccountWalletWithKeyFlag(t *testing.T) {
 	err = w.CollectDust(ctx, 3)
 	require.NoError(t, err)
 
-	// verify that there is only one swap tx, and it belongs to account number 3
-	b, _ := moneyPart.Nodes[0].GetLatestBlock()
-	var swapDCTx *types.TransactionRecord
-	for _, tx := range b.Transactions {
-		if tx.TransactionOrder.PayloadType() == moneytx.PayloadTypeSwapDC {
-			if swapDCTx != nil {
-				require.Fail(t, "found multiple swapDC transactions")
-			}
-			swapDCTx = tx
+	// verify that there is only one swap tx and it belongs to account number 3
+	account3Key, _ := am.GetAccountKey(2)
+	swapTxCount := 0
+	testpartition.BlockchainContains(moneyPart, func(txo *types.TransactionOrder) bool {
+		if txo.PayloadType() != moneytx.PayloadTypeSwapDC {
+			return false
 		}
-	}
-	attrs := &moneytx.SwapDCAttributes{}
-	err = swapDCTx.TransactionOrder.UnmarshalAttributes(attrs)
-	require.NoError(t, err)
-	k, _ := am.GetAccountKey(2)
-	require.EqualValues(t, script.PredicatePayToPublicKeyHashDefault(k.PubKeyHash.Sha256), attrs.OwnerCondition)
+
+		require.Equal(t, 0, swapTxCount)
+		swapTxCount++
+
+		attrs := &moneytx.SwapDCAttributes{}
+		err = txo.UnmarshalAttributes(attrs)
+		require.NoError(t, err)
+		require.EqualValues(t, script.PredicatePayToPublicKeyHashDefault(account3Key.PubKeyHash.Sha256), attrs.OwnerCondition)
+
+		return false
+	})()
+	require.Equal(t, 1, swapTxCount)
 }
 
 func sendToAccount(t *testing.T, w *Wallet, amount, fromAccount, toAccount uint64) {

@@ -137,7 +137,7 @@ func getLockedReasonString(unitLocker *unitlock.UnitLocker, bill *wallet.Bill) (
 		return "", fmt.Errorf("failed to load locked unit: %w", err)
 	}
 	if lockedUnit != nil {
-		return fmt.Sprintf(" (locked %s)", lockedUnit.LockReason.String()), nil
+		return fmt.Sprintf(" (%s)", lockedUnit.LockReason.String()), nil
 	}
 	return "", nil
 }

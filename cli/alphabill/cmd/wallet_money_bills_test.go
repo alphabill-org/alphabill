@@ -234,7 +234,7 @@ func TestWalletBillsListCmd_ShowLockedBills(t *testing.T) {
 	// verify locked unit is shown in output list
 	stdout, err := execBillsCommand(homedir, "list --alphabill-api-uri "+addr.Host)
 	require.NoError(t, err)
-	verifyStdout(t, stdout, "#1 0x0000000000000000000000000000000000000000000000000000000000000001 1.000'000'00 (locked ReasonAddFees)")
+	verifyStdout(t, stdout, "#1 0x0000000000000000000000000000000000000000000000000000000000000001 1.000'000'00 (locked for adding fees)")
 }
 
 func spendInitialBillWithFeeCredits(t *testing.T, abNet *testpartition.AlphabillNetwork, initialBill *money.InitialBill, pubkey string) uint64 {

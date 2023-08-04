@@ -37,9 +37,8 @@ var (
 	ErrInsufficientBalance = errors.New("insufficient balance for transaction")
 	ErrInvalidPubKey       = errors.New("invalid public key, public key must be in compressed secp256k1 format")
 
-	ErrNoFeeCredit                  = errors.New("no fee credit in money wallet")
-	ErrInsufficientFeeCredit        = errors.New("insufficient fee credit balance for transaction(s)")
-	ErrInvalidCreateFeeCreditAmount = errors.New("fee credit amount must be positive")
+	ErrNoFeeCredit           = errors.New("no fee credit in money wallet")
+	ErrInsufficientFeeCredit = errors.New("insufficient fee credit balance for transaction(s)")
 )
 
 type (
@@ -73,15 +72,6 @@ type (
 	GetBalanceCmd struct {
 		AccountIndex uint64
 		CountDCBills bool
-	}
-
-	AddFeeCmd struct {
-		Amount       uint64
-		AccountIndex uint64
-	}
-
-	ReclaimFeeCmd struct {
-		AccountIndex uint64
 	}
 
 	dcBillGroup struct {
@@ -503,13 +493,6 @@ func (w *Wallet) getUnlockedBills(ctx context.Context, pubKey []byte) ([]*wallet
 func (c *SendCmd) isValid() error {
 	if len(c.ReceiverPubKey) != abcrypto.CompressedSecp256K1PublicKeySize {
 		return ErrInvalidPubKey
-	}
-	return nil
-}
-
-func (c *AddFeeCmd) isValid() error {
-	if c.Amount == 0 {
-		return ErrInvalidCreateFeeCreditAmount
 	}
 	return nil
 }

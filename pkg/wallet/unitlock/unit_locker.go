@@ -76,11 +76,11 @@ func (l *UnitLocker) Close() error {
 func (r LockReason) String() string {
 	switch r {
 	case ReasonAddFees:
-		return "ReasonAddFees"
+		return "locked for adding fees"
 	case ReasonReclaimFees:
-		return "ReasonReclaimFees"
+		return "locked for reclaiming fees"
 	case ReasonCollectDust:
-		return "ReasonCollectDust"
+		return "locked for dust collection"
 	}
 	return ""
 }

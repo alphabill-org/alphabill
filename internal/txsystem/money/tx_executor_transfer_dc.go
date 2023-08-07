@@ -34,7 +34,7 @@ func handleTransferDCTx(s *state.State, dustCollector *DustCollector, hashAlgori
 				return bd, nil
 			})
 
-		// 3. UpdateData(ι, f), where f(D) = (0, S.n, H(P), D.Tdust)
+		// 3. UpdateData(ι, f), where f(D) = (0, S.n, H(P))
 		updateUnitFn := state.UpdateUnitData(unitID,
 			func(data state.UnitData) (state.UnitData, error) {
 				bd, ok := data.(*BillData)
@@ -55,8 +55,8 @@ func handleTransferDCTx(s *state.State, dustCollector *DustCollector, hashAlgori
 			return nil, fmt.Errorf("transferDC: failed to update state: %w", err)
 		}
 
-		// record dust bills for later deletion
-		dustCollector.AddDustBill(unitID, currentBlockNumber)
+		// record dust bills for later deletion TODO AB1133
+		// dustCollector.AddDustBill(unitID, currentBlockNumber)
 		return &types.ServerMetadata{ActualFee: fee, TargetUnits: []types.UnitID{unitID}}, nil
 	}
 }

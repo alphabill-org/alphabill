@@ -69,7 +69,6 @@ func (m *CounterTxSystem) BeginBlock(nr uint64) {
 	m.BeginBlockCountDelta++
 	m.ExecuteCountDelta = 0
 	m.blockNo = nr
-	m.uncommitted = true
 }
 
 func (m *CounterTxSystem) Revert() {
@@ -86,6 +85,7 @@ func (m *CounterTxSystem) EndBlock() (txsystem.State, error) {
 	bytes := make([]byte, 32)
 	var state = m.InitCount + m.ExecuteCount + m.ExecuteCountDelta
 	if m.EndBlockChangesState {
+		m.uncommitted = true
 		state += m.EndBlockCount + m.EndBlockCountDelta
 	}
 	binary.LittleEndian.PutUint64(bytes, state)
@@ -108,5 +108,6 @@ func (m *CounterTxSystem) Commit() error {
 func (m *CounterTxSystem) Execute(_ *types.TransactionOrder) (*types.ServerMetadata, error) {
 	logger.Debug("CounterTxSystem: Execute()")
 	m.ExecuteCountDelta++
+	m.uncommitted = true
 	return &types.ServerMetadata{ActualFee: m.Fee}, nil
 }

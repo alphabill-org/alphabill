@@ -26,6 +26,9 @@ type CounterTxSystem struct {
 	// setting this affects the state once EndBlock() is called
 	EndBlockChangesState bool
 
+	blockNo     uint64
+	uncommitted bool
+
 	// fee charged for each tx
 	Fee uint64
 }
@@ -36,44 +39,49 @@ type Summary struct {
 }
 
 func (s *Summary) Root() []byte {
-	logger.Debug("CounterTxSystem: Root()")
+	logger.Debug("CounterTxSystem: Root(): %X", s.root)
 	return s.root
 }
 
 func (s *Summary) Summary() []byte {
-	logger.Debug("CounterTxSystem: Summary()")
+	logger.Debug("CounterTxSystem: Summary(): %X", s.summary)
 	return s.summary
 }
 
 func (m *CounterTxSystem) StateSummary() (txsystem.State, error) {
-	logger.Debug("CounterTxSystem: State()")
+	if m.uncommitted {
+		return nil, txsystem.ErrStateContainsUncommittedChanges
+	}
 	bytes := make([]byte, 32)
 	var state = m.InitCount + m.ExecuteCount
 	if m.EndBlockChangesState {
 		state += m.EndBlockCount
 	}
 	binary.LittleEndian.PutUint64(bytes, state)
+	logger.Debug("CounterTxSystem: State(%d): %X", m.blockNo, bytes)
 	return &Summary{
 		root: bytes, summary: util.Uint64ToBytes(m.SummaryValue),
 	}, nil
 }
 
-func (m *CounterTxSystem) BeginBlock(_ uint64) {
-	logger.Debug("CounterTxSystem: BeginBlock()")
+func (m *CounterTxSystem) BeginBlock(nr uint64) {
+	logger.Debug("CounterTxSystem: BeginBlock(%d)", nr)
 	m.BeginBlockCountDelta++
 	m.ExecuteCountDelta = 0
+	m.blockNo = nr
+	m.uncommitted = true
 }
 
 func (m *CounterTxSystem) Revert() {
-	logger.Debug("CounterTxSystem: Revert()")
+	logger.Debug("CounterTxSystem: Revert(%d)", m.blockNo)
 	m.ExecuteCountDelta = 0
 	m.EndBlockCountDelta = 0
 	m.BeginBlockCountDelta = 0
 	m.RevertCount++
+	m.uncommitted = false
 }
 
 func (m *CounterTxSystem) EndBlock() (txsystem.State, error) {
-	logger.Debug("CounterTxSystem: EndBlock()")
 	m.EndBlockCountDelta++
 	bytes := make([]byte, 32)
 	var state = m.InitCount + m.ExecuteCount + m.ExecuteCountDelta
@@ -81,16 +89,19 @@ func (m *CounterTxSystem) EndBlock() (txsystem.State, error) {
 		state += m.EndBlockCount + m.EndBlockCountDelta
 	}
 	binary.LittleEndian.PutUint64(bytes, state)
+	logger.Debug("CounterTxSystem: EndBlock(%d), resulting state: %X", m.blockNo, bytes)
 	return &Summary{
 		root: bytes, summary: util.Uint64ToBytes(m.SummaryValue),
 	}, nil
 }
 
 func (m *CounterTxSystem) Commit() error {
-	logger.Debug("CounterTxSystem: Commit()")
 	m.ExecuteCount += m.ExecuteCountDelta
 	m.EndBlockCount += m.EndBlockCountDelta
 	m.BeginBlockCount += m.BeginBlockCountDelta
+	m.uncommitted = false
+	summary, _ := m.StateSummary()
+	logger.Debug("CounterTxSystem: Commit(%d), state: %X", m.blockNo, summary.Root())
 	return nil
 }
 

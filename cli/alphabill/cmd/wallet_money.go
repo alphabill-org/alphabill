@@ -23,6 +23,7 @@ import (
 	wlog "github.com/alphabill-org/alphabill/pkg/wallet/log"
 	"github.com/alphabill-org/alphabill/pkg/wallet/money"
 	moneyclient "github.com/alphabill-org/alphabill/pkg/wallet/money/backend/client"
+	"github.com/alphabill-org/alphabill/pkg/wallet/unitlock"
 )
 
 type walletConfig struct {
@@ -183,7 +184,13 @@ func execSendCmd(ctx context.Context, cmd *cobra.Command, config *walletConfig) 
 	if err != nil {
 		return err
 	}
-	w, err := money.LoadExistingWallet(am, restClient)
+	unitLocker, err := unitlock.NewUnitLocker(config.WalletHomeDir)
+	if err != nil {
+		return err
+	}
+	defer unitLocker.Close()
+
+	w, err := money.LoadExistingWallet(am, unitLocker, restClient)
 	if err != nil {
 		return err
 	}
@@ -305,7 +312,15 @@ func execGetBalanceCmd(cmd *cobra.Command, config *walletConfig) error {
 	if err != nil {
 		return err
 	}
-	w, err := money.LoadExistingWallet(am, restClient)
+	defer am.Close()
+
+	unitLocker, err := unitlock.NewUnitLocker(config.WalletHomeDir)
+	if err != nil {
+		return err
+	}
+	defer unitLocker.Close()
+
+	w, err := money.LoadExistingWallet(am, unitLocker, restClient)
 	if err != nil {
 		return err
 	}
@@ -425,8 +440,15 @@ func execCollectDust(cmd *cobra.Command, config *walletConfig) error {
 	if err != nil {
 		return err
 	}
+	defer am.Close()
 
-	w, err := money.LoadExistingWallet(am, restClient)
+	unitLocker, err := unitlock.NewUnitLocker(config.WalletHomeDir)
+	if err != nil {
+		return err
+	}
+	defer unitLocker.Close()
+
+	w, err := money.LoadExistingWallet(am, unitLocker, restClient)
 	if err != nil {
 		return err
 	}

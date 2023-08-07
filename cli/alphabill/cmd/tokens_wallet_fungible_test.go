@@ -22,6 +22,7 @@ import (
 	moneyclient "github.com/alphabill-org/alphabill/pkg/wallet/money/backend/client"
 	tokenswallet "github.com/alphabill-org/alphabill/pkg/wallet/tokens"
 	"github.com/alphabill-org/alphabill/pkg/wallet/tokens/client"
+	"github.com/alphabill-org/alphabill/pkg/wallet/unitlock"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
@@ -328,18 +329,22 @@ func NewAlphabillNetwork(t *testing.T) *AlphabillNetwork {
 	require.NoError(t, err)
 	require.NoError(t, am.CreateKeys(""))
 
-	moneyWallet, err := moneywallet.LoadExistingWallet(am, moneyBackendClient)
+	unitLocker, err := unitlock.NewUnitLocker(walletDir)
 	require.NoError(t, err)
-	t.Cleanup(moneyWallet.Close)
+
+	moneyWallet, err := moneywallet.LoadExistingWallet(am, unitLocker, moneyBackendClient)
+	require.NoError(t, err)
+	defer moneyWallet.Close()
 
 	tokenTxPublisher := tokenswallet.NewTxPublisher(tokenBackendClient)
-	tokenFeeManager := fees.NewFeeManager(am, money.DefaultSystemIdentifier, moneyWallet, moneyBackendClient, tokens.DefaultSystemIdentifier, tokenTxPublisher, tokenBackendClient)
-	t.Cleanup(tokenFeeManager.Close)
+	tokenFeeManager := fees.NewFeeManager(am, unitLocker, money.DefaultSystemIdentifier, moneyWallet, moneyBackendClient, tokens.DefaultSystemIdentifier, tokenTxPublisher, tokenBackendClient)
+	defer tokenFeeManager.Close()
 
 	w1, err := tokenswallet.New(tokens.DefaultSystemIdentifier, tokenBackendURL, am, true, tokenFeeManager)
 	require.NoError(t, err)
 	require.NotNil(t, w1)
-	t.Cleanup(w1.Shutdown)
+	defer w1.Shutdown()
+
 	w1key, err := w1.GetAccountManager().GetAccountKey(0)
 	_, _, err = am.AddAccount()
 	require.NoError(t, err)

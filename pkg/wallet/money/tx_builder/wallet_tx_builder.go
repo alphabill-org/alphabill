@@ -22,10 +22,6 @@ const MaxFee = uint64(1)
 func CreateTransactions(pubKey []byte, amount uint64, systemID []byte, bills []*wallet.Bill, k *account.AccountKey, timeout uint64, fcrID []byte) ([]*types.TransactionOrder, error) {
 	var txs []*types.TransactionOrder
 	var accumulatedSum uint64
-	// sort bills by value in descending order
-	sort.Slice(bills, func(i, j int) bool {
-		return bills[i].Value > bills[j].Value
-	})
 	for _, b := range bills {
 		remainingAmount := amount - accumulatedSum
 		tx, err := CreateTransaction(pubKey, k, remainingAmount, systemID, b, timeout, fcrID)

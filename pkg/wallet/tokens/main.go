@@ -82,6 +82,9 @@ func New(systemID []byte, backendUrl string, am account.Manager, confirmTx bool,
 
 func (w *Wallet) Shutdown() {
 	w.am.Close()
+	if w.feeManager != nil {
+		w.feeManager.Close()
+	}
 }
 
 func (w *Wallet) GetAccountManager() account.Manager {

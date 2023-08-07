@@ -987,9 +987,11 @@ func TestNode_RespondToInvalidReplicationRequest(t *testing.T) {
 func createNewBlockOutsideNode(t *testing.T, tp *SingleNodePartition, system *testtxsystem.CounterTxSystem, currentBlock *types.Block) *types.Block {
 	// simulate new block's state
 	system.BeginBlock(currentBlock.UnicityCertificate.InputRecord.RoundNumber + 1)
-	_, _ = system.Execute(nil)
-	state, _ := system.EndBlock()
-	system.Commit()
+	_, err := system.Execute(nil)
+	require.NoError(t, err)
+	state, err := system.EndBlock()
+	require.NoError(t, err)
+	require.NoError(t, system.Commit())
 
 	// create new block
 	newBlock := copyBlock(t, currentBlock)

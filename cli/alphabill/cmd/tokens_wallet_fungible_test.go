@@ -158,17 +158,17 @@ func TestFungibleTokens_Sending_Integration(t *testing.T) {
 	require.Eventually(t, testpartition.BlockchainContains(tokensPartition, crit(9)), test.WaitDuration, test.WaitTick)
 	verifyStdoutEventually(t, func() *testConsoleWriter {
 		return execTokensCmd(t, homedirW1, fmt.Sprintf("list fungible -r %s", backendUrl))
-	}, "amount='5'", "amount='9'", "Symbol='AB'")
+	}, "amount='5'", "amount='9'", "symbol='AB'")
 	// check w2 is empty
 	verifyStdout(t, execTokensCmd(t, homedirW2, fmt.Sprintf("list fungible  -r %s", backendUrl)), "No tokens")
 	// transfer tokens w1 -> w2
 	execTokensCmd(t, homedirW1, fmt.Sprintf("send fungible -r %s --type %X --amount 6 --address 0x%X -k 1", backendUrl, typeID1, w2key.PubKey)) //split (9=>6+3)
 	verifyStdoutEventually(t, func() *testConsoleWriter {
 		return execTokensCmd(t, homedirW1, fmt.Sprintf("list fungible -r %s", backendUrl))
-	}, "amount='5'", "amount='3'", "Symbol='AB'")
+	}, "amount='5'", "amount='3'", "symbol='AB'")
 	execTokensCmd(t, homedirW1, fmt.Sprintf("send fungible -r %s --type %X --amount 6 --address 0x%X -k 1", backendUrl, typeID1, w2key.PubKey)) //transfer (5) + split (3=>2+1)
 	//check immediately as tx must be confirmed
-	verifyStdout(t, execTokensCmd(t, homedirW2, fmt.Sprintf("list fungible -r %s", backendUrl)), "amount='6'", "amount='5'", "amount='1'", "Symbol='AB'")
+	verifyStdout(t, execTokensCmd(t, homedirW2, fmt.Sprintf("list fungible -r %s", backendUrl)), "amount='6'", "amount='5'", "amount='1'", "symbol='AB'")
 	//check what is left in w1
 	verifyStdoutEventually(t, func() *testConsoleWriter {
 		return execTokensCmd(t, homedirW1, fmt.Sprintf("list fungible -r %s", backendUrl))

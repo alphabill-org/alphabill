@@ -826,16 +826,16 @@ func execTokenCmdList(cmd *cobra.Command, config *walletConfig, accountNumber *u
 				nftURI = fmt.Sprintf(", URI='%s'", tok.NftURI)
 			}
 			if withAll ||  withTokenData {
-				nftData = fmt.Sprintf(", Data='%X'", tok.NftData)
+				nftData = fmt.Sprintf(", data='%X'", tok.NftData)
 			}
 			kind := fmt.Sprintf(" (%v)", tok.Kind)
 
 			if tok.Kind == backend.Fungible {
 				amount := amountToString(tok.Amount, tok.Decimals)
-				consoleWriter.Println(fmt.Sprintf("ID='%X', Symbol='%s', amount='%v', token-type='%X'",
+				consoleWriter.Println(fmt.Sprintf("ID='%X', symbol='%s', amount='%v', token-type='%X'",
 					tok.ID, tok.Symbol, amount, tok.TypeID) + typeName + kind)
 			} else {
-				consoleWriter.Println(fmt.Sprintf("ID='%X', Symbol='%s', Name='%s', token-type='%X'",
+				consoleWriter.Println(fmt.Sprintf("ID='%X', symbol='%s', name='%s', token-type='%X'",
 					tok.ID, tok.Symbol, tok.NftName, tok.TypeID) + typeName + nftURI + nftData + kind)
 			}
 		}

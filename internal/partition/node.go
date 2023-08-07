@@ -753,22 +753,28 @@ func (n *Node) proposalHash(prop *pendingBlockProposal, uc *types.UnicityCertifi
 // finalizeBlock creates the block and adds it to the blockStore.
 func (n *Node) finalizeBlock(b *types.Block) error {
 	defer trackExecutionTime(time.Now(), fmt.Sprintf("Block %v finalization", b.GetRoundNumber()))
-	if err := n.transactionSystem.Commit(); err != nil {
-	}
+	roundNoInBytes := util.Uint64ToBytes(b.GetRoundNumber())
 	// if empty block then ignore this block
 	if len(b.Transactions) == 0 {
-		n.sendEvent(event.BlockFinalized, b)
-		return nil
-	}
-	roundNoInBytes := util.Uint64ToBytes(b.GetRoundNumber())
-	if err := n.blockStore.Write(roundNoInBytes, b); err != nil {
-		return fmt.Errorf("db write failed, %w", err)
+		if err := n.transactionSystem.Commit(); err != nil {
+			return fmt.Errorf("unable to finalize empty block %v: %w", b.GetRoundNumber(), err)
+		}
+	} else {
+		// persist the block _before_ committing to tx system
+		// if write fails but the round is committed in tx system, there's no way back,
+		// but if commit fails, we just remove the block from the store
 		if err := n.blockStore.Write(roundNoInBytes, b); err != nil {
+			return fmt.Errorf("db write failed, %w", err)
+		}
+		if err := n.transactionSystem.Commit(); err != nil {
+			_ = n.blockStore.Delete(roundNoInBytes)
+			return fmt.Errorf("unable to finalize block %v: %w", b.GetRoundNumber(), err)
+		}
+		// cache last stored non-empty block, but only if store succeeds
+		// NB! only cache and commit if persist is successful
+		n.lastStoredBlock = b
+		validTransactionsCounter.Inc(int64(len(b.Transactions)))
 	}
-	// cache last stored non-empty block, but only if store succeeds
-	// NB! only cache and commit if persist is successful
-	n.lastStoredBlock = b
-	validTransactionsCounter.Inc(int64(len(b.Transactions)))
 	n.sendEvent(event.BlockFinalized, b)
 	return nil
 }
@@ -920,13 +926,29 @@ func (n *Node) handleLedgerReplicationResponse(ctx context.Context, lr *replicat
 		}
 		latestStoredBlockUc := n.lastStoredBlock.UnicityCertificate
 		// it could be that we receive blocks from earlier time or later time, make sure to extend from what is missing
-		roundNo := b.GetRoundNumber()
+		recoveringRoundNo := b.GetRoundNumber()
+		latestStoredRoundNo := n.lastStoredBlock.GetRoundNumber()
 		// skip earlier blocks
-		if roundNo <= n.lastStoredBlock.GetRoundNumber() {
-			logger.Debug("Node already has this block %v, skipping block %v", n.lastStoredBlock.GetRoundNumber(), roundNo)
+		if recoveringRoundNo <= latestStoredRoundNo {
+			logger.Debug("Node already has this block %v, skipping block %v", latestStoredRoundNo, recoveringRoundNo)
 			continue
 		}
-		logger.Debug("Recovering block from round %v", roundNo)
+		// if there are empty blocks between 'latestStoredRoundNo' and 'recoveringRoundNo',
+		// we need to spin the transaction system up to 'recoveringRoundNo' to perform housekeeping
+		if recoveringRoundNo-latestStoredRoundNo > 1 {
+			for i := latestStoredRoundNo + 1; i < recoveringRoundNo; i++ {
+				logger.Debug("Recovering empty block %v", i)
+				n.transactionSystem.BeginBlock(i)
+				_, err = n.transactionSystem.EndBlock()
+				if err != nil {
+					return fmt.Errorf("error ending block %v, %w", i, err)
+				}
+				if err = n.transactionSystem.Commit(); err != nil {
+					return fmt.Errorf("error committing block %v: %w", i, err)
+				}
+			}
+		}
+		logger.Debug("Recovering block from round %v", recoveringRoundNo)
 		// make sure it extends current state
 		var state txsystem.State
 		state, err = n.transactionSystem.StateSummary()
@@ -935,7 +957,7 @@ func (n *Node) handleLedgerReplicationResponse(ctx context.Context, lr *replicat
 			break
 		}
 		if !bytes.Equal(b.UnicityCertificate.InputRecord.PreviousHash, state.Root()) {
-			err = fmt.Errorf("received block does not extend current state")
+			err = fmt.Errorf("received block does not extend current state, state: %X, block's IR.PreviousHash: %X", state.Root(), b.UnicityCertificate.InputRecord.PreviousHash)
 			break
 		}
 		if !bytes.Equal(b.UnicityCertificate.InputRecord.PreviousHash, latestStoredBlockUc.InputRecord.Hash) {
@@ -943,13 +965,13 @@ func (n *Node) handleLedgerReplicationResponse(ctx context.Context, lr *replicat
 			break
 		}
 		var sumOfEarnedFees uint64
-		state, sumOfEarnedFees, err = n.applyBlockTransactions(latestStoredBlockUc.GetRoundNumber()+1, b.Transactions)
+		state, sumOfEarnedFees, err = n.applyBlockTransactions(latestStoredRoundNo+1, b.Transactions)
 		if err != nil {
-			err = fmt.Errorf("block %v apply transactions failed, %w", roundNo, err)
+			err = fmt.Errorf("block %v apply transactions failed, %w", recoveringRoundNo, err)
 			break
 		}
 		if err = verifyTxSystemState(state, sumOfEarnedFees, b.UnicityCertificate.InputRecord); err != nil {
-			err = fmt.Errorf("block %v, state mismatch, %w", roundNo, err)
+			err = fmt.Errorf("block %v, state mismatch, %w", recoveringRoundNo, err)
 			break
 		}
 		// update DB and last block
@@ -1077,6 +1099,7 @@ func (n *Node) sendCertificationRequest(blockAuthor string) error {
 	}
 	if err = n.persistBlockProposal(pendingProposal); err != nil {
 		logger.Error("failed to store proposal, %v", err)
+		n.transactionSystem.Revert()
 		return fmt.Errorf("failed to store pending block proposal, %w", err)
 	}
 	n.pendingBlockProposal = pendingProposal

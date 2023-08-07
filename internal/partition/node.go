@@ -754,7 +754,6 @@ func (n *Node) proposalHash(prop *pendingBlockProposal, uc *types.UnicityCertifi
 func (n *Node) finalizeBlock(b *types.Block) error {
 	defer trackExecutionTime(time.Now(), fmt.Sprintf("Block %v finalization", b.GetRoundNumber()))
 	if err := n.transactionSystem.Commit(); err != nil {
-		return fmt.Errorf("unable to finalize block %v: %w", b.GetRoundNumber(), err)
 	}
 	// if empty block then ignore this block
 	if len(b.Transactions) == 0 {

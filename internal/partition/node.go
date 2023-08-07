@@ -763,6 +763,7 @@ func (n *Node) finalizeBlock(b *types.Block) error {
 	roundNoInBytes := util.Uint64ToBytes(b.GetRoundNumber())
 	if err := n.blockStore.Write(roundNoInBytes, b); err != nil {
 		return fmt.Errorf("db write failed, %w", err)
+		if err := n.blockStore.Write(roundNoInBytes, b); err != nil {
 	}
 	// cache last stored non-empty block, but only if store succeeds
 	// NB! only cache and commit if persist is successful

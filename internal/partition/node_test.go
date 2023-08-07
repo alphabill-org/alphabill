@@ -103,9 +103,9 @@ func TestNode_NodeStartWithRecoverStateFromDB(t *testing.T) {
 		Transactions:       []*types.TransactionRecord{},
 		UnicityCertificate: tp.nodeDeps.genesis.Certificate,
 	}
-	newBlock2 := createNewBlockOutsideNode(t, tp, system, genesisBlock)
-	newBlock3 := createNewBlockOutsideNode(t, tp, system, newBlock2)
-	newBlock4 := createNewBlockOutsideNode(t, tp, system, newBlock3)
+	newBlock2 := createNewBlockOutsideNode(t, tp, system, genesisBlock, false)
+	newBlock3 := createNewBlockOutsideNode(t, tp, system, newBlock2, false)
+	newBlock4 := createNewBlockOutsideNode(t, tp, system, newBlock3, false)
 	require.NoError(t, db.Write(util.Uint64ToBytes(pgenesis.PartitionRoundNumber), genesisBlock))
 	require.NoError(t, db.Write(util.Uint64ToBytes(2), newBlock2))
 	require.NoError(t, db.Write(util.Uint64ToBytes(3), newBlock3))

@@ -933,19 +933,21 @@ func (n *Node) handleLedgerReplicationResponse(ctx context.Context, lr *replicat
 			logger.Debug("Node already has this block %v, skipping block %v", latestStoredRoundNo, recoveringRoundNo)
 			continue
 		}
+		latestStateHash := latestStoredBlockUc.InputRecord.Hash
 		// if there are empty blocks between 'latestStoredRoundNo' and 'recoveringRoundNo',
 		// we need to spin the transaction system up to 'recoveringRoundNo' to perform housekeeping
 		if recoveringRoundNo-latestStoredRoundNo > 1 {
 			for i := latestStoredRoundNo + 1; i < recoveringRoundNo; i++ {
 				logger.Debug("Recovering empty block %v", i)
 				n.transactionSystem.BeginBlock(i)
-				_, err = n.transactionSystem.EndBlock()
+				state, err := n.transactionSystem.EndBlock()
 				if err != nil {
 					return fmt.Errorf("error ending block %v, %w", i, err)
 				}
 				if err = n.transactionSystem.Commit(); err != nil {
 					return fmt.Errorf("error committing block %v: %w", i, err)
 				}
+				latestStateHash = state.Root()
 			}
 		}
 		logger.Debug("Recovering block from round %v", recoveringRoundNo)
@@ -960,7 +962,7 @@ func (n *Node) handleLedgerReplicationResponse(ctx context.Context, lr *replicat
 			err = fmt.Errorf("received block does not extend current state, state: %X, block's IR.PreviousHash: %X", state.Root(), b.UnicityCertificate.InputRecord.PreviousHash)
 			break
 		}
-		if !bytes.Equal(b.UnicityCertificate.InputRecord.PreviousHash, latestStoredBlockUc.InputRecord.Hash) {
+		if !bytes.Equal(b.UnicityCertificate.InputRecord.PreviousHash, latestStateHash) {
 			err = fmt.Errorf("received block does not extend last unicity certificate")
 			break
 		}
@@ -983,6 +985,7 @@ func (n *Node) handleLedgerReplicationResponse(ctx context.Context, lr *replicat
 	latestStoredBlockUc := n.lastStoredBlock.UnicityCertificate
 	// log problems
 	if err != nil {
+		logger.Error("Recovery failed, %s", err)
 		// Revert any transactions that were applied
 		n.revertState()
 		// ask the for the failed block again, what else can we do?

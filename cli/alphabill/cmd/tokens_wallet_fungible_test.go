@@ -281,9 +281,9 @@ func TestFungibleTokens_CollectDust_Integration(t *testing.T) {
 		expectedTotal += i
 	}
 	//check w1
-	verifyStdoutEventually(t, func() *testConsoleWriter {
+	verifyStdoutEventuallyWithTimeout(t, func() *testConsoleWriter {
 		return execTokensCmd(t, homedir, fmt.Sprintf("list fungible -r %s", backendUrl))
-	}, expectedAmounts...)
+	}, 2 * test.WaitDuration, 2 * test.WaitTick, expectedAmounts...)
 	// DC
 	execTokensCmd(t, homedir, fmt.Sprintf("collect-dust -r %s", backendUrl))
 

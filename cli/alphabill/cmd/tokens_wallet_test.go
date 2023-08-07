@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/state"
@@ -550,6 +551,10 @@ func randomID(t *testing.T) []byte {
 }
 
 func verifyStdoutEventually(t *testing.T, exec func() *testConsoleWriter, expectedLines ...string) {
+	verifyStdoutEventuallyWithTimeout(t, exec, test.WaitDuration, test.WaitTick, expectedLines...)
+}
+
+func verifyStdoutEventuallyWithTimeout(t *testing.T, exec func() *testConsoleWriter, waitFor time.Duration, tick time.Duration, expectedLines ...string) {
 	require.Eventually(t, func() bool {
 		joined := strings.Join(exec().lines, "\n")
 		res := true
@@ -557,5 +562,5 @@ func verifyStdoutEventually(t *testing.T, exec func() *testConsoleWriter, expect
 			res = res && strings.Contains(joined, expectedLine)
 		}
 		return res
-	}, test.WaitDuration, test.WaitTick)
+	}, waitFor, tick)
 }

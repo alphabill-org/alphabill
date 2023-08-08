@@ -33,10 +33,11 @@ type (
 	}
 
 	LedgerReplicationResponse struct {
-		_       struct{} `cbor:",toarray"`
-		Status  Status
-		Message string
-		Blocks  []*types.Block
+		_              struct{} `cbor:",toarray"`
+		Status         Status
+		Message        string
+		Blocks         []*types.Block
+		MaxRoundNumber uint64
 	}
 
 	Status int
@@ -48,7 +49,7 @@ func (r *LedgerReplicationResponse) Pretty() string {
 	if r.Message != "" {
 		return fmt.Sprintf("status: %s, message: %s, %v blocks", r.Status.String(), r.Message, count)
 	}
-	return fmt.Sprintf("status: %s, %v blocks", r.Status.String(), count)
+	return fmt.Sprintf("status: %s, %v blocks, max round number: %v", r.Status.String(), count, r.MaxRoundNumber)
 }
 
 func (r *LedgerReplicationResponse) IsValid() error {

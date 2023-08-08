@@ -135,7 +135,6 @@ func TestPartition_SwapDCOk(t *testing.T) {
 			WithInitialBill(initialBill),
 			WithSystemDescriptionRecords(createSDRs(2)),
 			WithDCMoneyAmount(100),
-			WithDCBillDeletionTimeout(5),
 			WithTrustBase(tb),
 			WithState(txsState),
 			WithFeeCalculator(fc.FixedFee(1)),

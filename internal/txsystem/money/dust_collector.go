@@ -22,16 +22,14 @@ var (
 type DustCollector struct {
 	// Contains the bill identifiers transferred to the dust collector. The key of the map is the block number when the
 	// bill is deleted and its value is transferred to the dust collector.
-	dustCollectorBills      map[uint64][]types.UnitID
-	state                   *state.State
-	dustBillDeletionTimeout uint64
+	dustCollectorBills map[uint64][]types.UnitID
+	state              *state.State
 }
 
-func NewDustCollector(s *state.State, deletionTimeout uint64) *DustCollector {
+func NewDustCollector(s *state.State) *DustCollector {
 	return &DustCollector{
-		state:                   s,
-		dustCollectorBills:      map[uint64][]types.UnitID{},
-		dustBillDeletionTimeout: deletionTimeout,
+		state:              s,
+		dustCollectorBills: map[uint64][]types.UnitID{},
 	}
 }
 

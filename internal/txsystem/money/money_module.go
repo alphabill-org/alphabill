@@ -74,7 +74,7 @@ func NewMoneyModule(options *Options) (m *Module, err error) {
 		trustBase:           options.trustBase,
 		hashAlgorithm:       options.hashAlgorithm,
 		feeCreditTxRecorder: newFeeCreditTxRecorder(s, options.systemIdentifier, options.systemDescriptionRecords),
-		dustCollector:       NewDustCollector(s, options.dustBillDeletionTimeout),
+		dustCollector:       NewDustCollector(s),
 		feeCalculator:       options.feeCalculator,
 	}
 	return

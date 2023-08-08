@@ -18,7 +18,7 @@ var (
 	ErrBillNil                   = errors.New("bill is nil")
 	ErrTargetSystemIdentifierNil = errors.New("TargetSystemIdentifier is nil")
 	ErrTargetRecordIDNil         = errors.New("TargetRecordID is nil")
-	ErrAdditionTimeInvalid       = errors.New("EarliestAdditonTime bigger than LatestAdditionTime")
+	ErrAdditionTimeInvalid       = errors.New("EarliestAdditonTime is greater than LatestAdditionTime")
 	ErrRecordIDExists            = errors.New("fee tx cannot contain fee credit reference")
 	ErrFeeProofExists            = errors.New("fee tx cannot contain fee authorization proof")
 

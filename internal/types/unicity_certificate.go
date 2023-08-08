@@ -126,7 +126,7 @@ func CheckNonEquivocatingCertificates(prevUC, newUC *UnicityCertificate) error {
 	//	return fmt.Errorf("invalid new certificate, block can not be empty if state changes")
 	//}
 	// b. block hash must not repeat
-	if bytes.Equal(newUC.InputRecord.BlockHash, prevUC.InputRecord.BlockHash) {
+	if !isZeroHash(newUC.InputRecord.BlockHash) && bytes.Equal(newUC.InputRecord.BlockHash, prevUC.InputRecord.BlockHash) {
 		return fmt.Errorf("new certificate repeats previous block hash")
 	}
 	return nil

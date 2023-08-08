@@ -853,6 +853,7 @@ func (n *Node) handleLedgerReplicationRequest(lr *replication.LedgerReplicationR
 		return n.sendLedgerReplicationResponse(resp, lr.NodeIdentifier)
 	}
 	maxBlock := n.lastStoredBlock.GetRoundNumber()
+	luc := n.luc.Load()
 	startBlock := lr.BeginBlockNumber
 	// the node is behind and does not have the needed data
 	if maxBlock < startBlock {
@@ -874,6 +875,7 @@ func (n *Node) handleLedgerReplicationRequest(lr *replication.LedgerReplicationR
 					"Unexpected DB iterator error %v", err)
 			}
 		}()
+		var lastFetchedBlock *types.Block
 		for ; dbIt.Valid(); dbIt.Next() {
 			var bl types.Block
 			roundNo := util.BytesToUint64(dbIt.Key())
@@ -881,7 +883,8 @@ func (n *Node) handleLedgerReplicationRequest(lr *replication.LedgerReplicationR
 				logger.Warning("Ledger replication reply incomplete, block %v read failed %v", roundNo, err)
 				break
 			}
-			blocks = append(blocks, &bl)
+			lastFetchedBlock = &bl
+			blocks = append(blocks, lastFetchedBlock)
 			blockCnt++
 			countTx += uint32(len(bl.Transactions))
 			if countTx >= n.configuration.replicationConfig.maxTx ||
@@ -889,9 +892,17 @@ func (n *Node) handleLedgerReplicationRequest(lr *replication.LedgerReplicationR
 				break
 			}
 		}
+		maxRoundNumber := lastFetchedBlock.GetRoundNumber()
+		if maxRoundNumber == maxBlock {
+			// we did not hit the replication limit,
+			// thus we can safely assume that if there are any blocks between 'n.lastStoredBlock' and 'n.luc',
+			// all these blocks are empty
+			maxRoundNumber = luc.GetRoundNumber()
+		}
 		resp := &replication.LedgerReplicationResponse{
-			Status: replication.Ok,
-			Blocks: blocks,
+			Status:         replication.Ok,
+			Blocks:         blocks,
+			MaxRoundNumber: maxRoundNumber,
 		}
 		if err := n.sendLedgerReplicationResponse(resp, lr.NodeIdentifier); err != nil {
 			logger.Warning("Problem sending ledger replication response, %s: %s", resp.Pretty(), err)
@@ -917,7 +928,22 @@ func (n *Node) handleLedgerReplicationResponse(ctx context.Context, lr *replicat
 		n.sendLedgerReplicationRequest(recoverFrom)
 		return fmt.Errorf("received error response, status=%s, message='%s'", lr.Status.String(), lr.Message)
 	}
+
+	var recoverEmptyBlock = func(roundNumber uint64) ([]byte, error) {
+		logger.Debug("Recovering empty block %v", roundNumber)
+		n.transactionSystem.BeginBlock(roundNumber)
+		state, err := n.transactionSystem.EndBlock()
+		if err != nil {
+			return nil, fmt.Errorf("error ending block %v, %w", roundNumber, err)
+		}
+		if err = n.transactionSystem.Commit(); err != nil {
+			return nil, fmt.Errorf("error committing block %v: %w", roundNumber, err)
+		}
+		return state.Root(), nil
+	}
+
 	var err error
+blocks:
 	for _, b := range lr.Blocks {
 		if err = b.IsValid(n.unicityCertificateValidator.Validate); err != nil {
 			// sends invalid blocks, do not trust the response and try again
@@ -927,27 +953,23 @@ func (n *Node) handleLedgerReplicationResponse(ctx context.Context, lr *replicat
 		latestStoredBlockUc := n.lastStoredBlock.UnicityCertificate
 		// it could be that we receive blocks from earlier time or later time, make sure to extend from what is missing
 		recoveringRoundNo := b.GetRoundNumber()
-		latestStoredRoundNo := n.lastStoredBlock.GetRoundNumber()
+		latestProcessedRoundNo := n.lastStoredBlock.GetRoundNumber()
 		// skip earlier blocks
-		if recoveringRoundNo <= latestStoredRoundNo {
-			logger.Debug("Node already has this block %v, skipping block %v", latestStoredRoundNo, recoveringRoundNo)
+		if recoveringRoundNo <= latestProcessedRoundNo {
+			logger.Debug("Node already has this block %v, skipping block %v", latestProcessedRoundNo, recoveringRoundNo)
 			continue
 		}
+
 		latestStateHash := latestStoredBlockUc.InputRecord.Hash
 		// if there are empty blocks between 'latestStoredRoundNo' and 'recoveringRoundNo',
 		// we need to spin the transaction system up to 'recoveringRoundNo' to perform housekeeping
-		if recoveringRoundNo-latestStoredRoundNo > 1 {
-			for i := latestStoredRoundNo + 1; i < recoveringRoundNo; i++ {
-				logger.Debug("Recovering empty block %v", i)
-				n.transactionSystem.BeginBlock(i)
-				state, err := n.transactionSystem.EndBlock()
+		if recoveringRoundNo-latestProcessedRoundNo > 1 {
+			for i := latestProcessedRoundNo + 1; i < recoveringRoundNo; i++ {
+				latestStateHash, err = recoverEmptyBlock(i)
 				if err != nil {
-					return fmt.Errorf("error ending block %v, %w", i, err)
+					break blocks
 				}
-				if err = n.transactionSystem.Commit(); err != nil {
-					return fmt.Errorf("error committing block %v: %w", i, err)
-				}
-				latestStateHash = state.Root()
+				latestProcessedRoundNo = i
 			}
 		}
 		logger.Debug("Recovering block from round %v", recoveringRoundNo)
@@ -967,7 +989,7 @@ func (n *Node) handleLedgerReplicationResponse(ctx context.Context, lr *replicat
 			break
 		}
 		var sumOfEarnedFees uint64
-		state, sumOfEarnedFees, err = n.applyBlockTransactions(latestStoredRoundNo+1, b.Transactions)
+		state, sumOfEarnedFees, err = n.applyBlockTransactions(latestProcessedRoundNo+1, b.Transactions)
 		if err != nil {
 			err = fmt.Errorf("block %v apply transactions failed, %w", recoveringRoundNo, err)
 			break
@@ -983,23 +1005,43 @@ func (n *Node) handleLedgerReplicationResponse(ctx context.Context, lr *replicat
 		}
 	}
 	latestStoredBlockUc := n.lastStoredBlock.UnicityCertificate
-	// log problems
-	if err != nil {
+	onError := func(err error) {
+		// log problems
 		logger.Error("Recovery failed, %s", err)
 		// Revert any transactions that were applied
 		n.revertState()
 		// ask the for the failed block again, what else can we do?
 		n.sendLedgerReplicationRequest(latestStoredBlockUc.GetRoundNumber() + 1)
+
+	}
+
+	if err != nil {
+		onError(err)
 		return err
 	}
+
+	latestProcessedRoundNumber := latestStoredBlockUc.GetRoundNumber()
+	latestStateHash := latestStoredBlockUc.InputRecord.Hash
+	if latestProcessedRoundNumber < lr.MaxRoundNumber {
+		logger.Debug("Recovering empty blocks from latest block's round %v up to %v", latestProcessedRoundNumber, lr.MaxRoundNumber)
+		for i := latestProcessedRoundNumber + 1; i <= lr.MaxRoundNumber; i++ {
+			latestStateHash, err = recoverEmptyBlock(i)
+			if err != nil {
+				onError(err)
+				return err
+			}
+			latestProcessedRoundNumber = i
+		}
+	}
+
 	// check if recovery is complete
-	logger.Debug("Checking if recovery is complete, last block is from round: %v", latestStoredBlockUc.GetRoundNumber())
+	logger.Debug("Checking if recovery is complete, last recovered round: %v", latestProcessedRoundNumber)
 	// every non-empty block is guaranteed to change state hash, meaning if the state hash is equal to luc state hash
 	// then recovery is complete
 	luc := n.luc.Load()
-	if !bytes.Equal(latestStoredBlockUc.InputRecord.Hash, luc.InputRecord.Hash) {
-		logger.Debug("Not fully recovered yet, latest block's UC root round %v vs LUC's root round %v", latestStoredBlockUc.GetRoundNumber(), luc.GetRoundNumber())
-		n.sendLedgerReplicationRequest(latestStoredBlockUc.GetRoundNumber() + 1)
+	if !bytes.Equal(latestStateHash, luc.InputRecord.Hash) {
+		logger.Debug("Not fully recovered yet, latest recovered UC's round %v vs LUC's round %v", latestProcessedRoundNumber, luc.GetRoundNumber())
+		n.sendLedgerReplicationRequest(latestProcessedRoundNumber + 1)
 		return nil
 	}
 	// node should be recovered now, stop recovery and change state to normal

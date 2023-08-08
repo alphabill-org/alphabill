@@ -291,12 +291,11 @@ func TestNode_RecoverBlocks_withEmptyBlocksChangingState(t *testing.T) {
 	newBlock3 := createNewBlockOutsideNode(t, tp, system, newBlock2, false)
 	newBlock4empty := createNewBlockOutsideNode(t, tp, system, newBlock3, true)
 	newBlock5 := createNewBlockOutsideNode(t, tp, system, newBlock4empty, false)
-	//newBlock6empty := createNewBlockOutsideNode(t, tp, system, newBlock5, false)
+	newBlock6empty := createNewBlockOutsideNode(t, tp, system, newBlock5, true)
 
 	// prepare proposal, send "newer" UC, revert state and start recovery
 	tp.SubmitT1Timeout(t)
-	tp.SubmitUnicityCertificate(newBlock5.UnicityCertificate)
-	//tp.SubmitUnicityCertificate(newBlock6empty.UnicityCertificate)
+	tp.SubmitUnicityCertificate(newBlock6empty.UnicityCertificate)
 
 	ContainsError(t, tp, ErrNodeDoesNotHaveLatestBlock.Error())
 	require.Equal(t, recovering, tp.partition.status.Load())
@@ -321,8 +320,9 @@ func TestNode_RecoverBlocks_withEmptyBlocksChangingState(t *testing.T) {
 		From:     req.ID,
 		Protocol: network.ProtocolLedgerReplicationResp,
 		Message: &replication.LedgerReplicationResponse{
-			Status: replication.Ok,
-			Blocks: []*types.Block{newBlock5},
+			Status:         replication.Ok,
+			Blocks:         []*types.Block{newBlock5},
+			MaxRoundNumber: 6,
 		},
 	})
 	testevent.ContainsEvent(t, tp.eh, event.RecoveryFinished)
@@ -330,7 +330,7 @@ func TestNode_RecoverBlocks_withEmptyBlocksChangingState(t *testing.T) {
 	// test get interfaces
 	nr, err := tp.partition.GetLatestRoundNumber()
 	require.NoError(t, err)
-	require.Equal(t, uint64(5), nr)
+	require.Equal(t, uint64(6), nr)
 	latestBlock, err := tp.partition.GetLatestBlock()
 	require.NoError(t, err)
 	require.True(t, reflect.DeepEqual(latestBlock, newBlock5))

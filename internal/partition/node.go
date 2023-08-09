@@ -932,7 +932,7 @@ func (n *Node) handleLedgerReplicationResponse(ctx context.Context, lr *replicat
 		return fmt.Errorf("received error response, status=%s, message='%s'", lr.Status.String(), lr.Message)
 	}
 
-	var recoverEmptyBlock = func(roundNumber uint64) ([]byte, error) {
+	recoverEmptyBlock := func(roundNumber uint64) ([]byte, error) {
 		logger.Debug("Recovering empty block %v", roundNumber)
 		if err := n.transactionSystem.BeginBlock(roundNumber); err != nil {
 			return nil, fmt.Errorf("error beginning block %v, %w", roundNumber, err)
@@ -947,34 +947,44 @@ func (n *Node) handleLedgerReplicationResponse(ctx context.Context, lr *replicat
 		return state.Root(), nil
 	}
 
+	onError := func(latestSuccessfulRoundNumber uint64, err error) error {
+		// log problems
+		logger.Error("Recovery failed, %s", err)
+		// Revert any transactions that were applied
+		n.revertState()
+		// ask the for the failed block again, what else can we do?
+		n.sendLedgerReplicationRequest(latestSuccessfulRoundNumber + 1)
+		return err
+	}
+
+	latestStoredBlock := n.lastStoredBlock
+	latestProcessedRoundNumber := latestStoredBlock.UnicityCertificate.GetRoundNumber()
+	latestStateHash := latestStoredBlock.UnicityCertificate.InputRecord.Hash
+
 	var err error
-blocks:
 	for _, b := range lr.Blocks {
+
 		if err = b.IsValid(n.unicityCertificateValidator.Validate); err != nil {
 			// sends invalid blocks, do not trust the response and try again
 			err = fmt.Errorf("ledger replication response contains invalid block for round %v, %w", b.GetRoundNumber(), err)
-			break
+			return onError(latestProcessedRoundNumber, err)
 		}
-		latestStoredBlockUc := n.lastStoredBlock.UnicityCertificate
 		// it could be that we receive blocks from earlier time or later time, make sure to extend from what is missing
 		recoveringRoundNo := b.GetRoundNumber()
-		latestProcessedRoundNo := n.lastStoredBlock.GetRoundNumber()
 		// skip earlier blocks
-		if recoveringRoundNo <= latestProcessedRoundNo {
-			logger.Debug("Node already has this block %v, skipping block %v", latestProcessedRoundNo, recoveringRoundNo)
+		if recoveringRoundNo <= latestProcessedRoundNumber {
+			logger.Debug("Node already has this block %v, skipping block %v", latestProcessedRoundNumber, recoveringRoundNo)
 			continue
 		}
-
-		latestStateHash := latestStoredBlockUc.InputRecord.Hash
 		// if there are empty blocks between 'latestStoredRoundNo' and 'recoveringRoundNo',
 		// we need to spin the transaction system up to 'recoveringRoundNo' to perform housekeeping
-		if recoveringRoundNo-latestProcessedRoundNo > 1 {
-			for i := latestProcessedRoundNo + 1; i < recoveringRoundNo; i++ {
+		if recoveringRoundNo-latestProcessedRoundNumber > 1 {
+			for i := latestProcessedRoundNumber + 1; i < recoveringRoundNo; i++ {
 				latestStateHash, err = recoverEmptyBlock(i)
 				if err != nil {
-					break blocks
+					return onError(latestProcessedRoundNumber, err)
 				}
-				latestProcessedRoundNo = i
+				latestProcessedRoundNumber = i
 			}
 		}
 		logger.Debug("Recovering block from round %v", recoveringRoundNo)
@@ -982,58 +992,37 @@ blocks:
 		var state txsystem.State
 		state, err = n.transactionSystem.StateSummary()
 		if err != nil {
-			err = fmt.Errorf("error reading current state, %w", err)
-			break
+			return onError(latestProcessedRoundNumber, fmt.Errorf("error reading current state, %w", err))
 		}
 		if !bytes.Equal(b.UnicityCertificate.InputRecord.PreviousHash, state.Root()) {
-			err = fmt.Errorf("received block does not extend current state, state: %X, block's IR.PreviousHash: %X", state.Root(), b.UnicityCertificate.InputRecord.PreviousHash)
-			break
+			return onError(latestProcessedRoundNumber, fmt.Errorf("received block does not extend current state, state: %X, block's IR.PreviousHash: %X", state.Root(), b.UnicityCertificate.InputRecord.PreviousHash))
 		}
 		if !bytes.Equal(b.UnicityCertificate.InputRecord.PreviousHash, latestStateHash) {
-			err = fmt.Errorf("received block does not extend last unicity certificate")
-			break
+			return onError(latestProcessedRoundNumber, fmt.Errorf("received block does not extend last unicity certificate"))
 		}
 		var sumOfEarnedFees uint64
-		state, sumOfEarnedFees, err = n.applyBlockTransactions(latestProcessedRoundNo+1, b.Transactions)
+		state, sumOfEarnedFees, err = n.applyBlockTransactions(latestProcessedRoundNumber+1, b.Transactions)
 		if err != nil {
-			err = fmt.Errorf("block %v apply transactions failed, %w", recoveringRoundNo, err)
-			break
+			return onError(latestProcessedRoundNumber, fmt.Errorf("block %v apply transactions failed, %w", recoveringRoundNo, err))
 		}
 		if err = verifyTxSystemState(state, sumOfEarnedFees, b.UnicityCertificate.InputRecord); err != nil {
-			err = fmt.Errorf("block %v, state mismatch, %w", recoveringRoundNo, err)
-			break
+			return onError(latestProcessedRoundNumber, fmt.Errorf("block %v, state mismatch, %w", recoveringRoundNo, err))
 		}
 		// update DB and last block
 		if err = n.finalizeBlock(b); err != nil {
-			err = fmt.Errorf("block %v persist failed, %w", b.GetRoundNumber(), err)
-			break
+			return onError(latestProcessedRoundNumber, fmt.Errorf("block %v persist failed, %w", b.GetRoundNumber(), err))
 		}
-	}
-	latestStoredBlockUc := n.lastStoredBlock.UnicityCertificate
-	onError := func(err error) {
-		// log problems
-		logger.Error("Recovery failed, %s", err)
-		// Revert any transactions that were applied
-		n.revertState()
-		// ask the for the failed block again, what else can we do?
-		n.sendLedgerReplicationRequest(latestStoredBlockUc.GetRoundNumber() + 1)
-
+		latestProcessedRoundNumber = recoveringRoundNo
+		latestStateHash = b.UnicityCertificate.InputRecord.Hash
 	}
 
-	if err != nil {
-		onError(err)
-		return err
-	}
-
-	latestProcessedRoundNumber := latestStoredBlockUc.GetRoundNumber()
-	latestStateHash := latestStoredBlockUc.InputRecord.Hash
+	// after all blocks from the response are processed, check if there are any empty blocks to recover until the provided max round number
 	if latestProcessedRoundNumber < lr.MaxRoundNumber {
 		logger.Debug("Recovering empty blocks from latest block's round %v up to %v", latestProcessedRoundNumber, lr.MaxRoundNumber)
 		for i := latestProcessedRoundNumber + 1; i <= lr.MaxRoundNumber; i++ {
 			latestStateHash, err = recoverEmptyBlock(i)
 			if err != nil {
-				onError(err)
-				return err
+				return onError(latestProcessedRoundNumber, err)
 			}
 			latestProcessedRoundNumber = i
 		}

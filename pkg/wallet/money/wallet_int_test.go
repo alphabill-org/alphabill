@@ -210,7 +210,6 @@ func TestCollectDustInMultiAccountWallet(t *testing.T) {
 	_, _, _ = am.AddAccount()
 	_, _, _ = am.AddAccount()
 
-	// transfer initial bill to wallet 1
 	pubKeys, err := am.GetPublicKeys()
 	require.NoError(t, err)
 
@@ -221,6 +220,7 @@ func TestCollectDustInMultiAccountWallet(t *testing.T) {
 	initialBillBacklink := transferFC.Hash(crypto.SHA256)
 	initialBillValue := initialBill.Value - fcrAmount - txFee
 
+	// transfer initial bill to wallet 1
 	transferInitialBillTx, err := moneytestutils.CreateInitialBillTransferTx(pubKeys[0], initialBill.ID, initialBillValue, 10000, initialBillBacklink)
 	require.NoError(t, err)
 	batch := txsubmitter.NewBatch(pubKeys[0], w.backend)

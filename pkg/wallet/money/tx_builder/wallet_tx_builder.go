@@ -79,7 +79,7 @@ func NewDustTx(ac *account.AccountKey, systemID []byte, bill *wallet.Bill, nonce
 		Nonce:        nonce,
 		SwapTimeout:  bill.SwapTimeout,
 	}
-	txPayload, err := newTxPayload(systemID, money.PayloadTypeTransDC, bill.GetID(), timeout, ac.PrivKeyHash, attr)
+	txPayload, err := newTxPayload(systemID, money.PayloadTypeTransDC, bill.GetID(), timeout, ac.PubKeyHash.Sha256, attr)
 	if err != nil {
 		return nil, err
 	}
@@ -113,7 +113,7 @@ func NewSwapTx(k *account.AccountKey, systemID []byte, dcBills []*wallet.BillPro
 		Proofs:          dustTransferProofs,
 		TargetValue:     billValueSum,
 	}
-	swapTx, err := newTxPayload(systemID, money.PayloadTypeSwapDC, dcNonce, timeout, k.PrivKeyHash, attr)
+	swapTx, err := newTxPayload(systemID, money.PayloadTypeSwapDC, dcNonce, timeout, k.PubKeyHash.Sha256, attr)
 	if err != nil {
 		return nil, err
 	}

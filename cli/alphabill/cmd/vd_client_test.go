@@ -9,7 +9,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
 
@@ -122,7 +121,7 @@ func NewVDAlphabillNetwork(t *testing.T, ctx context.Context) *VDAlphabillNetwor
 	vdFeeManager := fees.NewFeeManager(am, unitLocker, money.DefaultSystemIdentifier, moneyWallet, moneyBackendClient, vd.DefaultSystemIdentifier, vdTxPublisher, vdClient)
 	t.Cleanup(vdFeeManager.Close)
 
-	spendInitialBillWithFeeCredits(t, abNet, initialBill, hexutil.Encode(accountKey.PubKey))
+	spendInitialBillWithFeeCredits(t, abNet, initialBill, accountKey.PubKey)
 	time.Sleep(3 * time.Second) // TODO dynamic sleep
 
 	// Add fee credit for VD partition

@@ -71,6 +71,9 @@ func VerifyTxProof(proof *TxProof, txRecord *TransactionRecord, trustBase map[st
 	if txRecord == nil {
 		return errors.New("tx record is nil")
 	}
+	if txRecord.TransactionOrder == nil {
+		return errors.New("tx order is nil")
+	}
 	merklePath := make([]*mt.PathItem, len(proof.Chain))
 	for i, item := range proof.Chain {
 		merklePath[i] = &mt.PathItem{

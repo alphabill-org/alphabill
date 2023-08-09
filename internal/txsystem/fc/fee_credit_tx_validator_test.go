@@ -42,6 +42,26 @@ func TestAddFC(t *testing.T) {
 			roundNumber: 5,
 		},
 		{
+			name: "transferFC tx record is nil",
+			tx: testtransaction.NewTransactionOrder(t, testtransaction.WithAttributes(
+				&transactions.AddFeeCreditAttributes{FeeCreditTransfer: nil})),
+			wantErrMsg: "transferFC tx record is nil",
+		},
+		{
+			name: "transferFC tx order is nil",
+			tx: testtransaction.NewTransactionOrder(t, testtransaction.WithAttributes(
+				&transactions.AddFeeCreditAttributes{FeeCreditTransfer: &types.TransactionRecord{TransactionOrder: nil}},
+			)),
+			wantErrMsg: "transferFC tx order is nil",
+		},
+		{
+			name: "transferFC proof is nil",
+			tx: testtransaction.NewTransactionOrder(t, testtransaction.WithAttributes(
+				&transactions.AddFeeCreditAttributes{FeeCreditTransfer: &types.TransactionRecord{TransactionOrder: &types.TransactionOrder{}}, FeeCreditTransferProof: nil},
+			)),
+			wantErrMsg: "transferFC tx proof is nil",
+		},
+		{
 			name: "RecordID exists",
 			unit: nil,
 			tx: testfc.NewAddFC(t, signer, nil,

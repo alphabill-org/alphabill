@@ -45,17 +45,10 @@ func NewDefaultFeeCreditTxValidator(moneySystemID, systemID []byte, hashAlgorith
 }
 
 func (v *DefaultFeeCreditTxValidator) ValidateAddFeeCredit(ctx *AddFCValidationContext) error {
-	if ctx == nil {
-		return errors.New("validation context is nil")
+	if err := ctx.isValid(); err != nil {
+		return err
 	}
 	tx := ctx.Tx
-	if tx == nil {
-		return errors.New("tx is nil")
-	}
-
-	if tx.Payload == nil {
-		return errors.New("tx payload is nil")
-	}
 
 	// 10. P.MC.ιf = ⊥ ∧ sf = ⊥ – there’s no fee credit reference or separate fee authorization proof
 	if tx.GetClientFeeCreditRecordID() != nil {
@@ -69,7 +62,15 @@ func (v *DefaultFeeCreditTxValidator) ValidateAddFeeCredit(ctx *AddFCValidationC
 	if err := tx.UnmarshalAttributes(attr); err != nil {
 		return fmt.Errorf("failed to unmarshal add fee credit attributes: %w", err)
 	}
-
+	if attr.FeeCreditTransfer == nil {
+		return errors.New("transferFC tx record is nil")
+	}
+	if attr.FeeCreditTransfer.TransactionOrder == nil {
+		return errors.New("transferFC tx order is nil")
+	}
+	if attr.FeeCreditTransferProof == nil {
+		return errors.New("transferFC tx proof is nil")
+	}
 	var fcr *unit.FeeCreditRecord
 	if ctx.Unit != nil {
 		// 1. ExtrType(P.ι) = fcr – target unit is a fee credit record
@@ -129,8 +130,7 @@ func (v *DefaultFeeCreditTxValidator) ValidateAddFeeCredit(ctx *AddFCValidationC
 	}
 
 	// 3. VerifyBlockProof(P.A.Π, P.A.P, S.T, S.SD) – proof of the bill transfer order verifies
-	proof := attr.FeeCreditTransferProof
-	err := types.VerifyTxProof(proof, attr.FeeCreditTransfer, v.verifiers, v.hashAlgorithm)
+	err := types.VerifyTxProof(attr.FeeCreditTransferProof, attr.FeeCreditTransfer, v.verifiers, v.hashAlgorithm)
 	if err != nil {
 		return fmt.Errorf("proof is not valid: %w", err)
 	}
@@ -138,16 +138,10 @@ func (v *DefaultFeeCreditTxValidator) ValidateAddFeeCredit(ctx *AddFCValidationC
 }
 
 func (v *DefaultFeeCreditTxValidator) ValidateCloseFC(ctx *CloseFCValidationContext) error {
-	if ctx == nil {
-		return errors.New("validation context is nil")
+	if err := ctx.isValid(); err != nil {
+		return err
 	}
 	tx := ctx.Tx
-	if tx == nil {
-		return errors.New("tx is nil")
-	}
-	if tx.Payload == nil {
-		return errors.New("tx payload is nil")
-	}
 
 	// P.MC.ιf = ⊥ ∧ sf = ⊥ – there’s no fee credit reference or separate fee authorization proof
 	if tx.GetClientFeeCreditRecordID() != nil {
@@ -158,9 +152,6 @@ func (v *DefaultFeeCreditTxValidator) ValidateCloseFC(ctx *CloseFCValidationCont
 	}
 
 	// S.N[P.ι] != ⊥ - ι identifies an existing fee credit record
-	if ctx.Unit == nil {
-		return errors.New("unit is nil")
-	}
 	fcr, ok := ctx.Unit.Data().(*unit.FeeCreditRecord)
 	if !ok {
 		return errors.New("unit data is not of type fee credit record")
@@ -176,8 +167,43 @@ func (v *DefaultFeeCreditTxValidator) ValidateCloseFC(ctx *CloseFCValidationCont
 	}
 
 	// P.MC.fm ≤ S.N[ι].b - the transaction fee can’t exceed the current balance of the record
-	if tx.Payload.ClientMetadata.MaxTransactionFee > fcr.Balance {
-		return fmt.Errorf("invalid fee: max_fee=%d fcr.Balance=%d", tx.Payload.ClientMetadata.MaxTransactionFee, fcr.Balance)
+	if tx.GetClientMaxTxFee() > fcr.Balance {
+		return fmt.Errorf("invalid fee: max_fee=%d fcr.Balance=%d", tx.GetClientMaxTxFee(), fcr.Balance)
+	}
+	return nil
+}
+
+func (c *AddFCValidationContext) isValid() error {
+	if c == nil {
+		return errors.New("validation context is nil")
+	}
+	if c.Tx == nil {
+		return errors.New("tx is nil")
+	}
+	if c.Tx.Payload == nil {
+		return errors.New("tx payload is nil")
+	}
+	if c.Tx.Payload.ClientMetadata == nil {
+		return errors.New("tx client metadata is nil")
+	}
+	return nil
+}
+
+func (c *CloseFCValidationContext) isValid() error {
+	if c == nil {
+		return errors.New("validation context is nil")
+	}
+	if c.Unit == nil {
+		return errors.New("unit is nil")
+	}
+	if c.Tx == nil {
+		return errors.New("tx is nil")
+	}
+	if c.Tx.Payload == nil {
+		return errors.New("tx payload is nil")
+	}
+	if c.Tx.Payload.ClientMetadata == nil {
+		return errors.New("tx client metadata is nil")
 	}
 	return nil
 }

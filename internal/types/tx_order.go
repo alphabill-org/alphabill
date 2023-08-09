@@ -88,6 +88,13 @@ func (t *TransactionOrder) GetClientFeeCreditRecordID() []byte {
 	return t.Payload.ClientMetadata.FeeCreditRecordID
 }
 
+func (t *TransactionOrder) GetClientMaxTxFee() uint64 {
+	if t.Payload == nil || t.Payload.ClientMetadata == nil {
+		return 0
+	}
+	return t.Payload.ClientMetadata.MaxTransactionFee
+}
+
 func (t *TransactionOrder) Hash(algorithm crypto.Hash) []byte {
 	hasher := algorithm.New()
 	bytes, err := cbor.Marshal(t)

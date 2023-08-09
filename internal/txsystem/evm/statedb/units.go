@@ -20,6 +20,15 @@ var (
 	emptyCodeHash = crypto.Keccak256(nil)
 )
 
+type StateObject struct {
+	Address   common.Address
+	Account   *Account
+	Storage   state.Storage
+	AlphaBill *AlphaBillLink
+
+	suicided bool
+}
+
 // Account represents an account in Ethereum.
 type Account struct {
 	Balance  *big.Int
@@ -34,15 +43,6 @@ type AlphaBillLink struct {
 	UnitID  []byte
 	TxHash  []byte
 	Timeout uint64
-}
-
-type StateObject struct {
-	Address   common.Address
-	Account   *Account
-	Storage   state.Storage
-	dirtyCode bool
-	suicided  bool
-	AlphaBill *AlphaBillLink
 }
 
 func (s *StateObject) Write(hasher hash.Hash) {
@@ -84,9 +84,8 @@ func (s *StateObject) Copy() abstate.UnitData {
 		Address:   common.BytesToAddress(bytes.Clone(s.Address.Bytes())),
 		Account:   s.Account.Copy(),
 		Storage:   s.Storage.Copy(),
-		dirtyCode: s.dirtyCode,
-		suicided:  s.suicided,
 		AlphaBill: link,
+		suicided:  s.suicided,
 	}
 }
 

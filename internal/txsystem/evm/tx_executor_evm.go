@@ -34,12 +34,17 @@ var (
 )
 
 func handleEVMTx(systemIdentifier []byte, opts *Options, blockGas *core.GasPool) txsystem.GenericExecuteFunc[TxAttributes] {
-	return func(tx *types.TransactionOrder, attr *TxAttributes, currentBlockNumber uint64) (*types.ServerMetadata, error) {
+	return func(tx *types.TransactionOrder, attr *TxAttributes, currentBlockNumber uint64) (sm *types.ServerMetadata, err error) {
 		from := common.BytesToAddress(attr.From)
 		stateDB := statedb.NewStateDB(opts.state)
 		if !stateDB.Exist(from) {
 			return nil, fmt.Errorf(" address %v does not exist", from)
 		}
+		defer func() {
+			if err == nil {
+				err = stateDB.Finalize()
+			}
+		}()
 		return execute(currentBlockNumber, stateDB, attr, systemIdentifier, blockGas, opts.gasUnitPrice)
 	}
 }

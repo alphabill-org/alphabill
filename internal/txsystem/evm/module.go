@@ -7,7 +7,7 @@ import (
 	"github.com/ethereum/go-ethereum/core"
 )
 
-var _ txsystem.Module = &Module{}
+var _ txsystem.Module = (*Module)(nil)
 
 type (
 	Module struct {

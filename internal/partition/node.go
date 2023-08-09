@@ -267,7 +267,6 @@ func verifyTxSystemState(state txsystem.State, sumOfEarnedFees uint64, ucIR *typ
 
 func (n *Node) applyBlockTransactions(round uint64, txs []*types.TransactionRecord) (txsystem.State, uint64, error) {
 	var sumOfEarnedFees uint64
-	logger.Debug("BeginBlock (applyBlockTransactions), NodeID: %s", n.leaderSelector.SelfID().String())
 	n.transactionSystem.BeginBlock(round)
 	for _, tx := range txs {
 		sm, err := n.validateAndExecuteTx(tx.TransactionOrder, round)
@@ -276,7 +275,6 @@ func (n *Node) applyBlockTransactions(round uint64, txs []*types.TransactionReco
 		}
 		sumOfEarnedFees += sm.ActualFee
 	}
-	logger.Debug("EndBlock (applyBlockTransactions), NodeID: %s", n.leaderSelector.SelfID().String())
 	state, err := n.transactionSystem.EndBlock()
 	if err != nil {
 		return nil, 0, err
@@ -543,7 +541,6 @@ func (n *Node) handleBlockProposal(ctx context.Context, prop *blockproposal.Bloc
 	if !bytes.Equal(prevHash, txState.Root()) {
 		return fmt.Errorf("tx system start state mismatch error, expected: %X, got: %X", txState.Root(), prevHash)
 	}
-	logger.Debug("BeginBlock (handleBlockProposal), NodeID: %s", n.leaderSelector.SelfID().String())
 	n.transactionSystem.BeginBlock(n.getCurrentRound())
 	for _, tx := range prop.Transactions {
 		if err = n.process(tx.TransactionOrder, n.getCurrentRound()); err != nil {
@@ -591,7 +588,6 @@ func (n *Node) startNewRound(ctx context.Context, uc *types.UnicityCertificate) 
 	}
 	n.leaderSelector.UpdateLeader(uc)
 	if n.leaderSelector.IsCurrentNodeLeader() {
-		logger.Debug("BeginBlock (startNewRound), NodeID: %s", n.leaderSelector.SelfID().String())
 		// followers will start the block once proposal is received
 		n.transactionSystem.BeginBlock(newRoundNr)
 	}
@@ -1127,7 +1123,6 @@ func (n *Node) sendCertificationRequest(blockAuthor string) error {
 	systemIdentifier := n.configuration.GetSystemIdentifier()
 	nodeId := n.leaderSelector.SelfID()
 	prevStateHash := n.luc.Load().InputRecord.Hash
-	logger.Debug("EndBlock (sendCertificationRequest), NodeID: %s", n.leaderSelector.SelfID().String())
 	state, err := n.transactionSystem.EndBlock()
 	if err != nil {
 		return fmt.Errorf("tx system failed to end block, %w", err)

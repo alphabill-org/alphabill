@@ -267,7 +267,9 @@ func verifyTxSystemState(state txsystem.State, sumOfEarnedFees uint64, ucIR *typ
 
 func (n *Node) applyBlockTransactions(round uint64, txs []*types.TransactionRecord) (txsystem.State, uint64, error) {
 	var sumOfEarnedFees uint64
-	n.transactionSystem.BeginBlock(round)
+	if err := n.transactionSystem.BeginBlock(round); err != nil {
+		return nil, 0, err
+	}
 	for _, tx := range txs {
 		sm, err := n.validateAndExecuteTx(tx.TransactionOrder, round)
 		if err != nil {
@@ -541,7 +543,9 @@ func (n *Node) handleBlockProposal(ctx context.Context, prop *blockproposal.Bloc
 	if !bytes.Equal(prevHash, txState.Root()) {
 		return fmt.Errorf("tx system start state mismatch error, expected: %X, got: %X", txState.Root(), prevHash)
 	}
-	n.transactionSystem.BeginBlock(n.getCurrentRound())
+	if err := n.transactionSystem.BeginBlock(n.getCurrentRound()); err != nil {
+		return fmt.Errorf("tx system BeginBlock error, %w", err)
+	}
 	for _, tx := range prop.Transactions {
 		if err = n.process(tx.TransactionOrder, n.getCurrentRound()); err != nil {
 			return fmt.Errorf("transaction error %w", err)
@@ -589,7 +593,10 @@ func (n *Node) startNewRound(ctx context.Context, uc *types.UnicityCertificate) 
 	n.leaderSelector.UpdateLeader(uc)
 	if n.leaderSelector.IsCurrentNodeLeader() {
 		// followers will start the block once proposal is received
-		n.transactionSystem.BeginBlock(newRoundNr)
+		if err := n.transactionSystem.BeginBlock(newRoundNr); err != nil {
+			logger.Error("Failed to begin block, %v", err)
+			// TODO: propagate error?
+		}
 	}
 	n.startHandleOrForwardTransactions(ctx)
 	n.sendEvent(event.NewRoundStarted, newRoundNr)
@@ -927,7 +934,9 @@ func (n *Node) handleLedgerReplicationResponse(ctx context.Context, lr *replicat
 
 	var recoverEmptyBlock = func(roundNumber uint64) ([]byte, error) {
 		logger.Debug("Recovering empty block %v", roundNumber)
-		n.transactionSystem.BeginBlock(roundNumber)
+		if err := n.transactionSystem.BeginBlock(roundNumber); err != nil {
+			return nil, fmt.Errorf("error beginning block %v, %w", roundNumber, err)
+		}
 		state, err := n.transactionSystem.EndBlock()
 		if err != nil {
 			return nil, fmt.Errorf("error ending block %v, %w", roundNumber, err)

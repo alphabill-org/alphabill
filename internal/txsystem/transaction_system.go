@@ -20,7 +20,7 @@ type (
 		StateSummary() (State, error)
 
 		// BeginBlock signals the start of a new block and is invoked before any Execute method calls.
-		BeginBlock(uint64)
+		BeginBlock(uint64) error
 
 		// Execute method executes the transaction order. An error must be returned if the transaction order execution
 		// was not successful.

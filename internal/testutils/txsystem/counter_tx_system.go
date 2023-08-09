@@ -64,12 +64,13 @@ func (m *CounterTxSystem) StateSummary() (txsystem.State, error) {
 	}, nil
 }
 
-func (m *CounterTxSystem) BeginBlock(nr uint64) {
+func (m *CounterTxSystem) BeginBlock(nr uint64) error {
 	m.blockNo = nr
 	summary, _ := m.StateSummary()
 	logger.Debug("CounterTxSystem: BeginBlock(%d), from state: %X", m.blockNo, summary.Root())
 	m.BeginBlockCountDelta++
 	m.ExecuteCountDelta = 0
+	return nil
 }
 
 func (m *CounterTxSystem) Revert() {

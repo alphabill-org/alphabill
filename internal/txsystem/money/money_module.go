@@ -94,10 +94,11 @@ func (m *Module) TxExecutors() map[string]txsystem.TxExecutor {
 	}
 }
 
-func (m *Module) BeginBlockFuncs() []func(blockNr uint64) {
-	return []func(blockNr uint64){
-		func(blockNr uint64) {
+func (m *Module) BeginBlockFuncs() []func(blockNr uint64) error {
+	return []func(blockNr uint64) error{
+		func(blockNr uint64) error {
 			m.feeCreditTxRecorder.reset()
+			return nil
 		},
 	}
 }

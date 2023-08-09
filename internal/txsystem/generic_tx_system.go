@@ -31,7 +31,7 @@ type GenericTxSystem struct {
 	currentBlockNumber  uint64
 	executors           TxExecutors
 	genericTxValidators []GenericTransactionValidator
-	beginBlockFunctions []func(blockNumber uint64)
+	beginBlockFunctions []func(blockNumber uint64) error
 	endBlockFunctions   []func(blockNumber uint64) error
 }
 
@@ -100,18 +100,21 @@ func (m *GenericTxSystem) getState() (State, error) {
 	return NewStateSummary(hash, util.Uint64ToBytes(sv)), nil
 }
 
-func (m *GenericTxSystem) BeginBlock(blockNr uint64) {
+func (m *GenericTxSystem) BeginBlock(blockNr uint64) error {
 	m.currentBlockNumber = blockNr
 	for _, function := range m.beginBlockFunctions {
-		function(blockNr)
+		if err := function(blockNr); err != nil {
+			return fmt.Errorf("begin block function call failed: %w", err)
+		}
 	}
+	return nil
 }
 
-func (m *GenericTxSystem) pruneLogs(blockNr uint64) {
+func (m *GenericTxSystem) pruneLogs(blockNr uint64) error {
 	if err := m.logPruner.Prune(blockNr - 1); err != nil {
-		//return fmt.Errorf("unable to prune state: %w", err)
+		return fmt.Errorf("unable to prune state: %w", err)
 	}
-	//return nil
+	return nil
 }
 
 func (m *GenericTxSystem) Execute(tx *types.TransactionOrder) (sm *types.ServerMetadata, err error) {

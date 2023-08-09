@@ -360,11 +360,13 @@ func TestNode_RecoverBlocks_withEmptyBlocksChangingState(t *testing.T) {
 	require.Equal(t, []byte{1, 1, 1, 1}, tp.partition.SystemIdentifier())
 }
 
+// This case must not happen (that is, when a health node "forgets" to include some blocks),
+// especially when we allow empty blocks changing the state
 func TestNode_RecoverSkipsRequiredBlock(t *testing.T) {
-	tp := RunSingleNodePartition(t, &testtxsystem.CounterTxSystem{})
+	tp := RunSingleNodePartition(t, &testtxsystem.CounterTxSystem{EndBlockChangesState: true})
 	genesisBlock := tp.GetLatestBlock(t)
 
-	system := &testtxsystem.CounterTxSystem{}
+	system := &testtxsystem.CounterTxSystem{EndBlockChangesState: true}
 	newBlock2 := createNewBlockOutsideNode(t, tp, system, genesisBlock, false)
 	newBlock3 := createNewBlockOutsideNode(t, tp, system, newBlock2, false)
 	newBlock4 := createNewBlockOutsideNode(t, tp, system, newBlock3, false)
@@ -393,12 +395,12 @@ func TestNode_RecoverSkipsRequiredBlock(t *testing.T) {
 	require.Eventually(t, func() bool { return len(tp.mockNet.MessageCh) == 0 }, 1*time.Second, 10*time.Millisecond)
 	// still recovering
 	require.Equal(t, recovering, tp.partition.status.Load())
-	// node is asking for missing block 2
+	// node has considered block 2 as empty and block 3 does not pass the state hash check
 	req = WaitNodeRequestReceived(t, tp, network.ProtocolLedgerReplicationReq)
 	require.NotNil(t, req)
 	require.IsType(t, req.Message, &replication.LedgerReplicationRequest{})
 	msg := req.Message.(*replication.LedgerReplicationRequest)
-	require.Equal(t, msg.BeginBlockNumber, uint64(2))
+	require.Equal(t, msg.BeginBlockNumber, uint64(3))
 }
 
 func TestNode_RecoverSkipsBlocksAndSendMixedBlocks(t *testing.T) {

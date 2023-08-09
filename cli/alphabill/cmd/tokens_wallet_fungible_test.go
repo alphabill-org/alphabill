@@ -283,7 +283,7 @@ func TestFungibleTokens_CollectDust_Integration(t *testing.T) {
 	//check w1
 	verifyStdoutEventuallyWithTimeout(t, func() *testConsoleWriter {
 		return execTokensCmd(t, homedir, fmt.Sprintf("list fungible -r %s", backendUrl))
-	}, 2 * test.WaitDuration, 2 * test.WaitTick, expectedAmounts...)
+	}, 2*test.WaitDuration, 2*test.WaitTick, expectedAmounts...)
 	// DC
 	execTokensCmd(t, homedir, fmt.Sprintf("collect-dust -r %s", backendUrl))
 
@@ -350,7 +350,7 @@ func NewAlphabillNetwork(t *testing.T) *AlphabillNetwork {
 	require.NoError(t, err)
 	w1key2, err := w1.GetAccountManager().GetAccountKey(1)
 
-	spendInitialBillWithFeeCredits(t, abNet, initialBill, hexutil.Encode(w1key.PubKey))
+	spendInitialBillWithFeeCredits(t, abNet, initialBill, w1key.PubKey)
 	time.Sleep(4 * time.Second) // TODO dynamic sleep
 
 	// create fees on money partition

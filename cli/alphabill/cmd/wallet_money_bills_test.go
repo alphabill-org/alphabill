@@ -10,15 +10,14 @@ import (
 	"github.com/alphabill-org/alphabill/internal/hash"
 	"github.com/alphabill-org/alphabill/internal/script"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
+	testmoney "github.com/alphabill-org/alphabill/internal/testutils/money"
 	testpartition "github.com/alphabill-org/alphabill/internal/testutils/partition"
 	"github.com/alphabill-org/alphabill/internal/txsystem/fc/transactions"
 	"github.com/alphabill-org/alphabill/internal/txsystem/money"
-	utiltx "github.com/alphabill-org/alphabill/internal/txsystem/util"
 	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/alphabill-org/alphabill/pkg/wallet/money/backend/client"
 	"github.com/alphabill-org/alphabill/pkg/wallet/unitlock"
-	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/fxamacker/cbor/v2"
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
@@ -237,20 +236,16 @@ func TestWalletBillsListCmd_ShowLockedBills(t *testing.T) {
 	verifyStdout(t, stdout, "#1 0x0000000000000000000000000000000000000000000000000000000000000001 1.000'000'00 (locked for adding fees)")
 }
 
-func spendInitialBillWithFeeCredits(t *testing.T, abNet *testpartition.AlphabillNetwork, initialBill *money.InitialBill, pubkey string) uint64 {
-	pubkeyBytes, _ := hexutil.Decode(pubkey)
-	pubkeyHash := hash.Sum256(pubkeyBytes)
+func spendInitialBillWithFeeCredits(t *testing.T, abNet *testpartition.AlphabillNetwork, initialBill *money.InitialBill, pk []byte) uint64 {
 	absoluteTimeout := uint64(10000)
-
 	txFee := uint64(1)
 	feeAmount := uint64(2)
-	fcrID := utiltx.SameShardIDBytes(initialBill.ID, pubkeyHash)
 	unitID := initialBill.ID
 	moneyPart, err := abNet.GetNodePartition(money.DefaultSystemIdentifier)
 	require.NoError(t, err)
 
 	// create transferFC
-	transferFC, err := createTransferFC(feeAmount, unitID, fcrID, 0, absoluteTimeout)
+	transferFC, err := createTransferFC(feeAmount, unitID, testmoney.FCRID, 0, absoluteTimeout)
 	require.NoError(t, err)
 
 	// send transferFC
@@ -264,7 +259,7 @@ func spendInitialBillWithFeeCredits(t *testing.T, abNet *testpartition.Alphabill
 	require.NoError(t, err)
 
 	// create addFC
-	addFC, err := createAddFC(fcrID, script.PredicateAlwaysTrue(), transferFCRecord, transferFCProof, absoluteTimeout, feeAmount)
+	addFC, err := createAddFC(testmoney.FCRID, script.PredicateAlwaysTrue(), transferFCRecord, transferFCProof, absoluteTimeout, feeAmount)
 	require.NoError(t, err)
 
 	// send addFC
@@ -274,7 +269,7 @@ func spendInitialBillWithFeeCredits(t *testing.T, abNet *testpartition.Alphabill
 
 	// create transfer tx
 	remainingValue := initialBill.Value - feeAmount - txFee
-	tx, err := createTransferTx(pubkeyBytes, unitID, remainingValue, fcrID, absoluteTimeout, transferFCRecord.TransactionOrder.Hash(crypto.SHA256))
+	tx, err := createTransferTx(pk, unitID, remainingValue, testmoney.FCRID, absoluteTimeout, transferFCRecord.TransactionOrder.Hash(crypto.SHA256))
 	require.NoError(t, err)
 
 	// send transfer tx

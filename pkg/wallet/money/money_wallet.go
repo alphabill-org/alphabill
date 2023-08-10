@@ -204,7 +204,7 @@ func (w *Wallet) Send(ctx context.Context, cmd SendCmd) ([]*wallet.Proof, error)
 		return nil, ErrNoFeeCredit
 	}
 
-	bills, err := w.getUnlockedBills(ctx, pubKey, cmd.Amount)
+	bills, err := w.getUnlockedBills(ctx, pubKey)
 	if err != nil {
 		return nil, err
 	}
@@ -467,7 +467,7 @@ func (w *Wallet) getDetailedBillsList(ctx context.Context, pubKey []byte) ([]*Bi
 	return bills, billResponse.DCMetadata, nil
 }
 
-func (w *Wallet) getUnlockedBills(ctx context.Context, pubKey []byte, amount uint64) ([]*wallet.Bill, error) {
+func (w *Wallet) getUnlockedBills(ctx context.Context, pubKey []byte) ([]*wallet.Bill, error) {
 	var unlockedBills []*wallet.Bill
 	bills, err := w.backend.GetBills(ctx, pubKey)
 	if err != nil {
@@ -484,9 +484,6 @@ func (w *Wallet) getUnlockedBills(ctx context.Context, pubKey []byte, amount uin
 			return nil, fmt.Errorf("failed to get locked bill: %w", err)
 		}
 		if lockedUnit == nil {
-			if b.Value == amount {
-				return []*wallet.Bill{b}, nil
-			}
 			unlockedBills = append(unlockedBills, b)
 		}
 	}

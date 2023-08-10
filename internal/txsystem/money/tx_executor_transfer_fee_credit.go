@@ -14,13 +14,16 @@ import (
 )
 
 var (
-	ErrTxNil          = errors.New("tx is nil")
-	ErrBillNil        = errors.New("bill is nil")
-	ErrRecordIDExists = errors.New("fee tx cannot contain fee credit reference")
-	ErrFeeProofExists = errors.New("fee tx cannot contain fee authorization proof")
+	ErrTxNil                     = errors.New("tx is nil")
+	ErrBillNil                   = errors.New("bill is nil")
+	ErrTargetSystemIdentifierNil = errors.New("TargetSystemIdentifier is nil")
+	ErrTargetRecordIDNil         = errors.New("TargetRecordID is nil")
+	ErrAdditionTimeInvalid       = errors.New("EarliestAdditonTime is greater than LatestAdditionTime")
+	ErrRecordIDExists            = errors.New("fee tx cannot contain fee credit reference")
+	ErrFeeProofExists            = errors.New("fee tx cannot contain fee authorization proof")
 
-	ErrInvalidFCValue  = errors.New("the amount to transfer plus transaction fee cannot exceed the value of the bill")
-	ErrInvalidBacklink = errors.New("the transaction backlink is not equal to unit backlink")
+	ErrInvalidFCValue            = errors.New("the amount to transfer plus transaction fee cannot exceed the value of the bill")
+	ErrInvalidBacklink           = errors.New("the transaction backlink is not equal to unit backlink")
 )
 
 func handleTransferFeeCreditTx(s *state.State, hashAlgorithm crypto.Hash, feeCreditTxRecorder *feeCreditTxRecorder, feeCalc fc.FeeCalculator) txsystem.GenericExecuteFunc[transactions.TransferFeeCreditAttributes] {
@@ -78,6 +81,15 @@ func validateTransferFC(tx *types.TransactionOrder, attr *transactions.TransferF
 	}
 	if bd == nil {
 		return ErrBillNil
+	}
+	if attr.TargetSystemIdentifier == nil {
+		return ErrTargetSystemIdentifierNil
+	}
+	if attr.TargetRecordID == nil {
+		return ErrTargetRecordIDNil
+	}
+	if attr.EarliestAdditionTime > attr.LatestAdditionTime {
+		return ErrAdditionTimeInvalid
 	}
 	if attr.Amount+tx.Payload.ClientMetadata.MaxTransactionFee > bd.V {
 		return ErrInvalidFCValue

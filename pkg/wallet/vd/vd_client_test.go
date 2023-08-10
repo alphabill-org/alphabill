@@ -85,7 +85,7 @@ func TestVdClient_RegisterHash_SyncBlocks(t *testing.T) {
 	require.NoError(t, err)
 	// TODO: correct?
 	addFC := testfc.NewAddFC(t, signer, nil,
-		testtransaction.WithUnitId(vdClient.accountKey.PrivKeyHash),
+		testtransaction.WithUnitId(vdClient.accountKey.PubKeyHash.Sha256),
 		testtransaction.WithSystemID(vd.DefaultSystemIdentifier))
 
 	mock := &abClientMock{maxBlock: 2, maxRoundNumber: 2}
@@ -313,7 +313,7 @@ func getABClientMock(t *testing.T, vdClient *VDClient) *abClientMock {
 	signer, err := abcrypto.NewInMemorySecp256K1Signer()
 	require.NoError(t, err)
 	addFC := testfc.NewAddFC(t, signer, nil,
-		testtransaction.WithUnitId(vdClient.accountKey.PrivKeyHash),
+		testtransaction.WithUnitId(vdClient.accountKey.PubKeyHash.Sha256),
 		testtransaction.WithSystemID(vd.DefaultSystemIdentifier))
 
 	mock := &abClientMock{maxBlock: 1, maxRoundNumber: 1}

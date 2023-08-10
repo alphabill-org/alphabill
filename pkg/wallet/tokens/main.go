@@ -82,6 +82,9 @@ func New(systemID []byte, backendUrl string, am account.Manager, confirmTx bool,
 
 func (w *Wallet) Shutdown() {
 	w.am.Close()
+	if w.feeManager != nil {
+		w.feeManager.Close()
+	}
 }
 
 func (w *Wallet) GetAccountManager() account.Manager {
@@ -397,7 +400,7 @@ func (w *Wallet) GetFeeCredit(ctx context.Context, cmd fees.GetFeeCreditCmd) (*w
 	if err != nil {
 		return nil, err
 	}
-	return w.GetFeeCreditBill(ctx, accountKey.PrivKeyHash)
+	return w.GetFeeCreditBill(ctx, accountKey.PubKeyHash.Sha256)
 }
 
 // GetFeeCreditBill returns fee credit bill for given unitID
@@ -419,7 +422,7 @@ func (w *Wallet) ReclaimFeeCredit(ctx context.Context, cmd fees.ReclaimFeeCmd) (
 }
 
 func (w *Wallet) ensureFeeCredit(ctx context.Context, accountKey *account.AccountKey, txCount int) error {
-	fcb, err := w.GetFeeCreditBill(ctx, accountKey.PrivKeyHash)
+	fcb, err := w.GetFeeCreditBill(ctx, accountKey.PubKeyHash.Sha256)
 	if err != nil {
 		return err
 	}

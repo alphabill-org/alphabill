@@ -36,6 +36,19 @@ const (
 	recovering
 )
 
+func (s status) String() string {
+	switch s {
+	case initializing:
+		return "initializing"
+	case normal:
+		return "normal"
+	case recovering:
+		return "recovering"
+	default:
+		return fmt.Sprintf("status(%d)", int(s))
+	}
+}
+
 // Key 0 is used for proposal, that way it is still possible to reverse iterate the DB
 // and use 4 byte key, make it incompatible with block number
 const proposalKey = uint32(0)
@@ -497,10 +510,9 @@ func (n *Node) validateAndExecuteTx(tx *types.TransactionOrder, round uint64) (s
 //  7. Certificate Request query is assembled and sent to the Root Chain.
 func (n *Node) handleBlockProposal(ctx context.Context, prop *blockproposal.BlockProposal) error {
 	if n.status.Load() == recovering {
-		logger.Warning("Ignoring block proposal, node is recovering")
 		// but remember last block proposal received
 		n.recoveryLastProp = prop
-		return nil
+		return fmt.Errorf("node is in recovery status")
 	}
 	defer trackExecutionTime(time.Now(), "Handling BlockProposal")
 	if prop == nil {
@@ -1207,18 +1219,34 @@ func (n *Node) GetBlock(_ context.Context, blockNr uint64) (*types.Block, error)
 	return &bl, nil
 }
 
-func (n *Node) GetLatestBlock() (b *types.Block, err error) {
+/*
+GetLatestBlock returns current latest block.
+It's part of the public API exposed by node.
+*/
+func (n *Node) GetLatestBlock() (_ *types.Block, err error) {
+	if status := n.status.Load(); status != normal {
+		return nil, fmt.Errorf("node is in invalid status: %s", status)
+	}
+
+	// could just return n.lastStoredBlock but then we'd have to make that field concurrency safe?
 	dbIt := n.blockStore.Last()
 	defer func() { err = errors.Join(err, dbIt.Close()) }()
 	var bl types.Block
 	if err := dbIt.Value(&bl); err != nil {
 		roundNo := util.BytesToUint64(dbIt.Key())
-		return nil, fmt.Errorf("failed to read block %v from db, %w", roundNo, err)
+		return nil, fmt.Errorf("failed to read block %d from db: %w", roundNo, err)
 	}
 	return &bl, nil
 }
 
+/*
+GetLatestRoundNumber returns current round number.
+It's part of the public API exposed by node.
+*/
 func (n *Node) GetLatestRoundNumber() (uint64, error) {
+	if status := n.status.Load(); status != normal {
+		return 0, fmt.Errorf("node is in invalid status: %s", status)
+	}
 	return n.luc.Load().GetRoundNumber(), nil
 }
 

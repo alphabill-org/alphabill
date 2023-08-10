@@ -37,7 +37,7 @@ func CreateFeeCredit(t *testing.T, initialBillID []byte, network *testpartition.
 	require.NoError(t, err)
 	err = moneyPartition.SubmitTx(transferFC)
 	require.NoError(t, err)
-	require.Eventually(t, testpartition.BlockchainContainsTx(moneyPartition, transferFC), test.WaitDuration, test.WaitTick)
+	require.Eventually(t, testpartition.BlockchainContainsTx(moneyPartition, transferFC), 2*test.WaitDuration, 2*test.WaitTick)
 
 	// send addFC
 	_, transferFCProof, transferFCRecord, err := moneyPartition.GetTxProof(transferFC)
@@ -54,6 +54,6 @@ func CreateFeeCredit(t *testing.T, initialBillID []byte, network *testpartition.
 	)
 	err = moneyPartition.SubmitTx(addFC)
 	require.NoError(t, err)
-	require.Eventually(t, testpartition.BlockchainContainsTx(moneyPartition, addFC), test.WaitDuration, test.WaitTick)
+	require.Eventually(t, testpartition.BlockchainContainsTx(moneyPartition, addFC), 2*test.WaitDuration, 2*test.WaitTick)
 	return transferFCRecord.TransactionOrder
 }

@@ -9,7 +9,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/alphabill-org/alphabill/internal/util"
+	"github.com/holiman/uint256"
+	"github.com/stretchr/testify/require"
 
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/script"
@@ -17,14 +18,13 @@ import (
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/internal/txsystem/money"
 	"github.com/alphabill-org/alphabill/internal/txsystem/vd"
+	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/alphabill-org/alphabill/pkg/wallet/account"
 	"github.com/alphabill-org/alphabill/pkg/wallet/fees"
 	moneywallet "github.com/alphabill-org/alphabill/pkg/wallet/money"
 	moneyclient "github.com/alphabill-org/alphabill/pkg/wallet/money/backend/client"
+	"github.com/alphabill-org/alphabill/pkg/wallet/unitlock"
 	vdwallet "github.com/alphabill-org/alphabill/pkg/wallet/vd"
-	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/holiman/uint256"
-	"github.com/stretchr/testify/require"
 )
 
 func TestVD_UseClientForTx(t *testing.T) {
@@ -88,14 +88,19 @@ func NewVDAlphabillNetwork(t *testing.T, ctx context.Context) *VDAlphabillNetwor
 
 	moneyBackendURL, moneyBackendClient := startMoneyBackend(t, moneyPartition, initialBill)
 
-	walletHomeDir := filepath.Join(t.TempDir(), "wallet")
+	homedir := t.TempDir()
+	walletHomeDir := filepath.Join(homedir, "wallet")
 	am, err := account.NewManager(walletHomeDir, "", true)
 	require.NoError(t, err)
 	defer am.Close()
 	require.NoError(t, am.CreateKeys(""))
 	accountKey, err := am.GetAccountKey(0)
+	require.NoError(t, err)
 
-	moneyWallet, err := moneywallet.LoadExistingWallet(am, moneyBackendClient)
+	unitLocker, err := unitlock.NewUnitLocker(walletHomeDir)
+	require.NoError(t, err)
+
+	moneyWallet, err := moneywallet.LoadExistingWallet(am, unitLocker, moneyBackendClient)
 	require.NoError(t, err)
 	t.Cleanup(moneyWallet.Close)
 
@@ -113,10 +118,10 @@ func NewVDAlphabillNetwork(t *testing.T, ctx context.Context) *VDAlphabillNetwor
 
 	vdTxPublisher := vdwallet.NewTxPublisher(vdClient)
 
-	vdFeeManager := fees.NewFeeManager(am, money.DefaultSystemIdentifier, moneyWallet, moneyBackendClient, vd.DefaultSystemIdentifier, vdTxPublisher, vdClient)
+	vdFeeManager := fees.NewFeeManager(am, unitLocker, money.DefaultSystemIdentifier, moneyWallet, moneyBackendClient, vd.DefaultSystemIdentifier, vdTxPublisher, vdClient)
 	t.Cleanup(vdFeeManager.Close)
 
-	spendInitialBillWithFeeCredits(t, abNet, initialBill, hexutil.Encode(accountKey.PubKey))
+	spendInitialBillWithFeeCredits(t, abNet, initialBill, accountKey.PubKey)
 	time.Sleep(3 * time.Second) // TODO dynamic sleep
 
 	// Add fee credit for VD partition

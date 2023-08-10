@@ -10,7 +10,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/alphabill-org/alphabill/pkg/wallet/txsubmitter"
+	"github.com/holiman/uint256"
+	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc"
 
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/hash"
@@ -34,9 +36,8 @@ import (
 	"github.com/alphabill-org/alphabill/pkg/wallet/log"
 	"github.com/alphabill-org/alphabill/pkg/wallet/money/backend"
 	beclient "github.com/alphabill-org/alphabill/pkg/wallet/money/backend/client"
-	"github.com/holiman/uint256"
-	"github.com/stretchr/testify/require"
-	"google.golang.org/grpc"
+	"github.com/alphabill-org/alphabill/pkg/wallet/txsubmitter"
+	"github.com/alphabill-org/alphabill/pkg/wallet/unitlock"
 )
 
 var moneySysId = []byte{0, 0, 0, 0}
@@ -87,8 +88,12 @@ func TestCollectDustTimeoutReached(t *testing.T) {
 	require.NoError(t, err)
 	restClient, err := beclient.New(restAddr)
 	require.NoError(t, err)
-	w, err := LoadExistingWallet(am, restClient)
+	unitLocker, err := unitlock.NewUnitLocker(dir)
 	require.NoError(t, err)
+	defer unitLocker.Close()
+	w, err := LoadExistingWallet(am, unitLocker, restClient)
+	require.NoError(t, err)
+	defer w.Close()
 	pubKeys, err := am.GetPublicKeys()
 	require.NoError(t, err)
 
@@ -195,13 +200,16 @@ func TestCollectDustInMultiAccountWallet(t *testing.T) {
 	require.NoError(t, err)
 	restClient, err := beclient.New(restAddr)
 	require.NoError(t, err)
-	w, err := LoadExistingWallet(am, restClient)
+	unitLocker, err := unitlock.NewUnitLocker(dir)
 	require.NoError(t, err)
+	defer unitLocker.Close()
+	w, err := LoadExistingWallet(am, unitLocker, restClient)
+	require.NoError(t, err)
+	defer w.Close()
 
 	_, _, _ = am.AddAccount()
 	_, _, _ = am.AddAccount()
 
-	// transfer initial bill to wallet 1
 	pubKeys, err := am.GetPublicKeys()
 	require.NoError(t, err)
 
@@ -212,6 +220,7 @@ func TestCollectDustInMultiAccountWallet(t *testing.T) {
 	initialBillBacklink := transferFC.Hash(crypto.SHA256)
 	initialBillValue := initialBill.Value - fcrAmount - txFee
 
+	// transfer initial bill to wallet 1
 	transferInitialBillTx, err := moneytestutils.CreateInitialBillTransferTx(pubKeys[0], initialBill.ID, initialBillValue, 10000, initialBillBacklink)
 	require.NoError(t, err)
 	batch := txsubmitter.NewBatch(pubKeys[0], w.backend)
@@ -305,8 +314,12 @@ func TestCollectDustInMultiAccountWalletWithKeyFlag(t *testing.T) {
 	require.NoError(t, err)
 	restClient, err := beclient.New(restAddr)
 	require.NoError(t, err)
-	w, err := LoadExistingWallet(am, restClient)
+	unitLocker, err := unitlock.NewUnitLocker(dir)
 	require.NoError(t, err)
+	defer unitLocker.Close()
+	w, err := LoadExistingWallet(am, unitLocker, restClient)
+	require.NoError(t, err)
+	defer w.Close()
 
 	_, _, _ = am.AddAccount()
 	_, _, _ = am.AddAccount()
@@ -364,22 +377,25 @@ func TestCollectDustInMultiAccountWalletWithKeyFlag(t *testing.T) {
 	err = w.CollectDust(ctx, 3)
 	require.NoError(t, err)
 
-	// verify that there is only one swap tx, and it belongs to account number 3
-	b, _ := moneyPart.Nodes[0].GetLatestBlock()
-	var swapDCTx *types.TransactionRecord
-	for _, tx := range b.Transactions {
-		if tx.TransactionOrder.PayloadType() == moneytx.PayloadTypeSwapDC {
-			if swapDCTx != nil {
-				require.Fail(t, "found multiple swapDC transactions")
-			}
-			swapDCTx = tx
+	// verify that there is only one swap tx and it belongs to account number 3
+	account3Key, _ := am.GetAccountKey(2)
+	swapTxCount := 0
+	testpartition.BlockchainContains(moneyPart, func(txo *types.TransactionOrder) bool {
+		if txo.PayloadType() != moneytx.PayloadTypeSwapDC {
+			return false
 		}
-	}
-	attrs := &moneytx.SwapDCAttributes{}
-	err = swapDCTx.TransactionOrder.UnmarshalAttributes(attrs)
-	require.NoError(t, err)
-	k, _ := am.GetAccountKey(2)
-	require.EqualValues(t, script.PredicatePayToPublicKeyHashDefault(k.PubKeyHash.Sha256), attrs.OwnerCondition)
+
+		require.Equal(t, 0, swapTxCount)
+		swapTxCount++
+
+		attrs := &moneytx.SwapDCAttributes{}
+		err = txo.UnmarshalAttributes(attrs)
+		require.NoError(t, err)
+		require.EqualValues(t, script.PredicatePayToPublicKeyHashDefault(account3Key.PubKeyHash.Sha256), attrs.OwnerCondition)
+
+		return false
+	})()
+	require.Equal(t, 1, swapTxCount)
 }
 
 func sendToAccount(t *testing.T, w *Wallet, amount, fromAccount, toAccount uint64) {

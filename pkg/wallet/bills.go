@@ -31,13 +31,13 @@ type (
 	Bill struct {
 		Id          []byte `json:"id,omitempty"`
 		Value       uint64 `json:"value,omitempty,string"`
-		TxHash      []byte `json:"tx_hash,omitempty"`
-		DcNonce     []byte `json:"dc_nonce,omitempty"`
-		SwapTimeout uint64 `json:"swap_timeout,string,omitempty"`
+		TxHash      []byte `json:"txHash,omitempty"`
+		DcNonce     []byte `json:"dcNonce,omitempty"`
+		SwapTimeout uint64 `json:"swapTimeout,string,omitempty"`
 
 		// fcb specific fields
 		// LastAddFCTxHash last add fee credit tx hash
-		LastAddFCTxHash []byte `json:"last_add_fc_tx_hash,omitempty"`
+		LastAddFCTxHash []byte `json:"lastAddFcTxHash,omitempty"`
 	}
 
 	BillProof struct {

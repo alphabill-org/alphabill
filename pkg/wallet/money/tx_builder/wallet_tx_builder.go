@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"sort"
 
+	"golang.org/x/exp/slices"
+
 	"github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/hash"
 	"github.com/alphabill-org/alphabill/internal/script"
@@ -20,6 +22,14 @@ import (
 const MaxFee = uint64(1)
 
 func CreateTransactions(pubKey []byte, amount uint64, systemID []byte, bills []*wallet.Bill, k *account.AccountKey, timeout uint64, fcrID []byte) ([]*types.TransactionOrder, error) {
+	billIndex := slices.IndexFunc(bills, func(b *wallet.Bill) bool { return b.Value == amount })
+	if billIndex >= 0 {
+		tx, err := NewTransferTx(pubKey, k, systemID, bills[billIndex], timeout, fcrID)
+		if err != nil {
+			return nil, err
+		}
+		return []*types.TransactionOrder{tx}, nil
+	}
 	var txs []*types.TransactionOrder
 	var accumulatedSum uint64
 	for _, b := range bills {

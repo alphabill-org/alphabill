@@ -320,9 +320,8 @@ func TestNode_RecoverBlocks_withEmptyBlocksChangingState(t *testing.T) {
 		From:     req.ID,
 		Protocol: network.ProtocolLedgerReplicationResp,
 		Message: &replication.LedgerReplicationResponse{
-			Status:         replication.Ok,
-			Blocks:         []*types.Block{newBlock5},
-			MaxRoundNumber: 6,
+			Status: replication.Ok,
+			Blocks: []*types.Block{newBlock4empty, newBlock5, newBlock6empty},
 		},
 	})
 	testevent.ContainsEvent(t, tp.eh, event.RecoveryFinished)
@@ -333,7 +332,7 @@ func TestNode_RecoverBlocks_withEmptyBlocksChangingState(t *testing.T) {
 	require.Equal(t, uint64(6), nr)
 	latestBlock, err := tp.partition.GetLatestBlock()
 	require.NoError(t, err)
-	require.True(t, reflect.DeepEqual(latestBlock, newBlock5))
+	require.True(t, reflect.DeepEqual(latestBlock, newBlock6empty))
 	b, err := tp.partition.GetBlock(context.Background(), 0)
 	require.ErrorContains(t, err, "block number 0 does not exist")
 	require.Nil(t, b)
@@ -348,10 +347,12 @@ func TestNode_RecoverBlocks_withEmptyBlocksChangingState(t *testing.T) {
 	require.True(t, reflect.DeepEqual(b, newBlock3))
 	b, err = tp.partition.GetBlock(context.Background(), 4)
 	require.NoError(t, err)
-	require.Nil(t, b) // newBlock4empty
+	require.NotNil(t, b) // newBlock4empty
 	b, err = tp.partition.GetBlock(context.Background(), 5)
 	require.NoError(t, err)
 	require.True(t, reflect.DeepEqual(b, newBlock5))
+	b, err = tp.partition.GetBlock(context.Background(), 6)
+	require.NoError(t, err)
 	require.True(t, reflect.DeepEqual(b, latestBlock))
 	// on not found nil is returned
 	b, err = tp.partition.GetBlock(context.Background(), 7)
@@ -400,7 +401,7 @@ func TestNode_RecoverSkipsRequiredBlock(t *testing.T) {
 	require.NotNil(t, req)
 	require.IsType(t, req.Message, &replication.LedgerReplicationRequest{})
 	msg := req.Message.(*replication.LedgerReplicationRequest)
-	require.Equal(t, msg.BeginBlockNumber, uint64(3))
+	require.Equal(t, msg.BeginBlockNumber, uint64(2))
 }
 
 func TestNode_RecoverSkipsBlocksAndSendMixedBlocks(t *testing.T) {

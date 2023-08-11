@@ -630,7 +630,7 @@ func (n *Node) startRecovery(uc *types.UnicityCertificate) {
 	n.revertState()
 	n.status.Store(recovering)
 	n.stopForwardingOrHandlingTransactions()
-	logger.Debug("Entering recovery state, recover node up to %v", luc.GetRoundNumber())
+	logger.Debug("Entering recovery state, recover node up to round %v", luc.GetRoundNumber())
 	fromBlockNr := n.lastStoredBlock.GetRoundNumber() + 1
 	n.sendEvent(event.RecoveryStarted, fromBlockNr)
 	n.sendLedgerReplicationRequest(fromBlockNr)
@@ -769,27 +769,20 @@ func (n *Node) proposalHash(prop *pendingBlockProposal, uc *types.UnicityCertifi
 func (n *Node) finalizeBlock(b *types.Block) error {
 	defer trackExecutionTime(time.Now(), fmt.Sprintf("Block %v finalization", b.GetRoundNumber()))
 	roundNoInBytes := util.Uint64ToBytes(b.GetRoundNumber())
-	// if empty block then ignore this block
-	if len(b.Transactions) == 0 {
-		if err := n.transactionSystem.Commit(); err != nil {
-			return fmt.Errorf("unable to finalize empty block %v: %w", b.GetRoundNumber(), err)
-		}
-	} else {
-		// persist the block _before_ committing to tx system
-		// if write fails but the round is committed in tx system, there's no way back,
-		// but if commit fails, we just remove the block from the store
-		if err := n.blockStore.Write(roundNoInBytes, b); err != nil {
-			return fmt.Errorf("db write failed, %w", err)
-		}
-		if err := n.transactionSystem.Commit(); err != nil {
-			_ = n.blockStore.Delete(roundNoInBytes)
-			return fmt.Errorf("unable to finalize block %v: %w", b.GetRoundNumber(), err)
-		}
-		// cache last stored non-empty block, but only if store succeeds
-		// NB! only cache and commit if persist is successful
-		n.lastStoredBlock = b
-		validTransactionsCounter.Inc(int64(len(b.Transactions)))
+	// persist the block _before_ committing to tx system
+	// if write fails but the round is committed in tx system, there's no way back,
+	// but if commit fails, we just remove the block from the store
+	if err := n.blockStore.Write(roundNoInBytes, b); err != nil {
+		return fmt.Errorf("db write failed, %w", err)
 	}
+	if err := n.transactionSystem.Commit(); err != nil {
+		_ = n.blockStore.Delete(roundNoInBytes)
+		return fmt.Errorf("unable to finalize block %v: %w", b.GetRoundNumber(), err)
+	}
+	// cache last stored block, but only if store succeeds
+	// NB! only cache and commit if persist is successful
+	n.lastStoredBlock = b
+	validTransactionsCounter.Inc(int64(len(b.Transactions)))
 	n.sendEvent(event.BlockFinalized, b)
 	return nil
 }
@@ -868,7 +861,6 @@ func (n *Node) handleLedgerReplicationRequest(lr *replication.LedgerReplicationR
 		return n.sendLedgerReplicationResponse(resp, lr.NodeIdentifier)
 	}
 	maxBlock := n.lastStoredBlock.GetRoundNumber()
-	luc := n.luc.Load()
 	startBlock := lr.BeginBlockNumber
 	// the node is behind and does not have the needed data
 	if maxBlock < startBlock {
@@ -907,17 +899,9 @@ func (n *Node) handleLedgerReplicationRequest(lr *replication.LedgerReplicationR
 				break
 			}
 		}
-		maxRoundNumber := lastFetchedBlock.GetRoundNumber()
-		if maxRoundNumber == maxBlock {
-			// we did not hit the replication limit,
-			// thus we can safely assume that if there are any blocks between 'n.lastStoredBlock' and 'n.luc',
-			// all these blocks are empty
-			maxRoundNumber = luc.GetRoundNumber()
-		}
 		resp := &replication.LedgerReplicationResponse{
-			Status:         replication.Ok,
-			Blocks:         blocks,
-			MaxRoundNumber: maxRoundNumber,
+			Status: replication.Ok,
+			Blocks: blocks,
 		}
 		if err := n.sendLedgerReplicationResponse(resp, lr.NodeIdentifier); err != nil {
 			logger.Warning("Problem sending ledger replication response, %s: %s", resp.Pretty(), err)
@@ -942,21 +926,6 @@ func (n *Node) handleLedgerReplicationResponse(ctx context.Context, lr *replicat
 		logger.Debug("Resending replication request starting with round %v", recoverFrom)
 		n.sendLedgerReplicationRequest(recoverFrom)
 		return fmt.Errorf("received error response, status=%s, message='%s'", lr.Status.String(), lr.Message)
-	}
-
-	recoverEmptyBlock := func(roundNumber uint64) ([]byte, error) {
-		logger.Debug("Recovering empty block %v", roundNumber)
-		if err := n.transactionSystem.BeginBlock(roundNumber); err != nil {
-			return nil, fmt.Errorf("error beginning block %v, %w", roundNumber, err)
-		}
-		state, err := n.transactionSystem.EndBlock()
-		if err != nil {
-			return nil, fmt.Errorf("error ending block %v, %w", roundNumber, err)
-		}
-		if err = n.transactionSystem.Commit(); err != nil {
-			return nil, fmt.Errorf("error committing block %v: %w", roundNumber, err)
-		}
-		return state.Root(), nil
 	}
 
 	onError := func(latestSuccessfulRoundNumber uint64, err error) error {
@@ -988,17 +957,6 @@ func (n *Node) handleLedgerReplicationResponse(ctx context.Context, lr *replicat
 			logger.Debug("Node already has this block %v, skipping block %v", latestProcessedRoundNumber, recoveringRoundNo)
 			continue
 		}
-		// if there are empty blocks between 'latestStoredRoundNo' and 'recoveringRoundNo',
-		// we need to spin the transaction system up to 'recoveringRoundNo' to perform housekeeping
-		if recoveringRoundNo-latestProcessedRoundNumber > 1 {
-			for i := latestProcessedRoundNumber + 1; i < recoveringRoundNo; i++ {
-				latestStateHash, err = recoverEmptyBlock(i)
-				if err != nil {
-					return onError(latestProcessedRoundNumber, err)
-				}
-				latestProcessedRoundNumber = i
-			}
-		}
 		logger.Debug("Recovering block from round %v", recoveringRoundNo)
 		// make sure it extends current state
 		var state txsystem.State
@@ -1028,22 +986,9 @@ func (n *Node) handleLedgerReplicationResponse(ctx context.Context, lr *replicat
 		latestStateHash = b.UnicityCertificate.InputRecord.Hash
 	}
 
-	// after all blocks from the response are processed, check if there are any empty blocks to recover until the provided max round number
-	if latestProcessedRoundNumber < lr.MaxRoundNumber {
-		logger.Debug("Recovering empty blocks from latest block's round %v up to %v", latestProcessedRoundNumber, lr.MaxRoundNumber)
-		for i := latestProcessedRoundNumber + 1; i <= lr.MaxRoundNumber; i++ {
-			latestStateHash, err = recoverEmptyBlock(i)
-			if err != nil {
-				return onError(latestProcessedRoundNumber, err)
-			}
-			latestProcessedRoundNumber = i
-		}
-	}
-
 	// check if recovery is complete
 	logger.Debug("Checking if recovery is complete, last recovered round: %v", latestProcessedRoundNumber)
-	// every non-empty block is guaranteed to change state hash, meaning if the state hash is equal to luc state hash
-	// then recovery is complete
+	// if the state hash is equal to luc state hash then recovery is complete
 	luc := n.luc.Load()
 	if !bytes.Equal(latestStateHash, luc.InputRecord.Hash) {
 		logger.Debug("Not fully recovered yet, latest recovered UC's round %v vs LUC's round %v", latestProcessedRoundNumber, luc.GetRoundNumber())
@@ -1170,7 +1115,6 @@ func (n *Node) sendCertificationRequest(blockAuthor string) error {
 			Hash:         pendingProposal.StateHash,
 			BlockHash:    blockHash,
 			SummaryValue: summary,
-			// latestBlock is the latest non-empty block,
 			// latest UC might have certified an empty block and has the latest round number
 			RoundNumber:     pendingProposal.RoundNumber,
 			SumOfEarnedFees: pendingProposal.SumOfEarnedFees,
@@ -1213,7 +1157,6 @@ func (n *Node) GetBlock(_ context.Context, blockNr uint64) (*types.Block, error)
 		return nil, fmt.Errorf("failed to read block from round %v from db, %w", blockNr, err)
 	}
 	if !found {
-		// empty block
 		return nil, nil
 	}
 	return &bl, nil

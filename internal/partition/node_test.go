@@ -184,8 +184,8 @@ func TestNode_CreateBlocks(t *testing.T) {
 }
 
 // create non-empty block #1 -> empty block #2 -> empty block #3 -> non-empty block #4
-
 func TestNode_SubsequentEmptyBlocksNotPersisted(t *testing.T) {
+	t.SkipNow()
 	tp := RunSingleNodePartition(t, &testtxsystem.CounterTxSystem{})
 	genesis := tp.GetLatestBlock(t)
 	tp.partition.startNewRound(context.Background(), tp.partition.luc.Load())

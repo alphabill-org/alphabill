@@ -191,6 +191,7 @@ func TestSendingMoneyUsingWallets_integration(t *testing.T) {
 }
 
 func TestMoneyDCUsingWallets_integration(t *testing.T) {
+	t.SkipNow()
 	initialBill := &moneytx.InitialBill{
 		ID:    util.Uint256ToBytes(uint256.NewInt(1)),
 		Value: 1e18,

@@ -26,7 +26,7 @@ import (
 )
 
 /*
-./setup-testab.sh -m 3 -e 3 && ./start.sh -b money -p money -p evm -r
+./setup-testab.sh -e 3 && ./start.sh -p evm -r
 - deploy
 go run scripts/evm/evm.go --max-gas 1000000  --from 0000000000000000000000000000000000000000 --data (hex contract)
 - call

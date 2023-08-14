@@ -13,11 +13,11 @@ import (
 )
 
 var (
-	ErrTxProofNil     = errors.New("tx proof is nil")
-	ErrInvalidValue   = errors.New("invalid value")
-	ErrMissingDCNonce = errors.New("dcNonce is missing")
-	ErrInvalidTxHash  = errors.New("bill txHash is not equal to actual transaction hash")
-	ErrInvalidTxType  = errors.New("invalid tx type")
+	ErrTxProofNil          = errors.New("tx proof is nil")
+	ErrInvalidValue        = errors.New("invalid value")
+	ErrMissingTargetUnitID = errors.New("target unit id is missing")
+	ErrInvalidTxHash       = errors.New("bill txHash is not equal to actual transaction hash")
+	ErrInvalidTxType       = errors.New("invalid tx type")
 )
 
 type (
@@ -29,11 +29,11 @@ type (
 	// used to be protobuf defined Bill struct used as import/export/download/upload unified schema across applications
 	// possibly can be removed as import/export/download/upoad feature was dropped
 	Bill struct {
-		Id          []byte `json:"id,omitempty"`
-		Value       uint64 `json:"value,omitempty,string"`
-		TxHash      []byte `json:"txHash,omitempty"`
-		DcNonce     []byte `json:"dcNonce,omitempty"`
-		SwapTimeout uint64 `json:"swapTimeout,string,omitempty"`
+		Id                 []byte `json:"id,omitempty"`
+		Value              uint64 `json:"value,omitempty,string"`
+		TxHash             []byte `json:"txHash,omitempty"`
+		TargetUnitID       []byte `json:"targetUnitId,omitempty"`
+		TargetUnitBacklink []byte `json:"targetUnitBacklink,omitempty"`
 
 		// fcb specific fields
 		// LastAddFCTxHash last add fee credit tx hash
@@ -91,6 +91,7 @@ func (x *Bill) GetLastAddFCTxHash() []byte {
 	}
 	return nil
 }
+
 func (x *Bill) verifyTx(txr *types.TransactionRecord) error {
 	value, isDCTx, err := x.parseTx(txr)
 	if err != nil {
@@ -99,8 +100,8 @@ func (x *Bill) verifyTx(txr *types.TransactionRecord) error {
 	if x.Value != value {
 		return ErrInvalidValue
 	}
-	if isDCTx && x.DcNonce == nil {
-		return ErrMissingDCNonce
+	if isDCTx && x.TargetUnitID == nil {
+		return ErrMissingTargetUnitID
 	}
 	if !bytes.Equal(x.TxHash, txr.TransactionOrder.Hash(crypto.SHA256)) {
 		return ErrInvalidTxHash
@@ -142,7 +143,7 @@ func (x *Bill) parseTx(txr *types.TransactionRecord) (uint64, bool, error) {
 		if err := txr.TransactionOrder.UnmarshalAttributes(attrs); err != nil {
 			return 0, false, err
 		}
-		return attrs.TargetValue, true, nil
+		return attrs.Value, true, nil
 	case money.PayloadTypeSplit:
 		attrs := &money.SplitAttributes{}
 		if err := txr.TransactionOrder.UnmarshalAttributes(attrs); err != nil {

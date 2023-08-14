@@ -612,10 +612,10 @@ func createDCTransferAndSwapTxs(
 func createDCTransfer(t *testing.T, fromID types.UnitID, val uint64, backlink []byte, targetID []byte, targetBacklink []byte) (*types.TransactionOrder, *TransferDCAttributes) {
 	tx := createTx(fromID, PayloadTypeTransDC)
 	bt := &TransferDCAttributes{
-		TargetValue:    val,
-		Nonce:          targetID,
-		TargetBacklink: targetBacklink,
-		Backlink:       backlink,
+		Value:              val,
+		TargetUnitID:       targetID,
+		TargetUnitBacklink: targetBacklink,
+		Backlink:           backlink,
 	}
 	rawBytes, err := cbor.Marshal(bt)
 	require.NoError(t, err)

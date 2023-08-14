@@ -6,14 +6,15 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/spf13/cobra"
+
 	"github.com/alphabill-org/alphabill/internal/errors"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/alphabill-org/alphabill/pkg/wallet/money/backend"
 	"github.com/alphabill-org/alphabill/pkg/wallet/money/backend/client"
 	"github.com/alphabill-org/alphabill/pkg/wallet/unitlock"
-	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/spf13/cobra"
 )
 
 const (
@@ -227,7 +228,14 @@ func execExportCmd(cmd *cobra.Command, config *walletConfig) error {
 		if proof == nil {
 			return fmt.Errorf("proof not found for bill 0x%X", billID)
 		}
-		bills = append(bills, &wallet.BillProof{Bill: &wallet.Bill{Id: b.Id, Value: b.Value, DcNonce: b.DcNonce, TxHash: b.TxHash}, TxProof: proof})
+		bills = append(bills, &wallet.BillProof{
+			Bill: &wallet.Bill{
+				Id:                 b.Id,
+				Value:              b.Value,
+				TargetUnitID:       b.TargetUnitID,
+				TargetUnitBacklink: b.TargetUnitBacklink,
+				TxHash:             b.TxHash},
+			TxProof: proof})
 	}
 
 	outputFile, err := writeProofsToFile(outputPath, bills...)

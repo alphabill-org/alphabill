@@ -50,12 +50,12 @@ type (
 	}
 
 	Bill struct {
-		Id             []byte `json:"id"`
-		Value          uint64 `json:"value"`
-		TxHash         []byte `json:"txHash"`
-		DcNonce        []byte `json:"dcNonce,omitempty"`
-		SwapTimeout    uint64 `json:"swapTimeout,string,omitempty"`
-		OwnerPredicate []byte `json:"ownerPredicate"`
+		Id                 []byte `json:"id"`
+		Value              uint64 `json:"value"`
+		TxHash             []byte `json:"txHash"`
+		TargetUnitID       []byte `json:"targetUnitId,omitempty"`
+		TargetUnitBacklink []byte `json:"targetUnitBacklink,omitempty"`
+		OwnerPredicate     []byte `json:"ownerPredicate"`
 
 		// fcb specific fields
 		// LastAddFCTxHash last add fee credit tx hash
@@ -383,12 +383,12 @@ func (w *WalletBackend) storeDCMetadata(txs []*types.TransactionOrder) error {
 			if err := tx.UnmarshalAttributes(attrs); err != nil {
 				return fmt.Errorf("invalid DC transfer: %w", err)
 			}
-			dcMetadata := dcMetadataMap[string(attrs.Nonce)]
+			dcMetadata := dcMetadataMap[string(attrs.TargetUnitID)]
 			if dcMetadata == nil {
 				dcMetadata = &DCMetadata{}
-				dcMetadataMap[string(attrs.Nonce)] = dcMetadata
+				dcMetadataMap[string(attrs.TargetUnitID)] = dcMetadata
 			}
-			dcMetadata.DCSum += attrs.TargetValue
+			dcMetadata.DCSum += attrs.Value
 			dcMetadata.BillIdentifiers = append(dcMetadata.BillIdentifiers, tx.UnitID())
 		}
 	}
@@ -411,7 +411,7 @@ func (b *Bill) ToGenericBill() *sdk.Bill {
 		Id:              b.Id,
 		Value:           b.Value,
 		TxHash:          b.TxHash,
-		DcNonce:         b.DcNonce,
+		TargetUnitID:    b.TargetUnitID,
 		LastAddFCTxHash: b.LastAddFCTxHash,
 	}
 }
@@ -443,6 +443,13 @@ func (b *Bill) getLastAddFCTxHash() []byte {
 		return b.LastAddFCTxHash
 	}
 	return nil
+}
+
+func (b *Bill) IsDCBill() bool {
+	if b != nil {
+		return len(b.TargetUnitID) > 0
+	}
+	return false
 }
 
 func newOwnerPredicates(hashes *account.KeyHashes) *p2pkhOwnerPredicates {

@@ -30,7 +30,7 @@ func handleTransferDCTx(s *state.State, dustCollector *DustCollector, hashAlgori
 				if !ok {
 					return nil, fmt.Errorf("unit %v does not contain bill data", dustCollectorMoneySupplyID)
 				}
-				bd.V += attr.TargetValue
+				bd.V += attr.Value
 				return bd, nil
 			})
 
@@ -55,7 +55,7 @@ func handleTransferDCTx(s *state.State, dustCollector *DustCollector, hashAlgori
 			return nil, fmt.Errorf("transferDC: failed to update state: %w", err)
 		}
 
-		// record dust bills for later deletion TODO AB1133
+		// record dust bills for later deletion TODO AB-1133
 		// dustCollector.AddDustBill(unitID, currentBlockNumber)
 		return &types.ServerMetadata{ActualFee: fee, TargetUnits: []types.UnitID{unitID}}, nil
 	}
@@ -70,5 +70,5 @@ func validateTransferDCTx(tx *types.TransactionOrder, attr *TransferDCAttributes
 }
 
 func validateTransferDC(data state.UnitData, tx *TransferDCAttributes) error {
-	return validateAnyTransfer(data, tx.Backlink, tx.TargetValue)
+	return validateAnyTransfer(data, tx.Backlink, tx.Value)
 }

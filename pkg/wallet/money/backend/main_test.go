@@ -174,21 +174,21 @@ func TestStoreDCMetadata_OK(t *testing.T) {
 	nonce1 := test.RandomBytes(32)
 	tx1Value := uint64(100)
 	tx1 := testtransaction.NewTransactionOrder(t, testtransaction.WithAttributes(&moneytx.TransferDCAttributes{
-		TargetValue: tx1Value,
-		Nonce:       nonce1,
+		Value:        tx1Value,
+		TargetUnitID: nonce1,
 	}), testtransaction.WithPayloadType(moneytx.PayloadTypeTransDC))
 
 	tx2Value := uint64(200)
 	tx2 := testtransaction.NewTransactionOrder(t, testtransaction.WithAttributes(&moneytx.TransferDCAttributes{
-		TargetValue: tx2Value,
-		Nonce:       nonce1,
+		Value:        tx2Value,
+		TargetUnitID: nonce1,
 	}), testtransaction.WithPayloadType(moneytx.PayloadTypeTransDC))
 
 	nonce2 := test.RandomBytes(32)
 	tx3Value := uint64(500)
 	tx3 := testtransaction.NewTransactionOrder(t, testtransaction.WithAttributes(&moneytx.TransferDCAttributes{
-		TargetValue: tx3Value,
-		Nonce:       nonce2,
+		Value:        tx3Value,
+		TargetUnitID: nonce2,
 	}), testtransaction.WithPayloadType(moneytx.PayloadTypeTransDC))
 
 	store, err := createTestBillStore(t)

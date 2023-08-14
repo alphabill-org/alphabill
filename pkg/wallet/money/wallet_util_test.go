@@ -151,17 +151,17 @@ func toBillId(i *uint256.Int) string {
 	return base64.StdEncoding.EncodeToString(util.Uint256ToBytes(i))
 }
 
-func createBlockProofResponse(t *testing.T, b *Bill, overrideNonce []byte, timeout uint64, k *account.AccountKey) *wallet.Proof {
+func createBlockProofResponseForDustTransfer(t *testing.T, b *wallet.Bill, targetBill *wallet.Bill, timeout uint64, k *account.AccountKey) *wallet.Proof {
 	w, mockClient := CreateTestWallet(t, nil)
 	if k == nil {
 		k, _ = w.am.GetAccountKey(0)
 	}
-	var dcTx *types.TransactionOrder
-	if overrideNonce != nil {
-		dcTx, _ = txbuilder.NewDustTx(k, w.SystemID(), b.ToGenericBillProof().Bill, overrideNonce, timeout)
-	} else {
-		dcTx, _ = txbuilder.NewDustTx(k, w.SystemID(), b.ToGenericBillProof().Bill, calculateDcNonce([]*Bill{b}), timeout)
+	if targetBill == nil {
+		targetBill = &wallet.Bill{Id: []byte{0}, TxHash: []byte{}}
 	}
+	dcTx, err := txbuilder.NewDustTx(k, w.SystemID(), b, targetBill, timeout)
+	require.NoError(t, err)
+
 	txRecord := &types.TransactionRecord{TransactionOrder: dcTx}
 	mockClient.SetBlock(&types.Block{
 		Header: &types.Header{
@@ -182,24 +182,19 @@ func createBlockProofResponse(t *testing.T, b *Bill, overrideNonce []byte, timeo
 	return txProof
 }
 
-func createBillListResponse(bills []*Bill, dcMetadata map[string]*backend.DCMetadata) *backend.ListBillsResponse {
+func createBillListResponse(bills []*wallet.Bill, dcMetadata map[string]*backend.DCMetadata) *backend.ListBillsResponse {
 	billVMs := make([]*wallet.Bill, len(bills))
 	for i, b := range bills {
 		billVMs[i] = &wallet.Bill{
-			Id:          b.GetID(),
-			Value:       b.Value,
-			TxHash:      b.TxHash,
-			DcNonce:     b.DcNonce,
-			SwapTimeout: b.SwapTimeout,
+			Id:                 b.GetID(),
+			Value:              b.Value,
+			TxHash:             b.TxHash,
+			TargetUnitID:       b.TargetUnitID,
+			TargetUnitBacklink: b.TargetUnitBacklink,
+			LastAddFCTxHash:    b.LastAddFCTxHash,
 		}
 	}
 	return &backend.ListBillsResponse{Bills: billVMs, Total: len(bills), DCMetadata: dcMetadata}
-}
-
-func createBillListJsonResponse(bills []*Bill) string {
-	billsResponse := createBillListResponse(bills, nil)
-	res, _ := json.Marshal(billsResponse)
-	return string(res)
 }
 
 type backendAPIMock struct {

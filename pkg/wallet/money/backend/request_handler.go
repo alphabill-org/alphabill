@@ -132,7 +132,7 @@ func (api *moneyRestAPI) listBillsFunc(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 		// filter dc bills
-		if b.DcNonce != nil {
+		if b.IsDCBill() {
 			if !includeDCBills {
 				continue
 			}
@@ -140,14 +140,14 @@ func (api *moneyRestAPI) listBillsFunc(w http.ResponseWriter, r *http.Request) {
 				if dcMetadataMap == nil {
 					dcMetadataMap = make(map[string]*DCMetadata)
 				}
-				if dcMetadataMap[string(b.DcNonce)] == nil {
-					dcMetadata, err := api.Service.GetDCMetadata(b.DcNonce)
+				if dcMetadataMap[string(b.TargetUnitID)] == nil {
+					dcMetadata, err := api.Service.GetDCMetadata(b.TargetUnitID)
 					if err != nil {
 						log.Error("error on GET /list-bills: ", err)
 						w.WriteHeader(http.StatusInternalServerError)
 						return
 					}
-					dcMetadataMap[string(b.DcNonce)] = dcMetadata
+					dcMetadataMap[string(b.TargetUnitID)] = dcMetadata
 				}
 			}
 		}
@@ -254,7 +254,7 @@ func (api *moneyRestAPI) balanceFunc(w http.ResponseWriter, r *http.Request) {
 	}
 	var sum uint64
 	for _, b := range bills {
-		if b.DcNonce == nil || includeDCBills {
+		if !b.IsDCBill() || includeDCBills {
 			sum += b.Value
 		}
 	}

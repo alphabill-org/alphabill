@@ -69,9 +69,9 @@ func TestTransferDC(t *testing.T) {
 			name: "Ok",
 			bd:   newBillData(100, []byte{6}),
 			attr: &TransferDCAttributes{
-				Nonce:       test.RandomBytes(32),
-				TargetValue: 100,
-				Backlink:    []byte{6},
+				TargetUnitID: test.RandomBytes(32),
+				Value:        100,
+				Backlink:     []byte{6},
 			},
 			res: nil,
 		},
@@ -79,9 +79,9 @@ func TestTransferDC(t *testing.T) {
 			name: "InvalidBalance",
 			bd:   newBillData(100, []byte{6}),
 			attr: &TransferDCAttributes{
-				Nonce:       test.RandomBytes(32),
-				TargetValue: 101,
-				Backlink:    []byte{6},
+				TargetUnitID: test.RandomBytes(32),
+				Value:        101,
+				Backlink:     []byte{6},
 			},
 			res: ErrInvalidBillValue,
 		},
@@ -89,9 +89,9 @@ func TestTransferDC(t *testing.T) {
 			name: "InvalidBacklink",
 			bd:   newBillData(100, []byte{6}),
 			attr: &TransferDCAttributes{
-				Nonce:       test.RandomBytes(32),
-				TargetValue: 100,
-				Backlink:    test.RandomBytes(32),
+				TargetUnitID: test.RandomBytes(32),
+				Value:        100,
+				Backlink:     test.RandomBytes(32),
 			},
 			res: ErrInvalidBacklink,
 		},
@@ -485,9 +485,9 @@ func newInvalidTargetValueSwap(t *testing.T) *types.TransactionOrder {
 	swapId := []byte{255}
 
 	transferDCRecord := createTransferDCTransactionRecord(t, transferId, &TransferDCAttributes{
-		Nonce:       swapId,
-		TargetValue: 90,
-		Backlink:    []byte{6},
+		TargetUnitID: swapId,
+		Value:        90,
+		Backlink:     []byte{6},
 	})
 	return testtransaction.NewTransactionOrder(
 		t,
@@ -516,9 +516,9 @@ func newInvalidNonceSwap(t *testing.T, signer abcrypto.Signer) *types.Transactio
 	swapId := []byte{255}
 
 	transferDCRecord := createTransferDCTransactionRecord(t, transferId, &TransferDCAttributes{
-		Nonce:       []byte{0},
-		TargetValue: 100,
-		Backlink:    []byte{6},
+		TargetUnitID: []byte{0},
+		Value:        100,
+		Backlink:     []byte{6},
 	})
 	return testtransaction.NewTransactionOrder(
 		t,
@@ -546,10 +546,10 @@ func newInvalidTargetBacklinkSwap(t *testing.T, signer abcrypto.Signer) *types.T
 	transferId := id32[:]
 	swapId := []byte{255}
 	return createSwapDCTransactionOrder(t, signer, swapId, createTransferDCTransactionRecord(t, transferId, &TransferDCAttributes{
-		Nonce:          swapId,
-		TargetValue:    100,
-		Backlink:       []byte{6},
-		TargetBacklink: []byte{7},
+		TargetUnitID:       swapId,
+		Value:              100,
+		Backlink:           []byte{6},
+		TargetUnitBacklink: []byte{7},
 	}))
 }
 
@@ -564,9 +564,9 @@ func newDescBillOrderSwap(t *testing.T, signer abcrypto.Signer) *types.Transacti
 		bytes32 := billIds[i].Bytes32()
 		transferIds[i] = bytes32[:]
 		dcTransfers[i] = createTransferDCTransactionRecord(t, bytes32[:], &TransferDCAttributes{
-			Nonce:       swapId,
-			TargetValue: 100,
-			Backlink:    []byte{6},
+			TargetUnitID: swapId,
+			Value:        100,
+			Backlink:     []byte{6},
 		})
 		proofs[i] = testblock.CreateProof(t, dcTransfers[i], signer)
 	}
@@ -602,9 +602,9 @@ func newEqualBillIdsSwap(t *testing.T, signer abcrypto.Signer) *types.Transactio
 		bytes32 := billIds[i].Bytes32()
 		transferIds[i] = bytes32[:]
 		dcTransfers[i] = createTransferDCTransactionRecord(t, bytes32[:], &TransferDCAttributes{
-			Nonce:       swapId,
-			TargetValue: 100,
-			Backlink:    []byte{6},
+			TargetUnitID: swapId,
+			Value:        100,
+			Backlink:     []byte{6},
 		})
 		proofs[i] = testblock.CreateProof(t, dcTransfers[i], signer)
 	}
@@ -639,9 +639,9 @@ func newSwapOrderWithInvalidTargetSystemID(t *testing.T, signer abcrypto.Signer)
 		testtransaction.WithPayloadType(PayloadTypeTransDC),
 		testtransaction.WithUnitId(transferId),
 		testtransaction.WithAttributes(&TransferDCAttributes{
-			Nonce:       swapId,
-			TargetValue: 100,
-			Backlink:    []byte{6},
+			TargetUnitID: swapId,
+			Value:        100,
+			Backlink:     []byte{6},
 		}),
 		testtransaction.WithClientMetadata(&types.ClientMetadata{
 			Timeout:           100,
@@ -659,10 +659,10 @@ func newDcProofsNilSwap(t *testing.T) *types.TransactionOrder {
 	swapId := []byte{255}
 
 	transferDCRecord := createTransferDCTransactionRecord(t, transferId, &TransferDCAttributes{
-		Nonce: swapId,
+		TargetUnitID: swapId,
 
-		TargetValue: 100,
-		Backlink:    []byte{6},
+		Value:    100,
+		Backlink: []byte{6},
 	})
 	return testtransaction.NewTransactionOrder(
 		t,
@@ -692,9 +692,9 @@ func newEmptyDcProofsSwap(t *testing.T) *types.TransactionOrder {
 	swapId := []byte{255}
 
 	transferDCRecord := createTransferDCTransactionRecord(t, transferId, &TransferDCAttributes{
-		Nonce:       swapId,
-		TargetValue: 100,
-		Backlink:    []byte{6},
+		TargetUnitID: swapId,
+		Value:        100,
+		Backlink:     []byte{6},
 	})
 	return testtransaction.NewTransactionOrder(
 		t,
@@ -727,9 +727,9 @@ func newSwapDC(t *testing.T, signer abcrypto.Signer) *types.TransactionOrder {
 	transferId := id32[:]
 	swapId := []byte{255}
 	return createSwapDCTransactionOrder(t, signer, swapId, createTransferDCTransactionRecord(t, transferId, &TransferDCAttributes{
-		Nonce:       swapId,
-		TargetValue: 100,
-		Backlink:    []byte{6},
+		TargetUnitID: swapId,
+		Value:        100,
+		Backlink:     []byte{6},
 	}))
 }
 

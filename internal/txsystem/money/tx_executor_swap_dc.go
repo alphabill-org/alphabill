@@ -147,13 +147,13 @@ func (c *swapValidationContext) validateSwapTx() error {
 			return errors.New("transfer orders are not listed in strictly increasing order of bill identifiers")
 		}
 		// 7. bill transfer orders contain correct nonces
-		if !bytes.Equal(dcTx.attributes.Nonce, c.tx.UnitID()) {
+		if !bytes.Equal(dcTx.attributes.TargetUnitID, c.tx.UnitID()) {
 			return errors.New("dust transfer orders do not contain proper nonce")
 		}
 		// 8. bill transfer orders contain correct target backlinks
-		if !bytes.Equal(dcTx.attributes.TargetBacklink, billData.Backlink) {
+		if !bytes.Equal(dcTx.attributes.TargetUnitBacklink, billData.Backlink) {
 			return fmt.Errorf("dust transfer target backlink is not equal to target unit backlink: expected %X vs provided %X",
-				billData.Backlink, dcTx.attributes.TargetBacklink)
+				billData.Backlink, dcTx.attributes.TargetUnitBacklink)
 
 		}
 		// 9. transaction proofs of the bill transfer orders verify
@@ -214,7 +214,7 @@ func (c *swapValidationContext) getDCTransfers() ([]*dustCollectorTransfer, erro
 func (c *swapValidationContext) sumDcTransferValues(txs []*dustCollectorTransfer) uint64 {
 	var sum uint64
 	for _, dcTx := range txs {
-		sum += dcTx.attributes.TargetValue
+		sum += dcTx.attributes.Value
 	}
 	return sum
 }

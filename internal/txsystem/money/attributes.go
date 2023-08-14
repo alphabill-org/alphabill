@@ -20,11 +20,11 @@ type (
 	}
 
 	TransferDCAttributes struct {
-		_              struct{} `cbor:",toarray"`
-		Nonce          []byte   // target unit identifier
-		TargetValue    uint64
-		TargetBacklink []byte
-		Backlink       []byte
+		_                  struct{} `cbor:",toarray"`
+		Value              uint64
+		TargetUnitID       []byte
+		TargetUnitBacklink []byte
+		Backlink           []byte
 	}
 
 	SplitAttributes struct {
@@ -40,6 +40,6 @@ type (
 		OwnerCondition []byte
 		DcTransfers    []*types.TransactionRecord
 		Proofs         []*types.TxProof
-		TargetValue    uint64
+		TargetValue    uint64 // value added to target bill
 	}
 )

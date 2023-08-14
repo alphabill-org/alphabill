@@ -323,6 +323,27 @@ func TestTransferFC(t *testing.T) {
 			wantErr: ErrBillNil,
 		},
 		{
+			name:    "TargetSystemIdentifier is nil",
+			bd:      newBillData(101, backlink),
+			tx:      testfc.NewTransferFC(t, testfc.NewTransferFCAttr(testfc.WithTargetSystemID(nil))),
+			wantErr: ErrTargetSystemIdentifierNil,
+		},
+		{
+			name:    "TargetRecordID is nil",
+			bd:      newBillData(101, backlink),
+			tx:      testfc.NewTransferFC(t, testfc.NewTransferFCAttr(testfc.WithTargetRecordID(nil))),
+			wantErr: ErrTargetRecordIDNil,
+		},
+		{
+			name:    "AdditionTime invalid",
+			bd:      newBillData(101, backlink),
+			tx:      testfc.NewTransferFC(t, testfc.NewTransferFCAttr(
+				testfc.WithEarliestAdditionTime(2),
+				testfc.WithLatestAdditionTime(1),
+			)),
+			wantErr: ErrAdditionTimeInvalid,
+		},
+		{
 			name:    "Invalid amount",
 			bd:      newBillData(101, backlink),
 			tx:      testfc.NewTransferFC(t, testfc.NewTransferFCAttr(testfc.WithAmount(101))),

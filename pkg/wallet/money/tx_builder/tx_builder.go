@@ -7,6 +7,7 @@ import (
 	"sort"
 
 	"github.com/fxamacker/cbor/v2"
+	"golang.org/x/exp/slices"
 
 	"github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/hash"
@@ -21,6 +22,14 @@ import (
 const MaxFee = uint64(1)
 
 func CreateTransactions(pubKey []byte, amount uint64, systemID []byte, bills []*wallet.Bill, k *account.AccountKey, timeout uint64, fcrID []byte) ([]*types.TransactionOrder, error) {
+	billIndex := slices.IndexFunc(bills, func(b *wallet.Bill) bool { return b.Value == amount })
+	if billIndex >= 0 {
+		tx, err := NewTransferTx(pubKey, k, systemID, bills[billIndex], timeout, fcrID)
+		if err != nil {
+			return nil, err
+		}
+		return []*types.TransactionOrder{tx}, nil
+	}
 	var txs []*types.TransactionOrder
 	var accumulatedSum uint64
 	for _, b := range bills {
@@ -79,7 +88,7 @@ func NewDustTx(ac *account.AccountKey, systemID []byte, bill *wallet.Bill, targe
 		TargetUnitBacklink: targetBill.TxHash,
 		Backlink:           bill.TxHash,
 	}
-	txPayload, err := newTxPayload(systemID, money.PayloadTypeTransDC, bill.GetID(), timeout, ac.PrivKeyHash, attr)
+	txPayload, err := newTxPayload(systemID, money.PayloadTypeTransDC, bill.GetID(), timeout, ac.PubKeyHash.Sha256, attr)
 	if err != nil {
 		return nil, err
 	}
@@ -112,7 +121,7 @@ func NewSwapTx(k *account.AccountKey, systemID []byte, dcProofs []*wallet.Proof,
 		Proofs:         dustTransferProofs,
 		TargetValue:    billValueSum,
 	}
-	swapTx, err := newTxPayload(systemID, money.PayloadTypeSwapDC, targetUnitID, timeout, k.PrivKeyHash, attr)
+	swapTx, err := newTxPayload(systemID, money.PayloadTypeSwapDC, targetUnitID, timeout, k.PubKeyHash.Sha256, attr)
 	if err != nil {
 		return nil, fmt.Errorf("failed to build swap transaction: %w", err)
 	}

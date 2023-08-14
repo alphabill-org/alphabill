@@ -195,7 +195,7 @@ func (w *FeeManager) AddFeeCredit(ctx context.Context, cmd AddFeeCmd) (*AddFeeCm
 	}
 
 	// create addFC transaction
-	addFCTx, err := txbuilder.NewAddFCTx(accountKey.PrivKeyHash, transferFCProof, accountKey, w.userPartitionSystemID, userPartitionTimeout)
+	addFCTx, err := txbuilder.NewAddFCTx(accountKey.PubKeyHash.Sha256, transferFCProof, accountKey, w.userPartitionSystemID, userPartitionTimeout)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create addFC transaction: %w", err)
 	}
@@ -312,7 +312,7 @@ func (w *FeeManager) GetFeeCredit(ctx context.Context, cmd GetFeeCreditCmd) (*wa
 	if err != nil {
 		return nil, err
 	}
-	return w.userPartitionBackendClient.GetFeeCreditBill(ctx, accountKey.PrivKeyHash)
+	return w.userPartitionBackendClient.GetFeeCreditBill(ctx, accountKey.PubKeyHash.Sha256)
 }
 
 func (w *FeeManager) Close() {
@@ -343,7 +343,7 @@ func (w *FeeManager) sendTransferFC(ctx context.Context, cmd AddFeeCmd, accountK
 
 	// create transferFC
 	log.Info("sending transfer fee credit transaction")
-	tx, err := txbuilder.NewTransferFCTx(cmd.Amount, accountKey.PrivKeyHash, fcb.GetLastAddFCTxHash(), accountKey, w.moneySystemID, w.userPartitionSystemID, targetBill, timeout, earliestAdditionTime, latestAdditionTime)
+	tx, err := txbuilder.NewTransferFCTx(cmd.Amount, accountKey.PubKeyHash.Sha256, fcb.GetLastAddFCTxHash(), accountKey, w.moneySystemID, w.userPartitionSystemID, targetBill, timeout, earliestAdditionTime, latestAdditionTime)
 	if err != nil {
 		return nil, err
 	}
@@ -374,7 +374,7 @@ func (w *FeeManager) sendCloseFC(ctx context.Context, bills []*wallet.Bill, acco
 	if err != nil {
 		return nil, err
 	}
-	fcb, err := w.userPartitionBackendClient.GetFeeCreditBill(ctx, accountKey.PrivKeyHash)
+	fcb, err := w.userPartitionBackendClient.GetFeeCreditBill(ctx, accountKey.PubKeyHash.Sha256)
 	if err != nil {
 		return nil, err
 	}

@@ -370,7 +370,7 @@ func newBackendAPIMock(t *testing.T, bills []*wallet.Bill, opts ...Option) *dust
 	accountKeys, _ := account.NewKeys("")
 	accountKey := accountKeys.AccountKey
 	signer, verifier := testsig.CreateSignerAndVerifier(t)
-	fcb := &wallet.Bill{Id: accountKey.PrivKeyHash, Value: 100 * 1e8}
+	fcb := &wallet.Bill{Id: accountKey.PubKeyHash.Sha256, Value: 100 * 1e8}
 
 	options := &Options{}
 	for _, opt := range opts {

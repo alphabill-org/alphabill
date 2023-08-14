@@ -121,7 +121,7 @@ func (w *Wallet) CollectDust(ctx context.Context, accountNumber uint64) ([]*wall
 			}
 			swapProof, err := w.dustCollector.CollectDust(ctx, accKey)
 			if err != nil {
-				return nil, fmt.Errorf("dust collection failed for account number %d", acc.AccountIndex+1)
+				return nil, fmt.Errorf("dust collection failed for account number %d: %w", acc.AccountIndex+1, err)
 			}
 			swapProofs = append(swapProofs, swapProof)
 		}
@@ -133,7 +133,7 @@ func (w *Wallet) CollectDust(ctx context.Context, accountNumber uint64) ([]*wall
 		}
 		swapProof, err := w.dustCollector.CollectDust(ctx, accKey)
 		if err != nil {
-			return nil, fmt.Errorf("dust collection failed for account number %d", accountNumber)
+			return nil, fmt.Errorf("dust collection failed for account number %d: %w", accountNumber, err)
 		}
 		return []*wallet.Proof{swapProof}, err
 	}

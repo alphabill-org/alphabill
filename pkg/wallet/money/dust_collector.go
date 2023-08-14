@@ -207,13 +207,14 @@ func (w *DustCollector) submitDCBatch(ctx context.Context, k *account.AccountKey
 	if err != nil {
 		return nil, err
 	}
-	fcb, err := w.backend.GetFeeCreditBill(ctx, k.PrivKeyHash)
+	fcb, err := w.backend.GetFeeCreditBill(ctx, k.PubKeyHash.Sha256)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch fee credit bill: %w", err)
 	}
 	txsCost := tx_builder.MaxFee * uint64(len(billsToSwap)+1) // +1 for swap
 	if fcb.GetValue() < txsCost {
-		return nil, fmt.Errorf("insufficient fee credit balance for transactions: need %d, have %d Tema to swap %d bills", txsCost, fcb.GetValue(), len(billsToSwap))
+		return nil, fmt.Errorf("insufficient fee credit balance for transactions: need at least %d Tema, "+
+			"but have %d Tema to send swap and %d dust transfer transactions", txsCost, fcb.GetValue(), len(billsToSwap))
 	}
 	dcBatch := txsubmitter.NewBatch(k.PubKey, w.backend)
 	for _, b := range billsToSwap {

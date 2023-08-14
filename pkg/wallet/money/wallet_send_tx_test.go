@@ -109,7 +109,7 @@ func TestWalletSendFunction_WaitForConfirmation(t *testing.T) {
 		getFeeCreditBill: func(ctx context.Context, unitID []byte) (*wallet.Bill, error) {
 			ac, _ := w.am.GetAccountKey(0)
 			return &wallet.Bill{
-				Id:    ac.PrivKeyHash,
+				Id:    ac.PubKeyHash.Sha256,
 				Value: 100 * 1e8,
 			}, nil
 		},
@@ -236,7 +236,7 @@ func TestWalletSendFunction_WaitForMultipleTxConfirmationsInDifferentBlocks(t *t
 		},
 		getFeeCreditBill: func(ctx context.Context, unitID []byte) (*wallet.Bill, error) {
 			ac, _ := w.am.GetAccountKey(0)
-			return &wallet.Bill{Id: ac.PrivKeyHash, Value: 100 * 1e8}, nil
+			return &wallet.Bill{Id: ac.PubKeyHash.Sha256, Value: 100 * 1e8}, nil
 		},
 		postTransactions: func(ctx context.Context, pubKey wallet.PubKey, txs *wallet.Transactions) error {
 			for _, tx := range txs.Transactions {
@@ -395,7 +395,7 @@ func TestWalletSendFunction_BillWithExactAmount(t *testing.T) {
 		getFeeCreditBill: func(ctx context.Context, unitID []byte) (*wallet.Bill, error) {
 			ac, _ := w.am.GetAccountKey(0)
 			return &wallet.Bill{
-				Id:    ac.PrivKeyHash,
+				Id:    ac.PubKeyHash.Sha256,
 				Value: 100 * 1e8,
 			}, nil
 		},

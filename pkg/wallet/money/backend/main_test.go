@@ -169,51 +169,6 @@ func TestGetBills_SHA512_OK(t *testing.T) {
 	require.Equal(t, b, bills[0])
 }
 
-func TestStoreDCMetadata_OK(t *testing.T) {
-	// create 3 dc txs (two with same nonce)
-	nonce1 := test.RandomBytes(32)
-	tx1Value := uint64(100)
-	tx1 := testtransaction.NewTransactionOrder(t, testtransaction.WithAttributes(&moneytx.TransferDCAttributes{
-		Value:        tx1Value,
-		TargetUnitID: nonce1,
-	}), testtransaction.WithPayloadType(moneytx.PayloadTypeTransDC))
-
-	tx2Value := uint64(200)
-	tx2 := testtransaction.NewTransactionOrder(t, testtransaction.WithAttributes(&moneytx.TransferDCAttributes{
-		Value:        tx2Value,
-		TargetUnitID: nonce1,
-	}), testtransaction.WithPayloadType(moneytx.PayloadTypeTransDC))
-
-	nonce2 := test.RandomBytes(32)
-	tx3Value := uint64(500)
-	tx3 := testtransaction.NewTransactionOrder(t, testtransaction.WithAttributes(&moneytx.TransferDCAttributes{
-		Value:        tx3Value,
-		TargetUnitID: nonce2,
-	}), testtransaction.WithPayloadType(moneytx.PayloadTypeTransDC))
-
-	store, err := createTestBillStore(t)
-	require.NoError(t, err)
-
-	// call store metadata on txs
-	service := &WalletBackend{store: store}
-	err = service.storeDCMetadata([]*types.TransactionOrder{tx1, tx2, tx3})
-	require.NoError(t, err)
-
-	// verify metadata for both nonces is correct
-	dcMetadata1, err := service.GetDCMetadata(nonce1)
-	require.NoError(t, err)
-	require.Equal(t, tx1Value+tx2Value, dcMetadata1.DCSum)
-	require.Len(t, dcMetadata1.BillIdentifiers, 2)
-	require.Contains(t, dcMetadata1.BillIdentifiers, tx1.UnitID())
-	require.Contains(t, dcMetadata1.BillIdentifiers, tx2.UnitID())
-
-	dcMetadata2, err := service.GetDCMetadata(nonce2)
-	require.NoError(t, err)
-	require.Equal(t, tx3Value, dcMetadata2.DCSum)
-	require.Len(t, dcMetadata2.BillIdentifiers, 1)
-	require.Contains(t, dcMetadata2.BillIdentifiers, tx3.UnitID())
-}
-
 func Test_extractOwnerFromProof(t *testing.T) {
 	sig := test.RandomBytes(65)
 	pubkey := test.RandomBytes(33)

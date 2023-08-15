@@ -742,10 +742,10 @@ func splitTxAttr(pubKeyHash []byte, amount uint64, remainingValue uint64) []byte
 
 func swapTxAttr(pubKeyHash []byte) []byte {
 	attr := &money.SwapDCAttributes{
-		OwnerCondition: script.PredicatePayToPublicKeyHashDefault(pubKeyHash),
-		DcTransfers:    []*types.TransactionRecord{},
-		Proofs:         []*types.TxProof{},
-		TargetValue:    100,
+		OwnerCondition:   script.PredicatePayToPublicKeyHashDefault(pubKeyHash),
+		DcTransfers:      []*types.TransactionRecord{},
+		DcTransferProofs: []*types.TxProof{},
+		TargetValue:      100,
 	}
 	attrBytes, _ := cbor.Marshal(attr)
 	return attrBytes

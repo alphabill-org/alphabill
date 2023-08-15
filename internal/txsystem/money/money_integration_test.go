@@ -205,10 +205,10 @@ func TestPartition_SwapDCOk(t *testing.T) {
 
 	// create swap order
 	swapAttr := &SwapDCAttributes{
-		OwnerCondition: script.PredicatePayToPublicKeyHashDefault(decodeAndHashHex(pubKey1)),
-		DcTransfers:    dcRecords,
-		Proofs:         dcRecordsProofs,
-		TargetValue:    sum,
+		OwnerCondition:   script.PredicatePayToPublicKeyHashDefault(decodeAndHashHex(pubKey1)),
+		DcTransfers:      dcRecords,
+		DcTransferProofs: dcRecordsProofs,
+		TargetValue:      sum,
 	}
 	swapBytes, err := cbor.Marshal(swapAttr)
 	require.NoError(t, err)

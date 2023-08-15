@@ -365,37 +365,6 @@ func (s *boltBillStoreTx) SetSystemDescriptionRecords(sdrs []*genesis.SystemDesc
 	}, true)
 }
 
-func (s *boltBillStoreTx) GetDCMetadata(nonce []byte) (*DCMetadata, error) {
-	var data *DCMetadata
-	err := s.withTx(s.tx, func(tx *bolt.Tx) error {
-		dcBytes := tx.Bucket(dcBucket).Get(nonce)
-		if dcBytes == nil {
-			return nil
-		}
-		return json.Unmarshal(dcBytes, &data)
-	}, false)
-	if err != nil {
-		return nil, err
-	}
-	return data, nil
-}
-
-func (s *boltBillStoreTx) SetDCMetadata(nonce []byte, data *DCMetadata) error {
-	return s.withTx(s.tx, func(tx *bolt.Tx) error {
-		dcBytes, err := json.Marshal(data)
-		if err != nil {
-			return err
-		}
-		return tx.Bucket(dcBucket).Put(nonce, dcBytes)
-	}, true)
-}
-
-func (s *boltBillStoreTx) DeleteDCMetadata(nonce []byte) error {
-	return s.withTx(s.tx, func(tx *bolt.Tx) error {
-		return tx.Bucket(dcBucket).Delete(nonce)
-	}, true)
-}
-
 func (s *boltBillStoreTx) removeUnit(tx *bolt.Tx, unitID []byte) error {
 	unit, err := s.getUnit(tx, unitID)
 	if err != nil {

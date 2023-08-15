@@ -36,10 +36,10 @@ type (
 	}
 
 	SwapDCAttributes struct {
-		_              struct{} `cbor:",toarray"`
-		OwnerCondition []byte
-		DcTransfers    []*types.TransactionRecord
-		Proofs         []*types.TxProof
-		TargetValue    uint64 // value added to target bill
+		_                struct{} `cbor:",toarray"`
+		OwnerCondition   []byte
+		DcTransfers      []*types.TransactionRecord
+		DcTransferProofs []*types.TxProof
+		TargetValue      uint64 // value added to target bill
 	}
 )

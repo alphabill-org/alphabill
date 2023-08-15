@@ -28,9 +28,8 @@ type (
 
 	// TODO: perhaps pass the total number of elements in a response header
 	ListBillsResponse struct {
-		Total      int                    `json:"total" example:"1"`
-		Bills      []*sdk.Bill            `json:"bills"`
-		DCMetadata map[string]*DCMetadata `json:"dcMetadata,omitempty"`
+		Total int         `json:"total" example:"1"`
+		Bills []*sdk.Bill `json:"bills"`
 	}
 
 	BalanceResponse struct {
@@ -109,15 +108,6 @@ func (api *moneyRestAPI) listBillsFunc(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
-	var includeDCMetadata bool
-	if r.URL.Query().Has("includeDcMetadata") {
-		includeDCMetadata, err = strconv.ParseBool(r.URL.Query().Get("includeDcMetadata"))
-		if err != nil {
-			log.Debug("error parsing GET /list-bills request: ", err)
-			w.WriteHeader(http.StatusBadRequest)
-			return
-		}
-	}
 	bills, err := api.Service.GetBills(pk)
 	if err != nil {
 		log.Error("error on GET /list-bills: ", err)
@@ -125,7 +115,6 @@ func (api *moneyRestAPI) listBillsFunc(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var filteredBills []*sdk.Bill
-	var dcMetadataMap map[string]*DCMetadata
 	for _, b := range bills {
 		// filter zero value bills
 		if b.Value == 0 {
@@ -135,20 +124,6 @@ func (api *moneyRestAPI) listBillsFunc(w http.ResponseWriter, r *http.Request) {
 		if b.IsDCBill() {
 			if !includeDCBills {
 				continue
-			}
-			if includeDCMetadata {
-				if dcMetadataMap == nil {
-					dcMetadataMap = make(map[string]*DCMetadata)
-				}
-				if dcMetadataMap[string(b.TargetUnitID)] == nil {
-					dcMetadata, err := api.Service.GetDCMetadata(b.TargetUnitID)
-					if err != nil {
-						log.Error("error on GET /list-bills: ", err)
-						w.WriteHeader(http.StatusInternalServerError)
-						return
-					}
-					dcMetadataMap[string(b.TargetUnitID)] = dcMetadata
-				}
 			}
 		}
 		filteredBills = append(filteredBills, b.ToGenericBill())
@@ -174,9 +149,8 @@ func (api *moneyRestAPI) listBillsFunc(w http.ResponseWriter, r *http.Request) {
 	}
 
 	api.rw.WriteResponse(w, &ListBillsResponse{
-		Bills:      filteredBills[offset : offset+limit],
-		Total:      len(filteredBills),
-		DCMetadata: dcMetadataMap,
+		Bills: filteredBills[offset : offset+limit],
+		Total: len(filteredBills),
 	})
 }
 

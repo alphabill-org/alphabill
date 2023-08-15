@@ -182,7 +182,7 @@ func createBlockProofResponseForDustTransfer(t *testing.T, b *wallet.Bill, targe
 	return txProof
 }
 
-func createBillListResponse(bills []*wallet.Bill, dcMetadata map[string]*backend.DCMetadata) *backend.ListBillsResponse {
+func createBillListResponse(bills []*wallet.Bill) *backend.ListBillsResponse {
 	billVMs := make([]*wallet.Bill, len(bills))
 	for i, b := range bills {
 		billVMs[i] = &wallet.Bill{
@@ -194,12 +194,12 @@ func createBillListResponse(bills []*wallet.Bill, dcMetadata map[string]*backend
 			LastAddFCTxHash:    b.LastAddFCTxHash,
 		}
 	}
-	return &backend.ListBillsResponse{Bills: billVMs, Total: len(bills), DCMetadata: dcMetadata}
+	return &backend.ListBillsResponse{Bills: billVMs, Total: len(bills)}
 }
 
 type backendAPIMock struct {
 	getBalance       func(pubKey []byte, includeDCBills bool) (uint64, error)
-	listBills        func(pubKey []byte, includeDCBills, includeDCMetadata bool) (*backend.ListBillsResponse, error)
+	listBills        func(pubKey []byte, includeDCBills bool) (*backend.ListBillsResponse, error)
 	getBills         func(pubKey []byte) ([]*wallet.Bill, error)
 	getRoundNumber   func() (uint64, error)
 	getTxProof       func(ctx context.Context, unitID wallet.UnitID, txHash wallet.TxHash) (*wallet.Proof, error)
@@ -243,9 +243,9 @@ func (b *backendAPIMock) GetBalance(ctx context.Context, pubKey []byte, includeD
 	return 0, errors.New("getBalance not implemented")
 }
 
-func (b *backendAPIMock) ListBills(ctx context.Context, pubKey []byte, includeDCBills, includeDCMetadata bool) (*backend.ListBillsResponse, error) {
+func (b *backendAPIMock) ListBills(ctx context.Context, pubKey []byte, includeDCBills bool) (*backend.ListBillsResponse, error) {
 	if b.listBills != nil {
-		return b.listBills(pubKey, includeDCBills, includeDCMetadata)
+		return b.listBills(pubKey, includeDCBills)
 	}
 	return nil, errors.New("listBills not implemented")
 }

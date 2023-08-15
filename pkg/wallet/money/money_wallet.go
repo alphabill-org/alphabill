@@ -44,7 +44,7 @@ type (
 
 	BackendAPI interface {
 		GetBalance(ctx context.Context, pubKey []byte, includeDCBills bool) (uint64, error)
-		ListBills(ctx context.Context, pubKey []byte, includeDCBills, includeDCMetadata bool) (*backend.ListBillsResponse, error)
+		ListBills(ctx context.Context, pubKey []byte, includeDCBills bool) (*backend.ListBillsResponse, error)
 		GetBills(ctx context.Context, pubKey []byte) ([]*wallet.Bill, error)
 		GetRoundNumber(ctx context.Context) (uint64, error)
 		GetFeeCreditBill(ctx context.Context, unitID wallet.UnitID) (*wallet.Bill, error)
@@ -105,8 +105,9 @@ func (w *Wallet) Close() {
 	w.feeManager.Close()
 }
 
-// CollectDust starts the dust collector process for the requested accounts in the wallet. Dust collection process joins
-// up to N units into existing target unit. The largest unit in wallet is selected as the target unit.
+// CollectDust starts the dust collector process for the requested accounts in the wallet.
+// Dust collection process joins up to N units into existing target unit, prioritizing small units first.
+// The largest unit in wallet is selected as the target unit.
 // If accountNumber is equal to 0 then dust collection is run for all accounts, returns list of swap tx proofs indexed
 // by account indices, the proof can be nil if no swap tx was sent e.g. if there's not enough bills to swap.
 // If accountNumber is greater than 0 then dust collection is run only for the specific account, returns single swap tx

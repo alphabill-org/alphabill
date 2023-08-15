@@ -45,8 +45,8 @@ func NewDustCollector(systemID []byte, maxBillsPerDC int, backend BackendAPI, un
 	}
 }
 
-// CollectDust joins up to N units into existing target unit. The largest unit is selected as the target unit.
-// Returns swap transaction proof or error or nil if there's not enough bills to swap.
+// CollectDust joins up to N units into existing target unit, prioritizing small units first. The largest unit is
+// selected as the target unit. Returns swap transaction proof or error or nil if there's not enough bills to swap.
 func (w *DustCollector) CollectDust(ctx context.Context, accountKey *account.AccountKey) (*wallet.Proof, error) {
 	proof, err := w.runExistingDustCollection(ctx, accountKey)
 	if err != nil {
@@ -134,14 +134,14 @@ func (w *DustCollector) runDustCollection(ctx context.Context, accountKey *accou
 		log.Info("account has less than two unlocked bills, skipping dust collection")
 		return nil, nil
 	}
-	// sort bills by value largest first
+	// sort bills by value smallest first
 	sort.Slice(bills, func(i, j int) bool {
-		return bills[i].Value > bills[j].Value
+		return bills[i].Value < bills[j].Value
 	})
-	// use the first bill as target
-	targetBill := bills[0]
-	billCountToSwap := util.Min(w.maxBillsPerDC, len(bills))
-	return w.submitDCBatch(ctx, accountKey, targetBill, bills[1:billCountToSwap])
+	// use the largest bill as target
+	targetBill := bills[len(bills)-1]
+	billCountToSwap := util.Min(w.maxBillsPerDC, len(bills)-1)
+	return w.submitDCBatch(ctx, accountKey, targetBill, bills[:billCountToSwap])
 }
 
 func (w *DustCollector) filterLockedBills(bills []*wallet.Bill) ([]*wallet.Bill, error) {
@@ -159,7 +159,7 @@ func (w *DustCollector) filterLockedBills(bills []*wallet.Bill) ([]*wallet.Bill,
 }
 
 func (w *DustCollector) fetchDCProofsForTargetUnit(ctx context.Context, k *account.AccountKey, targetUnit *unitlock.LockedUnit) ([]*wallet.Proof, error) {
-	billsResponse, err := w.backend.ListBills(ctx, k.PubKey, true, false)
+	billsResponse, err := w.backend.ListBills(ctx, k.PubKey, true)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch bills: %w", err)
 	}

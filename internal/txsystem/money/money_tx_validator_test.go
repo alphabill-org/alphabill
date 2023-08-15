@@ -335,9 +335,9 @@ func TestTransferFC(t *testing.T) {
 			wantErr: ErrTargetRecordIDNil,
 		},
 		{
-			name:    "AdditionTime invalid",
-			bd:      newBillData(101, backlink),
-			tx:      testfc.NewTransferFC(t, testfc.NewTransferFCAttr(
+			name: "AdditionTime invalid",
+			bd:   newBillData(101, backlink),
+			tx: testfc.NewTransferFC(t, testfc.NewTransferFCAttr(
 				testfc.WithEarliestAdditionTime(2),
 				testfc.WithLatestAdditionTime(1),
 			)),
@@ -516,10 +516,10 @@ func newInvalidTargetValueSwap(t *testing.T) *types.TransactionOrder {
 		testtransaction.WithPayloadType(PayloadTypeSwapDC),
 		testtransaction.WithUnitId(swapId),
 		testtransaction.WithAttributes(&SwapDCAttributes{
-			OwnerCondition: script.PredicateAlwaysTrue(),
-			DcTransfers:    []*types.TransactionRecord{transferDCRecord},
-			Proofs:         []*types.TxProof{nil},
-			TargetValue:    100,
+			OwnerCondition:   script.PredicateAlwaysTrue(),
+			DcTransfers:      []*types.TransactionRecord{transferDCRecord},
+			DcTransferProofs: []*types.TxProof{nil},
+			TargetValue:      100,
 		}),
 		testtransaction.WithClientMetadata(&types.ClientMetadata{
 			Timeout:           100,
@@ -547,10 +547,10 @@ func newInvalidNonceSwap(t *testing.T, signer abcrypto.Signer) *types.Transactio
 		testtransaction.WithPayloadType(PayloadTypeSwapDC),
 		testtransaction.WithUnitId(swapId),
 		testtransaction.WithAttributes(&SwapDCAttributes{
-			OwnerCondition: script.PredicateAlwaysTrue(),
-			DcTransfers:    []*types.TransactionRecord{transferDCRecord},
-			Proofs:         []*types.TxProof{testblock.CreateProof(t, transferDCRecord, signer)},
-			TargetValue:    100,
+			OwnerCondition:   script.PredicateAlwaysTrue(),
+			DcTransfers:      []*types.TransactionRecord{transferDCRecord},
+			DcTransferProofs: []*types.TxProof{testblock.CreateProof(t, transferDCRecord, signer)},
+			TargetValue:      100,
 		}),
 		testtransaction.WithClientMetadata(&types.ClientMetadata{
 			Timeout:           100,
@@ -598,10 +598,10 @@ func newDescBillOrderSwap(t *testing.T, signer abcrypto.Signer) *types.Transacti
 		testtransaction.WithPayloadType(PayloadTypeSwapDC),
 		testtransaction.WithUnitId(swapId),
 		testtransaction.WithAttributes(&SwapDCAttributes{
-			OwnerCondition: script.PredicateAlwaysTrue(),
-			DcTransfers:    dcTransfers,
-			Proofs:         proofs,
-			TargetValue:    200,
+			OwnerCondition:   script.PredicateAlwaysTrue(),
+			DcTransfers:      dcTransfers,
+			DcTransferProofs: proofs,
+			TargetValue:      200,
 		}),
 		testtransaction.WithClientMetadata(&types.ClientMetadata{
 			Timeout:           100,
@@ -635,10 +635,10 @@ func newEqualBillIdsSwap(t *testing.T, signer abcrypto.Signer) *types.Transactio
 		testtransaction.WithPayloadType(PayloadTypeSwapDC),
 		testtransaction.WithUnitId(swapId),
 		testtransaction.WithAttributes(&SwapDCAttributes{
-			OwnerCondition: script.PredicateAlwaysTrue(),
-			DcTransfers:    dcTransfers,
-			Proofs:         proofs,
-			TargetValue:    200,
+			OwnerCondition:   script.PredicateAlwaysTrue(),
+			DcTransfers:      dcTransfers,
+			DcTransferProofs: proofs,
+			TargetValue:      200,
 		}),
 		testtransaction.WithClientMetadata(&types.ClientMetadata{
 			Timeout:           100,
@@ -691,10 +691,10 @@ func newDcProofsNilSwap(t *testing.T) *types.TransactionOrder {
 		testtransaction.WithPayloadType(PayloadTypeSwapDC),
 		testtransaction.WithUnitId(swapId),
 		testtransaction.WithAttributes(&SwapDCAttributes{
-			OwnerCondition: script.PredicateAlwaysTrue(),
-			DcTransfers:    []*types.TransactionRecord{transferDCRecord},
-			Proofs:         nil,
-			TargetValue:    100,
+			OwnerCondition:   script.PredicateAlwaysTrue(),
+			DcTransfers:      []*types.TransactionRecord{transferDCRecord},
+			DcTransferProofs: nil,
+			TargetValue:      100,
 		}),
 		testtransaction.WithClientMetadata(&types.ClientMetadata{
 			Timeout:           100,
@@ -723,10 +723,10 @@ func newEmptyDcProofsSwap(t *testing.T) *types.TransactionOrder {
 		testtransaction.WithPayloadType(PayloadTypeSwapDC),
 		testtransaction.WithUnitId(swapId),
 		testtransaction.WithAttributes(&SwapDCAttributes{
-			OwnerCondition: script.PredicateAlwaysTrue(),
-			DcTransfers:    []*types.TransactionRecord{transferDCRecord},
-			Proofs:         []*types.TxProof{{BlockHeaderHash: []byte{0}}},
-			TargetValue:    100,
+			OwnerCondition:   script.PredicateAlwaysTrue(),
+			DcTransfers:      []*types.TransactionRecord{transferDCRecord},
+			DcTransferProofs: []*types.TxProof{{BlockHeaderHash: []byte{0}}},
+			TargetValue:      100,
 		}),
 		testtransaction.WithClientMetadata(&types.ClientMetadata{
 			Timeout:           100,
@@ -765,10 +765,10 @@ func createSwapDCTransactionOrder(t *testing.T, signer abcrypto.Signer, swapId [
 		testtransaction.WithPayloadType(PayloadTypeSwapDC),
 		testtransaction.WithUnitId(swapId),
 		testtransaction.WithAttributes(&SwapDCAttributes{
-			OwnerCondition: script.PredicateAlwaysTrue(),
-			DcTransfers:    transferDCRecords,
-			Proofs:         proofs,
-			TargetValue:    100,
+			OwnerCondition:   script.PredicateAlwaysTrue(),
+			DcTransfers:      transferDCRecords,
+			DcTransferProofs: proofs,
+			TargetValue:      100,
 		}),
 		testtransaction.WithClientMetadata(&types.ClientMetadata{
 			Timeout:           100,

@@ -116,10 +116,10 @@ func NewSwapTx(k *account.AccountKey, systemID []byte, dcProofs []*wallet.Proof,
 		billValueSum += attr.Value
 	}
 	attr := &money.SwapDCAttributes{
-		OwnerCondition: script.PredicatePayToPublicKeyHashDefault(k.PubKeyHash.Sha256),
-		DcTransfers:    dustTransferRecords,
-		Proofs:         dustTransferProofs,
-		TargetValue:    billValueSum,
+		OwnerCondition:   script.PredicatePayToPublicKeyHashDefault(k.PubKeyHash.Sha256),
+		DcTransfers:      dustTransferRecords,
+		DcTransferProofs: dustTransferProofs,
+		TargetValue:      billValueSum,
 	}
 	swapTx, err := newTxPayload(systemID, money.PayloadTypeSwapDC, targetUnitID, timeout, k.PubKeyHash.Sha256, attr)
 	if err != nil {

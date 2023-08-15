@@ -206,71 +206,63 @@ split.
 ##### Transfer Bill to Dust Collector
 
 This transaction transfers a bill to a special owner - Dust Collector
-(DC). After transferring multiple bills to DC, a single, larger-value
-bill can be obtained from DC with the [Swap Bills With Dust
-Collector](#swap-bills-with-dust-collector) transaction. The set of
-bills being swapped needs to be decided beforehand, as the *UnitID* of
-the new bill obtained from DC is calculated from the *UnitID*s of the
-bills being swapped, and specified in the *Nonce* attribute of this
-transaction.
+(DC). After transferring multiple bills to DC, the transferred bills 
+can be joined into an existing bill DC with the [Swap Bills With Dust
+Collector](#swap-bills-with-dust-collector) transaction. The target bill 
+must be chosen beforehand and should not be used between the transactions.
 
-Dust is not defined, any bills can be transferred to DC and swapped
-for a larger-value bill.
+Dust is not defined, any bills can be transferred to DC and joined into
+a larger-value bill.
 
 *TransactionOrder*.*Payload*.*Type* = "transDC"\
 *TransactionOrder*.*Payload*.*Attributes* contains:
 ```
 /transDCAttributes/ [
-    /Nonce/       h'',
-    /TargetOwner/ h'',
-    /TargetValue/ 999999899999999996,
+    /Value/ 999999899999999996,
+    /TargetUnitID/ h'',
+    /TargetUnitBacklink/ h'',
     /Backlink/    h'2C8E1F55FC20A44687AB5D18D11F5E3544D2989DFFBB8250AA6EBA5EF4CEC319'
 ]
 ```
 
-1. *Nonce* (byte string) is the *UnitID* of the new bill to be
-   obtained from DC with the [Swap Bills With Dust
-   Collector](#swap-bills-with-dust-collector) transaction. Calculated
-   as the hash of concatenated *UnitID*s of the bills being swapped,
-   sorted in ascending order.
-2. *TargetOwner* (byte string) is the owner condition of the new bill
-   later obtained with the [Swap Bills With Dust
-   Collector](#swap-bills-with-dust-collector) transaction.
-3. *TargetValue* (unsigned integer) is the value of the bill
+1. *Value* (unsigned integer) is the value of the bill
    transferred to DC with this transaction.
+2. *TargetUnitID* (byte string) is the *UnitID* of the target bill for the
+   [Swap Bills With Dust Collector](#swap-bills-with-dust-collector) 
+   transaction.
+3. *TargetUnitBacklink* (byte string) is the *Backlink* of the target bill 
+   for the [Swap Bills With Dust Collector](#swap-bills-with-dust-collector) 
+   transaction.
 4. *Backlink* (byte string) is the backlink to the previous transaction
    with the bill.
 
 ##### Swap Bills With Dust Collector
 
-This transaction swaps the bills previously [transferred to
-DC](#transfer-bill-to-dust-collector) for a new, larger-value bill.
+This transaction joins the bills previously [transferred to
+DC](#transfer-bill-to-dust-collector) into a target bill.
 
 *TransactionOrder*.*Payload*.*Type* = "swapDC"\
 *TransactionOrder*.*Payload*.*Attributes* contains:
 ```
 /swapDCAttributes/ [
-    /TargetOwner/      h'',
-    /BillIdentifiers/  [h''],
+    /OwnerCondition/   h'',
     /DcTransfers/      [/omitted/],
     /DcTransferProofs/ [/omitted/],
     /TargetValue/      3
 ]
 ```
 
-1. *TargetOwner* (byte string) is the owner condition of the new bill.
-2. *BillIdentifiers* (array of byte strings) is a variable length
-   array of bill identifiers that are being swapped.
-3. *DcTransfers* (array) is an array of [Transfer Bill to Dust
+1. *OwnerCondition* (byte string) is the new owner condition of the target bill.
+2. *DcTransfers* (array) is an array of [Transfer Bill to Dust
    Collector](#transfer-bill-to-dust-collector) transaction records
    ordered in strictly increasing order of bill identifiers.
-4. *DcTransferProofs* (array) is an array of [Transfer Bill to Dust
+3. *DcTransferProofs* (array) is an array of [Transfer Bill to Dust
    Collector](#transfer-bill-to-dust-collector) transaction proofs.
    The order of this array must match the order of *DcTransfers*
    array, so that a transaction and its corresponding proof have the
    same index.
-5. *TargetValue* (unsigned integer) is the value of the new bill and
-   must be equal to the sum of the values of the bills transferred to
+4. *TargetValue* (unsigned integer) is the value added to the target bill 
+   and must be equal to the sum of the values of the bills transferred to
    DC for this swap.
 
 ##### Transfer to Fee Credit

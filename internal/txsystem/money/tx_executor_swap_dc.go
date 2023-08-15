@@ -132,8 +132,8 @@ func (c *swapValidationContext) validateSwapTx() error {
 		return fmt.Errorf("target value must be equal to the sum of dust transfer values: expected %d vs provided %d", sum, c.attr.TargetValue)
 	}
 
-	if len(dustTransfers) != len(c.attr.Proofs) {
-		return fmt.Errorf("invalid count of proofs: expected %d vs provided %d", len(dustTransfers), len(c.attr.Proofs))
+	if len(dustTransfers) != len(c.attr.DcTransferProofs) {
+		return fmt.Errorf("invalid count of proofs: expected %d vs provided %d", len(dustTransfers), len(c.attr.DcTransferProofs))
 	}
 	for i, dcTx := range dustTransfers {
 		// 4. transfers were in the money partition
@@ -157,7 +157,7 @@ func (c *swapValidationContext) validateSwapTx() error {
 
 		}
 		// 9. transaction proofs of the bill transfer orders verify
-		if err := types.VerifyTxProof(c.attr.Proofs[i], dcTx.tx, c.trustBase, c.hashAlgorithm); err != nil {
+		if err := types.VerifyTxProof(c.attr.DcTransferProofs[i], dcTx.tx, c.trustBase, c.hashAlgorithm); err != nil {
 			return fmt.Errorf("proof is not valid: %w", err)
 		}
 	}

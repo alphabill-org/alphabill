@@ -598,10 +598,10 @@ func createDCTransferAndSwapTxs(
 	}
 
 	bt := &SwapDCAttributes{
-		OwnerCondition: script.PredicateAlwaysTrue(),
-		DcTransfers:    dcTransfers,
-		Proofs:         proofs,
-		TargetValue:    targetValue,
+		OwnerCondition:   script.PredicateAlwaysTrue(),
+		DcTransfers:      dcTransfers,
+		DcTransferProofs: proofs,
+		TargetValue:      targetValue,
 	}
 	rawBytes, err := cbor.Marshal(bt)
 	require.NoError(t, err)

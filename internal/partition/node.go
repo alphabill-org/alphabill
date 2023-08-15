@@ -89,6 +89,7 @@ type (
 		txCancel                    context.CancelFunc
 		txWaitGroup                 *sync.WaitGroup
 		txCh                        chan *types.TransactionOrder
+		timeoutCh                   chan struct{}
 		eventCh                     chan event.Event
 		lastLedgerReqTime           time.Time
 		eventHandler                event.Handler
@@ -157,6 +158,7 @@ func New(
 		txWaitGroup:                 &sync.WaitGroup{},
 		lastLedgerReqTime:           time.Time{},
 		txCh:                        make(chan *types.TransactionOrder, conf.txBuffer.Capacity()),
+		timeoutCh:                   make(chan struct{}, 1),
 	}
 
 	n.status.Store(initializing)
@@ -403,6 +405,12 @@ func (n *Node) loop(ctx context.Context) error {
 			default:
 				logger.Warning("Unknown network protocol: %s %T", m.Protocol, mt)
 			}
+		case _, ok := <-n.timeoutCh:
+			if !ok {
+				logger.Warning("Timeout channel closed, exiting main loop")
+				return fmt.Errorf("'timeout' channel is closed")
+			}
+			n.handleT1TimeoutEvent()
 		case <-ticker.C:
 			n.handleMonitoring(lastRootMsgTime)
 		}
@@ -1219,7 +1227,7 @@ func (n *Node) startHandleOrForwardTransactions(ctx context.Context) {
 	go func() {
 		select {
 		case <-time.After(n.configuration.t1Timeout):
-			n.handleT1TimeoutEvent()
+			n.timeoutCh <- struct{}{}
 		case <-txCtx.Done():
 		}
 	}()

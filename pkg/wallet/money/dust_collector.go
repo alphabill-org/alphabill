@@ -11,6 +11,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/common/hexutil"
 
+	"github.com/alphabill-org/alphabill/internal/txsystem/money"
 	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/alphabill-org/alphabill/pkg/wallet/account"
@@ -70,16 +71,20 @@ func (w *DustCollector) runExistingDustCollection(ctx context.Context, accountKe
 	log.Info("locked dc unit found for unit=", lockedTargetBill.UnitID)
 
 	// verify locked unit not confirmed i.e. swap not already completed
-	proof, err := w.backend.GetTxProof(ctx, lockedTargetBill.UnitID, lockedTargetBill.TxHash)
-	if err != nil {
-		return nil, fmt.Errorf("failed to fetch proof: %w", err)
-	}
-	if proof != nil {
-		// if it's confirmed unlock the unit and return swap proof
-		if err := w.unitlocker.UnlockUnit(lockedTargetBill.UnitID); err != nil {
-			return nil, fmt.Errorf("failed to unlock unit: %w", err)
+	for _, tx := range lockedTargetBill.Transactions {
+		if tx.PayloadType == money.PayloadTypeSwapDC {
+			proof, err := w.backend.GetTxProof(ctx, tx.TxOrder.UnitID(), tx.TxHash)
+			if err != nil {
+				return nil, fmt.Errorf("failed to fetch proof: %w", err)
+			}
+			if proof != nil {
+				// if it's confirmed unlock the unit and return swap proof
+				if err := w.unitlocker.UnlockUnit(lockedTargetBill.UnitID); err != nil {
+					return nil, fmt.Errorf("failed to unlock unit: %w", err)
+				}
+				return proof, nil
+			}
 		}
-		return proof, nil
 	}
 
 	// verify locked unit still usable
@@ -94,6 +99,7 @@ func (w *DustCollector) runExistingDustCollection(ctx context.Context, accountKe
 		}
 		return nil, nil
 	}
+	log.Info("locked unit still valid")
 
 	// wait for tx timeouts
 	for _, tx := range lockedTargetBill.Transactions {
@@ -110,9 +116,9 @@ func (w *DustCollector) runExistingDustCollection(ctx context.Context, accountKe
 	}
 	// if any proof found, swap them
 	if len(proofs) > 0 {
-		return w.swapDCBills(ctx, accountKey, proofs, lockedTargetBill.UnitID)
+		return w.swapDCBills(ctx, accountKey, proofs, lockedTargetBill)
 	}
-	// if no unit found, run normal DC
+	// if no proofs found, run normal DC
 	log.Info("no dust txs confirmed, unlocking target unit")
 	if err := w.unitlocker.UnlockUnit(lockedTargetBill.UnitID); err != nil {
 		return nil, fmt.Errorf("failed to unlock unit: %w", err)
@@ -213,7 +219,7 @@ func (w *DustCollector) submitDCBatch(ctx context.Context, k *account.AccountKey
 	}
 	txsCost := tx_builder.MaxFee * uint64(len(billsToSwap)+1) // +1 for swap
 	if fcb.GetValue() < txsCost {
-		return nil, fmt.Errorf("insufficient fee credit balance for transactions: need at least %d Tema, "+
+		return nil, fmt.Errorf("insufficient fee credit balance for transactions: need at least %d Tema "+
 			"but have %d Tema to send swap and %d dust transfer transactions", txsCost, fcb.GetValue(), len(billsToSwap))
 	}
 	dcBatch := txsubmitter.NewBatch(k.PubKey, w.backend)
@@ -232,23 +238,16 @@ func (w *DustCollector) submitDCBatch(ctx context.Context, k *account.AccountKey
 	// lock target unit
 	var lockedUnitTxs []*unitlock.Transaction
 	for _, sub := range dcBatch.Submissions() {
-		lockedUnitTxs = append(lockedUnitTxs, &unitlock.Transaction{
-			TxOrder:     sub.Transaction,
-			PayloadType: sub.Transaction.PayloadType(),
-			Timeout:     sub.Transaction.Timeout(),
-			TxHash:      sub.TxHash,
-		})
+		lockedUnitTxs = append(lockedUnitTxs, unitlock.NewTransaction(sub.Transaction, sub.TxHash))
 	}
-	err = w.unitlocker.LockUnit(&unitlock.LockedUnit{
-		UnitID:       targetBill.Id,
-		LockReason:   unitlock.ReasonCollectDust,
-		Transactions: lockedUnitTxs,
-	})
+	lockedTargetUnit := unitlock.NewLockedUnit(targetBill.Id, targetBill.TxHash, unitlock.ReasonCollectDust, lockedUnitTxs...)
+	err = w.unitlocker.LockUnit(lockedTargetUnit)
 	if err != nil {
 		return nil, fmt.Errorf("failed to lock unit for dc batch: %w", err)
 	}
 
 	// send batch
+	log.Info("submitting dc batch of ", len(dcBatch.Submissions()), " dust transfers")
 	if err := dcBatch.SendTx(ctx, true); err != nil {
 		return nil, fmt.Errorf("failed to send dust transfer transactions: %w", err)
 	}
@@ -258,17 +257,17 @@ func (w *DustCollector) submitDCBatch(ctx context.Context, k *account.AccountKey
 	}
 
 	// send swap tx, return swap proof
-	return w.swapDCBills(ctx, k, proofs, targetBill.GetID())
+	return w.swapDCBills(ctx, k, proofs, lockedTargetUnit)
 }
 
-func (w *DustCollector) swapDCBills(ctx context.Context, k *account.AccountKey, dcProofs []*wallet.Proof, targetUnitID []byte) (*wallet.Proof, error) {
+func (w *DustCollector) swapDCBills(ctx context.Context, k *account.AccountKey, dcProofs []*wallet.Proof, lockedTargetUnit *unitlock.LockedUnit) (*wallet.Proof, error) {
 	timeout, err := w.getTxTimeout(ctx)
 	if err != nil {
 		return nil, err
 	}
 
 	// build tx
-	swapTx, err := tx_builder.NewSwapTx(k, w.systemID, dcProofs, targetUnitID, timeout)
+	swapTx, err := tx_builder.NewSwapTx(k, w.systemID, dcProofs, lockedTargetUnit.UnitID, timeout)
 	if err != nil {
 		return nil, fmt.Errorf("failed to build swap tx: %w", err)
 	}
@@ -282,28 +281,20 @@ func (w *DustCollector) swapDCBills(ctx context.Context, k *account.AccountKey, 
 	}
 	dcBatch.Add(sub)
 
-	// lock unit before sending tx
-	err = w.unitlocker.LockUnit(&unitlock.LockedUnit{
-		UnitID:     targetUnitID,
-		LockReason: unitlock.ReasonCollectDust,
-		Transactions: []*unitlock.Transaction{{
-			TxOrder:     sub.Transaction,
-			PayloadType: sub.Transaction.PayloadType(),
-			Timeout:     sub.Transaction.Timeout(),
-			TxHash:      sub.TxHash,
-		}},
-	})
+	// update locked bill with swap tx
+	lockedTargetUnit.Transactions = []*unitlock.Transaction{unitlock.NewTransaction(sub.Transaction, sub.TxHash)}
+	err = w.unitlocker.LockUnit(lockedTargetUnit)
 	if err != nil {
 		return nil, fmt.Errorf("failed to lock unit for swap tx: %w", err)
 	}
 
 	// send tx
-	log.Info(fmt.Sprintf("sending swap tx: nonce=%s timeout=%d", hexutil.Encode(targetUnitID), timeout))
+	log.Info(fmt.Sprintf("sending swap tx: targetUnitID=%s timeout=%d", hexutil.Encode(lockedTargetUnit.UnitID), timeout))
 	err = dcBatch.SendTx(ctx, true)
 	if err != nil {
 		return nil, fmt.Errorf("failed to send swap tx: %w", err)
 	}
-	if err := w.unitlocker.UnlockUnit(targetUnitID); err != nil {
+	if err := w.unitlocker.UnlockUnit(lockedTargetUnit.UnitID); err != nil {
 		return nil, fmt.Errorf("failed to unlock unit: %w", err)
 	}
 	return sub.Proof, nil

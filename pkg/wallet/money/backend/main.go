@@ -367,11 +367,12 @@ func extractOwnerKeyFromProof(signature sdk.Predicate) sdk.PubKey {
 
 func (b *Bill) ToGenericBill() *sdk.Bill {
 	return &sdk.Bill{
-		Id:              b.Id,
-		Value:           b.Value,
-		TxHash:          b.TxHash,
-		TargetUnitID:    b.TargetUnitID,
-		LastAddFCTxHash: b.LastAddFCTxHash,
+		Id:                 b.Id,
+		Value:              b.Value,
+		TxHash:             b.TxHash,
+		TargetUnitID:       b.TargetUnitID,
+		TargetUnitBacklink: b.TargetUnitBacklink,
+		LastAddFCTxHash:    b.LastAddFCTxHash,
 	}
 }
 

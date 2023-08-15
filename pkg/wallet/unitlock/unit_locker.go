@@ -54,6 +54,24 @@ func NewUnitLocker(dir string) (*UnitLocker, error) {
 	return &UnitLocker{db: store}, nil
 }
 
+func NewLockedUnit(unitID []byte, txHash []byte, lockReason LockReason, transactions ...*Transaction) *LockedUnit {
+	return &LockedUnit{
+		UnitID:       unitID,
+		TxHash:       txHash,
+		LockReason:   lockReason,
+		Transactions: transactions,
+	}
+}
+
+func NewTransaction(txo *types.TransactionOrder, txHash []byte) *Transaction {
+	return &Transaction{
+		TxOrder:     txo,
+		PayloadType: txo.PayloadType(),
+		Timeout:     txo.Timeout(),
+		TxHash:      txHash,
+	}
+}
+
 func (l *UnitLocker) LockUnit(unit *LockedUnit) error {
 	return l.db.PutUnit(unit)
 }

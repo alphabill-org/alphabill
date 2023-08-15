@@ -3,6 +3,7 @@ package money
 import (
 	"bytes"
 	"context"
+	gocrypto "crypto"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -154,8 +155,8 @@ func TestExistingDC_OK(t *testing.T) {
 		targetBill,
 	}
 	proofs := []*wallet.Proof{
-		createProofForDCBill(t, bills[1], targetBill, 10),
-		createProofForDCBill(t, bills[2], targetBill, 10),
+		createProofWithDCTx(t, bills[1], targetBill, 10),
+		createProofWithDCTx(t, bills[2], targetBill, 10),
 	}
 	backendMockWrapper := newBackendAPIMock(t, bills, withProofs(proofs))
 	unitLocker := NewInMemoryUnitLocker()
@@ -232,27 +233,29 @@ func TestExistingDC_UnconfirmedDCTxs_NewSwapIsSent(t *testing.T) {
 	require.Len(t, units, 0)
 }
 
-func TestExistingDC_TargetUnitIsConfirmed_ProofIsReturned(t *testing.T) {
-	// create wallet with locked unit that is confirmed
+func TestExistingDC_TargetUnitSwapIsConfirmed_ProofIsReturned(t *testing.T) {
+	// create wallet with locked unit that has confirmed swap tx
 	ctx := context.Background()
 	bills := []*wallet.Bill{createBill(10)}
 	targetBill := bills[0]
-	proofs := []*wallet.Proof{createProofForNormalBill(t, targetBill)}
+	proofs := []*wallet.Proof{createProofWithSwapTx(t, targetBill)}
 	backendMockWrapper := newBackendAPIMock(t, bills, withProofs(proofs))
 	unitLocker := NewInMemoryUnitLocker()
 	w := NewDustCollector(billtx.DefaultSystemIdentifier, 10, backendMockWrapper.backendMock, unitLocker)
 
-	// when locked unit exists in wallet
 	err := unitLocker.LockUnit(&unitlock.LockedUnit{
-		UnitID:     targetBill.GetID(),
-		TxHash:     targetBill.GetTxHash(),
-		LockReason: unitlock.ReasonCollectDust,
+		UnitID:       targetBill.GetID(),
+		TxHash:       targetBill.GetTxHash(),
+		LockReason:   unitlock.ReasonCollectDust,
+		Transactions: []*unitlock.Transaction{unitlock.NewTransaction(proofs[0].TxRecord.TransactionOrder, proofs[0].TxRecord.TransactionOrder.Hash(gocrypto.SHA256))},
 	})
 	require.NoError(t, err)
 
-	// and dc is run
+	// when dc is run
 	swapProof, err := w.CollectDust(ctx, backendMockWrapper.accountKey)
 	require.NoError(t, err)
+
+	// then confirmed swap proof is returned
 	require.NotNil(t, swapProof)
 	require.Equal(t, proofs[0], swapProof)
 
@@ -274,8 +277,8 @@ func TestExistingDC_TargetUnitIsInvalid_NewSwapIsSent(t *testing.T) {
 		targetBill,
 	}
 	proofs := []*wallet.Proof{
-		createProofForDCBill(t, bills[0], targetBill, 10),
-		createProofForDCBill(t, bills[1], targetBill, 10),
+		createProofWithDCTx(t, bills[0], targetBill, 10),
+		createProofWithDCTx(t, bills[1], targetBill, 10),
 	}
 	backendMockWrapper := newBackendAPIMock(t, bills, withProofs(proofs))
 	unitLocker := NewInMemoryUnitLocker()
@@ -442,28 +445,24 @@ func newBackendAPIMock(t *testing.T, bills []*wallet.Bill, opts ...Option) *dust
 	}
 }
 
-func createProofForDCBill(t *testing.T, b *wallet.Bill, targetBill *wallet.Bill, timeout uint64) *wallet.Proof {
+func createProofWithDCTx(t *testing.T, b *wallet.Bill, targetBill *wallet.Bill, timeout uint64) *wallet.Proof {
 	keys, _ := account.NewKeys("")
 	dcTx, err := txbuilder.NewDustTx(keys.AccountKey, []byte{0, 0, 0, 0}, b, targetBill, timeout)
 	require.NoError(t, err)
-
-	txRecord := &types.TransactionRecord{TransactionOrder: dcTx}
-	txProof := &wallet.Proof{
-		TxRecord: txRecord,
-		TxProof: &types.TxProof{
-			BlockHeaderHash:    []byte{0},
-			Chain:              []*types.GenericChainItem{{Hash: []byte{0}}},
-			UnicityCertificate: &types.UnicityCertificate{InputRecord: &types.InputRecord{RoundNumber: 10}},
-		},
-	}
-	return txProof
+	return createProofForTx(dcTx)
 }
 
-func createProofForNormalBill(t *testing.T, b *wallet.Bill) *wallet.Proof {
+func createProofWithSwapTx(t *testing.T, b *wallet.Bill) *wallet.Proof {
 	txo := testtransaction.NewTransactionOrder(t,
 		testtransaction.WithUnitId(b.GetID()),
+		testtransaction.WithPayloadType(billtx.PayloadTypeSwapDC),
+		testtransaction.WithAttributes(billtx.SwapDCAttributes{}),
 	)
-	txRecord := &types.TransactionRecord{TransactionOrder: txo}
+	return createProofForTx(txo)
+}
+
+func createProofForTx(tx *types.TransactionOrder) *wallet.Proof {
+	txRecord := &types.TransactionRecord{TransactionOrder: tx}
 	txProof := &wallet.Proof{
 		TxRecord: txRecord,
 		TxProof: &types.TxProof{

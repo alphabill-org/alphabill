@@ -113,8 +113,8 @@ func (w *Wallet) Close() {
 // If accountNumber is greater than 0 then dust collection is run only for the specific account, returns single swap tx
 // proof, the proof can be nil e.g. if there's not enough bills to swap.
 func (w *Wallet) CollectDust(ctx context.Context, accountNumber uint64) ([]*wallet.Proof, error) {
+	var swapProofs []*wallet.Proof
 	if accountNumber == 0 {
-		var swapProofs []*wallet.Proof
 		for _, acc := range w.am.GetAll() {
 			accKey, err := w.am.GetAccountKey(acc.AccountIndex)
 			if err != nil {
@@ -126,7 +126,6 @@ func (w *Wallet) CollectDust(ctx context.Context, accountNumber uint64) ([]*wall
 			}
 			swapProofs = append(swapProofs, swapProof)
 		}
-		return swapProofs, nil
 	} else {
 		accKey, err := w.am.GetAccountKey(accountNumber - 1)
 		if err != nil {
@@ -136,8 +135,9 @@ func (w *Wallet) CollectDust(ctx context.Context, accountNumber uint64) ([]*wall
 		if err != nil {
 			return nil, fmt.Errorf("dust collection failed for account number %d: %w", accountNumber, err)
 		}
-		return []*wallet.Proof{swapProof}, err
+		swapProofs = append(swapProofs, swapProof)
 	}
+	return swapProofs, nil
 }
 
 // GetBalance returns sum value of all bills currently owned by the wallet, for given account.

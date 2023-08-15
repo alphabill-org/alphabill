@@ -461,16 +461,18 @@ func execCollectDust(cmd *cobra.Command, config *walletConfig) error {
 		consoleWriter.Println("Failed to collect dust: " + err.Error())
 		return err
 	}
-	if len(swapProofs) > 0 && swapProofs[0] != nil {
-		attr := &moneytx.SwapDCAttributes{}
-		err := swapProofs[0].TxRecord.TransactionOrder.UnmarshalAttributes(attr)
-		if err != nil {
-			return fmt.Errorf("failed to unmarshal swap tx proof: %w", err)
+	for accIdx, swapProof := range swapProofs {
+		if swapProof != nil {
+			attr := &moneytx.SwapDCAttributes{}
+			err := swapProof.TxRecord.TransactionOrder.UnmarshalAttributes(attr)
+			if err != nil {
+				return fmt.Errorf("failed to unmarshal swap tx proof: %w", err)
+			}
+			msg := "Dust collection finished successfully on account %d. Joined %d bills with total value of %d"
+			consoleWriter.Println(fmt.Sprintf(msg, accIdx+1, len(attr.DcTransfers), attr.TargetValue))
+		} else {
+			consoleWriter.Println(fmt.Sprintf("Nothing to swap on account #%d", accIdx+1))
 		}
-		msg := "Dust collection finished successfully. Joined %d bills with total value of %d"
-		consoleWriter.Println(fmt.Sprintf(msg, len(attr.DcTransfers), attr.TargetValue))
-	} else {
-		consoleWriter.Println("Nothing to swap.")
 	}
 	return nil
 }

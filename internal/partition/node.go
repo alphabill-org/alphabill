@@ -1015,13 +1015,14 @@ func (n *Node) handleLedgerReplicationResponse(ctx context.Context, lr *replicat
 }
 
 func (n *Node) sendLedgerReplicationRequest(startingBlockNr uint64) {
+	nodeId := n.leaderSelector.SelfID()
 	req := &replication.LedgerReplicationRequest{
 		SystemIdentifier: n.configuration.GetSystemIdentifier(),
-		NodeIdentifier:   n.leaderSelector.SelfID().String(),
+		NodeIdentifier:   nodeId.String(),
 		BeginBlockNumber: startingBlockNr,
 	}
 	util.WriteTraceJsonLog(logger, "Ledger replication request:", req)
-	peers := n.configuration.peer.Validators()
+	peers := n.configuration.peer.FilterValidators(nodeId)
 	if len(peers) == 0 {
 		logger.Warning("Error sending ledger replication request, no peers")
 	}

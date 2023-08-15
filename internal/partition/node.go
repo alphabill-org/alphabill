@@ -767,8 +767,9 @@ func (n *Node) proposalHash(prop *pendingBlockProposal, uc *types.UnicityCertifi
 
 // finalizeBlock creates the block and adds it to the blockStore.
 func (n *Node) finalizeBlock(b *types.Block) error {
-	defer trackExecutionTime(time.Now(), fmt.Sprintf("Block %v finalization", b.GetRoundNumber()))
-	roundNoInBytes := util.Uint64ToBytes(b.GetRoundNumber())
+	blockNumber := b.GetRoundNumber()
+	defer trackExecutionTime(time.Now(), fmt.Sprintf("Block %v finalization", blockNumber))
+	roundNoInBytes := util.Uint64ToBytes(blockNumber)
 	// persist the block _before_ committing to tx system
 	// if write fails but the round is committed in tx system, there's no way back,
 	// but if commit fails, we just remove the block from the store
@@ -776,8 +777,10 @@ func (n *Node) finalizeBlock(b *types.Block) error {
 		return fmt.Errorf("db write failed, %w", err)
 	}
 	if err := n.transactionSystem.Commit(); err != nil {
-		_ = n.blockStore.Delete(roundNoInBytes)
-		return fmt.Errorf("unable to finalize block %v: %w", b.GetRoundNumber(), err)
+		if err2 := n.blockStore.Delete(roundNoInBytes); err2 != nil {
+			logger.Warning("Unable to delete block %v from store: %w", blockNumber, err2)
+		}
+		return fmt.Errorf("unable to finalize block %v: %w", blockNumber, err)
 	}
 	// cache last stored block, but only if store succeeds
 	// NB! only cache and commit if persist is successful

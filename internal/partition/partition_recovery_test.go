@@ -215,9 +215,9 @@ func TestNode_RecoverBlocks(t *testing.T) {
 	genesisBlock := tp.GetLatestBlock(t)
 
 	system := &testtxsystem.CounterTxSystem{}
-	newBlock1 := createNewBlockOutsideNode(t, tp, system, genesisBlock, false)
-	newBlock2 := createNewBlockOutsideNode(t, tp, system, newBlock1, false)
-	newBlock3 := createNewBlockOutsideNode(t, tp, system, newBlock2, false)
+	newBlock1 := createNewBlockOutsideNode(t, tp, system, genesisBlock, testtransaction.NewTransactionRecord(t))
+	newBlock2 := createNewBlockOutsideNode(t, tp, system, newBlock1, testtransaction.NewTransactionRecord(t))
+	newBlock3 := createNewBlockOutsideNode(t, tp, system, newBlock2, testtransaction.NewTransactionRecord(t))
 
 	// prepare proposal, send "newer" UC, revert state and start recovery
 	tp.SubmitT1Timeout(t)
@@ -287,11 +287,11 @@ func TestNode_RecoverBlocks_withEmptyBlocksChangingState(t *testing.T) {
 	genesisBlock := tp.GetLatestBlock(t)
 
 	system := &testtxsystem.CounterTxSystem{EndBlockChangesState: true}
-	newBlock2 := createNewBlockOutsideNode(t, tp, system, genesisBlock, false)
-	newBlock3 := createNewBlockOutsideNode(t, tp, system, newBlock2, false)
-	newBlock4empty := createNewBlockOutsideNode(t, tp, system, newBlock3, true)
-	newBlock5 := createNewBlockOutsideNode(t, tp, system, newBlock4empty, false)
-	newBlock6empty := createNewBlockOutsideNode(t, tp, system, newBlock5, true)
+	newBlock2 := createNewBlockOutsideNode(t, tp, system, genesisBlock, testtransaction.NewTransactionRecord(t))
+	newBlock3 := createNewBlockOutsideNode(t, tp, system, newBlock2, testtransaction.NewTransactionRecord(t))
+	newBlock4empty := createNewBlockOutsideNode(t, tp, system, newBlock3)
+	newBlock5 := createNewBlockOutsideNode(t, tp, system, newBlock4empty, testtransaction.NewTransactionRecord(t))
+	newBlock6empty := createNewBlockOutsideNode(t, tp, system, newBlock5)
 
 	// prepare proposal, send "newer" UC, revert state and start recovery
 	tp.SubmitT1Timeout(t)
@@ -366,9 +366,9 @@ func TestNode_RecoverSkipsRequiredBlock(t *testing.T) {
 	genesisBlock := tp.GetLatestBlock(t)
 
 	system := &testtxsystem.CounterTxSystem{EndBlockChangesState: true}
-	newBlock2 := createNewBlockOutsideNode(t, tp, system, genesisBlock, true)
-	newBlock3 := createNewBlockOutsideNode(t, tp, system, newBlock2, false)
-	newBlock4 := createNewBlockOutsideNode(t, tp, system, newBlock3, false)
+	newBlock2 := createNewBlockOutsideNode(t, tp, system, genesisBlock)
+	newBlock3 := createNewBlockOutsideNode(t, tp, system, newBlock2, testtransaction.NewTransactionRecord(t))
+	newBlock4 := createNewBlockOutsideNode(t, tp, system, newBlock3, testtransaction.NewTransactionRecord(t))
 
 	// prepare proposal, send "newer" UC, revert state and start recovery
 	tp.SubmitT1Timeout(t)
@@ -427,9 +427,9 @@ func TestNode_RecoverSkipsBlocksAndSendMixedBlocks(t *testing.T) {
 	genesisBlock := tp.GetLatestBlock(t)
 
 	system := &testtxsystem.CounterTxSystem{}
-	newBlock2 := createNewBlockOutsideNode(t, tp, system, genesisBlock, false)
-	newBlock3 := createNewBlockOutsideNode(t, tp, system, newBlock2, false)
-	newBlock4 := createNewBlockOutsideNode(t, tp, system, newBlock3, false)
+	newBlock2 := createNewBlockOutsideNode(t, tp, system, genesisBlock, testtransaction.NewTransactionRecord(t))
+	newBlock3 := createNewBlockOutsideNode(t, tp, system, newBlock2, testtransaction.NewTransactionRecord(t))
+	newBlock4 := createNewBlockOutsideNode(t, tp, system, newBlock3, testtransaction.NewTransactionRecord(t))
 
 	// prepare proposal, send "newer" UC, revert state and start recovery
 	tp.SubmitT1Timeout(t)
@@ -497,11 +497,11 @@ func TestNode_RecoverReceivesInvalidBlock(t *testing.T) {
 	genesisBlock := tp.GetLatestBlock(t)
 
 	system := &testtxsystem.CounterTxSystem{}
-	newBlock2 := createNewBlockOutsideNode(t, tp, system, genesisBlock, false)
-	newBlock3 := createNewBlockOutsideNode(t, tp, system, newBlock2, false)
+	newBlock2 := createNewBlockOutsideNode(t, tp, system, genesisBlock, testtransaction.NewTransactionRecord(t))
+	newBlock3 := createNewBlockOutsideNode(t, tp, system, newBlock2, testtransaction.NewTransactionRecord(t))
 	altBlock3 := copyBlock(t, newBlock3)
 	altBlock3.Transactions = append(altBlock3.Transactions, testtransaction.NewTransactionRecord(t))
-	newBlock4 := createNewBlockOutsideNode(t, tp, system, newBlock3, false)
+	newBlock4 := createNewBlockOutsideNode(t, tp, system, newBlock3, testtransaction.NewTransactionRecord(t))
 
 	// prepare proposal, send "newer" UC, revert state and start recovery
 	tp.SubmitT1Timeout(t)
@@ -552,11 +552,11 @@ func TestNode_RecoverReceivesInvalidBlockNoBlockProposerId(t *testing.T) {
 
 	genesisBlock := tp.GetLatestBlock(t)
 	system := &testtxsystem.CounterTxSystem{}
-	newBlock2 := createNewBlockOutsideNode(t, tp, system, genesisBlock, false)
-	newBlock3 := createNewBlockOutsideNode(t, tp, system, newBlock2, false)
+	newBlock2 := createNewBlockOutsideNode(t, tp, system, genesisBlock, testtransaction.NewTransactionRecord(t))
+	newBlock3 := createNewBlockOutsideNode(t, tp, system, newBlock2, testtransaction.NewTransactionRecord(t))
 	altBlock3 := copyBlock(t, newBlock3)
 	altBlock3.Header.ProposerID = ""
-	newBlock4 := createNewBlockOutsideNode(t, tp, system, newBlock3, false)
+	newBlock4 := createNewBlockOutsideNode(t, tp, system, newBlock3, testtransaction.NewTransactionRecord(t))
 
 	// prepare proposal, send "newer" UC, revert state and start recovery
 	tp.SubmitT1Timeout(t)
@@ -621,9 +621,9 @@ func TestNode_RecoverySimulateStorageFailsOnRecovery(t *testing.T) {
 	t.Cleanup(cancel)
 	StartSingleNodePartition(ctx, t, tp)
 
-	newBlock2 := createNewBlockOutsideNode(t, tp, system, genesisBlock, false)
-	newBlock3 := createNewBlockOutsideNode(t, tp, system, newBlock2, false)
-	newBlock4 := createNewBlockOutsideNode(t, tp, system, newBlock3, false)
+	newBlock2 := createNewBlockOutsideNode(t, tp, system, genesisBlock, testtransaction.NewTransactionRecord(t))
+	newBlock3 := createNewBlockOutsideNode(t, tp, system, newBlock2, testtransaction.NewTransactionRecord(t))
+	newBlock4 := createNewBlockOutsideNode(t, tp, system, newBlock3, testtransaction.NewTransactionRecord(t))
 
 	// prepare proposal, send "newer" UC, revert state and start recovery
 	tp.SubmitUnicityCertificate(newBlock4.UnicityCertificate)
@@ -711,7 +711,7 @@ func TestNode_RecoverySimulateStorageFailsDuringBlockFinalizationOnUC(t *testing
 	tp.mockNet.ResetSentMessages(network.ProtocolHandshake)
 	// root responds with genesis
 	tp.SubmitUnicityCertificate(genesisBlock.UnicityCertificate)
-	newBlock2 := createNewBlockOutsideNode(t, tp, system, genesisBlock, false)
+	newBlock2 := createNewBlockOutsideNode(t, tp, system, genesisBlock, testtransaction.NewTransactionRecord(t))
 	require.Len(t, newBlock2.Transactions, 1)
 	// submit transaction
 	require.NoError(t, tp.SubmitTx(newBlock2.Transactions[0].TransactionOrder))
@@ -788,7 +788,7 @@ func TestNode_CertificationRequestNotSentWhenProposalStoreFails(t *testing.T) {
 	tp.mockNet.ResetSentMessages(network.ProtocolHandshake)
 	// root responds with genesis
 	tp.SubmitUnicityCertificate(genesisBlock.UnicityCertificate)
-	newBlock2 := createNewBlockOutsideNode(t, tp, system, genesisBlock, false)
+	newBlock2 := createNewBlockOutsideNode(t, tp, system, genesisBlock, testtransaction.NewTransactionRecord(t))
 	require.Len(t, newBlock2.Transactions, 1)
 	// mock error situation, every next write will fail with error
 	db.MockWriteError(fmt.Errorf("disk full"))
@@ -843,9 +843,9 @@ func TestNode_RecoverySendInvalidLedgerReplicationReplies(t *testing.T) {
 	genesisBlock := tp.GetLatestBlock(t)
 
 	system := &testtxsystem.CounterTxSystem{}
-	newBlock2 := createNewBlockOutsideNode(t, tp, system, genesisBlock, false)
-	newBlock3 := createNewBlockOutsideNode(t, tp, system, newBlock2, false)
-	newBlock4 := createNewBlockOutsideNode(t, tp, system, newBlock3, false)
+	newBlock2 := createNewBlockOutsideNode(t, tp, system, genesisBlock, testtransaction.NewTransactionRecord(t))
+	newBlock3 := createNewBlockOutsideNode(t, tp, system, newBlock2, testtransaction.NewTransactionRecord(t))
+	newBlock4 := createNewBlockOutsideNode(t, tp, system, newBlock3, testtransaction.NewTransactionRecord(t))
 
 	// prepare proposal, send "newer" UC, revert state and start recovery
 	tp.SubmitT1Timeout(t)
@@ -1083,7 +1083,7 @@ func TestNode_RespondToInvalidReplicationRequest(t *testing.T) {
 	require.ErrorContains(t, tp.partition.handleLedgerReplicationRequest(req), "unknown node, signing public key for id foo not found")
 }
 
-func createNewBlockOutsideNode(t *testing.T, tp *SingleNodePartition, system *testtxsystem.CounterTxSystem, currentBlock *types.Block, makeEmpty bool) *types.Block {
+func createNewBlockOutsideNode(t *testing.T, tp *SingleNodePartition, system *testtxsystem.CounterTxSystem, currentBlock *types.Block, txrs ...*types.TransactionRecord) *types.Block {
 	// simulate new block's state
 	system.BeginBlock(currentBlock.UnicityCertificate.InputRecord.RoundNumber + 1)
 
@@ -1091,12 +1091,10 @@ func createNewBlockOutsideNode(t *testing.T, tp *SingleNodePartition, system *te
 	newBlock := copyBlock(t, currentBlock)
 	newBlock.UnicityCertificate.InputRecord.RoundNumber = currentBlock.UnicityCertificate.InputRecord.RoundNumber + 1
 	newBlock.Header.PreviousBlockHash, _ = currentBlock.Hash(gocrypto.SHA256)
-	if makeEmpty {
-		newBlock.Transactions = make([]*types.TransactionRecord, 0)
-	} else {
-		newBlock.Transactions = make([]*types.TransactionRecord, 1)
-		newBlock.Transactions[0] = testtransaction.NewTransactionRecord(t)
-		_, err := system.Execute(nil)
+	newBlock.Transactions = make([]*types.TransactionRecord, 0)
+	for _, txr := range txrs {
+		newBlock.Transactions = append(newBlock.Transactions, txr)
+		_, err := system.Execute(txr.TransactionOrder)
 		require.NoError(t, err)
 	}
 	state, err := system.EndBlock()
@@ -1128,7 +1126,7 @@ func TestNode_HandleLedgerReplicationResponse_SumOfEarnedFeesMismatch(t *testing
 
 	// create a block with single tx with fee=1 but sumOfEarnedFees=0
 	system := &testtxsystem.CounterTxSystem{}
-	newBlock1 := createNewBlockOutsideNode(t, tp, system, genesisBlock, false)
+	newBlock1 := createNewBlockOutsideNode(t, tp, system, genesisBlock, testtransaction.NewTransactionRecord(t))
 
 	// prepare proposal, send "newer" UC, revert state and start recovery
 	tp.SubmitT1Timeout(t)

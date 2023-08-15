@@ -959,6 +959,8 @@ func (n *Node) handleLedgerReplicationResponse(ctx context.Context, lr *replicat
 		if recoveringRoundNo <= latestProcessedRoundNumber {
 			logger.Debug("Node already has this block %v, skipping block %v", latestProcessedRoundNumber, recoveringRoundNo)
 			continue
+		} else if recoveringRoundNo > latestProcessedRoundNumber+1 {
+			return onError(latestProcessedRoundNumber, fmt.Errorf("node is missing blocks between rounds %v and %v", latestProcessedRoundNumber, recoveringRoundNo))
 		}
 		logger.Debug("Recovering block from round %v", recoveringRoundNo)
 		// make sure it extends current state
@@ -983,7 +985,7 @@ func (n *Node) handleLedgerReplicationResponse(ctx context.Context, lr *replicat
 		}
 		// update DB and last block
 		if err = n.finalizeBlock(b); err != nil {
-			return onError(latestProcessedRoundNumber, fmt.Errorf("block %v persist failed, %w", b.GetRoundNumber(), err))
+			return onError(latestProcessedRoundNumber, fmt.Errorf("block %v persist failed, %w", recoveringRoundNo, err))
 		}
 		latestProcessedRoundNumber = recoveringRoundNo
 		latestStateHash = b.UnicityCertificate.InputRecord.Hash

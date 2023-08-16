@@ -351,7 +351,7 @@ func TestWalletSendFunction_LockedBillIsNotUsed(t *testing.T) {
 	ctx := context.Background()
 
 	// lock the only bill in wallet
-	err := w.unitlocker.LockUnit(&unitlock.LockedUnit{UnitID: util.Uint256ToBytes(unitID)})
+	err := w.unitLocker.LockUnit(&unitlock.LockedUnit{UnitID: util.Uint256ToBytes(unitID)})
 	require.NoError(t, err)
 
 	// test send returns error

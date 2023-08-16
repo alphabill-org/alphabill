@@ -13,11 +13,11 @@ import (
 )
 
 var (
-	ErrTxProofNil          = errors.New("tx proof is nil")
-	ErrInvalidValue        = errors.New("invalid value")
-	ErrMissingTargetUnitID = errors.New("target unit id is missing")
-	ErrInvalidTxHash       = errors.New("bill txHash is not equal to actual transaction hash")
-	ErrInvalidTxType       = errors.New("invalid tx type")
+	ErrTxProofNil            = errors.New("tx proof is nil")
+	ErrInvalidValue          = errors.New("invalid value")
+	ErrMissingDCTargetUnitID = errors.New("dc target unit id is missing")
+	ErrInvalidTxHash         = errors.New("bill txHash is not equal to actual transaction hash")
+	ErrInvalidTxType         = errors.New("invalid tx type")
 )
 
 type (
@@ -29,11 +29,11 @@ type (
 	// used to be protobuf defined Bill struct used as import/export/download/upload unified schema across applications
 	// possibly can be removed as import/export/download/upoad feature was dropped
 	Bill struct {
-		Id                 []byte `json:"id,omitempty"`
-		Value              uint64 `json:"value,omitempty,string"`
-		TxHash             []byte `json:"txHash,omitempty"`
-		TargetUnitID       []byte `json:"targetUnitId,omitempty"`
-		TargetUnitBacklink []byte `json:"targetUnitBacklink,omitempty"`
+		Id                   []byte `json:"id,omitempty"`
+		Value                uint64 `json:"value,omitempty,string"`
+		TxHash               []byte `json:"txHash,omitempty"`
+		DCTargetUnitID       []byte `json:"targetUnitId,omitempty"`
+		DCTargetUnitBacklink []byte `json:"targetUnitBacklink,omitempty"`
 
 		// fcb specific fields
 		// LastAddFCTxHash last add fee credit tx hash
@@ -100,8 +100,8 @@ func (x *Bill) verifyTx(txr *types.TransactionRecord) error {
 	if x.Value != value {
 		return ErrInvalidValue
 	}
-	if isDCTx && x.TargetUnitID == nil {
-		return ErrMissingTargetUnitID
+	if isDCTx && x.DCTargetUnitID == nil {
+		return ErrMissingDCTargetUnitID
 	}
 	if !bytes.Equal(x.TxHash, txr.TransactionOrder.Hash(crypto.SHA256)) {
 		return ErrInvalidTxHash

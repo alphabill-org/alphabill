@@ -49,12 +49,12 @@ type (
 	}
 
 	Bill struct {
-		Id                 []byte `json:"id"`
-		Value              uint64 `json:"value"`
-		TxHash             []byte `json:"txHash"`
-		TargetUnitID       []byte `json:"targetUnitId,omitempty"`
-		TargetUnitBacklink []byte `json:"targetUnitBacklink,omitempty"`
-		OwnerPredicate     []byte `json:"ownerPredicate"`
+		Id                   []byte `json:"id"`
+		Value                uint64 `json:"value"`
+		TxHash               []byte `json:"txHash"`
+		DCTargetUnitID       []byte `json:"dcTargetUnitId,omitempty"`
+		DCTargetUnitBacklink []byte `json:"dcTargetUnitBacklink,omitempty"`
+		OwnerPredicate       []byte `json:"ownerPredicate"`
 
 		// fcb specific fields
 		// LastAddFCTxHash last add fee credit tx hash
@@ -367,12 +367,12 @@ func extractOwnerKeyFromProof(signature sdk.Predicate) sdk.PubKey {
 
 func (b *Bill) ToGenericBill() *sdk.Bill {
 	return &sdk.Bill{
-		Id:                 b.Id,
-		Value:              b.Value,
-		TxHash:             b.TxHash,
-		TargetUnitID:       b.TargetUnitID,
-		TargetUnitBacklink: b.TargetUnitBacklink,
-		LastAddFCTxHash:    b.LastAddFCTxHash,
+		Id:                   b.Id,
+		Value:                b.Value,
+		TxHash:               b.TxHash,
+		DCTargetUnitID:       b.DCTargetUnitID,
+		DCTargetUnitBacklink: b.DCTargetUnitBacklink,
+		LastAddFCTxHash:      b.LastAddFCTxHash,
 	}
 }
 
@@ -407,7 +407,7 @@ func (b *Bill) getLastAddFCTxHash() []byte {
 
 func (b *Bill) IsDCBill() bool {
 	if b != nil {
-		return len(b.TargetUnitID) > 0
+		return len(b.DCTargetUnitID) > 0
 	}
 	return false
 }

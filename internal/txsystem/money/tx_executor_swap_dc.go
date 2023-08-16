@@ -144,11 +144,11 @@ func (c *swapValidationContext) validateSwapTx() error {
 		// 6. transfer orders are listed in strictly increasing order of bill identifiers
 		// (this ensures that no source bill can be included multiple times
 		if i > 0 && !dcTx.id.Gt(dustTransfers[i-1].id) {
-			return errors.New("transfer orders are not listed in strictly increasing order of bill identifiers")
+			return errors.New("dust transfer orders are not listed in strictly increasing order of bill identifiers")
 		}
-		// 7. bill transfer orders contain correct nonces
+		// 7. bill transfer orders contain correct target unit ids
 		if !bytes.Equal(dcTx.attributes.TargetUnitID, c.tx.UnitID()) {
-			return errors.New("dust transfer orders do not contain proper nonce")
+			return errors.New("dust transfer order target unit id is not equal to swap tx unit id")
 		}
 		// 8. bill transfer orders contain correct target backlinks
 		if !bytes.Equal(dcTx.attributes.TargetUnitBacklink, billData.Backlink) {

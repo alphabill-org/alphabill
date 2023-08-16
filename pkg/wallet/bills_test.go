@@ -32,10 +32,10 @@ func TestBillVerifyTransferTx(t *testing.T) {
 	err := b.verifyTx(tx)
 	require.ErrorIs(t, err, ErrInvalidValue)
 
-	// test invalid TargetUnitID
-	b = &Bill{Value: targetValue, TargetUnitID: []byte{0}}
+	// test invalid DCTargetUnitID
+	b = &Bill{Value: targetValue, DCTargetUnitID: []byte{0}}
 	err = b.verifyTx(tx)
-	require.NotErrorIs(t, err, ErrMissingTargetUnitID)
+	require.NotErrorIs(t, err, ErrMissingDCTargetUnitID)
 
 	// test invalid txHash
 	b = &Bill{Value: targetValue}
@@ -64,15 +64,15 @@ func TestBillVerifyDCTransferTx(t *testing.T) {
 	// test invalid DCBillFlag
 	b = &Bill{Value: targetValue}
 	err = b.verifyTx(tx)
-	require.ErrorIs(t, err, ErrMissingTargetUnitID)
+	require.ErrorIs(t, err, ErrMissingDCTargetUnitID)
 
 	// test invalid txHash
-	b = &Bill{Value: targetValue, TargetUnitID: []byte{0}}
+	b = &Bill{Value: targetValue, DCTargetUnitID: []byte{0}}
 	err = b.verifyTx(tx)
 	require.ErrorIs(t, err, ErrInvalidTxHash)
 
 	// test ok
-	b = &Bill{Value: targetValue, TargetUnitID: []byte{0}, TxHash: tx.TransactionOrder.Hash(crypto.SHA256)}
+	b = &Bill{Value: targetValue, DCTargetUnitID: []byte{0}, TxHash: tx.TransactionOrder.Hash(crypto.SHA256)}
 	err = b.verifyTx(tx)
 	require.NoError(t, err)
 }
@@ -95,9 +95,9 @@ func TestBillVerifySplitTransferTx_OldBill(t *testing.T) {
 	require.ErrorIs(t, err, ErrInvalidValue)
 
 	// test invalid DCBillFlag
-	b = &Bill{Id: tx.TransactionOrder.UnitID(), Value: remainingValue, TargetUnitID: []byte{0}}
+	b = &Bill{Id: tx.TransactionOrder.UnitID(), Value: remainingValue, DCTargetUnitID: []byte{0}}
 	err = b.verifyTx(tx)
-	require.NotErrorIs(t, err, ErrMissingTargetUnitID)
+	require.NotErrorIs(t, err, ErrMissingDCTargetUnitID)
 
 	// test invalid txHash
 	b = &Bill{Id: tx.TransactionOrder.UnitID(), Value: remainingValue}
@@ -130,9 +130,9 @@ func TestBillVerifySplitTransferTx_NewBill(t *testing.T) {
 	require.ErrorIs(t, err, ErrInvalidValue)
 
 	// test invalid DCBillFlag
-	b = &Bill{Id: newUnitID, Value: amount, TargetUnitID: []byte{0}}
+	b = &Bill{Id: newUnitID, Value: amount, DCTargetUnitID: []byte{0}}
 	err = b.verifyTx(tx)
-	require.NotErrorIs(t, err, ErrMissingTargetUnitID)
+	require.NotErrorIs(t, err, ErrMissingDCTargetUnitID)
 
 	// test invalid txHash
 	b = &Bill{Id: newUnitID, Value: amount}
@@ -160,9 +160,9 @@ func TestBillVerifySwapTransferTx(t *testing.T) {
 	require.ErrorIs(t, err, ErrInvalidValue)
 
 	// test invalid DCBillFlag
-	b = &Bill{Value: targetValue, TargetUnitID: []byte{0}}
+	b = &Bill{Value: targetValue, DCTargetUnitID: []byte{0}}
 	err = b.verifyTx(tx)
-	require.NotErrorIs(t, err, ErrMissingTargetUnitID)
+	require.NotErrorIs(t, err, ErrMissingDCTargetUnitID)
 
 	// test invalid txHash
 	b = &Bill{Value: targetValue}

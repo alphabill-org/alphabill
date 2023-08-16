@@ -115,8 +115,8 @@ func (p *BlockProcessor) processTx(txr *types.TransactionRecord, b *types.Block,
 		}
 		dcBill.Value = attr.Value
 		dcBill.TxHash = txHash
-		dcBill.TargetUnitID = attr.TargetUnitID
-		dcBill.TargetUnitBacklink = attr.TargetUnitBacklink
+		dcBill.DCTargetUnitID = attr.TargetUnitID
+		dcBill.DCTargetUnitBacklink = attr.TargetUnitBacklink
 		err = dbTx.SetBill(dcBill, proof)
 		if err != nil {
 			return err

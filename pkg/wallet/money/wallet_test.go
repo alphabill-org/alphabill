@@ -30,9 +30,9 @@ func TestExistingWalletCanBeLoaded(t *testing.T) {
 	}))
 	restClient, err := beclient.New(server.URL)
 	require.NoError(t, err)
-	unitlocker, err := unitlock.NewUnitLocker(homedir)
+	unitLocker, err := unitlock.NewUnitLocker(homedir)
 	require.NoError(t, err)
-	_, err = LoadExistingWallet(am, unitlocker, restClient)
+	_, err = LoadExistingWallet(am, unitLocker, restClient)
 	require.NoError(t, err)
 }
 

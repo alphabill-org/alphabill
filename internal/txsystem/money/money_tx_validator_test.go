@@ -265,9 +265,9 @@ func TestSwap(t *testing.T) {
 			err:  "dust transfer system id is not money partition system id",
 		},
 		{
-			name: "InvalidNonce",
-			ctx:  newSwapValidationContext(t, verifier, newInvalidNonceSwap(t, signer)),
-			err:  "dust transfer orders do not contain proper nonce",
+			name: "invalid target unit id",
+			ctx:  newSwapValidationContext(t, verifier, newInvalidTargetUnitIDSwap(t, signer)),
+			err:  "dust transfer order target unit id is not equal to swap tx unit id",
 		},
 		{
 			name: "invalid target backlink",
@@ -530,7 +530,7 @@ func newInvalidTargetValueSwap(t *testing.T) *types.TransactionOrder {
 	)
 }
 
-func newInvalidNonceSwap(t *testing.T, signer abcrypto.Signer) *types.TransactionOrder {
+func newInvalidTargetUnitIDSwap(t *testing.T, signer abcrypto.Signer) *types.TransactionOrder {
 	id := uint256.NewInt(1)
 	id32 := id.Bytes32()
 	transferId := id32[:]

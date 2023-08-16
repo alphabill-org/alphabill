@@ -26,7 +26,7 @@ type (
 		systemID      []byte
 		maxBillsPerDC int
 		backend       BackendAPI
-		unitlocker    UnitLocker
+		unitLocker    UnitLocker
 	}
 
 	UnitLocker interface {
@@ -42,7 +42,7 @@ func NewDustCollector(systemID []byte, maxBillsPerDC int, backend BackendAPI, un
 		systemID:      systemID,
 		maxBillsPerDC: maxBillsPerDC,
 		backend:       backend,
-		unitlocker:    unitLocker,
+		unitLocker:    unitLocker,
 	}
 }
 
@@ -79,7 +79,7 @@ func (w *DustCollector) runExistingDustCollection(ctx context.Context, accountKe
 			}
 			if proof != nil {
 				// if it's confirmed unlock the unit and return swap proof
-				if err := w.unitlocker.UnlockUnit(lockedTargetBill.UnitID); err != nil {
+				if err := w.unitLocker.UnlockUnit(lockedTargetBill.UnitID); err != nil {
 					return nil, fmt.Errorf("failed to unlock unit: %w", err)
 				}
 				return proof, nil
@@ -94,7 +94,7 @@ func (w *DustCollector) runExistingDustCollection(ctx context.Context, accountKe
 	}
 	if !valid {
 		log.Warning("locked unit no longer valid, unlocking the unit")
-		if err := w.unitlocker.UnlockUnit(lockedTargetBill.UnitID); err != nil {
+		if err := w.unitLocker.UnlockUnit(lockedTargetBill.UnitID); err != nil {
 			return nil, fmt.Errorf("failed to unlock unit: %w", err)
 		}
 		return nil, nil
@@ -120,7 +120,7 @@ func (w *DustCollector) runExistingDustCollection(ctx context.Context, accountKe
 	}
 	// if no proofs found, run normal DC
 	log.Info("no dust txs confirmed, unlocking target unit")
-	if err := w.unitlocker.UnlockUnit(lockedTargetBill.UnitID); err != nil {
+	if err := w.unitLocker.UnlockUnit(lockedTargetBill.UnitID); err != nil {
 		return nil, fmt.Errorf("failed to unlock unit: %w", err)
 	}
 	return nil, nil
@@ -153,7 +153,7 @@ func (w *DustCollector) runDustCollection(ctx context.Context, accountKey *accou
 func (w *DustCollector) filterLockedBills(bills []*wallet.Bill) ([]*wallet.Bill, error) {
 	var nonLockedBills []*wallet.Bill
 	for _, b := range bills {
-		exists, err := w.unitlocker.GetUnit(b.GetID())
+		exists, err := w.unitLocker.GetUnit(b.GetID())
 		if err != nil {
 			return nil, fmt.Errorf("failed to load locked unit: %w", err)
 		}
@@ -171,7 +171,7 @@ func (w *DustCollector) fetchDCProofsForTargetUnit(ctx context.Context, k *accou
 	}
 	var dcProofs []*wallet.Proof
 	for _, b := range billsResponse.Bills {
-		if bytes.Equal(b.TargetUnitID, targetUnit.UnitID) && bytes.Equal(b.TargetUnitBacklink, targetUnit.TxHash) {
+		if bytes.Equal(b.DCTargetUnitID, targetUnit.UnitID) && bytes.Equal(b.DCTargetUnitBacklink, targetUnit.TxHash) {
 			proof, err := w.backend.GetTxProof(ctx, b.Id, b.TxHash)
 			if err != nil {
 				return nil, fmt.Errorf("failed to fetch dc proof: %w", err)
@@ -241,7 +241,7 @@ func (w *DustCollector) submitDCBatch(ctx context.Context, k *account.AccountKey
 		lockedUnitTxs = append(lockedUnitTxs, unitlock.NewTransaction(sub.Transaction, sub.TxHash))
 	}
 	lockedTargetUnit := unitlock.NewLockedUnit(targetBill.Id, targetBill.TxHash, unitlock.ReasonCollectDust, lockedUnitTxs...)
-	err = w.unitlocker.LockUnit(lockedTargetUnit)
+	err = w.unitLocker.LockUnit(lockedTargetUnit)
 	if err != nil {
 		return nil, fmt.Errorf("failed to lock unit for dc batch: %w", err)
 	}
@@ -283,7 +283,7 @@ func (w *DustCollector) swapDCBills(ctx context.Context, k *account.AccountKey, 
 
 	// update locked bill with swap tx
 	lockedTargetUnit.Transactions = []*unitlock.Transaction{unitlock.NewTransaction(sub.Transaction, sub.TxHash)}
-	err = w.unitlocker.LockUnit(lockedTargetUnit)
+	err = w.unitLocker.LockUnit(lockedTargetUnit)
 	if err != nil {
 		return nil, fmt.Errorf("failed to lock unit for swap tx: %w", err)
 	}
@@ -294,7 +294,7 @@ func (w *DustCollector) swapDCBills(ctx context.Context, k *account.AccountKey, 
 	if err != nil {
 		return nil, fmt.Errorf("failed to send swap tx: %w", err)
 	}
-	if err := w.unitlocker.UnlockUnit(lockedTargetUnit.UnitID); err != nil {
+	if err := w.unitLocker.UnlockUnit(lockedTargetUnit.UnitID); err != nil {
 		return nil, fmt.Errorf("failed to unlock unit: %w", err)
 	}
 	return sub.Proof, nil
@@ -326,7 +326,7 @@ func (w *DustCollector) getBillByID(bills []*wallet.Bill, id wallet.UnitID) *wal
 }
 
 func (w *DustCollector) getLockedTargetBill() (*unitlock.LockedUnit, error) {
-	units, err := w.unitlocker.GetUnits()
+	units, err := w.unitLocker.GetUnits()
 	if err != nil {
 		return nil, fmt.Errorf("failed to load locked units: %w", err)
 	}

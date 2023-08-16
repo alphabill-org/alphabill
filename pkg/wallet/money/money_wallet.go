@@ -38,7 +38,7 @@ type (
 		backend       BackendAPI
 		feeManager    *fees.FeeManager
 		TxPublisher   *TxPublisher
-		unitlocker    *unitlock.UnitLocker
+		unitLocker    *unitlock.UnitLocker
 		dustCollector *DustCollector
 	}
 
@@ -84,7 +84,7 @@ func LoadExistingWallet(am account.Manager, unitLocker *unitlock.UnitLocker, bac
 		backend:       backend,
 		TxPublisher:   moneyTxPublisher,
 		feeManager:    feeManager,
-		unitlocker:    unitLocker,
+		unitLocker:    unitLocker,
 		dustCollector: dustCollector,
 	}, nil
 }
@@ -292,7 +292,7 @@ func (w *Wallet) getUnlockedBills(ctx context.Context, pubKey []byte) ([]*wallet
 	})
 	// filter locked bills
 	for _, b := range bills {
-		lockedUnit, err := w.unitlocker.GetUnit(b.GetID())
+		lockedUnit, err := w.unitLocker.GetUnit(b.GetID())
 		if err != nil {
 			return nil, fmt.Errorf("failed to get locked bill: %w", err)
 		}

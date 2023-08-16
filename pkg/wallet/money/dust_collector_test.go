@@ -327,8 +327,8 @@ func createDCBill(value uint64, targetBill *wallet.Bill) *wallet.Bill {
 		Value:  value,
 		TxHash: hash.Sum256([]byte{byte(value)}),
 	}
-	srcBill.TargetUnitID = targetBill.GetID()
-	srcBill.TargetUnitBacklink = targetBill.TxHash
+	srcBill.DCTargetUnitID = targetBill.GetID()
+	srcBill.DCTargetUnitBacklink = targetBill.TxHash
 	return srcBill
 }
 
@@ -406,7 +406,7 @@ func newBackendAPIMock(t *testing.T, bills []*wallet.Bill, opts ...Option) *dust
 		getBills: func(pubKey []byte) ([]*wallet.Bill, error) {
 			var nonDCBills []*wallet.Bill
 			for _, b := range bills {
-				if len(b.TargetUnitID) == 0 {
+				if len(b.DCTargetUnitID) == 0 {
 					nonDCBills = append(nonDCBills, b)
 				}
 			}

@@ -468,8 +468,8 @@ func execCollectDust(cmd *cobra.Command, config *walletConfig) error {
 			if err != nil {
 				return fmt.Errorf("failed to unmarshal swap tx proof: %w", err)
 			}
-			msg := "Dust collection finished successfully on account %d. Joined %d bills with total value of %d"
-			consoleWriter.Println(fmt.Sprintf(msg, accIdx+1, len(attr.DcTransfers), attr.TargetValue))
+			msg := "Dust collection finished successfully on account %d. Joined %d bills with total value of %s."
+			consoleWriter.Println(fmt.Sprintf(msg, accIdx+1, len(attr.DcTransfers), amountToString(attr.TargetValue, 8)))
 		} else {
 			consoleWriter.Println(fmt.Sprintf("Nothing to swap on account #%d", accIdx+1))
 		}

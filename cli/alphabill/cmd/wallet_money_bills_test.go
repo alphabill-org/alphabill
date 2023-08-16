@@ -217,17 +217,17 @@ func TestWalletBillsListCmd_ShowLockedBills(t *testing.T) {
 	defer mockServer.Close()
 
 	// create unitlock db
-	unitlocker, err := unitlock.NewUnitLocker(filepath.Join(homedir, walletBaseDir))
+	unitLocker, err := unitlock.NewUnitLocker(filepath.Join(homedir, walletBaseDir))
 	require.NoError(t, err)
-	defer unitlocker.Close()
+	defer unitLocker.Close()
 
 	// lock unit
-	err = unitlocker.LockUnit(&unitlock.LockedUnit{
+	err = unitLocker.LockUnit(&unitlock.LockedUnit{
 		UnitID:     util.Uint256ToBytes(unitID),
 		LockReason: unitlock.ReasonAddFees,
 	})
 	require.NoError(t, err)
-	err = unitlocker.Close()
+	err = unitLocker.Close()
 	require.NoError(t, err)
 
 	// verify locked unit is shown in output list

@@ -174,7 +174,7 @@ func TestListBillsRequest_DCBillsIncluded(t *testing.T) {
 		&Bill{
 			Id:             newUnitID(2),
 			Value:          2,
-			TargetUnitID:   []byte{2},
+			DCTargetUnitID: []byte{2},
 			OwnerPredicate: getOwnerPredicate(pubkeyHex),
 		},
 	))
@@ -188,10 +188,10 @@ func TestListBillsRequest_DCBillsIncluded(t *testing.T) {
 	require.Len(t, res.Bills, 2)
 	bill := res.Bills[0]
 	require.EqualValues(t, 1, bill.Value)
-	require.Nil(t, bill.TargetUnitID)
+	require.Nil(t, bill.DCTargetUnitID)
 	bill = res.Bills[1]
 	require.EqualValues(t, 2, bill.Value)
-	require.NotNil(t, bill.TargetUnitID)
+	require.NotNil(t, bill.DCTargetUnitID)
 }
 
 func TestListBillsRequest_DCBillsExcluded(t *testing.T) {
@@ -204,7 +204,7 @@ func TestListBillsRequest_DCBillsExcluded(t *testing.T) {
 		&Bill{
 			Id:             newUnitID(2),
 			Value:          2,
-			TargetUnitID:   []byte{2},
+			DCTargetUnitID: []byte{2},
 			OwnerPredicate: getOwnerPredicate(pubkeyHex),
 		},
 	))
@@ -218,7 +218,7 @@ func TestListBillsRequest_DCBillsExcluded(t *testing.T) {
 	require.Len(t, res.Bills, 1)
 	bill := res.Bills[0]
 	require.EqualValues(t, 1, bill.Value)
-	require.Nil(t, bill.TargetUnitID)
+	require.Nil(t, bill.DCTargetUnitID)
 }
 
 func TestListBillsRequest_ZeroValueBillsExcluded(t *testing.T) {
@@ -428,7 +428,7 @@ func TestBalanceRequest_DCBillNotIncluded(t *testing.T) {
 		&Bill{
 			Id:             newUnitID(2),
 			Value:          2,
-			TargetUnitID:   []byte{2},
+			DCTargetUnitID: []byte{2},
 			OwnerPredicate: getOwnerPredicate(pubkeyHex),
 		}),
 	)
@@ -554,7 +554,7 @@ func TestGetFeeCreditBillRequest_Ok(t *testing.T) {
 	require.Equal(t, b.Id, response.Id)
 	require.Equal(t, b.Value, response.Value)
 	require.Equal(t, b.TxHash, response.TxHash)
-	require.Equal(t, b.TargetUnitID, response.TargetUnitID)
+	require.Equal(t, b.DCTargetUnitID, response.DCTargetUnitID)
 }
 
 func TestGetFeeCreditBillRequest_InvalidBillIdLength(t *testing.T) {

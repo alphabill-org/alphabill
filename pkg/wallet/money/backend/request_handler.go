@@ -360,8 +360,8 @@ func (api *moneyRestAPI) postTransactions(w http.ResponseWriter, r *http.Request
 	}
 
 	if err = egp.Wait(); err != nil {
-		log.Debug("failed to store DC metadata: ", err)
-		api.rw.WriteErrorResponse(w, fmt.Errorf("failed to store DC metadata: %w", err))
+		log.Debug("failed to store tx metadata: ", err)
+		api.rw.WriteErrorResponse(w, fmt.Errorf("failed to store tx metadata: %w", err))
 		return
 	}
 	w.WriteHeader(http.StatusAccepted)

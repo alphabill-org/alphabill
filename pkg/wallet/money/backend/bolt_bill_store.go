@@ -28,7 +28,6 @@ var (
 	closedFeeCreditBucket = []byte("closedFeeCreditBucket")
 	sdrBucket             = []byte("sdrBucket") // []genesis.SystemDescriptionRecord
 	txProofsBucket        = []byte("txProofs")  // unitID => [txHash => cbor(block proof)]
-	dcBucket              = []byte("dcBucket")  // nonce => dc metadata bytes
 	txHistoryBucket       = []byte("txHistory") // pubKeyHash => [seqNum => cbor(TxHistoryRecord)]
 )
 
@@ -63,7 +62,7 @@ func newBoltBillStore(dbFile string) (*boltBillStore, error) {
 	s := &boltBillStore{db: db}
 	err = sdk.CreateBuckets(db.Update,
 		unitsBucket, predicatesBucket, metaBucket, expiredBillsBucket, feeUnitsBucket,
-		lockedFeeCreditBucket, closedFeeCreditBucket, sdrBucket, txProofsBucket, dcBucket, txHistoryBucket,
+		lockedFeeCreditBucket, closedFeeCreditBucket, sdrBucket, txProofsBucket, txHistoryBucket,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create db buckets: %w", err)

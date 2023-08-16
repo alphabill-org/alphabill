@@ -14,8 +14,8 @@ type (
 		TxProof *wallet.Proof `json:"txProof"`
 
 		// dc bill specific fields
-		TargetUnitID       []byte `json:"targetUnitID"`
-		TargetUnitBacklink []byte `json:"targetUnitBacklink"`
+		DCTargetUnitID       []byte `json:"dcTargetUnitID"`
+		DCTargetUnitBacklink []byte `json:"dcTargetUnitBacklink"`
 
 		// fcb specific fields
 		// LastAddFCTxHash last add fee credit tx hash
@@ -37,12 +37,12 @@ func (b *Bill) ToGenericBillProof() *wallet.BillProof {
 
 func (b *Bill) ToGenericBill() *wallet.Bill {
 	return &wallet.Bill{
-		Id:                 b.GetID(),
-		Value:              b.Value,
-		TxHash:             b.TxHash,
-		TargetUnitID:       b.TargetUnitID,
-		TargetUnitBacklink: b.TargetUnitBacklink,
-		LastAddFCTxHash:    b.LastAddFCTxHash,
+		Id:                   b.GetID(),
+		Value:                b.Value,
+		TxHash:               b.TxHash,
+		DCTargetUnitID:       b.DCTargetUnitID,
+		DCTargetUnitBacklink: b.DCTargetUnitBacklink,
+		LastAddFCTxHash:      b.LastAddFCTxHash,
 	}
 }
 

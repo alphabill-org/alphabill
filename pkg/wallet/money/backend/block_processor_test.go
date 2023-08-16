@@ -126,7 +126,7 @@ func TestBlockProcessor_EachTxTypeCanBeProcessed(t *testing.T) {
 	// verify tx2 is dcBill
 	bill, err := store.Do().GetBill(tx2.TransactionOrder.UnitID())
 	require.NoError(t, err)
-	require.NotNil(t, bill.TargetUnitID)
+	require.NotNil(t, bill.DCTargetUnitID)
 
 	// verify fcb is reduced by 4x txFee
 	fcb, err = store.Do().GetFeeCreditBill(fcbID)

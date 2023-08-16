@@ -230,11 +230,11 @@ func execExportCmd(cmd *cobra.Command, config *walletConfig) error {
 		}
 		bills = append(bills, &wallet.BillProof{
 			Bill: &wallet.Bill{
-				Id:                 b.Id,
-				Value:              b.Value,
-				TargetUnitID:       b.TargetUnitID,
-				TargetUnitBacklink: b.TargetUnitBacklink,
-				TxHash:             b.TxHash},
+				Id:                   b.Id,
+				Value:                b.Value,
+				DCTargetUnitID:       b.DCTargetUnitID,
+				DCTargetUnitBacklink: b.DCTargetUnitBacklink,
+				TxHash:               b.TxHash},
 			TxProof: proof})
 	}
 

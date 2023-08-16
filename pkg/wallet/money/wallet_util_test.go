@@ -49,10 +49,10 @@ func CreateTestWallet(t *testing.T, backend BackendAPI) (*Wallet, *clientmock.Mo
 	am, err := account.NewManager(dir, "", true)
 	require.NoError(t, err)
 
-	unitlocker, err := unitlock.NewUnitLocker(dir)
+	unitLocker, err := unitlock.NewUnitLocker(dir)
 	require.NoError(t, err)
 
-	return CreateTestWalletWithManagerAndUnitLocker(t, backend, am, unitlocker)
+	return CreateTestWalletWithManagerAndUnitLocker(t, backend, am, unitLocker)
 }
 
 func CreateTestWalletWithManager(t *testing.T, backend BackendAPI, am account.Manager) (*Wallet, *clientmock.MockAlphabillClient) {
@@ -91,10 +91,10 @@ func CreateTestWalletFromSeed(t *testing.T, br *backendMockReturnConf) (*Wallet,
 	restClient, err := beclient.New(serverAddr.Host)
 	require.NoError(t, err)
 
-	unitlocker, err := unitlock.NewUnitLocker(dir)
+	unitLocker, err := unitlock.NewUnitLocker(dir)
 	require.NoError(t, err)
 
-	w, err := LoadExistingWallet(am, unitlocker, restClient)
+	w, err := LoadExistingWallet(am, unitLocker, restClient)
 	require.NoError(t, err)
 	return w, mockClient
 }
@@ -186,12 +186,12 @@ func createBillListResponse(bills []*wallet.Bill) *backend.ListBillsResponse {
 	billVMs := make([]*wallet.Bill, len(bills))
 	for i, b := range bills {
 		billVMs[i] = &wallet.Bill{
-			Id:                 b.GetID(),
-			Value:              b.Value,
-			TxHash:             b.TxHash,
-			TargetUnitID:       b.TargetUnitID,
-			TargetUnitBacklink: b.TargetUnitBacklink,
-			LastAddFCTxHash:    b.LastAddFCTxHash,
+			Id:                   b.GetID(),
+			Value:                b.Value,
+			TxHash:               b.TxHash,
+			DCTargetUnitID:       b.DCTargetUnitID,
+			DCTargetUnitBacklink: b.DCTargetUnitBacklink,
+			LastAddFCTxHash:      b.LastAddFCTxHash,
 		}
 	}
 	return &backend.ListBillsResponse{Bills: billVMs, Total: len(bills)}

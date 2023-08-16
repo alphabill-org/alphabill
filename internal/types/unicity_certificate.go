@@ -134,8 +134,7 @@ func CheckNonEquivocatingCertificates(prevUC, newUC *UnicityCertificate) error {
 
 // isRepeat - check if newUC is repeat of previous UC, everything else is the same but round number is bigger
 func isRepeat(prevUC, newUC *UnicityCertificate) bool {
-	return !isZeroHash(newUC.InputRecord.BlockHash) &&
-		bytes.Equal(prevUC.InputRecord.Hash, newUC.InputRecord.Hash) &&
+	return bytes.Equal(prevUC.InputRecord.Hash, newUC.InputRecord.Hash) &&
 		bytes.Equal(prevUC.InputRecord.PreviousHash, newUC.InputRecord.PreviousHash) &&
 		bytes.Equal(prevUC.InputRecord.BlockHash, newUC.InputRecord.BlockHash) &&
 		bytes.Equal(prevUC.InputRecord.SummaryValue, newUC.InputRecord.SummaryValue) &&

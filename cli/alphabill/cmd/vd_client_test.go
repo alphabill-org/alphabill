@@ -80,7 +80,7 @@ func NewVDAlphabillNetwork(t *testing.T, ctx context.Context) *VDAlphabillNetwor
 		Value: 1e18,
 		Owner: script.PredicateAlwaysTrue(),
 	}
-	moneyPartition := createMoneyPartition(t, initialBill)
+	moneyPartition := createMoneyPartition(t, initialBill, 1)
 	vdPartition := createVDPartition(t)
 	abNet := startAlphabill(t, []*testpartition.NodePartition{moneyPartition, vdPartition})
 	startPartitionRPCServers(t, moneyPartition)

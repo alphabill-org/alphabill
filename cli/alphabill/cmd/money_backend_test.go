@@ -34,7 +34,7 @@ func TestMoneyBackendCLI(t *testing.T) {
 	}
 	initialBillID := initialBill.ID
 	initialBillHex := hexutil.Encode(initialBillID)
-	moneyPartition := createMoneyPartition(t, initialBill)
+	moneyPartition := createMoneyPartition(t, initialBill, 1)
 	abNet := startAlphabill(t, []*testpartition.NodePartition{moneyPartition})
 	startPartitionRPCServers(t, moneyPartition)
 	alphabillNodeAddr := moneyPartition.Nodes[0].AddrGRPC

@@ -119,13 +119,14 @@ func CheckNonEquivocatingCertificates(prevUC, newUC *UnicityCertificate) error {
 		// done, nothing more to check
 		return nil
 	}
-	// 5. uc.IR.h' != uc.IR.h - state changes, new UC with new state
-	// a. block hash must not be empty and thus block hash must not be 0h
-	if isZeroHash(newUC.InputRecord.BlockHash) {
-		return fmt.Errorf("invalid new certificate, block can not be empty if state changes")
-	}
+	// AB-1002: allow state changes without transaction due to housekeeping (state tree pruning, dust removal, etc.)
+	//// 5. uc.IR.h' != uc.IR.h - state changes, new UC with new state
+	//// a. block hash must not be empty and thus block hash must not be 0h
+	//if isZeroHash(newUC.InputRecord.BlockHash) {
+	//	return fmt.Errorf("invalid new certificate, block can not be empty if state changes")
+	//}
 	// b. block hash must not repeat
-	if bytes.Equal(newUC.InputRecord.BlockHash, prevUC.InputRecord.BlockHash) {
+	if !isZeroHash(newUC.InputRecord.BlockHash) && bytes.Equal(newUC.InputRecord.BlockHash, prevUC.InputRecord.BlockHash) {
 		return fmt.Errorf("new certificate repeats previous block hash")
 	}
 	return nil

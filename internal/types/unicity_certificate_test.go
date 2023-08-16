@@ -463,7 +463,7 @@ func TestCheckNonEquivocatingCertificates(t *testing.T) {
 			},
 		},
 		{
-			name: "err - state changes, but block hash is 0h",
+			name: "ok - state changes, but block hash is 0h", // AB-1002
 			args: args{
 				prevUC: &UnicityCertificate{
 					InputRecord: &InputRecord{
@@ -488,7 +488,6 @@ func TestCheckNonEquivocatingCertificates(t *testing.T) {
 					UnicitySeal: &UnicitySeal{RootChainRoundNumber: 11},
 				},
 			},
-			wantErrStr: "invalid new certificate, block can not be empty if state changes",
 		},
 		{
 			name: "ok - repeat UC of previous state (skipping some repeats between)",

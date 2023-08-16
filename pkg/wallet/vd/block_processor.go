@@ -7,8 +7,6 @@ import (
 	"encoding/hex"
 	"fmt"
 
-	"github.com/alphabill-org/alphabill/internal/txsystem"
-
 	fc "github.com/alphabill-org/alphabill/internal/txsystem/fc/transactions"
 	"github.com/alphabill-org/alphabill/internal/txsystem/vd"
 	"github.com/alphabill-org/alphabill/internal/types"
@@ -130,8 +128,6 @@ func (p *blockProcessor) processTx(txr *types.TransactionRecord) error {
 			TxHash:          txHash,
 			LastAddFCTxHash: fcb.GetLastAddFCTxHash(),
 		})
-	case txsystem.PayloadTypePruneStates:
-		return nil
 	default:
 		log.Warning(fmt.Sprintf("received unknown transaction type, skipping processing: %s", txo.PayloadType()))
 		return nil

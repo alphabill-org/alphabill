@@ -168,13 +168,13 @@ func reclaimFeeCreditCmdExec(cmd *cobra.Command, config *walletConfig, c *cliCon
 	}
 	defer am.Close()
 
-	unitlocker, err := unitlock.NewUnitLocker(config.WalletHomeDir)
+	unitLocker, err := unitlock.NewUnitLocker(config.WalletHomeDir)
 	if err != nil {
 		return err
 	}
-	defer unitlocker.Close()
+	defer unitLocker.Close()
 
-	fm, err := getFeeCreditManager(c, am, unitlocker, moneyBackendURL, config.WalletHomeDir)
+	fm, err := getFeeCreditManager(c, am, unitLocker, moneyBackendURL, config.WalletHomeDir)
 	if err != nil {
 		return err
 	}

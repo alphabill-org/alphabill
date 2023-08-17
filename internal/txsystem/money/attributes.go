@@ -20,12 +20,11 @@ type (
 	}
 
 	TransferDCAttributes struct {
-		_            struct{} `cbor:",toarray"`
-		Nonce        []byte
-		TargetBearer []byte
-		TargetValue  uint64
-		SwapTimeout  uint64
-		Backlink     []byte
+		_                  struct{} `cbor:",toarray"`
+		Value              uint64
+		TargetUnitID       []byte
+		TargetUnitBacklink []byte
+		Backlink           []byte
 	}
 
 	SplitAttributes struct {
@@ -37,11 +36,10 @@ type (
 	}
 
 	SwapDCAttributes struct {
-		_               struct{} `cbor:",toarray"`
-		OwnerCondition  []byte
-		BillIdentifiers [][]byte
-		DcTransfers     []*types.TransactionRecord
-		Proofs          []*types.TxProof
-		TargetValue     uint64
+		_                struct{} `cbor:",toarray"`
+		OwnerCondition   []byte
+		DcTransfers      []*types.TransactionRecord
+		DcTransferProofs []*types.TxProof
+		TargetValue      uint64 // value added to target bill
 	}
 )

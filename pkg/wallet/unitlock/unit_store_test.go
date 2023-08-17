@@ -24,12 +24,12 @@ func TestUnitStore_GetSetDeleteUnits(t *testing.T) {
 	unit = &LockedUnit{
 		UnitID:     unitID,
 		LockReason: ReasonCollectDust,
-		Transaction: &Transaction{
+		Transactions: []*Transaction{{
 			TxOrder:     nil,
 			PayloadType: money.PayloadTypeTransDC,
 			Timeout:     1000,
 			TxHash:      []byte{5},
-		},
+		}},
 	}
 	err = s.PutUnit(unit)
 	require.NoError(t, err)
@@ -37,12 +37,12 @@ func TestUnitStore_GetSetDeleteUnits(t *testing.T) {
 	unit2 := &LockedUnit{
 		UnitID:     unit2ID,
 		LockReason: ReasonCollectDust,
-		Transaction: &Transaction{
+		Transactions: []*Transaction{{
 			TxOrder:     nil,
 			PayloadType: money.PayloadTypeTransDC,
 			Timeout:     1000,
 			TxHash:      []byte{6},
-		},
+		}},
 	}
 	err = s.PutUnit(unit2)
 	require.NoError(t, err)

@@ -28,6 +28,7 @@ var (
 type (
 	Module struct {
 		state               *state.State
+		systemID            []byte
 		trustBase           map[string]abcrypto.Verifier
 		hashAlgorithm       crypto.Hash
 		dustCollector       *DustCollector
@@ -71,6 +72,7 @@ func NewMoneyModule(options *Options) (m *Module, err error) {
 	}
 	m = &Module{
 		state:               s,
+		systemID:            options.systemIdentifier,
 		trustBase:           options.trustBase,
 		hashAlgorithm:       options.hashAlgorithm,
 		feeCreditTxRecorder: newFeeCreditTxRecorder(s, options.systemIdentifier, options.systemDescriptionRecords),
@@ -86,7 +88,7 @@ func (m *Module) TxExecutors() map[string]txsystem.TxExecutor {
 		PayloadTypeTransfer: handleTransferTx(m.state, m.hashAlgorithm, m.feeCalculator),
 		PayloadTypeSplit:    handleSplitTx(m.state, m.hashAlgorithm, m.feeCalculator),
 		PayloadTypeTransDC:  handleTransferDCTx(m.state, m.dustCollector, m.hashAlgorithm, m.feeCalculator),
-		PayloadTypeSwapDC:   handleSwapDCTx(m.state, m.hashAlgorithm, m.trustBase, m.feeCalculator),
+		PayloadTypeSwapDC:   handleSwapDCTx(m.state, m.systemID, m.hashAlgorithm, m.trustBase, m.feeCalculator),
 
 		// fee credit related transaction handlers (credit transfers and reclaims only!)
 		transactions.PayloadTypeTransferFeeCredit: handleTransferFeeCreditTx(m.state, m.hashAlgorithm, m.feeCreditTxRecorder, m.feeCalculator),
@@ -105,7 +107,7 @@ func (m *Module) BeginBlockFuncs() []func(blockNr uint64) error {
 
 func (m *Module) EndBlockFuncs() []func(blockNumber uint64) error {
 	return []func(blockNumber uint64) error{
-		m.dustCollector.consolidateDust,
+		// m.dustCollector.consolidateDust TODO AB-1133
 		func(blockNr uint64) error {
 			return m.feeCreditTxRecorder.consolidateFees()
 		},

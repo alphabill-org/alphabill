@@ -107,7 +107,7 @@ func (x *ConsensusManager) GetLatestUnicityCertificate(id types.SystemID) (*type
 
 func (x *ConsensusManager) loop(ctx context.Context) error {
 	// start root round timer
-	ticker := time.NewTicker(x.params.BlockRate)
+	ticker := time.NewTicker(x.params.BlockRateMs)
 	defer ticker.Stop()
 
 	for {
@@ -148,7 +148,8 @@ func (x *ConsensusManager) onIRChangeReq(req *consensus.IRChangeRequest) error {
 			return fmt.Errorf("ir change request ignored, read state for system id %X failed, %w", req.SystemIdentifier, err)
 		}
 		// repeat UC, ignore error here as we found the luc, and it cannot be nil
-		newInputRecord, _ = types.NewRepeatInputRecord(luc.InputRecord)
+		// in repeat UC just advance partition/shard round number
+		newInputRecord = luc.InputRecord.NewRepeatIR()
 	default:
 		return fmt.Errorf("invalid certfification reason %v", req.Reason)
 	}
@@ -202,11 +203,11 @@ func (x *ConsensusManager) checkT2Timeout(round uint64) error {
 				logger.Warning("Unexpected error, read certificate for %X failed, %v", id.Bytes(), err)
 				continue
 			}
-			if time.Duration(round-lastCert.UnicitySeal.RootChainRoundNumber)*x.params.BlockRate >
+			if time.Duration(round-lastCert.UnicitySeal.RootChainRoundNumber)*x.params.BlockRateMs >
 				time.Duration(partInfo.T2Timeout)*time.Millisecond {
 				// timeout
 				logger.Info("Round %v, partition %X T2 timeout", round, id.Bytes())
-				repeatIR, _ := types.NewRepeatInputRecord(lastCert.InputRecord)
+				repeatIR := lastCert.InputRecord.NewRepeatIR()
 				x.changes[id] = repeatIR
 			}
 		}

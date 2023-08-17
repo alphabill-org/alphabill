@@ -27,8 +27,8 @@ type (
 	// Parameters are basic consensus parameters that need to be the same in all root validators.
 	// Extracted from root genesis where all validators in the root cluster must have signed them to signal agreement
 	Parameters struct {
-		BlockRate          time.Duration // also known as T3
-		LocalTimeout       time.Duration
+		BlockRateMs        time.Duration // also known as T3
+		LocalTimeoutMs     time.Duration
 		ConsensusThreshold uint32
 		HashAlgorithm      gocrypto.Hash
 	}
@@ -43,8 +43,8 @@ type (
 // NewConsensusParams extract common consensus parameters from genesis
 func NewConsensusParams(genesisRoot *genesis.GenesisRootRecord) *Parameters {
 	return &Parameters{
-		BlockRate:          time.Duration(genesisRoot.Consensus.BlockRateMs) * time.Millisecond,
-		LocalTimeout:       time.Duration(genesisRoot.Consensus.ConsensusTimeoutMs) * time.Millisecond,
+		BlockRateMs:        time.Duration(genesisRoot.Consensus.BlockRateMs) * time.Millisecond,
+		LocalTimeoutMs:     time.Duration(genesisRoot.Consensus.ConsensusTimeoutMs) * time.Millisecond,
 		ConsensusThreshold: genesisRoot.Consensus.QuorumThreshold,
 		HashAlgorithm:      gocrypto.Hash(genesisRoot.Consensus.HashAlgorithm),
 	}

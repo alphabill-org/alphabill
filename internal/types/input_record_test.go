@@ -1,19 +1,22 @@
 package types
 
 import (
+	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
+	"reflect"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 )
 
 var ir = &InputRecord{
-	PreviousHash: []byte{0, 0, 1},
-	Hash:         []byte{0, 0, 2},
-	BlockHash:    []byte{0, 0, 3},
-	SummaryValue: []byte{0, 0, 4},
-	RoundNumber:  1,
+	PreviousHash:    []byte{0, 0, 1},
+	Hash:            []byte{0, 0, 2},
+	BlockHash:       []byte{0, 0, 3},
+	SummaryValue:    []byte{0, 0, 4},
+	RoundNumber:     1,
+	SumOfEarnedFees: 20,
 }
 
 func TestInputRecord_IsValid(t *testing.T) {
@@ -102,7 +105,7 @@ func TestInputRecord_IsNil(t *testing.T) {
 }
 
 func TestInputRecord_AddToHasher(t *testing.T) {
-	expectedHash, _ := hex.DecodeString("2ce35f17c869ace38d096c92e48a0ca128bdaa1e02ebde88d2bbd2dc9576bb8e")
+	expectedHash, _ := hex.DecodeString("c8a1b4ed8f753eddc73762e9666ba4012e99d44633ee4576153a31d2f03385b4")
 	hasher := sha256.New()
 	ir.AddToHasher(hasher)
 	hash := hasher.Sum(nil)
@@ -217,4 +220,13 @@ func Test_InputRecord_Equal(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestInputRecord_NewRepeatUC(t *testing.T) {
+	repeatUC := ir.NewRepeatIR()
+	require.NotNil(t, repeatUC)
+	// only round number is advance by 1
+	ir.RoundNumber++
+	require.True(t, bytes.Equal(ir.Bytes(), repeatUC.Bytes()))
+	require.True(t, reflect.DeepEqual(ir, repeatUC))
 }

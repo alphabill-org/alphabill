@@ -124,7 +124,7 @@ func (x *IRChangeReq) Verify(tb partitions.PartitionTrustBase, luc *types.Unicit
 			return nil, fmt.Errorf("invalid partition %X no quorum proof, not enough requests to prove only no quorum is possible", x.SystemIdentifier)
 		}
 		// initiate repeat UC
-		return types.NewRepeatInputRecord(luc.InputRecord)
+		return luc.InputRecord.NewRepeatIR(), nil
 
 	case T2Timeout:
 		// timout does not carry proof in form of certification requests
@@ -139,7 +139,7 @@ func (x *IRChangeReq) Verify(tb partitions.PartitionTrustBase, luc *types.Unicit
 				x.SystemIdentifier, lucAge, t2InRounds)
 		}
 		// initiate repeat UC
-		return types.NewRepeatInputRecord(luc.InputRecord)
+		return luc.InputRecord.NewRepeatIR(), nil
 	}
 	// should be unreachable, since validate method already makes sure that reason is known
 	return nil, fmt.Errorf("invalid request, unknown certification reason %v", x.CertReason)

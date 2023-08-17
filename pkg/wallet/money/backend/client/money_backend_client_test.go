@@ -11,6 +11,9 @@ import (
 	"strings"
 	"testing"
 
+	testtransaction "github.com/alphabill-org/alphabill/internal/testutils/transaction"
+	"github.com/alphabill-org/alphabill/internal/types"
+
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	sdk "github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/ethereum/go-ethereum/common/hexutil"
@@ -30,7 +33,7 @@ func TestGetBalance(t *testing.T) {
 	restClient, err := New(mockAddress.Host)
 	require.NoError(t, err)
 
-	balance, err := restClient.GetBalance(pubKey, true)
+	balance, err := restClient.GetBalance(context.Background(), pubKey, true)
 	require.NoError(t, err)
 	require.EqualValues(t, 15, balance)
 }
@@ -44,7 +47,7 @@ func TestListBills(t *testing.T) {
 	restClient, err := New(mockAddress.Host)
 	require.NoError(t, err)
 
-	billsResponse, err := restClient.ListBills(pubKey, true, false)
+	billsResponse, err := restClient.ListBills(context.Background(), pubKey, true, false)
 	require.NoError(t, err)
 	require.Len(t, billsResponse.Bills, 8)
 	require.EqualValues(t, 8, billsResponse.Total)
@@ -61,7 +64,7 @@ func TestListBillsWithPaging(t *testing.T) {
 	restClient, err := New(mockAddress.Host)
 	require.NoError(t, err)
 
-	billsResponse, err := restClient.ListBills(pubKey, true, false)
+	billsResponse, err := restClient.ListBills(context.Background(), pubKey, true, false)
 	require.NoError(t, err)
 	require.Len(t, billsResponse.Bills, 13)
 	require.EqualValues(t, 13, billsResponse.Total)
@@ -180,6 +183,43 @@ func TestGetFeeCreditBill(t *testing.T) {
 	require.EqualValues(t, expectedBillID, response.Id)
 }
 
+func TestPostTransactions(t *testing.T) {
+	mockServer, mockAddress := mockPostTransactionsCall(t, http.StatusAccepted, "")
+	defer mockServer.Close()
+
+	pubKey, err := hexutil.Decode(pubKeyHex)
+	require.NoError(t, err)
+	restClient, err := New(mockAddress.Host)
+	require.NoError(t, err)
+
+	txs := &sdk.Transactions{Transactions: []*types.TransactionOrder{
+		testtransaction.NewTransactionOrder(t),
+		testtransaction.NewTransactionOrder(t),
+		testtransaction.NewTransactionOrder(t),
+	}}
+	err = restClient.PostTransactions(context.Background(), pubKey, txs)
+	require.NoError(t, err)
+}
+
+func TestPostTransactionsError(t *testing.T) {
+	errMsg := `{"00000000c4f0a6c28423da2fbe739a0a46ae437ce670eb6ba5fcc3524568d9a1":"transaction has timed out: transaction timeout round is 1905, current round is 1906"}`
+	mockServer, mockAddress := mockPostTransactionsCall(t, http.StatusInternalServerError, errMsg)
+	defer mockServer.Close()
+
+	pubKey, err := hexutil.Decode(pubKeyHex)
+	require.NoError(t, err)
+	restClient, err := New(mockAddress.Host)
+	require.NoError(t, err)
+
+	txs := &sdk.Transactions{Transactions: []*types.TransactionOrder{
+		testtransaction.NewTransactionOrder(t),
+		testtransaction.NewTransactionOrder(t),
+		testtransaction.NewTransactionOrder(t),
+	}}
+	err = restClient.PostTransactions(context.Background(), pubKey, txs)
+	require.ErrorContains(t, err, "failed to send transactions: status 500 Internal Server Error - "+errMsg)
+}
+
 func mockGetBalanceCall(t *testing.T) (*httptest.Server, *url.URL) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != ("/" + BalancePath) {
@@ -264,6 +304,19 @@ func mockGetFeeCreditBillCall(t *testing.T) *url.URL {
 	t.Cleanup(server.Close)
 	serverURL, _ := url.Parse(server.URL)
 	return serverURL
+}
+
+func mockPostTransactionsCall(t *testing.T, statusCode int, responseBody string) (*httptest.Server, *url.URL) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != ("/" + TransactionsPath + "/" + pubKeyHex) {
+			t.Errorf("Expected to request '%v', got: %s", TransactionsPath, r.URL.Path)
+		}
+		w.WriteHeader(statusCode)
+		w.Write([]byte(responseBody))
+	}))
+
+	serverAddress, _ := url.Parse(server.URL)
+	return server, serverAddress
 }
 
 func getFeeCreditBillJsonBytes() []byte {

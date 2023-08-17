@@ -2,48 +2,39 @@ package tokens
 
 import (
 	"bytes"
+	"crypto"
 	"fmt"
 
-	"github.com/alphabill-org/alphabill/internal/rma"
+	"github.com/alphabill-org/alphabill/internal/state"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
-	"github.com/alphabill-org/alphabill/internal/txsystem/fc"
 	"github.com/alphabill-org/alphabill/internal/types"
-	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/fxamacker/cbor/v2"
-	"github.com/holiman/uint256"
 )
 
 func handleBurnFungibleTokenTx(options *Options) txsystem.GenericExecuteFunc[BurnFungibleTokenAttributes] {
 	return func(tx *types.TransactionOrder, attr *BurnFungibleTokenAttributes, currentBlockNr uint64) (*types.ServerMetadata, error) {
 		logger.Debug("Processing Burn Fungible Token tx: %v", tx)
-		if err := validateBurnFungibleToken(tx, attr, options.state); err != nil {
+		if err := validateBurnFungibleToken(tx, attr, options.state, options.hashAlgorithm); err != nil {
 			return nil, fmt.Errorf("invalid burn fungible token transaction: %w", err)
 		}
 		fee := options.feeCalculator()
 
 		// update state
-		fcrID := util.BytesToUint256(tx.GetClientFeeCreditRecordID())
-		unitID := util.BytesToUint256(tx.UnitID())
-		if err := options.state.AtomicUpdate(
-			fc.DecrCredit(fcrID, fee, tx.Hash(options.hashAlgorithm)),
-			rma.DeleteItem(unitID),
-		); err != nil {
+		unitID := tx.UnitID()
+		if err := options.state.Apply(state.DeleteUnit(unitID)); err != nil {
 			return nil, err
 		}
-
 		return &types.ServerMetadata{ActualFee: fee}, nil
-
 	}
 }
 
-func validateBurnFungibleToken(tx *types.TransactionOrder, attr *BurnFungibleTokenAttributes, state *rma.Tree) error {
-	bearer, d, err := getFungibleTokenData(util.BytesToUint256(tx.UnitID()), state)
+func validateBurnFungibleToken(tx *types.TransactionOrder, attr *BurnFungibleTokenAttributes, s *state.State, hashAlgorithm crypto.Hash) error {
+	bearer, d, err := getFungibleTokenData(tx.UnitID(), s, hashAlgorithm)
 	if err != nil {
 		return err
 	}
-	tokenTypeID := d.tokenType.Bytes32()
-	if !bytes.Equal(tokenTypeID[:], attr.TypeID) {
-		return fmt.Errorf("type of token to burn does not matches the actual type of the token: expected %X, got %X", tokenTypeID, attr.TypeID)
+	if !bytes.Equal(d.tokenType, attr.TypeID) {
+		return fmt.Errorf("type of token to burn does not matches the actual type of the token: expected %X, got %X", d.tokenType, attr.TypeID)
 	}
 	if attr.Value != d.value {
 		return fmt.Errorf("invalid token value: expected %v, got %v", d.value, attr.Value)
@@ -52,12 +43,13 @@ func validateBurnFungibleToken(tx *types.TransactionOrder, attr *BurnFungibleTok
 		return fmt.Errorf("invalid backlink: expected %X, got %X", d.backlink, attr.Backlink)
 	}
 	predicates, err := getChainedPredicates[*fungibleTokenTypeData](
-		state,
+		hashAlgorithm,
+		s,
 		d.tokenType,
 		func(d *fungibleTokenTypeData) []byte {
 			return d.invariantPredicate
 		},
-		func(d *fungibleTokenTypeData) *uint256.Int {
+		func(d *fungibleTokenTypeData) types.UnitID {
 			return d.parentTypeId
 		},
 	)

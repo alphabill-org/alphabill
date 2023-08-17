@@ -17,16 +17,17 @@ import (
 	"time"
 
 	"github.com/ainvaltin/httpsrv"
-	"github.com/alphabill-org/alphabill/internal/script"
-	test "github.com/alphabill-org/alphabill/internal/testutils"
-	"github.com/alphabill-org/alphabill/internal/txsystem/money"
 	"github.com/fxamacker/cbor/v2"
 	"github.com/gorilla/mux"
 	"github.com/stretchr/testify/require"
 
+	"github.com/alphabill-org/alphabill/internal/script"
+	test "github.com/alphabill-org/alphabill/internal/testutils"
 	testhttp "github.com/alphabill-org/alphabill/internal/testutils/http"
 	"github.com/alphabill-org/alphabill/internal/testutils/net"
 	testtransaction "github.com/alphabill-org/alphabill/internal/testutils/transaction"
+	"github.com/alphabill-org/alphabill/internal/txsystem/fc/testutils"
+	"github.com/alphabill-org/alphabill/internal/txsystem/money"
 	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/pkg/client"
 	"github.com/alphabill-org/alphabill/pkg/client/clientmock"
@@ -73,7 +74,7 @@ type billProof struct {
 	proof *sdk.Proof
 }
 
-func withBillProofss(bills ...*billProof) option {
+func withBillProofs(bills ...*billProof) option {
 	return func(s *WalletBackend) error {
 		return s.store.WithTransaction(func(tx BillStoreTx) error {
 			for _, bill := range bills {
@@ -108,6 +109,22 @@ func withFeeCreditBills(bills ...*Bill) option {
 	}
 }
 
+func withLockedFeeCredit(systemID, fcbID []byte, txr *types.TransactionRecord) option {
+	return func(s *WalletBackend) error {
+		return s.store.WithTransaction(func(tx BillStoreTx) error {
+			return tx.SetLockedFeeCredit(systemID, fcbID, txr)
+		})
+	}
+}
+
+func withClosedFeeCredit(fcbID []byte, txr *types.TransactionRecord) option {
+	return func(s *WalletBackend) error {
+		return s.store.WithTransaction(func(tx BillStoreTx) error {
+			return tx.SetClosedFeeCredit(fcbID, txr)
+		})
+	}
+}
+
 func TestListBillsRequest_Ok(t *testing.T) {
 	expectedBill := &Bill{
 		Id:             newUnitID(1),
@@ -122,7 +139,7 @@ func TestListBillsRequest_Ok(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, http.StatusOK, httpRes.StatusCode)
 	require.Len(t, res.Bills, 1)
-	expectedRes := toBillVMList([]*Bill{expectedBill})
+	expectedRes := expectedBill.ToGenericBills().Bills
 	require.Equal(t, expectedRes, res.Bills)
 }
 
@@ -194,7 +211,7 @@ func TestListBillsRequest_DCBillsExcluded(t *testing.T) {
 	port, _ := startServer(t, walletBackend)
 
 	res := &ListBillsResponse{}
-	httpRes, err := testhttp.DoGetJson(fmt.Sprintf("http://localhost:%d/api/v1/list-bills?pubkey=%s&includedcbills=false", port, pubkeyHex), res)
+	httpRes, err := testhttp.DoGetJson(fmt.Sprintf("http://localhost:%d/api/v1/list-bills?pubkey=%s&includeDcBills=false", port, pubkeyHex), res)
 	require.NoError(t, err)
 	require.Equal(t, http.StatusOK, httpRes.StatusCode)
 	require.Equal(t, 1, res.Total)
@@ -235,7 +252,7 @@ func TestListBillsRequest_DCMetadataIncluded(t *testing.T) {
 	port, _ := startServer(t, walletBackend)
 
 	res := &ListBillsResponse{}
-	httpRes, err := testhttp.DoGetJson(fmt.Sprintf("http://localhost:%d/api/v1/list-bills?pubkey=%s&includedcmetadata=true", port, pubkeyHex), res)
+	httpRes, err := testhttp.DoGetJson(fmt.Sprintf("http://localhost:%d/api/v1/list-bills?pubkey=%s&includeDcMetadata=true", port, pubkeyHex), res)
 	require.NoError(t, err)
 	require.Equal(t, http.StatusOK, httpRes.StatusCode)
 	require.Equal(t, 3, res.Total)
@@ -256,9 +273,9 @@ func TestListBillsRequest_DCMetadataIncluded(t *testing.T) {
 	require.Contains(t, res.DCMetadata[string(nonce)].BillIdentifiers, newUnitID(2))
 	require.Contains(t, res.DCMetadata[string(nonce)].BillIdentifiers, newUnitID(3))
 
-	// make sure metadata is nil if 'includedcbills=false'
+	// make sure metadata is nil if 'includeDcBills=false'
 	res2 := &ListBillsResponse{}
-	httpRes2, err := testhttp.DoGetJson(fmt.Sprintf("http://localhost:%d/api/v1/list-bills?pubkey=%s&includedcbills=false&includedcmetadata=true", port, pubkeyHex), res2)
+	httpRes2, err := testhttp.DoGetJson(fmt.Sprintf("http://localhost:%d/api/v1/list-bills?pubkey=%s&includeDcBills=false&includeDcMetadata=true", port, pubkeyHex), res2)
 	require.NoError(t, err)
 	require.Equal(t, http.StatusOK, httpRes2.StatusCode)
 	require.Equal(t, 1, res2.Total)
@@ -502,7 +519,7 @@ func TestProofRequest_Ok(t *testing.T) {
 			UnicityCertificate: &types.UnicityCertificate{InputRecord: &types.InputRecord{RoundNumber: 1}},
 		},
 	}
-	walletBackend := newWalletBackend(t, withBillProofss(&billProof{b, p}))
+	walletBackend := newWalletBackend(t, withBillProofs(&billProof{b, p}))
 	port, _ := startServer(t, walletBackend)
 
 	response := &sdk.Proof{}
@@ -672,6 +689,75 @@ func TestPostTransactionsRequest_Ok(t *testing.T) {
 	httpRes, err := testhttp.DoPostCBOR(fmt.Sprintf("http://localhost:%d/api/v1/transactions/%s", port, pubkeyHex), txs, nil)
 	require.NoError(t, err)
 	require.Equal(t, http.StatusAccepted, httpRes.StatusCode)
+}
+
+func TestGetLockedFeeCreditRequest(t *testing.T) {
+	transferFC := &types.TransactionRecord{
+		TransactionOrder: testutils.NewTransferFC(t, nil),
+		ServerMetadata:   &types.ServerMetadata{ActualFee: 1},
+	}
+	systemID := []byte{0, 0, 0, 0}
+	targetUnitID := test.NewUnitID(1)
+	walletBackend := newWalletBackend(t, withLockedFeeCredit(systemID, targetUnitID, transferFC))
+	port, _ := startServer(t, walletBackend)
+
+	response := &types.TransactionRecord{}
+	httpRes, err := testhttp.DoGetCbor(fmt.Sprintf("http://localhost:%d/api/v1/locked-fee-credit/0x%X/0x%X", port, systemID, targetUnitID), response)
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, httpRes.StatusCode)
+	require.Equal(t, transferFC, response)
+
+	// verify missing systemID returns 404
+	response = &types.TransactionRecord{}
+	httpRes, err = testhttp.DoGetJson(fmt.Sprintf("http://localhost:%d/api/v1/locked-fee-credit/0x%X/0x%X", port, []byte{1}, targetUnitID), response)
+	require.NoError(t, err)
+	require.Equal(t, http.StatusNotFound, httpRes.StatusCode)
+
+	// verify missing unitID returns 404
+	response = &types.TransactionRecord{}
+	httpRes, err = testhttp.DoGetJson(fmt.Sprintf("http://localhost:%d/api/v1/locked-fee-credit/0x%X/0x%X", port, systemID, test.NewUnitID(2)), response)
+	require.NoError(t, err)
+	require.Equal(t, http.StatusNotFound, httpRes.StatusCode)
+
+	// verify invalid systemID returns 400 (removed 0x prefix)
+	response = &types.TransactionRecord{}
+	httpRes, err = testhttp.DoGetJson(fmt.Sprintf("http://localhost:%d/api/v1/locked-fee-credit/%X/0x%X", port, systemID, targetUnitID), response)
+	require.NoError(t, err)
+	require.Equal(t, http.StatusBadRequest, httpRes.StatusCode)
+
+	// verify invalid unitID returns 400 (removed 0x prefix)
+	response = &types.TransactionRecord{}
+	httpRes, err = testhttp.DoGetJson(fmt.Sprintf("http://localhost:%d/api/v1/locked-fee-credit/0x%X/%X", port, systemID, targetUnitID), response)
+	require.NoError(t, err)
+	require.Equal(t, http.StatusBadRequest, httpRes.StatusCode)
+}
+
+func TestGetClosedFeeCreditRequest(t *testing.T) {
+	closeFC := &types.TransactionRecord{
+		TransactionOrder: testutils.NewCloseFC(t, nil),
+		ServerMetadata:   &types.ServerMetadata{ActualFee: 1},
+	}
+	fcbID := test.NewUnitID(1)
+	walletBackend := newWalletBackend(t, withClosedFeeCredit(fcbID, closeFC))
+	port, _ := startServer(t, walletBackend)
+
+	response := &types.TransactionRecord{}
+	httpRes, err := testhttp.DoGetCbor(fmt.Sprintf("http://localhost:%d/api/v1/closed-fee-credit/0x%X", port, fcbID), response)
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, httpRes.StatusCode)
+	require.Equal(t, closeFC, response)
+
+	// verify missing fcb returns 404
+	response = &types.TransactionRecord{}
+	httpRes, err = testhttp.DoGetJson(fmt.Sprintf("http://localhost:%d/api/v1/closed-fee-credit/0x%X", port, []byte{0}), response)
+	require.NoError(t, err)
+	require.Equal(t, http.StatusNotFound, httpRes.StatusCode)
+
+	// verify invalid fcb returns 400 (removed 0x prefix)
+	response = &types.TransactionRecord{}
+	httpRes, err = testhttp.DoGetJson(fmt.Sprintf("http://localhost:%d/api/v1/closed-fee-credit/%X", port, fcbID), response)
+	require.NoError(t, err)
+	require.Equal(t, http.StatusBadRequest, httpRes.StatusCode)
 }
 
 func startServer(t *testing.T, service WalletBackendService) (port int, api *moneyRestAPI) {

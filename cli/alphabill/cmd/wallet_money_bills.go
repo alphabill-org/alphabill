@@ -11,14 +11,14 @@ import (
 	"github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/alphabill-org/alphabill/pkg/wallet/money/backend"
 	"github.com/alphabill-org/alphabill/pkg/wallet/money/backend/client"
+	"github.com/alphabill-org/alphabill/pkg/wallet/unitlock"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/spf13/cobra"
 )
 
 const (
-	billIdCmdName        = "bill-id"
-	outputPathCmdName    = "output-path"
-	trustBaseFileCmdName = "trust-base-file"
+	billIdCmdName     = "bill-id"
+	outputPathCmdName = "output-path"
 )
 
 type (
@@ -77,6 +77,12 @@ func execListCmd(cmd *cobra.Command, config *walletConfig) error {
 	}
 	defer am.Close()
 
+	unitLocker, err := unitlock.NewUnitLocker(config.WalletHomeDir)
+	if err != nil {
+		return fmt.Errorf("failed to open unit locker: %w", err)
+	}
+	defer unitLocker.Close()
+
 	type accountBillGroup struct {
 		accountIndex uint64
 		bills        *backend.ListBillsResponse
@@ -88,7 +94,7 @@ func execListCmd(cmd *cobra.Command, config *walletConfig) error {
 			return err
 		}
 		for accountIndex, pubKey := range pubKeys {
-			bills, err := restClient.ListBills(pubKey, showUnswapped, false)
+			bills, err := restClient.ListBills(cmd.Context(), pubKey, showUnswapped, false)
 			if err != nil {
 				return err
 			}
@@ -100,7 +106,7 @@ func execListCmd(cmd *cobra.Command, config *walletConfig) error {
 		if err != nil {
 			return err
 		}
-		accountBills, err := restClient.ListBills(pubKey, showUnswapped, false)
+		accountBills, err := restClient.ListBills(cmd.Context(), pubKey, showUnswapped, false)
 		if err != nil {
 			return err
 		}
@@ -115,10 +121,25 @@ func execListCmd(cmd *cobra.Command, config *walletConfig) error {
 		}
 		for j, bill := range group.bills.Bills {
 			billValueStr := amountToString(bill.Value, 8)
-			consoleWriter.Println(fmt.Sprintf("#%d 0x%X %s", j+1, bill.Id, billValueStr))
+			lockedReasonStr, err := getLockedReasonString(unitLocker, bill)
+			if err != nil {
+				return err
+			}
+			consoleWriter.Println(fmt.Sprintf("#%d 0x%X %s%s", j+1, bill.Id, billValueStr, lockedReasonStr))
 		}
 	}
 	return nil
+}
+
+func getLockedReasonString(unitLocker *unitlock.UnitLocker, bill *wallet.Bill) (string, error) {
+	lockedUnit, err := unitLocker.GetUnit(bill.GetID())
+	if err != nil {
+		return "", fmt.Errorf("failed to load locked unit: %w", err)
+	}
+	if lockedUnit != nil {
+		return fmt.Sprintf(" (%s)", lockedUnit.LockReason.String()), nil
+	}
+	return "", nil
 }
 
 func exportCmd(config *walletConfig) *cobra.Command {
@@ -188,7 +209,7 @@ func execExportCmd(cmd *cobra.Command, config *walletConfig) error {
 	}
 
 	// export all bills if neither --bill-id or --bill-order-number are given
-	billsList, err := restClient.ListBills(pk, showUnswapped, false)
+	billsList, err := restClient.ListBills(cmd.Context(), pk, showUnswapped, false)
 	if err != nil {
 		return err
 	}

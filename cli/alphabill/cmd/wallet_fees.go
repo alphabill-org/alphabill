@@ -6,6 +6,8 @@ import (
 	"net/url"
 	"strings"
 
+	"github.com/spf13/cobra"
+
 	"github.com/alphabill-org/alphabill/internal/txsystem/money"
 	"github.com/alphabill-org/alphabill/internal/txsystem/tokens"
 	"github.com/alphabill-org/alphabill/internal/txsystem/vd"
@@ -16,8 +18,8 @@ import (
 	moneyclient "github.com/alphabill-org/alphabill/pkg/wallet/money/backend/client"
 	tokenswallet "github.com/alphabill-org/alphabill/pkg/wallet/tokens"
 	tokensclient "github.com/alphabill-org/alphabill/pkg/wallet/tokens/client"
+	"github.com/alphabill-org/alphabill/pkg/wallet/unitlock"
 	vdwallet "github.com/alphabill-org/alphabill/pkg/wallet/vd"
-	"github.com/spf13/cobra"
 )
 
 const (
@@ -27,7 +29,7 @@ const (
 )
 
 // newWalletFeesCmd creates a new cobra command for the wallet fees component.
-func newWalletFeesCmd(ctx context.Context, config *walletConfig) *cobra.Command {
+func newWalletFeesCmd(config *walletConfig) *cobra.Command {
 	var cliConfig = &cliConf{
 		partitionType: moneyType, // shows default value in help context
 	}
@@ -38,9 +40,9 @@ func newWalletFeesCmd(ctx context.Context, config *walletConfig) *cobra.Command 
 			consoleWriter.Println("Error: must specify a subcommand")
 		},
 	}
-	cmd.AddCommand(listFeesCmd(ctx, config, cliConfig))
-	cmd.AddCommand(addFeeCreditCmd(ctx, config, cliConfig))
-	cmd.AddCommand(reclaimFeeCreditCmd(ctx, config, cliConfig))
+	cmd.AddCommand(listFeesCmd(config, cliConfig))
+	cmd.AddCommand(addFeeCreditCmd(config, cliConfig))
+	cmd.AddCommand(reclaimFeeCreditCmd(config, cliConfig))
 
 	cmd.PersistentFlags().VarP(&cliConfig.partitionType, partitionCmdName, "n", "partition name for which to manage fees [money|tokens|vd]")
 	cmd.PersistentFlags().StringP(alphabillApiURLCmdName, "r", defaultAlphabillApiURL, apiUsage)
@@ -50,12 +52,12 @@ func newWalletFeesCmd(ctx context.Context, config *walletConfig) *cobra.Command 
 	return cmd
 }
 
-func addFeeCreditCmd(ctx context.Context, config *walletConfig, c *cliConf) *cobra.Command {
+func addFeeCreditCmd(config *walletConfig, c *cliConf) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "add",
 		Short: "adds fee credit to the wallet",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return addFeeCreditCmdExec(ctx, cmd, config, c)
+			return addFeeCreditCmdExec(cmd, config, c)
 		},
 	}
 	cmd.Flags().Uint64P(keyCmdName, "k", 1, "specifies to which account to add the fee credit")
@@ -63,7 +65,7 @@ func addFeeCreditCmd(ctx context.Context, config *walletConfig, c *cliConf) *cob
 	return cmd
 }
 
-func addFeeCreditCmdExec(ctx context.Context, cmd *cobra.Command, config *walletConfig, c *cliConf) error {
+func addFeeCreditCmdExec(cmd *cobra.Command, config *walletConfig, c *cliConf) error {
 	moneyBackendURL, err := cmd.Flags().GetString(alphabillApiURLCmdName)
 	if err != nil {
 		return err
@@ -82,28 +84,34 @@ func addFeeCreditCmdExec(ctx context.Context, cmd *cobra.Command, config *wallet
 	}
 	defer am.Close()
 
-	fm, err := getFeeCreditManager(c, am, moneyBackendURL, config.WalletHomeDir)
+	unitLocker, err := unitlock.NewUnitLocker(config.WalletHomeDir)
+	if err != nil {
+		return err
+	}
+	defer unitLocker.Close()
+
+	fm, err := getFeeCreditManager(c, am, unitLocker, moneyBackendURL, config.WalletHomeDir)
 	if err != nil {
 		return err
 	}
 	defer fm.Close()
 
-	return addFees(ctx, accountNumber, amountString, c, fm)
+	return addFees(cmd.Context(), accountNumber, amountString, c, fm)
 }
 
-func listFeesCmd(ctx context.Context, config *walletConfig, c *cliConf) *cobra.Command {
+func listFeesCmd(config *walletConfig, c *cliConf) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "list",
 		Short: "lists fee credit of the wallet",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return listFeesCmdExec(ctx, cmd, config, c)
+			return listFeesCmdExec(cmd, config, c)
 		},
 	}
 	cmd.Flags().Uint64P(keyCmdName, "k", 0, "specifies which account fee bills to list (default: all accounts)")
 	return cmd
 }
 
-func listFeesCmdExec(ctx context.Context, cmd *cobra.Command, config *walletConfig, c *cliConf) error {
+func listFeesCmdExec(cmd *cobra.Command, config *walletConfig, c *cliConf) error {
 	accountNumber, err := cmd.Flags().GetUint64(keyCmdName)
 	if err != nil {
 		return err
@@ -118,28 +126,34 @@ func listFeesCmdExec(ctx context.Context, cmd *cobra.Command, config *walletConf
 	}
 	defer am.Close()
 
-	fm, err := getFeeCreditManager(c, am, moneyBackendURL, config.WalletHomeDir)
+	unitLocker, err := unitlock.NewUnitLocker(config.WalletHomeDir)
+	if err != nil {
+		return err
+	}
+	defer unitLocker.Close()
+
+	fm, err := getFeeCreditManager(c, am, unitLocker, moneyBackendURL, config.WalletHomeDir)
 	if err != nil {
 		return err
 	}
 	defer fm.Close()
 
-	return listFees(ctx, accountNumber, am, c, fm)
+	return listFees(cmd.Context(), accountNumber, am, c, fm)
 }
 
-func reclaimFeeCreditCmd(ctx context.Context, config *walletConfig, c *cliConf) *cobra.Command {
+func reclaimFeeCreditCmd(config *walletConfig, c *cliConf) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "reclaim",
 		Short: "reclaims fee credit of the wallet",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return reclaimFeeCreditCmdExec(ctx, cmd, config, c)
+			return reclaimFeeCreditCmdExec(cmd, config, c)
 		},
 	}
 	cmd.Flags().Uint64P(keyCmdName, "k", 1, "specifies to which account to reclaim the fee credit")
 	return cmd
 }
 
-func reclaimFeeCreditCmdExec(ctx context.Context, cmd *cobra.Command, config *walletConfig, c *cliConf) error {
+func reclaimFeeCreditCmdExec(cmd *cobra.Command, config *walletConfig, c *cliConf) error {
 	moneyBackendURL, err := cmd.Flags().GetString(alphabillApiURLCmdName)
 	if err != nil {
 		return err
@@ -154,19 +168,25 @@ func reclaimFeeCreditCmdExec(ctx context.Context, cmd *cobra.Command, config *wa
 	}
 	defer am.Close()
 
-	fm, err := getFeeCreditManager(c, am, moneyBackendURL, config.WalletHomeDir)
+	unitlocker, err := unitlock.NewUnitLocker(config.WalletHomeDir)
+	if err != nil {
+		return err
+	}
+	defer unitlocker.Close()
+
+	fm, err := getFeeCreditManager(c, am, unitlocker, moneyBackendURL, config.WalletHomeDir)
 	if err != nil {
 		return err
 	}
 	defer fm.Close()
 
-	return reclaimFees(ctx, accountNumber, c, fm)
+	return reclaimFees(cmd.Context(), accountNumber, c, fm)
 }
 
 type FeeCreditManager interface {
 	GetFeeCredit(ctx context.Context, cmd fees.GetFeeCreditCmd) (*wallet.Bill, error)
-	AddFeeCredit(ctx context.Context, cmd fees.AddFeeCmd) ([]*wallet.Proof, error)
-	ReclaimFeeCredit(ctx context.Context, cmd fees.ReclaimFeeCmd) ([]*wallet.Proof, error)
+	AddFeeCredit(ctx context.Context, cmd fees.AddFeeCmd) (*fees.AddFeeCmdResponse, error)
+	ReclaimFeeCredit(ctx context.Context, cmd fees.ReclaimFeeCmd) (*fees.ReclaimFeeCmdResponse, error)
 	Close()
 }
 
@@ -212,8 +232,12 @@ func addFees(ctx context.Context, accountNumber uint64, amountString string, c *
 		return err
 	}
 	consoleWriter.Println("Successfully created", amountString, "fee credits on", c.partitionType, "partition.")
-	consoleWriter.Println("Paid", amountToString(proofs[0].TxRecord.ServerMetadata.ActualFee, 8), "fee for transferFC transaction from wallet balance.")
-	consoleWriter.Println("Paid", amountToString(proofs[1].TxRecord.ServerMetadata.ActualFee, 8), "fee for addFC transaction from fee credit balance.")
+	if proofs.TransferFC != nil {
+		consoleWriter.Println("Paid", amountToString(proofs.TransferFC.TxRecord.ServerMetadata.ActualFee, 8), "fee for transferFC transaction from wallet balance.")
+	} else {
+		consoleWriter.Println("Used previously locked unit to create fee credit.")
+	}
+	consoleWriter.Println("Paid", amountToString(proofs.AddFC.TxRecord.ServerMetadata.ActualFee, 8), "fee for addFC transaction from fee credit balance.")
 	return nil
 }
 
@@ -225,8 +249,12 @@ func reclaimFees(ctx context.Context, accountNumber uint64, c *cliConf, w FeeCre
 		return err
 	}
 	consoleWriter.Println("Successfully reclaimed fee credits on", c.partitionType, "partition.")
-	consoleWriter.Println("Paid", amountToString(proofs[0].TxRecord.ServerMetadata.ActualFee, 8), "fee for closeFC transaction from fee credit balance.")
-	consoleWriter.Println("Paid", amountToString(proofs[1].TxRecord.ServerMetadata.ActualFee, 8), "fee for reclaimFC transaction from wallet balance.")
+	if proofs.CloseFC != nil {
+		consoleWriter.Println("Paid", amountToString(proofs.CloseFC.TxRecord.ServerMetadata.ActualFee, 8), "fee for closeFC transaction from fee credit balance.")
+	} else {
+		consoleWriter.Println("Used previously closed unit to reclaim fee credit.")
+	}
+	consoleWriter.Println("Paid", amountToString(proofs.ReclaimFC.TxRecord.ServerMetadata.ActualFee, 8), "fee for reclaimFC transaction from wallet balance.")
 	return nil
 }
 
@@ -261,7 +289,7 @@ func (c *cliConf) getPartitionBackendURL() string {
 
 // Creates a fees.FeeManager that needs to be closed with the Close() method.
 // Does not close the account.Manager passed as an argument.
-func getFeeCreditManager(c *cliConf, am account.Manager, moneyBackendURL, walletHomeDir string) (FeeCreditManager, error) {
+func getFeeCreditManager(c *cliConf, am account.Manager, unitLocker *unitlock.UnitLocker, moneyBackendURL, walletHomeDir string) (FeeCreditManager, error) {
 	moneySystemID := money.DefaultSystemIdentifier
 	moneyBackendClient, err := moneyclient.New(moneyBackendURL)
 	if err != nil {
@@ -272,6 +300,7 @@ func getFeeCreditManager(c *cliConf, am account.Manager, moneyBackendURL, wallet
 	if c.partitionType == moneyType {
 		return fees.NewFeeManager(
 			am,
+			unitLocker,
 			moneySystemID,
 			moneyTxPublisher,
 			moneyBackendClient,
@@ -289,6 +318,7 @@ func getFeeCreditManager(c *cliConf, am account.Manager, moneyBackendURL, wallet
 
 		return fees.NewFeeManager(
 			am,
+			unitLocker,
 			moneySystemID,
 			moneyTxPublisher,
 			moneyBackendClient,
@@ -298,8 +328,8 @@ func getFeeCreditManager(c *cliConf, am account.Manager, moneyBackendURL, wallet
 		), nil
 	} else if c.partitionType == vdType {
 		vdClient, err := vdwallet.New(&vdwallet.VDClientConfig{
-			VDNodeURL:         c.getPartitionBackendURL(),
-			WalletHomeDir:     walletHomeDir,
+			VDNodeURL:     c.getPartitionBackendURL(),
+			WalletHomeDir: walletHomeDir,
 		})
 		if err != nil {
 			return nil, err
@@ -309,6 +339,7 @@ func getFeeCreditManager(c *cliConf, am account.Manager, moneyBackendURL, wallet
 
 		return fees.NewFeeManager(
 			am,
+			unitLocker,
 			moneySystemID,
 			moneyTxPublisher,
 			moneyBackendClient,

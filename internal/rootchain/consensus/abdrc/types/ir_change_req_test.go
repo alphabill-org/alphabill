@@ -469,7 +469,7 @@ func TestIRChangeReqMsg_VerifyTimeoutReq(t *testing.T) {
 			ir, err := x.Verify(tt.args.tb, tt.args.luc, tt.args.round, tt.args.t2InRounds)
 			if tt.wantErrStr == "" {
 				require.NoError(t, err)
-				repeatIR, _ := types.NewRepeatInputRecord(tt.args.luc.InputRecord)
+				repeatIR := tt.args.luc.InputRecord.NewRepeatIR()
 				require.Equal(t, repeatIR, ir)
 				return
 			}
@@ -681,7 +681,7 @@ func TestIRChangeReqMsg_VerifyQuorumNotPossible(t *testing.T) {
 			ir, err := x.Verify(tt.args.tb, tt.args.luc, 0, 0)
 			if tt.wantErrStr == "" {
 				require.NoError(t, err)
-				repeatIR, _ := types.NewRepeatInputRecord(tt.args.luc.InputRecord)
+				repeatIR := tt.args.luc.InputRecord.NewRepeatIR()
 				require.Equal(t, repeatIR, ir)
 				return
 			}

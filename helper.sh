@@ -183,7 +183,7 @@ local restPort=0
   i=1
   for keyf in $key_files
   do
-    build/alphabill "$1" --home ${home}$i -f ${home}$i/"$1"/blocks.db -k $keyf -r "/ip4/127.0.0.1/tcp/26662" -a "/ip4/127.0.0.1/tcp/$aPort" --server-address ":$grpcPort" --rest-server-address "localhost:$restPort" -g $genesis_file  >> ${home}$i/"$1"/"$1".log &
+    build/alphabill "$1" --home ${home}$i -f ${home}$i/"$1"/blocks.db -k $keyf -r "/ip4/127.0.0.1/tcp/26662" -a "/ip4/127.0.0.1/tcp/$aPort" --server-address "localhost:$grpcPort" --rest-server-address "localhost:$restPort" -g $genesis_file  >> ${home}$i/"$1"/"$1".log &
     ((i=i+1))
     ((aPort=aPort+1))
     ((grpcPort=grpcPort+1))
@@ -199,7 +199,7 @@ function start_backend() {
 
     case $1 in
       money)
-        home="testab/backend/money/"
+        home="testab/backend/money"
         cmd="money-backend"
         grpcPort=26766
         sPort=9654
@@ -216,7 +216,7 @@ function start_backend() {
         customArgs=$sdrFiles
         ;;
       tokens)
-        home="testab/backend/vd/"
+        home="testab/backend/tokens"
         cmd="tokens-backend"
         grpcPort=28766
         sPort=9735

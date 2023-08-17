@@ -2,6 +2,7 @@ package tokens
 
 import (
 	"context"
+	"crypto"
 	"fmt"
 
 	"github.com/alphabill-org/alphabill/internal/txsystem/tokens"
@@ -76,6 +77,7 @@ func (w *Wallet) collectDust(ctx context.Context, acc *account.AccountKey, typed
 		if err != nil {
 			return err
 		}
+
 		totalAmountJoined += burnBatchAmount
 	}
 	return nil
@@ -111,7 +113,8 @@ func (w *Wallet) joinTokenForDC(ctx context.Context, acc *account.AccountKey, bu
 	if err = sub.ToBatch(w.backend, acc.PubKey).SendTx(ctx, true); err != nil {
 		return nil, err
 	}
-	return sub.TxHash, nil
+
+	return sub.Proof.TxRecord.TransactionOrder.Hash(crypto.SHA256), nil
 }
 
 func (w *Wallet) burnTokensForDC(ctx context.Context, acc *account.AccountKey, tokensToBurn []*twb.TokenUnit, nonce sdk.TxHash, invariantPredicateArgs []*PredicateInput) (uint64, []*sdk.Proof, error) {

@@ -9,11 +9,11 @@ import (
 	"testing"
 
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
-	testfc "github.com/alphabill-org/alphabill/internal/txsystem/fc/testutils"
 	"github.com/alphabill-org/alphabill/internal/rpc/alphabill"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	testfile "github.com/alphabill-org/alphabill/internal/testutils/file"
 	testtransaction "github.com/alphabill-org/alphabill/internal/testutils/transaction"
+	testfc "github.com/alphabill-org/alphabill/internal/txsystem/fc/testutils"
 	"github.com/alphabill-org/alphabill/internal/txsystem/vd"
 	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/internal/util"
@@ -85,7 +85,7 @@ func TestVdClient_RegisterHash_SyncBlocks(t *testing.T) {
 	require.NoError(t, err)
 	// TODO: correct?
 	addFC := testfc.NewAddFC(t, signer, nil,
-		testtransaction.WithUnitId(vdClient.accountKey.PrivKeyHash),
+		testtransaction.WithUnitId(vdClient.accountKey.PubKeyHash.Sha256),
 		testtransaction.WithSystemID(vd.DefaultSystemIdentifier))
 
 	mock := &abClientMock{maxBlock: 2, maxRoundNumber: 2}
@@ -280,9 +280,9 @@ func (a *abClientMock) GetBlocks(ctx context.Context, blockNumber, blockCount ui
 	}
 	return &alphabill.GetBlocksResponse{
 		BatchMaxBlockNumber: blockNumber,
-		MaxBlockNumber: a.maxBlock,
-		MaxRoundNumber: a.maxBlock,
-		Blocks: [][]byte{blockBytes},
+		MaxBlockNumber:      a.maxBlock,
+		MaxRoundNumber:      a.maxBlock,
+		Blocks:              [][]byte{blockBytes},
 	}, nil
 }
 
@@ -313,14 +313,14 @@ func getABClientMock(t *testing.T, vdClient *VDClient) *abClientMock {
 	signer, err := abcrypto.NewInMemorySecp256K1Signer()
 	require.NoError(t, err)
 	addFC := testfc.NewAddFC(t, signer, nil,
-		testtransaction.WithUnitId(vdClient.accountKey.PrivKeyHash),
+		testtransaction.WithUnitId(vdClient.accountKey.PubKeyHash.Sha256),
 		testtransaction.WithSystemID(vd.DefaultSystemIdentifier))
 
 	mock := &abClientMock{maxBlock: 1, maxRoundNumber: 1}
 	mock.block = func(nr uint64) *types.Block {
 		return &types.Block{
 			UnicityCertificate: &types.UnicityCertificate{InputRecord: &types.InputRecord{RoundNumber: nr}},
-			Transactions:       []*types.TransactionRecord{
+			Transactions: []*types.TransactionRecord{
 				{TransactionOrder: addFC, ServerMetadata: &types.ServerMetadata{ActualFee: 1}},
 			},
 		}

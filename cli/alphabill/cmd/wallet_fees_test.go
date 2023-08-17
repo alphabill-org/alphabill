@@ -7,6 +7,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/ethereum/go-ethereum/common/hexutil"
+
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/internal/script"
 	testpartition "github.com/alphabill-org/alphabill/internal/testutils/partition"
@@ -172,11 +174,11 @@ func execFeesCommand(homeDir, command string) (*testConsoleWriter, error) {
 // Returns wallet homedir and reference to money partition object.
 func setupMoneyInfraAndWallet(t *testing.T, otherPartitions []*testpartition.NodePartition) (string, *testpartition.AlphabillNetwork) {
 	initialBill := &money.InitialBill{
-		ID:    uint256.NewInt(1),
+		ID:    util.Uint256ToBytes(uint256.NewInt(1)),
 		Value: 1e18,
 		Owner: script.PredicateAlwaysTrue(),
 	}
-	moneyPartition := createMoneyPartition(t, initialBill)
+	moneyPartition := createMoneyPartition(t, initialBill, 1)
 	nodePartitions := []*testpartition.NodePartition{moneyPartition}
 	nodePartitions = append(nodePartitions, otherPartitions...)
 	abNet := startAlphabill(t, nodePartitions)
@@ -189,12 +191,13 @@ func setupMoneyInfraAndWallet(t *testing.T, otherPartitions []*testpartition.Nod
 	wlog.InitStdoutLogger(wlog.DEBUG)
 	homedir := createNewTestWallet(t)
 
-	stdout := execWalletCmd(t, "", homedir, "get-pubkeys")
+	stdout := execWalletCmd(t, homedir, "get-pubkeys")
 	require.Len(t, stdout.lines, 1)
 	pk, _ := strings.CutPrefix(stdout.lines[0], "#1 ")
+	pkBytes, _ := hexutil.Decode(pk)
 
 	// transfer initial bill to wallet pubkey
-	spendInitialBillWithFeeCredits(t, abNet, initialBill, pk)
+	spendInitialBillWithFeeCredits(t, abNet, initialBill, pkBytes)
 
 	// wait for initial bill tx
 	waitForBalanceCLI(t, homedir, defaultAlphabillApiURL, initialBill.Value-3, 0) // initial bill minus txfees
@@ -214,7 +217,7 @@ func startMoneyBackend(t *testing.T, moneyPart *testpartition.NodePartition, ini
 				DbFile:                  filepath.Join(t.TempDir(), backend.BoltBillStoreFileName),
 				ListBillsPageLimit:      100,
 				InitialBill: backend.InitialBill{
-					Id:        util.Uint256ToBytes(initialBill.ID),
+					Id:        initialBill.ID,
 					Value:     initialBill.Value,
 					Predicate: script.PredicateAlwaysTrue(),
 				},

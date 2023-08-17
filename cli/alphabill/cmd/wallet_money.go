@@ -23,6 +23,7 @@ import (
 	wlog "github.com/alphabill-org/alphabill/pkg/wallet/log"
 	"github.com/alphabill-org/alphabill/pkg/wallet/money"
 	moneyclient "github.com/alphabill-org/alphabill/pkg/wallet/money/backend/client"
+	"github.com/alphabill-org/alphabill/pkg/wallet/unitlock"
 )
 
 type walletConfig struct {
@@ -75,7 +76,7 @@ func newWalletCmd(baseConfig *baseConfiguration) *cobra.Command {
 		},
 	}
 	walletCmd.AddCommand(newWalletBillsCmd(config))
-	walletCmd.AddCommand(newWalletFeesCmd(context.Background(), config))
+	walletCmd.AddCommand(newWalletFeesCmd(config))
 	walletCmd.AddCommand(createCmd(config))
 	walletCmd.AddCommand(sendCmd(config))
 	walletCmd.AddCommand(getPubKeysCmd(config))
@@ -183,7 +184,13 @@ func execSendCmd(ctx context.Context, cmd *cobra.Command, config *walletConfig) 
 	if err != nil {
 		return err
 	}
-	w, err := money.LoadExistingWallet(am, restClient)
+	unitLocker, err := unitlock.NewUnitLocker(config.WalletHomeDir)
+	if err != nil {
+		return err
+	}
+	defer unitLocker.Close()
+
+	w, err := money.LoadExistingWallet(am, unitLocker, restClient)
 	if err != nil {
 		return err
 	}
@@ -262,6 +269,12 @@ func execSendCmd(ctx context.Context, cmd *cobra.Command, config *walletConfig) 
 			}
 			consoleWriter.Println("Transaction proof(s) saved to: " + outputFile)
 		}
+
+		var feeSum uint64
+		for _, proof := range proofs {
+			feeSum += proof.TxRecord.ServerMetadata.GetActualFee()
+		}
+		consoleWriter.Println("Paid", amountToString(feeSum, 8), "fees for transaction(s).")
 	} else {
 		consoleWriter.Println("Successfully sent transaction(s)")
 	}
@@ -299,7 +312,15 @@ func execGetBalanceCmd(cmd *cobra.Command, config *walletConfig) error {
 	if err != nil {
 		return err
 	}
-	w, err := money.LoadExistingWallet(am, restClient)
+	defer am.Close()
+
+	unitLocker, err := unitlock.NewUnitLocker(config.WalletHomeDir)
+	if err != nil {
+		return err
+	}
+	defer unitLocker.Close()
+
+	w, err := money.LoadExistingWallet(am, unitLocker, restClient)
 	if err != nil {
 		return err
 	}
@@ -325,7 +346,7 @@ func execGetBalanceCmd(cmd *cobra.Command, config *walletConfig) error {
 		quiet = false // quiet is supposed to work only when total or key flag is provided
 	}
 	if accountNumber == 0 {
-		totals, sum, err := w.GetBalances(money.GetBalanceCmd{CountDCBills: showUnswapped})
+		totals, sum, err := w.GetBalances(cmd.Context(), money.GetBalanceCmd{CountDCBills: showUnswapped})
 		if err != nil {
 			return err
 		}
@@ -341,7 +362,7 @@ func execGetBalanceCmd(cmd *cobra.Command, config *walletConfig) error {
 			consoleWriter.Println(fmt.Sprintf("Total %s", sumStr))
 		}
 	} else {
-		balance, err := w.GetBalance(money.GetBalanceCmd{AccountIndex: accountNumber - 1, CountDCBills: showUnswapped})
+		balance, err := w.GetBalance(cmd.Context(), money.GetBalanceCmd{AccountIndex: accountNumber - 1, CountDCBills: showUnswapped})
 		if err != nil {
 			return err
 		}
@@ -419,15 +440,22 @@ func execCollectDust(cmd *cobra.Command, config *walletConfig) error {
 	if err != nil {
 		return err
 	}
+	defer am.Close()
 
-	w, err := money.LoadExistingWallet(am, restClient)
+	unitLocker, err := unitlock.NewUnitLocker(config.WalletHomeDir)
+	if err != nil {
+		return err
+	}
+	defer unitLocker.Close()
+
+	w, err := money.LoadExistingWallet(am, unitLocker, restClient)
 	if err != nil {
 		return err
 	}
 	defer w.Close()
 
 	consoleWriter.Println("Starting dust collection, this may take a while...")
-	err = w.CollectDust(context.Background(), accountNumber)
+	err = w.CollectDust(cmd.Context(), accountNumber)
 
 	if err != nil {
 		consoleWriter.Println("Failed to collect dust: " + err.Error())

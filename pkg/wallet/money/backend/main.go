@@ -25,16 +25,13 @@ import (
 	wlog "github.com/alphabill-org/alphabill/pkg/wallet/log"
 )
 
-// @title           Money Partition Indexing Backend API
-// @version         1.0
-// @description     This service processes blocks from the Money partition and indexes ownership of bills.
-
-// @BasePath  /api/v1
 type (
 	WalletBackendService interface {
 		GetBills(ownerCondition []byte) ([]*Bill, error)
 		GetBill(unitID []byte) (*Bill, error)
 		GetFeeCreditBill(unitID []byte) (*Bill, error)
+		GetLockedFeeCredit(systemID, fcbID []byte) (*types.TransactionRecord, error)
+		GetClosedFeeCredit(fcbID []byte) (*types.TransactionRecord, error)
 		GetRoundNumber(ctx context.Context) (uint64, error)
 		SendTransactions(ctx context.Context, txs []*types.TransactionOrder) map[string]string
 		GetTxProof(unitID sdk.UnitID, txHash sdk.TxHash) (*sdk.Proof, error)
@@ -57,11 +54,12 @@ type (
 		Value          uint64 `json:"value"`
 		TxHash         []byte `json:"txHash"`
 		DcNonce        []byte `json:"dcNonce,omitempty"`
+		SwapTimeout    uint64 `json:"swapTimeout,string,omitempty"`
 		OwnerPredicate []byte `json:"ownerPredicate"`
 
 		// fcb specific fields
-		// AddFCTxHash last add fee credit tx hash
-		AddFCTxHash []byte `json:"addFcTxHash,omitempty"`
+		// LastAddFCTxHash last add fee credit tx hash
+		LastAddFCTxHash []byte `json:"lastAddFcTxHash,omitempty"`
 	}
 
 	Pubkey struct {
@@ -87,6 +85,10 @@ type (
 		DeleteExpiredBills(blockNumber uint64) error
 		GetFeeCreditBill(unitID []byte) (*Bill, error)
 		SetFeeCreditBill(fcb *Bill, proof *sdk.Proof) error
+		GetLockedFeeCredit(systemID, fcbID []byte) (*types.TransactionRecord, error)
+		SetLockedFeeCredit(systemID, fcbID []byte, txr *types.TransactionRecord) error
+		GetClosedFeeCredit(unitID []byte) (*types.TransactionRecord, error)
+		SetClosedFeeCredit(unitID []byte, txr *types.TransactionRecord) error
 		GetSystemDescriptionRecords() ([]*genesis.SystemDescriptionRecord, error)
 		SetSystemDescriptionRecords(sdrs []*genesis.SystemDescriptionRecord) error
 		GetTxProof(unitID sdk.UnitID, txHash sdk.TxHash) (*sdk.Proof, error)
@@ -256,6 +258,16 @@ func (w *WalletBackend) GetFeeCreditBill(unitID []byte) (*Bill, error) {
 	return w.store.Do().GetFeeCreditBill(unitID)
 }
 
+// GetLockedFeeCredit returns most recently seen transferFC transaction for given system ID and fee credit bill ID.
+func (w *WalletBackend) GetLockedFeeCredit(systemID, fcbID []byte) (*types.TransactionRecord, error) {
+	return w.store.Do().GetLockedFeeCredit(systemID, fcbID)
+}
+
+// GetClosedFeeCredit returns most recently seen closeFC transaction for given fee credit bill ID.
+func (w *WalletBackend) GetClosedFeeCredit(fcbID []byte) (*types.TransactionRecord, error) {
+	return w.store.Do().GetClosedFeeCredit(fcbID)
+}
+
 // GetRoundNumber returns latest round number.
 func (w *WalletBackend) GetRoundNumber(ctx context.Context) (uint64, error) {
 	return w.genericWallet.GetRoundNumber(ctx)
@@ -357,8 +369,8 @@ func extractOwnerHashFromP2pkh(bearer sdk.Predicate) sdk.PubKeyHash {
 }
 
 func extractOwnerKeyFromProof(signature sdk.Predicate) sdk.PubKey {
-	if len(signature) == 101 && signature[67] == script.OpPushPubKey && signature[68] == script.SigSchemeSecp256k1 {
-		return sdk.PubKey(signature[69:101])
+	if len(signature) == 103 && signature[68] == script.OpPushPubKey && signature[69] == script.SigSchemeSecp256k1 {
+		return sdk.PubKey(signature[70:])
 	}
 	return nil
 }
@@ -396,11 +408,11 @@ func (w *WalletBackend) GetDCMetadata(nonce []byte) (*DCMetadata, error) {
 
 func (b *Bill) ToGenericBill() *sdk.Bill {
 	return &sdk.Bill{
-		Id:          b.Id,
-		Value:       b.Value,
-		TxHash:      b.TxHash,
-		DcNonce:     b.DcNonce,
-		AddFCTxHash: b.AddFCTxHash,
+		Id:              b.Id,
+		Value:           b.Value,
+		TxHash:          b.TxHash,
+		DcNonce:         b.DcNonce,
+		LastAddFCTxHash: b.LastAddFCTxHash,
 	}
 }
 
@@ -426,9 +438,9 @@ func (b *Bill) getValue() uint64 {
 	return 0
 }
 
-func (b *Bill) getAddFCTxHash() []byte {
+func (b *Bill) getLastAddFCTxHash() []byte {
 	if b != nil {
-		return b.AddFCTxHash
+		return b.LastAddFCTxHash
 	}
 	return nil
 }

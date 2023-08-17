@@ -12,6 +12,9 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/holiman/uint256"
+	"github.com/stretchr/testify/require"
+
 	"github.com/alphabill-org/alphabill/internal/hash"
 	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/internal/util"
@@ -21,8 +24,7 @@ import (
 	"github.com/alphabill-org/alphabill/pkg/wallet/money/backend"
 	beclient "github.com/alphabill-org/alphabill/pkg/wallet/money/backend/client"
 	txbuilder "github.com/alphabill-org/alphabill/pkg/wallet/money/tx_builder"
-	"github.com/holiman/uint256"
-	"github.com/stretchr/testify/require"
+	"github.com/alphabill-org/alphabill/pkg/wallet/unitlock"
 )
 
 type (
@@ -47,16 +49,26 @@ func CreateTestWallet(t *testing.T, backend BackendAPI) (*Wallet, *clientmock.Mo
 	am, err := account.NewManager(dir, "", true)
 	require.NoError(t, err)
 
-	return CreateTestWalletWithManager(t, backend, am)
+	unitlocker, err := unitlock.NewUnitLocker(dir)
+	require.NoError(t, err)
+
+	return CreateTestWalletWithManagerAndUnitLocker(t, backend, am, unitlocker)
 }
 
 func CreateTestWalletWithManager(t *testing.T, backend BackendAPI, am account.Manager) (*Wallet, *clientmock.MockAlphabillClient) {
+	unitLocker, err := unitlock.NewUnitLocker(t.TempDir())
+	require.NoError(t, err)
+	return CreateTestWalletWithManagerAndUnitLocker(t, backend, am, unitLocker)
+}
+
+func CreateTestWalletWithManagerAndUnitLocker(t *testing.T, backend BackendAPI, am account.Manager, unitLocker *unitlock.UnitLocker) (*Wallet, *clientmock.MockAlphabillClient) {
 	err := CreateNewWallet(am, "")
 	require.NoError(t, err)
 
-	mockClient := clientmock.NewMockAlphabillClient(clientmock.WithMaxBlockNumber(0), clientmock.WithBlocks(map[uint64]*types.Block{}))
-	w, err := LoadExistingWallet(am, backend)
+	w, err := LoadExistingWallet(am, unitLocker, backend)
 	require.NoError(t, err)
+
+	mockClient := clientmock.NewMockAlphabillClient(clientmock.WithMaxBlockNumber(0), clientmock.WithBlocks(map[uint64]*types.Block{}))
 	return w, mockClient
 }
 
@@ -78,7 +90,11 @@ func CreateTestWalletFromSeed(t *testing.T, br *backendMockReturnConf) (*Wallet,
 	_, serverAddr := mockBackendCalls(br)
 	restClient, err := beclient.New(serverAddr.Host)
 	require.NoError(t, err)
-	w, err := LoadExistingWallet(am, restClient)
+
+	unitlocker, err := unitlock.NewUnitLocker(dir)
+	require.NoError(t, err)
+
+	w, err := LoadExistingWallet(am, unitlocker, restClient)
 	require.NoError(t, err)
 	return w, mockClient
 }
@@ -167,13 +183,14 @@ func createBlockProofResponse(t *testing.T, b *Bill, overrideNonce []byte, timeo
 }
 
 func createBillListResponse(bills []*Bill, dcMetadata map[string]*backend.DCMetadata) *backend.ListBillsResponse {
-	billVMs := make([]*backend.ListBillVM, len(bills))
+	billVMs := make([]*wallet.Bill, len(bills))
 	for i, b := range bills {
-		billVMs[i] = &backend.ListBillVM{
-			Id:      b.GetID(),
-			Value:   b.Value,
-			TxHash:  b.TxHash,
-			DcNonce: b.DcNonce,
+		billVMs[i] = &wallet.Bill{
+			Id:          b.GetID(),
+			Value:       b.Value,
+			TxHash:      b.TxHash,
+			DcNonce:     b.DcNonce,
+			SwapTimeout: b.SwapTimeout,
 		}
 	}
 	return &backend.ListBillsResponse{Bills: billVMs, Total: len(bills), DCMetadata: dcMetadata}
@@ -195,7 +212,7 @@ type backendAPIMock struct {
 	postTransactions func(ctx context.Context, pubKey wallet.PubKey, txs *wallet.Transactions) error
 }
 
-func (b *backendAPIMock) GetBills(pubKey []byte) ([]*wallet.Bill, error) {
+func (b *backendAPIMock) GetBills(ctx context.Context, pubKey []byte) ([]*wallet.Bill, error) {
 	if b.getBills != nil {
 		return b.getBills(pubKey)
 	}
@@ -216,14 +233,22 @@ func (b *backendAPIMock) GetFeeCreditBill(ctx context.Context, unitID wallet.Uni
 	return nil, errors.New("getFeeCreditBill not implemented")
 }
 
-func (b *backendAPIMock) GetBalance(pubKey []byte, includeDCBills bool) (uint64, error) {
+func (b *backendAPIMock) GetLockedFeeCredit(ctx context.Context, systemID []byte, fcbID []byte) (*types.TransactionRecord, error) {
+	return nil, nil
+}
+
+func (b *backendAPIMock) GetClosedFeeCredit(ctx context.Context, fcbID []byte) (*types.TransactionRecord, error) {
+	return nil, nil
+}
+
+func (b *backendAPIMock) GetBalance(ctx context.Context, pubKey []byte, includeDCBills bool) (uint64, error) {
 	if b.getBalance != nil {
 		return b.getBalance(pubKey, includeDCBills)
 	}
 	return 0, errors.New("getBalance not implemented")
 }
 
-func (b *backendAPIMock) ListBills(pubKey []byte, includeDCBills, includeDCMetadata bool) (*backend.ListBillsResponse, error) {
+func (b *backendAPIMock) ListBills(ctx context.Context, pubKey []byte, includeDCBills, includeDCMetadata bool) (*backend.ListBillsResponse, error) {
 	if b.listBills != nil {
 		return b.listBills(pubKey, includeDCBills, includeDCMetadata)
 	}

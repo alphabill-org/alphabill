@@ -99,7 +99,7 @@ func abMoneyGenesisRunFun(_ context.Context, config *moneyGenesisConfig) error {
 	}
 
 	ib := &money.InitialBill{
-		ID:    uint256.NewInt(defaultInitialBillId),
+		ID:    util.Uint256ToBytes(uint256.NewInt(defaultInitialBillId)),
 		Value: config.InitialBillValue,
 		Owner: script.PredicateAlwaysTrue(),
 	}

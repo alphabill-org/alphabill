@@ -9,9 +9,10 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
-	"github.com/alphabill-org/alphabill/internal/rma"
+	"github.com/alphabill-org/alphabill/internal/state"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/alphabill-org/alphabill/internal/testutils/net"
 	testpartition "github.com/alphabill-org/alphabill/internal/testutils/partition"
@@ -458,9 +459,7 @@ func ensureTokenTypeIndexed(t *testing.T, ctx context.Context, api *client.Token
 }
 
 func createTokensPartition(t *testing.T) *testpartition.NodePartition {
-	tokensState := rma.NewWithSHA256()
-	require.NotNil(t, tokensState)
-
+	tokensState := state.NewEmptyState()
 	network, err := testpartition.NewPartition(1,
 		func(tb map[string]abcrypto.Verifier) txsystem.TransactionSystem {
 			system, err := tokens.NewTxSystem(
@@ -552,6 +551,10 @@ func randomID(t *testing.T) []byte {
 }
 
 func verifyStdoutEventually(t *testing.T, exec func() *testConsoleWriter, expectedLines ...string) {
+	verifyStdoutEventuallyWithTimeout(t, exec, test.WaitDuration, test.WaitTick, expectedLines...)
+}
+
+func verifyStdoutEventuallyWithTimeout(t *testing.T, exec func() *testConsoleWriter, waitFor time.Duration, tick time.Duration, expectedLines ...string) {
 	require.Eventually(t, func() bool {
 		joined := strings.Join(exec().lines, "\n")
 		res := true
@@ -559,5 +562,5 @@ func verifyStdoutEventually(t *testing.T, exec func() *testConsoleWriter, expect
 			res = res && strings.Contains(joined, expectedLine)
 		}
 		return res
-	}, test.WaitDuration, test.WaitTick)
+	}, waitFor, tick)
 }

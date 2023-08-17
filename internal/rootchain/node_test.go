@@ -2,6 +2,7 @@ package rootchain
 
 import (
 	"context"
+	"crypto/sha256"
 	"fmt"
 	"testing"
 	"time"
@@ -199,12 +200,12 @@ func TestRootValidatorTest_CertificationReqEquivocatingReq(t *testing.T) {
 	rootValidator.onBlockCertificationRequest(eqReq)
 	buffer, f := rootValidator.incomingRequests.store[protocol.SystemIdentifier(partitionID)]
 	require.True(t, f)
-	storedNodeReq, f := buffer.requests[partitionNodes[0].Peer.ID().String()]
+	storedNodeReqHash, f := buffer.nodeRequest[partitionNodes[0].Peer.ID().String()]
 	require.True(t, f)
-	require.Equal(t, req, storedNodeReq)
-	require.Len(t, buffer.hashCounts, 1)
-	for _, count := range buffer.hashCounts {
-		require.Equal(t, uint(1), count)
+	require.EqualValues(t, sha256.Sum256(req.InputRecord.Bytes()), storedNodeReqHash)
+	require.Len(t, buffer.requests, 1)
+	for _, certReq := range buffer.requests {
+		require.Len(t, certReq, 1)
 	}
 }
 

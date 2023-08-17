@@ -8,10 +8,12 @@ import (
 	"testing"
 
 	"github.com/alphabill-org/alphabill/internal/hash"
+	"github.com/alphabill-org/alphabill/internal/txsystem/money"
 	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/alphabill-org/alphabill/pkg/wallet/money/backend"
+	"github.com/alphabill-org/alphabill/pkg/wallet/unitlock"
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
 )
@@ -123,7 +125,7 @@ func TestWalletSendFunction_WaitForConfirmation(t *testing.T) {
 	// test send successfully waits for confirmation
 	_, err := w.Send(context.Background(), SendCmd{ReceiverPubKey: pubKey, Amount: b.Value, WaitForConfirmation: true, AccountIndex: 0})
 	require.NoError(t, err)
-	balance, _ := w.GetBalance(GetBalanceCmd{})
+	balance, _ := w.GetBalance(context.Background(), GetBalanceCmd{})
 	require.EqualValues(t, 100, balance)
 }
 
@@ -337,4 +339,85 @@ func TestWholeBalanceIsSentUsingBillTransferOrder(t *testing.T) {
 	require.Len(t, recordedTransactions, 1)
 	btTx := parseBillTransferTx(t, recordedTransactions[0])
 	require.EqualValues(t, 100, btTx.TargetValue)
+}
+
+func TestWalletSendFunction_LockedBillIsNotUsed(t *testing.T) {
+	unitID := uint256.NewInt(123)
+	w, _ := CreateTestWallet(t, withBackendMock(t, &backendMockReturnConf{
+		balance:       70,
+		billId:        unitID,
+		billValue:     50,
+		feeCreditBill: &wallet.Bill{Value: 1e8},
+	}))
+	validPubKey := make([]byte, 33)
+	ctx := context.Background()
+
+	// lock the only bill in wallet
+	err := w.unitlocker.LockUnit(&unitlock.LockedUnit{UnitID: util.Uint256ToBytes(unitID)})
+	require.NoError(t, err)
+
+	// test send returns error
+	_, err = w.Send(ctx, SendCmd{ReceiverPubKey: validPubKey, Amount: 50})
+	require.ErrorContains(t, err, "insufficient balance for transaction")
+}
+
+func TestWalletSendFunction_BillWithExactAmount(t *testing.T) {
+	// create test wallet with 2 bills with different values
+	pubKey := make([]byte, 33)
+	bills := []*Bill{{
+		Id:      uint256.NewInt(0),
+		Value:   100,
+		TxHash:  hash.Sum256([]byte{0x01}),
+		TxProof: &wallet.Proof{},
+	}, {
+		Id:      uint256.NewInt(1),
+		Value:   77,
+		TxHash:  hash.Sum256([]byte{0x02}),
+		TxProof: &wallet.Proof{}},
+	}
+
+	var w *Wallet
+	var recordedTransactions []*types.TransactionOrder
+	backendMock := &backendAPIMock{
+		getBalance: func(pubKey []byte, includeDCBills bool) (uint64, error) {
+			return bills[0].Value + bills[1].Value, nil
+		},
+		getRoundNumber: func() (uint64, error) {
+			return 0, nil
+		},
+		listBills: func(pubKey []byte, includeDCBills, includeDCMetadata bool) (*backend.ListBillsResponse, error) {
+			return createBillListResponse(bills, nil), nil
+		},
+		getBills: func(pubKey []byte) ([]*wallet.Bill, error) {
+			return []*wallet.Bill{{Id: bills[0].GetID(), Value: bills[0].Value, TxHash: bills[0].TxHash}, {Id: bills[1].GetID(), Value: bills[1].Value, TxHash: bills[1].TxHash}}, nil
+		},
+		getTxProof: func(ctx context.Context, unitID wallet.UnitID, txHash wallet.TxHash) (*wallet.Proof, error) {
+			tx := recordedTransactions[0]
+			bills[1].TxHash = tx.Hash(crypto.SHA256)
+			return createBlockProofResponse(t, bills[1], nil, dcTimeoutBlockCount, nil), nil
+		},
+		getFeeCreditBill: func(ctx context.Context, unitID []byte) (*wallet.Bill, error) {
+			ac, _ := w.am.GetAccountKey(0)
+			return &wallet.Bill{
+				Id:    ac.PrivKeyHash,
+				Value: 100 * 1e8,
+			}, nil
+		},
+		postTransactions: func(ctx context.Context, pubKey wallet.PubKey, txs *wallet.Transactions) error {
+			for _, tx := range txs.Transactions {
+				recordedTransactions = append(recordedTransactions, tx)
+			}
+			return nil
+		},
+	}
+	w, _ = CreateTestWallet(t, backendMock)
+
+	// run send command with amount equal to one of the bills
+	_, err := w.Send(context.Background(), SendCmd{ReceiverPubKey: pubKey, Amount: bills[1].Value, WaitForConfirmation: true, AccountIndex: 0})
+
+	// verify that the send command creates a single transfer for the bill with the exact value requested
+	require.NoError(t, err)
+	require.Len(t, recordedTransactions, 1)
+	require.Equal(t, money.PayloadTypeTransfer, recordedTransactions[0].PayloadType())
+	require.EqualValues(t, util.Uint256ToBytes(bills[1].Id), recordedTransactions[0].Payload.UnitID)
 }

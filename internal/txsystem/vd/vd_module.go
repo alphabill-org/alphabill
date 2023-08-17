@@ -1,28 +1,28 @@
 package vd
 
 import (
+	"bytes"
 	"hash"
+
+	"github.com/alphabill-org/alphabill/internal/state"
 
 	"github.com/alphabill-org/alphabill/internal/errors"
 	abhash "github.com/alphabill-org/alphabill/internal/hash"
-	"github.com/alphabill-org/alphabill/internal/rma"
 	"github.com/alphabill-org/alphabill/internal/script"
-	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
-	"github.com/alphabill-org/alphabill/internal/txsystem/fc"
+	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/alphabill-org/alphabill/pkg/logger"
 )
 
 const (
-	zeroSummaryValue = rma.Uint64SummaryValue(0)
+	zeroSummaryValue = uint64(0)
 )
 
 var (
 	ErrOwnerProofPresent = errors.New("'register data' transaction cannot have an owner proof")
 	ErrDataAlreadyExists = errors.New("data already exists")
 	log                  = logger.CreateForPackage()
-
 )
 
 type (
@@ -79,33 +79,38 @@ func handleRegisterDataTx(options *Options) txsystem.GenericExecuteFunc[Register
 		}
 
 		fee := options.feeCalculator()
-		txHash := tx.Hash(options.hashAlgorithm)
-
-		fcrID := util.BytesToUint256(tx.GetClientFeeCreditRecordID())
-		unitID := util.BytesToUint256(tx.UnitID())
-		err := options.state.AtomicUpdate(
-			fc.DecrCredit(fcrID, fee, txHash),
-			rma.AddItem(unitID,
+		unitID := tx.UnitID()
+		err := options.state.Apply(
+			state.AddUnit(unitID,
 				script.PredicateAlwaysFalse(),
 				&unit{
 					dataHash:    abhash.Sum256(tx.UnitID()),
 					blockNumber: currentBlockNr,
 				},
-				txHash,
 			),
 		)
 		if err != nil {
 			return nil, err
 		}
-		return &types.ServerMetadata{ActualFee: fee}, nil
+		return &types.ServerMetadata{ActualFee: fee, TargetUnits: []types.UnitID{tx.UnitID()}}, nil
 	}
 }
 
-func (u *unit) AddToHasher(hasher hash.Hash) {
+func (u *unit) Write(hasher hash.Hash) {
 	hasher.Write(u.dataHash)
 	hasher.Write(util.Uint64ToBytes(u.blockNumber))
 }
 
-func (u *unit) Value() rma.SummaryValue {
+func (u *unit) SummaryValueInput() uint64 {
 	return zeroSummaryValue
+}
+
+func (u *unit) Copy() state.UnitData {
+	if u == nil {
+		return u
+	}
+	return &unit{
+		dataHash:    bytes.Clone(u.dataHash),
+		blockNumber: u.blockNumber,
+	}
 }

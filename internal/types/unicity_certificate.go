@@ -72,15 +72,16 @@ func (x *UnicityCertificate) GetRoundNumber() uint64 {
 }
 
 // CheckNonEquivocatingCertificates checks if provided certificates are equivocating
-// NB! order is important, and it is assumed that validity is checked before
-func CheckNonEquivocatingCertificates(prevUC *UnicityCertificate, newUC *UnicityCertificate) error {
+// NB! order is important, also it is assumed that validity of both UCs is checked before
+// The algorithm is based on Yellowpaper: "Algorithm 6 Checking two UC-s for equivocation"
+func CheckNonEquivocatingCertificates(prevUC, newUC *UnicityCertificate) error {
 	if newUC == nil {
-		return ErrUCIsNil
+		return errUCIsNil
 	}
 	if prevUC == nil {
-		return ErrLastUCIsNil
+		return errLastUCIsNil
 	}
-	// todo: mayebe remove this check
+	// verify order, check both partition round and root round
 	if newUC.UnicitySeal.RootChainRoundNumber < prevUC.UnicitySeal.RootChainRoundNumber {
 		return fmt.Errorf("new certificate is from older root round %v than previous certificate %v",
 			newUC.UnicitySeal.RootChainRoundNumber, prevUC.UnicitySeal.RootChainRoundNumber)
@@ -89,40 +90,54 @@ func CheckNonEquivocatingCertificates(prevUC *UnicityCertificate, newUC *Unicity
 		return fmt.Errorf("new certificate is from older partition round %v than previous certificate %v",
 			newUC.InputRecord.RoundNumber, prevUC.InputRecord.RoundNumber)
 	}
-	// 1. uc.IR.hB = 0H - empty block must not change state - this is done when certificate validity is verified
-	if isZeroHash(newUC.InputRecord.BlockHash) && !bytes.Equal(newUC.InputRecord.PreviousHash, newUC.InputRecord.Hash) {
-		return fmt.Errorf("state hash has changed, but block is zero hash")
-	}
-	// 2. uc.IR.n = uc′ .IR.n - if the partition round number is the same then input records must also match
+	// 1. uc.IR.n = uc′.IR.n - if the partition round number is the same then input records must also match
 	if newUC.InputRecord.RoundNumber == prevUC.InputRecord.RoundNumber {
 		if !bytes.Equal(newUC.InputRecord.Bytes(), prevUC.InputRecord.Bytes()) {
-			return fmt.Errorf("different input records for same partition round %v", newUC.InputRecord.RoundNumber)
+			return fmt.Errorf("equivocating UC, different input records for same partition round %v", newUC.InputRecord.RoundNumber)
 		}
 		// ok, these are just duplicates
+		return nil
 	}
-	// 3. uc.IR.h′ = uc′.IR.h′ - if the certificates input record previous hash is the same
-	if bytes.Equal(newUC.InputRecord.PreviousHash, prevUC.InputRecord.PreviousHash) {
-		// then either: - the new state hash is equal as well - both repeat UC's or
-		//				- the new UC extends from the previous UC
-		if !bytes.Equal(newUC.InputRecord.Hash, prevUC.InputRecord.Hash) &&
-			!bytes.Equal(prevUC.InputRecord.Hash, newUC.InputRecord.PreviousHash) {
-			return fmt.Errorf("previous state hash is equal, but new certificate does not extend it nor is it a repeat certificate")
-		}
+	// 2. if this is a repeat of previous state, then there is nothing more to check they are the same cert only round
+	// number is bigger in the newer certificate
+	if isRepeat(prevUC, newUC) {
+		// new is repeat of previous UC, only round number is bigger, all is fine
+		return nil
 	}
-	// 4. uc.IR.h = uc′ .IR.h - if certificates new input record new state hash is the same
-	if bytes.Equal(newUC.InputRecord.Hash, prevUC.InputRecord.Hash) {
-		// then either: - they are both repeat UC's old state hash is also the same or
-		//              - new UC is repeat UC from previous state
-		if !bytes.Equal(newUC.InputRecord.PreviousHash, prevUC.InputRecord.PreviousHash) &&
-			!bytes.Equal(newUC.InputRecord.Hash, newUC.InputRecord.PreviousHash) {
-			return fmt.Errorf("new state hash is equal, but both are not repeat certificates of the same state nor is the new repeat certificate")
-		}
+	// 3. not a repeat UC, then it must extend from previous state if certificates are from consecutive rounds,
+	// if it is not from consecutive rounds then it is simply not possible to make any conclusions
+	if newUC.InputRecord.RoundNumber == prevUC.InputRecord.RoundNumber+1 &&
+		!bytes.Equal(newUC.InputRecord.PreviousHash, prevUC.InputRecord.Hash) {
+		return fmt.Errorf("new certificate does not extend previous state hash")
 	}
-	// 5. uc.IR.n = uc′ .IR.n + 1 - if this new UC follows previous UC
-	if newUC.InputRecord.RoundNumber == prevUC.InputRecord.RoundNumber+1 {
-		if !bytes.Equal(newUC.InputRecord.PreviousHash, prevUC.InputRecord.Hash) {
-			return fmt.Errorf("new certiticte does not extend previous state hash")
+	// 4. uc.IR.h′ = uc.IR.h -> new cert state does not change, the new certificate is for empty block
+	if bytes.Equal(newUC.InputRecord.PreviousHash, newUC.InputRecord.Hash) {
+		// then block must be empty and thus hash of block is 0H
+		if !isZeroHash(newUC.InputRecord.BlockHash) {
+			return fmt.Errorf("invalid new certificate, non-empty block, but state hash does not change")
 		}
+		// done, nothing more to check
+		return nil
+	}
+	// AB-1002: allow state changes without transaction due to housekeeping (state tree pruning, dust removal, etc.)
+	//// 5. uc.IR.h' != uc.IR.h - state changes, new UC with new state
+	//// a. block hash must not be empty and thus block hash must not be 0h
+	//if isZeroHash(newUC.InputRecord.BlockHash) {
+	//	return fmt.Errorf("invalid new certificate, block can not be empty if state changes")
+	//}
+	// b. block hash must not repeat
+	if !isZeroHash(newUC.InputRecord.BlockHash) && bytes.Equal(newUC.InputRecord.BlockHash, prevUC.InputRecord.BlockHash) {
+		return fmt.Errorf("new certificate repeats previous block hash")
 	}
 	return nil
+}
+
+// isRepeat - check if newUC is repeat of previous UC, everything else is the same but round number is bigger
+func isRepeat(prevUC, newUC *UnicityCertificate) bool {
+	return bytes.Equal(prevUC.InputRecord.Hash, newUC.InputRecord.Hash) &&
+		bytes.Equal(prevUC.InputRecord.PreviousHash, newUC.InputRecord.PreviousHash) &&
+		bytes.Equal(prevUC.InputRecord.BlockHash, newUC.InputRecord.BlockHash) &&
+		bytes.Equal(prevUC.InputRecord.SummaryValue, newUC.InputRecord.SummaryValue) &&
+		prevUC.InputRecord.SumOfEarnedFees == newUC.InputRecord.SumOfEarnedFees &&
+		prevUC.InputRecord.RoundNumber < newUC.InputRecord.RoundNumber
 }

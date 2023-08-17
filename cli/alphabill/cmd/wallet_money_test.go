@@ -30,6 +30,8 @@ import (
 	"github.com/alphabill-org/alphabill/pkg/wallet/money/backend/client"
 )
 
+const walletBaseDir = "wallet"
+
 type (
 	backendMockReturnConf struct {
 		balance        uint64
@@ -186,8 +188,8 @@ func TestSendingFailsWithInsufficientBalance(t *testing.T) {
 	require.ErrorIs(t, err, wallet.ErrInsufficientBalance)
 }
 
-func createMoneyPartition(t *testing.T, initialBill *money.InitialBill) *testpartition.NodePartition {
-	moneyPart, err := testpartition.NewPartition(1, func(tb map[string]abcrypto.Verifier) txsystem.TransactionSystem {
+func createMoneyPartition(t *testing.T, initialBill *money.InitialBill, nodeCount int) *testpartition.NodePartition {
+	moneyPart, err := testpartition.NewPartition(nodeCount, func(tb map[string]abcrypto.Verifier) txsystem.TransactionSystem {
 		system, err := money.NewTxSystem(
 			money.WithSystemIdentifier(money.DefaultSystemIdentifier),
 			money.WithHashAlgorithm(crypto.SHA256),
@@ -254,7 +256,7 @@ func startRPCServer(t *testing.T, node *partition.Node) string {
 
 // addAccount calls "add-key" cli function on given wallet and returns the added pubkey hex
 func addAccount(t *testing.T, homedir string) string {
-	stdout := execWalletCmd(t, "", homedir, "add-key")
+	stdout := execWalletCmd(t, homedir, "add-key")
 	for _, line := range stdout.lines {
 		if strings.HasPrefix(line, "Added key #") {
 			return line[13:]
@@ -265,7 +267,7 @@ func addAccount(t *testing.T, homedir string) string {
 
 func createNewWallet(t *testing.T) (account.Manager, string) {
 	homeDir := t.TempDir()
-	walletDir := filepath.Join(homeDir, "wallet")
+	walletDir := filepath.Join(homeDir, walletBaseDir)
 	am, err := account.NewManager(walletDir, "", true)
 	require.NoError(t, err)
 	err = am.CreateKeys("")
@@ -275,7 +277,7 @@ func createNewWallet(t *testing.T) (account.Manager, string) {
 
 func createNewTestWallet(t *testing.T) string {
 	homeDir := t.TempDir()
-	walletDir := filepath.Join(homeDir, "wallet")
+	walletDir := filepath.Join(homeDir, walletBaseDir)
 	am, err := account.NewManager(walletDir, "", true)
 	require.NoError(t, err)
 	defer am.Close()
@@ -285,7 +287,7 @@ func createNewTestWallet(t *testing.T) string {
 }
 
 func verifyStdout(t *testing.T, consoleWriter *testConsoleWriter, expectedLines ...string) {
-	joined := strings.Join(consoleWriter.lines, "\n")
+	joined := consoleWriter.String()
 	for _, expectedLine := range expectedLines {
 		require.Contains(t, joined, expectedLine)
 	}
@@ -308,18 +310,12 @@ func execCommand(homeDir, command string) (*testConsoleWriter, error) {
 	return outputWriter, cmd.addAndExecuteCommand(context.Background())
 }
 
-func execWalletCmd(t *testing.T, alphabillNodeAddr, homedir string, command string) *testConsoleWriter {
+func execWalletCmd(t *testing.T, homedir string, command string) *testConsoleWriter {
 	outputWriter := &testConsoleWriter{}
 	consoleWriter = outputWriter
 
 	cmd := New()
-
-	abNodeParam := ""
-	if alphabillNodeAddr != "" {
-		abNodeParam = fmt.Sprintf(" --%s %s", alphabillNodeURLCmdName, alphabillNodeAddr)
-	}
-
-	args := "wallet --home " + homedir + abNodeParam + " " + command
+	args := fmt.Sprintf("wallet --home %s %s", homedir, command)
 	cmd.baseCmd.SetArgs(strings.Split(args, " "))
 
 	err := cmd.addAndExecuteCommand(context.Background())
@@ -330,6 +326,10 @@ func execWalletCmd(t *testing.T, alphabillNodeAddr, homedir string, command stri
 
 type testConsoleWriter struct {
 	lines []string
+}
+
+func (w *testConsoleWriter) String() string {
+	return strings.Join(w.lines, "\n")
 }
 
 func (w *testConsoleWriter) Println(a ...any) {

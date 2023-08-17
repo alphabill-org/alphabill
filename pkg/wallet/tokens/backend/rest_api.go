@@ -3,7 +3,6 @@ package backend
 import (
 	"bytes"
 	"context"
-	"embed"
 	"encoding/hex"
 	"fmt"
 	"io"
@@ -32,6 +31,7 @@ type dataSource interface {
 	SaveTokenTypeCreator(id TokenTypeID, kind Kind, creator sdk.PubKey) error
 	GetTxProof(unitID sdk.UnitID, txHash sdk.TxHash) (*sdk.Proof, error)
 	GetFeeCreditBill(unitID sdk.UnitID) (*FeeCreditBill, error)
+	GetClosedFeeCredit(fcbID sdk.UnitID) (*types.TransactionRecord, error)
 }
 
 type abClient interface {
@@ -47,9 +47,6 @@ type tokensRestAPI struct {
 }
 
 const maxResponseItems = 100
-
-//go:embed swagger/*
-var swaggerFiles embed.FS
 
 func (api *tokensRestAPI) endpoints() http.Handler {
 	apiRouter := mux.NewRouter().StrictSlash(true).PathPrefix("/api").Subrouter()
@@ -74,10 +71,21 @@ func (api *tokensRestAPI) endpoints() http.Handler {
 	apiV1.HandleFunc("/events/{pubkey}/subscribe", api.subscribeEvents).Methods("GET", "OPTIONS")
 	apiV1.HandleFunc("/units/{unitId}/transactions/{txHash}/proof", api.getTxProof).Methods("GET", "OPTIONS")
 	apiV1.HandleFunc("/fee-credit-bills/{unitId}", api.getFeeCreditBill).Methods("GET", "OPTIONS")
+	apiV1.HandleFunc("/closed-fee-credit/{unitId}", api.getClosedFeeCredit).Methods("GET", "OPTIONS")
 
-	apiV1.Handle("/swagger/{.*}", http.StripPrefix("/api/v1/", http.FileServer(http.FS(swaggerFiles)))).Methods("GET", "OPTIONS")
+	apiV1.Handle("/swagger/swagger-initializer.js", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		initializer := "swagger/swagger-initializer-tokens.js"
+		f, err := sdk.SwaggerFiles.ReadFile(initializer)
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			fmt.Fprintf(w, "failed to read %v file: %v", initializer, err)
+			return
+		}
+		http.ServeContent(w, r, "swagger-initializer.js", time.Time{}, bytes.NewReader(f))
+	})).Methods("GET", "OPTIONS")
+	apiV1.Handle("/swagger/{.*}", http.StripPrefix("/api/v1/", http.FileServer(http.FS(sdk.SwaggerFiles)))).Methods("GET", "OPTIONS")
 	apiV1.Handle("/swagger/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		f, err := swaggerFiles.ReadFile("swagger/index.html")
+		f, err := sdk.SwaggerFiles.ReadFile("swagger/index.html")
 		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
 			fmt.Fprintf(w, "failed to read swagger/index.html file: %v", err)
@@ -305,6 +313,26 @@ func (api *tokensRestAPI) getFeeCreditBill(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	api.rw.WriteResponse(w, fcb.ToGenericBill())
+}
+
+func (api *tokensRestAPI) getClosedFeeCredit(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	unitID, err := sdk.ParseHex[sdk.UnitID](vars["unitId"], true)
+	if err != nil {
+		api.rw.InvalidParamResponse(w, "unitId", err)
+		return
+	}
+	cfc, err := api.db.GetClosedFeeCredit(unitID)
+	if err != nil {
+		api.rw.WriteErrorResponse(w, fmt.Errorf("failed to load closed fee credit for ID 0x%X: %w", unitID, err))
+		return
+	}
+	if cfc == nil {
+		w.WriteHeader(http.StatusNotFound)
+		api.rw.WriteResponse(w, sdk.ErrorResponse{Message: "closed fee credit does not exist"})
+		return
+	}
+	api.rw.WriteCborResponse(w, cfc)
 }
 
 func (api *tokensRestAPI) saveTx(ctx context.Context, tx *types.TransactionOrder, owner []byte) error {

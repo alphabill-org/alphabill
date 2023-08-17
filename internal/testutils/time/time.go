@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/alphabill-org/alphabill/internal/errors"
 	"github.com/stretchr/testify/require"
 )
 
@@ -27,7 +28,7 @@ func MustRunInTime(t testing.TB, max time.Duration, testFunc func(), message ...
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
-				panicChan <- fmt.Errorf("%s", r) // Recover with stacktrace
+				panicChan <- errors.Errorf("%s", r) // Recover with stacktrace
 			} else {
 				doneChan <- true
 			}

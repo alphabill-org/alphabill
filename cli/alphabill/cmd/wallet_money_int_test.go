@@ -54,11 +54,10 @@ func TestSendingMoneyUsingWallets_integration(t *testing.T) {
 	am2.Close()
 
 	// create fee credit for initial bill transfer
-	txFeeBilly := uint64(1)
 	fcrAmount := testmoney.FCRAmount
 	transferFC := testmoney.CreateFeeCredit(t, initialBill.ID, network)
 	initialBillBacklink := transferFC.Hash(crypto.SHA256)
-	w1BalanceBilly := initialBill.Value - fcrAmount - txFeeBilly
+	w1BalanceBilly := initialBill.Value - fcrAmount
 
 	// transfer initial bill to wallet 1
 	transferInitialBillTx, err := moneytestutils.CreateInitialBillTransferTx(w1PubKey, initialBill.ID, w1BalanceBilly, 10000, initialBillBacklink)
@@ -78,8 +77,8 @@ func TestSendingMoneyUsingWallets_integration(t *testing.T) {
 	verifyStdout(t, stdout, fmt.Sprintf("Successfully created %d fee credits on money partition.", feeAmountAlpha))
 
 	// verify fee credit received
-	w1BalanceBilly = w1BalanceBilly - feeAmountAlpha*1e8 - txFeeBilly
-	waitForFeeCreditCLI(t, homedir1, defaultAlphabillApiURL, feeAmountAlpha*1e8-1, 0)
+	w1BalanceBilly = w1BalanceBilly - feeAmountAlpha*1e8
+	waitForFeeCreditCLI(t, homedir1, defaultAlphabillApiURL, feeAmountAlpha*1e8-2, 0)
 
 	// TS1:
 	// send two transactions to wallet-2
@@ -116,8 +115,8 @@ func TestSendingMoneyUsingWallets_integration(t *testing.T) {
 	verifyStdout(t, stdout, fmt.Sprintf("Successfully created %d fee credits on money partition.", feeAmountAlpha))
 
 	// verify fee credit received for wallet-2
-	w2BalanceBilly = w2BalanceBilly - feeAmountAlpha*1e8 - txFeeBilly
-	waitForFeeCreditCLI(t, homedir2, apiAddr, feeAmountAlpha*1e8-1, 0)
+	w2BalanceBilly = w2BalanceBilly - feeAmountAlpha*1e8
+	waitForFeeCreditCLI(t, homedir2, apiAddr, feeAmountAlpha*1e8-2, 0)
 
 	// send wallet-2 bills back to wallet-1
 	stdout = execWalletCmd(t, homedir2, fmt.Sprintf("send --amount %s --address %s", amountToString(w2BalanceBilly, 8), hexutil.Encode(w1PubKey)))
@@ -160,7 +159,7 @@ func TestSendingMoneyUsingWallets_integration(t *testing.T) {
 	verifyStdout(t, stdout, fmt.Sprintf("Successfully created %d fee credits on money partition.", feeAmountAlpha))
 
 	// verify fee credit received
-	waitForFeeCreditCLI(t, homedir1, apiAddr, feeAmountAlpha*1e8-txFeeBilly, 1)
+	waitForFeeCreditCLI(t, homedir1, apiAddr, feeAmountAlpha*1e8-2, 1)
 
 	// send tx from account-2 to account-3
 	stdout = execWalletCmd(t, homedir1, fmt.Sprintf("send --amount 100 --key 2 --address %s", pubKey3Hex))
@@ -169,7 +168,7 @@ func TestSendingMoneyUsingWallets_integration(t *testing.T) {
 
 	// verify account-2 fcb balance is reduced after send
 	stdout = execWalletCmd(t, homedir1, "fees list -k 2")
-	acc2FeeCredit := feeAmountAlpha*1e8 - 2 // minus one for tx and minus one for creating fee credit
+	acc2FeeCredit := feeAmountAlpha*1e8 - 3 // minus one for tx and minus one for creating fee credit
 	acc2FeeCreditString := amountToString(acc2FeeCredit, 8)
 	verifyStdout(t, stdout, fmt.Sprintf("Account #2 %s", acc2FeeCreditString))
 

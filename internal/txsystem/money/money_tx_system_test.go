@@ -344,11 +344,11 @@ func TestEndBlock_FeesConsolidation(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, txSystem.Commit())
 
-	// verify that money fee credit bill is 50+1=51
+	// verify that money fee credit bill is 50
 	moneyFCUnitID := []byte{2}
 	moneyFCUnit, err := rmaTree.GetUnit(moneyFCUnitID, false)
 	require.NoError(t, err)
-	require.EqualValues(t, 51, moneyFCUnit.Data().SummaryValueInput())
+	require.EqualValues(t, 50, moneyFCUnit.Data().SummaryValueInput())
 
 	// process reclaimFC (with closeFC amount=50 and fee=1)
 	txSystem.BeginBlock(0)
@@ -386,7 +386,7 @@ func TestEndBlock_FeesConsolidation(t *testing.T) {
 	// verify that moneyFCB=51-50+1+1=3 (moneyFCB - closeAmount + closeFee + reclaimFee)
 	moneyFCUnit, err = rmaTree.GetUnit(moneyFCUnitID, false)
 	require.NoError(t, err)
-	require.EqualValues(t, 3, moneyFCUnit.Data().SummaryValueInput())
+	require.EqualValues(t, 2, moneyFCUnit.Data().SummaryValueInput())
 }
 
 func TestValidateSwap_InsufficientDcMoneySupply(t *testing.T) {
@@ -477,11 +477,11 @@ func TestExecute_FeeCreditSequence_OK(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, sm)
 
-	// verify unit value is reduced by 21
+	// verify unit value is reduced by 20
 	ib, err := rmaTree.GetUnit(initialBill.ID, false)
 	require.NoError(t, err)
-	require.EqualValues(t, initialBill.Value-txAmount-txFee, ib.Data().SummaryValueInput())
-	require.Equal(t, txFee, sm.ActualFee)
+	require.EqualValues(t, initialBill.Value-txAmount, ib.Data().SummaryValueInput())
+	require.EqualValues(t, 0, sm.ActualFee)
 
 	// send addFC
 	transferFCTransactionRecord := &types.TransactionRecord{
@@ -501,14 +501,14 @@ func TestExecute_FeeCreditSequence_OK(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, sm)
 
-	// verify user fee credit is 19 (transfer 20 minus fee 1)
-	remainingValue := txAmount - txFee // 19
+	// verify user fee credit is 18 (transfer 20 minus fee 2 * fee)
+	remainingValue := txAmount - (2 * txFee) // 18
 	fcrUnit, err := rmaTree.GetUnit(fcrUnitID, false)
 	require.NoError(t, err)
 	fcrUnitData, ok := fcrUnit.Data().(*unit.FeeCreditRecord)
 	require.True(t, ok)
 	require.EqualValues(t, remainingValue, fcrUnitData.Balance)
-	require.Equal(t, txFee, sm.ActualFee)
+	require.Equal(t, 2*txFee, sm.ActualFee)
 
 	// send closeFC
 	transferFCHash := transferFC.Hash(crypto.SHA256)

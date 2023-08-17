@@ -26,7 +26,6 @@ import (
 	testpartition "github.com/alphabill-org/alphabill/internal/testutils/partition"
 	testserver "github.com/alphabill-org/alphabill/internal/testutils/server"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
-	"github.com/alphabill-org/alphabill/internal/txsystem/fc"
 	moneytx "github.com/alphabill-org/alphabill/internal/txsystem/money"
 	moneytestutils "github.com/alphabill-org/alphabill/internal/txsystem/money/testutils"
 	"github.com/alphabill-org/alphabill/internal/types"
@@ -98,11 +97,10 @@ func TestCollectDustTimeoutReached(t *testing.T) {
 	require.NoError(t, err)
 
 	// create fee credit for initial bill transfer
-	txFee := fc.FixedFee(1)()
 	fcrAmount := testmoney.FCRAmount
 	transferFC := testmoney.CreateFeeCredit(t, initialBill.ID, abNet)
 	initialBillBacklink := transferFC.Hash(crypto.SHA256)
-	initialBillValue := initialBill.Value - fcrAmount - txFee
+	initialBillValue := initialBill.Value - fcrAmount
 
 	transferInitialBillTx, err := moneytestutils.CreateInitialBillTransferTx(pubKeys[0], initialBill.ID, initialBillValue, 10000, initialBillBacklink)
 	require.NoError(t, err)
@@ -214,11 +212,10 @@ func TestCollectDustInMultiAccountWallet(t *testing.T) {
 	require.NoError(t, err)
 
 	// create fee credit for initial bill transfer
-	txFee := fc.FixedFee(1)()
 	fcrAmount := testmoney.FCRAmount
 	transferFC := testmoney.CreateFeeCredit(t, initialBill.ID, network)
 	initialBillBacklink := transferFC.Hash(crypto.SHA256)
-	initialBillValue := initialBill.Value - fcrAmount - txFee
+	initialBillValue := initialBill.Value - fcrAmount
 
 	// transfer initial bill to wallet 1
 	transferInitialBillTx, err := moneytestutils.CreateInitialBillTransferTx(pubKeys[0], initialBill.ID, initialBillValue, 10000, initialBillBacklink)
@@ -329,11 +326,10 @@ func TestCollectDustInMultiAccountWalletWithKeyFlag(t *testing.T) {
 	require.NoError(t, err)
 
 	// create fee credit for initial bill transfer
-	txFee := fc.FixedFee(1)()
 	fcrAmount := testmoney.FCRAmount
 	transferFC := testmoney.CreateFeeCredit(t, initialBill.ID, network)
 	initialBillBacklink := transferFC.Hash(crypto.SHA256)
-	initialBillValue := initialBill.Value - fcrAmount - txFee
+	initialBillValue := initialBill.Value - fcrAmount
 
 	transferInitialBillTx, err := moneytestutils.CreateInitialBillTransferTx(pubKeys[0], initialBill.ID, initialBillValue, 10000, initialBillBacklink)
 	require.NoError(t, err)

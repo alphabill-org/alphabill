@@ -337,7 +337,7 @@ func (w *FeeManager) sendTransferFC(ctx context.Context, cmd AddFeeCmd, accountK
 		return nil, err
 	}
 	// verify bill is large enough for required amount
-	if targetBill.Value < cmd.Amount+maxFee {
+	if targetBill.Value < cmd.Amount {
 		return nil, errors.New("wallet does not have a bill large enough for fee transfer")
 	}
 

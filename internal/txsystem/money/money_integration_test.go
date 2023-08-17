@@ -69,10 +69,10 @@ func TestPartition_Ok(t *testing.T) {
 
 	feeCredit, err := s.GetUnit(testmoneyfc.FCRID, true)
 	require.NoError(t, err)
-	require.Equal(t, fcrAmount-1, feeCredit.Data().(*unit.FeeCreditRecord).Balance)
+	require.Equal(t, fcrAmount-2, feeCredit.Data().(*unit.FeeCreditRecord).Balance)
 
 	// transfer initial bill to pubKey1
-	transferInitialBillTx, _ := createBillTransfer(t, initialBill.ID, total-fcrAmount-txFee(), script.PredicatePayToPublicKeyHashDefault(decodeAndHashHex(pubKey1)), transferFC.Hash(crypto.SHA256))
+	transferInitialBillTx, _ := createBillTransfer(t, initialBill.ID, total-fcrAmount, script.PredicatePayToPublicKeyHashDefault(decodeAndHashHex(pubKey1)), transferFC.Hash(crypto.SHA256))
 	err = moneyPrt.SubmitTx(transferInitialBillTx)
 	require.NoError(t, err)
 	require.Eventually(t, testpartition.BlockchainContainsTx(moneyPrt, transferInitialBillTx), test.WaitDuration, test.WaitTick)
@@ -81,17 +81,17 @@ func TestPartition_Ok(t *testing.T) {
 	require.NoError(t, err)
 	feeCredit, err = s.GetUnit(testmoneyfc.FCRID, true)
 	require.NoError(t, err)
-	require.Equal(t, fcrAmount-2, feeCredit.Data().(*unit.FeeCreditRecord).Balance)
+	require.Equal(t, fcrAmount-3, feeCredit.Data().(*unit.FeeCreditRecord).Balance)
 
 	// split initial bill from pubKey1 to pubKey2
 	amountPK2 := uint64(1000)
-	tx := createSplitTx(t, initialBill.ID, transferInitialBillTxRecord, amountPK2, total-fcrAmount-txFee()-amountPK2)
+	tx := createSplitTx(t, initialBill.ID, transferInitialBillTxRecord, amountPK2, total-fcrAmount-amountPK2)
 	err = moneyPrt.SubmitTx(tx)
 	require.NoError(t, err)
 	require.Eventually(t, testpartition.BlockchainContainsTx(moneyPrt, tx), test.WaitDuration, test.WaitTick)
 	feeCredit, err = s.GetUnit(testmoneyfc.FCRID, true)
 	require.NoError(t, err)
-	require.Equal(t, fcrAmount-3, feeCredit.Data().(*unit.FeeCreditRecord).Balance)
+	require.Equal(t, fcrAmount-4, feeCredit.Data().(*unit.FeeCreditRecord).Balance)
 
 	// wrong partition tx
 	tx = createSplitTx(t, initialBill.ID, transferInitialBillTxRecord, amountPK2, total-fcrAmount-txFee()-amountPK2)
@@ -101,7 +101,7 @@ func TestPartition_Ok(t *testing.T) {
 	require.Never(t, testpartition.BlockchainContainsTx(moneyPrt, tx), test.WaitDuration, test.WaitTick)
 	feeCredit, err = s.GetUnit(testmoneyfc.FCRID, true)
 	require.NoError(t, err)
-	require.Equal(t, fcrAmount-3, feeCredit.Data().(*unit.FeeCreditRecord).Balance)
+	require.Equal(t, fcrAmount-4, feeCredit.Data().(*unit.FeeCreditRecord).Balance)
 }
 
 func TestPartition_SwapDCOk(t *testing.T) {
@@ -116,7 +116,6 @@ func TestPartition_SwapDCOk(t *testing.T) {
 			Value: moneyInvariant,
 			Owner: script.PredicateAlwaysTrue(),
 		}
-		feeFunc = fc.FixedFee(1)
 	)
 	total := moneyInvariant
 	moneyPrt, err := testpartition.NewPartition(3, func(tb map[string]abcrypto.Verifier) txsystem.TransactionSystem {
@@ -143,13 +142,12 @@ func TestPartition_SwapDCOk(t *testing.T) {
 	t.Cleanup(func() { require.NoError(t, abNet.Close()) })
 
 	// create fee credit for initial bill transfer
-	txFee := feeFunc()
 	fcrAmount := testmoneyfc.FCRAmount
 	transferFC := testmoneyfc.CreateFeeCredit(t, initialBill.ID, abNet)
 	require.NoError(t, err)
 
 	// transfer initial bill to pubKey1
-	transferInitialBillTx, _ := createBillTransfer(t, initialBill.ID, total-fcrAmount-txFee, script.PredicatePayToPublicKeyHashDefault(decodeAndHashHex(pubKey1)), transferFC.Hash(hashAlgorithm))
+	transferInitialBillTx, _ := createBillTransfer(t, initialBill.ID, total-fcrAmount, script.PredicatePayToPublicKeyHashDefault(decodeAndHashHex(pubKey1)), transferFC.Hash(hashAlgorithm))
 	require.NoError(t, moneyPrt.SubmitTx(transferInitialBillTx))
 	require.Eventually(t, testpartition.BlockchainContainsTx(moneyPrt, transferInitialBillTx), test.WaitDuration, test.WaitTick)
 
@@ -159,7 +157,7 @@ func TestPartition_SwapDCOk(t *testing.T) {
 	_, _, transferRecord, err := moneyPrt.GetTxProof(transferInitialBillTx)
 	require.NoError(t, err)
 	var prev = transferRecord
-	total = total - fcrAmount - txFee
+	total = total - fcrAmount
 	for i := range splitTxs {
 		total = total - amount
 		splitTx := createSplitTx(t, initialBill.ID, prev, amount, total)

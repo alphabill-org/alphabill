@@ -73,14 +73,14 @@ func (x *InputRecord) Bytes() []byte {
 	return b.Bytes()
 }
 
-// NewRepeatIR - creates new repeat IR from current IR, only round number is advanced
+// NewRepeatIR - creates new repeat IR from current IR
 func (x *InputRecord) NewRepeatIR() *InputRecord {
 	return &InputRecord{
 		PreviousHash:    bytes.Clone(x.PreviousHash),
 		Hash:            bytes.Clone(x.Hash),
 		BlockHash:       bytes.Clone(x.BlockHash),
 		SummaryValue:    bytes.Clone(x.SummaryValue),
-		RoundNumber:     x.RoundNumber + 1,
+		RoundNumber:     x.RoundNumber,
 		SumOfEarnedFees: x.SumOfEarnedFees,
 	}
 }

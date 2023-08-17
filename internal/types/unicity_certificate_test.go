@@ -134,17 +134,26 @@ func TestUnicityCertificate_isRepeat(t *testing.T) {
 			RoundNumber:     6,
 			SumOfEarnedFees: 20,
 		},
+		UnicitySeal: &UnicitySeal{
+			RootChainRoundNumber: 1,
+		},
 	}
 	// everything is equal, this is the same UC and not repeat
 	require.False(t, isRepeat(uc, uc))
 	ruc := &UnicityCertificate{
 		InputRecord: uc.InputRecord.NewRepeatIR(),
+		UnicitySeal: &UnicitySeal{
+			RootChainRoundNumber: uc.UnicitySeal.RootChainRoundNumber + 1,
+		},
 	}
 	// now it is repeat of previous round
 	require.True(t, isRepeat(uc, ruc))
-	ruc.InputRecord.RoundNumber++
+	ruc.UnicitySeal.RootChainRoundNumber++
 	// still is considered a repeat uc
 	require.True(t, isRepeat(uc, ruc))
+	// with incremented round number, not a repeat uc
+	ruc.InputRecord.RoundNumber++
+	require.False(t, isRepeat(uc, ruc))
 	// if anything else changes, it is no longer considered repeat
 	require.False(t, isRepeat(uc, &UnicityCertificate{
 		InputRecord: &InputRecord{

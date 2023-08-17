@@ -188,8 +188,8 @@ func TestSendingFailsWithInsufficientBalance(t *testing.T) {
 	require.ErrorIs(t, err, wallet.ErrInsufficientBalance)
 }
 
-func createMoneyPartition(t *testing.T, initialBill *money.InitialBill) *testpartition.NodePartition {
-	moneyPart, err := testpartition.NewPartition(1, func(tb map[string]abcrypto.Verifier) txsystem.TransactionSystem {
+func createMoneyPartition(t *testing.T, initialBill *money.InitialBill, nodeCount int) *testpartition.NodePartition {
+	moneyPart, err := testpartition.NewPartition(nodeCount, func(tb map[string]abcrypto.Verifier) txsystem.TransactionSystem {
 		system, err := money.NewTxSystem(
 			money.WithSystemIdentifier(money.DefaultSystemIdentifier),
 			money.WithHashAlgorithm(crypto.SHA256),
@@ -287,7 +287,7 @@ func createNewTestWallet(t *testing.T) string {
 }
 
 func verifyStdout(t *testing.T, consoleWriter *testConsoleWriter, expectedLines ...string) {
-	joined := strings.Join(consoleWriter.lines, "\n")
+	joined := consoleWriter.String()
 	for _, expectedLine := range expectedLines {
 		require.Contains(t, joined, expectedLine)
 	}
@@ -326,6 +326,10 @@ func execWalletCmd(t *testing.T, homedir string, command string) *testConsoleWri
 
 type testConsoleWriter struct {
 	lines []string
+}
+
+func (w *testConsoleWriter) String() string {
+	return strings.Join(w.lines, "\n")
 }
 
 func (w *testConsoleWriter) Println(a ...any) {

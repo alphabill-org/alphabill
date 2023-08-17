@@ -150,7 +150,7 @@ func (w *Wallet) prepareTxSubmission(ctx context.Context, payloadType string, at
 	if err != nil {
 		return nil, err
 	}
-	tx := createTx(w.systemID, payloadType, unitId, roundNumber+txTimeoutRoundCount, ac.PrivKeyHash)
+	tx := createTx(w.systemID, payloadType, unitId, roundNumber+txTimeoutRoundCount, ac.PubKeyHash.Sha256)
 	if txps != nil {
 		// set fields before tx is signed
 		err = txps(tx)

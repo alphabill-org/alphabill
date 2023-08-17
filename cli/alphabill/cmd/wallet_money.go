@@ -18,6 +18,7 @@ import (
 	"golang.org/x/term"
 
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
+	moneytx "github.com/alphabill-org/alphabill/internal/txsystem/money"
 	"github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/alphabill-org/alphabill/pkg/wallet/account"
 	wlog "github.com/alphabill-org/alphabill/pkg/wallet/log"
@@ -455,13 +456,24 @@ func execCollectDust(cmd *cobra.Command, config *walletConfig) error {
 	defer w.Close()
 
 	consoleWriter.Println("Starting dust collection, this may take a while...")
-	err = w.CollectDust(cmd.Context(), accountNumber)
-
+	swapProofs, err := w.CollectDust(cmd.Context(), accountNumber)
 	if err != nil {
 		consoleWriter.Println("Failed to collect dust: " + err.Error())
 		return err
 	}
-	consoleWriter.Println("Dust collection finished successfully.")
+	for accIdx, swapProof := range swapProofs {
+		if swapProof != nil {
+			attr := &moneytx.SwapDCAttributes{}
+			err := swapProof.TxRecord.TransactionOrder.UnmarshalAttributes(attr)
+			if err != nil {
+				return fmt.Errorf("failed to unmarshal swap tx proof: %w", err)
+			}
+			msg := "Dust collection finished successfully on account %d. Joined %d bills with total value of %s."
+			consoleWriter.Println(fmt.Sprintf(msg, accIdx+1, len(attr.DcTransfers), amountToString(attr.TargetValue, 8)))
+		} else {
+			consoleWriter.Println(fmt.Sprintf("Nothing to swap on account #%d", accIdx+1))
+		}
+	}
 	return nil
 }
 

@@ -9,7 +9,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/stretchr/testify/require"
 
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
@@ -79,7 +78,7 @@ func NewVDAlphabillNetwork(t *testing.T, ctx context.Context) *VDAlphabillNetwor
 		Value: 1e18,
 		Owner: script.PredicateAlwaysTrue(),
 	}
-	moneyPartition := createMoneyPartition(t, initialBill)
+	moneyPartition := createMoneyPartition(t, initialBill, 1)
 	vdPartition := createVDPartition(t)
 	abNet := startAlphabill(t, []*testpartition.NodePartition{moneyPartition, vdPartition})
 	startPartitionRPCServers(t, moneyPartition)
@@ -120,7 +119,7 @@ func NewVDAlphabillNetwork(t *testing.T, ctx context.Context) *VDAlphabillNetwor
 	vdFeeManager := fees.NewFeeManager(am, unitLocker, money.DefaultSystemIdentifier, moneyWallet, moneyBackendClient, vd.DefaultSystemIdentifier, vdTxPublisher, vdClient)
 	t.Cleanup(vdFeeManager.Close)
 
-	spendInitialBillWithFeeCredits(t, abNet, initialBill, hexutil.Encode(accountKey.PubKey))
+	spendInitialBillWithFeeCredits(t, abNet, initialBill, accountKey.PubKey)
 	time.Sleep(3 * time.Second) // TODO dynamic sleep
 
 	// Add fee credit for VD partition

@@ -3,6 +3,10 @@ package tx_builder
 import (
 	"testing"
 
+	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/holiman/uint256"
+	"github.com/stretchr/testify/require"
+
 	"github.com/alphabill-org/alphabill/internal/hash"
 	"github.com/alphabill-org/alphabill/internal/script"
 	moneytx "github.com/alphabill-org/alphabill/internal/txsystem/money"
@@ -10,9 +14,6 @@ import (
 	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/alphabill-org/alphabill/pkg/wallet/account"
-	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/holiman/uint256"
-	"github.com/stretchr/testify/require"
 )
 
 const testMnemonic = "dinosaur simple verify deliver bless ridge monkey design venue six problem lucky"

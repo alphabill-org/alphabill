@@ -12,14 +12,12 @@ import (
 type BillData struct {
 	V        uint64 // The monetary value of this bill
 	T        uint64 // The round number of the last transaction with the bill
-	TDust    uint64 // The last swapDC transaction timeout with the bill
 	Backlink []byte // Backlink (256-bit hash)
 }
 
 func (b *BillData) Write(hasher hash.Hash) {
 	hasher.Write(util.Uint64ToBytes(b.V))
 	hasher.Write(util.Uint64ToBytes(b.T))
-	hasher.Write(util.Uint64ToBytes(b.TDust))
 	hasher.Write(b.Backlink)
 }
 
@@ -31,7 +29,6 @@ func (b *BillData) Copy() state.UnitData {
 	return &BillData{
 		V:        b.V,
 		T:        b.T,
-		TDust:    b.TDust,
 		Backlink: bytes.Clone(b.Backlink),
 	}
 }

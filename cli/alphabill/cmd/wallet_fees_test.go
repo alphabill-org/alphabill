@@ -7,6 +7,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/ethereum/go-ethereum/common/hexutil"
+
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/internal/script"
 	testpartition "github.com/alphabill-org/alphabill/internal/testutils/partition"
@@ -176,7 +178,7 @@ func setupMoneyInfraAndWallet(t *testing.T, otherPartitions []*testpartition.Nod
 		Value: 1e18,
 		Owner: script.PredicateAlwaysTrue(),
 	}
-	moneyPartition := createMoneyPartition(t, initialBill)
+	moneyPartition := createMoneyPartition(t, initialBill, 1)
 	nodePartitions := []*testpartition.NodePartition{moneyPartition}
 	nodePartitions = append(nodePartitions, otherPartitions...)
 	abNet := startAlphabill(t, nodePartitions)
@@ -192,9 +194,10 @@ func setupMoneyInfraAndWallet(t *testing.T, otherPartitions []*testpartition.Nod
 	stdout := execWalletCmd(t, homedir, "get-pubkeys")
 	require.Len(t, stdout.lines, 1)
 	pk, _ := strings.CutPrefix(stdout.lines[0], "#1 ")
+	pkBytes, _ := hexutil.Decode(pk)
 
 	// transfer initial bill to wallet pubkey
-	spendInitialBillWithFeeCredits(t, abNet, initialBill, pk)
+	spendInitialBillWithFeeCredits(t, abNet, initialBill, pkBytes)
 
 	// wait for initial bill tx
 	waitForBalanceCLI(t, homedir, defaultAlphabillApiURL, initialBill.Value-3, 0) // initial bill minus txfees

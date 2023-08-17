@@ -242,34 +242,6 @@ func TestBillStore_GetSetSystemDescriptionRecordsBills(t *testing.T) {
 	require.Equal(t, sdrs, actualSDRs)
 }
 
-func TestBillStore_GetSetDeleteDCMetadata(t *testing.T) {
-	bs, _ := createTestBillStore(t)
-
-	// store metadata
-	nonce := test.RandomBytes(32)
-	bId := test.RandomBytes(32)
-	expectedDcMetadata := &DCMetadata{DCSum: 10, BillIdentifiers: [][]byte{bId}}
-	err := bs.Do().SetDCMetadata(nonce, expectedDcMetadata)
-	require.NoError(t, err)
-
-	// verify real metadata is retrieved
-	actualMetadata, err := bs.Do().GetDCMetadata(nonce)
-	require.NoError(t, err)
-	require.Equal(t, expectedDcMetadata, actualMetadata)
-
-	// verify non-existing metadata is nil
-	invalidMetadata, err := bs.Do().GetDCMetadata(test.RandomBytes(32))
-	require.NoError(t, err)
-	require.Nil(t, invalidMetadata)
-
-	// verify metadata is nil after delete
-	err = bs.Do().DeleteDCMetadata(nonce)
-	require.NoError(t, err)
-	deletedMetadata, err := bs.Do().GetDCMetadata(nonce)
-	require.NoError(t, err)
-	require.Nil(t, deletedMetadata)
-}
-
 func TestBillStore_GetSetLockedFeeCredit(t *testing.T) {
 	bs, _ := createTestBillStore(t)
 	systemID := []byte{0, 0, 0, 0}

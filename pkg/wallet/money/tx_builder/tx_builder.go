@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"sort"
 
+	"github.com/fxamacker/cbor/v2"
 	"golang.org/x/exp/slices"
 
 	"github.com/alphabill-org/alphabill/internal/crypto"
@@ -16,7 +17,6 @@ import (
 	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/alphabill-org/alphabill/pkg/wallet/account"
-	"github.com/fxamacker/cbor/v2"
 )
 
 const MaxFee = uint64(1)
@@ -81,13 +81,12 @@ func NewSplitTx(amount uint64, pubKey []byte, k *account.AccountKey, systemID []
 	return signPayload(txPayload, k)
 }
 
-func NewDustTx(ac *account.AccountKey, systemID []byte, bill *wallet.Bill, nonce []byte, timeout uint64) (*types.TransactionOrder, error) {
+func NewDustTx(ac *account.AccountKey, systemID []byte, bill *wallet.Bill, targetBill *wallet.Bill, timeout uint64) (*types.TransactionOrder, error) {
 	attr := &money.TransferDCAttributes{
-		TargetValue:  bill.Value,
-		TargetBearer: script.PredicatePayToPublicKeyHashDefault(ac.PubKeyHash.Sha256),
-		Backlink:     bill.TxHash,
-		Nonce:        nonce,
-		SwapTimeout:  bill.SwapTimeout,
+		TargetUnitID:       targetBill.Id,
+		Value:              bill.Value,
+		TargetUnitBacklink: targetBill.TxHash,
+		Backlink:           bill.TxHash,
 	}
 	txPayload, err := newTxPayload(systemID, money.PayloadTypeTransDC, bill.GetID(), timeout, ac.PubKeyHash.Sha256, attr)
 	if err != nil {
@@ -96,38 +95,41 @@ func NewDustTx(ac *account.AccountKey, systemID []byte, bill *wallet.Bill, nonce
 	return signPayload(txPayload, ac)
 }
 
-func NewSwapTx(k *account.AccountKey, systemID []byte, dcBills []*wallet.BillProof, dcNonce []byte, billIds [][]byte, timeout uint64) (*types.TransactionOrder, error) {
-	if len(dcBills) == 0 {
-		return nil, errors.New("cannot create swap transaction as no dust bills exist")
+func NewSwapTx(k *account.AccountKey, systemID []byte, dcProofs []*wallet.Proof, targetUnitID []byte, timeout uint64) (*types.TransactionOrder, error) {
+	if len(dcProofs) == 0 {
+		return nil, errors.New("cannot create swap transaction as no dust transfer proofs exist")
 	}
-	// sort bills by ids in ascending order
-	sort.Slice(billIds, func(i, j int) bool {
-		return bytes.Compare(billIds[i], billIds[j]) < 0
+	// sort proofs by ids smallest first
+	sort.Slice(dcProofs, func(i, j int) bool {
+		return bytes.Compare(dcProofs[i].TxRecord.TransactionOrder.UnitID(), dcProofs[j].TxRecord.TransactionOrder.UnitID()) < 0
 	})
-	sort.Slice(dcBills, func(i, j int) bool {
-		return bytes.Compare(dcBills[i].Bill.GetID(), dcBills[j].Bill.GetID()) < 0
-	})
-
 	var dustTransferProofs []*types.TxProof
 	var dustTransferRecords []*types.TransactionRecord
 	var billValueSum uint64
-	for _, b := range dcBills {
-		dustTransferRecords = append(dustTransferRecords, b.TxProof.TxRecord)
-		dustTransferProofs = append(dustTransferProofs, b.TxProof.TxProof)
-		billValueSum += b.Bill.Value
+	for _, p := range dcProofs {
+		dustTransferRecords = append(dustTransferRecords, p.TxRecord)
+		dustTransferProofs = append(dustTransferProofs, p.TxProof)
+		var attr *money.TransferDCAttributes
+		if err := p.TxRecord.TransactionOrder.UnmarshalAttributes(&attr); err != nil {
+			return nil, fmt.Errorf("failed to unmarshal dust transfer tx: %w", err)
+		}
+		billValueSum += attr.Value
 	}
 	attr := &money.SwapDCAttributes{
-		OwnerCondition:  script.PredicatePayToPublicKeyHashDefault(k.PubKeyHash.Sha256),
-		BillIdentifiers: billIds,
-		DcTransfers:     dustTransferRecords,
-		Proofs:          dustTransferProofs,
-		TargetValue:     billValueSum,
+		OwnerCondition:   script.PredicatePayToPublicKeyHashDefault(k.PubKeyHash.Sha256),
+		DcTransfers:      dustTransferRecords,
+		DcTransferProofs: dustTransferProofs,
+		TargetValue:      billValueSum,
 	}
-	swapTx, err := newTxPayload(systemID, money.PayloadTypeSwapDC, dcNonce, timeout, k.PubKeyHash.Sha256, attr)
+	swapTx, err := newTxPayload(systemID, money.PayloadTypeSwapDC, targetUnitID, timeout, k.PubKeyHash.Sha256, attr)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to build swap transaction: %w", err)
 	}
-	return signPayload(swapTx, k)
+	payload, err := signPayload(swapTx, k)
+	if err != nil {
+		return nil, fmt.Errorf("failed to sign swap transaction: %w", err)
+	}
+	return payload, nil
 }
 
 func NewTransferFCTx(amount uint64, targetRecordID []byte, nonce []byte, k *account.AccountKey, moneySystemID, targetSystemID []byte, unit *wallet.Bill, timeout, t1, t2 uint64) (*types.TransactionOrder, error) {

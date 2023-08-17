@@ -125,14 +125,14 @@ func TestCollectDustTimeoutReached(t *testing.T) {
 	wg := sync.WaitGroup{}
 	wg.Add(1)
 	go func() {
-		err = w.CollectDust(context.Background(), 0)
+		_, err := w.CollectDust(context.Background(), 0)
 		if err != nil {
 			fmt.Println(err)
 		}
 		wg.Done()
 	}()
 
-	for blockNo := uint64(1); blockNo <= dcTimeoutBlockCount; blockNo++ {
+	for blockNo := uint64(1); blockNo <= txTimeoutBlockCount; blockNo++ {
 		b := &types.Block{
 			Header: &types.Header{
 				SystemID:          w.SystemID(),
@@ -144,9 +144,10 @@ func TestCollectDustTimeoutReached(t *testing.T) {
 		serverService.SetBlock(blockNo, b)
 	}
 	// when dc timeout is reached
-	serverService.SetMaxBlockNumber(dcTimeoutBlockCount)
+	serverService.SetMaxBlockNumber(txTimeoutBlockCount)
 
-	err = w.CollectDust(context.Background(), 0)
+	_, err = w.CollectDust(context.Background(), 0)
+	require.NoError(t, err)
 }
 
 /*
@@ -264,7 +265,7 @@ func TestCollectDustInMultiAccountWallet(t *testing.T) {
 	require.NoError(t, err)
 
 	// start dust collection
-	err = w.CollectDust(ctx, 0)
+	_, err = w.CollectDust(ctx, 0)
 	require.NoError(t, err)
 }
 
@@ -370,7 +371,7 @@ func TestCollectDustInMultiAccountWalletWithKeyFlag(t *testing.T) {
 	require.NoError(t, err)
 
 	// start dust collection only for account number 3
-	err = w.CollectDust(ctx, 3)
+	_, err = w.CollectDust(ctx, 3)
 	require.NoError(t, err)
 
 	// verify that there is only one swap tx and it belongs to account number 3

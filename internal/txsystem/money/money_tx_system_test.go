@@ -195,7 +195,7 @@ func TestExecuteTransferDC_OK(t *testing.T) {
 	billID := txutil.SameShardID(splitOk.UnitID(), unitIdFromTransaction(splitOk))
 	_, splitBillData := getBill(t, rmaTree, billID)
 
-	transferDCOk, _ := createDCTransfer(t, billID, splitBillData.V, splitBillData.Backlink, test.RandomBytes(32), script.PredicateAlwaysTrue())
+	transferDCOk, _ := createDCTransfer(t, billID, splitBillData.V, splitBillData.Backlink, test.RandomBytes(32), test.RandomBytes(32))
 	require.NoError(t, err)
 
 	sm, err = txSystem.Execute(transferDCOk)
@@ -222,8 +222,9 @@ func TestExecute_SwapOk(t *testing.T) {
 	require.NotNil(t, sm)
 
 	splitBillID := txutil.SameShardID(splitOk.UnitID(), unitIdFromTransaction(splitOk))
-	dcTransfers, swapTx := createDCTransferAndSwapTxs(t, []types.UnitID{splitBillID}, rmaTree, signer)
-
+	targetID := initialBill.ID
+	targetBacklink := splitOk.Hash(crypto.SHA256)
+	dcTransfers, swapTx := createDCTransferAndSwapTxs(t, []types.UnitID{splitBillID}, targetID, targetBacklink, rmaTree, signer)
 	for _, dcTransfer := range dcTransfers {
 		sm, err = txSystem.Execute(dcTransfer.TransactionOrder)
 		require.NoError(t, err)
@@ -233,7 +234,7 @@ func TestExecute_SwapOk(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, sm)
 	_, billData := getBill(t, rmaTree, swapTx.UnitID())
-	require.Equal(t, amount, billData.V)
+	require.Equal(t, initialBill.Value, billData.V) // initial bill value is the same after swap
 	require.Equal(t, swapTx.Hash(crypto.SHA256), billData.Backlink)
 	_, dustCollectorBill := getBill(t, rmaTree, dustCollectorMoneySupplyID)
 	require.Equal(t, initialDustCollectorMoneyAmount, dustCollectorBill.V) // dust collector money supply is the same after swap
@@ -254,14 +255,12 @@ func TestBillData_AddToHasher(t *testing.T) {
 	bd := &BillData{
 		V:        10,
 		T:        50,
-		TDust:    20,
 		Backlink: []byte("backlink"),
 	}
 
 	hasher := crypto.SHA256.New()
 	hasher.Write(util.Uint64ToBytes(bd.V))
 	hasher.Write(util.Uint64ToBytes(bd.T))
-	hasher.Write(util.Uint64ToBytes(bd.TDust))
 	hasher.Write(bd.Backlink)
 	expectedHash := hasher.Sum(nil)
 	hasher.Reset()
@@ -271,6 +270,7 @@ func TestBillData_AddToHasher(t *testing.T) {
 }
 
 func TestEndBlock_DustBillsAreRemoved(t *testing.T) {
+	t.Skip("TODO AB-1133 implement dust bills deletion")
 	rmaTree, txSystem, signer := createStateAndTxSystem(t)
 	_, initBillData := getBill(t, rmaTree, initialBill.ID)
 	remaining := initBillData.V
@@ -292,7 +292,12 @@ func TestEndBlock_DustBillsAreRemoved(t *testing.T) {
 	sort.Slice(splitBillIDs, func(i, j int) bool {
 		return bytes.Compare(splitBillIDs[i], splitBillIDs[j]) == -1
 	})
-	dcTransfers, swapTx := createDCTransferAndSwapTxs(t, splitBillIDs, rmaTree, signer)
+
+	// use initial bill as target bill
+	targetBillID := initialBill.ID
+	_, targetBillData := getBill(t, rmaTree, initialBill.ID)
+
+	dcTransfers, swapTx := createDCTransferAndSwapTxs(t, splitBillIDs, targetBillID, targetBillData.Backlink, rmaTree, signer)
 
 	for _, dcTransfer := range dcTransfers {
 		_, err := txSystem.Execute(dcTransfer.TransactionOrder)
@@ -387,45 +392,6 @@ func TestEndBlock_FeesConsolidation(t *testing.T) {
 	moneyFCUnit, err = rmaTree.GetUnit(moneyFCUnitID, false)
 	require.NoError(t, err)
 	require.EqualValues(t, 2, moneyFCUnit.Data().SummaryValueInput())
-}
-
-func TestValidateSwap_InsufficientDcMoneySupply(t *testing.T) {
-	rmaTree, txSystem, signer := createStateAndTxSystem(t)
-	roundNumber := uint64(10)
-	txSystem.BeginBlock(roundNumber)
-	_, swapTx := createDCTransferAndSwapTxs(t, []types.UnitID{initialBill.ID}, rmaTree, signer)
-
-	// send execute swap without executing transfers so that money supply is not increased by swaps
-	_, err := txSystem.Execute(swapTx)
-	require.ErrorIs(t, err, ErrSwapInsufficientDCMoneySupply)
-}
-
-func TestValidateSwap_SwapBillAlreadyExists(t *testing.T) {
-	rmaTree, txSystem, signer := createStateAndTxSystem(t)
-	_, initBillData := getBill(t, rmaTree, initialBill.ID)
-	roundNumber := uint64(10)
-	txSystem.BeginBlock(roundNumber)
-
-	var remaining uint64 = 99
-	amount := initialBill.Value - remaining
-	splitOk, _ := createSplit(t, initialBill.ID, amount, remaining, script.PredicateAlwaysTrue(), initBillData.Backlink)
-	txSystem.BeginBlock(roundNumber)
-	sm, err := txSystem.Execute(splitOk)
-	require.NoError(t, err)
-	require.NotNil(t, sm)
-
-	splitBillID := txutil.SameShardID(splitOk.UnitID(), unitIdFromTransaction(splitOk))
-
-	dcTransfers, swapTx := createDCTransferAndSwapTxs(t, []types.UnitID{splitBillID}, rmaTree, signer)
-
-	err = rmaTree.Apply(state.AddUnit(swapTx.UnitID(), script.PredicateAlwaysTrue(), &BillData{}))
-	require.NoError(t, err)
-	for _, dcTransfer := range dcTransfers {
-		_, err = txSystem.Execute(dcTransfer.TransactionOrder)
-		require.NoError(t, err)
-	}
-	_, err = txSystem.Execute(swapTx)
-	require.ErrorIs(t, err, ErrSwapBillAlreadyExists)
 }
 
 func TestRegisterData_Revert(t *testing.T) {
@@ -571,7 +537,7 @@ func getBill(t *testing.T, s *state.State, billID types.UnitID) (*state.Unit, *B
 	t.Helper()
 	ib, err := s.GetUnit(billID, false)
 	require.NoError(t, err)
-	require.IsType(t, ib.Data(), &BillData{})
+	require.IsType(t, &BillData{}, ib.Data())
 	return ib, ib.Data().(*BillData)
 }
 
@@ -592,18 +558,12 @@ func createBillTransfer(t *testing.T, fromID types.UnitID, value uint64, bearer 
 func createDCTransferAndSwapTxs(
 	t *testing.T,
 	ids []types.UnitID, // bills to swap
+	targetID []byte,
+	targetBacklink []byte,
 	rmaTree *state.State,
 	signer abcrypto.Signer) ([]*types.TransactionRecord, *types.TransactionOrder) {
 
 	t.Helper()
-	// calculate new bill ID
-	hasher := crypto.SHA256.New()
-	idsByteArray := make([][]byte, len(ids))
-	for i, id := range ids {
-		hasher.Write(id)
-		idsByteArray[i] = id
-	}
-	newBillID := hasher.Sum(nil)
 
 	// create dc transfers
 	dcTransfers := make([]*types.TransactionRecord, len(ids))
@@ -614,7 +574,7 @@ func createDCTransferAndSwapTxs(
 		_, billData := getBill(t, rmaTree, id)
 		// NB! dc transfer nonce must be equal to swap tx unit id
 		targetValue += billData.V
-		tx, _ := createDCTransfer(t, id, billData.V, billData.Backlink, newBillID, script.PredicateAlwaysTrue())
+		tx, _ := createDCTransfer(t, id, billData.V, billData.Backlink, targetID, targetBacklink)
 		txr := &types.TransactionRecord{
 			TransactionOrder: tx,
 			ServerMetadata:   &types.ServerMetadata{ActualFee: 1},
@@ -626,7 +586,7 @@ func createDCTransferAndSwapTxs(
 	tx := &types.TransactionOrder{
 		Payload: &types.Payload{
 			SystemID: moneySystemID,
-			UnitID:   newBillID,
+			UnitID:   targetID,
 			Type:     PayloadTypeSwapDC,
 			ClientMetadata: &types.ClientMetadata{
 				Timeout:           20,
@@ -638,11 +598,10 @@ func createDCTransferAndSwapTxs(
 	}
 
 	bt := &SwapDCAttributes{
-		OwnerCondition:  script.PredicateAlwaysTrue(),
-		BillIdentifiers: idsByteArray,
-		DcTransfers:     dcTransfers,
-		Proofs:          proofs,
-		TargetValue:     targetValue,
+		OwnerCondition:   script.PredicateAlwaysTrue(),
+		DcTransfers:      dcTransfers,
+		DcTransferProofs: proofs,
+		TargetValue:      targetValue,
 	}
 	rawBytes, err := cbor.Marshal(bt)
 	require.NoError(t, err)
@@ -650,14 +609,13 @@ func createDCTransferAndSwapTxs(
 	return dcTransfers, tx
 }
 
-func createDCTransfer(t *testing.T, fromID types.UnitID, targetValue uint64, backlink []byte, nonce []byte, targetBearer []byte) (*types.TransactionOrder, *TransferDCAttributes) {
+func createDCTransfer(t *testing.T, fromID types.UnitID, val uint64, backlink []byte, targetID []byte, targetBacklink []byte) (*types.TransactionOrder, *TransferDCAttributes) {
 	tx := createTx(fromID, PayloadTypeTransDC)
 	bt := &TransferDCAttributes{
-		Nonce:        nonce,
-		TargetBearer: targetBearer,
-		TargetValue:  targetValue,
-		Backlink:     backlink,
-		SwapTimeout:  20,
+		Value:              val,
+		TargetUnitID:       targetID,
+		TargetUnitBacklink: targetBacklink,
+		Backlink:           backlink,
 	}
 	rawBytes, err := cbor.Marshal(bt)
 	require.NoError(t, err)

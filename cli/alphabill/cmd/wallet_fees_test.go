@@ -178,7 +178,7 @@ func setupMoneyInfraAndWallet(t *testing.T, otherPartitions []*testpartition.Nod
 		Value: 1e18,
 		Owner: script.PredicateAlwaysTrue(),
 	}
-	moneyPartition := createMoneyPartition(t, initialBill)
+	moneyPartition := createMoneyPartition(t, initialBill, 1)
 	nodePartitions := []*testpartition.NodePartition{moneyPartition}
 	nodePartitions = append(nodePartitions, otherPartitions...)
 	abNet := startAlphabill(t, nodePartitions)

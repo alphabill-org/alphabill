@@ -278,7 +278,7 @@ func (v *VDClient) createRegisterDataTx(data []byte, timeout uint64) (*types.Tra
 		ClientMetadata: &types.ClientMetadata{
 			Timeout:           timeout,
 			MaxTransactionFee: tx_builder.MaxFee,
-			FeeCreditRecordID: v.accountKey.PrivKeyHash,
+			FeeCreditRecordID: v.accountKey.PubKeyHash.Sha256,
 		},
 	}
 

@@ -24,9 +24,10 @@ type (
 	}
 
 	LockedUnit struct {
-		UnitID      []byte       `json:"unitId"`
-		LockReason  LockReason   `json:"lockReason"`  // reason for locking the bill
-		Transaction *Transaction `json:"transaction"` // transaction that must be confirmed/failed in order to unlock the bill
+		UnitID       []byte         `json:"unitId"`       // if of the locked unit
+		TxHash       []byte         `json:"txHash"`       // state hash of the locked unit
+		LockReason   LockReason     `json:"lockReason"`   // reason for locking the bill
+		Transactions []*Transaction `json:"transactions"` // transactions that must be confirmed/failed in order to unlock the bill
 	}
 
 	Transaction struct {
@@ -51,6 +52,24 @@ func NewUnitLocker(dir string) (*UnitLocker, error) {
 		return nil, err
 	}
 	return &UnitLocker{db: store}, nil
+}
+
+func NewLockedUnit(unitID []byte, txHash []byte, lockReason LockReason, transactions ...*Transaction) *LockedUnit {
+	return &LockedUnit{
+		UnitID:       unitID,
+		TxHash:       txHash,
+		LockReason:   lockReason,
+		Transactions: transactions,
+	}
+}
+
+func NewTransaction(txo *types.TransactionOrder, txHash []byte) *Transaction {
+	return &Transaction{
+		TxOrder:     txo,
+		PayloadType: txo.PayloadType(),
+		Timeout:     txo.Timeout(),
+		TxHash:      txHash,
+	}
 }
 
 func (l *UnitLocker) LockUnit(unit *LockedUnit) error {

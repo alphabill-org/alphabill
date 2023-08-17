@@ -313,7 +313,7 @@ func NewAlphabillNetwork(t *testing.T) *AlphabillNetwork {
 		Value: 1e18,
 		Owner: script.PredicateAlwaysTrue(),
 	}
-	moneyPartition := createMoneyPartition(t, initialBill)
+	moneyPartition := createMoneyPartition(t, initialBill, 1)
 	tokensPartition := createTokensPartition(t)
 	abNet := startAlphabill(t, []*testpartition.NodePartition{moneyPartition, tokensPartition})
 	startPartitionRPCServers(t, moneyPartition)

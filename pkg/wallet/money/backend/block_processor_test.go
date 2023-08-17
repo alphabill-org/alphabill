@@ -30,6 +30,7 @@ func TestBlockProcessor_EachTxTypeCanBeProcessed(t *testing.T) {
 	fcbID := newUnitID(101)
 	fcb := &Bill{Id: fcbID, Value: 100}
 	signer, _ := crypto.NewInMemorySecp256K1Signer()
+	ownerCondition := script.PredicatePayToPublicKeyHashDefault(pubKeyHash)
 	tx1 := &types.TransactionRecord{
 		TransactionOrder: &types.TransactionOrder{
 			Payload: &types.Payload{
@@ -48,7 +49,7 @@ func TestBlockProcessor_EachTxTypeCanBeProcessed(t *testing.T) {
 				SystemID:       moneySystemID,
 				Type:           money.PayloadTypeTransDC,
 				UnitID:         newUnitID(2),
-				Attributes:     dustTxAttr(pubKeyHash),
+				Attributes:     dustTxAttr(),
 				ClientMetadata: &types.ClientMetadata{FeeCreditRecordID: fcbID},
 			},
 		},
@@ -89,6 +90,11 @@ func TestBlockProcessor_EachTxTypeCanBeProcessed(t *testing.T) {
 	require.NoError(t, err)
 	err = store.Do().SetFeeCreditBill(fcb, nil)
 	require.NoError(t, err)
+	// store existing bill for dc transfer and swap transfer
+	err = store.Do().SetBill(&Bill{Id: tx2.TransactionOrder.UnitID(), OwnerPredicate: ownerCondition}, nil)
+	require.NoError(t, err)
+	err = store.Do().SetBill(&Bill{Id: tx4.TransactionOrder.UnitID(), OwnerPredicate: ownerCondition}, nil)
+	require.NoError(t, err)
 	err = store.Do().SetSystemDescriptionRecords([]*genesis.SystemDescriptionRecord{
 		{
 			SystemIdentifier: moneySystemID,
@@ -108,7 +114,6 @@ func TestBlockProcessor_EachTxTypeCanBeProcessed(t *testing.T) {
 	require.NoError(t, err)
 
 	// verify bills exist
-	ownerCondition := script.PredicatePayToPublicKeyHashDefault(pubKeyHash)
 	bills, err := store.Do().GetBills(ownerCondition)
 	require.NoError(t, err)
 	require.Len(t, bills, 4)
@@ -121,7 +126,7 @@ func TestBlockProcessor_EachTxTypeCanBeProcessed(t *testing.T) {
 	// verify tx2 is dcBill
 	bill, err := store.Do().GetBill(tx2.TransactionOrder.UnitID())
 	require.NoError(t, err)
-	require.NotNil(t, bill.DcNonce)
+	require.NotNil(t, bill.DCTargetUnitID)
 
 	// verify fcb is reduced by 4x txFee
 	fcb, err = store.Do().GetFeeCreditBill(fcbID)
@@ -713,12 +718,12 @@ func transferTxAttr(pubKeyHash []byte) []byte {
 	return attrBytes
 }
 
-func dustTxAttr(pubKeyHash []byte) []byte {
+func dustTxAttr() []byte {
 	attr := &money.TransferDCAttributes{
-		TargetValue:  100,
-		TargetBearer: script.PredicatePayToPublicKeyHashDefault(pubKeyHash),
-		Backlink:     hash.Sum256([]byte{}),
-		Nonce:        []byte{0},
+		Value:              100,
+		Backlink:           hash.Sum256([]byte{}),
+		TargetUnitID:       []byte{0},
+		TargetUnitBacklink: []byte{1},
 	}
 	attrBytes, _ := cbor.Marshal(attr)
 	return attrBytes
@@ -737,11 +742,10 @@ func splitTxAttr(pubKeyHash []byte, amount uint64, remainingValue uint64) []byte
 
 func swapTxAttr(pubKeyHash []byte) []byte {
 	attr := &money.SwapDCAttributes{
-		OwnerCondition:  script.PredicatePayToPublicKeyHashDefault(pubKeyHash),
-		BillIdentifiers: [][]byte{},
-		DcTransfers:     []*types.TransactionRecord{},
-		Proofs:          []*types.TxProof{},
-		TargetValue:     100,
+		OwnerCondition:   script.PredicatePayToPublicKeyHashDefault(pubKeyHash),
+		DcTransfers:      []*types.TransactionRecord{},
+		DcTransferProofs: []*types.TxProof{},
+		TargetValue:      100,
 	}
 	attrBytes, _ := cbor.Marshal(attr)
 	return attrBytes

@@ -105,12 +105,12 @@ func TestAddFeeCredit_LockedBillForTransferFC(t *testing.T) {
 	lockedTransferFCBill := &unitlock.LockedUnit{
 		UnitID:     transferFCRecord.TransactionOrder.UnitID(),
 		LockReason: unitlock.ReasonAddFees,
-		Transaction: &unitlock.Transaction{
+		Transactions: []*unitlock.Transaction{{
 			TxOrder:     transferFCRecord.TransactionOrder,
 			TxHash:      transferFCRecord.TransactionOrder.Hash(crypto.SHA256),
 			PayloadType: transactions.PayloadTypeTransferFeeCredit,
 			Timeout:     10, // same as latest addition time on transferFC tx
-		},
+		}},
 	}
 
 	t.Run("transferFC confirmed => send addFC using the confirmed transferFC", func(t *testing.T) {
@@ -150,7 +150,7 @@ func TestAddFeeCredit_LockedBillForTransferFC(t *testing.T) {
 
 		// mock tx timed out and add bill to wallet
 		*moneyBackendClient = mockMoneyClient{
-			roundNumber: lockedTransferFCBill.Transaction.Timeout,
+			roundNumber: lockedTransferFCBill.Transactions[0].Timeout,
 			bills: []*wallet.Bill{{
 				Id:     []byte{123},
 				Value:  100,
@@ -181,7 +181,7 @@ func TestAddFeeCredit_LockedBillForTransferFC(t *testing.T) {
 
 		// mock tx not yet timed out
 		*moneyBackendClient = mockMoneyClient{
-			roundNumber: lockedTransferFCBill.Transaction.Timeout - 1,
+			roundNumber: lockedTransferFCBill.Transactions[0].Timeout - 1,
 		}
 
 		// when fees are added
@@ -223,12 +223,12 @@ func TestAddFeeCredit_LockedBillForAddFC(t *testing.T) {
 	lockedAddFCBill := &unitlock.LockedUnit{
 		UnitID:     addFCRecord.TransactionOrder.UnitID(),
 		LockReason: unitlock.ReasonAddFees,
-		Transaction: &unitlock.Transaction{
+		Transactions: []*unitlock.Transaction{{
 			TxOrder:     addFCRecord.TransactionOrder,
 			TxHash:      addFCRecord.TransactionOrder.Hash(crypto.SHA256),
 			PayloadType: transactions.PayloadTypeAddFeeCredit,
 			Timeout:     5, // latest addition time = 10
-		},
+		}},
 	}
 
 	t.Run("addFC confirmed => return no error (and optionally the fee txs)", func(t *testing.T) {
@@ -261,7 +261,7 @@ func TestAddFeeCredit_LockedBillForAddFC(t *testing.T) {
 
 		// mock tx timed out
 		*moneyBackendClient = mockMoneyClient{
-			roundNumber: lockedAddFCBill.Transaction.Timeout - 1,
+			roundNumber: lockedAddFCBill.Transactions[0].Timeout - 1,
 		}
 
 		// when fees are added
@@ -286,7 +286,7 @@ func TestAddFeeCredit_LockedBillForAddFC(t *testing.T) {
 		// mock tx timed out
 		// tx timeout (5) < round number (6) < latest addition time (10)
 		*moneyBackendClient = mockMoneyClient{
-			roundNumber: lockedAddFCBill.Transaction.Timeout + 1,
+			roundNumber: lockedAddFCBill.Transactions[0].Timeout + 1,
 		}
 
 		// when fees are added
@@ -346,12 +346,12 @@ func TestReclaimFeeCredit_LockedBillForCloseFC(t *testing.T) {
 	lockedCloseFCBill := &unitlock.LockedUnit{
 		UnitID:     closeFCRecord.TransactionOrder.UnitID(),
 		LockReason: unitlock.ReasonReclaimFees,
-		Transaction: &unitlock.Transaction{
+		Transactions: []*unitlock.Transaction{{
 			TxOrder:     closeFCRecord.TransactionOrder,
 			TxHash:      closeFCRecord.TransactionOrder.Hash(crypto.SHA256),
 			PayloadType: transactions.PayloadTypeCloseFeeCredit,
 			Timeout:     10,
-		},
+		}},
 	}
 
 	t.Run("closeFC confirmed => send reclaimFC using the confirmed closeFC", func(t *testing.T) {
@@ -392,7 +392,7 @@ func TestReclaimFeeCredit_LockedBillForCloseFC(t *testing.T) {
 		// mock tx timed out and add bill to wallet
 		*moneyBackendClient = mockMoneyClient{
 			fcb:         &wallet.Bill{Value: 1e8, Id: []byte{111}},
-			roundNumber: lockedCloseFCBill.Transaction.Timeout,
+			roundNumber: lockedCloseFCBill.Transactions[0].Timeout,
 			bills: []*wallet.Bill{{
 				Id:     []byte{123},
 				Value:  100,
@@ -429,7 +429,7 @@ func TestReclaimFeeCredit_LockedBillForCloseFC(t *testing.T) {
 
 		// mock tx not yet timed out
 		*moneyBackendClient = mockMoneyClient{
-			roundNumber: lockedCloseFCBill.Transaction.Timeout - 1,
+			roundNumber: lockedCloseFCBill.Transactions[0].Timeout - 1,
 		}
 
 		// when fees are reclaimed
@@ -472,12 +472,12 @@ func TestReclaimFeeCredit_LockedBillForReclaimFC(t *testing.T) {
 	lockedReclaimFCBill := &unitlock.LockedUnit{
 		UnitID:     reclaimFCRecord.TransactionOrder.UnitID(),
 		LockReason: unitlock.ReasonReclaimFees,
-		Transaction: &unitlock.Transaction{
+		Transactions: []*unitlock.Transaction{{
 			TxOrder:     reclaimFCOrder,
 			TxHash:      reclaimFCOrder.Hash(crypto.SHA256),
 			PayloadType: transactions.PayloadTypeReclaimFeeCredit,
 			Timeout:     10,
-		},
+		}},
 	}
 
 	t.Run("reclaimFC confirmed => return no error (and optionally the fee txs)", func(t *testing.T) {
@@ -511,7 +511,7 @@ func TestReclaimFeeCredit_LockedBillForReclaimFC(t *testing.T) {
 
 		// mock tx timed out
 		*moneyBackendClient = mockMoneyClient{
-			roundNumber: lockedReclaimFCBill.Transaction.Timeout - 1,
+			roundNumber: lockedReclaimFCBill.Transactions[0].Timeout - 1,
 		}
 
 		// when fees are reclaimed
@@ -535,8 +535,8 @@ func TestReclaimFeeCredit_LockedBillForReclaimFC(t *testing.T) {
 
 		// mock tx timed out and return locked bill
 		*moneyBackendClient = mockMoneyClient{
-			roundNumber: lockedReclaimFCBill.Transaction.Timeout + 1,
-			bills:       []*wallet.Bill{{Id: lockedReclaimFCBill.UnitID, TxHash: lockedReclaimFCBill.Transaction.TxHash}},
+			roundNumber: lockedReclaimFCBill.Transactions[0].Timeout + 1,
+			bills:       []*wallet.Bill{{Id: lockedReclaimFCBill.UnitID, TxHash: lockedReclaimFCBill.Transactions[0].TxHash}}, // TODO if reclaimFC is timed out we do not have bill available
 		}
 
 		// when fees are reclaimed

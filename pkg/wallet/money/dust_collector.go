@@ -34,6 +34,7 @@ type (
 		GetUnit(unitID []byte) (*unitlock.LockedUnit, error)
 		LockUnit(lockedBill *unitlock.LockedUnit) error
 		UnlockUnit(unitID []byte) error
+		Close() error
 	}
 )
 

@@ -72,6 +72,6 @@ func (v *VDBackend) PostTransactions(ctx context.Context, pubKey wallet.PubKey, 
 	return v.vdClient.PostTransactions(ctx, pubKey, txs)
 }
 
-func (v *VDBackend) GetTxProof(ctx context.Context, unitID wallet.UnitID, txHash wallet.TxHash) (*wallet.Proof, error) {
+func (v *VDBackend) GetTxProof(ctx context.Context, unitID types.UnitID, txHash wallet.TxHash) (*wallet.Proof, error) {
 	return v.vdClient.GetTxProofFromBlock(ctx, unitID, txHash, v.startRoundNumber, v.txTimeout)
 }

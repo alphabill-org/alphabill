@@ -266,7 +266,7 @@ func TestNewTypes(t *testing.T) {
 		getRoundNumber: func(ctx context.Context) (uint64, error) {
 			return 1, nil
 		},
-		getFeeCreditBill: func(ctx context.Context, unitID wallet.UnitID) (*wallet.Bill, error) {
+		getFeeCreditBill: func(ctx context.Context, unitID types.UnitID) (*wallet.Bill, error) {
 			return &wallet.Bill{
 				Id:     []byte{1},
 				Value:  100000,
@@ -351,7 +351,7 @@ func TestMintFungibleToken(t *testing.T) {
 		getRoundNumber: func(ctx context.Context) (uint64, error) {
 			return 1, nil
 		},
-		getFeeCreditBill: func(ctx context.Context, unitID wallet.UnitID) (*wallet.Bill, error) {
+		getFeeCreditBill: func(ctx context.Context, unitID types.UnitID) (*wallet.Bill, error) {
 			return &wallet.Bill{
 				Id:     []byte{1},
 				Value:  100000,
@@ -412,7 +412,7 @@ func TestSendFungible(t *testing.T) {
 				{ID: test.RandomBytes(32), Kind: backend.Fungible, Symbol: "AB2", TypeID: typeIdForOverflow, Amount: 1},
 			}, "", nil
 		},
-		getFeeCreditBill: func(ctx context.Context, unitID wallet.UnitID) (*wallet.Bill, error) {
+		getFeeCreditBill: func(ctx context.Context, unitID types.UnitID) (*wallet.Bill, error) {
 			return &wallet.Bill{
 				Id:     []byte{1},
 				Value:  100000,
@@ -608,7 +608,7 @@ func TestMintNFT(t *testing.T) {
 		getRoundNumber: func(ctx context.Context) (uint64, error) {
 			return 1, nil
 		},
-		getFeeCreditBill: func(ctx context.Context, unitID wallet.UnitID) (*wallet.Bill, error) {
+		getFeeCreditBill: func(ctx context.Context, unitID types.UnitID) (*wallet.Bill, error) {
 			return &wallet.Bill{
 				Id:     []byte{1},
 				Value:  100000,
@@ -701,7 +701,7 @@ func TestTransferNFT(t *testing.T) {
 		getRoundNumber: func(ctx context.Context) (uint64, error) {
 			return 1, nil
 		},
-		getFeeCreditBill: func(ctx context.Context, unitID wallet.UnitID) (*wallet.Bill, error) {
+		getFeeCreditBill: func(ctx context.Context, unitID types.UnitID) (*wallet.Bill, error) {
 			return &wallet.Bill{
 				Id:     []byte{1},
 				Value:  100000,
@@ -770,7 +770,7 @@ func TestUpdateNFTData(t *testing.T) {
 		getRoundNumber: func(ctx context.Context) (uint64, error) {
 			return 1, nil
 		},
-		getFeeCreditBill: func(ctx context.Context, unitID wallet.UnitID) (*wallet.Bill, error) {
+		getFeeCreditBill: func(ctx context.Context, unitID types.UnitID) (*wallet.Bill, error) {
 			return &wallet.Bill{
 				Id:     []byte{1},
 				Value:  100000,
@@ -837,8 +837,8 @@ type mockTokenBackend struct {
 	getRoundNumber   func(ctx context.Context) (uint64, error)
 	postTransactions func(ctx context.Context, pubKey wallet.PubKey, txs *wallet.Transactions) error
 	getTypeHierarchy func(ctx context.Context, id backend.TokenTypeID) ([]*backend.TokenUnitType, error)
-	getTxProof       func(ctx context.Context, unitID wallet.UnitID, txHash wallet.TxHash) (*wallet.Proof, error)
-	getFeeCreditBill func(ctx context.Context, unitID wallet.UnitID) (*wallet.Bill, error)
+	getTxProof       func(ctx context.Context, unitID types.UnitID, txHash wallet.TxHash) (*wallet.Proof, error)
+	getFeeCreditBill func(ctx context.Context, unitID types.UnitID) (*wallet.Bill, error)
 }
 
 func (m *mockTokenBackend) GetToken(ctx context.Context, id backend.TokenID) (*backend.TokenUnit, error) {
@@ -883,14 +883,14 @@ func (m *mockTokenBackend) GetTypeHierarchy(ctx context.Context, id backend.Toke
 	return nil, fmt.Errorf("GetTypeHierarchy not implemented")
 }
 
-func (m *mockTokenBackend) GetTxProof(ctx context.Context, unitID wallet.UnitID, txHash wallet.TxHash) (*wallet.Proof, error) {
+func (m *mockTokenBackend) GetTxProof(ctx context.Context, unitID types.UnitID, txHash wallet.TxHash) (*wallet.Proof, error) {
 	if m.getTxProof != nil {
 		return m.getTxProof(ctx, unitID, txHash)
 	}
 	return nil, fmt.Errorf("GetTxProof not implemented")
 }
 
-func (m *mockTokenBackend) GetFeeCreditBill(ctx context.Context, unitID wallet.UnitID) (*wallet.Bill, error) {
+func (m *mockTokenBackend) GetFeeCreditBill(ctx context.Context, unitID types.UnitID) (*wallet.Bill, error) {
 	if m.getFeeCreditBill != nil {
 		return m.getFeeCreditBill(ctx, unitID)
 	}

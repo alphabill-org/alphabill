@@ -76,7 +76,7 @@ func TestDustCollectionMaxBillCount(t *testing.T) {
 			}
 			return nil
 		},
-		getTxProof: func(ctx context.Context, unitID wallet.UnitID, txHash wallet.TxHash) (*wallet.Proof, error) {
+		getTxProof: func(ctx context.Context, unitID types.UnitID, txHash wallet.TxHash) (*wallet.Proof, error) {
 			for _, b := range bills {
 				if bytes.Equal(util.Uint256ToBytes(b.Id), unitID) {
 					return createBlockProofResponse(t, b, nonceBytes, dcTimeoutBlockCount, nil), nil
@@ -150,7 +150,7 @@ func TestDustCollectionMaxBillCountOverLimit(t *testing.T) {
 			}
 			return nil
 		},
-		getTxProof: func(ctx context.Context, unitID wallet.UnitID, txHash wallet.TxHash) (*wallet.Proof, error) {
+		getTxProof: func(ctx context.Context, unitID types.UnitID, txHash wallet.TxHash) (*wallet.Proof, error) {
 			for _, b := range bills {
 				if bytes.Equal(util.Uint256ToBytes(b.Id), unitID) {
 					return createBlockProofResponse(t, b, nonceBytes, dcTimeoutBlockCount, nil), nil
@@ -223,7 +223,7 @@ func TestBasicDustCollection(t *testing.T) {
 			}
 			return nil
 		},
-		getTxProof: func(ctx context.Context, unitID wallet.UnitID, txHash wallet.TxHash) (*wallet.Proof, error) {
+		getTxProof: func(ctx context.Context, unitID types.UnitID, txHash wallet.TxHash) (*wallet.Proof, error) {
 			for _, b := range bills {
 				if bytes.Equal(util.Uint256ToBytes(b.Id), unitID) {
 					return createBlockProofResponse(t, b, nonceBytes, dcTimeoutBlockCount, nil), nil
@@ -306,7 +306,7 @@ func TestDustCollectionWithSwap(t *testing.T) {
 			}
 			return nil
 		},
-		getTxProof: func(ctx context.Context, unitID wallet.UnitID, txHash wallet.TxHash) (*wallet.Proof, error) {
+		getTxProof: func(ctx context.Context, unitID types.UnitID, txHash wallet.TxHash) (*wallet.Proof, error) {
 			for _, b := range bills {
 				if bytes.Equal(util.Uint256ToBytes(b.Id), unitID) {
 					return createBlockProofResponse(t, b, expectedDcNonce, dcTimeoutBlockCount, nil), nil
@@ -379,7 +379,7 @@ func TestSwapWithExistingDCBillsBeforeDCTimeout(t *testing.T) {
 			}
 			return nil
 		},
-		getTxProof: func(ctx context.Context, unitID wallet.UnitID, txHash wallet.TxHash) (*wallet.Proof, error) {
+		getTxProof: func(ctx context.Context, unitID types.UnitID, txHash wallet.TxHash) (*wallet.Proof, error) {
 			for _, b := range bills {
 				if bytes.Equal(util.Uint256ToBytes(b.Id), unitID) {
 					return createBlockProofResponse(t, b, expectedDcNonce, dcTimeoutBlockCount, nil), nil
@@ -450,7 +450,7 @@ func TestSwapWithExistingExpiredDCBills(t *testing.T) {
 			}
 			return nil
 		},
-		getTxProof: func(ctx context.Context, unitID wallet.UnitID, txHash wallet.TxHash) (*wallet.Proof, error) {
+		getTxProof: func(ctx context.Context, unitID types.UnitID, txHash wallet.TxHash) (*wallet.Proof, error) {
 			for _, b := range bills {
 				if bytes.Equal(util.Uint256ToBytes(b.Id), unitID) {
 					return createBlockProofResponse(t, b, expectedDcNonce, dcTimeoutBlockCount, nil), nil
@@ -581,7 +581,7 @@ func TestSwapContainsUnconfirmedDustBillIds(t *testing.T) {
 			}
 			return nil
 		},
-		getTxProof: func(ctx context.Context, unitID wallet.UnitID, txHash wallet.TxHash) (*wallet.Proof, error) {
+		getTxProof: func(ctx context.Context, unitID types.UnitID, txHash wallet.TxHash) (*wallet.Proof, error) {
 			for _, b := range bills {
 				if bytes.Equal(util.Uint256ToBytes(b.Id), unitID) {
 					return createBlockProofResponse(t, b, nil, dcTimeoutBlockCount, nil), nil
@@ -653,7 +653,7 @@ func TestBlockingDcWithNormalBills(t *testing.T) {
 			}
 			return nil
 		},
-		getTxProof: func(ctx context.Context, unitID wallet.UnitID, txHash wallet.TxHash) (*wallet.Proof, error) {
+		getTxProof: func(ctx context.Context, unitID types.UnitID, txHash wallet.TxHash) (*wallet.Proof, error) {
 			for _, b := range bills {
 				if bytes.Equal(util.Uint256ToBytes(b.Id), unitID) {
 					return createBlockProofResponse(t, b, nil, dcTimeoutBlockCount, nil), nil
@@ -721,7 +721,7 @@ func TestDCWithExpiredDCBills(t *testing.T) {
 			}
 			return nil
 		},
-		getTxProof: func(ctx context.Context, unitID wallet.UnitID, txHash wallet.TxHash) (*wallet.Proof, error) {
+		getTxProof: func(ctx context.Context, unitID types.UnitID, txHash wallet.TxHash) (*wallet.Proof, error) {
 			for _, b := range bills {
 				if bytes.Equal(util.Uint256ToBytes(b.Id), unitID) {
 					return createBlockProofResponse(t, b, util.Uint256ToBytes(tempNonce), dcTimeoutBlockCount, nil), nil
@@ -825,7 +825,7 @@ func TestDustCollectionWithoutMetadata(t *testing.T) {
 			}
 			return nil
 		},
-		getTxProof: func(ctx context.Context, unitID wallet.UnitID, txHash wallet.TxHash) (*wallet.Proof, error) {
+		getTxProof: func(ctx context.Context, unitID types.UnitID, txHash wallet.TxHash) (*wallet.Proof, error) {
 			for _, b := range bills {
 				if bytes.Equal(util.Uint256ToBytes(b.Id), unitID) {
 					return createBlockProofResponse(t, b, util.Uint256ToBytes(tempNonce), dcTimeoutBlockCount, nil), nil

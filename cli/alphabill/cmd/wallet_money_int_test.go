@@ -12,10 +12,8 @@ import (
 	testpartition "github.com/alphabill-org/alphabill/internal/testutils/partition"
 	moneytx "github.com/alphabill-org/alphabill/internal/txsystem/money"
 	moneytestutils "github.com/alphabill-org/alphabill/internal/txsystem/money/testutils"
-	"github.com/alphabill-org/alphabill/internal/util"
 	wlog "github.com/alphabill-org/alphabill/pkg/wallet/log"
 	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
 )
 
@@ -30,7 +28,7 @@ Test scenario 3: wallet-1 sends tx without confirming
 */
 func TestSendingMoneyUsingWallets_integration(t *testing.T) {
 	initialBill := &moneytx.InitialBill{
-		ID:    util.Uint256ToBytes(uint256.NewInt(1)),
+		ID:    defaultInitialBillID,
 		Value: 1e18,
 		Owner: script.PredicateAlwaysTrue(),
 	}

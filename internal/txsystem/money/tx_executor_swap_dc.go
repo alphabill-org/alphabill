@@ -128,8 +128,7 @@ func validateSwap(tx *types.TransactionOrder, attr *SwapDCAttributes, dustTransf
 
 	// 6. new bill id is properly computed ι=h(ι1,...,ιm)
 	expectedBillId := hashBillIds(dustTransfers, hashAlgorithm)
-	unitIdBytes := util.BytesToUint256(tx.UnitID()).Bytes32()
-	if !bytes.Equal(unitIdBytes[:], expectedBillId) {
+	if !bytes.Equal(tx.UnitID(), expectedBillId) {
 		return ErrSwapInvalidBillId
 	}
 
@@ -146,7 +145,7 @@ func validateSwap(tx *types.TransactionOrder, attr *SwapDCAttributes, dustTransf
 		if (i > 0) && !dcTx.id.Gt(prevDcTx.id) {
 			return ErrSwapDustTransfersInvalidOrder
 		}
-		if err := validateDustTransfer(dcTx, proofs[i], unitIdBytes, attr.OwnerCondition, hashAlgorithm, trustBase); err != nil {
+		if err := validateDustTransfer(dcTx, proofs[i], tx.UnitID(), attr.OwnerCondition, hashAlgorithm, trustBase); err != nil {
 			return err
 		}
 		prevDcTx = dcTx
@@ -209,9 +208,9 @@ func getDCTransfers(attr *SwapDCAttributes) ([]*dustCollectorTransfer, error) {
 	return transfers, nil
 }
 
-func validateDustTransfer(dcTx *dustCollectorTransfer, proof *types.TxProof, unitIdBytes [32]byte, ownerCondition []byte, hashAlgorithm crypto.Hash, trustBase map[string]abcrypto.Verifier) error {
+func validateDustTransfer(dcTx *dustCollectorTransfer, proof *types.TxProof, unitID types.UnitID, ownerCondition []byte, hashAlgorithm crypto.Hash, trustBase map[string]abcrypto.Verifier) error {
 	// 10. bill transfer orders contain proper nonce
-	if !bytes.Equal(dcTx.attributes.Nonce, unitIdBytes[:]) {
+	if !bytes.Equal(dcTx.attributes.Nonce, unitID) {
 		return ErrSwapInvalidNonce
 	}
 	// 11. bill transfer orders contain proper target bearer

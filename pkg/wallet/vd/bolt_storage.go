@@ -7,8 +7,8 @@ import (
 
 	bolt "go.etcd.io/bbolt"
 
+	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/internal/util"
-	"github.com/alphabill-org/alphabill/pkg/wallet"
 )
 
 var (
@@ -24,7 +24,7 @@ type (
 		GetBlockNumber() (uint64, error)
 		SetBlockNumber(blockNumber uint64) error
 
-		GetFeeCreditBill(unitID wallet.UnitID) (*FeeCreditBill, error)
+		GetFeeCreditBill(unitID types.UnitID) (*FeeCreditBill, error)
 		SetFeeCreditBill(fcb *FeeCreditBill) error
 	}
 
@@ -61,7 +61,7 @@ func (s *storage) SetBlockNumber(blockNumber uint64) error {
 	})
 }
 
-func (s *storage) GetFeeCreditBill(unitID wallet.UnitID) (*FeeCreditBill, error) {
+func (s *storage) GetFeeCreditBill(unitID types.UnitID) (*FeeCreditBill, error) {
 	var fcb *FeeCreditBill
 	err := s.db.View(func(tx *bolt.Tx) error {
 		fcbBytes := tx.Bucket(bucketFeeCredits).Get(unitID)

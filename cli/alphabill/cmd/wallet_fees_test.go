@@ -172,7 +172,7 @@ func execFeesCommand(homeDir, command string) (*testConsoleWriter, error) {
 // Returns wallet homedir and reference to money partition object.
 func setupMoneyInfraAndWallet(t *testing.T, otherPartitions []*testpartition.NodePartition) (string, *testpartition.AlphabillNetwork) {
 	initialBill := &money.InitialBill{
-		ID:    util.Uint256ToBytes(uint256.NewInt(1)),
+		ID:    defaultInitialBillID,
 		Value: 1e18,
 		Owner: script.PredicateAlwaysTrue(),
 	}

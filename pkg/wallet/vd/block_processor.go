@@ -25,7 +25,7 @@ func NewBlockProcessor(store Storage) *blockProcessor {
 	return &blockProcessor{store: store}
 }
 
-func NewProofFinder(unitID wallet.UnitID, txHash wallet.TxHash, proofCh chan<- *wallet.Proof) blocksync.BlockProcessorFunc {
+func NewProofFinder(unitID types.UnitID, txHash wallet.TxHash, proofCh chan<- *wallet.Proof) blocksync.BlockProcessorFunc {
 	return func(_ context.Context, b *types.Block) error {
 		log.Debug("Processing block #", b.GetRoundNumber())
 

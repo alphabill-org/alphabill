@@ -15,7 +15,6 @@ import (
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/internal/txsystem/fc"
 	"github.com/alphabill-org/alphabill/internal/txsystem/fc/unit"
-	txutil "github.com/alphabill-org/alphabill/internal/txsystem/util"
 	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/fxamacker/cbor/v2"
@@ -36,7 +35,7 @@ func TestPartition_Ok(t *testing.T) {
 	const moneyInvariant = uint64(10000 * 1e8)
 	total := moneyInvariant
 	initialBill := &InitialBill{
-		ID:    []byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1},
+		ID:    []byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1},
 		Value: moneyInvariant,
 		Owner: script.PredicateAlwaysTrue(),
 	}
@@ -112,7 +111,7 @@ func TestPartition_SwapDCOk(t *testing.T) {
 		hashAlgorithm = crypto.SHA256
 		txsState      *state.State
 		initialBill   = &InitialBill{
-			ID:    []byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1},
+			ID:    []byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1},
 			Value: moneyInvariant,
 			Owner: script.PredicateAlwaysTrue(),
 		}
@@ -176,7 +175,7 @@ func TestPartition_SwapDCOk(t *testing.T) {
 	// create dust payments from splits
 	dcBillIds := make([]types.UnitID, len(splitTxs))
 	for i, splitTx := range splitTxs {
-		dcBillIds[i] = txutil.SameShardID(splitTx.TransactionOrder.UnitID(), unitIdFromTransaction(splitTx.TransactionOrder))
+		dcBillIds[i] = SameShardID(splitTx.TransactionOrder.UnitID(), unitIdFromTransaction(splitTx.TransactionOrder, ))
 	}
 	// sort bill id's
 	sort.Slice(dcBillIds, func(i, j int) bool {

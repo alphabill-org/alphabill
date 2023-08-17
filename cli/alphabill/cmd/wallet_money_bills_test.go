@@ -13,7 +13,6 @@ import (
 	testpartition "github.com/alphabill-org/alphabill/internal/testutils/partition"
 	"github.com/alphabill-org/alphabill/internal/txsystem/fc/transactions"
 	"github.com/alphabill-org/alphabill/internal/txsystem/money"
-	utiltx "github.com/alphabill-org/alphabill/internal/txsystem/util"
 	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/alphabill-org/alphabill/pkg/wallet/money/backend/client"
@@ -244,7 +243,7 @@ func spendInitialBillWithFeeCredits(t *testing.T, abNet *testpartition.Alphabill
 
 	txFee := uint64(1)
 	feeAmount := uint64(2)
-	fcrID := utiltx.SameShardIDBytes(initialBill.ID, pubkeyHash)
+	fcrID := money.SameShardID(initialBill.ID, pubkeyHash)
 	unitID := initialBill.ID
 	moneyPart, err := abNet.GetNodePartition(money.DefaultSystemIdentifier)
 	require.NoError(t, err)

@@ -5,15 +5,20 @@ import (
 
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/alphabill-org/alphabill/internal/types"
-	"github.com/alphabill-org/alphabill/internal/util"
-	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/assert"
 )
 
+const (
+	typeIDLength = 1
+	unitIDLength = 32 + typeIDLength
+	typeIDIndex  = unitIDLength - typeIDLength
+)
+
 func TestSameShardId(t *testing.T) {
-	emptyBytes32 := [32]byte{}
-	randomHash := test.RandomBytes(32)
-	randomId := test.RandomBytes(32)
+	emptyUnitID  := make([]byte, unitIDLength)
+	randomUnitID := test.RandomBytes(unitIDLength)
+	randomHash   := test.RandomBytes(unitIDLength - typeIDLength)
+
 	type args struct {
 		id        types.UnitID
 		hashValue []byte
@@ -26,54 +31,52 @@ func TestSameShardId(t *testing.T) {
 		{
 			name: "empty",
 			args: args{
-				id:        util.Uint256ToBytes(uint256.NewInt(0)),
+				id:        emptyUnitID,
 				hashValue: []byte{},
 			},
-			want: util.Uint256ToBytes(uint256.NewInt(0).SetBytes(emptyBytes32[:])),
+			want: emptyUnitID,
 		}, {
 			name: "random",
 			args: args{
-				id:        randomId,
+				id:        randomUnitID,
 				hashValue: randomHash,
 			},
-			want: util.Uint256ToBytes(uint256.NewInt(0).SetBytes(append(randomId[:4], randomHash[4:]...))),
-		}, {
+			want: append(copyAndAppend(randomUnitID[:4], randomHash[4:]...), randomUnitID[typeIDIndex:]...),
+		},{
 			name: "id empty",
 			args: args{
-				id:        util.Uint256ToBytes(uint256.NewInt(0)),
+				id:        emptyUnitID,
 				hashValue: randomHash,
 			},
-			want: util.Uint256ToBytes(uint256.NewInt(0).SetBytes(copyAndAppend(emptyBytes32[:4], randomHash[4:]...))),
-		}, {
+			want: append(copyAndAppend(emptyUnitID[:4], randomHash[4:]...), emptyUnitID[typeIDIndex:]...),
+		},{
 			name: "hash empty",
 			args: args{
-				id:        util.Uint256ToBytes(uint256.NewInt(0).SetBytes(randomId)),
+				id:        randomUnitID,
 				hashValue: []byte{},
 			},
-			want: util.Uint256ToBytes(uint256.NewInt(0).SetBytes(copyAndAppend(randomId[:4], emptyBytes32[4:]...))),
+			want: append(copyAndAppend(randomUnitID[:4], emptyUnitID[4:typeIDIndex]...), randomUnitID[typeIDIndex:]...),
 		}, {
 			name: "hash half empty",
 			args: args{
-				id:        util.Uint256ToBytes(uint256.NewInt(0).SetBytes(randomId)),
+				id:        randomUnitID,
 				hashValue: randomHash[:16],
 			},
-			want: util.Uint256ToBytes(uint256.NewInt(0).SetBytes(
-				copyAndAppend(randomId[:4],
-					copyAndAppend(randomHash[4:16], emptyBytes32[16:]...)...,
-				))),
+			want: append(append(copyAndAppend(randomUnitID[:4], randomHash[4:16]...), emptyUnitID[16:typeIDIndex]...), randomUnitID[typeIDIndex:]...),
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			actual := SameShardID(tt.args.id, tt.args.hashValue)
-			assert.Equalf(t, tt.want, actual, "sameShardId(%v, %v)", tt.args.id, tt.args.hashValue)
+			actual := SameShardID(tt.args.id, tt.args.hashValue, typeIDLength)
+			assert.Equalf(t, tt.want, actual, "sameShardId(%v, %v, %v)", tt.args.id, tt.args.hashValue, typeIDLength)
 		})
 	}
 }
 
-// normal append modified the slice appended too
-func copyAndAppend(i []byte, vals ...byte) []byte {
-	j := make([]byte, len(i), len(i)+len(vals))
-	copy(j, i)
-	return append(j, vals...)
+// Makes a copy of the slice before appending
+func copyAndAppend(slice []byte, elems ...byte) []byte {
+	newSlice := make([]byte, len(slice), len(slice)+len(elems))
+	copy(newSlice, slice)
+
+	return append(newSlice, elems...)
 }

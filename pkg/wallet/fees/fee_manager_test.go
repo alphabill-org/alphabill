@@ -609,7 +609,7 @@ func (m *mockMoneyClient) GetBills(ctx context.Context, pubKey []byte) ([]*walle
 	return m.bills, nil
 }
 
-func (m *mockMoneyClient) GetFeeCreditBill(ctx context.Context, unitID wallet.UnitID) (*wallet.Bill, error) {
+func (m *mockMoneyClient) GetFeeCreditBill(ctx context.Context, unitID types.UnitID) (*wallet.Bill, error) {
 	return m.fcb, nil
 }
 
@@ -621,7 +621,7 @@ func (m *mockMoneyClient) GetClosedFeeCredit(ctx context.Context, fcbID []byte) 
 	return nil, nil
 }
 
-func (m *mockMoneyClient) GetTxProof(ctx context.Context, unitID wallet.UnitID, txHash wallet.TxHash) (*wallet.Proof, error) {
+func (m *mockMoneyClient) GetTxProof(ctx context.Context, unitID types.UnitID, txHash wallet.TxHash) (*wallet.Proof, error) {
 	return m.proofs[string(unitID)], nil
 }
 

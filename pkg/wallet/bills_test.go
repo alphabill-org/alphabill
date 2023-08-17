@@ -9,7 +9,6 @@ import (
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	testtransaction "github.com/alphabill-org/alphabill/internal/testutils/transaction"
 	"github.com/alphabill-org/alphabill/internal/txsystem/money"
-	txutil "github.com/alphabill-org/alphabill/internal/txsystem/util"
 )
 
 var (
@@ -122,7 +121,7 @@ func TestBillVerifySplitTransferTx_NewBill(t *testing.T) {
 			Backlink:       test.RandomBytes(32),
 		}))
 
-	newUnitID := txutil.SameShardIDBytes(tx.TransactionOrder.UnitID(), tx.TransactionOrder.Hash(crypto.SHA256))
+	newUnitID := money.SameShardID(tx.TransactionOrder.UnitID(), tx.TransactionOrder.Hash(crypto.SHA256))
 
 	// test invalid value
 	b := &Bill{Id: newUnitID, Value: amount - 1}

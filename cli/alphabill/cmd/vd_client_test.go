@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
 
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
@@ -19,7 +18,6 @@ import (
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/internal/txsystem/money"
 	"github.com/alphabill-org/alphabill/internal/txsystem/vd"
-	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/alphabill-org/alphabill/pkg/wallet/account"
 	"github.com/alphabill-org/alphabill/pkg/wallet/fees"
 	moneywallet "github.com/alphabill-org/alphabill/pkg/wallet/money"
@@ -77,7 +75,7 @@ type VDAlphabillNetwork struct {
 // Adds fee credit on vd partition.
 func NewVDAlphabillNetwork(t *testing.T, ctx context.Context) *VDAlphabillNetwork {
 	initialBill := &money.InitialBill{
-		ID:    util.Uint256ToBytes(uint256.NewInt(1)),
+		ID:    defaultInitialBillID,
 		Value: 1e18,
 		Owner: script.PredicateAlwaysTrue(),
 	}

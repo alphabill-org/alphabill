@@ -8,7 +8,6 @@ import (
 
 	"github.com/alphabill-org/alphabill/internal/state"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
-	txutil "github.com/alphabill-org/alphabill/internal/txsystem/util"
 	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/fxamacker/cbor/v2"
@@ -27,7 +26,7 @@ func handleSplitFungibleTokenTx(options *Options) txsystem.GenericExecuteFunc[Sp
 		}
 		d := u.Data().(*fungibleTokenData)
 		// add new token unit
-		newTokenID := txutil.SameShardID(unitID, HashForIDCalculation(tx, options.hashAlgorithm))
+		newTokenID := SameShardID(unitID, HashForIDCalculation(tx, options.hashAlgorithm))
 		logger.Debug("Adding a fungible token with ID %v", newTokenID)
 
 		fee := options.feeCalculator()

@@ -13,7 +13,7 @@ import (
 
 type (
 	TxSubmission struct {
-		UnitID      wallet.UnitID
+		UnitID      types.UnitID
 		TxHash      wallet.TxHash
 		Transaction *types.TransactionOrder
 		Proof       *wallet.Proof
@@ -29,7 +29,7 @@ type (
 	BackendAPI interface {
 		GetRoundNumber(ctx context.Context) (uint64, error)
 		PostTransactions(ctx context.Context, pubKey wallet.PubKey, txs *wallet.Transactions) error
-		GetTxProof(ctx context.Context, unitID wallet.UnitID, txHash wallet.TxHash) (*wallet.Proof, error)
+		GetTxProof(ctx context.Context, unitID types.UnitID, txHash wallet.TxHash) (*wallet.Proof, error)
 	}
 )
 

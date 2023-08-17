@@ -349,7 +349,7 @@ func TestRunMoneyNode_Ok(t *testing.T) {
 }
 
 func makeSuccessfulPayment(t *testing.T, ctx context.Context, txClient alphabill.AlphabillServiceClient) {
-	initialBillID := uint256.NewInt(defaultInitialBillId).Bytes32()
+	initialBillID := defaultInitialBillID
 	attr := &billtx.TransferAttributes{
 		NewBearer:   script.PredicateAlwaysTrue(),
 		TargetValue: defaultInitialBillValue,

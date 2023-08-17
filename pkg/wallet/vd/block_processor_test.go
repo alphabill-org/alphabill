@@ -110,7 +110,7 @@ func Test_blockProcessor_ProcessBlock(t *testing.T) {
 
 		bp := &blockProcessor{
 			store: &mockStorage{
-				getFeeCreditBill: func(unitID wallet.UnitID) (*FeeCreditBill, error) { return nil, nil },
+				getFeeCreditBill: func(unitID types.UnitID) (*FeeCreditBill, error) { return nil, nil },
 				setFeeCreditBill: func(fcb *FeeCreditBill) error { return verifySetFeeCreditBill(t, fcb) },
 				getBlockNumber:   func() (uint64, error) { return 3, nil },
 				setBlockNumber:   func(blockNumber uint64) error { return nil },
@@ -208,7 +208,7 @@ func createBlockProcessor(t *testing.T) *blockProcessor {
 	return &blockProcessor{store: db}
 }
 
-func getFeeCreditBillFunc(unitID wallet.UnitID) (*FeeCreditBill, error) {
+func getFeeCreditBillFunc(unitID types.UnitID) (*FeeCreditBill, error) {
 	return &FeeCreditBill{
 		Id:              unitID,
 		Value:           50,
@@ -244,7 +244,7 @@ func randomTx(t *testing.T, attr interface{}, unitID types.UnitID) *types.Transa
 type mockStorage struct {
 	getBlockNumber   func() (uint64, error)
 	setBlockNumber   func(blockNumber uint64) error
-	getFeeCreditBill func(unitID wallet.UnitID) (*FeeCreditBill, error)
+	getFeeCreditBill func(unitID types.UnitID) (*FeeCreditBill, error)
 	setFeeCreditBill func(fcb *FeeCreditBill) error
 }
 
@@ -264,7 +264,7 @@ func (ms *mockStorage) SetBlockNumber(blockNumber uint64) error {
 	return fmt.Errorf("unexpected SetBlockNumber(%d) call", blockNumber)
 }
 
-func (ms *mockStorage) GetFeeCreditBill(unitID wallet.UnitID) (*FeeCreditBill, error) {
+func (ms *mockStorage) GetFeeCreditBill(unitID types.UnitID) (*FeeCreditBill, error) {
 	if ms.getFeeCreditBill != nil {
 		return ms.getFeeCreditBill(unitID)
 	}

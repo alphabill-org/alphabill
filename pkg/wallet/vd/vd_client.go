@@ -93,7 +93,7 @@ func (v *VDClient) PostTransactions(ctx context.Context, pubKey wallet.PubKey, t
 	return nil
 }
 
-func (v *VDClient) GetTxProofFromBlock(ctx context.Context, unitID wallet.UnitID, txHash wallet.TxHash, startRoundNumber, timeout uint64) (*wallet.Proof, error) {
+func (v *VDClient) GetTxProofFromBlock(ctx context.Context, unitID types.UnitID, txHash wallet.TxHash, startRoundNumber, timeout uint64) (*wallet.Proof, error) {
 	proofCh := make(chan *wallet.Proof)
 	defer close(proofCh)
 
@@ -116,7 +116,7 @@ func (v *VDClient) GetTxProofFromBlock(ctx context.Context, unitID wallet.UnitID
 	}
 }
 
-func (v *VDClient) GetFeeCreditBill(ctx context.Context, unitID wallet.UnitID) (*wallet.Bill, error) {
+func (v *VDClient) GetFeeCreditBill(ctx context.Context, unitID types.UnitID) (*wallet.Bill, error) {
 	dbFilePath := filepath.Join(v.walletHomeDir, vdStorageFileName)
 	db, err := newBoltStore(dbFilePath)
 	if err != nil {
@@ -164,7 +164,7 @@ func (v *VDClient) GetClosedFeeCredit(ctx context.Context, fcbID []byte) (*types
 	return nil, nil
 }
 
-func (v *VDClient) GetTxProof(ctx context.Context, unitID wallet.UnitID, txHash wallet.TxHash) (*wallet.Proof, error) {
+func (v *VDClient) GetTxProof(ctx context.Context, unitID types.UnitID, txHash wallet.TxHash) (*wallet.Proof, error) {
 	// TODO impl
 	return nil, nil
 }

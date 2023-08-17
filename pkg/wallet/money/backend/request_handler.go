@@ -17,6 +17,7 @@ import (
 
 	sdk "github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/alphabill-org/alphabill/pkg/wallet/log"
+	"github.com/alphabill-org/alphabill/internal/types"
 )
 
 type (
@@ -264,7 +265,7 @@ func (api *moneyRestAPI) balanceFunc(w http.ResponseWriter, r *http.Request) {
 
 func (api *moneyRestAPI) getTxProof(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
-	unitID, err := sdk.ParseHex[sdk.UnitID](vars["unitId"], true)
+	unitID, err := sdk.ParseHex[types.UnitID](vars["unitId"], true)
 	if err != nil {
 		api.rw.InvalidParamResponse(w, "unitId", err)
 		return
@@ -322,7 +323,7 @@ func (api *moneyRestAPI) blockHeightFunc(w http.ResponseWriter, r *http.Request)
 
 func (api *moneyRestAPI) getFeeCreditBillFunc(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
-	billID, err := sdk.ParseHex[sdk.UnitID](vars["billId"], true)
+	billID, err := sdk.ParseHex[types.UnitID](vars["billId"], true)
 	if err != nil {
 		log.Debug("error parsing GET /fee-credit-bills request: ", err)
 		if errors.Is(err, errInvalidBillIDLength) {
@@ -395,13 +396,13 @@ func (api *moneyRestAPI) postTransactions(w http.ResponseWriter, r *http.Request
 
 func (api *moneyRestAPI) getLockedFeeCreditFunc(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
-	systemID, err := sdk.ParseHex[sdk.UnitID](vars["systemId"], true)
+	systemID, err := sdk.ParseHex[types.SystemID](vars["systemId"], true)
 	if err != nil {
 		log.Debug("error parsing GET /locked-fee-credit request systemId param: ", err)
 		api.rw.InvalidParamResponse(w, "systemId", err)
 		return
 	}
-	fcbID, err := sdk.ParseHex[sdk.UnitID](vars["billId"], true)
+	fcbID, err := sdk.ParseHex[types.UnitID](vars["billId"], true)
 	if err != nil {
 		log.Debug("error parsing GET /fee-credit-bills request billId param: ", err)
 		api.rw.InvalidParamResponse(w, "billId", err)
@@ -422,7 +423,7 @@ func (api *moneyRestAPI) getLockedFeeCreditFunc(w http.ResponseWriter, r *http.R
 
 func (api *moneyRestAPI) getClosedFeeCreditFunc(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
-	fcbID, err := sdk.ParseHex[sdk.UnitID](vars["billId"], true)
+	fcbID, err := sdk.ParseHex[types.UnitID](vars["billId"], true)
 	if err != nil {
 		log.Debug("error parsing GET /closed-fee-credit request billId param: ", err)
 		api.rw.InvalidParamResponse(w, "billId", err)

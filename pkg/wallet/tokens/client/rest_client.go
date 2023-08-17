@@ -121,7 +121,7 @@ func (tb *TokenBackend) GetTypeHierarchy(ctx context.Context, id backend.TokenTy
 	return rspData, nil
 }
 
-func (tb *TokenBackend) GetTxProof(ctx context.Context, unitID sdk.UnitID, txHash sdk.TxHash) (*sdk.Proof, error) {
+func (tb *TokenBackend) GetTxProof(ctx context.Context, unitID types.UnitID, txHash sdk.TxHash) (*sdk.Proof, error) {
 	var proof *sdk.Proof
 	addr := tb.getURL(apiPathPrefix, "units", hexutil.Encode(unitID), "transactions", hexutil.Encode(txHash), "proof")
 	_, err := tb.get(ctx, addr, &proof, false)
@@ -163,7 +163,7 @@ func (tb *TokenBackend) PostTransactions(ctx context.Context, pubKey sdk.PubKey,
 	return nil
 }
 
-func (tb *TokenBackend) GetFeeCreditBill(ctx context.Context, unitID sdk.UnitID) (*sdk.Bill, error) {
+func (tb *TokenBackend) GetFeeCreditBill(ctx context.Context, unitID types.UnitID) (*sdk.Bill, error) {
 	var fcb *sdk.Bill
 	addr := tb.getURL(apiPathPrefix, "fee-credit-bills", hexutil.Encode(unitID))
 	_, err := tb.get(ctx, addr, &fcb, false)

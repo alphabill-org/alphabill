@@ -19,7 +19,6 @@ import (
 	testfc "github.com/alphabill-org/alphabill/internal/txsystem/fc/testutils"
 	"github.com/alphabill-org/alphabill/internal/txsystem/fc/transactions"
 	"github.com/alphabill-org/alphabill/internal/txsystem/fc/unit"
-	txutil "github.com/alphabill-org/alphabill/internal/txsystem/util"
 	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/fxamacker/cbor/v2"
@@ -30,7 +29,7 @@ import (
 const initialDustCollectorMoneyAmount uint64 = 100
 
 var (
-	initialBill   = &InitialBill{ID: []byte{0, 0, 0, 77}, Value: 110, Owner: script.PredicateAlwaysTrue()}
+	initialBill   = &InitialBill{ID: test.RandomBytes(UnitIDLength), Value: 110, Owner: script.PredicateAlwaysTrue()}
 	fcrID         = []byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 88}
 	moneySystemID = []byte{0, 0, 0, 0}
 )
@@ -171,7 +170,7 @@ func TestExecute_SplitOk(t *testing.T) {
 	require.Equal(t, initBill.Bearer(), initBillAfterUpdate.Bearer())
 	require.Equal(t, roundNumber, initBillDataAfterUpdate.T)
 
-	expectedNewUnitId := txutil.SameShardID(splitOk.UnitID(), unitIdFromTransaction(splitOk))
+	expectedNewUnitId := SameShardID(splitOk.UnitID(), unitIdFromTransaction(splitOk))
 	newBill, bd := getBill(t, rmaTree, expectedNewUnitId)
 	require.NotNil(t, newBill)
 	require.NotNil(t, bd)
@@ -192,7 +191,7 @@ func TestExecuteTransferDC_OK(t *testing.T) {
 	sm, err := txSystem.Execute(splitOk)
 	require.NoError(t, err)
 	require.NotNil(t, sm)
-	billID := txutil.SameShardID(splitOk.UnitID(), unitIdFromTransaction(splitOk))
+	billID := SameShardID(splitOk.UnitID(), unitIdFromTransaction(splitOk))
 	_, splitBillData := getBill(t, rmaTree, billID)
 
 	transferDCOk, _ := createDCTransfer(t, billID, splitBillData.V, splitBillData.Backlink, test.RandomBytes(32), script.PredicateAlwaysTrue())
@@ -221,7 +220,7 @@ func TestExecute_SwapOk(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, sm)
 
-	splitBillID := txutil.SameShardID(splitOk.UnitID(), unitIdFromTransaction(splitOk))
+	splitBillID := SameShardID(splitOk.UnitID(), unitIdFromTransaction(splitOk))
 	dcTransfers, swapTx := createDCTransferAndSwapTxs(t, []types.UnitID{splitBillID}, rmaTree, signer)
 
 	for _, dcTransfer := range dcTransfers {
@@ -283,7 +282,7 @@ func TestEndBlock_DustBillsAreRemoved(t *testing.T) {
 		txSystem.BeginBlock(roundNumber)
 		_, err := txSystem.Execute(splitOk)
 		require.NoError(t, err)
-		splitBillIDs[i] = txutil.SameShardID(splitOk.UnitID(), unitIdFromTransaction(splitOk))
+		splitBillIDs[i] = SameShardID(splitOk.UnitID(), unitIdFromTransaction(splitOk))
 
 		_, data := getBill(t, rmaTree, initialBill.ID)
 		backlink = data.Backlink
@@ -414,7 +413,7 @@ func TestValidateSwap_SwapBillAlreadyExists(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, sm)
 
-	splitBillID := txutil.SameShardID(splitOk.UnitID(), unitIdFromTransaction(splitOk))
+	splitBillID := SameShardID(splitOk.UnitID(), unitIdFromTransaction(splitOk))
 
 	dcTransfers, swapTx := createDCTransferAndSwapTxs(t, []types.UnitID{splitBillID}, rmaTree, signer)
 

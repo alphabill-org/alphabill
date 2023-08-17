@@ -9,12 +9,9 @@ import (
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/internal/txsystem/fc/transactions"
 	moneytx "github.com/alphabill-org/alphabill/internal/txsystem/money"
-	utiltx "github.com/alphabill-org/alphabill/internal/txsystem/util"
 	"github.com/alphabill-org/alphabill/internal/types"
-	"github.com/alphabill-org/alphabill/internal/util"
 	sdk "github.com/alphabill-org/alphabill/pkg/wallet"
 	wlog "github.com/alphabill-org/alphabill/pkg/wallet/log"
-	"github.com/holiman/uint256"
 )
 
 const (
@@ -151,7 +148,7 @@ func (p *BlockProcessor) processTx(txr *types.TransactionRecord, b *types.Block,
 		}
 
 		// new bill
-		newID := utiltx.SameShardIDBytes(util.Uint256ToBytes(uint256.NewInt(0).SetBytes(txo.UnitID())), moneytx.HashForIDCalculation(txo.UnitID(), txo.Payload.Attributes, txo.Timeout(), crypto.SHA256))
+		newID := moneytx.SameShardID(txo.UnitID(), moneytx.HashForIDCalculation(txo.UnitID(), txo.Payload.Attributes, txo.Timeout(), crypto.SHA256))
 		wlog.Info(fmt.Sprintf("received split order (new UnitID=%x)", newID))
 		err = dbTx.SetBill(&Bill{
 			Id:             newID,

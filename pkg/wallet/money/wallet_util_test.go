@@ -207,7 +207,7 @@ type backendAPIMock struct {
 	listBills        func(pubKey []byte, includeDCBills, includeDCMetadata bool) (*backend.ListBillsResponse, error)
 	getBills         func(pubKey []byte) ([]*wallet.Bill, error)
 	getRoundNumber   func() (uint64, error)
-	getTxProof       func(ctx context.Context, unitID wallet.UnitID, txHash wallet.TxHash) (*wallet.Proof, error)
+	getTxProof       func(ctx context.Context, unitID types.UnitID, txHash wallet.TxHash) (*wallet.Proof, error)
 	getFeeCreditBill func(ctx context.Context, unitID []byte) (*wallet.Bill, error)
 	postTransactions func(ctx context.Context, pubKey wallet.PubKey, txs *wallet.Transactions) error
 }
@@ -226,7 +226,7 @@ func (b *backendAPIMock) GetRoundNumber(ctx context.Context) (uint64, error) {
 	return 0, errors.New("getRoundNumber not implemented")
 }
 
-func (b *backendAPIMock) GetFeeCreditBill(ctx context.Context, unitID wallet.UnitID) (*wallet.Bill, error) {
+func (b *backendAPIMock) GetFeeCreditBill(ctx context.Context, unitID types.UnitID) (*wallet.Bill, error) {
 	if b.getFeeCreditBill != nil {
 		return b.getFeeCreditBill(ctx, unitID)
 	}
@@ -255,7 +255,7 @@ func (b *backendAPIMock) ListBills(ctx context.Context, pubKey []byte, includeDC
 	return nil, errors.New("listBills not implemented")
 }
 
-func (b *backendAPIMock) GetTxProof(ctx context.Context, unitID wallet.UnitID, txHash wallet.TxHash) (*wallet.Proof, error) {
+func (b *backendAPIMock) GetTxProof(ctx context.Context, unitID types.UnitID, txHash wallet.TxHash) (*wallet.Proof, error) {
 	if b.getTxProof != nil {
 		return b.getTxProof(ctx, unitID, txHash)
 	}

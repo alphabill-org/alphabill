@@ -8,7 +8,19 @@ import (
 	"github.com/alphabill-org/alphabill/internal/state"
 	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/internal/util"
+	txsutil "github.com/alphabill-org/alphabill/internal/txsystem/util"
 )
+
+const (
+	TypeIDLength            = 1
+	UnitIDLength            = 32 + TypeIDLength
+	FungibleTokenTypeTypeID = 1
+	FeeCreditRecordTypeID   = 2
+)
+
+func SameShardID(unitID types.UnitID, hashValue []byte) types.UnitID {
+	return txsutil.SameShardID(unitID, hashValue, TypeIDLength)
+}
 
 type nonFungibleTokenTypeData struct {
 	symbol                   string

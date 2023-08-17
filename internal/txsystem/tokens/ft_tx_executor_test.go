@@ -14,7 +14,6 @@ import (
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	testtransaction "github.com/alphabill-org/alphabill/internal/testutils/transaction"
 	"github.com/alphabill-org/alphabill/internal/txsystem/fc/unit"
-	txutil "github.com/alphabill-org/alphabill/internal/txsystem/util"
 	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/holiman/uint256"
@@ -694,7 +693,7 @@ func TestSplitFungibleToken_Ok(t *testing.T) {
 	require.Equal(t, tx.Hash(gocrypto.SHA256), d.backlink)
 	require.Equal(t, roundNr, d.t)
 
-	newUnitID := txutil.SameShardID(uID, HashForIDCalculation(tx, opts.hashAlgorithm))
+	newUnitID := SameShardID(uID, HashForIDCalculation(tx, opts.hashAlgorithm))
 	newUnit, err := opts.state.GetUnit(newUnitID, false)
 	require.NoError(t, err)
 	require.NotNil(t, newUnit)

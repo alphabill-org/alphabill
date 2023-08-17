@@ -496,7 +496,7 @@ func createBlockProcessor(t *testing.T) *blockProcessor {
 	return &blockProcessor{log: logger, txs: txSystem, store: db}
 }
 
-func getFeeCreditBillFunc(unitID wallet.UnitID) (*FeeCreditBill, error) {
+func getFeeCreditBillFunc(unitID types.UnitID) (*FeeCreditBill, error) {
 	return &FeeCreditBill{
 		Id:              unitID,
 		Value:           50,

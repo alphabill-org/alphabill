@@ -311,7 +311,7 @@ func Test_restAPI_listTokens(t *testing.T) {
 			if err != nil {
 				t.Fatal("failed to parse Link header:", err)
 			}
-			exp := sdk.EncodeHex(sdk.UnitID(data[len(data)-1].ID))
+			exp := sdk.EncodeHex(types.UnitID(data[len(data)-1].ID))
 			if s := u.Query().Get("offset"); s != exp {
 				t.Errorf("expected %q got %q", exp, s)
 			}
@@ -712,7 +712,7 @@ func Test_restAPI_txProof(t *testing.T) {
 	t.Run("error fetching proof", func(t *testing.T) {
 		api := &tokensRestAPI{
 			db: &mockStorage{
-				getTxProof: func(unitID sdk.UnitID, txHash sdk.TxHash) (*sdk.Proof, error) {
+				getTxProof: func(unitID types.UnitID, txHash sdk.TxHash) (*sdk.Proof, error) {
 					return nil, errors.New("error fetching proof")
 				},
 			},
@@ -724,7 +724,7 @@ func Test_restAPI_txProof(t *testing.T) {
 	t.Run("no proof with given inputs", func(t *testing.T) {
 		api := &tokensRestAPI{
 			db: &mockStorage{
-				getTxProof: func(unitID sdk.UnitID, txHash sdk.TxHash) (*sdk.Proof, error) {
+				getTxProof: func(unitID types.UnitID, txHash sdk.TxHash) (*sdk.Proof, error) {
 					return nil, nil
 				},
 			},
@@ -743,7 +743,7 @@ func Test_restAPI_txProof(t *testing.T) {
 		}
 		api := &tokensRestAPI{
 			db: &mockStorage{
-				getTxProof: func(unitID sdk.UnitID, txHash sdk.TxHash) (*sdk.Proof, error) {
+				getTxProof: func(unitID types.UnitID, txHash sdk.TxHash) (*sdk.Proof, error) {
 					return proof, nil
 				},
 			},
@@ -781,7 +781,7 @@ func Test_restAPI_getFeeCreditBill(t *testing.T) {
 	t.Run("500 error fetching fee credit bill", func(t *testing.T) {
 		api := &tokensRestAPI{
 			db: &mockStorage{
-				getFeeCreditBill: func(unitID sdk.UnitID) (*FeeCreditBill, error) {
+				getFeeCreditBill: func(unitID types.UnitID) (*FeeCreditBill, error) {
 					return nil, errors.New("error fetching fee credit bill")
 				},
 			},
@@ -800,10 +800,10 @@ func Test_restAPI_getFeeCreditBill(t *testing.T) {
 		fcbProof := &sdk.Proof{}
 		api := &tokensRestAPI{
 			db: &mockStorage{
-				getFeeCreditBill: func(unitID sdk.UnitID) (*FeeCreditBill, error) {
+				getFeeCreditBill: func(unitID types.UnitID) (*FeeCreditBill, error) {
 					return fcb, nil
 				},
-				getTxProof: func(unitID sdk.UnitID, txHash sdk.TxHash) (*sdk.Proof, error) {
+				getTxProof: func(unitID types.UnitID, txHash sdk.TxHash) (*sdk.Proof, error) {
 					return fcbProof, nil
 				},
 			},
@@ -839,7 +839,7 @@ func Test_restAPI_getClosedCredit(t *testing.T) {
 	t.Run("500 error fetching fee credit bill", func(t *testing.T) {
 		api := &tokensRestAPI{
 			db: &mockStorage{
-				getClosedFC: func(fcbID sdk.UnitID) (*types.TransactionRecord, error) {
+				getClosedFC: func(fcbID types.UnitID) (*types.TransactionRecord, error) {
 					return nil, errors.New("error fetching closed fee credit")
 				},
 			},
@@ -853,7 +853,7 @@ func Test_restAPI_getClosedCredit(t *testing.T) {
 		closedFCTx := &types.TransactionRecord{}
 		api := &tokensRestAPI{
 			db: &mockStorage{
-				getClosedFC: func(fcbID sdk.UnitID) (*types.TransactionRecord, error) {
+				getClosedFC: func(fcbID types.UnitID) (*types.TransactionRecord, error) {
 					return closedFCTx, nil
 				},
 			},

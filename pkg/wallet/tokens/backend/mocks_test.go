@@ -173,11 +173,11 @@ type mockStorage struct {
 	getTokenType     func(id TokenTypeID) (*TokenUnitType, error)
 	queryTTypes      func(kind Kind, creator sdk.PubKey, startKey TokenTypeID, count int) ([]*TokenUnitType, TokenTypeID, error)
 	saveTTypeCreator func(id TokenTypeID, kind Kind, creator sdk.PubKey) error
-	getTxProof       func(unitID sdk.UnitID, txHash sdk.TxHash) (*sdk.Proof, error)
-	getFeeCreditBill func(unitID sdk.UnitID) (*FeeCreditBill, error)
+	getTxProof       func(unitID types.UnitID, txHash sdk.TxHash) (*sdk.Proof, error)
+	getFeeCreditBill func(unitID types.UnitID) (*FeeCreditBill, error)
 	setFeeCreditBill func(fcb *FeeCreditBill, proof *sdk.Proof) error
-	getClosedFC      func(fcbID sdk.UnitID) (*types.TransactionRecord, error)
-	setClosedFC      func(fcbID sdk.UnitID, tx *types.TransactionRecord) error
+	getClosedFC      func(fcbID types.UnitID) (*types.TransactionRecord, error)
+	setClosedFC      func(fcbID types.UnitID, tx *types.TransactionRecord) error
 }
 
 func (ms *mockStorage) Close() error { return nil }
@@ -252,14 +252,14 @@ func (ms *mockStorage) QueryTokens(kind Kind, owner sdk.Predicate, startKey Toke
 	return nil, nil, fmt.Errorf("unexpected QueryTokens call")
 }
 
-func (ms *mockStorage) GetTxProof(unitID sdk.UnitID, txHash sdk.TxHash) (*sdk.Proof, error) {
+func (ms *mockStorage) GetTxProof(unitID types.UnitID, txHash sdk.TxHash) (*sdk.Proof, error) {
 	if ms.getTxProof != nil {
 		return ms.getTxProof(unitID, txHash)
 	}
 	return nil, fmt.Errorf("unexpected GetTxProof call")
 }
 
-func (ms *mockStorage) GetFeeCreditBill(unitID sdk.UnitID) (*FeeCreditBill, error) {
+func (ms *mockStorage) GetFeeCreditBill(unitID types.UnitID) (*FeeCreditBill, error) {
 	if ms.getFeeCreditBill != nil {
 		return ms.getFeeCreditBill(unitID)
 	}
@@ -273,14 +273,14 @@ func (ms *mockStorage) SetFeeCreditBill(fcb *FeeCreditBill, proof *sdk.Proof) er
 	return fmt.Errorf("unexpected SetFeeCreditBill(%X) call", fcb.GetID())
 }
 
-func (ms *mockStorage) GetClosedFeeCredit(unitID sdk.UnitID) (*types.TransactionRecord, error) {
+func (ms *mockStorage) GetClosedFeeCredit(unitID types.UnitID) (*types.TransactionRecord, error) {
 	if ms.getClosedFC != nil {
 		return ms.getClosedFC(unitID)
 	}
 	return nil, fmt.Errorf("unexpected GetClosedFeeCredit call")
 }
 
-func (ms *mockStorage) SetClosedFeeCredit(fcbID sdk.UnitID, tx *types.TransactionRecord) error {
+func (ms *mockStorage) SetClosedFeeCredit(fcbID types.UnitID, tx *types.TransactionRecord) error {
 	if ms.getClosedFC != nil {
 		return ms.setClosedFC(fcbID, tx)
 	}

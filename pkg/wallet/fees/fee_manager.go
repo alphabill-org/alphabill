@@ -31,8 +31,8 @@ type (
 
 	PartitionDataProvider interface {
 		GetRoundNumber(ctx context.Context) (uint64, error)
-		GetFeeCreditBill(ctx context.Context, unitID wallet.UnitID) (*wallet.Bill, error)
-		GetTxProof(ctx context.Context, unitID wallet.UnitID, txHash wallet.TxHash) (*wallet.Proof, error)
+		GetFeeCreditBill(ctx context.Context, unitID types.UnitID) (*wallet.Bill, error)
+		GetTxProof(ctx context.Context, unitID types.UnitID, txHash wallet.TxHash) (*wallet.Proof, error)
 		GetClosedFeeCredit(ctx context.Context, fcbID []byte) (*types.TransactionRecord, error)
 	}
 

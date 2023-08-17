@@ -4,26 +4,28 @@ import (
 	"github.com/alphabill-org/alphabill/internal/types"
 )
 
-// SameShardID creates ID that resides in the same shard.
-// By taking first 4 bytes from id and last 28 bytes from the hashValue.
-func SameShardID(id types.UnitID, hashValue []byte) types.UnitID {
-	return SameShardIDBytes(id, hashValue)
-}
+// SameShardID creates a new UnitID from an existing UnitID and a hash
+// value, preserving the shardID and the typeID components of the
+// existing UnitID. The shardID component is the first 4 bytes of
+// UnitID and the typeID component is the last typeIDLength bytes of
+// UnitID.
+func SameShardID(unitID types.UnitID, hashValue []byte, typeIDLength int) types.UnitID {
+	unitIDBytes := []byte(unitID)
+	newUnitIDBytes := make([]byte, 4)
+	copy(newUnitIDBytes, unitIDBytes[:4])
 
-func SameShardIDBytes(id types.UnitID, hashValue []byte) []byte {
-	idBytes := []byte(id)
-	newIdBytes := make([]byte, 4)
-	copy(newIdBytes, idBytes[:4])
+	typelessUnitIDLength := len(unitID)-typeIDLength
 
-	if len(hashValue) >= 32 {
-		newIdBytes = append(newIdBytes, hashValue[4:32]...)
+	if len(hashValue) >= typelessUnitIDLength {
+		newUnitIDBytes = append(newUnitIDBytes, hashValue[4:typelessUnitIDLength]...)
 	} else {
 		if len(hashValue) >= 5 {
-			newIdBytes = append(newIdBytes, hashValue[4:]...)
+			newUnitIDBytes = append(newUnitIDBytes, hashValue[4:]...)
 		}
-		for i := len(newIdBytes); i < 32; i++ {
-			newIdBytes = append(newIdBytes, 0)
+		for i := len(newUnitIDBytes); i < typelessUnitIDLength; i++ {
+			newUnitIDBytes = append(newUnitIDBytes, 0)
 		}
 	}
-	return newIdBytes
+
+	return append(newUnitIDBytes, unitIDBytes[typelessUnitIDLength:]...)
 }

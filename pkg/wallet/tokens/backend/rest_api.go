@@ -29,9 +29,9 @@ type dataSource interface {
 	GetToken(id TokenID) (*TokenUnit, error)
 	QueryTokens(kind Kind, owner sdk.Predicate, startKey TokenID, count int) ([]*TokenUnit, TokenID, error)
 	SaveTokenTypeCreator(id TokenTypeID, kind Kind, creator sdk.PubKey) error
-	GetTxProof(unitID sdk.UnitID, txHash sdk.TxHash) (*sdk.Proof, error)
-	GetFeeCreditBill(unitID sdk.UnitID) (*FeeCreditBill, error)
-	GetClosedFeeCredit(fcbID sdk.UnitID) (*types.TransactionRecord, error)
+	GetTxProof(unitID types.UnitID, txHash sdk.TxHash) (*sdk.Proof, error)
+	GetFeeCreditBill(unitID types.UnitID) (*FeeCreditBill, error)
+	GetClosedFeeCredit(fcbID types.UnitID) (*types.TransactionRecord, error)
 }
 
 type abClient interface {
@@ -112,7 +112,7 @@ func (api *tokensRestAPI) listTokens(w http.ResponseWriter, r *http.Request) {
 	}
 
 	qp := r.URL.Query()
-	startKey, err := sdk.ParseHex[sdk.UnitID](qp.Get(sdk.QueryParamOffsetKey), false)
+	startKey, err := sdk.ParseHex[types.UnitID](qp.Get(sdk.QueryParamOffsetKey), false)
 	if err != nil {
 		api.rw.InvalidParamResponse(w, sdk.QueryParamOffsetKey, err)
 		return
@@ -139,7 +139,7 @@ func (api *tokensRestAPI) listTokens(w http.ResponseWriter, r *http.Request) {
 
 func (api *tokensRestAPI) getToken(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
-	tokenId, err := sdk.ParseHex[sdk.UnitID](vars["tokenId"], true)
+	tokenId, err := sdk.ParseHex[types.UnitID](vars["tokenId"], true)
 	if err != nil {
 		api.rw.InvalidParamResponse(w, "tokenId", err)
 		return
@@ -168,7 +168,7 @@ func (api *tokensRestAPI) listTypes(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	startKey, err := sdk.ParseHex[sdk.UnitID](qp.Get(sdk.QueryParamOffsetKey), false)
+	startKey, err := sdk.ParseHex[types.UnitID](qp.Get(sdk.QueryParamOffsetKey), false)
 	if err != nil {
 		api.rw.InvalidParamResponse(w, sdk.QueryParamOffsetKey, err)
 		return
@@ -191,7 +191,7 @@ func (api *tokensRestAPI) listTypes(w http.ResponseWriter, r *http.Request) {
 
 func (api *tokensRestAPI) typeHierarchy(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
-	typeId, err := sdk.ParseHex[sdk.UnitID](vars["typeId"], true)
+	typeId, err := sdk.ParseHex[types.UnitID](vars["typeId"], true)
 	if err != nil {
 		api.rw.InvalidParamResponse(w, "typeId", err)
 		return
@@ -205,7 +205,7 @@ func (api *tokensRestAPI) typeHierarchy(w http.ResponseWriter, r *http.Request) 
 			return
 		}
 		rsp = append(rsp, tokTyp)
-		typeId = sdk.UnitID(tokTyp.ParentTypeID)
+		typeId = types.UnitID(tokTyp.ParentTypeID)
 	}
 	api.rw.WriteResponse(w, rsp)
 }
@@ -297,7 +297,7 @@ func (api *tokensRestAPI) saveTxs(ctx context.Context, txs []*types.TransactionO
 
 func (api *tokensRestAPI) getFeeCreditBill(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
-	unitID, err := sdk.ParseHex[sdk.UnitID](vars["unitId"], true)
+	unitID, err := sdk.ParseHex[types.UnitID](vars["unitId"], true)
 	if err != nil {
 		api.rw.InvalidParamResponse(w, "unitId", err)
 		return
@@ -317,7 +317,7 @@ func (api *tokensRestAPI) getFeeCreditBill(w http.ResponseWriter, r *http.Reques
 
 func (api *tokensRestAPI) getClosedFeeCredit(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
-	unitID, err := sdk.ParseHex[sdk.UnitID](vars["unitId"], true)
+	unitID, err := sdk.ParseHex[types.UnitID](vars["unitId"], true)
 	if err != nil {
 		api.rw.InvalidParamResponse(w, "unitId", err)
 		return
@@ -358,7 +358,7 @@ func (api *tokensRestAPI) saveTx(ctx context.Context, tx *types.TransactionOrder
 
 func (api *tokensRestAPI) getTxProof(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
-	unitID, err := sdk.ParseHex[sdk.UnitID](vars["unitId"], true)
+	unitID, err := sdk.ParseHex[types.UnitID](vars["unitId"], true)
 	if err != nil {
 		api.rw.InvalidParamResponse(w, "unitId", err)
 		return

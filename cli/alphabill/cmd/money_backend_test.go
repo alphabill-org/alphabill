@@ -20,7 +20,6 @@ import (
 	wlog "github.com/alphabill-org/alphabill/pkg/wallet/log"
 	"github.com/alphabill-org/alphabill/pkg/wallet/money/backend"
 	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
 )
 
@@ -28,7 +27,7 @@ func TestMoneyBackendCLI(t *testing.T) {
 	// create ab network
 	_ = wlog.InitStdoutLogger(wlog.INFO)
 	initialBill := &moneytx.InitialBill{
-		ID:    util.Uint256ToBytes(uint256.NewInt(1)),
+		ID:    defaultInitialBillID,
 		Value: 1e18,
 		Owner: script.PredicateAlwaysTrue(),
 	}

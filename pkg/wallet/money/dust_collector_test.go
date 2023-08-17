@@ -362,6 +362,10 @@ func (m *InMemoryUnitLocker) UnlockUnit(unitID []byte) error {
 	return nil
 }
 
+func (m *InMemoryUnitLocker) Close() error {
+	return nil
+}
+
 type (
 	dustCollectionBackendMock struct {
 		backendMock *backendAPIMock

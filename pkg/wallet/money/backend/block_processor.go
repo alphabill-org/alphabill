@@ -217,9 +217,8 @@ func (p *BlockProcessor) processTx(txr *types.TransactionRecord, b *types.Block,
 			return fmt.Errorf("failed to unmarshal transferFC attributes: %w", err)
 		}
 
-		v := attr.Amount + txr.ServerMetadata.ActualFee
-		if v < bill.Value {
-			bill.Value -= v
+		if attr.Amount < bill.Value {
+			bill.Value -= attr.Amount
 		} else {
 			bill.Value = 0
 			// mark bill to be deleted far in the future (approx 1 day)
@@ -266,7 +265,7 @@ func (p *BlockProcessor) processTx(txr *types.TransactionRecord, b *types.Block,
 		}
 		return dbTx.SetFeeCreditBill(&Bill{
 			Id:              txo.UnitID(),
-			Value:           fcb.getValue() + transferFCAttr.Amount - txr.ServerMetadata.ActualFee,
+			Value:           fcb.getValue() + transferFCAttr.Amount - addFCAttr.FeeCreditTransfer.ServerMetadata.ActualFee - txr.ServerMetadata.ActualFee,
 			TxHash:          txHash,
 			LastAddFCTxHash: txHash,
 		}, proof)

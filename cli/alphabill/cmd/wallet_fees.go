@@ -232,13 +232,12 @@ func addFees(ctx context.Context, accountNumber uint64, amountString string, c *
 		return err
 	}
 	consoleWriter.Println("Successfully created", amountString, "fee credits on", c.partitionType, "partition.")
-	singleFee := proofs.AddFC.TxRecord.ServerMetadata.ActualFee / 2 // For the user we display transFC and addFC fees individually
 	if proofs.TransferFC != nil {
-		consoleWriter.Println("Paid", amountToString(singleFee, 8), "fee for transferFC transaction from wallet balance.")
+		consoleWriter.Println("Paid", amountToString(proofs.TransferFC.TxRecord.ServerMetadata.ActualFee, 8), "fee for transferFC transaction from wallet balance.")
 	} else {
 		consoleWriter.Println("Used previously locked unit to create fee credit.")
 	}
-	consoleWriter.Println("Paid", amountToString(singleFee, 8), "fee for addFC transaction from fee credit balance.")
+	consoleWriter.Println("Paid", amountToString(proofs.AddFC.TxRecord.ServerMetadata.ActualFee, 8), "fee for addFC transaction from fee credit balance.")
 	return nil
 }
 

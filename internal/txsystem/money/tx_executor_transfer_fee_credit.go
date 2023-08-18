@@ -61,12 +61,15 @@ func handleTransferFeeCreditTx(s *state.State, hashAlgorithm crypto.Hash, feeCre
 			return nil, fmt.Errorf("transferFC: failed to update state: %w", err)
 		}
 
+		fee := feeCalc()
+
 		// record fee tx for end of the round consolidation
 		feeCreditTxRecorder.recordTransferFC(&transferFeeCreditTx{
 			tx:   tx,
 			attr: attr,
+			fee:  fee,
 		})
-		return &types.ServerMetadata{TargetUnits: []types.UnitID{tx.UnitID()}}, nil
+		return &types.ServerMetadata{ActualFee: fee, TargetUnits: []types.UnitID{tx.UnitID()}}, nil
 	}
 }
 

@@ -74,7 +74,7 @@ func (p *blockProcessor) processTx(tr *types.TransactionRecord, proof *wallet.Tx
 		}
 		return p.store.SetFeeCreditBill(&FeeCreditBill{
 			Id:              id,
-			Value:           fcb.GetValue() + transferFeeCreditAttributes.Amount - tr.ServerMetadata.ActualFee,
+			Value:           fcb.GetValue() + transferFeeCreditAttributes.Amount - addFeeCreditAttributes.FeeCreditTransfer.ServerMetadata.ActualFee - tr.ServerMetadata.ActualFee,
 			TxHash:          txHash,
 			LastAddFCTxHash: txHash,
 		}, txProof)

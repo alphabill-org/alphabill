@@ -10,7 +10,7 @@ func TestUnitLocker(t *testing.T) {
 	unitLocker := createUnitLocker(t)
 
 	// lock bill id=1
-	lockedBill1 := &LockedUnit{UnitID: []byte{1}, LockReason: ReasonAddFees}
+	lockedBill1 := &LockedUnit{UnitID: []byte{1}, LockReason: LockReasonAddFees}
 	err := unitLocker.LockUnit(lockedBill1)
 	require.NoError(t, err)
 
@@ -20,7 +20,7 @@ func TestUnitLocker(t *testing.T) {
 	require.Equal(t, lockedBill1, actualLockedBill1)
 
 	// lock bill id=2
-	lockedBill2 := &LockedUnit{UnitID: []byte{2}, LockReason: ReasonAddFees}
+	lockedBill2 := &LockedUnit{UnitID: []byte{2}, LockReason: LockReasonAddFees}
 	err = unitLocker.LockUnit(lockedBill2)
 	require.NoError(t, err)
 

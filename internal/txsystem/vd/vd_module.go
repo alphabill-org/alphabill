@@ -92,7 +92,7 @@ func handleRegisterDataTx(options *Options) txsystem.GenericExecuteFunc[Register
 		if err != nil {
 			return nil, err
 		}
-		return &types.ServerMetadata{ActualFee: fee, TargetUnits: []types.UnitID{tx.UnitID()}}, nil
+		return &types.ServerMetadata{ActualFee: fee, TargetUnits: []types.UnitID{tx.UnitID()}, SuccessIndicator: types.TxStatusSuccessful}, nil
 	}
 }
 

@@ -17,11 +17,21 @@ import (
 	ethcrypto "github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/eth/tracers/logger"
 	"github.com/ethereum/go-ethereum/params"
+	"github.com/fxamacker/cbor/v2"
 )
 
 const (
 	// todo: initial constants, need fine-tuning
 	txGasContractCreation uint64 = 53000 // Per transaction that creates a contract
+)
+
+type (
+	EvmProcessingDetails struct {
+		_          struct{} `cbor:",toarray"`
+		VmError    string
+		StateError string
+		ReturnData []byte
+	}
 )
 
 var (
@@ -32,6 +42,17 @@ var (
 	errSenderNotEOA                 = errors.New("sender not an eoa")
 	errGasOverflow                  = errors.New("gas uint64 overflow")
 )
+
+func (d *EvmProcessingDetails) Bytes() ([]byte, error) {
+	return cbor.Marshal(d)
+}
+
+func errorToStr(err error) string {
+	if err != nil {
+		return err.Error()
+	}
+	return ""
+}
 
 func handleEVMTx(systemIdentifier []byte, opts *Options, blockGas *core.GasPool) txsystem.GenericExecuteFunc[TxAttributes] {
 	return func(tx *types.TransactionOrder, attr *TxAttributes, currentBlockNumber uint64) (*types.ServerMetadata, error) {
@@ -87,15 +108,14 @@ func execute(currentBlockNumber uint64, stateDB *statedb.StateDB, attr *TxAttrib
 	var vmErr error
 
 	var contractAddr common.Address
+	var ret []byte
 	if isContractCreation {
 		// contract creation
-		_, contractAddr, gasRemaining, vmErr = evm.Create(sender, attr.Data, gasRemaining, attr.Value)
-		// TODO handle "deploy contract" result
+		ret, contractAddr, gasRemaining, vmErr = evm.Create(sender, attr.Data, gasRemaining, attr.Value)
 	} else {
 		// TODO set nonce
 		contractAddr = vm.AccountRef(attr.To).Address()
-		_, gasRemaining, vmErr = evm.Call(sender, contractAddr, attr.Data, gasRemaining, attr.Value)
-		// TODO handle call result
+		ret, gasRemaining, vmErr = evm.Call(sender, contractAddr, attr.Data, gasRemaining, attr.Value)
 	}
 	// todo: "gas handling" Refund ETH for remaining gas, exchanged at the original rate.
 	// stateDB.AddBalance(sender.Address(), calcGasPrice(gasRemaining))
@@ -113,12 +133,25 @@ func execute(currentBlockNumber uint64, stateDB *statedb.StateDB, attr *TxAttrib
 	stateDB.SubBalance(sender.Address(), txPrice)
 	// add remaining back to block gas pool
 	gp.AddGas(gasRemaining)
-	// TODO: handle a case when the smart contract calls another smart contract. i
+	// TODO: handle a case when the smart contract calls another smart contract.
 	targetUnits := []types.UnitID{attr.From}
 	if attr.To != nil {
 		targetUnits = append(targetUnits, attr.To)
 	}
-	return &types.ServerMetadata{TargetUnits: targetUnits}, nil
+	success := types.TxStatusSuccessful
+	if vmErr != nil {
+		success = types.TxStatusFailed
+	}
+	evmProcessingDetails := &EvmProcessingDetails{
+		ReturnData: ret,
+		VmError:    errorToStr(vmErr),
+		StateError: errorToStr(stateDB.DBError()),
+	}
+	detailBytes, err := evmProcessingDetails.Bytes()
+	if err != nil {
+		return nil, fmt.Errorf("evm result encode error %w", err)
+	}
+	return &types.ServerMetadata{TargetUnits: targetUnits, SuccessIndicator: success, ProcessingDetails: detailBytes}, nil
 }
 
 func newBlockContext(currentBlockNumber uint64) vm.BlockContext {

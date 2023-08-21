@@ -56,7 +56,7 @@ func handleSplitTx(s *state.State, hashAlgorithm crypto.Hash, feeCalc fc.FeeCalc
 			})); err != nil {
 			return nil, fmt.Errorf("unit update failed: %w", err)
 		}
-		return &types.ServerMetadata{ActualFee: fee, TargetUnits: []types.UnitID{unitID, newItemID}}, nil
+		return &types.ServerMetadata{ActualFee: fee, TargetUnits: []types.UnitID{unitID, newItemID}, SuccessIndicator: types.TxStatusSuccessful}, nil
 	}
 }
 

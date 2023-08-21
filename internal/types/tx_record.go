@@ -6,6 +6,14 @@ import (
 	"github.com/fxamacker/cbor/v2"
 )
 
+const (
+	// TxStatusFailed is the status code of a transaction if execution failed.
+	TxStatusFailed = uint64(0)
+
+	// TxStatusSuccessful is the status code of a transaction if execution succeeded.
+	TxStatusSuccessful = uint64(1)
+)
+
 type (
 
 	// TransactionRecord is a transaction order with "server-side" metadata added to it. TransactionRecord is a structure
@@ -17,9 +25,11 @@ type (
 	}
 
 	ServerMetadata struct {
-		_           struct{} `cbor:",toarray"`
-		ActualFee   uint64
-		TargetUnits []UnitID
+		_                 struct{} `cbor:",toarray"`
+		ActualFee         uint64
+		TargetUnits       []UnitID
+		SuccessIndicator  uint64
+		ProcessingDetails []byte
 	}
 )
 

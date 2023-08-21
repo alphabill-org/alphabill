@@ -346,8 +346,14 @@ func TestTransferFC(t *testing.T) {
 		{
 			name:    "Invalid amount",
 			bd:      newBillData(101, backlink),
-			tx:      testfc.NewTransferFC(t, testfc.NewTransferFCAttr(testfc.WithAmount(101))),
+			tx:      testfc.NewTransferFC(t, testfc.NewTransferFCAttr(testfc.WithAmount(102))),
 			wantErr: ErrInvalidFCValue,
+		},
+		{
+			name:    "Invalid fee",
+			bd:      newBillData(101, backlink),
+			tx:      testfc.NewTransferFC(t, testfc.NewTransferFCAttr(testfc.WithAmount(1))),
+			wantErr: ErrInvalidFeeValue,
 		},
 		{
 			name:    "Invalid backlink",

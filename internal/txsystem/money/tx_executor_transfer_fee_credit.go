@@ -21,7 +21,8 @@ var (
 	ErrAdditionTimeInvalid       = errors.New("EarliestAdditonTime is greater than LatestAdditionTime")
 	ErrRecordIDExists            = errors.New("fee tx cannot contain fee credit reference")
 	ErrFeeProofExists            = errors.New("fee tx cannot contain fee authorization proof")
-	ErrInvalidFCValue            = errors.New("the amount to transfer plus transaction fee cannot exceed the value of the bill")
+	ErrInvalidFCValue            = errors.New("the amount to transfer cannot exceed the value of the bill")
+	ErrInvalidFeeValue           = errors.New("the transaction fee cannot exceed the transferred amount")
 	ErrInvalidBacklink           = errors.New("the transaction backlink is not equal to unit backlink")
 )
 
@@ -89,8 +90,11 @@ func validateTransferFC(tx *types.TransactionOrder, attr *transactions.TransferF
 	if attr.EarliestAdditionTime > attr.LatestAdditionTime {
 		return ErrAdditionTimeInvalid
 	}
-	if attr.Amount+tx.Payload.ClientMetadata.MaxTransactionFee > bd.V {
+	if attr.Amount > bd.V {
 		return ErrInvalidFCValue
+	}
+	if tx.Payload.ClientMetadata.MaxTransactionFee > attr.Amount {
+		return ErrInvalidFeeValue
 	}
 	if !bytes.Equal(attr.Backlink, bd.Backlink) {
 		return ErrInvalidBacklink

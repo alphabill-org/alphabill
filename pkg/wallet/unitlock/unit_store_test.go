@@ -4,8 +4,10 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/alphabill-org/alphabill/internal/txsystem/money"
 	"github.com/stretchr/testify/require"
+
+	"github.com/alphabill-org/alphabill/internal/txsystem/money"
+	"github.com/alphabill-org/alphabill/internal/types"
 )
 
 const unitStoreFileName = "locked-units.db"
@@ -23,12 +25,15 @@ func TestUnitStore_GetSetDeleteUnits(t *testing.T) {
 	// store units
 	unit = &LockedUnit{
 		UnitID:     unitID,
-		LockReason: ReasonCollectDust,
+		LockReason: LockReasonCollectDust,
 		Transactions: []*Transaction{{
-			TxOrder:     nil,
-			PayloadType: money.PayloadTypeTransDC,
-			Timeout:     1000,
-			TxHash:      []byte{5},
+			TxOrder: &types.TransactionOrder{
+				Payload: &types.Payload{
+					Type:           money.PayloadTypeTransDC,
+					ClientMetadata: &types.ClientMetadata{Timeout: 1000},
+				},
+			},
+			TxHash: []byte{5},
 		}},
 	}
 	err = s.PutUnit(unit)
@@ -36,12 +41,15 @@ func TestUnitStore_GetSetDeleteUnits(t *testing.T) {
 
 	unit2 := &LockedUnit{
 		UnitID:     unit2ID,
-		LockReason: ReasonCollectDust,
+		LockReason: LockReasonCollectDust,
 		Transactions: []*Transaction{{
-			TxOrder:     nil,
-			PayloadType: money.PayloadTypeTransDC,
-			Timeout:     1000,
-			TxHash:      []byte{6},
+			TxOrder: &types.TransactionOrder{
+				Payload: &types.Payload{
+					Type:           money.PayloadTypeTransDC,
+					ClientMetadata: &types.ClientMetadata{Timeout: 1000},
+				},
+			},
+			TxHash: []byte{6},
 		}},
 	}
 	err = s.PutUnit(unit2)

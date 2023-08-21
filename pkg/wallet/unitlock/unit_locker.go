@@ -1,15 +1,16 @@
 package unitlock
 
 import (
+	"crypto"
 	"path/filepath"
 
 	"github.com/alphabill-org/alphabill/internal/types"
 )
 
 const (
-	ReasonAddFees LockReason = iota
-	ReasonReclaimFees
-	ReasonCollectDust
+	LockReasonAddFees LockReason = iota
+	LockReasonReclaimFees
+	LockReasonCollectDust
 )
 
 const (
@@ -24,17 +25,15 @@ type (
 	}
 
 	LockedUnit struct {
-		UnitID       []byte         `json:"unitId"`       // if of the locked unit
+		UnitID       []byte         `json:"unitId"`       // id of the locked unit
 		TxHash       []byte         `json:"txHash"`       // state hash of the locked unit
 		LockReason   LockReason     `json:"lockReason"`   // reason for locking the bill
 		Transactions []*Transaction `json:"transactions"` // transactions that must be confirmed/failed in order to unlock the bill
 	}
 
 	Transaction struct {
-		TxOrder     *types.TransactionOrder `json:"txOrder"`
-		PayloadType string                  `json:"payloadType"`
-		Timeout     uint64                  `json:"timeout"`
-		TxHash      []byte                  `json:"txHash"`
+		TxOrder *types.TransactionOrder `json:"txOrder"`
+		TxHash  []byte                  `json:"txHash"`
 	}
 
 	UnitStore interface {
@@ -63,12 +62,10 @@ func NewLockedUnit(unitID []byte, txHash []byte, lockReason LockReason, transact
 	}
 }
 
-func NewTransaction(txo *types.TransactionOrder, txHash []byte) *Transaction {
+func NewTransaction(txo *types.TransactionOrder) *Transaction {
 	return &Transaction{
-		TxOrder:     txo,
-		PayloadType: txo.PayloadType(),
-		Timeout:     txo.Timeout(),
-		TxHash:      txHash,
+		TxOrder: txo,
+		TxHash:  txo.Hash(crypto.SHA256),
 	}
 }
 
@@ -94,12 +91,46 @@ func (l *UnitLocker) Close() error {
 
 func (r LockReason) String() string {
 	switch r {
-	case ReasonAddFees:
+	case LockReasonAddFees:
 		return "locked for adding fees"
-	case ReasonReclaimFees:
+	case LockReasonReclaimFees:
 		return "locked for reclaiming fees"
-	case ReasonCollectDust:
+	case LockReasonCollectDust:
 		return "locked for dust collection"
 	}
 	return ""
+}
+
+type InMemoryUnitLocker struct {
+	units map[string]*LockedUnit
+}
+
+func NewInMemoryUnitLocker() *InMemoryUnitLocker {
+	return &InMemoryUnitLocker{units: map[string]*LockedUnit{}}
+}
+
+func (m *InMemoryUnitLocker) GetUnits() ([]*LockedUnit, error) {
+	var units []*LockedUnit
+	for _, unit := range m.units {
+		units = append(units, unit)
+	}
+	return units, nil
+}
+
+func (m *InMemoryUnitLocker) GetUnit(unitID []byte) (*LockedUnit, error) {
+	return m.units[string(unitID)], nil
+}
+
+func (m *InMemoryUnitLocker) LockUnit(lockedBill *LockedUnit) error {
+	m.units[string(lockedBill.UnitID)] = lockedBill
+	return nil
+}
+
+func (m *InMemoryUnitLocker) UnlockUnit(unitID []byte) error {
+	delete(m.units, string(unitID))
+	return nil
+}
+
+func (m *InMemoryUnitLocker) Close() error {
+	return nil
 }

@@ -16,13 +16,17 @@ func defaultTx() *types.TransactionOrder {
 		SystemID:       defaultSystemID,
 		Type:           "test",
 		UnitID:         RandomBytes(32),
-		ClientMetadata: &types.ClientMetadata{Timeout: 10, MaxTransactionFee: 2},
+		ClientMetadata: defaultClientMetadata(),
 	}
 
 	return &types.TransactionOrder{
 		Payload:    payload,
 		OwnerProof: RandomBytes(3),
 	}
+}
+
+func defaultClientMetadata() *types.ClientMetadata {
+	return &types.ClientMetadata{Timeout: 10, MaxTransactionFee: 2}
 }
 
 type Option func(*types.TransactionOrder) error

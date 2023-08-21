@@ -3,7 +3,6 @@ package money
 import (
 	"bytes"
 	"context"
-	gocrypto "crypto"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -28,7 +27,7 @@ func TestDC_OK(t *testing.T) {
 	bills := []*wallet.Bill{createBill(1), createBill(2), createBill(3)}
 	targetBill := bills[2]
 	backendMockWrapper := newBackendAPIMock(t, bills)
-	unitLocker := NewInMemoryUnitLocker()
+	unitLocker := unitlock.NewInMemoryUnitLocker()
 	w := NewDustCollector(billtx.DefaultSystemIdentifier, 10, backendMockWrapper.backendMock, unitLocker)
 
 	// when dc runs
@@ -56,7 +55,7 @@ func TestDCWontRunForSingleBill(t *testing.T) {
 	// create backend with single bill
 	bills := []*wallet.Bill{createBill(1)}
 	backendMockWrapper := newBackendAPIMock(t, bills)
-	unitLocker := NewInMemoryUnitLocker()
+	unitLocker := unitlock.NewInMemoryUnitLocker()
 	w := NewDustCollector(billtx.DefaultSystemIdentifier, 10, backendMockWrapper.backendMock, unitLocker)
 
 	// when dc runs
@@ -81,7 +80,7 @@ func TestAllBillsAreSwapped_WhenWalletBillCountEqualToMaxBillCount(t *testing.T)
 	}
 	targetBill := bills[maxBillsPerDC-1]
 	backendMockWrapper := newBackendAPIMock(t, bills)
-	unitLocker := NewInMemoryUnitLocker()
+	unitLocker := unitlock.NewInMemoryUnitLocker()
 	w := NewDustCollector(billtx.DefaultSystemIdentifier, maxBillsPerDC, backendMockWrapper.backendMock, unitLocker)
 
 	// when dc runs
@@ -119,7 +118,7 @@ func TestOnlyFirstNBillsAreSwapped_WhenBillCountOverLimit(t *testing.T) {
 	targetBill := bills[billCountInWallet-1]
 	backendMockWrapper := newBackendAPIMock(t, bills)
 
-	unitLocker := NewInMemoryUnitLocker()
+	unitLocker := unitlock.NewInMemoryUnitLocker()
 	w := NewDustCollector(billtx.DefaultSystemIdentifier, maxBillsPerDC, backendMockWrapper.backendMock, unitLocker)
 
 	// when dc runs
@@ -159,14 +158,14 @@ func TestExistingDC_OK(t *testing.T) {
 		createProofWithDCTx(t, bills[2], targetBill, 10),
 	}
 	backendMockWrapper := newBackendAPIMock(t, bills, withProofs(proofs))
-	unitLocker := NewInMemoryUnitLocker()
+	unitLocker := unitlock.NewInMemoryUnitLocker()
 	w := NewDustCollector(billtx.DefaultSystemIdentifier, 10, backendMockWrapper.backendMock, unitLocker)
 
 	// when locked unit exists in wallet
 	err := unitLocker.LockUnit(&unitlock.LockedUnit{
 		UnitID:     targetBill.GetID(),
 		TxHash:     targetBill.GetTxHash(),
-		LockReason: unitlock.ReasonCollectDust,
+		LockReason: unitlock.LockReasonCollectDust,
 	})
 	require.NoError(t, err)
 
@@ -201,14 +200,14 @@ func TestExistingDC_UnconfirmedDCTxs_NewSwapIsSent(t *testing.T) {
 	}
 	targetBill := bills[2]
 	backendMockWrapper := newBackendAPIMock(t, bills)
-	unitLocker := NewInMemoryUnitLocker()
+	unitLocker := unitlock.NewInMemoryUnitLocker()
 	w := NewDustCollector(billtx.DefaultSystemIdentifier, 10, backendMockWrapper.backendMock, unitLocker)
 
 	// when locked unit exists in wallet
 	err := unitLocker.LockUnit(&unitlock.LockedUnit{
 		UnitID:     targetBill.GetID(),
 		TxHash:     targetBill.GetTxHash(),
-		LockReason: unitlock.ReasonCollectDust,
+		LockReason: unitlock.LockReasonCollectDust,
 	})
 	require.NoError(t, err)
 
@@ -240,14 +239,14 @@ func TestExistingDC_TargetUnitSwapIsConfirmed_ProofIsReturned(t *testing.T) {
 	targetBill := bills[0]
 	proofs := []*wallet.Proof{createProofWithSwapTx(t, targetBill)}
 	backendMockWrapper := newBackendAPIMock(t, bills, withProofs(proofs))
-	unitLocker := NewInMemoryUnitLocker()
+	unitLocker := unitlock.NewInMemoryUnitLocker()
 	w := NewDustCollector(billtx.DefaultSystemIdentifier, 10, backendMockWrapper.backendMock, unitLocker)
 
 	err := unitLocker.LockUnit(&unitlock.LockedUnit{
 		UnitID:       targetBill.GetID(),
 		TxHash:       targetBill.GetTxHash(),
-		LockReason:   unitlock.ReasonCollectDust,
-		Transactions: []*unitlock.Transaction{unitlock.NewTransaction(proofs[0].TxRecord.TransactionOrder, proofs[0].TxRecord.TransactionOrder.Hash(gocrypto.SHA256))},
+		LockReason:   unitlock.LockReasonCollectDust,
+		Transactions: []*unitlock.Transaction{unitlock.NewTransaction(proofs[0].TxRecord.TransactionOrder)},
 	})
 	require.NoError(t, err)
 
@@ -281,14 +280,14 @@ func TestExistingDC_TargetUnitIsInvalid_NewSwapIsSent(t *testing.T) {
 		createProofWithDCTx(t, bills[1], targetBill, 10),
 	}
 	backendMockWrapper := newBackendAPIMock(t, bills, withProofs(proofs))
-	unitLocker := NewInMemoryUnitLocker()
+	unitLocker := unitlock.NewInMemoryUnitLocker()
 	w := NewDustCollector(billtx.DefaultSystemIdentifier, 10, backendMockWrapper.backendMock, unitLocker)
 
 	// lock target bill, but change tx hash so that locked unit is considered invalid
 	err := unitLocker.LockUnit(&unitlock.LockedUnit{
 		UnitID:     targetBill.GetID(),
 		TxHash:     hash.Sum256(targetBill.GetTxHash()),
-		LockReason: unitlock.ReasonCollectDust,
+		LockReason: unitlock.LockReasonCollectDust,
 	})
 	require.NoError(t, err)
 
@@ -330,40 +329,6 @@ func createDCBill(value uint64, targetBill *wallet.Bill) *wallet.Bill {
 	srcBill.DCTargetUnitID = targetBill.GetID()
 	srcBill.DCTargetUnitBacklink = targetBill.TxHash
 	return srcBill
-}
-
-type InMemoryUnitLocker struct {
-	units map[string]*unitlock.LockedUnit
-}
-
-func NewInMemoryUnitLocker() *InMemoryUnitLocker {
-	return &InMemoryUnitLocker{units: map[string]*unitlock.LockedUnit{}}
-}
-
-func (m *InMemoryUnitLocker) GetUnits() ([]*unitlock.LockedUnit, error) {
-	var units []*unitlock.LockedUnit
-	for _, unit := range m.units {
-		units = append(units, unit)
-	}
-	return units, nil
-}
-
-func (m *InMemoryUnitLocker) GetUnit(unitID []byte) (*unitlock.LockedUnit, error) {
-	return m.units[string(unitID)], nil
-}
-
-func (m *InMemoryUnitLocker) LockUnit(lockedBill *unitlock.LockedUnit) error {
-	m.units[string(lockedBill.UnitID)] = lockedBill
-	return nil
-}
-
-func (m *InMemoryUnitLocker) UnlockUnit(unitID []byte) error {
-	delete(m.units, string(unitID))
-	return nil
-}
-
-func (m *InMemoryUnitLocker) Close() error {
-	return nil
 }
 
 type (

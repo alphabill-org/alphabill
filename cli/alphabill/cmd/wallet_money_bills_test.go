@@ -222,10 +222,7 @@ func TestWalletBillsListCmd_ShowLockedBills(t *testing.T) {
 	defer unitLocker.Close()
 
 	// lock unit
-	err = unitLocker.LockUnit(&unitlock.LockedUnit{
-		UnitID:     util.Uint256ToBytes(unitID),
-		LockReason: unitlock.ReasonAddFees,
-	})
+	err = unitLocker.LockUnit(unitlock.NewLockedUnit(util.Uint256ToBytes(unitID), []byte{1}, unitlock.LockReasonAddFees))
 	require.NoError(t, err)
 	err = unitLocker.Close()
 	require.NoError(t, err)

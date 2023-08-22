@@ -34,6 +34,7 @@ type (
 		GetUnit(unitID []byte) (*unitlock.LockedUnit, error)
 		LockUnit(lockedBill *unitlock.LockedUnit) error
 		UnlockUnit(unitID []byte) error
+		Close() error
 	}
 )
 
@@ -72,7 +73,7 @@ func (w *DustCollector) runExistingDustCollection(ctx context.Context, accountKe
 
 	// verify locked unit not confirmed i.e. swap not already completed
 	for _, tx := range lockedTargetBill.Transactions {
-		if tx.PayloadType == money.PayloadTypeSwapDC {
+		if tx.TxOrder.PayloadType() == money.PayloadTypeSwapDC {
 			proof, err := w.backend.GetTxProof(ctx, tx.TxOrder.UnitID(), tx.TxHash)
 			if err != nil {
 				return nil, fmt.Errorf("failed to fetch proof: %w", err)
@@ -187,7 +188,7 @@ func (w *DustCollector) waitForConf(ctx context.Context, tx *unitlock.Transactio
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch round number: %w", err)
 	}
-	for roundNumber < tx.Timeout {
+	for roundNumber < tx.TxOrder.Timeout() {
 		proof, err := w.backend.GetTxProof(ctx, tx.TxOrder.UnitID(), tx.TxHash)
 		if err != nil {
 			return nil, fmt.Errorf("failed to fetch tx proof: %w", err)
@@ -238,9 +239,9 @@ func (w *DustCollector) submitDCBatch(ctx context.Context, k *account.AccountKey
 	// lock target unit
 	var lockedUnitTxs []*unitlock.Transaction
 	for _, sub := range dcBatch.Submissions() {
-		lockedUnitTxs = append(lockedUnitTxs, unitlock.NewTransaction(sub.Transaction, sub.TxHash))
+		lockedUnitTxs = append(lockedUnitTxs, unitlock.NewTransaction(sub.Transaction))
 	}
-	lockedTargetUnit := unitlock.NewLockedUnit(targetBill.Id, targetBill.TxHash, unitlock.ReasonCollectDust, lockedUnitTxs...)
+	lockedTargetUnit := unitlock.NewLockedUnit(targetBill.Id, targetBill.TxHash, unitlock.LockReasonCollectDust, lockedUnitTxs...)
 	err = w.unitLocker.LockUnit(lockedTargetUnit)
 	if err != nil {
 		return nil, fmt.Errorf("failed to lock unit for dc batch: %w", err)
@@ -282,7 +283,7 @@ func (w *DustCollector) swapDCBills(ctx context.Context, k *account.AccountKey, 
 	dcBatch.Add(sub)
 
 	// update locked bill with swap tx
-	lockedTargetUnit.Transactions = []*unitlock.Transaction{unitlock.NewTransaction(sub.Transaction, sub.TxHash)}
+	lockedTargetUnit.Transactions = []*unitlock.Transaction{unitlock.NewTransaction(sub.Transaction)}
 	err = w.unitLocker.LockUnit(lockedTargetUnit)
 	if err != nil {
 		return nil, fmt.Errorf("failed to lock unit for swap tx: %w", err)
@@ -331,7 +332,7 @@ func (w *DustCollector) getLockedTargetBill() (*unitlock.LockedUnit, error) {
 		return nil, fmt.Errorf("failed to load locked units: %w", err)
 	}
 	for _, unit := range units {
-		if unit.LockReason == unitlock.ReasonCollectDust {
+		if unit.LockReason == unitlock.LockReasonCollectDust {
 			return unit, nil
 		}
 	}

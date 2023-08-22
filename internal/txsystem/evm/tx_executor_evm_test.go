@@ -183,7 +183,7 @@ func Test_execute(t *testing.T) {
 		name                 string
 		args                 args
 		wantErrStr           string
-		wantSuccessIndicator uint64
+		wantSuccessIndicator types.TxStatus
 		wantDetails          *ProcessingDetails
 	}{
 		{

@@ -27,10 +27,11 @@ const (
 
 type (
 	ProcessingDetails struct {
-		_          struct{} `cbor:",toarray"`
-		VmError    string
-		StateError string
-		ReturnData []byte
+		_            struct{} `cbor:",toarray"`
+		VmError      string
+		StateError   string
+		ReturnData   []byte
+		ContractAddr common.Address
 	}
 )
 
@@ -105,10 +106,11 @@ func execute(currentBlockNumber uint64, stateDB *statedb.StateDB, attr *TxAttrib
 	if rules.IsBerlin {
 		stateDB.PrepareAccessList(sender.Address(), toAddr, vm.ActivePrecompiles(rules), ethtypes.AccessList{})
 	}
-	var vmErr error
-
-	var contractAddr common.Address
-	var ret []byte
+	var (
+		vmErr        error
+		contractAddr common.Address
+		ret          []byte
+	)
 	if isContractCreation {
 		// contract creation
 		ret, contractAddr, gasRemaining, vmErr = evm.Create(sender, attr.Data, gasRemaining, attr.Value)
@@ -119,7 +121,6 @@ func execute(currentBlockNumber uint64, stateDB *statedb.StateDB, attr *TxAttrib
 	}
 	// Refund ETH for remaining gas, exchanged at the original rate.
 	stateDB.AddBalance(sender.Address(), calcGasPrice(gasRemaining, gasUnitPrice))
-	// todo: "gas handling" currently failing transactions are not added to block, hence we can only charge for successful calls
 	// calculate gas price for used gas
 	txPrice := calcGasPrice(attr.Gas-gasRemaining, gasUnitPrice)
 	log.Trace("total gas: %v gas units, price in alpha %v", attr.Gas-gasRemaining, weiToAlpha(txPrice))
@@ -135,9 +136,10 @@ func execute(currentBlockNumber uint64, stateDB *statedb.StateDB, attr *TxAttrib
 		success = types.TxStatusFailed
 	}
 	evmProcessingDetails := &ProcessingDetails{
-		ReturnData: ret,
-		VmError:    errorToStr(vmErr),
-		StateError: errorToStr(stateDB.DBError()),
+		ReturnData:   ret,
+		ContractAddr: contractAddr,
+		VmError:      errorToStr(vmErr),
+		StateError:   errorToStr(stateDB.DBError()),
 	}
 	detailBytes, err := evmProcessingDetails.Bytes()
 	if err != nil {

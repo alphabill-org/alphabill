@@ -52,24 +52,34 @@ func TestEVMPartition_DeployAndCallContract(t *testing.T) {
 	deployContractTx := createDeployContractTx(t, from)
 	require.NoError(t, evmPartition.SubmitTx(deployContractTx))
 	require.Eventually(t, testpartition.BlockchainContainsTx(evmPartition, deployContractTx), test.WaitDuration, test.WaitTick)
-
+	_, _, txRecord, err := evmPartition.GetTxProof(deployContractTx)
+	require.Equal(t, types.TxStatusSuccessful, txRecord.ServerMetadata.SuccessIndicator)
+	var details ProcessingDetails
+	require.NoError(t, txRecord.UnmarshalProcessingDetails(&details))
+	require.NoError(t, err)
+	require.Equal(t, details.VmError, "")
+	require.Equal(t, details.StateError, "")
 	// call contract
 	contractAddr := evmcrypto.CreateAddress(common.BytesToAddress(from), 0)
+	require.Equal(t, details.ContractAddr, contractAddr)
+	require.NotEmpty(t, details.ReturnData) // increment does not return anything
+
+	// call contract
 	cABI, err := abi.JSON(bytes.NewBuffer([]byte(counterABI)))
 	require.NoError(t, err)
 
 	callContractTx := createCallContractTx(from, contractAddr, cABI.Methods["increment"].ID, t)
 	require.NoError(t, evmPartition.SubmitTx(callContractTx))
 	require.Eventually(t, testpartition.BlockchainContainsTx(evmPartition, callContractTx), test.WaitDuration, test.WaitTick)
-	_, _, txRecord, err := evmPartition.GetTxProof(callContractTx)
+	_, _, txRecord, err = evmPartition.GetTxProof(callContractTx)
 	require.Equal(t, types.TxStatusSuccessful, txRecord.ServerMetadata.SuccessIndicator)
 	require.NotNil(t, txRecord.ServerMetadata.ProcessingDetails)
-	var details ProcessingDetails
-	require.NoError(t, cbor.Unmarshal(txRecord.ServerMetadata.ProcessingDetails, &details))
+	require.NoError(t, txRecord.UnmarshalProcessingDetails(&details))
 	require.NoError(t, err)
 	require.Equal(t, details.VmError, "")
 	require.Equal(t, details.StateError, "")
 	require.Empty(t, details.ReturnData) // increment does not return anything
+	require.Equal(t, details.ContractAddr, contractAddr)
 }
 
 func createTransferTx(t *testing.T, from []byte, to []byte) *types.TransactionOrder {

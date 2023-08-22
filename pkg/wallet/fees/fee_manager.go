@@ -80,10 +80,10 @@ type (
 	}
 
 	UnitLocker interface {
-		GetUnits() ([]*unitlock.LockedUnit, error)
-		GetUnit(unitID []byte) (*unitlock.LockedUnit, error)
+		GetUnits(accountID []byte) ([]*unitlock.LockedUnit, error)
+		GetUnit(accountID, unitID []byte) (*unitlock.LockedUnit, error)
 		LockUnit(lockedBill *unitlock.LockedUnit) error
-		UnlockUnit(unitID []byte) error
+		UnlockUnit(accountID, unitID []byte) error
 		Close() error
 	}
 )
@@ -132,19 +132,19 @@ func (w *FeeManager) AddFeeCredit(ctx context.Context, cmd AddFeeCmd) (*AddFeeCm
 		return nil, err
 	}
 
+	accountKey, err := w.am.GetAccountKey(cmd.AccountIndex)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load account key: %w", err)
+	}
+
 	// if partial reclaim exists, ask user to finish the reclaim process first
-	lockedBills, err := w.unitLocker.GetUnits()
+	lockedBills, err := w.unitLocker.GetUnits(accountKey.PubKey)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch locked units: %w", err)
 	}
 	lockedReclaimUnit := w.getLockedBillByReason(lockedBills, unitlock.LockReasonReclaimFees)
 	if lockedReclaimUnit != nil {
 		return nil, errors.New("wallet contains unreclaimed fee credit, run the reclaim command before adding fee credit")
-	}
-
-	accountKey, err := w.am.GetAccountKey(cmd.AccountIndex)
-	if err != nil {
-		return nil, err
 	}
 
 	// fetch fee credit bill
@@ -199,6 +199,7 @@ func (w *FeeManager) AddFeeCredit(ctx context.Context, cmd AddFeeCmd) (*AddFeeCm
 		return nil, fmt.Errorf("failed to create addFC transaction: %w", err)
 	}
 	lockedUnit, err := w.updateLockedUnitTx(
+		accountKey.PubKey,
 		transferFCProof.TxRecord.TransactionOrder.UnitID(),
 		unitlock.NewTransaction(addFCTx),
 	)
@@ -211,7 +212,7 @@ func (w *FeeManager) AddFeeCredit(ctx context.Context, cmd AddFeeCmd) (*AddFeeCm
 	if err != nil {
 		return nil, fmt.Errorf("failed to send addFC transaction: %w", err)
 	}
-	if err := w.unitLocker.UnlockUnit(lockedUnit.UnitID); err != nil {
+	if err := w.unitLocker.UnlockUnit(accountKey.PubKey, lockedUnit.UnitID); err != nil {
 		return nil, fmt.Errorf("failed to unlock target fee credit bill: %w", err)
 	}
 	return &AddFeeCmdResponse{TransferFC: transferFCProof, AddFC: addFCProof}, nil
@@ -221,19 +222,18 @@ func (w *FeeManager) AddFeeCredit(ctx context.Context, cmd AddFeeCmd) (*AddFeeCm
 // Reclaimed fee credit is added to the largest bill in wallet.
 // Returns closeFC and/or reclaimFC transaction proofs.
 func (w *FeeManager) ReclaimFeeCredit(ctx context.Context, cmd ReclaimFeeCmd) (*ReclaimFeeCmdResponse, error) {
+	accountKey, err := w.am.GetAccountKey(cmd.AccountIndex)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load account key: %w", err)
+	}
 	// if locked bill for add fee credit exists, ask user to finish the add process first
-	lockedBills, err := w.unitLocker.GetUnits()
+	lockedBills, err := w.unitLocker.GetUnits(accountKey.PubKey)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch locked units: %w", err)
 	}
 	lockedAddBill := w.getLockedBillByReason(lockedBills, unitlock.LockReasonAddFees)
 	if lockedAddBill != nil {
 		return nil, errors.New("wallet contains unadded fee credit, run the add command before reclaiming fee credit")
-	}
-
-	accountKey, err := w.am.GetAccountKey(cmd.AccountIndex)
-	if err != nil {
-		return nil, err
 	}
 
 	bills, err := w.getSortedBills(ctx, accountKey)
@@ -282,6 +282,7 @@ func (w *FeeManager) ReclaimFeeCredit(ctx context.Context, cmd ReclaimFeeCmd) (*
 		return nil, fmt.Errorf("failed to create reclaimFC transaction: %w", err)
 	}
 	lockedUnit, err := w.updateLockedUnitTx(
+		accountKey.PubKey,
 		closeFCAttr.TargetUnitID,
 		unitlock.NewTransaction(reclaimFC),
 	)
@@ -294,7 +295,7 @@ func (w *FeeManager) ReclaimFeeCredit(ctx context.Context, cmd ReclaimFeeCmd) (*
 	if err != nil {
 		return nil, fmt.Errorf("failed to send reclaimFC transaction: %w", err)
 	}
-	if err := w.unitLocker.UnlockUnit(lockedUnit.UnitID); err != nil {
+	if err := w.unitLocker.UnlockUnit(accountKey.PubKey, lockedUnit.UnitID); err != nil {
 		return nil, fmt.Errorf("failed to unlock target fee credit bill: %w", err)
 	}
 	return &ReclaimFeeCmdResponse{CloseFC: closeFCProof, ReclaimFC: reclaimFCProof}, nil
@@ -327,7 +328,7 @@ func (w *FeeManager) sendTransferFC(ctx context.Context, cmd AddFeeCmd, accountK
 	}
 
 	// find unlocked bill
-	targetBill, err := w.getFirstUnlockedBill(bills)
+	targetBill, err := w.getFirstUnlockedBill(accountKey.PubKey, bills)
 	if err != nil {
 		return nil, err
 	}
@@ -344,6 +345,7 @@ func (w *FeeManager) sendTransferFC(ctx context.Context, cmd AddFeeCmd, accountK
 	}
 	// lock target bill before sending transferFC
 	err = w.unitLocker.LockUnit(unitlock.NewLockedUnit(
+		accountKey.PubKey,
 		targetBill.Id,
 		targetBill.TxHash,
 		unitlock.LockReasonAddFees,
@@ -361,7 +363,7 @@ func (w *FeeManager) sendCloseFC(ctx context.Context, bills []*wallet.Bill, acco
 		return nil, errors.New("wallet must have a source bill to which to add reclaimed fee credits")
 	}
 	// find unlocked bill
-	targetBill, err := w.getFirstUnlockedBill(bills)
+	targetBill, err := w.getFirstUnlockedBill(accountKey.PubKey, bills)
 	if err != nil {
 		return nil, err
 	}
@@ -380,6 +382,7 @@ func (w *FeeManager) sendCloseFC(ctx context.Context, bills []*wallet.Bill, acco
 	}
 	// lock target bill before sending closeFC
 	err = w.unitLocker.LockUnit(unitlock.NewLockedUnit(
+		accountKey.PubKey,
 		targetBill.Id,
 		targetBill.TxHash,
 		unitlock.LockReasonReclaimFees,
@@ -457,8 +460,8 @@ func (w *FeeManager) getReclaimFeeCreditState(ctx context.Context, bills []*wall
 	return closeFCProof, reclaimFCProof, nil
 }
 
-func (w *FeeManager) updateLockedUnitTx(unitID []byte, unit *unitlock.Transaction) (*unitlock.LockedUnit, error) {
-	lockedBill, err := w.unitLocker.GetUnit(unitID)
+func (w *FeeManager) updateLockedUnitTx(accountID, unitID []byte, unit *unitlock.Transaction) (*unitlock.LockedUnit, error) {
+	lockedBill, err := w.unitLocker.GetUnit(accountID, unitID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load locked bill: %w", err)
 	}
@@ -497,7 +500,7 @@ func (w *FeeManager) handleLockedTransferFC(ctx context.Context, lockedFeeBill *
 			return tx, err
 		} else {
 			log.Info("transferFC not confirmed in time, unlocking transferFC unit")
-			if err := w.unitLocker.UnlockUnit(lockedFeeBill.UnitID); err != nil {
+			if err := w.unitLocker.UnlockUnit(accountKey.PubKey, lockedFeeBill.UnitID); err != nil {
 				return nil, fmt.Errorf("failed to unlock transferFC bill: %w", err)
 			}
 			return nil, nil
@@ -518,7 +521,7 @@ func (w *FeeManager) handleLockedAddFC(ctx context.Context, lockedFeeBill *unitl
 	}
 	// if we have proof => tx was confirmed
 	if proof != nil {
-		if err := w.unitLocker.UnlockUnit(lockedFeeBill.UnitID); err != nil {
+		if err := w.unitLocker.UnlockUnit(accountKey.PubKey, lockedFeeBill.UnitID); err != nil {
 			return nil, nil, fmt.Errorf("failed to unlock addFC bill after finding confirmed addFC: %w", err)
 		}
 		return nil, proof, nil
@@ -530,7 +533,7 @@ func (w *FeeManager) handleLockedAddFC(ctx context.Context, lockedFeeBill *unitl
 			if err != nil {
 				return nil, nil, fmt.Errorf("failed to re-broadcast addFC: %w", err)
 			}
-			if err := w.unitLocker.UnlockUnit(lockedFeeBill.UnitID); err != nil {
+			if err := w.unitLocker.UnlockUnit(accountKey.PubKey, lockedFeeBill.UnitID); err != nil {
 				return nil, nil, fmt.Errorf("failed to unlock addFC bill after re-sending and confirming addFC: %w", err)
 			}
 			return nil, addFCProof, nil
@@ -549,7 +552,7 @@ func (w *FeeManager) handleLockedAddFC(ctx context.Context, lockedFeeBill *unitl
 					TxProof:  addFCAttr.FeeCreditTransferProof,
 				}, nil, nil
 			} else {
-				if err := w.unitLocker.UnlockUnit(lockedFeeBill.UnitID); err != nil {
+				if err := w.unitLocker.UnlockUnit(accountKey.PubKey, lockedFeeBill.UnitID); err != nil {
 					return nil, nil, fmt.Errorf("failed to unlock target fee credit bill: %w", err)
 				}
 				return nil, nil, errors.New("transferFC latestAdditionTime exceeded, locked fee credit is no longer usable")
@@ -582,7 +585,7 @@ func (w *FeeManager) handleLockedCloseFC(ctx context.Context, lockedFeeBill *uni
 			return tx, err
 		} else {
 			log.Info("closeFC not confirmed in time, unlocking closeFC unit")
-			if err := w.unitLocker.UnlockUnit(lockedFeeBill.UnitID); err != nil {
+			if err := w.unitLocker.UnlockUnit(accountKey.PubKey, lockedFeeBill.UnitID); err != nil {
 				return nil, fmt.Errorf("failed to unlock closeFC unit: %w", err)
 			}
 			return nil, nil
@@ -603,7 +606,7 @@ func (w *FeeManager) handleLockedReclaimFC(ctx context.Context, bills []*wallet.
 	}
 	if proof != nil {
 		// if we have proof => tx was confirmed
-		if err := w.unitLocker.UnlockUnit(lockedFeeBill.UnitID); err != nil {
+		if err := w.unitLocker.UnlockUnit(accountKey.PubKey, lockedFeeBill.UnitID); err != nil {
 			return nil, nil, fmt.Errorf("failed to unlock reclaimFC bill after finding confirmed reclaimFC: %w", err)
 		}
 		return nil, proof, nil
@@ -615,7 +618,7 @@ func (w *FeeManager) handleLockedReclaimFC(ctx context.Context, bills []*wallet.
 			if err != nil {
 				return nil, nil, fmt.Errorf("failed to re-broadcast reclaimFC: %w", err)
 			}
-			if err := w.unitLocker.UnlockUnit(lockedFeeBill.UnitID); err != nil {
+			if err := w.unitLocker.UnlockUnit(accountKey.PubKey, lockedFeeBill.UnitID); err != nil {
 				return nil, nil, fmt.Errorf("failed to unlock reclaimFC bill after re-sending and confirming reclaimFC: %w", err)
 			}
 			return nil, reclaimFCProof, nil
@@ -634,7 +637,7 @@ func (w *FeeManager) handleLockedReclaimFC(ctx context.Context, bills []*wallet.
 					TxProof:  reclaimFCAttr.CloseFeeCreditProof,
 				}, nil, nil
 			} else {
-				if err := w.unitLocker.UnlockUnit(lockedFeeBill.UnitID); err != nil {
+				if err := w.unitLocker.UnlockUnit(accountKey.PubKey, lockedFeeBill.UnitID); err != nil {
 					return nil, nil, fmt.Errorf("failed to unlock target fee credit bill: %w", err)
 				}
 				return nil, nil, errors.New("reclaimFC target unit is no longer usable")
@@ -661,9 +664,9 @@ func (w *FeeManager) getLockedBillByReason(lockedBills []*unitlock.LockedUnit, r
 	return nil
 }
 
-func (w *FeeManager) getFirstUnlockedBill(bills []*wallet.Bill) (*wallet.Bill, error) {
+func (w *FeeManager) getFirstUnlockedBill(accountID []byte, bills []*wallet.Bill) (*wallet.Bill, error) {
 	for _, b := range bills {
-		unit, err := w.unitLocker.GetUnit(b.GetID())
+		unit, err := w.unitLocker.GetUnit(accountID, b.GetID())
 		if err != nil {
 			return nil, err
 		}

@@ -211,7 +211,11 @@ func TestWalletBillsExportCmd_ShowUnswappedFlag(t *testing.T) {
 }
 
 func TestWalletBillsListCmd_ShowLockedBills(t *testing.T) {
-	homedir := createNewTestWallet(t)
+	am, homedir := createNewWallet(t)
+	pubKey, err := am.GetPublicKey(0)
+	require.NoError(t, err)
+	am.Close()
+
 	unitID := uint256.NewInt(1)
 	mockServer, addr := mockBackendCalls(&backendMockReturnConf{billId: unitID, billValue: 1e8})
 	defer mockServer.Close()
@@ -222,7 +226,7 @@ func TestWalletBillsListCmd_ShowLockedBills(t *testing.T) {
 	defer unitLocker.Close()
 
 	// lock unit
-	err = unitLocker.LockUnit(unitlock.NewLockedUnit(util.Uint256ToBytes(unitID), []byte{1}, unitlock.LockReasonAddFees))
+	err = unitLocker.LockUnit(unitlock.NewLockedUnit(pubKey, util.Uint256ToBytes(unitID), []byte{1}, unitlock.LockReasonAddFees))
 	require.NoError(t, err)
 	err = unitLocker.Close()
 	require.NoError(t, err)

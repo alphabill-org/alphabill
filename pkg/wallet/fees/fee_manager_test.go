@@ -66,13 +66,15 @@ Return error "wallet contains unreclaimed fee credit, run the reclaim command be
 func TestAddFeeCredit_WalletContainsLockedBillForReclaim(t *testing.T) {
 	// create fee manager
 	am := newAccountManager(t)
+	accountKey, err := am.GetAccountKey(0)
+	require.NoError(t, err)
 	moneyTxPublisher := &mockMoneyTxPublisher{}
 	moneyBackendClient := &mockMoneyClient{bills: []*wallet.Bill{}}
 	unitLocker := createUnitLocker(t)
 	feeManager := newMoneyPartitionFeeManager(am, unitLocker, moneyTxPublisher, moneyBackendClient)
 
 	// lock bill with LockReasonReclaimFees
-	err := unitLocker.LockUnit(unitlock.NewLockedUnit([]byte{1}, []byte{200}, unitlock.LockReasonReclaimFees))
+	err = unitLocker.LockUnit(unitlock.NewLockedUnit(accountKey.PubKey, []byte{1}, []byte{200}, unitlock.LockReasonReclaimFees))
 	require.NoError(t, err)
 
 	// verify error is returned
@@ -89,6 +91,8 @@ Wallet contains locked bill for TransferFC and the tx is either:
 func TestAddFeeCredit_LockedBillForTransferFC(t *testing.T) {
 	// create fee manager
 	am := newAccountManager(t)
+	accountKey, err := am.GetAccountKey(0)
+	require.NoError(t, err)
 	moneyTxPublisher := &mockMoneyTxPublisher{}
 	moneyBackendClient := &mockMoneyClient{}
 	unitLocker := createUnitLocker(t)
@@ -101,6 +105,7 @@ func TestAddFeeCredit_LockedBillForTransferFC(t *testing.T) {
 	transferFCProof := &wallet.Proof{TxRecord: transferFCRecord, TxProof: &types.TxProof{}}
 	lockedUnitTxHash := []byte{200}
 	lockedTransferFCBill := unitlock.NewLockedUnit(
+		accountKey.PubKey,
 		transferFCRecord.TransactionOrder.UnitID(),
 		lockedUnitTxHash,
 		unitlock.LockReasonAddFees,
@@ -132,7 +137,7 @@ func TestAddFeeCredit_LockedBillForTransferFC(t *testing.T) {
 		require.Equal(t, transferFCRecord, sentAddFCAttr.FeeCreditTransfer)
 
 		// and bill must be unlocked
-		units, err := unitLocker.GetUnits()
+		units, err := unitLocker.GetUnits(accountKey.PubKey)
 		require.NoError(t, err)
 		require.Len(t, units, 0)
 	})
@@ -163,7 +168,7 @@ func TestAddFeeCredit_LockedBillForTransferFC(t *testing.T) {
 		require.Equal(t, []byte{123}, res.TransferFC.TxRecord.TransactionOrder.UnitID())
 
 		// and bill must be unlocked
-		units, err := unitLocker.GetUnits()
+		units, err := unitLocker.GetUnits(accountKey.PubKey)
 		require.NoError(t, err)
 		require.Len(t, units, 0)
 	})
@@ -187,7 +192,7 @@ func TestAddFeeCredit_LockedBillForTransferFC(t *testing.T) {
 		require.Equal(t, transferFCProof, res.TransferFC)
 
 		// and bill must be unlocked
-		units, err := unitLocker.GetUnits()
+		units, err := unitLocker.GetUnits(accountKey.PubKey)
 		require.NoError(t, err)
 		require.Len(t, units, 0)
 	})
@@ -203,6 +208,8 @@ Wallet contains locked bill for AddFC and tx is either:
 func TestAddFeeCredit_LockedBillForAddFC(t *testing.T) {
 	// create fee manager
 	am := newAccountManager(t)
+	accountKey, err := am.GetAccountKey(0)
+	require.NoError(t, err)
 	moneyTxPublisher := &mockMoneyTxPublisher{}
 	moneyBackendClient := &mockMoneyClient{}
 	unitLocker := createUnitLocker(t)
@@ -217,6 +224,7 @@ func TestAddFeeCredit_LockedBillForAddFC(t *testing.T) {
 	addFCProof := &wallet.Proof{TxRecord: addFCRecord, TxProof: &types.TxProof{}}
 	lockedUnitTxHash := []byte{200}
 	lockedAddFCBill := unitlock.NewLockedUnit(
+		accountKey.PubKey,
 		addFCRecord.TransactionOrder.UnitID(),
 		lockedUnitTxHash,
 		unitlock.LockReasonAddFees,
@@ -241,7 +249,7 @@ func TestAddFeeCredit_LockedBillForAddFC(t *testing.T) {
 		require.NotNil(t, res)
 
 		// and bill must be unlocked
-		lockedBill, err := unitLocker.GetUnit(lockedAddFCBill.UnitID)
+		lockedBill, err := unitLocker.GetUnit(lockedAddFCBill.UnitID, accountKey.PubKey)
 		require.NoError(t, err)
 		require.Nil(t, lockedBill)
 	})
@@ -265,7 +273,7 @@ func TestAddFeeCredit_LockedBillForAddFC(t *testing.T) {
 		require.Equal(t, addFCRecord, res.AddFC.TxRecord)
 
 		// and bill must be unlocked
-		lockedBill, err := unitLocker.GetUnit(lockedAddFCBill.UnitID)
+		lockedBill, err := unitLocker.GetUnit(lockedAddFCBill.UnitID, accountKey.PubKey)
 		require.NoError(t, err)
 		require.Nil(t, lockedBill)
 	})
@@ -292,7 +300,7 @@ func TestAddFeeCredit_LockedBillForAddFC(t *testing.T) {
 		require.EqualValues(t, moneyBackendClient.roundNumber+txTimeoutBlockCount, res.AddFC.TxRecord.TransactionOrder.Timeout())
 
 		// and bill must be unlocked
-		lockedBill, err := unitLocker.GetUnit(lockedAddFCBill.UnitID)
+		lockedBill, err := unitLocker.GetUnit(lockedAddFCBill.UnitID, accountKey.PubKey)
 		require.NoError(t, err)
 		require.Nil(t, lockedBill)
 	})
@@ -325,6 +333,8 @@ Wallet contains locked bill for closeFC and the tx is either:
 func TestReclaimFeeCredit_LockedBillForCloseFC(t *testing.T) {
 	// create fee manager
 	am := newAccountManager(t)
+	accountKey, err := am.GetAccountKey(0)
+	require.NoError(t, err)
 	moneyTxPublisher := &mockMoneyTxPublisher{}
 	moneyBackendClient := &mockMoneyClient{}
 	unitLocker := createUnitLocker(t)
@@ -337,6 +347,7 @@ func TestReclaimFeeCredit_LockedBillForCloseFC(t *testing.T) {
 	closeFCProof := &wallet.Proof{TxRecord: closeFCRecord, TxProof: &types.TxProof{}}
 	lockedUnitTxHash := []byte{200}
 	lockedCloseFCBill := unitlock.NewLockedUnit(
+		accountKey.PubKey,
 		closeFCRecord.TransactionOrder.UnitID(),
 		lockedUnitTxHash,
 		unitlock.LockReasonReclaimFees,
@@ -368,7 +379,7 @@ func TestReclaimFeeCredit_LockedBillForCloseFC(t *testing.T) {
 		require.Equal(t, closeFCRecord, sentReclaimFCAttr.CloseFeeCreditTransfer)
 
 		// and bill must be unlocked
-		lockedBill, err := unitLocker.GetUnit(lockedCloseFCBill.UnitID)
+		lockedBill, err := unitLocker.GetUnit(accountKey.PubKey, lockedCloseFCBill.UnitID)
 		require.NoError(t, err)
 		require.Nil(t, lockedBill)
 	})
@@ -406,7 +417,7 @@ func TestReclaimFeeCredit_LockedBillForCloseFC(t *testing.T) {
 		require.Equal(t, []byte{2}, actualCloseFCAttr.TargetUnitBacklink)             // target unit backlink matches target bill txhash
 
 		// and bill must be unlocked
-		lockedBill, err := unitLocker.GetUnit(lockedCloseFCBill.UnitID)
+		lockedBill, err := unitLocker.GetUnit(accountKey.PubKey, lockedCloseFCBill.UnitID)
 		require.NoError(t, err)
 		require.Nil(t, lockedBill)
 	})
@@ -430,7 +441,7 @@ func TestReclaimFeeCredit_LockedBillForCloseFC(t *testing.T) {
 		require.Equal(t, closeFCProof, res.CloseFC)
 
 		// and bill must be unlocked
-		lockedBill, err := unitLocker.GetUnit(lockedCloseFCBill.UnitID)
+		lockedBill, err := unitLocker.GetUnit(accountKey.PubKey, lockedCloseFCBill.UnitID)
 		require.NoError(t, err)
 		require.Nil(t, lockedBill)
 	})
@@ -446,6 +457,8 @@ Wallet contains locked bill for ReclaimFC and tx is either:
 func TestReclaimFeeCredit_LockedBillForReclaimFC(t *testing.T) {
 	// create fee manager
 	am := newAccountManager(t)
+	accountKey, err := am.GetAccountKey(0)
+	require.NoError(t, err)
 	moneyTxPublisher := &mockMoneyTxPublisher{}
 	moneyBackendClient := &mockMoneyClient{}
 	unitLocker := createUnitLocker(t)
@@ -460,6 +473,7 @@ func TestReclaimFeeCredit_LockedBillForReclaimFC(t *testing.T) {
 	reclaimFCProof := &wallet.Proof{TxRecord: reclaimFCRecord, TxProof: &types.TxProof{}}
 	lockedUnitTxHash := []byte{200}
 	lockedReclaimFCBill := unitlock.NewLockedUnit(
+		accountKey.PubKey,
 		reclaimFCRecord.TransactionOrder.UnitID(),
 		lockedUnitTxHash,
 		unitlock.LockReasonReclaimFees,
@@ -485,7 +499,7 @@ func TestReclaimFeeCredit_LockedBillForReclaimFC(t *testing.T) {
 		require.Equal(t, reclaimFCProof, res.ReclaimFC)
 
 		// and bill must be unlocked
-		lockedBill, err := unitLocker.GetUnit(reclaimFCOrder.UnitID())
+		lockedBill, err := unitLocker.GetUnit(accountKey.PubKey, reclaimFCOrder.UnitID())
 		require.NoError(t, err)
 		require.Nil(t, lockedBill)
 	})
@@ -509,7 +523,7 @@ func TestReclaimFeeCredit_LockedBillForReclaimFC(t *testing.T) {
 		require.Equal(t, reclaimFCRecord, res.ReclaimFC.TxRecord)
 
 		// and bill must be unlocked
-		lockedBill, err := unitLocker.GetUnit(lockedReclaimFCBill.UnitID)
+		lockedBill, err := unitLocker.GetUnit(accountKey.PubKey, lockedReclaimFCBill.UnitID)
 		require.NoError(t, err)
 		require.Nil(t, lockedBill)
 	})
@@ -536,7 +550,7 @@ func TestReclaimFeeCredit_LockedBillForReclaimFC(t *testing.T) {
 		require.EqualValues(t, moneyBackendClient.roundNumber+txTimeoutBlockCount, res.ReclaimFC.TxRecord.TransactionOrder.Timeout())
 
 		// and bill must be unlocked
-		lockedBill, err := unitLocker.GetUnit(lockedReclaimFCBill.UnitID)
+		lockedBill, err := unitLocker.GetUnit(accountKey.PubKey, lockedReclaimFCBill.UnitID)
 		require.NoError(t, err)
 		require.Nil(t, lockedBill)
 	})

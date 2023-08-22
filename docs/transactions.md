@@ -279,7 +279,7 @@ value is 0, the bill is deleted.
 
 Note that an [Add Fee Credit](#add-fee-credit) transaction must be
 executed on the target partition after each [Transfer to Fee
-Credit](#transfer-to-fee-credit) transaction, because the *Nonce*
+Credit](#transfer-to-fee-credit) transaction, because the *TargetUnitBacklink*
 attribute in this transaction contains the backlink to the last [Add
 Fee Credit](#add-fee-credit) transaction.
 
@@ -294,7 +294,7 @@ Fee Credit](#add-fee-credit) transaction.
     /TargetRecordID/         h'A0227AC5202427DB551B8ABE08645378347A3C5F70E0E5734F147AD45CBC1BA5',
     /EarliestAdditionTime/   13,
     /LatestAdditionTime/     23,
-    /Nonce/                  null,
+    /TargetUnitBacklink/     null,
     /Backlink/               h'52F43127F58992B6FCFA27A64C980E70D26C2CDE0281AC93435D10EB8034B695'
 ]
 ```
@@ -317,7 +317,7 @@ Fee Credit](#add-fee-credit) transaction.
    the corresponding [Add Fee Credit](#add-fee-credit) transaction can
    be executed in the target partition (usually current round number +
    some timeout).
-6. *Nonce* (byte string) is the hash of the last [Add Fee
+6. *TargetUnitBacklink* (byte string) is the hash of the last [Add Fee
    Credit](#add-fee-credit) transaction executed for the
    *TargetRecordID* in the target partition, or `null` if it does not
    exist yet.
@@ -370,7 +370,7 @@ Note that fee credit records cannot be closed partially.
 
 This transaction must be followed by a [Reclaim Fee
 Credit](#reclaim-fee-credit) transaction to avoid losing the closed
-fee credit. The *Nonce* attribute fixes the current state of the bill
+fee credit. The *TargetUnitBacklink* attribute fixes the current state of the bill
 used to reclaim the closed fee credit, and any other transaction with
 the bill would invalidate that backlink.
 
@@ -380,9 +380,9 @@ the bill would invalidate that backlink.
 *TransactionOrder*.*Payload*.*Attributes* contains:
 ```
 /closeFCAttributes/ [
-    /Amount/            100000000,
-    /FeeCreditRecordID/ h'A0227AC5202427DB551B8ABE08645378347A3C5F70E0E5734F147AD45CBC1BA5',
-    /Nonce/             h''
+    /Amount/              100000000,
+    /FeeCreditRecordID/   h'A0227AC5202427DB551B8ABE08645378347A3C5F70E0E5734F147AD45CBC1BA5',
+    /TargetUnitBacklink/  h''
 ]
 ```
 
@@ -390,7 +390,7 @@ the bill would invalidate that backlink.
    credit record.
 2. *FeeCreditRecordID* (byte string) is the identifier of the fee
    credit record to be closed.
-3. *Nonce* (byte string) is the backlink to the previous transaction
+3. *TargetUnitBacklink* (byte string) is the backlink to the previous transaction
    with the bill in the money partition that is used to reclaim the
    fee credit.
 

@@ -242,7 +242,7 @@ func spendInitialBillWithFeeCredits(t *testing.T, abNet *testpartition.Alphabill
 	require.NoError(t, err)
 
 	// create transferFC
-	transferFC, err := createTransferFC(feeAmount, unitID, testmoney.FCRID, 0, absoluteTimeout)
+	transferFC, err := createTransferFC(feeAmount+txFee, unitID, testmoney.FCRID, 0, absoluteTimeout)
 	require.NoError(t, err)
 
 	// send transferFC

@@ -403,7 +403,7 @@ func TestReclaimFeeCredit_LockedBillForCloseFC(t *testing.T) {
 
 		require.Equal(t, []byte{111}, res.CloseFC.TxRecord.TransactionOrder.UnitID()) // unitID matches FCB ID
 		require.Equal(t, []byte{123}, actualCloseFCAttr.TargetUnitID)                 // target unitID matches target bill ID
-		require.Equal(t, []byte{2}, actualCloseFCAttr.Nonce)                          // target nonce matches target bill txhash
+		require.Equal(t, []byte{2}, actualCloseFCAttr.TargetUnitBacklink)             // target unit backlink matches target bill txhash
 
 		// and bill must be unlocked
 		lockedBill, err := unitLocker.GetUnit(lockedCloseFCBill.UnitID)

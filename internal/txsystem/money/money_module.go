@@ -45,13 +45,13 @@ func NewMoneyModule(options *Options) (m *Module, err error) {
 	if options.feeCalculator == nil {
 		return nil, errors.New("fee calculator function is nil")
 	}
-	s.Savepoint()
+	savepointID := s.Savepoint()
 	defer func() {
 		if err != nil {
-			s.RollbackSavepoint()
+			s.RollbackToSavepoint(savepointID)
 			return
 		}
-		s.ReleaseSavepoint()
+		s.ReleaseToSavepoint(savepointID)
 		_, _, err = s.CalculateRoot()
 		if err != nil {
 			return

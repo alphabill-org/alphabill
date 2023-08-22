@@ -13,7 +13,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 )
 
-var _ txsystem.Module = &FeeAccount{}
+var _ txsystem.Module = (*FeeAccount)(nil)
 
 type (
 	FeeAccount struct {
@@ -39,11 +39,11 @@ func newFeeModule(systemIdentifier []byte, options *Options) (*FeeAccount, error
 	if len(options.initialAccountAddress) > 0 && options.initialAccountBalance.Cmp(big.NewInt(0)) > 0 {
 		address := common.BytesToAddress(options.initialAccountAddress)
 		log.Info("Adding an initial account %v with balance %v", address, options.initialAccountBalance)
-		s.Savepoint()
+		id := s.Savepoint()
 		stateDB := statedb.NewStateDB(s)
 		stateDB.CreateAccount(address)
 		stateDB.AddBalance(address, options.initialAccountBalance)
-		s.ReleaseSavepoint()
+		s.ReleaseToSavepoint(id)
 		_, _, err := s.CalculateRoot()
 		if err != nil {
 			return nil, err

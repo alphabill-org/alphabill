@@ -302,10 +302,10 @@ func TestBlockProcessor_TransferAndReclaimFeeCycle_TargetMoneyPartition(t *testi
 	err = blockProcessor.ProcessBlock(context.Background(), b)
 	require.NoError(t, err)
 
-	// verify money partition fee bill value (0) is increased by transferFC amount (50) + transfer fee amount (1)
+	// verify money partition fee bill value (0) is increased by transferFC amount (50)
 	moneyPartitionFeeBill, err := store.Do().GetBill(moneyPartitionFeeBillID)
 	require.NoError(t, err)
-	require.EqualValues(t, 51, moneyPartitionFeeBill.Value)
+	require.EqualValues(t, 50, moneyPartitionFeeBill.Value)
 
 	// and user bill (100) is decreased by transferFC.amount (50)
 	userBill, err := store.Do().GetBill(userBillID)
@@ -329,7 +329,7 @@ func TestBlockProcessor_TransferAndReclaimFeeCycle_TargetMoneyPartition(t *testi
 	// verify money partition fee bill does not change
 	moneyPartitionFeeBill, err = store.Do().GetBill(moneyPartitionFeeBillID)
 	require.NoError(t, err)
-	require.EqualValues(t, 51, moneyPartitionFeeBill.Value)
+	require.EqualValues(t, 50, moneyPartitionFeeBill.Value)
 
 	// and user bill does not change
 	userBill, err = store.Do().GetBill(userBillID)
@@ -361,7 +361,7 @@ func TestBlockProcessor_TransferAndReclaimFeeCycle_TargetMoneyPartition(t *testi
 	// verify money partition fee bill does not change
 	moneyPartitionFeeBill, err = store.Do().GetBill(moneyPartitionFeeBillID)
 	require.NoError(t, err)
-	require.EqualValues(t, 51, moneyPartitionFeeBill.Value)
+	require.EqualValues(t, 50, moneyPartitionFeeBill.Value)
 
 	// and user bill does not change
 	userBill, err = store.Do().GetBill(userBillID)
@@ -390,10 +390,10 @@ func TestBlockProcessor_TransferAndReclaimFeeCycle_TargetMoneyPartition(t *testi
 	err = blockProcessor.ProcessBlock(context.Background(), b)
 	require.NoError(t, err)
 
-	// verify money partition fee bill value (51) is decreased by closeFC amount (49) and increased by closeFC fee amount (1) and reclaimFC fee amount(1)
+	// verify money partition fee bill value (50) is decreased by closeFC amount (49) and increased by closeFC fee amount (1) and reclaimFC fee amount(1)
 	moneyPartitionFeeBill, err = store.Do().GetBill(moneyPartitionFeeBillID)
 	require.NoError(t, err)
-	require.EqualValues(t, 5, moneyPartitionFeeBill.Value)
+	require.EqualValues(t, 4, moneyPartitionFeeBill.Value)
 
 	// verify user bill (49) is increased closeFC amount (49) and decreased by closeFC fee amount (1) and reclaimFC fee amount(1)
 	// i.e. user spent total 4 tx worth of fees
@@ -485,10 +485,10 @@ func TestBlockProcessor_TransferAndReclaimFeeCycle_TargetTokenPartition(t *testi
 	err = blockProcessor.ProcessBlock(context.Background(), b)
 	require.NoError(t, err)
 
-	// verify token partition fee bill value (0) is increased by transferFC amount (20)
+	// verify token partition fee bill value (0) is increased by transferFC amount (20) - transferFC fee (1)
 	tokenPartitionFeeBill, err := store.Do().GetBill(tokenPartitionFeeBillID)
 	require.NoError(t, err)
-	require.EqualValues(t, 20, tokenPartitionFeeBill.Value)
+	require.EqualValues(t, 19, tokenPartitionFeeBill.Value)
 
 	// and money partition fee bill value (0) is increased by tx fee amount (1)
 	moneyPartitionFeeBill, err := store.Do().GetBill(moneyPartitionFeeBillID)
@@ -522,7 +522,7 @@ func TestBlockProcessor_TransferAndReclaimFeeCycle_TargetTokenPartition(t *testi
 	// and token partition fee bill does not change
 	tokenPartitionFeeBill, err = store.Do().GetBill(tokenPartitionFeeBillID)
 	require.NoError(t, err)
-	require.EqualValues(t, 20, tokenPartitionFeeBill.Value)
+	require.EqualValues(t, 19, tokenPartitionFeeBill.Value)
 
 	// and user bill does not change
 	userBill, err = store.Do().GetBill(userBillID)
@@ -559,7 +559,7 @@ func TestBlockProcessor_TransferAndReclaimFeeCycle_TargetTokenPartition(t *testi
 	// and token partition fee bill does not change
 	tokenPartitionFeeBill, err = store.Do().GetBill(tokenPartitionFeeBillID)
 	require.NoError(t, err)
-	require.EqualValues(t, 20, tokenPartitionFeeBill.Value)
+	require.EqualValues(t, 19, tokenPartitionFeeBill.Value)
 
 	// and user bill does not change
 	userBill, err = store.Do().GetBill(userBillID)
@@ -593,10 +593,10 @@ func TestBlockProcessor_TransferAndReclaimFeeCycle_TargetTokenPartition(t *testi
 	require.NoError(t, err)
 	require.EqualValues(t, 2, moneyPartitionFeeBill.Value)
 
-	// verify token partition fee bill value (20) is decreased by closeFC amount (18) and increased by closeFC fee amount (1)
+	// verify token partition fee bill value (19) is decreased by closeFC amount (18) and increased by closeFC fee amount (1)
 	tokenPartitionFeeBill, err = store.Do().GetBill(tokenPartitionFeeBillID)
 	require.NoError(t, err)
-	require.EqualValues(t, 3, tokenPartitionFeeBill.Value)
+	require.EqualValues(t, 2, tokenPartitionFeeBill.Value)
 
 	// verify user bill (79) is increased by closeFC amount (19) and decreased by closeFC fee amount (1) and reclaimFC fee amount(1)
 	// i.e. user spent total 4 tx worth of fees

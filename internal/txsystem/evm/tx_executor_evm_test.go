@@ -2,12 +2,12 @@ package evm
 
 import (
 	"bytes"
+	"fmt"
 	"math"
 	"math/big"
 	"testing"
 
 	abstate "github.com/alphabill-org/alphabill/internal/state"
-
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/alphabill-org/alphabill/internal/txsystem/evm/statedb"
 	"github.com/alphabill-org/alphabill/internal/types"
@@ -15,6 +15,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core"
 	evmcrypto "github.com/ethereum/go-ethereum/crypto"
+	"github.com/fxamacker/cbor/v2"
 	"github.com/stretchr/testify/require"
 )
 
@@ -65,6 +66,7 @@ func initStateDBWithAccountAndSC(t *testing.T, eoaAddr common.Address, balance u
 	scAddr := evmcrypto.CreateAddress(common.BytesToAddress(eoaAddr.Bytes()), 0)
 	stateDB.CreateAccount(scAddr)
 	stateDB.SetCode(scAddr, common.Hex2Bytes(counterContractCode))
+	require.NoError(t, stateDB.DBError())
 	return stateDB
 }
 
@@ -178,10 +180,11 @@ func Test_execute(t *testing.T) {
 		gp                 *core.GasPool
 	}
 	tests := []struct {
-		name       string
-		args       args
-		wantMeta   *types.ServerMetadata
-		wantErrStr string
+		name                 string
+		args                 args
+		wantErrStr           string
+		wantSuccessIndicator uint64
+		wantDetails          *ProcessingDetails
 	}{
 		{
 			name: "err - invalid attributes from is nil",
@@ -193,7 +196,9 @@ func Test_execute(t *testing.T) {
 				},
 				stateDB: statedb.NewStateDB(s),
 			},
-			wantErrStr: "invalid evm tx, from addr is nil",
+			wantErrStr:           "invalid evm tx, from addr is nil",
+			wantSuccessIndicator: types.TxStatusFailed,
+			wantDetails:          nil,
 		},
 		{
 			name: "err - insufficient funds",
@@ -205,7 +210,9 @@ func Test_execute(t *testing.T) {
 				},
 				stateDB: initStateDBWithAccountAndSC(t, fromAddr, 1000000),
 			},
-			wantErrStr: errInsufficientFunds.Error(),
+			wantErrStr:           errInsufficientFunds.Error(),
+			wantSuccessIndicator: types.TxStatusFailed,
+			wantDetails:          nil,
 		},
 		{
 			name: "err - block gas limit reached",
@@ -218,7 +225,9 @@ func Test_execute(t *testing.T) {
 				gp:      new(core.GasPool).AddGas(100),
 				stateDB: initStateDBWithAccountAndSC(t, fromAddr, 1000*DefaultGasPrice+1),
 			},
-			wantErrStr: "block limit error: gas limit reached",
+			wantErrStr:           "block limit error: gas limit reached",
+			wantSuccessIndicator: types.TxStatusFailed,
+			wantDetails:          nil,
 		},
 		{
 			name: "err - not enough to pay intrinsic cost", // contract creation intrinsic cost is higher than max gas
@@ -231,7 +240,9 @@ func Test_execute(t *testing.T) {
 				gp:      new(core.GasPool).AddGas(100000),
 				stateDB: initStateDBWithAccountAndSC(t, fromAddr, 1000*DefaultGasPrice+1),
 			},
-			wantErrStr: "tx intrinsic cost higher than max gas",
+			wantErrStr:           "tx intrinsic cost higher than max gas",
+			wantSuccessIndicator: types.TxStatusFailed,
+			wantDetails:          nil,
 		},
 		{
 			name: "err - runtime out of gas", // intrinsic cost is 0 as there is no data
@@ -245,7 +256,12 @@ func Test_execute(t *testing.T) {
 				gp:      new(core.GasPool).AddGas(100000),
 				stateDB: initStateDBWithAccountAndSC(t, fromAddr, 2500*DefaultGasPrice),
 			},
-			wantErrStr: "evm runtime error: out of gas",
+			// wantErrStr - no error, add failing transaction to block, work was done and fees will be taken
+			wantSuccessIndicator: types.TxStatusFailed,
+			wantDetails: &ProcessingDetails{
+				VmError:    "out of gas",
+				StateError: "",
+			},
 		},
 		{
 			name: "err - not enough funds for transfer",
@@ -259,7 +275,9 @@ func Test_execute(t *testing.T) {
 				gp:      new(core.GasPool).AddGas(100),
 				stateDB: initStateDBWithAccountAndSC(t, fromAddr, 1),
 			},
-			wantErrStr: "insufficient funds for transfer",
+			wantErrStr:           "insufficient funds for transfer",
+			wantSuccessIndicator: types.TxStatusFailed,
+			wantDetails:          nil,
 		},
 		{
 			name: "ok - transfer to unknown recipient address",
@@ -272,6 +290,11 @@ func Test_execute(t *testing.T) {
 				},
 				gp:      new(core.GasPool).AddGas(100),
 				stateDB: initStateDBWithAccountAndSC(t, fromAddr, 100),
+			},
+			wantSuccessIndicator: types.TxStatusSuccessful,
+			wantDetails: &ProcessingDetails{
+				VmError:    "",
+				StateError: "",
 			},
 		},
 		{
@@ -286,6 +309,30 @@ func Test_execute(t *testing.T) {
 				gp:      new(core.GasPool).AddGas(100000),
 				stateDB: initStateDBWithAccountAndSC(t, fromAddr, 53000*DefaultGasPrice+1),
 			},
+			wantSuccessIndicator: types.TxStatusSuccessful,
+			wantDetails: &ProcessingDetails{
+				VmError:    "",
+				StateError: "",
+			},
+		},
+		{
+			name: "ok - call get method",
+			args: args{
+				attr: &TxAttributes{
+					From:  fromAddr.Bytes(),
+					To:    evmcrypto.CreateAddress(common.BytesToAddress(fromAddr.Bytes()), 0).Bytes(),
+					Value: big.NewInt(0),
+					Data:  []byte{0x6D, 0x4C, 0xE6, 0x3C},
+					Gas:   53000,
+				},
+				gp:      new(core.GasPool).AddGas(100000),
+				stateDB: initStateDBWithAccountAndSC(t, fromAddr, 53000*DefaultGasPrice+1),
+			},
+			wantSuccessIndicator: types.TxStatusSuccessful,
+			wantDetails: &ProcessingDetails{
+				VmError:    "",
+				StateError: "",
+			},
 		},
 	}
 	for _, tt := range tests {
@@ -298,6 +345,27 @@ func Test_execute(t *testing.T) {
 			} else {
 				require.NoError(t, err)
 			}
+			require.Equal(t, metadata.SuccessIndicator, tt.wantSuccessIndicator)
+			if tt.wantDetails == nil {
+				require.Nil(t, metadata.ProcessingDetails)
+				return
+			}
+			require.NotNil(t, metadata.ProcessingDetails)
+			var details ProcessingDetails
+			require.NoError(t, cbor.Unmarshal(metadata.ProcessingDetails, &details))
+			if tt.wantDetails.VmError != "" {
+				require.Equal(t, details.VmError, tt.wantDetails.VmError)
+			}
+			if tt.wantDetails.StateError != "" {
+				require.Equal(t, details.StateError, tt.wantDetails.StateError)
+			}
 		})
 	}
+}
+
+func Test_errorToStr(t *testing.T) {
+	var err error = nil
+	require.Equal(t, "", errorToStr(err))
+	err = fmt.Errorf("custom error")
+	require.Equal(t, "custom error", errorToStr(err))
 }

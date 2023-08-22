@@ -55,9 +55,21 @@ func TestEVMPartition_DeployAndCallContract(t *testing.T) {
 
 	// call contract
 	contractAddr := evmcrypto.CreateAddress(common.BytesToAddress(from), 0)
-	callContractTx := createCallContractTx(from, contractAddr, t)
+	cABI, err := abi.JSON(bytes.NewBuffer([]byte(counterABI)))
+	require.NoError(t, err)
+
+	callContractTx := createCallContractTx(from, contractAddr, cABI.Methods["increment"].ID, t)
 	require.NoError(t, evmPartition.SubmitTx(callContractTx))
 	require.Eventually(t, testpartition.BlockchainContainsTx(evmPartition, callContractTx), test.WaitDuration, test.WaitTick)
+	_, _, txRecord, err := evmPartition.GetTxProof(callContractTx)
+	require.Equal(t, types.TxStatusSuccessful, txRecord.ServerMetadata.SuccessIndicator)
+	require.NotNil(t, txRecord.ServerMetadata.ProcessingDetails)
+	var details ProcessingDetails
+	require.NoError(t, cbor.Unmarshal(txRecord.ServerMetadata.ProcessingDetails, &details))
+	require.NoError(t, err)
+	require.Equal(t, details.VmError, "")
+	require.Equal(t, details.StateError, "")
+	require.Empty(t, details.ReturnData) // increment does not return anything
 }
 
 func createTransferTx(t *testing.T, from []byte, to []byte) *types.TransactionOrder {
@@ -81,15 +93,11 @@ func createTransferTx(t *testing.T, from []byte, to []byte) *types.TransactionOr
 	}
 }
 
-func createCallContractTx(from []byte, addr common.Address, t *testing.T) *types.TransactionOrder {
-	cABI, err := abi.JSON(bytes.NewBuffer([]byte(counterABI)))
-	require.NoError(t, err)
-
-	inc := cABI.Methods["increment"]
+func createCallContractTx(from []byte, addr common.Address, methodID []byte, t *testing.T) *types.TransactionOrder {
 	evmAttr := &TxAttributes{
 		From:  from,
 		To:    addr.Bytes(),
-		Data:  inc.ID,
+		Data:  methodID,
 		Value: big.NewInt(0),
 		Gas:   100000,
 	}

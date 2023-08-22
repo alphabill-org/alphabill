@@ -26,7 +26,7 @@ const (
 )
 
 type (
-	EvmProcessingDetails struct {
+	ProcessingDetails struct {
 		_          struct{} `cbor:",toarray"`
 		VmError    string
 		StateError string
@@ -43,7 +43,7 @@ var (
 	errGasOverflow                  = errors.New("gas uint64 overflow")
 )
 
-func (d *EvmProcessingDetails) Bytes() ([]byte, error) {
+func (d *ProcessingDetails) Bytes() ([]byte, error) {
 	return cbor.Marshal(d)
 }
 
@@ -83,8 +83,8 @@ func execute(currentBlockNumber uint64, stateDB *statedb.StateDB, attr *TxAttrib
 		isContractCreation = attr.To == nil
 		toAddr             = attr.ToAddr()
 	)
-	// todo: "gas handling": Subtract the max gas cost from callers balance, will be refunded later in case less is used
-	// stateDB.SubBalance(sender.Address(), calcGasPrice(attr.Gas))
+	// Subtract the max gas cost from callers balance, will be refunded later in case less is used
+	stateDB.SubBalance(sender.Address(), calcGasPrice(attr.Gas, gasUnitPrice))
 	// calculate initial gas cost per tx type and input data
 	gas, err := calcIntrinsicGas(attr.Data, isContractCreation)
 	if err != nil {
@@ -117,21 +117,13 @@ func execute(currentBlockNumber uint64, stateDB *statedb.StateDB, attr *TxAttrib
 		contractAddr = vm.AccountRef(attr.To).Address()
 		ret, gasRemaining, vmErr = evm.Call(sender, contractAddr, attr.Data, gasRemaining, attr.Value)
 	}
-	// todo: "gas handling" Refund ETH for remaining gas, exchanged at the original rate.
-	// stateDB.AddBalance(sender.Address(), calcGasPrice(gasRemaining))
-	if vmErr != nil {
-		return nil, fmt.Errorf("evm runtime error: %w", vmErr)
-	}
-	if stateDB.DBError() != nil {
-		return nil, stateDB.DBError()
-	}
+	// Refund ETH for remaining gas, exchanged at the original rate.
+	stateDB.AddBalance(sender.Address(), calcGasPrice(gasRemaining, gasUnitPrice))
 	// todo: "gas handling" currently failing transactions are not added to block, hence we can only charge for successful calls
 	// calculate gas price for used gas
 	txPrice := calcGasPrice(attr.Gas-gasRemaining, gasUnitPrice)
-	log.Trace("total gas: %v gas units", attr.Gas-gasRemaining)
-	log.Trace("total tx cost: %v mia", weiToAlpha(txPrice))
-	stateDB.SubBalance(sender.Address(), txPrice)
-	// add remaining back to block gas pool
+	log.Trace("total gas: %v gas units, price in alpha %v", attr.Gas-gasRemaining, weiToAlpha(txPrice))
+	// also add remaining back to block gas pool
 	gp.AddGas(gasRemaining)
 	// TODO: handle a case when the smart contract calls another smart contract.
 	targetUnits := []types.UnitID{attr.From}
@@ -142,7 +134,7 @@ func execute(currentBlockNumber uint64, stateDB *statedb.StateDB, attr *TxAttrib
 	if vmErr != nil {
 		success = types.TxStatusFailed
 	}
-	evmProcessingDetails := &EvmProcessingDetails{
+	evmProcessingDetails := &ProcessingDetails{
 		ReturnData: ret,
 		VmError:    errorToStr(vmErr),
 		StateError: errorToStr(stateDB.DBError()),

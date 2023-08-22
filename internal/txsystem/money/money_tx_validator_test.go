@@ -456,7 +456,7 @@ func TestReclaimFC(t *testing.T) {
 							TransactionOrder: testfc.NewCloseFC(t,
 								testfc.NewCloseFCAttr(
 									testfc.WithCloseFCAmount(2),
-									testfc.WithCloseFCNonce(backlink),
+									testfc.WithCloseFCTargetUnitBacklink(backlink),
 								),
 							),
 							ServerMetadata: &types.ServerMetadata{ActualFee: 10},
@@ -467,10 +467,10 @@ func TestReclaimFC(t *testing.T) {
 			wantErr: ErrReclaimFCInvalidTxFee,
 		},
 		{
-			name:    "Invalid nonce",
-			bd:      newBillData(amount, []byte("nonce not equal to bill backlink")),
+			name:    "Invalid target unit backlink",
+			bd:      newBillData(amount, []byte("target unit backlink not equal to bill backlink")),
 			tx:      testfc.NewReclaimFC(t, signer, nil),
-			wantErr: ErrReclaimFCInvalidNonce,
+			wantErr: ErrReclaimFCInvalidTargetUnitBacklink,
 		},
 		{
 			name:    "Invalid backlink",

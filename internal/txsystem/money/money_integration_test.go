@@ -273,7 +273,7 @@ func createDCAndSwapTxs(
 	var targetValue uint64 = 0
 	for i, id := range ids {
 		_, billData := getBill(t, s, id)
-		// NB! dc transfer nonce must be equal to swap tx unit id
+		// NB! dc transfer target backlink must be equal to swap tx unit id
 		targetValue += billData.V
 		tx, _ := createDCTransfer(t, id, billData.V, billData.Backlink, targetID, targetBacklink)
 		signer, _ := abcrypto.NewInMemorySecp256K1SignerFromKey(decodeHex(privKey2))

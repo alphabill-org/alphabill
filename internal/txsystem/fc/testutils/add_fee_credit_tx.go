@@ -15,7 +15,7 @@ import (
 var (
 	unitID               = test.NewUnitID(1)
 	systemID             = []byte{0, 0, 0, 0}
-	nonce                = []byte{3}
+	targetUnitBacklink   = []byte{3}
 	backlink             = []byte{4}
 	amount               = uint64(50)
 	maxFee               = uint64(2)

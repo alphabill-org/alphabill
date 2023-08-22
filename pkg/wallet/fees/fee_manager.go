@@ -280,7 +280,7 @@ func (w *FeeManager) ReclaimFeeCredit(ctx context.Context, cmd ReclaimFeeCmd) (*
 		return nil, fmt.Errorf("failed to unmarshal closeFC attributes: %w", err)
 	}
 
-	reclaimFC, err := txbuilder.NewReclaimFCTx(w.moneySystemID, closeFCAttr.TargetUnitID, moneyTimeout, closeFCProof, closeFCAttr.Nonce, accountKey)
+	reclaimFC, err := txbuilder.NewReclaimFCTx(w.moneySystemID, closeFCAttr.TargetUnitID, moneyTimeout, closeFCProof, closeFCAttr.TargetUnitBacklink, accountKey)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create reclaimFC transaction: %w", err)
 	}
@@ -634,7 +634,7 @@ func (w *FeeManager) handleLockedReclaimFC(ctx context.Context, bills []*wallet.
 			}
 			return nil, reclaimFCProof, nil
 		} else {
-			// check if locked bill still usable (target bill txhash equals closeFC nonce i.e. bill has not been used after locking)
+			// check if locked bill still usable (target bill txhash equals closeFC target unit backlink i.e. bill has not been used after locking)
 			// if yes => create new reclaimFC
 			// if not => log money lost error
 			// TODO https://guardtime.atlassian.net/browse/AB-1083

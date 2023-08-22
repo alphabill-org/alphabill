@@ -22,7 +22,7 @@ var (
 	ErrRecordIDExists            = errors.New("fee tx cannot contain fee credit reference")
 	ErrFeeProofExists            = errors.New("fee tx cannot contain fee authorization proof")
 	ErrInvalidFCValue            = errors.New("the amount to transfer cannot exceed the value of the bill")
-	ErrInvalidFeeValue           = errors.New("the transaction fee cannot exceed the transferred amount")
+	ErrInvalidFeeValue           = errors.New("the transaction max fee cannot exceed the transferred amount")
 	ErrInvalidBacklink           = errors.New("the transaction backlink is not equal to unit backlink")
 )
 

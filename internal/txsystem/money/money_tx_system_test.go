@@ -349,11 +349,11 @@ func TestEndBlock_FeesConsolidation(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, txSystem.Commit())
 
-	// verify that money fee credit bill is 50+1=51
+	// verify that money fee credit bill is 50
 	moneyFCUnitID := []byte{2}
 	moneyFCUnit, err := rmaTree.GetUnit(moneyFCUnitID, false)
 	require.NoError(t, err)
-	require.EqualValues(t, 51, moneyFCUnit.Data().SummaryValueInput())
+	require.EqualValues(t, 50, moneyFCUnit.Data().SummaryValueInput())
 
 	// process reclaimFC (with closeFC amount=50 and fee=1)
 	txSystem.BeginBlock(0)
@@ -363,7 +363,7 @@ func TestEndBlock_FeesConsolidation(t *testing.T) {
 		testfc.NewCloseFCAttr(
 			testfc.WithCloseFCAmount(50),
 			testfc.WithCloseFCTargetUnitID(initialBill.ID),
-			testfc.WithCloseFCNonce(transferFCHash),
+			testfc.WithCloseFCTargetUnitBacklink(transferFCHash),
 		),
 	)
 	closeFCRecord := &types.TransactionRecord{
@@ -388,10 +388,10 @@ func TestEndBlock_FeesConsolidation(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, txSystem.Commit())
 
-	// verify that moneyFCB=51-50+1+1=3 (moneyFCB - closeAmount + closeFee + reclaimFee)
+	// verify that moneyFCB=50-50+1+1=3 (moneyFCB - closeAmount + closeFee + reclaimFee)
 	moneyFCUnit, err = rmaTree.GetUnit(moneyFCUnitID, false)
 	require.NoError(t, err)
-	require.EqualValues(t, 3, moneyFCUnit.Data().SummaryValueInput())
+	require.EqualValues(t, 2, moneyFCUnit.Data().SummaryValueInput())
 }
 
 func TestRegisterData_Revert(t *testing.T) {
@@ -482,7 +482,7 @@ func TestExecute_FeeCreditSequence_OK(t *testing.T) {
 		testfc.NewCloseFCAttr(
 			testfc.WithCloseFCAmount(remainingValue),
 			testfc.WithCloseFCTargetUnitID(initialBillID),
-			testfc.WithCloseFCNonce(transferFCHash),
+			testfc.WithCloseFCTargetUnitBacklink(transferFCHash),
 		),
 		testtransaction.WithUnitId(fcrUnitID),
 		testtransaction.WithOwnerProof(script.PredicateArgumentEmpty()),
@@ -572,7 +572,7 @@ func createDCTransferAndSwapTxs(
 	var targetValue uint64 = 0
 	for i, id := range ids {
 		_, billData := getBill(t, rmaTree, id)
-		// NB! dc transfer nonce must be equal to swap tx unit id
+		// NB! dc transfer target backlink must be equal to swap tx unit id
 		targetValue += billData.V
 		tx, _ := createDCTransfer(t, id, billData.V, billData.Backlink, targetID, targetBacklink)
 		txr := &types.TransactionRecord{

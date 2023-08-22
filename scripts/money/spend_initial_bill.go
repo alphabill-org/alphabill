@@ -82,11 +82,12 @@ func main() {
 	}
 	absoluteTimeout := res.RoundNumber + *timeout
 
-	feeAmount := uint64(3)
+	txFee := uint64(1)
+	feeAmount := uint64(2)
 	fcrID := util.SameShardIDBytes(billID, hash.Sum256(pubKey))
 
 	// create transferFC
-	transferFC, err := createTransferFC(feeAmount, billID, fcrID, res.RoundNumber, absoluteTimeout)
+	transferFC, err := createTransferFC(feeAmount+txFee, billID, fcrID, res.RoundNumber, absoluteTimeout)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -138,7 +139,7 @@ func main() {
 	}
 
 	// create transfer tx
-	tx, err := createTransferTx(pubKey, billID, *billValue-feeAmount, fcrID, absoluteTimeout, transferFC.Hash(crypto.SHA256))
+	tx, err := createTransferTx(pubKey, billID, *billValue-feeAmount-txFee, fcrID, absoluteTimeout, transferFC.Hash(crypto.SHA256))
 	if err != nil {
 		log.Fatal(err)
 	}

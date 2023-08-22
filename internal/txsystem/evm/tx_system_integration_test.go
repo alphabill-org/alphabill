@@ -57,8 +57,7 @@ func TestEVMPartition_DeployAndCallContract(t *testing.T) {
 	var details ProcessingDetails
 	require.NoError(t, txRecord.UnmarshalProcessingDetails(&details))
 	require.NoError(t, err)
-	require.Equal(t, details.VmError, "")
-	require.Equal(t, details.StateError, "")
+	require.Equal(t, details.ErrorDetails, "")
 	// call contract
 	contractAddr := evmcrypto.CreateAddress(common.BytesToAddress(from), 0)
 	require.Equal(t, details.ContractAddr, contractAddr)
@@ -76,8 +75,7 @@ func TestEVMPartition_DeployAndCallContract(t *testing.T) {
 	require.NotNil(t, txRecord.ServerMetadata.ProcessingDetails)
 	require.NoError(t, txRecord.UnmarshalProcessingDetails(&details))
 	require.NoError(t, err)
-	require.Equal(t, details.VmError, "")
-	require.Equal(t, details.StateError, "")
+	require.Equal(t, details.ErrorDetails, "")
 	require.Empty(t, details.ReturnData) // increment does not return anything
 	require.Equal(t, details.ContractAddr, contractAddr)
 }

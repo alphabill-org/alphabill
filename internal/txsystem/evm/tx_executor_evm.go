@@ -28,8 +28,7 @@ const (
 type (
 	ProcessingDetails struct {
 		_            struct{} `cbor:",toarray"`
-		VmError      string
-		StateError   string
+		ErrorDetails string
 		ReturnData   []byte
 		ContractAddr common.Address
 	}
@@ -132,14 +131,20 @@ func execute(currentBlockNumber uint64, stateDB *statedb.StateDB, attr *TxAttrib
 		targetUnits = append(targetUnits, attr.To)
 	}
 	success := types.TxStatusSuccessful
-	if vmErr != nil {
+	var errorDetail error
+	if vmErr != nil || stateDB.DBError() != nil {
 		success = types.TxStatusFailed
+		if vmErr != nil {
+			errorDetail = fmt.Errorf("evm runtime error: %w", vmErr)
+		}
+		if stateDB.DBError() != nil {
+			errorDetail = fmt.Errorf("%w state db error: %w", errorDetail, stateDB.DBError())
+		}
 	}
 	evmProcessingDetails := &ProcessingDetails{
 		ReturnData:   ret,
 		ContractAddr: contractAddr,
-		VmError:      errorToStr(vmErr),
-		StateError:   errorToStr(stateDB.DBError()),
+		ErrorDetails: errorToStr(errorDetail),
 	}
 	detailBytes, err := evmProcessingDetails.Bytes()
 	if err != nil {

@@ -259,8 +259,8 @@ func Test_execute(t *testing.T) {
 			// wantErrStr - no error, add failing transaction to block, work was done and fees will be taken
 			wantSuccessIndicator: types.TxStatusFailed,
 			wantDetails: &ProcessingDetails{
-				VmError:    "out of gas",
-				StateError: "",
+				ErrorDetails: "evm runtime error: out of gas",
+				ContractAddr: evmcrypto.CreateAddress(common.BytesToAddress(fromAddr.Bytes()), 0),
 			},
 		},
 		{
@@ -293,8 +293,7 @@ func Test_execute(t *testing.T) {
 			},
 			wantSuccessIndicator: types.TxStatusSuccessful,
 			wantDetails: &ProcessingDetails{
-				VmError:    "",
-				StateError: "",
+				ErrorDetails: "",
 			},
 		},
 		{
@@ -311,8 +310,8 @@ func Test_execute(t *testing.T) {
 			},
 			wantSuccessIndicator: types.TxStatusSuccessful,
 			wantDetails: &ProcessingDetails{
-				VmError:    "",
-				StateError: "",
+				ErrorDetails: "",
+				ContractAddr: evmcrypto.CreateAddress(common.BytesToAddress(fromAddr.Bytes()), 0),
 			},
 		},
 		{
@@ -330,8 +329,8 @@ func Test_execute(t *testing.T) {
 			},
 			wantSuccessIndicator: types.TxStatusSuccessful,
 			wantDetails: &ProcessingDetails{
-				VmError:    "",
-				StateError: "",
+				ErrorDetails: "",
+				ContractAddr: evmcrypto.CreateAddress(common.BytesToAddress(fromAddr.Bytes()), 0),
 			},
 		},
 	}
@@ -353,11 +352,8 @@ func Test_execute(t *testing.T) {
 			require.NotNil(t, metadata.ProcessingDetails)
 			var details ProcessingDetails
 			require.NoError(t, cbor.Unmarshal(metadata.ProcessingDetails, &details))
-			if tt.wantDetails.VmError != "" {
-				require.Equal(t, details.VmError, tt.wantDetails.VmError)
-			}
-			if tt.wantDetails.StateError != "" {
-				require.Equal(t, details.StateError, tt.wantDetails.StateError)
+			if tt.wantDetails.ErrorDetails != "" {
+				require.Equal(t, details.ErrorDetails, tt.wantDetails.ErrorDetails)
 			}
 		})
 	}

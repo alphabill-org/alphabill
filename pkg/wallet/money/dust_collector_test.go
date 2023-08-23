@@ -46,7 +46,7 @@ func TestDC_OK(t *testing.T) {
 	require.EqualValues(t, targetBill.GetID(), txo.UnitID())
 
 	// and no locked units exists
-	units, err := unitLocker.GetUnits()
+	units, err := unitLocker.GetUnits(backendMockWrapper.accountKey.PubKey)
 	require.NoError(t, err)
 	require.Len(t, units, 0)
 }
@@ -66,7 +66,7 @@ func TestDCWontRunForSingleBill(t *testing.T) {
 	require.Nil(t, swapProof)
 
 	// and no locked units exists
-	units, err := unitLocker.GetUnits()
+	units, err := unitLocker.GetUnits(backendMockWrapper.accountKey.PubKey)
 	require.NoError(t, err)
 	require.Len(t, units, 0)
 }
@@ -102,7 +102,7 @@ func TestAllBillsAreSwapped_WhenWalletBillCountEqualToMaxBillCount(t *testing.T)
 	require.Equal(t, targetBill.GetID(), swapTxo.UnitID())
 
 	// and no locked units exists
-	units, err := unitLocker.GetUnits()
+	units, err := unitLocker.GetUnits(backendMockWrapper.accountKey.PubKey)
 	require.NoError(t, err)
 	require.Len(t, units, 0)
 }
@@ -138,7 +138,7 @@ func TestOnlyFirstNBillsAreSwapped_WhenBillCountOverLimit(t *testing.T) {
 	require.Equal(t, targetBill.GetID(), swapTxo.UnitID())
 
 	// and no locked units exists
-	units, err := unitLocker.GetUnits()
+	units, err := unitLocker.GetUnits(backendMockWrapper.accountKey.PubKey)
 	require.NoError(t, err)
 	require.Len(t, units, 0)
 }
@@ -162,11 +162,12 @@ func TestExistingDC_OK(t *testing.T) {
 	w := NewDustCollector(billtx.DefaultSystemIdentifier, 10, backendMockWrapper.backendMock, unitLocker)
 
 	// when locked unit exists in wallet
-	err := unitLocker.LockUnit(&unitlock.LockedUnit{
-		UnitID:     targetBill.GetID(),
-		TxHash:     targetBill.GetTxHash(),
-		LockReason: unitlock.LockReasonCollectDust,
-	})
+	err := unitLocker.LockUnit(unitlock.NewLockedUnit(
+		backendMockWrapper.accountKey.PubKey,
+		targetBill.GetID(),
+		targetBill.GetTxHash(),
+		unitlock.LockReasonCollectDust,
+	))
 	require.NoError(t, err)
 
 	// and dc is run
@@ -185,7 +186,7 @@ func TestExistingDC_OK(t *testing.T) {
 	require.EqualValues(t, targetBill.GetID(), txo.UnitID())
 
 	// and no locked units exists
-	units, err := unitLocker.GetUnits()
+	units, err := unitLocker.GetUnits(backendMockWrapper.accountKey.PubKey)
 	require.NoError(t, err)
 	require.Len(t, units, 0)
 }
@@ -204,11 +205,12 @@ func TestExistingDC_UnconfirmedDCTxs_NewSwapIsSent(t *testing.T) {
 	w := NewDustCollector(billtx.DefaultSystemIdentifier, 10, backendMockWrapper.backendMock, unitLocker)
 
 	// when locked unit exists in wallet
-	err := unitLocker.LockUnit(&unitlock.LockedUnit{
-		UnitID:     targetBill.GetID(),
-		TxHash:     targetBill.GetTxHash(),
-		LockReason: unitlock.LockReasonCollectDust,
-	})
+	err := unitLocker.LockUnit(unitlock.NewLockedUnit(
+		backendMockWrapper.accountKey.PubKey,
+		targetBill.GetID(),
+		targetBill.GetTxHash(),
+		unitlock.LockReasonCollectDust,
+	))
 	require.NoError(t, err)
 
 	// and dc is run
@@ -227,7 +229,7 @@ func TestExistingDC_UnconfirmedDCTxs_NewSwapIsSent(t *testing.T) {
 	require.EqualValues(t, targetBill.GetID(), txo.UnitID())
 
 	// and no locked units exists
-	units, err := unitLocker.GetUnits()
+	units, err := unitLocker.GetUnits(backendMockWrapper.accountKey.PubKey)
 	require.NoError(t, err)
 	require.Len(t, units, 0)
 }
@@ -242,12 +244,13 @@ func TestExistingDC_TargetUnitSwapIsConfirmed_ProofIsReturned(t *testing.T) {
 	unitLocker := unitlock.NewInMemoryUnitLocker()
 	w := NewDustCollector(billtx.DefaultSystemIdentifier, 10, backendMockWrapper.backendMock, unitLocker)
 
-	err := unitLocker.LockUnit(&unitlock.LockedUnit{
-		UnitID:       targetBill.GetID(),
-		TxHash:       targetBill.GetTxHash(),
-		LockReason:   unitlock.LockReasonCollectDust,
-		Transactions: []*unitlock.Transaction{unitlock.NewTransaction(proofs[0].TxRecord.TransactionOrder)},
-	})
+	err := unitLocker.LockUnit(unitlock.NewLockedUnit(
+		backendMockWrapper.accountKey.PubKey,
+		targetBill.GetID(),
+		targetBill.GetTxHash(),
+		unitlock.LockReasonCollectDust,
+		unitlock.NewTransaction(proofs[0].TxRecord.TransactionOrder),
+	))
 	require.NoError(t, err)
 
 	// when dc is run
@@ -259,7 +262,7 @@ func TestExistingDC_TargetUnitSwapIsConfirmed_ProofIsReturned(t *testing.T) {
 	require.Equal(t, proofs[0], swapProof)
 
 	// and no locked units exists
-	units, err := unitLocker.GetUnits()
+	units, err := unitLocker.GetUnits(backendMockWrapper.accountKey.PubKey)
 	require.NoError(t, err)
 	require.Len(t, units, 0)
 }
@@ -284,11 +287,12 @@ func TestExistingDC_TargetUnitIsInvalid_NewSwapIsSent(t *testing.T) {
 	w := NewDustCollector(billtx.DefaultSystemIdentifier, 10, backendMockWrapper.backendMock, unitLocker)
 
 	// lock target bill, but change tx hash so that locked unit is considered invalid
-	err := unitLocker.LockUnit(&unitlock.LockedUnit{
-		UnitID:     targetBill.GetID(),
-		TxHash:     hash.Sum256(targetBill.GetTxHash()),
-		LockReason: unitlock.LockReasonCollectDust,
-	})
+	err := unitLocker.LockUnit(unitlock.NewLockedUnit(
+		backendMockWrapper.accountKey.PubKey,
+		targetBill.GetID(),
+		hash.Sum256(targetBill.GetTxHash()),
+		unitlock.LockReasonCollectDust,
+	))
 	require.NoError(t, err)
 
 	// when dc is run
@@ -307,7 +311,39 @@ func TestExistingDC_TargetUnitIsInvalid_NewSwapIsSent(t *testing.T) {
 	require.EqualValues(t, targetBill.GetID(), txo.UnitID())
 
 	// and no locked units exists
-	units, err := unitLocker.GetUnits()
+	units, err := unitLocker.GetUnits(backendMockWrapper.accountKey.PubKey)
+	require.NoError(t, err)
+	require.Len(t, units, 0)
+}
+
+func TestExistingDC_DCOnSecondAccountDoesNotClearFirstAccountUnitLock(t *testing.T) {
+	// create wallet with 3 bills
+	var bills []*wallet.Bill
+	for i := 0; i < 3; i++ {
+		bills = append(bills, createBill(uint64(i)))
+	}
+	backendMockWrapper := newBackendAPIMock(t, bills)
+	unitLocker := unitlock.NewInMemoryUnitLocker()
+
+	w := NewDustCollector(billtx.DefaultSystemIdentifier, maxBillsForDustCollection, backendMockWrapper.backendMock, unitLocker)
+
+	// lock random bill before swap
+	lockedUnit := unitlock.NewLockedUnit([]byte{200}, []byte{1}, []byte{2}, unitlock.LockReasonCollectDust)
+	err := unitLocker.LockUnit(lockedUnit)
+	require.NoError(t, err)
+
+	// when dc is run for account 1
+	swapTx, err := w.CollectDust(context.Background(), backendMockWrapper.accountKey)
+	require.NoError(t, err)
+	require.NotNil(t, swapTx)
+
+	// then the previously locked unit is not changed
+	actualLockedUnit, err := unitLocker.GetUnit(lockedUnit.AccountID, lockedUnit.UnitID)
+	require.NoError(t, err)
+	require.Equal(t, lockedUnit, actualLockedUnit)
+
+	// and no locked unit exists for account 1
+	units, err := unitLocker.GetUnits(backendMockWrapper.accountKey.PubKey)
 	require.NoError(t, err)
 	require.Len(t, units, 0)
 }

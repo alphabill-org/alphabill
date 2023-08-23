@@ -2,6 +2,7 @@ package unitlock
 
 import (
 	"crypto"
+	"errors"
 	"path/filepath"
 
 	"github.com/alphabill-org/alphabill/internal/types"
@@ -25,6 +26,7 @@ type (
 	}
 
 	LockedUnit struct {
+		AccountID    []byte         `json:"accountId"`    // account id of the unit e.g. a public key
 		UnitID       []byte         `json:"unitId"`       // id of the locked unit
 		TxHash       []byte         `json:"txHash"`       // state hash of the locked unit
 		LockReason   LockReason     `json:"lockReason"`   // reason for locking the bill
@@ -37,10 +39,10 @@ type (
 	}
 
 	UnitStore interface {
-		GetUnit(unitID []byte) (*LockedUnit, error)
-		GetUnits() ([]*LockedUnit, error)
+		GetUnit(accountID, unitID []byte) (*LockedUnit, error)
+		GetUnits(accountID []byte) ([]*LockedUnit, error)
 		PutUnit(unit *LockedUnit) error
-		DeleteUnit(unitID []byte) error
+		DeleteUnit(accountID, unitID []byte) error
 		Close() error
 	}
 )
@@ -53,8 +55,9 @@ func NewUnitLocker(dir string) (*UnitLocker, error) {
 	return &UnitLocker{db: store}, nil
 }
 
-func NewLockedUnit(unitID []byte, txHash []byte, lockReason LockReason, transactions ...*Transaction) *LockedUnit {
+func NewLockedUnit(accountID, unitID, txHash []byte, lockReason LockReason, transactions ...*Transaction) *LockedUnit {
 	return &LockedUnit{
+		AccountID:    accountID,
 		UnitID:       unitID,
 		TxHash:       txHash,
 		LockReason:   lockReason,
@@ -73,16 +76,16 @@ func (l *UnitLocker) LockUnit(unit *LockedUnit) error {
 	return l.db.PutUnit(unit)
 }
 
-func (l *UnitLocker) UnlockUnit(unitID []byte) error {
-	return l.db.DeleteUnit(unitID)
+func (l *UnitLocker) UnlockUnit(accountID, unitID []byte) error {
+	return l.db.DeleteUnit(accountID, unitID)
 }
 
-func (l *UnitLocker) GetUnit(unitID []byte) (*LockedUnit, error) {
-	return l.db.GetUnit(unitID)
+func (l *UnitLocker) GetUnit(accountID, unitID []byte) (*LockedUnit, error) {
+	return l.db.GetUnit(accountID, unitID)
 }
 
-func (l *UnitLocker) GetUnits() ([]*LockedUnit, error) {
-	return l.db.GetUnits()
+func (l *UnitLocker) GetUnits(accountID []byte) ([]*LockedUnit, error) {
+	return l.db.GetUnits(accountID)
 }
 
 func (l *UnitLocker) Close() error {
@@ -102,35 +105,61 @@ func (r LockReason) String() string {
 }
 
 type InMemoryUnitLocker struct {
-	units map[string]*LockedUnit
+	units map[string]map[string]*LockedUnit
 }
 
 func NewInMemoryUnitLocker() *InMemoryUnitLocker {
-	return &InMemoryUnitLocker{units: map[string]*LockedUnit{}}
+	return &InMemoryUnitLocker{units: map[string]map[string]*LockedUnit{}}
 }
 
-func (m *InMemoryUnitLocker) GetUnits() ([]*LockedUnit, error) {
+func (m *InMemoryUnitLocker) GetUnits(accountID []byte) ([]*LockedUnit, error) {
 	var units []*LockedUnit
-	for _, unit := range m.units {
+	for _, unit := range m.units[string(accountID)] {
 		units = append(units, unit)
 	}
 	return units, nil
 }
 
-func (m *InMemoryUnitLocker) GetUnit(unitID []byte) (*LockedUnit, error) {
-	return m.units[string(unitID)], nil
+func (m *InMemoryUnitLocker) GetUnit(accountID, unitID []byte) (*LockedUnit, error) {
+	unitsMap := m.units[string(accountID)]
+	return unitsMap[string(unitID)], nil
 }
 
 func (m *InMemoryUnitLocker) LockUnit(lockedBill *LockedUnit) error {
-	m.units[string(lockedBill.UnitID)] = lockedBill
+	unitsMap, ok := m.units[string(lockedBill.AccountID)]
+	if !ok {
+		unitsMap = map[string]*LockedUnit{}
+		m.units[string(lockedBill.AccountID)] = unitsMap
+	}
+	unitsMap[string(lockedBill.UnitID)] = lockedBill
 	return nil
 }
 
-func (m *InMemoryUnitLocker) UnlockUnit(unitID []byte) error {
-	delete(m.units, string(unitID))
+func (m *InMemoryUnitLocker) UnlockUnit(accountID, unitID []byte) error {
+	unitsMap, ok := m.units[string(accountID)]
+	if !ok {
+		return nil
+	}
+	delete(unitsMap, string(unitID))
 	return nil
 }
 
 func (m *InMemoryUnitLocker) Close() error {
+	return nil
+}
+
+func (l *LockedUnit) isValid() error {
+	if l == nil {
+		return errors.New("unit is nil")
+	}
+	if l.AccountID == nil {
+		return errors.New("unit account id is nil")
+	}
+	if l.UnitID == nil {
+		return errors.New("unit id is nil")
+	}
+	if l.TxHash == nil {
+		return errors.New("tx hash is nil")
+	}
 	return nil
 }

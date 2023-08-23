@@ -67,7 +67,7 @@ func handleReclaimFeeCreditTx(s *state.State, hashAlgorithm crypto.Hash, trustBa
 			&reclaimFeeCreditTx{
 				tx: tx, attr: attr, closeFCTransferAttr: closeFCAttr, reclaimFee: fee, closeFee: closeFeeCreditTransfer.ServerMetadata.ActualFee})
 
-		return &types.ServerMetadata{ActualFee: fee, TargetUnits: []types.UnitID{unitID}}, nil
+		return &types.ServerMetadata{ActualFee: fee, TargetUnits: []types.UnitID{unitID}, SuccessIndicator: types.TxStatusSuccessful}, nil
 	}
 }
 

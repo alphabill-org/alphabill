@@ -2,19 +2,22 @@ package evm
 
 import (
 	"bytes"
+	"fmt"
 	"math"
 	"math/big"
 	"testing"
 
 	abstate "github.com/alphabill-org/alphabill/internal/state"
-
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/alphabill-org/alphabill/internal/txsystem/evm/statedb"
 	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core"
+	"github.com/ethereum/go-ethereum/core/vm"
 	evmcrypto "github.com/ethereum/go-ethereum/crypto"
+	"github.com/fxamacker/cbor/v2"
+	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
 )
 
@@ -61,10 +64,18 @@ func initStateDBWithAccountAndSC(t *testing.T, eoaAddr common.Address, balance u
 	stateDB := statedb.NewStateDB(s)
 	stateDB.CreateAccount(eoaAddr)
 	stateDB.AddBalance(eoaAddr, big.NewInt(int64(balance)))
-	// create a contract
-	scAddr := evmcrypto.CreateAddress(common.BytesToAddress(eoaAddr.Bytes()), 0)
-	stateDB.CreateAccount(scAddr)
-	stateDB.SetCode(scAddr, common.Hex2Bytes(counterContractCode))
+	// deploy a contract
+	evmAttr := &TxAttributes{
+		From:  eoaAddr.Bytes(),
+		Data:  common.Hex2Bytes(counterContractCode),
+		Value: big.NewInt(0),
+		Gas:   1000000000000000,
+	}
+	blockCtx := newBlockContext(0)
+	evm := vm.NewEVM(blockCtx, newTxContext(evmAttr, big.NewInt(0)), stateDB, newChainConfig(new(big.Int).SetBytes(systemIdentifier)), newVMConfig())
+	_, _, _, err := evm.Create(vm.AccountRef(eoaAddr), evmAttr.Data, 1000000000000000, evmAttr.Value)
+	require.NoError(t, err)
+	require.NoError(t, stateDB.DBError())
 	return stateDB
 }
 
@@ -169,6 +180,8 @@ func Test_execute(t *testing.T) {
 	s := abstate.NewEmptyState()
 	fromAddr := common.BytesToAddress(test.RandomBytes(20))
 	gasPrice := big.NewInt(DefaultGasPrice)
+	cABI, err := abi.JSON(bytes.NewBuffer([]byte(counterABI)))
+	require.NoError(t, err)
 
 	type args struct {
 		currentBlockNumber uint64
@@ -178,10 +191,11 @@ func Test_execute(t *testing.T) {
 		gp                 *core.GasPool
 	}
 	tests := []struct {
-		name       string
-		args       args
-		wantMeta   *types.ServerMetadata
-		wantErrStr string
+		name                 string
+		args                 args
+		wantErrStr           string
+		wantSuccessIndicator types.TxStatus
+		wantDetails          *ProcessingDetails
 	}{
 		{
 			name: "err - invalid attributes from is nil",
@@ -193,7 +207,9 @@ func Test_execute(t *testing.T) {
 				},
 				stateDB: statedb.NewStateDB(s),
 			},
-			wantErrStr: "invalid evm tx, from addr is nil",
+			wantErrStr:           "invalid evm tx, from addr is nil",
+			wantSuccessIndicator: types.TxStatusFailed,
+			wantDetails:          nil,
 		},
 		{
 			name: "err - insufficient funds",
@@ -205,7 +221,9 @@ func Test_execute(t *testing.T) {
 				},
 				stateDB: initStateDBWithAccountAndSC(t, fromAddr, 1000000),
 			},
-			wantErrStr: errInsufficientFunds.Error(),
+			wantErrStr:           errInsufficientFunds.Error(),
+			wantSuccessIndicator: types.TxStatusFailed,
+			wantDetails:          nil,
 		},
 		{
 			name: "err - block gas limit reached",
@@ -218,7 +236,9 @@ func Test_execute(t *testing.T) {
 				gp:      new(core.GasPool).AddGas(100),
 				stateDB: initStateDBWithAccountAndSC(t, fromAddr, 1000*DefaultGasPrice+1),
 			},
-			wantErrStr: "block limit error: gas limit reached",
+			wantErrStr:           "block limit error: gas limit reached",
+			wantSuccessIndicator: types.TxStatusFailed,
+			wantDetails:          nil,
 		},
 		{
 			name: "err - not enough to pay intrinsic cost", // contract creation intrinsic cost is higher than max gas
@@ -231,7 +251,9 @@ func Test_execute(t *testing.T) {
 				gp:      new(core.GasPool).AddGas(100000),
 				stateDB: initStateDBWithAccountAndSC(t, fromAddr, 1000*DefaultGasPrice+1),
 			},
-			wantErrStr: "tx intrinsic cost higher than max gas",
+			wantErrStr:           "tx intrinsic cost higher than max gas",
+			wantSuccessIndicator: types.TxStatusFailed,
+			wantDetails:          nil,
 		},
 		{
 			name: "err - runtime out of gas", // intrinsic cost is 0 as there is no data
@@ -240,12 +262,18 @@ func Test_execute(t *testing.T) {
 					From:  fromAddr.Bytes(),
 					To:    evmcrypto.CreateAddress(common.BytesToAddress(fromAddr.Bytes()), 0).Bytes(),
 					Value: big.NewInt(0),
+					Data:  cABI.Methods["increment"].ID,
 					Gas:   2300,
 				},
 				gp:      new(core.GasPool).AddGas(100000),
 				stateDB: initStateDBWithAccountAndSC(t, fromAddr, 2500*DefaultGasPrice),
 			},
-			wantErrStr: "evm runtime error: out of gas",
+			// wantErrStr - no error, add failing transaction to block, work was done and fees will be taken
+			wantSuccessIndicator: types.TxStatusFailed,
+			wantDetails: &ProcessingDetails{
+				ErrorDetails: "evm runtime error: out of gas",
+				ContractAddr: evmcrypto.CreateAddress(common.BytesToAddress(fromAddr.Bytes()), 0),
+			},
 		},
 		{
 			name: "err - not enough funds for transfer",
@@ -259,7 +287,29 @@ func Test_execute(t *testing.T) {
 				gp:      new(core.GasPool).AddGas(100),
 				stateDB: initStateDBWithAccountAndSC(t, fromAddr, 1),
 			},
-			wantErrStr: "insufficient funds for transfer",
+			wantErrStr:           "insufficient funds for transfer",
+			wantSuccessIndicator: types.TxStatusFailed,
+			wantDetails:          nil,
+		},
+		{
+			name: "err - unknown method",
+			args: args{
+				attr: &TxAttributes{
+					From:  fromAddr.Bytes(),
+					To:    evmcrypto.CreateAddress(common.BytesToAddress(fromAddr.Bytes()), 0).Bytes(),
+					Value: big.NewInt(0),
+					Data:  make([]byte, 4),
+					Gas:   53000,
+				},
+				gp:      new(core.GasPool).AddGas(100000),
+				stateDB: initStateDBWithAccountAndSC(t, fromAddr, 53000*DefaultGasPrice+1),
+			},
+			wantSuccessIndicator: types.TxStatusFailed,
+			wantDetails: &ProcessingDetails{
+				ErrorDetails: "evm runtime error: execution reverted",
+				ContractAddr: evmcrypto.CreateAddress(common.BytesToAddress(fromAddr.Bytes()), 0),
+				ReturnData:   nil,
+			},
 		},
 		{
 			name: "ok - transfer to unknown recipient address",
@@ -273,24 +323,55 @@ func Test_execute(t *testing.T) {
 				gp:      new(core.GasPool).AddGas(100),
 				stateDB: initStateDBWithAccountAndSC(t, fromAddr, 100),
 			},
+			wantSuccessIndicator: types.TxStatusSuccessful,
+			wantDetails: &ProcessingDetails{
+				ErrorDetails: "",
+			},
 		},
 		{
-			name: "ok",
+			name: "ok - call get",
 			args: args{
 				attr: &TxAttributes{
 					From:  fromAddr.Bytes(),
 					To:    evmcrypto.CreateAddress(common.BytesToAddress(fromAddr.Bytes()), 0).Bytes(),
 					Value: big.NewInt(0),
+					Data:  cABI.Methods["get"].ID,
 					Gas:   53000,
 				},
 				gp:      new(core.GasPool).AddGas(100000),
 				stateDB: initStateDBWithAccountAndSC(t, fromAddr, 53000*DefaultGasPrice+1),
 			},
+			wantSuccessIndicator: types.TxStatusSuccessful,
+			wantDetails: &ProcessingDetails{
+				ErrorDetails: "",
+				ContractAddr: evmcrypto.CreateAddress(common.BytesToAddress(fromAddr.Bytes()), 0),
+				ReturnData:   uint256.NewInt(0).PaddedBytes(32),
+			},
+		},
+		{
+			name: "ok - call increment method",
+			args: args{
+				attr: &TxAttributes{
+					From:  fromAddr.Bytes(),
+					To:    evmcrypto.CreateAddress(common.BytesToAddress(fromAddr.Bytes()), 0).Bytes(),
+					Value: big.NewInt(0),
+					Data:  cABI.Methods["increment"].ID,
+					Gas:   53000,
+				},
+				gp:      new(core.GasPool).AddGas(100000),
+				stateDB: initStateDBWithAccountAndSC(t, fromAddr, 53000*DefaultGasPrice+1),
+			},
+			wantSuccessIndicator: types.TxStatusSuccessful,
+			wantDetails: &ProcessingDetails{
+				ErrorDetails: "",
+				ContractAddr: evmcrypto.CreateAddress(common.BytesToAddress(fromAddr.Bytes()), 0),
+				ReturnData:   uint256.NewInt(1).PaddedBytes(32),
+			},
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			metadata, err := execute(tt.args.currentBlockNumber, tt.args.stateDB, tt.args.attr, tt.args.systemIdentifier, tt.args.gp, gasPrice)
+			metadata, err := execute(tt.args.currentBlockNumber, tt.args.stateDB, tt.args.attr, systemIdentifier, tt.args.gp, gasPrice)
 			if tt.wantErrStr != "" {
 				require.ErrorContains(t, err, tt.wantErrStr)
 				require.Nil(t, metadata)
@@ -298,6 +379,27 @@ func Test_execute(t *testing.T) {
 			} else {
 				require.NoError(t, err)
 			}
+			require.Equal(t, metadata.SuccessIndicator, tt.wantSuccessIndicator)
+			if tt.wantDetails == nil {
+				require.Nil(t, metadata.ProcessingDetails)
+				return
+			}
+			require.NotNil(t, metadata.ProcessingDetails)
+			var details ProcessingDetails
+			require.NoError(t, cbor.Unmarshal(metadata.ProcessingDetails, &details))
+			if tt.wantDetails.ErrorDetails != "" {
+				require.Equal(t, details.ErrorDetails, tt.wantDetails.ErrorDetails)
+			}
+			if tt.wantDetails.ReturnData != nil {
+				require.Equal(t, details.ReturnData, tt.wantDetails.ReturnData)
+			}
 		})
 	}
+}
+
+func Test_errorToStr(t *testing.T) {
+	var err error = nil
+	require.Equal(t, "", errorToStr(err))
+	err = fmt.Errorf("custom error")
+	require.Equal(t, "custom error", errorToStr(err))
 }

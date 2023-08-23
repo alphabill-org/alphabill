@@ -15,17 +15,23 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	evmcrypto "github.com/ethereum/go-ethereum/crypto"
 	"github.com/fxamacker/cbor/v2"
+	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
 )
 
 //	contract Counter {
-//		uint256 value=0;
-//		function increment() public {
-//			value++;
-//		}
+//	 uint256 count = 0;
+//
+//	 function increment() public returns (uint256) {
+//	   count++;
+//	 }
+//
+//	 function get() public view returns (uint256){
+//	   return count;
+//	 }
 //	}
-const counterContractCode = "60806040526000805534801561001457600080fd5b5060fe806100236000396000f3fe6080604052348015600f57600080fd5b506004361060285760003560e01c8063d09de08a14602d575b600080fd5b60336035565b005b6000808154809291906045906085565b9190505550565b7f4e487b7100000000000000000000000000000000000000000000000000000000600052601160045260246000fd5b6000819050919050565b6000608e82607b565b91507fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff820360bd5760bc604c565b5b60018201905091905056fea26469706673582212209ac42d9fb65f478cd14f35928a820d2b071fa19b593f40b088f9f2e5de0e311f64736f6c63430008110033"
-const counterABI = "[\n\t{\n\t\t\"inputs\": [],\n\t\t\"name\": \"get\",\n\t\t\"outputs\": [\n\t\t\t{\n\t\t\t\t\"internalType\": \"uint256\",\n\t\t\t\t\"name\": \"\",\n\t\t\t\t\"type\": \"uint256\"\n\t\t\t}\n\t\t],\n\t\t\"stateMutability\": \"view\",\n\t\t\"type\": \"function\"\n\t},\n\t{\n\t\t\"inputs\": [],\n\t\t\"name\": \"increment\",\n\t\t\"outputs\": [],\n\t\t\"stateMutability\": \"nonpayable\",\n\t\t\"type\": \"function\"\n\t}\n]"
+const counterContractCode = "60806040526000805534801561001457600080fd5b50610182806100246000396000f3fe608060405234801561001057600080fd5b50600436106100365760003560e01c80636d4ce63c1461003b578063d09de08a14610059575b600080fd5b610043610077565b60405161005091906100ba565b60405180910390f35b610061610080565b60405161006e91906100ba565b60405180910390f35b60008054905090565b600080600081548092919061009490610104565b9190505550600054905090565b6000819050919050565b6100b4816100a1565b82525050565b60006020820190506100cf60008301846100ab565b92915050565b7f4e487b7100000000000000000000000000000000000000000000000000000000600052601160045260246000fd5b600061010f826100a1565b91507fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff8203610141576101406100d5565b5b60018201905091905056fea2646970667358221220b29225b3d241fa8f111f1815e66aa98f82e8014e2ee748995fbc05f8852cf07c64736f6c63430008120033"
+const counterABI = "[{\"inputs\":[],\"name\":\"get\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"increment\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"nonpayable\",\"type\":\"function\"}]"
 
 var systemIdentifier = []byte{0, 0, 4, 2}
 
@@ -63,10 +69,10 @@ func TestEVMPartition_DeployAndCallContract(t *testing.T) {
 	require.Equal(t, details.ContractAddr, contractAddr)
 	require.NotEmpty(t, details.ReturnData) // increment does not return anything
 
-	// call contract
 	cABI, err := abi.JSON(bytes.NewBuffer([]byte(counterABI)))
 	require.NoError(t, err)
 
+	// call contract - increment
 	callContractTx := createCallContractTx(from, contractAddr, cABI.Methods["increment"].ID, t)
 	require.NoError(t, evmPartition.SubmitTx(callContractTx))
 	require.Eventually(t, testpartition.BlockchainContainsTx(evmPartition, callContractTx), test.WaitDuration, test.WaitTick)
@@ -76,8 +82,10 @@ func TestEVMPartition_DeployAndCallContract(t *testing.T) {
 	require.NoError(t, txRecord.UnmarshalProcessingDetails(&details))
 	require.NoError(t, err)
 	require.Equal(t, details.ErrorDetails, "")
-	require.Empty(t, details.ReturnData) // increment does not return anything
 	require.Equal(t, details.ContractAddr, contractAddr)
+	// expect count uint256 = 1
+	count := uint256.NewInt(1)
+	require.EqualValues(t, count.PaddedBytes(32), details.ReturnData)
 }
 
 func createTransferTx(t *testing.T, from []byte, to []byte) *types.TransactionOrder {

@@ -14,8 +14,10 @@ import (
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core"
+	"github.com/ethereum/go-ethereum/core/vm"
 	evmcrypto "github.com/ethereum/go-ethereum/crypto"
 	"github.com/fxamacker/cbor/v2"
+	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
 )
 
@@ -62,10 +64,17 @@ func initStateDBWithAccountAndSC(t *testing.T, eoaAddr common.Address, balance u
 	stateDB := statedb.NewStateDB(s)
 	stateDB.CreateAccount(eoaAddr)
 	stateDB.AddBalance(eoaAddr, big.NewInt(int64(balance)))
-	// create a contract
-	scAddr := evmcrypto.CreateAddress(common.BytesToAddress(eoaAddr.Bytes()), 0)
-	stateDB.CreateAccount(scAddr)
-	stateDB.SetCode(scAddr, common.Hex2Bytes(counterContractCode))
+	// deploy a contract
+	evmAttr := &TxAttributes{
+		From:  eoaAddr.Bytes(),
+		Data:  common.Hex2Bytes(counterContractCode),
+		Value: big.NewInt(0),
+		Gas:   1000000000000000,
+	}
+	blockCtx := newBlockContext(0)
+	evm := vm.NewEVM(blockCtx, newTxContext(evmAttr, big.NewInt(0)), stateDB, newChainConfig(new(big.Int).SetBytes(systemIdentifier)), newVMConfig())
+	_, _, _, err := evm.Create(vm.AccountRef(eoaAddr), evmAttr.Data, 1000000000000000, evmAttr.Value)
+	require.NoError(t, err)
 	require.NoError(t, stateDB.DBError())
 	return stateDB
 }
@@ -171,6 +180,8 @@ func Test_execute(t *testing.T) {
 	s := abstate.NewEmptyState()
 	fromAddr := common.BytesToAddress(test.RandomBytes(20))
 	gasPrice := big.NewInt(DefaultGasPrice)
+	cABI, err := abi.JSON(bytes.NewBuffer([]byte(counterABI)))
+	require.NoError(t, err)
 
 	type args struct {
 		currentBlockNumber uint64
@@ -251,6 +262,7 @@ func Test_execute(t *testing.T) {
 					From:  fromAddr.Bytes(),
 					To:    evmcrypto.CreateAddress(common.BytesToAddress(fromAddr.Bytes()), 0).Bytes(),
 					Value: big.NewInt(0),
+					Data:  cABI.Methods["increment"].ID,
 					Gas:   2300,
 				},
 				gp:      new(core.GasPool).AddGas(100000),
@@ -280,6 +292,26 @@ func Test_execute(t *testing.T) {
 			wantDetails:          nil,
 		},
 		{
+			name: "err - unknown method",
+			args: args{
+				attr: &TxAttributes{
+					From:  fromAddr.Bytes(),
+					To:    evmcrypto.CreateAddress(common.BytesToAddress(fromAddr.Bytes()), 0).Bytes(),
+					Value: big.NewInt(0),
+					Data:  make([]byte, 4),
+					Gas:   53000,
+				},
+				gp:      new(core.GasPool).AddGas(100000),
+				stateDB: initStateDBWithAccountAndSC(t, fromAddr, 53000*DefaultGasPrice+1),
+			},
+			wantSuccessIndicator: types.TxStatusFailed,
+			wantDetails: &ProcessingDetails{
+				ErrorDetails: "evm runtime error: execution reverted",
+				ContractAddr: evmcrypto.CreateAddress(common.BytesToAddress(fromAddr.Bytes()), 0),
+				ReturnData:   nil,
+			},
+		},
+		{
 			name: "ok - transfer to unknown recipient address",
 			args: args{
 				attr: &TxAttributes{
@@ -297,12 +329,13 @@ func Test_execute(t *testing.T) {
 			},
 		},
 		{
-			name: "ok",
+			name: "ok - call get",
 			args: args{
 				attr: &TxAttributes{
 					From:  fromAddr.Bytes(),
 					To:    evmcrypto.CreateAddress(common.BytesToAddress(fromAddr.Bytes()), 0).Bytes(),
 					Value: big.NewInt(0),
+					Data:  cABI.Methods["get"].ID,
 					Gas:   53000,
 				},
 				gp:      new(core.GasPool).AddGas(100000),
@@ -312,16 +345,17 @@ func Test_execute(t *testing.T) {
 			wantDetails: &ProcessingDetails{
 				ErrorDetails: "",
 				ContractAddr: evmcrypto.CreateAddress(common.BytesToAddress(fromAddr.Bytes()), 0),
+				ReturnData:   uint256.NewInt(0).PaddedBytes(32),
 			},
 		},
 		{
-			name: "ok - call get method",
+			name: "ok - call increment method",
 			args: args{
 				attr: &TxAttributes{
 					From:  fromAddr.Bytes(),
 					To:    evmcrypto.CreateAddress(common.BytesToAddress(fromAddr.Bytes()), 0).Bytes(),
 					Value: big.NewInt(0),
-					Data:  []byte{0x6D, 0x4C, 0xE6, 0x3C},
+					Data:  cABI.Methods["increment"].ID,
 					Gas:   53000,
 				},
 				gp:      new(core.GasPool).AddGas(100000),
@@ -331,12 +365,13 @@ func Test_execute(t *testing.T) {
 			wantDetails: &ProcessingDetails{
 				ErrorDetails: "",
 				ContractAddr: evmcrypto.CreateAddress(common.BytesToAddress(fromAddr.Bytes()), 0),
+				ReturnData:   uint256.NewInt(1).PaddedBytes(32),
 			},
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			metadata, err := execute(tt.args.currentBlockNumber, tt.args.stateDB, tt.args.attr, tt.args.systemIdentifier, tt.args.gp, gasPrice)
+			metadata, err := execute(tt.args.currentBlockNumber, tt.args.stateDB, tt.args.attr, systemIdentifier, tt.args.gp, gasPrice)
 			if tt.wantErrStr != "" {
 				require.ErrorContains(t, err, tt.wantErrStr)
 				require.Nil(t, metadata)
@@ -354,6 +389,9 @@ func Test_execute(t *testing.T) {
 			require.NoError(t, cbor.Unmarshal(metadata.ProcessingDetails, &details))
 			if tt.wantDetails.ErrorDetails != "" {
 				require.Equal(t, details.ErrorDetails, tt.wantDetails.ErrorDetails)
+			}
+			if tt.wantDetails.ReturnData != nil {
+				require.Equal(t, details.ReturnData, tt.wantDetails.ReturnData)
 			}
 		})
 	}

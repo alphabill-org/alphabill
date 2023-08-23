@@ -6,10 +6,12 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/alphabill-org/alphabill/pkg/wallet/account"
-	beclient "github.com/alphabill-org/alphabill/pkg/wallet/money/backend/client"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/stretchr/testify/require"
+
+	"github.com/alphabill-org/alphabill/pkg/wallet/account"
+	beclient "github.com/alphabill-org/alphabill/pkg/wallet/money/backend/client"
+	"github.com/alphabill-org/alphabill/pkg/wallet/unitlock"
 )
 
 const (
@@ -20,14 +22,17 @@ const (
 )
 
 func TestExistingWalletCanBeLoaded(t *testing.T) {
-	am, err := account.NewManager(t.TempDir(), "", true)
+	homedir := t.TempDir()
+	am, err := account.NewManager(homedir, "", true)
 	require.NoError(t, err)
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	}))
 	restClient, err := beclient.New(server.URL)
 	require.NoError(t, err)
-	_, err = LoadExistingWallet(am, restClient)
+	unitLocker, err := unitlock.NewUnitLocker(homedir)
+	require.NoError(t, err)
+	_, err = LoadExistingWallet(am, unitLocker, restClient)
 	require.NoError(t, err)
 }
 

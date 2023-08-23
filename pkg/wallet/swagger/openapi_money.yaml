@@ -22,20 +22,20 @@ paths:
         to. Useful for calculating transaction timeout values.
       responses:
         '200':
-          description: successful operation
+          description: Successful operation
           content:
             application/json:
               schema:
                 $ref: 'components.yaml#/schemas/RoundNumberResponse'
-        '500':
+        default:
           $ref: 'components.yaml#/responses/ErrorResponse'
   /balance:
     get:
-      summary: Get the balance for a single public key
+      summary: Get the balance for a public key
       description: |-
         Returns the sum of all bills owned by the given public key.
       parameters:
-        - description: Public key prefixed with 0x
+        - description: Hex encoded public key prefixed with `0x`
           in: query
           name: pubkey
           required: true
@@ -43,146 +43,214 @@ paths:
             type: string
       responses:
         '200':
-          description: successful operation
+          description: Successful operation
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/BalanceResponse'
-        '400':
-          description: Bad Request
-          content:
-            application/json:
-              schema:
-                $ref: 'components.yaml#/schemas/ErrorResponse'
-        '500':
-          description: Internal Server Error
+        default:
+          $ref: 'components.yaml#/responses/ErrorResponse'
   /list-bills:
     get:
       summary: List bills owned by a public key
       description: |-
         Returns all bills owned by the given public key.
       parameters:
-        - description: Public key prefixed with 0x
-          example: '0x000000000000000000000000000000000000000000000000000000000000000123'
+        - name: pubkey
+          description: Hex encoded public key prefixed with `0x`
           in: query
-          name: pubkey
           required: true
           schema:
             type: string
-        - description: limits how many bills are returned in response
+          example: '0x000000000000000000000000000000000000000000000000000000000000000123'
+        - name: limit
+          description: Limits how many bills are returned in response
           in: query
-          name: limit
           schema:
             type: integer
             default: 100
-        - description: response will include bills starting after offset
+        - name: offset
+          description: Response will include bills starting after offset
           in: query
-          name: offset
           schema:
             type: integer
             default: 0
-        - description: response will include DC bills
+        - name: includeDcBills
+          description: Response will include DC bills
           in: query
-          name: includedcbills
-          schema:
-            type: bool
-            default: false
-        - description: response will include DC Metadata info (includedcbills param must also be true)
-          in: query
-          name: includedcmetadata
           schema:
             type: bool
             default: false
       responses:
         '200':
-          description: successful operation
+          description: Successful operation
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ListBillsResponse'
-        '400':
-          description: Bad Request
-          content:
-            application/json:
-              schema:
-                $ref: 'components.yaml#/schemas/ErrorResponse'
-        '500':
-          description: Internal Server Error
-  /proof:
+        default:
+          $ref: 'components.yaml#/responses/ErrorResponse'
+  /tx-history/{pubkey}:
     get:
-      summary: Get a bill and its latest transaction proof by bill ID
-      description: |-
-        Returns the bill together with the latest transaction proof
-        for it.
+      summary: Get transaction history for a public key
       parameters:
-        - description: ID of the bill (hex)
+        - name: pubkey
+          description: Hex encoded public key prefixed with `0x`
+          in: path
+          required: true
+          schema:
+            $ref: 'components.yaml#/schemas/PublicKeyParam'
+        - name: limit
+          description: Limits how many transactions are returned in response
           in: query
-          name: bill_id
+          schema:
+            type: integer
+            default: 100
+        - name: offset
+          description: Response will include transactions starting after offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+      responses:
+        '200':
+          description: Successful operation
+          content:
+            application/cbor:
+              schema:
+                type: string
+                format: binary
+        default:
+          $ref: 'components.yaml#/responses/ErrorResponse'
+  /units/{unitId}/transactions/{txHash}/proof:
+    get:
+      summary: Get transaction proof by unit ID and transaction hash
+      parameters:
+        - name: unitId
+          description: Hex encoded unit ID of the bill to get transaction proof for, prefixed with `0x`
+          in: path
+          required: true
+          schema:
+            $ref: 'components.yaml#/schemas/UnitIDParam'
+        - name: txHash
+          description: Hex encoded hash of the transaction to get proof for, prefixed with `0x`
+          in: path
           required: true
           schema:
             type: string
       responses:
         '200':
-          description: successful operation
+          description: Transaction proof was found
           content:
-            application/json:
+            application/cbor:
               schema:
-                # TODO
-                # application/cbor: {}
-        '400':
-          description: Bad Request
-          content:
-            application/json:
-              schema:
-                $ref: 'components.yaml#/schemas/ErrorResponse'
+                type: string
+                format: binary
         '404':
-          description: Not Found
+          description: Transaction is not in the index
           content:
             application/json:
               schema:
                 $ref: 'components.yaml#/schemas/ErrorResponse'
-        '500':
-          description: Internal Server Error
-  /fee-credit-bills:
+        default:
+          $ref: 'components.yaml#/responses/ErrorResponse'
+  /fee-credit-bills/{billId}:
     get:
       summary: Get a fee credit bill and its latest transaction proof by bill ID
       description: |-
         Returns the fee credit bill together with the latest
         transaction proof for it.
       parameters:
-        - description: ID of the bill (hex)
+        - name: billId
+          description: ID of the bill (hex)
           in: path
-          name: billId
           required: true
           schema:
             type: string
       responses:
         '200':
-          description: successful operation
+          description: Successful operation
           content:
             application/json:
               schema:
                 $ref: 'components.yaml#/schemas/Bill'
-  /transactions:
-    post:
-      summary: Forward transactions to partition node
-      description: |-
-        Allows to send raw CBOR encoded transactions to partition node.
+        default:
+          $ref: 'components.yaml#/responses/ErrorResponse'
+  /locked-fee-credit/{systemId}/{billId}:
+    get:
+      summary: Get the last transferFC transaction for the given partition and fee credit bill
+      description: Get the last transferFC transaction for the given partition and fee credit bill
       parameters:
-        - description: Sender public key prefixed with 0x
+        - name: systemId
+          description: Target fee credit system ID of the transferFC transaction (hex)
           in: path
-          name: pubkey
           required: true
           schema:
             type: string
+        - name: billId
+          description: Target fee credit bill ID (hex)
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Successful operation
+          content:
+            application/cbor:
+              schema:
+                type: string
+                format: binary
+        default:
+          $ref: 'components.yaml#/responses/ErrorResponse'
+  /closed-fee-credit/{billId}:
+    get:
+      summary: Get the last seen closeFC transaction for the given fee credit bill
+      description: Get the last seen closeFC transaction for the given fee credit bill
+      parameters:
+        - name: billId
+          description: Target fee credit bill ID (hex)
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Successful operation
+          content:
+            application/cbor:
+              schema:
+                type: string
+                format: binary
+        default:
+          $ref: 'components.yaml#/responses/ErrorResponse'
+  /transactions/{pubkey}:
+    post:
+      summary: Forward transactions to partition node
+      description: |-
+        Allows to send raw CBOR encoded transactions to partition
+        node. Request body must be a CBOR encoded array of raw
+        transactions. The documentation for raw transaction format can
+        be found on Alphabill Documentation portal.
+      parameters:
+        - name: pubkey
+          description: Hex encoded sender public key prefixed with `0x`
+          in: path
+          required: true
+          schema:
+            $ref: 'components.yaml#/schemas/PublicKeyParam'
       requestBody:
-        content:
-          application/cbor: {}
         description: CBOR encoded array of TransactionOrders
         required: true
+        content:
+          application/cbor: {}
       responses:
         '202':
-          description: Accepted
+          description: Successful operation
+        '500':
+          $ref: 'components.yaml#/responses/PostTransactionsErrorResponse'
+        default:
+          $ref: 'components.yaml#/responses/ErrorResponse'
 components:
   schemas:
     BalanceResponse:
@@ -190,7 +258,7 @@ components:
       properties:
         balance:
           type: string
-          example: '0'
+          example: '500'
     ListBillsResponse:
       type: object
       properties:
@@ -198,14 +266,7 @@ components:
           type: array
           items:
             $ref: 'components.yaml#/schemas/Bill'
-        dcMetadata:
-          type: object
-          description: TODO
-          properties:
-            billIdentifiers:
-              type: array
-            dcSum:
-              type: string
         total:
-          example: 5
           type: integer
+          description: Total number of bills in the response
+          example: 5

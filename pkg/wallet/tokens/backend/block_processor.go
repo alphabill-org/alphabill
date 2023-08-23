@@ -74,7 +74,7 @@ func (p *blockProcessor) processTx(tr *types.TransactionRecord, proof *wallet.Tx
 		}
 		return p.store.SetFeeCreditBill(&FeeCreditBill{
 			Id:              id,
-			Value:           fcb.GetValue() + transferFeeCreditAttributes.Amount - tr.ServerMetadata.ActualFee,
+			Value:           fcb.GetValue() + transferFeeCreditAttributes.Amount - addFeeCreditAttributes.FeeCreditTransfer.ServerMetadata.ActualFee - tr.ServerMetadata.ActualFee,
 			TxHash:          txHash,
 			LastAddFCTxHash: txHash,
 		}, txProof)
@@ -97,8 +97,6 @@ func (p *blockProcessor) processTx(tr *types.TransactionRecord, proof *wallet.Tx
 			TxHash:          txHash,
 			LastAddFCTxHash: fcb.GetLastAddFCTxHash(),
 		}, txProof)
-	case txsystem.PayloadTypePruneStates:
-		return nil
 	default:
 		// decrement fee credit bill value if tx is not fee credit tx i.e. a normal tx
 		if err := p.updateFCB(tr); err != nil {

@@ -6,6 +6,8 @@ import (
 	"net/url"
 	"strings"
 
+	"github.com/spf13/cobra"
+
 	"github.com/alphabill-org/alphabill/internal/txsystem/money"
 	"github.com/alphabill-org/alphabill/internal/txsystem/tokens"
 	"github.com/alphabill-org/alphabill/internal/txsystem/vd"
@@ -16,8 +18,8 @@ import (
 	moneyclient "github.com/alphabill-org/alphabill/pkg/wallet/money/backend/client"
 	tokenswallet "github.com/alphabill-org/alphabill/pkg/wallet/tokens"
 	tokensclient "github.com/alphabill-org/alphabill/pkg/wallet/tokens/client"
+	"github.com/alphabill-org/alphabill/pkg/wallet/unitlock"
 	vdwallet "github.com/alphabill-org/alphabill/pkg/wallet/vd"
-	"github.com/spf13/cobra"
 )
 
 const (
@@ -82,7 +84,13 @@ func addFeeCreditCmdExec(cmd *cobra.Command, config *walletConfig, c *cliConf) e
 	}
 	defer am.Close()
 
-	fm, err := getFeeCreditManager(c, am, moneyBackendURL, config.WalletHomeDir)
+	unitLocker, err := unitlock.NewUnitLocker(config.WalletHomeDir)
+	if err != nil {
+		return err
+	}
+	defer unitLocker.Close()
+
+	fm, err := getFeeCreditManager(c, am, unitLocker, moneyBackendURL, config.WalletHomeDir)
 	if err != nil {
 		return err
 	}
@@ -118,7 +126,13 @@ func listFeesCmdExec(cmd *cobra.Command, config *walletConfig, c *cliConf) error
 	}
 	defer am.Close()
 
-	fm, err := getFeeCreditManager(c, am, moneyBackendURL, config.WalletHomeDir)
+	unitLocker, err := unitlock.NewUnitLocker(config.WalletHomeDir)
+	if err != nil {
+		return err
+	}
+	defer unitLocker.Close()
+
+	fm, err := getFeeCreditManager(c, am, unitLocker, moneyBackendURL, config.WalletHomeDir)
 	if err != nil {
 		return err
 	}
@@ -154,7 +168,13 @@ func reclaimFeeCreditCmdExec(cmd *cobra.Command, config *walletConfig, c *cliCon
 	}
 	defer am.Close()
 
-	fm, err := getFeeCreditManager(c, am, moneyBackendURL, config.WalletHomeDir)
+	unitLocker, err := unitlock.NewUnitLocker(config.WalletHomeDir)
+	if err != nil {
+		return err
+	}
+	defer unitLocker.Close()
+
+	fm, err := getFeeCreditManager(c, am, unitLocker, moneyBackendURL, config.WalletHomeDir)
 	if err != nil {
 		return err
 	}
@@ -269,7 +289,7 @@ func (c *cliConf) getPartitionBackendURL() string {
 
 // Creates a fees.FeeManager that needs to be closed with the Close() method.
 // Does not close the account.Manager passed as an argument.
-func getFeeCreditManager(c *cliConf, am account.Manager, moneyBackendURL, walletHomeDir string) (FeeCreditManager, error) {
+func getFeeCreditManager(c *cliConf, am account.Manager, unitLocker *unitlock.UnitLocker, moneyBackendURL, walletHomeDir string) (FeeCreditManager, error) {
 	moneySystemID := money.DefaultSystemIdentifier
 	moneyBackendClient, err := moneyclient.New(moneyBackendURL)
 	if err != nil {
@@ -280,6 +300,7 @@ func getFeeCreditManager(c *cliConf, am account.Manager, moneyBackendURL, wallet
 	if c.partitionType == moneyType {
 		return fees.NewFeeManager(
 			am,
+			unitLocker,
 			moneySystemID,
 			moneyTxPublisher,
 			moneyBackendClient,
@@ -297,6 +318,7 @@ func getFeeCreditManager(c *cliConf, am account.Manager, moneyBackendURL, wallet
 
 		return fees.NewFeeManager(
 			am,
+			unitLocker,
 			moneySystemID,
 			moneyTxPublisher,
 			moneyBackendClient,
@@ -317,6 +339,7 @@ func getFeeCreditManager(c *cliConf, am account.Manager, moneyBackendURL, wallet
 
 		return fees.NewFeeManager(
 			am,
+			unitLocker,
 			moneySystemID,
 			moneyTxPublisher,
 			moneyBackendClient,

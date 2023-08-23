@@ -95,7 +95,9 @@ func (l *log) Clone() *log {
 func (l *log) Hash(algorithm crypto.Hash) []byte {
 	hasher := algorithm.New()
 	hasher.Write(l.newBearer)
-	l.newUnitData.Write(hasher)
+	if l.newUnitData != nil {
+		l.newUnitData.Write(hasher)
+	}
 	//y_j
 	dataHash := hasher.Sum(nil)
 	hasher.Reset()

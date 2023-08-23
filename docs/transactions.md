@@ -34,12 +34,12 @@
 ## *TransactionOrder*
 
 Alphabill transactions are encoded using a deterministic CBOR data
-format[^1]. The top level data item is *TransactionOrder*, which
+format[^1]. The top-level data item is *TransactionOrder*, which
 instructs Alphabill to execute a transaction with a
 unit. *TransactionOrder* is always encoded as an array of 3 data items
 in the exact order: *Payload*, *OwnerProof* and *FeeProof*. Using the
 CBOR Extended Diagnostic Notation[^2] and omitting the subcontent of
-these array items, the top level array can be expressed as:
+these array items, the top-level array can be expressed as:
 
 ```
 /TransactionOrder/ [
@@ -49,7 +49,7 @@ these array items, the top level array can be expressed as:
 ]
 ```
 
-Data items in the top level array:
+Data items in the top-level array:
 
 1. *Payload* (array) is described in section [*Payload*](#payload).
 
@@ -145,7 +145,7 @@ links a transaction back to the previous transaction with the same
 unit and thus makes the order of transactions unambiguous. *Backlink*
 is calculated as the hash of the raw CBOR encoded bytes of the
 *TransactionOrder* data item. Hash algorithm is defined by each
-partiton.
+partition.
 
 #### Money Partition
 
@@ -206,71 +206,63 @@ split.
 ##### Transfer Bill to Dust Collector
 
 This transaction transfers a bill to a special owner - Dust Collector
-(DC). After transferring multiple bills to DC, a single, larger-value
-bill can be obtained from DC with the [Swap Bills With Dust
-Collector](#swap-bills-with-dust-collector) transaction. The set of
-bills being swapped needs to be decided beforehand, as the *UnitID* of
-the new bill obtained from DC is calculated from the *UnitID*s of the
-bills being swapped, and specified in the *Nonce* attribute of this
-transaction.
+(DC). After transferring multiple bills to DC, the transferred bills 
+can be joined into an existing bill DC with the [Swap Bills With Dust
+Collector](#swap-bills-with-dust-collector) transaction. The target bill 
+must be chosen beforehand and should not be used between the transactions.
 
-Dust is not defined, any bills can be transferred to DC and swapped
-for a larger-value bill.
+Dust is not defined, any bills can be transferred to DC and joined into
+a larger-value bill.
 
 *TransactionOrder*.*Payload*.*Type* = "transDC"\
 *TransactionOrder*.*Payload*.*Attributes* contains:
 ```
 /transDCAttributes/ [
-    /Nonce/       h'',
-    /TargetOwner/ h'',
-    /TargetValue/ 999999899999999996,
+    /Value/ 999999899999999996,
+    /TargetUnitID/ h'',
+    /TargetUnitBacklink/ h'',
     /Backlink/    h'2C8E1F55FC20A44687AB5D18D11F5E3544D2989DFFBB8250AA6EBA5EF4CEC319'
 ]
 ```
 
-1. *Nonce* (byte string) is the *UnitID* of the new bill to be
-   obtained from DC with the [Swap Bills With Dust
-   Collector](#swap-bills-with-dust-collector) transaction. Calculated
-   as the hash of concatenated *UnitID*s of the bills being swapped,
-   sorted in ascending order.
-2. *TargetOwner* (byte string) is the owner condition of the new bill
-   later obtained with the [Swap Bills With Dust
-   Collector](#swap-bills-with-dust-collector) transaction.
-3. *TargetValue* (unsigned integer) is the value of the bill
+1. *Value* (unsigned integer) is the value of the bill
    transferred to DC with this transaction.
+2. *TargetUnitID* (byte string) is the *UnitID* of the target bill for the
+   [Swap Bills With Dust Collector](#swap-bills-with-dust-collector) 
+   transaction.
+3. *TargetUnitBacklink* (byte string) is the *Backlink* of the target bill 
+   for the [Swap Bills With Dust Collector](#swap-bills-with-dust-collector) 
+   transaction.
 4. *Backlink* (byte string) is the backlink to the previous transaction
    with the bill.
 
 ##### Swap Bills With Dust Collector
 
-This transaction swaps the bills previously [transferred to
-DC](#transfer-bill-to-dust-collector) for a new, larger-value bill.
+This transaction joins the bills previously [transferred to
+DC](#transfer-bill-to-dust-collector) into a target bill.
 
 *TransactionOrder*.*Payload*.*Type* = "swapDC"\
 *TransactionOrder*.*Payload*.*Attributes* contains:
 ```
 /swapDCAttributes/ [
-    /TargetOwner/      h'',
-    /BillIdentifiers/  [h''],
+    /OwnerCondition/   h'',
     /DcTransfers/      [/omitted/],
     /DcTransferProofs/ [/omitted/],
     /TargetValue/      3
 ]
 ```
 
-1. *TargetOwner* (byte string) is the owner condition of the new bill.
-2. *BillIdentifiers* (array of byte strings) is a variable length
-   array of bill identifiers that are being swapped.
-3. *DcTransfers* (array) is an array of [Transfer Bill to Dust
+1. *OwnerCondition* (byte string) is the new owner condition of the target bill.
+2. *DcTransfers* (array) is an array of [Transfer Bill to Dust
    Collector](#transfer-bill-to-dust-collector) transaction records
    ordered in strictly increasing order of bill identifiers.
-4. *DcTransferProofs* (array) is an array of [Transfer Bill to Dust
+3. *DcTransferProofs* (array) is an array of [Transfer Bill to Dust
    Collector](#transfer-bill-to-dust-collector) transaction proofs.
    The order of this array must match the order of *DcTransfers*
    array, so that a transaction and its corresponding proof have the
    same index.
-5. *TargetValue* (unsigned integer) is the value of the new bill and
-   must be equal to the sum of the values of the bills transferred to
+4. *TargetValue* (unsigned integer) is the value added to the target bill 
+   and must be equal to the sum of the values of the bills transferred to
    DC for this swap.
 
 ##### Transfer to Fee Credit
@@ -287,7 +279,7 @@ value is 0, the bill is deleted.
 
 Note that an [Add Fee Credit](#add-fee-credit) transaction must be
 executed on the target partition after each [Transfer to Fee
-Credit](#transfer-to-fee-credit) transaction, because the *Nonce*
+Credit](#transfer-to-fee-credit) transaction, because the *TargetUnitBacklink*
 attribute in this transaction contains the backlink to the last [Add
 Fee Credit](#add-fee-credit) transaction.
 
@@ -302,7 +294,7 @@ Fee Credit](#add-fee-credit) transaction.
     /TargetRecordID/         h'A0227AC5202427DB551B8ABE08645378347A3C5F70E0E5734F147AD45CBC1BA5',
     /EarliestAdditionTime/   13,
     /LatestAdditionTime/     23,
-    /Nonce/                  null,
+    /TargetUnitBacklink/     null,
     /Backlink/               h'52F43127F58992B6FCFA27A64C980E70D26C2CDE0281AC93435D10EB8034B695'
 ]
 ```
@@ -325,7 +317,7 @@ Fee Credit](#add-fee-credit) transaction.
    the corresponding [Add Fee Credit](#add-fee-credit) transaction can
    be executed in the target partition (usually current round number +
    some timeout).
-6. *Nonce* (byte string) is the hash of the last [Add Fee
+6. *TargetUnitBacklink* (byte string) is the hash of the last [Add Fee
    Credit](#add-fee-credit) transaction executed for the
    *TargetRecordID* in the target partition, or `null` if it does not
    exist yet.
@@ -338,7 +330,7 @@ This transaction creates or updates a fee credit record on the target
 partition (the partition this transaction is executed on), by
 presenting a proof of fee credit reserved in the money partition with
 the [Transfer to Fee Credit](#transfer-to-fee-credit) transaction. As
-a result, execution of other fee paying transactions becomes possible.
+a result, execution of other fee-paying transactions becomes possible.
 
 The fee for this transaction will also be paid from the fee credit
 record being created/updated.
@@ -357,16 +349,16 @@ record being created/updated.
 
 1. *TargetOwner* (byte string, optional) is the owner
    condition for the created fee credit record. It needs to be
-   satisifed by the *TransactionOrder*.*FeeProof* data item of the
+   satisfied by the *TransactionOrder*.*FeeProof* data item of the
    transactions using the record to pay fees.
-2. *FeeCreditTransfer* (array) is a record of the [Transfer To Fee
+2. *FeeCreditTransfer* (array) is a record of the [Transfer to Fee
    Credit](#transfer-to-fee-credit) transaction. Necessary for the
    target partition to verify the amount reserved as fee credit in the
-   money partiton.
+   money partition.
 3. *FeeCreditTransferProof* (array) is the proof of execution of the
     transaction provided in *FeeCreditTransfer* attribute. Necessary
     for the target partition to verify the amount reserved as fee
-    credit in the money partiton.
+    credit in the money partition.
 
 ##### Close Fee Credit
 
@@ -378,7 +370,7 @@ Note that fee credit records cannot be closed partially.
 
 This transaction must be followed by a [Reclaim Fee
 Credit](#reclaim-fee-credit) transaction to avoid losing the closed
-fee credit. The *Nonce* attribute fixes the current state of the bill
+fee credit. The *TargetUnitBacklink* attribute fixes the current state of the bill
 used to reclaim the closed fee credit, and any other transaction with
 the bill would invalidate that backlink.
 
@@ -388,9 +380,9 @@ the bill would invalidate that backlink.
 *TransactionOrder*.*Payload*.*Attributes* contains:
 ```
 /closeFCAttributes/ [
-    /Amount/            100000000,
-    /FeeCreditRecordID/ h'A0227AC5202427DB551B8ABE08645378347A3C5F70E0E5734F147AD45CBC1BA5',
-    /Nonce/             h''
+    /Amount/              100000000,
+    /FeeCreditRecordID/   h'A0227AC5202427DB551B8ABE08645378347A3C5F70E0E5734F147AD45CBC1BA5',
+    /TargetUnitBacklink/  h''
 ]
 ```
 
@@ -398,7 +390,7 @@ the bill would invalidate that backlink.
    credit record.
 2. *FeeCreditRecordID* (byte string) is the identifier of the fee
    credit record to be closed.
-3. *Nonce* (byte string) is the backlink to the previous transaction
+3. *TargetUnitBacklink* (byte string) is the backlink to the previous transaction
    with the bill in the money partition that is used to reclaim the
    fee credit.
 
@@ -427,7 +419,7 @@ partition, to an existing bill in the money partition.
 2. *CloseFeeCreditProof* (array) is the proof of execution of the
     transaction provided in *CloseFeeCredit* attribute. Necessary for
     the money partition to verify the amount closed as fee credit in
-    the target partiton.
+    the target partition.
 3. *Backlink* (byte string) is the backlink to the previous
    transaction with the bill receiving the reclaimed fee credit.
 
@@ -477,7 +469,7 @@ This transaction creates a non-fungible token type.
 8. *DataUpdatePredicate* (byte string) is the clause that all tokens
    of this type (and of subtypes) inherit into their data update
    predicates.
-9. SubTypeCreationPredicateSignatures (array of byte strings) is an
+9. *SubTypeCreationPredicateSignatures* (array of byte strings) is an
    array of inputs to satisfy the subtype creation predicates of all
    parents.
 
@@ -554,11 +546,11 @@ This transaction updates the data of a non-fungible token.
 ]
 ```
 
-1. Data (byte string) is the new data to replace the data currently
+1. *Data* (byte string) is the new data to replace the data currently
    associated with the token.
-2. Backlink (byte string) is the backlink to the previous transaction
+2. *Backlink* (byte string) is the backlink to the previous transaction
    with the token.
-3. DataUpdateSignatures (array of byte strings) is an array of inputs
+3. *DataUpdateSignatures* (array of byte strings) is an array of inputs
    to satisfy the token data update predicates down the inheritance
    chain.
 
@@ -592,8 +584,8 @@ This transaction creates a fungible token type.
 4. *ParentTypeID* (byte string) is the *UnitID* of the parent type
    that this type derives from. A byte with value 0 indicates there is
    no parent type.
-5. *DecimalPlaces* (unsigned integer) is the number of decimal places to
-   display for values of tokens of the this type.
+5. *DecimalPlaces* (unsigned integer) is the number of decimal places
+   to display for values of tokens of this type.
 6. *SubTypeCreationPredicate* (byte string) is the predicate clause that
    controls defining new subtypes of this type.
 7. *TokenCreationPredicate* (byte string) is the predicate clause that
@@ -601,7 +593,7 @@ This transaction creates a fungible token type.
 8. *InvariantPredicate* (byte string) is the invariant predicate
    clause that all tokens of this type (and of subtypes) inherit into
    their owner condition.
-9. SubTypeCreationPredicateSignatures (array of byte strings) is an
+9. *SubTypeCreationPredicateSignatures* (array of byte strings) is an
    array of inputs to satisfy the subtype creation predicates of all
    parents.
 
@@ -625,7 +617,7 @@ This transaction creates a new fungible token.
 2. *TypeID* (byte string) is the *UnitID* of the type of the new
    token.
 3. *TargetValue* (unsinged integer) is the value of the new token.
-7. *TokenCreationPredicateSignatures* (array of byte string) is an
+4. *TokenCreationPredicateSignatures* (array of byte string) is an
    array of inputs to satisfy the token creation predicates of all
    parent types.
 
@@ -693,7 +685,7 @@ to the value of the token before the split.
 5. *TypeID* (byte string) is the type of the token.
 6. *RemainingValue* (unsigned integer) is the remaining value of the
    token being split.
-6. *InvariantPredicateSignatures* (array of byte strings) is an array
+7. *InvariantPredicateSignatures* (array of byte strings) is an array
    of inputs to satisfy the token type invariant predicates down the
    inheritance chain.
 

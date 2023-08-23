@@ -10,7 +10,7 @@ var ErrStateContainsUncommittedChanges = errors.New("state contains uncommitted 
 
 type (
 	// TransactionSystem is a set of rules and logic for defining units and performing transactions with them.
-	// The following sequence of methods is executed for each block: BeginBlock, ValidatorGeneratedTransactions,
+	// The following sequence of methods is executed for each block: BeginBlock,
 	// Execute (called once for each transaction in the block), EndBlock, and Commit (consensus round was successful) or
 	// Revert (consensus round was unsuccessful).
 	TransactionSystem interface {
@@ -20,10 +20,7 @@ type (
 		StateSummary() (State, error)
 
 		// BeginBlock signals the start of a new block and is invoked before any Execute method calls.
-		BeginBlock(uint64)
-
-		// ValidatorGeneratedTransactions returns a list of validator generated transactions.
-		ValidatorGeneratedTransactions() ([]*types.TransactionRecord, error)
+		BeginBlock(uint64) error
 
 		// Execute method executes the transaction order. An error must be returned if the transaction order execution
 		// was not successful.
@@ -34,11 +31,11 @@ type (
 		EndBlock() (State, error)
 
 		// Revert signals the unsuccessful consensus round. When called the transaction system must revert all the changes
-		// made during the BeginBlock, ValidatorGeneratedTransactions, EndBlock, and Execute method calls.
+		// made during the BeginBlock, EndBlock, and Execute method calls.
 		Revert()
 
 		// Commit signals the successful consensus round. Called after the block was approved by the root chain. When called
-		// the transaction system must commit all the changes made during the BeginBlock, ValidatorGeneratedTransactions,
+		// the transaction system must commit all the changes made during the BeginBlock,
 		// EndBlock, and Execute method calls.
 		Commit() error
 	}

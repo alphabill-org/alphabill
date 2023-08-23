@@ -7,6 +7,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/ethereum/go-ethereum/common/hexutil"
+
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/internal/script"
 	testpartition "github.com/alphabill-org/alphabill/internal/testutils/partition"
@@ -55,7 +57,7 @@ func TestWalletFeesCmds_MoneyPartition(t *testing.T) {
 	require.Equal(t, fmt.Sprintf("Successfully created %d fee credits on money partition.", amount), stdout.lines[0])
 
 	// verify fee credits
-	expectedFees := amount*1e8 - 1
+	expectedFees := amount*1e8 - 2
 	stdout, err = execFeesCommand(homedir, "list")
 	require.NoError(t, err)
 	require.Equal(t, "Partition: money", stdout.lines[0])
@@ -67,7 +69,7 @@ func TestWalletFeesCmds_MoneyPartition(t *testing.T) {
 	require.Equal(t, fmt.Sprintf("Successfully created %d fee credits on money partition.", amount), stdout.lines[0])
 
 	// verify fee credits
-	expectedFees = amount*2*1e8 - 2
+	expectedFees = amount*2*1e8 - 4
 	stdout, err = execFeesCommand(homedir, "list")
 	require.NoError(t, err)
 	require.Equal(t, "Partition: money", stdout.lines[0])
@@ -90,7 +92,7 @@ func TestWalletFeesCmds_MoneyPartition(t *testing.T) {
 	require.Equal(t, fmt.Sprintf("Successfully created %d fee credits on money partition.", amount), stdout.lines[0])
 
 	// verify list fees
-	expectedFees = amount*1e8 - 1
+	expectedFees = amount*1e8 - 2
 	stdout, err = execFeesCommand(homedir, "list")
 	require.NoError(t, err)
 	require.Equal(t, "Partition: money", stdout.lines[0])
@@ -122,7 +124,7 @@ func TestWalletFeesCmds_TokenPartition(t *testing.T) {
 	require.Equal(t, fmt.Sprintf("Successfully created %d fee credits on tokens partition.", amount), stdout.lines[0])
 
 	// verify fee credits
-	expectedFees := amount*1e8 - 1
+	expectedFees := amount*1e8 - 2
 	stdout, err = execFeesCommand(homedir, "list "+args)
 	require.NoError(t, err)
 	require.Equal(t, "Partition: tokens", stdout.lines[0])
@@ -134,7 +136,7 @@ func TestWalletFeesCmds_TokenPartition(t *testing.T) {
 	require.Equal(t, fmt.Sprintf("Successfully created %d fee credits on tokens partition.", amount), stdout.lines[0])
 
 	// verify fee credits to token partition
-	expectedFees = amount*2*1e8 - 2
+	expectedFees = amount*2*1e8 - 4
 	stdout, err = execFeesCommand(homedir, "list "+args)
 	require.NoError(t, err)
 	require.Equal(t, "Partition: tokens", stdout.lines[0])
@@ -157,7 +159,7 @@ func TestWalletFeesCmds_TokenPartition(t *testing.T) {
 	require.Equal(t, fmt.Sprintf("Successfully created %d fee credits on tokens partition.", amount), stdout.lines[0])
 
 	// verify list fees
-	expectedFees = amount*1e8 - 1
+	expectedFees = amount*1e8 - 2
 	stdout, err = execFeesCommand(homedir, "list "+args)
 	require.NoError(t, err)
 	require.Equal(t, "Partition: tokens", stdout.lines[0])
@@ -176,7 +178,7 @@ func setupMoneyInfraAndWallet(t *testing.T, otherPartitions []*testpartition.Nod
 		Value: 1e18,
 		Owner: script.PredicateAlwaysTrue(),
 	}
-	moneyPartition := createMoneyPartition(t, initialBill)
+	moneyPartition := createMoneyPartition(t, initialBill, 1)
 	nodePartitions := []*testpartition.NodePartition{moneyPartition}
 	nodePartitions = append(nodePartitions, otherPartitions...)
 	abNet := startAlphabill(t, nodePartitions)
@@ -192,9 +194,10 @@ func setupMoneyInfraAndWallet(t *testing.T, otherPartitions []*testpartition.Nod
 	stdout := execWalletCmd(t, homedir, "get-pubkeys")
 	require.Len(t, stdout.lines, 1)
 	pk, _ := strings.CutPrefix(stdout.lines[0], "#1 ")
+	pkBytes, _ := hexutil.Decode(pk)
 
 	// transfer initial bill to wallet pubkey
-	spendInitialBillWithFeeCredits(t, abNet, initialBill, pk)
+	spendInitialBillWithFeeCredits(t, abNet, initialBill, pkBytes)
 
 	// wait for initial bill tx
 	waitForBalanceCLI(t, homedir, defaultAlphabillApiURL, initialBill.Value-3, 0) // initial bill minus txfees

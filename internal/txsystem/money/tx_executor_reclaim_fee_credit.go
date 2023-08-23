@@ -15,9 +15,9 @@ import (
 )
 
 var (
-	ErrReclaimFCInvalidTargetUnit = errors.New("invalid target unit")
-	ErrReclaimFCInvalidTxFee      = errors.New("the transaction fees cannot exceed the transferred value")
-	ErrReclaimFCInvalidNonce      = errors.New("invalid nonce")
+	ErrReclaimFCInvalidTargetUnit         = errors.New("invalid target unit")
+	ErrReclaimFCInvalidTxFee              = errors.New("the transaction fees cannot exceed the transferred value")
+	ErrReclaimFCInvalidTargetUnitBacklink = errors.New("invalid target unit backlink")
 )
 
 func handleReclaimFeeCreditTx(s *state.State, hashAlgorithm crypto.Hash, trustBase map[string]abcrypto.Verifier, feeCreditTxRecorder *feeCreditTxRecorder, feeCalc fc.FeeCalculator) txsystem.GenericExecuteFunc[transactions.ReclaimFeeCreditAttributes] {
@@ -94,8 +94,8 @@ func validateReclaimFC(tx *types.TransactionOrder, attr *transactions.ReclaimFee
 	if !bytes.Equal(tx.UnitID(), closeFCAttr.TargetUnitID) {
 		return ErrReclaimFCInvalidTargetUnit
 	}
-	if !bytes.Equal(bd.Backlink, closeFCAttr.Nonce) {
-		return ErrReclaimFCInvalidNonce
+	if !bytes.Equal(bd.Backlink, closeFCAttr.TargetUnitBacklink) {
+		return ErrReclaimFCInvalidTargetUnitBacklink
 	}
 	if !bytes.Equal(bd.Backlink, attr.Backlink) {
 		return ErrInvalidBacklink

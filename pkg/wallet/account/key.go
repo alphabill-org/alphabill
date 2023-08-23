@@ -24,7 +24,6 @@ type (
 	AccountKey struct {
 		PubKey         []byte     `json:"pubKey"` // compressed secp256k1 key 33 bytes
 		PrivKey        []byte     `json:"privKey"`
-		PrivKeyHash    []byte     `json:"privKeyHash"`
 		PubKeyHash     *KeyHashes `json:"pubKeyHash"`
 		DerivationPath []byte     `json:"derivationPath"`
 	}
@@ -100,7 +99,6 @@ func NewAccountKey(masterKey *hdkeychain.ExtendedKey, derivationPath string) (*A
 	return &AccountKey{
 		PubKey:         compressedPubKey,
 		PrivKey:        privateKeyBytes,
-		PrivKeyHash:    hash.Sum256(privateKeyBytes),
 		PubKeyHash:     NewKeyHash(compressedPubKey),
 		DerivationPath: []byte(derivationPath),
 	}, nil

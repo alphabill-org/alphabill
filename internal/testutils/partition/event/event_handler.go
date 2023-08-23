@@ -44,3 +44,12 @@ func ContainsEvent(t *testing.T, eh *TestEventHandler, et event.Type) {
 
 	}, test.WaitDuration, test.WaitTick)
 }
+
+func NotContainsEvent(t *testing.T, eh *TestEventHandler, et event.Type) {
+	events := eh.GetEvents()
+	for _, e := range events {
+		if e.EventType == et {
+			t.Errorf("event %v should not be present", et)
+		}
+	}
+}

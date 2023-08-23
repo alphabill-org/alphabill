@@ -7,12 +7,12 @@ import (
 	"testing"
 
 	"github.com/alphabill-org/alphabill/internal/state"
+	"github.com/alphabill-org/alphabill/internal/txsystem/evm/statedb"
 
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/script"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	testtransaction "github.com/alphabill-org/alphabill/internal/testutils/transaction"
-	"github.com/alphabill-org/alphabill/internal/txsystem/evm/statedb"
 	"github.com/alphabill-org/alphabill/internal/txsystem/fc"
 	testfc "github.com/alphabill-org/alphabill/internal/txsystem/fc/testutils"
 	"github.com/alphabill-org/alphabill/internal/txsystem/fc/transactions"
@@ -93,9 +93,25 @@ func Test_addFeeCreditTx(t *testing.T) {
 			wantErrStr: "failed to extract public key from fee credit owner proof",
 		},
 		{
-			name:       "err - attr:FeeCreditOwnerCondition is nil",
+			name:       "err - attr:transferFC tx record is nil",
 			args:       args{order: newAddFCTx(t, privKeyHash, nil, signer, 7), blockNumber: 5},
-			wantErrStr: "addFC tx validation failed: fee credit owner condition is nil",
+			wantErrStr: "addFC tx validation failed: transferFC tx record is nil",
+		},
+		{
+			name: "err - attr:transferFC tx record is missing server metadata",
+			args: args{order: newAddFCTx(t,
+				hashOfPrivateKey(t, signer),
+				testfc.NewAddFCAttr(t, signer, testfc.WithTransferFCTx(
+					&types.TransactionRecord{
+						TransactionOrder: testfc.NewTransferFC(t, testfc.NewTransferFCAttr(testfc.WithAmount(100), testfc.WithTargetRecordID(privKeyHash), testfc.WithTargetSystemID(DefaultEvmTxSystemIdentifier)),
+							testtransaction.WithSystemID([]byte{0, 0, 0, 0}), testtransaction.WithOwnerProof(script.PredicatePayToPublicKeyHashDefault(pubHash[:]))),
+						ServerMetadata: nil,
+					})),
+				signer,
+				7,
+			),
+				blockNumber: 5},
+			wantErrStr: "addFC tx validation failed: transferFC tx order is missing server metadata",
 		},
 		{
 			name: "ok",
@@ -105,7 +121,7 @@ func Test_addFeeCreditTx(t *testing.T) {
 					&types.TransactionRecord{
 						TransactionOrder: testfc.NewTransferFC(t, testfc.NewTransferFCAttr(testfc.WithAmount(100), testfc.WithTargetRecordID(privKeyHash), testfc.WithTargetSystemID(DefaultEvmTxSystemIdentifier)),
 							testtransaction.WithSystemID([]byte{0, 0, 0, 0}), testtransaction.WithOwnerProof(script.PredicatePayToPublicKeyHashDefault(pubHash[:]))),
-						ServerMetadata: nil,
+						ServerMetadata: &types.ServerMetadata{ActualFee: 1},
 					})),
 				signer,
 				7,
@@ -199,10 +215,9 @@ func Test_addFeeCreditTxAndUpdate(t *testing.T) {
 			&types.TransactionRecord{
 				TransactionOrder: testfc.NewTransferFC(t, testfc.NewTransferFCAttr(testfc.WithAmount(100), testfc.WithTargetRecordID(privKeyHash), testfc.WithTargetSystemID(DefaultEvmTxSystemIdentifier)),
 					testtransaction.WithSystemID([]byte{0, 0, 0, 0}), testtransaction.WithOwnerProof(script.PredicatePayToPublicKeyHashDefault(pubHash[:]))),
-				ServerMetadata: nil,
+				ServerMetadata: &types.ServerMetadata{ActualFee: 1},
 			})),
 		signer, 7)
-	backlink := addFeeOrder.Hash(crypto.SHA256)
 	attr := new(transactions.AddFeeCreditAttributes)
 	require.NoError(t, addFeeOrder.UnmarshalAttributes(attr))
 	metaData, err := addExecFn(addFeeOrder, attr, 5)
@@ -216,14 +231,16 @@ func Test_addFeeCreditTxAndUpdate(t *testing.T) {
 	balance := stateDB.GetBalance(addr)
 	// balance is equal to 100-"fee = 2" to wei
 	require.EqualValues(t, balance, new(big.Int).Sub(alphaToWei(100), alphaToWei(evmTestFeeCalculator())))
+	abData := stateDB.GetAlphaBillData(addr)
+
 	// add more funds
 	addFeeOrder = newAddFCTx(t,
 		privKeyHash,
 		testfc.NewAddFCAttr(t, signer, testfc.WithTransferFCTx(
 			&types.TransactionRecord{
-				TransactionOrder: testfc.NewTransferFC(t, testfc.NewTransferFCAttr(testfc.WithAmount(10), testfc.WithTargetRecordID(privKeyHash), testfc.WithTargetSystemID(DefaultEvmTxSystemIdentifier), testfc.WithNonce(backlink)),
+				TransactionOrder: testfc.NewTransferFC(t, testfc.NewTransferFCAttr(testfc.WithAmount(10), testfc.WithTargetRecordID(privKeyHash), testfc.WithTargetSystemID(DefaultEvmTxSystemIdentifier), testfc.WithTargetUnitBacklink(abData.TxHash)),
 					testtransaction.WithSystemID([]byte{0, 0, 0, 0}), testtransaction.WithOwnerProof(script.PredicatePayToPublicKeyHashDefault(pubHash[:]))),
-				ServerMetadata: nil,
+				ServerMetadata: &types.ServerMetadata{ActualFee: 1},
 			})),
 		signer, 7)
 	require.NoError(t, addFeeOrder.UnmarshalAttributes(attr))

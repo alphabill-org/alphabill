@@ -34,14 +34,15 @@ func TestMoneyBackendCLI(t *testing.T) {
 	}
 	initialBillID := initialBill.ID
 	initialBillHex := hexutil.Encode(initialBillID)
-	moneyPartition := createMoneyPartition(t, initialBill)
+	moneyPartition := createMoneyPartition(t, initialBill, 1)
 	abNet := startAlphabill(t, []*testpartition.NodePartition{moneyPartition})
 	startPartitionRPCServers(t, moneyPartition)
 	alphabillNodeAddr := moneyPartition.Nodes[0].AddrGRPC
 
 	// transfer initial bill to wallet pubkey
 	pk := "0x03c30573dc0c7fd43fcb801289a6a96cb78c27f4ba398b89da91ece23e9a99aca3"
-	initialBillValue := spendInitialBillWithFeeCredits(t, abNet, initialBill, pk)
+	pkBytes, _ := pubKeyHexToBytes(pk)
+	initialBillValue := spendInitialBillWithFeeCredits(t, abNet, initialBill, pkBytes)
 
 	// start wallet-backend service
 	homedir := setupTestHomeDir(t, "money-backend-test")

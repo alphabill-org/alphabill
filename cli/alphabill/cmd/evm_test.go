@@ -81,8 +81,9 @@ func TestRunEvmNode(t *testing.T) {
 		rpcClient := alphabill.NewAlphabillServiceClient(conn)
 		require.NotNil(t, rpcClient)
 		resp, err := rpcClient.GetRoundNumber(ctx, &emptypb.Empty{})
-		require.NoError(t, err)
-		require.NotNil(t, resp)
+		// no root node, so can just verify that node starts and reply's to RPC query
+		require.ErrorContains(t, err, "node is in invalid status: initializing")
+		require.Nil(t, resp)
 		//deployEvmCounterProgram(t, ctx, rpcClient)
 		// Close the app
 		ctxCancel()

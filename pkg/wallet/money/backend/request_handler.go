@@ -28,9 +28,8 @@ type (
 
 	// TODO: perhaps pass the total number of elements in a response header
 	ListBillsResponse struct {
-		Total      int                    `json:"total" example:"1"`
-		Bills      []*sdk.Bill            `json:"bills"`
-		DCMetadata map[string]*DCMetadata `json:"dcMetadata,omitempty"`
+		Total int         `json:"total" example:"1"`
+		Bills []*sdk.Bill `json:"bills"`
 	}
 
 	BalanceResponse struct {
@@ -109,15 +108,6 @@ func (api *moneyRestAPI) listBillsFunc(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
-	var includeDCMetadata bool
-	if r.URL.Query().Has("includedcmetadata") {
-		includeDCMetadata, err = strconv.ParseBool(r.URL.Query().Get("includedcmetadata"))
-		if err != nil {
-			log.Debug("error parsing GET /list-bills request: ", err)
-			w.WriteHeader(http.StatusBadRequest)
-			return
-		}
-	}
 	bills, err := api.Service.GetBills(pk)
 	if err != nil {
 		log.Error("error on GET /list-bills: ", err)
@@ -125,30 +115,15 @@ func (api *moneyRestAPI) listBillsFunc(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var filteredBills []*sdk.Bill
-	var dcMetadataMap map[string]*DCMetadata
 	for _, b := range bills {
 		// filter zero value bills
 		if b.Value == 0 {
 			continue
 		}
 		// filter dc bills
-		if b.DcNonce != nil {
+		if b.IsDCBill() {
 			if !includeDCBills {
 				continue
-			}
-			if includeDCMetadata {
-				if dcMetadataMap == nil {
-					dcMetadataMap = make(map[string]*DCMetadata)
-				}
-				if dcMetadataMap[string(b.DcNonce)] == nil {
-					dcMetadata, err := api.Service.GetDCMetadata(b.DcNonce)
-					if err != nil {
-						log.Error("error on GET /list-bills: ", err)
-						w.WriteHeader(http.StatusInternalServerError)
-						return
-					}
-					dcMetadataMap[string(b.DcNonce)] = dcMetadata
-				}
 			}
 		}
 		filteredBills = append(filteredBills, b.ToGenericBill())
@@ -174,9 +149,8 @@ func (api *moneyRestAPI) listBillsFunc(w http.ResponseWriter, r *http.Request) {
 	}
 
 	api.rw.WriteResponse(w, &ListBillsResponse{
-		Bills:      filteredBills[offset : offset+limit],
-		Total:      len(filteredBills),
-		DCMetadata: dcMetadataMap,
+		Bills: filteredBills[offset : offset+limit],
+		Total: len(filteredBills),
 	})
 }
 
@@ -254,7 +228,7 @@ func (api *moneyRestAPI) balanceFunc(w http.ResponseWriter, r *http.Request) {
 	}
 	var sum uint64
 	for _, b := range bills {
-		if b.DcNonce == nil || includeDCBills {
+		if !b.IsDCBill() || includeDCBills {
 			sum += b.Value
 		}
 	}
@@ -386,21 +360,13 @@ func (api *moneyRestAPI) postTransactions(w http.ResponseWriter, r *http.Request
 	}
 
 	if err = egp.Wait(); err != nil {
-		log.Debug("failed to store DC metadata: ", err)
-		api.rw.WriteErrorResponse(w, fmt.Errorf("failed to store DC metadata: %w", err))
+		log.Debug("failed to store tx metadata: ", err)
+		api.rw.WriteErrorResponse(w, fmt.Errorf("failed to store tx metadata: %w", err))
 		return
 	}
 	w.WriteHeader(http.StatusAccepted)
 }
 
-// @Summary Returns last seen transferFC transaction for given partition and fee credit bill
-// @Id 7
-// @version 1.0
-// @produce application/cbor
-// @Param systemId path string true "Target Fee Credit System ID of the TransferFC transaction (hex)"
-// @Param billId path string true "Target fee credit bill ID (hex)"
-// @Success 200 {object} wallet
-// @Router /locked-fee-credit/{systemId}/{billId} [get]
 func (api *moneyRestAPI) getLockedFeeCreditFunc(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	systemID, err := sdk.ParseHex[sdk.UnitID](vars["systemId"], true)
@@ -428,13 +394,6 @@ func (api *moneyRestAPI) getLockedFeeCreditFunc(w http.ResponseWriter, r *http.R
 	api.rw.WriteCborResponse(w, lfc)
 }
 
-// @Summary Returns last seen closeFC transaction for given fee credit bill
-// @Id 8
-// @version 1.0
-// @produce application/json
-// @Param billId path string true "Target fee credit bill ID (hex)"
-// @Success 200 {object} wallet
-// @Router /closed-fee-credit/{billId} [get]
 func (api *moneyRestAPI) getClosedFeeCreditFunc(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	fcbID, err := sdk.ParseHex[sdk.UnitID](vars["billId"], true)
@@ -461,8 +420,8 @@ func parsePubKeyQueryParam(r *http.Request) (sdk.PubKey, error) {
 }
 
 func parseIncludeDCBillsQueryParam(r *http.Request, defaultValue bool) (bool, error) {
-	if r.URL.Query().Has("includedcbills") {
-		return strconv.ParseBool(r.URL.Query().Get("includedcbills"))
+	if r.URL.Query().Has("includeDcBills") {
+		return strconv.ParseBool(r.URL.Query().Get("includeDcBills"))
 	}
 	return defaultValue, nil
 }

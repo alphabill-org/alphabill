@@ -174,7 +174,7 @@ func TestListBillsRequest_DCBillsIncluded(t *testing.T) {
 		&Bill{
 			Id:             newUnitID(2),
 			Value:          2,
-			DcNonce:        []byte{2},
+			DCTargetUnitID: []byte{2},
 			OwnerPredicate: getOwnerPredicate(pubkeyHex),
 		},
 	))
@@ -188,10 +188,10 @@ func TestListBillsRequest_DCBillsIncluded(t *testing.T) {
 	require.Len(t, res.Bills, 2)
 	bill := res.Bills[0]
 	require.EqualValues(t, 1, bill.Value)
-	require.Nil(t, bill.DcNonce)
+	require.Nil(t, bill.DCTargetUnitID)
 	bill = res.Bills[1]
 	require.EqualValues(t, 2, bill.Value)
-	require.NotNil(t, bill.DcNonce)
+	require.NotNil(t, bill.DCTargetUnitID)
 }
 
 func TestListBillsRequest_DCBillsExcluded(t *testing.T) {
@@ -204,82 +204,21 @@ func TestListBillsRequest_DCBillsExcluded(t *testing.T) {
 		&Bill{
 			Id:             newUnitID(2),
 			Value:          2,
-			DcNonce:        []byte{2},
+			DCTargetUnitID: []byte{2},
 			OwnerPredicate: getOwnerPredicate(pubkeyHex),
 		},
 	))
 	port, _ := startServer(t, walletBackend)
 
 	res := &ListBillsResponse{}
-	httpRes, err := testhttp.DoGetJson(fmt.Sprintf("http://localhost:%d/api/v1/list-bills?pubkey=%s&includedcbills=false", port, pubkeyHex), res)
+	httpRes, err := testhttp.DoGetJson(fmt.Sprintf("http://localhost:%d/api/v1/list-bills?pubkey=%s&includeDcBills=false", port, pubkeyHex), res)
 	require.NoError(t, err)
 	require.Equal(t, http.StatusOK, httpRes.StatusCode)
 	require.Equal(t, 1, res.Total)
 	require.Len(t, res.Bills, 1)
 	bill := res.Bills[0]
 	require.EqualValues(t, 1, bill.Value)
-	require.Nil(t, bill.DcNonce)
-}
-
-func TestListBillsRequest_DCMetadataIncluded(t *testing.T) {
-	nonce := []byte{2}
-	walletBackend := newWalletBackend(t,
-		withBills(
-			&Bill{
-				Id:             newUnitID(1),
-				Value:          1,
-				OwnerPredicate: getOwnerPredicate(pubkeyHex),
-			},
-			&Bill{
-				Id:             newUnitID(2),
-				Value:          2,
-				DcNonce:        nonce,
-				OwnerPredicate: getOwnerPredicate(pubkeyHex),
-			},
-			&Bill{
-				Id:             newUnitID(3),
-				Value:          3,
-				DcNonce:        nonce,
-				OwnerPredicate: getOwnerPredicate(pubkeyHex),
-			},
-		),
-		func(service *WalletBackend) error {
-			return service.store.Do().SetDCMetadata(nonce, &DCMetadata{
-				BillIdentifiers: [][]byte{newUnitID(2), newUnitID(3)}, DCSum: 5,
-			})
-		},
-	)
-	port, _ := startServer(t, walletBackend)
-
-	res := &ListBillsResponse{}
-	httpRes, err := testhttp.DoGetJson(fmt.Sprintf("http://localhost:%d/api/v1/list-bills?pubkey=%s&includedcmetadata=true", port, pubkeyHex), res)
-	require.NoError(t, err)
-	require.Equal(t, http.StatusOK, httpRes.StatusCode)
-	require.Equal(t, 3, res.Total)
-	require.Len(t, res.Bills, 3)
-	bill := res.Bills[0]
-	require.EqualValues(t, 1, bill.Value)
-	require.Nil(t, bill.DcNonce)
-	bill = res.Bills[1]
-	require.EqualValues(t, 2, bill.Value)
-	require.EqualValues(t, nonce, bill.DcNonce)
-	bill = res.Bills[2]
-	require.EqualValues(t, 3, bill.Value)
-	require.EqualValues(t, nonce, bill.DcNonce)
-	require.NotNil(t, res.DCMetadata)
-	require.NotNil(t, res.DCMetadata[string(nonce)])
-	require.EqualValues(t, 5, res.DCMetadata[string(nonce)].DCSum)
-	require.Len(t, res.DCMetadata[string(nonce)].BillIdentifiers, 2)
-	require.Contains(t, res.DCMetadata[string(nonce)].BillIdentifiers, newUnitID(2))
-	require.Contains(t, res.DCMetadata[string(nonce)].BillIdentifiers, newUnitID(3))
-
-	// make sure metadata is nil if 'includedcbills=false'
-	res2 := &ListBillsResponse{}
-	httpRes2, err := testhttp.DoGetJson(fmt.Sprintf("http://localhost:%d/api/v1/list-bills?pubkey=%s&includedcbills=false&includedcmetadata=true", port, pubkeyHex), res2)
-	require.NoError(t, err)
-	require.Equal(t, http.StatusOK, httpRes2.StatusCode)
-	require.Equal(t, 1, res2.Total)
-	require.Nil(t, res2.DCMetadata)
+	require.Nil(t, bill.DCTargetUnitID)
 }
 
 func TestListBillsRequest_ZeroValueBillsExcluded(t *testing.T) {
@@ -489,7 +428,7 @@ func TestBalanceRequest_DCBillNotIncluded(t *testing.T) {
 		&Bill{
 			Id:             newUnitID(2),
 			Value:          2,
-			DcNonce:        []byte{2},
+			DCTargetUnitID: []byte{2},
 			OwnerPredicate: getOwnerPredicate(pubkeyHex),
 		}),
 	)
@@ -615,7 +554,7 @@ func TestGetFeeCreditBillRequest_Ok(t *testing.T) {
 	require.Equal(t, b.Id, response.Id)
 	require.Equal(t, b.Value, response.Value)
 	require.Equal(t, b.TxHash, response.TxHash)
-	require.Equal(t, b.DcNonce, response.DcNonce)
+	require.Equal(t, b.DCTargetUnitID, response.DCTargetUnitID)
 }
 
 func TestGetFeeCreditBillRequest_InvalidBillIdLength(t *testing.T) {

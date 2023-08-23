@@ -256,7 +256,7 @@ func (v *VDClient) registerHashTx(ctx context.Context, hash []byte) error {
 }
 
 func (v *VDClient) ensureFeeCredit(ctx context.Context, accountKey *account.AccountKey) error {
-	fcb, err := v.GetFeeCreditBill(ctx, accountKey.PrivKeyHash)
+	fcb, err := v.GetFeeCreditBill(ctx, accountKey.PubKeyHash.Sha256)
 	if err != nil {
 		return err
 	}
@@ -278,7 +278,7 @@ func (v *VDClient) createRegisterDataTx(data []byte, timeout uint64) (*types.Tra
 		ClientMetadata: &types.ClientMetadata{
 			Timeout:           timeout,
 			MaxTransactionFee: tx_builder.MaxFee,
-			FeeCreditRecordID: v.accountKey.PrivKeyHash,
+			FeeCreditRecordID: v.accountKey.PubKeyHash.Sha256,
 		},
 	}
 

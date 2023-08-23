@@ -30,7 +30,8 @@ func handleAddFeeCreditTx(f *FeeCredit) txsystem.GenericExecuteFunc[transactions
 		if err != nil {
 			return nil, err
 		}
-		v := transferFc.Amount - fee
+
+		v := transferFc.Amount - attr.FeeCreditTransfer.ServerMetadata.ActualFee - fee
 
 		txHash := tx.Hash(f.hashAlgorithm)
 		var updateFunc state.Action

@@ -208,9 +208,9 @@ func TestNFT_InvariantPredicate_Integration(t *testing.T) {
 	id := randomID(t)
 	execTokensCmd(t, homedirW1, fmt.Sprintf("new non-fungible -r %s --type %X --token-identifier %X --mint-input %s,%s", backendURL, typeID12, id, predicatePtpkh, predicatePtpkh))
 	ensureTokenIndexed(t, ctx, backendClient, w1key.PubKey, id)
-	verifyStdout(t, execTokensCmd(t, homedirW1, fmt.Sprintf("list non-fungible -r %s", backendURL)), "Symbol='ABNFT'")
+	verifyStdout(t, execTokensCmd(t, homedirW1, fmt.Sprintf("list non-fungible -r %s", backendURL)), "symbol='ABNFT'")
 	//send to w2
 	execTokensCmd(t, homedirW1, fmt.Sprintf("send non-fungible -r %s --token-identifier %X --address 0x%X -k 1 --inherit-bearer-input %s,%s", backendURL, id, w2key.PubKey, predicateTrue, predicatePtpkh))
 	ensureTokenIndexed(t, ctx, backendClient, w2key.PubKey, id)
-	verifyStdout(t, execTokensCmd(t, homedirW2, fmt.Sprintf("list non-fungible -r %s", backendURL)), "Symbol='ABNFT'")
+	verifyStdout(t, execTokensCmd(t, homedirW2, fmt.Sprintf("list non-fungible -r %s", backendURL)), "symbol='ABNFT'")
 }

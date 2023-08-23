@@ -1,14 +1,12 @@
 package test
 
 import (
-	"math/rand"
-	"time"
+	"crypto/rand"
 	"fmt"
 )
 
 func RandomBytes(len int) []byte {
 	bytes := make([]byte, len)
-	// #nosec G404
 	_, err := rand.Read(bytes)
 	if err != nil {
 		panic(err)
@@ -17,8 +15,6 @@ func RandomBytes(len int) []byte {
 }
 
 func RandomString(len int) string {
-	rand.Seed(time.Now().UnixNano())
-	b := make([]byte, len)
-	rand.Read(b)
+	b := RandomBytes(len)
 	return fmt.Sprintf("%x", b)[:len]
 }

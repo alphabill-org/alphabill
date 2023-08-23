@@ -14,12 +14,8 @@ type (
 		TxProof *wallet.Proof `json:"txProof"`
 
 		// dc bill specific fields
-		DcTimeout uint64 `json:"dcTimeout"`
-		DcNonce   []byte `json:"dcNonce"`
-		// DcExpirationTimeout blockHeight when dc bill gets removed from state tree (old spec)
-		DcExpirationTimeout uint64 `json:"dcExpirationTimeout"`
-		// DcExpirationTimeout block number when dc bill can be removed from state tree (system-generated txs)
-		SwapTimeout uint64 `json:"swapTimeout"`
+		DCTargetUnitID       []byte `json:"dcTargetUnitID"`
+		DCTargetUnitBacklink []byte `json:"dcTargetUnitBacklink"`
 
 		// fcb specific fields
 		// LastAddFCTxHash last add fee credit tx hash
@@ -36,17 +32,18 @@ func (b *Bill) GetID() []byte {
 }
 
 func (b *Bill) ToGenericBillProof() *wallet.BillProof {
-	return &wallet.BillProof{Bill: &wallet.Bill{
-		Id:              b.GetID(),
-		Value:           b.Value,
-		TxHash:          b.TxHash,
-		LastAddFCTxHash: b.LastAddFCTxHash,
-	}, TxProof: b.TxProof}
+	return &wallet.BillProof{Bill: b.ToGenericBill(), TxProof: b.TxProof}
 }
 
-// isExpired returns true if dcBill, that was left unswapped, should be deleted
-func (b *Bill) isExpired(blockHeight uint64) bool {
-	return b.DcNonce != nil && blockHeight >= b.DcExpirationTimeout
+func (b *Bill) ToGenericBill() *wallet.Bill {
+	return &wallet.Bill{
+		Id:                   b.GetID(),
+		Value:                b.Value,
+		TxHash:               b.TxHash,
+		DCTargetUnitID:       b.DCTargetUnitID,
+		DCTargetUnitBacklink: b.DCTargetUnitBacklink,
+		LastAddFCTxHash:      b.LastAddFCTxHash,
+	}
 }
 
 func (b *Bill) GetTxHash() []byte {

@@ -1,57 +1,49 @@
 package money
 
 import (
-	"bytes"
 	"context"
 	"crypto"
 	"errors"
 	"fmt"
 	"sort"
-	"time"
 
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/txsystem/money"
 	"github.com/alphabill-org/alphabill/internal/types"
-	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/alphabill-org/alphabill/pkg/wallet/account"
 	"github.com/alphabill-org/alphabill/pkg/wallet/fees"
-	"github.com/alphabill-org/alphabill/pkg/wallet/log"
 	"github.com/alphabill-org/alphabill/pkg/wallet/money/backend"
 	"github.com/alphabill-org/alphabill/pkg/wallet/money/tx_builder"
 	"github.com/alphabill-org/alphabill/pkg/wallet/txsubmitter"
-	"github.com/ethereum/go-ethereum/common/hexutil"
 )
 
 const (
-	dcTimeoutBlockCount       = 10
-	swapTimeoutBlockCount     = 60 // swap timeout (after which dust bills can be deleted)
-	swapTxTimeoutBlockCount   = 60 // swap tx message timeout (client metadata)
 	txTimeoutBlockCount       = 10
 	maxBillsForDustCollection = 100
-	dustBillDeletionTimeout   = 65536
 )
 
 var (
 	ErrInsufficientBalance = errors.New("insufficient balance for transaction")
 	ErrInvalidPubKey       = errors.New("invalid public key, public key must be in compressed secp256k1 format")
 
-	ErrNoFeeCredit                  = errors.New("no fee credit in money wallet")
-	ErrInsufficientFeeCredit        = errors.New("insufficient fee credit balance for transaction(s)")
-	ErrInvalidCreateFeeCreditAmount = errors.New("fee credit amount must be positive")
+	ErrNoFeeCredit           = errors.New("no fee credit in money wallet")
+	ErrInsufficientFeeCredit = errors.New("insufficient fee credit balance for transaction(s)")
 )
 
 type (
 	Wallet struct {
-		am          account.Manager
-		backend     BackendAPI
-		feeManager  *fees.FeeManager
-		TxPublisher *TxPublisher
+		am            account.Manager
+		backend       BackendAPI
+		feeManager    *fees.FeeManager
+		TxPublisher   *TxPublisher
+		unitLocker    UnitLocker
+		dustCollector *DustCollector
 	}
 
 	BackendAPI interface {
 		GetBalance(ctx context.Context, pubKey []byte, includeDCBills bool) (uint64, error)
-		ListBills(ctx context.Context, pubKey []byte, includeDCBills, includeDCMetadata bool) (*backend.ListBillsResponse, error)
+		ListBills(ctx context.Context, pubKey []byte, includeDCBills bool) (*backend.ListBillsResponse, error)
 		GetBills(ctx context.Context, pubKey []byte) ([]*wallet.Bill, error)
 		GetRoundNumber(ctx context.Context) (uint64, error)
 		GetFeeCreditBill(ctx context.Context, unitID wallet.UnitID) (*wallet.Bill, error)
@@ -72,23 +64,6 @@ type (
 		AccountIndex uint64
 		CountDCBills bool
 	}
-
-	AddFeeCmd struct {
-		Amount       uint64
-		AccountIndex uint64
-	}
-
-	ReclaimFeeCmd struct {
-		AccountIndex uint64
-	}
-
-	dcBillGroup struct {
-		dcBills     []*Bill
-		valueSum    uint64
-		dcNonce     []byte
-		dcTimeout   uint64
-		swapTimeout uint64
-	}
 )
 
 // CreateNewWallet creates a new wallet. To synchronize wallet with a node call Sync.
@@ -98,15 +73,18 @@ func CreateNewWallet(am account.Manager, mnemonic string) error {
 	return createMoneyWallet(mnemonic, am)
 }
 
-func LoadExistingWallet(am account.Manager, backend BackendAPI) (*Wallet, error) {
+func LoadExistingWallet(am account.Manager, unitLocker UnitLocker, backend BackendAPI) (*Wallet, error) {
 	moneySystemID := money.DefaultSystemIdentifier
 	moneyTxPublisher := NewTxPublisher(backend)
-	feeManager := fees.NewFeeManager(am, moneySystemID, moneyTxPublisher, backend, moneySystemID, moneyTxPublisher, backend)
+	feeManager := fees.NewFeeManager(am, unitLocker, moneySystemID, moneyTxPublisher, backend, moneySystemID, moneyTxPublisher, backend)
+	dustCollector := NewDustCollector(moneySystemID, maxBillsForDustCollection, backend, unitLocker)
 	return &Wallet{
-		am:          am,
-		backend:     backend,
-		TxPublisher: moneyTxPublisher,
-		feeManager:  feeManager,
+		am:            am,
+		backend:       backend,
+		TxPublisher:   moneyTxPublisher,
+		feeManager:    feeManager,
+		unitLocker:    unitLocker,
+		dustCollector: dustCollector,
 	}, nil
 }
 
@@ -127,19 +105,38 @@ func (w *Wallet) Close() {
 }
 
 // CollectDust starts the dust collector process for the requested accounts in the wallet.
-// The function blocks until dust collector process is finished or timed out. Skips account if the account already has only one or no bills.
-func (w *Wallet) CollectDust(ctx context.Context, accountNumber uint64) error {
+// Dust collection process joins up to N units into existing target unit, prioritizing small units first.
+// The largest unit in wallet is selected as the target unit.
+// If accountNumber is equal to 0 then dust collection is run for all accounts, returns list of swap tx proofs indexed
+// by account indices, the proof can be nil if no swap tx was sent e.g. if there's not enough bills to swap.
+// If accountNumber is greater than 0 then dust collection is run only for the specific account, returns single swap tx
+// proof, the proof can be nil e.g. if there's not enough bills to swap.
+func (w *Wallet) CollectDust(ctx context.Context, accountNumber uint64) ([]*wallet.Proof, error) {
+	var swapProofs []*wallet.Proof
 	if accountNumber == 0 {
 		for _, acc := range w.am.GetAll() {
-			err := w.collectDust(ctx, acc.AccountIndex)
+			accKey, err := w.am.GetAccountKey(acc.AccountIndex)
 			if err != nil {
-				return err
+				return nil, fmt.Errorf("failed to load account key: %w", err)
 			}
+			swapProof, err := w.dustCollector.CollectDust(ctx, accKey)
+			if err != nil {
+				return nil, fmt.Errorf("dust collection failed for account number %d: %w", acc.AccountIndex+1, err)
+			}
+			swapProofs = append(swapProofs, swapProof)
 		}
-		return nil
 	} else {
-		return w.collectDust(ctx, accountNumber-1)
+		accKey, err := w.am.GetAccountKey(accountNumber - 1)
+		if err != nil {
+			return nil, fmt.Errorf("failed to load account key: %w", err)
+		}
+		swapProof, err := w.dustCollector.CollectDust(ctx, accKey)
+		if err != nil {
+			return nil, fmt.Errorf("dust collection failed for account number %d: %w", accountNumber, err)
+		}
+		swapProofs = append(swapProofs, swapProof)
 	}
+	return swapProofs, nil
 }
 
 // GetBalance returns sum value of all bills currently owned by the wallet, for given account.
@@ -211,7 +208,7 @@ func (w *Wallet) Send(ctx context.Context, cmd SendCmd) ([]*wallet.Proof, error)
 		return nil, ErrNoFeeCredit
 	}
 
-	bills, err := w.backend.GetBills(ctx, pubKey)
+	bills, err := w.getUnlockedBills(ctx, pubKey)
 	if err != nil {
 		return nil, err
 	}
@@ -268,7 +265,7 @@ func (w *Wallet) GetFeeCredit(ctx context.Context, cmd fees.GetFeeCreditCmd) (*w
 	if err != nil {
 		return nil, err
 	}
-	return w.GetFeeCreditBill(ctx, accountKey.PrivKeyHash)
+	return w.GetFeeCreditBill(ctx, accountKey.PubKeyHash.Sha256)
 }
 
 // GetFeeCreditBill returns fee credit bill for given unitID
@@ -277,213 +274,37 @@ func (w *Wallet) GetFeeCreditBill(ctx context.Context, unitID wallet.UnitID) (*w
 	return w.backend.GetFeeCreditBill(ctx, unitID)
 }
 
-// collectDust sends dust transfer for every bill for given account in wallet.
-// Returns immediately without error if there's already 1 or 0 bills.
-// Once the dust transfers get confirmed on the ledger then swap transfer is broadcast.
-func (w *Wallet) collectDust(ctx context.Context, accountIndex uint64) error {
-	log.Info("starting dust collection for account=", accountIndex)
-	roundNr, err := w.backend.GetRoundNumber(ctx)
-	if err != nil {
-		return err
-	}
-	pubKey, err := w.am.GetPublicKey(accountIndex)
-	if err != nil {
-		return err
-	}
-	fcb, err := w.GetFeeCredit(ctx, fees.GetFeeCreditCmd{AccountIndex: accountIndex})
-	if err != nil {
-		return err
-	}
-	if fcb == nil {
-		return ErrNoFeeCredit
-	}
-	bills, dcMetadataMap, err := w.getDetailedBillsList(ctx, pubKey)
-	if err != nil {
-		return err
-	}
-	if len(bills) < 2 {
-		log.Info("Account ", accountIndex, " has less than 2 bills, skipping dust collection")
-		return nil
-	}
-	dcBillGroups, err := groupDcBills(bills, roundNr)
-	if err != nil {
-		return err
-	}
-	if len(dcBillGroups) > 0 {
-		for _, v := range dcBillGroups {
-			dcMetadata, dcMetadataFound := dcMetadataMap[string(v.dcNonce)]
-			if roundNr < v.dcTimeout && dcMetadataFound && v.valueSum < dcMetadata.DCSum {
-				log.Info("waiting for dc confirmation(s)...")
-				for roundNr <= v.dcTimeout {
-					select {
-					case <-time.After(500 * time.Millisecond):
-						roundNr, err = w.backend.GetRoundNumber(ctx)
-						if err != nil {
-							return err
-						}
-						continue
-					case <-ctx.Done():
-						return nil
-					}
-				}
-				bills, dcMetadataMap, err = w.getDetailedBillsList(ctx, pubKey)
-				if err != nil {
-					return err
-				}
-				dcBillGroups, err = groupDcBills(bills, roundNr)
-				if err != nil {
-					return err
-				}
-				v = dcBillGroups[string(v.dcNonce)]
-			}
-			if fcb.GetValue() < tx_builder.MaxFee {
-				return ErrInsufficientFeeCredit
-			}
-			var billsId [][]byte
-			var swapTimeout uint64
-			dcMetadata, dcMetadataFound = dcMetadataMap[string(v.dcNonce)]
-			if dcMetadataFound {
-				billsId = dcMetadata.BillIdentifiers
-				swapTimeout = util.Min(roundNr+swapTxTimeoutBlockCount, v.swapTimeout)
-			} else {
-				billsId = getBillIds(v.dcBills)
-				swapTimeout = roundNr + swapTxTimeoutBlockCount
-			}
-			if err := w.swapDcBills(ctx, v.dcBills, v.dcNonce, billsId, swapTimeout, accountIndex); err != nil {
-				return err
-			}
-		}
-	} else {
-		k, err := w.am.GetAccountKey(accountIndex)
-		if err != nil {
-			return err
-		}
-
-		billCount := len(bills)
-		for billCount > 1 {
-			offset := util.Min(billCount, maxBillsForDustCollection)
-			err = w.submitDCBatch(ctx, k, bills[:offset], fcb.Value, accountIndex)
-			if err != nil {
-				return err
-			}
-			bills, _, err = w.getDetailedBillsList(ctx, pubKey)
-			if err != nil {
-				return err
-			}
-			billCount = len(bills)
-		}
-	}
-
-	log.Info("finished waiting for blocking collect dust on account=", accountIndex)
-
-	return nil
-}
-
-func (w *Wallet) submitDCBatch(ctx context.Context, k *account.AccountKey, bills []*Bill, fcbValue, accountIndex uint64) error {
-	roundNr, err := w.backend.GetRoundNumber(ctx)
-	if err != nil {
-		return err
-	}
-	dcBatch := txsubmitter.NewBatch(k.PubKey, w.backend)
-	dcTimeout := roundNr + dcTimeoutBlockCount
-	swapTimeout := roundNr + swapTimeoutBlockCount
-	swapTxTimeout := roundNr + swapTxTimeoutBlockCount
-	dcNonce := calculateDcNonce(bills)
-	for _, b := range bills {
-		tx, err := tx_builder.NewDustTx(k, w.SystemID(), &wallet.Bill{Id: b.GetID(), Value: b.Value, TxHash: b.TxHash, SwapTimeout: swapTimeout}, dcNonce, dcTimeout)
-		if err != nil {
-			return err
-		}
-		dcBatch.Add(&txsubmitter.TxSubmission{
-			UnitID:      tx.UnitID(),
-			TxHash:      tx.Hash(crypto.SHA256),
-			Transaction: tx,
-		})
-	}
-
-	txsCost := tx_builder.MaxFee * uint64(len(dcBatch.Submissions()))
-	if fcbValue < txsCost {
-		return ErrInsufficientFeeCredit
-	}
-
-	if err := dcBatch.SendTx(ctx, true); err != nil {
-		return err
-	}
-
-	for _, sub := range dcBatch.Submissions() {
-		for _, b := range bills {
-			if bytes.Equal(util.Uint256ToBytes(b.Id), sub.UnitID) {
-				b.TxProof = sub.Proof
-				break
-			}
-		}
-	}
-
-	return w.swapDcBills(ctx, bills, dcNonce, getBillIds(bills), swapTxTimeout, accountIndex)
-}
-
-func (w *Wallet) swapDcBills(ctx context.Context, dcBills []*Bill, dcNonce []byte, billIds [][]byte, timeout, accountIndex uint64) error {
-	k, err := w.am.GetAccountKey(accountIndex)
-	if err != nil {
-		return err
-	}
-	var bpBills []*wallet.BillProof
-	for _, b := range dcBills {
-		bpBills = append(bpBills, &wallet.BillProof{Bill: &wallet.Bill{Id: b.GetID(), Value: b.Value}, TxProof: b.TxProof})
-	}
-	swapTx, err := tx_builder.NewSwapTx(k, w.SystemID(), bpBills, dcNonce, billIds, timeout)
-	if err != nil {
-		return err
-	}
-	log.Info(fmt.Sprintf("sending swap tx: nonce=%s timeout=%d", hexutil.Encode(dcNonce), timeout))
-	dcBatch := txsubmitter.NewBatch(k.PubKey, w.backend)
-	dcBatch.Add(&txsubmitter.TxSubmission{
-		UnitID:      swapTx.UnitID(),
-		TxHash:      swapTx.Hash(crypto.SHA256),
-		Transaction: swapTx,
-	})
-
-	return dcBatch.SendTx(ctx, true)
-}
-
 // SendTx sends tx and waits for confirmation, returns tx proof
 func (w *Wallet) SendTx(ctx context.Context, tx *types.TransactionOrder, senderPubKey []byte) (*wallet.Proof, error) {
 	return w.TxPublisher.SendTx(ctx, tx, senderPubKey)
 }
 
-func (w *Wallet) getDetailedBillsList(ctx context.Context, pubKey []byte) ([]*Bill, map[string]*backend.DCMetadata, error) {
-	billResponse, err := w.backend.ListBills(ctx, pubKey, true, true)
+func (w *Wallet) getUnlockedBills(ctx context.Context, pubKey []byte) ([]*wallet.Bill, error) {
+	var unlockedBills []*wallet.Bill
+	bills, err := w.backend.GetBills(ctx, pubKey)
 	if err != nil {
-		return nil, nil, err
+		return nil, fmt.Errorf("failed to fetch bills: %w", err)
 	}
-	bills := make([]*Bill, 0)
-	if len(billResponse.Bills) < 2 {
-		return bills, nil, nil
-	}
-	for _, b := range billResponse.Bills {
-		var proof *wallet.Proof
-		if b.DcNonce != nil {
-			proof, err = w.backend.GetTxProof(ctx, b.Id, b.TxHash)
-			if err != nil {
-				return nil, nil, err
-			}
+	// sort bills by value largest first
+	sort.Slice(bills, func(i, j int) bool {
+		return bills[i].Value > bills[j].Value
+	})
+	// filter locked bills
+	for _, b := range bills {
+		lockedUnit, err := w.unitLocker.GetUnit(b.GetID())
+		if err != nil {
+			return nil, fmt.Errorf("failed to get locked bill: %w", err)
 		}
-		bills = append(bills, &Bill{Id: util.BytesToUint256(b.Id), Value: b.Value, TxHash: b.TxHash, DcNonce: b.DcNonce, SwapTimeout: b.SwapTimeout, TxProof: proof})
+		if lockedUnit == nil {
+			unlockedBills = append(unlockedBills, b)
+		}
 	}
-
-	return bills, billResponse.DCMetadata, nil
+	return unlockedBills, nil
 }
 
 func (c *SendCmd) isValid() error {
 	if len(c.ReceiverPubKey) != abcrypto.CompressedSecp256K1PublicKeySize {
 		return ErrInvalidPubKey
-	}
-	return nil
-}
-
-func (c *AddFeeCmd) isValid() error {
-	if c.Amount == 0 {
-		return ErrInvalidCreateFeeCreditAmount
 	}
 	return nil
 }
@@ -509,55 +330,5 @@ func createMoneyWallet(mnemonic string, am account.Manager) error {
 			return errors.New("failed to create key for the first account")
 		}
 	}
-
 	return nil
-}
-
-func calculateDcNonce(bills []*Bill) []byte {
-	billIds := getBillIds(bills)
-
-	// sort billIds in ascending order
-	sort.Slice(billIds, func(i, j int) bool {
-		return bytes.Compare(billIds[i], billIds[j]) < 0
-	})
-
-	hasher := crypto.SHA256.New()
-	for _, billId := range billIds {
-		hasher.Write(billId)
-	}
-	return hasher.Sum(nil)
-}
-
-// groupDcBills groups bills together by dc nonce
-func groupDcBills(bills []*Bill, roundNumber uint64) (map[string]*dcBillGroup, error) {
-	m := map[string]*dcBillGroup{}
-	for _, b := range bills {
-		if b.SwapTimeout > 0 && b.SwapTimeout <= roundNumber {
-			continue // node and backend do not currently delete expired dc bills, so we just ignore them
-		}
-		if b.DcNonce != nil {
-			k := string(b.DcNonce)
-			billContainer, exists := m[k]
-			if !exists {
-				billContainer = &dcBillGroup{}
-				m[k] = billContainer
-			}
-			billContainer.valueSum += b.Value
-			billContainer.dcBills = append(billContainer.dcBills, b)
-			billContainer.dcNonce = b.DcNonce
-			billContainer.dcTimeout = b.DcTimeout
-			billContainer.swapTimeout = b.SwapTimeout
-		}
-	}
-	return m, nil
-}
-
-func getBillIds(bills []*Bill) [][]byte {
-	var billIds [][]byte
-	var sum uint64
-	for _, b := range bills {
-		sum += b.Value
-		billIds = append(billIds, b.GetID())
-	}
-	return billIds
 }

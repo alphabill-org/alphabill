@@ -71,6 +71,9 @@ func (v *DefaultFeeCreditTxValidator) ValidateAddFeeCredit(ctx *AddFCValidationC
 	if attr.FeeCreditTransferProof == nil {
 		return errors.New("transferFC tx proof is nil")
 	}
+	if attr.FeeCreditTransfer.ServerMetadata == nil {
+		return errors.New("transferFC tx order is missing server metadata")
+	}
 	var fcr *unit.FeeCreditRecord
 	if ctx.Unit != nil {
 		// 1. ExtrType(P.ι) = fcr – target unit is a fee credit record
@@ -111,9 +114,9 @@ func (v *DefaultFeeCreditTxValidator) ValidateAddFeeCredit(ctx *AddFCValidationC
 		return fmt.Errorf("invalid transferFC target record id: transferFC.TargetRecordId=%X tx.UnitId=%X", transferTxAttr.TargetRecordID, tx.UnitID())
 	}
 
-	// 7. (S.N[P.ι] = ⊥ ∧ P.A.P.A.η = ⊥) ∨ (S.N[P.ι] != ⊥ ∧ P.A.P.A.η = S.N[P.ι].λ) – bill transfer order contains correct nonce
-	if !bytes.Equal(transferTxAttr.Nonce, fcr.GetHash()) {
-		return fmt.Errorf("invalid transferFC nonce: transferFC.nonce=%X unit.backlink=%X", transferTxAttr.Nonce, fcr.GetHash())
+	// 7. (S.N[P.ι] = ⊥ ∧ P.A.P.A.η = ⊥) ∨ (S.N[P.ι] != ⊥ ∧ P.A.P.A.η = S.N[P.ι].λ) – bill transfer order contains correct target unit backlink
+	if !bytes.Equal(transferTxAttr.TargetUnitBacklink, fcr.GetHash()) {
+		return fmt.Errorf("invalid transferFC target unit backlink: transferFC.targetUnitBacklink=%X unit.backlink=%X", transferTxAttr.TargetUnitBacklink, fcr.GetHash())
 	}
 
 	// 8. P.A.P.A.tb ≤ t ≤ P.A.P.A.te, where t is the number of the current block being composed – bill transfer is valid to be used in this block
@@ -124,9 +127,10 @@ func (v *DefaultFeeCreditTxValidator) ValidateAddFeeCredit(ctx *AddFCValidationC
 		return fmt.Errorf("invalid transferFC timeout: earliest=%d latest=%d current=%d", tb, te, t)
 	}
 
-	// 9. P.MC.fm ≤ P.A.P.A.v – the transaction fee can’t exceed the transferred value
-	if tx.Payload.ClientMetadata.MaxTransactionFee > transferTxAttr.Amount {
-		return fmt.Errorf("invalid transferFC fee: max_fee=%d transferFC.Amount=%d", tx.Payload.ClientMetadata.MaxTransactionFee, transferTxAttr.Amount)
+	// 9. P.MC.fa + P.MC.fm ≤ P.A.P.A.v – the transaction fees can’t exceed the transferred value
+	feeLimit := tx.Payload.ClientMetadata.MaxTransactionFee + attr.FeeCreditTransfer.ServerMetadata.ActualFee
+	if feeLimit > transferTxAttr.Amount {
+		return fmt.Errorf("invalid transferFC fee: max_fee+actual_fee=%d transferFC.Amount=%d", feeLimit, transferTxAttr.Amount)
 	}
 
 	// 3. VerifyBlockProof(P.A.Π, P.A.P, S.T, S.SD) – proof of the bill transfer order verifies

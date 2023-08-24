@@ -348,15 +348,21 @@ func TestWalletSendFunction_LockedBillIsNotUsed(t *testing.T) {
 		billValue:     50,
 		feeCreditBill: &wallet.Bill{Value: 1e8},
 	}))
-	validPubKey := make([]byte, 33)
+	pubKey, err := w.am.GetPublicKey(0)
+	require.NoError(t, err)
 	ctx := context.Background()
 
 	// lock the only bill in wallet
-	err := w.unitLocker.LockUnit(&unitlock.LockedUnit{UnitID: unitID})
+	err = w.unitLocker.LockUnit(unitlock.NewLockedUnit(
+		pubKey,
+		unitID,
+		[]byte{1},
+		unitlock.LockReasonCollectDust,
+	))
 	require.NoError(t, err)
 
 	// test send returns error
-	_, err = w.Send(ctx, SendCmd{ReceiverPubKey: validPubKey, Amount: 50})
+	_, err = w.Send(ctx, SendCmd{ReceiverPubKey: pubKey, Amount: 50})
 	require.ErrorContains(t, err, "insufficient balance for transaction")
 }
 

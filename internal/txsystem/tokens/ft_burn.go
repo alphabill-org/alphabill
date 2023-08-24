@@ -24,7 +24,7 @@ func handleBurnFungibleTokenTx(options *Options) txsystem.GenericExecuteFunc[Bur
 		if err := options.state.Apply(state.DeleteUnit(unitID)); err != nil {
 			return nil, err
 		}
-		return &types.ServerMetadata{ActualFee: fee}, nil
+		return &types.ServerMetadata{ActualFee: fee, SuccessIndicator: types.TxStatusSuccessful}, nil
 	}
 }
 

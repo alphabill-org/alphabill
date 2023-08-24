@@ -57,13 +57,14 @@ func TestUnlockMoneyBill(t *testing.T) {
 
 func initStateWithBuiltInPrograms(t *testing.T) *state.State {
 	s := state.NewEmptyState()
-	s.Savepoint()
+	savepointID := s.Savepoint()
 	require.NoError(t,
 		s.Apply(state.AddUnit(
 			unlockMoneyBillProgramUnitID,
 			script.PredicateAlwaysFalse(),
 			&Program{},
 		)))
+	s.ReleaseToSavepoint(savepointID)
 	_, _, err := s.CalculateRoot()
 	require.NoError(t, err)
 	require.NoError(t, s.Commit())

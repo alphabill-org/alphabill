@@ -14,7 +14,7 @@ import (
 var (
 	unitID               = types.NewUnitID(33, nil, []byte{1}, []byte{0xff}) // TODO: should be a parameter from a partition
 	systemID             = []byte{0, 0, 0, 0}
-	nonce                = []byte{3}
+	targetUnitBacklink   = []byte{3}
 	backlink             = []byte{4}
 	amount               = uint64(50)
 	maxFee               = uint64(2)

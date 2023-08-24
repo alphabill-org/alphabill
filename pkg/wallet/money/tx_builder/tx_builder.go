@@ -132,14 +132,14 @@ func NewSwapTx(k *account.AccountKey, systemID []byte, dcProofs []*wallet.Proof,
 	return payload, nil
 }
 
-func NewTransferFCTx(amount uint64, targetRecordID []byte, nonce []byte, k *account.AccountKey, moneySystemID, targetSystemID []byte, unit *wallet.Bill, timeout, t1, t2 uint64) (*types.TransactionOrder, error) {
+func NewTransferFCTx(amount uint64, targetRecordID []byte, targetUnitBacklink []byte, k *account.AccountKey, moneySystemID, targetSystemID []byte, unit *wallet.Bill, timeout, t1, t2 uint64) (*types.TransactionOrder, error) {
 	attr := &transactions.TransferFeeCreditAttributes{
 		Amount:                 amount,
 		TargetSystemIdentifier: targetSystemID,
 		TargetRecordID:         targetRecordID,
 		EarliestAdditionTime:   t1,
 		LatestAdditionTime:     t2,
-		Nonce:                  nonce,
+		TargetUnitBacklink:     targetUnitBacklink,
 		Backlink:               unit.TxHash,
 	}
 	txPayload, err := newTxPayload(moneySystemID, transactions.PayloadTypeTransferFeeCredit, unit.GetID(), timeout, nil, attr)
@@ -162,11 +162,11 @@ func NewAddFCTx(unitID []byte, fcProof *wallet.Proof, ac *account.AccountKey, sy
 	return signPayload(txPayload, ac)
 }
 
-func NewCloseFCTx(systemID []byte, unitID []byte, timeout uint64, amount uint64, targetUnitID, nonce []byte, k *account.AccountKey) (*types.TransactionOrder, error) {
+func NewCloseFCTx(systemID []byte, unitID []byte, timeout uint64, amount uint64, targetUnitID, targetUnitBacklink []byte, k *account.AccountKey) (*types.TransactionOrder, error) {
 	attr := &transactions.CloseFeeCreditAttributes{
-		Amount:       amount,
-		TargetUnitID: targetUnitID,
-		Nonce:        nonce,
+		Amount:             amount,
+		TargetUnitID:       targetUnitID,
+		TargetUnitBacklink: targetUnitBacklink,
 	}
 	txPayload, err := newTxPayload(systemID, transactions.PayloadTypeCloseFeeCredit, unitID, timeout, nil, attr)
 	if err != nil {

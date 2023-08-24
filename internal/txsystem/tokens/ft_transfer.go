@@ -38,7 +38,7 @@ func handleTransferFungibleTokenTx(options *Options) txsystem.GenericExecuteFunc
 			return nil, err
 		}
 
-		return &types.ServerMetadata{ActualFee: fee, TargetUnits: []types.UnitID{unitID}}, nil
+		return &types.ServerMetadata{ActualFee: fee, TargetUnits: []types.UnitID{unitID}, SuccessIndicator: types.TxStatusSuccessful}, nil
 	}
 }
 

@@ -208,7 +208,11 @@ func TestWalletBillsExportCmd_ShowUnswappedFlag(t *testing.T) {
 }
 
 func TestWalletBillsListCmd_ShowLockedBills(t *testing.T) {
-	homedir := createNewTestWallet(t)
+	am, homedir := createNewWallet(t)
+	pubKey, err := am.GetPublicKey(0)
+	require.NoError(t, err)
+	am.Close()
+
 	unitID := money.NewBillID(nil, []byte{1})
 	mockServer, addr := mockBackendCalls(&backendMockReturnConf{billID: unitID, billValue: 1e8})
 	defer mockServer.Close()
@@ -219,10 +223,7 @@ func TestWalletBillsListCmd_ShowLockedBills(t *testing.T) {
 	defer unitLocker.Close()
 
 	// lock unit
-	err = unitLocker.LockUnit(&unitlock.LockedUnit{
-		UnitID:     unitID,
-		LockReason: unitlock.ReasonAddFees,
-	})
+	err = unitLocker.LockUnit(unitlock.NewLockedUnit(pubKey, unitID, []byte{1}, unitlock.LockReasonAddFees))
 	require.NoError(t, err)
 	err = unitLocker.Close()
 	require.NoError(t, err)
@@ -241,8 +242,8 @@ func spendInitialBillWithFeeCredits(t *testing.T, abNet *testpartition.Alphabill
 	moneyPart, err := abNet.GetNodePartition(money.DefaultSystemIdentifier)
 	require.NoError(t, err)
 
-	// create transferFCr
-	transferFC, err := createTransferFC(feeAmount, unitID, fcrID, 0, absoluteTimeout)
+	// create transferFC
+	transferFC, err := createTransferFC(feeAmount+txFee, unitID, fcrID, 0, absoluteTimeout)
 	require.NoError(t, err)
 
 	// send transferFC

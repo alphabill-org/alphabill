@@ -353,11 +353,12 @@ func TestEndBlock_FeesConsolidation(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, txSystem.Commit())
 
-	// verify that money fee credit bill is 50+1=51
+	// verify that money fee credit bill is 50
 	moneyFeeCreditBillID := NewBillID(nil, []byte{2})
 	moneyFeeCreditBill, err := rmaTree.GetUnit(moneyFeeCreditBillID, false)
+
 	require.NoError(t, err)
-	require.EqualValues(t, 51, moneyFeeCreditBill.Data().SummaryValueInput())
+	require.EqualValues(t, 50, moneyFeeCreditBill.Data().SummaryValueInput())
 
 	// process reclaimFC (with closeFC amount=50 and fee=1)
 	txSystem.BeginBlock(0)
@@ -367,7 +368,7 @@ func TestEndBlock_FeesConsolidation(t *testing.T) {
 		testfc.NewCloseFCAttr(
 			testfc.WithCloseFCAmount(50),
 			testfc.WithCloseFCTargetUnitID(initialBill.ID),
-			testfc.WithCloseFCNonce(transferFCHash),
+			testfc.WithCloseFCTargetUnitBacklink(transferFCHash),
 		),
 	)
 	closeFCRecord := &types.TransactionRecord{
@@ -392,10 +393,10 @@ func TestEndBlock_FeesConsolidation(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, txSystem.Commit())
 
-	// verify that moneyFCB=51-50+1+1=3 (moneyFCB - closeAmount + closeFee + reclaimFee)
+	// verify that moneyFCB=50-50+1+1=2 (moneyFCB - closeAmount + closeFee + reclaimFee)
 	moneyFeeCreditBill, err = rmaTree.GetUnit(moneyFeeCreditBillID, false)
 	require.NoError(t, err)
-	require.EqualValues(t, 3, moneyFeeCreditBill.Data().SummaryValueInput())
+	require.EqualValues(t, 2, moneyFeeCreditBill.Data().SummaryValueInput())
 }
 
 func TestRegisterData_Revert(t *testing.T) {
@@ -447,11 +448,11 @@ func TestExecute_FeeCreditSequence_OK(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, sm)
 
-	// verify unit value is reduced by 21
+	// verify unit value is reduced by 20
 	ib, err := rmaTree.GetUnit(initialBill.ID, false)
 	require.NoError(t, err)
-	require.EqualValues(t, initialBill.Value-txAmount-txFee, ib.Data().SummaryValueInput())
-	require.Equal(t, txFee, sm.ActualFee)
+	require.EqualValues(t, initialBill.Value-txAmount, ib.Data().SummaryValueInput())
+	require.EqualValues(t, txFee, sm.ActualFee)
 
 	// send addFC
 	transferFCTransactionRecord := &types.TransactionRecord{
@@ -471,8 +472,8 @@ func TestExecute_FeeCreditSequence_OK(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, sm)
 
-	// verify user fee credit is 19 (transfer 20 minus fee 1)
-	remainingValue := txAmount - txFee // 19
+	// verify user fee credit is 18 (transfer 20 minus fee 2 * fee)
+	remainingValue := txAmount - (2 * txFee) // 18
 	fcrUnit, err := rmaTree.GetUnit(fcrUnitID, false)
 	require.NoError(t, err)
 	fcrUnitData, ok := fcrUnit.Data().(*unit.FeeCreditRecord)
@@ -486,7 +487,7 @@ func TestExecute_FeeCreditSequence_OK(t *testing.T) {
 		testfc.NewCloseFCAttr(
 			testfc.WithCloseFCAmount(remainingValue),
 			testfc.WithCloseFCTargetUnitID(initialBillID),
-			testfc.WithCloseFCNonce(transferFCHash),
+			testfc.WithCloseFCTargetUnitBacklink(transferFCHash),
 		),
 		testtransaction.WithUnitId(fcrUnitID),
 		testtransaction.WithOwnerProof(script.PredicateArgumentEmpty()),
@@ -576,7 +577,7 @@ func createDCTransferAndSwapTxs(
 	var targetValue uint64 = 0
 	for i, id := range ids {
 		_, billData := getBill(t, rmaTree, id)
-		// NB! dc transfer nonce must be equal to swap tx unit id
+		// NB! dc transfer target backlink must be equal to swap tx unit id
 		targetValue += billData.V
 		tx, _ := createDCTransfer(t, id, billData.V, billData.Backlink, targetID, targetBacklink)
 		txr := &types.TransactionRecord{

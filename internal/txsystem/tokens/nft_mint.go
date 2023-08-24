@@ -29,7 +29,7 @@ func handleMintNonFungibleTokenTx(options *Options) txsystem.GenericExecuteFunc[
 			return nil, err
 		}
 
-		return &types.ServerMetadata{ActualFee: fee, TargetUnits: []types.UnitID{}}, nil
+		return &types.ServerMetadata{ActualFee: fee, TargetUnits: []types.UnitID{}, SuccessIndicator: types.TxStatusSuccessful}, nil
 	}
 }
 

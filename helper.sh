@@ -71,6 +71,10 @@ case $1 in
     cmd="tokens-genesis"
     home="testab/tokens"
     ;;
+  evm)
+      cmd="evm-genesis"
+      home="testab/evm"
+      ;;
   *)
     echo "error: unknown partition $1" >&2
     return 1
@@ -92,7 +96,7 @@ function generate_root_genesis() {
   # it scans all partition node genesis files from the directories and uses them to create root genesis
   # build partition node genesis files argument list '-p' for root genesis
   local node_genesis_files=""
-  for file in testab/money*/money/node-genesis.json testab/vd*/vd/node-genesis.json testab/tokens*/tokens/node-genesis.json
+  for file in testab/money*/money/node-genesis.json testab/vd*/vd/node-genesis.json testab/tokens*/tokens/node-genesis.json testab/evm*/evm/node-genesis.json
   do
     if [[ ! -f $file ]]; then
       continue
@@ -153,6 +157,14 @@ local restPort=0
       aPort=28666
       grpcPort=28766
       restPort=28866
+      ;;
+    evm)
+      home="testab/evm"
+      key_files="testab/evm*/evm/keys.json"
+      genesis_file="testab/rootchain1/rootchain/partition-genesis-3.json"
+      aPort=29666
+      grpcPort=29766
+      restPort=29866
       ;;
     *)
       echo "error: unknown partition $1" >&2

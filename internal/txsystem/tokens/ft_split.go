@@ -58,7 +58,7 @@ func handleSplitFungibleTokenTx(options *Options) txsystem.GenericExecuteFunc[Sp
 			return nil, err
 		}
 
-		return &types.ServerMetadata{ActualFee: fee, TargetUnits: []types.UnitID{unitID, newTokenID}}, nil
+		return &types.ServerMetadata{ActualFee: fee, TargetUnits: []types.UnitID{unitID, newTokenID}, SuccessIndicator: types.TxStatusSuccessful}, nil
 	}
 }
 

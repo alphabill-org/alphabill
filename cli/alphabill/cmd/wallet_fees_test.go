@@ -55,7 +55,7 @@ func TestWalletFeesCmds_MoneyPartition(t *testing.T) {
 	require.Equal(t, fmt.Sprintf("Successfully created %d fee credits on money partition.", amount), stdout.lines[0])
 
 	// verify fee credits
-	expectedFees := amount*1e8 - 1
+	expectedFees := amount*1e8 - 2
 	stdout, err = execFeesCommand(homedir, "list")
 	require.NoError(t, err)
 	require.Equal(t, "Partition: money", stdout.lines[0])
@@ -67,7 +67,7 @@ func TestWalletFeesCmds_MoneyPartition(t *testing.T) {
 	require.Equal(t, fmt.Sprintf("Successfully created %d fee credits on money partition.", amount), stdout.lines[0])
 
 	// verify fee credits
-	expectedFees = amount*2*1e8 - 2
+	expectedFees = amount*2*1e8 - 4
 	stdout, err = execFeesCommand(homedir, "list")
 	require.NoError(t, err)
 	require.Equal(t, "Partition: money", stdout.lines[0])
@@ -90,7 +90,7 @@ func TestWalletFeesCmds_MoneyPartition(t *testing.T) {
 	require.Equal(t, fmt.Sprintf("Successfully created %d fee credits on money partition.", amount), stdout.lines[0])
 
 	// verify list fees
-	expectedFees = amount*1e8 - 1
+	expectedFees = amount*1e8 - 2
 	stdout, err = execFeesCommand(homedir, "list")
 	require.NoError(t, err)
 	require.Equal(t, "Partition: money", stdout.lines[0])
@@ -122,7 +122,7 @@ func TestWalletFeesCmds_TokenPartition(t *testing.T) {
 	require.Equal(t, fmt.Sprintf("Successfully created %d fee credits on tokens partition.", amount), stdout.lines[0])
 
 	// verify fee credits
-	expectedFees := amount*1e8 - 1
+	expectedFees := amount*1e8 - 2
 	stdout, err = execFeesCommand(homedir, "list "+args)
 	require.NoError(t, err)
 	require.Equal(t, "Partition: tokens", stdout.lines[0])
@@ -134,7 +134,7 @@ func TestWalletFeesCmds_TokenPartition(t *testing.T) {
 	require.Equal(t, fmt.Sprintf("Successfully created %d fee credits on tokens partition.", amount), stdout.lines[0])
 
 	// verify fee credits to token partition
-	expectedFees = amount*2*1e8 - 2
+	expectedFees = amount*2*1e8 - 4
 	stdout, err = execFeesCommand(homedir, "list "+args)
 	require.NoError(t, err)
 	require.Equal(t, "Partition: tokens", stdout.lines[0])
@@ -157,7 +157,7 @@ func TestWalletFeesCmds_TokenPartition(t *testing.T) {
 	require.Equal(t, fmt.Sprintf("Successfully created %d fee credits on tokens partition.", amount), stdout.lines[0])
 
 	// verify list fees
-	expectedFees = amount*1e8 - 1
+	expectedFees = amount*1e8 - 2
 	stdout, err = execFeesCommand(homedir, "list "+args)
 	require.NoError(t, err)
 	require.Equal(t, "Partition: tokens", stdout.lines[0])

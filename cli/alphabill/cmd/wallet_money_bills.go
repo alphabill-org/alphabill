@@ -86,6 +86,7 @@ func execListCmd(cmd *cobra.Command, config *walletConfig) error {
 
 	type accountBillGroup struct {
 		accountIndex uint64
+		pubKey       []byte
 		bills        *backend.ListBillsResponse
 	}
 	var accountBillGroups []*accountBillGroup
@@ -99,7 +100,7 @@ func execListCmd(cmd *cobra.Command, config *walletConfig) error {
 			if err != nil {
 				return err
 			}
-			accountBillGroups = append(accountBillGroups, &accountBillGroup{accountIndex: uint64(accountIndex), bills: bills})
+			accountBillGroups = append(accountBillGroups, &accountBillGroup{pubKey: pubKey, accountIndex: uint64(accountIndex), bills: bills})
 		}
 	} else {
 		accountIndex := accountNumber - 1
@@ -111,7 +112,7 @@ func execListCmd(cmd *cobra.Command, config *walletConfig) error {
 		if err != nil {
 			return err
 		}
-		accountBillGroups = append(accountBillGroups, &accountBillGroup{accountIndex: accountIndex, bills: accountBills})
+		accountBillGroups = append(accountBillGroups, &accountBillGroup{pubKey: pubKey, accountIndex: accountIndex, bills: accountBills})
 	}
 
 	for _, group := range accountBillGroups {
@@ -122,7 +123,7 @@ func execListCmd(cmd *cobra.Command, config *walletConfig) error {
 		}
 		for j, bill := range group.bills.Bills {
 			billValueStr := amountToString(bill.Value, 8)
-			lockedReasonStr, err := getLockedReasonString(unitLocker, bill)
+			lockedReasonStr, err := getLockedReasonString(group.pubKey, unitLocker, bill)
 			if err != nil {
 				return err
 			}
@@ -132,8 +133,8 @@ func execListCmd(cmd *cobra.Command, config *walletConfig) error {
 	return nil
 }
 
-func getLockedReasonString(unitLocker *unitlock.UnitLocker, bill *wallet.Bill) (string, error) {
-	lockedUnit, err := unitLocker.GetUnit(bill.GetID())
+func getLockedReasonString(accountID []byte, unitLocker *unitlock.UnitLocker, bill *wallet.Bill) (string, error) {
+	lockedUnit, err := unitLocker.GetUnit(accountID, bill.GetID())
 	if err != nil {
 		return "", fmt.Errorf("failed to load locked unit: %w", err)
 	}

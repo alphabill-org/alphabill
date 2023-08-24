@@ -1,7 +1,6 @@
 #!/bin/bash
 
 money_nodes=3
-vd_nodes=3
 token_nodes=3
 evm_nodes=3
 root_nodes=1
@@ -11,7 +10,7 @@ set -e
 
 # print help
 usage() {
-  echo "Generate 'testab' structure, log configuration and genesis files. Usage: $0 [-h usage] [-m number of money nodes] [-t number of token nodes] [-d number of vd nodes] [-e number of evm nodes] [-c reset all DB files]"
+  echo "Generate 'testab' structure, log configuration and genesis files. Usage: $0 [-h usage] [-m number of money nodes] [-t number of token nodes] [-e number of evm nodes] [-c reset all DB files]"
   exit 0
 }
 
@@ -21,9 +20,6 @@ while getopts "chd:m:t:e:" o; do
   case "${o}" in
   c)
     reset_db_only=true
-    ;;
-  d)
-    vd_nodes=${OPTARG}
     ;;
   m)
     money_nodes=${OPTARG}
@@ -59,13 +55,6 @@ echo "generating genesis files"
 
 moneySdrFlags=""
 
-# Generate vd nodes genesis files.
-if [ "$vd_nodes" -ne 0 ]; then
-  vdSdr='{"system_identifier": "AAAAAQ==", "t2timeout": 2500, "fee_credit_bill": {"unit_id": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAM=", "owner_predicate": "U3aoAU8B9SAiu0UEB9kvE78cUxKKZ2vPMEgY6fQaXvTr6unA1rCHaawB"}}'
-  echo "$vdSdr" >testab/vd-sdr.json
-  moneySdrFlags+=" -c testab/vd-sdr.json"
-  generate_partition_node_genesis "vd" "$vd_nodes"
-fi
 # Generate token nodes genesis files.
 if [ "$token_nodes" -ne 0 ]; then
   tokensSdr='{"system_identifier": "AAAAAg==", "t2timeout": 2500, "fee_credit_bill": {"unit_id": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAQ=", "owner_predicate": "U3aoAU8B9SAiu0UEB9kvE78cUxKKZ2vPMEgY6fQaXvTr6unA1rCHaawB"}}'

@@ -31,7 +31,7 @@ type evmGenesisConfig struct {
 	GasUnitPrice     uint64
 }
 
-// newEvmGenesisCmd creates a new cobra command for the vd genesis.
+// newEvmGenesisCmd creates a new cobra command for the evm genesis.
 func newEvmGenesisCmd(baseConfig *baseConfiguration) *cobra.Command {
 	config := &evmGenesisConfig{Base: baseConfig, Keys: NewKeysConf(baseConfig, evmDir)}
 	var cmd = &cobra.Command{

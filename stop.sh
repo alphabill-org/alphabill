@@ -11,9 +11,6 @@ function stop() {
     money)
       program="build/alphabill money"
       ;;
-    vd)
-      program="build/alphabill vd"
-      ;;
     tokens)
       program="build/alphabill tokens"
       ;;
@@ -62,7 +59,7 @@ function stop_backend() {
    echo "program not running"
 }
 
-usage() { echo "Usage: $0 [-h usage] [-a stop all] [-r stop root] [-p stop partition: money, vd, tokens, evm] [-b stop backend: money, tokens, evm]"; exit 0; }
+usage() { echo "Usage: $0 [-h usage] [-a stop all] [-r stop root] [-p stop partition: money, tokens, evm] [-b stop backend: money, tokens, evm]"; exit 0; }
 
 # stop requires an argument either -a for stop all or -p to stop a specific partition
 [ $# -eq 0 ] && usage

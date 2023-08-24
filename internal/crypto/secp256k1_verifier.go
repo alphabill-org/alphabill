@@ -4,6 +4,7 @@ import (
 	"crypto"
 	"crypto/ecdsa"
 	"crypto/elliptic"
+	"fmt"
 
 	"github.com/alphabill-org/alphabill/internal/crypto/canonicalizer"
 
@@ -27,9 +28,12 @@ const CompressedSecp256K1PublicKeySize = 33
 // NewVerifierSecp256k1 creates new verifier from an existing Secp256k1 compressed public key.
 func NewVerifierSecp256k1(compressedPubKey []byte) (Verifier, error) {
 	if len(compressedPubKey) != CompressedSecp256K1PublicKeySize {
-		return nil, errors.Wrapf(errors.ErrInvalidArgument, "pubkey must be %d bytes long, but is %d", CompressedSecp256K1PublicKeySize, len(compressedPubKey))
+		return nil, fmt.Errorf("pubkey must be %d bytes long, but is %d, %w", CompressedSecp256K1PublicKeySize, len(compressedPubKey), errors.ErrInvalidArgument)
 	}
 	x, y := secp256k1.DecompressPubkey(compressedPubKey)
+	if x == nil && y == nil {
+		return nil, fmt.Errorf("public key decompress faield")
+	}
 	pubkey := elliptic.Marshal(secp256k1.S256(), x, y)
 	return &verifierSecp256k1{pubkey}, nil
 }

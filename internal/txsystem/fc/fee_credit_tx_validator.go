@@ -71,6 +71,9 @@ func (v *DefaultFeeCreditTxValidator) ValidateAddFeeCredit(ctx *AddFCValidationC
 	if attr.FeeCreditTransferProof == nil {
 		return errors.New("transferFC tx proof is nil")
 	}
+	if attr.FeeCreditTransfer.ServerMetadata == nil {
+		return errors.New("transferFC tx order is missing server metadata")
+	}
 	var fcr *unit.FeeCreditRecord
 	if ctx.Unit != nil {
 		// 1. ExtrType(P.ι) = fcr – target unit is a fee credit record

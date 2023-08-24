@@ -75,9 +75,9 @@ func TestNewStateWithInitActions(t *testing.T) {
 func TestState_Savepoint_OK(t *testing.T) {
 	unitData := &TestData{Value: 10}
 	s := NewState(t)
-	s.Savepoint()
+	spID := s.Savepoint()
 	require.NoError(t, s.Apply(AddUnit([]byte{0, 0, 0, 1}, test.RandomBytes(20), unitData)))
-	s.ReleaseSavepoint()
+	s.ReleaseToSavepoint(spID)
 
 	committedRoot := s.committedTree.Root()
 	uncommittedRoot := s.latestSavepoint().Root()
@@ -90,9 +90,9 @@ func TestState_Savepoint_OK(t *testing.T) {
 func TestState_RollbackSavepoint(t *testing.T) {
 	unitData := &TestData{Value: 10}
 	s := NewState(t)
-	s.Savepoint()
+	spID := s.Savepoint()
 	require.NoError(t, s.Apply(AddUnit([]byte{0, 0, 0, 1}, test.RandomBytes(20), unitData)))
-	s.RollbackSavepoint()
+	s.RollbackToSavepoint(spID)
 
 	committedRoot := s.committedTree.Root()
 	uncommittedRoot := s.latestSavepoint().Root()

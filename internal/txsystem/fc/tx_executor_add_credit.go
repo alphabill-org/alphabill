@@ -51,7 +51,7 @@ func handleAddFeeCreditTx(f *FeeCredit) txsystem.GenericExecuteFunc[transactions
 		if err = f.state.Apply(updateFunc); err != nil {
 			return nil, fmt.Errorf("addFC state update failed: %w", err)
 		}
-		return &types.ServerMetadata{ActualFee: fee, TargetUnits: []types.UnitID{unitID}}, nil
+		return &types.ServerMetadata{ActualFee: fee, TargetUnits: []types.UnitID{unitID}, SuccessIndicator: types.TxStatusSuccessful}, nil
 	}
 }
 

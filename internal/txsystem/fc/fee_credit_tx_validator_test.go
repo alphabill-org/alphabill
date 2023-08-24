@@ -100,7 +100,7 @@ func TestAddFC(t *testing.T) {
 					testfc.WithTransferFCTx(
 						&types.TransactionRecord{
 							TransactionOrder: testfc.NewTransferFC(t, nil, testtransaction.WithSystemID([]byte("not money partition"))),
-							ServerMetadata:   nil,
+							ServerMetadata:   &types.ServerMetadata{},
 						},
 					),
 				),
@@ -114,7 +114,7 @@ func TestAddFC(t *testing.T) {
 					testfc.WithTransferFCTx(
 						&types.TransactionRecord{
 							TransactionOrder: testfc.NewTransferFC(t, testfc.NewTransferFCAttr(testfc.WithTargetSystemID([]byte("not money partition")))),
-							ServerMetadata:   nil,
+							ServerMetadata:   &types.ServerMetadata{},
 						},
 					),
 				),
@@ -128,7 +128,7 @@ func TestAddFC(t *testing.T) {
 					testfc.WithTransferFCTx(
 						&types.TransactionRecord{
 							TransactionOrder: testfc.NewTransferFC(t, testfc.NewTransferFCAttr(testfc.WithTargetRecordID([]byte("not equal to transaction.unitId")))),
-							ServerMetadata:   nil,
+							ServerMetadata:   &types.ServerMetadata{},
 						},
 					),
 				),
@@ -185,7 +185,7 @@ func TestAddFC(t *testing.T) {
 					testfc.WithTransferFCTx(
 						&types.TransactionRecord{
 							TransactionOrder: testfc.NewTransferFC(t, testfc.NewTransferFCAttr(testfc.WithEarliestAdditionTime(11))),
-							ServerMetadata:   nil,
+							ServerMetadata:   &types.ServerMetadata{},
 						},
 					),
 				),
@@ -214,7 +214,7 @@ func TestAddFC(t *testing.T) {
 					testfc.WithTransferFCTx(
 						&types.TransactionRecord{
 							TransactionOrder: testfc.NewTransferFC(t, testfc.NewTransferFCAttr(testfc.WithLatestAdditionTime(9))),
-							ServerMetadata:   nil,
+							ServerMetadata:   &types.ServerMetadata{},
 						},
 					),
 				),

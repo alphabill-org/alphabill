@@ -18,7 +18,7 @@ import (
 )
 
 func TestEvmGenesis_KeyFileNotFound(t *testing.T) {
-	homeDir := setupHome(t, evmDir)
+	homeDir := setupTestHomeDir(t, evmDir)
 	cmd := New()
 	args := "evm-genesis --home " + homeDir
 	cmd.baseCmd.SetArgs(strings.Split(args, " "))
@@ -27,7 +27,7 @@ func TestEvmGenesis_KeyFileNotFound(t *testing.T) {
 }
 
 func TestEvmGenesis_ForceKeyGeneration(t *testing.T) {
-	homeDir := setupHome(t, evmDir)
+	homeDir := setupTestHomeDir(t, evmDir)
 	cmd := New()
 	args := "evm-genesis --gen-keys --home " + homeDir
 	cmd.baseCmd.SetArgs(strings.Split(args, " "))
@@ -177,7 +177,7 @@ func Test_getPartitionParams_PriceTooBig(t *testing.T) {
 	require.Nil(t, params)
 }
 
-func setupHome(t *testing.T, dir string) string {
+func setupTestHomeDir(t *testing.T, dir string) string {
 	outputDir := filepath.Join(t.TempDir(), dir)
 	err := os.MkdirAll(outputDir, 0700) // -rwx------
 	require.NoError(t, err)

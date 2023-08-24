@@ -30,7 +30,7 @@ key=1
 bill-id=6173666166206144464b4b4c494c494c4b4c4b620614b4c1ce72
 # output directory for bills, directory is created if it does not exist (default: CWD)
 output-path=/home/test
-# partition name for which to manage fees [money|tokens|vd]
+# partition name for which to manage fees [money|tokens]
 partition=money
 # partition backend url for which to manage fees
 partition-backend-url=localhost:27766

@@ -14,7 +14,6 @@ import (
 	testpartition "github.com/alphabill-org/alphabill/internal/testutils/partition"
 	"github.com/alphabill-org/alphabill/internal/txsystem/money"
 	"github.com/alphabill-org/alphabill/internal/txsystem/tokens"
-	"github.com/alphabill-org/alphabill/internal/txsystem/vd"
 	wlog "github.com/alphabill-org/alphabill/pkg/wallet/log"
 	"github.com/alphabill-org/alphabill/pkg/wallet/money/backend"
 	moneyclient "github.com/alphabill-org/alphabill/pkg/wallet/money/backend/client"
@@ -26,15 +25,6 @@ var defaultTokenSDR = &genesis.SystemDescriptionRecord{
 	T2Timeout:        defaultT2Timeout,
 	FeeCreditBill: &genesis.FeeCreditBill{
 		UnitId:         money.NewBillID(nil, []byte{3}),
-		OwnerPredicate: script.PredicateAlwaysTrue(),
-	},
-}
-
-var defaultVDSDR = &genesis.SystemDescriptionRecord{
-	SystemIdentifier: vd.DefaultSystemIdentifier,
-	T2Timeout:        defaultT2Timeout,
-	FeeCreditBill: &genesis.FeeCreditBill{
-		UnitId:         money.NewBillID(nil, []byte{4}),
 		OwnerPredicate: script.PredicateAlwaysTrue(),
 	},
 }
@@ -219,7 +209,7 @@ func startMoneyBackend(t *testing.T, moneyPart *testpartition.NodePartition, ini
 					Value:     initialBill.Value,
 					Predicate: script.PredicateAlwaysTrue(),
 				},
-				SystemDescriptionRecords: []*genesis.SystemDescriptionRecord{defaultMoneySDR, defaultVDSDR, defaultTokenSDR},
+				SystemDescriptionRecords: []*genesis.SystemDescriptionRecord{defaultMoneySDR, defaultTokenSDR},
 			})
 		require.ErrorIs(t, err, context.Canceled)
 	}()

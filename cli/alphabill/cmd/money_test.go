@@ -288,7 +288,7 @@ func envVarsStr(envVars []envVar) (out string) {
 func TestRunMoneyNode_Ok(t *testing.T) {
 	homeDirMoney := setupTestHomeDir(t, "money")
 	keysFileLocation := filepath.Join(homeDirMoney, defaultKeysFileName)
-	nodeGenesisFileLocation := filepath.Join(homeDirMoney, nodeGenesisFileName)
+	nodeGenesisFileLocation := filepath.Join(homeDirMoney, moneyGenesisFileName)
 	partitionGenesisFileLocation := filepath.Join(homeDirMoney, "partition-genesis.json")
 	test.MustRunInTime(t, 5*time.Second, func() {
 		moneyNodeAddr := fmt.Sprintf("localhost:%d", net.GetFreeRandomPort(t))

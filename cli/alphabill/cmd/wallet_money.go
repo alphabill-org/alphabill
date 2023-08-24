@@ -85,7 +85,6 @@ func newWalletCmd(baseConfig *baseConfiguration) *cobra.Command {
 	walletCmd.AddCommand(collectDustCmd(config))
 	walletCmd.AddCommand(addKeyCmd(config))
 	walletCmd.AddCommand(tokenCmd(config))
-	walletCmd.AddCommand(vdCmd(config))
 	// add passwords flags for (encrypted)wallet
 	walletCmd.PersistentFlags().BoolP(passwordPromptCmdName, "p", false, passwordPromptUsage)
 	walletCmd.PersistentFlags().String(passwordArgCmdName, "", passwordArgUsage)

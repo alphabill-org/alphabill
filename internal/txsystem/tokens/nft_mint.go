@@ -35,7 +35,7 @@ func handleMintNonFungibleTokenTx(options *Options) txsystem.GenericExecuteFunc[
 
 func validateMintNonFungibleToken(tx *types.TransactionOrder, attr *MintNonFungibleTokenAttributes, s *state.State, hashAlgorithm crypto.Hash) error {
 	unitID := types.UnitID(tx.UnitID())
-	if unitID.IsZero(hashAlgorithm.Size()) {
+	if unitID.IsZero(UnitPartLength) {
 		return errors.New(ErrStrUnitIDIsZero)
 	}
 	if len(attr.Name) > maxNameLength {
@@ -61,7 +61,7 @@ func validateMintNonFungibleToken(tx *types.TransactionOrder, attr *MintNonFungi
 		return err
 	}
 	nftTypeID := types.UnitID(attr.NFTTypeID)
-	if nftTypeID.IsZero(hashAlgorithm.Size()) {
+	if nftTypeID.IsZero(UnitPartLength) {
 		return errors.New(ErrStrUnitIDIsZero)
 	}
 

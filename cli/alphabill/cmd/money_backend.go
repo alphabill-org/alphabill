@@ -11,7 +11,6 @@ import (
 	"github.com/alphabill-org/alphabill/internal/txsystem/money"
 	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/alphabill-org/alphabill/pkg/wallet/money/backend"
-	"github.com/holiman/uint256"
 	"github.com/spf13/cobra"
 )
 
@@ -120,7 +119,7 @@ func execMoneyBackendStartCmd(ctx context.Context, config *moneyBackendConfig) e
 		DbFile:                  dbFile,
 		ListBillsPageLimit:      config.ListBillsPageLimit,
 		InitialBill: backend.InitialBill{
-			Id:        util.Uint256ToBytes(uint256.NewInt(config.InitialBillID)),
+			Id:        money.NewBillID(nil, util.Uint64ToBytes(config.InitialBillID)),
 			Value:     config.InitialBillValue,
 			Predicate: script.PredicateAlwaysTrue(),
 		},

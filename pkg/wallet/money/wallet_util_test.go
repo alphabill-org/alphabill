@@ -12,12 +12,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
 
 	"github.com/alphabill-org/alphabill/internal/hash"
 	"github.com/alphabill-org/alphabill/internal/types"
-	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/alphabill-org/alphabill/pkg/client/clientmock"
 	"github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/alphabill-org/alphabill/pkg/wallet/account"
@@ -31,7 +29,7 @@ type (
 	backendMockReturnConf struct {
 		balance                  uint64
 		roundNumber              uint64
-		billId                   *uint256.Int
+		billId                   types.UnitID
 		billValue                uint64
 		billTxHash               string
 		proofList                []string
@@ -123,7 +121,7 @@ func mockBackendCalls(br *backendMockReturnConf) (*httptest.Server, *url.URL) {
 				if br.customBillList != "" {
 					w.Write([]byte(br.customBillList))
 				} else {
-					w.Write([]byte(fmt.Sprintf(`{"total": 1, "bills": [{"id":"%s","value":"%d","txHash":"%s","isDcBill":false}]}`, toBillId(br.billId), br.billValue, br.billTxHash)))
+					w.Write([]byte(fmt.Sprintf(`{"total": 1, "bills": [{"id":"%s","value":"%d","txHash":"%s","isDcBill":false}]}`, toBase64(br.billId), br.billValue, br.billTxHash)))
 				}
 			case strings.Contains(path, beclient.FeeCreditPath):
 				w.WriteHeader(http.StatusOK)
@@ -147,8 +145,8 @@ func mockBackendCalls(br *backendMockReturnConf) (*httptest.Server, *url.URL) {
 	return server, serverAddress
 }
 
-func toBillId(i *uint256.Int) string {
-	return base64.StdEncoding.EncodeToString(util.Uint256ToBytes(i))
+func toBase64(bytes []byte) string {
+	return base64.StdEncoding.EncodeToString(bytes)
 }
 
 func createBlockProofResponseForDustTransfer(t *testing.T, b *wallet.Bill, targetBill *wallet.Bill, timeout uint64, k *account.AccountKey) *wallet.Proof {

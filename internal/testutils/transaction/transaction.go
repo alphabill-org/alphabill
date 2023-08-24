@@ -15,7 +15,7 @@ func defaultTx() *types.TransactionOrder {
 	payload := &types.Payload{
 		SystemID:       defaultSystemID,
 		Type:           "test",
-		UnitID:         test.RandomBytes(32),
+		UnitID:         test.RandomBytes(33),
 		ClientMetadata: &types.ClientMetadata{Timeout: 10, MaxTransactionFee: 2},
 	}
 

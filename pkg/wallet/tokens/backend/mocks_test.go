@@ -17,7 +17,6 @@ import (
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/alphabill-org/alphabill/internal/txsystem/tokens"
 	"github.com/alphabill-org/alphabill/internal/types"
-	"github.com/alphabill-org/alphabill/internal/util"
 	sdk "github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/alphabill-org/alphabill/pkg/wallet/log"
 	"github.com/fxamacker/cbor/v2"
@@ -70,9 +69,9 @@ func randomTx(t *testing.T, attr interface{}) *types.TransactionOrder {
 	tx := &types.TransactionOrder{
 		Payload: &types.Payload{
 			SystemID:       tokens.DefaultSystemIdentifier,
-			UnitID:         test.RandomBytes(32),
+			UnitID:         test.RandomBytes(33),
 			Attributes:     attrBytes,
-			ClientMetadata: &types.ClientMetadata{Timeout: 10, FeeCreditRecordID: util.Uint64ToBytes32(1)},
+			ClientMetadata: &types.ClientMetadata{Timeout: 10, FeeCreditRecordID: tokens.NewFeeCreditRecordID(nil, []byte{1})},
 		},
 		OwnerProof: test.RandomBytes(3),
 	}

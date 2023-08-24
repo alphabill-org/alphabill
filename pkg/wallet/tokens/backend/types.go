@@ -7,7 +7,6 @@ import (
 	"io"
 
 	"github.com/alphabill-org/alphabill/internal/txsystem/tokens"
-	"github.com/alphabill-org/alphabill/internal/txsystem/util"
 	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/pkg/wallet"
 )
@@ -57,8 +56,6 @@ type (
 	TokenTypeID = types.UnitID
 	Kind          byte
 
-	TokenID2     types.UnitID
-
 	FeeCreditBill struct {
 		Id              []byte `json:"id"`
 		Value           uint64 `json:"value,string"`
@@ -84,11 +81,6 @@ func (tu *TokenUnit) WriteSSE(w io.Writer) error {
 	}
 	_, err = fmt.Fprintf(w, "event: token\ndata: %s\n\n", b)
 	return err
-}
-
-func (tid *TokenID2) SameShardID(hashValue []byte) types.UnitID {
-	return util.SameShardID(types.UnitID(*tid), hashValue, 8)
-	// return bytes.Equal(t, to)
 }
 
 func (kind Kind) String() string {

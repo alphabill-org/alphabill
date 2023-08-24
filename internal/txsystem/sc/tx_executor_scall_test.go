@@ -8,7 +8,6 @@ import (
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	testtransaction "github.com/alphabill-org/alphabill/internal/testutils/transaction"
 	"github.com/alphabill-org/alphabill/internal/types"
-	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
 )
 
@@ -41,7 +40,7 @@ func Test_handleSCallTx(t *testing.T) {
 			name: "program not found",
 			args: args{
 				state: state.NewEmptyState(),
-				tx:    newSCallTxOrder(t, testtransaction.WithUnitId(make([]byte, 32)), testtransaction.WithOwnerProof(nil), testtransaction.WithPayloadType("scall")),
+				tx:    newSCallTxOrder(t, testtransaction.WithUnitId(make([]byte, 33)), testtransaction.WithOwnerProof(nil), testtransaction.WithPayloadType("scall")),
 				attr: &SCallAttributes{
 					Input: test.RandomBytes(123),
 				},
@@ -52,7 +51,7 @@ func Test_handleSCallTx(t *testing.T) {
 			name: "build-in program not found",
 			args: args{
 				state: initStateWithBuiltInPrograms(t),
-				tx:    newSCallTxOrder(t, testtransaction.WithUnitId(uint256.NewInt(0).PaddedBytes(32)), testtransaction.WithOwnerProof(nil), testtransaction.WithPayloadType("scall")),
+				tx:    newSCallTxOrder(t, testtransaction.WithUnitId(make([]byte, 33)), testtransaction.WithOwnerProof(nil), testtransaction.WithPayloadType("scall")),
 				attr: &SCallAttributes{
 					Input: test.RandomBytes(123),
 				},

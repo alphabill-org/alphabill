@@ -34,7 +34,7 @@ func handleCreateNoneFungibleTokenTx(options *Options) txsystem.GenericExecuteFu
 
 func validate(tx *types.TransactionOrder, attr *CreateNonFungibleTokenTypeAttributes, s *state.State, hashAlgorithm crypto.Hash) error {
 	unitID := types.UnitID(tx.UnitID())
-	if unitID.IsZero(hashAlgorithm.Size()) {
+	if unitID.IsZero(UnitPartLength) {
 		return fmt.Errorf("create nft type: %s", ErrStrUnitIDIsZero)
 	}
 	if len(attr.Symbol) > maxSymbolLength {

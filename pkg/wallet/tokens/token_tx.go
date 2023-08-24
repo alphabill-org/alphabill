@@ -10,6 +10,7 @@ import (
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/hash"
 	"github.com/alphabill-org/alphabill/internal/script"
+	"github.com/alphabill-org/alphabill/internal/txsystem/tokens"
 	ttxs "github.com/alphabill-org/alphabill/internal/txsystem/tokens"
 	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/pkg/wallet"
@@ -71,7 +72,7 @@ func (w *Wallet) newType(ctx context.Context, accNr uint64, payloadType string, 
 	if err != nil {
 		return nil, err
 	}
-	return backend.TokenTypeID(sub.UnitID), nil
+	return sub.UnitID, nil
 }
 
 func preparePredicateSignatures(am account.Manager, args []*PredicateInput, tx *types.TransactionOrder, attrs types.SigBytesProvider) ([][]byte, error) {
@@ -128,7 +129,7 @@ func (w *Wallet) newToken(ctx context.Context, accNr uint64, payloadType string,
 }
 
 func RandomID() (types.UnitID, error) {
-	id := make([]byte, 32)
+	id := make([]byte, tokens.UnitIDLength)
 	_, err := rand.Read(id)
 	if err != nil {
 		return nil, err
@@ -150,7 +151,7 @@ func (w *Wallet) prepareTxSubmission(ctx context.Context, payloadType string, at
 	if err != nil {
 		return nil, err
 	}
-	tx := createTx(w.systemID, payloadType, unitId, roundNumber+txTimeoutRoundCount, ac.PubKeyHash.Sha256)
+	tx := createTx(w.systemID, payloadType, unitId, roundNumber+txTimeoutRoundCount, tokens.NewFeeCreditRecordID(nil, ac.PubKeyHash.Sha256))
 	if txps != nil {
 		// set fields before tx is signed
 		err = txps(tx)

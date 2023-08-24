@@ -13,10 +13,8 @@ import (
 	"github.com/alphabill-org/alphabill/internal/partition"
 	"github.com/alphabill-org/alphabill/internal/script"
 	"github.com/alphabill-org/alphabill/internal/txsystem/money"
-	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/fxamacker/cbor/v2"
-	"github.com/holiman/uint256"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/spf13/cobra"
 )
@@ -32,12 +30,12 @@ var defaultMoneySDR = &genesis.SystemDescriptionRecord{
 	SystemIdentifier: money.DefaultSystemIdentifier,
 	T2Timeout:        defaultT2Timeout,
 	FeeCreditBill: &genesis.FeeCreditBill{
-		UnitId:         util.Uint256ToBytes(uint256.NewInt(2)),
+		UnitId:         money.NewBillID(nil, []byte{2}),
 		OwnerPredicate: script.PredicateAlwaysTrue(),
 	},
 }
 
-var defaultInitialBillID types.UnitID
+var defaultInitialBillID = money.NewBillID(nil, []byte{1})
 
 type moneyGenesisConfig struct {
 	Base               *baseConfiguration
@@ -48,13 +46,6 @@ type moneyGenesisConfig struct {
 	DCMoneySupplyValue uint64   `validate:"gte=0"`
 	T2Timeout          uint32   `validate:"gte=0"`
 	SDRFiles           []string // system description record files
-}
-
-func init() {
-	// TODO: add a constructor method to types.UnitID
-	defaultInitialBillID = make([]byte, money.UnitIDLength)
-	defaultInitialBillID[money.UnitIDLength-money.TypeIDLength-1] = 1
-	copy(defaultInitialBillID[money.UnitIDLength-money.TypeIDLength:], money.BillTypeID)
 }
 
 // newMoneyGenesisCmd creates a new cobra command for the alphabill money partition genesis.

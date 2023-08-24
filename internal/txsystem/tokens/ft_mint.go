@@ -35,7 +35,7 @@ func handleMintFungibleTokenTx(options *Options) txsystem.GenericExecuteFunc[Min
 
 func validateMintFungibleToken(tx *types.TransactionOrder, attr *MintFungibleTokenAttributes, s *state.State, hashAlgorithm crypto.Hash) error {
 	unitID := types.UnitID(tx.UnitID())
-	if unitID.IsZero(hashAlgorithm.Size()) {
+	if unitID.IsZero(UnitPartLength) {
 		return errors.New(ErrStrUnitIDIsZero)
 	}
 	u, err := s.GetUnit(unitID, false)

@@ -16,10 +16,10 @@ import (
 	"github.com/alphabill-org/alphabill/internal/txsystem/fc/transactions"
 	"github.com/alphabill-org/alphabill/internal/txsystem/money"
 	"github.com/alphabill-org/alphabill/internal/types"
+	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/fxamacker/cbor/v2"
-	"github.com/holiman/uint256"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/protobuf/types/known/emptypb"
@@ -60,8 +60,8 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	bytes32 := uint256.NewInt(*billIdUint).Bytes32()
-	billID := bytes32[:]
+
+	billID := money.NewBillID(nil, util.Uint64ToBytes(*billIdUint))
 
 	ctx := context.Background()
 	conn, err := grpc.DialContext(ctx, *uri, grpc.WithTransportCredentials(insecure.NewCredentials()))
@@ -83,7 +83,7 @@ func main() {
 
 	txFee := uint64(1)
 	feeAmount := uint64(2)
-	fcrID := money.SameShardID(billID, hash.Sum256(pubKey))
+	fcrID := money.NewFeeCreditRecordID(billID, hash.Sum256(pubKey))
 
 	// create transferFC
 	transferFC, err := createTransferFC(feeAmount, billID, fcrID, res.RoundNumber, absoluteTimeout)

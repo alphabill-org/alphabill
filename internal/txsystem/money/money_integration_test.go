@@ -15,12 +15,12 @@ import (
 	"github.com/alphabill-org/alphabill/internal/script"
 	"github.com/alphabill-org/alphabill/internal/state"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
-	testmoneyfc "github.com/alphabill-org/alphabill/internal/testutils/money"
 	testpartition "github.com/alphabill-org/alphabill/internal/testutils/partition"
 	testevent "github.com/alphabill-org/alphabill/internal/testutils/partition/event"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/internal/txsystem/fc"
 	"github.com/alphabill-org/alphabill/internal/txsystem/fc/unit"
+	testfc "github.com/alphabill-org/alphabill/internal/txsystem/fc/testutils"
 	"github.com/alphabill-org/alphabill/internal/types"
 )
 
@@ -33,6 +33,10 @@ var (
 	pubKey2  = "0x02d29cbdea6062c0a9d9170245188fa39a12ad3dd6cc02a78fcc026594d9bdc06c"
 	privKey2 = "0xd7e5041766e8ca505ab07ffa46652e248ede22b436ec81b583a78c8c9e1aac6b"
 )
+
+func newBillID(unitPart byte) types.UnitID {
+	return NewBillID(nil, []byte{unitPart})
+}
 
 func TestPartition_Ok(t *testing.T) {
 	const moneyInvariant = uint64(10000 * 1e8)
@@ -51,7 +55,7 @@ func TestPartition_Ok(t *testing.T) {
 			WithSystemIdentifier(systemIdentifier),
 			WithHashAlgorithm(crypto.SHA256),
 			WithInitialBill(initialBill),
-			WithSystemDescriptionRecords(createSDRs(2)),
+			WithSystemDescriptionRecords(createSDRs(newBillID(2))),
 			WithDCMoneyAmount(0),
 			WithTrustBase(tb),
 			WithFeeCalculator(fc.FixedFee(1)),
@@ -66,10 +70,9 @@ func TestPartition_Ok(t *testing.T) {
 	t.Cleanup(func() { require.NoError(t, abNet.Close()) })
 
 	// create fee credit for initial bill transfer
-	fcrAmount := testmoneyfc.FCRAmount
-	transferFC := testmoneyfc.CreateFeeCredit(t, initialBill.ID, abNet)
+	transferFC := testfc.CreateFeeCredit(t, initialBill.ID, fcrID, fcrAmount, abNet)
 
-	feeCredit, err := s.GetUnit(testmoneyfc.FCRID, true)
+	feeCredit, err := s.GetUnit(fcrID, true)
 	require.NoError(t, err)
 	require.Equal(t, fcrAmount-1, feeCredit.Data().(*unit.FeeCreditRecord).Balance)
 
@@ -81,7 +84,7 @@ func TestPartition_Ok(t *testing.T) {
 
 	_, _, transferInitialBillTxRecord, err := moneyPrt.GetTxProof(transferInitialBillTx)
 	require.NoError(t, err)
-	feeCredit, err = s.GetUnit(testmoneyfc.FCRID, true)
+	feeCredit, err = s.GetUnit(fcrID, true)
 	require.NoError(t, err)
 	require.Equal(t, fcrAmount-2, feeCredit.Data().(*unit.FeeCreditRecord).Balance)
 
@@ -91,7 +94,7 @@ func TestPartition_Ok(t *testing.T) {
 	err = moneyPrt.SubmitTx(tx)
 	require.NoError(t, err)
 	require.Eventually(t, testpartition.BlockchainContainsTx(moneyPrt, tx), test.WaitDuration, test.WaitTick)
-	feeCredit, err = s.GetUnit(testmoneyfc.FCRID, true)
+	feeCredit, err = s.GetUnit(fcrID, true)
 	require.NoError(t, err)
 	require.Equal(t, fcrAmount-3, feeCredit.Data().(*unit.FeeCreditRecord).Balance)
 
@@ -101,7 +104,7 @@ func TestPartition_Ok(t *testing.T) {
 	err = moneyPrt.SubmitTx(tx)
 	require.Error(t, err)
 	require.Never(t, testpartition.BlockchainContainsTx(moneyPrt, tx), test.WaitDuration, test.WaitTick)
-	feeCredit, err = s.GetUnit(testmoneyfc.FCRID, true)
+	feeCredit, err = s.GetUnit(fcrID, true)
 	require.NoError(t, err)
 	require.Equal(t, fcrAmount-3, feeCredit.Data().(*unit.FeeCreditRecord).Balance)
 
@@ -118,7 +121,7 @@ func TestPartition_SwapDCOk(t *testing.T) {
 		hashAlgorithm = crypto.SHA256
 		txsState      *state.State
 		initialBill   = &InitialBill{
-			ID:    []byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1},
+			ID:    NewBillID(nil, []byte{1}),
 			Value: moneyInvariant,
 			Owner: script.PredicateAlwaysTrue(),
 		}
@@ -133,7 +136,7 @@ func TestPartition_SwapDCOk(t *testing.T) {
 			WithSystemIdentifier(systemIdentifier),
 			WithHashAlgorithm(crypto.SHA256),
 			WithInitialBill(initialBill),
-			WithSystemDescriptionRecords(createSDRs(2)),
+			WithSystemDescriptionRecords(createSDRs(newBillID(99))),
 			WithDCMoneyAmount(100),
 			WithTrustBase(tb),
 			WithState(txsState),
@@ -150,8 +153,7 @@ func TestPartition_SwapDCOk(t *testing.T) {
 
 	// create fee credit for initial bill transfer
 	txFee := feeFunc()
-	fcrAmount := testmoneyfc.FCRAmount
-	transferFC := testmoneyfc.CreateFeeCredit(t, initialBill.ID, abNet)
+	transferFC := testfc.CreateFeeCredit(t, initialBill.ID, fcrID, fcrAmount, abNet)
 	require.NoError(t, err)
 
 	// transfer initial bill to pubKey1
@@ -190,7 +192,7 @@ func TestPartition_SwapDCOk(t *testing.T) {
 	// create dust payments from splits
 	dcBillIds := make([]types.UnitID, len(splitTxs))
 	for i, splitTx := range splitTxs {
-		dcBillIds[i] = SameShardID(splitTx.TransactionOrder.UnitID(), unitIdFromTransaction(splitTx.TransactionOrder, ))
+		dcBillIds[i] = NewBillID(splitTx.TransactionOrder.UnitID(), unitIdFromTransaction(splitTx.TransactionOrder))
 	}
 	// sort bill id's
 	sort.Slice(dcBillIds, func(i, j int) bool {

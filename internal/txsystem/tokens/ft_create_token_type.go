@@ -38,7 +38,7 @@ func handleCreateFungibleTokenTypeTx(options *Options) txsystem.GenericExecuteFu
 
 func validateCreateFungibleTokenType(tx *types.TransactionOrder, attr *CreateFungibleTokenTypeAttributes, s *state.State, hashAlgorithm crypto.Hash) error {
 	unitID := types.UnitID(tx.UnitID())
-	if unitID.IsZero(hashAlgorithm.Size()) {
+	if unitID.IsZero(UnitPartLength) {
 		return errors.New(ErrStrUnitIDIsZero)
 	}
 	if len(attr.Symbol) > maxSymbolLength {
@@ -70,7 +70,7 @@ func validateCreateFungibleTokenType(tx *types.TransactionOrder, attr *CreateFun
 	}
 
 	parentUnitID := types.UnitID(attr.ParentTypeID)
-	if !parentUnitID.IsZero(hashAlgorithm.Size()) {
+	if !parentUnitID.IsZero(UnitPartLength) {
 		_, parentData, err := getUnit[*fungibleTokenTypeData](s, parentUnitID)
 		if err != nil {
 			return err

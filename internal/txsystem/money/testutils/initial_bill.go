@@ -3,13 +3,12 @@ package testutils
 import (
 	"github.com/alphabill-org/alphabill/internal/hash"
 	"github.com/alphabill-org/alphabill/internal/script"
-	testmoney "github.com/alphabill-org/alphabill/internal/testutils/money"
 	moneytx "github.com/alphabill-org/alphabill/internal/txsystem/money"
 	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/fxamacker/cbor/v2"
 )
 
-func CreateInitialBillTransferTx(pubKey []byte, billID types.UnitID, billValue uint64, timeout uint64, backlink []byte) (*types.TransactionOrder, error) {
+func CreateInitialBillTransferTx(pubKey []byte, billID, fcrID types.UnitID, billValue uint64, timeout uint64, backlink []byte) (*types.TransactionOrder, error) {
 	attr := &moneytx.TransferAttributes{
 		NewBearer:   script.PredicatePayToPublicKeyHashDefault(hash.Sum256(pubKey)),
 		TargetValue: billValue,
@@ -28,7 +27,7 @@ func CreateInitialBillTransferTx(pubKey []byte, billID types.UnitID, billValue u
 			ClientMetadata: &types.ClientMetadata{
 				Timeout:           timeout,
 				MaxTransactionFee: 1,
-				FeeCreditRecordID: testmoney.FCRID,
+				FeeCreditRecordID: fcrID,
 			},
 		},
 		OwnerProof: script.PredicateArgumentEmpty(),

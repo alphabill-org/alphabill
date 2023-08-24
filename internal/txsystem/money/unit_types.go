@@ -1,20 +1,24 @@
 package money
 
 import (
-	"github.com/alphabill-org/alphabill/internal/txsystem/util"
 	"github.com/alphabill-org/alphabill/internal/types"
 )
 
 const (
-	TypeIDLength = 1
-	UnitIDLength = 32 + TypeIDLength
+	UnitIDLength   = UnitPartLength + TypePartLength
+	UnitPartLength = 32
+	TypePartLength = 1
 )
 
 var (
-	BillTypeID            = []byte{1}
-	FeeCreditRecordTypeID = []byte{2}
+	BillUnitType            = []byte{0x01}
+	FeeCreditRecordUnitType = []byte{0xff}
 )
 
-func SameShardID(unitID types.UnitID, hashValue []byte) types.UnitID {
-	return util.SameShardID(unitID, hashValue, TypeIDLength)
+func NewBillID(shardPart []byte, unitPart []byte) types.UnitID {
+	return types.NewUnitID(UnitIDLength, shardPart, unitPart, BillUnitType)
+}
+
+func NewFeeCreditRecordID(shardPart []byte, unitPart []byte) types.UnitID {
+	return types.NewUnitID(UnitIDLength, shardPart, unitPart, FeeCreditRecordUnitType)
 }

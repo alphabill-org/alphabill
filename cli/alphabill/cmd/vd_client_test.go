@@ -116,7 +116,7 @@ func NewVDAlphabillNetwork(t *testing.T, ctx context.Context) *VDAlphabillNetwor
 
 	vdTxPublisher := vdwallet.NewTxPublisher(vdClient)
 
-	vdFeeManager := fees.NewFeeManager(am, unitLocker, money.DefaultSystemIdentifier, moneyWallet, moneyBackendClient, vd.DefaultSystemIdentifier, vdTxPublisher, vdClient)
+	vdFeeManager := fees.NewFeeManager(am, unitLocker, money.DefaultSystemIdentifier, moneyWallet, moneyBackendClient, vd.DefaultSystemIdentifier, vdTxPublisher, vdClient, money.NewFeeCreditRecordID)
 	t.Cleanup(vdFeeManager.Close)
 
 	spendInitialBillWithFeeCredits(t, abNet, initialBill, accountKey.PubKey)

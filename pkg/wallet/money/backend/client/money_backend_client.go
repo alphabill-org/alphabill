@@ -278,7 +278,7 @@ func (c *MoneyBackendClient) PostTransactions(ctx context.Context, pubKey sdk.Pu
 
 // GetTxProof wrapper for GetProof method to satisfy txsubmitter interface, also verifies txHash
 func (c *MoneyBackendClient) GetTxProof(ctx context.Context, unitID types.UnitID, txHash sdk.TxHash) (*sdk.Proof, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, fmt.Sprintf("%s/api/v1/units/0x%x/transactions/0x%x/proof", c.BaseUrl, unitID, txHash), nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, fmt.Sprintf("%s/api/v1/units/0x%s/transactions/0x%x/proof", c.BaseUrl, unitID, txHash), nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to build get tx proof request: %w", err)
 	}

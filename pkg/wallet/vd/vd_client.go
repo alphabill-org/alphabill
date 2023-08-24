@@ -13,6 +13,7 @@ import (
 
 	"github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/script"
+	"github.com/alphabill-org/alphabill/internal/txsystem/money"
 	"github.com/alphabill-org/alphabill/internal/txsystem/vd"
 	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/pkg/client"
@@ -256,7 +257,7 @@ func (v *VDClient) registerHashTx(ctx context.Context, hash []byte) error {
 }
 
 func (v *VDClient) ensureFeeCredit(ctx context.Context, accountKey *account.AccountKey) error {
-	fcb, err := v.GetFeeCreditBill(ctx, accountKey.PubKeyHash.Sha256)
+	fcb, err := v.GetFeeCreditBill(ctx, money.NewFeeCreditRecordID(nil, accountKey.PubKeyHash.Sha256))
 	if err != nil {
 		return err
 	}
@@ -278,7 +279,7 @@ func (v *VDClient) createRegisterDataTx(data []byte, timeout uint64) (*types.Tra
 		ClientMetadata: &types.ClientMetadata{
 			Timeout:           timeout,
 			MaxTransactionFee: tx_builder.MaxFee,
-			FeeCreditRecordID: v.accountKey.PubKeyHash.Sha256,
+			FeeCreditRecordID: money.NewFeeCreditRecordID(nil, v.accountKey.PubKeyHash.Sha256),
 		},
 	}
 

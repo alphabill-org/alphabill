@@ -181,7 +181,7 @@ func (p *blockProcessor) processTx(tr *types.TransactionRecord, proof *wallet.Tx
 
 		// save new token created by the split
 		newToken := &TokenUnit{
-			ID:       tokens.SameShardID(id, tokens.HashForIDCalculation(tx, crypto.SHA256)),
+			ID:       tokens.NewFungibleTokenID(id, tokens.HashForIDCalculation(tx, crypto.SHA256)),
 			Symbol:   token.Symbol,
 			TypeID:   token.TypeID,
 			TypeName: token.TypeName,

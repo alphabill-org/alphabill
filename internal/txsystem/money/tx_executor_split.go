@@ -28,7 +28,7 @@ func handleSplitTx(s *state.State, hashAlgorithm crypto.Hash, feeCalc fc.FeeCalc
 		}
 
 		unitID := tx.UnitID()
-		newItemID := SameShardID(unitID, HashForIDCalculation(unitID, tx.Payload.Attributes, tx.Timeout(), hashAlgorithm))
+		newItemID := NewBillID(unitID, HashForIDCalculation(unitID, tx.Payload.Attributes, tx.Timeout(), hashAlgorithm))
 
 		// calculate actual tx fee cost
 		fee := feeCalc()

@@ -15,11 +15,9 @@ import (
 	"github.com/alphabill-org/alphabill/internal/txsystem/money"
 	"github.com/alphabill-org/alphabill/internal/txsystem/tokens"
 	"github.com/alphabill-org/alphabill/internal/txsystem/vd"
-	"github.com/alphabill-org/alphabill/internal/util"
 	wlog "github.com/alphabill-org/alphabill/pkg/wallet/log"
 	"github.com/alphabill-org/alphabill/pkg/wallet/money/backend"
 	moneyclient "github.com/alphabill-org/alphabill/pkg/wallet/money/backend/client"
-	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
 )
 
@@ -27,7 +25,7 @@ var defaultTokenSDR = &genesis.SystemDescriptionRecord{
 	SystemIdentifier: tokens.DefaultSystemIdentifier,
 	T2Timeout:        defaultT2Timeout,
 	FeeCreditBill: &genesis.FeeCreditBill{
-		UnitId:         util.Uint256ToBytes(uint256.NewInt(4)),
+		UnitId:         money.NewBillID(nil, []byte{3}),
 		OwnerPredicate: script.PredicateAlwaysTrue(),
 	},
 }
@@ -36,7 +34,7 @@ var defaultVDSDR = &genesis.SystemDescriptionRecord{
 	SystemIdentifier: vd.DefaultSystemIdentifier,
 	T2Timeout:        defaultT2Timeout,
 	FeeCreditBill: &genesis.FeeCreditBill{
-		UnitId:         util.Uint256ToBytes(uint256.NewInt(2)),
+		UnitId:         money.NewBillID(nil, []byte{4}),
 		OwnerPredicate: script.PredicateAlwaysTrue(),
 	},
 }

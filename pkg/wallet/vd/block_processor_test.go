@@ -8,7 +8,6 @@ import (
 	"testing"
 
 	"github.com/fxamacker/cbor/v2"
-	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
 
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
@@ -175,7 +174,6 @@ func Test_blockProcessor_processTx(t *testing.T) {
 		// then fee credit bill is saved
 		fcb, err := bp.store.GetFeeCreditBill(addFC.UnitID())
 		require.NoError(t, err)
-		require.Equal(t, uint256.NewInt(1), uint256.NewInt(0).SetBytes(fcb.Id))
 		require.EqualValues(t, 49, fcb.GetValue())
 		lastAddFCTxHash := addFC.Hash(crypto.SHA256)
 		require.Equal(t, lastAddFCTxHash, fcb.TxHash)
@@ -195,7 +193,6 @@ func Test_blockProcessor_processTx(t *testing.T) {
 		// then fee credit bill value is reduced
 		fcb, err = bp.store.GetFeeCreditBill(closeFC.UnitID())
 		require.NoError(t, err)
-		require.Equal(t, uint256.NewInt(1), uint256.NewInt(0).SetBytes(fcb.Id))
 		require.EqualValues(t, 39, fcb.GetValue())
 		require.EqualValues(t, lastAddFCTxHash, fcb.GetLastAddFCTxHash())
 		require.Equal(t, closeFC.Hash(crypto.SHA256), fcb.TxHash)
@@ -219,7 +216,6 @@ func getFeeCreditBillFunc(unitID types.UnitID) (*FeeCreditBill, error) {
 
 func verifySetFeeCreditBill(t *testing.T, fcb *FeeCreditBill) error {
 	// verify fee credit bill value is reduced by 1 on every tx
-	require.EqualValues(t, util.Uint256ToBytes(uint256.NewInt(1)), fcb.Id)
 	require.EqualValues(t, 49, fcb.Value)
 	return nil
 }

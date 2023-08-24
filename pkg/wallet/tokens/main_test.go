@@ -379,7 +379,7 @@ func TestMintFungibleToken(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			typeId := test.RandomBytes(32)
+			typeId := test.RandomBytes(33)
 			amount := uint64(100)
 			key, err := tw.am.GetAccountKey(tt.accNr - 1)
 			require.NoError(t, err)
@@ -389,7 +389,7 @@ func TestMintFungibleToken(t *testing.T) {
 			newToken := &ttxs.MintFungibleTokenAttributes{}
 			require.NoError(t, tx.UnmarshalAttributes(newToken))
 			require.NotEqual(t, []byte{0}, tx.UnitID())
-			require.Len(t, tx.UnitID(), 32)
+			require.Len(t, tx.UnitID(), 33)
 			require.Equal(t, typeId, newToken.TypeID)
 			require.Equal(t, amount, newToken.Value)
 			require.Equal(t, script.PredicatePayToPublicKeyHashDefault(key.PubKeyHash.Sha256), newToken.Bearer)
@@ -638,7 +638,7 @@ func TestMintNFT(t *testing.T) {
 		{
 			name:    "pub key bearer predicate, account 1, predefined token ID",
 			accNr:   uint64(1),
-			tokenID: test.RandomBytes(32),
+			tokenID: test.RandomBytes(33),
 			validateOwner: func(t *testing.T, accNr uint64, tok *ttxs.MintNonFungibleTokenAttributes) {
 				key, err := tw.am.GetAccountKey(accNr - 1)
 				require.NoError(t, err)
@@ -674,7 +674,7 @@ func TestMintNFT(t *testing.T) {
 			newToken := &ttxs.MintNonFungibleTokenAttributes{}
 			require.NoError(t, tx.UnmarshalAttributes(newToken))
 			require.NotEqual(t, []byte{0}, tx.UnitID())
-			require.Len(t, tx.UnitID(), 32)
+			require.Len(t, tx.UnitID(), 33)
 			if tt.tokenID != nil {
 				require.EqualValues(t, tt.tokenID, tx.UnitID())
 			}

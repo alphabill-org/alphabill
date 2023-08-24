@@ -22,13 +22,13 @@ import (
 func TestWalletBackend_BillsCanBeIndexedByPredicates(t *testing.T) {
 	// create wallet backend with mock abclient
 	_ = wlog.InitStdoutLogger(wlog.DEBUG)
-	billId1 := newUnitID(1)
-	billId2 := newUnitID(2)
+	billId1 := newBillID(1)
+	billId2 := newBillID(2)
 	pubkey1, _ := hexutil.Decode("0x03c30573dc0c7fd43fcb801289a6a96cb78c27f4ba398b89da91ece23e9a99aca3")
 	pubkey2, _ := hexutil.Decode("0x02c30573dc0c7fd43fcb801289a6a96cb78c27f4ba398b89da91ece23e9a99aca3")
 	bearer1 := script.PredicatePayToPublicKeyHashDefault(hash.Sum256(pubkey1))
 	bearer2 := script.PredicatePayToPublicKeyHashDefault(hash.Sum256(pubkey2))
-	fcbID := newUnitID(101)
+	fcbID := newFeeCreditRecordID(101)
 	fcb := &Bill{Id: fcbID, Value: 100}
 
 	abclient := clientmock.NewMockAlphabillClient(

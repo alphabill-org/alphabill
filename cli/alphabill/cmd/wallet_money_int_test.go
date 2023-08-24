@@ -8,10 +8,11 @@ import (
 
 	"github.com/alphabill-org/alphabill/internal/script"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
-	testmoney "github.com/alphabill-org/alphabill/internal/testutils/money"
 	testpartition "github.com/alphabill-org/alphabill/internal/testutils/partition"
 	moneytx "github.com/alphabill-org/alphabill/internal/txsystem/money"
 	moneytestutils "github.com/alphabill-org/alphabill/internal/txsystem/money/testutils"
+	testfc "github.com/alphabill-org/alphabill/internal/txsystem/fc/testutils"
+
 	// "github.com/alphabill-org/alphabill/internal/util"
 	sdk "github.com/alphabill-org/alphabill/pkg/wallet"
 	wlog "github.com/alphabill-org/alphabill/pkg/wallet/log"
@@ -19,6 +20,11 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+var (
+	fcrID     = moneytx.NewFeeCreditRecordID(nil, []byte{1})
+	fcrAmount = uint64(1e8)
+)
+ 
 /*
 Prep: start network and money backend, send initial bill to wallet-1
 Test scenario 1: wallet-1 sends two transactions to wallet-2
@@ -55,13 +61,12 @@ func TestSendingMoneyUsingWallets_integration(t *testing.T) {
 
 	// create fee credit for initial bill transfer
 	txFeeBilly := uint64(1)
-	fcrAmount := testmoney.FCRAmount
-	transferFC := testmoney.CreateFeeCredit(t, initialBill.ID, network)
+	transferFC := testfc.CreateFeeCredit(t, initialBill.ID, fcrID, fcrAmount, network)
 	initialBillBacklink := transferFC.Hash(crypto.SHA256)
 	w1BalanceBilly := initialBill.Value - fcrAmount - txFeeBilly
 
 	// transfer initial bill to wallet 1
-	transferInitialBillTx, err := moneytestutils.CreateInitialBillTransferTx(w1PubKey, initialBill.ID, w1BalanceBilly, 10000, initialBillBacklink)
+	transferInitialBillTx, err := moneytestutils.CreateInitialBillTransferTx(w1PubKey, initialBill.ID, fcrID, w1BalanceBilly, 10000, initialBillBacklink)
 	require.NoError(t, err)
 	err = moneyPartition.SubmitTx(transferInitialBillTx)
 	require.NoError(t, err)
@@ -90,7 +95,7 @@ func TestSendingMoneyUsingWallets_integration(t *testing.T) {
 
 	// TS1.1: also verify --output-path flag
 	stdout = execWalletCmd(t, homedir1, fmt.Sprintf("send -k 1 --amount 150 --address 0x%x --alphabill-api-uri %s --output-path %s", w2PubKey, apiAddr, homedir1))
-	proofFile := fmt.Sprintf("%s/bill-0x0000000000000000000000000000000000000000000000000000000000000001.json", homedir1)
+	proofFile := fmt.Sprintf("%s/bill-0x000000000000000000000000000000000000000000000000000000000000000101.json", homedir1)
 	verifyStdout(t, stdout,
 		"Successfully confirmed transaction(s)",
 		fmt.Sprintf("Transaction proof(s) saved to: %s", proofFile),
@@ -224,13 +229,12 @@ func TestMoneyDCUsingWallets_integration(t *testing.T) {
 
 	// create fee credit for initial bill transfer
 	txFeeBilly := uint64(1)
-	fcrAmount := testmoney.FCRAmount
-	transferFC := testmoney.CreateFeeCredit(t, initialBill.ID, network)
+	transferFC := testfc.CreateFeeCredit(t, initialBill.ID, fcrID, fcrAmount, network)
 	initialBillBacklink := transferFC.Hash(crypto.SHA256)
 	w1BalanceBilly := initialBill.Value - fcrAmount - txFeeBilly
 
 	// transfer initial bill to wallet 1
-	transferInitialBillTx, err := moneytestutils.CreateInitialBillTransferTx(w1PubKey, initialBill.ID, w1BalanceBilly, 10000, initialBillBacklink)
+	transferInitialBillTx, err := moneytestutils.CreateInitialBillTransferTx(w1PubKey, initialBill.ID, fcrID, w1BalanceBilly, 10000, initialBillBacklink)
 	require.NoError(t, err)
 	err = moneyPartition.SubmitTx(transferInitialBillTx)
 	require.NoError(t, err)

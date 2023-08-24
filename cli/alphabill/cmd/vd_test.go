@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"context"
-	"math/rand"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -12,13 +11,13 @@ import (
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 	rootgenesis "github.com/alphabill-org/alphabill/internal/rootchain/genesis"
 	"github.com/alphabill-org/alphabill/internal/rpc/alphabill"
+	test "github.com/alphabill-org/alphabill/internal/testutils"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	testtime "github.com/alphabill-org/alphabill/internal/testutils/time"
 	"github.com/alphabill-org/alphabill/internal/txsystem/vd"
 	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/fxamacker/cbor/v2"
-	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
 
 	"google.golang.org/grpc"
@@ -95,7 +94,7 @@ func TestRunVD(t *testing.T) {
 
 		// Test
 		// green path
-		id := uint256.NewInt(rand.Uint64()).Bytes32()
+		id := types.NewUnitID(65, nil, test.RandomBytes(32), []byte{1})
 		tx := &types.TransactionOrder{
 			Payload: &types.Payload{
 				SystemID:       vd.DefaultSystemIdentifier,

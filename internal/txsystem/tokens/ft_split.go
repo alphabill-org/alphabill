@@ -26,7 +26,7 @@ func handleSplitFungibleTokenTx(options *Options) txsystem.GenericExecuteFunc[Sp
 		}
 		d := u.Data().(*fungibleTokenData)
 		// add new token unit
-		newTokenID := SameShardID(unitID, HashForIDCalculation(tx, options.hashAlgorithm))
+		newTokenID := NewFungibleTokenID(unitID, HashForIDCalculation(tx, options.hashAlgorithm))
 		logger.Debug("Adding a fungible token with ID %v", newTokenID)
 
 		fee := options.feeCalculator()
@@ -64,8 +64,7 @@ func handleSplitFungibleTokenTx(options *Options) txsystem.GenericExecuteFunc[Sp
 
 func HashForIDCalculation(tx *types.TransactionOrder, hashFunc crypto.Hash) []byte {
 	hasher := hashFunc.New()
-	idBytes := util.BytesToUint256(tx.UnitID()).Bytes32()
-	hasher.Write(idBytes[:])
+	hasher.Write(tx.UnitID())
 	hasher.Write(tx.Payload.Attributes)
 	hasher.Write(util.Uint64ToBytes(tx.Timeout()))
 	return hasher.Sum(nil)

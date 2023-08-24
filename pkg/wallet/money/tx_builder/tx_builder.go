@@ -88,7 +88,7 @@ func NewDustTx(ac *account.AccountKey, systemID []byte, bill *wallet.Bill, targe
 		TargetUnitBacklink: targetBill.TxHash,
 		Backlink:           bill.TxHash,
 	}
-	txPayload, err := newTxPayload(systemID, money.PayloadTypeTransDC, bill.GetID(), timeout, ac.PubKeyHash.Sha256, attr)
+	txPayload, err := newTxPayload(systemID, money.PayloadTypeTransDC, bill.GetID(), timeout, money.NewFeeCreditRecordID(nil, ac.PubKeyHash.Sha256), attr)
 	if err != nil {
 		return nil, err
 	}
@@ -121,7 +121,7 @@ func NewSwapTx(k *account.AccountKey, systemID []byte, dcProofs []*wallet.Proof,
 		DcTransferProofs: dustTransferProofs,
 		TargetValue:      billValueSum,
 	}
-	swapTx, err := newTxPayload(systemID, money.PayloadTypeSwapDC, targetUnitID, timeout, k.PubKeyHash.Sha256, attr)
+	swapTx, err := newTxPayload(systemID, money.PayloadTypeSwapDC, targetUnitID, timeout, money.NewFeeCreditRecordID(nil, k.PubKeyHash.Sha256), attr)
 	if err != nil {
 		return nil, fmt.Errorf("failed to build swap transaction: %w", err)
 	}

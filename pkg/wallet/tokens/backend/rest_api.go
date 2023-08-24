@@ -201,7 +201,7 @@ func (api *tokensRestAPI) typeHierarchy(w http.ResponseWriter, r *http.Request) 
 	for len(typeId) > 0 && !bytes.Equal(typeId, NoParent) {
 		tokTyp, err := api.db.GetTokenType(TokenTypeID(typeId))
 		if err != nil {
-			api.rw.WriteErrorResponse(w, fmt.Errorf("failed to load type with id %x: %w", typeId, err))
+			api.rw.WriteErrorResponse(w, fmt.Errorf("failed to load type with id %s: %w", typeId, err))
 			return
 		}
 		rsp = append(rsp, tokTyp)
@@ -304,7 +304,7 @@ func (api *tokensRestAPI) getFeeCreditBill(w http.ResponseWriter, r *http.Reques
 	}
 	fcb, err := api.db.GetFeeCreditBill(unitID)
 	if err != nil {
-		api.rw.WriteErrorResponse(w, fmt.Errorf("failed to load fee credit bill for ID 0x%X: %w", unitID, err))
+		api.rw.WriteErrorResponse(w, fmt.Errorf("failed to load fee credit bill for ID 0x%s: %w", unitID, err))
 		return
 	}
 	if fcb == nil {
@@ -324,7 +324,7 @@ func (api *tokensRestAPI) getClosedFeeCredit(w http.ResponseWriter, r *http.Requ
 	}
 	cfc, err := api.db.GetClosedFeeCredit(unitID)
 	if err != nil {
-		api.rw.WriteErrorResponse(w, fmt.Errorf("failed to load closed fee credit for ID 0x%X: %w", unitID, err))
+		api.rw.WriteErrorResponse(w, fmt.Errorf("failed to load closed fee credit for ID 0x%s: %w", unitID, err))
 		return
 	}
 	if cfc == nil {
@@ -371,11 +371,11 @@ func (api *tokensRestAPI) getTxProof(w http.ResponseWriter, r *http.Request) {
 
 	proof, err := api.db.GetTxProof(unitID, txHash)
 	if err != nil {
-		api.rw.WriteErrorResponse(w, fmt.Errorf("failed to load proof of tx 0x%X (unit 0x%X): %w", txHash, unitID, err))
+		api.rw.WriteErrorResponse(w, fmt.Errorf("failed to load proof of tx 0x%X (unit 0x%s): %w", txHash, unitID, err))
 		return
 	}
 	if proof == nil {
-		api.rw.ErrorResponse(w, http.StatusNotFound, fmt.Errorf("no proof found for tx 0x%X (unit 0x%X)", txHash, unitID))
+		api.rw.ErrorResponse(w, http.StatusNotFound, fmt.Errorf("no proof found for tx 0x%X (unit 0x%s)", txHash, unitID))
 		return
 	}
 

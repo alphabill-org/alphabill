@@ -6,19 +6,16 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/holiman/uint256"
-
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/state"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/internal/txsystem/fc"
 	"github.com/alphabill-org/alphabill/internal/types"
-	"github.com/alphabill-org/alphabill/internal/util"
 )
 
 type (
 	dustCollectorTransfer struct {
-		id         *uint256.Int
+		id         types.UnitID
 		tx         *types.TransactionRecord
 		attributes *TransferDCAttributes
 	}
@@ -143,7 +140,7 @@ func (c *swapValidationContext) validateSwapTx() error {
 		}
 		// 6. transfer orders are listed in strictly increasing order of bill identifiers
 		// (this ensures that no source bill can be included multiple times
-		if i > 0 && !dcTx.id.Gt(dustTransfers[i-1].id) {
+		if i > 0 && bytes.Compare(dcTx.id, dustTransfers[i-1].id) != 1 {
 			return errors.New("dust transfer orders are not listed in strictly increasing order of bill identifiers")
 		}
 		// 7. bill transfer orders contain correct target unit ids
@@ -203,7 +200,7 @@ func (c *swapValidationContext) getDCTransfers() ([]*dustCollectorTransfer, erro
 			return nil, fmt.Errorf("invalid DC transfer: %w", err)
 		}
 		transfers[i] = &dustCollectorTransfer{
-			id:         util.BytesToUint256(t.TransactionOrder.UnitID()),
+			id:         t.TransactionOrder.UnitID(),
 			tx:         t,
 			attributes: a,
 		}

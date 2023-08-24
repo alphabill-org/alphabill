@@ -76,7 +76,7 @@ func CreateNewWallet(am account.Manager, mnemonic string) error {
 func LoadExistingWallet(am account.Manager, unitLocker UnitLocker, backend BackendAPI) (*Wallet, error) {
 	moneySystemID := money.DefaultSystemIdentifier
 	moneyTxPublisher := NewTxPublisher(backend)
-	feeManager := fees.NewFeeManager(am, unitLocker, moneySystemID, moneyTxPublisher, backend, moneySystemID, moneyTxPublisher, backend)
+	feeManager := fees.NewFeeManager(am, unitLocker, moneySystemID, moneyTxPublisher, backend, moneySystemID, moneyTxPublisher, backend, money.NewFeeCreditRecordID)
 	dustCollector := NewDustCollector(moneySystemID, maxBillsForDustCollection, backend, unitLocker)
 	return &Wallet{
 		am:            am,
@@ -265,7 +265,7 @@ func (w *Wallet) GetFeeCredit(ctx context.Context, cmd fees.GetFeeCreditCmd) (*w
 	if err != nil {
 		return nil, err
 	}
-	return w.GetFeeCreditBill(ctx, accountKey.PubKeyHash.Sha256)
+	return w.GetFeeCreditBill(ctx, money.NewFeeCreditRecordID(nil, accountKey.PubKeyHash.Sha256))
 }
 
 // GetFeeCreditBill returns fee credit bill for given unitID

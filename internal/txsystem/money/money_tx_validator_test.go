@@ -5,7 +5,6 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
 
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
@@ -436,7 +435,7 @@ func TestReclaimFC(t *testing.T) {
 			name: "Invalid target unit",
 			bd:   newBillData(amount, backlink),
 			tx: testfc.NewReclaimFC(t, signer, nil,
-				testtransaction.WithUnitId(test.NewUnitID(2)),
+				testtransaction.WithUnitId(NewFeeCreditRecordID(nil, []byte{2})),
 			),
 			wantErr: ErrReclaimFCInvalidTargetUnit,
 		},
@@ -500,10 +499,8 @@ func TestReclaimFC(t *testing.T) {
 }
 
 func newInvalidTargetValueSwap(t *testing.T) *types.TransactionOrder {
-	id := uint256.NewInt(1)
-	id32 := id.Bytes32()
-	transferId := id32[:]
-	swapId := []byte{255}
+	transferId := newBillID(1)
+	swapId := newBillID(255)
 
 	transferDCRecord := createTransferDCTransactionRecord(t, transferId, &TransferDCAttributes{
 		TargetUnitID: swapId,
@@ -531,10 +528,8 @@ func newInvalidTargetValueSwap(t *testing.T) *types.TransactionOrder {
 }
 
 func newInvalidTargetUnitIDSwap(t *testing.T, signer abcrypto.Signer) *types.TransactionOrder {
-	id := uint256.NewInt(1)
-	id32 := id.Bytes32()
-	transferId := id32[:]
-	swapId := []byte{255}
+	transferId := newBillID(1)
+	swapId := newBillID(255)
 
 	transferDCRecord := createTransferDCTransactionRecord(t, transferId, &TransferDCAttributes{
 		TargetUnitID: []byte{0},
@@ -562,10 +557,8 @@ func newInvalidTargetUnitIDSwap(t *testing.T, signer abcrypto.Signer) *types.Tra
 }
 
 func newInvalidTargetBacklinkSwap(t *testing.T, signer abcrypto.Signer) *types.TransactionOrder {
-	id := uint256.NewInt(1)
-	id32 := id.Bytes32()
-	transferId := id32[:]
-	swapId := []byte{255}
+	transferId := newBillID(1)
+	swapId := newBillID(255)
 	return createSwapDCTransactionOrder(t, signer, swapId, createTransferDCTransactionRecord(t, transferId, &TransferDCAttributes{
 		TargetUnitID:       swapId,
 		Value:              100,
@@ -576,15 +569,14 @@ func newInvalidTargetBacklinkSwap(t *testing.T, signer abcrypto.Signer) *types.T
 
 func newDescBillOrderSwap(t *testing.T, signer abcrypto.Signer) *types.TransactionOrder {
 	// create swap tx with two dust transfers in descending order of bill ids
-	billIds := []*uint256.Int{uint256.NewInt(2), uint256.NewInt(1)}
-	swapId := []byte{255}
+	billIds := []types.UnitID{newBillID(2), newBillID(1)}
+	swapId := newBillID(255)
 	dcTransfers := make([]*types.TransactionRecord, len(billIds))
 	transferIds := make([][]byte, len(billIds))
 	proofs := make([]*types.TxProof, len(billIds))
 	for i := 0; i < len(billIds); i++ {
-		bytes32 := billIds[i].Bytes32()
-		transferIds[i] = bytes32[:]
-		dcTransfers[i] = createTransferDCTransactionRecord(t, bytes32[:], &TransferDCAttributes{
+		transferIds[i] = billIds[i]
+		dcTransfers[i] = createTransferDCTransactionRecord(t, billIds[i], &TransferDCAttributes{
 			TargetUnitID: swapId,
 			Value:        100,
 			Backlink:     []byte{6},
@@ -614,15 +606,14 @@ func newDescBillOrderSwap(t *testing.T, signer abcrypto.Signer) *types.Transacti
 
 func newEqualBillIdsSwap(t *testing.T, signer abcrypto.Signer) *types.TransactionOrder {
 	// create swap tx with two dust transfers with equal bill ids
-	billIds := []*uint256.Int{uint256.NewInt(1), uint256.NewInt(1)}
-	swapId := []byte{255}
+	billIds := []types.UnitID{newBillID(1), newBillID(1)}
+	swapId := newBillID(255)
 	dcTransfers := make([]*types.TransactionRecord, len(billIds))
 	transferIds := make([][]byte, len(billIds))
 	proofs := make([]*types.TxProof, len(billIds))
 	for i := 0; i < len(billIds); i++ {
-		bytes32 := billIds[i].Bytes32()
-		transferIds[i] = bytes32[:]
-		dcTransfers[i] = createTransferDCTransactionRecord(t, bytes32[:], &TransferDCAttributes{
+		transferIds[i] = billIds[i]
+		dcTransfers[i] = createTransferDCTransactionRecord(t, billIds[i], &TransferDCAttributes{
 			TargetUnitID: swapId,
 			Value:        100,
 			Backlink:     []byte{6},
@@ -650,10 +641,8 @@ func newEqualBillIdsSwap(t *testing.T, signer abcrypto.Signer) *types.Transactio
 }
 
 func newSwapOrderWithInvalidTargetSystemID(t *testing.T, signer abcrypto.Signer) *types.TransactionOrder {
-	id := uint256.NewInt(1)
-	id32 := id.Bytes32()
-	transferId := id32[:]
-	swapId := []byte{255}
+	transferId := newBillID(1)
+	swapId := newBillID(255)
 	transferDCRecord := testtransaction.NewTransactionRecord(
 		t,
 		testtransaction.WithSystemID([]byte{0, 0, 0, 1}),
@@ -674,10 +663,8 @@ func newSwapOrderWithInvalidTargetSystemID(t *testing.T, signer abcrypto.Signer)
 }
 
 func newDcProofsNilSwap(t *testing.T) *types.TransactionOrder {
-	id := uint256.NewInt(1)
-	id32 := id.Bytes32()
-	transferId := id32[:]
-	swapId := []byte{255}
+	transferId := newBillID(1)
+	swapId := newBillID(255)
 
 	transferDCRecord := createTransferDCTransactionRecord(t, transferId, &TransferDCAttributes{
 		TargetUnitID: swapId,
@@ -703,15 +690,11 @@ func newDcProofsNilSwap(t *testing.T) *types.TransactionOrder {
 		}),
 		testtransaction.WithOwnerProof(script.PredicateArgumentEmpty()),
 	)
-
 }
 
 func newEmptyDcProofsSwap(t *testing.T) *types.TransactionOrder {
-	id := uint256.NewInt(1)
-	id32 := id.Bytes32()
-	transferId := id32[:]
-	swapId := []byte{255}
-
+	transferId := newBillID(1)
+	swapId := newBillID(255)
 	transferDCRecord := createTransferDCTransactionRecord(t, transferId, &TransferDCAttributes{
 		TargetUnitID: swapId,
 		Value:        100,
@@ -743,10 +726,9 @@ func newInvalidDcProofsSwap(t *testing.T) *types.TransactionOrder {
 }
 
 func newSwapDC(t *testing.T, signer abcrypto.Signer) *types.TransactionOrder {
-	id := uint256.NewInt(1)
-	id32 := id.Bytes32()
-	transferId := id32[:]
+	transferId := newBillID(1)
 	swapId := []byte{255}
+
 	return createSwapDCTransactionOrder(t, signer, swapId, createTransferDCTransactionRecord(t, transferId, &TransferDCAttributes{
 		TargetUnitID: swapId,
 		Value:        100,

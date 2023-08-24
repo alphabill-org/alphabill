@@ -15,9 +15,10 @@ import (
 	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
 
+	"github.com/alphabill-org/alphabill/internal/txsystem/money"
+	"github.com/alphabill-org/alphabill/internal/types"
 	sdk "github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/alphabill-org/alphabill/pkg/wallet/log"
-	"github.com/alphabill-org/alphabill/internal/types"
 )
 
 type (
@@ -47,7 +48,7 @@ type (
 )
 
 var (
-	errInvalidBillIDLength = errors.New("bill_id hex string must be 66 characters long (with 0x prefix)")
+	errInvalidBillIDLength = errors.New("bill_id hex string must be 68 characters long (with 0x prefix)")
 )
 
 func (api *moneyRestAPI) Router() *mux.Router {
@@ -244,7 +245,7 @@ func (api *moneyRestAPI) getTxProof(w http.ResponseWriter, r *http.Request) {
 		api.rw.InvalidParamResponse(w, "unitId", err)
 		return
 	}
-	if len(unitID) != 32 {
+	if len(unitID) != money.UnitIDLength {
 		api.rw.ErrorResponse(w, http.StatusBadRequest, errInvalidBillIDLength)
 		return
 	}
@@ -256,11 +257,11 @@ func (api *moneyRestAPI) getTxProof(w http.ResponseWriter, r *http.Request) {
 
 	proof, err := api.Service.GetTxProof(unitID, txHash)
 	if err != nil {
-		api.rw.WriteErrorResponse(w, fmt.Errorf("failed to load proof of tx 0x%X (unit 0x%X): %w", txHash, unitID, err))
+		api.rw.WriteErrorResponse(w, fmt.Errorf("failed to load proof of tx 0x%X (unit 0x%s): %w", txHash, unitID, err))
 		return
 	}
 	if proof == nil {
-		api.rw.ErrorResponse(w, http.StatusNotFound, fmt.Errorf("no proof found for tx 0x%X (unit 0x%X)", txHash, unitID))
+		api.rw.ErrorResponse(w, http.StatusNotFound, fmt.Errorf("no proof found for tx 0x%X (unit 0x%s)", txHash, unitID))
 		return
 	}
 
@@ -307,7 +308,7 @@ func (api *moneyRestAPI) getFeeCreditBillFunc(w http.ResponseWriter, r *http.Req
 		}
 		return
 	}
-	if len(billID) != 32 {
+	if len(billID) != 33 {
 		api.rw.ErrorResponse(w, http.StatusBadRequest, errInvalidBillIDLength)
 		return
 	}

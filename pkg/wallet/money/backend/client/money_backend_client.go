@@ -97,22 +97,20 @@ func (c *MoneyBackendClient) GetBalance(ctx context.Context, pubKey []byte, incl
 }
 
 func (c *MoneyBackendClient) ListBills(ctx context.Context, pubKey []byte, includeDCBills bool) (*backend.ListBillsResponse, error) {
-	offset := 0
-	responseObject, err := c.retrieveBills(ctx, pubKey, includeDCBills, offset)
-	if err != nil {
-		return nil, err
-	}
-	finalResponse := responseObject
-
-	for len(finalResponse.Bills) < finalResponse.Total {
-		offset += len(responseObject.Bills)
-		responseObject, err = c.retrieveBills(ctx, pubKey, includeDCBills, offset)
+	var bills []*sdk.Bill
+	offsetKey := ""
+	for {
+		responseObject, nextKey, err := c.retrieveBills(ctx, pubKey, includeDCBills, offsetKey)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("failed to fetch bills: %w", err)
 		}
-		finalResponse.Bills = append(finalResponse.Bills, responseObject.Bills...)
+		bills = append(bills, responseObject.Bills...)
+		if nextKey == "" {
+			break
+		}
+		offsetKey = nextKey
 	}
-	return finalResponse, nil
+	return &backend.ListBillsResponse{Bills: bills}, nil
 }
 
 func (c *MoneyBackendClient) GetBills(ctx context.Context, pubKey []byte) ([]*sdk.Bill, error) {
@@ -344,32 +342,35 @@ func (c *MoneyBackendClient) GetTxHistory(ctx context.Context, pubKey sdk.PubKey
 	return result, pm, nil
 }
 
-func (c *MoneyBackendClient) retrieveBills(ctx context.Context, pubKey []byte, includeDCBills bool, offset int) (*backend.ListBillsResponse, error) {
+func (c *MoneyBackendClient) retrieveBills(ctx context.Context, pubKey []byte, includeDCBills bool, offsetKey string) (*backend.ListBillsResponse, string, error) {
 	reqUrl := fmt.Sprintf(listBillsUrlFormat, c.BaseUrl, ListBillsPath, hexutil.Encode(pubKey), includeDCBills)
-	if offset > 0 {
-		reqUrl = fmt.Sprintf("%v&%s=%v", reqUrl, sdk.QueryParamOffsetKey, offset)
+	if offsetKey != "" {
+		reqUrl = fmt.Sprintf("%v&%s=%s", reqUrl, sdk.QueryParamOffsetKey, offsetKey)
 	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, reqUrl, nil)
 	if err != nil {
-		return nil, fmt.Errorf("failed to build get bills request: %w", err)
+		return nil, "", fmt.Errorf("failed to build get bills request: %w", err)
 	}
 	req.Header.Set(contentType, applicationJson)
 	response, err := c.HttpClient.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("request ListBills failed: %w", err)
+		return nil, "", fmt.Errorf("request ListBills failed: %w", err)
 	}
 	if response.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("unexpected response status code: %d", response.StatusCode)
+		return nil, "", fmt.Errorf("unexpected response status code: %d", response.StatusCode)
 	}
-
 	responseData, err := io.ReadAll(response.Body)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read ListBills response: %w", err)
+		return nil, "", fmt.Errorf("failed to read ListBills response: %w", err)
 	}
-	var responseObject backend.ListBillsResponse
+	var responseObject *backend.ListBillsResponse
 	err = json.Unmarshal(responseData, &responseObject)
 	if err != nil {
-		return nil, fmt.Errorf("failed to unmarshall ListBills response data: %w", err)
+		return nil, "", fmt.Errorf("failed to unmarshal ListBills response data: %w", err)
 	}
-	return &responseObject, nil
+	nextKey, err := sdk.ExtractOffsetMarker(response)
+	if err != nil {
+		return nil, "", fmt.Errorf("failed to extract position marker: %w", err)
+	}
+	return responseObject, nextKey, nil
 }

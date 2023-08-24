@@ -33,9 +33,9 @@ func Test_setPaginationParams(t *testing.T) {
 		{pos: "", limit: 0, res: ""},
 		{pos: "", limit: -1, res: ""},
 		{pos: "", limit: 10, res: "?limit=10"},
-		{pos: "a01b", limit: 0, res: "?offset=a01b"},
-		{pos: "a01b", limit: -2, res: "?offset=a01b"},
-		{pos: "a01b", limit: 20, res: "?limit=20&offset=a01b"},
+		{pos: "a01b", limit: 0, res: "?offsetKey=a01b"},
+		{pos: "a01b", limit: -2, res: "?offsetKey=a01b"},
+		{pos: "a01b", limit: 20, res: "?limit=20&offsetKey=a01b"},
 	}
 
 	for x, tc := range cases {
@@ -179,7 +179,7 @@ func Test_get(t *testing.T) {
 	})
 
 	t.Run("position marker is extracted correctly", func(t *testing.T) {
-		cli := clientWithHeader(t, 200, `<http://localhost/something?offset=abc&some=garbage>; rel="next"`)
+		cli := clientWithHeader(t, 200, `<http://localhost/something?offsetKey=abc&some=garbage>; rel="next"`)
 		var data int
 		pos, err := cli.get(context.Background(), &url.URL{Scheme: "http", Host: "localhost"}, &data, true)
 		require.NoError(t, err)
@@ -808,7 +808,7 @@ func Test_extractOffsetMarker(t *testing.T) {
 		require.Empty(t, marker)
 	})
 
-	t.Run("offset is not present", func(t *testing.T) {
+	t.Run("offsetKey is not present", func(t *testing.T) {
 		w := httptest.NewRecorder()
 		w.Header().Set("Link", `<http://localhost/foo/bar>; rel="next"`)
 		marker, err := sdk.ExtractOffsetMarker(w.Result())
@@ -816,9 +816,9 @@ func Test_extractOffsetMarker(t *testing.T) {
 		require.Empty(t, marker)
 	})
 
-	t.Run("offset is present", func(t *testing.T) {
+	t.Run("offsetKey is present", func(t *testing.T) {
 		w := httptest.NewRecorder()
-		w.Header().Set("Link", `<http://localhost/foo/bar?offset=ABC>; rel="next"`)
+		w.Header().Set("Link", `<http://localhost/foo/bar?offsetKey=ABC>; rel="next"`)
 		marker, err := sdk.ExtractOffsetMarker(w.Result())
 		require.NoError(t, err)
 		require.Equal(t, "ABC", marker)

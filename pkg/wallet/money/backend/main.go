@@ -27,7 +27,7 @@ import (
 
 type (
 	WalletBackendService interface {
-		GetBills(ownerCondition []byte) ([]*Bill, error)
+		GetBills(ownerCondition []byte, offsetKey []byte, limit int) ([]*Bill, []byte, error)
 		GetBill(unitID []byte) (*Bill, error)
 		GetFeeCreditBill(unitID []byte) (*Bill, error)
 		GetLockedFeeCredit(systemID, fcbID []byte) (*types.TransactionRecord, error)
@@ -77,7 +77,7 @@ type (
 		GetBlockNumber() (uint64, error)
 		SetBlockNumber(blockNumber uint64) error
 		GetBill(unitID []byte) (*Bill, error)
-		GetBills(ownerCondition []byte) ([]*Bill, error)
+		GetBills(ownerCondition []byte, offsetKey []byte, limit int) ([]*Bill, []byte, error)
 		SetBill(bill *Bill, proof *sdk.Proof) error
 		RemoveBill(unitID []byte) error
 		SetBillExpirationTime(blockNumber uint64, unitID []byte) error
@@ -219,20 +219,29 @@ func runBlockSync(ctx context.Context, getBlocks blocksync.BlocksLoaderFunc, get
 	return blocksync.Run(ctx, getBlocks, blockNumber+1, 0, batchSize, processor)
 }
 
-// GetBills returns all bills for given public key.
-func (w *WalletBackend) GetBills(pubkey []byte) ([]*Bill, error) {
+// GetBills returns first N=limit bills for given owner predicate starting from the offsetKey
+// or if offsetKey is nil then starting from the very first key.
+// Always returns the next key if it exists i.e. even if limit=0.
+func (w *WalletBackend) GetBills(pubkey []byte, offsetKey []byte, limit int) ([]*Bill, []byte, error) {
 	keyHashes := account.NewKeyHash(pubkey)
 	ownerPredicates := newOwnerPredicates(keyHashes)
-	s1, err := w.store.Do().GetBills(ownerPredicates.sha256)
-	if err != nil {
-		return nil, err
+	nextKey := offsetKey
+	var bills []*Bill
+	for _, predicate := range [][]byte{ownerPredicates.sha256, ownerPredicates.sha512} {
+		remainingLimit := limit - len(bills)
+		batch, batchNextKey, err := w.store.Do().GetBills(predicate, nextKey, remainingLimit)
+		if err != nil {
+			return nil, nil, err
+		}
+		bills = append(bills, batch...)
+
+		nextKey = batchNextKey
+		if nextKey != nil {
+			break // more bills in the same predicate batch; return response immediately
+		}
+		// no more bills in this predicate; move to the next predicate to load more bills
 	}
-	s2, err := w.store.Do().GetBills(ownerPredicates.sha512)
-	if err != nil {
-		return nil, err
-	}
-	s3 := append(s1, s2...)
-	return s3, nil
+	return bills, nextKey, nil
 }
 
 // GetBill returns most recently seen bill with given unit id.
@@ -414,7 +423,7 @@ func (b *Bill) IsDCBill() bool {
 
 func newOwnerPredicates(hashes *account.KeyHashes) *p2pkhOwnerPredicates {
 	return &p2pkhOwnerPredicates{
-		sha256: script.PredicatePayToPublicKeyHashDefault(hashes.Sha256),
-		sha512: script.PredicatePayToPublicKeyHashDefault(hashes.Sha512),
+		sha256: script.PredicatePayToPublicKeyHash(script.HashAlgSha256, hashes.Sha256, script.SigSchemeSecp256k1),
+		sha512: script.PredicatePayToPublicKeyHash(script.HashAlgSha512, hashes.Sha512, script.SigSchemeSecp256k1),
 	}
 }

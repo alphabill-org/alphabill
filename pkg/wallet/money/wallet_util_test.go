@@ -117,7 +117,7 @@ func mockBackendCalls(br *backendMockReturnConf) (*httptest.Server, *url.URL) {
 				if br.customBillList != "" {
 					w.Write([]byte(br.customBillList))
 				} else {
-					w.Write([]byte(fmt.Sprintf(`{"total": 1, "bills": [{"id":"%s","value":"%d","txHash":"%s","isDcBill":false}]}`, toBillId(br.billId), br.billValue, br.billTxHash)))
+					w.Write([]byte(fmt.Sprintf(`{"bills": [{"id":"%s","value":"%d","txHash":"%s","isDcBill":false}]}`, toBillId(br.billId), br.billValue, br.billTxHash)))
 				}
 			case strings.Contains(path, beclient.FeeCreditPath):
 				w.WriteHeader(http.StatusOK)
@@ -188,7 +188,7 @@ func createBillListResponse(bills []*wallet.Bill) *backend.ListBillsResponse {
 			LastAddFCTxHash:      b.LastAddFCTxHash,
 		}
 	}
-	return &backend.ListBillsResponse{Bills: billVMs, Total: len(bills)}
+	return &backend.ListBillsResponse{Bills: billVMs}
 }
 
 type backendAPIMock struct {

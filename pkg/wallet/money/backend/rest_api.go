@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"net/http"
 	"strconv"
 	"time"
@@ -19,6 +20,11 @@ import (
 	"github.com/alphabill-org/alphabill/pkg/wallet/log"
 )
 
+const (
+	paramIncludeDcBills = "includeDcBills"
+	paramPubKey         = "pubkey"
+)
+
 type (
 	moneyRestAPI struct {
 		Service            WalletBackendService
@@ -26,9 +32,7 @@ type (
 		rw                 *sdk.ResponseWriter
 	}
 
-	// TODO: perhaps pass the total number of elements in a response header
 	ListBillsResponse struct {
-		Total int         `json:"total" example:"1"`
 		Bills []*sdk.Bill `json:"bills"`
 	}
 
@@ -98,22 +102,32 @@ func (api *moneyRestAPI) Router() *mux.Router {
 func (api *moneyRestAPI) listBillsFunc(w http.ResponseWriter, r *http.Request) {
 	pk, err := parsePubKeyQueryParam(r)
 	if err != nil {
-		log.Debug("error parsing GET /list-bills request: ", err)
-		api.rw.InvalidParamResponse(w, "pubkey", err)
+		api.rw.InvalidParamResponse(w, paramPubKey, err)
 		return
 	}
 	includeDCBills, err := parseIncludeDCBillsQueryParam(r, true)
 	if err != nil {
-		log.Debug("error parsing GET /list-bills request: ", err)
-		w.WriteHeader(http.StatusBadRequest)
+		api.rw.InvalidParamResponse(w, paramIncludeDcBills, err)
 		return
 	}
-	bills, err := api.Service.GetBills(pk)
+	qp := r.URL.Query()
+	offsetKey, err := sdk.ParseHex[sdk.UnitID](qp.Get(sdk.QueryParamOffsetKey), false)
 	if err != nil {
-		log.Error("error on GET /list-bills: ", err)
-		w.WriteHeader(http.StatusInternalServerError)
+		api.rw.InvalidParamResponse(w, sdk.QueryParamOffsetKey, err)
 		return
 	}
+	limit, err := sdk.ParseMaxResponseItems(qp.Get(sdk.QueryParamLimit), api.ListBillsPageLimit)
+	if err != nil {
+		api.rw.InvalidParamResponse(w, sdk.QueryParamLimit, err)
+		return
+	}
+	bills, nextKey, err := api.Service.GetBills(pk, offsetKey, limit)
+	if err != nil {
+		api.rw.WriteErrorResponse(w, err)
+		return
+	}
+
+	// TODO filter bills on db level
 	var filteredBills []*sdk.Bill
 	for _, b := range bills {
 		// filter zero value bills
@@ -128,29 +142,10 @@ func (api *moneyRestAPI) listBillsFunc(w http.ResponseWriter, r *http.Request) {
 		}
 		filteredBills = append(filteredBills, b.ToGenericBill())
 	}
-	qp := r.URL.Query()
-	limit, err := sdk.ParseMaxResponseItems(qp.Get(sdk.QueryParamLimit), api.ListBillsPageLimit)
-	if err != nil {
-		api.rw.InvalidParamResponse(w, sdk.QueryParamLimit, err)
-		return
-	}
-	offset := sdk.ParseIntParam(qp.Get(sdk.QueryParamOffsetKey), 0)
-	if offset < 0 {
-		offset = 0
-	}
-	// if offset and limit go out of bounds just return what we have
-	if offset > len(filteredBills) {
-		offset = len(filteredBills)
-	}
-	if offset+limit > len(filteredBills) {
-		limit = len(filteredBills) - offset
-	} else {
-		sdk.SetLinkHeader(r.URL, w, strconv.Itoa(offset+limit))
-	}
 
+	sdk.SetLinkHeader(r.URL, w, sdk.EncodeHex(nextKey))
 	api.rw.WriteResponse(w, &ListBillsResponse{
-		Bills: filteredBills[offset : offset+limit],
-		Total: len(filteredBills),
+		Bills: filteredBills,
 	})
 }
 
@@ -210,20 +205,17 @@ func (api *moneyRestAPI) txHistoryFunc(w http.ResponseWriter, r *http.Request) {
 func (api *moneyRestAPI) balanceFunc(w http.ResponseWriter, r *http.Request) {
 	pk, err := parsePubKeyQueryParam(r)
 	if err != nil {
-		log.Debug("error parsing GET /balance request: ", err)
-		api.rw.InvalidParamResponse(w, "pubkey", err)
+		api.rw.InvalidParamResponse(w, paramPubKey, err)
 		return
 	}
 	includeDCBills, err := parseIncludeDCBillsQueryParam(r, false)
 	if err != nil {
-		log.Debug("error parsing GET /balance request: ", err)
-		w.WriteHeader(http.StatusInternalServerError)
+		api.rw.InvalidParamResponse(w, paramIncludeDcBills, err)
 		return
 	}
-	bills, err := api.Service.GetBills(pk)
+	bills, _, err := api.Service.GetBills(pk, nil, math.MaxInt)
 	if err != nil {
-		log.Error("error on GET /balance: ", err)
-		w.WriteHeader(http.StatusInternalServerError)
+		api.rw.WriteErrorResponse(w, err)
 		return
 	}
 	var sum uint64
@@ -416,12 +408,12 @@ func (api *moneyRestAPI) getClosedFeeCreditFunc(w http.ResponseWriter, r *http.R
 }
 
 func parsePubKeyQueryParam(r *http.Request) (sdk.PubKey, error) {
-	return sdk.DecodePubKeyHex(r.URL.Query().Get("pubkey"))
+	return sdk.DecodePubKeyHex(r.URL.Query().Get(paramPubKey))
 }
 
 func parseIncludeDCBillsQueryParam(r *http.Request, defaultValue bool) (bool, error) {
-	if r.URL.Query().Has("includeDcBills") {
-		return strconv.ParseBool(r.URL.Query().Get("includeDcBills"))
+	if r.URL.Query().Has(paramIncludeDcBills) {
+		return strconv.ParseBool(r.URL.Query().Get(paramIncludeDcBills))
 	}
 	return defaultValue, nil
 }

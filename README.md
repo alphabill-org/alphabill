@@ -33,23 +33,16 @@ The default location of configuration file is `$AB_HOME/config.props`
 
 The default `$AB_HOME` is `$HOME/.alphabill`
 
-# Verifiable Data Partition
-1. Run script `./setup-testab.sh -m 0 -t 0 -d 3` to generate configuration for a root chain and 3 vd partition nodes.
-   The script generates rootchain and partition node keys, genesis files.
-   Node configuration files are located in `testab` directory.
-2. Run script `./start.sh -r -p vd` to start rootchain and 3 vd partition nodes
-3. Run script `stop.sh -a` to stop the root chain and partition nodes.
-
 # User Token Partition
-1. Run script `./setup-testab.sh -m 0 -t 3 -d 0` to generate configuration for a root chain and 3 token partition nodes.
+1. Run script `./setup-testab.sh -m 0 -t 3` to generate configuration for a root chain and 3 token partition nodes.
    The script generates rootchain and partition node keys, genesis files.
    Node configuration files are located in `testab` directory.
 2. Run script `./start.sh -r -p tokens -b tokens` to start rootchain and 3 token partition nodes and token backend
 3. Run script `stop.sh -a` to stop the root chain and partition nodes.
 
 # Start all partitions at once
-1. Run script `./setup-testab.sh` to generate genesis for root, and 3 money, vd and tokens nodes.
-2. Run `start.sh -r -p money -p tokens -p vd -b money -b tokens` to start everything
+1. Run script `./setup-testab.sh` to generate genesis for root, and 3 money and tokens nodes.
+2. Run `start.sh -r -p money -p tokens -b money -b tokens` to start everything
 3. Run `stop.sh -a` to stop everything
 
 # Logging configuration

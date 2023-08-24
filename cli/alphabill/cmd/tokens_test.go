@@ -31,7 +31,7 @@ import (
 func TestRunTokensNode(t *testing.T) {
 	homeDir := setupTestHomeDir(t, "tokens")
 	keysFileLocation := filepath.Join(homeDir, defaultKeysFileName)
-	nodeGenesisFileLocation := filepath.Join(homeDir, nodeGenesisFileName)
+	nodeGenesisFileLocation := filepath.Join(homeDir, utGenesisFileName)
 	partitionGenesisFileLocation := filepath.Join(homeDir, "partition-genesis.json")
 	testtime.MustRunInTime(t, 5*time.Second, func() {
 		ctx, ctxCancel := context.WithCancel(context.Background())

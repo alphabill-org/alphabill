@@ -4,26 +4,24 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/alphabill-org/alphabill/internal/rma"
 	"github.com/alphabill-org/alphabill/internal/script"
-	"github.com/alphabill-org/alphabill/internal/util"
-	"github.com/holiman/uint256"
+	"github.com/alphabill-org/alphabill/internal/state"
 	"github.com/stretchr/testify/require"
 )
 
-var unlockMoneyBillProgramUnitID = uint256.NewInt(0).SetBytes([]byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 's', 'y', 's'})
+var unlockMoneyBillProgramUnitID = []byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 's', 'y', 's'}
 
 func TestInitBuiltInPrograms(t *testing.T) {
 	tests := []struct {
 		name    string
-		state   *rma.Tree
+		state   *state.State
 		want    BuiltInPrograms
 		wantErr string
 	}{
 		{
 			name:  "init built-in programs",
-			state: rma.NewWithSHA256(),
-			want:  BuiltInPrograms{string(util.Uint256ToBytes(unlockMoneyBillProgramUnitID)): unlockMoneyBill},
+			state: state.NewEmptyState(),
+			want:  BuiltInPrograms{string(unlockMoneyBillProgramUnitID): unlockMoneyBill},
 		},
 		{
 			name:    "state is nil",
@@ -57,15 +55,18 @@ func TestUnlockMoneyBill(t *testing.T) {
 	require.ErrorContains(t, unlockMoneyBill(nil), "not implemented")
 }
 
-func initStateWithBuiltInPrograms(t *testing.T) *rma.Tree {
-	state := rma.NewWithSHA256()
+func initStateWithBuiltInPrograms(t *testing.T) *state.State {
+	s := state.NewEmptyState()
+	savepointID := s.Savepoint()
 	require.NoError(t,
-		state.AtomicUpdate(rma.AddItem(
+		s.Apply(state.AddUnit(
 			unlockMoneyBillProgramUnitID,
 			script.PredicateAlwaysFalse(),
 			&Program{},
-			make([]byte, 32),
 		)))
-	state.Commit()
-	return state
+	s.ReleaseToSavepoint(savepointID)
+	_, _, err := s.CalculateRoot()
+	require.NoError(t, err)
+	require.NoError(t, s.Commit())
+	return s
 }

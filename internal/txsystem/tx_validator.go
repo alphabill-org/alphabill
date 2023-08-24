@@ -5,8 +5,8 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/alphabill-org/alphabill/internal/rma"
 	"github.com/alphabill-org/alphabill/internal/script"
+	"github.com/alphabill-org/alphabill/internal/state"
 	"github.com/alphabill-org/alphabill/internal/types"
 )
 
@@ -19,7 +19,7 @@ type GenericTransactionValidator func(ctx *TxValidationContext) error
 
 type TxValidationContext struct {
 	Tx               *types.TransactionOrder
-	Unit             *rma.Unit
+	Unit             *state.Unit
 	SystemIdentifier []byte
 	BlockNumber      uint64
 }
@@ -45,7 +45,7 @@ func ValidateGenericTransaction(ctx *TxValidationContext) error {
 			return fmt.Errorf("failed to marshal payload bytes: %w", err)
 		}
 
-		if err = script.RunScript(ctx.Tx.OwnerProof, ctx.Unit.Bearer, payloadBytes); err != nil {
+		if err = script.RunScript(ctx.Tx.OwnerProof, ctx.Unit.Bearer(), payloadBytes); err != nil {
 			return fmt.Errorf("invalid owner proof: %w", err)
 		}
 	}

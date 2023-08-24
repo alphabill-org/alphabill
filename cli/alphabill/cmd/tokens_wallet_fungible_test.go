@@ -11,18 +11,18 @@ import (
 	"github.com/alphabill-org/alphabill/internal/script"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	testpartition "github.com/alphabill-org/alphabill/internal/testutils/partition"
-	moneytx "github.com/alphabill-org/alphabill/internal/txsystem/money"
-	tokentxs "github.com/alphabill-org/alphabill/internal/txsystem/tokens"
+	"github.com/alphabill-org/alphabill/internal/txsystem/money"
+	"github.com/alphabill-org/alphabill/internal/txsystem/tokens"
 	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/internal/util"
-	abclient "github.com/alphabill-org/alphabill/pkg/client"
 	"github.com/alphabill-org/alphabill/pkg/wallet/account"
 	"github.com/alphabill-org/alphabill/pkg/wallet/fees"
 	wlog "github.com/alphabill-org/alphabill/pkg/wallet/log"
-	"github.com/alphabill-org/alphabill/pkg/wallet/money"
+	moneywallet "github.com/alphabill-org/alphabill/pkg/wallet/money"
 	moneyclient "github.com/alphabill-org/alphabill/pkg/wallet/money/backend/client"
-	"github.com/alphabill-org/alphabill/pkg/wallet/tokens"
+	tokenswallet "github.com/alphabill-org/alphabill/pkg/wallet/tokens"
 	"github.com/alphabill-org/alphabill/pkg/wallet/tokens/client"
+	"github.com/alphabill-org/alphabill/pkg/wallet/unitlock"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
@@ -32,7 +32,7 @@ func TestFungibleToken_Subtyping_Integration(t *testing.T) {
 	require.NoError(t, wlog.InitStdoutLogger(wlog.INFO))
 
 	network := NewAlphabillNetwork(t)
-	tokensPartition, err := network.abNetwork.GetNodePartition(tokentxs.DefaultTokenTxSystemIdentifier)
+	tokensPartition, err := network.abNetwork.GetNodePartition(tokens.DefaultSystemIdentifier)
 	require.NoError(t, err)
 	homedirW1 := network.walletHomedir
 	w1key := network.walletKey1
@@ -81,7 +81,7 @@ func TestFungibleToken_InvariantPredicate_Integration(t *testing.T) {
 	require.NoError(t, wlog.InitStdoutLogger(wlog.INFO))
 
 	network := NewAlphabillNetwork(t)
-	tokensPartition, err := network.abNetwork.GetNodePartition(tokentxs.DefaultTokenTxSystemIdentifier)
+	tokensPartition, err := network.abNetwork.GetNodePartition(tokens.DefaultSystemIdentifier)
 	homedirW1 := network.walletHomedir
 	w1key := network.walletKey1
 	backendUrl := network.tokenBackendURL
@@ -121,10 +121,10 @@ func TestFungibleTokens_Sending_Integration(t *testing.T) {
 	require.NoError(t, wlog.InitStdoutLogger(wlog.INFO))
 
 	network := NewAlphabillNetwork(t)
-	_, err := network.abNetwork.GetNodePartition(defaultABMoneySystemIdentifier)
+	_, err := network.abNetwork.GetNodePartition(money.DefaultSystemIdentifier)
 	require.NoError(t, err)
 	moneyBackendURL := network.moneyBackendURL
-	tokensPartition, err := network.abNetwork.GetNodePartition(tokentxs.DefaultTokenTxSystemIdentifier)
+	tokensPartition, err := network.abNetwork.GetNodePartition(tokens.DefaultSystemIdentifier)
 	require.NoError(t, err)
 	homedirW1 := network.walletHomedir
 	w1key := network.walletKey1
@@ -144,8 +144,8 @@ func TestFungibleTokens_Sending_Integration(t *testing.T) {
 	// mint tokens
 	crit := func(amount uint64) func(tx *types.TransactionOrder) bool {
 		return func(tx *types.TransactionOrder) bool {
-			if tx.PayloadType() == tokentxs.PayloadTypeMintFungibleToken {
-				attrs := &tokentxs.MintFungibleTokenAttributes{}
+			if tx.PayloadType() == tokens.PayloadTypeMintFungibleToken {
+				attrs := &tokens.MintFungibleTokenAttributes{}
 				require.NoError(t, tx.UnmarshalAttributes(attrs))
 				return attrs.Value == amount
 			}
@@ -158,30 +158,30 @@ func TestFungibleTokens_Sending_Integration(t *testing.T) {
 	require.Eventually(t, testpartition.BlockchainContains(tokensPartition, crit(9)), test.WaitDuration, test.WaitTick)
 	verifyStdoutEventually(t, func() *testConsoleWriter {
 		return execTokensCmd(t, homedirW1, fmt.Sprintf("list fungible -r %s", backendUrl))
-	}, "amount='5'", "amount='9'", "Symbol='AB'")
+	}, "amount='5'", "amount='9'", "symbol='AB'")
 	// check w2 is empty
 	verifyStdout(t, execTokensCmd(t, homedirW2, fmt.Sprintf("list fungible  -r %s", backendUrl)), "No tokens")
 	// transfer tokens w1 -> w2
 	execTokensCmd(t, homedirW1, fmt.Sprintf("send fungible -r %s --type %X --amount 6 --address 0x%X -k 1", backendUrl, typeID1, w2key.PubKey)) //split (9=>6+3)
 	verifyStdoutEventually(t, func() *testConsoleWriter {
 		return execTokensCmd(t, homedirW1, fmt.Sprintf("list fungible -r %s", backendUrl))
-	}, "amount='5'", "amount='3'", "Symbol='AB'")
+	}, "amount='5'", "amount='3'", "symbol='AB'")
 	execTokensCmd(t, homedirW1, fmt.Sprintf("send fungible -r %s --type %X --amount 6 --address 0x%X -k 1", backendUrl, typeID1, w2key.PubKey)) //transfer (5) + split (3=>2+1)
 	//check immediately as tx must be confirmed
-	verifyStdout(t, execTokensCmd(t, homedirW2, fmt.Sprintf("list fungible -r %s", backendUrl)), "amount='6'", "amount='5'", "amount='1'", "Symbol='AB'")
+	verifyStdout(t, execTokensCmd(t, homedirW2, fmt.Sprintf("list fungible -r %s", backendUrl)), "amount='6'", "amount='5'", "amount='1'", "symbol='AB'")
 	//check what is left in w1
 	verifyStdoutEventually(t, func() *testConsoleWriter {
 		return execTokensCmd(t, homedirW1, fmt.Sprintf("list fungible -r %s", backendUrl))
 	}, "amount='2'")
 
 	// send money to w2 to create fee credits
-	stdout := execWalletCmd(t, "", homedirW1, fmt.Sprintf("send --amount 100 --address %s -r %s", hexutil.Encode(w2key.PubKey), moneyBackendURL))
+	stdout := execWalletCmd(t, homedirW1, fmt.Sprintf("send --amount 100 --address %s -r %s", hexutil.Encode(w2key.PubKey), moneyBackendURL))
 	verifyStdout(t, stdout, "Successfully confirmed transaction(s)")
 
 	// create fee credit on w2
-	stdout, err = execFeesCommand(homedirW2, fmt.Sprintf("--partition token add --amount 50 -r %s -m %s", moneyBackendURL, backendUrl))
+	stdout, err = execFeesCommand(homedirW2, fmt.Sprintf("--partition tokens add --amount 50 -r %s -m %s", moneyBackendURL, backendUrl))
 	require.NoError(t, err)
-	verifyStdout(t, stdout, "Successfully created 50 fee credits on token partition.")
+	verifyStdout(t, stdout, "Successfully created 50 fee credits on tokens partition.")
 
 	//transfer back w2->w1 (AB-513)
 	execTokensCmd(t, homedirW2, fmt.Sprintf("send fungible -r %s --type %X --amount 6 --address 0x%X -k 1", backendUrl, typeID1, w1key.PubKey))
@@ -193,8 +193,8 @@ func TestWalletCreateFungibleTokenTypeAndTokenAndSendCmd_IntegrationTest(t *test
 	// mint tokens
 	crit := func(amount uint64) func(tx *types.TransactionOrder) bool {
 		return func(tx *types.TransactionOrder) bool {
-			if tx.PayloadType() == tokentxs.PayloadTypeMintFungibleToken {
-				attrs := &tokentxs.MintFungibleTokenAttributes{}
+			if tx.PayloadType() == tokens.PayloadTypeMintFungibleToken {
+				attrs := &tokens.MintFungibleTokenAttributes{}
 				require.NoError(t, tx.UnmarshalAttributes(attrs))
 				return attrs.Value == amount
 			}
@@ -205,7 +205,7 @@ func TestWalletCreateFungibleTokenTypeAndTokenAndSendCmd_IntegrationTest(t *test
 	require.NoError(t, wlog.InitStdoutLogger(wlog.INFO))
 
 	network := NewAlphabillNetwork(t)
-	tokensPart, err := network.abNetwork.GetNodePartition(tokentxs.DefaultTokenTxSystemIdentifier)
+	tokensPart, err := network.abNetwork.GetNodePartition(tokens.DefaultSystemIdentifier)
 	require.NoError(t, err)
 	homedir := network.walletHomedir
 	w1key := network.walletKey1
@@ -281,9 +281,9 @@ func TestFungibleTokens_CollectDust_Integration(t *testing.T) {
 		expectedTotal += i
 	}
 	//check w1
-	verifyStdoutEventually(t, func() *testConsoleWriter {
+	verifyStdoutEventuallyWithTimeout(t, func() *testConsoleWriter {
 		return execTokensCmd(t, homedir, fmt.Sprintf("list fungible -r %s", backendUrl))
-	}, expectedAmounts...)
+	}, 2*test.WaitDuration, 2*test.WaitTick, expectedAmounts...)
 	// DC
 	execTokensCmd(t, homedir, fmt.Sprintf("collect-dust -r %s", backendUrl))
 
@@ -308,12 +308,12 @@ type AlphabillNetwork struct {
 // sends initial bill to money wallet
 // creates fee credit on money wallet and token wallet
 func NewAlphabillNetwork(t *testing.T) *AlphabillNetwork {
-	initialBill := &moneytx.InitialBill{
-		ID:    uint256.NewInt(1),
+	initialBill := &money.InitialBill{
+		ID:    util.Uint256ToBytes(uint256.NewInt(1)),
 		Value: 1e18,
 		Owner: script.PredicateAlwaysTrue(),
 	}
-	moneyPartition := createMoneyPartition(t, initialBill)
+	moneyPartition := createMoneyPartition(t, initialBill, 1)
 	tokensPartition := createTokensPartition(t)
 	abNet := startAlphabill(t, []*testpartition.NodePartition{moneyPartition, tokensPartition})
 	startPartitionRPCServers(t, moneyPartition)
@@ -329,24 +329,29 @@ func NewAlphabillNetwork(t *testing.T) *AlphabillNetwork {
 	require.NoError(t, err)
 	require.NoError(t, am.CreateKeys(""))
 
-	moneyWallet, err := money.LoadExistingWallet(abclient.AlphabillClientConfig{Uri: moneyPartition.Nodes[0].AddrGRPC}, am, moneyBackendClient)
+	unitLocker, err := unitlock.NewUnitLocker(walletDir)
 	require.NoError(t, err)
-	t.Cleanup(moneyWallet.Shutdown)
 
-	tokenTxPublisher := tokens.NewTxPublisher(tokenBackendClient)
-	tokenFeeManager := fees.NewFeeManager(am, defaultABMoneySystemIdentifier, moneyWallet, moneyBackendClient, tokentxs.DefaultTokenTxSystemIdentifier, tokenTxPublisher, tokenBackendClient)
+	moneyWallet, err := moneywallet.LoadExistingWallet(am, unitLocker, moneyBackendClient)
+	require.NoError(t, err)
+	defer moneyWallet.Close()
 
-	w1, err := tokens.New(tokentxs.DefaultTokenTxSystemIdentifier, tokenBackendURL, am, true, tokenFeeManager)
+	tokenTxPublisher := tokenswallet.NewTxPublisher(tokenBackendClient)
+	tokenFeeManager := fees.NewFeeManager(am, unitLocker, money.DefaultSystemIdentifier, moneyWallet, moneyBackendClient, tokens.DefaultSystemIdentifier, tokenTxPublisher, tokenBackendClient)
+	defer tokenFeeManager.Close()
+
+	w1, err := tokenswallet.New(tokens.DefaultSystemIdentifier, tokenBackendURL, am, true, tokenFeeManager)
 	require.NoError(t, err)
 	require.NotNil(t, w1)
-	t.Cleanup(w1.Shutdown)
+	defer w1.Shutdown()
+
 	w1key, err := w1.GetAccountManager().GetAccountKey(0)
 	_, _, err = am.AddAccount()
 	require.NoError(t, err)
 	w1key2, err := w1.GetAccountManager().GetAccountKey(1)
 
-	spendInitialBillWithFeeCredits(t, abNet, initialBill, hexutil.Encode(w1key.PubKey))
-	time.Sleep(2 * time.Second) // TODO dynamic sleep
+	spendInitialBillWithFeeCredits(t, abNet, initialBill, w1key.PubKey)
+	time.Sleep(4 * time.Second) // TODO dynamic sleep
 
 	// create fees on money partition
 	_, err = moneyWallet.AddFeeCredit(ctx, fees.AddFeeCmd{Amount: 1000})

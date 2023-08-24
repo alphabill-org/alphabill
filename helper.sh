@@ -71,6 +71,10 @@ case $1 in
     cmd="tokens-genesis"
     home="testab/tokens"
     ;;
+  evm)
+      cmd="evm-genesis"
+      home="testab/evm"
+      ;;
   *)
     echo "error: unknown partition $1" >&2
     return 1
@@ -92,7 +96,7 @@ function generate_root_genesis() {
   # it scans all partition node genesis files from the directories and uses them to create root genesis
   # build partition node genesis files argument list '-p' for root genesis
   local node_genesis_files=""
-  for file in testab/money*/money/node-genesis.json testab/vd*/vd/node-genesis.json testab/tokens*/tokens/node-genesis.json
+  for file in testab/money*/money/node-genesis.json testab/vd*/vd/node-genesis.json testab/tokens*/tokens/node-genesis.json testab/evm*/evm/node-genesis.json
   do
     if [[ ! -f $file ]]; then
       continue
@@ -154,6 +158,14 @@ local restPort=0
       grpcPort=28766
       restPort=28866
       ;;
+    evm)
+      home="testab/evm"
+      key_files="testab/evm*/evm/keys.json"
+      genesis_file="testab/rootchain1/rootchain/partition-genesis-3.json"
+      aPort=29666
+      grpcPort=29766
+      restPort=29866
+      ;;
     *)
       echo "error: unknown partition $1" >&2
       return 1
@@ -164,7 +176,7 @@ local restPort=0
   i=1
   for keyf in $key_files
   do
-    build/alphabill "$1" --home ${home}$i -f ${home}$i/"$1"/blocks.db -k $keyf -r "/ip4/127.0.0.1/tcp/26662" -a "/ip4/127.0.0.1/tcp/$aPort" --server-address ":$grpcPort" --rest-server-address "localhost:$restPort" -g $genesis_file  >> ${home}$i/"$1"/"$1".log &
+    build/alphabill "$1" --home ${home}$i -f ${home}$i/"$1"/blocks.db -k $keyf -r "/ip4/127.0.0.1/tcp/26662" -a "/ip4/127.0.0.1/tcp/$aPort" --server-address "localhost:$grpcPort" --rest-server-address "localhost:$restPort" -g $genesis_file  >> ${home}$i/"$1"/"$1".log &
     ((i=i+1))
     ((aPort=aPort+1))
     ((grpcPort=grpcPort+1))
@@ -180,7 +192,7 @@ function start_backend() {
 
     case $1 in
       money)
-        home="testab/backend/money/"
+        home="testab/backend/money"
         cmd="money-backend"
         grpcPort=26766
         sPort=9654
@@ -197,7 +209,7 @@ function start_backend() {
         customArgs=$sdrFiles
         ;;
       tokens)
-        home="testab/backend/vd/"
+        home="testab/backend/tokens"
         cmd="tokens-backend"
         grpcPort=28766
         sPort=9735

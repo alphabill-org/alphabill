@@ -81,9 +81,9 @@ func WithTargetRecordID(recordID []byte) TransferFeeCreditOption {
 	}
 }
 
-func WithNonce(nonce []byte) TransferFeeCreditOption {
+func WithTargetUnitBacklink(targetUnitBacklink []byte) TransferFeeCreditOption {
 	return func(tx *transactions.TransferFeeCreditAttributes) TransferFeeCreditOption {
-		tx.Nonce = nonce
+		tx.TargetUnitBacklink = targetUnitBacklink
 		return nil
 	}
 }

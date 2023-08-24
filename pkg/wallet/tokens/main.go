@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	"net/url"
 	"strings"
 
@@ -47,13 +48,13 @@ type (
 
 	TokenBackend interface {
 		GetToken(ctx context.Context, id backend.TokenID) (*backend.TokenUnit, error)
-		GetTokens(ctx context.Context, kind backend.Kind, owner wallet.PubKey, offsetKey string, limit int) ([]*backend.TokenUnit, string, error)
-		GetTokenTypes(ctx context.Context, kind backend.Kind, creator wallet.PubKey, offsetKey string, limit int) ([]*backend.TokenUnitType, string, error)
+		GetTokens(ctx context.Context, kind backend.Kind, owner wallet.PubKey, offset string, limit int) ([]*backend.TokenUnit, string, error)
+		GetTokenTypes(ctx context.Context, kind backend.Kind, creator wallet.PubKey, offset string, limit int) ([]*backend.TokenUnitType, string, error)
 		GetTypeHierarchy(ctx context.Context, id backend.TokenTypeID) ([]*backend.TokenUnitType, error)
 		GetRoundNumber(ctx context.Context) (uint64, error)
 		PostTransactions(ctx context.Context, pubKey wallet.PubKey, txs *wallet.Transactions) error
 		GetTxProof(ctx context.Context, unitID wallet.UnitID, txHash wallet.TxHash) (*wallet.Proof, error)
-		GetFeeCreditBill(ctx context.Context, unitID wallet.UnitID) (*backend.FeeCreditBill, error)
+		GetFeeCreditBill(ctx context.Context, unitID wallet.UnitID) (*wallet.Bill, error)
 	}
 
 	MoneyDataProvider interface {
@@ -70,13 +71,6 @@ func New(systemID []byte, backendUrl string, am account.Manager, confirmTx bool,
 	if err != nil {
 		return nil, err
 	}
-	//txs, err := tokens.New(
-	//	tokens.WithSystemIdentifier(systemID),
-	//	tokens.WithTrustBase(map[string]abcrypto.Verifier{"test": nil}),
-	//)
-	if err != nil {
-		return nil, err
-	}
 	return &Wallet{
 		systemID:   systemID,
 		am:         am,
@@ -88,6 +82,9 @@ func New(systemID []byte, backendUrl string, am account.Manager, confirmTx bool,
 
 func (w *Wallet) Shutdown() {
 	w.am.Close()
+	if w.feeManager != nil {
+		w.feeManager.Close()
+	}
 }
 
 func (w *Wallet) GetAccountManager() account.Manager {
@@ -150,15 +147,15 @@ func (w *Wallet) ListTokenTypes(ctx context.Context, accountNumber uint64, kind 
 	fetchForPubKey := func(pubKey []byte) ([]*backend.TokenUnitType, error) {
 		allTokenTypesForKey := make([]*backend.TokenUnitType, 0)
 		var types []*backend.TokenUnitType
-		offsetKey := ""
+		offset := ""
 		var err error
 		for {
-			types, offsetKey, err = w.backend.GetTokenTypes(ctx, kind, pubKey, offsetKey, 0)
+			types, offset, err = w.backend.GetTokenTypes(ctx, kind, pubKey, offset, 0)
 			if err != nil {
 				return nil, err
 			}
 			allTokenTypesForKey = append(allTokenTypesForKey, types...)
-			if offsetKey == "" {
+			if offset == "" {
 				break
 			}
 		}
@@ -237,15 +234,15 @@ func (w *Wallet) getAccounts(accountNumber uint64) ([]*accountKey, error) {
 func (w *Wallet) getTokens(ctx context.Context, kind backend.Kind, pubKey wallet.PubKey) ([]*backend.TokenUnit, error) {
 	allTokens := make([]*backend.TokenUnit, 0)
 	var ts []*backend.TokenUnit
-	offsetKey := ""
+	offset := ""
 	var err error
 	for {
-		ts, offsetKey, err = w.backend.GetTokens(ctx, kind, pubKey, offsetKey, 0)
+		ts, offset, err = w.backend.GetTokens(ctx, kind, pubKey, offset, 0)
 		if err != nil {
 			return nil, err
 		}
 		allTokens = append(allTokens, ts...)
-		if offsetKey == "" {
+		if offset == "" {
 			break
 		}
 	}
@@ -290,6 +287,9 @@ func (w *Wallet) TransferNFT(ctx context.Context, accountNumber uint64, tokenId 
 }
 
 func (w *Wallet) SendFungible(ctx context.Context, accountNumber uint64, typeId backend.TokenTypeID, targetAmount uint64, receiverPubKey []byte, invariantPredicateArgs []*PredicateInput) error {
+	if targetAmount == 0 {
+		return fmt.Errorf("invalid amount: 0")
+	}
 	if accountNumber < 1 {
 		return fmt.Errorf("invalid account number: %d", accountNumber)
 	}
@@ -319,7 +319,12 @@ func (w *Wallet) SendFungible(ctx context.Context, accountNumber uint64, typeId 
 		}
 		if typeId.Equal(token.TypeID) {
 			matchingTokens = append(matchingTokens, token)
-			totalBalance += token.Amount
+			var overflow bool
+			totalBalance, overflow, _ = wallet.AddUint64(totalBalance, token.Amount)
+			if overflow {
+				// capping the total balance to maxUint64 should be enough to perform the transfer
+				totalBalance = math.MaxUint64
+			}
 			if closestMatch == nil {
 				closestMatch = token
 			} else {
@@ -388,48 +393,36 @@ func (w *Wallet) UpdateNFTData(ctx context.Context, accountNumber uint64, tokenI
 	return sub.ToBatch(w.backend, acc.PubKey).SendTx(ctx, w.confirmTx)
 }
 
-// GetFeeCreditBill returns fee credit bill for given account,
+// GetFeeCredit returns fee credit bill for given account,
 // can return nil if fee credit bill has not been created yet.
-func (w *Wallet) GetFeeCreditBill(ctx context.Context, cmd fees.GetFeeCreditCmd) (*wallet.Bill, error) {
+func (w *Wallet) GetFeeCredit(ctx context.Context, cmd fees.GetFeeCreditCmd) (*wallet.Bill, error) {
 	accountKey, err := w.am.GetAccountKey(cmd.AccountIndex)
 	if err != nil {
 		return nil, err
 	}
-	return w.FetchFeeCreditBill(ctx, accountKey.PrivKeyHash)
+	return w.GetFeeCreditBill(ctx, accountKey.PubKeyHash.Sha256)
 }
 
-// FetchFeeCreditBill returns fee credit bill for given unitID
+// GetFeeCreditBill returns fee credit bill for given unitID
 // can return nil if fee credit bill has not been created yet.
-func (w *Wallet) FetchFeeCreditBill(ctx context.Context, unitID []byte) (*wallet.Bill, error) {
-	fcb, err := w.backend.GetFeeCreditBill(ctx, unitID)
-	if err != nil {
-		return nil, err
-	}
-	if fcb == nil {
-		return nil, nil
-	}
-	return &wallet.Bill{
-		Id:            fcb.Id,
-		Value:         fcb.Value,
-		TxHash:        fcb.TxHash,
-		FcBlockNumber: fcb.FCBlockNumber,
-	}, nil
+func (w *Wallet) GetFeeCreditBill(ctx context.Context, unitID []byte) (*wallet.Bill, error) {
+	return w.backend.GetFeeCreditBill(ctx, unitID)
 }
 
 func (w *Wallet) GetRoundNumber(ctx context.Context) (uint64, error) {
 	return w.backend.GetRoundNumber(ctx)
 }
 
-func (w *Wallet) AddFeeCredit(ctx context.Context, cmd fees.AddFeeCmd) ([]*wallet.Proof, error) {
+func (w *Wallet) AddFeeCredit(ctx context.Context, cmd fees.AddFeeCmd) (*fees.AddFeeCmdResponse, error) {
 	return w.feeManager.AddFeeCredit(ctx, cmd)
 }
 
-func (w *Wallet) ReclaimFeeCredit(ctx context.Context, cmd fees.ReclaimFeeCmd) ([]*wallet.Proof, error) {
+func (w *Wallet) ReclaimFeeCredit(ctx context.Context, cmd fees.ReclaimFeeCmd) (*fees.ReclaimFeeCmdResponse, error) {
 	return w.feeManager.ReclaimFeeCredit(ctx, cmd)
 }
 
 func (w *Wallet) ensureFeeCredit(ctx context.Context, accountKey *account.AccountKey, txCount int) error {
-	fcb, err := w.FetchFeeCreditBill(ctx, accountKey.PrivKeyHash)
+	fcb, err := w.GetFeeCreditBill(ctx, accountKey.PubKeyHash.Sha256)
 	if err != nil {
 		return err
 	}

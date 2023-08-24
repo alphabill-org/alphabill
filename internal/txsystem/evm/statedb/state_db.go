@@ -2,29 +2,32 @@ package statedb
 
 import (
 	"errors"
+	"fmt"
 	"math/big"
 
-	"github.com/alphabill-org/alphabill/internal/rma"
 	"github.com/alphabill-org/alphabill/internal/script"
-	"github.com/alphabill-org/alphabill/internal/util"
+	"github.com/alphabill-org/alphabill/internal/state"
+	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/pkg/logger"
+	"github.com/alphabill-org/alphabill/pkg/tree/avl"
 	"github.com/ethereum/go-ethereum/common"
 	ethtypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/holiman/uint256"
 )
 
-var _ vm.StateDB = &StateDB{}
+var _ vm.StateDB = (*StateDB)(nil)
 var log = logger.CreateForPackage()
 
 type StateDB struct {
-	tree       *rma.Tree
+	tree       *state.State
 	errDB      error
 	accessList *accessList
+
+	suicides []common.Address
 }
 
-func NewStateDB(tree *rma.Tree) *StateDB {
+func NewStateDB(tree *state.State) *StateDB {
 	return &StateDB{
 		tree:       tree,
 		accessList: newAccessList(),
@@ -32,58 +35,58 @@ func NewStateDB(tree *rma.Tree) *StateDB {
 }
 
 func (s *StateDB) CreateAccount(address common.Address) {
-	unitID := util.BytesToUint256(address.Bytes())
-	stateObject := s.getStateObject(unitID)
-	if stateObject == nil {
-		log.Trace("Adding an account: %v", address)
-		s.errDB = s.tree.AtomicUpdate(rma.AddItem(
-			unitID,
-			script.PredicateAlwaysFalse(),
-			&StateObject{Address: address, Account: &Account{Nonce: 0, Balance: big.NewInt(0), CodeHash: emptyCodeHash}, Storage: map[common.Hash]common.Hash{}},
-			make([]byte, 32),
-		))
+	unitID := address.Bytes()
+	stateObject := s.getStateObject(unitID, false)
+	if stateObject != nil {
+		// TODO handle the case when the account is overridden!
+		// It should be enough to keep the balance and set nonce to 0
+		return
 	}
+	log.Trace("Adding an account: %v", address)
+	s.errDB = s.tree.Apply(state.AddUnit(
+		unitID,
+		script.PredicateAlwaysFalse(),
+		&StateObject{Address: address, Account: &Account{Nonce: 0, Balance: big.NewInt(0), CodeHash: emptyCodeHash}, Storage: map[common.Hash]common.Hash{}},
+	))
 }
 
 func (s *StateDB) SubBalance(address common.Address, amount *big.Int) {
-	unitID := util.BytesToUint256(address.Bytes())
-	stateObject := s.getStateObject(unitID)
-	if stateObject != nil {
-		s.errDB = s.tree.AtomicUpdate(rma.UpdateData(
-			unitID, func(data rma.UnitData) rma.UnitData {
-				if amount.Sign() == 0 {
-					return data
-				}
-				newBalance := new(big.Int).Sub(data.(*StateObject).Account.Balance, amount)
-				data.(*StateObject).Account.Balance = newBalance
-				return data
-			},
-			make([]byte, 32),
-		))
+	if amount.Sign() == 0 {
+		return
 	}
+	unitID := address.Bytes()
+	stateObject := s.getStateObject(unitID, false)
+	if stateObject == nil {
+		return
+	}
+	log.Trace("SubBalance: account %v, initial balance %v, amount to subtract %v", address, stateObject.Account.Balance, amount)
+	s.errDB = s.executeUpdate(unitID, func(so *StateObject) state.UnitData {
+		newBalance := new(big.Int).Sub(so.Account.Balance, amount)
+		so.Account.Balance = newBalance
+		return so
+	})
 }
 
 func (s *StateDB) AddBalance(address common.Address, amount *big.Int) {
-	unitID := util.BytesToUint256(address.Bytes())
-	stateObject := s.getStateObject(unitID)
-	if stateObject != nil {
-		s.errDB = s.tree.AtomicUpdate(rma.UpdateData(
-			unitID, func(data rma.UnitData) rma.UnitData {
-				if amount.Sign() == 0 {
-					return data
-				}
-				newBalance := new(big.Int).Add(data.(*StateObject).Account.Balance, amount)
-				data.(*StateObject).Account.Balance = newBalance
-				return data
-			},
-			make([]byte, 32),
-		))
+	if amount.Sign() == 0 {
+		return
 	}
+	unitID := address.Bytes()
+	stateObject := s.getStateObject(unitID, false)
+	if stateObject == nil {
+		return
+	}
+	log.Trace("AddBalance: account %v, initial balance %v, amount to add %v", address, stateObject.Account.Balance, amount)
+	s.errDB = s.executeUpdate(unitID, func(so *StateObject) state.UnitData {
+		newBalance := new(big.Int).Add(so.Account.Balance, amount)
+		so.Account.Balance = newBalance
+		return so
+	})
 }
 
 func (s *StateDB) GetBalance(address common.Address) *big.Int {
-	unitID := util.BytesToUint256(address.Bytes())
-	stateObject := s.getStateObject(unitID)
+	unitID := address.Bytes()
+	stateObject := s.getStateObject(unitID, false)
 	if stateObject != nil {
 		return stateObject.Account.Balance
 	}
@@ -91,8 +94,8 @@ func (s *StateDB) GetBalance(address common.Address) *big.Int {
 }
 
 func (s *StateDB) GetNonce(address common.Address) uint64 {
-	unitID := util.BytesToUint256(address.Bytes())
-	stateObject := s.getStateObject(unitID)
+	unitID := address.Bytes()
+	stateObject := s.getStateObject(unitID, false)
 	if stateObject != nil {
 		return stateObject.Account.Nonce
 	}
@@ -100,23 +103,21 @@ func (s *StateDB) GetNonce(address common.Address) uint64 {
 }
 
 func (s *StateDB) SetNonce(address common.Address, nonce uint64) {
-	unitID := util.BytesToUint256(address.Bytes())
-	stateObject := s.getStateObject(unitID)
-	if stateObject != nil {
-		log.Trace("Setting a new nonce %v for an account: %v", nonce, address)
-		s.errDB = s.tree.AtomicUpdate(rma.UpdateData(
-			unitID, func(data rma.UnitData) rma.UnitData {
-				data.(*StateObject).Account.Nonce = nonce
-				return data
-			},
-			make([]byte, 32),
-		))
+	unitID := address.Bytes()
+	stateObject := s.getStateObject(unitID, false)
+	if stateObject == nil {
+		return
 	}
+	log.Trace("Setting a new nonce %v for an account: %v", nonce, address)
+	s.errDB = s.executeUpdate(unitID, func(so *StateObject) state.UnitData {
+		so.Account.Nonce = nonce
+		return so
+	})
 }
 
 func (s *StateDB) GetCodeHash(address common.Address) common.Hash {
-	unitID := util.BytesToUint256(address.Bytes())
-	stateObject := s.getStateObject(unitID)
+	unitID := address.Bytes()
+	stateObject := s.getStateObject(unitID, false)
 	if stateObject != nil {
 		return common.BytesToHash(stateObject.Account.CodeHash)
 	}
@@ -124,8 +125,8 @@ func (s *StateDB) GetCodeHash(address common.Address) common.Hash {
 }
 
 func (s *StateDB) GetCode(address common.Address) []byte {
-	unitID := util.BytesToUint256(address.Bytes())
-	stateObject := s.getStateObject(unitID)
+	unitID := address.Bytes()
+	stateObject := s.getStateObject(unitID, false)
 	if stateObject != nil {
 		return stateObject.Account.Code
 	}
@@ -133,24 +134,22 @@ func (s *StateDB) GetCode(address common.Address) []byte {
 }
 
 func (s *StateDB) SetCode(address common.Address, code []byte) {
-	unitID := util.BytesToUint256(address.Bytes())
-	stateObject := s.getStateObject(unitID)
-	if stateObject != nil {
-		log.Trace("Setting code %X for an account: %v", code, address)
-		s.errDB = s.tree.AtomicUpdate(rma.UpdateData(
-			unitID, func(data rma.UnitData) rma.UnitData {
-				data.(*StateObject).Account.Code = code
-				data.(*StateObject).Account.CodeHash = crypto.Keccak256Hash(code).Bytes()
-				return data
-			},
-			make([]byte, 32),
-		))
+	unitID := address.Bytes()
+	stateObject := s.getStateObject(unitID, false)
+	if stateObject == nil {
+		return
 	}
+	log.Trace("Setting code %X for an account: %v", code, address)
+	s.errDB = s.executeUpdate(unitID, func(so *StateObject) state.UnitData {
+		so.Account.Code = code
+		so.Account.CodeHash = crypto.Keccak256Hash(code).Bytes()
+		return so
+	})
 }
 
 func (s *StateDB) GetCodeSize(address common.Address) int {
-	unitID := util.BytesToUint256(address.Bytes())
-	stateObject := s.getStateObject(unitID)
+	unitID := address.Bytes()
+	stateObject := s.getStateObject(unitID, false)
 	if stateObject != nil {
 		return len(stateObject.Account.Code)
 	}
@@ -158,21 +157,20 @@ func (s *StateDB) GetCodeSize(address common.Address) int {
 }
 
 func (s *StateDB) AddRefund(gas uint64) {
-	// TODO implement
+	// TODO AB-1026
 }
 
 func (s *StateDB) SubRefund(gas uint64) {
-	// TODO implement
+	// TODO AB-1026
 }
 
 func (s *StateDB) GetRefund() uint64 {
-	// TODO implement
+	// TODO AB-1026
 	return 0
 }
 
 func (s *StateDB) GetCommittedState(address common.Address, key common.Hash) common.Hash {
-	// TODO after integrating a new AVLTree and stateTree this code must use AVLTree snapshots
-	stateObject := s.getStateObject(util.BytesToUint256(address.Bytes()))
+	stateObject := s.getStateObject(address.Bytes(), true)
 	if stateObject == nil {
 		return common.Hash{}
 	}
@@ -180,8 +178,7 @@ func (s *StateDB) GetCommittedState(address common.Address, key common.Hash) com
 }
 
 func (s *StateDB) GetState(address common.Address, key common.Hash) common.Hash {
-	// TODO after integrating a new AVLTree and stateTree this code must use AVLTree snapshots
-	stateObject := s.getStateObject(util.BytesToUint256(address.Bytes()))
+	stateObject := s.getStateObject(address.Bytes(), false)
 	if stateObject == nil {
 		return common.Hash{}
 	}
@@ -189,38 +186,49 @@ func (s *StateDB) GetState(address common.Address, key common.Hash) common.Hash 
 }
 
 func (s *StateDB) SetState(address common.Address, key common.Hash, value common.Hash) {
-	unitID := util.BytesToUint256(address.Bytes())
-	stateObject := s.getStateObject(unitID)
+	unitID := address.Bytes()
+	stateObject := s.getStateObject(unitID, false)
 	if stateObject == nil {
 		return
 	}
 	log.Trace("Setting a state (key=%v, value=%v) for an account: %v", key, value, address)
-	s.errDB = s.tree.AtomicUpdate(rma.UpdateData(
-		unitID, func(data rma.UnitData) rma.UnitData {
-			data.(*StateObject).Storage[key] = value
-			return data
-		},
-		make([]byte, 32),
-	))
+	s.errDB = s.executeUpdate(unitID, func(so *StateObject) state.UnitData {
+		so.Storage[key] = value
+		return so
+	})
 }
 
 func (s *StateDB) Suicide(address common.Address) bool {
-	// TODO implement
-	return false
+	unitID := address.Bytes()
+	stateObject := s.getStateObject(unitID, false)
+	if stateObject == nil {
+		return false
+	}
+	s.errDB = s.executeUpdate(unitID, func(so *StateObject) state.UnitData {
+		so.suicided = true
+		so.Account.Balance = big.NewInt(0)
+		s.suicides = append(s.suicides, address)
+		return so
+	})
+	return true
 }
 
 func (s *StateDB) HasSuicided(address common.Address) bool {
-	// TODO implement
-	return false
+	unitID := address.Bytes()
+	stateObject := s.getStateObject(unitID, false)
+	if stateObject == nil {
+		return false
+	}
+	return stateObject.suicided
 }
 
 func (s *StateDB) Exist(address common.Address) bool {
-	so := s.getStateObject(util.BytesToUint256(address.Bytes()))
+	so := s.getStateObject(address.Bytes(), false)
 	return so != nil
 }
 
 func (s *StateDB) Empty(address common.Address) bool {
-	so := s.getStateObject(util.BytesToUint256(address.Bytes()))
+	so := s.getStateObject(address.Bytes(), false)
 	return so == nil || so.empty()
 }
 
@@ -271,16 +279,15 @@ func (s *StateDB) SlotInAccessList(addr common.Address, slot common.Hash) (addre
 }
 
 func (s *StateDB) RevertToSnapshot(i int) {
-	//TODO implement after integrating a new AVLTree.
+	s.tree.RollbackToSavepoint(i)
 }
 
 func (s *StateDB) Snapshot() int {
-	//TODO implement after integrating a new AVLTree.
-	return 0
+	return s.tree.Savepoint()
 }
 
 func (s *StateDB) AddLog(log *ethtypes.Log) {
-	//TODO implement me
+	//TODO AB-1027
 	panic("implement me")
 }
 
@@ -289,45 +296,81 @@ func (s *StateDB) AddPreimage(_ common.Hash, _ []byte) {
 }
 
 func (s *StateDB) ForEachStorage(address common.Address, f func(common.Hash, common.Hash) bool) error {
-	panic("implement ForEachStorage")
+	so := s.getStateObject(address.Bytes(), true)
+	if so == nil {
+		return nil
+	}
+
+	for key, value := range so.Storage {
+		if !f(key, value) {
+			return nil
+		}
+	}
+	return nil
+}
+
+func (s *StateDB) Finalize() error {
+	var deletions []state.Action
+	for _, address := range s.suicides {
+		unitID := address.Bytes()
+		so := s.getStateObject(unitID, false)
+		if so == nil {
+			continue
+		}
+		if so.suicided {
+			deletions = append(deletions, state.DeleteUnit(unitID))
+		}
+	}
+	if err := s.tree.Apply(deletions...); err != nil {
+		return fmt.Errorf("unable to delete self destructed contract(s): %w", err)
+	}
+	s.suicides = nil
+	return nil
 }
 
 func (s *StateDB) SetAlphaBillData(address common.Address, fee *AlphaBillLink) {
-	unitID := util.BytesToUint256(address.Bytes())
-	stateObject := s.getStateObject(unitID)
+	unitID := address.Bytes()
+	stateObject := s.getStateObject(unitID, false)
 	if stateObject == nil {
 		return
 	}
-	log.Trace("Setting fee data for account: %v", address)
-	s.errDB = s.tree.AtomicUpdate(rma.UpdateData(
-		unitID, func(data rma.UnitData) rma.UnitData {
-			data.(*StateObject).AlphaBill = fee
-			return data
-		},
-		make([]byte, 32),
-	))
+	log.Trace("Setting fee credit data for an account: %v", address)
+	s.errDB = s.executeUpdate(unitID, func(so *StateObject) state.UnitData {
+		so.AlphaBill = fee
+		return so
+	})
 }
 
 func (s *StateDB) GetAlphaBillData(address common.Address) *AlphaBillLink {
-	unitID := util.BytesToUint256(address.Bytes())
-	stateObject := s.getStateObject(unitID)
+	unitID := address.Bytes()
+	stateObject := s.getStateObject(unitID, false)
 	if stateObject != nil && stateObject.AlphaBill != nil {
 		return stateObject.AlphaBill
 	}
 	return nil
 }
 
-func (s *StateDB) getStateObject(unitID *uint256.Int) *StateObject {
-	u, err := s.tree.GetUnit(unitID)
+func (s *StateDB) getStateObject(unitID types.UnitID, committed bool) *StateObject {
+	u, err := s.tree.GetUnit(unitID, committed)
 	if err != nil {
-		if errors.Is(err, rma.ErrUnitNotFound) {
+		if errors.Is(err, avl.ErrNotFound) {
 			return nil
 		}
 		s.errDB = err
 	}
-	return u.Data.(*StateObject)
+	return u.Data().(*StateObject)
 }
 
 func (s *StateDB) DBError() error {
 	return s.errDB
+}
+
+func (s *StateDB) executeUpdate(id types.UnitID, updateFunc func(so *StateObject) state.UnitData) error {
+	return s.tree.Apply(state.UpdateUnitData(id, func(data state.UnitData) (state.UnitData, error) {
+		so, ok := data.(*StateObject)
+		if !ok {
+			return so, fmt.Errorf("unit data is not an instance of StateObject")
+		}
+		return updateFunc(so), nil
+	}))
 }

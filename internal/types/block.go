@@ -41,10 +41,7 @@ func (b *Block) Hash(algorithm crypto.Hash) ([]byte, error) {
 		return make([]byte, algorithm.Size()), nil
 	}
 	// calculate merkle tree root hash from transactions
-	tree, err := mt.New(algorithm, b.Transactions)
-	if err != nil {
-		return nil, fmt.Errorf("failed to calculate merkle tree root hash: %w", err)
-	}
+	tree := mt.New(algorithm, b.Transactions)
 	merkleRoot := tree.GetRootHash()
 
 	// header hash
@@ -89,7 +86,7 @@ func (b *Block) IsValid(v func(uc *UnicityCertificate) error) error {
 		return errTransactionsIsNil
 	}
 	if b.UnicityCertificate == nil {
-		return ErrUCIsNil
+		return errUCIsNil
 	}
 	if err := v(b.UnicityCertificate); err != nil {
 		return fmt.Errorf("unicity certificate validation failed, %w", err)

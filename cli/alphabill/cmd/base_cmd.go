@@ -46,11 +46,12 @@ func (a *alphabillApp) addAndExecuteCommand(ctx context.Context) error {
 	a.baseCmd.AddCommand(newRootGenesisCmd(a.baseConfig))
 	a.baseCmd.AddCommand(newRootNodeCmd(a.baseConfig))
 	a.baseCmd.AddCommand(newNodeIdentifierCmd())
-	a.baseCmd.AddCommand(newVDClientCmd(a.baseConfig))
 	a.baseCmd.AddCommand(newTokensNodeCmd(a.baseConfig))
 	a.baseCmd.AddCommand(newUserTokenGenesisCmd(a.baseConfig))
 	a.baseCmd.AddCommand(newMoneyBackendCmd(a.baseConfig))
 	a.baseCmd.AddCommand(newTokensBackendCmd(a.baseConfig))
+	a.baseCmd.AddCommand(newEvmNodeCmd(a.baseConfig))
+	a.baseCmd.AddCommand(newEvmGenesisCmd(a.baseConfig))
 	return a.baseCmd.ExecuteContext(ctx)
 }
 

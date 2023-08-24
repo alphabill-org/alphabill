@@ -99,7 +99,7 @@ func (r *grpcServer) GetBlocks(ctx context.Context, req *alphabill.GetBlocksRequ
 	}
 
 	maxBlockCount := util.Min(req.BlockCount, r.maxGetBlocksBatchSize)
-	batchMaxBlockNumber := util.Min(req.BlockNumber+maxBlockCount-1, latestBlock.UnicityCertificate.InputRecord.RoundNumber)
+	batchMaxBlockNumber := util.Min(req.BlockNumber+maxBlockCount-1, latestRn)
 	batchSize := uint64(0)
 	if batchMaxBlockNumber >= req.BlockNumber {
 		batchSize = batchMaxBlockNumber - req.BlockNumber + 1

@@ -57,7 +57,7 @@ func TestTxRecording(t *testing.T) {
 	)
 
 	addedCredit := f.getAddedCredit(moneySystemIDString)
-	require.EqualValues(t, transferFCAmount, addedCredit)
+	require.EqualValues(t, transferFCAmount-transferFCFee, addedCredit)
 	require.EqualValues(t, 0, f.getAddedCredit(unknownSystemIDString))
 
 	reclaimedCredit := f.getReclaimedCredit(moneySystemIDString)

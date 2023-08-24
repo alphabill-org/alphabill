@@ -6,8 +6,8 @@ import (
 	"testing"
 
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
-	"github.com/alphabill-org/alphabill/internal/rma"
 	"github.com/alphabill-org/alphabill/internal/script"
+	"github.com/alphabill-org/alphabill/internal/state"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	testtransaction "github.com/alphabill-org/alphabill/internal/testutils/transaction"
 	"github.com/alphabill-org/alphabill/internal/txsystem/evm/statedb"
@@ -34,7 +34,7 @@ func newCloseFCTx(t *testing.T, unitID []byte, attr *transactions.CloseFeeCredit
 	}
 }
 
-func addFeeCredit(t *testing.T, tree *rma.Tree, signer abcrypto.Signer, amount uint64) []byte {
+func addFeeCredit(t *testing.T, tree *state.State, signer abcrypto.Signer, amount uint64) []byte {
 	t.Helper()
 	ver, err := signer.Verifier()
 	require.NoError(t, err)
@@ -55,7 +55,7 @@ func addFeeCredit(t *testing.T, tree *rma.Tree, signer abcrypto.Signer, amount u
 			&types.TransactionRecord{
 				TransactionOrder: testfc.NewTransferFC(t, testfc.NewTransferFCAttr(testfc.WithAmount(amount), testfc.WithTargetRecordID(privKeyHash), testfc.WithTargetSystemID(DefaultEvmTxSystemIdentifier)),
 					testtransaction.WithSystemID([]byte{0, 0, 0, 0}), testtransaction.WithOwnerProof(script.PredicatePayToPublicKeyHashDefault(pubHash[:]))),
-				ServerMetadata: nil,
+				ServerMetadata: &types.ServerMetadata{ActualFee: 1},
 			})),
 		signer, 7)
 	backlink := addFeeOrder.Hash(crypto.SHA256)
@@ -73,7 +73,7 @@ func Test_closeFeeCreditTxExecFn(t *testing.T) {
 		order       *types.TransactionOrder
 		blockNumber uint64
 	}
-	stateTree := rma.NewWithSHA256()
+	stateTree := state.NewEmptyState()
 	signer, ver := testsig.CreateSignerAndVerifier(t)
 	tb := map[string]abcrypto.Verifier{"test": ver}
 	privKeyHash := hashOfPrivateKey(t, signer)
@@ -94,16 +94,16 @@ func Test_closeFeeCreditTxExecFn(t *testing.T) {
 			wantErrStr: "failed to extract public key from fee credit owner proof",
 		},
 		{
-			name:       "err - attr:FeeCreditOwnerCondition is nil",
-			args:       args{order: newAddFCTx(t, privKeyHash, nil, signer, 7), blockNumber: 5},
-			wantErrStr: "closeFC: tx validation failed: close attributes target unit is nil",
+			name:       "err - attr:nil - amount is 0 and not 98",
+			args:       args{order: newCloseFCTx(t, privKeyHash, nil, signer, 7), blockNumber: 5},
+			wantErrStr: "closeFC: tx validation failed: invalid amount: amount=0 fcr.Balance=98",
 		},
 		{
-			name: "ok",
+			name: "err - no unit (no credit has been added)",
 			args: args{order: newCloseFCTx(t,
 				testtransaction.RandomBytes(32),
-				testfc.NewCloseFCAttr(testfc.WithCloseFCAmount(uint64(98)), testfc.WithCloseFCNonce(backlink),
-					testfc.WithCloseFCTargetUnitID(privKeyHash)),
+				testfc.NewCloseFCAttr(testfc.WithCloseFCAmount(uint64(98)),
+					testfc.WithCloseFCTargetUnitID(privKeyHash), testfc.WithCloseFCTargetUnitBacklink(backlink)),
 				signer,
 				7,
 			),
@@ -126,7 +126,7 @@ func Test_closeFeeCreditTxExecFn(t *testing.T) {
 }
 
 func Test_closeFeeCreditTx(t *testing.T) {
-	stateTree := rma.NewWithSHA256()
+	stateTree := state.NewEmptyState()
 	signer, ver := testsig.CreateSignerAndVerifier(t)
 	tb := map[string]abcrypto.Verifier{"test": ver}
 	pubKeyBytes, err := ver.MarshalPublicKey()
@@ -146,7 +146,7 @@ func Test_closeFeeCreditTx(t *testing.T) {
 	// create close order
 	closeOrder := newCloseFCTx(t, testtransaction.RandomBytes(32), testfc.NewCloseFCAttr(
 		testfc.WithCloseFCAmount(balanceAlpha),
-		testfc.WithCloseFCNonce(backlink),
+		testfc.WithCloseFCTargetUnitBacklink(backlink),
 		testfc.WithCloseFCTargetUnitID(privKeyHash)),
 		signer, 7)
 	closeAttr := new(transactions.CloseFeeCreditAttributes)

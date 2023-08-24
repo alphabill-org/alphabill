@@ -1,23 +1,25 @@
 package cmd
 
 import (
+	"bytes"
 	"fmt"
 	"os"
 	"path/filepath"
+
+	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/spf13/cobra"
 
 	"github.com/alphabill-org/alphabill/internal/errors"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/alphabill-org/alphabill/pkg/wallet/money/backend"
 	"github.com/alphabill-org/alphabill/pkg/wallet/money/backend/client"
-	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/spf13/cobra"
+	"github.com/alphabill-org/alphabill/pkg/wallet/unitlock"
 )
 
 const (
-	billIdCmdName        = "bill-id"
-	outputPathCmdName    = "output-path"
-	trustBaseFileCmdName = "trust-base-file"
+	billIdCmdName     = "bill-id"
+	outputPathCmdName = "output-path"
 )
 
 type (
@@ -76,6 +78,12 @@ func execListCmd(cmd *cobra.Command, config *walletConfig) error {
 	}
 	defer am.Close()
 
+	unitLocker, err := unitlock.NewUnitLocker(config.WalletHomeDir)
+	if err != nil {
+		return fmt.Errorf("failed to open unit locker: %w", err)
+	}
+	defer unitLocker.Close()
+
 	type accountBillGroup struct {
 		accountIndex uint64
 		bills        *backend.ListBillsResponse
@@ -87,7 +95,7 @@ func execListCmd(cmd *cobra.Command, config *walletConfig) error {
 			return err
 		}
 		for accountIndex, pubKey := range pubKeys {
-			bills, err := restClient.ListBills(pubKey, showUnswapped)
+			bills, err := restClient.ListBills(cmd.Context(), pubKey, showUnswapped)
 			if err != nil {
 				return err
 			}
@@ -99,7 +107,7 @@ func execListCmd(cmd *cobra.Command, config *walletConfig) error {
 		if err != nil {
 			return err
 		}
-		accountBills, err := restClient.ListBills(pubKey, showUnswapped)
+		accountBills, err := restClient.ListBills(cmd.Context(), pubKey, showUnswapped)
 		if err != nil {
 			return err
 		}
@@ -114,10 +122,25 @@ func execListCmd(cmd *cobra.Command, config *walletConfig) error {
 		}
 		for j, bill := range group.bills.Bills {
 			billValueStr := amountToString(bill.Value, 8)
-			consoleWriter.Println(fmt.Sprintf("#%d 0x%X %s", j+1, bill.Id, billValueStr))
+			lockedReasonStr, err := getLockedReasonString(unitLocker, bill)
+			if err != nil {
+				return err
+			}
+			consoleWriter.Println(fmt.Sprintf("#%d 0x%X %s%s", j+1, bill.Id, billValueStr, lockedReasonStr))
 		}
 	}
 	return nil
+}
+
+func getLockedReasonString(unitLocker *unitlock.UnitLocker, bill *wallet.Bill) (string, error) {
+	lockedUnit, err := unitLocker.GetUnit(bill.GetID())
+	if err != nil {
+		return "", fmt.Errorf("failed to load locked unit: %w", err)
+	}
+	if lockedUnit != nil {
+		return fmt.Sprintf(" (%s)", lockedUnit.LockReason.String()), nil
+	}
+	return "", nil
 }
 
 func exportCmd(config *walletConfig) *cobra.Command {
@@ -185,41 +208,37 @@ func execExportCmd(cmd *cobra.Command, config *walletConfig) error {
 	if err != nil {
 		return err
 	}
-	// export bill using --bill-id if present
-	if len(billID) > 0 {
-		proof, err := restClient.GetProof(billID)
-		if err != nil {
-			return err
-		}
-		if proof == nil {
-			return fmt.Errorf("proof not found for bill 0x%X", billID)
-		}
-		outputFile, err := writeBillsToFile(outputPath, proof.Bills...)
-		if err != nil {
-			return err
-		}
-		consoleWriter.Println("Exported bill(s) to: " + outputFile)
-		return nil
-	}
+
 	// export all bills if neither --bill-id or --bill-order-number are given
-	billsList, err := restClient.ListBills(pk, showUnswapped)
+	billsList, err := restClient.ListBills(cmd.Context(), pk, showUnswapped)
 	if err != nil {
 		return err
 	}
 
-	var bills []*wallet.Bill
+	var bills []*wallet.BillProof
 	for _, b := range billsList.Bills {
-		proof, err := restClient.GetProof(b.Id)
+		// export bill using --bill-id if present
+		if len(billID) > 0 && !bytes.Equal(billID, b.Id) {
+			continue
+		}
+		proof, err := restClient.GetTxProof(cmd.Context(), b.Id, b.TxHash)
 		if err != nil {
 			return err
 		}
 		if proof == nil {
 			return fmt.Errorf("proof not found for bill 0x%X", billID)
 		}
-		bills = append(bills, proof.Bills[0])
+		bills = append(bills, &wallet.BillProof{
+			Bill: &wallet.Bill{
+				Id:                   b.Id,
+				Value:                b.Value,
+				DCTargetUnitID:       b.DCTargetUnitID,
+				DCTargetUnitBacklink: b.DCTargetUnitBacklink,
+				TxHash:               b.TxHash},
+			TxProof: proof})
 	}
 
-	outputFile, err := writeBillsToFile(outputPath, bills...)
+	outputFile, err := writeProofsToFile(outputPath, bills...)
 	if err != nil {
 		return err
 	}
@@ -227,10 +246,10 @@ func execExportCmd(cmd *cobra.Command, config *walletConfig) error {
 	return nil
 }
 
-// writeBillsToFile writes bill(s) to given directory.
+// writeProofsToFile writes bill(s) to given directory.
 // Creates outputDir if it does not already exist. Returns output file.
-func writeBillsToFile(outputDir string, bills ...*wallet.Bill) (string, error) {
-	outputFile, err := getOutputFile(outputDir, bills)
+func writeProofsToFile(outputDir string, proofs ...*wallet.BillProof) (string, error) {
+	outputFile, err := getOutputFile(outputDir, proofs)
 	if err != nil {
 		return "", err
 	}
@@ -238,7 +257,7 @@ func writeBillsToFile(outputDir string, bills ...*wallet.Bill) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	err = wallet.WriteBillsFile(outputFile, &wallet.Bills{Bills: bills})
+	err = wallet.WriteBillsFile(outputFile, proofs)
 	if err != nil {
 		return "", err
 	}
@@ -246,7 +265,7 @@ func writeBillsToFile(outputDir string, bills ...*wallet.Bill) (string, error) {
 }
 
 // getOutputFile returns filename either bill-<bill-id-hex>.json or bills.json
-func getOutputFile(outputDir string, bills []*wallet.Bill) (string, error) {
+func getOutputFile(outputDir string, bills []*wallet.BillProof) (string, error) {
 	switch len(bills) {
 	case 0:
 		return "", errors.New("no bills to export")

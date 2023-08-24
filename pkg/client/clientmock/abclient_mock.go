@@ -58,6 +58,10 @@ func (c *MockAlphabillClient) SendTransaction(_ context.Context, tx *types.Trans
 	return c.txResponse
 }
 
+func (c *MockAlphabillClient) SendTransactionWithRetry(ctx context.Context, tx *types.TransactionOrder, maxTries int) error {
+	return c.SendTransaction(ctx, tx)
+}
+
 func (c *MockAlphabillClient) GetBlock(_ context.Context, blockNumber uint64) ([]byte, error) {
 	if c.incrementOnFetch {
 		defer c.SetMaxBlockNumber(blockNumber + 1)
@@ -107,7 +111,7 @@ func (c *MockAlphabillClient) GetRoundNumber(ctx context.Context) (uint64, error
 	return c.maxRoundNumber, nil
 }
 
-func (c *MockAlphabillClient) Shutdown() error {
+func (c *MockAlphabillClient) Close() error {
 	c.shutdown = true
 	return nil
 }

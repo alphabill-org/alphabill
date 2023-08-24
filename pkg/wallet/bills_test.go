@@ -4,7 +4,6 @@ import (
 	"crypto"
 	"testing"
 
-	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
 
 	test "github.com/alphabill-org/alphabill/internal/testutils"
@@ -33,10 +32,10 @@ func TestBillVerifyTransferTx(t *testing.T) {
 	err := b.verifyTx(tx)
 	require.ErrorIs(t, err, ErrInvalidValue)
 
-	// test invalid DCBillFlag
-	b = &Bill{Value: targetValue, IsDcBill: true}
+	// test invalid DCTargetUnitID
+	b = &Bill{Value: targetValue, DCTargetUnitID: []byte{0}}
 	err = b.verifyTx(tx)
-	require.ErrorIs(t, err, ErrInvalidDCBillFlag)
+	require.NotErrorIs(t, err, ErrMissingDCTargetUnitID)
 
 	// test invalid txHash
 	b = &Bill{Value: targetValue}
@@ -44,7 +43,7 @@ func TestBillVerifyTransferTx(t *testing.T) {
 	require.ErrorIs(t, err, ErrInvalidTxHash)
 
 	// test ok
-	b = &Bill{Value: targetValue, TxHash: tx.Hash(crypto.SHA256)}
+	b = &Bill{Value: targetValue, TxHash: tx.TransactionOrder.Hash(crypto.SHA256)}
 	err = b.verifyTx(tx)
 	require.NoError(t, err)
 }
@@ -53,27 +52,27 @@ func TestBillVerifyDCTransferTx(t *testing.T) {
 	tx := testtransaction.NewTransactionRecord(t,
 		testtransaction.WithPayloadType(money.PayloadTypeTransDC),
 		testtransaction.WithAttributes(money.TransferDCAttributes{
-			TargetValue: targetValue,
-			Backlink:    test.RandomBytes(32),
+			Value:    targetValue,
+			Backlink: test.RandomBytes(32),
 		}))
 
 	// test invalid value
-	b := &Bill{Value: targetValue - 1, IsDcBill: true}
+	b := &Bill{Value: targetValue - 1}
 	err := b.verifyTx(tx)
 	require.ErrorIs(t, err, ErrInvalidValue)
 
 	// test invalid DCBillFlag
-	b = &Bill{Value: targetValue, IsDcBill: false}
+	b = &Bill{Value: targetValue}
 	err = b.verifyTx(tx)
-	require.ErrorIs(t, err, ErrInvalidDCBillFlag)
+	require.ErrorIs(t, err, ErrMissingDCTargetUnitID)
 
 	// test invalid txHash
-	b = &Bill{Value: targetValue, IsDcBill: true}
+	b = &Bill{Value: targetValue, DCTargetUnitID: []byte{0}}
 	err = b.verifyTx(tx)
 	require.ErrorIs(t, err, ErrInvalidTxHash)
 
 	// test ok
-	b = &Bill{Value: targetValue, IsDcBill: true, TxHash: tx.Hash(crypto.SHA256)}
+	b = &Bill{Value: targetValue, DCTargetUnitID: []byte{0}, TxHash: tx.TransactionOrder.Hash(crypto.SHA256)}
 	err = b.verifyTx(tx)
 	require.NoError(t, err)
 }
@@ -96,9 +95,9 @@ func TestBillVerifySplitTransferTx_OldBill(t *testing.T) {
 	require.ErrorIs(t, err, ErrInvalidValue)
 
 	// test invalid DCBillFlag
-	b = &Bill{Id: tx.TransactionOrder.UnitID(), Value: remainingValue, IsDcBill: true}
+	b = &Bill{Id: tx.TransactionOrder.UnitID(), Value: remainingValue, DCTargetUnitID: []byte{0}}
 	err = b.verifyTx(tx)
-	require.ErrorIs(t, err, ErrInvalidDCBillFlag)
+	require.NotErrorIs(t, err, ErrMissingDCTargetUnitID)
 
 	// test invalid txHash
 	b = &Bill{Id: tx.TransactionOrder.UnitID(), Value: remainingValue}
@@ -106,7 +105,7 @@ func TestBillVerifySplitTransferTx_OldBill(t *testing.T) {
 	require.ErrorIs(t, err, ErrInvalidTxHash)
 
 	// test ok
-	b = &Bill{Id: tx.TransactionOrder.UnitID(), Value: remainingValue, TxHash: tx.Hash(crypto.SHA256)}
+	b = &Bill{Id: tx.TransactionOrder.UnitID(), Value: remainingValue, TxHash: tx.TransactionOrder.Hash(crypto.SHA256)}
 	err = b.verifyTx(tx)
 	require.NoError(t, err)
 }
@@ -123,7 +122,7 @@ func TestBillVerifySplitTransferTx_NewBill(t *testing.T) {
 			Backlink:       test.RandomBytes(32),
 		}))
 
-	newUnitID := txutil.SameShardIDBytes(uint256.NewInt(0).SetBytes(tx.TransactionOrder.UnitID()), tx.Hash(crypto.SHA256))
+	newUnitID := txutil.SameShardIDBytes(tx.TransactionOrder.UnitID(), tx.TransactionOrder.Hash(crypto.SHA256))
 
 	// test invalid value
 	b := &Bill{Id: newUnitID, Value: amount - 1}
@@ -131,9 +130,9 @@ func TestBillVerifySplitTransferTx_NewBill(t *testing.T) {
 	require.ErrorIs(t, err, ErrInvalidValue)
 
 	// test invalid DCBillFlag
-	b = &Bill{Id: newUnitID, Value: amount, IsDcBill: true}
+	b = &Bill{Id: newUnitID, Value: amount, DCTargetUnitID: []byte{0}}
 	err = b.verifyTx(tx)
-	require.ErrorIs(t, err, ErrInvalidDCBillFlag)
+	require.NotErrorIs(t, err, ErrMissingDCTargetUnitID)
 
 	// test invalid txHash
 	b = &Bill{Id: newUnitID, Value: amount}
@@ -141,7 +140,7 @@ func TestBillVerifySplitTransferTx_NewBill(t *testing.T) {
 	require.ErrorIs(t, err, ErrInvalidTxHash)
 
 	// test ok
-	b = &Bill{Id: newUnitID, Value: amount, TxHash: tx.Hash(crypto.SHA256)}
+	b = &Bill{Id: newUnitID, Value: amount, TxHash: tx.TransactionOrder.Hash(crypto.SHA256)}
 	err = b.verifyTx(tx)
 	require.NoError(t, err)
 }
@@ -161,9 +160,9 @@ func TestBillVerifySwapTransferTx(t *testing.T) {
 	require.ErrorIs(t, err, ErrInvalidValue)
 
 	// test invalid DCBillFlag
-	b = &Bill{Value: targetValue, IsDcBill: true}
+	b = &Bill{Value: targetValue, DCTargetUnitID: []byte{0}}
 	err = b.verifyTx(tx)
-	require.ErrorIs(t, err, ErrInvalidDCBillFlag)
+	require.NotErrorIs(t, err, ErrMissingDCTargetUnitID)
 
 	// test invalid txHash
 	b = &Bill{Value: targetValue}
@@ -171,7 +170,7 @@ func TestBillVerifySwapTransferTx(t *testing.T) {
 	require.ErrorIs(t, err, ErrInvalidTxHash)
 
 	// test ok
-	b = &Bill{Value: targetValue, TxHash: tx.Hash(crypto.SHA256)}
+	b = &Bill{Value: targetValue, TxHash: tx.TransactionOrder.Hash(crypto.SHA256)}
 	err = b.verifyTx(tx)
 	require.NoError(t, err)
 }
@@ -190,7 +189,7 @@ func TestBillVerify_NotMoneyTxType(t *testing.T) {
 	)
 
 	// test invalid type
-	b := &Bill{Value: targetValue, TxHash: tx.Hash(crypto.SHA256)}
+	b := &Bill{Value: targetValue, TxHash: tx.TransactionOrder.Hash(crypto.SHA256)}
 	err := b.verifyTx(tx)
 	require.ErrorIs(t, err, ErrInvalidTxType)
 }

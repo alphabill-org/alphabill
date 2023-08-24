@@ -7,29 +7,28 @@ import (
 	"fmt"
 
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
-	"github.com/alphabill-org/alphabill/internal/rma"
+	"github.com/alphabill-org/alphabill/internal/state"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/internal/txsystem/fc"
 	"github.com/alphabill-org/alphabill/internal/txsystem/fc/transactions"
 	"github.com/alphabill-org/alphabill/internal/types"
-	"github.com/alphabill-org/alphabill/internal/util"
 )
 
 var (
-	ErrReclaimFCInvalidTargetUnit = errors.New("invalid target unit")
-	ErrReclaimFCInvalidTxFee      = errors.New("the transaction fees cannot exceed the transferred value")
-	ErrReclaimFCInvalidNonce      = errors.New("invalid nonce")
+	ErrReclaimFCInvalidTargetUnit         = errors.New("invalid target unit")
+	ErrReclaimFCInvalidTxFee              = errors.New("the transaction fees cannot exceed the transferred value")
+	ErrReclaimFCInvalidTargetUnitBacklink = errors.New("invalid target unit backlink")
 )
 
-func handleReclaimFeeCreditTx(state *rma.Tree, hashAlgorithm crypto.Hash, trustBase map[string]abcrypto.Verifier, feeCreditTxRecorder *feeCreditTxRecorder, feeCalc fc.FeeCalculator) txsystem.GenericExecuteFunc[transactions.ReclaimFeeCreditAttributes] {
+func handleReclaimFeeCreditTx(s *state.State, hashAlgorithm crypto.Hash, trustBase map[string]abcrypto.Verifier, feeCreditTxRecorder *feeCreditTxRecorder, feeCalc fc.FeeCalculator) txsystem.GenericExecuteFunc[transactions.ReclaimFeeCreditAttributes] {
 	return func(tx *types.TransactionOrder, attr *transactions.ReclaimFeeCreditAttributes, currentBlockNumber uint64) (*types.ServerMetadata, error) {
-		unitID := util.BytesToUint256(tx.UnitID())
-		bd, _ := state.GetUnit(unitID)
+		unitID := tx.UnitID()
+		bd, _ := s.GetUnit(unitID, false)
 		log.Debug("Processing reclaimFC %v", tx)
 		if bd == nil {
 			return nil, errors.New("reclaimFC: unit not found")
 		}
-		bdd, ok := bd.Data.(*BillData)
+		bdd, ok := bd.Data().(*BillData)
 		if !ok {
 			return nil, errors.New("reclaimFC: invalid unit type")
 		}
@@ -49,25 +48,26 @@ func handleReclaimFeeCreditTx(state *rma.Tree, hashAlgorithm crypto.Hash, trustB
 
 		// add reclaimed value to source unit
 		v := closeFCAttr.Amount - closeFeeCreditTransfer.ServerMetadata.ActualFee - fee
-		updateFunc := func(data rma.UnitData) (newData rma.UnitData) {
+		updateFunc := func(data state.UnitData) (state.UnitData, error) {
 			newBillData, ok := data.(*BillData)
 			if !ok {
-				return data // TODO should return error instead
+				return nil, fmt.Errorf("unit %v does not contain bill data", unitID)
 			}
 			newBillData.V += v
 			newBillData.T = currentBlockNumber
 			newBillData.Backlink = tx.Hash(hashAlgorithm)
-			return newBillData
+			return newBillData, nil
 		}
-		updateAction := rma.UpdateData(unitID, updateFunc, tx.Hash(hashAlgorithm))
+		updateAction := state.UpdateUnitData(unitID, updateFunc)
 
-		if err := state.AtomicUpdate(updateAction); err != nil {
+		if err := s.Apply(updateAction); err != nil {
 			return nil, fmt.Errorf("reclaimFC: failed to update state: %w", err)
 		}
 		feeCreditTxRecorder.recordReclaimFC(
 			&reclaimFeeCreditTx{
 				tx: tx, attr: attr, closeFCTransferAttr: closeFCAttr, reclaimFee: fee, closeFee: closeFeeCreditTransfer.ServerMetadata.ActualFee})
-		return &types.ServerMetadata{ActualFee: fee}, nil
+
+		return &types.ServerMetadata{ActualFee: fee, TargetUnits: []types.UnitID{unitID}, SuccessIndicator: types.TxStatusSuccessful}, nil
 	}
 }
 
@@ -94,8 +94,8 @@ func validateReclaimFC(tx *types.TransactionOrder, attr *transactions.ReclaimFee
 	if !bytes.Equal(tx.UnitID(), closeFCAttr.TargetUnitID) {
 		return ErrReclaimFCInvalidTargetUnit
 	}
-	if !bytes.Equal(bd.Backlink, closeFCAttr.Nonce) {
-		return ErrReclaimFCInvalidNonce
+	if !bytes.Equal(bd.Backlink, closeFCAttr.TargetUnitBacklink) {
+		return ErrReclaimFCInvalidTargetUnitBacklink
 	}
 	if !bytes.Equal(bd.Backlink, attr.Backlink) {
 		return ErrInvalidBacklink

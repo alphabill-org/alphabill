@@ -5,50 +5,47 @@ import (
 	"crypto"
 	"fmt"
 
-	"github.com/alphabill-org/alphabill/internal/rma"
+	"github.com/alphabill-org/alphabill/internal/state"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/internal/txsystem/fc"
 	"github.com/alphabill-org/alphabill/internal/types"
-	"github.com/alphabill-org/alphabill/internal/util"
 )
 
-func handleTransferTx(state *rma.Tree, hashAlgorithm crypto.Hash, feeCalc fc.FeeCalculator) txsystem.GenericExecuteFunc[TransferAttributes] {
+func handleTransferTx(s *state.State, hashAlgorithm crypto.Hash, feeCalc fc.FeeCalculator) txsystem.GenericExecuteFunc[TransferAttributes] {
 	return func(tx *types.TransactionOrder, attr *TransferAttributes, currentBlockNumber uint64) (*types.ServerMetadata, error) {
 		log.Debug("Processing transfer %v", tx)
-		if err := validateTransferTx(tx, attr, state); err != nil {
+		if err := validateTransferTx(tx, attr, s); err != nil {
 			return nil, fmt.Errorf("invalid transfer tx: %w", err)
 		}
 		// calculate actual tx fee cost
 		fee := feeCalc()
 		// update state
-		fcrID := util.BytesToUint256(tx.GetClientFeeCreditRecordID())
-		decrCreditFunc := fc.DecrCredit(fcrID, fee, tx.Hash(hashAlgorithm))
 		updateDataFunc := updateBillDataFunc(tx, currentBlockNumber, hashAlgorithm)
-		setOwnerFunc := rma.SetOwner(util.BytesToUint256(tx.UnitID()), attr.NewBearer, tx.Hash(hashAlgorithm))
-		if err := state.AtomicUpdate(
-			decrCreditFunc,
-			updateDataFunc,
+		setOwnerFunc := state.SetOwner(tx.UnitID(), attr.NewBearer)
+		if err := s.Apply(
 			setOwnerFunc,
+			updateDataFunc,
 		); err != nil {
 			return nil, fmt.Errorf("transfer: failed to update state: %w", err)
 		}
-		return &types.ServerMetadata{ActualFee: fee}, nil
+
+		return &types.ServerMetadata{ActualFee: fee, TargetUnits: []types.UnitID{tx.UnitID()}, SuccessIndicator: types.TxStatusSuccessful}, nil
 	}
 }
 
-func validateTransferTx(tx *types.TransactionOrder, attr *TransferAttributes, state *rma.Tree) error {
-	data, err := state.GetUnit(util.BytesToUint256(tx.UnitID()))
+func validateTransferTx(tx *types.TransactionOrder, attr *TransferAttributes, s *state.State) error {
+	data, err := s.GetUnit(tx.UnitID(), false)
 	if err != nil {
 		return err
 	}
-	return validateTransfer(data.Data, attr)
+	return validateTransfer(data.Data(), attr)
 }
 
-func validateTransfer(data rma.UnitData, attr *TransferAttributes) error {
+func validateTransfer(data state.UnitData, attr *TransferAttributes) error {
 	return validateAnyTransfer(data, attr.Backlink, attr.TargetValue)
 }
 
-func validateAnyTransfer(data rma.UnitData, backlink []byte, targetValue uint64) error {
+func validateAnyTransfer(data state.UnitData, backlink []byte, targetValue uint64) error {
 	bd, ok := data.(*BillData)
 	if !ok {
 		return ErrInvalidDataType
@@ -62,15 +59,16 @@ func validateAnyTransfer(data rma.UnitData, backlink []byte, targetValue uint64)
 	return nil
 }
 
-func updateBillDataFunc(tx *types.TransactionOrder, currentBlockNumber uint64, hashAlgorithm crypto.Hash) rma.Action {
-	return rma.UpdateData(util.BytesToUint256(tx.UnitID()),
-		func(data rma.UnitData) (newData rma.UnitData) {
+func updateBillDataFunc(tx *types.TransactionOrder, currentBlockNumber uint64, hashAlgorithm crypto.Hash) state.Action {
+	unitID := tx.UnitID()
+	return state.UpdateUnitData(unitID,
+		func(data state.UnitData) (state.UnitData, error) {
 			bd, ok := data.(*BillData)
 			if !ok {
-				return data // TODO return error
+				return nil, fmt.Errorf("unit %v does not contain bill data", unitID)
 			}
 			bd.T = currentBlockNumber
 			bd.Backlink = tx.Hash(hashAlgorithm)
-			return bd
-		}, tx.Hash(hashAlgorithm))
+			return bd, nil
+		})
 }

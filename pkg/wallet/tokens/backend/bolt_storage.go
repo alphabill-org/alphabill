@@ -2,15 +2,17 @@ package backend
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"time"
 
-	"github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/fxamacker/cbor/v2"
 	bolt "go.etcd.io/bbolt"
 
+	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/internal/util"
+	sdk "github.com/alphabill-org/alphabill/pkg/wallet"
 )
 
 var (
@@ -21,12 +23,11 @@ var (
 	bucketTypeCreator = []byte("type-creator") // type creator (pub key) -> [TokenTypeID -> b(kind)]
 	bucketTokenUnit   = []byte("token-unit")   // TokenID -> json(TokenUnit)
 	bucketTokenOwner  = []byte("token-owner")  // token bearer (p2pkh predicate) -> [TokenID -> b(kind)]
-	bucketTxHistory   = []byte("tx-history")   // UnitID(TokenTypeID|TokenID) -> [txHash -> json(block proof)]
+	bucketTxHistory   = []byte("tx-history")   // UnitID(TokenTypeID|TokenID) -> [txHash -> cbor(block proof)]
 
-	bucketFeeCredits = []byte("fee-credits") // UnitID -> json(FeeCreditBill)
+	bucketFeeCredits      = []byte("fee-credits")           // UnitID -> json(FeeCreditBill)
+	closedFeeCreditBucket = []byte("closedFeeCreditBucket") // unitID => closeFC record
 )
-
-var errRecordNotFound = errors.New("not found")
 
 type storage struct {
 	db *bolt.DB
@@ -34,9 +35,9 @@ type storage struct {
 
 func (s *storage) Close() error { return s.db.Close() }
 
-func (s *storage) SaveTokenTypeCreator(id TokenTypeID, kind Kind, creator wallet.PubKey) error {
+func (s *storage) SaveTokenTypeCreator(id TokenTypeID, kind Kind, creator sdk.PubKey) error {
 	return s.db.Update(func(tx *bolt.Tx) error {
-		b, err := s.ensureSubBucket(tx, bucketTypeCreator, creator, false)
+		b, err := sdk.EnsureSubBucket(tx, bucketTypeCreator, creator, false)
 		if err != nil {
 			return fmt.Errorf("bucket %s/%X not found", bucketTypeCreator, creator)
 		}
@@ -49,7 +50,7 @@ QueryTokenType loads token types filtered by "kind" and "creator", starting from
   - "creator" parameter is optional, when nil result is not filterd by creator.
   - return value "next" just indicates that there is more data, it might not match the (kind) filter!
 */
-func (s *storage) QueryTokenType(kind Kind, creator wallet.PubKey, startKey TokenTypeID, count int) (rsp []*TokenUnitType, next TokenTypeID, _ error) {
+func (s *storage) QueryTokenType(kind Kind, creator sdk.PubKey, startKey TokenTypeID, count int) (rsp []*TokenUnitType, next TokenTypeID, _ error) {
 	if creator != nil {
 		return s.tokenTypesByCreator(creator, kind, startKey, count)
 	}
@@ -75,9 +76,9 @@ func (s *storage) QueryTokenType(kind Kind, creator wallet.PubKey, startKey Toke
 	})
 }
 
-func (s *storage) tokenTypesByCreator(creator wallet.PubKey, kind Kind, startKey []byte, count int) (rsp []*TokenUnitType, next []byte, _ error) {
+func (s *storage) tokenTypesByCreator(creator sdk.PubKey, kind Kind, startKey []byte, count int) (rsp []*TokenUnitType, next []byte, _ error) {
 	return rsp, next, s.db.View(func(tx *bolt.Tx) error {
-		ownerBucket, err := s.ensureSubBucket(tx, bucketTypeCreator, creator, true)
+		ownerBucket, err := sdk.EnsureSubBucket(tx, bucketTypeCreator, creator, true)
 		if err != nil {
 			return err
 		}
@@ -90,7 +91,7 @@ func (s *storage) tokenTypesByCreator(creator wallet.PubKey, kind Kind, startKey
 			if kind == Any || kind == Kind(v[0]) {
 				item, err := s.getTokenType(tx, k)
 				if err != nil {
-					if errors.Is(err, errRecordNotFound) {
+					if errors.Is(err, sdk.ErrRecordNotFound) {
 						// it is expected that token data may be missing
 						continue
 					}
@@ -107,7 +108,7 @@ func (s *storage) tokenTypesByCreator(creator wallet.PubKey, kind Kind, startKey
 	})
 }
 
-func (s *storage) SaveTokenType(tokenType *TokenUnitType, proof *wallet.Proof) error {
+func (s *storage) SaveTokenType(tokenType *TokenUnitType, proof *sdk.Proof) error {
 	tokenData, err := cbor.Marshal(tokenType)
 	if err != nil {
 		return fmt.Errorf("failed to serialize token type data: %w", err)
@@ -117,7 +118,7 @@ func (s *storage) SaveTokenType(tokenType *TokenUnitType, proof *wallet.Proof) e
 		if err != nil {
 			return fmt.Errorf("failed to save token type data: %w", err)
 		}
-		if err := s.storeUnitBlockProof(tx, wallet.UnitID(tokenType.ID), tokenType.TxHash, proof); err != nil {
+		if err := s.storeUnitBlockProof(tx, sdk.UnitID(tokenType.ID), tokenType.TxHash, proof); err != nil {
 			return fmt.Errorf("failed to store unit block proof: %w", err)
 		}
 		return nil
@@ -129,7 +130,7 @@ func (s *storage) GetTokenType(id TokenTypeID) (*TokenUnitType, error) {
 	err := s.db.View(func(tx *bolt.Tx) error {
 		data := tx.Bucket(bucketTokenType).Get(id)
 		if data == nil {
-			return fmt.Errorf("failed to read token type data %s[%x]: %w", bucketTokenType, id, errRecordNotFound)
+			return fmt.Errorf("failed to read token type data %s[%x]: %w", bucketTokenType, id, sdk.ErrRecordNotFound)
 		}
 		if err := cbor.Unmarshal(data, d); err != nil {
 			return fmt.Errorf("failed to deserialize token type data (%x): %w", id, err)
@@ -142,7 +143,7 @@ func (s *storage) GetTokenType(id TokenTypeID) (*TokenUnitType, error) {
 	return d, nil
 }
 
-func (s *storage) SaveToken(token *TokenUnit, proof *wallet.Proof) error {
+func (s *storage) SaveToken(token *TokenUnit, proof *sdk.Proof) error {
 	tokenData, err := cbor.Marshal(token)
 	if err != nil {
 		return fmt.Errorf("failed to serialize token unit data: %w", err)
@@ -150,12 +151,12 @@ func (s *storage) SaveToken(token *TokenUnit, proof *wallet.Proof) error {
 	return s.db.Update(func(tx *bolt.Tx) error {
 		prevTokenData, err := s.getToken(tx, token.ID)
 		if err != nil {
-			if !errors.Is(err, errRecordNotFound) {
+			if !errors.Is(err, sdk.ErrRecordNotFound) {
 				return err
 			}
 		}
 		if prevTokenData != nil && !bytes.Equal(prevTokenData.Owner, token.Owner) {
-			prevOwnerBucket, err := s.ensureSubBucket(tx, bucketTokenOwner, prevTokenData.Owner, false)
+			prevOwnerBucket, err := sdk.EnsureSubBucket(tx, bucketTokenOwner, prevTokenData.Owner, false)
 			if err != nil {
 				return err
 			}
@@ -163,7 +164,7 @@ func (s *storage) SaveToken(token *TokenUnit, proof *wallet.Proof) error {
 				return fmt.Errorf("failed to delete token from previous owner bucket: %w", err)
 			}
 		}
-		ownerBucket, err := s.ensureSubBucket(tx, bucketTokenOwner, token.Owner, false)
+		ownerBucket, err := sdk.EnsureSubBucket(tx, bucketTokenOwner, token.Owner, false)
 		if err != nil {
 			return err
 		}
@@ -173,7 +174,7 @@ func (s *storage) SaveToken(token *TokenUnit, proof *wallet.Proof) error {
 		if err = tx.Bucket(bucketTokenUnit).Put(token.ID, tokenData); err != nil {
 			return err
 		}
-		return s.storeUnitBlockProof(tx, wallet.UnitID(token.ID), token.TxHash, proof)
+		return s.storeUnitBlockProof(tx, sdk.UnitID(token.ID), token.TxHash, proof)
 	})
 }
 
@@ -184,7 +185,7 @@ func (s *storage) RemoveToken(id TokenID) error {
 			return err
 		}
 		// TODO: maybe check and only allow deleting burned tokens?
-		ownerBucket, err := s.ensureSubBucket(tx, bucketTokenOwner, token.Owner, false)
+		ownerBucket, err := sdk.EnsureSubBucket(tx, bucketTokenOwner, token.Owner, false)
 		if err != nil {
 			return err
 		}
@@ -208,9 +209,9 @@ QueryTokens loads tokens filtered by "kind" and "owner", starting from "startKey
   - owner is required, ie can't query "any owner".
   - return value "next" just indicates that there is more data, it might not match the (kind) filter!
 */
-func (s *storage) QueryTokens(kind Kind, owner wallet.Predicate, startKey TokenID, count int) (rsp []*TokenUnit, next TokenID, _ error) {
+func (s *storage) QueryTokens(kind Kind, owner sdk.Predicate, startKey TokenID, count int) (rsp []*TokenUnit, next TokenID, _ error) {
 	return rsp, next, s.db.View(func(tx *bolt.Tx) error {
-		ownerBucket, err := s.ensureSubBucket(tx, bucketTokenOwner, owner, true)
+		ownerBucket, err := sdk.EnsureSubBucket(tx, bucketTokenOwner, owner, true)
 		if err != nil {
 			return err
 		}
@@ -259,8 +260,8 @@ func (s *storage) SetBlockNumber(blockNumber uint64) error {
 	})
 }
 
-func (s *storage) GetTxProof(unitID wallet.UnitID, txHash wallet.TxHash) (*wallet.Proof, error) {
-	var proof *wallet.Proof
+func (s *storage) GetTxProof(unitID sdk.UnitID, txHash sdk.TxHash) (*sdk.Proof, error) {
+	var proof *sdk.Proof
 	err := s.db.View(func(tx *bolt.Tx) error {
 		var err error
 		proof, err = s.getUnitBlockProof(tx, unitID, txHash)
@@ -269,17 +270,7 @@ func (s *storage) GetTxProof(unitID wallet.UnitID, txHash wallet.TxHash) (*walle
 	return proof, err
 }
 
-func (s *storage) SetTxProof(unitID wallet.UnitID, txHash wallet.TxHash) (*wallet.Proof, error) {
-	var proof *wallet.Proof
-	err := s.db.Update(func(tx *bolt.Tx) error {
-		var err error
-		proof, err = s.getUnitBlockProof(tx, unitID, txHash)
-		return err
-	})
-	return proof, err
-}
-
-func (s *storage) GetFeeCreditBill(unitID wallet.UnitID) (*FeeCreditBill, error) {
+func (s *storage) GetFeeCreditBill(unitID sdk.UnitID) (*FeeCreditBill, error) {
 	var fcb *FeeCreditBill
 	err := s.db.View(func(tx *bolt.Tx) error {
 		fcbBytes := tx.Bucket(bucketFeeCredits).Get(unitID)
@@ -291,7 +282,7 @@ func (s *storage) GetFeeCreditBill(unitID wallet.UnitID) (*FeeCreditBill, error)
 	return fcb, err
 }
 
-func (s *storage) SetFeeCreditBill(fcb *FeeCreditBill, proof *wallet.Proof) error {
+func (s *storage) SetFeeCreditBill(fcb *FeeCreditBill, proof *sdk.Proof) error {
 	return s.db.Update(func(tx *bolt.Tx) error {
 		// store proof in separate bucket, instead of part of fee credit bill,
 		// so that existing framework can be used for confirming fee credit txs
@@ -309,10 +300,35 @@ func (s *storage) SetFeeCreditBill(fcb *FeeCreditBill, proof *wallet.Proof) erro
 	})
 }
 
+func (s *storage) GetClosedFeeCredit(fcbID sdk.UnitID) (*types.TransactionRecord, error) {
+	var res *types.TransactionRecord
+	err := s.db.View(func(tx *bolt.Tx) error {
+		txBytes := tx.Bucket(closedFeeCreditBucket).Get(fcbID)
+		if txBytes == nil {
+			return nil
+		}
+		return json.Unmarshal(txBytes, &res)
+	})
+	if err != nil {
+		return nil, err
+	}
+	return res, nil
+}
+
+func (s *storage) SetClosedFeeCredit(fcbID sdk.UnitID, txr *types.TransactionRecord) error {
+	return s.db.Update(func(tx *bolt.Tx) error {
+		txBytes, err := json.Marshal(txr)
+		if err != nil {
+			return err
+		}
+		return tx.Bucket(closedFeeCreditBucket).Put(fcbID, txBytes)
+	})
+}
+
 func (s *storage) getTokenType(tx *bolt.Tx, id TokenTypeID) (*TokenUnitType, error) {
 	var data []byte
 	if data = tx.Bucket(bucketTokenType).Get(id); data == nil {
-		return nil, fmt.Errorf("failed to read token type data %s[%X]: %w", bucketTokenType, id, errRecordNotFound)
+		return nil, fmt.Errorf("failed to read token type data %s[%X]: %w", bucketTokenType, id, sdk.ErrRecordNotFound)
 	}
 	tokenType := &TokenUnitType{}
 	if err := cbor.Unmarshal(data, tokenType); err != nil {
@@ -324,7 +340,7 @@ func (s *storage) getTokenType(tx *bolt.Tx, id TokenTypeID) (*TokenUnitType, err
 func (s *storage) getToken(tx *bolt.Tx, id TokenID) (*TokenUnit, error) {
 	var data []byte
 	if data = tx.Bucket(bucketTokenUnit).Get(id); data == nil {
-		return nil, fmt.Errorf("failed to read token data %s[%X]: %w", bucketTokenUnit, id, errRecordNotFound)
+		return nil, fmt.Errorf("failed to read token data %s[%X]: %w", bucketTokenUnit, id, sdk.ErrRecordNotFound)
 	}
 	token := &TokenUnit{}
 	if err := cbor.Unmarshal(data, token); err != nil {
@@ -333,45 +349,16 @@ func (s *storage) getToken(tx *bolt.Tx, id TokenID) (*TokenUnit, error) {
 	return token, nil
 }
 
-func (s *storage) storeUnitBlockProof(tx *bolt.Tx, unitID wallet.UnitID, txHash wallet.TxHash, proof *wallet.Proof) error {
+func (s *storage) storeUnitBlockProof(tx *bolt.Tx, unitID sdk.UnitID, txHash sdk.TxHash, proof *sdk.Proof) error {
 	proofData, err := cbor.Marshal(proof)
 	if err != nil {
 		return fmt.Errorf("failed to serialize proof data: %w", err)
 	}
-	b, err := s.ensureSubBucket(tx, bucketTxHistory, unitID, false)
+	b, err := sdk.EnsureSubBucket(tx, bucketTxHistory, unitID, false)
 	if err != nil {
 		return err
 	}
 	return b.Put(txHash, proofData)
-}
-
-func (s *storage) ensureSubBucket(tx *bolt.Tx, parentBucket []byte, bucket []byte, allowAbsent bool) (*bolt.Bucket, error) {
-	pb := tx.Bucket(parentBucket)
-	if pb == nil {
-		return nil, fmt.Errorf("bucket %s not found", parentBucket)
-	}
-	b := pb.Bucket(bucket)
-	if b == nil {
-		if tx.Writable() {
-			return pb.CreateBucket(bucket)
-		}
-		if allowAbsent {
-			return nil, nil
-		}
-		return nil, fmt.Errorf("failed to ensure bucket %s/%X", parentBucket, bucket)
-	}
-	return b, nil
-}
-
-func (s *storage) createBuckets(buckets ...[]byte) error {
-	return s.db.Update(func(tx *bolt.Tx) error {
-		for _, b := range buckets {
-			if _, err := tx.CreateBucketIfNotExists(b); err != nil {
-				return fmt.Errorf("failed to create bucket %q: %w", b, err)
-			}
-		}
-		return nil
-	})
 }
 
 func (s *storage) initMetaData() error {
@@ -384,8 +371,8 @@ func (s *storage) initMetaData() error {
 	})
 }
 
-func (s *storage) getUnitBlockProof(dbTx *bolt.Tx, id []byte, txHash wallet.TxHash) (*wallet.Proof, error) {
-	b, err := s.ensureSubBucket(dbTx, bucketTxHistory, id, true)
+func (s *storage) getUnitBlockProof(dbTx *bolt.Tx, id []byte, txHash sdk.TxHash) (*sdk.Proof, error) {
+	b, err := sdk.EnsureSubBucket(dbTx, bucketTxHistory, id, true)
 	if err != nil {
 		return nil, err
 	}
@@ -396,7 +383,7 @@ func (s *storage) getUnitBlockProof(dbTx *bolt.Tx, id []byte, txHash wallet.TxHa
 	if proofData == nil {
 		return nil, nil
 	}
-	proof := &wallet.Proof{}
+	proof := &sdk.Proof{}
 	if err := cbor.Unmarshal(proofData, proof); err != nil {
 		return nil, fmt.Errorf("failed to deserialize proof data: %w", err)
 	}
@@ -417,7 +404,7 @@ func newBoltStore(dbFile string) (*storage, error) {
 	}
 	s := &storage{db: db}
 
-	if err := s.createBuckets(bucketMetadata, bucketTokenType, bucketTokenUnit, bucketTypeCreator, bucketTokenOwner, bucketTxHistory, bucketFeeCredits); err != nil {
+	if err := sdk.CreateBuckets(db.Update, bucketMetadata, bucketTokenType, bucketTokenUnit, bucketTypeCreator, bucketTokenOwner, bucketTxHistory, bucketFeeCredits, closedFeeCreditBucket); err != nil {
 		return nil, fmt.Errorf("failed to create db buckets: %w", err)
 	}
 

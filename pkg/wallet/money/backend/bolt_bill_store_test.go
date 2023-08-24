@@ -4,14 +4,19 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/alphabill-org/alphabill/internal/hash"
-	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
-	"github.com/alphabill-org/alphabill/internal/script"
-	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
 	bolt "go.etcd.io/bbolt"
+
+	"github.com/alphabill-org/alphabill/internal/hash"
+	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
+	"github.com/alphabill-org/alphabill/internal/script"
+	test "github.com/alphabill-org/alphabill/internal/testutils"
+	"github.com/alphabill-org/alphabill/internal/txsystem/fc/testutils"
+	"github.com/alphabill-org/alphabill/internal/types"
+	"github.com/alphabill-org/alphabill/internal/util"
+	sdk "github.com/alphabill-org/alphabill/pkg/wallet"
 )
 
 func TestBillStore_CanBeCreated(t *testing.T) {
@@ -55,7 +60,7 @@ func TestBillStore_GetSetBills(t *testing.T) {
 		newBillWithValueAndOwner(3, ownerPredicate1),
 	}
 	for _, b := range billsOwner1 {
-		err = bs.Do().SetBill(b)
+		err = bs.Do().SetBill(b, nil)
 		require.NoError(t, err)
 	}
 
@@ -66,7 +71,7 @@ func TestBillStore_GetSetBills(t *testing.T) {
 		newBillWithValueAndOwner(6, ownerPredicate2),
 	}
 	for _, b := range billsOwner2 {
-		err = bs.Do().SetBill(b)
+		err = bs.Do().SetBill(b, nil)
 		require.NoError(t, err)
 	}
 
@@ -99,7 +104,7 @@ func TestBillStore_GetSetBills(t *testing.T) {
 	// when bill owner changes
 	b := billsOwner1[0]
 	b.OwnerPredicate = ownerPredicate2
-	err = bs.Do().SetBill(b)
+	err = bs.Do().SetBill(b, nil)
 	require.NoError(t, err)
 
 	// then secondary indexes are updated
@@ -123,7 +128,7 @@ func TestBillStore_DeleteBill(t *testing.T) {
 
 	// add bill
 	bill := newBillWithValueAndOwner(1, p1)
-	err := bs.Do().SetBill(bill)
+	err := bs.Do().SetBill(bill, nil)
 	require.NoError(t, err)
 
 	// verify bill is added
@@ -154,7 +159,7 @@ func TestBillStore_DeleteExpiredBills(t *testing.T) {
 
 	// add three bills and set expiration time
 	for _, unitID := range unitIDs {
-		err := s.Do().SetBill(&Bill{Id: unitID, OwnerPredicate: bearer})
+		err := s.Do().SetBill(&Bill{Id: unitID, OwnerPredicate: bearer}, nil)
 		require.NoError(t, err)
 
 		err = s.Do().SetBillExpirationTime(expirationBlockNo, unitID)
@@ -196,7 +201,7 @@ func TestBillStore_GetSetFeeCreditBills(t *testing.T) {
 		newBillWithValueAndOwner(3, ownerPredicate),
 	}
 	for _, b := range fcbs {
-		err = bs.Do().SetFeeCreditBill(b)
+		err = bs.Do().SetFeeCreditBill(b, nil)
 		require.NoError(t, err)
 	}
 
@@ -237,9 +242,91 @@ func TestBillStore_GetSetSystemDescriptionRecordsBills(t *testing.T) {
 	require.Equal(t, sdrs, actualSDRs)
 }
 
-func createTestBillStore(t *testing.T) (*BoltBillStore, error) {
+func TestBillStore_GetSetLockedFeeCredit(t *testing.T) {
+	bs, _ := createTestBillStore(t)
+	systemID := []byte{0, 0, 0, 0}
+	fcbID := test.NewUnitID(1)
+
+	// verify GetLockedFeeCredit no result returns no error
+	lfc, err := bs.Do().GetLockedFeeCredit(systemID, fcbID)
+	require.NoError(t, err)
+	require.Nil(t, lfc)
+
+	// add locked fee credit
+	transferFC := &types.TransactionRecord{
+		TransactionOrder: testutils.NewTransferFC(t, nil),
+		ServerMetadata:   &types.ServerMetadata{ActualFee: 1},
+	}
+	err = bs.Do().SetLockedFeeCredit(systemID, fcbID, transferFC)
+	require.NoError(t, err)
+
+	// verify GetFeeCreditBill is not nil
+	lfc, err = bs.Do().GetLockedFeeCredit(systemID, fcbID)
+	require.NoError(t, err)
+	require.Equal(t, lfc, transferFC)
+}
+
+func TestBillStore_GetSetClosedFeeCredit(t *testing.T) {
+	bs, _ := createTestBillStore(t)
+	systemID := []byte{0, 0, 0, 0}
+	fcbID := test.NewUnitID(1)
+
+	// verify GetLockedFeeCredit no result returns no error
+	lfc, err := bs.Do().GetLockedFeeCredit(systemID, fcbID)
+	require.NoError(t, err)
+	require.Nil(t, lfc)
+
+	// add locked fee credit
+	transferFC := &types.TransactionRecord{
+		TransactionOrder: testutils.NewTransferFC(t, nil),
+		ServerMetadata:   &types.ServerMetadata{ActualFee: 1},
+	}
+	err = bs.Do().SetLockedFeeCredit(systemID, fcbID, transferFC)
+	require.NoError(t, err)
+
+	// verify GetFeeCreditBill is not nil
+	lfc, err = bs.Do().GetLockedFeeCredit(systemID, fcbID)
+	require.NoError(t, err)
+	require.Equal(t, lfc, transferFC)
+}
+
+func TestBillStore_StoreTxHistoryRecord(t *testing.T) {
+	bs, _ := createTestBillStore(t)
+	hash := test.RandomBytes(32)
+	max := byte(10)
+	for i := byte(1); i <= max; i++ {
+		txHistoryRecord := &sdk.TxHistoryRecord{
+			TxHash: test.RandomBytes(32),
+			UnitID: []byte{i},
+		}
+		// store tx history record
+		err := bs.Do().StoreTxHistoryRecord(hash, txHistoryRecord)
+		require.NoError(t, err)
+	}
+	// verify tx history records are retrieved, two most recent records
+	actualTxHistoryRecords, key, err := bs.Do().GetTxHistoryRecords(hash, nil, 2)
+	require.NoError(t, err)
+	require.Len(t, actualTxHistoryRecords, 2)
+	require.EqualValues(t, actualTxHistoryRecords[0].UnitID, []byte{max})
+	require.NotNil(t, key)
+
+	// verify tx history records are retrieved, all records
+	var allTxHistoryRecords []*sdk.TxHistoryRecord
+	key = nil
+	for {
+		actualTxHistoryRecords, key, err = bs.Do().GetTxHistoryRecords(hash, key, 2)
+		require.NoError(t, err)
+		allTxHistoryRecords = append(allTxHistoryRecords, actualTxHistoryRecords...)
+		if key == nil {
+			break
+		}
+	}
+	require.Len(t, allTxHistoryRecords, int(max))
+}
+
+func createTestBillStore(t *testing.T) (*boltBillStore, error) {
 	dbFile := filepath.Join(t.TempDir(), BoltBillStoreFileName)
-	return NewBoltBillStore(dbFile)
+	return newBoltBillStore(dbFile)
 }
 
 func getOwnerPredicate(pubkey string) []byte {

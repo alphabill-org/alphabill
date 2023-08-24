@@ -4,29 +4,29 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/alphabill-org/alphabill/internal/rma"
 	"github.com/alphabill-org/alphabill/internal/script"
+	"github.com/alphabill-org/alphabill/internal/state"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/internal/txsystem/fc/transactions"
+	fcunit "github.com/alphabill-org/alphabill/internal/txsystem/fc/unit"
 	"github.com/alphabill-org/alphabill/internal/types"
-	"github.com/holiman/uint256"
 )
 
-func checkFeeCreditBalance(state *rma.Tree, feeCalculator FeeCalculator) txsystem.GenericTransactionValidator {
+func checkFeeCreditBalance(s *state.State, feeCalculator FeeCalculator) txsystem.GenericTransactionValidator {
 	return func(ctx *txsystem.TxValidationContext) error {
-		if !isFeeCreditTx(ctx.Tx) {
+		if !transactions.IsFeeCreditTx(ctx.Tx) {
 			clientMetadata := ctx.Tx.Payload.ClientMetadata
 			feeCreditRecordId := clientMetadata.FeeCreditRecordID
 			if len(feeCreditRecordId) == 0 {
 				return errors.New("fee credit record missing")
 			}
-			unit := getFeeCreditRecordUnit(clientMetadata, state)
+			unit := getFeeCreditRecordUnit(clientMetadata, s)
 
 			// 5. ExtrType(ιf) = fcr ∧ N[ιf] != ⊥ – the fee payer has credit in this system
 			if unit == nil {
 				return errors.New("fee credit record unit is nil")
 			}
-			fcr, ok := unit.Data.(*FeeCreditRecord)
+			fcr, ok := unit.Data().(*fcunit.FeeCreditRecord)
 			if !ok {
 				return errors.New("invalid fee credit record type")
 			}
@@ -41,13 +41,13 @@ func checkFeeCreditBalance(state *rma.Tree, feeCalculator FeeCalculator) txsyste
 			if err != nil {
 				return fmt.Errorf("failed to get payload bytes: %w", err)
 			}
-			if err := script.RunScript(feeProof, unit.Bearer, sigBytes); err != nil {
+			if err := script.RunScript(feeProof, unit.Bearer(), sigBytes); err != nil {
 				return fmt.Errorf("invalid fee proof: %w", err)
 			}
 
 			// 8. the maximum permitted transaction cost does not exceed the fee credit balance
 			if fcr.Balance < ctx.Tx.Payload.ClientMetadata.MaxTransactionFee {
-				return errors.New("the max tx fee cannot exceed fee credit balance")
+				return fmt.Errorf("the max tx fee cannot exceed fee credit balance. FC balance %d vs max tx fee %d", fcr.Balance, ctx.Tx.Payload.ClientMetadata.MaxTransactionFee)
 			}
 		}
 
@@ -59,14 +59,6 @@ func checkFeeCreditBalance(state *rma.Tree, feeCalculator FeeCalculator) txsyste
 	}
 }
 
-func isFeeCreditTx(tx *types.TransactionOrder) bool {
-	typeUrl := tx.PayloadType()
-	return typeUrl == transactions.PayloadTypeTransferFeeCredit ||
-		typeUrl == transactions.PayloadTypeAddFeeCredit ||
-		typeUrl == transactions.PayloadTypeCloseFeeCredit ||
-		typeUrl == transactions.PayloadTypeReclaimFeeCredit
-}
-
 // getFeeProof returns tx.FeeProof if it exists or tx.OwnerProof if it does not exist
 func getFeeProof(ctx *txsystem.TxValidationContext) []byte {
 	feeProof := ctx.Tx.FeeProof
@@ -76,11 +68,11 @@ func getFeeProof(ctx *txsystem.TxValidationContext) []byte {
 	return ctx.Tx.OwnerProof
 }
 
-func getFeeCreditRecordUnit(clientMD *types.ClientMetadata, state *rma.Tree) *rma.Unit {
-	var fcr *rma.Unit
+func getFeeCreditRecordUnit(clientMD *types.ClientMetadata, s *state.State) *state.Unit {
+	var fcr *state.Unit
 	if len(clientMD.FeeCreditRecordID) > 0 {
-		fcrID := uint256.NewInt(0).SetBytes(clientMD.FeeCreditRecordID)
-		fcr, _ = state.GetUnit(fcrID)
+		fcrID := clientMD.FeeCreditRecordID
+		fcr, _ = s.GetUnit(fcrID, false)
 	}
 	return fcr
 }

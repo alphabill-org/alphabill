@@ -14,11 +14,13 @@ import (
 	"github.com/alphabill-org/alphabill/internal/rpc/alphabill"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	testtime "github.com/alphabill-org/alphabill/internal/testutils/time"
+	"github.com/alphabill-org/alphabill/internal/txsystem/vd"
 	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/fxamacker/cbor/v2"
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
+
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 )
@@ -29,10 +31,7 @@ func TestRunVD(t *testing.T) {
 	nodeGenesisFileLocation := filepath.Join(homeDirVD, nodeGenesisFileName)
 	partitionGenesisFileLocation := filepath.Join(homeDirVD, "partition-genesis.json")
 	testtime.MustRunInTime(t, 5*time.Second, func() {
-		port := "9543"
-		listenAddr := ":" + port // listen is on all devices, so it would work in CI inside docker too.
-		dialAddr := "localhost:" + port
-
+		addr := "localhost:9543"
 		conf := &vdConfiguration{
 			baseNodeConfiguration: baseNodeConfiguration{
 				Base: &baseConfiguration{
@@ -48,7 +47,7 @@ func TestRunVD(t *testing.T) {
 				MaxSendMsgSize: defaultMaxSendMsgSize,
 			},
 		}
-		conf.RPCServer.Address = listenAddr
+		conf.RPCServer.Address = addr
 
 		appStoppedWg := sync.WaitGroup{}
 		ctx, ctxCancel := context.WithCancel(context.Background())
@@ -78,9 +77,8 @@ func TestRunVD(t *testing.T) {
 		// start the node in background
 		appStoppedWg.Add(1)
 		go func() {
-
 			cmd = New()
-			args = "vd --home " + homeDirVD + " -g " + partitionGenesisFileLocation + " -k " + keysFileLocation + " --server-address " + listenAddr
+			args = "vd --home " + homeDirVD + " -g " + partitionGenesisFileLocation + " -k " + keysFileLocation + " --server-address " + addr
 			cmd.baseCmd.SetArgs(strings.Split(args, " "))
 
 			err = cmd.addAndExecuteCommand(ctx)
@@ -90,7 +88,7 @@ func TestRunVD(t *testing.T) {
 
 		log.Info("Started vd node and dialing...")
 		// Create the gRPC client
-		conn, err := grpc.DialContext(ctx, dialAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+		conn, err := grpc.DialContext(ctx, addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
 		require.NoError(t, err)
 		defer conn.Close()
 		rpcClient := alphabill.NewAlphabillServiceClient(conn)
@@ -100,9 +98,10 @@ func TestRunVD(t *testing.T) {
 		id := uint256.NewInt(rand.Uint64()).Bytes32()
 		tx := &types.TransactionOrder{
 			Payload: &types.Payload{
+				SystemID:       vd.DefaultSystemIdentifier,
+				Type:           vd.PayloadTypeRegisterData,
 				UnitID:         id[:],
 				ClientMetadata: &types.ClientMetadata{Timeout: 10},
-				SystemID:       []byte{0, 0, 0, 1},
 			},
 		}
 		txBytes, _ := cbor.Marshal(tx)

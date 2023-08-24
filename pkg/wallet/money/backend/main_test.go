@@ -29,7 +29,7 @@ func TestWalletBackend_BillsCanBeIndexedByPredicates(t *testing.T) {
 	bearer1 := script.PredicatePayToPublicKeyHashDefault(hash.Sum256(pubkey1))
 	bearer2 := script.PredicatePayToPublicKeyHashDefault(hash.Sum256(pubkey2))
 	fcbID := newUnitID(101)
-	fcb := &Bill{Id: fcbID, Value: 100, FCBlockNumber: 1}
+	fcb := &Bill{Id: fcbID, Value: 100}
 
 	abclient := clientmock.NewMockAlphabillClient(
 		clientmock.WithMaxBlockNumber(1),
@@ -68,7 +68,7 @@ func TestWalletBackend_BillsCanBeIndexedByPredicates(t *testing.T) {
 	storage, err := createTestBillStore(t)
 	require.NoError(t, err)
 
-	err = storage.Do().SetFeeCreditBill(fcb)
+	err = storage.Do().SetFeeCreditBill(fcb, nil)
 	require.NoError(t, err)
 
 	getBlockNumber := func() (uint64, error) { return storage.Do().GetBlockNumber() }
@@ -120,14 +120,12 @@ func TestGetBills_OK(t *testing.T) {
 		Id:             tx.UnitID(),
 		Value:          txValue,
 		TxHash:         txHash,
-		OrderNumber:    1,
 		OwnerPredicate: bearer,
-		TxProof: &wallet.Proof{
-			TxRecord: &types.TransactionRecord{TransactionOrder: tx},
-			TxProof:  &types.TxProof{UnicityCertificate: &types.UnicityCertificate{InputRecord: &types.InputRecord{RoundNumber: 1}}},
-		},
 	}
-	err = store.Do().SetBill(b)
+	err = store.Do().SetBill(b, &wallet.Proof{
+		TxRecord: &types.TransactionRecord{TransactionOrder: tx},
+		TxProof:  &types.TxProof{UnicityCertificate: &types.UnicityCertificate{InputRecord: &types.InputRecord{RoundNumber: 1}}},
+	})
 	require.NoError(t, err)
 
 	// verify bill can be queried by id
@@ -159,10 +157,9 @@ func TestGetBills_SHA512_OK(t *testing.T) {
 	b := &Bill{
 		Id:             tx.UnitID(),
 		Value:          txValue,
-		OrderNumber:    1,
 		OwnerPredicate: bearer,
 	}
-	err = store.Do().SetBill(b)
+	err = store.Do().SetBill(b, nil)
 	require.NoError(t, err)
 
 	// verify bill can be queried by pubkey
@@ -170,4 +167,22 @@ func TestGetBills_SHA512_OK(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, bills, 1)
 	require.Equal(t, b, bills[0])
+}
+
+func Test_extractOwnerFromProof(t *testing.T) {
+	sig := test.RandomBytes(65)
+	pubkey := test.RandomBytes(33)
+	predicate := script.PredicateArgumentPayToPublicKeyHashDefault(sig, pubkey)
+	owner := extractOwnerKeyFromProof(predicate)
+	require.EqualValues(t, pubkey, owner)
+	k1 := "0x535401099C0E835B9C9B62CA5E321E796D445DDBD80626BA600EBBCF3C647D7FBD2FFE2758ACC7476B38783365B7274A385EFC7CFFC3EB63A696928EBDBD4D5516078F00550103D8242EE6544CC1F98EA8B8E572D089A95917800A37E3207A725DECDAD6002E52"
+	k2 := "0x535401090300B7CDC7F75A9E51998EA5C52A7014979BAD2205C8DD0552BF16C4F273E0723CD87CD6C4C8AEF33E7B659EE8FD897D6E8A1CEB89E8E4C2C94ACEB2FEF7CF00550102E2CF1D2C5E0CD7EFD27DBA8B21225E6866B185E97E8A415ACC6FC9CB57743B3A"
+	k1bytes, err := hexutil.Decode(k1)
+	require.NoError(t, err)
+	k2bytes, err := hexutil.Decode(k2)
+	require.NoError(t, err)
+	owner1 := extractOwnerKeyFromProof(k1bytes)
+	require.NotNil(t, owner1)
+	owner2 := extractOwnerKeyFromProof(k2bytes)
+	require.NotNil(t, owner2)
 }

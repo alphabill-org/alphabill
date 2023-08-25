@@ -708,6 +708,194 @@ func Test_ConsensusManager_messages(t *testing.T) {
 	})
 }
 
+func Test_ConsensusManager_sendCertificates(t *testing.T) {
+	t.Parallel()
+
+	_, partitionRecord := testutils.CreatePartitionNodesAndPartitionRecord(t, partitionInputRecord, partitionID, 2)
+
+	// generate UCs for given systems (with random data in QC)
+	makeUCs := func(sysID ...[]byte) map[p.SystemIdentifier]*types.UnicityCertificate {
+		rUC := make(map[p.SystemIdentifier]*types.UnicityCertificate)
+		for _, v := range sysID {
+			uc := &types.UnicityCertificate{
+				UnicityTreeCertificate: &types.UnicityTreeCertificate{
+					SystemIdentifier:      v,
+					SystemDescriptionHash: test.RandomBytes(32),
+				},
+			}
+			rUC[p.SystemIdentifier(uc.UnicityTreeCertificate.SystemIdentifier)] = uc
+		}
+		return rUC
+	}
+
+	// consumeUCs reads UCs from "cm"-s output and stores them into map it returns.
+	// it reads until "timeout" has passed.
+	consumeUCs := func(cm *ConsensusManager, timeout time.Duration) map[p.SystemIdentifier]*types.UnicityCertificate {
+		to := time.After(timeout)
+		rUC := make(map[p.SystemIdentifier]*types.UnicityCertificate)
+		for {
+			select {
+			case uc := <-cm.CertificationResult():
+				rUC[p.SystemIdentifier(uc.UnicityTreeCertificate.SystemIdentifier)] = uc
+			case <-to:
+				return rUC
+			}
+		}
+	}
+
+	outputMustBeEmpty := func(t *testing.T, cm *ConsensusManager) {
+		t.Helper()
+		select {
+		case uc := <-cm.CertificationResult():
+			t.Errorf("unexpected data from cert chan: %#v", uc)
+		default:
+		}
+	}
+
+	t.Run("consume before next input is sent", func(t *testing.T) {
+		cms, _, _ := createConsensusManagers(t, 1, []*genesis.PartitionRecord{partitionRecord})
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		go func() { require.ErrorIs(t, cms[0].sendCertificates(ctx), context.Canceled) }()
+
+		// send some certificates into sink...
+		ucs := makeUCs([]byte{0, 0, 0, 1}, []byte{0, 0, 0, 2})
+		select {
+		case cms[0].ucSink <- ucs:
+		default:
+			t.Fatal("expected that input would be accepted immediately, sink should be empty")
+		}
+		//...and consume them
+		rUC := consumeUCs(cms[0], 100*time.Millisecond)
+		require.Equal(t, ucs, rUC)
+		outputMustBeEmpty(t, cms[0])
+
+		// and repeat the exercise with different systemIDs
+		ucs = makeUCs([]byte{0, 0, 0, 3}, []byte{0, 0, 0, 4})
+		select {
+		case cms[0].ucSink <- ucs:
+		default:
+			t.Fatal("expected that input would be accepted immediately, sink should be empty")
+		}
+
+		rUC = consumeUCs(cms[0], 100*time.Millisecond)
+		require.Equal(t, ucs, rUC)
+		outputMustBeEmpty(t, cms[0])
+	})
+
+	t.Run("overwriting unconsumed QC", func(t *testing.T) {
+		cms, _, _ := createConsensusManagers(t, 1, []*genesis.PartitionRecord{partitionRecord})
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		go func() { require.ErrorIs(t, cms[0].sendCertificates(ctx), context.Canceled) }()
+
+		// exp - expected result in the end of test, we add/overwrite certs as we send them
+		exp := map[p.SystemIdentifier]*types.UnicityCertificate{}
+
+		ucs := makeUCs([]byte{0, 0, 0, 1}, []byte{0, 0, 0, 2})
+		for k, v := range ucs {
+			exp[k] = v
+		}
+
+		select {
+		case cms[0].ucSink <- ucs:
+		default:
+			t.Fatal("expected that input would be accepted immediately, sink should be empty")
+		}
+
+		// as we haven't consumed anything sending new set of certs into the sink should
+		// overwrite {0,0,0,2} and add {0,0,0,3}
+		ucs = makeUCs([]byte{0, 0, 0, 3}, []byte{0, 0, 0, 2})
+		for k, v := range ucs {
+			exp[k] = v
+		}
+
+		select {
+		case cms[0].ucSink <- ucs:
+		case <-time.After(100 * time.Millisecond):
+			t.Error("next input hasn't been consumed fast enough")
+		}
+
+		rUC := consumeUCs(cms[0], 100*time.Millisecond)
+		require.Len(t, rUC, 3, "number of different systemIDs")
+		require.Equal(t, exp, rUC)
+		outputMustBeEmpty(t, cms[0])
+	})
+
+	t.Run("adding without overwriting", func(t *testing.T) {
+		cms, _, _ := createConsensusManagers(t, 1, []*genesis.PartitionRecord{partitionRecord})
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		go func() { require.ErrorIs(t, cms[0].sendCertificates(ctx), context.Canceled) }()
+		// exp - expected result in the end of test, we add/overwrite certs as we send them
+		exp := map[p.SystemIdentifier]*types.UnicityCertificate{}
+
+		ucs := makeUCs([]byte{0, 0, 0, 1}, []byte{0, 0, 0, 2})
+		for k, v := range ucs {
+			exp[k] = v
+		}
+
+		select {
+		case cms[0].ucSink <- ucs:
+		default:
+			t.Fatal("expected that input would be accepted immediately, sink should be empty")
+		}
+
+		// send another set of certs, unique sysIDs, ie no overwrites, just add (nothing
+		// has been consumed yet)
+		ucs = makeUCs([]byte{0, 0, 0, 3}, []byte{0, 0, 0, 4})
+		for k, v := range ucs {
+			exp[k] = v
+		}
+
+		select {
+		case cms[0].ucSink <- ucs:
+		case <-time.After(100 * time.Millisecond):
+			t.Error("next input hasn't been consumed fast enough")
+		}
+
+		rUC := consumeUCs(cms[0], 100*time.Millisecond)
+		require.Len(t, rUC, 4, "number of different systemIDs")
+		require.Equal(t, exp, rUC)
+		outputMustBeEmpty(t, cms[0])
+	})
+
+	t.Run("concurrency", func(t *testing.T) {
+		// concurrent read and writes to trip race detector
+		cms, _, _ := createConsensusManagers(t, 1, []*genesis.PartitionRecord{partitionRecord})
+		done := make(chan struct{})
+		ctx, cancel := context.WithCancel(context.Background())
+		go func() {
+			defer close(done)
+			require.ErrorIs(t, cms[0].sendCertificates(ctx), context.Canceled)
+		}()
+
+		go func() {
+			for {
+				select {
+				case cms[0].ucSink <- makeUCs([]byte{0, 0, 0, 1}, []byte{0, 0, 0, 2}, []byte{0, 0, 0, 3}):
+				case <-ctx.Done():
+					return
+				}
+			}
+		}()
+
+		go func() {
+			for {
+				select {
+				case <-cms[0].CertificationResult():
+				case <-ctx.Done():
+					return
+				}
+			}
+		}()
+
+		time.Sleep(time.Second)
+		cancel()
+		<-done
+	})
+}
+
 func Test_selectRandomNodeIdsFromSignatureMap(t *testing.T) {
 	t.Parallel()
 

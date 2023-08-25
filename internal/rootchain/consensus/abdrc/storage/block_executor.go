@@ -17,16 +17,16 @@ type (
 	InputData struct {
 		SysID []byte             `json:"systemIdentifier"`
 		IR    *types.InputRecord `json:"ir"`
-		Sdrh  []byte             `json:"sdrh"`
+		Sdrh  []byte             `json:"sdrh"` // System Description Record Hash
 	}
 
 	InputRecords []*InputData
-	Changed      [][]byte
+	SysIDList    [][]byte
 
 	ExecutedBlock struct {
 		BlockData *abtypes.BlockData  `json:"block"`         // proposed block
 		CurrentIR InputRecords        `json:"inputData"`     // all input records in this block
-		Changed   Changed             `json:"changed"`       // changed partition system identifiers
+		Changed   SysIDList           `json:"changed"`       // changed partition system identifiers
 		HashAlgo  gocrypto.Hash       `json:"hashAlgorithm"` // hash algorithm for the block
 		RootHash  []byte              `json:"rootHash"`      // resulting root hash
 		Qc        *abtypes.QuorumCert `json:"Qc"`            // block's quorum certificate (from next view)
@@ -38,24 +38,18 @@ type (
 	}
 )
 
-func (data *InputRecords) Update(newInputData *InputData) error {
-	if data == nil {
-		return fmt.Errorf("input records is nil")
-	}
-	for i, d := range *data {
+func (data InputRecords) Update(newInputData *InputData) error {
+	for i, d := range data {
 		if bytes.Equal(d.SysID, newInputData.SysID) {
-			(*data)[i] = newInputData
+			data[i] = newInputData
 			return nil
 		}
 	}
 	return fmt.Errorf("input record with system id %X was not found", newInputData.SysID)
 }
 
-func (data *InputRecords) Find(sysID []byte) *InputData {
-	if data == nil {
-		return nil
-	}
-	for _, d := range *data {
+func (data InputRecords) Find(sysID []byte) *InputData {
+	for _, d := range data {
 		if bytes.Equal(d.SysID, sysID) {
 			return d
 		}
@@ -63,7 +57,7 @@ func (data *InputRecords) Find(sysID []byte) *InputData {
 	return nil
 }
 
-func (data Changed) Contains(sysID []byte) bool {
+func (data SysIDList) Contains(sysID []byte) bool {
 	for _, d := range data {
 		if bytes.Equal(d, sysID) {
 			return true
@@ -245,12 +239,12 @@ func (x *ExecutedBlock) generateUnicityTree() (*unicitytree.UnicityTree, error) 
 func (x *ExecutedBlock) GenerateCertificates(commitQc *abtypes.QuorumCert) (map[protocol.SystemIdentifier]*types.UnicityCertificate, error) {
 	ut, err := x.generateUnicityTree()
 	if err != nil {
-		return nil, fmt.Errorf("unexpected error, failed to generate unicity tree, %w", err)
+		return nil, fmt.Errorf("failed to generate unicity tree: %w", err)
 	}
 	rootHash := ut.GetRootHash()
 	// sanity check, data must not have changed, hence the root hash must still be the same
 	if !bytes.Equal(rootHash, x.RootHash) {
-		return nil, fmt.Errorf("unexpected error, root hash does not match previously calculated root hash")
+		return nil, fmt.Errorf("root hash does not match previously calculated root hash")
 	}
 	// sanity check, if root hashes do not match then fall back to recovery
 	if !bytes.Equal(rootHash, commitQc.LedgerCommitInfo.Hash) {
@@ -268,16 +262,15 @@ func (x *ExecutedBlock) GenerateCertificates(commitQc *abtypes.QuorumCert) (map[
 	ucs := map[protocol.SystemIdentifier]*types.UnicityCertificate{}
 	// copy parent certificates and extract changed certificates from this round
 	for _, sysID := range x.Changed {
-		var utCert *types.UnicityTreeCertificate
-		utCert, err = ut.GetCertificate(sysID)
+		utCert, err := ut.GetCertificate(sysID)
 		if err != nil {
 			// this should never happen. if it does then exit with panic because we cannot generate
 			// unicity tree certificates.
-			return nil, fmt.Errorf("unexpected error, failed to generate unicity certificates, %w", err)
+			return nil, fmt.Errorf("failed to read certificate of %X: %w", sysID, err)
 		}
 		ir := x.CurrentIR.Find(sysID)
 		if ir == nil {
-			return nil, fmt.Errorf("unexpected error, failed to generate unicity certificates, input record for %X not found", sysID)
+			return nil, fmt.Errorf("input record for %X not found", sysID)
 		}
 		certificate := &types.UnicityCertificate{
 			InputRecord: ir.IR,

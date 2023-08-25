@@ -8,6 +8,7 @@ import (
 
 	"github.com/libp2p/go-libp2p/core/peer"
 	"golang.org/x/exp/slices"
+	"golang.org/x/sync/errgroup"
 
 	"github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/network"
@@ -44,8 +45,13 @@ type (
 	}
 
 	ConsensusManager struct {
-		certReqCh      chan consensus.IRChangeRequest
-		certResultCh   chan *types.UnicityCertificate
+		// channel via which validator sends "certification requests" to CM
+		certReqCh chan consensus.IRChangeRequest
+		// channel via which CM sends "certification request" response to validator
+		certResultCh chan *types.UnicityCertificate
+		// internal buffer for "certification request" response to allow CM to
+		// continue without waiting validator to consume the response
+		ucSink         chan map[p.SystemIdentifier]*types.UnicityCertificate
 		params         *consensus.Parameters
 		id             peer.ID
 		net            RootNet
@@ -113,6 +119,7 @@ func NewDistributedAbConsensusManager(nodeID peer.ID, rg *genesis.RootGenesis,
 	consensusManager := &ConsensusManager{
 		certReqCh:      make(chan consensus.IRChangeRequest),
 		certResultCh:   make(chan *types.UnicityCertificate),
+		ucSink:         make(chan map[p.SystemIdentifier]*types.UnicityCertificate, 1),
 		params:         cParams,
 		id:             nodeID,
 		net:            net,
@@ -176,7 +183,10 @@ func (x *ConsensusManager) Run(ctx context.Context) error {
 	x.pacemaker.Reset(x.blockStore.GetHighQc().VoteInfo.RoundNumber)
 	currentRound := x.pacemaker.GetCurrentRound()
 	logger.Info("%s round %d root node starting, leader is %s", x.id.ShortString(), currentRound, x.leaderSelector.GetLeaderForRound(currentRound))
-	err := x.loop(ctx)
+	g, ctx := errgroup.WithContext(ctx)
+	g.Go(func() error { return x.loop(ctx) })
+	g.Go(func() error { return x.sendCertificates(ctx) })
+	err := g.Wait()
 	logger.Info("%v exited distributed consensus manager main loop: %v", x.id.ShortString(), err)
 	return err
 }
@@ -526,9 +536,7 @@ func (x *ConsensusManager) processQC(qc *abtypes.QuorumCert) {
 		}
 		return
 	}
-	for _, uc := range certs {
-		x.certResultCh <- uc
-	}
+	x.ucSink <- certs
 
 	if !x.pacemaker.AdvanceRoundQC(qc) {
 		return
@@ -551,6 +559,57 @@ func (x *ConsensusManager) processTC(tc *abtypes.TimeoutCert) {
 		logger.Warning("%v failed to handle timeout certificate: %v", x.id.ShortString(), err)
 	}
 	x.pacemaker.AdvanceRoundTC(tc)
+}
+
+/*
+sendCertificates reads UCs produced by processing QC and makes them available for
+validator via certResultCh chan (returned by CertificationResult method).
+The idea is not to block CM until validator consumes the certificates, ie to
+send the UCs in a async fashion.
+*/
+func (x *ConsensusManager) sendCertificates(ctx context.Context) error {
+	// pending certificates, to be consumed by the validator.
+	// access to it is "serialized" ie we either update it with
+	// new certs sent by CM or we feed it's content to validator
+	certs := make(map[p.SystemIdentifier]*types.UnicityCertificate)
+
+	feedValidator := func(ctx context.Context) chan struct{} {
+		stopped := make(chan struct{})
+		go func() {
+			defer close(stopped)
+			for sysID, uc := range certs {
+				select {
+				case x.certResultCh <- uc:
+					delete(certs, sysID)
+				case <-ctx.Done():
+					return
+				}
+			}
+		}()
+		return stopped
+	}
+
+	stopFeed := func() {}
+	for {
+		select {
+		case nm := <-x.ucSink:
+			stopFeed()
+			// NB! if previous UC for given system hasn't been consumed yet we'll overwrite it!
+			// this means that the validator sees newer UC than expected and goes into recovery,
+			// rolling back pending block proposal?
+			for sysID, uc := range nm {
+				certs[sysID] = uc
+			}
+			feedCtx, cancel := context.WithCancel(ctx)
+			stopped := feedValidator(feedCtx)
+			stopFeed = func() {
+				cancel()
+				<-stopped
+			}
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+	}
 }
 
 /*

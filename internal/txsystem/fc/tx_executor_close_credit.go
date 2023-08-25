@@ -16,13 +16,11 @@ func handleCloseFeeCreditTx(f *FeeCredit) txsystem.GenericExecuteFunc[transactio
 		if err := f.txValidator.ValidateCloseFC(&CloseFCValidationContext{Tx: tx, Unit: bd}); err != nil {
 			return nil, fmt.Errorf("closeFC: tx validation failed: %w", err)
 		}
-		// calculate actual tx fee cost
-		sm := &types.ServerMetadata{ActualFee: f.feeCalculator(), TargetUnits: []types.UnitID{tx.UnitID()}}
-
 		// decrement credit
 		if err := f.state.Apply(unit.DecrCredit(tx.UnitID(), attr.Amount)); err != nil {
 			return nil, fmt.Errorf("closeFC: state update failed: %w", err)
 		}
-		return sm, nil
+		// calculate actual tx fee cost
+		return &types.ServerMetadata{ActualFee: f.feeCalculator(), TargetUnits: []types.UnitID{tx.UnitID()}, SuccessIndicator: types.TxStatusSuccessful}, nil
 	}
 }

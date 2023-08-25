@@ -24,7 +24,6 @@ func handleCreateFungibleTokenTypeTx(options *Options) txsystem.GenericExecuteFu
 		fee := options.feeCalculator()
 
 		unitID := tx.UnitID()
-		sm := &types.ServerMetadata{ActualFee: fee, TargetUnits: []types.UnitID{unitID}}
 		// update state
 		if err := options.state.Apply(
 			state.AddUnit(unitID, script.PredicateAlwaysTrue(), newFungibleTokenTypeData(attr)),
@@ -32,7 +31,7 @@ func handleCreateFungibleTokenTypeTx(options *Options) txsystem.GenericExecuteFu
 			return nil, err
 		}
 
-		return sm, nil
+		return &types.ServerMetadata{ActualFee: fee, TargetUnits: []types.UnitID{unitID}, SuccessIndicator: types.TxStatusSuccessful}, nil
 	}
 }
 

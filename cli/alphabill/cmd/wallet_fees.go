@@ -10,7 +10,6 @@ import (
 
 	"github.com/alphabill-org/alphabill/internal/txsystem/money"
 	"github.com/alphabill-org/alphabill/internal/txsystem/tokens"
-	"github.com/alphabill-org/alphabill/internal/txsystem/vd"
 	"github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/alphabill-org/alphabill/pkg/wallet/account"
 	"github.com/alphabill-org/alphabill/pkg/wallet/fees"
@@ -19,7 +18,6 @@ import (
 	tokenswallet "github.com/alphabill-org/alphabill/pkg/wallet/tokens"
 	tokensclient "github.com/alphabill-org/alphabill/pkg/wallet/tokens/client"
 	"github.com/alphabill-org/alphabill/pkg/wallet/unitlock"
-	vdwallet "github.com/alphabill-org/alphabill/pkg/wallet/vd"
 )
 
 const (
@@ -44,7 +42,7 @@ func newWalletFeesCmd(config *walletConfig) *cobra.Command {
 	cmd.AddCommand(addFeeCreditCmd(config, cliConfig))
 	cmd.AddCommand(reclaimFeeCreditCmd(config, cliConfig))
 
-	cmd.PersistentFlags().VarP(&cliConfig.partitionType, partitionCmdName, "n", "partition name for which to manage fees [money|tokens|vd]")
+	cmd.PersistentFlags().VarP(&cliConfig.partitionType, partitionCmdName, "n", "partition name for which to manage fees [money|tokens]")
 	cmd.PersistentFlags().StringP(alphabillApiURLCmdName, "r", defaultAlphabillApiURL, apiUsage)
 
 	usage := fmt.Sprintf("partition backend url for which to manage fees (default: [%s|%s] based on --partition flag)", defaultAlphabillApiURL, defaultTokensBackendApiURL)
@@ -280,8 +278,6 @@ func (c *cliConf) getPartitionBackendURL() string {
 		return defaultAlphabillApiURL
 	case tokensType:
 		return defaultTokensBackendApiURL
-	case vdType:
-		return defaultVDNodeURL
 	default:
 		panic("invalid \"partition\" flag value: " + c.partitionType)
 	}
@@ -325,27 +321,6 @@ func getFeeCreditManager(c *cliConf, am account.Manager, unitLocker *unitlock.Un
 			tokens.DefaultSystemIdentifier,
 			tokenTxPublisher,
 			tokenBackendClient,
-		), nil
-	} else if c.partitionType == vdType {
-		vdClient, err := vdwallet.New(&vdwallet.VDClientConfig{
-			VDNodeURL:     c.getPartitionBackendURL(),
-			WalletHomeDir: walletHomeDir,
-		})
-		if err != nil {
-			return nil, err
-		}
-
-		vdTxPublisher := vdwallet.NewTxPublisher(vdClient)
-
-		return fees.NewFeeManager(
-			am,
-			unitLocker,
-			moneySystemID,
-			moneyTxPublisher,
-			moneyBackendClient,
-			vd.DefaultSystemIdentifier,
-			vdTxPublisher,
-			vdClient,
 		), nil
 	} else {
 		panic("invalid \"partition\" flag value: " + c.partitionType)

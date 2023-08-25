@@ -107,14 +107,14 @@ func (s *State) AddUnitLog(id types.UnitID, transactionRecordHash []byte) (int, 
 func (s *State) Apply(actions ...Action) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
-	s.createSavepoint()
+	id := s.createSavepoint()
 	for _, action := range actions {
 		if err := action(s.latestSavepoint(), s.hashAlgorithm); err != nil {
-			s.rollbackSavepoint()
+			s.rollbackToSavepoint(id)
 			return err
 		}
 	}
-	s.releaseSavepoint()
+	s.releaseToSavepoint(id)
 	return nil
 }
 
@@ -141,33 +141,34 @@ func (s *State) Revert() {
 
 // Savepoint creates a new savepoint and returns an id of the savepoint. Use RollbackSavepoint to roll back all
 // changes made after calling Savepoint method. Use ReleaseSavepoint to save all changes made to the state.
-func (s *State) Savepoint() {
+func (s *State) Savepoint() int {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
-	s.createSavepoint()
+	return s.createSavepoint()
 }
 
-// RollbackSavepoint destroys a savepoint without keeping the changes in the state tree.
-func (s *State) RollbackSavepoint() {
+// RollbackToSavepoint destroys savepoints without keeping the changes in the state tree. All actions that were executed
+// after the savepoint was established are rolled back, restoring the state to what it was at the time of the savepoint.
+func (s *State) RollbackToSavepoint(id int) {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
-	s.rollbackSavepoint()
+	s.rollbackToSavepoint(id)
 }
 
-// ReleaseSavepoint destroys a savepoint, keeping the state changes after it was created. If a savepoint does not exist
-// then this method does nothing.
+// ReleaseToSavepoint destroys all savepoints, keeping all state changes after it was created. If a savepoint with given
+// id does not exist then this method does nothing.
 //
-// Releasing a savepoint does NOT trigger a state root hash calculation. To calculate the root hash of the state a
+// Releasing savepoints does NOT trigger a state root hash calculation. To calculate the root hash of the state a
 // Commit method must be called.
-func (s *State) ReleaseSavepoint() {
+func (s *State) ReleaseToSavepoint(id int) {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
-	s.releaseSavepoint()
+	s.releaseToSavepoint(id)
 }
 
 func (s *State) CalculateRoot() (uint64, []byte, error) {
-	s.mutex.RLock()
-	defer s.mutex.RUnlock()
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
 	sp := s.latestSavepoint()
 	if err := sp.Commit(); err != nil {
 		return 0, nil, err
@@ -312,26 +313,28 @@ func (s *State) createStateTreeCert(id types.UnitID) (*StateTreeCert, error) {
 	return nil, fmt.Errorf("unable to extract unit state tree cert for unit %v", id)
 }
 
-func (s *State) createSavepoint() {
+func (s *State) createSavepoint() int {
 	s.savepoints = append(s.savepoints, s.latestSavepoint().Clone())
+	return len(s.savepoints) - 1
 }
 
-func (s *State) rollbackSavepoint() {
+func (s *State) rollbackToSavepoint(id int) {
 	c := len(s.savepoints)
-	if c == 1 {
-		s.savepoints = []*savepoint{s.committedTree.Clone()}
+	if id > c {
+		// nothing to revert
 		return
 	}
-	s.savepoints = s.savepoints[0 : c-1]
+	s.savepoints = s.savepoints[0:id]
 }
 
-func (s *State) releaseSavepoint() {
+func (s *State) releaseToSavepoint(id int) {
 	c := len(s.savepoints)
-	if c == 1 {
+	if id > c {
+		// nothing to release
 		return
 	}
-	s.savepoints[c-2] = s.latestSavepoint()
-	s.savepoints = s.savepoints[0 : c-1]
+	s.savepoints[id-1] = s.latestSavepoint()
+	s.savepoints = s.savepoints[0:id]
 }
 
 func (s *State) isCommitted() bool {

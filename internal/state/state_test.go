@@ -75,9 +75,9 @@ func TestNewStateWithInitActions(t *testing.T) {
 func TestState_Savepoint_OK(t *testing.T) {
 	unitData := &TestData{Value: 10}
 	s := NewState(t)
-	s.Savepoint()
+	spID := s.Savepoint()
 	require.NoError(t, s.Apply(AddUnit([]byte{0, 0, 0, 1}, test.RandomBytes(20), unitData)))
-	s.ReleaseSavepoint()
+	s.ReleaseToSavepoint(spID)
 
 	committedRoot := s.committedTree.Root()
 	uncommittedRoot := s.latestSavepoint().Root()
@@ -90,9 +90,9 @@ func TestState_Savepoint_OK(t *testing.T) {
 func TestState_RollbackSavepoint(t *testing.T) {
 	unitData := &TestData{Value: 10}
 	s := NewState(t)
-	s.Savepoint()
+	spID := s.Savepoint()
 	require.NoError(t, s.Apply(AddUnit([]byte{0, 0, 0, 1}, test.RandomBytes(20), unitData)))
-	s.RollbackSavepoint()
+	s.RollbackToSavepoint(spID)
 
 	committedRoot := s.committedTree.Root()
 	uncommittedRoot := s.latestSavepoint().Root()
@@ -150,6 +150,47 @@ func TestState_Revert(t *testing.T) {
 	require.Nil(t, committedRoot)
 	require.Nil(t, uncommittedRoot)
 	require.Len(t, s.savepoints, 1)
+}
+
+func TestState_RevertAVLTreeRotations(t *testing.T) {
+	s := NewState(t)
+	// initial state:
+	// 		┌───┤ key=0000001E, depth=1, nodeSummary=30, subtreeSummary=30,
+	//	────┤ key=00000014, depth=3, nodeSummary=20, subtreeSummary=76,
+	//		│	┌───┤ key=0000000F, depth=1, nodeSummary=15, subtreeSummary=15,
+	//		└───┤ key=0000000A, depth=2, nodeSummary=10, subtreeSummary=26,
+	//			└───┤ key=00000001, depth=1, nodeSummary=1, subtreeSummary=1,
+	require.NoError(t,
+		s.Apply(AddUnit([]byte{0, 0, 0, 20}, test.RandomBytes(20), &TestData{Value: 20})),
+		s.Apply(AddUnit([]byte{0, 0, 0, 10}, test.RandomBytes(20), &TestData{Value: 10})),
+		s.Apply(AddUnit([]byte{0, 0, 0, 30}, test.RandomBytes(20), &TestData{Value: 30})),
+		s.Apply(AddUnit([]byte{0, 0, 0, 1}, test.RandomBytes(20), &TestData{Value: 1})),
+		s.Apply(AddUnit([]byte{0, 0, 0, 15}, test.RandomBytes(20), &TestData{Value: 15})),
+	)
+
+	// commit initial state
+	_, root, err := s.CalculateRoot()
+	require.NoError(t, err)
+	require.NoError(t, s.Commit())
+
+	require.NoError(t,
+		// change the unit that will be rotated
+		s.Apply(UpdateUnitData([]byte{0, 0, 0, 15}, func(data UnitData) (UnitData, error) {
+			data.(*TestData).Value = 30
+			return data, nil
+		})),
+		// rotate left right
+		s.Apply(AddUnit([]byte{0, 0, 0, 12}, test.RandomBytes(20), &TestData{Value: 12})),
+	)
+
+	// calculate root after applying changes
+	_, _, err = s.CalculateRoot()
+	require.NoError(t, err)
+
+	s.Revert()
+	_, root2, err := s.CalculateRoot()
+	require.NoError(t, err)
+	require.Equal(t, root, root2)
 }
 
 func TestState_GetUnit(t *testing.T) {

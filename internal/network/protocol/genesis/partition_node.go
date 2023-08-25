@@ -32,6 +32,12 @@ type MoneyPartitionParams struct {
 	SystemDescriptionRecords []*SystemDescriptionRecord
 }
 
+type EvmPartitionParams struct {
+	_             struct{} `cbor:",toarray"`
+	BlockGasLimit uint64
+	GasUnitPrice  uint64
+}
+
 func (x *PartitionNode) IsValid() error {
 	if x == nil {
 		return ErrPartitionNodeIsNil

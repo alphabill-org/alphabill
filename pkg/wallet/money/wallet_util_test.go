@@ -55,12 +55,6 @@ func CreateTestWallet(t *testing.T, backend BackendAPI) (*Wallet, *clientmock.Mo
 	return CreateTestWalletWithManagerAndUnitLocker(t, backend, am, unitLocker)
 }
 
-func CreateTestWalletWithManager(t *testing.T, backend BackendAPI, am account.Manager) (*Wallet, *clientmock.MockAlphabillClient) {
-	unitLocker, err := unitlock.NewUnitLocker(t.TempDir())
-	require.NoError(t, err)
-	return CreateTestWalletWithManagerAndUnitLocker(t, backend, am, unitLocker)
-}
-
 func CreateTestWalletWithManagerAndUnitLocker(t *testing.T, backend BackendAPI, am account.Manager, unitLocker *unitlock.UnitLocker) (*Wallet, *clientmock.MockAlphabillClient) {
 	err := CreateNewWallet(am, "")
 	require.NoError(t, err)

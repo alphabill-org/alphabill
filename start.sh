@@ -5,7 +5,7 @@ set -e
 
 source helper.sh
 
-usage() { echo "Usage: $0 [-h usage] [-r start root] [-p start partition: money, vd, tokens] [-b start backend: money, tokens]"; exit 0; }
+usage() { echo "Usage: $0 [-h usage] [-r start root] [-p start partition: money, tokens, evm] [-b start backend: money, tokens, evm]"; exit 0; }
 
 # stop requires an argument either -a for stop all or -p to stop a specific partition
 [ $# -eq 0 ] && usage

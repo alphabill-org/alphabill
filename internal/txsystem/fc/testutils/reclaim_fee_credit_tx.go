@@ -73,9 +73,9 @@ func WithReclaimFCClosureTx(closeFCTx *types.TransactionRecord) ReclaimFCOption 
 
 func newCloseFC(t *testing.T) *types.TransactionOrder {
 	attr := &transactions.CloseFeeCreditAttributes{
-		Amount:       amount,
-		TargetUnitID: unitID,
-		Nonce:        backlink,
+		Amount:             amount,
+		TargetUnitID:       unitID,
+		TargetUnitBacklink: backlink,
 	}
 	return testtransaction.NewTransactionOrder(t,
 		testtransaction.WithUnitId(unitID),

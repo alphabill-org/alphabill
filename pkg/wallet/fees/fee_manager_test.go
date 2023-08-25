@@ -2,13 +2,13 @@ package fees
 
 import (
 	"context"
-	"crypto"
 	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
+	testtransaction "github.com/alphabill-org/alphabill/internal/testutils/transaction"
 	"github.com/alphabill-org/alphabill/internal/txsystem/fc/testutils"
 	"github.com/alphabill-org/alphabill/internal/txsystem/fc/transactions"
 	"github.com/alphabill-org/alphabill/internal/types"
@@ -66,16 +66,15 @@ Return error "wallet contains unreclaimed fee credit, run the reclaim command be
 func TestAddFeeCredit_WalletContainsLockedBillForReclaim(t *testing.T) {
 	// create fee manager
 	am := newAccountManager(t)
+	accountKey, err := am.GetAccountKey(0)
+	require.NoError(t, err)
 	moneyTxPublisher := &mockMoneyTxPublisher{}
 	moneyBackendClient := &mockMoneyClient{bills: []*wallet.Bill{}}
 	unitLocker := createUnitLocker(t)
 	feeManager := newMoneyPartitionFeeManager(am, unitLocker, moneyTxPublisher, moneyBackendClient)
 
-	// lock bill with ReasonReclaimFees
-	err := unitLocker.LockUnit(&unitlock.LockedUnit{
-		UnitID:     []byte{1},
-		LockReason: unitlock.ReasonReclaimFees,
-	})
+	// lock bill with LockReasonReclaimFees
+	err = unitLocker.LockUnit(unitlock.NewLockedUnit(accountKey.PubKey, []byte{1}, []byte{200}, unitlock.LockReasonReclaimFees))
 	require.NoError(t, err)
 
 	// verify error is returned
@@ -92,6 +91,8 @@ Wallet contains locked bill for TransferFC and the tx is either:
 func TestAddFeeCredit_LockedBillForTransferFC(t *testing.T) {
 	// create fee manager
 	am := newAccountManager(t)
+	accountKey, err := am.GetAccountKey(0)
+	require.NoError(t, err)
 	moneyTxPublisher := &mockMoneyTxPublisher{}
 	moneyBackendClient := &mockMoneyClient{}
 	unitLocker := createUnitLocker(t)
@@ -102,16 +103,14 @@ func TestAddFeeCredit_LockedBillForTransferFC(t *testing.T) {
 		ServerMetadata:   &types.ServerMetadata{ActualFee: 1},
 	}
 	transferFCProof := &wallet.Proof{TxRecord: transferFCRecord, TxProof: &types.TxProof{}}
-	lockedTransferFCBill := &unitlock.LockedUnit{
-		UnitID:     transferFCRecord.TransactionOrder.UnitID(),
-		LockReason: unitlock.ReasonAddFees,
-		Transactions: []*unitlock.Transaction{{
-			TxOrder:     transferFCRecord.TransactionOrder,
-			TxHash:      transferFCRecord.TransactionOrder.Hash(crypto.SHA256),
-			PayloadType: transactions.PayloadTypeTransferFeeCredit,
-			Timeout:     10, // same as latest addition time on transferFC tx
-		}},
-	}
+	lockedUnitTxHash := []byte{200}
+	lockedTransferFCBill := unitlock.NewLockedUnit(
+		accountKey.PubKey,
+		transferFCRecord.TransactionOrder.UnitID(),
+		lockedUnitTxHash,
+		unitlock.LockReasonAddFees,
+		unitlock.NewTransaction(transferFCRecord.TransactionOrder),
+	)
 
 	t.Run("transferFC confirmed => send addFC using the confirmed transferFC", func(t *testing.T) {
 		// lock bill in db
@@ -138,9 +137,9 @@ func TestAddFeeCredit_LockedBillForTransferFC(t *testing.T) {
 		require.Equal(t, transferFCRecord, sentAddFCAttr.FeeCreditTransfer)
 
 		// and bill must be unlocked
-		lockedBill, err := unitLocker.GetUnit(lockedTransferFCBill.UnitID)
+		units, err := unitLocker.GetUnits(accountKey.PubKey)
 		require.NoError(t, err)
-		require.Nil(t, lockedBill)
+		require.Len(t, units, 0)
 	})
 
 	t.Run("transferFC timed out => create new transferFC", func(t *testing.T) {
@@ -150,7 +149,7 @@ func TestAddFeeCredit_LockedBillForTransferFC(t *testing.T) {
 
 		// mock tx timed out and add bill to wallet
 		*moneyBackendClient = mockMoneyClient{
-			roundNumber: lockedTransferFCBill.Transactions[0].Timeout,
+			roundNumber: lockedTransferFCBill.Transactions[0].TxOrder.Timeout(),
 			bills: []*wallet.Bill{{
 				Id:     []byte{123},
 				Value:  100,
@@ -169,9 +168,9 @@ func TestAddFeeCredit_LockedBillForTransferFC(t *testing.T) {
 		require.Equal(t, []byte{123}, res.TransferFC.TxRecord.TransactionOrder.UnitID())
 
 		// and bill must be unlocked
-		lockedBill, err := unitLocker.GetUnit(lockedTransferFCBill.UnitID)
+		units, err := unitLocker.GetUnits(accountKey.PubKey)
 		require.NoError(t, err)
-		require.Nil(t, lockedBill)
+		require.Len(t, units, 0)
 	})
 
 	t.Run("transferFC still pending => re-send the transferFC", func(t *testing.T) {
@@ -181,7 +180,7 @@ func TestAddFeeCredit_LockedBillForTransferFC(t *testing.T) {
 
 		// mock tx not yet timed out
 		*moneyBackendClient = mockMoneyClient{
-			roundNumber: lockedTransferFCBill.Transactions[0].Timeout - 1,
+			roundNumber: lockedTransferFCBill.Transactions[0].TxOrder.Timeout() - 1,
 		}
 
 		// when fees are added
@@ -193,9 +192,9 @@ func TestAddFeeCredit_LockedBillForTransferFC(t *testing.T) {
 		require.Equal(t, transferFCProof, res.TransferFC)
 
 		// and bill must be unlocked
-		lockedBill, err := unitLocker.GetUnit(lockedTransferFCBill.UnitID)
+		units, err := unitLocker.GetUnits(accountKey.PubKey)
 		require.NoError(t, err)
-		require.Nil(t, lockedBill)
+		require.Len(t, units, 0)
 	})
 }
 
@@ -209,6 +208,8 @@ Wallet contains locked bill for AddFC and tx is either:
 func TestAddFeeCredit_LockedBillForAddFC(t *testing.T) {
 	// create fee manager
 	am := newAccountManager(t)
+	accountKey, err := am.GetAccountKey(0)
+	require.NoError(t, err)
 	moneyTxPublisher := &mockMoneyTxPublisher{}
 	moneyBackendClient := &mockMoneyClient{}
 	unitLocker := createUnitLocker(t)
@@ -216,20 +217,19 @@ func TestAddFeeCredit_LockedBillForAddFC(t *testing.T) {
 	signer, _ := abcrypto.NewInMemorySecp256K1Signer()
 
 	addFCRecord := &types.TransactionRecord{
-		TransactionOrder: testutils.NewAddFC(t, signer, nil),
-		ServerMetadata:   &types.ServerMetadata{ActualFee: 1},
+		TransactionOrder: testutils.NewAddFC(t, signer, nil,
+			testtransaction.WithClientMetadata(&types.ClientMetadata{Timeout: 5, MaxTransactionFee: 2})),
+		ServerMetadata: &types.ServerMetadata{ActualFee: 1},
 	}
 	addFCProof := &wallet.Proof{TxRecord: addFCRecord, TxProof: &types.TxProof{}}
-	lockedAddFCBill := &unitlock.LockedUnit{
-		UnitID:     addFCRecord.TransactionOrder.UnitID(),
-		LockReason: unitlock.ReasonAddFees,
-		Transactions: []*unitlock.Transaction{{
-			TxOrder:     addFCRecord.TransactionOrder,
-			TxHash:      addFCRecord.TransactionOrder.Hash(crypto.SHA256),
-			PayloadType: transactions.PayloadTypeAddFeeCredit,
-			Timeout:     5, // latest addition time = 10
-		}},
-	}
+	lockedUnitTxHash := []byte{200}
+	lockedAddFCBill := unitlock.NewLockedUnit(
+		accountKey.PubKey,
+		addFCRecord.TransactionOrder.UnitID(),
+		lockedUnitTxHash,
+		unitlock.LockReasonAddFees,
+		unitlock.NewTransaction(addFCRecord.TransactionOrder),
+	)
 
 	t.Run("addFC confirmed => return no error (and optionally the fee txs)", func(t *testing.T) {
 		// lock bill in db
@@ -249,7 +249,7 @@ func TestAddFeeCredit_LockedBillForAddFC(t *testing.T) {
 		require.NotNil(t, res)
 
 		// and bill must be unlocked
-		lockedBill, err := unitLocker.GetUnit(lockedAddFCBill.UnitID)
+		lockedBill, err := unitLocker.GetUnit(lockedAddFCBill.UnitID, accountKey.PubKey)
 		require.NoError(t, err)
 		require.Nil(t, lockedBill)
 	})
@@ -261,7 +261,7 @@ func TestAddFeeCredit_LockedBillForAddFC(t *testing.T) {
 
 		// mock tx timed out
 		*moneyBackendClient = mockMoneyClient{
-			roundNumber: lockedAddFCBill.Transactions[0].Timeout - 1,
+			roundNumber: lockedAddFCBill.Transactions[0].TxOrder.Timeout() - 1,
 		}
 
 		// when fees are added
@@ -273,7 +273,7 @@ func TestAddFeeCredit_LockedBillForAddFC(t *testing.T) {
 		require.Equal(t, addFCRecord, res.AddFC.TxRecord)
 
 		// and bill must be unlocked
-		lockedBill, err := unitLocker.GetUnit(lockedAddFCBill.UnitID)
+		lockedBill, err := unitLocker.GetUnit(lockedAddFCBill.UnitID, accountKey.PubKey)
 		require.NoError(t, err)
 		require.Nil(t, lockedBill)
 	})
@@ -286,7 +286,7 @@ func TestAddFeeCredit_LockedBillForAddFC(t *testing.T) {
 		// mock tx timed out
 		// tx timeout (5) < round number (6) < latest addition time (10)
 		*moneyBackendClient = mockMoneyClient{
-			roundNumber: lockedAddFCBill.Transactions[0].Timeout + 1,
+			roundNumber: lockedAddFCBill.Transactions[0].TxOrder.Timeout() + 1,
 		}
 
 		// when fees are added
@@ -300,7 +300,7 @@ func TestAddFeeCredit_LockedBillForAddFC(t *testing.T) {
 		require.EqualValues(t, moneyBackendClient.roundNumber+txTimeoutBlockCount, res.AddFC.TxRecord.TransactionOrder.Timeout())
 
 		// and bill must be unlocked
-		lockedBill, err := unitLocker.GetUnit(lockedAddFCBill.UnitID)
+		lockedBill, err := unitLocker.GetUnit(lockedAddFCBill.UnitID, accountKey.PubKey)
 		require.NoError(t, err)
 		require.Nil(t, lockedBill)
 	})
@@ -333,6 +333,8 @@ Wallet contains locked bill for closeFC and the tx is either:
 func TestReclaimFeeCredit_LockedBillForCloseFC(t *testing.T) {
 	// create fee manager
 	am := newAccountManager(t)
+	accountKey, err := am.GetAccountKey(0)
+	require.NoError(t, err)
 	moneyTxPublisher := &mockMoneyTxPublisher{}
 	moneyBackendClient := &mockMoneyClient{}
 	unitLocker := createUnitLocker(t)
@@ -343,16 +345,14 @@ func TestReclaimFeeCredit_LockedBillForCloseFC(t *testing.T) {
 		ServerMetadata:   &types.ServerMetadata{ActualFee: 1},
 	}
 	closeFCProof := &wallet.Proof{TxRecord: closeFCRecord, TxProof: &types.TxProof{}}
-	lockedCloseFCBill := &unitlock.LockedUnit{
-		UnitID:     closeFCRecord.TransactionOrder.UnitID(),
-		LockReason: unitlock.ReasonReclaimFees,
-		Transactions: []*unitlock.Transaction{{
-			TxOrder:     closeFCRecord.TransactionOrder,
-			TxHash:      closeFCRecord.TransactionOrder.Hash(crypto.SHA256),
-			PayloadType: transactions.PayloadTypeCloseFeeCredit,
-			Timeout:     10,
-		}},
-	}
+	lockedUnitTxHash := []byte{200}
+	lockedCloseFCBill := unitlock.NewLockedUnit(
+		accountKey.PubKey,
+		closeFCRecord.TransactionOrder.UnitID(),
+		lockedUnitTxHash,
+		unitlock.LockReasonReclaimFees,
+		unitlock.NewTransaction(closeFCRecord.TransactionOrder),
+	)
 
 	t.Run("closeFC confirmed => send reclaimFC using the confirmed closeFC", func(t *testing.T) {
 		// lock bill in db
@@ -379,7 +379,7 @@ func TestReclaimFeeCredit_LockedBillForCloseFC(t *testing.T) {
 		require.Equal(t, closeFCRecord, sentReclaimFCAttr.CloseFeeCreditTransfer)
 
 		// and bill must be unlocked
-		lockedBill, err := unitLocker.GetUnit(lockedCloseFCBill.UnitID)
+		lockedBill, err := unitLocker.GetUnit(accountKey.PubKey, lockedCloseFCBill.UnitID)
 		require.NoError(t, err)
 		require.Nil(t, lockedBill)
 	})
@@ -392,7 +392,7 @@ func TestReclaimFeeCredit_LockedBillForCloseFC(t *testing.T) {
 		// mock tx timed out and add bill to wallet
 		*moneyBackendClient = mockMoneyClient{
 			fcb:         &wallet.Bill{Value: 1e8, Id: []byte{111}},
-			roundNumber: lockedCloseFCBill.Transactions[0].Timeout,
+			roundNumber: lockedCloseFCBill.Transactions[0].TxOrder.Timeout(),
 			bills: []*wallet.Bill{{
 				Id:     []byte{123},
 				Value:  100,
@@ -414,10 +414,10 @@ func TestReclaimFeeCredit_LockedBillForCloseFC(t *testing.T) {
 
 		require.Equal(t, []byte{111}, res.CloseFC.TxRecord.TransactionOrder.UnitID()) // unitID matches FCB ID
 		require.Equal(t, []byte{123}, actualCloseFCAttr.TargetUnitID)                 // target unitID matches target bill ID
-		require.Equal(t, []byte{2}, actualCloseFCAttr.Nonce)                          // target nonce matches target bill txhash
+		require.Equal(t, []byte{2}, actualCloseFCAttr.TargetUnitBacklink)             // target unit backlink matches target bill txhash
 
 		// and bill must be unlocked
-		lockedBill, err := unitLocker.GetUnit(lockedCloseFCBill.UnitID)
+		lockedBill, err := unitLocker.GetUnit(accountKey.PubKey, lockedCloseFCBill.UnitID)
 		require.NoError(t, err)
 		require.Nil(t, lockedBill)
 	})
@@ -429,7 +429,7 @@ func TestReclaimFeeCredit_LockedBillForCloseFC(t *testing.T) {
 
 		// mock tx not yet timed out
 		*moneyBackendClient = mockMoneyClient{
-			roundNumber: lockedCloseFCBill.Transactions[0].Timeout - 1,
+			roundNumber: lockedCloseFCBill.Transactions[0].TxOrder.Timeout() - 1,
 		}
 
 		// when fees are reclaimed
@@ -441,7 +441,7 @@ func TestReclaimFeeCredit_LockedBillForCloseFC(t *testing.T) {
 		require.Equal(t, closeFCProof, res.CloseFC)
 
 		// and bill must be unlocked
-		lockedBill, err := unitLocker.GetUnit(lockedCloseFCBill.UnitID)
+		lockedBill, err := unitLocker.GetUnit(accountKey.PubKey, lockedCloseFCBill.UnitID)
 		require.NoError(t, err)
 		require.Nil(t, lockedBill)
 	})
@@ -457,6 +457,8 @@ Wallet contains locked bill for ReclaimFC and tx is either:
 func TestReclaimFeeCredit_LockedBillForReclaimFC(t *testing.T) {
 	// create fee manager
 	am := newAccountManager(t)
+	accountKey, err := am.GetAccountKey(0)
+	require.NoError(t, err)
 	moneyTxPublisher := &mockMoneyTxPublisher{}
 	moneyBackendClient := &mockMoneyClient{}
 	unitLocker := createUnitLocker(t)
@@ -469,16 +471,14 @@ func TestReclaimFeeCredit_LockedBillForReclaimFC(t *testing.T) {
 		ServerMetadata:   &types.ServerMetadata{ActualFee: 1},
 	}
 	reclaimFCProof := &wallet.Proof{TxRecord: reclaimFCRecord, TxProof: &types.TxProof{}}
-	lockedReclaimFCBill := &unitlock.LockedUnit{
-		UnitID:     reclaimFCRecord.TransactionOrder.UnitID(),
-		LockReason: unitlock.ReasonReclaimFees,
-		Transactions: []*unitlock.Transaction{{
-			TxOrder:     reclaimFCOrder,
-			TxHash:      reclaimFCOrder.Hash(crypto.SHA256),
-			PayloadType: transactions.PayloadTypeReclaimFeeCredit,
-			Timeout:     10,
-		}},
-	}
+	lockedUnitTxHash := []byte{200}
+	lockedReclaimFCBill := unitlock.NewLockedUnit(
+		accountKey.PubKey,
+		reclaimFCRecord.TransactionOrder.UnitID(),
+		lockedUnitTxHash,
+		unitlock.LockReasonReclaimFees,
+		unitlock.NewTransaction(reclaimFCOrder),
+	)
 
 	t.Run("reclaimFC confirmed => return no error (and optionally the fee txs)", func(t *testing.T) {
 		// lock bill in db
@@ -499,7 +499,7 @@ func TestReclaimFeeCredit_LockedBillForReclaimFC(t *testing.T) {
 		require.Equal(t, reclaimFCProof, res.ReclaimFC)
 
 		// and bill must be unlocked
-		lockedBill, err := unitLocker.GetUnit(reclaimFCOrder.UnitID())
+		lockedBill, err := unitLocker.GetUnit(accountKey.PubKey, reclaimFCOrder.UnitID())
 		require.NoError(t, err)
 		require.Nil(t, lockedBill)
 	})
@@ -511,7 +511,7 @@ func TestReclaimFeeCredit_LockedBillForReclaimFC(t *testing.T) {
 
 		// mock tx timed out
 		*moneyBackendClient = mockMoneyClient{
-			roundNumber: lockedReclaimFCBill.Transactions[0].Timeout - 1,
+			roundNumber: lockedReclaimFCBill.Transactions[0].TxOrder.Timeout() - 1,
 		}
 
 		// when fees are reclaimed
@@ -523,7 +523,7 @@ func TestReclaimFeeCredit_LockedBillForReclaimFC(t *testing.T) {
 		require.Equal(t, reclaimFCRecord, res.ReclaimFC.TxRecord)
 
 		// and bill must be unlocked
-		lockedBill, err := unitLocker.GetUnit(lockedReclaimFCBill.UnitID)
+		lockedBill, err := unitLocker.GetUnit(accountKey.PubKey, lockedReclaimFCBill.UnitID)
 		require.NoError(t, err)
 		require.Nil(t, lockedBill)
 	})
@@ -535,8 +535,8 @@ func TestReclaimFeeCredit_LockedBillForReclaimFC(t *testing.T) {
 
 		// mock tx timed out and return locked bill
 		*moneyBackendClient = mockMoneyClient{
-			roundNumber: lockedReclaimFCBill.Transactions[0].Timeout + 1,
-			bills:       []*wallet.Bill{{Id: lockedReclaimFCBill.UnitID, TxHash: lockedReclaimFCBill.Transactions[0].TxHash}}, // TODO if reclaimFC is timed out we do not have bill available
+			roundNumber: lockedReclaimFCBill.Transactions[0].TxOrder.Timeout() + 1,
+			bills:       []*wallet.Bill{{Id: lockedReclaimFCBill.UnitID, TxHash: lockedUnitTxHash}},
 		}
 
 		// when fees are reclaimed
@@ -550,7 +550,7 @@ func TestReclaimFeeCredit_LockedBillForReclaimFC(t *testing.T) {
 		require.EqualValues(t, moneyBackendClient.roundNumber+txTimeoutBlockCount, res.ReclaimFC.TxRecord.TransactionOrder.Timeout())
 
 		// and bill must be unlocked
-		lockedBill, err := unitLocker.GetUnit(lockedReclaimFCBill.UnitID)
+		lockedBill, err := unitLocker.GetUnit(accountKey.PubKey, lockedReclaimFCBill.UnitID)
 		require.NoError(t, err)
 		require.Nil(t, lockedBill)
 	})
@@ -568,7 +568,7 @@ func TestReclaimFeeCredit_LockedBillForReclaimFC(t *testing.T) {
 		// when fees are reclaimed
 		// then money lost error must be returned
 		res, err := feeManager.ReclaimFeeCredit(context.Background(), ReclaimFeeCmd{})
-		require.ErrorContains(t, err, "reclaimFC target unit hash does not match locked unit hash")
+		require.ErrorContains(t, err, "reclaimFC target unit is no longer usable")
 		require.Nil(t, res)
 	})
 }

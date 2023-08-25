@@ -21,6 +21,7 @@ import (
 )
 
 const (
+	moneyGenesisFileName      = "node-genesis.json"
 	moneyPartitionDir         = "money"
 	defaultInitialBillId      = 1
 	defaultInitialBillValue   = 1000000000000000000
@@ -143,7 +144,7 @@ func (c *moneyGenesisConfig) getNodeGenesisFileLocation(home string) string {
 	if c.Output != "" {
 		return c.Output
 	}
-	return filepath.Join(home, vdGenesisFileName)
+	return filepath.Join(home, moneyGenesisFileName)
 }
 
 func (c *moneyGenesisConfig) getPartitionParams() ([]byte, error) {

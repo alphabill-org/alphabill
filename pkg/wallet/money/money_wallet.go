@@ -16,7 +16,6 @@ import (
 	"github.com/alphabill-org/alphabill/pkg/wallet/money/backend"
 	"github.com/alphabill-org/alphabill/pkg/wallet/money/tx_builder"
 	"github.com/alphabill-org/alphabill/pkg/wallet/txsubmitter"
-	"github.com/alphabill-org/alphabill/pkg/wallet/unitlock"
 )
 
 const (
@@ -38,7 +37,7 @@ type (
 		backend       BackendAPI
 		feeManager    *fees.FeeManager
 		TxPublisher   *TxPublisher
-		unitLocker    *unitlock.UnitLocker
+		unitLocker    UnitLocker
 		dustCollector *DustCollector
 	}
 
@@ -65,6 +64,11 @@ type (
 		AccountIndex uint64
 		CountDCBills bool
 	}
+
+	DustCollectionResult struct {
+		AccountNumber uint64
+		SwapProof     *wallet.Proof
+	}
 )
 
 // CreateNewWallet creates a new wallet. To synchronize wallet with a node call Sync.
@@ -74,7 +78,7 @@ func CreateNewWallet(am account.Manager, mnemonic string) error {
 	return createMoneyWallet(mnemonic, am)
 }
 
-func LoadExistingWallet(am account.Manager, unitLocker *unitlock.UnitLocker, backend BackendAPI) (*Wallet, error) {
+func LoadExistingWallet(am account.Manager, unitLocker UnitLocker, backend BackendAPI) (*Wallet, error) {
 	moneySystemID := money.DefaultSystemIdentifier
 	moneyTxPublisher := NewTxPublisher(backend)
 	feeManager := fees.NewFeeManager(am, unitLocker, moneySystemID, moneyTxPublisher, backend, moneySystemID, moneyTxPublisher, backend)
@@ -108,12 +112,12 @@ func (w *Wallet) Close() {
 // CollectDust starts the dust collector process for the requested accounts in the wallet.
 // Dust collection process joins up to N units into existing target unit, prioritizing small units first.
 // The largest unit in wallet is selected as the target unit.
-// If accountNumber is equal to 0 then dust collection is run for all accounts, returns list of swap tx proofs indexed
-// by account indices, the proof can be nil if no swap tx was sent e.g. if there's not enough bills to swap.
+// If accountNumber is equal to 0 then dust collection is run for all accounts, returns list of swap tx proofs
+// together with account numbers, the proof can be nil if swap tx was not sent e.g. if there's not enough bills to swap.
 // If accountNumber is greater than 0 then dust collection is run only for the specific account, returns single swap tx
 // proof, the proof can be nil e.g. if there's not enough bills to swap.
-func (w *Wallet) CollectDust(ctx context.Context, accountNumber uint64) ([]*wallet.Proof, error) {
-	var swapProofs []*wallet.Proof
+func (w *Wallet) CollectDust(ctx context.Context, accountNumber uint64) ([]*DustCollectionResult, error) {
+	var res []*DustCollectionResult
 	if accountNumber == 0 {
 		for _, acc := range w.am.GetAll() {
 			accKey, err := w.am.GetAccountKey(acc.AccountIndex)
@@ -124,7 +128,10 @@ func (w *Wallet) CollectDust(ctx context.Context, accountNumber uint64) ([]*wall
 			if err != nil {
 				return nil, fmt.Errorf("dust collection failed for account number %d: %w", acc.AccountIndex+1, err)
 			}
-			swapProofs = append(swapProofs, swapProof)
+			res = append(res, &DustCollectionResult{
+				AccountNumber: acc.AccountIndex + 1,
+				SwapProof:     swapProof,
+			})
 		}
 	} else {
 		accKey, err := w.am.GetAccountKey(accountNumber - 1)
@@ -135,9 +142,12 @@ func (w *Wallet) CollectDust(ctx context.Context, accountNumber uint64) ([]*wall
 		if err != nil {
 			return nil, fmt.Errorf("dust collection failed for account number %d: %w", accountNumber, err)
 		}
-		swapProofs = append(swapProofs, swapProof)
+		res = append(res, &DustCollectionResult{
+			AccountNumber: accountNumber,
+			SwapProof:     swapProof,
+		})
 	}
-	return swapProofs, nil
+	return res, nil
 }
 
 // GetBalance returns sum value of all bills currently owned by the wallet, for given account.
@@ -182,7 +192,10 @@ func (w *Wallet) Send(ctx context.Context, cmd SendCmd) ([]*wallet.Proof, error)
 		return nil, err
 	}
 
-	pubKey, _ := w.am.GetPublicKey(cmd.AccountIndex)
+	pubKey, err := w.am.GetPublicKey(cmd.AccountIndex)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load public key: %w", err)
+	}
 	balance, err := w.backend.GetBalance(ctx, pubKey, true)
 	if err != nil {
 		return nil, err
@@ -292,7 +305,7 @@ func (w *Wallet) getUnlockedBills(ctx context.Context, pubKey []byte) ([]*wallet
 	})
 	// filter locked bills
 	for _, b := range bills {
-		lockedUnit, err := w.unitLocker.GetUnit(b.GetID())
+		lockedUnit, err := w.unitLocker.GetUnit(pubKey, b.GetID())
 		if err != nil {
 			return nil, fmt.Errorf("failed to get locked bill: %w", err)
 		}

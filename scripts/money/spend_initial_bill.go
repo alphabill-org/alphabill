@@ -87,7 +87,7 @@ func main() {
 	fcrID := util.SameShardIDBytes(billID, hash.Sum256(pubKey))
 
 	// create transferFC
-	transferFC, err := createTransferFC(feeAmount, billID, fcrID, res.RoundNumber, absoluteTimeout)
+	transferFC, err := createTransferFC(feeAmount+txFee, billID, fcrID, res.RoundNumber, absoluteTimeout)
 	if err != nil {
 		log.Fatal(err)
 	}

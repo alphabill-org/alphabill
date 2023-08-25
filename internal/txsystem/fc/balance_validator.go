@@ -47,7 +47,7 @@ func checkFeeCreditBalance(s *state.State, feeCalculator FeeCalculator) txsystem
 
 			// 8. the maximum permitted transaction cost does not exceed the fee credit balance
 			if fcr.Balance < ctx.Tx.Payload.ClientMetadata.MaxTransactionFee {
-				return errors.New("the max tx fee cannot exceed fee credit balance")
+				return fmt.Errorf("the max tx fee cannot exceed fee credit balance. FC balance %d vs max tx fee %d", fcr.Balance, ctx.Tx.Payload.ClientMetadata.MaxTransactionFee)
 			}
 		}
 

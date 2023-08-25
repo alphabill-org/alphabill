@@ -83,7 +83,10 @@ func main() {
 
 	txFee := uint64(1)
 	feeAmount := uint64(2)
-	fcrID := money.NewFeeCreditRecordID(billID, hash.Sum256(pubKey))
+	// Make the initial fcrID different from the default
+	// sha256(pubKey), so that wallet can later create it's own
+	// fcrID for the same account with a different owner condition
+	fcrID := money.NewFeeCreditRecordID(billID, hash.Sum256(hash.Sum256(pubKey)))
 
 	// create transferFC
 	transferFC, err := createTransferFC(feeAmount+txFee, billID, fcrID, res.RoundNumber, absoluteTimeout)

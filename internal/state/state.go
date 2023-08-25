@@ -167,8 +167,8 @@ func (s *State) ReleaseToSavepoint(id int) {
 }
 
 func (s *State) CalculateRoot() (uint64, []byte, error) {
-	s.mutex.RLock()
-	defer s.mutex.RUnlock()
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
 	sp := s.latestSavepoint()
 	if err := sp.Commit(); err != nil {
 		return 0, nil, err

@@ -27,7 +27,7 @@ import (
 
 type (
 	WalletBackendService interface {
-		GetBills(ownerCondition []byte, offsetKey []byte, limit int) ([]*Bill, []byte, error)
+		GetBills(ownerCondition []byte, includeDCBills bool, offsetKey []byte, limit int) ([]*Bill, []byte, error)
 		GetBill(unitID []byte) (*Bill, error)
 		GetFeeCreditBill(unitID []byte) (*Bill, error)
 		GetLockedFeeCredit(systemID, fcbID []byte) (*types.TransactionRecord, error)
@@ -77,7 +77,7 @@ type (
 		GetBlockNumber() (uint64, error)
 		SetBlockNumber(blockNumber uint64) error
 		GetBill(unitID []byte) (*Bill, error)
-		GetBills(ownerCondition []byte, offsetKey []byte, limit int) ([]*Bill, []byte, error)
+		GetBills(ownerCondition []byte, includeDCBills bool, offsetKey []byte, limit int) ([]*Bill, []byte, error)
 		SetBill(bill *Bill, proof *sdk.Proof) error
 		RemoveBill(unitID []byte) error
 		SetBillExpirationTime(blockNumber uint64, unitID []byte) error
@@ -222,14 +222,15 @@ func runBlockSync(ctx context.Context, getBlocks blocksync.BlocksLoaderFunc, get
 // GetBills returns first N=limit bills for given owner predicate starting from the offsetKey
 // or if offsetKey is nil then starting from the very first key.
 // Always returns the next key if it exists i.e. even if limit=0.
-func (w *WalletBackend) GetBills(pubkey []byte, offsetKey []byte, limit int) ([]*Bill, []byte, error) {
+// Furthermore, the next key might not match the filter (isDCBill).
+func (w *WalletBackend) GetBills(pubkey []byte, includeDCBills bool, offsetKey []byte, limit int) ([]*Bill, []byte, error) {
 	keyHashes := account.NewKeyHash(pubkey)
 	ownerPredicates := newOwnerPredicates(keyHashes)
 	nextKey := offsetKey
 	var bills []*Bill
 	for _, predicate := range [][]byte{ownerPredicates.sha256, ownerPredicates.sha512} {
 		remainingLimit := limit - len(bills)
-		batch, batchNextKey, err := w.store.Do().GetBills(predicate, nextKey, remainingLimit)
+		batch, batchNextKey, err := w.store.Do().GetBills(predicate, includeDCBills, nextKey, remainingLimit)
 		if err != nil {
 			return nil, nil, err
 		}

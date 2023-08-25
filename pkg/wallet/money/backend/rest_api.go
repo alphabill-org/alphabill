@@ -121,31 +121,21 @@ func (api *moneyRestAPI) listBillsFunc(w http.ResponseWriter, r *http.Request) {
 		api.rw.InvalidParamResponse(w, sdk.QueryParamLimit, err)
 		return
 	}
-	bills, nextKey, err := api.Service.GetBills(pk, offsetKey, limit)
+	bills, nextKey, err := api.Service.GetBills(pk, includeDCBills, offsetKey, limit)
 	if err != nil {
 		api.rw.WriteErrorResponse(w, err)
 		return
 	}
 
-	// TODO filter bills on db level
-	var filteredBills []*sdk.Bill
+	// convert to sdk struct
+	var sdkBills []*sdk.Bill
 	for _, b := range bills {
-		// filter zero value bills
-		if b.Value == 0 {
-			continue
-		}
-		// filter dc bills
-		if b.IsDCBill() {
-			if !includeDCBills {
-				continue
-			}
-		}
-		filteredBills = append(filteredBills, b.ToGenericBill())
+		sdkBills = append(sdkBills, b.ToGenericBill())
 	}
 
 	sdk.SetLinkHeader(r.URL, w, sdk.EncodeHex(nextKey))
 	api.rw.WriteResponse(w, &ListBillsResponse{
-		Bills: filteredBills,
+		Bills: sdkBills,
 	})
 }
 
@@ -213,16 +203,14 @@ func (api *moneyRestAPI) balanceFunc(w http.ResponseWriter, r *http.Request) {
 		api.rw.InvalidParamResponse(w, paramIncludeDcBills, err)
 		return
 	}
-	bills, _, err := api.Service.GetBills(pk, nil, math.MaxInt)
+	bills, _, err := api.Service.GetBills(pk, includeDCBills, nil, math.MaxInt)
 	if err != nil {
 		api.rw.WriteErrorResponse(w, err)
 		return
 	}
 	var sum uint64
 	for _, b := range bills {
-		if !b.IsDCBill() || includeDCBills {
-			sum += b.Value
-		}
+		sum += b.Value
 	}
 	res := &BalanceResponse{Balance: sum}
 	api.rw.WriteResponse(w, res)

@@ -134,30 +134,6 @@ func TestListBillsRequest_DCBillsExcluded(t *testing.T) {
 	require.Nil(t, bill.DCTargetUnitID)
 }
 
-func TestListBillsRequest_ZeroValueBillsExcluded(t *testing.T) {
-	walletBackend := newWalletBackend(t, withBills(
-		&Bill{
-			Id:             newUnitID(1),
-			Value:          1,
-			OwnerPredicate: getOwnerPredicate(pubkeyHex),
-		},
-		&Bill{
-			Id:             newUnitID(2),
-			Value:          0,
-			OwnerPredicate: getOwnerPredicate(pubkeyHex),
-		},
-	))
-	port, _ := startServer(t, walletBackend)
-
-	res := &ListBillsResponse{}
-	httpRes, err := testhttp.DoGetJson(fmt.Sprintf("http://localhost:%d/api/v1/list-bills?pubkey=%s", port, pubkeyHex), res)
-	require.NoError(t, err)
-	require.Equal(t, http.StatusOK, httpRes.StatusCode)
-	require.Len(t, res.Bills, 1)
-	bill := res.Bills[0]
-	require.EqualValues(t, 1, bill.Value)
-}
-
 func Test_txHistory(t *testing.T) {
 	walletService := newWalletBackend(t)
 	port, api := startServer(t, walletService)
@@ -272,6 +248,42 @@ func TestListBillsRequest_Paging(t *testing.T) {
 	require.EqualValues(t, 191, res.Bills[0].Value)
 	require.EqualValues(t, 200, res.Bills[9].Value)
 	verifyNoLinkHeader(t, httpRes)
+}
+
+func TestListBillsRequest_PagingWithDCBills(t *testing.T) {
+	// create 30 bills where first 10 and last 10 are dc-bills
+	var bills []*Bill
+	for i := uint64(1); i <= 30; i++ {
+		var b *Bill
+		if i <= 10 || i > 20 {
+			b = &Bill{
+				Id:                   newUnitID(i),
+				Value:                i,
+				OwnerPredicate:       getOwnerPredicate(pubkeyHex),
+				DCTargetUnitID:       test.RandomBytes(32),
+				DCTargetUnitBacklink: test.RandomBytes(32),
+			}
+		} else {
+			b = &Bill{
+				Id:             newUnitID(i),
+				Value:          i,
+				OwnerPredicate: getOwnerPredicate(pubkeyHex),
+			}
+		}
+		bills = append(bills, b)
+	}
+	walletService := newWalletBackend(t, withBills(bills...))
+	port, _ := startServer(t, walletService)
+
+	// verify first 10 non-dc bills are returned
+	res := &ListBillsResponse{}
+	httpRes, err := testhttp.DoGetJson(fmt.Sprintf("http://localhost:%d/api/v1/list-bills?pubkey=%s&includeDcBills=false&limit=10", port, pubkeyHex), res)
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, httpRes.StatusCode)
+	require.Len(t, res.Bills, 10)
+	require.EqualValues(t, 11, res.Bills[0].Value)
+	require.EqualValues(t, 20, res.Bills[9].Value)
+	verifyLinkHeader(t, httpRes, bills[20].Id)
 }
 
 func TestBalanceRequest_Ok(t *testing.T) {

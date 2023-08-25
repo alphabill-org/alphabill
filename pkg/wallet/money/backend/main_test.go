@@ -84,7 +84,7 @@ func TestWalletBackend_BillsCanBeIndexedByPredicates(t *testing.T) {
 
 	// verify first unit is indexed
 	require.Eventually(t, func() bool {
-		bills, nextKey, err := storage.Do().GetBills(bearer1, nil, 100)
+		bills, nextKey, err := storage.Do().GetBills(bearer1, true, nil, 100)
 		require.NoError(t, err)
 		require.Nil(t, nextKey)
 		return len(bills) > 0
@@ -95,7 +95,7 @@ func TestWalletBackend_BillsCanBeIndexedByPredicates(t *testing.T) {
 
 	// verify new bill is indexed by pubkey
 	require.Eventually(t, func() bool {
-		bills, nextKey, err := storage.Do().GetBills(bearer2, nil, 100)
+		bills, nextKey, err := storage.Do().GetBills(bearer2, true, nil, 100)
 		require.NoError(t, err)
 		require.Nil(t, nextKey)
 		return len(bills) > 0
@@ -134,7 +134,7 @@ func TestGetBills_OK(t *testing.T) {
 	require.Equal(t, b, bill)
 
 	// verify bill can be queried by pubkey
-	bills, nextKey, err := service.GetBills(pubkey, nil, 100)
+	bills, nextKey, err := service.GetBills(pubkey, true, nil, 100)
 	require.NoError(t, err)
 	require.Len(t, bills, 1)
 	require.Equal(t, b, bills[0])
@@ -157,7 +157,7 @@ func TestGetBills_SHA512_OK(t *testing.T) {
 	require.NoError(t, err)
 
 	// verify bill can be queried by pubkey
-	bills, nextKey, err := service.GetBills(pubkey, nil, 100)
+	bills, nextKey, err := service.GetBills(pubkey, true, nil, 100)
 	require.NoError(t, err)
 	require.Len(t, bills, 1)
 	require.Equal(t, b, bills[0])
@@ -194,28 +194,28 @@ func TestGetBills_Paging(t *testing.T) {
 	allBills = append(allBills, billsSHA512...)
 
 	// verify all bills can be queried by pubkey
-	bills, nextKey, err := service.GetBills(pubkey, nil, 100)
+	bills, nextKey, err := service.GetBills(pubkey, true, nil, 100)
 	require.NoError(t, err)
 	require.Len(t, bills, 20)
 	require.Equal(t, allBills, bills)
 	require.Nil(t, nextKey)
 
 	// verify more sha256 bills than limit; return next sha256 key
-	bills, nextKey, err = service.GetBills(pubkey, nil, 5)
+	bills, nextKey, err = service.GetBills(pubkey, true, nil, 5)
 	require.NoError(t, err)
 	require.Len(t, bills, 5)
 	require.Equal(t, billsSHA256[:5], bills)
 	require.Equal(t, billsSHA256[5].Id, nextKey)
 
 	// verify sha256 bills equal to limit; return next sha512 key
-	bills, nextKey, err = service.GetBills(pubkey, nil, 10)
+	bills, nextKey, err = service.GetBills(pubkey, true, nil, 10)
 	require.NoError(t, err)
 	require.Len(t, bills, 10)
 	require.Equal(t, billsSHA256, bills)
 	require.Equal(t, billsSHA512[0].Id, nextKey)
 
 	// verify limit exceeds sha256 bills; return all sha256 bills and some sha512 bills
-	bills, nextKey, err = service.GetBills(pubkey, nil, 15)
+	bills, nextKey, err = service.GetBills(pubkey, true, nil, 15)
 	require.NoError(t, err)
 	require.Len(t, bills, 15)
 	require.Equal(t, allBills[0:10], bills[0:10])
@@ -223,7 +223,7 @@ func TestGetBills_Paging(t *testing.T) {
 	require.Equal(t, allBills[15].Id, nextKey)
 
 	// verify limit equals exact bill count; return all bills and nextKey is nil
-	bills, nextKey, err = service.GetBills(pubkey, nil, 20)
+	bills, nextKey, err = service.GetBills(pubkey, true, nil, 20)
 	require.NoError(t, err)
 	require.Len(t, bills, 20)
 	require.Equal(t, allBills[0:10], bills[0:10])

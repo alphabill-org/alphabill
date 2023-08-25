@@ -113,7 +113,7 @@ func TestBlockProcessor_EachTxTypeCanBeProcessed(t *testing.T) {
 	require.NoError(t, err)
 
 	// verify bills exist
-	bills, nextKey, err := store.Do().GetBills(ownerCondition, nil, 100)
+	bills, nextKey, err := store.Do().GetBills(ownerCondition, true, nil, 100)
 	require.NoError(t, err)
 	require.Nil(t, nextKey)
 	require.Len(t, bills, 4)
@@ -176,10 +176,10 @@ func TestBlockProcessor_EachTxTypeCanBeProcessed(t *testing.T) {
 	require.Equal(t, lastAddFCTxHash, fcb.TxHash)
 	require.Equal(t, lastAddFCTxHash, fcb.LastAddFCTxHash)
 
-	// verify tx1 unit is zero value (whole bill transferred to fee credit)
+	// verify tx1 unit is deleted (whole bill transferred to fee credit)
 	unit1, err := store.Do().GetBill(tx1.TransactionOrder.UnitID())
 	require.NoError(t, err)
-	require.EqualValues(t, 0, unit1.Value)
+	require.Nil(t, unit1)
 
 	// process closeFC + reclaimFC (reclaim all credits to bill no 4)
 	closeFCAttr := testfc.NewCloseFCAttr(

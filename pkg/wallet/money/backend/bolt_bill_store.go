@@ -103,7 +103,7 @@ func (s *boltBillStoreTx) GetBill(unitID []byte) (*Bill, error) {
 	return unit, nil
 }
 
-func (s *boltBillStoreTx) GetBills(ownerPredicate []byte, startKey []byte, limit int) ([]*Bill, []byte, error) {
+func (s *boltBillStoreTx) GetBills(ownerPredicate []byte, includeDCBills bool, startKey []byte, limit int) ([]*Bill, []byte, error) {
 	var units []*Bill
 	var nextKey []byte
 	err := s.withTx(s.tx, func(tx *bolt.Tx) error {
@@ -117,8 +117,6 @@ func (s *boltBillStoreTx) GetBills(ownerPredicate []byte, startKey []byte, limit
 				nextKey = unitID
 				return nil
 			}
-			limit--
-
 			unit, err := s.getUnit(tx, unitID)
 			if err != nil {
 				return err
@@ -126,7 +124,11 @@ func (s *boltBillStoreTx) GetBills(ownerPredicate []byte, startKey []byte, limit
 			if unit == nil {
 				return fmt.Errorf("unit in secondary index not found in primary unit bucket unitID=%x", unitID)
 			}
+			if unit.IsDCBill() && !includeDCBills {
+				continue
+			}
 			units = append(units, unit)
+			limit--
 		}
 		return nil
 	}, false)

@@ -48,7 +48,7 @@ func TestBillStore_GetSetBills(t *testing.T) {
 	ownerPredicate2 := getOwnerPredicate("0x000000000000000000000000000000000000000000000000000000000000000002")
 
 	// verify GetBills for unknown predicate returns no error
-	billsOwner1, nextKey, err := bs.Do().GetBills(ownerPredicate1, nil, 100)
+	billsOwner1, nextKey, err := bs.Do().GetBills(ownerPredicate1, true, nil, 100)
 	require.NoError(t, err)
 	require.Nil(t, nextKey)
 	require.Len(t, billsOwner1, 0)
@@ -90,14 +90,14 @@ func TestBillStore_GetSetBills(t *testing.T) {
 	}
 
 	// get owner 1 bills by predicate
-	bills, nextKey, err := bs.Do().GetBills(ownerPredicate1, nil, 100)
+	bills, nextKey, err := bs.Do().GetBills(ownerPredicate1, true, nil, 100)
 	require.NoError(t, err)
 	require.Nil(t, nextKey)
 	require.Len(t, bills, 3)
 	require.Equal(t, billsOwner1, bills)
 
 	// get owner 2 bills by predicate
-	bills, nextKey, err = bs.Do().GetBills(ownerPredicate2, nil, 100)
+	bills, nextKey, err = bs.Do().GetBills(ownerPredicate2, true, nil, 100)
 	require.NoError(t, err)
 	require.Nil(t, nextKey)
 	require.Len(t, bills, 3)
@@ -110,16 +110,16 @@ func TestBillStore_GetSetBills(t *testing.T) {
 	require.NoError(t, err)
 
 	// then secondary indexes are updated
-	bills, nextKey, err = bs.Do().GetBills(ownerPredicate2, nil, 100)
+	bills, nextKey, err = bs.Do().GetBills(ownerPredicate2, true, nil, 100)
 	require.NoError(t, err)
 	require.Len(t, bills, 4)
 
-	bills, nextKey, err = bs.Do().GetBills(ownerPredicate1, nil, 100)
+	bills, nextKey, err = bs.Do().GetBills(ownerPredicate1, true, nil, 100)
 	require.NoError(t, err)
 	require.Len(t, bills, 2)
 
 	// test get bill for unknown owner nok
-	bills, nextKey, err = bs.Do().GetBills([]byte{1, 2, 3, 4}, nil, 100)
+	bills, nextKey, err = bs.Do().GetBills([]byte{1, 2, 3, 4}, true, nil, 100)
 	require.NoError(t, err)
 	require.Len(t, bills, 0)
 }
@@ -148,7 +148,7 @@ func TestBillStore_DeleteBill(t *testing.T) {
 	require.Nil(t, b)
 
 	// and from predicate index
-	bills, nextKey, err := bs.Do().GetBills(p1, nil, 100)
+	bills, nextKey, err := bs.Do().GetBills(p1, true, nil, 100)
 	require.NoError(t, err)
 	require.Nil(t, nextKey)
 	require.Len(t, bills, 0)
@@ -174,7 +174,7 @@ func TestBillStore_DeleteExpiredBills(t *testing.T) {
 	require.NoError(t, err)
 
 	// then expired bills should be deleted
-	bills, nextKey, err := s.Do().GetBills(bearer, nil, 100)
+	bills, nextKey, err := s.Do().GetBills(bearer, true, nil, 100)
 	require.NoError(t, err)
 	require.Nil(t, nextKey)
 	require.Len(t, bills, 0)
@@ -344,28 +344,28 @@ func TestBillStore_Paging(t *testing.T) {
 	}
 
 	// get all bills
-	actualBills, nextKey, err := bs.Do().GetBills(ownerPredicate, nil, 100)
+	actualBills, nextKey, err := bs.Do().GetBills(ownerPredicate, true, nil, 100)
 	require.NoError(t, err)
 	require.Nil(t, nextKey)
 	require.Len(t, actualBills, 10)
 	require.Equal(t, bills, actualBills)
 
 	// get first 5 bills
-	actualBills, nextKey, err = bs.Do().GetBills(ownerPredicate, nil, 5)
+	actualBills, nextKey, err = bs.Do().GetBills(ownerPredicate, true, nil, 5)
 	require.NoError(t, err)
 	require.Len(t, actualBills, 5)
 	require.Equal(t, bills[:5], actualBills)
 	require.Equal(t, bills[5].Id, nextKey)
 
 	// get 5 bills starting from second bill
-	actualBills, nextKey, err = bs.Do().GetBills(ownerPredicate, bills[1].Id, 5)
+	actualBills, nextKey, err = bs.Do().GetBills(ownerPredicate, true, bills[1].Id, 5)
 	require.NoError(t, err)
 	require.Len(t, actualBills, 5)
 	require.Equal(t, bills[1:6], actualBills)
 	require.Equal(t, bills[6].Id, nextKey)
 
 	// get 5 bills starting from second to last bill
-	actualBills, nextKey, err = bs.Do().GetBills(ownerPredicate, bills[8].Id, 5)
+	actualBills, nextKey, err = bs.Do().GetBills(ownerPredicate, true, bills[8].Id, 5)
 	require.NoError(t, err)
 	require.Len(t, actualBills, 2)
 	require.Nil(t, nextKey)
@@ -384,10 +384,34 @@ func TestBillStore_Paging_SeekToInvalidKey(t *testing.T) {
 
 	// verify that starting from ID 4 does not return bill with ID 5
 	invalidID := util.Uint64ToBytes32(4)
-	bills, nextKey, err := bs.Do().GetBills(ownerPredicate, invalidID, 100)
+	bills, nextKey, err := bs.Do().GetBills(ownerPredicate, true, invalidID, 100)
 	require.NoError(t, err)
 	require.Nil(t, nextKey)
 	require.Len(t, bills, 0)
+}
+
+func TestBillStore_Paging_FilterDCBills(t *testing.T) {
+	bs := createTestBillStore(t)
+	pubKey := "0x000000000000000000000000000000000000000000000000000000000000000001"
+	ownerPredicate := getOwnerPredicate(pubKey)
+
+	// add bills
+	var bills []*Bill
+	for i := 0; i < 10; i++ {
+		b := newBillWithValueAndOwner(uint64(i), ownerPredicate)
+		b.DCTargetUnitID = test.RandomBytes(32)
+		b.DCTargetUnitBacklink = test.RandomBytes(32)
+		bills = append(bills, b)
+
+		err := bs.Do().SetBill(b, nil)
+		require.NoError(t, err)
+	}
+
+	// get all bills
+	actualBills, nextKey, err := bs.Do().GetBills(ownerPredicate, false, nil, 100)
+	require.NoError(t, err)
+	require.Len(t, actualBills, 0)
+	require.Nil(t, nextKey)
 }
 
 func createTestBillStore(t *testing.T) *boltBillStore {

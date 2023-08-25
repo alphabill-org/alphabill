@@ -154,29 +154,39 @@ paths:
                 $ref: 'components.yaml#/schemas/ErrorResponse'
         default:
           $ref: 'components.yaml#/responses/ErrorResponse'
-  /fee-credit-bills/{billId}:
+  /fee-credit-bills/{unitId}:
     get:
       summary: Get a fee credit bill and its latest transaction proof by bill ID
       description: |-
-        Returns the fee credit bill together with the latest
-        transaction proof for it.
+        Returns fee credit bill for the given unit ID.
       parameters:
-        - name: billId
-          description: ID of the bill (hex)
+        - name: unitId
+          description: |-
+            Hex encoded free credit unit ID (SHA256 hash of private
+            key) prefixed with `0x`.  Must be 66 characters long
+            (including the `0x` prefix).
           in: path
           required: true
           schema:
-            type: string
+            $ref: 'components.yaml#/schemas/UnitIDParam'
       responses:
         '200':
-          description: Successful operation
+          description: Fee credit bill returned
           content:
             application/json:
               schema:
-                $ref: 'components.yaml#/schemas/Bill'
+                type: object
+                items:
+                  $ref: 'components.yaml#/schemas/Bill'
+        '404':
+          description: Fee credit bill was not found for given bill ID
+          content:
+            application/json:
+              schema:
+                $ref: 'components.yaml#/schemas/ErrorResponse'
         default:
           $ref: 'components.yaml#/responses/ErrorResponse'
-  /locked-fee-credit/{systemId}/{billId}:
+  /locked-fee-credit/{systemId}/{unitId}:
     get:
       summary: Get the last transferFC transaction for the given partition and fee credit bill
       description: Get the last transferFC transaction for the given partition and fee credit bill
@@ -187,7 +197,7 @@ paths:
           required: true
           schema:
             type: string
-        - name: billId
+        - name: unitId
           description: Target fee credit bill ID (hex)
           in: path
           required: true
@@ -203,12 +213,12 @@ paths:
                 format: binary
         default:
           $ref: 'components.yaml#/responses/ErrorResponse'
-  /closed-fee-credit/{billId}:
+  /closed-fee-credit/{unitId}:
     get:
       summary: Get the last seen closeFC transaction for the given fee credit bill
       description: Get the last seen closeFC transaction for the given fee credit bill
       parameters:
-        - name: billId
+        - name: unitId
           description: Target fee credit bill ID (hex)
           in: path
           required: true

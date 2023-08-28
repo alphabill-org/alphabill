@@ -86,9 +86,8 @@ func TestBlockProcessor_EachTxTypeCanBeProcessed(t *testing.T) {
 		UnicityCertificate: &types.UnicityCertificate{InputRecord: &types.InputRecord{RoundNumber: 1}},
 	}
 
-	store, err := createTestBillStore(t)
-	require.NoError(t, err)
-	err = store.Do().SetFeeCreditBill(fcb, nil)
+	store := createTestBillStore(t)
+	err := store.Do().SetFeeCreditBill(fcb, nil)
 	require.NoError(t, err)
 	// store existing bill for dc transfer and swap transfer
 	err = store.Do().SetBill(&Bill{Id: tx2.TransactionOrder.UnitID(), OwnerPredicate: ownerCondition}, nil)
@@ -114,8 +113,9 @@ func TestBlockProcessor_EachTxTypeCanBeProcessed(t *testing.T) {
 	require.NoError(t, err)
 
 	// verify bills exist
-	bills, err := store.Do().GetBills(ownerCondition)
+	bills, nextKey, err := store.Do().GetBills(ownerCondition, true, nil, 100)
 	require.NoError(t, err)
+	require.Nil(t, nextKey)
 	require.Len(t, bills, 4)
 	for _, bill := range bills {
 		proof, err := store.Do().GetTxProof(bill.Id, bill.TxHash)
@@ -176,10 +176,10 @@ func TestBlockProcessor_EachTxTypeCanBeProcessed(t *testing.T) {
 	require.Equal(t, lastAddFCTxHash, fcb.TxHash)
 	require.Equal(t, lastAddFCTxHash, fcb.LastAddFCTxHash)
 
-	// verify tx1 unit is zero value (whole bill transferred to fee credit)
+	// verify tx1 unit is deleted (whole bill transferred to fee credit)
 	unit1, err := store.Do().GetBill(tx1.TransactionOrder.UnitID())
 	require.NoError(t, err)
-	require.EqualValues(t, 0, unit1.Value)
+	require.Nil(t, unit1)
 
 	// process closeFC + reclaimFC (reclaim all credits to bill no 4)
 	closeFCAttr := testfc.NewCloseFCAttr(
@@ -248,12 +248,9 @@ func TestBlockProcessor_EachTxTypeCanBeProcessed(t *testing.T) {
 func TestBlockProcessor_TransferAndReclaimFeeCycle_TargetMoneyPartition(t *testing.T) {
 	fcbID := newUnitID(101)
 	signer, _ := crypto.NewInMemorySecp256K1Signer()
-
-	store, err := createTestBillStore(t)
-	require.NoError(t, err)
-
+	store := createTestBillStore(t)
 	userBillID := []byte{1}
-	err = store.Do().SetBill(&Bill{
+	err := store.Do().SetBill(&Bill{
 		Id:             userBillID,
 		Value:          100,
 		TxHash:         []byte{2},
@@ -416,12 +413,10 @@ func TestBlockProcessor_TransferAndReclaimFeeCycle_TargetMoneyPartition(t *testi
 func TestBlockProcessor_TransferAndReclaimFeeCycle_TargetTokenPartition(t *testing.T) {
 	fcbID := newUnitID(101)
 	signer, _ := crypto.NewInMemorySecp256K1Signer()
-
-	store, err := createTestBillStore(t)
-	require.NoError(t, err)
+	store := createTestBillStore(t)
 
 	userBillID := []byte{1}
-	err = store.Do().SetBill(&Bill{
+	err := store.Do().SetBill(&Bill{
 		Id:             userBillID,
 		Value:          100,
 		TxHash:         []byte{2},
@@ -612,11 +607,10 @@ func TestBlockProcessor_TransferAndReclaimFeeCycle_TargetTokenPartition(t *testi
 
 func TestBlockProcessor_LockedAndClosedFeeCredit_CanBeSaved(t *testing.T) {
 	fcbID := newUnitID(101)
-	store, err := createTestBillStore(t)
-	require.NoError(t, err)
+	store := createTestBillStore(t)
 
 	userBillID := []byte{1}
-	err = store.Do().SetBill(&Bill{
+	err := store.Do().SetBill(&Bill{
 		Id:             userBillID,
 		Value:          100,
 		TxHash:         []byte{2},

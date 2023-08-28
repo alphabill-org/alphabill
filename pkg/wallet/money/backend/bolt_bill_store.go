@@ -103,14 +103,20 @@ func (s *boltBillStoreTx) GetBill(unitID []byte) (*Bill, error) {
 	return unit, nil
 }
 
-func (s *boltBillStoreTx) GetBills(ownerPredicate []byte) ([]*Bill, error) {
+func (s *boltBillStoreTx) GetBills(ownerPredicate []byte, includeDCBills bool, startKey []byte, limit int) ([]*Bill, []byte, error) {
 	var units []*Bill
+	var nextKey []byte
 	err := s.withTx(s.tx, func(tx *bolt.Tx) error {
 		unitIDBucket := tx.Bucket(predicatesBucket).Bucket(ownerPredicate)
 		if unitIDBucket == nil {
 			return nil
 		}
-		return unitIDBucket.ForEach(func(unitID, _ []byte) error {
+		c := unitIDBucket.Cursor()
+		for unitID, _ := setPosition(c, startKey); unitID != nil; unitID, _ = c.Next() {
+			if limit == 0 {
+				nextKey = unitID
+				return nil
+			}
 			unit, err := s.getUnit(tx, unitID)
 			if err != nil {
 				return err
@@ -118,14 +124,18 @@ func (s *boltBillStoreTx) GetBills(ownerPredicate []byte) ([]*Bill, error) {
 			if unit == nil {
 				return fmt.Errorf("unit in secondary index not found in primary unit bucket unitID=%x", unitID)
 			}
+			if unit.IsDCBill() && !includeDCBills {
+				continue
+			}
 			units = append(units, unit)
-			return nil
-		})
+			limit--
+		}
+		return nil
 	}, false)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	return units, nil
+	return units, nextKey, nil
 }
 
 func (s *boltBillStoreTx) SetBill(bill *Bill, proof *sdk.Proof) error {
@@ -534,4 +544,15 @@ func (s *boltBillStore) initMetaData() error {
 		}
 		return nil
 	})
+}
+
+func setPosition(c *bolt.Cursor, key []byte) ([]byte, []byte) {
+	if key != nil {
+		k, v := c.Seek(key)
+		if !bytes.Equal(k, key) {
+			return nil, nil
+		}
+		return k, v
+	}
+	return c.First()
 }

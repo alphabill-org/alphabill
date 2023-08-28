@@ -19,19 +19,27 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-//	contract Counter {
-//	 uint256 count = 0;
+// contract Counter {
 //
-//	 function increment() public returns (uint256) {
-//	   count++;
+//	 uint256 value=0;
+//
+//	 event Increment(
+//	     uint256 indexed newValue
+//	 );
+//
+//	 function increment() public returns(uint256) {
+//	     value++;
+//	     emit Increment(value);
+//	     return value;
 //	 }
 //
-//	 function get() public view returns (uint256){
-//	   return count;
-//	 }
+//	 function get() public view returns (uint256) {
+//	    return value;
 //	}
-const counterContractCode = "60806040526000805534801561001457600080fd5b50610182806100246000396000f3fe608060405234801561001057600080fd5b50600436106100365760003560e01c80636d4ce63c1461003b578063d09de08a14610059575b600080fd5b610043610077565b60405161005091906100ba565b60405180910390f35b610061610080565b60405161006e91906100ba565b60405180910390f35b60008054905090565b600080600081548092919061009490610104565b9190505550600054905090565b6000819050919050565b6100b4816100a1565b82525050565b60006020820190506100cf60008301846100ab565b92915050565b7f4e487b7100000000000000000000000000000000000000000000000000000000600052601160045260246000fd5b600061010f826100a1565b91507fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff8203610141576101406100d5565b5b60018201905091905056fea2646970667358221220b29225b3d241fa8f111f1815e66aa98f82e8014e2ee748995fbc05f8852cf07c64736f6c63430008120033"
-const counterABI = "[{\"inputs\":[],\"name\":\"get\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"increment\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"nonpayable\",\"type\":\"function\"}]"
+//
+// }
+const counterContractCode = "60806040526000805534801561001457600080fd5b506101b1806100246000396000f3fe608060405234801561001057600080fd5b50600436106100365760003560e01c80636d4ce63c1461003b578063d09de08a14610059575b600080fd5b610043610077565b60405161005091906100e9565b60405180910390f35b610061610080565b60405161006e91906100e9565b60405180910390f35b60008054905090565b600080600081548092919061009490610133565b91905055506000547f51af157c2eee40f68107a47a49c32fbbeb0a3c9e5cd37aa56e88e6be92368a8160405160405180910390a2600054905090565b6000819050919050565b6100e3816100d0565b82525050565b60006020820190506100fe60008301846100da565b92915050565b7f4e487b7100000000000000000000000000000000000000000000000000000000600052601160045260246000fd5b600061013e826100d0565b91507fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff82036101705761016f610104565b5b60018201905091905056fea2646970667358221220e77ebad0c44e3c4060e53c55352c0cc28d52a30710a3437aa1345775714eeb1f64736f6c63430008120033"
+const counterABI = "[\n\t{\n\t\t\"anonymous\": false,\n\t\t\"inputs\": [\n\t\t\t{\n\t\t\t\t\"indexed\": true,\n\t\t\t\t\"internalType\": \"uint256\",\n\t\t\t\t\"name\": \"newValue\",\n\t\t\t\t\"type\": \"uint256\"\n\t\t\t}\n\t\t],\n\t\t\"name\": \"Increment\",\n\t\t\"type\": \"event\"\n\t},\n\t{\n\t\t\"inputs\": [],\n\t\t\"name\": \"get\",\n\t\t\"outputs\": [\n\t\t\t{\n\t\t\t\t\"internalType\": \"uint256\",\n\t\t\t\t\"name\": \"\",\n\t\t\t\t\"type\": \"uint256\"\n\t\t\t}\n\t\t],\n\t\t\"stateMutability\": \"view\",\n\t\t\"type\": \"function\"\n\t},\n\t{\n\t\t\"inputs\": [],\n\t\t\"name\": \"increment\",\n\t\t\"outputs\": [\n\t\t\t{\n\t\t\t\t\"internalType\": \"uint256\",\n\t\t\t\t\"name\": \"\",\n\t\t\t\t\"type\": \"uint256\"\n\t\t\t}\n\t\t],\n\t\t\"stateMutability\": \"nonpayable\",\n\t\t\"type\": \"function\"\n\t}\n]"
 
 var systemIdentifier = []byte{0, 0, 4, 2}
 
@@ -86,6 +94,14 @@ func TestEVMPartition_DeployAndCallContract(t *testing.T) {
 	// expect count uint256 = 1
 	count := uint256.NewInt(1)
 	require.EqualValues(t, count.PaddedBytes(32), details.ReturnData)
+	require.Len(t, details.Logs, 1)
+
+	entry := details.Logs[0]
+	require.Len(t, entry.Topics, 2)
+	require.Equal(t, common.BytesToHash(evmcrypto.Keccak256([]byte(cABI.Events["Increment"].Sig))), entry.Topics[0])
+	require.Equal(t, common.BytesToHash(count.PaddedBytes(32)), entry.Topics[1])
+	require.Equal(t, contractAddr, entry.Address)
+	require.Nil(t, entry.Data)
 }
 
 func createTransferTx(t *testing.T, from []byte, to []byte) *types.TransactionOrder {

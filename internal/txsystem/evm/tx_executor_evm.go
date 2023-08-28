@@ -25,15 +25,6 @@ const (
 	txGasContractCreation uint64 = 53000 // Per transaction that creates a contract
 )
 
-type (
-	ProcessingDetails struct {
-		_            struct{} `cbor:",toarray"`
-		ErrorDetails string
-		ReturnData   []byte
-		ContractAddr common.Address
-	}
-)
-
 var (
 	emptyCodeHash = ethcrypto.Keccak256Hash(nil)
 
@@ -41,6 +32,16 @@ var (
 	errInsufficientFundsForTransfer = errors.New("insufficient funds for transfer")
 	errSenderNotEOA                 = errors.New("sender not an eoa")
 	errGasOverflow                  = errors.New("gas uint64 overflow")
+)
+
+type (
+	ProcessingDetails struct {
+		_            struct{} `cbor:",toarray"`
+		ErrorDetails string
+		ReturnData   []byte
+		ContractAddr common.Address
+		Logs         []*statedb.LogEntry
+	}
 )
 
 func (d *ProcessingDetails) Bytes() ([]byte, error) {
@@ -150,6 +151,9 @@ func execute(currentBlockNumber uint64, stateDB *statedb.StateDB, attr *TxAttrib
 		ReturnData:   ret,
 		ContractAddr: contractAddr,
 		ErrorDetails: errorToStr(errorDetail),
+	}
+	if errorDetail == nil {
+		evmProcessingDetails.Logs = stateDB.GetLogs()
 	}
 	detailBytes, err := evmProcessingDetails.Bytes()
 	if err != nil {

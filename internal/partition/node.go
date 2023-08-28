@@ -271,7 +271,7 @@ func verifyTxSystemState(state txsystem.State, sumOfEarnedFees uint64, ucIR *typ
 		return errors.New("unicity certificate input record is nil")
 	}
 	if !bytes.Equal(ucIR.Hash, state.Root()) {
-		return fmt.Errorf("tx system state does not match unicity certificate")
+		return fmt.Errorf("tx system state does not match unicity certificate, expected '%X', got '%X'", ucIR.Hash, state.Root())
 	} else if !bytes.Equal(ucIR.SummaryValue, state.Summary()) {
 		return fmt.Errorf("tx system summary value %X not equal to unicity certificte value %X", ucIR.SummaryValue, state.Summary())
 	} else if ucIR.SumOfEarnedFees != sumOfEarnedFees {

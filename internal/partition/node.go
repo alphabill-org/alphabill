@@ -674,15 +674,6 @@ func (n *Node) handleUnicityCertificate(ctx context.Context, uc *types.UnicityCe
 	luc := n.luc.Load()
 	logger.Debug("Received Unicity Certificate:\nH:\t%X\nH':\t%X\nHb:\t%X\nfees:\t%d", uc.InputRecord.Hash, uc.InputRecord.PreviousHash, uc.InputRecord.BlockHash, uc.InputRecord.SumOfEarnedFees)
 	logger.Debug("LUC:\nH:\t%X\nH':\t%X\nHb:\t%X\nfees:\t%d", luc.InputRecord.Hash, luc.InputRecord.PreviousHash, luc.InputRecord.BlockHash, luc.InputRecord.SumOfEarnedFees)
-	// ignore duplicates
-	if bytes.Equal(luc.InputRecord.Bytes(), uc.InputRecord.Bytes()) {
-		if n.status.Load() == initializing {
-			// first UC seen and as and node is already up-to-date
-			// either starting from genesis or a very quick restart
-			n.startNewRound(ctx, uc)
-		}
-		return nil
-	}
 
 	// check for equivocation
 	if err := types.CheckNonEquivocatingCertificates(luc, uc); err != nil {

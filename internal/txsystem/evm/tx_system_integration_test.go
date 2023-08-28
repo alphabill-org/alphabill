@@ -65,7 +65,7 @@ func TestEVMPartition_DeployAndCallContract(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, details.ErrorDetails, "")
 	// call contract
-	contractAddr := evmcrypto.CreateAddress(common.BytesToAddress(from), 0)
+	contractAddr := evmcrypto.CreateAddress(common.BytesToAddress(from), 1)
 	require.Equal(t, details.ContractAddr, contractAddr)
 	require.NotEmpty(t, details.ReturnData) // increment does not return anything
 
@@ -94,6 +94,7 @@ func createTransferTx(t *testing.T, from []byte, to []byte) *types.TransactionOr
 		To:    to,
 		Value: big.NewInt(1000),
 		Gas:   0, // transfer does not cost gas
+		Nonce: 0,
 	}
 	attrBytes, err := cbor.Marshal(evmAttr)
 	require.NoError(t, err)
@@ -116,6 +117,7 @@ func createCallContractTx(from []byte, addr common.Address, methodID []byte, t *
 		Data:  methodID,
 		Value: big.NewInt(0),
 		Gas:   100000,
+		Nonce: 2,
 	}
 	attrBytes, err := cbor.Marshal(evmAttr)
 	require.NoError(t, err)
@@ -137,6 +139,7 @@ func createDeployContractTx(t *testing.T, from []byte) *types.TransactionOrder {
 		Data:  common.Hex2Bytes(counterContractCode),
 		Value: big.NewInt(0),
 		Gas:   1000000,
+		Nonce: 1,
 	}
 	attrBytes, err := cbor.Marshal(evmAttr)
 	require.NoError(t, err)

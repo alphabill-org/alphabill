@@ -47,6 +47,7 @@ func BenchmarkCallContract(b *testing.B) {
 		Data:  inc.ID,
 		Gas:   10000000,
 		Value: big.NewInt(0),
+		Nonce: 1,
 	}
 	b.ResetTimer()
 	b.Run("call counter contract", func(b *testing.B) {
@@ -54,27 +55,38 @@ func BenchmarkCallContract(b *testing.B) {
 			if _, err = execute(2, stateDB, callContract, systemIdentifier, gasPool, gasPrice); err != nil {
 				b.Fatal("call transaction failed, %w", err)
 			}
+			callContract.Nonce += 1
 		}
 	})
 }
 
-func initStateDBWithAccountAndSC(t *testing.T, eoaAddr common.Address, balance uint64) *statedb.StateDB {
+type testAccount struct {
+	Addr    common.Address
+	Balance uint64
+	Nonce   uint64
+}
+
+func initStateDBWithAccountAndSC(t *testing.T, eoa *testAccount) *statedb.StateDB {
 	t.Helper()
 	s := abstate.NewEmptyState()
 	stateDB := statedb.NewStateDB(s)
-	stateDB.CreateAccount(eoaAddr)
-	stateDB.AddBalance(eoaAddr, big.NewInt(int64(balance)))
+	stateDB.CreateAccount(eoa.Addr)
+	stateDB.AddBalance(eoa.Addr, big.NewInt(int64(eoa.Balance)))
 	// deploy a contract
 	evmAttr := &TxAttributes{
-		From:  eoaAddr.Bytes(),
+		From:  eoa.Addr.Bytes(),
 		Data:  common.Hex2Bytes(counterContractCode),
 		Value: big.NewInt(0),
 		Gas:   1000000000000000,
+		Nonce: 0,
 	}
 	blockCtx := newBlockContext(0)
 	evm := vm.NewEVM(blockCtx, newTxContext(evmAttr, big.NewInt(0)), stateDB, newChainConfig(new(big.Int).SetBytes(systemIdentifier)), newVMConfig())
-	_, _, _, err := evm.Create(vm.AccountRef(eoaAddr), evmAttr.Data, 1000000000000000, evmAttr.Value)
+	_, _, _, err := evm.Create(vm.AccountRef(eoa.Addr), evmAttr.Data, 1000000000000000, evmAttr.Value)
 	require.NoError(t, err)
+	if eoa.Nonce != 0 {
+		stateDB.SetNonce(eoa.Addr, eoa.Nonce)
+	}
 	require.NoError(t, stateDB.DBError())
 	return stateDB
 }
@@ -99,6 +111,7 @@ func Test_validate(t *testing.T) {
 					From:  nil,
 					Value: big.NewInt(0),
 					Gas:   10,
+					Nonce: 0,
 				},
 				stateDB: statedb.NewStateDB(s),
 			},
@@ -111,6 +124,7 @@ func Test_validate(t *testing.T) {
 					From:  fromAddr.Bytes(),
 					Value: nil,
 					Gas:   10,
+					Nonce: 0,
 				},
 				stateDB: statedb.NewStateDB(s),
 			},
@@ -135,8 +149,9 @@ func Test_validate(t *testing.T) {
 					From:  evmcrypto.CreateAddress(common.BytesToAddress(fromAddr.Bytes()), 0).Bytes(),
 					Value: big.NewInt(0),
 					Gas:   1000000,
+					Nonce: 1,
 				},
-				stateDB: initStateDBWithAccountAndSC(t, fromAddr, 1000000000000),
+				stateDB: initStateDBWithAccountAndSC(t, &testAccount{Addr: fromAddr, Balance: 1000000000000}),
 			},
 			wantErrStr: errSenderNotEOA.Error(),
 		},
@@ -147,10 +162,50 @@ func Test_validate(t *testing.T) {
 					From:  fromAddr.Bytes(),
 					Value: big.NewInt(0),
 					Gas:   1000000,
+					Nonce: 1,
 				},
-				stateDB: initStateDBWithAccountAndSC(t, fromAddr, 10),
+				stateDB: initStateDBWithAccountAndSC(t, &testAccount{Addr: fromAddr, Balance: 10}),
 			},
 			wantErrStr: errInsufficientFunds.Error(),
+		},
+		{
+			name: "err - nonce too high",
+			args: args{
+				attr: &TxAttributes{
+					From:  fromAddr.Bytes(),
+					Value: big.NewInt(0),
+					Gas:   10,
+					Nonce: 2,
+				},
+				stateDB: initStateDBWithAccountAndSC(t, &testAccount{Addr: fromAddr, Balance: 10 * DefaultGasPrice}),
+			},
+			wantErrStr: "nonce too high",
+		},
+		{
+			name: "err - nonce too low",
+			args: args{
+				attr: &TxAttributes{
+					From:  fromAddr.Bytes(),
+					Value: big.NewInt(0),
+					Gas:   10,
+					Nonce: 0,
+				},
+				stateDB: initStateDBWithAccountAndSC(t, &testAccount{Addr: fromAddr, Balance: 10 * DefaultGasPrice, Nonce: 2}),
+			},
+			wantErrStr: "nonce too low",
+		},
+		{
+			name: "err - nonce overflow",
+			args: args{
+				attr: &TxAttributes{
+					From:  fromAddr.Bytes(),
+					Value: big.NewInt(0),
+					Gas:   10,
+					Nonce: math.MaxUint64,
+				},
+				stateDB: initStateDBWithAccountAndSC(t, &testAccount{Addr: fromAddr, Balance: 10 * DefaultGasPrice, Nonce: math.MaxUint64}),
+			},
+			wantErrStr: "nonce has max value",
 		},
 		{
 			name: "ok - exact amount",
@@ -159,8 +214,9 @@ func Test_validate(t *testing.T) {
 					From:  fromAddr.Bytes(),
 					Value: big.NewInt(0),
 					Gas:   10,
+					Nonce: 1,
 				},
-				stateDB: initStateDBWithAccountAndSC(t, fromAddr, 10*DefaultGasPrice),
+				stateDB: initStateDBWithAccountAndSC(t, &testAccount{Addr: fromAddr, Balance: 10 * DefaultGasPrice}),
 			},
 		},
 	}
@@ -206,6 +262,7 @@ func Test_execute(t *testing.T) {
 					Gas:   10,
 				},
 				stateDB: statedb.NewStateDB(s),
+				gp:      new(core.GasPool).AddGas(DefaultBlockGasLimit),
 			},
 			wantErrStr:           "invalid evm tx, from addr is nil",
 			wantSuccessIndicator: types.TxStatusFailed,
@@ -218,8 +275,10 @@ func Test_execute(t *testing.T) {
 					From:  fromAddr.Bytes(),
 					Value: big.NewInt(0),
 					Gas:   10,
+					Nonce: 1,
 				},
-				stateDB: initStateDBWithAccountAndSC(t, fromAddr, 1000000),
+				stateDB: initStateDBWithAccountAndSC(t, &testAccount{Addr: fromAddr, Balance: 1000000 * DefaultGasPrice}),
+				gp:      new(core.GasPool).AddGas(DefaultBlockGasLimit),
 			},
 			wantErrStr:           errInsufficientFunds.Error(),
 			wantSuccessIndicator: types.TxStatusFailed,
@@ -232,9 +291,10 @@ func Test_execute(t *testing.T) {
 					From:  fromAddr.Bytes(),
 					Value: big.NewInt(0),
 					Gas:   1000,
+					Nonce: 1,
 				},
 				gp:      new(core.GasPool).AddGas(100),
-				stateDB: initStateDBWithAccountAndSC(t, fromAddr, 1000*DefaultGasPrice+1),
+				stateDB: initStateDBWithAccountAndSC(t, &testAccount{Addr: fromAddr, Balance: 1000*DefaultGasPrice + 1}),
 			},
 			wantErrStr:           "block limit error: gas limit reached",
 			wantSuccessIndicator: types.TxStatusFailed,
@@ -247,9 +307,10 @@ func Test_execute(t *testing.T) {
 					From:  fromAddr.Bytes(),
 					Value: big.NewInt(0),
 					Gas:   1000,
+					Nonce: 1,
 				},
 				gp:      new(core.GasPool).AddGas(100000),
-				stateDB: initStateDBWithAccountAndSC(t, fromAddr, 1000*DefaultGasPrice+1),
+				stateDB: initStateDBWithAccountAndSC(t, &testAccount{Addr: fromAddr, Balance: 1000*DefaultGasPrice + 1}),
 			},
 			wantErrStr:           "tx intrinsic cost higher than max gas",
 			wantSuccessIndicator: types.TxStatusFailed,
@@ -264,9 +325,10 @@ func Test_execute(t *testing.T) {
 					Value: big.NewInt(0),
 					Data:  cABI.Methods["increment"].ID,
 					Gas:   2300,
+					Nonce: 1,
 				},
 				gp:      new(core.GasPool).AddGas(100000),
-				stateDB: initStateDBWithAccountAndSC(t, fromAddr, 2500*DefaultGasPrice),
+				stateDB: initStateDBWithAccountAndSC(t, &testAccount{Addr: fromAddr, Balance: 2500 * DefaultGasPrice}),
 			},
 			// wantErrStr - no error, add failing transaction to block, work was done and fees will be taken
 			wantSuccessIndicator: types.TxStatusFailed,
@@ -283,9 +345,10 @@ func Test_execute(t *testing.T) {
 					To:    test.RandomBytes(20),
 					Value: big.NewInt(10),
 					Gas:   0,
+					Nonce: 1,
 				},
 				gp:      new(core.GasPool).AddGas(100),
-				stateDB: initStateDBWithAccountAndSC(t, fromAddr, 1),
+				stateDB: initStateDBWithAccountAndSC(t, &testAccount{Addr: fromAddr, Balance: 1}),
 			},
 			wantErrStr:           "insufficient funds for transfer",
 			wantSuccessIndicator: types.TxStatusFailed,
@@ -300,9 +363,10 @@ func Test_execute(t *testing.T) {
 					Value: big.NewInt(0),
 					Data:  make([]byte, 4),
 					Gas:   53000,
+					Nonce: 1,
 				},
 				gp:      new(core.GasPool).AddGas(100000),
-				stateDB: initStateDBWithAccountAndSC(t, fromAddr, 53000*DefaultGasPrice+1),
+				stateDB: initStateDBWithAccountAndSC(t, &testAccount{Addr: fromAddr, Balance: 53000*DefaultGasPrice + 1}),
 			},
 			wantSuccessIndicator: types.TxStatusFailed,
 			wantDetails: &ProcessingDetails{
@@ -319,9 +383,10 @@ func Test_execute(t *testing.T) {
 					To:    test.RandomBytes(20),
 					Value: big.NewInt(10),
 					Gas:   0,
+					Nonce: 1,
 				},
 				gp:      new(core.GasPool).AddGas(100),
-				stateDB: initStateDBWithAccountAndSC(t, fromAddr, 100),
+				stateDB: initStateDBWithAccountAndSC(t, &testAccount{Addr: fromAddr, Balance: 100 * DefaultGasPrice}),
 			},
 			wantSuccessIndicator: types.TxStatusSuccessful,
 			wantDetails: &ProcessingDetails{
@@ -337,9 +402,10 @@ func Test_execute(t *testing.T) {
 					Value: big.NewInt(0),
 					Data:  cABI.Methods["get"].ID,
 					Gas:   53000,
+					Nonce: 1,
 				},
 				gp:      new(core.GasPool).AddGas(100000),
-				stateDB: initStateDBWithAccountAndSC(t, fromAddr, 53000*DefaultGasPrice+1),
+				stateDB: initStateDBWithAccountAndSC(t, &testAccount{Addr: fromAddr, Balance: 53000*DefaultGasPrice + 1}),
 			},
 			wantSuccessIndicator: types.TxStatusSuccessful,
 			wantDetails: &ProcessingDetails{
@@ -357,9 +423,10 @@ func Test_execute(t *testing.T) {
 					Value: big.NewInt(0),
 					Data:  cABI.Methods["increment"].ID,
 					Gas:   53000,
+					Nonce: 1,
 				},
 				gp:      new(core.GasPool).AddGas(100000),
-				stateDB: initStateDBWithAccountAndSC(t, fromAddr, 53000*DefaultGasPrice+1),
+				stateDB: initStateDBWithAccountAndSC(t, &testAccount{Addr: fromAddr, Balance: 53000*DefaultGasPrice + 1}),
 			},
 			wantSuccessIndicator: types.TxStatusSuccessful,
 			wantDetails: &ProcessingDetails{
@@ -395,6 +462,52 @@ func Test_execute(t *testing.T) {
 			}
 		})
 	}
+}
+
+func Test_ReplayContractCreation(t *testing.T) {
+	gasPrice := big.NewInt(DefaultGasPrice)
+	gasPool := new(core.GasPool).AddGas(DefaultBlockGasLimit)
+	eoaAddr := common.BytesToAddress(test.RandomBytes(20))
+	s := abstate.NewEmptyState()
+	stateDB := statedb.NewStateDB(s)
+	stateDB.CreateAccount(eoaAddr)
+	stateDB.AddBalance(eoaAddr, big.NewInt(1000000000000000000)) // add 1 ETH
+	// deploy a contract
+	evmAttr := &TxAttributes{
+		From:  eoaAddr.Bytes(),
+		Data:  common.Hex2Bytes(counterContractCode),
+		Value: big.NewInt(0),
+		Gas:   100000,
+		Nonce: 0,
+	}
+	_, err := execute(1, stateDB, evmAttr, systemIdentifier, gasPool, gasPrice)
+	require.NoError(t, err)
+	// Try to replay
+	_, err = execute(1, stateDB, evmAttr, systemIdentifier, gasPool, gasPrice)
+	require.ErrorContains(t, err, "evm tx validation failed, nonce too low")
+}
+
+func Test_ReplayCall(t *testing.T) {
+	fromAddr := common.BytesToAddress(test.RandomBytes(20))
+	gasPrice := big.NewInt(DefaultGasPrice)
+	stateDB := initStateDBWithAccountAndSC(t, &testAccount{Addr: fromAddr, Balance: 530000 * DefaultGasPrice})
+	gasPool := new(core.GasPool).AddGas(DefaultBlockGasLimit)
+	scAddr := evmcrypto.CreateAddress(common.BytesToAddress(fromAddr.Bytes()), 0)
+	cABI, err := abi.JSON(bytes.NewBuffer([]byte(counterABI)))
+	inc := cABI.Methods["increment"]
+	callContract := &TxAttributes{
+		From:  fromAddr.Bytes(),
+		To:    scAddr.Bytes(),
+		Data:  inc.ID,
+		Gas:   100000,
+		Value: big.NewInt(0),
+		Nonce: 1,
+	}
+	_, err = execute(2, stateDB, callContract, systemIdentifier, gasPool, gasPrice)
+	require.NoError(t, err)
+	// try to replay
+	_, err = execute(2, stateDB, callContract, systemIdentifier, gasPool, gasPrice)
+	require.ErrorContains(t, err, "evm tx validation failed, nonce too low")
 }
 
 func Test_errorToStr(t *testing.T) {

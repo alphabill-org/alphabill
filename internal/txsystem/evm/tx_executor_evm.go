@@ -25,15 +25,6 @@ const (
 	txGasContractCreation uint64 = 53000 // Per transaction that creates a contract
 )
 
-type (
-	ProcessingDetails struct {
-		_            struct{} `cbor:",toarray"`
-		ErrorDetails string
-		ReturnData   []byte
-		ContractAddr common.Address
-	}
-)
-
 var (
 	emptyCodeHash = ethcrypto.Keccak256Hash(nil)
 
@@ -44,6 +35,16 @@ var (
 	errNonceTooLow                  = errors.New("nonce too low")
 	errNonceTooHigh                 = errors.New("nonce too high")
 	errNonceMax                     = errors.New("nonce has max value")
+)
+
+type (
+	ProcessingDetails struct {
+		_            struct{} `cbor:",toarray"`
+		ErrorDetails string
+		ReturnData   []byte
+		ContractAddr common.Address
+		Logs         []*statedb.LogEntry
+	}
 )
 
 func (d *ProcessingDetails) Bytes() ([]byte, error) {
@@ -153,6 +154,9 @@ func execute(currentBlockNumber uint64, stateDB *statedb.StateDB, attr *TxAttrib
 		ReturnData:   ret,
 		ContractAddr: contractAddr,
 		ErrorDetails: errorToStr(errorDetail),
+	}
+	if errorDetail == nil {
+		evmProcessingDetails.Logs = stateDB.GetLogs()
 	}
 	detailBytes, err := evmProcessingDetails.Bytes()
 	if err != nil {

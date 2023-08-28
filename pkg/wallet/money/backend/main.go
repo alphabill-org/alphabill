@@ -27,7 +27,7 @@ import (
 
 type (
 	WalletBackendService interface {
-		GetBills(ownerCondition []byte, includeDCBills bool, offsetKey []byte, limit int) ([]*Bill, []byte, error)
+		GetBills(pubKey []byte, includeDCBills bool, offsetKey []byte, limit int) ([]*Bill, []byte, error)
 		GetBill(unitID []byte) (*Bill, error)
 		GetFeeCreditBill(unitID []byte) (*Bill, error)
 		GetLockedFeeCredit(systemID, fcbID []byte) (*types.TransactionRecord, error)
@@ -227,7 +227,7 @@ func (w *WalletBackend) GetBills(pubkey []byte, includeDCBills bool, offsetKey [
 	keyHashes := account.NewKeyHash(pubkey)
 	ownerPredicates := newOwnerPredicates(keyHashes)
 	nextKey := offsetKey
-	var bills []*Bill
+	bills := make([]*Bill, 0, limit)
 	for _, predicate := range [][]byte{ownerPredicates.sha256, ownerPredicates.sha512} {
 		remainingLimit := limit - len(bills)
 		batch, batchNextKey, err := w.store.Do().GetBills(predicate, includeDCBills, nextKey, remainingLimit)

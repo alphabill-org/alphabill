@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"math"
 	"net/http"
 	"strconv"
 	"time"
@@ -203,17 +202,32 @@ func (api *moneyRestAPI) balanceFunc(w http.ResponseWriter, r *http.Request) {
 		api.rw.InvalidParamResponse(w, paramIncludeDcBills, err)
 		return
 	}
-	bills, _, err := api.Service.GetBills(pk, includeDCBills, nil, math.MaxInt)
+	balance, err := api.getBalance(pk, includeDCBills)
 	if err != nil {
 		api.rw.WriteErrorResponse(w, err)
 		return
 	}
-	var sum uint64
-	for _, b := range bills {
-		sum += b.Value
-	}
-	res := &BalanceResponse{Balance: sum}
+	res := &BalanceResponse{Balance: balance}
 	api.rw.WriteResponse(w, res)
+}
+
+func (api *moneyRestAPI) getBalance(pubKey []byte, includeDCBills bool) (uint64, error) {
+	var balance uint64
+	var offsetKey []byte
+	for {
+		bills, nextKey, err := api.Service.GetBills(pubKey, includeDCBills, offsetKey, api.ListBillsPageLimit)
+		if err != nil {
+			return 0, err
+		}
+		for _, b := range bills {
+			balance += b.Value
+		}
+		if nextKey == nil {
+			break
+		}
+		offsetKey = nextKey
+	}
+	return balance, nil
 }
 
 func (api *moneyRestAPI) getTxProof(w http.ResponseWriter, r *http.Request) {

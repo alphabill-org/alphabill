@@ -108,7 +108,7 @@ func mockBackendCalls(br *backendMockReturnConf) (*httptest.Server, *url.URL) {
 			case path == "/"+beclient.RoundNumberPath:
 				w.WriteHeader(http.StatusOK)
 				w.Write([]byte(fmt.Sprintf(`{"roundNumber": "%d"}`, br.roundNumber)))
-			case path == "/"+beclient.ProofPath:
+			case path == "/"+beclient.UnitsPath:
 				w.WriteHeader(http.StatusOK)
 				w.Write([]byte(br.proofList[proofCount%len(br.proofList)]))
 				proofCount++
@@ -237,7 +237,7 @@ func (b *backendAPIMock) GetBalance(ctx context.Context, pubKey []byte, includeD
 	return 0, errors.New("getBalance not implemented")
 }
 
-func (b *backendAPIMock) ListBills(ctx context.Context, pubKey []byte, includeDCBills bool) (*backend.ListBillsResponse, error) {
+func (b *backendAPIMock) ListBills(ctx context.Context, pubKey []byte, includeDCBills bool, offsetKey string, limit int) (*backend.ListBillsResponse, error) {
 	if b.listBills != nil {
 		return b.listBills(pubKey, includeDCBills)
 	}

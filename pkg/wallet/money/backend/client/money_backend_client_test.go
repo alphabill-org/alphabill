@@ -47,7 +47,7 @@ func TestListBills(t *testing.T) {
 	restClient, err := New(mockAddress.Host)
 	require.NoError(t, err)
 
-	billsResponse, err := restClient.ListBills(context.Background(), pubKey, true)
+	billsResponse, err := restClient.ListBills(context.Background(), pubKey, true, "", defaultPagingLimit)
 	require.NoError(t, err)
 	require.Len(t, billsResponse.Bills, 8)
 	b, _ := base64.StdEncoding.DecodeString(billId)
@@ -63,7 +63,7 @@ func TestListBillsWithPaging(t *testing.T) {
 	restClient, err := New(mockAddress.Host)
 	require.NoError(t, err)
 
-	billsResponse, err := restClient.ListBills(context.Background(), pubKey, true)
+	billsResponse, err := restClient.ListBills(context.Background(), pubKey, true, "", defaultPagingLimit)
 	require.NoError(t, err)
 	require.Len(t, billsResponse.Bills, 5)
 	b, _ := base64.StdEncoding.DecodeString(billId)
@@ -164,7 +164,7 @@ func Test_NewClient(t *testing.T) {
 			if err != nil {
 				t.Errorf("unexpected error for parameter %q: %v", tc.param, err)
 			}
-			if mbc.BaseUrl != tc.url {
+			if mbc.BaseUrl.String() != tc.url {
 				t.Errorf("expected URL for %q to be %q, got %q", tc.param, tc.url, mbc.BaseUrl)
 			}
 		}
@@ -266,7 +266,7 @@ func mockListBillsCallWithPaging(t *testing.T) (*httptest.Server, *url.URL) {
 func mockGetTxProofCall(t *testing.T) (*httptest.Server, *url.URL) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if !strings.HasPrefix(r.URL.Path, "/api/v1/units/") {
-			t.Errorf("Expected to request '%v', got: %s", ProofPath, r.URL.Path)
+			t.Errorf("Expected to request '%v', got: %s", UnitsPath, r.URL.Path)
 		}
 		w.WriteHeader(http.StatusOK)
 		proof := &sdk.Proof{TxRecord: nil, TxProof: nil}
@@ -294,7 +294,7 @@ func mockGetBlockHeightCall(t *testing.T) (*httptest.Server, *url.URL) {
 func mockGetFeeCreditBillCall(t *testing.T) *url.URL {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if !strings.HasPrefix(r.URL.Path, "/"+FeeCreditPath) {
-			t.Errorf("Expected to request '%v', got: %s", ProofPath, r.URL.Path)
+			t.Errorf("Expected to request '%v', got: %s", UnitsPath, r.URL.Path)
 		}
 		w.WriteHeader(http.StatusOK)
 		w.Write(getFeeCreditBillJsonBytes())

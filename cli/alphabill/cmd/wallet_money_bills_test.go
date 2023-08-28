@@ -93,7 +93,7 @@ func TestWalletBillsListCmd_ExtraAccountTotal(t *testing.T) {
 	mockServer, addr := mockBackendCalls(&backendMockReturnConf{
 		billId:         uint256.NewInt(1),
 		billValue:      1e9,
-		customFullPath: "/" + client.ListBillsPath + "?pubkey=" + pubKey2 + "&includeDcBills=false",
+		customFullPath: "/" + client.ListBillsPath + "?includeDcBills=false&limit=100&pubkey=" + pubKey2,
 		customResponse: `{"bills": []}`})
 	defer mockServer.Close()
 
@@ -115,7 +115,7 @@ func TestWalletBillsListCmd_ShowUnswappedFlag(t *testing.T) {
 
 	// verify no -s flag sends includeDcBills=false by default
 	mockServer, addr := mockBackendCalls(&backendMockReturnConf{
-		customFullPath: "/" + client.ListBillsPath + "?pubkey=" + pubKey + "&includeDcBills=false",
+		customFullPath: "/" + client.ListBillsPath + "?includeDcBills=false&limit=100&pubkey=" + pubKey,
 		customResponse: `{"bills": [{"value":"22222222"}]}`})
 
 	stdout, err = execBillsCommand(homedir, "list --alphabill-api-uri "+addr.Host)
@@ -125,7 +125,7 @@ func TestWalletBillsListCmd_ShowUnswappedFlag(t *testing.T) {
 
 	// verify -s flag sends includeDcBills=true
 	mockServer, addr = mockBackendCalls(&backendMockReturnConf{
-		customFullPath: "/" + client.ListBillsPath + "?pubkey=" + pubKey + "&includeDcBills=true",
+		customFullPath: "/" + client.ListBillsPath + "?includeDcBills=true&limit=100&pubkey=" + pubKey,
 		customResponse: `{"bills": [{"value":"33333333"}]}`})
 
 	stdout, err = execBillsCommand(homedir, "list --alphabill-api-uri "+addr.Host+" -s")
@@ -147,7 +147,7 @@ func TestWalletBillsExportCmd_Error(t *testing.T) {
 func TestWalletBillsExportCmd_BillIdFlag(t *testing.T) {
 	t.Skip("AB-666")
 	homedir := createNewTestWallet(t)
-	mockServer, addr := mockBackendCalls(&backendMockReturnConf{customPath: "/" + client.ProofPath, customResponse: fmt.Sprintf(`{"bills": [{"id":"%s","value":"%d","txHash":"MHgwMzgwMDNlMjE4ZWVhMzYwY2JmNTgwZWJiOTBjYzhjOGNhZjBjY2VmNGJmNjYwZWE5YWI0ZmMwNmI1YzM2N2IwMzg=","is_dc_bill":false}]}`, toBillId(uint256.NewInt(uint64(1))), 1)})
+	mockServer, addr := mockBackendCalls(&backendMockReturnConf{customPath: "/" + client.UnitsPath, customResponse: fmt.Sprintf(`{"bills": [{"id":"%s","value":"%d","txHash":"MHgwMzgwMDNlMjE4ZWVhMzYwY2JmNTgwZWJiOTBjYzhjOGNhZjBjY2VmNGJmNjYwZWE5YWI0ZmMwNmI1YzM2N2IwMzg=","is_dc_bill":false}]}`, toBillId(uint256.NewInt(uint64(1))), 1)})
 	defer mockServer.Close()
 
 	// verify export with --bill-id flag
@@ -165,7 +165,7 @@ func TestWalletBillsExportCmd(t *testing.T) {
 	for i := 1; i <= 4; i++ {
 		billsList = billsList + fmt.Sprintf(`{"id":"%s","value":"%d","txHash":"MHgwMzgwMDNlMjE4ZWVhMzYwY2JmNTgwZWJiOTBjYzhjOGNhZjBjY2VmNGJmNjYwZWE5YWI0ZmMwNmI1YzM2N2IwMzg=","isDCBill":false},`, toBillId(uint256.NewInt(uint64(i))), i)
 	}
-	mockServer, addr := mockBackendCalls(&backendMockReturnConf{customBillList: fmt.Sprintf(`{"bills": [%s]}`, strings.TrimSuffix(billsList, ",")), customPath: "/" + client.ProofPath, customResponse: fmt.Sprintf(`{"bills": [{"id":"%s","value":"%d","txHash":"MHgwMzgwMDNlMjE4ZWVhMzYwY2JmNTgwZWJiOTBjYzhjOGNhZjBjY2VmNGJmNjYwZWE5YWI0ZmMwNmI1YzM2N2IwMzg=","is_dc_bill":false}]}`, toBillId(uint256.NewInt(uint64(1))), 1)})
+	mockServer, addr := mockBackendCalls(&backendMockReturnConf{customBillList: fmt.Sprintf(`{"bills": [%s]}`, strings.TrimSuffix(billsList, ",")), customPath: "/" + client.UnitsPath, customResponse: fmt.Sprintf(`{"bills": [{"id":"%s","value":"%d","txHash":"MHgwMzgwMDNlMjE4ZWVhMzYwY2JmNTgwZWJiOTBjYzhjOGNhZjBjY2VmNGJmNjYwZWE5YWI0ZmMwNmI1YzM2N2IwMzg=","is_dc_bill":false}]}`, toBillId(uint256.NewInt(uint64(1))), 1)})
 	defer mockServer.Close()
 
 	// verify export with no flags outputs all bills

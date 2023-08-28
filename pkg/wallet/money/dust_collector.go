@@ -166,7 +166,7 @@ func (w *DustCollector) filterLockedBills(bills []*wallet.Bill, accountID []byte
 }
 
 func (w *DustCollector) fetchDCProofsForTargetUnit(ctx context.Context, k *account.AccountKey, targetUnit *unitlock.LockedUnit) ([]*wallet.Proof, error) {
-	billsResponse, err := w.backend.ListBills(ctx, k.PubKey, true)
+	billsResponse, err := w.backend.ListBills(ctx, k.PubKey, true, "", 100)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch bills: %w", err)
 	}

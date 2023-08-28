@@ -43,7 +43,7 @@ type (
 
 	BackendAPI interface {
 		GetBalance(ctx context.Context, pubKey []byte, includeDCBills bool) (uint64, error)
-		ListBills(ctx context.Context, pubKey []byte, includeDCBills bool) (*backend.ListBillsResponse, error)
+		ListBills(ctx context.Context, pubKey []byte, includeDCBills bool, offsetKey string, limit int) (*backend.ListBillsResponse, error)
 		GetBills(ctx context.Context, pubKey []byte) ([]*wallet.Bill, error)
 		GetRoundNumber(ctx context.Context) (uint64, error)
 		GetFeeCreditBill(ctx context.Context, unitID wallet.UnitID) (*wallet.Bill, error)

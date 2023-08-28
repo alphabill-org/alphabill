@@ -203,3 +203,9 @@ func ExtractOffsetMarker(rsp *http.Response) (string, error) {
 	}
 	return u.Query().Get(QueryParamOffsetKey), nil
 }
+
+func SetQueryParam(u *url.URL, key, val string) {
+	q := u.Query()
+	q.Add(key, val)
+	u.RawQuery = q.Encode()
+}

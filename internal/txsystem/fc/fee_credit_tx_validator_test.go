@@ -27,7 +27,7 @@ var (
 func TestAddFC(t *testing.T) {
 	signer, verifier := testsig.CreateSignerAndVerifier(t)
 	verifiers := map[string]abcrypto.Verifier{"test": verifier}
-	validator := NewDefaultFeeCreditTxValidator(moneySystemID, systemID, crypto.SHA256, verifiers)
+	validator := NewDefaultFeeCreditTxValidator(moneySystemID, systemID, crypto.SHA256, verifiers, nil)
 
 	tests := []struct {
 		name        string
@@ -282,7 +282,7 @@ func TestAddFC(t *testing.T) {
 func TestCloseFC(t *testing.T) {
 	_, verifier := testsig.CreateSignerAndVerifier(t)
 	verifiers := map[string]abcrypto.Verifier{"test": verifier}
-	validator := NewDefaultFeeCreditTxValidator(moneySystemID, systemID, crypto.SHA256, verifiers)
+	validator := NewDefaultFeeCreditTxValidator(moneySystemID, systemID, crypto.SHA256, verifiers, nil)
 
 	tests := []struct {
 		name       string

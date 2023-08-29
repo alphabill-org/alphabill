@@ -49,7 +49,7 @@ func addFeeCredit(t *testing.T, tree *state.State, signer abcrypto.Signer, amoun
 		tree,
 		crypto.SHA256,
 		evmTestFeeCalculator,
-		fc.NewDefaultFeeCreditTxValidator([]byte{0, 0, 0, 0}, DefaultEvmTxSystemIdentifier, crypto.SHA256, tb))
+		fc.NewDefaultFeeCreditTxValidator([]byte{0, 0, 0, 0}, DefaultEvmTxSystemIdentifier, crypto.SHA256, tb, nil))
 	addFeeOrder := newAddFCTx(t,
 		privKeyHash,
 		testfc.NewAddFCAttr(t, signer, testfc.WithTransferFCTx(
@@ -82,7 +82,7 @@ func Test_closeFeeCreditTxExecFn(t *testing.T) {
 	closeExecFn := closeFeeCreditTx(
 		stateTree,
 		evmTestFeeCalculator,
-		fc.NewDefaultFeeCreditTxValidator([]byte{0, 0, 0, 0}, DefaultEvmTxSystemIdentifier, crypto.SHA256, tb))
+		fc.NewDefaultFeeCreditTxValidator([]byte{0, 0, 0, 0}, DefaultEvmTxSystemIdentifier, crypto.SHA256, tb, nil))
 
 	tests := []struct {
 		name       string
@@ -143,7 +143,7 @@ func Test_closeFeeCreditTx(t *testing.T) {
 	closeExecFn := closeFeeCreditTx(
 		stateTree,
 		evmTestFeeCalculator,
-		fc.NewDefaultFeeCreditTxValidator([]byte{0, 0, 0, 0}, DefaultEvmTxSystemIdentifier, crypto.SHA256, tb))
+		fc.NewDefaultFeeCreditTxValidator([]byte{0, 0, 0, 0}, DefaultEvmTxSystemIdentifier, crypto.SHA256, tb, nil))
 	// create close order
 	closeOrder := newCloseFCTx(t, test.RandomBytes(32), testfc.NewCloseFCAttr(
 		testfc.WithCloseFCAmount(balanceAlpha),

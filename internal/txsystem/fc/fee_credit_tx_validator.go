@@ -17,10 +17,11 @@ type (
 	// DefaultFeeCreditTxValidator default validator for partition specific
 	// "add fee credit" and "close fee credit" transactions
 	DefaultFeeCreditTxValidator struct {
-		moneySystemID []byte
-		systemID      []byte
-		hashAlgorithm crypto.Hash
-		verifiers     map[string]abcrypto.Verifier
+		moneySystemID           []byte
+		systemID                []byte
+		hashAlgorithm           crypto.Hash
+		verifiers               map[string]abcrypto.Verifier
+		feeCreditRecordUnitType []byte
 	}
 
 	AddFCValidationContext struct {
@@ -35,12 +36,13 @@ type (
 	}
 )
 
-func NewDefaultFeeCreditTxValidator(moneySystemID, systemID []byte, hashAlgorithm crypto.Hash, verifiers map[string]abcrypto.Verifier) *DefaultFeeCreditTxValidator {
+func NewDefaultFeeCreditTxValidator(moneySystemID, systemID []byte, hashAlgorithm crypto.Hash, verifiers map[string]abcrypto.Verifier, feeCreditRecordUnitType []byte) *DefaultFeeCreditTxValidator {
 	return &DefaultFeeCreditTxValidator{
 		moneySystemID: moneySystemID,
 		systemID:      systemID,
 		hashAlgorithm: hashAlgorithm,
 		verifiers:     verifiers,
+		feeCreditRecordUnitType: feeCreditRecordUnitType,
 	}
 }
 
@@ -74,9 +76,14 @@ func (v *DefaultFeeCreditTxValidator) ValidateAddFeeCredit(ctx *AddFCValidationC
 	if attr.FeeCreditTransfer.ServerMetadata == nil {
 		return errors.New("transferFC tx order is missing server metadata")
 	}
+
+	// 1. ExtrType(P.ι) = fcr – target unit is a fee credit record
+	if !types.UnitID(tx.UnitID()).HasType(v.feeCreditRecordUnitType) {
+		return errors.New("invalid unit identifier: type is not fee credit record")
+	}
+
 	var fcr *unit.FeeCreditRecord
 	if ctx.Unit != nil {
-		// 1. ExtrType(P.ι) = fcr – target unit is a fee credit record
 		var ok bool
 		fcr, ok = ctx.Unit.Data().(*unit.FeeCreditRecord)
 		if !ok {
@@ -153,6 +160,11 @@ func (v *DefaultFeeCreditTxValidator) ValidateCloseFC(ctx *CloseFCValidationCont
 	}
 	if tx.FeeProof != nil {
 		return errors.New("fee tx cannot contain fee authorization proof")
+	}
+
+	// ExtrType(P.ι) = fcr – target unit is a fee credit record
+	if !types.UnitID(tx.UnitID()).HasType(v.feeCreditRecordUnitType) {
+		return errors.New("invalid unit identifier: type is not fee credit record")
 	}
 
 	// S.N[P.ι] != ⊥ - ι identifies an existing fee credit record

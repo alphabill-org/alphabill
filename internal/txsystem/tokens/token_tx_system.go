@@ -53,8 +53,9 @@ func NewTxSystem(opts ...Option) (*txsystem.GenericTxSystem, error) {
 		fc.WithHashAlgorithm(options.hashAlgorithm),
 		fc.WithTrustBase(options.trustBase),
 		fc.WithSystemIdentifier(options.systemIdentifier),
-		fc.WithMoneyTXSystemIdentifier(options.moneyTXSystemIdentifier),
+		fc.WithMoneySystemIdentifier(options.moneyTXSystemIdentifier),
 		fc.WithFeeCalculator(options.feeCalculator),
+		fc.WithFeeCreditRecordUnitType(FeeCreditRecordUnitType),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load fee credit module: %w", err)

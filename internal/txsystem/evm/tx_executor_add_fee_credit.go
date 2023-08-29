@@ -74,8 +74,6 @@ func addFeeCreditTx(s *state.State, hashAlgorithm crypto.Hash, calcFee FeeCalcul
 			TxHash:  tx.Hash(hashAlgorithm),
 			Timeout: transferFc.LatestAdditionTime + 1,
 		})
-		targetUnits := []types.UnitID{addr.Bytes()}
-
-		return &types.ServerMetadata{ActualFee: fee, TargetUnits: targetUnits, SuccessIndicator: types.TxStatusSuccessful}, nil
+		return &types.ServerMetadata{ActualFee: fee, TargetUnits: []types.UnitID{addr.Bytes()}, SuccessIndicator: types.TxStatusSuccessful}, nil
 	}
 }

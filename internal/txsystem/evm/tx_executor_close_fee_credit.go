@@ -43,8 +43,7 @@ func closeFeeCreditTx(tree *state.State, calcFee FeeCalculator, validator *fc.De
 		}
 		// decrement credit
 		stateDB.SubBalance(addr, alphaToWei(attr.Amount))
-		targetUnits := []types.UnitID{addr.Bytes()}
 		// calculate actual tx fee cost
-		return &types.ServerMetadata{ActualFee: calcFee(), TargetUnits: targetUnits, SuccessIndicator: types.TxStatusSuccessful}, nil
+		return &types.ServerMetadata{ActualFee: calcFee(), TargetUnits: []types.UnitID{addr.Bytes()}, SuccessIndicator: types.TxStatusSuccessful}, nil
 	}
 }

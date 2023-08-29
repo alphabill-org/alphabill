@@ -56,8 +56,8 @@ func (api *tokensRestAPI) endpoints() http.Handler {
 	// Link header is needed for pagination support.
 	// OPTIONS method needs to be explicitly defined for each handler func
 	apiRouter.Use(handlers.CORS(
-		handlers.AllowedHeaders([]string{"Content-Type"}),
-		handlers.ExposedHeaders([]string{"Link"}),
+		handlers.AllowedHeaders([]string{sdk.ContentType}),
+		handlers.ExposedHeaders([]string{sdk.HeaderLink}),
 	))
 
 	// version v1 router

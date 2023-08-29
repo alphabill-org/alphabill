@@ -304,24 +304,23 @@ func Test_execute(t *testing.T) {
 			wantDetails:          nil,
 		},
 		{
-			name: "err - runtime out of gas", // intrinsic cost is 0 as there is no data
+			name: "err - runtime out of gas",
 			args: args{
 				attr: &TxAttributes{
 					From:  fromAddr.Bytes(),
 					To:    evmcrypto.CreateAddress(common.BytesToAddress(fromAddr.Bytes()), 0).Bytes(),
 					Value: big.NewInt(0),
-					Data:  cABI.Methods["increment"].ID,
-					Gas:   23000,
+					Data:  cABI.Methods["get"].ID,
+					Gas:   params.TxGas + (uint64(len(cABI.Methods["get"].ID)) * params.TxDataNonZeroGasEIP2028), // default cost + 16 * nof data bytes, is enough for intrinsic cost but not execution
 					Nonce: 1,
 				},
-				gp:      new(core.GasPool).AddGas(100000),
-				stateDB: initStateDBWithAccountAndSC(t, []*testAccount{{Addr: fromAddr, Balance: 2500 * DefaultGasPrice, Code: counterContractCode}}),
+				gp:      new(core.GasPool).AddGas(DefaultBlockGasLimit),
+				stateDB: initStateDBWithAccountAndSC(t, []*testAccount{{Addr: fromAddr, Balance: oneEth, Code: counterContractCode}}),
 			},
-			// wantErrStr - no error, add failing transaction to block, work was done and fees will be taken
 			wantSuccessIndicator: types.TxStatusFailed,
 			wantDetails: &ProcessingDetails{
 				ErrorDetails: "evm runtime error: out of gas",
-				ContractAddr: evmcrypto.CreateAddress(common.BytesToAddress(fromAddr.Bytes()), 0),
+				ContractAddr: common.Address{},
 			},
 		},
 		{
@@ -373,7 +372,7 @@ func Test_execute(t *testing.T) {
 					Nonce: 0,
 				},
 				gp:      new(core.GasPool).AddGas(DefaultBlockGasLimit),
-				stateDB: initStateDBWithAccountAndSC(t, []*testAccount{{Addr: fromAddr, Balance: params.TxGas + 10}, {Addr: toAddr}}),
+				stateDB: initStateDBWithAccountAndSC(t, []*testAccount{{Addr: fromAddr, Balance: (params.TxGas + 10) * DefaultGasPrice}, {Addr: toAddr}}),
 			},
 			wantSuccessIndicator: types.TxStatusSuccessful,
 			wantDetails: &ProcessingDetails{
@@ -392,7 +391,7 @@ func Test_execute(t *testing.T) {
 					Nonce: 1,
 				},
 				gp:      new(core.GasPool).AddGas(DefaultBlockGasLimit),
-				stateDB: initStateDBWithAccountAndSC(t, []*testAccount{{Addr: fromAddr, Balance: 100 * DefaultGasPrice, Code: counterContractCode}}),
+				stateDB: initStateDBWithAccountAndSC(t, []*testAccount{{Addr: fromAddr, Balance: params.TxGas*DefaultGasPrice + 10, Code: counterContractCode}}),
 			},
 			wantSuccessIndicator: types.TxStatusSuccessful,
 			wantDetails: &ProcessingDetails{

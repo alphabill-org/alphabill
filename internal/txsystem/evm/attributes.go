@@ -60,8 +60,8 @@ func (t *TxAttributes) AsMessage(gasPrice *big.Int) Message {
 		nonce:      t.Nonce,
 		gasLimit:   t.Gas,
 		gasPrice:   gasPrice,
-		gasFeeCap:  big.NewInt(1),
-		gasTipCap:  big.NewInt(0),
+		gasFeeCap:  gasPrice,      // gas price is constant, meaning max fee is the same as gas unit price
+		gasTipCap:  big.NewInt(0), // only used in London system, no supported for AB
 		to:         t.ToAddr(),
 		from:       t.FromAddr(),
 		amount:     t.Value,

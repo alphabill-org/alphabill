@@ -37,7 +37,7 @@ func TestWalletBillsListCmd_Single(t *testing.T) {
 	// verify bill in list command
 	stdout, err := execBillsCommand(homedir, "list --alphabill-api-uri "+addr.Host)
 	require.NoError(t, err)
-	verifyStdout(t, stdout, "#1 0x000000000000000000000000000000000000000000000000000000000000000101 1.000'000'00")
+	verifyStdout(t, stdout, "#1 0x000000000000000000000000000000000000000000000000000000000000000100 1.000'000'00")
 }
 
 func TestWalletBillsListCmd_Multiple(t *testing.T) {
@@ -54,10 +54,10 @@ func TestWalletBillsListCmd_Multiple(t *testing.T) {
 	stdout, err := execBillsCommand(homedir, "list --alphabill-api-uri "+addr.Host)
 	require.NoError(t, err)
 	verifyStdout(t, stdout, "Account #1")
-	verifyStdout(t, stdout, "#1 0x000000000000000000000000000000000000000000000000000000000000000101 0.000'000'01")
-	verifyStdout(t, stdout, "#2 0x000000000000000000000000000000000000000000000000000000000000000201 0.000'000'02")
-	verifyStdout(t, stdout, "#3 0x000000000000000000000000000000000000000000000000000000000000000301 0.000'000'03")
-	verifyStdout(t, stdout, "#4 0x000000000000000000000000000000000000000000000000000000000000000401 0.000'000'04")
+	verifyStdout(t, stdout, "#1 0x000000000000000000000000000000000000000000000000000000000000000100 0.000'000'01")
+	verifyStdout(t, stdout, "#2 0x000000000000000000000000000000000000000000000000000000000000000200 0.000'000'02")
+	verifyStdout(t, stdout, "#3 0x000000000000000000000000000000000000000000000000000000000000000300 0.000'000'03")
+	verifyStdout(t, stdout, "#4 0x000000000000000000000000000000000000000000000000000000000000000400 0.000'000'04")
 	require.Len(t, stdout.lines, 5)
 }
 
@@ -98,7 +98,7 @@ func TestWalletBillsListCmd_ExtraAccountTotal(t *testing.T) {
 	stdout, err = execBillsCommand(homedir, "list --alphabill-api-uri "+addr.Host)
 	require.NoError(t, err)
 	verifyStdout(t, stdout, "Account #1")
-	verifyStdout(t, stdout, "#1 0x000000000000000000000000000000000000000000000000000000000000000101 10")
+	verifyStdout(t, stdout, "#1 0x000000000000000000000000000000000000000000000000000000000000000100 10")
 	verifyStdout(t, stdout, "Account #2 - empty")
 }
 
@@ -190,7 +190,7 @@ func TestWalletBillsExportCmd_ShowUnswappedFlag(t *testing.T) {
 
 	stdout, err = execBillsCommand(homedir, "export --output-path "+homedir+" --alphabill-api-uri "+addr.Host)
 	require.NoError(t, err)
-	billFilePath2 := filepath.Join(homedir, "bill-0x000000000000000000000000000000000000000000000000000000000000000201.json")
+	billFilePath2 := filepath.Join(homedir, "bill-0x000000000000000000000000000000000000000000000000000000000000000200.json")
 	require.Equal(t, stdout.lines[0], fmt.Sprintf("Exported bill(s) to: %s", billFilePath2))
 	mockServer.Close()
 
@@ -202,7 +202,7 @@ func TestWalletBillsExportCmd_ShowUnswappedFlag(t *testing.T) {
 
 	stdout, err = execBillsCommand(homedir, "export --output-path "+homedir+" --alphabill-api-uri "+addr.Host+" -s")
 	require.NoError(t, err)
-	billFilePath3 := filepath.Join(homedir, "bill-0x000000000000000000000000000000000000000000000000000000000000000301.json")
+	billFilePath3 := filepath.Join(homedir, "bill-0x000000000000000000000000000000000000000000000000000000000000000300.json")
 	require.Equal(t, stdout.lines[0], fmt.Sprintf("Exported bill(s) to: %s", billFilePath3))
 	mockServer.Close()
 }
@@ -231,7 +231,7 @@ func TestWalletBillsListCmd_ShowLockedBills(t *testing.T) {
 	// verify locked unit is shown in output list
 	stdout, err := execBillsCommand(homedir, "list --alphabill-api-uri "+addr.Host)
 	require.NoError(t, err)
-	verifyStdout(t, stdout, "#1 0x000000000000000000000000000000000000000000000000000000000000000101 1.000'000'00 (locked for adding fees)")
+	verifyStdout(t, stdout, "#1 0x000000000000000000000000000000000000000000000000000000000000000100 1.000'000'00 (locked for adding fees)")
 }
 
 func spendInitialBillWithFeeCredits(t *testing.T, abNet *testpartition.AlphabillNetwork, initialBill *money.InitialBill, pk []byte) uint64 {

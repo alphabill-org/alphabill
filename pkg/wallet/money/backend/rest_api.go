@@ -112,7 +112,7 @@ func (api *moneyRestAPI) listBillsFunc(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	qp := r.URL.Query()
-	offsetKey, err := sdk.ParseHex[sdk.UnitID](qp.Get(sdk.QueryParamOffsetKey), false)
+	offsetKey, err := sdk.ParseHex[types.UnitID](qp.Get(sdk.QueryParamOffsetKey), false)
 	if err != nil {
 		api.rw.InvalidParamResponse(w, sdk.QueryParamOffsetKey, err)
 		return

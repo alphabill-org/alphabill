@@ -258,20 +258,20 @@ func TestListBillsRequest_Paging(t *testing.T) {
 func TestListBillsRequest_PagingWithDCBills(t *testing.T) {
 	// create 30 bills where first 10 and last 10 are dc-bills
 	var bills []*Bill
-	for i := uint64(1); i <= 30; i++ {
+	for i := byte(1); i <= 30; i++ {
 		var b *Bill
 		if i <= 10 || i > 20 {
 			b = &Bill{
-				Id:                   newUnitID(i),
-				Value:                i,
+				Id:                   newBillID(i),
+				Value:                uint64(i),
 				OwnerPredicate:       getOwnerPredicate(pubkeyHex),
 				DCTargetUnitID:       test.RandomBytes(32),
 				DCTargetUnitBacklink: test.RandomBytes(32),
 			}
 		} else {
 			b = &Bill{
-				Id:             newUnitID(i),
-				Value:          i,
+				Id:             newBillID(i),
+				Value:          uint64(i),
 				OwnerPredicate: getOwnerPredicate(pubkeyHex),
 			}
 		}

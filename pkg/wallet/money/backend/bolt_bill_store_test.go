@@ -341,8 +341,8 @@ func TestBillStore_Paging(t *testing.T) {
 
 	// add bills
 	var bills []*Bill
-	for i := 0; i < 10; i++ {
-		b := newBillWithValueAndOwner(uint64(i), ownerPredicate)
+	for i := byte(0); i < 10; i++ {
+		b := newBillWithValueAndOwner(i, ownerPredicate)
 		bills = append(bills, b)
 
 		err := bs.Do().SetBill(b, nil)
@@ -403,8 +403,8 @@ func TestBillStore_Paging_FilterDCBills(t *testing.T) {
 
 	// add bills
 	var bills []*Bill
-	for i := 0; i < 10; i++ {
-		b := newBillWithValueAndOwner(uint64(i), ownerPredicate)
+	for i := byte(0); i < 10; i++ {
+		b := newBillWithValueAndOwner(i, ownerPredicate)
 		b.DCTargetUnitID = test.RandomBytes(32)
 		b.DCTargetUnitBacklink = test.RandomBytes(32)
 		bills = append(bills, b)

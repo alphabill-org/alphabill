@@ -173,8 +173,8 @@ func TestGetBills_Paging(t *testing.T) {
 
 	// add 10 sha256 bills
 	var billsSHA256 []*Bill
-	for i := 0; i < 10; i++ {
-		b := newBillWithValueAndOwner(uint64(i), bearerSHA256)
+	for i := byte(0); i < 10; i++ {
+		b := newBillWithValueAndOwner(i, bearerSHA256)
 		billsSHA256 = append(billsSHA256, b)
 		err := store.Do().SetBill(b, nil)
 		require.NoError(t, err)
@@ -182,8 +182,8 @@ func TestGetBills_Paging(t *testing.T) {
 
 	// add 10 sha512 bills
 	var billsSHA512 []*Bill
-	for i := 10; i < 20; i++ {
-		b := newBillWithValueAndOwner(uint64(i), bearerSHA512)
+	for i := byte(10); i < 20; i++ {
+		b := newBillWithValueAndOwner(i, bearerSHA512)
 		billsSHA512 = append(billsSHA512, b)
 		err := store.Do().SetBill(b, nil)
 		require.NoError(t, err)

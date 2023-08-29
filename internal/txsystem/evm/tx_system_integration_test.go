@@ -90,7 +90,7 @@ func TestEVMPartition_DeployAndCallContract(t *testing.T) {
 	require.NoError(t, txRecord.UnmarshalProcessingDetails(&details))
 	require.NoError(t, err)
 	require.Equal(t, details.ErrorDetails, "")
-	require.Equal(t, details.ContractAddr, contractAddr)
+	require.Equal(t, details.ContractAddr, common.Address{})
 	// expect count uint256 = 1
 	count := uint256.NewInt(1)
 	require.EqualValues(t, count.PaddedBytes(32), details.ReturnData)

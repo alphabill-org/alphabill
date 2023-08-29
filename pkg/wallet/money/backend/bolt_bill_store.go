@@ -179,7 +179,7 @@ func (s *boltBillStoreTx) SetBill(bill *Bill, proof *sdk.Proof) error {
 		if err != nil {
 			return err
 		}
-		return s.storeUnitBlockProof(tx, bill.Id, bill.TxHash, proof)
+		return s.storeTxProof(tx, bill.Id, bill.TxHash, proof)
 	}, true)
 }
 
@@ -277,7 +277,7 @@ func (s *boltBillStoreTx) SetFeeCreditBill(fcb *Bill, proof *sdk.Proof) error {
 		if err = tx.Bucket(feeUnitsBucket).Put(fcb.Id, fcbBytes); err != nil {
 			return err
 		}
-		return s.storeUnitBlockProof(tx, fcb.Id, fcb.TxHash, proof)
+		return s.storeTxProof(tx, fcb.Id, fcb.TxHash, proof)
 	}, true)
 }
 
@@ -434,19 +434,34 @@ func (s *boltBillStoreTx) addExpiredBill(tx *bolt.Tx, blockNumber uint64, unitID
 	return b.Put(unitID, nil)
 }
 
-func (s *boltBillStoreTx) storeUnitBlockProof(tx *bolt.Tx, unitID sdk.UnitID, txHash sdk.TxHash, proof *sdk.Proof) error {
-	if txHash == nil || proof == nil {
+func (s *boltBillStoreTx) StoreTxProof(unitID sdk.UnitID, txHash sdk.TxHash, txProof *sdk.Proof) error {
+	if unitID == nil {
+		return errors.New("unit id is nil")
+	}
+	if txHash == nil {
+		return errors.New("tx hash is nil")
+	}
+	if txProof == nil {
+		return errors.New("tx proof is nil")
+	}
+	return s.withTx(s.tx, func(tx *bolt.Tx) error {
+		return s.storeTxProof(tx, unitID, txHash, txProof)
+	}, true)
+}
+
+func (s *boltBillStoreTx) storeTxProof(dbTx *bolt.Tx, unitID sdk.UnitID, txHash sdk.TxHash, txProof *sdk.Proof) error {
+	if txHash == nil || txProof == nil {
 		return nil
 	}
-	proofData, err := cbor.Marshal(proof)
+	txProofBytes, err := cbor.Marshal(txProof)
 	if err != nil {
-		return fmt.Errorf("failed to serialize proof data: %w", err)
+		return fmt.Errorf("failed to serialize tx proof: %w", err)
 	}
-	b, err := sdk.EnsureSubBucket(tx, txProofsBucket, unitID, false)
+	b, err := sdk.EnsureSubBucket(dbTx, txProofsBucket, unitID, false)
 	if err != nil {
 		return err
 	}
-	return b.Put(txHash, proofData)
+	return b.Put(txHash, txProofBytes)
 }
 
 func (s *boltBillStoreTx) StoreTxHistoryRecord(hash sdk.PubKeyHash, rec *sdk.TxHistoryRecord) error {

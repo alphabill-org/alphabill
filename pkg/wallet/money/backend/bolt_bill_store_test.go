@@ -13,6 +13,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/internal/script"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
+	testtransaction "github.com/alphabill-org/alphabill/internal/testutils/transaction"
 	"github.com/alphabill-org/alphabill/internal/txsystem/fc/testutils"
 	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/internal/util"
@@ -412,6 +413,23 @@ func TestBillStore_Paging_FilterDCBills(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, actualBills, 0)
 	require.Nil(t, nextKey)
+}
+
+func TestBillStore_StoreTxProof(t *testing.T) {
+	bs := createTestBillStore(t)
+	unitID := test.RandomBytes(32)
+	txHash := test.RandomBytes(32)
+
+	// store tx proof
+	err := bs.Do().StoreTxProof(unitID, txHash, &sdk.Proof{
+		TxRecord: testtransaction.NewTransactionRecord(t, testtransaction.WithUnitId(unitID)),
+	})
+	require.NoError(t, err)
+
+	// verify stored tx proof can be retrieved
+	actualProof, err := bs.Do().GetTxProof(unitID, txHash)
+	require.NoError(t, err)
+	require.Equal(t, unitID, actualProof.TxRecord.TransactionOrder.UnitID())
 }
 
 func createTestBillStore(t *testing.T) *boltBillStore {

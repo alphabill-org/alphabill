@@ -87,6 +87,12 @@ func TestWalletFeesCmds_MoneyPartition(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "Partition: money", stdout.lines[0])
 	require.Equal(t, fmt.Sprintf("Account #1 %s", amountToString(expectedFees, 8)), stdout.lines[1])
+
+	// add entire bill value worth of fees
+	entireBillAmount := getFirstBillValue(t, homedir)
+	stdout, err = execFeesCommand(homedir, fmt.Sprintf("add --amount=%s", entireBillAmount))
+	require.NoError(t, err)
+	require.Equal(t, fmt.Sprintf("Successfully created %s fee credits on money partition.", entireBillAmount), stdout.lines[0])
 }
 
 func TestWalletFeesCmds_TokenPartition(t *testing.T) {
@@ -156,6 +162,66 @@ func TestWalletFeesCmds_TokenPartition(t *testing.T) {
 	require.Equal(t, fmt.Sprintf("Account #1 %s", amountToString(expectedFees, 8)), stdout.lines[1])
 }
 
+func TestWalletFeesCmds_SpendExactFeeAmount(t *testing.T) {
+	homedir, _ := setupMoneyInfraAndWallet(t, []*testpartition.NodePartition{})
+
+	//
+
+	// list fees
+	stdout, err := execFeesCommand(homedir, "list")
+	require.NoError(t, err)
+	require.Equal(t, "Partition: money", stdout.lines[0])
+	require.Equal(t, "Account #1 0.000'000'00", stdout.lines[1])
+
+	// add fee credits
+	amount := uint64(150)
+	stdout, err = execFeesCommand(homedir, fmt.Sprintf("add --amount=%d", amount))
+	require.NoError(t, err)
+	require.Equal(t, fmt.Sprintf("Successfully created %d fee credits on money partition.", amount), stdout.lines[0])
+
+	// verify fee credits
+	expectedFees := amount*1e8 - 2
+	stdout, err = execFeesCommand(homedir, "list")
+	require.NoError(t, err)
+	require.Equal(t, "Partition: money", stdout.lines[0])
+	require.Equal(t, fmt.Sprintf("Account #1 %s", amountToString(expectedFees, 8)), stdout.lines[1])
+
+	// add more fee credits
+	stdout, err = execFeesCommand(homedir, fmt.Sprintf("add --amount=%d", amount))
+	require.NoError(t, err)
+	require.Equal(t, fmt.Sprintf("Successfully created %d fee credits on money partition.", amount), stdout.lines[0])
+
+	// verify fee credits
+	expectedFees = amount*2*1e8 - 4
+	stdout, err = execFeesCommand(homedir, "list")
+	require.NoError(t, err)
+	require.Equal(t, "Partition: money", stdout.lines[0])
+	require.Equal(t, fmt.Sprintf("Account #1 %s", amountToString(expectedFees, 8)), stdout.lines[1])
+
+	// reclaim fees
+	stdout, err = execFeesCommand(homedir, "reclaim")
+	require.NoError(t, err)
+	require.Equal(t, "Successfully reclaimed fee credits on money partition.", stdout.lines[0])
+
+	// list fees
+	stdout, err = execFeesCommand(homedir, "list")
+	require.NoError(t, err)
+	require.Equal(t, "Partition: money", stdout.lines[0])
+	require.Equal(t, "Account #1 0.000'000'00", stdout.lines[1])
+
+	// add more fees after reclaiming
+	stdout, err = execFeesCommand(homedir, fmt.Sprintf("add --amount=%d", amount))
+	require.NoError(t, err)
+	require.Equal(t, fmt.Sprintf("Successfully created %d fee credits on money partition.", amount), stdout.lines[0])
+
+	// verify list fees
+	expectedFees = amount*1e8 - 2
+	stdout, err = execFeesCommand(homedir, "list")
+	require.NoError(t, err)
+	require.Equal(t, "Partition: money", stdout.lines[0])
+	require.Equal(t, fmt.Sprintf("Account #1 %s", amountToString(expectedFees, 8)), stdout.lines[1])
+}
+
 func execFeesCommand(homeDir, command string) (*testConsoleWriter, error) {
 	return execCommand(homeDir, " fees "+command)
 }
@@ -220,4 +286,14 @@ func startMoneyBackend(t *testing.T, moneyPart *testpartition.NodePartition, ini
 	require.NoError(t, err)
 
 	return defaultAlphabillApiURL, restClient
+}
+
+func getFirstBillValue(t *testing.T, homedir string) string {
+	// Account #1
+	// #1 0x0000000000000000000000000000000000000000000000000000000000000001 9'999'999'849.999'999'91
+	stdout := execWalletCmd(t, homedir, "bills list")
+	require.Len(t, stdout.lines, 2)
+	parts := strings.Split(stdout.lines[1], " ") // split by whitespace, should have 3 parts
+	require.Len(t, parts, 3)
+	return parts[2] // return last part i.e. the bill value
 }

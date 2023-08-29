@@ -96,7 +96,7 @@ func execListCmd(cmd *cobra.Command, config *walletConfig) error {
 			return err
 		}
 		for accountIndex, pubKey := range pubKeys {
-			bills, err := restClient.ListBills(cmd.Context(), pubKey, showUnswapped)
+			bills, err := restClient.ListBills(cmd.Context(), pubKey, showUnswapped, "", 100)
 			if err != nil {
 				return err
 			}
@@ -108,7 +108,7 @@ func execListCmd(cmd *cobra.Command, config *walletConfig) error {
 		if err != nil {
 			return err
 		}
-		accountBills, err := restClient.ListBills(cmd.Context(), pubKey, showUnswapped)
+		accountBills, err := restClient.ListBills(cmd.Context(), pubKey, showUnswapped, "", 100)
 		if err != nil {
 			return err
 		}
@@ -211,7 +211,7 @@ func execExportCmd(cmd *cobra.Command, config *walletConfig) error {
 	}
 
 	// export all bills if neither --bill-id or --bill-order-number are given
-	billsList, err := restClient.ListBills(cmd.Context(), pk, showUnswapped)
+	billsList, err := restClient.ListBills(cmd.Context(), pk, showUnswapped, "", 100)
 	if err != nil {
 		return err
 	}

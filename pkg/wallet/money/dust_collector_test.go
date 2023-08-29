@@ -407,7 +407,7 @@ func newBackendAPIMock(t *testing.T, bills []*wallet.Bill, opts ...Option) *dust
 			return 0, nil
 		},
 		listBills: func(pubKey []byte, includeDCBills bool) (*backend.ListBillsResponse, error) {
-			return &backend.ListBillsResponse{Total: len(bills), Bills: bills}, nil
+			return &backend.ListBillsResponse{Bills: bills}, nil
 		},
 		getBills: func(pubKey []byte) ([]*wallet.Bill, error) {
 			var nonDCBills []*wallet.Bill

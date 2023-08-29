@@ -139,5 +139,6 @@ func isRepeat(prevUC, newUC *UnicityCertificate) bool {
 		bytes.Equal(prevUC.InputRecord.BlockHash, newUC.InputRecord.BlockHash) &&
 		bytes.Equal(prevUC.InputRecord.SummaryValue, newUC.InputRecord.SummaryValue) &&
 		prevUC.InputRecord.SumOfEarnedFees == newUC.InputRecord.SumOfEarnedFees &&
-		prevUC.InputRecord.RoundNumber < newUC.InputRecord.RoundNumber
+		prevUC.InputRecord.RoundNumber == newUC.InputRecord.RoundNumber &&
+		prevUC.UnicitySeal.RootChainRoundNumber < newUC.UnicitySeal.RootChainRoundNumber
 }

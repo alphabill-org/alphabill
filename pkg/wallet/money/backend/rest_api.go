@@ -21,6 +21,11 @@ import (
 	"github.com/alphabill-org/alphabill/pkg/wallet/log"
 )
 
+const (
+	paramIncludeDcBills = "includeDcBills"
+	paramPubKey         = "pubkey"
+)
+
 type (
 	moneyRestAPI struct {
 		Service            WalletBackendService
@@ -28,9 +33,7 @@ type (
 		rw                 *sdk.ResponseWriter
 	}
 
-	// TODO: perhaps pass the total number of elements in a response header
 	ListBillsResponse struct {
-		Total int         `json:"total" example:"1"`
 		Bills []*sdk.Bill `json:"bills"`
 	}
 
@@ -100,59 +103,40 @@ func (api *moneyRestAPI) Router() *mux.Router {
 func (api *moneyRestAPI) listBillsFunc(w http.ResponseWriter, r *http.Request) {
 	pk, err := parsePubKeyQueryParam(r)
 	if err != nil {
-		log.Debug("error parsing GET /list-bills request: ", err)
-		api.rw.InvalidParamResponse(w, "pubkey", err)
+		api.rw.InvalidParamResponse(w, paramPubKey, err)
 		return
 	}
 	includeDCBills, err := parseIncludeDCBillsQueryParam(r, true)
 	if err != nil {
-		log.Debug("error parsing GET /list-bills request: ", err)
-		w.WriteHeader(http.StatusBadRequest)
+		api.rw.InvalidParamResponse(w, paramIncludeDcBills, err)
 		return
-	}
-	bills, err := api.Service.GetBills(pk)
-	if err != nil {
-		log.Error("error on GET /list-bills: ", err)
-		w.WriteHeader(http.StatusInternalServerError)
-		return
-	}
-	var filteredBills []*sdk.Bill
-	for _, b := range bills {
-		// filter zero value bills
-		if b.Value == 0 {
-			continue
-		}
-		// filter dc bills
-		if b.IsDCBill() {
-			if !includeDCBills {
-				continue
-			}
-		}
-		filteredBills = append(filteredBills, b.ToGenericBill())
 	}
 	qp := r.URL.Query()
+	offsetKey, err := sdk.ParseHex[sdk.UnitID](qp.Get(sdk.QueryParamOffsetKey), false)
+	if err != nil {
+		api.rw.InvalidParamResponse(w, sdk.QueryParamOffsetKey, err)
+		return
+	}
 	limit, err := sdk.ParseMaxResponseItems(qp.Get(sdk.QueryParamLimit), api.ListBillsPageLimit)
 	if err != nil {
 		api.rw.InvalidParamResponse(w, sdk.QueryParamLimit, err)
 		return
 	}
-	offset := sdk.ParseIntParam(qp.Get(sdk.QueryParamOffsetKey), 0)
-	if offset < 0 {
-		offset = 0
-	}
-	// if offset and limit go out of bounds just return what we have
-	if offset > len(filteredBills) {
-		offset = len(filteredBills)
-	}
-	if offset+limit > len(filteredBills) {
-		limit = len(filteredBills) - offset
-	} else {
-		sdk.SetLinkHeader(r.URL, w, strconv.Itoa(offset+limit))
+	bills, nextKey, err := api.Service.GetBills(pk, includeDCBills, offsetKey, limit)
+	if err != nil {
+		api.rw.WriteErrorResponse(w, err)
+		return
 	}
 
+	// convert to sdk struct
+	var sdkBills []*sdk.Bill
+	for _, b := range bills {
+		sdkBills = append(sdkBills, b.ToGenericBill())
+	}
+
+	sdk.SetLinkHeader(r.URL, w, sdk.EncodeHex(nextKey))
 	api.rw.WriteResponse(w, &ListBillsResponse{
-		Bills: filteredBills[offset : offset+limit],
-		Total: len(filteredBills),
+		Bills: sdkBills,
 	})
 }
 
@@ -212,30 +196,40 @@ func (api *moneyRestAPI) txHistoryFunc(w http.ResponseWriter, r *http.Request) {
 func (api *moneyRestAPI) balanceFunc(w http.ResponseWriter, r *http.Request) {
 	pk, err := parsePubKeyQueryParam(r)
 	if err != nil {
-		log.Debug("error parsing GET /balance request: ", err)
-		api.rw.InvalidParamResponse(w, "pubkey", err)
+		api.rw.InvalidParamResponse(w, paramPubKey, err)
 		return
 	}
 	includeDCBills, err := parseIncludeDCBillsQueryParam(r, false)
 	if err != nil {
-		log.Debug("error parsing GET /balance request: ", err)
-		w.WriteHeader(http.StatusInternalServerError)
+		api.rw.InvalidParamResponse(w, paramIncludeDcBills, err)
 		return
 	}
-	bills, err := api.Service.GetBills(pk)
+	balance, err := api.getBalance(pk, includeDCBills)
 	if err != nil {
-		log.Error("error on GET /balance: ", err)
-		w.WriteHeader(http.StatusInternalServerError)
+		api.rw.WriteErrorResponse(w, err)
 		return
 	}
-	var sum uint64
-	for _, b := range bills {
-		if !b.IsDCBill() || includeDCBills {
-			sum += b.Value
-		}
-	}
-	res := &BalanceResponse{Balance: sum}
+	res := &BalanceResponse{Balance: balance}
 	api.rw.WriteResponse(w, res)
+}
+
+func (api *moneyRestAPI) getBalance(pubKey []byte, includeDCBills bool) (uint64, error) {
+	var balance uint64
+	var offsetKey []byte
+	for {
+		bills, nextKey, err := api.Service.GetBills(pubKey, includeDCBills, offsetKey, api.ListBillsPageLimit)
+		if err != nil {
+			return 0, err
+		}
+		for _, b := range bills {
+			balance += b.Value
+		}
+		if nextKey == nil {
+			break
+		}
+		offsetKey = nextKey
+	}
+	return balance, nil
 }
 
 func (api *moneyRestAPI) getTxProof(w http.ResponseWriter, r *http.Request) {
@@ -418,12 +412,12 @@ func (api *moneyRestAPI) getClosedFeeCreditFunc(w http.ResponseWriter, r *http.R
 }
 
 func parsePubKeyQueryParam(r *http.Request) (sdk.PubKey, error) {
-	return sdk.DecodePubKeyHex(r.URL.Query().Get("pubkey"))
+	return sdk.DecodePubKeyHex(r.URL.Query().Get(paramPubKey))
 }
 
 func parseIncludeDCBillsQueryParam(r *http.Request, defaultValue bool) (bool, error) {
-	if r.URL.Query().Has("includeDcBills") {
-		return strconv.ParseBool(r.URL.Query().Get("includeDcBills"))
+	if r.URL.Query().Has(paramIncludeDcBills) {
+		return strconv.ParseBool(r.URL.Query().Get(paramIncludeDcBills))
 	}
 	return defaultValue, nil
 }

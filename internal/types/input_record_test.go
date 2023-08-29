@@ -115,8 +115,8 @@ func TestInputRecord_AddToHasher(t *testing.T) {
 func TestInputRecord_NewRepeatUC(t *testing.T) {
 	repeatUC := ir.NewRepeatIR()
 	require.NotNil(t, repeatUC)
-	// only round number is advance by 1
-	ir.RoundNumber++
 	require.True(t, bytes.Equal(ir.Bytes(), repeatUC.Bytes()))
 	require.True(t, reflect.DeepEqual(ir, repeatUC))
+	ir.RoundNumber++
+	require.False(t, bytes.Equal(ir.Bytes(), repeatUC.Bytes()))
 }

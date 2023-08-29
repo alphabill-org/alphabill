@@ -52,7 +52,7 @@ paths:
           $ref: 'components.yaml#/responses/ErrorResponse'
   /list-bills:
     get:
-      summary: List bills owned by a public key
+      summary: List bills owned by a public key. Supports paging with the offsetKey and limit parameters.
       description: |-
         Returns all bills owned by the given public key.
       parameters:
@@ -64,17 +64,17 @@ paths:
             type: string
           example: '0x000000000000000000000000000000000000000000000000000000000000000123'
         - name: limit
-          description: Limits how many bills are returned in response
+          description: Maximum number of items in the response
           in: query
+          required: false
           schema:
             type: integer
-            default: 100
-        - name: offset
-          description: Response will include bills starting after offset
+        - name: offsetKey
+          description: When doing batched queries, offset key returned by the previous query
           in: query
+          required: false
           schema:
-            type: integer
-            default: 0
+            type: string
         - name: includeDcBills
           description: Response will include DC bills
           in: query
@@ -92,7 +92,7 @@ paths:
           $ref: 'components.yaml#/responses/ErrorResponse'
   /tx-history/{pubkey}:
     get:
-      summary: Get transaction history for a public key
+      summary: Get transaction history for a public key. Supports paging with the offsetKey and limit parameters.
       parameters:
         - name: pubkey
           description: Hex encoded public key prefixed with `0x`
@@ -101,17 +101,17 @@ paths:
           schema:
             $ref: 'components.yaml#/schemas/PublicKeyParam'
         - name: limit
-          description: Limits how many transactions are returned in response
+          description: Maximum number of items response may contain
           in: query
+          required: false
           schema:
             type: integer
-            default: 100
-        - name: offset
-          description: Response will include transactions starting after offset
+        - name: offsetKey
+          description: When doing batched queries, offset key returned by the previous query
           in: query
+          required: false
           schema:
-            type: integer
-            default: 0
+            type: string
       responses:
         '200':
           description: Successful operation
@@ -276,7 +276,3 @@ components:
           type: array
           items:
             $ref: 'components.yaml#/schemas/Bill'
-        total:
-          type: integer
-          description: Total number of bills in the response
-          example: 5

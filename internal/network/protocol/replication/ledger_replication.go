@@ -48,7 +48,17 @@ func (r *LedgerReplicationResponse) Pretty() string {
 	if r.Message != "" {
 		return fmt.Sprintf("status: %s, message: %s, %v blocks", r.Status.String(), r.Message, count)
 	}
-	return fmt.Sprintf("status: %s, %v blocks", r.Status.String(), count)
+	blockInfo := ""
+	if count > 0 {
+		fb := r.Blocks[0]
+		lb := r.Blocks[count-1]
+		if fb != nil && lb != nil &&
+			fb.UnicityCertificate != nil && lb.UnicityCertificate != nil &&
+			fb.UnicityCertificate.InputRecord != nil && lb.UnicityCertificate.InputRecord != nil {
+			blockInfo = fmt.Sprintf(" (round #%v (state %X) => #%v (state %X))", fb.GetRoundNumber(), fb.UnicityCertificate.InputRecord.Hash, lb.GetRoundNumber(), lb.UnicityCertificate.InputRecord.Hash)
+		}
+	}
+	return fmt.Sprintf("status: %s, %v blocks%s", r.Status.String(), count, blockInfo)
 }
 
 func (r *LedgerReplicationResponse) IsValid() error {

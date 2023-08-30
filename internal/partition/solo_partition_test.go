@@ -181,7 +181,8 @@ func (sn *SingleNodePartition) SubmitTx(tx *types.TransactionOrder) error {
 }
 
 func (sn *SingleNodePartition) SubmitTxFromRPC(tx *types.TransactionOrder) error {
-	return sn.partition.SubmitTx(context.Background(), tx)
+	_, err := sn.partition.SubmitTx(context.Background(), tx)
+	return err
 }
 
 func (sn *SingleNodePartition) SubmitUnicityCertificate(uc *types.UnicityCertificate) {

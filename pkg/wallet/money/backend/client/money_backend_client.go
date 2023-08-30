@@ -164,7 +164,7 @@ func (c *MoneyBackendClient) GetRoundNumber(ctx context.Context) (uint64, error)
 	return responseObject.RoundNumber, nil
 }
 
-func (c *MoneyBackendClient) GetFeeCreditBill(ctx context.Context, unitID sdk.UnitID) (*sdk.Bill, error) {
+func (c *MoneyBackendClient) GetFeeCreditBill(ctx context.Context, unitID types.UnitID) (*sdk.Bill, error) {
 	urlPath := c.feeCreditBillURL.JoinPath(hexutil.Encode(unitID)).String()
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, urlPath, nil)
 	if err != nil {
@@ -293,7 +293,7 @@ func (c *MoneyBackendClient) PostTransactions(ctx context.Context, pubKey sdk.Pu
 }
 
 // GetTxProof wrapper for GetProof method to satisfy txsubmitter interface, also verifies txHash
-func (c *MoneyBackendClient) GetTxProof(ctx context.Context, unitID sdk.UnitID, txHash sdk.TxHash) (*sdk.Proof, error) {
+func (c *MoneyBackendClient) GetTxProof(ctx context.Context, unitID types.UnitID, txHash sdk.TxHash) (*sdk.Proof, error) {
 	urlPath := c.unitsURL.JoinPath(hexutil.Encode(unitID), "transactions", hexutil.Encode(txHash), "proof").String()
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, urlPath, nil)
 	if err != nil {

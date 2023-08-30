@@ -20,7 +20,8 @@ var (
 )
 
 func TestStatePruning_Count(t *testing.T) {
-	p := NewLogPruner(createStateWithUnits(t))
+	s, _ := createStateWithUnits(t)
+	p := NewLogPruner(s)
 	p.Add(1, unitID2)
 	p.Add(1, unitID3)
 
@@ -29,7 +30,8 @@ func TestStatePruning_Count(t *testing.T) {
 }
 
 func TestStatePruning_Remove(t *testing.T) {
-	p := NewLogPruner(createStateWithUnits(t))
+	s, _ := createStateWithUnits(t)
+	p := NewLogPruner(s)
 	p.Add(1, unitID2)
 	p.Add(1, unitID3)
 	p.Remove(1)
@@ -38,7 +40,7 @@ func TestStatePruning_Remove(t *testing.T) {
 }
 
 func TestStatePruning_Prune(t *testing.T) {
-	s := createStateWithUnits(t)
+	s, _ := createStateWithUnits(t)
 
 	unit2, err := s.GetUnit(unitID2, true)
 	require.NoError(t, err)
@@ -59,6 +61,50 @@ func TestStatePruning_Prune(t *testing.T) {
 	require.Equal(t, 1, len(prunedUnit3.logs))
 }
 
+func TestStatePruning_RevertPrune(t *testing.T) {
+	s, rootHash := createStateWithUnits(t)
+	unit2, err := s.GetUnit(unitID2, true)
+	require.NoError(t, err)
+	require.Equal(t, 2, len(unit2.logs))
+	unit3, err := s.GetUnit(unitID3, true)
+	require.NoError(t, err)
+	require.Equal(t, 2, len(unit3.logs))
+	p := NewLogPruner(s)
+	p.Add(1, unitID2)
+	p.Add(1, unitID3)
+	require.NoError(t, p.Prune(1))
+	prunedUnit2, err := s.GetUnit(unitID2, false)
+	require.NoError(t, err)
+	require.Equal(t, 1, len(prunedUnit2.logs))
+	prunedUnit3, err := s.GetUnit(unitID3, false)
+	require.NoError(t, err)
+	require.Equal(t, 1, len(prunedUnit3.logs))
+
+	require.NoError(t, s.Apply(UpdateUnitData(unitID2, func(data UnitData) (UnitData, error) {
+		data.(*pruneUnitData).i = data.(*pruneUnitData).i * 10
+		return data, nil
+	},
+	), UpdateUnitData(unitID3, func(data UnitData) (UnitData, error) {
+		data.(*pruneUnitData).i = data.(*pruneUnitData).i * 10
+		return data, nil
+	})))
+
+	s.Revert()
+
+	_, rootHash2, err := s.CalculateRoot()
+	require.NoError(t, err)
+	require.Equal(t, rootHash, rootHash2)
+	require.NoError(t, s.Commit())
+	_, rootHash3, err := s.CalculateRoot()
+	require.Equal(t, rootHash, rootHash3)
+	unit2, err = s.GetUnit(unitID2, true)
+	require.NoError(t, err)
+	require.Equal(t, 2, len(unit2.logs))
+	unit3, err = s.GetUnit(unitID3, true)
+	require.NoError(t, err)
+	require.Equal(t, 2, len(unit3.logs))
+}
+
 type pruneUnitData struct {
 	i uint64
 }
@@ -75,7 +121,7 @@ func (p *pruneUnitData) Copy() UnitData {
 	return &pruneUnitData{i: p.i}
 }
 
-func createStateWithUnits(t *testing.T) *State {
+func createStateWithUnits(t *testing.T) (*State, []byte) {
 	s := NewEmptyState()
 	require.NoError(t, s.Apply(
 		AddUnit(unitID1, script.PredicateAlwaysTrue(), &pruneUnitData{i: 1}),
@@ -102,9 +148,9 @@ func createStateWithUnits(t *testing.T) *State {
 	_, err = s.AddUnitLog(unitID3, test.RandomBytes(32))
 
 	require.NoError(t, err)
-	summary, _, err := s.CalculateRoot()
+	summary, rootHash, err := s.CalculateRoot()
 	require.NoError(t, err)
 	require.Equal(t, uint64(55), summary)
 	require.NoError(t, s.Commit())
-	return s
+	return s, rootHash
 }

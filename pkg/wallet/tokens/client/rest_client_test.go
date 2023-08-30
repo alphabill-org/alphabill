@@ -13,6 +13,7 @@ import (
 
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/alphabill-org/alphabill/internal/txsystem/fc/testutils"
+	"github.com/alphabill-org/alphabill/internal/txsystem/money"
 	"github.com/alphabill-org/alphabill/internal/txsystem/tokens"
 	"github.com/alphabill-org/alphabill/internal/types"
 	sdk "github.com/alphabill-org/alphabill/pkg/wallet"
@@ -282,7 +283,7 @@ func Test_GetClosedFeeCredit(t *testing.T) {
 	t.Run("backend returns 404 => response is nil", func(t *testing.T) {
 		notExistsJson, _ := json.Marshal(sdk.ErrorResponse{Message: "closed fee credit does not exist"})
 		api := createClient(t, 404, notExistsJson)
-		rn, err := api.GetClosedFeeCredit(context.Background(), test.NewUnitID(1))
+		rn, err := api.GetClosedFeeCredit(context.Background(), money.NewFeeCreditRecordID(nil, []byte{1}))
 		require.NoError(t, err)
 		require.Nil(t, rn)
 	})
@@ -294,7 +295,7 @@ func Test_GetClosedFeeCredit(t *testing.T) {
 		require.NoError(t, err)
 
 		cli := createClient(t, 200, txBytes)
-		closedFeeCredit, err := cli.GetClosedFeeCredit(context.Background(), test.NewUnitID(1))
+		closedFeeCredit, err := cli.GetClosedFeeCredit(context.Background(), money.NewFeeCreditRecordID(nil, []byte{1}))
 		require.NoError(t, err)
 		require.Equal(t, closeFCTxr, closedFeeCredit)
 	})

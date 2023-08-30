@@ -243,7 +243,7 @@ func (s *boltBillStoreTx) SetBlockNumber(blockNumber uint64) error {
 	}, true)
 }
 
-func (s *boltBillStoreTx) GetTxProof(unitID sdk.UnitID, txHash sdk.TxHash) (*sdk.Proof, error) {
+func (s *boltBillStoreTx) GetTxProof(unitID types.UnitID, txHash sdk.TxHash) (*sdk.Proof, error) {
 	var proof *sdk.Proof
 	err := s.withTx(s.tx, func(tx *bolt.Tx) error {
 		var err error
@@ -434,7 +434,7 @@ func (s *boltBillStoreTx) addExpiredBill(tx *bolt.Tx, blockNumber uint64, unitID
 	return b.Put(unitID, nil)
 }
 
-func (s *boltBillStoreTx) StoreTxProof(unitID sdk.UnitID, txHash sdk.TxHash, txProof *sdk.Proof) error {
+func (s *boltBillStoreTx) StoreTxProof(unitID types.UnitID, txHash sdk.TxHash, txProof *sdk.Proof) error {
 	if unitID == nil {
 		return errors.New("unit id is nil")
 	}
@@ -449,7 +449,7 @@ func (s *boltBillStoreTx) StoreTxProof(unitID sdk.UnitID, txHash sdk.TxHash, txP
 	}, true)
 }
 
-func (s *boltBillStoreTx) storeTxProof(dbTx *bolt.Tx, unitID sdk.UnitID, txHash sdk.TxHash, txProof *sdk.Proof) error {
+func (s *boltBillStoreTx) storeTxProof(dbTx *bolt.Tx, unitID types.UnitID, txHash sdk.TxHash, txProof *sdk.Proof) error {
 	if txHash == nil || txProof == nil {
 		return nil
 	}
@@ -478,6 +478,9 @@ func (s *boltBillStoreTx) storeTxHistoryRecord(tx *bolt.Tx, hash sdk.PubKeyHash,
 		return errors.New("record is nil")
 	}
 	b, err := sdk.EnsureSubBucket(tx, txHistoryBucket, hash, false)
+	if err != nil {
+		return err
+	}
 	id, _ := b.NextSequence()
 	recBytes, err := cbor.Marshal(rec)
 	if err != nil {

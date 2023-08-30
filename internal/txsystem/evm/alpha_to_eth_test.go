@@ -45,7 +45,7 @@ func Test_generateAddress(t *testing.T) {
 		},
 		{
 			name:    "random bytes",
-			args:    args{test.RandomBytes(33)},
+			args:    args{pubBytes: common.FromHex("0x4a18f39d69cb1b2f7278345df2ba4d691470e908ec30ed69e6e45ea2fe864463db")},
 			wantErr: true,
 		},
 	}

@@ -2,7 +2,9 @@ package rpc
 
 import (
 	"bytes"
+	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -166,4 +168,53 @@ func TestRESTServer_RequestInfo(t *testing.T) {
 	require.Equal(t, 0, len(response.OpenConnections))
 	require.Equal(t, 0, len(response.PartitionValidators))
 	require.Equal(t, 0, len(response.RootValidators))
+}
+
+func TestRESTServer_GetLatestRoundNumber(t *testing.T) {
+	node := &MockNode{}
+	s, err := NewRESTServer(node, "", 10, peer.CreatePeer(t))
+	require.NoError(t, err)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/rounds/latest", bytes.NewReader([]byte{}))
+	recorder := httptest.NewRecorder()
+	s.Handler.ServeHTTP(recorder, req)
+	require.Equal(t, http.StatusOK, recorder.Result().StatusCode)
+	var response uint64
+	require.NoError(t, cbor.NewDecoder(recorder.Body).Decode(&response))
+	require.Equal(t, node.maxBlockNumber, response)
+}
+
+func TestRESTServer_GetTransactionRecord_OK(t *testing.T) {
+	s, err := NewRESTServer(&MockNode{}, "", 10, peer.CreatePeer(t))
+	require.NoError(t, err)
+
+	req := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/v1/transactions/%s", hex.EncodeToString(test.RandomBytes(32))), bytes.NewReader([]byte{}))
+	recorder := httptest.NewRecorder()
+	s.Handler.ServeHTTP(recorder, req)
+
+	require.Equal(t, http.StatusOK, recorder.Result().StatusCode)
+	require.Equal(t, applicationCBOR, recorder.Result().Header.Get(headerContentType))
+
+	response := struct {
+		_        struct{} `cbor:",toarray"`
+		TxRecord *types.TransactionRecord
+		TxProof  *types.TxProof
+	}{}
+	require.NoError(t, cbor.NewDecoder(recorder.Body).Decode(&response))
+	require.NotNil(t, response.TxRecord)
+	require.NotNil(t, response.TxProof)
+}
+
+func TestRESTServer_GetTransactionRecord_NotFound(t *testing.T) {
+	s, err := NewRESTServer(&MockNode{}, "", 10, peer.CreatePeer(t))
+	require.NoError(t, err)
+
+	var hash [32]byte
+
+	req := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/v1/transactions/%s", hex.EncodeToString(hash[:])), bytes.NewReader([]byte{}))
+	recorder := httptest.NewRecorder()
+	s.Handler.ServeHTTP(recorder, req)
+
+	require.Equal(t, http.StatusNotFound, recorder.Result().StatusCode)
+	require.Equal(t, int64(-1), recorder.Result().ContentLength)
 }

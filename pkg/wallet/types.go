@@ -18,8 +18,6 @@ type Transactions struct {
 	Transactions []*types.TransactionOrder
 }
 
-type UnitID []byte
-
 type Predicate []byte
 
 type PubKey []byte
@@ -43,7 +41,7 @@ func (pk PubKey) Hash() PubKeyHash {
 type (
 	TxHistoryRecord struct {
 		_            struct{} `cbor:",toarray"`
-		UnitID       UnitID
+		UnitID       types.UnitID
 		TxHash       TxHash
 		CounterParty []byte
 		Timeout      uint64

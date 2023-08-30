@@ -14,6 +14,7 @@ import (
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 	evmcrypto "github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/params"
 	"github.com/fxamacker/cbor/v2"
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
@@ -46,7 +47,7 @@ var systemIdentifier = []byte{0, 0, 4, 2}
 func TestEVMPartition_DeployAndCallContract(t *testing.T) {
 	from := test.RandomBytes(20)
 	evmPartition, err := testpartition.NewPartition(3, func(trustBase map[string]crypto.Verifier) txsystem.TransactionSystem {
-		system, err := NewEVMTxSystem(systemIdentifier, WithInitialAddressAndBalance(from, big.NewInt(1000000000000000000))) // 1 ETH
+		system, err := NewEVMTxSystem(systemIdentifier, WithInitialAddressAndBalance(from, big.NewInt(oneEth))) // 1 ETH
 		require.NoError(t, err)
 		return system
 	}, systemIdentifier)
@@ -90,7 +91,7 @@ func TestEVMPartition_DeployAndCallContract(t *testing.T) {
 	require.NoError(t, txRecord.UnmarshalProcessingDetails(&details))
 	require.NoError(t, err)
 	require.Equal(t, details.ErrorDetails, "")
-	require.Equal(t, details.ContractAddr, contractAddr)
+	require.Equal(t, details.ContractAddr, common.Address{})
 	// expect count uint256 = 1
 	count := uint256.NewInt(1)
 	require.EqualValues(t, count.PaddedBytes(32), details.ReturnData)
@@ -109,7 +110,7 @@ func createTransferTx(t *testing.T, from []byte, to []byte) *types.TransactionOr
 		From:  from,
 		To:    to,
 		Value: big.NewInt(1000),
-		Gas:   0, // transfer does not cost gas
+		Gas:   params.TxGas,
 		Nonce: 0,
 	}
 	attrBytes, err := cbor.Marshal(evmAttr)

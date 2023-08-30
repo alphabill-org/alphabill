@@ -12,22 +12,21 @@ import (
 	testtransaction "github.com/alphabill-org/alphabill/internal/testutils/transaction"
 	testfc "github.com/alphabill-org/alphabill/internal/txsystem/fc/testutils"
 	"github.com/alphabill-org/alphabill/internal/txsystem/money"
+	"github.com/alphabill-org/alphabill/internal/txsystem/tokens"
 	"github.com/alphabill-org/alphabill/internal/types"
-	"github.com/alphabill-org/alphabill/internal/util"
 	sdk "github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/fxamacker/cbor/v2"
-	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
 )
 
-var moneySystemID = []byte{0, 0, 0, 0}
-var tokenSystemID = []byte{0, 0, 0, 2}
+var moneySystemID = money.DefaultSystemIdentifier
+var tokenSystemID = tokens.DefaultSystemIdentifier
 
 func TestBlockProcessor_EachTxTypeCanBeProcessed(t *testing.T) {
 	pubKeyBytes, _ := hexutil.Decode("0x03c30573dc0c7fd43fcb801289a6a96cb78c27f4ba398b89da91ece23e9a99aca3")
 	pubKeyHash := hash.Sum256(pubKeyBytes)
-	fcbID := newUnitID(101)
+	fcbID := newFeeCreditRecordID(101)
 	fcb := &Bill{Id: fcbID, Value: 100}
 	signer, _ := crypto.NewInMemorySecp256K1Signer()
 	ownerCondition := script.PredicatePayToPublicKeyHashDefault(pubKeyHash)
@@ -36,7 +35,7 @@ func TestBlockProcessor_EachTxTypeCanBeProcessed(t *testing.T) {
 			Payload: &types.Payload{
 				SystemID:       moneySystemID,
 				Type:           money.PayloadTypeTransfer,
-				UnitID:         newUnitID(1),
+				UnitID:         newBillID(1),
 				Attributes:     transferTxAttr(pubKeyHash),
 				ClientMetadata: &types.ClientMetadata{FeeCreditRecordID: fcbID},
 			},
@@ -48,7 +47,7 @@ func TestBlockProcessor_EachTxTypeCanBeProcessed(t *testing.T) {
 			Payload: &types.Payload{
 				SystemID:       moneySystemID,
 				Type:           money.PayloadTypeTransDC,
-				UnitID:         newUnitID(2),
+				UnitID:         newBillID(2),
 				Attributes:     dustTxAttr(),
 				ClientMetadata: &types.ClientMetadata{FeeCreditRecordID: fcbID},
 			},
@@ -60,7 +59,7 @@ func TestBlockProcessor_EachTxTypeCanBeProcessed(t *testing.T) {
 			Payload: &types.Payload{
 				SystemID:       moneySystemID,
 				Type:           money.PayloadTypeSplit,
-				UnitID:         newUnitID(3),
+				UnitID:         newBillID(3),
 				Attributes:     splitTxAttr(pubKeyHash, 1, 1),
 				ClientMetadata: &types.ClientMetadata{FeeCreditRecordID: fcbID},
 			},
@@ -72,7 +71,7 @@ func TestBlockProcessor_EachTxTypeCanBeProcessed(t *testing.T) {
 			Payload: &types.Payload{
 				SystemID:       moneySystemID,
 				Type:           money.PayloadTypeSwapDC,
-				UnitID:         newUnitID(4),
+				UnitID:         newBillID(4),
 				Attributes:     swapTxAttr(pubKeyHash),
 				ClientMetadata: &types.ClientMetadata{FeeCreditRecordID: fcbID},
 			},
@@ -99,7 +98,7 @@ func TestBlockProcessor_EachTxTypeCanBeProcessed(t *testing.T) {
 			SystemIdentifier: moneySystemID,
 			T2Timeout:        2500,
 			FeeCreditBill: &genesis.FeeCreditBill{
-				UnitId:         util.Uint256ToBytes(uint256.NewInt(2)),
+				UnitId:         money.NewBillID(nil, []byte{2}),
 				OwnerPredicate: script.PredicateAlwaysTrue(),
 			},
 		},
@@ -246,7 +245,7 @@ func TestBlockProcessor_EachTxTypeCanBeProcessed(t *testing.T) {
 // user bill: 96
 // money partition fee bill: 4
 func TestBlockProcessor_TransferAndReclaimFeeCycle_TargetMoneyPartition(t *testing.T) {
-	fcbID := newUnitID(101)
+	fcbID := newFeeCreditRecordID(101)
 	signer, _ := crypto.NewInMemorySecp256K1Signer()
 	store := createTestBillStore(t)
 	userBillID := []byte{1}
@@ -258,7 +257,7 @@ func TestBlockProcessor_TransferAndReclaimFeeCycle_TargetMoneyPartition(t *testi
 	}, nil)
 	require.NoError(t, err)
 
-	moneyPartitionFeeBillID := util.Uint256ToBytes(uint256.NewInt(2))
+	moneyPartitionFeeBillID := money.NewBillID(nil, []byte{2})
 	err = store.Do().SetSystemDescriptionRecords([]*genesis.SystemDescriptionRecord{
 		{
 			SystemIdentifier: moneySystemID,
@@ -411,7 +410,7 @@ func TestBlockProcessor_TransferAndReclaimFeeCycle_TargetMoneyPartition(t *testi
 // user bill: 96
 // token partition fee bill: 4
 func TestBlockProcessor_TransferAndReclaimFeeCycle_TargetTokenPartition(t *testing.T) {
-	fcbID := newUnitID(101)
+	fcbID := newFeeCreditRecordID(101)
 	signer, _ := crypto.NewInMemorySecp256K1Signer()
 	store := createTestBillStore(t)
 
@@ -424,8 +423,8 @@ func TestBlockProcessor_TransferAndReclaimFeeCycle_TargetTokenPartition(t *testi
 	}, nil)
 	require.NoError(t, err)
 
-	moneyPartitionFeeBillID := util.Uint256ToBytes(uint256.NewInt(2))
-	tokenPartitionFeeBillID := util.Uint256ToBytes(uint256.NewInt(3))
+	moneyPartitionFeeBillID := money.NewBillID(nil, []byte{2})
+	tokenPartitionFeeBillID := money.NewBillID(nil, []byte{3})
 	err = store.Do().SetSystemDescriptionRecords([]*genesis.SystemDescriptionRecord{
 		{
 			SystemIdentifier: moneySystemID,
@@ -606,7 +605,7 @@ func TestBlockProcessor_TransferAndReclaimFeeCycle_TargetTokenPartition(t *testi
 }
 
 func TestBlockProcessor_LockedAndClosedFeeCredit_CanBeSaved(t *testing.T) {
-	fcbID := newUnitID(101)
+	fcbID := newFeeCreditRecordID(101)
 	store := createTestBillStore(t)
 
 	userBillID := []byte{1}
@@ -618,7 +617,7 @@ func TestBlockProcessor_LockedAndClosedFeeCredit_CanBeSaved(t *testing.T) {
 	}, nil)
 	require.NoError(t, err)
 
-	moneyPartitionFeeBillID := util.Uint256ToBytes(uint256.NewInt(2))
+	moneyPartitionFeeBillID := money.NewBillID(nil, []byte{2})
 	err = store.Do().SetSystemDescriptionRecords([]*genesis.SystemDescriptionRecord{
 		{
 			SystemIdentifier: moneySystemID,
@@ -698,8 +697,12 @@ func verifyProof(t *testing.T, b *Bill, txProof *sdk.Proof) {
 	require.NotNil(t, p.UnicityCertificate)
 }
 
-func newUnitID(unitID uint64) []byte {
-	return util.Uint256ToBytes(uint256.NewInt(unitID))
+func newBillID(unitPart byte) []byte {
+	return money.NewBillID(nil, []byte{unitPart})
+}
+
+func newFeeCreditRecordID(unitPart byte) []byte {
+	return money.NewFeeCreditRecordID(nil, []byte{unitPart})
 }
 
 func transferTxAttr(pubKeyHash []byte) []byte {

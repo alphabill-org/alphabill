@@ -14,11 +14,9 @@ import (
 	testpartition "github.com/alphabill-org/alphabill/internal/testutils/partition"
 	"github.com/alphabill-org/alphabill/internal/txsystem/money"
 	"github.com/alphabill-org/alphabill/internal/txsystem/tokens"
-	"github.com/alphabill-org/alphabill/internal/util"
 	wlog "github.com/alphabill-org/alphabill/pkg/wallet/log"
 	"github.com/alphabill-org/alphabill/pkg/wallet/money/backend"
 	moneyclient "github.com/alphabill-org/alphabill/pkg/wallet/money/backend/client"
-	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
 )
 
@@ -26,7 +24,7 @@ var defaultTokenSDR = &genesis.SystemDescriptionRecord{
 	SystemIdentifier: tokens.DefaultSystemIdentifier,
 	T2Timeout:        defaultT2Timeout,
 	FeeCreditBill: &genesis.FeeCreditBill{
-		UnitId:         util.Uint256ToBytes(uint256.NewInt(4)),
+		UnitId:         money.NewBillID(nil, []byte{3}),
 		OwnerPredicate: script.PredicateAlwaysTrue(),
 	},
 }
@@ -230,7 +228,7 @@ func execFeesCommand(homeDir, command string) (*testConsoleWriter, error) {
 // Returns wallet homedir and reference to money partition object.
 func setupMoneyInfraAndWallet(t *testing.T, otherPartitions []*testpartition.NodePartition) (string, *testpartition.AlphabillNetwork) {
 	initialBill := &money.InitialBill{
-		ID:    util.Uint256ToBytes(uint256.NewInt(1)),
+		ID:    defaultInitialBillID,
 		Value: 1e18,
 		Owner: script.PredicateAlwaysTrue(),
 	}

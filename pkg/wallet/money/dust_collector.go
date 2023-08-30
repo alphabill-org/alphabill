@@ -12,6 +12,7 @@ import (
 	"github.com/ethereum/go-ethereum/common/hexutil"
 
 	"github.com/alphabill-org/alphabill/internal/txsystem/money"
+	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/alphabill-org/alphabill/pkg/wallet/account"
@@ -214,7 +215,7 @@ func (w *DustCollector) submitDCBatch(ctx context.Context, k *account.AccountKey
 	if err != nil {
 		return nil, err
 	}
-	fcb, err := w.backend.GetFeeCreditBill(ctx, k.PubKeyHash.Sha256)
+	fcb, err := w.backend.GetFeeCreditBill(ctx, money.NewFeeCreditRecordID(nil, k.PubKeyHash.Sha256))
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch fee credit bill: %w", err)
 	}
@@ -317,7 +318,7 @@ func (w *DustCollector) getTxTimeout(ctx context.Context) (uint64, error) {
 	return roundNr + txTimeoutBlockCount, nil
 }
 
-func (w *DustCollector) getBillByID(bills []*wallet.Bill, id wallet.UnitID) *wallet.Bill {
+func (w *DustCollector) getBillByID(bills []*wallet.Bill, id types.UnitID) *wallet.Bill {
 	for _, b := range bills {
 		if bytes.Equal(b.Id, id) {
 			return b

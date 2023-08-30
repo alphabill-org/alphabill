@@ -19,8 +19,6 @@ import (
 	"github.com/alphabill-org/alphabill/pkg/wallet"
 	wlog "github.com/alphabill-org/alphabill/pkg/wallet/log"
 	"github.com/alphabill-org/alphabill/pkg/wallet/money/backend"
-	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
 )
 
@@ -28,12 +26,10 @@ func TestMoneyBackendCLI(t *testing.T) {
 	// create ab network
 	_ = wlog.InitStdoutLogger(wlog.INFO)
 	initialBill := &moneytx.InitialBill{
-		ID:    util.Uint256ToBytes(uint256.NewInt(1)),
+		ID:    defaultInitialBillID,
 		Value: 1e18,
 		Owner: script.PredicateAlwaysTrue(),
 	}
-	initialBillID := initialBill.ID
-	initialBillHex := hexutil.Encode(initialBillID)
 	moneyPartition := createMoneyPartition(t, initialBill, 1)
 	abNet := startAlphabill(t, []*testpartition.NodePartition{moneyPartition})
 	startPartitionRPCServers(t, moneyPartition)
@@ -77,12 +73,12 @@ func TestMoneyBackendCLI(t *testing.T) {
 	require.Len(t, resListBills.Bills, 1)
 	b := resListBills.Bills[0]
 	require.Equal(t, initialBillValue, b.Value)
-	require.Equal(t, initialBillID, types.UnitID(b.Id))
+	require.Equal(t, initialBill.ID, types.UnitID(b.Id))
 	require.NotNil(t, b.TxHash)
 
 	// verify proof
 	resBlockProof := &wallet.Proof{}
-	httpRes, err = testhttp.DoGetCbor(fmt.Sprintf("http://%s/api/v1/units/%s/transactions/0x%x/proof", serverAddr, initialBillHex, b.TxHash), resBlockProof)
+	httpRes, err = testhttp.DoGetCbor(fmt.Sprintf("http://%s/api/v1/units/0x%s/transactions/0x%x/proof", serverAddr, initialBill.ID, b.TxHash), resBlockProof)
 	require.NoError(t, err)
 	require.EqualValues(t, 200, httpRes.StatusCode)
 	require.Equal(t, resBlockProof.TxRecord.TransactionOrder.Hash(crypto.SHA256), b.TxHash)

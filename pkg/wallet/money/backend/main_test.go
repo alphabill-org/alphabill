@@ -22,13 +22,13 @@ import (
 func TestWalletBackend_BillsCanBeIndexedByPredicates(t *testing.T) {
 	// create wallet backend with mock abclient
 	_ = wlog.InitStdoutLogger(wlog.DEBUG)
-	billId1 := newUnitID(1)
-	billId2 := newUnitID(2)
+	billId1 := newBillID(1)
+	billId2 := newBillID(2)
 	pubkey1, _ := hexutil.Decode("0x03c30573dc0c7fd43fcb801289a6a96cb78c27f4ba398b89da91ece23e9a99aca3")
 	pubkey2, _ := hexutil.Decode("0x02c30573dc0c7fd43fcb801289a6a96cb78c27f4ba398b89da91ece23e9a99aca3")
 	bearer1 := script.PredicatePayToPublicKeyHashDefault(hash.Sum256(pubkey1))
 	bearer2 := script.PredicatePayToPublicKeyHashDefault(hash.Sum256(pubkey2))
-	fcbID := newUnitID(101)
+	fcbID := newFeeCreditRecordID(101)
 	fcb := &Bill{Id: fcbID, Value: 100}
 
 	abclient := clientmock.NewMockAlphabillClient(
@@ -173,8 +173,8 @@ func TestGetBills_Paging(t *testing.T) {
 
 	// add 10 sha256 bills
 	var billsSHA256 []*Bill
-	for i := 0; i < 10; i++ {
-		b := newBillWithValueAndOwner(uint64(i), bearerSHA256)
+	for i := byte(0); i < 10; i++ {
+		b := newBillWithValueAndOwner(i, bearerSHA256)
 		billsSHA256 = append(billsSHA256, b)
 		err := store.Do().SetBill(b, nil)
 		require.NoError(t, err)
@@ -182,8 +182,8 @@ func TestGetBills_Paging(t *testing.T) {
 
 	// add 10 sha512 bills
 	var billsSHA512 []*Bill
-	for i := 10; i < 20; i++ {
-		b := newBillWithValueAndOwner(uint64(i), bearerSHA512)
+	for i := byte(10); i < 20; i++ {
+		b := newBillWithValueAndOwner(i, bearerSHA512)
 		billsSHA512 = append(billsSHA512, b)
 		err := store.Do().SetBill(b, nil)
 		require.NoError(t, err)

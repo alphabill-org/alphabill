@@ -77,7 +77,7 @@ func validateTransferFungibleToken(tx *types.TransactionOrder, attr *TransferFun
 }
 
 func getFungibleTokenData(unitID types.UnitID, s *state.State, hashAlgorithm crypto.Hash) (state.Predicate, *fungibleTokenData, error) {
-	if unitID.IsZero(hashAlgorithm.Size()) {
+	if unitID.IsZero(UnitPartLength) {
 		return nil, nil, errors.New(ErrStrUnitIDIsZero)
 	}
 	u, err := s.GetUnit(unitID, false)

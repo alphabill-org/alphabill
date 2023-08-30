@@ -247,7 +247,7 @@ paths:
       parameters:
         - name: unitId
           description: |-
-            Hex encoded free credit unit ID (SHA256 hash of private
+            Hex encoded free credit unit ID (SHA256 hash of public
             key) prefixed with `0x`.  Must be 66 characters long
             (including the `0x` prefix).
           in: path

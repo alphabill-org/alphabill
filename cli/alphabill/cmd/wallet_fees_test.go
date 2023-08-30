@@ -85,6 +85,12 @@ func TestWalletFeesCmds_MoneyPartition(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "Partition: money", stdout.lines[0])
 	require.Equal(t, fmt.Sprintf("Account #1 %s", amountToString(expectedFees, 8)), stdout.lines[1])
+
+	// add entire bill value worth of fees
+	entireBillAmount := getFirstBillValue(t, homedir)
+	stdout, err = execFeesCommand(homedir, fmt.Sprintf("add --amount=%s", entireBillAmount))
+	require.NoError(t, err)
+	require.Equal(t, fmt.Sprintf("Successfully created %s fee credits on money partition.", entireBillAmount), stdout.lines[0])
 }
 
 func TestWalletFeesCmds_TokenPartition(t *testing.T) {
@@ -218,4 +224,14 @@ func startMoneyBackend(t *testing.T, moneyPart *testpartition.NodePartition, ini
 	require.NoError(t, err)
 
 	return defaultAlphabillApiURL, restClient
+}
+
+func getFirstBillValue(t *testing.T, homedir string) string {
+	// Account #1
+	// #1 0x0000000000000000000000000000000000000000000000000000000000000001 9'999'999'849.999'999'91
+	stdout := execWalletCmd(t, homedir, "bills list")
+	require.Len(t, stdout.lines, 2)
+	parts := strings.Split(stdout.lines[1], " ") // split by whitespace, should have 3 parts
+	require.Len(t, parts, 3)
+	return parts[2] // return last part i.e. the bill value
 }

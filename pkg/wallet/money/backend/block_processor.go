@@ -219,6 +219,9 @@ func (p *BlockProcessor) processTx(txr *types.TransactionRecord, b *types.Block,
 				return fmt.Errorf("failed to save transferFC bill with proof: %w", err)
 			}
 		} else {
+			if err := dbTx.StoreTxProof(txo.UnitID(), txHash, proof); err != nil {
+				return fmt.Errorf("failed to store tx proof zero value bill: %w", err)
+			}
 			if err := dbTx.RemoveBill(bill.Id); err != nil {
 				return fmt.Errorf("failed to remove zero value bill: %w", err)
 			}

@@ -93,7 +93,7 @@ type (
 		GetTxProof(unitID types.UnitID, txHash sdk.TxHash) (*sdk.Proof, error)
 		StoreTxHistoryRecord(hash sdk.PubKeyHash, rec *sdk.TxHistoryRecord) error
 		GetTxHistoryRecords(hash sdk.PubKeyHash, dbStartKey []byte, count int) ([]*sdk.TxHistoryRecord, []byte, error)
-		StoreTxProof(unitID sdk.UnitID, txHash sdk.TxHash, txProof *sdk.Proof) error
+		StoreTxProof(unitID types.UnitID, txHash sdk.TxHash, txProof *sdk.Proof) error
 	}
 
 	p2pkhOwnerPredicates struct {

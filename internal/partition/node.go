@@ -1031,6 +1031,9 @@ func (n *Node) sendLedgerReplicationRequest(startingBlockNr uint64) {
 	requestSent := false
 	// send Ledger Replication request to a first alive randomly chosen node
 	for _, p := range util.ShuffleSliceCopy(peers) {
+		if n.leaderSelector.SelfID() == p {
+			continue
+		}
 		logger.Debug("Sending ledger replication request to peer '%v'", p)
 		err = n.network.Send(network.OutputMessage{
 			Protocol: network.ProtocolLedgerReplicationReq,

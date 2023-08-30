@@ -78,7 +78,7 @@ func (v *DefaultFeeCreditTxValidator) ValidateAddFeeCredit(ctx *AddFCValidationC
 	}
 
 	// 1. ExtrType(P.ι) = fcr – target unit is a fee credit record
-	if !types.UnitID(tx.UnitID()).HasType(v.feeCreditRecordUnitType) {
+	if !tx.UnitID().HasType(v.feeCreditRecordUnitType) {
 		return errors.New("invalid unit identifier: type is not fee credit record")
 	}
 
@@ -163,7 +163,7 @@ func (v *DefaultFeeCreditTxValidator) ValidateCloseFC(ctx *CloseFCValidationCont
 	}
 
 	// ExtrType(P.ι) = fcr – target unit is a fee credit record
-	if !types.UnitID(tx.UnitID()).HasType(v.feeCreditRecordUnitType) {
+	if !tx.UnitID().HasType(v.feeCreditRecordUnitType) {
 		return errors.New("invalid unit identifier: type is not fee credit record")
 	}
 

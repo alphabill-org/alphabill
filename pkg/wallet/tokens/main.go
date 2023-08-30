@@ -53,8 +53,8 @@ type (
 		GetTypeHierarchy(ctx context.Context, id backend.TokenTypeID) ([]*backend.TokenUnitType, error)
 		GetRoundNumber(ctx context.Context) (uint64, error)
 		PostTransactions(ctx context.Context, pubKey wallet.PubKey, txs *wallet.Transactions) error
-		GetTxProof(ctx context.Context, unitID wallet.UnitID, txHash wallet.TxHash) (*wallet.Proof, error)
-		GetFeeCreditBill(ctx context.Context, unitID wallet.UnitID) (*wallet.Bill, error)
+		GetTxProof(ctx context.Context, unitID types.UnitID, txHash wallet.TxHash) (*wallet.Proof, error)
+		GetFeeCreditBill(ctx context.Context, unitID types.UnitID) (*wallet.Bill, error)
 	}
 
 	MoneyDataProvider interface {
@@ -271,7 +271,7 @@ func (w *Wallet) TransferNFT(ctx context.Context, accountNumber uint64, tokenId 
 		return err
 	}
 	attrs := newNonFungibleTransferTxAttrs(token, receiverPubKey)
-	sub, err := w.prepareTxSubmission(ctx, tokens.PayloadTypeTransferNFT, attrs, wallet.UnitID(tokenId), key, w.GetRoundNumber, func(tx *types.TransactionOrder) error {
+	sub, err := w.prepareTxSubmission(ctx, tokens.PayloadTypeTransferNFT, attrs, types.UnitID(tokenId), key, w.GetRoundNumber, func(tx *types.TransactionOrder) error {
 		signatures, err := preparePredicateSignatures(w.am, invariantPredicateArgs, tx, attrs)
 		if err != nil {
 			return err
@@ -317,7 +317,7 @@ func (w *Wallet) SendFungible(ctx context.Context, accountNumber uint64, typeId 
 		if token.Kind != backend.Fungible {
 			return fmt.Errorf("expected fungible token, got %v, token %X", token.Kind.String(), token.ID)
 		}
-		if typeId.Equal(token.TypeID) {
+		if typeId.Eq(token.TypeID) {
 			matchingTokens = append(matchingTokens, token)
 			var overflow bool
 			totalBalance, overflow, _ = wallet.AddUint64(totalBalance, token.Amount)
@@ -400,7 +400,7 @@ func (w *Wallet) GetFeeCredit(ctx context.Context, cmd fees.GetFeeCreditCmd) (*w
 	if err != nil {
 		return nil, err
 	}
-	return w.GetFeeCreditBill(ctx, accountKey.PubKeyHash.Sha256)
+	return w.GetFeeCreditBill(ctx, tokens.NewFeeCreditRecordID(nil, accountKey.PubKeyHash.Sha256))
 }
 
 // GetFeeCreditBill returns fee credit bill for given unitID
@@ -422,7 +422,7 @@ func (w *Wallet) ReclaimFeeCredit(ctx context.Context, cmd fees.ReclaimFeeCmd) (
 }
 
 func (w *Wallet) ensureFeeCredit(ctx context.Context, accountKey *account.AccountKey, txCount int) error {
-	fcb, err := w.GetFeeCreditBill(ctx, accountKey.PubKeyHash.Sha256)
+	fcb, err := w.GetFeeCreditBill(ctx, tokens.NewFeeCreditRecordID(nil, accountKey.PubKeyHash.Sha256))
 	if err != nil {
 		return err
 	}

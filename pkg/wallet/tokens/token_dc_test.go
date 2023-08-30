@@ -107,7 +107,7 @@ func TestFungibleTokenDC(t *testing.T) {
 			}
 			return nil
 		},
-		getTxProof: func(ctx context.Context, unitID sdk.UnitID, txHash sdk.TxHash) (*sdk.Proof, error) {
+		getTxProof: func(ctx context.Context, unitID types.UnitID, txHash sdk.TxHash) (*sdk.Proof, error) {
 			recordedTx, found := recordedTx[string(unitID)]
 			if !found {
 				return nil, errors.New("tx not found")
@@ -117,7 +117,7 @@ func TestFungibleTokenDC(t *testing.T) {
 		getRoundNumber: func(ctx context.Context) (uint64, error) {
 			return 1, nil
 		},
-		getFeeCreditBill: func(ctx context.Context, unitID sdk.UnitID) (*sdk.Bill, error) {
+		getFeeCreditBill: func(ctx context.Context, unitID types.UnitID) (*sdk.Bill, error) {
 			return &sdk.Bill{
 				Id:     []byte{1},
 				Value:  100000,

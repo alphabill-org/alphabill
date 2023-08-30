@@ -5,7 +5,6 @@ import (
 	"testing"
 
 	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
 	bolt "go.etcd.io/bbolt"
 
@@ -14,6 +13,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/script"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/alphabill-org/alphabill/internal/txsystem/fc/testutils"
+	"github.com/alphabill-org/alphabill/internal/txsystem/money"
 	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/internal/util"
 	sdk "github.com/alphabill-org/alphabill/pkg/wallet"
@@ -230,12 +230,18 @@ func TestBillStore_GetSetSystemDescriptionRecordsBills(t *testing.T) {
 		{
 			SystemIdentifier: []byte{0},
 			T2Timeout:        2500,
-			FeeCreditBill:    &genesis.FeeCreditBill{UnitId: []byte{2}, OwnerPredicate: []byte{3}},
+			FeeCreditBill:    &genesis.FeeCreditBill{
+				UnitId: []byte{2},
+				OwnerPredicate: []byte{3},
+			},
 		},
 		{
 			SystemIdentifier: []byte{1},
 			T2Timeout:        2500,
-			FeeCreditBill:    &genesis.FeeCreditBill{UnitId: []byte{2}, OwnerPredicate: []byte{3}},
+			FeeCreditBill:    &genesis.FeeCreditBill{
+				UnitId: []byte{2},
+				OwnerPredicate: []byte{3},
+			},
 		},
 	}
 	err = bs.Do().SetSystemDescriptionRecords(sdrs)
@@ -249,7 +255,7 @@ func TestBillStore_GetSetSystemDescriptionRecordsBills(t *testing.T) {
 func TestBillStore_GetSetLockedFeeCredit(t *testing.T) {
 	bs := createTestBillStore(t)
 	systemID := []byte{0, 0, 0, 0}
-	fcbID := test.NewUnitID(1)
+	fcbID := money.NewFeeCreditRecordID(nil, []byte{1})
 
 	// verify GetLockedFeeCredit no result returns no error
 	lfc, err := bs.Do().GetLockedFeeCredit(systemID, fcbID)
@@ -273,7 +279,7 @@ func TestBillStore_GetSetLockedFeeCredit(t *testing.T) {
 func TestBillStore_GetSetClosedFeeCredit(t *testing.T) {
 	bs := createTestBillStore(t)
 	systemID := []byte{0, 0, 0, 0}
-	fcbID := test.NewUnitID(1)
+	fcbID := money.NewFeeCreditRecordID(nil, []byte{1})
 
 	// verify GetLockedFeeCredit no result returns no error
 	lfc, err := bs.Do().GetLockedFeeCredit(systemID, fcbID)
@@ -335,8 +341,8 @@ func TestBillStore_Paging(t *testing.T) {
 
 	// add bills
 	var bills []*Bill
-	for i := 0; i < 10; i++ {
-		b := newBillWithValueAndOwner(uint64(i), ownerPredicate)
+	for i := byte(0); i < 10; i++ {
+		b := newBillWithValueAndOwner(i, ownerPredicate)
 		bills = append(bills, b)
 
 		err := bs.Do().SetBill(b, nil)
@@ -397,8 +403,8 @@ func TestBillStore_Paging_FilterDCBills(t *testing.T) {
 
 	// add bills
 	var bills []*Bill
-	for i := 0; i < 10; i++ {
-		b := newBillWithValueAndOwner(uint64(i), ownerPredicate)
+	for i := byte(0); i < 10; i++ {
+		b := newBillWithValueAndOwner(i, ownerPredicate)
 		b.DCTargetUnitID = test.RandomBytes(32)
 		b.DCTargetUnitBacklink = test.RandomBytes(32)
 		bills = append(bills, b)
@@ -426,11 +432,10 @@ func getOwnerPredicate(pubkey string) []byte {
 	return script.PredicatePayToPublicKeyHashDefault(hash.Sum256(pubKey))
 }
 
-func newBillWithValueAndOwner(val uint64, ownerPredicate []byte) *Bill {
-	id := uint256.NewInt(val)
+func newBillWithValueAndOwner(val byte, ownerPredicate []byte) *Bill {
 	return &Bill{
-		Id:             util.Uint256ToBytes(id),
-		Value:          val,
+		Id:             newBillID(val),
+		Value:          uint64(val),
 		OwnerPredicate: ownerPredicate,
 	}
 }

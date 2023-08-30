@@ -8,6 +8,7 @@ import (
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/script"
 	"github.com/alphabill-org/alphabill/internal/state"
+	test "github.com/alphabill-org/alphabill/internal/testutils"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	testtransaction "github.com/alphabill-org/alphabill/internal/testutils/transaction"
 	"github.com/alphabill-org/alphabill/internal/txsystem/evm/statedb"
@@ -101,7 +102,7 @@ func Test_closeFeeCreditTxExecFn(t *testing.T) {
 		{
 			name: "err - no unit (no credit has been added)",
 			args: args{order: newCloseFCTx(t,
-				testtransaction.RandomBytes(32),
+				test.RandomBytes(32),
 				testfc.NewCloseFCAttr(testfc.WithCloseFCAmount(uint64(98)),
 					testfc.WithCloseFCTargetUnitID(privKeyHash), testfc.WithCloseFCTargetUnitBacklink(backlink)),
 				signer,
@@ -144,7 +145,7 @@ func Test_closeFeeCreditTx(t *testing.T) {
 		evmTestFeeCalculator,
 		fc.NewDefaultFeeCreditTxValidator([]byte{0, 0, 0, 0}, DefaultEvmTxSystemIdentifier, crypto.SHA256, tb))
 	// create close order
-	closeOrder := newCloseFCTx(t, testtransaction.RandomBytes(32), testfc.NewCloseFCAttr(
+	closeOrder := newCloseFCTx(t, test.RandomBytes(32), testfc.NewCloseFCAttr(
 		testfc.WithCloseFCAmount(balanceAlpha),
 		testfc.WithCloseFCTargetUnitBacklink(backlink),
 		testfc.WithCloseFCTargetUnitID(privKeyHash)),

@@ -12,12 +12,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
 
 	"github.com/alphabill-org/alphabill/internal/hash"
 	"github.com/alphabill-org/alphabill/internal/types"
-	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/alphabill-org/alphabill/pkg/client/clientmock"
 	"github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/alphabill-org/alphabill/pkg/wallet/account"
@@ -31,7 +29,7 @@ type (
 	backendMockReturnConf struct {
 		balance                  uint64
 		roundNumber              uint64
-		billId                   *uint256.Int
+		billId                   types.UnitID
 		billValue                uint64
 		billTxHash               string
 		proofList                []string
@@ -117,7 +115,7 @@ func mockBackendCalls(br *backendMockReturnConf) (*httptest.Server, *url.URL) {
 				if br.customBillList != "" {
 					w.Write([]byte(br.customBillList))
 				} else {
-					w.Write([]byte(fmt.Sprintf(`{"bills": [{"id":"%s","value":"%d","txHash":"%s","isDcBill":false}]}`, toBillId(br.billId), br.billValue, br.billTxHash)))
+					w.Write([]byte(fmt.Sprintf(`{"bills": [{"id":"%s","value":"%d","txHash":"%s","isDcBill":false}]}`, toBase64(br.billId), br.billValue, br.billTxHash)))
 				}
 			case strings.Contains(path, beclient.FeeCreditPath):
 				w.WriteHeader(http.StatusOK)
@@ -141,8 +139,8 @@ func mockBackendCalls(br *backendMockReturnConf) (*httptest.Server, *url.URL) {
 	return server, serverAddress
 }
 
-func toBillId(i *uint256.Int) string {
-	return base64.StdEncoding.EncodeToString(util.Uint256ToBytes(i))
+func toBase64(bytes []byte) string {
+	return base64.StdEncoding.EncodeToString(bytes)
 }
 
 func createBlockProofResponseForDustTransfer(t *testing.T, b *wallet.Bill, targetBill *wallet.Bill, timeout uint64, k *account.AccountKey) *wallet.Proof {
@@ -196,7 +194,7 @@ type backendAPIMock struct {
 	listBills        func(pubKey []byte, includeDCBills bool) (*backend.ListBillsResponse, error)
 	getBills         func(pubKey []byte) ([]*wallet.Bill, error)
 	getRoundNumber   func() (uint64, error)
-	getTxProof       func(ctx context.Context, unitID wallet.UnitID, txHash wallet.TxHash) (*wallet.Proof, error)
+	getTxProof       func(ctx context.Context, unitID types.UnitID, txHash wallet.TxHash) (*wallet.Proof, error)
 	getFeeCreditBill func(ctx context.Context, unitID []byte) (*wallet.Bill, error)
 	postTransactions func(ctx context.Context, pubKey wallet.PubKey, txs *wallet.Transactions) error
 }
@@ -215,7 +213,7 @@ func (b *backendAPIMock) GetRoundNumber(ctx context.Context) (uint64, error) {
 	return 0, errors.New("getRoundNumber not implemented")
 }
 
-func (b *backendAPIMock) GetFeeCreditBill(ctx context.Context, unitID wallet.UnitID) (*wallet.Bill, error) {
+func (b *backendAPIMock) GetFeeCreditBill(ctx context.Context, unitID types.UnitID) (*wallet.Bill, error) {
 	if b.getFeeCreditBill != nil {
 		return b.getFeeCreditBill(ctx, unitID)
 	}
@@ -244,7 +242,7 @@ func (b *backendAPIMock) ListBills(ctx context.Context, pubKey []byte, includeDC
 	return nil, errors.New("listBills not implemented")
 }
 
-func (b *backendAPIMock) GetTxProof(ctx context.Context, unitID wallet.UnitID, txHash wallet.TxHash) (*wallet.Proof, error) {
+func (b *backendAPIMock) GetTxProof(ctx context.Context, unitID types.UnitID, txHash wallet.TxHash) (*wallet.Proof, error) {
 	if b.getTxProof != nil {
 		return b.getTxProof(ctx, unitID, txHash)
 	}

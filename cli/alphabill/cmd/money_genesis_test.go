@@ -11,9 +11,9 @@ import (
 
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/internal/script"
+	"github.com/alphabill-org/alphabill/internal/txsystem/money"
 	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/fxamacker/cbor/v2"
-	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
 )
 
@@ -152,10 +152,10 @@ func TestMoneyGenesis_DefaultParamsExist(t *testing.T) {
 func TestMoneyGenesis_ParamsCanBeChanged(t *testing.T) {
 	homeDir := setupTestHomeDir(t, alphabillDir)
 	sdr := &genesis.SystemDescriptionRecord{
-		SystemIdentifier: []byte{0, 0, 0, 0},
+		SystemIdentifier: money.DefaultSystemIdentifier,
 		T2Timeout:        10000,
 		FeeCreditBill: &genesis.FeeCreditBill{
-			UnitId:         util.Uint256ToBytes(uint256.NewInt(2)),
+			UnitId:         money.NewBillID(nil, []byte{2}),
 			OwnerPredicate: script.PredicateAlwaysFalse(),
 		},
 	}

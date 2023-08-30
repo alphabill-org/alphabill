@@ -13,7 +13,6 @@ import (
 	"github.com/alphabill-org/alphabill/internal/txsystem/money"
 	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/fxamacker/cbor/v2"
-	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
@@ -21,7 +20,7 @@ import (
 	"google.golang.org/grpc/test/bufconn"
 )
 
-var failingTransactionID = uint256.NewInt(5).Bytes32()
+var failingUnitID = types.NewUnitID(33, nil, []byte{5}, []byte{1})
 
 type (
 	MockNode struct {
@@ -40,7 +39,7 @@ func (mn *MockNode) GetTransactionRecord(hash []byte) (*types.TransactionRecord,
 }
 
 func (mn *MockNode) SubmitTx(_ context.Context, tx *types.TransactionOrder) ([]byte, error) {
-	if bytes.Equal(tx.UnitID(), failingTransactionID[:]) {
+	if bytes.Equal(tx.UnitID(), failingUnitID) {
 		return nil, errors.New("failed")
 	}
 	if tx != nil {
@@ -124,7 +123,7 @@ func TestRpcServer_ProcessTransaction_Fails(t *testing.T) {
 	ctx := context.Background()
 	con, client := createRpcClient(t, ctx)
 	defer con.Close()
-	response, err := client.ProcessTransaction(ctx, &alphabill.Transaction{Order: createTransactionOrder(t, failingTransactionID)})
+	response, err := client.ProcessTransaction(ctx, &alphabill.Transaction{Order: createTransactionOrder(t, failingUnitID)})
 	assert.Nil(t, response)
 	assert.Errorf(t, err, "failed")
 }
@@ -134,7 +133,7 @@ func TestRpcServer_ProcessTransaction_Ok(t *testing.T) {
 	con, client := createRpcClient(t, ctx)
 	defer con.Close()
 
-	req := createTransactionOrder(t, uint256.NewInt(1).Bytes32())
+	req := createTransactionOrder(t, types.NewUnitID(33, nil, []byte{1}, []byte{1}))
 	response, err := client.ProcessTransaction(ctx, &alphabill.Transaction{Order: req})
 	assert.Nil(t, err)
 	assert.NotNil(t, response)
@@ -163,7 +162,7 @@ func createRpcClient(t *testing.T, ctx context.Context) (*grpc.ClientConn, alpha
 	return conn, alphabill.NewAlphabillServiceClient(conn)
 }
 
-func createTransactionOrder(t *testing.T, id [32]byte) []byte {
+func createTransactionOrder(t *testing.T, unitID types.UnitID) []byte {
 	bt := &money.TransferAttributes{
 		NewBearer:   script.PredicateAlwaysTrue(),
 		TargetValue: 1,
@@ -175,7 +174,7 @@ func createTransactionOrder(t *testing.T, id [32]byte) []byte {
 
 	order, err := cbor.Marshal(&types.TransactionOrder{
 		Payload: &types.Payload{
-			UnitID:         id[:],
+			UnitID:         unitID,
 			Type:           money.PayloadTypeTransfer,
 			Attributes:     attBytes,
 			ClientMetadata: &types.ClientMetadata{Timeout: 0},

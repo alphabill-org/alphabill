@@ -117,7 +117,7 @@ func testTokenType(t *testing.T, db *storage) {
 	require.NoError(t, err)
 	require.Equal(t, typeUnit, typeFromDB)
 
-	proofFromDB, err := db.GetTxProof(sdk.UnitID(typeUnit.ID), typeUnit.TxHash)
+	proofFromDB, err := db.GetTxProof(types.UnitID(typeUnit.ID), typeUnit.TxHash)
 	require.NoError(t, err)
 	require.Equal(t, proof, proofFromDB)
 }
@@ -152,7 +152,7 @@ func testSaveToken(t *testing.T, db *storage) {
 	require.NoError(t, err)
 	require.Equal(t, token, tokenFromDB)
 
-	proofFromDB, err := db.GetTxProof(sdk.UnitID(token.ID), token.TxHash)
+	proofFromDB, err := db.GetTxProof(types.UnitID(token.ID), token.TxHash)
 	require.NoError(t, err)
 	require.Equal(t, proof, proofFromDB)
 }

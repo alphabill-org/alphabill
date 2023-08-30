@@ -51,7 +51,7 @@ func getChainedPredicates[T state.UnitData](hashAlgorithm crypto.Hash, s *state.
 	predicates := make([]state.Predicate, 0)
 	var parentID = unitID
 	for {
-		if parentID.IsZero(hashAlgorithm.Size()) {
+		if parentID.IsZero(UnitPartLength) {
 			// type has no parent.
 			break
 		}

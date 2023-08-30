@@ -9,7 +9,6 @@ import (
 	"github.com/alphabill-org/alphabill/internal/state"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/internal/txsystem/fc"
-	txutil "github.com/alphabill-org/alphabill/internal/txsystem/util"
 	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/internal/util"
 )
@@ -29,7 +28,7 @@ func handleSplitTx(s *state.State, hashAlgorithm crypto.Hash, feeCalc fc.FeeCalc
 		}
 
 		unitID := tx.UnitID()
-		newItemID := txutil.SameShardID(unitID, HashForIDCalculation(unitID, tx.Payload.Attributes, tx.Timeout(), hashAlgorithm))
+		newItemID := NewBillID(unitID, HashForIDCalculation(unitID, tx.Payload.Attributes, tx.Timeout(), hashAlgorithm))
 
 		// calculate actual tx fee cost
 		fee := feeCalc()

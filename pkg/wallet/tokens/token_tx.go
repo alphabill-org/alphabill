@@ -10,6 +10,7 @@ import (
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/hash"
 	"github.com/alphabill-org/alphabill/internal/script"
+	"github.com/alphabill-org/alphabill/internal/txsystem/tokens"
 	ttxs "github.com/alphabill-org/alphabill/internal/txsystem/tokens"
 	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/pkg/wallet"
@@ -55,7 +56,7 @@ func (w *Wallet) newType(ctx context.Context, accNr uint64, payloadType string, 
 	if err != nil {
 		return nil, err
 	}
-	sub, err := w.prepareTxSubmission(ctx, payloadType, attrs, wallet.UnitID(typeId), acc, w.GetRoundNumber, func(tx *types.TransactionOrder) error {
+	sub, err := w.prepareTxSubmission(ctx, payloadType, attrs, typeId, acc, w.GetRoundNumber, func(tx *types.TransactionOrder) error {
 		signatures, err := preparePredicateSignatures(w.am, subtypePredicateArgs, tx, attrs)
 		if err != nil {
 			return err
@@ -71,7 +72,7 @@ func (w *Wallet) newType(ctx context.Context, accNr uint64, payloadType string, 
 	if err != nil {
 		return nil, err
 	}
-	return backend.TokenTypeID(sub.UnitID), nil
+	return sub.UnitID, nil
 }
 
 func preparePredicateSignatures(am account.Manager, args []*PredicateInput, tx *types.TransactionOrder, attrs types.SigBytesProvider) ([][]byte, error) {
@@ -108,7 +109,7 @@ func (w *Wallet) newToken(ctx context.Context, accNr uint64, payloadType string,
 	if err != nil {
 		return nil, err
 	}
-	sub, err := w.prepareTxSubmission(ctx, payloadType, attrs, wallet.UnitID(tokenId), key, w.GetRoundNumber, func(tx *types.TransactionOrder) error {
+	sub, err := w.prepareTxSubmission(ctx, payloadType, attrs, tokenId, key, w.GetRoundNumber, func(tx *types.TransactionOrder) error {
 		signatures, err := preparePredicateSignatures(w.am, mintPredicateArgs, tx, attrs)
 		if err != nil {
 			return err
@@ -127,8 +128,8 @@ func (w *Wallet) newToken(ctx context.Context, accNr uint64, payloadType string,
 	return backend.TokenID(sub.UnitID), nil
 }
 
-func RandomID() (wallet.UnitID, error) {
-	id := make([]byte, 32)
+func RandomID() (types.UnitID, error) {
+	id := make([]byte, tokens.UnitIDLength)
 	_, err := rand.Read(id)
 	if err != nil {
 		return nil, err
@@ -136,7 +137,7 @@ func RandomID() (wallet.UnitID, error) {
 	return id, nil
 }
 
-func (w *Wallet) prepareTxSubmission(ctx context.Context, payloadType string, attrs types.SigBytesProvider, unitId wallet.UnitID, ac *account.AccountKey, rn roundNumberFetcher, txps txPreprocessor) (*txsubmitter.TxSubmission, error) {
+func (w *Wallet) prepareTxSubmission(ctx context.Context, payloadType string, attrs types.SigBytesProvider, unitId types.UnitID, ac *account.AccountKey, rn roundNumberFetcher, txps txPreprocessor) (*txsubmitter.TxSubmission, error) {
 	var err error
 	if unitId == nil {
 		unitId, err = RandomID()
@@ -150,7 +151,7 @@ func (w *Wallet) prepareTxSubmission(ctx context.Context, payloadType string, at
 	if err != nil {
 		return nil, err
 	}
-	tx := createTx(w.systemID, payloadType, unitId, roundNumber+txTimeoutRoundCount, ac.PubKeyHash.Sha256)
+	tx := createTx(w.systemID, payloadType, unitId, roundNumber+txTimeoutRoundCount, tokens.NewFeeCreditRecordID(nil, ac.PubKeyHash.Sha256))
 	if txps != nil {
 		// set fields before tx is signed
 		err = txps(tx)
@@ -312,7 +313,7 @@ func (w *Wallet) prepareSplitOrTransferTx(ctx context.Context, acc *account.Acco
 		attrs = newSplitTxAttrs(token, amount, receiverPubKey)
 		payloadType = ttxs.PayloadTypeSplitFungibleToken
 	}
-	sub, err := w.prepareTxSubmission(ctx, payloadType, attrs, wallet.UnitID(token.ID), acc, rn, func(tx *types.TransactionOrder) error {
+	sub, err := w.prepareTxSubmission(ctx, payloadType, attrs, token.ID, acc, rn, func(tx *types.TransactionOrder) error {
 		signatures, err := preparePredicateSignatures(w.am, invariantPredicateArgs, tx, attrs)
 		if err != nil {
 			return err

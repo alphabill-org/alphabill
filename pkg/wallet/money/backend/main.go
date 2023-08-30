@@ -34,7 +34,7 @@ type (
 		GetClosedFeeCredit(fcbID []byte) (*types.TransactionRecord, error)
 		GetRoundNumber(ctx context.Context) (uint64, error)
 		SendTransactions(ctx context.Context, txs []*types.TransactionOrder) map[string]string
-		GetTxProof(unitID sdk.UnitID, txHash sdk.TxHash) (*sdk.Proof, error)
+		GetTxProof(unitID types.UnitID, txHash sdk.TxHash) (*sdk.Proof, error)
 		HandleTransactionsSubmission(egp *errgroup.Group, sender sdk.PubKey, txs []*types.TransactionOrder)
 		GetTxHistoryRecords(hash sdk.PubKeyHash, dbStartKey []byte, count int) ([]*sdk.TxHistoryRecord, []byte, error)
 	}
@@ -90,7 +90,7 @@ type (
 		SetClosedFeeCredit(unitID []byte, txr *types.TransactionRecord) error
 		GetSystemDescriptionRecords() ([]*genesis.SystemDescriptionRecord, error)
 		SetSystemDescriptionRecords(sdrs []*genesis.SystemDescriptionRecord) error
-		GetTxProof(unitID sdk.UnitID, txHash sdk.TxHash) (*sdk.Proof, error)
+		GetTxProof(unitID types.UnitID, txHash sdk.TxHash) (*sdk.Proof, error)
 		StoreTxHistoryRecord(hash sdk.PubKeyHash, rec *sdk.TxHistoryRecord) error
 		GetTxHistoryRecords(hash sdk.PubKeyHash, dbStartKey []byte, count int) ([]*sdk.TxHistoryRecord, []byte, error)
 	}
@@ -250,7 +250,7 @@ func (w *WalletBackend) GetBill(unitID []byte) (*Bill, error) {
 	return w.store.Do().GetBill(unitID)
 }
 
-func (w *WalletBackend) GetTxProof(unitID sdk.UnitID, txHash sdk.TxHash) (*sdk.Proof, error) {
+func (w *WalletBackend) GetTxProof(unitID types.UnitID, txHash sdk.TxHash) (*sdk.Proof, error) {
 	return w.store.Do().GetTxProof(unitID, txHash)
 }
 

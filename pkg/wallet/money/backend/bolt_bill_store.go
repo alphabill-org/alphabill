@@ -243,7 +243,7 @@ func (s *boltBillStoreTx) SetBlockNumber(blockNumber uint64) error {
 	}, true)
 }
 
-func (s *boltBillStoreTx) GetTxProof(unitID sdk.UnitID, txHash sdk.TxHash) (*sdk.Proof, error) {
+func (s *boltBillStoreTx) GetTxProof(unitID types.UnitID, txHash sdk.TxHash) (*sdk.Proof, error) {
 	var proof *sdk.Proof
 	err := s.withTx(s.tx, func(tx *bolt.Tx) error {
 		var err error
@@ -434,7 +434,7 @@ func (s *boltBillStoreTx) addExpiredBill(tx *bolt.Tx, blockNumber uint64, unitID
 	return b.Put(unitID, nil)
 }
 
-func (s *boltBillStoreTx) storeUnitBlockProof(tx *bolt.Tx, unitID sdk.UnitID, txHash sdk.TxHash, proof *sdk.Proof) error {
+func (s *boltBillStoreTx) storeUnitBlockProof(tx *bolt.Tx, unitID types.UnitID, txHash sdk.TxHash, proof *sdk.Proof) error {
 	if txHash == nil || proof == nil {
 		return nil
 	}

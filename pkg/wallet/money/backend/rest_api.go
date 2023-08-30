@@ -61,8 +61,12 @@ func (api *moneyRestAPI) Router() *mux.Router {
 	apiRouter := router.PathPrefix("/api").Subrouter()
 	// add cors middleware
 	// content-type needs to be explicitly defined without this content-type header is not allowed and cors filter is not applied
+	// Link header is needed for pagination support.
 	// OPTIONS method needs to be explicitly defined for each handler func
-	apiRouter.Use(handlers.CORS(handlers.AllowedHeaders([]string{sdk.ContentType})))
+	apiRouter.Use(handlers.CORS(
+		handlers.AllowedHeaders([]string{sdk.ContentType}),
+		handlers.ExposedHeaders([]string{sdk.HeaderLink}),
+	))
 
 	// version v1 router
 	apiV1 := apiRouter.PathPrefix("/v1").Subrouter()

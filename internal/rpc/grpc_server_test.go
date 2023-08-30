@@ -3,6 +3,7 @@ package rpc
 import (
 	"bytes"
 	"context"
+	"crypto"
 	"errors"
 	"net"
 	"testing"
@@ -30,14 +31,22 @@ type (
 	}
 )
 
-func (mn *MockNode) SubmitTx(_ context.Context, tx *types.TransactionOrder) error {
+func (mn *MockNode) GetTransactionRecord(hash []byte) (*types.TransactionRecord, *types.TxProof, error) {
+	zeroHash := [32]byte{}
+	if bytes.Equal(zeroHash[:], hash) {
+		return nil, nil, nil
+	}
+	return &types.TransactionRecord{}, &types.TxProof{}, nil
+}
+
+func (mn *MockNode) SubmitTx(_ context.Context, tx *types.TransactionOrder) ([]byte, error) {
 	if bytes.Equal(tx.UnitID(), failingTransactionID[:]) {
-		return errors.New("failed")
+		return nil, errors.New("failed")
 	}
 	if tx != nil {
 		mn.transactions = append(mn.transactions, tx)
 	}
-	return nil
+	return tx.Hash(crypto.SHA256), nil
 }
 
 func (mn *MockNode) GetBlock(_ context.Context, blockNumber uint64) (*types.Block, error) {

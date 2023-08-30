@@ -42,22 +42,17 @@ func handleTransferFeeCreditTx(s *state.State, hashAlgorithm crypto.Hash, feeCre
 			return nil, fmt.Errorf("transferFC: validation failed: %w", err)
 		}
 
-		// remove value from source unit, or delete source bill entirely
-		var action state.Action
-		if attr.Amount < billData.V {
-			action = state.UpdateUnitData(unitID, func(data state.UnitData) (state.UnitData, error) {
-				newBillData, ok := data.(*BillData)
-				if !ok {
-					return nil, fmt.Errorf("unit %v does not contain bill data", unitID)
-				}
-				newBillData.V -= attr.Amount
-				newBillData.T = currentBlockNumber
-				newBillData.Backlink = tx.Hash(hashAlgorithm)
-				return newBillData, nil
-			})
-		} else {
-			action = state.DeleteUnit(unitID)
-		}
+		// remove value from source unit, zero value bills get removed later
+		action := state.UpdateUnitData(unitID, func(data state.UnitData) (state.UnitData, error) {
+			newBillData, ok := data.(*BillData)
+			if !ok {
+				return nil, fmt.Errorf("unit %v does not contain bill data", unitID)
+			}
+			newBillData.V -= attr.Amount
+			newBillData.T = currentBlockNumber
+			newBillData.Backlink = tx.Hash(hashAlgorithm)
+			return newBillData, nil
+		})
 		if err := s.Apply(action); err != nil {
 			return nil, fmt.Errorf("transferFC: failed to update state: %w", err)
 		}

@@ -9,21 +9,31 @@ import (
 	"net/http"
 	"net/http/httputil"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
+
+	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/fxamacker/cbor/v2"
 
 	"github.com/alphabill-org/alphabill/internal/types"
 	sdk "github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/alphabill-org/alphabill/pkg/wallet/money/backend"
-	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/fxamacker/cbor/v2"
 )
+
+const defaultPagingLimit = 100
 
 type (
 	MoneyBackendClient struct {
-		BaseUrl    string
-		HttpClient http.Client
+		BaseUrl     *url.URL
+		HttpClient  http.Client
+		pagingLimit int
 
+		balanceURL         *url.URL
+		roundNumberURL     *url.URL
+		unitsURL           *url.URL
+		txHistoryURL       *url.URL
+		listBillsURL       *url.URL
 		feeCreditBillURL   *url.URL
 		lockedFeeCreditURL *url.URL
 		closedFeeCreditURL *url.URL
@@ -35,21 +45,20 @@ const (
 	BalancePath         = "api/v1/balance"
 	ListBillsPath       = "api/v1/list-bills"
 	TxHistoryPath       = "api/v1/tx-history"
-	ProofPath           = "api/v1/units/{unitId}/transactions/{txHash}/proof"
+	UnitsPath           = "api/v1/units"
 	RoundNumberPath     = "api/v1/round-number"
 	FeeCreditPath       = "api/v1/fee-credit-bills"
 	LockedFeeCreditPath = "api/v1/locked-fee-credit"
 	ClosedFeeCreditPath = "api/v1/closed-fee-credit"
 	TransactionsPath    = "api/v1/transactions"
 
-	balanceUrlFormat     = "%v/%v?pubkey=%v&includeDcBills=%v"
-	listBillsUrlFormat   = "%v/%v?pubkey=%v&includeDcBills=%v"
-	roundNumberUrlFormat = "%v/%v"
-
 	defaultScheme   = "http://"
 	contentType     = "Content-Type"
 	applicationJson = "application/json"
 	applicationCbor = "application/cbor"
+
+	paramPubKey         = "pubkey"
+	paramIncludeDCBills = "includeDcBills"
 )
 
 func New(baseUrl string) (*MoneyBackendClient, error) {
@@ -61,17 +70,26 @@ func New(baseUrl string) (*MoneyBackendClient, error) {
 		return nil, fmt.Errorf("error parsing Money Backend Client base URL (%s): %w", baseUrl, err)
 	}
 	return &MoneyBackendClient{
-		BaseUrl:            u.String(),
+		BaseUrl:            u,
 		HttpClient:         http.Client{Timeout: time.Minute},
+		balanceURL:         u.JoinPath(BalancePath),
+		roundNumberURL:     u.JoinPath(RoundNumberPath),
+		unitsURL:           u.JoinPath(UnitsPath),
+		txHistoryURL:       u.JoinPath(TxHistoryPath),
+		listBillsURL:       u.JoinPath(ListBillsPath),
 		feeCreditBillURL:   u.JoinPath(FeeCreditPath),
 		lockedFeeCreditURL: u.JoinPath(LockedFeeCreditPath),
 		closedFeeCreditURL: u.JoinPath(ClosedFeeCreditPath),
 		transactionsURL:    u.JoinPath(TransactionsPath),
+		pagingLimit:        defaultPagingLimit,
 	}, nil
 }
 
 func (c *MoneyBackendClient) GetBalance(ctx context.Context, pubKey []byte, includeDCBills bool) (uint64, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, fmt.Sprintf(balanceUrlFormat, c.BaseUrl, BalancePath, hexutil.Encode(pubKey), includeDCBills), nil)
+	u := *c.balanceURL
+	sdk.SetQueryParam(&u, paramPubKey, hexutil.Encode(pubKey))
+	sdk.SetQueryParam(&u, paramIncludeDCBills, strconv.FormatBool(includeDCBills))
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
 	if err != nil {
 		return 0, fmt.Errorf("failed to build get balance request: %w", err)
 	}
@@ -96,27 +114,24 @@ func (c *MoneyBackendClient) GetBalance(ctx context.Context, pubKey []byte, incl
 	return responseObject.Balance, nil
 }
 
-func (c *MoneyBackendClient) ListBills(ctx context.Context, pubKey []byte, includeDCBills bool) (*backend.ListBillsResponse, error) {
-	offset := 0
-	responseObject, err := c.retrieveBills(ctx, pubKey, includeDCBills, offset)
-	if err != nil {
-		return nil, err
-	}
-	finalResponse := responseObject
-
-	for len(finalResponse.Bills) < finalResponse.Total {
-		offset += len(responseObject.Bills)
-		responseObject, err = c.retrieveBills(ctx, pubKey, includeDCBills, offset)
+func (c *MoneyBackendClient) ListBills(ctx context.Context, pubKey []byte, includeDCBills bool, offsetKey string, limit int) (*backend.ListBillsResponse, error) {
+	var bills []*sdk.Bill
+	for {
+		responseObject, nextKey, err := c.retrieveBills(ctx, pubKey, includeDCBills, offsetKey, limit)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("failed to fetch bills: %w", err)
 		}
-		finalResponse.Bills = append(finalResponse.Bills, responseObject.Bills...)
+		bills = append(bills, responseObject.Bills...)
+		if nextKey == "" {
+			break
+		}
+		offsetKey = nextKey
 	}
-	return finalResponse, nil
+	return &backend.ListBillsResponse{Bills: bills}, nil
 }
 
 func (c *MoneyBackendClient) GetBills(ctx context.Context, pubKey []byte) ([]*sdk.Bill, error) {
-	res, err := c.ListBills(ctx, pubKey, false)
+	res, err := c.ListBills(ctx, pubKey, false, "", c.pagingLimit)
 	if err != nil {
 		return nil, err
 	}
@@ -124,7 +139,7 @@ func (c *MoneyBackendClient) GetBills(ctx context.Context, pubKey []byte) ([]*sd
 }
 
 func (c *MoneyBackendClient) GetRoundNumber(ctx context.Context) (uint64, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, fmt.Sprintf(roundNumberUrlFormat, c.BaseUrl, RoundNumberPath), nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.roundNumberURL.String(), nil)
 	if err != nil {
 		return 0, fmt.Errorf("failed to build GetRoundNumber request: %w", err)
 	}
@@ -149,7 +164,7 @@ func (c *MoneyBackendClient) GetRoundNumber(ctx context.Context) (uint64, error)
 	return responseObject.RoundNumber, nil
 }
 
-func (c *MoneyBackendClient) GetFeeCreditBill(ctx context.Context, unitID sdk.UnitID) (*sdk.Bill, error) {
+func (c *MoneyBackendClient) GetFeeCreditBill(ctx context.Context, unitID types.UnitID) (*sdk.Bill, error) {
 	urlPath := c.feeCreditBillURL.JoinPath(hexutil.Encode(unitID)).String()
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, urlPath, nil)
 	if err != nil {
@@ -255,7 +270,8 @@ func (c *MoneyBackendClient) PostTransactions(ctx context.Context, pubKey sdk.Pu
 	if err != nil {
 		return fmt.Errorf("failed to encode transactions: %w", err)
 	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.transactionsURL.JoinPath(hexutil.Encode(pubKey)).String(), bytes.NewBuffer(b))
+	urlPath := c.transactionsURL.JoinPath(hexutil.Encode(pubKey)).String()
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, urlPath, bytes.NewBuffer(b))
 	if err != nil {
 		return fmt.Errorf("failed to create send transactions request: %w", err)
 	}
@@ -277,8 +293,9 @@ func (c *MoneyBackendClient) PostTransactions(ctx context.Context, pubKey sdk.Pu
 }
 
 // GetTxProof wrapper for GetProof method to satisfy txsubmitter interface, also verifies txHash
-func (c *MoneyBackendClient) GetTxProof(ctx context.Context, unitID sdk.UnitID, txHash sdk.TxHash) (*sdk.Proof, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, fmt.Sprintf("%s/api/v1/units/0x%x/transactions/0x%x/proof", c.BaseUrl, unitID, txHash), nil)
+func (c *MoneyBackendClient) GetTxProof(ctx context.Context, unitID types.UnitID, txHash sdk.TxHash) (*sdk.Proof, error) {
+	urlPath := c.unitsURL.JoinPath(hexutil.Encode(unitID), "transactions", hexutil.Encode(txHash), "proof").String()
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, urlPath, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to build get tx proof request: %w", err)
 	}
@@ -306,11 +323,7 @@ func (c *MoneyBackendClient) GetTxProof(ctx context.Context, unitID sdk.UnitID, 
 }
 
 func (c *MoneyBackendClient) GetTxHistory(ctx context.Context, pubKey sdk.PubKey, offset string, limit int) ([]*sdk.TxHistoryRecord, string, error) {
-	addr, err := url.Parse(c.BaseUrl)
-	if err != nil {
-		return nil, "", fmt.Errorf("failed to parse base url: %w", err)
-	}
-	u := sdk.GetURL(*addr, TxHistoryPath, hexutil.Encode(pubKey))
+	u := c.txHistoryURL.JoinPath(hexutil.Encode(pubKey))
 	sdk.SetPaginationParams(u, offset, limit)
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
@@ -344,32 +357,35 @@ func (c *MoneyBackendClient) GetTxHistory(ctx context.Context, pubKey sdk.PubKey
 	return result, pm, nil
 }
 
-func (c *MoneyBackendClient) retrieveBills(ctx context.Context, pubKey []byte, includeDCBills bool, offset int) (*backend.ListBillsResponse, error) {
-	reqUrl := fmt.Sprintf(listBillsUrlFormat, c.BaseUrl, ListBillsPath, hexutil.Encode(pubKey), includeDCBills)
-	if offset > 0 {
-		reqUrl = fmt.Sprintf("%v&%s=%v", reqUrl, sdk.QueryParamOffsetKey, offset)
-	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, reqUrl, nil)
+func (c *MoneyBackendClient) retrieveBills(ctx context.Context, pubKey []byte, includeDCBills bool, offsetKey string, limit int) (*backend.ListBillsResponse, string, error) {
+	u := *c.listBillsURL
+	sdk.SetQueryParam(&u, paramPubKey, hexutil.Encode(pubKey))
+	sdk.SetQueryParam(&u, paramIncludeDCBills, strconv.FormatBool(includeDCBills))
+	sdk.SetPaginationParams(&u, offsetKey, limit)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
 	if err != nil {
-		return nil, fmt.Errorf("failed to build get bills request: %w", err)
+		return nil, "", fmt.Errorf("failed to build get bills request: %w", err)
 	}
 	req.Header.Set(contentType, applicationJson)
 	response, err := c.HttpClient.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("request ListBills failed: %w", err)
+		return nil, "", fmt.Errorf("request ListBills failed: %w", err)
 	}
 	if response.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("unexpected response status code: %d", response.StatusCode)
+		return nil, "", fmt.Errorf("unexpected response status code: %d", response.StatusCode)
 	}
-
 	responseData, err := io.ReadAll(response.Body)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read ListBills response: %w", err)
+		return nil, "", fmt.Errorf("failed to read ListBills response: %w", err)
 	}
-	var responseObject backend.ListBillsResponse
+	var responseObject *backend.ListBillsResponse
 	err = json.Unmarshal(responseData, &responseObject)
 	if err != nil {
-		return nil, fmt.Errorf("failed to unmarshall ListBills response data: %w", err)
+		return nil, "", fmt.Errorf("failed to unmarshal ListBills response data: %w", err)
 	}
-	return &responseObject, nil
+	nextKey, err := sdk.ExtractOffsetMarker(response)
+	if err != nil {
+		return nil, "", fmt.Errorf("failed to extract position marker: %w", err)
+	}
+	return responseObject, nextKey, nil
 }

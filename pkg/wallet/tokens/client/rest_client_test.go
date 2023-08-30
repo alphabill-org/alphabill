@@ -13,6 +13,7 @@ import (
 
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/alphabill-org/alphabill/internal/txsystem/fc/testutils"
+	"github.com/alphabill-org/alphabill/internal/txsystem/money"
 	"github.com/alphabill-org/alphabill/internal/txsystem/tokens"
 	"github.com/alphabill-org/alphabill/internal/types"
 	sdk "github.com/alphabill-org/alphabill/pkg/wallet"
@@ -33,9 +34,9 @@ func Test_setPaginationParams(t *testing.T) {
 		{pos: "", limit: 0, res: ""},
 		{pos: "", limit: -1, res: ""},
 		{pos: "", limit: 10, res: "?limit=10"},
-		{pos: "a01b", limit: 0, res: "?offset=a01b"},
-		{pos: "a01b", limit: -2, res: "?offset=a01b"},
-		{pos: "a01b", limit: 20, res: "?limit=20&offset=a01b"},
+		{pos: "a01b", limit: 0, res: "?offsetKey=a01b"},
+		{pos: "a01b", limit: -2, res: "?offsetKey=a01b"},
+		{pos: "a01b", limit: 20, res: "?limit=20&offsetKey=a01b"},
 	}
 
 	for x, tc := range cases {
@@ -179,7 +180,7 @@ func Test_get(t *testing.T) {
 	})
 
 	t.Run("position marker is extracted correctly", func(t *testing.T) {
-		cli := clientWithHeader(t, 200, `<http://localhost/something?offset=abc&some=garbage>; rel="next"`)
+		cli := clientWithHeader(t, 200, `<http://localhost/something?offsetKey=abc&some=garbage>; rel="next"`)
 		var data int
 		pos, err := cli.get(context.Background(), &url.URL{Scheme: "http", Host: "localhost"}, &data, true)
 		require.NoError(t, err)
@@ -282,7 +283,7 @@ func Test_GetClosedFeeCredit(t *testing.T) {
 	t.Run("backend returns 404 => response is nil", func(t *testing.T) {
 		notExistsJson, _ := json.Marshal(sdk.ErrorResponse{Message: "closed fee credit does not exist"})
 		api := createClient(t, 404, notExistsJson)
-		rn, err := api.GetClosedFeeCredit(context.Background(), test.NewUnitID(1))
+		rn, err := api.GetClosedFeeCredit(context.Background(), money.NewFeeCreditRecordID(nil, []byte{1}))
 		require.NoError(t, err)
 		require.Nil(t, rn)
 	})
@@ -294,7 +295,7 @@ func Test_GetClosedFeeCredit(t *testing.T) {
 		require.NoError(t, err)
 
 		cli := createClient(t, 200, txBytes)
-		closedFeeCredit, err := cli.GetClosedFeeCredit(context.Background(), test.NewUnitID(1))
+		closedFeeCredit, err := cli.GetClosedFeeCredit(context.Background(), money.NewFeeCreditRecordID(nil, []byte{1}))
 		require.NoError(t, err)
 		require.Equal(t, closeFCTxr, closedFeeCredit)
 	})
@@ -808,7 +809,7 @@ func Test_extractOffsetMarker(t *testing.T) {
 		require.Empty(t, marker)
 	})
 
-	t.Run("offset is not present", func(t *testing.T) {
+	t.Run("offsetKey is not present", func(t *testing.T) {
 		w := httptest.NewRecorder()
 		w.Header().Set("Link", `<http://localhost/foo/bar>; rel="next"`)
 		marker, err := sdk.ExtractOffsetMarker(w.Result())
@@ -816,9 +817,9 @@ func Test_extractOffsetMarker(t *testing.T) {
 		require.Empty(t, marker)
 	})
 
-	t.Run("offset is present", func(t *testing.T) {
+	t.Run("offsetKey is present", func(t *testing.T) {
 		w := httptest.NewRecorder()
-		w.Header().Set("Link", `<http://localhost/foo/bar?offset=ABC>; rel="next"`)
+		w.Header().Set("Link", `<http://localhost/foo/bar?offsetKey=ABC>; rel="next"`)
 		marker, err := sdk.ExtractOffsetMarker(w.Result())
 		require.NoError(t, err)
 		require.Equal(t, "ABC", marker)

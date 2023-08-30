@@ -14,11 +14,9 @@ import (
 	testpartition "github.com/alphabill-org/alphabill/internal/testutils/partition"
 	"github.com/alphabill-org/alphabill/internal/txsystem/money"
 	"github.com/alphabill-org/alphabill/internal/txsystem/tokens"
-	"github.com/alphabill-org/alphabill/internal/util"
 	wlog "github.com/alphabill-org/alphabill/pkg/wallet/log"
 	"github.com/alphabill-org/alphabill/pkg/wallet/money/backend"
 	moneyclient "github.com/alphabill-org/alphabill/pkg/wallet/money/backend/client"
-	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
 )
 
@@ -26,7 +24,7 @@ var defaultTokenSDR = &genesis.SystemDescriptionRecord{
 	SystemIdentifier: tokens.DefaultSystemIdentifier,
 	T2Timeout:        defaultT2Timeout,
 	FeeCreditBill: &genesis.FeeCreditBill{
-		UnitId:         util.Uint256ToBytes(uint256.NewInt(4)),
+		UnitId:         money.NewBillID(nil, []byte{3}),
 		OwnerPredicate: script.PredicateAlwaysTrue(),
 	},
 }
@@ -87,6 +85,12 @@ func TestWalletFeesCmds_MoneyPartition(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "Partition: money", stdout.lines[0])
 	require.Equal(t, fmt.Sprintf("Account #1 %s", amountToString(expectedFees, 8)), stdout.lines[1])
+
+	// add entire bill value worth of fees
+	entireBillAmount := getFirstBillValue(t, homedir)
+	stdout, err = execFeesCommand(homedir, fmt.Sprintf("add --amount=%s", entireBillAmount))
+	require.NoError(t, err)
+	require.Equal(t, fmt.Sprintf("Successfully created %s fee credits on money partition.", entireBillAmount), stdout.lines[0])
 }
 
 func TestWalletFeesCmds_TokenPartition(t *testing.T) {
@@ -164,7 +168,7 @@ func execFeesCommand(homeDir, command string) (*testConsoleWriter, error) {
 // Returns wallet homedir and reference to money partition object.
 func setupMoneyInfraAndWallet(t *testing.T, otherPartitions []*testpartition.NodePartition) (string, *testpartition.AlphabillNetwork) {
 	initialBill := &money.InitialBill{
-		ID:    util.Uint256ToBytes(uint256.NewInt(1)),
+		ID:    defaultInitialBillID,
 		Value: 1e18,
 		Owner: script.PredicateAlwaysTrue(),
 	}
@@ -220,4 +224,14 @@ func startMoneyBackend(t *testing.T, moneyPart *testpartition.NodePartition, ini
 	require.NoError(t, err)
 
 	return defaultAlphabillApiURL, restClient
+}
+
+func getFirstBillValue(t *testing.T, homedir string) string {
+	// Account #1
+	// #1 0x0000000000000000000000000000000000000000000000000000000000000001 9'999'999'849.999'999'91
+	stdout := execWalletCmd(t, homedir, "bills list")
+	require.Len(t, stdout.lines, 2)
+	parts := strings.Split(stdout.lines[1], " ") // split by whitespace, should have 3 parts
+	require.Len(t, parts, 3)
+	return parts[2] // return last part i.e. the bill value
 }

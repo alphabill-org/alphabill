@@ -7,13 +7,11 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
 
 	"github.com/alphabill-org/alphabill/internal/hash"
 	"github.com/alphabill-org/alphabill/internal/txsystem/money"
 	"github.com/alphabill-org/alphabill/internal/types"
-	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/alphabill-org/alphabill/pkg/wallet/money/backend"
 	"github.com/alphabill-org/alphabill/pkg/wallet/unitlock"
@@ -22,7 +20,7 @@ import (
 func TestWalletSendFunction(t *testing.T) {
 	w, _ := CreateTestWallet(t, withBackendMock(t, &backendMockReturnConf{
 		balance:   70,
-		billId:    uint256.NewInt(0),
+		billId:    money.NewBillID(nil, []byte{0}),
 		billValue: 50,
 		feeCreditBill: &wallet.Bill{
 			Id:    []byte{},
@@ -62,7 +60,7 @@ func TestWalletSendFunction_InsufficientBalance(t *testing.T) {
 func TestWalletSendFunction_ClientError(t *testing.T) {
 	w, _ := CreateTestWallet(t, withBackendMock(t, &backendMockReturnConf{
 		balance:   70,
-		billId:    uint256.NewInt(0),
+		billId:    money.NewBillID(nil, []byte{0}),
 		billValue: 50,
 		feeCreditBill: &wallet.Bill{
 			Id:    []byte{},
@@ -101,7 +99,7 @@ func TestWalletSendFunction_WaitForConfirmation(t *testing.T) {
 		getBills: func(pubKey []byte) ([]*wallet.Bill, error) {
 			return []*wallet.Bill{{Id: b.GetID(), Value: b.Value, TxHash: b.TxHash}}, nil
 		},
-		getTxProof: func(ctx context.Context, unitID wallet.UnitID, txHash wallet.TxHash) (*wallet.Proof, error) {
+		getTxProof: func(ctx context.Context, unitID types.UnitID, txHash wallet.TxHash) (*wallet.Proof, error) {
 			tx := recordedTransactions[0]
 			b.TxHash = tx.Hash(crypto.SHA256)
 			return createBlockProofResponseForDustTransfer(t, b, nil, txTimeoutBlockCount, nil), nil
@@ -109,7 +107,7 @@ func TestWalletSendFunction_WaitForConfirmation(t *testing.T) {
 		getFeeCreditBill: func(ctx context.Context, unitID []byte) (*wallet.Bill, error) {
 			ac, _ := w.am.GetAccountKey(0)
 			return &wallet.Bill{
-				Id:    ac.PubKeyHash.Sha256,
+				Id:    money.NewFeeCreditRecordID(nil, ac.PubKeyHash.Sha256),
 				Value: 100 * 1e8,
 			}, nil
 		},
@@ -155,7 +153,7 @@ func TestWalletSendFunction_WaitForMultipleTxConfirmations(t *testing.T) {
 				{Id: b2.GetID(), Value: b2.Value, TxHash: b2.TxHash},
 			}, nil
 		},
-		getTxProof: func(ctx context.Context, unitID wallet.UnitID, txHash wallet.TxHash) (*wallet.Proof, error) {
+		getTxProof: func(ctx context.Context, unitID types.UnitID, txHash wallet.TxHash) (*wallet.Proof, error) {
 			var bill *wallet.Bill
 			for _, tx := range recordedTransactions {
 				if bytes.Equal(unitID, tx.UnitID()) {
@@ -217,7 +215,7 @@ func TestWalletSendFunction_WaitForMultipleTxConfirmationsInDifferentBlocks(t *t
 				{Id: b2.GetID(), Value: b2.Value, TxHash: b2.TxHash},
 			}, nil
 		},
-		getTxProof: func(ctx context.Context, unitID wallet.UnitID, txHash wallet.TxHash) (*wallet.Proof, error) {
+		getTxProof: func(ctx context.Context, unitID types.UnitID, txHash wallet.TxHash) (*wallet.Proof, error) {
 			var bill *wallet.Bill
 			for _, tx := range recordedTransactions {
 				if bytes.Equal(unitID, tx.UnitID()) {
@@ -236,7 +234,10 @@ func TestWalletSendFunction_WaitForMultipleTxConfirmationsInDifferentBlocks(t *t
 		},
 		getFeeCreditBill: func(ctx context.Context, unitID []byte) (*wallet.Bill, error) {
 			ac, _ := w.am.GetAccountKey(0)
-			return &wallet.Bill{Id: ac.PubKeyHash.Sha256, Value: 100 * 1e8}, nil
+			return &wallet.Bill{
+				Id: money.NewFeeCreditRecordID(nil, ac.PubKeyHash.Sha256),
+				Value: 100 * 1e8,
+			}, nil
 		},
 		postTransactions: func(ctx context.Context, pubKey wallet.PubKey, txs *wallet.Transactions) error {
 			for _, tx := range txs.Transactions {
@@ -276,7 +277,7 @@ func TestWalletSendFunction_ErrTxFailedToConfirm(t *testing.T) {
 		getFeeCreditBill: func(ctx context.Context, unitID []byte) (*wallet.Bill, error) {
 			return &wallet.Bill{Id: []byte{}, Value: 100 * 1e8}, nil
 		},
-		getTxProof: func(ctx context.Context, unitID wallet.UnitID, txHash wallet.TxHash) (*wallet.Proof, error) {
+		getTxProof: func(ctx context.Context, unitID types.UnitID, txHash wallet.TxHash) (*wallet.Proof, error) {
 			return nil, nil
 		},
 		postTransactions: func(ctx context.Context, pubKey wallet.PubKey, txs *wallet.Transactions) error {
@@ -317,7 +318,7 @@ func TestWholeBalanceIsSentUsingBillTransferOrder(t *testing.T) {
 		getFeeCreditBill: func(ctx context.Context, unitID []byte) (*wallet.Bill, error) {
 			return &wallet.Bill{Id: []byte{}, Value: 100 * 1e8}, nil
 		},
-		getTxProof: func(ctx context.Context, unitID wallet.UnitID, txHash wallet.TxHash) (*wallet.Proof, error) {
+		getTxProof: func(ctx context.Context, unitID types.UnitID, txHash wallet.TxHash) (*wallet.Proof, error) {
 			return nil, nil
 		},
 		postTransactions: func(ctx context.Context, pubKey wallet.PubKey, txs *wallet.Transactions) error {
@@ -340,7 +341,7 @@ func TestWholeBalanceIsSentUsingBillTransferOrder(t *testing.T) {
 }
 
 func TestWalletSendFunction_LockedBillIsNotUsed(t *testing.T) {
-	unitID := uint256.NewInt(123)
+	unitID := money.NewBillID(nil, []byte{123})
 	w, _ := CreateTestWallet(t, withBackendMock(t, &backendMockReturnConf{
 		balance:       70,
 		billId:        unitID,
@@ -354,7 +355,7 @@ func TestWalletSendFunction_LockedBillIsNotUsed(t *testing.T) {
 	// lock the only bill in wallet
 	err = w.unitLocker.LockUnit(unitlock.NewLockedUnit(
 		pubKey,
-		util.Uint256ToBytes(unitID),
+		unitID,
 		[]byte{1},
 		unitlock.LockReasonCollectDust,
 	))
@@ -393,7 +394,7 @@ func TestWalletSendFunction_BillWithExactAmount(t *testing.T) {
 		getBills: func(pubKey []byte) ([]*wallet.Bill, error) {
 			return []*wallet.Bill{{Id: bills[0].GetID(), Value: bills[0].Value, TxHash: bills[0].TxHash}, {Id: bills[1].GetID(), Value: bills[1].Value, TxHash: bills[1].TxHash}}, nil
 		},
-		getTxProof: func(ctx context.Context, unitID wallet.UnitID, txHash wallet.TxHash) (*wallet.Proof, error) {
+		getTxProof: func(ctx context.Context, unitID types.UnitID, txHash wallet.TxHash) (*wallet.Proof, error) {
 			tx := recordedTransactions[0]
 			bills[1].TxHash = tx.Hash(crypto.SHA256)
 			return createBlockProofResponseForDustTransfer(t, bills[1], nil, txTimeoutBlockCount, nil), nil
@@ -401,7 +402,7 @@ func TestWalletSendFunction_BillWithExactAmount(t *testing.T) {
 		getFeeCreditBill: func(ctx context.Context, unitID []byte) (*wallet.Bill, error) {
 			ac, _ := w.am.GetAccountKey(0)
 			return &wallet.Bill{
-				Id:    ac.PubKeyHash.Sha256,
+				Id:    money.NewFeeCreditRecordID(nil, ac.PubKeyHash.Sha256),
 				Value: 100 * 1e8,
 			}, nil
 		},

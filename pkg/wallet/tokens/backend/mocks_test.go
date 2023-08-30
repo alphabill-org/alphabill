@@ -17,7 +17,6 @@ import (
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/alphabill-org/alphabill/internal/txsystem/tokens"
 	"github.com/alphabill-org/alphabill/internal/types"
-	"github.com/alphabill-org/alphabill/internal/util"
 	sdk "github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/alphabill-org/alphabill/pkg/wallet/log"
 	"github.com/fxamacker/cbor/v2"
@@ -70,9 +69,9 @@ func randomTx(t *testing.T, attr interface{}) *types.TransactionOrder {
 	tx := &types.TransactionOrder{
 		Payload: &types.Payload{
 			SystemID:       tokens.DefaultSystemIdentifier,
-			UnitID:         test.RandomBytes(32),
+			UnitID:         test.RandomBytes(33),
 			Attributes:     attrBytes,
-			ClientMetadata: &types.ClientMetadata{Timeout: 10, FeeCreditRecordID: util.Uint64ToBytes32(1)},
+			ClientMetadata: &types.ClientMetadata{Timeout: 10, FeeCreditRecordID: tokens.NewFeeCreditRecordID(nil, []byte{1})},
 		},
 		OwnerProof: test.RandomBytes(3),
 	}
@@ -173,11 +172,11 @@ type mockStorage struct {
 	getTokenType     func(id TokenTypeID) (*TokenUnitType, error)
 	queryTTypes      func(kind Kind, creator sdk.PubKey, startKey TokenTypeID, count int) ([]*TokenUnitType, TokenTypeID, error)
 	saveTTypeCreator func(id TokenTypeID, kind Kind, creator sdk.PubKey) error
-	getTxProof       func(unitID sdk.UnitID, txHash sdk.TxHash) (*sdk.Proof, error)
-	getFeeCreditBill func(unitID sdk.UnitID) (*FeeCreditBill, error)
+	getTxProof       func(unitID types.UnitID, txHash sdk.TxHash) (*sdk.Proof, error)
+	getFeeCreditBill func(unitID types.UnitID) (*FeeCreditBill, error)
 	setFeeCreditBill func(fcb *FeeCreditBill, proof *sdk.Proof) error
-	getClosedFC      func(fcbID sdk.UnitID) (*types.TransactionRecord, error)
-	setClosedFC      func(fcbID sdk.UnitID, tx *types.TransactionRecord) error
+	getClosedFC      func(fcbID types.UnitID) (*types.TransactionRecord, error)
+	setClosedFC      func(fcbID types.UnitID, tx *types.TransactionRecord) error
 }
 
 func (ms *mockStorage) Close() error { return nil }
@@ -252,14 +251,14 @@ func (ms *mockStorage) QueryTokens(kind Kind, owner sdk.Predicate, startKey Toke
 	return nil, nil, fmt.Errorf("unexpected QueryTokens call")
 }
 
-func (ms *mockStorage) GetTxProof(unitID sdk.UnitID, txHash sdk.TxHash) (*sdk.Proof, error) {
+func (ms *mockStorage) GetTxProof(unitID types.UnitID, txHash sdk.TxHash) (*sdk.Proof, error) {
 	if ms.getTxProof != nil {
 		return ms.getTxProof(unitID, txHash)
 	}
 	return nil, fmt.Errorf("unexpected GetTxProof call")
 }
 
-func (ms *mockStorage) GetFeeCreditBill(unitID sdk.UnitID) (*FeeCreditBill, error) {
+func (ms *mockStorage) GetFeeCreditBill(unitID types.UnitID) (*FeeCreditBill, error) {
 	if ms.getFeeCreditBill != nil {
 		return ms.getFeeCreditBill(unitID)
 	}
@@ -273,14 +272,14 @@ func (ms *mockStorage) SetFeeCreditBill(fcb *FeeCreditBill, proof *sdk.Proof) er
 	return fmt.Errorf("unexpected SetFeeCreditBill(%X) call", fcb.GetID())
 }
 
-func (ms *mockStorage) GetClosedFeeCredit(unitID sdk.UnitID) (*types.TransactionRecord, error) {
+func (ms *mockStorage) GetClosedFeeCredit(unitID types.UnitID) (*types.TransactionRecord, error) {
 	if ms.getClosedFC != nil {
 		return ms.getClosedFC(unitID)
 	}
 	return nil, fmt.Errorf("unexpected GetClosedFeeCredit call")
 }
 
-func (ms *mockStorage) SetClosedFeeCredit(fcbID sdk.UnitID, tx *types.TransactionRecord) error {
+func (ms *mockStorage) SetClosedFeeCredit(fcbID types.UnitID, tx *types.TransactionRecord) error {
 	if ms.getClosedFC != nil {
 		return ms.setClosedFC(fcbID, tx)
 	}

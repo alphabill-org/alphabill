@@ -12,14 +12,11 @@ import (
 	testtransaction "github.com/alphabill-org/alphabill/internal/testutils/transaction"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	fcunit "github.com/alphabill-org/alphabill/internal/txsystem/fc/unit"
-	txutil "github.com/alphabill-org/alphabill/internal/txsystem/util"
 	"github.com/alphabill-org/alphabill/internal/types"
-	"github.com/alphabill-org/alphabill/internal/util"
-	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
 )
 
-var feeCreditID = util.Uint256ToBytes(uint256.NewInt(420))
+var feeCreditID = NewFeeCreditRecordID(nil, []byte{42})
 var defaultClientMetadata = &types.ClientMetadata{
 	Timeout:           20,
 	MaxTransactionFee: 10,
@@ -48,7 +45,7 @@ func TestInitPartitionAndCreateNFTType_Ok(t *testing.T) {
 				Symbol:                   "Test",
 				Name:                     "Long name for Test",
 				Icon:                     &Icon{Type: validIconType, Data: []byte{3, 2, 1}},
-				ParentTypeID:             util.Uint256ToBytes(uint256.NewInt(0)),
+				ParentTypeID:             NewNonFungibleTokenTypeID(nil, nil),
 				SubTypeCreationPredicate: script.PredicateAlwaysTrue(),
 				TokenCreationPredicate:   script.PredicateAlwaysTrue(),
 				InvariantPredicate:       script.PredicateAlwaysTrue(),
@@ -67,8 +64,8 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 		hashAlgorithm       = gocrypto.SHA256
 		states              []*state.State
 		zeroID                     = make([]byte, 32)
-		fungibleTokenTypeID        = []byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1}
-		fungibleTokenID1           = []byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2}
+		fungibleTokenTypeID        = NewFungibleTokenTypeID(nil, []byte{1})
+		fungibleTokenID1           = NewFungibleTokenID(nil, []byte{2})
 		totalValue          uint64 = 1000
 		splitValue1         uint64 = 100
 		splitValue2         uint64 = 10
@@ -198,7 +195,7 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 	})
 	verifyProof(t, splitTx1, tokenPrt, trustBase, hashAlgorithm)
 
-	sUnitID1 := txutil.SameShardID(fungibleTokenID1, HashForIDCalculation(splitTx1, hashAlgorithm))
+	sUnitID1 := NewFungibleTokenID(fungibleTokenID1, HashForIDCalculation(splitTx1, hashAlgorithm))
 	RequireFungibleTokenState(t, state0, fungibleTokenUnitData{
 		unitID:     sUnitID1,
 		typeUnitID: fungibleTokenTypeID,
@@ -242,7 +239,7 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 		tokenValue: totalValue - splitValue1 - splitValue2,
 	})
 
-	sUnitID2 := txutil.SameShardID(fungibleTokenID1, HashForIDCalculation(splitTx2, hashAlgorithm))
+	sUnitID2 := NewFungibleTokenID(fungibleTokenID1, HashForIDCalculation(splitTx2, hashAlgorithm))
 	RequireFungibleTokenState(t, state0, fungibleTokenUnitData{
 		unitID:     sUnitID2,
 		typeUnitID: fungibleTokenTypeID,

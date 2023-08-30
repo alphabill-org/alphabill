@@ -103,14 +103,20 @@ func (s *boltBillStoreTx) GetBill(unitID []byte) (*Bill, error) {
 	return unit, nil
 }
 
-func (s *boltBillStoreTx) GetBills(ownerPredicate []byte) ([]*Bill, error) {
+func (s *boltBillStoreTx) GetBills(ownerPredicate []byte, includeDCBills bool, startKey []byte, limit int) ([]*Bill, []byte, error) {
 	var units []*Bill
+	var nextKey []byte
 	err := s.withTx(s.tx, func(tx *bolt.Tx) error {
 		unitIDBucket := tx.Bucket(predicatesBucket).Bucket(ownerPredicate)
 		if unitIDBucket == nil {
 			return nil
 		}
-		return unitIDBucket.ForEach(func(unitID, _ []byte) error {
+		c := unitIDBucket.Cursor()
+		for unitID, _ := setPosition(c, startKey); unitID != nil; unitID, _ = c.Next() {
+			if limit == 0 {
+				nextKey = unitID
+				return nil
+			}
 			unit, err := s.getUnit(tx, unitID)
 			if err != nil {
 				return err
@@ -118,14 +124,18 @@ func (s *boltBillStoreTx) GetBills(ownerPredicate []byte) ([]*Bill, error) {
 			if unit == nil {
 				return fmt.Errorf("unit in secondary index not found in primary unit bucket unitID=%x", unitID)
 			}
+			if unit.IsDCBill() && !includeDCBills {
+				continue
+			}
 			units = append(units, unit)
-			return nil
-		})
+			limit--
+		}
+		return nil
 	}, false)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	return units, nil
+	return units, nextKey, nil
 }
 
 func (s *boltBillStoreTx) SetBill(bill *Bill, proof *sdk.Proof) error {
@@ -169,7 +179,7 @@ func (s *boltBillStoreTx) SetBill(bill *Bill, proof *sdk.Proof) error {
 		if err != nil {
 			return err
 		}
-		return s.storeUnitBlockProof(tx, bill.Id, bill.TxHash, proof)
+		return s.storeTxProof(tx, bill.Id, bill.TxHash, proof)
 	}, true)
 }
 
@@ -233,7 +243,7 @@ func (s *boltBillStoreTx) SetBlockNumber(blockNumber uint64) error {
 	}, true)
 }
 
-func (s *boltBillStoreTx) GetTxProof(unitID sdk.UnitID, txHash sdk.TxHash) (*sdk.Proof, error) {
+func (s *boltBillStoreTx) GetTxProof(unitID types.UnitID, txHash sdk.TxHash) (*sdk.Proof, error) {
 	var proof *sdk.Proof
 	err := s.withTx(s.tx, func(tx *bolt.Tx) error {
 		var err error
@@ -267,7 +277,7 @@ func (s *boltBillStoreTx) SetFeeCreditBill(fcb *Bill, proof *sdk.Proof) error {
 		if err = tx.Bucket(feeUnitsBucket).Put(fcb.Id, fcbBytes); err != nil {
 			return err
 		}
-		return s.storeUnitBlockProof(tx, fcb.Id, fcb.TxHash, proof)
+		return s.storeTxProof(tx, fcb.Id, fcb.TxHash, proof)
 	}, true)
 }
 
@@ -424,19 +434,34 @@ func (s *boltBillStoreTx) addExpiredBill(tx *bolt.Tx, blockNumber uint64, unitID
 	return b.Put(unitID, nil)
 }
 
-func (s *boltBillStoreTx) storeUnitBlockProof(tx *bolt.Tx, unitID sdk.UnitID, txHash sdk.TxHash, proof *sdk.Proof) error {
-	if txHash == nil || proof == nil {
+func (s *boltBillStoreTx) StoreTxProof(unitID types.UnitID, txHash sdk.TxHash, txProof *sdk.Proof) error {
+	if unitID == nil {
+		return errors.New("unit id is nil")
+	}
+	if txHash == nil {
+		return errors.New("tx hash is nil")
+	}
+	if txProof == nil {
+		return errors.New("tx proof is nil")
+	}
+	return s.withTx(s.tx, func(tx *bolt.Tx) error {
+		return s.storeTxProof(tx, unitID, txHash, txProof)
+	}, true)
+}
+
+func (s *boltBillStoreTx) storeTxProof(dbTx *bolt.Tx, unitID types.UnitID, txHash sdk.TxHash, txProof *sdk.Proof) error {
+	if txHash == nil || txProof == nil {
 		return nil
 	}
-	proofData, err := cbor.Marshal(proof)
+	txProofBytes, err := cbor.Marshal(txProof)
 	if err != nil {
-		return fmt.Errorf("failed to serialize proof data: %w", err)
+		return fmt.Errorf("failed to serialize tx proof: %w", err)
 	}
-	b, err := sdk.EnsureSubBucket(tx, txProofsBucket, unitID, false)
+	b, err := sdk.EnsureSubBucket(dbTx, txProofsBucket, unitID, false)
 	if err != nil {
 		return err
 	}
-	return b.Put(txHash, proofData)
+	return b.Put(txHash, txProofBytes)
 }
 
 func (s *boltBillStoreTx) StoreTxHistoryRecord(hash sdk.PubKeyHash, rec *sdk.TxHistoryRecord) error {
@@ -453,6 +478,9 @@ func (s *boltBillStoreTx) storeTxHistoryRecord(tx *bolt.Tx, hash sdk.PubKeyHash,
 		return errors.New("record is nil")
 	}
 	b, err := sdk.EnsureSubBucket(tx, txHistoryBucket, hash, false)
+	if err != nil {
+		return err
+	}
 	id, _ := b.NextSequence()
 	recBytes, err := cbor.Marshal(rec)
 	if err != nil {
@@ -534,4 +562,15 @@ func (s *boltBillStore) initMetaData() error {
 		}
 		return nil
 	})
+}
+
+func setPosition(c *bolt.Cursor, key []byte) ([]byte, []byte) {
+	if key != nil {
+		k, v := c.Seek(key)
+		if !bytes.Equal(k, key) {
+			return nil, nil
+		}
+		return k, v
+	}
+	return c.First()
 }

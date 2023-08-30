@@ -84,6 +84,7 @@ type (
 		unicityCertificateValidator UnicityCertificateValidator
 		blockProposalValidator      BlockProposalValidator
 		blockStore                  keyvaluedb.KeyValueDB
+		txIndexer                   keyvaluedb.KeyValueDB
 		txBuffer                    *txbuffer.TxBuffer
 		network                     Net
 		txCancel                    context.CancelFunc
@@ -152,6 +153,7 @@ func New(
 		unicityCertificateValidator: conf.unicityCertificateValidator,
 		blockProposalValidator:      conf.blockProposalValidator,
 		blockStore:                  conf.blockStore,
+		txIndexer:                   conf.txIndexer,
 		txBuffer:                    conf.txBuffer,
 		eventHandler:                conf.eventHandler,
 		network:                     net,
@@ -357,7 +359,7 @@ func (n *Node) loop(ctx context.Context) error {
 			// round might not be active, but some transactions might still be in the channel
 			if n.txCancel == nil {
 				logger.Warning("No active round, adding tx back to the buffer, UnitID=%X", tx.UnitID())
-				err := n.txBuffer.Add(tx)
+				_, err := n.txBuffer.Add(tx)
 				if err != nil {
 					logger.Warning("Invalid transaction: %v", err)
 					n.sendEvent(event.Error, err)
@@ -441,7 +443,7 @@ func (n *Node) eventHandlerLoop(ctx context.Context) error {
 }
 
 func (n *Node) handleTxMessage(tx *types.TransactionOrder) error {
-	if err := n.txBuffer.Add(tx); err != nil {
+	if _, err := n.txBuffer.Add(tx); err != nil {
 		return fmt.Errorf("failed to add transaction into buffer: %w", err)
 	}
 	return nil
@@ -778,11 +780,16 @@ func (n *Node) finalizeBlock(b *types.Block) error {
 	if err := n.blockStore.Write(roundNoInBytes, b); err != nil {
 		return fmt.Errorf("db write failed, %w", err)
 	}
+
 	if err := n.transactionSystem.Commit(); err != nil {
 		if err2 := n.blockStore.Delete(roundNoInBytes); err2 != nil {
 			logger.Warning("Unable to delete block %v from store: %w", blockNumber, err2)
 		}
 		return fmt.Errorf("unable to finalize block %v: %w", blockNumber, err)
+	}
+
+	if err := n.writeTxIndex(b, roundNoInBytes); err != nil {
+		return fmt.Errorf("unable to write transaction index, %w", err)
 	}
 	// cache last stored block, but only if store succeeds
 	// NB! only cache and commit if persist is successful
@@ -1143,7 +1150,7 @@ func (n *Node) sendCertificationRequest(blockAuthor string) error {
 	}, []peer.ID{n.configuration.rootChainID})
 }
 
-func (n *Node) SubmitTx(_ context.Context, tx *types.TransactionOrder) (err error) {
+func (n *Node) SubmitTx(_ context.Context, tx *types.TransactionOrder) (txOrderHash []byte, err error) {
 	defer func() {
 		if err != nil {
 			invalidTransactionsCounter.Inc(1)
@@ -1151,7 +1158,7 @@ func (n *Node) SubmitTx(_ context.Context, tx *types.TransactionOrder) (err erro
 	}()
 	rn := n.getCurrentRound()
 	if err = n.txValidator.Validate(tx, rn); err != nil {
-		return err
+		return nil, err
 	}
 	return n.txBuffer.Add(tx)
 }
@@ -1190,6 +1197,39 @@ func (n *Node) GetLatestBlock() (_ *types.Block, err error) {
 		return nil, fmt.Errorf("failed to read block %d from db: %w", roundNo, err)
 	}
 	return &bl, nil
+}
+
+func (n *Node) GetTransactionRecord(hash []byte) (*types.TransactionRecord, *types.TxProof, error) {
+	if n.txIndexer == nil {
+		return nil, nil, errors.New("not allowed")
+	}
+	index := &struct {
+		RoundNumber  []byte
+		TxOrderIndex int
+	}{}
+	f, err := n.txIndexer.Read(hash, index)
+	if err != nil {
+		return nil, nil, fmt.Errorf("unable to query tx index: %w", err)
+	}
+	if !f {
+		return nil, nil, nil
+	}
+	b, err := n.GetBlock(nil, util.BytesToUint64(index.RoundNumber))
+	if err != nil {
+		return nil, nil, fmt.Errorf("unable to load block: %w", err)
+	}
+	if len(b.Transactions)-1 < index.TxOrderIndex {
+		return nil, nil, errors.New("transaction index is invalid: invalid transaction order index key")
+	}
+	proof, record, err := types.NewTxProof(b, index.TxOrderIndex, n.configuration.hashAlgorithm)
+	if err != nil {
+		return nil, nil, fmt.Errorf("unable to extract transaction record and execution proof from the block: %w", err)
+	}
+	h := record.TransactionOrder.Hash(n.configuration.hashAlgorithm)
+	if !bytes.Equal(h, hash) {
+		return nil, nil, errors.New("transaction index is invalid: hash mismatch")
+	}
+	return record, proof, nil
 }
 
 /*
@@ -1250,6 +1290,40 @@ func (n *Node) hashProposedBlock(prevBlockHash []byte, author string) ([]byte, e
 		Transactions: n.pendingBlockProposal.Transactions,
 	}
 	return b.Hash(n.configuration.hashAlgorithm)
+}
+
+func (n *Node) writeTxIndex(b *types.Block, roundNo []byte) (err error) {
+	if n.txIndexer == nil {
+		return nil
+	}
+	defer trackExecutionTime(time.Now(), fmt.Sprintf("write transaction order index for %d tx(s)", len(b.Transactions)))
+	dbTx, err := n.txIndexer.StartTx()
+	defer func() {
+		if err != nil {
+			rErr := dbTx.Rollback()
+			if rErr != nil {
+				logger.Warning("Unable to rollback the transaction indexer: %w", rErr)
+			}
+			return
+		}
+		err = dbTx.Commit()
+	}()
+	if err != nil {
+		return err
+	}
+	for i, tx := range b.Transactions {
+		hash := tx.TransactionOrder.Hash(n.configuration.hashAlgorithm)
+		if err = dbTx.Write(hash, &struct {
+			RoundNumber  []byte
+			TxOrderIndex int
+		}{
+			RoundNumber:  roundNo,
+			TxOrderIndex: i,
+		}); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func trackExecutionTime(start time.Time, name string) {

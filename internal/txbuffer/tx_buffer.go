@@ -59,9 +59,9 @@ func (t *TxBuffer) Capacity() uint32 {
 
 // Add adds the given transaction to the transaction buffer. Returns an error if the transaction isn't valid, is
 // already present in the TxBuffer, or TxBuffer is full.
-func (t *TxBuffer) Add(tx *types.TransactionOrder) error {
+func (t *TxBuffer) Add(tx *types.TransactionOrder) ([]byte, error) {
 	if tx == nil {
-		return ErrTxIsNil
+		return nil, ErrTxIsNil
 	}
 
 	txHash := tx.Hash(t.hashAlgorithm)
@@ -73,7 +73,7 @@ func (t *TxBuffer) Add(tx *types.TransactionOrder) error {
 
 	if _, found := t.transactions[txId]; found {
 		transactionsDuplicateCounter.Inc(1)
-		return ErrTxInBuffer
+		return nil, ErrTxInBuffer
 	}
 
 	select {
@@ -82,10 +82,10 @@ func (t *TxBuffer) Add(tx *types.TransactionOrder) error {
 		t.transactions[txId] = tx
 	default:
 		transactionsRejectedCounter.Inc(1)
-		return ErrTxBufferFull
+		return nil, ErrTxBufferFull
 	}
 
-	return nil
+	return txHash, nil
 }
 
 /*

@@ -36,7 +36,7 @@ func TestConfirmUnitsTx_ok(t *testing.T) {
 			getRoundNumberCalled = true
 			return 100, nil
 		},
-		getTxProof: func(ctx context.Context, unitID wallet.UnitID, txHash wallet.TxHash) (*wallet.Proof, error) {
+		getTxProof: func(ctx context.Context, unitID types.UnitID, txHash wallet.TxHash) (*wallet.Proof, error) {
 			getTxProofCalled = true
 			return &wallet.Proof{}, nil
 		},
@@ -64,7 +64,7 @@ func TestConfirmUnitsTx_timeout(t *testing.T) {
 			}
 			return 102, nil
 		},
-		getTxProof: func(ctx context.Context, unitID wallet.UnitID, txHash wallet.TxHash) (*wallet.Proof, error) {
+		getTxProof: func(ctx context.Context, unitID types.UnitID, txHash wallet.TxHash) (*wallet.Proof, error) {
 			getTxProofCalled++
 			if bytes.Equal(unitID, randomID1) {
 				return &wallet.Proof{}, nil

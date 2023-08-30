@@ -22,13 +22,13 @@ import (
 func TestWalletBackend_BillsCanBeIndexedByPredicates(t *testing.T) {
 	// create wallet backend with mock abclient
 	_ = wlog.InitStdoutLogger(wlog.DEBUG)
-	billId1 := newUnitID(1)
-	billId2 := newUnitID(2)
+	billId1 := newBillID(1)
+	billId2 := newBillID(2)
 	pubkey1, _ := hexutil.Decode("0x03c30573dc0c7fd43fcb801289a6a96cb78c27f4ba398b89da91ece23e9a99aca3")
 	pubkey2, _ := hexutil.Decode("0x02c30573dc0c7fd43fcb801289a6a96cb78c27f4ba398b89da91ece23e9a99aca3")
 	bearer1 := script.PredicatePayToPublicKeyHashDefault(hash.Sum256(pubkey1))
 	bearer2 := script.PredicatePayToPublicKeyHashDefault(hash.Sum256(pubkey2))
-	fcbID := newUnitID(101)
+	fcbID := newFeeCreditRecordID(101)
 	fcb := &Bill{Id: fcbID, Value: 100}
 
 	abclient := clientmock.NewMockAlphabillClient(
@@ -65,10 +65,9 @@ func TestWalletBackend_BillsCanBeIndexedByPredicates(t *testing.T) {
 				}},
 			},
 		}))
-	storage, err := createTestBillStore(t)
-	require.NoError(t, err)
+	storage := createTestBillStore(t)
 
-	err = storage.Do().SetFeeCreditBill(fcb, nil)
+	err := storage.Do().SetFeeCreditBill(fcb, nil)
 	require.NoError(t, err)
 
 	getBlockNumber := func() (uint64, error) { return storage.Do().GetBlockNumber() }
@@ -85,8 +84,9 @@ func TestWalletBackend_BillsCanBeIndexedByPredicates(t *testing.T) {
 
 	// verify first unit is indexed
 	require.Eventually(t, func() bool {
-		bills, err := storage.Do().GetBills(bearer1)
+		bills, nextKey, err := storage.Do().GetBills(bearer1, true, nil, 100)
 		require.NoError(t, err)
+		require.Nil(t, nextKey)
 		return len(bills) > 0
 	}, test.WaitDuration, test.WaitTick)
 
@@ -95,8 +95,9 @@ func TestWalletBackend_BillsCanBeIndexedByPredicates(t *testing.T) {
 
 	// verify new bill is indexed by pubkey
 	require.Eventually(t, func() bool {
-		bills, err := storage.Do().GetBills(bearer2)
+		bills, nextKey, err := storage.Do().GetBills(bearer2, true, nil, 100)
 		require.NoError(t, err)
+		require.Nil(t, nextKey)
 		return len(bills) > 0
 	}, test.WaitDuration, test.WaitTick)
 }
@@ -111,8 +112,7 @@ func TestGetBills_OK(t *testing.T) {
 	}))
 	txHash := tx.Hash(gocrypto.SHA256)
 
-	store, err := createTestBillStore(t)
-	require.NoError(t, err)
+	store := createTestBillStore(t)
 
 	// add bill to service
 	service := &WalletBackend{store: store}
@@ -122,7 +122,7 @@ func TestGetBills_OK(t *testing.T) {
 		TxHash:         txHash,
 		OwnerPredicate: bearer,
 	}
-	err = store.Do().SetBill(b, &wallet.Proof{
+	err := store.Do().SetBill(b, &wallet.Proof{
 		TxRecord: &types.TransactionRecord{TransactionOrder: tx},
 		TxProof:  &types.TxProof{UnicityCertificate: &types.UnicityCertificate{InputRecord: &types.InputRecord{RoundNumber: 1}}},
 	})
@@ -134,39 +134,101 @@ func TestGetBills_OK(t *testing.T) {
 	require.Equal(t, b, bill)
 
 	// verify bill can be queried by pubkey
-	bills, err := service.GetBills(pubkey)
+	bills, nextKey, err := service.GetBills(pubkey, true, nil, 100)
 	require.NoError(t, err)
 	require.Len(t, bills, 1)
 	require.Equal(t, b, bills[0])
+	require.Nil(t, nextKey)
 }
 
 func TestGetBills_SHA512_OK(t *testing.T) {
-	txValue := uint64(100)
-	pubkey := make([]byte, 32)
-	bearer := script.PredicatePayToPublicKeyHashDefault(hash.Sum512(pubkey))
-	tx := testtransaction.NewTransactionOrder(t, testtransaction.WithAttributes(&moneytx.TransferAttributes{
-		TargetValue: txValue,
-		NewBearer:   bearer,
-	}))
-
-	store, err := createTestBillStore(t)
-	require.NoError(t, err)
+	pubkey := test.RandomBytes(32)
+	bearer := script.PredicatePayToPublicKeyHash(script.HashAlgSha512, hash.Sum512(pubkey), script.SigSchemeSecp256k1)
+	store := createTestBillStore(t)
 
 	// add sha512 owner condition bill to service
 	service := &WalletBackend{store: store}
 	b := &Bill{
-		Id:             tx.UnitID(),
-		Value:          txValue,
+		Id:             []byte{1},
+		Value:          100,
 		OwnerPredicate: bearer,
 	}
-	err = store.Do().SetBill(b, nil)
+	err := store.Do().SetBill(b, nil)
 	require.NoError(t, err)
 
 	// verify bill can be queried by pubkey
-	bills, err := service.GetBills(pubkey)
+	bills, nextKey, err := service.GetBills(pubkey, true, nil, 100)
 	require.NoError(t, err)
 	require.Len(t, bills, 1)
 	require.Equal(t, b, bills[0])
+	require.Nil(t, nextKey)
+}
+
+func TestGetBills_Paging(t *testing.T) {
+	pubkey := test.RandomBytes(32)
+	bearerSHA256 := script.PredicatePayToPublicKeyHashDefault(hash.Sum256(pubkey))
+	bearerSHA512 := script.PredicatePayToPublicKeyHash(script.HashAlgSha512, hash.Sum512(pubkey), script.SigSchemeSecp256k1)
+	store := createTestBillStore(t)
+	service := &WalletBackend{store: store}
+
+	// add 10 sha256 bills
+	var billsSHA256 []*Bill
+	for i := byte(0); i < 10; i++ {
+		b := newBillWithValueAndOwner(i, bearerSHA256)
+		billsSHA256 = append(billsSHA256, b)
+		err := store.Do().SetBill(b, nil)
+		require.NoError(t, err)
+	}
+
+	// add 10 sha512 bills
+	var billsSHA512 []*Bill
+	for i := byte(10); i < 20; i++ {
+		b := newBillWithValueAndOwner(i, bearerSHA512)
+		billsSHA512 = append(billsSHA512, b)
+		err := store.Do().SetBill(b, nil)
+		require.NoError(t, err)
+	}
+
+	var allBills []*Bill
+	allBills = append(allBills, billsSHA256...)
+	allBills = append(allBills, billsSHA512...)
+
+	// verify all bills can be queried by pubkey
+	bills, nextKey, err := service.GetBills(pubkey, true, nil, 100)
+	require.NoError(t, err)
+	require.Len(t, bills, 20)
+	require.Equal(t, allBills, bills)
+	require.Nil(t, nextKey)
+
+	// verify more sha256 bills than limit; return next sha256 key
+	bills, nextKey, err = service.GetBills(pubkey, true, nil, 5)
+	require.NoError(t, err)
+	require.Len(t, bills, 5)
+	require.Equal(t, billsSHA256[:5], bills)
+	require.Equal(t, billsSHA256[5].Id, nextKey)
+
+	// verify sha256 bills equal to limit; return next sha512 key
+	bills, nextKey, err = service.GetBills(pubkey, true, nil, 10)
+	require.NoError(t, err)
+	require.Len(t, bills, 10)
+	require.Equal(t, billsSHA256, bills)
+	require.Equal(t, billsSHA512[0].Id, nextKey)
+
+	// verify limit exceeds sha256 bills; return all sha256 bills and some sha512 bills
+	bills, nextKey, err = service.GetBills(pubkey, true, nil, 15)
+	require.NoError(t, err)
+	require.Len(t, bills, 15)
+	require.Equal(t, allBills[0:10], bills[0:10])
+	require.Equal(t, allBills[10:15], bills[10:15])
+	require.Equal(t, allBills[15].Id, nextKey)
+
+	// verify limit equals exact bill count; return all bills and nextKey is nil
+	bills, nextKey, err = service.GetBills(pubkey, true, nil, 20)
+	require.NoError(t, err)
+	require.Len(t, bills, 20)
+	require.Equal(t, allBills[0:10], bills[0:10])
+	require.Equal(t, allBills[10:20], bills[10:20])
+	require.Nil(t, nextKey)
 }
 
 func Test_extractOwnerFromProof(t *testing.T) {

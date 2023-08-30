@@ -43,7 +43,7 @@ func (w *Wallet) collectDust(ctx context.Context, acc *account.AccountKey, typed
 	}
 	// first token to be joined into
 	targetToken := typedTokens[0]
-	targetTokenID := sdk.UnitID(targetToken.ID)
+	targetTokenID := targetToken.ID
 	targetTokenBacklink := targetToken.TxHash
 	totalAmountJoined := targetToken.Amount
 	burnTokens := typedTokens[1:]
@@ -83,7 +83,7 @@ func (w *Wallet) collectDust(ctx context.Context, acc *account.AccountKey, typed
 	return nil
 }
 
-func (w *Wallet) joinTokenForDC(ctx context.Context, acc *account.AccountKey, burnProofs []*sdk.Proof, targetTokenBacklink sdk.TxHash, targetTokenID sdk.UnitID, invariantPredicateArgs []*PredicateInput) (sdk.TxHash, error) {
+func (w *Wallet) joinTokenForDC(ctx context.Context, acc *account.AccountKey, burnProofs []*sdk.Proof, targetTokenBacklink sdk.TxHash, targetTokenID types.UnitID, invariantPredicateArgs []*PredicateInput) (sdk.TxHash, error) {
 	burnTxs := make([]*types.TransactionRecord, len(burnProofs))
 	burnTxProofs := make([]*types.TxProof, len(burnProofs))
 	for i, proof := range burnProofs {
@@ -125,7 +125,7 @@ func (w *Wallet) burnTokensForDC(ctx context.Context, acc *account.AccountKey, t
 	for _, token := range tokensToBurn {
 		burnBatchAmount += token.Amount
 		attrs := newBurnTxAttrs(token, nonce)
-		sub, err := w.prepareTxSubmission(ctx, tokens.PayloadTypeBurnFungibleToken, attrs, sdk.UnitID(token.ID), acc, rnFetcher.getRoundNumber, func(tx *types.TransactionOrder) error {
+		sub, err := w.prepareTxSubmission(ctx, tokens.PayloadTypeBurnFungibleToken, attrs, token.ID, acc, rnFetcher.getRoundNumber, func(tx *types.TransactionOrder) error {
 			signatures, err := preparePredicateSignatures(w.GetAccountManager(), invariantPredicateArgs, tx, attrs)
 			if err != nil {
 				return err

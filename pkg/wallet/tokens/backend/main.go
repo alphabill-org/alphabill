@@ -52,13 +52,13 @@ type Storage interface {
 	GetToken(id TokenID) (*TokenUnit, error)
 	QueryTokens(kind Kind, owner sdk.Predicate, startKey TokenID, count int) ([]*TokenUnit, TokenID, error)
 
-	GetTxProof(unitID sdk.UnitID, txHash sdk.TxHash) (*sdk.Proof, error)
+	GetTxProof(unitID types.UnitID, txHash sdk.TxHash) (*sdk.Proof, error)
 
-	GetFeeCreditBill(unitID sdk.UnitID) (*FeeCreditBill, error)
+	GetFeeCreditBill(unitID types.UnitID) (*FeeCreditBill, error)
 	SetFeeCreditBill(fcb *FeeCreditBill, proof *sdk.Proof) error
 
-	GetClosedFeeCredit(fcbID sdk.UnitID) (*types.TransactionRecord, error)
-	SetClosedFeeCredit(fcbID sdk.UnitID, txr *types.TransactionRecord) error
+	GetClosedFeeCredit(fcbID types.UnitID) (*types.TransactionRecord, error)
+	SetClosedFeeCredit(fcbID types.UnitID, txr *types.TransactionRecord) error
 }
 
 /*

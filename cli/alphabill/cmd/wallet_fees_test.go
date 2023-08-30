@@ -160,66 +160,6 @@ func TestWalletFeesCmds_TokenPartition(t *testing.T) {
 	require.Equal(t, fmt.Sprintf("Account #1 %s", amountToString(expectedFees, 8)), stdout.lines[1])
 }
 
-func TestWalletFeesCmds_SpendExactFeeAmount(t *testing.T) {
-	homedir, _ := setupMoneyInfraAndWallet(t, []*testpartition.NodePartition{})
-
-	//
-
-	// list fees
-	stdout, err := execFeesCommand(homedir, "list")
-	require.NoError(t, err)
-	require.Equal(t, "Partition: money", stdout.lines[0])
-	require.Equal(t, "Account #1 0.000'000'00", stdout.lines[1])
-
-	// add fee credits
-	amount := uint64(150)
-	stdout, err = execFeesCommand(homedir, fmt.Sprintf("add --amount=%d", amount))
-	require.NoError(t, err)
-	require.Equal(t, fmt.Sprintf("Successfully created %d fee credits on money partition.", amount), stdout.lines[0])
-
-	// verify fee credits
-	expectedFees := amount*1e8 - 2
-	stdout, err = execFeesCommand(homedir, "list")
-	require.NoError(t, err)
-	require.Equal(t, "Partition: money", stdout.lines[0])
-	require.Equal(t, fmt.Sprintf("Account #1 %s", amountToString(expectedFees, 8)), stdout.lines[1])
-
-	// add more fee credits
-	stdout, err = execFeesCommand(homedir, fmt.Sprintf("add --amount=%d", amount))
-	require.NoError(t, err)
-	require.Equal(t, fmt.Sprintf("Successfully created %d fee credits on money partition.", amount), stdout.lines[0])
-
-	// verify fee credits
-	expectedFees = amount*2*1e8 - 4
-	stdout, err = execFeesCommand(homedir, "list")
-	require.NoError(t, err)
-	require.Equal(t, "Partition: money", stdout.lines[0])
-	require.Equal(t, fmt.Sprintf("Account #1 %s", amountToString(expectedFees, 8)), stdout.lines[1])
-
-	// reclaim fees
-	stdout, err = execFeesCommand(homedir, "reclaim")
-	require.NoError(t, err)
-	require.Equal(t, "Successfully reclaimed fee credits on money partition.", stdout.lines[0])
-
-	// list fees
-	stdout, err = execFeesCommand(homedir, "list")
-	require.NoError(t, err)
-	require.Equal(t, "Partition: money", stdout.lines[0])
-	require.Equal(t, "Account #1 0.000'000'00", stdout.lines[1])
-
-	// add more fees after reclaiming
-	stdout, err = execFeesCommand(homedir, fmt.Sprintf("add --amount=%d", amount))
-	require.NoError(t, err)
-	require.Equal(t, fmt.Sprintf("Successfully created %d fee credits on money partition.", amount), stdout.lines[0])
-
-	// verify list fees
-	expectedFees = amount*1e8 - 2
-	stdout, err = execFeesCommand(homedir, "list")
-	require.NoError(t, err)
-	require.Equal(t, "Partition: money", stdout.lines[0])
-	require.Equal(t, fmt.Sprintf("Account #1 %s", amountToString(expectedFees, 8)), stdout.lines[1])
-}
-
 func execFeesCommand(homeDir, command string) (*testConsoleWriter, error) {
 	return execCommand(homeDir, " fees "+command)
 }

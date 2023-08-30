@@ -25,15 +25,6 @@ const (
 	txGasContractCreation uint64 = 53000 // Per transaction that creates a contract
 )
 
-type (
-	ProcessingDetails struct {
-		_            struct{} `cbor:",toarray"`
-		ErrorDetails string
-		ReturnData   []byte
-		ContractAddr common.Address
-	}
-)
-
 var (
 	emptyCodeHash = ethcrypto.Keccak256Hash(nil)
 
@@ -41,6 +32,19 @@ var (
 	errInsufficientFundsForTransfer = errors.New("insufficient funds for transfer")
 	errSenderNotEOA                 = errors.New("sender not an eoa")
 	errGasOverflow                  = errors.New("gas uint64 overflow")
+	errNonceTooLow                  = errors.New("nonce too low")
+	errNonceTooHigh                 = errors.New("nonce too high")
+	errNonceMax                     = errors.New("nonce has max value")
+)
+
+type (
+	ProcessingDetails struct {
+		_            struct{} `cbor:",toarray"`
+		ErrorDetails string
+		ReturnData   []byte
+		ContractAddr common.Address
+		Logs         []*statedb.LogEntry
+	}
 )
 
 func (d *ProcessingDetails) Bytes() ([]byte, error) {
@@ -119,7 +123,7 @@ func execute(currentBlockNumber uint64, stateDB *statedb.StateDB, attr *TxAttrib
 		// contract creation
 		ret, contractAddr, gasRemaining, vmErr = evm.Create(sender, attr.Data, gasRemaining, attr.Value)
 	} else {
-		// TODO set nonce
+		stateDB.SetNonce(sender.Address(), stateDB.GetNonce(sender.Address())+1)
 		contractAddr = vm.AccountRef(attr.To).Address()
 		ret, gasRemaining, vmErr = evm.Call(sender, contractAddr, attr.Data, gasRemaining, attr.Value)
 	}
@@ -150,6 +154,9 @@ func execute(currentBlockNumber uint64, stateDB *statedb.StateDB, attr *TxAttrib
 		ReturnData:   ret,
 		ContractAddr: contractAddr,
 		ErrorDetails: errorToStr(errorDetail),
+	}
+	if errorDetail == nil {
+		evmProcessingDetails.Logs = stateDB.GetLogs()
 	}
 	detailBytes, err := evmProcessingDetails.Bytes()
 	if err != nil {
@@ -236,8 +243,18 @@ func validate(stateDB *statedb.StateDB, attr *TxAttributes, gasPrice *big.Int) e
 		return fmt.Errorf("invalid evm tx, value is negative")
 	}
 	from := vm.AccountRef(attr.From)
-	// todo: add nonce/backlink to attributes and validate here
-
+	// Make sure this transaction's nonce is correct.
+	stNonce := stateDB.GetNonce(attr.FromAddr())
+	if msgNonce := attr.Nonce; stNonce < msgNonce {
+		return fmt.Errorf("%w: address %v, tx: %d state: %d", errNonceTooHigh,
+			attr.FromAddr().Hex(), msgNonce, stNonce)
+	} else if stNonce > msgNonce {
+		return fmt.Errorf("%w: address %v, tx: %d state: %d", errNonceTooLow,
+			attr.FromAddr().Hex(), msgNonce, stNonce)
+	} else if stNonce+1 < stNonce {
+		return fmt.Errorf("%w: address %v, nonce: %d", errNonceMax,
+			attr.FromAddr().Hex(), stNonce)
+	}
 	// Make sure that calling account is not smart contract, user call cannot be a smart contract account
 	if codeHash := stateDB.GetCodeHash(from.Address()); codeHash != emptyCodeHash && codeHash != (common.Hash{}) {
 		return fmt.Errorf("%w: address %v, codehash: %s", errSenderNotEOA,

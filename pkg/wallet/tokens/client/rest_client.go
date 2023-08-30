@@ -63,10 +63,10 @@ func (tb *TokenBackend) GetToken(ctx context.Context, id backend.TokenID) (*back
 
 /*
 GetTokens returns tokens owned by "owner" and matching "kind" (may be Any, ie all kinds).
-For batched querying "offset" must be set to the value returned by previous batch, empty
+For batched querying "offsetKey" must be set to the value returned by previous batch, empty
 string means "start from the beginning of the dataset". The "limit" parameter allows to set
-the max batch size (but smaller resultset might be returned even when there is more data in
-the backend ie the "offset" returned is not empty).
+the max batch size (but smaller result set might be returned even when there is more data in
+the backend ie the "offsetKey" returned is not empty).
 
 Returns:
   - tokens matching the query;
@@ -88,7 +88,7 @@ func (tb *TokenBackend) GetTokens(ctx context.Context, kind backend.Kind, owner 
 /*
 GetTokenTypes returns token types of particular kind (may be Any, ie all kinds), the optional "creator"
 parameter allows to further filter the types by it's creator public key.
-The "offset" and "limit" parameters are for batched / paginated query support.
+The "offsetKey" and "limit" parameters are for batched / paginated query support.
 
 Returns:
   - token types matching the query;

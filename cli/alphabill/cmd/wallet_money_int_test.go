@@ -13,7 +13,6 @@ import (
 	moneytestutils "github.com/alphabill-org/alphabill/internal/txsystem/money/testutils"
 	testfc "github.com/alphabill-org/alphabill/internal/txsystem/fc/testutils"
 
-	// "github.com/alphabill-org/alphabill/internal/util"
 	sdk "github.com/alphabill-org/alphabill/pkg/wallet"
 	wlog "github.com/alphabill-org/alphabill/pkg/wallet/log"
 	"github.com/ethereum/go-ethereum/common/hexutil"
@@ -94,7 +93,7 @@ func TestSendingMoneyUsingWallets_integration(t *testing.T) {
 
 	// TS1.1: also verify --output-path flag
 	stdout = execWalletCmd(t, homedir1, fmt.Sprintf("send -k 1 --amount 150 --address 0x%x --alphabill-api-uri %s --output-path %s", w2PubKey, apiAddr, homedir1))
-	proofFile := fmt.Sprintf("%s/bill-0x000000000000000000000000000000000000000000000000000000000000000101.json", homedir1)
+	proofFile := fmt.Sprintf("%s/bill-0x000000000000000000000000000000000000000000000000000000000000000100.json", homedir1)
 	verifyStdout(t, stdout,
 		"Successfully confirmed transaction(s)",
 		fmt.Sprintf("Transaction proof(s) saved to: %s", proofFile),

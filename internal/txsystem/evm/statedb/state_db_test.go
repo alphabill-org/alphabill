@@ -4,6 +4,8 @@ import (
 	"math/big"
 	"testing"
 
+	"github.com/ethereum/go-ethereum/core/types"
+
 	"github.com/alphabill-org/alphabill/internal/state"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/ethereum/go-ethereum/common"
@@ -280,6 +282,31 @@ func TestStateDB_ContractStorage(t *testing.T) {
 	require.Equal(t, value1, db.GetCommittedState(initialAccountAddress, key1))
 	require.Equal(t, value2, db.GetCommittedState(initialAccountAddress, key2))
 
+}
+
+func TestStateDB_AddLog(t *testing.T) {
+	s := initState(t)
+	db := &StateDB{
+		tree:       s,
+		accessList: newAccessList(),
+	}
+	l := &types.Log{
+		Address: common.BytesToAddress(test.RandomBytes(20)),
+		Topics:  []common.Hash{common.BytesToHash(test.RandomBytes(32))},
+		Data:    []byte{0, 0, 0, 1},
+	}
+	db.AddLog(l)
+	db.AddLog(nil)
+	require.Len(t, db.GetLogs(), 1)
+	require.Len(t, db.logs, 1)
+	entry := db.logs[0]
+	require.Len(t, entry.Topics, 1)
+	require.Equal(t, l.Data, entry.Data)
+	require.Equal(t, l.Topics[0], entry.Topics[0])
+	require.Equal(t, l.Address, entry.Address)
+
+	require.NoError(t, db.Finalize())
+	require.Len(t, db.GetLogs(), 0)
 }
 
 func TestStateDB_Suicide(t *testing.T) {

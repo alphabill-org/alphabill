@@ -20,7 +20,7 @@ const (
 	ApplicationJson = "application/json"
 	ApplicationCbor = "application/cbor"
 
-	QueryParamOffsetKey   = "offset"
+	QueryParamOffsetKey   = "offsetKey"
 	QueryParamLimit       = "limit"
 	HeaderLink            = "Link"
 	HeaderLinkValueFormat = `<%s>; rel="next"`
@@ -169,14 +169,6 @@ func ParseMaxResponseItems(s string, maxValue int) (int, error) {
 	return v, nil
 }
 
-func ParseIntParam(str string, def int) int {
-	num, err := strconv.Atoi(str)
-	if err != nil {
-		return def
-	}
-	return num
-}
-
 func GetURL(url url.URL, pathElements ...string) *url.URL {
 	url.Path = path.Join(pathElements...)
 	return &url
@@ -185,10 +177,10 @@ func GetURL(url url.URL, pathElements ...string) *url.URL {
 func SetPaginationParams(u *url.URL, offset string, limit int) {
 	q := u.Query()
 	if offset != "" {
-		q.Add("offset", offset)
+		q.Add(QueryParamOffsetKey, offset)
 	}
 	if limit > 0 {
-		q.Add("limit", strconv.Itoa(limit))
+		q.Add(QueryParamLimit, strconv.Itoa(limit))
 	}
 	u.RawQuery = q.Encode()
 }
@@ -210,5 +202,11 @@ func ExtractOffsetMarker(rsp *http.Response) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("failed to parse Link header as URL: %w", err)
 	}
-	return u.Query().Get("offset"), nil
+	return u.Query().Get(QueryParamOffsetKey), nil
+}
+
+func SetQueryParam(u *url.URL, key, val string) {
+	q := u.Query()
+	q.Add(key, val)
+	u.RawQuery = q.Encode()
 }

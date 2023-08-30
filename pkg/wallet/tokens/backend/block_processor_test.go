@@ -449,7 +449,7 @@ func Test_blockProcessor_ProcessFeeCreditTxs(t *testing.T) {
 	// then fee credit bill is saved
 	fcb, err := bp.store.GetFeeCreditBill(addFC.UnitID())
 	require.NoError(t, err)
-	require.EqualValues(t, tokens.NewFeeCreditRecordID(nil, []byte{1}), fcb.Id)
+	require.EqualValues(t, addFC.UnitID(), fcb.Id)
 	require.EqualValues(t, 49, fcb.GetValue())
 	expectedAddFCHash := addFC.Hash(crypto.SHA256)
 	require.Equal(t, expectedAddFCHash, fcb.TxHash)
@@ -470,7 +470,7 @@ func Test_blockProcessor_ProcessFeeCreditTxs(t *testing.T) {
 	// then fee credit bill value is reduced
 	fcb, err = bp.store.GetFeeCreditBill(closeFC.UnitID())
 	require.NoError(t, err)
-	require.EqualValues(t, tokens.NewFeeCreditRecordID(nil, []byte{1}), fcb.Id)
+	require.EqualValues(t, closeFC.UnitID(), fcb.Id)
 	require.EqualValues(t, 39, fcb.GetValue())
 	require.Equal(t, closeFC.Hash(crypto.SHA256), fcb.TxHash)
 	require.Equal(t, expectedAddFCHash, fcb.LastAddFCTxHash)

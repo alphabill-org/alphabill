@@ -9,13 +9,13 @@ import (
 const PayloadTypeEVMCall = "evm"
 
 type TxAttributes struct {
-	_        struct{} `cbor:",toarray"`
-	From     []byte
-	To       []byte
-	Data     []byte
-	Value    *big.Int
-	Gas      uint64
-	GasPrice *big.Int
+	_     struct{} `cbor:",toarray"`
+	From  []byte
+	To    []byte
+	Data  []byte
+	Value *big.Int
+	Gas   uint64
+	Nonce uint64
 }
 
 // FromAddr - returns From as Address, if nil empty address is returned

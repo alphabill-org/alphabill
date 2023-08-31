@@ -16,6 +16,7 @@ import (
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/fxamacker/cbor/v2"
 
+	"github.com/alphabill-org/alphabill/internal/txsystem/money"
 	"github.com/alphabill-org/alphabill/internal/types"
 	sdk "github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/alphabill-org/alphabill/pkg/wallet/money/backend"
@@ -83,6 +84,10 @@ func New(baseUrl string) (*MoneyBackendClient, error) {
 		transactionsURL:    u.JoinPath(TransactionsPath),
 		pagingLimit:        defaultPagingLimit,
 	}, nil
+}
+
+func (c *MoneyBackendClient) NewFeeCreditRecordID(shardPart, unitPart []byte) types.UnitID {
+	return money.NewFeeCreditRecordID(shardPart, unitPart)
 }
 
 func (c *MoneyBackendClient) GetBalance(ctx context.Context, pubKey []byte, includeDCBills bool) (uint64, error) {

@@ -303,7 +303,6 @@ func getFeeCreditManager(c *cliConf, am account.Manager, unitLocker *unitlock.Un
 			moneySystemID,
 			moneyTxPublisher,
 			moneyBackendClient,
-			money.NewFeeCreditRecordID,
 		), nil
 	} else if c.partitionType == tokensType {
 		backendURL, err := c.parsePartitionBackendURL()
@@ -322,7 +321,6 @@ func getFeeCreditManager(c *cliConf, am account.Manager, unitLocker *unitlock.Un
 			tokens.DefaultSystemIdentifier,
 			tokenTxPublisher,
 			tokenBackendClient,
-			tokens.NewFeeCreditRecordID,
 		), nil
 	} else {
 		panic("invalid \"partition\" flag value: " + c.partitionType)

@@ -576,7 +576,7 @@ func TestReclaimFeeCredit_LockedBillForReclaimFC(t *testing.T) {
 
 func newMoneyPartitionFeeManager(am account.Manager, unitLocker UnitLocker, moneyTxPublisher TxPublisher, moneyBackendClient MoneyClient) *FeeManager {
 	moneySystemID := []byte{0, 0, 0, 0}
-	return NewFeeManager(am, unitLocker, moneySystemID, moneyTxPublisher, moneyBackendClient, moneySystemID, moneyTxPublisher, moneyBackendClient, money.NewFeeCreditRecordID)
+	return NewFeeManager(am, unitLocker, moneySystemID, moneyTxPublisher, moneyBackendClient, moneySystemID, moneyTxPublisher, moneyBackendClient)
 }
 
 func newAccountManager(t *testing.T) account.Manager {
@@ -600,6 +600,10 @@ type mockMoneyClient struct {
 	proofs      map[string]*wallet.Proof
 	roundNumber uint64
 	fcb         *wallet.Bill
+}
+
+func (m *mockMoneyClient) NewFeeCreditRecordID(shardPart, unitPart []byte) types.UnitID {
+	return money.NewFeeCreditRecordID(shardPart, unitPart)
 }
 
 func (m *mockMoneyClient) GetRoundNumber(ctx context.Context) (uint64, error) {

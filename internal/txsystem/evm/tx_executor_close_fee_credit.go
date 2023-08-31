@@ -41,10 +41,9 @@ func closeFeeCreditTx(tree *state.State, calcFee FeeCalculator, validator *fc.De
 		if err = validator.ValidateCloseFC(&fc.CloseFCValidationContext{Tx: tx, Unit: u}); err != nil {
 			return nil, fmt.Errorf("closeFC: tx validation failed: %w", err)
 		}
-		// calculate actual tx fee cost
-		sm := &types.ServerMetadata{ActualFee: calcFee()}
 		// decrement credit
 		stateDB.SubBalance(addr, alphaToWei(attr.Amount))
-		return sm, nil
+		// calculate actual tx fee cost
+		return &types.ServerMetadata{ActualFee: calcFee(), TargetUnits: []types.UnitID{addr.Bytes()}, SuccessIndicator: types.TxStatusSuccessful}, nil
 	}
 }

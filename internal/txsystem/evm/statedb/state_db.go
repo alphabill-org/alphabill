@@ -27,6 +27,8 @@ type (
 
 		suicides []common.Address
 		logs     []*LogEntry
+		// The refund counter, also used by state transitioning.
+		refund uint64
 	}
 
 	LogEntry struct {
@@ -167,16 +169,18 @@ func (s *StateDB) GetCodeSize(address common.Address) int {
 }
 
 func (s *StateDB) AddRefund(gas uint64) {
-	// TODO AB-1026
+	s.refund += gas
 }
 
 func (s *StateDB) SubRefund(gas uint64) {
-	// TODO AB-1026
+	if gas > s.refund {
+		panic(fmt.Sprintf("Refund counter below zero (gas: %d > refund: %d)", gas, s.refund))
+	}
+	s.refund -= gas
 }
 
 func (s *StateDB) GetRefund() uint64 {
-	// TODO AB-1026
-	return 0
+	return s.refund
 }
 
 func (s *StateDB) GetCommittedState(address common.Address, key common.Hash) common.Hash {

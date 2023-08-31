@@ -42,6 +42,7 @@ type (
 	}
 
 	BackendAPI interface {
+		NewFeeCreditRecordID(shardPart, unitPart []byte) types.UnitID
 		GetBalance(ctx context.Context, pubKey []byte, includeDCBills bool) (uint64, error)
 		ListBills(ctx context.Context, pubKey []byte, includeDCBills bool, offsetKey string, limit int) (*backend.ListBillsResponse, error)
 		GetBills(ctx context.Context, pubKey []byte) ([]*wallet.Bill, error)
@@ -81,7 +82,7 @@ func CreateNewWallet(am account.Manager, mnemonic string) error {
 func LoadExistingWallet(am account.Manager, unitLocker UnitLocker, backend BackendAPI) (*Wallet, error) {
 	moneySystemID := money.DefaultSystemIdentifier
 	moneyTxPublisher := NewTxPublisher(backend)
-	feeManager := fees.NewFeeManager(am, unitLocker, moneySystemID, moneyTxPublisher, backend, moneySystemID, moneyTxPublisher, backend, money.NewFeeCreditRecordID)
+	feeManager := fees.NewFeeManager(am, unitLocker, moneySystemID, moneyTxPublisher, backend, moneySystemID, moneyTxPublisher, backend)
 	dustCollector := NewDustCollector(moneySystemID, maxBillsForDustCollection, backend, unitLocker)
 	return &Wallet{
 		am:            am,

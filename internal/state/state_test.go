@@ -152,6 +152,172 @@ func TestState_Revert(t *testing.T) {
 	require.Len(t, s.savepoints, 1)
 }
 
+func TestState_NestedSavepointsCommitsAndReverts(t *testing.T) {
+	s := NewState(t)
+	id := s.Savepoint()
+	require.NoError(t,
+		s.Apply(AddUnit([]byte{0, 0, 0, 0}, test.RandomBytes(20), &TestData{Value: 1})),
+		s.Apply(AddUnit([]byte{0, 0, 0, 1}, test.RandomBytes(20), &TestData{Value: 1})),
+		s.Apply(AddUnit([]byte{0, 0, 0, 2}, test.RandomBytes(20), &TestData{Value: 1})),
+		s.Apply(AddUnit([]byte{0, 0, 0, 3}, test.RandomBytes(20), &TestData{Value: 1})),
+		s.Apply(AddUnit([]byte{0, 0, 0, 4}, test.RandomBytes(20), &TestData{Value: 1})),
+	)
+	s.ReleaseToSavepoint(id)
+
+	require.False(t, getUnit(t, s, []byte{0, 0, 0, 0}).summaryCalculated)
+	require.False(t, getUnit(t, s, []byte{0, 0, 0, 1}).summaryCalculated)
+	require.False(t, getUnit(t, s, []byte{0, 0, 0, 2}).summaryCalculated)
+	require.False(t, getUnit(t, s, []byte{0, 0, 0, 3}).summaryCalculated)
+	require.False(t, getUnit(t, s, []byte{0, 0, 0, 4}).summaryCalculated)
+
+	summary, rootHash, err := s.CalculateRoot()
+
+	require.NoError(t, err)
+	require.NoError(t, s.Commit())
+	//	 		┌───┤ key=00000004, depth=1, summaryCalculated=true, nodeSummary=1, subtreeSummary=1, clean=true
+	//		┌───┤ key=00000003, depth=2, summaryCalculated=true, nodeSummary=1, subtreeSummary=3, clean=true
+	//		│	└───┤ key=00000002, depth=1, summaryCalculated=true, nodeSummary=1, subtreeSummary=1, clean=true
+	//	────┤ key=00000001, depth=3, summaryCalculated=true, nodeSummary=1, subtreeSummary=5, clean=true
+	//		└───┤ key=00000000, depth=1, summaryCalculated=true, nodeSummary=1, subtreeSummary=1, clean=true
+	require.Equal(t, uint64(5), summary)
+	require.True(t, s.IsCommitted())
+	require.True(t, getUnit(t, s, []byte{0, 0, 0, 0}).summaryCalculated)
+	require.True(t, getUnit(t, s, []byte{0, 0, 0, 1}).summaryCalculated)
+	require.True(t, getUnit(t, s, []byte{0, 0, 0, 2}).summaryCalculated)
+	require.True(t, getUnit(t, s, []byte{0, 0, 0, 3}).summaryCalculated)
+	require.True(t, getUnit(t, s, []byte{0, 0, 0, 4}).summaryCalculated)
+
+	id2 := s.Savepoint()
+	id3 := s.Savepoint()
+	require.NoError(t,
+		s.Apply(UpdateUnitData([]byte{0, 0, 0, 3}, func(data UnitData) (UnitData, error) {
+			data.(*TestData).Value = 2
+			return data, nil
+		})),
+		s.Apply(UpdateUnitData([]byte{0, 0, 0, 0}, func(data UnitData) (UnitData, error) {
+			data.(*TestData).Value = 2
+			return data, nil
+		})),
+	)
+	s.ReleaseToSavepoint(id3)
+	require.False(t, getUnit(t, s, []byte{0, 0, 0, 0}).summaryCalculated)
+	require.False(t, getUnit(t, s, []byte{0, 0, 0, 1}).summaryCalculated)
+	require.True(t, getUnit(t, s, []byte{0, 0, 0, 2}).summaryCalculated)
+	require.False(t, getUnit(t, s, []byte{0, 0, 0, 3}).summaryCalculated)
+	require.True(t, getUnit(t, s, []byte{0, 0, 0, 4}).summaryCalculated)
+	id4 := s.Savepoint()
+	require.NoError(t,
+		s.Apply(UpdateUnitData([]byte{0, 0, 0, 3}, func(data UnitData) (UnitData, error) {
+			data.(*TestData).Value = 4
+			return data, nil
+		})),
+		s.Apply(UpdateUnitData([]byte{0, 0, 0, 0}, func(data UnitData) (UnitData, error) {
+			data.(*TestData).Value = 4
+			return data, nil
+		})),
+	)
+	require.False(t, getUnit(t, s, []byte{0, 0, 0, 0}).summaryCalculated)
+	require.False(t, getUnit(t, s, []byte{0, 0, 0, 1}).summaryCalculated)
+	require.True(t, getUnit(t, s, []byte{0, 0, 0, 2}).summaryCalculated)
+	require.False(t, getUnit(t, s, []byte{0, 0, 0, 3}).summaryCalculated)
+	require.True(t, getUnit(t, s, []byte{0, 0, 0, 4}).summaryCalculated)
+
+	summary, _, err = s.CalculateRoot()
+	require.NoError(t, err)
+	require.Equal(t, uint64(11), summary)
+	require.False(t, s.IsCommitted())
+	s.RollbackToSavepoint(id4)
+	require.False(t, getUnit(t, s, []byte{0, 0, 0, 0}).summaryCalculated)
+	require.False(t, getUnit(t, s, []byte{0, 0, 0, 1}).summaryCalculated)
+	require.True(t, getUnit(t, s, []byte{0, 0, 0, 2}).summaryCalculated)
+	require.False(t, getUnit(t, s, []byte{0, 0, 0, 3}).summaryCalculated)
+	require.True(t, getUnit(t, s, []byte{0, 0, 0, 4}).summaryCalculated)
+	summary, _, err = s.CalculateRoot()
+	require.True(t, getUnit(t, s, []byte{0, 0, 0, 0}).summaryCalculated)
+	require.True(t, getUnit(t, s, []byte{0, 0, 0, 1}).summaryCalculated)
+	require.True(t, getUnit(t, s, []byte{0, 0, 0, 2}).summaryCalculated)
+	require.True(t, getUnit(t, s, []byte{0, 0, 0, 3}).summaryCalculated)
+	require.True(t, getUnit(t, s, []byte{0, 0, 0, 4}).summaryCalculated)
+	require.NoError(t, err)
+	require.Equal(t, uint64(7), summary)
+	require.False(t, s.IsCommitted())
+	s.RollbackToSavepoint(id2)
+
+	summary, rootHash2, err := s.CalculateRoot()
+	require.NoError(t, err)
+	require.NoError(t, s.Commit())
+	require.True(t, getUnit(t, s, []byte{0, 0, 0, 0}).summaryCalculated)
+	require.True(t, getUnit(t, s, []byte{0, 0, 0, 1}).summaryCalculated)
+	require.True(t, getUnit(t, s, []byte{0, 0, 0, 2}).summaryCalculated)
+	require.True(t, getUnit(t, s, []byte{0, 0, 0, 3}).summaryCalculated)
+	require.True(t, getUnit(t, s, []byte{0, 0, 0, 4}).summaryCalculated)
+	require.NoError(t, err)
+	require.Equal(t, uint64(5), summary)
+	require.True(t, s.IsCommitted())
+	require.Equal(t, rootHash, rootHash2)
+}
+
+func TestState_NestedSavepointsWithRemoveOperation(t *testing.T) {
+	s := NewState(t)
+	id := s.Savepoint()
+	require.NoError(t,
+		s.Apply(AddUnit([]byte{0, 0, 0, 0}, test.RandomBytes(20), &TestData{Value: 1})),
+		s.Apply(AddUnit([]byte{0, 0, 0, 1}, test.RandomBytes(20), &TestData{Value: 1})),
+		s.Apply(AddUnit([]byte{0, 0, 0, 2}, test.RandomBytes(20), &TestData{Value: 1})),
+		s.Apply(AddUnit([]byte{0, 0, 0, 3}, test.RandomBytes(20), &TestData{Value: 1})),
+		s.Apply(AddUnit([]byte{0, 0, 0, 4}, test.RandomBytes(20), &TestData{Value: 1})),
+	)
+	s.ReleaseToSavepoint(id)
+	_, _, err := s.CalculateRoot()
+	require.NoError(t, err)
+	require.NoError(t, s.Commit())
+	require.True(t, getUnit(t, s, []byte{0, 0, 0, 0}).summaryCalculated)
+	require.True(t, getUnit(t, s, []byte{0, 0, 0, 1}).summaryCalculated)
+	require.True(t, getUnit(t, s, []byte{0, 0, 0, 2}).summaryCalculated)
+	require.True(t, getUnit(t, s, []byte{0, 0, 0, 3}).summaryCalculated)
+	require.True(t, getUnit(t, s, []byte{0, 0, 0, 4}).summaryCalculated)
+	id = s.Savepoint()
+	require.NoError(t,
+		s.Apply(UpdateUnitData([]byte{0, 0, 0, 3}, func(data UnitData) (UnitData, error) {
+			data.(*TestData).Value = 2
+			return data, nil
+		})),
+		s.Apply(UpdateUnitData([]byte{0, 0, 0, 4}, func(data UnitData) (UnitData, error) {
+			data.(*TestData).Value = 2
+			return data, nil
+		})),
+	)
+	id2 := s.Savepoint()
+	require.NoError(t,
+		s.Apply(DeleteUnit([]byte{0, 0, 0, 1})),
+	)
+	require.False(t, getUnit(t, s, []byte{0, 0, 0, 0}).summaryCalculated)
+	require.True(t, getUnit(t, s, []byte{0, 0, 0, 2}).summaryCalculated)
+	require.False(t, getUnit(t, s, []byte{0, 0, 0, 3}).summaryCalculated)
+	require.False(t, getUnit(t, s, []byte{0, 0, 0, 4}).summaryCalculated)
+
+	s.RollbackToSavepoint(id2)
+	require.True(t, getUnit(t, s, []byte{0, 0, 0, 0}).summaryCalculated)
+	require.False(t, getUnit(t, s, []byte{0, 0, 0, 1}).summaryCalculated)
+	require.True(t, getUnit(t, s, []byte{0, 0, 0, 2}).summaryCalculated)
+	require.False(t, getUnit(t, s, []byte{0, 0, 0, 3}).summaryCalculated)
+	require.False(t, getUnit(t, s, []byte{0, 0, 0, 4}).summaryCalculated)
+	id2 = s.Savepoint()
+	require.NoError(t,
+		s.Apply(DeleteUnit([]byte{0, 0, 0, 2})),
+	)
+	s.ReleaseToSavepoint(id2)
+	s.ReleaseToSavepoint(id)
+	summary, _, err := s.CalculateRoot()
+	require.NoError(t, err)
+	require.NoError(t, s.Commit())
+	require.True(t, getUnit(t, s, []byte{0, 0, 0, 0}).summaryCalculated)
+	require.True(t, getUnit(t, s, []byte{0, 0, 0, 1}).summaryCalculated)
+	require.True(t, getUnit(t, s, []byte{0, 0, 0, 3}).summaryCalculated)
+	require.True(t, getUnit(t, s, []byte{0, 0, 0, 4}).summaryCalculated)
+	require.Equal(t, uint64(6), summary)
+}
+
 func TestState_RevertAVLTreeRotations(t *testing.T) {
 	s := NewState(t)
 	// initial state:
@@ -444,6 +610,12 @@ func multiply(t uint64) func(data UnitData) (UnitData, error) {
 func addLog(t *testing.T, s *State, id []byte, txrHash []byte) {
 	_, err := s.AddUnitLog(id, txrHash)
 	require.NoError(t, err)
+}
+
+func getUnit(t *testing.T, s *State, id []byte) *Unit {
+	unit, err := s.latestSavepoint().Get(id)
+	require.NoError(t, err)
+	return unit
 }
 
 func NewState(t *testing.T, opts ...Option) *State {

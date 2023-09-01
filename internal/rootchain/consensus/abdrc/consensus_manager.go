@@ -263,9 +263,9 @@ func (x *ConsensusManager) onLocalTimeout() {
 	timeoutVoteMsg := x.pacemaker.GetTimeoutVote()
 	if timeoutVoteMsg == nil {
 		// create timeout vote
-		timeoutVoteMsg = abdrc.NewTimeoutMsg(abtypes.NewTimeout(
-			x.pacemaker.GetCurrentRound(), 0, x.blockStore.GetHighQc()), x.id.String())
-		// sign
+		timeoutVoteMsg = abdrc.NewTimeoutMsg(
+			abtypes.NewTimeout(x.pacemaker.GetCurrentRound(), 0, x.blockStore.GetHighQc(), x.pacemaker.LastRoundTC()),
+			x.id.String())
 		if err := x.safety.SignTimeout(timeoutVoteMsg, x.pacemaker.LastRoundTC()); err != nil {
 			logger.Warning("%v local timeout error, %v", x.id.ShortString(), err)
 			return
@@ -424,6 +424,13 @@ func (x *ConsensusManager) onTimeoutMsg(vote *abdrc.TimeoutMsg) error {
 		}
 		return err
 	}
+
+	// when there is multiple consecutive timeout rounds and instance is in one of the previous round
+	// (ie haven't got enough timeout votes for the latest round quorum) recovery is not triggered as
+	// the highQC is the same for both rounds. So checking the lastTC helps the instance into latest TO round.
+	// AdvanceRoundTC handles nil TC gracefully.
+	x.pacemaker.AdvanceRoundTC(vote.Timeout.LastTC)
+
 	tc, err := x.pacemaker.RegisterTimeoutVote(vote, x.trustBase)
 	if err != nil {
 		return fmt.Errorf("failed to register timeout vote: %w", err)

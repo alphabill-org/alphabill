@@ -5,12 +5,12 @@ import (
 	gocrypto "crypto"
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
-	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/internal/util"
-	"github.com/stretchr/testify/require"
 )
 
 func calcTimeoutSig(t *testing.T, s abcrypto.Signer, round, epoch, hQcRound uint64, author string) []byte {
@@ -103,191 +103,95 @@ func TestTimeoutCert_Add(t *testing.T) {
 	// duplicate
 	err = timeoutCert.Add("3", t3, []byte{1, 2, 3})
 	require.ErrorContains(t, err, "already voted")
+
+	// attempt to add vote from wrong round
+	t4 := &Timeout{
+		Epoch: 0,
+		Round: timeoutCert.Timeout.Round + 1,
+		HighQc: &QuorumCert{
+			VoteInfo:         voteInfo,
+			LedgerCommitInfo: &types.UnicitySeal{RootInternalInfo: voteInfo.Hash(gocrypto.SHA256)},
+			Signatures:       map[string][]byte{"1": {1, 2, 1}, "2": {1, 2, 3}, "3": {1, 2, 3}},
+		},
+	}
+	err = timeoutCert.Add("4", t4, []byte{1, 2, 3})
+	require.EqualError(t, err, `TC is for round 10 not 11`)
+	require.NotContains(t, timeoutCert.GetAuthors(), "4")
+	require.EqualValues(t, 9, timeoutCert.Timeout.HighQc.VoteInfo.RoundNumber)
+}
+
+func TestTimeoutCert_IsValid(t *testing.T) {
+	sb := newStructBuilder(t, 2)
+
+	t.Run("timeout data is nil", func(t *testing.T) {
+		tc := sb.TimeoutCert(t)
+		tc.Timeout = nil
+		require.EqualError(t, tc.IsValid(), `timeout data is unassigned`)
+	})
 }
 
 func TestTimeoutCert_Verify(t *testing.T) {
-	type fields struct {
-		Timeout    *Timeout
-		Signatures map[string]*TimeoutVote
-	}
-	type args struct {
-		quorum    uint32
-		rootTrust map[string]abcrypto.Verifier
-	}
-	const timeoutRound = 9
+	sb := newStructBuilder(t, 3)
+	trustBase := sb.Verifiers()
 
-	s1, v1 := testsig.CreateSignerAndVerifier(t)
-	s2, v2 := testsig.CreateSignerAndVerifier(t)
-	s3, v3 := testsig.CreateSignerAndVerifier(t)
-	rootTrust := map[string]abcrypto.Verifier{"1": v1, "2": v2, "3": v3}
-	voteInfo := &RoundInfo{
-		RoundNumber:       timeoutRound - 1,
-		ParentRoundNumber: timeoutRound - 2,
-		Epoch:             0,
-		Timestamp:         1670314583523,
-		CurrentRootHash:   test.RandomBytes(32)}
-	commitInfo := &types.UnicitySeal{RootInternalInfo: voteInfo.Hash(gocrypto.SHA256)}
-	sig1, err := s1.SignBytes(commitInfo.Bytes())
-	require.NoError(t, err)
-	sig2, err := s2.SignBytes(commitInfo.Bytes())
-	require.NoError(t, err)
-	sig3, err := s3.SignBytes(commitInfo.Bytes())
-	require.NoError(t, err)
+	t.Run("IsValid is called", func(t *testing.T) {
+		// trigger error from IsValid to make sure it is called
+		tc := sb.TimeoutCert(t)
+		tc.Timeout = nil
+		err := tc.Verify(3, trustBase)
+		require.EqualError(t, err, `invalid certificate: timeout data is unassigned`)
+	})
 
-	tests := []struct {
-		name    string
-		fields  fields
-		args    args
-		wantErr bool
-	}{
-		{
-			name: "valid TC",
-			fields: fields{
-				Timeout: &Timeout{
-					Epoch: 0,
-					Round: 9,
-					HighQc: &QuorumCert{
-						VoteInfo:         voteInfo,
-						LedgerCommitInfo: commitInfo,
-						Signatures:       map[string][]byte{"1": sig1, "2": sig2, "3": sig3},
-					},
-				},
-				Signatures: map[string]*TimeoutVote{
-					"1": {HqcRound: timeoutRound - 2, Signature: calcTimeoutSig(t, s1, timeoutRound, 0, timeoutRound-2, "1")},
-					"2": {HqcRound: timeoutRound - 1, Signature: calcTimeoutSig(t, s2, timeoutRound, 0, timeoutRound-1, "2")},
-					"3": {HqcRound: timeoutRound - 2, Signature: calcTimeoutSig(t, s3, timeoutRound, 0, timeoutRound-2, "3")},
-				},
-			},
-			args: args{
-				quorum:    3,
-				rootTrust: rootTrust,
-			},
-		},
-		{
-			name: "no quorum",
-			fields: fields{
-				Timeout: &Timeout{
-					Epoch: 0,
-					Round: 9,
-					HighQc: &QuorumCert{
-						VoteInfo:         voteInfo,
-						LedgerCommitInfo: commitInfo,
-						Signatures:       map[string][]byte{"1": sig1, "2": sig2, "3": sig3},
-					},
-				},
-				Signatures: map[string]*TimeoutVote{
-					"1": {HqcRound: timeoutRound - 2, Signature: calcTimeoutSig(t, s1, timeoutRound, 0, timeoutRound-2, "1")},
-					"2": {HqcRound: timeoutRound - 1, Signature: calcTimeoutSig(t, s2, timeoutRound, 0, timeoutRound-1, "2")},
-				},
-			},
-			args: args{
-				quorum:    3,
-				rootTrust: rootTrust,
-			},
-			wantErr: true,
-		},
-		{
-			name: "Invalid QC on timeout certificate",
-			fields: fields{
-				Timeout: &Timeout{
-					Epoch: 0,
-					Round: 9,
-					HighQc: &QuorumCert{
-						VoteInfo:         voteInfo,
-						LedgerCommitInfo: commitInfo,
-						Signatures:       map[string][]byte{"1": sig1, "2": sig2, "3": {0, 1, 2}},
-					},
-				},
-				Signatures: map[string]*TimeoutVote{
-					"1": {HqcRound: timeoutRound - 2, Signature: calcTimeoutSig(t, s1, timeoutRound, 0, timeoutRound-2, "1")},
-					"2": {HqcRound: timeoutRound - 1, Signature: calcTimeoutSig(t, s1, timeoutRound, 0, timeoutRound-1, "2")},
-					"3": {HqcRound: timeoutRound - 2, Signature: calcTimeoutSig(t, s3, timeoutRound, 0, timeoutRound-2, "3")},
-				},
-			},
-			args: args{
-				quorum:    3,
-				rootTrust: rootTrust,
-			},
-			wantErr: true,
-		},
-		{
-			name: "Hqc and signature qc rounds do not match",
-			fields: fields{
-				Timeout: &Timeout{
-					Epoch: 0,
-					Round: 9,
-					HighQc: &QuorumCert{
-						VoteInfo:         voteInfo,
-						LedgerCommitInfo: commitInfo,
-						Signatures:       map[string][]byte{"1": sig1, "2": sig2, "3": sig3},
-					},
-				},
-				Signatures: map[string]*TimeoutVote{
-					"1": {HqcRound: timeoutRound - 2, Signature: calcTimeoutSig(t, s1, timeoutRound, 0, timeoutRound-2, "1")},
-					"2": {HqcRound: timeoutRound - 2, Signature: calcTimeoutSig(t, s1, timeoutRound, 0, timeoutRound-2, "2")},
-					"3": {HqcRound: timeoutRound - 2, Signature: calcTimeoutSig(t, s3, timeoutRound, 0, timeoutRound-2, "3")},
-				},
-			},
-			args: args{
-				quorum:    3,
-				rootTrust: rootTrust,
-			},
-			wantErr: true,
-		},
-		{
-			name: "Invalid signature, hqc round ",
-			fields: fields{
-				Timeout: &Timeout{
-					Epoch: 0,
-					Round: 9,
-					HighQc: &QuorumCert{
-						VoteInfo:         voteInfo,
-						LedgerCommitInfo: commitInfo,
-						Signatures:       map[string][]byte{"1": sig1, "2": sig2, "3": sig3},
-					},
-				},
-				Signatures: map[string]*TimeoutVote{
-					"1": {HqcRound: timeoutRound - 2, Signature: calcTimeoutSig(t, s1, timeoutRound, 0, timeoutRound-2, "1")},
-					"2": {HqcRound: timeoutRound - 2, Signature: calcTimeoutSig(t, s1, timeoutRound, 0, timeoutRound-1, "2")},
-					"3": {HqcRound: timeoutRound - 2, Signature: calcTimeoutSig(t, s3, timeoutRound, 0, timeoutRound-2, "3")},
-				},
-			},
-			args: args{
-				quorum:    3,
-				rootTrust: rootTrust,
-			},
-			wantErr: true,
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			x := &TimeoutCert{
-				Timeout:    tt.fields.Timeout,
-				Signatures: tt.fields.Signatures,
+	t.Run("timeout.Verify is called", func(t *testing.T) {
+		// trigger Timeout verification error to make sure it is called
+		tc := sb.TimeoutCert(t)
+		tc.Timeout.HighQc.Signatures["foobar"] = []byte{1, 2, 3, 4}
+		err := tc.Verify(3, trustBase)
+		require.EqualError(t, err, `invalid timeout data: invalid high QC: signer "foobar" is not part of trustbase`)
+	})
+
+	t.Run("no quorum", func(t *testing.T) {
+		tc := sb.TimeoutCert(t)
+		for k := range tc.Signatures {
+			delete(tc.Signatures, k)
+			break
+		}
+		err := tc.Verify(uint32(len(tc.Signatures)+1), trustBase)
+		require.EqualError(t, err, `quorum requires 3 signatures but certificate has 2`)
+	})
+
+	t.Run("invalid signature", func(t *testing.T) {
+		tc := sb.TimeoutCert(t)
+		for _, v := range tc.Signatures {
+			// high QC round is part of signature so changing it should invalidate the signature
+			v.HqcRound++ // works because v is a pointer pointing to the same item stored to map
+			break
+		}
+		err := tc.Verify(3, trustBase)
+		require.ErrorContains(t, err, `timeout certificate signature verification failed: signature verify failed`)
+	})
+
+	t.Run("unknown signer", func(t *testing.T) {
+		tc := sb.TimeoutCert(t)
+		tc.Signatures["foobar"] = &TimeoutVote{}
+		err := tc.Verify(3, trustBase)
+		require.EqualError(t, err, `signer "foobar" is not part of trustbase`)
+	})
+
+	t.Run("high QC round doesn't match max round", func(t *testing.T) {
+		tc := sb.TimeoutCert(t)
+		// replace one signature with a valid signature for higher round
+		for k := range tc.Signatures {
+			hqcR := tc.Timeout.HighQc.VoteInfo.RoundNumber + 1
+			tc.Signatures[k] = &TimeoutVote{
+				HqcRound:  hqcR,
+				Signature: calcTimeoutSig(t, sb.signers[k], tc.Timeout.Round, 0, hqcR, k),
 			}
-			if err = x.Verify(tt.args.quorum, tt.args.rootTrust); (err != nil) != tt.wantErr {
-				t.Errorf("Verify() error = %v, wantErr %v", err, tt.wantErr)
-			}
-		})
-	}
-}
-
-func TestTimeout_Verify(t *testing.T) {
-	timeout := &Timeout{
-		Epoch: 0,
-		Round: 3,
-		HighQc: &QuorumCert{
-			VoteInfo: &RoundInfo{
-				RoundNumber:       7,
-				Epoch:             0,
-				ParentRoundNumber: 6,
-			},
-		},
-	}
-	rootTrust := map[string]abcrypto.Verifier{}
-	err := timeout.Verify(2, rootTrust)
-	require.ErrorContains(t, err, "invalid timeout, qc round 7 is bigger than timeout round 3")
-	// QC verification is unit-tested in QC module
+			break
+		}
+		err := tc.Verify(3, trustBase)
+		require.EqualError(t, err, `high QC round 10 does not match max signed QC round 11`)
+	})
 }
 
 func TestTimeoutCert_GetRound(t *testing.T) {
@@ -327,6 +231,79 @@ func TestTimeoutCert_GetHqcRound(t *testing.T) {
 		},
 	}
 	require.Equal(t, uint64(9), tc.GetHqcRound())
+}
+
+func Test_Timeout_IsValid(t *testing.T) {
+	sb := newStructBuilder(t, 3)
+	require.NoError(t, sb.Timeout(t, nil).IsValid(), `sb.Timeout must return valid Timeout struct`)
+
+	t.Run("high QC unassigned", func(t *testing.T) {
+		timeout := sb.Timeout(t, nil)
+		timeout.HighQc = nil
+		require.EqualError(t, timeout.IsValid(), "high QC is unassigned")
+	})
+
+	t.Run("high QC invalid", func(t *testing.T) {
+		// basically check that HighQC.IsValid is called
+		timeout := sb.Timeout(t, nil)
+		timeout.HighQc.VoteInfo = nil
+		require.EqualError(t, timeout.IsValid(), "invalid high QC: vote info is nil")
+	})
+
+	t.Run("invalid round", func(t *testing.T) {
+		// Round must be greater than highQC.Round
+		timeout := sb.Timeout(t, nil)
+
+		timeout.Round = 0
+		require.EqualError(t, timeout.IsValid(), "timeout round (0) must be greater than high QC round (10)")
+
+		timeout.Round = timeout.HighQc.GetRound() - 1
+		require.EqualError(t, timeout.IsValid(), "timeout round (9) must be greater than high QC round (10)")
+
+		timeout.Round = timeout.HighQc.GetRound()
+		require.EqualError(t, timeout.IsValid(), "timeout round (10) must be greater than high QC round (10)")
+	})
+
+	t.Run("last TC is unassigned", func(t *testing.T) {
+		// if highQC is not for the previous round then lastTC must be
+		timeout := sb.Timeout(t, nil)
+		timeout.Round = timeout.HighQc.GetRound() + 2 // normally TO.Round==HighQC.Round+1
+		require.EqualError(t, timeout.IsValid(), "last TC is missing")
+	})
+
+	t.Run("last TC is for wrong round", func(t *testing.T) {
+		tc := sb.TimeoutCert(t)
+		timeout := sb.Timeout(t, tc)
+		timeout.Round = tc.GetRound() + 2
+		require.EqualError(t, timeout.IsValid(), "last TC must be for round 12 but is for round 11")
+	})
+}
+
+func Test_Timeout_Verify(t *testing.T) {
+	sb := newStructBuilder(t, 3)
+	rootTrust := sb.Verifiers()
+	require.NoError(t, sb.Timeout(t, nil).Verify(3, rootTrust), `sb.Timeout must return valid Timeout struct`)
+
+	t.Run("IsValid is called", func(t *testing.T) {
+		timeout := sb.Timeout(t, nil)
+		timeout.HighQc = nil
+		require.EqualError(t, timeout.Verify(2, rootTrust), `invalid timeout data: high QC is unassigned`)
+	})
+
+	t.Run("invalid highQC", func(t *testing.T) {
+		// check that highQC.Verify is called
+		timeout := sb.Timeout(t, nil)
+		// call with higher quorum than the signature count
+		require.EqualError(t, timeout.Verify(uint32(len(rootTrust)+1), rootTrust), `invalid high QC: quorum requires 4 signatures but certificate has 3`)
+	})
+
+	t.Run("invalid lastTC", func(t *testing.T) {
+		// check that lastTC.Verify is called
+		tc := sb.TimeoutCert(t)
+		timeout := sb.Timeout(t, tc)
+		tc.Timeout.Epoch += 1 // epoch is part of signature so changing it should make it invalid
+		require.ErrorContains(t, timeout.Verify(3, rootTrust), `invalid last TC: timeout certificate signature verification failed: signature verify failed`)
+	})
 }
 
 func TestBytesFromTimeoutVote(t *testing.T) {

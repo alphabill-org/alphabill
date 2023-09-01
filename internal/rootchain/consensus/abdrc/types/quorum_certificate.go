@@ -15,7 +15,6 @@ import (
 var (
 	errVoteInfoIsNil         = errors.New("vote info is nil")
 	errLedgerCommitInfoIsNil = errors.New("ledger commit info is nil")
-	errQcIsMissingSignatures = errors.New("qc is missing signatures")
 	errInvalidRoundInfoHash  = errors.New("round info has is missing")
 )
 
@@ -57,24 +56,24 @@ func (x *QuorumCert) GetParentRound() uint64 {
 }
 
 func (x *QuorumCert) IsValid() error {
-	// QC must have valid vote info
 	if x.VoteInfo == nil {
 		return errVoteInfoIsNil
 	}
 	if err := x.VoteInfo.IsValid(); err != nil {
 		return fmt.Errorf("invalid vote info: %w", err)
 	}
+
 	// and must have valid ledger commit info
 	if x.LedgerCommitInfo == nil {
 		return errLedgerCommitInfoIsNil
 	}
+	// todo: should call x.LedgerCommitInfo.IsValid but that requires some refactoring
+	// not to require trustbase parameter?
 	// For root validator commit state id can be empty
 	if len(x.LedgerCommitInfo.RootInternalInfo) < 1 {
 		return errInvalidRoundInfoHash
 	}
-	if len(x.Signatures) < 1 {
-		return errQcIsMissingSignatures
-	}
+
 	return nil
 }
 
@@ -83,11 +82,14 @@ func (x *QuorumCert) Verify(quorum uint32, rootTrust map[string]crypto.Verifier)
 		return fmt.Errorf("invalid quorum certificate: %w", err)
 	}
 	// check vote info hash
-	h := x.VoteInfo.Hash(gocrypto.SHA256)
-	if !bytes.Equal(h, x.LedgerCommitInfo.RootInternalInfo) {
+	if !bytes.Equal(x.VoteInfo.Hash(gocrypto.SHA256), x.LedgerCommitInfo.RootInternalInfo) {
 		return fmt.Errorf("vote info hash verification failed")
 	}
-	// Check quorum, if not fail without checking signatures itself
+	/* todo: call LedgerCommitInfo.Verify but first refactor it so that it takes quorum param?
+	if err := x.LedgerCommitInfo.Verify(rootTrust); err != nil {
+		return fmt.Errorf("invalid commit info: %w", err)
+	}*/
+	// Check quorum, if not fail without checking signatures
 	if uint32(len(x.Signatures)) < quorum {
 		return fmt.Errorf("quorum requires %d signatures but certificate has %d", quorum, len(x.Signatures))
 	}

@@ -522,6 +522,62 @@ func Test_recoverState(t *testing.T) {
 		node_2 := cms[2]
 		require.Eventually(t, func() bool { return node_2.pacemaker.GetCurrentRound() >= 10 }, 15*time.Second, 100*time.Millisecond, "waiting for progress to be made")
 	})
+
+	roundOfMsg := func(msg any) uint64 {
+		switch mt := msg.(type) {
+		case *abdrc.VoteMsg:
+			return mt.VoteInfo.RoundNumber
+		case *abdrc.ProposalMsg:
+			return mt.Block.Round
+		case *abdrc.TimeoutMsg:
+			return mt.GetRound()
+		}
+		return 0
+	}
+
+	t.Run("recover from different timeout rounds", func(t *testing.T) {
+		t.Parallel()
+		// system must be able to recover when consecutive rounds time out and nodes are in different
+		// timeout rounds (ie node doesn't get quorum for latest round so stays in previous TO round)
+		cms, rootNet, rootG := createConsensusManagers(t, 3, partitionRecs)
+		require.EqualValues(t, rootG.Root.Consensus.QuorumThreshold, len(cms), `there must be exactly quorum consensus managers`)
+
+		// set filter so that one node (slowID) does not see any messages and only sends TO votes
+		slowID := cms[0].id
+		rootNet.SetFirewall(func(from, to peer.ID, msg network.OutputMessage) bool {
+			block := to == slowID || from == slowID
+			if _, tom := msg.Message.(*abdrc.TimeoutMsg); tom {
+				block = to == slowID
+			}
+			t.Logf("%t: %s -> %s : (%d) %T", block, from.ShortString(), to.ShortString(), roundOfMsg(msg.Message), msg.Message)
+			return block
+		})
+
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		for _, v := range cms {
+			v.leaderSelector = constLeader(cms[1].id) // use "const leader" to take leader selection out of test
+			go func(cm *ConsensusManager) { require.ErrorIs(t, cm.Run(ctx), context.Canceled) }(v)
+		}
+		// what we expect to happen:
+		// round 1 is genesis, round 2 proposal is sent without votes after round matures.
+		// as slowID doesn't receive any messages it stays in round 2 and broadcast timeout vote for it.
+		// other CMs get quorum for round 2 timeout and go to round 3 but after that they are unable to
+		// make progress as slowID is still in round 2 and sends stale votes.
+		require.Eventually(t, func() bool { return cms[1].pacemaker.GetCurrentRound() == 3 && cms[2].pacemaker.GetCurrentRound() == 3 }, 8*time.Second, 20*time.Millisecond, "waiting for rounds to be processed")
+		require.EqualValues(t, 2, cms[0].pacemaker.GetCurrentRound())
+		require.EqualValues(t, 3, cms[1].pacemaker.GetCurrentRound())
+		require.EqualValues(t, 3, cms[2].pacemaker.GetCurrentRound())
+
+		// allow all traffic again - slowID node should receive TO vote for round 3 with TC for round 2
+		// which should allow it to go to round 3 and vote for it's timeout. this means that quorum for
+		// round 3 TO is achieved and progress is made again
+		rootNet.SetFirewall(func(from, to peer.ID, msg network.OutputMessage) bool {
+			t.Logf("%t: %s -> %s : (%d) %T", false, from.ShortString(), to.ShortString(), roundOfMsg(msg.Message), msg.Message)
+			return false
+		})
+		require.Eventually(t, func() bool { return cms[0].pacemaker.GetCurrentRound() >= 4 }, 2*cms[0].pacemaker.maxRoundLen, 100*time.Millisecond, "waiting for progress to be made")
+	})
 }
 
 func createConsensusManagers(t *testing.T, count int, partitionRecs []*protocgenesis.PartitionRecord) ([]*ConsensusManager, *mockNetwork, *protocgenesis.RootGenesis) {

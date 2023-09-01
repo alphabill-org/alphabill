@@ -15,7 +15,7 @@ func TestUpdate_UpdateLeftChild(t *testing.T) {
 	require.Equal(t, int64(20), tree.root.left.value.value)
 	require.True(t, tree.root.left.left.clean)
 
-	require.NoError(t, tree.Commit())
+	tree.Commit()
 	require.Equal(t, int64(33), tree.Root().value.total)
 }
 
@@ -28,7 +28,7 @@ func TestUpdate_UpdateRightChild(t *testing.T) {
 	require.Equal(t, int64(20), tree.root.right.value.value)
 
 	require.True(t, tree.root.right.right.clean)
-	require.NoError(t, tree.Commit())
+	tree.Commit()
 	require.Equal(t, int64(31), tree.root.value.total)
 }
 
@@ -55,6 +55,6 @@ func initTreeAndAddValues(t *testing.T) *Tree[IntKey, *Int64Value] {
 	require.NoError(t, tree.Add(4, newIntValue(4)))
 	require.NoError(t, tree.Add(5, newIntValue(5)))
 	require.NoError(t, tree.Add(1, newIntValue(1)))
-	require.NoError(t, tree.Commit())
+	tree.Commit()
 	return tree
 }

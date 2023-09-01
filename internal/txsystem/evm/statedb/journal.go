@@ -35,6 +35,9 @@ func (j *journal) getModifiedUnits() map[common.Address]int {
 
 // revert removes reverted units from journal
 func (j *journal) revert(snapshot int) {
+	if snapshot > len(j.entries) {
+		return
+	}
 	for i := len(j.entries) - 1; i >= snapshot; i-- {
 		// Drop any dirty tracking induced by the change
 		if addr := j.entries[i]; addr != nil {

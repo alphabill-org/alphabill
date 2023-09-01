@@ -41,10 +41,10 @@ const (
 	cmdFlagTokenData                  = "data"
 	cmdFlagTokenDataFile              = "data-file"
 
-	cmdFlagWithAll                    = "with-all"
-	cmdFlagWithTypeName               = "with-type-name"
-	cmdFlagWithTokenURI               = "with-token-uri"
-	cmdFlagWithTokenData              = "with-token-data"
+	cmdFlagWithAll       = "with-all"
+	cmdFlagWithTypeName  = "with-type-name"
+	cmdFlagWithTokenURI  = "with-token-uri"
+	cmdFlagWithTokenData = "with-token-data"
 
 	predicateTrue  = "true"
 	predicatePtpkh = "ptpkh"
@@ -190,11 +190,14 @@ func execTokenCmdNewTypeFungible(cmd *cobra.Command, config *walletConfig) error
 		TokenCreationPredicate:   mintTokenPredicate,
 		InvariantPredicate:       invariantPredicate,
 	}
-	id, err := tw.NewFungibleType(cmd.Context(), accountNumber, a, typeId, creationInputs)
+	result, err := tw.NewFungibleType(cmd.Context(), accountNumber, a, typeId, creationInputs)
 	if err != nil {
 		return err
 	}
-	consoleWriter.Println(fmt.Sprintf("Sent request for new fungible token type with id=%X", id))
+	consoleWriter.Println(fmt.Sprintf("Sent request for new fungible token type with id=%X", result.TokenTypeID))
+	if result.FeeSum > 0 {
+		consoleWriter.Println(fmt.Sprintf("Paid %s fees for transaction(s).", amountToString(result.FeeSum, 8)))
+	}
 	return nil
 }
 
@@ -274,11 +277,14 @@ func execTokenCmdNewTypeNonFungible(cmd *cobra.Command, config *walletConfig) er
 		InvariantPredicate:       invariantPredicate,
 		DataUpdatePredicate:      dataUpdatePredicate,
 	}
-	id, err := tw.NewNonFungibleType(cmd.Context(), accountNumber, a, typeId, creationInputs)
+	result, err := tw.NewNonFungibleType(cmd.Context(), accountNumber, a, typeId, creationInputs)
 	if err != nil {
 		return err
 	}
-	consoleWriter.Println(fmt.Sprintf("Sent request for new NFT type with id=%X", id))
+	consoleWriter.Println(fmt.Sprintf("Sent request for new NFT type with id=%X", result.TokenTypeID))
+	if result.FeeSum > 0 {
+		consoleWriter.Println(fmt.Sprintf("Paid %s fees for transaction(s).", amountToString(result.FeeSum, 8)))
+	}
 	return nil
 }
 
@@ -355,12 +361,15 @@ func execTokenCmdNewTokenFungible(cmd *cobra.Command, config *walletConfig) erro
 	if err != nil {
 		return err
 	}
-	id, err := tw.NewFungibleToken(cmd.Context(), accountNumber, typeId, amount, bearerPredicate, ci)
+	result, err := tw.NewFungibleToken(cmd.Context(), accountNumber, typeId, amount, bearerPredicate, ci)
 	if err != nil {
 		return err
 	}
 
-	consoleWriter.Println(fmt.Sprintf("Sent request for new fungible token with id=%X", id))
+	consoleWriter.Println(fmt.Sprintf("Sent request for new fungible token with id=%X", result.TokenID))
+	if result.FeeSum > 0 {
+		consoleWriter.Println(fmt.Sprintf("Paid %s fees for transaction(s).", amountToString(result.FeeSum, 8)))
+	}
 	return nil
 }
 
@@ -442,12 +451,15 @@ func execTokenCmdNewTokenNonFungible(cmd *cobra.Command, config *walletConfig) e
 		Data:                data,
 		DataUpdatePredicate: dataUpdatePredicate,
 	}
-	id, err := tw.NewNFT(cmd.Context(), accountNumber, a, tokenId, ci)
+	result, err := tw.NewNFT(cmd.Context(), accountNumber, a, tokenId, ci)
 	if err != nil {
 		return err
 	}
 
-	consoleWriter.Println(fmt.Sprintf("Sent request for new non-fungible token with id=%X", id))
+	consoleWriter.Println(fmt.Sprintf("Sent request for new non-fungible token with id=%X", result.TokenID))
+	if result.FeeSum > 0 {
+		consoleWriter.Println(fmt.Sprintf("Paid %s fees for transaction(s).", amountToString(result.FeeSum, 8)))
+	}
 	return nil
 }
 
@@ -551,7 +563,11 @@ func execTokenCmdSendFungible(cmd *cobra.Command, config *walletConfig) error {
 	if targetValue == 0 {
 		return fmt.Errorf("invalid parameter \"%s\" for \"--amount\": 0 is not valid amount", amountStr)
 	}
-	return tw.SendFungible(cmd.Context(), accountNumber, typeId, targetValue, pubKey, ib)
+	result, err := tw.SendFungible(cmd.Context(), accountNumber, typeId, targetValue, pubKey, ib)
+	if result.FeeSum > 0 {
+		consoleWriter.Println(fmt.Sprintf("Paid %s fees for transaction(s).", amountToString(result.FeeSum, 8)))
+	}
+	return err
 }
 
 func tokenCmdSendNonFungible(config *walletConfig) *cobra.Command {
@@ -602,7 +618,11 @@ func execTokenCmdSendNonFungible(cmd *cobra.Command, config *walletConfig) error
 		return err
 	}
 
-	return tw.TransferNFT(cmd.Context(), accountNumber, tokenId, pubKey, ib)
+	result, err := tw.TransferNFT(cmd.Context(), accountNumber, tokenId, pubKey, ib)
+	if result.FeeSum > 0 {
+		consoleWriter.Println(fmt.Sprintf("Paid %s fees for transaction(s).", amountToString(result.FeeSum, 8)))
+	}
+	return err
 }
 
 func tokenCmdDC(config *walletConfig) *cobra.Command {
@@ -649,7 +669,13 @@ func execTokenCmdDC(cmd *cobra.Command, config *walletConfig, accountNumber *uin
 		return err
 	}
 
-	return tw.CollectDust(cmd.Context(), *accountNumber, types, ib)
+	results, err := tw.CollectDust(cmd.Context(), *accountNumber, types, ib)
+	for _, result := range results {
+		if result.FeeSum > 0 {
+			consoleWriter.Println(fmt.Sprintf("Paid %s fees for dust collection on Account number %d.", amountToString(result.FeeSum, 8), result.AccountNumber))
+		}
+	}
+	return err
 }
 
 func tokenCmdUpdateNFTData(config *walletConfig) *cobra.Command {
@@ -699,7 +725,11 @@ func execTokenCmdUpdateNFTData(cmd *cobra.Command, config *walletConfig) error {
 		return err
 	}
 
-	return tw.UpdateNFTData(cmd.Context(), accountNumber, tokenId, data, du)
+	result, err := tw.UpdateNFTData(cmd.Context(), accountNumber, tokenId, data, du)
+	if result.FeeSum > 0 {
+		consoleWriter.Println(fmt.Sprintf("Paid %s fees for transaction(s).", amountToString(result.FeeSum, 8)))
+	}
+	return err
 }
 
 func tokenCmdList(config *walletConfig, runner runTokenListCmd) *cobra.Command {
@@ -825,7 +855,7 @@ func execTokenCmdList(cmd *cobra.Command, config *walletConfig, accountNumber *u
 			if withAll || withTokenURI {
 				nftURI = fmt.Sprintf(", URI='%s'", tok.NftURI)
 			}
-			if withAll ||  withTokenData {
+			if withAll || withTokenData {
 				nftData = fmt.Sprintf(", data='%X'", tok.NftData)
 			}
 			kind := fmt.Sprintf(" (%v)", tok.Kind)

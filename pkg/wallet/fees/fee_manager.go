@@ -17,7 +17,7 @@ import (
 )
 
 const (
-	maxFee                       = uint64(1)
+	minimumFeeAmount             = uint64(3)
 	txTimeoutBlockCount          = 10
 	transferFCLatestAdditionTime = 65536 // relative timeout after which transferFC unit becomes unusable
 )
@@ -371,8 +371,8 @@ func (w *FeeManager) sendCloseFC(ctx context.Context, bills []*wallet.Bill, acco
 	if err != nil {
 		return nil, err
 	}
-	if fcb.GetValue() < maxFee {
-		return nil, errors.New("insufficient fee credit balance")
+	if fcb.GetValue() < minimumFeeAmount {
+		return nil, fmt.Errorf("insufficient fee credit balance. Minimum amount is %v", minimumFeeAmount)
 	}
 	// send closeFC tx to user partition
 	log.Info("sending close fee credit transaction")
@@ -690,8 +690,8 @@ func (w *FeeManager) unmarshalTransferFC(lockedFeeBill *unitlock.LockedUnit) (*t
 }
 
 func (c AddFeeCmd) isValid() error {
-	if c.Amount == 0 {
-		return errors.New("fee credit amount must be positive")
+	if c.Amount < minimumFeeAmount {
+		return fmt.Errorf("minimum fee credit amount to add is %v", minimumFeeAmount)
 	}
 	return nil
 }

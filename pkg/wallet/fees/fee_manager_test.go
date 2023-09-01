@@ -573,6 +573,27 @@ func TestReclaimFeeCredit_LockedBillForReclaimFC(t *testing.T) {
 	})
 }
 
+func TestAddAndReclaimWithInsufficientCredit(t *testing.T) {
+	// create fee manager
+	am := newAccountManager(t)
+	moneyTxPublisher := &mockMoneyTxPublisher{}
+	moneyBackendClient := &mockMoneyClient{
+		fcb: &wallet.Bill{Value: 2, Id: []byte{111}},
+		bills: []*wallet.Bill{{
+			Id:     []byte{1},
+			Value:  100000002,
+			TxHash: []byte{2},
+		}}}
+	unitLocker := createUnitLocker(t)
+	feeManager := newMoneyPartitionFeeManager(am, unitLocker, moneyTxPublisher, moneyBackendClient)
+
+	_, err := feeManager.AddFeeCredit(context.Background(), AddFeeCmd{Amount: 2})
+	require.Error(t, err, "minimum fee credit amount to add is 3")
+
+	_, err = feeManager.ReclaimFeeCredit(context.Background(), ReclaimFeeCmd{})
+	require.Error(t, err, "insufficient fee credit balance. Minimum amount is 3")
+}
+
 func newMoneyPartitionFeeManager(am account.Manager, unitLocker UnitLocker, moneyTxPublisher TxPublisher, moneyBackendClient MoneyClient) *FeeManager {
 	moneySystemID := []byte{0, 0, 0, 0}
 	return NewFeeManager(am, unitLocker, moneySystemID, moneyTxPublisher, moneyBackendClient, moneySystemID, moneyTxPublisher, moneyBackendClient)

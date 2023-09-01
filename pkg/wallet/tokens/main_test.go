@@ -288,8 +288,10 @@ func TestNewTypes(t *testing.T) {
 			TokenCreationPredicate:   script.PredicateAlwaysTrue(),
 			InvariantPredicate:       script.PredicateAlwaysTrue(),
 		}
-		_, err := tw.NewFungibleType(context.Background(), 1, a, typeId, nil)
+		result, err := tw.NewFungibleType(context.Background(), 1, a, typeId, nil)
 		require.NoError(t, err)
+		require.NotNil(t, result)
+		require.EqualValues(t, typeId, result.TokenTypeID)
 		tx, found := recTxs[string(typeId)]
 		require.True(t, found)
 		newFungibleTx := &ttxs.CreateFungibleTokenTypeAttributes{}
@@ -328,8 +330,10 @@ func TestNewTypes(t *testing.T) {
 			TokenCreationPredicate:   script.PredicateAlwaysTrue(),
 			InvariantPredicate:       script.PredicateAlwaysTrue(),
 		}
-		_, err := tw.NewNonFungibleType(context.Background(), 1, a, typeId, nil)
+		result, err := tw.NewNonFungibleType(context.Background(), 1, a, typeId, nil)
 		require.NoError(t, err)
+		require.NotNil(t, result)
+		require.EqualValues(t, typeId, result.TokenTypeID)
 		tx, found := recTxs[string(typeId)]
 		require.True(t, found)
 		newNFTTx := &ttxs.CreateNonFungibleTokenTypeAttributes{}
@@ -383,10 +387,12 @@ func TestMintFungibleToken(t *testing.T) {
 			amount := uint64(100)
 			key, err := tw.am.GetAccountKey(tt.accNr - 1)
 			require.NoError(t, err)
-			_, err = tw.NewFungibleToken(context.Background(), tt.accNr, typeId, amount, bearerPredicateFromHash(key.PubKeyHash.Sha256), nil)
+			result, err := tw.NewFungibleToken(context.Background(), tt.accNr, typeId, amount, bearerPredicateFromHash(key.PubKeyHash.Sha256), nil)
 			require.NoError(t, err)
 			tx := recTxs[len(recTxs)-1]
 			newToken := &ttxs.MintFungibleTokenAttributes{}
+			require.NotNil(t, result)
+			require.EqualValues(t, tx.UnitID(), result.TokenID)
 			require.NoError(t, tx.UnmarshalAttributes(newToken))
 			require.NotEqual(t, []byte{0}, tx.UnitID())
 			require.Len(t, tx.UnitID(), 32)
@@ -539,12 +545,13 @@ func TestSendFungible(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			recTxs = make([]*types.TransactionOrder, 0)
-			err := tw.SendFungible(context.Background(), 1, tt.tokenTypeID, tt.targetAmount, nil, nil)
+			result, err := tw.SendFungible(context.Background(), 1, tt.tokenTypeID, tt.targetAmount, nil, nil)
 			if tt.expectedErrorMsg != "" {
 				require.ErrorContains(t, err, tt.expectedErrorMsg)
 				return
 			} else {
 				require.NoError(t, err)
+				require.NotNil(t, result)
 			}
 			tt.verifyTransactions(t)
 		})
@@ -668,10 +675,12 @@ func TestMintNFT(t *testing.T) {
 				Data:                nil,
 				DataUpdatePredicate: script.PredicateAlwaysTrue(),
 			}
-			_, err = tw.NewNFT(context.Background(), tt.accNr, a, tt.tokenID, nil)
+			result, err := tw.NewNFT(context.Background(), tt.accNr, a, tt.tokenID, nil)
 			require.NoError(t, err)
 			tx := recTxs[len(recTxs)-1]
 			newToken := &ttxs.MintNonFungibleTokenAttributes{}
+			require.NotNil(t, result)
+			require.EqualValues(t, tx.UnitID(), result.TokenID)
 			require.NoError(t, tx.UnmarshalAttributes(newToken))
 			require.NotEqual(t, []byte{0}, tx.UnitID())
 			require.Len(t, tx.UnitID(), 32)
@@ -741,8 +750,9 @@ func TestTransferNFT(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			tokens[string(tt.token.ID)] = tt.token
-			err := tw.TransferNFT(context.Background(), 1, tt.token.ID, tt.key, nil)
+			result, err := tw.TransferNFT(context.Background(), 1, tt.token.ID, tt.key, nil)
 			require.NoError(t, err)
+			require.NotNil(t, result)
 			tx, found := recTxs[string(tt.token.ID)]
 			require.True(t, found)
 			require.EqualValues(t, tt.token.ID, tx.UnitID())
@@ -792,7 +802,9 @@ func TestUpdateNFTData(t *testing.T) {
 
 	// test data, backlink and predicate inputs are submitted correctly
 	data := test.RandomBytes(64)
-	require.NoError(t, tw.UpdateNFTData(context.Background(), 1, tok.ID, data, []*PredicateInput{{Argument: script.PredicateArgumentEmpty()}}))
+	result, err := tw.UpdateNFTData(context.Background(), 1, tok.ID, data, []*PredicateInput{{Argument: script.PredicateArgumentEmpty()}})
+	require.NoError(t, err)
+	require.NotNil(t, result)
 	tx, found := recTxs[string(tok.ID)]
 	require.True(t, found)
 
@@ -803,7 +815,9 @@ func TestUpdateNFTData(t *testing.T) {
 
 	// test that wallet not only sends the tx, but also reads it correctly
 	data2 := test.RandomBytes(64)
-	require.NoError(t, tw.UpdateNFTData(context.Background(), 1, tok.ID, data2, []*PredicateInput{{Argument: script.PredicateArgumentEmpty()}, {AccountNumber: 1}}))
+	result, err = tw.UpdateNFTData(context.Background(), 1, tok.ID, data2, []*PredicateInput{{Argument: script.PredicateArgumentEmpty()}, {AccountNumber: 1}})
+	require.NoError(t, err)
+	require.NotNil(t, result)
 	tx, found = recTxs[string(tok.ID)]
 	require.True(t, found)
 	dataUpdate = parseNFTDataUpdate(t, tx)

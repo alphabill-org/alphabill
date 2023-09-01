@@ -20,6 +20,11 @@ var _ vm.StateDB = (*StateDB)(nil)
 var log = logger.CreateForPackage()
 
 type (
+	revision struct {
+		id         int
+		journalIdx int
+	}
+
 	StateDB struct {
 		tree       *state.State
 		errDB      error
@@ -29,6 +34,9 @@ type (
 		logs     []*LogEntry
 		// The refund counter, also used by state transitioning.
 		refund uint64
+		// track changes
+		journal   *journal
+		revisions []revision
 	}
 
 	LogEntry struct {
@@ -43,6 +51,7 @@ func NewStateDB(tree *state.State) *StateDB {
 	return &StateDB{
 		tree:       tree,
 		accessList: newAccessList(),
+		journal:    newJournal(),
 	}
 }
 
@@ -60,6 +69,9 @@ func (s *StateDB) CreateAccount(address common.Address) {
 		script.PredicateAlwaysFalse(),
 		&StateObject{Address: address, Account: &Account{Nonce: 0, Balance: big.NewInt(0), CodeHash: emptyCodeHash}, Storage: map[common.Hash]common.Hash{}},
 	))
+	if s.errDB == nil {
+		s.journal.append(&address)
+	}
 }
 
 func (s *StateDB) SubBalance(address common.Address, amount *big.Int) {
@@ -224,6 +236,9 @@ func (s *StateDB) Suicide(address common.Address) bool {
 		s.suicides = append(s.suicides, address)
 		return so
 	})
+	if s.errDB == nil {
+		s.journal.append(&address)
+	}
 	return true
 }
 
@@ -294,10 +309,20 @@ func (s *StateDB) SlotInAccessList(addr common.Address, slot common.Hash) (addre
 
 func (s *StateDB) RevertToSnapshot(i int) {
 	s.tree.RollbackToSavepoint(i)
+	// remove reverted units
+	for idx, rev := range s.revisions {
+		if rev.id >= i {
+			s.journal.revert(rev.journalIdx)
+			s.revisions = s.revisions[:idx]
+			return
+		}
+	}
 }
 
 func (s *StateDB) Snapshot() int {
-	return s.tree.Savepoint()
+	id := s.tree.Savepoint()
+	s.revisions = append(s.revisions, revision{id, s.journal.length()})
+	return id
 }
 
 func (s *StateDB) AddLog(log *ethtypes.Log) {
@@ -351,6 +376,9 @@ func (s *StateDB) Finalize() error {
 	}
 	s.suicides = nil
 	s.logs = nil
+	// clear unit tracking
+	s.journal = newJournal()
+	s.revisions = []revision{}
 	return nil
 }
 
@@ -391,12 +419,22 @@ func (s *StateDB) DBError() error {
 	return s.errDB
 }
 
+// GetUpdatedUnits returns updated UnitID's since last Finalize call
+func (s *StateDB) GetUpdatedUnits() []types.UnitID {
+	return s.journal.getModifiedUnits()
+}
+
 func (s *StateDB) executeUpdate(id types.UnitID, updateFunc func(so *StateObject) state.UnitData) error {
-	return s.tree.Apply(state.UpdateUnitData(id, func(data state.UnitData) (state.UnitData, error) {
+	if err := s.tree.Apply(state.UpdateUnitData(id, func(data state.UnitData) (state.UnitData, error) {
 		so, ok := data.(*StateObject)
 		if !ok {
 			return so, fmt.Errorf("unit data is not an instance of StateObject")
 		}
 		return updateFunc(so), nil
-	}))
+	})); err != nil {
+		return err
+	}
+	addr := common.BytesToAddress(id)
+	s.journal.append(&addr)
+	return nil
 }

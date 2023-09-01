@@ -7,10 +7,11 @@ import (
 // String returns a string of the AVL Tree.
 // Should not be used to print out large trees.
 func (t *Tree[K, V]) String() string {
+	res := fmt.Sprintf("Tree created at %d\n", t.createdAt)
 	if t == nil || t.root == nil {
-		return "────┤ empty"
+		return res + "────┤ empty"
 	}
-	return print(t.root, "", false, true)
+	return res + print(t.root, "", false, true)
 }
 
 func print[K Key[K], V Value[V]](node *Node[K, V], prefix string, tail bool, isRoot bool) (str string) {

@@ -46,7 +46,7 @@ func developerConfiguration() GlobalConfig {
 		ShowCaller:      true,
 		TimeLocation:    TimeLocationLocal,
 		ShowGoroutineID: true,
-		ShowNodeID:      true,
+		ShowNodeID:      false,
 	}
 	return conf
 }

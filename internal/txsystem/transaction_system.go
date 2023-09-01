@@ -38,6 +38,8 @@ type (
 		// the transaction system must commit all the changes made during the BeginBlock,
 		// EndBlock, and Execute method calls.
 		Commit() error
+
+		Debug()
 	}
 
 	// State represents the root hash and summary value of the transaction system.

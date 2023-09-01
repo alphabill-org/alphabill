@@ -1,6 +1,7 @@
 package txsystem
 
 import (
+	"bytes"
 	"crypto"
 	"fmt"
 	"reflect"
@@ -33,6 +34,7 @@ type GenericTxSystem struct {
 	genericTxValidators []GenericTransactionValidator
 	beginBlockFunctions []func(blockNumber uint64) error
 	endBlockFunctions   []func(blockNumber uint64) error
+	beginStateHash      []byte
 }
 
 func NewGenericTxSystem(modules []Module, opts ...Option) (*GenericTxSystem, error) {
@@ -101,6 +103,9 @@ func (m *GenericTxSystem) getState() (State, error) {
 }
 
 func (m *GenericTxSystem) BeginBlock(blockNr uint64) error {
+	st, _ := m.getState()
+	m.beginStateHash = st.Root()
+	log.Debug("BeginBlock: %d, state: %X", blockNr, m.beginStateHash)
 	m.currentBlockNumber = blockNr
 	for _, function := range m.beginBlockFunctions {
 		if err := function(blockNr); err != nil {
@@ -184,15 +189,27 @@ func (m *GenericTxSystem) EndBlock() (State, error) {
 			return nil, fmt.Errorf("end block function call failed: %w", err)
 		}
 	}
-	return m.getState()
+	st, err := m.getState()
+	log.Debug("EndBlock: %d, state: %X", m.currentBlockNumber, st.Root())
+	return st, err
 }
 
 func (m *GenericTxSystem) Revert() {
 	m.logPruner.Remove(m.currentBlockNumber)
 	m.state.Revert()
+
+	st, _ := m.getState()
+	log.Debug("Revert: %d, state: %X", m.currentBlockNumber, st.Root())
+
+	if m.beginStateHash != nil && !bytes.Equal(m.beginStateHash, st.Root()) {
+		log.Error("Revert: %d, state: %X, beginStateHash: %X", m.currentBlockNumber, st.Root(), m.beginStateHash)
+		//panic("Revert: state hash mismatch")
+	}
 }
 
 func (m *GenericTxSystem) Commit() error {
 	m.logPruner.Remove(m.currentBlockNumber - 1)
+	log.Debug("Commit: %d", m.currentBlockNumber)
+	m.beginStateHash = nil
 	return m.state.Commit()
 }

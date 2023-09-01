@@ -7,11 +7,14 @@ import (
 	"crypto/rand"
 	"errors"
 	"fmt"
+	"path/filepath"
 	"reflect"
 	"sort"
+	"testing"
 	"time"
 
 	"github.com/alphabill-org/alphabill/internal/crypto"
+	"github.com/alphabill-org/alphabill/internal/keyvaluedb/boltdb"
 	"github.com/alphabill-org/alphabill/internal/network"
 	p "github.com/alphabill-org/alphabill/internal/network/protocol"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
@@ -55,6 +58,7 @@ type NodePartition struct {
 
 type partitionNode struct {
 	*partition.Node
+	dbFile       string
 	nodePeer     *network.Peer
 	signer       crypto.Signer
 	genesis      *genesis.PartitionNode
@@ -195,7 +199,7 @@ func (r *RootPartition) start(ctx context.Context) error {
 	return nil
 }
 
-func NewPartition(nodeCount int, txSystemProvider func(trustBase map[string]crypto.Verifier) txsystem.TransactionSystem, systemIdentifier []byte) (abPartition *NodePartition, err error) {
+func NewPartition(t *testing.T, nodeCount int, txSystemProvider func(trustBase map[string]crypto.Verifier) txsystem.TransactionSystem, systemIdentifier []byte) (abPartition *NodePartition, err error) {
 	ctx, ctxCancel := context.WithCancel(context.Background())
 	defer func() {
 		if err != nil {
@@ -240,6 +244,7 @@ func NewPartition(nodeCount int, txSystemProvider func(trustBase map[string]cryp
 			genesis:  nodeGenesis,
 			nodePeer: peer,
 			signer:   signer,
+			dbFile:   filepath.Join(t.TempDir(), "blocks.db"),
 		}
 	}
 	return abPartition, nil
@@ -256,8 +261,13 @@ func (n *NodePartition) start(ctx context.Context, rootID peer.ID, rootAddr mult
 
 	for _, nd := range n.Nodes {
 		nd.EventHandler = &testevent.TestEventHandler{}
+		blockStore, err := boltdb.New(nd.dbFile)
+		if err != nil {
+			return err
+		}
 		nd.confOpts = append(nd.confOpts, partition.WithRootAddressAndIdentifier(rootAddr, rootID),
-			partition.WithEventHandler(nd.EventHandler.HandleEvent, 100))
+			partition.WithEventHandler(nd.EventHandler.HandleEvent, 100),
+			partition.WithBlockStore(blockStore))
 
 		if err = n.startNode(nd); err != nil {
 			return err

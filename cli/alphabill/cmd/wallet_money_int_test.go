@@ -5,14 +5,16 @@ import (
 	"crypto"
 	"fmt"
 	"testing"
+	"time"
 
+	"github.com/alphabill-org/alphabill/internal/partition/event"
 	"github.com/alphabill-org/alphabill/internal/script"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	testpartition "github.com/alphabill-org/alphabill/internal/testutils/partition"
+	testevent "github.com/alphabill-org/alphabill/internal/testutils/partition/event"
+	testfc "github.com/alphabill-org/alphabill/internal/txsystem/fc/testutils"
 	moneytx "github.com/alphabill-org/alphabill/internal/txsystem/money"
 	moneytestutils "github.com/alphabill-org/alphabill/internal/txsystem/money/testutils"
-	testfc "github.com/alphabill-org/alphabill/internal/txsystem/fc/testutils"
-
 	sdk "github.com/alphabill-org/alphabill/pkg/wallet"
 	wlog "github.com/alphabill-org/alphabill/pkg/wallet/log"
 	"github.com/ethereum/go-ethereum/common/hexutil"
@@ -23,7 +25,7 @@ var (
 	fcrID     = moneytx.NewFeeCreditRecordID(nil, []byte{1})
 	fcrAmount = uint64(1e8)
 )
- 
+
 /*
 Prep: start network and money backend, send initial bill to wallet-1
 Test scenario 1: wallet-1 sends two transactions to wallet-2
@@ -39,7 +41,7 @@ func TestSendingMoneyUsingWallets_integration(t *testing.T) {
 		Value: 1e18,
 		Owner: script.PredicateAlwaysTrue(),
 	}
-	moneyPartition := createMoneyPartition(t, initialBill, 1)
+	moneyPartition := createMoneyPartition(t, initialBill, 3)
 	network := startAlphabill(t, []*testpartition.NodePartition{moneyPartition})
 	startPartitionRPCServers(t, moneyPartition)
 
@@ -57,7 +59,8 @@ func TestSendingMoneyUsingWallets_integration(t *testing.T) {
 	am2, homedir2 := createNewWallet(t)
 	w2PubKey, _ := am2.GetPublicKey(0)
 	am2.Close()
-
+	require.ErrorIs(t, moneyPartition.Nodes[2].Stop(), context.Canceled)
+	require.NoError(t, moneyPartition.ResumeNode(2))
 	// create fee credit for initial bill transfer
 	transferFC := testfc.CreateFeeCredit(t, initialBill.ID, fcrID, fcrAmount, network)
 	initialBillBacklink := transferFC.Hash(crypto.SHA256)

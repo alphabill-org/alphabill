@@ -24,7 +24,7 @@ var defaultClientMetadata = &types.ClientMetadata{
 }
 
 func TestInitPartitionAndCreateNFTType_Ok(t *testing.T) {
-	tokenPrt, err := testpartition.NewPartition(3, func(trustBase map[string]crypto.Verifier) txsystem.TransactionSystem {
+	tokenPrt, err := testpartition.NewPartition(t, 3, func(trustBase map[string]crypto.Verifier) txsystem.TransactionSystem {
 		system, err := NewTxSystem(WithTrustBase(trustBase), WithState(newStateWithFeeCredit(t, feeCreditID)))
 		require.NoError(t, err)
 		return system
@@ -73,7 +73,7 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 	)
 
 	// setup network
-	tokenPrt, err := testpartition.NewPartition(1, func(tb map[string]crypto.Verifier) txsystem.TransactionSystem {
+	tokenPrt, err := testpartition.NewPartition(t, 1, func(tb map[string]crypto.Verifier) txsystem.TransactionSystem {
 		trustBase = tb
 		s := newStateWithFeeCredit(t, feeCreditID)
 		system, err := NewTxSystem(WithState(s), WithTrustBase(tb))

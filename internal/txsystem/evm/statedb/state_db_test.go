@@ -373,7 +373,8 @@ func TestStateDB_GetUpdatedUnits(t *testing.T) {
 	units := db.GetUpdatedUnits()
 	require.Len(t, units, 2)
 	db.RevertToSnapshot(snapID)
-	require.True(t, db.Exist(address))
+	require.True(t, db.Exist(initialAccountAddress))
+	require.False(t, db.Exist(address))
 	units = db.GetUpdatedUnits()
 	require.Len(t, units, 1)
 }

@@ -1,9 +1,11 @@
 package statedb
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"math/big"
+	"sort"
 
 	"github.com/alphabill-org/alphabill/internal/script"
 	"github.com/alphabill-org/alphabill/internal/state"
@@ -421,7 +423,17 @@ func (s *StateDB) DBError() error {
 
 // GetUpdatedUnits returns updated UnitID's since last Finalize call
 func (s *StateDB) GetUpdatedUnits() []types.UnitID {
-	return s.journal.getModifiedUnits()
+	addrs := s.journal.getModifiedUnits()
+	units := make([]types.UnitID, len(addrs))
+	i := 0
+	for k := range addrs {
+		units[i] = k.Bytes()
+		i++
+	}
+	sort.Slice(units, func(i, j int) bool {
+		return bytes.Compare(units[i], units[j]) < 0
+	})
+	return units
 }
 
 func (s *StateDB) executeUpdate(id types.UnitID, updateFunc func(so *StateObject) state.UnitData) error {

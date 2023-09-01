@@ -1,7 +1,6 @@
 package statedb
 
 import (
-	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/ethereum/go-ethereum/common"
 )
 
@@ -30,14 +29,8 @@ func (j *journal) append(entry *common.Address) {
 }
 
 // getModifiedUnits sort the dirty addresses for deterministic iteration
-func (j *journal) getModifiedUnits() []types.UnitID {
-	keys := make([]types.UnitID, len(j.dirties))
-	i := 0
-	for k := range j.dirties {
-		keys[i] = k.Bytes()
-		i++
-	}
-	return keys
+func (j *journal) getModifiedUnits() map[common.Address]int {
+	return j.dirties
 }
 
 // revert removes reverted units from journal

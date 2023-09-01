@@ -195,6 +195,123 @@ func TestSendingMoneyUsingWallets_integration(t *testing.T) {
 	require.Len(t, w2TxHistory, 4)
 }
 
+func TestMoneyStateTreeCorruption_integration(t *testing.T) {
+	t.SkipNow()
+	initialBill := &moneytx.InitialBill{
+		ID:    defaultInitialBillID,
+		Value: 1e18,
+		Owner: script.PredicateAlwaysTrue(),
+	}
+	moneyPartition := createMoneyPartition(t, initialBill, 3)
+	network := startAlphabill(t, []*testpartition.NodePartition{moneyPartition})
+	startPartitionRPCServers(t, moneyPartition)
+
+	// start wallet backend
+	apiAddr, _ := startMoneyBackend(t, moneyPartition, initialBill)
+
+	// create 2 wallets
+	err := wlog.InitStdoutLogger(wlog.INFO)
+	require.NoError(t, err)
+
+	am1, homedir1 := createNewWallet(t)
+	w1PubKey, _ := am1.GetPublicKey(0)
+	am1.Close()
+
+	var wallet2Keys []sdk.PubKey
+	am2, homedir2 := createNewWallet(t)
+	w2PubKey, _ := am2.GetPublicKey(0)
+	wallet2Keys = append(wallet2Keys, w2PubKey)
+	for i := 1; i < 5; i++ {
+		idx, pubKey, _ := am2.AddAccount()
+		require.EqualValues(t, i, idx)
+		wallet2Keys = append(wallet2Keys, pubKey)
+	}
+	am2.Close()
+
+	// create fee credit for initial bill transfer
+	transferFC := testfc.CreateFeeCredit(t, initialBill.ID, fcrID, fcrAmount, network)
+	initialBillBacklink := transferFC.Hash(crypto.SHA256)
+	w1BalanceBilly := initialBill.Value - fcrAmount
+
+	// transfer initial bill to wallet 1
+	transferInitialBillTx, err := moneytestutils.CreateInitialBillTransferTx(w1PubKey, initialBill.ID, fcrID, w1BalanceBilly, 10000, initialBillBacklink)
+	require.NoError(t, err)
+	err = moneyPartition.SubmitTx(transferInitialBillTx)
+	require.NoError(t, err)
+	require.Eventually(t, testpartition.BlockchainContainsTx(moneyPartition, transferInitialBillTx), test.WaitDuration, test.WaitTick)
+
+	// verify bill is received by wallet 1
+	verifyStdoutEventually(t, func() *testConsoleWriter {
+		return execWalletCmd(t, homedir1, fmt.Sprintf("get-balance --alphabill-api-uri %s", apiAddr))
+	}, fmt.Sprintf("#%d %s", 1, amountToString(w1BalanceBilly, 8)))
+
+	// create fee credit for wallet-1
+	feeAmountAlpha := uint64(1)
+	stdout := execWalletCmd(t, homedir1, fmt.Sprintf("fees add --amount %d --alphabill-api-uri %s", feeAmountAlpha, apiAddr))
+	verifyStdout(t, stdout, fmt.Sprintf("Successfully created %d fee credits on money partition.", feeAmountAlpha))
+
+	// verify fee credit received
+	w1BalanceBilly = w1BalanceBilly - feeAmountAlpha*1e8
+	waitForFeeCreditCLI(t, homedir1, defaultAlphabillApiURL, feeAmountAlpha*1e8-2, 0)
+
+	amount := uint64(1000)
+	// send money to all wallet-2 keys
+	for _, pubKey := range wallet2Keys {
+		stdout = execWalletCmd(t, homedir1, fmt.Sprintf("send --amount %v --address 0x%x --alphabill-api-uri %s", amount, pubKey, apiAddr))
+		verifyStdout(t, stdout,
+			"Successfully confirmed transaction(s)",
+			"Paid 0.000'000'01 fees for transaction(s)")
+	}
+
+	// verify wallet-1 balance is decreased
+	w1BalanceBilly -= amount * uint64(len(wallet2Keys)) * 1e8
+	verifyStdoutEventually(t, func() *testConsoleWriter {
+		return execWalletCmd(t, homedir1, fmt.Sprintf("get-balance --alphabill-api-uri %s", apiAddr))
+	}, fmt.Sprintf("#%d %s", 1, amountToString(w1BalanceBilly, 8)))
+
+	// verify wallet-2 received said bills
+	for idx := range wallet2Keys {
+		w2BalanceBilly := amount * 1e8
+		verifyStdoutEventually(t, func() *testConsoleWriter {
+			return execWalletCmd(t, homedir2, fmt.Sprintf("get-balance --alphabill-api-uri %s -k %v", apiAddr, idx+1))
+		}, fmt.Sprintf("#%d %s", idx+1, amountToString(w2BalanceBilly, 8)))
+		// add fee credits
+		stdout = execWalletCmd(t, homedir2, fmt.Sprintf("fees add --amount %d --alphabill-api-uri %s -k %v", feeAmountAlpha, apiAddr, idx+1))
+		verifyStdout(t, stdout, fmt.Sprintf("Successfully created %d fee credits on money partition.", feeAmountAlpha))
+		waitForFeeCreditCLI(t, homedir2, apiAddr, feeAmountAlpha*1e8-2, uint64(idx))
+	}
+
+	// transfer money from wallet-2 to wallet-1
+	amount = uint64(1)
+	go func() {
+		txCount := uint64(0)
+		for {
+			for idx := range wallet2Keys {
+				idx := idx
+				go func(dec uint64) {
+					//time.Sleep(time.Duration(idx) * time.Millisecond)
+					execWalletCmd(t, homedir2, fmt.Sprintf("send --amount %v.%v --address 0x%x --alphabill-api-uri %s -k %v -w false", amount, dec, w1PubKey, apiAddr, idx+1))
+
+				}(txCount)
+				txCount++
+			}
+			time.Sleep(1 * time.Second)
+		}
+	}()
+	time.Sleep(5 * time.Second)
+	stopNodeIdx := 1
+	require.ErrorIs(t, moneyPartition.StopNode(stopNodeIdx), context.Canceled)
+	time.Sleep(10 * time.Second)
+	require.NoError(t, moneyPartition.ResumeNode(stopNodeIdx))
+	//require.ErrorIs(t, moneyPartition.StopNode(2), context.Canceled)
+	time.Sleep(10 * time.Second)
+	time.Sleep(1 * time.Minute)
+	testevent.NotContainsEvent(t, moneyPartition.Nodes[0].EventHandler, event.RecoveryStarted)
+	testevent.NotContainsEvent(t, moneyPartition.Nodes[2].EventHandler, event.RecoveryStarted)
+	testevent.ContainsEvent(t, moneyPartition.Nodes[stopNodeIdx].EventHandler, event.RecoveryStarted)
+	testevent.ContainsEvent(t, moneyPartition.Nodes[stopNodeIdx].EventHandler, event.RecoveryFinished)
+}
+
 func TestMoneyDCUsingWallets_integration(t *testing.T) {
 	t.SkipNow()
 	initialBill := &moneytx.InitialBill{

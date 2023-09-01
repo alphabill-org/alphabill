@@ -12,6 +12,7 @@ import (
 	testblock "github.com/alphabill-org/alphabill/internal/testutils/block"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	testtransaction "github.com/alphabill-org/alphabill/internal/testutils/transaction"
+	"github.com/alphabill-org/alphabill/internal/txsystem/money"
 	billtx "github.com/alphabill-org/alphabill/internal/txsystem/money"
 	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/internal/util"
@@ -394,7 +395,7 @@ func newBackendAPIMock(t *testing.T, bills []*wallet.Bill, opts ...Option) *dust
 	accountKeys, _ := account.NewKeys("")
 	accountKey := accountKeys.AccountKey
 	signer, verifier := testsig.CreateSignerAndVerifier(t)
-	fcb := &wallet.Bill{Id: accountKey.PubKeyHash.Sha256, Value: 100 * 1e8}
+	fcb := &wallet.Bill{Id: money.NewFeeCreditRecordID(nil, accountKey.PubKeyHash.Sha256), Value: 100 * 1e8}
 
 	options := &Options{}
 	for _, opt := range opts {
@@ -406,7 +407,7 @@ func newBackendAPIMock(t *testing.T, bills []*wallet.Bill, opts ...Option) *dust
 			return 0, nil
 		},
 		listBills: func(pubKey []byte, includeDCBills bool) (*backend.ListBillsResponse, error) {
-			return &backend.ListBillsResponse{Total: len(bills), Bills: bills}, nil
+			return &backend.ListBillsResponse{Bills: bills}, nil
 		},
 		getBills: func(pubKey []byte) ([]*wallet.Bill, error) {
 			var nonDCBills []*wallet.Bill
@@ -426,7 +427,7 @@ func newBackendAPIMock(t *testing.T, bills []*wallet.Bill, opts ...Option) *dust
 			}
 			return nil
 		},
-		getTxProof: func(ctx context.Context, unitID wallet.UnitID, txHash wallet.TxHash) (*wallet.Proof, error) {
+		getTxProof: func(ctx context.Context, unitID types.UnitID, txHash wallet.TxHash) (*wallet.Proof, error) {
 			for _, proof := range options.proofs {
 				if bytes.Equal(proof.TxRecord.TransactionOrder.UnitID(), unitID) {
 					return proof, nil

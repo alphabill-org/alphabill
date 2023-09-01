@@ -8,12 +8,9 @@ import (
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/internal/txsystem/fc/transactions"
 	moneytx "github.com/alphabill-org/alphabill/internal/txsystem/money"
-	utiltx "github.com/alphabill-org/alphabill/internal/txsystem/util"
 	"github.com/alphabill-org/alphabill/internal/types"
-	"github.com/alphabill-org/alphabill/internal/util"
 	sdk "github.com/alphabill-org/alphabill/pkg/wallet"
 	wlog "github.com/alphabill-org/alphabill/pkg/wallet/log"
-	"github.com/holiman/uint256"
 )
 
 const (
@@ -65,7 +62,6 @@ func (p *BlockProcessor) ProcessBlock(_ context.Context, b *types.Block) error {
 func (p *BlockProcessor) processTx(txr *types.TransactionRecord, b *types.Block, txIdx int, dbTx BillStoreTx) error {
 	txo := txr.TransactionOrder
 	txHash := txo.Hash(crypto.SHA256)
-	roundNumber := b.GetRoundNumber()
 	proof, err := sdk.NewTxProof(txIdx, b, crypto.SHA256)
 	if err != nil {
 		return err
@@ -157,7 +153,7 @@ func (p *BlockProcessor) processTx(txr *types.TransactionRecord, b *types.Block,
 		}
 
 		// new bill
-		newID := utiltx.SameShardIDBytes(util.Uint256ToBytes(uint256.NewInt(0).SetBytes(txo.UnitID())), moneytx.HashForIDCalculation(txo.UnitID(), txo.Payload.Attributes, txo.Timeout(), crypto.SHA256))
+		newID := moneytx.NewBillID(txo.UnitID(), moneytx.HashForIDCalculation(txo.UnitID(), txo.Payload.Attributes, txo.Timeout(), crypto.SHA256))
 		wlog.Info(fmt.Sprintf("received split order (new UnitID=%x)", newID))
 		err = dbTx.SetBill(&Bill{
 			Id:             newID,
@@ -216,23 +212,19 @@ func (p *BlockProcessor) processTx(txr *types.TransactionRecord, b *types.Block,
 		if err != nil {
 			return fmt.Errorf("failed to unmarshal transferFC attributes: %w", err)
 		}
-
 		if attr.Amount < bill.Value {
 			bill.Value -= attr.Amount
-		} else {
-			bill.Value = 0
-			// mark bill to be deleted far in the future (approx 1 day)
-			// so that bill (proof) can be used for confirmation and follow-up transaction
-			// alternatively we can save proofs separately from bills and this hack can be removed
-			err = dbTx.SetBillExpirationTime(roundNumber+ExpiredBillDeletionTimeout, txo.UnitID())
-			if err != nil {
-				return fmt.Errorf("failed to set bill expiration time: %w", err)
+			bill.TxHash = txHash
+			if err := dbTx.SetBill(bill, proof); err != nil {
+				return fmt.Errorf("failed to save transferFC bill with proof: %w", err)
 			}
-		}
-		bill.TxHash = txHash
-		err = dbTx.SetBill(bill, proof)
-		if err != nil {
-			return fmt.Errorf("failed to save transferFC bill with proof: %w", err)
+		} else {
+			if err := dbTx.StoreTxProof(txo.UnitID(), txHash, proof); err != nil {
+				return fmt.Errorf("failed to store tx proof zero value bill: %w", err)
+			}
+			if err := dbTx.RemoveBill(bill.Id); err != nil {
+				return fmt.Errorf("failed to remove zero value bill: %w", err)
+			}
 		}
 		err = p.addTransferredCreditToPartitionFeeBill(dbTx, attr, proof, txr.ServerMetadata.ActualFee)
 		if err != nil {

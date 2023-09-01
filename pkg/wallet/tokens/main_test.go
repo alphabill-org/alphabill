@@ -266,7 +266,7 @@ func TestNewTypes(t *testing.T) {
 		getRoundNumber: func(ctx context.Context) (uint64, error) {
 			return 1, nil
 		},
-		getFeeCreditBill: func(ctx context.Context, unitID wallet.UnitID) (*wallet.Bill, error) {
+		getFeeCreditBill: func(ctx context.Context, unitID types.UnitID) (*wallet.Bill, error) {
 			return &wallet.Bill{
 				Id:     []byte{1},
 				Value:  100000,
@@ -355,7 +355,7 @@ func TestMintFungibleToken(t *testing.T) {
 		getRoundNumber: func(ctx context.Context) (uint64, error) {
 			return 1, nil
 		},
-		getFeeCreditBill: func(ctx context.Context, unitID wallet.UnitID) (*wallet.Bill, error) {
+		getFeeCreditBill: func(ctx context.Context, unitID types.UnitID) (*wallet.Bill, error) {
 			return &wallet.Bill{
 				Id:     []byte{1},
 				Value:  100000,
@@ -383,7 +383,7 @@ func TestMintFungibleToken(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			typeId := test.RandomBytes(32)
+			typeId := test.RandomBytes(33)
 			amount := uint64(100)
 			key, err := tw.am.GetAccountKey(tt.accNr - 1)
 			require.NoError(t, err)
@@ -395,7 +395,7 @@ func TestMintFungibleToken(t *testing.T) {
 			require.EqualValues(t, tx.UnitID(), result.TokenID)
 			require.NoError(t, tx.UnmarshalAttributes(newToken))
 			require.NotEqual(t, []byte{0}, tx.UnitID())
-			require.Len(t, tx.UnitID(), 32)
+			require.Len(t, tx.UnitID(), 33)
 			require.Equal(t, typeId, newToken.TypeID)
 			require.Equal(t, amount, newToken.Value)
 			require.Equal(t, script.PredicatePayToPublicKeyHashDefault(key.PubKeyHash.Sha256), newToken.Bearer)
@@ -418,7 +418,7 @@ func TestSendFungible(t *testing.T) {
 				{ID: test.RandomBytes(32), Kind: backend.Fungible, Symbol: "AB2", TypeID: typeIdForOverflow, Amount: 1},
 			}, "", nil
 		},
-		getFeeCreditBill: func(ctx context.Context, unitID wallet.UnitID) (*wallet.Bill, error) {
+		getFeeCreditBill: func(ctx context.Context, unitID types.UnitID) (*wallet.Bill, error) {
 			return &wallet.Bill{
 				Id:     []byte{1},
 				Value:  100000,
@@ -615,7 +615,7 @@ func TestMintNFT(t *testing.T) {
 		getRoundNumber: func(ctx context.Context) (uint64, error) {
 			return 1, nil
 		},
-		getFeeCreditBill: func(ctx context.Context, unitID wallet.UnitID) (*wallet.Bill, error) {
+		getFeeCreditBill: func(ctx context.Context, unitID types.UnitID) (*wallet.Bill, error) {
 			return &wallet.Bill{
 				Id:     []byte{1},
 				Value:  100000,
@@ -645,7 +645,7 @@ func TestMintNFT(t *testing.T) {
 		{
 			name:    "pub key bearer predicate, account 1, predefined token ID",
 			accNr:   uint64(1),
-			tokenID: test.RandomBytes(32),
+			tokenID: test.RandomBytes(33),
 			validateOwner: func(t *testing.T, accNr uint64, tok *ttxs.MintNonFungibleTokenAttributes) {
 				key, err := tw.am.GetAccountKey(accNr - 1)
 				require.NoError(t, err)
@@ -683,7 +683,7 @@ func TestMintNFT(t *testing.T) {
 			require.EqualValues(t, tx.UnitID(), result.TokenID)
 			require.NoError(t, tx.UnmarshalAttributes(newToken))
 			require.NotEqual(t, []byte{0}, tx.UnitID())
-			require.Len(t, tx.UnitID(), 32)
+			require.Len(t, tx.UnitID(), 33)
 			if tt.tokenID != nil {
 				require.EqualValues(t, tt.tokenID, tx.UnitID())
 			}
@@ -710,7 +710,7 @@ func TestTransferNFT(t *testing.T) {
 		getRoundNumber: func(ctx context.Context) (uint64, error) {
 			return 1, nil
 		},
-		getFeeCreditBill: func(ctx context.Context, unitID wallet.UnitID) (*wallet.Bill, error) {
+		getFeeCreditBill: func(ctx context.Context, unitID types.UnitID) (*wallet.Bill, error) {
 			return &wallet.Bill{
 				Id:     []byte{1},
 				Value:  100000,
@@ -780,7 +780,7 @@ func TestUpdateNFTData(t *testing.T) {
 		getRoundNumber: func(ctx context.Context) (uint64, error) {
 			return 1, nil
 		},
-		getFeeCreditBill: func(ctx context.Context, unitID wallet.UnitID) (*wallet.Bill, error) {
+		getFeeCreditBill: func(ctx context.Context, unitID types.UnitID) (*wallet.Bill, error) {
 			return &wallet.Bill{
 				Id:     []byte{1},
 				Value:  100000,
@@ -851,8 +851,8 @@ type mockTokenBackend struct {
 	getRoundNumber   func(ctx context.Context) (uint64, error)
 	postTransactions func(ctx context.Context, pubKey wallet.PubKey, txs *wallet.Transactions) error
 	getTypeHierarchy func(ctx context.Context, id backend.TokenTypeID) ([]*backend.TokenUnitType, error)
-	getTxProof       func(ctx context.Context, unitID wallet.UnitID, txHash wallet.TxHash) (*wallet.Proof, error)
-	getFeeCreditBill func(ctx context.Context, unitID wallet.UnitID) (*wallet.Bill, error)
+	getTxProof       func(ctx context.Context, unitID types.UnitID, txHash wallet.TxHash) (*wallet.Proof, error)
+	getFeeCreditBill func(ctx context.Context, unitID types.UnitID) (*wallet.Bill, error)
 }
 
 func (m *mockTokenBackend) GetToken(ctx context.Context, id backend.TokenID) (*backend.TokenUnit, error) {
@@ -897,14 +897,14 @@ func (m *mockTokenBackend) GetTypeHierarchy(ctx context.Context, id backend.Toke
 	return nil, fmt.Errorf("GetTypeHierarchy not implemented")
 }
 
-func (m *mockTokenBackend) GetTxProof(ctx context.Context, unitID wallet.UnitID, txHash wallet.TxHash) (*wallet.Proof, error) {
+func (m *mockTokenBackend) GetTxProof(ctx context.Context, unitID types.UnitID, txHash wallet.TxHash) (*wallet.Proof, error) {
 	if m.getTxProof != nil {
 		return m.getTxProof(ctx, unitID, txHash)
 	}
 	return nil, fmt.Errorf("GetTxProof not implemented")
 }
 
-func (m *mockTokenBackend) GetFeeCreditBill(ctx context.Context, unitID wallet.UnitID) (*wallet.Bill, error) {
+func (m *mockTokenBackend) GetFeeCreditBill(ctx context.Context, unitID types.UnitID) (*wallet.Bill, error) {
 	if m.getFeeCreditBill != nil {
 		return m.getFeeCreditBill(ctx, unitID)
 	}

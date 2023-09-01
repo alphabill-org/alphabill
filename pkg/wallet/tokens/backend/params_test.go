@@ -4,6 +4,7 @@ import (
 	"math/rand"
 	"testing"
 
+	"github.com/alphabill-org/alphabill/internal/types"
 	sdk "github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/stretchr/testify/require"
 )
@@ -12,25 +13,25 @@ func Test_parseTokenTypeID(t *testing.T) {
 	t.Parallel()
 
 	t.Run("empty value, required", func(t *testing.T) {
-		v, err := sdk.ParseHex[sdk.UnitID]("", true)
+		v, err := sdk.ParseHex[types.UnitID]("", true)
 		require.EqualError(t, err, `parameter is required`)
 		require.Nil(t, v)
 	})
 
 	t.Run("empty value, not required", func(t *testing.T) {
-		v, err := sdk.ParseHex[sdk.UnitID]("", false)
+		v, err := sdk.ParseHex[types.UnitID]("", false)
 		require.NoError(t, err)
 		require.Nil(t, v)
 	})
 
 	t.Run("missing prefix", func(t *testing.T) {
-		v, err := sdk.ParseHex[sdk.UnitID]("01234567890abcdef", true)
+		v, err := sdk.ParseHex[types.UnitID]("01234567890abcdef", true)
 		require.EqualError(t, err, `hex string without 0x prefix`)
 		require.Nil(t, v)
 	})
 
 	t.Run("not valid hex encoding", func(t *testing.T) {
-		v, err := sdk.ParseHex[sdk.UnitID]("0xABCDEFGHIJKL", true)
+		v, err := sdk.ParseHex[types.UnitID]("0xABCDEFGHIJKL", true)
 		require.EqualError(t, err, `invalid hex string`)
 		require.Nil(t, v)
 	})
@@ -41,7 +42,7 @@ func Test_parseTokenTypeID(t *testing.T) {
 		require.NoError(t, err)
 		require.EqualValues(t, len(id), n)
 
-		v, err := sdk.ParseHex[sdk.UnitID](sdk.EncodeHex(id), false)
+		v, err := sdk.ParseHex[types.UnitID](sdk.EncodeHex(id), false)
 		require.NoError(t, err)
 		require.EqualValues(t, id, v)
 	})
@@ -51,25 +52,25 @@ func Test_parseTokenID(t *testing.T) {
 	t.Parallel()
 
 	t.Run("empty value, required", func(t *testing.T) {
-		v, err := sdk.ParseHex[sdk.UnitID]("", true)
+		v, err := sdk.ParseHex[types.UnitID]("", true)
 		require.EqualError(t, err, `parameter is required`)
 		require.Nil(t, v)
 	})
 
 	t.Run("empty value, not required", func(t *testing.T) {
-		v, err := sdk.ParseHex[sdk.UnitID]("", false)
+		v, err := sdk.ParseHex[types.UnitID]("", false)
 		require.NoError(t, err)
 		require.Nil(t, v)
 	})
 
 	t.Run("missing prefix", func(t *testing.T) {
-		v, err := sdk.ParseHex[sdk.UnitID]("01234567890abcdef", true)
+		v, err := sdk.ParseHex[types.UnitID]("01234567890abcdef", true)
 		require.EqualError(t, err, `hex string without 0x prefix`)
 		require.Nil(t, v)
 	})
 
 	t.Run("not valid hex encoding", func(t *testing.T) {
-		v, err := sdk.ParseHex[sdk.UnitID]("0xABCDEFGHIJKL", true)
+		v, err := sdk.ParseHex[types.UnitID]("0xABCDEFGHIJKL", true)
 		require.EqualError(t, err, `invalid hex string`)
 		require.Nil(t, v)
 	})
@@ -80,7 +81,7 @@ func Test_parseTokenID(t *testing.T) {
 		require.NoError(t, err)
 		require.EqualValues(t, len(id), n)
 
-		v, err := sdk.ParseHex[sdk.UnitID](sdk.EncodeHex(id), false)
+		v, err := sdk.ParseHex[types.UnitID](sdk.EncodeHex(id), false)
 		require.NoError(t, err)
 		require.EqualValues(t, id, v)
 	})

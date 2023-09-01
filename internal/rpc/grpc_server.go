@@ -23,9 +23,10 @@ type (
 	}
 
 	partitionNode interface {
-		SubmitTx(ctx context.Context, tx *types.TransactionOrder) error
+		SubmitTx(ctx context.Context, tx *types.TransactionOrder) ([]byte, error)
 		GetBlock(ctx context.Context, blockNr uint64) (*types.Block, error)
 		GetLatestBlock() (*types.Block, error)
+		GetTransactionRecord(hash []byte) (*types.TransactionRecord, *types.TxProof, error)
 		GetLatestRoundNumber() (uint64, error)
 		SystemIdentifier() []byte
 	}
@@ -58,7 +59,7 @@ func (r *grpcServer) ProcessTransaction(ctx context.Context, tx *alphabill.Trans
 		return nil, err
 	}
 
-	if err := r.node.SubmitTx(ctx, txo); err != nil {
+	if _, err := r.node.SubmitTx(ctx, txo); err != nil {
 		receivedInvalidTransactionsGRPCMeter.Inc(1)
 		return nil, err
 	}

@@ -48,7 +48,7 @@ func (w *Wallet) collectDust(ctx context.Context, acc *accountKey, typedTokens [
 	}
 	// first token to be joined into
 	targetToken := typedTokens[0]
-	targetTokenID := sdk.UnitID(targetToken.ID)
+	targetTokenID := targetToken.ID
 	targetTokenBacklink := targetToken.TxHash
 	totalAmountJoined := targetToken.Amount
 	burnTokens := typedTokens[1:]
@@ -70,7 +70,7 @@ func (w *Wallet) collectDust(ctx context.Context, acc *accountKey, typedTokens [
 				log.Warning(fmt.Sprintf("unable to join tokens of type '%X', account key '0x%X': %v", token.TypeID, acc.PubKey, err))
 				// just stop without returning error, so that we can continue with other token types
 				if totalFees > 0 {
-					return &SubmissionResult{FeeSum: totalFees, AccountNumber: acc.idx}, nil
+					return &SubmissionResult{FeeSum: totalFees, AccountNumber: acc.idx + 1}, nil
 				}
 				return nil, nil
 			}
@@ -91,10 +91,10 @@ func (w *Wallet) collectDust(ctx context.Context, acc *accountKey, typedTokens [
 		totalAmountJoined += burnBatchAmount
 		totalFees += burnFee + joinFee
 	}
-	return &SubmissionResult{FeeSum: totalFees, AccountNumber: acc.idx}, nil
+	return &SubmissionResult{FeeSum: totalFees, AccountNumber: acc.idx + 1}, nil
 }
 
-func (w *Wallet) joinTokenForDC(ctx context.Context, acc *account.AccountKey, burnProofs []*sdk.Proof, targetTokenBacklink sdk.TxHash, targetTokenID sdk.UnitID, invariantPredicateArgs []*PredicateInput) (sdk.TxHash, uint64, error) {
+func (w *Wallet) joinTokenForDC(ctx context.Context, acc *account.AccountKey, burnProofs []*sdk.Proof, targetTokenBacklink sdk.TxHash, targetTokenID types.UnitID, invariantPredicateArgs []*PredicateInput) (sdk.TxHash, uint64, error) {
 	burnTxs := make([]*types.TransactionRecord, len(burnProofs))
 	burnTxProofs := make([]*types.TxProof, len(burnProofs))
 	for i, proof := range burnProofs {
@@ -136,7 +136,7 @@ func (w *Wallet) burnTokensForDC(ctx context.Context, acc *account.AccountKey, t
 	for _, token := range tokensToBurn {
 		burnBatchAmount += token.Amount
 		attrs := newBurnTxAttrs(token, nonce)
-		sub, err := w.prepareTxSubmission(ctx, tokens.PayloadTypeBurnFungibleToken, attrs, sdk.UnitID(token.ID), acc, rnFetcher.getRoundNumber, func(tx *types.TransactionOrder) error {
+		sub, err := w.prepareTxSubmission(ctx, tokens.PayloadTypeBurnFungibleToken, attrs, token.ID, acc, rnFetcher.getRoundNumber, func(tx *types.TransactionOrder) error {
 			signatures, err := preparePredicateSignatures(w.GetAccountManager(), invariantPredicateArgs, tx, attrs)
 			if err != nil {
 				return err

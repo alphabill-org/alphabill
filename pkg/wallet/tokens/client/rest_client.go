@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/alphabill-org/alphabill/internal/txsystem/tokens"
 	"github.com/alphabill-org/alphabill/internal/types"
 	sdk "github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/alphabill-org/alphabill/pkg/wallet/tokens/backend"
@@ -52,6 +53,10 @@ func New(abAddr url.URL) *TokenBackend {
 	}
 }
 
+func (tb *TokenBackend) NewFeeCreditRecordID(shardPart, unitPart []byte) types.UnitID {
+	return tokens.NewFeeCreditRecordID(shardPart, unitPart)
+}
+
 func (tb *TokenBackend) GetToken(ctx context.Context, id backend.TokenID) (*backend.TokenUnit, error) {
 	var rspData backend.TokenUnit
 	_, err := tb.get(ctx, tb.getURL(apiPathPrefix, "tokens", hexutil.Encode(id)), &rspData, true)
@@ -63,10 +68,10 @@ func (tb *TokenBackend) GetToken(ctx context.Context, id backend.TokenID) (*back
 
 /*
 GetTokens returns tokens owned by "owner" and matching "kind" (may be Any, ie all kinds).
-For batched querying "offset" must be set to the value returned by previous batch, empty
+For batched querying "offsetKey" must be set to the value returned by previous batch, empty
 string means "start from the beginning of the dataset". The "limit" parameter allows to set
-the max batch size (but smaller resultset might be returned even when there is more data in
-the backend ie the "offset" returned is not empty).
+the max batch size (but smaller result set might be returned even when there is more data in
+the backend ie the "offsetKey" returned is not empty).
 
 Returns:
   - tokens matching the query;
@@ -88,7 +93,7 @@ func (tb *TokenBackend) GetTokens(ctx context.Context, kind backend.Kind, owner 
 /*
 GetTokenTypes returns token types of particular kind (may be Any, ie all kinds), the optional "creator"
 parameter allows to further filter the types by it's creator public key.
-The "offset" and "limit" parameters are for batched / paginated query support.
+The "offsetKey" and "limit" parameters are for batched / paginated query support.
 
 Returns:
   - token types matching the query;
@@ -121,7 +126,7 @@ func (tb *TokenBackend) GetTypeHierarchy(ctx context.Context, id backend.TokenTy
 	return rspData, nil
 }
 
-func (tb *TokenBackend) GetTxProof(ctx context.Context, unitID sdk.UnitID, txHash sdk.TxHash) (*sdk.Proof, error) {
+func (tb *TokenBackend) GetTxProof(ctx context.Context, unitID types.UnitID, txHash sdk.TxHash) (*sdk.Proof, error) {
 	var proof *sdk.Proof
 	addr := tb.getURL(apiPathPrefix, "units", hexutil.Encode(unitID), "transactions", hexutil.Encode(txHash), "proof")
 	_, err := tb.get(ctx, addr, &proof, false)
@@ -163,7 +168,7 @@ func (tb *TokenBackend) PostTransactions(ctx context.Context, pubKey sdk.PubKey,
 	return nil
 }
 
-func (tb *TokenBackend) GetFeeCreditBill(ctx context.Context, unitID sdk.UnitID) (*sdk.Bill, error) {
+func (tb *TokenBackend) GetFeeCreditBill(ctx context.Context, unitID types.UnitID) (*sdk.Bill, error) {
 	var fcb *sdk.Bill
 	addr := tb.getURL(apiPathPrefix, "fee-credit-bills", hexutil.Encode(unitID))
 	_, err := tb.get(ctx, addr, &fcb, false)

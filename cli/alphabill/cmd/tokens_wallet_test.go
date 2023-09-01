@@ -18,6 +18,7 @@ import (
 	testpartition "github.com/alphabill-org/alphabill/internal/testutils/partition"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/internal/txsystem/tokens"
+	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/pkg/wallet/account"
 	"github.com/alphabill-org/alphabill/pkg/wallet/fees"
 	wlog "github.com/alphabill-org/alphabill/pkg/wallet/log"
@@ -544,7 +545,7 @@ func doExecTokensCmd(homedir string, command string) (*testConsoleWriter, error)
 	return outputWriter, cmd.addAndExecuteCommand(context.Background())
 }
 
-func randomID(t *testing.T) []byte {
+func randomID(t *testing.T) types.UnitID {
 	id, err := tw.RandomID()
 	require.NoError(t, err)
 	return id

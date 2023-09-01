@@ -43,6 +43,7 @@ type (
 		blockProposalValidator      BlockProposalValidator
 		leaderSelector              LeaderSelector
 		blockStore                  keyvaluedb.KeyValueDB
+		txIndexer                   keyvaluedb.KeyValueDB
 		txBuffer                    *txbuffer.TxBuffer
 		t1Timeout                   time.Duration // T1 timeout of the node. Time to wait before node creates a new block proposal.
 		hashAlgorithm               gocrypto.Hash // make hash algorithm configurable in the future. currently it is using SHA-256.
@@ -93,6 +94,12 @@ func WithLeaderSelector(leaderSelector LeaderSelector) NodeOption {
 func WithBlockStore(blockStore keyvaluedb.KeyValueDB) NodeOption {
 	return func(c *configuration) {
 		c.blockStore = blockStore
+	}
+}
+
+func WithTxIndexer(txIndexer keyvaluedb.KeyValueDB) NodeOption {
+	return func(c *configuration) {
+		c.txIndexer = txIndexer
 	}
 }
 

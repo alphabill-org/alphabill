@@ -22,19 +22,19 @@ schemas:
       value:
         type: string
         example: '999999998899999978'
-      tx_hash:
+      txHash:
         type: string
-        example: 'xJNZmYynzM39S6wbzgCkPG4cS4gztXEfSyWOKowSKvQ='
-      dc_nonce:
+        example: 'i8aOD56GOwyAwzakOfdtEqbWq/Z8dZsfAfxjznCOX/Y='
+      targetUnitId:
         type: string
-        example: 'AAAAAF5t6Kd0RXr34lPHRQTTAlaub1lu/jPB+1MKrgg='
-      swap_timeout:
+        example: 'AAAAAJKd7WH/vibXw+adAs/+2LoXaRhUOTzmQuNIkMU='
+      targetUnitBacklink:
         type: string
-        example: '59'
-      last_add_fc_tx_hash:
+        example: 'A19cILOb/nbHFGk62RSQ4UDINC15QcsThq2sKFpvFgA='
+      lastAddFcTxHash:
         type: string
         description: Hash of the last Add Fee Credit transaction
-        example: ''
+        example: 'i8aOD56GOwyAwzakOfdtEqbWq/Z8dZsfAfxjznCOX/Y='
   UnitIDParam:
     type: string
     description: |-
@@ -75,7 +75,7 @@ responses:
       message as the value. The error message describes what
       went wrong when trying to process that
       transaction. Transactions which are not listed might have
-      been processed successfuly.
+      been processed successfully.
     content:
       application/json:
         schema:

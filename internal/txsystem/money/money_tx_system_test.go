@@ -19,27 +19,30 @@ import (
 	testfc "github.com/alphabill-org/alphabill/internal/txsystem/fc/testutils"
 	"github.com/alphabill-org/alphabill/internal/txsystem/fc/transactions"
 	"github.com/alphabill-org/alphabill/internal/txsystem/fc/unit"
-	txutil "github.com/alphabill-org/alphabill/internal/txsystem/util"
 	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/fxamacker/cbor/v2"
-	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
 )
 
 const initialDustCollectorMoneyAmount uint64 = 100
 
 var (
-	initialBill   = &InitialBill{ID: []byte{0, 0, 0, 77}, Value: 110, Owner: script.PredicateAlwaysTrue()}
-	fcrID         = []byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 88}
-	moneySystemID = []byte{0, 0, 0, 0}
+	initialBill   = &InitialBill{
+		ID: NewBillID(nil, test.RandomBytes(UnitPartLength)),
+		Value: 110,
+		Owner: script.PredicateAlwaysTrue(),
+	}
+	fcrID         = NewFeeCreditRecordID(nil, []byte{88})
+	fcrAmount     = uint64(1e8)
+	moneySystemID = DefaultSystemIdentifier
 )
 
 func TestNewMoneyTxSystem(t *testing.T) {
 	var (
 		txsState      = state.NewEmptyState()
 		dcMoneyAmount = uint64(222)
-		sdrs          = createSDRs(3)
+		sdrs          = createSDRs(newBillID(3))
 		_, verifier   = testsig.CreateSignerAndVerifier(t)
 		trustBase     = map[string]abcrypto.Verifier{"test": verifier}
 	)
@@ -74,7 +77,7 @@ func TestNewMoneyTxSystem_InitialBillIsNil(t *testing.T) {
 		WithSystemIdentifier(moneySystemID),
 		WithHashAlgorithm(crypto.SHA256),
 		WithInitialBill(nil),
-		WithSystemDescriptionRecords(createSDRs(2)),
+		WithSystemDescriptionRecords(createSDRs(newBillID(2))),
 		WithDCMoneyAmount(10))
 	require.ErrorIs(t, err, ErrInitialBillIsNil)
 }
@@ -85,7 +88,7 @@ func TestNewMoneyTxSystem_InvalidInitialBillID(t *testing.T) {
 		WithSystemIdentifier(moneySystemID),
 		WithHashAlgorithm(crypto.SHA256),
 		WithInitialBill(ib),
-		WithSystemDescriptionRecords(createSDRs(2)),
+		WithSystemDescriptionRecords(createSDRs(newBillID(2))),
 		WithDCMoneyAmount(10))
 	require.ErrorIs(t, err, ErrInvalidInitialBillID)
 }
@@ -101,11 +104,12 @@ func TestNewMoneyTxSystem_InvalidFeeCreditBill_Nil(t *testing.T) {
 }
 
 func TestNewMoneyTxSystem_InvalidFeeCreditBill_SameIDAsInitialBill(t *testing.T) {
+	billID := NewBillID(nil, []byte{1})
 	_, err := NewTxSystem(
 		WithSystemIdentifier(moneySystemID),
 		WithHashAlgorithm(crypto.SHA256),
-		WithInitialBill(&InitialBill{ID: []byte{1}, Value: 100, Owner: nil}),
-		WithSystemDescriptionRecords(createSDRs(1)),
+		WithInitialBill(&InitialBill{ID: billID, Value: 100, Owner: nil}),
+		WithSystemDescriptionRecords(createSDRs(billID)),
 		WithDCMoneyAmount(10))
 	require.ErrorIs(t, err, ErrInvalidFeeCreditBillID)
 }
@@ -114,8 +118,8 @@ func TestNewMoneyScheme_InvalidFeeCreditBill_SameIDAsDCBill(t *testing.T) {
 	_, err := NewTxSystem(
 		WithSystemIdentifier(moneySystemID),
 		WithHashAlgorithm(crypto.SHA256),
-		WithInitialBill(&InitialBill{ID: []byte{0}, Value: 100, Owner: nil}),
-		WithSystemDescriptionRecords(createSDRs(0)),
+		WithInitialBill(&InitialBill{ID: NewBillID(nil, []byte{1}), Value: 100, Owner: nil}),
+		WithSystemDescriptionRecords(createSDRs(NewBillID(nil, nil))),
 		WithDCMoneyAmount(10))
 	require.ErrorIs(t, err, ErrInvalidFeeCreditBillID)
 }
@@ -171,7 +175,7 @@ func TestExecute_SplitOk(t *testing.T) {
 	require.Equal(t, initBill.Bearer(), initBillAfterUpdate.Bearer())
 	require.Equal(t, roundNumber, initBillDataAfterUpdate.T)
 
-	expectedNewUnitId := txutil.SameShardID(splitOk.UnitID(), unitIdFromTransaction(splitOk))
+	expectedNewUnitId := NewBillID(splitOk.UnitID(), unitIdFromTransaction(splitOk))
 	newBill, bd := getBill(t, rmaTree, expectedNewUnitId)
 	require.NotNil(t, newBill)
 	require.NotNil(t, bd)
@@ -192,7 +196,7 @@ func TestExecuteTransferDC_OK(t *testing.T) {
 	sm, err := txSystem.Execute(splitOk)
 	require.NoError(t, err)
 	require.NotNil(t, sm)
-	billID := txutil.SameShardID(splitOk.UnitID(), unitIdFromTransaction(splitOk))
+	billID := NewBillID(splitOk.UnitID(), unitIdFromTransaction(splitOk))
 	_, splitBillData := getBill(t, rmaTree, billID)
 
 	transferDCOk, _ := createDCTransfer(t, billID, splitBillData.V, splitBillData.Backlink, test.RandomBytes(32), test.RandomBytes(32))
@@ -221,7 +225,7 @@ func TestExecute_SwapOk(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, sm)
 
-	splitBillID := txutil.SameShardID(splitOk.UnitID(), unitIdFromTransaction(splitOk))
+	splitBillID := NewBillID(splitOk.UnitID(), unitIdFromTransaction(splitOk))
 	targetID := initialBill.ID
 	targetBacklink := splitOk.Hash(crypto.SHA256)
 	dcTransfers, swapTx := createDCTransferAndSwapTxs(t, []types.UnitID{splitBillID}, targetID, targetBacklink, rmaTree, signer)
@@ -283,7 +287,7 @@ func TestEndBlock_DustBillsAreRemoved(t *testing.T) {
 		txSystem.BeginBlock(roundNumber)
 		_, err := txSystem.Execute(splitOk)
 		require.NoError(t, err)
-		splitBillIDs[i] = txutil.SameShardID(splitOk.UnitID(), unitIdFromTransaction(splitOk))
+		splitBillIDs[i] = NewBillID(splitOk.UnitID(), unitIdFromTransaction(splitOk))
 
 		_, data := getBill(t, rmaTree, initialBill.ID)
 		backlink = data.Backlink
@@ -350,10 +354,11 @@ func TestEndBlock_FeesConsolidation(t *testing.T) {
 	require.NoError(t, txSystem.Commit())
 
 	// verify that money fee credit bill is 50
-	moneyFCUnitID := []byte{2}
-	moneyFCUnit, err := rmaTree.GetUnit(moneyFCUnitID, false)
+	moneyFeeCreditBillID := NewBillID(nil, []byte{2})
+	moneyFeeCreditBill, err := rmaTree.GetUnit(moneyFeeCreditBillID, false)
+
 	require.NoError(t, err)
-	require.EqualValues(t, 50, moneyFCUnit.Data().SummaryValueInput())
+	require.EqualValues(t, 50, moneyFeeCreditBill.Data().SummaryValueInput())
 
 	// process reclaimFC (with closeFC amount=50 and fee=1)
 	txSystem.BeginBlock(0)
@@ -388,10 +393,10 @@ func TestEndBlock_FeesConsolidation(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, txSystem.Commit())
 
-	// verify that moneyFCB=50-50+1+1=3 (moneyFCB - closeAmount + closeFee + reclaimFee)
-	moneyFCUnit, err = rmaTree.GetUnit(moneyFCUnitID, false)
+	// verify that moneyFCB=50-50+1+1=2 (moneyFCB - closeAmount + closeFee + reclaimFee)
+	moneyFeeCreditBill, err = rmaTree.GetUnit(moneyFeeCreditBillID, false)
 	require.NoError(t, err)
-	require.EqualValues(t, 2, moneyFCUnit.Data().SummaryValueInput())
+	require.EqualValues(t, 2, moneyFeeCreditBill.Data().SummaryValueInput())
 }
 
 func TestRegisterData_Revert(t *testing.T) {
@@ -424,7 +429,7 @@ func TestExecute_FeeCreditSequence_OK(t *testing.T) {
 	rmaTree, txSystem, signer := createStateAndTxSystem(t)
 	txFee := fc.FixedFee(1)()
 	initialBillID := initialBill.ID
-	fcrUnitID := util.Uint256ToBytes(uint256.NewInt(100))
+	fcrUnitID := NewFeeCreditRecordID(nil, []byte{100})
 	txAmount := uint64(20)
 
 	txSystem.BeginBlock(1)
@@ -640,7 +645,7 @@ func createSplit(t *testing.T, fromID types.UnitID, amount, remainingValue uint6
 func createTx(fromID types.UnitID, payloadType string) *types.TransactionOrder {
 	tx := &types.TransactionOrder{
 		Payload: &types.Payload{
-			SystemID:   []byte{0, 0, 0, 0},
+			SystemID:   DefaultSystemIdentifier,
 			UnitID:     fromID,
 			Type:       payloadType,
 			Attributes: nil,
@@ -665,7 +670,7 @@ func createStateAndTxSystem(t *testing.T) (*state.State, *txsystem.GenericTxSyst
 	mss, err := NewTxSystem(
 		WithSystemIdentifier(systemIdentifier),
 		WithInitialBill(initialBill),
-		WithSystemDescriptionRecords(createSDRs(2)),
+		WithSystemDescriptionRecords(createSDRs(newBillID(2))),
 		WithDCMoneyAmount(initialDustCollectorMoneyAmount),
 		WithState(s),
 		WithTrustBase(trustBase),
@@ -691,12 +696,12 @@ func createStateAndTxSystem(t *testing.T) (*state.State, *txsystem.GenericTxSyst
 	return s, mss, signer
 }
 
-func createSDRs(id uint8) []*genesis.SystemDescriptionRecord {
+func createSDRs(fcbID types.UnitID) []*genesis.SystemDescriptionRecord {
 	return []*genesis.SystemDescriptionRecord{{
 		SystemIdentifier: moneySystemID,
 		T2Timeout:        2500,
 		FeeCreditBill: &genesis.FeeCreditBill{
-			UnitId:         []byte{id},
+			UnitId:         fcbID,
 			OwnerPredicate: script.PredicateAlwaysTrue(),
 		},
 	}}

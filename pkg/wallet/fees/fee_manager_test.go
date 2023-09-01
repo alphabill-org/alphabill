@@ -11,6 +11,7 @@ import (
 	testtransaction "github.com/alphabill-org/alphabill/internal/testutils/transaction"
 	"github.com/alphabill-org/alphabill/internal/txsystem/fc/testutils"
 	"github.com/alphabill-org/alphabill/internal/txsystem/fc/transactions"
+	"github.com/alphabill-org/alphabill/internal/txsystem/money"
 	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/alphabill-org/alphabill/pkg/wallet/account"
@@ -622,6 +623,10 @@ type mockMoneyClient struct {
 	fcb         *wallet.Bill
 }
 
+func (m *mockMoneyClient) NewFeeCreditRecordID(shardPart, unitPart []byte) types.UnitID {
+	return money.NewFeeCreditRecordID(shardPart, unitPart)
+}
+
 func (m *mockMoneyClient) GetRoundNumber(ctx context.Context) (uint64, error) {
 	return m.roundNumber, nil
 }
@@ -630,7 +635,7 @@ func (m *mockMoneyClient) GetBills(ctx context.Context, pubKey []byte) ([]*walle
 	return m.bills, nil
 }
 
-func (m *mockMoneyClient) GetFeeCreditBill(ctx context.Context, unitID wallet.UnitID) (*wallet.Bill, error) {
+func (m *mockMoneyClient) GetFeeCreditBill(ctx context.Context, unitID types.UnitID) (*wallet.Bill, error) {
 	return m.fcb, nil
 }
 
@@ -642,7 +647,7 @@ func (m *mockMoneyClient) GetClosedFeeCredit(ctx context.Context, fcbID []byte) 
 	return nil, nil
 }
 
-func (m *mockMoneyClient) GetTxProof(ctx context.Context, unitID wallet.UnitID, txHash wallet.TxHash) (*wallet.Proof, error) {
+func (m *mockMoneyClient) GetTxProof(ctx context.Context, unitID types.UnitID, txHash wallet.TxHash) (*wallet.Proof, error) {
 	return m.proofs[string(unitID)], nil
 }
 

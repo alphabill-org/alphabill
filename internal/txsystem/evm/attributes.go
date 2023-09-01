@@ -4,18 +4,34 @@ import (
 	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
+	ethtypes "github.com/ethereum/go-ethereum/core/types"
 )
 
 const PayloadTypeEVMCall = "evm"
 
 type TxAttributes struct {
-	_        struct{} `cbor:",toarray"`
-	From     []byte
-	To       []byte
-	Data     []byte
-	Value    *big.Int
-	Gas      uint64
-	GasPrice *big.Int
+	_     struct{} `cbor:",toarray"`
+	From  []byte
+	To    []byte
+	Data  []byte
+	Value *big.Int
+	Gas   uint64
+	Nonce uint64
+}
+
+// Message implements ethereum core.Message
+type Message struct {
+	to         *common.Address
+	from       common.Address
+	nonce      uint64
+	amount     *big.Int
+	gasLimit   uint64
+	gasPrice   *big.Int
+	gasFeeCap  *big.Int
+	gasTipCap  *big.Int
+	data       []byte
+	accessList ethtypes.AccessList
+	isFake     bool
 }
 
 // FromAddr - returns From as Address, if nil empty address is returned
@@ -37,3 +53,33 @@ func (t *TxAttributes) ToAddr() *common.Address {
 	addr := common.BytesToAddress(t.To)
 	return &addr
 }
+
+// AsMessage returns the Alphabill transaction as a ethereum core.Message.
+func (t *TxAttributes) AsMessage(gasPrice *big.Int) Message {
+	msg := Message{
+		nonce:      t.Nonce,
+		gasLimit:   t.Gas,
+		gasPrice:   gasPrice,
+		gasFeeCap:  gasPrice,      // gas price is constant, meaning max fee is the same as gas unit price
+		gasTipCap:  big.NewInt(0), // only used in London system, no supported for AB
+		to:         t.ToAddr(),
+		from:       t.FromAddr(),
+		amount:     t.Value,
+		data:       t.Data,
+		accessList: ethtypes.AccessList{},
+		isFake:     false,
+	}
+	return msg
+}
+
+func (m Message) From() common.Address            { return m.from }
+func (m Message) To() *common.Address             { return m.to }
+func (m Message) GasPrice() *big.Int              { return m.gasPrice }
+func (m Message) GasFeeCap() *big.Int             { return m.gasFeeCap }
+func (m Message) GasTipCap() *big.Int             { return m.gasTipCap }
+func (m Message) Value() *big.Int                 { return m.amount }
+func (m Message) Gas() uint64                     { return m.gasLimit }
+func (m Message) Nonce() uint64                   { return m.nonce }
+func (m Message) Data() []byte                    { return m.data }
+func (m Message) AccessList() ethtypes.AccessList { return m.accessList }
+func (m Message) IsFake() bool                    { return m.isFake }

@@ -19,13 +19,25 @@ import (
 var _ vm.StateDB = (*StateDB)(nil)
 var log = logger.CreateForPackage()
 
-type StateDB struct {
-	tree       *state.State
-	errDB      error
-	accessList *accessList
+type (
+	StateDB struct {
+		tree       *state.State
+		errDB      error
+		accessList *accessList
 
-	suicides []common.Address
-}
+		suicides []common.Address
+		logs     []*LogEntry
+		// The refund counter, also used by state transitioning.
+		refund uint64
+	}
+
+	LogEntry struct {
+		_       struct{} `cbor:",toarray"`
+		Address common.Address
+		Topics  []common.Hash
+		Data    []byte
+	}
+)
 
 func NewStateDB(tree *state.State) *StateDB {
 	return &StateDB{
@@ -157,16 +169,18 @@ func (s *StateDB) GetCodeSize(address common.Address) int {
 }
 
 func (s *StateDB) AddRefund(gas uint64) {
-	// TODO AB-1026
+	s.refund += gas
 }
 
 func (s *StateDB) SubRefund(gas uint64) {
-	// TODO AB-1026
+	if gas > s.refund {
+		panic(fmt.Sprintf("Refund counter below zero (gas: %d > refund: %d)", gas, s.refund))
+	}
+	s.refund -= gas
 }
 
 func (s *StateDB) GetRefund() uint64 {
-	// TODO AB-1026
-	return 0
+	return s.refund
 }
 
 func (s *StateDB) GetCommittedState(address common.Address, key common.Hash) common.Hash {
@@ -287,8 +301,19 @@ func (s *StateDB) Snapshot() int {
 }
 
 func (s *StateDB) AddLog(log *ethtypes.Log) {
-	//TODO AB-1027
-	panic("implement me")
+	if log == nil {
+		return
+	}
+	// fields log.BlockNumber, log.TxHash, log.TxIndex, log.BlockHash and log.Index aren't initialized because of logs are stored inside a TransactionRecord.
+	s.logs = append(s.logs, &LogEntry{
+		Address: log.Address,
+		Topics:  log.Topics,
+		Data:    log.Data,
+	})
+}
+
+func (s *StateDB) GetLogs() []*LogEntry {
+	return s.logs
 }
 
 func (s *StateDB) AddPreimage(_ common.Hash, _ []byte) {
@@ -325,6 +350,7 @@ func (s *StateDB) Finalize() error {
 		return fmt.Errorf("unable to delete self destructed contract(s): %w", err)
 	}
 	s.suicides = nil
+	s.logs = nil
 	return nil
 }
 

@@ -4,11 +4,11 @@ import (
 	"testing"
 
 	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
 
 	"github.com/alphabill-org/alphabill/internal/hash"
 	"github.com/alphabill-org/alphabill/internal/script"
+	"github.com/alphabill-org/alphabill/internal/txsystem/money"
 	moneytx "github.com/alphabill-org/alphabill/internal/txsystem/money"
 	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/internal/util"
@@ -26,11 +26,9 @@ var (
 func TestSplitTransactionAmount(t *testing.T) {
 	receiverPubKeyHash := hash.Sum256(receiverPubKey)
 	keys, _ := account.NewKeys(testMnemonic)
-	billID := uint256.NewInt(0)
-	billIDBytes32 := billID.Bytes32()
-	billIDBytes := billIDBytes32[:]
+	billID := money.NewBillID(nil, nil)
 	b := &wallet.Bill{
-		Id:     billIDBytes,
+		Id:     billID,
 		Value:  500,
 		TxHash: []byte{1, 2, 3, 4},
 	}
@@ -42,7 +40,7 @@ func TestSplitTransactionAmount(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, tx)
 	require.EqualValues(t, systemID, tx.SystemID())
-	require.EqualValues(t, billIDBytes, tx.UnitID())
+	require.EqualValues(t, billID, tx.UnitID())
 	require.EqualValues(t, timeout, tx.Timeout())
 	require.NotNil(t, tx.OwnerProof)
 

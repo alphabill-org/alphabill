@@ -194,7 +194,7 @@ func execTokenCmdNewTypeFungible(cmd *cobra.Command, config *walletConfig) error
 	if err != nil {
 		return err
 	}
-	consoleWriter.Println(fmt.Sprintf("Sent request for new fungible token type with id=%X", result.TokenTypeID))
+	consoleWriter.Println(fmt.Sprintf("Sent request for new fungible token type with id=%s", result.TokenTypeID))
 	if result.FeeSum > 0 {
 		consoleWriter.Println(fmt.Sprintf("Paid %s fees for transaction(s).", amountToString(result.FeeSum, 8)))
 	}
@@ -281,7 +281,7 @@ func execTokenCmdNewTypeNonFungible(cmd *cobra.Command, config *walletConfig) er
 	if err != nil {
 		return err
 	}
-	consoleWriter.Println(fmt.Sprintf("Sent request for new NFT type with id=%X", result.TokenTypeID))
+	consoleWriter.Println(fmt.Sprintf("Sent request for new NFT type with id=%s", result.TokenTypeID))
 	if result.FeeSum > 0 {
 		consoleWriter.Println(fmt.Sprintf("Paid %s fees for transaction(s).", amountToString(result.FeeSum, 8)))
 	}
@@ -366,7 +366,7 @@ func execTokenCmdNewTokenFungible(cmd *cobra.Command, config *walletConfig) erro
 		return err
 	}
 
-	consoleWriter.Println(fmt.Sprintf("Sent request for new fungible token with id=%X", result.TokenID))
+	consoleWriter.Println(fmt.Sprintf("Sent request for new fungible token with id=%s", result.TokenID))
 	if result.FeeSum > 0 {
 		consoleWriter.Println(fmt.Sprintf("Paid %s fees for transaction(s).", amountToString(result.FeeSum, 8)))
 	}
@@ -456,7 +456,7 @@ func execTokenCmdNewTokenNonFungible(cmd *cobra.Command, config *walletConfig) e
 		return err
 	}
 
-	consoleWriter.Println(fmt.Sprintf("Sent request for new non-fungible token with id=%X", result.TokenID))
+	consoleWriter.Println(fmt.Sprintf("Sent request for new non-fungible token with id=%s", result.TokenID))
 	if result.FeeSum > 0 {
 		consoleWriter.Println(fmt.Sprintf("Paid %s fees for transaction(s).", amountToString(result.FeeSum, 8)))
 	}
@@ -862,10 +862,10 @@ func execTokenCmdList(cmd *cobra.Command, config *walletConfig, accountNumber *u
 
 			if tok.Kind == backend.Fungible {
 				amount := amountToString(tok.Amount, tok.Decimals)
-				consoleWriter.Println(fmt.Sprintf("ID='%X', symbol='%s', amount='%v', token-type='%X'",
+				consoleWriter.Println(fmt.Sprintf("ID='%s', symbol='%s', amount='%v', token-type='%s'",
 					tok.ID, tok.Symbol, amount, tok.TypeID) + typeName + kind)
 			} else {
-				consoleWriter.Println(fmt.Sprintf("ID='%X', symbol='%s', name='%s', token-type='%X'",
+				consoleWriter.Println(fmt.Sprintf("ID='%s', symbol='%s', name='%s', token-type='%s'",
 					tok.ID, tok.Symbol, tok.NftName, tok.TypeID) + typeName + nftURI + nftData + kind)
 			}
 		}
@@ -924,7 +924,7 @@ func execTokenCmdListTypes(cmd *cobra.Command, config *walletConfig, accountNumb
 			name = fmt.Sprintf(", name=%s", tok.Name)
 		}
 		kind := fmt.Sprintf(" (%v)", tok.Kind)
-		consoleWriter.Println(fmt.Sprintf("ID=%X, symbol=%s", tok.ID, tok.Symbol) + name + kind)
+		consoleWriter.Println(fmt.Sprintf("ID=%s, symbol=%s", tok.ID, tok.Symbol) + name + kind)
 	}
 	return nil
 }

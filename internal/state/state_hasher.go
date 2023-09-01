@@ -18,19 +18,14 @@ type stateHasher struct {
 
 // Traverse visits changed nodes in the state tree and recalculates a new root hash of the state tree.
 // Executed when the State.Commit function is called.
-func (p *stateHasher) Traverse(n *avl.Node[types.UnitID, *Unit]) error {
-	if n == nil || n.Clean() {
-		return nil
+func (p *stateHasher) Traverse(n *avl.Node[types.UnitID, *Unit]) {
+	if n == nil || (n.Clean() && n.Value().summaryCalculated) {
+		return
 	}
 	var left = n.Left()
 	var right = n.Right()
-
-	if err := p.Traverse(left); err != nil {
-		return err
-	}
-	if err := p.Traverse(right); err != nil {
-		return err
-	}
+	p.Traverse(left)
+	p.Traverse(right)
 
 	unit := n.Value()
 
@@ -62,5 +57,5 @@ func (p *stateHasher) Traverse(n *avl.Node[types.UnitID, *Unit]) error {
 
 	unit.subTreeSummaryHash = hasher.Sum(nil)
 	p.SetClean(n)
-	return nil
+	n.Value().summaryCalculated = true
 }

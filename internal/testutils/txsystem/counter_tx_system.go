@@ -48,8 +48,6 @@ func (s *Summary) Summary() []byte {
 	return s.summary
 }
 
-func (m *CounterTxSystem) Debug() {}
-
 func (m *CounterTxSystem) StateSummary() (txsystem.State, error) {
 	if m.uncommitted {
 		return nil, txsystem.ErrStateContainsUncommittedChanges

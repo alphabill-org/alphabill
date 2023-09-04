@@ -169,16 +169,13 @@ func (s *State) ReleaseToSavepoint(id int) {
 func (s *State) CalculateRoot() (uint64, []byte, error) {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
-	logger.Debug("CalculateRoot: tree before calculate root: \n%s", s.String())
 	sp := s.latestSavepoint()
-	logger.Debug("CalculateRoot: treeID=%d", sp.CreatedAt())
 	sp.Commit()
 	root := sp.Root()
 	if root == nil {
 		return 0, nil, nil
 	}
 	value := root.Value()
-	logger.Debug("CalculateRoot: tree after calculate root: \n%s\nhash: %X", s.String(), value.subTreeSummaryHash)
 	return value.subTreeSummaryValue, value.subTreeSummaryHash, nil
 }
 
@@ -192,9 +189,7 @@ func (s *State) PruneLog(id types.UnitID) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
-	sp := s.latestSavepoint()
-	u, err := sp.Get(id)
-	logger.Debug("PruneLog: %s, getting from treeID=%d", id, sp.CreatedAt())
+	u, err := s.latestSavepoint().Get(id)
 	if err != nil {
 		return err
 	}
@@ -210,9 +205,7 @@ func (s *State) PruneLog(id types.UnitID) error {
 		newBearer:          bytes.Clone(unit.Bearer()),
 		newUnitData:        copyData(unit.Data()),
 	}}
-	sp = s.latestSavepoint()
-	logger.Debug("PruneLog: %s, updating treeID=%d", id, sp.CreatedAt())
-	return sp.Update(id, unit)
+	return s.latestSavepoint().Update(id, unit)
 }
 
 func (s *State) CreateUnitStateProof(id types.UnitID, logIndex int, uc *types.UnicityCertificate) (*UnitStateProof, error) {
@@ -319,15 +312,11 @@ func (s *State) createStateTreeCert(id types.UnitID) (*StateTreeCert, error) {
 }
 
 func (s *State) createSavepoint() int {
-	sp := s.latestSavepoint()
-	logger.Debug("createSavepoint: cloning from treeID=%d", sp.CreatedAt())
-	clonedSavepoint := sp.Clone()
+	clonedSavepoint := s.latestSavepoint().Clone()
 	// mark AVL Tree nodes as clean
 	clonedSavepoint.Traverse(&avl.PostOrderCommitTraverser[types.UnitID, *Unit]{})
 	s.savepoints = append(s.savepoints, clonedSavepoint)
-	id := len(s.savepoints) - 1
-	logger.Debug("createSavepoint: cloned treeID=%d, svID=%d", clonedSavepoint.CreatedAt(), id)
-	return id
+	return len(s.savepoints) - 1
 }
 
 func (s *State) rollbackToSavepoint(id int) {
@@ -336,7 +325,6 @@ func (s *State) rollbackToSavepoint(id int) {
 		// nothing to revert
 		return
 	}
-	logger.Debug("rollbackToSavepoint: svID=%d", id)
 	s.savepoints = s.savepoints[0:id]
 }
 
@@ -346,21 +334,12 @@ func (s *State) releaseToSavepoint(id int) {
 		// nothing to release
 		return
 	}
-	sp := s.latestSavepoint()
-	s.savepoints[id-1] = sp
-	logger.Debug("releaseToSavepoint: treeID=%d, svID=%d", sp.CreatedAt(), id)
+	s.savepoints[id-1] = s.latestSavepoint()
 	s.savepoints = s.savepoints[0:id]
 }
 
 func (s *State) isCommitted() bool {
-	res := len(s.savepoints) == 1 && s.savepoints[0].IsClean() && isRootClean(s.savepoints[0])
-	if res {
-		logger.Debug("isCommitted: treeID=%d, svID=%d", s.savepoints[0].CreatedAt(), 0)
-	} else {
-		logger.Debug("isCommitted: false, savepoints: %d", len(s.savepoints))
-	}
-
-	return res
+	return len(s.savepoints) == 1 && s.savepoints[0].IsClean() && isRootClean(s.savepoints[0])
 }
 
 func isRootClean(s *savepoint) bool {
@@ -374,9 +353,7 @@ func isRootClean(s *savepoint) bool {
 // latestSavepoint returns the latest savepoint.
 func (s *State) latestSavepoint() *savepoint {
 	l := len(s.savepoints)
-	sp := s.savepoints[l-1]
-	logger.Debug("latestSavepoint: treeID=%d, svID=%d", sp.CreatedAt(), l-1)
-	return sp
+	return s.savepoints[l-1]
 }
 
 func getSubTreeLogRootHash(n *avl.Node[types.UnitID, *Unit]) []byte {
@@ -408,5 +385,5 @@ func getSubTreeSummaryHash(node *avl.Node[types.UnitID, *Unit]) []byte {
 }
 
 func (s *State) String() string {
-	return fmt.Sprintf("latestSavepoint=\n%s", s.latestSavepoint().String())
+	return fmt.Sprintf("committedTree=\n%s", s.committedTree.String())
 }

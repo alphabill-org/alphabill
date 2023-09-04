@@ -990,7 +990,6 @@ func (n *Node) handleLedgerReplicationResponse(ctx context.Context, lr *replicat
 			return onError(latestProcessedRoundNumber, fmt.Errorf("block %v apply transactions failed, %w", recoveringRoundNo, err))
 		}
 		if err = verifyTxSystemState(state, sumOfEarnedFees, b.UnicityCertificate.InputRecord); err != nil {
-			n.transactionSystem.Debug()
 			return onError(latestProcessedRoundNumber, fmt.Errorf("block %v, state mismatch, %w", recoveringRoundNo, err))
 		}
 		// update DB and last block

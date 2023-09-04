@@ -35,8 +35,6 @@ type GenericTxSystem struct {
 	beginBlockFunctions []func(blockNumber uint64) error
 	endBlockFunctions   []func(blockNumber uint64) error
 	beginStateHash      []byte
-	beginTreeString     string
-	endTreeString       string
 }
 
 func NewGenericTxSystem(modules []Module, opts ...Option) (*GenericTxSystem, error) {
@@ -108,8 +106,6 @@ func (m *GenericTxSystem) BeginBlock(blockNr uint64) error {
 	st, _ := m.getState()
 	m.beginStateHash = st.Root()
 	log.Debug("BeginBlock: %d, state: %X", blockNr, m.beginStateHash)
-	m.beginTreeString = m.state.String()
-
 	m.currentBlockNumber = blockNr
 	for _, function := range m.beginBlockFunctions {
 		if err := function(blockNr); err != nil {
@@ -195,8 +191,6 @@ func (m *GenericTxSystem) EndBlock() (State, error) {
 	}
 	st, err := m.getState()
 	log.Debug("EndBlock: %d, state: %X", m.currentBlockNumber, st.Root())
-	m.endTreeString = m.state.String()
-	m.Debug()
 	return st, err
 }
 
@@ -218,9 +212,4 @@ func (m *GenericTxSystem) Commit() error {
 	log.Debug("Commit: %d", m.currentBlockNumber)
 	m.beginStateHash = nil
 	return m.state.Commit()
-}
-
-func (m *GenericTxSystem) Debug() {
-	log.Debug("BeginTreeString: %d, \n%s", m.currentBlockNumber, m.beginTreeString)
-	log.Debug("EndTreeString: %d, \n%s", m.currentBlockNumber, m.endTreeString)
 }

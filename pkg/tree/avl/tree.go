@@ -1,7 +1,5 @@
 package avl
 
-import "time"
-
 type (
 	// Tree represents an AVL tree.
 	//
@@ -17,7 +15,6 @@ type (
 	Tree[K Key[K], V Value[V]] struct {
 		root      *Node[K, V]
 		traverser Traverser[K, V]
-		createdAt int64
 	}
 
 	// Traverser is an interface to traverse Tree.
@@ -39,7 +36,7 @@ func New[K Key[K], V Value[V]]() *Tree[K, V] {
 
 // NewWithTraverser creates a new AVL tree with a custom Traverser.
 func NewWithTraverser[K Key[K], V Value[V]](traverser Traverser[K, V]) *Tree[K, V] {
-	return &Tree[K, V]{traverser: traverser, createdAt: time.Now().UnixNano()}
+	return &Tree[K, V]{traverser: traverser}
 }
 
 // Clone clones the AVL tree, lazily.
@@ -54,11 +51,7 @@ func NewWithTraverser[K Key[K], V Value[V]](traverser Traverser[K, V]) *Tree[K, 
 // the aforementioned copy-on-write logic, but should converge to the original
 // performance characteristics of the original tree.
 func (t *Tree[K, V]) Clone() *Tree[K, V] {
-	return &Tree[K, V]{root: t.root, traverser: t.traverser, createdAt: time.Now().UnixNano()}
-}
-
-func (t *Tree[K, V]) CreatedAt() int64 {
-	return t.createdAt
+	return &Tree[K, V]{root: t.root, traverser: t.traverser}
 }
 
 // IsClean returns true if t does not contain uncommitted changes, false otherwise.

@@ -60,8 +60,6 @@ func NewEVMTxSystem(systemIdentifier []byte, opts ...Option) (*TxSystem, error) 
 	return txs, nil
 }
 
-func (m *TxSystem) Debug() {}
-
 func (m *TxSystem) GetState() *state.State {
 	return m.state
 }

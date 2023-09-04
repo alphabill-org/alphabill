@@ -16,9 +16,9 @@ func WithSystemIdentifier(systemID []byte) Option {
 	}
 }
 
-func WithMoneyTXSystemIdentifier(moneyTxSystemID []byte) Option {
+func WithMoneySystemIdentifier(moneySystemID []byte) Option {
 	return func(f *FeeCredit) {
-		f.moneyTXSystemIdentifier = moneyTxSystemID
+		f.moneySystemIdentifier = moneySystemID
 	}
 }
 
@@ -49,5 +49,11 @@ func WithFeeCalculator(feeCalculator FeeCalculator) Option {
 func WithLogger(logger logger.Logger) Option {
 	return func(f *FeeCredit) {
 		f.logger = logger
+	}
+}
+
+func WithFeeCreditRecordUnitType(feeCreditRecordUnitType []byte) Option {
+	return func(f *FeeCredit) {
+		f.feeCreditRecordUnitType = feeCreditRecordUnitType
 	}
 }

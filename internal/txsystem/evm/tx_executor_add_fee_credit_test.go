@@ -80,7 +80,7 @@ func Test_addFeeCreditTx(t *testing.T) {
 		state.NewEmptyState(),
 		crypto.SHA256,
 		evmTestFeeCalculator,
-		fc.NewDefaultFeeCreditTxValidator([]byte{0, 0, 0, 0}, DefaultEvmTxSystemIdentifier, crypto.SHA256, tb))
+		fc.NewDefaultFeeCreditTxValidator([]byte{0, 0, 0, 0}, DefaultEvmTxSystemIdentifier, crypto.SHA256, tb, nil))
 
 	tests := []struct {
 		name       string
@@ -208,7 +208,7 @@ func Test_addFeeCreditTxAndUpdate(t *testing.T) {
 		stateTree,
 		crypto.SHA256,
 		evmTestFeeCalculator,
-		fc.NewDefaultFeeCreditTxValidator([]byte{0, 0, 0, 0}, DefaultEvmTxSystemIdentifier, crypto.SHA256, tb))
+		fc.NewDefaultFeeCreditTxValidator([]byte{0, 0, 0, 0}, DefaultEvmTxSystemIdentifier, crypto.SHA256, tb, nil))
 	addFeeOrder := newAddFCTx(t,
 		privKeyHash,
 		testfc.NewAddFCAttr(t, signer, testfc.WithTransferFCTx(

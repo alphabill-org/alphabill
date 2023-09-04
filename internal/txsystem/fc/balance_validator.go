@@ -9,20 +9,20 @@ import (
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/internal/txsystem/fc/transactions"
 	fcunit "github.com/alphabill-org/alphabill/internal/txsystem/fc/unit"
-	"github.com/alphabill-org/alphabill/internal/types"
 )
 
 func checkFeeCreditBalance(s *state.State, feeCalculator FeeCalculator) txsystem.GenericTransactionValidator {
 	return func(ctx *txsystem.TxValidationContext) error {
 		if !transactions.IsFeeCreditTx(ctx.Tx) {
 			clientMetadata := ctx.Tx.Payload.ClientMetadata
-			feeCreditRecordId := clientMetadata.FeeCreditRecordID
-			if len(feeCreditRecordId) == 0 {
-				return errors.New("fee credit record missing")
-			}
-			unit := getFeeCreditRecordUnit(clientMetadata, s)
 
 			// 5. ExtrType(ιf) = fcr ∧ N[ιf] != ⊥ – the fee payer has credit in this system
+			feeCreditRecordID := clientMetadata.FeeCreditRecordID
+			if len(feeCreditRecordID) == 0 {
+				return errors.New("fee credit record missing")
+			}
+
+			unit, _ := s.GetUnit(feeCreditRecordID, false)
 			if unit == nil {
 				return errors.New("fee credit record unit is nil")
 			}
@@ -66,13 +66,4 @@ func getFeeProof(ctx *txsystem.TxValidationContext) []byte {
 		return feeProof
 	}
 	return ctx.Tx.OwnerProof
-}
-
-func getFeeCreditRecordUnit(clientMD *types.ClientMetadata, s *state.State) *state.Unit {
-	var fcr *state.Unit
-	if len(clientMD.FeeCreditRecordID) > 0 {
-		fcrID := clientMD.FeeCreditRecordID
-		fcr, _ = s.GetUnit(fcrID, false)
-	}
-	return fcr
 }

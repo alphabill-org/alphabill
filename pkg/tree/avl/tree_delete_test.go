@@ -677,7 +677,7 @@ func TestDelete_Ok(t *testing.T) {
 			for _, v := range test.valuesToAdd {
 				require.NoError(t, tree.Add(v.key, newIntValue(v.value)))
 			}
-			require.NoError(t, tree.Commit())
+			tree.Commit()
 			require.NoError(t, tree.Delete(test.removeNodeKey))
 			postOrder := postOrderNodes(tree.root)
 			require.Len(t, postOrder, len(test.expectedOrder))
@@ -688,7 +688,7 @@ func TestDelete_Ok(t *testing.T) {
 				require.Equal(t, o.clean, node.clean, "node %d has invalid clean flag: %v, required: %v", node.key, node.clean, o.clean)
 				require.Equal(t, o.depth, node.depth, "node %d has invalid depth: %v, required: %v", node.key, node.depth, o.depth)
 			}
-			require.NoError(t, tree.Commit())
+			tree.Commit()
 			require.Equal(t, test.expectedTotal, tree.Root().value.total)
 		})
 	}
@@ -721,7 +721,7 @@ func RandomTree(t *testing.T, numberOfKeys int) {
 		keys = removeKey(keys, randomKeyIndex)
 		treeStr := tree.String()
 		require.NoError(t, tree.Delete(key))
-		require.NoError(t, tree.Commit())
+		tree.Commit()
 		correct := isNodeDepthCorrect(tree.root)
 		require.True(t, correct, "tree before: \n %v key to remove: %v \n tree after:\n %v\n", treeStr, key, tree)
 	}

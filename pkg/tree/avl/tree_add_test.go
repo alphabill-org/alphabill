@@ -36,7 +36,7 @@ func TestAdd_KeyExists_RightChild(t *testing.T) {
 	require.NoError(t, tree.Add(4, newIntValue(4)))
 	require.NoError(t, tree.Add(3, newIntValue(3)))
 	require.NoError(t, tree.Add(5, newIntValue(5)))
-	require.NoError(t, tree.Commit())
+	tree.Commit()
 
 	require.ErrorContains(t, tree.Add(4, newIntValue(8)), "key 4 exists")
 	require.True(t, tree.root.clean)
@@ -45,12 +45,11 @@ func TestAdd_KeyExists_RightChild(t *testing.T) {
 	require.Equal(t, int64(15), tree.root.value.total)
 }
 
-func (*IntTreeTraverser) Traverse(n *Node[IntKey, *Int64Value]) error {
-	if n.clean {
-		return nil
+func (*IntTreeTraverser) Traverse(n *Node[IntKey, *Int64Value]) {
+	if n == nil || n.clean {
+		return
 	}
 	sum(n)
-	return nil
 }
 
 func TestAdd_KeyExists_LeftChild(t *testing.T) {
@@ -60,7 +59,7 @@ func TestAdd_KeyExists_LeftChild(t *testing.T) {
 	require.NoError(t, tree.Add(4, newIntValue(4)))
 	require.NoError(t, tree.Add(5, newIntValue(5)))
 	require.NoError(t, tree.Add(1, newIntValue(1)))
-	require.NoError(t, tree.Commit())
+	tree.Commit()
 
 	require.ErrorContains(t, tree.Add(2, newIntValue(8)), "key 2 exists")
 	require.True(t, tree.root.clean)
@@ -175,7 +174,7 @@ func TestAdd_Rotations(t *testing.T) {
 			for _, v := range test.prepareValues {
 				require.NoError(t, tree.Add(v.key, newIntValue(v.value)))
 			}
-			require.NoError(t, tree.Commit())
+			tree.Commit()
 			require.NoError(t, tree.Add(test.valueToAdd.key, newIntValue(test.valueToAdd.value)))
 			postOrder := postOrderNodes(tree.root)
 			require.Len(t, postOrder, len(test.expectedOrder))
@@ -186,7 +185,7 @@ func TestAdd_Rotations(t *testing.T) {
 				require.Equal(t, o.clean, node.clean, "node %d has invalid clean flag: %v, required: %v", node.key, node.clean, o.clean)
 				require.Equal(t, o.depth, node.depth, "node %d has invalid depth: %v, required: %v", node.key, node.depth, o.depth)
 			}
-			require.NoError(t, tree.Commit())
+			tree.Commit()
 			require.Equal(t, test.expectedTotal, tree.root.value.total)
 		})
 	}

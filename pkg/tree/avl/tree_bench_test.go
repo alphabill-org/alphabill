@@ -23,7 +23,7 @@ func BenchmarkTree_AddNodes(b *testing.B) {
 			require.NoError(b, at.Add(IntKey(i), newIntValue(int64(i))))
 
 		}
-		require.NoError(b, at.Commit())
+		at.Commit()
 		idCounter := bd.treeSize
 		b.ResetTimer()
 		b.Run(fmt.Sprintf("tree size=%d; batch-size%d", bd.treeSize, bd.batchSize), func(b *testing.B) {
@@ -32,7 +32,7 @@ func BenchmarkTree_AddNodes(b *testing.B) {
 				for i := idCounter; i < idCounter+bd.batchSize; i++ {
 					require.NoError(b, at.Add(IntKey(i), newIntValue(int64(i))))
 				}
-				require.NoError(b, at.Commit())
+				at.Commit()
 				idCounter += bd.batchSize
 			}
 		})

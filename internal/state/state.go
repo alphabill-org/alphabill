@@ -170,9 +170,7 @@ func (s *State) CalculateRoot() (uint64, []byte, error) {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 	sp := s.latestSavepoint()
-	if err := sp.Commit(); err != nil {
-		return 0, nil, err
-	}
+	sp.Commit()
 	root := sp.Root()
 	if root == nil {
 		return 0, nil, nil
@@ -314,7 +312,10 @@ func (s *State) createStateTreeCert(id types.UnitID) (*StateTreeCert, error) {
 }
 
 func (s *State) createSavepoint() int {
-	s.savepoints = append(s.savepoints, s.latestSavepoint().Clone())
+	clonedSavepoint := s.latestSavepoint().Clone()
+	// mark AVL Tree nodes as clean
+	clonedSavepoint.Traverse(&avl.PostOrderCommitTraverser[types.UnitID, *Unit]{})
+	s.savepoints = append(s.savepoints, clonedSavepoint)
 	return len(s.savepoints) - 1
 }
 
@@ -338,7 +339,15 @@ func (s *State) releaseToSavepoint(id int) {
 }
 
 func (s *State) isCommitted() bool {
-	return len(s.savepoints) == 1 && s.savepoints[0].IsClean()
+	return len(s.savepoints) == 1 && s.savepoints[0].IsClean() && isRootClean(s.savepoints[0])
+}
+
+func isRootClean(s *savepoint) bool {
+	root := s.Root()
+	if root == nil {
+		return true
+	}
+	return root.Value().summaryCalculated
 }
 
 // latestSavepoint returns the latest savepoint.

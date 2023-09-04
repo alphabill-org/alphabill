@@ -16,7 +16,7 @@ func TestPrintTree(t *testing.T) {
 	for _, i := range []int{15, 8, 18, 2, 12, 17, 19, 7, 10, 13, 20, 9} {
 		require.NoError(t, tree.Add(IntKey(i), &Int64Value{value: int64(i)}))
 	}
-	require.NoError(t, tree.Commit())
+	tree.Commit()
 	//	 			┌───┤ key=20, depth=1, value=20, total=20, clean=true
 	//			┌───┤ key=19, depth=2, value=19, total=39, clean=true
 	//		┌───┤ key=18, depth=3, value=18, total=74, clean=true

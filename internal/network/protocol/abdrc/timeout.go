@@ -35,9 +35,9 @@ func (x *TimeoutMsg) IsValid() error {
 		return fmt.Errorf("timeout info is nil")
 	}
 	if err := x.Timeout.IsValid(); err != nil {
-		return fmt.Errorf("timeout info validation failed, %w", err)
+		return fmt.Errorf("invalid timeout data: %w", err)
 	}
-	if len(x.Author) < 1 {
+	if x.Author == "" {
 		return fmt.Errorf("timeout message is missing author")
 	}
 	return nil
@@ -56,17 +56,16 @@ func (x *TimeoutMsg) Sign(s crypto.Signer) error {
 }
 
 func (x *TimeoutMsg) Verify(quorum uint32, rootTrust map[string]crypto.Verifier) error {
-	// verify signature
 	v, f := rootTrust[x.Author]
 	if !f {
-		return fmt.Errorf("timeout message verify failed: unable to find public key for author %v", x.Author)
+		return fmt.Errorf("signer %q is not part of trustbase", x.Author)
 	}
-	// verify signature
 	if err := v.VerifyBytes(x.Signature, x.Bytes()); err != nil {
-		return fmt.Errorf("signature verification failed, %w", err)
+		return fmt.Errorf("signature verification failed: %w", err)
 	}
-	if err := x.Timeout.HighQc.Verify(quorum, rootTrust); err != nil {
-		return fmt.Errorf("high qc verification failed: %w", err)
+
+	if err := x.Timeout.Verify(quorum, rootTrust); err != nil {
+		return fmt.Errorf("timeout data verification failed: %w", err)
 	}
 	return nil
 }

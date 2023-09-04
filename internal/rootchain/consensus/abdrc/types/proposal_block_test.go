@@ -5,18 +5,10 @@ import (
 	"crypto/sha256"
 	"testing"
 
-	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
-	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
-	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/stretchr/testify/require"
-)
 
-func addSignature(t *testing.T, cert *QuorumCert, author string, signer abcrypto.Signer) {
-	t.Helper()
-	sig, err := signer.SignBytes(cert.LedgerCommitInfo.Bytes())
-	require.NoError(t, err)
-	cert.Signatures[author] = sig
-}
+	"github.com/alphabill-org/alphabill/internal/types"
+)
 
 func TestBlockDataHash(t *testing.T) {
 	block := &BlockData{
@@ -115,28 +107,21 @@ func TestBlockData_IsValid(t *testing.T) {
 }
 
 func TestBlockData_Verify(t *testing.T) {
-	// not valid case
-	s1, v1 := testsig.CreateSignerAndVerifier(t)
-	s2, v2 := testsig.CreateSignerAndVerifier(t)
-	s3, v3 := testsig.CreateSignerAndVerifier(t)
-	rootTrust := map[string]abcrypto.Verifier{"1": v1, "2": v2, "3": v3}
-	info := NewDummyVoteInfo(1)
-	block := &BlockData{
-		Author:    "test",
-		Round:     2,
-		Epoch:     0,
-		Timestamp: 0x0102030405060708,
-		Payload:   &Payload{}, // empty payload
-		Qc:        NewQuorumCertificate(info, nil),
-	}
-	require.ErrorContains(t, block.Verify(3, rootTrust), "qc is missing signatures")
-	addSignature(t, block.Qc, "1", s1)
-	addSignature(t, block.Qc, "2", s2)
-	addSignature(t, block.Qc, "3", s3)
-	require.NoError(t, block.Verify(3, rootTrust))
-	// remove a signature from QC
-	delete(block.Qc.Signatures, "2")
-	require.ErrorContains(t, block.Verify(3, rootTrust), "invalid block data QC: quorum requires 3 signatures but certificate has 2")
+	sb := newStructBuilder(t, 3)
+	rootTrust := sb.Verifiers()
+
+	t.Run("IsValid is called", func(t *testing.T) {
+		bd := sb.BlockData(t)
+		bd.Round = 0
+		require.ErrorIs(t, bd.Verify(3, rootTrust), errRoundNumberUnassigned)
+	})
+
+	t.Run("no quorum for QC", func(t *testing.T) {
+		// basically check that QC.Verify is called
+		bd := sb.BlockData(t)
+		err := bd.Verify(uint32(len(bd.Qc.Signatures)+1), rootTrust)
+		require.EqualError(t, err, `invalid block data QC: quorum requires 4 signatures but certificate has 3`)
+	})
 }
 
 func TestPayload_IsEmpty(t *testing.T) {

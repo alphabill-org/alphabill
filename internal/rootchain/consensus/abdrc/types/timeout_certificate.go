@@ -9,10 +9,11 @@ import (
 )
 
 type Timeout struct {
-	_      struct{}    `cbor:",toarray"`
-	Epoch  uint64      `json:"epoch,omitempty"`   // Epoch to establish valid configuration
-	Round  uint64      `json:"round,omitempty"`   // Root round number
-	HighQc *QuorumCert `json:"high_qc,omitempty"` // Highest quorum certificate of the validator
+	_      struct{}     `cbor:",toarray"`
+	Epoch  uint64       `json:"epoch,omitempty"`   // Epoch to establish valid configuration
+	Round  uint64       `json:"round,omitempty"`   // Root round number
+	HighQc *QuorumCert  `json:"high_qc,omitempty"` // Highest quorum certificate of the validator
+	LastTC *TimeoutCert `json:"last_tc,omitempty"` // TC for Round−1 if HighQC.Round != Round−1 (nil otherwise)
 }
 
 type TimeoutVote struct {
@@ -28,35 +29,55 @@ type TimeoutCert struct {
 }
 
 // NewTimeout creates new Timeout for round (epoch) and highest QC seen
-func NewTimeout(round, epoch uint64, hqc *QuorumCert) *Timeout {
-	return &Timeout{Epoch: epoch, Round: round, HighQc: hqc}
+func NewTimeout(round, epoch uint64, hqc *QuorumCert, lastTC *TimeoutCert) *Timeout {
+	return &Timeout{Epoch: epoch, Round: round, HighQc: hqc, LastTC: lastTC}
 }
 
 func (x *Timeout) IsValid() error {
-	if x.Round == 0 {
-		return fmt.Errorf("timeout info round is 0")
-	}
 	if x.HighQc == nil {
-		return fmt.Errorf("timeout info high qc is nil")
+		return fmt.Errorf("high QC is unassigned")
 	}
 	if err := x.HighQc.IsValid(); err != nil {
-		return fmt.Errorf("timeout info invalid high qc, %w", err)
+		return fmt.Errorf("invalid high QC: %w", err)
 	}
+
 	if x.Round <= x.HighQc.VoteInfo.RoundNumber {
-		return fmt.Errorf("timeout info round is smaller or equal to highest qc seen")
+		return fmt.Errorf("timeout round (%d) must be greater than high QC round (%d)", x.Round, x.HighQc.VoteInfo.RoundNumber)
 	}
+
+	// if highQC is not for previous round we must have TC for previous round
+	if prevRound := x.Round - 1; prevRound != x.HighQc.GetRound() {
+		if x.LastTC == nil {
+			return fmt.Errorf("last TC is missing")
+		}
+		if err := x.LastTC.IsValid(); err != nil {
+			return fmt.Errorf("invalid timeout certificate: %w", err)
+		}
+		if prevRound != x.LastTC.GetRound() {
+			return fmt.Errorf("last TC must be for round %d but is for round %d", prevRound, x.LastTC.GetRound())
+		}
+	}
+
 	return nil
 }
 
 // Verify verifies timeout vote received.
 func (x *Timeout) Verify(quorum uint32, rootTrust map[string]crypto.Verifier) error {
-	// Make sure that the quorum certificate received with the vote does not have higher round than the round
-	// voted timeout
-	if x.HighQc.VoteInfo.RoundNumber > x.Round {
-		return fmt.Errorf("invalid timeout, qc round %v is bigger than timeout round %v", x.HighQc.VoteInfo.RoundNumber, x.Round)
+	if err := x.IsValid(); err != nil {
+		return fmt.Errorf("invalid timeout data: %w", err)
 	}
-	// Verify attached quorum certificate
-	return x.HighQc.Verify(quorum, rootTrust)
+
+	if err := x.HighQc.Verify(quorum, rootTrust); err != nil {
+		return fmt.Errorf("invalid high QC: %w", err)
+	}
+
+	if x.LastTC != nil {
+		if err := x.LastTC.Verify(quorum, rootTrust); err != nil {
+			return fmt.Errorf("invalid last TC: %w", err)
+		}
+	}
+
+	return nil
 }
 
 func (x *Timeout) GetRound() uint64 {
@@ -96,10 +117,14 @@ func (x *TimeoutCert) GetAuthors() []string {
 }
 
 func (x *TimeoutCert) Add(author string, timeout *Timeout, signature []byte) error {
+	if x.Timeout.Round != timeout.Round {
+		return fmt.Errorf("TC is for round %d not %d", x.Timeout.Round, timeout.Round)
+	}
 	// if already added then reject
 	if _, found := x.Signatures[author]; found {
 		return fmt.Errorf("%s already voted", author)
 	}
+
 	// Keep the highest QC certificate
 	hqcRound := timeout.HighQc.VoteInfo.RoundNumber
 	// If received highest QC round was bigger than previously seen, replace timeout struct
@@ -119,38 +144,45 @@ func BytesFromTimeoutVote(t *Timeout, author string, vote *TimeoutVote) []byte {
 	return b.Bytes()
 }
 
-// Verify timeout certificate
+func (x *TimeoutCert) IsValid() error {
+	if x.Timeout == nil {
+		return fmt.Errorf("timeout data is unassigned")
+	}
+	return nil
+}
+
 func (x *TimeoutCert) Verify(quorum uint32, rootTrust map[string]crypto.Verifier) error {
-	// 1. verify stored quorum certificate is valid and contains quorum of signatures
+	if err := x.IsValid(); err != nil {
+		return fmt.Errorf("invalid certificate: %w", err)
+	}
+
 	if err := x.Timeout.Verify(quorum, rootTrust); err != nil {
-		return fmt.Errorf("timeout validation failed, %w", err)
+		return fmt.Errorf("invalid timeout data: %w", err)
 	}
-	// 2. Check if there is quorum of signatures for TC
+
 	if uint32(len(x.Signatures)) < quorum {
-		return fmt.Errorf("certificate is has less %d sinatures than required by quorum %d", len(x.Signatures), quorum)
+		return fmt.Errorf("quorum requires %d signatures but certificate has %d", quorum, len(x.Signatures))
 	}
+
 	maxSignedRound := uint64(0)
-	// Extract attached the highest QC round number and compare it later to the round extracted from signatures
 	highQcRound := x.Timeout.HighQc.VoteInfo.RoundNumber
-	// 3. Check all signatures and remember the max QC round over all the signatures received
+	// Check all signatures and remember the max QC round over all the signatures received
 	for author, timeoutSig := range x.Signatures {
-		// verify signature
-		timeout := BytesFromTimeoutVote(x.Timeout, author, timeoutSig)
 		v, f := rootTrust[author]
 		if !f {
-			return fmt.Errorf("failed to find public key for author %v", author)
+			return fmt.Errorf("signer %q is not part of trustbase", author)
 		}
-		err := v.VerifyBytes(timeoutSig.Signature, timeout)
-		if err != nil {
-			return fmt.Errorf("timeout certificate signature verification failed, %w", err)
+		timeout := BytesFromTimeoutVote(x.Timeout, author, timeoutSig)
+		if err := v.VerifyBytes(timeoutSig.Signature, timeout); err != nil {
+			return fmt.Errorf("timeout certificate signature verification failed: %w", err)
 		}
 		if maxSignedRound < timeoutSig.HqcRound {
 			maxSignedRound = timeoutSig.HqcRound
 		}
 	}
-	// 4. Verify that the highest quorum certificate stored has max QC round over all timeout votes received
+	// Verify that the highest quorum certificate stored has max QC round over all timeout votes received
 	if highQcRound != maxSignedRound {
-		return fmt.Errorf("timeout high qc round %d does not match max signed qc round %d", highQcRound, maxSignedRound)
+		return fmt.Errorf("high QC round %d does not match max signed QC round %d", highQcRound, maxSignedRound)
 	}
 	return nil
 }

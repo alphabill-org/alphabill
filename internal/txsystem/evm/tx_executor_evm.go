@@ -81,11 +81,6 @@ func execute(currentBlockNumber uint64, stateDB *statedb.StateDB, attr *TxAttrib
 	if err != nil {
 		return nil, err
 	}
-	// TODO: handle a case when the smart contract calls another smart contract.
-	targetUnits := []types.UnitID{attr.From}
-	if attr.To != nil {
-		targetUnits = append(targetUnits, attr.To)
-	}
 	success := types.TxStatusSuccessful
 	var errorDetail error
 	if execResult.Unwrap() != nil || stateDB.DBError() != nil {
@@ -118,7 +113,7 @@ func execute(currentBlockNumber uint64, stateDB *statedb.StateDB, attr *TxAttrib
 	txPrice := calcGasPrice(execResult.UsedGas, gasUnitPrice)
 	log.Trace("total gas: %v gas units, price in alpha %v", execResult.UsedGas, weiToAlpha(txPrice))
 
-	return &types.ServerMetadata{ActualFee: weiToAlpha(txPrice), TargetUnits: targetUnits, SuccessIndicator: success, ProcessingDetails: detailBytes}, nil
+	return &types.ServerMetadata{ActualFee: weiToAlpha(txPrice), TargetUnits: stateDB.GetUpdatedUnits(), SuccessIndicator: success, ProcessingDetails: detailBytes}, nil
 }
 
 func newBlockContext(currentBlockNumber uint64) vm.BlockContext {

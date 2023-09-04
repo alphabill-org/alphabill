@@ -97,6 +97,10 @@ func initStateDBWithAccountAndSC(t *testing.T, accounts []*testAccount) *statedb
 	}
 
 	require.NoError(t, stateDB.DBError())
+	require.NoError(t, stateDB.Finalize())
+	_, _, err := s.CalculateRoot()
+	require.NoError(t, err)
+	require.NoError(t, s.Commit())
 	return stateDB
 }
 
@@ -179,6 +183,7 @@ func Test_execute(t *testing.T) {
 		wantErrStr           string
 		wantSuccessIndicator types.TxStatus
 		wantDetails          *ProcessingDetails
+		wantUpdatedUnits     int
 	}{
 		{
 			name: "err - from address is account with code",
@@ -270,6 +275,7 @@ func Test_execute(t *testing.T) {
 				ErrorDetails: "evm runtime error: out of gas",
 				ContractAddr: common.Address{},
 			},
+			wantUpdatedUnits: 1, // caller still gets charged since work is done
 		},
 		{
 			name: "err - block gas limit reached",
@@ -322,6 +328,7 @@ func Test_execute(t *testing.T) {
 				ErrorDetails: "evm runtime error: out of gas",
 				ContractAddr: common.Address{},
 			},
+			wantUpdatedUnits: 1, // caller still gets charged since work is done
 		},
 		{
 			name: "err - not enough funds for transfer",
@@ -360,6 +367,7 @@ func Test_execute(t *testing.T) {
 				ContractAddr: evmcrypto.CreateAddress(common.BytesToAddress(fromAddr.Bytes()), 0),
 				ReturnData:   nil,
 			},
+			wantUpdatedUnits: 1, // caller still gets charged since work is done
 		},
 		{
 			name: "ok - transfer exact amount",
@@ -379,24 +387,26 @@ func Test_execute(t *testing.T) {
 				ErrorDetails: "",
 				ContractAddr: common.Address{},
 			},
+			wantUpdatedUnits: 2, // caller still gets charged since work is done
 		},
 		{
 			name: "ok - transfer to unknown recipient address",
 			args: args{
 				attr: &TxAttributes{
 					From:  fromAddr.Bytes(),
-					To:    test.RandomBytes(20),
+					To:    common.FromHex("0x4a18f39d69cb1b2f7278345df2ba4d691470e908"),
 					Value: big.NewInt(10),
 					Gas:   params.TxGas, // default cost per transaction no creating a contract
-					Nonce: 1,
+					Nonce: 0,
 				},
 				gp:      new(core.GasPool).AddGas(DefaultBlockGasLimit),
-				stateDB: initStateDBWithAccountAndSC(t, []*testAccount{{Addr: fromAddr, Balance: params.TxGas*DefaultGasPrice + 10, Code: counterContractCode}}),
+				stateDB: initStateDBWithAccountAndSC(t, []*testAccount{{Addr: fromAddr, Balance: params.TxGas*DefaultGasPrice + 10}}),
 			},
 			wantSuccessIndicator: types.TxStatusSuccessful,
 			wantDetails: &ProcessingDetails{
 				ErrorDetails: "",
 			},
+			wantUpdatedUnits: 2, // caller still gets charged since work is done
 		},
 		{
 			name: "ok - call get",
@@ -418,6 +428,7 @@ func Test_execute(t *testing.T) {
 				ContractAddr: evmcrypto.CreateAddress(common.BytesToAddress(fromAddr.Bytes()), 0),
 				ReturnData:   uint256.NewInt(0).PaddedBytes(32),
 			},
+			wantUpdatedUnits: 1, // only eor gets credited for the read call
 		},
 		{
 			name: "ok - call increment method",
@@ -439,6 +450,7 @@ func Test_execute(t *testing.T) {
 				ContractAddr: evmcrypto.CreateAddress(common.BytesToAddress(fromAddr.Bytes()), 0),
 				ReturnData:   uint256.NewInt(1).PaddedBytes(32),
 			},
+			wantUpdatedUnits: 2,
 		},
 	}
 	for _, tt := range tests {
@@ -456,6 +468,7 @@ func Test_execute(t *testing.T) {
 				require.Nil(t, metadata.ProcessingDetails)
 				return
 			}
+			require.Len(t, metadata.TargetUnits, tt.wantUpdatedUnits)
 			require.NotNil(t, metadata.ProcessingDetails)
 			var details ProcessingDetails
 			require.NoError(t, cbor.Unmarshal(metadata.ProcessingDetails, &details))

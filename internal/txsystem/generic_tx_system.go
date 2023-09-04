@@ -35,6 +35,7 @@ type GenericTxSystem struct {
 	beginBlockFunctions []func(blockNumber uint64) error
 	endBlockFunctions   []func(blockNumber uint64) error
 	beginStateHash      []byte
+	roundCommitted      bool
 }
 
 func NewGenericTxSystem(modules []Module, opts ...Option) (*GenericTxSystem, error) {
@@ -107,6 +108,7 @@ func (m *GenericTxSystem) BeginBlock(blockNr uint64) error {
 	m.beginStateHash = st.Root()
 	log.Debug("BeginBlock: %d, state: %X", blockNr, m.beginStateHash)
 	m.currentBlockNumber = blockNr
+	m.roundCommitted = false
 	for _, function := range m.beginBlockFunctions {
 		if err := function(blockNr); err != nil {
 			return fmt.Errorf("begin block function call failed: %w", err)
@@ -195,7 +197,7 @@ func (m *GenericTxSystem) EndBlock() (State, error) {
 }
 
 func (m *GenericTxSystem) Revert() {
-	if m.state.IsCommitted() {
+	if m.roundCommitted {
 		log.Debug("Revert: ignoring, round %d already committed", m.currentBlockNumber)
 		return
 	}
@@ -214,5 +216,9 @@ func (m *GenericTxSystem) Commit() error {
 	m.logPruner.Remove(m.currentBlockNumber - 1)
 	log.Debug("Commit: %d", m.currentBlockNumber)
 	m.beginStateHash = nil
-	return m.state.Commit()
+	err := m.state.Commit()
+	if err == nil {
+		m.roundCommitted = true
+	}
+	return err
 }

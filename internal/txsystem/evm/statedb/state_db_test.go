@@ -360,6 +360,9 @@ func TestStateDB_RevertSnapshot2(t *testing.T) {
 func TestStateDB_GetUpdatedUnits(t *testing.T) {
 	s := state.NewEmptyState()
 	db := NewStateDB(s)
+	require.NoError(t, db.Finalize())
+	units := db.GetUpdatedUnits()
+	require.Empty(t, units)
 	db.CreateAccount(initialAccountAddress)
 	snapID := db.Snapshot()
 	db.SetNonce(initialAccountAddress, 1)
@@ -370,13 +373,16 @@ func TestStateDB_GetUpdatedUnits(t *testing.T) {
 	db.CreateAccount(address)
 	db.SetNonce(address, 1)
 	require.NoError(t, db.DBError())
-	units := db.GetUpdatedUnits()
+	units = db.GetUpdatedUnits()
 	require.Len(t, units, 2)
 	db.RevertToSnapshot(snapID)
 	require.True(t, db.Exist(initialAccountAddress))
 	require.False(t, db.Exist(address))
 	units = db.GetUpdatedUnits()
 	require.Len(t, units, 1)
+	require.NoError(t, db.Finalize())
+	units = db.GetUpdatedUnits()
+	require.Empty(t, units)
 }
 
 func TestStateDB_RollbackMultipleSnapshots(t *testing.T) {

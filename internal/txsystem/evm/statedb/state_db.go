@@ -238,9 +238,6 @@ func (s *StateDB) Suicide(address common.Address) bool {
 		s.suicides = append(s.suicides, address)
 		return so
 	})
-	if s.errDB == nil {
-		s.journal.append(&address)
-	}
 	return true
 }
 

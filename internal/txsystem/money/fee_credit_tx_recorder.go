@@ -4,16 +4,15 @@ import (
 	"fmt"
 
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
-	"github.com/alphabill-org/alphabill/internal/rma"
+	"github.com/alphabill-org/alphabill/internal/state"
 	"github.com/alphabill-org/alphabill/internal/txsystem/fc/transactions"
 	"github.com/alphabill-org/alphabill/internal/types"
-	"github.com/holiman/uint256"
 )
 
 // feeCreditTxRecorder container struct for recording fee credit transactions
 type feeCreditTxRecorder struct {
 	sdrs  map[string]*genesis.SystemDescriptionRecord
-	state *rma.Tree
+	state *state.State
 	// recorded fee credit transfers indexed by string(system_identifier)
 	transferFeeCredits map[string][]*transferFeeCreditTx
 	// recorded reclaim fee credit transfers indexed by string(system_identifier)
@@ -35,14 +34,14 @@ type reclaimFeeCreditTx struct {
 	closeFee            uint64
 }
 
-func newFeeCreditTxRecorder(state *rma.Tree, systemIdentifier []byte, records []*genesis.SystemDescriptionRecord) *feeCreditTxRecorder {
+func newFeeCreditTxRecorder(s *state.State, systemIdentifier []byte, records []*genesis.SystemDescriptionRecord) *feeCreditTxRecorder {
 	sdrs := make(map[string]*genesis.SystemDescriptionRecord)
 	for _, record := range records {
 		sdrs[string(record.SystemIdentifier)] = record
 	}
 	return &feeCreditTxRecorder{
 		sdrs:               sdrs,
-		state:              state,
+		state:              s,
 		systemIdentifier:   string(systemIdentifier),
 		transferFeeCredits: make(map[string][]*transferFeeCreditTx),
 		reclaimFeeCredits:  make(map[string][]*reclaimFeeCreditTx),
@@ -62,7 +61,7 @@ func (f *feeCreditTxRecorder) recordReclaimFC(tx *reclaimFeeCreditTx) {
 func (f *feeCreditTxRecorder) getAddedCredit(sid string) uint64 {
 	var sum uint64
 	for _, transferFC := range f.transferFeeCredits[sid] {
-		sum += transferFC.attr.Amount
+		sum += transferFC.attr.Amount - transferFC.fee
 	}
 	return sum
 }
@@ -103,23 +102,21 @@ func (f *feeCreditTxRecorder) consolidateFees() error {
 		if addedCredit == reclaimedCredit {
 			continue // no update if bill value doesn't change
 		}
-		fcUnitID := uint256.NewInt(0).SetBytes(sdr.FeeCreditBill.UnitId)
-		fcUnit, err := f.state.GetUnit(fcUnitID)
+		fcUnitID := types.UnitID(sdr.FeeCreditBill.UnitId)
+		_, err := f.state.GetUnit(fcUnitID, false)
 		if err != nil {
 			return err
 		}
-		updateData := rma.UpdateData(fcUnitID,
-			func(data rma.UnitData) (newData rma.UnitData) {
+		updateData := state.UpdateUnitData(fcUnitID,
+			func(data state.UnitData) (state.UnitData, error) {
 				bd, ok := data.(*BillData)
 				if !ok {
-					// TODO updateData should return error
-					return data
+					return nil, fmt.Errorf("unit %v does not contain bill data", fcUnitID)
 				}
 				bd.V = bd.V + addedCredit - reclaimedCredit
-				return bd
-			},
-			fcUnit.StateHash)
-		err = f.state.AtomicUpdate(updateData)
+				return bd, nil
+			})
+		err = f.state.Apply(updateData)
 		if err != nil {
 			return fmt.Errorf("failed to update [%x] partiton's fee credit bill: %w", sdr.SystemIdentifier, err)
 		}
@@ -128,23 +125,21 @@ func (f *feeCreditTxRecorder) consolidateFees() error {
 	// increment money fee credit bill with spent fees
 	spentFeeSum := f.getSpentFeeSum()
 	if spentFeeSum > 0 {
-		moneyFCUnitID := uint256.NewInt(0).SetBytes(f.sdrs[string(f.systemIdentifier)].FeeCreditBill.UnitId)
-		moneyFCUnit, err := f.state.GetUnit(moneyFCUnitID)
+		moneyFCUnitID := f.sdrs[f.systemIdentifier].FeeCreditBill.UnitId
+		_, err := f.state.GetUnit(moneyFCUnitID, false)
 		if err != nil {
 			return fmt.Errorf("could not find money fee credit bill: %w", err)
 		}
-		updateData := rma.UpdateData(moneyFCUnitID,
-			func(data rma.UnitData) (newData rma.UnitData) {
+		updateData := state.UpdateUnitData(moneyFCUnitID,
+			func(data state.UnitData) (state.UnitData, error) {
 				bd, ok := data.(*BillData)
 				if !ok {
-					// TODO updateData should return error
-					return data
+					return nil, fmt.Errorf("unit %v does not contain bill data", moneyFCUnitID)
 				}
 				bd.V = bd.V + spentFeeSum
-				return bd
-			},
-			moneyFCUnit.StateHash)
-		err = f.state.AtomicUpdate(updateData)
+				return bd, nil
+			})
+		err = f.state.Apply(updateData)
 		if err != nil {
 			return fmt.Errorf("failed to update money fee credit bill with spent fees: %w", err)
 		}

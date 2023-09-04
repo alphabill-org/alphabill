@@ -24,9 +24,9 @@ import (
 )
 
 func TestRunEvmNode(t *testing.T) {
-	homeDir := setupHome(t, evmDir)
+	homeDir := setupTestHomeDir(t, evmDir)
 	keysFileLocation := filepath.Join(homeDir, defaultKeysFileName)
-	nodeGenesisFileLocation := filepath.Join(homeDir, nodeGenesisFileName)
+	nodeGenesisFileLocation := filepath.Join(homeDir, evmGenesisFileName)
 	partitionGenesisFileLocation := filepath.Join(homeDir, "evm-genesis.json")
 	testtime.MustRunInTime(t, 5*time.Second, func() {
 		appStoppedWg := sync.WaitGroup{}
@@ -34,7 +34,7 @@ func TestRunEvmNode(t *testing.T) {
 
 		// generate node genesis
 		cmd := New()
-		args := "evm-genesis --home " + evmDir + " -o " + nodeGenesisFileLocation + " -g -k " + keysFileLocation
+		args := "evm-genesis --home " + homeDir + " -o " + nodeGenesisFileLocation + " -g -k " + keysFileLocation
 		cmd.baseCmd.SetArgs(strings.Split(args, " "))
 		err := cmd.addAndExecuteCommand(context.Background())
 		require.NoError(t, err)
@@ -81,8 +81,9 @@ func TestRunEvmNode(t *testing.T) {
 		rpcClient := alphabill.NewAlphabillServiceClient(conn)
 		require.NotNil(t, rpcClient)
 		resp, err := rpcClient.GetRoundNumber(ctx, &emptypb.Empty{})
-		require.NoError(t, err)
-		require.NotNil(t, resp)
+		// no root node, so can just verify that node starts and reply's to RPC query
+		require.ErrorContains(t, err, "node is in invalid status: initializing")
+		require.Nil(t, resp)
 		//deployEvmCounterProgram(t, ctx, rpcClient)
 		// Close the app
 		ctxCancel()

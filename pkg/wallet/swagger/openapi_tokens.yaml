@@ -1,0 +1,440 @@
+openapi: 3.1.0
+info:
+  title: Tokens Partition Indexing Backend API
+  description: |-
+    Tokens partition indexing backend processes blocks from the tokens
+    partition and indexes token types, tokens and fee credit
+    balances. This API provides access to the indexed data.
+  version: '1.0'
+servers:
+  - url: /api/v1
+  - url: https://dev-ab-tokens-backend.abdev1.guardtime.com/api/v1
+  - url: http://localhost:{port}/api/v1
+    variables:
+      port:
+        default: '9735'
+paths:
+  /round-number:
+    get:
+      summary: Get the latest round number of the tokens partition
+      description: |-
+        Returns the round number of the latest certified round known
+        to the partition node which indexing backend is connected
+        to. Useful for calculating transaction timeout values.
+      responses:
+        '200':
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                $ref: "components.yaml#/schemas/RoundNumberResponse"
+        default:
+          $ref: 'components.yaml#/responses/ErrorResponse'
+  /types/{typeId}/hierarchy:
+    get:
+      summary: Get token type and all of its ancestors
+      description: |-
+        Returns the description of a token type together with its ancestors for a given type ID.
+      parameters:
+        - name: typeId
+          description: |-
+            Hex encoded type ID prefixed with `0x`.
+            Must be 66 characters long (including the `0x` prefix).
+          in: path
+          required: true
+          schema:
+            $ref: 'components.yaml#/schemas/UnitIDParam'
+      responses:
+        '200':
+          description: Token type with given ID was found
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/TokenType'
+        '404':
+          description: Either token type with given ID does not exist or failed to load one of the ancestors
+          content:
+            application/json:
+              schema:
+                $ref: 'components.yaml#/schemas/ErrorResponse'
+        default:
+          $ref: 'components.yaml#/responses/ErrorResponse'
+  /kinds/{kind}/types:
+    get:
+      summary: Find token types
+      description: |-
+        Returns token types of the given kind and optionally filtered
+        by creator. Supports paging with the offsetKey and limit
+        parameters.
+      parameters:
+        - name: kind
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/Kind'
+        - name: creator
+          description: Hex encoded public key of the token type creator, prefixed with `0x`
+          in: query
+          required: false
+          schema:
+            $ref: 'components.yaml#/schemas/PublicKeyParam'
+        - name: offsetKey
+          description: When doing batched queries, offset key returned by the previous query
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: limit
+          description: Maximum number of items in the response
+          in: query
+          required: false
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Successful operation
+          headers:
+            Link:
+              schema:
+                type: string
+              description: Link to next batch
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/TokenType'
+        default:
+          $ref: 'components.yaml#/responses/ErrorResponse'
+  /tokens/{tokenId}:
+    get:
+      summary: Get token by ID
+      parameters:
+        - name: tokenId
+          description: |-
+            Hex encoded token ID prefixed with `0x`.
+            Must be 66 characters long (including the 0x prefix).
+          in: path
+          required: true
+          schema:
+            $ref: 'components.yaml#/schemas/UnitIDParam'
+      responses:
+        '200':
+          description: Token with given ID was found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Token'
+        '404':
+          description: Token with given ID not found
+          content:
+            application/json:
+              schema:
+                $ref: 'components.yaml#/schemas/ErrorResponse'
+        default:
+          $ref: 'components.yaml#/responses/ErrorResponse'
+  /kinds/{kind}/owners/{owner}/tokens:
+    get:
+      summary: Find tokens by token kind and owner
+      description: |-
+        Returns tokens of the given kind and owner. Supports paging
+        with the offsetKey and limit parameters.
+      parameters:
+        - name: kind
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/Kind'
+        - name: owner
+          description: Hex encoded public key of the token owner, prefixed with `0x`
+          in: path
+          required: true
+          schema:
+            $ref: 'components.yaml#/schemas/PublicKeyParam'
+        - name: offsetKey
+          description: When doing batched queries, offset key returned by the previous query
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: limit
+          description: Maximum number of items response may contain
+          in: query
+          required: false
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Token'
+        default:
+          $ref: 'components.yaml#/responses/ErrorResponse'
+  /units/{unitId}/transactions/{txHash}/proof:
+    get:
+      summary: Get transaction proof by unit ID and transaction hash
+      parameters:
+        - name: unitId
+          description: |-
+            Hex encoded unit ID prefixed with `0x`.
+            Must be 66 characters long (including the `0x` prefix).
+          in: path
+          required: true
+          schema:
+            $ref: 'components.yaml#/schemas/UnitIDParam'
+        - name: txHash
+          description: Hex encoded hash of the transaction to get proof for, prefixed with `0x`
+          in: path
+          required: true
+          schema:
+            type: string
+            default: 0x
+      responses:
+        '200':
+          description: Transaction proof was found
+          content:
+            application/cbor:
+              schema:
+                type: string
+                format: binary
+        '404':
+          description: Transaction is not in the index
+          content:
+            application/json:
+              schema:
+                $ref: 'components.yaml#/schemas/ErrorResponse'
+        default:
+          $ref: 'components.yaml#/responses/ErrorResponse'
+  /events/{pubkey}/subscribe:
+    get:
+      summary: Subscribe to server-sent events (SSE) stream
+      description: |-
+        Allows to get events about transactions associated with the given public key.
+
+        Events are generetaed only for token transactions as token types do not have
+        "owner" info attached to them (so we do not know to which subscribers to send
+        events). Only successful transactions (these added to the block) will
+        generate events and one transaction can produce multiple events (ie split
+        transaction will produce two events - one for the original token and one for
+        the new one).
+
+        For the token unit transaction event will have:
+         - event: token
+         - data: JSON of the [`Token`](#/components/schemas/Token) structure.
+      parameters:
+        - name: pubkey
+          description: Owner of the tokens to generate events for
+          in: path
+          required: true
+          schema:
+            $ref: 'components.yaml#/schemas/PublicKeyParam'
+      responses:
+        '200':
+          description: Successful operation
+        default:
+          $ref: 'components.yaml#/responses/ErrorResponse'
+  /fee-credit-bills/{unitId}:
+    get:
+      summary: Get fee credit bill by unit ID
+      description: |-
+        Returns fee credit bill for the given unit ID.
+      parameters:
+        - name: unitId
+          description: |-
+            Hex encoded free credit unit ID (SHA256 hash of public
+            key) prefixed with `0x`.  Must be 66 characters long
+            (including the `0x` prefix).
+          in: path
+          required: true
+          schema:
+            $ref: 'components.yaml#/schemas/UnitIDParam'
+      responses:
+        '200':
+          description: Fee credit bill returned
+          content:
+            application/json:
+              schema:
+                type: object
+                items:
+                  $ref: 'components.yaml#/schemas/Bill'
+        '404':
+          description: Fee credit bill was not found for given bill ID
+          content:
+            application/json:
+              schema:
+                $ref: 'components.yaml#/schemas/ErrorResponse'
+        default:
+          $ref: 'components.yaml#/responses/ErrorResponse'
+  /closed-fee-credit/{unitId}:
+    get:
+      summary: Get the last seen closeFC transaction for the given fee credit bill
+      description: Get the last seen closeFC transaction for the given fee credit bill
+      parameters:
+        - name: unitId
+          description: Target fee credit bill ID (hex)
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Successful operation
+          content:
+            application/cbor:
+              schema:
+                type: string
+                format: binary
+        default:
+          $ref: 'components.yaml#/responses/ErrorResponse'
+  /transactions/{pubkey}:
+    post:
+      summary: Forward transactions to partition node
+      description: |-
+        Allows to send raw CBOR encoded transactions to partition
+        node. Request body must be a CBOR encoded array of raw
+        transactions. The documentation for raw transaction format can
+        be found on Alphabill Documentation portal.
+      parameters:
+        - name: pubkey
+          description: Hex encoded sender public key, prefixed with `0x`
+          in: path
+          required: true
+          schema:
+            $ref: 'components.yaml#/schemas/PublicKeyParam'
+      requestBody:
+        description: CBOR encoded array of TransactionOrders
+        required: true
+        content:
+          application/cbor: {}
+      responses:
+        '202':
+          description: Successful operation
+        '500':
+          $ref: 'components.yaml#/responses/PostTransactionsErrorResponse'
+        default:
+          $ref: 'components.yaml#/responses/ErrorResponse'
+components:
+  schemas:
+    Kind:
+      type: string
+      description: Token kind name, used in queries as a parameter value
+      default: all
+      enum:
+        - all
+        - nft
+        - fungible
+    KindInt:
+      type: integer
+      description: |-
+        Representation of Kind type as integer, used by responses:
+         - 2 = fungible
+         - 4 = nft
+      enum:
+        - 2
+        - 4
+    TokenTypeID:
+      type: string
+      format: byte
+      nullable: false
+      example: I+v1+3MrmBCoSuk1zlff0loozI9BHc8fqVb3WGeQrC4=
+    TxHash:
+      type: string
+      format: byte
+      example: ux5oRDOUCKFCb06vuDOcGPspoBxTYOq9G97mzPAdQxc=
+    Predicate:
+      type: string
+      format: byte
+      example: U1EB
+    TokenType:
+      type: object
+      properties:
+        id:
+          $ref: '#/components/schemas/TokenTypeID'
+        parentTypeId:
+          allOf:
+            - $ref: '#/components/schemas/TokenTypeID'
+            - nullable: true
+            - example: AA==
+        symbol:
+          type: string
+          example: foo bar
+        name:
+          type: string
+          example: A name for the token type
+        icon:
+          $ref: '#/components/schemas/Icon'
+        subTypeCreationPredicate:
+          $ref: '#/components/schemas/Predicate'
+        tokenCreationPredicate:
+          $ref: '#/components/schemas/Predicate'
+        invariantPredicate:
+          $ref: '#/components/schemas/Predicate'
+        kind:
+          $ref: '#/components/schemas/KindInt'
+        decimalPlaces:
+          type: integer
+          format: int32
+          minimum: 0
+          maximum: 8
+          description: Only when "kind" is "fungible"
+        nftDataUpdatePredicate:
+          allOf:
+            - $ref: '#/components/schemas/Predicate'
+            - description: Only when "kind" is "nft"
+        txHash:
+          $ref: '#/components/schemas/TxHash'
+    Token:
+      type: object
+      properties:
+        id:
+          type: string
+          format: byte
+        typeId:
+          $ref: '#/components/schemas/TokenTypeID'
+        symbol:
+          type: string
+        owner:
+          $ref: '#/components/schemas/Predicate'
+        kind:
+          $ref: '#/components/schemas/KindInt'
+        amount:
+          type: string
+          description: Uint64 value encoded as string
+          example: "1000"
+        decimals:
+          type: integer
+          format: int32
+          minimum: 0
+          maximum: 8
+          description: Only when "kind" is "fungible"
+        nftName:
+          type: string
+        nftUri:
+          type: string
+          description: Only when "kind" is "nft"
+        nftData:
+          type: string
+          format: byte
+          description: Only when "kind" is "nft"
+        nftDataUpdatePredicate:
+          allOf:
+            - $ref: '#/components/schemas/Predicate'
+            - description: Only when "kind" is "nft"
+        txHash:
+          $ref: '#/components/schemas/TxHash'
+    Icon:
+      type: object
+      properties:
+        type:
+          type: string
+          example: image/png
+        data:
+          type: string
+          format: binary
+          example: base64encodeddata

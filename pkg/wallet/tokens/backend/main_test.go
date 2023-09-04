@@ -18,7 +18,6 @@ import (
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/alphabill-org/alphabill/internal/txsystem/tokens"
 	"github.com/alphabill-org/alphabill/internal/types"
-	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/alphabill-org/alphabill/pkg/wallet/log"
 	"github.com/ethereum/go-ethereum/common/hexutil"
@@ -145,10 +144,10 @@ func Test_Run_API(t *testing.T) {
 
 	// add fee credit for user
 	err = boltStore.SetFeeCreditBill(&FeeCreditBill{
-		Id:            util.Uint64ToBytes32(1),
-		Value:         10000000,
-		TxHash:        []byte{1},
-		FCBlockNumber: 1,
+		Id:              tokens.NewFeeCreditRecordID(nil, []byte{1}),
+		Value:           10000000,
+		TxHash:          []byte{1},
+		LastAddFCTxHash: []byte{2},
 	}, nil)
 	require.NoError(t, err)
 

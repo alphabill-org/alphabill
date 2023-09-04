@@ -3,34 +3,34 @@ package cmd
 import (
 	"context"
 	"fmt"
-	"math/rand"
 	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
 	"time"
 
+	"github.com/fxamacker/cbor/v2"
+	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
+
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 	rootgenesis "github.com/alphabill-org/alphabill/internal/rootchain/genesis"
 	"github.com/alphabill-org/alphabill/internal/rpc/alphabill"
 	"github.com/alphabill-org/alphabill/internal/script"
+	test "github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/alphabill-org/alphabill/internal/testutils/net"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	testtime "github.com/alphabill-org/alphabill/internal/testutils/time"
 	"github.com/alphabill-org/alphabill/internal/txsystem/tokens"
 	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/internal/util"
-	"github.com/fxamacker/cbor/v2"
-	"github.com/holiman/uint256"
-	"github.com/stretchr/testify/require"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
 )
 
 func TestRunTokensNode(t *testing.T) {
 	homeDir := setupTestHomeDir(t, "tokens")
 	keysFileLocation := filepath.Join(homeDir, defaultKeysFileName)
-	nodeGenesisFileLocation := filepath.Join(homeDir, nodeGenesisFileName)
+	nodeGenesisFileLocation := filepath.Join(homeDir, utGenesisFileName)
 	partitionGenesisFileLocation := filepath.Join(homeDir, "partition-genesis.json")
 	testtime.MustRunInTime(t, 5*time.Second, func() {
 		ctx, ctxCancel := context.WithCancel(context.Background())
@@ -61,7 +61,7 @@ func TestRunTokensNode(t *testing.T) {
 		err = util.WriteJsonFile(partitionGenesisFileLocation, partitionGenesisFiles[0])
 		require.NoError(t, err)
 
-		listenAddr := fmt.Sprintf(":%d", net.GetFreeRandomPort(t))
+		listenAddr := fmt.Sprintf("localhost:%d", net.GetFreeRandomPort(t))
 
 		// start the node in background
 		appStoppedWg.Add(1)
@@ -76,14 +76,14 @@ func TestRunTokensNode(t *testing.T) {
 		}()
 
 		// Create the gRPC client
-		conn, err := grpc.DialContext(ctx, "localhost"+listenAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+		conn, err := grpc.DialContext(ctx, listenAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
 		require.NoError(t, err)
 		defer conn.Close()
 		rpcClient := alphabill.NewAlphabillServiceClient(conn)
 
 		// Test
 		// green path
-		id := uint256.NewInt(rand.Uint64()).Bytes32()
+		id := tokens.NewNonFungibleTokenTypeID(nil, test.RandomBytes(32))
 		attr := &tokens.CreateNonFungibleTokenTypeAttributes{
 			Symbol:                   "Test",
 			ParentTypeID:             []byte{0},
@@ -95,7 +95,7 @@ func TestRunTokensNode(t *testing.T) {
 		attrBytes, _ := cbor.Marshal(attr)
 		tx := &types.TransactionOrder{
 			Payload: &types.Payload{
-				SystemID:       tokens.DefaultTokenTxSystemIdentifier,
+				SystemID:       tokens.DefaultSystemIdentifier,
 				Type:           tokens.PayloadTypeCreateNFTType,
 				UnitID:         id[:],
 				Attributes:     attrBytes,

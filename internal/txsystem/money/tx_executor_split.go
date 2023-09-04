@@ -6,10 +6,9 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/alphabill-org/alphabill/internal/rma"
+	"github.com/alphabill-org/alphabill/internal/state"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/internal/txsystem/fc"
-	txutil "github.com/alphabill-org/alphabill/internal/txsystem/util"
 	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/internal/util"
 )
@@ -21,46 +20,42 @@ var (
 	ErrInvalidDataType        = errors.New("invalid data type")
 )
 
-func handleSplitTx(state *rma.Tree, hashAlgorithm crypto.Hash, feeCalc fc.FeeCalculator) txsystem.GenericExecuteFunc[SplitAttributes] {
+func handleSplitTx(s *state.State, hashAlgorithm crypto.Hash, feeCalc fc.FeeCalculator) txsystem.GenericExecuteFunc[SplitAttributes] {
 	return func(tx *types.TransactionOrder, attr *SplitAttributes, currentBlockNumber uint64) (*types.ServerMetadata, error) {
 		log.Debug("Processing split %v", tx)
-		if err := validateSplitTx(tx, attr, state); err != nil {
+		if err := validateSplitTx(tx, attr, s); err != nil {
 			return nil, fmt.Errorf("invalid split transaction: %w", err)
 		}
 
-		unitID := util.BytesToUint256(tx.UnitID())
-		newItemId := txutil.SameShardID(unitID, HashForIDCalculation(util.Uint256ToBytes(unitID), tx.Payload.Attributes, tx.Timeout(), hashAlgorithm))
+		unitID := tx.UnitID()
+		newItemID := NewBillID(unitID, HashForIDCalculation(unitID, tx.Payload.Attributes, tx.Timeout(), hashAlgorithm))
 
 		// calculate actual tx fee cost
 		fee := feeCalc()
-
-		// TODO calculate hash after setting server metadata
 		h := tx.Hash(hashAlgorithm)
 
 		// update state
-		fcrID := util.BytesToUint256(tx.GetClientFeeCreditRecordID())
-		if err := state.AtomicUpdate(
-			fc.DecrCredit(fcrID, fee, h),
-			rma.UpdateData(unitID,
-				func(data rma.UnitData) (newData rma.UnitData) {
+		if err := s.Apply(
+			state.UpdateUnitData(unitID,
+				func(data state.UnitData) (state.UnitData, error) {
 					bd, ok := data.(*BillData)
 					if !ok {
-						return data // todo return error
+						return nil, fmt.Errorf("unit %v does not contain bill data", unitID)
 					}
 					return &BillData{
 						V:        bd.V - attr.Amount,
 						T:        currentBlockNumber,
-						Backlink: tx.Hash(hashAlgorithm),
-					}
-				}, h),
-			rma.AddItem(newItemId, attr.TargetBearer, &BillData{
+						Backlink: h,
+					}, nil
+				}),
+			state.AddUnit(newItemID, attr.TargetBearer, &BillData{
 				V:        attr.Amount,
 				T:        currentBlockNumber,
 				Backlink: h,
-			}, h)); err != nil {
+			})); err != nil {
 			return nil, fmt.Errorf("unit update failed: %w", err)
 		}
-		return &types.ServerMetadata{ActualFee: fee}, nil
+		return &types.ServerMetadata{ActualFee: fee, TargetUnits: []types.UnitID{unitID, newItemID}, SuccessIndicator: types.TxStatusSuccessful}, nil
 	}
 }
 
@@ -72,15 +67,15 @@ func HashForIDCalculation(idBytes []byte, attr []byte, timeout uint64, hashFunc 
 	return hasher.Sum(nil)
 }
 
-func validateSplitTx(tx *types.TransactionOrder, attr *SplitAttributes, state *rma.Tree) error {
-	data, err := state.GetUnit(util.BytesToUint256(tx.UnitID()))
+func validateSplitTx(tx *types.TransactionOrder, attr *SplitAttributes, s *state.State) error {
+	data, err := s.GetUnit(tx.UnitID(), false)
 	if err != nil {
 		return err
 	}
-	return validateSplit(data.Data, attr)
+	return validateSplit(data.Data(), attr)
 }
 
-func validateSplit(data rma.UnitData, attr *SplitAttributes) error {
+func validateSplit(data state.UnitData, attr *SplitAttributes) error {
 	bd, ok := data.(*BillData)
 	if !ok {
 		return ErrInvalidDataType

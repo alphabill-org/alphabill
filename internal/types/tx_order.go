@@ -1,6 +1,7 @@
 package types
 
 import (
+	"bytes"
 	"crypto"
 	"errors"
 	"fmt"
@@ -87,6 +88,13 @@ func (t *TransactionOrder) GetClientFeeCreditRecordID() []byte {
 	return t.Payload.ClientMetadata.FeeCreditRecordID
 }
 
+func (t *TransactionOrder) GetClientMaxTxFee() uint64 {
+	if t.Payload == nil || t.Payload.ClientMetadata == nil {
+		return 0
+	}
+	return t.Payload.ClientMetadata.MaxTransactionFee
+}
+
 func (t *TransactionOrder) Hash(algorithm crypto.Hash) []byte {
 	hasher := algorithm.New()
 	bytes, err := cbor.Marshal(t)
@@ -127,7 +135,7 @@ func (p *Payload) BytesWithAttributeSigBytes(attrs SigBytesProvider) ([]byte, er
 
 // MarshalCBOR returns r or CBOR nil if r is nil.
 func (r RawCBOR) MarshalCBOR() ([]byte, error) {
-	if len(r) == 0 {
+	if len(r) == 0 || bytes.Equal(r, cborNil) {
 		return cborNil, nil
 	}
 	return r, nil
@@ -137,6 +145,9 @@ func (r RawCBOR) MarshalCBOR() ([]byte, error) {
 func (r *RawCBOR) UnmarshalCBOR(data []byte) error {
 	if r == nil {
 		return errors.New("UnmarshalCBOR on nil pointer")
+	}
+	if bytes.Equal(data, cborNil) {
+		return nil
 	}
 	*r = make([]byte, len(data))
 	copy(*r, data)

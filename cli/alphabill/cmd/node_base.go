@@ -30,7 +30,10 @@ import (
 	"github.com/alphabill-org/alphabill/internal/util"
 )
 
-const BoltBlockStoreFileName = "blocks.db"
+const (
+	BoltBlockStoreFileName = "blocks.db"
+	TxIndexerStoreFileName = "tx_indexer.db"
+)
 
 type baseNodeConfiguration struct {
 	Base *baseConfiguration
@@ -42,6 +45,7 @@ type startNodeConfiguration struct {
 	KeyFile                    string
 	RootChainAddress           string
 	DbFile                     string
+	TxIndexerDBFile            string
 	LedgerReplicationMaxBlocks uint64
 	LedgerReplicationMaxTx     uint32
 }
@@ -228,15 +232,27 @@ func createNode(ctx context.Context, txs txsystem.TransactionSystem, cfg *startN
 	if err != nil {
 		return nil, nil, err
 	}
+	options := []partition.NodeOption{
+		partition.WithRootAddressAndIdentifier(rootAddress, rootID),
+		partition.WithBlockStore(blockStore),
+		partition.WithReplicationParams(cfg.LedgerReplicationMaxBlocks, cfg.LedgerReplicationMaxTx),
+	}
+
+	if cfg.TxIndexerDBFile != "" {
+		txIndexer, err := boltdb.New(cfg.TxIndexerDBFile)
+		if err != nil {
+			return nil, nil, fmt.Errorf("unable to load tx indexer: %w", err)
+		}
+		options = append(options, partition.WithTxIndexer(txIndexer))
+	}
+
 	node, err := partition.New(
 		p,
 		keys.SigningPrivateKey,
 		txs,
 		pg,
 		n,
-		partition.WithRootAddressAndIdentifier(rootAddress, rootID),
-		partition.WithBlockStore(blockStore),
-		partition.WithReplicationParams(cfg.LedgerReplicationMaxBlocks, cfg.LedgerReplicationMaxTx),
+		options...,
 	)
 	if err != nil {
 		return nil, nil, err
@@ -281,6 +297,7 @@ func addCommonNodeConfigurationFlags(nodeCmd *cobra.Command, config *startNodeCo
 	nodeCmd.Flags().StringVarP(&config.KeyFile, keyFileCmdFlag, "k", "", fmt.Sprintf("path to the key file (default: $AB_HOME/%s/keys.json)", partitionSuffix))
 	nodeCmd.Flags().StringVarP(&config.Genesis, "genesis", "g", "", fmt.Sprintf("path to the partition genesis file : $AB_HOME/%s/partition-genesis.json)", partitionSuffix))
 	nodeCmd.Flags().StringVarP(&config.DbFile, "db", "f", "", fmt.Sprintf("path to the database file (default: $AB_HOME/%s/%s)", partitionSuffix, BoltBlockStoreFileName))
+	nodeCmd.Flags().StringVarP(&config.TxIndexerDBFile, "tx-db", "", "", fmt.Sprintf("path to the transaction indexer database file"))
 	nodeCmd.Flags().Uint64Var(&config.LedgerReplicationMaxBlocks, "ledger-replication-max-blocks", 1000, "maximum number of blocks to return in a single replication response")
 	nodeCmd.Flags().Uint32Var(&config.LedgerReplicationMaxTx, "ledger-replication-max-transactions", 10000, "maximum number of transactions to return in a single replication response")
 }

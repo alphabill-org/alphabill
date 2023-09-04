@@ -7,7 +7,7 @@ import (
 	"github.com/ethereum/go-ethereum/core"
 )
 
-var _ txsystem.Module = &Module{}
+var _ txsystem.Module = (*Module)(nil)
 
 type (
 	Module struct {
@@ -38,12 +38,13 @@ func (m *Module) GenericTransactionValidator() txsystem.GenericTransactionValida
 	return txsystem.ValidateGenericTransaction
 }
 
-func (m *Module) StartBlockFunc(blockGasLimit uint64) []func(blockNr uint64) {
-	return []func(blockNr uint64){
-		func(blockNr uint64) {
+func (m *Module) StartBlockFunc(blockGasLimit uint64) []func(blockNr uint64) error {
+	return []func(blockNr uint64) error{
+		func(blockNr uint64) error {
 			// reset block gas limit
 			log.Trace("previous block gas limit: %v, used %v", m.blockGasCounter.Gas(), blockGasLimit-m.blockGasCounter.Gas())
 			*m.blockGasCounter = core.GasPool(blockGasLimit)
+			return nil
 		},
 	}
 }

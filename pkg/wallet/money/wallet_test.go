@@ -1,15 +1,17 @@
 package money
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
-	abclient "github.com/alphabill-org/alphabill/pkg/client"
-	"github.com/alphabill-org/alphabill/pkg/wallet/account"
-	beclient "github.com/alphabill-org/alphabill/pkg/wallet/money/backend/client"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/stretchr/testify/require"
+
+	"github.com/alphabill-org/alphabill/pkg/wallet/account"
+	beclient "github.com/alphabill-org/alphabill/pkg/wallet/money/backend/client"
+	"github.com/alphabill-org/alphabill/pkg/wallet/unitlock"
 )
 
 const (
@@ -20,14 +22,17 @@ const (
 )
 
 func TestExistingWalletCanBeLoaded(t *testing.T) {
-	am, err := account.NewManager(t.TempDir(), "", true)
+	homedir := t.TempDir()
+	am, err := account.NewManager(homedir, "", true)
 	require.NoError(t, err)
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	}))
 	restClient, err := beclient.New(server.URL)
 	require.NoError(t, err)
-	_, err = LoadExistingWallet(abclient.AlphabillClientConfig{}, am, restClient)
+	unitLocker, err := unitlock.NewUnitLocker(homedir)
+	require.NoError(t, err)
+	_, err = LoadExistingWallet(am, unitLocker, restClient)
 	require.NoError(t, err)
 }
 
@@ -69,7 +74,7 @@ func TestWallet_AddKey(t *testing.T) {
 
 func TestWallet_GetBalance(t *testing.T) {
 	w, _ := CreateTestWalletFromSeed(t, &backendMockReturnConf{balance: 10})
-	balance, err := w.GetBalance(GetBalanceCmd{})
+	balance, err := w.GetBalance(context.Background(), GetBalanceCmd{})
 	require.NoError(t, err)
 	require.EqualValues(t, 10, balance)
 }
@@ -79,7 +84,7 @@ func TestWallet_GetBalances(t *testing.T) {
 	_, _, err := w.am.AddAccount()
 	require.NoError(t, err)
 
-	balances, sum, err := w.GetBalances(GetBalanceCmd{})
+	balances, sum, err := w.GetBalances(context.Background(), GetBalanceCmd{})
 	require.NoError(t, err)
 	require.EqualValues(t, 10, balances[0])
 	require.EqualValues(t, 10, balances[1])

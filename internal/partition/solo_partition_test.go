@@ -181,7 +181,8 @@ func (sn *SingleNodePartition) SubmitTx(tx *types.TransactionOrder) error {
 }
 
 func (sn *SingleNodePartition) SubmitTxFromRPC(tx *types.TransactionOrder) error {
-	return sn.partition.SubmitTx(context.Background(), tx)
+	_, err := sn.partition.SubmitTx(context.Background(), tx)
+	return err
 }
 
 func (sn *SingleNodePartition) SubmitUnicityCertificate(uc *types.UnicityCertificate) {
@@ -362,6 +363,7 @@ func createPeer(t *testing.T) *network.Peer {
 			PrivateKey: privateKeyBytes,
 		},
 		Validators: []peer.ID{id},
+		Address:    "/ip4/127.0.0.1/tcp/0",
 	}
 	newPeer, err := network.NewPeer(context.Background(), conf)
 	require.NoError(t, err)

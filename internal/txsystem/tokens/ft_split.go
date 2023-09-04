@@ -6,80 +6,72 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/alphabill-org/alphabill/internal/rma"
+	"github.com/alphabill-org/alphabill/internal/state"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
-	"github.com/alphabill-org/alphabill/internal/txsystem/fc"
-	txutil "github.com/alphabill-org/alphabill/internal/txsystem/util"
 	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/fxamacker/cbor/v2"
-	"github.com/holiman/uint256"
 )
 
 func handleSplitFungibleTokenTx(options *Options) txsystem.GenericExecuteFunc[SplitFungibleTokenAttributes] {
 	return func(tx *types.TransactionOrder, attr *SplitFungibleTokenAttributes, currentBlockNr uint64) (*types.ServerMetadata, error) {
 		logger.Debug("Processing Split Fungible Token tx: %v", tx)
-		if err := validateSplitFungibleToken(tx, attr, options.state); err != nil {
+		if err := validateSplitFungibleToken(tx, attr, options.state, options.hashAlgorithm); err != nil {
 			return nil, fmt.Errorf("invalid split fungible token tx: %w", err)
 		}
-		unitID := util.BytesToUint256(tx.UnitID())
-		u, err := options.state.GetUnit(unitID)
+		unitID := tx.UnitID()
+		u, err := options.state.GetUnit(unitID, false)
 		if err != nil {
 			return nil, err
 		}
-		d := u.Data.(*fungibleTokenData)
+		d := u.Data().(*fungibleTokenData)
 		// add new token unit
-		newTokenID := txutil.SameShardID(unitID, HashForIDCalculation(tx, options.hashAlgorithm))
+		newTokenID := NewFungibleTokenID(unitID, HashForIDCalculation(tx, options.hashAlgorithm))
 		logger.Debug("Adding a fungible token with ID %v", newTokenID)
 
 		fee := options.feeCalculator()
-
-		// TODO calculate hash after setting server metadata
 		txHash := tx.Hash(options.hashAlgorithm)
 
 		// update state
-		fcrID := util.BytesToUint256(tx.GetClientFeeCreditRecordID())
-		if err := options.state.AtomicUpdate(
-			fc.DecrCredit(fcrID, fee, txHash),
-			rma.AddItem(newTokenID,
+		if err := options.state.Apply(
+			state.AddUnit(newTokenID,
 				attr.NewBearer,
 				&fungibleTokenData{
 					tokenType: d.tokenType,
 					value:     attr.TargetValue,
 					t:         currentBlockNr,
 					backlink:  txHash,
-				}, txHash),
-			rma.UpdateData(unitID,
-				func(data rma.UnitData) (newData rma.UnitData) {
+				}),
+			state.UpdateUnitData(unitID,
+				func(data state.UnitData) (state.UnitData, error) {
 					d, ok := data.(*fungibleTokenData)
 					if !ok {
-						// No change in case of incorrect data type.
-						return data
+						return nil, fmt.Errorf("unit %v does not contain fungible token data", unitID)
 					}
 					return &fungibleTokenData{
 						tokenType: d.tokenType,
 						value:     d.value - attr.TargetValue,
 						t:         currentBlockNr,
 						backlink:  txHash,
-					}
-				}, txHash)); err != nil {
+					}, nil
+				})); err != nil {
 			return nil, err
 		}
-		return &types.ServerMetadata{ActualFee: fee}, nil
+
+		return &types.ServerMetadata{ActualFee: fee, TargetUnits: []types.UnitID{unitID, newTokenID}, SuccessIndicator: types.TxStatusSuccessful}, nil
 	}
 }
 
 func HashForIDCalculation(tx *types.TransactionOrder, hashFunc crypto.Hash) []byte {
 	hasher := hashFunc.New()
-	idBytes := util.BytesToUint256(tx.UnitID()).Bytes32()
-	hasher.Write(idBytes[:])
+	hasher.Write(tx.UnitID())
 	hasher.Write(tx.Payload.Attributes)
 	hasher.Write(util.Uint64ToBytes(tx.Timeout()))
 	return hasher.Sum(nil)
 }
 
-func validateSplitFungibleToken(tx *types.TransactionOrder, attr *SplitFungibleTokenAttributes, state *rma.Tree) error {
-	bearer, d, err := getFungibleTokenData(util.BytesToUint256(tx.UnitID()), state)
+func validateSplitFungibleToken(tx *types.TransactionOrder, attr *SplitFungibleTokenAttributes, s *state.State, hashAlgorithm crypto.Hash) error {
+	bearer, d, err := getFungibleTokenData(tx.UnitID(), s, hashAlgorithm)
 	if err != nil {
 		return err
 	}
@@ -100,18 +92,18 @@ func validateSplitFungibleToken(tx *types.TransactionOrder, attr *SplitFungibleT
 	if !bytes.Equal(d.backlink, attr.Backlink) {
 		return fmt.Errorf("invalid backlink: expected %X, got %X", d.backlink, attr.Backlink)
 	}
-	tokenTypeID := util.Uint256ToBytes(d.tokenType)
-	if !bytes.Equal(attr.TypeID, tokenTypeID) {
-		return fmt.Errorf("invalid type identifier: expected '%X', got '%X'", tokenTypeID, attr.TypeID)
+	if !bytes.Equal(attr.TypeID, d.tokenType) {
+		return fmt.Errorf("invalid type identifier: expected '%X', got '%X'", d.tokenType, attr.TypeID)
 	}
 
 	predicates, err := getChainedPredicates[*fungibleTokenTypeData](
-		state,
+		hashAlgorithm,
+		s,
 		d.tokenType,
 		func(d *fungibleTokenTypeData) []byte {
 			return d.invariantPredicate
 		},
-		func(d *fungibleTokenTypeData) *uint256.Int {
+		func(d *fungibleTokenTypeData) types.UnitID {
 			return d.parentTypeId
 		},
 	)

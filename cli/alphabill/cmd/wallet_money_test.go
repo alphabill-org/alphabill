@@ -14,8 +14,8 @@ import (
 	"testing"
 
 	"github.com/alphabill-org/alphabill/internal/partition"
+	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
 
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
@@ -23,18 +23,20 @@ import (
 	"github.com/alphabill-org/alphabill/internal/script"
 	testpartition "github.com/alphabill-org/alphabill/internal/testutils/partition"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
-	moneytx "github.com/alphabill-org/alphabill/internal/txsystem/money"
+	"github.com/alphabill-org/alphabill/internal/txsystem/money"
 	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/alphabill-org/alphabill/pkg/wallet/account"
-	"github.com/alphabill-org/alphabill/pkg/wallet/money"
+	wallet "github.com/alphabill-org/alphabill/pkg/wallet/money"
 	"github.com/alphabill-org/alphabill/pkg/wallet/money/backend/client"
 )
+
+const walletBaseDir = "wallet"
 
 type (
 	backendMockReturnConf struct {
 		balance        uint64
 		blockHeight    uint64
-		billId         *uint256.Int
+		billID         types.UnitID
 		billValue      uint64
 		billTxHash     string
 		proofList      string
@@ -183,31 +185,31 @@ func TestSendingFailsWithInsufficientBalance(t *testing.T) {
 	defer mockServer.Close()
 
 	_, err := execCommand(homedir, "send --amount 10 --address "+hexutil.Encode(pubKey)+" --alphabill-api-uri "+addr.Host)
-	require.ErrorIs(t, err, money.ErrInsufficientBalance)
+	require.ErrorIs(t, err, wallet.ErrInsufficientBalance)
 }
 
-func createMoneyPartition(t *testing.T, initialBill *moneytx.InitialBill) *testpartition.NodePartition {
-	moneyPart, err := testpartition.NewPartition(1, func(tb map[string]abcrypto.Verifier) txsystem.TransactionSystem {
-		system, err := moneytx.NewMoneyTxSystem(
-			defaultABMoneySystemIdentifier,
-			moneytx.WithHashAlgorithm(crypto.SHA256),
-			moneytx.WithInitialBill(initialBill),
-			moneytx.WithSystemDescriptionRecords([]*genesis.SystemDescriptionRecord{
+func createMoneyPartition(t *testing.T, initialBill *money.InitialBill, nodeCount int) *testpartition.NodePartition {
+	moneyPart, err := testpartition.NewPartition(nodeCount, func(tb map[string]abcrypto.Verifier) txsystem.TransactionSystem {
+		system, err := money.NewTxSystem(
+			money.WithSystemIdentifier(money.DefaultSystemIdentifier),
+			money.WithHashAlgorithm(crypto.SHA256),
+			money.WithInitialBill(initialBill),
+			money.WithSystemDescriptionRecords([]*genesis.SystemDescriptionRecord{
 				{
-					SystemIdentifier: defaultABMoneySystemIdentifier,
+					SystemIdentifier: money.DefaultSystemIdentifier,
 					T2Timeout:        defaultT2Timeout,
 					FeeCreditBill: &genesis.FeeCreditBill{
-						UnitId:         util.Uint256ToBytes(uint256.NewInt(2)),
+						UnitId:         money.NewBillID(nil, []byte{2}),
 						OwnerPredicate: script.PredicateAlwaysTrue(),
 					},
 				},
 			}),
-			moneytx.WithDCMoneyAmount(10000),
-			moneytx.WithTrustBase(tb),
+			money.WithDCMoneyAmount(10000),
+			money.WithTrustBase(tb),
 		)
 		require.NoError(t, err)
 		return system
-	}, []byte{0, 0, 0, 0})
+	}, money.DefaultSystemIdentifier)
 	require.NoError(t, err)
 	return moneyPart
 }
@@ -254,7 +256,7 @@ func startRPCServer(t *testing.T, node *partition.Node) string {
 
 // addAccount calls "add-key" cli function on given wallet and returns the added pubkey hex
 func addAccount(t *testing.T, homedir string) string {
-	stdout := execWalletCmd(t, "", homedir, "add-key")
+	stdout := execWalletCmd(t, homedir, "add-key")
 	for _, line := range stdout.lines {
 		if strings.HasPrefix(line, "Added key #") {
 			return line[13:]
@@ -265,7 +267,7 @@ func addAccount(t *testing.T, homedir string) string {
 
 func createNewWallet(t *testing.T) (account.Manager, string) {
 	homeDir := t.TempDir()
-	walletDir := filepath.Join(homeDir, "wallet")
+	walletDir := filepath.Join(homeDir, walletBaseDir)
 	am, err := account.NewManager(walletDir, "", true)
 	require.NoError(t, err)
 	err = am.CreateKeys("")
@@ -275,7 +277,7 @@ func createNewWallet(t *testing.T) (account.Manager, string) {
 
 func createNewTestWallet(t *testing.T) string {
 	homeDir := t.TempDir()
-	walletDir := filepath.Join(homeDir, "wallet")
+	walletDir := filepath.Join(homeDir, walletBaseDir)
 	am, err := account.NewManager(walletDir, "", true)
 	require.NoError(t, err)
 	defer am.Close()
@@ -285,7 +287,7 @@ func createNewTestWallet(t *testing.T) string {
 }
 
 func verifyStdout(t *testing.T, consoleWriter *testConsoleWriter, expectedLines ...string) {
-	joined := strings.Join(consoleWriter.lines, "\n")
+	joined := consoleWriter.String()
 	for _, expectedLine := range expectedLines {
 		require.Contains(t, joined, expectedLine)
 	}
@@ -308,18 +310,12 @@ func execCommand(homeDir, command string) (*testConsoleWriter, error) {
 	return outputWriter, cmd.addAndExecuteCommand(context.Background())
 }
 
-func execWalletCmd(t *testing.T, alphabillNodeAddr, homedir string, command string) *testConsoleWriter {
+func execWalletCmd(t *testing.T, homedir string, command string) *testConsoleWriter {
 	outputWriter := &testConsoleWriter{}
 	consoleWriter = outputWriter
 
 	cmd := New()
-
-	abNodeParam := ""
-	if alphabillNodeAddr != "" {
-		abNodeParam = fmt.Sprintf(" --%s %s", alphabillNodeURLCmdName, alphabillNodeAddr)
-	}
-
-	args := "wallet --home " + homedir + abNodeParam + " " + command
+	args := fmt.Sprintf("wallet --home %s %s", homedir, command)
 	cmd.baseCmd.SetArgs(strings.Split(args, " "))
 
 	err := cmd.addAndExecuteCommand(context.Background())
@@ -330,6 +326,10 @@ func execWalletCmd(t *testing.T, alphabillNodeAddr, homedir string, command stri
 
 type testConsoleWriter struct {
 	lines []string
+}
+
+func (w *testConsoleWriter) String() string {
+	return strings.Join(w.lines, "\n")
 }
 
 func (w *testConsoleWriter) Println(a ...any) {
@@ -354,7 +354,7 @@ func mockBackendCalls(br *backendMockReturnConf) (*httptest.Server, *url.URL) {
 			case "/" + client.RoundNumberPath:
 				w.WriteHeader(http.StatusOK)
 				w.Write([]byte(fmt.Sprintf(`{"blockHeight": "%d"}`, br.blockHeight)))
-			case "/" + client.ProofPath:
+			case "/api/v1/units/":
 				if br.proofList != "" {
 					w.WriteHeader(http.StatusOK)
 					w.Write([]byte(br.proofList))
@@ -366,7 +366,7 @@ func mockBackendCalls(br *backendMockReturnConf) (*httptest.Server, *url.URL) {
 				if br.customBillList != "" {
 					w.Write([]byte(br.customBillList))
 				} else {
-					w.Write([]byte(fmt.Sprintf(`{"total": 1, "bills": [{"id":"%s","value":"%d","txHash":"%s","isDcBill":false}]}`, toBillId(br.billId), br.billValue, br.billTxHash)))
+					w.Write([]byte(fmt.Sprintf(`{"bills": [{"id":"%s","value":"%d","txHash":"%s","isDcBill":false}]}`, toBase64(br.billID), br.billValue, br.billTxHash)))
 				}
 			default:
 				w.WriteHeader(http.StatusNotFound)
@@ -378,6 +378,6 @@ func mockBackendCalls(br *backendMockReturnConf) (*httptest.Server, *url.URL) {
 	return server, serverAddress
 }
 
-func toBillId(i *uint256.Int) string {
-	return base64.StdEncoding.EncodeToString(util.Uint256ToBytes(i))
+func toBase64(bytes []byte) string {
+	return base64.StdEncoding.EncodeToString(bytes)
 }

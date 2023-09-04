@@ -346,7 +346,7 @@ func (a *AlphabillNetwork) GetNodePartition(sysID []byte) (*NodePartition, error
 // BroadcastTx sends transactions to all nodes.
 func (n *NodePartition) BroadcastTx(tx *types.TransactionOrder) error {
 	for _, n := range n.Nodes {
-		if err := n.SubmitTx(context.Background(), tx); err != nil {
+		if _, err := n.SubmitTx(context.Background(), tx); err != nil {
 			return err
 		}
 	}
@@ -355,7 +355,8 @@ func (n *NodePartition) BroadcastTx(tx *types.TransactionOrder) error {
 
 // SubmitTx sends transactions to the first node.
 func (n *NodePartition) SubmitTx(tx *types.TransactionOrder) error {
-	return n.Nodes[0].SubmitTx(context.Background(), tx)
+	_, err := n.Nodes[0].SubmitTx(context.Background(), tx)
+	return err
 }
 
 func (n *NodePartition) GetTxProof(tx *types.TransactionOrder) (*types.Block, *types.TxProof, *types.TransactionRecord, error) {

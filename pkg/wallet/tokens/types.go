@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/alphabill-org/alphabill/internal/script"
+	"github.com/alphabill-org/alphabill/internal/state"
 	"github.com/alphabill-org/alphabill/internal/txsystem/tokens"
 	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/pkg/wallet"
@@ -29,7 +30,7 @@ const (
 type (
 	PredicateInput struct {
 		// first priority
-		Argument tokens.Predicate
+		Argument state.Predicate
 		// if Argument empty, check AccountNumber
 		AccountNumber uint64
 	}

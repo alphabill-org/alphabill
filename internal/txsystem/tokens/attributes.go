@@ -1,6 +1,9 @@
 package tokens
 
 import (
+	"bytes"
+	"strings"
+
 	"github.com/alphabill-org/alphabill/internal/types"
 )
 
@@ -17,7 +20,6 @@ const (
 	PayloadTypeJoinFungibleToken       = "joinFToken"
 )
 
-type Predicate []byte
 type (
 	CreateNonFungibleTokenTypeAttributes struct {
 		_                                  struct{} `cbor:",toarray"`
@@ -74,8 +76,8 @@ type (
 
 	Icon struct {
 		_    struct{} `cbor:",toarray"`
-		Type string   // the MIME content type identifying an image format;
-		Data []byte   // the image in the format specified by type;
+		Type string   `json:"type"`     // the MIME content type identifying an image format;
+		Data []byte   `json:"data"`     // the image in the format specified by type;
 	}
 
 	MintFungibleTokenAttributes struct {
@@ -124,3 +126,13 @@ type (
 		InvariantPredicateSignatures [][]byte                   // inputs to satisfy the token type invariant predicates down the inheritance chain
 	}
 )
+
+func (i *Icon) Copy() *Icon {
+	if i == nil {
+		return nil
+	}
+	return &Icon{
+		Type: strings.Clone(i.Type),
+		Data: bytes.Clone(i.Data),
+	}
+}

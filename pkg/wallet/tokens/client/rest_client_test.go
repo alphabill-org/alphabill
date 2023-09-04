@@ -12,9 +12,11 @@ import (
 	"testing"
 
 	test "github.com/alphabill-org/alphabill/internal/testutils"
+	"github.com/alphabill-org/alphabill/internal/txsystem/fc/testutils"
+	"github.com/alphabill-org/alphabill/internal/txsystem/money"
 	"github.com/alphabill-org/alphabill/internal/txsystem/tokens"
 	"github.com/alphabill-org/alphabill/internal/types"
-	"github.com/alphabill-org/alphabill/pkg/wallet"
+	sdk "github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/alphabill-org/alphabill/pkg/wallet/tokens/backend"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/fxamacker/cbor/v2"
@@ -39,7 +41,7 @@ func Test_setPaginationParams(t *testing.T) {
 
 	for x, tc := range cases {
 		u := url.URL{}
-		setPaginationParams(&u, tc.pos, tc.limit)
+		sdk.SetPaginationParams(&u, tc.pos, tc.limit)
 		if r := u.String(); r != tc.res {
 			t.Errorf("test case [%d] expected %q, got %q", x, tc.res, r)
 		}
@@ -67,7 +69,7 @@ func Test_get(t *testing.T) {
 					if r.URL.String() != `http://localhost:8000/api/v1/path?queryParam=foo` {
 						t.Errorf("unexpected request URL: %s", r.URL.String())
 					}
-					if ua := r.Header.Get("User-Agent"); ua != clientUserAgent {
+					if ua := r.Header.Get(userAgentHeader); ua != clientUserAgent {
 						t.Errorf("expected User-Agent header %q, got %q", clientUserAgent, ua)
 					}
 
@@ -197,7 +199,7 @@ func Test_GetRoundNumber(t *testing.T) {
 					if r.URL.String() != `http://localhost/api/v1/round-number` {
 						t.Errorf("unexpected request URL: %s", r.URL.String())
 					}
-					if ua := r.Header.Get("User-Agent"); ua != clientUserAgent {
+					if ua := r.Header.Get(userAgentHeader); ua != clientUserAgent {
 						t.Errorf("expected User-Agent header %q, got %q", clientUserAgent, ua)
 					}
 
@@ -255,6 +257,50 @@ func Test_GetRoundNumber(t *testing.T) {
 	})
 }
 
+func Test_GetClosedFeeCredit(t *testing.T) {
+	t.Parallel()
+
+	createClient := func(t *testing.T, status int, respBody []byte) *TokenBackend {
+		t.Helper()
+		return &TokenBackend{
+			hc: &http.Client{
+				Transport: &mockRoundTripper{
+					do: func(r *http.Request) (*http.Response, error) {
+						w := httptest.NewRecorder()
+						if status > 0 {
+							w.WriteHeader(status)
+						}
+						if _, err := w.Write(respBody); err != nil {
+							t.Errorf("failed to write response body: %v", err)
+						}
+						return w.Result(), nil
+					},
+				},
+			},
+		}
+	}
+
+	t.Run("backend returns 404 => response is nil", func(t *testing.T) {
+		notExistsJson, _ := json.Marshal(sdk.ErrorResponse{Message: "closed fee credit does not exist"})
+		api := createClient(t, 404, notExistsJson)
+		rn, err := api.GetClosedFeeCredit(context.Background(), money.NewFeeCreditRecordID(nil, []byte{1}))
+		require.NoError(t, err)
+		require.Nil(t, rn)
+	})
+
+	t.Run("ok", func(t *testing.T) {
+		closeFC := testutils.NewCloseFC(t, nil)
+		closeFCTxr := &types.TransactionRecord{TransactionOrder: closeFC}
+		txBytes, err := json.Marshal(closeFCTxr)
+		require.NoError(t, err)
+
+		cli := createClient(t, 200, txBytes)
+		closedFeeCredit, err := cli.GetClosedFeeCredit(context.Background(), money.NewFeeCreditRecordID(nil, []byte{1}))
+		require.NoError(t, err)
+		require.Equal(t, closeFCTxr, closedFeeCredit)
+	})
+}
+
 func Test_GetToken(t *testing.T) {
 	t.Parallel()
 
@@ -269,7 +315,7 @@ func Test_GetToken(t *testing.T) {
 					if r.URL.String() != expURL {
 						t.Errorf("expected request URL %q, got %q", expURL, r.URL.String())
 					}
-					if ua := r.Header.Get("User-Agent"); ua != clientUserAgent {
+					if ua := r.Header.Get(userAgentHeader); ua != clientUserAgent {
 						t.Errorf("expected User-Agent header %q, got %q", clientUserAgent, ua)
 					}
 
@@ -341,7 +387,7 @@ func Test_GetTokens(t *testing.T) {
 					if r.URL.String() != expURL {
 						t.Errorf("expected request URL %q, got %q", expURL, r.URL.String())
 					}
-					if ua := r.Header.Get("User-Agent"); ua != clientUserAgent {
+					if ua := r.Header.Get(userAgentHeader); ua != clientUserAgent {
 						t.Errorf("expected User-Agent header %q, got %q", clientUserAgent, ua)
 					}
 
@@ -405,7 +451,7 @@ func Test_GetTokenTypes(t *testing.T) {
 					if r.URL.String() != expURL {
 						t.Errorf("expected request URL %q, got %q", expURL, r.URL.String())
 					}
-					if ua := r.Header.Get("User-Agent"); ua != clientUserAgent {
+					if ua := r.Header.Get(userAgentHeader); ua != clientUserAgent {
 						t.Errorf("expected User-Agent header %q, got %q", clientUserAgent, ua)
 					}
 
@@ -471,7 +517,7 @@ func Test_GetTypeHierarchy(t *testing.T) {
 					if r.URL.String() != expURL {
 						t.Errorf("expected request URL %q, got %q", expURL, r.URL.String())
 					}
-					if ua := r.Header.Get("User-Agent"); ua != clientUserAgent {
+					if ua := r.Header.Get(userAgentHeader); ua != clientUserAgent {
 						t.Errorf("expected User-Agent header %q, got %q", clientUserAgent, ua)
 					}
 
@@ -530,7 +576,7 @@ func Test_GetTxProof(t *testing.T) {
 	unitID := test.RandomBytes(32)
 	txHash := test.RandomBytes(32)
 
-	createClient := func(t *testing.T, proof *wallet.Proof) *TokenBackend {
+	createClient := func(t *testing.T, proof *sdk.Proof) *TokenBackend {
 		return &TokenBackend{
 			addr: url.URL{Scheme: "http", Host: "localhost"},
 			hc: &http.Client{Transport: &mockRoundTripper{
@@ -541,7 +587,7 @@ func Test_GetTxProof(t *testing.T) {
 					if r.URL.String() != fmt.Sprintf("http://localhost/api/v1/units/%s/transactions/%s/proof", unitIDHex, txHashHex) {
 						t.Errorf("unexpected request URL: %s", r.URL.String())
 					}
-					if ua := r.Header.Get("User-Agent"); ua != clientUserAgent {
+					if ua := r.Header.Get(userAgentHeader); ua != clientUserAgent {
 						t.Errorf("expected User-Agent header %q, got %q", clientUserAgent, ua)
 					}
 
@@ -550,10 +596,11 @@ func Test_GetTxProof(t *testing.T) {
 						w.WriteHeader(http.StatusNotFound)
 						w.WriteString(`{"message":"no proof found"}`)
 					} else {
-						if err := json.NewEncoder(w).Encode(proof); err != nil {
+						w.Header().Set(contentTypeHeader, applicationCbor)
+						w.WriteHeader(http.StatusOK)
+						if err := cbor.NewEncoder(w).Encode(proof); err != nil {
 							return nil, fmt.Errorf("failed to write response body: %v", err)
 						}
-						w.WriteHeader(http.StatusOK)
 					}
 					return w.Result(), nil
 				},
@@ -562,8 +609,8 @@ func Test_GetTxProof(t *testing.T) {
 	}
 
 	t.Run("valid proof returned", func(t *testing.T) {
-		proof := &wallet.Proof{
-			TxRecord: &types.TransactionRecord{TransactionOrder: &types.TransactionOrder{Payload: &types.Payload{UnitID: unitID}}},
+		proof := &sdk.Proof{
+			TxRecord: &types.TransactionRecord{TransactionOrder: &types.TransactionOrder{Payload: &types.Payload{UnitID: unitID, Attributes: []byte{0x00}}}},
 			TxProof:  &types.TxProof{ /*TransactionsHash: txHash*/ },
 		}
 
@@ -617,7 +664,7 @@ func Test_PostTransactions(t *testing.T) {
 	ownerID := test.RandomBytes(33)
 
 	t.Run("valid request is built", func(t *testing.T) {
-		var receivedData wallet.Transactions
+		var receivedData sdk.Transactions
 
 		cli := &TokenBackend{
 			addr: url.URL{Scheme: "http", Host: "localhost"},
@@ -627,7 +674,7 @@ func Test_PostTransactions(t *testing.T) {
 					if r.URL.String() != `http://localhost/api/v1/transactions/`+pubKeyHex {
 						t.Errorf("unexpected request URL: %s", r.URL.String())
 					}
-					if ua := r.Header.Get("User-Agent"); ua != clientUserAgent {
+					if ua := r.Header.Get(userAgentHeader); ua != clientUserAgent {
 						t.Errorf("expected User-Agent header %q, got %q", clientUserAgent, ua)
 					}
 
@@ -648,7 +695,7 @@ func Test_PostTransactions(t *testing.T) {
 			}},
 		}
 
-		data := &wallet.Transactions{Transactions: []*types.TransactionOrder{randomTx(t, &tokens.CreateNonFungibleTokenTypeAttributes{Symbol: "test"})}}
+		data := &sdk.Transactions{Transactions: []*types.TransactionOrder{randomTx(t, &tokens.CreateNonFungibleTokenTypeAttributes{Symbol: "test"})}}
 		err := cli.PostTransactions(context.Background(), ownerID, data)
 		require.NoError(t, err)
 		require.Equal(t, data, &receivedData)
@@ -669,7 +716,7 @@ func Test_PostTransactions(t *testing.T) {
 			}},
 		}
 
-		err := cli.PostTransactions(context.Background(), ownerID, &wallet.Transactions{})
+		err := cli.PostTransactions(context.Background(), ownerID, &sdk.Transactions{})
 		require.EqualError(t, err, `failed to send transactions: backend responded 400 Bad Request: something is wrong: invalid request`)
 		require.ErrorIs(t, err, ErrInvalidRequest)
 	})
@@ -690,7 +737,7 @@ func Test_PostTransactions(t *testing.T) {
 			}},
 		}
 
-		data := &wallet.Transactions{}
+		data := &sdk.Transactions{}
 		err := cli.PostTransactions(context.Background(), ownerID, data)
 		require.EqualError(t, err, "failed to process some of the transactions:\n100001: invalid id")
 	})
@@ -707,7 +754,7 @@ func Test_PostTransactions(t *testing.T) {
 			}},
 		}
 
-		data := &wallet.Transactions{}
+		data := &sdk.Transactions{}
 		err := cli.PostTransactions(context.Background(), ownerID, data)
 		require.NoError(t, err)
 	})
@@ -741,7 +788,7 @@ func Test_extractOffsetMarker(t *testing.T) {
 
 	t.Run("no header", func(t *testing.T) {
 		w := httptest.NewRecorder()
-		marker, err := extractOffsetMarker(w.Result())
+		marker, err := sdk.ExtractOffsetMarker(w.Result())
 		require.NoError(t, err)
 		require.Empty(t, marker)
 	})
@@ -749,7 +796,7 @@ func Test_extractOffsetMarker(t *testing.T) {
 	t.Run("not matching the expected format", func(t *testing.T) {
 		w := httptest.NewRecorder()
 		w.Header().Set("Link", `unexpected header`)
-		marker, err := extractOffsetMarker(w.Result())
+		marker, err := sdk.ExtractOffsetMarker(w.Result())
 		require.EqualError(t, err, "link header didn't result in expected match\nHeader: unexpected header\nmatches: []")
 		require.Empty(t, marker)
 	})
@@ -757,7 +804,7 @@ func Test_extractOffsetMarker(t *testing.T) {
 	t.Run("invalid link", func(t *testing.T) {
 		w := httptest.NewRecorder()
 		w.Header().Set("Link", `<://no.scheme>; rel="next"`)
-		marker, err := extractOffsetMarker(w.Result())
+		marker, err := sdk.ExtractOffsetMarker(w.Result())
 		require.EqualError(t, err, `failed to parse Link header as URL: parse "://no.scheme": missing protocol scheme`)
 		require.Empty(t, marker)
 	})
@@ -765,7 +812,7 @@ func Test_extractOffsetMarker(t *testing.T) {
 	t.Run("offsetKey is not present", func(t *testing.T) {
 		w := httptest.NewRecorder()
 		w.Header().Set("Link", `<http://localhost/foo/bar>; rel="next"`)
-		marker, err := extractOffsetMarker(w.Result())
+		marker, err := sdk.ExtractOffsetMarker(w.Result())
 		require.NoError(t, err)
 		require.Empty(t, marker)
 	})
@@ -773,7 +820,7 @@ func Test_extractOffsetMarker(t *testing.T) {
 	t.Run("offsetKey is present", func(t *testing.T) {
 		w := httptest.NewRecorder()
 		w.Header().Set("Link", `<http://localhost/foo/bar?offsetKey=ABC>; rel="next"`)
-		marker, err := extractOffsetMarker(w.Result())
+		marker, err := sdk.ExtractOffsetMarker(w.Result())
 		require.NoError(t, err)
 		require.Equal(t, "ABC", marker)
 	})
@@ -785,7 +832,7 @@ func randomTx(t *testing.T, attr interface{}) *types.TransactionOrder {
 	require.NoError(t, err, "failed to marshal tx attributes: %v", err)
 	tx := &types.TransactionOrder{
 		Payload: &types.Payload{
-			SystemID:       tokens.DefaultTokenTxSystemIdentifier,
+			SystemID:       tokens.DefaultSystemIdentifier,
 			Attributes:     bytes,
 			UnitID:         test.RandomBytes(32),
 			ClientMetadata: &types.ClientMetadata{Timeout: 10},

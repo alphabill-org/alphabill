@@ -8,8 +8,8 @@ import (
 type partitionType string
 
 const (
-	moneyType partitionType = "money"
-	tokenType partitionType = "token"
+	moneyType  partitionType = "money"
+	tokensType partitionType = "tokens"
 )
 
 // String returns string value of given partitionType, used in Printf and help context
@@ -20,11 +20,11 @@ func (e *partitionType) String() string {
 // Set sets the value of this partitionType string
 func (e *partitionType) Set(v string) error {
 	switch v {
-	case "money", "token":
+	case "money", "tokens":
 		*e = partitionType(v)
 		return nil
 	default:
-		return errors.New("must be one of [money|token]")
+		return errors.New("must be one of [money|tokens]")
 	}
 }
 

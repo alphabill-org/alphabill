@@ -2,53 +2,48 @@ package tokens
 
 import (
 	"bytes"
+	"crypto"
 	"errors"
 	"fmt"
 
-	"github.com/alphabill-org/alphabill/internal/rma"
+	"github.com/alphabill-org/alphabill/internal/state"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
-	"github.com/alphabill-org/alphabill/internal/txsystem/fc"
 	"github.com/alphabill-org/alphabill/internal/types"
-	"github.com/alphabill-org/alphabill/internal/util"
+	"github.com/alphabill-org/alphabill/pkg/tree/avl"
 	"github.com/fxamacker/cbor/v2"
-	"github.com/holiman/uint256"
 )
 
 func handleTransferFungibleTokenTx(options *Options) txsystem.GenericExecuteFunc[TransferFungibleTokenAttributes] {
 	return func(tx *types.TransactionOrder, attr *TransferFungibleTokenAttributes, currentBlockNr uint64) (*types.ServerMetadata, error) {
 		logger.Debug("Processing Transfer Fungible Token tx: %v", tx)
-		if err := validateTransferFungibleToken(tx, attr, options.state); err != nil {
+		if err := validateTransferFungibleToken(tx, attr, options.state, options.hashAlgorithm); err != nil {
 			return nil, fmt.Errorf("invalid transfer fungible token tx: %w", err)
 		}
 		fee := options.feeCalculator()
-
-		// TODO calculate hash after setting server metadata
-		h := tx.Hash(options.hashAlgorithm)
+		unitID := tx.UnitID()
 
 		// update state
-		fcrID := util.BytesToUint256(tx.GetClientFeeCreditRecordID())
-		unitID := util.BytesToUint256(tx.UnitID())
-		if err := options.state.AtomicUpdate(
-			fc.DecrCredit(fcrID, fee, h),
-			rma.SetOwner(unitID, attr.NewBearer, h),
-			rma.UpdateData(unitID,
-				func(data rma.UnitData) (newData rma.UnitData) {
+		if err := options.state.Apply(
+			state.SetOwner(unitID, attr.NewBearer),
+			state.UpdateUnitData(unitID,
+				func(data state.UnitData) (state.UnitData, error) {
 					d, ok := data.(*fungibleTokenData)
 					if !ok {
-						return data
+						return nil, fmt.Errorf("unit %v does not contain fungible token data", unitID)
 					}
 					d.t = currentBlockNr
 					d.backlink = tx.Hash(options.hashAlgorithm)
-					return data
-				}, h)); err != nil {
+					return d, nil
+				})); err != nil {
 			return nil, err
 		}
-		return &types.ServerMetadata{ActualFee: fee}, nil
+
+		return &types.ServerMetadata{ActualFee: fee, TargetUnits: []types.UnitID{unitID}, SuccessIndicator: types.TxStatusSuccessful}, nil
 	}
 }
 
-func validateTransferFungibleToken(tx *types.TransactionOrder, attr *TransferFungibleTokenAttributes, state *rma.Tree) error {
-	bearer, d, err := getFungibleTokenData(util.BytesToUint256(tx.UnitID()), state)
+func validateTransferFungibleToken(tx *types.TransactionOrder, attr *TransferFungibleTokenAttributes, s *state.State, hashAlgorithm crypto.Hash) error {
+	bearer, d, err := getFungibleTokenData(tx.UnitID(), s, hashAlgorithm)
 	if err != nil {
 		return err
 	}
@@ -60,18 +55,18 @@ func validateTransferFungibleToken(tx *types.TransactionOrder, attr *TransferFun
 		return fmt.Errorf("invalid backlink: expected %X, got %X", d.backlink, attr.Backlink)
 	}
 
-	tokenTypeID := util.Uint256ToBytes(d.tokenType)
-	if !bytes.Equal(attr.TypeID, tokenTypeID) {
-		return fmt.Errorf("invalid type identifier: expected '%X', got '%X'", tokenTypeID, attr.TypeID)
+	if !bytes.Equal(attr.TypeID, d.tokenType) {
+		return fmt.Errorf("invalid type identifier: expected '%X', got '%X'", d.tokenType, attr.TypeID)
 	}
 
 	predicates, err := getChainedPredicates[*fungibleTokenTypeData](
-		state,
+		hashAlgorithm,
+		s,
 		d.tokenType,
 		func(d *fungibleTokenTypeData) []byte {
 			return d.invariantPredicate
 		},
-		func(d *fungibleTokenTypeData) *uint256.Int {
+		func(d *fungibleTokenTypeData) types.UnitID {
 			return d.parentTypeId
 		},
 	)
@@ -81,22 +76,22 @@ func validateTransferFungibleToken(tx *types.TransactionOrder, attr *TransferFun
 	return verifyOwnership(bearer, predicates, &transferFungibleTokenOwnershipProver{tx: tx, attr: attr})
 }
 
-func getFungibleTokenData(unitID *uint256.Int, state *rma.Tree) (Predicate, *fungibleTokenData, error) {
-	if unitID.IsZero() {
+func getFungibleTokenData(unitID types.UnitID, s *state.State, hashAlgorithm crypto.Hash) (state.Predicate, *fungibleTokenData, error) {
+	if unitID.IsZero(UnitPartLength) {
 		return nil, nil, errors.New(ErrStrUnitIDIsZero)
 	}
-	u, err := state.GetUnit(unitID)
+	u, err := s.GetUnit(unitID, false)
 	if err != nil {
-		if errors.Is(err, rma.ErrUnitNotFound) {
+		if errors.Is(err, avl.ErrNotFound) {
 			return nil, nil, fmt.Errorf("unit %v does not exist: %w", unitID, err)
 		}
 		return nil, nil, err
 	}
-	d, ok := u.Data.(*fungibleTokenData)
+	d, ok := u.Data().(*fungibleTokenData)
 	if !ok {
 		return nil, nil, fmt.Errorf("unit %v is not fungible token data", unitID)
 	}
-	return Predicate(u.Bearer), d, nil
+	return u.Bearer(), d, nil
 }
 
 type transferFungibleTokenOwnershipProver struct {

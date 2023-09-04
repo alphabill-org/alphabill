@@ -9,22 +9,23 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/fxamacker/cbor/v2"
-
-	"github.com/alphabill-org/alphabill/internal/types"
-
 	aberrors "github.com/alphabill-org/alphabill/internal/errors"
 	"github.com/alphabill-org/alphabill/internal/metrics"
 	"github.com/alphabill-org/alphabill/internal/network"
+	"github.com/alphabill-org/alphabill/internal/types"
+	"github.com/fxamacker/cbor/v2"
 	"github.com/gorilla/mux"
 	"github.com/multiformats/go-multiaddr"
 	"golang.org/x/exp/slices"
 )
 
 const (
-	pathTransactions  = "/api/v1/transactions"
-	headerContentType = "Content-Type"
-	applicationJson   = "application/json"
+	pathTransactions         = "/api/v1/transactions"
+	pathGetTransactionRecord = "/api/v1/transactions/{txOrderHash}"
+	pathLatestRoundNumber    = "/api/v1/rounds/latest"
+	headerContentType        = "Content-Type"
+	applicationJson          = "application/json"
+	applicationCBOR          = "application/cbor"
 )
 
 var receivedTransactionsRESTMeter = metrics.GetOrRegisterCounter("transactions/rest/received")
@@ -76,18 +77,29 @@ func NewRESTServer(node partitionNode, addr string, maxBodySize int64, self *net
 	r := mux.NewRouter()
 	r.NotFoundHandler = http.HandlerFunc(notFound)
 
-	handler := rs.submitTransaction
+	submitHandler := rs.submitTransaction
 	if maxBodySize > 0 {
-		handler = maxBytesHandler(handler, maxBodySize)
+		submitHandler = maxBytesHandler(submitHandler, maxBodySize)
 	}
-	r.HandleFunc(pathTransactions, handler).Methods(http.MethodPost)
+
+	// submit transaction
+	r.HandleFunc(pathTransactions, submitHandler).Methods(http.MethodPost)
+
+	// CORS
 	r.HandleFunc(pathTransactions, func(w http.ResponseWriter, _ *http.Request) {
 		setCorsHeaders(w)
 	}).Methods(http.MethodOptions)
 
+	// get transaction record and execution proof
+	r.HandleFunc(pathGetTransactionRecord, rs.getTransactionRecord).Methods(http.MethodGet)
+
+	// get latest round number
+	r.HandleFunc(pathLatestRoundNumber, getLatestRoundNumber(rs))
+
 	if metrics.Enabled() {
 		r.Handle("/api/v1/metrics", metrics.PrometheusHandler()).Methods(http.MethodGet)
 	}
+
 	r.HandleFunc("/api/v1/info", rs.infoHandler).Methods(http.MethodGet)
 
 	r.Use(mux.CORSMethodMiddleware(r))
@@ -134,13 +146,56 @@ func (s *RestServer) submitTransaction(writer http.ResponseWriter, r *http.Reque
 		writeError(writer, fmt.Errorf("failed to decode request body as transaction: %w", err), http.StatusBadRequest)
 		return
 	}
-
-	if err := s.node.SubmitTx(r.Context(), tx); err != nil {
+	txOrderHash, err := s.node.SubmitTx(r.Context(), tx)
+	if err != nil {
 		receivedInvalidTransactionsRESTMeter.Inc(1)
 		writeError(writer, err, http.StatusBadRequest)
 		return
 	}
 	writer.WriteHeader(http.StatusAccepted)
+
+	writeCBORResponse(writer, txOrderHash, http.StatusAccepted)
+}
+
+func (s *RestServer) getTransactionRecord(w http.ResponseWriter, request *http.Request) {
+	vars := mux.Vars(request)
+	txOrder := vars["txOrderHash"]
+	txOrderHash, err := hex.DecodeString(txOrder)
+	if err != nil {
+		writeError(w, fmt.Errorf("invalid tx order hash: %s", txOrder), http.StatusBadRequest)
+		return
+	}
+	txRecord, proof, err := s.node.GetTransactionRecord(txOrderHash)
+	if err != nil {
+		writeError(w, err, http.StatusInternalServerError)
+		return
+	}
+
+	if txRecord == nil {
+		w.Header().Set(headerContentType, applicationCBOR)
+		w.WriteHeader(http.StatusNotFound)
+		return
+	}
+
+	writeCBORResponse(w, struct {
+		_        struct{} `cbor:",toarray"`
+		TxRecord *types.TransactionRecord
+		TxProof  *types.TxProof
+	}{
+		TxRecord: txRecord,
+		TxProof:  proof,
+	}, http.StatusOK)
+}
+
+func getLatestRoundNumber(rs *RestServer) func(w http.ResponseWriter, request *http.Request) {
+	return func(w http.ResponseWriter, request *http.Request) {
+		nr, err := rs.node.GetLatestRoundNumber()
+		if err != nil {
+			writeError(w, err, http.StatusInternalServerError)
+			return
+		}
+		writeCBORResponse(w, nr, http.StatusOK)
+	}
 }
 
 func maxBytesHandler(f http.HandlerFunc, maxBodySize int64) http.HandlerFunc {
@@ -204,7 +259,7 @@ func (s *RestServer) getBootstrapNodes() []peerInfo {
 	return infos
 }
 
-func notFound(w http.ResponseWriter, r *http.Request) {
+func notFound(w http.ResponseWriter, _ *http.Request) {
 	writeError(w, errors.New("request path doesn't match any endpoint"), http.StatusNotFound)
 }
 
@@ -222,6 +277,20 @@ func writeError(w http.ResponseWriter, e error, statusCode int) {
 		}{errMsg})
 	if err != nil {
 		logger.Warning("Failed to encode error message: %v", err)
+	}
+}
+
+func writeCBORResponse(w http.ResponseWriter, response any, statusCode int) {
+	cborBytes, err := cbor.Marshal(response)
+	if err != nil {
+		writeError(w, err, http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set(headerContentType, applicationCBOR)
+	w.WriteHeader(statusCode)
+	_, err = w.Write(cborBytes)
+	if err != nil {
+		logger.Warning("Failed to write CBOR: %v", err)
 	}
 }
 

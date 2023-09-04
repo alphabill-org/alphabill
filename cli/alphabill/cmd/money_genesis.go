@@ -15,28 +15,28 @@ import (
 	"github.com/alphabill-org/alphabill/internal/txsystem/money"
 	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/fxamacker/cbor/v2"
-	"github.com/holiman/uint256"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/spf13/cobra"
 )
 
 const (
+	moneyGenesisFileName      = "node-genesis.json"
 	moneyPartitionDir         = "money"
-	defaultInitialBillId      = 1
 	defaultInitialBillValue   = 1000000000000000000
 	defaultDCMoneySupplyValue = 1000000000000000000
 	defaultT2Timeout          = 2500
 )
 
-var defaultABMoneySystemIdentifier = []byte{0, 0, 0, 0}
 var defaultMoneySDR = &genesis.SystemDescriptionRecord{
-	SystemIdentifier: defaultABMoneySystemIdentifier,
+	SystemIdentifier: money.DefaultSystemIdentifier,
 	T2Timeout:        defaultT2Timeout,
 	FeeCreditBill: &genesis.FeeCreditBill{
-		UnitId:         util.Uint256ToBytes(uint256.NewInt(2)),
+		UnitId:         money.NewBillID(nil, []byte{2}),
 		OwnerPredicate: script.PredicateAlwaysTrue(),
 	},
 }
+
+var defaultInitialBillID = money.NewBillID(nil, []byte{1})
 
 type moneyGenesisConfig struct {
 	Base               *baseConfiguration
@@ -60,7 +60,7 @@ func newMoneyGenesisCmd(baseConfig *baseConfiguration) *cobra.Command {
 		},
 	}
 
-	cmd.Flags().BytesHexVarP(&config.SystemIdentifier, "system-identifier", "s", defaultABMoneySystemIdentifier, "system identifier in HEX format")
+	cmd.Flags().BytesHexVarP(&config.SystemIdentifier, "system-identifier", "s", money.DefaultSystemIdentifier, "system identifier in HEX format")
 	config.Keys.addCmdFlags(cmd)
 	cmd.Flags().StringVarP(&config.Output, "output", "o", "", "path to the output genesis file (default: $AB_HOME/money/node-genesis.json)")
 	cmd.Flags().Uint64Var(&config.InitialBillValue, "initial-bill-value", defaultInitialBillValue, "the initial bill value")
@@ -100,7 +100,7 @@ func abMoneyGenesisRunFun(_ context.Context, config *moneyGenesisConfig) error {
 	}
 
 	ib := &money.InitialBill{
-		ID:    uint256.NewInt(defaultInitialBillId),
+		ID:    defaultInitialBillID,
 		Value: config.InitialBillValue,
 		Owner: script.PredicateAlwaysTrue(),
 	}
@@ -109,8 +109,8 @@ func abMoneyGenesisRunFun(_ context.Context, config *moneyGenesisConfig) error {
 	if err != nil {
 		return err
 	}
-	txSystem, err := money.NewMoneyTxSystem(
-		config.SystemIdentifier,
+	txSystem, err := money.NewTxSystem(
+		money.WithSystemIdentifier(config.SystemIdentifier),
 		money.WithHashAlgorithm(crypto.SHA256),
 		money.WithInitialBill(ib),
 		money.WithSystemDescriptionRecords(sdrs),
@@ -144,7 +144,7 @@ func (c *moneyGenesisConfig) getNodeGenesisFileLocation(home string) string {
 	if c.Output != "" {
 		return c.Output
 	}
-	return filepath.Join(home, vdGenesisFileName)
+	return filepath.Join(home, moneyGenesisFileName)
 }
 
 func (c *moneyGenesisConfig) getPartitionParams() ([]byte, error) {

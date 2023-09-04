@@ -2,10 +2,14 @@ package money
 
 import (
 	"crypto"
+	"errors"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/script"
+	"github.com/alphabill-org/alphabill/internal/state"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	testblock "github.com/alphabill-org/alphabill/internal/testutils/block"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
@@ -13,8 +17,6 @@ import (
 	testfc "github.com/alphabill-org/alphabill/internal/txsystem/fc/testutils"
 	"github.com/alphabill-org/alphabill/internal/txsystem/fc/transactions"
 	"github.com/alphabill-org/alphabill/internal/types"
-	"github.com/holiman/uint256"
-	"github.com/stretchr/testify/require"
 )
 
 func TestTransfer(t *testing.T) {
@@ -66,9 +68,8 @@ func TestTransferDC(t *testing.T) {
 			name: "Ok",
 			bd:   newBillData(100, []byte{6}),
 			attr: &TransferDCAttributes{
-				Nonce:        test.RandomBytes(32),
-				TargetBearer: script.PredicateAlwaysTrue(),
-				TargetValue:  100,
+				TargetUnitID: test.RandomBytes(32),
+				Value:        100,
 				Backlink:     []byte{6},
 			},
 			res: nil,
@@ -77,9 +78,8 @@ func TestTransferDC(t *testing.T) {
 			name: "InvalidBalance",
 			bd:   newBillData(100, []byte{6}),
 			attr: &TransferDCAttributes{
-				Nonce:        test.RandomBytes(32),
-				TargetBearer: script.PredicateAlwaysTrue(),
-				TargetValue:  101,
+				TargetUnitID: test.RandomBytes(32),
+				Value:        101,
 				Backlink:     []byte{6},
 			},
 			res: ErrInvalidBillValue,
@@ -88,9 +88,8 @@ func TestTransferDC(t *testing.T) {
 			name: "InvalidBacklink",
 			bd:   newBillData(100, []byte{6}),
 			attr: &TransferDCAttributes{
-				Nonce:        test.RandomBytes(32),
-				TargetBearer: script.PredicateAlwaysTrue(),
-				TargetValue:  100,
+				TargetUnitID: test.RandomBytes(32),
+				Value:        100,
 				Backlink:     test.RandomBytes(32),
 			},
 			res: ErrInvalidBacklink,
@@ -224,76 +223,75 @@ func TestSwap(t *testing.T) {
 
 	tests := []struct {
 		name string
-		tx   *types.TransactionOrder
+		ctx  *swapValidationContext
 		err  string
 	}{
 		{
 			name: "Ok",
-			tx:   newSwapDC(t, signer),
-			err:  "",
+			ctx:  newSwapValidationContext(t, verifier, newSwapDC(t, signer)),
+		},
+		{
+			name: "DC money supply < tx target value",
+			ctx: newSwapValidationContext(t, verifier, newSwapDC(t, signer),
+				withSwapStateUnit(string(dustCollectorMoneySupplyID), state.NewUnit(nil, &BillData{
+					V: 99,
+				}))),
+			err: "insufficient DC-money supply",
+		},
+		{
+			name: "target unit does not exist",
+			ctx:  newSwapValidationContext(t, verifier, newSwapDC(t, signer), withSwapStateUnit(string([]byte{255}), nil)),
+			err:  "target unit does not exist",
 		},
 		{
 			name: "InvalidTargetValue",
-			tx:   newInvalidTargetValueSwap(t),
-			err:  ErrSwapInvalidTargetValue.Error(),
-		},
-		{
-			name: "InvalidBillIdentifiers",
-			tx:   newInvalidBillIdentifierSwap(t, signer),
-			err:  ErrSwapInvalidBillIdentifiers.Error(),
-		},
-		{
-			name: "InvalidBillId",
-			tx:   newInvalidBillIdSwap(t, signer),
-			err:  ErrSwapInvalidBillId.Error(),
+			ctx:  newSwapValidationContext(t, verifier, newInvalidTargetValueSwap(t)),
+			err:  "target value must be equal to the sum of dust transfer values",
 		},
 		{
 			name: "DustTransfersInDescBillIdOrder",
-			tx:   newSwapWithDescBillOrder(t, signer),
-			err:  ErrSwapDustTransfersInvalidOrder.Error(),
+			ctx:  newSwapValidationContext(t, verifier, newDescBillOrderSwap(t, signer)),
+			err:  "transfer orders are not listed in strictly increasing order of bill identifiers",
 		},
 		{
 			name: "DustTransfersInEqualBillIdOrder",
-			tx:   newSwapOrderWithEqualBillIds(t, signer),
-			err:  ErrSwapDustTransfersInvalidOrder.Error(),
+			ctx:  newSwapValidationContext(t, verifier, newEqualBillIdsSwap(t, signer)),
+			err:  "transfer orders are not listed in strictly increasing order of bill identifiers",
 		},
 		{
-			name: "InvalidNonce",
-			tx:   newInvalidNonceSwap(t, signer),
-			err:  ErrSwapInvalidNonce.Error(),
+			name: "DustTransfersInvalidTargetSystemID",
+			ctx:  newSwapValidationContext(t, verifier, newSwapOrderWithInvalidTargetSystemID(t, signer)),
+			err:  "dust transfer system id is not money partition system id",
 		},
 		{
-			name: "InvalidTargetBearer",
-			tx:   newInvalidTargetBearerSwap(t, signer),
-			err:  ErrSwapInvalidTargetBearer.Error(),
+			name: "invalid target unit id",
+			ctx:  newSwapValidationContext(t, verifier, newInvalidTargetUnitIDSwap(t, signer)),
+			err:  "dust transfer order target unit id is not equal to swap tx unit id",
+		},
+		{
+			name: "invalid target backlink",
+			ctx:  newSwapValidationContext(t, verifier, newInvalidTargetBacklinkSwap(t, signer)),
+			err:  "dust transfer target backlink is not equal to target unit backlink",
 		},
 		{
 			name: "InvalidProofsNil",
-			tx:   newDcProofsNilSwap(t),
+			ctx:  newSwapValidationContext(t, verifier, newDcProofsNilSwap(t)),
 			err:  "invalid count of proofs",
 		},
 		{
 			name: "InvalidEmptyDcProof",
-			tx:   newEmptyDcProofsSwap(t),
+			ctx:  newSwapValidationContext(t, verifier, newEmptyDcProofsSwap(t)),
 			err:  "unicity certificate is nil",
 		},
 		{
 			name: "InvalidDcProofInvalid",
-			tx:   newInvalidDcProofsSwap(t),
+			ctx:  newSwapValidationContext(t, verifier, newInvalidDcProofsSwap(t)),
 			err:  "invalid unicity seal signature",
-		},
-		{
-			name: "InvalidSwapOwnerProof",
-			tx:   newSwapOrderWithWrongOwnerCondition(t, signer),
-			err:  ErrSwapOwnerProofFailed.Error(),
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			trustBase := map[string]abcrypto.Verifier{"test": verifier}
-			attr := &SwapDCAttributes{}
-			require.NoError(t, tt.tx.UnmarshalAttributes(attr))
-			err := validateSwap(tt.tx, attr, crypto.SHA256, trustBase)
+			err := tt.ctx.validateSwapTx()
 			if tt.err == "" {
 				require.NoError(t, err)
 			} else {
@@ -324,10 +322,37 @@ func TestTransferFC(t *testing.T) {
 			wantErr: ErrBillNil,
 		},
 		{
+			name:    "TargetSystemIdentifier is nil",
+			bd:      newBillData(101, backlink),
+			tx:      testfc.NewTransferFC(t, testfc.NewTransferFCAttr(testfc.WithTargetSystemID(nil))),
+			wantErr: ErrTargetSystemIdentifierNil,
+		},
+		{
+			name:    "TargetRecordID is nil",
+			bd:      newBillData(101, backlink),
+			tx:      testfc.NewTransferFC(t, testfc.NewTransferFCAttr(testfc.WithTargetRecordID(nil))),
+			wantErr: ErrTargetRecordIDNil,
+		},
+		{
+			name: "AdditionTime invalid",
+			bd:   newBillData(101, backlink),
+			tx: testfc.NewTransferFC(t, testfc.NewTransferFCAttr(
+				testfc.WithEarliestAdditionTime(2),
+				testfc.WithLatestAdditionTime(1),
+			)),
+			wantErr: ErrAdditionTimeInvalid,
+		},
+		{
 			name:    "Invalid amount",
 			bd:      newBillData(101, backlink),
-			tx:      testfc.NewTransferFC(t, testfc.NewTransferFCAttr(testfc.WithAmount(101))),
+			tx:      testfc.NewTransferFC(t, testfc.NewTransferFCAttr(testfc.WithAmount(102))),
 			wantErr: ErrInvalidFCValue,
+		},
+		{
+			name:    "Invalid fee",
+			bd:      newBillData(101, backlink),
+			tx:      testfc.NewTransferFC(t, testfc.NewTransferFCAttr(testfc.WithAmount(1))),
+			wantErr: ErrInvalidFeeValue,
 		},
 		{
 			name:    "Invalid backlink",
@@ -416,7 +441,7 @@ func TestReclaimFC(t *testing.T) {
 			name: "Invalid target unit",
 			bd:   newBillData(amount, backlink),
 			tx: testfc.NewReclaimFC(t, signer, nil,
-				testtransaction.WithUnitId(test.NewUnitID(2)),
+				testtransaction.WithUnitId(NewFeeCreditRecordID(nil, []byte{2})),
 			),
 			wantErr: ErrReclaimFCInvalidTargetUnit,
 		},
@@ -430,7 +455,7 @@ func TestReclaimFC(t *testing.T) {
 							TransactionOrder: testfc.NewCloseFC(t,
 								testfc.NewCloseFCAttr(
 									testfc.WithCloseFCAmount(2),
-									testfc.WithCloseFCNonce(backlink),
+									testfc.WithCloseFCTargetUnitBacklink(backlink),
 								),
 							),
 							ServerMetadata: &types.ServerMetadata{ActualFee: 10},
@@ -441,10 +466,10 @@ func TestReclaimFC(t *testing.T) {
 			wantErr: ErrReclaimFCInvalidTxFee,
 		},
 		{
-			name:    "Invalid nonce",
-			bd:      newBillData(amount, []byte("nonce not equal to bill backlink")),
+			name:    "Invalid target unit backlink",
+			bd:      newBillData(amount, []byte("target unit backlink not equal to bill backlink")),
 			tx:      testfc.NewReclaimFC(t, signer, nil),
-			wantErr: ErrReclaimFCInvalidNonce,
+			wantErr: ErrReclaimFCInvalidTargetUnitBacklink,
 		},
 		{
 			name:    "Invalid backlink",
@@ -480,15 +505,12 @@ func TestReclaimFC(t *testing.T) {
 }
 
 func newInvalidTargetValueSwap(t *testing.T) *types.TransactionOrder {
-	id := uint256.NewInt(1)
-	id32 := id.Bytes32()
-	transferId := id32[:]
-	swapId := calculateSwapID(id)
+	transferId := newBillID(1)
+	swapId := newBillID(255)
 
 	transferDCRecord := createTransferDCTransactionRecord(t, transferId, &TransferDCAttributes{
-		Nonce:        swapId,
-		TargetBearer: script.PredicateAlwaysTrue(),
-		TargetValue:  90,
+		TargetUnitID: swapId,
+		Value:        90,
 		Backlink:     []byte{6},
 	})
 	return testtransaction.NewTransactionOrder(
@@ -497,11 +519,10 @@ func newInvalidTargetValueSwap(t *testing.T) *types.TransactionOrder {
 		testtransaction.WithPayloadType(PayloadTypeSwapDC),
 		testtransaction.WithUnitId(swapId),
 		testtransaction.WithAttributes(&SwapDCAttributes{
-			OwnerCondition:  script.PredicateAlwaysTrue(),
-			BillIdentifiers: [][]byte{transferId},
-			DcTransfers:     []*types.TransactionRecord{transferDCRecord},
-			Proofs:          []*types.TxProof{nil},
-			TargetValue:     100,
+			OwnerCondition:   script.PredicateAlwaysTrue(),
+			DcTransfers:      []*types.TransactionRecord{transferDCRecord},
+			DcTransferProofs: []*types.TxProof{nil},
+			TargetValue:      100,
 		}),
 		testtransaction.WithClientMetadata(&types.ClientMetadata{
 			Timeout:           100,
@@ -512,16 +533,13 @@ func newInvalidTargetValueSwap(t *testing.T) *types.TransactionOrder {
 	)
 }
 
-func newInvalidBillIdentifierSwap(t *testing.T, signer abcrypto.Signer) *types.TransactionOrder {
-	id := uint256.NewInt(1)
-	id32 := id.Bytes32()
-	transferId := id32[:]
-	swapId := calculateSwapID(id)
+func newInvalidTargetUnitIDSwap(t *testing.T, signer abcrypto.Signer) *types.TransactionOrder {
+	transferId := newBillID(1)
+	swapId := newBillID(255)
 
 	transferDCRecord := createTransferDCTransactionRecord(t, transferId, &TransferDCAttributes{
-		Nonce:        swapId,
-		TargetBearer: script.PredicateAlwaysTrue(),
-		TargetValue:  100,
+		TargetUnitID: []byte{0},
+		Value:        100,
 		Backlink:     []byte{6},
 	})
 	return testtransaction.NewTransactionOrder(
@@ -530,11 +548,10 @@ func newInvalidBillIdentifierSwap(t *testing.T, signer abcrypto.Signer) *types.T
 		testtransaction.WithPayloadType(PayloadTypeSwapDC),
 		testtransaction.WithUnitId(swapId),
 		testtransaction.WithAttributes(&SwapDCAttributes{
-			OwnerCondition:  script.PredicateAlwaysTrue(),
-			BillIdentifiers: [][]byte{swapId},
-			DcTransfers:     []*types.TransactionRecord{transferDCRecord},
-			Proofs:          []*types.TxProof{testblock.CreateProof(t, transferDCRecord, signer)},
-			TargetValue:     100,
+			OwnerCondition:   script.PredicateAlwaysTrue(),
+			DcTransfers:      []*types.TransactionRecord{transferDCRecord},
+			DcTransferProofs: []*types.TxProof{testblock.CreateProof(t, transferDCRecord, signer)},
+			TargetValue:      100,
 		}),
 		testtransaction.WithClientMetadata(&types.ClientMetadata{
 			Timeout:           100,
@@ -545,93 +562,29 @@ func newInvalidBillIdentifierSwap(t *testing.T, signer abcrypto.Signer) *types.T
 	)
 }
 
-func newInvalidBillIdSwap(t *testing.T, signer abcrypto.Signer) *types.TransactionOrder {
+func newInvalidTargetBacklinkSwap(t *testing.T, signer abcrypto.Signer) *types.TransactionOrder {
+	transferId := newBillID(1)
+	swapId := newBillID(255)
+	return createSwapDCTransactionOrder(t, signer, swapId, createTransferDCTransactionRecord(t, transferId, &TransferDCAttributes{
+		TargetUnitID:       swapId,
+		Value:              100,
+		Backlink:           []byte{6},
+		TargetUnitBacklink: []byte{7},
+	}))
+}
+
+func newDescBillOrderSwap(t *testing.T, signer abcrypto.Signer) *types.TransactionOrder {
 	// create swap tx with two dust transfers in descending order of bill ids
-	billIds := []*uint256.Int{uint256.NewInt(1), uint256.NewInt(2)}
-	swapId := calculateSwapID(billIds...)
+	billIds := []types.UnitID{newBillID(2), newBillID(1)}
+	swapId := newBillID(255)
 	dcTransfers := make([]*types.TransactionRecord, len(billIds))
 	transferIds := make([][]byte, len(billIds))
 	proofs := make([]*types.TxProof, len(billIds))
 	for i := 0; i < len(billIds); i++ {
-		bytes32 := billIds[i].Bytes32()
-		transferIds[i] = bytes32[:]
-		dcTransfers[i] = createTransferDCTransactionRecord(t, bytes32[:], &TransferDCAttributes{
-			Nonce:        swapId,
-			TargetBearer: script.PredicateAlwaysTrue(),
-			TargetValue:  100,
-			Backlink:     []byte{6},
-		})
-		proofs[i] = testblock.CreateProof(t, dcTransfers[i], signer)
-	}
-
-	return testtransaction.NewTransactionOrder(
-		t,
-		testtransaction.WithSystemID(systemIdentifier),
-		testtransaction.WithPayloadType(PayloadTypeSwapDC),
-		testtransaction.WithUnitId(transferIds[0]),
-		testtransaction.WithAttributes(&SwapDCAttributes{
-			OwnerCondition:  script.PredicateAlwaysTrue(),
-			BillIdentifiers: transferIds,
-			DcTransfers:     dcTransfers,
-			Proofs:          proofs,
-			TargetValue:     200,
-		}),
-		testtransaction.WithClientMetadata(&types.ClientMetadata{
-			Timeout:           100,
-			MaxTransactionFee: 10,
-			FeeCreditRecordID: []byte{0},
-		}),
-		testtransaction.WithOwnerProof(script.PredicateArgumentEmpty()),
-	)
-}
-
-func newInvalidNonceSwap(t *testing.T, signer abcrypto.Signer) *types.TransactionOrder {
-	id := uint256.NewInt(1)
-	id32 := id.Bytes32()
-	transferId := id32[:]
-	swapId := calculateSwapID(id)
-
-	transferDCRecord := createTransferDCTransactionRecord(t, transferId, &TransferDCAttributes{
-		Nonce:        []byte{0},
-		TargetBearer: script.PredicateAlwaysTrue(),
-		TargetValue:  100,
-		Backlink:     []byte{6},
-	})
-	return testtransaction.NewTransactionOrder(
-		t,
-		testtransaction.WithSystemID(systemIdentifier),
-		testtransaction.WithPayloadType(PayloadTypeSwapDC),
-		testtransaction.WithUnitId(swapId),
-		testtransaction.WithAttributes(&SwapDCAttributes{
-			OwnerCondition:  script.PredicateAlwaysTrue(),
-			BillIdentifiers: [][]byte{transferId},
-			DcTransfers:     []*types.TransactionRecord{transferDCRecord},
-			Proofs:          []*types.TxProof{testblock.CreateProof(t, transferDCRecord, signer)},
-			TargetValue:     100,
-		}),
-		testtransaction.WithClientMetadata(&types.ClientMetadata{
-			Timeout:           100,
-			MaxTransactionFee: 10,
-			FeeCreditRecordID: []byte{0},
-		}),
-		testtransaction.WithOwnerProof(script.PredicateArgumentEmpty()),
-	)
-}
-
-func newSwapWithDescBillOrder(t *testing.T, signer abcrypto.Signer) *types.TransactionOrder {
-	// create swap tx with two dust transfers in descending order of bill ids
-	billIds := []*uint256.Int{uint256.NewInt(2), uint256.NewInt(1)}
-	swapId := calculateSwapID(billIds...)
-	dcTransfers := make([]*types.TransactionRecord, len(billIds))
-	transferIds := make([][]byte, len(billIds))
-	proofs := make([]*types.TxProof, len(billIds))
-	for i := 0; i < len(billIds); i++ {
-		bytes32 := billIds[i].Bytes32()
-		transferIds[i] = bytes32[:]
-		dcTransfers[i] = createTransferDCTransactionRecord(t, bytes32[:], &TransferDCAttributes{
-			Nonce:        swapId,
-			TargetBearer: script.PredicateAlwaysTrue(),
-			TargetValue:  100,
+		transferIds[i] = billIds[i]
+		dcTransfers[i] = createTransferDCTransactionRecord(t, billIds[i], &TransferDCAttributes{
+			TargetUnitID: swapId,
+			Value:        100,
 			Backlink:     []byte{6},
 		})
 		proofs[i] = testblock.CreateProof(t, dcTransfers[i], signer)
@@ -643,11 +596,10 @@ func newSwapWithDescBillOrder(t *testing.T, signer abcrypto.Signer) *types.Trans
 		testtransaction.WithPayloadType(PayloadTypeSwapDC),
 		testtransaction.WithUnitId(swapId),
 		testtransaction.WithAttributes(&SwapDCAttributes{
-			OwnerCondition:  script.PredicateAlwaysTrue(),
-			BillIdentifiers: transferIds,
-			DcTransfers:     dcTransfers,
-			Proofs:          proofs,
-			TargetValue:     200,
+			OwnerCondition:   script.PredicateAlwaysTrue(),
+			DcTransfers:      dcTransfers,
+			DcTransferProofs: proofs,
+			TargetValue:      200,
 		}),
 		testtransaction.WithClientMetadata(&types.ClientMetadata{
 			Timeout:           100,
@@ -658,20 +610,18 @@ func newSwapWithDescBillOrder(t *testing.T, signer abcrypto.Signer) *types.Trans
 	)
 }
 
-func newSwapOrderWithEqualBillIds(t *testing.T, signer abcrypto.Signer) *types.TransactionOrder {
+func newEqualBillIdsSwap(t *testing.T, signer abcrypto.Signer) *types.TransactionOrder {
 	// create swap tx with two dust transfers with equal bill ids
-	billIds := []*uint256.Int{uint256.NewInt(1), uint256.NewInt(1)}
-	swapId := calculateSwapID(billIds...)
+	billIds := []types.UnitID{newBillID(1), newBillID(1)}
+	swapId := newBillID(255)
 	dcTransfers := make([]*types.TransactionRecord, len(billIds))
 	transferIds := make([][]byte, len(billIds))
 	proofs := make([]*types.TxProof, len(billIds))
 	for i := 0; i < len(billIds); i++ {
-		bytes32 := billIds[i].Bytes32()
-		transferIds[i] = bytes32[:]
-		dcTransfers[i] = createTransferDCTransactionRecord(t, bytes32[:], &TransferDCAttributes{
-			Nonce:        swapId,
-			TargetBearer: script.PredicateAlwaysTrue(),
-			TargetValue:  100,
+		transferIds[i] = billIds[i]
+		dcTransfers[i] = createTransferDCTransactionRecord(t, billIds[i], &TransferDCAttributes{
+			TargetUnitID: swapId,
+			Value:        100,
 			Backlink:     []byte{6},
 		})
 		proofs[i] = testblock.CreateProof(t, dcTransfers[i], signer)
@@ -682,11 +632,10 @@ func newSwapOrderWithEqualBillIds(t *testing.T, signer abcrypto.Signer) *types.T
 		testtransaction.WithPayloadType(PayloadTypeSwapDC),
 		testtransaction.WithUnitId(swapId),
 		testtransaction.WithAttributes(&SwapDCAttributes{
-			OwnerCondition:  script.PredicateAlwaysTrue(),
-			BillIdentifiers: transferIds,
-			DcTransfers:     dcTransfers,
-			Proofs:          proofs,
-			TargetValue:     200,
+			OwnerCondition:   script.PredicateAlwaysTrue(),
+			DcTransfers:      dcTransfers,
+			DcTransferProofs: proofs,
+			TargetValue:      200,
 		}),
 		testtransaction.WithClientMetadata(&types.ClientMetadata{
 			Timeout:           100,
@@ -697,83 +646,37 @@ func newSwapOrderWithEqualBillIds(t *testing.T, signer abcrypto.Signer) *types.T
 	)
 }
 
-func newSwapOrderWithWrongOwnerCondition(t *testing.T, signer abcrypto.Signer) *types.TransactionOrder {
-	id := uint256.NewInt(1)
-	id32 := id.Bytes32()
-	transferId := id32[:]
-	swapId := calculateSwapID(id)
-
-	transferDCRecord := createTransferDCTransactionRecord(t, transferId, &TransferDCAttributes{
-		Nonce:        swapId,
-		TargetBearer: script.PredicateAlwaysTrue(),
-		TargetValue:  100,
-		Backlink:     []byte{6},
-	})
-	return testtransaction.NewTransactionOrder(
+func newSwapOrderWithInvalidTargetSystemID(t *testing.T, signer abcrypto.Signer) *types.TransactionOrder {
+	transferId := newBillID(1)
+	swapId := newBillID(255)
+	transferDCRecord := testtransaction.NewTransactionRecord(
 		t,
-		testtransaction.WithSystemID(systemIdentifier),
-		testtransaction.WithPayloadType(PayloadTypeSwapDC),
-		testtransaction.WithUnitId(swapId),
-		testtransaction.WithAttributes(&SwapDCAttributes{
-			OwnerCondition:  script.PredicateAlwaysTrue(),
-			BillIdentifiers: [][]byte{transferId},
-			DcTransfers:     []*types.TransactionRecord{transferDCRecord},
-			Proofs:          []*types.TxProof{testblock.CreateProof(t, transferDCRecord, signer)},
-			TargetValue:     100,
+		testtransaction.WithSystemID([]byte{0, 0, 0, 1}),
+		testtransaction.WithPayloadType(PayloadTypeTransDC),
+		testtransaction.WithUnitId(transferId),
+		testtransaction.WithAttributes(&TransferDCAttributes{
+			TargetUnitID: swapId,
+			Value:        100,
+			Backlink:     []byte{6},
 		}),
 		testtransaction.WithClientMetadata(&types.ClientMetadata{
 			Timeout:           100,
 			MaxTransactionFee: 10,
 			FeeCreditRecordID: []byte{0},
 		}),
-		testtransaction.WithOwnerProof(script.PredicateAlwaysFalse()),
 	)
-}
-
-func newInvalidTargetBearerSwap(t *testing.T, signer abcrypto.Signer) *types.TransactionOrder {
-	id := uint256.NewInt(1)
-	id32 := id.Bytes32()
-	transferId := id32[:]
-	swapId := calculateSwapID(id)
-
-	transferDCRecord := createTransferDCTransactionRecord(t, transferId, &TransferDCAttributes{
-		Nonce:        swapId,
-		TargetBearer: script.PredicateAlwaysFalse(),
-		TargetValue:  100,
-		Backlink:     []byte{6},
-	})
-	return testtransaction.NewTransactionOrder(
-		t,
-		testtransaction.WithSystemID(systemIdentifier),
-		testtransaction.WithPayloadType(PayloadTypeSwapDC),
-		testtransaction.WithUnitId(swapId),
-		testtransaction.WithAttributes(&SwapDCAttributes{
-			OwnerCondition:  script.PredicateAlwaysTrue(),
-			BillIdentifiers: [][]byte{transferId},
-			DcTransfers:     []*types.TransactionRecord{transferDCRecord},
-			Proofs:          []*types.TxProof{testblock.CreateProof(t, transferDCRecord, signer)},
-			TargetValue:     100,
-		}),
-		testtransaction.WithClientMetadata(&types.ClientMetadata{
-			Timeout:           100,
-			MaxTransactionFee: 10,
-			FeeCreditRecordID: []byte{0},
-		}),
-		testtransaction.WithOwnerProof(script.PredicateArgumentEmpty()),
-	)
+	return createSwapDCTransactionOrder(t, signer, swapId, transferDCRecord)
 }
 
 func newDcProofsNilSwap(t *testing.T) *types.TransactionOrder {
-	id := uint256.NewInt(1)
-	id32 := id.Bytes32()
-	transferId := id32[:]
-	swapId := calculateSwapID(id)
+	transferId := newBillID(1)
+	swapId := newBillID(255)
 
 	transferDCRecord := createTransferDCTransactionRecord(t, transferId, &TransferDCAttributes{
-		Nonce:        swapId,
-		TargetBearer: script.PredicateAlwaysTrue(),
-		TargetValue:  100,
-		Backlink:     []byte{6},
+		TargetUnitID: swapId,
+
+		Value:    100,
+		Backlink: []byte{6},
 	})
 	return testtransaction.NewTransactionOrder(
 		t,
@@ -781,11 +684,10 @@ func newDcProofsNilSwap(t *testing.T) *types.TransactionOrder {
 		testtransaction.WithPayloadType(PayloadTypeSwapDC),
 		testtransaction.WithUnitId(swapId),
 		testtransaction.WithAttributes(&SwapDCAttributes{
-			OwnerCondition:  script.PredicateAlwaysTrue(),
-			BillIdentifiers: [][]byte{transferId},
-			DcTransfers:     []*types.TransactionRecord{transferDCRecord},
-			Proofs:          nil,
-			TargetValue:     100,
+			OwnerCondition:   script.PredicateAlwaysTrue(),
+			DcTransfers:      []*types.TransactionRecord{transferDCRecord},
+			DcTransferProofs: nil,
+			TargetValue:      100,
 		}),
 		testtransaction.WithClientMetadata(&types.ClientMetadata{
 			Timeout:           100,
@@ -794,19 +696,14 @@ func newDcProofsNilSwap(t *testing.T) *types.TransactionOrder {
 		}),
 		testtransaction.WithOwnerProof(script.PredicateArgumentEmpty()),
 	)
-
 }
 
 func newEmptyDcProofsSwap(t *testing.T) *types.TransactionOrder {
-	id := uint256.NewInt(1)
-	id32 := id.Bytes32()
-	transferId := id32[:]
-	swapId := calculateSwapID(id)
-
+	transferId := newBillID(1)
+	swapId := newBillID(255)
 	transferDCRecord := createTransferDCTransactionRecord(t, transferId, &TransferDCAttributes{
-		Nonce:        swapId,
-		TargetBearer: script.PredicateAlwaysTrue(),
-		TargetValue:  100,
+		TargetUnitID: swapId,
+		Value:        100,
 		Backlink:     []byte{6},
 	})
 	return testtransaction.NewTransactionOrder(
@@ -815,11 +712,10 @@ func newEmptyDcProofsSwap(t *testing.T) *types.TransactionOrder {
 		testtransaction.WithPayloadType(PayloadTypeSwapDC),
 		testtransaction.WithUnitId(swapId),
 		testtransaction.WithAttributes(&SwapDCAttributes{
-			OwnerCondition:  script.PredicateAlwaysTrue(),
-			BillIdentifiers: [][]byte{transferId},
-			DcTransfers:     []*types.TransactionRecord{transferDCRecord},
-			Proofs:          []*types.TxProof{{BlockHeaderHash: []byte{0}}},
-			TargetValue:     100,
+			OwnerCondition:   script.PredicateAlwaysTrue(),
+			DcTransfers:      []*types.TransactionRecord{transferDCRecord},
+			DcTransferProofs: []*types.TxProof{{BlockHeaderHash: []byte{0}}},
+			TargetValue:      100,
 		}),
 		testtransaction.WithClientMetadata(&types.ClientMetadata{
 			Timeout:           100,
@@ -836,32 +732,31 @@ func newInvalidDcProofsSwap(t *testing.T) *types.TransactionOrder {
 }
 
 func newSwapDC(t *testing.T, signer abcrypto.Signer) *types.TransactionOrder {
-	id := uint256.NewInt(1)
-	id32 := id.Bytes32()
-	transferId := id32[:]
-	swapId := calculateSwapID(id)
-	return createSwapDCTransactionOrder(t, signer, swapId, transferId,
-		createTransferDCTransactionRecord(t, transferId, &TransferDCAttributes{
-			Nonce:        swapId,
-			TargetBearer: script.PredicateAlwaysTrue(),
-			TargetValue:  100,
-			Backlink:     []byte{6},
-		}),
-	)
+	transferId := newBillID(1)
+	swapId := []byte{255}
+
+	return createSwapDCTransactionOrder(t, signer, swapId, createTransferDCTransactionRecord(t, transferId, &TransferDCAttributes{
+		TargetUnitID: swapId,
+		Value:        100,
+		Backlink:     []byte{6},
+	}))
 }
 
-func createSwapDCTransactionOrder(t *testing.T, signer abcrypto.Signer, swapId []byte, transferId []byte, transferDCRecord *types.TransactionRecord) *types.TransactionOrder {
+func createSwapDCTransactionOrder(t *testing.T, signer abcrypto.Signer, swapId []byte, transferDCRecords ...*types.TransactionRecord) *types.TransactionOrder {
+	var proofs []*types.TxProof
+	for _, dcTx := range transferDCRecords {
+		proofs = append(proofs, testblock.CreateProof(t, dcTx, signer))
+	}
 	return testtransaction.NewTransactionOrder(
 		t,
 		testtransaction.WithSystemID(systemIdentifier),
 		testtransaction.WithPayloadType(PayloadTypeSwapDC),
 		testtransaction.WithUnitId(swapId),
 		testtransaction.WithAttributes(&SwapDCAttributes{
-			OwnerCondition:  script.PredicateAlwaysTrue(),
-			BillIdentifiers: [][]byte{transferId},
-			DcTransfers:     []*types.TransactionRecord{transferDCRecord},
-			Proofs:          []*types.TxProof{testblock.CreateProof(t, transferDCRecord, signer)},
-			TargetValue:     100,
+			OwnerCondition:   script.PredicateAlwaysTrue(),
+			DcTransfers:      transferDCRecords,
+			DcTransferProofs: proofs,
+			TargetValue:      100,
 		}),
 		testtransaction.WithClientMetadata(&types.ClientMetadata{
 			Timeout:           100,
@@ -888,15 +783,6 @@ func createTransferDCTransactionRecord(t *testing.T, transferID []byte, attr *Tr
 	return transferDCRecord
 }
 
-func calculateSwapID(ids ...*uint256.Int) []byte {
-	hasher := crypto.SHA256.New()
-	for _, id := range ids {
-		bytes32 := id.Bytes32()
-		hasher.Write(bytes32[:])
-	}
-	return hasher.Sum(nil)
-}
-
 func newBillData(v uint64, backlink []byte) *BillData {
 	return &BillData{V: v, Backlink: backlink}
 }
@@ -905,4 +791,69 @@ func newInvalidProof(t *testing.T, signer abcrypto.Signer) *types.TxProof {
 	attr := testfc.NewDefaultReclaimFCAttr(t, signer)
 	attr.CloseFeeCreditProof.BlockHeaderHash = []byte("invalid hash")
 	return attr.CloseFeeCreditProof
+}
+
+type (
+	stateMock struct {
+		units map[string]*state.Unit
+	}
+	swapValidationOption func(c *swapValidationContext)
+)
+
+func withSwapStateUnit(unitID string, unit *state.Unit) swapValidationOption {
+	return func(c *swapValidationContext) {
+		s := c.state.(*stateMock)
+		s.units[unitID] = unit
+		if unit == nil {
+			delete(s.units, unitID)
+		}
+	}
+}
+
+func newSwapValidationContext(t *testing.T, verifier abcrypto.Verifier, tx *types.TransactionOrder, opts ...swapValidationOption) *swapValidationContext {
+	c := defaultSwapValidationContext(t, verifier, tx)
+	for _, opt := range opts {
+		opt(c)
+	}
+	return c
+}
+
+func defaultSwapValidationContext(t *testing.T, verifier abcrypto.Verifier, tx *types.TransactionOrder) *swapValidationContext {
+	trustBase := map[string]abcrypto.Verifier{"test": verifier}
+	attr := &SwapDCAttributes{}
+	require.NoError(t, tx.UnmarshalAttributes(attr))
+
+	unit := state.NewUnit(nil, &BillData{
+		V:        0,
+		T:        0,
+		Backlink: nil,
+	})
+	dcMoneySupplyUnit := state.NewUnit(nil, &BillData{
+		V:        1e8,
+		T:        0,
+		Backlink: nil,
+	})
+	s := &stateMock{units: map[string]*state.Unit{
+		string(tx.UnitID()):                unit,
+		string(dustCollectorMoneySupplyID): dcMoneySupplyUnit,
+	}}
+	return &swapValidationContext{
+		tx:            tx,
+		attr:          attr,
+		state:         s,
+		systemID:      []byte{0, 0, 0, 0},
+		hashAlgorithm: crypto.SHA256,
+		trustBase:     trustBase,
+	}
+}
+
+func (s *stateMock) GetUnit(id types.UnitID, _ bool) (*state.Unit, error) {
+	if s.units == nil {
+		return nil, nil
+	}
+	unit, ok := s.units[string(id)]
+	if !ok {
+		return nil, errors.New("unit does not exist")
+	}
+	return unit, nil
 }

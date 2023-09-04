@@ -7,11 +7,17 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"strconv"
 	"strings"
 	"testing"
 
-	"github.com/alphabill-org/alphabill/pkg/wallet"
+	testtransaction "github.com/alphabill-org/alphabill/internal/testutils/transaction"
+	"github.com/alphabill-org/alphabill/internal/types"
+
+	test "github.com/alphabill-org/alphabill/internal/testutils"
+	sdk "github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/fxamacker/cbor/v2"
 	"github.com/stretchr/testify/require"
 )
 
@@ -27,7 +33,7 @@ func TestGetBalance(t *testing.T) {
 	restClient, err := New(mockAddress.Host)
 	require.NoError(t, err)
 
-	balance, err := restClient.GetBalance(pubKey, true)
+	balance, err := restClient.GetBalance(context.Background(), pubKey, true)
 	require.NoError(t, err)
 	require.EqualValues(t, 15, balance)
 }
@@ -41,10 +47,9 @@ func TestListBills(t *testing.T) {
 	restClient, err := New(mockAddress.Host)
 	require.NoError(t, err)
 
-	billsResponse, err := restClient.ListBills(pubKey, true)
+	billsResponse, err := restClient.ListBills(context.Background(), pubKey, true, "", defaultPagingLimit)
 	require.NoError(t, err)
 	require.Len(t, billsResponse.Bills, 8)
-	require.EqualValues(t, 8, billsResponse.Total)
 	b, _ := base64.StdEncoding.DecodeString(billId)
 	require.EqualValues(t, b, billsResponse.Bills[0].Id)
 }
@@ -58,25 +63,68 @@ func TestListBillsWithPaging(t *testing.T) {
 	restClient, err := New(mockAddress.Host)
 	require.NoError(t, err)
 
-	billsResponse, err := restClient.ListBills(pubKey, true)
+	billsResponse, err := restClient.ListBills(context.Background(), pubKey, true, "", defaultPagingLimit)
 	require.NoError(t, err)
-	require.Len(t, billsResponse.Bills, 13)
-	require.EqualValues(t, 13, billsResponse.Total)
+	require.Len(t, billsResponse.Bills, 5)
 	b, _ := base64.StdEncoding.DecodeString(billId)
 	require.EqualValues(t, b, billsResponse.Bills[0].Id)
 }
 
-func TestGetProof(t *testing.T) {
-	mockServer, mockAddress := mockGetProofCall(t)
+func TestTxHistoryWithPaging(t *testing.T) {
+	limit := 2
+	offset := "foo"
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !strings.HasPrefix(r.URL.Path, "/"+TxHistoryPath) {
+			t.Errorf("Expected to request '%v', got: %s", TxHistoryPath, r.URL.Path)
+			w.WriteHeader(http.StatusBadRequest)
+		} else {
+			require.Equal(t, r.URL.Query().Get(sdk.QueryParamOffsetKey), offset)
+			require.Equal(t, r.URL.Query().Get(sdk.QueryParamLimit), strconv.Itoa(limit))
+			w.WriteHeader(http.StatusOK)
+			w.Header().Set(sdk.ContentType, sdk.ApplicationCbor)
+			res := []*sdk.TxHistoryRecord{
+				{
+					TxHash: test.RandomBytes(32),
+					UnitID: test.RandomBytes(32),
+					Kind:   sdk.INCOMING,
+				},
+				{
+					TxHash: test.RandomBytes(32),
+					UnitID: test.RandomBytes(32),
+					Kind:   sdk.OUTGOING,
+				},
+			}
+			bytes, err := cbor.Marshal(res)
+			require.NoError(t, err)
+			_, _ = w.Write(bytes)
+		}
+	}))
+
+	serverAddress, _ := url.Parse(server.URL)
+
+	defer server.Close()
+
+	pubKey, err := hexutil.Decode(pubKeyHex)
+	require.NoError(t, err)
+	restClient, err := New(serverAddress.Host)
+	require.NoError(t, err)
+
+	historyResponse, offset, err := restClient.GetTxHistory(context.Background(), pubKey, offset, limit)
+	require.NoError(t, err)
+	require.Equal(t, "", offset)
+	require.Len(t, historyResponse, 2)
+}
+
+func TestGetTxProof(t *testing.T) {
+	mockServer, mockAddress := mockGetTxProofCall(t)
 	defer mockServer.Close()
 
 	restClient, _ := New(mockAddress.Host)
-	proofResponse, err := restClient.GetProof([]byte(billId))
+	proofResponse, err := restClient.GetTxProof(context.Background(), []byte{0x00}, []byte{0x01})
 
 	require.NoError(t, err)
-	require.Len(t, proofResponse.Bills, 1)
-	b, _ := base64.StdEncoding.DecodeString(billId)
-	require.EqualValues(t, b, proofResponse.Bills[0].Id)
+	require.NotNil(t, proofResponse)
 }
 
 func TestBlockHeight(t *testing.T) {
@@ -116,7 +164,7 @@ func Test_NewClient(t *testing.T) {
 			if err != nil {
 				t.Errorf("unexpected error for parameter %q: %v", tc.param, err)
 			}
-			if mbc.BaseUrl != tc.url {
+			if mbc.BaseUrl.String() != tc.url {
 				t.Errorf("expected URL for %q to be %q, got %q", tc.param, tc.url, mbc.BaseUrl)
 			}
 		}
@@ -126,11 +174,48 @@ func Test_NewClient(t *testing.T) {
 func TestGetFeeCreditBill(t *testing.T) {
 	serverURL := mockGetFeeCreditBillCall(t)
 	restClient, _ := New(serverURL.Host)
-	response, err := restClient.FetchFeeCreditBill(context.Background(), []byte{})
+	response, err := restClient.GetFeeCreditBill(context.Background(), []byte{})
 	require.NoError(t, err)
 
 	expectedBillID, _ := base64.StdEncoding.DecodeString(billId)
 	require.EqualValues(t, expectedBillID, response.Id)
+}
+
+func TestPostTransactions(t *testing.T) {
+	mockServer, mockAddress := mockPostTransactionsCall(t, http.StatusAccepted, "")
+	defer mockServer.Close()
+
+	pubKey, err := hexutil.Decode(pubKeyHex)
+	require.NoError(t, err)
+	restClient, err := New(mockAddress.Host)
+	require.NoError(t, err)
+
+	txs := &sdk.Transactions{Transactions: []*types.TransactionOrder{
+		testtransaction.NewTransactionOrder(t),
+		testtransaction.NewTransactionOrder(t),
+		testtransaction.NewTransactionOrder(t),
+	}}
+	err = restClient.PostTransactions(context.Background(), pubKey, txs)
+	require.NoError(t, err)
+}
+
+func TestPostTransactionsError(t *testing.T) {
+	errMsg := `{"00000000c4f0a6c28423da2fbe739a0a46ae437ce670eb6ba5fcc3524568d9a1":"transaction has timed out: transaction timeout round is 1905, current round is 1906"}`
+	mockServer, mockAddress := mockPostTransactionsCall(t, http.StatusInternalServerError, errMsg)
+	defer mockServer.Close()
+
+	pubKey, err := hexutil.Decode(pubKeyHex)
+	require.NoError(t, err)
+	restClient, err := New(mockAddress.Host)
+	require.NoError(t, err)
+
+	txs := &sdk.Transactions{Transactions: []*types.TransactionOrder{
+		testtransaction.NewTransactionOrder(t),
+		testtransaction.NewTransactionOrder(t),
+		testtransaction.NewTransactionOrder(t),
+	}}
+	err = restClient.PostTransactions(context.Background(), pubKey, txs)
+	require.ErrorContains(t, err, "failed to send transactions: status 500 Internal Server Error - "+errMsg)
 }
 
 func mockGetBalanceCall(t *testing.T) (*httptest.Server, *url.URL) {
@@ -152,7 +237,7 @@ func mockListBillsCall(t *testing.T) (*httptest.Server, *url.URL) {
 			t.Errorf("Expected to request '%v', got: %s", ListBillsPath, r.URL.Path)
 		}
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`{"total": 8, "bills": [{"id":"` + billId + `","value":"10","txHash":"MHgwMzgwMDNlMjE4ZWVhMzYwY2JmNTgwZWJiOTBjYzhjOGNhZjBjY2VmNGJmNjYwZWE5YWI0ZmMwNmI1YzM2N2IwMzg=","isDcBill":false},{"id":"MHgwMzgwMDNlMjE4ZWVhMzYwY2JmNTgwZWJiOTBjYzhjOGNhZjBjY2VmNGJmNjYwZWE5YWI0ZmMwNmI1YzM2N2IwMzg=","value":"5","txHash":"MHgwMzgwMDNlMjE4ZWVhMzYwY2JmNTgwZWJiOTBjYzhjOGNhZjBjY2VmNGJmNjYwZWE5YWI0ZmMwNmI1YzM2N2IwMzg=","isDCBill":false},{"id":"MHgwMzgwMDNlMjE4ZWVhMzYwY2JmNTgwZWJiOTBjYzhjOGNhZjBjY2VmNGJmNjYwZWE5YWI0ZmMwNmI1YzM2N2IwMzg=","value":"5","txHash":"MHgwMzgwMDNlMjE4ZWVhMzYwY2JmNTgwZWJiOTBjYzhjOGNhZjBjY2VmNGJmNjYwZWE5YWI0ZmMwNmI1YzM2N2IwMzg=","isDCBill":false},{"id":"MHgwMzgwMDNlMjE4ZWVhMzYwY2JmNTgwZWJiOTBjYzhjOGNhZjBjY2VmNGJmNjYwZWE5YWI0ZmMwNmI1YzM2N2IwMzg=","value":"5","txHash":"MHgwMzgwMDNlMjE4ZWVhMzYwY2JmNTgwZWJiOTBjYzhjOGNhZjBjY2VmNGJmNjYwZWE5YWI0ZmMwNmI1YzM2N2IwMzg=","isDCBill":false},{"id":"MHgwMzgwMDNlMjE4ZWVhMzYwY2JmNTgwZWJiOTBjYzhjOGNhZjBjY2VmNGJmNjYwZWE5YWI0ZmMwNmI1YzM2N2IwMzg=","value":"5","txHash":"MHgwMzgwMDNlMjE4ZWVhMzYwY2JmNTgwZWJiOTBjYzhjOGNhZjBjY2VmNGJmNjYwZWE5YWI0ZmMwNmI1YzM2N2IwMzg=","isDCBill":false},{"id":"MHgwMzgwMDNlMjE4ZWVhMzYwY2JmNTgwZWJiOTBjYzhjOGNhZjBjY2VmNGJmNjYwZWE5YWI0ZmMwNmI1YzM2N2IwMzg=","value":"5","txHash":"MHgwMzgwMDNlMjE4ZWVhMzYwY2JmNTgwZWJiOTBjYzhjOGNhZjBjY2VmNGJmNjYwZWE5YWI0ZmMwNmI1YzM2N2IwMzg=","isDCBill":false},{"id":"MHgwMzgwMDNlMjE4ZWVhMzYwY2JmNTgwZWJiOTBjYzhjOGNhZjBjY2VmNGJmNjYwZWE5YWI0ZmMwNmI1YzM2N2IwMzg=","value":"5","txHash":"MHgwMzgwMDNlMjE4ZWVhMzYwY2JmNTgwZWJiOTBjYzhjOGNhZjBjY2VmNGJmNjYwZWE5YWI0ZmMwNmI1YzM2N2IwMzg=","isDCBill":false},{"id":"MHgwMzgwMDNlMjE4ZWVhMzYwY2JmNTgwZWJiOTBjYzhjOGNhZjBjY2VmNGJmNjYwZWE5YWI0ZmMwNmI1YzM2N2IwMzg=","value":"5","txHash":"MHgwMzgwMDNlMjE4ZWVhMzYwY2JmNTgwZWJiOTBjYzhjOGNhZjBjY2VmNGJmNjYwZWE5YWI0ZmMwNmI1YzM2N2IwMzg=","isDcBill":false}]}`))
+		w.Write([]byte(`{"bills": [{"id":"` + billId + `","value":"10","txHash":"MHgwMzgwMDNlMjE4ZWVhMzYwY2JmNTgwZWJiOTBjYzhjOGNhZjBjY2VmNGJmNjYwZWE5YWI0ZmMwNmI1YzM2N2IwMzg=","isDcBill":false},{"id":"MHgwMzgwMDNlMjE4ZWVhMzYwY2JmNTgwZWJiOTBjYzhjOGNhZjBjY2VmNGJmNjYwZWE5YWI0ZmMwNmI1YzM2N2IwMzg=","value":"5","txHash":"MHgwMzgwMDNlMjE4ZWVhMzYwY2JmNTgwZWJiOTBjYzhjOGNhZjBjY2VmNGJmNjYwZWE5YWI0ZmMwNmI1YzM2N2IwMzg=","isDCBill":false},{"id":"MHgwMzgwMDNlMjE4ZWVhMzYwY2JmNTgwZWJiOTBjYzhjOGNhZjBjY2VmNGJmNjYwZWE5YWI0ZmMwNmI1YzM2N2IwMzg=","value":"5","txHash":"MHgwMzgwMDNlMjE4ZWVhMzYwY2JmNTgwZWJiOTBjYzhjOGNhZjBjY2VmNGJmNjYwZWE5YWI0ZmMwNmI1YzM2N2IwMzg=","isDCBill":false},{"id":"MHgwMzgwMDNlMjE4ZWVhMzYwY2JmNTgwZWJiOTBjYzhjOGNhZjBjY2VmNGJmNjYwZWE5YWI0ZmMwNmI1YzM2N2IwMzg=","value":"5","txHash":"MHgwMzgwMDNlMjE4ZWVhMzYwY2JmNTgwZWJiOTBjYzhjOGNhZjBjY2VmNGJmNjYwZWE5YWI0ZmMwNmI1YzM2N2IwMzg=","isDCBill":false},{"id":"MHgwMzgwMDNlMjE4ZWVhMzYwY2JmNTgwZWJiOTBjYzhjOGNhZjBjY2VmNGJmNjYwZWE5YWI0ZmMwNmI1YzM2N2IwMzg=","value":"5","txHash":"MHgwMzgwMDNlMjE4ZWVhMzYwY2JmNTgwZWJiOTBjYzhjOGNhZjBjY2VmNGJmNjYwZWE5YWI0ZmMwNmI1YzM2N2IwMzg=","isDCBill":false},{"id":"MHgwMzgwMDNlMjE4ZWVhMzYwY2JmNTgwZWJiOTBjYzhjOGNhZjBjY2VmNGJmNjYwZWE5YWI0ZmMwNmI1YzM2N2IwMzg=","value":"5","txHash":"MHgwMzgwMDNlMjE4ZWVhMzYwY2JmNTgwZWJiOTBjYzhjOGNhZjBjY2VmNGJmNjYwZWE5YWI0ZmMwNmI1YzM2N2IwMzg=","isDCBill":false},{"id":"MHgwMzgwMDNlMjE4ZWVhMzYwY2JmNTgwZWJiOTBjYzhjOGNhZjBjY2VmNGJmNjYwZWE5YWI0ZmMwNmI1YzM2N2IwMzg=","value":"5","txHash":"MHgwMzgwMDNlMjE4ZWVhMzYwY2JmNTgwZWJiOTBjYzhjOGNhZjBjY2VmNGJmNjYwZWE5YWI0ZmMwNmI1YzM2N2IwMzg=","isDCBill":false},{"id":"MHgwMzgwMDNlMjE4ZWVhMzYwY2JmNTgwZWJiOTBjYzhjOGNhZjBjY2VmNGJmNjYwZWE5YWI0ZmMwNmI1YzM2N2IwMzg=","value":"5","txHash":"MHgwMzgwMDNlMjE4ZWVhMzYwY2JmNTgwZWJiOTBjYzhjOGNhZjBjY2VmNGJmNjYwZWE5YWI0ZmMwNmI1YzM2N2IwMzg=","isDcBill":false}]}`))
 	}))
 
 	serverAddress, _ := url.Parse(server.URL)
@@ -165,12 +250,12 @@ func mockListBillsCallWithPaging(t *testing.T) (*httptest.Server, *url.URL) {
 			t.Errorf("Expected to request '%v', got: %s", ListBillsPath, r.URL.Path)
 		}
 		w.WriteHeader(http.StatusOK)
-		if !r.URL.Query().Has("offset") {
-			w.Write([]byte(`{"total": 13, "bills": [{"id":"` + billId + `","value":"10","txHash":"MHgwMzgwMDNlMjE4ZWVhMzYwY2JmNTgwZWJiOTBjYzhjOGNhZjBjY2VmNGJmNjYwZWE5YWI0ZmMwNmI1YzM2N2IwMzg=","isDCBill":false},{"id":"MHgwMzgwMDNlMjE4ZWVhMzYwY2JmNTgwZWJiOTBjYzhjOGNhZjBjY2VmNGJmNjYwZWE5YWI0ZmMwNmI1YzM2N2IwMzg=","value":"5","txHash":"MHgwMzgwMDNlMjE4ZWVhMzYwY2JmNTgwZWJiOTBjYzhjOGNhZjBjY2VmNGJmNjYwZWE5YWI0ZmMwNmI1YzM2N2IwMzg=","isDCBill":false},{"id":"MHgwMzgwMDNlMjE4ZWVhMzYwY2JmNTgwZWJiOTBjYzhjOGNhZjBjY2VmNGJmNjYwZWE5YWI0ZmMwNmI1YzM2N2IwMzg=","value":"5","txHash":"MHgwMzgwMDNlMjE4ZWVhMzYwY2JmNTgwZWJiOTBjYzhjOGNhZjBjY2VmNGJmNjYwZWE5YWI0ZmMwNmI1YzM2N2IwMzg=","isDCBill":false},{"id":"MHgwMzgwMDNlMjE4ZWVhMzYwY2JmNTgwZWJiOTBjYzhjOGNhZjBjY2VmNGJmNjYwZWE5YWI0ZmMwNmI1YzM2N2IwMzg=","value":"5","txHash":"MHgwMzgwMDNlMjE4ZWVhMzYwY2JmNTgwZWJiOTBjYzhjOGNhZjBjY2VmNGJmNjYwZWE5YWI0ZmMwNmI1YzM2N2IwMzg=","isDCBill":false},{"id":"MHgwMzgwMDNlMjE4ZWVhMzYwY2JmNTgwZWJiOTBjYzhjOGNhZjBjY2VmNGJmNjYwZWE5YWI0ZmMwNmI1YzM2N2IwMzg=","value":"5","txHash":"MHgwMzgwMDNlMjE4ZWVhMzYwY2JmNTgwZWJiOTBjYzhjOGNhZjBjY2VmNGJmNjYwZWE5YWI0ZmMwNmI1YzM2N2IwMzg=","isDCBill":false}]}`))
-		} else if r.URL.Query().Get("offset") == "5" {
-			w.Write([]byte(`{"total": 13, "bills": [{"id":"` + billId + `","value":"10","txHash":"MHgwMzgwMDNlMjE4ZWVhMzYwY2JmNTgwZWJiOTBjYzhjOGNhZjBjY2VmNGJmNjYwZWE5YWI0ZmMwNmI1YzM2N2IwMzg=","isDCBill":false},{"id":"MHgwMzgwMDNlMjE4ZWVhMzYwY2JmNTgwZWJiOTBjYzhjOGNhZjBjY2VmNGJmNjYwZWE5YWI0ZmMwNmI1YzM2N2IwMzg=","value":"5","txHash":"MHgwMzgwMDNlMjE4ZWVhMzYwY2JmNTgwZWJiOTBjYzhjOGNhZjBjY2VmNGJmNjYwZWE5YWI0ZmMwNmI1YzM2N2IwMzg=","isDCBill":false},{"id":"MHgwMzgwMDNlMjE4ZWVhMzYwY2JmNTgwZWJiOTBjYzhjOGNhZjBjY2VmNGJmNjYwZWE5YWI0ZmMwNmI1YzM2N2IwMzg=","value":"5","txHash":"MHgwMzgwMDNlMjE4ZWVhMzYwY2JmNTgwZWJiOTBjYzhjOGNhZjBjY2VmNGJmNjYwZWE5YWI0ZmMwNmI1YzM2N2IwMzg=","isDCBill":false},{"id":"MHgwMzgwMDNlMjE4ZWVhMzYwY2JmNTgwZWJiOTBjYzhjOGNhZjBjY2VmNGJmNjYwZWE5YWI0ZmMwNmI1YzM2N2IwMzg=","value":"5","txHash":"MHgwMzgwMDNlMjE4ZWVhMzYwY2JmNTgwZWJiOTBjYzhjOGNhZjBjY2VmNGJmNjYwZWE5YWI0ZmMwNmI1YzM2N2IwMzg=","isDCBill":false},{"id":"MHgwMzgwMDNlMjE4ZWVhMzYwY2JmNTgwZWJiOTBjYzhjOGNhZjBjY2VmNGJmNjYwZWE5YWI0ZmMwNmI1YzM2N2IwMzg=","value":"5","txHash":"MHgwMzgwMDNlMjE4ZWVhMzYwY2JmNTgwZWJiOTBjYzhjOGNhZjBjY2VmNGJmNjYwZWE5YWI0ZmMwNmI1YzM2N2IwMzg=","isDCBill":false}]}`))
-		} else if r.URL.Query().Get("offset") == "10" {
-			w.Write([]byte(`{"total": 13, "bills": [{"id":"` + billId + `","value":"10","txHash":"MHgwMzgwMDNlMjE4ZWVhMzYwY2JmNTgwZWJiOTBjYzhjOGNhZjBjY2VmNGJmNjYwZWE5YWI0ZmMwNmI1YzM2N2IwMzg=","isDCBill":false},{"id":"MHgwMzgwMDNlMjE4ZWVhMzYwY2JmNTgwZWJiOTBjYzhjOGNhZjBjY2VmNGJmNjYwZWE5YWI0ZmMwNmI1YzM2N2IwMzg=","value":"5","txHash":"MHgwMzgwMDNlMjE4ZWVhMzYwY2JmNTgwZWJiOTBjYzhjOGNhZjBjY2VmNGJmNjYwZWE5YWI0ZmMwNmI1YzM2N2IwMzg=","isDCBill":false},{"id":"MHgwMzgwMDNlMjE4ZWVhMzYwY2JmNTgwZWJiOTBjYzhjOGNhZjBjY2VmNGJmNjYwZWE5YWI0ZmMwNmI1YzM2N2IwMzg=","value":"5","txHash":"MHgwMzgwMDNlMjE4ZWVhMzYwY2JmNTgwZWJiOTBjYzhjOGNhZjBjY2VmNGJmNjYwZWE5YWI0ZmMwNmI1YzM2N2IwMzg=","isDCBill":false}]}`))
+		if !r.URL.Query().Has(sdk.QueryParamOffsetKey) {
+			w.Write([]byte(`{"bills": [{"id":"` + billId + `","value":"10","txHash":"MHgwMzgwMDNlMjE4ZWVhMzYwY2JmNTgwZWJiOTBjYzhjOGNhZjBjY2VmNGJmNjYwZWE5YWI0ZmMwNmI1YzM2N2IwMzg=","isDCBill":false},{"id":"MHgwMzgwMDNlMjE4ZWVhMzYwY2JmNTgwZWJiOTBjYzhjOGNhZjBjY2VmNGJmNjYwZWE5YWI0ZmMwNmI1YzM2N2IwMzg=","value":"5","txHash":"MHgwMzgwMDNlMjE4ZWVhMzYwY2JmNTgwZWJiOTBjYzhjOGNhZjBjY2VmNGJmNjYwZWE5YWI0ZmMwNmI1YzM2N2IwMzg=","isDCBill":false},{"id":"MHgwMzgwMDNlMjE4ZWVhMzYwY2JmNTgwZWJiOTBjYzhjOGNhZjBjY2VmNGJmNjYwZWE5YWI0ZmMwNmI1YzM2N2IwMzg=","value":"5","txHash":"MHgwMzgwMDNlMjE4ZWVhMzYwY2JmNTgwZWJiOTBjYzhjOGNhZjBjY2VmNGJmNjYwZWE5YWI0ZmMwNmI1YzM2N2IwMzg=","isDCBill":false},{"id":"MHgwMzgwMDNlMjE4ZWVhMzYwY2JmNTgwZWJiOTBjYzhjOGNhZjBjY2VmNGJmNjYwZWE5YWI0ZmMwNmI1YzM2N2IwMzg=","value":"5","txHash":"MHgwMzgwMDNlMjE4ZWVhMzYwY2JmNTgwZWJiOTBjYzhjOGNhZjBjY2VmNGJmNjYwZWE5YWI0ZmMwNmI1YzM2N2IwMzg=","isDCBill":false},{"id":"MHgwMzgwMDNlMjE4ZWVhMzYwY2JmNTgwZWJiOTBjYzhjOGNhZjBjY2VmNGJmNjYwZWE5YWI0ZmMwNmI1YzM2N2IwMzg=","value":"5","txHash":"MHgwMzgwMDNlMjE4ZWVhMzYwY2JmNTgwZWJiOTBjYzhjOGNhZjBjY2VmNGJmNjYwZWE5YWI0ZmMwNmI1YzM2N2IwMzg=","isDCBill":false}]}`))
+		} else if r.URL.Query().Get(sdk.QueryParamOffsetKey) == "5" {
+			w.Write([]byte(`{"bills": [{"id":"` + billId + `","value":"10","txHash":"MHgwMzgwMDNlMjE4ZWVhMzYwY2JmNTgwZWJiOTBjYzhjOGNhZjBjY2VmNGJmNjYwZWE5YWI0ZmMwNmI1YzM2N2IwMzg=","isDCBill":false},{"id":"MHgwMzgwMDNlMjE4ZWVhMzYwY2JmNTgwZWJiOTBjYzhjOGNhZjBjY2VmNGJmNjYwZWE5YWI0ZmMwNmI1YzM2N2IwMzg=","value":"5","txHash":"MHgwMzgwMDNlMjE4ZWVhMzYwY2JmNTgwZWJiOTBjYzhjOGNhZjBjY2VmNGJmNjYwZWE5YWI0ZmMwNmI1YzM2N2IwMzg=","isDCBill":false},{"id":"MHgwMzgwMDNlMjE4ZWVhMzYwY2JmNTgwZWJiOTBjYzhjOGNhZjBjY2VmNGJmNjYwZWE5YWI0ZmMwNmI1YzM2N2IwMzg=","value":"5","txHash":"MHgwMzgwMDNlMjE4ZWVhMzYwY2JmNTgwZWJiOTBjYzhjOGNhZjBjY2VmNGJmNjYwZWE5YWI0ZmMwNmI1YzM2N2IwMzg=","isDCBill":false},{"id":"MHgwMzgwMDNlMjE4ZWVhMzYwY2JmNTgwZWJiOTBjYzhjOGNhZjBjY2VmNGJmNjYwZWE5YWI0ZmMwNmI1YzM2N2IwMzg=","value":"5","txHash":"MHgwMzgwMDNlMjE4ZWVhMzYwY2JmNTgwZWJiOTBjYzhjOGNhZjBjY2VmNGJmNjYwZWE5YWI0ZmMwNmI1YzM2N2IwMzg=","isDCBill":false},{"id":"MHgwMzgwMDNlMjE4ZWVhMzYwY2JmNTgwZWJiOTBjYzhjOGNhZjBjY2VmNGJmNjYwZWE5YWI0ZmMwNmI1YzM2N2IwMzg=","value":"5","txHash":"MHgwMzgwMDNlMjE4ZWVhMzYwY2JmNTgwZWJiOTBjYzhjOGNhZjBjY2VmNGJmNjYwZWE5YWI0ZmMwNmI1YzM2N2IwMzg=","isDCBill":false}]}`))
+		} else if r.URL.Query().Get(sdk.QueryParamOffsetKey) == "10" {
+			w.Write([]byte(`{"bills": [{"id":"` + billId + `","value":"10","txHash":"MHgwMzgwMDNlMjE4ZWVhMzYwY2JmNTgwZWJiOTBjYzhjOGNhZjBjY2VmNGJmNjYwZWE5YWI0ZmMwNmI1YzM2N2IwMzg=","isDCBill":false},{"id":"MHgwMzgwMDNlMjE4ZWVhMzYwY2JmNTgwZWJiOTBjYzhjOGNhZjBjY2VmNGJmNjYwZWE5YWI0ZmMwNmI1YzM2N2IwMzg=","value":"5","txHash":"MHgwMzgwMDNlMjE4ZWVhMzYwY2JmNTgwZWJiOTBjYzhjOGNhZjBjY2VmNGJmNjYwZWE5YWI0ZmMwNmI1YzM2N2IwMzg=","isDCBill":false},{"id":"MHgwMzgwMDNlMjE4ZWVhMzYwY2JmNTgwZWJiOTBjYzhjOGNhZjBjY2VmNGJmNjYwZWE5YWI0ZmMwNmI1YzM2N2IwMzg=","value":"5","txHash":"MHgwMzgwMDNlMjE4ZWVhMzYwY2JmNTgwZWJiOTBjYzhjOGNhZjBjY2VmNGJmNjYwZWE5YWI0ZmMwNmI1YzM2N2IwMzg=","isDCBill":false}]}`))
 		}
 	}))
 
@@ -178,13 +263,15 @@ func mockListBillsCallWithPaging(t *testing.T) (*httptest.Server, *url.URL) {
 	return server, serverAddress
 }
 
-func mockGetProofCall(t *testing.T) (*httptest.Server, *url.URL) {
+func mockGetTxProofCall(t *testing.T) (*httptest.Server, *url.URL) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if !strings.HasPrefix(r.URL.Path, "/"+ProofPath) {
-			t.Errorf("Expected to request '%v', got: %s", ProofPath, r.URL.Path)
+		if !strings.HasPrefix(r.URL.Path, "/api/v1/units/") {
+			t.Errorf("Expected to request '%v', got: %s", UnitsPath, r.URL.Path)
 		}
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`{"bills":[{"id":"` + billId + `", "value":"10", "txHash":"MHgwMzgwMDNlMjE4ZWVhMzYwY2JmNTgwZWJiOTBjYzhjOGNhZjBjY2VmNGJmNjYwZWE5YWI0ZmMwNmI1YzM2N2IwMzg=", "isDcBill":false, "txProof":{"blockNumber":1, "tx":{"systemId":"AAAAAA==", "unitId":"Uv38ByGCZU8WP18PmmIdcpVmx00QA3xNe7sEB9Hixkk=", "transactionAttributes":{}, "clientMetadata":{"timeout":10}, "ownerProof":"gYVa"}, "proof":{"proofType":"PRIM", "blockHeaderHash":"AA==", "transactionsHash":"", "hashValue":"", "blockTreeHashChain":{"items":[{"val":"AA==", "hash":"AA=="}]}, "secTreeHashChain":null, "unicityCertificate":null}}}]}`))
+		proof := &sdk.Proof{TxRecord: nil, TxProof: nil}
+		data, _ := cbor.Marshal(proof)
+		w.Write(data)
 	}))
 
 	serverAddress, _ := url.Parse(server.URL)
@@ -207,7 +294,7 @@ func mockGetBlockHeightCall(t *testing.T) (*httptest.Server, *url.URL) {
 func mockGetFeeCreditBillCall(t *testing.T) *url.URL {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if !strings.HasPrefix(r.URL.Path, "/"+FeeCreditPath) {
-			t.Errorf("Expected to request '%v', got: %s", ProofPath, r.URL.Path)
+			t.Errorf("Expected to request '%v', got: %s", UnitsPath, r.URL.Path)
 		}
 		w.WriteHeader(http.StatusOK)
 		w.Write(getFeeCreditBillJsonBytes())
@@ -217,13 +304,25 @@ func mockGetFeeCreditBillCall(t *testing.T) *url.URL {
 	return serverURL
 }
 
+func mockPostTransactionsCall(t *testing.T, statusCode int, responseBody string) (*httptest.Server, *url.URL) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != ("/" + TransactionsPath + "/" + pubKeyHex) {
+			t.Errorf("Expected to request '%v', got: %s", TransactionsPath, r.URL.Path)
+		}
+		w.WriteHeader(statusCode)
+		w.Write([]byte(responseBody))
+	}))
+
+	serverAddress, _ := url.Parse(server.URL)
+	return server, serverAddress
+}
+
 func getFeeCreditBillJsonBytes() []byte {
 	unitID, _ := base64.StdEncoding.DecodeString(billId)
-	res := &wallet.Bill{
-		Id:            unitID,
-		Value:         10,
-		TxHash:        []byte{1},
-		FcBlockNumber: 100,
+	res := &sdk.Bill{
+		Id:     unitID,
+		Value:  10,
+		TxHash: []byte{1},
 	}
 	jsonBytes, _ := json.Marshal(res)
 	return jsonBytes

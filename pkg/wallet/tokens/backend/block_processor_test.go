@@ -15,11 +15,9 @@ import (
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	testfc "github.com/alphabill-org/alphabill/internal/txsystem/fc/testutils"
 	"github.com/alphabill-org/alphabill/internal/txsystem/tokens"
-	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/alphabill-org/alphabill/pkg/wallet/broker"
 	"github.com/alphabill-org/alphabill/pkg/wallet/log"
-	"github.com/holiman/uint256"
 )
 
 func Test_blockProcessor_ProcessBlock(t *testing.T) {
@@ -88,7 +86,7 @@ func Test_blockProcessor_ProcessBlock(t *testing.T) {
 	})
 
 	t.Run("failure to process tx", func(t *testing.T) {
-		txs, err := tokens.New(
+		txs, err := tokens.NewTxSystem(
 			tokens.WithTrustBase(map[string]abcrypto.Verifier{"test": nil}),
 		)
 		require.NoError(t, err)
@@ -137,7 +135,7 @@ func Test_blockProcessor_processTx(t *testing.T) {
 
 	logger, err := log.New(log.DEBUG, io.Discard)
 	require.NoError(t, err)
-	txs, err := tokens.New(
+	txs, err := tokens.NewTxSystem(
 		tokens.WithTrustBase(map[string]abcrypto.Verifier{"test": nil}),
 	)
 	require.NoError(t, err)
@@ -451,18 +449,20 @@ func Test_blockProcessor_ProcessFeeCreditTxs(t *testing.T) {
 	// then fee credit bill is saved
 	fcb, err := bp.store.GetFeeCreditBill(addFC.UnitID())
 	require.NoError(t, err)
-	require.Equal(t, uint256.NewInt(1), uint256.NewInt(0).SetBytes(fcb.Id))
+	require.EqualValues(t, addFC.UnitID(), fcb.Id)
 	require.EqualValues(t, 49, fcb.GetValue())
-	require.EqualValues(t, 4, fcb.FCBlockNumber)
-	require.Equal(t, addFC.Hash(crypto.SHA256), fcb.TxHash)
+	expectedAddFCHash := addFC.Hash(crypto.SHA256)
+	require.Equal(t, expectedAddFCHash, fcb.TxHash)
+	require.Equal(t, expectedAddFCHash, fcb.LastAddFCTxHash)
 
 	// when closeFC tx is processed
 	closeFC := testfc.NewCloseFC(t,
 		testfc.NewCloseFCAttr(testfc.WithCloseFCAmount(10)),
 	)
+	closeFCTxRecord := &types.TransactionRecord{TransactionOrder: closeFC, ServerMetadata: &types.ServerMetadata{ActualFee: 1}}
 	b = &types.Block{
 		UnicityCertificate: &types.UnicityCertificate{InputRecord: &types.InputRecord{RoundNumber: 5}},
-		Transactions:       []*types.TransactionRecord{{TransactionOrder: closeFC, ServerMetadata: &types.ServerMetadata{ActualFee: 1}}},
+		Transactions:       []*types.TransactionRecord{closeFCTxRecord},
 	}
 	err = bp.ProcessBlock(context.Background(), b)
 	require.NoError(t, err)
@@ -470,10 +470,15 @@ func Test_blockProcessor_ProcessFeeCreditTxs(t *testing.T) {
 	// then fee credit bill value is reduced
 	fcb, err = bp.store.GetFeeCreditBill(closeFC.UnitID())
 	require.NoError(t, err)
-	require.Equal(t, uint256.NewInt(1), uint256.NewInt(0).SetBytes(fcb.Id))
+	require.EqualValues(t, closeFC.UnitID(), fcb.Id)
 	require.EqualValues(t, 39, fcb.GetValue())
-	require.EqualValues(t, 5, fcb.FCBlockNumber)
 	require.Equal(t, closeFC.Hash(crypto.SHA256), fcb.TxHash)
+	require.Equal(t, expectedAddFCHash, fcb.LastAddFCTxHash)
+
+	// and closeFC tx is recorded
+	actualCloseFCTxRecord, err := bp.store.GetClosedFeeCredit(fcb.Id)
+	require.NoError(t, err)
+	require.Equal(t, closeFCTxRecord, actualCloseFCTxRecord)
 }
 
 func createBlockProcessor(t *testing.T) *blockProcessor {
@@ -483,24 +488,24 @@ func createBlockProcessor(t *testing.T) *blockProcessor {
 	logger, err := log.New(log.DEBUG, io.Discard)
 	require.NoError(t, err)
 
-	txSystem, err := tokens.New(tokens.WithTrustBase(map[string]abcrypto.Verifier{"test": nil}))
+	txSystem, err := tokens.NewTxSystem(tokens.WithTrustBase(map[string]abcrypto.Verifier{"test": nil}))
 	require.NoError(t, err)
 
 	return &blockProcessor{log: logger, txs: txSystem, store: db}
 }
 
-func getFeeCreditBillFunc(unitID wallet.UnitID) (*FeeCreditBill, error) {
+func getFeeCreditBillFunc(unitID types.UnitID) (*FeeCreditBill, error) {
 	return &FeeCreditBill{
-		Id:            unitID,
-		Value:         50,
-		TxHash:        []byte{1},
-		FCBlockNumber: 3,
+		Id:              unitID,
+		Value:           50,
+		TxHash:          []byte{1},
+		LastAddFCTxHash: []byte{2},
 	}, nil
 }
 
 func verifySetFeeCreditBill(t *testing.T, fcb *FeeCreditBill) error {
 	// verify fee credit bill value is reduced by 1 on every tx
-	require.EqualValues(t, util.Uint256ToBytes(uint256.NewInt(1)), fcb.Id)
+	require.EqualValues(t, tokens.NewFeeCreditRecordID(nil, []byte{1}), fcb.Id)
 	require.EqualValues(t, 49, fcb.Value)
 	return nil
 }

@@ -1,12 +1,12 @@
 package tokens
 
 import (
+	"crypto"
 	"fmt"
 
-	"github.com/alphabill-org/alphabill/internal/rma"
 	"github.com/alphabill-org/alphabill/internal/script"
+	"github.com/alphabill-org/alphabill/internal/state"
 	"github.com/alphabill-org/alphabill/internal/types"
-	"github.com/holiman/uint256"
 )
 
 type (
@@ -32,7 +32,7 @@ type (
 	}
 )
 
-func verifyPredicates(predicates []Predicate, signatures [][]byte, sigData []byte) error {
+func verifyPredicates(predicates []state.Predicate, signatures [][]byte, sigData []byte) error {
 	if len(predicates) != 0 {
 		if len(predicates) != len(signatures) {
 			return fmt.Errorf("number of signatures (%v) not equal to number of parent predicates (%v)", len(signatures), len(predicates))
@@ -47,15 +47,15 @@ func verifyPredicates(predicates []Predicate, signatures [][]byte, sigData []byt
 	return nil
 }
 
-func getChainedPredicates[T rma.UnitData](state *rma.Tree, unitID *uint256.Int, predicateFn func(d T) []byte, parentIDFn func(d T) *uint256.Int) ([]Predicate, error) {
-	predicates := make([]Predicate, 0)
+func getChainedPredicates[T state.UnitData](hashAlgorithm crypto.Hash, s *state.State, unitID types.UnitID, predicateFn func(d T) []byte, parentIDFn func(d T) types.UnitID) ([]state.Predicate, error) {
+	predicates := make([]state.Predicate, 0)
 	var parentID = unitID
 	for {
-		if parentID.IsZero() {
+		if parentID.IsZero(UnitPartLength) {
 			// type has no parent.
 			break
 		}
-		_, parentData, err := getUnit[T](state, parentID)
+		_, parentData, err := getUnit[T](s, parentID)
 		if err != nil {
 			return nil, err
 		}
@@ -67,20 +67,20 @@ func getChainedPredicates[T rma.UnitData](state *rma.Tree, unitID *uint256.Int, 
 	return predicates, nil
 }
 
-func getUnit[T rma.UnitData](state *rma.Tree, unitID *uint256.Int) (*rma.Unit, T, error) {
-	u, err := state.GetUnit(unitID)
+func getUnit[T state.UnitData](s *state.State, unitID types.UnitID) (*state.Unit, T, error) {
+	u, err := s.GetUnit(unitID, false)
 	if err != nil {
 		return nil, *new(T), err
 	}
-	d, ok := u.Data.(T)
+	d, ok := u.Data().(T)
 	if !ok {
 		return nil, *new(T), fmt.Errorf("unit %v data is not of type %T", unitID, *new(T))
 	}
 	return u, d, nil
 }
 
-func verifyOwnership(bearer Predicate, invariants []Predicate, prover TokenOwnershipProver) error {
-	predicates := append([]Predicate{bearer}, invariants...)
+func verifyOwnership(bearer state.Predicate, invariants []state.Predicate, prover TokenOwnershipProver) error {
+	predicates := append([]state.Predicate{bearer}, invariants...)
 	proofs := append([][]byte{prover.OwnerProof()}, prover.InvariantPredicateSignatures()...)
 	sigBytes, err := prover.SigBytes()
 	if err != nil {

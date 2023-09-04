@@ -4,10 +4,10 @@ import (
 	"crypto"
 	"testing"
 
-	"github.com/alphabill-org/alphabill/internal/rma"
+	"github.com/alphabill-org/alphabill/internal/state"
+	test "github.com/alphabill-org/alphabill/internal/testutils"
 	testtransaction "github.com/alphabill-org/alphabill/internal/testutils/transaction"
 	"github.com/alphabill-org/alphabill/internal/types"
-	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
 )
 
@@ -15,7 +15,7 @@ var systemID = []byte{0, 0, 0, 3}
 
 func Test_handleSCallTx(t *testing.T) {
 	type args struct {
-		state    *rma.Tree
+		state    *state.State
 		programs BuiltInPrograms
 		tx       *types.TransactionOrder
 		attr     *SCallAttributes
@@ -28,10 +28,10 @@ func Test_handleSCallTx(t *testing.T) {
 		{
 			name: "owner proof present",
 			args: args{
-				state: rma.NewWithSHA256(),
-				tx:    newSCallTxOrder(t, testtransaction.WithOwnerProof(testtransaction.RandomBytes(64)), testtransaction.WithPayloadType("scall")),
+				state: state.NewEmptyState(),
+				tx:    newSCallTxOrder(t, testtransaction.WithOwnerProof(test.RandomBytes(64)), testtransaction.WithPayloadType("scall")),
 				attr: &SCallAttributes{
-					Input: testtransaction.RandomBytes(123),
+					Input: test.RandomBytes(123),
 				},
 			},
 			wantErrStr: "owner proof present",
@@ -39,10 +39,10 @@ func Test_handleSCallTx(t *testing.T) {
 		{
 			name: "program not found",
 			args: args{
-				state: rma.NewWithSHA256(),
-				tx:    newSCallTxOrder(t, testtransaction.WithUnitId(make([]byte, 32)), testtransaction.WithOwnerProof(nil), testtransaction.WithPayloadType("scall")),
+				state: state.NewEmptyState(),
+				tx:    newSCallTxOrder(t, testtransaction.WithUnitId(make([]byte, 33)), testtransaction.WithOwnerProof(nil), testtransaction.WithPayloadType("scall")),
 				attr: &SCallAttributes{
-					Input: testtransaction.RandomBytes(123),
+					Input: test.RandomBytes(123),
 				},
 			},
 			wantErrStr: "failed to load program",
@@ -51,9 +51,9 @@ func Test_handleSCallTx(t *testing.T) {
 			name: "build-in program not found",
 			args: args{
 				state: initStateWithBuiltInPrograms(t),
-				tx:    newSCallTxOrder(t, testtransaction.WithUnitId(uint256.NewInt(0).PaddedBytes(32)), testtransaction.WithOwnerProof(nil), testtransaction.WithPayloadType("scall")),
+				tx:    newSCallTxOrder(t, testtransaction.WithUnitId(make([]byte, 33)), testtransaction.WithOwnerProof(nil), testtransaction.WithPayloadType("scall")),
 				attr: &SCallAttributes{
-					Input: testtransaction.RandomBytes(123),
+					Input: test.RandomBytes(123),
 				},
 			},
 			wantErrStr: "failed to load program",

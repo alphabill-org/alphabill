@@ -1,17 +1,16 @@
 package tokens
 
 import (
+	"crypto"
 	"errors"
 	"fmt"
 
-	"github.com/alphabill-org/alphabill/internal/rma"
 	"github.com/alphabill-org/alphabill/internal/script"
+	"github.com/alphabill-org/alphabill/internal/state"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
-	"github.com/alphabill-org/alphabill/internal/txsystem/fc"
 	"github.com/alphabill-org/alphabill/internal/types"
-	"github.com/alphabill-org/alphabill/internal/util"
+	"github.com/alphabill-org/alphabill/pkg/tree/avl"
 	"github.com/fxamacker/cbor/v2"
-	"github.com/holiman/uint256"
 )
 
 var ErrStrUnitIDIsZero = "unit ID cannot be zero"
@@ -19,30 +18,26 @@ var ErrStrUnitIDIsZero = "unit ID cannot be zero"
 func handleCreateFungibleTokenTypeTx(options *Options) txsystem.GenericExecuteFunc[CreateFungibleTokenTypeAttributes] {
 	return func(tx *types.TransactionOrder, attr *CreateFungibleTokenTypeAttributes, currentBlockNr uint64) (*types.ServerMetadata, error) {
 		logger.Debug("Processing Create Fungible Token Type tx: %v", tx)
-		if err := validateCreateFungibleTokenType(tx, attr, options.state); err != nil {
+		if err := validateCreateFungibleTokenType(tx, attr, options.state, options.hashAlgorithm); err != nil {
 			return nil, fmt.Errorf("invalid create fungible token tx: %w", err)
 		}
 		fee := options.feeCalculator()
 
-		// TODO calculate hash after setting server metadata
-		h := tx.Hash(options.hashAlgorithm)
-
+		unitID := tx.UnitID()
 		// update state
-		fcrID := util.BytesToUint256(tx.GetClientFeeCreditRecordID())
-		unitID := util.BytesToUint256(tx.UnitID())
-		if err := options.state.AtomicUpdate(
-			fc.DecrCredit(fcrID, fee, h),
-			rma.AddItem(unitID, script.PredicateAlwaysTrue(), newFungibleTokenTypeData(attr), h),
+		if err := options.state.Apply(
+			state.AddUnit(unitID, script.PredicateAlwaysTrue(), newFungibleTokenTypeData(attr)),
 		); err != nil {
 			return nil, err
 		}
-		return &types.ServerMetadata{ActualFee: fee}, nil
+
+		return &types.ServerMetadata{ActualFee: fee, TargetUnits: []types.UnitID{unitID}, SuccessIndicator: types.TxStatusSuccessful}, nil
 	}
 }
 
-func validateCreateFungibleTokenType(tx *types.TransactionOrder, attr *CreateFungibleTokenTypeAttributes, state *rma.Tree) error {
-	unitID := util.BytesToUint256(tx.UnitID())
-	if unitID.IsZero() {
+func validateCreateFungibleTokenType(tx *types.TransactionOrder, attr *CreateFungibleTokenTypeAttributes, s *state.State, hashAlgorithm crypto.Hash) error {
+	unitID := types.UnitID(tx.UnitID())
+	if unitID.IsZero(UnitPartLength) {
 		return errors.New(ErrStrUnitIDIsZero)
 	}
 	if len(attr.Symbol) > maxSymbolLength {
@@ -65,17 +60,17 @@ func validateCreateFungibleTokenType(tx *types.TransactionOrder, attr *CreateFun
 		return fmt.Errorf("invalid decimal places. maximum allowed value %v, got %v", maxDecimalPlaces, decimalPlaces)
 	}
 
-	u, err := state.GetUnit(unitID)
+	u, err := s.GetUnit(unitID, false)
 	if u != nil {
 		return fmt.Errorf("unit %v exists", unitID)
 	}
-	if !errors.Is(err, rma.ErrUnitNotFound) {
+	if !errors.Is(err, avl.ErrNotFound) {
 		return err
 	}
 
-	parentUnitID := util.BytesToUint256(attr.ParentTypeID)
-	if !parentUnitID.IsZero() {
-		_, parentData, err := getUnit[*fungibleTokenTypeData](state, parentUnitID)
+	parentUnitID := types.UnitID(attr.ParentTypeID)
+	if !parentUnitID.IsZero(UnitPartLength) {
+		_, parentData, err := getUnit[*fungibleTokenTypeData](s, parentUnitID)
 		if err != nil {
 			return err
 		}
@@ -84,12 +79,13 @@ func validateCreateFungibleTokenType(tx *types.TransactionOrder, attr *CreateFun
 		}
 	}
 	predicates, err := getChainedPredicates[*fungibleTokenTypeData](
-		state,
-		util.BytesToUint256(attr.ParentTypeID),
+		hashAlgorithm,
+		s,
+		attr.ParentTypeID,
 		func(d *fungibleTokenTypeData) []byte {
 			return d.subTypeCreationPredicate
 		},
-		func(d *fungibleTokenTypeData) *uint256.Int {
+		func(d *fungibleTokenTypeData) types.UnitID {
 			return d.parentTypeId
 		},
 	)

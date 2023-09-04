@@ -52,7 +52,7 @@ EOT
 
 # generates genesis files
 # expects two arguments
-# $1 alphabill partition type ('money', 'vd', 'tokens') or root as string
+# $1 alphabill partition type ('money', 'tokens') or root as string
 # $2 nof genesis files to generate
 # $3 custom cli args
 function generate_partition_node_genesis() {
@@ -62,10 +62,6 @@ case $1 in
   money)
     cmd="money-genesis"
     home="testab/money"
-    ;;
-  vd)
-    cmd="vd-genesis"
-    home="testab/vd"
     ;;
   tokens)
     cmd="tokens-genesis"
@@ -92,11 +88,11 @@ done
 # $1 nof root nodes
 function generate_root_genesis() {
   # this function assumes a directory structure with indexed home such as
-  # testab/money1/money, testab/money2/money, ..., testab/vd1/vd, testab/vd2/vd,...
+  # testab/money1/money, testab/money2/money, ...,
   # it scans all partition node genesis files from the directories and uses them to create root genesis
   # build partition node genesis files argument list '-p' for root genesis
   local node_genesis_files=""
-  for file in testab/money*/money/node-genesis.json testab/vd*/vd/node-genesis.json testab/tokens*/tokens/node-genesis.json testab/evm*/evm/node-genesis.json
+  for file in testab/money*/money/node-genesis.json testab/tokens*/tokens/node-genesis.json testab/evm*/evm/node-genesis.json
   do
     if [[ ! -f $file ]]; then
       continue
@@ -142,14 +138,6 @@ local restPort=0
       grpcPort=26766
       restPort=26866
       ;;
-    vd)
-      home="testab/vd"
-      key_files="testab/vd*/vd/keys.json"
-      genesis_file="testab/rootchain1/rootchain/partition-genesis-1.json"
-      aPort=27666
-      grpcPort=27766
-      restPort=27866
-      ;;
     tokens)
       home="testab/tokens"
       key_files="testab/tokens*/tokens/keys.json"
@@ -176,7 +164,7 @@ local restPort=0
   i=1
   for keyf in $key_files
   do
-    build/alphabill "$1" --home ${home}$i -f ${home}$i/"$1"/blocks.db -k $keyf -r "/ip4/127.0.0.1/tcp/26662" -a "/ip4/127.0.0.1/tcp/$aPort" --server-address ":$grpcPort" --rest-server-address "localhost:$restPort" -g $genesis_file  >> ${home}$i/"$1"/"$1".log &
+    build/alphabill "$1" --home ${home}$i -f ${home}$i/"$1"/blocks.db -k $keyf -r "/ip4/127.0.0.1/tcp/26662" -a "/ip4/127.0.0.1/tcp/$aPort" --server-address "localhost:$grpcPort" --rest-server-address "localhost:$restPort" -g $genesis_file  >> ${home}$i/"$1"/"$1".log &
     ((i=i+1))
     ((aPort=aPort+1))
     ((grpcPort=grpcPort+1))
@@ -192,7 +180,7 @@ function start_backend() {
 
     case $1 in
       money)
-        home="testab/backend/money/"
+        home="testab/backend/money"
         cmd="money-backend"
         grpcPort=26766
         sPort=9654
@@ -203,13 +191,10 @@ function start_backend() {
         if test -f "testab/tokens-sdr.json"; then
             sdrFiles+=" -c testab/tokens-sdr.json"
         fi
-        if test -f "testab/vd-sdr.json"; then
-            sdrFiles+=" -c testab/vd-sdr.json"
-        fi
         customArgs=$sdrFiles
         ;;
       tokens)
-        home="testab/backend/vd/"
+        home="testab/backend/tokens"
         cmd="tokens-backend"
         grpcPort=28766
         sPort=9735

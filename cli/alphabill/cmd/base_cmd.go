@@ -40,13 +40,10 @@ func (a *alphabillApp) Execute(ctx context.Context) error {
 func (a *alphabillApp) addAndExecuteCommand(ctx context.Context) error {
 	a.baseCmd.AddCommand(newMoneyNodeCmd(a.baseConfig, convertOptsToRunnable(a.opts)))
 	a.baseCmd.AddCommand(newMoneyGenesisCmd(a.baseConfig))
-	a.baseCmd.AddCommand(newVDNodeCmd(a.baseConfig))
-	a.baseCmd.AddCommand(newVDGenesisCmd(a.baseConfig))
 	a.baseCmd.AddCommand(newWalletCmd(a.baseConfig))
 	a.baseCmd.AddCommand(newRootGenesisCmd(a.baseConfig))
 	a.baseCmd.AddCommand(newRootNodeCmd(a.baseConfig))
 	a.baseCmd.AddCommand(newNodeIdentifierCmd())
-	a.baseCmd.AddCommand(newVDClientCmd(a.baseConfig))
 	a.baseCmd.AddCommand(newTokensNodeCmd(a.baseConfig))
 	a.baseCmd.AddCommand(newUserTokenGenesisCmd(a.baseConfig))
 	a.baseCmd.AddCommand(newMoneyBackendCmd(a.baseConfig))

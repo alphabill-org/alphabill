@@ -11,7 +11,6 @@ import (
 	"github.com/alphabill-org/alphabill/internal/txsystem/money"
 	"github.com/alphabill-org/alphabill/pkg/logger"
 	"github.com/fxamacker/cbor/v2"
-	"github.com/holiman/uint256"
 	"github.com/spf13/cobra"
 )
 
@@ -73,7 +72,7 @@ func runMoneyNode(ctx context.Context, cfg *moneyNodeConfiguration) error {
 	}
 
 	ib := &money.InitialBill{
-		ID:    uint256.NewInt(defaultInitialBillId),
+		ID:    defaultInitialBillID,
 		Value: params.InitialBillValue,
 		Owner: script.PredicateAlwaysTrue(),
 	}
@@ -82,8 +81,8 @@ func runMoneyNode(ctx context.Context, cfg *moneyNodeConfiguration) error {
 		return fmt.Errorf("failed to create trust base validator: %w", err)
 	}
 
-	txs, err := money.NewMoneyTxSystem(
-		pg.SystemDescriptionRecord.SystemIdentifier,
+	txs, err := money.NewTxSystem(
+	        money.WithSystemIdentifier(pg.SystemDescriptionRecord.SystemIdentifier),
 		money.WithHashAlgorithm(crypto.SHA256),
 		money.WithInitialBill(ib),
 		money.WithSystemDescriptionRecords(params.SystemDescriptionRecords),

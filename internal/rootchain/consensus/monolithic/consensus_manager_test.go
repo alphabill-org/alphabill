@@ -226,14 +226,17 @@ func TestConsensusManager_PartitionTimeout(t *testing.T) {
 
 	// make sure that 3 partition nodes where generated, needed for the next steps
 	require.Len(t, partitionNodes, 3)
+	cert, err := cm.GetLatestUnicityCertificate(protocol.SystemIdentifier(partitionID))
+	require.NoError(t, err)
+	require.NotNil(t, cert)
+	require.Equal(t, cert.InputRecord.Bytes(), partitionInputRecord.Bytes())
 	// require, that repeat UC certificates are received for partition ID in 3 root rounds (partition timeout 2500 < 4 * block rate (900))
 	result, err := readResult(cm.CertificationResult(), 4*cm.params.BlockRateMs)
 	require.NoError(t, err)
-	require.Equal(t, uint64(2), result.InputRecord.RoundNumber)
-	require.Equal(t, []byte{0, 0, 0, 0}, result.InputRecord.BlockHash)
-	require.Equal(t, result.InputRecord.Hash, result.InputRecord.PreviousHash)
-	require.Equal(t, partitionInputRecord.Hash, result.InputRecord.Hash)
+	require.Equal(t, cert.InputRecord.Bytes(), result.InputRecord.Bytes())
 	require.NotNil(t, result.UnicitySeal.Hash)
+	// ensure repeat UC is created in a different rc round
+	require.GreaterOrEqual(t, result.UnicitySeal.RootChainRoundNumber, cert.UnicitySeal.RootChainRoundNumber)
 	trustBase := map[string]crypto.Verifier{rootNode.Peer.ID().String(): rootNode.Verifier}
 	sdrh := rg.Partitions[0].GetSystemDescriptionRecord().Hash(gocrypto.SHA256)
 	require.NoError(t, result.IsValid(trustBase, gocrypto.SHA256, partitionID, sdrh))

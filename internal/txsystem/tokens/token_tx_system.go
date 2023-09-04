@@ -4,20 +4,19 @@ import (
 	"fmt"
 
 	"github.com/alphabill-org/alphabill/internal/errors"
-	"github.com/alphabill-org/alphabill/internal/rma"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/internal/txsystem/fc"
 )
 
 const (
-	zeroSummaryValue  = rma.Uint64SummaryValue(0)
-	uriMaxSize        = 4 * 1024
-	dataMaxSize       = 64 * 1024
-	maxSymbolLength   = 16
-	maxNameLength     = 256
-	maxIconTypeLength = 64
-	maxIconDataLength = 64 * 1024
-	maxDecimalPlaces  = 8
+	zeroSummaryValue  uint64 = 0
+	uriMaxSize               = 4 * 1024
+	dataMaxSize              = 64 * 1024
+	maxSymbolLength          = 16
+	maxNameLength            = 256
+	maxIconTypeLength        = 64
+	maxIconDataLength        = 64 * 1024
+	maxDecimalPlaces         = 8
 
 	ErrStrSystemIdentifierIsNil = "system identifier is nil"
 	ErrStrStateIsNil            = "state is nil"
@@ -27,7 +26,7 @@ const (
 	ErrStrInvalidIconDataLength = "icon data length exceeds the allowed maximum of 64 KiB"
 )
 
-func New(opts ...Option) (*txsystem.GenericTxSystem, error) {
+func NewTxSystem(opts ...Option) (*txsystem.GenericTxSystem, error) {
 	options, err := defaultOptions()
 	if err != nil {
 		return nil, err

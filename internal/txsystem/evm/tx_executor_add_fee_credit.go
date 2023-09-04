@@ -4,12 +4,13 @@ import (
 	"crypto"
 	"fmt"
 
-	"github.com/alphabill-org/alphabill/internal/rma"
 	"github.com/alphabill-org/alphabill/internal/script"
+	"github.com/alphabill-org/alphabill/internal/state"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/internal/txsystem/evm/statedb"
 	"github.com/alphabill-org/alphabill/internal/txsystem/fc"
 	"github.com/alphabill-org/alphabill/internal/txsystem/fc/transactions"
+	"github.com/alphabill-org/alphabill/internal/txsystem/fc/unit"
 	"github.com/alphabill-org/alphabill/internal/types"
 )
 
@@ -24,10 +25,10 @@ func getTransferPayloadAttributes(transfer *types.TransactionRecord) (*transacti
 	return transferPayload, nil
 }
 
-func addFeeCreditTx(tree *rma.Tree, hashAlgorithm crypto.Hash, calcFee FeeCalculator, validator *fc.DefaultFeeCreditTxValidator) txsystem.GenericExecuteFunc[transactions.AddFeeCreditAttributes] {
+func addFeeCreditTx(s *state.State, hashAlgorithm crypto.Hash, calcFee FeeCalculator, validator *fc.DefaultFeeCreditTxValidator) txsystem.GenericExecuteFunc[transactions.AddFeeCreditAttributes] {
 	return func(tx *types.TransactionOrder, attr *transactions.AddFeeCreditAttributes, currentBlockNumber uint64) (*types.ServerMetadata, error) {
 		log.Debug("Processing addFC %v", tx)
-		stateDB := statedb.NewStateDB(tree)
+		stateDB := statedb.NewStateDB(s)
 		pubKey, err := script.ExtractPubKeyFromPredicateArgument(tx.OwnerProof)
 		if err != nil {
 			return nil, fmt.Errorf("failed to extract public key from fee credit owner proof")
@@ -38,21 +39,20 @@ func addFeeCreditTx(tree *rma.Tree, hashAlgorithm crypto.Hash, calcFee FeeCalcul
 		}
 		feeData := stateDB.GetAlphaBillData(addr)
 		// hack to be able to use a common validator for now
-		var unit *rma.Unit = nil
+		var u *state.Unit = nil
 		if feeData != nil {
-			data := &fc.FeeCreditRecord{
+			data := &unit.FeeCreditRecord{
 				Balance: weiToAlpha(stateDB.GetBalance(addr)),
 				Hash:    feeData.TxHash,
 				Timeout: feeData.Timeout,
 			}
-			unit = &rma.Unit{
-				Bearer: feeData.Bearer,
-				Data:   data,
-			}
+			u = state.NewUnit(
+				feeData.Bearer,
+				data)
 		}
 		if err = validator.ValidateAddFeeCredit(&fc.AddFCValidationContext{
 			Tx:                 tx,
-			Unit:               unit,
+			Unit:               u,
 			CurrentRoundNumber: currentBlockNumber,
 		}); err != nil {
 			return nil, fmt.Errorf("addFC tx validation failed: %w", err)
@@ -74,6 +74,6 @@ func addFeeCreditTx(tree *rma.Tree, hashAlgorithm crypto.Hash, calcFee FeeCalcul
 			TxHash:  tx.Hash(hashAlgorithm),
 			Timeout: transferFc.LatestAdditionTime + 1,
 		})
-		return &types.ServerMetadata{ActualFee: fee}, nil
+		return &types.ServerMetadata{ActualFee: fee, TargetUnits: []types.UnitID{addr.Bytes()}, SuccessIndicator: types.TxStatusSuccessful}, nil
 	}
 }

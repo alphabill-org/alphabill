@@ -8,9 +8,9 @@ import (
 
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/internal/script"
+	"github.com/alphabill-org/alphabill/internal/txsystem/money"
 	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/alphabill-org/alphabill/pkg/wallet/money/backend"
-	"github.com/holiman/uint256"
 	"github.com/spf13/cobra"
 )
 
@@ -113,13 +113,13 @@ func execMoneyBackendStartCmd(ctx context.Context, config *moneyBackendConfig) e
 		return err
 	}
 	return backend.Run(ctx, &backend.Config{
-		ABMoneySystemIdentifier: defaultABMoneySystemIdentifier,
+		ABMoneySystemIdentifier: money.DefaultSystemIdentifier,
 		AlphabillUrl:            config.AlphabillUrl,
 		ServerAddr:              config.ServerAddr,
 		DbFile:                  dbFile,
 		ListBillsPageLimit:      config.ListBillsPageLimit,
 		InitialBill: backend.InitialBill{
-			Id:        util.Uint256ToBytes(uint256.NewInt(config.InitialBillID)),
+			Id:        money.NewBillID(nil, util.Uint64ToBytes(config.InitialBillID)),
 			Value:     config.InitialBillValue,
 			Predicate: script.PredicateAlwaysTrue(),
 		},

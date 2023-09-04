@@ -17,13 +17,23 @@ import (
 	"github.com/alphabill-org/alphabill/internal/rpc/alphabill"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/alphabill-org/alphabill/internal/txsystem/evm"
+	"github.com/alphabill-org/alphabill/internal/txsystem/evm/statedb"
 	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/pkg/wallet"
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/fxamacker/cbor/v2"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/protobuf/types/known/emptypb"
 )
+
+type ProcessingDetails struct {
+	_            struct{} `cbor:",toarray"`
+	ErrorDetails string
+	ReturnData   []byte
+	ContractAddr common.Address
+	Logs         []*statedb.LogEntry
+}
 
 /*
 ./setup-testab.sh -e 3 && ./start.sh -p evm -r
@@ -142,12 +152,36 @@ func main() {
 	if err != nil {
 		log.Fatalf("failed to confirm evm transaction %v", err)
 	} else {
-		result := fmt.Sprintf("evm transaction success, gas used %v", proof.TxRecord.ServerMetadata.ActualFee)
-		if proof.TxRecord.ServerMetadata.Result != nil {
-			result = fmt.Sprintf("%s, result %X", result, proof.TxRecord.ServerMetadata.Result)
+		log.Printf("evm transaction was executed, status: %v", getStatusFromMetadata(proof.TxRecord.ServerMetadata.SuccessIndicator))
+		log.Printf("fee: %v", proof.TxRecord.ServerMetadata.ActualFee)
+		if proof.TxRecord.ServerMetadata.ProcessingDetails != nil {
+			var details ProcessingDetails
+			if err = cbor.Unmarshal(proof.TxRecord.ServerMetadata.ProcessingDetails, &details); err != nil {
+				log.Fatal("evm processing result de-serialization failed: %w", err)
+			}
+			if proof.TxRecord.ServerMetadata.SuccessIndicator == types.TxStatusFailed {
+				log.Printf("error details: %v", details.ErrorDetails)
+				return
+			}
+			noContract := common.Address{} // content if no contract is deployed
+			if details.ContractAddr != noContract {
+				log.Printf("deployed contract address %x", details.ContractAddr)
+			}
+			for l := range details.Logs {
+
+			}
+			if len(details.ReturnData) > 0 {
+				log.Printf("return data: %x", details.ReturnData)
+			}
 		}
-		log.Println(result)
 	}
+}
+
+func getStatusFromMetadata(s types.TxStatus) string {
+	if s == types.TxStatusSuccessful {
+		return "success"
+	}
+	return "failed"
 }
 
 func addrStrToBytes(addrStr string) ([]byte, error) {

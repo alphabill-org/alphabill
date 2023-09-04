@@ -3,7 +3,7 @@ package sc
 import (
 	"crypto"
 
-	"github.com/alphabill-org/alphabill/internal/rma"
+	"github.com/alphabill-org/alphabill/internal/state"
 )
 
 var DefaultSmartContractSystemIdentifier = []byte{0, 0, 0, 3}
@@ -11,7 +11,7 @@ var DefaultSmartContractSystemIdentifier = []byte{0, 0, 0, 3}
 type (
 	Options struct {
 		hashAlgorithm crypto.Hash
-		state         *rma.Tree
+		state         *state.State
 	}
 
 	Option func(*Options)
@@ -20,11 +20,11 @@ type (
 func defaultOptions() *Options {
 	return &Options{
 		hashAlgorithm: crypto.SHA256,
-		state:         rma.NewWithSHA256(),
+		state:         state.NewEmptyState(),
 	}
 }
 
-func WithState(state *rma.Tree) Option {
+func WithState(state *state.State) Option {
 	return func(c *Options) {
 		c.state = state
 	}

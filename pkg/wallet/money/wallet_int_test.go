@@ -10,6 +10,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc"
+
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/hash"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
@@ -18,38 +21,37 @@ import (
 	"github.com/alphabill-org/alphabill/internal/rpc/alphabill"
 	"github.com/alphabill-org/alphabill/internal/script"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
-	testmoney "github.com/alphabill-org/alphabill/internal/testutils/money"
 	testpartition "github.com/alphabill-org/alphabill/internal/testutils/partition"
 	testserver "github.com/alphabill-org/alphabill/internal/testutils/server"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
-	"github.com/alphabill-org/alphabill/internal/txsystem/fc"
+	testfc "github.com/alphabill-org/alphabill/internal/txsystem/fc/testutils"
+	"github.com/alphabill-org/alphabill/internal/txsystem/money"
 	moneytx "github.com/alphabill-org/alphabill/internal/txsystem/money"
 	moneytestutils "github.com/alphabill-org/alphabill/internal/txsystem/money/testutils"
 	"github.com/alphabill-org/alphabill/internal/types"
-	"github.com/alphabill-org/alphabill/internal/util"
-	abclient "github.com/alphabill-org/alphabill/pkg/client"
-	"github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/alphabill-org/alphabill/pkg/wallet/account"
 	"github.com/alphabill-org/alphabill/pkg/wallet/fees"
 	"github.com/alphabill-org/alphabill/pkg/wallet/log"
 	"github.com/alphabill-org/alphabill/pkg/wallet/money/backend"
 	beclient "github.com/alphabill-org/alphabill/pkg/wallet/money/backend/client"
-	"github.com/holiman/uint256"
-	"github.com/stretchr/testify/require"
-	"google.golang.org/grpc"
+	"github.com/alphabill-org/alphabill/pkg/wallet/txsubmitter"
+	"github.com/alphabill-org/alphabill/pkg/wallet/unitlock"
 )
 
-var moneySysId = []byte{0, 0, 0, 0}
+var (
+	fcrID     = money.NewFeeCreditRecordID(nil, []byte{1})
+	fcrAmount = uint64(1e8)
+)
 
 func TestCollectDustTimeoutReached(t *testing.T) {
 	// start server
 	initialBill := &moneytx.InitialBill{
-		ID:    uint256.NewInt(1),
+		ID:    money.NewBillID(nil, []byte{1}),
 		Value: 10000 * 1e8,
 		Owner: script.PredicateAlwaysTrue(),
 	}
 	abNet := startMoneyOnlyAlphabillPartition(t, initialBill)
-	moneyPart, err := abNet.GetNodePartition(moneySysId)
+	moneyPart, err := abNet.GetNodePartition(money.DefaultSystemIdentifier)
 	require.NoError(t, err)
 	addr := startRPCServer(t, moneyPart)
 	serverService := testserver.NewTestAlphabillServiceServer()
@@ -63,17 +65,17 @@ func TestCollectDustTimeoutReached(t *testing.T) {
 	go func() {
 		err := backend.Run(ctx,
 			&backend.Config{
-				ABMoneySystemIdentifier: []byte{0, 0, 0, 0},
+				ABMoneySystemIdentifier: moneytx.DefaultSystemIdentifier,
 				AlphabillUrl:            addr,
 				ServerAddr:              restAddr,
 				DbFile:                  filepath.Join(t.TempDir(), backend.BoltBillStoreFileName),
 				ListBillsPageLimit:      100,
 				InitialBill: backend.InitialBill{
-					Id:        util.Uint256ToBytes(initialBill.ID),
+					Id:        initialBill.ID,
 					Value:     initialBill.Value,
 					Predicate: script.PredicateAlwaysTrue(),
 				},
-				SystemDescriptionRecords: createSDRs(2),
+				SystemDescriptionRecords: createSDRs(),
 			})
 		require.ErrorIs(t, err, context.Canceled)
 	}()
@@ -87,27 +89,36 @@ func TestCollectDustTimeoutReached(t *testing.T) {
 	require.NoError(t, err)
 	restClient, err := beclient.New(restAddr)
 	require.NoError(t, err)
-	w, err := LoadExistingWallet(abclient.AlphabillClientConfig{Uri: addr}, am, restClient)
+	unitLocker, err := unitlock.NewUnitLocker(dir)
 	require.NoError(t, err)
+	defer unitLocker.Close()
+	w, err := LoadExistingWallet(am, unitLocker, restClient)
+	require.NoError(t, err)
+	defer w.Close()
 	pubKeys, err := am.GetPublicKeys()
 	require.NoError(t, err)
 
 	// create fee credit for initial bill transfer
-	txFee := fc.FixedFee(1)()
-	fcrAmount := testmoney.FCRAmount
-	transferFC := testmoney.CreateFeeCredit(t, util.Uint256ToBytes(initialBill.ID), abNet)
+	transferFC := testfc.CreateFeeCredit(t, initialBill.ID, fcrID, fcrAmount, abNet)
 	initialBillBacklink := transferFC.Hash(crypto.SHA256)
-	initialBillValue := initialBill.Value - fcrAmount - txFee
+	initialBillValue := initialBill.Value - fcrAmount
 
-	transferInitialBillTx, err := moneytestutils.CreateInitialBillTransferTx(pubKeys[0], initialBill.ID, initialBillValue, 10000, initialBillBacklink)
+	transferInitialBillTx, err := moneytestutils.CreateInitialBillTransferTx(pubKeys[0], initialBill.ID, fcrID, initialBillValue, 10000, initialBillBacklink)
 	require.NoError(t, err)
-	err = w.SendTransaction(ctx, transferInitialBillTx, &wallet.SendOpts{})
+	batch := txsubmitter.NewBatch(pubKeys[0], w.backend)
+	batch.Add(&txsubmitter.TxSubmission{
+		UnitID:      transferInitialBillTx.UnitID(),
+		TxHash:      transferInitialBillTx.Hash(crypto.SHA256),
+		Transaction: transferInitialBillTx,
+	})
+	err = batch.SendTx(ctx, false)
+
 	require.NoError(t, err)
 	require.Eventually(t, testpartition.BlockchainContainsTx(moneyPart, transferInitialBillTx), test.WaitDuration, test.WaitTick)
 
 	// verify initial bill tx is received by wallet
 	require.Eventually(t, func() bool {
-		balance, _ := w.GetBalance(GetBalanceCmd{})
+		balance, _ := w.GetBalance(ctx, GetBalanceCmd{})
 		return balance == initialBillValue
 	}, test.WaitDuration*2, time.Second)
 
@@ -115,17 +126,14 @@ func TestCollectDustTimeoutReached(t *testing.T) {
 	wg := sync.WaitGroup{}
 	wg.Add(1)
 	go func() {
-		err = w.CollectDust(context.Background(), 0)
+		_, err := w.CollectDust(context.Background(), 0)
 		if err != nil {
 			fmt.Println(err)
 		}
 		wg.Done()
 	}()
 
-	// then dc transactions are sent
-	waitForExpectedSwap(w)
-
-	for blockNo := uint64(1); blockNo <= dcTimeoutBlockCount; blockNo++ {
+	for blockNo := uint64(1); blockNo <= txTimeoutBlockCount; blockNo++ {
 		b := &types.Block{
 			Header: &types.Header{
 				SystemID:          w.SystemID(),
@@ -137,12 +145,10 @@ func TestCollectDustTimeoutReached(t *testing.T) {
 		serverService.SetBlock(blockNo, b)
 	}
 	// when dc timeout is reached
-	serverService.SetMaxBlockNumber(dcTimeoutBlockCount)
+	serverService.SetMaxBlockNumber(txTimeoutBlockCount)
 
-	err = w.CollectDust(context.Background(), 0)
-
-	// and dc wg is cleared
-	require.Len(t, w.dcWg.swaps, 0)
+	_, err = w.CollectDust(context.Background(), 0)
+	require.NoError(t, err)
 }
 
 /*
@@ -154,12 +160,12 @@ wallet account 2 and 3 should have only single bill
 func TestCollectDustInMultiAccountWallet(t *testing.T) {
 	// start network
 	initialBill := &moneytx.InitialBill{
-		ID:    uint256.NewInt(1),
+		ID:    money.NewBillID(nil, []byte{1}),
 		Value: 10000 * 1e8,
 		Owner: script.PredicateAlwaysTrue(),
 	}
 	network := startMoneyOnlyAlphabillPartition(t, initialBill)
-	moneyPart, err := network.GetNodePartition(moneySysId)
+	moneyPart, err := network.GetNodePartition(money.DefaultSystemIdentifier)
 	require.NoError(t, err)
 	addr := startRPCServer(t, moneyPart)
 
@@ -170,17 +176,17 @@ func TestCollectDustInMultiAccountWallet(t *testing.T) {
 	go func() {
 		err := backend.Run(ctx,
 			&backend.Config{
-				ABMoneySystemIdentifier: []byte{0, 0, 0, 0},
+				ABMoneySystemIdentifier: money.DefaultSystemIdentifier,
 				AlphabillUrl:            addr,
 				ServerAddr:              restAddr,
 				DbFile:                  filepath.Join(t.TempDir(), backend.BoltBillStoreFileName),
 				ListBillsPageLimit:      100,
 				InitialBill: backend.InitialBill{
-					Id:        util.Uint256ToBytes(initialBill.ID),
+					Id:        initialBill.ID,
 					Value:     initialBill.Value,
 					Predicate: script.PredicateAlwaysTrue(),
 				},
-				SystemDescriptionRecords: createSDRs(2),
+				SystemDescriptionRecords: createSDRs(),
 			})
 		require.ErrorIs(t, err, context.Canceled)
 	}()
@@ -194,32 +200,40 @@ func TestCollectDustInMultiAccountWallet(t *testing.T) {
 	require.NoError(t, err)
 	restClient, err := beclient.New(restAddr)
 	require.NoError(t, err)
-	w, err := LoadExistingWallet(abclient.AlphabillClientConfig{Uri: addr}, am, restClient)
+	unitLocker, err := unitlock.NewUnitLocker(dir)
 	require.NoError(t, err)
+	defer unitLocker.Close()
+	w, err := LoadExistingWallet(am, unitLocker, restClient)
+	require.NoError(t, err)
+	defer w.Close()
 
 	_, _, _ = am.AddAccount()
 	_, _, _ = am.AddAccount()
 
-	// transfer initial bill to wallet 1
 	pubKeys, err := am.GetPublicKeys()
 	require.NoError(t, err)
 
 	// create fee credit for initial bill transfer
-	txFee := fc.FixedFee(1)()
-	fcrAmount := testmoney.FCRAmount
-	transferFC := testmoney.CreateFeeCredit(t, util.Uint256ToBytes(initialBill.ID), network)
+	transferFC := testfc.CreateFeeCredit(t, initialBill.ID, fcrID, fcrAmount, network)
 	initialBillBacklink := transferFC.Hash(crypto.SHA256)
-	initialBillValue := initialBill.Value - fcrAmount - txFee
+	initialBillValue := initialBill.Value - fcrAmount
 
-	transferInitialBillTx, err := moneytestutils.CreateInitialBillTransferTx(pubKeys[0], initialBill.ID, initialBillValue, 10000, initialBillBacklink)
+	// transfer initial bill to wallet 1
+	transferInitialBillTx, err := moneytestutils.CreateInitialBillTransferTx(pubKeys[0], initialBill.ID, fcrID, initialBillValue, 10000, initialBillBacklink)
 	require.NoError(t, err)
-	err = w.SendTransaction(ctx, transferInitialBillTx, &wallet.SendOpts{})
+	batch := txsubmitter.NewBatch(pubKeys[0], w.backend)
+	batch.Add(&txsubmitter.TxSubmission{
+		UnitID:      transferInitialBillTx.UnitID(),
+		TxHash:      transferInitialBillTx.Hash(crypto.SHA256),
+		Transaction: transferInitialBillTx,
+	})
+	err = batch.SendTx(ctx, false)
 	require.NoError(t, err)
 	require.Eventually(t, testpartition.BlockchainContainsTx(moneyPart, transferInitialBillTx), test.WaitDuration, test.WaitTick)
 
 	// verify initial bill tx is received by wallet
 	require.Eventually(t, func() bool {
-		balance, _ := w.GetBalance(GetBalanceCmd{})
+		balance, _ := w.GetBalance(ctx, GetBalanceCmd{})
 		return balance == initialBillValue
 	}, test.WaitDuration, time.Second)
 
@@ -251,19 +265,19 @@ func TestCollectDustInMultiAccountWallet(t *testing.T) {
 	require.NoError(t, err)
 
 	// start dust collection
-	err = w.CollectDust(ctx, 0)
+	_, err = w.CollectDust(ctx, 0)
 	require.NoError(t, err)
 }
 
 func TestCollectDustInMultiAccountWalletWithKeyFlag(t *testing.T) {
 	// start network
 	initialBill := &moneytx.InitialBill{
-		ID:    uint256.NewInt(1),
+		ID:    moneytx.NewBillID(nil, []byte{1}),
 		Value: 10000 * 1e8,
 		Owner: script.PredicateAlwaysTrue(),
 	}
 	network := startMoneyOnlyAlphabillPartition(t, initialBill)
-	moneyPart, err := network.GetNodePartition(moneySysId)
+	moneyPart, err := network.GetNodePartition(money.DefaultSystemIdentifier)
 	require.NoError(t, err)
 	addr := startRPCServer(t, moneyPart)
 
@@ -274,17 +288,17 @@ func TestCollectDustInMultiAccountWalletWithKeyFlag(t *testing.T) {
 	go func() {
 		err := backend.Run(ctx,
 			&backend.Config{
-				ABMoneySystemIdentifier: []byte{0, 0, 0, 0},
+				ABMoneySystemIdentifier: money.DefaultSystemIdentifier,
 				AlphabillUrl:            addr,
 				ServerAddr:              restAddr,
 				DbFile:                  filepath.Join(t.TempDir(), backend.BoltBillStoreFileName),
 				ListBillsPageLimit:      100,
 				InitialBill: backend.InitialBill{
-					Id:        util.Uint256ToBytes(initialBill.ID),
+					Id:        initialBill.ID,
 					Value:     initialBill.Value,
 					Predicate: script.PredicateAlwaysTrue(),
 				},
-				SystemDescriptionRecords: createSDRs(2),
+				SystemDescriptionRecords: createSDRs(),
 			})
 		require.ErrorIs(t, err, context.Canceled)
 	}()
@@ -298,8 +312,12 @@ func TestCollectDustInMultiAccountWalletWithKeyFlag(t *testing.T) {
 	require.NoError(t, err)
 	restClient, err := beclient.New(restAddr)
 	require.NoError(t, err)
-	w, err := LoadExistingWallet(abclient.AlphabillClientConfig{Uri: addr}, am, restClient)
+	unitLocker, err := unitlock.NewUnitLocker(dir)
 	require.NoError(t, err)
+	defer unitLocker.Close()
+	w, err := LoadExistingWallet(am, unitLocker, restClient)
+	require.NoError(t, err)
+	defer w.Close()
 
 	_, _, _ = am.AddAccount()
 	_, _, _ = am.AddAccount()
@@ -309,21 +327,25 @@ func TestCollectDustInMultiAccountWalletWithKeyFlag(t *testing.T) {
 	require.NoError(t, err)
 
 	// create fee credit for initial bill transfer
-	txFee := fc.FixedFee(1)()
-	fcrAmount := testmoney.FCRAmount
-	transferFC := testmoney.CreateFeeCredit(t, util.Uint256ToBytes(initialBill.ID), network)
+	transferFC := testfc.CreateFeeCredit(t, initialBill.ID, fcrID, fcrAmount, network)
 	initialBillBacklink := transferFC.Hash(crypto.SHA256)
-	initialBillValue := initialBill.Value - fcrAmount - txFee
+	initialBillValue := initialBill.Value - fcrAmount
 
-	transferInitialBillTx, err := moneytestutils.CreateInitialBillTransferTx(pubKeys[0], initialBill.ID, initialBillValue, 10000, initialBillBacklink)
+	transferInitialBillTx, err := moneytestutils.CreateInitialBillTransferTx(pubKeys[0], initialBill.ID, fcrID, initialBillValue, 10000, initialBillBacklink)
 	require.NoError(t, err)
-	err = w.SendTransaction(ctx, transferInitialBillTx, &wallet.SendOpts{})
+	batch := txsubmitter.NewBatch(pubKeys[0], w.backend)
+	batch.Add(&txsubmitter.TxSubmission{
+		UnitID:      transferInitialBillTx.UnitID(),
+		TxHash:      transferInitialBillTx.Hash(crypto.SHA256),
+		Transaction: transferInitialBillTx,
+	})
+	err = batch.SendTx(ctx, false)
 	require.NoError(t, err)
 	require.Eventually(t, testpartition.BlockchainContainsTx(moneyPart, transferInitialBillTx), test.WaitDuration, test.WaitTick)
 
 	// verify initial bill tx is received by wallet
 	require.Eventually(t, func() bool {
-		balance, _ := w.GetBalance(GetBalanceCmd{})
+		balance, _ := w.GetBalance(ctx, GetBalanceCmd{})
 		return balance == initialBillValue
 	}, test.WaitDuration, time.Second)
 
@@ -348,46 +370,57 @@ func TestCollectDustInMultiAccountWalletWithKeyFlag(t *testing.T) {
 	require.NoError(t, err)
 
 	// start dust collection only for account number 3
-	err = w.CollectDust(ctx, 3)
+	_, err = w.CollectDust(ctx, 3)
 	require.NoError(t, err)
 
-	// verify that there is only one swap tx, and it belongs to account number 3
-	b, _ := moneyPart.Nodes[0].GetLatestBlock()
-	require.Len(t, b.Transactions, 1)
-	attrs := &moneytx.SwapDCAttributes{}
-	err = b.Transactions[0].TransactionOrder.UnmarshalAttributes(attrs)
-	require.NoError(t, err)
-	k, _ := am.GetAccountKey(2)
-	require.EqualValues(t, script.PredicatePayToPublicKeyHashDefault(k.PubKeyHash.Sha256), attrs.OwnerCondition)
+	// verify that there is only one swap tx and it belongs to account number 3
+	account3Key, _ := am.GetAccountKey(2)
+	swapTxCount := 0
+	testpartition.BlockchainContains(moneyPart, func(txo *types.TransactionOrder) bool {
+		if txo.PayloadType() != moneytx.PayloadTypeSwapDC {
+			return false
+		}
+
+		require.Equal(t, 0, swapTxCount)
+		swapTxCount++
+
+		attrs := &moneytx.SwapDCAttributes{}
+		err = txo.UnmarshalAttributes(attrs)
+		require.NoError(t, err)
+		require.EqualValues(t, script.PredicatePayToPublicKeyHashDefault(account3Key.PubKeyHash.Sha256), attrs.OwnerCondition)
+
+		return false
+	})()
+	require.Equal(t, 1, swapTxCount)
 }
 
 func sendToAccount(t *testing.T, w *Wallet, amount, fromAccount, toAccount uint64) {
 	receiverPubkey, err := w.am.GetPublicKey(toAccount)
 	require.NoError(t, err)
 
-	prevBalance, err := w.GetBalance(GetBalanceCmd{AccountIndex: toAccount})
+	prevBalance, err := w.GetBalance(context.Background(), GetBalanceCmd{AccountIndex: toAccount})
 	require.NoError(t, err)
 
 	_, err = w.Send(context.Background(), SendCmd{ReceiverPubKey: receiverPubkey, Amount: amount, AccountIndex: fromAccount})
 	require.NoError(t, err)
 	require.Eventually(t, func() bool {
-		balance, _ := w.GetBalance(GetBalanceCmd{AccountIndex: toAccount})
+		balance, _ := w.GetBalance(context.Background(), GetBalanceCmd{AccountIndex: toAccount})
 		return balance > prevBalance
 	}, test.WaitDuration, time.Second)
 }
 
 func startMoneyOnlyAlphabillPartition(t *testing.T, initialBill *moneytx.InitialBill) *testpartition.AlphabillNetwork {
 	mPart, err := testpartition.NewPartition(1, func(tb map[string]abcrypto.Verifier) txsystem.TransactionSystem {
-		system, err := moneytx.NewMoneyTxSystem(
-			moneySysId,
+		system, err := moneytx.NewTxSystem(
+			moneytx.WithSystemIdentifier(moneytx.DefaultSystemIdentifier),
 			moneytx.WithInitialBill(initialBill),
-			moneytx.WithSystemDescriptionRecords(createSDRs(2)),
+			moneytx.WithSystemDescriptionRecords(createSDRs()),
 			moneytx.WithDCMoneyAmount(10000*1e8),
 			moneytx.WithTrustBase(tb),
 		)
 		require.NoError(t, err)
 		return system
-	}, moneySysId)
+	}, money.DefaultSystemIdentifier)
 	require.NoError(t, err)
 	abNet, err := testpartition.NewAlphabillPartition([]*testpartition.NodePartition{mPart})
 	require.NoError(t, err)
@@ -427,12 +460,12 @@ func initRPCServer(node *partition.Node) (*grpc.Server, error) {
 	return grpcServer, nil
 }
 
-func createSDRs(unitID uint64) []*genesis.SystemDescriptionRecord {
+func createSDRs() []*genesis.SystemDescriptionRecord {
 	return []*genesis.SystemDescriptionRecord{{
-		SystemIdentifier: []byte{0, 0, 0, 0},
+		SystemIdentifier: money.DefaultSystemIdentifier,
 		T2Timeout:        2500,
 		FeeCreditBill: &genesis.FeeCreditBill{
-			UnitId:         util.Uint256ToBytes(uint256.NewInt(unitID)),
+			UnitId:         money.NewBillID(nil, []byte{2}),
 			OwnerPredicate: script.PredicateAlwaysTrue(),
 		},
 	}}

@@ -26,22 +26,30 @@ type (
 		TargetRecordID         []byte   // unit id of the corresponding “add fee credit” transaction
 		EarliestAdditionTime   uint64   // earliest round when the corresponding “add fee credit” transaction can be executed in the target system
 		LatestAdditionTime     uint64   // latest round when the corresponding “add fee credit” transaction can be executed in the target system
-		Nonce                  []byte   // the current state hash of the target credit record if the record exists, or to nil if the record does not exist yet
-		Backlink               []byte   // hash of this unit's previous transacton
+		TargetUnitBacklink     []byte   // current state hash of the target credit record if the record exists, or nil if the record does not exist yet
+		Backlink               []byte   // hash of this unit's previous transaction
 	}
 
 	CloseFeeCreditAttributes struct {
 		_ struct{} `cbor:",toarray"`
 
-		Amount       uint64 // current balance of the fee credit record
-		TargetUnitID []byte // unit id of the fee credit record in money partition
-		Nonce        []byte // the current state hash of the target unit in money partition
+		Amount             uint64 // current balance of the fee credit record
+		TargetUnitID       []byte // target unit id in money partition
+		TargetUnitBacklink []byte // the current state hash of the target unit in money partition
 	}
 
 	ReclaimFeeCreditAttributes struct {
 		_                      struct{}                 `cbor:",toarray"`
 		CloseFeeCreditTransfer *types.TransactionRecord // bill transfer record of type "close fee credit"
 		CloseFeeCreditProof    *types.TxProof           // transaction proof of "close fee credit" transaction
-		Backlink               []byte                   // hash of this unit's previous transacton
+		Backlink               []byte                   // hash of this unit's previous transaction
 	}
 )
+
+func IsFeeCreditTx(tx *types.TransactionOrder) bool {
+	typeUrl := tx.PayloadType()
+	return typeUrl == PayloadTypeTransferFeeCredit ||
+		typeUrl == PayloadTypeAddFeeCredit ||
+		typeUrl == PayloadTypeCloseFeeCredit ||
+		typeUrl == PayloadTypeReclaimFeeCredit
+}

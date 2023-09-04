@@ -44,10 +44,7 @@ func NewTxProof(block *Block, txIndex int, algorithm crypto.Hash) (*TxProof, *Tr
 	if txIndex < 0 || txIndex > len(block.Transactions)-1 {
 		return nil, nil, fmt.Errorf("invalid tx index: %d", txIndex)
 	}
-	tree, err := mt.New(algorithm, block.Transactions)
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to calculate merkle tree root hash: %w", err)
-	}
+	tree := mt.New(algorithm, block.Transactions)
 	headerHash := block.HeaderHash(algorithm)
 	chain, err := tree.GetMerklePath(txIndex)
 	if err != nil {
@@ -68,6 +65,15 @@ func NewTxProof(block *Block, txIndex int, algorithm crypto.Hash) (*TxProof, *Tr
 }
 
 func VerifyTxProof(proof *TxProof, txRecord *TransactionRecord, trustBase map[string]abcrypto.Verifier, hashAlgorithm crypto.Hash) error {
+	if proof == nil {
+		return errors.New("tx proof is nil")
+	}
+	if txRecord == nil {
+		return errors.New("tx record is nil")
+	}
+	if txRecord.TransactionOrder == nil {
+		return errors.New("tx order is nil")
+	}
 	merklePath := make([]*mt.PathItem, len(proof.Chain))
 	for i, item := range proof.Chain {
 		merklePath[i] = &mt.PathItem{

@@ -3,6 +3,7 @@ package rpc
 import (
 	"bytes"
 	"context"
+	"crypto"
 	"errors"
 	"net"
 	"testing"
@@ -12,7 +13,6 @@ import (
 	"github.com/alphabill-org/alphabill/internal/txsystem/money"
 	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/fxamacker/cbor/v2"
-	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
@@ -20,26 +20,39 @@ import (
 	"google.golang.org/grpc/test/bufconn"
 )
 
-var failingTransactionID = uint256.NewInt(5).Bytes32()
+var failingUnitID = types.NewUnitID(33, nil, []byte{5}, []byte{1})
 
 type (
 	MockNode struct {
 		maxBlockNumber uint64
+		maxRoundNumber uint64
 		transactions   []*types.TransactionOrder
 	}
 )
 
-func (mn *MockNode) SubmitTx(_ context.Context, tx *types.TransactionOrder) error {
-	if bytes.Equal(tx.UnitID(), failingTransactionID[:]) {
-		return errors.New("failed")
+func (mn *MockNode) GetTransactionRecord(hash []byte) (*types.TransactionRecord, *types.TxProof, error) {
+	zeroHash := [32]byte{}
+	if bytes.Equal(zeroHash[:], hash) {
+		return nil, nil, nil
+	}
+	return &types.TransactionRecord{}, &types.TxProof{}, nil
+}
+
+func (mn *MockNode) SubmitTx(_ context.Context, tx *types.TransactionOrder) ([]byte, error) {
+	if bytes.Equal(tx.UnitID(), failingUnitID) {
+		return nil, errors.New("failed")
 	}
 	if tx != nil {
 		mn.transactions = append(mn.transactions, tx)
 	}
-	return nil
+	return tx.Hash(crypto.SHA256), nil
 }
 
 func (mn *MockNode) GetBlock(_ context.Context, blockNumber uint64) (*types.Block, error) {
+	if blockNumber > mn.maxBlockNumber {
+		// empty block
+		return nil, nil
+	}
 	return &types.Block{UnicityCertificate: &types.UnicityCertificate{InputRecord: &types.InputRecord{RoundNumber: blockNumber}}}, nil
 }
 
@@ -48,7 +61,7 @@ func (mn *MockNode) GetLatestBlock() (*types.Block, error) {
 }
 
 func (mn *MockNode) GetLatestRoundNumber() (uint64, error) {
-	return mn.maxBlockNumber, nil
+	return mn.maxRoundNumber, nil
 }
 
 func (mn *MockNode) SystemIdentifier() []byte {
@@ -69,7 +82,7 @@ func TestNewRpcServer_Ok(t *testing.T) {
 }
 
 func TestRpcServer_GetBlocksOk(t *testing.T) {
-	p, err := NewGRPCServer(&MockNode{maxBlockNumber: 12})
+	p, err := NewGRPCServer(&MockNode{maxBlockNumber: 12, maxRoundNumber: 12})
 	require.NoError(t, err)
 	res, err := p.GetBlocks(context.Background(), &alphabill.GetBlocksRequest{BlockNumber: 1, BlockCount: 12})
 	require.NoError(t, err)
@@ -78,7 +91,7 @@ func TestRpcServer_GetBlocksOk(t *testing.T) {
 }
 
 func TestRpcServer_GetBlocksSingleBlock(t *testing.T) {
-	p, err := NewGRPCServer(&MockNode{maxBlockNumber: 1})
+	p, err := NewGRPCServer(&MockNode{maxBlockNumber: 1, maxRoundNumber: 1})
 	require.NoError(t, err)
 	res, err := p.GetBlocks(context.Background(), &alphabill.GetBlocksRequest{BlockNumber: 1, BlockCount: 1})
 	require.NoError(t, err)
@@ -86,8 +99,19 @@ func TestRpcServer_GetBlocksSingleBlock(t *testing.T) {
 	require.EqualValues(t, 1, res.MaxBlockNumber)
 }
 
+func TestRpcServer_GetBlocksMostlyEmpty(t *testing.T) {
+	p, err := NewGRPCServer(&MockNode{maxBlockNumber: 5, maxRoundNumber: 100})
+	require.NoError(t, err)
+	res, err := p.GetBlocks(context.Background(), &alphabill.GetBlocksRequest{BlockNumber: 1, BlockCount: 50})
+	require.NoError(t, err)
+	require.Len(t, res.Blocks, 5)
+	// BatchMaxBlockNumber is really BatchMaxRoundNumber or BatchEnd, including empty blocks,
+	// such that next request from client should be BatchEnd + 1.
+	require.EqualValues(t, 50, res.BatchMaxBlockNumber)
+}
+
 func TestRpcServer_FetchNonExistentBlocks_DoesNotPanic(t *testing.T) {
-	p, err := NewGRPCServer(&MockNode{maxBlockNumber: 7})
+	p, err := NewGRPCServer(&MockNode{maxBlockNumber: 7, maxRoundNumber: 7})
 	require.NoError(t, err)
 	res, err := p.GetBlocks(context.Background(), &alphabill.GetBlocksRequest{BlockNumber: 73, BlockCount: 100})
 	require.NoError(t, err)
@@ -99,7 +123,7 @@ func TestRpcServer_ProcessTransaction_Fails(t *testing.T) {
 	ctx := context.Background()
 	con, client := createRpcClient(t, ctx)
 	defer con.Close()
-	response, err := client.ProcessTransaction(ctx, &alphabill.Transaction{Order: createTransactionOrder(t, failingTransactionID)})
+	response, err := client.ProcessTransaction(ctx, &alphabill.Transaction{Order: createTransactionOrder(t, failingUnitID)})
 	assert.Nil(t, response)
 	assert.Errorf(t, err, "failed")
 }
@@ -109,7 +133,7 @@ func TestRpcServer_ProcessTransaction_Ok(t *testing.T) {
 	con, client := createRpcClient(t, ctx)
 	defer con.Close()
 
-	req := createTransactionOrder(t, uint256.NewInt(1).Bytes32())
+	req := createTransactionOrder(t, types.NewUnitID(33, nil, []byte{1}, []byte{1}))
 	response, err := client.ProcessTransaction(ctx, &alphabill.Transaction{Order: req})
 	assert.Nil(t, err)
 	assert.NotNil(t, response)
@@ -138,7 +162,7 @@ func createRpcClient(t *testing.T, ctx context.Context) (*grpc.ClientConn, alpha
 	return conn, alphabill.NewAlphabillServiceClient(conn)
 }
 
-func createTransactionOrder(t *testing.T, id [32]byte) []byte {
+func createTransactionOrder(t *testing.T, unitID types.UnitID) []byte {
 	bt := &money.TransferAttributes{
 		NewBearer:   script.PredicateAlwaysTrue(),
 		TargetValue: 1,
@@ -150,7 +174,7 @@ func createTransactionOrder(t *testing.T, id [32]byte) []byte {
 
 	order, err := cbor.Marshal(&types.TransactionOrder{
 		Payload: &types.Payload{
-			UnitID:         id[:],
+			UnitID:         unitID,
 			Type:           money.PayloadTypeTransfer,
 			Attributes:     attBytes,
 			ClientMetadata: &types.ClientMetadata{Timeout: 0},

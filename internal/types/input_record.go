@@ -36,20 +36,6 @@ func isZeroHash(hash []byte) bool {
 	return true
 }
 
-func NewRepeatInputRecord(lastIR *InputRecord) (*InputRecord, error) {
-	if lastIR == nil {
-		return nil, ErrInputRecordIsNil
-	}
-	return &InputRecord{
-		PreviousHash:    lastIR.Hash,
-		Hash:            lastIR.Hash,
-		BlockHash:       make([]byte, len(lastIR.BlockHash)),
-		SummaryValue:    lastIR.SummaryValue,
-		RoundNumber:     lastIR.RoundNumber + 1,
-		SumOfEarnedFees: lastIR.SumOfEarnedFees,
-	}, nil
-}
-
 func (x *InputRecord) IsValid() error {
 	if x == nil {
 		return ErrInputRecordIsNil
@@ -85,4 +71,16 @@ func (x *InputRecord) Bytes() []byte {
 	b.Write(util.Uint64ToBytes(x.RoundNumber))
 	b.Write(util.Uint64ToBytes(x.SumOfEarnedFees))
 	return b.Bytes()
+}
+
+// NewRepeatIR - creates new repeat IR from current IR
+func (x *InputRecord) NewRepeatIR() *InputRecord {
+	return &InputRecord{
+		PreviousHash:    bytes.Clone(x.PreviousHash),
+		Hash:            bytes.Clone(x.Hash),
+		BlockHash:       bytes.Clone(x.BlockHash),
+		SummaryValue:    bytes.Clone(x.SummaryValue),
+		RoundNumber:     x.RoundNumber,
+		SumOfEarnedFees: x.SumOfEarnedFees,
+	}
 }

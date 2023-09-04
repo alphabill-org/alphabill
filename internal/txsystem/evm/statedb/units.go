@@ -6,14 +6,28 @@ import (
 	"math/big"
 	"sort"
 
-	"github.com/alphabill-org/alphabill/internal/rma"
+	abstate "github.com/alphabill-org/alphabill/internal/state"
 	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/crypto"
 )
 
-var emptyCodeHash = crypto.Keccak256(nil)
+var (
+	_ abstate.UnitData = (*StateObject)(nil)
+	_ abstate.UnitData = (*AlphaBillLink)(nil)
+
+	emptyCodeHash = crypto.Keccak256(nil)
+)
+
+type StateObject struct {
+	Address   common.Address
+	Account   *Account
+	Storage   state.Storage
+	AlphaBill *AlphaBillLink
+
+	suicided bool
+}
 
 // Account represents an account in Ethereum.
 type Account struct {
@@ -31,30 +45,7 @@ type AlphaBillLink struct {
 	Timeout uint64
 }
 
-type StateObject struct {
-	Address   common.Address
-	Account   *Account
-	Storage   state.Storage
-	dirtyCode bool
-	suicided  bool
-	AlphaBill *AlphaBillLink
-}
-
-func (a *Account) Write(hasher hash.Hash) {
-	hasher.Write(a.Balance.Bytes())
-	hasher.Write(a.CodeHash)
-	hasher.Write(a.Code)
-	hasher.Write(util.Uint64ToBytes(a.Nonce))
-}
-
-func (f *AlphaBillLink) AddToHasher(hasher hash.Hash) {
-	hasher.Write(f.Bearer)
-	hasher.Write(f.UnitID)
-	hasher.Write(f.TxHash)
-	hasher.Write(util.Uint64ToBytes(f.Timeout))
-}
-
-func (s *StateObject) AddToHasher(hasher hash.Hash) {
+func (s *StateObject) Write(hasher hash.Hash) {
 	hasher.Write(s.Address.Bytes())
 	s.Account.Write(hasher)
 	keys := make([]common.Hash, 0, len(s.Storage))
@@ -72,12 +63,69 @@ func (s *StateObject) AddToHasher(hasher hash.Hash) {
 		hasher.Write(s.Storage[k].Bytes())
 	}
 	if s.AlphaBill != nil {
-		s.AlphaBill.AddToHasher(hasher)
+		s.AlphaBill.Write(hasher)
 	}
 }
 
-func (s *StateObject) Value() rma.SummaryValue {
-	return rma.Uint64SummaryValue(0)
+func (s *StateObject) SummaryValueInput() uint64 {
+	return 0
+}
+
+func (s *StateObject) Copy() abstate.UnitData {
+	if s == nil {
+		return nil
+	}
+
+	var link *AlphaBillLink
+	if s.AlphaBill != nil {
+		link = s.AlphaBill.Copy().(*AlphaBillLink)
+	}
+	return &StateObject{
+		Address:   common.BytesToAddress(bytes.Clone(s.Address.Bytes())),
+		Account:   s.Account.Copy(),
+		Storage:   s.Storage.Copy(),
+		AlphaBill: link,
+		suicided:  s.suicided,
+	}
+}
+
+func (f *AlphaBillLink) Write(hasher hash.Hash) {
+	hasher.Write(f.Bearer)
+	hasher.Write(f.UnitID)
+	hasher.Write(f.TxHash)
+	hasher.Write(util.Uint64ToBytes(f.Timeout))
+}
+
+func (f *AlphaBillLink) SummaryValueInput() uint64 {
+	return 0
+}
+
+func (f *AlphaBillLink) Copy() abstate.UnitData {
+	if f == nil {
+		return nil
+	}
+	return &AlphaBillLink{
+		Bearer:  bytes.Clone(f.Bearer),
+		UnitID:  bytes.Clone(f.UnitID),
+		TxHash:  bytes.Clone(f.TxHash),
+		Timeout: f.Timeout,
+	}
+}
+
+func (a *Account) Write(hasher hash.Hash) {
+	hasher.Write(a.Balance.Bytes())
+	hasher.Write(a.CodeHash)
+	hasher.Write(a.Code)
+	hasher.Write(util.Uint64ToBytes(a.Nonce))
+}
+
+func (a *Account) Copy() *Account {
+	return &Account{
+		Balance:  big.NewInt(0).SetBytes(bytes.Clone(a.Balance.Bytes())),
+		CodeHash: bytes.Clone(a.CodeHash),
+		Code:     bytes.Clone(a.Code),
+		Nonce:    a.Nonce,
+	}
 }
 
 func (s *StateObject) empty() bool {

@@ -6,12 +6,12 @@ import (
 	"testing"
 
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
-	"github.com/alphabill-org/alphabill/internal/rma"
-	"github.com/alphabill-org/alphabill/internal/script"
+	"github.com/alphabill-org/alphabill/internal/state"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	testtransaction "github.com/alphabill-org/alphabill/internal/testutils/transaction"
 	testfc "github.com/alphabill-org/alphabill/internal/txsystem/fc/testutils"
 	"github.com/alphabill-org/alphabill/internal/txsystem/fc/transactions"
+	"github.com/alphabill-org/alphabill/internal/txsystem/fc/unit"
 	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/stretchr/testify/require"
 )
@@ -31,7 +31,7 @@ func TestAddFC(t *testing.T) {
 
 	tests := []struct {
 		name        string
-		unit        *rma.Unit
+		unit        *state.Unit
 		tx          *types.TransactionOrder
 		roundNumber uint64
 		wantErrMsg  string
@@ -40,6 +40,26 @@ func TestAddFC(t *testing.T) {
 			name:        "Ok",
 			tx:          testfc.NewAddFC(t, signer, nil),
 			roundNumber: 5,
+		},
+		{
+			name: "transferFC tx record is nil",
+			tx: testtransaction.NewTransactionOrder(t, testtransaction.WithAttributes(
+				&transactions.AddFeeCreditAttributes{FeeCreditTransfer: nil})),
+			wantErrMsg: "transferFC tx record is nil",
+		},
+		{
+			name: "transferFC tx order is nil",
+			tx: testtransaction.NewTransactionOrder(t, testtransaction.WithAttributes(
+				&transactions.AddFeeCreditAttributes{FeeCreditTransfer: &types.TransactionRecord{TransactionOrder: nil}},
+			)),
+			wantErrMsg: "transferFC tx order is nil",
+		},
+		{
+			name: "transferFC proof is nil",
+			tx: testtransaction.NewTransactionOrder(t, testtransaction.WithAttributes(
+				&transactions.AddFeeCreditAttributes{FeeCreditTransfer: &types.TransactionRecord{TransactionOrder: &types.TransactionOrder{}}, FeeCreditTransferProof: nil},
+			)),
+			wantErrMsg: "transferFC tx proof is nil",
 		},
 		{
 			name: "RecordID exists",
@@ -58,8 +78,14 @@ func TestAddFC(t *testing.T) {
 			wantErrMsg: "fee tx cannot contain fee authorization proof",
 		},
 		{
+			name:       "Invalid unit type",
+			unit:       state.NewUnit(bearer, &testData{}), // add unit with wrong type
+			tx:         testfc.NewAddFC(t, signer, nil),
+			wantErrMsg: "invalid unit type: unit is not fee credit record",
+		},
+		{
 			name: "Invalid fee credit owner condition",
-			unit: &rma.Unit{Bearer: bearer},
+			unit: state.NewUnit(bearer, &unit.FeeCreditRecord{}),
 			tx: testfc.NewAddFC(t, signer,
 				testfc.NewAddFCAttr(t, signer,
 					testfc.WithFCOwnerCondition([]byte("wrong bearer")),
@@ -74,7 +100,7 @@ func TestAddFC(t *testing.T) {
 					testfc.WithTransferFCTx(
 						&types.TransactionRecord{
 							TransactionOrder: testfc.NewTransferFC(t, nil, testtransaction.WithSystemID([]byte("not money partition"))),
-							ServerMetadata:   nil,
+							ServerMetadata:   &types.ServerMetadata{},
 						},
 					),
 				),
@@ -88,7 +114,7 @@ func TestAddFC(t *testing.T) {
 					testfc.WithTransferFCTx(
 						&types.TransactionRecord{
 							TransactionOrder: testfc.NewTransferFC(t, testfc.NewTransferFCAttr(testfc.WithTargetSystemID([]byte("not money partition")))),
-							ServerMetadata:   nil,
+							ServerMetadata:   &types.ServerMetadata{},
 						},
 					),
 				),
@@ -102,7 +128,7 @@ func TestAddFC(t *testing.T) {
 					testfc.WithTransferFCTx(
 						&types.TransactionRecord{
 							TransactionOrder: testfc.NewTransferFC(t, testfc.NewTransferFCAttr(testfc.WithTargetRecordID([]byte("not equal to transaction.unitId")))),
-							ServerMetadata:   nil,
+							ServerMetadata:   &types.ServerMetadata{},
 						},
 					),
 				),
@@ -110,46 +136,47 @@ func TestAddFC(t *testing.T) {
 			wantErrMsg: "invalid transferFC target record id",
 		},
 		{
-			name: "Invalid nonce (fee credit record does not exist)",
+			name: "Invalid target unit backlink (fee credit record does not exist)",
 			tx: testfc.NewAddFC(t, signer,
 				testfc.NewAddFCAttr(t, signer,
 					testfc.WithTransferFCTx(
 						&types.TransactionRecord{
-							TransactionOrder: testfc.NewTransferFC(t, testfc.NewTransferFCAttr(testfc.WithNonce([]byte("non-empty nonce")))),
-							ServerMetadata:   nil,
+							TransactionOrder: testfc.NewTransferFC(t, testfc.NewTransferFCAttr(testfc.WithTargetUnitBacklink([]byte("non-empty target unit backlink")))),
+							ServerMetadata:   &types.ServerMetadata{ActualFee: 1},
 						},
 					),
 				),
 			),
-			wantErrMsg: "invalid transferFC nonce",
+			wantErrMsg: "invalid transferFC target unit backlink",
 		},
 		{
-			name: "Invalid nonce (tx nonce equals to fee credit record state hash and NOT backlink)",
+			name: "Invalid target unit backlink (tx target unit backlink equals to fee credit record state hash and NOT backlink)",
 			tx: testfc.NewAddFC(t, signer,
 				testfc.NewAddFCAttr(t, signer,
 					testfc.WithTransferFCTx(
 						&types.TransactionRecord{
-							TransactionOrder: testfc.NewTransferFC(t, testfc.NewTransferFCAttr(testfc.WithNonce([]byte("sent nonce")))),
-							ServerMetadata:   nil,
+							TransactionOrder: testfc.NewTransferFC(t, testfc.NewTransferFCAttr(testfc.WithTargetUnitBacklink([]byte("sent target unit backlink")))),
+							ServerMetadata:   &types.ServerMetadata{ActualFee: 1},
 						},
 					),
 				),
 			),
-			unit:       &rma.Unit{Bearer: script.PredicateArgumentEmpty(), Data: &FeeCreditRecord{Hash: []byte("actual nonce")}, StateHash: []byte("sent nonce")},
-			wantErrMsg: "invalid transferFC nonce",
+			unit:       state.NewUnit(nil, &unit.FeeCreditRecord{Hash: []byte("actual target unit backlink")}),
+			wantErrMsg: "invalid transferFC target unit backlink",
 		},
 		{
-			name: "ok nonce (tx nonce equals fee credit record nonce)",
+			name: "ok target unit backlink (tx target unit backlink equals fee credit record)",
 			tx: testfc.NewAddFC(t, signer,
 				testfc.NewAddFCAttr(t, signer,
 					testfc.WithTransferFCTx(
 						&types.TransactionRecord{
-							TransactionOrder: testfc.NewTransferFC(t, testfc.NewTransferFCAttr(testfc.WithNonce([]byte("actual nonce")))),
+							TransactionOrder: testfc.NewTransferFC(t, testfc.NewTransferFCAttr(testfc.WithTargetUnitBacklink([]byte("actual target unit backlink")))),
+							ServerMetadata:   &types.ServerMetadata{ActualFee: 1},
 						},
 					),
 				),
 			),
-			unit: &rma.Unit{Bearer: script.PredicateArgumentEmpty(), Data: &FeeCreditRecord{Hash: []byte("actual nonce")}},
+			unit: state.NewUnit(nil, &unit.FeeCreditRecord{Hash: []byte("actual target unit backlink")}),
 		},
 		{
 			name: "EarliestAdditionTime in the future NOK",
@@ -158,7 +185,7 @@ func TestAddFC(t *testing.T) {
 					testfc.WithTransferFCTx(
 						&types.TransactionRecord{
 							TransactionOrder: testfc.NewTransferFC(t, testfc.NewTransferFCAttr(testfc.WithEarliestAdditionTime(11))),
-							ServerMetadata:   nil,
+							ServerMetadata:   &types.ServerMetadata{},
 						},
 					),
 				),
@@ -173,7 +200,7 @@ func TestAddFC(t *testing.T) {
 					testfc.WithTransferFCTx(
 						&types.TransactionRecord{
 							TransactionOrder: testfc.NewTransferFC(t, testfc.NewTransferFCAttr(testfc.WithEarliestAdditionTime(10))),
-							ServerMetadata:   nil,
+							ServerMetadata:   &types.ServerMetadata{ActualFee: 1},
 						},
 					),
 				),
@@ -187,7 +214,7 @@ func TestAddFC(t *testing.T) {
 					testfc.WithTransferFCTx(
 						&types.TransactionRecord{
 							TransactionOrder: testfc.NewTransferFC(t, testfc.NewTransferFCAttr(testfc.WithLatestAdditionTime(9))),
-							ServerMetadata:   nil,
+							ServerMetadata:   &types.ServerMetadata{},
 						},
 					),
 				),
@@ -202,7 +229,7 @@ func TestAddFC(t *testing.T) {
 					testfc.WithTransferFCTx(
 						&types.TransactionRecord{
 							TransactionOrder: testfc.NewTransferFC(t, testfc.NewTransferFCAttr(testfc.WithLatestAdditionTime(10))),
-							ServerMetadata:   nil,
+							ServerMetadata:   &types.ServerMetadata{ActualFee: 1},
 						},
 					),
 				),
@@ -216,7 +243,7 @@ func TestAddFC(t *testing.T) {
 					testfc.WithTransferFCTx(
 						&types.TransactionRecord{
 							TransactionOrder: testfc.NewTransferFC(t, testfc.NewTransferFCAttr(testfc.WithAmount(100))),
-							ServerMetadata:   nil,
+							ServerMetadata:   &types.ServerMetadata{ActualFee: 1},
 						},
 					),
 				),
@@ -259,26 +286,26 @@ func TestCloseFC(t *testing.T) {
 
 	tests := []struct {
 		name       string
-		unit       *rma.Unit
+		unit       *state.Unit
 		tx         *types.TransactionOrder
 		wantErr    error
 		wantErrMsg string
 	}{
 		{
 			name:    "Ok",
-			unit:    &rma.Unit{Data: &FeeCreditRecord{Balance: 50}},
+			unit:    state.NewUnit(nil, &unit.FeeCreditRecord{Balance: 50}),
 			tx:      testfc.NewCloseFC(t, nil),
 			wantErr: nil,
 		},
 		{
 			name:       "tx is nil",
-			unit:       &rma.Unit{Data: &FeeCreditRecord{Balance: 50}},
+			unit:       state.NewUnit(nil, &unit.FeeCreditRecord{Balance: 50}),
 			tx:         nil,
 			wantErrMsg: "tx is nil",
 		},
 		{
 			name: "RecordID exists",
-			unit: &rma.Unit{Data: &FeeCreditRecord{Balance: 50}},
+			unit: state.NewUnit(nil, &unit.FeeCreditRecord{Balance: 50}),
 			tx: testfc.NewCloseFC(t, nil,
 				testtransaction.WithClientMetadata(&types.ClientMetadata{FeeCreditRecordID: recordID}),
 			),
@@ -286,7 +313,7 @@ func TestCloseFC(t *testing.T) {
 		},
 		{
 			name: "Fee proof exists",
-			unit: &rma.Unit{Data: &FeeCreditRecord{Balance: 50}},
+			unit: state.NewUnit(nil, &unit.FeeCreditRecord{Balance: 50}),
 			tx: testfc.NewCloseFC(t, nil,
 				testtransaction.WithFeeProof(feeProof),
 			),
@@ -300,19 +327,19 @@ func TestCloseFC(t *testing.T) {
 		},
 		{
 			name:       "Invalid unit type",
-			unit:       &rma.Unit{Data: &testData{}},
+			unit:       state.NewUnit(nil, &testData{}),
 			tx:         testfc.NewCloseFC(t, nil),
 			wantErrMsg: "unit data is not of type fee credit record",
 		},
 		{
 			name:       "Invalid amount",
-			unit:       &rma.Unit{Data: &FeeCreditRecord{Balance: 50}},
+			unit:       state.NewUnit(nil, &unit.FeeCreditRecord{Balance: 50}),
 			tx:         testfc.NewCloseFC(t, testfc.NewCloseFCAttr(testfc.WithCloseFCAmount(51))),
 			wantErrMsg: "invalid amount",
 		},
 		{
 			name: "Invalid fee",
-			unit: &rma.Unit{Data: &FeeCreditRecord{Balance: 50}},
+			unit: state.NewUnit(nil, &unit.FeeCreditRecord{Balance: 50}),
 			tx: testfc.NewCloseFC(t, nil,
 				testtransaction.WithClientMetadata(&types.ClientMetadata{MaxTransactionFee: 51}),
 			),
@@ -346,9 +373,13 @@ func newInvalidProof(t *testing.T, signer abcrypto.Signer) *types.TxProof {
 type testData struct {
 }
 
-func (t *testData) AddToHasher(_ hash.Hash) {
+func (t *testData) Write(hash.Hash) {
 }
 
-func (t *testData) Value() rma.SummaryValue {
-	return rma.Uint64SummaryValue(0)
+func (t *testData) SummaryValueInput() uint64 {
+	return 0
+}
+
+func (t *testData) Copy() state.UnitData {
+	return &testData{}
 }

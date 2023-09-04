@@ -36,9 +36,9 @@ func NewCloseFCAttr(opts ...CloseFCOption) *transactions.CloseFeeCreditAttribute
 
 func NewDefaultCloseFCAttr() *transactions.CloseFeeCreditAttributes {
 	return &transactions.CloseFeeCreditAttributes{
-		Amount:       amount,
-		TargetUnitID: unitID,
-		Nonce:        nonce,
+		Amount:             amount,
+		TargetUnitID:       unitID,
+		TargetUnitBacklink: targetUnitBacklink,
 	}
 }
 
@@ -56,9 +56,9 @@ func WithCloseFCTargetUnitID(targetUnitID []byte) CloseFCOption {
 	}
 }
 
-func WithCloseFCNonce(nonce []byte) CloseFCOption {
+func WithCloseFCTargetUnitBacklink(targetUnitBacklink []byte) CloseFCOption {
 	return func(tx *transactions.CloseFeeCreditAttributes) CloseFCOption {
-		tx.Nonce = nonce
+		tx.TargetUnitBacklink = targetUnitBacklink
 		return nil
 	}
 }

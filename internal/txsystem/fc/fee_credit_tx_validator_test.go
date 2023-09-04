@@ -17,17 +17,18 @@ import (
 )
 
 var (
-	moneySystemID = []byte{0, 0, 0, 0}
-	systemID      = []byte{0, 0, 0, 0}
-	recordID      = []byte{0}
-	feeProof      = []byte{1}
-	bearer        = []byte{2}
+	moneySystemID           = []byte{0, 0, 0, 0}
+	systemID                = []byte{0, 0, 0, 0}
+	recordID                = []byte{0}
+	feeProof                = []byte{1}
+	bearer                  = []byte{2}
+	feeCreditRecordUnitType = []byte{0xff}
 )
 
 func TestAddFC(t *testing.T) {
 	signer, verifier := testsig.CreateSignerAndVerifier(t)
 	verifiers := map[string]abcrypto.Verifier{"test": verifier}
-	validator := NewDefaultFeeCreditTxValidator(moneySystemID, systemID, crypto.SHA256, verifiers, nil)
+	validator := NewDefaultFeeCreditTxValidator(moneySystemID, systemID, crypto.SHA256, verifiers, feeCreditRecordUnitType)
 
 	tests := []struct {
 		name        string
@@ -62,12 +63,20 @@ func TestAddFC(t *testing.T) {
 			wantErrMsg: "transferFC tx proof is nil",
 		},
 		{
-			name: "RecordID exists",
+			name: "FeeCreditRecordID is not nil",
 			unit: nil,
 			tx: testfc.NewAddFC(t, signer, nil,
 				testtransaction.WithClientMetadata(&types.ClientMetadata{FeeCreditRecordID: recordID}),
 			),
 			wantErrMsg: "fee tx cannot contain fee credit reference",
+		},
+		{
+			name: "UnitID has wrong type",
+			unit: nil,
+			tx: testfc.NewAddFC(t, signer, nil,
+				testtransaction.WithUnitId([]byte{1}),
+			),
+			wantErrMsg: "invalid unit identifier",
 		},
 		{
 			name: "Fee proof exists",
@@ -282,7 +291,7 @@ func TestAddFC(t *testing.T) {
 func TestCloseFC(t *testing.T) {
 	_, verifier := testsig.CreateSignerAndVerifier(t)
 	verifiers := map[string]abcrypto.Verifier{"test": verifier}
-	validator := NewDefaultFeeCreditTxValidator(moneySystemID, systemID, crypto.SHA256, verifiers, nil)
+	validator := NewDefaultFeeCreditTxValidator(moneySystemID, systemID, crypto.SHA256, verifiers, feeCreditRecordUnitType)
 
 	tests := []struct {
 		name       string
@@ -304,12 +313,20 @@ func TestCloseFC(t *testing.T) {
 			wantErrMsg: "tx is nil",
 		},
 		{
-			name: "RecordID exists",
+			name: "FeeCreditRecordID is not nil",
 			unit: state.NewUnit(nil, &unit.FeeCreditRecord{Balance: 50}),
 			tx: testfc.NewCloseFC(t, nil,
 				testtransaction.WithClientMetadata(&types.ClientMetadata{FeeCreditRecordID: recordID}),
 			),
 			wantErrMsg: "fee tx cannot contain fee credit reference",
+		},
+		{
+			name: "UnitID has wrong type",
+			unit: state.NewUnit(nil, &unit.FeeCreditRecord{Balance: 50}),
+			tx: testfc.NewCloseFC(t, nil,
+				testtransaction.WithUnitId([]byte{8}),
+			),
+			wantErrMsg: "invalid unit identifier",
 		},
 		{
 			name: "Fee proof exists",

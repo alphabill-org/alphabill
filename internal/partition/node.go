@@ -400,11 +400,12 @@ func (n *Node) loop(ctx context.Context) error {
 				}
 			case *replication.LedgerReplicationRequest:
 				if err := n.handleLedgerReplicationRequest(mt); err != nil {
-					logger.Warning("Ledger replication failed by node %v: %v", n.configuration.peer.ID(), err)
+					logger.Warning("Ledger replication request failed by node %v: %v", n.configuration.peer.ID(), err)
 				}
 			case *replication.LedgerReplicationResponse:
 				if err := n.handleLedgerReplicationResponse(ctx, mt); err != nil {
-					logger.Warning("Ledger replication failed by node %v: %v", n.configuration.peer.ID(), err)
+					logger.Warning("Ledger replication response failed by node %v: %v", n.configuration.peer.ID(), err)
+					panic("boom!")
 				}
 			default:
 				logger.Warning("Unknown network protocol: %s %T", m.Protocol, mt)
@@ -732,7 +733,7 @@ func (n *Node) handleUnicityCertificate(ctx context.Context, uc *types.UnicityCe
 	// repeat UC
 	if bytes.Equal(uc.InputRecord.Hash, n.pendingBlockProposal.PrevHash) {
 		// UC certifies the IR before pending block proposal ("repeat UC"). state is rolled back to previous state.
-		logger.Warning("Reverting state tree on repeat certificate. UC IR hash: %X, proposal hash %X", uc.InputRecord.Hash, n.pendingBlockProposal.PrevHash)
+		logger.Warning("Reverting state tree on repeat certificate. UC IR hash: %X, proposal prev hash %X", uc.InputRecord.Hash, n.pendingBlockProposal.PrevHash)
 		n.revertState()
 		n.startNewRound(ctx, uc)
 		return nil
@@ -840,6 +841,7 @@ func (n *Node) handleMonitoring(lastRootMsgTime time.Time) {
 }
 
 func (n *Node) sendLedgerReplicationResponse(msg *replication.LedgerReplicationResponse, toId string) error {
+	logger.Debug("Sending ledger replication response to %s: %s", toId, msg.Pretty())
 	recoveringNodeID, err := peer.Decode(toId)
 	if err != nil {
 		return fmt.Errorf("failed to send, peer id %s decode failed, %w", toId, err)
@@ -856,6 +858,7 @@ func (n *Node) sendLedgerReplicationResponse(msg *replication.LedgerReplicationR
 }
 
 func (n *Node) handleLedgerReplicationRequest(lr *replication.LedgerReplicationRequest) error {
+	logger.Debug("Handling ledger replication request from '%s', starting block %d", lr.NodeIdentifier, lr.BeginBlockNumber)
 	util.WriteTraceJsonLog(logger, "Ledger replication request received:", lr)
 	if err := lr.IsValid(); err != nil {
 		// for now do not respond to obviously invalid requests

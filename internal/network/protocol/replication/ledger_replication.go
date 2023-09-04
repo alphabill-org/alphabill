@@ -65,7 +65,7 @@ func (r *LedgerReplicationResponse) IsValid() error {
 	if r == nil {
 		return ErrLedgerReplicationRespIsNil
 	}
-	if r.Blocks == nil {
+	if r.Status == Ok && r.Blocks == nil {
 		return ErrLedgerResponseBlocksIsNil
 	}
 	return nil

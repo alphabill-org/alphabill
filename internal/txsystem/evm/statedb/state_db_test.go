@@ -408,10 +408,6 @@ func TestStateDB_RollbackMultipleSnapshots(t *testing.T) {
 	require.EqualValues(t, 3, snapID3)
 	units = db.GetUpdatedUnits()
 	require.Len(t, units, 3)
-	// clean tree
-	_, _, err := s.CalculateRoot()
-	require.NoError(t, err)
-	// add next updates
 	address = common.BytesToAddress(test.RandomBytes(20))
 	db.CreateAccount(address)
 	db.SetNonce(address, 1)

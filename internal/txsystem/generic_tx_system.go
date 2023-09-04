@@ -195,6 +195,10 @@ func (m *GenericTxSystem) EndBlock() (State, error) {
 }
 
 func (m *GenericTxSystem) Revert() {
+	if m.state.IsCommitted() {
+		log.Debug("Revert: ignoring, round %d already committed", m.currentBlockNumber)
+		return
+	}
 	m.logPruner.Remove(m.currentBlockNumber)
 	m.state.Revert()
 
@@ -203,7 +207,6 @@ func (m *GenericTxSystem) Revert() {
 
 	if m.beginStateHash != nil && !bytes.Equal(m.beginStateHash, st.Root()) {
 		log.Error("Revert: %d, state: %X, beginStateHash: %X", m.currentBlockNumber, st.Root(), m.beginStateHash)
-		//panic("Revert: state hash mismatch")
 	}
 }
 

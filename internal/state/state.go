@@ -383,7 +383,3 @@ func getSubTreeSummaryHash(node *avl.Node[types.UnitID, *Unit]) []byte {
 	}
 	return node.Value().subTreeSummaryHash
 }
-
-func (s *State) String() string {
-	return fmt.Sprintf("committedTree=\n%s", s.committedTree.String())
-}

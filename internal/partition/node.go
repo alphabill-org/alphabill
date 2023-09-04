@@ -405,7 +405,6 @@ func (n *Node) loop(ctx context.Context) error {
 			case *replication.LedgerReplicationResponse:
 				if err := n.handleLedgerReplicationResponse(ctx, mt); err != nil {
 					logger.Warning("Ledger replication response failed by node %v: %v", n.configuration.peer.ID(), err)
-					panic("boom!")
 				}
 			default:
 				logger.Warning("Unknown network protocol: %s %T", m.Protocol, mt)

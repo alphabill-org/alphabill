@@ -40,10 +40,13 @@ var (
 )
 
 func TestCreateFungibleTokenType_NotOk(t *testing.T) {
+	unitID, err := NewRandomFungibleTokenTypeID(nil)
+	require.NoError(t, err)
+
 	validTxOrder := &types.TransactionOrder{
 		Payload: &types.Payload{
 			Type:   PayloadTypeCreateFungibleTokenType,
-			UnitID: validUnitID,
+			UnitID: unitID,
 		},
 	}
 	tests := []struct {
@@ -54,16 +57,16 @@ func TestCreateFungibleTokenType_NotOk(t *testing.T) {
 		wantErrStr string
 	}{
 		{
-			name: "unit ID is 0",
+			name: "nil unitID",
 			tx: &types.TransactionOrder{
 				Payload: &types.Payload{
 					Type:   PayloadTypeCreateFungibleTokenType,
-					UnitID: NewFungibleTokenTypeID(nil, nil),
+					UnitID: nil,
 				},
 			},
 			attr:       &CreateFungibleTokenTypeAttributes{},
 			options:    defaultOpts(t),
-			wantErrStr: "unit ID cannot be zero",
+			wantErrStr: "invalid unit ID",
 		},
 		{
 			name:       "symbol length exceeds the allowed maximum",
@@ -129,9 +132,9 @@ func TestCreateFungibleTokenType_NotOk(t *testing.T) {
 		{
 			name:       "parent does not exist",
 			tx:         validTxOrder,
-			attr:       &CreateFungibleTokenTypeAttributes{Symbol: validSymbol, DecimalPlaces: 6, ParentTypeID: validUnitID},
+			attr:       &CreateFungibleTokenTypeAttributes{Symbol: validSymbol, DecimalPlaces: 6, ParentTypeID: unitID},
 			options:    defaultOpts(t),
-			wantErrStr: fmt.Sprintf("item %s does not exist", validUnitID),
+			wantErrStr: fmt.Sprintf("item %s does not exist", unitID),
 		},
 	}
 	for _, tt := range tests {
@@ -149,23 +152,23 @@ func TestCreateFungibleTokenType_CreateSingleType_Ok(t *testing.T) {
 		Symbol:                   validSymbol,
 		Name:                     validName,
 		Icon:                     &Icon{Type: validIconType, Data: []byte{1, 2, 3}},
-		ParentTypeID:             NewFungibleTokenTypeID(nil, nil),
+		ParentTypeID:             nil,
 		DecimalPlaces:            6,
 		SubTypeCreationPredicate: script.PredicateAlwaysFalse(),
 		TokenCreationPredicate:   script.PredicateAlwaysTrue(),
 		InvariantPredicate:       script.PredicatePayToPublicKeyHashDefault(make([]byte, 32)),
 	}
 
-	uID := validUnitID
+	unitID := NewFungibleTokenTypeID(nil, []byte{7})
 	sm, err := handleCreateFungibleTokenTypeTx(opts)(
-		createTransactionOrder(t, attributes, PayloadTypeCreateFungibleTokenType, uID),
+		createTransactionOrder(t, attributes, PayloadTypeCreateFungibleTokenType, unitID),
 		attributes,
 		10,
 	)
 	require.NoError(t, err)
 	require.NotNil(t, sm)
 
-	u, err := opts.state.GetUnit(uID, false)
+	u, err := opts.state.GetUnit(unitID, false)
 	require.NoError(t, err)
 	require.NotNil(t, u)
 
@@ -179,7 +182,7 @@ func TestCreateFungibleTokenType_CreateSingleType_Ok(t *testing.T) {
 	require.Equal(t, attributes.SubTypeCreationPredicate, d.subTypeCreationPredicate)
 	require.Equal(t, attributes.TokenCreationPredicate, d.tokenCreationPredicate)
 	require.Equal(t, attributes.InvariantPredicate, d.invariantPredicate)
-	require.Equal(t, NewFungibleTokenTypeID(nil, nil), d.parentTypeId)
+	require.Nil(t, d.parentTypeId)
 }
 
 func TestCreateFungibleTokenType_CreateTokenTypeChain_Ok(t *testing.T) {
@@ -189,14 +192,13 @@ func TestCreateFungibleTokenType_CreateTokenTypeChain_Ok(t *testing.T) {
 		Symbol:                   validSymbol,
 		Name:                     validName,
 		Icon:                     &Icon{Type: validIconType, Data: []byte{1, 2, 3}},
-		ParentTypeID:             NewFungibleTokenTypeID(nil, nil),
+		ParentTypeID:             nil,
 		DecimalPlaces:            6,
 		SubTypeCreationPredicate: script.PredicateAlwaysTrue(),
 		TokenCreationPredicate:   script.PredicateAlwaysFalse(),
 		InvariantPredicate:       script.PredicatePayToPublicKeyHashDefault(make([]byte, 32)),
 	}
-	parentID := validUnitID
-
+	parentID := NewFungibleTokenTypeID(nil, []byte{19})
 	parentTx := createTransactionOrder(t, parentAttributes, PayloadTypeCreateFungibleTokenType, parentID)
 
 	childID := NewFungibleTokenTypeID(nil, []byte{20})
@@ -242,14 +244,13 @@ func TestCreateFungibleTokenType_CreateTokenTypeChain_InvalidCreationPredicateSi
 
 	parentAttributes := &CreateFungibleTokenTypeAttributes{
 		Symbol:                   validSymbol,
-		ParentTypeID:             NewFungibleTokenTypeID(nil, nil),
+		ParentTypeID:             nil,
 		DecimalPlaces:            6,
 		SubTypeCreationPredicate: script.PredicateAlwaysTrue(),
 		TokenCreationPredicate:   script.PredicateAlwaysFalse(),
 		InvariantPredicate:       script.PredicatePayToPublicKeyHashDefault(make([]byte, 32)),
 	}
-	parentID := validUnitID
-
+	parentID := NewFungibleTokenTypeID(nil, []byte{19})
 	parentTx := createTransactionOrder(t, parentAttributes, PayloadTypeCreateFungibleTokenType, parentID)
 
 	childID := NewFungibleTokenTypeID(nil, []byte{20})
@@ -274,6 +275,7 @@ func TestCreateFungibleTokenType_CreateTokenTypeChain_InvalidCreationPredicateSi
 }
 
 func TestMintFungibleToken_NotOk(t *testing.T) {
+	missingTypeID := NewFungibleTokenTypeID(nil, []byte{99})
 	tests := []struct {
 		name       string
 		tx         *types.TransactionOrder
@@ -281,29 +283,29 @@ func TestMintFungibleToken_NotOk(t *testing.T) {
 		wantErrStr string
 	}{
 		{
-			name: "unit ID is 0",
+			name: "unit ID is nil",
 			tx: &types.TransactionOrder{
 				Payload: &types.Payload{
 					Type:   PayloadTypeMintFungibleToken,
-					UnitID: NewFungibleTokenTypeID(nil, nil),
+					UnitID: nil,
 				},
 			},
 			attr:       &MintFungibleTokenAttributes{},
-			wantErrStr: "unit ID cannot be zero",
+			wantErrStr: "invalid unit ID",
 		},
 		{
 			name: "unit with given ID exists",
 			tx: &types.TransactionOrder{
 				Payload: &types.Payload{
 					Type:   PayloadTypeMintFungibleToken,
-					UnitID: existingTokenTypeUnitID,
+					UnitID: existingTokenUnitID,
 				},
 			},
 			attr:       &MintFungibleTokenAttributes{},
-			wantErrStr: fmt.Sprintf("unit with id %s already exists", existingTokenTypeUnitID),
+			wantErrStr: fmt.Sprintf("unit with id %s already exists", existingTokenUnitID),
 		},
 		{
-			name: "parent does not exist",
+			name: "token type does not exist",
 			tx: &types.TransactionOrder{
 				Payload: &types.Payload{
 					Type:   PayloadTypeMintFungibleToken,
@@ -312,11 +314,11 @@ func TestMintFungibleToken_NotOk(t *testing.T) {
 			},
 			attr: &MintFungibleTokenAttributes{
 				Bearer:                           script.PredicateAlwaysTrue(),
-				TypeID:                           validUnitID,
+				TypeID:                           missingTypeID,
 				Value:                            1000,
 				TokenCreationPredicateSignatures: [][]byte{script.PredicateArgumentEmpty()},
 			},
-			wantErrStr: fmt.Sprintf("item %s does not exist", validUnitID),
+			wantErrStr: fmt.Sprintf("item %s does not exist", missingTypeID),
 		},
 		{
 			name: "invalid token creation predicate argument",
@@ -404,23 +406,22 @@ func TestTransferFungibleToken_NotOk(t *testing.T) {
 		wantErrStr string
 	}{
 		{
-			name:       "unit ID is 0",
-			tx:         createTransactionOrder(t, nil, PayloadTypeTransferFungibleToken, NewFungibleTokenID(nil, nil)),
+			name:       "unit ID is nil",
+			tx:         createTransactionOrder(t, nil, PayloadTypeTransferFungibleToken, nil),
 			attr:       &TransferFungibleTokenAttributes{},
-			wantErrStr: "unit ID cannot be zero",
+			wantErrStr: "invalid unit ID",
+		},
+		{
+			name:       "unit isn't fungible token",
+			tx:         createTransactionOrder(t, nil, PayloadTypeTransferFungibleToken, existingTokenTypeUnitID),
+			attr:       &TransferFungibleTokenAttributes{},
+			wantErrStr: "invalid unit ID",
 		},
 		{
 			name:       "fungible token does not exists",
 			tx:         createTransactionOrder(t, nil, PayloadTypeTransferFungibleToken, NewFungibleTokenID(nil, []byte{42})),
 			attr:       &TransferFungibleTokenAttributes{},
 			wantErrStr: fmt.Sprintf("unit %s does not exist", NewFungibleTokenID(nil, []byte{42})),
-		},
-
-		{
-			name:       "unit isn't fungible token",
-			tx:         createTransactionOrder(t, nil, PayloadTypeTransferFungibleToken, existingTokenTypeUnitID),
-			attr:       &TransferFungibleTokenAttributes{},
-			wantErrStr: fmt.Sprintf("unit %s is not fungible token data", existingTokenTypeUnitID),
 		},
 		{
 			name: "invalid value",
@@ -525,22 +526,22 @@ func TestSplitFungibleToken_NotOk(t *testing.T) {
 		wantErrStr string
 	}{
 		{
-			name:       "unit ID is 0",
-			tx:         createTransactionOrder(t, nil, PayloadTypeSplitFungibleToken, NewFungibleTokenID(nil, []byte{0})),
+			name:       "unit ID is nil",
+			tx:         createTransactionOrder(t, nil, PayloadTypeSplitFungibleToken, nil),
 			attr:       &SplitFungibleTokenAttributes{},
-			wantErrStr: "unit ID cannot be zero",
+			wantErrStr: "invalid unit ID",
+		},
+		{
+			name:       "unit isn't fungible token",
+			tx:         createTransactionOrder(t, nil, PayloadTypeSplitFungibleToken, existingTokenTypeUnitID),
+			attr:       &SplitFungibleTokenAttributes{},
+			wantErrStr: "invalid unit ID",
 		},
 		{
 			name:       "fungible token does not exists",
 			tx:         createTransactionOrder(t, nil, PayloadTypeSplitFungibleToken, NewFungibleTokenID(nil, []byte{42})),
 			attr:       &SplitFungibleTokenAttributes{},
 			wantErrStr: fmt.Sprintf("unit %s does not exist", NewFungibleTokenID(nil, []byte{42})),
-		},
-		{
-			name:       "unit isn't fungible token",
-			tx:         createTransactionOrder(t, nil, PayloadTypeSplitFungibleToken, existingTokenTypeUnitID),
-			attr:       &SplitFungibleTokenAttributes{},
-			wantErrStr: fmt.Sprintf("unit %s is not fungible token data", existingTokenTypeUnitID),
 		},
 		{
 			name: "invalid target value - exceeds the max value",
@@ -714,22 +715,22 @@ func TestBurnFungibleToken_NotOk(t *testing.T) {
 		wantErrStr string
 	}{
 		{
-			name:       "unit ID is 0",
-			tx:         createTransactionOrder(t, nil, PayloadTypeBurnFungibleToken, NewFungibleTokenID(nil, []byte{0})),
+			name:       "unit ID is nil",
+			tx:         createTransactionOrder(t, nil, PayloadTypeBurnFungibleToken, nil),
 			attr:       &BurnFungibleTokenAttributes{},
-			wantErrStr: "unit ID cannot be zero",
+			wantErrStr: "invalid unit ID",
+		},
+		{
+			name:       "unit isn't fungible token",
+			tx:         createTransactionOrder(t, nil, PayloadTypeBurnFungibleToken, existingTokenTypeUnitID),
+			attr:       &BurnFungibleTokenAttributes{},
+			wantErrStr: "invalid unit ID",
 		},
 		{
 			name:       "fungible token does not exists",
 			tx:         createTransactionOrder(t, nil, PayloadTypeBurnFungibleToken, NewFungibleTokenID(nil, []byte{42})),
 			attr:       &BurnFungibleTokenAttributes{},
 			wantErrStr: fmt.Sprintf("unit %s does not exist", NewFungibleTokenID(nil, []byte{42})),
-		},
-		{
-			name:       "unit isn't fungible token",
-			tx:         createTransactionOrder(t, nil, PayloadTypeBurnFungibleToken, existingTokenTypeUnitID),
-			attr:       &BurnFungibleTokenAttributes{},
-			wantErrStr: fmt.Sprintf("unit %s is not fungible token data", existingTokenTypeUnitID),
 		},
 		{
 			name: "invalid value",
@@ -858,20 +859,19 @@ func TestJoinFungibleToken_NotOk(t *testing.T) {
 		wantErrStr string
 	}{
 		{
-			name:       "unit ID is 0",
-			tx:         createTransactionOrder(t, &JoinFungibleTokenAttributes{}, PayloadTypeJoinFungibleToken, NewFungibleTokenID(nil, []byte{0})),
-			wantErrStr: "unit ID cannot be zero",
+			name:       "unit ID is nil",
+			tx:         createTransactionOrder(t, &JoinFungibleTokenAttributes{}, PayloadTypeJoinFungibleToken, nil),
+			wantErrStr: "invalid unit ID",
+		},
+		{
+			name:       "unit isn't fungible token",
+			tx:         createTransactionOrder(t, &JoinFungibleTokenAttributes{}, PayloadTypeJoinFungibleToken, existingTokenTypeUnitID),
+			wantErrStr: "invalid unit ID",
 		},
 		{
 			name:       "fungible token does not exists",
 			tx:         createTransactionOrder(t, &JoinFungibleTokenAttributes{}, PayloadTypeJoinFungibleToken, NewFungibleTokenID(nil, []byte{42})),
 			wantErrStr: fmt.Sprintf("unit %s does not exist", NewFungibleTokenID(nil, []byte{42})),
-		},
-
-		{
-			name:       "unit isn't fungible token",
-			tx:         createTransactionOrder(t, &JoinFungibleTokenAttributes{}, PayloadTypeJoinFungibleToken, existingTokenTypeUnitID),
-			wantErrStr: fmt.Sprintf("unit %s is not fungible token data", existingTokenTypeUnitID),
 		},
 		{
 			name: "invalid backlink",
@@ -947,7 +947,7 @@ func initState(t *testing.T) *state.State {
 		symbol:                   "ALPHA",
 		name:                     "A long name for ALPHA",
 		icon:                     &Icon{Type: validIconType, Data: test.RandomBytes(10)},
-		parentTypeId:             NewFungibleTokenTypeID(nil, []byte{0}),
+		parentTypeId:             nil,
 		decimalPlaces:            5,
 		subTypeCreationPredicate: script.PredicateAlwaysTrue(),
 		tokenCreationPredicate:   script.PredicateAlwaysTrue(),
@@ -958,7 +958,7 @@ func initState(t *testing.T) *state.State {
 		symbol:                   "ALPHA2",
 		name:                     "A long name for ALPHA2",
 		icon:                     &Icon{Type: validIconType, Data: test.RandomBytes(10)},
-		parentTypeId:             NewFungibleTokenTypeID(nil, []byte{0}),
+		parentTypeId:             nil,
 		decimalPlaces:            5,
 		subTypeCreationPredicate: script.PredicateAlwaysTrue(),
 		tokenCreationPredicate:   script.PredicateAlwaysTrue(),

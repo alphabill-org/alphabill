@@ -1,6 +1,8 @@
 package tokens
 
 import (
+	"crypto/rand"
+
 	"github.com/alphabill-org/alphabill/internal/types"
 )
 
@@ -36,4 +38,29 @@ func NewNonFungibleTokenID(shardPart []byte, unitPart []byte) types.UnitID {
 
 func NewFeeCreditRecordID(shardPart []byte, unitPart []byte) types.UnitID {
 	return types.NewUnitID(UnitIDLength, shardPart, unitPart, FeeCreditRecordUnitType)
+}
+
+func NewRandomFungibleTokenTypeID(shardPart []byte) (types.UnitID, error) {
+	return newRandomUnitID(shardPart, FungibleTokenTypeUnitType)
+}
+
+func NewRandomFungibleTokenID(shardPart []byte) (types.UnitID, error) {
+	return newRandomUnitID(shardPart, FungibleTokenUnitType)
+}
+
+func NewRandomNonFungibleTokenTypeID(shardPart []byte) (types.UnitID, error) {
+	return newRandomUnitID(shardPart, NonFungibleTokenTypeUnitType)
+}
+
+func NewRandomNonFungibleTokenID(shardPart []byte) (types.UnitID, error) {
+	return newRandomUnitID(shardPart, NonFungibleTokenUnitType)
+}
+
+func newRandomUnitID(shardPart []byte, typePart []byte) (types.UnitID, error) {
+	unitPart := make([]byte, UnitPartLength)
+	_, err := rand.Read(unitPart)
+	if err != nil {
+		return nil, err
+	}
+	return types.NewUnitID(UnitIDLength, shardPart, unitPart, typePart), nil
 }

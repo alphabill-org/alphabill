@@ -18,6 +18,9 @@ const (
 	maxIconDataLength        = 64 * 1024
 	maxDecimalPlaces         = 8
 
+	ErrStrInvalidUnitID         = "invalid unit ID"
+	ErrStrInvalidTypeID         = "invalid type ID"
+	ErrStrInvalidParentTypeID   = "invalid parent type ID"
 	ErrStrSystemIdentifierIsNil = "system identifier is nil"
 	ErrStrStateIsNil            = "state is nil"
 	ErrStrInvalidSymbolLength   = "symbol length exceeds the allowed maximum of 16 bytes"

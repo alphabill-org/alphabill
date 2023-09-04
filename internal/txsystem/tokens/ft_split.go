@@ -93,7 +93,7 @@ func validateSplitFungibleToken(tx *types.TransactionOrder, attr *SplitFungibleT
 		return fmt.Errorf("invalid backlink: expected %X, got %X", d.backlink, attr.Backlink)
 	}
 	if !bytes.Equal(attr.TypeID, d.tokenType) {
-		return fmt.Errorf("invalid type identifier: expected '%X', got '%X'", d.tokenType, attr.TypeID)
+		return fmt.Errorf("invalid type identifier: expected '%s', got '%s'", d.tokenType, attr.TypeID)
 	}
 
 	predicates, err := getChainedPredicates[*fungibleTokenTypeData](
@@ -162,11 +162,11 @@ func (s *SplitFungibleTokenAttributes) SetBacklink(backlink []byte) {
 	s.Backlink = backlink
 }
 
-func (s *SplitFungibleTokenAttributes) GetTypeID() []byte {
+func (s *SplitFungibleTokenAttributes) GetTypeID() types.UnitID {
 	return s.TypeID
 }
 
-func (s *SplitFungibleTokenAttributes) SetTypeID(typeID []byte) {
+func (s *SplitFungibleTokenAttributes) SetTypeID(typeID types.UnitID) {
 	s.TypeID = typeID
 }
 

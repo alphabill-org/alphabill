@@ -33,9 +33,12 @@ func handleCreateNoneFungibleTokenTx(options *Options) txsystem.GenericExecuteFu
 }
 
 func validate(tx *types.TransactionOrder, attr *CreateNonFungibleTokenTypeAttributes, s *state.State, hashAlgorithm crypto.Hash) error {
-	unitID := types.UnitID(tx.UnitID())
-	if unitID.IsZero(UnitPartLength) {
-		return fmt.Errorf("create nft type: %s", ErrStrUnitIDIsZero)
+	unitID := tx.UnitID()
+	if !unitID.HasType(NonFungibleTokenTypeUnitType) {
+		return fmt.Errorf("create nft type: %s", ErrStrInvalidUnitID)
+	}
+	if !(attr.ParentTypeID == nil || attr.ParentTypeID.HasType(NonFungibleTokenTypeUnitType)) {
+		return fmt.Errorf("create nft type: %s", ErrStrInvalidParentTypeID)
 	}
 	if len(attr.Symbol) > maxSymbolLength {
 		return fmt.Errorf("create nft type: %s", ErrStrInvalidSymbolLength)
@@ -107,11 +110,11 @@ func (c *CreateNonFungibleTokenTypeAttributes) SetIcon(icon *Icon) {
 	c.Icon = icon
 }
 
-func (c *CreateNonFungibleTokenTypeAttributes) GetParentTypeID() []byte {
+func (c *CreateNonFungibleTokenTypeAttributes) GetParentTypeID() types.UnitID {
 	return c.ParentTypeID
 }
 
-func (c *CreateNonFungibleTokenTypeAttributes) SetParentTypeID(parentTypeID []byte) {
+func (c *CreateNonFungibleTokenTypeAttributes) SetParentTypeID(parentTypeID types.UnitID) {
 	c.ParentTypeID = parentTypeID
 }
 

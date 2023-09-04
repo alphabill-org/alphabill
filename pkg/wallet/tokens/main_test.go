@@ -390,7 +390,7 @@ func TestMintFungibleToken(t *testing.T) {
 			require.NoError(t, tx.UnmarshalAttributes(newToken))
 			require.NotEqual(t, []byte{0}, tx.UnitID())
 			require.Len(t, tx.UnitID(), 33)
-			require.Equal(t, typeId, newToken.TypeID)
+			require.EqualValues(t, typeId, newToken.TypeID)
 			require.Equal(t, amount, newToken.Value)
 			require.Equal(t, script.PredicatePayToPublicKeyHashDefault(key.PubKeyHash.Sha256), newToken.Bearer)
 		})
@@ -678,7 +678,7 @@ func TestMintNFT(t *testing.T) {
 			if tt.tokenID != nil {
 				require.EqualValues(t, tt.tokenID, tx.UnitID())
 			}
-			require.Equal(t, typeId, newToken.NFTTypeID)
+			require.EqualValues(t, typeId, newToken.NFTTypeID)
 			tt.validateOwner(t, tt.accNr, newToken)
 		})
 	}

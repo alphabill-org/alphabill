@@ -167,8 +167,8 @@ func main() {
 			if details.ContractAddr != noContract {
 				log.Printf("deployed contract address %x", details.ContractAddr)
 			}
-			for l := range details.Logs {
-
+			for i, l := range details.Logs {
+				log.Printf("log %v : %v", i, l)
 			}
 			if len(details.ReturnData) > 0 {
 				log.Printf("return data: %x", details.ReturnData)

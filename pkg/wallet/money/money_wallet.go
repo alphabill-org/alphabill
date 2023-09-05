@@ -120,11 +120,10 @@ func (w *Wallet) CollectDust(ctx context.Context, accountNumber uint64) ([]*Dust
 			if err != nil {
 				return nil, fmt.Errorf("failed to load account key: %w", err)
 			}
-			dcResult, err := w.dustCollector.CollectDust(ctx, accKey)
+			dcResult, err := w.dustCollector.CollectDust(ctx, accKey, acc.AccountIndex)
 			if err != nil {
 				return nil, fmt.Errorf("dust collection failed for account number %d: %w", acc.AccountIndex+1, err)
 			}
-			dcResult.AccountNumber = acc.AccountIndex + 1
 			res = append(res, dcResult)
 		}
 	} else {
@@ -132,11 +131,10 @@ func (w *Wallet) CollectDust(ctx context.Context, accountNumber uint64) ([]*Dust
 		if err != nil {
 			return nil, fmt.Errorf("failed to load account key: %w", err)
 		}
-		dcResult, err := w.dustCollector.CollectDust(ctx, accKey)
+		dcResult, err := w.dustCollector.CollectDust(ctx, accKey, accountNumber-1)
 		if err != nil {
 			return nil, fmt.Errorf("dust collection failed for account number %d: %w", accountNumber, err)
 		}
-		dcResult.AccountNumber = accountNumber
 		res = append(res, dcResult)
 	}
 	return res, nil

@@ -114,9 +114,9 @@ func (w *Wallet) NewFungibleType(ctx context.Context, accNr uint64, attrs Create
 		return nil, err
 	}
 	if sub.Confirmed() {
-		return &SubmissionResult{TokenTypeID: backend.TokenTypeID(sub.UnitID), FeeSum: sub.Proof.TxRecord.ServerMetadata.ActualFee}, nil
+		return &SubmissionResult{TokenTypeID: sub.UnitID, FeeSum: sub.Proof.TxRecord.ServerMetadata.ActualFee}, nil
 	}
-	return &SubmissionResult{TokenTypeID: backend.TokenTypeID(sub.UnitID)}, nil
+	return &SubmissionResult{TokenTypeID: sub.UnitID}, nil
 }
 
 func (w *Wallet) NewNonFungibleType(ctx context.Context, accNr uint64, attrs CreateNonFungibleTokenTypeAttributes, typeId backend.TokenTypeID, subtypePredicateArgs []*PredicateInput) (*SubmissionResult, error) {
@@ -126,9 +126,9 @@ func (w *Wallet) NewNonFungibleType(ctx context.Context, accNr uint64, attrs Cre
 		return nil, err
 	}
 	if sub.Confirmed() {
-		return &SubmissionResult{TokenTypeID: backend.TokenTypeID(sub.UnitID), FeeSum: sub.Proof.TxRecord.ServerMetadata.ActualFee}, nil
+		return &SubmissionResult{TokenTypeID: sub.UnitID, FeeSum: sub.Proof.TxRecord.ServerMetadata.ActualFee}, nil
 	}
-	return &SubmissionResult{TokenTypeID: backend.TokenTypeID(sub.UnitID)}, nil
+	return &SubmissionResult{TokenTypeID: sub.UnitID}, nil
 }
 
 func (w *Wallet) NewFungibleToken(ctx context.Context, accNr uint64, typeId backend.TokenTypeID, amount uint64, bearerPredicate wallet.Predicate, mintPredicateArgs []*PredicateInput) (*SubmissionResult, error) {
@@ -144,9 +144,9 @@ func (w *Wallet) NewFungibleToken(ctx context.Context, accNr uint64, typeId back
 		return nil, err
 	}
 	if sub.Confirmed() {
-		return &SubmissionResult{TokenID: backend.TokenID(sub.UnitID), FeeSum: sub.Proof.TxRecord.ServerMetadata.ActualFee}, nil
+		return &SubmissionResult{TokenID: sub.UnitID, FeeSum: sub.Proof.TxRecord.ServerMetadata.ActualFee}, nil
 	}
-	return &SubmissionResult{TokenID: backend.TokenID(sub.UnitID)}, nil
+	return &SubmissionResult{TokenID: sub.UnitID}, nil
 }
 
 func (w *Wallet) NewNFT(ctx context.Context, accNr uint64, attrs MintNonFungibleTokenAttributes, tokenId backend.TokenID, mintPredicateArgs []*PredicateInput) (*SubmissionResult, error) {
@@ -168,9 +168,9 @@ func (w *Wallet) NewNFT(ctx context.Context, accNr uint64, attrs MintNonFungible
 		return nil, err
 	}
 	if sub.Confirmed() {
-		return &SubmissionResult{TokenID: backend.TokenID(sub.UnitID), FeeSum: sub.Proof.TxRecord.ServerMetadata.ActualFee}, nil
+		return &SubmissionResult{TokenID: sub.UnitID, FeeSum: sub.Proof.TxRecord.ServerMetadata.ActualFee}, nil
 	}
-	return &SubmissionResult{TokenID: backend.TokenID(sub.UnitID)}, nil
+	return &SubmissionResult{TokenID: sub.UnitID}, nil
 }
 
 func (w *Wallet) ListTokenTypes(ctx context.Context, accountNumber uint64, kind backend.Kind) ([]*backend.TokenUnitType, error) {

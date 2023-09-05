@@ -564,6 +564,9 @@ func execTokenCmdSendFungible(cmd *cobra.Command, config *walletConfig) error {
 		return fmt.Errorf("invalid parameter \"%s\" for \"--amount\": 0 is not valid amount", amountStr)
 	}
 	result, err := tw.SendFungible(cmd.Context(), accountNumber, typeId, targetValue, pubKey, ib)
+	if err != nil {
+		return err
+	}
 	if result.FeeSum > 0 {
 		consoleWriter.Println(fmt.Sprintf("Paid %s fees for transaction(s).", amountToString(result.FeeSum, 8)))
 	}
@@ -619,6 +622,9 @@ func execTokenCmdSendNonFungible(cmd *cobra.Command, config *walletConfig) error
 	}
 
 	result, err := tw.TransferNFT(cmd.Context(), accountNumber, tokenId, pubKey, ib)
+	if err != nil {
+		return err
+	}
 	if result.FeeSum > 0 {
 		consoleWriter.Println(fmt.Sprintf("Paid %s fees for transaction(s).", amountToString(result.FeeSum, 8)))
 	}
@@ -670,6 +676,9 @@ func execTokenCmdDC(cmd *cobra.Command, config *walletConfig, accountNumber *uin
 	}
 
 	results, err := tw.CollectDust(cmd.Context(), *accountNumber, types, ib)
+	if err != nil {
+		return err
+	}
 	for _, result := range results {
 		if result.FeeSum > 0 {
 			consoleWriter.Println(fmt.Sprintf("Paid %s fees for dust collection on Account number %d.", amountToString(result.FeeSum, 8), result.AccountNumber))
@@ -726,6 +735,9 @@ func execTokenCmdUpdateNFTData(cmd *cobra.Command, config *walletConfig) error {
 	}
 
 	result, err := tw.UpdateNFTData(cmd.Context(), accountNumber, tokenId, data, du)
+	if err != nil {
+		return err
+	}
 	if result.FeeSum > 0 {
 		consoleWriter.Println(fmt.Sprintf("Paid %s fees for transaction(s).", amountToString(result.FeeSum, 8)))
 	}

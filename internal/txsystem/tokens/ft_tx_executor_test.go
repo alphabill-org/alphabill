@@ -69,6 +69,30 @@ func TestCreateFungibleTokenType_NotOk(t *testing.T) {
 			wantErrStr: "invalid unit ID",
 		},
 		{
+			name: "unitID has wrong type",
+			tx: &types.TransactionOrder{
+				Payload: &types.Payload{
+					Type:   PayloadTypeCreateFungibleTokenType,
+					UnitID: existingTokenUnitID,
+				},
+			},
+			attr:       &CreateFungibleTokenTypeAttributes{},
+			options:    defaultOpts(t),
+			wantErrStr: "invalid unit ID",
+		},
+		{
+			name: "parentTypeID has wrong type",
+			tx: &types.TransactionOrder{
+				Payload: &types.Payload{
+					Type:   PayloadTypeCreateFungibleTokenType,
+					UnitID: existingTokenTypeUnitID,
+				},
+			},
+			attr:       &CreateFungibleTokenTypeAttributes{ParentTypeID: existingTokenUnitID},
+			options:    defaultOpts(t),
+			wantErrStr: "invalid parent type ID",
+		},
+		{
 			name:       "symbol length exceeds the allowed maximum",
 			tx:         validTxOrder,
 			attr:       &CreateFungibleTokenTypeAttributes{Symbol: invalidSymbol},
@@ -294,6 +318,28 @@ func TestMintFungibleToken_NotOk(t *testing.T) {
 			wantErrStr: "invalid unit ID",
 		},
 		{
+			name: "unit ID has wrong type",
+			tx: &types.TransactionOrder{
+				Payload: &types.Payload{
+					Type:   PayloadTypeMintFungibleToken,
+					UnitID: existingTokenTypeUnitID,
+				},
+			},
+			attr:       &MintFungibleTokenAttributes{},
+			wantErrStr: "invalid unit ID",
+		},
+		{
+			name: "type ID has wrong type",
+			tx: &types.TransactionOrder{
+				Payload: &types.Payload{
+					Type:   PayloadTypeMintFungibleToken,
+					UnitID: existingTokenTypeUnitID,
+				},
+			},
+			attr:       &MintFungibleTokenAttributes{TypeID: existingTokenUnitID},
+			wantErrStr: "invalid unit ID",
+		},
+		{
 			name: "unit with given ID exists",
 			tx: &types.TransactionOrder{
 				Payload: &types.Payload{
@@ -412,7 +458,7 @@ func TestTransferFungibleToken_NotOk(t *testing.T) {
 			wantErrStr: "invalid unit ID",
 		},
 		{
-			name:       "unit isn't fungible token",
+			name:       "unit ID has wrong type",
 			tx:         createTransactionOrder(t, nil, PayloadTypeTransferFungibleToken, existingTokenTypeUnitID),
 			attr:       &TransferFungibleTokenAttributes{},
 			wantErrStr: "invalid unit ID",
@@ -532,7 +578,7 @@ func TestSplitFungibleToken_NotOk(t *testing.T) {
 			wantErrStr: "invalid unit ID",
 		},
 		{
-			name:       "unit isn't fungible token",
+			name:       "unit ID has wrong type",
 			tx:         createTransactionOrder(t, nil, PayloadTypeSplitFungibleToken, existingTokenTypeUnitID),
 			attr:       &SplitFungibleTokenAttributes{},
 			wantErrStr: "invalid unit ID",
@@ -721,7 +767,7 @@ func TestBurnFungibleToken_NotOk(t *testing.T) {
 			wantErrStr: "invalid unit ID",
 		},
 		{
-			name:       "unit isn't fungible token",
+			name:       "unit ID has wrong type",
 			tx:         createTransactionOrder(t, nil, PayloadTypeBurnFungibleToken, existingTokenTypeUnitID),
 			attr:       &BurnFungibleTokenAttributes{},
 			wantErrStr: "invalid unit ID",
@@ -864,7 +910,7 @@ func TestJoinFungibleToken_NotOk(t *testing.T) {
 			wantErrStr: "invalid unit ID",
 		},
 		{
-			name:       "unit isn't fungible token",
+			name:       "unit ID has wrong type",
 			tx:         createTransactionOrder(t, &JoinFungibleTokenAttributes{}, PayloadTypeJoinFungibleToken, existingTokenTypeUnitID),
 			wantErrStr: "invalid unit ID",
 		},

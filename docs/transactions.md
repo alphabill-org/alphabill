@@ -75,7 +75,7 @@ signature and consists of the following (with example values):
 /Payload/ [
     /SystemIdentifier/ h'00000000',
     /Type/             "trans",
-    /UnitID/           h'0000000000000000000000000000000000000000000000000000000000000001',
+    /UnitID/           h'000000000000000000000000000000000000000000000000000000000000000100',
     /Attributes/       [/omitted, Type dependent/],
     /ClientMetadata/   [/omitted/]
 ]
@@ -94,9 +94,12 @@ transaction. *SystemIdentifier*s currently in use:
 [Transaction Types](#transaction-types) for the list of supported values and
 their corresponding *Attributes*.
 
-3. *UnitID* (byte string) specifies the unit involved in the
-   transaction. Partitions can have different types of units, but they
-   are all identified by this data item.
+3. *UnitID* (byte string) uniquely identifies the unit involved in the
+   transaction. Partitions can have different types of units and each
+   *UnitID* consists of two concatenated parts: the unit part and the
+   type part. The length of each part is constant within a partition
+   and thus the overall length of *UnitID* is also constant within a
+   partition.
 
 4. *Attributes* (array) is an array of transaction attributes that
 depends on the transaction type and are described in section
@@ -115,7 +118,7 @@ for the execution of the transaction. It consists of the following
 /ClientMetadata/ [
     /Timeout/           1344,
     /MaxTransactionFee/ 1,
-    /FeeCreditRecordID/ h'A0227AC5202427DB551B8ABE08645378347A3C5F70E0E5734F147AD45CBC1BA5'
+    /FeeCreditRecordID/ h'A0227AC5202427DB551B8ABE08645378347A3C5F70E0E5734F147AD45CBC1BA50F'
 ]
 ```
 
@@ -149,8 +152,14 @@ partition.
 
 #### Money Partition
 
-System identifier: h'00000000'\
-Unit types: bill, fee credit record\
+System identifier: h'00000000'
+
+*UnitID* length: 32 bytes unit part + 1 byte type part
+
+Valid type parts in *UnitID* and the corresponding unit types: 
+- *h'00'* - bill
+- *h'0f'* - fee credit record
+
 Hash algorithm: SHA-256
 
 ##### Transfer Bill
@@ -218,10 +227,10 @@ a larger-value bill.
 *TransactionOrder*.*Payload*.*Attributes* contains:
 ```
 /transDCAttributes/ [
-    /Value/ 999999899999999996,
-    /TargetUnitID/ h'',
+    /Value/              999999899999999996,
+    /TargetUnitID/       h'',
     /TargetUnitBacklink/ h'',
-    /Backlink/    h'2C8E1F55FC20A44687AB5D18D11F5E3544D2989DFFBB8250AA6EBA5EF4CEC319'
+    /Backlink/           h'2C8E1F55FC20A44687AB5D18D11F5E3544D2989DFFBB8250AA6EBA5EF4CEC319'
 ]
 ```
 
@@ -291,7 +300,7 @@ Fee Credit](#add-fee-credit) transaction.
 /transFCAttributes/ [
     /Amount/                 100000000,
     /TargetSystemIdentifier/ h'00000002',
-    /TargetRecordID/         h'A0227AC5202427DB551B8ABE08645378347A3C5F70E0E5734F147AD45CBC1BA5',
+    /TargetRecordID/         h'A0227AC5202427DB551B8ABE08645378347A3C5F70E0E5734F147AD45CBC1BA52F',
     /EarliestAdditionTime/   13,
     /LatestAdditionTime/     23,
     /TargetUnitBacklink/     null,
@@ -307,8 +316,7 @@ Fee Credit](#add-fee-credit) transaction.
    the target partition where the *Amount* can be spent on fees.
 3. *TargetRecordID* (byte string) is the target fee credit record
    identifier (*FeeCreditRecordID* of the corresponding [Add Fee
-   Credit](#add-fee-credit) transaction). Hash of the private key
-   signing this transaction is used.
+   Credit](#add-fee-credit) transaction).
 4. *EarliestAdditionTime* (unsigned integer) is the earliest round
    when the corresponding [Add Fee Credit](#add-fee-credit)
    transaction can be executed in the target partition (usually
@@ -380,19 +388,19 @@ the bill would invalidate that backlink.
 *TransactionOrder*.*Payload*.*Attributes* contains:
 ```
 /closeFCAttributes/ [
-    /Amount/              100000000,
-    /FeeCreditRecordID/   h'A0227AC5202427DB551B8ABE08645378347A3C5F70E0E5734F147AD45CBC1BA5',
-    /TargetUnitBacklink/  h''
+    /Amount/             100000000,
+    /TargetUnitID/       h'A0227AC5202427DB551B8ABE08645378347A3C5F70E0E5734F147AD45CBC1BA500',
+    /TargetUnitBacklink/ h''
 ]
 ```
 
 1. *Amount* (unsigned integer) is the current balance of the fee
    credit record.
-2. *FeeCreditRecordID* (byte string) is the identifier of the fee
-   credit record to be closed.
-3. *TargetUnitBacklink* (byte string) is the backlink to the previous transaction
-   with the bill in the money partition that is used to reclaim the
-   fee credit.
+2. *TargetUnitID* (byte string) is the *UnitID* of the existing bill
+   in the money partition that is used to reclaim the fee credit.
+3. *TargetUnitBacklink* (byte string) is the backlink to the previous
+   transaction with the bill in the money partition that is used to
+   reclaim the fee credit.
 
 ##### Reclaim Fee Credit
 
@@ -425,8 +433,17 @@ partition, to an existing bill in the money partition.
 
 #### Tokens Partition
 
-System identifier: h'00000002'\
-Unit types: fungible token type, non-fungible token type, fungible token, non-fungible token, fee credit record\
+System identifier: *h'00000002'*
+
+*UnitID* length: 32 bytes unit part + 1 byte type part
+
+Valid type parts in *UnitID* and the corresponding unit types: 
+- *h'20'* - fungible token type
+- *h'21'* - fungible token
+- *h'22'* - non-fungible token type
+- *h'23'* - non-fungible token
+- *h'2f'* - fee credit record
+
 Hash algorithm: SHA-256
 
 ##### Create Non-fungible Token Type
@@ -440,7 +457,7 @@ This transaction creates a non-fungible token type.
     /Symbol/                             "symbol",
     /Name/                               "long name",
     /Icon/                               [/Type/ "image/png", /Data/ h''],
-    /ParentTypeID/                       h'00',
+    /ParentTypeID/                       null,
     /SubTypeCreationPredicate/           h'535101',
     /TokenCreationPredicate/             h'5376A8014F01B327E2D37F0BFB6BABF6ACC758A101C6D8EB03991ABE7F137C62B253C5A5CFA08769AC01',
     /InvariantPredicate/                 h'535101',
@@ -457,7 +474,7 @@ This transaction creates a non-fungible token type.
     1. *Type* (text string) is the MIME content type of the image in *Data*.
     2. *Data* (byte string) is the image in the format specified by *Type*.
 4. *ParentTypeID* (byte string) is the *UnitID* of the parent type
-   that this type derives from. A byte with value 0 indicates there is
+   that this type derives from. `null` value indicates that there is
    no parent type.
 5. *SubTypeCreationPredicate* (byte string) is the predicate clause that
    controls defining new subtypes of this type.
@@ -565,7 +582,7 @@ This transaction creates a fungible token type.
     /Symbol/                             "symbol",
     /Name/                               "long name",
     /Icon/                               [/Type/ "image/png", /Data/ h''],
-    /ParentTypeID/                       h'00',
+    /ParentTypeID/                       null,
     /DecimalPlaces/                      8,
     /SubTypeCreationPredicate/           h'535101',
     /TokenCreationPredicate/             h'5376A8014F01B327E2D37F0BFB6BABF6ACC758A101C6D8EB03991ABE7F137C62B253C5A5CFA08769AC01',
@@ -582,7 +599,7 @@ This transaction creates a fungible token type.
     1. *Type* (text string) is the MIME content type of the image in *Data*.
     2. *Data* (byte string) is the image in the format specified by *Type*.
 4. *ParentTypeID* (byte string) is the *UnitID* of the parent type
-   that this type derives from. A byte with value 0 indicates there is
+   that this type derives from. `null` value indicates that there is
    no parent type.
 5. *DecimalPlaces* (unsigned integer) is the number of decimal places
    to display for values of tokens of this type.

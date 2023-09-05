@@ -39,10 +39,8 @@ func TestStateDB_CreateAccount(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s := &StateDB{
-				tree:       tt.tree,
-				accessList: newAccessList(),
-			}
+			s := NewStateDB(tt.tree)
+
 			s.CreateAccount(tt.address)
 			require.NoError(t, s.errDB)
 			u, err := tt.tree.GetUnit(tt.address.Bytes(), false)
@@ -89,10 +87,8 @@ func TestStateDB_SubBalance(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s := &StateDB{
-				tree:       tt.tree,
-				accessList: newAccessList(),
-			}
+			s := NewStateDB(tt.tree)
+
 			s.SubBalance(tt.address, tt.subAmount)
 			require.NoError(t, s.errDB)
 			require.Equal(t, tt.expectedAccountBalance, s.GetBalance(tt.address))
@@ -132,10 +128,8 @@ func TestStateDB_AddBalance(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s := &StateDB{
-				tree:       tt.tree,
-				accessList: newAccessList(),
-			}
+			s := NewStateDB(tt.tree)
+
 			s.AddBalance(tt.address, tt.addAmount)
 			require.NoError(t, s.errDB)
 			require.Equal(t, tt.expectedAccountBalance, s.GetBalance(tt.address))
@@ -184,10 +178,8 @@ func TestStateDB_Nonce(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s := &StateDB{
-				tree:       tt.tree,
-				accessList: newAccessList(),
-			}
+			s := NewStateDB(tt.tree)
+
 			if tt.op != nil {
 				tt.op(s)
 			}
@@ -234,10 +226,7 @@ func TestStateDB_Code(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s := &StateDB{
-				tree:       tt.initialState,
-				accessList: newAccessList(),
-			}
+			s := NewStateDB(tt.initialState)
 			if tt.op != nil {
 				tt.op(s)
 			}
@@ -259,10 +248,7 @@ func TestStateDB_ContractStorage(t *testing.T) {
 	value2 := common.BigToHash(big.NewInt(4))
 
 	s := initState(t)
-	db := &StateDB{
-		tree:       s,
-		accessList: newAccessList(),
-	}
+	db := NewStateDB(s)
 	db.SetState(initialAccountAddress, key1, value1)
 	db.SetState(initialAccountAddress, key2, value2)
 
@@ -286,10 +272,7 @@ func TestStateDB_ContractStorage(t *testing.T) {
 
 func TestStateDB_AddLog(t *testing.T) {
 	s := initState(t)
-	db := &StateDB{
-		tree:       s,
-		accessList: newAccessList(),
-	}
+	db := NewStateDB(s)
 	l := &types.Log{
 		Address: common.BytesToAddress(test.RandomBytes(20)),
 		Topics:  []common.Hash{common.BytesToHash(test.RandomBytes(32))},
@@ -310,11 +293,7 @@ func TestStateDB_AddLog(t *testing.T) {
 }
 
 func TestStateDB_Suicide(t *testing.T) {
-	s := initState(t)
-	db := &StateDB{
-		tree:       s,
-		accessList: newAccessList(),
-	}
+	db := NewStateDB(initState(t))
 
 	require.False(t, db.Suicide(common.BytesToAddress(test.RandomBytes(20))))
 	require.False(t, db.HasSuicided(initialAccountAddress))
@@ -322,20 +301,17 @@ func TestStateDB_Suicide(t *testing.T) {
 
 	require.NoError(t, db.Finalize())
 
-	_, _, err := s.CalculateRoot()
+	_, _, err := db.tree.CalculateRoot()
 	require.NoError(t, err)
-	require.NoError(t, s.Commit())
+	require.NoError(t, db.tree.Commit())
 
-	u, err := s.GetUnit(initialAccountAddress.Bytes(), false)
+	u, err := db.tree.GetUnit(initialAccountAddress.Bytes(), false)
 	require.ErrorContains(t, err, "not found")
 	require.Nil(t, u)
 }
 
 func TestStateDB_RevertSnapshot(t *testing.T) {
-	s := &StateDB{
-		tree:       initState(t),
-		accessList: newAccessList(),
-	}
+	s := NewStateDB(initState(t))
 	snapID := s.Snapshot()
 	s.SetNonce(initialAccountAddress, 1)
 	s.AddBalance(initialAccountAddress, big.NewInt(100))
@@ -353,6 +329,109 @@ func TestStateDB_RevertSnapshot(t *testing.T) {
 	require.Equal(t, uint64(0), s.GetNonce(initialAccountAddress))
 	require.Equal(t, []byte(nil), s.GetCode(initialAccountAddress))
 	require.Equal(t, common.Hash{}, s.GetState(initialAccountAddress, common.BigToHash(big.NewInt(1))))
+}
+
+func TestStateDB_RevertSnapshot2(t *testing.T) {
+	s := NewStateDB(initState(t))
+	snapID := s.Snapshot()
+	s.SetNonce(initialAccountAddress, 1)
+	s.AddBalance(initialAccountAddress, big.NewInt(100))
+	s.SetCode(initialAccountAddress, []byte("hello world"))
+	s.SetState(initialAccountAddress, common.BigToHash(big.NewInt(1)), common.BigToHash(big.NewInt(1)))
+	address := common.BytesToAddress(test.RandomBytes(20))
+	s.CreateAccount(address)
+	s.SetNonce(address, 1)
+	require.NoError(t, s.DBError())
+	// CREATE A SECOND SNAPSHOT
+	s.Snapshot()
+	// update nonce again
+	s.SetNonce(initialAccountAddress, 3)
+	s.Snapshot()
+	// revert to initial state
+	s.RevertToSnapshot(snapID)
+	require.False(t, s.Exist(address))
+
+	require.Equal(t, big.NewInt(200), s.GetBalance(initialAccountAddress))
+	require.Equal(t, uint64(0), s.GetNonce(initialAccountAddress))
+	require.Equal(t, []byte(nil), s.GetCode(initialAccountAddress))
+	require.Equal(t, common.Hash{}, s.GetState(initialAccountAddress, common.BigToHash(big.NewInt(1))))
+}
+
+func TestStateDB_GetUpdatedUnits(t *testing.T) {
+	s := state.NewEmptyState()
+	db := NewStateDB(s)
+	require.NoError(t, db.Finalize())
+	units := db.GetUpdatedUnits()
+	require.Empty(t, units)
+	db.CreateAccount(initialAccountAddress)
+	snapID := db.Snapshot()
+	db.SetNonce(initialAccountAddress, 1)
+	db.AddBalance(initialAccountAddress, big.NewInt(100))
+	db.SetCode(initialAccountAddress, []byte("hello world"))
+	db.SetState(initialAccountAddress, common.BigToHash(big.NewInt(1)), common.BigToHash(big.NewInt(1)))
+	address := common.BytesToAddress(test.RandomBytes(20))
+	db.CreateAccount(address)
+	db.SetNonce(address, 1)
+	require.NoError(t, db.DBError())
+	units = db.GetUpdatedUnits()
+	require.Len(t, units, 2)
+	db.RevertToSnapshot(snapID)
+	require.True(t, db.Exist(initialAccountAddress))
+	require.False(t, db.Exist(address))
+	units = db.GetUpdatedUnits()
+	require.Len(t, units, 1)
+	require.NoError(t, db.Finalize())
+	units = db.GetUpdatedUnits()
+	require.Empty(t, units)
+}
+
+func TestStateDB_RollbackMultipleSnapshots(t *testing.T) {
+	s := state.NewEmptyState()
+	db := NewStateDB(s)
+	// snapshot 1, empty DB, no units
+	snapID1 := db.Snapshot()
+	require.EqualValues(t, 1, snapID1)
+	units := db.GetUpdatedUnits()
+	require.Len(t, units, 0)
+	db.CreateAccount(initialAccountAddress)
+	db.SetNonce(initialAccountAddress, 1)
+	db.AddBalance(initialAccountAddress, big.NewInt(100))
+	db.SetCode(initialAccountAddress, []byte("hello world"))
+	db.SetState(initialAccountAddress, common.BigToHash(big.NewInt(1)), common.BigToHash(big.NewInt(1)))
+	// snapID1 snapshot has 1 account created
+	snapID2 := db.Snapshot()
+	require.EqualValues(t, 2, snapID2)
+	units = db.GetUpdatedUnits()
+	require.Len(t, units, 1)
+	address := common.BytesToAddress(test.RandomBytes(20))
+	db.CreateAccount(address)
+	db.SetNonce(address, 1)
+	address = common.BytesToAddress(test.RandomBytes(20))
+	db.CreateAccount(address)
+	db.SetNonce(address, 2)
+	// snapID3 snapshot adds 2 new units
+	snapID3 := db.Snapshot()
+	require.EqualValues(t, 3, snapID3)
+	units = db.GetUpdatedUnits()
+	require.Len(t, units, 3)
+	address = common.BytesToAddress(test.RandomBytes(20))
+	db.CreateAccount(address)
+	db.SetNonce(address, 1)
+	address = common.BytesToAddress(test.RandomBytes(20))
+	db.CreateAccount(address)
+	db.SetNonce(address, 1)
+	db.SetNonce(initialAccountAddress, 3)
+	// snapID4 snapshot, adds 2 new units and modifies an existing unit
+	snapID4 := db.Snapshot()
+	require.EqualValues(t, 4, snapID4)
+	require.NoError(t, db.DBError())
+	units = db.GetUpdatedUnits()
+	require.Len(t, units, 5)
+	db.RevertToSnapshot(snapID2)
+	require.True(t, db.Exist(initialAccountAddress))
+	units = db.GetUpdatedUnits()
+	require.Len(t, units, 1)
+	require.EqualValues(t, 1, db.GetNonce(initialAccountAddress))
 }
 
 func initState(t *testing.T) *state.State {

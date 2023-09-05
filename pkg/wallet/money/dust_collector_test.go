@@ -90,7 +90,7 @@ func TestAllBillsAreSwapped_WhenWalletBillCountEqualToMaxBillCount(t *testing.T)
 
 	// then swap tx should be returned
 	require.NotNil(t, swapTx)
-	require.Equal(t, targetBill.GetID(), swapTx.TxRecord.TransactionOrder.UnitID())
+	require.EqualValues(t, targetBill.GetID(), swapTx.TxRecord.TransactionOrder.UnitID())
 
 	// and swap contains correct dc transfers
 	swapAttr := &billtx.SwapDCAttributes{}
@@ -100,7 +100,7 @@ func TestAllBillsAreSwapped_WhenWalletBillCountEqualToMaxBillCount(t *testing.T)
 	require.Len(t, swapAttr.DcTransfers, maxBillsPerDC-1)
 	require.Len(t, swapAttr.DcTransferProofs, maxBillsPerDC-1)
 	require.EqualValues(t, 36, swapAttr.TargetValue)
-	require.Equal(t, targetBill.GetID(), swapTxo.UnitID())
+	require.EqualValues(t, targetBill.GetID(), swapTxo.UnitID())
 
 	// and no locked units exists
 	units, err := unitLocker.GetUnits(backendMockWrapper.accountKey.PubKey)
@@ -131,12 +131,12 @@ func TestOnlyFirstNBillsAreSwapped_WhenBillCountOverLimit(t *testing.T) {
 	swapTxo := swapProof.TxRecord.TransactionOrder
 	swapAttr := &billtx.SwapDCAttributes{}
 	err = swapTxo.UnmarshalAttributes(swapAttr)
-	require.Equal(t, targetBill.GetID(), swapTxo.UnitID())
+	require.EqualValues(t, targetBill.GetID(), swapTxo.UnitID())
 	require.NoError(t, err)
 	require.Len(t, swapAttr.DcTransfers, maxBillsPerDC)
 	require.Len(t, swapAttr.DcTransferProofs, maxBillsPerDC)
 	require.EqualValues(t, 45, swapAttr.TargetValue)
-	require.Equal(t, targetBill.GetID(), swapTxo.UnitID())
+	require.EqualValues(t, targetBill.GetID(), swapTxo.UnitID())
 
 	// and no locked units exists
 	units, err := unitLocker.GetUnits(backendMockWrapper.accountKey.PubKey)

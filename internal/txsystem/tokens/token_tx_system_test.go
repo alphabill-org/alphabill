@@ -281,7 +281,7 @@ func TestExecuteCreateNFTType_UnitIDHasWrongType(t *testing.T) {
 	require.Nil(t, sm)
 }
 
-func TestExecuteCreateNFTType_ParentIDHasWrongType(t *testing.T) {
+func TestExecuteCreateNFTType_ParentTypeIDHasWrongType(t *testing.T) {
 	txs := newTokenTxSystem(t)
 	tx := testtransaction.NewTransactionOrder(
 		t,

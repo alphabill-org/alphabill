@@ -37,7 +37,7 @@ func validate(tx *types.TransactionOrder, attr *CreateNonFungibleTokenTypeAttrib
 	if !unitID.HasType(NonFungibleTokenTypeUnitType) {
 		return fmt.Errorf("create nft type: %s", ErrStrInvalidUnitID)
 	}
-	if !(attr.ParentTypeID == nil || attr.ParentTypeID.HasType(NonFungibleTokenTypeUnitType)) {
+	if attr.ParentTypeID != nil && !attr.ParentTypeID.HasType(NonFungibleTokenTypeUnitType) {
 		return fmt.Errorf("create nft type: %s", ErrStrInvalidParentTypeID)
 	}
 	if len(attr.Symbol) > maxSymbolLength {

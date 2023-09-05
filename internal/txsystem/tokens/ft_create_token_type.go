@@ -38,7 +38,7 @@ func validateCreateFungibleTokenType(tx *types.TransactionOrder, attr *CreateFun
 	if !unitID.HasType(FungibleTokenTypeUnitType) {
 		return fmt.Errorf(ErrStrInvalidUnitID)
 	}
-	if !(attr.ParentTypeID == nil || attr.ParentTypeID.HasType(FungibleTokenTypeUnitType)) {
+	if attr.ParentTypeID != nil && !attr.ParentTypeID.HasType(FungibleTokenTypeUnitType) {
 		return fmt.Errorf(ErrStrInvalidParentTypeID)
 	}
 	if len(attr.Symbol) > maxSymbolLength {

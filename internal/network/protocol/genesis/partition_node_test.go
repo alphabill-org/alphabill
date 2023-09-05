@@ -111,6 +111,7 @@ func TestPartitionNodeIsValid(t *testing.T) {
 			SummaryValue: make([]byte, 32),
 			RoundNumber:  1,
 		},
+		RootRoundNumber: 1,
 	}
 	require.NoError(t, req.Sign(signer))
 	pn := &PartitionNode{

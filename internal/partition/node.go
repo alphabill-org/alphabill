@@ -1096,7 +1096,8 @@ func (n *Node) sendCertificationRequest(blockAuthor string) error {
 	defer trackExecutionTime(time.Now(), "Sending CertificationRequest")
 	systemIdentifier := n.configuration.GetSystemIdentifier()
 	nodeId := n.leaderSelector.SelfID()
-	prevStateHash := n.luc.Load().InputRecord.Hash
+	luc := n.luc.Load()
+	prevStateHash := luc.InputRecord.Hash
 	state, err := n.transactionSystem.EndBlock()
 	if err != nil {
 		return fmt.Errorf("tx system failed to end block, %w", err)
@@ -1138,6 +1139,7 @@ func (n *Node) sendCertificationRequest(blockAuthor string) error {
 			RoundNumber:     pendingProposal.RoundNumber,
 			SumOfEarnedFees: pendingProposal.SumOfEarnedFees,
 		},
+		RootRoundNumber: luc.UnicitySeal.RootChainRoundNumber,
 	}
 	if err = req.Sign(n.configuration.signer); err != nil {
 		return fmt.Errorf("failed to sign certification req, %w", err)

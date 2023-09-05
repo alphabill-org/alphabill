@@ -71,6 +71,13 @@ func (x *UnicityCertificate) GetRoundNumber() uint64 {
 	return 0
 }
 
+func (x *UnicityCertificate) GetRootRoundNumber() uint64 {
+	if x != nil && x.UnicitySeal != nil {
+		return x.UnicitySeal.RootChainRoundNumber
+	}
+	return 0
+}
+
 // CheckNonEquivocatingCertificates checks if provided certificates are equivocating
 // NB! order is important, also it is assumed that validity of both UCs is checked before
 // The algorithm is based on Yellowpaper: "Algorithm 6 Checking two UC-s for equivocation"

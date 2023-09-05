@@ -277,7 +277,7 @@ func TestNewTypes(t *testing.T) {
 	tw := initTestWallet(t, be)
 
 	t.Run("fungible type", func(t *testing.T) {
-		typeId := test.RandomBytes(32)
+		typeId := types.UnitID(test.RandomBytes(33))
 		a := CreateFungibleTokenTypeAttributes{
 			Symbol:                   "AB",
 			Name:                     "Long name for AB",
@@ -320,7 +320,7 @@ func TestNewTypes(t *testing.T) {
 	})
 
 	t.Run("non-fungible type", func(t *testing.T) {
-		typeId := test.RandomBytes(32)
+		typeId := types.UnitID(test.RandomBytes(33))
 		a := CreateNonFungibleTokenTypeAttributes{
 			Symbol:                   "ABNFT",
 			Name:                     "Long name for ABNFT",

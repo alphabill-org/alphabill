@@ -423,7 +423,7 @@ func TestBillStore_Paging_FilterDCBills(t *testing.T) {
 
 func TestBillStore_StoreTxProof(t *testing.T) {
 	bs := createTestBillStore(t)
-	unitID := test.RandomBytes(32)
+	unitID := types.UnitID(test.RandomBytes(33))
 	txHash := test.RandomBytes(32)
 
 	// store tx proof

@@ -166,7 +166,7 @@ func TestAddFeeCredit_LockedBillForTransferFC(t *testing.T) {
 		require.NotNil(t, res.AddFC)
 
 		// then new transferFC must be sent
-		require.Equal(t, []byte{123}, res.TransferFC.TxRecord.TransactionOrder.UnitID())
+		require.EqualValues(t, []byte{123}, res.TransferFC.TxRecord.TransactionOrder.UnitID())
 
 		// and bill must be unlocked
 		units, err := unitLocker.GetUnits(accountKey.PubKey)
@@ -413,7 +413,7 @@ func TestReclaimFeeCredit_LockedBillForCloseFC(t *testing.T) {
 		err = res.CloseFC.TxRecord.TransactionOrder.UnmarshalAttributes(&actualCloseFCAttr)
 		require.NoError(t, err)
 
-		require.Equal(t, []byte{111}, res.CloseFC.TxRecord.TransactionOrder.UnitID()) // unitID matches FCB ID
+		require.EqualValues(t, []byte{111}, res.CloseFC.TxRecord.TransactionOrder.UnitID()) // unitID matches FCB ID
 		require.Equal(t, []byte{123}, actualCloseFCAttr.TargetUnitID)                 // target unitID matches target bill ID
 		require.Equal(t, []byte{2}, actualCloseFCAttr.TargetUnitBacklink)             // target unit backlink matches target bill txhash
 

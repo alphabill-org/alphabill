@@ -247,9 +247,8 @@ paths:
       parameters:
         - name: unitId
           description: |-
-            Hex encoded free credit unit ID (SHA256 hash of public
-            key) prefixed with `0x`.  Must be 66 characters long
-            (including the `0x` prefix).
+            Hex encoded free credit record ID prefixed with `0x`.
+            Must be 68 characters long (including the `0x` prefix).
           in: path
           required: true
           schema:
@@ -264,7 +263,7 @@ paths:
                 items:
                   $ref: 'components.yaml#/schemas/Bill'
         '404':
-          description: Fee credit bill was not found for given bill ID
+          description: Fee credit bill was not found for given unit ID
           content:
             application/json:
               schema:

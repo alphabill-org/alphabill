@@ -26,13 +26,14 @@ type (
 	// FeeCredit contains fee credit related functionality.
 	FeeCredit struct {
 		systemIdentifier        []byte
-		moneyTXSystemIdentifier []byte
+		moneySystemIdentifier   []byte
 		state                   *state.State
 		hashAlgorithm           crypto.Hash
 		trustBase               map[string]abcrypto.Verifier
 		logger                  logger.Logger
 		txValidator             *DefaultFeeCreditTxValidator
 		feeCalculator           FeeCalculator
+		feeCreditRecordUnitType []byte
 	}
 
 	FeeCalculator func() uint64
@@ -56,7 +57,13 @@ func NewFeeCreditModule(opts ...Option) (*FeeCredit, error) {
 	if err := validConfiguration(m); err != nil {
 		return nil, fmt.Errorf("invalid fee credit module configuration: %w", err)
 	}
-	m.txValidator = NewDefaultFeeCreditTxValidator(m.moneyTXSystemIdentifier, m.systemIdentifier, m.hashAlgorithm, m.trustBase)
+	m.txValidator = NewDefaultFeeCreditTxValidator(
+		m.moneySystemIdentifier,
+		m.systemIdentifier,
+		m.hashAlgorithm,
+		m.trustBase,
+		m.feeCreditRecordUnitType,
+	)
 	return m, nil
 }
 
@@ -75,7 +82,7 @@ func validConfiguration(m *FeeCredit) error {
 	if len(m.systemIdentifier) == 0 {
 		return ErrSystemIdentifierMissing
 	}
-	if len(m.moneyTXSystemIdentifier) == 0 {
+	if len(m.moneySystemIdentifier) == 0 {
 		return ErrMoneySystemIdentifierMissing
 	}
 	if m.state == nil {

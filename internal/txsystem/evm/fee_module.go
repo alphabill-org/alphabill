@@ -59,7 +59,7 @@ func newFeeModule(systemIdentifier []byte, options *Options) (*FeeAccount, error
 		systemIdentifier: systemIdentifier,
 		trustBase:        options.trustBase,
 		hashAlgorithm:    options.hashAlgorithm,
-		txValidator:      fc.NewDefaultFeeCreditTxValidator(options.moneyTXSystemIdentifier, systemIdentifier, options.hashAlgorithm, options.trustBase),
+		txValidator:      fc.NewDefaultFeeCreditTxValidator(options.moneyTXSystemIdentifier, systemIdentifier, options.hashAlgorithm, options.trustBase, nil),
 		feeCalculator:    FixedFee(1),
 	}, nil
 }

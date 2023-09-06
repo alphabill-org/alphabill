@@ -3,7 +3,6 @@ package tokens
 import (
 	"context"
 	"crypto"
-	"crypto/rand"
 	"fmt"
 	"sort"
 
@@ -128,24 +127,8 @@ func (w *Wallet) newToken(ctx context.Context, accNr uint64, payloadType string,
 	return sub, nil
 }
 
-func RandomID() (types.UnitID, error) {
-	id := make([]byte, tokens.UnitIDLength)
-	_, err := rand.Read(id)
-	if err != nil {
-		return nil, err
-	}
-	return id, nil
-}
-
 func (w *Wallet) prepareTxSubmission(ctx context.Context, payloadType string, attrs types.SigBytesProvider, unitId types.UnitID, ac *account.AccountKey, rn roundNumberFetcher, txps txPreprocessor) (*txsubmitter.TxSubmission, error) {
-	var err error
-	if unitId == nil {
-		unitId, err = RandomID()
-		if err != nil {
-			return nil, err
-		}
-	}
-	log.Info(fmt.Sprintf("Preparing to send token tx, UnitID=%X", unitId))
+	log.Info(fmt.Sprintf("Preparing to send token tx, UnitID=%s", unitId))
 
 	roundNumber, err := rn(ctx)
 	if err != nil {

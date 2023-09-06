@@ -39,7 +39,7 @@ paths:
         - name: typeId
           description: |-
             Hex encoded type ID prefixed with `0x`.
-            Must be 66 characters long (including the `0x` prefix).
+            Must be 68 characters long (including the `0x` prefix).
           in: path
           required: true
           schema:
@@ -115,7 +115,7 @@ paths:
         - name: tokenId
           description: |-
             Hex encoded token ID prefixed with `0x`.
-            Must be 66 characters long (including the 0x prefix).
+            Must be 68 characters long (including the 0x prefix).
           in: path
           required: true
           schema:
@@ -183,7 +183,7 @@ paths:
         - name: unitId
           description: |-
             Hex encoded unit ID prefixed with `0x`.
-            Must be 66 characters long (including the `0x` prefix).
+            Must be 68 characters long (including the `0x` prefix).
           in: path
           required: true
           schema:

@@ -1,8 +1,6 @@
 package cmd
 
 import (
-	"bytes"
-	"crypto"
 	"fmt"
 	"mime"
 	"os"
@@ -56,8 +54,6 @@ const (
 	maxDecimalPlaces   = 8
 )
 
-var NoParent = make([]byte, crypto.SHA256.Size())
-
 type runTokenListTypesCmd func(cmd *cobra.Command, config *walletConfig, accountNumber *uint64, kind backend.Kind) error
 type runTokenListCmd func(cmd *cobra.Command, config *walletConfig, accountNumber *uint64, kind backend.Kind) error
 
@@ -102,7 +98,7 @@ func addCommonTypeFlags(cmd *cobra.Command) *cobra.Command {
 	if err != nil {
 		return nil
 	}
-	cmd.Flags().BytesHex(cmdFlagParentType, NoParent, "unit identifier of a parent type in hexadecimal format")
+	cmd.Flags().BytesHex(cmdFlagParentType, nil, "unit identifier of a parent type in hexadecimal format")
 	cmd.Flags().StringSlice(cmdFlagSybTypeClauseInput, nil, "input to satisfy the parent type creation clause (mandatory with --parent-type)")
 	cmd.MarkFlagsRequiredTogether(cmdFlagParentType, cmdFlagSybTypeClauseInput)
 	cmd.Flags().String(cmdFlagSybTypeClause, predicateTrue, "predicate to control sub typing, values <true|false|ptpkh>")
@@ -971,8 +967,8 @@ func readParentTypeInfo(cmd *cobra.Command, keyNr uint64, am account.Manager) (b
 		return nil, nil, err
 	}
 
-	if len(parentType) == 0 || bytes.Equal(parentType, NoParent) {
-		return NoParent, []*wallet.PredicateInput{{Argument: script.PredicateArgumentEmpty()}}, nil
+	if len(parentType) == 0 {
+		return nil, []*wallet.PredicateInput{{Argument: script.PredicateArgumentEmpty()}}, nil
 	}
 
 	creationInputs, err := readPredicateInput(cmd, cmdFlagSybTypeClauseInput, keyNr, am)

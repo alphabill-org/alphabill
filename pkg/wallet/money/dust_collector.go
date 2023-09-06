@@ -31,9 +31,9 @@ type (
 	}
 
 	DustCollectionResult struct {
-		AccountKey uint64
-		FeeSum     uint64
-		SwapProof  *wallet.Proof
+		AccountIndex uint64
+		FeeSum       uint64
+		SwapProof    *wallet.Proof
 	}
 
 	UnitLocker interface {
@@ -56,19 +56,19 @@ func NewDustCollector(systemID []byte, maxBillsPerDC int, backend BackendAPI, un
 
 // CollectDust joins up to N units into existing target unit, prioritizing small units first. The largest unit is
 // selected as the target unit. Returns swap transaction proof or error or nil if there's not enough bills to swap.
-func (w *DustCollector) CollectDust(ctx context.Context, accountKey *account.AccountKey, accIdx uint64) (*DustCollectionResult, error) {
-	dcResult, err := w.runExistingDustCollection(ctx, accountKey, accIdx)
+func (w *DustCollector) CollectDust(ctx context.Context, accountKey *account.AccountKey) (*DustCollectionResult, error) {
+	dcResult, err := w.runExistingDustCollection(ctx, accountKey)
 	if err != nil {
 		return nil, fmt.Errorf("failed to run existing swap: %w", err)
 	}
 	if dcResult != nil {
 		return dcResult, nil
 	}
-	return w.runDustCollection(ctx, accountKey, accIdx)
+	return w.runDustCollection(ctx, accountKey)
 }
 
 // runExistingDustCollection executes dust collection process using existing locked bill, if one exists
-func (w *DustCollector) runExistingDustCollection(ctx context.Context, accountKey *account.AccountKey, accIdx uint64) (*DustCollectionResult, error) {
+func (w *DustCollector) runExistingDustCollection(ctx context.Context, accountKey *account.AccountKey) (*DustCollectionResult, error) {
 	lockedTargetBill, err := w.getLockedTargetBill(accountKey.PubKey)
 	if err != nil {
 		return nil, err
@@ -94,7 +94,7 @@ func (w *DustCollector) runExistingDustCollection(ctx context.Context, accountKe
 				if err != nil {
 					return nil, fmt.Errorf("failed to fetch proofs for target unit: %w", err)
 				}
-				return &DustCollectionResult{AccountKey: accIdx, SwapProof: swapProof, FeeSum: swapProof.TxRecord.ServerMetadata.ActualFee + w.sumPaidFees(dcProofs)}, nil
+				return &DustCollectionResult{SwapProof: swapProof, FeeSum: swapProof.TxRecord.ServerMetadata.ActualFee + w.sumPaidFees(dcProofs)}, nil
 			}
 		}
 	}
@@ -132,7 +132,7 @@ func (w *DustCollector) runExistingDustCollection(ctx context.Context, accountKe
 		if err != nil {
 			return nil, err
 		}
-		return &DustCollectionResult{AccountKey: accIdx, SwapProof: swapProof, FeeSum: swapProof.TxRecord.ServerMetadata.ActualFee + w.sumPaidFees(proofs)}, nil
+		return &DustCollectionResult{SwapProof: swapProof, FeeSum: swapProof.TxRecord.ServerMetadata.ActualFee + w.sumPaidFees(proofs)}, nil
 	}
 	// if no proofs found, run normal DC
 	log.Info("no dust txs confirmed, unlocking target unit")
@@ -142,7 +142,7 @@ func (w *DustCollector) runExistingDustCollection(ctx context.Context, accountKe
 	return nil, nil
 }
 
-func (w *DustCollector) runDustCollection(ctx context.Context, accountKey *account.AccountKey, accIdx uint64) (*DustCollectionResult, error) {
+func (w *DustCollector) runDustCollection(ctx context.Context, accountKey *account.AccountKey) (*DustCollectionResult, error) {
 	// fetch non-dc bills
 	bills, err := w.backend.GetBills(ctx, accountKey.PubKey)
 	if err != nil {
@@ -154,7 +154,7 @@ func (w *DustCollector) runDustCollection(ctx context.Context, accountKey *accou
 	}
 	if len(bills) < 2 {
 		log.Info("account has less than two unlocked bills, skipping dust collection")
-		return &DustCollectionResult{AccountKey: accIdx}, nil
+		return &DustCollectionResult{}, nil
 	}
 	// sort bills by value smallest first
 	sort.Slice(bills, func(i, j int) bool {
@@ -163,7 +163,7 @@ func (w *DustCollector) runDustCollection(ctx context.Context, accountKey *accou
 	// use the largest bill as target
 	targetBill := bills[len(bills)-1]
 	billCountToSwap := util.Min(w.maxBillsPerDC, len(bills)-1)
-	return w.submitDCBatch(ctx, accountKey, accIdx, targetBill, bills[:billCountToSwap])
+	return w.submitDCBatch(ctx, accountKey, targetBill, bills[:billCountToSwap])
 }
 
 func (w *DustCollector) filterLockedBills(bills []*wallet.Bill, accountID []byte) ([]*wallet.Bill, error) {
@@ -224,7 +224,7 @@ func (w *DustCollector) waitForConf(ctx context.Context, tx *unitlock.Transactio
 	return nil, nil
 }
 
-func (w *DustCollector) submitDCBatch(ctx context.Context, k *account.AccountKey, accIdx uint64, targetBill *wallet.Bill, billsToSwap []*wallet.Bill) (*DustCollectionResult, error) {
+func (w *DustCollector) submitDCBatch(ctx context.Context, k *account.AccountKey, targetBill *wallet.Bill, billsToSwap []*wallet.Bill) (*DustCollectionResult, error) {
 	timeout, err := w.getTxTimeout(ctx)
 	if err != nil {
 		return nil, err
@@ -277,7 +277,7 @@ func (w *DustCollector) submitDCBatch(ctx context.Context, k *account.AccountKey
 	if err != nil {
 		return nil, err
 	}
-	return &DustCollectionResult{AccountKey: accIdx, SwapProof: swapProof, FeeSum: swapProof.TxRecord.ServerMetadata.ActualFee + w.sumPaidFees(proofs)}, nil
+	return &DustCollectionResult{SwapProof: swapProof, FeeSum: swapProof.TxRecord.ServerMetadata.ActualFee + w.sumPaidFees(proofs)}, nil
 }
 
 func (w *DustCollector) swapDCBills(ctx context.Context, k *account.AccountKey, dcProofs []*wallet.Proof, lockedTargetUnit *unitlock.LockedUnit) (*wallet.Proof, error) {

@@ -32,7 +32,7 @@ func TestDC_OK(t *testing.T) {
 	w := NewDustCollector(billtx.DefaultSystemIdentifier, 10, backendMockWrapper.backendMock, unitLocker)
 
 	// when dc runs
-	dcResult, err := w.CollectDust(context.Background(), backendMockWrapper.accountKey, 0)
+	dcResult, err := w.CollectDust(context.Background(), backendMockWrapper.accountKey)
 	require.NoError(t, err)
 	require.NotNil(t, dcResult.SwapProof)
 
@@ -60,7 +60,7 @@ func TestDCWontRunForSingleBill(t *testing.T) {
 	w := NewDustCollector(billtx.DefaultSystemIdentifier, 10, backendMockWrapper.backendMock, unitLocker)
 
 	// when dc runs
-	dcResult, err := w.CollectDust(context.Background(), backendMockWrapper.accountKey, 0)
+	dcResult, err := w.CollectDust(context.Background(), backendMockWrapper.accountKey)
 	require.NoError(t, err)
 
 	// then swap proof is not returned
@@ -85,7 +85,7 @@ func TestAllBillsAreSwapped_WhenWalletBillCountEqualToMaxBillCount(t *testing.T)
 	w := NewDustCollector(billtx.DefaultSystemIdentifier, maxBillsPerDC, backendMockWrapper.backendMock, unitLocker)
 
 	// when dc runs
-	dcResult, err := w.CollectDust(context.Background(), backendMockWrapper.accountKey, 0)
+	dcResult, err := w.CollectDust(context.Background(), backendMockWrapper.accountKey)
 	require.NoError(t, err)
 
 	// then swap tx should be returned
@@ -123,7 +123,7 @@ func TestOnlyFirstNBillsAreSwapped_WhenBillCountOverLimit(t *testing.T) {
 	w := NewDustCollector(billtx.DefaultSystemIdentifier, maxBillsPerDC, backendMockWrapper.backendMock, unitLocker)
 
 	// when dc runs
-	dcResult, err := w.CollectDust(context.Background(), backendMockWrapper.accountKey, 0)
+	dcResult, err := w.CollectDust(context.Background(), backendMockWrapper.accountKey)
 	require.NoError(t, err)
 	require.NotNil(t, dcResult.SwapProof)
 
@@ -172,7 +172,7 @@ func TestExistingDC_OK(t *testing.T) {
 	require.NoError(t, err)
 
 	// and dc is run
-	dcResult, err := w.CollectDust(ctx, backendMockWrapper.accountKey, 0)
+	dcResult, err := w.CollectDust(ctx, backendMockWrapper.accountKey)
 	require.NoError(t, err)
 	require.NotNil(t, dcResult.SwapProof)
 
@@ -215,7 +215,7 @@ func TestExistingDC_UnconfirmedDCTxs_NewSwapIsSent(t *testing.T) {
 	require.NoError(t, err)
 
 	// and dc is run
-	dcResult, err := w.CollectDust(ctx, backendMockWrapper.accountKey, 0)
+	dcResult, err := w.CollectDust(ctx, backendMockWrapper.accountKey)
 	require.NoError(t, err)
 	require.NotNil(t, dcResult.SwapProof)
 
@@ -255,7 +255,7 @@ func TestExistingDC_TargetUnitSwapIsConfirmed_ProofIsReturned(t *testing.T) {
 	require.NoError(t, err)
 
 	// when dc is run
-	dcResult, err := w.CollectDust(ctx, backendMockWrapper.accountKey, 0)
+	dcResult, err := w.CollectDust(ctx, backendMockWrapper.accountKey)
 	require.NoError(t, err)
 
 	// then confirmed swap proof is returned
@@ -297,7 +297,7 @@ func TestExistingDC_TargetUnitIsInvalid_NewSwapIsSent(t *testing.T) {
 	require.NoError(t, err)
 
 	// when dc is run
-	dcResult, err := w.CollectDust(ctx, backendMockWrapper.accountKey, 0)
+	dcResult, err := w.CollectDust(ctx, backendMockWrapper.accountKey)
 	require.NoError(t, err)
 	require.NotNil(t, dcResult.SwapProof)
 
@@ -334,7 +334,7 @@ func TestExistingDC_DCOnSecondAccountDoesNotClearFirstAccountUnitLock(t *testing
 	require.NoError(t, err)
 
 	// when dc is run for account 1
-	swapTx, err := w.CollectDust(context.Background(), backendMockWrapper.accountKey, 0)
+	swapTx, err := w.CollectDust(context.Background(), backendMockWrapper.accountKey)
 	require.NoError(t, err)
 	require.NotNil(t, swapTx)
 

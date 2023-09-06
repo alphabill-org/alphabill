@@ -545,10 +545,22 @@ func doExecTokensCmd(homedir string, command string) (*testConsoleWriter, error)
 	return outputWriter, cmd.addAndExecuteCommand(context.Background())
 }
 
-func randomID(t *testing.T) types.UnitID {
-	id, err := tw.RandomID()
+func randomFungibleTokenTypeID(t *testing.T) types.UnitID {
+	unitID, err := tokens.NewRandomFungibleTokenTypeID(nil)
 	require.NoError(t, err)
-	return id
+	return unitID
+}
+
+func randomNonFungibleTokenTypeID(t *testing.T) types.UnitID {
+	unitID, err := tokens.NewRandomNonFungibleTokenTypeID(nil)
+	require.NoError(t, err)
+	return unitID
+}
+
+func randomNonFungibleTokenID(t *testing.T) types.UnitID {
+	unitID, err := tokens.NewRandomNonFungibleTokenID(nil)
+	require.NoError(t, err)
+	return unitID
 }
 
 func verifyStdoutEventually(t *testing.T, exec func() *testConsoleWriter, expectedLines ...string) {

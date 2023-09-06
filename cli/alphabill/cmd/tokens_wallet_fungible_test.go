@@ -40,10 +40,10 @@ func TestFungibleToken_Subtyping_Integration(t *testing.T) {
 
 	symbol1 := "AB"
 	// test subtyping
-	typeID11 := randomID(t)
-	typeID12 := randomID(t)
-	typeID13 := randomID(t)
-	typeID14 := randomID(t)
+	typeID11 := randomFungibleTokenTypeID(t)
+	typeID12 := randomFungibleTokenTypeID(t)
+	typeID13 := randomFungibleTokenTypeID(t)
+	typeID14 := randomFungibleTokenTypeID(t)
 	//push bool false, equal; to satisfy: 5100
 	execTokensCmd(t, homedirW1, fmt.Sprintf("new-type fungible -r %s --symbol %s --type %s --subtype-clause 0x53510087", backendURL, symbol1, typeID11))
 	require.Eventually(t, testpartition.BlockchainContains(tokensPartition, func(tx *types.TransactionOrder) bool {
@@ -92,8 +92,8 @@ func TestFungibleToken_InvariantPredicate_Integration(t *testing.T) {
 	w2.Shutdown()
 
 	symbol1 := "AB"
-	typeID11 := randomID(t)
-	typeID12 := randomID(t)
+	typeID11 := randomFungibleTokenTypeID(t)
+	typeID12 := randomFungibleTokenTypeID(t)
 	execTokensCmd(t, homedirW1, fmt.Sprintf("new-type fungible -r %s  --symbol %s --type %s --decimals 0 --inherit-bearer-clause %s", backendUrl, symbol1, typeID11, predicatePtpkh))
 	require.Eventually(t, testpartition.BlockchainContains(tokensPartition, func(tx *types.TransactionOrder) bool {
 		return bytes.Equal(tx.UnitID(), typeID11)
@@ -133,7 +133,7 @@ func TestFungibleTokens_Sending_Integration(t *testing.T) {
 	require.NoError(t, err)
 	w2.Shutdown()
 
-	typeID1 := randomID(t)
+	typeID1 := randomFungibleTokenTypeID(t)
 	// fungible token types
 	symbol1 := "AB"
 	execTokensCmdWithError(t, homedirW1, "new-type fungible", "required flag(s) \"symbol\" not set")
@@ -265,7 +265,7 @@ func TestFungibleTokens_CollectDust_Integration(t *testing.T) {
 	homedir := network.walletHomedir
 	backendUrl := network.tokenBackendURL
 
-	typeID1 := randomID(t)
+	typeID1 := randomFungibleTokenTypeID(t)
 	symbol1 := "AB"
 	execTokensCmd(t, homedir, fmt.Sprintf("new-type fungible --symbol %s -r %s --type %s --decimals 0", symbol1, backendUrl, typeID1))
 	verifyStdout(t, execTokensCmd(t, homedir, fmt.Sprintf("list-types fungible -r %s", backendUrl)), "symbol=AB (fungible)")

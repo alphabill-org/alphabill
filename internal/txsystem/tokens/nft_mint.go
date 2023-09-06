@@ -34,9 +34,9 @@ func handleMintNonFungibleTokenTx(options *Options) txsystem.GenericExecuteFunc[
 }
 
 func validateMintNonFungibleToken(tx *types.TransactionOrder, attr *MintNonFungibleTokenAttributes, s *state.State, hashAlgorithm crypto.Hash) error {
-	unitID := types.UnitID(tx.UnitID())
-	if unitID.IsZero(UnitPartLength) {
-		return errors.New(ErrStrUnitIDIsZero)
+	unitID := tx.UnitID()
+	if !unitID.HasType(NonFungibleTokenUnitType) {
+		return fmt.Errorf(ErrStrInvalidUnitID)
 	}
 	if len(attr.Name) > maxNameLength {
 		return errors.New(ErrStrInvalidNameLength)
@@ -60,9 +60,8 @@ func validateMintNonFungibleToken(tx *types.TransactionOrder, attr *MintNonFungi
 	if !errors.Is(err, avl.ErrNotFound) {
 		return err
 	}
-	nftTypeID := types.UnitID(attr.NFTTypeID)
-	if nftTypeID.IsZero(UnitPartLength) {
-		return errors.New(ErrStrUnitIDIsZero)
+	if !attr.NFTTypeID.HasType(NonFungibleTokenTypeUnitType) {
+		return fmt.Errorf(ErrStrInvalidTypeID)
 	}
 
 	// the transaction request satisfies the predicate obtained by concatenating all the token creation clauses along
@@ -70,7 +69,7 @@ func validateMintNonFungibleToken(tx *types.TransactionOrder, attr *MintNonFungi
 	predicates, err := getChainedPredicates[*nonFungibleTokenTypeData](
 		hashAlgorithm,
 		s,
-		nftTypeID,
+		attr.NFTTypeID,
 		func(d *nonFungibleTokenTypeData) []byte {
 			return d.tokenCreationPredicate
 		},
@@ -96,11 +95,11 @@ func (m *MintNonFungibleTokenAttributes) SetBearer(bearer []byte) {
 	m.Bearer = bearer
 }
 
-func (m *MintNonFungibleTokenAttributes) GetNFTTypeID() []byte {
+func (m *MintNonFungibleTokenAttributes) GetNFTTypeID() types.UnitID {
 	return m.NFTTypeID
 }
 
-func (m *MintNonFungibleTokenAttributes) SetNFTTypeID(nftTypeID []byte) {
+func (m *MintNonFungibleTokenAttributes) SetNFTTypeID(nftTypeID types.UnitID) {
 	m.NFTTypeID = nftTypeID
 }
 

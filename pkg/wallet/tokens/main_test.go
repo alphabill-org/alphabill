@@ -12,6 +12,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/hash"
 	"github.com/alphabill-org/alphabill/internal/script"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
+	"github.com/alphabill-org/alphabill/internal/txsystem/tokens"
 	ttxs "github.com/alphabill-org/alphabill/internal/txsystem/tokens"
 	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/internal/util"
@@ -315,6 +316,10 @@ func TestNewTypes(t *testing.T) {
 		//check decimal places are validated against the parent type
 		_, err = tw.NewFungibleType(context.Background(), 1, b, []byte{2}, nil)
 		require.ErrorContains(t, err, "parent type requires 0 decimal places, got 2")
+
+		//check typeId generation if typeId parameter is nil
+		generatedTypeId, _ := tw.NewFungibleType(context.Background(), 1, a, nil, nil)
+		require.True(t, generatedTypeId.HasType(tokens.FungibleTokenTypeUnitType))
 	})
 
 	t.Run("non-fungible type", func(t *testing.T) {
@@ -338,6 +343,10 @@ func TestNewTypes(t *testing.T) {
 		require.Equal(t, a.Symbol, newNFTTx.Symbol)
 		require.Equal(t, a.Icon.Type, newNFTTx.Icon.Type)
 		require.Equal(t, a.Icon.Data, newNFTTx.Icon.Data)
+
+		//check typeId generation if typeId parameter is nil
+		generatedTypeId, _ := tw.NewNonFungibleType(context.Background(), 1, a, nil, nil)
+		require.True(t, generatedTypeId.HasType(tokens.NonFungibleTokenTypeUnitType))
 	})
 }
 
@@ -390,7 +399,7 @@ func TestMintFungibleToken(t *testing.T) {
 			require.NoError(t, tx.UnmarshalAttributes(newToken))
 			require.NotEqual(t, []byte{0}, tx.UnitID())
 			require.Len(t, tx.UnitID(), 33)
-			require.Equal(t, typeId, newToken.TypeID)
+			require.EqualValues(t, typeId, newToken.TypeID)
 			require.Equal(t, amount, newToken.Value)
 			require.Equal(t, script.PredicatePayToPublicKeyHashDefault(key.PubKeyHash.Sha256), newToken.Bearer)
 		})
@@ -678,7 +687,7 @@ func TestMintNFT(t *testing.T) {
 			if tt.tokenID != nil {
 				require.EqualValues(t, tt.tokenID, tx.UnitID())
 			}
-			require.Equal(t, typeId, newToken.NFTTypeID)
+			require.EqualValues(t, typeId, newToken.NFTTypeID)
 			tt.validateOwner(t, tt.accNr, newToken)
 		})
 	}

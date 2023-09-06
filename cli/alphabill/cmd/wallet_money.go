@@ -469,14 +469,15 @@ func execCollectDust(cmd *cobra.Command, config *walletConfig) error {
 			}
 			consoleWriter.Println(fmt.Sprintf(
 				"Dust collection finished successfully on account #%d. Joined %d bills with total value of %s "+
-					"ALPHA into an existing target bill with unit identifier 0x%x.",
-				dcResult.AccountNumber,
+					"ALPHA into an existing target bill with unit identifier 0x%x. Paid %s fees for transaction(s).",
+				dcResult.AccountIndex+1,
 				len(attr.DcTransfers),
 				amountToString(attr.TargetValue, 8),
 				dcResult.SwapProof.TxRecord.TransactionOrder.UnitID(),
+				amountToString(dcResult.FeeSum, 8),
 			))
 		} else {
-			consoleWriter.Println(fmt.Sprintf("Nothing to swap on account #%d", dcResult.AccountNumber))
+			consoleWriter.Println(fmt.Sprintf("Nothing to swap on account #%d", dcResult.AccountIndex+1))
 		}
 	}
 	return nil

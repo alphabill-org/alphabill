@@ -65,11 +65,6 @@ type (
 		AccountIndex uint64
 		CountDCBills bool
 	}
-
-	DustCollectionResult struct {
-		AccountNumber uint64
-		SwapProof     *wallet.Proof
-	}
 )
 
 // CreateNewWallet creates a new wallet. To synchronize wallet with a node call Sync.
@@ -125,28 +120,24 @@ func (w *Wallet) CollectDust(ctx context.Context, accountNumber uint64) ([]*Dust
 			if err != nil {
 				return nil, fmt.Errorf("failed to load account key: %w", err)
 			}
-			swapProof, err := w.dustCollector.CollectDust(ctx, accKey)
+			dcResult, err := w.dustCollector.CollectDust(ctx, accKey)
 			if err != nil {
 				return nil, fmt.Errorf("dust collection failed for account number %d: %w", acc.AccountIndex+1, err)
 			}
-			res = append(res, &DustCollectionResult{
-				AccountNumber: acc.AccountIndex + 1,
-				SwapProof:     swapProof,
-			})
+			dcResult.AccountIndex = acc.AccountIndex
+			res = append(res, dcResult)
 		}
 	} else {
 		accKey, err := w.am.GetAccountKey(accountNumber - 1)
 		if err != nil {
 			return nil, fmt.Errorf("failed to load account key: %w", err)
 		}
-		swapProof, err := w.dustCollector.CollectDust(ctx, accKey)
+		dcResult, err := w.dustCollector.CollectDust(ctx, accKey)
 		if err != nil {
 			return nil, fmt.Errorf("dust collection failed for account number %d: %w", accountNumber, err)
 		}
-		res = append(res, &DustCollectionResult{
-			AccountNumber: accountNumber,
-			SwapProof:     swapProof,
-		})
+		dcResult.AccountIndex = accountNumber - 1
+		res = append(res, dcResult)
 	}
 	return res, nil
 }

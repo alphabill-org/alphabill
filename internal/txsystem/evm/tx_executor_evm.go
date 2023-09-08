@@ -5,9 +5,11 @@ import (
 	"math/big"
 	"os"
 
+	"github.com/alphabill-org/alphabill/internal/keyvaluedb"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/internal/txsystem/evm/statedb"
 	"github.com/alphabill-org/alphabill/internal/types"
+	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/vm"
@@ -48,7 +50,7 @@ func (d *ProcessingDetails) Bytes() ([]byte, error) {
 	return cbor.Marshal(d)
 }
 
-func handleEVMTx(systemIdentifier []byte, opts *Options, blockGas *core.GasPool) txsystem.GenericExecuteFunc[TxAttributes] {
+func handleEVMTx(systemIdentifier []byte, opts *Options, blockGas *core.GasPool, blockDB keyvaluedb.KeyValueDB) txsystem.GenericExecuteFunc[TxAttributes] {
 	return func(tx *types.TransactionOrder, attr *TxAttributes, currentBlockNumber uint64) (sm *types.ServerMetadata, err error) {
 		from := common.BytesToAddress(attr.From)
 		stateDB := statedb.NewStateDB(opts.state)
@@ -60,7 +62,7 @@ func handleEVMTx(systemIdentifier []byte, opts *Options, blockGas *core.GasPool)
 				err = stateDB.Finalize()
 			}
 		}()
-		return execute(currentBlockNumber, stateDB, attr, systemIdentifier, blockGas, opts.gasUnitPrice)
+		return execute(currentBlockNumber, stateDB, blockDB, attr, systemIdentifier, blockGas, opts.gasUnitPrice)
 	}
 }
 
@@ -69,11 +71,11 @@ func calcGasPrice(gas uint64, gasPrice *big.Int) *big.Int {
 	return cost.Mul(cost, gasPrice)
 }
 
-func execute(currentBlockNumber uint64, stateDB *statedb.StateDB, attr *TxAttributes, systemIdentifier []byte, gp *core.GasPool, gasUnitPrice *big.Int) (*types.ServerMetadata, error) {
+func execute(currentBlockNumber uint64, stateDB *statedb.StateDB, blockDB keyvaluedb.KeyValueDB, attr *TxAttributes, systemIdentifier []byte, gp *core.GasPool, gasUnitPrice *big.Int) (*types.ServerMetadata, error) {
 	if err := validate(attr); err != nil {
 		return nil, err
 	}
-	blockCtx := newBlockContext(currentBlockNumber)
+	blockCtx := newBlockContext(currentBlockNumber, blockDB)
 	evm := vm.NewEVM(blockCtx, newTxContext(attr, gasUnitPrice), stateDB, newChainConfig(new(big.Int).SetBytes(systemIdentifier)), newVMConfig())
 	msg := attr.AsMessage(gasUnitPrice)
 	// Apply the transaction to the current state (included in the env)
@@ -116,13 +118,24 @@ func execute(currentBlockNumber uint64, stateDB *statedb.StateDB, attr *TxAttrib
 	return &types.ServerMetadata{ActualFee: weiToAlpha(txPrice), TargetUnits: stateDB.GetUpdatedUnits(), SuccessIndicator: success, ProcessingDetails: detailBytes}, nil
 }
 
-func newBlockContext(currentBlockNumber uint64) vm.BlockContext {
+func newBlockContext(currentBlockNumber uint64, blockDB keyvaluedb.KeyValueDB) vm.BlockContext {
 	return vm.BlockContext{
 		CanTransfer: core.CanTransfer,
 		Transfer:    core.Transfer,
 		GetHash: func(u uint64) common.Hash {
-			// TODO implement after integrating a new AVLTree
-			panic("get hash")
+			// if blockDB interface is not provided
+			if blockDB == nil {
+				return common.Hash{}
+			}
+			it := blockDB.Find(util.Uint64ToBytes(u))
+			if !it.Valid() {
+				return common.Hash{}
+			}
+			b := &types.Block{}
+			if err := it.Value(b); err != nil {
+				return common.Hash{}
+			}
+			return common.BytesToHash(b.UnicityCertificate.InputRecord.BlockHash)
 		},
 		Coinbase:    common.Address{},
 		GasLimit:    DefaultBlockGasLimit,

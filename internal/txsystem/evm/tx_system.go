@@ -2,6 +2,7 @@ package evm
 
 import (
 	"crypto"
+	"errors"
 	"fmt"
 
 	"github.com/alphabill-org/alphabill/internal/state"
@@ -28,8 +29,11 @@ func NewEVMTxSystem(systemIdentifier []byte, opts ...Option) (*TxSystem, error) 
 		option(options)
 	}
 	if options.state == nil {
-		return nil, fmt.Errorf("evm tx sysrem init failed, state tree is nil")
+		return nil, errors.New("evm tx system init failed, state tree is nil")
 	}
+	/*	if options.blockDB == nil {
+		return nil, errors.New("evm tx system init failed, block DB is nil")
+	}*/
 	evm, err := NewEVMModule(systemIdentifier, options)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load EVM module: %w", err)

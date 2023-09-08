@@ -55,13 +55,23 @@ func runEvmNode(ctx context.Context, cfg *evmConfiguration) error {
 	if err != nil {
 		return fmt.Errorf("failed to unmarshal evm partition params: %w", err)
 	}
+	blockStore, err := initNodeBlockStore(cfg.Node.DbFile)
+	if err != nil {
+		return fmt.Errorf("unable to initialize block DB: %w", err)
+	}
+
 	txs, err := evm.NewEVMTxSystem(
 		pg.SystemDescriptionRecord.GetSystemIdentifier(),
 		evm.WithBlockGasLimit(params.BlockGasLimit),
 		evm.WithGasPrice(params.GasUnitPrice),
+		evm.WithBlockDB(blockStore),
 	)
 	if err != nil {
-		return err
+		return fmt.Errorf("unable to initialize evm transaction system: %w", err)
 	}
-	return defaultNodeRunFunc(ctx, "evm node", txs, cfg.Node, cfg.RPCServer, cfg.RESTServer)
+	self, node, err := createNode(ctx, txs, cfg.Node, blockStore)
+	if err != nil {
+		return fmt.Errorf("failed to create node evm node: %w", err)
+	}
+	return run(ctx, "evm node", self, node, cfg.RPCServer, cfg.RESTServer)
 }

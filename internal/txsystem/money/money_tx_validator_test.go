@@ -334,6 +334,12 @@ func TestTransferFC(t *testing.T) {
 			wantErr: ErrTargetRecordIDNil,
 		},
 		{
+			name:    "TargetRecordID is empty",
+			bd:      newBillData(101, backlink),
+			tx:      testfc.NewTransferFC(t, testfc.NewTransferFCAttr(testfc.WithTargetRecordID([]byte{}))),
+			wantErr: ErrTargetRecordIDEmpty,
+		},
+		{
 			name: "AdditionTime invalid",
 			bd:   newBillData(101, backlink),
 			tx: testfc.NewTransferFC(t, testfc.NewTransferFCAttr(

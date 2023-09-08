@@ -18,6 +18,7 @@ var (
 	ErrBillNil                   = errors.New("bill is nil")
 	ErrTargetSystemIdentifierNil = errors.New("TargetSystemIdentifier is nil")
 	ErrTargetRecordIDNil         = errors.New("TargetRecordID is nil")
+	ErrTargetRecordIDEmpty       = errors.New("TargetRecordID is empty")
 	ErrAdditionTimeInvalid       = errors.New("EarliestAdditonTime is greater than LatestAdditionTime")
 	ErrRecordIDExists            = errors.New("fee tx cannot contain fee credit reference")
 	ErrFeeProofExists            = errors.New("fee tx cannot contain fee authorization proof")
@@ -81,6 +82,9 @@ func validateTransferFC(tx *types.TransactionOrder, attr *transactions.TransferF
 	}
 	if attr.TargetRecordID == nil {
 		return ErrTargetRecordIDNil
+	}
+	if len(attr.TargetRecordID) == 0 {
+		return ErrTargetRecordIDEmpty
 	}
 	if attr.EarliestAdditionTime > attr.LatestAdditionTime {
 		return ErrAdditionTimeInvalid

@@ -49,12 +49,12 @@ func createTxOrder(t *testing.T) *types.TransactionOrder {
 }
 
 func TestNewRESTServer_InvalidTx(t *testing.T) {
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/transactions", bytes.NewReader(test.RandomBytes(102)))
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/transactions", bytes.NewReader(test.RandomBytes(1)))
 	recorder := httptest.NewRecorder()
 
 	NewRESTServer("", MaxBodySize, NodeEndpoints(&MockNode{})).Handler.ServeHTTP(recorder, req)
 	require.Equal(t, http.StatusBadRequest, recorder.Code)
-	require.Contains(t, recorder.Body.String(), "failed to decode request body as transaction")
+	require.Contains(t, recorder.Body.String(), "unable to decode request body as transaction")
 }
 
 func TestRESTServer_GetLatestRoundNumber(t *testing.T) {

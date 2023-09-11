@@ -18,5 +18,5 @@ func TestNewRESTServer_NotFound(t *testing.T) {
 
 	NewRESTServer("", MaxBodySize).Handler.ServeHTTP(recorder, req)
 	require.Equal(t, http.StatusNotFound, recorder.Code)
-	require.Contains(t, recorder.Body.String(), "request path doesn't match any endpoint")
+	require.Contains(t, recorder.Body.String(), "404 page not found")
 }

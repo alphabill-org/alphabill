@@ -33,12 +33,12 @@ func BenchmarkCallContract(b *testing.B) {
 	stateDB.AddBalance(fromAddr, big.NewInt(oneEth)) // add 1 ETH
 	gasPool := new(core.GasPool).AddGas(math.MaxUint64)
 	gasPrice := big.NewInt(DefaultGasPrice)
-	_, err := execute(1, stateDB, &TxAttributes{
+	_, err := Execute(1, stateDB, &TxAttributes{
 		From:  fromAddr.Bytes(),
 		Data:  common.Hex2Bytes(counterContractCode),
 		Gas:   10000000,
 		Value: big.NewInt(0),
-	}, systemIdentifier, gasPool, gasPrice)
+	}, systemIdentifier, gasPool, gasPrice, false)
 	require.NoError(b, err)
 	scAddr := evmcrypto.CreateAddress(common.BytesToAddress(from), 0)
 	cABI, err := abi.JSON(bytes.NewBuffer([]byte(counterABI)))
@@ -55,7 +55,7 @@ func BenchmarkCallContract(b *testing.B) {
 	b.ResetTimer()
 	b.Run("call counter contract", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
-			if _, err = execute(2, stateDB, callContract, systemIdentifier, gasPool, gasPrice); err != nil {
+			if _, err = Execute(2, stateDB, callContract, systemIdentifier, gasPool, gasPrice, false); err != nil {
 				b.Fatal("call transaction failed, %w", err)
 			}
 			callContract.Nonce += 1
@@ -455,7 +455,7 @@ func Test_execute(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			metadata, err := execute(tt.args.currentBlockNumber, tt.args.stateDB, tt.args.attr, systemIdentifier, tt.args.gp, gasPrice)
+			metadata, err := Execute(tt.args.currentBlockNumber, tt.args.stateDB, tt.args.attr, systemIdentifier, tt.args.gp, gasPrice, false)
 			if tt.wantErrStr != "" {
 				require.ErrorContains(t, err, tt.wantErrStr)
 				require.Nil(t, metadata)
@@ -498,10 +498,10 @@ func Test_ReplayContractCreation(t *testing.T) {
 		Gas:   100000,
 		Nonce: 0,
 	}
-	_, err := execute(1, stateDB, evmAttr, systemIdentifier, gasPool, gasPrice)
+	_, err := Execute(1, stateDB, evmAttr, systemIdentifier, gasPool, gasPrice, false)
 	require.NoError(t, err)
 	// Try to replay
-	_, err = execute(1, stateDB, evmAttr, systemIdentifier, gasPool, gasPrice)
+	_, err = Execute(1, stateDB, evmAttr, systemIdentifier, gasPool, gasPrice, false)
 	require.ErrorContains(t, err, "nonce too low")
 }
 
@@ -521,10 +521,10 @@ func Test_ReplayCall(t *testing.T) {
 		Value: big.NewInt(0),
 		Nonce: 1,
 	}
-	_, err = execute(2, stateDB, callContract, systemIdentifier, gasPool, gasPrice)
+	_, err = Execute(2, stateDB, callContract, systemIdentifier, gasPool, gasPrice, false)
 	require.NoError(t, err)
 	// try to replay
-	_, err = execute(2, stateDB, callContract, systemIdentifier, gasPool, gasPrice)
+	_, err = Execute(2, stateDB, callContract, systemIdentifier, gasPool, gasPrice, false)
 	require.ErrorContains(t, err, "nonce too low")
 }
 

@@ -3,9 +3,11 @@ package cmd
 import (
 	"context"
 	"fmt"
+	"math/big"
 
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/internal/txsystem/evm"
+	"github.com/alphabill-org/alphabill/internal/txsystem/evm/api"
 	"github.com/fxamacker/cbor/v2"
 	"github.com/spf13/cobra"
 )
@@ -55,13 +57,20 @@ func runEvmNode(ctx context.Context, cfg *evmConfiguration) error {
 	if err != nil {
 		return fmt.Errorf("failed to unmarshal evm partition params: %w", err)
 	}
+	systemIdentifier := pg.SystemDescriptionRecord.GetSystemIdentifier()
 	txs, err := evm.NewEVMTxSystem(
-		pg.SystemDescriptionRecord.GetSystemIdentifier(),
+		systemIdentifier,
 		evm.WithBlockGasLimit(params.BlockGasLimit),
 		evm.WithGasPrice(params.GasUnitPrice),
 	)
 	if err != nil {
 		return err
 	}
+	cfg.RESTServer.router = api.NewAPI(
+		txs.GetState(),
+		systemIdentifier,
+		big.NewInt(0).SetUint64(params.BlockGasLimit),
+		params.GasUnitPrice,
+	)
 	return defaultNodeRunFunc(ctx, "evm node", txs, cfg.Node, cfg.RPCServer, cfg.RESTServer)
 }

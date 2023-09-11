@@ -414,8 +414,8 @@ func TestReclaimFeeCredit_LockedBillForCloseFC(t *testing.T) {
 		require.NoError(t, err)
 
 		require.EqualValues(t, []byte{111}, res.CloseFC.TxRecord.TransactionOrder.UnitID()) // unitID matches FCB ID
-		require.Equal(t, []byte{123}, actualCloseFCAttr.TargetUnitID)                 // target unitID matches target bill ID
-		require.Equal(t, []byte{2}, actualCloseFCAttr.TargetUnitBacklink)             // target unit backlink matches target bill txhash
+		require.Equal(t, []byte{123}, actualCloseFCAttr.TargetUnitID)                       // target unitID matches target bill ID
+		require.Equal(t, []byte{2}, actualCloseFCAttr.TargetUnitBacklink)                   // target unit backlink matches target bill txhash
 
 		// and bill must be unlocked
 		lockedBill, err := unitLocker.GetUnit(accountKey.PubKey, lockedCloseFCBill.UnitID)
@@ -589,10 +589,10 @@ func TestAddAndReclaimWithInsufficientCredit(t *testing.T) {
 	feeManager := newMoneyPartitionFeeManager(am, unitLocker, moneyTxPublisher, moneyBackendClient)
 
 	_, err := feeManager.AddFeeCredit(context.Background(), AddFeeCmd{Amount: 2})
-	require.Error(t, err, "minimum fee credit amount to add is 3")
+	require.Error(t, err, ErrMinimumFeeAmount)
 
 	_, err = feeManager.ReclaimFeeCredit(context.Background(), ReclaimFeeCmd{})
-	require.Error(t, err, "insufficient fee credit balance. Minimum amount is 3")
+	require.Error(t, err, ErrMinimumFeeAmount)
 }
 
 func newMoneyPartitionFeeManager(am account.Manager, unitLocker UnitLocker, moneyTxPublisher TxPublisher, moneyBackendClient MoneyClient) *FeeManager {

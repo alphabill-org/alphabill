@@ -17,9 +17,13 @@ import (
 )
 
 const (
-	minimumFeeAmount             = uint64(3)
+	MinimumFeeAmount             = uint64(3)
 	txTimeoutBlockCount          = 10
 	transferFCLatestAdditionTime = 65536 // relative timeout after which transferFC unit becomes unusable
+)
+
+var (
+	ErrMinimumFeeAmount = errors.New("insufficient fee amount")
 )
 
 type (
@@ -52,9 +56,9 @@ type (
 		moneyBackendClient MoneyClient
 
 		// user partition fields
-		userPartitionSystemID             []byte
-		userPartitionTxPublisher          TxPublisher
-		userPartitionBackendClient        PartitionDataProvider
+		userPartitionSystemID      []byte
+		userPartitionTxPublisher   TxPublisher
+		userPartitionBackendClient PartitionDataProvider
 	}
 
 	GetFeeCreditCmd struct {
@@ -114,14 +118,14 @@ func NewFeeManager(
 	partitionBackendClient PartitionDataProvider,
 ) *FeeManager {
 	return &FeeManager{
-		am:                                am,
-		unitLocker:                        unitLocker,
-		moneySystemID:                     moneySystemID,
-		moneyTxPublisher:                  moneyTxPublisher,
-		moneyBackendClient:                moneyBackendClient,
-		userPartitionSystemID:             partitionSystemID,
-		userPartitionTxPublisher:          partitionTxPublisher,
-		userPartitionBackendClient:        partitionBackendClient,
+		am:                         am,
+		unitLocker:                 unitLocker,
+		moneySystemID:              moneySystemID,
+		moneyTxPublisher:           moneyTxPublisher,
+		moneyBackendClient:         moneyBackendClient,
+		userPartitionSystemID:      partitionSystemID,
+		userPartitionTxPublisher:   partitionTxPublisher,
+		userPartitionBackendClient: partitionBackendClient,
 	}
 }
 
@@ -389,8 +393,8 @@ func (w *FeeManager) sendCloseFC(ctx context.Context, bills []*wallet.Bill, acco
 	if err != nil {
 		return nil, err
 	}
-	if fcb.GetValue() < minimumFeeAmount {
-		return nil, fmt.Errorf("insufficient fee credit balance. Minimum amount is %v", minimumFeeAmount)
+	if fcb.GetValue() < MinimumFeeAmount {
+		return nil, ErrMinimumFeeAmount
 	}
 	// send closeFC tx to user partition
 	log.Info("sending close fee credit transaction")
@@ -708,8 +712,8 @@ func (w *FeeManager) unmarshalTransferFC(lockedFeeBill *unitlock.LockedUnit) (*t
 }
 
 func (c AddFeeCmd) isValid() error {
-	if c.Amount < minimumFeeAmount {
-		return fmt.Errorf("minimum fee credit amount to add is %v", minimumFeeAmount)
+	if c.Amount < MinimumFeeAmount {
+		return ErrMinimumFeeAmount
 	}
 	return nil
 }

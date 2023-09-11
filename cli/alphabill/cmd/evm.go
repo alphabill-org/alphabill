@@ -70,7 +70,7 @@ func runEvmNode(ctx context.Context, cfg *evmConfiguration) error {
 		evm.WithBlockDB(blockStore),
 	)
 	if err != nil {
-		return fmt.Errorf("unable to initialize evm transaction system: %w", err)
+		return fmt.Errorf("evm transaction system init failed: %w", err)
 	}
 	cfg.RESTServer.router = api.NewAPI(
 		txs.GetState(),

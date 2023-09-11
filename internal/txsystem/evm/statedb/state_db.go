@@ -16,6 +16,7 @@ import (
 	ethtypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/params"
 )
 
 var _ vm.StateDB = (*StateDB)(nil)
@@ -226,11 +227,24 @@ func (s *StateDB) SetState(address common.Address, key common.Hash, value common
 	})
 }
 
-func (s *StateDB) Suicide(address common.Address) bool {
+// GetTransientState gets transient storage for a given account.
+func (s *StateDB) GetTransientState(addr common.Address, key common.Hash) common.Hash {
+	// Todo: AB-1187 add support for transient storage
+	return common.Hash{}
+}
+
+// SetTransientState sets transient storage for a given account. It
+// adds the change to the journal so that it can be rolled back
+// to its previous value if there is a revert.
+func (s *StateDB) SetTransientState(addr common.Address, key, value common.Hash) {
+	//Todo: AB-1187 add support for transient storage
+}
+
+func (s *StateDB) SelfDestruct(address common.Address) {
 	unitID := address.Bytes()
 	stateObject := s.getStateObject(unitID, false)
 	if stateObject == nil {
-		return false
+		return
 	}
 	s.errDB = s.executeUpdate(unitID, func(so *StateObject) state.UnitData {
 		so.suicided = true
@@ -238,16 +252,19 @@ func (s *StateDB) Suicide(address common.Address) bool {
 		s.suicides = append(s.suicides, address)
 		return so
 	})
-	return true
 }
 
-func (s *StateDB) HasSuicided(address common.Address) bool {
+func (s *StateDB) HasSelfDestructed(address common.Address) bool {
 	unitID := address.Bytes()
 	stateObject := s.getStateObject(unitID, false)
 	if stateObject == nil {
 		return false
 	}
 	return stateObject.suicided
+}
+
+func (s *StateDB) Selfdestruct6780(common.Address) {
+	// Todo: AB-1188 - add support for EIP-6780?
 }
 
 func (s *StateDB) Exist(address common.Address) bool {
@@ -269,21 +286,30 @@ func (s *StateDB) Empty(address common.Address) bool {
 // - Add the contents of the optional tx access list (2930)
 //
 // This method should only be called if Yolov3/Berlin/2929+2930 is applicable at the current number.
-func (s *StateDB) PrepareAccessList(sender common.Address, dst *common.Address, precompiles []common.Address, list ethtypes.AccessList) {
-	s.AddAddressToAccessList(sender)
-	if dst != nil {
-		s.AddAddressToAccessList(*dst)
-		// If it's a create-tx, the destination will be added inside evm.create
-	}
-	for _, addr := range precompiles {
-		s.AddAddressToAccessList(addr)
-	}
-	for _, el := range list {
-		s.AddAddressToAccessList(el.Address)
-		for _, key := range el.StorageKeys {
-			s.AddSlotToAccessList(el.Address, key)
+func (s *StateDB) Prepare(rules params.Rules, sender, coinbase common.Address, dest *common.Address, precompiles []common.Address, txAccesses ethtypes.AccessList) {
+	if rules.IsBerlin {
+		s.AddAddressToAccessList(sender)
+		if dest != nil {
+			s.AddAddressToAccessList(*dest)
+			// If it's a create-tx, the destination will be added inside evm.create
 		}
+		for _, addr := range precompiles {
+			s.AddAddressToAccessList(addr)
+		}
+		for _, el := range txAccesses {
+			s.AddAddressToAccessList(el.Address)
+			for _, key := range el.StorageKeys {
+				s.AddSlotToAccessList(el.Address, key)
+			}
+		}
+		// Currently ignore rules.IsShanghai and do not add coninbase address to access list, there is no coinbase for AB
+		/*
+			if rules.IsShanghai { // EIP-3651: warm coinbase
+				s.AddAddressToAccessList(coinbase)
+			}
+		*/
 	}
+	// Todo: AB-1187 Reset transient storage at the beginning of transaction execution
 }
 
 // AddAddressToAccessList adds the given address to the access list

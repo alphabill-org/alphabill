@@ -15,8 +15,8 @@ import (
 
 var (
 	ErrInvalidBillValue       = errors.New("transaction value must be equal to bill value")
-	ErrSplitBillZeroAmount    = errors.New("when splitting an bill the value assigned to the new bill must be greater than zero")
-	ErrSplitBillZeroRemainder = errors.New("when splitting an bill the remaining value of the bill must be greater than zero")
+	ErrSplitBillZeroAmount    = errors.New("when splitting a bill the value assigned to the new bill must be greater than zero")
+	ErrSplitBillZeroRemainder = errors.New("when splitting a bill the remaining value of the bill must be greater than zero")
 	ErrInvalidDataType        = errors.New("invalid data type")
 )
 

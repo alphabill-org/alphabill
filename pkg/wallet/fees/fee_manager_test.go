@@ -166,7 +166,7 @@ func TestAddFeeCredit_LockedBillForTransferFC(t *testing.T) {
 		require.NotNil(t, res.AddFC)
 
 		// then new transferFC must be sent
-		require.Equal(t, []byte{123}, res.TransferFC.TxRecord.TransactionOrder.UnitID())
+		require.EqualValues(t, []byte{123}, res.TransferFC.TxRecord.TransactionOrder.UnitID())
 
 		// and bill must be unlocked
 		units, err := unitLocker.GetUnits(accountKey.PubKey)
@@ -413,7 +413,7 @@ func TestReclaimFeeCredit_LockedBillForCloseFC(t *testing.T) {
 		err = res.CloseFC.TxRecord.TransactionOrder.UnmarshalAttributes(&actualCloseFCAttr)
 		require.NoError(t, err)
 
-		require.Equal(t, []byte{111}, res.CloseFC.TxRecord.TransactionOrder.UnitID()) // unitID matches FCB ID
+		require.EqualValues(t, []byte{111}, res.CloseFC.TxRecord.TransactionOrder.UnitID()) // unitID matches FCB ID
 		require.Equal(t, []byte{123}, actualCloseFCAttr.TargetUnitID)                 // target unitID matches target bill ID
 		require.Equal(t, []byte{2}, actualCloseFCAttr.TargetUnitBacklink)             // target unit backlink matches target bill txhash
 
@@ -572,6 +572,27 @@ func TestReclaimFeeCredit_LockedBillForReclaimFC(t *testing.T) {
 		require.ErrorContains(t, err, "reclaimFC target unit is no longer usable")
 		require.Nil(t, res)
 	})
+}
+
+func TestAddAndReclaimWithInsufficientCredit(t *testing.T) {
+	// create fee manager
+	am := newAccountManager(t)
+	moneyTxPublisher := &mockMoneyTxPublisher{}
+	moneyBackendClient := &mockMoneyClient{
+		fcb: &wallet.Bill{Value: 2, Id: []byte{111}},
+		bills: []*wallet.Bill{{
+			Id:     []byte{1},
+			Value:  100000002,
+			TxHash: []byte{2},
+		}}}
+	unitLocker := createUnitLocker(t)
+	feeManager := newMoneyPartitionFeeManager(am, unitLocker, moneyTxPublisher, moneyBackendClient)
+
+	_, err := feeManager.AddFeeCredit(context.Background(), AddFeeCmd{Amount: 2})
+	require.Error(t, err, "minimum fee credit amount to add is 3")
+
+	_, err = feeManager.ReclaimFeeCredit(context.Background(), ReclaimFeeCmd{})
+	require.Error(t, err, "insufficient fee credit balance. Minimum amount is 3")
 }
 
 func newMoneyPartitionFeeManager(am account.Manager, unitLocker UnitLocker, moneyTxPublisher TxPublisher, moneyBackendClient MoneyClient) *FeeManager {

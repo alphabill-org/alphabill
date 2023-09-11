@@ -18,6 +18,9 @@ const (
 	maxIconDataLength        = 64 * 1024
 	maxDecimalPlaces         = 8
 
+	ErrStrInvalidUnitID         = "invalid unit ID"
+	ErrStrInvalidTypeID         = "invalid type ID"
+	ErrStrInvalidParentTypeID   = "invalid parent type ID"
 	ErrStrSystemIdentifierIsNil = "system identifier is nil"
 	ErrStrStateIsNil            = "state is nil"
 	ErrStrInvalidSymbolLength   = "symbol length exceeds the allowed maximum of 16 bytes"
@@ -53,8 +56,9 @@ func NewTxSystem(opts ...Option) (*txsystem.GenericTxSystem, error) {
 		fc.WithHashAlgorithm(options.hashAlgorithm),
 		fc.WithTrustBase(options.trustBase),
 		fc.WithSystemIdentifier(options.systemIdentifier),
-		fc.WithMoneyTXSystemIdentifier(options.moneyTXSystemIdentifier),
+		fc.WithMoneySystemIdentifier(options.moneyTXSystemIdentifier),
 		fc.WithFeeCalculator(options.feeCalculator),
+		fc.WithFeeCreditRecordUnitType(FeeCreditRecordUnitType),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load fee credit module: %w", err)

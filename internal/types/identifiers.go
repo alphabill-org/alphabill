@@ -47,6 +47,6 @@ func (uid UnitID) Eq(id UnitID) bool {
 	return bytes.Equal(uid, id)
 }
 
-func (uid UnitID) IsZero(unitPartLength int) bool {
-	return bytes.HasPrefix(uid, make([]byte, unitPartLength))
+func (uid UnitID) HasType(typePart []byte) bool {
+	return bytes.HasSuffix(uid, typePart)
 }

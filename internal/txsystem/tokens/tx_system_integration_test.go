@@ -38,14 +38,14 @@ func TestInitPartitionAndCreateNFTType_Ok(t *testing.T) {
 	tx := testtransaction.NewTransactionOrder(t,
 		testtransaction.WithPayloadType(PayloadTypeCreateNFTType),
 		testtransaction.WithSystemID(DefaultSystemIdentifier),
-		testtransaction.WithUnitId([]byte{0, 0, 0, 1}),
+		testtransaction.WithUnitId(NewNonFungibleTokenTypeID(nil, []byte{1})),
 		testtransaction.WithOwnerProof(script.PredicateArgumentEmpty()),
 		testtransaction.WithAttributes(
 			&CreateNonFungibleTokenTypeAttributes{
 				Symbol:                   "Test",
 				Name:                     "Long name for Test",
 				Icon:                     &Icon{Type: validIconType, Data: []byte{3, 2, 1}},
-				ParentTypeID:             NewNonFungibleTokenTypeID(nil, nil),
+				ParentTypeID:             nil,
 				SubTypeCreationPredicate: script.PredicateAlwaysTrue(),
 				TokenCreationPredicate:   script.PredicateAlwaysTrue(),
 				InvariantPredicate:       script.PredicateAlwaysTrue(),
@@ -63,7 +63,6 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 	var (
 		hashAlgorithm       = gocrypto.SHA256
 		states              []*state.State
-		zeroID                     = make([]byte, 32)
 		fungibleTokenTypeID        = NewFungibleTokenTypeID(nil, []byte{1})
 		fungibleTokenID1           = NewFungibleTokenID(nil, []byte{2})
 		totalValue          uint64 = 1000
@@ -101,7 +100,7 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 				Symbol:                   "ALPHA",
 				Name:                     "Long name for ALPHA",
 				Icon:                     &Icon{Type: validIconType, Data: []byte{1, 2, 3}},
-				ParentTypeID:             zeroID,
+				ParentTypeID:             nil,
 				SubTypeCreationPredicate: script.PredicateAlwaysTrue(),
 				TokenCreationPredicate:   script.PredicateAlwaysTrue(),
 				InvariantPredicate:       script.PredicateAlwaysTrue(),
@@ -121,7 +120,7 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 		symbol:                   "ALPHA",
 		name:                     "Long name for ALPHA",
 		icon:                     &Icon{Type: validIconType, Data: []byte{1, 2, 3}},
-		parentID:                 zeroID,
+		parentID:                 nil,
 		decimalPlaces:            0,
 	})
 	verifyProof(t, createTypeTx, tokenPrt, trustBase, hashAlgorithm)

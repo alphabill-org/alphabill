@@ -295,9 +295,10 @@ func TestStateDB_AddLog(t *testing.T) {
 func TestStateDB_Suicide(t *testing.T) {
 	db := NewStateDB(initState(t))
 
-	require.False(t, db.Suicide(common.BytesToAddress(test.RandomBytes(20))))
-	require.False(t, db.HasSuicided(initialAccountAddress))
-	require.True(t, db.Suicide(initialAccountAddress))
+	db.SelfDestruct(common.BytesToAddress(test.RandomBytes(20)))
+	require.False(t, db.HasSelfDestructed(initialAccountAddress))
+	db.SelfDestruct(initialAccountAddress)
+	require.True(t, db.HasSelfDestructed(initialAccountAddress))
 
 	require.NoError(t, db.Finalize())
 

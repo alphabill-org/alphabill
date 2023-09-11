@@ -7,10 +7,12 @@ import (
 	"math/big"
 	"testing"
 
+	"github.com/alphabill-org/alphabill/internal/keyvaluedb/memorydb"
 	abstate "github.com/alphabill-org/alphabill/internal/state"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/alphabill-org/alphabill/internal/txsystem/evm/statedb"
 	"github.com/alphabill-org/alphabill/internal/types"
+	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core"
@@ -33,12 +35,13 @@ func BenchmarkCallContract(b *testing.B) {
 	stateDB.AddBalance(fromAddr, big.NewInt(oneEth)) // add 1 ETH
 	gasPool := new(core.GasPool).AddGas(math.MaxUint64)
 	gasPrice := big.NewInt(DefaultGasPrice)
-	_, err := execute(1, stateDB, &TxAttributes{
+
+	_, err := Execute(1, stateDB, memorydb.New(), &TxAttributes{
 		From:  fromAddr.Bytes(),
 		Data:  common.Hex2Bytes(counterContractCode),
 		Gas:   10000000,
 		Value: big.NewInt(0),
-	}, systemIdentifier, gasPool, gasPrice)
+	}, systemIdentifier, gasPool, gasPrice, false)
 	require.NoError(b, err)
 	scAddr := evmcrypto.CreateAddress(common.BytesToAddress(from), 0)
 	cABI, err := abi.JSON(bytes.NewBuffer([]byte(counterABI)))
@@ -55,7 +58,7 @@ func BenchmarkCallContract(b *testing.B) {
 	b.ResetTimer()
 	b.Run("call counter contract", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
-			if _, err = execute(2, stateDB, callContract, systemIdentifier, gasPool, gasPrice); err != nil {
+			if _, err = Execute(2, stateDB, memorydb.New(), callContract, systemIdentifier, gasPool, gasPrice, false); err != nil {
 				b.Fatal("call transaction failed, %w", err)
 			}
 			callContract.Nonce += 1
@@ -86,7 +89,7 @@ func initStateDBWithAccountAndSC(t *testing.T, accounts []*testAccount) *statedb
 				Gas:   1000000000000000,
 				Nonce: 0,
 			}
-			blockCtx := newBlockContext(0)
+			blockCtx := newBlockContext(0, memorydb.New())
 			evm := vm.NewEVM(blockCtx, newTxContext(evmAttr, big.NewInt(0)), stateDB, newChainConfig(new(big.Int).SetBytes(systemIdentifier)), newVMConfig())
 			_, _, _, err := evm.Create(vm.AccountRef(eoa.Addr), evmAttr.Data, 1000000000000000, evmAttr.Value)
 			require.NoError(t, err)
@@ -455,7 +458,7 @@ func Test_execute(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			metadata, err := execute(tt.args.currentBlockNumber, tt.args.stateDB, tt.args.attr, systemIdentifier, tt.args.gp, gasPrice)
+			metadata, err := Execute(tt.args.currentBlockNumber, tt.args.stateDB, memorydb.New(), tt.args.attr, systemIdentifier, tt.args.gp, gasPrice, false)
 			if tt.wantErrStr != "" {
 				require.ErrorContains(t, err, tt.wantErrStr)
 				require.Nil(t, metadata)
@@ -498,10 +501,10 @@ func Test_ReplayContractCreation(t *testing.T) {
 		Gas:   100000,
 		Nonce: 0,
 	}
-	_, err := execute(1, stateDB, evmAttr, systemIdentifier, gasPool, gasPrice)
+	_, err := Execute(1, stateDB, memorydb.New(), evmAttr, systemIdentifier, gasPool, gasPrice, false)
 	require.NoError(t, err)
 	// Try to replay
-	_, err = execute(1, stateDB, evmAttr, systemIdentifier, gasPool, gasPrice)
+	_, err = Execute(1, stateDB, memorydb.New(), evmAttr, systemIdentifier, gasPool, gasPrice, false)
 	require.ErrorContains(t, err, "nonce too low")
 }
 
@@ -521,11 +524,68 @@ func Test_ReplayCall(t *testing.T) {
 		Value: big.NewInt(0),
 		Nonce: 1,
 	}
-	_, err = execute(2, stateDB, callContract, systemIdentifier, gasPool, gasPrice)
+	_, err = Execute(2, stateDB, memorydb.New(), callContract, systemIdentifier, gasPool, gasPrice, false)
 	require.NoError(t, err)
 	// try to replay
-	_, err = execute(2, stateDB, callContract, systemIdentifier, gasPool, gasPrice)
+	_, err = Execute(2, stateDB, memorydb.New(), callContract, systemIdentifier, gasPool, gasPrice, false)
 	require.ErrorContains(t, err, "nonce too low")
+}
+
+// smart contract that returns previous block hash when calling method previousBlockHash()
+const getPreviousHashCode = "608060405234801561001057600080fd5b5061012b806100206000396000f3fe6080604052348015600f57600080fd5b506004361060285760003560e01c8063257aeacc14602d575b600080fd5b60336047565b604051603e91906076565b60405180910390f35b6000806001436055919060c8565b9050804091505090565b6000819050919050565b607081605f565b82525050565b6000602082019050608960008301846069565b92915050565b6000819050919050565b7f4e487b7100000000000000000000000000000000000000000000000000000000600052601160045260246000fd5b600060d182608f565b915060da83608f565b925082820390508181111560ef5760ee6099565b5b9291505056fea2646970667358221220003ccde3343fa4317032d2145e484a26296debb62e8d436908101235d9a621cf64736f6c63430008120033"
+const getPreviousHashABI = "[\n\t{\n\t\t\"inputs\": [],\n\t\t\"name\": \"previousBlockHash\",\n\t\t\"outputs\": [\n\t\t\t{\n\t\t\t\t\"internalType\": \"bytes32\",\n\t\t\t\t\"name\": \"\",\n\t\t\t\t\"type\": \"bytes32\"\n\t\t\t}\n\t\t],\n\t\t\"stateMutability\": \"view\",\n\t\t\"type\": \"function\"\n\t}\n]"
+
+func Test_PreviousBlockHashFunction(t *testing.T) {
+	s := abstate.NewEmptyState()
+	from := test.RandomBytes(20)
+	stateDB := statedb.NewStateDB(s)
+	fromAddr := common.BytesToAddress(from)
+	stateDB.CreateAccount(fromAddr)
+	stateDB.AddBalance(fromAddr, big.NewInt(oneEth)) // add 1 ETH
+	gasPool := new(core.GasPool).AddGas(math.MaxUint64)
+	gasPrice := big.NewInt(DefaultGasPrice)
+	mockDB := memorydb.New()
+	b := &types.Block{
+		Header:             &types.Header{SystemID: DefaultEvmTxSystemIdentifier},
+		Transactions:       []*types.TransactionRecord{},
+		UnicityCertificate: &types.UnicityCertificate{InputRecord: &types.InputRecord{RoundNumber: 1, BlockHash: test.RandomBytes(32)}},
+	}
+	require.NoError(t, mockDB.Write(util.Uint64ToBytes(uint64(1)), &b))
+	_, err := Execute(2, stateDB, mockDB, &TxAttributes{
+		From:  fromAddr.Bytes(),
+		Data:  common.Hex2Bytes(getPreviousHashCode),
+		Gas:   10000000,
+		Value: big.NewInt(0),
+	}, systemIdentifier, gasPool, gasPrice, false)
+	require.NoError(t, err)
+	scAddr := evmcrypto.CreateAddress(common.BytesToAddress(from), 0)
+	cABI, err := abi.JSON(bytes.NewBuffer([]byte(getPreviousHashABI)))
+	require.NoError(t, err)
+	inc := cABI.Methods["previousBlockHash"]
+	callContract := &TxAttributes{
+		From:  from,
+		To:    scAddr.Bytes(),
+		Data:  inc.ID,
+		Gas:   10000000,
+		Value: big.NewInt(0),
+		Nonce: 1,
+	}
+	res, err := Execute(2, stateDB, mockDB, callContract, systemIdentifier, gasPool, gasPrice, false)
+	require.NoError(t, err)
+	require.NotNil(t, res)
+	require.Equal(t, types.TxStatusSuccessful, res.SuccessIndicator)
+	var details ProcessingDetails
+	require.NoError(t, cbor.Unmarshal(res.ProcessingDetails, &details))
+	require.EqualValues(t, b.UnicityCertificate.InputRecord.BlockHash, details.ReturnData)
+	// query not existing block
+	callContract.Nonce++
+	res, err = Execute(3, stateDB, mockDB, callContract, systemIdentifier, gasPool, gasPrice, false)
+	require.NoError(t, err)
+	require.NotNil(t, res)
+	require.Equal(t, types.TxStatusSuccessful, res.SuccessIndicator)
+	require.NoError(t, cbor.Unmarshal(res.ProcessingDetails, &details))
+	// expect 0H to be returned
+	require.EqualValues(t, make([]byte, 32), details.ReturnData)
 }
 
 func Test_errorToStr(t *testing.T) {

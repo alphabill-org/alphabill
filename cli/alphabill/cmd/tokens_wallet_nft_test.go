@@ -50,9 +50,9 @@ func TestNFTs_Integration(t *testing.T) {
 	verifyStdout(t, stdout, "Successfully created 50 fee credits on tokens partition.")
 
 	// non-fungible token types
-	typeID := randomID(t)
-	typeID2 := randomID(t)
-	nftID := randomID(t)
+	typeID := randomNonFungibleTokenTypeID(t)
+	typeID2 := randomNonFungibleTokenTypeID(t)
+	nftID := randomNonFungibleTokenID(t)
 	symbol := "ABNFT"
 	execTokensCmdWithError(t, homedirW1, "new-type non-fungible", "required flag(s) \"symbol\" not set")
 	execTokensCmd(t, homedirW1, fmt.Sprintf("new-type non-fungible -k 2 --symbol %s -r %s --type %s --subtype-clause ptpkh", symbol, backendURL, typeID))
@@ -91,7 +91,7 @@ func TestNFTs_Integration(t *testing.T) {
 	execTokensCmd(t, homedirW2, fmt.Sprintf("send non-fungible -r %s --token-identifier %s --address 0x%X -k 1", backendURL, nftID, w1key2.PubKey))
 	ensureTokenIndexed(t, ctx, backendClient, w1key2.PubKey, nftID)
 	// mint nft from w1 and set the owner to w2
-	nftID2 := randomID(t)
+	nftID2 := randomNonFungibleTokenID(t)
 	verifyStdout(t, execTokensCmd(t, homedirW2, fmt.Sprintf("list non-fungible -r %s", backendURL)), "No tokens")
 	execTokensCmd(t, homedirW1, fmt.Sprintf("new non-fungible -k 2 -r %s --type %s --bearer-clause ptpkh:0x%X --token-identifier %s", backendURL, typeID, w2key.PubKeyHash.Sha256, nftID2))
 	verifyStdout(t, execTokensCmd(t, homedirW2, fmt.Sprintf("list non-fungible -r %s", backendURL)), fmt.Sprintf("ID='%s'", nftID2))
@@ -109,13 +109,13 @@ func TestNFTDataUpdateCmd_Integration(t *testing.T) {
 	backendClient := network.tokenBackendClient
 	ctx := network.ctx
 
-	typeID := randomID(t)
+	typeID := randomNonFungibleTokenTypeID(t)
 	symbol := "ABNFT"
 	// create type
 	execTokensCmd(t, homedir, fmt.Sprintf("new-type non-fungible --symbol %s -r %s --type %s", symbol, backendURL, typeID))
 	ensureTokenTypeIndexed(t, ctx, backendClient, w1key.PubKey, typeID)
 	// create non-fungible token from using data-file
-	nftID := randomID(t)
+	nftID := randomNonFungibleTokenID(t)
 	data := make([]byte, 1024)
 	n, err := rand.Read(data)
 	require.NoError(t, err)
@@ -164,7 +164,7 @@ func TestNFTDataUpdateCmd_Integration(t *testing.T) {
 	}, 2*test.WaitDuration, test.WaitTick)
 
 	// create non-updatable nft
-	nftID2 := randomID(t)
+	nftID2 := randomNonFungibleTokenID(t)
 	execTokensCmd(t, homedir, fmt.Sprintf("new non-fungible -r %s --type %s --token-identifier %s --data 01 --data-update-clause false", backendURL, typeID, nftID2))
 	nft2 := ensureTokenIndexed(t, ctx, backendClient, w1key.PubKey, nftID2)
 	require.Equal(t, []byte{0x01}, nft2.NftData)
@@ -191,8 +191,8 @@ func TestNFT_InvariantPredicate_Integration(t *testing.T) {
 	w2.Shutdown()
 
 	symbol1 := "ABNFT"
-	typeID11 := randomID(t)
-	typeID12 := randomID(t)
+	typeID11 := randomNonFungibleTokenTypeID(t)
+	typeID12 := randomNonFungibleTokenTypeID(t)
 	execTokensCmd(t, homedirW1, fmt.Sprintf("new-type non-fungible -r %s --symbol %s --type %s --inherit-bearer-clause %s", backendURL, symbol1, typeID11, predicatePtpkh))
 	require.Eventually(t, testpartition.BlockchainContains(tokenPartition, func(tx *types.TransactionOrder) bool {
 		return bytes.Equal(tx.UnitID(), typeID11)
@@ -205,7 +205,7 @@ func TestNFT_InvariantPredicate_Integration(t *testing.T) {
 	}), test.WaitDuration, test.WaitTick)
 	ensureTokenTypeIndexed(t, ctx, backendClient, w1key.PubKey, typeID12)
 	//mint
-	id := randomID(t)
+	id := randomNonFungibleTokenID(t)
 	execTokensCmd(t, homedirW1, fmt.Sprintf("new non-fungible -r %s --type %s --token-identifier %s --mint-input %s,%s", backendURL, typeID12, id, predicatePtpkh, predicatePtpkh))
 	ensureTokenIndexed(t, ctx, backendClient, w1key.PubKey, id)
 	verifyStdout(t, execTokensCmd(t, homedirW1, fmt.Sprintf("list non-fungible -r %s", backendURL)), "symbol='ABNFT'")

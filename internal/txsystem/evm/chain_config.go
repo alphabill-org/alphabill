@@ -3,7 +3,6 @@ package evm
 import (
 	"math/big"
 
-	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/params"
 )
 
@@ -15,7 +14,6 @@ func newChainConfig(chainID *big.Int) *params.ChainConfig {
 		DAOForkBlock:        big.NewInt(0),
 		DAOForkSupport:      true,
 		EIP150Block:         big.NewInt(0),
-		EIP150Hash:          common.Hash{},
 		EIP155Block:         big.NewInt(0),
 		EIP158Block:         big.NewInt(0),
 		ByzantiumBlock:      big.NewInt(0),
@@ -25,13 +23,18 @@ func newChainConfig(chainID *big.Int) *params.ChainConfig {
 		MuirGlacierBlock:    big.NewInt(0),
 		BerlinBlock:         big.NewInt(0), // todo: This should be disabled, no access list?
 		// LondonBlock:             big.NewInt(0), no support for london system and burning of fees
-		ArrowGlacierBlock:       big.NewInt(0),
-		GrayGlacierBlock:        big.NewInt(0),
-		MergeNetsplitBlock:      big.NewInt(0),
-		ShanghaiBlock:           big.NewInt(0),
-		CancunBlock:             big.NewInt(0),
+		ArrowGlacierBlock:  big.NewInt(0),
+		GrayGlacierBlock:   big.NewInt(0),
+		MergeNetsplitBlock: big.NewInt(0),
+		// Todo: enabled all new features, check what is actually needed
+		ShanghaiTime: new(uint64),
+		CancunTime:   new(uint64),
+		PragueTime:   new(uint64),
+		VerkleTime:   nil, // disabled Verkel tree for now
+
 		TerminalTotalDifficulty: nil,
 		Ethash:                  nil,
 		Clique:                  nil,
+		IsDevMode:               false,
 	}
 }

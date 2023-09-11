@@ -34,7 +34,7 @@ func validateBurnFungibleToken(tx *types.TransactionOrder, attr *BurnFungibleTok
 		return err
 	}
 	if !bytes.Equal(d.tokenType, attr.TypeID) {
-		return fmt.Errorf("type of token to burn does not matches the actual type of the token: expected %X, got %X", d.tokenType, attr.TypeID)
+		return fmt.Errorf("type of token to burn does not matches the actual type of the token: expected %s, got %s", d.tokenType, attr.TypeID)
 	}
 	if attr.Value != d.value {
 		return fmt.Errorf("invalid token value: expected %v, got %v", d.value, attr.Value)
@@ -88,11 +88,11 @@ func (b *BurnFungibleTokenAttributes) SigBytes() ([]byte, error) {
 	return cbor.Marshal(signatureAttr)
 }
 
-func (b *BurnFungibleTokenAttributes) GetTypeID() []byte {
+func (b *BurnFungibleTokenAttributes) GetTypeID() types.UnitID {
 	return b.TypeID
 }
 
-func (b *BurnFungibleTokenAttributes) SetTypeID(typeID []byte) {
+func (b *BurnFungibleTokenAttributes) SetTypeID(typeID types.UnitID) {
 	b.TypeID = typeID
 }
 

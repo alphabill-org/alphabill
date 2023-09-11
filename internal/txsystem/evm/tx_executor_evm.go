@@ -62,7 +62,7 @@ func handleEVMTx(systemIdentifier []byte, opts *Options, blockGas *core.GasPool,
 				err = stateDB.Finalize()
 			}
 		}()
-		return execute(currentBlockNumber, stateDB, blockDB, attr, systemIdentifier, blockGas, opts.gasUnitPrice)
+		return Execute(currentBlockNumber, stateDB, blockDB, attr, systemIdentifier, blockGas, opts.gasUnitPrice, false)
 	}
 }
 
@@ -71,13 +71,13 @@ func calcGasPrice(gas uint64, gasPrice *big.Int) *big.Int {
 	return cost.Mul(cost, gasPrice)
 }
 
-func execute(currentBlockNumber uint64, stateDB *statedb.StateDB, blockDB keyvaluedb.KeyValueDB, attr *TxAttributes, systemIdentifier []byte, gp *core.GasPool, gasUnitPrice *big.Int) (*types.ServerMetadata, error) {
+func Execute(currentBlockNumber uint64, stateDB *statedb.StateDB, blockDB keyvaluedb.KeyValueDB, attr *TxAttributes, systemIdentifier []byte, gp *core.GasPool, gasUnitPrice *big.Int, fake bool) (*types.ServerMetadata, error) {
 	if err := validate(attr); err != nil {
 		return nil, err
 	}
 	blockCtx := newBlockContext(currentBlockNumber, blockDB)
 	evm := vm.NewEVM(blockCtx, newTxContext(attr, gasUnitPrice), stateDB, newChainConfig(new(big.Int).SetBytes(systemIdentifier)), newVMConfig())
-	msg := attr.AsMessage(gasUnitPrice)
+	msg := attr.AsMessage(gasUnitPrice, fake)
 	// Apply the transaction to the current state (included in the env)
 	execResult, err := core.ApplyMessage(evm, msg, gp)
 	if err != nil {

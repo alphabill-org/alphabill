@@ -30,7 +30,7 @@ func newChainConfig(chainID *big.Int) *params.ChainConfig {
 		ShanghaiTime: new(uint64),
 		CancunTime:   new(uint64),
 		PragueTime:   new(uint64),
-		VerkleTime:   nil, // diabled verkel tree for now
+		VerkleTime:   nil, // disabled Verkel tree for now
 
 		TerminalTotalDifficulty: nil,
 		Ethash:                  nil,

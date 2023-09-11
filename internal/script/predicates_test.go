@@ -26,9 +26,19 @@ func TestExtractPubKeyFromPredicateArgument(t *testing.T) {
 			wantErrStr: "predicate argument is nil",
 		},
 		{
-			name:       "argument empty",
+			name:       "argument 0 bytes",
+			args:       args{predicate: []byte{}},
+			wantErrStr: "invalid predicate argument",
+		},
+		{
+			name:       "argument 1 byte, but not start byte",
+			args:       args{predicate: []byte{0xaa}},
+			wantErrStr: "invalid predicate argument",
+		},
+		{
+			name:       "argument only start byte",
 			args:       args{predicate: PredicateArgumentEmpty()},
-			wantErrStr: "no public key found in predicate argument",
+			wantErrStr: "invalid predicate argument",
 		},
 		{
 			name:       "argument always true",

@@ -41,7 +41,7 @@ func (t *TxAttributes) ToAddr() *common.Address {
 }
 
 // AsMessage returns the Alphabill transaction as a ethereum core.Message.
-func (t *TxAttributes) AsMessage(gasPrice *big.Int) *core.Message {
+func (t *TxAttributes) AsMessage(gasPrice *big.Int, fake bool) *core.Message {
 	msg := &core.Message{
 		Nonce:             t.Nonce,
 		GasLimit:          t.Gas,
@@ -55,7 +55,7 @@ func (t *TxAttributes) AsMessage(gasPrice *big.Int) *core.Message {
 		AccessList:        ethtypes.AccessList{},
 		BlobGasFeeCap:     nil, // todo: investigate
 		BlobHashes:        nil, // todo: investigate
-		SkipAccountChecks: false,
+		SkipAccountChecks: fake,
 	}
 	return msg
 }

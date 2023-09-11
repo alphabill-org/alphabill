@@ -50,7 +50,7 @@ func ExtractPubKeyFromPredicateArgument(predicate []byte) ([]byte, error) {
 	if predicate == nil {
 		return nil, fmt.Errorf("predicate argument is nil")
 	}
-	if predicate[0] != StartByte {
+	if len(predicate) < 2 || predicate[0] != StartByte {
 		return nil, fmt.Errorf("invalid predicate argument")
 	}
 	for i := 1; i < len(predicate); i++ {

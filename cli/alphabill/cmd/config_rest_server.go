@@ -5,6 +5,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/alphabill-org/alphabill/internal/rpc"
 	"github.com/spf13/cobra"
 )
 
@@ -43,6 +44,8 @@ type (
 		// MaxHeaderBytes controls the maximum number of bytes the server will read parsing the request body. If zero,
 		// MaxBodyBytes is used.
 		MaxBodyBytes int64
+
+		router rpc.Registrar
 	}
 )
 

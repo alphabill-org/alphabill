@@ -278,7 +278,7 @@ func TestNewTypes(t *testing.T) {
 	tw := initTestWallet(t, be)
 
 	t.Run("fungible type", func(t *testing.T) {
-		typeId := types.UnitID(test.RandomBytes(33))
+		typeId := tokens.NewFungibleTokenTypeID(nil, test.RandomBytes(32))
 		a := CreateFungibleTokenTypeAttributes{
 			Symbol:                   "AB",
 			Name:                     "Long name for AB",
@@ -316,8 +316,12 @@ func TestNewTypes(t *testing.T) {
 			InvariantPredicate:       script.PredicateAlwaysTrue(),
 		}
 		//check decimal places are validated against the parent type
-		_, err = tw.NewFungibleType(context.Background(), 1, b, []byte{2}, nil)
+		_, err = tw.NewFungibleType(context.Background(), 1, b, nil, nil)
 		require.ErrorContains(t, err, "parent type requires 0 decimal places, got 2")
+
+		//check typeId validation
+		_, err = tw.NewFungibleType(context.Background(), 1, a, []byte{2}, nil)
+		require.ErrorContains(t, err, "invalid token type ID")
 
 		//check typeId generation if typeId parameter is nil
 		result, _ = tw.NewFungibleType(context.Background(), 1, a, nil, nil)
@@ -325,7 +329,7 @@ func TestNewTypes(t *testing.T) {
 	})
 
 	t.Run("non-fungible type", func(t *testing.T) {
-		typeId := types.UnitID(test.RandomBytes(33))
+		typeId := tokens.NewNonFungibleTokenTypeID(nil, test.RandomBytes(32))
 		a := CreateNonFungibleTokenTypeAttributes{
 			Symbol:                   "ABNFT",
 			Name:                     "Long name for ABNFT",
@@ -347,6 +351,10 @@ func TestNewTypes(t *testing.T) {
 		require.Equal(t, a.Symbol, newNFTTx.Symbol)
 		require.Equal(t, a.Icon.Type, newNFTTx.Icon.Type)
 		require.Equal(t, a.Icon.Data, newNFTTx.Icon.Data)
+
+		//check typeId validation
+		_, err = tw.NewNonFungibleType(context.Background(), 1, a, []byte{2}, nil)
+		require.ErrorContains(t, err, "invalid token type ID")
 
 		//check typeId generation if typeId parameter is nil
 		result, _ = tw.NewNonFungibleType(context.Background(), 1, a, nil, nil)

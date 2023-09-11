@@ -30,7 +30,7 @@ func NewEVMModule(systemIdentifier []byte, opts *Options) (*Module, error) {
 
 func (m *Module) TxExecutors() map[string]txsystem.TxExecutor {
 	return map[string]txsystem.TxExecutor{
-		PayloadTypeEVMCall: handleEVMTx(m.systemIdentifier, m.options, m.blockGasCounter),
+		PayloadTypeEVMCall: handleEVMTx(m.systemIdentifier, m.options, m.blockGasCounter, m.options.blockDB),
 	}
 }
 

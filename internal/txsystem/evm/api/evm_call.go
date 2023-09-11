@@ -6,6 +6,7 @@ import (
 	"math/big"
 	"net/http"
 
+	"github.com/alphabill-org/alphabill/internal/keyvaluedb/memorydb"
 	"github.com/alphabill-org/alphabill/internal/txsystem/evm"
 	"github.com/alphabill-org/alphabill/internal/txsystem/evm/statedb"
 	"github.com/alphabill-org/alphabill/internal/util"
@@ -51,7 +52,7 @@ func (a *API) CallEVM(w http.ResponseWriter, r *http.Request) {
 		Value: request.Value,
 		Gas:   request.Gas,
 	}
-	result, err := evm.Execute(blockNumber, stateDB, attr, a.systemIdentifier, gp, a.gasUnitPrice, true)
+	result, err := evm.Execute(blockNumber, stateDB, memorydb.New(), attr, a.systemIdentifier, gp, a.gasUnitPrice, true)
 	if err != nil {
 		util.WriteCBORError(w, err, http.StatusBadRequest)
 		return

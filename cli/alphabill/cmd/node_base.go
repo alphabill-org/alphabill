@@ -51,11 +51,14 @@ type startNodeConfiguration struct {
 }
 
 func defaultNodeRunFunc(ctx context.Context, name string, txs txsystem.TransactionSystem, nodeCfg *startNodeConfiguration, rpcServerConf *grpcServerConfiguration, restServerConf *restServerConfiguration) error {
-	self, node, err := createNode(ctx, txs, nodeCfg)
+	self, node, err := createNode(ctx, txs, nodeCfg, nil)
 	if err != nil {
 		return fmt.Errorf("failed to create node %q: %w", name, err)
 	}
+	return run(ctx, name, self, node, rpcServerConf, restServerConf)
+}
 
+func run(ctx context.Context, name string, self *network.Peer, node *partition.Node, rpcServerConf *grpcServerConfiguration, restServerConf *restServerConfiguration) error {
 	g, ctx := errgroup.WithContext(ctx)
 
 	g.Go(func() error { return node.Run(ctx) })
@@ -199,7 +202,7 @@ func initRPCServer(node *partition.Node, cfg *grpcServerConfiguration) (*grpc.Se
 	return grpcServer, nil
 }
 
-func createNode(ctx context.Context, txs txsystem.TransactionSystem, cfg *startNodeConfiguration) (*network.Peer, *partition.Node, error) {
+func createNode(ctx context.Context, txs txsystem.TransactionSystem, cfg *startNodeConfiguration, blockStore keyvaluedb.KeyValueDB) (*network.Peer, *partition.Node, error) {
 	keys, err := LoadKeys(cfg.KeyFile, false, false)
 	if err != nil {
 		return nil, nil, err
@@ -226,7 +229,12 @@ func createNode(ctx context.Context, txs txsystem.TransactionSystem, cfg *startN
 	if err != nil {
 		return nil, nil, err
 	}
-	blockStore, err := initNodeBlockStore(cfg.DbFile)
+	if blockStore == nil {
+		blockStore, err = initNodeBlockStore(cfg.DbFile)
+		if err != nil {
+			return nil, nil, err
+		}
+	}
 	if err != nil {
 		return nil, nil, err
 	}

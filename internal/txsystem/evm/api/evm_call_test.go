@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/alphabill-org/alphabill/internal/keyvaluedb/memorydb"
 	"github.com/alphabill-org/alphabill/internal/rpc"
 	abstate "github.com/alphabill-org/alphabill/internal/state"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
@@ -65,7 +66,7 @@ func TestAPI_CallEVM_OK(t *testing.T) {
 	}
 	gasPool := new(core.GasPool).AddGas(math.MaxUint64)
 	gasPrice := big.NewInt(evm.DefaultGasPrice)
-	_, err = evm.Execute(1, statedb.NewStateDB(tree), callContract, systemIdentifier, gasPool, gasPrice, false)
+	_, err = evm.Execute(1, statedb.NewStateDB(tree), memorydb.New(), callContract, systemIdentifier, gasPool, gasPrice, false)
 	require.NoError(t, err)
 
 	_, _, err = tree.CalculateRoot()
@@ -155,7 +156,7 @@ func initState(t *testing.T, tree *abstate.State) (common.Address, common.Addres
 	}
 	gasPool := new(core.GasPool).AddGas(math.MaxUint64)
 	gasPrice := big.NewInt(evm.DefaultGasPrice)
-	sm, err := evm.Execute(1, stateDB, evmAttr, systemIdentifier, gasPool, gasPrice, false)
+	sm, err := evm.Execute(1, stateDB, memorydb.New(), evmAttr, systemIdentifier, gasPool, gasPrice, false)
 	details := &evm.ProcessingDetails{}
 	require.NoError(t, sm.UnmarshalDetails(details))
 	require.NoError(t, err)

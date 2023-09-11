@@ -143,7 +143,9 @@ func TestNode_HandleUnicityCertificate_RevertAndStartRecovery_withPendingProposa
 	done = StartSingleNodePartition(ctx, t, tp)
 
 	// block finalization
-	tp.SubmitUC(t, uc)
+	tp.eh.Reset()
+	tp.SubmitUnicityCertificate(uc)
+	testevent.ContainsEvent(t, tp.eh, event.BlockFinalized)
 
 	cancel()
 	select {
@@ -151,6 +153,88 @@ func TestNode_HandleUnicityCertificate_RevertAndStartRecovery_withPendingProposa
 	case <-time.After(3 * time.Second):
 		t.Fatal("partition node didn't shut down within timeout")
 	}
+}
+
+func TestNode_HandleUnicityCertificate_RevertAndStartRecovery_withPendingProposal_sameIR_butDifferentBlocks(t *testing.T) {
+	store := memorydb.New()
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+	tp := SetupNewSingleNodePartition(t, &testtxsystem.CounterTxSystem{}, WithBlockStore(store))
+	StartSingleNodePartition(ctx, t, tp)
+
+	tp.partition.startNewRound(context.Background(), tp.partition.luc.Load())
+	require.NoError(t, tp.SubmitTxFromRPC(testtransaction.NewTransactionOrder(t)))
+	require.Eventually(t, func() bool {
+		events := tp.eh.GetEvents()
+		for _, e := range events {
+			if e.EventType == event.TransactionProcessed {
+				return true
+			}
+		}
+		return false
+	}, test.WaitDuration, test.WaitTick)
+
+	// create new block
+	tp.CreateBlock(t)
+	tp.partition.startNewRound(context.Background(), tp.partition.luc.Load())
+
+	// create new proposal and certify it (but not yet finalize the block on the partition side)
+	tp.SubmitT1Timeout(t)
+	uc := tp.IssueBlockUC(t)
+	bl := tp.GetLatestBlock(t)
+	latestRound := bl.GetRoundNumber()
+
+	// now assume while the node was offline, other validators produced several new blocks, all empty
+	// that is, round number has been incremented, but the state hash is the same
+	uc.InputRecord.RoundNumber += 5
+	uc, err := tp.CreateUnicityCertificate(
+		uc.InputRecord,
+		uc.UnicitySeal.RootChainRoundNumber+1,
+	)
+	require.NoError(t, err)
+	// submit UC, node must recover the gap of 5 blocks
+	tp.SubmitUnicityCertificate(uc)
+	testevent.ContainsEvent(t, tp.eh, event.RecoveryStarted)
+	require.Equal(t, recovering, tp.partition.status.Load())
+	req := WaitNodeRequestReceived(t, tp, network.ProtocolLedgerReplicationReq)
+	require.NotNil(t, req)
+	msg := req.Message.(*replication.LedgerReplicationRequest)
+	require.Equal(t, latestRound+1, msg.BeginBlockNumber)
+}
+
+func TestNode_HandleUnicityCertificate_RevertAndStartRecovery_noPendingProposal_sameIR_butDifferentBlocks(t *testing.T) {
+	store := memorydb.New()
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+	tp := SetupNewSingleNodePartition(t, &testtxsystem.CounterTxSystem{}, WithBlockStore(store))
+	StartSingleNodePartition(ctx, t, tp)
+
+	tp.partition.startNewRound(context.Background(), tp.partition.luc.Load())
+
+	// create new block
+	tp.CreateBlock(t)
+	tp.partition.startNewRound(context.Background(), tp.partition.luc.Load())
+
+	bl := tp.GetLatestBlock(t)
+	latestRound := bl.GetRoundNumber()
+	uc := bl.UnicityCertificate
+
+	// now assume while the node was offline, other validators produced several new blocks, all empty
+	// that is, round number has been incremented, but the state hash is the same
+	uc.InputRecord.RoundNumber += 5
+	uc, err := tp.CreateUnicityCertificate(
+		uc.InputRecord,
+		uc.UnicitySeal.RootChainRoundNumber+1,
+	)
+	require.NoError(t, err)
+	// submit UC, node must recover the gap of 5 blocks
+	tp.SubmitUnicityCertificate(uc)
+	testevent.ContainsEvent(t, tp.eh, event.RecoveryStarted)
+	require.Equal(t, recovering, tp.partition.status.Load())
+	req := WaitNodeRequestReceived(t, tp, network.ProtocolLedgerReplicationReq)
+	require.NotNil(t, req)
+	msg := req.Message.(*replication.LedgerReplicationRequest)
+	require.Equal(t, latestRound+1, msg.BeginBlockNumber)
 }
 
 func TestNode_HandleUnicityCertificate_RevertAndStartRecovery_withNoProposal(t *testing.T) {

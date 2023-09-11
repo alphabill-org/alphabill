@@ -640,8 +640,8 @@ func (n *Node) startRecovery(uc *types.UnicityCertificate) {
 	n.revertState()
 	n.status.Store(recovering)
 	n.stopForwardingOrHandlingTransactions()
-	logger.Debug("Entering recovery state, recover node up to round %v", luc.GetRoundNumber())
 	fromBlockNr := n.lastStoredBlock.GetRoundNumber() + 1
+	logger.Debug("Entering recovery state, recover node from %d up to round %d", fromBlockNr, luc.GetRoundNumber())
 	n.sendEvent(event.RecoveryStarted, fromBlockNr)
 	n.sendLedgerReplicationRequest(fromBlockNr)
 }
@@ -705,6 +705,14 @@ func (n *Node) handleUnicityCertificate(ctx context.Context, uc *types.UnicityCe
 			n.startRecovery(uc)
 			return ErrNodeDoesNotHaveLatestBlock
 		}
+		// do not allow gaps between blocks, even if state hash does not change
+		if !uc.IsRepeat(luc) &&
+			!uc.IsDuplicate(luc) &&
+			uc.GetRoundNumber() != luc.GetRoundNumber()+1 {
+			logger.Warning("Recovery needed, missing blocks. UC round number: %d, current round number: %d", uc.GetRoundNumber(), luc.GetRoundNumber()+1)
+			n.startRecovery(uc)
+			return ErrNodeDoesNotHaveLatestBlock
+		}
 		logger.Debug("No pending block proposal, UC IR hash is equal to State hash, so are block hashes")
 		n.startNewRound(ctx, uc)
 		return nil
@@ -718,6 +726,22 @@ func (n *Node) handleUnicityCertificate(ctx context.Context, uc *types.UnicityCe
 		n.startRecovery(uc)
 		return fmt.Errorf("recovery needed, block proposal hash calculation failed, %w", err)
 	}
+
+	// repeat UC
+	if uc.IsRepeat(luc) {
+		// UC certifies the IR before pending block proposal ("repeat UC"). state is rolled back to previous state.
+		//logger.Warning("Reverting state tree on repeat certificate. UC IR hash: %X, proposal prev hash %X", uc.InputRecord.Hash, n.pendingBlockProposal.PrevHash)
+		logger.Warning("Reverting state tree on repeat certificate. UC IR hash: %X", uc.InputRecord.Hash)
+		n.revertState()
+		n.startNewRound(ctx, uc)
+		return nil
+	} else if uc.GetRoundNumber() != luc.GetRoundNumber()+1 {
+		// do not allow gaps between blocks, even if state hash does not change (though allow repeat UC here)
+		logger.Warning("Recovery needed, missing blocks. UC round number: %d, current round number: %d", uc.GetRoundNumber(), luc.GetRoundNumber()+1)
+		n.startRecovery(uc)
+		return ErrNodeDoesNotHaveLatestBlock
+	}
+
 	if bytes.Equal(uc.InputRecord.Hash, n.pendingBlockProposal.StateHash) &&
 		uc.InputRecord.SumOfEarnedFees == n.pendingBlockProposal.SumOfEarnedFees {
 		// UC certifies pending block proposal
@@ -729,14 +753,7 @@ func (n *Node) handleUnicityCertificate(ctx context.Context, uc *types.UnicityCe
 		n.startNewRound(ctx, uc)
 		return nil
 	}
-	// repeat UC
-	if bytes.Equal(uc.InputRecord.Hash, n.pendingBlockProposal.PrevHash) {
-		// UC certifies the IR before pending block proposal ("repeat UC"). state is rolled back to previous state.
-		logger.Warning("Reverting state tree on repeat certificate. UC IR hash: %X, proposal prev hash %X", uc.InputRecord.Hash, n.pendingBlockProposal.PrevHash)
-		n.revertState()
-		n.startNewRound(ctx, uc)
-		return nil
-	}
+
 	// UC with different IR hash. Node does not have the latest state. Revert changes and start recovery.
 	// revertState is called from startRecovery()
 	logger.Warning("Recovery needed, either proposal state hash, block hash or sum of earned fees is different")

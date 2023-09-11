@@ -261,16 +261,8 @@ func (sn *SingleNodePartition) GetLatestBlock(t *testing.T) *types.Block {
 
 func (sn *SingleNodePartition) CreateBlock(t *testing.T) {
 	sn.SubmitT1Timeout(t)
-	sn.SubmitUC(t, sn.IssueBlockUC(t))
-}
-
-func (sn *SingleNodePartition) SubmitUC(t *testing.T, uc *types.UnicityCertificate) {
 	sn.eh.Reset()
-	sn.mockNet.Receive(network.ReceivedMessage{
-		From:     "from-test",
-		Protocol: network.ProtocolUnicityCertificates,
-		Message:  uc,
-	})
+	sn.SubmitUnicityCertificate(sn.IssueBlockUC(t))
 	testevent.ContainsEvent(t, sn.eh, event.BlockFinalized)
 }
 

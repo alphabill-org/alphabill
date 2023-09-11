@@ -123,10 +123,7 @@ func newBlockContext(currentBlockNumber uint64, blockDB keyvaluedb.KeyValueDB) v
 		CanTransfer: core.CanTransfer,
 		Transfer:    core.Transfer,
 		GetHash: func(u uint64) common.Hash {
-			// if blockDB interface is not provided
-			if blockDB == nil {
-				return common.Hash{}
-			}
+			// NB! SIGSEGV if blockDB is nil, this must not happen
 			it := blockDB.Find(util.Uint64ToBytes(u))
 			if !it.Valid() {
 				return common.Hash{}

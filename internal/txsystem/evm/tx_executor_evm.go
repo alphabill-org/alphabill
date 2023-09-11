@@ -137,13 +137,14 @@ func newBlockContext(currentBlockNumber uint64, blockDB keyvaluedb.KeyValueDB) v
 			}
 			return common.BytesToHash(b.UnicityCertificate.InputRecord.BlockHash)
 		},
-		Coinbase:    common.Address{},
-		GasLimit:    DefaultBlockGasLimit,
-		BlockNumber: new(big.Int).SetUint64(currentBlockNumber),
-		Time:        big.NewInt(1),
-		Difficulty:  big.NewInt(0),
-		BaseFee:     big.NewInt(0),
-		Random:      nil,
+		Coinbase:      common.Address{},
+		GasLimit:      DefaultBlockGasLimit,
+		BlockNumber:   new(big.Int).SetUint64(currentBlockNumber),
+		Time:          1,
+		Difficulty:    big.NewInt(0),
+		BaseFee:       big.NewInt(0),
+		Random:        nil,
+		ExcessBlobGas: nil,
 	}
 }
 
@@ -156,10 +157,10 @@ func newTxContext(attr *TxAttributes, gasPrice *big.Int) vm.TxContext {
 
 func newVMConfig() vm.Config {
 	return vm.Config{
-		Debug: false,
 		// TODO use AB logger
-		Tracer:    logger.NewJSONLogger(nil, os.Stdout),
-		NoBaseFee: true,
+		Tracer:                  logger.NewJSONLogger(nil, os.Stdout),
+		NoBaseFee:               true,
+		EnablePreimageRecording: false, // Enables recording of SHA3/keccak preimages
 	}
 }
 

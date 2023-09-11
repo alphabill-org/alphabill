@@ -4,6 +4,7 @@ import (
 	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core"
 	ethtypes "github.com/ethereum/go-ethereum/core/types"
 )
 
@@ -17,21 +18,6 @@ type TxAttributes struct {
 	Value *big.Int
 	Gas   uint64
 	Nonce uint64
-}
-
-// Message implements ethereum core.Message
-type Message struct {
-	to         *common.Address
-	from       common.Address
-	nonce      uint64
-	amount     *big.Int
-	gasLimit   uint64
-	gasPrice   *big.Int
-	gasFeeCap  *big.Int
-	gasTipCap  *big.Int
-	data       []byte
-	accessList ethtypes.AccessList
-	isFake     bool
 }
 
 // FromAddr - returns From as Address, if nil empty address is returned
@@ -55,31 +41,21 @@ func (t *TxAttributes) ToAddr() *common.Address {
 }
 
 // AsMessage returns the Alphabill transaction as a ethereum core.Message.
-func (t *TxAttributes) AsMessage(gasPrice *big.Int) Message {
-	msg := Message{
-		nonce:      t.Nonce,
-		gasLimit:   t.Gas,
-		gasPrice:   gasPrice,
-		gasFeeCap:  gasPrice,      // gas price is constant, meaning max fee is the same as gas unit price
-		gasTipCap:  big.NewInt(0), // only used in London system, no supported for AB
-		to:         t.ToAddr(),
-		from:       t.FromAddr(),
-		amount:     t.Value,
-		data:       t.Data,
-		accessList: ethtypes.AccessList{},
-		isFake:     false,
+func (t *TxAttributes) AsMessage(gasPrice *big.Int) *core.Message {
+	msg := &core.Message{
+		Nonce:             t.Nonce,
+		GasLimit:          t.Gas,
+		GasPrice:          gasPrice,
+		GasFeeCap:         gasPrice,      // gas price is constant, meaning max fee is the same as gas unit price
+		GasTipCap:         big.NewInt(0), // only used in London system, no supported for AB
+		To:                t.ToAddr(),
+		From:              t.FromAddr(),
+		Value:             t.Value,
+		Data:              t.Data,
+		AccessList:        ethtypes.AccessList{},
+		BlobGasFeeCap:     nil, // todo: investigate
+		BlobHashes:        nil, // todo: investigate
+		SkipAccountChecks: false,
 	}
 	return msg
 }
-
-func (m Message) From() common.Address            { return m.from }
-func (m Message) To() *common.Address             { return m.to }
-func (m Message) GasPrice() *big.Int              { return m.gasPrice }
-func (m Message) GasFeeCap() *big.Int             { return m.gasFeeCap }
-func (m Message) GasTipCap() *big.Int             { return m.gasTipCap }
-func (m Message) Value() *big.Int                 { return m.amount }
-func (m Message) Gas() uint64                     { return m.gasLimit }
-func (m Message) Nonce() uint64                   { return m.nonce }
-func (m Message) Data() []byte                    { return m.data }
-func (m Message) AccessList() ethtypes.AccessList { return m.accessList }
-func (m Message) IsFake() bool                    { return m.isFake }

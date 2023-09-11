@@ -287,20 +287,29 @@ func (s *StateDB) Empty(address common.Address) bool {
 //
 // This method should only be called if Yolov3/Berlin/2929+2930 is applicable at the current number.
 func (s *StateDB) Prepare(rules params.Rules, sender, coinbase common.Address, dest *common.Address, precompiles []common.Address, txAccesses ethtypes.AccessList) {
-	s.AddAddressToAccessList(sender)
-	if dest != nil {
-		s.AddAddressToAccessList(*dest)
-		// If it's a create-tx, the destination will be added inside evm.create
-	}
-	for _, addr := range precompiles {
-		s.AddAddressToAccessList(addr)
-	}
-	for _, el := range txAccesses {
-		s.AddAddressToAccessList(el.Address)
-		for _, key := range el.StorageKeys {
-			s.AddSlotToAccessList(el.Address, key)
+	if rules.IsBerlin {
+		s.AddAddressToAccessList(sender)
+		if dest != nil {
+			s.AddAddressToAccessList(*dest)
+			// If it's a create-tx, the destination will be added inside evm.create
 		}
+		for _, addr := range precompiles {
+			s.AddAddressToAccessList(addr)
+		}
+		for _, el := range txAccesses {
+			s.AddAddressToAccessList(el.Address)
+			for _, key := range el.StorageKeys {
+				s.AddSlotToAccessList(el.Address, key)
+			}
+		}
+		// Currently ignore rules.IsShanghai and do not add coninbase address to access list, there is no coinbase for AB
+		/*
+			if rules.IsShanghai { // EIP-3651: warm coinbase
+				s.AddAddressToAccessList(coinbase)
+			}
+		*/
 	}
+	// Todo: AB-1187 Reset transient storage at the beginning of transaction execution
 }
 
 // AddAddressToAccessList adds the given address to the access list

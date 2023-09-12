@@ -553,7 +553,7 @@ func (n *Node) handleBlockProposal(ctx context.Context, prop *blockproposal.Bloc
 		// just to be sure, subscribe to root chain again, this may result in a duplicate UC received
 		n.sendHandshake()
 		if err = n.handleUnicityCertificate(ctx, uc); err != nil {
-			return fmt.Errorf("block proposal unicity certificate hanlding faild: %w", err)
+			return fmt.Errorf("block proposal unicity certificate handling failed: %w", err)
 		}
 	}
 	prevHash := uc.InputRecord.Hash
@@ -605,8 +605,7 @@ func (n *Node) startNewRound(ctx context.Context, uc *types.UnicityCertificate) 
 	}
 	n.status.Store(normal)
 	newRoundNr := uc.InputRecord.RoundNumber + 1
-	n.proposedTransactions = []*types.TransactionRecord{}
-	n.pendingBlockProposal = nil
+	n.resetProposal()
 	n.sumOfEarnedFees = 0
 	// not a fatal issue, but log anyway
 	if err := n.blockStore.Delete(util.Uint32ToBytes(proposalKey)); err != nil {
@@ -637,8 +636,9 @@ func (n *Node) startRecovery(uc *types.UnicityCertificate) {
 		return
 	}
 	// starting recovery
-	n.revertState()
 	n.status.Store(recovering)
+	n.revertState()
+	n.resetProposal()
 	n.stopForwardingOrHandlingTransactions()
 	fromBlockNr := n.lastStoredBlock.GetRoundNumber() + 1
 	logger.Debug("Entering recovery state, recover node from %d up to round %d", fromBlockNr, luc.GetRoundNumber())
@@ -674,8 +674,9 @@ func (n *Node) handleUnicityCertificate(ctx context.Context, uc *types.UnicityCe
 	// validation must make sure all mandatory fields are present and UC is cryptographically sound
 	// from this point fields can be logged, that must not be nil can be logged
 	luc := n.luc.Load()
+
 	printUC := func(uc *types.UnicityCertificate) string {
-		return fmt.Sprintf("H:\t%X\nH':\t%X\nHb:\t%X\nfees:%d, round:%d", uc.InputRecord.Hash, uc.InputRecord.PreviousHash, uc.InputRecord.BlockHash, uc.InputRecord.SumOfEarnedFees, uc.GetRoundNumber())
+		return fmt.Sprintf("H:\t%X\nH':\t%X\nHb:\t%X\nfees:%d, round:%d, root round:%d", uc.InputRecord.Hash, uc.InputRecord.PreviousHash, uc.InputRecord.BlockHash, uc.InputRecord.SumOfEarnedFees, uc.GetRoundNumber(), uc.GetRootRoundNumber())
 	}
 	logger.Debug("Received UC:\n%s", printUC(uc))
 	logger.Debug("LUC:\n%s", printUC(luc))
@@ -688,6 +689,16 @@ func (n *Node) handleUnicityCertificate(ctx context.Context, uc *types.UnicityCe
 		logger.Warning("equivocating UC:\n%s", util.EncodeToJsonHelper(uc))
 		return fmt.Errorf("equivocating certificate, %w", err)
 	}
+
+	if n.status.Load() == recovering {
+		logger.Debug("Recovery already in progress, updating LUC")
+		if err := n.updateLUC(uc); err != nil {
+			logger.Warning("LUC update failed, %v", err)
+		}
+		return nil
+	}
+
+	lastStoredRoundNumber := n.lastStoredBlock.GetRoundNumber()
 	// If there is no pending block proposal i.e. no certification request has been sent by the node
 	// - leader was down and did not make a block proposal?
 	// - node did not receive a block proposal because it was down, it was not sent or there were network issues
@@ -708,8 +719,8 @@ func (n *Node) handleUnicityCertificate(ctx context.Context, uc *types.UnicityCe
 		// do not allow gaps between blocks, even if state hash does not change
 		if !uc.IsRepeat(luc) &&
 			!uc.IsDuplicate(luc) &&
-			uc.GetRoundNumber() != luc.GetRoundNumber()+1 {
-			logger.Warning("Recovery needed, missing blocks. UC round number: %d, current round number: %d", uc.GetRoundNumber(), luc.GetRoundNumber()+1)
+			uc.GetRoundNumber() != lastStoredRoundNumber+1 {
+			logger.Warning("Recovery needed, missing blocks. UC round number: %d, current round number: %d", uc.GetRoundNumber(), lastStoredRoundNumber+1)
 			n.startRecovery(uc)
 			return ErrNodeDoesNotHaveLatestBlock
 		}
@@ -735,9 +746,9 @@ func (n *Node) handleUnicityCertificate(ctx context.Context, uc *types.UnicityCe
 		n.revertState()
 		n.startNewRound(ctx, uc)
 		return nil
-	} else if uc.GetRoundNumber() != luc.GetRoundNumber()+1 {
+	} else if uc.GetRoundNumber() != lastStoredRoundNumber+1 {
 		// do not allow gaps between blocks, even if state hash does not change (though allow repeat UC here)
-		logger.Warning("Recovery needed, missing blocks. UC round number: %d, current round number: %d", uc.GetRoundNumber(), luc.GetRoundNumber()+1)
+		logger.Warning("Recovery needed, missing blocks. UC round number: %d, current round number: %d", uc.GetRoundNumber(), lastStoredRoundNumber+1)
 		n.startRecovery(uc)
 		return ErrNodeDoesNotHaveLatestBlock
 	}
@@ -1169,6 +1180,11 @@ func (n *Node) sendCertificationRequest(blockAuthor string) error {
 		Protocol: network.ProtocolBlockCertification,
 		Message:  req,
 	}, []peer.ID{n.configuration.rootChainID})
+}
+
+func (n *Node) resetProposal() {
+	n.proposedTransactions = []*types.TransactionRecord{}
+	n.pendingBlockProposal = nil
 }
 
 func (n *Node) SubmitTx(_ context.Context, tx *types.TransactionOrder) (txOrderHash []byte, err error) {

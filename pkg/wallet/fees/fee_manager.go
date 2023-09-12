@@ -17,7 +17,7 @@ import (
 )
 
 const (
-	MinimumFeeAmount             = uint64(3)
+	MinimumFeeAmount             = 3 * txbuilder.MaxFee
 	txTimeoutBlockCount          = 10
 	transferFCLatestAdditionTime = 65536 // relative timeout after which transferFC unit becomes unusable
 )

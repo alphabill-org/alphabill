@@ -589,10 +589,10 @@ func TestAddAndReclaimWithInsufficientCredit(t *testing.T) {
 	feeManager := newMoneyPartitionFeeManager(am, unitLocker, moneyTxPublisher, moneyBackendClient)
 
 	_, err := feeManager.AddFeeCredit(context.Background(), AddFeeCmd{Amount: 2})
-	require.Error(t, err, ErrMinimumFeeAmount)
+	require.ErrorIs(t, err, ErrMinimumFeeAmount)
 
 	_, err = feeManager.ReclaimFeeCredit(context.Background(), ReclaimFeeCmd{})
-	require.Error(t, err, ErrMinimumFeeAmount)
+	require.ErrorIs(t, err, ErrMinimumFeeAmount)
 }
 
 func newMoneyPartitionFeeManager(am account.Manager, unitLocker UnitLocker, moneyTxPublisher TxPublisher, moneyBackendClient MoneyClient) *FeeManager {

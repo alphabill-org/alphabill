@@ -13,7 +13,6 @@ const (
 )
 
 type (
-	// Wallet To synchronize wallet with a node call Sync.
 	// Shutdown needs to be called to release resources used by wallet.
 	Wallet struct {
 		AlphabillClient client.ABClient

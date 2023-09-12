@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/url"
 	"strings"
@@ -227,6 +228,9 @@ func addFees(ctx context.Context, accountNumber uint64, amountString string, c *
 		AccountIndex: accountNumber - 1,
 	})
 	if err != nil {
+		if errors.Is(err, fees.ErrMinimumFeeAmount) {
+			return fmt.Errorf("minimum fee credit amount to add is %s", amountToString(fees.MinimumFeeAmount, 8))
+		}
 		return err
 	}
 	consoleWriter.Println("Successfully created", amountString, "fee credits on", c.partitionType, "partition.")
@@ -244,6 +248,9 @@ func reclaimFees(ctx context.Context, accountNumber uint64, c *cliConf, w FeeCre
 		AccountIndex: accountNumber - 1,
 	})
 	if err != nil {
+		if errors.Is(err, fees.ErrMinimumFeeAmount) {
+			return fmt.Errorf("insufficient fee credit balance. Minimum amount is %s", amountToString(fees.MinimumFeeAmount, 8))
+		}
 		return err
 	}
 	consoleWriter.Println("Successfully reclaimed fee credits on", c.partitionType, "partition.")

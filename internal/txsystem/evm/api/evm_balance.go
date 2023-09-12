@@ -20,10 +20,18 @@ func (a *API) Balance(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	balance := db.GetBalance(address)
+	abData := db.GetAlphaBillData(address)
+	var backlink []byte
+	if abData != nil {
+		backlink = abData.TxHash
+	}
+
 	util.WriteCBORResponse(w, &struct {
-		_       struct{} `cbor:",toarray"`
-		Balance string
+		_        struct{} `cbor:",toarray"`
+		Balance  string
+		Backlink []byte
 	}{
-		Balance: balance.String(),
+		Balance:  balance.String(),
+		Backlink: backlink,
 	}, http.StatusOK)
 }

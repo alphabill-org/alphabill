@@ -52,10 +52,8 @@ func (r *LedgerReplicationResponse) Pretty() string {
 	if count > 0 {
 		fb := r.Blocks[0]
 		lb := r.Blocks[count-1]
-		if fb != nil && lb != nil &&
-			fb.UnicityCertificate != nil && lb.UnicityCertificate != nil &&
-			fb.UnicityCertificate.InputRecord != nil && lb.UnicityCertificate.InputRecord != nil {
-			blockInfo = fmt.Sprintf(" (round #%v (state %X) => #%v (state %X))", fb.GetRoundNumber(), fb.UnicityCertificate.InputRecord.Hash, lb.GetRoundNumber(), lb.UnicityCertificate.InputRecord.Hash)
+		if fb != nil && lb != nil {
+			blockInfo = fmt.Sprintf(" (round #%v (state %X) => #%v (state %X))", fb.GetRoundNumber(), fb.UnicityCertificate.GetStateHash(), lb.GetRoundNumber(), lb.UnicityCertificate.GetStateHash())
 		}
 	}
 	return fmt.Sprintf("status: %s, %v blocks%s", r.Status.String(), count, blockInfo)

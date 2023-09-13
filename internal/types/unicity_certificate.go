@@ -64,6 +64,13 @@ func (x *UnicityCertificate) Bytes() []byte {
 	return b.Bytes()
 }
 
+func (x *UnicityCertificate) GetStateHash() []byte {
+	if x != nil && x.InputRecord != nil {
+		return x.InputRecord.Hash
+	}
+	return nil
+}
+
 func (x *UnicityCertificate) GetRoundNumber() uint64 {
 	if x != nil && x.InputRecord != nil {
 		return x.InputRecord.RoundNumber

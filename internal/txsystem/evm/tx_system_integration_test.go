@@ -56,7 +56,7 @@ func TestEVMPartition_DeployAndCallContract(t *testing.T) {
 
 	network, err := testpartition.NewAlphabillPartition([]*testpartition.NodePartition{evmPartition})
 	require.NoError(t, err)
-	require.NoError(t, network.Start())
+	require.NoError(t, network.Start(t))
 
 	// transfer
 	to := test.RandomBytes(20)

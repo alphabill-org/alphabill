@@ -20,7 +20,7 @@ func TestSmartContractPartition_Ok(t *testing.T) {
 	require.NoError(t, err)
 	abNet, err := testpartition.NewAlphabillPartition([]*testpartition.NodePartition{scPrt})
 	require.NoError(t, err)
-	require.NoError(t, abNet.Start())
+	require.NoError(t, abNet.Start(t))
 	t.Cleanup(func() { require.NoError(t, abNet.Close()) })
 
 	txOrder := testtransaction.NewTransactionOrder(t,

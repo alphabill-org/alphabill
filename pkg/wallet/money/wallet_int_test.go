@@ -424,7 +424,7 @@ func startMoneyOnlyAlphabillPartition(t *testing.T, initialBill *moneytx.Initial
 	require.NoError(t, err)
 	abNet, err := testpartition.NewAlphabillPartition([]*testpartition.NodePartition{mPart})
 	require.NoError(t, err)
-	require.NoError(t, abNet.Start())
+	require.NoError(t, abNet.Start(t))
 	t.Cleanup(func() {
 		_ = abNet.Close()
 	})

@@ -32,7 +32,7 @@ func TestInitPartitionAndCreateNFTType_Ok(t *testing.T) {
 	require.NoError(t, err)
 	abNet, err := testpartition.NewAlphabillPartition([]*testpartition.NodePartition{tokenPrt})
 	require.NoError(t, err)
-	require.NoError(t, abNet.Start())
+	require.NoError(t, abNet.Start(t))
 	t.Cleanup(func() { require.NoError(t, abNet.Close()) })
 
 	tx := testtransaction.NewTransactionOrder(t,
@@ -86,7 +86,7 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 	states = []*state.State{}
 	abNet, err := testpartition.NewAlphabillPartition([]*testpartition.NodePartition{tokenPrt})
 	require.NoError(t, err)
-	require.NoError(t, abNet.Start())
+	require.NoError(t, abNet.Start(t))
 	t.Cleanup(func() { require.NoError(t, abNet.Close()) })
 	state0 := states[0]
 

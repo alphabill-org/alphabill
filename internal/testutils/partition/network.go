@@ -30,6 +30,7 @@ import (
 	libp2pcrypto "github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/multiformats/go-multiaddr"
+	"github.com/stretchr/testify/require"
 )
 
 const rootValidatorNodes = 1
@@ -250,7 +251,7 @@ func NewPartition(t *testing.T, nodeCount int, txSystemProvider func(trustBase m
 	return abPartition, nil
 }
 
-func (n *NodePartition) start(ctx context.Context, rootID peer.ID, rootAddr multiaddr.Multiaddr) error {
+func (n *NodePartition) start(t *testing.T, ctx context.Context, rootID peer.ID, rootAddr multiaddr.Multiaddr) error {
 	n.ctx = ctx
 	// start Nodes
 	trustBase, err := genesis.NewValidatorTrustBase(n.partitionGenesis.RootValidators)
@@ -265,6 +266,7 @@ func (n *NodePartition) start(ctx context.Context, rootID peer.ID, rootAddr mult
 		if err != nil {
 			return err
 		}
+		t.Cleanup(func() { require.NoError(t, blockStore.Close()) })
 		nd.confOpts = append(nd.confOpts, partition.WithRootAddressAndIdentifier(rootAddr, rootID),
 			partition.WithEventHandler(nd.EventHandler.HandleEvent, 100),
 			partition.WithBlockStore(blockStore))
@@ -361,7 +363,7 @@ func NewAlphabillPartition(nodePartitions []*NodePartition) (*AlphabillNetwork, 
 	}, nil
 }
 
-func (a *AlphabillNetwork) Start() error {
+func (a *AlphabillNetwork) Start(t *testing.T) error {
 	// create context
 	ctx, ctxCancel := context.WithCancel(context.Background())
 	if err := a.RootPartition.start(ctx); err != nil {
@@ -370,7 +372,7 @@ func (a *AlphabillNetwork) Start() error {
 	}
 	for id, part := range a.NodePartitions {
 		// create one event handler per partition
-		if err := part.start(ctx, a.RootPartition.Nodes[0].id, a.RootPartition.Nodes[0].addr); err != nil {
+		if err := part.start(t, ctx, a.RootPartition.Nodes[0].id, a.RootPartition.Nodes[0].addr); err != nil {
 			ctxCancel()
 			return fmt.Errorf("failed to start partition %X, %w", id.Bytes(), err)
 		}

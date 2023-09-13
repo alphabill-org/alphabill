@@ -217,7 +217,7 @@ func createMoneyPartition(t *testing.T, initialBill *money.InitialBill, nodeCoun
 func startAlphabill(t *testing.T, partitions []*testpartition.NodePartition) *testpartition.AlphabillNetwork {
 	abNetwork, err := testpartition.NewAlphabillPartition(partitions)
 	require.NoError(t, err)
-	require.NoError(t, abNetwork.Start())
+	require.NoError(t, abNetwork.Start(t))
 
 	t.Cleanup(func() {
 		require.NoError(t, abNetwork.Close())

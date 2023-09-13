@@ -699,6 +699,21 @@ func (n *Node) handleUnicityCertificate(ctx context.Context, uc *types.UnicityCe
 	}
 
 	lastStoredRoundNumber := n.lastStoredBlock.GetRoundNumber()
+	if !uc.IsRepeat(luc) &&
+		!uc.IsDuplicate(luc) &&
+		uc.GetRoundNumber() != lastStoredRoundNumber+1 {
+		// do not allow gaps between blocks, even if state hash does not change
+		logger.Warning("Recovery needed, missing blocks. UC round number: %d, current round number: %d", uc.GetRoundNumber(), lastStoredRoundNumber+1)
+		n.startRecovery(uc)
+		return ErrNodeDoesNotHaveLatestBlock
+	} else if uc.IsRepeat(luc) {
+		// UC certifies the IR before pending block proposal ("repeat UC"). state is rolled back to previous state.
+		logger.Warning("Reverting state tree on repeat certificate. UC IR hash: %X; %s", uc.InputRecord.Hash, n.pendingBlockProposal.pretty())
+		n.revertState()
+		n.startNewRound(ctx, uc)
+		return nil
+	}
+
 	// If there is no pending block proposal i.e. no certification request has been sent by the node
 	// - leader was down and did not make a block proposal?
 	// - node did not receive a block proposal because it was down, it was not sent or there were network issues
@@ -716,40 +731,17 @@ func (n *Node) handleUnicityCertificate(ctx context.Context, uc *types.UnicityCe
 			n.startRecovery(uc)
 			return ErrNodeDoesNotHaveLatestBlock
 		}
-		// do not allow gaps between blocks, even if state hash does not change
-		if !uc.IsRepeat(luc) &&
-			!uc.IsDuplicate(luc) &&
-			uc.GetRoundNumber() != lastStoredRoundNumber+1 {
-			logger.Warning("Recovery needed, missing blocks. UC round number: %d, current round number: %d", uc.GetRoundNumber(), lastStoredRoundNumber+1)
-			n.startRecovery(uc)
-			return ErrNodeDoesNotHaveLatestBlock
-		}
 		logger.Debug("No pending block proposal, UC IR hash is equal to State hash, so are block hashes")
 		n.startNewRound(ctx, uc)
 		return nil
 	}
 	// Check pending block proposal
 	bl, blockHash, err := n.proposalHash(n.pendingBlockProposal, uc)
-	logger.Debug("Pending proposal: \nH:\t%X\nH':\t%X\nHb:\t%X\nround:\t%v\nfees:\t%d",
-		n.pendingBlockProposal.StateHash, n.pendingBlockProposal.PrevHash, blockHash, n.pendingBlockProposal.RoundNumber, n.pendingBlockProposal.SumOfEarnedFees)
+	logger.Debug("%s\nHb:\t%X", n.pendingBlockProposal.pretty(), blockHash)
 	if err != nil {
 		logger.Warning("Recovery needed, block proposal hash calculation error, %v", err)
 		n.startRecovery(uc)
 		return fmt.Errorf("recovery needed, block proposal hash calculation failed, %w", err)
-	}
-
-	// repeat UC
-	if uc.IsRepeat(luc) {
-		// UC certifies the IR before pending block proposal ("repeat UC"). state is rolled back to previous state.
-		logger.Warning("Reverting state tree on repeat certificate. UC IR hash: %X, proposal prev hash %X", uc.InputRecord.Hash, n.pendingBlockProposal.PrevHash)
-		n.revertState()
-		n.startNewRound(ctx, uc)
-		return nil
-	} else if uc.GetRoundNumber() != lastStoredRoundNumber+1 {
-		// do not allow gaps between blocks, even if state hash does not change
-		logger.Warning("Recovery needed, missing blocks. UC round number: %d, current round number: %d", uc.GetRoundNumber(), lastStoredRoundNumber+1)
-		n.startRecovery(uc)
-		return ErrNodeDoesNotHaveLatestBlock
 	}
 
 	if bytes.Equal(uc.InputRecord.Hash, n.pendingBlockProposal.StateHash) &&
@@ -1360,6 +1352,14 @@ func (n *Node) writeTxIndex(b *types.Block, roundNo []byte) (err error) {
 		}
 	}
 	return nil
+}
+
+func (p *pendingBlockProposal) pretty() string {
+	if p == nil {
+		return ""
+	}
+	return fmt.Sprintf("Pending proposal: \nH:\t%X\nH':\t%X\nround:\t%v\nfees:\t%d",
+		p.StateHash, p.PrevHash, p.RoundNumber, p.SumOfEarnedFees)
 }
 
 func trackExecutionTime(start time.Time, name string) {

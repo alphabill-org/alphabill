@@ -23,10 +23,11 @@ type (
 	// entire state. Releasing a savepoint does NOT trigger a state root hash calculation. To calculate the root hash
 	// of the state use method CalculateRoot. Calling a Commit method commits and releases all savepoints.
 	State struct {
-		mutex         sync.RWMutex
-		hashAlgorithm crypto.Hash
-		committedTree *avl.Tree[types.UnitID, *Unit]
-		savepoints    []*savepoint
+		mutex                    sync.RWMutex
+		hashAlgorithm            crypto.Hash
+		committedTree            *avl.Tree[types.UnitID, *Unit]
+		committedTreeBlockNumber uint64
+		savepoints               []*savepoint
 	}
 
 	// savepoint is a special marker that allows all actions that are executed after savepoint was established to
@@ -60,9 +61,23 @@ func newEmptySate(options *Options) *State {
 	hasher := &stateHasher{hashAlgorithm: options.hashAlgorithm}
 	tree := avl.NewWithTraverser[types.UnitID, *Unit](hasher)
 	return &State{
-		hashAlgorithm: options.hashAlgorithm,
-		committedTree: tree,
-		savepoints:    []*avl.Tree[types.UnitID, *Unit]{tree.Clone()},
+		hashAlgorithm:            options.hashAlgorithm,
+		committedTree:            tree,
+		savepoints:               []*avl.Tree[types.UnitID, *Unit]{tree.Clone()},
+		committedTreeBlockNumber: 1, // genesis block number is 1. Actual first block is 2.
+	}
+}
+
+// Clone returns a clone of the state. The original state and the cloned state can be used by different goroutines but
+// can never be merged. The cloned state is usually used by read only operations (e.g. unit proof generation).
+func (s *State) Clone() *State {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+	return &State{
+		hashAlgorithm:            s.hashAlgorithm,
+		committedTree:            s.committedTree.Clone(),
+		savepoints:               []*savepoint{s.committedTree.Clone()},
+		committedTreeBlockNumber: s.committedTreeBlockNumber,
 	}
 }
 
@@ -129,7 +144,15 @@ func (s *State) Commit() error {
 	}
 	s.committedTree = sp.Clone()
 	s.savepoints = []*savepoint{sp}
+	s.committedTreeBlockNumber++
 	return nil
+}
+
+// CommittedTreeBlockNumber returns the block number of the committed state tree.
+func (s *State) CommittedTreeBlockNumber() uint64 {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+	return s.committedTreeBlockNumber
 }
 
 // Revert rolls back all changes made to the state.

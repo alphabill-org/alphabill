@@ -7,6 +7,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/alphabill-org/alphabill/pkg/wallet/fees"
+
 	"github.com/ethereum/go-ethereum/common/hexutil"
 
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
@@ -158,6 +160,48 @@ func TestWalletFeesCmds_TokenPartition(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "Partition: tokens", stdout.lines[0])
 	require.Equal(t, fmt.Sprintf("Account #1 %s", amountToString(expectedFees, 8)), stdout.lines[1])
+}
+
+func TestWalletFeesCmds_MinimumFeeAmount(t *testing.T) {
+	homedir, _ := setupMoneyInfraAndWallet(t, []*testpartition.NodePartition{})
+
+	// try to add invalid fee amount
+	_, err := execFeesCommand(homedir, "add --amount=0.00000002")
+	require.Errorf(t, err, "minimum fee credit amount to add is %d", amountToString(fees.MinimumFeeAmount, 8))
+
+	// add minimum fee amount
+	stdout, err := execFeesCommand(homedir, "add --amount=0.00000003")
+	require.NoError(t, err)
+	require.Equal(t, "Successfully created 0.00000003 fee credits on money partition.", stdout.lines[0])
+
+	// verify fee credit is below minimum
+	expectedFees := uint64(1)
+	stdout, err = execFeesCommand(homedir, "list")
+	require.NoError(t, err)
+	require.Equal(t, "Partition: money", stdout.lines[0])
+	require.Equal(t, fmt.Sprintf("Account #1 %s", amountToString(expectedFees, 8)), stdout.lines[1])
+
+	// reclaim with invalid amount
+	stdout, err = execFeesCommand(homedir, "reclaim")
+	require.Errorf(t, err, "insufficient fee credit balance. Minimum amount is %d", amountToString(fees.MinimumFeeAmount, 8))
+
+	// add more fee credit
+	stdout, err = execFeesCommand(homedir, "add --amount=0.00000004")
+	require.NoError(t, err)
+	require.Equal(t, "Successfully created 0.00000004 fee credits on money partition.", stdout.lines[0])
+
+	// verify fee credit is valid for reclaim
+	expectedFees = uint64(3)
+	stdout, err = execFeesCommand(homedir, "list")
+	require.NoError(t, err)
+	require.Equal(t, "Partition: money", stdout.lines[0])
+	require.Equal(t, fmt.Sprintf("Account #1 %s", amountToString(expectedFees, 8)), stdout.lines[1])
+
+	// now we have enough credit to reclaim
+	stdout, err = execFeesCommand(homedir, "reclaim")
+	require.NoError(t, err)
+	require.Equal(t, "Successfully reclaimed fee credits on money partition.", stdout.lines[0])
+
 }
 
 func execFeesCommand(homeDir, command string) (*testConsoleWriter, error) {

@@ -100,6 +100,9 @@ func (w *Wallet) GetAccountManager() account.Manager {
 
 func (w *Wallet) NewFungibleType(ctx context.Context, accNr uint64, attrs CreateFungibleTokenTypeAttributes, typeId backend.TokenTypeID, subtypePredicateArgs []*PredicateInput) (*SubmissionResult, error) {
 	log.Info("Creating new fungible token type")
+	if typeId != nil && !typeId.HasType(tokens.FungibleTokenTypeUnitType) {
+		return nil, fmt.Errorf("invalid token type ID")
+	}
 	if typeId == nil {
 		var err error
 		typeId, err = tokens.NewRandomFungibleTokenTypeID(nil)
@@ -128,6 +131,9 @@ func (w *Wallet) NewFungibleType(ctx context.Context, accNr uint64, attrs Create
 
 func (w *Wallet) NewNonFungibleType(ctx context.Context, accNr uint64, attrs CreateNonFungibleTokenTypeAttributes, typeId backend.TokenTypeID, subtypePredicateArgs []*PredicateInput) (*SubmissionResult, error) {
 	log.Info("Creating new NFT type")
+	if typeId != nil && !typeId.HasType(tokens.NonFungibleTokenTypeUnitType) {
+		return nil, fmt.Errorf("invalid token type ID")
+	}
 	if typeId == nil {
 		var err error
 		typeId, err = tokens.NewRandomNonFungibleTokenTypeID(nil)

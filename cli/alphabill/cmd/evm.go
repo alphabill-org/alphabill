@@ -3,9 +3,11 @@ package cmd
 import (
 	"context"
 	"fmt"
+	"math/big"
 
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/internal/txsystem/evm"
+	"github.com/alphabill-org/alphabill/internal/txsystem/evm/api"
 	"github.com/fxamacker/cbor/v2"
 	"github.com/spf13/cobra"
 )
@@ -55,13 +57,30 @@ func runEvmNode(ctx context.Context, cfg *evmConfiguration) error {
 	if err != nil {
 		return fmt.Errorf("failed to unmarshal evm partition params: %w", err)
 	}
+	blockStore, err := initNodeBlockStore(cfg.Node.DbFile)
+	if err != nil {
+		return fmt.Errorf("unable to initialize block DB: %w", err)
+	}
+
+	systemIdentifier := pg.SystemDescriptionRecord.GetSystemIdentifier()
 	txs, err := evm.NewEVMTxSystem(
-		pg.SystemDescriptionRecord.GetSystemIdentifier(),
+		systemIdentifier,
 		evm.WithBlockGasLimit(params.BlockGasLimit),
 		evm.WithGasPrice(params.GasUnitPrice),
+		evm.WithBlockDB(blockStore),
 	)
 	if err != nil {
-		return err
+		return fmt.Errorf("evm transaction system init failed: %w", err)
 	}
-	return defaultNodeRunFunc(ctx, "evm node", txs, cfg.Node, cfg.RPCServer, cfg.RESTServer)
+	cfg.RESTServer.router = api.NewAPI(
+		txs.GetState(),
+		systemIdentifier,
+		big.NewInt(0).SetUint64(params.BlockGasLimit),
+		params.GasUnitPrice,
+	)
+	self, node, err := createNode(ctx, txs, cfg.Node, blockStore)
+	if err != nil {
+		return fmt.Errorf("failed to create node evm node: %w", err)
+	}
+	return run(ctx, "evm node", self, node, cfg.RPCServer, cfg.RESTServer)
 }

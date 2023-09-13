@@ -7,6 +7,7 @@ import (
 
 	"github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/hash"
+	"github.com/alphabill-org/alphabill/internal/keyvaluedb/memorydb"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	testpartition "github.com/alphabill-org/alphabill/internal/testutils/partition"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
@@ -47,7 +48,7 @@ var systemIdentifier = []byte{0, 0, 4, 2}
 func TestEVMPartition_DeployAndCallContract(t *testing.T) {
 	from := test.RandomBytes(20)
 	evmPartition, err := testpartition.NewPartition(3, func(trustBase map[string]crypto.Verifier) txsystem.TransactionSystem {
-		system, err := NewEVMTxSystem(systemIdentifier, WithInitialAddressAndBalance(from, big.NewInt(oneEth))) // 1 ETH
+		system, err := NewEVMTxSystem(systemIdentifier, WithInitialAddressAndBalance(from, big.NewInt(oneEth)), WithBlockDB(memorydb.New())) // 1 ETH
 		require.NoError(t, err)
 		return system
 	}, systemIdentifier)

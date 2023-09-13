@@ -34,7 +34,7 @@ type GenericTxSystem struct {
 	genericTxValidators []GenericTransactionValidator
 	beginBlockFunctions []func(blockNumber uint64) error
 	endBlockFunctions   []func(blockNumber uint64) error
-	beginStateHash      []byte
+	beginStateHash      []byte // TODO remove before 0.2.0 release
 	roundCommitted      bool
 }
 

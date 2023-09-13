@@ -741,13 +741,12 @@ func (n *Node) handleUnicityCertificate(ctx context.Context, uc *types.UnicityCe
 	// repeat UC
 	if uc.IsRepeat(luc) {
 		// UC certifies the IR before pending block proposal ("repeat UC"). state is rolled back to previous state.
-		//logger.Warning("Reverting state tree on repeat certificate. UC IR hash: %X, proposal prev hash %X", uc.InputRecord.Hash, n.pendingBlockProposal.PrevHash)
-		logger.Warning("Reverting state tree on repeat certificate. UC IR hash: %X", uc.InputRecord.Hash)
+		logger.Warning("Reverting state tree on repeat certificate. UC IR hash: %X, proposal prev hash %X", uc.InputRecord.Hash, n.pendingBlockProposal.PrevHash)
 		n.revertState()
 		n.startNewRound(ctx, uc)
 		return nil
 	} else if uc.GetRoundNumber() != lastStoredRoundNumber+1 {
-		// do not allow gaps between blocks, even if state hash does not change (though allow repeat UC here)
+		// do not allow gaps between blocks, even if state hash does not change
 		logger.Warning("Recovery needed, missing blocks. UC round number: %d, current round number: %d", uc.GetRoundNumber(), lastStoredRoundNumber+1)
 		n.startRecovery(uc)
 		return ErrNodeDoesNotHaveLatestBlock

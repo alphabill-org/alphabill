@@ -509,7 +509,7 @@ func assertConnections(p *network.Peer, count int) error {
 			tick = nil
 			go func() {
 				ch <- func() bool {
-					return p.Network().Peerstore().Peers().Len() >= count
+					return len(p.Network().Peers()) >= count
 				}()
 			}()
 		case v := <-ch:

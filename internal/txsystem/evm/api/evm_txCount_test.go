@@ -46,3 +46,18 @@ func TestAPI_TransactionCount_OK(t *testing.T) {
 	require.NoError(t, cbor.NewDecoder(recorder.Body).Decode(resp))
 	require.EqualValues(t, 333, resp.Nonce)
 }
+
+func TestAPI_TransactionCount_NotFound(t *testing.T) {
+	a := &API{
+		state:            abstate.NewEmptyState(),
+		systemIdentifier: []byte{0, 0, 0, 1},
+		gasUnitPrice:     big.NewInt(10),
+		blockGasLimit:    10000,
+	}
+
+	req := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/v1/evm/transactionCount/%X", test.RandomBytes(20)), nil)
+	recorder := httptest.NewRecorder()
+
+	rpc.NewRESTServer("", 2000, a).Handler.ServeHTTP(recorder, req)
+	require.Equal(t, http.StatusNotFound, recorder.Code)
+}

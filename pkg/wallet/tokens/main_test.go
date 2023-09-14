@@ -321,7 +321,7 @@ func TestNewTypes(t *testing.T) {
 
 		//check typeId length validation
 		_, err = tw.NewFungibleType(context.Background(), 1, a, []byte{2}, nil)
-		require.ErrorContains(t, err, "invalid token type ID: expected length is 33")
+		require.ErrorContains(t, err, "invalid token type ID: expected hex length is 66 characters (33 bytes)")
 
 		//check typeId unit type validation
 		_, err = tw.NewFungibleType(context.Background(), 1, a, make([]byte, tokens.UnitIDLength), nil)
@@ -358,7 +358,7 @@ func TestNewTypes(t *testing.T) {
 
 		//check typeId length validation
 		_, err = tw.NewNonFungibleType(context.Background(), 1, a, []byte{2}, nil)
-		require.ErrorContains(t, err, "invalid token type ID: expected length is 33")
+		require.ErrorContains(t, err, "invalid token type ID: expected hex length is 66 characters (33 bytes)")
 
 		//check typeId unit type validation
 		_, err = tw.NewNonFungibleType(context.Background(), 1, a, make([]byte, tokens.UnitIDLength), nil)

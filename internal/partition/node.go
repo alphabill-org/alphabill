@@ -707,7 +707,9 @@ func (n *Node) handleUnicityCertificate(ctx context.Context, uc *types.UnicityCe
 		logger.Warning("Recovery needed, missing blocks. UC round number: %d, current round number: %d", uc.GetRoundNumber(), lastStoredRoundNumber+1)
 		n.startRecovery(uc)
 		return ErrNodeDoesNotHaveLatestBlock
-	} else if uc.IsRepeat(luc) {
+	}
+
+	if uc.IsRepeat(luc) {
 		// UC certifies the IR before pending block proposal ("repeat UC"). state is rolled back to previous state.
 		logger.Warning("Reverting state tree on repeat certificate. UC IR hash: %X; %s", uc.InputRecord.Hash, n.pendingBlockProposal.pretty())
 		n.revertState()

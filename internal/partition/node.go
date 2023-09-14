@@ -328,12 +328,17 @@ func (n *Node) restoreBlockProposal(prevBlock *types.Block) {
 		return
 	}
 	if !bytes.Equal(pr.StateHash, state.Root()) {
-		logger.Warning("Block proposal transaction failed, state hash mismatch", err)
+		logger.Warning("Block proposal transaction failed, state hash mismatch (expected '%X', actual '%X')", pr.StateHash, state.Root())
+		n.revertState()
+		return
+	}
+	if !bytes.Equal(pr.StateSummary, state.Summary()) {
+		logger.Warning("Block proposal transaction failed, state summary mismatch (expected '%X', actual '%X')", pr.StateSummary, state.Summary())
 		n.revertState()
 		return
 	}
 	if pr.SumOfEarnedFees != sumOfEarnedFees {
-		logger.Warning("Block proposal transaction failed, sum of earned fees mismatch", err)
+		logger.Warning("Block proposal transaction failed, sum of earned fees mismatch (expected '%d', actual '%d')", pr.SumOfEarnedFees, sumOfEarnedFees)
 		n.revertState()
 		return
 	}

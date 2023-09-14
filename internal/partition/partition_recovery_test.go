@@ -237,6 +237,64 @@ func TestNode_HandleUnicityCertificate_RevertAndStartRecovery_noPendingProposal_
 	require.Equal(t, latestRound+1, msg.BeginBlockNumber)
 }
 
+func TestNode_HandleUnicityCertificate_RevertAndStartRecovery_missedPendingProposal_sameIR_butDifferentBlocks(t *testing.T) {
+	store := memorydb.New()
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+	tp := SetupNewSingleNodePartition(t, &testtxsystem.CounterTxSystem{}, WithBlockStore(store))
+	StartSingleNodePartition(ctx, t, tp)
+
+	tp.partition.startNewRound(context.Background(), tp.partition.luc.Load())
+
+	// create new block
+	tp.CreateBlock(t)
+	tp.partition.startNewRound(context.Background(), tp.partition.luc.Load())
+
+	bl := tp.GetLatestBlock(t)
+	latestRound := bl.GetRoundNumber()
+	uc := bl.UnicityCertificate
+
+	// now assume the node missed the proposal due to a network hiccup, other validators finalized _one_ empty block
+	// that is, round number has been incremented, but the state hash is the same
+	// since there's no proposal, the node will start a new round (the one that has been already finalized)
+	ir := uc.InputRecord.NewRepeatIR()
+	ir.RoundNumber += 1
+	uc, err := tp.CreateUnicityCertificate(
+		ir,
+		uc.UnicitySeal.RootChainRoundNumber+1,
+	)
+	require.NoError(t, err)
+	tp.SubmitUnicityCertificate(uc)
+	testevent.ContainsEvent(t, tp.eh, event.NewRoundStarted)
+	// okay, now let's finalize another round, node should start the recovery
+	ir = uc.InputRecord.NewRepeatIR()
+	ir.RoundNumber += 1
+	uc, err = tp.CreateUnicityCertificate(
+		ir,
+		uc.UnicitySeal.RootChainRoundNumber+1,
+	)
+	require.NoError(t, err)
+	tp.SubmitUnicityCertificate(uc)
+	testevent.ContainsEvent(t, tp.eh, event.RecoveryStarted)
+	require.Equal(t, recovering, tp.partition.status.Load())
+	// let's submit another UC and make sure node updates the LUC and keeps recovering
+	ir = uc.InputRecord.NewRepeatIR()
+	ir.RoundNumber += 1
+	uc, err = tp.CreateUnicityCertificate(
+		ir,
+		uc.UnicitySeal.RootChainRoundNumber+1,
+	)
+	require.NoError(t, err)
+	tp.SubmitUnicityCertificate(uc)
+	tp.eh.Reset()
+	testevent.ContainsEvent(t, tp.eh, event.LatestUnicityCertificateUpdated)
+	require.Equal(t, recovering, tp.partition.status.Load())
+	req := WaitNodeRequestReceived(t, tp, network.ProtocolLedgerReplicationReq)
+	require.NotNil(t, req)
+	msg := req.Message.(*replication.LedgerReplicationRequest)
+	require.Equal(t, latestRound+1, msg.BeginBlockNumber)
+}
+
 func TestNode_HandleUnicityCertificate_RevertAndStartRecovery_withNoProposal(t *testing.T) {
 	system := &testtxsystem.CounterTxSystem{}
 	tp := RunSingleNodePartition(t, system)

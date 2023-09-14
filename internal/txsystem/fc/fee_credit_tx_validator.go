@@ -38,10 +38,10 @@ type (
 
 func NewDefaultFeeCreditTxValidator(moneySystemID, systemID []byte, hashAlgorithm crypto.Hash, verifiers map[string]abcrypto.Verifier, feeCreditRecordUnitType []byte) *DefaultFeeCreditTxValidator {
 	return &DefaultFeeCreditTxValidator{
-		moneySystemID: moneySystemID,
-		systemID:      systemID,
-		hashAlgorithm: hashAlgorithm,
-		verifiers:     verifiers,
+		moneySystemID:           moneySystemID,
+		systemID:                systemID,
+		hashAlgorithm:           hashAlgorithm,
+		verifiers:               verifiers,
 		feeCreditRecordUnitType: feeCreditRecordUnitType,
 	}
 }
@@ -180,6 +180,12 @@ func (v *DefaultFeeCreditTxValidator) ValidateCloseFC(ctx *CloseFCValidationCont
 	}
 	if closeFCAttributes.Amount != fcr.Balance {
 		return fmt.Errorf("invalid amount: amount=%d fcr.Balance=%d", closeFCAttributes.Amount, fcr.Balance)
+	}
+	if len(closeFCAttributes.TargetUnitID) == 0 {
+		return errors.New("TargetUnitID is empty")
+	}
+	if len(closeFCAttributes.TargetUnitBacklink) == 0 {
+		return errors.New("TargetUnitBacklink is empty")
 	}
 
 	// P.MC.fm ≤ S.N[ι].b - the transaction fee can’t exceed the current balance of the record

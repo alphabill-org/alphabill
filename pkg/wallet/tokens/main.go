@@ -109,7 +109,8 @@ func (w *Wallet) NewFungibleType(ctx context.Context, accNr uint64, attrs Create
 	}
 
 	if len(typeId) != tokens.UnitIDLength {
-		return nil, fmt.Errorf("invalid token type ID: expected length is %d bytes", tokens.UnitIDLength)
+		return nil, fmt.Errorf("invalid token type ID: expected hex length is %d characters (%d bytes)",
+			tokens.UnitIDLength*2, tokens.UnitIDLength)
 	}
 	if !typeId.HasType(tokens.FungibleTokenTypeUnitType) {
 		return nil, fmt.Errorf("invalid token type ID: expected unit type is 0x%X", tokens.FungibleTokenTypeUnitType)
@@ -144,7 +145,8 @@ func (w *Wallet) NewNonFungibleType(ctx context.Context, accNr uint64, attrs Cre
 	}
 
 	if len(typeId) != tokens.UnitIDLength {
-		return nil, fmt.Errorf("invalid token type ID: expected length is %d bytes", tokens.UnitIDLength)
+		return nil, fmt.Errorf("invalid token type ID: expected hex length is %d characters (%d bytes)",
+			tokens.UnitIDLength*2, tokens.UnitIDLength)
 	}
 	if !typeId.HasType(tokens.NonFungibleTokenTypeUnitType) {
 		return nil, fmt.Errorf("invalid token type ID: expected unit type is 0x%X", tokens.NonFungibleTokenTypeUnitType)

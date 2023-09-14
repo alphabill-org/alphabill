@@ -355,6 +355,30 @@ func TestCloseFC(t *testing.T) {
 			wantErrMsg: "invalid amount",
 		},
 		{
+			name:       "Nil target unit id",
+			unit:       state.NewUnit(nil, &unit.FeeCreditRecord{Balance: 50}),
+			tx:         testfc.NewCloseFC(t, testfc.NewCloseFCAttr(testfc.WithCloseFCTargetUnitID(nil))),
+			wantErrMsg: "TargetUnitID is empty",
+		},
+		{
+			name:       "Empty target unit id",
+			unit:       state.NewUnit(nil, &unit.FeeCreditRecord{Balance: 50}),
+			tx:         testfc.NewCloseFC(t, testfc.NewCloseFCAttr(testfc.WithCloseFCTargetUnitID([]byte{}))),
+			wantErrMsg: "TargetUnitID is empty",
+		},
+		{
+			name:       "Nil target unit backlink",
+			unit:       state.NewUnit(nil, &unit.FeeCreditRecord{Balance: 50}),
+			tx:         testfc.NewCloseFC(t, testfc.NewCloseFCAttr(testfc.WithCloseFCTargetUnitBacklink(nil))),
+			wantErrMsg: "TargetUnitBacklink is empty",
+		},
+		{
+			name:       "Empty target unit backlink",
+			unit:       state.NewUnit(nil, &unit.FeeCreditRecord{Balance: 50}),
+			tx:         testfc.NewCloseFC(t, testfc.NewCloseFCAttr(testfc.WithCloseFCTargetUnitBacklink([]byte{}))),
+			wantErrMsg: "TargetUnitBacklink is empty",
+		},
+		{
 			name: "Invalid fee",
 			unit: state.NewUnit(nil, &unit.FeeCreditRecord{Balance: 50}),
 			tx: testfc.NewCloseFC(t, nil,

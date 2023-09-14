@@ -102,6 +102,7 @@ type (
 		ProposerNodeId  string
 		PrevHash        []byte
 		StateHash       []byte
+		StateSummary    []byte
 		Transactions    []*types.TransactionRecord
 		SumOfEarnedFees uint64
 	}
@@ -744,8 +745,13 @@ func (n *Node) handleUnicityCertificate(ctx context.Context, uc *types.UnicityCe
 		return fmt.Errorf("recovery needed, block proposal hash calculation failed, %w", err)
 	}
 
-	if bytes.Equal(uc.InputRecord.Hash, n.pendingBlockProposal.StateHash) &&
-		uc.InputRecord.SumOfEarnedFees == n.pendingBlockProposal.SumOfEarnedFees {
+	if !bytes.Equal(uc.GetStateHash(), n.pendingBlockProposal.StateHash) {
+		logger.Warning("Recovery needed, proposal's state hash is different (UC: '%X', actual '%X')", uc.GetStateHash(), n.pendingBlockProposal.StateHash)
+	} else if !bytes.Equal(uc.InputRecord.SummaryValue, n.pendingBlockProposal.StateSummary) {
+		logger.Warning("Recovery needed, proposal's state summary is different (UC: '%X', actual '%X')", uc.InputRecord.SummaryValue, n.pendingBlockProposal.StateSummary)
+	} else if uc.InputRecord.SumOfEarnedFees != n.pendingBlockProposal.SumOfEarnedFees {
+		logger.Warning("Recovery needed, proposal's sum of earned fees is different (UC: %d, actual %d)", uc.InputRecord.SumOfEarnedFees, n.pendingBlockProposal.SumOfEarnedFees)
+	} else {
 		// UC certifies pending block proposal
 		if err = n.finalizeBlock(bl); err != nil {
 			logger.Warning("Recovery needed, block finalize failed, %v", err)
@@ -758,7 +764,6 @@ func (n *Node) handleUnicityCertificate(ctx context.Context, uc *types.UnicityCe
 
 	// UC with different IR hash. Node does not have the latest state. Revert changes and start recovery.
 	// revertState is called from startRecovery()
-	logger.Warning("Recovery needed, either proposal state hash, block hash or sum of earned fees is different")
 	n.startRecovery(uc)
 	return ErrNodeDoesNotHaveLatestBlock
 }
@@ -1128,6 +1133,7 @@ func (n *Node) sendCertificationRequest(blockAuthor string) error {
 		RoundNumber:     n.getCurrentRound(),
 		PrevHash:        prevStateHash,
 		StateHash:       stateHash,
+		StateSummary:    summary,
 		Transactions:    n.proposedTransactions,
 		SumOfEarnedFees: n.sumOfEarnedFees,
 	}
@@ -1153,7 +1159,7 @@ func (n *Node) sendCertificationRequest(blockAuthor string) error {
 			PreviousHash: pendingProposal.PrevHash,
 			Hash:         pendingProposal.StateHash,
 			BlockHash:    blockHash,
-			SummaryValue: summary,
+			SummaryValue: pendingProposal.StateSummary,
 			// latest UC might have certified an empty block and has the latest round number
 			RoundNumber:     pendingProposal.RoundNumber,
 			SumOfEarnedFees: pendingProposal.SumOfEarnedFees,

@@ -731,6 +731,9 @@ func (n *Node) handleUnicityCertificate(ctx context.Context, uc *types.UnicityCe
 	// If there is no pending block proposal i.e. no certification request has been sent by the node
 	// - leader was down and did not make a block proposal?
 	// - node did not receive a block proposal because it was down, it was not sent or there were network issues
+	// Note, if for any reason the node misses the proposal and other validators finalize _one_ empty block,
+	// this node will start a new round (the one that has been already finalized).
+	// Eventually it will start the recovery and catch up.
 	if n.pendingBlockProposal == nil {
 		// Start recovery unless the state is already up-to-date with UC.
 		state, err := n.transactionSystem.StateSummary()

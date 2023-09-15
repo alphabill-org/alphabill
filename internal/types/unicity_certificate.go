@@ -141,10 +141,6 @@ func CheckNonEquivocatingCertificates(prevUC, newUC *UnicityCertificate) error {
 	return nil
 }
 
-func (x *UnicityCertificate) IsDuplicate(prevUC *UnicityCertificate) bool {
-	return bytes.Equal(x.Bytes(), prevUC.Bytes())
-}
-
 func (x *UnicityCertificate) IsRepeat(prevUC *UnicityCertificate) bool {
 	return isRepeat(prevUC, x)
 }

@@ -696,6 +696,14 @@ func (n *Node) handleUnicityCertificate(ctx context.Context, uc *types.UnicityCe
 		return fmt.Errorf("equivocating certificate, %w", err)
 	}
 
+	if uc.GetRootRoundNumber() == luc.GetRootRoundNumber() {
+		logger.Debug("Root round numbers are equal, it's a duplicate UC")
+		if n.status.Load() == initializing {
+			n.startNewRound(ctx, uc)
+		}
+		return nil
+	}
+
 	if n.status.Load() == recovering {
 		logger.Debug("Recovery already in progress, updating LUC")
 		if err := n.updateLUC(uc); err != nil {
@@ -705,9 +713,7 @@ func (n *Node) handleUnicityCertificate(ctx context.Context, uc *types.UnicityCe
 	}
 
 	lastStoredRoundNumber := n.lastStoredBlock.GetRoundNumber()
-	if !uc.IsRepeat(luc) &&
-		!uc.IsDuplicate(luc) &&
-		uc.GetRoundNumber() != lastStoredRoundNumber+1 {
+	if !uc.IsRepeat(luc) && uc.GetRoundNumber() != lastStoredRoundNumber+1 {
 		// do not allow gaps between blocks, even if state hash does not change
 		logger.Warning("Recovery needed, missing blocks. UC round number: %d, current round number: %d", uc.GetRoundNumber(), lastStoredRoundNumber+1)
 		n.startRecovery(uc)

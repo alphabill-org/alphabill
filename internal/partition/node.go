@@ -712,20 +712,20 @@ func (n *Node) handleUnicityCertificate(ctx context.Context, uc *types.UnicityCe
 		return nil
 	}
 
-	lastStoredRoundNumber := n.lastStoredBlock.GetRoundNumber()
-	if !uc.IsRepeat(luc) && uc.GetRoundNumber() != lastStoredRoundNumber+1 {
-		// do not allow gaps between blocks, even if state hash does not change
-		logger.Warning("Recovery needed, missing blocks. UC round number: %d, current round number: %d", uc.GetRoundNumber(), lastStoredRoundNumber+1)
-		n.startRecovery(uc)
-		return ErrNodeDoesNotHaveLatestBlock
-	}
-
 	if uc.IsRepeat(luc) {
 		// UC certifies the IR before pending block proposal ("repeat UC"). state is rolled back to previous state.
 		logger.Warning("Reverting state tree on repeat certificate. UC IR hash: %X; %s", uc.InputRecord.Hash, n.pendingBlockProposal.pretty())
 		n.revertState()
 		n.startNewRound(ctx, uc)
 		return nil
+	}
+
+	lastStoredRoundNumber := n.lastStoredBlock.GetRoundNumber()
+	if uc.GetRoundNumber() != lastStoredRoundNumber+1 {
+		// do not allow gaps between blocks, even if state hash does not change
+		logger.Warning("Recovery needed, missing blocks. UC round number: %d, current round number: %d", uc.GetRoundNumber(), lastStoredRoundNumber+1)
+		n.startRecovery(uc)
+		return ErrNodeDoesNotHaveLatestBlock
 	}
 
 	// If there is no pending block proposal i.e. no certification request has been sent by the node

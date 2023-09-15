@@ -189,7 +189,7 @@ func TestSendingFailsWithInsufficientBalance(t *testing.T) {
 }
 
 func createMoneyPartition(t *testing.T, initialBill *money.InitialBill, nodeCount int) *testpartition.NodePartition {
-	moneyPart, err := testpartition.NewPartition(nodeCount, func(tb map[string]abcrypto.Verifier) txsystem.TransactionSystem {
+	moneyPart, err := testpartition.NewPartition(t, nodeCount, func(tb map[string]abcrypto.Verifier) txsystem.TransactionSystem {
 		system, err := money.NewTxSystem(
 			money.WithSystemIdentifier(money.DefaultSystemIdentifier),
 			money.WithHashAlgorithm(crypto.SHA256),
@@ -217,7 +217,7 @@ func createMoneyPartition(t *testing.T, initialBill *money.InitialBill, nodeCoun
 func startAlphabill(t *testing.T, partitions []*testpartition.NodePartition) *testpartition.AlphabillNetwork {
 	abNetwork, err := testpartition.NewAlphabillPartition(partitions)
 	require.NoError(t, err)
-	require.NoError(t, abNetwork.Start())
+	require.NoError(t, abNetwork.Start(t))
 
 	t.Cleanup(func() {
 		require.NoError(t, abNetwork.Close())

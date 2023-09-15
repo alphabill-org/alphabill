@@ -12,7 +12,7 @@ import (
 )
 
 func TestSmartContractPartition_Ok(t *testing.T) {
-	scPrt, err := testpartition.NewPartition(3, func(tb map[string]abcrypto.Verifier) txsystem.TransactionSystem {
+	scPrt, err := testpartition.NewPartition(t, 3, func(tb map[string]abcrypto.Verifier) txsystem.TransactionSystem {
 		system, err := New([]byte{0, 0, 0, 3})
 		require.NoError(t, err)
 		return system
@@ -20,7 +20,7 @@ func TestSmartContractPartition_Ok(t *testing.T) {
 	require.NoError(t, err)
 	abNet, err := testpartition.NewAlphabillPartition([]*testpartition.NodePartition{scPrt})
 	require.NoError(t, err)
-	require.NoError(t, abNet.Start())
+	require.NoError(t, abNet.Start(t))
 	t.Cleanup(func() { require.NoError(t, abNet.Close()) })
 
 	txOrder := testtransaction.NewTransactionOrder(t,

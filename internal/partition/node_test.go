@@ -116,6 +116,7 @@ func TestNode_NodeStartWithRecoverStateFromDB(t *testing.T) {
 		PrevHash:       newBlock3.UnicityCertificate.InputRecord.Hash,
 		StateHash:      newBlock4.UnicityCertificate.InputRecord.Hash,
 		Transactions:   newBlock4.Transactions,
+		StateSummary:   make([]byte, 8),
 	}
 	require.NoError(t, db.Write(util.Uint32ToBytes(proposalKey), proposal))
 	// start node with db filled

@@ -129,3 +129,10 @@ func (db *BoltDB) StartTx() (keyvaluedb.DBTransaction, error) {
 	}
 	return tx, nil
 }
+
+func (db *BoltDB) Close() error {
+	if db.db == nil {
+		return nil
+	}
+	return db.db.Close()
+}

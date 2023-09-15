@@ -1,6 +1,7 @@
 package txsystem
 
 import (
+	"bytes"
 	"crypto"
 	"fmt"
 	"reflect"
@@ -33,6 +34,8 @@ type GenericTxSystem struct {
 	genericTxValidators []GenericTransactionValidator
 	beginBlockFunctions []func(blockNumber uint64) error
 	endBlockFunctions   []func(blockNumber uint64) error
+	beginStateHash      []byte // TODO remove before 0.2.0 release
+	roundCommitted      bool
 }
 
 func NewGenericTxSystem(modules []Module, opts ...Option) (*GenericTxSystem, error) {
@@ -101,7 +104,11 @@ func (m *GenericTxSystem) getState() (State, error) {
 }
 
 func (m *GenericTxSystem) BeginBlock(blockNr uint64) error {
+	st, _ := m.getState()
+	m.beginStateHash = st.Root()
+	log.Debug("BeginBlock: %d, state: %X", blockNr, m.beginStateHash)
 	m.currentBlockNumber = blockNr
+	m.roundCommitted = false
 	for _, function := range m.beginBlockFunctions {
 		if err := function(blockNr); err != nil {
 			return fmt.Errorf("begin block function call failed: %w", err)
@@ -184,15 +191,34 @@ func (m *GenericTxSystem) EndBlock() (State, error) {
 			return nil, fmt.Errorf("end block function call failed: %w", err)
 		}
 	}
-	return m.getState()
+	st, err := m.getState()
+	log.Debug("EndBlock: %d, state: %X", m.currentBlockNumber, st.Root())
+	return st, err
 }
 
 func (m *GenericTxSystem) Revert() {
+	if m.roundCommitted {
+		log.Debug("Revert: ignoring, round %d already committed", m.currentBlockNumber)
+		return
+	}
 	m.logPruner.Remove(m.currentBlockNumber)
 	m.state.Revert()
+
+	st, _ := m.getState()
+	log.Debug("Revert: %d, state: %X", m.currentBlockNumber, st.Root())
+
+	if m.beginStateHash != nil && !bytes.Equal(m.beginStateHash, st.Root()) {
+		log.Error("Revert: %d, state: %X, beginStateHash: %X", m.currentBlockNumber, st.Root(), m.beginStateHash)
+	}
 }
 
 func (m *GenericTxSystem) Commit() error {
 	m.logPruner.Remove(m.currentBlockNumber - 1)
-	return m.state.Commit()
+	log.Debug("Commit: %d", m.currentBlockNumber)
+	m.beginStateHash = nil
+	err := m.state.Commit()
+	if err == nil {
+		m.roundCommitted = true
+	}
+	return err
 }

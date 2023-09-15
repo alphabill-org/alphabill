@@ -261,16 +261,8 @@ func (sn *SingleNodePartition) GetLatestBlock(t *testing.T) *types.Block {
 
 func (sn *SingleNodePartition) CreateBlock(t *testing.T) {
 	sn.SubmitT1Timeout(t)
-	sn.SubmitUC(t, sn.IssueBlockUC(t))
-}
-
-func (sn *SingleNodePartition) SubmitUC(t *testing.T, uc *types.UnicityCertificate) {
 	sn.eh.Reset()
-	sn.mockNet.Receive(network.ReceivedMessage{
-		From:     "from-test",
-		Protocol: network.ProtocolUnicityCertificates,
-		Message:  uc,
-	})
+	sn.SubmitUnicityCertificate(sn.IssueBlockUC(t))
 	testevent.ContainsEvent(t, sn.eh, event.BlockFinalized)
 }
 
@@ -345,24 +337,14 @@ func (l *TestLeaderSelector) LeaderFunc(seal *types.UnicityCertificate) peer.ID 
 
 func createPeer(t *testing.T) *network.Peer {
 	// fake validator, so that network 'send' requests don't fail
-	privateKey, pubKey, err := p2pcrypto.GenerateSecp256k1Key(rand.Reader)
+	_, pubKey, err := p2pcrypto.GenerateSecp256k1Key(rand.Reader)
 	require.NoError(t, err)
-
-	privateKeyBytes, err := privateKey.Raw()
-	require.NoError(t, err)
-
-	pubKeyBytes, err := pubKey.Raw()
-	require.NoError(t, err)
-
-	id, err := peer.IDFromPublicKey(pubKey)
+	fakeValidatorID, err := peer.IDFromPublicKey(pubKey)
 	require.NoError(t, err)
 
 	conf := &network.PeerConfiguration{
-		KeyPair: &network.PeerKeyPair{
-			PublicKey:  pubKeyBytes,
-			PrivateKey: privateKeyBytes,
-		},
-		Validators: []peer.ID{id},
+		//KeyPair will be generated
+		Validators: []peer.ID{fakeValidatorID},
 		Address:    "/ip4/127.0.0.1/tcp/0",
 	}
 	newPeer, err := network.NewPeer(context.Background(), conf)

@@ -282,9 +282,10 @@ partition. A bill can be transferred to fee credit partially.
 
 To bootstrap a fee credit record on the money partition, the fee for
 this transaction is handled outside the fee credit system. That is,
-the value of the bill used to make this transfer is reduced by the
-*Amount* transferred **and** the transaction fee. If the remaining
-value is 0, the bill is deleted.
+the fee for this transaction is taken directly from the transferred
+*Amount* and the amount available for the fee credit record in the
+target partition is reduced
+accordingly. *ClientMetadata*.*MaxTransactionFee* still applies.
 
 Note that an [Add Fee Credit](#add-fee-credit) transaction must be
 executed on the target partition after each [Transfer to Fee
@@ -300,7 +301,7 @@ Fee Credit](#add-fee-credit) transaction.
 /transFCAttributes/ [
     /Amount/                 100000000,
     /TargetSystemIdentifier/ h'00000002',
-    /TargetRecordID/         h'A0227AC5202427DB551B8ABE08645378347A3C5F70E0E5734F147AD45CBC1BA52F',
+    /TargetUnitID/           h'A0227AC5202427DB551B8ABE08645378347A3C5F70E0E5734F147AD45CBC1BA52F',
     /EarliestAdditionTime/   13,
     /LatestAdditionTime/     23,
     /TargetUnitBacklink/     null,
@@ -309,12 +310,11 @@ Fee Credit](#add-fee-credit) transaction.
 ```
 
 1. *Amount* (unsigned integer) is the amount of money to reserve for
-   paying fees in the target partition. Has to be less than the value
-   of the bill +
-   *TransactionOrder*.*Payload*.*ClientMetadata*.*MaxTransactionFee*.
+   paying fees in the target partition. A bill can be transferred to
+   partially.
 2. *TargetSystemIdentifier* (byte string) is the system identifier of
    the target partition where the *Amount* can be spent on fees.
-3. *TargetRecordID* (byte string) is the target fee credit record
+3. *TargetUnitID* (byte string) is the target fee credit record
    identifier (*FeeCreditRecordID* of the corresponding [Add Fee
    Credit](#add-fee-credit) transaction).
 4. *EarliestAdditionTime* (unsigned integer) is the earliest round
@@ -327,7 +327,7 @@ Fee Credit](#add-fee-credit) transaction.
    some timeout).
 6. *TargetUnitBacklink* (byte string) is the hash of the last [Add Fee
    Credit](#add-fee-credit) transaction executed for the
-   *TargetRecordID* in the target partition, or `null` if it does not
+   *TargetUnitID* in the target partition, or `null` if it does not
    exist yet.
 7. *Backlink* (byte string) is the backlink to the previous
    transaction with the bill.
@@ -718,7 +718,7 @@ Token](#join-fungible-tokens) transaction.
 /burnFTokenAttributes/ [
     /TypeID/                       h'',
     /Value/                        999,
-    /TargetBacklink/               h'',
+    /TargetUnitBacklink/           h'',
     /Backlink/                     h'',
     /InvariantPredicateSignatures/ [h'']
 ]
@@ -726,7 +726,7 @@ Token](#join-fungible-tokens) transaction.
 
 1. *TypeID* (byte string) is the type of the token.
 2. *Value* (unsigned integer) is the value of the token.
-3. *TargetBacklink* (byte string) is the backlink to the previous
+3. *TargetUnitBacklink* (byte string) is the backlink to the previous
    transaction with the fungible token that this burn is to be [joined
    into](#join-fungible-tokens).
 4. *Backlink* (byte string) is the backlink to the previous

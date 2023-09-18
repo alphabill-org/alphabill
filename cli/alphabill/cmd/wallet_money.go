@@ -469,7 +469,7 @@ func execCollectDust(cmd *cobra.Command, config *walletConfig) error {
 			}
 			consoleWriter.Println(fmt.Sprintf(
 				"Dust collection finished successfully on account #%d. Joined %d bills with total value of %s "+
-					"ALPHA into an existing target bill with unit identifier 0x%x. Paid %s fees for transaction(s).",
+					"ALPHA into an existing target bill with unit identifier 0x%s. Paid %s fees for transaction(s).",
 				dcResult.AccountIndex+1,
 				len(attr.DcTransfers),
 				amountToString(attr.TargetValue, 8),

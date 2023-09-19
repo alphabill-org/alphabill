@@ -26,6 +26,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/internal/util"
 	log "github.com/alphabill-org/alphabill/pkg/logger"
+	"github.com/fxamacker/cbor/v2"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"golang.org/x/sync/errgroup"
 )
@@ -499,12 +500,14 @@ func (n *Node) validateAndExecuteTx(tx *types.TransactionOrder, round uint64) (s
 		}
 	}()
 	if err = n.txValidator.Validate(tx, round); err != nil {
-		logger.Warning("Transaction '%v' is invalid: %v", tx, err)
+		txBytes, _ := cbor.Marshal(tx)
+		logger.Error("Transaction %s '%x' is invalid: %v", tx.PayloadType(), txBytes, err)
 		return nil, fmt.Errorf("invalid, %w", err)
 	}
 	sm, err = n.transactionSystem.Execute(tx)
 	if err != nil {
-		logger.Warning("TxSystem was unable to process transaction '%v': %v", tx, err)
+		txBytes, _ := cbor.Marshal(tx)
+		logger.Error("TxSystem was unable to process transaction %s '%x': %v", tx.PayloadType(), txBytes, err)
 		return nil, fmt.Errorf("execute error, %w", err)
 	}
 	return sm, nil

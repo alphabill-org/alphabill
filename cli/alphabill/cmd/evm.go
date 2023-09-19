@@ -62,12 +62,18 @@ func runEvmNode(ctx context.Context, cfg *evmConfiguration) error {
 		return fmt.Errorf("unable to initialize block DB: %w", err)
 	}
 
+	trustBase, err := genesis.NewValidatorTrustBase(pg.RootValidators)
+	if err != nil {
+		return fmt.Errorf("failed to create trust base validator: %w", err)
+	}
+
 	systemIdentifier := pg.SystemDescriptionRecord.GetSystemIdentifier()
 	txs, err := evm.NewEVMTxSystem(
 		systemIdentifier,
 		evm.WithBlockGasLimit(params.BlockGasLimit),
 		evm.WithGasPrice(params.GasUnitPrice),
 		evm.WithBlockDB(blockStore),
+		evm.WithTrustBase(trustBase),
 	)
 	if err != nil {
 		return fmt.Errorf("evm transaction system init failed: %w", err)

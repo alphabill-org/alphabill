@@ -2,6 +2,7 @@ package client
 
 import (
 	"context"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
@@ -14,7 +15,6 @@ import (
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	testtransaction "github.com/alphabill-org/alphabill/internal/testutils/transaction"
 	"github.com/alphabill-org/alphabill/internal/types"
-	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/fxamacker/cbor/v2"
 	"github.com/stretchr/testify/require"
 )
@@ -65,7 +65,7 @@ func TestEvmClient_GetBalance(t *testing.T) {
 			addr: url.URL{Scheme: "http", Host: "localhost"},
 			hc: &http.Client{Transport: &mockRoundTripper{
 				do: func(r *http.Request) (*http.Response, error) {
-					if r.URL.String() != `http://localhost/api/v1/balance/`+hexutil.Encode(addr) {
+					if r.URL.String() != `http://localhost/api/v1/evm/balance/`+hex.EncodeToString(addr) {
 						t.Errorf("unexpected request URL: %s", r.URL.String())
 					}
 					if ua := r.Header.Get(userAgentHeader); ua != clientUserAgent {
@@ -141,7 +141,7 @@ func TestEvmClient_GetFeeCreditBill(t *testing.T) {
 			addr: url.URL{Scheme: "http", Host: "localhost"},
 			hc: &http.Client{Transport: &mockRoundTripper{
 				do: func(r *http.Request) (*http.Response, error) {
-					if r.URL.String() != `http://localhost/api/v1/balance/`+hexutil.Encode(addr) {
+					if r.URL.String() != `http://localhost/api/v1/evm/balance/`+hex.EncodeToString(addr) {
 						t.Errorf("unexpected request URL: %s", r.URL.String())
 					}
 					if ua := r.Header.Get(userAgentHeader); ua != clientUserAgent {
@@ -166,7 +166,7 @@ func TestEvmClient_GetFeeCreditBill(t *testing.T) {
 		require.EqualValues(t, addr, fcrBill.Id)
 		value := new(big.Int)
 		value.SetString("1300000000000000", 10)
-		require.EqualValues(t, weiToAlpha(value), fcrBill.Value)
+		require.EqualValues(t, WeiToAlpha(value), fcrBill.Value)
 		require.EqualValues(t, []byte{1, 2, 3, 4, 5}, fcrBill.LastAddFCTxHash)
 	})
 }
@@ -180,7 +180,7 @@ func TestEvmClient_GetTransactionCount(t *testing.T) {
 			addr: url.URL{Scheme: "http", Host: "localhost"},
 			hc: &http.Client{Transport: &mockRoundTripper{
 				do: func(r *http.Request) (*http.Response, error) {
-					if r.URL.String() != `http://localhost/api/v1/transactionCount/`+hexutil.Encode(addr) {
+					if r.URL.String() != `http://localhost/api/v1/evm/transactionCount/`+hex.EncodeToString(addr) {
 						t.Errorf("unexpected request URL: %s", r.URL.String())
 					}
 					if ua := r.Header.Get(userAgentHeader); ua != clientUserAgent {
@@ -214,6 +214,64 @@ func TestEvmClient_GetTransactionCount(t *testing.T) {
 		nonce, err := cli.GetTransactionCount(context.Background(), addr)
 		require.ErrorIs(t, err, ErrNotFound)
 		require.Zero(t, nonce)
+	})
+}
+
+func TestEvmClient_Call(t *testing.T) {
+	t.Parallel()
+
+	t.Run("valid request and response", func(t *testing.T) {
+		cli := &EvmClient{
+			addr: url.URL{Scheme: "http", Host: "localhost"},
+			hc: &http.Client{Transport: &mockRoundTripper{
+				do: func(r *http.Request) (*http.Response, error) {
+					if r.URL.String() != `http://localhost/api/v1/evm/call` {
+						t.Errorf("unexpected request URL: %s", r.URL.String())
+					}
+					if ua := r.Header.Get(userAgentHeader); ua != clientUserAgent {
+						t.Errorf("expected User-Agent header %q, got %q", clientUserAgent, ua)
+					}
+					defer func() { require.NoError(t, r.Body.Close()) }()
+					buf, err := io.ReadAll(r.Body)
+					if err != nil {
+						return nil, fmt.Errorf("failed to read request body: %w", err)
+					}
+					require.NotEmpty(t, buf)
+					w := httptest.NewRecorder()
+					callEVMResponse := &struct {
+						_                 struct{} `cbor:",toarray"`
+						ProcessingDetails *ProcessingDetails
+					}{
+						ProcessingDetails: &ProcessingDetails{ErrorDetails: "some error occurred"},
+					}
+					writeCBORResponse(t, w, callEVMResponse, http.StatusOK)
+					return w.Result(), nil
+				},
+			}},
+		}
+
+		attr := &CallAttributes{}
+		result, err := cli.Call(context.Background(), attr)
+		require.NoError(t, err)
+		require.NotNil(t, result)
+		require.Equal(t, "some error occurred", result.ErrorDetails)
+	})
+
+	t.Run("error is returned", func(t *testing.T) {
+		cli := &EvmClient{
+			addr: url.URL{Scheme: "http", Host: "localhost"},
+			hc: &http.Client{Transport: &mockRoundTripper{
+				do: func(r *http.Request) (*http.Response, error) {
+					w := httptest.NewRecorder()
+					writeCBORError(t, w, errors.New("not a valid transaction"), http.StatusBadRequest)
+					return w.Result(), nil
+				},
+			}},
+		}
+		attr := &CallAttributes{}
+		result, err := cli.Call(context.Background(), attr)
+		require.ErrorContains(t, err, "transaction send failed: 400 Bad Request, not a valid transaction")
+		require.Nil(t, result)
 	})
 }
 
@@ -282,7 +340,7 @@ func TestEvmClient_GetTxProof(t *testing.T) {
 			addr: url.URL{Scheme: "http", Host: "localhost"},
 			hc: &http.Client{Transport: &mockRoundTripper{
 				do: func(r *http.Request) (*http.Response, error) {
-					if r.URL.String() != `http://localhost/api/v1/transactions/`+hexutil.Encode(txHash) {
+					if r.URL.String() != `http://localhost/api/v1/transactions/`+hex.EncodeToString(txHash) {
 						t.Errorf("unexpected request URL: %s", r.URL.String())
 					}
 					if ua := r.Header.Get(userAgentHeader); ua != clientUserAgent {
@@ -309,7 +367,7 @@ func TestEvmClient_GetTxProof(t *testing.T) {
 			addr: url.URL{Scheme: "http", Host: "localhost"},
 			hc: &http.Client{Transport: &mockRoundTripper{
 				do: func(r *http.Request) (*http.Response, error) {
-					if r.URL.String() != `http://localhost/api/v1/transactions/`+hexutil.Encode(txHash) {
+					if r.URL.String() != `http://localhost/api/v1/transactions/`+hex.EncodeToString(txHash) {
 						t.Errorf("unexpected request URL: %s", r.URL.String())
 					}
 					w := httptest.NewRecorder()
@@ -328,7 +386,7 @@ func TestEvmClient_GetTxProof(t *testing.T) {
 			addr: url.URL{Scheme: "http", Host: "localhost"},
 			hc: &http.Client{Transport: &mockRoundTripper{
 				do: func(r *http.Request) (*http.Response, error) {
-					if r.URL.String() != `http://localhost/api/v1/transactions/`+hexutil.Encode(txHash) {
+					if r.URL.String() != `http://localhost/api/v1/transactions/`+hex.EncodeToString(txHash) {
 						t.Errorf("unexpected request URL: %s", r.URL.String())
 					}
 					w := httptest.NewRecorder()
@@ -338,7 +396,7 @@ func TestEvmClient_GetTxProof(t *testing.T) {
 			}},
 		}
 		proof, err := cli.GetTxProof(context.Background(), []byte{}, txHash)
-		require.ErrorContains(t, err, "get tx proof request failed: server response 500 Internal Server Error")
+		require.ErrorContains(t, err, "get tx proof request failed: 500 Internal Server Error, some error")
 		require.Nil(t, proof)
 	})
 }
@@ -347,7 +405,6 @@ func TestEvmClient_PostTransaction(t *testing.T) {
 	t.Parallel()
 
 	t.Run("valid request is built", func(t *testing.T) {
-
 		cli := &EvmClient{
 			addr: url.URL{Scheme: "http", Host: "localhost"},
 			hc: &http.Client{Transport: &mockRoundTripper{
@@ -359,7 +416,7 @@ func TestEvmClient_PostTransaction(t *testing.T) {
 						t.Errorf("expected User-Agent header %q, got %q", clientUserAgent, ua)
 					}
 
-					defer r.Body.Close()
+					defer func() { require.NoError(t, r.Body.Close()) }()
 					buf, err := io.ReadAll(r.Body)
 					if err != nil {
 						return nil, fmt.Errorf("failed to read request body: %w", err)
@@ -389,8 +446,7 @@ func TestEvmClient_PostTransaction(t *testing.T) {
 			}},
 		}
 		err := cli.PostTransaction(context.Background(), &types.TransactionOrder{})
-		require.EqualError(t, err, `transaction send failed: invalid request`)
-		require.ErrorIs(t, err, ErrInvalidRequest)
+		require.EqualError(t, err, "transaction send failed: 400 Bad Request, test error")
 	})
 
 	t.Run("success", func(t *testing.T) {

@@ -28,7 +28,6 @@ const (
 	apiUsage                   = "wallet backend API URL"
 	partitionCmdName           = "partition"
 	partitionBackendUrlCmdName = "partition-backend-url"
-	defaultEvmNodeRestURL      = ":29866"
 )
 
 // newWalletFeesCmd creates a new cobra command for the wallet fees component.
@@ -47,10 +46,10 @@ func newWalletFeesCmd(config *walletConfig) *cobra.Command {
 	cmd.AddCommand(addFeeCreditCmd(config, cliConfig))
 	cmd.AddCommand(reclaimFeeCreditCmd(config, cliConfig))
 
-	cmd.PersistentFlags().VarP(&cliConfig.partitionType, partitionCmdName, "n", "partition name for which to manage fees [money|tokens]")
+	cmd.PersistentFlags().VarP(&cliConfig.partitionType, partitionCmdName, "n", "partition name for which to manage fees [money|tokens|evm]")
 	cmd.PersistentFlags().StringP(alphabillApiURLCmdName, "r", defaultAlphabillApiURL, apiUsage)
 
-	usage := fmt.Sprintf("partition backend url for which to manage fees (default: [%s|%s] based on --partition flag)", defaultAlphabillApiURL, defaultTokensBackendApiURL)
+	usage := fmt.Sprintf("partition backend url for which to manage fees (default: [%s|%s|%s] based on --partition flag)", defaultAlphabillApiURL, defaultTokensBackendApiURL, defaultEvmNodeRestURL)
 	cmd.PersistentFlags().StringVarP(&cliConfig.partitionBackendURL, partitionBackendUrlCmdName, "m", "", usage)
 	return cmd
 }

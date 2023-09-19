@@ -32,7 +32,7 @@ func NewTxPublisher(backendClient Client) *TxPublisher {
 func (w *TxPublisher) SendTx(ctx context.Context, tx *types.TransactionOrder, _ []byte) (*wallet.Proof, error) {
 	txHash := tx.Hash(crypto.SHA256)
 	if err := w.cli.PostTransaction(ctx, tx); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("evm post tx failed: %w", err)
 	}
 	// confirm transaction
 	log.Info("Confirming submitted transaction")

@@ -12,8 +12,8 @@ import (
 
 func (a *API) Balance(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
-	adr := vars["address"]
-	address := common.HexToAddress(adr)
+	addr := vars["address"]
+	address := common.HexToAddress(addr)
 	db := statedb.NewStateDB(a.state.Clone())
 	if !db.Exist(address) {
 		util.WriteCBORError(w, errors.New("address not found"), http.StatusNotFound)

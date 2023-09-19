@@ -240,6 +240,7 @@ func (w *DustCollector) submitDCBatch(ctx context.Context, k *account.AccountKey
 	}
 	dcBatch := txsubmitter.NewBatch(k.PubKey, w.backend)
 	for _, b := range billsToSwap {
+		log.Debug("Building TransferDC tx for bill '", types.UnitID(b.GetID()).String(), "', txHash=", fmt.Sprintf("'%X'", b.TxHash))
 		tx, err := tx_builder.NewDustTx(k, w.systemID, &wallet.Bill{Id: b.GetID(), Value: b.Value, TxHash: b.TxHash}, targetBill, timeout)
 		if err != nil {
 			return nil, fmt.Errorf("failed to build dust transfer transaction: %w", err)

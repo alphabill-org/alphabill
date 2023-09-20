@@ -307,7 +307,7 @@ func printResult(result *evmclient.Result) {
 		return
 	}
 	consoleWriter.Println(fmt.Sprintf("Evm transaction succeeded"))
-	consoleWriter.Println(fmt.Sprintf("Evm transaction proccessing fee: %v", result.ActualFee))
+	consoleWriter.Println(fmt.Sprintf("Evm transaction proccessing fee: %v", amountToString(result.ActualFee, 8)))
 	noContract := common.Address{} // content if no contract is deployed
 	if result.Details.ContractAddr != noContract {
 		consoleWriter.Println(fmt.Sprintf("Deployed smart contract address: %x", result.Details.ContractAddr))

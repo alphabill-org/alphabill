@@ -35,7 +35,6 @@ func (w *TxPublisher) SendTx(ctx context.Context, tx *types.TransactionOrder, _ 
 		return nil, fmt.Errorf("evm post tx failed: %w", err)
 	}
 	// confirm transaction
-	log.Info("Confirming submitted transaction")
 	timeout := tx.Timeout()
 	for {
 		if err := ctx.Err(); err != nil {

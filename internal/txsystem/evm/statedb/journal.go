@@ -85,6 +85,7 @@ func (ch accountChange) address() *common.Address {
 
 // revert - does nothing, this is handled by the state tree
 func (ch accountChange) revert(s *StateDB) {
+	// account change revert is handled by the state tree
 }
 
 // address - not related to an account, return nil

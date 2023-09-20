@@ -28,8 +28,8 @@ import (
 const initialDustCollectorMoneyAmount uint64 = 100
 
 var (
-	initialBill   = &InitialBill{
-		ID: NewBillID(nil, test.RandomBytes(UnitPartLength)),
+	initialBill = &InitialBill{
+		ID:    NewBillID(nil, test.RandomBytes(UnitPartLength)),
 		Value: 110,
 		Owner: script.PredicateAlwaysTrue(),
 	}
@@ -399,7 +399,7 @@ func TestEndBlock_FeesConsolidation(t *testing.T) {
 	require.EqualValues(t, 2, moneyFeeCreditBill.Data().SummaryValueInput())
 }
 
-func TestRegisterData_Revert(t *testing.T) {
+func TestRegisterData_RevertSplit(t *testing.T) {
 	rmaTree, txSystem, _ := createStateAndTxSystem(t)
 	_, initBillData := getBill(t, rmaTree, initialBill.ID)
 
@@ -422,6 +422,34 @@ func TestRegisterData_Revert(t *testing.T) {
 	s, err := txSystem.StateSummary()
 	require.NoError(t, err)
 	require.Equal(t, vdState, s)
+}
+
+func TestRegisterData_RevertTransDC(t *testing.T) {
+	rmaTree, txSystem, _ := createStateAndTxSystem(t)
+	unit, initBillData := getBill(t, rmaTree, initialBill.ID)
+	unitBearer := bytes.Clone(unit.Bearer())
+	vdState, err := txSystem.StateSummary()
+	require.NoError(t, err)
+
+	transDC, _ := createDCTransfer(t, initialBill.ID, initialBill.Value, initBillData.Backlink, test.RandomBytes(32), test.RandomBytes(32))
+	require.NoError(t, err)
+	roundNumber := uint64(10)
+	txSystem.BeginBlock(roundNumber)
+	sm, err := txSystem.Execute(transDC)
+	require.NoError(t, err)
+	require.NotNil(t, sm)
+	_, err = txSystem.StateSummary()
+	require.ErrorIs(t, err, txsystem.ErrStateContainsUncommittedChanges)
+	unit, _ = getBill(t, rmaTree, initialBill.ID)
+	require.EqualValues(t, dustCollectorPredicate, unit.Bearer())
+
+	txSystem.Revert()
+	s, err := txSystem.StateSummary()
+	require.NoError(t, err)
+	require.Equal(t, vdState, s)
+	unit, _ = getBill(t, rmaTree, initialBill.ID)
+	require.EqualValues(t, unitBearer, unit.Bearer())
+	require.NotEqualValues(t, dustCollectorPredicate, unit.Bearer())
 }
 
 // Test Transfer->Add->Close->Reclaim sequence OK

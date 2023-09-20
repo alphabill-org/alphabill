@@ -97,7 +97,7 @@ func evmCmdCall(config *walletConfig) *cobra.Command {
 	// account from which to call - pay for the transaction
 	cmd.Flags().Uint64P(keyCmdName, "k", 1, "which key to use for from address in evm call")
 	// to address - smart contract to call
-	cmd.Flags().String(addressCmdName, "", "smart contract address in hexadecimal format, must start with 0x and be 20 characters in length")
+	cmd.Flags().String(addressCmdName, "", "smart contract address in hexadecimal format, must be 20 characters in length")
 	// data
 	cmd.Flags().String(dataCmdName, "", "data as hex string")
 	// max amount of gas user is willing to spend
@@ -210,7 +210,7 @@ func execEvmCmdInvoke(cmd *cobra.Command, config *walletConfig) error {
 		return fmt.Errorf("failed to read '%s' parameter: %w", addressCmdName, err)
 	}
 	if len(toAddr) != defaultEvmAddrLen {
-		return fmt.Errorf("invalid to address %x, address must be 20 bytes", toAddr)
+		return fmt.Errorf("invalid address %x, address must be 20 bytes", toAddr)
 	}
 	// read binary contract file
 	fnIDAndArg, err := readHexFlag(cmd, dataCmdName)
@@ -250,12 +250,15 @@ func execEvmCmdCall(cmd *cobra.Command, config *walletConfig) error {
 		return fmt.Errorf("failed to read '%s' parameter: %w", addressCmdName, err)
 	}
 	if len(toAddr) != defaultEvmAddrLen {
-		return fmt.Errorf("invalid to address %x, address must be 20 bytes", toAddr)
+		return fmt.Errorf("invalid address %x, address must be 20 bytes", toAddr)
 	}
 	// data
 	data, err := readHexFlag(cmd, dataCmdName)
 	if err != nil {
 		return fmt.Errorf("failed to read '%s' parameter: %w", dataCmdName, err)
+	}
+	if len(data) > scSizeLimit24Kb {
+		return fmt.Errorf("")
 	}
 	maxGas, err := cmd.Flags().GetUint64(maxGasCmdName)
 	if err != nil {
@@ -303,11 +306,11 @@ func execEvmCmdBalance(cmd *cobra.Command, config *walletConfig) error {
 func printResult(result *evmclient.Result) {
 	if !result.Success {
 		consoleWriter.Println(fmt.Sprintf("Evm transaction failed: %s", result.Details.ErrorDetails))
-		consoleWriter.Println(fmt.Sprintf("Evm transaction proccessing fee: %v", amountToString(result.ActualFee, 8)))
+		consoleWriter.Println(fmt.Sprintf("Evm transaction processing fee: %v", amountToString(result.ActualFee, 8)))
 		return
 	}
 	consoleWriter.Println(fmt.Sprintf("Evm transaction succeeded"))
-	consoleWriter.Println(fmt.Sprintf("Evm transaction proccessing fee: %v", amountToString(result.ActualFee, 8)))
+	consoleWriter.Println(fmt.Sprintf("Evm transaction processing fee: %v", amountToString(result.ActualFee, 8)))
 	noContract := common.Address{} // content if no contract is deployed
 	if result.Details.ContractAddr != noContract {
 		consoleWriter.Println(fmt.Sprintf("Deployed smart contract address: %x", result.Details.ContractAddr))
@@ -316,6 +319,6 @@ func printResult(result *evmclient.Result) {
 		consoleWriter.Println(fmt.Sprintf("Evm log %v : %v", i, l))
 	}
 	if len(result.Details.ReturnData) > 0 {
-		consoleWriter.Println(fmt.Sprintf("Evm execute return data: %x", result.Details.ReturnData))
+		consoleWriter.Println(fmt.Sprintf("Evm execution returned: %X", result.Details.ReturnData))
 	}
 }

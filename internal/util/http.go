@@ -13,6 +13,7 @@ var logger = log.CreateForPackage()
 // WriteCBORResponse replies to the request with the given response and HTTP code.
 func WriteCBORResponse(w http.ResponseWriter, response any, statusCode int) {
 	w.Header().Set("Content-Type", "application/cbor")
+	w.WriteHeader(statusCode)
 	if err := cbor.NewEncoder(w).Encode(response); err != nil {
 		logger.Warning("Failed to write CBOR response: %v", err)
 	}

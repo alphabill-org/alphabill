@@ -59,7 +59,7 @@ func (a *API) CallEVM(w http.ResponseWriter, r *http.Request) {
 	}
 
 	details := &evm.ProcessingDetails{}
-	if err := cbor.Unmarshal(result.ProcessingDetails, details); err != nil {
+	if err = cbor.Unmarshal(result.ProcessingDetails, details); err != nil {
 		util.WriteCBORError(w, errors.New("unable to read EVM result"), http.StatusBadRequest)
 		return
 	}

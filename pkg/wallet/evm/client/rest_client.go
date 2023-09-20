@@ -63,25 +63,27 @@ func WeiToAlpha(wei *big.Int) uint64 {
 
 // GetFeeCreditBill - simulates fee credit bill on EVM
 func (e *EvmClient) GetFeeCreditBill(ctx context.Context, unitID types.UnitID) (*sdk.Bill, error) {
-	amount, backlink, err := e.GetBalance(ctx, unitID)
+	balanceStr, backlink, err := e.GetBalance(ctx, unitID)
 	if err != nil {
 		if errors.Is(err, ErrNotFound) {
 			return nil, nil
 		}
 		return nil, fmt.Errorf("failed to read blance for addr %s: %w", hexutil.Encode(unitID), err)
 	}
-	wei := new(big.Int)
-	wei, ok := wei.SetString(amount, 10)
+	balanceWei, ok := new(big.Int).SetString(balanceStr, 10)
 	if !ok {
-		return nil, fmt.Errorf("account %s has invalid balance %v", hexutil.Encode(unitID), amount)
+		return nil, fmt.Errorf("account %s has invalid balance %v", hexutil.Encode(unitID), balanceStr)
 	}
 	return &sdk.Bill{
 		Id:              unitID,
-		Value:           WeiToAlpha(wei),
+		Value:           WeiToAlpha(balanceWei),
 		TxHash:          nil,
 		LastAddFCTxHash: backlink,
 	}, nil
 }
+
+// todo: The methods PostTransaction(), GetRoundNumber() and GetTxProof() do not belong here as they are common for all
+// this needs to be corrected
 
 // PostTransaction post node transaction
 func (e *EvmClient) PostTransaction(ctx context.Context, tx *types.TransactionOrder) error {

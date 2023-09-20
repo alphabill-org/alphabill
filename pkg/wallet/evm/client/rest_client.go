@@ -83,7 +83,7 @@ func (e *EvmClient) GetFeeCreditBill(ctx context.Context, unitID types.UnitID) (
 }
 
 // todo: The methods PostTransaction(), GetRoundNumber() and GetTxProof() do not belong here as they are common for all
-// this needs to be corrected
+// client needs a general refactoring - it should be possible to add a generic client and not have everything together
 
 // PostTransaction post node transaction
 func (e *EvmClient) PostTransaction(ctx context.Context, tx *types.TransactionOrder) error {

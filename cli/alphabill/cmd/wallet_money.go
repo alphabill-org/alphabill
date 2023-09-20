@@ -17,7 +17,6 @@ import (
 	"github.com/tyler-smith/go-bip39"
 	"golang.org/x/term"
 
-	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
 	moneytx "github.com/alphabill-org/alphabill/internal/txsystem/money"
 	"github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/alphabill-org/alphabill/pkg/wallet/account"
@@ -153,8 +152,11 @@ func sendCmd(config *walletConfig) *cobra.Command {
 			return execSendCmd(cmd.Context(), cmd, config)
 		},
 	}
-	cmd.Flags().StringP(addressCmdName, "a", "", "compressed secp256k1 public key of the receiver in hexadecimal format, must start with 0x and be 68 characters in length")
-	cmd.Flags().StringP(amountCmdName, "v", "", "the amount to send to the receiver")
+	cmd.Flags().StringSliceP(addressCmdName, "a", nil, "compressed secp256k1 public key(s) of "+
+		"the receiver(s) in hexadecimal format, must start with 0x and be 68 characters in length, must match with "+
+		"amounts")
+	cmd.Flags().StringSliceP(amountCmdName, "v", nil, "the amount(s) to send to the "+
+		"receiver(s), must match with addresses")
 	cmd.Flags().StringP(alphabillApiURLCmdName, "r", defaultAlphabillApiURL, "alphabill API uri to connect to")
 	cmd.Flags().Uint64P(keyCmdName, "k", 1, "which key to use for sending the transaction")
 	// use string instead of boolean as boolean requires equals sign between name and value e.g. w=[true|false]
@@ -196,29 +198,6 @@ func execSendCmd(ctx context.Context, cmd *cobra.Command, config *walletConfig) 
 	}
 	defer w.Close()
 
-	receiverPubKeyHex, err := cmd.Flags().GetString(addressCmdName)
-	if err != nil {
-		return err
-	}
-	receiverPubKey, ok := pubKeyHexToBytes(receiverPubKeyHex)
-	if !ok {
-		return errors.New("address in not in valid format")
-	}
-	if len(receiverPubKey) != abcrypto.CompressedSecp256K1PublicKeySize {
-		return money.ErrInvalidPubKey
-	}
-
-	amountStr, err := cmd.Flags().GetString(amountCmdName)
-	if err != nil {
-		return err
-	}
-	amount, err := stringToAmount(amountStr, 8)
-	if err != nil {
-		return err
-	}
-	if amount == 0 {
-		return fmt.Errorf("invalid parameter \"%s\" for \"--amount\":0 is not valid amount", amountStr)
-	}
 	accountNumber, err := cmd.Flags().GetUint64(keyCmdName)
 	if err != nil {
 		return err
@@ -238,6 +217,18 @@ func execSendCmd(ctx context.Context, cmd *cobra.Command, config *walletConfig) 
 	if err != nil {
 		return err
 	}
+	receiverPubKeys, err := cmd.Flags().GetStringSlice(addressCmdName)
+	if err != nil {
+		return err
+	}
+	receiverAmounts, err := cmd.Flags().GetStringSlice(amountCmdName)
+	if err != nil {
+		return err
+	}
+	receivers, err := groupPubKeysAndAmounts(receiverPubKeys, receiverAmounts)
+	if err != nil {
+		return err
+	}
 	if outputPath != "" {
 		if !waitForConf {
 			return fmt.Errorf("cannot set %s to false and when %s is provided", waitForConfCmdName, outputPathCmdName)
@@ -250,8 +241,7 @@ func execSendCmd(ctx context.Context, cmd *cobra.Command, config *walletConfig) 
 			outputPath = filepath.Join(cwd, outputPath)
 		}
 	}
-
-	proofs, err := w.Send(ctx, money.SendCmd{ReceiverPubKey: receiverPubKey, Amount: amount, WaitForConfirmation: waitForConf, AccountIndex: accountNumber - 1})
+	proofs, err := w.Send(ctx, money.SendCmd{Receivers: receivers, WaitForConfirmation: waitForConf, AccountIndex: accountNumber - 1})
 	if err != nil {
 		return err
 	}
@@ -625,4 +615,26 @@ func pubKeyHexToBytes(s string) ([]byte, bool) {
 		return nil, false
 	}
 	return pubKeyBytes, true
+}
+
+func groupPubKeysAndAmounts(pubKeys []string, amounts []string) ([]money.ReceiverData, error) {
+	if len(pubKeys) != len(amounts) {
+		return nil, fmt.Errorf("must specify the same amount of addresses and amounts")
+	}
+	var receivers []money.ReceiverData
+	for i := 0; i < len(pubKeys); i++ {
+		amount, err := stringToAmount(amounts[i], 8)
+		if err != nil {
+			return nil, fmt.Errorf("invalid amount: %w", err)
+		}
+		pubKeyBytes, err := hexutil.Decode(pubKeys[i])
+		if err != nil {
+			return nil, fmt.Errorf("invalid address format: %s", pubKeys[i])
+		}
+		receivers = append(receivers, money.ReceiverData{
+			Amount: amount,
+			PubKey: pubKeyBytes,
+		})
+	}
+	return receivers, nil
 }

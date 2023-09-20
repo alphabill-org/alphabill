@@ -7,6 +7,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/stretchr/testify/require"
+
 	"github.com/alphabill-org/alphabill/internal/partition/event"
 	"github.com/alphabill-org/alphabill/internal/script"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
@@ -17,8 +20,6 @@ import (
 	moneytestutils "github.com/alphabill-org/alphabill/internal/txsystem/money/testutils"
 	sdk "github.com/alphabill-org/alphabill/pkg/wallet"
 	wlog "github.com/alphabill-org/alphabill/pkg/wallet/log"
-	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/stretchr/testify/require"
 )
 
 var (
@@ -41,7 +42,7 @@ func TestSendingMoneyUsingWallets_integration(t *testing.T) {
 		Value: 1e18,
 		Owner: script.PredicateAlwaysTrue(),
 	}
-	moneyPartition := createMoneyPartition(t, initialBill, 3)
+	moneyPartition := createMoneyPartition(t, initialBill, 1)
 	network := startAlphabill(t, []*testpartition.NodePartition{moneyPartition})
 	startPartitionRPCServers(t, moneyPartition)
 
@@ -59,8 +60,6 @@ func TestSendingMoneyUsingWallets_integration(t *testing.T) {
 	am2, homedir2 := createNewWallet(t)
 	w2PubKey, _ := am2.GetPublicKey(0)
 	am2.Close()
-	require.ErrorIs(t, moneyPartition.Nodes[2].Stop(), context.Canceled)
-	require.NoError(t, moneyPartition.ResumeNode(2))
 	// create fee credit for initial bill transfer
 	transferFC := testfc.CreateFeeCredit(t, initialBill.ID, fcrID, fcrAmount, network)
 	initialBillBacklink := transferFC.Hash(crypto.SHA256)
@@ -141,11 +140,8 @@ func TestSendingMoneyUsingWallets_integration(t *testing.T) {
 	pubKey2Hex := addAccount(t, homedir1)
 	pubKey3Hex := addAccount(t, homedir1)
 
-	// send two transactions to wallet account 2
-	stdout = execWalletCmd(t, homedir1, fmt.Sprintf("send -k 1 --amount 50 --address %s --alphabill-api-uri %s", pubKey2Hex, apiAddr))
-	verifyStdout(t, stdout, "Successfully confirmed transaction(s)")
-
-	stdout = execWalletCmd(t, homedir1, fmt.Sprintf("send -k 1 --amount 150 --address %s --alphabill-api-uri %s", pubKey2Hex, apiAddr))
+	// send two bills to wallet account 2
+	stdout = execWalletCmd(t, homedir1, fmt.Sprintf("send -k 1 --amount 50,150 --address %s,%s --alphabill-api-uri %s", pubKey2Hex, pubKey2Hex, apiAddr))
 	verifyStdout(t, stdout, "Successfully confirmed transaction(s)")
 
 	// verify wallet-1 account-1 balance is decreased

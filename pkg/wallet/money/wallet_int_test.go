@@ -245,10 +245,12 @@ func TestCollectDustInMultiAccountWallet(t *testing.T) {
 	require.NoError(t, err)
 
 	// send two bills to account number 2 and 3
-	sendToAccount(t, w, 10*1e8, 0, 1)
-	sendToAccount(t, w, 10*1e8, 0, 1)
-	sendToAccount(t, w, 10*1e8, 0, 2)
-	sendToAccount(t, w, 10*1e8, 0, 2)
+	sendTo(t, w, []ReceiverData{
+		{Amount: 10 * 1e8, PubKey: pubKeys[1]},
+		{Amount: 10 * 1e8, PubKey: pubKeys[1]},
+		{Amount: 10 * 1e8, PubKey: pubKeys[2]},
+		{Amount: 10 * 1e8, PubKey: pubKeys[2]},
+	}, 0)
 
 	// add fee credit to account 2
 	_, err = w.AddFeeCredit(ctx, fees.AddFeeCmd{
@@ -357,10 +359,12 @@ func TestCollectDustInMultiAccountWalletWithKeyFlag(t *testing.T) {
 	require.NoError(t, err)
 
 	// send two bills to account number 2 and 3
-	sendToAccount(t, w, 10*1e8, 0, 1)
-	sendToAccount(t, w, 10*1e8, 0, 1)
-	sendToAccount(t, w, 10*1e8, 0, 2)
-	sendToAccount(t, w, 10*1e8, 0, 2)
+	sendTo(t, w, []ReceiverData{
+		{Amount: 10 * 1e8, PubKey: pubKeys[1]},
+		{Amount: 10 * 1e8, PubKey: pubKeys[1]},
+		{Amount: 10 * 1e8, PubKey: pubKeys[2]},
+		{Amount: 10 * 1e8, PubKey: pubKeys[2]},
+	}, 0)
 
 	// add fee credit to wallet account 3
 	_, err = w.AddFeeCredit(ctx, fees.AddFeeCmd{
@@ -373,7 +377,7 @@ func TestCollectDustInMultiAccountWalletWithKeyFlag(t *testing.T) {
 	_, err = w.CollectDust(ctx, 3)
 	require.NoError(t, err)
 
-	// verify that there is only one swap tx and it belongs to account number 3
+	// verify that there is only one swap tx, and it belongs to account number 3
 	account3Key, _ := am.GetAccountKey(2)
 	swapTxCount := 0
 	testpartition.BlockchainContains(moneyPart, func(txo *types.TransactionOrder) bool {
@@ -394,19 +398,14 @@ func TestCollectDustInMultiAccountWalletWithKeyFlag(t *testing.T) {
 	require.Equal(t, 1, swapTxCount)
 }
 
-func sendToAccount(t *testing.T, w *Wallet, amount, fromAccount, toAccount uint64) {
-	receiverPubkey, err := w.am.GetPublicKey(toAccount)
+func sendTo(t *testing.T, w *Wallet, receivers []ReceiverData, fromAccount uint64) {
+	proof, err := w.Send(context.Background(), SendCmd{
+		Receivers:           receivers,
+		AccountIndex:        fromAccount,
+		WaitForConfirmation: true,
+	})
 	require.NoError(t, err)
-
-	prevBalance, err := w.GetBalance(context.Background(), GetBalanceCmd{AccountIndex: toAccount})
-	require.NoError(t, err)
-
-	_, err = w.Send(context.Background(), SendCmd{ReceiverPubKey: receiverPubkey, Amount: amount, AccountIndex: fromAccount})
-	require.NoError(t, err)
-	require.Eventually(t, func() bool {
-		balance, _ := w.GetBalance(context.Background(), GetBalanceCmd{AccountIndex: toAccount})
-		return balance > prevBalance
-	}, test.WaitDuration, time.Second)
+	require.NotNil(t, proof)
 }
 
 func startMoneyOnlyAlphabillPartition(t *testing.T, initialBill *moneytx.InitialBill) *testpartition.AlphabillNetwork {

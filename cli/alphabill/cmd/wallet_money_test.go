@@ -13,20 +13,19 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/alphabill-org/alphabill/internal/partition"
-	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/stretchr/testify/require"
 
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
+	"github.com/alphabill-org/alphabill/internal/partition"
 	"github.com/alphabill-org/alphabill/internal/script"
 	testpartition "github.com/alphabill-org/alphabill/internal/testutils/partition"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/internal/txsystem/money"
+	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/alphabill-org/alphabill/pkg/wallet/account"
-	wallet "github.com/alphabill-org/alphabill/pkg/wallet/money"
 	"github.com/alphabill-org/alphabill/pkg/wallet/money/backend/client"
 )
 
@@ -185,7 +184,7 @@ func TestSendingFailsWithInsufficientBalance(t *testing.T) {
 	defer mockServer.Close()
 
 	_, err := execCommand(homedir, "send --amount 10 --address "+hexutil.Encode(pubKey)+" --alphabill-api-uri "+addr.Host)
-	require.ErrorIs(t, err, wallet.ErrInsufficientBalance)
+	require.ErrorContains(t, err, "insufficient balance for transaction")
 }
 
 func createMoneyPartition(t *testing.T, initialBill *money.InitialBill, nodeCount int) *testpartition.NodePartition {

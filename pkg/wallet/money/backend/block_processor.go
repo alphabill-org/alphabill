@@ -69,7 +69,7 @@ func (p *BlockProcessor) processTx(txr *types.TransactionRecord, b *types.Block,
 
 	switch txo.PayloadType() {
 	case moneytx.PayloadTypeTransfer:
-		wlog.Info(fmt.Sprintf("received transfer order (UnitID=%x)", txo.UnitID()))
+		wlog.Info(fmt.Sprintf("received transfer order (UnitID=%s)", txo.UnitID()))
 		if err = p.updateFCB(dbTx, txr); err != nil {
 			return err
 		}
@@ -89,7 +89,7 @@ func (p *BlockProcessor) processTx(txr *types.TransactionRecord, b *types.Block,
 			return err
 		}
 	case moneytx.PayloadTypeTransDC:
-		wlog.Info(fmt.Sprintf("received TransferDC order (UnitID=%x)", txo.UnitID()))
+		wlog.Info(fmt.Sprintf("received TransferDC order (UnitID=%s)", txo.UnitID()))
 		err := p.updateFCB(dbTx, txr)
 		if err != nil {
 			return err
@@ -106,7 +106,7 @@ func (p *BlockProcessor) processTx(txr *types.TransactionRecord, b *types.Block,
 			return fmt.Errorf("failed to fetch bill: %w", err)
 		}
 		if dcBill == nil {
-			return fmt.Errorf("bill not found: %x", txo.UnitID())
+			return fmt.Errorf("bill not found: %s", txo.UnitID())
 		}
 		dcBill.Value = attr.Value
 		dcBill.TxHash = txHash
@@ -137,7 +137,7 @@ func (p *BlockProcessor) processTx(txr *types.TransactionRecord, b *types.Block,
 			return err
 		}
 		if oldBill != nil {
-			wlog.Info(fmt.Sprintf("received split order (existing UnitID=%x)", txo.UnitID()))
+			wlog.Info(fmt.Sprintf("received split order (existing UnitID=%s)", txo.UnitID()))
 			err = dbTx.SetBill(&Bill{
 				Id:             txo.UnitID(),
 				Value:          attr.RemainingValue,
@@ -149,23 +149,25 @@ func (p *BlockProcessor) processTx(txr *types.TransactionRecord, b *types.Block,
 			}
 		} else {
 			// we should always have the "previous bill" other than splitting the initial bill or some error condition
-			wlog.Warning(fmt.Sprintf("received split order where existing unit was not found, ignoring tx (unitID=%x)", txo.UnitID()))
+			wlog.Warning(fmt.Sprintf("received split order where existing unit was not found, ignoring tx (unitID=%s)", txo.UnitID()))
 		}
 
-		// new bill
-		newID := moneytx.NewBillID(txo.UnitID(), moneytx.HashForIDCalculation(txo.UnitID(), txo.Payload.Attributes, txo.Timeout(), crypto.SHA256))
-		wlog.Info(fmt.Sprintf("received split order (new UnitID=%x)", newID))
-		err = dbTx.SetBill(&Bill{
-			Id:             newID,
-			Value:          attr.Amount,
-			TxHash:         txHash,
-			OwnerPredicate: attr.TargetBearer,
-		}, proof)
-		if err != nil {
-			return err
-		}
-		if err = saveTx(dbTx, attr.TargetBearer, txo, txHash); err != nil {
-			return err
+		// new bills
+		for i, targetUnit := range attr.TargetUnits {
+			newID := moneytx.NewBillID(txo.UnitID(), moneytx.HashForIDCalculation(txo.UnitID(), txo.Payload.Attributes, txo.Timeout(), uint32(i), crypto.SHA256))
+			wlog.Info(fmt.Sprintf("received split order (new UnitID=%s)", newID))
+			err = dbTx.SetBill(&Bill{
+				Id:             newID,
+				TxHash:         txHash,
+				Value:          targetUnit.Amount,
+				OwnerPredicate: targetUnit.OwnerCondition,
+			}, proof)
+			if err != nil {
+				return fmt.Errorf("failed to store split tx unit for new id %s at index %d", newID, i)
+			}
+			if err := saveTx(dbTx, targetUnit.OwnerCondition, txo, txHash); err != nil {
+				return fmt.Errorf("failed to store tx history record: %w", err)
+			}
 		}
 	case moneytx.PayloadTypeSwapDC:
 		err := p.updateFCB(dbTx, txr)
@@ -182,9 +184,9 @@ func (p *BlockProcessor) processTx(txr *types.TransactionRecord, b *types.Block,
 			return err
 		}
 		if bill == nil {
-			return fmt.Errorf("existing bill not found for swap tx (UnitID=%x)", txo.UnitID())
+			return fmt.Errorf("existing bill not found for swap tx (UnitID=%s)", txo.UnitID())
 		}
-		wlog.Info(fmt.Sprintf("received swap order (UnitID=%x)", txo.UnitID()))
+		wlog.Info(fmt.Sprintf("received swap order (UnitID=%s)", txo.UnitID()))
 		bill.Value += attr.TargetValue
 		bill.TxHash = txHash
 		bill.OwnerPredicate = attr.OwnerCondition
@@ -199,13 +201,13 @@ func (p *BlockProcessor) processTx(txr *types.TransactionRecord, b *types.Block,
 			}
 		}
 	case transactions.PayloadTypeTransferFeeCredit:
-		wlog.Info(fmt.Sprintf("received transferFC order (UnitID=%x), hash: '%X'", txo.UnitID(), txHash))
+		wlog.Info(fmt.Sprintf("received transferFC order (UnitID=%s), hash: '%X'", txo.UnitID(), txHash))
 		bill, err := dbTx.GetBill(txo.UnitID())
 		if err != nil {
 			return fmt.Errorf("failed to get bill: %w", err)
 		}
 		if bill == nil {
-			return fmt.Errorf("unit not found for transferFC tx (unitID=%X)", txo.UnitID())
+			return fmt.Errorf("unit not found for transferFC tx (unitID=%s)", txo.UnitID())
 		}
 		attr := &transactions.TransferFeeCreditAttributes{}
 		err = txo.UnmarshalAttributes(attr)
@@ -240,7 +242,7 @@ func (p *BlockProcessor) processTx(txr *types.TransactionRecord, b *types.Block,
 		}
 		return nil
 	case transactions.PayloadTypeAddFeeCredit:
-		wlog.Info(fmt.Sprintf("received addFC order (UnitID=%x), hash: '%X'", txo.UnitID(), txHash))
+		wlog.Info(fmt.Sprintf("received addFC order (UnitID=%s), hash: '%X'", txo.UnitID(), txHash))
 		fcb, err := dbTx.GetFeeCreditBill(txo.UnitID())
 		if err != nil {
 			return err
@@ -262,7 +264,7 @@ func (p *BlockProcessor) processTx(txr *types.TransactionRecord, b *types.Block,
 			LastAddFCTxHash: txHash,
 		}, proof)
 	case transactions.PayloadTypeCloseFeeCredit:
-		wlog.Info(fmt.Sprintf("received closeFC order (UnitID=%x)", txo.UnitID()))
+		wlog.Info(fmt.Sprintf("received closeFC order (UnitID=%s)", txo.UnitID()))
 		fcb, err := dbTx.GetFeeCreditBill(txo.UnitID())
 		if err != nil {
 			return err
@@ -283,13 +285,13 @@ func (p *BlockProcessor) processTx(txr *types.TransactionRecord, b *types.Block,
 			LastAddFCTxHash: fcb.getLastAddFCTxHash(),
 		}, proof)
 	case transactions.PayloadTypeReclaimFeeCredit:
-		wlog.Info(fmt.Sprintf("received reclaimFC order (UnitID=%x)", txo.UnitID()))
+		wlog.Info(fmt.Sprintf("received reclaimFC order (UnitID=%s)", txo.UnitID()))
 		bill, err := dbTx.GetBill(txo.UnitID())
 		if err != nil {
 			return err
 		}
 		if bill == nil {
-			return fmt.Errorf("unit not found for reclaimFC tx (unitID=%X)", txo.UnitID())
+			return fmt.Errorf("unit not found for reclaimFC tx (unitID=%s)", txo.UnitID())
 		}
 		reclaimFCAttr := &transactions.ReclaimFeeCreditAttributes{}
 		err = txo.UnmarshalAttributes(reclaimFCAttr)

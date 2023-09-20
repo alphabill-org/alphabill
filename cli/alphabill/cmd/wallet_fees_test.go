@@ -7,19 +7,18 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/alphabill-org/alphabill/pkg/wallet/fees"
-
 	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/stretchr/testify/require"
 
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/internal/script"
 	testpartition "github.com/alphabill-org/alphabill/internal/testutils/partition"
 	"github.com/alphabill-org/alphabill/internal/txsystem/money"
 	"github.com/alphabill-org/alphabill/internal/txsystem/tokens"
+	"github.com/alphabill-org/alphabill/pkg/wallet/fees"
 	wlog "github.com/alphabill-org/alphabill/pkg/wallet/log"
 	"github.com/alphabill-org/alphabill/pkg/wallet/money/backend"
 	moneyclient "github.com/alphabill-org/alphabill/pkg/wallet/money/backend/client"
-	"github.com/stretchr/testify/require"
 )
 
 var defaultTokenSDR = &genesis.SystemDescriptionRecord{
@@ -235,10 +234,10 @@ func setupMoneyInfraAndWallet(t *testing.T, otherPartitions []*testpartition.Nod
 	pkBytes, _ := hexutil.Decode(pk)
 
 	// transfer initial bill to wallet pubkey
-	spendInitialBillWithFeeCredits(t, abNet, initialBill, pkBytes)
+	expectedValue := spendInitialBillWithFeeCredits(t, abNet, initialBill, pkBytes)
 
 	// wait for initial bill tx
-	waitForBalanceCLI(t, homedir, defaultAlphabillApiURL, initialBill.Value-3, 0) // initial bill minus txfees
+	waitForBalanceCLI(t, homedir, defaultAlphabillApiURL, expectedValue, 0)
 
 	return homedir, abNet
 }

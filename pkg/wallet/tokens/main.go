@@ -100,15 +100,20 @@ func (w *Wallet) GetAccountManager() account.Manager {
 
 func (w *Wallet) NewFungibleType(ctx context.Context, accNr uint64, attrs CreateFungibleTokenTypeAttributes, typeId backend.TokenTypeID, subtypePredicateArgs []*PredicateInput) (*SubmissionResult, error) {
 	log.Info("Creating new fungible token type")
-	if typeId != nil && !typeId.HasType(tokens.FungibleTokenTypeUnitType) {
-		return nil, fmt.Errorf("invalid token type ID")
-	}
 	if typeId == nil {
 		var err error
 		typeId, err = tokens.NewRandomFungibleTokenTypeID(nil)
 		if err != nil {
-			return nil, fmt.Errorf("failed generate fungible token type ID: %w", err)
+			return nil, fmt.Errorf("failed to generate fungible token type ID: %w", err)
 		}
+	}
+
+	if len(typeId) != tokens.UnitIDLength {
+		return nil, fmt.Errorf("invalid token type ID: expected hex length is %d characters (%d bytes)",
+			tokens.UnitIDLength*2, tokens.UnitIDLength)
+	}
+	if !typeId.HasType(tokens.FungibleTokenTypeUnitType) {
+		return nil, fmt.Errorf("invalid token type ID: expected unit type is 0x%X", tokens.FungibleTokenTypeUnitType)
 	}
 	if attrs.ParentTypeId != nil && !bytes.Equal(attrs.ParentTypeId, backend.NoParent) {
 		parentType, err := w.GetTokenType(ctx, attrs.ParentTypeId)
@@ -131,16 +136,22 @@ func (w *Wallet) NewFungibleType(ctx context.Context, accNr uint64, attrs Create
 
 func (w *Wallet) NewNonFungibleType(ctx context.Context, accNr uint64, attrs CreateNonFungibleTokenTypeAttributes, typeId backend.TokenTypeID, subtypePredicateArgs []*PredicateInput) (*SubmissionResult, error) {
 	log.Info("Creating new NFT type")
-	if typeId != nil && !typeId.HasType(tokens.NonFungibleTokenTypeUnitType) {
-		return nil, fmt.Errorf("invalid token type ID")
-	}
 	if typeId == nil {
 		var err error
 		typeId, err = tokens.NewRandomNonFungibleTokenTypeID(nil)
 		if err != nil {
-			return nil, fmt.Errorf("failed generate non-fungible token type ID: %w", err)
+			return nil, fmt.Errorf("failed to generate non-fungible token type ID: %w", err)
 		}
 	}
+
+	if len(typeId) != tokens.UnitIDLength {
+		return nil, fmt.Errorf("invalid token type ID: expected hex length is %d characters (%d bytes)",
+			tokens.UnitIDLength*2, tokens.UnitIDLength)
+	}
+	if !typeId.HasType(tokens.NonFungibleTokenTypeUnitType) {
+		return nil, fmt.Errorf("invalid token type ID: expected unit type is 0x%X", tokens.NonFungibleTokenTypeUnitType)
+	}
+
 	sub, err := w.newType(ctx, accNr, tokens.PayloadTypeCreateNFTType, attrs.toCBOR(), typeId, subtypePredicateArgs)
 	if err != nil {
 		return nil, err

@@ -22,6 +22,7 @@ type BlockCertificationRequest struct {
 	SystemIdentifier types.SystemID     `json:"system_identifier,omitempty"`
 	NodeIdentifier   string             `json:"node_identifier,omitempty"`
 	InputRecord      *types.InputRecord `json:"input_record,omitempty"`
+	RootRoundNumber  uint64             `json:"root_round_number,omitempty"` // latest known RC's round number (AB-1155)
 	Signature        []byte             `json:"signature,omitempty"`
 }
 
@@ -68,5 +69,6 @@ func (x *BlockCertificationRequest) Bytes() []byte {
 	b.Write(x.InputRecord.BlockHash)
 	b.Write(x.InputRecord.SummaryValue)
 	b.Write(util.Uint64ToBytes(x.InputRecord.RoundNumber))
+	b.Write(util.Uint64ToBytes(x.RootRoundNumber))
 	return b.Bytes()
 }

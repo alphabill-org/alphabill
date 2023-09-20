@@ -83,6 +83,7 @@ func TestBlockCertificationRequest_ValidRequest(t *testing.T) {
 			SummaryValue: []byte{},
 			RoundNumber:  1,
 		},
+		RootRoundNumber: 1,
 	}
 	err := p1.Sign(signer)
 	require.NoError(t, err)

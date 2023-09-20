@@ -140,6 +140,7 @@ func NewNodeGenesis(txSystem txsystem.TransactionSystem, opts ...GenesisOption) 
 			RoundNumber:  pg.PartitionRoundNumber,
 			SummaryValue: summaryValue,
 		},
+		RootRoundNumber: pg.RootRoundNumber,
 	}
 	err = blockCertificationRequest.Sign(c.signer)
 	if err != nil {

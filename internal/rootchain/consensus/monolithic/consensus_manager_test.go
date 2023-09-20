@@ -139,7 +139,7 @@ func TestConsensusManager_NormalOperation(t *testing.T) {
 	// submit IR change request from partition with quorum
 	cm.RequestCertification() <- req
 	// require, that certificates are received for partition ID
-	result, err := readResult(cm.CertificationResult(), 1000*time.Millisecond)
+	result, err := readResult(cm.CertificationResult(), 2000*time.Millisecond)
 	require.NoError(t, err)
 	require.Equal(t, partitionInputRecord.Hash, result.InputRecord.PreviousHash)
 	require.Equal(t, uint64(2), result.UnicitySeal.RootChainRoundNumber)

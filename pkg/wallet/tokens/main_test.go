@@ -319,9 +319,13 @@ func TestNewTypes(t *testing.T) {
 		_, err = tw.NewFungibleType(context.Background(), 1, b, nil, nil)
 		require.ErrorContains(t, err, "parent type requires 0 decimal places, got 2")
 
-		//check typeId validation
+		//check typeId length validation
 		_, err = tw.NewFungibleType(context.Background(), 1, a, []byte{2}, nil)
-		require.ErrorContains(t, err, "invalid token type ID")
+		require.ErrorContains(t, err, "invalid token type ID: expected hex length is 66 characters (33 bytes)")
+
+		//check typeId unit type validation
+		_, err = tw.NewFungibleType(context.Background(), 1, a, make([]byte, tokens.UnitIDLength), nil)
+		require.ErrorContains(t, err, "invalid token type ID: expected unit type is 0x20")
 
 		//check typeId generation if typeId parameter is nil
 		result, _ = tw.NewFungibleType(context.Background(), 1, a, nil, nil)
@@ -352,9 +356,13 @@ func TestNewTypes(t *testing.T) {
 		require.Equal(t, a.Icon.Type, newNFTTx.Icon.Type)
 		require.Equal(t, a.Icon.Data, newNFTTx.Icon.Data)
 
-		//check typeId validation
+		//check typeId length validation
 		_, err = tw.NewNonFungibleType(context.Background(), 1, a, []byte{2}, nil)
-		require.ErrorContains(t, err, "invalid token type ID")
+		require.ErrorContains(t, err, "invalid token type ID: expected hex length is 66 characters (33 bytes)")
+
+		//check typeId unit type validation
+		_, err = tw.NewNonFungibleType(context.Background(), 1, a, make([]byte, tokens.UnitIDLength), nil)
+		require.ErrorContains(t, err, "invalid token type ID: expected unit type is 0x22")
 
 		//check typeId generation if typeId parameter is nil
 		result, _ = tw.NewNonFungibleType(context.Background(), 1, a, nil, nil)

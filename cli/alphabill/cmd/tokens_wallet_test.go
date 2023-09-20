@@ -461,7 +461,7 @@ func ensureTokenTypeIndexed(t *testing.T, ctx context.Context, api *client.Token
 
 func createTokensPartition(t *testing.T) *testpartition.NodePartition {
 	tokensState := state.NewEmptyState()
-	network, err := testpartition.NewPartition(1,
+	network, err := testpartition.NewPartition(t, 1,
 		func(tb map[string]abcrypto.Verifier) txsystem.TransactionSystem {
 			system, err := tokens.NewTxSystem(
 				tokens.WithState(tokensState),

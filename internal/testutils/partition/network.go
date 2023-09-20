@@ -7,11 +7,14 @@ import (
 	"crypto/rand"
 	"errors"
 	"fmt"
+	"path/filepath"
 	"reflect"
 	"sort"
+	"testing"
 	"time"
 
 	"github.com/alphabill-org/alphabill/internal/crypto"
+	"github.com/alphabill-org/alphabill/internal/keyvaluedb/boltdb"
 	"github.com/alphabill-org/alphabill/internal/network"
 	p "github.com/alphabill-org/alphabill/internal/network/protocol"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
@@ -27,6 +30,7 @@ import (
 	libp2pcrypto "github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/multiformats/go-multiaddr"
+	"github.com/stretchr/testify/require"
 )
 
 const rootValidatorNodes = 1
@@ -48,19 +52,22 @@ type NodePartition struct {
 	systemId         []byte
 	partitionGenesis *genesis.PartitionGenesis
 	txSystemFunc     func(trustBase map[string]crypto.Verifier) txsystem.TransactionSystem
+	ctx              context.Context
+	tb               map[string]crypto.Verifier
 	Nodes            []*partitionNode
 }
 
 type partitionNode struct {
 	*partition.Node
+	dbFile       string
 	nodePeer     *network.Peer
 	signer       crypto.Signer
 	genesis      *genesis.PartitionNode
 	EventHandler *testevent.TestEventHandler
-
-	AddrGRPC string
-	cancel   context.CancelFunc
-	done     chan error
+	confOpts     []partition.NodeOption
+	AddrGRPC     string
+	cancel       context.CancelFunc
+	done         chan error
 }
 
 type rootNode struct {
@@ -70,15 +77,6 @@ type rootNode struct {
 	genesis    *genesis.RootGenesis
 	id         peer.ID
 	addr       multiaddr.Multiaddr
-}
-
-func (pn *partitionNode) Stop() error {
-	if err := pn.nodePeer.Close(); err != nil {
-		return err
-	}
-
-	pn.cancel()
-	return <-pn.done
 }
 
 // getGenesisFiles is a helper function to collect all node genesis files
@@ -202,7 +200,7 @@ func (r *RootPartition) start(ctx context.Context) error {
 	return nil
 }
 
-func NewPartition(nodeCount int, txSystemProvider func(trustBase map[string]crypto.Verifier) txsystem.TransactionSystem, systemIdentifier []byte) (abPartition *NodePartition, err error) {
+func NewPartition(t *testing.T, nodeCount int, txSystemProvider func(trustBase map[string]crypto.Verifier) txsystem.TransactionSystem, systemIdentifier []byte) (abPartition *NodePartition, err error) {
 	ctx, ctxCancel := context.WithCancel(context.Background())
 	defer func() {
 		if err != nil {
@@ -247,42 +245,35 @@ func NewPartition(nodeCount int, txSystemProvider func(trustBase map[string]cryp
 			genesis:  nodeGenesis,
 			nodePeer: peer,
 			signer:   signer,
+			dbFile:   filepath.Join(t.TempDir(), "blocks.db"),
 		}
 	}
 	return abPartition, nil
 }
 
-func (n *NodePartition) start(ctx context.Context, rootID peer.ID, rootAddr multiaddr.Multiaddr) error {
+func (n *NodePartition) start(t *testing.T, ctx context.Context, rootID peer.ID, rootAddr multiaddr.Multiaddr) error {
+	n.ctx = ctx
 	// start Nodes
 	trustBase, err := genesis.NewValidatorTrustBase(n.partitionGenesis.RootValidators)
 	if err != nil {
 		return fmt.Errorf("failed to extract root trust base from genesis file, %w", err)
 	}
+	n.tb = trustBase
 
 	for _, nd := range n.Nodes {
-		pn, err := network.NewLibP2PValidatorNetwork(nd.nodePeer, network.DefaultValidatorNetOptions)
+		nd.EventHandler = &testevent.TestEventHandler{}
+		blockStore, err := boltdb.New(nd.dbFile)
 		if err != nil {
 			return err
 		}
-		nd.EventHandler = &testevent.TestEventHandler{}
-		node, err := partition.New(
-			nd.nodePeer,
-			nd.signer,
-			n.txSystemFunc(trustBase),
-			n.partitionGenesis,
-			pn,
-			partition.WithRootAddressAndIdentifier(rootAddr, rootID),
+		t.Cleanup(func() { require.NoError(t, blockStore.Close()) })
+		nd.confOpts = append(nd.confOpts, partition.WithRootAddressAndIdentifier(rootAddr, rootID),
 			partition.WithEventHandler(nd.EventHandler.HandleEvent, 100),
-		)
-		if err != nil {
-			return fmt.Errorf("failed to start partition, %w", err)
-		}
+			partition.WithBlockStore(blockStore))
 
-		nctx, ncfn := context.WithCancel(ctx)
-		nd.Node = node
-		nd.cancel = ncfn
-		nd.done = make(chan error, 1)
-		go func(ec chan error) { ec <- node.Run(nctx) }(nd.done)
+		if err = n.startNode(nd); err != nil {
+			return err
+		}
 	}
 
 	for _, nd := range n.Nodes {
@@ -291,6 +282,66 @@ func (n *NodePartition) start(ctx context.Context, rootID peer.ID, rootAddr mult
 		}
 	}
 	return nil
+}
+
+func (n *NodePartition) startNode(pn *partitionNode) error {
+	pnet, err := network.NewLibP2PValidatorNetwork(pn.nodePeer, network.DefaultValidatorNetOptions)
+	if err != nil {
+		return fmt.Errorf("failed to start the node, %w", err)
+	}
+
+	node, err := partition.New(
+		pn.nodePeer,
+		pn.signer,
+		n.txSystemFunc(n.tb),
+		n.partitionGenesis,
+		pnet,
+		pn.confOpts...,
+	)
+	if err != nil {
+		return fmt.Errorf("failed to resume node, %w", err)
+	}
+	nctx, ncfn := context.WithCancel(n.ctx)
+	pn.Node = node
+	pn.cancel = ncfn
+	pn.done = make(chan error, 1)
+	go func(ec chan error) { ec <- node.Run(nctx) }(pn.done)
+	return nil
+}
+
+func (n *NodePartition) ResumeNode(nodeIdx int) error {
+	if len(n.Nodes) <= nodeIdx {
+		return fmt.Errorf("node index out of range")
+	}
+	pn := n.Nodes[nodeIdx]
+	fmt.Printf("Resuming node #%d, id: %s\n", nodeIdx, pn.nodePeer.String())
+	// re-create Peer
+	newPeer, err := network.NewPeer(n.ctx, pn.nodePeer.Configuration())
+	if err != nil {
+		return fmt.Errorf("failed to resume node, %w", err)
+	}
+	pn.nodePeer = newPeer
+	if err = n.startNode(pn); err != nil {
+		return err
+	}
+	if err = assertConnections(pn.nodePeer, len(n.Nodes)); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (n *NodePartition) StopNode(nodeIdx int) error {
+	fmt.Printf("Stopping node #%d, id: %s\n", nodeIdx, n.Nodes[nodeIdx].nodePeer.String())
+	return n.Nodes[nodeIdx].Stop()
+}
+
+func (pn *partitionNode) Stop() error {
+	if err := pn.nodePeer.Close(); err != nil {
+		return err
+	}
+
+	pn.cancel()
+	return <-pn.done
 }
 
 func NewAlphabillPartition(nodePartitions []*NodePartition) (*AlphabillNetwork, error) {
@@ -312,7 +363,7 @@ func NewAlphabillPartition(nodePartitions []*NodePartition) (*AlphabillNetwork, 
 	}, nil
 }
 
-func (a *AlphabillNetwork) Start() error {
+func (a *AlphabillNetwork) Start(t *testing.T) error {
 	// create context
 	ctx, ctxCancel := context.WithCancel(context.Background())
 	if err := a.RootPartition.start(ctx); err != nil {
@@ -321,7 +372,7 @@ func (a *AlphabillNetwork) Start() error {
 	}
 	for id, part := range a.NodePartitions {
 		// create one event handler per partition
-		if err := part.start(ctx, a.RootPartition.Nodes[0].id, a.RootPartition.Nodes[0].addr); err != nil {
+		if err := part.start(t, ctx, a.RootPartition.Nodes[0].id, a.RootPartition.Nodes[0].addr); err != nil {
 			ctxCancel()
 			return fmt.Errorf("failed to start partition %X, %w", id.Bytes(), err)
 		}
@@ -509,7 +560,7 @@ func assertConnections(p *network.Peer, count int) error {
 			tick = nil
 			go func() {
 				ch <- func() bool {
-					return p.Network().Peerstore().Peers().Len() >= count
+					return len(p.Network().Peers()) >= count
 				}()
 			}()
 		case v := <-ch:

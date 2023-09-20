@@ -14,7 +14,7 @@ import (
 var systemIdentifier = []byte{1, 2, 4, 1}
 
 func TestNewNetwork_Ok(t *testing.T) {
-	counterPartition, err := NewPartition(3,
+	counterPartition, err := NewPartition(t, 3,
 		func(_ map[string]crypto.Verifier) txsystem.TransactionSystem {
 			return &testtxsystem.CounterTxSystem{}
 		},
@@ -22,7 +22,7 @@ func TestNewNetwork_Ok(t *testing.T) {
 	require.NoError(t, err)
 	abNetwork, err := NewAlphabillPartition([]*NodePartition{counterPartition})
 	require.NoError(t, err)
-	require.NoError(t, abNetwork.Start())
+	require.NoError(t, abNetwork.Start(t))
 	defer func() {
 		err = abNetwork.Close()
 		require.NoError(t, err)

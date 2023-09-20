@@ -80,9 +80,10 @@ func (t transientStorage) Get(addr common.Address, key common.Hash) common.Hash 
 
 func NewStateDB(tree *state.State) *StateDB {
 	return &StateDB{
-		tree:       tree,
-		accessList: newAccessList(),
-		journal:    newJournal(),
+		tree:             tree,
+		accessList:       newAccessList(),
+		journal:          newJournal(),
+		transientStorage: newTransientStorage(),
 	}
 }
 
@@ -101,7 +102,7 @@ func (s *StateDB) CreateAccount(address common.Address) {
 		&StateObject{Address: address, Account: &Account{Nonce: 0, Balance: big.NewInt(0), CodeHash: emptyCodeHash}, Storage: map[common.Hash]common.Hash{}},
 	))
 	if s.errDB == nil {
-		s.journal.append(&address)
+		s.journal.append(accountChange{account: &address})
 	}
 }
 
@@ -212,10 +213,12 @@ func (s *StateDB) GetCodeSize(address common.Address) int {
 }
 
 func (s *StateDB) AddRefund(gas uint64) {
+	s.journal.append(refundChange{prev: s.refund})
 	s.refund += gas
 }
 
 func (s *StateDB) SubRefund(gas uint64) {
+	s.journal.append(refundChange{prev: s.refund})
 	if gas > s.refund {
 		panic(fmt.Sprintf("Refund counter below zero (gas: %d > refund: %d)", gas, s.refund))
 	}
@@ -264,7 +267,15 @@ func (s *StateDB) GetTransientState(addr common.Address, key common.Hash) common
 // adds the change to the journal so that it can be rolled back
 // to its previous value if there is a revert.
 func (s *StateDB) SetTransientState(addr common.Address, key, value common.Hash) {
-	//Todo: AB-1187 add support for transient storage
+	prev := s.GetTransientState(addr, key)
+	if prev == value {
+		return
+	}
+	s.journal.append(transientStorageChange{
+		account:  &addr,
+		key:      key,
+		prevalue: prev,
+	})
 	s.transientStorage.Set(addr, key, value)
 }
 
@@ -341,7 +352,6 @@ func (s *StateDB) Prepare(rules params.Rules, sender, coinbase common.Address, d
 			}
 		*/
 	}
-	// Todo: AB-1187 Reset transient storage at the beginning of transaction execution
 	s.transientStorage = newTransientStorage()
 }
 
@@ -370,7 +380,7 @@ func (s *StateDB) RevertToSnapshot(i int) {
 	// remove reverted units
 	for idx, rev := range s.revisions {
 		if rev.id >= i {
-			s.journal.revert(rev.journalIdx)
+			s.journal.revert(s, rev.journalIdx)
 			s.revisions = s.revisions[:idx]
 			return
 		}
@@ -503,6 +513,6 @@ func (s *StateDB) executeUpdate(id types.UnitID, updateFunc func(so *StateObject
 		return err
 	}
 	addr := common.BytesToAddress(id)
-	s.journal.append(&addr)
+	s.journal.append(accountChange{account: &addr})
 	return nil
 }

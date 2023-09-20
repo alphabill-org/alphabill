@@ -292,7 +292,7 @@ func TestStateDB_AddLog(t *testing.T) {
 	require.Len(t, db.GetLogs(), 0)
 }
 
-func TestStateDB_Suicide(t *testing.T) {
+func TestStateDB_SelfDestruct(t *testing.T) {
 	db := NewStateDB(initState(t))
 
 	db.SelfDestruct(common.BytesToAddress(test.RandomBytes(20)))
@@ -309,6 +309,28 @@ func TestStateDB_Suicide(t *testing.T) {
 	u, err := db.tree.GetUnit(initialAccountAddress.Bytes(), false)
 	require.ErrorContains(t, err, "not found")
 	require.Nil(t, u)
+}
+
+func TestStateDB_TransientStorage(t *testing.T) {
+	db := NewStateDB(initState(t))
+	addr := common.BytesToAddress(test.RandomBytes(20))
+	var key, val common.Hash
+	key.SetBytes([]byte{1, 2, 3})
+	val.SetBytes([]byte{5, 6, 7})
+	db.SetTransientState(addr, key, val)
+	storedVal := db.GetTransientState(addr, key)
+	require.EqualValues(t, val, storedVal)
+}
+
+func TestStateDB_RefundAndRevert(t *testing.T) {
+	db := NewStateDB(initState(t))
+	db.AddRefund(10)
+	snapID1 := db.Snapshot()
+	db.SubRefund(5)
+	db.AddRefund(10)
+	require.EqualValues(t, 15, db.refund)
+	db.RevertToSnapshot(snapID1)
+	require.EqualValues(t, 10, db.refund)
 }
 
 func TestStateDB_RevertSnapshot(t *testing.T) {
@@ -331,7 +353,7 @@ func TestStateDB_RevertSnapshot(t *testing.T) {
 	require.Equal(t, []byte(nil), s.GetCode(initialAccountAddress))
 	require.Equal(t, common.Hash{}, s.GetState(initialAccountAddress, common.BigToHash(big.NewInt(1))))
 }
-
+	
 func TestStateDB_RevertSnapshot2(t *testing.T) {
 	s := NewStateDB(initState(t))
 	snapID := s.Snapshot()

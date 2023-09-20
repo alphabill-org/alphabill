@@ -67,13 +67,16 @@ func addFeeCreditTx(s *state.State, hashAlgorithm crypto.Hash, calcFee FeeCalcul
 		}
 		v := transferFc.Amount - fee
 		// if unit exists update balance and alphabill free credit link data
-		var updateFunc state.Action
+		var action []state.Action
 		if u == nil {
-			updateFunc = statedb.CreateAccountAndAddCredit(address, attr.FeeCreditOwnerCondition, alphaToWei(v), transferFc.LatestAdditionTime+1, tx.Hash(hashAlgorithm))
+			action = append(action, statedb.CreateAccountAndAddCredit(address, attr.FeeCreditOwnerCondition, alphaToWei(v), transferFc.LatestAdditionTime+1, tx.Hash(hashAlgorithm)))
 		} else {
-			updateFunc = statedb.UpdateEthAccountAddCredit(unitID, alphaToWei(v), transferFc.LatestAdditionTime+1, tx.Hash(hashAlgorithm))
+			// update account balance and AB FCR bill backlink and timeout
+			action = append(action, statedb.UpdateEthAccountAddCredit(unitID, alphaToWei(v), transferFc.LatestAdditionTime+1, tx.Hash(hashAlgorithm)))
+			// also update owner condition as the account may have been created by a transfer or smart contract without one
+			action = append(action, state.SetOwner(unitID, attr.FeeCreditOwnerCondition))
 		}
-		if err = s.Apply(updateFunc); err != nil {
+		if err = s.Apply(action...); err != nil {
 			return nil, fmt.Errorf("addFC state update failed: %w", err)
 		}
 		return &types.ServerMetadata{ActualFee: fee, TargetUnits: []types.UnitID{unitID}, SuccessIndicator: types.TxStatusSuccessful}, nil

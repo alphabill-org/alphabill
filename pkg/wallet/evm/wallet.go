@@ -36,6 +36,15 @@ func ConvertBalanceToAlpha(eth *big.Int) uint64 {
 }
 
 func New(systemID []byte, restUrl string, am account.Manager) (*Wallet, error) {
+	if systemID == nil {
+		return nil, fmt.Errorf("system id is nil")
+	}
+	if len(restUrl) == 0 {
+		return nil, fmt.Errorf("rest url is empty")
+	}
+	if am == nil {
+		return nil, fmt.Errorf("account manager is nil")
+	}
 	if !strings.HasPrefix(restUrl, "http://") && !strings.HasPrefix(restUrl, "https://") {
 		restUrl = "http://" + restUrl
 	}
@@ -60,7 +69,7 @@ func (w *Wallet) SendEvmTx(ctx context.Context, accNr uint64, attrs *evmclient.T
 	}
 	acc, err := w.am.GetAccountKey(accNr - 1)
 	if err != nil {
-		return nil, fmt.Errorf("account key read faild: %w", err)
+		return nil, fmt.Errorf("account key read failed: %w", err)
 	}
 	from, err := generateAddress(acc.PubKey)
 	if err != nil {
@@ -114,7 +123,7 @@ func (w *Wallet) EvmCall(ctx context.Context, accNr uint64, attrs *evmclient.Cal
 	}
 	acc, err := w.am.GetAccountKey(accNr - 1)
 	if err != nil {
-		return nil, fmt.Errorf("account key read faild: %w", err)
+		return nil, fmt.Errorf("account key read failed: %w", err)
 	}
 	from, err := generateAddress(acc.PubKey)
 	attrs.From = from.Bytes()
@@ -135,7 +144,7 @@ func (w *Wallet) GetBalance(ctx context.Context, accNr uint64) (*big.Int, error)
 	}
 	acc, err := w.am.GetAccountKey(accNr - 1)
 	if err != nil {
-		return nil, fmt.Errorf("account key read faild: %w", err)
+		return nil, fmt.Errorf("account key read failed: %w", err)
 	}
 	from, err := generateAddress(acc.PubKey)
 	balanceStr, _, err := w.restCli.GetBalance(ctx, from.Bytes())

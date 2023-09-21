@@ -97,13 +97,13 @@ func Test_closeFeeCreditTxExecFn(t *testing.T) {
 		{
 			name:       "err - attr:nil - amount is 0 and not 98",
 			args:       args{order: newCloseFCTx(t, privKeyHash, nil, signer, 7), blockNumber: 5},
-			wantErrStr: "closeFC: tx validation failed: invalid amount: amount=0 fcr.Balance=98",
+			wantErrStr: "closeFC: tx validation failed: invalid amount: amount=0 fcr.Balance=97",
 		},
 		{
 			name: "err - no unit (no credit has been added)",
 			args: args{order: newCloseFCTx(t,
 				test.RandomBytes(32),
-				testfc.NewCloseFCAttr(testfc.WithCloseFCAmount(uint64(98)),
+				testfc.NewCloseFCAttr(testfc.WithCloseFCAmount(uint64(97)),
 					testfc.WithCloseFCTargetUnitID(privKeyHash), testfc.WithCloseFCTargetUnitBacklink(backlink)),
 				signer,
 				7,

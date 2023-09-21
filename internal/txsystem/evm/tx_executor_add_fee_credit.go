@@ -65,7 +65,7 @@ func addFeeCreditTx(s *state.State, hashAlgorithm crypto.Hash, calcFee FeeCalcul
 		if err != nil {
 			return nil, err
 		}
-		v := transferFc.Amount - fee
+		v := transferFc.Amount - attr.FeeCreditTransfer.ServerMetadata.ActualFee - fee
 		// if unit exists update balance and alphabill free credit link data
 		var action []state.Action
 		if u == nil {

@@ -197,6 +197,7 @@ func Test_getTransferPayloadAttributes(t *testing.T) {
 }
 
 func Test_addFeeCreditTxAndUpdate(t *testing.T) {
+	const transferFcFee = 1
 	stateTree := state.NewEmptyState()
 	signer, ver := testsig.CreateSignerAndVerifier(t)
 	tb := map[string]abcrypto.Verifier{"test": ver}
@@ -215,7 +216,7 @@ func Test_addFeeCreditTxAndUpdate(t *testing.T) {
 			&types.TransactionRecord{
 				TransactionOrder: testfc.NewTransferFC(t, testfc.NewTransferFCAttr(testfc.WithAmount(100), testfc.WithTargetRecordID(privKeyHash), testfc.WithTargetSystemID(DefaultEvmTxSystemIdentifier)),
 					testtransaction.WithSystemID([]byte{0, 0, 0, 0}), testtransaction.WithOwnerProof(script.PredicatePayToPublicKeyHashDefault(pubHash[:]))),
-				ServerMetadata: &types.ServerMetadata{ActualFee: 1},
+				ServerMetadata: &types.ServerMetadata{ActualFee: transferFcFee},
 			})),
 		signer, 7)
 	attr := new(transactions.AddFeeCreditAttributes)
@@ -229,8 +230,10 @@ func Test_addFeeCreditTxAndUpdate(t *testing.T) {
 	addr, err := generateAddress(pubKeyBytes)
 	require.NoError(t, err)
 	balance := stateDB.GetBalance(addr)
-	// balance is equal to 100-"fee = 2" to wei
-	require.EqualValues(t, balance, new(big.Int).Sub(alphaToWei(100), alphaToWei(evmTestFeeCalculator())))
+	// balance is equal to 100 - "transfer fee" - "add fee" to wei
+	remainingCredit := new(big.Int).Sub(alphaToWei(100), alphaToWei(transferFcFee))
+	remainingCredit = new(big.Int).Sub(remainingCredit, alphaToWei(evmTestFeeCalculator()))
+	require.EqualValues(t, balance, remainingCredit)
 	abData := stateDB.GetAlphaBillData(addr)
 
 	// add more funds
@@ -240,13 +243,16 @@ func Test_addFeeCreditTxAndUpdate(t *testing.T) {
 			&types.TransactionRecord{
 				TransactionOrder: testfc.NewTransferFC(t, testfc.NewTransferFCAttr(testfc.WithAmount(10), testfc.WithTargetRecordID(privKeyHash), testfc.WithTargetSystemID(DefaultEvmTxSystemIdentifier), testfc.WithTargetUnitBacklink(abData.TxHash)),
 					testtransaction.WithSystemID([]byte{0, 0, 0, 0}), testtransaction.WithOwnerProof(script.PredicatePayToPublicKeyHashDefault(pubHash[:]))),
-				ServerMetadata: &types.ServerMetadata{ActualFee: 1},
+				ServerMetadata: &types.ServerMetadata{ActualFee: transferFcFee},
 			})),
 		signer, 7)
 	require.NoError(t, addFeeOrder.UnmarshalAttributes(attr))
 	metaData, err = addExecFn(addFeeOrder, attr, 5)
+	remainingCredit = new(big.Int).Add(remainingCredit, alphaToWei(10))
 	require.NoError(t, err)
 	balance = stateDB.GetBalance(addr)
-	// balance is equal to 100-"fee = 2" to wei
-	require.EqualValues(t, balance, new(big.Int).Sub(alphaToWei(110), alphaToWei(2*evmTestFeeCalculator())))
+	// balance is equal to remaining+10-"transfer fee 1" -"ass fee = 2" to wei
+	remainingCredit = new(big.Int).Sub(remainingCredit, alphaToWei(transferFcFee))
+	remainingCredit = new(big.Int).Sub(remainingCredit, alphaToWei(evmTestFeeCalculator()))
+	require.EqualValues(t, balance, remainingCredit)
 }

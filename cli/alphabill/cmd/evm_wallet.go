@@ -118,8 +118,9 @@ func evmCmdCall(config *walletConfig) *cobra.Command {
 
 func evmCmdBalance(config *walletConfig) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "balance",
-		Short: "get account balance",
+		Use:    "balance",
+		Short:  "get account balance",
+		Hidden: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return execEvmCmdBalance(cmd, config)
 		},

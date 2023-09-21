@@ -64,7 +64,7 @@ func evmCmdExecute(config *walletConfig) *cobra.Command {
 		Long: "Executes smart contract call by sending a transaction on the block chain." +
 			"State changes are not persisted and result is stored in block chain",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return execEvmCmdInvoke(cmd, config)
+			return execEvmCmdExecute(cmd, config)
 		},
 	}
 	// account from which to call - pay for the transaction
@@ -198,7 +198,7 @@ func execEvmCmdDeploy(cmd *cobra.Command, config *walletConfig) error {
 	return nil
 }
 
-func execEvmCmdInvoke(cmd *cobra.Command, config *walletConfig) error {
+func execEvmCmdExecute(cmd *cobra.Command, config *walletConfig) error {
 	accountNumber, err := cmd.Flags().GetUint64(keyCmdName)
 	if err != nil {
 		return fmt.Errorf("key parameter read failed: %w", err)

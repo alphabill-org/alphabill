@@ -311,6 +311,20 @@ func TestStateDB_Suicide(t *testing.T) {
 	require.Nil(t, u)
 }
 
+func TestStateDB_SelfDestruct6780(t *testing.T) {
+	db := NewStateDB(initState(t))
+	db.Selfdestruct6780(initialAccountAddress)
+	require.True(t, db.Exist(initialAccountAddress))
+	require.False(t, db.HasSelfDestructed(initialAccountAddress))
+	// add a new account and call self-destruct immediately
+	newAddr := common.BytesToAddress(test.RandomBytes(20))
+	db.CreateAccount(newAddr)
+	db.AddBalance(newAddr, big.NewInt(10000))
+	db.Selfdestruct6780(newAddr)
+	require.True(t, db.Exist(newAddr))
+	require.True(t, db.HasSelfDestructed(newAddr))
+}
+
 func TestStateDB_RevertSnapshot(t *testing.T) {
 	s := NewStateDB(initState(t))
 	snapID := s.Snapshot()
@@ -444,5 +458,6 @@ func initState(t *testing.T) *state.State {
 	_, _, err := s.CalculateRoot()
 	require.NoError(t, err)
 	require.NoError(t, s.Commit())
+	require.NoError(t, db.Finalize())
 	return s
 }

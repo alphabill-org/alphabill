@@ -323,6 +323,9 @@ func TestStateDB_SelfDestruct6780(t *testing.T) {
 	db.Selfdestruct6780(newAddr)
 	require.True(t, db.Exist(newAddr))
 	require.True(t, db.HasSelfDestructed(newAddr))
+	require.NoError(t, db.Finalize())
+	require.False(t, db.Exist(newAddr))
+	require.True(t, db.Exist(initialAccountAddress))
 }
 
 func TestStateDB_RevertSnapshot(t *testing.T) {

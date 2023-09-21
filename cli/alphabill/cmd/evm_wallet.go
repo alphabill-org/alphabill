@@ -30,15 +30,16 @@ func evmCmd(config *walletConfig) *cobra.Command {
 	cmd.AddCommand(evmCmdExecute(config))
 	cmd.AddCommand(evmCmdCall(config))
 	cmd.AddCommand(evmCmdBalance(config))
-	cmd.PersistentFlags().StringP(alphabillApiURLCmdName, "r", defaultEvmNodeRestURL, "alphabill EVM partition node uri to connect to")
-	cmd.PersistentFlags().StringP(waitForConfCmdName, "w", "true", "waits for transaction confirmation on the blockchain, otherwise just broadcasts the transaction")
+	cmd.PersistentFlags().StringP(alphabillApiURLCmdName, "r", defaultEvmNodeRestURL, "alphabill EVM partition node REST URI to connect to")
 	return cmd
 }
 
 func evmCmdDeploy(config *walletConfig) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "deploy",
-		Short: "deploys a new smart contract on evm partition",
+		Short: "deploys a new smart contract on evm partition by sending a transaction on the block chain",
+		Long: "Executes smart contract deployment by sending a transaction on the block chain." +
+			"On success the new smart contract address is printed as result and it can be used to execute/call smart contract functions",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return execEvmCmdDeploy(cmd, config)
 		},
@@ -61,9 +62,11 @@ func evmCmdDeploy(config *walletConfig) *cobra.Command {
 func evmCmdExecute(config *walletConfig) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "execute",
-		Short: "invoke smart contract and persist state change",
+		Short: "executes smart contract call by sending a transaction on the block chain",
+		Long: "Executes smart contract call by sending a transaction on the block chain." +
+			"State changes are persisted and result is stored in block chain",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return execEvmCmdInvoke(cmd, config)
+			return execEvmCmdExecute(cmd, config)
 		},
 	}
 	// account from which to call - pay for the transaction
@@ -89,7 +92,9 @@ func evmCmdExecute(config *walletConfig) *cobra.Command {
 func evmCmdCall(config *walletConfig) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "call",
-		Short: "calls smart contract, state changes are not persisted",
+		Short: "executes a smart contract call immediately without creating a transaction on the block chain",
+		Long: "Executes a smart contract call immediately without creating a transaction on the block chain." +
+			"State changes are not persisted and nothing is added to the block. Often used for executing read-only smart contract functions.",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return execEvmCmdCall(cmd, config)
 		},
@@ -195,7 +200,7 @@ func execEvmCmdDeploy(cmd *cobra.Command, config *walletConfig) error {
 	return nil
 }
 
-func execEvmCmdInvoke(cmd *cobra.Command, config *walletConfig) error {
+func execEvmCmdExecute(cmd *cobra.Command, config *walletConfig) error {
 	accountNumber, err := cmd.Flags().GetUint64(keyCmdName)
 	if err != nil {
 		return fmt.Errorf("key parameter read failed: %w", err)

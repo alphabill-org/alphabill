@@ -38,6 +38,8 @@ func evmCmdDeploy(config *walletConfig) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "deploy",
 		Short: "deploys a new smart contract on evm partition by sending a transaction on the block chain",
+		Long: "Executes smart contract call by sending a transaction on the block chain." +
+			"On success the new smart contract address is printed as result and it can be used to execute/call smart contract functions",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return execEvmCmdDeploy(cmd, config)
 		},
@@ -62,7 +64,7 @@ func evmCmdExecute(config *walletConfig) *cobra.Command {
 		Use:   "execute",
 		Short: "executes smart contract call by sending a transaction on the block chain",
 		Long: "Executes smart contract call by sending a transaction on the block chain." +
-			"State changes are not persisted and result is stored in block chain",
+			"State changes are persisted and result is stored in block chain",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return execEvmCmdExecute(cmd, config)
 		},

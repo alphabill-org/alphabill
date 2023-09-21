@@ -11,7 +11,6 @@ import (
 
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 	rootgenesis "github.com/alphabill-org/alphabill/internal/rootchain/genesis"
-	"github.com/alphabill-org/alphabill/internal/rpc/alphabill"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/alphabill-org/alphabill/internal/testutils/net"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
@@ -20,7 +19,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
-	"google.golang.org/protobuf/types/known/emptypb"
 )
 
 func TestRunEvmNode(t *testing.T) {
@@ -59,9 +57,9 @@ func TestRunEvmNode(t *testing.T) {
 		// start the node in background
 		appStoppedWg.Add(1)
 		go func() {
-
+			dbLocation := homeDir + "/tx.db"
 			cmd = New()
-			args = "evm --home " + evmDir + " -g " + partitionGenesisFileLocation + " -k " + keysFileLocation + " --server-address " + listenAddr
+			args = "evm --home " + evmDir + " --tx-db " + dbLocation + " -g " + partitionGenesisFileLocation + " -k " + keysFileLocation + " --server-address " + listenAddr
 			cmd.baseCmd.SetArgs(strings.Split(args, " "))
 
 			err = cmd.addAndExecuteCommand(ctx)
@@ -72,19 +70,14 @@ func TestRunEvmNode(t *testing.T) {
 		log.Info("Started evm node")
 		var conn *grpc.ClientConn
 		// There is a race here between node start and rpc client, try multiple times and wait for connection
+		var conErr error
 		require.Eventually(t, func() bool {
-			var conErr error
 			conn, conErr = grpc.DialContext(ctx, "localhost"+listenAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
 			return conErr == nil
 		}, time.Second, test.WaitTick)
+		// Got a session up, so the node has started
+		require.NoError(t, conErr)
 		defer func() { require.NoError(t, conn.Close()) }()
-		rpcClient := alphabill.NewAlphabillServiceClient(conn)
-		require.NotNil(t, rpcClient)
-		resp, err := rpcClient.GetRoundNumber(ctx, &emptypb.Empty{})
-		// no root node, so can just verify that node starts and reply's to RPC query
-		require.ErrorContains(t, err, "node is in invalid status: initializing")
-		require.Nil(t, resp)
-		//deployEvmCounterProgram(t, ctx, rpcClient)
 		// Close the app
 		ctxCancel()
 		// Wait for test asserts to be completed

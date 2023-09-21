@@ -335,7 +335,7 @@ func NewAlphabillNetwork(t *testing.T) *AlphabillNetwork {
 	defer moneyWallet.Close()
 
 	tokenTxPublisher := tokenswallet.NewTxPublisher(tokenBackendClient)
-	tokenFeeManager := fees.NewFeeManager(am, unitLocker, money.DefaultSystemIdentifier, moneyWallet, moneyBackendClient, tokens.DefaultSystemIdentifier, tokenTxPublisher, tokenBackendClient)
+	tokenFeeManager := fees.NewFeeManager(am, unitLocker, money.DefaultSystemIdentifier, moneyWallet, moneyBackendClient, tokens.DefaultSystemIdentifier, tokenTxPublisher, tokenBackendClient, tokenswallet.FeeCreditRecordIDFromPublicKey)
 	defer tokenFeeManager.Close()
 
 	w1, err := tokenswallet.New(tokens.DefaultSystemIdentifier, tokenBackendURL, am, true, tokenFeeManager)

@@ -12,7 +12,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/alphabill-org/alphabill/internal/txsystem/tokens"
 	"github.com/alphabill-org/alphabill/internal/types"
 	sdk "github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/alphabill-org/alphabill/pkg/wallet/tokens/backend"
@@ -51,10 +50,6 @@ func New(abAddr url.URL) *TokenBackend {
 		addr: abAddr,
 		hc:   &http.Client{Timeout: 10 * time.Second},
 	}
-}
-
-func (tb *TokenBackend) NewFeeCreditRecordID(shardPart, unitPart []byte) types.UnitID {
-	return tokens.NewFeeCreditRecordID(shardPart, unitPart)
 }
 
 func (tb *TokenBackend) GetToken(ctx context.Context, id backend.TokenID) (*backend.TokenUnit, error) {

@@ -6,7 +6,6 @@ import (
 	"github.com/alphabill-org/alphabill/internal/script"
 	"github.com/alphabill-org/alphabill/internal/state"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
-	"github.com/alphabill-org/alphabill/internal/txsystem/evm/statedb"
 	"github.com/alphabill-org/alphabill/internal/txsystem/fc/transactions"
 	"github.com/alphabill-org/alphabill/internal/types"
 )
@@ -24,12 +23,11 @@ func checkFeeAccountBalance(state *state.State) txsystem.GenericTransactionValid
 			if err != nil {
 				return fmt.Errorf("failed to extract address from public key bytes, %w", err)
 			}
-			stateDB := statedb.NewStateDB(state)
-			abFeeBillData := stateDB.GetAlphaBillData(addr)
-			if abFeeBillData == nil && ctx.Tx.PayloadType() == transactions.PayloadTypeCloseFeeCredit {
+			u, _ := state.GetUnit(addr.Bytes(), false)
+			if u == nil && ctx.Tx.PayloadType() == transactions.PayloadTypeCloseFeeCredit {
 				return fmt.Errorf("no fee credit info found for unit %X", ctx.Tx.UnitID())
 			}
-			if abFeeBillData == nil && ctx.Tx.PayloadType() == transactions.PayloadTypeAddFeeCredit {
+			if u == nil && ctx.Tx.PayloadType() == transactions.PayloadTypeAddFeeCredit {
 				// account creation
 				return nil
 			}
@@ -39,7 +37,7 @@ func checkFeeAccountBalance(state *state.State) txsystem.GenericTransactionValid
 				return fmt.Errorf("failed to marshal payload bytes: %w", err)
 			}
 
-			if err = script.RunScript(ctx.Tx.OwnerProof, abFeeBillData.Bearer, payloadBytes); err != nil {
+			if err = script.RunScript(ctx.Tx.OwnerProof, u.Bearer(), payloadBytes); err != nil {
 				return fmt.Errorf("invalid owner proof: %w", err)
 			}
 		}

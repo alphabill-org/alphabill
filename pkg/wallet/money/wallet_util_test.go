@@ -15,7 +15,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/alphabill-org/alphabill/internal/hash"
-	"github.com/alphabill-org/alphabill/internal/txsystem/money"
 	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/pkg/client/clientmock"
 	"github.com/alphabill-org/alphabill/pkg/wallet"
@@ -199,10 +198,6 @@ type backendAPIMock struct {
 	getFeeCreditBill     func(ctx context.Context, unitID []byte) (*wallet.Bill, error)
 	postTransactions     func(ctx context.Context, pubKey wallet.PubKey, txs *wallet.Transactions) error
 	newFeeCreditRecordID func(shardPart, unitPart []byte) types.UnitID
-}
-
-func (b *backendAPIMock) NewFeeCreditRecordID(shardPart, unitPart []byte) types.UnitID {
-	return money.NewFeeCreditRecordID(shardPart, unitPart)
 }
 
 func (b *backendAPIMock) GetBills(ctx context.Context, pubKey []byte) ([]*wallet.Bill, error) {

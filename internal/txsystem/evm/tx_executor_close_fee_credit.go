@@ -25,20 +25,23 @@ func closeFeeCreditTx(tree *state.State, calcFee FeeCalculator, validator *fc.De
 		if err != nil {
 			return nil, fmt.Errorf("failed to extract address from public key bytes, %w", err)
 		}
-		abFeeBillData := stateDB.GetAlphaBillData(addr)
-		var u *state.Unit = nil
-		if abFeeBillData != nil {
+		unitID := addr.Bytes()
+		u, _ := tree.GetUnit(unitID, false)
+		// hack to be able to use a common validator for now
+		var feeCreditRecordUnit *state.Unit = nil
+		if u != nil {
+			stateObj := u.Data().(*statedb.StateObject)
 			data := &unit.FeeCreditRecord{
-				Balance: weiToAlpha(stateDB.GetBalance(addr)),
-				Hash:    abFeeBillData.TxHash,
-				Timeout: abFeeBillData.Timeout,
+				Balance: weiToAlpha(stateObj.Account.Balance),
+				Hash:    stateObj.AlphaBill.TxHash,
+				Timeout: stateObj.AlphaBill.Timeout,
 			}
-			u = state.NewUnit(
-				abFeeBillData.Bearer,
+			feeCreditRecordUnit = state.NewUnit(
+				u.Bearer(),
 				data,
 			)
 		}
-		if err = validator.ValidateCloseFC(&fc.CloseFCValidationContext{Tx: tx, Unit: u}); err != nil {
+		if err = validator.ValidateCloseFC(&fc.CloseFCValidationContext{Tx: tx, Unit: feeCreditRecordUnit}); err != nil {
 			return nil, fmt.Errorf("closeFC: tx validation failed: %w", err)
 		}
 		// decrement credit

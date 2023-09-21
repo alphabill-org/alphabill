@@ -28,31 +28,33 @@ func getTransferPayloadAttributes(transfer *types.TransactionRecord) (*transacti
 func addFeeCreditTx(s *state.State, hashAlgorithm crypto.Hash, calcFee FeeCalculator, validator *fc.DefaultFeeCreditTxValidator) txsystem.GenericExecuteFunc[transactions.AddFeeCreditAttributes] {
 	return func(tx *types.TransactionOrder, attr *transactions.AddFeeCreditAttributes, currentBlockNumber uint64) (*types.ServerMetadata, error) {
 		log.Debug("Processing addFC %v", tx)
-		stateDB := statedb.NewStateDB(s)
 		pubKey, err := script.ExtractPubKeyFromPredicateArgument(tx.OwnerProof)
 		if err != nil {
 			return nil, fmt.Errorf("failed to extract public key from fee credit owner proof")
 		}
-		addr, err := generateAddress(pubKey)
+		address, err := generateAddress(pubKey)
 		if err != nil {
 			return nil, fmt.Errorf("failed to extract address from public key bytes, %w", err)
 		}
-		feeData := stateDB.GetAlphaBillData(addr)
+		// unit id is ethereum address
+		unitID := address.Bytes()
+		u, _ := s.GetUnit(unitID, false)
 		// hack to be able to use a common validator for now
-		var u *state.Unit = nil
-		if feeData != nil {
+		var feeCreditRecordUnit *state.Unit = nil
+		if u != nil {
+			stateObj := u.Data().(*statedb.StateObject)
 			data := &unit.FeeCreditRecord{
-				Balance: weiToAlpha(stateDB.GetBalance(addr)),
-				Hash:    feeData.TxHash,
-				Timeout: feeData.Timeout,
+				Balance: weiToAlpha(stateObj.Account.Balance),
+				Hash:    stateObj.AlphaBill.TxHash,
+				Timeout: stateObj.AlphaBill.Timeout,
 			}
-			u = state.NewUnit(
-				feeData.Bearer,
+			feeCreditRecordUnit = state.NewUnit(
+				u.Bearer(),
 				data)
 		}
 		if err = validator.ValidateAddFeeCredit(&fc.AddFCValidationContext{
 			Tx:                 tx,
-			Unit:               u,
+			Unit:               feeCreditRecordUnit,
 			CurrentRoundNumber: currentBlockNumber,
 		}); err != nil {
 			return nil, fmt.Errorf("addFC tx validation failed: %w", err)
@@ -64,16 +66,19 @@ func addFeeCreditTx(s *state.State, hashAlgorithm crypto.Hash, calcFee FeeCalcul
 			return nil, err
 		}
 		v := transferFc.Amount - fee
-		stateDB.CreateAccount(addr)
-		stateDB.AddBalance(addr, alphaToWei(v))
-		// This is an EOA account so in theory it does not have any other storage so there should be no conflicts
-		// update fee data
-		stateDB.SetAlphaBillData(addr, &statedb.AlphaBillLink{
-			Bearer:  attr.FeeCreditOwnerCondition,
-			UnitID:  tx.UnitID(),
-			TxHash:  tx.Hash(hashAlgorithm),
-			Timeout: transferFc.LatestAdditionTime + 1,
-		})
-		return &types.ServerMetadata{ActualFee: fee, TargetUnits: []types.UnitID{addr.Bytes()}, SuccessIndicator: types.TxStatusSuccessful}, nil
+		// if unit exists update balance and alphabill free credit link data
+		var action []state.Action
+		if u == nil {
+			action = append(action, statedb.CreateAccountAndAddCredit(address, attr.FeeCreditOwnerCondition, alphaToWei(v), transferFc.LatestAdditionTime+1, tx.Hash(hashAlgorithm)))
+		} else {
+			// update account balance and AB FCR bill backlink and timeout
+			action = append(action, statedb.UpdateEthAccountAddCredit(unitID, alphaToWei(v), transferFc.LatestAdditionTime+1, tx.Hash(hashAlgorithm)))
+			// also update owner condition as the account may have been created by a transfer or smart contract without one
+			action = append(action, state.SetOwner(unitID, attr.FeeCreditOwnerCondition))
+		}
+		if err = s.Apply(action...); err != nil {
+			return nil, fmt.Errorf("addFC state update failed: %w", err)
+		}
+		return &types.ServerMetadata{ActualFee: fee, TargetUnits: []types.UnitID{unitID}, SuccessIndicator: types.TxStatusSuccessful}, nil
 	}
 }

@@ -13,6 +13,7 @@ import (
 	"github.com/alphabill-org/alphabill/pkg/logger"
 	"github.com/alphabill-org/alphabill/pkg/tree/avl"
 	"github.com/ethereum/go-ethereum/common"
+	ethstate "github.com/ethereum/go-ethereum/core/state"
 	ethtypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/crypto"
@@ -23,6 +24,9 @@ var _ vm.StateDB = (*StateDB)(nil)
 var log = logger.CreateForPackage()
 
 type (
+	// transientStorage is a representation of EIP-1153 "Transient Storage".
+	transientStorage map[common.Address]ethstate.Storage
+
 	revision struct {
 		id         int
 		journalIdx int
@@ -37,6 +41,8 @@ type (
 		logs     []*LogEntry
 		// The refund counter, also used by state transitioning.
 		refund uint64
+		// Transient storage
+		transientStorage transientStorage
 		// track changes
 		journal   *journal
 		revisions []revision
@@ -51,12 +57,35 @@ type (
 	}
 )
 
+// newTransientStorage creates a new instance of a transientStorage.
+func newTransientStorage() transientStorage {
+	return make(transientStorage)
+}
+
+// Set sets the transient-storage `value` for `key` at the given `addr`.
+func (t transientStorage) Set(addr common.Address, key, value common.Hash) {
+	if _, ok := t[addr]; !ok {
+		t[addr] = make(ethstate.Storage)
+	}
+	t[addr][key] = value
+}
+
+// Get gets the transient storage for `key` at the given `addr`.
+func (t transientStorage) Get(addr common.Address, key common.Hash) common.Hash {
+	val, ok := t[addr]
+	if !ok {
+		return common.Hash{}
+	}
+	return val[key]
+}
+
 func NewStateDB(tree *state.State) *StateDB {
 	return &StateDB{
-		tree:       tree,
-		accessList: newAccessList(),
-		journal:    newJournal(),
-		created:    map[common.Address]struct{}{},
+		tree:             tree,
+		accessList:       newAccessList(),
+		journal:          newJournal(),
+		created:          map[common.Address]struct{}{},
+		transientStorage: newTransientStorage(),
 	}
 }
 
@@ -76,7 +105,7 @@ func (s *StateDB) CreateAccount(address common.Address) {
 	))
 	if s.errDB == nil {
 		s.created[address] = struct{}{}
-		s.journal.append(&address)
+		s.journal.append(accountChange{account: &address})
 	}
 }
 
@@ -187,10 +216,12 @@ func (s *StateDB) GetCodeSize(address common.Address) int {
 }
 
 func (s *StateDB) AddRefund(gas uint64) {
+	s.journal.append(refundChange{prev: s.refund})
 	s.refund += gas
 }
 
 func (s *StateDB) SubRefund(gas uint64) {
+	s.journal.append(refundChange{prev: s.refund})
 	if gas > s.refund {
 		panic(fmt.Sprintf("Refund counter below zero (gas: %d > refund: %d)", gas, s.refund))
 	}
@@ -232,15 +263,23 @@ func (s *StateDB) SetState(address common.Address, key common.Hash, value common
 
 // GetTransientState gets transient storage for a given account.
 func (s *StateDB) GetTransientState(addr common.Address, key common.Hash) common.Hash {
-	// Todo: AB-1187 add support for transient storage
-	return common.Hash{}
+	return s.transientStorage.Get(addr, key)
 }
 
 // SetTransientState sets transient storage for a given account. It
 // adds the change to the journal so that it can be rolled back
 // to its previous value if there is a revert. (for more see https://eips.ethereum.org/EIPS/eip-6780)
 func (s *StateDB) SetTransientState(addr common.Address, key, value common.Hash) {
-	//Todo: AB-1187 add support for transient storage
+	prev := s.GetTransientState(addr, key)
+	if prev == value {
+		return
+	}
+	s.journal.append(transientStorageChange{
+		account:  &addr,
+		key:      key,
+		prevalue: prev,
+	})
+	s.transientStorage.Set(addr, key, value)
 }
 
 func (s *StateDB) SelfDestruct(address common.Address) {
@@ -286,15 +325,19 @@ func (s *StateDB) Empty(address common.Address) bool {
 	return so == nil || so.empty()
 }
 
-// PrepareAccessList handles the preparatory steps for executing a state transition with
-// regards to both EIP-2929 and EIP-2930:
+// Prepare handles the preparatory steps for executing a state transition with.
+// This method must be invoked before state transition.
 //
+// Berlin fork:
 // - Add sender to access list (2929)
 // - Add destination to access list (2929)
 // - Add precompiles to access list (2929)
 // - Add the contents of the optional tx access list (2930)
 //
-// This method should only be called if Yolov3/Berlin/2929+2930 is applicable at the current number.
+// Potential EIPs:
+// - Reset access list (Berlin)
+// - Add coinbase to access list (EIP-3651)
+// - Reset transient storage (EIP-1153)
 func (s *StateDB) Prepare(rules params.Rules, sender, coinbase common.Address, dest *common.Address, precompiles []common.Address, txAccesses ethtypes.AccessList) {
 	if rules.IsBerlin {
 		s.AddAddressToAccessList(sender)
@@ -318,7 +361,7 @@ func (s *StateDB) Prepare(rules params.Rules, sender, coinbase common.Address, d
 			}
 		*/
 	}
-	// Todo: AB-1187 Reset transient storage at the beginning of transaction execution
+	s.transientStorage = newTransientStorage()
 }
 
 // AddAddressToAccessList adds the given address to the access list
@@ -346,7 +389,7 @@ func (s *StateDB) RevertToSnapshot(i int) {
 	// remove reverted units
 	for idx, rev := range s.revisions {
 		if rev.id >= i {
-			s.journal.revert(rev.journalIdx)
+			s.journal.revert(s, rev.journalIdx)
 			s.revisions = s.revisions[:idx]
 			return
 		}
@@ -480,6 +523,6 @@ func (s *StateDB) executeUpdate(id types.UnitID, updateFunc func(so *StateObject
 		return err
 	}
 	addr := common.BytesToAddress(id)
-	s.journal.append(&addr)
+	s.journal.append(accountChange{account: &addr})
 	return nil
 }

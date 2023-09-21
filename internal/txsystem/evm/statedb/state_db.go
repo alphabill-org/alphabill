@@ -46,6 +46,7 @@ type (
 		// track changes
 		journal   *journal
 		revisions []revision
+		created   map[common.Address]struct{}
 	}
 
 	LogEntry struct {
@@ -83,6 +84,7 @@ func NewStateDB(tree *state.State) *StateDB {
 		tree:             tree,
 		accessList:       newAccessList(),
 		journal:          newJournal(),
+		created:          map[common.Address]struct{}{},
 		transientStorage: newTransientStorage(),
 	}
 }
@@ -102,6 +104,7 @@ func (s *StateDB) CreateAccount(address common.Address) {
 		&StateObject{Address: address, Account: &Account{Nonce: 0, Balance: big.NewInt(0), CodeHash: emptyCodeHash}, Storage: map[common.Hash]common.Hash{}},
 	))
 	if s.errDB == nil {
+		s.created[address] = struct{}{}
 		s.journal.append(accountChange{account: &address})
 	}
 }
@@ -265,7 +268,7 @@ func (s *StateDB) GetTransientState(addr common.Address, key common.Hash) common
 
 // SetTransientState sets transient storage for a given account. It
 // adds the change to the journal so that it can be rolled back
-// to its previous value if there is a revert.
+// to its previous value if there is a revert. (for more see https://eips.ethereum.org/EIPS/eip-6780)
 func (s *StateDB) SetTransientState(addr common.Address, key, value common.Hash) {
 	prev := s.GetTransientState(addr, key)
 	if prev == value {
@@ -302,8 +305,14 @@ func (s *StateDB) HasSelfDestructed(address common.Address) bool {
 	return stateObject.suicided
 }
 
-func (s *StateDB) Selfdestruct6780(common.Address) {
-	// Todo: AB-1188 - add support for EIP-6780?
+// Selfdestruct6780 - EIP-6780 changes the functionality of the SELFDESTRUCT opcode.
+// The new functionality will be only to send all Ether in the account to the caller,
+// except that the current behaviour is preserved when SELFDESTRUCT is called in the same transaction
+// a contract was created.
+func (s *StateDB) Selfdestruct6780(address common.Address) {
+	if _, ok := s.created[address]; ok {
+		s.SelfDestruct(address)
+	}
 }
 
 func (s *StateDB) Exist(address common.Address) bool {
@@ -447,6 +456,7 @@ func (s *StateDB) Finalize() error {
 	// clear unit tracking
 	s.journal = newJournal()
 	s.revisions = []revision{}
+	s.created = map[common.Address]struct{}{}
 	return nil
 }
 

@@ -41,7 +41,8 @@ func addFeeCreditTx(s *state.State, hashAlgorithm crypto.Hash, calcFee FeeCalcul
 		u, _ := s.GetUnit(unitID, false)
 		// hack to be able to use a common validator for now
 		var feeCreditRecordUnit *state.Unit = nil
-		if u != nil {
+		// unit exists, and it has unit has AB fcr link set then simulate FCR bill
+		if u != nil && u.Data().(*statedb.StateObject).AlphaBill != nil {
 			stateObj := u.Data().(*statedb.StateObject)
 			data := &unit.FeeCreditRecord{
 				Balance: weiToAlpha(stateObj.Account.Balance),

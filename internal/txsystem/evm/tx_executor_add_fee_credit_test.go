@@ -256,3 +256,45 @@ func Test_addFeeCreditTxAndUpdate(t *testing.T) {
 	remainingCredit = new(big.Int).Sub(remainingCredit, alphaToWei(evmTestFeeCalculator()))
 	require.EqualValues(t, balance, remainingCredit)
 }
+
+func Test_addFeeCreditTxToExistingAccount(t *testing.T) {
+	const transferFcFee = 1
+	stateTree := state.NewEmptyState()
+	signer, ver := testsig.CreateSignerAndVerifier(t)
+	tb := map[string]abcrypto.Verifier{"test": ver}
+	pubKeyBytes, err := ver.MarshalPublicKey()
+	require.NoError(t, err)
+	address, err := generateAddress(pubKeyBytes)
+	require.NoError(t, err)
+	stateDB := statedb.NewStateDB(stateTree)
+	stateDB.CreateAccount(address)
+	stateDB.AddBalance(address, alphaToWei(100))
+	pubHash := sha256.Sum256(pubKeyBytes)
+	privKeyHash := hashOfPrivateKey(t, signer)
+	addExecFn := addFeeCreditTx(
+		stateTree,
+		crypto.SHA256,
+		evmTestFeeCalculator,
+		fc.NewDefaultFeeCreditTxValidator([]byte{0, 0, 0, 0}, DefaultEvmTxSystemIdentifier, crypto.SHA256, tb, nil))
+	addFeeOrder := newAddFCTx(t,
+		privKeyHash,
+		testfc.NewAddFCAttr(t, signer, testfc.WithTransferFCTx(
+			&types.TransactionRecord{
+				TransactionOrder: testfc.NewTransferFC(t, testfc.NewTransferFCAttr(testfc.WithAmount(100), testfc.WithTargetRecordID(privKeyHash), testfc.WithTargetSystemID(DefaultEvmTxSystemIdentifier)),
+					testtransaction.WithSystemID([]byte{0, 0, 0, 0}), testtransaction.WithOwnerProof(script.PredicatePayToPublicKeyHashDefault(pubHash[:]))),
+				ServerMetadata: &types.ServerMetadata{ActualFee: transferFcFee},
+			})),
+		signer, 7)
+	attr := new(transactions.AddFeeCreditAttributes)
+	require.NoError(t, addFeeOrder.UnmarshalAttributes(attr))
+	metaData, err := addExecFn(addFeeOrder, attr, 5)
+	require.NoError(t, err)
+	require.NotNil(t, metaData)
+	require.EqualValues(t, evmTestFeeCalculator(), metaData.ActualFee)
+	// validate stateDB
+	balance := stateDB.GetBalance(address)
+	// balance is equal to 100+100 - "transfer fee" - "add fee" to wei
+	remainingCredit := new(big.Int).Sub(alphaToWei(200), alphaToWei(transferFcFee))
+	remainingCredit = new(big.Int).Sub(remainingCredit, alphaToWei(evmTestFeeCalculator()))
+	require.EqualValues(t, balance, remainingCredit)
+}

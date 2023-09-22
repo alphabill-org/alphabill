@@ -37,8 +37,10 @@ func UpdateEthAccountAddCredit(id types.UnitID, value *big.Int, timeout uint64, 
 		}
 		newBalance := new(big.Int).Add(stateObj.Account.Balance, value)
 		stateObj.Account.Balance = newBalance
-		stateObj.AlphaBill.TxHash = transactionRecordHash
-		stateObj.AlphaBill.Timeout = util.Max(stateObj.AlphaBill.Timeout, timeout)
+		stateObj.AlphaBill = &AlphaBillLink{
+			TxHash:  transactionRecordHash,
+			Timeout: util.Max(stateObj.AlphaBill.GetTimeout(), timeout),
+		}
 		return stateObj, nil
 	}
 	return state.UpdateUnitData(id, updateDataFunc)

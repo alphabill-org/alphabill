@@ -106,6 +106,13 @@ func (f *AlphaBillLink) Copy() abstate.UnitData {
 	}
 }
 
+func (f *AlphaBillLink) GetTimeout() uint64 {
+	if f != nil {
+		return f.Timeout
+	}
+	return 0
+}
+
 func (a *Account) Write(hasher hash.Hash) {
 	hasher.Write(a.Balance.Bytes())
 	hasher.Write(a.CodeHash)

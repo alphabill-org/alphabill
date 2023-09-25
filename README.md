@@ -11,7 +11,7 @@ Run `make build` to build the application. Executable will be built to `build/al
 
 # Money Partition
 
-1. Run script `./setup-testab.sh -m 3 -t 0 -d 0` to generate configuration for a root chain and 3 money partition nodes.
+1. Run script `./setup-testab.sh -m 3 -t 0 -e 0` to generate configuration for a root chain and 3 money partition nodes.
     The script generates rootchain and partition node keys, genesis files.
     Node configuration files are located in `testab` directory.
 2. Run script `./start.sh -r -p money -b money` to start rootchain and 3 money partition nodes and money backend
@@ -34,15 +34,29 @@ The default location of configuration file is `$AB_HOME/config.props`
 The default `$AB_HOME` is `$HOME/.alphabill`
 
 # User Token Partition
-1. Run script `./setup-testab.sh -m 0 -t 3` to generate configuration for a root chain and 3 token partition nodes.
+Typical set-up would run money and user token partition as fee credits need to be added to the user token partition
+in order to pay for transactions.
+Theoretically it is also possible run only the user token partition on its own, but it would not make much sense.
+1. Run script `./setup-testab.sh -m 3 -t 3 -e 0` to generate configuration for a root chain and 3 money and token partition nodes.
    The script generates rootchain and partition node keys, genesis files.
    Node configuration files are located in `testab` directory.
-2. Run script `./start.sh -r -p tokens -b tokens` to start rootchain and 3 token partition nodes and token backend
+2. Run script `./start.sh -r -p money -p tokens -b money -b tokens` to start rootchain and 3 partition nodes (money and token) and backends (money and token)
 3. Run script `stop.sh -a` to stop the root chain and partition nodes.
 
+# Evm Partition
+Typical set-up would run money and evm partition as fee credits need to be added to the evm partition
+in order to create an account and pay for transactions.
+Theoretically it is also possible run only the evm partition on its own, but it would not make much sense.
+1. Run script `./setup-testab.sh -m 3 -t 0 -e 3` to generate configuration for a root chain and 3 money and evm partition nodes.
+   The script generates rootchain and partition node keys, genesis files.
+   Node configuration files are located in `testab` directory.
+2. Run script `./start.sh -r -p money -p evm -b money` to start rootchain, partition nodes (evm, money) and money backend
+3. Run script `stop.sh -a` to stop the root chain and partition nodes.
+
+
 # Start all partitions at once
-1. Run script `./setup-testab.sh` to generate genesis for root, and 3 money and tokens nodes.
-2. Run `start.sh -r -p money -p tokens -b money -b tokens` to start everything
+1. Run script `./setup-testab.sh` to generate genesis for root, and 3 money, tokens and evm nodes.
+2. Run `start.sh -r -p money -p tokens -p evm -b money -b tokens` to start everything
 3. Run `stop.sh -a` to stop everything
 
 # Logging configuration

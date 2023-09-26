@@ -154,11 +154,11 @@ func Test_evmCmdCall_error_cases(t *testing.T) {
 	mockServer, addr := mockClientCalls(&clientMockConf{balance: "15000000000000000000", backlink: make([]byte, 32)})
 	defer mockServer.Close()
 	_, err := execCommand(homedir, "evm call --alphabill-api-uri "+addr.Host)
-	require.ErrorContains(t, err, "required flag(s) \"address\", \"data\", \"max-gas\" not set")
-	_, err = execCommand(homedir, "evm call --max-gas 10000 --alphabill-api-uri "+addr.Host)
+	require.ErrorContains(t, err, "required flag(s) \"address\", \"data\" not set")
+	_, err = execCommand(homedir, "evm call --alphabill-api-uri "+addr.Host)
 	require.ErrorContains(t, err, "required flag(s) \"address\", \"data\" not set")
 	_, err = execCommand(homedir, "evm call --data accbdeee --alphabill-api-uri "+addr.Host)
-	require.ErrorContains(t, err, "required flag(s) \"address\", \"max-gas\" not set")
+	require.ErrorContains(t, err, "required flag(s) \"address\" not set")
 	_, err = execCommand(homedir, "evm call --max-gas 1000 --address aabbccddeeff --data aabbccdd --alphabill-api-uri "+addr.Host)
 	require.ErrorContains(t, err, "invalid address aabbccddeeff, address must be 20 bytes")
 	_, err = execCommand(homedir, "evm call --max-gas 1000 --address 3443919fcbc4476b4f332fd5df6a82fe88dbf521 --data aabbkccdd --alphabill-api-uri "+addr.Host)
@@ -197,6 +197,40 @@ func Test_evmCmdCall_ok(t *testing.T) {
 	data, err := hex.DecodeString("9021ACFE")
 	require.EqualValues(t, data, mockConf.callReq.Data)
 	require.EqualValues(t, 10000, mockConf.callReq.Gas)
+}
+
+func Test_evmCmdCall_ok_defaultGas(t *testing.T) {
+	homedir := createNewTestWallet(t)
+	evmDetails := &evm.ProcessingDetails{
+		ReturnData: []byte{0xDE, 0xAD, 0x00, 0xBE, 0xEF},
+	}
+	mockConf := &clientMockConf{
+		round:    3,
+		balance:  "15000000000000000000", // balance is returned by EVM in wei 10^-18
+		backlink: make([]byte, 32),
+		nonce:    1,
+		callResp: &api.CallEVMResponse{
+			ProcessingDetails: evmDetails,
+		},
+	}
+	mockServer, addr := mockClientCalls(mockConf)
+	defer mockServer.Close()
+	stdout, err := execCommand(homedir, "evm call --address 3443919fcbc4476b4f332fd5df6a82fe88dbf521 --data 9021ACFE --alphabill-api-uri "+addr.Host)
+	require.NoError(t, err)
+	verifyStdout(t, stdout,
+		"Evm transaction succeeded",
+		"Evm transaction processing fee: 0.000'000'00",
+		"Evm execution returned: DEAD00BEEF")
+	// verify call attributes sent
+	require.NotNil(t, mockConf.callReq.From)
+	toAddr, err := hex.DecodeString("3443919fcbc4476b4f332fd5df6a82fe88dbf521")
+	require.NoError(t, err)
+	require.EqualValues(t, toAddr, mockConf.callReq.To)
+	//value is currently hardcoded as 0
+	require.Equal(t, big.NewInt(0), mockConf.callReq.Value)
+	require.EqualValues(t, defaultCallMaxGas, mockConf.callReq.Gas)
+	data, err := hex.DecodeString("9021ACFE")
+	require.EqualValues(t, data, mockConf.callReq.Data)
 }
 
 func Test_evmCmdBalance(t *testing.T) {

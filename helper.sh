@@ -105,8 +105,6 @@ function generate_root_genesis() {
 function start_root_nodes() {
   local rPort=29666
   local pPort=26662
-  # generate local addresses based on number of key files and listener port
-  root_node_addresses=$(generate_peer_addresses "testab/rootchain*/rootchain/keys.json" $rPort)
   i=1
   for genesisFile in testab/rootchain*/rootchain/root-genesis.json
   do
@@ -119,7 +117,7 @@ function start_root_nodes() {
     ((pPort=pPort+1))
     ((i=i+1))
   done
-  echo "started $(($i-1)) root nodes, addresses: $root_node_addresses"
+  echo "started $(($i-1)) root nodes"
 }
 
 function start_partition_nodes() {
@@ -159,8 +157,7 @@ local restPort=0
       return 1
       ;;
   esac
-  # generate node addresses
-  nodeAddresses=$(generate_peer_addresses "$key_files" $aPort)
+  # Start nodes
   i=1
   for keyf in $key_files
   do
@@ -170,7 +167,7 @@ local restPort=0
     ((grpcPort=grpcPort+1))
     ((restPort=restPort+1))
   done
-    echo "started $(($i-1)) $1 nodes, addresses: $nodeAddresses"
+    echo "started $(($i-1)) $1 nodes"
 }
 
 function start_backend() {

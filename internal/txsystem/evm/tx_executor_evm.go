@@ -116,7 +116,7 @@ func Execute(currentBlockNumber uint64, stateDB *statedb.StateDB, blockDB keyval
 	// calculate gas based fee in alpha and refund the remainder
 	fee, remainderWei := weiToAlphaWithReminder(txPrice)
 	// HACK: AB-1207 - quick hack for first evm release, refund remainder back to the account
-	// Todo: Create a proper solution and implement ApplyMessage in this project
+	// Todo: AB-1208 Create a proper solution and implement ApplyMessage in this project
 	stateDB.AddBalance(msg.From, remainderWei)
 
 	log.Trace("total gas: %v gas units, price in alpha %v", execResult.UsedGas, fee)

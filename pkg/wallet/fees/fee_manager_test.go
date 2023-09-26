@@ -47,7 +47,7 @@ func TestAddFeeCredit_OK(t *testing.T) {
 /*
 Wallet has multiple bills
 Add fee credit with amount higher than the biggest bill
-Result should have 0 balance, 1.00000000 in fee credit and no error and any larger amount should return error.
+Result should have 2 transFC txs with the combined amount that matches what was requested
 */
 func TestAddFeeCredit_MultipleBills(t *testing.T) {
 	// create fee manager

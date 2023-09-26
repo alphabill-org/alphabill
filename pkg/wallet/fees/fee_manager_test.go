@@ -45,6 +45,52 @@ func TestAddFeeCredit_OK(t *testing.T) {
 }
 
 /*
+Wallet has multiple bills
+Add fee credit with amount higher than the biggest bill
+Result should have 0 balance, 1.00000000 in fee credit and no error and any larger amount should return error.
+*/
+func TestAddFeeCredit_MultipleBills(t *testing.T) {
+	// create fee manager
+	am := newAccountManager(t)
+	moneyTxPublisher := &mockMoneyTxPublisher{}
+	moneyBackendClient := &mockMoneyClient{bills: []*wallet.Bill{
+		{
+			Id:     []byte{1},
+			Value:  100000001,
+			TxHash: []byte{2},
+		},
+		{
+			Id:     []byte{2},
+			Value:  100000002,
+			TxHash: []byte{3},
+		},
+		{
+			Id:     []byte{3},
+			Value:  100000003,
+			TxHash: []byte{4},
+		}}}
+	unitLocker := createUnitLocker(t)
+	feeManager := newMoneyPartitionFeeManager(am, unitLocker, moneyTxPublisher, moneyBackendClient)
+
+	// verify that there are 2 pairs of txs sent and that the amounts match
+	proofs, err := feeManager.AddFeeCredit(context.Background(), AddFeeCmd{Amount: 200000000})
+	require.NoError(t, err)
+	require.NotNil(t, proofs)
+	require.Len(t, proofs.TransferFC, 2)
+	// first transfer amount should match the biggest bill
+	firstTransFCAttr := &transactions.TransferFeeCreditAttributes{}
+	err = proofs.TransferFC[0].TxRecord.TransactionOrder.UnmarshalAttributes(firstTransFCAttr)
+	require.NoError(t, err)
+	require.Equal(t, uint64(100000003), firstTransFCAttr.Amount)
+	// second transfer amount should match the remaining value
+	secondTransFCAttr := &transactions.TransferFeeCreditAttributes{}
+	err = proofs.TransferFC[1].TxRecord.TransactionOrder.UnmarshalAttributes(secondTransFCAttr)
+	require.NoError(t, err)
+	require.Equal(t, uint64(200000000-100000003), secondTransFCAttr.Amount)
+	require.Len(t, proofs.AddFC, 2)
+}
+
+/*
 Wallet has no bills
 Trying to create fee credit should return error "wallet does not contain any bills"
 */
@@ -134,7 +180,7 @@ func TestAddFeeCredit_LockedBillForTransferFC(t *testing.T) {
 		require.NotNil(t, res.AddFC)
 
 		sentAddFCAttr := &transactions.AddFeeCreditAttributes{}
-		err = res.AddFC.TxRecord.TransactionOrder.UnmarshalAttributes(sentAddFCAttr)
+		err = res.AddFC[0].TxRecord.TransactionOrder.UnmarshalAttributes(sentAddFCAttr)
 		require.NoError(t, err)
 		require.Equal(t, transferFCRecord, sentAddFCAttr.FeeCreditTransfer)
 
@@ -167,7 +213,7 @@ func TestAddFeeCredit_LockedBillForTransferFC(t *testing.T) {
 		require.NotNil(t, res.AddFC)
 
 		// then new transferFC must be sent
-		require.EqualValues(t, []byte{123}, res.TransferFC.TxRecord.TransactionOrder.UnitID())
+		require.EqualValues(t, []byte{123}, res.TransferFC[0].TxRecord.TransactionOrder.UnitID())
 
 		// and bill must be unlocked
 		units, err := unitLocker.GetUnits(accountKey.PubKey)
@@ -191,7 +237,7 @@ func TestAddFeeCredit_LockedBillForTransferFC(t *testing.T) {
 		require.NotNil(t, res)
 
 		// then the pending transferFC must be re-sent
-		require.Equal(t, transferFCProof, res.TransferFC)
+		require.Equal(t, transferFCProof, res.TransferFC[0])
 
 		// and bill must be unlocked
 		units, err := unitLocker.GetUnits(accountKey.PubKey)
@@ -272,7 +318,7 @@ func TestAddFeeCredit_LockedBillForAddFC(t *testing.T) {
 		require.NotNil(t, res.AddFC)
 
 		// then AddFC must be re-sent
-		require.Equal(t, addFCRecord, res.AddFC.TxRecord)
+		require.Equal(t, addFCRecord, res.AddFC[0].TxRecord)
 
 		// and bill must be unlocked
 		lockedBill, err := unitLocker.GetUnit(lockedAddFCBill.UnitID, accountKey.PubKey)
@@ -299,7 +345,7 @@ func TestAddFeeCredit_LockedBillForAddFC(t *testing.T) {
 
 		// then new addFC must be sent using the existing transferFC
 		// new addFC has new tx timeout = round number + txTimeoutBlockCount
-		require.EqualValues(t, moneyBackendClient.roundNumber+txTimeoutBlockCount, res.AddFC.TxRecord.TransactionOrder.Timeout())
+		require.EqualValues(t, moneyBackendClient.roundNumber+txTimeoutBlockCount, res.AddFC[0].TxRecord.TransactionOrder.Timeout())
 
 		// and bill must be unlocked
 		lockedBill, err := unitLocker.GetUnit(lockedAddFCBill.UnitID, accountKey.PubKey)
@@ -594,6 +640,24 @@ func TestAddAndReclaimWithInsufficientCredit(t *testing.T) {
 
 	_, err = feeManager.ReclaimFeeCredit(context.Background(), ReclaimFeeCmd{})
 	require.ErrorIs(t, err, ErrMinimumFeeAmount)
+}
+
+func TestAddWithInsufficientBalance(t *testing.T) {
+	// create fee manager
+	am := newAccountManager(t)
+	moneyTxPublisher := &mockMoneyTxPublisher{}
+	moneyBackendClient := &mockMoneyClient{
+		fcb: &wallet.Bill{Value: 2, Id: []byte{111}},
+		bills: []*wallet.Bill{{
+			Id:     []byte{1},
+			Value:  10,
+			TxHash: []byte{2},
+		}}}
+	unitLocker := createUnitLocker(t)
+	feeManager := newMoneyPartitionFeeManager(am, unitLocker, moneyTxPublisher, moneyBackendClient)
+
+	_, err := feeManager.AddFeeCredit(context.Background(), AddFeeCmd{Amount: 50})
+	require.ErrorIs(t, err, ErrInsufficientBalance)
 }
 
 func newMoneyPartitionFeeManager(am account.Manager, unitLocker UnitLocker, moneyTxPublisher TxPublisher, moneyBackendClient MoneyClient) *FeeManager {

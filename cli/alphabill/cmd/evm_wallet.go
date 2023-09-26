@@ -102,13 +102,14 @@ func evmCmdCall(config *walletConfig) *cobra.Command {
 	// account from which to call - pay for the transaction
 	cmd.Flags().Uint64P(keyCmdName, "k", 1, "which key to use for from address in evm call")
 	// to address - smart contract to call
-	cmd.Flags().String(addressCmdName, "", "smart contract address in hexadecimal format, must be 20 characters in length")
+	cmd.Flags().String(addressCmdName, "", "to address in hexadecimal format, must be 20 characters in length")
 	// data
 	cmd.Flags().String(dataCmdName, "", "data as hex string")
 	// max amount of gas user is willing to spend
-	cmd.Flags().Uint64(maxGasCmdName, 0, "maximum amount of gas user is willing to spend")
+	cmd.Flags().Uint64(maxGasCmdName, 50000000, "(optional) maximum amount of gas user is willing to spend")
 	// value, default 0
-	cmd.Flags().Uint64(valueCmdName, 0, "value to transfer")
+	cmd.Flags().Uint64(valueCmdName, 0, "(optional) value to transfer")
+	_ = cmd.Flags().MarkHidden(valueCmdName)
 	if err := cmd.MarkFlagRequired(addressCmdName); err != nil {
 		return nil
 	}
@@ -306,6 +307,51 @@ func execEvmCmdBalance(cmd *cobra.Command, config *walletConfig) error {
 	balanceStr := amountToString(inAlpha, 8)
 	balanceEthStr := amountToString(balance.Uint64(), 18)
 	consoleWriter.Println(fmt.Sprintf("#%d %s (eth: %s)", accountNumber, balanceStr, balanceEthStr))
+	return nil
+}
+
+func execEvmCmdAddress(cmd *cobra.Command, config *walletConfig) error {
+	if cmd.Flags().Changed("public-key") {
+		toAddr, err := readHexFlag(cmd, "public-key")
+		if err != nil {
+			return fmt.Errorf("failed to read 'public-key' parameter: %w", err)
+		}
+		if addr, err := evmwallet.GenerateAddress(toAddr); err == nil {
+			consoleWriter.Println(fmt.Sprintf("Public-key addr: %s", addr.String()))
+		}
+		return nil
+	}
+	am, err := loadExistingAccountManager(cmd, config.WalletHomeDir)
+	if err != nil {
+		return fmt.Errorf("account manager init failed: %w", err)
+	}
+	defer am.Close()
+	accountNumber, err := cmd.Flags().GetUint64(keyCmdName)
+	if err != nil {
+		return err
+	}
+	if accountNumber != 0 {
+		accountIndex := accountNumber - 1
+		key, err := am.GetAccountKey(accountIndex)
+		if err != nil {
+			return err
+		}
+		if addr, err := evmwallet.GenerateAddress(key.PubKey); err == nil {
+			consoleWriter.Println(fmt.Sprintf("Account #%d %s", accountNumber, addr.String()))
+		}
+		return nil
+	}
+	// Print addresses of all keys
+	pubKeys, err := am.GetPublicKeys()
+	if err != nil {
+		return err
+	}
+	for accountIndex, key := range pubKeys {
+		accNum := accountIndex + 1
+		if addr, err := evmwallet.GenerateAddress(key); err == nil {
+			consoleWriter.Println(fmt.Sprintf("Account #%d %s", accNum, addr.String()))
+		}
+	}
 	return nil
 }
 

@@ -47,13 +47,13 @@ func alphaToWei(alpha uint64) *big.Int {
 	return new(big.Int).Mul(new(big.Int).SetUint64(alpha), alpha2Wei)
 }
 
-// alphaToWei - converts from alpha to wei, assuming 1:1 exchange 1 "alpha" is equal to "1 eth".
+// weiToAlpha - converts from wei to alpha, rounding down.
 // 1 wei = wei * 10^10 / 10^18
 func weiToAlpha(wei *big.Int) uint64 {
 	return new(big.Int).Div(wei, alpha2Wei).Uint64()
 }
 
-// weiToAlphaWithReminder - converts from alpha to wei, assuming 1:1 exchange 1 "alpha" is equal to "1 eth".
+// weiToAlphaWithReminder - converts from wei to alpha, assuming 1:1 exchange 1 "alpha" is equal to "1 eth".
 // and returns the mod as reminder in wei
 func weiToAlphaWithReminder(wei *big.Int) (*big.Int, *big.Int) {
 	remainder := new(big.Int)

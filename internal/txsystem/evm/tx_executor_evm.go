@@ -119,7 +119,7 @@ func Execute(currentBlockNumber uint64, stateDB *statedb.StateDB, blockDB keyval
 	// Todo: Create a proper solution and implement ApplyMessage in this project
 	stateDB.AddBalance(msg.From, remainderWei)
 
-	log.Trace("total gas: %v gas units, price in alpha %v", execResult.UsedGas, weiToAlpha(txPrice))
+	log.Trace("total gas: %v gas units, price in alpha %v", execResult.UsedGas, fee)
 	return &types.ServerMetadata{ActualFee: fee.Uint64(), TargetUnits: stateDB.GetUpdatedUnits(), SuccessIndicator: success, ProcessingDetails: detailBytes}, nil
 }
 

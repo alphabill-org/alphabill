@@ -9,10 +9,9 @@ import (
 	"github.com/alphabill-org/alphabill/internal/script"
 	"github.com/ethereum/go-ethereum/common"
 	ethcrypto "github.com/ethereum/go-ethereum/crypto"
-	"github.com/shopspring/decimal"
 )
 
-var alpha2Wei = decimal.NewFromFloat(10).Pow(decimal.NewFromFloat(10))
+var alpha2Wei = new(big.Int).Exp(big.NewInt(10), big.NewInt(10), nil)
 
 func generateAddress(pubKeyBytes []byte) (common.Address, error) {
 	if pubKeyBytes == nil {
@@ -38,25 +37,26 @@ func getAddressFromPredicateArg(predArg []byte) (common.Address, error) {
 	return generateAddress(pubKey)
 }
 
-// 10^-8 or 10 µ alpha = 1 mia
-// 1 ETH = 1 ALPHA, from that ETH/ALPHA = 1 and also 10^18 wei / 10^8 mia = 1
-// That means 1 mia = 10^10 wei and 1 wei = 10^-10 mia
+// Smallest alphabill unit 10^-8 is called "tema"
+// 1 ETH = 1 ALPHA, from that ETH/ALPHA = 1 and also 10^18 wei / 10^8 tema
+// That means tema = 10^10 wei and 1 wei = 10^-10 tema
 
 // alphaToWei - converts from alpha to wei, assuming 1:1 exchange
-// 1 wei = 1 mia / 10^10
+// 1 wei = 1 tema / 10^10
 func alphaToWei(alpha uint64) *big.Int {
-	amount := decimal.NewFromFloat(float64(alpha))
-	result := amount.Mul(alpha2Wei)
-	wei := new(big.Int)
-	wei.SetString(result.String(), 10)
-	return wei
+	return new(big.Int).Mul(new(big.Int).SetUint64(alpha), alpha2Wei)
 }
 
 // alphaToWei - converts from alpha to wei, assuming 1:1 exchange 1 "alpha" is equal to "1 eth".
 // 1 wei = wei * 10^10 / 10^18
 func weiToAlpha(wei *big.Int) uint64 {
-	amount := decimal.RequireFromString(wei.String())
-	result := amount.Div(alpha2Wei)
-	f, _ := result.Float64()
-	return uint64(f)
+	return new(big.Int).Div(wei, alpha2Wei).Uint64()
+}
+
+// weiToAlphaWithReminder - converts from alpha to wei, assuming 1:1 exchange 1 "alpha" is equal to "1 eth".
+// and returns the mod as reminder in wei
+func weiToAlphaWithReminder(wei *big.Int) (*big.Int, *big.Int) {
+	remainder := new(big.Int)
+	amount, reminder := new(big.Int).DivMod(wei, alpha2Wei, remainder)
+	return amount, reminder
 }

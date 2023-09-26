@@ -113,9 +113,14 @@ func Execute(currentBlockNumber uint64, stateDB *statedb.StateDB, blockDB keyval
 		return nil, fmt.Errorf("evm result encode error %w", err)
 	}
 	txPrice := calcGasPrice(execResult.UsedGas, gasUnitPrice)
-	log.Trace("total gas: %v gas units, price in alpha %v", execResult.UsedGas, weiToAlpha(txPrice))
+	// calculate gas based fee in alpha and refund the remainder
+	fee, remainderWei := weiToAlphaWithReminder(txPrice)
+	// HACK: AB-1207 - quick hack for first evm release, refund remainder back to the account
+	// Todo: Create a proper solution and implement ApplyMessage in this project
+	stateDB.AddBalance(msg.From, remainderWei)
 
-	return &types.ServerMetadata{ActualFee: weiToAlpha(txPrice), TargetUnits: stateDB.GetUpdatedUnits(), SuccessIndicator: success, ProcessingDetails: detailBytes}, nil
+	log.Trace("total gas: %v gas units, price in alpha %v", execResult.UsedGas, weiToAlpha(txPrice))
+	return &types.ServerMetadata{ActualFee: fee.Uint64(), TargetUnits: stateDB.GetUpdatedUnits(), SuccessIndicator: success, ProcessingDetails: detailBytes}, nil
 }
 
 func newBlockContext(currentBlockNumber uint64, blockDB keyvaluedb.KeyValueDB) vm.BlockContext {

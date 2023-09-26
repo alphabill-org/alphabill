@@ -52,6 +52,13 @@ func (a *API) CallEVM(w http.ResponseWriter, r *http.Request) {
 		Value: request.Value,
 		Gas:   request.Gas,
 	}
+	// Ensure message is initialized properly.
+	if attr.Gas == 0 {
+		attr.Gas = 50000000
+	}
+	if attr.Value == nil {
+		attr.Value = new(big.Int)
+	}
 	result, err := evm.Execute(blockNumber, stateDB, memorydb.New(), attr, a.systemIdentifier, gp, a.gasUnitPrice, true)
 	if err != nil {
 		util.WriteCBORError(w, err, http.StatusBadRequest)

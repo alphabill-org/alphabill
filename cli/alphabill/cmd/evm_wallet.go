@@ -102,13 +102,14 @@ func evmCmdCall(config *walletConfig) *cobra.Command {
 	// account from which to call - pay for the transaction
 	cmd.Flags().Uint64P(keyCmdName, "k", 1, "which key to use for from address in evm call")
 	// to address - smart contract to call
-	cmd.Flags().String(addressCmdName, "", "smart contract address in hexadecimal format, must be 20 characters in length")
+	cmd.Flags().String(addressCmdName, "", "to address in hexadecimal format, must be 20 characters in length")
 	// data
 	cmd.Flags().String(dataCmdName, "", "data as hex string")
 	// max amount of gas user is willing to spend
-	cmd.Flags().Uint64(maxGasCmdName, 0, "maximum amount of gas user is willing to spend")
+	cmd.Flags().Uint64(maxGasCmdName, 50000000, "(optional) maximum amount of gas user is willing to spend")
 	// value, default 0
-	cmd.Flags().Uint64(valueCmdName, 0, "value to transfer")
+	cmd.Flags().Uint64(valueCmdName, 0, "(optional) value to transfer")
+	_ = cmd.Flags().MarkHidden(valueCmdName)
 	if err := cmd.MarkFlagRequired(addressCmdName); err != nil {
 		return nil
 	}

@@ -310,51 +310,6 @@ func execEvmCmdBalance(cmd *cobra.Command, config *walletConfig) error {
 	return nil
 }
 
-func execEvmCmdAddress(cmd *cobra.Command, config *walletConfig) error {
-	if cmd.Flags().Changed("public-key") {
-		toAddr, err := readHexFlag(cmd, "public-key")
-		if err != nil {
-			return fmt.Errorf("failed to read 'public-key' parameter: %w", err)
-		}
-		if addr, err := evmwallet.GenerateAddress(toAddr); err == nil {
-			consoleWriter.Println(fmt.Sprintf("Public-key addr: %s", addr.String()))
-		}
-		return nil
-	}
-	am, err := loadExistingAccountManager(cmd, config.WalletHomeDir)
-	if err != nil {
-		return fmt.Errorf("account manager init failed: %w", err)
-	}
-	defer am.Close()
-	accountNumber, err := cmd.Flags().GetUint64(keyCmdName)
-	if err != nil {
-		return err
-	}
-	if accountNumber != 0 {
-		accountIndex := accountNumber - 1
-		key, err := am.GetAccountKey(accountIndex)
-		if err != nil {
-			return err
-		}
-		if addr, err := evmwallet.GenerateAddress(key.PubKey); err == nil {
-			consoleWriter.Println(fmt.Sprintf("Account #%d %s", accountNumber, addr.String()))
-		}
-		return nil
-	}
-	// Print addresses of all keys
-	pubKeys, err := am.GetPublicKeys()
-	if err != nil {
-		return err
-	}
-	for accountIndex, key := range pubKeys {
-		accNum := accountIndex + 1
-		if addr, err := evmwallet.GenerateAddress(key); err == nil {
-			consoleWriter.Println(fmt.Sprintf("Account #%d %s", accNum, addr.String()))
-		}
-	}
-	return nil
-}
-
 func printResult(result *evmclient.Result) {
 	if !result.Success {
 		consoleWriter.Println(fmt.Sprintf("Evm transaction failed: %s", result.Details.ErrorDetails))

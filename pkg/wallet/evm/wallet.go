@@ -91,7 +91,7 @@ func (w *Wallet) SendEvmTx(ctx context.Context, accNr uint64, attrs *evmclient.T
 	}
 	payload, err := newTxPayload(w.systemID, "evm", from.Bytes(), roundNumber+txTimeoutBlockCount, attrs)
 	if err != nil {
-		return nil, fmt.Errorf("evm trasnaction payload error: %w", err)
+		return nil, fmt.Errorf("evm transaction payload error: %w", err)
 	}
 	txo, err := signPayload(payload, acc)
 	if err != nil {
@@ -101,7 +101,7 @@ func (w *Wallet) SendEvmTx(ctx context.Context, accNr uint64, attrs *evmclient.T
 	txPub := NewTxPublisher(w.restCli)
 	proof, err := txPub.SendTx(ctx, txo, nil)
 	if err != nil {
-		return nil, fmt.Errorf("evm trasnaction execute failed: %w", err)
+		return nil, fmt.Errorf("evm transaction execute failed: %w", err)
 	}
 	if proof == nil || proof.TxRecord == nil {
 		return nil, fmt.Errorf("unexpected result")

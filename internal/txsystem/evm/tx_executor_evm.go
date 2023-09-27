@@ -3,7 +3,6 @@ package evm
 import (
 	"fmt"
 	"math/big"
-	"os"
 
 	"github.com/alphabill-org/alphabill/internal/keyvaluedb"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
@@ -14,7 +13,6 @@ import (
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/vm"
 	ethcrypto "github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/eth/tracers/logger"
 	"github.com/fxamacker/cbor/v2"
 )
 
@@ -160,7 +158,7 @@ func newTxContext(attr *TxAttributes, gasPrice *big.Int) vm.TxContext {
 func newVMConfig() vm.Config {
 	return vm.Config{
 		// TODO use AB logger
-		Tracer:                  logger.NewJSONLogger(nil, os.Stdout),
+		Tracer:                  nil, // logger.NewJSONLogger(nil, os.Stdout),
 		NoBaseFee:               true,
 		EnablePreimageRecording: false, // Enables recording of SHA3/keccak preimages
 	}

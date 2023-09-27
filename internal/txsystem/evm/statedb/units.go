@@ -15,7 +15,6 @@ import (
 
 var (
 	_ abstate.UnitData = (*StateObject)(nil)
-	_ abstate.UnitData = (*AlphaBillLink)(nil)
 
 	emptyCodeHash = crypto.Keccak256(nil)
 )
@@ -74,15 +73,11 @@ func (s *StateObject) Copy() abstate.UnitData {
 		return nil
 	}
 
-	var link *AlphaBillLink
-	if s.AlphaBill != nil {
-		link = s.AlphaBill.Copy().(*AlphaBillLink)
-	}
 	return &StateObject{
 		Address:   common.BytesToAddress(bytes.Clone(s.Address.Bytes())),
 		Account:   s.Account.Copy(),
 		Storage:   s.Storage.Copy(),
-		AlphaBill: link,
+		AlphaBill: s.AlphaBill.Copy(),
 		suicided:  s.suicided,
 	}
 }
@@ -96,7 +91,7 @@ func (f *AlphaBillLink) SummaryValueInput() uint64 {
 	return 0
 }
 
-func (f *AlphaBillLink) Copy() abstate.UnitData {
+func (f *AlphaBillLink) Copy() *AlphaBillLink {
 	if f == nil {
 		return nil
 	}

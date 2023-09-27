@@ -21,6 +21,7 @@ type TxSystem struct {
 	genericTxValidators []txsystem.GenericTransactionValidator
 	beginBlockFunctions []func(blockNumber uint64) error
 	endBlockFunctions   []func(blockNumber uint64) error
+	roundCommitted      bool
 }
 
 func NewEVMTxSystem(systemIdentifier []byte, opts ...Option) (*TxSystem, error) {
@@ -92,10 +93,18 @@ func (m *TxSystem) getState() (txsystem.State, error) {
 
 func (m *TxSystem) BeginBlock(blockNr uint64) error {
 	m.currentBlockNumber = blockNr
+	m.roundCommitted = false
 	for _, function := range m.beginBlockFunctions {
 		if err := function(blockNr); err != nil {
 			return fmt.Errorf("begin block function call failed: %w", err)
 		}
+	}
+	return nil
+}
+
+func (m *TxSystem) pruneLogs(blockNr uint64) error {
+	if err := m.logPruner.Prune(blockNr - 1); err != nil {
+		return fmt.Errorf("unable to prune state: %w", err)
 	}
 	return nil
 }
@@ -149,13 +158,6 @@ func (m *TxSystem) Execute(tx *types.TransactionOrder) (sm *types.ServerMetadata
 	return sm, err
 }
 
-func (m *TxSystem) pruneLogs(blockNr uint64) error {
-	if err := m.logPruner.Prune(blockNr - 1); err != nil {
-		return fmt.Errorf("unable to prune state: %w", err)
-	}
-	return nil
-}
-
 func (m *TxSystem) EndBlock() (txsystem.State, error) {
 	for _, function := range m.endBlockFunctions {
 		if err := function(m.currentBlockNumber); err != nil {
@@ -166,11 +168,18 @@ func (m *TxSystem) EndBlock() (txsystem.State, error) {
 }
 
 func (m *TxSystem) Revert() {
+	if m.roundCommitted {
+		return
+	}
 	m.logPruner.Remove(m.currentBlockNumber)
 	m.state.Revert()
 }
 
 func (m *TxSystem) Commit() error {
 	m.logPruner.Remove(m.currentBlockNumber - 1)
-	return m.state.Commit()
+	err := m.state.Commit()
+	if err == nil {
+		m.roundCommitted = true
+	}
+	return err
 }

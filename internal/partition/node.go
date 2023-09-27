@@ -1346,7 +1346,6 @@ func (n *Node) writeTxIndex(b *types.Block, roundNo []byte) (err error) {
 	if n.txIndexer == nil {
 		return nil
 	}
-	defer trackExecutionTime(time.Now(), fmt.Sprintf("write transaction order index for %d tx(s)", len(b.Transactions)))
 	dbTx, err := n.txIndexer.StartTx()
 	defer func() {
 		if err != nil {

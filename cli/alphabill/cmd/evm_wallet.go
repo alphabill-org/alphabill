@@ -19,6 +19,7 @@ const (
 	valueCmdName          = "value"
 	scSizeLimit24Kb       = 24 * 1024
 	defaultEvmAddrLen     = 20
+	defaultCallMaxGas     = 50000000
 )
 
 func evmCmd(config *walletConfig) *cobra.Command {
@@ -106,7 +107,7 @@ func evmCmdCall(config *walletConfig) *cobra.Command {
 	// data
 	cmd.Flags().String(dataCmdName, "", "data as hex string")
 	// max amount of gas user is willing to spend
-	cmd.Flags().Uint64(maxGasCmdName, 50000000, "(optional) maximum amount of gas user is willing to spend")
+	cmd.Flags().Uint64(maxGasCmdName, defaultCallMaxGas, "(optional) maximum amount of gas user is willing to spend")
 	// value, default 0
 	cmd.Flags().Uint64(valueCmdName, 0, "(optional) value to transfer")
 	_ = cmd.Flags().MarkHidden(valueCmdName)
@@ -114,9 +115,6 @@ func evmCmdCall(config *walletConfig) *cobra.Command {
 		return nil
 	}
 	if err := cmd.MarkFlagRequired(dataCmdName); err != nil {
-		return nil
-	}
-	if err := cmd.MarkFlagRequired(maxGasCmdName); err != nil {
 		return nil
 	}
 	return cmd

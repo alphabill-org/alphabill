@@ -19,8 +19,8 @@ import (
 
 type (
 	PartitionNet interface {
-		Send(msg network.OutputMessage, receivers []peer.ID) error
-		ReceivedChannel() <-chan network.ReceivedMessage
+		Send(ctx context.Context, msg any, receivers ...peer.ID) error
+		ReceivedChannel() <-chan any
 	}
 
 	MsgVerification interface {
@@ -85,32 +85,20 @@ func (v *Node) loop(ctx context.Context) error {
 				logger.Warning("%v partition received channel closed, exiting root node main loop", v.peer.String())
 				return fmt.Errorf("partition channel closed")
 			}
-			if msg.Message == nil {
-				logger.Warning("%v received partition message is nil", v.peer.String())
-			}
-			switch msg.Protocol {
-			case network.ProtocolBlockCertification:
-				req, correctType := msg.Message.(*certification.BlockCertificationRequest)
-				if !correctType {
-					logger.Warning("%v type %T not supported", v.peer.String(), msg.Message)
-				}
-				util.WriteTraceJsonLog(logger, fmt.Sprintf("Certification Request from %s", msg.From), req)
-				v.onBlockCertificationRequest(req)
-			case network.ProtocolHandshake:
-				req, correctType := msg.Message.(*handshake.Handshake)
-				if !correctType {
-					logger.Warning("%v type %T not supported", v.peer.String(), msg.Message)
-				}
-				util.WriteTraceJsonLog(logger, fmt.Sprintf("Handshake from %s", msg.From), req)
-				v.onHandshake(req)
+			util.WriteTraceJsonLog(logger, fmt.Sprintf("received %T", msg), msg)
+			switch mt := msg.(type) {
+			case *certification.BlockCertificationRequest:
+				v.onBlockCertificationRequest(ctx, mt)
+			case *handshake.Handshake:
+				v.onHandshake(ctx, mt)
 			default:
-				logger.Warning("%v protocol %s not supported.", v.peer.String(), msg.Protocol)
+				logger.Warning("%v message %s not supported.", v.peer.String(), msg)
 			}
 		}
 	}
 }
 
-func (v *Node) sendResponse(nodeID string, uc *types.UnicityCertificate) error {
+func (v *Node) sendResponse(ctx context.Context, nodeID string, uc *types.UnicityCertificate) error {
 	peerID, err := peer.Decode(nodeID)
 	if err != nil {
 		logger.Warning("%v invalid node identifier: '%s'", nodeID)
@@ -119,16 +107,10 @@ func (v *Node) sendResponse(nodeID string, uc *types.UnicityCertificate) error {
 
 	logger.Debug("%v sending unicity certificate to partition %X node '%s', IR Hash: %X, Block Hash: %X",
 		v.peer.String(), uc.UnicityTreeCertificate.SystemIdentifier, nodeID, uc.InputRecord.Hash, uc.InputRecord.BlockHash)
-	return v.net.Send(
-		network.OutputMessage{
-			Protocol: network.ProtocolUnicityCertificates,
-			Message:  uc,
-		},
-		[]peer.ID{peerID},
-	)
+	return v.net.Send(ctx, uc, peerID)
 }
 
-func (v *Node) onHandshake(req *handshake.Handshake) {
+func (v *Node) onHandshake(ctx context.Context, req *handshake.Handshake) {
 	if err := req.IsValid(); err != nil {
 		logger.Warning("%v handshake error, invalid handshake request, %v", v.peer.String(), err)
 		return
@@ -141,7 +123,7 @@ func (v *Node) onHandshake(req *handshake.Handshake) {
 		return
 	}
 	v.subscription.Subscribe(protocol.SystemIdentifier(req.SystemIdentifier), req.NodeIdentifier)
-	if err = v.sendResponse(req.NodeIdentifier, latestUnicityCertificate); err != nil {
+	if err = v.sendResponse(ctx, req.NodeIdentifier, latestUnicityCertificate); err != nil {
 		logger.Warning("%v handshake error, failed to send response, %v", v.peer.String(), err)
 		return
 	}
@@ -149,7 +131,7 @@ func (v *Node) onHandshake(req *handshake.Handshake) {
 
 // onBlockCertificationRequest handles certification nodeRequest from partition nodes.
 // Partition nodes can only extend the stored/certified state
-func (v *Node) onBlockCertificationRequest(req *certification.BlockCertificationRequest) {
+func (v *Node) onBlockCertificationRequest(ctx context.Context, req *certification.BlockCertificationRequest) {
 	if req.SystemIdentifier == nil {
 		logger.Warning("%v invalid block certification request system id is nil, rejected", v.peer.String())
 		return
@@ -177,7 +159,7 @@ func (v *Node) onBlockCertificationRequest(req *certification.BlockCertification
 	if err != nil {
 		logger.Warning("%v block certification request from %X node %v invalid, %v",
 			v.peer.String(), req.SystemIdentifier, req.NodeIdentifier, err)
-		if err = v.sendResponse(req.NodeIdentifier, latestUnicityCertificate); err != nil {
+		if err = v.sendResponse(ctx, req.NodeIdentifier, latestUnicityCertificate); err != nil {
 			logger.Warning("%v send failed, %v", v.peer.String(), err)
 		}
 		return
@@ -232,14 +214,14 @@ func (v *Node) handleConsensus(ctx context.Context) error {
 		case uc, ok := <-v.consensusManager.CertificationResult():
 			if !ok {
 				logger.Warning("%v consensus channel closed, exiting loop", v.peer.String())
-				return fmt.Errorf("consenus channel closed")
+				return fmt.Errorf("consensus channel closed")
 			}
-			v.onCertificationResult(uc)
+			v.onCertificationResult(ctx, uc)
 		}
 	}
 }
 
-func (v *Node) onCertificationResult(certificate *types.UnicityCertificate) {
+func (v *Node) onCertificationResult(ctx context.Context, certificate *types.UnicityCertificate) {
 	sysID := protocol.SystemIdentifier(certificate.UnicityTreeCertificate.SystemIdentifier)
 	// remember to clear the incoming buffer to accept new nodeRequest
 	// NB! this will try and reset the store also in the case when system id is unknown, but this is fine
@@ -250,7 +232,7 @@ func (v *Node) onCertificationResult(certificate *types.UnicityCertificate) {
 	subscribed := v.subscription.Get(sysID)
 	// send response to all registered nodes
 	for _, node := range subscribed {
-		if err := v.sendResponse(node, certificate); err != nil {
+		if err := v.sendResponse(ctx, node, certificate); err != nil {
 			logger.Warning("%v send failed, %v", v.peer.String(), err)
 			v.subscription.SubscriberError(sysID, node)
 		}

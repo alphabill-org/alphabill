@@ -17,6 +17,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/txsystem/evm/api"
 	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/internal/util"
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/fxamacker/cbor/v2"
 	"github.com/stretchr/testify/require"
 )
@@ -243,6 +244,66 @@ func Test_evmCmdBalance(t *testing.T) {
 	// -k 2 -> no such account
 	_, err := execCommand(homedir, "evm balance -k 2 --alphabill-api-uri "+addr.Host)
 	require.ErrorContains(t, err, "balance error account key read failed: account does not exist")
+}
+
+func Test_evmCmdSend_error_cases(t *testing.T) {
+	homedir := createNewTestWallet(t)
+	// balance is returned by EVM in wei 10^-18
+	mockServer, addr := mockClientCalls(&clientMockConf{balance: "15000000000000000000", backlink: make([]byte, 32)})
+	defer mockServer.Close()
+	_, err := execCommand(homedir, "evm send --alphabill-api-uri "+addr.Host)
+	require.ErrorContains(t, err, "required flag(s) \"address\", \"amount\" not set")
+	_, err = execCommand(homedir, "evm send --address 3443919fcbc4476b4f332fd5df6a82fe88dbf521 --alphabill-api-uri "+addr.Host)
+	require.ErrorContains(t, err, "required flag(s) \"amount\" not set")
+	_, err = execCommand(homedir, "evm send --amount 10000 --alphabill-api-uri "+addr.Host)
+	require.ErrorContains(t, err, "required flag(s) \"address\" not set")
+	_, err = execCommand(homedir, "evm send --address aabbccddeeff --amount 1000 --alphabill-api-uri "+addr.Host)
+	require.ErrorContains(t, err, "invalid address aabbccddeeff, address must be 20 bytes")
+	_, err = execCommand(homedir, "evm send --address 3443919fcbc4476b4f332fd5df6a82fe88dbf521 --amount -1 --alphabill-api-uri "+addr.Host)
+	require.ErrorContains(t, err, "invalid amount string \"-1\"")
+	_, err = execCommand(homedir, "evm send --address 3443919fcbc4476b4f332fd5df6a82fe88dbf521 --amount 0 --alphabill-api-uri "+addr.Host)
+	require.ErrorContains(t, err, "invalid parameter \"0\" for \"--amount\":0 is not valid amount")
+}
+
+func Test_evmCmdSend_ok(t *testing.T) {
+	homedir := createNewTestWallet(t)
+	evmDetails := &evm.ProcessingDetails{
+		ContractAddr: common.Address{},
+	}
+	detailBytes, err := cbor.Marshal(evmDetails)
+	require.NoError(t, err)
+	mockConf := &clientMockConf{
+		round:    3,
+		balance:  "15000000000000000000", // balance is returned by EVM in wei 10^-18
+		backlink: make([]byte, 32),
+		nonce:    1,
+		serverMeta: &types.ServerMetadata{
+			ActualFee:         441,
+			TargetUnits:       []types.UnitID{test.RandomBytes(20)},
+			SuccessIndicator:  types.TxStatusSuccessful,
+			ProcessingDetails: detailBytes,
+		},
+	}
+	mockServer, addr := mockClientCalls(mockConf)
+	defer mockServer.Close()
+	stdout, err := execCommand(homedir, "evm send --address 3443919fcbc4476b4f332fd5df6a82fe88dbf521 --amount 1 --alphabill-api-uri "+addr.Host)
+	require.NoError(t, err)
+	verifyStdout(t, stdout,
+		"Evm transaction succeeded",
+		"Evm transaction processing fee: 0.000'004'41")
+	// verify send attributes sent
+	require.Equal(t, "evm", mockConf.receivedTx.PayloadType())
+	evmAttributes := &evm.TxAttributes{}
+	require.NoError(t, mockConf.receivedTx.UnmarshalAttributes(evmAttributes))
+	// verify attributes set by cli cmd
+	require.NoError(t, err)
+	require.NotNil(t, evmAttributes.From)
+	toAddr, err := hex.DecodeString("3443919fcbc4476b4f332fd5df6a82fe88dbf521")
+	require.NoError(t, err)
+	require.EqualValues(t, toAddr, evmAttributes.To)
+	//value is currently hardcoded as 0
+	require.Equal(t, big.NewInt(1000000000000000000), evmAttributes.Value)
+	require.EqualValues(t, 21000, evmAttributes.Gas)
 }
 
 type clientMockConf struct {

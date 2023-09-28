@@ -16,10 +16,10 @@ const (
 	defaultEvmNodeRestURL = "localhost:29866"
 	dataCmdName           = "data"
 	maxGasCmdName         = "max-gas"
-	valueCmdName          = "value"
 	scSizeLimit24Kb       = 24 * 1024
 	defaultEvmAddrLen     = 20
 	defaultCallMaxGas     = 50000000
+	defaultTransferGas    = 21000
 )
 
 func evmCmd(config *walletConfig) *cobra.Command {
@@ -30,6 +30,7 @@ func evmCmd(config *walletConfig) *cobra.Command {
 	cmd.AddCommand(evmCmdDeploy(config))
 	cmd.AddCommand(evmCmdExecute(config))
 	cmd.AddCommand(evmCmdCall(config))
+	cmd.AddCommand(evmCmdSend(config))
 	cmd.AddCommand(evmCmdBalance(config))
 	cmd.PersistentFlags().StringP(alphabillApiURLCmdName, "r", defaultEvmNodeRestURL, "alphabill EVM partition node REST URI to connect to")
 	return cmd
@@ -109,8 +110,8 @@ func evmCmdCall(config *walletConfig) *cobra.Command {
 	// max amount of gas user is willing to spend
 	cmd.Flags().Uint64(maxGasCmdName, defaultCallMaxGas, "(optional) maximum amount of gas user is willing to spend")
 	// value, default 0
-	cmd.Flags().Uint64(valueCmdName, 0, "(optional) value to transfer")
-	_ = cmd.Flags().MarkHidden(valueCmdName)
+	cmd.Flags().String(amountCmdName, "", "(optional) amount to transfer in alpabill")
+	_ = cmd.Flags().MarkHidden(amountCmdName)
 	if err := cmd.MarkFlagRequired(addressCmdName); err != nil {
 		return nil
 	}
@@ -131,6 +132,29 @@ func evmCmdBalance(config *walletConfig) *cobra.Command {
 	}
 	// account from which to call - pay for the transaction
 	cmd.Flags().Uint64P(keyCmdName, "k", 1, "which key to use for balance")
+	return cmd
+}
+
+func evmCmdSend(config *walletConfig) *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "send",
+		Short: "executes evm transfer by sending a transaction on the block chain",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return execEvmCmdSend(cmd, config)
+		},
+	}
+	// account from which to call - pay for the transaction
+	cmd.Flags().Uint64P(keyCmdName, "k", 1, "which key to use for sending the transaction")
+	// to address - smart contract to call
+	cmd.Flags().String(addressCmdName, "", "smart contract address in hexadecimal format, must start with 0x and be 20 characters in length")
+	// value, default 0
+	cmd.Flags().String(amountCmdName, "", "amount to transfer in alphabills")
+	if err := cmd.MarkFlagRequired(addressCmdName); err != nil {
+		return nil
+	}
+	if err := cmd.MarkFlagRequired(amountCmdName); err != nil {
+		return nil
+	}
 	return cmd
 }
 
@@ -269,17 +293,66 @@ func execEvmCmdCall(cmd *cobra.Command, config *walletConfig) error {
 	if err != nil {
 		return fmt.Errorf("failed to read '%s' parameter: %w", maxGasCmdName, err)
 	}
-	value, err := cmd.Flags().GetUint64(valueCmdName)
+	amountStr, err := cmd.Flags().GetString(amountCmdName)
 	if err != nil {
-		return fmt.Errorf("failed to read '%s' parameter: %w", valueCmdName, err)
+		return err
+	}
+	var amount uint64 = 0
+	if amountStr != "" {
+		amount, err = stringToAmount(amountStr, 18)
+		if err != nil {
+			return err
+		}
 	}
 	attributes := &evmclient.CallAttributes{
 		To:    toAddr,
 		Data:  data,
-		Value: new(big.Int).SetUint64(value),
+		Value: new(big.Int).SetUint64(amount),
 		Gas:   maxGas,
 	}
 	result, err := w.EvmCall(cmd.Context(), accountNumber, attributes)
+	if err != nil {
+		return fmt.Errorf("excution error %w", err)
+	}
+	printResult(result)
+	return nil
+}
+
+func execEvmCmdSend(cmd *cobra.Command, config *walletConfig) error {
+	accountNumber, err := cmd.Flags().GetUint64(keyCmdName)
+	if err != nil {
+		return fmt.Errorf("key parameter read failed: %w", err)
+	}
+	w, err := initEvmWallet(cmd, config)
+	if err != nil {
+		return fmt.Errorf("evm wallet init failed: %w", err)
+	}
+	defer w.Shutdown()
+	// get to address
+	toAddr, err := readHexFlag(cmd, addressCmdName)
+	if err != nil {
+		return fmt.Errorf("failed to read '%s' parameter: %w", addressCmdName, err)
+	}
+	if len(toAddr) != defaultEvmAddrLen {
+		return fmt.Errorf("invalid address %x, address must be 20 bytes", toAddr)
+	}
+	amountStr, err := cmd.Flags().GetString(amountCmdName)
+	if err != nil {
+		return err
+	}
+	amount, err := stringToAmount(amountStr, 18)
+	if err != nil {
+		return err
+	}
+	if amount == 0 {
+		return fmt.Errorf("invalid parameter \"%s\" for \"--amount\":0 is not valid amount", amountStr)
+	}
+	attributes := &evmclient.TxAttributes{
+		To:    toAddr,
+		Value: new(big.Int).SetUint64(amount),
+		Gas:   defaultTransferGas, // transfer uses constant amount of gas
+	}
+	result, err := w.SendEvmTx(cmd.Context(), accountNumber, attributes)
 	if err != nil {
 		return fmt.Errorf("excution error %w", err)
 	}

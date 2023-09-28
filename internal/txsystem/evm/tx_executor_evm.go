@@ -73,8 +73,8 @@ func Execute(currentBlockNumber uint64, stateDB *statedb.StateDB, blockDB keyval
 	if err := validate(attr); err != nil {
 		return nil, err
 	}
-	blockCtx := newBlockContext(currentBlockNumber, blockDB)
-	evm := vm.NewEVM(blockCtx, newTxContext(attr, gasUnitPrice), stateDB, newChainConfig(new(big.Int).SetBytes(systemIdentifier)), newVMConfig())
+	blockCtx := NewBlockContext(currentBlockNumber, blockDB)
+	evm := vm.NewEVM(blockCtx, NewTxContext(attr, gasUnitPrice), stateDB, NewChainConfig(new(big.Int).SetBytes(systemIdentifier)), NewVMConfig())
 	msg := attr.AsMessage(gasUnitPrice, fake)
 	// Apply the transaction to the current state (included in the env)
 	execResult, err := core.ApplyMessage(evm, msg, gp)
@@ -121,7 +121,7 @@ func Execute(currentBlockNumber uint64, stateDB *statedb.StateDB, blockDB keyval
 	return &types.ServerMetadata{ActualFee: fee.Uint64(), TargetUnits: stateDB.GetUpdatedUnits(), SuccessIndicator: success, ProcessingDetails: detailBytes}, nil
 }
 
-func newBlockContext(currentBlockNumber uint64, blockDB keyvaluedb.KeyValueDB) vm.BlockContext {
+func NewBlockContext(currentBlockNumber uint64, blockDB keyvaluedb.KeyValueDB) vm.BlockContext {
 	return vm.BlockContext{
 		CanTransfer: core.CanTransfer,
 		Transfer:    core.Transfer,
@@ -148,14 +148,14 @@ func newBlockContext(currentBlockNumber uint64, blockDB keyvaluedb.KeyValueDB) v
 	}
 }
 
-func newTxContext(attr *TxAttributes, gasPrice *big.Int) vm.TxContext {
+func NewTxContext(attr *TxAttributes, gasPrice *big.Int) vm.TxContext {
 	return vm.TxContext{
 		Origin:   common.BytesToAddress(attr.From),
 		GasPrice: gasPrice,
 	}
 }
 
-func newVMConfig() vm.Config {
+func NewVMConfig() vm.Config {
 	return vm.Config{
 		// TODO use AB logger
 		Tracer:                  nil, // logger.NewJSONLogger(nil, os.Stdout),

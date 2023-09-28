@@ -28,13 +28,13 @@ const counterABI = "[\n\t{\n\t\t\"anonymous\": false,\n\t\t\"inputs\": [\n\t\t\t
 
 func TestAPI_CallEVM_OK(t *testing.T) {
 	tree := abstate.NewEmptyState()
-	address, contractAddr, _ := initState(t, tree)
+	address, contractAddr := initState(t, tree)
 
 	a := &API{
 		state:            tree,
 		systemIdentifier: []byte{0, 0, 0, 1},
 		gasUnitPrice:     big.NewInt(1),
-		blockGasLimit:    100000000000,
+		blockGasLimit:    evm.DefaultBlockGasLimit,
 	}
 	cABI, err := abi.JSON(bytes.NewBuffer([]byte(counterABI)))
 	require.NoError(t, err)
@@ -43,7 +43,7 @@ func TestAPI_CallEVM_OK(t *testing.T) {
 		To:    contractAddr.Bytes(),
 		Data:  cABI.Methods["get"].ID,
 		Value: big.NewInt(0),
-		Gas:   100000000000,
+		Gas:   29000,
 	}
 	callReq, err := cbor.Marshal(call)
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/evm/call", bytes.NewReader(callReq))
@@ -85,7 +85,7 @@ func TestAPI_CallEVM_OK(t *testing.T) {
 
 func TestAPI_CallEVM_ToFieldMissing(t *testing.T) {
 	tree := abstate.NewEmptyState()
-	address, _, _ := initState(t, tree)
+	address, _ := initState(t, tree)
 
 	a := &API{
 		state:            tree,
@@ -139,7 +139,7 @@ func TestAPI_CallEVM_InvalidRequest(t *testing.T) {
 	require.Equal(t, "unable to decode request body: cbor: cannot unmarshal negative integer into Go value of type api.CallEVMRequest", resp.Err)
 }
 
-func initState(t *testing.T, tree *abstate.State) (common.Address, common.Address, *big.Int) {
+func initState(t *testing.T, tree *abstate.State) (common.Address, common.Address) {
 	stateDB := statedb.NewStateDB(tree)
 	address := common.BytesToAddress(test.RandomBytes(20))
 
@@ -163,5 +163,5 @@ func initState(t *testing.T, tree *abstate.State) (common.Address, common.Addres
 	_, _, err = tree.CalculateRoot()
 	require.NoError(t, err)
 	require.NoError(t, tree.Commit())
-	return address, details.ContractAddr, balance
+	return address, details.ContractAddr
 }

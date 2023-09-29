@@ -242,7 +242,7 @@ func Test_evmCmdBalance(t *testing.T) {
 	verifyStdout(t, stdout, "#1 15.000'000'00 (eth: 15.000'000'000'000'000'000)")
 	// -k 2 -> no such account
 	_, err := execCommand(homedir, "evm balance -k 2 --alphabill-api-uri "+addr.Host)
-	require.ErrorContains(t, err, "balance error account key read failed: account does not exist")
+	require.ErrorContains(t, err, "get balance failed, account key read failed: account does not exist")
 }
 
 type clientMockConf struct {

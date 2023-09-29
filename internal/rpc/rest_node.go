@@ -74,7 +74,7 @@ func getTransactionRecord(node partitionNode) http.HandlerFunc {
 			util.WriteCBORError(w, fmt.Errorf("invalid tx order hash: %s", txOrder), http.StatusBadRequest)
 			return
 		}
-		txRecord, proof, err := node.GetTransactionRecord(txOrderHash)
+		txRecord, proof, err := node.GetTransactionRecord(r.Context(), txOrderHash)
 		if err != nil {
 			util.WriteCBORError(w, err, http.StatusInternalServerError)
 			return

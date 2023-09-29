@@ -1,7 +1,6 @@
 package api
 
 import (
-	"errors"
 	"fmt"
 	"math/big"
 	"net/http"
@@ -41,10 +40,6 @@ func (a *API) CallEVM(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if request.To == nil {
-		util.WriteCBORError(w, errors.New("to field is missing"), http.StatusBadRequest)
-		return
-	}
 	clonedState := a.state.Clone()
 	defer clonedState.Revert()
 
@@ -80,7 +75,7 @@ func (a *API) CallEVM(w http.ResponseWriter, r *http.Request) {
 func (a *API) callContract(clonedState *state.State, call *evm.TxAttributes) (*core.ExecutionResult, error) {
 	blockNumber := clonedState.CommittedTreeBlockNumber()
 	stateDB := statedb.NewStateDB(clonedState)
-	gp := new(core.GasPool).AddGas(a.blockGasLimit)
+	gp := new(core.GasPool).AddGas(math.MaxUint64)
 	// Ensure message is initialized properly.
 	if call.Gas == 0 {
 		call.Gas = 50000000
@@ -88,7 +83,7 @@ func (a *API) callContract(clonedState *state.State, call *evm.TxAttributes) (*c
 	if call.Value == nil {
 		call.Value = new(big.Int)
 	}
-	// todo: Set infinite balance to the fake caller account.
+	// Set infinite balance to the fake caller account.
 	u, _ := clonedState.GetUnit(call.From, false)
 	var err error
 	if u == nil {

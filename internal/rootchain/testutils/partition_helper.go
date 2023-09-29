@@ -84,11 +84,7 @@ func CreateBlockCertificationRequest(t *testing.T, ir *types.InputRecord, sysID 
 
 func MockValidatorNetReceives(t *testing.T, net *testnetwork.MockNet, id peer.ID, msgType string, msg any) {
 	t.Helper()
-	net.Receive(network.ReceivedMessage{
-		From:     id,
-		Protocol: msgType,
-		Message:  msg,
-	})
+	net.Receive(msg)
 	// wait for message to be consumed
 	require.Eventually(t, func() bool { return len(net.MessageCh) == 0 }, 1*time.Second, 10*time.Millisecond)
 }

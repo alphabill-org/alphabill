@@ -137,7 +137,7 @@ func TestProcess_ProcessAllTransactions(t *testing.T) {
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
-		buffer.Process(context.Background(), func(tx *types.TransactionOrder) bool {
+		buffer.Process(context.Background(), func(_ context.Context, tx *types.TransactionOrder) bool {
 			atomic.AddUint32(&c, 1)
 			return true
 		})
@@ -159,7 +159,7 @@ func TestProcess_CloseQuitsProcess(t *testing.T) {
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
-		buffer.Process(context.Background(), func(tx *types.TransactionOrder) bool {
+		buffer.Process(context.Background(), func(_ context.Context, tx *types.TransactionOrder) bool {
 			atomic.AddUint32(&c, 1)
 			return true
 		})
@@ -187,7 +187,7 @@ func TestProcess_CancelProcess(t *testing.T) {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		buffer.Process(ctx, func(tx *types.TransactionOrder) bool {
+		buffer.Process(ctx, func(_ context.Context, tx *types.TransactionOrder) bool {
 			cancel()
 			<-ctx.Done()
 			return false

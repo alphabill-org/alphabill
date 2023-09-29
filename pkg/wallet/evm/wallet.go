@@ -101,7 +101,7 @@ func (w *Wallet) SendEvmTx(ctx context.Context, accNr uint64, attrs *evmclient.T
 	txPub := NewTxPublisher(w.restCli)
 	proof, err := txPub.SendTx(ctx, txo, nil)
 	if err != nil {
-		return nil, fmt.Errorf("evm transaction execute failed: %w", err)
+		return nil, fmt.Errorf("evm transaction failed or account does not have enough fee credit: %w", err)
 	}
 	if proof == nil || proof.TxRecord == nil {
 		return nil, fmt.Errorf("unexpected result")

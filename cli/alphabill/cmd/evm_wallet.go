@@ -197,7 +197,7 @@ func execEvmCmdDeploy(cmd *cobra.Command, config *walletConfig) error {
 		if errors.Is(err, evmclient.ErrNotFound) {
 			return fmt.Errorf("no evm fee credit for account %d, please add", accountNumber)
 		}
-		return fmt.Errorf("excution error %w", err)
+		return fmt.Errorf("deploy failed, %w", err)
 	}
 	printResult(result)
 	return nil
@@ -240,7 +240,7 @@ func execEvmCmdExecute(cmd *cobra.Command, config *walletConfig) error {
 		if errors.Is(err, evmclient.ErrNotFound) {
 			return fmt.Errorf("no evm fee credit for account %d, please add", accountNumber)
 		}
-		return fmt.Errorf("excution error %w", err)
+		return fmt.Errorf("excution failed, %w", err)
 	}
 	printResult(result)
 	return nil
@@ -288,7 +288,7 @@ func execEvmCmdCall(cmd *cobra.Command, config *walletConfig) error {
 	}
 	result, err := w.EvmCall(cmd.Context(), accountNumber, attributes)
 	if err != nil {
-		return fmt.Errorf("excution error %w", err)
+		return fmt.Errorf("call failed, %w", err)
 	}
 	printResult(result)
 	return nil
@@ -306,7 +306,7 @@ func execEvmCmdBalance(cmd *cobra.Command, config *walletConfig) error {
 	defer w.Shutdown()
 	balance, err := w.GetBalance(cmd.Context(), accountNumber)
 	if err != nil {
-		return fmt.Errorf("balance error %w", err)
+		return fmt.Errorf("get balance failed, %w", err)
 	}
 	inAlpha := evmwallet.ConvertBalanceToAlpha(balance)
 	balanceStr := amountToString(inAlpha, 8)

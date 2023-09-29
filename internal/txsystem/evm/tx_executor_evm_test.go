@@ -89,8 +89,8 @@ func initStateDBWithAccountAndSC(t *testing.T, accounts []*testAccount) *statedb
 				Gas:   1000000000000000,
 				Nonce: 0,
 			}
-			blockCtx := newBlockContext(0, memorydb.New())
-			evm := vm.NewEVM(blockCtx, newTxContext(evmAttr, big.NewInt(0)), stateDB, newChainConfig(new(big.Int).SetBytes(systemIdentifier)), newVMConfig())
+			blockCtx := NewBlockContext(0, memorydb.New())
+			evm := vm.NewEVM(blockCtx, NewTxContext(evmAttr, big.NewInt(0)), stateDB, NewChainConfig(new(big.Int).SetBytes(systemIdentifier)), NewVMConfig())
 			_, _, _, err := evm.Create(vm.AccountRef(eoa.Addr), evmAttr.Data, 1000000000000000, evmAttr.Value)
 			require.NoError(t, err)
 			if eoa.Nonce != 0 {

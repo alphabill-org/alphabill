@@ -132,7 +132,7 @@ func (w *Wallet) EvmCall(ctx context.Context, accNr uint64, attrs *evmclient.Cal
 		return nil, err
 	}
 	return &evmclient.Result{
-		Success:   true,
+		Success:   len(details.ErrorDetails) == 0,
 		ActualFee: 0,
 		Details:   details,
 	}, nil

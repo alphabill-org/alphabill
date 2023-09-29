@@ -195,7 +195,7 @@ func execEvmCmdDeploy(cmd *cobra.Command, config *walletConfig) error {
 	result, err := w.SendEvmTx(cmd.Context(), accountNumber, attributes)
 	if err != nil {
 		if errors.Is(err, evmclient.ErrNotFound) {
-			return fmt.Errorf("evm fee credit not found, please add")
+			return fmt.Errorf("no evm fee credit for account %d, please add", accountNumber)
 		}
 		return fmt.Errorf("excution error %w", err)
 	}
@@ -238,7 +238,7 @@ func execEvmCmdExecute(cmd *cobra.Command, config *walletConfig) error {
 	result, err := w.SendEvmTx(cmd.Context(), accountNumber, attributes)
 	if err != nil {
 		if errors.Is(err, evmclient.ErrNotFound) {
-			return fmt.Errorf("evm fee credit not found, please add")
+			return fmt.Errorf("no evm fee credit for account %d, please add", accountNumber)
 		}
 		return fmt.Errorf("excution error %w", err)
 	}

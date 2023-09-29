@@ -45,3 +45,16 @@ func UpdateEthAccountAddCredit(id types.UnitID, value *big.Int, timeout uint64, 
 	}
 	return state.UpdateUnitData(id, updateDataFunc)
 }
+
+// SetBalance - set balance to value
+func SetBalance(id types.UnitID, value *big.Int) state.Action {
+	updateDataFunc := func(data state.UnitData) (state.UnitData, error) {
+		stateObj, ok := data.(*StateObject)
+		if !ok {
+			return nil, fmt.Errorf("unit %v does not contain ethereum account", id)
+		}
+		stateObj.Account.Balance = value
+		return stateObj, nil
+	}
+	return state.UpdateUnitData(id, updateDataFunc)
+}

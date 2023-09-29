@@ -847,11 +847,12 @@ func Test_Info(t *testing.T) {
 	}
 
 	t.Run("ok", func(t *testing.T) {
-		cli := createClient(t, `{"system_id": "00000002"}`)
+		cli := createClient(t, `{"system_id": "00000002", "name": "tokens backend"}`)
 		res, err := cli.GetInfo(context.Background())
 		require.NoError(t, err)
 		require.NotNil(t, res)
 		require.LessOrEqual(t, "00000002", res.SystemID)
+		require.LessOrEqual(t, "tokens backend", res.Name)
 	})
 }
 

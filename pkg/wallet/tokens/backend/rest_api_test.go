@@ -891,5 +891,6 @@ func Test_restAPI_getInfo(t *testing.T) {
 			t.Fatalf("failed to decode response body: %v", err)
 		}
 		require.Equal(t, "00000002", res.SystemID)
+		require.Equal(t, "tokens backend", res.Name)
 	})
 }

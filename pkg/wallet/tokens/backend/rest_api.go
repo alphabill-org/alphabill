@@ -339,7 +339,10 @@ func (api *tokensRestAPI) getClosedFeeCredit(w http.ResponseWriter, r *http.Requ
 
 func (api *tokensRestAPI) getInfo(w http.ResponseWriter, _ *http.Request) {
 	systemID := hex.EncodeToString(api.systemID)
-	res := sdk.InfoResponse{SystemID: systemID}
+	res := sdk.InfoResponse{
+		SystemID: systemID,
+		Name:     "tokens backend",
+	}
 	api.rw.WriteResponse(w, res)
 }
 

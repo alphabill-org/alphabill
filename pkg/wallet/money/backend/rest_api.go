@@ -420,7 +420,10 @@ func (api *moneyRestAPI) getClosedFeeCreditFunc(w http.ResponseWriter, r *http.R
 
 func (api *moneyRestAPI) getInfo(w http.ResponseWriter, _ *http.Request) {
 	systemID := hex.EncodeToString(api.SystemID)
-	res := sdk.InfoResponse{SystemID: systemID}
+	res := sdk.InfoResponse{
+		SystemID: systemID,
+		Name:     "money backend",
+	}
 	api.rw.WriteResponse(w, res)
 }
 

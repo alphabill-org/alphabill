@@ -229,6 +229,7 @@ func TestGetInfo(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, infoResponse)
 	require.Equal(t, "00000000", infoResponse.SystemID)
+	require.Equal(t, "money backend", infoResponse.Name)
 }
 
 func mockGetBalanceCall(t *testing.T) (*httptest.Server, *url.URL) {
@@ -336,7 +337,7 @@ func mockGetInfoRequest(t *testing.T) (*httptest.Server, *url.URL) {
 			t.Errorf("Expected to request '%v', got: %s", InfoPath, r.URL.Path)
 		}
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`{"system_id": "00000000"}`))
+		w.Write([]byte(`{"system_id": "00000000", "name": "money backend"}`))
 	}))
 
 	serverAddress, _ := url.Parse(server.URL)

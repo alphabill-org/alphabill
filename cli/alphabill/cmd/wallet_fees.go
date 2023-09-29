@@ -304,6 +304,10 @@ func getFeeCreditManager(ctx context.Context, c *cliConf, am account.Manager, un
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch money system info: %w", err)
 	}
+	moneyTypeVar := moneyType
+	if !strings.HasPrefix(moneySystemInfo.Name, moneyTypeVar.String()) {
+		return nil, fmt.Errorf("invalid money backend name: %s", moneySystemInfo.Name)
+	}
 	moneySystemID, err := hex.DecodeString(moneySystemInfo.SystemID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to decode money system identifier hex: %w", err)
@@ -334,6 +338,10 @@ func getFeeCreditManager(ctx context.Context, c *cliConf, am account.Manager, un
 		if err != nil {
 			return nil, fmt.Errorf("failed to fetch tokens system info: %w", err)
 		}
+		tokenTypeVar := tokensType
+		if !strings.HasPrefix(tokenInfo.Name, tokenTypeVar.String()) {
+			return nil, fmt.Errorf("invalid tokens backend name: %s", tokenInfo.Name)
+		}
 		tokenSystemID, err := hex.DecodeString(tokenInfo.SystemID)
 		if err != nil {
 			return nil, fmt.Errorf("failed to decode tokens system identifier hex: %w", err)
@@ -358,7 +366,11 @@ func getFeeCreditManager(ctx context.Context, c *cliConf, am account.Manager, un
 		evmTxPublisher := evmwallet.NewTxPublisher(evmClient)
 		evmInfo, err := evmClient.GetInfo(ctx)
 		if err != nil {
-			return nil, fmt.Errorf("failed to fetch evmt system info: %w", err)
+			return nil, fmt.Errorf("failed to fetch evm system info: %w", err)
+		}
+		evmTypeVar := evmType
+		if !strings.HasPrefix(evmInfo.Name, evmTypeVar.String()) {
+			return nil, fmt.Errorf("invalid evm partition name: %s", evmInfo.Name)
 		}
 		evmSystemID, err := hex.DecodeString(evmInfo.SystemID)
 		if err != nil {

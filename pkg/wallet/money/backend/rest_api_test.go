@@ -616,6 +616,7 @@ func TestInfoRequest_Ok(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, http.StatusOK, httpRes.StatusCode)
 	require.Equal(t, "00000000", res.SystemID)
+	require.Equal(t, "money backend", res.Name)
 }
 
 func verifyLinkHeader(t *testing.T, httpRes *http.Response, nextKey []byte) {

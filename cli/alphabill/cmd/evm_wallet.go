@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"math/big"
 
@@ -193,6 +194,9 @@ func execEvmCmdDeploy(cmd *cobra.Command, config *walletConfig) error {
 	}
 	result, err := w.SendEvmTx(cmd.Context(), accountNumber, attributes)
 	if err != nil {
+		if errors.Is(err, evmclient.ErrNotFound) {
+			return fmt.Errorf("no evm fee credit for account %d, please add", accountNumber)
+		}
 		return fmt.Errorf("excution error %w", err)
 	}
 	printResult(result)
@@ -233,6 +237,9 @@ func execEvmCmdExecute(cmd *cobra.Command, config *walletConfig) error {
 	}
 	result, err := w.SendEvmTx(cmd.Context(), accountNumber, attributes)
 	if err != nil {
+		if errors.Is(err, evmclient.ErrNotFound) {
+			return fmt.Errorf("no evm fee credit for account %d, please add", accountNumber)
+		}
 		return fmt.Errorf("excution error %w", err)
 	}
 	printResult(result)

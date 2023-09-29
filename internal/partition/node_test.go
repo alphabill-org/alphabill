@@ -50,7 +50,7 @@ func TestNode_noRound_txAddedBackToBuffer(t *testing.T) {
 	}
 	bufferBefore := p.partition.txBuffer.Count()
 	// make sure no round is active
-	p.partition.handleT1TimeoutEvent()
+	p.partition.handleT1TimeoutEvent(context.Background())
 	// send tx to the channel
 	p.partition.txCh <- transfer
 	// tx is added back to the buffer
@@ -644,13 +644,13 @@ func TestNode_GetTransactionRecord_OK(t *testing.T) {
 	tp.CreateBlock(t)
 
 	require.Eventually(t, func() bool {
-		record, proof, err := tp.partition.GetTransactionRecord(hash)
+		record, proof, err := tp.partition.GetTransactionRecord(context.Background(), hash)
 		require.NoError(t, err)
 		return record != nil && proof != nil
 	}, test.WaitDuration, test.WaitTick)
 
 	require.Eventually(t, func() bool {
-		record, proof, err := tp.partition.GetTransactionRecord(hash2)
+		record, proof, err := tp.partition.GetTransactionRecord(context.Background(), hash2)
 		require.NoError(t, err)
 		return record != nil && proof != nil
 	}, test.WaitDuration, test.WaitTick)
@@ -659,7 +659,7 @@ func TestNode_GetTransactionRecord_OK(t *testing.T) {
 func TestNode_GetTransactionRecord_NotFound(t *testing.T) {
 	system := &testtxsystem.CounterTxSystem{}
 	tp := RunSingleNodePartition(t, system, WithTxIndexer(memorydb.New()))
-	record, proof, err := tp.partition.GetTransactionRecord(test.RandomBytes(32))
+	record, proof, err := tp.partition.GetTransactionRecord(context.Background(), test.RandomBytes(32))
 
 	require.NoError(t, err)
 	require.Nil(t, record)

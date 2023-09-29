@@ -81,11 +81,13 @@ func TestAddFeeCredit_MultipleBills(t *testing.T) {
 	firstTransFCAttr := &transactions.TransferFeeCreditAttributes{}
 	err = proofs.TransferFC[0].TxRecord.TransactionOrder.UnmarshalAttributes(firstTransFCAttr)
 	require.NoError(t, err)
+	require.EqualValues(t, []byte{3}, proofs.TransferFC[0].TxRecord.TransactionOrder.UnitID())
 	require.Equal(t, uint64(100000003), firstTransFCAttr.Amount)
 	// second transfer amount should match the remaining value
 	secondTransFCAttr := &transactions.TransferFeeCreditAttributes{}
 	err = proofs.TransferFC[1].TxRecord.TransactionOrder.UnmarshalAttributes(secondTransFCAttr)
 	require.NoError(t, err)
+	require.EqualValues(t, []byte{2}, proofs.TransferFC[1].TxRecord.TransactionOrder.UnitID())
 	require.Equal(t, uint64(200000000-100000003), secondTransFCAttr.Amount)
 	require.Len(t, proofs.AddFC, 2)
 }

@@ -87,7 +87,7 @@ type (
 		ReclaimFC *wallet.Proof
 	}
 
-	AddFCStateResponse struct {
+	addFCStateResponse struct {
 		lockedUnit *unitlock.LockedUnit
 		transferFC *wallet.Proof
 		addFC      *wallet.Proof
@@ -162,11 +162,6 @@ func (w *FeeManager) AddFeeCredit(ctx context.Context, cmd AddFeeCmd) (*AddFeeCm
 	if len(lockedReclaimUnits) > 0 {
 		return nil, errors.New("wallet contains unreclaimed fee credit, run the reclaim command before adding fee credit")
 	}
-	// fetch fee credit bill
-	fcb, err := w.GetFeeCredit(ctx, GetFeeCreditCmd{AccountIndex: cmd.AccountIndex})
-	if err != nil {
-		return nil, err
-	}
 
 	// fetch round numbers for timeouts
 	moneyRoundNumber, err := w.moneyBackendClient.GetRoundNumber(ctx)
@@ -177,8 +172,6 @@ func (w *FeeManager) AddFeeCredit(ctx context.Context, cmd AddFeeCmd) (*AddFeeCm
 	if err != nil {
 		return nil, err
 	}
-	moneyTimeout := moneyRoundNumber + txTimeoutBlockCount
-	latestAdditionTime := userPartitionRoundNumber + transferFCLatestAdditionTime
 
 	// check for any pending add fee credit transactions
 	addFCStateResponse, err := w.getAddFeeCreditState(ctx, lockedBills, moneyRoundNumber, userPartitionRoundNumber, accountKey)
@@ -220,13 +213,17 @@ func (w *FeeManager) AddFeeCredit(ctx context.Context, cmd AddFeeCmd) (*AddFeeCm
 
 		totalTransferredAmount := uint64(0)
 		for totalTransferredAmount < cmd.Amount {
-			addFCProof, transferFCProof, transferredAmount, err := w.execAddFeeCredit(ctx, cmd.Amount-totalTransferredAmount, accountKey, fcb, bills, moneyTimeout, userPartitionRoundNumber, latestAdditionTime)
+			addFCProof, transferFCProof, transferredAmount, err := w.execAddFeeCredit(ctx, cmd, cmd.Amount-totalTransferredAmount, accountKey, bills)
 			if err != nil {
 				return nil, err
 			}
 			totalTransferredAmount += transferredAmount
 			transferFCs = append(transferFCs, transferFCProof)
 			addFCs = append(addFCs, addFCProof)
+		}
+		err = w.unlockFCUnits(transferFCs, accountKey)
+		if err != nil {
+			return nil, err
 		}
 	}
 
@@ -472,7 +469,25 @@ func (w *FeeManager) handlePendingAddFeeCredit(ctx context.Context, accountKey *
 	return nil, nil, nil
 }
 
-func (w *FeeManager) execAddFeeCredit(ctx context.Context, amount uint64, accountKey *account.AccountKey, fcb *wallet.Bill, bills []*wallet.Bill, moneyTimeout, userPartitionRoundNumber, latestAdditionTime uint64) (*wallet.Proof, *wallet.Proof, uint64, error) {
+func (w *FeeManager) execAddFeeCredit(ctx context.Context, cmd AddFeeCmd, amount uint64, accountKey *account.AccountKey, bills []*wallet.Bill) (*wallet.Proof, *wallet.Proof, uint64, error) {
+	// fetch fee credit bill
+	fcb, err := w.GetFeeCredit(ctx, GetFeeCreditCmd{AccountIndex: cmd.AccountIndex})
+	if err != nil {
+		return nil, nil, 0, err
+	}
+
+	// fetch round numbers for timeouts
+	moneyRoundNumber, err := w.moneyBackendClient.GetRoundNumber(ctx)
+	if err != nil {
+		return nil, nil, 0, err
+	}
+	userPartitionRoundNumber, err := w.userPartitionBackendClient.GetRoundNumber(ctx)
+	if err != nil {
+		return nil, nil, 0, err
+	}
+	moneyTimeout := moneyRoundNumber + txTimeoutBlockCount
+	latestAdditionTime := userPartitionRoundNumber + transferFCLatestAdditionTime
+
 	// find any unlocked bill and send transferFC
 	transferFCProof, err := w.sendTransferFC(ctx, amount, accountKey, fcb, bills, moneyTimeout, userPartitionRoundNumber, latestAdditionTime)
 	if err != nil {
@@ -495,7 +510,7 @@ func (w *FeeManager) execAddFeeCredit(ctx context.Context, amount uint64, accoun
 	if err != nil {
 		return nil, nil, 0, fmt.Errorf("failed to create addFC transaction: %w", err)
 	}
-	lockedUnit, err := w.updateLockedUnitTx(
+	_, err = w.updateLockedUnitTx(
 		accountKey.PubKey,
 		transferFCProof.TxRecord.TransactionOrder.UnitID(),
 		unitlock.NewTransaction(addFCTx),
@@ -509,20 +524,17 @@ func (w *FeeManager) execAddFeeCredit(ctx context.Context, amount uint64, accoun
 	if err != nil {
 		return nil, nil, 0, fmt.Errorf("failed to send addFC transaction: %w", err)
 	}
-	if err := w.unitLocker.UnlockUnit(accountKey.PubKey, lockedUnit.UnitID); err != nil {
-		return nil, nil, 0, fmt.Errorf("failed to unlock target fee credit bill: %w", err)
-	}
 	return addFCProof, transferFCProof, transferFCAttr.Amount, nil
 }
 
-func (w *FeeManager) getAddFeeCreditState(ctx context.Context, lockedBills []*unitlock.LockedUnit, moneyRoundNumber uint64, userPartitionRoundNumber uint64, accountKey *account.AccountKey) ([]*AddFCStateResponse, error) {
-	response := make([]*AddFCStateResponse, 0, len(lockedBills))
+func (w *FeeManager) getAddFeeCreditState(ctx context.Context, lockedBills []*unitlock.LockedUnit, moneyRoundNumber uint64, userPartitionRoundNumber uint64, accountKey *account.AccountKey) ([]*addFCStateResponse, error) {
+	response := make([]*addFCStateResponse, 0, len(lockedBills))
 	lockedFeeBills := w.getLockedBillsByReason(lockedBills, unitlock.LockReasonAddFees)
 	if len(lockedFeeBills) == 0 {
-		response = append(response, &AddFCStateResponse{})
+		response = append(response, &addFCStateResponse{})
 	}
 	for _, lockedFeeBill := range lockedFeeBills {
-		stateResponse := &AddFCStateResponse{lockedUnit: lockedFeeBill}
+		stateResponse := &addFCStateResponse{lockedUnit: lockedFeeBill}
 		if lockedFeeBill.Transactions[0].TxOrder.PayloadType() == transactions.PayloadTypeTransferFeeCredit {
 			transferFCProof, err := w.handleLockedTransferFC(ctx, lockedFeeBill, moneyRoundNumber, accountKey)
 			if err != nil {
@@ -806,6 +818,15 @@ func (w *FeeManager) getFirstUnlockedBill(accountID []byte, bills []*wallet.Bill
 		}
 	}
 	return nil, errors.New("wallet does not contain any unlocked bills")
+}
+
+func (w *FeeManager) unlockFCUnits(addFCs []*wallet.Proof, accountKey *account.AccountKey) error {
+	for _, addFC := range addFCs {
+		if err := w.unitLocker.UnlockUnit(accountKey.PubKey, addFC.TxRecord.TransactionOrder.UnitID()); err != nil {
+			return fmt.Errorf("failed to unlock target fee credit bill: %w", err)
+		}
+	}
+	return nil
 }
 
 func (w *FeeManager) unmarshalTransferFC(lockedFeeBill *unitlock.LockedUnit) (*transactions.TransferFeeCreditAttributes, *transactions.AddFeeCreditAttributes, error) {

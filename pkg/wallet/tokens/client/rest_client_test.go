@@ -826,6 +826,35 @@ func Test_extractOffsetMarker(t *testing.T) {
 	})
 }
 
+func Test_Info(t *testing.T) {
+	t.Parallel()
+
+	createClient := func(t *testing.T, respBody string) *TokenBackend {
+		t.Helper()
+		return &TokenBackend{
+			hc: &http.Client{
+				Transport: &mockRoundTripper{
+					do: func(r *http.Request) (*http.Response, error) {
+						w := httptest.NewRecorder()
+						if _, err := w.WriteString(respBody); err != nil {
+							t.Errorf("failed to write response body: %v", err)
+						}
+						return w.Result(), nil
+					},
+				},
+			},
+		}
+	}
+
+	t.Run("ok", func(t *testing.T) {
+		cli := createClient(t, `{"system_id": "00000002"}`)
+		res, err := cli.GetInfo(context.Background())
+		require.NoError(t, err)
+		require.NotNil(t, res)
+		require.LessOrEqual(t, "00000002", res.SystemID)
+	})
+}
+
 func randomTx(t *testing.T, attr interface{}) *types.TransactionOrder {
 	t.Helper()
 	bytes, err := cbor.Marshal(attr)

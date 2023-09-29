@@ -36,6 +36,10 @@ type (
 	ResponseWriter struct {
 		LogErr func(a ...any)
 	}
+
+	InfoResponse struct {
+		SystemID string `json:"system_id"` // hex encoded system identifier (without 0x prefix); for compatibility with node /info endpoint
+	}
 )
 
 var ErrRecordNotFound = errors.New("not found")

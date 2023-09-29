@@ -492,7 +492,7 @@ func startTokensBackend(t *testing.T, nodeAddr string) (srvUri string, restApi *
 	t.Cleanup(cancel)
 
 	go func() {
-		cfg := backend.NewConfig(host, nodeAddr, filepath.Join(t.TempDir(), "backend.db"), wlog.GetLogger())
+		cfg := backend.NewConfig(host, nodeAddr, filepath.Join(t.TempDir(), "backend.db"), wlog.GetLogger(), tokens.DefaultSystemIdentifier)
 		require.ErrorIs(t, backend.Run(ctx, cfg), context.Canceled)
 	}()
 

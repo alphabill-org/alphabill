@@ -17,9 +17,10 @@ import (
 const (
 	moneyBackendHomeDir = "money-backend"
 
-	serverAddrCmdName  = "server-addr"
-	dbFileCmdName      = "db"
-	listBillsPageLimit = "list-bills-page-limit"
+	serverAddrCmdName       = "server-addr"
+	dbFileCmdName           = "db"
+	listBillsPageLimit      = "list-bills-page-limit"
+	systemIdentifierCmdName = "system-identifier"
 )
 
 type moneyBackendConfig struct {
@@ -33,6 +34,7 @@ type moneyBackendConfig struct {
 	InitialBillID      uint64
 	InitialBillValue   uint64
 	SDRFiles           []string // system description record files
+	SystemID           []byte   // hex encoded money system identifier
 }
 
 func (c *moneyBackendConfig) GetDbFile() (string, error) {
@@ -99,7 +101,8 @@ func startMoneyBackendCmd(config *moneyBackendConfig) *cobra.Command {
 	cmd.Flags().IntVarP(&config.ListBillsPageLimit, listBillsPageLimit, "l", 100, "GET /list-bills request default/max limit size")
 	cmd.Flags().Uint64Var(&config.InitialBillValue, "initial-bill-value", 100000000, "initial bill value (needed for initial startup only)")
 	cmd.Flags().Uint64Var(&config.InitialBillID, "initial-bill-id", 1, "initial bill id hex string with 0x prefix (needed for initial startup only)")
-	cmd.Flags().StringSliceVarP(&config.SDRFiles, "system-description-record-files", "c", nil, "path to SDR files (one for each partition, including money partion itself; defaults to single money partition only SDR; needed for initial startup only)")
+	cmd.Flags().StringSliceVarP(&config.SDRFiles, "system-description-record-files", "c", nil, "path to SDR files (one for each partition, including money partition itself; defaults to single money partition only SDR; needed for initial startup only)")
+	cmd.Flags().BytesHexVar(&config.SystemID, systemIdentifierCmdName, money.DefaultSystemIdentifier, "system identifier in hex format")
 	return cmd
 }
 
@@ -113,7 +116,7 @@ func execMoneyBackendStartCmd(ctx context.Context, config *moneyBackendConfig) e
 		return err
 	}
 	return backend.Run(ctx, &backend.Config{
-		ABMoneySystemIdentifier: money.DefaultSystemIdentifier,
+		ABMoneySystemIdentifier: config.SystemID,
 		AlphabillUrl:            config.AlphabillUrl,
 		ServerAddr:              config.ServerAddr,
 		DbFile:                  dbFile,

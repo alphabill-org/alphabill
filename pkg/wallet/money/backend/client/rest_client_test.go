@@ -218,6 +218,20 @@ func TestPostTransactionsError(t *testing.T) {
 	require.ErrorContains(t, err, "failed to send transactions: status 500 Internal Server Error - "+errMsg)
 }
 
+func TestGetInfo(t *testing.T) {
+	mockServer, mockAddress := mockGetInfoRequest(t)
+	defer mockServer.Close()
+
+	restClient, err := New(mockAddress.Host)
+	require.NoError(t, err)
+
+	infoResponse, err := restClient.GetInfo(context.Background())
+	require.NoError(t, err)
+	require.NotNil(t, infoResponse)
+	require.Equal(t, "00000000", infoResponse.SystemID)
+	require.Equal(t, "money backend", infoResponse.Name)
+}
+
 func mockGetBalanceCall(t *testing.T) (*httptest.Server, *url.URL) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != ("/" + BalancePath) {
@@ -311,6 +325,19 @@ func mockPostTransactionsCall(t *testing.T, statusCode int, responseBody string)
 		}
 		w.WriteHeader(statusCode)
 		w.Write([]byte(responseBody))
+	}))
+
+	serverAddress, _ := url.Parse(server.URL)
+	return server, serverAddress
+}
+
+func mockGetInfoRequest(t *testing.T) (*httptest.Server, *url.URL) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != ("/" + InfoPath) {
+			t.Errorf("Expected to request '%v', got: %s", InfoPath, r.URL.Path)
+		}
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{"system_id": "00000000", "name": "money backend"}`))
 	}))
 
 	serverAddress, _ := url.Parse(server.URL)

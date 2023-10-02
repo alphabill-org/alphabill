@@ -172,7 +172,12 @@ func Run(ctx context.Context, config *Config) error {
 		walletBackend := &WalletBackend{store: store, genericWallet: sdk.New().SetABClient(abc).Build()}
 		defer walletBackend.genericWallet.Shutdown()
 
-		handler := &moneyRestAPI{Service: walletBackend, ListBillsPageLimit: config.ListBillsPageLimit, rw: &sdk.ResponseWriter{LogErr: wlog.Error}}
+		handler := &moneyRestAPI{
+			Service:            walletBackend,
+			ListBillsPageLimit: config.ListBillsPageLimit,
+			SystemID:           config.ABMoneySystemIdentifier,
+			rw:                 &sdk.ResponseWriter{LogErr: wlog.Error},
+		}
 		server := http.Server{
 			Addr:              config.ServerAddr,
 			Handler:           handler.Router(),

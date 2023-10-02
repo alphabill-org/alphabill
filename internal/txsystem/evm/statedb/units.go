@@ -15,7 +15,6 @@ import (
 
 var (
 	_ abstate.UnitData = (*StateObject)(nil)
-	_ abstate.UnitData = (*AlphaBillLink)(nil)
 
 	emptyCodeHash = crypto.Keccak256(nil)
 )
@@ -37,10 +36,8 @@ type Account struct {
 	Nonce    uint64
 }
 
-// AlphaBillLink links Account to AB bill
+// AlphaBillLink links Account to AB FCR bill
 type AlphaBillLink struct {
-	Bearer  []byte
-	UnitID  []byte
 	TxHash  []byte
 	Timeout uint64
 }
@@ -76,22 +73,16 @@ func (s *StateObject) Copy() abstate.UnitData {
 		return nil
 	}
 
-	var link *AlphaBillLink
-	if s.AlphaBill != nil {
-		link = s.AlphaBill.Copy().(*AlphaBillLink)
-	}
 	return &StateObject{
 		Address:   common.BytesToAddress(bytes.Clone(s.Address.Bytes())),
 		Account:   s.Account.Copy(),
 		Storage:   s.Storage.Copy(),
-		AlphaBill: link,
+		AlphaBill: s.AlphaBill.Copy(),
 		suicided:  s.suicided,
 	}
 }
 
 func (f *AlphaBillLink) Write(hasher hash.Hash) {
-	hasher.Write(f.Bearer)
-	hasher.Write(f.UnitID)
 	hasher.Write(f.TxHash)
 	hasher.Write(util.Uint64ToBytes(f.Timeout))
 }
@@ -100,16 +91,21 @@ func (f *AlphaBillLink) SummaryValueInput() uint64 {
 	return 0
 }
 
-func (f *AlphaBillLink) Copy() abstate.UnitData {
+func (f *AlphaBillLink) Copy() *AlphaBillLink {
 	if f == nil {
 		return nil
 	}
 	return &AlphaBillLink{
-		Bearer:  bytes.Clone(f.Bearer),
-		UnitID:  bytes.Clone(f.UnitID),
 		TxHash:  bytes.Clone(f.TxHash),
 		Timeout: f.Timeout,
 	}
+}
+
+func (f *AlphaBillLink) GetTimeout() uint64 {
+	if f != nil {
+		return f.Timeout
+	}
+	return 0
 }
 
 func (a *Account) Write(hasher hash.Hash) {

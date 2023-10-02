@@ -6,6 +6,7 @@ import (
 	"math/big"
 	"testing"
 
+	"github.com/alphabill-org/alphabill/internal/hash"
 	"github.com/alphabill-org/alphabill/internal/state"
 	"github.com/alphabill-org/alphabill/internal/txsystem/evm/statedb"
 
@@ -197,12 +198,13 @@ func Test_getTransferPayloadAttributes(t *testing.T) {
 }
 
 func Test_addFeeCreditTxAndUpdate(t *testing.T) {
+	const transferFcFee = 1
 	stateTree := state.NewEmptyState()
 	signer, ver := testsig.CreateSignerAndVerifier(t)
 	tb := map[string]abcrypto.Verifier{"test": ver}
 	pubKeyBytes, err := ver.MarshalPublicKey()
 	require.NoError(t, err)
-	pubHash := sha256.Sum256(pubKeyBytes)
+	pubHash := hash.Sum256(pubKeyBytes)
 	privKeyHash := hashOfPrivateKey(t, signer)
 	addExecFn := addFeeCreditTx(
 		stateTree,
@@ -211,12 +213,14 @@ func Test_addFeeCreditTxAndUpdate(t *testing.T) {
 		fc.NewDefaultFeeCreditTxValidator([]byte{0, 0, 0, 0}, DefaultEvmTxSystemIdentifier, crypto.SHA256, tb, nil))
 	addFeeOrder := newAddFCTx(t,
 		privKeyHash,
-		testfc.NewAddFCAttr(t, signer, testfc.WithTransferFCTx(
-			&types.TransactionRecord{
-				TransactionOrder: testfc.NewTransferFC(t, testfc.NewTransferFCAttr(testfc.WithAmount(100), testfc.WithTargetRecordID(privKeyHash), testfc.WithTargetSystemID(DefaultEvmTxSystemIdentifier)),
-					testtransaction.WithSystemID([]byte{0, 0, 0, 0}), testtransaction.WithOwnerProof(script.PredicatePayToPublicKeyHashDefault(pubHash[:]))),
-				ServerMetadata: &types.ServerMetadata{ActualFee: 1},
-			})),
+		testfc.NewAddFCAttr(t, signer,
+			testfc.WithFCOwnerCondition(script.PredicatePayToPublicKeyHashDefault(pubHash)),
+			testfc.WithTransferFCTx(
+				&types.TransactionRecord{
+					TransactionOrder: testfc.NewTransferFC(t, testfc.NewTransferFCAttr(testfc.WithAmount(100), testfc.WithTargetRecordID(privKeyHash), testfc.WithTargetSystemID(DefaultEvmTxSystemIdentifier)),
+						testtransaction.WithSystemID([]byte{0, 0, 0, 0}), testtransaction.WithOwnerProof(script.PredicatePayToPublicKeyHashDefault(pubHash))),
+					ServerMetadata: &types.ServerMetadata{ActualFee: transferFcFee},
+				})),
 		signer, 7)
 	attr := new(transactions.AddFeeCreditAttributes)
 	require.NoError(t, addFeeOrder.UnmarshalAttributes(attr))
@@ -229,24 +233,87 @@ func Test_addFeeCreditTxAndUpdate(t *testing.T) {
 	addr, err := generateAddress(pubKeyBytes)
 	require.NoError(t, err)
 	balance := stateDB.GetBalance(addr)
-	// balance is equal to 100-"fee = 2" to wei
-	require.EqualValues(t, balance, new(big.Int).Sub(alphaToWei(100), alphaToWei(evmTestFeeCalculator())))
-	abData := stateDB.GetAlphaBillData(addr)
+	// balance is equal to 100 - "transfer fee" - "add fee" to wei
+	remainingCredit := new(big.Int).Sub(alphaToWei(100), alphaToWei(transferFcFee))
+	remainingCredit = new(big.Int).Sub(remainingCredit, alphaToWei(evmTestFeeCalculator()))
+	require.EqualValues(t, balance, remainingCredit)
+	// check owner condition set
+	u, err := stateTree.GetUnit(addr.Bytes(), false)
+	require.NoError(t, err)
+	require.EqualValues(t, script.PredicatePayToPublicKeyHashDefault(pubHash), u.Bearer())
 
+	abData := stateDB.GetAlphaBillData(addr)
 	// add more funds
 	addFeeOrder = newAddFCTx(t,
 		privKeyHash,
-		testfc.NewAddFCAttr(t, signer, testfc.WithTransferFCTx(
-			&types.TransactionRecord{
-				TransactionOrder: testfc.NewTransferFC(t, testfc.NewTransferFCAttr(testfc.WithAmount(10), testfc.WithTargetRecordID(privKeyHash), testfc.WithTargetSystemID(DefaultEvmTxSystemIdentifier), testfc.WithTargetUnitBacklink(abData.TxHash)),
-					testtransaction.WithSystemID([]byte{0, 0, 0, 0}), testtransaction.WithOwnerProof(script.PredicatePayToPublicKeyHashDefault(pubHash[:]))),
-				ServerMetadata: &types.ServerMetadata{ActualFee: 1},
-			})),
+		testfc.NewAddFCAttr(t, signer,
+			testfc.WithFCOwnerCondition(script.PredicatePayToPublicKeyHashDefault(pubHash)),
+			testfc.WithTransferFCTx(
+				&types.TransactionRecord{
+					TransactionOrder: testfc.NewTransferFC(t, testfc.NewTransferFCAttr(testfc.WithAmount(10), testfc.WithTargetRecordID(privKeyHash), testfc.WithTargetSystemID(DefaultEvmTxSystemIdentifier), testfc.WithTargetUnitBacklink(abData.TxHash)),
+						testtransaction.WithSystemID([]byte{0, 0, 0, 0}), testtransaction.WithOwnerProof(script.PredicatePayToPublicKeyHashDefault(pubHash))),
+					ServerMetadata: &types.ServerMetadata{ActualFee: transferFcFee},
+				})),
 		signer, 7)
 	require.NoError(t, addFeeOrder.UnmarshalAttributes(attr))
 	metaData, err = addExecFn(addFeeOrder, attr, 5)
+	remainingCredit = new(big.Int).Add(remainingCredit, alphaToWei(10))
 	require.NoError(t, err)
 	balance = stateDB.GetBalance(addr)
-	// balance is equal to 100-"fee = 2" to wei
-	require.EqualValues(t, balance, new(big.Int).Sub(alphaToWei(110), alphaToWei(2*evmTestFeeCalculator())))
+	// balance is equal to remaining+10-"transfer fee 1" -"ass fee = 2" to wei
+	remainingCredit = new(big.Int).Sub(remainingCredit, alphaToWei(transferFcFee))
+	remainingCredit = new(big.Int).Sub(remainingCredit, alphaToWei(evmTestFeeCalculator()))
+	require.EqualValues(t, balance, remainingCredit)
+	// check owner condition
+	u, err = stateTree.GetUnit(addr.Bytes(), false)
+	require.NoError(t, err)
+	require.EqualValues(t, script.PredicatePayToPublicKeyHashDefault(pubHash), u.Bearer())
+}
+
+func Test_addFeeCreditTxToExistingAccount(t *testing.T) {
+	const transferFcFee = 1
+	stateTree := state.NewEmptyState()
+	signer, ver := testsig.CreateSignerAndVerifier(t)
+	tb := map[string]abcrypto.Verifier{"test": ver}
+	pubKeyBytes, err := ver.MarshalPublicKey()
+	require.NoError(t, err)
+	address, err := generateAddress(pubKeyBytes)
+	require.NoError(t, err)
+	stateDB := statedb.NewStateDB(stateTree)
+	stateDB.CreateAccount(address)
+	stateDB.AddBalance(address, alphaToWei(100))
+	pubHash := hash.Sum256(pubKeyBytes)
+	privKeyHash := hashOfPrivateKey(t, signer)
+	addExecFn := addFeeCreditTx(
+		stateTree,
+		crypto.SHA256,
+		evmTestFeeCalculator,
+		fc.NewDefaultFeeCreditTxValidator([]byte{0, 0, 0, 0}, DefaultEvmTxSystemIdentifier, crypto.SHA256, tb, nil))
+	addFeeOrder := newAddFCTx(t,
+		privKeyHash,
+		testfc.NewAddFCAttr(t, signer,
+			testfc.WithFCOwnerCondition(script.PredicatePayToPublicKeyHashDefault(pubHash)),
+			testfc.WithTransferFCTx(
+				&types.TransactionRecord{
+					TransactionOrder: testfc.NewTransferFC(t, testfc.NewTransferFCAttr(testfc.WithAmount(100), testfc.WithTargetRecordID(privKeyHash), testfc.WithTargetSystemID(DefaultEvmTxSystemIdentifier)),
+						testtransaction.WithSystemID([]byte{0, 0, 0, 0}), testtransaction.WithOwnerProof(script.PredicatePayToPublicKeyHashDefault(pubHash))),
+					ServerMetadata: &types.ServerMetadata{ActualFee: transferFcFee},
+				})),
+		signer, 7)
+	attr := new(transactions.AddFeeCreditAttributes)
+	require.NoError(t, addFeeOrder.UnmarshalAttributes(attr))
+	metaData, err := addExecFn(addFeeOrder, attr, 5)
+	require.NoError(t, err)
+	require.NotNil(t, metaData)
+	require.EqualValues(t, evmTestFeeCalculator(), metaData.ActualFee)
+	// validate stateDB
+	balance := stateDB.GetBalance(address)
+	// balance is equal to 100+100 - "transfer fee" - "add fee" to wei
+	remainingCredit := new(big.Int).Sub(alphaToWei(200), alphaToWei(transferFcFee))
+	remainingCredit = new(big.Int).Sub(remainingCredit, alphaToWei(evmTestFeeCalculator()))
+	require.EqualValues(t, balance, remainingCredit)
+	// check owner condition as well
+	u, err := stateTree.GetUnit(address.Bytes(), false)
+	require.NoError(t, err)
+	require.EqualValues(t, script.PredicatePayToPublicKeyHashDefault(pubHash), u.Bearer())
 }

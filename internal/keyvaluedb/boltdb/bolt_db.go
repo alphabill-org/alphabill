@@ -2,6 +2,7 @@ package boltdb
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"time"
 
@@ -24,6 +25,8 @@ type (
 		decoder DecodeFn
 	}
 )
+
+var errNotFound = errors.New("db entry not found")
 
 // New creates a new Bolt DB
 // todo: add options and make it possible to use other encode/decode methods
@@ -62,18 +65,19 @@ func (db *BoltDB) Read(key []byte, v any) (bool, error) {
 	if err := keyvaluedb.CheckKeyAndValue(key, v); err != nil {
 		return false, err
 	}
-	var data []byte = nil
 	if err := db.db.View(func(tx *bolt.Tx) error {
-		data = tx.Bucket(db.bucket).Get(key)
-		return nil
+		data := tx.Bucket(db.bucket).Get(key)
+		if data == nil {
+			return errNotFound
+		}
+		return db.decoder(data, v)
 	}); err != nil {
-		return false, fmt.Errorf("bolt db read failed, %w", err)
+		if errors.Is(err, errNotFound) {
+			return false, nil
+		}
+		return true, fmt.Errorf("bolt db read failed, %w", err)
 	}
-	// nil is returned if no value is stored under key
-	if data == nil {
-		return false, nil
-	}
-	return true, db.decoder(data, v)
+	return true, nil
 }
 
 func (db *BoltDB) Write(key []byte, v any) error {

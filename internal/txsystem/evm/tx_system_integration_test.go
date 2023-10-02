@@ -83,7 +83,7 @@ func TestEVMPartition_DeployAndCallContract(t *testing.T) {
 	require.NoError(t, err)
 
 	// call contract - increment
-	callContractTx := createCallContractTx(from, contractAddr, cABI.Methods["increment"].ID, t)
+	callContractTx := createCallContractTx(from, contractAddr, cABI.Methods["increment"].ID, 2, t)
 	require.NoError(t, evmPartition.SubmitTx(callContractTx))
 	require.Eventually(t, testpartition.BlockchainContainsTx(evmPartition, callContractTx), test.WaitDuration, test.WaitTick)
 	_, _, txRecord, err = evmPartition.GetTxProof(callContractTx)
@@ -104,6 +104,83 @@ func TestEVMPartition_DeployAndCallContract(t *testing.T) {
 	require.Equal(t, common.BytesToHash(count.PaddedBytes(32)), entry.Topics[1])
 	require.Equal(t, contractAddr, entry.Address)
 	require.Nil(t, entry.Data)
+}
+
+func TestEVMPartition_Revert_test(t *testing.T) {
+	from := test.RandomBytes(20)
+	cABI, err := abi.JSON(bytes.NewBuffer([]byte(counterABI)))
+	require.NoError(t, err)
+	system, err := NewEVMTxSystem(systemIdentifier, WithInitialAddressAndBalance(from, big.NewInt(oneEth)), WithBlockDB(memorydb.New())) // 1 ETH
+	require.NoError(t, err)
+
+	// Simulate round 1
+	require.NoError(t, system.BeginBlock(1))
+	// transfer
+	to := test.RandomBytes(20)
+	transferTx := createTransferTx(t, from, to)
+	meta, err := system.Execute(transferTx)
+	require.NoError(t, err)
+	require.NotNil(t, meta)
+	// deploy contract
+	deployContractTx := createDeployContractTx(t, from)
+	meta, err = system.Execute(deployContractTx)
+	require.NoError(t, err)
+	require.NotNil(t, meta)
+	require.Equal(t, types.TxStatusSuccessful, meta.SuccessIndicator)
+	var details ProcessingDetails
+	require.NoError(t, cbor.Unmarshal(meta.ProcessingDetails, &details))
+	require.Equal(t, details.ErrorDetails, "")
+	contractAddr := evmcrypto.CreateAddress(common.BytesToAddress(from), 1)
+	require.Equal(t, details.ContractAddr, contractAddr)
+	require.NotEmpty(t, details.ReturnData) // increment does not return anything
+	// call contract - increment
+	callContractTx := createCallContractTx(from, contractAddr, cABI.Methods["increment"].ID, 2, t)
+	meta, err = system.Execute(callContractTx)
+	require.NoError(t, err)
+	require.NotNil(t, meta)
+	require.Equal(t, types.TxStatusSuccessful, meta.SuccessIndicator)
+	require.NoError(t, cbor.Unmarshal(meta.ProcessingDetails, &details))
+	require.Equal(t, details.ErrorDetails, "")
+	require.Equal(t, details.ContractAddr, common.Address{})
+	// expect count uint256 = 1
+	count := uint256.NewInt(1)
+	require.EqualValues(t, count.PaddedBytes(32), details.ReturnData)
+	require.Len(t, details.Logs, 1)
+	entry := details.Logs[0]
+	require.Len(t, entry.Topics, 2)
+	require.Equal(t, common.BytesToHash(evmcrypto.Keccak256([]byte(cABI.Events["Increment"].Sig))), entry.Topics[0])
+	require.Equal(t, common.BytesToHash(count.PaddedBytes(32)), entry.Topics[1])
+	require.Equal(t, contractAddr, entry.Address)
+	require.Nil(t, entry.Data)
+	round1EndState, err := system.EndBlock()
+	require.NoError(t, err)
+	require.NotNil(t, round1EndState)
+	require.NoError(t, system.Commit())
+	// Round 2, but this gets reverted
+	require.NoError(t, system.BeginBlock(2))
+	callContractTx = createCallContractTx(from, contractAddr, cABI.Methods["increment"].ID, 3, t)
+	meta, err = system.Execute(callContractTx)
+	require.NoError(t, err)
+	require.NotNil(t, meta)
+	require.Equal(t, types.TxStatusSuccessful, meta.SuccessIndicator)
+	require.NoError(t, cbor.Unmarshal(meta.ProcessingDetails, &details))
+	require.Equal(t, details.ErrorDetails, "")
+	require.Equal(t, details.ContractAddr, common.Address{})
+	count = uint256.NewInt(2)
+	require.EqualValues(t, count.PaddedBytes(32), details.ReturnData)
+	round2EndState, err := system.EndBlock()
+	require.NoError(t, err)
+	require.NotNil(t, round2EndState)
+	require.NotEqualValues(t, round1EndState.Root(), round2EndState.Root())
+	// revert round 2 and do it over again
+	system.Revert()
+	revertedState, err := system.StateSummary()
+	require.NoError(t, err)
+	require.Equal(t, round1EndState.Root(), revertedState.Root())
+	// Round 2 again, but this time with empty block, state should not change from round 1
+	require.NoError(t, system.BeginBlock(2))
+	round2EndState, err = system.EndBlock()
+	require.NotEqualValues(t, round2EndState.Root(), round1EndState.Root())
 }
 
 func createTransferTx(t *testing.T, from []byte, to []byte) *types.TransactionOrder {
@@ -128,14 +205,14 @@ func createTransferTx(t *testing.T, from []byte, to []byte) *types.TransactionOr
 	}
 }
 
-func createCallContractTx(from []byte, addr common.Address, methodID []byte, t *testing.T) *types.TransactionOrder {
+func createCallContractTx(from []byte, addr common.Address, methodID []byte, nonce uint64, t *testing.T) *types.TransactionOrder {
 	evmAttr := &TxAttributes{
 		From:  from,
 		To:    addr.Bytes(),
 		Data:  methodID,
 		Value: big.NewInt(0),
 		Gas:   100000,
-		Nonce: 2,
+		Nonce: nonce,
 	}
 	attrBytes, err := cbor.Marshal(evmAttr)
 	require.NoError(t, err)

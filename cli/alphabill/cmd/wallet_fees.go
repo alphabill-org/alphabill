@@ -7,12 +7,15 @@ import (
 	"net/url"
 	"strings"
 
+	"github.com/alphabill-org/alphabill/internal/txsystem/evm"
 	"github.com/spf13/cobra"
 
 	"github.com/alphabill-org/alphabill/internal/txsystem/money"
 	"github.com/alphabill-org/alphabill/internal/txsystem/tokens"
 	"github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/alphabill-org/alphabill/pkg/wallet/account"
+	evmwallet "github.com/alphabill-org/alphabill/pkg/wallet/evm"
+	evmclient "github.com/alphabill-org/alphabill/pkg/wallet/evm/client"
 	"github.com/alphabill-org/alphabill/pkg/wallet/fees"
 	moneywallet "github.com/alphabill-org/alphabill/pkg/wallet/money"
 	moneyclient "github.com/alphabill-org/alphabill/pkg/wallet/money/backend/client"
@@ -43,10 +46,10 @@ func newWalletFeesCmd(config *walletConfig) *cobra.Command {
 	cmd.AddCommand(addFeeCreditCmd(config, cliConfig))
 	cmd.AddCommand(reclaimFeeCreditCmd(config, cliConfig))
 
-	cmd.PersistentFlags().VarP(&cliConfig.partitionType, partitionCmdName, "n", "partition name for which to manage fees [money|tokens]")
+	cmd.PersistentFlags().VarP(&cliConfig.partitionType, partitionCmdName, "n", "partition name for which to manage fees [money|tokens|evm]")
 	cmd.PersistentFlags().StringP(alphabillApiURLCmdName, "r", defaultAlphabillApiURL, apiUsage)
 
-	usage := fmt.Sprintf("partition backend url for which to manage fees (default: [%s|%s] based on --partition flag)", defaultAlphabillApiURL, defaultTokensBackendApiURL)
+	usage := fmt.Sprintf("partition backend url for which to manage fees (default: [%s|%s|%s] based on --partition flag)", defaultAlphabillApiURL, defaultTokensBackendApiURL, defaultEvmNodeRestURL)
 	cmd.PersistentFlags().StringVarP(&cliConfig.partitionBackendURL, partitionBackendUrlCmdName, "m", "", usage)
 	return cmd
 }
@@ -285,6 +288,8 @@ func (c *cliConf) getPartitionBackendURL() string {
 		return defaultAlphabillApiURL
 	case tokensType:
 		return defaultTokensBackendApiURL
+	case evmType:
+		return defaultEvmNodeRestURL // evm does not use backend and instead talks to an actual evm node
 	default:
 		panic("invalid \"partition\" flag value: " + c.partitionType)
 	}
@@ -300,7 +305,8 @@ func getFeeCreditManager(c *cliConf, am account.Manager, unitLocker *unitlock.Un
 	}
 	moneyTxPublisher := moneywallet.NewTxPublisher(moneyBackendClient)
 
-	if c.partitionType == moneyType {
+	switch c.partitionType {
+	case moneyType:
 		return fees.NewFeeManager(
 			am,
 			unitLocker,
@@ -310,15 +316,15 @@ func getFeeCreditManager(c *cliConf, am account.Manager, unitLocker *unitlock.Un
 			moneySystemID,
 			moneyTxPublisher,
 			moneyBackendClient,
+			moneywallet.FeeCreditRecordIDFormPublicKey,
 		), nil
-	} else if c.partitionType == tokensType {
+	case tokensType:
 		backendURL, err := c.parsePartitionBackendURL()
 		if err != nil {
 			return nil, err
 		}
 		tokenBackendClient := tokensclient.New(*backendURL)
 		tokenTxPublisher := tokenswallet.NewTxPublisher(tokenBackendClient)
-
 		return fees.NewFeeManager(
 			am,
 			unitLocker,
@@ -328,8 +334,27 @@ func getFeeCreditManager(c *cliConf, am account.Manager, unitLocker *unitlock.Un
 			tokens.DefaultSystemIdentifier,
 			tokenTxPublisher,
 			tokenBackendClient,
+			tokenswallet.FeeCreditRecordIDFromPublicKey,
 		), nil
-	} else {
+	case evmType:
+		evmNodeURL, err := c.parsePartitionBackendURL()
+		if err != nil {
+			return nil, err
+		}
+		evmClient := evmclient.New(*evmNodeURL)
+		evmTxPublisher := evmwallet.NewTxPublisher(evmClient)
+		return fees.NewFeeManager(
+			am,
+			unitLocker,
+			moneySystemID,
+			moneyTxPublisher,
+			moneyBackendClient,
+			evm.DefaultEvmTxSystemIdentifier,
+			evmTxPublisher,
+			evmClient,
+			evmwallet.FeeCreditRecordIDFromPublicKey,
+		), nil
+	default:
 		panic("invalid \"partition\" flag value: " + c.partitionType)
 	}
 }

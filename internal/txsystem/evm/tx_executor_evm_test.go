@@ -89,8 +89,8 @@ func initStateDBWithAccountAndSC(t *testing.T, accounts []*testAccount) *statedb
 				Gas:   1000000000000000,
 				Nonce: 0,
 			}
-			blockCtx := newBlockContext(0, memorydb.New())
-			evm := vm.NewEVM(blockCtx, newTxContext(evmAttr, big.NewInt(0)), stateDB, newChainConfig(new(big.Int).SetBytes(systemIdentifier)), newVMConfig())
+			blockCtx := NewBlockContext(0, memorydb.New())
+			evm := vm.NewEVM(blockCtx, NewTxContext(evmAttr, big.NewInt(0)), stateDB, NewChainConfig(new(big.Int).SetBytes(systemIdentifier)), NewVMConfig())
 			_, _, _, err := evm.Create(vm.AccountRef(eoa.Addr), evmAttr.Data, 1000000000000000, evmAttr.Value)
 			require.NoError(t, err)
 			if eoa.Nonce != 0 {
@@ -492,7 +492,8 @@ func Test_ReplayContractCreation(t *testing.T) {
 	s := abstate.NewEmptyState()
 	stateDB := statedb.NewStateDB(s)
 	stateDB.CreateAccount(eoaAddr)
-	stateDB.AddBalance(eoaAddr, big.NewInt(1000000000000000000)) // add 1 ETH
+	initialBalance := big.NewInt(1000000000000000000)
+	stateDB.AddBalance(eoaAddr, initialBalance) // add 1 ETH
 	// deploy a contract
 	evmAttr := &TxAttributes{
 		From:  eoaAddr.Bytes(),
@@ -501,8 +502,11 @@ func Test_ReplayContractCreation(t *testing.T) {
 		Gas:   100000,
 		Nonce: 0,
 	}
-	_, err := Execute(1, stateDB, memorydb.New(), evmAttr, systemIdentifier, gasPool, gasPrice, false)
+	metadata, err := Execute(1, stateDB, memorydb.New(), evmAttr, systemIdentifier, gasPool, gasPrice, false)
 	require.NoError(t, err)
+	require.NotNil(t, metadata)
+	// check that fee and account balance add up to initial value
+	require.EqualValues(t, initialBalance, new(big.Int).Add(alphaToWei(metadata.ActualFee), stateDB.GetBalance(eoaAddr)))
 	// Try to replay
 	_, err = Execute(1, stateDB, memorydb.New(), evmAttr, systemIdentifier, gasPool, gasPrice, false)
 	require.ErrorContains(t, err, "nonce too low")
@@ -524,8 +528,13 @@ func Test_ReplayCall(t *testing.T) {
 		Value: big.NewInt(0),
 		Nonce: 1,
 	}
-	_, err = Execute(2, stateDB, memorydb.New(), callContract, systemIdentifier, gasPool, gasPrice, false)
+	metadata, err := Execute(2, stateDB, memorydb.New(), callContract, systemIdentifier, gasPool, gasPrice, false)
 	require.NoError(t, err)
+	require.NotNil(t, metadata)
+	// check that fee and account balance add up to initial value
+	initialBalance := big.NewInt(53000 * DefaultGasPrice) // this is the value set as balance in initStateDBWithAccountAndSC
+	require.EqualValues(t, initialBalance, new(big.Int).Add(alphaToWei(metadata.ActualFee), stateDB.GetBalance(fromAddr)))
+
 	// try to replay
 	_, err = Execute(2, stateDB, memorydb.New(), callContract, systemIdentifier, gasPool, gasPrice, false)
 	require.ErrorContains(t, err, "nonce too low")

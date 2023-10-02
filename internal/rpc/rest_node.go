@@ -61,10 +61,8 @@ func submitTransaction(node partitionNode) http.HandlerFunc {
 			util.WriteCBORError(w, err, http.StatusBadRequest)
 			return
 		}
-		w.WriteHeader(http.StatusAccepted)
 		util.WriteCBORResponse(w, txOrderHash, http.StatusAccepted)
 	}
-
 }
 
 func getTransactionRecord(node partitionNode) http.HandlerFunc {
@@ -76,7 +74,7 @@ func getTransactionRecord(node partitionNode) http.HandlerFunc {
 			util.WriteCBORError(w, fmt.Errorf("invalid tx order hash: %s", txOrder), http.StatusBadRequest)
 			return
 		}
-		txRecord, proof, err := node.GetTransactionRecord(txOrderHash)
+		txRecord, proof, err := node.GetTransactionRecord(r.Context(), txOrderHash)
 		if err != nil {
 			util.WriteCBORError(w, err, http.StatusInternalServerError)
 			return
@@ -96,7 +94,6 @@ func getTransactionRecord(node partitionNode) http.HandlerFunc {
 			TxProof:  proof,
 		}, http.StatusOK)
 	}
-
 }
 
 func getLatestRoundNumber(node partitionNode) http.HandlerFunc {

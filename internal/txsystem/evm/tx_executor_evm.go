@@ -3,7 +3,6 @@ package evm
 import (
 	"fmt"
 	"math/big"
-	"os"
 
 	"github.com/alphabill-org/alphabill/internal/keyvaluedb"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
@@ -14,7 +13,6 @@ import (
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/vm"
 	ethcrypto "github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/eth/tracers/logger"
 	"github.com/fxamacker/cbor/v2"
 )
 
@@ -75,8 +73,8 @@ func Execute(currentBlockNumber uint64, stateDB *statedb.StateDB, blockDB keyval
 	if err := validate(attr); err != nil {
 		return nil, err
 	}
-	blockCtx := newBlockContext(currentBlockNumber, blockDB)
-	evm := vm.NewEVM(blockCtx, newTxContext(attr, gasUnitPrice), stateDB, newChainConfig(new(big.Int).SetBytes(systemIdentifier)), newVMConfig())
+	blockCtx := NewBlockContext(currentBlockNumber, blockDB)
+	evm := vm.NewEVM(blockCtx, NewTxContext(attr, gasUnitPrice), stateDB, NewChainConfig(new(big.Int).SetBytes(systemIdentifier)), NewVMConfig())
 	msg := attr.AsMessage(gasUnitPrice, fake)
 	// Apply the transaction to the current state (included in the env)
 	execResult, err := core.ApplyMessage(evm, msg, gp)
@@ -113,12 +111,17 @@ func Execute(currentBlockNumber uint64, stateDB *statedb.StateDB, blockDB keyval
 		return nil, fmt.Errorf("evm result encode error %w", err)
 	}
 	txPrice := calcGasPrice(execResult.UsedGas, gasUnitPrice)
-	log.Trace("total gas: %v gas units, price in alpha %v", execResult.UsedGas, weiToAlpha(txPrice))
+	// calculate gas based fee in alpha and refund the remainder
+	fee, remainderWei := weiToAlphaWithReminder(txPrice)
+	// HACK: AB-1207 - quick hack for first evm release, refund remainder back to the account
+	// Todo: AB-1208 Create a proper solution and implement ApplyMessage in this project
+	stateDB.AddBalance(msg.From, remainderWei)
 
-	return &types.ServerMetadata{ActualFee: weiToAlpha(txPrice), TargetUnits: stateDB.GetUpdatedUnits(), SuccessIndicator: success, ProcessingDetails: detailBytes}, nil
+	log.Trace("total gas: %v gas units, price in alpha %v", execResult.UsedGas, fee)
+	return &types.ServerMetadata{ActualFee: fee.Uint64(), TargetUnits: stateDB.GetUpdatedUnits(), SuccessIndicator: success, ProcessingDetails: detailBytes}, nil
 }
 
-func newBlockContext(currentBlockNumber uint64, blockDB keyvaluedb.KeyValueDB) vm.BlockContext {
+func NewBlockContext(currentBlockNumber uint64, blockDB keyvaluedb.KeyValueDB) vm.BlockContext {
 	return vm.BlockContext{
 		CanTransfer: core.CanTransfer,
 		Transfer:    core.Transfer,
@@ -145,17 +148,17 @@ func newBlockContext(currentBlockNumber uint64, blockDB keyvaluedb.KeyValueDB) v
 	}
 }
 
-func newTxContext(attr *TxAttributes, gasPrice *big.Int) vm.TxContext {
+func NewTxContext(attr *TxAttributes, gasPrice *big.Int) vm.TxContext {
 	return vm.TxContext{
 		Origin:   common.BytesToAddress(attr.From),
 		GasPrice: gasPrice,
 	}
 }
 
-func newVMConfig() vm.Config {
+func NewVMConfig() vm.Config {
 	return vm.Config{
 		// TODO use AB logger
-		Tracer:                  logger.NewJSONLogger(nil, os.Stdout),
+		Tracer:                  nil, // logger.NewJSONLogger(nil, os.Stdout),
 		NoBaseFee:               true,
 		EnablePreimageRecording: false, // Enables recording of SHA3/keccak preimages
 	}

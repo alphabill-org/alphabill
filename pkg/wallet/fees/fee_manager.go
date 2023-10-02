@@ -33,11 +33,9 @@ type (
 	}
 
 	PartitionDataProvider interface {
-		NewFeeCreditRecordID(shardPart, unitPart []byte) types.UnitID
 		GetRoundNumber(ctx context.Context) (uint64, error)
 		GetFeeCreditBill(ctx context.Context, unitID types.UnitID) (*wallet.Bill, error)
 		GetTxProof(ctx context.Context, unitID types.UnitID, txHash wallet.TxHash) (*wallet.Proof, error)
-		GetClosedFeeCredit(ctx context.Context, fcbID []byte) (*types.TransactionRecord, error)
 	}
 
 	MoneyClient interface {
@@ -45,6 +43,8 @@ type (
 		GetLockedFeeCredit(ctx context.Context, systemID []byte, fcbID []byte) (*types.TransactionRecord, error)
 		PartitionDataProvider
 	}
+	// GenerateFcrIDFromPublicKey function to generate fee credit UnitID from shard number nad public key
+	GenerateFcrIDFromPublicKey func(shardPart, pubKey []byte) types.UnitID
 
 	FeeManager struct {
 		am         account.Manager
@@ -59,6 +59,7 @@ type (
 		userPartitionSystemID      []byte
 		userPartitionTxPublisher   TxPublisher
 		userPartitionBackendClient PartitionDataProvider
+		userPartFcrIDFn            GenerateFcrIDFromPublicKey
 	}
 
 	GetFeeCreditCmd struct {
@@ -116,6 +117,7 @@ func NewFeeManager(
 	partitionSystemID []byte,
 	partitionTxPublisher TxPublisher,
 	partitionBackendClient PartitionDataProvider,
+	fcrIDFn GenerateFcrIDFromPublicKey,
 ) *FeeManager {
 	return &FeeManager{
 		am:                         am,
@@ -126,6 +128,7 @@ func NewFeeManager(
 		userPartitionSystemID:      partitionSystemID,
 		userPartitionTxPublisher:   partitionTxPublisher,
 		userPartitionBackendClient: partitionBackendClient,
+		userPartFcrIDFn:            fcrIDFn,
 	}
 }
 
@@ -199,7 +202,7 @@ func (w *FeeManager) AddFeeCredit(ctx context.Context, cmd AddFeeCmd) (*AddFeeCm
 	}
 
 	// create addFC transaction
-	fcrID := w.userPartitionBackendClient.NewFeeCreditRecordID(nil, accountKey.PubKeyHash.Sha256)
+	fcrID := w.userPartFcrIDFn(nil, accountKey.PubKey)
 	addFCTx, err := txbuilder.NewAddFCTx(fcrID, transferFCProof, accountKey, w.userPartitionSystemID, userPartitionTimeout)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create addFC transaction: %w", err)
@@ -314,7 +317,7 @@ func (w *FeeManager) GetFeeCredit(ctx context.Context, cmd GetFeeCreditCmd) (*wa
 	if err != nil {
 		return nil, err
 	}
-	fcrID := w.userPartitionBackendClient.NewFeeCreditRecordID(nil, accountKey.PubKeyHash.Sha256)
+	fcrID := w.userPartFcrIDFn(nil, accountKey.PubKey)
 	return w.userPartitionBackendClient.GetFeeCreditBill(ctx, fcrID)
 }
 
@@ -346,7 +349,7 @@ func (w *FeeManager) sendTransferFC(ctx context.Context, cmd AddFeeCmd, accountK
 
 	// create transferFC
 	log.Info("sending transfer fee credit transaction")
-	targetRecordID := w.userPartitionBackendClient.NewFeeCreditRecordID(nil, accountKey.PubKeyHash.Sha256)
+	targetRecordID := w.userPartFcrIDFn(nil, accountKey.PubKey)
 	tx, err := txbuilder.NewTransferFCTx(
 		cmd.Amount,
 		targetRecordID,
@@ -387,7 +390,7 @@ func (w *FeeManager) sendCloseFC(ctx context.Context, bills []*wallet.Bill, acco
 	if err != nil {
 		return nil, err
 	}
-	fcrID := w.userPartitionBackendClient.NewFeeCreditRecordID(nil, accountKey.PubKeyHash.Sha256)
+	fcrID := w.userPartFcrIDFn(nil, accountKey.PubKey)
 	fcb, err := w.userPartitionBackendClient.GetFeeCreditBill(ctx, fcrID)
 
 	if err != nil {

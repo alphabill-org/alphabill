@@ -91,8 +91,9 @@ func SetOwner(id types.UnitID, bearer Predicate) Action {
 			return fmt.Errorf("failed to find unit: %w", err)
 		}
 
-		u.bearer = bearer
-		if err = s.Update(id, u); err != nil {
+		cloned := u.Clone()
+		cloned.bearer = bearer
+		if err = s.Update(id, cloned); err != nil {
 			return fmt.Errorf("unable to update unit: %w", err)
 		}
 		return nil

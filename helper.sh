@@ -105,8 +105,6 @@ function generate_root_genesis() {
 function start_root_nodes() {
   local rPort=29666
   local pPort=26662
-  # generate local addresses based on number of key files and listener port
-  root_node_addresses=$(generate_peer_addresses "testab/rootchain*/rootchain/keys.json" $rPort)
   i=1
   for genesisFile in testab/rootchain*/rootchain/root-genesis.json
   do
@@ -119,7 +117,7 @@ function start_root_nodes() {
     ((pPort=pPort+1))
     ((i=i+1))
   done
-  echo "started $(($i-1)) root nodes, addresses: $root_node_addresses"
+  echo "started $(($i-1)) root nodes"
 }
 
 function start_partition_nodes() {
@@ -159,18 +157,17 @@ local restPort=0
       return 1
       ;;
   esac
-  # generate node addresses
-  nodeAddresses=$(generate_peer_addresses "$key_files" $aPort)
+  # Start nodes
   i=1
   for keyf in $key_files
   do
-    build/alphabill "$1" --home ${home}$i -f ${home}$i/"$1"/blocks.db -k $keyf -r "/ip4/127.0.0.1/tcp/26662" -a "/ip4/127.0.0.1/tcp/$aPort" --server-address "localhost:$grpcPort" --rest-server-address "localhost:$restPort" -g $genesis_file  >> ${home}$i/"$1"/"$1".log &
+    build/alphabill "$1" --home ${home}$i -f ${home}$i/"$1"/blocks.db --tx-db ${home}$i/"$1"/tx.db -k $keyf -r "/ip4/127.0.0.1/tcp/26662" -a "/ip4/127.0.0.1/tcp/$aPort" --server-address "localhost:$grpcPort" --rest-server-address "localhost:$restPort" -g $genesis_file  >> ${home}$i/"$1"/"$1".log &
     ((i=i+1))
     ((aPort=aPort+1))
     ((grpcPort=grpcPort+1))
     ((restPort=restPort+1))
   done
-    echo "started $(($i-1)) $1 nodes, addresses: $nodeAddresses"
+    echo "started $(($i-1)) $1 nodes"
 }
 
 function start_backend() {
@@ -190,6 +187,9 @@ function start_backend() {
         fi
         if test -f "testab/tokens-sdr.json"; then
             sdrFiles+=" -c testab/tokens-sdr.json"
+        fi
+        if test -f "testab/evm-sdr.json"; then
+            sdrFiles+=" -c testab/evm-sdr.json"
         fi
         customArgs=$sdrFiles
         ;;

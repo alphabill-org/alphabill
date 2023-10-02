@@ -6,8 +6,8 @@ import (
 	"github.com/ethereum/go-ethereum/params"
 )
 
-// newChainConfig returns an Ethereum ChainConfig for EVM state transitions.
-func newChainConfig(chainID *big.Int) *params.ChainConfig {
+// NewChainConfig returns an Ethereum ChainConfig for EVM state transitions.
+func NewChainConfig(chainID *big.Int) *params.ChainConfig {
 	return &params.ChainConfig{
 		ChainID:             chainID,
 		HomesteadBlock:      big.NewInt(0),

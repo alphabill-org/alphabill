@@ -129,13 +129,13 @@ func TestRootValidatorTest_CertificationReqRejected(t *testing.T) {
 		RoundNumber:  2,
 	}
 	req := testutils.CreateBlockCertificationRequest(t, newIR, unknownID, partitionNodes[0])
-	rootValidator.onBlockCertificationRequest(req)
+	rootValidator.onBlockCertificationRequest(context.Background(), req)
 	// unknown id, gets rejected
 	require.NotContains(t, rootValidator.incomingRequests.store, protocol.SystemIdentifier(unknownID))
 	// unknown node gets rejected
 	unknownNode := testutils.NewTestNode(t)
 	req = testutils.CreateBlockCertificationRequest(t, newIR, partitionID, unknownNode)
-	rootValidator.onBlockCertificationRequest(req)
+	rootValidator.onBlockCertificationRequest(context.Background(), req)
 	require.NotContains(t, rootValidator.incomingRequests.store, protocol.SystemIdentifier(partitionID))
 	// signature does not verify
 	invalidNode := testutils.TestNode{
@@ -144,9 +144,8 @@ func TestRootValidatorTest_CertificationReqRejected(t *testing.T) {
 		Verifier: unknownNode.Verifier,
 	}
 	req = testutils.CreateBlockCertificationRequest(t, newIR, partitionID, &invalidNode)
-	rootValidator.onBlockCertificationRequest(req)
+	rootValidator.onBlockCertificationRequest(context.Background(), req)
 	require.NotContains(t, rootValidator.incomingRequests.store, protocol.SystemIdentifier(partitionID))
-	//
 }
 
 func TestRootValidatorTest_CertificationReqEquivocatingReq(t *testing.T) {
@@ -160,7 +159,7 @@ func TestRootValidatorTest_CertificationReqEquivocatingReq(t *testing.T) {
 		RoundNumber:  2,
 	}
 	req := testutils.CreateBlockCertificationRequest(t, newIR, partitionID, partitionNodes[0])
-	rootValidator.onBlockCertificationRequest(req)
+	rootValidator.onBlockCertificationRequest(context.Background(), req)
 	// request is accepted
 	require.Contains(t, rootValidator.incomingRequests.store, protocol.SystemIdentifier(partitionID))
 	equivocatingIR := &types.InputRecord{
@@ -171,7 +170,7 @@ func TestRootValidatorTest_CertificationReqEquivocatingReq(t *testing.T) {
 		RoundNumber:  2,
 	}
 	eqReq := testutils.CreateBlockCertificationRequest(t, equivocatingIR, partitionID, partitionNodes[0])
-	rootValidator.onBlockCertificationRequest(eqReq)
+	rootValidator.onBlockCertificationRequest(context.Background(), eqReq)
 	buffer, f := rootValidator.incomingRequests.store[protocol.SystemIdentifier(partitionID)]
 	require.True(t, f)
 	storedNodeReqHash, f := buffer.nodeRequest[partitionNodes[0].Peer.ID().String()]
@@ -292,12 +291,12 @@ func TestRootValidatorTest_SimulateNetCommunicationHandshake(t *testing.T) {
 		},
 		UnicitySeal: &types.UnicitySeal{},
 	}
-	rootValidator.onCertificationResult(uc)
-	rootValidator.onCertificationResult(uc)
+	rootValidator.onCertificationResult(ctx, uc)
+	rootValidator.onCertificationResult(ctx, uc)
 	// two send errors, but node is still subscribed
 	subscribed = rootValidator.subscription.Get(protocol.SystemIdentifier(partitionID))
 	require.Len(t, subscribed, 1)
-	rootValidator.onCertificationResult(uc)
+	rootValidator.onCertificationResult(ctx, uc)
 	// on third error subscription is cleared
 	subscribed = rootValidator.subscription.Get(protocol.SystemIdentifier(partitionID))
 	require.Len(t, subscribed, 0)
@@ -388,7 +387,7 @@ func TestRootValidatorTest_SimulateResponse(t *testing.T) {
 	rootValidator.subscription.Subscribe(protocol.SystemIdentifier(rg.Partitions[0].SystemDescriptionRecord.SystemIdentifier), rg.Partitions[0].Nodes[0].NodeIdentifier)
 	rootValidator.subscription.Subscribe(protocol.SystemIdentifier(rg.Partitions[0].SystemDescriptionRecord.SystemIdentifier), rg.Partitions[0].Nodes[1].NodeIdentifier)
 	// simulate response from consensus manager
-	rootValidator.onCertificationResult(uc)
+	rootValidator.onCertificationResult(ctx, uc)
 	// UC's are sent to all partition nodes
 	certs := testutils.MockNetAwaitMultiple[*types.UnicityCertificate](t, mockNet, network.ProtocolUnicityCertificates, 2)
 	require.Len(t, certs, 2)
@@ -420,7 +419,7 @@ func TestRootValidator_ResultUnknown(t *testing.T) {
 		UnicitySeal: &types.UnicitySeal{},
 	}
 	// simulate response from consensus manager
-	rootValidator.onCertificationResult(uc)
+	rootValidator.onCertificationResult(ctx, uc)
 	// no responses will be sent
 	require.Empty(t, mockNet.SentMessages(network.ProtocolUnicityCertificates))
 }

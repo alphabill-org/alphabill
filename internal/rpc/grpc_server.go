@@ -26,7 +26,7 @@ type (
 		SubmitTx(ctx context.Context, tx *types.TransactionOrder) ([]byte, error)
 		GetBlock(ctx context.Context, blockNr uint64) (*types.Block, error)
 		GetLatestBlock() (*types.Block, error)
-		GetTransactionRecord(hash []byte) (*types.TransactionRecord, *types.TxProof, error)
+		GetTransactionRecord(ctx context.Context, hash []byte) (*types.TransactionRecord, *types.TxProof, error)
 		GetLatestRoundNumber() (uint64, error)
 		SystemIdentifier() []byte
 	}

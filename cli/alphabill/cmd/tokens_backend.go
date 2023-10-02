@@ -8,7 +8,6 @@ import (
 
 	"github.com/spf13/cobra"
 
-	wlog "github.com/alphabill-org/alphabill/pkg/wallet/log"
 	"github.com/alphabill-org/alphabill/pkg/wallet/tokens/backend"
 )
 
@@ -19,15 +18,7 @@ func newTokensBackendCmd(baseConfig *baseConfiguration) *cobra.Command {
 		Use:   "tokens-backend",
 		Short: "Starts tokens backend service",
 		Long:  "Starts tokens backend service, indexes all transactions by owner predicates, starts http server",
-		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
-			if err := initializeConfig(cmd, baseConfig); err != nil {
-				return fmt.Errorf("failed to init configuration: %w", err)
-			}
-			return nil
-		},
 	}
-	cmd.PersistentFlags().String(logFileCmdName, "", "log file path (default output to stderr)")
-	cmd.PersistentFlags().String(logLevelCmdName, "INFO", "logging level (DEBUG, INFO, NOTICE, WARNING, ERROR)")
 	cmd.AddCommand(buildCmdStartTokensBackend(baseConfig))
 	return cmd
 }
@@ -59,17 +50,9 @@ func execTokensBackendStartCmd(ctx context.Context, cmd *cobra.Command, config *
 		return fmt.Errorf("failed to get path for database: %w", err)
 	}
 
-	logFile, err := cmd.Flags().GetString(logFileCmdName)
+	logger, err := config.Logger(cmd)
 	if err != nil {
-		return fmt.Errorf("failed to read %s flag value: %w", logFileCmdName, err)
-	}
-	logLevel, err := cmd.Flags().GetString(logLevelCmdName)
-	if err != nil {
-		return fmt.Errorf("failed to read %s flag value: %w", logLevelCmdName, err)
-	}
-	logger, err := initLogger(logFile, logLevel)
-	if err != nil {
-		return fmt.Errorf("failed to init logger: %w", err)
+		return fmt.Errorf("getting logger: %w", err)
 	}
 
 	return backend.Run(ctx, backend.NewConfig(srvAddr, abURL, dbFile, logger))
@@ -93,21 +76,4 @@ func filenameEnsureDir(flagName string, cmd *cobra.Command, defaultPathElements 
 		return "", fmt.Errorf("failed to create directory path: %w", err)
 	}
 	return fileName, nil
-}
-
-func initLogger(fileName, logLevel string) (wlog.Logger, error) {
-	logWriter := os.Stderr
-	if fileName != "" {
-		logFile, err := os.OpenFile(fileName, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0600) // -rw-------
-		if err != nil {
-			return nil, err
-		}
-		logWriter = logFile
-	}
-
-	logger, err := wlog.New(wlog.Levels[logLevel], logWriter)
-	if err != nil {
-		return nil, err
-	}
-	return logger, nil
 }

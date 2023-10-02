@@ -5,6 +5,7 @@ import (
 	"crypto"
 	"encoding/hex"
 	"fmt"
+	"log/slog"
 	"math/rand"
 	"net/http"
 	"sync"
@@ -19,10 +20,10 @@ import (
 	"github.com/alphabill-org/alphabill/internal/txsystem/money"
 	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/pkg/client"
+	"github.com/alphabill-org/alphabill/pkg/logger"
 	sdk "github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/alphabill-org/alphabill/pkg/wallet/account"
 	"github.com/alphabill-org/alphabill/pkg/wallet/blocksync"
-	wlog "github.com/alphabill-org/alphabill/pkg/wallet/log"
 )
 
 type (
@@ -109,6 +110,7 @@ type (
 		ListBillsPageLimit       int
 		InitialBill              InitialBill
 		SystemDescriptionRecords []*genesis.SystemDescriptionRecord
+		Logger                   *slog.Logger
 	}
 
 	InitialBill struct {
@@ -172,21 +174,23 @@ func Run(ctx context.Context, config *Config) error {
 		walletBackend := &WalletBackend{store: store, genericWallet: sdk.New().SetABClient(abc).Build()}
 		defer walletBackend.genericWallet.Shutdown()
 
-		handler := &moneyRestAPI{Service: walletBackend, ListBillsPageLimit: config.ListBillsPageLimit, rw: &sdk.ResponseWriter{LogErr: wlog.Error}}
-		server := http.Server{
-			Addr:              config.ServerAddr,
-			Handler:           handler.Router(),
-			ReadTimeout:       3 * time.Second,
-			ReadHeaderTimeout: time.Second,
-			WriteTimeout:      5 * time.Second,
-			IdleTimeout:       30 * time.Second,
-		}
+		handler := &moneyRestAPI{Service: walletBackend, ListBillsPageLimit: config.ListBillsPageLimit, log: config.Logger, rw: &sdk.ResponseWriter{LogErr: func(err error) { config.Logger.Error(err.Error()) }}}
 
-		return httpsrv.Run(ctx, server, httpsrv.ShutdownTimeout(5*time.Second))
+		return httpsrv.Run(ctx,
+			http.Server{
+				Addr:              config.ServerAddr,
+				Handler:           handler.Router(),
+				ReadTimeout:       3 * time.Second,
+				ReadHeaderTimeout: time.Second,
+				WriteTimeout:      5 * time.Second,
+				IdleTimeout:       30 * time.Second,
+			},
+			httpsrv.ShutdownTimeout(5*time.Second),
+		)
 	})
 
 	g.Go(func() error {
-		blockProcessor, err := NewBlockProcessor(store, config.ABMoneySystemIdentifier)
+		blockProcessor, err := NewBlockProcessor(store, config.ABMoneySystemIdentifier, config.Logger)
 		if err != nil {
 			return fmt.Errorf("failed to create block processor: %w", err)
 		}
@@ -194,10 +198,10 @@ func Run(ctx context.Context, config *Config) error {
 		// we act as if all errors returned by block sync are recoverable ie we
 		// just retry in a loop until ctx is cancelled
 		for {
-			wlog.Debug("starting block sync")
+			config.Logger.DebugContext(ctx, "starting block sync")
 			err := runBlockSync(ctx, abc.GetBlocks, getBlockNumber, 100, blockProcessor.ProcessBlock)
 			if err != nil {
-				wlog.Error("synchronizing blocks returned error: ", err)
+				config.Logger.Error("synchronizing blocks returned error", logger.Error(err))
 			}
 			select {
 			case <-ctx.Done():
@@ -393,13 +397,6 @@ func (b *Bill) ToGenericBills() *sdk.Bills {
 			b.ToGenericBill(),
 		},
 	}
-}
-
-func (b *Bill) getTxHash() []byte {
-	if b != nil {
-		return b.TxHash
-	}
-	return nil
 }
 
 func (b *Bill) getValue() uint64 {

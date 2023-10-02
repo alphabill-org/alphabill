@@ -3,23 +3,23 @@ package backend
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"math/rand"
 	"net"
 	"net/http"
 	"time"
 
 	"github.com/ainvaltin/httpsrv"
-	"github.com/alphabill-org/alphabill/internal/crypto"
-	"github.com/alphabill-org/alphabill/internal/types"
 	"golang.org/x/sync/errgroup"
 
+	"github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/rpc/alphabill"
 	"github.com/alphabill-org/alphabill/internal/txsystem/tokens"
+	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/pkg/client"
 	sdk "github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/alphabill-org/alphabill/pkg/wallet/blocksync"
 	"github.com/alphabill-org/alphabill/pkg/wallet/broker"
-	"github.com/alphabill-org/alphabill/pkg/wallet/log"
 )
 
 type Configuration interface {
@@ -28,7 +28,7 @@ type Configuration interface {
 	BatchSize() int
 	HttpServer(http.Handler) http.Server
 	Listener() net.Listener
-	Logger() log.Logger
+	Logger() *slog.Logger
 }
 
 type ABClient interface {
@@ -92,7 +92,7 @@ func Run(ctx context.Context, cfg Configuration) error {
 			logger.Debug("starting block sync")
 			err := runBlockSync(ctx, abc.GetBlocks, db.GetBlockNumber, cfg.BatchSize(), bp.ProcessBlock)
 			if err != nil {
-				logger.Error("synchronizing blocks returned error: ", err)
+				logger.Error(fmt.Sprintf("synchronizing blocks returned error: %v", err))
 			}
 			select {
 			case <-ctx.Done():
@@ -107,7 +107,7 @@ func Run(ctx context.Context, cfg Configuration) error {
 			db:        db,
 			ab:        abc,
 			streamSSE: msgBroker.StreamSSE,
-			rw:        sdk.ResponseWriter{LogErr: cfg.Logger().Error},
+			rw:        sdk.ResponseWriter{LogErr: func(err error) { cfg.Logger().Error(err.Error()) }},
 		}
 		return httpsrv.Run(ctx, cfg.HttpServer(api.endpoints()), httpsrv.Listener(cfg.Listener()), httpsrv.ShutdownTimeout(5*time.Second))
 	})
@@ -129,7 +129,7 @@ type cfg struct {
 	abc     client.AlphabillClientConfig
 	boltDB  string
 	apiAddr string
-	log     log.Logger
+	log     *slog.Logger
 }
 
 /*
@@ -139,7 +139,7 @@ NewConfig returns Configuration suitable for using as Run parameter.
   - boltDB: filename (with full path) of the bolt db to use as storage;
   - logger: logger implementation.
 */
-func NewConfig(apiAddr, abURL, boltDB string, logger log.Logger) Configuration {
+func NewConfig(apiAddr, abURL, boltDB string, logger *slog.Logger) Configuration {
 	return &cfg{
 		abc:     client.AlphabillClientConfig{Uri: abURL},
 		boltDB:  boltDB,
@@ -151,7 +151,7 @@ func NewConfig(apiAddr, abURL, boltDB string, logger log.Logger) Configuration {
 func (c *cfg) Client() ABClient          { return client.New(c.abc) }
 func (c *cfg) Storage() (Storage, error) { return newBoltStore(c.boltDB) }
 func (c *cfg) BatchSize() int            { return 100 }
-func (c *cfg) Logger() log.Logger        { return c.log }
+func (c *cfg) Logger() *slog.Logger      { return c.log }
 func (c *cfg) Listener() net.Listener    { return nil } // we do set Addr in HttpServer
 
 func (c *cfg) HttpServer(endpoints http.Handler) http.Server {

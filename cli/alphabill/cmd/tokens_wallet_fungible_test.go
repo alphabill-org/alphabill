@@ -10,6 +10,7 @@ import (
 
 	"github.com/alphabill-org/alphabill/internal/script"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
+	"github.com/alphabill-org/alphabill/internal/testutils/logger"
 	testpartition "github.com/alphabill-org/alphabill/internal/testutils/partition"
 	"github.com/alphabill-org/alphabill/internal/txsystem/money"
 	"github.com/alphabill-org/alphabill/internal/txsystem/tokens"
@@ -80,6 +81,7 @@ func TestFungibleToken_InvariantPredicate_Integration(t *testing.T) {
 
 	network := NewAlphabillNetwork(t)
 	tokensPartition, err := network.abNetwork.GetNodePartition(tokens.DefaultSystemIdentifier)
+	require.NoError(t, err)
 	homedirW1 := network.walletHomedir
 	w1key := network.walletKey1
 	backendUrl := network.tokenBackendURL
@@ -117,6 +119,7 @@ func TestFungibleToken_InvariantPredicate_Integration(t *testing.T) {
 
 func TestFungibleTokens_Sending_Integration(t *testing.T) {
 	require.NoError(t, wlog.InitStdoutLogger(wlog.INFO))
+	logF := logger.LoggerBuilder(t)
 
 	network := NewAlphabillNetwork(t)
 	_, err := network.abNetwork.GetNodePartition(money.DefaultSystemIdentifier)
@@ -173,11 +176,11 @@ func TestFungibleTokens_Sending_Integration(t *testing.T) {
 	}, "amount='2'")
 
 	// send money to w2 to create fee credits
-	stdout := execWalletCmd(t, homedirW1, fmt.Sprintf("send --amount 100 --address %s -r %s", hexutil.Encode(w2key.PubKey), moneyBackendURL))
+	stdout := execWalletCmd(t, logF, homedirW1, fmt.Sprintf("send --amount 100 --address %s -r %s", hexutil.Encode(w2key.PubKey), moneyBackendURL))
 	verifyStdout(t, stdout, "Successfully confirmed transaction(s)")
 
 	// create fee credit on w2
-	stdout, err = execFeesCommand(homedirW2, fmt.Sprintf("--partition tokens add --amount 50 -r %s -m %s", moneyBackendURL, backendUrl))
+	stdout, err = execFeesCommand(logF, homedirW2, fmt.Sprintf("--partition tokens add --amount 50 -r %s -m %s", moneyBackendURL, backendUrl))
 	require.NoError(t, err)
 	verifyStdout(t, stdout, "Successfully created 50 fee credits on tokens partition.")
 
@@ -226,15 +229,15 @@ func TestWalletCreateFungibleTokenTypeAndTokenAndSendCmd_IntegrationTest(t *test
 	// verify error
 	execTokensCmdWithError(t, homedir, fmt.Sprintf("new fungible  -r %s --type %s --amount 3", backendUrl, nonExistingTypeId), fmt.Sprintf("failed to load type with id %s", nonExistingTypeId))
 	// new token creation fails
-	execTokensCmdWithError(t, homedir, fmt.Sprintf("new fungible  -r %s --type %s --amount 0", backendUrl, typeID), fmt.Sprintf("0 is not valid amount"))
-	execTokensCmdWithError(t, homedir, fmt.Sprintf("new fungible  -r %s --type %s --amount 00.000", backendUrl, typeID), fmt.Sprintf("0 is not valid amount"))
-	execTokensCmdWithError(t, homedir, fmt.Sprintf("new fungible  -r %s --type %s --amount 00.0.00", backendUrl, typeID), fmt.Sprintf("more than one comma"))
-	execTokensCmdWithError(t, homedir, fmt.Sprintf("new fungible  -r %s --type %s --amount .00", backendUrl, typeID), fmt.Sprintf("missing integer part"))
-	execTokensCmdWithError(t, homedir, fmt.Sprintf("new fungible  -r %s --type %s --amount a.00", backendUrl, typeID), fmt.Sprintf("invalid amount string"))
-	execTokensCmdWithError(t, homedir, fmt.Sprintf("new fungible  -r %s --type %s --amount 0.0a", backendUrl, typeID), fmt.Sprintf("invalid amount string"))
-	execTokensCmdWithError(t, homedir, fmt.Sprintf("new fungible  -r %s --type %s --amount 1.1111", backendUrl, typeID), fmt.Sprintf("invalid precision"))
+	execTokensCmdWithError(t, homedir, fmt.Sprintf("new fungible  -r %s --type %s --amount 0", backendUrl, typeID), "0 is not valid amount")
+	execTokensCmdWithError(t, homedir, fmt.Sprintf("new fungible  -r %s --type %s --amount 00.000", backendUrl, typeID), "0 is not valid amount")
+	execTokensCmdWithError(t, homedir, fmt.Sprintf("new fungible  -r %s --type %s --amount 00.0.00", backendUrl, typeID), "more than one comma")
+	execTokensCmdWithError(t, homedir, fmt.Sprintf("new fungible  -r %s --type %s --amount .00", backendUrl, typeID), "missing integer part")
+	execTokensCmdWithError(t, homedir, fmt.Sprintf("new fungible  -r %s --type %s --amount a.00", backendUrl, typeID), "invalid amount string")
+	execTokensCmdWithError(t, homedir, fmt.Sprintf("new fungible  -r %s --type %s --amount 0.0a", backendUrl, typeID), "invalid amount string")
+	execTokensCmdWithError(t, homedir, fmt.Sprintf("new fungible  -r %s --type %s --amount 1.1111", backendUrl, typeID), "invalid precision")
 	// out of range because decimals = 3 the value is equal to 18446744073709551615000
-	execTokensCmdWithError(t, homedir, fmt.Sprintf("new fungible  -r %s --type %s --amount 18446744073709551615", backendUrl, typeID), fmt.Sprintf("out of range"))
+	execTokensCmdWithError(t, homedir, fmt.Sprintf("new fungible  -r %s --type %s --amount 18446744073709551615", backendUrl, typeID), "out of range")
 	// creation succeeds
 	execTokensCmd(t, homedir, fmt.Sprintf("new fungible  -r %s --type %s --amount 3", backendUrl, typeID))
 	execTokensCmd(t, homedir, fmt.Sprintf("new fungible  -r %s --type %s --amount 1.1", backendUrl, typeID))
@@ -251,12 +254,12 @@ func TestWalletCreateFungibleTokenTypeAndTokenAndSendCmd_IntegrationTest(t *test
 
 	// test send fails
 	execTokensCmdWithError(t, homedir, fmt.Sprintf("send fungible -r %s --type %s --amount 2 --address 0x%X -k 1", backendUrl, nonExistingTypeId, w2key.PubKey), fmt.Sprintf("failed to load type with id %s", nonExistingTypeId))
-	execTokensCmdWithError(t, homedir, fmt.Sprintf("send fungible -r %s --type %s --amount 0 --address 0x%X -k 1", backendUrl, typeID, w2key.PubKey), fmt.Sprintf("0 is not valid amount"))
-	execTokensCmdWithError(t, homedir, fmt.Sprintf("send fungible -r %s --type %s --amount 000.000 --address 0x%X -k 1", backendUrl, typeID, w2key.PubKey), fmt.Sprintf("0 is not valid amount"))
-	execTokensCmdWithError(t, homedir, fmt.Sprintf("send fungible -r %s --type %s --amount 00.0.00 --address 0x%X -k 1", backendUrl, typeID, w2key.PubKey), fmt.Sprintf("more than one comma"))
-	execTokensCmdWithError(t, homedir, fmt.Sprintf("send fungible -r %s --type %s --amount .00 --address 0x%X -k 1", backendUrl, typeID, w2key.PubKey), fmt.Sprintf("missing integer part"))
-	execTokensCmdWithError(t, homedir, fmt.Sprintf("send fungible -r %s --type %s --amount a.00 --address 0x%X -k 1", backendUrl, typeID, w2key.PubKey), fmt.Sprintf("invalid amount string"))
-	execTokensCmdWithError(t, homedir, fmt.Sprintf("send fungible -r %s --type %s --amount 1.1111 --address 0x%X -k 1", backendUrl, typeID, w2key.PubKey), fmt.Sprintf("invalid precision"))
+	execTokensCmdWithError(t, homedir, fmt.Sprintf("send fungible -r %s --type %s --amount 0 --address 0x%X -k 1", backendUrl, typeID, w2key.PubKey), "0 is not valid amount")
+	execTokensCmdWithError(t, homedir, fmt.Sprintf("send fungible -r %s --type %s --amount 000.000 --address 0x%X -k 1", backendUrl, typeID, w2key.PubKey), "0 is not valid amount")
+	execTokensCmdWithError(t, homedir, fmt.Sprintf("send fungible -r %s --type %s --amount 00.0.00 --address 0x%X -k 1", backendUrl, typeID, w2key.PubKey), "more than one comma")
+	execTokensCmdWithError(t, homedir, fmt.Sprintf("send fungible -r %s --type %s --amount .00 --address 0x%X -k 1", backendUrl, typeID, w2key.PubKey), "missing integer part")
+	execTokensCmdWithError(t, homedir, fmt.Sprintf("send fungible -r %s --type %s --amount a.00 --address 0x%X -k 1", backendUrl, typeID, w2key.PubKey), "invalid amount string")
+	execTokensCmdWithError(t, homedir, fmt.Sprintf("send fungible -r %s --type %s --amount 1.1111 --address 0x%X -k 1", backendUrl, typeID, w2key.PubKey), "invalid precision")
 }
 
 func TestFungibleTokens_CollectDust_Integration(t *testing.T) {
@@ -344,9 +347,11 @@ func NewAlphabillNetwork(t *testing.T) *AlphabillNetwork {
 	defer w1.Shutdown()
 
 	w1key, err := w1.GetAccountManager().GetAccountKey(0)
+	require.NoError(t, err)
 	_, _, err = am.AddAccount()
 	require.NoError(t, err)
 	w1key2, err := w1.GetAccountManager().GetAccountKey(1)
+	require.NoError(t, err)
 
 	spendInitialBillWithFeeCredits(t, abNet, initialBill, w1key.PubKey)
 	time.Sleep(4 * time.Second) // TODO dynamic sleep

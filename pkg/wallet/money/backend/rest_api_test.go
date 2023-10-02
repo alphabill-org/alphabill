@@ -24,6 +24,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/script"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	testhttp "github.com/alphabill-org/alphabill/internal/testutils/http"
+	"github.com/alphabill-org/alphabill/internal/testutils/logger"
 	"github.com/alphabill-org/alphabill/internal/testutils/net"
 	testtransaction "github.com/alphabill-org/alphabill/internal/testutils/transaction"
 	"github.com/alphabill-org/alphabill/internal/txsystem/fc/testutils"
@@ -34,7 +35,6 @@ import (
 	"github.com/alphabill-org/alphabill/pkg/client/clientmock"
 	sdk "github.com/alphabill-org/alphabill/pkg/wallet"
 )
-
 
 const (
 	pubkeyHex = "0x000000000000000000000000000000000000000000000000000000000000000000"
@@ -715,24 +715,24 @@ func withClosedFeeCredit(fcbID []byte, txr *types.TransactionRecord) option {
 }
 
 func startServer(t *testing.T, service WalletBackendService) (port int, api *moneyRestAPI) {
-	var err error
-	port, err = net.GetFreePort()
+	port, err := net.GetFreePort()
 	require.NoError(t, err)
 
 	ctx, cancel := context.WithCancel(context.Background())
 
 	go func() {
-		api = &moneyRestAPI{Service: service, ListBillsPageLimit: 100, rw: &sdk.ResponseWriter{}}
-		server := http.Server{
-			Addr:              fmt.Sprintf("localhost:%d", port),
-			Handler:           api.Router(),
-			ReadTimeout:       3 * time.Second,
-			ReadHeaderTimeout: time.Second,
-			WriteTimeout:      5 * time.Second,
-			IdleTimeout:       30 * time.Second,
-		}
-
-		err := httpsrv.Run(ctx, server, httpsrv.ShutdownTimeout(5*time.Second))
+		api = &moneyRestAPI{Service: service, ListBillsPageLimit: 100, rw: &sdk.ResponseWriter{}, log: logger.New(t)}
+		err := httpsrv.Run(ctx,
+			http.Server{
+				Addr:              fmt.Sprintf("localhost:%d", port),
+				Handler:           api.Router(),
+				ReadTimeout:       3 * time.Second,
+				ReadHeaderTimeout: time.Second,
+				WriteTimeout:      5 * time.Second,
+				IdleTimeout:       30 * time.Second,
+			},
+			httpsrv.ShutdownTimeout(5*time.Second),
+		)
 		require.ErrorIs(t, err, context.Canceled)
 	}()
 	// stop the server

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net"
 	"net/http"
 	"net/http/httputil"
@@ -13,14 +14,14 @@ import (
 	"testing"
 	"time"
 
+	"github.com/fxamacker/cbor/v2"
+	"github.com/stretchr/testify/require"
+
 	"github.com/alphabill-org/alphabill/internal/rpc/alphabill"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/alphabill-org/alphabill/internal/txsystem/tokens"
 	"github.com/alphabill-org/alphabill/internal/types"
 	sdk "github.com/alphabill-org/alphabill/pkg/wallet"
-	"github.com/alphabill-org/alphabill/pkg/wallet/log"
-	"github.com/fxamacker/cbor/v2"
-	"github.com/stretchr/testify/require"
 )
 
 func decodeResponse(t *testing.T, rsp *http.Response, code int, data any) error {
@@ -110,13 +111,13 @@ type mockCfg struct {
 	db     Storage
 	abc    ABClient
 	srvL   net.Listener
-	log    log.Logger
+	log    *slog.Logger
 }
 
 func (c *mockCfg) BatchSize() int   { return 50 }
 func (c *mockCfg) Client() ABClient { return c.abc }
 
-func (c *mockCfg) Logger() log.Logger { return c.log }
+func (c *mockCfg) Logger() *slog.Logger { return c.log }
 
 func (c *mockCfg) Storage() (Storage, error) {
 	if c.db != nil {

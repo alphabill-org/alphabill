@@ -1,11 +1,11 @@
 package logger
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"regexp"
 
-	"github.com/alphabill-org/alphabill/internal/errors"
 	"gopkg.in/yaml.v3"
 )
 
@@ -41,38 +41,30 @@ func loadGlobalConfigFromFile(fileName string) (GlobalConfig, error) {
 
 	yamlFile, err := os.ReadFile(filepath.Clean(fileName))
 	if err != nil {
-		pe, ok := err.(*os.PathError)
-		if ok {
-			return GlobalConfig{}, errors.Wrap(errors.ErrFileNotFound, pe.Error())
-		}
-		return GlobalConfig{}, errors.Wrap(err, "failed to read logger config file")
+		return GlobalConfig{}, fmt.Errorf("failed to read logger config file: %w", err)
 	}
 	config := &LoggerConfiguration{}
-	err = yaml.Unmarshal(yamlFile, config)
-	if err != nil {
-		return GlobalConfig{}, errors.Wrap(err, "failed to unmarshal logger config")
+	if err := yaml.Unmarshal(yamlFile, config); err != nil {
+		return GlobalConfig{}, fmt.Errorf("failed to unmarshal logger config: %w", err)
 	}
 
 	// --- Setup globals
 	globalConfig := GlobalConfig{
 		DefaultLevel:    LevelFromString(config.DefaultLevel),
 		PackageLevels:   make(map[string]LogLevel),
-		Writer:          nil,
+		Writer:          os.Stdout,
 		ConsoleFormat:   config.ConsoleFormat,
 		ShowCaller:      config.ShowCaller,
 		TimeLocation:    config.TimeLocation,
 		ShowGoroutineID: config.ShowGoroutineID,
 		ShowNodeID:      config.ShowNodeID,
 	}
-	// Output writer
 	if config.OutputPath != "" {
 		file, err := os.OpenFile(config.OutputPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0600) // -rw-------
 		if err != nil {
-			return GlobalConfig{}, errors.Wrap(err, "failed to create output writer")
+			return GlobalConfig{}, fmt.Errorf("failed to open log file: %w", err)
 		}
 		globalConfig.Writer = file
-	} else {
-		globalConfig.Writer = os.Stdout
 	}
 	// Log levels for individual packages
 	for k, v := range config.PackageLevels {

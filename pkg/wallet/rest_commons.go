@@ -34,7 +34,7 @@ type (
 	}
 
 	ResponseWriter struct {
-		LogErr func(a ...any)
+		LogErr func(err error)
 	}
 )
 

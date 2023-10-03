@@ -14,6 +14,7 @@ import (
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/sync/semaphore"
 
+	"github.com/alphabill-org/alphabill/internal/debug"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/internal/script"
 	"github.com/alphabill-org/alphabill/internal/txsystem/money"
@@ -119,6 +120,7 @@ type (
 )
 
 func Run(ctx context.Context, config *Config) error {
+	wlog.Info("starting money backend: BuildInfo=", debug.ReadBuildInfo())
 	store, err := newBoltBillStore(config.DbFile)
 	if err != nil {
 		return fmt.Errorf("failed to get storage: %w", err)
@@ -169,6 +171,7 @@ func Run(ctx context.Context, config *Config) error {
 	g, ctx := errgroup.WithContext(ctx)
 
 	g.Go(func() error {
+		wlog.Info("money backend REST server starting on ", config.ServerAddr)
 		walletBackend := &WalletBackend{store: store, genericWallet: sdk.New().SetABClient(abc).Build()}
 		defer walletBackend.genericWallet.Shutdown()
 

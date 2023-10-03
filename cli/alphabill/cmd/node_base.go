@@ -18,6 +18,7 @@ import (
 	"google.golang.org/grpc/health"
 	"google.golang.org/grpc/health/grpc_health_v1"
 
+	"github.com/alphabill-org/alphabill/internal/debug"
 	"github.com/alphabill-org/alphabill/internal/keyvaluedb"
 	"github.com/alphabill-org/alphabill/internal/keyvaluedb/boltdb"
 	"github.com/alphabill-org/alphabill/internal/keyvaluedb/memorydb"
@@ -59,6 +60,7 @@ func defaultNodeRunFunc(ctx context.Context, name string, txs txsystem.Transacti
 }
 
 func run(ctx context.Context, name string, self *network.Peer, node *partition.Node, rpcServerConf *grpcServerConfiguration, restServerConf *restServerConfiguration) error {
+	log.Info("starting %s: BuildInfo=%s", name, debug.ReadBuildInfo())
 	g, ctx := errgroup.WithContext(ctx)
 
 	g.Go(func() error { return node.Run(ctx) })

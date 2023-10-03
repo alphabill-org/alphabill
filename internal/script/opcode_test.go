@@ -207,12 +207,30 @@ func TestOpVerify(t *testing.T) {
 
 func TestOpPushBool(t *testing.T) {
 	op, c, s := createContext(OpPushBool)
+
+	// exec OP_PUSH_BOOL <TRUE>
 	err := op.exec(c, []byte{BoolTrue})
 	require.NoError(t, err)
 	val, err := s.popBool()
-	require.True(t, val)
 	require.NoError(t, err)
+	require.True(t, val)
 	require.True(t, s.isEmpty())
+
+	// exec OP_PUSH_BOOL <FALSE>
+	err = op.exec(c, []byte{BoolFalse})
+	require.NoError(t, err)
+	val, err = s.popBool()
+	require.NoError(t, err)
+	require.False(t, val)
+	require.True(t, s.isEmpty())
+
+	// exec OP_PUSH_BOOL <invalid byte>
+	err = op.exec(c, []byte{0x02})
+	require.ErrorContains(t, err, "OpPushBool invalid data")
+
+	// exec OP_PUSH_BOOL <TRUE> <FALSE>
+	err = op.exec(c, []byte{BoolTrue, BoolFalse})
+	require.ErrorContains(t, err, "OpPushBool invalid data")
 }
 
 func createContext(opCode byte) (opCode, *scriptContext, *stack) {
@@ -221,6 +239,5 @@ func createContext(opCode byte) (opCode, *scriptContext, *stack) {
 		stack:   &stack{},
 		sigData: []byte{},
 	}
-	s := c.stack
-	return op, c, s
+	return op, c, c.stack
 }

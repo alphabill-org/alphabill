@@ -83,7 +83,7 @@ func opPushHashDataLength(script []byte) (int, error) {
 
 // opPushBool pushes bool to stack, returns error if data is not a valid bool
 func opPushBool(c *scriptContext, data []byte) error {
-	if len(data) != 1 && data[0] != BoolTrue && data[0] != BoolFalse {
+	if len(data) != 1 || (data[0] != BoolTrue && data[0] != BoolFalse) {
 		return fmt.Errorf("OpPushBool invalid data: 0x%x", data)
 	}
 	c.stack.push(data)

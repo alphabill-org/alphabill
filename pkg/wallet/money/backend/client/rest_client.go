@@ -38,6 +38,7 @@ type (
 		lockedFeeCreditURL *url.URL
 		closedFeeCreditURL *url.URL
 		transactionsURL    *url.URL
+		infoURL            *url.URL
 	}
 )
 
@@ -51,6 +52,7 @@ const (
 	LockedFeeCreditPath = "api/v1/locked-fee-credit"
 	ClosedFeeCreditPath = "api/v1/closed-fee-credit"
 	TransactionsPath    = "api/v1/transactions"
+	InfoPath            = "api/v1/info"
 
 	defaultScheme   = "http://"
 	contentType     = "Content-Type"
@@ -81,6 +83,7 @@ func New(baseUrl string) (*MoneyBackendClient, error) {
 		lockedFeeCreditURL: u.JoinPath(LockedFeeCreditPath),
 		closedFeeCreditURL: u.JoinPath(ClosedFeeCreditPath),
 		transactionsURL:    u.JoinPath(TransactionsPath),
+		infoURL:            u.JoinPath(InfoPath),
 		pagingLimit:        defaultPagingLimit,
 	}, nil
 }
@@ -355,6 +358,25 @@ func (c *MoneyBackendClient) GetTxHistory(ctx context.Context, pubKey sdk.PubKey
 		return nil, "", fmt.Errorf("failed to extract position marker: %w", err)
 	}
 	return result, pm, nil
+}
+
+func (c *MoneyBackendClient) GetInfo(ctx context.Context) (*sdk.InfoResponse, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.infoURL.String(), nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to build get info request: %w", err)
+	}
+	httpResponse, err := c.HttpClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("request GetInfo failed: %w", err)
+	}
+	if httpResponse.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("unexpected response status code for GetInfo request: %d", httpResponse.StatusCode)
+	}
+	var infoResponse *sdk.InfoResponse
+	if err := json.NewDecoder(httpResponse.Body).Decode(&infoResponse); err != nil {
+		return nil, fmt.Errorf("failed to parse GetInfo response: %w", err)
+	}
+	return infoResponse, nil
 }
 
 func (c *MoneyBackendClient) retrieveBills(ctx context.Context, pubKey []byte, includeDCBills bool, offsetKey string, limit int) (*backend.ListBillsResponse, string, error) {

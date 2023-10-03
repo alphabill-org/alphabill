@@ -318,6 +318,18 @@ paths:
           $ref: 'components.yaml#/responses/PostTransactionsErrorResponse'
         default:
           $ref: 'components.yaml#/responses/ErrorResponse'
+  /info:
+    get:
+      summary: Get info about the partition
+      description: |-
+        Returns static info about the partition such as partition system identifier etc
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InfoResponse'
 components:
   schemas:
     Kind:
@@ -437,3 +449,12 @@ components:
           type: string
           format: binary
           example: base64encodeddata
+    InfoResponse:
+      type: object
+      properties:
+        system_id:
+          type: string
+          example: '00000002'
+        name:
+          type: string
+          example: 'tokens backend'

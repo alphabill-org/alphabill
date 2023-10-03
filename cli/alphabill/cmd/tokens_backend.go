@@ -8,6 +8,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/alphabill-org/alphabill/internal/txsystem/tokens"
 	wlog "github.com/alphabill-org/alphabill/pkg/wallet/log"
 	"github.com/alphabill-org/alphabill/pkg/wallet/tokens/backend"
 )
@@ -42,6 +43,7 @@ func buildCmdStartTokensBackend(config *baseConfiguration) *cobra.Command {
 	cmd.Flags().StringP(alphabillNodeURLCmdName, "u", defaultAlphabillNodeURL, "alphabill node url")
 	cmd.Flags().StringP(serverAddrCmdName, "s", defaultTokensBackendApiURL, "server address")
 	cmd.Flags().StringP(dbFileCmdName, "f", "", "path to the database file")
+	cmd.Flags().BytesHex(systemIdentifierCmdName, tokens.DefaultSystemIdentifier, "system identifier in hex format")
 	return cmd
 }
 
@@ -71,8 +73,11 @@ func execTokensBackendStartCmd(ctx context.Context, cmd *cobra.Command, config *
 	if err != nil {
 		return fmt.Errorf("failed to init logger: %w", err)
 	}
-
-	return backend.Run(ctx, backend.NewConfig(srvAddr, abURL, dbFile, logger))
+	systemID, err := cmd.Flags().GetBytesHex(systemIdentifierCmdName)
+	if err != nil {
+		return fmt.Errorf("failed to read %s flag value: %w", systemIdentifierCmdName, err)
+	}
+	return backend.Run(ctx, backend.NewConfig(srvAddr, abURL, dbFile, logger, systemID))
 }
 
 /*

@@ -9,12 +9,13 @@ import (
 	"time"
 
 	"github.com/ainvaltin/httpsrv"
-	"github.com/alphabill-org/alphabill/internal/crypto"
-	"github.com/alphabill-org/alphabill/internal/types"
 	"golang.org/x/sync/errgroup"
 
+	"github.com/alphabill-org/alphabill/internal/crypto"
+	"github.com/alphabill-org/alphabill/internal/debug"
 	"github.com/alphabill-org/alphabill/internal/rpc/alphabill"
 	"github.com/alphabill-org/alphabill/internal/txsystem/tokens"
+	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/pkg/client"
 	sdk "github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/alphabill-org/alphabill/pkg/wallet/blocksync"
@@ -30,6 +31,7 @@ type Configuration interface {
 	Listener() net.Listener
 	Logger() log.Logger
 	SystemID() []byte
+	APIAddr() string
 }
 
 type ABClient interface {
@@ -69,6 +71,9 @@ Run blocks until ctx is cancelled or some unrecoverable error happens, it
 always returns non-nil error.
 */
 func Run(ctx context.Context, cfg Configuration) error {
+	if cfg.Logger() != nil {
+		cfg.Logger().Info("starting tokens backend: BuildInfo=", debug.ReadBuildInfo())
+	}
 	db, err := cfg.Storage()
 	if err != nil {
 		return fmt.Errorf("failed to get storage: %w", err)
@@ -107,6 +112,7 @@ func Run(ctx context.Context, cfg Configuration) error {
 	})
 
 	g.Go(func() error {
+		cfg.Logger().Info("tokens backend REST server starting on ", cfg.APIAddr())
 		api := &tokensRestAPI{
 			db:        db,
 			ab:        abc,
@@ -161,6 +167,7 @@ func (c *cfg) BatchSize() int            { return 100 }
 func (c *cfg) Logger() log.Logger        { return c.log }
 func (c *cfg) Listener() net.Listener    { return nil } // we do set Addr in HttpServer
 func (c *cfg) SystemID() []byte          { return c.systemID }
+func (c *cfg) APIAddr() string           { return c.apiAddr }
 
 func (c *cfg) HttpServer(endpoints http.Handler) http.Server {
 	return http.Server{

@@ -608,6 +608,18 @@ func TestGetClosedFeeCreditRequest(t *testing.T) {
 	require.Equal(t, http.StatusBadRequest, httpRes.StatusCode)
 }
 
+func TestInfoRequest_Ok(t *testing.T) {
+	service := newWalletBackend(t)
+	port, _ := startServer(t, service)
+
+	var res *sdk.InfoResponse
+	httpRes, err := testhttp.DoGetJson(fmt.Sprintf("http://localhost:%d/api/v1/info", port), &res)
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, httpRes.StatusCode)
+	require.Equal(t, "00000000", res.SystemID)
+	require.Equal(t, "money backend", res.Name)
+}
+
 func verifyLinkHeader(t *testing.T, httpRes *http.Response, nextKey []byte) {
 	var linkHdrMatcher = regexp.MustCompile("<(.*)>")
 	match := linkHdrMatcher.FindStringSubmatch(httpRes.Header.Get(sdk.HeaderLink))
@@ -721,7 +733,7 @@ func startServer(t *testing.T, service WalletBackendService) (port int, api *mon
 	ctx, cancel := context.WithCancel(context.Background())
 
 	go func() {
-		api = &moneyRestAPI{Service: service, ListBillsPageLimit: 100, rw: &sdk.ResponseWriter{}, log: logger.New(t)}
+		api = &moneyRestAPI{Service: service, ListBillsPageLimit: 100, rw: &sdk.ResponseWriter{}, log: logger.New(t), SystemID: moneySystemID}
 		err := httpsrv.Run(ctx,
 			http.Server{
 				Addr:              fmt.Sprintf("localhost:%d", port),

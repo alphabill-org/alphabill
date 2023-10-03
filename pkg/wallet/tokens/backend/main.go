@@ -29,6 +29,7 @@ type Configuration interface {
 	HttpServer(http.Handler) http.Server
 	Listener() net.Listener
 	Logger() *slog.Logger
+	SystemID() []byte
 }
 
 type ABClient interface {
@@ -74,7 +75,10 @@ func Run(ctx context.Context, cfg Configuration) error {
 	}
 	defer db.Close()
 
-	txs, err := tokens.NewTxSystem(tokens.WithTrustBase(map[string]crypto.Verifier{"test": nil}))
+	txs, err := tokens.NewTxSystem(
+		tokens.WithTrustBase(map[string]crypto.Verifier{"test": nil}),
+		tokens.WithSystemIdentifier(cfg.SystemID()),
+	)
 	if err != nil {
 		return fmt.Errorf("failed to create token tx system: %w", err)
 	}
@@ -108,6 +112,7 @@ func Run(ctx context.Context, cfg Configuration) error {
 			ab:        abc,
 			streamSSE: msgBroker.StreamSSE,
 			rw:        sdk.ResponseWriter{LogErr: func(err error) { cfg.Logger().Error(err.Error()) }},
+			systemID:  cfg.SystemID(),
 		}
 		return httpsrv.Run(ctx, cfg.HttpServer(api.endpoints()), httpsrv.Listener(cfg.Listener()), httpsrv.ShutdownTimeout(5*time.Second))
 	})
@@ -126,10 +131,11 @@ func runBlockSync(ctx context.Context, getBlocks blocksync.BlocksLoaderFunc, get
 }
 
 type cfg struct {
-	abc     client.AlphabillClientConfig
-	boltDB  string
-	apiAddr string
-	log     *slog.Logger
+	abc      client.AlphabillClientConfig
+	boltDB   string
+	apiAddr  string
+	log      *slog.Logger
+	systemID []byte
 }
 
 /*
@@ -139,12 +145,13 @@ NewConfig returns Configuration suitable for using as Run parameter.
   - boltDB: filename (with full path) of the bolt db to use as storage;
   - logger: logger implementation.
 */
-func NewConfig(apiAddr, abURL, boltDB string, logger *slog.Logger) Configuration {
+func NewConfig(apiAddr, abURL, boltDB string, logger *slog.Logger, systemID []byte) Configuration {
 	return &cfg{
-		abc:     client.AlphabillClientConfig{Uri: abURL},
-		boltDB:  boltDB,
-		apiAddr: apiAddr,
-		log:     logger,
+		abc:      client.AlphabillClientConfig{Uri: abURL},
+		boltDB:   boltDB,
+		apiAddr:  apiAddr,
+		log:      logger,
+		systemID: systemID,
 	}
 }
 
@@ -153,6 +160,7 @@ func (c *cfg) Storage() (Storage, error) { return newBoltStore(c.boltDB) }
 func (c *cfg) BatchSize() int            { return 100 }
 func (c *cfg) Logger() *slog.Logger      { return c.log }
 func (c *cfg) Listener() net.Listener    { return nil } // we do set Addr in HttpServer
+func (c *cfg) SystemID() []byte          { return c.systemID }
 
 func (c *cfg) HttpServer(endpoints http.Handler) http.Server {
 	return http.Server{

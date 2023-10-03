@@ -189,6 +189,16 @@ func (tb *TokenBackend) GetClosedFeeCredit(ctx context.Context, fcbID []byte) (*
 	return fcb, nil
 }
 
+func (tb *TokenBackend) GetInfo(ctx context.Context) (*sdk.InfoResponse, error) {
+	var res *sdk.InfoResponse
+	addr := tb.getURL(apiPathPrefix, "info")
+	_, err := tb.get(ctx, addr, &res, false)
+	if err != nil {
+		return nil, fmt.Errorf("get info request failed: %w", err)
+	}
+	return res, nil
+}
+
 func (tb *TokenBackend) getURL(pathElements ...string) *url.URL {
 	return sdk.GetURL(tb.addr, pathElements...)
 }
@@ -196,7 +206,7 @@ func (tb *TokenBackend) getURL(pathElements ...string) *url.URL {
 /*
 get executes GET request to given "addr" and decodes response body into "data" (which has to be a pointer
 of the data type expected in the response).
-When "allowEmptyResponse" is false then response must have a non empty body with CBOR content.
+When "allowEmptyResponse" is false then response must have a non-empty body with CBOR content.
 
 It returns value of the offset parameter from the Link header (empty string when header is not
 present, ie missing header is not error).

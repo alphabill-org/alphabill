@@ -2,6 +2,7 @@ package backend
 
 import (
 	"bytes"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
@@ -32,6 +33,7 @@ type (
 		ListBillsPageLimit int
 		rw                 *sdk.ResponseWriter
 		log                *slog.Logger
+		SystemID           []byte
 	}
 
 	ListBillsResponse struct {
@@ -80,6 +82,7 @@ func (api *moneyRestAPI) Router() *mux.Router {
 	apiV1.HandleFunc("/locked-fee-credit/{systemId}/{billId}", api.getLockedFeeCreditFunc).Methods("GET", "OPTIONS")
 	apiV1.HandleFunc("/closed-fee-credit/{billId}", api.getClosedFeeCreditFunc).Methods("GET", "OPTIONS")
 	apiV1.HandleFunc("/transactions/{pubkey}", api.postTransactions).Methods("POST", "OPTIONS")
+	apiV1.HandleFunc("/info", api.getInfo).Methods("GET", "OPTIONS")
 
 	apiV1.Handle("/swagger/swagger-initializer.js", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		initializer := "swagger/swagger-initializer-money.js"
@@ -336,7 +339,7 @@ func (api *moneyRestAPI) postTransactions(w http.ResponseWriter, r *http.Request
 	api.Service.HandleTransactionsSubmission(egp, senderPubkey, txs.Transactions)
 
 	if errs := api.Service.SendTransactions(r.Context(), txs.Transactions); len(errs) > 0 {
-		api.log.LogAttrs(r.Context(), slog.LevelDebug, "error on GET /transactions", logger.Error(err))
+		api.log.LogAttrs(r.Context(), slog.LevelDebug, "error on POST /transactions", logger.Error(err))
 		w.WriteHeader(http.StatusInternalServerError)
 		api.rw.WriteResponse(w, errs)
 		return
@@ -396,6 +399,15 @@ func (api *moneyRestAPI) getClosedFeeCreditFunc(w http.ResponseWriter, r *http.R
 		return
 	}
 	api.rw.WriteCborResponse(w, cfc)
+}
+
+func (api *moneyRestAPI) getInfo(w http.ResponseWriter, _ *http.Request) {
+	systemID := hex.EncodeToString(api.SystemID)
+	res := sdk.InfoResponse{
+		SystemID: systemID,
+		Name:     "money backend",
+	}
+	api.rw.WriteResponse(w, res)
 }
 
 func parsePubKeyQueryParam(r *http.Request) (sdk.PubKey, error) {

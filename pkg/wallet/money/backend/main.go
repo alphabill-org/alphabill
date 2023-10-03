@@ -174,7 +174,12 @@ func Run(ctx context.Context, config *Config) error {
 		walletBackend := &WalletBackend{store: store, genericWallet: sdk.New().SetABClient(abc).Build()}
 		defer walletBackend.genericWallet.Shutdown()
 
-		handler := &moneyRestAPI{Service: walletBackend, ListBillsPageLimit: config.ListBillsPageLimit, log: config.Logger, rw: &sdk.ResponseWriter{LogErr: func(err error) { config.Logger.Error(err.Error()) }}}
+		handler := &moneyRestAPI{
+			Service:            walletBackend,
+			ListBillsPageLimit: config.ListBillsPageLimit,
+			SystemID:           config.ABMoneySystemIdentifier,
+			rw:                 &sdk.ResponseWriter{LogErr: func(err error) { config.Logger.Error(err.Error()) }},
+		}
 
 		return httpsrv.Run(ctx,
 			http.Server{

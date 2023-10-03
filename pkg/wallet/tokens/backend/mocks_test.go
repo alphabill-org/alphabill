@@ -107,11 +107,12 @@ func (abc *mockABClient) GetRoundNumber(ctx context.Context) (uint64, error) {
 }
 
 type mockCfg struct {
-	dbFile string
-	db     Storage
-	abc    ABClient
-	srvL   net.Listener
-	log    *slog.Logger
+	dbFile   string
+	db       Storage
+	abc      ABClient
+	srvL     net.Listener
+	log      *slog.Logger
+	systemID []byte
 }
 
 func (c *mockCfg) BatchSize() int   { return 50 }
@@ -127,6 +128,13 @@ func (c *mockCfg) Storage() (Storage, error) {
 		return nil, fmt.Errorf("neither db file name nor mock is assigned")
 	}
 	return newBoltStore(c.dbFile)
+}
+
+func (c *mockCfg) SystemID() []byte {
+	if c.systemID != nil {
+		return c.systemID
+	}
+	return tokens.DefaultSystemIdentifier
 }
 
 func (c *mockCfg) HttpServer(endpoints http.Handler) http.Server {

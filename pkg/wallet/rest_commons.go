@@ -36,6 +36,12 @@ type (
 	ResponseWriter struct {
 		LogErr func(err error)
 	}
+
+	// InfoResponse should be compatible with Node /info request
+	InfoResponse struct {
+		SystemID string `json:"system_id"` // hex encoded system identifier (without 0x prefix)
+		Name     string `json:"name"`      // one of [money backend | tokens backend]
+	}
 )
 
 var ErrRecordNotFound = errors.New("not found")

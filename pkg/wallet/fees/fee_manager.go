@@ -530,9 +530,6 @@ func (w *FeeManager) execAddFeeCredit(ctx context.Context, cmd AddFeeCmd, amount
 func (w *FeeManager) getAddFeeCreditState(ctx context.Context, lockedBills []*unitlock.LockedUnit, moneyRoundNumber uint64, userPartitionRoundNumber uint64, accountKey *account.AccountKey) ([]*addFCStateResponse, error) {
 	response := make([]*addFCStateResponse, 0, len(lockedBills))
 	lockedFeeBills := w.getLockedBillsByReason(lockedBills, unitlock.LockReasonAddFees)
-	if len(lockedFeeBills) == 0 {
-		response = append(response, &addFCStateResponse{})
-	}
 	for _, lockedFeeBill := range lockedFeeBills {
 		stateResponse := &addFCStateResponse{lockedUnit: lockedFeeBill}
 		if lockedFeeBill.Transactions[0].TxOrder.PayloadType() == transactions.PayloadTypeTransferFeeCredit {

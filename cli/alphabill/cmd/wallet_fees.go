@@ -224,7 +224,7 @@ func addFees(ctx context.Context, accountNumber uint64, amountString string, c *
 	if err != nil {
 		return err
 	}
-	proofs, err := w.AddFeeCredit(ctx, fees.AddFeeCmd{
+	addFeeCmdResponse, err := w.AddFeeCredit(ctx, fees.AddFeeCmd{
 		Amount:       amount,
 		AccountIndex: accountNumber - 1,
 	})
@@ -235,12 +235,20 @@ func addFees(ctx context.Context, accountNumber uint64, amountString string, c *
 		return err
 	}
 	consoleWriter.Println("Successfully created", amountString, "fee credits on", c.partitionType, "partition.")
-	if proofs.TransferFC != nil {
-		consoleWriter.Println("Paid", amountToString(proofs.TransferFC.TxRecord.ServerMetadata.ActualFee, 8), "fee for transferFC transaction.")
+	if len(addFeeCmdResponse.TransferFC) > 0 {
+		var feeSum uint64
+		for _, proof := range addFeeCmdResponse.TransferFC {
+			feeSum += proof.TxRecord.ServerMetadata.GetActualFee()
+		}
+		consoleWriter.Println("Paid", amountToString(feeSum, 8), "fee for transferFC transaction.")
 	} else {
 		consoleWriter.Println("Used previously locked unit to create fee credit.")
 	}
-	consoleWriter.Println("Paid", amountToString(proofs.AddFC.TxRecord.ServerMetadata.ActualFee, 8), "fee for addFC transaction.")
+	var feeSum uint64
+	for _, proof := range addFeeCmdResponse.AddFC {
+		feeSum += proof.TxRecord.ServerMetadata.GetActualFee()
+	}
+	consoleWriter.Println("Paid", amountToString(feeSum, 8), "fee for addFC transaction.")
 	return nil
 }
 

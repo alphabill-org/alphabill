@@ -147,6 +147,10 @@ func (c *mockCfg) HttpServer(endpoints http.Handler) http.Server {
 	}
 }
 
+func (c *mockCfg) APIAddr() string {
+	return "127.0.0.1:0"
+}
+
 func (c *mockCfg) initListener() error {
 	if c.srvL != nil {
 		return fmt.Errorf("listener already assigned: %s", c.srvL.Addr().String())

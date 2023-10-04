@@ -122,7 +122,9 @@ type (
 )
 
 func Run(ctx context.Context, config *Config) error {
-	wlog.Info("starting money backend: BuildInfo=", debug.ReadBuildInfo())
+	if config.Logger != nil {
+		config.Logger.Info(fmt.Sprintf("starting money backend: BuildInfo=%s", debug.ReadBuildInfo()))
+	}
 	store, err := newBoltBillStore(config.DbFile)
 	if err != nil {
 		return fmt.Errorf("failed to get storage: %w", err)
@@ -173,7 +175,9 @@ func Run(ctx context.Context, config *Config) error {
 	g, ctx := errgroup.WithContext(ctx)
 
 	g.Go(func() error {
-		wlog.Info("money backend REST server starting on ", config.ServerAddr)
+		if config.Logger != nil {
+			config.Logger.Info(fmt.Sprintf("money backend REST server starting on %s", config.ServerAddr))
+		}
 		walletBackend := &WalletBackend{store: store, genericWallet: sdk.New().SetABClient(abc).Build()}
 		defer walletBackend.genericWallet.Shutdown()
 

@@ -72,7 +72,7 @@ always returns non-nil error.
 */
 func Run(ctx context.Context, cfg Configuration) error {
 	if cfg.Logger() != nil {
-		cfg.Logger().Info("starting tokens backend: BuildInfo=", debug.ReadBuildInfo())
+		cfg.Logger().Info(fmt.Sprintf("starting tokens backend: BuildInfo=%s", debug.ReadBuildInfo()))
 	}
 	db, err := cfg.Storage()
 	if err != nil {
@@ -112,7 +112,7 @@ func Run(ctx context.Context, cfg Configuration) error {
 	})
 
 	g.Go(func() error {
-		cfg.Logger().Info("tokens backend REST server starting on ", cfg.APIAddr())
+		cfg.Logger().Info(fmt.Sprintf("tokens backend REST server starting on %s", cfg.APIAddr()))
 		api := &tokensRestAPI{
 			db:        db,
 			ab:        abc,

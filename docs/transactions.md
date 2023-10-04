@@ -75,7 +75,7 @@ signature and consists of the following (with example values):
 /Payload/ [
     /SystemIdentifier/ h'00000000',
     /Type/             "trans",
-    /UnitID/           h'0000000000000000000000000000000000000000000000000000000000000001',
+    /UnitID/           h'000000000000000000000000000000000000000000000000000000000000000100',
     /Attributes/       [/omitted, Type dependent/],
     /ClientMetadata/   [/omitted/]
 ]
@@ -94,9 +94,12 @@ transaction. *SystemIdentifier*s currently in use:
 [Transaction Types](#transaction-types) for the list of supported values and
 their corresponding *Attributes*.
 
-3. *UnitID* (byte string) specifies the unit involved in the
-   transaction. Partitions can have different types of units, but they
-   are all identified by this data item.
+3. *UnitID* (byte string) uniquely identifies the unit involved in the
+   transaction. Partitions can have different types of units and each
+   *UnitID* consists of two concatenated parts: the unit part and the
+   type part. The length of each part is constant within a partition
+   and thus the overall length of *UnitID* is also constant within a
+   partition.
 
 4. *Attributes* (array) is an array of transaction attributes that
 depends on the transaction type and are described in section
@@ -115,7 +118,7 @@ for the execution of the transaction. It consists of the following
 /ClientMetadata/ [
     /Timeout/           1344,
     /MaxTransactionFee/ 1,
-    /FeeCreditRecordID/ h'A0227AC5202427DB551B8ABE08645378347A3C5F70E0E5734F147AD45CBC1BA5'
+    /FeeCreditRecordID/ h'A0227AC5202427DB551B8ABE08645378347A3C5F70E0E5734F147AD45CBC1BA50F'
 ]
 ```
 
@@ -149,8 +152,14 @@ partition.
 
 #### Money Partition
 
-System identifier: h'00000000'\
-Unit types: bill, fee credit record\
+System identifier: h'00000000'
+
+*UnitID* length: 32 bytes unit part + 1 byte type part
+
+Valid type parts in *UnitID* and the corresponding unit types: 
+- *h'00'* - bill
+- *h'0f'* - fee credit record
+
 Hash algorithm: SHA-256
 
 ##### Transfer Bill
@@ -206,71 +215,63 @@ split.
 ##### Transfer Bill to Dust Collector
 
 This transaction transfers a bill to a special owner - Dust Collector
-(DC). After transferring multiple bills to DC, a single, larger-value
-bill can be obtained from DC with the [Swap Bills With Dust
-Collector](#swap-bills-with-dust-collector) transaction. The set of
-bills being swapped needs to be decided beforehand, as the *UnitID* of
-the new bill obtained from DC is calculated from the *UnitID*s of the
-bills being swapped, and specified in the *Nonce* attribute of this
-transaction.
+(DC). After transferring multiple bills to DC, the transferred bills 
+can be joined into an existing bill DC with the [Swap Bills With Dust
+Collector](#swap-bills-with-dust-collector) transaction. The target bill 
+must be chosen beforehand and should not be used between the transactions.
 
-Dust is not defined, any bills can be transferred to DC and swapped
-for a larger-value bill.
+Dust is not defined, any bills can be transferred to DC and joined into
+a larger-value bill.
 
 *TransactionOrder*.*Payload*.*Type* = "transDC"\
 *TransactionOrder*.*Payload*.*Attributes* contains:
 ```
 /transDCAttributes/ [
-    /Nonce/       h'',
-    /TargetOwner/ h'',
-    /TargetValue/ 999999899999999996,
-    /Backlink/    h'2C8E1F55FC20A44687AB5D18D11F5E3544D2989DFFBB8250AA6EBA5EF4CEC319'
+    /Value/              999999899999999996,
+    /TargetUnitID/       h'',
+    /TargetUnitBacklink/ h'',
+    /Backlink/           h'2C8E1F55FC20A44687AB5D18D11F5E3544D2989DFFBB8250AA6EBA5EF4CEC319'
 ]
 ```
 
-1. *Nonce* (byte string) is the *UnitID* of the new bill to be
-   obtained from DC with the [Swap Bills With Dust
-   Collector](#swap-bills-with-dust-collector) transaction. Calculated
-   as the hash of concatenated *UnitID*s of the bills being swapped,
-   sorted in ascending order.
-2. *TargetOwner* (byte string) is the owner condition of the new bill
-   later obtained with the [Swap Bills With Dust
-   Collector](#swap-bills-with-dust-collector) transaction.
-3. *TargetValue* (unsigned integer) is the value of the bill
+1. *Value* (unsigned integer) is the value of the bill
    transferred to DC with this transaction.
+2. *TargetUnitID* (byte string) is the *UnitID* of the target bill for the
+   [Swap Bills With Dust Collector](#swap-bills-with-dust-collector) 
+   transaction.
+3. *TargetUnitBacklink* (byte string) is the *Backlink* of the target bill 
+   for the [Swap Bills With Dust Collector](#swap-bills-with-dust-collector) 
+   transaction.
 4. *Backlink* (byte string) is the backlink to the previous transaction
    with the bill.
 
 ##### Swap Bills With Dust Collector
 
-This transaction swaps the bills previously [transferred to
-DC](#transfer-bill-to-dust-collector) for a new, larger-value bill.
+This transaction joins the bills previously [transferred to
+DC](#transfer-bill-to-dust-collector) into a target bill.
 
 *TransactionOrder*.*Payload*.*Type* = "swapDC"\
 *TransactionOrder*.*Payload*.*Attributes* contains:
 ```
 /swapDCAttributes/ [
-    /TargetOwner/      h'',
-    /BillIdentifiers/  [h''],
+    /OwnerCondition/   h'',
     /DcTransfers/      [/omitted/],
     /DcTransferProofs/ [/omitted/],
     /TargetValue/      3
 ]
 ```
 
-1. *TargetOwner* (byte string) is the owner condition of the new bill.
-2. *BillIdentifiers* (array of byte strings) is a variable length
-   array of bill identifiers that are being swapped.
-3. *DcTransfers* (array) is an array of [Transfer Bill to Dust
+1. *OwnerCondition* (byte string) is the new owner condition of the target bill.
+2. *DcTransfers* (array) is an array of [Transfer Bill to Dust
    Collector](#transfer-bill-to-dust-collector) transaction records
    ordered in strictly increasing order of bill identifiers.
-4. *DcTransferProofs* (array) is an array of [Transfer Bill to Dust
+3. *DcTransferProofs* (array) is an array of [Transfer Bill to Dust
    Collector](#transfer-bill-to-dust-collector) transaction proofs.
    The order of this array must match the order of *DcTransfers*
    array, so that a transaction and its corresponding proof have the
    same index.
-5. *TargetValue* (unsigned integer) is the value of the new bill and
-   must be equal to the sum of the values of the bills transferred to
+4. *TargetValue* (unsigned integer) is the value added to the target bill 
+   and must be equal to the sum of the values of the bills transferred to
    DC for this swap.
 
 ##### Transfer to Fee Credit
@@ -281,13 +282,14 @@ partition. A bill can be transferred to fee credit partially.
 
 To bootstrap a fee credit record on the money partition, the fee for
 this transaction is handled outside the fee credit system. That is,
-the value of the bill used to make this transfer is reduced by the
-*Amount* transferred **and** the transaction fee. If the remaining
-value is 0, the bill is deleted.
+the fee for this transaction is taken directly from the transferred
+*Amount* and the amount available for the fee credit record in the
+target partition is reduced
+accordingly. *ClientMetadata*.*MaxTransactionFee* still applies.
 
 Note that an [Add Fee Credit](#add-fee-credit) transaction must be
 executed on the target partition after each [Transfer to Fee
-Credit](#transfer-to-fee-credit) transaction, because the *Nonce*
+Credit](#transfer-to-fee-credit) transaction, because the *TargetUnitBacklink*
 attribute in this transaction contains the backlink to the last [Add
 Fee Credit](#add-fee-credit) transaction.
 
@@ -299,24 +301,22 @@ Fee Credit](#add-fee-credit) transaction.
 /transFCAttributes/ [
     /Amount/                 100000000,
     /TargetSystemIdentifier/ h'00000002',
-    /TargetRecordID/         h'A0227AC5202427DB551B8ABE08645378347A3C5F70E0E5734F147AD45CBC1BA5',
+    /TargetUnitID/           h'A0227AC5202427DB551B8ABE08645378347A3C5F70E0E5734F147AD45CBC1BA52F',
     /EarliestAdditionTime/   13,
     /LatestAdditionTime/     23,
-    /Nonce/                  null,
+    /TargetUnitBacklink/     null,
     /Backlink/               h'52F43127F58992B6FCFA27A64C980E70D26C2CDE0281AC93435D10EB8034B695'
 ]
 ```
 
 1. *Amount* (unsigned integer) is the amount of money to reserve for
-   paying fees in the target partition. Has to be less than the value
-   of the bill +
-   *TransactionOrder*.*Payload*.*ClientMetadata*.*MaxTransactionFee*.
+   paying fees in the target partition. A bill can be transferred to
+   partially.
 2. *TargetSystemIdentifier* (byte string) is the system identifier of
    the target partition where the *Amount* can be spent on fees.
-3. *TargetRecordID* (byte string) is the target fee credit record
+3. *TargetUnitID* (byte string) is the target fee credit record
    identifier (*FeeCreditRecordID* of the corresponding [Add Fee
-   Credit](#add-fee-credit) transaction). Hash of the private key
-   signing this transaction is used.
+   Credit](#add-fee-credit) transaction).
 4. *EarliestAdditionTime* (unsigned integer) is the earliest round
    when the corresponding [Add Fee Credit](#add-fee-credit)
    transaction can be executed in the target partition (usually
@@ -325,9 +325,9 @@ Fee Credit](#add-fee-credit) transaction.
    the corresponding [Add Fee Credit](#add-fee-credit) transaction can
    be executed in the target partition (usually current round number +
    some timeout).
-6. *Nonce* (byte string) is the hash of the last [Add Fee
+6. *TargetUnitBacklink* (byte string) is the hash of the last [Add Fee
    Credit](#add-fee-credit) transaction executed for the
-   *TargetRecordID* in the target partition, or `null` if it does not
+   *TargetUnitID* in the target partition, or `null` if it does not
    exist yet.
 7. *Backlink* (byte string) is the backlink to the previous
    transaction with the bill.
@@ -378,7 +378,7 @@ Note that fee credit records cannot be closed partially.
 
 This transaction must be followed by a [Reclaim Fee
 Credit](#reclaim-fee-credit) transaction to avoid losing the closed
-fee credit. The *Nonce* attribute fixes the current state of the bill
+fee credit. The *TargetUnitBacklink* attribute fixes the current state of the bill
 used to reclaim the closed fee credit, and any other transaction with
 the bill would invalidate that backlink.
 
@@ -388,19 +388,19 @@ the bill would invalidate that backlink.
 *TransactionOrder*.*Payload*.*Attributes* contains:
 ```
 /closeFCAttributes/ [
-    /Amount/            100000000,
-    /FeeCreditRecordID/ h'A0227AC5202427DB551B8ABE08645378347A3C5F70E0E5734F147AD45CBC1BA5',
-    /Nonce/             h''
+    /Amount/             100000000,
+    /TargetUnitID/       h'A0227AC5202427DB551B8ABE08645378347A3C5F70E0E5734F147AD45CBC1BA500',
+    /TargetUnitBacklink/ h''
 ]
 ```
 
 1. *Amount* (unsigned integer) is the current balance of the fee
    credit record.
-2. *FeeCreditRecordID* (byte string) is the identifier of the fee
-   credit record to be closed.
-3. *Nonce* (byte string) is the backlink to the previous transaction
-   with the bill in the money partition that is used to reclaim the
-   fee credit.
+2. *TargetUnitID* (byte string) is the *UnitID* of the existing bill
+   in the money partition that is used to reclaim the fee credit.
+3. *TargetUnitBacklink* (byte string) is the backlink to the previous
+   transaction with the bill in the money partition that is used to
+   reclaim the fee credit.
 
 ##### Reclaim Fee Credit
 
@@ -433,8 +433,17 @@ partition, to an existing bill in the money partition.
 
 #### Tokens Partition
 
-System identifier: h'00000002'\
-Unit types: fungible token type, non-fungible token type, fungible token, non-fungible token, fee credit record\
+System identifier: *h'00000002'*
+
+*UnitID* length: 32 bytes unit part + 1 byte type part
+
+Valid type parts in *UnitID* and the corresponding unit types: 
+- *h'20'* - fungible token type
+- *h'21'* - fungible token
+- *h'22'* - non-fungible token type
+- *h'23'* - non-fungible token
+- *h'2f'* - fee credit record
+
 Hash algorithm: SHA-256
 
 ##### Create Non-fungible Token Type
@@ -448,7 +457,7 @@ This transaction creates a non-fungible token type.
     /Symbol/                             "symbol",
     /Name/                               "long name",
     /Icon/                               [/Type/ "image/png", /Data/ h''],
-    /ParentTypeID/                       h'00',
+    /ParentTypeID/                       null,
     /SubTypeCreationPredicate/           h'535101',
     /TokenCreationPredicate/             h'5376A8014F01B327E2D37F0BFB6BABF6ACC758A101C6D8EB03991ABE7F137C62B253C5A5CFA08769AC01',
     /InvariantPredicate/                 h'535101',
@@ -465,7 +474,7 @@ This transaction creates a non-fungible token type.
     1. *Type* (text string) is the MIME content type of the image in *Data*.
     2. *Data* (byte string) is the image in the format specified by *Type*.
 4. *ParentTypeID* (byte string) is the *UnitID* of the parent type
-   that this type derives from. A byte with value 0 indicates there is
+   that this type derives from. `null` value indicates that there is
    no parent type.
 5. *SubTypeCreationPredicate* (byte string) is the predicate clause that
    controls defining new subtypes of this type.
@@ -573,7 +582,7 @@ This transaction creates a fungible token type.
     /Symbol/                             "symbol",
     /Name/                               "long name",
     /Icon/                               [/Type/ "image/png", /Data/ h''],
-    /ParentTypeID/                       h'00',
+    /ParentTypeID/                       null,
     /DecimalPlaces/                      8,
     /SubTypeCreationPredicate/           h'535101',
     /TokenCreationPredicate/             h'5376A8014F01B327E2D37F0BFB6BABF6ACC758A101C6D8EB03991ABE7F137C62B253C5A5CFA08769AC01',
@@ -590,7 +599,7 @@ This transaction creates a fungible token type.
     1. *Type* (text string) is the MIME content type of the image in *Data*.
     2. *Data* (byte string) is the image in the format specified by *Type*.
 4. *ParentTypeID* (byte string) is the *UnitID* of the parent type
-   that this type derives from. A byte with value 0 indicates there is
+   that this type derives from. `null` value indicates that there is
    no parent type.
 5. *DecimalPlaces* (unsigned integer) is the number of decimal places
    to display for values of tokens of this type.
@@ -709,7 +718,7 @@ Token](#join-fungible-tokens) transaction.
 /burnFTokenAttributes/ [
     /TypeID/                       h'',
     /Value/                        999,
-    /TargetBacklink/               h'',
+    /TargetUnitBacklink/           h'',
     /Backlink/                     h'',
     /InvariantPredicateSignatures/ [h'']
 ]
@@ -717,7 +726,7 @@ Token](#join-fungible-tokens) transaction.
 
 1. *TypeID* (byte string) is the type of the token.
 2. *Value* (unsigned integer) is the value of the token.
-3. *TargetBacklink* (byte string) is the backlink to the previous
+3. *TargetUnitBacklink* (byte string) is the backlink to the previous
    transaction with the fungible token that this burn is to be [joined
    into](#join-fungible-tokens).
 4. *Backlink* (byte string) is the backlink to the previous
@@ -774,7 +783,7 @@ Extended Diagnostic Notation to raw hex encoded CBOR format.
 
 Raw hex encoded transaction:
 ```
-838544000000006573706c6974582000000000ffcc5c5d01ca3eff65c2087db3aefd3d58b20f074d52bb664c24ffae841a0bebc200582a5376a8014f0162c5594a5f1e83d7c5611b041999cfb9c67cff2482aefa72e8b636ccf79bbb1d8769ac011a11e1a30058204ddc4678fd0eeefdd6868d99e644c0b43c20ed38292aee3893e4542f0a62aae68318250158208db6886a5d0fa64c2544e65b3f296c07a29f427db8d15517f70f7ff6f825e3dd58675354013f5d8fa1c59cb5b69fea2e82da14fb9f4579e4b49bfb963a3670c1a0d1215669547d1b38418a8b30bf89945ecdaa04adb879496c8ec55d7a274cf4f6f7bfde8f0055010225fd546b19683bed7663a83f97b1a1545a52f180f432ee1748fc3b51090eba5cf6
+838544000000006573706c69745821456c86861fe9bb62ed4d36fe57aade1575c4c3cbe36c6edeb126e5049abe1cf100841a0bebc200582a5376a8014f0162c5594a5f1e83d7c5611b041999cfb9c67cff2482aefa72e8b636ccf79bbb1d8769ac011a11e1a30158202e828d69bc994f51a24b593fd4a6745413a9ae8394ba3289b4a06711531401a5831820015821411dbb429d60228cacdea90d4b5f1c0b022d7f03d9cb9e5042be3f74b7a8c23a0f5867535401497641466a5a7de02b34dc7f3da1a87861d89fba29bcd71f0d0814e50fefe23a5a3c58430873d0e790a6d8dbf5087bf8e80dbdf3ab56764d4c207802d62988440155010225fd546b19683bed7663a83f97b1a1545a52f180f432ee1748fc3b51090eba5cf6
 ```
 
 Same hex encoded data with annotations:
@@ -785,22 +794,22 @@ Same hex encoded data with annotations:
          00000000                       # "\u0000\u0000\u0000\u0000"
       65                                # text(5)
          73706C6974                     # "split"
-      58 20                             # bytes(32)
-         00000000FFCC5C5D01CA3EFF65C2087DB3AEFD3D58B20F074D52BB664C24FFAE # "\u0000\u0000\u0000\u0000\xFF\xCC\\]\u0001\xCA>\xFFe\xC2\b}\xB3\xAE\xFD=X\xB2\u000F\aMR\xBBfL$\xFF\xAE"
+      58 21                             # bytes(33)
+         456C86861FE9BB62ED4D36FE57AADE1575C4C3CBE36C6EDEB126E5049ABE1CF100 # "El\x86\x86\u001F\xE9\xBBb\xEDM6\xFEW\xAA\xDE\u0015u\xC4\xC3\xCB\xE3lnޱ&\xE5\u0004\x9A\xBE\u001C\xF1\u0000"
       84                                # array(4)
          1A 0BEBC200                    # unsigned(200000000)
          58 2A                          # bytes(42)
             5376A8014F0162C5594A5F1E83D7C5611B041999CFB9C67CFF2482AEFA72E8B636CCF79BBB1D8769AC01 # "Sv\xA8\u0001O\u0001b\xC5YJ_\u001E\x83\xD7\xC5a\e\u0004\u0019\x99Ϲ\xC6|\xFF$\x82\xAE\xFAr\xE8\xB66\xCC\xF7\x9B\xBB\u001D\x87i\xAC\u0001"
-         1A 11E1A300                    # unsigned(300000000)
+         1A 11E1A301                    # unsigned(300000001)
          58 20                          # bytes(32)
-            4DDC4678FD0EEEFDD6868D99E644C0B43C20ED38292AEE3893E4542F0A62AAE6 # "M\xDCFx\xFD\u000E\xEE\xFDֆ\x8D\x99\xE6D\xC0\xB4< \xED8)*\xEE8\x93\xE4T/\nb\xAA\xE6"
+            2E828D69BC994F51A24B593FD4A6745413A9AE8394BA3289B4A06711531401A5 # ".\x82\x8Di\xBC\x99OQ\xA2KY?ԦtT\u0013\xA9\xAE\x83\x94\xBA2\x89\xB4\xA0g\u0011S\u0014\u0001\xA5"
       83                                # array(3)
-         18 25                          # unsigned(37)
+         18 20                          # unsigned(32)
          01                             # unsigned(1)
-         58 20                          # bytes(32)
-            8DB6886A5D0FA64C2544E65B3F296C07A29F427DB8D15517F70F7FF6F825E3DD # "\x8D\xB6\x88j]\u000F\xA6L%D\xE6[?)l\a\xA2\x9FB}\xB8\xD1U\u0017\xF7\u000F\u007F\xF6\xF8%\xE3\xDD"
+         58 21                          # bytes(33)
+            411DBB429D60228CACDEA90D4B5F1C0B022D7F03D9CB9E5042BE3F74B7A8C23A0F # "A\u001D\xBBB\x9D`\"\x8C\xACީ\rK_\u001C\v\u0002-\u007F\u0003\xD9˞PB\xBE?t\xB7\xA8\xC2:\u000F"
    58 67                                # bytes(103)
-      5354013F5D8FA1C59CB5B69FEA2E82DA14FB9F4579E4B49BFB963A3670C1A0D1215669547D1B38418A8B30BF89945ECDAA04ADB879496C8EC55D7A274CF4F6F7BFDE8F0055010225FD546B19683BED7663A83F97B1A1545A52F180F432EE1748FC3B51090EBA5C # "ST\u0001?]\x8F\xA1Ŝ\xB5\xB6\x9F\xEA.\x82\xDA\u0014\xFB\x9FEy䴛\xFB\x96:6p\xC1\xA0\xD1!ViT}\e8A\x8A\x8B0\xBF\x89\x94^ͪ\u0004\xAD\xB8yIl\x8E\xC5]z'L\xF4\xF6\xF7\xBFޏ\u0000U\u0001\u0002%\xFDTk\u0019h;\xEDvc\xA8?\x97\xB1\xA1TZR\xF1\x80\xF42\xEE\u0017H\xFC;Q\t\u000E\xBA\\"
+      535401497641466A5A7DE02B34DC7F3DA1A87861D89FBA29BCD71F0D0814E50FEFE23A5A3C58430873D0E790A6D8DBF5087BF8E80DBDF3AB56764D4C207802D62988440155010225FD546B19683BED7663A83F97B1A1545A52F180F432EE1748FC3B51090EBA5C # "ST\u0001IvAFjZ}\xE0+4\xDC\u007F=\xA1\xA8xa؟\xBA)\xBC\xD7\u001F\r\b\u0014\xE5\u000F\xEF\xE2:Z<XC\bs\xD0琦\xD8\xDB\xF5\b{\xF8\xE8\r\xBD\xF3\xABVvML x\u0002\xD6)\x88D\u0001U\u0001\u0002%\xFDTk\u0019h;\xEDvc\xA8?\x97\xB1\xA1TZR\xF1\x80\xF42\xEE\u0017H\xFC;Q\t\u000E\xBA\\"
    F6                                   # primitive(22)
 ```
 
@@ -810,20 +819,20 @@ Extended Diagnostic Notation with annotations:
     /Payload/ [
         /SystemIdentifier/ h'00000000',
         /Type/             "split",
-        /UnitID/           h'00000000FFCC5C5D01CA3EFF65C2087DB3AEFD3D58B20F074D52BB664C24FFAE',
+        /UnitID/           h'456C86861FE9BB62ED4D36FE57AADE1575C4C3CBE36C6EDEB126E5049ABE1CF100',
         /splitAttributes/ [
             /Amount/         200000000,
             /TargetOwner/    h'5376A8014F0162C5594A5F1E83D7C5611B041999CFB9C67CFF2482AEFA72E8B636CCF79BBB1D8769AC01',
-            /RemainingValue/ 300000000,
-            /Backlink/       h'4DDC4678FD0EEEFDD6868D99E644C0B43C20ED38292AEE3893E4542F0A62AAE6'
+            /RemainingValue/ 300000001,
+            /Backlink/       h'2E828D69BC994F51A24B593FD4A6745413A9AE8394BA3289B4A06711531401A5'
         ],
         /ClientMetadata/ [
-            /Timeout/           37,
+            /Timeout/           32,
             /MaxTransactionFee/ 1,
-            /FeeCreditRecordID/ h'8DB6886A5D0FA64C2544E65B3F296C07A29F427DB8D15517F70F7FF6F825E3DD'
+            /FeeCreditRecordID/ h'411DBB429D60228CACDEA90D4B5F1C0B022D7F03D9CB9E5042BE3F74B7A8C23A0F'
         ]
     ],
-    /OwnerProof/ h'5354013F5D8FA1C59CB5B69FEA2E82DA14FB9F4579E4B49BFB963A3670C1A0D1215669547D1B38418A8B30BF89945ECDAA04ADB879496C8EC55D7A274CF4F6F7BFDE8F0055010225FD546B19683BED7663A83F97B1A1545A52F180F432EE1748FC3B51090EBA5C',
+    /OwnerProof/ h'535401497641466A5A7DE02B34DC7F3DA1A87861D89FBA29BCD71F0D0814E50FEFE23A5A3C58430873D0E790A6D8DBF5087BF8E80DBDF3AB56764D4C207802D62988440155010225FD546B19683BED7663A83F97B1A1545A52F180F432EE1748FC3B51090EBA5C',
     /FeeProof/   null
 ]
 ```
@@ -832,7 +841,7 @@ Extended Diagnostic Notation with annotations:
 
 Raw hex encoded transaction:
 ```
-83854400000000657472616e73582000000000324af6d6bb8cb598d62e4a5feb09690762c3fa2da39c3050094ffeda83582a5376a8014f01b327e2d37f0bfb6babf6acc758a101c6d8eb03991abe7f137c62b253c5a5cfa08769ac011a0bebc2005820fd198e4b1b5fc67a750a5fcfc6cf9d0ef52af2001d0ca6fb45204a9f3c3bccdf83182801582030f77f7d84ed358247b944644bea3e285f33c441b34d0f915547b3c39e6cfe545867535401a50f4275c9c086dc1e90d6cae58cd7150548d54bbd889c34d5d395b698c3eba35e914267ab21baba49e9e2ed8a13e2389d6f31929af4dc35af0ff04ae42af152015501036b05d39ed407d002c18e9942abf835d12a7bfbe589a35d688933bd0243bf5724f6
+83854400000000657472616e7358216f1d819ff441c203faa98133ac5acf3ab04d398a6a26d5f79794a7241cce166f0083582a5376a8014f01b327e2d37f0bfb6babf6acc758a101c6d8eb03991abe7f137c62b253c5a5cfa08769ac011a0bebc200582062a0acc76c31d9f8c5e7009cafec766af40a7fddb3a7b8aa8ce804a85033b1fd83182401582162c5594a5f1e83d7c5611b041999cfb9c67cff2482aefa72e8b636ccf79bbb1d0f58675354015fbc6496ffa12d63a145e817495b0fdc7d59fe9a4e5263b84af13ffaacdc3421308c602f19bfc92c9f6b2b036f37a94e65fd5bcc8539775f2559b65cb8b4b733015501036b05d39ed407d002c18e9942abf835d12a7bfbe589a35d688933bd0243bf5724f6
 ```
 
 Same hex encoded data with annotations:
@@ -843,21 +852,21 @@ Same hex encoded data with annotations:
          00000000                       # "\u0000\u0000\u0000\u0000"
       65                                # text(5)
          7472616E73                     # "trans"
-      58 20                             # bytes(32)
-         00000000324AF6D6BB8CB598D62E4A5FEB09690762C3FA2DA39C3050094FFEDA # "\u0000\u0000\u0000\u00002J\xF6ֻ\x8C\xB5\x98\xD6.J_\xEB\ti\ab\xC3\xFA-\xA3\x9C0P\tO\xFE\xDA"
+      58 21                             # bytes(33)
+         6F1D819FF441C203FAA98133AC5ACF3AB04D398A6A26D5F79794A7241CCE166F00 # "o\u001D\x81\x9F\xF4A\xC2\u0003\xFA\xA9\x813\xACZ\xCF:\xB0M9\x8Aj&\xD5\xF7\x97\x94\xA7$\u001C\xCE\u0016o\u0000"
       83                                # array(3)
          58 2A                          # bytes(42)
             5376A8014F01B327E2D37F0BFB6BABF6ACC758A101C6D8EB03991ABE7F137C62B253C5A5CFA08769AC01 # "Sv\xA8\u0001O\u0001\xB3'\xE2\xD3\u007F\v\xFBk\xAB\xF6\xAC\xC7X\xA1\u0001\xC6\xD8\xEB\u0003\x99\u001A\xBE\u007F\u0013|b\xB2SťϠ\x87i\xAC\u0001"
          1A 0BEBC200                    # unsigned(200000000)
          58 20                          # bytes(32)
-            FD198E4B1B5FC67A750A5FCFC6CF9D0EF52AF2001D0CA6FB45204A9F3C3BCCDF # "\xFD\u0019\x8EK\e_\xC6zu\n_\xCF\xC6ϝ\u000E\xF5*\xF2\u0000\u001D\f\xA6\xFBE J\x9F<;\xCC\xDF"
+            62A0ACC76C31D9F8C5E7009CAFEC766AF40A7FDDB3A7B8AA8CE804A85033B1FD # "b\xA0\xAC\xC7l1\xD9\xF8\xC5\xE7\u0000\x9C\xAF\xECvj\xF4\n\u007Fݳ\xA7\xB8\xAA\x8C\xE8\u0004\xA8P3\xB1\xFD"
       83                                # array(3)
-         18 28                          # unsigned(40)
+         18 24                          # unsigned(36)
          01                             # unsigned(1)
-         58 20                          # bytes(32)
-            30F77F7D84ED358247B944644BEA3E285F33C441B34D0F915547B3C39E6CFE54 # "0\xF7\u007F}\x84\xED5\x82G\xB9DdK\xEA>(_3\xC4A\xB3M\u000F\x91UG\xB3Þl\xFET"
+         58 21                          # bytes(33)
+            62C5594A5F1E83D7C5611B041999CFB9C67CFF2482AEFA72E8B636CCF79BBB1D0F # "b\xC5YJ_\u001E\x83\xD7\xC5a\e\u0004\u0019\x99Ϲ\xC6|\xFF$\x82\xAE\xFAr\xE8\xB66\xCC\xF7\x9B\xBB\u001D\u000F"
    58 67                                # bytes(103)
-      535401A50F4275C9C086DC1E90D6CAE58CD7150548D54BBD889C34D5D395B698C3EBA35E914267AB21BABA49E9E2ED8A13E2389D6F31929AF4DC35AF0FF04AE42AF152015501036B05D39ED407D002C18E9942ABF835D12A7BFBE589A35D688933BD0243BF5724 # "ST\u0001\xA5\u000FBu\xC9\xC0\x86\xDC\u001E\x90\xD6\xCA\xE5\x8C\xD7\u0015\u0005H\xD5K\xBD\x88\x9C4\xD5ӕ\xB6\x98\xC3\xEB\xA3^\x91Bg\xAB!\xBA\xBAI\xE9\xE2\xED\x8A\u0013\xE28\x9Do1\x92\x9A\xF4\xDC5\xAF\u000F\xF0J\xE4*\xF1R\u0001U\u0001\u0003k\u0005Ӟ\xD4\a\xD0\u0002\xC1\x8E\x99B\xAB\xF85\xD1*{\xFB剣]h\x893\xBD\u0002C\xBFW$"
+      5354015FBC6496FFA12D63A145E817495B0FDC7D59FE9A4E5263B84AF13FFAACDC3421308C602F19BFC92C9F6B2B036F37A94E65FD5BCC8539775F2559B65CB8B4B733015501036B05D39ED407D002C18E9942ABF835D12A7BFBE589A35D688933BD0243BF5724 # "ST\u0001_\xBCd\x96\xFF\xA1-c\xA1E\xE8\u0017I[\u000F\xDC}Y\xFE\x9ANRc\xB8J\xF1?\xFA\xAC\xDC4!0\x8C`/\u0019\xBF\xC9,\x9Fk+\u0003o7\xA9Ne\xFD[̅9w_%Y\xB6\\\xB8\xB4\xB73\u0001U\u0001\u0003k\u0005Ӟ\xD4\a\xD0\u0002\xC1\x8E\x99B\xAB\xF85\xD1*{\xFB剣]h\x893\xBD\u0002C\xBFW$"
    F6                                   # primitive(22)
 ```
 
@@ -867,19 +876,19 @@ Extended Diagnostic Notation with annotations:
     /Payload/ [
         /SystemIdentifier/ h'00000000',
         /Type/             "trans",
-        /UnitID/           h'00000000324AF6D6BB8CB598D62E4A5FEB09690762C3FA2DA39C3050094FFEDA',
+        /UnitID/           h'6F1D819FF441C203FAA98133AC5ACF3AB04D398A6A26D5F79794A7241CCE166F00',
         /transAttributes/ [
             /TargetOwner/ h'5376A8014F01B327E2D37F0BFB6BABF6ACC758A101C6D8EB03991ABE7F137C62B253C5A5CFA08769AC01',
             /TargetValue/ 200000000,
-            /Backlink/    h'FD198E4B1B5FC67A750A5FCFC6CF9D0EF52AF2001D0CA6FB45204A9F3C3BCCDF'
+            /Backlink/    h'62A0ACC76C31D9F8C5E7009CAFEC766AF40A7FDDB3A7B8AA8CE804A85033B1FD'
         ],
         /ClientMetadata/ [
-            /Timeout/           40,
+            /Timeout/           36,
             /MaxTransactionFee/ 1,
-            /FeeCreditRecordID/ h'30F77F7D84ED358247B944644BEA3E285F33C441B34D0F915547B3C39E6CFE54'
+            /FeeCreditRecordID/ h'62C5594A5F1E83D7C5611B041999CFB9C67CFF2482AEFA72E8B636CCF79BBB1D0F'
         ]
     ],
-    /OwnerProof/ h'535401A50F4275C9C086DC1E90D6CAE58CD7150548D54BBD889C34D5D395B698C3EBA35E914267AB21BABA49E9E2ED8A13E2389D6F31929AF4DC35AF0FF04AE42AF152015501036B05D39ED407D002C18E9942ABF835D12A7BFBE589A35D688933BD0243BF5724',
+    /OwnerProof/ h'5354015FBC6496FFA12D63A145E817495B0FDC7D59FE9A4E5263B84AF13FFAACDC3421308C602F19BFC92C9F6B2B036F37A94E65FD5BCC8539775F2559B65CB8B4B733015501036B05D39ED407D002C18E9942ABF835D12A7BFBE589A35D688933BD0243BF5724'
     /FeeProof/   null
 ]
 ```

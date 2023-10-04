@@ -16,7 +16,8 @@ type (
 		bearer              Predicate // current bearer condition
 		data                UnitData  // current data of the unit
 		subTreeSummaryValue uint64    // current summary value of the sub-tree rooted at this node
-		subTreeSummaryHash  []byte    // summary hash of the sub-tree rooted at this node,
+		subTreeSummaryHash  []byte    // summary hash of the sub-tree rooted at this node
+		summaryCalculated   bool
 	}
 
 	// UnitData is a generic data type for the unit state.
@@ -57,11 +58,12 @@ func (u *Unit) Clone() *Unit {
 		bearer:              bytes.Clone(u.bearer),
 		data:                copyData(u.data),
 		subTreeSummaryValue: u.subTreeSummaryValue,
+		summaryCalculated:   false,
 	}
 }
 
 func (u *Unit) String() string {
-	return fmt.Sprintf("nodeSummary=%d, subtreeSummary=%d", u.data.SummaryValueInput(), u.subTreeSummaryValue)
+	return fmt.Sprintf("summaryCalculated=%v, nodeSummary=%d, subtreeSummary=%d", u.summaryCalculated, u.data.SummaryValueInput(), u.subTreeSummaryValue)
 }
 
 func (u *Unit) Bearer() Predicate {
@@ -95,7 +97,9 @@ func (l *log) Clone() *log {
 func (l *log) Hash(algorithm crypto.Hash) []byte {
 	hasher := algorithm.New()
 	hasher.Write(l.newBearer)
-	l.newUnitData.Write(hasher)
+	if l.newUnitData != nil {
+		l.newUnitData.Write(hasher)
+	}
 	//y_j
 	dataHash := hasher.Sum(nil)
 	hasher.Reset()

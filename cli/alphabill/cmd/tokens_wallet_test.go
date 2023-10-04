@@ -18,6 +18,7 @@ import (
 	testpartition "github.com/alphabill-org/alphabill/internal/testutils/partition"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/internal/txsystem/tokens"
+	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/pkg/wallet/account"
 	"github.com/alphabill-org/alphabill/pkg/wallet/fees"
 	wlog "github.com/alphabill-org/alphabill/pkg/wallet/log"
@@ -460,7 +461,7 @@ func ensureTokenTypeIndexed(t *testing.T, ctx context.Context, api *client.Token
 
 func createTokensPartition(t *testing.T) *testpartition.NodePartition {
 	tokensState := state.NewEmptyState()
-	network, err := testpartition.NewPartition(1,
+	network, err := testpartition.NewPartition(t, 1,
 		func(tb map[string]abcrypto.Verifier) txsystem.TransactionSystem {
 			system, err := tokens.NewTxSystem(
 				tokens.WithState(tokensState),
@@ -544,10 +545,22 @@ func doExecTokensCmd(homedir string, command string) (*testConsoleWriter, error)
 	return outputWriter, cmd.addAndExecuteCommand(context.Background())
 }
 
-func randomID(t *testing.T) []byte {
-	id, err := tw.RandomID()
+func randomFungibleTokenTypeID(t *testing.T) types.UnitID {
+	unitID, err := tokens.NewRandomFungibleTokenTypeID(nil)
 	require.NoError(t, err)
-	return id
+	return unitID
+}
+
+func randomNonFungibleTokenTypeID(t *testing.T) types.UnitID {
+	unitID, err := tokens.NewRandomNonFungibleTokenTypeID(nil)
+	require.NoError(t, err)
+	return unitID
+}
+
+func randomNonFungibleTokenID(t *testing.T) types.UnitID {
+	unitID, err := tokens.NewRandomNonFungibleTokenID(nil)
+	require.NoError(t, err)
+	return unitID
 }
 
 func verifyStdoutEventually(t *testing.T, exec func() *testConsoleWriter, expectedLines ...string) {

@@ -245,8 +245,8 @@ func Test_restAPI_listTokens(t *testing.T) {
 			{kind: "all", owner: "0x", qparam: "", errMsg: `invalid parameter "owner": must be 68 characters long (including 0x prefix), got 2 characters starting 0x`},
 			{kind: "all", owner: "0xAA", qparam: "", errMsg: `invalid parameter "owner": must be 68 characters long (including 0x prefix), got 4 characters starting 0xAA`},
 			{kind: "all", owner: "0x" + strings.Repeat("ABCDEFGHIJK", 6), qparam: "", errMsg: `invalid parameter "owner": invalid hex string`}, // correct length but invalid content
-			{kind: "all", owner: pubKeyHex, qparam: "offset=ABCDEFGHIJK", errMsg: `invalid parameter "offset": hex string without 0x prefix`},
-			{kind: "all", owner: pubKeyHex, qparam: "offset=0xABCDEFGHIJK", errMsg: `invalid parameter "offset": invalid hex string`},
+			{kind: "all", owner: pubKeyHex, qparam: "offsetKey=ABCDEFGHIJK", errMsg: `invalid parameter "offsetKey": hex string without 0x prefix`},
+			{kind: "all", owner: pubKeyHex, qparam: "offsetKey=0xABCDEFGHIJK", errMsg: `invalid parameter "offsetKey": invalid hex string`},
 			{kind: "all", owner: pubKeyHex, qparam: "limit=0", errMsg: `invalid parameter "limit": value must be greater than zero, got 0`},
 			{kind: "all", owner: pubKeyHex, qparam: "limit=-1", errMsg: `invalid parameter "limit": value must be greater than zero, got -1`},
 			{kind: "all", owner: pubKeyHex, qparam: "limit=foo", errMsg: `invalid parameter "limit": failed to parse "foo" as integer: strconv.Atoi: parsing "foo": invalid syntax`},
@@ -311,8 +311,8 @@ func Test_restAPI_listTokens(t *testing.T) {
 			if err != nil {
 				t.Fatal("failed to parse Link header:", err)
 			}
-			exp := sdk.EncodeHex(sdk.UnitID(data[len(data)-1].ID))
-			if s := u.Query().Get("offset"); s != exp {
+			exp := sdk.EncodeHex(types.UnitID(data[len(data)-1].ID))
+			if s := u.Query().Get(sdk.QueryParamOffsetKey); s != exp {
 				t.Errorf("expected %q got %q", exp, s)
 			}
 		}
@@ -362,12 +362,12 @@ func Test_restAPI_listTypes(t *testing.T) {
 				errMsg: `invalid parameter "creator": invalid hex string`,
 			},
 			{
-				qparam: "offset=01234567890abcdef",
-				errMsg: `invalid parameter "offset": hex string without 0x prefix`,
+				qparam: "offsetKey=01234567890abcdef",
+				errMsg: `invalid parameter "offsetKey": hex string without 0x prefix`,
 			},
 			{
-				qparam: "offset=0x" + strings.Repeat("ABCDEFGHIJK", 6),
-				errMsg: `invalid parameter "offset": invalid hex string`,
+				qparam: "offsetKey=0x" + strings.Repeat("ABCDEFGHIJK", 6),
+				errMsg: `invalid parameter "offsetKey": invalid hex string`,
 			},
 			{qparam: "limit=0", errMsg: `invalid parameter "limit": value must be greater than zero, got 0`},
 			{qparam: "limit=-1", errMsg: `invalid parameter "limit": value must be greater than zero, got -1`},
@@ -447,7 +447,7 @@ func Test_restAPI_listTypes(t *testing.T) {
 				return nil, nil, nil
 			},
 		}
-		resp := makeRequest(&tokensRestAPI{db: ds}, Any, "offset="+sdk.EncodeHex(currentID))
+		resp := makeRequest(&tokensRestAPI{db: ds}, Any, "offsetKey="+sdk.EncodeHex(currentID))
 		if resp.StatusCode != http.StatusOK {
 			t.Errorf("unexpected status %d", resp.StatusCode)
 		}
@@ -543,7 +543,7 @@ func Test_restAPI_listTypes(t *testing.T) {
 				t.Fatal("failed to parse Link header:", err)
 			}
 			exp := sdk.EncodeHex(data[len(data)-1].ID)
-			if s := u.Query().Get("offset"); s != exp {
+			if s := u.Query().Get(sdk.QueryParamOffsetKey); s != exp {
 				t.Errorf("expected %q got %q", exp, s)
 			}
 		}
@@ -712,7 +712,7 @@ func Test_restAPI_txProof(t *testing.T) {
 	t.Run("error fetching proof", func(t *testing.T) {
 		api := &tokensRestAPI{
 			db: &mockStorage{
-				getTxProof: func(unitID sdk.UnitID, txHash sdk.TxHash) (*sdk.Proof, error) {
+				getTxProof: func(unitID types.UnitID, txHash sdk.TxHash) (*sdk.Proof, error) {
 					return nil, errors.New("error fetching proof")
 				},
 			},
@@ -724,7 +724,7 @@ func Test_restAPI_txProof(t *testing.T) {
 	t.Run("no proof with given inputs", func(t *testing.T) {
 		api := &tokensRestAPI{
 			db: &mockStorage{
-				getTxProof: func(unitID sdk.UnitID, txHash sdk.TxHash) (*sdk.Proof, error) {
+				getTxProof: func(unitID types.UnitID, txHash sdk.TxHash) (*sdk.Proof, error) {
 					return nil, nil
 				},
 			},
@@ -743,7 +743,7 @@ func Test_restAPI_txProof(t *testing.T) {
 		}
 		api := &tokensRestAPI{
 			db: &mockStorage{
-				getTxProof: func(unitID sdk.UnitID, txHash sdk.TxHash) (*sdk.Proof, error) {
+				getTxProof: func(unitID types.UnitID, txHash sdk.TxHash) (*sdk.Proof, error) {
 					return proof, nil
 				},
 			},
@@ -781,7 +781,7 @@ func Test_restAPI_getFeeCreditBill(t *testing.T) {
 	t.Run("500 error fetching fee credit bill", func(t *testing.T) {
 		api := &tokensRestAPI{
 			db: &mockStorage{
-				getFeeCreditBill: func(unitID sdk.UnitID) (*FeeCreditBill, error) {
+				getFeeCreditBill: func(unitID types.UnitID) (*FeeCreditBill, error) {
 					return nil, errors.New("error fetching fee credit bill")
 				},
 			},
@@ -800,10 +800,10 @@ func Test_restAPI_getFeeCreditBill(t *testing.T) {
 		fcbProof := &sdk.Proof{}
 		api := &tokensRestAPI{
 			db: &mockStorage{
-				getFeeCreditBill: func(unitID sdk.UnitID) (*FeeCreditBill, error) {
+				getFeeCreditBill: func(unitID types.UnitID) (*FeeCreditBill, error) {
 					return fcb, nil
 				},
-				getTxProof: func(unitID sdk.UnitID, txHash sdk.TxHash) (*sdk.Proof, error) {
+				getTxProof: func(unitID types.UnitID, txHash sdk.TxHash) (*sdk.Proof, error) {
 					return fcbProof, nil
 				},
 			},
@@ -839,7 +839,7 @@ func Test_restAPI_getClosedCredit(t *testing.T) {
 	t.Run("500 error fetching fee credit bill", func(t *testing.T) {
 		api := &tokensRestAPI{
 			db: &mockStorage{
-				getClosedFC: func(fcbID sdk.UnitID) (*types.TransactionRecord, error) {
+				getClosedFC: func(fcbID types.UnitID) (*types.TransactionRecord, error) {
 					return nil, errors.New("error fetching closed fee credit")
 				},
 			},
@@ -853,7 +853,7 @@ func Test_restAPI_getClosedCredit(t *testing.T) {
 		closedFCTx := &types.TransactionRecord{}
 		api := &tokensRestAPI{
 			db: &mockStorage{
-				getClosedFC: func(fcbID sdk.UnitID) (*types.TransactionRecord, error) {
+				getClosedFC: func(fcbID types.UnitID) (*types.TransactionRecord, error) {
 					return closedFCTx, nil
 				},
 			},

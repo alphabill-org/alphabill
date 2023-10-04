@@ -38,7 +38,7 @@ func handleTransferFungibleTokenTx(options *Options) txsystem.GenericExecuteFunc
 			return nil, err
 		}
 
-		return &types.ServerMetadata{ActualFee: fee, TargetUnits: []types.UnitID{unitID}}, nil
+		return &types.ServerMetadata{ActualFee: fee, TargetUnits: []types.UnitID{unitID}, SuccessIndicator: types.TxStatusSuccessful}, nil
 	}
 }
 
@@ -56,7 +56,7 @@ func validateTransferFungibleToken(tx *types.TransactionOrder, attr *TransferFun
 	}
 
 	if !bytes.Equal(attr.TypeID, d.tokenType) {
-		return fmt.Errorf("invalid type identifier: expected '%X', got '%X'", d.tokenType, attr.TypeID)
+		return fmt.Errorf("invalid type identifier: expected '%s', got '%s'", d.tokenType, attr.TypeID)
 	}
 
 	predicates, err := getChainedPredicates[*fungibleTokenTypeData](
@@ -77,9 +77,10 @@ func validateTransferFungibleToken(tx *types.TransactionOrder, attr *TransferFun
 }
 
 func getFungibleTokenData(unitID types.UnitID, s *state.State, hashAlgorithm crypto.Hash) (state.Predicate, *fungibleTokenData, error) {
-	if unitID.IsZero(hashAlgorithm.Size()) {
-		return nil, nil, errors.New(ErrStrUnitIDIsZero)
+	if !unitID.HasType(FungibleTokenUnitType) {
+		return nil, nil, fmt.Errorf(ErrStrInvalidUnitID)
 	}
+
 	u, err := s.GetUnit(unitID, false)
 	if err != nil {
 		if errors.Is(err, avl.ErrNotFound) {
@@ -143,11 +144,11 @@ func (t *TransferFungibleTokenAttributes) SetBacklink(backlink []byte) {
 	t.Backlink = backlink
 }
 
-func (t *TransferFungibleTokenAttributes) GetTypeID() []byte {
+func (t *TransferFungibleTokenAttributes) GetTypeID() types.UnitID {
 	return t.TypeID
 }
 
-func (t *TransferFungibleTokenAttributes) SetTypeID(typeID []byte) {
+func (t *TransferFungibleTokenAttributes) SetTypeID(typeID types.UnitID) {
 	t.TypeID = typeID
 }
 

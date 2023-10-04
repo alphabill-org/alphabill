@@ -29,7 +29,7 @@ func handleTransferTx(s *state.State, hashAlgorithm crypto.Hash, feeCalc fc.FeeC
 			return nil, fmt.Errorf("transfer: failed to update state: %w", err)
 		}
 
-		return &types.ServerMetadata{ActualFee: fee, TargetUnits: []types.UnitID{tx.UnitID()}}, nil
+		return &types.ServerMetadata{ActualFee: fee, TargetUnits: []types.UnitID{tx.UnitID()}, SuccessIndicator: types.TxStatusSuccessful}, nil
 	}
 }
 

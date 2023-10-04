@@ -14,8 +14,8 @@ import (
 	"testing"
 
 	"github.com/alphabill-org/alphabill/internal/partition"
+	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
 
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
@@ -36,7 +36,7 @@ type (
 	backendMockReturnConf struct {
 		balance        uint64
 		blockHeight    uint64
-		billId         *uint256.Int
+		billID         types.UnitID
 		billValue      uint64
 		billTxHash     string
 		proofList      string
@@ -189,7 +189,7 @@ func TestSendingFailsWithInsufficientBalance(t *testing.T) {
 }
 
 func createMoneyPartition(t *testing.T, initialBill *money.InitialBill, nodeCount int) *testpartition.NodePartition {
-	moneyPart, err := testpartition.NewPartition(nodeCount, func(tb map[string]abcrypto.Verifier) txsystem.TransactionSystem {
+	moneyPart, err := testpartition.NewPartition(t, nodeCount, func(tb map[string]abcrypto.Verifier) txsystem.TransactionSystem {
 		system, err := money.NewTxSystem(
 			money.WithSystemIdentifier(money.DefaultSystemIdentifier),
 			money.WithHashAlgorithm(crypto.SHA256),
@@ -199,7 +199,7 @@ func createMoneyPartition(t *testing.T, initialBill *money.InitialBill, nodeCoun
 					SystemIdentifier: money.DefaultSystemIdentifier,
 					T2Timeout:        defaultT2Timeout,
 					FeeCreditBill: &genesis.FeeCreditBill{
-						UnitId:         util.Uint256ToBytes(uint256.NewInt(2)),
+						UnitId:         money.NewBillID(nil, []byte{2}),
 						OwnerPredicate: script.PredicateAlwaysTrue(),
 					},
 				},
@@ -209,7 +209,7 @@ func createMoneyPartition(t *testing.T, initialBill *money.InitialBill, nodeCoun
 		)
 		require.NoError(t, err)
 		return system
-	}, []byte{0, 0, 0, 0})
+	}, money.DefaultSystemIdentifier)
 	require.NoError(t, err)
 	return moneyPart
 }
@@ -217,7 +217,7 @@ func createMoneyPartition(t *testing.T, initialBill *money.InitialBill, nodeCoun
 func startAlphabill(t *testing.T, partitions []*testpartition.NodePartition) *testpartition.AlphabillNetwork {
 	abNetwork, err := testpartition.NewAlphabillPartition(partitions)
 	require.NoError(t, err)
-	require.NoError(t, abNetwork.Start())
+	require.NoError(t, abNetwork.Start(t))
 
 	t.Cleanup(func() {
 		require.NoError(t, abNetwork.Close())
@@ -366,7 +366,7 @@ func mockBackendCalls(br *backendMockReturnConf) (*httptest.Server, *url.URL) {
 				if br.customBillList != "" {
 					w.Write([]byte(br.customBillList))
 				} else {
-					w.Write([]byte(fmt.Sprintf(`{"total": 1, "bills": [{"id":"%s","value":"%d","txHash":"%s","isDcBill":false}]}`, toBillId(br.billId), br.billValue, br.billTxHash)))
+					w.Write([]byte(fmt.Sprintf(`{"bills": [{"id":"%s","value":"%d","txHash":"%s","isDcBill":false}]}`, toBase64(br.billID), br.billValue, br.billTxHash)))
 				}
 			default:
 				w.WriteHeader(http.StatusNotFound)
@@ -378,6 +378,6 @@ func mockBackendCalls(br *backendMockReturnConf) (*httptest.Server, *url.URL) {
 	return server, serverAddress
 }
 
-func toBillId(i *uint256.Int) string {
-	return base64.StdEncoding.EncodeToString(util.Uint256ToBytes(i))
+func toBase64(bytes []byte) string {
+	return base64.StdEncoding.EncodeToString(bytes)
 }

@@ -8,12 +8,9 @@ import (
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/internal/txsystem/fc/transactions"
 	moneytx "github.com/alphabill-org/alphabill/internal/txsystem/money"
-	utiltx "github.com/alphabill-org/alphabill/internal/txsystem/util"
 	"github.com/alphabill-org/alphabill/internal/types"
-	"github.com/alphabill-org/alphabill/internal/util"
 	sdk "github.com/alphabill-org/alphabill/pkg/wallet"
 	wlog "github.com/alphabill-org/alphabill/pkg/wallet/log"
-	"github.com/holiman/uint256"
 )
 
 const (
@@ -65,7 +62,6 @@ func (p *BlockProcessor) ProcessBlock(_ context.Context, b *types.Block) error {
 func (p *BlockProcessor) processTx(txr *types.TransactionRecord, b *types.Block, txIdx int, dbTx BillStoreTx) error {
 	txo := txr.TransactionOrder
 	txHash := txo.Hash(crypto.SHA256)
-	roundNumber := b.GetRoundNumber()
 	proof, err := sdk.NewTxProof(txIdx, b, crypto.SHA256)
 	if err != nil {
 		return err
@@ -103,21 +99,28 @@ func (p *BlockProcessor) processTx(txr *types.TransactionRecord, b *types.Block,
 		if err != nil {
 			return err
 		}
-		err = dbTx.SetBill(&Bill{
-			Id:             txo.UnitID(),
-			Value:          attr.TargetValue,
-			TxHash:         txHash,
-			DcNonce:        attr.Nonce,
-			SwapTimeout:    attr.SwapTimeout,
-			OwnerPredicate: attr.TargetBearer,
-		}, proof)
+
+		// update bill value, txHash, target unit
+		dcBill, err := dbTx.GetBill(txo.UnitID())
+		if err != nil {
+			return fmt.Errorf("failed to fetch bill: %w", err)
+		}
+		if dcBill == nil {
+			return fmt.Errorf("bill not found: %x", txo.UnitID())
+		}
+		dcBill.Value = attr.Value
+		dcBill.TxHash = txHash
+		dcBill.DCTargetUnitID = attr.TargetUnitID
+		dcBill.DCTargetUnitBacklink = attr.TargetUnitBacklink
+		err = dbTx.SetBill(dcBill, proof)
 		if err != nil {
 			return err
 		}
-		err = dbTx.SetBillExpirationTime(roundNumber+DustBillDeletionTimeout, txo.UnitID())
-		if err != nil {
-			return err
-		}
+		// TODO AB-1133
+		//err = dbTx.SetBillExpirationTime(roundNumber+DustBillDeletionTimeout, txo.UnitID())
+		//if err != nil {
+		//	return err
+		//}
 	case moneytx.PayloadTypeSplit:
 		err := p.updateFCB(dbTx, txr)
 		if err != nil {
@@ -150,7 +153,7 @@ func (p *BlockProcessor) processTx(txr *types.TransactionRecord, b *types.Block,
 		}
 
 		// new bill
-		newID := utiltx.SameShardIDBytes(util.Uint256ToBytes(uint256.NewInt(0).SetBytes(txo.UnitID())), moneytx.HashForIDCalculation(txo.UnitID(), txo.Payload.Attributes, txo.Timeout(), crypto.SHA256))
+		newID := moneytx.NewBillID(txo.UnitID(), moneytx.HashForIDCalculation(txo.UnitID(), txo.Payload.Attributes, txo.Timeout(), crypto.SHA256))
 		wlog.Info(fmt.Sprintf("received split order (new UnitID=%x)", newID))
 		err = dbTx.SetBill(&Bill{
 			Id:             newID,
@@ -174,13 +177,18 @@ func (p *BlockProcessor) processTx(txr *types.TransactionRecord, b *types.Block,
 		if err != nil {
 			return err
 		}
+		bill, err := dbTx.GetBill(txo.UnitID())
+		if err != nil {
+			return err
+		}
+		if bill == nil {
+			return fmt.Errorf("existing bill not found for swap tx (UnitID=%x)", txo.UnitID())
+		}
 		wlog.Info(fmt.Sprintf("received swap order (UnitID=%x)", txo.UnitID()))
-		err = dbTx.SetBill(&Bill{
-			Id:             txo.UnitID(),
-			Value:          attr.TargetValue,
-			TxHash:         txHash,
-			OwnerPredicate: attr.OwnerCondition,
-		}, proof)
+		bill.Value += attr.TargetValue
+		bill.TxHash = txHash
+		bill.OwnerPredicate = attr.OwnerCondition
+		err = dbTx.SetBill(bill, proof)
 		if err != nil {
 			return err
 		}
@@ -189,10 +197,6 @@ func (p *BlockProcessor) processTx(txr *types.TransactionRecord, b *types.Block,
 			if err != nil {
 				return err
 			}
-		}
-		err = dbTx.DeleteDCMetadata(txo.UnitID())
-		if err != nil {
-			return err
 		}
 	case transactions.PayloadTypeTransferFeeCredit:
 		wlog.Info(fmt.Sprintf("received transferFC order (UnitID=%x), hash: '%X'", txo.UnitID(), txHash))
@@ -208,26 +212,21 @@ func (p *BlockProcessor) processTx(txr *types.TransactionRecord, b *types.Block,
 		if err != nil {
 			return fmt.Errorf("failed to unmarshal transferFC attributes: %w", err)
 		}
-
-		v := attr.Amount + txr.ServerMetadata.ActualFee
-		if v < bill.Value {
-			bill.Value -= v
+		if attr.Amount < bill.Value {
+			bill.Value -= attr.Amount
+			bill.TxHash = txHash
+			if err := dbTx.SetBill(bill, proof); err != nil {
+				return fmt.Errorf("failed to save transferFC bill with proof: %w", err)
+			}
 		} else {
-			bill.Value = 0
-			// mark bill to be deleted far in the future (approx 1 day)
-			// so that bill (proof) can be used for confirmation and follow-up transaction
-			// alternatively we can save proofs separately from bills and this hack can be removed
-			err = dbTx.SetBillExpirationTime(roundNumber+ExpiredBillDeletionTimeout, txo.UnitID())
-			if err != nil {
-				return fmt.Errorf("failed to set bill expiration time: %w", err)
+			if err := dbTx.StoreTxProof(txo.UnitID(), txHash, proof); err != nil {
+				return fmt.Errorf("failed to store tx proof zero value bill: %w", err)
+			}
+			if err := dbTx.RemoveBill(bill.Id); err != nil {
+				return fmt.Errorf("failed to remove zero value bill: %w", err)
 			}
 		}
-		bill.TxHash = txHash
-		err = dbTx.SetBill(bill, proof)
-		if err != nil {
-			return fmt.Errorf("failed to save transferFC bill with proof: %w", err)
-		}
-		err = p.addTransferredCreditToPartitionFeeBill(dbTx, attr, proof)
+		err = p.addTransferredCreditToPartitionFeeBill(dbTx, attr, proof, txr.ServerMetadata.ActualFee)
 		if err != nil {
 			return fmt.Errorf("failed to add transferred fee credit to partition fee bill: %w", err)
 		}
@@ -258,7 +257,7 @@ func (p *BlockProcessor) processTx(txr *types.TransactionRecord, b *types.Block,
 		}
 		return dbTx.SetFeeCreditBill(&Bill{
 			Id:              txo.UnitID(),
-			Value:           fcb.getValue() + transferFCAttr.Amount - txr.ServerMetadata.ActualFee,
+			Value:           fcb.getValue() + transferFCAttr.Amount - addFCAttr.FeeCreditTransfer.ServerMetadata.ActualFee - txr.ServerMetadata.ActualFee,
 			TxHash:          txHash,
 			LastAddFCTxHash: txHash,
 		}, proof)
@@ -344,7 +343,7 @@ func saveTx(dbTx BillStoreTx, bearer sdk.Predicate, txo *types.TransactionOrder,
 	return nil
 }
 
-func (p *BlockProcessor) addTransferredCreditToPartitionFeeBill(dbTx BillStoreTx, tx *transactions.TransferFeeCreditAttributes, proof *sdk.Proof) error {
+func (p *BlockProcessor) addTransferredCreditToPartitionFeeBill(dbTx BillStoreTx, tx *transactions.TransferFeeCreditAttributes, proof *sdk.Proof, actualFee uint64) error {
 	sdr, f := p.sdrs[string(tx.TargetSystemIdentifier)]
 	if !f {
 		return fmt.Errorf("received transferFC for unknown tx system: %x", tx.TargetSystemIdentifier)
@@ -356,7 +355,7 @@ func (p *BlockProcessor) addTransferredCreditToPartitionFeeBill(dbTx BillStoreTx
 	if partitionFeeBill == nil {
 		return fmt.Errorf("partition fee bill not found: %x", sdr.FeeCreditBill.UnitId)
 	}
-	partitionFeeBill.Value += tx.Amount
+	partitionFeeBill.Value += tx.Amount - actualFee
 	return dbTx.SetBill(partitionFeeBill, proof)
 }
 

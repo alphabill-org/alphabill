@@ -2,9 +2,9 @@
   "root": {
     "root_validators": [
       {
-        "node_identifier": "16Uiu2HAmQybmxHV6fChWmnv6hyMcXNoN1gnKkaUitMbHxe9s2PoE",
-        "signing_public_key": "A7WudJ5cB6+KTRUKnVE7VB93kPgtRK296hAt2MRgp0Pa",
-        "encryption_public_key": "A7cQwM0gSbuDvQSq6fb+r1L1c61sRjlhCCbxlPbegwSZ"
+        "node_identifier": "16Uiu2HAmJnNrBfxeEmwwTDqsa4cSUZG6Hu3n9c6WZguzucpWv2Ns",
+        "signing_public_key": "AlOTMAhwWYichCP3k9DnZrYI+KvhEF502P5CB6tt/cAs",
+        "encryption_public_key": "A1sKoEHVG/741OCIIkzBgWUeGh5C1sGgBpQClx2aQHlQ"
       }
     ],
     "consensus": {
@@ -14,7 +14,7 @@
       "quorum_threshold": 3,
       "hash_algorithm": 5,
       "signatures": {
-        "16Uiu2HAmQybmxHV6fChWmnv6hyMcXNoN1gnKkaUitMbHxe9s2PoE": "gmko0ZLS94WoURnXI52oFIg8PK/jeVjtD4mPjkyzWXsa6JW1nrFYmtyjtzkfwuFz3RnfcSb8x8RmiStmEy3E7wA="
+        "16Uiu2HAmJnNrBfxeEmwwTDqsa4cSUZG6Hu3n9c6WZguzucpWv2Ns": "w1YpvAhh4Vwn15BK5YDgRZ6O/h734sKCNXrGBQkyE0NnpddLLsJoZ/WvfaEi19BcBlLIn9emK6o02u6XIOe4WwE="
       }
     }
   },
@@ -26,30 +26,32 @@
           "signing_public_key": "A7t+X/7j6KKqW8Rk3ydiavp+nfH5t7JPfZGEdmfd6kuP",
           "encryption_public_key": "AzYp67k1+Md7QI0CuxYkjAhikjRDUYKG67BXz5c1mQ1X",
           "block_certification_request": {
-            "system_identifier": "AAAAAQ==",
+            "system_identifier": "AAAAAA==",
             "node_identifier": "16Uiu2HAmGJRSYgrPS5pim41T8dGd6pNzhWm37xQLXJKJyugaoUDt",
             "input_record": {
               "previous_hash": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
-              "hash": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+              "hash": "iLTfxpqQ4oze24aBvSjk+hfszMCS0+GiZLNzkXJvdnw=",
               "block_hash": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
-              "summary_value": "AAAAAAAAAAA=",
+              "summary_value": "G8FtZ07IAAA=",
               "round_number": 1
             },
-            "signature": "slVlmPHmFA8pcjI1ea5S82malhLDKDKSMzZvg8F6lBcs+C+rgLbQ0qoBC18kcAAkMNmYJI9HI5UiRX3Vo0BYSgE="
+            "root_round_number": 1,
+            "signature": "3LVF3szGpJUChPwrV7mZ+bnWhObXldo8Xk8k6OKn0715UCD2zaY3ip8OhUPkSNy/KMXdo9qKhVNEffi5mu/PWQA="
           },
-          "t2timeout": 2500
+          "t2timeout": 2500,
+          "params": "gxsN4Lazp2QAABsN4Lazp2QAAIGDRAAAAAAZCcSCWCEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAgBDU1EB"
         }
       ],
       "certificate": {
         "input_record": {
           "previous_hash": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
-          "hash": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+          "hash": "iLTfxpqQ4oze24aBvSjk+hfszMCS0+GiZLNzkXJvdnw=",
           "block_hash": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
-          "summary_value": "AAAAAAAAAAA=",
+          "summary_value": "G8FtZ07IAAA=",
           "round_number": 1
         },
         "unicity_tree_certificate": {
-          "system_identifier": "AAAAAQ==",
+          "system_identifier": "AAAAAA==",
           "sibling_hashes": [
             "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
             "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
@@ -84,21 +86,21 @@
             "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
             "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
           ],
-          "system_description_hash": "7ZSAu8ahWCpF6gGd0zsIa7hd0uGE1nb7l4dnFzCvCGI="
+          "system_description_hash": "1xLJvNPorwq+KXmXUY4IhQwyVJJO1ROXgYNxcrBt25U="
         },
         "unicity_seal": {
           "root_chain_round_number": 1,
           "timestamp": 1681971084,
-          "root_internal_hash": "y3G1bqhWH9jp008qltWA7hf0Wf6Z43FBRxUVfAueXaM=",
-          "hash": "ML3JMGuE5r3UkiApNeiLocndMD+A22gfjpsUvtYzZlo=",
+          "root_internal_hash": "KtnZvtds5rQcG9xo1Wbvq0dRsjzbL7PPeOqtPhSjpIc=",
+          "hash": "S1+FLQQjj3NCUMmKBWEc9KHT8GMvUno/dD/F4hcw5Pc=",
           "root_epoch": 0,
           "signatures": {
-            "16Uiu2HAmQybmxHV6fChWmnv6hyMcXNoN1gnKkaUitMbHxe9s2PoE": "WKFmXI+OYlxHqGwosoSreWs2YtmGNxAD6c6wi0ERMvQDaXfci85ZKhAuKkztsmRXz1oqSuBM5+/pbq4V1ijVaAA="
+            "16Uiu2HAmJnNrBfxeEmwwTDqsa4cSUZG6Hu3n9c6WZguzucpWv2Ns": "ZDx9rh8gviI9FfCzIZOg1xasuWn4KR7w0piOkl0UrYJsoHzWURz0lyHeo5BX2tvde3XfmCaozIjXRe3CRmBQ5gA="
           }
         }
       },
       "system_description_record": {
-        "system_identifier": "AAAAAQ==",
+        "system_identifier": "AAAAAA==",
         "t2timeout": 2500
       }
     }

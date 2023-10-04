@@ -13,18 +13,15 @@ import (
 	"github.com/fxamacker/cbor/v2"
 )
 
-var ErrStrUnitIDIsZero = "unit ID cannot be zero"
-
 func handleCreateFungibleTokenTypeTx(options *Options) txsystem.GenericExecuteFunc[CreateFungibleTokenTypeAttributes] {
 	return func(tx *types.TransactionOrder, attr *CreateFungibleTokenTypeAttributes, currentBlockNr uint64) (*types.ServerMetadata, error) {
 		logger.Debug("Processing Create Fungible Token Type tx: %v", tx)
 		if err := validateCreateFungibleTokenType(tx, attr, options.state, options.hashAlgorithm); err != nil {
-			return nil, fmt.Errorf("invalid create fungible token tx: %w", err)
+			return nil, fmt.Errorf("invalid create fungible token type tx: %w", err)
 		}
 		fee := options.feeCalculator()
 
 		unitID := tx.UnitID()
-		sm := &types.ServerMetadata{ActualFee: fee, TargetUnits: []types.UnitID{unitID}}
 		// update state
 		if err := options.state.Apply(
 			state.AddUnit(unitID, script.PredicateAlwaysTrue(), newFungibleTokenTypeData(attr)),
@@ -32,14 +29,17 @@ func handleCreateFungibleTokenTypeTx(options *Options) txsystem.GenericExecuteFu
 			return nil, err
 		}
 
-		return sm, nil
+		return &types.ServerMetadata{ActualFee: fee, TargetUnits: []types.UnitID{unitID}, SuccessIndicator: types.TxStatusSuccessful}, nil
 	}
 }
 
 func validateCreateFungibleTokenType(tx *types.TransactionOrder, attr *CreateFungibleTokenTypeAttributes, s *state.State, hashAlgorithm crypto.Hash) error {
-	unitID := types.UnitID(tx.UnitID())
-	if unitID.IsZero(hashAlgorithm.Size()) {
-		return errors.New(ErrStrUnitIDIsZero)
+	unitID := tx.UnitID()
+	if !unitID.HasType(FungibleTokenTypeUnitType) {
+		return fmt.Errorf(ErrStrInvalidUnitID)
+	}
+	if attr.ParentTypeID != nil && !attr.ParentTypeID.HasType(FungibleTokenTypeUnitType) {
+		return fmt.Errorf(ErrStrInvalidParentTypeID)
 	}
 	if len(attr.Symbol) > maxSymbolLength {
 		return errors.New(ErrStrInvalidSymbolLength)
@@ -69,9 +69,8 @@ func validateCreateFungibleTokenType(tx *types.TransactionOrder, attr *CreateFun
 		return err
 	}
 
-	parentUnitID := types.UnitID(attr.ParentTypeID)
-	if !parentUnitID.IsZero(hashAlgorithm.Size()) {
-		_, parentData, err := getUnit[*fungibleTokenTypeData](s, parentUnitID)
+	if attr.ParentTypeID != nil {
+		_, parentData, err := getUnit[*fungibleTokenTypeData](s, attr.ParentTypeID)
 		if err != nil {
 			return err
 		}
@@ -79,6 +78,7 @@ func validateCreateFungibleTokenType(tx *types.TransactionOrder, attr *CreateFun
 			return fmt.Errorf("invalid decimal places. allowed %v, got %v", parentData.decimalPlaces, decimalPlaces)
 		}
 	}
+
 	predicates, err := getChainedPredicates[*fungibleTokenTypeData](
 		hashAlgorithm,
 		s,
@@ -125,11 +125,11 @@ func (c *CreateFungibleTokenTypeAttributes) SetIcon(icon *Icon) {
 	c.Icon = icon
 }
 
-func (c *CreateFungibleTokenTypeAttributes) GetParentTypeID() []byte {
+func (c *CreateFungibleTokenTypeAttributes) GetParentTypeID() types.UnitID {
 	return c.ParentTypeID
 }
 
-func (c *CreateFungibleTokenTypeAttributes) SetParentTypeID(parentTypeID []byte) {
+func (c *CreateFungibleTokenTypeAttributes) SetParentTypeID(parentTypeID types.UnitID) {
 	c.ParentTypeID = parentTypeID
 }
 

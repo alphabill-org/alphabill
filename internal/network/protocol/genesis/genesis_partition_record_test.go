@@ -149,6 +149,7 @@ func createPartitionNode(t *testing.T, nodeID string, signingKey crypto.Signer, 
 			SummaryValue: make([]byte, 32),
 			RoundNumber:  1,
 		},
+		RootRoundNumber: 1,
 	}
 	require.NoError(t, request.Sign(signingKey))
 	pr := &PartitionNode{

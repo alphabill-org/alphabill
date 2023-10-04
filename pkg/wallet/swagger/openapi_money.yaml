@@ -52,7 +52,7 @@ paths:
           $ref: 'components.yaml#/responses/ErrorResponse'
   /list-bills:
     get:
-      summary: List bills owned by a public key
+      summary: List bills owned by a public key. Supports paging with the offsetKey and limit parameters.
       description: |-
         Returns all bills owned by the given public key.
       parameters:
@@ -64,25 +64,19 @@ paths:
             type: string
           example: '0x000000000000000000000000000000000000000000000000000000000000000123'
         - name: limit
-          description: Limits how many bills are returned in response
+          description: Maximum number of items in the response
           in: query
+          required: false
           schema:
             type: integer
-            default: 100
-        - name: offset
-          description: Response will include bills starting after offset
+        - name: offsetKey
+          description: When doing batched queries, offset key returned by the previous query
           in: query
+          required: false
           schema:
-            type: integer
-            default: 0
+            type: string
         - name: includeDcBills
           description: Response will include DC bills
-          in: query
-          schema:
-            type: bool
-            default: false
-        - name: includeDcMetadata
-          description: Response will include DC metadata (includeDcBills param must also be true)
           in: query
           schema:
             type: bool
@@ -98,7 +92,7 @@ paths:
           $ref: 'components.yaml#/responses/ErrorResponse'
   /tx-history/{pubkey}:
     get:
-      summary: Get transaction history for a public key
+      summary: Get transaction history for a public key. Supports paging with the offsetKey and limit parameters.
       parameters:
         - name: pubkey
           description: Hex encoded public key prefixed with `0x`
@@ -107,17 +101,17 @@ paths:
           schema:
             $ref: 'components.yaml#/schemas/PublicKeyParam'
         - name: limit
-          description: Limits how many transactions are returned in response
+          description: Maximum number of items response may contain
           in: query
+          required: false
           schema:
             type: integer
-            default: 100
-        - name: offset
-          description: Response will include transactions starting after offset
+        - name: offsetKey
+          description: When doing batched queries, offset key returned by the previous query
           in: query
+          required: false
           schema:
-            type: integer
-            default: 0
+            type: string
       responses:
         '200':
           description: Successful operation
@@ -160,29 +154,38 @@ paths:
                 $ref: 'components.yaml#/schemas/ErrorResponse'
         default:
           $ref: 'components.yaml#/responses/ErrorResponse'
-  /fee-credit-bills/{billId}:
+  /fee-credit-bills/{unitId}:
     get:
-      summary: Get a fee credit bill and its latest transaction proof by bill ID
+      summary: Get a fee credit bill and its latest transaction proof by unit ID
       description: |-
-        Returns the fee credit bill together with the latest
-        transaction proof for it.
+        Returns fee credit bill for the given unit ID.
       parameters:
-        - name: billId
-          description: ID of the bill (hex)
+        - name: unitId
+          description: |-
+            Hex encoded free credit record ID prefixed with `0x`.
+            Must be 68 characters long (including the `0x` prefix).
           in: path
           required: true
           schema:
-            type: string
+            $ref: 'components.yaml#/schemas/UnitIDParam'
       responses:
         '200':
-          description: Successful operation
+          description: Fee credit bill returned
           content:
             application/json:
               schema:
-                $ref: 'components.yaml#/schemas/Bill'
+                type: object
+                items:
+                  $ref: 'components.yaml#/schemas/Bill'
+        '404':
+          description: Fee credit bill was not found for given unit ID
+          content:
+            application/json:
+              schema:
+                $ref: 'components.yaml#/schemas/ErrorResponse'
         default:
           $ref: 'components.yaml#/responses/ErrorResponse'
-  /locked-fee-credit/{systemId}/{billId}:
+  /locked-fee-credit/{systemId}/{unitId}:
     get:
       summary: Get the last transferFC transaction for the given partition and fee credit bill
       description: Get the last transferFC transaction for the given partition and fee credit bill
@@ -193,7 +196,7 @@ paths:
           required: true
           schema:
             type: string
-        - name: billId
+        - name: unitId
           description: Target fee credit bill ID (hex)
           in: path
           required: true
@@ -209,12 +212,12 @@ paths:
                 format: binary
         default:
           $ref: 'components.yaml#/responses/ErrorResponse'
-  /closed-fee-credit/{billId}:
+  /closed-fee-credit/{unitId}:
     get:
       summary: Get the last seen closeFC transaction for the given fee credit bill
       description: Get the last seen closeFC transaction for the given fee credit bill
       parameters:
-        - name: billId
+        - name: unitId
           description: Target fee credit bill ID (hex)
           in: path
           required: true
@@ -272,18 +275,3 @@ components:
           type: array
           items:
             $ref: 'components.yaml#/schemas/Bill'
-        dcMetadata:
-          type: object
-          properties:
-            billIdentifiers:
-              type: array
-              items:
-                type: string
-                example: 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAE='
-            dcSum:
-              type: string
-              example: '15'
-        total:
-          type: integer
-          description: Total number of bills in the response
-          example: 5

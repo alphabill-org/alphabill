@@ -33,6 +33,7 @@ type GenericTxSystem struct {
 	genericTxValidators []GenericTransactionValidator
 	beginBlockFunctions []func(blockNumber uint64) error
 	endBlockFunctions   []func(blockNumber uint64) error
+	roundCommitted      bool
 }
 
 func NewGenericTxSystem(modules []Module, opts ...Option) (*GenericTxSystem, error) {
@@ -102,6 +103,7 @@ func (m *GenericTxSystem) getState() (State, error) {
 
 func (m *GenericTxSystem) BeginBlock(blockNr uint64) error {
 	m.currentBlockNumber = blockNr
+	m.roundCommitted = false
 	for _, function := range m.beginBlockFunctions {
 		if err := function(blockNr); err != nil {
 			return fmt.Errorf("begin block function call failed: %w", err)
@@ -131,11 +133,11 @@ func (m *GenericTxSystem) Execute(tx *types.TransactionOrder) (sm *types.ServerM
 		}
 	}
 
-	m.state.Savepoint()
+	savepointID := m.state.Savepoint()
 	defer func() {
 		if err != nil {
 			// transaction execution failed. revert every change made by the transaction order
-			m.state.RollbackSavepoint()
+			m.state.RollbackToSavepoint(savepointID)
 			return
 		}
 		trx := &types.TransactionRecord{
@@ -149,7 +151,7 @@ func (m *GenericTxSystem) Execute(tx *types.TransactionOrder) (sm *types.ServerM
 		if sm.ActualFee > 0 && !transactions.IsFeeCreditTx(tx) {
 			feeCreditRecordID := tx.GetClientFeeCreditRecordID()
 			if err = m.state.Apply(unit.DecrCredit(feeCreditRecordID, sm.ActualFee)); err != nil {
-				m.state.RollbackSavepoint()
+				m.state.RollbackToSavepoint(savepointID)
 				return
 			}
 			targets = append(targets, feeCreditRecordID)
@@ -158,7 +160,7 @@ func (m *GenericTxSystem) Execute(tx *types.TransactionOrder) (sm *types.ServerM
 			// add log for each target unit
 			unitLogSize, err := m.state.AddUnitLog(targetID, trx.Hash(m.hashAlgorithm))
 			if err != nil {
-				m.state.RollbackSavepoint()
+				m.state.RollbackToSavepoint(savepointID)
 				return
 			}
 			if unitLogSize > 1 {
@@ -167,7 +169,7 @@ func (m *GenericTxSystem) Execute(tx *types.TransactionOrder) (sm *types.ServerM
 		}
 
 		// transaction execution succeeded
-		m.state.ReleaseSavepoint()
+		m.state.ReleaseToSavepoint(savepointID)
 	}()
 	// execute transaction
 	sm, err = m.executors.Execute(tx, m.currentBlockNumber)
@@ -188,11 +190,18 @@ func (m *GenericTxSystem) EndBlock() (State, error) {
 }
 
 func (m *GenericTxSystem) Revert() {
+	if m.roundCommitted {
+		return
+	}
 	m.logPruner.Remove(m.currentBlockNumber)
 	m.state.Revert()
 }
 
 func (m *GenericTxSystem) Commit() error {
 	m.logPruner.Remove(m.currentBlockNumber - 1)
-	return m.state.Commit()
+	err := m.state.Commit()
+	if err == nil {
+		m.roundCommitted = true
+	}
+	return err
 }

@@ -22,30 +22,30 @@ schemas:
       value:
         type: string
         example: '999999998899999978'
-      tx_hash:
+      txHash:
         type: string
-        example: 'xJNZmYynzM39S6wbzgCkPG4cS4gztXEfSyWOKowSKvQ='
-      dc_nonce:
+        example: 'i8aOD56GOwyAwzakOfdtEqbWq/Z8dZsfAfxjznCOX/Y='
+      targetUnitId:
         type: string
-        example: 'AAAAAF5t6Kd0RXr34lPHRQTTAlaub1lu/jPB+1MKrgg='
-      swap_timeout:
+        example: 'AAAAAJKd7WH/vibXw+adAs/+2LoXaRhUOTzmQuNIkMU='
+      targetUnitBacklink:
         type: string
-        example: '59'
-      last_add_fc_tx_hash:
+        example: 'A19cILOb/nbHFGk62RSQ4UDINC15QcsThq2sKFpvFgA='
+      lastAddFcTxHash:
         type: string
         description: Hash of the last Add Fee Credit transaction
-        example: ''
+        example: 'i8aOD56GOwyAwzakOfdtEqbWq/Z8dZsfAfxjznCOX/Y='
   UnitIDParam:
     type: string
     description: |-
-      Unit ID is a 32 byte binary value encoded as hex string, prefixed by `0x` marker.
-      So the valid string representation of the value must be 66 characters long (including 0x prefix).
+      Unit ID is a 33 byte binary value encoded as hex string, prefixed by `0x` marker.
+      So the valid string representation of the value must be 68 characters long (including 0x prefix).
 
       This type is used for query input parameters like token ID or token type ID.
-    minLength: 66
-    maxLength: 66
+    minLength: 68
+    maxLength: 68
     # default: 0x
-    example: '0x3a04762909373b3c273ff3726746d7a787836d767733dabc2773619870c081a3'
+    example: '0x3a04762909373b3c273ff3726746d7a787836d767733dabc2773619870c081a300'
   PublicKeyParam:
     type: string
     description: |-
@@ -75,7 +75,7 @@ responses:
       message as the value. The error message describes what
       went wrong when trying to process that
       transaction. Transactions which are not listed might have
-      been processed successfuly.
+      been processed successfully.
     content:
       application/json:
         schema:

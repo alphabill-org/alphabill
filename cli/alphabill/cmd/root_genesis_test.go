@@ -19,7 +19,7 @@ func TestGenerateGenesisFiles(t *testing.T) {
 			CfgFile:    filepath.Join(alphabillHomeDir(), defaultConfigFile),
 			LogCfgFile: defaultLoggerConfigFile,
 		},
-		PartitionNodeGenesisFiles: []string{"testdata/partition-node-genesis-1.json"},
+		PartitionNodeGenesisFiles: []string{"testdata/partition-node-genesis-0.json"},
 		Keys: &keysConfig{
 			KeyFilePath: "testdata/root-key.json",
 		},
@@ -36,15 +36,15 @@ func TestGenerateGenesisFiles(t *testing.T) {
 	actualRGFile, _ := os.ReadFile(filepath.Join(outputDir, "root-genesis.json"))
 	require.EqualValues(t, expectedRGFile, actualRGFile)
 
-	expectedPGFile1, _ := os.ReadFile("testdata/expected/partition-genesis-1.json")
-	actualPGFile1, _ := os.ReadFile(filepath.Join(outputDir, "partition-genesis-1.json"))
+	expectedPGFile1, _ := os.ReadFile("testdata/expected/partition-genesis-0.json")
+	actualPGFile1, _ := os.ReadFile(filepath.Join(outputDir, "partition-genesis-0.json"))
 	require.EqualValues(t, expectedPGFile1, actualPGFile1)
 }
 
 func TestRootGenesis_KeyFileNotFound(t *testing.T) {
 	homeDir := setupTestDir(t, alphabillDir)
 	cmd := New()
-	args := "root-genesis new --home " + homeDir + " -p testdata/partition-node-genesis-1.json"
+	args := "root-genesis new --home " + homeDir + " -p testdata/partition-node-genesis-0.json"
 	cmd.baseCmd.SetArgs(strings.Split(args, " "))
 	err := cmd.addAndExecuteCommand(context.Background())
 
@@ -55,7 +55,7 @@ func TestRootGenesis_KeyFileNotFound(t *testing.T) {
 func TestRootGenesis_ForceKeyGeneration(t *testing.T) {
 	homeDir := setupTestHomeDir(t, alphabillDir)
 	cmd := New()
-	args := "root-genesis new --gen-keys --home " + homeDir + " -p testdata/partition-node-genesis-1.json"
+	args := "root-genesis new --gen-keys --home " + homeDir + " -p testdata/partition-node-genesis-0.json"
 	cmd.baseCmd.SetArgs(strings.Split(args, " "))
 	err := cmd.addAndExecuteCommand(context.Background())
 	require.NoError(t, err)
@@ -70,7 +70,7 @@ func TestGenerateGenesisFiles_InvalidPartitionSignature(t *testing.T) {
 			CfgFile:    filepath.Join(alphabillHomeDir(), defaultConfigFile),
 			LogCfgFile: defaultLoggerConfigFile,
 		},
-		PartitionNodeGenesisFiles: []string{"testdata/partition-record-1-invalid-sig.json"},
+		PartitionNodeGenesisFiles: []string{"testdata/partition-record-0-invalid-sig.json"},
 		Keys: &keysConfig{
 			KeyFilePath: "testdata/root-key.json",
 		},

@@ -37,6 +37,9 @@ func CheckBlockCertificationRequest(req *certification.BlockCertificationRequest
 	} else if !bytes.Equal(req.InputRecord.PreviousHash, luc.InputRecord.Hash) {
 		// Extending of unknown State.
 		return fmt.Errorf("request extends unknown state: expected hash: %v, got: %v", luc.InputRecord.Hash, req.InputRecord.PreviousHash)
+	} else if req.RootRoundNumber < luc.GetRootRoundNumber() {
+		// Stale request, it has been sent before most recent UC was issued
+		return fmt.Errorf("stale request, IR's root round number %v, last certified root round number %v", req.RootRoundNumber, luc.UnicitySeal.RootChainRoundNumber)
 	}
 	return nil
 }

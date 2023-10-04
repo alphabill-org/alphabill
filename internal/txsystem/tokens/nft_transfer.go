@@ -37,12 +37,15 @@ func handleTransferNonFungibleTokenTx(options *Options) txsystem.GenericExecuteF
 			return nil, err
 		}
 
-		return &types.ServerMetadata{ActualFee: fee, TargetUnits: []types.UnitID{unitID}}, nil
+		return &types.ServerMetadata{ActualFee: fee, TargetUnits: []types.UnitID{unitID}, SuccessIndicator: types.TxStatusSuccessful}, nil
 	}
 }
 
 func validateTransferNonFungibleToken(tx *types.TransactionOrder, attr *TransferNonFungibleTokenAttributes, s *state.State, hashAlgorithm crypto.Hash) error {
-	unitID := types.UnitID(tx.UnitID())
+	unitID := tx.UnitID()
+	if !unitID.HasType(NonFungibleTokenUnitType) {
+		return fmt.Errorf(ErrStrInvalidUnitID)
+	}
 	u, err := s.GetUnit(unitID, false)
 	if err != nil {
 		return err
@@ -56,7 +59,7 @@ func validateTransferNonFungibleToken(tx *types.TransactionOrder, attr *Transfer
 	}
 	tokenTypeID := data.nftType
 	if !bytes.Equal(attr.NFTTypeID, tokenTypeID) {
-		return fmt.Errorf("invalid type identifier: expected '%X', got '%X'", tokenTypeID, attr.NFTTypeID)
+		return fmt.Errorf("invalid type identifier: expected '%s', got '%s'", tokenTypeID, attr.NFTTypeID)
 	}
 
 	// signature given in the transaction request satisfies the predicate obtained by concatenating all the token
@@ -131,11 +134,11 @@ func (t *TransferNonFungibleTokenAttributes) SetBacklink(backlink []byte) {
 	t.Backlink = backlink
 }
 
-func (t *TransferNonFungibleTokenAttributes) GetNFTTypeID() []byte {
+func (t *TransferNonFungibleTokenAttributes) GetNFTTypeID() types.UnitID {
 	return t.NFTTypeID
 }
 
-func (t *TransferNonFungibleTokenAttributes) SetNFTTypeID(nftTypeID []byte) {
+func (t *TransferNonFungibleTokenAttributes) SetNFTTypeID(nftTypeID types.UnitID) {
 	t.NFTTypeID = nftTypeID
 }
 

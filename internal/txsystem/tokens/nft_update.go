@@ -36,7 +36,7 @@ func handleUpdateNonFungibleTokenTx(options *Options) txsystem.GenericExecuteFun
 			return nil, err
 		}
 
-		return &types.ServerMetadata{ActualFee: fee, TargetUnits: []types.UnitID{unitID}}, nil
+		return &types.ServerMetadata{ActualFee: fee, TargetUnits: []types.UnitID{unitID}, SuccessIndicator: types.TxStatusSuccessful}, nil
 	}
 }
 
@@ -44,7 +44,10 @@ func validateUpdateNonFungibleToken(tx *types.TransactionOrder, attr *UpdateNonF
 	if len(attr.Data) > dataMaxSize {
 		return fmt.Errorf("data exceeds the maximum allowed size of %v KB", dataMaxSize)
 	}
-	unitID := types.UnitID(tx.UnitID())
+	unitID := tx.UnitID()
+	if !unitID.HasType(NonFungibleTokenUnitType) {
+		return fmt.Errorf(ErrStrInvalidUnitID)
+	}
 	u, err := s.GetUnit(unitID, false)
 	if err != nil {
 		return err

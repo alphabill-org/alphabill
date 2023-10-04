@@ -53,7 +53,7 @@ func (t *TransactionOrder) UnmarshalAttributes(v any) error {
 	return t.Payload.UnmarshalAttributes(v)
 }
 
-func (t *TransactionOrder) UnitID() []byte {
+func (t *TransactionOrder) UnitID() UnitID {
 	if t.Payload == nil {
 		return nil
 	}

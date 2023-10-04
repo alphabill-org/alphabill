@@ -29,14 +29,14 @@ func handleMintFungibleTokenTx(options *Options) txsystem.GenericExecuteFunc[Min
 		); err != nil {
 			return nil, err
 		}
-		return &types.ServerMetadata{ActualFee: fee, TargetUnits: []types.UnitID{unitID}}, nil
+		return &types.ServerMetadata{ActualFee: fee, TargetUnits: []types.UnitID{unitID}, SuccessIndicator: types.TxStatusSuccessful}, nil
 	}
 }
 
 func validateMintFungibleToken(tx *types.TransactionOrder, attr *MintFungibleTokenAttributes, s *state.State, hashAlgorithm crypto.Hash) error {
-	unitID := types.UnitID(tx.UnitID())
-	if unitID.IsZero(hashAlgorithm.Size()) {
-		return errors.New(ErrStrUnitIDIsZero)
+	unitID := tx.UnitID()
+	if !unitID.HasType(FungibleTokenUnitType) {
+		return fmt.Errorf(ErrStrInvalidUnitID)
 	}
 	u, err := s.GetUnit(unitID, false)
 	if u != nil {
@@ -47,6 +47,9 @@ func validateMintFungibleToken(tx *types.TransactionOrder, attr *MintFungibleTok
 	}
 	if attr.Value == 0 {
 		return errors.New("token must have value greater than zero")
+	}
+	if !attr.TypeID.HasType(FungibleTokenTypeUnitType) {
+		return fmt.Errorf(ErrStrInvalidTypeID)
 	}
 
 	// existence of the parent type is checked by the getChainedPredicates
@@ -79,11 +82,11 @@ func (m *MintFungibleTokenAttributes) SetBearer(bearer []byte) {
 	m.Bearer = bearer
 }
 
-func (m *MintFungibleTokenAttributes) GetTypeID() []byte {
+func (m *MintFungibleTokenAttributes) GetTypeID() types.UnitID {
 	return m.TypeID
 }
 
-func (m *MintFungibleTokenAttributes) SetTypeID(typeID []byte) {
+func (m *MintFungibleTokenAttributes) SetTypeID(typeID types.UnitID) {
 	m.TypeID = typeID
 }
 

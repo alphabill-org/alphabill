@@ -4,7 +4,6 @@ import (
 	"testing"
 
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
-	test "github.com/alphabill-org/alphabill/internal/testutils"
 	testblock "github.com/alphabill-org/alphabill/internal/testutils/block"
 	testtransaction "github.com/alphabill-org/alphabill/internal/testutils/transaction"
 	"github.com/alphabill-org/alphabill/internal/txsystem/fc/transactions"
@@ -13,9 +12,9 @@ import (
 )
 
 var (
-	unitID               = test.NewUnitID(1)
+	unitID               = types.NewUnitID(33, nil, []byte{1}, []byte{0xff}) // TODO: should be a parameter from a partition
 	systemID             = []byte{0, 0, 0, 0}
-	nonce                = []byte{3}
+	targetUnitBacklink   = []byte{3}
 	backlink             = []byte{4}
 	amount               = uint64(50)
 	maxFee               = uint64(2)

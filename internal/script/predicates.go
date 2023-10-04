@@ -1,5 +1,7 @@
 package script
 
+import "fmt"
+
 // PredicateAlwaysTrue is a predicate that evaluates to true with an empty argument.
 func PredicateAlwaysTrue() []byte {
 	return []byte{StartByte, OpPushBool, BoolTrue}
@@ -42,4 +44,28 @@ func PredicateArgumentPayToPublicKeyHashDefault(sig []byte, pubKey []byte) []byt
 // PredicateArgumentEmpty predicate argument for PredicateAlwaysTrue
 func PredicateArgumentEmpty() []byte {
 	return []byte{StartByte}
+}
+
+func ExtractPubKeyFromPredicateArgument(predicate []byte) ([]byte, error) {
+	if predicate == nil {
+		return nil, fmt.Errorf("predicate argument is nil")
+	}
+	if len(predicate) < 2 || predicate[0] != StartByte {
+		return nil, fmt.Errorf("invalid predicate argument")
+	}
+	for i := 1; i < len(predicate); i++ {
+		op, exists := opCodes[predicate[i]]
+		if !exists {
+			return nil, ErrUnknownOpCode
+		}
+		dataLength, err := op.getDataLength(predicate[i+1:])
+		if err != nil {
+			return nil, err
+		}
+		if op.value == OpPushPubKey {
+			return predicate[i+2 : i+1+dataLength], nil
+		}
+		i += dataLength
+	}
+	return nil, fmt.Errorf("no public key found in predicate argument")
 }

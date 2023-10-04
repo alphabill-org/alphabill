@@ -14,16 +14,16 @@ import (
 )
 
 var (
-	ErrTxNil                     = errors.New("tx is nil")
-	ErrBillNil                   = errors.New("bill is nil")
-	ErrTargetSystemIdentifierNil = errors.New("TargetSystemIdentifier is nil")
-	ErrTargetRecordIDNil         = errors.New("TargetRecordID is nil")
-	ErrAdditionTimeInvalid       = errors.New("EarliestAdditonTime is greater than LatestAdditionTime")
-	ErrRecordIDExists            = errors.New("fee tx cannot contain fee credit reference")
-	ErrFeeProofExists            = errors.New("fee tx cannot contain fee authorization proof")
-
-	ErrInvalidFCValue            = errors.New("the amount to transfer plus transaction fee cannot exceed the value of the bill")
-	ErrInvalidBacklink           = errors.New("the transaction backlink is not equal to unit backlink")
+	ErrTxNil                       = errors.New("tx is nil")
+	ErrBillNil                     = errors.New("bill is nil")
+	ErrTargetSystemIdentifierEmpty = errors.New("TargetSystemIdentifier is empty")
+	ErrTargetRecordIDEmpty         = errors.New("TargetRecordID is empty")
+	ErrAdditionTimeInvalid         = errors.New("EarliestAdditonTime is greater than LatestAdditionTime")
+	ErrRecordIDExists              = errors.New("fee tx cannot contain fee credit reference")
+	ErrFeeProofExists              = errors.New("fee tx cannot contain fee authorization proof")
+	ErrInvalidFCValue              = errors.New("the amount to transfer cannot exceed the value of the bill")
+	ErrInvalidFeeValue             = errors.New("the transaction max fee cannot exceed the transferred amount")
+	ErrInvalidBacklink             = errors.New("the transaction backlink is not equal to unit backlink")
 )
 
 func handleTransferFeeCreditTx(s *state.State, hashAlgorithm crypto.Hash, feeCreditTxRecorder *feeCreditTxRecorder, feeCalc fc.FeeCalculator) txsystem.GenericExecuteFunc[transactions.TransferFeeCreditAttributes] {
@@ -42,29 +42,23 @@ func handleTransferFeeCreditTx(s *state.State, hashAlgorithm crypto.Hash, feeCre
 			return nil, fmt.Errorf("transferFC: validation failed: %w", err)
 		}
 
-		// calculate actual tx fee cost
-		fee := feeCalc()
-
-		// remove value from source unit, or delete source bill entirely
-		var action state.Action
-		v := attr.Amount + fee
-		if v < billData.V {
-			action = state.UpdateUnitData(unitID, func(data state.UnitData) (state.UnitData, error) {
-				newBillData, ok := data.(*BillData)
-				if !ok {
-					return nil, fmt.Errorf("unit %v does not contain bill data", unitID)
-				}
-				newBillData.V -= v
-				newBillData.T = currentBlockNumber
-				newBillData.Backlink = tx.Hash(hashAlgorithm)
-				return newBillData, nil
-			})
-		} else {
-			action = state.DeleteUnit(unitID)
-		}
+		// remove value from source unit, zero value bills get removed later
+		action := state.UpdateUnitData(unitID, func(data state.UnitData) (state.UnitData, error) {
+			newBillData, ok := data.(*BillData)
+			if !ok {
+				return nil, fmt.Errorf("unit %v does not contain bill data", unitID)
+			}
+			newBillData.V -= attr.Amount
+			newBillData.T = currentBlockNumber
+			newBillData.Backlink = tx.Hash(hashAlgorithm)
+			return newBillData, nil
+		})
 		if err := s.Apply(action); err != nil {
 			return nil, fmt.Errorf("transferFC: failed to update state: %w", err)
 		}
+
+		fee := feeCalc()
+
 		// record fee tx for end of the round consolidation
 		feeCreditTxRecorder.recordTransferFC(&transferFeeCreditTx{
 			tx:   tx,
@@ -82,17 +76,20 @@ func validateTransferFC(tx *types.TransactionOrder, attr *transactions.TransferF
 	if bd == nil {
 		return ErrBillNil
 	}
-	if attr.TargetSystemIdentifier == nil {
-		return ErrTargetSystemIdentifierNil
+	if len(attr.TargetSystemIdentifier) == 0 {
+		return ErrTargetSystemIdentifierEmpty
 	}
-	if attr.TargetRecordID == nil {
-		return ErrTargetRecordIDNil
+	if len(attr.TargetRecordID) == 0 {
+		return ErrTargetRecordIDEmpty
 	}
 	if attr.EarliestAdditionTime > attr.LatestAdditionTime {
 		return ErrAdditionTimeInvalid
 	}
-	if attr.Amount+tx.Payload.ClientMetadata.MaxTransactionFee > bd.V {
+	if attr.Amount > bd.V {
 		return ErrInvalidFCValue
+	}
+	if tx.Payload.ClientMetadata.MaxTransactionFee > attr.Amount {
+		return ErrInvalidFeeValue
 	}
 	if !bytes.Equal(attr.Backlink, bd.Backlink) {
 		return ErrInvalidBacklink

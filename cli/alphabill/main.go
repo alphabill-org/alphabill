@@ -12,7 +12,7 @@ import (
 )
 
 func main() {
-	ctx := quitSgnalContext()
+	ctx := quitSignalContext()
 	err := cmd.New().Execute(ctx)
 	if err != nil && !cancelledByQuitSignal(ctx) {
 		fmt.Fprintln(os.Stderr, "Error:", err)
@@ -23,10 +23,10 @@ func main() {
 var errQuitSignal = errors.New("received quit signal")
 
 /*
-quitSgnalContext returns context.Context which will be cancelled (with cause errQuitSignal)
+quitSignalContext returns context.Context which will be cancelled (with cause errQuitSignal)
 when one of the quit signals is sent to the program
 */
-func quitSgnalContext() context.Context {
+func quitSignalContext() context.Context {
 	ctx, cancel := context.WithCancelCause(context.Background())
 
 	go func() {

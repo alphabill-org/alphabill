@@ -50,7 +50,7 @@ func TestNode_noRound_txAddedBackToBuffer(t *testing.T) {
 	}
 	bufferBefore := p.partition.txBuffer.Count()
 	// make sure no round is active
-	p.partition.handleT1TimeoutEvent()
+	p.partition.handleT1TimeoutEvent(context.Background())
 	// send tx to the channel
 	p.partition.txCh <- transfer
 	// tx is added back to the buffer
@@ -70,17 +70,17 @@ func TestNode_NodeStartTest(t *testing.T) {
 	// node starts in init state
 	require.Equal(t, initializing, tp.partition.status.Load())
 	// node sends a handshake to root and subscribes to UC messages
-	require.Eventually(t, RequestReceived(tp, network.ProtocolHandshake), 200*time.Millisecond, test.WaitTick)
+	require.Eventually(t, RequestReceived(tp, network.ProtocolHandshake), 200*time.Millisecond, test.WaitShortTick)
 	// simulate no response, but monitor timeout
 	tp.mockNet.ResetSentMessages(network.ProtocolHandshake)
 	tp.SubmitMonitorTimeout(t)
 	// node sends a handshake to root and subscribes to UC messages
-	require.Eventually(t, RequestReceived(tp, network.ProtocolHandshake), 200*time.Millisecond, test.WaitTick)
+	require.Eventually(t, RequestReceived(tp, network.ProtocolHandshake), 200*time.Millisecond, test.WaitShortTick)
 	// while no response is received a retry is triggered on each timeout
 	tp.mockNet.ResetSentMessages(network.ProtocolHandshake)
 	tp.SubmitMonitorTimeout(t)
 	// node sends a handshake to root and subscribes to UC messages
-	require.Eventually(t, RequestReceived(tp, network.ProtocolHandshake), 200*time.Millisecond, test.WaitTick)
+	require.Eventually(t, RequestReceived(tp, network.ProtocolHandshake), 200*time.Millisecond, test.WaitShortTick)
 	tp.mockNet.ResetSentMessages(network.ProtocolHandshake)
 	// root responds with genesis
 	tp.SubmitUnicityCertificate(tp.partition.luc.Load())
@@ -116,6 +116,7 @@ func TestNode_NodeStartWithRecoverStateFromDB(t *testing.T) {
 		PrevHash:       newBlock3.UnicityCertificate.InputRecord.Hash,
 		StateHash:      newBlock4.UnicityCertificate.InputRecord.Hash,
 		Transactions:   newBlock4.Transactions,
+		StateSummary:   make([]byte, 8),
 	}
 	require.NoError(t, db.Write(util.Uint32ToBytes(proposalKey), proposal))
 	// start node with db filled
@@ -624,6 +625,45 @@ func TestBlockProposal_TxSystemStateIsDifferent_newUC(t *testing.T) {
 	require.Equal(t, uint64(1), system.RevertCount)
 	testevent.ContainsEvent(t, tp.eh, event.StateReverted)
 	require.Equal(t, recovering, tp.partition.status.Load())
+}
+
+func TestNode_GetTransactionRecord_OK(t *testing.T) {
+	system := &testtxsystem.CounterTxSystem{}
+	indexDB := memorydb.New()
+	tp := RunSingleNodePartition(t, system, WithTxIndexer(indexDB))
+	tp.partition.startNewRound(context.Background(), tp.partition.luc.Load())
+	order := testtransaction.NewTransactionOrder(t, testtransaction.WithPayloadType("test21"))
+	hash := order.Hash(tp.partition.configuration.hashAlgorithm)
+	require.NoError(t, tp.SubmitTx(order))
+	testevent.ContainsEvent(t, tp.eh, event.TransactionProcessed)
+
+	order2 := testtransaction.NewTransactionOrder(t, testtransaction.WithPayloadType("test22"))
+	hash2 := order2.Hash(tp.partition.configuration.hashAlgorithm)
+	require.NoError(t, tp.SubmitTxFromRPC(order2))
+	testevent.ContainsEvent(t, tp.eh, event.TransactionProcessed)
+	tp.CreateBlock(t)
+
+	require.Eventually(t, func() bool {
+		record, proof, err := tp.partition.GetTransactionRecord(context.Background(), hash)
+		require.NoError(t, err)
+		return record != nil && proof != nil
+	}, test.WaitDuration, test.WaitTick)
+
+	require.Eventually(t, func() bool {
+		record, proof, err := tp.partition.GetTransactionRecord(context.Background(), hash2)
+		require.NoError(t, err)
+		return record != nil && proof != nil
+	}, test.WaitDuration, test.WaitTick)
+}
+
+func TestNode_GetTransactionRecord_NotFound(t *testing.T) {
+	system := &testtxsystem.CounterTxSystem{}
+	tp := RunSingleNodePartition(t, system, WithTxIndexer(memorydb.New()))
+	record, proof, err := tp.partition.GetTransactionRecord(context.Background(), test.RandomBytes(32))
+
+	require.NoError(t, err)
+	require.Nil(t, record)
+	require.Nil(t, proof)
 }
 
 func (c *AlwaysValidCertificateValidator) Validate(_ *types.UnicityCertificate) error {

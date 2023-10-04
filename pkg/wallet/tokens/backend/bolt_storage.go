@@ -118,7 +118,7 @@ func (s *storage) SaveTokenType(tokenType *TokenUnitType, proof *sdk.Proof) erro
 		if err != nil {
 			return fmt.Errorf("failed to save token type data: %w", err)
 		}
-		if err := s.storeUnitBlockProof(tx, sdk.UnitID(tokenType.ID), tokenType.TxHash, proof); err != nil {
+		if err := s.storeUnitBlockProof(tx, types.UnitID(tokenType.ID), tokenType.TxHash, proof); err != nil {
 			return fmt.Errorf("failed to store unit block proof: %w", err)
 		}
 		return nil
@@ -174,7 +174,7 @@ func (s *storage) SaveToken(token *TokenUnit, proof *sdk.Proof) error {
 		if err = tx.Bucket(bucketTokenUnit).Put(token.ID, tokenData); err != nil {
 			return err
 		}
-		return s.storeUnitBlockProof(tx, sdk.UnitID(token.ID), token.TxHash, proof)
+		return s.storeUnitBlockProof(tx, types.UnitID(token.ID), token.TxHash, proof)
 	})
 }
 
@@ -260,7 +260,7 @@ func (s *storage) SetBlockNumber(blockNumber uint64) error {
 	})
 }
 
-func (s *storage) GetTxProof(unitID sdk.UnitID, txHash sdk.TxHash) (*sdk.Proof, error) {
+func (s *storage) GetTxProof(unitID types.UnitID, txHash sdk.TxHash) (*sdk.Proof, error) {
 	var proof *sdk.Proof
 	err := s.db.View(func(tx *bolt.Tx) error {
 		var err error
@@ -270,7 +270,7 @@ func (s *storage) GetTxProof(unitID sdk.UnitID, txHash sdk.TxHash) (*sdk.Proof, 
 	return proof, err
 }
 
-func (s *storage) GetFeeCreditBill(unitID sdk.UnitID) (*FeeCreditBill, error) {
+func (s *storage) GetFeeCreditBill(unitID types.UnitID) (*FeeCreditBill, error) {
 	var fcb *FeeCreditBill
 	err := s.db.View(func(tx *bolt.Tx) error {
 		fcbBytes := tx.Bucket(bucketFeeCredits).Get(unitID)
@@ -300,7 +300,7 @@ func (s *storage) SetFeeCreditBill(fcb *FeeCreditBill, proof *sdk.Proof) error {
 	})
 }
 
-func (s *storage) GetClosedFeeCredit(fcbID sdk.UnitID) (*types.TransactionRecord, error) {
+func (s *storage) GetClosedFeeCredit(fcbID types.UnitID) (*types.TransactionRecord, error) {
 	var res *types.TransactionRecord
 	err := s.db.View(func(tx *bolt.Tx) error {
 		txBytes := tx.Bucket(closedFeeCreditBucket).Get(fcbID)
@@ -315,7 +315,7 @@ func (s *storage) GetClosedFeeCredit(fcbID sdk.UnitID) (*types.TransactionRecord
 	return res, nil
 }
 
-func (s *storage) SetClosedFeeCredit(fcbID sdk.UnitID, txr *types.TransactionRecord) error {
+func (s *storage) SetClosedFeeCredit(fcbID types.UnitID, txr *types.TransactionRecord) error {
 	return s.db.Update(func(tx *bolt.Tx) error {
 		txBytes, err := json.Marshal(txr)
 		if err != nil {
@@ -349,7 +349,7 @@ func (s *storage) getToken(tx *bolt.Tx, id TokenID) (*TokenUnit, error) {
 	return token, nil
 }
 
-func (s *storage) storeUnitBlockProof(tx *bolt.Tx, unitID sdk.UnitID, txHash sdk.TxHash, proof *sdk.Proof) error {
+func (s *storage) storeUnitBlockProof(tx *bolt.Tx, unitID types.UnitID, txHash sdk.TxHash, proof *sdk.Proof) error {
 	proofData, err := cbor.Marshal(proof)
 	if err != nil {
 		return fmt.Errorf("failed to serialize proof data: %w", err)

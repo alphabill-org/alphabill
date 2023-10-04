@@ -52,7 +52,7 @@ EOT
 
 # generates genesis files
 # expects two arguments
-# $1 alphabill partition type ('money', 'vd', 'tokens') or root as string
+# $1 alphabill partition type ('money', 'tokens') or root as string
 # $2 nof genesis files to generate
 # $3 custom cli args
 function generate_partition_node_genesis() {
@@ -63,14 +63,14 @@ case $1 in
     cmd="money-genesis"
     home="testab/money"
     ;;
-  vd)
-    cmd="vd-genesis"
-    home="testab/vd"
-    ;;
   tokens)
     cmd="tokens-genesis"
     home="testab/tokens"
     ;;
+  evm)
+      cmd="evm-genesis"
+      home="testab/evm"
+      ;;
   *)
     echo "error: unknown partition $1" >&2
     return 1
@@ -88,11 +88,11 @@ done
 # $1 nof root nodes
 function generate_root_genesis() {
   # this function assumes a directory structure with indexed home such as
-  # testab/money1/money, testab/money2/money, ..., testab/vd1/vd, testab/vd2/vd,...
+  # testab/money1/money, testab/money2/money, ...,
   # it scans all partition node genesis files from the directories and uses them to create root genesis
   # build partition node genesis files argument list '-p' for root genesis
   local node_genesis_files=""
-  for file in testab/money*/money/node-genesis.json testab/vd*/vd/node-genesis.json testab/tokens*/tokens/node-genesis.json
+  for file in testab/money*/money/node-genesis.json testab/tokens*/tokens/node-genesis.json testab/evm*/evm/node-genesis.json
   do
     if [[ ! -f $file ]]; then
       continue
@@ -124,8 +124,6 @@ function generate_root_genesis() {
 function start_root_nodes() {
   local rPort=29666
   local pPort=26662
-  # generate local addresses based on number of key files and listener port
-  root_node_addresses=$(generate_peer_addresses "testab/rootchain*/rootchain/keys.json" $rPort)
   i=1
   for genesisFile in testab/rootchain*/rootchain/root-genesis.json
   do
@@ -138,7 +136,7 @@ function start_root_nodes() {
     ((pPort=pPort+1))
     ((i=i+1))
   done
-  echo "started $(($i-1)) root nodes, addresses: $root_node_addresses"
+  echo "started $(($i-1)) root nodes"
 }
 
 function start_partition_nodes() {
@@ -157,14 +155,6 @@ local restPort=0
       grpcPort=26766
       restPort=26866
       ;;
-    vd)
-      home="testab/vd"
-      key_files="testab/vd*/vd/keys.json"
-      genesis_file="testab/rootchain1/rootchain/partition-genesis-1.json"
-      aPort=27666
-      grpcPort=27766
-      restPort=27866
-      ;;
     tokens)
       home="testab/tokens"
       key_files="testab/tokens*/tokens/keys.json"
@@ -173,23 +163,30 @@ local restPort=0
       grpcPort=28766
       restPort=28866
       ;;
+    evm)
+      home="testab/evm"
+      key_files="testab/evm*/evm/keys.json"
+      genesis_file="testab/rootchain1/rootchain/partition-genesis-3.json"
+      aPort=29666
+      grpcPort=29766
+      restPort=29866
+      ;;
     *)
       echo "error: unknown partition $1" >&2
       return 1
       ;;
   esac
-  # generate node addresses
-  nodeAddresses=$(generate_peer_addresses "$key_files" $aPort)
+  # Start nodes
   i=1
   for keyf in $key_files
   do
-    build/alphabill "$1" --home ${home}$i -f ${home}$i/"$1"/blocks.db -k $keyf -r "/ip4/127.0.0.1/tcp/26662" -a "/ip4/127.0.0.1/tcp/$aPort" --server-address "localhost:$grpcPort" --rest-server-address "localhost:$restPort" -g $genesis_file  >> ${home}$i/"$1"/"$1".log &
+    build/alphabill "$1" --home ${home}$i -f ${home}$i/"$1"/blocks.db --tx-db ${home}$i/"$1"/tx.db -k $keyf -r "/ip4/127.0.0.1/tcp/26662" -a "/ip4/127.0.0.1/tcp/$aPort" --server-address "localhost:$grpcPort" --rest-server-address "localhost:$restPort" -g $genesis_file  >> ${home}$i/"$1"/"$1".log &
     ((i=i+1))
     ((aPort=aPort+1))
     ((grpcPort=grpcPort+1))
     ((restPort=restPort+1))
   done
-    echo "started $(($i-1)) $1 nodes, addresses: $nodeAddresses"
+    echo "started $(($i-1)) $1 nodes"
 }
 
 function start_backend() {
@@ -210,8 +207,8 @@ function start_backend() {
         if test -f "testab/tokens-sdr.json"; then
             sdrFiles+=" -c testab/tokens-sdr.json"
         fi
-        if test -f "testab/vd-sdr.json"; then
-            sdrFiles+=" -c testab/vd-sdr.json"
+        if test -f "testab/evm-sdr.json"; then
+            sdrFiles+=" -c testab/evm-sdr.json"
         fi
         customArgs=$sdrFiles
         ;;

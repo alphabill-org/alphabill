@@ -15,11 +15,9 @@ import (
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	testfc "github.com/alphabill-org/alphabill/internal/txsystem/fc/testutils"
 	"github.com/alphabill-org/alphabill/internal/txsystem/tokens"
-	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/alphabill-org/alphabill/pkg/wallet/broker"
 	"github.com/alphabill-org/alphabill/pkg/wallet/log"
-	"github.com/holiman/uint256"
 )
 
 func Test_blockProcessor_ProcessBlock(t *testing.T) {
@@ -451,7 +449,7 @@ func Test_blockProcessor_ProcessFeeCreditTxs(t *testing.T) {
 	// then fee credit bill is saved
 	fcb, err := bp.store.GetFeeCreditBill(addFC.UnitID())
 	require.NoError(t, err)
-	require.Equal(t, uint256.NewInt(1), uint256.NewInt(0).SetBytes(fcb.Id))
+	require.EqualValues(t, addFC.UnitID(), fcb.Id)
 	require.EqualValues(t, 49, fcb.GetValue())
 	expectedAddFCHash := addFC.Hash(crypto.SHA256)
 	require.Equal(t, expectedAddFCHash, fcb.TxHash)
@@ -472,7 +470,7 @@ func Test_blockProcessor_ProcessFeeCreditTxs(t *testing.T) {
 	// then fee credit bill value is reduced
 	fcb, err = bp.store.GetFeeCreditBill(closeFC.UnitID())
 	require.NoError(t, err)
-	require.Equal(t, uint256.NewInt(1), uint256.NewInt(0).SetBytes(fcb.Id))
+	require.EqualValues(t, closeFC.UnitID(), fcb.Id)
 	require.EqualValues(t, 39, fcb.GetValue())
 	require.Equal(t, closeFC.Hash(crypto.SHA256), fcb.TxHash)
 	require.Equal(t, expectedAddFCHash, fcb.LastAddFCTxHash)
@@ -496,7 +494,7 @@ func createBlockProcessor(t *testing.T) *blockProcessor {
 	return &blockProcessor{log: logger, txs: txSystem, store: db}
 }
 
-func getFeeCreditBillFunc(unitID wallet.UnitID) (*FeeCreditBill, error) {
+func getFeeCreditBillFunc(unitID types.UnitID) (*FeeCreditBill, error) {
 	return &FeeCreditBill{
 		Id:              unitID,
 		Value:           50,
@@ -507,7 +505,7 @@ func getFeeCreditBillFunc(unitID wallet.UnitID) (*FeeCreditBill, error) {
 
 func verifySetFeeCreditBill(t *testing.T, fcb *FeeCreditBill) error {
 	// verify fee credit bill value is reduced by 1 on every tx
-	require.EqualValues(t, util.Uint256ToBytes(uint256.NewInt(1)), fcb.Id)
+	require.EqualValues(t, tokens.NewFeeCreditRecordID(nil, []byte{1}), fcb.Id)
 	require.EqualValues(t, 49, fcb.Value)
 	return nil
 }

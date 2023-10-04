@@ -14,13 +14,12 @@ import (
 	"github.com/alphabill-org/alphabill/internal/rpc/alphabill"
 	"github.com/alphabill-org/alphabill/internal/script"
 	"github.com/alphabill-org/alphabill/internal/txsystem/fc/transactions"
-	billtx "github.com/alphabill-org/alphabill/internal/txsystem/money"
-	"github.com/alphabill-org/alphabill/internal/txsystem/util"
+	"github.com/alphabill-org/alphabill/internal/txsystem/money"
 	"github.com/alphabill-org/alphabill/internal/types"
+	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/fxamacker/cbor/v2"
-	"github.com/holiman/uint256"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/protobuf/types/known/emptypb"
@@ -61,8 +60,8 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	bytes32 := uint256.NewInt(*billIdUint).Bytes32()
-	billID := bytes32[:]
+
+	billID := money.NewBillID(nil, util.Uint64ToBytes(*billIdUint))
 
 	ctx := context.Background()
 	conn, err := grpc.DialContext(ctx, *uri, grpc.WithTransportCredentials(insecure.NewCredentials()))
@@ -84,10 +83,13 @@ func main() {
 
 	txFee := uint64(1)
 	feeAmount := uint64(2)
-	fcrID := util.SameShardIDBytes(billID, hash.Sum256(pubKey))
+	// Make the initial fcrID different from the default
+	// sha256(pubKey), so that wallet can later create it's own
+	// fcrID for the same account with a different owner condition
+	fcrID := money.NewFeeCreditRecordID(billID, hash.Sum256(hash.Sum256(pubKey)))
 
 	// create transferFC
-	transferFC, err := createTransferFC(feeAmount, billID, fcrID, res.RoundNumber, absoluteTimeout)
+	transferFC, err := createTransferFC(feeAmount+txFee, billID, fcrID, res.RoundNumber, absoluteTimeout)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -214,7 +216,7 @@ func createAddFC(unitID []byte, ownerCondition []byte, transferFC *types.Transac
 
 func createTransferTx(pubKey []byte, unitID []byte, billValue uint64, fcrID []byte, timeout uint64, backlink []byte) (*types.TransactionOrder, error) {
 	attr, err := cbor.Marshal(
-		&billtx.TransferAttributes{
+		&money.TransferAttributes{
 			NewBearer:   script.PredicatePayToPublicKeyHashDefault(hash.Sum256(pubKey)),
 			TargetValue: billValue,
 			Backlink:    backlink,
@@ -226,7 +228,7 @@ func createTransferTx(pubKey []byte, unitID []byte, billValue uint64, fcrID []by
 	return &types.TransactionOrder{
 		Payload: &types.Payload{
 			SystemID:   []byte{0, 0, 0, 0},
-			Type:       billtx.PayloadTypeTransfer,
+			Type:       money.PayloadTypeTransfer,
 			UnitID:     unitID,
 			Attributes: attr,
 			ClientMetadata: &types.ClientMetadata{

@@ -39,7 +39,7 @@ func handleJoinFungibleTokenTx(options *Options) txsystem.GenericExecuteFunc[Joi
 				})); err != nil {
 			return nil, err
 		}
-		return &types.ServerMetadata{ActualFee: fee, TargetUnits: []types.UnitID{unitID}}, nil
+		return &types.ServerMetadata{ActualFee: fee, TargetUnits: []types.UnitID{unitID}, SuccessIndicator: types.TxStatusSuccessful}, nil
 	}
 }
 
@@ -66,7 +66,7 @@ func validateJoinFungibleToken(tx *types.TransactionOrder, attr *JoinFungibleTok
 			return 0, errors.New("invalid sum of tokens: uint64 overflow")
 		}
 		if !bytes.Equal(btxAttr.TypeID, d.tokenType) {
-			return 0, fmt.Errorf("the type of the burned source token does not match the type of target token: expected %X, got %X", d.tokenType, btxAttr.TypeID)
+			return 0, fmt.Errorf("the type of the burned source token does not match the type of target token: expected %s, got %s", d.tokenType, btxAttr.TypeID)
 		}
 
 		if !bytes.Equal(btxAttr.Nonce, attr.Backlink) {

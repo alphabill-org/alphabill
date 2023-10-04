@@ -1,9 +1,9 @@
 package testtransaction
 
 import (
-	"math/rand"
 	"testing"
 
+	test "github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/fxamacker/cbor/v2"
 	"github.com/stretchr/testify/require"
@@ -15,14 +15,18 @@ func defaultTx() *types.TransactionOrder {
 	payload := &types.Payload{
 		SystemID:       defaultSystemID,
 		Type:           "test",
-		UnitID:         RandomBytes(32),
-		ClientMetadata: &types.ClientMetadata{Timeout: 10, MaxTransactionFee: 2},
+		UnitID:         test.RandomBytes(33),
+		ClientMetadata: defaultClientMetadata(),
 	}
 
 	return &types.TransactionOrder{
 		Payload:    payload,
-		OwnerProof: RandomBytes(3),
+		OwnerProof: test.RandomBytes(3),
 	}
+}
+
+func defaultClientMetadata() *types.ClientMetadata {
+	return &types.ClientMetadata{Timeout: 10, MaxTransactionFee: 2}
 }
 
 type Option func(*types.TransactionOrder) error
@@ -100,14 +104,4 @@ func NewTransactionRecord(t *testing.T, options ...Option) *types.TransactionRec
 			TargetUnits: []types.UnitID{tx.UnitID()},
 		},
 	}
-}
-
-func RandomBytes(len int) []byte {
-	bytes := make([]byte, len)
-	// #nosec G404
-	_, err := rand.Read(bytes)
-	if err != nil {
-		panic(err)
-	}
-	return bytes
 }

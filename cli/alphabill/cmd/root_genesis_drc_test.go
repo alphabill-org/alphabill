@@ -30,8 +30,8 @@ func TestGenerateDistributedGenesisFiles(t *testing.T) {
 	actualRGFile, _ := os.ReadFile(path.Join(outputDir, "root-genesis.json"))
 	require.EqualValues(t, expectedRGFile, actualRGFile)
 
-	expectedPGFile1, _ := os.ReadFile("testdata/expected/distributed-partition-genesis-1.json")
-	actualPGFile1, _ := os.ReadFile(path.Join(outputDir, "partition-genesis-1.json"))
+	expectedPGFile1, _ := os.ReadFile("testdata/expected/distributed-partition-genesis-0.json")
+	actualPGFile1, _ := os.ReadFile(path.Join(outputDir, "partition-genesis-0.json"))
 	require.EqualValues(t, expectedPGFile1, actualPGFile1)
 }
 

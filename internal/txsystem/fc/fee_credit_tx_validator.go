@@ -17,10 +17,11 @@ type (
 	// DefaultFeeCreditTxValidator default validator for partition specific
 	// "add fee credit" and "close fee credit" transactions
 	DefaultFeeCreditTxValidator struct {
-		moneySystemID []byte
-		systemID      []byte
-		hashAlgorithm crypto.Hash
-		verifiers     map[string]abcrypto.Verifier
+		moneySystemID           []byte
+		systemID                []byte
+		hashAlgorithm           crypto.Hash
+		verifiers               map[string]abcrypto.Verifier
+		feeCreditRecordUnitType []byte
 	}
 
 	AddFCValidationContext struct {
@@ -35,12 +36,13 @@ type (
 	}
 )
 
-func NewDefaultFeeCreditTxValidator(moneySystemID, systemID []byte, hashAlgorithm crypto.Hash, verifiers map[string]abcrypto.Verifier) *DefaultFeeCreditTxValidator {
+func NewDefaultFeeCreditTxValidator(moneySystemID, systemID []byte, hashAlgorithm crypto.Hash, verifiers map[string]abcrypto.Verifier, feeCreditRecordUnitType []byte) *DefaultFeeCreditTxValidator {
 	return &DefaultFeeCreditTxValidator{
-		moneySystemID: moneySystemID,
-		systemID:      systemID,
-		hashAlgorithm: hashAlgorithm,
-		verifiers:     verifiers,
+		moneySystemID:           moneySystemID,
+		systemID:                systemID,
+		hashAlgorithm:           hashAlgorithm,
+		verifiers:               verifiers,
+		feeCreditRecordUnitType: feeCreditRecordUnitType,
 	}
 }
 
@@ -71,9 +73,17 @@ func (v *DefaultFeeCreditTxValidator) ValidateAddFeeCredit(ctx *AddFCValidationC
 	if attr.FeeCreditTransferProof == nil {
 		return errors.New("transferFC tx proof is nil")
 	}
+	if attr.FeeCreditTransfer.ServerMetadata == nil {
+		return errors.New("transferFC tx order is missing server metadata")
+	}
+
+	// 1. ExtrType(P.ι) = fcr – target unit is a fee credit record
+	if !tx.UnitID().HasType(v.feeCreditRecordUnitType) {
+		return errors.New("invalid unit identifier: type is not fee credit record")
+	}
+
 	var fcr *unit.FeeCreditRecord
 	if ctx.Unit != nil {
-		// 1. ExtrType(P.ι) = fcr – target unit is a fee credit record
 		var ok bool
 		fcr, ok = ctx.Unit.Data().(*unit.FeeCreditRecord)
 		if !ok {
@@ -111,9 +121,9 @@ func (v *DefaultFeeCreditTxValidator) ValidateAddFeeCredit(ctx *AddFCValidationC
 		return fmt.Errorf("invalid transferFC target record id: transferFC.TargetRecordId=%X tx.UnitId=%X", transferTxAttr.TargetRecordID, tx.UnitID())
 	}
 
-	// 7. (S.N[P.ι] = ⊥ ∧ P.A.P.A.η = ⊥) ∨ (S.N[P.ι] != ⊥ ∧ P.A.P.A.η = S.N[P.ι].λ) – bill transfer order contains correct nonce
-	if !bytes.Equal(transferTxAttr.Nonce, fcr.GetHash()) {
-		return fmt.Errorf("invalid transferFC nonce: transferFC.nonce=%X unit.backlink=%X", transferTxAttr.Nonce, fcr.GetHash())
+	// 7. (S.N[P.ι] = ⊥ ∧ P.A.P.A.η = ⊥) ∨ (S.N[P.ι] != ⊥ ∧ P.A.P.A.η = S.N[P.ι].λ) – bill transfer order contains correct target unit backlink
+	if !bytes.Equal(transferTxAttr.TargetUnitBacklink, fcr.GetHash()) {
+		return fmt.Errorf("invalid transferFC target unit backlink: transferFC.targetUnitBacklink=%X unit.backlink=%X", transferTxAttr.TargetUnitBacklink, fcr.GetHash())
 	}
 
 	// 8. P.A.P.A.tb ≤ t ≤ P.A.P.A.te, where t is the number of the current block being composed – bill transfer is valid to be used in this block
@@ -124,9 +134,10 @@ func (v *DefaultFeeCreditTxValidator) ValidateAddFeeCredit(ctx *AddFCValidationC
 		return fmt.Errorf("invalid transferFC timeout: earliest=%d latest=%d current=%d", tb, te, t)
 	}
 
-	// 9. P.MC.fm ≤ P.A.P.A.v – the transaction fee can’t exceed the transferred value
-	if tx.Payload.ClientMetadata.MaxTransactionFee > transferTxAttr.Amount {
-		return fmt.Errorf("invalid transferFC fee: max_fee=%d transferFC.Amount=%d", tx.Payload.ClientMetadata.MaxTransactionFee, transferTxAttr.Amount)
+	// 9. P.MC.fa + P.MC.fm ≤ P.A.P.A.v – the transaction fees can’t exceed the transferred value
+	feeLimit := tx.Payload.ClientMetadata.MaxTransactionFee + attr.FeeCreditTransfer.ServerMetadata.ActualFee
+	if feeLimit > transferTxAttr.Amount {
+		return fmt.Errorf("invalid transferFC fee: max_fee+actual_fee=%d transferFC.Amount=%d", feeLimit, transferTxAttr.Amount)
 	}
 
 	// 3. VerifyBlockProof(P.A.Π, P.A.P, S.T, S.SD) – proof of the bill transfer order verifies
@@ -151,6 +162,11 @@ func (v *DefaultFeeCreditTxValidator) ValidateCloseFC(ctx *CloseFCValidationCont
 		return errors.New("fee tx cannot contain fee authorization proof")
 	}
 
+	// ExtrType(P.ι) = fcr – target unit is a fee credit record
+	if !tx.UnitID().HasType(v.feeCreditRecordUnitType) {
+		return errors.New("invalid unit identifier: type is not fee credit record")
+	}
+
 	// S.N[P.ι] != ⊥ - ι identifies an existing fee credit record
 	fcr, ok := ctx.Unit.Data().(*unit.FeeCreditRecord)
 	if !ok {
@@ -164,6 +180,12 @@ func (v *DefaultFeeCreditTxValidator) ValidateCloseFC(ctx *CloseFCValidationCont
 	}
 	if closeFCAttributes.Amount != fcr.Balance {
 		return fmt.Errorf("invalid amount: amount=%d fcr.Balance=%d", closeFCAttributes.Amount, fcr.Balance)
+	}
+	if len(closeFCAttributes.TargetUnitID) == 0 {
+		return errors.New("TargetUnitID is empty")
+	}
+	if len(closeFCAttributes.TargetUnitBacklink) == 0 {
+		return errors.New("TargetUnitBacklink is empty")
 	}
 
 	// P.MC.fm ≤ S.N[ι].b - the transaction fee can’t exceed the current balance of the record

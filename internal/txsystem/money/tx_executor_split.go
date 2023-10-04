@@ -9,15 +9,14 @@ import (
 	"github.com/alphabill-org/alphabill/internal/state"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/internal/txsystem/fc"
-	txutil "github.com/alphabill-org/alphabill/internal/txsystem/util"
 	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/internal/util"
 )
 
 var (
 	ErrInvalidBillValue       = errors.New("transaction value must be equal to bill value")
-	ErrSplitBillZeroAmount    = errors.New("when splitting an bill the value assigned to the new bill must be greater than zero")
-	ErrSplitBillZeroRemainder = errors.New("when splitting an bill the remaining value of the bill must be greater than zero")
+	ErrSplitBillZeroAmount    = errors.New("when splitting a bill the value assigned to the new bill must be greater than zero")
+	ErrSplitBillZeroRemainder = errors.New("when splitting a bill the remaining value of the bill must be greater than zero")
 	ErrInvalidDataType        = errors.New("invalid data type")
 )
 
@@ -29,7 +28,7 @@ func handleSplitTx(s *state.State, hashAlgorithm crypto.Hash, feeCalc fc.FeeCalc
 		}
 
 		unitID := tx.UnitID()
-		newItemID := txutil.SameShardID(unitID, HashForIDCalculation(unitID, tx.Payload.Attributes, tx.Timeout(), hashAlgorithm))
+		newItemID := NewBillID(unitID, HashForIDCalculation(unitID, tx.Payload.Attributes, tx.Timeout(), hashAlgorithm))
 
 		// calculate actual tx fee cost
 		fee := feeCalc()
@@ -56,7 +55,7 @@ func handleSplitTx(s *state.State, hashAlgorithm crypto.Hash, feeCalc fc.FeeCalc
 			})); err != nil {
 			return nil, fmt.Errorf("unit update failed: %w", err)
 		}
-		return &types.ServerMetadata{ActualFee: fee, TargetUnits: []types.UnitID{unitID, newItemID}}, nil
+		return &types.ServerMetadata{ActualFee: fee, TargetUnits: []types.UnitID{unitID, newItemID}, SuccessIndicator: types.TxStatusSuccessful}, nil
 	}
 }
 

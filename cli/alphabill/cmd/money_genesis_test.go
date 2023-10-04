@@ -11,9 +11,9 @@ import (
 
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/internal/script"
+	"github.com/alphabill-org/alphabill/internal/txsystem/money"
 	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/fxamacker/cbor/v2"
-	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
 )
 
@@ -40,7 +40,7 @@ func TestMoneyGenesis_ForceKeyGeneration(t *testing.T) {
 	require.NoError(t, err)
 
 	require.FileExists(t, filepath.Join(homeDir, moneyGenesisDir, defaultKeysFileName))
-	require.FileExists(t, filepath.Join(homeDir, moneyGenesisDir, nodeGenesisFileName))
+	require.FileExists(t, filepath.Join(homeDir, moneyGenesisDir, moneyGenesisFileName))
 }
 
 func TestMoneyGenesis_DefaultNodeGenesisExists(t *testing.T) {
@@ -48,7 +48,7 @@ func TestMoneyGenesis_DefaultNodeGenesisExists(t *testing.T) {
 	err := os.MkdirAll(filepath.Join(homeDir, moneyGenesisDir), 0700)
 	require.NoError(t, err)
 
-	nodeGenesisFile := filepath.Join(homeDir, moneyGenesisDir, nodeGenesisFileName)
+	nodeGenesisFile := filepath.Join(homeDir, moneyGenesisDir, moneyGenesisFileName)
 	err = util.WriteJsonFile(nodeGenesisFile, &genesis.PartitionNode{NodeIdentifier: "1"})
 	require.NoError(t, err)
 
@@ -65,7 +65,7 @@ func TestMoneyGenesis_LoadExistingKeys(t *testing.T) {
 	err := os.MkdirAll(filepath.Join(homeDir, moneyGenesisDir), 0700)
 	require.NoError(t, err)
 	kf := filepath.Join(homeDir, moneyGenesisDir, defaultKeysFileName)
-	nodeGenesisFile := filepath.Join(homeDir, moneyGenesisDir, nodeGenesisFileName)
+	nodeGenesisFile := filepath.Join(homeDir, moneyGenesisDir, moneyGenesisFileName)
 	nodeKeys, err := GenerateKeys()
 	require.NoError(t, err)
 	err = nodeKeys.WriteTo(kf)
@@ -89,7 +89,7 @@ func TestMoneyGenesis_WritesGenesisToSpecifiedOutputLocation(t *testing.T) {
 	err = os.MkdirAll(filepath.Join(homeDir, moneyGenesisDir, "n1"), 0700)
 	require.NoError(t, err)
 
-	nodeGenesisFile := filepath.Join(homeDir, moneyGenesisDir, "n1", nodeGenesisFileName)
+	nodeGenesisFile := filepath.Join(homeDir, moneyGenesisDir, "n1", moneyGenesisFileName)
 
 	cmd := New()
 	args := "money-genesis --gen-keys -o " + nodeGenesisFile + " --home " + homeDir
@@ -110,7 +110,7 @@ func TestMoneyGenesis_WithSystemIdentifier(t *testing.T) {
 	require.NoError(t, err)
 
 	kf := filepath.Join(homeDir, moneyGenesisDir, "n1", defaultKeysFileName)
-	nodeGenesisFile := filepath.Join(homeDir, moneyGenesisDir, "n1", nodeGenesisFileName)
+	nodeGenesisFile := filepath.Join(homeDir, moneyGenesisDir, "n1", moneyGenesisFileName)
 
 	cmd := New()
 	args := "money-genesis -g -k " + kf + " -o " + nodeGenesisFile + " -s 01010101"
@@ -134,7 +134,7 @@ func TestMoneyGenesis_DefaultParamsExist(t *testing.T) {
 	err := cmd.addAndExecuteCommand(context.Background())
 	require.NoError(t, err)
 
-	gf := filepath.Join(homeDir, moneyGenesisDir, nodeGenesisFileName)
+	gf := filepath.Join(homeDir, moneyGenesisDir, moneyGenesisFileName)
 	pg, err := util.ReadJsonFile(gf, &genesis.PartitionGenesis{})
 	require.NoError(t, err)
 	require.NotNil(t, pg)
@@ -152,10 +152,10 @@ func TestMoneyGenesis_DefaultParamsExist(t *testing.T) {
 func TestMoneyGenesis_ParamsCanBeChanged(t *testing.T) {
 	homeDir := setupTestHomeDir(t, alphabillDir)
 	sdr := &genesis.SystemDescriptionRecord{
-		SystemIdentifier: []byte{0, 0, 0, 0},
+		SystemIdentifier: money.DefaultSystemIdentifier,
 		T2Timeout:        10000,
 		FeeCreditBill: &genesis.FeeCreditBill{
-			UnitId:         util.Uint256ToBytes(uint256.NewInt(2)),
+			UnitId:         money.NewBillID(nil, []byte{2}),
 			OwnerPredicate: script.PredicateAlwaysFalse(),
 		},
 	}
@@ -168,7 +168,7 @@ func TestMoneyGenesis_ParamsCanBeChanged(t *testing.T) {
 	err = cmd.addAndExecuteCommand(context.Background())
 	require.NoError(t, err)
 
-	gf := filepath.Join(homeDir, moneyGenesisDir, nodeGenesisFileName)
+	gf := filepath.Join(homeDir, moneyGenesisDir, moneyGenesisFileName)
 	pg, err := util.ReadJsonFile(gf, &genesis.PartitionGenesis{})
 	require.NoError(t, err)
 	require.NotNil(t, pg)

@@ -8,6 +8,8 @@ import (
 	"math"
 	"testing"
 
+	"github.com/alphabill-org/alphabill/pkg/wallet/money/tx_builder"
+
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	ttxs "github.com/alphabill-org/alphabill/internal/txsystem/tokens"
 	"github.com/alphabill-org/alphabill/internal/types"
@@ -107,17 +109,17 @@ func TestFungibleTokenDC(t *testing.T) {
 			}
 			return nil
 		},
-		getTxProof: func(ctx context.Context, unitID sdk.UnitID, txHash sdk.TxHash) (*sdk.Proof, error) {
+		getTxProof: func(ctx context.Context, unitID types.UnitID, txHash sdk.TxHash) (*sdk.Proof, error) {
 			recordedTx, found := recordedTx[string(unitID)]
 			if !found {
 				return nil, errors.New("tx not found")
 			}
-			return &sdk.Proof{TxRecord: &types.TransactionRecord{TransactionOrder: recordedTx}, TxProof: nil}, nil
+			return &sdk.Proof{TxRecord: &types.TransactionRecord{TransactionOrder: recordedTx, ServerMetadata: &types.ServerMetadata{ActualFee: tx_builder.MaxFee}}, TxProof: nil}, nil
 		},
 		getRoundNumber: func(ctx context.Context) (uint64, error) {
 			return 1, nil
 		},
-		getFeeCreditBill: func(ctx context.Context, unitID sdk.UnitID) (*sdk.Bill, error) {
+		getFeeCreditBill: func(ctx context.Context, unitID types.UnitID) (*sdk.Bill, error) {
 			return &sdk.Bill{
 				Id:     []byte{1},
 				Value:  100000,
@@ -131,14 +133,20 @@ func TestFungibleTokenDC(t *testing.T) {
 	ctx := context.Background()
 
 	// this should only join tokens with type typeID3
-	require.NoError(t, tw.CollectDust(ctx, AllAccounts, nil, nil))
+	results, err := tw.CollectDust(ctx, AllAccounts, nil, nil)
+	require.NoError(t, err)
 	require.Len(t, recordedTx, 3) // 2 burns, 1 join
+	require.Len(t, results, 1)
+	require.Equal(t, uint64(3), results[0].FeeSum)
 	// tx validation is done in postTransactions()
 
 	// repeat, but with the specific account number
 	burnedValues, accTokens, recordedTx = resetFunc()
-	require.NoError(t, tw.CollectDust(ctx, 1, nil, nil))
+	results, err = tw.CollectDust(ctx, 1, nil, nil)
+	require.NoError(t, err)
 	require.Len(t, recordedTx, 3) // 2 burns, 1 join
+	require.Len(t, results, 1)
+	require.Equal(t, uint64(3), results[0].FeeSum)
 
 	// DC amount uint64 overflow, single batch
 	burnedValues, accTokens, recordedTx = resetFunc()
@@ -146,8 +154,10 @@ func TestFungibleTokenDC(t *testing.T) {
 		{ID: test.RandomBytes(32), Kind: twb.Fungible, Symbol: "AB2", TypeID: typeID1, Amount: math.MaxUint64},
 		{ID: test.RandomBytes(32), Kind: twb.Fungible, Symbol: "AB2", TypeID: typeID1, Amount: 1},
 	}
-	require.NoError(t, tw.CollectDust(ctx, 3, nil, nil))
+	results, err = tw.CollectDust(ctx, 3, nil, nil)
+	require.NoError(t, err)
 	require.Empty(t, recordedTx, "no tx should be recorded if uint64 overflow occurs")
+	require.Empty(t, results)
 
 	// DC amount uint64 overflow, two batches, second one causes overflow
 	burnedValues, accTokens, recordedTx = resetFunc()
@@ -158,11 +168,14 @@ func TestFungibleTokenDC(t *testing.T) {
 		expectedToJoinInFirstBatch += token.Amount
 	}
 	accTokens[string(pubKey2)] = append(accTokens[string(pubKey2)], &twb.TokenUnit{ID: test.RandomBytes(32), Kind: twb.Fungible, Symbol: "AB2", TypeID: typeID1, Amount: math.MaxUint64})
-	require.NoError(t, tw.CollectDust(ctx, 3, nil, nil))
+	results, err = tw.CollectDust(ctx, 3, nil, nil)
+	require.NoError(t, err)
 	require.Len(t, recordedTx, 101)               // 100 burns, 1 join from the first batch
 	require.Len(t, accTokens[string(pubKey2)], 2) // 1 token joined and 1 left from the second batch
 	require.Equal(t, expectedToJoinInFirstBatch, accTokens[string(pubKey2)][0].Amount)
 	require.EqualValues(t, uint64(math.MaxUint64), accTokens[string(pubKey2)][1].Amount)
+	require.Len(t, results, 1)
+	require.Equal(t, uint64(101), results[0].FeeSum)
 }
 
 func TestGetTokensForDC(t *testing.T) {

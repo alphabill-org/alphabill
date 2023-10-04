@@ -6,14 +6,15 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/spf13/cobra"
+
 	"github.com/alphabill-org/alphabill/internal/errors"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/alphabill-org/alphabill/pkg/wallet/money/backend"
 	"github.com/alphabill-org/alphabill/pkg/wallet/money/backend/client"
 	"github.com/alphabill-org/alphabill/pkg/wallet/unitlock"
-	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/spf13/cobra"
 )
 
 const (
@@ -85,6 +86,7 @@ func execListCmd(cmd *cobra.Command, config *walletConfig) error {
 
 	type accountBillGroup struct {
 		accountIndex uint64
+		pubKey       []byte
 		bills        *backend.ListBillsResponse
 	}
 	var accountBillGroups []*accountBillGroup
@@ -94,11 +96,11 @@ func execListCmd(cmd *cobra.Command, config *walletConfig) error {
 			return err
 		}
 		for accountIndex, pubKey := range pubKeys {
-			bills, err := restClient.ListBills(cmd.Context(), pubKey, showUnswapped, false)
+			bills, err := restClient.ListBills(cmd.Context(), pubKey, showUnswapped, "", 100)
 			if err != nil {
 				return err
 			}
-			accountBillGroups = append(accountBillGroups, &accountBillGroup{accountIndex: uint64(accountIndex), bills: bills})
+			accountBillGroups = append(accountBillGroups, &accountBillGroup{pubKey: pubKey, accountIndex: uint64(accountIndex), bills: bills})
 		}
 	} else {
 		accountIndex := accountNumber - 1
@@ -106,11 +108,11 @@ func execListCmd(cmd *cobra.Command, config *walletConfig) error {
 		if err != nil {
 			return err
 		}
-		accountBills, err := restClient.ListBills(cmd.Context(), pubKey, showUnswapped, false)
+		accountBills, err := restClient.ListBills(cmd.Context(), pubKey, showUnswapped, "", 100)
 		if err != nil {
 			return err
 		}
-		accountBillGroups = append(accountBillGroups, &accountBillGroup{accountIndex: accountIndex, bills: accountBills})
+		accountBillGroups = append(accountBillGroups, &accountBillGroup{pubKey: pubKey, accountIndex: accountIndex, bills: accountBills})
 	}
 
 	for _, group := range accountBillGroups {
@@ -121,7 +123,7 @@ func execListCmd(cmd *cobra.Command, config *walletConfig) error {
 		}
 		for j, bill := range group.bills.Bills {
 			billValueStr := amountToString(bill.Value, 8)
-			lockedReasonStr, err := getLockedReasonString(unitLocker, bill)
+			lockedReasonStr, err := getLockedReasonString(group.pubKey, unitLocker, bill)
 			if err != nil {
 				return err
 			}
@@ -131,8 +133,8 @@ func execListCmd(cmd *cobra.Command, config *walletConfig) error {
 	return nil
 }
 
-func getLockedReasonString(unitLocker *unitlock.UnitLocker, bill *wallet.Bill) (string, error) {
-	lockedUnit, err := unitLocker.GetUnit(bill.GetID())
+func getLockedReasonString(accountID []byte, unitLocker *unitlock.UnitLocker, bill *wallet.Bill) (string, error) {
+	lockedUnit, err := unitLocker.GetUnit(accountID, bill.GetID())
 	if err != nil {
 		return "", fmt.Errorf("failed to load locked unit: %w", err)
 	}
@@ -209,7 +211,7 @@ func execExportCmd(cmd *cobra.Command, config *walletConfig) error {
 	}
 
 	// export all bills if neither --bill-id or --bill-order-number are given
-	billsList, err := restClient.ListBills(cmd.Context(), pk, showUnswapped, false)
+	billsList, err := restClient.ListBills(cmd.Context(), pk, showUnswapped, "", 100)
 	if err != nil {
 		return err
 	}
@@ -227,7 +229,14 @@ func execExportCmd(cmd *cobra.Command, config *walletConfig) error {
 		if proof == nil {
 			return fmt.Errorf("proof not found for bill 0x%X", billID)
 		}
-		bills = append(bills, &wallet.BillProof{Bill: &wallet.Bill{Id: b.Id, Value: b.Value, DcNonce: b.DcNonce, TxHash: b.TxHash}, TxProof: proof})
+		bills = append(bills, &wallet.BillProof{
+			Bill: &wallet.Bill{
+				Id:                   b.Id,
+				Value:                b.Value,
+				DCTargetUnitID:       b.DCTargetUnitID,
+				DCTargetUnitBacklink: b.DCTargetUnitBacklink,
+				TxHash:               b.TxHash},
+			TxProof: proof})
 	}
 
 	outputFile, err := writeProofsToFile(outputPath, bills...)

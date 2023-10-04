@@ -61,7 +61,7 @@ func newLeaf[K Key[K], V Value[V]](key K, value V) *Node[K, V] {
 func newDirtyNode[K Key[K], V Value[V]](n *Node[K, V]) *Node[K, V] {
 	return &Node[K, V]{
 		key:   n.key,
-		value: n.value,
+		value: n.value.Clone(),
 		depth: n.depth,
 		left:  n.left,
 		right: n.right,

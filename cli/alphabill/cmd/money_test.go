@@ -18,11 +18,11 @@ import (
 	"github.com/alphabill-org/alphabill/internal/testutils/net"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	test "github.com/alphabill-org/alphabill/internal/testutils/time"
+	"github.com/alphabill-org/alphabill/internal/txsystem/money"
 	billtx "github.com/alphabill-org/alphabill/internal/txsystem/money"
 	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/fxamacker/cbor/v2"
-	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
@@ -288,7 +288,7 @@ func envVarsStr(envVars []envVar) (out string) {
 func TestRunMoneyNode_Ok(t *testing.T) {
 	homeDirMoney := setupTestHomeDir(t, "money")
 	keysFileLocation := filepath.Join(homeDirMoney, defaultKeysFileName)
-	nodeGenesisFileLocation := filepath.Join(homeDirMoney, nodeGenesisFileName)
+	nodeGenesisFileLocation := filepath.Join(homeDirMoney, moneyGenesisFileName)
 	partitionGenesisFileLocation := filepath.Join(homeDirMoney, "partition-genesis.json")
 	test.MustRunInTime(t, 5*time.Second, func() {
 		moneyNodeAddr := fmt.Sprintf("localhost:%d", net.GetFreeRandomPort(t))
@@ -349,7 +349,7 @@ func TestRunMoneyNode_Ok(t *testing.T) {
 }
 
 func makeSuccessfulPayment(t *testing.T, ctx context.Context, txClient alphabill.AlphabillServiceClient) {
-	initialBillID := uint256.NewInt(defaultInitialBillId).Bytes32()
+	initialBillID := defaultInitialBillID
 	attr := &billtx.TransferAttributes{
 		NewBearer:   script.PredicateAlwaysTrue(),
 		TargetValue: defaultInitialBillValue,
@@ -372,7 +372,7 @@ func makeSuccessfulPayment(t *testing.T, ctx context.Context, txClient alphabill
 }
 
 func makeFailingPayment(t *testing.T, ctx context.Context, txClient alphabill.AlphabillServiceClient) {
-	wrongBillID := uint256.NewInt(6).Bytes32()
+	wrongBillID := money.NewBillID(nil, []byte{6})
 	attr := &billtx.TransferAttributes{
 		NewBearer:   script.PredicateAlwaysTrue(),
 		TargetValue: defaultInitialBillValue,
@@ -381,7 +381,7 @@ func makeFailingPayment(t *testing.T, ctx context.Context, txClient alphabill.Al
 	tx := &types.TransactionOrder{
 		Payload: &types.Payload{
 			Type:           billtx.PayloadTypeTransfer,
-			UnitID:         wrongBillID[:],
+			UnitID:         wrongBillID,
 			ClientMetadata: &types.ClientMetadata{Timeout: 10},
 			SystemID:       []byte{0},
 			Attributes:     attrBytes,

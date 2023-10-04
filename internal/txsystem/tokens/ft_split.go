@@ -8,7 +8,6 @@ import (
 
 	"github.com/alphabill-org/alphabill/internal/state"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
-	txutil "github.com/alphabill-org/alphabill/internal/txsystem/util"
 	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/fxamacker/cbor/v2"
@@ -27,7 +26,7 @@ func handleSplitFungibleTokenTx(options *Options) txsystem.GenericExecuteFunc[Sp
 		}
 		d := u.Data().(*fungibleTokenData)
 		// add new token unit
-		newTokenID := txutil.SameShardID(unitID, HashForIDCalculation(tx, options.hashAlgorithm))
+		newTokenID := NewFungibleTokenID(unitID, HashForIDCalculation(tx, options.hashAlgorithm))
 		logger.Debug("Adding a fungible token with ID %v", newTokenID)
 
 		fee := options.feeCalculator()
@@ -59,14 +58,13 @@ func handleSplitFungibleTokenTx(options *Options) txsystem.GenericExecuteFunc[Sp
 			return nil, err
 		}
 
-		return &types.ServerMetadata{ActualFee: fee, TargetUnits: []types.UnitID{unitID, newTokenID}}, nil
+		return &types.ServerMetadata{ActualFee: fee, TargetUnits: []types.UnitID{unitID, newTokenID}, SuccessIndicator: types.TxStatusSuccessful}, nil
 	}
 }
 
 func HashForIDCalculation(tx *types.TransactionOrder, hashFunc crypto.Hash) []byte {
 	hasher := hashFunc.New()
-	idBytes := util.BytesToUint256(tx.UnitID()).Bytes32()
-	hasher.Write(idBytes[:])
+	hasher.Write(tx.UnitID())
 	hasher.Write(tx.Payload.Attributes)
 	hasher.Write(util.Uint64ToBytes(tx.Timeout()))
 	return hasher.Sum(nil)
@@ -95,7 +93,7 @@ func validateSplitFungibleToken(tx *types.TransactionOrder, attr *SplitFungibleT
 		return fmt.Errorf("invalid backlink: expected %X, got %X", d.backlink, attr.Backlink)
 	}
 	if !bytes.Equal(attr.TypeID, d.tokenType) {
-		return fmt.Errorf("invalid type identifier: expected '%X', got '%X'", d.tokenType, attr.TypeID)
+		return fmt.Errorf("invalid type identifier: expected '%s', got '%s'", d.tokenType, attr.TypeID)
 	}
 
 	predicates, err := getChainedPredicates[*fungibleTokenTypeData](
@@ -164,11 +162,11 @@ func (s *SplitFungibleTokenAttributes) SetBacklink(backlink []byte) {
 	s.Backlink = backlink
 }
 
-func (s *SplitFungibleTokenAttributes) GetTypeID() []byte {
+func (s *SplitFungibleTokenAttributes) GetTypeID() types.UnitID {
 	return s.TypeID
 }
 
-func (s *SplitFungibleTokenAttributes) SetTypeID(typeID []byte) {
+func (s *SplitFungibleTokenAttributes) SetTypeID(typeID types.UnitID) {
 	s.TypeID = typeID
 }
 

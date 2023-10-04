@@ -61,7 +61,7 @@ func (f *feeCreditTxRecorder) recordReclaimFC(tx *reclaimFeeCreditTx) {
 func (f *feeCreditTxRecorder) getAddedCredit(sid string) uint64 {
 	var sum uint64
 	for _, transferFC := range f.transferFeeCredits[sid] {
-		sum += transferFC.attr.Amount
+		sum += transferFC.attr.Amount - transferFC.fee
 	}
 	return sum
 }

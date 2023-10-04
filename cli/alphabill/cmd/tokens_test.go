@@ -3,7 +3,6 @@ package cmd
 import (
 	"context"
 	"fmt"
-	"math/rand"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -11,7 +10,6 @@ import (
 	"time"
 
 	"github.com/fxamacker/cbor/v2"
-	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
@@ -20,6 +18,7 @@ import (
 	rootgenesis "github.com/alphabill-org/alphabill/internal/rootchain/genesis"
 	"github.com/alphabill-org/alphabill/internal/rpc/alphabill"
 	"github.com/alphabill-org/alphabill/internal/script"
+	test "github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/alphabill-org/alphabill/internal/testutils/net"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	testtime "github.com/alphabill-org/alphabill/internal/testutils/time"
@@ -31,7 +30,7 @@ import (
 func TestRunTokensNode(t *testing.T) {
 	homeDir := setupTestHomeDir(t, "tokens")
 	keysFileLocation := filepath.Join(homeDir, defaultKeysFileName)
-	nodeGenesisFileLocation := filepath.Join(homeDir, nodeGenesisFileName)
+	nodeGenesisFileLocation := filepath.Join(homeDir, utGenesisFileName)
 	partitionGenesisFileLocation := filepath.Join(homeDir, "partition-genesis.json")
 	testtime.MustRunInTime(t, 5*time.Second, func() {
 		ctx, ctxCancel := context.WithCancel(context.Background())
@@ -84,7 +83,7 @@ func TestRunTokensNode(t *testing.T) {
 
 		// Test
 		// green path
-		id := uint256.NewInt(rand.Uint64()).Bytes32()
+		id := tokens.NewNonFungibleTokenTypeID(nil, test.RandomBytes(32))
 		attr := &tokens.CreateNonFungibleTokenTypeAttributes{
 			Symbol:                   "Test",
 			ParentTypeID:             []byte{0},

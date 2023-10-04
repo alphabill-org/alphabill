@@ -30,7 +30,10 @@ import (
 	"github.com/alphabill-org/alphabill/internal/util"
 )
 
-const BoltBlockStoreFileName = "blocks.db"
+const (
+	BoltBlockStoreFileName = "blocks.db"
+	TxIndexerStoreFileName = "tx_indexer.db"
+)
 
 type baseNodeConfiguration struct {
 	Base *baseConfiguration
@@ -42,16 +45,20 @@ type startNodeConfiguration struct {
 	KeyFile                    string
 	RootChainAddress           string
 	DbFile                     string
+	TxIndexerDBFile            string
 	LedgerReplicationMaxBlocks uint64
 	LedgerReplicationMaxTx     uint32
 }
 
 func defaultNodeRunFunc(ctx context.Context, name string, txs txsystem.TransactionSystem, nodeCfg *startNodeConfiguration, rpcServerConf *grpcServerConfiguration, restServerConf *restServerConfiguration) error {
-	self, node, err := createNode(ctx, txs, nodeCfg)
+	self, node, err := createNode(ctx, txs, nodeCfg, nil)
 	if err != nil {
 		return fmt.Errorf("failed to create node %q: %w", name, err)
 	}
+	return run(ctx, name, self, node, rpcServerConf, restServerConf)
+}
 
+func run(ctx context.Context, name string, self *network.Peer, node *partition.Node, rpcServerConf *grpcServerConfiguration, restServerConf *restServerConfiguration) error {
 	g, ctx := errgroup.WithContext(ctx)
 
 	g.Go(func() error { return node.Run(ctx) })
@@ -89,10 +96,11 @@ func defaultNodeRunFunc(ctx context.Context, name string, txs txsystem.Transacti
 		if restServerConf.IsAddressEmpty() {
 			return nil // return nil in this case in order not to kill the group!
 		}
-		restServer, err := initRESTServer(node, self, restServerConf)
-		if err != nil {
-			return fmt.Errorf("failed to create REST server for %s: %w", name, err)
+		routers := []rpc.Registrar{rpc.NodeEndpoints(node), rpc.MetricsEndpoints(), rpc.InfoEndpoints(node, self)}
+		if restServerConf.router != nil {
+			routers = append(routers, restServerConf.router)
 		}
+		restServer := initRESTServer(restServerConf, routers...)
 
 		errch := make(chan error, 1)
 		go func() {
@@ -118,17 +126,14 @@ func defaultNodeRunFunc(ctx context.Context, name string, txs txsystem.Transacti
 	return g.Wait()
 }
 
-func initRESTServer(node *partition.Node, self *network.Peer, conf *restServerConfiguration) (*rpc.RestServer, error) {
-	rs, err := rpc.NewRESTServer(node, conf.Address, conf.MaxBodyBytes, self)
-	if err != nil {
-		return nil, err
-	}
+func initRESTServer(conf *restServerConfiguration, routes ...rpc.Registrar) *http.Server {
+	rs := rpc.NewRESTServer(conf.Address, conf.MaxBodyBytes, routes...)
 	rs.ReadTimeout = conf.ReadTimeout
 	rs.ReadHeaderTimeout = conf.ReadHeaderTimeout
 	rs.WriteTimeout = conf.WriteTimeout
 	rs.IdleTimeout = conf.IdleTimeout
 	rs.MaxHeaderBytes = conf.MaxHeaderBytes
-	return rs, nil
+	return rs
 }
 
 func loadNetworkConfiguration(ctx context.Context, keys *Keys, pg *genesis.PartitionGenesis, cfg *startNodeConfiguration) (*network.Peer, error) {
@@ -197,7 +202,7 @@ func initRPCServer(node *partition.Node, cfg *grpcServerConfiguration) (*grpc.Se
 	return grpcServer, nil
 }
 
-func createNode(ctx context.Context, txs txsystem.TransactionSystem, cfg *startNodeConfiguration) (*network.Peer, *partition.Node, error) {
+func createNode(ctx context.Context, txs txsystem.TransactionSystem, cfg *startNodeConfiguration, blockStore keyvaluedb.KeyValueDB) (*network.Peer, *partition.Node, error) {
 	keys, err := LoadKeys(cfg.KeyFile, false, false)
 	if err != nil {
 		return nil, nil, err
@@ -224,19 +229,36 @@ func createNode(ctx context.Context, txs txsystem.TransactionSystem, cfg *startN
 	if err != nil {
 		return nil, nil, err
 	}
-	blockStore, err := initNodeBlockStore(cfg.DbFile)
+	if blockStore == nil {
+		blockStore, err = initNodeBlockStore(cfg.DbFile)
+		if err != nil {
+			return nil, nil, err
+		}
+	}
 	if err != nil {
 		return nil, nil, err
 	}
+	options := []partition.NodeOption{
+		partition.WithRootAddressAndIdentifier(rootAddress, rootID),
+		partition.WithBlockStore(blockStore),
+		partition.WithReplicationParams(cfg.LedgerReplicationMaxBlocks, cfg.LedgerReplicationMaxTx),
+	}
+
+	if cfg.TxIndexerDBFile != "" {
+		txIndexer, err := boltdb.New(cfg.TxIndexerDBFile)
+		if err != nil {
+			return nil, nil, fmt.Errorf("unable to load tx indexer: %w", err)
+		}
+		options = append(options, partition.WithTxIndexer(txIndexer))
+	}
+
 	node, err := partition.New(
 		p,
 		keys.SigningPrivateKey,
 		txs,
 		pg,
 		n,
-		partition.WithRootAddressAndIdentifier(rootAddress, rootID),
-		partition.WithBlockStore(blockStore),
-		partition.WithReplicationParams(cfg.LedgerReplicationMaxBlocks, cfg.LedgerReplicationMaxTx),
+		options...,
 	)
 	if err != nil {
 		return nil, nil, err
@@ -281,6 +303,7 @@ func addCommonNodeConfigurationFlags(nodeCmd *cobra.Command, config *startNodeCo
 	nodeCmd.Flags().StringVarP(&config.KeyFile, keyFileCmdFlag, "k", "", fmt.Sprintf("path to the key file (default: $AB_HOME/%s/keys.json)", partitionSuffix))
 	nodeCmd.Flags().StringVarP(&config.Genesis, "genesis", "g", "", fmt.Sprintf("path to the partition genesis file : $AB_HOME/%s/partition-genesis.json)", partitionSuffix))
 	nodeCmd.Flags().StringVarP(&config.DbFile, "db", "f", "", fmt.Sprintf("path to the database file (default: $AB_HOME/%s/%s)", partitionSuffix, BoltBlockStoreFileName))
+	nodeCmd.Flags().StringVarP(&config.TxIndexerDBFile, "tx-db", "", "", fmt.Sprintf("path to the transaction indexer database file"))
 	nodeCmd.Flags().Uint64Var(&config.LedgerReplicationMaxBlocks, "ledger-replication-max-blocks", 1000, "maximum number of blocks to return in a single replication response")
 	nodeCmd.Flags().Uint32Var(&config.LedgerReplicationMaxTx, "ledger-replication-max-transactions", 10000, "maximum number of transactions to return in a single replication response")
 }

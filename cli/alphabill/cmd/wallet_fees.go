@@ -2,24 +2,26 @@ package cmd
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/url"
 	"strings"
 
+	"github.com/alphabill-org/alphabill/internal/txsystem/evm"
 	"github.com/spf13/cobra"
 
 	"github.com/alphabill-org/alphabill/internal/txsystem/money"
 	"github.com/alphabill-org/alphabill/internal/txsystem/tokens"
-	"github.com/alphabill-org/alphabill/internal/txsystem/vd"
 	"github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/alphabill-org/alphabill/pkg/wallet/account"
+	evmwallet "github.com/alphabill-org/alphabill/pkg/wallet/evm"
+	evmclient "github.com/alphabill-org/alphabill/pkg/wallet/evm/client"
 	"github.com/alphabill-org/alphabill/pkg/wallet/fees"
 	moneywallet "github.com/alphabill-org/alphabill/pkg/wallet/money"
 	moneyclient "github.com/alphabill-org/alphabill/pkg/wallet/money/backend/client"
 	tokenswallet "github.com/alphabill-org/alphabill/pkg/wallet/tokens"
 	tokensclient "github.com/alphabill-org/alphabill/pkg/wallet/tokens/client"
 	"github.com/alphabill-org/alphabill/pkg/wallet/unitlock"
-	vdwallet "github.com/alphabill-org/alphabill/pkg/wallet/vd"
 )
 
 const (
@@ -44,10 +46,10 @@ func newWalletFeesCmd(config *walletConfig) *cobra.Command {
 	cmd.AddCommand(addFeeCreditCmd(config, cliConfig))
 	cmd.AddCommand(reclaimFeeCreditCmd(config, cliConfig))
 
-	cmd.PersistentFlags().VarP(&cliConfig.partitionType, partitionCmdName, "n", "partition name for which to manage fees [money|tokens|vd]")
+	cmd.PersistentFlags().VarP(&cliConfig.partitionType, partitionCmdName, "n", "partition name for which to manage fees [money|tokens|evm]")
 	cmd.PersistentFlags().StringP(alphabillApiURLCmdName, "r", defaultAlphabillApiURL, apiUsage)
 
-	usage := fmt.Sprintf("partition backend url for which to manage fees (default: [%s|%s] based on --partition flag)", defaultAlphabillApiURL, defaultTokensBackendApiURL)
+	usage := fmt.Sprintf("partition backend url for which to manage fees (default: [%s|%s|%s] based on --partition flag)", defaultAlphabillApiURL, defaultTokensBackendApiURL, defaultEvmNodeRestURL)
 	cmd.PersistentFlags().StringVarP(&cliConfig.partitionBackendURL, partitionBackendUrlCmdName, "m", "", usage)
 	return cmd
 }
@@ -168,13 +170,13 @@ func reclaimFeeCreditCmdExec(cmd *cobra.Command, config *walletConfig, c *cliCon
 	}
 	defer am.Close()
 
-	unitlocker, err := unitlock.NewUnitLocker(config.WalletHomeDir)
+	unitLocker, err := unitlock.NewUnitLocker(config.WalletHomeDir)
 	if err != nil {
 		return err
 	}
-	defer unitlocker.Close()
+	defer unitLocker.Close()
 
-	fm, err := getFeeCreditManager(c, am, unitlocker, moneyBackendURL, config.WalletHomeDir)
+	fm, err := getFeeCreditManager(c, am, unitLocker, moneyBackendURL, config.WalletHomeDir)
 	if err != nil {
 		return err
 	}
@@ -229,15 +231,18 @@ func addFees(ctx context.Context, accountNumber uint64, amountString string, c *
 		AccountIndex: accountNumber - 1,
 	})
 	if err != nil {
+		if errors.Is(err, fees.ErrMinimumFeeAmount) {
+			return fmt.Errorf("minimum fee credit amount to add is %s", amountToString(fees.MinimumFeeAmount, 8))
+		}
 		return err
 	}
 	consoleWriter.Println("Successfully created", amountString, "fee credits on", c.partitionType, "partition.")
 	if proofs.TransferFC != nil {
-		consoleWriter.Println("Paid", amountToString(proofs.TransferFC.TxRecord.ServerMetadata.ActualFee, 8), "fee for transferFC transaction from wallet balance.")
+		consoleWriter.Println("Paid", amountToString(proofs.TransferFC.TxRecord.ServerMetadata.ActualFee, 8), "fee for transferFC transaction.")
 	} else {
 		consoleWriter.Println("Used previously locked unit to create fee credit.")
 	}
-	consoleWriter.Println("Paid", amountToString(proofs.AddFC.TxRecord.ServerMetadata.ActualFee, 8), "fee for addFC transaction from fee credit balance.")
+	consoleWriter.Println("Paid", amountToString(proofs.AddFC.TxRecord.ServerMetadata.ActualFee, 8), "fee for addFC transaction.")
 	return nil
 }
 
@@ -246,15 +251,18 @@ func reclaimFees(ctx context.Context, accountNumber uint64, c *cliConf, w FeeCre
 		AccountIndex: accountNumber - 1,
 	})
 	if err != nil {
+		if errors.Is(err, fees.ErrMinimumFeeAmount) {
+			return fmt.Errorf("insufficient fee credit balance. Minimum amount is %s", amountToString(fees.MinimumFeeAmount, 8))
+		}
 		return err
 	}
 	consoleWriter.Println("Successfully reclaimed fee credits on", c.partitionType, "partition.")
 	if proofs.CloseFC != nil {
-		consoleWriter.Println("Paid", amountToString(proofs.CloseFC.TxRecord.ServerMetadata.ActualFee, 8), "fee for closeFC transaction from fee credit balance.")
+		consoleWriter.Println("Paid", amountToString(proofs.CloseFC.TxRecord.ServerMetadata.ActualFee, 8), "fee for closeFC transaction.")
 	} else {
 		consoleWriter.Println("Used previously closed unit to reclaim fee credit.")
 	}
-	consoleWriter.Println("Paid", amountToString(proofs.ReclaimFC.TxRecord.ServerMetadata.ActualFee, 8), "fee for reclaimFC transaction from wallet balance.")
+	consoleWriter.Println("Paid", amountToString(proofs.ReclaimFC.TxRecord.ServerMetadata.ActualFee, 8), "fee for reclaimFC transaction.")
 	return nil
 }
 
@@ -280,8 +288,8 @@ func (c *cliConf) getPartitionBackendURL() string {
 		return defaultAlphabillApiURL
 	case tokensType:
 		return defaultTokensBackendApiURL
-	case vdType:
-		return defaultVDNodeURL
+	case evmType:
+		return defaultEvmNodeRestURL // evm does not use backend and instead talks to an actual evm node
 	default:
 		panic("invalid \"partition\" flag value: " + c.partitionType)
 	}
@@ -297,7 +305,8 @@ func getFeeCreditManager(c *cliConf, am account.Manager, unitLocker *unitlock.Un
 	}
 	moneyTxPublisher := moneywallet.NewTxPublisher(moneyBackendClient)
 
-	if c.partitionType == moneyType {
+	switch c.partitionType {
+	case moneyType:
 		return fees.NewFeeManager(
 			am,
 			unitLocker,
@@ -307,15 +316,15 @@ func getFeeCreditManager(c *cliConf, am account.Manager, unitLocker *unitlock.Un
 			moneySystemID,
 			moneyTxPublisher,
 			moneyBackendClient,
+			moneywallet.FeeCreditRecordIDFormPublicKey,
 		), nil
-	} else if c.partitionType == tokensType {
+	case tokensType:
 		backendURL, err := c.parsePartitionBackendURL()
 		if err != nil {
 			return nil, err
 		}
 		tokenBackendClient := tokensclient.New(*backendURL)
 		tokenTxPublisher := tokenswallet.NewTxPublisher(tokenBackendClient)
-
 		return fees.NewFeeManager(
 			am,
 			unitLocker,
@@ -325,29 +334,27 @@ func getFeeCreditManager(c *cliConf, am account.Manager, unitLocker *unitlock.Un
 			tokens.DefaultSystemIdentifier,
 			tokenTxPublisher,
 			tokenBackendClient,
+			tokenswallet.FeeCreditRecordIDFromPublicKey,
 		), nil
-	} else if c.partitionType == vdType {
-		vdClient, err := vdwallet.New(&vdwallet.VDClientConfig{
-			VDNodeURL:     c.getPartitionBackendURL(),
-			WalletHomeDir: walletHomeDir,
-		})
+	case evmType:
+		evmNodeURL, err := c.parsePartitionBackendURL()
 		if err != nil {
 			return nil, err
 		}
-
-		vdTxPublisher := vdwallet.NewTxPublisher(vdClient)
-
+		evmClient := evmclient.New(*evmNodeURL)
+		evmTxPublisher := evmwallet.NewTxPublisher(evmClient)
 		return fees.NewFeeManager(
 			am,
 			unitLocker,
 			moneySystemID,
 			moneyTxPublisher,
 			moneyBackendClient,
-			vd.DefaultSystemIdentifier,
-			vdTxPublisher,
-			vdClient,
+			evm.DefaultEvmTxSystemIdentifier,
+			evmTxPublisher,
+			evmClient,
+			evmwallet.FeeCreditRecordIDFromPublicKey,
 		), nil
-	} else {
+	default:
 		panic("invalid \"partition\" flag value: " + c.partitionType)
 	}
 }

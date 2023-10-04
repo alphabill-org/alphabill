@@ -12,14 +12,11 @@ import (
 	testtransaction "github.com/alphabill-org/alphabill/internal/testutils/transaction"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	fcunit "github.com/alphabill-org/alphabill/internal/txsystem/fc/unit"
-	txutil "github.com/alphabill-org/alphabill/internal/txsystem/util"
 	"github.com/alphabill-org/alphabill/internal/types"
-	"github.com/alphabill-org/alphabill/internal/util"
-	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
 )
 
-var feeCreditID = util.Uint256ToBytes(uint256.NewInt(420))
+var feeCreditID = NewFeeCreditRecordID(nil, []byte{42})
 var defaultClientMetadata = &types.ClientMetadata{
 	Timeout:           20,
 	MaxTransactionFee: 10,
@@ -27,7 +24,7 @@ var defaultClientMetadata = &types.ClientMetadata{
 }
 
 func TestInitPartitionAndCreateNFTType_Ok(t *testing.T) {
-	tokenPrt, err := testpartition.NewPartition(3, func(trustBase map[string]crypto.Verifier) txsystem.TransactionSystem {
+	tokenPrt, err := testpartition.NewPartition(t, 3, func(trustBase map[string]crypto.Verifier) txsystem.TransactionSystem {
 		system, err := NewTxSystem(WithTrustBase(trustBase), WithState(newStateWithFeeCredit(t, feeCreditID)))
 		require.NoError(t, err)
 		return system
@@ -35,20 +32,20 @@ func TestInitPartitionAndCreateNFTType_Ok(t *testing.T) {
 	require.NoError(t, err)
 	abNet, err := testpartition.NewAlphabillPartition([]*testpartition.NodePartition{tokenPrt})
 	require.NoError(t, err)
-	require.NoError(t, abNet.Start())
+	require.NoError(t, abNet.Start(t))
 	t.Cleanup(func() { require.NoError(t, abNet.Close()) })
 
 	tx := testtransaction.NewTransactionOrder(t,
 		testtransaction.WithPayloadType(PayloadTypeCreateNFTType),
 		testtransaction.WithSystemID(DefaultSystemIdentifier),
-		testtransaction.WithUnitId([]byte{0, 0, 0, 1}),
+		testtransaction.WithUnitId(NewNonFungibleTokenTypeID(nil, []byte{1})),
 		testtransaction.WithOwnerProof(script.PredicateArgumentEmpty()),
 		testtransaction.WithAttributes(
 			&CreateNonFungibleTokenTypeAttributes{
 				Symbol:                   "Test",
 				Name:                     "Long name for Test",
 				Icon:                     &Icon{Type: validIconType, Data: []byte{3, 2, 1}},
-				ParentTypeID:             util.Uint256ToBytes(uint256.NewInt(0)),
+				ParentTypeID:             nil,
 				SubTypeCreationPredicate: script.PredicateAlwaysTrue(),
 				TokenCreationPredicate:   script.PredicateAlwaysTrue(),
 				InvariantPredicate:       script.PredicateAlwaysTrue(),
@@ -66,9 +63,8 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 	var (
 		hashAlgorithm       = gocrypto.SHA256
 		states              []*state.State
-		zeroID                     = make([]byte, 32)
-		fungibleTokenTypeID        = []byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1}
-		fungibleTokenID1           = []byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2}
+		fungibleTokenTypeID        = NewFungibleTokenTypeID(nil, []byte{1})
+		fungibleTokenID1           = NewFungibleTokenID(nil, []byte{2})
 		totalValue          uint64 = 1000
 		splitValue1         uint64 = 100
 		splitValue2         uint64 = 10
@@ -76,7 +72,7 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 	)
 
 	// setup network
-	tokenPrt, err := testpartition.NewPartition(1, func(tb map[string]crypto.Verifier) txsystem.TransactionSystem {
+	tokenPrt, err := testpartition.NewPartition(t, 1, func(tb map[string]crypto.Verifier) txsystem.TransactionSystem {
 		trustBase = tb
 		s := newStateWithFeeCredit(t, feeCreditID)
 		system, err := NewTxSystem(WithState(s), WithTrustBase(tb))
@@ -90,7 +86,7 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 	states = []*state.State{}
 	abNet, err := testpartition.NewAlphabillPartition([]*testpartition.NodePartition{tokenPrt})
 	require.NoError(t, err)
-	require.NoError(t, abNet.Start())
+	require.NoError(t, abNet.Start(t))
 	t.Cleanup(func() { require.NoError(t, abNet.Close()) })
 	state0 := states[0]
 
@@ -104,7 +100,7 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 				Symbol:                   "ALPHA",
 				Name:                     "Long name for ALPHA",
 				Icon:                     &Icon{Type: validIconType, Data: []byte{1, 2, 3}},
-				ParentTypeID:             zeroID,
+				ParentTypeID:             nil,
 				SubTypeCreationPredicate: script.PredicateAlwaysTrue(),
 				TokenCreationPredicate:   script.PredicateAlwaysTrue(),
 				InvariantPredicate:       script.PredicateAlwaysTrue(),
@@ -124,7 +120,7 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 		symbol:                   "ALPHA",
 		name:                     "Long name for ALPHA",
 		icon:                     &Icon{Type: validIconType, Data: []byte{1, 2, 3}},
-		parentID:                 zeroID,
+		parentID:                 nil,
 		decimalPlaces:            0,
 	})
 	verifyProof(t, createTypeTx, tokenPrt, trustBase, hashAlgorithm)
@@ -198,7 +194,7 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 	})
 	verifyProof(t, splitTx1, tokenPrt, trustBase, hashAlgorithm)
 
-	sUnitID1 := txutil.SameShardID(fungibleTokenID1, HashForIDCalculation(splitTx1, hashAlgorithm))
+	sUnitID1 := NewFungibleTokenID(fungibleTokenID1, HashForIDCalculation(splitTx1, hashAlgorithm))
 	RequireFungibleTokenState(t, state0, fungibleTokenUnitData{
 		unitID:     sUnitID1,
 		typeUnitID: fungibleTokenTypeID,
@@ -242,7 +238,7 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 		tokenValue: totalValue - splitValue1 - splitValue2,
 	})
 
-	sUnitID2 := txutil.SameShardID(fungibleTokenID1, HashForIDCalculation(splitTx2, hashAlgorithm))
+	sUnitID2 := NewFungibleTokenID(fungibleTokenID1, HashForIDCalculation(splitTx2, hashAlgorithm))
 	RequireFungibleTokenState(t, state0, fungibleTokenUnitData{
 		unitID:     sUnitID2,
 		typeUnitID: fungibleTokenTypeID,

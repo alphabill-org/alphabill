@@ -37,7 +37,7 @@ func TestAddTx_TxIsNil(t *testing.T) {
 	buffer, err := New(testBufferSize, gocrypto.SHA256)
 	require.NoError(t, err)
 	defer buffer.Close()
-	err = buffer.Add(nil)
+	_, err = buffer.Add(nil)
 	require.ErrorIs(t, err, ErrTxIsNil)
 }
 
@@ -47,10 +47,10 @@ func TestAddTx_TxIsAlreadyInTxBuffer(t *testing.T) {
 	defer buffer.Close()
 
 	tx := testtransaction.NewTransactionOrder(t)
-	err = buffer.Add(tx)
+	_, err = buffer.Add(tx)
 	require.NoError(t, err)
 
-	err = buffer.Add(tx)
+	_, err = buffer.Add(tx)
 	require.ErrorIs(t, err, ErrTxInBuffer)
 	require.EqualValues(t, one, len(buffer.transactionsCh))
 	require.EqualValues(t, one, len(buffer.transactions))
@@ -62,11 +62,11 @@ func TestAddTx_TxBufferFull(t *testing.T) {
 	defer buffer.Close()
 
 	for i := uint32(0); i < testBufferSize; i++ {
-		err = buffer.Add(testtransaction.NewTransactionOrder(t))
+		_, err = buffer.Add(testtransaction.NewTransactionOrder(t))
 		require.NoError(t, err)
 	}
 
-	err = buffer.Add(testtransaction.NewTransactionOrder(t))
+	_, err = buffer.Add(testtransaction.NewTransactionOrder(t))
 	require.ErrorIs(t, err, ErrTxBufferFull)
 	require.EqualValues(t, testBufferSize, len(buffer.transactionsCh))
 	require.Equal(t, testBufferSize, uint32(len(buffer.transactions)))
@@ -76,7 +76,7 @@ func TestAddTx_Ok(t *testing.T) {
 	buffer, err := New(testBufferSize, gocrypto.SHA256)
 	require.NoError(t, err)
 	defer buffer.Close()
-	err = buffer.Add(testtransaction.NewTransactionOrder(t))
+	_, err = buffer.Add(testtransaction.NewTransactionOrder(t))
 	require.NoError(t, err)
 	require.EqualValues(t, one, len(buffer.transactionsCh))
 	require.Equal(t, one, uint32(len(buffer.transactions)))
@@ -87,7 +87,7 @@ func TestCount_Ok(t *testing.T) {
 	require.NoError(t, err)
 	defer buffer.Close()
 	for i := uint32(0); i < testBufferSize; i++ {
-		err = buffer.Add(testtransaction.NewTransactionOrder(t))
+		_, err = buffer.Add(testtransaction.NewTransactionOrder(t))
 		require.NoError(t, err)
 	}
 	require.EqualValues(t, testBufferSize, len(buffer.transactionsCh))
@@ -99,7 +99,7 @@ func TestRemove_NotFound(t *testing.T) {
 	require.NoError(t, err)
 	defer buffer.Close()
 	tx := testtransaction.NewTransactionOrder(t)
-	err = buffer.Add(tx)
+	_, err = buffer.Add(tx)
 	require.NoError(t, err)
 	buffer.removeFromIndex("1")
 	require.EqualValues(t, 1, len(buffer.transactionsCh))
@@ -111,7 +111,7 @@ func TestRemove_Ok(t *testing.T) {
 	defer buffer.Close()
 
 	tx := testtransaction.NewTransactionOrder(t)
-	err = buffer.Add(tx)
+	_, err = buffer.Add(tx)
 	require.NoError(t, err)
 
 	hash := tx.Hash(gocrypto.SHA256)
@@ -126,18 +126,18 @@ func TestProcess_ProcessAllTransactions(t *testing.T) {
 	require.NoError(t, err)
 	defer buffer.Close()
 
-	err = buffer.Add(testtransaction.NewTransactionOrder(t))
+	_, err = buffer.Add(testtransaction.NewTransactionOrder(t))
 	require.NoError(t, err)
-	err = buffer.Add(testtransaction.NewTransactionOrder(t))
+	_, err = buffer.Add(testtransaction.NewTransactionOrder(t))
 	require.NoError(t, err)
-	err = buffer.Add(testtransaction.NewTransactionOrder(t))
+	_, err = buffer.Add(testtransaction.NewTransactionOrder(t))
 	require.NoError(t, err)
 
 	var c uint32
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
-		buffer.Process(context.Background(), func(tx *types.TransactionOrder) bool {
+		buffer.Process(context.Background(), func(_ context.Context, tx *types.TransactionOrder) bool {
 			atomic.AddUint32(&c, 1)
 			return true
 		})
@@ -159,7 +159,7 @@ func TestProcess_CloseQuitsProcess(t *testing.T) {
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
-		buffer.Process(context.Background(), func(tx *types.TransactionOrder) bool {
+		buffer.Process(context.Background(), func(_ context.Context, tx *types.TransactionOrder) bool {
 			atomic.AddUint32(&c, 1)
 			return true
 		})
@@ -179,7 +179,7 @@ func TestProcess_CancelProcess(t *testing.T) {
 	require.NoError(t, err)
 	defer buffer.Close()
 
-	err = buffer.Add(testtransaction.NewTransactionOrder(t))
+	_, err = buffer.Add(testtransaction.NewTransactionOrder(t))
 	require.NoError(t, err)
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -187,7 +187,7 @@ func TestProcess_CancelProcess(t *testing.T) {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		buffer.Process(ctx, func(tx *types.TransactionOrder) bool {
+		buffer.Process(ctx, func(_ context.Context, tx *types.TransactionOrder) bool {
 			cancel()
 			<-ctx.Done()
 			return false

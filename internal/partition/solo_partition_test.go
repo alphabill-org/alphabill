@@ -172,33 +172,22 @@ func (sn *SingleNodePartition) newNode() error {
 }
 
 func (sn *SingleNodePartition) SubmitTx(tx *types.TransactionOrder) error {
-	sn.mockNet.Receive(network.ReceivedMessage{
-		From:     "from-test",
-		Protocol: network.ProtocolInputForward,
-		Message:  tx,
-	})
+	sn.mockNet.Receive(tx)
 	return nil
 }
 
 func (sn *SingleNodePartition) SubmitTxFromRPC(tx *types.TransactionOrder) error {
-	return sn.partition.SubmitTx(context.Background(), tx)
+	_, err := sn.partition.SubmitTx(context.Background(), tx)
+	return err
 }
 
 func (sn *SingleNodePartition) SubmitUnicityCertificate(uc *types.UnicityCertificate) {
-	sn.mockNet.Receive(network.ReceivedMessage{
-		From:     "from-test",
-		Protocol: network.ProtocolUnicityCertificates,
-		Message:  uc,
-	})
+	sn.mockNet.Receive(uc)
 
 }
 
 func (sn *SingleNodePartition) SubmitBlockProposal(prop *blockproposal.BlockProposal) {
-	sn.mockNet.Receive(network.ReceivedMessage{
-		From:     "from-test",
-		Protocol: network.ProtocolBlockProposal,
-		Message:  prop,
-	})
+	sn.mockNet.Receive(prop)
 }
 
 func (sn *SingleNodePartition) CreateUnicityCertificate(ir *types.InputRecord, roundNumber uint64) (*types.UnicityCertificate, error) {
@@ -260,16 +249,8 @@ func (sn *SingleNodePartition) GetLatestBlock(t *testing.T) *types.Block {
 
 func (sn *SingleNodePartition) CreateBlock(t *testing.T) {
 	sn.SubmitT1Timeout(t)
-	sn.SubmitUC(t, sn.IssueBlockUC(t))
-}
-
-func (sn *SingleNodePartition) SubmitUC(t *testing.T, uc *types.UnicityCertificate) {
 	sn.eh.Reset()
-	sn.mockNet.Receive(network.ReceivedMessage{
-		From:     "from-test",
-		Protocol: network.ProtocolUnicityCertificates,
-		Message:  uc,
-	})
+	sn.SubmitUnicityCertificate(sn.IssueBlockUC(t))
 	testevent.ContainsEvent(t, sn.eh, event.BlockFinalized)
 }
 
@@ -290,7 +271,7 @@ func (sn *SingleNodePartition) IssueBlockUC(t *testing.T) *types.UnicityCertific
 
 func (sn *SingleNodePartition) SubmitT1Timeout(t *testing.T) {
 	sn.eh.Reset()
-	sn.partition.handleT1TimeoutEvent()
+	sn.partition.handleT1TimeoutEvent(context.Background())
 	require.Eventually(t, func() bool {
 		return len(sn.mockNet.SentMessages(network.ProtocolBlockCertification)) == 1
 	}, test.WaitDuration, test.WaitTick, "block certification request not found")
@@ -299,7 +280,7 @@ func (sn *SingleNodePartition) SubmitT1Timeout(t *testing.T) {
 func (sn *SingleNodePartition) SubmitMonitorTimeout(t *testing.T) {
 	t.Helper()
 	sn.eh.Reset()
-	sn.partition.handleMonitoring(time.Now().Add(-3 * sn.nodeConf.GetT2Timeout()))
+	sn.partition.handleMonitoring(context.Background(), time.Now().Add(-3*sn.nodeConf.GetT2Timeout()))
 }
 
 type TestLeaderSelector struct {
@@ -344,24 +325,14 @@ func (l *TestLeaderSelector) LeaderFunc(seal *types.UnicityCertificate) peer.ID 
 
 func createPeer(t *testing.T) *network.Peer {
 	// fake validator, so that network 'send' requests don't fail
-	privateKey, pubKey, err := p2pcrypto.GenerateSecp256k1Key(rand.Reader)
+	_, pubKey, err := p2pcrypto.GenerateSecp256k1Key(rand.Reader)
 	require.NoError(t, err)
-
-	privateKeyBytes, err := privateKey.Raw()
-	require.NoError(t, err)
-
-	pubKeyBytes, err := pubKey.Raw()
-	require.NoError(t, err)
-
-	id, err := peer.IDFromPublicKey(pubKey)
+	fakeValidatorID, err := peer.IDFromPublicKey(pubKey)
 	require.NoError(t, err)
 
 	conf := &network.PeerConfiguration{
-		KeyPair: &network.PeerKeyPair{
-			PublicKey:  pubKeyBytes,
-			PrivateKey: privateKeyBytes,
-		},
-		Validators: []peer.ID{id},
+		//KeyPair will be generated
+		Validators: []peer.ID{fakeValidatorID},
 		Address:    "/ip4/127.0.0.1/tcp/0",
 	}
 	newPeer, err := network.NewPeer(context.Background(), conf)
@@ -433,10 +404,7 @@ func WaitNodeRequestReceived(t *testing.T, tp *SingleNodePartition, req string) 
 	}, test.WaitDuration, test.WaitTick)
 	// if more than one return last, but there has to be at least one, otherwise require.Eventually fails before
 	return &testnetwork.PeerMessage{
-		ID: reqs[len(reqs)-1].ID,
-		OutputMessage: network.OutputMessage{
-			Protocol: reqs[len(reqs)-1].Protocol,
-			Message:  reqs[len(reqs)-1].Message,
-		},
+		ID:      reqs[len(reqs)-1].ID,
+		Message: reqs[len(reqs)-1].Message,
 	}
 }

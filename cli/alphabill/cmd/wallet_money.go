@@ -18,6 +18,7 @@ import (
 	"golang.org/x/term"
 
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
+	moneytx "github.com/alphabill-org/alphabill/internal/txsystem/money"
 	"github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/alphabill-org/alphabill/pkg/wallet/account"
 	wlog "github.com/alphabill-org/alphabill/pkg/wallet/log"
@@ -84,7 +85,7 @@ func newWalletCmd(baseConfig *baseConfiguration) *cobra.Command {
 	walletCmd.AddCommand(collectDustCmd(config))
 	walletCmd.AddCommand(addKeyCmd(config))
 	walletCmd.AddCommand(tokenCmd(config))
-	walletCmd.AddCommand(vdCmd(config))
+	walletCmd.AddCommand(evmCmd(config))
 	// add passwords flags for (encrypted)wallet
 	walletCmd.PersistentFlags().BoolP(passwordPromptCmdName, "p", false, passwordPromptUsage)
 	walletCmd.PersistentFlags().String(passwordArgCmdName, "", passwordArgUsage)
@@ -455,13 +456,31 @@ func execCollectDust(cmd *cobra.Command, config *walletConfig) error {
 	defer w.Close()
 
 	consoleWriter.Println("Starting dust collection, this may take a while...")
-	err = w.CollectDust(cmd.Context(), accountNumber)
-
+	dcResults, err := w.CollectDust(cmd.Context(), accountNumber)
 	if err != nil {
 		consoleWriter.Println("Failed to collect dust: " + err.Error())
 		return err
 	}
-	consoleWriter.Println("Dust collection finished successfully.")
+	for _, dcResult := range dcResults {
+		if dcResult.SwapProof != nil {
+			attr := &moneytx.SwapDCAttributes{}
+			err := dcResult.SwapProof.TxRecord.TransactionOrder.UnmarshalAttributes(attr)
+			if err != nil {
+				return fmt.Errorf("failed to unmarshal swap tx proof: %w", err)
+			}
+			consoleWriter.Println(fmt.Sprintf(
+				"Dust collection finished successfully on account #%d. Joined %d bills with total value of %s "+
+					"ALPHA into an existing target bill with unit identifier 0x%s. Paid %s fees for transaction(s).",
+				dcResult.AccountIndex+1,
+				len(attr.DcTransfers),
+				amountToString(attr.TargetValue, 8),
+				dcResult.SwapProof.TxRecord.TransactionOrder.UnitID(),
+				amountToString(dcResult.FeeSum, 8),
+			))
+		} else {
+			consoleWriter.Println(fmt.Sprintf("Nothing to swap on account #%d", dcResult.AccountIndex+1))
+		}
+	}
 	return nil
 }
 

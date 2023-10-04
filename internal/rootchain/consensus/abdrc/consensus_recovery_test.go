@@ -33,7 +33,7 @@ func Test_ConsensusManager_sendRecoveryRequests(t *testing.T) {
 
 	t.Run("invalid input msg type", func(t *testing.T) {
 		cm := &ConsensusManager{}
-		err := cm.sendRecoveryRequests("foobar")
+		err := cm.sendRecoveryRequests(context.Background(), "foobar")
 		require.EqualError(t, err, `failed to extract recovery info: unknown message type, cannot be used for recovery: string`)
 	})
 
@@ -50,17 +50,17 @@ func Test_ConsensusManager_sendRecoveryRequests(t *testing.T) {
 			},
 		}
 
-		err := cm.sendRecoveryRequests(toMsg)
+		err := cm.sendRecoveryRequests(context.Background(), toMsg)
 		require.EqualError(t, err, `already in recovery to round 42, ignoring request to recover to round 32`)
 
 		// just one round behind current recovery status
 		toMsg.Timeout.HighQc.VoteInfo.RoundNumber = cm.recovery.toRound - 1
-		err = cm.sendRecoveryRequests(toMsg)
+		err = cm.sendRecoveryRequests(context.Background(), toMsg)
 		require.EqualError(t, err, `already in recovery to round 42, ignoring request to recover to round 41`)
 
 		// should not send recovery request for the same recovery round again, ie we expect to get error
 		toMsg.Timeout.HighQc.VoteInfo.RoundNumber = cm.recovery.toRound
-		err = cm.sendRecoveryRequests(toMsg)
+		err = cm.sendRecoveryRequests(context.Background(), toMsg)
 		require.EqualError(t, err, `already in recovery to round 42, ignoring request to recover to round 42`)
 	})
 
@@ -87,27 +87,19 @@ func Test_ConsensusManager_sendRecoveryRequests(t *testing.T) {
 			select {
 			case msg := <-authorCon.ReceivedChannel():
 				var err error
-				if msg.From != nodeID {
-					err = errors.Join(err, fmt.Errorf("expected sender %s got %s", nodeID, msg.From))
-				}
-				if msg.Protocol != network.ProtocolRootStateReq {
-					err = errors.Join(err, fmt.Errorf("unexpected message protocol: %q", msg.Protocol))
-				}
-
-				if m, ok := msg.Message.(*abdrc.GetStateMsg); ok {
+				if m, ok := msg.(*abdrc.GetStateMsg); ok {
 					if m.NodeId != nodeID.String() {
 						err = errors.Join(err, fmt.Errorf("expected receiver %s got %s", nodeID.String(), m.NodeId))
 					}
 				} else {
-					err = errors.Join(err, fmt.Errorf("unexpected message payload type %T", msg.Message))
+					err = errors.Join(err, fmt.Errorf("unexpected message payload type %T", msg))
 				}
 				authorErr <- err
 			case <-time.After(time.Second):
 				authorErr <- fmt.Errorf("author didn't receive get status request within timeout")
 			}
 		}()
-
-		err := cm.sendRecoveryRequests(toMsg)
+		err := cm.sendRecoveryRequests(context.Background(), toMsg)
 		require.NoError(t, err)
 
 		err = <-authorErr
@@ -257,8 +249,8 @@ func Test_recoverState(t *testing.T) {
 		// the late CM we wake up must participate in the consensus now. keep track of number of proposals
 		// made as these indicate was the recovery success or not (ie we do not advance because of timeouts)
 		var proposalCnt atomic.Int32
-		rootNet.SetFirewall(func(from, to peer.ID, msg network.OutputMessage) bool {
-			if _, ok := msg.Message.(*abdrc.ProposalMsg); ok {
+		rootNet.SetFirewall(func(from, to peer.ID, msg any) bool {
+			if _, ok := msg.(*abdrc.ProposalMsg); ok {
 				proposalCnt.Add(1)
 			}
 			return from == cmPeer.id || to == cmPeer.id
@@ -296,13 +288,13 @@ func Test_recoverState(t *testing.T) {
 
 		// block traffic to one peer and wait it to fall few rounds behind
 		cmBlocked := cms[1]
-		rootNet.SetFirewall(func(from, to peer.ID, msg network.OutputMessage) bool { return to == cmBlocked.id })
+		rootNet.SetFirewall(func(from, to peer.ID, msg any) bool { return to == cmBlocked.id })
 		require.Eventually(t, func() bool { return cmLeader.pacemaker.GetCurrentRound() >= cmBlocked.pacemaker.GetCurrentRound()+5 }, 3*time.Second, 20*time.Millisecond, "waiting for blocked CM to fall behind")
 
 		// now block different peer - the one which fell behind should recover and system should
 		// still make progress (have quorum of healthy nodes)
 		blockedID := cms[2].id
-		rootNet.SetFirewall(func(from, to peer.ID, msg network.OutputMessage) bool { return from == blockedID || to == blockedID })
+		rootNet.SetFirewall(func(from, to peer.ID, msg any) bool { return from == blockedID || to == blockedID })
 
 		destRound := cmLeader.pacemaker.GetCurrentRound() + 8
 		require.Eventually(t,
@@ -332,7 +324,7 @@ func Test_recoverState(t *testing.T) {
 		// as not enough nodes participate in voting
 		blockedID1 := cms[1].id
 		blockedID2 := cms[2].id
-		rootNet.SetFirewall(func(from, to peer.ID, msg network.OutputMessage) bool {
+		rootNet.SetFirewall(func(from, to peer.ID, msg any) bool {
 			return from == blockedID1 || from == blockedID2
 		})
 		round := cms[0].pacemaker.GetCurrentRound()
@@ -344,8 +336,8 @@ func Test_recoverState(t *testing.T) {
 
 		// allow traffic from all nodes again - system should recover and make progress again
 		var proposalCnt atomic.Int32
-		rootNet.SetFirewall(func(from, to peer.ID, msg network.OutputMessage) bool {
-			if _, ok := msg.Message.(*abdrc.ProposalMsg); ok {
+		rootNet.SetFirewall(func(from, to peer.ID, msg any) bool {
+			if _, ok := msg.(*abdrc.ProposalMsg); ok {
 				proposalCnt.Add(1)
 			}
 			return false
@@ -369,7 +361,7 @@ func Test_recoverState(t *testing.T) {
 		cms, rootNet, rootG := createConsensusManagers(t, 4, partitionRecs)
 		require.EqualValues(t, rootG.Root.Consensus.QuorumThreshold, len(cms)-1, `there must be "quorum + 1" consensus managers`)
 		deadID := cms[1].id
-		rootNet.SetFirewall(func(from, to peer.ID, msg network.OutputMessage) bool {
+		rootNet.SetFirewall(func(from, to peer.ID, msg any) bool {
 			return from == deadID || to == deadID
 		})
 
@@ -420,7 +412,7 @@ func Test_recoverState(t *testing.T) {
 
 		// drop node 1 out of network so it falls behind
 		node1 := cms[1]
-		rootNet.SetFirewall(func(from, to peer.ID, msg network.OutputMessage) bool { return from == node1.id || to == node1.id })
+		rootNet.SetFirewall(func(from, to peer.ID, msg any) bool { return from == node1.id || to == node1.id })
 		require.Eventually(t, func() bool { return cmLeader.pacemaker.GetCurrentRound() >= node1.pacemaker.GetCurrentRound()+2 }, 3*time.Second, 20*time.Millisecond, "waiting for node 1 to fall behind")
 
 		// drop node2 out of network so it doesn't participate anymore, this should trigger timeout
@@ -429,20 +421,20 @@ func Test_recoverState(t *testing.T) {
 		node2 := cms[2]
 		var tomSent atomic.Bool  // has the TO message been sent to node1?
 		var propCnt atomic.Int32 // number of proposals made after recovery
-		rootNet.SetFirewall(func(from, to peer.ID, msg network.OutputMessage) bool {
+		rootNet.SetFirewall(func(from, to peer.ID, msg any) bool {
 			block := from == node2.id || to == node2.id // always block all node2 traffic
 			if !block && (from == node1.id || to == node1.id) {
 				block = !tomSent.Load()
 				if block {
 					// TO message hasn't been sent yet, is this message it?
-					if _, ok := msg.Message.(*abdrc.TimeoutMsg); ok && to == node1.id && from != node1.id {
+					if _, ok := msg.(*abdrc.TimeoutMsg); ok && to == node1.id && from != node1.id {
 						tomSent.Store(true)
 						block = false
 					}
 				}
 			}
 			if tomSent.Load() {
-				if _, ok := msg.Message.(*abdrc.ProposalMsg); ok {
+				if _, ok := msg.(*abdrc.ProposalMsg); ok {
 					propCnt.Add(1)
 				}
 			}
@@ -479,9 +471,9 @@ func Test_recoverState(t *testing.T) {
 		// have quorum and progress must be made
 		node_0_id := cms[0].id // round leader: 4, 8
 		node_1_id := cms[1].id // round leader: 5, 9
-		rootNet.SetFirewall(func(from, to peer.ID, msg network.OutputMessage) bool {
+		rootNet.SetFirewall(func(from, to peer.ID, msg any) bool {
 			var round uint64
-			switch mt := msg.Message.(type) {
+			switch mt := msg.(type) {
 			case *abdrc.VoteMsg:
 				round = mt.VoteInfo.RoundNumber
 			case *abdrc.ProposalMsg:
@@ -498,7 +490,7 @@ func Test_recoverState(t *testing.T) {
 				block = (from == node_1_id || to == node_1_id)
 			case round == 4:
 				// allow vote msg only for node 1 so that's what triggers recovery
-				_, isVote := msg.Message.(*abdrc.VoteMsg)
+				_, isVote := msg.(*abdrc.VoteMsg)
 				block = (from == node_1_id || to == node_1_id) && !isVote
 			case round >= 5:
 				// block another peer
@@ -544,12 +536,12 @@ func Test_recoverState(t *testing.T) {
 
 		// set filter so that one node (slowID) does not see any messages and only sends TO votes
 		slowID := cms[0].id
-		rootNet.SetFirewall(func(from, to peer.ID, msg network.OutputMessage) bool {
+		rootNet.SetFirewall(func(from, to peer.ID, msg any) bool {
 			block := to == slowID || from == slowID
-			if _, tom := msg.Message.(*abdrc.TimeoutMsg); tom {
+			if _, tom := msg.(*abdrc.TimeoutMsg); tom {
 				block = to == slowID
 			}
-			t.Logf("%t: %s -> %s : (%d) %T", block, from.ShortString(), to.ShortString(), roundOfMsg(msg.Message), msg.Message)
+			t.Logf("%t: %s -> %s : (%d) %T", block, from.ShortString(), to.ShortString(), roundOfMsg(msg), msg)
 			return block
 		})
 
@@ -572,8 +564,8 @@ func Test_recoverState(t *testing.T) {
 		// allow all traffic again - slowID node should receive TO vote for round 3 with TC for round 2
 		// which should allow it to go to round 3 and vote for it's timeout. this means that quorum for
 		// round 3 TO is achieved and progress is made again
-		rootNet.SetFirewall(func(from, to peer.ID, msg network.OutputMessage) bool {
-			t.Logf("%t: %s -> %s : (%d) %T", false, from.ShortString(), to.ShortString(), roundOfMsg(msg.Message), msg.Message)
+		rootNet.SetFirewall(func(from, to peer.ID, msg any) bool {
+			t.Logf("%t: %s -> %s : (%d) %T", false, from.ShortString(), to.ShortString(), roundOfMsg(msg), msg)
 			return false
 		})
 		require.Eventually(t, func() bool { return cms[0].pacemaker.GetCurrentRound() >= 4 }, 2*cms[0].pacemaker.maxRoundLen, 100*time.Millisecond, "waiting for progress to be made")
@@ -665,17 +657,17 @@ func generatePeerData(t *testing.T) (peer.ID, crypto.Signer, crypto.Verifier, []
 
 func newMockNetwork() *mockNetwork {
 	mnw := &mockNetwork{
-		cons:   make(map[peer.ID]chan network.ReceivedMessage),
+		cons:   make(map[peer.ID]chan any),
 		sendTO: 70 * time.Millisecond,
 	}
 	mnw.firewall.Store(fwFunc(nil))
 	return mnw
 }
 
-type fwFunc func(from, to peer.ID, msg network.OutputMessage) bool
+type fwFunc func(from, to peer.ID, msg any) bool
 
 type mockNetwork struct {
-	cons   map[peer.ID]chan network.ReceivedMessage
+	cons   map[peer.ID]chan any
 	sendTO time.Duration // timeout for send operation
 
 	// firewall stores func (of type fwFunc) which returns "true" when the message
@@ -692,7 +684,7 @@ same network with other peers in the mockNetwork.
 NB! not concurrency safe, register peers before concurrent action!
 */
 func (mnw *mockNetwork) Connect(node peer.ID) RootNet {
-	con := &mockNwConnection{nw: mnw, id: node, rcv: make(chan network.ReceivedMessage)}
+	con := &mockNwConnection{nw: mnw, id: node, rcv: make(chan any)}
 	mnw.cons[node] = con.rcv
 	return con
 }
@@ -714,7 +706,7 @@ func (mnw *mockNetwork) logError(err error) {
 	mnw.errs = append(mnw.errs, err)
 }
 
-func (mnw *mockNetwork) send(from, to peer.ID, msg network.OutputMessage) error {
+func (mnw *mockNetwork) send(from, to peer.ID, msg any) error {
 	con, ok := mnw.cons[to]
 	if !ok {
 		return fmt.Errorf("unknown receiver %s for message %#v sent by %s", to, msg, from)
@@ -730,14 +722,14 @@ func (mnw *mockNetwork) send(from, to peer.ID, msg network.OutputMessage) error 
 		select {
 		case <-time.After(mnw.sendTO):
 			mnw.logError(fmt.Errorf("send operation timed out %s -> %s : %#v", from, to, msg))
-		case con <- network.ReceivedMessage{From: from, Protocol: msg.Protocol, Message: msg.Message}:
+		case con <- msg:
 		}
 	}()
 
 	return nil
 }
 
-func (mnw *mockNetwork) broadcast(from peer.ID, msg network.OutputMessage) error {
+func (mnw *mockNetwork) broadcast(from peer.ID, msg any) error {
 	var errs []error
 	for id := range mnw.cons {
 		if err := mnw.send(from, id, msg); err != nil {
@@ -750,10 +742,10 @@ func (mnw *mockNetwork) broadcast(from peer.ID, msg network.OutputMessage) error
 type mockNwConnection struct {
 	nw  *mockNetwork
 	id  peer.ID
-	rcv chan network.ReceivedMessage
+	rcv chan any
 }
 
-func (nc *mockNwConnection) Send(msg network.OutputMessage, receivers []peer.ID) error {
+func (nc *mockNwConnection) Send(_ context.Context, msg any, receivers ...peer.ID) error {
 	var errs []error
 	for _, id := range receivers {
 		if err := nc.nw.send(nc.id, id, msg); err != nil {
@@ -763,11 +755,11 @@ func (nc *mockNwConnection) Send(msg network.OutputMessage, receivers []peer.ID)
 	return errors.Join(errs...)
 }
 
-func (nc *mockNwConnection) Broadcast(msg network.OutputMessage) error {
+func (nc *mockNwConnection) Broadcast(_ context.Context, msg any) error {
 	return nc.nw.broadcast(nc.id, msg)
 }
 
-func (nc *mockNwConnection) ReceivedChannel() <-chan network.ReceivedMessage { return nc.rcv }
+func (nc *mockNwConnection) ReceivedChannel() <-chan any { return nc.rcv }
 
 /*
 constLeader is leader selection algorithm which always returns the same leader.

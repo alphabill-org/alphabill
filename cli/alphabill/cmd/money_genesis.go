@@ -15,14 +15,13 @@ import (
 	"github.com/alphabill-org/alphabill/internal/txsystem/money"
 	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/fxamacker/cbor/v2"
-	"github.com/holiman/uint256"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/spf13/cobra"
 )
 
 const (
+	moneyGenesisFileName      = "node-genesis.json"
 	moneyPartitionDir         = "money"
-	defaultInitialBillId      = 1
 	defaultInitialBillValue   = 1000000000000000000
 	defaultDCMoneySupplyValue = 1000000000000000000
 	defaultT2Timeout          = 2500
@@ -32,10 +31,12 @@ var defaultMoneySDR = &genesis.SystemDescriptionRecord{
 	SystemIdentifier: money.DefaultSystemIdentifier,
 	T2Timeout:        defaultT2Timeout,
 	FeeCreditBill: &genesis.FeeCreditBill{
-		UnitId:         util.Uint256ToBytes(uint256.NewInt(2)),
+		UnitId:         money.NewBillID(nil, []byte{2}),
 		OwnerPredicate: script.PredicateAlwaysTrue(),
 	},
 }
+
+var defaultInitialBillID = money.NewBillID(nil, []byte{1})
 
 type moneyGenesisConfig struct {
 	Base               *baseConfiguration
@@ -99,7 +100,7 @@ func abMoneyGenesisRunFun(_ context.Context, config *moneyGenesisConfig) error {
 	}
 
 	ib := &money.InitialBill{
-		ID:    util.Uint256ToBytes(uint256.NewInt(defaultInitialBillId)),
+		ID:    defaultInitialBillID,
 		Value: config.InitialBillValue,
 		Owner: script.PredicateAlwaysTrue(),
 	}
@@ -143,7 +144,7 @@ func (c *moneyGenesisConfig) getNodeGenesisFileLocation(home string) string {
 	if c.Output != "" {
 		return c.Output
 	}
-	return filepath.Join(home, vdGenesisFileName)
+	return filepath.Join(home, moneyGenesisFileName)
 }
 
 func (c *moneyGenesisConfig) getPartitionParams() ([]byte, error) {

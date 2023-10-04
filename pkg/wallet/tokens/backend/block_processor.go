@@ -9,13 +9,10 @@ import (
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/internal/txsystem/fc/transactions"
 	"github.com/alphabill-org/alphabill/internal/txsystem/tokens"
-	txutil "github.com/alphabill-org/alphabill/internal/txsystem/util"
 	"github.com/alphabill-org/alphabill/internal/types"
-	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/alphabill-org/alphabill/pkg/wallet/broker"
 	"github.com/alphabill-org/alphabill/pkg/wallet/log"
-	"github.com/holiman/uint256"
 )
 
 type blockProcessor struct {
@@ -74,7 +71,7 @@ func (p *blockProcessor) processTx(tr *types.TransactionRecord, proof *wallet.Tx
 		}
 		return p.store.SetFeeCreditBill(&FeeCreditBill{
 			Id:              id,
-			Value:           fcb.GetValue() + transferFeeCreditAttributes.Amount - tr.ServerMetadata.ActualFee,
+			Value:           fcb.GetValue() + transferFeeCreditAttributes.Amount - addFeeCreditAttributes.FeeCreditTransfer.ServerMetadata.ActualFee - tr.ServerMetadata.ActualFee,
 			TxHash:          txHash,
 			LastAddFCTxHash: txHash,
 		}, txProof)
@@ -184,7 +181,7 @@ func (p *blockProcessor) processTx(tr *types.TransactionRecord, proof *wallet.Tx
 
 		// save new token created by the split
 		newToken := &TokenUnit{
-			ID:       txutil.SameShardIDBytes(util.Uint256ToBytes(uint256.NewInt(0).SetBytes(id)), tokens.HashForIDCalculation(tx, crypto.SHA256)),
+			ID:       tokens.NewFungibleTokenID(id, tokens.HashForIDCalculation(tx, crypto.SHA256)),
 			Symbol:   token.Symbol,
 			TypeID:   token.TypeID,
 			TypeName: token.TypeName,

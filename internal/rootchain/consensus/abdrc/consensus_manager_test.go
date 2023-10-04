@@ -86,7 +86,7 @@ func buildBlockCertificationRequest(t *testing.T, rg *genesis.RootGenesis, parti
 }
 
 func TestNewConsensusManager_Ok(t *testing.T) {
-	mockNet := testnetwork.NewMockNetwork()
+	mockNet := testnetwork.NewRootMockNetwork()
 	cm, root, partitionNodes, rg := initConsensusManager(t, mockNet)
 	ctx, ctxCancel := context.WithCancel(context.Background())
 	defer ctxCancel()
@@ -99,7 +99,7 @@ func TestNewConsensusManager_Ok(t *testing.T) {
 }
 
 func Test_ConsensusManager_onPartitionIRChangeReq(t *testing.T) {
-	mockNet := testnetwork.NewMockNetwork()
+	mockNet := testnetwork.NewRootMockNetwork()
 	cm, _, partitionNodes, rg := initConsensusManager(t, mockNet)
 
 	req := &consensus.IRChangeRequest{
@@ -112,7 +112,7 @@ func Test_ConsensusManager_onPartitionIRChangeReq(t *testing.T) {
 	cm.pacemaker.Reset(cm.blockStore.GetHighQc().VoteInfo.RoundNumber)
 	defer cm.pacemaker.Stop()
 
-	require.NoError(t, cm.onPartitionIRChangeReq(req))
+	require.NoError(t, cm.onPartitionIRChangeReq(context.Background(), req))
 	// since there is only one root node, it is the next leader, the request will be buffered
 	require.True(t, cm.irReqBuffer.IsChangeInBuffer(p.SystemIdentifier(partitionID)))
 }
@@ -122,7 +122,7 @@ func TestIRChangeRequestFromRootValidator_RootTimeoutOnFirstRound(t *testing.T) 
 	var lastVoteMsg *abdrc.VoteMsg = nil
 	var lastTimeoutMsg *abdrc.TimeoutMsg = nil
 
-	mockNet := testnetwork.NewMockNetwork()
+	mockNet := testnetwork.NewRootMockNetwork()
 	cm, rootNode, _, _ := initConsensusManager(t, mockNet)
 	ctx, ctxCancel := context.WithCancel(context.Background())
 	defer ctxCancel()
@@ -133,14 +133,14 @@ func TestIRChangeRequestFromRootValidator_RootTimeoutOnFirstRound(t *testing.T) 
 	require.Equal(t, uint64(2), lastProposalMsg.Block.Round)
 	// Quick hack to trigger timeout
 	// simulate local timeout by calling the method -> race/hack accessing from different go routines not safe
-	cm.onLocalTimeout()
+	cm.onLocalTimeout(ctx)
 	// await timeout vote
 	lastTimeoutMsg = testutils.MockAwaitMessage[*abdrc.TimeoutMsg](t, mockNet, network.ProtocolRootTimeout)
 	require.Equal(t, uint64(2), lastTimeoutMsg.Timeout.Round)
 	// simulate TC not achieved and make sure the same timeout message is sent again
 	// Quick hack to trigger next timeout
 	// simulate local timeout by calling the method -> race/hack accessing from different go routines not safe
-	cm.onLocalTimeout()
+	cm.onLocalTimeout(ctx)
 	lastTimeoutMsg = testutils.MockAwaitMessage[*abdrc.TimeoutMsg](t, mockNet, network.ProtocolRootTimeout)
 	require.Equal(t, uint64(2), lastTimeoutMsg.Timeout.Round)
 	// route timeout message back
@@ -168,7 +168,7 @@ func TestIRChangeRequestFromRootValidator_RootTimeout(t *testing.T) {
 	var lastVoteMsg *abdrc.VoteMsg = nil
 	var lastTimeoutMsg *abdrc.TimeoutMsg = nil
 
-	mockNet := testnetwork.NewMockNetwork()
+	mockNet := testnetwork.NewRootMockNetwork()
 	cm, rootNode, partitionNodes, rg := initConsensusManager(t, mockNet)
 	ctx, ctxCancel := context.WithCancel(context.Background())
 	defer ctxCancel()
@@ -211,7 +211,7 @@ func TestIRChangeRequestFromRootValidator_RootTimeout(t *testing.T) {
 
 	// Do not route the vote back, instead simulate round/view timeout
 	// simulate local timeout by calling the method -> race/hack accessing from different go routines not safe
-	cm.onLocalTimeout()
+	cm.onLocalTimeout(ctx)
 	// await timeout vote
 	lastTimeoutMsg = testutils.MockAwaitMessage[*abdrc.TimeoutMsg](t, mockNet, network.ProtocolRootTimeout)
 	require.Equal(t, uint64(3), lastTimeoutMsg.Timeout.Round)
@@ -310,7 +310,7 @@ func TestIRChangeRequestFromRootValidator(t *testing.T) {
 	var lastProposalMsg *abdrc.ProposalMsg = nil
 	var lastVoteMsg *abdrc.VoteMsg = nil
 
-	mockNet := testnetwork.NewMockNetwork()
+	mockNet := testnetwork.NewRootMockNetwork()
 	cm, rootNode, partitionNodes, rg := initConsensusManager(t, mockNet)
 	ctx, ctxCancel := context.WithCancel(context.Background())
 	defer ctxCancel()
@@ -368,7 +368,7 @@ func TestPartitionTimeoutFromRootValidator(t *testing.T) {
 	var lastProposalMsg *abdrc.ProposalMsg = nil
 	var lastVoteMsg *abdrc.VoteMsg = nil
 
-	mockNet := testnetwork.NewMockNetwork()
+	mockNet := testnetwork.NewRootMockNetwork()
 	cm, rootNode, _, rg := initConsensusManager(t, mockNet)
 	ctx, ctxCancel := context.WithCancel(context.Background())
 	defer ctxCancel()
@@ -429,7 +429,7 @@ func TestPartitionTimeoutFromRootValidator(t *testing.T) {
 }
 
 func TestGetState(t *testing.T) {
-	mockNet := testnetwork.NewMockNetwork()
+	mockNet := testnetwork.NewRootMockNetwork()
 	cm, rootNode, partitionNodes, _ := initConsensusManager(t, mockNet)
 	ctx, ctxCancel := context.WithCancel(context.Background())
 	defer ctxCancel()
@@ -489,7 +489,7 @@ func Test_ConsensusManager_onVoteMsg(t *testing.T) {
 		defer cms[0].pacemaker.Stop()
 
 		vote := makeVoteMsg(t, cms, 7)
-		err := cms[0].onVoteMsg(vote)
+		err := cms[0].onVoteMsg(context.Background(), vote)
 		require.EqualError(t, err, `stale vote for round 7 from `+cms[0].id.String())
 		require.Empty(t, cms[0].voteBuffer)
 	})
@@ -504,7 +504,7 @@ func Test_ConsensusManager_onVoteMsg(t *testing.T) {
 
 		vote := makeVoteMsg(t, cms, votedRound)
 		vote.Author = "foobar"
-		err := cms[0].onVoteMsg(vote)
+		err := cms[0].onVoteMsg(context.Background(), vote)
 		require.EqualError(t, err, `invalid vote: author "foobar" is not in the trustbase`)
 		require.Empty(t, cms[0].voteBuffer)
 	})
@@ -518,7 +518,7 @@ func Test_ConsensusManager_onVoteMsg(t *testing.T) {
 		defer cms[0].pacemaker.Stop()
 
 		vote := makeVoteMsg(t, cms, votedRound+1)
-		err := cms[0].onVoteMsg(vote)
+		err := cms[0].onVoteMsg(context.Background(), vote)
 		require.NoError(t, err)
 		require.Equal(t, vote, cms[0].voteBuffer[vote.Author])
 	})
@@ -532,11 +532,11 @@ func Test_ConsensusManager_onVoteMsg(t *testing.T) {
 		defer cms[0].pacemaker.Stop()
 
 		vote := makeVoteMsg(t, cms, votedRound+1)
-		err := cms[0].onVoteMsg(vote)
+		err := cms[0].onVoteMsg(context.Background(), vote)
 		require.NoError(t, err)
 		require.Equal(t, vote, cms[0].voteBuffer[vote.Author])
 		// send the vote again - should not trigger recovery ie vote is not counted again
-		require.NoError(t, cms[0].onVoteMsg(vote))
+		require.NoError(t, cms[0].onVoteMsg(context.Background(), vote))
 		require.Equal(t, vote, cms[0].voteBuffer[vote.Author], "expected original vote still to be in the buffer")
 		require.Len(t, cms[0].voteBuffer, 1, "expected only one vote to be buffered")
 	})
@@ -550,7 +550,7 @@ func Test_ConsensusManager_onVoteMsg(t *testing.T) {
 		// as we have single CM vote means quorum and recovery should be triggered as CM hasn't
 		// seen proposal yet
 		vote := makeVoteMsg(t, cms, votedRound+1)
-		err := cms[0].onVoteMsg(vote)
+		err := cms[0].onVoteMsg(context.Background(), vote)
 		require.EqualError(t, err, `have received 1 votes but no proposal, entering recovery`)
 		require.Equal(t, vote, cms[0].voteBuffer[vote.Author], "expected vote to be buffered")
 	})
@@ -563,7 +563,7 @@ func Test_ConsensusManager_onVoteMsg(t *testing.T) {
 		defer cms[0].pacemaker.Stop()
 
 		vote := makeVoteMsg(t, cms, votedRound)
-		err := cms[0].onVoteMsg(vote)
+		err := cms[0].onVoteMsg(context.Background(), vote)
 		require.EqualError(t, err, fmt.Sprintf("validator is not the leader for round %d", votedRound+1))
 		require.Empty(t, cms[0].voteBuffer)
 	})
@@ -596,8 +596,8 @@ func Test_ConsensusManager_messages(t *testing.T) {
 
 		// proposal will be broadcasted so eavesdrop the network and make copy of it
 		propCh := make(chan *abdrc.ProposalMsg, 1)
-		rootNet.SetFirewall(func(from, to peer.ID, msg network.OutputMessage) bool {
-			if msg, ok := msg.Message.(*abdrc.ProposalMsg); ok {
+		rootNet.SetFirewall(func(from, to peer.ID, msg any) bool {
+			if msg, ok := msg.(*abdrc.ProposalMsg); ok {
 				propCh <- msg
 			}
 			return false
@@ -651,11 +651,7 @@ func Test_ConsensusManager_messages(t *testing.T) {
 
 		cmBid, _, _, _ := generatePeerData(t)
 		cmBnet := rootNet.Connect(cmBid)
-		msg := network.OutputMessage{
-			Protocol: network.ProtocolRootIrChangeReq,
-			Message:  irCReq,
-		}
-		require.NoError(t, cmBnet.Send(msg, []peer.ID{cmLeader.id}))
+		require.NoError(t, cmBnet.Send(ctx, irCReq, cmLeader.id))
 
 		// IRCR must be included into broadcasted proposal, either this or next round
 		sawIRCR := false
@@ -664,7 +660,7 @@ func Test_ConsensusManager_messages(t *testing.T) {
 			case <-time.After(cmLeader.pacemaker.maxRoundLen):
 				t.Fatal("haven't got the proposal before timeout")
 			case msg := <-cmBnet.ReceivedChannel():
-				prop := msg.Message.(*abdrc.ProposalMsg)
+				prop := msg.(*abdrc.ProposalMsg)
 				require.NotNil(t, prop)
 				require.NotNil(t, prop.Block)
 				require.NotNil(t, prop.Block.Payload)
@@ -688,18 +684,15 @@ func Test_ConsensusManager_messages(t *testing.T) {
 		go func() { require.ErrorIs(t, cmA.Run(ctx), context.Canceled) }()
 
 		// cmB sends state request to cmA
-		msg := network.OutputMessage{
-			Protocol: network.ProtocolRootStateReq,
-			Message:  &abdrc.GetStateMsg{NodeId: cmB.id.String()},
-		}
-		require.NoError(t, cmB.net.Send(msg, []peer.ID{cmA.id}))
+		msg := &abdrc.GetStateMsg{NodeId: cmB.id.String()}
+		require.NoError(t, cmB.net.Send(ctx, msg, cmA.id))
 
 		// cmB should receive state response
 		select {
 		case <-time.After(1000 * time.Millisecond):
 			t.Fatal("timeout while waiting for recovery response")
 		case msg := <-cmB.net.ReceivedChannel():
-			state := msg.Message.(*abdrc.StateMsg)
+			state := msg.(*abdrc.StateMsg)
 			require.NotNil(t, state)
 			require.EqualValues(t, 1, state.CommittedHead.Block.Round)
 			require.Empty(t, state.BlockNode)
@@ -981,10 +974,10 @@ func Test_rootNetworkRunning(t *testing.T) {
 	cms, rootNet, _ := createConsensusManagers(t, rootNodeCnt, partitionRecs)
 
 	var totalMsgCnt atomic.Uint32
-	rootNet.SetFirewall(func(from, to peer.ID, msg network.OutputMessage) bool {
+	rootNet.SetFirewall(func(from, to peer.ID, msg any) bool {
 		msgCnt := totalMsgCnt.Add(1)
 		block := msgCnt%200 == 0 // drop every n-th message from the network
-		t.Logf("%t # %s -> %s : %T", block, from.ShortString(), to.ShortString(), msg.Message)
+		t.Logf("%t # %s -> %s : %T", block, from.ShortString(), to.ShortString(), msg)
 		return block
 	})
 

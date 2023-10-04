@@ -897,7 +897,7 @@ func TestTransferNFT_InvalidPredicateFormat(t *testing.T) {
 		testtransaction.WithFeeProof(script.PredicateArgumentEmpty()),
 	)
 	_, err := txs.Execute(tx)
-	require.ErrorContains(t, err, "invalid script format")
+	require.ErrorContains(t, err, "invalid script format: predicate argument is invalid: predicate does not start with StartByte")
 }
 
 func TestTransferNFT_InvalidSignature(t *testing.T) {
@@ -922,7 +922,7 @@ func TestTransferNFT_InvalidSignature(t *testing.T) {
 		testtransaction.WithFeeProof(script.PredicateArgumentEmpty()),
 	)
 	_, err := txs.Execute(tx)
-	require.ErrorContains(t, err, "script execution result yielded false or non-clean stack")
+	require.ErrorContains(t, err, "script execution result yielded non-clean stack")
 }
 
 func TestTransferNFT_Ok(t *testing.T) {
@@ -1009,7 +1009,7 @@ func TestTransferNFT_BurnedBearerMustFail(t *testing.T) {
 		testtransaction.WithFeeProof(script.PredicateArgumentEmpty()),
 	)
 	_, err = txs.Execute(tx)
-	require.ErrorIs(t, err, script.ErrScriptResultFalse)
+	require.ErrorContains(t, err, "script execution result yielded false")
 }
 
 func TestUpdateNFT_DataLengthIsInvalid(t *testing.T) {
@@ -1147,7 +1147,7 @@ func TestUpdateNFT_InvalidSignature(t *testing.T) {
 		testtransaction.WithFeeProof(script.PredicateArgumentEmpty()),
 	)
 	_, err := txs.Execute(tx)
-	require.ErrorContains(t, err, "script execution result yielded false or non-clean stack")
+	require.ErrorContains(t, err, "script execution result yielded non-clean stack")
 }
 
 func TestUpdateNFT_Ok(t *testing.T) {

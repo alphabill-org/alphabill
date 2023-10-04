@@ -130,7 +130,8 @@ func TestExecute_TransferOk(t *testing.T) {
 
 	transferOk, _ := createBillTransfer(t, initialBill.ID, initialBill.Value, script.PredicateAlwaysFalse(), nil)
 	roundNumber := uint64(10)
-	txSystem.BeginBlock(roundNumber)
+	err := txSystem.BeginBlock(roundNumber)
+	require.NoError(t, err)
 	serverMetadata, err := txSystem.Execute(transferOk)
 	require.NoError(t, err)
 
@@ -146,43 +147,98 @@ func TestExecute_TransferOk(t *testing.T) {
 	require.EqualValues(t, transferOk.Hash(crypto.SHA256), data2.Backlink)
 }
 
-func TestExecute_SplitOk(t *testing.T) {
+func TestExecute_Split2WayOk(t *testing.T) {
 	rmaTree, txSystem, _ := createStateAndTxSystem(t)
 	totalValue, _, err := rmaTree.CalculateRoot()
 	require.NoError(t, err)
 	initBill, initBillData := getBill(t, rmaTree, initialBill.ID)
 	var remaining uint64 = 10
 	amount := initialBill.Value - remaining
-	splitOk, splitAttr := createSplit(t, initialBill.ID, amount, remaining, script.PredicateAlwaysTrue(), initBillData.Backlink)
+	splitOk, splitAttr := createSplit(t, initialBill.ID, []*TargetUnit{{Amount: amount, OwnerCondition: script.PredicateAlwaysTrue()}}, remaining, initBillData.Backlink)
 	roundNumber := uint64(1)
-	txSystem.BeginBlock(roundNumber)
+	err = txSystem.BeginBlock(roundNumber)
+	require.NoError(t, err)
 	sm, err := txSystem.Execute(splitOk)
 	require.NoError(t, err)
 	require.NotNil(t, sm)
-
-	txSystem.Commit()
+	_, err = txSystem.EndBlock()
+	require.NoError(t, err)
+	err = txSystem.Commit()
+	require.NoError(t, err)
 	initBillAfterUpdate, initBillDataAfterUpdate := getBill(t, rmaTree, initialBill.ID)
 
 	// bill value was reduced
 	require.NotEqual(t, initBillData.V, initBillDataAfterUpdate.V)
 	require.Equal(t, remaining, initBillDataAfterUpdate.V)
-	// total value was not changed
 
+	// total value was not changed
 	total, _, err := rmaTree.CalculateRoot()
 	require.NoError(t, err)
 	require.Equal(t, totalValue, total)
+
 	// bearer of the initial bill was not changed
 	require.Equal(t, initBill.Bearer(), initBillAfterUpdate.Bearer())
 	require.Equal(t, roundNumber, initBillDataAfterUpdate.T)
 
-	expectedNewUnitId := NewBillID(splitOk.UnitID(), unitIdFromTransaction(splitOk))
-	newBill, bd := getBill(t, rmaTree, expectedNewUnitId)
+	expectedNewUnitID := NewBillID(nil, unitIDFromTransaction(splitOk, util.Uint32ToBytes(uint32(0))))
+	newBill, bd := getBill(t, rmaTree, expectedNewUnitID)
 	require.NotNil(t, newBill)
 	require.NotNil(t, bd)
 	require.Equal(t, amount, bd.V)
 	require.EqualValues(t, splitOk.Hash(crypto.SHA256), bd.Backlink)
-	require.Equal(t, state.Predicate(splitAttr.TargetBearer), newBill.Bearer())
+	require.Equal(t, state.Predicate(splitAttr.TargetUnits[0].OwnerCondition), newBill.Bearer())
 	require.Equal(t, roundNumber, bd.T)
+}
+
+func TestExecute_SplitNWayOk(t *testing.T) {
+	rmaTree, txSystem, _ := createStateAndTxSystem(t)
+	totalValue, _, err := rmaTree.CalculateRoot()
+	require.NoError(t, err)
+	initBill, initBillData := getBill(t, rmaTree, initialBill.ID)
+	remaining := initialBill.Value
+	amount := uint64(10)
+
+	var targetUnits []*TargetUnit
+	for i := 0; i < 10; i++ {
+		targetUnits = append(targetUnits, &TargetUnit{Amount: amount, OwnerCondition: script.PredicateAlwaysTrue()})
+		remaining -= amount
+	}
+	splitOk, splitAttr := createSplit(t, initialBill.ID, targetUnits, remaining, initBillData.Backlink)
+	roundNumber := uint64(1)
+	err = txSystem.BeginBlock(roundNumber)
+	require.NoError(t, err)
+	sm, err := txSystem.Execute(splitOk)
+	require.NoError(t, err)
+	require.NotNil(t, sm)
+	_, err = txSystem.EndBlock()
+	require.NoError(t, err)
+	err = txSystem.Commit()
+	require.NoError(t, err)
+	initBillAfterUpdate, initBillDataAfterUpdate := getBill(t, rmaTree, initialBill.ID)
+
+	// bill value was reduced
+	require.NotEqual(t, initBillData.V, initBillDataAfterUpdate.V)
+	require.Equal(t, remaining, initBillDataAfterUpdate.V)
+
+	// total value was not changed
+	total, _, err := rmaTree.CalculateRoot()
+	require.NoError(t, err)
+	require.Equal(t, totalValue, total)
+
+	// bearer of the initial bill was not changed
+	require.Equal(t, initBill.Bearer(), initBillAfterUpdate.Bearer())
+	require.Equal(t, roundNumber, initBillDataAfterUpdate.T)
+
+	for i := range targetUnits {
+		expectedNewUnitId := NewBillID(nil, unitIDFromTransaction(splitOk, util.Uint32ToBytes(uint32(i))))
+		newBill, bd := getBill(t, rmaTree, expectedNewUnitId)
+		require.NotNil(t, newBill)
+		require.NotNil(t, bd)
+		require.Equal(t, amount, bd.V)
+		require.EqualValues(t, splitOk.Hash(crypto.SHA256), bd.Backlink)
+		require.Equal(t, state.Predicate(splitAttr.TargetUnits[0].OwnerCondition), newBill.Bearer())
+		require.Equal(t, roundNumber, bd.T)
+	}
 }
 
 func TestExecuteTransferDC_OK(t *testing.T) {
@@ -190,13 +246,14 @@ func TestExecuteTransferDC_OK(t *testing.T) {
 	_, initBillData := getBill(t, rmaTree, initialBill.ID)
 	var remaining uint64 = 10
 	amount := initialBill.Value - remaining
-	splitOk, _ := createSplit(t, initialBill.ID, amount, remaining, script.PredicateAlwaysTrue(), initBillData.Backlink)
+	splitOk, _ := createSplit(t, initialBill.ID, []*TargetUnit{{Amount: amount, OwnerCondition: script.PredicateAlwaysTrue()}}, remaining, initBillData.Backlink)
 	roundNumber := uint64(10)
-	txSystem.BeginBlock(roundNumber)
+	err := txSystem.BeginBlock(roundNumber)
+	require.NoError(t, err)
 	sm, err := txSystem.Execute(splitOk)
 	require.NoError(t, err)
 	require.NotNil(t, sm)
-	billID := NewBillID(splitOk.UnitID(), unitIdFromTransaction(splitOk))
+	billID := NewBillID(nil, unitIDFromTransaction(splitOk, util.Uint32ToBytes(uint32(0))))
 	_, splitBillData := getBill(t, rmaTree, billID)
 
 	transferDCOk, _ := createDCTransfer(t, billID, splitBillData.V, splitBillData.Backlink, test.RandomBytes(32), test.RandomBytes(32))
@@ -218,14 +275,17 @@ func TestExecute_SwapOk(t *testing.T) {
 	_, initBillData := getBill(t, rmaTree, initialBill.ID)
 	var remaining uint64 = 99
 	amount := initialBill.Value - remaining
-	splitOk, _ := createSplit(t, initialBill.ID, amount, remaining, script.PredicateAlwaysTrue(), initBillData.Backlink)
+	splitOk, _ := createSplit(t, initialBill.ID, []*TargetUnit{{Amount: amount, OwnerCondition: script.PredicateAlwaysTrue()}}, remaining, initBillData.Backlink)
 	roundNumber := uint64(10)
-	txSystem.BeginBlock(roundNumber)
+
+	err := txSystem.BeginBlock(roundNumber)
+	require.NoError(t, err)
+
 	sm, err := txSystem.Execute(splitOk)
 	require.NoError(t, err)
 	require.NotNil(t, sm)
 
-	splitBillID := NewBillID(splitOk.UnitID(), unitIdFromTransaction(splitOk))
+	splitBillID := NewBillID(nil, unitIDFromTransaction(splitOk, util.Uint32ToBytes(uint32(0))))
 	targetID := initialBill.ID
 	targetBacklink := splitOk.Hash(crypto.SHA256)
 	dcTransfers, swapTx := createDCTransferAndSwapTxs(t, []types.UnitID{splitBillID}, targetID, targetBacklink, rmaTree, signer)
@@ -282,12 +342,13 @@ func TestEndBlock_DustBillsAreRemoved(t *testing.T) {
 	backlink := initBillData.Backlink
 	for i := 0; i < 10; i++ {
 		remaining--
-		splitOk, _ := createSplit(t, initialBill.ID, 1, remaining, script.PredicateAlwaysTrue(), backlink)
+		splitOk, _ := createSplit(t, initialBill.ID, []*TargetUnit{{Amount: 1, OwnerCondition: script.PredicateAlwaysTrue()}}, remaining, backlink)
 		roundNumber := uint64(10)
-		txSystem.BeginBlock(roundNumber)
-		_, err := txSystem.Execute(splitOk)
+		err := txSystem.BeginBlock(roundNumber)
 		require.NoError(t, err)
-		splitBillIDs[i] = NewBillID(splitOk.UnitID(), unitIdFromTransaction(splitOk))
+		_, err = txSystem.Execute(splitOk)
+		require.NoError(t, err)
+		splitBillIDs[i] = NewBillID(splitOk.UnitID(), unitIDFromTransaction(splitOk))
 
 		_, data := getBill(t, rmaTree, initialBill.ID)
 		backlink = data.Backlink
@@ -315,12 +376,17 @@ func TestEndBlock_DustBillsAreRemoved(t *testing.T) {
 	require.Equal(t, initialDustCollectorMoneyAmount, dustCollectorBill.V)
 	_, err = txSystem.EndBlock()
 	require.NoError(t, err)
-	txSystem.Commit()
+	err = txSystem.Commit()
+	require.NoError(t, err)
 
-	txSystem.BeginBlock(defaultDustBillDeletionTimeout + 10)
+	err = txSystem.BeginBlock(defaultDustBillDeletionTimeout + 10)
+	require.NoError(t, err)
+
 	_, err = txSystem.EndBlock()
 	require.NoError(t, err)
-	txSystem.Commit()
+
+	err = txSystem.Commit()
+	require.NoError(t, err)
 
 	_, dustCollectorBill = getBill(t, rmaTree, dustCollectorMoneySupplyID)
 	require.Equal(t, initialDustCollectorMoneyAmount, dustCollectorBill.V)
@@ -338,7 +404,8 @@ func TestEndBlock_FeesConsolidation(t *testing.T) {
 	rmaTree, txSystem, signer := createStateAndTxSystem(t)
 
 	// process transferFC with amount 50 and fees 1
-	txSystem.BeginBlock(0)
+	err := txSystem.BeginBlock(0)
+	require.NoError(t, err)
 	transferFC := testfc.NewTransferFC(t,
 		testfc.NewTransferFCAttr(
 			testfc.WithBacklink(nil),
@@ -347,7 +414,7 @@ func TestEndBlock_FeesConsolidation(t *testing.T) {
 		testtransaction.WithOwnerProof(script.PredicateArgumentEmpty()),
 	)
 
-	_, err := txSystem.Execute(transferFC)
+	_, err = txSystem.Execute(transferFC)
 	require.NoError(t, err)
 	_, err = txSystem.EndBlock()
 	require.NoError(t, err)
@@ -361,7 +428,8 @@ func TestEndBlock_FeesConsolidation(t *testing.T) {
 	require.EqualValues(t, 50, moneyFeeCreditBill.Data().SummaryValueInput())
 
 	// process reclaimFC (with closeFC amount=50 and fee=1)
-	txSystem.BeginBlock(0)
+	err = txSystem.BeginBlock(0)
+	require.NoError(t, err)
 
 	transferFCHash := transferFC.Hash(crypto.SHA256)
 	closeFC := testfc.NewCloseFC(t,
@@ -408,10 +476,11 @@ func TestRegisterData_RevertSplit(t *testing.T) {
 
 	var remaining uint64 = 10
 	amount := initialBill.Value - remaining
-	splitOk, _ := createSplit(t, initialBill.ID, amount, remaining, script.PredicateAlwaysTrue(), initBillData.Backlink)
+	splitOk, _ := createSplit(t, initialBill.ID, []*TargetUnit{{Amount: amount, OwnerCondition: script.PredicateAlwaysTrue()}}, remaining, initBillData.Backlink)
 	require.NoError(t, err)
 	roundNumber := uint64(10)
-	txSystem.BeginBlock(roundNumber)
+	err = txSystem.BeginBlock(roundNumber)
+	require.NoError(t, err)
 	sm, err := txSystem.Execute(splitOk)
 	require.NoError(t, err)
 	require.NotNil(t, sm)
@@ -460,7 +529,8 @@ func TestExecute_FeeCreditSequence_OK(t *testing.T) {
 	fcrUnitID := NewFeeCreditRecordID(nil, []byte{100})
 	txAmount := uint64(20)
 
-	txSystem.BeginBlock(1)
+	err := txSystem.BeginBlock(1)
+	require.NoError(t, err)
 
 	// transfer 20 alphas to FCB
 	transferFC := testfc.NewTransferFC(t,
@@ -558,11 +628,14 @@ func TestExecute_FeeCreditSequence_OK(t *testing.T) {
 	require.EqualValues(t, initialBill.Value-4*txFee, ib.Data().SummaryValueInput())
 }
 
-func unitIdFromTransaction(tx *types.TransactionOrder) []byte {
+func unitIDFromTransaction(tx *types.TransactionOrder, extra ...[]byte) []byte {
 	hasher := crypto.SHA256.New()
 	hasher.Write(tx.UnitID())
 	hasher.Write(tx.Payload.Attributes)
 	hasher.Write(util.Uint64ToBytes(tx.Timeout()))
+	for _, b := range extra {
+		hasher.Write(b)
+	}
 	return hasher.Sum(nil)
 }
 
@@ -656,11 +729,10 @@ func createDCTransfer(t *testing.T, fromID types.UnitID, val uint64, backlink []
 	return tx, bt
 }
 
-func createSplit(t *testing.T, fromID types.UnitID, amount, remainingValue uint64, targetBearer, backlink []byte) (*types.TransactionOrder, *SplitAttributes) {
+func createSplit(t *testing.T, fromID types.UnitID, targetUnits []*TargetUnit, remainingValue uint64, backlink []byte) (*types.TransactionOrder, *SplitAttributes) {
 	tx := createTx(fromID, PayloadTypeSplit)
 	bt := &SplitAttributes{
-		Amount:         amount,
-		TargetBearer:   targetBearer,
+		TargetUnits:    targetUnits,
 		RemainingValue: remainingValue,
 		Backlink:       backlink,
 	}
@@ -719,7 +791,8 @@ func createStateAndTxSystem(t *testing.T) (*state.State, *txsystem.GenericTxSyst
 	require.NoError(t, err)
 	_, err = mss.EndBlock()
 	require.NoError(t, err)
-	mss.Commit()
+	err = mss.Commit()
+	require.NoError(t, err)
 
 	return s, mss, signer
 }

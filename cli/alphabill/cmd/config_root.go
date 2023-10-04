@@ -1,15 +1,21 @@
 package cmd
 
 import (
+	"errors"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
 
 	"github.com/spf13/cobra"
+	"gopkg.in/yaml.v3"
+
+	"github.com/alphabill-org/alphabill/pkg/logger"
 )
 
 type (
+	LoggerFactory     func(cfg *logger.LogConfiguration) (*slog.Logger, error)
 	baseConfiguration struct {
 		// The Alphabill home directory
 		HomeDir string
@@ -18,6 +24,9 @@ type (
 		// Logger configuration file URL.
 		LogCfgFile string
 		Metrics    bool
+
+		logger        *slog.Logger
+		loggerBuilder LoggerFactory
 	}
 )
 
@@ -38,13 +47,23 @@ const (
 	keyConfig = "config"
 	// Enables or disables metrics collection
 	keyMetrics = "metrics"
+
+	flagNameLoggerCfgFile = "logger-config"
+	flagNameLogOutputFile = "log-file"
+	flagNameLogLevel      = "log-level"
+	flagNameLogFormat     = "log-format"
 )
 
 func (r *baseConfiguration) addConfigurationFlags(cmd *cobra.Command) {
 	cmd.PersistentFlags().StringVar(&r.HomeDir, keyHome, "", fmt.Sprintf("set the AB_HOME for this invocation (default is %s)", alphabillHomeDir()))
 	cmd.PersistentFlags().StringVar(&r.CfgFile, keyConfig, "", fmt.Sprintf("config file URL (default is $AB_HOME/%s)", defaultConfigFile))
-	cmd.PersistentFlags().StringVar(&r.LogCfgFile, "logger-config", defaultLoggerConfigFile, "logger config file URL. Considered absolute if starts with '/'. Otherwise relative from $AB_HOME.")
 	cmd.PersistentFlags().BoolVar(&r.Metrics, keyMetrics, false, "Enables metrics collection.")
+
+	cmd.PersistentFlags().StringVar(&r.LogCfgFile, flagNameLoggerCfgFile, defaultLoggerConfigFile, "logger config file URL. Considered absolute if starts with '/'. Otherwise relative from $AB_HOME.")
+	// do not set default values for these flags as then we can easily determine whether to load the value from cfg file or not
+	cmd.PersistentFlags().String(flagNameLogOutputFile, "", "log file path or one of the special values: stdout, stderr, discard")
+	cmd.PersistentFlags().String(flagNameLogLevel, "", "logging level, one of: DEBUG, INFO, WARN, ERROR")
+	cmd.PersistentFlags().String(flagNameLogFormat, "", "log format, one of: text, json, console, kibana")
 }
 
 func (r *baseConfiguration) initConfigFileLocation() {
@@ -67,9 +86,21 @@ func (r *baseConfiguration) initConfigFileLocation() {
 		}
 	}
 	if !filepath.IsAbs(r.CfgFile) {
-		// Config file name is using relative path
 		r.CfgFile = filepath.Join(r.HomeDir, r.CfgFile)
 	}
+}
+
+/*
+LoggerCfgFilename always returns non empty filename - either the value
+of the flag set by user or default cfg location.
+The flag will be assigned the default filename (ie without path) if user
+doesn't specify that flag.
+*/
+func (r *baseConfiguration) LoggerCfgFilename() string {
+	if !filepath.IsAbs(r.LogCfgFile) {
+		return filepath.Join(r.HomeDir, r.LogCfgFile)
+	}
+	return r.LogCfgFile
 }
 
 func (r *baseConfiguration) configFileExists() bool {
@@ -79,6 +110,62 @@ func (r *baseConfiguration) configFileExists() bool {
 
 func (r *baseConfiguration) defaultRootGenesisDir() string {
 	return filepath.Join(r.HomeDir, defaultRootChainDir)
+}
+
+func (r *baseConfiguration) Logger(cmd *cobra.Command) (*slog.Logger, error) {
+	if r.logger != nil {
+		return r.logger, nil
+	}
+
+	cfg := &logger.LogConfiguration{}
+
+	loggerCfgFile := r.LoggerCfgFilename()
+	if f, err := os.Open(loggerCfgFile); err != nil {
+		defaultLoggerCfg := filepath.Join(r.HomeDir, defaultLoggerConfigFile)
+		if !(errors.Is(err, os.ErrNotExist) && loggerCfgFile == defaultLoggerCfg) {
+			return nil, fmt.Errorf("opening logger configuration file: %w", err)
+		}
+	} else {
+		if err := yaml.NewDecoder(f).Decode(cfg); err != nil {
+			return nil, fmt.Errorf("decoding logger configuration (%s): %w", loggerCfgFile, err)
+		}
+	}
+
+	getFlagValueIfSet := func(flagName string, value *string) error {
+		if cmd.Flags().Changed(flagName) {
+			var err error
+			if *value, err = cmd.Flags().GetString(flagName); err != nil {
+				return fmt.Errorf("failed to read %s flag value: %w", flagName, err)
+			}
+		}
+		return nil
+	}
+
+	// flags override values loaded from cfg file.
+	// NB! these flags mustn't have default values in Cobra cmd definition!
+	if err := getFlagValueIfSet(flagNameLogLevel, &cfg.Level); err != nil {
+		return nil, err
+	}
+	if err := getFlagValueIfSet(flagNameLogFormat, &cfg.Format); err != nil {
+		return nil, err
+	}
+	if err := getFlagValueIfSet(flagNameLogOutputFile, &cfg.OutputPath); err != nil {
+		return nil, err
+	}
+
+	var err error
+	if r.logger, err = r.loggerBuilder(cfg); err != nil {
+		return nil, fmt.Errorf("building logger: %w", err)
+	}
+	return r.logger, nil
+}
+
+func LoggerBuilder(cfg *logger.LogConfiguration) (*slog.Logger, error) {
+	logger, err := logger.New(cfg)
+	if err != nil {
+		return nil, fmt.Errorf("creating logger: %w", err)
+	}
+	return logger, nil
 }
 
 func envKey(key string) string {

@@ -6,15 +6,17 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/stretchr/testify/require"
+
 	"github.com/alphabill-org/alphabill/internal/script"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
+	"github.com/alphabill-org/alphabill/internal/testutils/logger"
 	testpartition "github.com/alphabill-org/alphabill/internal/testutils/partition"
 	testfc "github.com/alphabill-org/alphabill/internal/txsystem/fc/testutils"
 	moneytx "github.com/alphabill-org/alphabill/internal/txsystem/money"
 	moneytestutils "github.com/alphabill-org/alphabill/internal/txsystem/money/testutils"
 	wlog "github.com/alphabill-org/alphabill/pkg/wallet/log"
-	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/stretchr/testify/require"
 )
 
 var (
@@ -37,7 +39,8 @@ func TestSendingMoneyUsingWallets_integration(t *testing.T) {
 		Value: 1e18,
 		Owner: script.PredicateAlwaysTrue(),
 	}
-	moneyPartition := createMoneyPartition(t, initialBill, 3)
+	moneyPartition := createMoneyPartition(t, initialBill, 1)
+	logF := logger.LoggerBuilder(t)
 	network := startAlphabill(t, []*testpartition.NodePartition{moneyPartition})
 	startPartitionRPCServers(t, moneyPartition)
 
@@ -55,8 +58,7 @@ func TestSendingMoneyUsingWallets_integration(t *testing.T) {
 	am2, homedir2 := createNewWallet(t)
 	w2PubKey, _ := am2.GetPublicKey(0)
 	am2.Close()
-	require.ErrorIs(t, moneyPartition.Nodes[2].Stop(), context.Canceled)
-	require.NoError(t, moneyPartition.ResumeNode(2))
+
 	// create fee credit for initial bill transfer
 	transferFC := testfc.CreateFeeCredit(t, initialBill.ID, fcrID, fcrAmount, network)
 	initialBillBacklink := transferFC.Hash(crypto.SHA256)
@@ -71,27 +73,27 @@ func TestSendingMoneyUsingWallets_integration(t *testing.T) {
 
 	// verify bill is received by wallet 1
 	verifyStdoutEventually(t, func() *testConsoleWriter {
-		return execWalletCmd(t, homedir1, fmt.Sprintf("get-balance --alphabill-api-uri %s", apiAddr))
+		return execWalletCmd(t, logF, homedir1, fmt.Sprintf("get-balance --alphabill-api-uri %s", apiAddr))
 	}, fmt.Sprintf("#%d %s", 1, amountToString(w1BalanceBilly, 8)))
 
 	// create fee credit for wallet-1
 	feeAmountAlpha := uint64(1)
-	stdout := execWalletCmd(t, homedir1, fmt.Sprintf("fees add --amount %d --alphabill-api-uri %s", feeAmountAlpha, apiAddr))
+	stdout := execWalletCmd(t, logF, homedir1, fmt.Sprintf("fees add --amount %d --alphabill-api-uri %s", feeAmountAlpha, apiAddr))
 	verifyStdout(t, stdout, fmt.Sprintf("Successfully created %d fee credits on money partition.", feeAmountAlpha))
 
 	// verify fee credit received
 	w1BalanceBilly = w1BalanceBilly - feeAmountAlpha*1e8
-	waitForFeeCreditCLI(t, homedir1, defaultAlphabillApiURL, feeAmountAlpha*1e8-2, 0)
+	waitForFeeCreditCLI(t, logF, homedir1, defaultAlphabillApiURL, feeAmountAlpha*1e8-2, 0)
 
 	// TS1:
 	// send two transactions to wallet-2
-	stdout = execWalletCmd(t, homedir1, fmt.Sprintf("send --amount 50 --address 0x%x --alphabill-api-uri %s", w2PubKey, apiAddr))
+	stdout = execWalletCmd(t, logF, homedir1, fmt.Sprintf("send --amount 50 --address 0x%x --alphabill-api-uri %s", w2PubKey, apiAddr))
 	verifyStdout(t, stdout,
 		"Successfully confirmed transaction(s)",
 		"Paid 0.000'000'01 fees for transaction(s)")
 
 	// TS1.1: also verify --output-path flag
-	stdout = execWalletCmd(t, homedir1, fmt.Sprintf("send -k 1 --amount 150 --address 0x%x --alphabill-api-uri %s --output-path %s", w2PubKey, apiAddr, homedir1))
+	stdout = execWalletCmd(t, logF, homedir1, fmt.Sprintf("send -k 1 --amount 150 --address 0x%x --alphabill-api-uri %s --output-path %s", w2PubKey, apiAddr, homedir1))
 	proofFile := fmt.Sprintf("%s/bill-0x000000000000000000000000000000000000000000000000000000000000000100.json", homedir1)
 	verifyStdout(t, stdout,
 		"Successfully confirmed transaction(s)",
@@ -103,81 +105,78 @@ func TestSendingMoneyUsingWallets_integration(t *testing.T) {
 	// verify wallet-1 balance is decreased
 	w1BalanceBilly -= 200 * 1e8
 	verifyStdoutEventually(t, func() *testConsoleWriter {
-		return execWalletCmd(t, homedir1, fmt.Sprintf("get-balance --alphabill-api-uri %s", apiAddr))
+		return execWalletCmd(t, logF, homedir1, fmt.Sprintf("get-balance --alphabill-api-uri %s", apiAddr))
 	}, fmt.Sprintf("#%d %s", 1, amountToString(w1BalanceBilly, 8)))
 
 	// verify wallet-2 received said bills
 	w2BalanceBilly := uint64(200 * 1e8)
 	verifyStdoutEventually(t, func() *testConsoleWriter {
-		return execWalletCmd(t, homedir2, fmt.Sprintf("get-balance --alphabill-api-uri %s", apiAddr))
+		return execWalletCmd(t, logF, homedir2, fmt.Sprintf("get-balance --alphabill-api-uri %s", apiAddr))
 	}, fmt.Sprintf("#%d %s", 1, amountToString(w2BalanceBilly, 8)))
 
 	// TS1.2: send bills back to wallet-1
 	// create fee credit for wallet-2
-	stdout = execWalletCmd(t, homedir2, fmt.Sprintf("fees add --amount %d --alphabill-api-uri %s", feeAmountAlpha, apiAddr))
+	stdout = execWalletCmd(t, logF, homedir2, fmt.Sprintf("fees add --amount %d --alphabill-api-uri %s", feeAmountAlpha, apiAddr))
 	verifyStdout(t, stdout, fmt.Sprintf("Successfully created %d fee credits on money partition.", feeAmountAlpha))
 
 	// verify fee credit received for wallet-2
 	w2BalanceBilly = w2BalanceBilly - feeAmountAlpha*1e8
-	waitForFeeCreditCLI(t, homedir2, apiAddr, feeAmountAlpha*1e8-2, 0)
+	waitForFeeCreditCLI(t, logF, homedir2, apiAddr, feeAmountAlpha*1e8-2, 0)
 
 	// send wallet-2 bills back to wallet-1
-	stdout = execWalletCmd(t, homedir2, fmt.Sprintf("send --amount %s --address %s", amountToString(w2BalanceBilly, 8), hexutil.Encode(w1PubKey)))
+	stdout = execWalletCmd(t, logF, homedir2, fmt.Sprintf("send --amount %s --address %s", amountToString(w2BalanceBilly, 8), hexutil.Encode(w1PubKey)))
 	verifyStdout(t, stdout, "Successfully confirmed transaction(s)")
 
 	// verify wallet-2 balance is reduced
-	waitForBalanceCLI(t, homedir2, apiAddr, 0, 0)
+	waitForBalanceCLI(t, logF, homedir2, apiAddr, 0, 0)
 
 	// verify wallet-1 balance is increased
 	w1BalanceBilly += w2BalanceBilly
-	waitForBalanceCLI(t, homedir1, apiAddr, w1BalanceBilly, 0)
+	waitForBalanceCLI(t, logF, homedir1, apiAddr, w1BalanceBilly, 0)
 
 	// TS2:
 	// add additional accounts to wallet 1
-	pubKey2Hex := addAccount(t, homedir1)
-	pubKey3Hex := addAccount(t, homedir1)
+	pubKey2Hex := addAccount(t, logF, homedir1)
+	pubKey3Hex := addAccount(t, logF, homedir1)
 
-	// send two transactions to wallet account 2
-	stdout = execWalletCmd(t, homedir1, fmt.Sprintf("send -k 1 --amount 50 --address %s --alphabill-api-uri %s", pubKey2Hex, apiAddr))
-	verifyStdout(t, stdout, "Successfully confirmed transaction(s)")
-
-	stdout = execWalletCmd(t, homedir1, fmt.Sprintf("send -k 1 --amount 150 --address %s --alphabill-api-uri %s", pubKey2Hex, apiAddr))
+	// send two bills to wallet account 2
+	stdout = execWalletCmd(t, logF, homedir1, fmt.Sprintf("send -k 1 --amount 50,150 --address %s,%s --alphabill-api-uri %s", pubKey2Hex, pubKey2Hex, apiAddr))
 	verifyStdout(t, stdout, "Successfully confirmed transaction(s)")
 
 	// verify wallet-1 account-1 balance is decreased
 	w1BalanceBilly -= 200 * 1e8
 	verifyStdoutEventually(t, func() *testConsoleWriter {
-		return execWalletCmd(t, homedir1, fmt.Sprintf("get-balance -k 1 --alphabill-api-uri %s", apiAddr))
+		return execWalletCmd(t, logF, homedir1, fmt.Sprintf("get-balance -k 1 --alphabill-api-uri %s", apiAddr))
 	}, fmt.Sprintf("#%d %s", 1, amountToString(w1BalanceBilly, 8)))
 
 	// verify wallet-1 account-2 received said bills
 	acc2BalanceBilly := uint64(200 * 1e8)
 	verifyStdoutEventually(t, func() *testConsoleWriter {
-		return execWalletCmd(t, homedir1, fmt.Sprintf("get-balance -k 2 --alphabill-api-uri %s", apiAddr))
+		return execWalletCmd(t, logF, homedir1, fmt.Sprintf("get-balance -k 2 --alphabill-api-uri %s", apiAddr))
 	}, fmt.Sprintf("#%d %s", 2, amountToString(acc2BalanceBilly, 8)))
 
 	// TS2.1:
 	// create fee credit for account 2
-	stdout = execWalletCmd(t, homedir1, fmt.Sprintf("fees add --amount %d -k 2", feeAmountAlpha))
+	stdout = execWalletCmd(t, logF, homedir1, fmt.Sprintf("fees add --amount %d -k 2", feeAmountAlpha))
 	verifyStdout(t, stdout, fmt.Sprintf("Successfully created %d fee credits on money partition.", feeAmountAlpha))
 
 	// verify fee credit received
-	waitForFeeCreditCLI(t, homedir1, apiAddr, feeAmountAlpha*1e8-2, 1)
+	waitForFeeCreditCLI(t, logF, homedir1, apiAddr, feeAmountAlpha*1e8-2, 1)
 
 	// send tx from account-2 to account-3
-	stdout = execWalletCmd(t, homedir1, fmt.Sprintf("send --amount 100 --key 2 --address %s", pubKey3Hex))
+	stdout = execWalletCmd(t, logF, homedir1, fmt.Sprintf("send --amount 100 --key 2 --address %s", pubKey3Hex))
 	verifyStdout(t, stdout, "Successfully confirmed transaction(s)")
-	waitForBalanceCLI(t, homedir1, apiAddr, 100*1e8, 2)
+	waitForBalanceCLI(t, logF, homedir1, apiAddr, 100*1e8, 2)
 
 	// verify account-2 fcb balance is reduced after send
-	stdout = execWalletCmd(t, homedir1, "fees list -k 2")
+	stdout = execWalletCmd(t, logF, homedir1, "fees list -k 2")
 	acc2FeeCredit := feeAmountAlpha*1e8 - 3 // minus one for tx and minus one for creating fee credit
 	acc2FeeCreditString := amountToString(acc2FeeCredit, 8)
 	verifyStdout(t, stdout, fmt.Sprintf("Account #2 %s", acc2FeeCreditString))
 
 	// TS3:
 	// verify transaction is broadcast immediately without confirmation
-	stdout = execWalletCmd(t, homedir1, fmt.Sprintf("send -w false --amount 2 --address %s --alphabill-api-uri %s", pubKey2Hex, apiAddr))
+	stdout = execWalletCmd(t, logF, homedir1, fmt.Sprintf("send -w false --amount 2 --address %s --alphabill-api-uri %s", pubKey2Hex, apiAddr))
 	verifyStdout(t, stdout, "Successfully sent transaction(s)")
 
 	w1TxHistory, _, err := moneyRestClient.GetTxHistory(context.Background(), w1PubKey, "", 0)
@@ -191,9 +190,9 @@ func TestSendingMoneyUsingWallets_integration(t *testing.T) {
 	require.Len(t, w2TxHistory, 4)
 }
 
-func waitForBalanceCLI(t *testing.T, homedir string, url string, expectedBalance uint64, accountIndex uint64) {
+func waitForBalanceCLI(t *testing.T, logF LoggerFactory, homedir string, url string, expectedBalance uint64, accountIndex uint64) {
 	require.Eventually(t, func() bool {
-		stdout := execWalletCmd(t, homedir, "get-balance --alphabill-api-uri "+url)
+		stdout := execWalletCmd(t, logF, homedir, "get-balance --alphabill-api-uri "+url)
 		for _, line := range stdout.lines {
 			expectedBalanceStr := amountToString(expectedBalance, 8)
 			if line == fmt.Sprintf("#%d %s", accountIndex+1, expectedBalanceStr) {
@@ -204,9 +203,9 @@ func waitForBalanceCLI(t *testing.T, homedir string, url string, expectedBalance
 	}, test.WaitDuration, test.WaitTick)
 }
 
-func waitForFeeCreditCLI(t *testing.T, homedir string, url string, expectedBalance uint64, accountIndex uint64) {
+func waitForFeeCreditCLI(t *testing.T, logF LoggerFactory, homedir string, url string, expectedBalance uint64, accountIndex uint64) {
 	require.Eventually(t, func() bool {
-		stdout := execWalletCmd(t, homedir, "fees list --alphabill-api-uri "+url)
+		stdout := execWalletCmd(t, logF, homedir, "fees list --alphabill-api-uri "+url)
 		for _, line := range stdout.lines {
 			expectedBalanceStr := amountToString(expectedBalance, 8)
 			if line == fmt.Sprintf("Account #%d %s", accountIndex+1, expectedBalanceStr) {

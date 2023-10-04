@@ -40,29 +40,38 @@ func TestNode_StartNewRoundCallsRInit(t *testing.T) {
 	require.Equal(t, uint64(1), s.BeginBlockCountDelta)
 }
 
+// TestNode_noRound_txAddedBackToBuffer - simulates the situation where node is leader
+// and stopForwardingOrHandlingTransactions() is called while there are transaction in
+// the execution channel. Make sure that the not executed tx's are added back to buffer after stop.
 func TestNode_noRound_txAddedBackToBuffer(t *testing.T) {
-	s := &testtxsystem.CounterTxSystem{}
-	p := RunSingleNodePartition(t, s)
+	// set-up simulation
+	txSystem := &testtxsystem.CounterTxSystem{}
+	p := SetupNewSingleNodePartition(t, txSystem)
 	transfer := testtransaction.NewTransactionOrder(t)
-	stateBefore, err := s.StateSummary()
-	if err != nil {
-		require.NoError(t, err)
-	}
+	require.NoError(t, p.newNode())
 	bufferBefore := p.partition.txBuffer.Count()
-	// make sure no round is active
-	p.partition.handleT1TimeoutEvent()
-	// send tx to the channel
+	// simulate node is leader and start was called
+	ctx, txCancel := context.WithCancel(context.Background())
+	p.partition.txCancel = txCancel
+	p.partition.txWaitGroup.Add(1)
+	go func() {
+		defer p.partition.txWaitGroup.Done()
+		// wait for cancel
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			}
+		}
+	}()
+	// send a tx to the execution channel
 	p.partition.txCh <- transfer
+	// call stopForwardingOrHandlingTransactions -> any tx not executed is added back to buffer
+	p.partition.stopForwardingOrHandlingTransactions()
 	// tx is added back to the buffer
 	require.Eventually(t, func() bool {
 		return bufferBefore+1 == p.partition.txBuffer.Count()
 	}, test.WaitDuration, test.WaitTick)
-	// make sure tx system remains untouched
-	stateAfter, err := s.StateSummary()
-	if err != nil {
-		require.NoError(t, err)
-	}
-	require.Equal(t, stateBefore.Root(), stateAfter.Root())
 }
 
 func TestNode_NodeStartTest(t *testing.T) {
@@ -644,13 +653,13 @@ func TestNode_GetTransactionRecord_OK(t *testing.T) {
 	tp.CreateBlock(t)
 
 	require.Eventually(t, func() bool {
-		record, proof, err := tp.partition.GetTransactionRecord(hash)
+		record, proof, err := tp.partition.GetTransactionRecord(context.Background(), hash)
 		require.NoError(t, err)
 		return record != nil && proof != nil
 	}, test.WaitDuration, test.WaitTick)
 
 	require.Eventually(t, func() bool {
-		record, proof, err := tp.partition.GetTransactionRecord(hash2)
+		record, proof, err := tp.partition.GetTransactionRecord(context.Background(), hash2)
 		require.NoError(t, err)
 		return record != nil && proof != nil
 	}, test.WaitDuration, test.WaitTick)
@@ -659,7 +668,7 @@ func TestNode_GetTransactionRecord_OK(t *testing.T) {
 func TestNode_GetTransactionRecord_NotFound(t *testing.T) {
 	system := &testtxsystem.CounterTxSystem{}
 	tp := RunSingleNodePartition(t, system, WithTxIndexer(memorydb.New()))
-	record, proof, err := tp.partition.GetTransactionRecord(test.RandomBytes(32))
+	record, proof, err := tp.partition.GetTransactionRecord(context.Background(), test.RandomBytes(32))
 
 	require.NoError(t, err)
 	require.Nil(t, record)

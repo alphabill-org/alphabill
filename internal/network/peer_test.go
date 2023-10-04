@@ -83,7 +83,7 @@ func TestNewPeer_LoadsKeyPairCorrectly(t *testing.T) {
 func TestBootstrapNodes(t *testing.T) {
 	ctx := context.Background()
 	bootstrapNode := createDHT(ctx, t, false, dht.DisableAutoRefresh())
-	bootstrapNodeAddrInfo := []peer.AddrInfo{{bootstrapNode.Host().ID(), bootstrapNode.Host().Addrs()}}
+	bootstrapNodeAddrInfo := []peer.AddrInfo{{ID: bootstrapNode.Host().ID(), Addrs: bootstrapNode.Host().Addrs()}}
 
 	peer1, err := NewPeer(context.Background(), &PeerConfiguration{Address: randomTestAddressStr, BootstrapPeers: bootstrapNodeAddrInfo})
 	require.NoError(t, err)
@@ -100,6 +100,10 @@ func TestBootstrapNodes(t *testing.T) {
 	require.Eventually(t, func() bool { return peer1.dht.RoutingTable().Find(peer2.dht.Host().ID()) != "" }, test.WaitDuration, test.WaitTick)
 }
 
+/*
+createPeer returns new Peer configured with random port on localhost and registers
+cleanup for it (ie in the end of the test peer.Close is called).
+*/
 func createPeer(t *testing.T) *Peer {
 	p, err := NewPeer(context.Background(), &PeerConfiguration{Address: randomTestAddressStr})
 	require.NoError(t, err)

@@ -172,11 +172,7 @@ func (sn *SingleNodePartition) newNode() error {
 }
 
 func (sn *SingleNodePartition) SubmitTx(tx *types.TransactionOrder) error {
-	sn.mockNet.Receive(network.ReceivedMessage{
-		From:     "from-test",
-		Protocol: network.ProtocolInputForward,
-		Message:  tx,
-	})
+	sn.mockNet.Receive(tx)
 	return nil
 }
 
@@ -186,20 +182,12 @@ func (sn *SingleNodePartition) SubmitTxFromRPC(tx *types.TransactionOrder) error
 }
 
 func (sn *SingleNodePartition) SubmitUnicityCertificate(uc *types.UnicityCertificate) {
-	sn.mockNet.Receive(network.ReceivedMessage{
-		From:     "from-test",
-		Protocol: network.ProtocolUnicityCertificates,
-		Message:  uc,
-	})
+	sn.mockNet.Receive(uc)
 
 }
 
 func (sn *SingleNodePartition) SubmitBlockProposal(prop *blockproposal.BlockProposal) {
-	sn.mockNet.Receive(network.ReceivedMessage{
-		From:     "from-test",
-		Protocol: network.ProtocolBlockProposal,
-		Message:  prop,
-	})
+	sn.mockNet.Receive(prop)
 }
 
 func (sn *SingleNodePartition) CreateUnicityCertificate(ir *types.InputRecord, roundNumber uint64) (*types.UnicityCertificate, error) {
@@ -283,7 +271,7 @@ func (sn *SingleNodePartition) IssueBlockUC(t *testing.T) *types.UnicityCertific
 
 func (sn *SingleNodePartition) SubmitT1Timeout(t *testing.T) {
 	sn.eh.Reset()
-	sn.partition.handleT1TimeoutEvent()
+	sn.partition.handleT1TimeoutEvent(context.Background())
 	require.Eventually(t, func() bool {
 		return len(sn.mockNet.SentMessages(network.ProtocolBlockCertification)) == 1
 	}, test.WaitDuration, test.WaitTick, "block certification request not found")
@@ -292,7 +280,7 @@ func (sn *SingleNodePartition) SubmitT1Timeout(t *testing.T) {
 func (sn *SingleNodePartition) SubmitMonitorTimeout(t *testing.T) {
 	t.Helper()
 	sn.eh.Reset()
-	sn.partition.handleMonitoring(time.Now().Add(-3 * sn.nodeConf.GetT2Timeout()))
+	sn.partition.handleMonitoring(context.Background(), time.Now().Add(-3*sn.nodeConf.GetT2Timeout()))
 }
 
 type TestLeaderSelector struct {
@@ -416,10 +404,7 @@ func WaitNodeRequestReceived(t *testing.T, tp *SingleNodePartition, req string) 
 	}, test.WaitDuration, test.WaitTick)
 	// if more than one return last, but there has to be at least one, otherwise require.Eventually fails before
 	return &testnetwork.PeerMessage{
-		ID: reqs[len(reqs)-1].ID,
-		OutputMessage: network.OutputMessage{
-			Protocol: reqs[len(reqs)-1].Protocol,
-			Message:  reqs[len(reqs)-1].Message,
-		},
+		ID:      reqs[len(reqs)-1].ID,
+		Message: reqs[len(reqs)-1].Message,
 	}
 }

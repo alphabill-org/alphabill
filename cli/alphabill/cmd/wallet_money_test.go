@@ -20,6 +20,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/internal/partition"
 	"github.com/alphabill-org/alphabill/internal/script"
+	"github.com/alphabill-org/alphabill/internal/testutils/logger"
 	testpartition "github.com/alphabill-org/alphabill/internal/testutils/partition"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/internal/txsystem/money"
@@ -51,7 +52,7 @@ func TestWalletCreateCmd(t *testing.T) {
 	consoleWriter = outputWriter
 	homeDir := setupTestHomeDir(t, "wallet-test")
 
-	cmd := New()
+	cmd := New(logger.LoggerBuilder(t))
 	args := "wallet --home " + homeDir + " create"
 	cmd.baseCmd.SetArgs(strings.Split(args, " "))
 	err := cmd.addAndExecuteCommand(context.Background())
@@ -65,8 +66,9 @@ func TestWalletCreateCmd_encrypt(t *testing.T) {
 	outputWriter := &testConsoleWriter{}
 	consoleWriter = outputWriter
 	homeDir := setupTestHomeDir(t, "wallet-test")
+	logF := logger.LoggerBuilder(t)
 
-	cmd := New()
+	cmd := New(logF)
 	pw := "123456"
 	cmd.baseCmd.SetArgs(strings.Split("wallet --home "+homeDir+" create --pn "+pw, " "))
 	err := cmd.addAndExecuteCommand(context.Background())
@@ -77,17 +79,17 @@ func TestWalletCreateCmd_encrypt(t *testing.T) {
 
 	// verify wallet is encrypted
 	// failing case: missing password
-	cmd = New()
+	cmd = New(logF)
 	cmd.baseCmd.SetArgs(strings.Split("wallet --home "+homeDir+" add-key", " "))
 	err = cmd.addAndExecuteCommand(context.Background())
 	require.ErrorContains(t, err, "invalid password")
 	// failing case: wrong password
-	cmd = New()
+	cmd = New(logF)
 	cmd.baseCmd.SetArgs(strings.Split("wallet --home "+homeDir+" add-key --pn 123", " "))
 	err = cmd.addAndExecuteCommand(context.Background())
 	require.ErrorContains(t, err, "invalid password")
 	// passing case:
-	cmd = New()
+	cmd = New(logF)
 	cmd.baseCmd.SetArgs(strings.Split("wallet --home "+homeDir+" add-key --pn "+pw, " "))
 	err = cmd.addAndExecuteCommand(context.Background())
 	require.NoError(t, err)
@@ -98,7 +100,7 @@ func TestWalletCreateCmd_invalidSeed(t *testing.T) {
 	consoleWriter = outputWriter
 	homeDir := setupTestHomeDir(t, "wallet-test")
 
-	cmd := New()
+	cmd := New(logger.LoggerBuilder(t))
 	cmd.baseCmd.SetArgs(strings.Split("wallet create -s --wallet-location "+homeDir, " "))
 	err := cmd.addAndExecuteCommand(context.Background())
 	require.EqualError(t, err, `invalid value "--wallet-location" for flag "seed" (mnemonic)`)
@@ -109,7 +111,7 @@ func TestWalletGetBalanceCmd(t *testing.T) {
 	homedir := createNewTestWallet(t)
 	mockServer, addr := mockBackendCalls(&backendMockReturnConf{balance: 15 * 1e8})
 	defer mockServer.Close()
-	stdout, _ := execCommand(homedir, "get-balance --alphabill-api-uri "+addr.Host)
+	stdout, _ := execCommand(logger.LoggerBuilder(t), homedir, "get-balance --alphabill-api-uri "+addr.Host)
 	verifyStdout(t, stdout, "#1 15", "Total 15")
 }
 
@@ -117,8 +119,8 @@ func TestWalletGetBalanceKeyCmdKeyFlag(t *testing.T) {
 	homedir := createNewTestWallet(t)
 	mockServer, addr := mockBackendCalls(&backendMockReturnConf{balance: 15 * 1e8})
 	defer mockServer.Close()
-	addAccount(t, homedir)
-	stdout, _ := execCommand(homedir, "get-balance --key 2 --alphabill-api-uri "+addr.Host)
+	addAccount(t, logger.LoggerBuilder(t), homedir)
+	stdout, _ := execCommand(logger.LoggerBuilder(t), homedir, "get-balance --key 2 --alphabill-api-uri "+addr.Host)
 	verifyStdout(t, stdout, "#2 15")
 	verifyStdoutNotExists(t, stdout, "Total 15")
 }
@@ -127,7 +129,7 @@ func TestWalletGetBalanceCmdTotalFlag(t *testing.T) {
 	homedir := createNewTestWallet(t)
 	mockServer, addr := mockBackendCalls(&backendMockReturnConf{balance: 15 * 1e8})
 	defer mockServer.Close()
-	stdout, _ := execCommand(homedir, "get-balance --total --alphabill-api-uri "+addr.Host)
+	stdout, _ := execCommand(logger.LoggerBuilder(t), homedir, "get-balance --total --alphabill-api-uri "+addr.Host)
 	verifyStdout(t, stdout, "Total 15")
 	verifyStdoutNotExists(t, stdout, "#1 15")
 }
@@ -136,33 +138,34 @@ func TestWalletGetBalanceCmdTotalWithKeyFlag(t *testing.T) {
 	homedir := createNewTestWallet(t)
 	mockServer, addr := mockBackendCalls(&backendMockReturnConf{balance: 15 * 1e8})
 	defer mockServer.Close()
-	stdout, _ := execCommand(homedir, "get-balance --key 1 --total --alphabill-api-uri "+addr.Host)
+	stdout, _ := execCommand(logger.LoggerBuilder(t), homedir, "get-balance --key 1 --total --alphabill-api-uri "+addr.Host)
 	verifyStdout(t, stdout, "#1 15")
 	verifyStdoutNotExists(t, stdout, "Total 15")
 }
 
 func TestWalletGetBalanceCmdQuietFlag(t *testing.T) {
+	logF := logger.LoggerBuilder(t)
 	homedir := createNewTestWallet(t)
 	mockServer, addr := mockBackendCalls(&backendMockReturnConf{balance: 15 * 1e8})
 	defer mockServer.Close()
 
 	// verify quiet flag does nothing if no key or total flag is not provided
-	stdout, _ := execCommand(homedir, "get-balance --quiet --alphabill-api-uri "+addr.Host)
+	stdout, _ := execCommand(logF, homedir, "get-balance --quiet --alphabill-api-uri "+addr.Host)
 	verifyStdout(t, stdout, "#1 15")
 	verifyStdout(t, stdout, "Total 15")
 
 	// verify quiet with total
-	stdout, _ = execCommand(homedir, "get-balance --quiet --total --alphabill-api-uri "+addr.Host)
+	stdout, _ = execCommand(logF, homedir, "get-balance --quiet --total --alphabill-api-uri "+addr.Host)
 	verifyStdout(t, stdout, "15")
 	verifyStdoutNotExists(t, stdout, "#1 15")
 
 	// verify quiet with key
-	stdout, _ = execCommand(homedir, "get-balance --quiet --key 1 --alphabill-api-uri "+addr.Host)
+	stdout, _ = execCommand(logF, homedir, "get-balance --quiet --key 1 --alphabill-api-uri "+addr.Host)
 	verifyStdout(t, stdout, "15")
 	verifyStdoutNotExists(t, stdout, "Total 15")
 
 	// verify quiet with key and total (total is not shown if key is provided)
-	stdout, _ = execCommand(homedir, "get-balance --quiet --key 1 --total --alphabill-api-uri "+addr.Host)
+	stdout, _ = execCommand(logF, homedir, "get-balance --quiet --key 1 --total --alphabill-api-uri "+addr.Host)
 	verifyStdout(t, stdout, "15")
 	verifyStdoutNotExists(t, stdout, "#1 15")
 }
@@ -171,7 +174,7 @@ func TestPubKeysCmd(t *testing.T) {
 	am, homedir := createNewWallet(t)
 	pk, _ := am.GetPublicKey(0)
 	am.Close()
-	stdout, _ := execCommand(homedir, "get-pubkeys")
+	stdout, _ := execCommand(logger.LoggerBuilder(t), homedir, "get-pubkeys")
 	verifyStdout(t, stdout, "#1 "+hexutil.Encode(pk))
 }
 
@@ -183,7 +186,7 @@ func TestSendingFailsWithInsufficientBalance(t *testing.T) {
 	mockServer, addr := mockBackendCalls(&backendMockReturnConf{balance: 5e8})
 	defer mockServer.Close()
 
-	_, err := execCommand(homedir, "send --amount 10 --address "+hexutil.Encode(pubKey)+" --alphabill-api-uri "+addr.Host)
+	_, err := execCommand(logger.LoggerBuilder(t), homedir, "send --amount 10 --address "+hexutil.Encode(pubKey)+" --alphabill-api-uri "+addr.Host)
 	require.ErrorContains(t, err, "insufficient balance for transaction")
 }
 
@@ -254,8 +257,8 @@ func startRPCServer(t *testing.T, node *partition.Node) string {
 }
 
 // addAccount calls "add-key" cli function on given wallet and returns the added pubkey hex
-func addAccount(t *testing.T, homedir string) string {
-	stdout := execWalletCmd(t, homedir, "add-key")
+func addAccount(t *testing.T, logF LoggerFactory, homedir string) string {
+	stdout := execWalletCmd(t, logF, homedir, "add-key")
 	for _, line := range stdout.lines {
 		if strings.HasPrefix(line, "Added key #") {
 			return line[13:]
@@ -298,22 +301,22 @@ func verifyStdoutNotExists(t *testing.T, consoleWriter *testConsoleWriter, expec
 	}
 }
 
-func execCommand(homeDir, command string) (*testConsoleWriter, error) {
+func execCommand(logF LoggerFactory, homeDir, command string) (*testConsoleWriter, error) {
 	outputWriter := &testConsoleWriter{}
 	consoleWriter = outputWriter
 
-	cmd := New()
+	cmd := New(logF)
 	args := "wallet --home " + homeDir + " " + command
 	cmd.baseCmd.SetArgs(strings.Split(args, " "))
 
 	return outputWriter, cmd.addAndExecuteCommand(context.Background())
 }
 
-func execWalletCmd(t *testing.T, homedir string, command string) *testConsoleWriter {
+func execWalletCmd(t *testing.T, logF LoggerFactory, homedir string, command string) *testConsoleWriter {
 	outputWriter := &testConsoleWriter{}
 	consoleWriter = outputWriter
 
-	cmd := New()
+	cmd := New(logF)
 	args := fmt.Sprintf("wallet --home %s %s", homedir, command)
 	cmd.baseCmd.SetArgs(strings.Split(args, " "))
 

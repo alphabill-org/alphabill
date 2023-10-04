@@ -21,7 +21,10 @@ require (
 	github.com/holiman/uint256 v1.2.3
 	github.com/libp2p/go-libp2p v0.31.0
 	github.com/libp2p/go-libp2p-kad-dht v0.23.0
+	github.com/lmittmann/tint v1.0.2
+	github.com/mattn/go-isatty v0.0.19
 	github.com/multiformats/go-multiaddr v0.11.0
+	github.com/neilotoole/slogt v1.1.0
 	github.com/rs/zerolog v1.28.0
 	github.com/shopspring/decimal v1.3.1
 	github.com/spf13/cobra v1.6.1
@@ -122,7 +125,6 @@ require (
 	github.com/magiconair/properties v1.8.6 // indirect
 	github.com/marten-seemann/tcp v0.0.0-20210406111302-dfbc87cc63fd // indirect
 	github.com/mattn/go-colorable v0.1.13 // indirect
-	github.com/mattn/go-isatty v0.0.19 // indirect
 	github.com/mattn/go-runewidth v0.0.9 // indirect
 	github.com/matttproud/golang_protobuf_extensions v1.0.4 // indirect
 	github.com/miekg/dns v1.1.55 // indirect

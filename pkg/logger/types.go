@@ -28,7 +28,7 @@ func LevelFromString(s string) LogLevel {
 		return NONE
 	case "ERROR":
 		return ERROR
-	case "WARNING":
+	case "WARNING", "WARN":
 		return WARNING
 	case "INFO":
 		return INFO
@@ -36,7 +36,6 @@ func LevelFromString(s string) LogLevel {
 		return DEBUG
 	case "TRACE":
 		return TRACE
-
 	default:
 		return DEBUG
 	}

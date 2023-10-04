@@ -12,13 +12,13 @@ import (
 
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/internal/script"
+	"github.com/alphabill-org/alphabill/internal/testutils/logger"
 	testpartition "github.com/alphabill-org/alphabill/internal/testutils/partition"
 	"github.com/alphabill-org/alphabill/internal/txsystem/money"
 	"github.com/alphabill-org/alphabill/internal/txsystem/tokens"
 	"github.com/alphabill-org/alphabill/pkg/wallet/fees"
 	wlog "github.com/alphabill-org/alphabill/pkg/wallet/log"
 	"github.com/alphabill-org/alphabill/pkg/wallet/money/backend"
-	moneyclient "github.com/alphabill-org/alphabill/pkg/wallet/money/backend/client"
 )
 
 var defaultTokenSDR = &genesis.SystemDescriptionRecord{
@@ -31,65 +31,66 @@ var defaultTokenSDR = &genesis.SystemDescriptionRecord{
 }
 
 func TestWalletFeesCmds_MoneyPartition(t *testing.T) {
-	homedir, _ := setupMoneyInfraAndWallet(t, []*testpartition.NodePartition{})
+	logF := logger.LoggerBuilder(t)
+	homedir, _ := setupMoneyInfraAndWallet(t, []*testpartition.NodePartition{}, logF)
 
 	// list fees
-	stdout, err := execFeesCommand(homedir, "list")
+	stdout, err := execFeesCommand(logF, homedir, "list")
 	require.NoError(t, err)
 	require.Equal(t, "Partition: money", stdout.lines[0])
 	require.Equal(t, "Account #1 0.000'000'00", stdout.lines[1])
 
 	// add fee credits
 	amount := uint64(150)
-	stdout, err = execFeesCommand(homedir, fmt.Sprintf("add --amount=%d", amount))
+	stdout, err = execFeesCommand(logF, homedir, fmt.Sprintf("add --amount=%d", amount))
 	require.NoError(t, err)
 	require.Equal(t, fmt.Sprintf("Successfully created %d fee credits on money partition.", amount), stdout.lines[0])
 
 	// verify fee credits
 	expectedFees := amount*1e8 - 2
-	stdout, err = execFeesCommand(homedir, "list")
+	stdout, err = execFeesCommand(logF, homedir, "list")
 	require.NoError(t, err)
 	require.Equal(t, "Partition: money", stdout.lines[0])
 	require.Equal(t, fmt.Sprintf("Account #1 %s", amountToString(expectedFees, 8)), stdout.lines[1])
 
 	// add more fee credits
-	stdout, err = execFeesCommand(homedir, fmt.Sprintf("add --amount=%d", amount))
+	stdout, err = execFeesCommand(logF, homedir, fmt.Sprintf("add --amount=%d", amount))
 	require.NoError(t, err)
 	require.Equal(t, fmt.Sprintf("Successfully created %d fee credits on money partition.", amount), stdout.lines[0])
 
 	// verify fee credits
 	expectedFees = amount*2*1e8 - 4
-	stdout, err = execFeesCommand(homedir, "list")
+	stdout, err = execFeesCommand(logF, homedir, "list")
 	require.NoError(t, err)
 	require.Equal(t, "Partition: money", stdout.lines[0])
 	require.Equal(t, fmt.Sprintf("Account #1 %s", amountToString(expectedFees, 8)), stdout.lines[1])
 
 	// reclaim fees
-	stdout, err = execFeesCommand(homedir, "reclaim")
+	stdout, err = execFeesCommand(logF, homedir, "reclaim")
 	require.NoError(t, err)
 	require.Equal(t, "Successfully reclaimed fee credits on money partition.", stdout.lines[0])
 
 	// list fees
-	stdout, err = execFeesCommand(homedir, "list")
+	stdout, err = execFeesCommand(logF, homedir, "list")
 	require.NoError(t, err)
 	require.Equal(t, "Partition: money", stdout.lines[0])
 	require.Equal(t, "Account #1 0.000'000'00", stdout.lines[1])
 
 	// add more fees after reclaiming
-	stdout, err = execFeesCommand(homedir, fmt.Sprintf("add --amount=%d", amount))
+	stdout, err = execFeesCommand(logF, homedir, fmt.Sprintf("add --amount=%d", amount))
 	require.NoError(t, err)
 	require.Equal(t, fmt.Sprintf("Successfully created %d fee credits on money partition.", amount), stdout.lines[0])
 
 	// verify list fees
 	expectedFees = amount*1e8 - 2
-	stdout, err = execFeesCommand(homedir, "list")
+	stdout, err = execFeesCommand(logF, homedir, "list")
 	require.NoError(t, err)
 	require.Equal(t, "Partition: money", stdout.lines[0])
 	require.Equal(t, fmt.Sprintf("Account #1 %s", amountToString(expectedFees, 8)), stdout.lines[1])
 
 	// add entire bill value worth of fees
 	entireBillAmount := getFirstBillValue(t, homedir)
-	stdout, err = execFeesCommand(homedir, fmt.Sprintf("add --amount=%s", entireBillAmount))
+	stdout, err = execFeesCommand(logF, homedir, fmt.Sprintf("add --amount=%s", entireBillAmount))
 	require.NoError(t, err)
 	require.Equal(t, fmt.Sprintf("Successfully created %s fee credits on money partition.", entireBillAmount), stdout.lines[0])
 }
@@ -97,7 +98,8 @@ func TestWalletFeesCmds_MoneyPartition(t *testing.T) {
 func TestWalletFeesCmds_TokenPartition(t *testing.T) {
 	// start money partition and create wallet with token partition as well
 	tokensPartition := createTokensPartition(t)
-	homedir, _ := setupMoneyInfraAndWallet(t, []*testpartition.NodePartition{tokensPartition})
+	logF := logger.LoggerBuilder(t)
+	homedir, _ := setupMoneyInfraAndWallet(t, []*testpartition.NodePartition{tokensPartition}, logF)
 
 	// start token partition
 	startPartitionRPCServers(t, tokensPartition)
@@ -106,7 +108,7 @@ func TestWalletFeesCmds_TokenPartition(t *testing.T) {
 	args := fmt.Sprintf("--partition=tokens -r %s -m %s", defaultAlphabillApiURL, tokenBackendURL)
 
 	// list fees on token partition
-	stdout, err := execFeesCommand(homedir, "list "+args)
+	stdout, err := execFeesCommand(logF, homedir, "list "+args)
 	require.NoError(t, err)
 
 	require.Equal(t, "Partition: tokens", stdout.lines[0])
@@ -114,102 +116,103 @@ func TestWalletFeesCmds_TokenPartition(t *testing.T) {
 
 	// add fee credits
 	amount := uint64(150)
-	stdout, err = execFeesCommand(homedir, fmt.Sprintf("add --amount=%d %s", amount, args))
+	stdout, err = execFeesCommand(logF, homedir, fmt.Sprintf("add --amount=%d %s", amount, args))
 	require.NoError(t, err)
 	require.Equal(t, fmt.Sprintf("Successfully created %d fee credits on tokens partition.", amount), stdout.lines[0])
 
 	// verify fee credits
 	expectedFees := amount*1e8 - 2
-	stdout, err = execFeesCommand(homedir, "list "+args)
+	stdout, err = execFeesCommand(logF, homedir, "list "+args)
 	require.NoError(t, err)
 	require.Equal(t, "Partition: tokens", stdout.lines[0])
 	require.Equal(t, fmt.Sprintf("Account #1 %s", amountToString(expectedFees, 8)), stdout.lines[1])
 
 	// add more fee credits to token partition
-	stdout, err = execFeesCommand(homedir, fmt.Sprintf("add --amount=%d %s", amount, args))
+	stdout, err = execFeesCommand(logF, homedir, fmt.Sprintf("add --amount=%d %s", amount, args))
 	require.NoError(t, err)
 	require.Equal(t, fmt.Sprintf("Successfully created %d fee credits on tokens partition.", amount), stdout.lines[0])
 
 	// verify fee credits to token partition
 	expectedFees = amount*2*1e8 - 4
-	stdout, err = execFeesCommand(homedir, "list "+args)
+	stdout, err = execFeesCommand(logF, homedir, "list "+args)
 	require.NoError(t, err)
 	require.Equal(t, "Partition: tokens", stdout.lines[0])
 	require.Equal(t, fmt.Sprintf("Account #1 %s", amountToString(expectedFees, 8)), stdout.lines[1])
 
 	// reclaim fees
-	stdout, err = execFeesCommand(homedir, "reclaim "+args)
+	stdout, err = execFeesCommand(logF, homedir, "reclaim "+args)
 	require.NoError(t, err)
 	require.Equal(t, "Successfully reclaimed fee credits on tokens partition.", stdout.lines[0])
 
 	// list fees
-	stdout, err = execFeesCommand(homedir, "list "+args)
+	stdout, err = execFeesCommand(logF, homedir, "list "+args)
 	require.NoError(t, err)
 	require.Equal(t, "Partition: tokens", stdout.lines[0])
 	require.Equal(t, "Account #1 0.000'000'00", stdout.lines[1])
 
 	// add more fees after reclaiming
-	stdout, err = execFeesCommand(homedir, fmt.Sprintf("add --amount=%d %s", amount, args))
+	stdout, err = execFeesCommand(logF, homedir, fmt.Sprintf("add --amount=%d %s", amount, args))
 	require.NoError(t, err)
 	require.Equal(t, fmt.Sprintf("Successfully created %d fee credits on tokens partition.", amount), stdout.lines[0])
 
 	// verify list fees
 	expectedFees = amount*1e8 - 2
-	stdout, err = execFeesCommand(homedir, "list "+args)
+	stdout, err = execFeesCommand(logF, homedir, "list "+args)
 	require.NoError(t, err)
 	require.Equal(t, "Partition: tokens", stdout.lines[0])
 	require.Equal(t, fmt.Sprintf("Account #1 %s", amountToString(expectedFees, 8)), stdout.lines[1])
 }
 
 func TestWalletFeesCmds_MinimumFeeAmount(t *testing.T) {
-	homedir, _ := setupMoneyInfraAndWallet(t, []*testpartition.NodePartition{})
+	logF := logger.LoggerBuilder(t)
+	homedir, _ := setupMoneyInfraAndWallet(t, []*testpartition.NodePartition{}, logF)
 
 	// try to add invalid fee amount
-	_, err := execFeesCommand(homedir, "add --amount=0.00000002")
+	_, err := execFeesCommand(logF, homedir, "add --amount=0.00000002")
 	require.Errorf(t, err, "minimum fee credit amount to add is %d", amountToString(fees.MinimumFeeAmount, 8))
 
 	// add minimum fee amount
-	stdout, err := execFeesCommand(homedir, "add --amount=0.00000003")
+	stdout, err := execFeesCommand(logF, homedir, "add --amount=0.00000003")
 	require.NoError(t, err)
 	require.Equal(t, "Successfully created 0.00000003 fee credits on money partition.", stdout.lines[0])
 
 	// verify fee credit is below minimum
 	expectedFees := uint64(1)
-	stdout, err = execFeesCommand(homedir, "list")
+	stdout, err = execFeesCommand(logF, homedir, "list")
 	require.NoError(t, err)
 	require.Equal(t, "Partition: money", stdout.lines[0])
 	require.Equal(t, fmt.Sprintf("Account #1 %s", amountToString(expectedFees, 8)), stdout.lines[1])
 
 	// reclaim with invalid amount
-	stdout, err = execFeesCommand(homedir, "reclaim")
+	stdout, err = execFeesCommand(logF, homedir, "reclaim")
 	require.Errorf(t, err, "insufficient fee credit balance. Minimum amount is %d", amountToString(fees.MinimumFeeAmount, 8))
+	require.Empty(t, stdout.lines)
 
 	// add more fee credit
-	stdout, err = execFeesCommand(homedir, "add --amount=0.00000004")
+	stdout, err = execFeesCommand(logF, homedir, "add --amount=0.00000004")
 	require.NoError(t, err)
 	require.Equal(t, "Successfully created 0.00000004 fee credits on money partition.", stdout.lines[0])
 
 	// verify fee credit is valid for reclaim
 	expectedFees = uint64(3)
-	stdout, err = execFeesCommand(homedir, "list")
+	stdout, err = execFeesCommand(logF, homedir, "list")
 	require.NoError(t, err)
 	require.Equal(t, "Partition: money", stdout.lines[0])
 	require.Equal(t, fmt.Sprintf("Account #1 %s", amountToString(expectedFees, 8)), stdout.lines[1])
 
 	// now we have enough credit to reclaim
-	stdout, err = execFeesCommand(homedir, "reclaim")
+	stdout, err = execFeesCommand(logF, homedir, "reclaim")
 	require.NoError(t, err)
 	require.Equal(t, "Successfully reclaimed fee credits on money partition.", stdout.lines[0])
-
 }
 
-func execFeesCommand(homeDir, command string) (*testConsoleWriter, error) {
-	return execCommand(homeDir, " fees "+command)
+func execFeesCommand(logF LoggerFactory, homeDir, command string) (*testConsoleWriter, error) {
+	return execCommand(logF, homeDir, " fees "+command)
 }
 
 // setupMoneyInfraAndWallet starts money partition and wallet backend and sends initial bill to wallet.
 // Returns wallet homedir and reference to money partition object.
-func setupMoneyInfraAndWallet(t *testing.T, otherPartitions []*testpartition.NodePartition) (string, *testpartition.AlphabillNetwork) {
+func setupMoneyInfraAndWallet(t *testing.T, otherPartitions []*testpartition.NodePartition, logF LoggerFactory) (string, *testpartition.AlphabillNetwork) {
 	initialBill := &money.InitialBill{
 		ID:    defaultInitialBillID,
 		Value: 1e18,
@@ -228,7 +231,7 @@ func setupMoneyInfraAndWallet(t *testing.T, otherPartitions []*testpartition.Nod
 	wlog.InitStdoutLogger(wlog.DEBUG)
 	homedir := createNewTestWallet(t)
 
-	stdout := execWalletCmd(t, homedir, "get-pubkeys")
+	stdout := execWalletCmd(t, logF, homedir, "get-pubkeys")
 	require.Len(t, stdout.lines, 1)
 	pk, _ := strings.CutPrefix(stdout.lines[0], "#1 ")
 	pkBytes, _ := hexutil.Decode(pk)
@@ -237,7 +240,7 @@ func setupMoneyInfraAndWallet(t *testing.T, otherPartitions []*testpartition.Nod
 	expectedValue := spendInitialBillWithFeeCredits(t, abNet, initialBill, pkBytes)
 
 	// wait for initial bill tx
-	waitForBalanceCLI(t, homedir, defaultAlphabillApiURL, expectedValue, 0)
+	waitForBalanceCLI(t, logF, homedir, defaultAlphabillApiURL, expectedValue, 0)
 
 	return homedir, abNet
 }
@@ -259,6 +262,7 @@ func startMoneyBackend(t *testing.T, moneyPart *testpartition.NodePartition, ini
 					Predicate: script.PredicateAlwaysTrue(),
 				},
 				SystemDescriptionRecords: []*genesis.SystemDescriptionRecord{defaultMoneySDR, defaultTokenSDR},
+				Logger:                   logger.New(t),
 			})
 		require.ErrorIs(t, err, context.Canceled)
 	}()
@@ -272,7 +276,7 @@ func startMoneyBackend(t *testing.T, moneyPart *testpartition.NodePartition, ini
 func getFirstBillValue(t *testing.T, homedir string) string {
 	// Account #1
 	// #1 0x0000000000000000000000000000000000000000000000000000000000000001 9'999'999'849.999'999'91
-	stdout := execWalletCmd(t, homedir, "bills list")
+	stdout := execWalletCmd(t, logger.LoggerBuilder(t), homedir, "bills list")
 	require.Len(t, stdout.lines, 2)
 	parts := strings.Split(stdout.lines[1], " ") // split by whitespace, should have 3 parts
 	require.Len(t, parts, 3)

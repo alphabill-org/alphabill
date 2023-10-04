@@ -96,7 +96,7 @@ func run(ctx context.Context, name string, self *network.Peer, node *partition.N
 		if restServerConf.IsAddressEmpty() {
 			return nil // return nil in this case in order not to kill the group!
 		}
-		routers := []rpc.Registrar{rpc.NodeEndpoints(node), rpc.MetricsEndpoints(), rpc.InfoEndpoints(node, self)}
+		routers := []rpc.Registrar{rpc.NodeEndpoints(node), rpc.MetricsEndpoints(), rpc.InfoEndpoints(node, name, self)}
 		if restServerConf.router != nil {
 			routers = append(routers, restServerConf.router)
 		}
@@ -234,9 +234,6 @@ func createNode(ctx context.Context, txs txsystem.TransactionSystem, cfg *startN
 		if err != nil {
 			return nil, nil, err
 		}
-	}
-	if err != nil {
-		return nil, nil, err
 	}
 	options := []partition.NodeOption{
 		partition.WithRootAddressAndIdentifier(rootAddress, rootID),

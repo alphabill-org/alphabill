@@ -14,6 +14,7 @@ import (
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/state"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
+	"github.com/alphabill-org/alphabill/internal/testutils/logger"
 	"github.com/alphabill-org/alphabill/internal/testutils/net"
 	testpartition "github.com/alphabill-org/alphabill/internal/testutils/partition"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
@@ -21,7 +22,6 @@ import (
 	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/pkg/wallet/account"
 	"github.com/alphabill-org/alphabill/pkg/wallet/fees"
-	wlog "github.com/alphabill-org/alphabill/pkg/wallet/log"
 	tw "github.com/alphabill-org/alphabill/pkg/wallet/tokens"
 	"github.com/alphabill-org/alphabill/pkg/wallet/tokens/backend"
 	"github.com/alphabill-org/alphabill/pkg/wallet/tokens/client"
@@ -212,54 +212,58 @@ func TestListTokensTypesCommandInputs(t *testing.T) {
 }
 
 func TestWalletCreateFungibleTokenTypeCmd_SymbolFlag(t *testing.T) {
+	logF := logger.LoggerBuilder(t)
 	homedir := createNewTestWallet(t)
 	// missing symbol parameter
-	_, err := execCommand(homedir, "token new-type fungible --decimals 3")
+	_, err := execCommand(logF, homedir, "token new-type fungible --decimals 3")
 	require.ErrorContains(t, err, "required flag(s) \"symbol\" not set")
 	// symbol parameter not set
-	_, err = execCommand(homedir, "token new-type fungible --symbol")
+	_, err = execCommand(logF, homedir, "token new-type fungible --symbol")
 	require.EqualError(t, err, `flag needs an argument: --symbol`)
 	// there currently are no restrictions on symbol length on CLI side
 }
 
 func TestWalletCreateFungibleTokenTypeCmd_TypeIdlFlag(t *testing.T) {
 	homedir := createNewTestWallet(t)
+	logF := logger.LoggerBuilder(t)
 	// hidden parameter type (not a mandatory parameter)
-	_, err := execCommand(homedir, "token new-type fungible --symbol \"@1\" --type")
+	_, err := execCommand(logF, homedir, "token new-type fungible --symbol \"@1\" --type")
 	require.ErrorContains(t, err, "flag needs an argument: --type")
-	_, err = execCommand(homedir, "token new-type fungible --symbol \"@1\" --type 011")
+	_, err = execCommand(logF, homedir, "token new-type fungible --symbol \"@1\" --type 011")
 	require.ErrorContains(t, err, "invalid argument \"011\" for \"--type\" flag: encoding/hex: odd length hex string")
-	_, err = execCommand(homedir, "token new-type fungible --symbol \"@1\" --type foo")
+	_, err = execCommand(logF, homedir, "token new-type fungible --symbol \"@1\" --type foo")
 	require.ErrorContains(t, err, "invalid argument \"foo\" for \"--type\" flag")
 	// there currently are no restrictions on type length on CLI side
 }
 
 func TestWalletCreateFungibleTokenTypeCmd_DecimalsFlag(t *testing.T) {
 	homedir := createNewTestWallet(t)
+	logF := logger.LoggerBuilder(t)
 	// hidden parameter type (not a mandatory parameter)
-	_, err := execCommand(homedir, "token new-type fungible --symbol \"@1\" --decimals")
+	_, err := execCommand(logF, homedir, "token new-type fungible --symbol \"@1\" --decimals")
 	require.ErrorContains(t, err, "flag needs an argument: --decimals")
-	_, err = execCommand(homedir, "token new-type fungible --symbol \"@1\" --decimals foo")
+	_, err = execCommand(logF, homedir, "token new-type fungible --symbol \"@1\" --decimals foo")
 	require.ErrorContains(t, err, "invalid argument \"foo\" for \"--decimals\" flag")
-	_, err = execCommand(homedir, "token new-type fungible --symbol \"@1\" --decimals -1")
+	_, err = execCommand(logF, homedir, "token new-type fungible --symbol \"@1\" --decimals -1")
 	require.ErrorContains(t, err, "invalid argument \"-1\" for \"--decimals\"")
-	_, err = execCommand(homedir, "token new-type fungible --symbol \"@1\" --decimals 9")
+	_, err = execCommand(logF, homedir, "token new-type fungible --symbol \"@1\" --decimals 9")
 	require.ErrorContains(t, err, "argument \"9\" for \"--decimals\" flag is out of range, max value 8")
 }
 
 func TestWalletCreateFungibleTokenCmd_TypeFlag(t *testing.T) {
 	homedir := createNewTestWallet(t)
-	_, err := execCommand(homedir, "token new fungible --type A8B")
+	logF := logger.LoggerBuilder(t)
+	_, err := execCommand(logF, homedir, "token new fungible --type A8B")
 	require.ErrorContains(t, err, "invalid argument \"A8B\" for \"--type\" flag: encoding/hex: odd length hex string")
-	_, err = execCommand(homedir, "token new fungible --type nothex")
+	_, err = execCommand(logF, homedir, "token new fungible --type nothex")
 	require.ErrorContains(t, err, "invalid argument \"nothex\" for \"--type\" flag: encoding/hex: invalid byte")
-	_, err = execCommand(homedir, "token new fungible --amount 4")
+	_, err = execCommand(logF, homedir, "token new fungible --amount 4")
 	require.ErrorContains(t, err, "required flag(s) \"type\" not set")
 }
 
 func TestWalletCreateFungibleTokenCmd_AmountFlag(t *testing.T) {
 	homedir := createNewTestWallet(t)
-	_, err := execCommand(homedir, "token new fungible --type A8BB")
+	_, err := execCommand(logger.LoggerBuilder(t), homedir, "token new fungible --type A8BB")
 	require.ErrorContains(t, err, "required flag(s) \"amount\" not set")
 }
 
@@ -297,7 +301,7 @@ func TestWalletCreateNonFungibleTokenCmd_TypeFlag(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			homedir := createNewTestWallet(t)
-			_, err := execCommand(homedir, tt.args.cmdParams)
+			_, err := execCommand(logger.LoggerBuilder(t), homedir, tt.args.cmdParams)
 			if len(tt.wantErrStr) != 0 {
 				require.ErrorContains(t, err, tt.wantErrStr)
 			} else {
@@ -310,9 +314,10 @@ func TestWalletCreateNonFungibleTokenCmd_TypeFlag(t *testing.T) {
 func TestWalletCreateNonFungibleTokenCmd_TokenIdFlag(t *testing.T) {
 	//token-identifier parameter is odd length
 	homedir := createNewTestWallet(t)
-	_, err := execCommand(homedir, "token new non-fungible --type A8B0 --token-identifier A8B09")
+	logF := logger.LoggerBuilder(t)
+	_, err := execCommand(logF, homedir, "token new non-fungible --type A8B0 --token-identifier A8B09")
 	require.ErrorContains(t, err, "invalid argument \"A8B09\" for \"--token-identifier\" flag: encoding/hex: odd length hex string")
-	_, err = execCommand(homedir, "token new non-fungible --type A8B0 --token-identifier nothex")
+	_, err = execCommand(logF, homedir, "token new non-fungible --type A8B0 --token-identifier nothex")
 	require.ErrorContains(t, err, "invalid argument \"nothex\" for \"--token-identifier\" flag: encoding/hex: invalid byte")
 }
 
@@ -348,7 +353,7 @@ func TestWalletCreateNonFungibleTokenCmd_DataFileFlag(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			homedir := createNewTestWallet(t)
-			_, err := execCommand(homedir, tt.cmdParams)
+			_, err := execCommand(logger.LoggerBuilder(t), homedir, tt.cmdParams)
 			if len(tt.wantErrStr) != 0 {
 				require.ErrorContains(t, err, tt.wantErrStr)
 			} else {
@@ -400,7 +405,7 @@ func TestWalletUpdateNonFungibleTokenDataCmd_Flags(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			homedir := createNewTestWallet(t)
-			_, err := execCommand(homedir, tt.cmdParams)
+			_, err := execCommand(logger.LoggerBuilder(t), homedir, tt.cmdParams)
 			if len(tt.wantErrStr) != 0 {
 				require.ErrorContains(t, err, tt.wantErrStr)
 			} else {
@@ -486,13 +491,11 @@ func startTokensBackend(t *testing.T, nodeAddr string) (srvUri string, restApi *
 	require.NoError(t, err)
 	restApi = client.New(*addr)
 
-	var cancel context.CancelFunc
-	ctx, cancel = context.WithCancel(context.Background())
-
+	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
 
 	go func() {
-		cfg := backend.NewConfig(host, nodeAddr, filepath.Join(t.TempDir(), "backend.db"), wlog.GetLogger())
+		cfg := backend.NewConfig(host, nodeAddr, filepath.Join(t.TempDir(), "backend.db"), logger.New(t), tokens.DefaultSystemIdentifier)
 		require.ErrorIs(t, backend.Run(ctx, cfg), context.Canceled)
 	}()
 
@@ -523,22 +526,22 @@ func createNewTokenWalletWithFeeManager(t *testing.T, addr string, feeManager *f
 }
 
 func execTokensCmdWithError(t *testing.T, homedir string, command string, expectedError string) {
-	_, err := doExecTokensCmd(homedir, command)
+	_, err := doExecTokensCmd(t, homedir, command)
 	require.ErrorContains(t, err, expectedError)
 }
 
 func execTokensCmd(t *testing.T, homedir string, command string) *testConsoleWriter {
-	outputWriter, err := doExecTokensCmd(homedir, command)
+	outputWriter, err := doExecTokensCmd(t, homedir, command)
 	require.NoError(t, err)
 
 	return outputWriter
 }
 
-func doExecTokensCmd(homedir string, command string) (*testConsoleWriter, error) {
+func doExecTokensCmd(t *testing.T, homedir string, command string) (*testConsoleWriter, error) {
 	outputWriter := &testConsoleWriter{}
 	consoleWriter = outputWriter
 
-	cmd := New()
+	cmd := New(logger.LoggerBuilder(t))
 	args := "wallet token --log-level DEBUG --home " + homedir + " " + command
 	cmd.baseCmd.SetArgs(strings.Split(args, " "))
 

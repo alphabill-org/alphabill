@@ -19,7 +19,6 @@ import (
 	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/pkg/wallet/account"
 	"github.com/alphabill-org/alphabill/pkg/wallet/fees"
-	wlog "github.com/alphabill-org/alphabill/pkg/wallet/log"
 	moneywallet "github.com/alphabill-org/alphabill/pkg/wallet/money"
 	moneyclient "github.com/alphabill-org/alphabill/pkg/wallet/money/backend/client"
 	tokenswallet "github.com/alphabill-org/alphabill/pkg/wallet/tokens"
@@ -28,8 +27,6 @@ import (
 )
 
 func TestFungibleToken_Subtyping_Integration(t *testing.T) {
-	require.NoError(t, wlog.InitStdoutLogger(wlog.INFO))
-
 	network := NewAlphabillNetwork(t)
 	tokensPartition, err := network.abNetwork.GetNodePartition(tokens.DefaultSystemIdentifier)
 	require.NoError(t, err)
@@ -77,8 +74,6 @@ func TestFungibleToken_Subtyping_Integration(t *testing.T) {
 }
 
 func TestFungibleToken_InvariantPredicate_Integration(t *testing.T) {
-	require.NoError(t, wlog.InitStdoutLogger(wlog.INFO))
-
 	network := NewAlphabillNetwork(t)
 	tokensPartition, err := network.abNetwork.GetNodePartition(tokens.DefaultSystemIdentifier)
 	require.NoError(t, err)
@@ -118,7 +113,6 @@ func TestFungibleToken_InvariantPredicate_Integration(t *testing.T) {
 }
 
 func TestFungibleTokens_Sending_Integration(t *testing.T) {
-	require.NoError(t, wlog.InitStdoutLogger(wlog.INFO))
 	logF := logger.LoggerBuilder(t)
 
 	network := NewAlphabillNetwork(t)
@@ -203,8 +197,6 @@ func TestWalletCreateFungibleTokenTypeAndTokenAndSendCmd_IntegrationTest(t *test
 		}
 	}
 
-	require.NoError(t, wlog.InitStdoutLogger(wlog.INFO))
-
 	network := NewAlphabillNetwork(t)
 	tokensPart, err := network.abNetwork.GetNodePartition(tokens.DefaultSystemIdentifier)
 	require.NoError(t, err)
@@ -263,7 +255,6 @@ func TestWalletCreateFungibleTokenTypeAndTokenAndSendCmd_IntegrationTest(t *test
 }
 
 func TestFungibleTokens_CollectDust_Integration(t *testing.T) {
-	require.NoError(t, wlog.InitStdoutLogger(wlog.INFO))
 	network := NewAlphabillNetwork(t)
 	homedir := network.walletHomedir
 	backendUrl := network.tokenBackendURL
@@ -309,6 +300,7 @@ type AlphabillNetwork struct {
 // sends initial bill to money wallet
 // creates fee credit on money wallet and token wallet
 func NewAlphabillNetwork(t *testing.T) *AlphabillNetwork {
+	log := logger.New(t)
 	initialBill := &money.InitialBill{
 		ID:    defaultInitialBillID,
 		Value: 1e18,
@@ -333,15 +325,15 @@ func NewAlphabillNetwork(t *testing.T) *AlphabillNetwork {
 	unitLocker, err := unitlock.NewUnitLocker(walletDir)
 	require.NoError(t, err)
 
-	moneyWallet, err := moneywallet.LoadExistingWallet(am, unitLocker, moneyBackendClient)
+	moneyWallet, err := moneywallet.LoadExistingWallet(am, unitLocker, moneyBackendClient, log)
 	require.NoError(t, err)
 	defer moneyWallet.Close()
 
-	tokenTxPublisher := tokenswallet.NewTxPublisher(tokenBackendClient)
-	tokenFeeManager := fees.NewFeeManager(am, unitLocker, money.DefaultSystemIdentifier, moneyWallet, moneyBackendClient, tokens.DefaultSystemIdentifier, tokenTxPublisher, tokenBackendClient, tokenswallet.FeeCreditRecordIDFromPublicKey)
+	tokenTxPublisher := tokenswallet.NewTxPublisher(tokenBackendClient, log)
+	tokenFeeManager := fees.NewFeeManager(am, unitLocker, money.DefaultSystemIdentifier, moneyWallet, moneyBackendClient, tokens.DefaultSystemIdentifier, tokenTxPublisher, tokenBackendClient, tokenswallet.FeeCreditRecordIDFromPublicKey, log)
 	defer tokenFeeManager.Close()
 
-	w1, err := tokenswallet.New(tokens.DefaultSystemIdentifier, tokenBackendURL, am, true, tokenFeeManager)
+	w1, err := tokenswallet.New(tokens.DefaultSystemIdentifier, tokenBackendURL, am, true, tokenFeeManager, log)
 	require.NoError(t, err)
 	require.NotNil(t, w1)
 	defer w1.Shutdown()

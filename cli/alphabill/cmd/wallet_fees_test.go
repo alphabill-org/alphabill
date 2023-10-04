@@ -17,7 +17,6 @@ import (
 	"github.com/alphabill-org/alphabill/internal/txsystem/money"
 	"github.com/alphabill-org/alphabill/internal/txsystem/tokens"
 	"github.com/alphabill-org/alphabill/pkg/wallet/fees"
-	wlog "github.com/alphabill-org/alphabill/pkg/wallet/log"
 	"github.com/alphabill-org/alphabill/pkg/wallet/money/backend"
 	moneyclient "github.com/alphabill-org/alphabill/pkg/wallet/money/backend/client"
 )
@@ -229,7 +228,6 @@ func setupMoneyInfraAndWallet(t *testing.T, otherPartitions []*testpartition.Nod
 	startMoneyBackend(t, moneyPartition, initialBill)
 
 	// create wallet
-	wlog.InitStdoutLogger(wlog.DEBUG)
 	homedir := createNewTestWallet(t)
 
 	stdout := execWalletCmd(t, logF, homedir, "get-pubkeys")

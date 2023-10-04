@@ -25,6 +25,7 @@ const (
 	fmtJSON    = "json"
 	fmtECS     = "ecs" // Elastic Common Schema
 	fmtCONSOLE = "console"
+	fmtWALLET  = "wallet" // wallet CLI logs to console
 )
 
 func New(cfg *LogConfiguration) (*slog.Logger, error) {
@@ -77,6 +78,17 @@ func (cfg *LogConfiguration) Handler(out io.Writer) (slog.Handler, error) {
 			TimeFormat:  cfg.TimeFormat,
 			AddSource:   true,
 			ReplaceAttr: formatPeerIDAttr(cfg.PeerIDFormat),
+		})
+	case fmtWALLET:
+		h = tint.NewHandler(out, &tint.Options{
+			Level:      cfg.logLevel(),
+			NoColor:    cfg.ConsoleSupportsColor == nil || !cfg.ConsoleSupportsColor(out),
+			TimeFormat: cfg.TimeFormat,
+			AddSource:  false,
+			ReplaceAttr: composeAttrFmt(
+				formatTimeAttr("none"),
+				formatPeerIDAttr("short"),
+			),
 		})
 	default:
 		return nil, fmt.Errorf("unknown log format %q", cfg.Format)
@@ -147,6 +159,11 @@ func (cfg *LogConfiguration) initDefaults() {
 			f, ok := out.(interface{ Fd() uintptr })
 			return ok && isatty.IsTerminal(f.Fd())
 		}
+	}
+
+	if cfg.Format == fmtWALLET {
+		noGoId := false
+		cfg.ShowGoroutineID = &noGoId
 	}
 }
 

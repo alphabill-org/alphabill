@@ -942,6 +942,10 @@ func initTokensWallet(cmd *cobra.Command, config *walletConfig) (*wallet.Wallet,
 	if err != nil {
 		return nil, err
 	}
+	log, err := config.Base.Logger(cmd)
+	if err != nil {
+		return nil, err
+	}
 	am, err := loadExistingAccountManager(cmd, config.WalletHomeDir)
 	if err != nil {
 		return nil, err
@@ -954,7 +958,7 @@ func initTokensWallet(cmd *cobra.Command, config *walletConfig) (*wallet.Wallet,
 	if err != nil {
 		return nil, err
 	}
-	tw, err := wallet.New(tokens.DefaultSystemIdentifier, uri, am, confirmTx, nil)
+	tw, err := wallet.New(tokens.DefaultSystemIdentifier, uri, am, confirmTx, nil, log)
 	if err != nil {
 		return nil, err
 	}

@@ -518,7 +518,7 @@ func createNewTokenWalletWithFeeManager(t *testing.T, addr string, feeManager *f
 	require.NoError(t, err)
 	require.NoError(t, am.CreateKeys(""))
 
-	w, err := tw.New(tokens.DefaultSystemIdentifier, addr, am, false, feeManager)
+	w, err := tw.New(tokens.DefaultSystemIdentifier, addr, am, false, feeManager, logger.New(t))
 	require.NoError(t, err)
 	require.NotNil(t, w)
 

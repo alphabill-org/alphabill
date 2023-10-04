@@ -4,11 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"time"
 
 	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/pkg/wallet"
-	"github.com/alphabill-org/alphabill/pkg/wallet/log"
 )
 
 type (
@@ -24,6 +24,7 @@ type (
 		submissions []*TxSubmission
 		maxTimeout  uint64
 		backend     BackendAPI
+		log         *slog.Logger
 	}
 
 	BackendAPI interface {
@@ -33,12 +34,13 @@ type (
 	}
 )
 
-func (s *TxSubmission) ToBatch(backend BackendAPI, sender wallet.PubKey) *TxSubmissionBatch {
+func (s *TxSubmission) ToBatch(backend BackendAPI, sender wallet.PubKey, log *slog.Logger) *TxSubmissionBatch {
 	return &TxSubmissionBatch{
 		sender:      sender,
 		backend:     backend,
 		submissions: []*TxSubmission{s},
 		maxTimeout:  s.Transaction.Timeout(),
+		log:         log,
 	}
 }
 
@@ -46,10 +48,11 @@ func (s *TxSubmission) Confirmed() bool {
 	return s.Proof != nil
 }
 
-func NewBatch(sender wallet.PubKey, backend BackendAPI) *TxSubmissionBatch {
+func NewBatch(sender wallet.PubKey, backend BackendAPI, log *slog.Logger) *TxSubmissionBatch {
 	return &TxSubmissionBatch{
 		sender:  sender,
 		backend: backend,
+		log:     log,
 	}
 }
 
@@ -87,7 +90,7 @@ func (t *TxSubmissionBatch) SendTx(ctx context.Context, confirmTx bool) error {
 }
 
 func (t *TxSubmissionBatch) confirmUnitsTx(ctx context.Context) error {
-	log.Info("Confirming submitted transactions")
+	t.log.InfoContext(ctx, "Confirming submitted transactions")
 
 	for {
 		if err := ctx.Err(); err != nil {
@@ -99,10 +102,10 @@ func (t *TxSubmissionBatch) confirmUnitsTx(ctx context.Context) error {
 			return err
 		}
 		if roundNr >= t.maxTimeout {
-			log.Info(fmt.Sprintf("Tx confirmation timeout is reached, block (#%v)", roundNr))
+			t.log.InfoContext(ctx, fmt.Sprintf("Tx confirmation timeout is reached, block (#%v)", roundNr))
 			for _, sub := range t.submissions {
 				if !sub.Confirmed() {
-					log.Info(fmt.Sprintf("Tx not confirmed for UnitID=%s, hash=%X", sub.UnitID, sub.TxHash))
+					t.log.InfoContext(ctx, fmt.Sprintf("Tx not confirmed for UnitID=%s, hash=%X", sub.UnitID, sub.TxHash))
 				}
 			}
 			return errors.New("confirmation timeout")
@@ -117,7 +120,7 @@ func (t *TxSubmissionBatch) confirmUnitsTx(ctx context.Context) error {
 				return err
 			}
 			if proof != nil {
-				log.Debug(fmt.Sprintf("UnitID=%s is confirmed", sub.UnitID))
+				t.log.DebugContext(ctx, fmt.Sprintf("UnitID=%s is confirmed", sub.UnitID))
 				sub.Proof = proof
 			}
 			unconfirmed = unconfirmed || !sub.Confirmed()
@@ -125,7 +128,7 @@ func (t *TxSubmissionBatch) confirmUnitsTx(ctx context.Context) error {
 		if unconfirmed {
 			time.Sleep(500 * time.Millisecond)
 		} else {
-			log.Info("All transactions confirmed")
+			t.log.InfoContext(ctx, "All transactions confirmed")
 			return nil
 		}
 	}

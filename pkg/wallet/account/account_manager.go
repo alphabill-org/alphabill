@@ -2,6 +2,7 @@ package account
 
 import (
 	"errors"
+	"fmt"
 	"path/filepath"
 
 	"github.com/btcsuite/btcd/btcutil/hdkeychain"
@@ -38,23 +39,29 @@ func NewManager(dir string, password string, create bool) (Manager, error) {
 	return newManager(dir, password, create)
 }
 
-func newManager(dir string, password string, create bool) (*managerImpl, error) {
+func newManager(dir string, password string, create bool) (_ *managerImpl, retErr error) {
 	db, err := getDb(dir, create, password)
 	if err != nil {
 		return nil, err
 	}
+	defer func() {
+		if retErr != nil {
+			if err := db.Close(); err != nil {
+				retErr = errors.Join(retErr, fmt.Errorf("closing database: %w", err))
+			}
+		}
+	}()
+
 	ok, err := db.Do().VerifyPassword()
 	if err != nil {
 		return nil, err
 	}
 	if !ok {
-		db.Close()
 		return nil, ErrInvalidPassword
 	}
 
 	accountKeys, err := db.Do().GetAccountKeys()
 	if err != nil {
-		db.Close()
 		return nil, err
 	}
 	accs := make([]Account, len(accountKeys))

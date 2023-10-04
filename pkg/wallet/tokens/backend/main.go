@@ -161,7 +161,7 @@ func NewConfig(apiAddr, abURL, boltDB string, logger *slog.Logger, systemID []by
 	}
 }
 
-func (c *cfg) Client() ABClient          { return client.New(c.abc) }
+func (c *cfg) Client() ABClient          { return client.New(c.abc, c.log) }
 func (c *cfg) Storage() (Storage, error) { return newBoltStore(c.boltDB) }
 func (c *cfg) BatchSize() int            { return 100 }
 func (c *cfg) Logger() *slog.Logger      { return c.log }

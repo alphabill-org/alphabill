@@ -5,6 +5,7 @@ import (
 	"crypto"
 	"errors"
 	"fmt"
+	"log/slog"
 	"sort"
 
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
@@ -33,6 +34,7 @@ type (
 		TxPublisher   *TxPublisher
 		unitLocker    UnitLocker
 		dustCollector *DustCollector
+		log           *slog.Logger
 	}
 
 	BackendAPI interface {
@@ -71,11 +73,11 @@ func CreateNewWallet(am account.Manager, mnemonic string) error {
 	return createMoneyWallet(mnemonic, am)
 }
 
-func LoadExistingWallet(am account.Manager, unitLocker UnitLocker, backend BackendAPI) (*Wallet, error) {
+func LoadExistingWallet(am account.Manager, unitLocker UnitLocker, backend BackendAPI, log *slog.Logger) (*Wallet, error) {
 	moneySystemID := money.DefaultSystemIdentifier
-	moneyTxPublisher := NewTxPublisher(backend)
-	feeManager := fees.NewFeeManager(am, unitLocker, moneySystemID, moneyTxPublisher, backend, moneySystemID, moneyTxPublisher, backend, FeeCreditRecordIDFormPublicKey)
-	dustCollector := NewDustCollector(moneySystemID, maxBillsForDustCollection, backend, unitLocker)
+	moneyTxPublisher := NewTxPublisher(backend, log)
+	feeManager := fees.NewFeeManager(am, unitLocker, moneySystemID, moneyTxPublisher, backend, moneySystemID, moneyTxPublisher, backend, FeeCreditRecordIDFormPublicKey, log)
+	dustCollector := NewDustCollector(moneySystemID, maxBillsForDustCollection, backend, unitLocker, log)
 	return &Wallet{
 		am:            am,
 		backend:       backend,
@@ -83,6 +85,7 @@ func LoadExistingWallet(am account.Manager, unitLocker UnitLocker, backend Backe
 		feeManager:    feeManager,
 		unitLocker:    unitLocker,
 		dustCollector: dustCollector,
+		log:           log,
 	}, nil
 }
 
@@ -180,7 +183,7 @@ func (w *Wallet) Send(ctx context.Context, cmd SendCmd) ([]*wallet.Proof, error)
 		return nil, err
 	}
 	timeout := roundNumber + txTimeoutBlockCount
-	batch := txsubmitter.NewBatch(k.PubKey, w.backend)
+	batch := txsubmitter.NewBatch(k.PubKey, w.backend, w.log)
 
 	var txs []*types.TransactionOrder
 	if len(cmd.Receivers) > 1 {

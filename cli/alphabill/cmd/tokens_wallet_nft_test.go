@@ -15,13 +15,11 @@ import (
 	"github.com/alphabill-org/alphabill/internal/txsystem/money"
 	"github.com/alphabill-org/alphabill/internal/txsystem/tokens"
 	"github.com/alphabill-org/alphabill/internal/types"
-	wlog "github.com/alphabill-org/alphabill/pkg/wallet/log"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/stretchr/testify/require"
 )
 
 func TestNFTs_Integration(t *testing.T) {
-	require.NoError(t, wlog.InitStdoutLogger(wlog.INFO))
 	logF := logger.LoggerBuilder(t)
 	network := NewAlphabillNetwork(t)
 	_, err := network.abNetwork.GetNodePartition(money.DefaultSystemIdentifier)
@@ -99,8 +97,6 @@ func TestNFTs_Integration(t *testing.T) {
 }
 
 func TestNFTDataUpdateCmd_Integration(t *testing.T) {
-	require.NoError(t, wlog.InitStdoutLogger(wlog.INFO))
-
 	network := NewAlphabillNetwork(t)
 	tokenPartition, err := network.abNetwork.GetNodePartition(tokens.DefaultSystemIdentifier)
 	require.NoError(t, err)
@@ -175,8 +171,6 @@ func TestNFTDataUpdateCmd_Integration(t *testing.T) {
 }
 
 func TestNFT_InvariantPredicate_Integration(t *testing.T) {
-	require.NoError(t, wlog.InitStdoutLogger(wlog.INFO))
-
 	network := NewAlphabillNetwork(t)
 	tokenPartition, err := network.abNetwork.GetNodePartition(tokens.DefaultSystemIdentifier)
 	require.NoError(t, err)

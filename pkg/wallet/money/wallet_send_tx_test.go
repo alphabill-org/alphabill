@@ -114,9 +114,7 @@ func TestWalletSendFunction_WaitForConfirmation(t *testing.T) {
 			}, nil
 		},
 		postTransactions: func(ctx context.Context, pubKey wallet.PubKey, txs *wallet.Transactions) error {
-			for _, tx := range txs.Transactions {
-				recordedTransactions = append(recordedTransactions, tx)
-			}
+			recordedTransactions = append(recordedTransactions, txs.Transactions...)
 			return nil
 		},
 	}
@@ -162,7 +160,7 @@ func TestWalletSendFunction_WaitForMultipleTxConfirmations(t *testing.T) {
 			var bill *wallet.Bill
 			for _, tx := range recordedTransactions {
 				if bytes.Equal(unitID, tx.UnitID()) {
-					bill, _ = bills[string(unitID)]
+					bill = bills[string(unitID)]
 					if bill != nil {
 						bill.TxHash = tx.Hash(crypto.SHA256)
 					}
@@ -179,9 +177,7 @@ func TestWalletSendFunction_WaitForMultipleTxConfirmations(t *testing.T) {
 			return &wallet.Bill{Id: []byte{}, Value: 100 * 1e8}, nil
 		},
 		postTransactions: func(ctx context.Context, pubKey wallet.PubKey, txs *wallet.Transactions) error {
-			for _, tx := range txs.Transactions {
-				recordedTransactions = append(recordedTransactions, tx)
-			}
+			recordedTransactions = append(recordedTransactions, txs.Transactions...)
 			return nil
 		},
 	}
@@ -227,7 +223,7 @@ func TestWalletSendFunction_WaitForMultipleTxConfirmationsInDifferentBlocks(t *t
 			var bill *wallet.Bill
 			for _, tx := range recordedTransactions {
 				if bytes.Equal(unitID, tx.UnitID()) {
-					bill, _ = bills[string(unitID)]
+					bill = bills[string(unitID)]
 					if bill != nil {
 						bill.TxHash = tx.Hash(crypto.SHA256)
 					}
@@ -248,9 +244,7 @@ func TestWalletSendFunction_WaitForMultipleTxConfirmationsInDifferentBlocks(t *t
 			}, nil
 		},
 		postTransactions: func(ctx context.Context, pubKey wallet.PubKey, txs *wallet.Transactions) error {
-			for _, tx := range txs.Transactions {
-				recordedTransactions = append(recordedTransactions, tx)
-			}
+			recordedTransactions = append(recordedTransactions, txs.Transactions...)
 			return nil
 		},
 	}
@@ -292,9 +286,7 @@ func TestWalletSendFunction_ErrTxFailedToConfirm(t *testing.T) {
 			return nil, nil
 		},
 		postTransactions: func(ctx context.Context, pubKey wallet.PubKey, txs *wallet.Transactions) error {
-			for _, tx := range txs.Transactions {
-				recordedTransactions = append(recordedTransactions, tx)
-			}
+			recordedTransactions = append(recordedTransactions, txs.Transactions...)
 			return nil
 		},
 	}
@@ -336,9 +328,7 @@ func TestWholeBalanceIsSentUsingBillTransferOrder(t *testing.T) {
 			return nil, nil
 		},
 		postTransactions: func(ctx context.Context, pubKey wallet.PubKey, txs *wallet.Transactions) error {
-			for _, tx := range txs.Transactions {
-				recordedTransactions = append(recordedTransactions, tx)
-			}
+			recordedTransactions = append(recordedTransactions, txs.Transactions...)
 			return nil
 		},
 	}
@@ -424,9 +414,7 @@ func TestWalletSendFunction_BillWithExactAmount(t *testing.T) {
 			}, nil
 		},
 		postTransactions: func(ctx context.Context, pubKey wallet.PubKey, txs *wallet.Transactions) error {
-			for _, tx := range txs.Transactions {
-				recordedTransactions = append(recordedTransactions, tx)
-			}
+			recordedTransactions = append(recordedTransactions, txs.Transactions...)
 			return nil
 		},
 	}

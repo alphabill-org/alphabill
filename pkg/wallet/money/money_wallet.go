@@ -8,6 +8,8 @@ import (
 	"sort"
 
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
+	"github.com/alphabill-org/alphabill/internal/hash"
+	"github.com/alphabill-org/alphabill/internal/script"
 	"github.com/alphabill-org/alphabill/internal/txsystem/money"
 	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/pkg/wallet"
@@ -21,14 +23,6 @@ import (
 const (
 	txTimeoutBlockCount       = 10
 	maxBillsForDustCollection = 100
-)
-
-var (
-	ErrInsufficientBalance = errors.New("insufficient balance for transaction")
-	ErrInvalidPubKey       = errors.New("invalid public key, public key must be in compressed secp256k1 format")
-
-	ErrNoFeeCredit           = errors.New("no fee credit in money wallet")
-	ErrInsufficientFeeCredit = errors.New("insufficient fee credit balance for transaction(s)")
 )
 
 type (
@@ -54,10 +48,14 @@ type (
 	}
 
 	SendCmd struct {
-		ReceiverPubKey      []byte
-		Amount              uint64
+		Receivers           []ReceiverData
 		WaitForConfirmation bool
 		AccountIndex        uint64
+	}
+
+	ReceiverData struct {
+		PubKey []byte
+		Amount uint64
 	}
 
 	GetBalanceCmd struct {
@@ -102,43 +100,6 @@ func (w *Wallet) SystemID() []byte {
 func (w *Wallet) Close() {
 	w.am.Close()
 	w.feeManager.Close()
-}
-
-// CollectDust starts the dust collector process for the requested accounts in the wallet.
-// Dust collection process joins up to N units into existing target unit, prioritizing small units first.
-// The largest unit in wallet is selected as the target unit.
-// If accountNumber is equal to 0 then dust collection is run for all accounts, returns list of swap tx proofs
-// together with account numbers, the proof can be nil if swap tx was not sent e.g. if there's not enough bills to swap.
-// If accountNumber is greater than 0 then dust collection is run only for the specific account, returns single swap tx
-// proof, the proof can be nil e.g. if there's not enough bills to swap.
-func (w *Wallet) CollectDust(ctx context.Context, accountNumber uint64) ([]*DustCollectionResult, error) {
-	var res []*DustCollectionResult
-	if accountNumber == 0 {
-		for _, acc := range w.am.GetAll() {
-			accKey, err := w.am.GetAccountKey(acc.AccountIndex)
-			if err != nil {
-				return nil, fmt.Errorf("failed to load account key: %w", err)
-			}
-			dcResult, err := w.dustCollector.CollectDust(ctx, accKey)
-			if err != nil {
-				return nil, fmt.Errorf("dust collection failed for account number %d: %w", acc.AccountIndex+1, err)
-			}
-			dcResult.AccountIndex = acc.AccountIndex
-			res = append(res, dcResult)
-		}
-	} else {
-		accKey, err := w.am.GetAccountKey(accountNumber - 1)
-		if err != nil {
-			return nil, fmt.Errorf("failed to load account key: %w", err)
-		}
-		dcResult, err := w.dustCollector.CollectDust(ctx, accKey)
-		if err != nil {
-			return nil, fmt.Errorf("dust collection failed for account number %d: %w", accountNumber, err)
-		}
-		dcResult.AccountIndex = accountNumber - 1
-		res = append(res, dcResult)
-	}
-	return res, nil
 }
 
 // GetBalance returns sum value of all bills currently owned by the wallet, for given account.
@@ -191,8 +152,9 @@ func (w *Wallet) Send(ctx context.Context, cmd SendCmd) ([]*wallet.Proof, error)
 	if err != nil {
 		return nil, err
 	}
-	if cmd.Amount > balance {
-		return nil, ErrInsufficientBalance
+	totalAmount := cmd.totalAmount()
+	if totalAmount > balance {
+		return nil, errors.New("insufficient balance for transaction")
 	}
 
 	roundNumber, err := w.backend.GetRoundNumber(ctx)
@@ -210,19 +172,45 @@ func (w *Wallet) Send(ctx context.Context, cmd SendCmd) ([]*wallet.Proof, error)
 		return nil, err
 	}
 	if fcb == nil {
-		return nil, ErrNoFeeCredit
+		return nil, errors.New("no fee credit in money wallet")
 	}
 
 	bills, err := w.getUnlockedBills(ctx, pubKey)
 	if err != nil {
 		return nil, err
 	}
-
 	timeout := roundNumber + txTimeoutBlockCount
 	batch := txsubmitter.NewBatch(k.PubKey, w.backend)
-	txs, err := tx_builder.CreateTransactions(cmd.ReceiverPubKey, cmd.Amount, w.SystemID(), bills, k, timeout, fcb.Id)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create transactions: %w", err)
+
+	var txs []*types.TransactionOrder
+	if len(cmd.Receivers) > 1 {
+		// if more than one receiver then perform transaction as N-way split and require sufficiently large bill
+		largestBill := bills[0]
+		if largestBill.Value <= totalAmount {
+			return nil, fmt.Errorf("sending to multiple addresses is performed using a single N-way split "+
+				"transaction which requires sufficiently large bill, need at least %d Tema value bill, have largest "+
+				"%d Tema value bill", totalAmount+1, largestBill.Value) // +1 because 0 remaining value is not allowed
+		}
+		// convert send cmd targets to transaction units
+		var targetUnits []*money.TargetUnit
+		for _, r := range cmd.Receivers {
+			targetUnits = append(targetUnits, &money.TargetUnit{
+				Amount:         r.Amount,
+				OwnerCondition: script.PredicatePayToPublicKeyHashDefault(hash.Sum256(r.PubKey)),
+			})
+		}
+		remainingValue := largestBill.Value - totalAmount
+		tx, err := tx_builder.NewSplitTx(targetUnits, remainingValue, k, w.SystemID(), largestBill, timeout, fcb.Id)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create N-way split tx: %w", err)
+		}
+		txs = append(txs, tx)
+	} else {
+		// if single receiver then perform up to N transfers (until target amount is reached)
+		txs, err = tx_builder.CreateTransactions(cmd.Receivers[0].PubKey, cmd.Receivers[0].Amount, w.SystemID(), bills, k, timeout, fcb.Id)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create transactions: %w", err)
+		}
 	}
 
 	for _, tx := range txs {
@@ -235,7 +223,7 @@ func (w *Wallet) Send(ctx context.Context, cmd SendCmd) ([]*wallet.Proof, error)
 
 	txsCost := tx_builder.MaxFee * uint64(len(batch.Submissions()))
 	if fcb.Value < txsCost {
-		return nil, ErrInsufficientFeeCredit
+		return nil, errors.New("insufficient fee credit balance for transaction(s)")
 	}
 
 	if err = batch.SendTx(ctx, cmd.WaitForConfirmation); err != nil {
@@ -247,6 +235,11 @@ func (w *Wallet) Send(ctx context.Context, cmd SendCmd) ([]*wallet.Proof, error)
 		proofs = append(proofs, txSub.Proof)
 	}
 	return proofs, nil
+}
+
+// SendTx sends tx and waits for confirmation, returns tx proof
+func (w *Wallet) SendTx(ctx context.Context, tx *types.TransactionOrder, senderPubKey []byte) (*wallet.Proof, error) {
+	return w.TxPublisher.SendTx(ctx, tx, senderPubKey)
 }
 
 // AddFeeCredit creates fee credit for the given amount.
@@ -279,9 +272,41 @@ func (w *Wallet) GetFeeCreditBill(ctx context.Context, unitID types.UnitID) (*wa
 	return w.backend.GetFeeCreditBill(ctx, unitID)
 }
 
-// SendTx sends tx and waits for confirmation, returns tx proof
-func (w *Wallet) SendTx(ctx context.Context, tx *types.TransactionOrder, senderPubKey []byte) (*wallet.Proof, error) {
-	return w.TxPublisher.SendTx(ctx, tx, senderPubKey)
+// CollectDust starts the dust collector process for the requested accounts in the wallet.
+// Dust collection process joins up to N units into existing target unit, prioritizing small units first.
+// The largest unit in wallet is selected as the target unit.
+// If accountNumber is equal to 0 then dust collection is run for all accounts, returns list of swap tx proofs
+// together with account numbers, the proof can be nil if swap tx was not sent e.g. if there's not enough bills to swap.
+// If accountNumber is greater than 0 then dust collection is run only for the specific account, returns single swap tx
+// proof, the proof can be nil e.g. if there's not enough bills to swap.
+func (w *Wallet) CollectDust(ctx context.Context, accountNumber uint64) ([]*DustCollectionResult, error) {
+	var res []*DustCollectionResult
+	if accountNumber == 0 {
+		for _, acc := range w.am.GetAll() {
+			accKey, err := w.am.GetAccountKey(acc.AccountIndex)
+			if err != nil {
+				return nil, fmt.Errorf("failed to load account key: %w", err)
+			}
+			dcResult, err := w.dustCollector.CollectDust(ctx, accKey)
+			if err != nil {
+				return nil, fmt.Errorf("dust collection failed for account number %d: %w", acc.AccountIndex+1, err)
+			}
+			dcResult.AccountIndex = acc.AccountIndex
+			res = append(res, dcResult)
+		}
+	} else {
+		accKey, err := w.am.GetAccountKey(accountNumber - 1)
+		if err != nil {
+			return nil, fmt.Errorf("failed to load account key: %w", err)
+		}
+		dcResult, err := w.dustCollector.CollectDust(ctx, accKey)
+		if err != nil {
+			return nil, fmt.Errorf("dust collection failed for account number %d: %w", accountNumber, err)
+		}
+		dcResult.AccountIndex = accountNumber - 1
+		res = append(res, dcResult)
+	}
+	return res, nil
 }
 
 func (w *Wallet) getUnlockedBills(ctx context.Context, pubKey []byte) ([]*wallet.Bill, error) {
@@ -308,10 +333,27 @@ func (w *Wallet) getUnlockedBills(ctx context.Context, pubKey []byte) ([]*wallet
 }
 
 func (c *SendCmd) isValid() error {
-	if len(c.ReceiverPubKey) != abcrypto.CompressedSecp256K1PublicKeySize {
-		return ErrInvalidPubKey
+	if len(c.Receivers) == 0 {
+		return errors.New("receivers is empty")
+	}
+	for _, r := range c.Receivers {
+		if len(r.PubKey) != abcrypto.CompressedSecp256K1PublicKeySize {
+			return fmt.Errorf("invalid public key: public key must be in compressed secp256k1 format: "+
+				"got %d bytes, expected %d bytes for public key 0x%x", len(r.PubKey), abcrypto.CompressedSecp256K1PublicKeySize, r.PubKey)
+		}
+		if r.Amount == 0 {
+			return errors.New("invalid amount: amount must be greater than zero")
+		}
 	}
 	return nil
+}
+
+func (c *SendCmd) totalAmount() uint64 {
+	var sum uint64
+	for _, r := range c.Receivers {
+		sum += r.Amount
+	}
+	return sum
 }
 
 func createMoneyWallet(mnemonic string, am account.Manager) error {

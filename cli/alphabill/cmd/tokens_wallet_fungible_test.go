@@ -6,7 +6,9 @@ import (
 	"fmt"
 	"path/filepath"
 	"testing"
-	"time"
+
+	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/stretchr/testify/require"
 
 	"github.com/alphabill-org/alphabill/internal/script"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
@@ -23,8 +25,6 @@ import (
 	tokenswallet "github.com/alphabill-org/alphabill/pkg/wallet/tokens"
 	"github.com/alphabill-org/alphabill/pkg/wallet/tokens/client"
 	"github.com/alphabill-org/alphabill/pkg/wallet/unitlock"
-	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/stretchr/testify/require"
 )
 
 func TestFungibleToken_Subtyping_Integration(t *testing.T) {
@@ -353,8 +353,12 @@ func NewAlphabillNetwork(t *testing.T) *AlphabillNetwork {
 	w1key2, err := w1.GetAccountManager().GetAccountKey(1)
 	require.NoError(t, err)
 
-	spendInitialBillWithFeeCredits(t, abNet, initialBill, w1key.PubKey)
-	time.Sleep(4 * time.Second) // TODO dynamic sleep
+	expectedBalance := spendInitialBillWithFeeCredits(t, abNet, initialBill, w1key.PubKey)
+	require.Eventually(t, func() bool {
+		balance, err := moneyWallet.GetBalance(ctx, moneywallet.GetBalanceCmd{})
+		require.NoError(t, err)
+		return expectedBalance == balance
+	}, test.WaitDuration, test.WaitTick)
 
 	// create fees on money partition
 	_, err = moneyWallet.AddFeeCredit(ctx, fees.AddFeeCmd{Amount: 1000})

@@ -327,7 +327,7 @@ func (w *WalletBackend) HandleTransactionsSubmission(egp *errgroup.Group, sender
 
 func (w *WalletBackend) storeIncomingTransactions(sender sdk.PubKey, txs []*types.TransactionOrder) error {
 	for _, tx := range txs {
-		var newOwner sdk.Predicate
+		var newOwners []sdk.Predicate
 		switch tx.PayloadType() {
 		case money.PayloadTypeTransfer:
 			attrs := &money.TransferAttributes{}
@@ -335,28 +335,30 @@ func (w *WalletBackend) storeIncomingTransactions(sender sdk.PubKey, txs []*type
 			if err != nil {
 				return err
 			}
-			newOwner = attrs.NewBearer
+			newOwners = append(newOwners, attrs.NewBearer)
 		case money.PayloadTypeSplit:
 			attrs := &money.SplitAttributes{}
 			err := tx.UnmarshalAttributes(attrs)
 			if err != nil {
 				return err
 			}
-			newOwner = attrs.TargetBearer
-		default:
-			continue
+			for _, targetUnit := range attrs.TargetUnits {
+				newOwners = append(newOwners, targetUnit.OwnerCondition)
+			}
 		}
 
-		rec := &sdk.TxHistoryRecord{
-			UnitID:       tx.UnitID(),
-			TxHash:       tx.Hash(crypto.SHA256),
-			Timeout:      tx.Timeout(),
-			State:        sdk.UNCONFIRMED,
-			Kind:         sdk.OUTGOING,
-			CounterParty: extractOwnerHashFromP2pkh(newOwner),
-		}
-		if err := w.store.Do().StoreTxHistoryRecord(sender.Hash(), rec); err != nil {
-			return fmt.Errorf("failed to store tx history record: %w", err)
+		for _, newOwner := range newOwners {
+			rec := &sdk.TxHistoryRecord{
+				UnitID:       tx.UnitID(),
+				TxHash:       tx.Hash(crypto.SHA256),
+				Timeout:      tx.Timeout(),
+				State:        sdk.UNCONFIRMED,
+				Kind:         sdk.OUTGOING,
+				CounterParty: extractOwnerHashFromP2pkh(newOwner),
+			}
+			if err := w.store.Do().StoreTxHistoryRecord(sender.Hash(), rec); err != nil {
+				return fmt.Errorf("failed to store tx history record: %w", err)
+			}
 		}
 	}
 	return nil

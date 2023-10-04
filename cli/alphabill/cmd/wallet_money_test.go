@@ -27,7 +27,6 @@ import (
 	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/alphabill-org/alphabill/pkg/wallet/account"
-	wallet "github.com/alphabill-org/alphabill/pkg/wallet/money"
 	"github.com/alphabill-org/alphabill/pkg/wallet/money/backend/client"
 )
 
@@ -188,7 +187,7 @@ func TestSendingFailsWithInsufficientBalance(t *testing.T) {
 	defer mockServer.Close()
 
 	_, err := execCommand(logger.LoggerBuilder(t), homedir, "send --amount 10 --address "+hexutil.Encode(pubKey)+" --alphabill-api-uri "+addr.Host)
-	require.ErrorIs(t, err, wallet.ErrInsufficientBalance)
+	require.ErrorContains(t, err, "insufficient balance for transaction")
 }
 
 func createMoneyPartition(t *testing.T, initialBill *money.InitialBill, nodeCount int) *testpartition.NodePartition {

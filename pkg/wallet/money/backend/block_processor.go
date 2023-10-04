@@ -109,7 +109,7 @@ func (p *BlockProcessor) processTx(txr *types.TransactionRecord, b *types.Block,
 			return fmt.Errorf("failed to fetch bill: %w", err)
 		}
 		if dcBill == nil {
-			return fmt.Errorf("bill not found: %x", txo.UnitID())
+			return fmt.Errorf("bill not found: %s", txo.UnitID())
 		}
 		dcBill.Value = attr.Value
 		dcBill.TxHash = txHash
@@ -154,20 +154,22 @@ func (p *BlockProcessor) processTx(txr *types.TransactionRecord, b *types.Block,
 			log.Warn("received split order where existing unit was not found, ignoring tx", logger.UnitID(txo.UnitID()))
 		}
 
-		// new bill
-		newID := moneytx.NewBillID(txo.UnitID(), moneytx.HashForIDCalculation(txo.UnitID(), txo.Payload.Attributes, txo.Timeout(), crypto.SHA256))
-		log.Info(fmt.Sprintf("new UnitID=%x for split order", newID), logger.UnitID(txo.UnitID()))
-		err = dbTx.SetBill(&Bill{
-			Id:             newID,
-			Value:          attr.Amount,
-			TxHash:         txHash,
-			OwnerPredicate: attr.TargetBearer,
-		}, proof)
-		if err != nil {
-			return err
-		}
-		if err = saveTx(dbTx, attr.TargetBearer, txo, txHash); err != nil {
-			return err
+		// new bills
+		for i, targetUnit := range attr.TargetUnits {
+			newID := moneytx.NewBillID(txo.UnitID(), moneytx.HashForIDCalculation(txo.UnitID(), txo.Payload.Attributes, txo.Timeout(), uint32(i), crypto.SHA256))
+			log.Info(fmt.Sprintf("new UnitID=%x for split order", newID), logger.UnitID(txo.UnitID()))
+			err = dbTx.SetBill(&Bill{
+				Id:             newID,
+				TxHash:         txHash,
+				Value:          targetUnit.Amount,
+				OwnerPredicate: targetUnit.OwnerCondition,
+			}, proof)
+			if err != nil {
+				return fmt.Errorf("failed to store split tx unit for new id %s at index %d", newID, i)
+			}
+			if err := saveTx(dbTx, targetUnit.OwnerCondition, txo, txHash); err != nil {
+				return fmt.Errorf("failed to store tx history record: %w", err)
+			}
 		}
 	case moneytx.PayloadTypeSwapDC:
 		err := p.updateFCB(dbTx, txr)
@@ -184,7 +186,7 @@ func (p *BlockProcessor) processTx(txr *types.TransactionRecord, b *types.Block,
 			return err
 		}
 		if bill == nil {
-			return fmt.Errorf("existing bill not found for swap tx (UnitID=%x)", txo.UnitID())
+			return fmt.Errorf("existing bill not found for swap tx (UnitID=%s)", txo.UnitID())
 		}
 		bill.Value += attr.TargetValue
 		bill.TxHash = txHash
@@ -205,7 +207,7 @@ func (p *BlockProcessor) processTx(txr *types.TransactionRecord, b *types.Block,
 			return fmt.Errorf("failed to get bill: %w", err)
 		}
 		if bill == nil {
-			return fmt.Errorf("unit not found for transferFC tx (unitID=%X)", txo.UnitID())
+			return fmt.Errorf("unit not found for transferFC tx (unitID=%s)", txo.UnitID())
 		}
 		attr := &transactions.TransferFeeCreditAttributes{}
 		err = txo.UnmarshalAttributes(attr)
@@ -286,7 +288,7 @@ func (p *BlockProcessor) processTx(txr *types.TransactionRecord, b *types.Block,
 			return err
 		}
 		if bill == nil {
-			return fmt.Errorf("unit not found for reclaimFC tx (unitID=%X)", txo.UnitID())
+			return fmt.Errorf("unit not found for reclaimFC tx (unitID=%s)", txo.UnitID())
 		}
 		reclaimFCAttr := &transactions.ReclaimFeeCreditAttributes{}
 		err = txo.UnmarshalAttributes(reclaimFCAttr)

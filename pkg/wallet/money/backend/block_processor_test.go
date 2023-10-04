@@ -5,6 +5,10 @@ import (
 	gocrypto "crypto"
 	"testing"
 
+	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/fxamacker/cbor/v2"
+	"github.com/stretchr/testify/require"
+
 	"github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/hash"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
@@ -16,9 +20,6 @@ import (
 	"github.com/alphabill-org/alphabill/internal/txsystem/tokens"
 	"github.com/alphabill-org/alphabill/internal/types"
 	sdk "github.com/alphabill-org/alphabill/pkg/wallet"
-	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/fxamacker/cbor/v2"
-	"github.com/stretchr/testify/require"
 )
 
 var moneySystemID = money.DefaultSystemIdentifier
@@ -58,10 +59,12 @@ func TestBlockProcessor_EachTxTypeCanBeProcessed(t *testing.T) {
 	tx3 := &types.TransactionRecord{
 		TransactionOrder: &types.TransactionOrder{
 			Payload: &types.Payload{
-				SystemID:       moneySystemID,
-				Type:           money.PayloadTypeSplit,
-				UnitID:         newBillID(3),
-				Attributes:     splitTxAttr(pubKeyHash, 1, 1),
+				SystemID: moneySystemID,
+				Type:     money.PayloadTypeSplit,
+				UnitID:   newBillID(3),
+				Attributes: splitTxAttr(1,
+					&money.TargetUnit{Amount: 1, OwnerCondition: script.PredicatePayToPublicKeyHashDefault(pubKeyHash)},
+				),
 				ClientMetadata: &types.ClientMetadata{FeeCreditRecordID: fcbID},
 			},
 		},
@@ -685,6 +688,72 @@ func TestBlockProcessor_LockedAndClosedFeeCredit_CanBeSaved(t *testing.T) {
 	require.Equal(t, closeFCRecord, closedFeeCredit)
 }
 
+func TestBlockProcessor_NWaySplit(t *testing.T) {
+	store := createTestBillStore(t)
+	fcbID := newFeeCreditRecordID(101)
+	fcb := &Bill{Id: fcbID, Value: 100}
+
+	var targetUnits []*money.TargetUnit
+	for i := 1; i <= 5; i++ {
+		pubKeyBytes := []byte{byte(i)}
+		pubKeyHash := hash.Sum256(pubKeyBytes)
+		ownerCondition := script.PredicatePayToPublicKeyHashDefault(pubKeyHash)
+		targetUnits = append(targetUnits, &money.TargetUnit{
+			Amount:         uint64(i),
+			OwnerCondition: ownerCondition,
+		})
+	}
+	tx := &types.TransactionRecord{
+		TransactionOrder: &types.TransactionOrder{
+			Payload: &types.Payload{
+				SystemID:       moneySystemID,
+				Type:           money.PayloadTypeSplit,
+				UnitID:         newBillID(3),
+				Attributes:     splitTxAttr(1, targetUnits...),
+				ClientMetadata: &types.ClientMetadata{FeeCreditRecordID: fcbID},
+			},
+		},
+		ServerMetadata: &types.ServerMetadata{ActualFee: 1},
+	}
+	b := &types.Block{
+		Header:             &types.Header{SystemID: moneySystemID},
+		Transactions:       []*types.TransactionRecord{tx},
+		UnicityCertificate: &types.UnicityCertificate{InputRecord: &types.InputRecord{RoundNumber: 1}},
+	}
+	err := store.Do().SetFeeCreditBill(fcb, nil)
+	require.NoError(t, err)
+
+	// store existing bill for split
+	err = store.Do().SetBill(&Bill{Id: tx.TransactionOrder.UnitID(), OwnerPredicate: script.PredicateAlwaysTrue()}, nil)
+	require.NoError(t, err)
+	err = store.Do().SetSystemDescriptionRecords([]*genesis.SystemDescriptionRecord{
+		{
+			SystemIdentifier: moneySystemID,
+			T2Timeout:        2500,
+			FeeCreditBill: &genesis.FeeCreditBill{
+				UnitId:         money.NewBillID(nil, []byte{2}),
+				OwnerPredicate: script.PredicateAlwaysTrue(),
+			},
+		},
+	})
+	require.NoError(t, err)
+	blockProcessor, err := NewBlockProcessor(store, moneySystemID, logger.New(t))
+	require.NoError(t, err)
+
+	// process transactions
+	err = blockProcessor.ProcessBlock(context.Background(), b)
+	require.NoError(t, err)
+
+	// verify target bills were added
+	for _, targetUnit := range targetUnits {
+		bills, nextKey, err := store.Do().GetBills(targetUnit.OwnerCondition, true, nil, 100)
+		require.NoError(t, err)
+		require.Nil(t, nextKey)
+		require.Len(t, bills, 1)
+		require.Equal(t, targetUnit.Amount, bills[0].Value)
+	}
+}
+
 func verifyProof(t *testing.T, b *Bill, txProof *sdk.Proof) {
 	require.NotNil(t, b)
 	require.NotNil(t, txProof)
@@ -727,10 +796,9 @@ func dustTxAttr() []byte {
 	return attrBytes
 }
 
-func splitTxAttr(pubKeyHash []byte, amount uint64, remainingValue uint64) []byte {
+func splitTxAttr(remainingValue uint64, targetUnits ...*money.TargetUnit) []byte {
 	attr := &money.SplitAttributes{
-		Amount:         amount,
-		TargetBearer:   script.PredicatePayToPublicKeyHashDefault(pubKeyHash),
+		TargetUnits:    targetUnits,
 		RemainingValue: remainingValue,
 		Backlink:       hash.Sum256([]byte{}),
 	}

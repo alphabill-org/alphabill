@@ -9,6 +9,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/hash"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/internal/script"
+	"github.com/alphabill-org/alphabill/internal/testutils/logger"
 	testtransaction "github.com/alphabill-org/alphabill/internal/testutils/transaction"
 	testfc "github.com/alphabill-org/alphabill/internal/txsystem/fc/testutils"
 	"github.com/alphabill-org/alphabill/internal/txsystem/money"
@@ -104,7 +105,7 @@ func TestBlockProcessor_EachTxTypeCanBeProcessed(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	blockProcessor, err := NewBlockProcessor(store, moneySystemID)
+	blockProcessor, err := NewBlockProcessor(store, moneySystemID, logger.New(t))
 	require.NoError(t, err)
 
 	// process transactions
@@ -277,7 +278,7 @@ func TestBlockProcessor_TransferAndReclaimFeeCycle_TargetMoneyPartition(t *testi
 	}, nil)
 	require.NoError(t, err)
 
-	blockProcessor, err := NewBlockProcessor(store, moneySystemID)
+	blockProcessor, err := NewBlockProcessor(store, moneySystemID, logger.New(t))
 	require.NoError(t, err)
 
 	// process transferFC of 50 billy from userBillID
@@ -458,7 +459,7 @@ func TestBlockProcessor_TransferAndReclaimFeeCycle_TargetTokenPartition(t *testi
 	}, nil)
 	require.NoError(t, err)
 
-	blockProcessor, err := NewBlockProcessor(store, moneySystemID)
+	blockProcessor, err := NewBlockProcessor(store, moneySystemID, logger.New(t))
 	require.NoError(t, err)
 
 	// process transferFC of 20 billy from userBillID
@@ -637,7 +638,7 @@ func TestBlockProcessor_LockedAndClosedFeeCredit_CanBeSaved(t *testing.T) {
 	}, nil)
 	require.NoError(t, err)
 
-	blockProcessor, err := NewBlockProcessor(store, moneySystemID)
+	blockProcessor, err := NewBlockProcessor(store, moneySystemID, logger.New(t))
 	require.NoError(t, err)
 
 	// when transferFC is processed

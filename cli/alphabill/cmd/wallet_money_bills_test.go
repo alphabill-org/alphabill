@@ -10,6 +10,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/hash"
 	"github.com/alphabill-org/alphabill/internal/script"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
+	"github.com/alphabill-org/alphabill/internal/testutils/logger"
 	testpartition "github.com/alphabill-org/alphabill/internal/testutils/partition"
 	"github.com/alphabill-org/alphabill/internal/txsystem/fc/transactions"
 	"github.com/alphabill-org/alphabill/internal/txsystem/money"
@@ -24,7 +25,7 @@ func TestWalletBillsListCmd_EmptyWallet(t *testing.T) {
 	homedir := createNewTestWallet(t)
 	mockServer, addr := mockBackendCalls(&backendMockReturnConf{customBillList: `{"bills": []}`})
 	defer mockServer.Close()
-	stdout, err := execBillsCommand(homedir, "list --alphabill-api-uri "+addr.Host)
+	stdout, err := execBillsCommand(logger.LoggerBuilder(t), homedir, "list --alphabill-api-uri "+addr.Host)
 	require.NoError(t, err)
 	verifyStdout(t, stdout, "Account #1 - empty")
 }
@@ -35,7 +36,7 @@ func TestWalletBillsListCmd_Single(t *testing.T) {
 	defer mockServer.Close()
 
 	// verify bill in list command
-	stdout, err := execBillsCommand(homedir, "list --alphabill-api-uri "+addr.Host)
+	stdout, err := execBillsCommand(logger.LoggerBuilder(t), homedir, "list --alphabill-api-uri "+addr.Host)
 	require.NoError(t, err)
 	verifyStdout(t, stdout, "#1 0x000000000000000000000000000000000000000000000000000000000000000100 1.000'000'00")
 }
@@ -51,7 +52,7 @@ func TestWalletBillsListCmd_Multiple(t *testing.T) {
 	defer mockServer.Close()
 
 	// verify list bills shows all 4 bills
-	stdout, err := execBillsCommand(homedir, "list --alphabill-api-uri "+addr.Host)
+	stdout, err := execBillsCommand(logger.LoggerBuilder(t), homedir, "list --alphabill-api-uri "+addr.Host)
 	require.NoError(t, err)
 	verifyStdout(t, stdout, "Account #1")
 	verifyStdout(t, stdout, "#1 0x000000000000000000000000000000000000000000000000000000000000000100 0.000'000'01")
@@ -63,15 +64,16 @@ func TestWalletBillsListCmd_Multiple(t *testing.T) {
 
 func TestWalletBillsListCmd_ExtraAccount(t *testing.T) {
 	homedir := createNewTestWallet(t)
+	logF := logger.LoggerBuilder(t)
 	mockServer, addr := mockBackendCalls(&backendMockReturnConf{billID: money.NewBillID(nil, []byte{1}), billValue: 1})
 	defer mockServer.Close()
 
 	// add new key
-	_, err := execCommand(homedir, "add-key")
+	_, err := execCommand(logF, homedir, "add-key")
 	require.NoError(t, err)
 
 	// verify list bills for specific account only shows given account bills
-	stdout, err := execBillsCommand(homedir, "list -k 2 --alphabill-api-uri "+addr.Host)
+	stdout, err := execBillsCommand(logF, homedir, "list -k 2 --alphabill-api-uri "+addr.Host)
 	require.NoError(t, err)
 	lines := stdout.lines
 	require.Len(t, lines, 2)
@@ -81,9 +83,10 @@ func TestWalletBillsListCmd_ExtraAccount(t *testing.T) {
 
 func TestWalletBillsListCmd_ExtraAccountTotal(t *testing.T) {
 	homedir := createNewTestWallet(t)
+	logF := logger.LoggerBuilder(t)
 
 	// add new key
-	stdout, err := execCommand(homedir, "add-key")
+	stdout, err := execCommand(logF, homedir, "add-key")
 	require.NoError(t, err)
 	pubKey2 := strings.Split(stdout.lines[0], " ")[3]
 
@@ -95,7 +98,7 @@ func TestWalletBillsListCmd_ExtraAccountTotal(t *testing.T) {
 	defer mockServer.Close()
 
 	// verify both accounts are listed
-	stdout, err = execBillsCommand(homedir, "list --alphabill-api-uri "+addr.Host)
+	stdout, err = execBillsCommand(logF, homedir, "list --alphabill-api-uri "+addr.Host)
 	require.NoError(t, err)
 	verifyStdout(t, stdout, "Account #1")
 	verifyStdout(t, stdout, "#1 0x000000000000000000000000000000000000000000000000000000000000000100 10")
@@ -104,9 +107,10 @@ func TestWalletBillsListCmd_ExtraAccountTotal(t *testing.T) {
 
 func TestWalletBillsListCmd_ShowUnswappedFlag(t *testing.T) {
 	homedir := createNewTestWallet(t)
+	logF := logger.LoggerBuilder(t)
 
 	// get pub key
-	stdout, err := execCommand(homedir, "get-pubkeys")
+	stdout, err := execCommand(logF, homedir, "get-pubkeys")
 	require.NoError(t, err)
 	pubKey := strings.Split(stdout.lines[0], " ")[1]
 
@@ -115,7 +119,7 @@ func TestWalletBillsListCmd_ShowUnswappedFlag(t *testing.T) {
 		customFullPath: "/" + client.ListBillsPath + "?includeDcBills=false&limit=100&pubkey=" + pubKey,
 		customResponse: `{"bills": [{"value":"22222222"}]}`})
 
-	stdout, err = execBillsCommand(homedir, "list --alphabill-api-uri "+addr.Host)
+	stdout, err = execBillsCommand(logF, homedir, "list --alphabill-api-uri "+addr.Host)
 	require.NoError(t, err)
 	verifyStdout(t, stdout, "#1 0x 0.222'222'22")
 	mockServer.Close()
@@ -125,7 +129,7 @@ func TestWalletBillsListCmd_ShowUnswappedFlag(t *testing.T) {
 		customFullPath: "/" + client.ListBillsPath + "?includeDcBills=true&limit=100&pubkey=" + pubKey,
 		customResponse: `{"bills": [{"value":"33333333"}]}`})
 
-	stdout, err = execBillsCommand(homedir, "list --alphabill-api-uri "+addr.Host+" -s")
+	stdout, err = execBillsCommand(logF, homedir, "list --alphabill-api-uri "+addr.Host+" -s")
 	require.NoError(t, err)
 	verifyStdout(t, stdout, "#1 0x 0.333'333'33")
 	mockServer.Close()
@@ -137,7 +141,7 @@ func TestWalletBillsExportCmd_Error(t *testing.T) {
 	defer mockServer.Close()
 
 	// verify exporting non-existent bill returns error
-	_, err := execBillsCommand(homedir, "export --bill-id=00 --alphabill-api-uri "+addr.Host)
+	_, err := execBillsCommand(logger.LoggerBuilder(t), homedir, "export --bill-id=00 --alphabill-api-uri "+addr.Host)
 	require.ErrorContains(t, err, "no bills to export")
 }
 
@@ -149,7 +153,7 @@ func TestWalletBillsExportCmd_BillIdFlag(t *testing.T) {
 
 	// verify export with --bill-id flag
 	billFilePath := filepath.Join(homedir, "bill-0x0000000000000000000000000000000000000000000000000000000000000001.json")
-	stdout, err := execBillsCommand(homedir, "export --bill-id 0000000000000000000000000000000000000000000000000000000000000001 --output-path "+homedir+" --alphabill-api-uri "+addr.Host)
+	stdout, err := execBillsCommand(logger.LoggerBuilder(t), homedir, "export --bill-id 0000000000000000000000000000000000000000000000000000000000000001 --output-path "+homedir+" --alphabill-api-uri "+addr.Host)
 	require.NoError(t, err)
 	require.Len(t, stdout.lines, 1)
 	require.Equal(t, stdout.lines[0], fmt.Sprintf("Exported bill(s) to: %s", billFilePath))
@@ -167,7 +171,7 @@ func TestWalletBillsExportCmd(t *testing.T) {
 
 	// verify export with no flags outputs all bills
 	billFilePath := filepath.Join(homedir, "bills.json")
-	stdout, err := execBillsCommand(homedir, "export --output-path "+homedir+" --alphabill-api-uri "+addr.Host)
+	stdout, err := execBillsCommand(logger.LoggerBuilder(t), homedir, "export --output-path "+homedir+" --alphabill-api-uri "+addr.Host)
 	require.NoError(t, err)
 	require.Len(t, stdout.lines, 1)
 	require.Equal(t, stdout.lines[0], fmt.Sprintf("Exported bill(s) to: %s", billFilePath))
@@ -176,9 +180,10 @@ func TestWalletBillsExportCmd(t *testing.T) {
 func TestWalletBillsExportCmd_ShowUnswappedFlag(t *testing.T) {
 	t.Skip("AB-666")
 	homedir := createNewTestWallet(t)
+	logF := logger.LoggerBuilder(t)
 
 	// get pub key
-	stdout, err := execCommand(homedir, "get-pubkeys")
+	stdout, err := execCommand(logF, homedir, "get-pubkeys")
 	require.NoError(t, err)
 	pubKey := strings.Split(stdout.lines[0], " ")[1]
 
@@ -188,7 +193,7 @@ func TestWalletBillsExportCmd_ShowUnswappedFlag(t *testing.T) {
 		customFullPath: "/" + client.ListBillsPath + "?pubkey=" + pubKey + "&includeDcBills=false",
 		customResponse: `{"bills": [{"id":"` + toBase64(money.NewBillID(nil, []byte{2})) + `","value":"22222222"}]}`})
 
-	stdout, err = execBillsCommand(homedir, "export --output-path "+homedir+" --alphabill-api-uri "+addr.Host)
+	stdout, err = execBillsCommand(logF, homedir, "export --output-path "+homedir+" --alphabill-api-uri "+addr.Host)
 	require.NoError(t, err)
 	billFilePath2 := filepath.Join(homedir, "bill-0x000000000000000000000000000000000000000000000000000000000000000200.json")
 	require.Equal(t, stdout.lines[0], fmt.Sprintf("Exported bill(s) to: %s", billFilePath2))
@@ -200,7 +205,7 @@ func TestWalletBillsExportCmd_ShowUnswappedFlag(t *testing.T) {
 		customFullPath: "/" + client.ListBillsPath + "?pubkey=" + pubKey + "&includeDcBills=true",
 		customResponse: `{"bills": [{"id":"` + toBase64(money.NewBillID(nil, []byte{3})) + `","value":"33333333"}]}`})
 
-	stdout, err = execBillsCommand(homedir, "export --output-path "+homedir+" --alphabill-api-uri "+addr.Host+" -s")
+	stdout, err = execBillsCommand(logF, homedir, "export --output-path "+homedir+" --alphabill-api-uri "+addr.Host+" -s")
 	require.NoError(t, err)
 	billFilePath3 := filepath.Join(homedir, "bill-0x000000000000000000000000000000000000000000000000000000000000000300.json")
 	require.Equal(t, stdout.lines[0], fmt.Sprintf("Exported bill(s) to: %s", billFilePath3))
@@ -229,7 +234,7 @@ func TestWalletBillsListCmd_ShowLockedBills(t *testing.T) {
 	require.NoError(t, err)
 
 	// verify locked unit is shown in output list
-	stdout, err := execBillsCommand(homedir, "list --alphabill-api-uri "+addr.Host)
+	stdout, err := execBillsCommand(logger.LoggerBuilder(t), homedir, "list --alphabill-api-uri "+addr.Host)
 	require.NoError(t, err)
 	verifyStdout(t, stdout, "#1 0x000000000000000000000000000000000000000000000000000000000000000100 1.000'000'00 (locked for adding fees)")
 }
@@ -359,6 +364,6 @@ func createAddFC(unitID []byte, ownerCondition []byte, transferFC *types.Transac
 	return tx, nil
 }
 
-func execBillsCommand(homeDir, command string) (*testConsoleWriter, error) {
-	return execCommand(homeDir, " bills "+command)
+func execBillsCommand(logF LoggerFactory, homeDir, command string) (*testConsoleWriter, error) {
+	return execCommand(logF, homeDir, " bills "+command)
 }

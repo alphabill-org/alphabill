@@ -21,6 +21,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/rpc/alphabill"
 	"github.com/alphabill-org/alphabill/internal/script"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
+	"github.com/alphabill-org/alphabill/internal/testutils/logger"
 	testpartition "github.com/alphabill-org/alphabill/internal/testutils/partition"
 	testserver "github.com/alphabill-org/alphabill/internal/testutils/server"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
@@ -76,6 +77,7 @@ func TestCollectDustTimeoutReached(t *testing.T) {
 					Predicate: script.PredicateAlwaysTrue(),
 				},
 				SystemDescriptionRecords: createSDRs(),
+				Logger:                   logger.New(t),
 			})
 		require.ErrorIs(t, err, context.Canceled)
 	}()
@@ -187,6 +189,7 @@ func TestCollectDustInMultiAccountWallet(t *testing.T) {
 					Predicate: script.PredicateAlwaysTrue(),
 				},
 				SystemDescriptionRecords: createSDRs(),
+				Logger:                   logger.New(t),
 			})
 		require.ErrorIs(t, err, context.Canceled)
 	}()
@@ -299,6 +302,7 @@ func TestCollectDustInMultiAccountWalletWithKeyFlag(t *testing.T) {
 					Predicate: script.PredicateAlwaysTrue(),
 				},
 				SystemDescriptionRecords: createSDRs(),
+				Logger:                   logger.New(t),
 			})
 		require.ErrorIs(t, err, context.Canceled)
 	}()

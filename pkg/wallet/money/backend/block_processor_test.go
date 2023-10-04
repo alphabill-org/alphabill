@@ -5,6 +5,10 @@ import (
 	gocrypto "crypto"
 	"testing"
 
+	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/fxamacker/cbor/v2"
+	"github.com/stretchr/testify/require"
+
 	"github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/hash"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
@@ -16,9 +20,6 @@ import (
 	"github.com/alphabill-org/alphabill/internal/txsystem/tokens"
 	"github.com/alphabill-org/alphabill/internal/types"
 	sdk "github.com/alphabill-org/alphabill/pkg/wallet"
-	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/fxamacker/cbor/v2"
-	"github.com/stretchr/testify/require"
 )
 
 var moneySystemID = money.DefaultSystemIdentifier
@@ -736,7 +737,7 @@ func TestBlockProcessor_NWaySplit(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	blockProcessor, err := NewBlockProcessor(store, moneySystemID)
+	blockProcessor, err := NewBlockProcessor(store, moneySystemID, logger.New(t))
 	require.NoError(t, err)
 
 	// process transactions

@@ -19,6 +19,7 @@ import (
 	"github.com/alphabill-org/alphabill/pkg/wallet/fees"
 	wlog "github.com/alphabill-org/alphabill/pkg/wallet/log"
 	"github.com/alphabill-org/alphabill/pkg/wallet/money/backend"
+	moneyclient "github.com/alphabill-org/alphabill/pkg/wallet/money/backend/client"
 )
 
 var defaultTokenSDR = &genesis.SystemDescriptionRecord{

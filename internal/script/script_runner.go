@@ -1,6 +1,9 @@
 package script
 
-import "errors"
+import (
+	"errors"
+	"fmt"
+)
 
 const MaxScriptBytes = 65536
 const StartByte = 0x53
@@ -9,12 +12,6 @@ type scriptContext struct {
 	stack   *stack
 	sigData []byte // canonically serialized unhashed signature data
 }
-
-var (
-	ErrUnknownOpCode       = errors.New("unknown opcode")
-	ErrInvalidScriptFormat = errors.New("invalid script format")
-	ErrScriptResultFalse   = errors.New("script execution result yielded false or non-clean stack")
-)
 
 /*
 RunScript executes the given script. If the script contains OpCheckSig opCode then correct sigData must be supplied.
@@ -29,49 +26,52 @@ BearerPredicate:   [0x53, 0x76, 0xa8, 0x01, 0x4f, 0x01, <32 bytes>, 0x87, 0x69, 
 PredicateArgument: [0x53, 0x54, 0x01, <65 bytes>, 0x55, 0x01, <33 bytes>]
 */
 func RunScript(predicateArgument []byte, bearerPredicate []byte, sigData []byte) error {
-	if !validateInput(predicateArgument, bearerPredicate) {
-		return ErrInvalidScriptFormat
+	if err := validateInput(predicateArgument, bearerPredicate); err != nil {
+		return fmt.Errorf("invalid script format: %w", err)
 	}
 
-	sc := scriptContext{
+	sc := &scriptContext{
 		stack:   &stack{},
 		sigData: sigData,
 	}
 
-	err := executeScript(predicateArgument, &sc)
+	err := executeScript(predicateArgument, sc)
 	if err != nil {
-		return err
+		return fmt.Errorf("predicate argument execution failed: %w", err)
 	}
-	err = executeScript(bearerPredicate, &sc)
+	err = executeScript(bearerPredicate, sc)
 	if err != nil {
-		return err
+		return fmt.Errorf("bearer predicate execution failed: %w", err)
 	}
 
-	top, err := sc.stack.popBool()
+	res, err := sc.stack.popBool()
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to pop top of the stack: %w", err)
 	}
-	if top && sc.stack.isEmpty() {
-		return nil
+	if !res {
+		return errors.New("script execution result yielded false")
 	}
-	return ErrScriptResultFalse
+	if !sc.stack.isEmpty() {
+		return errors.New("script execution result yielded non-clean stack")
+	}
+	return nil
 }
 
 func executeScript(script []byte, sc *scriptContext) error {
 	for i := 1; i < len(script); i++ { // i is always incremented at least once per opcode
 		op, exists := opCodes[script[i]]
 		if !exists {
-			return ErrUnknownOpCode
+			return fmt.Errorf("unknown opcode 0x%x", script[i])
 		}
 
 		dataLength, err := op.getDataLength(script[i+1:])
 		if err != nil {
-			return err
+			return fmt.Errorf("failed to get data length for opcode 0x%x: %w", op.value, err)
 		}
 
 		err = op.exec(sc, script[i+1:i+1+dataLength])
 		if err != nil {
-			return err
+			return fmt.Errorf("failed to execute opcode 0x%x: %w", op.value, err)
 		}
 
 		i += dataLength
@@ -79,15 +79,25 @@ func executeScript(script []byte, sc *scriptContext) error {
 	return nil
 }
 
-func validateInput(predicate []byte, signature []byte) bool {
-	if len(signature) > MaxScriptBytes || len(predicate) > MaxScriptBytes {
-		return false
+func validateInput(predicateArgument, bearerPredicate []byte) error {
+	if err := validatePredicate(predicateArgument); err != nil {
+		return fmt.Errorf("predicate argument is invalid: %w", err)
 	}
-	if len(signature) == 0 || len(predicate) == 0 {
-		return false
+	if err := validatePredicate(bearerPredicate); err != nil {
+		return fmt.Errorf("bearer predicate is invalid: %w", err)
 	}
-	if signature[0] != StartByte || predicate[0] != StartByte {
-		return false
+	return nil
+}
+
+func validatePredicate(predicate []byte) error {
+	if len(predicate) == 0 {
+		return errors.New("predicate is empty")
 	}
-	return true
+	if len(predicate) > MaxScriptBytes {
+		return errors.New("predicate is too large")
+	}
+	if predicate[0] != StartByte {
+		return errors.New("predicate does not start with StartByte")
+	}
+	return nil
 }

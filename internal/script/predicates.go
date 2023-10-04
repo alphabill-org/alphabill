@@ -1,6 +1,8 @@
 package script
 
-import "fmt"
+import (
+	"fmt"
+)
 
 // PredicateAlwaysTrue is a predicate that evaluates to true with an empty argument.
 func PredicateAlwaysTrue() []byte {
@@ -56,11 +58,11 @@ func ExtractPubKeyFromPredicateArgument(predicate []byte) ([]byte, error) {
 	for i := 1; i < len(predicate); i++ {
 		op, exists := opCodes[predicate[i]]
 		if !exists {
-			return nil, ErrUnknownOpCode
+			return nil, fmt.Errorf("unknown opcode 0x%x", predicate[i])
 		}
 		dataLength, err := op.getDataLength(predicate[i+1:])
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("failed to get data length for opcode 0x%x: %w", op.value, err)
 		}
 		if op.value == OpPushPubKey {
 			return predicate[i+2 : i+1+dataLength], nil

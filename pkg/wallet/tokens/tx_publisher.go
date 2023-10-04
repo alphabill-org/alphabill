@@ -3,6 +3,7 @@ package tokens
 import (
 	"context"
 	"crypto"
+	"log/slog"
 
 	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/pkg/wallet"
@@ -13,12 +14,14 @@ import (
 type (
 	TxPublisher struct {
 		backend *client.TokenBackend
+		log     *slog.Logger
 	}
 )
 
-func NewTxPublisher(backendClient *client.TokenBackend) *TxPublisher {
+func NewTxPublisher(backendClient *client.TokenBackend, log *slog.Logger) *TxPublisher {
 	return &TxPublisher{
 		backend: backendClient,
+		log:     log,
 	}
 }
 
@@ -29,7 +32,7 @@ func (w *TxPublisher) SendTx(ctx context.Context, tx *types.TransactionOrder, se
 		Transaction: tx,
 		TxHash:      tx.Hash(crypto.SHA256),
 	}
-	txBatch := txSub.ToBatch(w.backend, senderPubKey)
+	txBatch := txSub.ToBatch(w.backend, senderPubKey, w.log)
 	err := txBatch.SendTx(ctx, true)
 	if err != nil {
 		return nil, err

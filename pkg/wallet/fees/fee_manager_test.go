@@ -2,17 +2,19 @@ package fees
 
 import (
 	"context"
+	"log/slog"
 	"path/filepath"
 	"testing"
 
-	"github.com/alphabill-org/alphabill/internal/hash"
-	"github.com/alphabill-org/alphabill/internal/txsystem/money"
 	"github.com/stretchr/testify/require"
 
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
+	"github.com/alphabill-org/alphabill/internal/hash"
+	"github.com/alphabill-org/alphabill/internal/testutils/logger"
 	testtransaction "github.com/alphabill-org/alphabill/internal/testutils/transaction"
 	"github.com/alphabill-org/alphabill/internal/txsystem/fc/testutils"
 	"github.com/alphabill-org/alphabill/internal/txsystem/fc/transactions"
+	"github.com/alphabill-org/alphabill/internal/txsystem/money"
 	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/alphabill-org/alphabill/pkg/wallet/account"
@@ -34,7 +36,7 @@ func TestAddFeeCredit_OK(t *testing.T) {
 		TxHash: []byte{2},
 	}}}
 	unitLocker := createUnitLocker(t)
-	feeManager := newMoneyPartitionFeeManager(am, unitLocker, moneyTxPublisher, moneyBackendClient)
+	feeManager := newMoneyPartitionFeeManager(am, unitLocker, moneyTxPublisher, moneyBackendClient, logger.New(t))
 
 	// verify that entire bill amount can be added
 	proofs, err := feeManager.AddFeeCredit(context.Background(), AddFeeCmd{Amount: 100000001})
@@ -70,7 +72,7 @@ func TestAddFeeCredit_MultipleBills(t *testing.T) {
 			TxHash: []byte{4},
 		}}}
 	unitLocker := createUnitLocker(t)
-	feeManager := newMoneyPartitionFeeManager(am, unitLocker, moneyTxPublisher, moneyBackendClient)
+	feeManager := newMoneyPartitionFeeManager(am, unitLocker, moneyTxPublisher, moneyBackendClient, logger.New(t))
 
 	// verify that there are 2 pairs of txs sent and that the amounts match
 	proofs, err := feeManager.AddFeeCredit(context.Background(), AddFeeCmd{Amount: 200000000})
@@ -102,7 +104,7 @@ func TestAddFeeCredit_NoBillsReturnsError(t *testing.T) {
 	moneyTxPublisher := &mockMoneyTxPublisher{}
 	moneyBackendClient := &mockMoneyClient{bills: []*wallet.Bill{}}
 	unitLocker := createUnitLocker(t)
-	feeManager := newMoneyPartitionFeeManager(am, unitLocker, moneyTxPublisher, moneyBackendClient)
+	feeManager := newMoneyPartitionFeeManager(am, unitLocker, moneyTxPublisher, moneyBackendClient, logger.New(t))
 
 	// verify that error is returned
 	_, err := feeManager.AddFeeCredit(context.Background(), AddFeeCmd{Amount: 100000000})
@@ -121,7 +123,7 @@ func TestAddFeeCredit_WalletContainsLockedBillForReclaim(t *testing.T) {
 	moneyTxPublisher := &mockMoneyTxPublisher{}
 	moneyBackendClient := &mockMoneyClient{bills: []*wallet.Bill{}}
 	unitLocker := createUnitLocker(t)
-	feeManager := newMoneyPartitionFeeManager(am, unitLocker, moneyTxPublisher, moneyBackendClient)
+	feeManager := newMoneyPartitionFeeManager(am, unitLocker, moneyTxPublisher, moneyBackendClient, logger.New(t))
 
 	// lock bill with LockReasonReclaimFees
 	err = unitLocker.LockUnit(unitlock.NewLockedUnit(accountKey.PubKey, []byte{1}, []byte{200}, unitlock.LockReasonReclaimFees))
@@ -146,7 +148,6 @@ func TestAddFeeCredit_LockedBillForTransferFC(t *testing.T) {
 	moneyTxPublisher := &mockMoneyTxPublisher{}
 	moneyBackendClient := &mockMoneyClient{}
 	unitLocker := createUnitLocker(t)
-	feeManager := newMoneyPartitionFeeManager(am, unitLocker, moneyTxPublisher, moneyBackendClient)
 
 	transferFCRecord := &types.TransactionRecord{
 		TransactionOrder: testutils.NewTransferFC(t, nil),
@@ -173,6 +174,7 @@ func TestAddFeeCredit_LockedBillForTransferFC(t *testing.T) {
 		}
 
 		// when fees are added
+		feeManager := newMoneyPartitionFeeManager(am, unitLocker, moneyTxPublisher, moneyBackendClient, logger.New(t))
 		res, err := feeManager.AddFeeCredit(context.Background(), AddFeeCmd{Amount: 50})
 		require.NoError(t, err)
 
@@ -208,6 +210,7 @@ func TestAddFeeCredit_LockedBillForTransferFC(t *testing.T) {
 		}
 
 		// when fees are added
+		feeManager := newMoneyPartitionFeeManager(am, unitLocker, moneyTxPublisher, moneyBackendClient, logger.New(t))
 		res, err := feeManager.AddFeeCredit(context.Background(), AddFeeCmd{Amount: 50})
 		require.NoError(t, err)
 		require.NotNil(t, res)
@@ -234,6 +237,7 @@ func TestAddFeeCredit_LockedBillForTransferFC(t *testing.T) {
 		}
 
 		// when fees are added
+		feeManager := newMoneyPartitionFeeManager(am, unitLocker, moneyTxPublisher, moneyBackendClient, logger.New(t))
 		res, err := feeManager.AddFeeCredit(context.Background(), AddFeeCmd{Amount: 50})
 		require.NoError(t, err)
 		require.NotNil(t, res)
@@ -263,7 +267,7 @@ func TestAddFeeCredit_LockedBillForAddFC(t *testing.T) {
 	moneyTxPublisher := &mockMoneyTxPublisher{}
 	moneyBackendClient := &mockMoneyClient{}
 	unitLocker := createUnitLocker(t)
-	feeManager := newMoneyPartitionFeeManager(am, unitLocker, moneyTxPublisher, moneyBackendClient)
+	feeManager := newMoneyPartitionFeeManager(am, unitLocker, moneyTxPublisher, moneyBackendClient, logger.New(t))
 	signer, _ := abcrypto.NewInMemorySecp256K1Signer()
 
 	addFCRecord := &types.TransactionRecord{
@@ -388,7 +392,7 @@ func TestReclaimFeeCredit_LockedBillForCloseFC(t *testing.T) {
 	moneyTxPublisher := &mockMoneyTxPublisher{}
 	moneyBackendClient := &mockMoneyClient{}
 	unitLocker := createUnitLocker(t)
-	feeManager := newMoneyPartitionFeeManager(am, unitLocker, moneyTxPublisher, moneyBackendClient)
+	feeManager := newMoneyPartitionFeeManager(am, unitLocker, moneyTxPublisher, moneyBackendClient, logger.New(t))
 
 	closeFCRecord := &types.TransactionRecord{
 		TransactionOrder: testutils.NewCloseFC(t, nil),
@@ -512,7 +516,7 @@ func TestReclaimFeeCredit_LockedBillForReclaimFC(t *testing.T) {
 	moneyTxPublisher := &mockMoneyTxPublisher{}
 	moneyBackendClient := &mockMoneyClient{}
 	unitLocker := createUnitLocker(t)
-	feeManager := newMoneyPartitionFeeManager(am, unitLocker, moneyTxPublisher, moneyBackendClient)
+	feeManager := newMoneyPartitionFeeManager(am, unitLocker, moneyTxPublisher, moneyBackendClient, logger.New(t))
 	signer, _ := abcrypto.NewInMemorySecp256K1Signer()
 
 	reclaimFCOrder := testutils.NewReclaimFC(t, signer, nil)
@@ -635,7 +639,7 @@ func TestAddAndReclaimWithInsufficientCredit(t *testing.T) {
 			TxHash: []byte{2},
 		}}}
 	unitLocker := createUnitLocker(t)
-	feeManager := newMoneyPartitionFeeManager(am, unitLocker, moneyTxPublisher, moneyBackendClient)
+	feeManager := newMoneyPartitionFeeManager(am, unitLocker, moneyTxPublisher, moneyBackendClient, logger.New(t))
 
 	_, err := feeManager.AddFeeCredit(context.Background(), AddFeeCmd{Amount: 2})
 	require.ErrorIs(t, err, ErrMinimumFeeAmount)
@@ -656,15 +660,15 @@ func TestAddWithInsufficientBalance(t *testing.T) {
 			TxHash: []byte{2},
 		}}}
 	unitLocker := createUnitLocker(t)
-	feeManager := newMoneyPartitionFeeManager(am, unitLocker, moneyTxPublisher, moneyBackendClient)
+	feeManager := newMoneyPartitionFeeManager(am, unitLocker, moneyTxPublisher, moneyBackendClient, logger.New(t))
 
 	_, err := feeManager.AddFeeCredit(context.Background(), AddFeeCmd{Amount: 50})
 	require.ErrorIs(t, err, ErrInsufficientBalance)
 }
 
-func newMoneyPartitionFeeManager(am account.Manager, unitLocker UnitLocker, moneyTxPublisher TxPublisher, moneyBackendClient MoneyClient) *FeeManager {
+func newMoneyPartitionFeeManager(am account.Manager, unitLocker UnitLocker, moneyTxPublisher TxPublisher, moneyBackendClient MoneyClient, log *slog.Logger) *FeeManager {
 	moneySystemID := []byte{0, 0, 0, 0}
-	return NewFeeManager(am, unitLocker, moneySystemID, moneyTxPublisher, moneyBackendClient, moneySystemID, moneyTxPublisher, moneyBackendClient, testFeeCreditRecordIDFromPublicKey)
+	return NewFeeManager(am, unitLocker, moneySystemID, moneyTxPublisher, moneyBackendClient, moneySystemID, moneyTxPublisher, moneyBackendClient, testFeeCreditRecordIDFromPublicKey, log)
 }
 
 func newAccountManager(t *testing.T) account.Manager {

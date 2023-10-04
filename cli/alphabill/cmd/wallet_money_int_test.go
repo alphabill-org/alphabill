@@ -16,7 +16,6 @@ import (
 	testfc "github.com/alphabill-org/alphabill/internal/txsystem/fc/testutils"
 	moneytx "github.com/alphabill-org/alphabill/internal/txsystem/money"
 	moneytestutils "github.com/alphabill-org/alphabill/internal/txsystem/money/testutils"
-	wlog "github.com/alphabill-org/alphabill/pkg/wallet/log"
 )
 
 var (
@@ -48,9 +47,6 @@ func TestSendingMoneyUsingWallets_integration(t *testing.T) {
 	apiAddr, moneyRestClient := startMoneyBackend(t, moneyPartition, initialBill)
 
 	// create 2 wallets
-	err := wlog.InitStdoutLogger(wlog.INFO)
-	require.NoError(t, err)
-
 	am1, homedir1 := createNewWallet(t)
 	w1PubKey, _ := am1.GetPublicKey(0)
 	am1.Close()

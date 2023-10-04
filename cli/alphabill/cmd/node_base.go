@@ -171,12 +171,11 @@ func loadNetworkConfiguration(ctx context.Context, keys *Keys, pg *genesis.Parti
 	if err != nil {
 		return nil, err
 	}
-	bootstrapPeers := []peer.AddrInfo{{bootstrapNodeID, []multiaddr.Multiaddr{bootstrapNodeAddress}}}
 
 	peerConfiguration := &network.PeerConfiguration{
 		Address:        cfg.Address,
 		KeyPair:        pair,
-		BootstrapPeers: bootstrapPeers,
+		BootstrapPeers: []peer.AddrInfo{{ID: bootstrapNodeID, Addrs: []multiaddr.Multiaddr{bootstrapNodeAddress}}},
 		Validators:     validatorIdentifiers,
 	}
 
@@ -302,7 +301,7 @@ func addCommonNodeConfigurationFlags(nodeCmd *cobra.Command, config *startNodeCo
 	nodeCmd.Flags().StringVarP(&config.KeyFile, keyFileCmdFlag, "k", "", fmt.Sprintf("path to the key file (default: $AB_HOME/%s/keys.json)", partitionSuffix))
 	nodeCmd.Flags().StringVarP(&config.Genesis, "genesis", "g", "", fmt.Sprintf("path to the partition genesis file : $AB_HOME/%s/partition-genesis.json)", partitionSuffix))
 	nodeCmd.Flags().StringVarP(&config.DbFile, "db", "f", "", fmt.Sprintf("path to the database file (default: $AB_HOME/%s/%s)", partitionSuffix, BoltBlockStoreFileName))
-	nodeCmd.Flags().StringVarP(&config.TxIndexerDBFile, "tx-db", "", "", fmt.Sprintf("path to the transaction indexer database file"))
+	nodeCmd.Flags().StringVarP(&config.TxIndexerDBFile, "tx-db", "", "", "path to the transaction indexer database file")
 	nodeCmd.Flags().Uint64Var(&config.LedgerReplicationMaxBlocks, "ledger-replication-max-blocks", 1000, "maximum number of blocks to return in a single replication response")
 	nodeCmd.Flags().Uint32Var(&config.LedgerReplicationMaxTx, "ledger-replication-max-transactions", 10000, "maximum number of transactions to return in a single replication response")
 }

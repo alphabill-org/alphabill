@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/url"
 	"strings"
 
@@ -78,6 +79,11 @@ func addFeeCreditCmdExec(cmd *cobra.Command, walletConfig *walletConfig, cliConf
 	if err != nil {
 		return err
 	}
+	log, err := walletConfig.Base.Logger(cmd)
+	if err != nil {
+		return err
+	}
+
 	am, err := loadExistingAccountManager(cmd, walletConfig.WalletHomeDir)
 	if err != nil {
 		return err
@@ -90,7 +96,7 @@ func addFeeCreditCmdExec(cmd *cobra.Command, walletConfig *walletConfig, cliConf
 	}
 	defer unitLocker.Close()
 
-	fm, err := getFeeCreditManager(cmd.Context(), cliConfig, am, unitLocker, moneyBackendURL)
+	fm, err := getFeeCreditManager(cmd.Context(), cliConfig, am, unitLocker, moneyBackendURL, log)
 	if err != nil {
 		return err
 	}
@@ -120,6 +126,11 @@ func listFeesCmdExec(cmd *cobra.Command, walletConfig *walletConfig, cliConfig *
 	if err != nil {
 		return err
 	}
+	log, err := walletConfig.Base.Logger(cmd)
+	if err != nil {
+		return err
+	}
+
 	am, err := loadExistingAccountManager(cmd, walletConfig.WalletHomeDir)
 	if err != nil {
 		return err
@@ -132,7 +143,7 @@ func listFeesCmdExec(cmd *cobra.Command, walletConfig *walletConfig, cliConfig *
 	}
 	defer unitLocker.Close()
 
-	fm, err := getFeeCreditManager(cmd.Context(), cliConfig, am, unitLocker, moneyBackendURL)
+	fm, err := getFeeCreditManager(cmd.Context(), cliConfig, am, unitLocker, moneyBackendURL, log)
 	if err != nil {
 		return err
 	}
@@ -162,6 +173,11 @@ func reclaimFeeCreditCmdExec(cmd *cobra.Command, walletConfig *walletConfig, cli
 	if err != nil {
 		return err
 	}
+	log, err := walletConfig.Base.Logger(cmd)
+	if err != nil {
+		return err
+	}
+
 	am, err := loadExistingAccountManager(cmd, walletConfig.WalletHomeDir)
 	if err != nil {
 		return err
@@ -174,7 +190,7 @@ func reclaimFeeCreditCmdExec(cmd *cobra.Command, walletConfig *walletConfig, cli
 	}
 	defer unitLocker.Close()
 
-	fm, err := getFeeCreditManager(cmd.Context(), cliConfig, am, unitLocker, moneyBackendURL)
+	fm, err := getFeeCreditManager(cmd.Context(), cliConfig, am, unitLocker, moneyBackendURL, log)
 	if err != nil {
 		return err
 	}
@@ -303,7 +319,7 @@ func (c *cliConf) getPartitionBackendURL() string {
 
 // Creates a fees.FeeManager that needs to be closed with the Close() method.
 // Does not close the account.Manager passed as an argument.
-func getFeeCreditManager(ctx context.Context, c *cliConf, am account.Manager, unitLocker *unitlock.UnitLocker, moneyBackendURL string) (FeeCreditManager, error) {
+func getFeeCreditManager(ctx context.Context, c *cliConf, am account.Manager, unitLocker *unitlock.UnitLocker, moneyBackendURL string, log *slog.Logger) (FeeCreditManager, error) {
 	moneyBackendClient, err := moneyclient.New(moneyBackendURL)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create money backend client: %w", err)
@@ -320,7 +336,7 @@ func getFeeCreditManager(ctx context.Context, c *cliConf, am account.Manager, un
 	if err != nil {
 		return nil, fmt.Errorf("failed to decode money system identifier hex: %w", err)
 	}
-	moneyTxPublisher := moneywallet.NewTxPublisher(moneyBackendClient)
+	moneyTxPublisher := moneywallet.NewTxPublisher(moneyBackendClient, log)
 
 	switch c.partitionType {
 	case moneyType:
@@ -334,6 +350,7 @@ func getFeeCreditManager(ctx context.Context, c *cliConf, am account.Manager, un
 			moneyTxPublisher,
 			moneyBackendClient,
 			moneywallet.FeeCreditRecordIDFormPublicKey,
+			log,
 		), nil
 	case tokensType:
 		backendURL, err := c.parsePartitionBackendURL()
@@ -341,7 +358,7 @@ func getFeeCreditManager(ctx context.Context, c *cliConf, am account.Manager, un
 			return nil, fmt.Errorf("failed to parse partition backend url: %w", err)
 		}
 		tokenBackendClient := tokensclient.New(*backendURL)
-		tokenTxPublisher := tokenswallet.NewTxPublisher(tokenBackendClient)
+		tokenTxPublisher := tokenswallet.NewTxPublisher(tokenBackendClient, log)
 		tokenInfo, err := tokenBackendClient.GetInfo(ctx)
 		if err != nil {
 			return nil, fmt.Errorf("failed to fetch tokens system info: %w", err)
@@ -364,6 +381,7 @@ func getFeeCreditManager(ctx context.Context, c *cliConf, am account.Manager, un
 			tokenTxPublisher,
 			tokenBackendClient,
 			tokenswallet.FeeCreditRecordIDFromPublicKey,
+			log,
 		), nil
 	case evmType:
 		evmNodeURL, err := c.parsePartitionBackendURL()
@@ -394,8 +412,9 @@ func getFeeCreditManager(ctx context.Context, c *cliConf, am account.Manager, un
 			evmTxPublisher,
 			evmClient,
 			evmwallet.FeeCreditRecordIDFromPublicKey,
+			log,
 		), nil
 	default:
-		panic("invalid \"partition\" flag value: " + c.partitionType)
+		panic(`invalid "partition" flag value: ` + c.partitionType)
 	}
 }

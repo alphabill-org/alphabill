@@ -153,11 +153,35 @@ func (r *baseConfiguration) Logger(cmd *cobra.Command) (*slog.Logger, error) {
 		return nil, err
 	}
 
+	// if it is a wallet cmd and logging on console then use "wallet formatting"
+	// unless user has requested specific format by flag
+	if forceWalletLogFormat(cmd, cfg.OutputPath) {
+		cfg.Format = "wallet"
+	}
+
 	var err error
 	if r.logger, err = r.loggerBuilder(cfg); err != nil {
 		return nil, fmt.Errorf("building logger: %w", err)
 	}
 	return r.logger, nil
+}
+
+func forceWalletLogFormat(cmd *cobra.Command, outFilename string) bool {
+	// if user has specified format flag respect that
+	if cmd.Flags().Changed(flagNameLogFormat) {
+		return false
+	}
+
+	switch outFilename {
+	case "", "stdout", "stderr":
+		for ; cmd != nil; cmd = cmd.Parent() {
+			if cmd.Name() == "wallet" {
+				return true
+			}
+		}
+	}
+
+	return false
 }
 
 func LoggerBuilder(cfg *logger.LogConfiguration) (*slog.Logger, error) {

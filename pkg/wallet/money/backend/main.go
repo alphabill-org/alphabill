@@ -41,9 +41,14 @@ type (
 		GetTxHistoryRecords(hash sdk.PubKeyHash, dbStartKey []byte, count int) ([]*sdk.TxHistoryRecord, []byte, error)
 	}
 
+	ABClient interface {
+		SendTransaction(ctx context.Context, tx *types.TransactionOrder) error
+		GetRoundNumber(ctx context.Context) (uint64, error)
+	}
+
 	WalletBackend struct {
-		store         BillStore
-		genericWallet *sdk.Wallet
+		store BillStore
+		abc   ABClient
 	}
 
 	Bills struct {
@@ -170,19 +175,20 @@ func Run(ctx context.Context, config *Config) error {
 		return err
 	}
 
-	abc := client.New(client.AlphabillClientConfig{Uri: config.AlphabillUrl})
+	abc := client.New(client.AlphabillClientConfig{Uri: config.AlphabillUrl}, config.Logger)
+	defer func() {
+		if err := abc.Close(); err != nil {
+			config.Logger.Warn("closing AB client", logger.Error(err))
+		}
+	}()
 
 	g, ctx := errgroup.WithContext(ctx)
 
 	g.Go(func() error {
-		if config.Logger != nil {
-			config.Logger.Info(fmt.Sprintf("money backend REST server starting on %s", config.ServerAddr))
-		}
-		walletBackend := &WalletBackend{store: store, genericWallet: sdk.New().SetABClient(abc).Build()}
-		defer walletBackend.genericWallet.Shutdown()
+		config.Logger.Info(fmt.Sprintf("money backend REST server starting on %s", config.ServerAddr))
 
 		handler := &moneyRestAPI{
-			Service:            walletBackend,
+			Service:            &WalletBackend{store: store, abc: abc},
 			ListBillsPageLimit: config.ListBillsPageLimit,
 			SystemID:           config.ABMoneySystemIdentifier,
 			rw:                 &sdk.ResponseWriter{LogErr: func(err error) { config.Logger.Error(err.Error()) }},
@@ -288,7 +294,7 @@ func (w *WalletBackend) GetClosedFeeCredit(fcbID []byte) (*types.TransactionReco
 
 // GetRoundNumber returns latest round number.
 func (w *WalletBackend) GetRoundNumber(ctx context.Context) (uint64, error) {
-	return w.genericWallet.GetRoundNumber(ctx)
+	return w.abc.GetRoundNumber(ctx)
 }
 
 // TODO: Share functionaly with tokens partiton
@@ -305,7 +311,7 @@ func (w *WalletBackend) SendTransactions(ctx context.Context, txs []*types.Trans
 		}
 		go func(tx *types.TransactionOrder) {
 			defer sem.Release(1)
-			if err := w.genericWallet.SendTransaction(ctx, tx, nil); err != nil {
+			if err := w.abc.SendTransaction(ctx, tx); err != nil {
 				m.Lock()
 				errs[hex.EncodeToString(tx.UnitID())] =
 					fmt.Errorf("failed to forward tx: %w", err).Error()

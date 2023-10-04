@@ -5,7 +5,6 @@ import (
 	"crypto"
 	"errors"
 	"fmt"
-	"io"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -20,7 +19,6 @@ import (
 	moneytx "github.com/alphabill-org/alphabill/internal/txsystem/money"
 	"github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/alphabill-org/alphabill/pkg/wallet/account"
-	wlog "github.com/alphabill-org/alphabill/pkg/wallet/log"
 	"github.com/alphabill-org/alphabill/pkg/wallet/money"
 	moneyclient "github.com/alphabill-org/alphabill/pkg/wallet/money/backend/client"
 	"github.com/alphabill-org/alphabill/pkg/wallet/unitlock"
@@ -62,15 +60,13 @@ func newWalletCmd(baseConfig *baseConfiguration) *cobra.Command {
 		Short: "cli for managing alphabill wallet",
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 			// initialize config so that baseConfig.HomeDir gets configured
-			err := initializeConfig(cmd, baseConfig)
-			if err != nil {
-				return err
+			if err := initializeConfig(cmd, baseConfig); err != nil {
+				return fmt.Errorf("initializing base configuration: %w", err)
 			}
-			err = initWalletConfig(cmd, config)
-			if err != nil {
-				return err
+			if err := initWalletConfig(cmd, config); err != nil {
+				return fmt.Errorf("initializing wallet configuration: %w", err)
 			}
-			return initWalletLogger(config)
+			return nil
 		},
 	}
 	walletCmd.AddCommand(newWalletBillsCmd(config))
@@ -191,7 +187,12 @@ func execSendCmd(ctx context.Context, cmd *cobra.Command, config *walletConfig) 
 	}
 	defer unitLocker.Close()
 
-	w, err := money.LoadExistingWallet(am, unitLocker, restClient)
+	log, err := config.Base.Logger(cmd)
+	if err != nil {
+		return fmt.Errorf("creating logger: %w", err)
+	}
+
+	w, err := money.LoadExistingWallet(am, unitLocker, restClient, log)
 	if err != nil {
 		return err
 	}
@@ -202,7 +203,7 @@ func execSendCmd(ctx context.Context, cmd *cobra.Command, config *walletConfig) 
 		return err
 	}
 	if accountNumber == 0 {
-		return fmt.Errorf("invalid parameter for \"--key\":0 is not a valid account key")
+		return fmt.Errorf("invalid parameter for flag %q: 0 is not a valid account key", keyCmdName)
 	}
 	waitForConfStr, err := cmd.Flags().GetString(waitForConfCmdName)
 	if err != nil {
@@ -309,7 +310,12 @@ func execGetBalanceCmd(cmd *cobra.Command, config *walletConfig) error {
 	}
 	defer unitLocker.Close()
 
-	w, err := money.LoadExistingWallet(am, unitLocker, restClient)
+	log, err := config.Base.Logger(cmd)
+	if err != nil {
+		return fmt.Errorf("creating logger: %w", err)
+	}
+
+	w, err := money.LoadExistingWallet(am, unitLocker, restClient, log)
 	if err != nil {
 		return err
 	}
@@ -437,7 +443,12 @@ func execCollectDust(cmd *cobra.Command, config *walletConfig) error {
 	}
 	defer unitLocker.Close()
 
-	w, err := money.LoadExistingWallet(am, unitLocker, restClient)
+	log, err := config.Base.Logger(cmd)
+	if err != nil {
+		return fmt.Errorf("creating logger: %w", err)
+	}
+
+	w, err := money.LoadExistingWallet(am, unitLocker, restClient, log)
 	if err != nil {
 		return err
 	}
@@ -520,31 +531,6 @@ func initWalletConfig(cmd *cobra.Command, config *walletConfig) error {
 	} else {
 		config.WalletHomeDir = filepath.Join(config.Base.HomeDir, "wallet")
 	}
-	return nil
-}
-
-func initWalletLogger(config *walletConfig) error {
-	var logWriter io.Writer
-	if config.LogFile != "" {
-		// ensure intermediate directories exist
-		err := os.MkdirAll(filepath.Dir(config.LogFile), 0700)
-		if err != nil {
-			return err
-		}
-		logFile, err := os.OpenFile(config.LogFile, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0600) // -rw-------
-		if err != nil {
-			return err
-		}
-		logWriter = logFile
-	} else {
-		logWriter = os.Stderr
-	}
-	logLevel := wlog.Levels[config.LogLevel]
-	walletLogger, err := wlog.New(logLevel, logWriter)
-	if err != nil {
-		return err
-	}
-	wlog.SetLogger(walletLogger)
 	return nil
 }
 

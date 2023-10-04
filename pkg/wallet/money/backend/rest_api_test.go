@@ -31,7 +31,6 @@ import (
 	"github.com/alphabill-org/alphabill/internal/txsystem/money"
 	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/internal/util"
-	"github.com/alphabill-org/alphabill/pkg/client"
 	"github.com/alphabill-org/alphabill/pkg/client/clientmock"
 	sdk "github.com/alphabill-org/alphabill/pkg/wallet"
 )
@@ -648,7 +647,7 @@ type (
 
 func newWalletBackend(t *testing.T, options ...option) *WalletBackend {
 	storage := createTestBillStore(t)
-	service := &WalletBackend{store: storage, genericWallet: sdk.New().SetABClient(&clientmock.MockAlphabillClient{}).Build()}
+	service := &WalletBackend{store: storage, abc: &clientmock.MockAlphabillClient{}}
 	for _, o := range options {
 		err := o(service)
 		require.NoError(t, err)
@@ -689,9 +688,9 @@ func withBillProofs(bills ...*billProof) option {
 	}
 }
 
-func withABClient(client client.ABClient) option {
+func withABClient(client ABClient) option {
 	return func(s *WalletBackend) error {
-		s.genericWallet.AlphabillClient = client
+		s.abc = client
 		return nil
 	}
 }

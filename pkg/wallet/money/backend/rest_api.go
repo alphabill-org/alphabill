@@ -357,7 +357,7 @@ func (api *moneyRestAPI) postTransactions(w http.ResponseWriter, r *http.Request
 
 	if errs := api.Service.SendTransactions(r.Context(), txs.Transactions); len(errs) > 0 {
 		log.Debug("error on POST /transactions: ", errs)
-		w.WriteHeader(http.StatusInternalServerError)
+		w.WriteHeader(http.StatusAccepted)
 		api.rw.WriteResponse(w, errs)
 		return
 	}

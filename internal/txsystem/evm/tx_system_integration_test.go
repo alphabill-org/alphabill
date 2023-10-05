@@ -62,13 +62,15 @@ func TestEVMPartition_DeployAndCallContract(t *testing.T) {
 	to := test.RandomBytes(20)
 	transferTx := createTransferTx(t, from, to)
 	require.NoError(t, evmPartition.SubmitTx(transferTx))
-	require.Eventually(t, testpartition.BlockchainContainsTx(evmPartition, transferTx), test.WaitDuration, test.WaitTick)
-
+	txRecord, _, err := testpartition.WaitTxProof(t, evmPartition, testpartition.ANY_VALIDATOR, transferTx)
+	require.NoError(t, err, "evm transfer tx failed")
+	require.EqualValues(t, transferTx, txRecord.TransactionOrder)
 	// deploy contract
 	deployContractTx := createDeployContractTx(t, from)
 	require.NoError(t, evmPartition.SubmitTx(deployContractTx))
-	require.Eventually(t, testpartition.BlockchainContainsTx(evmPartition, deployContractTx), test.WaitDuration, test.WaitTick)
-	_, _, txRecord, err := evmPartition.GetTxProof(deployContractTx)
+	txRecord, _, err = testpartition.WaitTxProof(t, evmPartition, testpartition.ANY_VALIDATOR, deployContractTx)
+	require.NoError(t, err, "evm deploy tx failed")
+	require.EqualValues(t, deployContractTx, txRecord.TransactionOrder)
 	require.Equal(t, types.TxStatusSuccessful, txRecord.ServerMetadata.SuccessIndicator)
 	var details ProcessingDetails
 	require.NoError(t, txRecord.UnmarshalProcessingDetails(&details))
@@ -85,8 +87,9 @@ func TestEVMPartition_DeployAndCallContract(t *testing.T) {
 	// call contract - increment
 	callContractTx := createCallContractTx(from, contractAddr, cABI.Methods["increment"].ID, 2, t)
 	require.NoError(t, evmPartition.SubmitTx(callContractTx))
-	require.Eventually(t, testpartition.BlockchainContainsTx(evmPartition, callContractTx), test.WaitDuration, test.WaitTick)
-	_, _, txRecord, err = evmPartition.GetTxProof(callContractTx)
+	txRecord, _, err = testpartition.WaitTxProof(t, evmPartition, testpartition.ANY_VALIDATOR, callContractTx)
+	require.NoError(t, err, "evm call tx failed")
+	require.EqualValues(t, callContractTx, txRecord.TransactionOrder)
 	require.Equal(t, types.TxStatusSuccessful, txRecord.ServerMetadata.SuccessIndicator)
 	require.NotNil(t, txRecord.ServerMetadata.ProcessingDetails)
 	require.NoError(t, txRecord.UnmarshalProcessingDetails(&details))

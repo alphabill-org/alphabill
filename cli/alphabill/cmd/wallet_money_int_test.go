@@ -65,8 +65,7 @@ func TestSendingMoneyUsingWallets_integration(t *testing.T) {
 	// transfer initial bill to wallet 1
 	transferInitialBillTx, err := moneytestutils.CreateInitialBillTransferTx(w1PubKey, initialBill.ID, fcrID, w1BalanceBilly, 10000, initialBillBacklink)
 	require.NoError(t, err)
-	err = moneyPartition.SubmitTx(transferInitialBillTx)
-	require.NoError(t, err)
+	require.NoError(t, moneyPartition.SubmitTx(transferInitialBillTx))
 	require.Eventually(t, testpartition.BlockchainContainsTx(moneyPartition, transferInitialBillTx), test.WaitDuration, test.WaitTick)
 
 	// verify bill is received by wallet 1

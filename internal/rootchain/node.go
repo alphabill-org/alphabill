@@ -184,19 +184,29 @@ func (v *Node) onBlockCertificationRequest(ctx context.Context, req *certificati
 	case QuorumAchieved:
 		logger.Debug("%v partition %X reached consensus, new InputHash: %X",
 			v.peer.String(), sysID.Bytes(), proof[0].InputRecord.Hash)
-		v.consensusManager.RequestCertification() <- consensus.IRChangeRequest{
+		select {
+		case v.consensusManager.RequestCertification() <- consensus.IRChangeRequest{
 			SystemIdentifier: sysID,
 			Reason:           consensus.Quorum,
 			Requests:         proof,
+		}:
+		case <-ctx.Done():
+			logger.Warning("%v ignoring request, node is exiting")
+			return
 		}
 	case QuorumNotPossible:
 		logger.Debug("%v partition %X consensus not possible, repeat UC",
 			v.peer.String(), sysID.Bytes())
 		// add all nodeRequest to prove that no consensus is possible
-		v.consensusManager.RequestCertification() <- consensus.IRChangeRequest{
+		select {
+		case v.consensusManager.RequestCertification() <- consensus.IRChangeRequest{
 			SystemIdentifier: sysID,
 			Reason:           consensus.QuorumNotPossible,
 			Requests:         proof,
+		}:
+		case <-ctx.Done():
+			logger.Warning("%v ignoring request, node is exiting")
+			return
 		}
 	case QuorumInProgress:
 		logger.Debug("%v partition %X quorum not yet reached, but possible in the future",

@@ -9,7 +9,6 @@ import (
 
 	"github.com/alphabill-org/alphabill/internal/hash"
 	"github.com/alphabill-org/alphabill/internal/script"
-	test "github.com/alphabill-org/alphabill/internal/testutils"
 	testpartition "github.com/alphabill-org/alphabill/internal/testutils/partition"
 	"github.com/alphabill-org/alphabill/internal/txsystem/fc/transactions"
 	"github.com/alphabill-org/alphabill/internal/txsystem/money"
@@ -248,22 +247,19 @@ func spendInitialBillWithFeeCredits(t *testing.T, abNet *testpartition.Alphabill
 
 	// send transferFC
 	require.NoError(t, moneyPart.SubmitTx(transferFC))
-	require.Eventually(t, testpartition.BlockchainContainsTx(moneyPart, transferFC), test.WaitDuration, test.WaitTick)
-	_, transferFCProof, transferFCRecord, err := moneyPart.GetTxProof(transferFC)
-	require.NoError(t, err)
-
+	transferFCRecord, transferFCProof, err := testpartition.WaitTxProof(t, moneyPart, testpartition.ANY_VALIDATOR, transferFC)
+	require.NoError(t, err, "transfer fee credit tx failed")
 	// verify proof
-	err = types.VerifyTxProof(transferFCProof, transferFCRecord, abNet.RootPartition.TrustBase, crypto.SHA256)
-	require.NoError(t, err)
+	require.NoError(t, types.VerifyTxProof(transferFCProof, transferFCRecord, abNet.RootPartition.TrustBase, crypto.SHA256))
 
 	// create addFC
 	addFC, err := createAddFC(fcrID, script.PredicateAlwaysTrue(), transferFCRecord, transferFCProof, absoluteTimeout, feeAmount)
 	require.NoError(t, err)
 
 	// send addFC
-	err = moneyPart.SubmitTx(addFC)
-	require.NoError(t, err)
-	require.Eventually(t, testpartition.BlockchainContainsTx(moneyPart, addFC), test.WaitDuration, test.WaitTick)
+	require.NoError(t, moneyPart.SubmitTx(addFC))
+	_, _, err = testpartition.WaitTxProof(t, moneyPart, testpartition.ANY_VALIDATOR, addFC)
+	require.NoError(t, err, "add fee credit tx failed")
 
 	// create transfer tx
 	remainingValue := initialBill.Value - feeAmount - txFee
@@ -271,10 +267,9 @@ func spendInitialBillWithFeeCredits(t *testing.T, abNet *testpartition.Alphabill
 	require.NoError(t, err)
 
 	// send transfer tx
-	err = moneyPart.SubmitTx(tx)
-	require.NoError(t, err)
-	require.Eventually(t, testpartition.BlockchainContainsTx(moneyPart, tx), test.WaitDuration, test.WaitTick)
-
+	require.NoError(t, moneyPart.SubmitTx(tx))
+	_, _, err = testpartition.WaitTxProof(t, moneyPart, testpartition.ANY_VALIDATOR, tx)
+	require.NoError(t, err, "transfer tx failed")
 	return remainingValue
 }
 

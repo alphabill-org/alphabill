@@ -98,8 +98,9 @@ func TestPartition_Ok(t *testing.T) {
 	// wrong partition tx
 	splitTx2 := createSplitTx(t, initialBill.ID, transferInitialBillTxRecord, amountPK2, total-fcrAmount-amountPK2)
 	splitTx2.Payload.SystemID = []byte{1, 1, 1, 1}
-	require.Error(t, moneyPrt.SubmitTx(splitTx2))
+	require.ErrorContains(t, moneyPrt.SubmitTx(splitTx2), "invalid transaction system identifier")
 	// send was error, so expect no proof or confirmation - expensive check as it is expected to timeout!
+	// should this even be tested if submit failed?
 	_, _, err = testpartition.WaitTxProof(t, moneyPrt, 2, splitTx2)
 	require.Error(t, err)
 	// and unit is not changed

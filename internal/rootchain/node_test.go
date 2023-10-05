@@ -20,6 +20,7 @@ import (
 	testnetwork "github.com/alphabill-org/alphabill/internal/testutils/network"
 	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/sync/errgroup"
 )
 
 var partitionID = types.SystemID([]byte{0, 0xFF, 0, 1})
@@ -422,4 +423,34 @@ func TestRootValidator_ResultUnknown(t *testing.T) {
 	rootValidator.onCertificationResult(ctx, uc)
 	// no responses will be sent
 	require.Empty(t, mockNet.SentMessages(network.ProtocolUnicityCertificates))
+}
+
+func TestRootValidator_ExitWhenPendingCertRequestAndCMClosed(t *testing.T) {
+	mockNet := testnetwork.NewMockNetwork()
+	rootValidator, _, partitionNodes, rg := initRootValidator(t, mockNet)
+	ctx, ctxCancel := context.WithCancel(context.Background())
+	t.Cleanup(ctxCancel)
+	mockRunFn := func(ctx context.Context) error {
+		g, gctx := errgroup.WithContext(ctx)
+		// Start receiving messages from partition nodes
+		g.Go(func() error { return rootValidator.loop(gctx) })
+		// Start handling certification responses
+		g.Go(func() error { return rootValidator.handleConsensus(gctx) })
+		return g.Wait()
+	}
+	go func() { require.ErrorIs(t, mockRunFn(ctx), context.Canceled) }()
+	// create certification request
+	newIR := &types.InputRecord{
+		PreviousHash: rg.Partitions[0].Nodes[0].BlockCertificationRequest.InputRecord.Hash,
+		Hash:         test.RandomBytes(32),
+		BlockHash:    test.RandomBytes(32),
+		SummaryValue: rg.Partitions[0].Nodes[0].BlockCertificationRequest.InputRecord.SummaryValue,
+		RoundNumber:  2,
+	}
+	req := testutils.CreateBlockCertificationRequest(t, newIR, partitionID, partitionNodes[0])
+	testutils.MockValidatorNetReceives(t, mockNet, partitionNodes[0].Peer.ID(), network.ProtocolBlockCertification, req)
+	// send second
+	req = testutils.CreateBlockCertificationRequest(t, newIR, partitionID, partitionNodes[1])
+	testutils.MockValidatorNetReceives(t, mockNet, partitionNodes[1].Peer.ID(), network.ProtocolBlockCertification, req)
+	// node should still exit normally even if CM loop is not running and reading the channel
 }

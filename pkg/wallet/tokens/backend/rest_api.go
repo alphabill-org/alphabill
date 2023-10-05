@@ -256,6 +256,13 @@ func (api *tokensRestAPI) postTransactions(w http.ResponseWriter, r *http.Reques
 		api.rw.ErrorResponse(w, http.StatusBadRequest, fmt.Errorf("request body contained no transactions to process"))
 		return
 	}
+	for _, tx := range txs.Transactions {
+		pubKey, err := script.ExtractPubKeyFromPredicateArgument(tx.OwnerProof)
+		if err == nil && !bytes.Equal(owner, pubKey) {
+			api.rw.ErrorResponse(w, http.StatusBadRequest, fmt.Errorf("transaction with unitID %v in request body does not match provided pubKey parameter", tx.Payload.UnitID))
+			return
+		}
+	}
 
 	if errs := api.saveTxs(r.Context(), txs.Transactions, owner); len(errs) > 0 {
 		w.WriteHeader(http.StatusInternalServerError)

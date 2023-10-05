@@ -16,6 +16,8 @@ import (
 	"sync/atomic"
 	"testing"
 
+	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
+	testtransaction "github.com/alphabill-org/alphabill/internal/testutils/transaction"
 	"github.com/alphabill-org/alphabill/internal/types"
 	sdk "github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/ethereum/go-ethereum/common/hexutil"
@@ -74,6 +76,9 @@ func Test_restAPI_postTransaction(t *testing.T) {
 	// valid request body with single create-nft-type tx
 	createNTFTypeTx := randomTx(t, &tokens.CreateNonFungibleTokenTypeAttributes{Symbol: "test"})
 	createNTFTypeTx.Payload.Type = tokens.PayloadTypeCreateNFTType
+	pb, _ := createNTFTypeTx.PayloadBytes()
+	sig, pk := testsig.SignBytes(t, pb)
+	createNTFTypeTx.OwnerProof = script.PredicateArgumentPayToPublicKeyHashDefault(sig, pk)
 	createNTFTypeMsg, err := cbor.Marshal(&sdk.Transactions{Transactions: []*types.TransactionOrder{createNTFTypeTx}})
 	require.NoError(t, err)
 	require.NotEmpty(t, createNTFTypeMsg)
@@ -126,7 +131,7 @@ func Test_restAPI_postTransaction(t *testing.T) {
 				},
 			},
 		}
-		rsp := makeRequest(api, ownerIDstr, createNTFTypeMsg)
+		rsp := makeRequest(api, hexutil.Encode(pk), createNTFTypeMsg)
 		if rsp.StatusCode != http.StatusAccepted {
 			b, err := httputil.DumpResponse(rsp, true)
 			t.Errorf("unexpected status: %s\n%s\n%v", rsp.Status, b, err)
@@ -135,16 +140,20 @@ func Test_restAPI_postTransaction(t *testing.T) {
 		require.EqualValues(t, 1, sendTxCalls, "unexpectedly sendTransaction was called %d times", sendTxCalls)
 	})
 
-	t.Run("valid non-type-creation request", func(t *testing.T) {
+	t.Run("valid non-type-creation request with ownership validation", func(t *testing.T) {
 		txs := &sdk.Transactions{Transactions: []*types.TransactionOrder{
-			randomTx(t, &tokens.MintFungibleTokenAttributes{Value: 42}),
+			testtransaction.NewTransactionOrder(t,
+				testtransaction.WithUnitId([]byte{0, 0, 0, 1}),
+				testtransaction.WithSystemID([]byte{0, 0, 0, 0}),
+			),
 		}}
+		txBytes, err := txs.Transactions[0].PayloadBytes()
+		require.NoError(t, err)
+		sigData, pubKey := testsig.SignBytes(t, txBytes)
+		txs.Transactions[0].OwnerProof = script.PredicateArgumentPayToPublicKeyHashDefault(sigData, pubKey)
+
 		message, err := cbor.Marshal(txs)
 		require.NoError(t, err)
-
-		if err != nil {
-			t.Fatalf("failed to create token tx system: %v", err)
-		}
 
 		var saveTypeCalls, sendTxCalls int32
 		api := &tokensRestAPI{
@@ -161,13 +170,34 @@ func Test_restAPI_postTransaction(t *testing.T) {
 				},
 			},
 		}
-		rsp := makeRequest(api, ownerIDstr, message)
+
+		rsp := makeRequest(api, hexutil.Encode(pubKey), message)
 		if rsp.StatusCode != http.StatusAccepted {
 			b, err := httputil.DumpResponse(rsp, true)
 			t.Errorf("unexpected status: %s\n%s\n%v", rsp.Status, b, err)
 		}
 		require.EqualValues(t, 0, saveTypeCalls, "unexpectedly saveTTypeCreator was called %d times", saveTypeCalls)
 		require.EqualValues(t, 1, sendTxCalls, "unexpectedly sendTransaction was called %d times", sendTxCalls)
+	})
+
+	t.Run("invalid transaction owner", func(t *testing.T) {
+		txs := &sdk.Transactions{Transactions: []*types.TransactionOrder{
+			randomTx(t, &tokens.MintFungibleTokenAttributes{Value: 42}),
+		}}
+		txBytes, err := txs.Transactions[0].PayloadBytes()
+		require.NoError(t, err)
+		sigData, pubKey := testsig.SignBytes(t, txBytes)
+		txs.Transactions[0].OwnerProof = script.PredicateArgumentPayToPublicKeyHashDefault(sigData, pubKey)
+
+		message, err := cbor.Marshal(txs)
+		require.NoError(t, err)
+
+		rsp := makeRequest(&tokensRestAPI{}, ownerIDstr, message)
+		er := &sdk.ErrorResponse{}
+		if err := decodeResponse(t, rsp, http.StatusBadRequest, &er); err != nil {
+			t.Fatal(err.Error())
+		}
+		require.Contains(t, er.Message, fmt.Sprintf(`transaction with unitID %v in request body does not match provided pubKey parameter`, txs.Transactions[0].UnitID()))
 	})
 }
 

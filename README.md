@@ -66,17 +66,10 @@ Logging can be configured through a yaml configuration file. See `cli/alphabill/
 Default location of the logger configuration file is `$AB_HOME/logger-config.yaml`
 
 The location can be changed through `--logger-config` configuration key. If it's relative URL, then it's relative
-to `$AB_HOME`.
+to `$AB_HOME`. Some logging related parameters can be set via command line parameters too - run `alphabill -h`
+for more.
 
-# Wallet Logging Configuration
-
-Wallet logging can be configured only through CLI parameters. 
-
-`./alphabill wallet --log-file=<path/to/my/file> --log-level=INFO`
-
-Default log output is `stderr` and default log level is `INFO`. 
-
-Possible log level values: `ERROR, WARNING, NOTICE, INFO, DEBUG`
+See [logging.md](./logging.md) for information about log schema.
 
 # Set up autocompletion
 

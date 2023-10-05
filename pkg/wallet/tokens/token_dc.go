@@ -5,14 +5,15 @@ import (
 	"crypto"
 	"fmt"
 
+	"github.com/fxamacker/cbor/v2"
+
 	"github.com/alphabill-org/alphabill/internal/txsystem/tokens"
 	"github.com/alphabill-org/alphabill/internal/types"
+	"github.com/alphabill-org/alphabill/internal/util"
 	sdk "github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/alphabill-org/alphabill/pkg/wallet/account"
-	"github.com/alphabill-org/alphabill/pkg/wallet/log"
 	twb "github.com/alphabill-org/alphabill/pkg/wallet/tokens/backend"
 	"github.com/alphabill-org/alphabill/pkg/wallet/txsubmitter"
-	"github.com/fxamacker/cbor/v2"
 )
 
 const maxBurnBatchSize = 100
@@ -65,9 +66,9 @@ func (w *Wallet) collectDust(ctx context.Context, acc *accountKey, typedTokens [
 		totalAmountToBeJoined := totalAmountJoined
 		var err error
 		for _, token := range burnBatch {
-			totalAmountToBeJoined, _, err = sdk.AddUint64(totalAmountToBeJoined, token.Amount)
+			totalAmountToBeJoined, _, err = util.AddUint64(totalAmountToBeJoined, token.Amount)
 			if err != nil {
-				log.Warning(fmt.Sprintf("unable to join tokens of type '%X', account key '0x%X': %v", token.TypeID, acc.PubKey, err))
+				w.log.WarnContext(ctx, fmt.Sprintf("unable to join tokens of type '%X', account key '0x%X': %v", token.TypeID, acc.PubKey, err))
 				// just stop without returning error, so that we can continue with other token types
 				if totalFees > 0 {
 					return &SubmissionResult{FeeSum: totalFees, AccountNumber: acc.idx + 1}, nil
@@ -121,7 +122,7 @@ func (w *Wallet) joinTokenForDC(ctx context.Context, acc *account.AccountKey, bu
 	if err != nil {
 		return nil, 0, err
 	}
-	if err = sub.ToBatch(w.backend, acc.PubKey).SendTx(ctx, true); err != nil {
+	if err = sub.ToBatch(w.backend, acc.PubKey, w.log).SendTx(ctx, true); err != nil {
 		return nil, 0, err
 	}
 
@@ -129,7 +130,7 @@ func (w *Wallet) joinTokenForDC(ctx context.Context, acc *account.AccountKey, bu
 }
 
 func (w *Wallet) burnTokensForDC(ctx context.Context, acc *account.AccountKey, tokensToBurn []*twb.TokenUnit, nonce sdk.TxHash, invariantPredicateArgs []*PredicateInput) (uint64, uint64, []*sdk.Proof, error) {
-	burnBatch := txsubmitter.NewBatch(acc.PubKey, w.backend)
+	burnBatch := txsubmitter.NewBatch(acc.PubKey, w.backend, w.log)
 	rnFetcher := &cachingRoundNumberFetcher{delegate: w.GetRoundNumber}
 	burnBatchAmount := uint64(0)
 

@@ -3,6 +3,7 @@ package money
 import (
 	"crypto"
 	"errors"
+	"math"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -112,107 +113,147 @@ func TestSplit(t *testing.T) {
 		name string
 		bd   *BillData
 		attr *SplitAttributes
-		res  error
+		err  string
 	}{
 		{
-			name: "Ok",
+			name: "Ok 2-way split",
 			bd:   newBillData(100, []byte{6}),
 			attr: &SplitAttributes{
-				Amount:         50,
+				TargetUnits: []*TargetUnit{
+					{Amount: 50, OwnerCondition: script.PredicateAlwaysTrue()},
+				},
 				RemainingValue: 50,
 				Backlink:       []byte{6},
 			},
-			res: nil,
 		},
 		{
-			name: "AmountExceedsBillValue",
+			name: "Ok 3-way split",
 			bd:   newBillData(100, []byte{6}),
 			attr: &SplitAttributes{
-				Amount:         101,
-				RemainingValue: 100,
+				TargetUnits: []*TargetUnit{
+					{Amount: 10, OwnerCondition: script.PredicateAlwaysTrue()},
+					{Amount: 10, OwnerCondition: script.PredicateAlwaysTrue()},
+				},
+				RemainingValue: 80,
 				Backlink:       []byte{6},
 			},
-			res: ErrInvalidBillValue,
 		},
 		{
-			name: "AmountEqualsBillValue",
+			name: "Invalid backlink",
 			bd:   newBillData(100, []byte{6}),
 			attr: &SplitAttributes{
-				Amount:         100,
-				RemainingValue: 0,
-				Backlink:       []byte{6},
-			},
-			res: ErrSplitBillZeroRemainder,
-		},
-		{
-			name: "Amount is zero (0:100)",
-			bd:   newBillData(100, []byte{6}),
-			attr: &SplitAttributes{
-				Amount:         0,
-				RemainingValue: 100,
-				Backlink:       []byte{6},
-			},
-			res: ErrSplitBillZeroAmount,
-		},
-		{
-			name: "Amount is zero (0:30)",
-			bd:   newBillData(100, []byte{6}),
-			attr: &SplitAttributes{
-				Amount:         0,
-				RemainingValue: 30,
-				Backlink:       []byte{6},
-			},
-			res: ErrSplitBillZeroAmount,
-		},
-		{
-			name: "InvalidRemainingValue - zero remaining (50:0)",
-			bd:   newBillData(100, []byte{6}),
-			attr: &SplitAttributes{
-				Amount:         50,
-				RemainingValue: 0,
-				Backlink:       []byte{6},
-			},
-			res: ErrSplitBillZeroRemainder,
-		},
-		{
-			name: "InvalidRemainingValue - smaller than amount",
-			bd:   newBillData(100, []byte{6}),
-			attr: &SplitAttributes{
-				Amount:         50,
-				RemainingValue: 49,
-				Backlink:       []byte{6},
-			},
-			res: ErrInvalidBillValue,
-		},
-		{
-			name: "InvalidRemainingValue - greater than amount",
-			bd:   newBillData(100, []byte{6}),
-			attr: &SplitAttributes{
-				Amount:         50,
-				RemainingValue: 51,
-				Backlink:       []byte{6},
-			},
-			res: ErrInvalidBillValue,
-		},
-		{
-			name: "InvalidBacklink",
-			bd:   newBillData(100, []byte{6}),
-			attr: &SplitAttributes{
-				Amount:         50,
+				TargetUnits: []*TargetUnit{
+					{Amount: 50, OwnerCondition: script.PredicateAlwaysTrue()},
+				},
 				RemainingValue: 50,
 				Backlink:       []byte{5},
 			},
-			res: ErrInvalidBacklink,
+			err: "the transaction backlink 0x05 is not equal to unit backlink 0x06",
+		},
+		{
+			name: "Target units are empty",
+			bd:   newBillData(100, []byte{6}),
+			attr: &SplitAttributes{
+				TargetUnits:    []*TargetUnit{},
+				RemainingValue: 1,
+				Backlink:       []byte{6},
+			},
+			err: "target units are empty",
+		},
+		{
+			name: "Target unit is nil",
+			bd:   newBillData(100, []byte{6}),
+			attr: &SplitAttributes{
+				TargetUnits:    []*TargetUnit{nil},
+				RemainingValue: 100,
+				Backlink:       []byte{6},
+			},
+			err: "target unit is nil",
+		},
+		{
+			name: "Target unit amount is zero",
+			bd:   newBillData(100, []byte{6}),
+			attr: &SplitAttributes{
+				TargetUnits: []*TargetUnit{
+					{Amount: 0, OwnerCondition: script.PredicateAlwaysTrue()},
+				},
+				RemainingValue: 100,
+				Backlink:       []byte{6},
+			},
+			err: "target unit amount is zero at index 0",
+		},
+		{
+			name: "Target unit owner condition is empty",
+			bd:   newBillData(100, []byte{6}),
+			attr: &SplitAttributes{
+				TargetUnits: []*TargetUnit{
+					{Amount: 1, OwnerCondition: []byte{}},
+				},
+				RemainingValue: 100,
+				Backlink:       []byte{6},
+			},
+			err: "target unit owner condition is empty at index 0",
+		},
+		{
+			name: "Target unit amount overflow",
+			bd:   newBillData(100, []byte{6}),
+			attr: &SplitAttributes{
+				TargetUnits: []*TargetUnit{
+					{Amount: math.MaxUint64, OwnerCondition: script.PredicateAlwaysTrue()},
+					{Amount: 1, OwnerCondition: script.PredicateAlwaysTrue()},
+				},
+				RemainingValue: 100,
+				Backlink:       []byte{6},
+			},
+			err: "failed to add target unit amounts",
+		},
+		{
+			name: "Remaining value is zero",
+			bd:   newBillData(100, []byte{6}),
+			attr: &SplitAttributes{
+				TargetUnits: []*TargetUnit{
+					{Amount: 50, OwnerCondition: script.PredicateAlwaysTrue()},
+				},
+				RemainingValue: 0,
+				Backlink:       []byte{6},
+			},
+			err: "remaining value is zero",
+		},
+		{
+			name: "Amount plus remaining value is less than bill value",
+			bd:   newBillData(100, []byte{6}),
+			attr: &SplitAttributes{
+				TargetUnits: []*TargetUnit{
+					{Amount: 10, OwnerCondition: script.PredicateAlwaysTrue()},
+					{Amount: 10, OwnerCondition: script.PredicateAlwaysTrue()},
+				},
+				RemainingValue: 79,
+				Backlink:       []byte{6},
+			},
+			err: "the sum of the values to be transferred plus the remaining value must equal the value of the bill",
+		},
+		{
+			name: "Amount plus remaining value is greater than bill value",
+			bd:   newBillData(100, []byte{6}),
+			attr: &SplitAttributes{
+				TargetUnits: []*TargetUnit{
+					{Amount: 10, OwnerCondition: script.PredicateAlwaysTrue()},
+					{Amount: 10, OwnerCondition: script.PredicateAlwaysTrue()},
+				},
+				RemainingValue: 81,
+				Backlink:       []byte{6},
+			},
+			err: "the sum of the values to be transferred plus the remaining value must equal the value of the bill",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			err := validateSplit(tt.bd, tt.attr)
-			if tt.res == nil {
+			if tt.err == "" {
 				require.NoError(t, err)
 			} else {
-				require.ErrorIs(t, err, tt.res)
+				require.ErrorContains(t, err, tt.err)
 			}
 		})
 	}

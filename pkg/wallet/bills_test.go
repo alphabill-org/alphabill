@@ -82,8 +82,9 @@ func TestBillVerifySplitTransferTx_OldBill(t *testing.T) {
 		testtransaction.WithSystemID([]byte{0, 0, 0, 0}),
 		testtransaction.WithPayloadType(money.PayloadTypeSplit),
 		testtransaction.WithAttributes(money.SplitAttributes{
-			TargetBearer:   test.RandomBytes(32),
-			Amount:         targetValue,
+			TargetUnits: []*money.TargetUnit{
+				{Amount: amount, OwnerCondition: test.RandomBytes(32)},
+			},
 			RemainingValue: remainingValue,
 			Backlink:       test.RandomBytes(32),
 		}))
@@ -115,8 +116,9 @@ func TestBillVerifySplitTransferTx_NewBill(t *testing.T) {
 		testtransaction.WithSystemID([]byte{0, 0, 0, 0}),
 		testtransaction.WithPayloadType(money.PayloadTypeSplit),
 		testtransaction.WithAttributes(money.SplitAttributes{
-			TargetBearer:   test.RandomBytes(32),
-			Amount:         amount,
+			TargetUnits: []*money.TargetUnit{
+				{Amount: amount, OwnerCondition: test.RandomBytes(32)},
+			},
 			RemainingValue: remainingValue,
 			Backlink:       test.RandomBytes(32),
 		}))

@@ -4,7 +4,11 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/libp2p/go-libp2p/core/peer"
+	"golang.org/x/sync/errgroup"
+
 	"github.com/alphabill-org/alphabill/internal/crypto"
+	"github.com/alphabill-org/alphabill/internal/debug"
 	"github.com/alphabill-org/alphabill/internal/network"
 	"github.com/alphabill-org/alphabill/internal/network/protocol"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/certification"
@@ -13,8 +17,6 @@ import (
 	"github.com/alphabill-org/alphabill/internal/rootchain/partitions"
 	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/internal/util"
-	"github.com/libp2p/go-libp2p/core/peer"
-	"golang.org/x/sync/errgroup"
 )
 
 type (
@@ -50,7 +52,7 @@ func New(
 	if pNet == nil {
 		return nil, fmt.Errorf("network is nil")
 	}
-	logger.Info("Starting root node. PeerId=%v; Addresses=%v", p.String(), p.MultiAddresses())
+	logger.Info("Starting root node. PeerId=%v; Addresses=%v; BuildInfo=%s", p.String(), p.MultiAddresses(), debug.ReadBuildInfo())
 	node := &Node{
 		peer:             p,
 		partitions:       ps,

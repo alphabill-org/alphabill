@@ -4,27 +4,25 @@ import (
 	"context"
 	"crypto"
 	"fmt"
-	"io"
 	"path/filepath"
 	"testing"
 
-	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/stretchr/testify/require"
 
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
+	"github.com/alphabill-org/alphabill/internal/testutils/logger"
 	testfc "github.com/alphabill-org/alphabill/internal/txsystem/fc/testutils"
 	"github.com/alphabill-org/alphabill/internal/txsystem/tokens"
+	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/alphabill-org/alphabill/pkg/wallet/broker"
-	"github.com/alphabill-org/alphabill/pkg/wallet/log"
 )
 
 func Test_blockProcessor_ProcessBlock(t *testing.T) {
 	t.Parallel()
 
-	logger, err := log.New(log.DEBUG, io.Discard)
-	require.NoError(t, err)
+	logger := logger.NOP()
 
 	t.Run("failure to get current block number", func(t *testing.T) {
 		expErr := fmt.Errorf("can't get block number")
@@ -133,8 +131,7 @@ func Test_blockProcessor_ProcessBlock(t *testing.T) {
 func Test_blockProcessor_processTx(t *testing.T) {
 	t.Parallel()
 
-	logger, err := log.New(log.DEBUG, io.Discard)
-	require.NoError(t, err)
+	logger := logger.NOP()
 	txs, err := tokens.NewTxSystem(
 		tokens.WithTrustBase(map[string]abcrypto.Verifier{"test": nil}),
 	)
@@ -485,13 +482,10 @@ func createBlockProcessor(t *testing.T) *blockProcessor {
 	db, err := newBoltStore(filepath.Join(t.TempDir(), "tokens.db"))
 	require.NoError(t, err)
 
-	logger, err := log.New(log.DEBUG, io.Discard)
-	require.NoError(t, err)
-
 	txSystem, err := tokens.NewTxSystem(tokens.WithTrustBase(map[string]abcrypto.Verifier{"test": nil}))
 	require.NoError(t, err)
 
-	return &blockProcessor{log: logger, txs: txSystem, store: db}
+	return &blockProcessor{log: logger.NOP(), txs: txSystem, store: db}
 }
 
 func getFeeCreditBillFunc(unitID types.UnitID) (*FeeCreditBill, error) {

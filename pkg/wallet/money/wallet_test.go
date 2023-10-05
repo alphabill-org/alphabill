@@ -9,6 +9,7 @@ import (
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/stretchr/testify/require"
 
+	"github.com/alphabill-org/alphabill/internal/testutils/logger"
 	"github.com/alphabill-org/alphabill/pkg/wallet/account"
 	beclient "github.com/alphabill-org/alphabill/pkg/wallet/money/backend/client"
 	"github.com/alphabill-org/alphabill/pkg/wallet/unitlock"
@@ -32,7 +33,7 @@ func TestExistingWalletCanBeLoaded(t *testing.T) {
 	require.NoError(t, err)
 	unitLocker, err := unitlock.NewUnitLocker(homedir)
 	require.NoError(t, err)
-	_, err = LoadExistingWallet(am, unitLocker, restClient)
+	_, err = LoadExistingWallet(am, unitLocker, restClient, logger.New(t))
 	require.NoError(t, err)
 }
 

@@ -12,6 +12,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/hash"
 	"github.com/alphabill-org/alphabill/internal/script"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
+	"github.com/alphabill-org/alphabill/internal/testutils/logger"
 	"github.com/alphabill-org/alphabill/internal/txsystem/tokens"
 	ttxs "github.com/alphabill-org/alphabill/internal/txsystem/tokens"
 	"github.com/alphabill-org/alphabill/internal/types"
@@ -35,7 +36,7 @@ func Test_Load(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	w, err := New(ttxs.DefaultSystemIdentifier, srv.URL, nil, false, nil)
+	w, err := New(ttxs.DefaultSystemIdentifier, srv.URL, nil, false, nil, logger.New(t))
 	require.NoError(t, err)
 
 	rn, err := w.GetRoundNumber(context.Background())
@@ -622,7 +623,7 @@ func TestMintNFT_InvalidInputs(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			wallet := &Wallet{}
+			wallet := &Wallet{log: logger.New(t)}
 			got, err := wallet.NewNFT(context.Background(), accNr, tt.attrs, tokenID, nil)
 			require.ErrorContains(t, err, tt.wantErrStr)
 			require.Nil(t, got)
@@ -858,6 +859,7 @@ func initTestWallet(t *testing.T, backend TokenBackend) *Wallet {
 	return &Wallet{
 		am:      initAccountManager(t),
 		backend: backend,
+		log:     logger.New(t),
 	}
 }
 

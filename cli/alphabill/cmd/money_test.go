@@ -15,11 +15,11 @@ import (
 	rootgenesis "github.com/alphabill-org/alphabill/internal/rootchain/genesis"
 	"github.com/alphabill-org/alphabill/internal/rpc/alphabill"
 	"github.com/alphabill-org/alphabill/internal/script"
+	"github.com/alphabill-org/alphabill/internal/testutils/logger"
 	"github.com/alphabill-org/alphabill/internal/testutils/net"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	test "github.com/alphabill-org/alphabill/internal/testutils/time"
 	"github.com/alphabill-org/alphabill/internal/txsystem/money"
-	billtx "github.com/alphabill-org/alphabill/internal/txsystem/money"
 	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/fxamacker/cbor/v2"
@@ -187,10 +187,13 @@ func TestMoneyNodeConfig_EnvAndFlags(t *testing.T) {
 				defer os.Unsetenv(en[0])
 			}
 
-			abApp := New()
+			abApp := New(logger.LoggerBuilder(t))
 			abApp.baseCmd.SetArgs(strings.Split(tt.args, " "))
 			abApp.WithOpts(Opts.NodeRunFunc(shardRunFunc)).Execute(context.Background())
 			require.Equal(t, tt.expectedConfig.Node, actualConfig.Node)
+			// do not compare logger/loggerBuilder
+			actualConfig.Base.logger = nil
+			actualConfig.Base.loggerBuilder = nil
 			require.Equal(t, tt.expectedConfig, actualConfig)
 		})
 	}
@@ -229,11 +232,13 @@ logger-config=custom-log-conf.yaml
 		return nil
 	}
 
-	abApp := New()
+	abApp := New(logger.LoggerBuilder(t))
 	args := "money --config=" + f.Name()
 	abApp.baseCmd.SetArgs(strings.Split(args, " "))
 	abApp.WithOpts(Opts.NodeRunFunc(runFunc)).Execute(context.Background())
-
+	// do not compare logger/loggerBuilder
+	actualConfig.Base.logger = nil
+	actualConfig.Base.loggerBuilder = nil
 	require.Equal(t, expectedConfig, actualConfig)
 }
 
@@ -292,12 +297,13 @@ func TestRunMoneyNode_Ok(t *testing.T) {
 	partitionGenesisFileLocation := filepath.Join(homeDirMoney, "partition-genesis.json")
 	test.MustRunInTime(t, 5*time.Second, func() {
 		moneyNodeAddr := fmt.Sprintf("localhost:%d", net.GetFreeRandomPort(t))
+		logF := logger.LoggerBuilder(t)
 
 		appStoppedWg := sync.WaitGroup{}
 		ctx, ctxCancel := context.WithCancel(context.Background())
 
 		// generate node genesis
-		cmd := New()
+		cmd := New(logF)
 		args := "money-genesis --home " + homeDirMoney + " -o " + nodeGenesisFileLocation + " -g -k " + keysFileLocation
 		cmd.baseCmd.SetArgs(strings.Split(args, " "))
 		err := cmd.addAndExecuteCommand(context.Background())
@@ -321,7 +327,7 @@ func TestRunMoneyNode_Ok(t *testing.T) {
 		// start the node in background
 		appStoppedWg.Add(1)
 		go func() {
-			cmd = New()
+			cmd = New(logF)
 			args = "money --home " + homeDirMoney + " -g " + partitionGenesisFileLocation + " -k " + keysFileLocation + " --server-address " + moneyNodeAddr
 			cmd.baseCmd.SetArgs(strings.Split(args, " "))
 
@@ -330,7 +336,7 @@ func TestRunMoneyNode_Ok(t *testing.T) {
 			appStoppedWg.Done()
 		}()
 
-		log.Info("Started money node and dialing...")
+		t.Log("Started money node and dialing...")
 		// Create the gRPC client
 		conn, err := grpc.DialContext(ctx, moneyNodeAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
 		require.NoError(t, err)
@@ -350,14 +356,14 @@ func TestRunMoneyNode_Ok(t *testing.T) {
 
 func makeSuccessfulPayment(t *testing.T, ctx context.Context, txClient alphabill.AlphabillServiceClient) {
 	initialBillID := defaultInitialBillID
-	attr := &billtx.TransferAttributes{
+	attr := &money.TransferAttributes{
 		NewBearer:   script.PredicateAlwaysTrue(),
 		TargetValue: defaultInitialBillValue,
 	}
 	attrBytes, _ := cbor.Marshal(attr)
 	tx := &types.TransactionOrder{
 		Payload: &types.Payload{
-			Type:           billtx.PayloadTypeTransfer,
+			Type:           money.PayloadTypeTransfer,
 			UnitID:         initialBillID[:],
 			ClientMetadata: &types.ClientMetadata{Timeout: 10},
 			SystemID:       []byte{0, 0, 0, 0},
@@ -373,14 +379,14 @@ func makeSuccessfulPayment(t *testing.T, ctx context.Context, txClient alphabill
 
 func makeFailingPayment(t *testing.T, ctx context.Context, txClient alphabill.AlphabillServiceClient) {
 	wrongBillID := money.NewBillID(nil, []byte{6})
-	attr := &billtx.TransferAttributes{
+	attr := &money.TransferAttributes{
 		NewBearer:   script.PredicateAlwaysTrue(),
 		TargetValue: defaultInitialBillValue,
 	}
 	attrBytes, _ := cbor.Marshal(attr)
 	tx := &types.TransactionOrder{
 		Payload: &types.Payload{
-			Type:           billtx.PayloadTypeTransfer,
+			Type:           money.PayloadTypeTransfer,
 			UnitID:         wrongBillID,
 			ClientMetadata: &types.ClientMetadata{Timeout: 10},
 			SystemID:       []byte{0},

@@ -73,7 +73,7 @@ func TestWalletSendFunction_ClientError(t *testing.T) {
 
 	// test PostTransactions returns error
 	_, err := w.Send(context.Background(), SendCmd{ReceiverPubKey: validPubKey, Amount: amount})
-	require.ErrorContains(t, err, "failed to send transactions: status 500 Internal Server Error")
+	require.ErrorContains(t, err, "failed to send transactions: backend responded 500 Internal Server Error: some error")
 }
 
 func TestWalletSendFunction_WaitForConfirmation(t *testing.T) {
@@ -235,7 +235,7 @@ func TestWalletSendFunction_WaitForMultipleTxConfirmationsInDifferentBlocks(t *t
 		getFeeCreditBill: func(ctx context.Context, unitID []byte) (*wallet.Bill, error) {
 			ac, _ := w.am.GetAccountKey(0)
 			return &wallet.Bill{
-				Id: money.NewFeeCreditRecordID(nil, ac.PubKeyHash.Sha256),
+				Id:    money.NewFeeCreditRecordID(nil, ac.PubKeyHash.Sha256),
 				Value: 100 * 1e8,
 			}, nil
 		},

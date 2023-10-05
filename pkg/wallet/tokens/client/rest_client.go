@@ -3,7 +3,6 @@ package client
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -17,13 +16,6 @@ import (
 	"github.com/alphabill-org/alphabill/pkg/wallet/tokens/backend"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/fxamacker/cbor/v2"
-)
-
-var (
-	// ErrInvalidRequest is returned when backend responded with 4nn status code, use errors.Is to check for it.
-	ErrInvalidRequest = errors.New("invalid request")
-	// ErrNotFound is returned when backend responded with 404 status code, use errors.Is to check for it.
-	ErrNotFound = errors.New("not found")
 )
 
 const (
@@ -126,7 +118,7 @@ func (tb *TokenBackend) GetTxProof(ctx context.Context, unitID types.UnitID, txH
 	addr := tb.getURL(apiPathPrefix, "units", hexutil.Encode(unitID), "transactions", hexutil.Encode(txHash), "proof")
 	_, err := tb.get(ctx, addr, &proof, false)
 	if err != nil {
-		if errors.Is(err, ErrNotFound) {
+		if errors.Is(err, sdk.ErrNotFound) {
 			return nil, nil
 		}
 		return nil, fmt.Errorf("get tx proof request failed: %w", err)
@@ -168,7 +160,7 @@ func (tb *TokenBackend) GetFeeCreditBill(ctx context.Context, unitID types.UnitI
 	addr := tb.getURL(apiPathPrefix, "fee-credit-bills", hexutil.Encode(unitID))
 	_, err := tb.get(ctx, addr, &fcb, false)
 	if err != nil {
-		if errors.Is(err, ErrNotFound) {
+		if errors.Is(err, sdk.ErrNotFound) {
 			return nil, nil
 		}
 		return nil, fmt.Errorf("get fee credit bill request failed: %w", err)
@@ -181,7 +173,7 @@ func (tb *TokenBackend) GetClosedFeeCredit(ctx context.Context, fcbID []byte) (*
 	addr := tb.getURL(apiPathPrefix, "closed-fee-credit", hexutil.Encode(fcbID))
 	_, err := tb.get(ctx, addr, &fcb, false)
 	if err != nil {
-		if errors.Is(err, ErrNotFound) {
+		if errors.Is(err, sdk.ErrNotFound) {
 			return nil, nil
 		}
 		return nil, fmt.Errorf("get closed fee credit request failed: %w", err)
@@ -222,7 +214,7 @@ func (tb *TokenBackend) get(ctx context.Context, addr *url.URL, data any, allowE
 	if err != nil {
 		return "", fmt.Errorf("request to backend failed: %w", err)
 	}
-	if err := decodeResponse(rsp, http.StatusOK, data, allowEmptyResponse); err != nil {
+	if err := sdk.DecodeResponse(rsp, http.StatusOK, data, allowEmptyResponse); err != nil {
 		return "", err
 	}
 
@@ -246,47 +238,8 @@ func (tb *TokenBackend) post(ctx context.Context, u *url.URL, body io.Reader, rs
 	if err != nil {
 		return fmt.Errorf("request to backend failed: %w", err)
 	}
-	if err := decodeResponse(rsp, http.StatusAccepted, rspData, true); err != nil {
+	if err := sdk.DecodeResponse(rsp, http.StatusAccepted, rspData, true); err != nil {
 		return err
 	}
 	return nil
-}
-
-/*
-When "rsp" StatusCode is equal to "successStatus" response body is decoded into "data".
-In case of some other response status body is expected to contain error response json struct.
-*/
-func decodeResponse(rsp *http.Response, successStatus int, data any, allowEmptyResponse bool) error {
-	defer rsp.Body.Close()
-	type Decoder interface {
-		Decode(val interface{}) error
-	}
-	var dec Decoder
-	contentType := rsp.Header.Get(contentTypeHeader)
-	if contentType == applicationCbor {
-		dec = cbor.NewDecoder(rsp.Body)
-	} else {
-		dec = json.NewDecoder(rsp.Body)
-	}
-	if rsp.StatusCode == successStatus {
-		err := dec.Decode(data)
-		if err != nil && (!errors.Is(err, io.EOF) || !allowEmptyResponse) {
-			return fmt.Errorf("failed to decode response body: %w", err)
-		}
-		return nil
-	}
-
-	var er sdk.ErrorResponse
-	if err := json.NewDecoder(rsp.Body).Decode(&er); err != nil {
-		return fmt.Errorf("failed to decode error from the response body (%s): %w", rsp.Status, err)
-	}
-
-	msg := fmt.Sprintf("backend responded %s: %s", rsp.Status, er.Message)
-	switch {
-	case rsp.StatusCode == http.StatusNotFound:
-		return fmt.Errorf("%s: %w", er.Message, ErrNotFound)
-	case 400 <= rsp.StatusCode && rsp.StatusCode < 500:
-		return fmt.Errorf("%s: %w", msg, ErrInvalidRequest)
-	}
-	return errors.New(msg)
 }

@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -218,7 +217,6 @@ func TestGetFeeCreditBill_404_UrlNOK(t *testing.T) {
 	require.NoError(t, err)
 
 	res, err := restClient.GetFeeCreditBill(context.Background(), []byte{})
-	fmt.Println(err)
 	require.ErrorContains(t, err, "failed to decode error from the response body")
 	require.Nil(t, res)
 }
@@ -257,7 +255,6 @@ func TestPostTransactionsError(t *testing.T) {
 		testtransaction.NewTransactionOrder(t),
 	}}
 	err = restClient.PostTransactions(context.Background(), pubKey, txs)
-	fmt.Println(err)
 	require.ErrorContains(t, err, "failed to process some of the transactions:\n"+
 		"00000000c4f0a6c28423da2fbe739a0a46ae437ce670eb6ba5fcc3524568d9a1: transaction has timed out: transaction timeout round is 1905, current round is 1906")
 }
@@ -367,14 +364,16 @@ func mockNotFoundErrorResponse(t *testing.T, message string) *url.URL {
 	res := &sdk.ErrorResponse{
 		Message: message,
 	}
-	resJson, _ := json.Marshal(res)
+	resJson, err := json.Marshal(res)
+	require.NoError(t, err)
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNotFound)
 		w.Write(resJson)
 	}))
 	t.Cleanup(server.Close)
-	serverURL, _ := url.Parse(server.URL)
+	serverURL, err := url.Parse(server.URL)
+	require.NoError(t, err)
 	return serverURL
 }
 
@@ -383,7 +382,8 @@ func mockNotFoundResponse(t *testing.T) *url.URL {
 		w.WriteHeader(http.StatusNotFound)
 	}))
 	t.Cleanup(server.Close)
-	serverURL, _ := url.Parse(server.URL)
+	serverURL, err := url.Parse(server.URL)
+	require.NoError(t, err)
 	return serverURL
 }
 

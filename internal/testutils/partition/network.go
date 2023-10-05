@@ -486,6 +486,7 @@ func (n *NodePartition) GetTxProof(tx *types.TransactionOrder) (*types.Block, *t
 
 // WaitTxProof - uses the new validator index and endpoint and returns both transaction record and proof
 // when tx has been executed and added to block
+// todo: remove index when state proofs become available and refactor tests that require it to use unit proofs instead
 func WaitTxProof(t *testing.T, part *NodePartition, idx ValidatorIndex, txOrder *types.TransactionOrder) (*types.TransactionRecord, *types.TxProof, error) {
 	t.Helper()
 	var (

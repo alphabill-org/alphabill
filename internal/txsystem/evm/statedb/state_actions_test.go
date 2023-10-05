@@ -51,3 +51,19 @@ func TestUpdateEthAccountAddCredit(t *testing.T) {
 	require.EqualValues(t, 3, abLink.Timeout)
 	require.Equal(t, txHashUpdate, abLink.TxHash)
 }
+
+func TestSetAccountBalance(t *testing.T) {
+	tr := state.NewEmptyState()
+	address := common.BytesToAddress(test.RandomBytes(20))
+	balance := big.NewInt(100)
+	txHash := test.RandomBytes(32)
+	// add credit unit to state tree
+	err := tr.Apply(CreateAccountAndAddCredit(address, script.PredicateAlwaysFalse(), balance, 3, txHash))
+	require.NoError(t, err)
+	// update
+	unitID := address.Bytes()
+	err = tr.Apply(SetBalance(unitID, big.NewInt(300)))
+	require.NoError(t, err)
+	stateDB := NewStateDB(tr)
+	require.Equal(t, big.NewInt(300), stateDB.GetBalance(address))
+}

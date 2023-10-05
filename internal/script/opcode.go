@@ -3,6 +3,7 @@ package script
 import (
 	"bytes"
 	"errors"
+	"fmt"
 
 	"github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/hash"
@@ -55,18 +56,11 @@ var opCodes = map[byte]opCode{
 	OpCheckSig:   {OpCheckSig, opCheckSig, fixedDataLength(1)},
 }
 
-var (
-	errInvalidOpcodeData = errors.New("invalid opcode data")
-	errInvalidHashAlgo   = errors.New("invalid hash algorithm")
-	errInvalidSigScheme  = errors.New("invalid sig scheme")
-	errInvalidBool       = errors.New("invalid bool")
-)
-
 // fixedDataLength returns fixed opCode dataLength or error if data is out of bounds from script
 func fixedDataLength(length int) func(script []byte) (int, error) {
 	return func(script []byte) (int, error) {
 		if len(script) < length {
-			return 0, errInvalidOpcodeData
+			return 0, fmt.Errorf("data out of bounds: script 0x%x vs fixed data length %d", script, length)
 		}
 		return length, nil
 	}
@@ -75,7 +69,7 @@ func fixedDataLength(length int) func(script []byte) (int, error) {
 // opPushHashDataLength returns parsed data length of OpPushHash
 func opPushHashDataLength(script []byte) (int, error) {
 	if len(script) == 0 {
-		return 0, errInvalidOpcodeData
+		return 0, errors.New("OpPushHash data is empty")
 	}
 	hashAlg := script[0]
 	if hashAlg == HashAlgSha256 && len(script) >= 33 {
@@ -84,46 +78,44 @@ func opPushHashDataLength(script []byte) (int, error) {
 	if hashAlg == HashAlgSha512 && len(script) >= 65 {
 		return 65, nil
 	}
-	return 0, errInvalidOpcodeData
+	return 0, fmt.Errorf("OpPushHash invalid data length: 0x%x", script)
 }
 
 // opPushBool pushes bool to stack, returns error if data is not a valid bool
 func opPushBool(c *scriptContext, data []byte) error {
-	if len(data) != 1 {
-		return errInvalidOpcodeData
+	if len(data) != 1 || (data[0] != BoolTrue && data[0] != BoolFalse) {
+		return fmt.Errorf("OpPushBool invalid data: 0x%x", data)
 	}
-	if data[0] == BoolFalse || data[0] == BoolTrue {
-		c.stack.push(data)
-		return nil
-	}
-	return errInvalidBool
+	c.stack.push(data)
+	return nil
 }
 
 // opPushSig pushes sig to the stack. The number of bytes of data to read is determined by first byte <SigScheme> label:
 // 0x01 – <secp256k1>, 65 bytes
 func opPushSig(c *scriptContext, data []byte) error {
 	if len(data) == 0 {
-		return errInvalidOpcodeData
+		return fmt.Errorf("OpPushSig invalid data: 0x%x", data)
 	}
 	switch data[0] {
 	case SigSchemeSecp256k1:
 		return pushData(data, 66, c)
 	default:
-		return errInvalidSigScheme
+		return fmt.Errorf("OpPushSig invalid sig scheme: 0x%x", data[0])
 	}
 }
 
-// opPushPubKey pushes pubKey to the stack. The number of bytes of data to read is determined by first byte <SigScheme> label:
+// opPushPubKey pushes pubKey to the stack.
+// The number of bytes of data to read is determined by first byte <SigScheme> label:
 // 0x01 – <secp256k1>, 33 bytes
 func opPushPubKey(c *scriptContext, data []byte) error {
 	if len(data) == 0 {
-		return errInvalidOpcodeData
+		return fmt.Errorf("OpPushPubKey invalid data: 0x%x", data)
 	}
 	switch data[0] {
 	case SigSchemeSecp256k1:
 		return pushData(data, 34, c)
 	default:
-		return errInvalidSigScheme
+		return fmt.Errorf("OpPushPubKey invalid sig scheme: 0x%x", data[0])
 	}
 }
 
@@ -132,7 +124,7 @@ func opPushPubKey(c *scriptContext, data []byte) error {
 // 0x02 – SHA512, 64 bytes
 func opPushHash(c *scriptContext, data []byte) error {
 	if len(data) == 0 {
-		return errInvalidOpcodeData
+		return fmt.Errorf("OpPushHash invalid data: 0x%x", data)
 	}
 	switch data[0] {
 	case HashAlgSha256:
@@ -140,26 +132,26 @@ func opPushHash(c *scriptContext, data []byte) error {
 	case HashAlgSha512:
 		return pushData(data, 65, c)
 	default:
-		return errInvalidHashAlgo
+		return fmt.Errorf("OpPushHash invalid hash algorithm 0x%x", data[0])
 	}
 }
 
 func pushData(data []byte, dataLength int, c *scriptContext) error {
-	if len(data) == dataLength {
-		c.stack.push(data[1:])
-		return nil
+	if len(data) != dataLength {
+		return fmt.Errorf("push data failed: expected data length %d vs actual data 0x%x", dataLength, data)
 	}
-	return errInvalidOpcodeData
+	c.stack.push(data[1:])
+	return nil
 }
 
 // opDup duplicates top element on the stack, returns error if stack is empty
 func opDup(c *scriptContext, data []byte) error {
 	if len(data) != 0 {
-		return errInvalidOpcodeData
+		return fmt.Errorf("OpDup invalid data: 0x%x", data)
 	}
 	peek, err := c.stack.peek()
 	if err != nil {
-		return err
+		return fmt.Errorf("OpDup failed to peek into stack: %w", err)
 	}
 	c.stack.push(peek)
 	return nil
@@ -168,15 +160,15 @@ func opDup(c *scriptContext, data []byte) error {
 // opEqual removes two top elements, compares them for equality and push the resulting bool to the stack.
 func opEqual(c *scriptContext, data []byte) error {
 	if len(data) != 0 {
-		return errInvalidOpcodeData
+		return fmt.Errorf("OpEqual invalid data: 0x%x", data)
 	}
 	a, err := c.stack.pop()
 	if err != nil {
-		return err
+		return fmt.Errorf("OpEqual failed to pop first stack element: %w", err)
 	}
 	b, err := c.stack.pop()
 	if err != nil {
-		return err
+		return fmt.Errorf("OpEqual failed to pop second stack element: %w", err)
 	}
 	c.stack.pushBool(bytes.Equal(a, b))
 	return nil
@@ -185,14 +177,14 @@ func opEqual(c *scriptContext, data []byte) error {
 // opVerify checks if top of the stack is bool TRUE and removes it from the stack.
 func opVerify(c *scriptContext, data []byte) error {
 	if len(data) != 0 {
-		return errInvalidOpcodeData
+		return fmt.Errorf("OpVerify invalid data: 0x%x", data)
 	}
 	pop, err := c.stack.popBool()
 	if err != nil {
-		return err
+		return fmt.Errorf("OpVerify failed to pop boolean: %w", err)
 	}
 	if !pop {
-		return errInvalidOpcodeData
+		return errors.New("OpVerify popped boolean value is false")
 	}
 	return nil
 }
@@ -202,12 +194,12 @@ func opVerify(c *scriptContext, data []byte) error {
 // 0x01 – SHA256
 // 0x02 – SHA512
 func opHash(c *scriptContext, data []byte) error {
+	if len(data) != 1 {
+		return fmt.Errorf("OpHash invalid data: 0x%x", data)
+	}
 	pop, err := c.stack.pop()
 	if err != nil {
-		return err
-	}
-	if len(data) != 1 {
-		return errInvalidOpcodeData
+		return fmt.Errorf("OpHash failed to pop stack: %w", err)
 	}
 	switch data[0] {
 	case HashAlgSha256:
@@ -217,7 +209,7 @@ func opHash(c *scriptContext, data []byte) error {
 		c.stack.push(hash.Sum512(pop))
 		return nil
 	default:
-		return errInvalidHashAlgo
+		return fmt.Errorf("OpHash invalid hash algorithm: 0x%x", data[0])
 	}
 }
 
@@ -225,23 +217,23 @@ func opHash(c *scriptContext, data []byte) error {
 // Returns either error or pushes TRUE/FALSE to the stack indicating signature verification result
 func opCheckSig(c *scriptContext, data []byte) error {
 	if len(data) != 1 {
-		return errInvalidOpcodeData
+		return fmt.Errorf("OpCheckSig invalid data: 0x%x", data)
 	}
 	if data[0] != SigSchemeSecp256k1 {
-		return errInvalidSigScheme
+		return fmt.Errorf("OpCheckSig invalid sig scheme: 0x%x", data[0])
 	}
 	pubKey, err := c.stack.pop()
 	if err != nil {
-		return err
+		return fmt.Errorf("OpCheckSig failed to pop first stack element: %w", err)
 	}
 	sig, err := c.stack.pop()
 	if err != nil {
-		return err
+		return fmt.Errorf("OpCheckSig failed to pop second stack element: %w", err)
 	}
 
 	verifier, err := crypto.NewVerifierSecp256k1(pubKey)
 	if err != nil {
-		return err
+		return fmt.Errorf("OpCheckSig failed to create signature verifier: %w", err)
 	}
 	err = verifier.VerifyBytes(sig, c.sigData)
 	c.stack.pushBool(err == nil)

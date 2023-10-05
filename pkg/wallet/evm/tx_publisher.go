@@ -8,7 +8,6 @@ import (
 
 	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/pkg/wallet"
-	"github.com/alphabill-org/alphabill/pkg/wallet/log"
 )
 
 type (
@@ -42,7 +41,7 @@ func (w *TxPublisher) SendTx(ctx context.Context, tx *types.TransactionOrder, _ 
 		}
 		roundNr, err := w.cli.GetRoundNumber(ctx)
 		if err != nil {
-			return nil, fmt.Errorf("failed to read lates round from evm node")
+			return nil, fmt.Errorf("failed to read latest round from evm node: %w", err)
 		}
 		if roundNr >= timeout {
 			return nil, fmt.Errorf("confirmation timeout evm round %v, tx timeout round %v", roundNr, timeout)
@@ -52,7 +51,6 @@ func (w *TxPublisher) SendTx(ctx context.Context, tx *types.TransactionOrder, _ 
 			return nil, err
 		}
 		if proof != nil {
-			log.Debug(fmt.Sprintf("UnitID=%s is confirmed", tx.UnitID()))
 			return proof, nil
 		}
 		time.Sleep(500 * time.Millisecond)

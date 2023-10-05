@@ -14,7 +14,6 @@ import (
 	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/alphabill-org/alphabill/pkg/wallet/account"
-	"github.com/alphabill-org/alphabill/pkg/wallet/log"
 	"github.com/alphabill-org/alphabill/pkg/wallet/money/tx_builder"
 	"github.com/alphabill-org/alphabill/pkg/wallet/tokens/backend"
 	twb "github.com/alphabill-org/alphabill/pkg/wallet/tokens/backend"
@@ -67,7 +66,7 @@ func (w *Wallet) newType(ctx context.Context, accNr uint64, payloadType string, 
 	if err != nil {
 		return nil, err
 	}
-	err = sub.ToBatch(w.backend, acc.PubKey).SendTx(ctx, w.confirmTx)
+	err = sub.ToBatch(w.backend, acc.PubKey, w.log).SendTx(ctx, w.confirmTx)
 	if err != nil {
 		return nil, err
 	}
@@ -120,7 +119,7 @@ func (w *Wallet) newToken(ctx context.Context, accNr uint64, payloadType string,
 	if err != nil {
 		return nil, err
 	}
-	err = sub.ToBatch(w.backend, key.PubKey).SendTx(ctx, w.confirmTx)
+	err = sub.ToBatch(w.backend, key.PubKey, w.log).SendTx(ctx, w.confirmTx)
 	if err != nil {
 		return nil, err
 	}
@@ -128,7 +127,7 @@ func (w *Wallet) newToken(ctx context.Context, accNr uint64, payloadType string,
 }
 
 func (w *Wallet) prepareTxSubmission(ctx context.Context, payloadType string, attrs types.SigBytesProvider, unitId types.UnitID, ac *account.AccountKey, rn roundNumberFetcher, txps txPreprocessor) (*txsubmitter.TxSubmission, error) {
-	log.Info(fmt.Sprintf("Preparing to send token tx, UnitID=%s", unitId))
+	w.log.InfoContext(ctx, fmt.Sprintf("Preparing to send token tx, UnitID=%s", unitId))
 
 	roundNumber, err := rn(ctx)
 	if err != nil {
@@ -203,7 +202,6 @@ func makeTxFeeProof(tx *types.TransactionOrder, ac *account.AccountKey) (wallet.
 }
 
 func newFungibleTransferTxAttrs(token *backend.TokenUnit, receiverPubKey []byte) *ttxs.TransferFungibleTokenAttributes {
-	log.Info(fmt.Sprintf("Creating transfer with bl=%X", token.TxHash))
 	return &ttxs.TransferFungibleTokenAttributes{
 		TypeID:                       token.TypeID,
 		NewBearer:                    BearerPredicateFromPubKey(receiverPubKey),
@@ -214,7 +212,6 @@ func newFungibleTransferTxAttrs(token *backend.TokenUnit, receiverPubKey []byte)
 }
 
 func newNonFungibleTransferTxAttrs(token *backend.TokenUnit, receiverPubKey []byte) *ttxs.TransferNonFungibleTokenAttributes {
-	log.Info(fmt.Sprintf("Creating NFT transfer with bl=%X", token.TxHash))
 	return &ttxs.TransferNonFungibleTokenAttributes{
 		NFTTypeID:                    token.TypeID,
 		NewBearer:                    BearerPredicateFromPubKey(receiverPubKey),
@@ -239,7 +236,6 @@ func BearerPredicateFromPubKey(receiverPubKey wallet.PubKey) wallet.Predicate {
 }
 
 func newSplitTxAttrs(token *backend.TokenUnit, amount uint64, receiverPubKey []byte) *ttxs.SplitFungibleTokenAttributes {
-	log.Info(fmt.Sprintf("Creating split with bl=%X, new value=%v", token.TxHash, amount))
 	return &ttxs.SplitFungibleTokenAttributes{
 		TypeID:                       token.TypeID,
 		NewBearer:                    BearerPredicateFromPubKey(receiverPubKey),
@@ -251,7 +247,6 @@ func newSplitTxAttrs(token *backend.TokenUnit, amount uint64, receiverPubKey []b
 }
 
 func newBurnTxAttrs(token *backend.TokenUnit, targetStateHash []byte) *ttxs.BurnFungibleTokenAttributes {
-	log.Info(fmt.Sprintf("Creating burn tx of unit=%X with bl=%X, new value=%v", token.ID, token.TxHash, token.Amount))
 	return &ttxs.BurnFungibleTokenAttributes{
 		TypeID:                       token.TypeID,
 		Value:                        token.Amount,
@@ -268,7 +263,7 @@ func (w *Wallet) doSendMultiple(ctx context.Context, amount uint64, tokens []*ba
 		return tokens[i].Amount > tokens[j].Amount
 	})
 
-	batch := txsubmitter.NewBatch(acc.PubKey, w.backend)
+	batch := txsubmitter.NewBatch(acc.PubKey, w.backend, w.log)
 	rnFetcher := &cachingRoundNumberFetcher{delegate: w.GetRoundNumber}
 
 	for _, t := range tokens {

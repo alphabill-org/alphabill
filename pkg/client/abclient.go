@@ -4,18 +4,19 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"math"
 	"strings"
 	"sync"
 	"time"
 
-	"github.com/alphabill-org/alphabill/internal/rpc/alphabill"
-	"github.com/alphabill-org/alphabill/internal/types"
-	"github.com/alphabill-org/alphabill/pkg/wallet/log"
 	"github.com/fxamacker/cbor/v2"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/protobuf/types/known/emptypb"
+
+	"github.com/alphabill-org/alphabill/internal/rpc/alphabill"
+	"github.com/alphabill-org/alphabill/internal/types"
 )
 
 const (
@@ -23,16 +24,6 @@ const (
 	ErrTxBufferFull        = "tx buffer is full"
 	ErrTxRetryCanceled     = "user canceled tx retry"
 )
-
-// ABClient manages connection to alphabill node and implements RPC methods
-type ABClient interface {
-	SendTransaction(ctx context.Context, tx *types.TransactionOrder) error
-	SendTransactionWithRetry(ctx context.Context, tx *types.TransactionOrder, maxTries int) error
-	GetBlock(ctx context.Context, blockNumber uint64) ([]byte, error)
-	GetBlocks(ctx context.Context, blockNumber, blockCount uint64) (*alphabill.GetBlocksResponse, error)
-	GetRoundNumber(ctx context.Context) (uint64, error)
-	Close() error
-}
 
 type AlphabillClientConfig struct {
 	Uri          string
@@ -43,18 +34,19 @@ type AlphabillClient struct {
 	config     AlphabillClientConfig
 	connection *grpc.ClientConn
 	client     alphabill.AlphabillServiceClient
+	log        *slog.Logger
 
 	// mu mutex guarding mutable fields (connection and client)
 	mu sync.RWMutex
 }
 
 // New creates instance of AlphabillClient
-func New(config AlphabillClientConfig) *AlphabillClient {
-	return &AlphabillClient{config: config}
+func New(config AlphabillClientConfig, log *slog.Logger) *AlphabillClient {
+	return &AlphabillClient{config: config, log: log}
 }
 
 func (c *AlphabillClient) SendTransaction(ctx context.Context, tx *types.TransactionOrder) error {
-	defer trackExecutionTime(time.Now(), "sending transaction")
+	defer trackExecutionTime(time.Now(), "sending transaction", c.log)
 
 	txBytes, err := cbor.Marshal(tx)
 	if err != nil {
@@ -77,7 +69,7 @@ func (c *AlphabillClient) SendTransactionWithRetry(ctx context.Context, tx *type
 		}
 		// error message can also contain stacktrace when node returns aberror, so we check prefix instead of exact match
 		if strings.Contains(err.Error(), ErrTxBufferFull) {
-			log.Debug("tx buffer full, waiting 1s to retry...")
+			c.log.DebugContext(ctx, "tx buffer full, waiting 1s to retry...")
 			select {
 			case <-time.After(time.Second):
 				continue
@@ -91,7 +83,7 @@ func (c *AlphabillClient) SendTransactionWithRetry(ctx context.Context, tx *type
 }
 
 func (c *AlphabillClient) GetBlock(ctx context.Context, blockNumber uint64) ([]byte, error) {
-	defer trackExecutionTime(time.Now(), fmt.Sprintf("downloading block %d", blockNumber))
+	defer trackExecutionTime(time.Now(), fmt.Sprintf("downloading block %d", blockNumber), c.log)
 
 	if err := c.connect(); err != nil {
 		return nil, err
@@ -105,12 +97,12 @@ func (c *AlphabillClient) GetBlock(ctx context.Context, blockNumber uint64) ([]b
 }
 
 func (c *AlphabillClient) GetBlocks(ctx context.Context, blockNumber uint64, blockCount uint64) (res *alphabill.GetBlocksResponse, err error) {
-	log.Debug("fetching blocks blocknumber=", blockNumber, " blockcount=", blockCount)
+	c.log.DebugContext(ctx, fmt.Sprintf("fetching blocks blocknumber=%d, blockcount=%d", blockNumber, blockCount))
 	defer func(t1 time.Time) {
 		if res != nil && len(res.Blocks) > 0 {
-			trackExecutionTime(t1, fmt.Sprintf("downloading blocks %d-%d", blockNumber, blockNumber+uint64(len(res.Blocks))-1))
+			trackExecutionTime(t1, fmt.Sprintf("downloading blocks %d-%d", blockNumber, blockNumber+uint64(len(res.Blocks))-1), c.log)
 		} else {
-			trackExecutionTime(t1, "downloading blocks empty response")
+			trackExecutionTime(t1, "downloading blocks empty response", c.log)
 		}
 	}(time.Now())
 
@@ -126,7 +118,7 @@ func (c *AlphabillClient) GetBlocks(ctx context.Context, blockNumber uint64, blo
 }
 
 func (c *AlphabillClient) GetRoundNumber(ctx context.Context) (uint64, error) {
-	defer trackExecutionTime(time.Now(), "fetching round number")
+	defer trackExecutionTime(time.Now(), "fetching round number", c.log)
 
 	if err := c.connect(); err != nil {
 		return 0, err
@@ -179,6 +171,6 @@ func (c *AlphabillClient) connect() error {
 	return nil
 }
 
-func trackExecutionTime(start time.Time, name string) {
-	log.Debug(name, " took ", time.Since(start))
+func trackExecutionTime(start time.Time, name string, log *slog.Logger) {
+	log.Debug(fmt.Sprintf("%s took %s", name, time.Since(start)))
 }

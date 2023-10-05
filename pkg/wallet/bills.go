@@ -152,7 +152,8 @@ func (x *Bill) parseTx(txr *types.TransactionRecord) (uint64, bool, error) {
 		if bytes.Equal(x.Id, txr.TransactionOrder.UnitID()) { // proof is for the "old" bill
 			return attrs.RemainingValue, false, nil
 		}
-		return attrs.Amount, false, nil // proof is for the "new" bill
+		// TODO handle N-way split if needed https://guardtime.atlassian.net/browse/AB-666
+		return attrs.TargetUnits[0].Amount, false, nil // proof is for the "new" bill
 	case money.PayloadTypeSwapDC:
 		attrs := &money.SwapDCAttributes{}
 		if err := txr.TransactionOrder.UnmarshalAttributes(attrs); err != nil {

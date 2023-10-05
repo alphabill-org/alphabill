@@ -76,9 +76,9 @@ func amountToString(amount uint64, decimals uint32) string {
 func insertSeparator(value string, reverse bool) string {
 	var re *regexp.Regexp
 	if reverse {
-		re = regexp.MustCompile("(\\d{3})(\\d+)")
+		re = regexp.MustCompile(`(\d{3})(\d+)`)
 	} else {
-		re = regexp.MustCompile("(\\d+)(\\d{3})")
+		re = regexp.MustCompile(`(\d+)(\d{3})`)
 	}
 	for n := ""; n != value; {
 		n = value

@@ -30,7 +30,7 @@ type (
 	}
 )
 
-func (mn *MockNode) GetTransactionRecord(hash []byte) (*types.TransactionRecord, *types.TxProof, error) {
+func (mn *MockNode) GetTransactionRecord(_ context.Context, hash []byte) (*types.TransactionRecord, *types.TxProof, error) {
 	zeroHash := [32]byte{}
 	if bytes.Equal(zeroHash[:], hash) {
 		return nil, nil, nil

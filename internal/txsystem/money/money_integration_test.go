@@ -22,6 +22,7 @@ import (
 	testfc "github.com/alphabill-org/alphabill/internal/txsystem/fc/testutils"
 	"github.com/alphabill-org/alphabill/internal/txsystem/fc/unit"
 	"github.com/alphabill-org/alphabill/internal/types"
+	"github.com/alphabill-org/alphabill/internal/util"
 )
 
 var (
@@ -33,10 +34,6 @@ var (
 	pubKey2  = "0x02d29cbdea6062c0a9d9170245188fa39a12ad3dd6cc02a78fcc026594d9bdc06c"
 	privKey2 = "0xd7e5041766e8ca505ab07ffa46652e248ede22b436ec81b583a78c8c9e1aac6b"
 )
-
-func newBillID(unitPart byte) types.UnitID {
-	return NewBillID(nil, []byte{unitPart})
-}
 
 func TestPartition_Ok(t *testing.T) {
 	const moneyInvariant = uint64(10000 * 1e8)
@@ -89,7 +86,9 @@ func TestPartition_Ok(t *testing.T) {
 
 	// split initial bill from pubKey1 to pubKey2
 	amountPK2 := uint64(1000)
-	tx := createSplitTx(t, initialBill.ID, transferInitialBillTxRecord, amountPK2, total-fcrAmount-amountPK2)
+	targetUnit := &TargetUnit{Amount: amountPK2, OwnerCondition: script.PredicatePayToPublicKeyHashDefault(decodeAndHashHex(pubKey2))}
+	remainingValue := total - fcrAmount - amountPK2
+	tx := createSplitTx(t, initialBill.ID, transferInitialBillTxRecord, []*TargetUnit{targetUnit}, remainingValue)
 	err = moneyPrt.SubmitTx(tx)
 	require.NoError(t, err)
 	require.Eventually(t, testpartition.BlockchainContainsTx(moneyPrt, tx), test.WaitDuration, test.WaitTick)
@@ -98,7 +97,7 @@ func TestPartition_Ok(t *testing.T) {
 	require.Equal(t, fcrAmount-4, feeCredit.Data().(*unit.FeeCreditRecord).Balance)
 
 	// wrong partition tx
-	tx = createSplitTx(t, initialBill.ID, transferInitialBillTxRecord, amountPK2, total-fcrAmount-amountPK2)
+	tx = createSplitTx(t, initialBill.ID, transferInitialBillTxRecord, []*TargetUnit{targetUnit}, remainingValue)
 	tx.Payload.SystemID = []byte{1, 1, 1, 1}
 	err = moneyPrt.SubmitTx(tx)
 	require.Error(t, err)
@@ -158,45 +157,37 @@ func TestPartition_SwapDCOk(t *testing.T) {
 	require.NoError(t, moneyPrt.SubmitTx(transferInitialBillTx))
 	require.Eventually(t, testpartition.BlockchainContainsTx(moneyPrt, transferInitialBillTx), test.WaitDuration, test.WaitTick)
 
-	// split initial bill, create small payments from which to make dust payments
-	splitTxs := make([]*types.TransactionRecord, nofDustToSwap)
+	// split initial bill using N-way split where N=nofDustToSwap
 	amount := uint64(1)
 	_, _, transferRecord, err := moneyPrt.GetTxProof(transferInitialBillTx)
 	require.NoError(t, err)
-	var prev = transferRecord
-	total = total - fcrAmount
-	for i := range splitTxs {
-		total = total - amount
-		splitTx := createSplitTx(t, initialBill.ID, prev, amount, total)
-		require.NoError(t, moneyPrt.SubmitTx(splitTx))
-		// wait for transaction to be added to block
-		require.Eventually(t, testpartition.BlockchainContainsTx(moneyPrt, splitTx), test.WaitDuration, test.WaitTick)
-		_, _, record, err := moneyPrt.GetTxProof(splitTx)
-		require.NoError(t, err)
-		prev = record
-		splitTxs[i] = record
+	prev := transferRecord
+	total -= fcrAmount
+
+	var targetUnits []*TargetUnit
+	for i := 0; i < nofDustToSwap; i++ {
+		targetUnits = append(targetUnits, &TargetUnit{Amount: amount, OwnerCondition: script.PredicatePayToPublicKeyHashDefault(decodeAndHashHex(pubKey2))})
+		total -= amount
 		amount++
 	}
+	splitTx := createSplitTx(t, initialBill.ID, prev, targetUnits, total)
+	require.NoError(t, moneyPrt.SubmitTx(splitTx))
 
-	// create target unit
-	targetUnitTx := createSplitTx(t, initialBill.ID, prev, 1, total-1)
-	require.NoError(t, moneyPrt.SubmitTx(targetUnitTx))
 	// wait for transaction to be added to block
-	require.Eventually(t, testpartition.BlockchainContainsTx(moneyPrt, targetUnitTx), test.WaitDuration, test.WaitTick)
-	_, _, _, err = moneyPrt.GetTxProof(targetUnitTx)
+	require.Eventually(t, testpartition.BlockchainContainsTx(moneyPrt, splitTx), test.WaitDuration, test.WaitTick)
+	_, _, _, err = moneyPrt.GetTxProof(splitTx)
 	require.NoError(t, err)
 
 	// create dust payments from splits
-	dcBillIds := make([]types.UnitID, len(splitTxs))
-	for i, splitTx := range splitTxs {
-		dcBillIds[i] = NewBillID(splitTx.TransactionOrder.UnitID(), unitIdFromTransaction(splitTx.TransactionOrder))
+	dcBillIds := make([]types.UnitID, nofDustToSwap)
+	for i := 0; i < nofDustToSwap; i++ {
+		dcBillIds[i] = NewBillID(nil, unitIDFromTransaction(splitTx, util.Uint32ToBytes(uint32(i))))
 	}
 	// sort bill id's
 	sort.Slice(dcBillIds, func(i, j int) bool {
 		return bytes.Compare(dcBillIds[i], dcBillIds[j]) == -1
 	})
-	dcTxs, sum := createDCAndSwapTxs(t, targetUnitTx.UnitID(), targetUnitTx.Hash(crypto.SHA256), dcBillIds, txsState)
-
+	dcTxs, sum := createDCAndSwapTxs(t, initialBill.ID, splitTx.Hash(crypto.SHA256), dcBillIds, txsState)
 	dcRecords := make([]*types.TransactionRecord, len(dcTxs))
 	dcRecordsProofs := make([]*types.TxProof, len(dcTxs))
 	for i, dcTx := range dcTxs {
@@ -216,6 +207,7 @@ func TestPartition_SwapDCOk(t *testing.T) {
 	}
 	swapBytes, err := cbor.Marshal(swapAttr)
 	require.NoError(t, err)
+
 	// create swap tx
 	swapTx := &types.TransactionOrder{
 		Payload: &types.Payload{
@@ -249,9 +241,9 @@ func TestPartition_SwapDCOk(t *testing.T) {
 	}
 }
 
-func createSplitTx(t *testing.T, fromID []byte, prevTx *types.TransactionRecord, amount, remaining uint64) *types.TransactionOrder {
+func createSplitTx(t *testing.T, fromID []byte, prevTx *types.TransactionRecord, targetUnits []*TargetUnit, remaining uint64) *types.TransactionOrder {
 	backlink := prevTx.TransactionOrder.Hash(crypto.SHA256)
-	tx, _ := createSplit(t, fromID, amount, remaining, script.PredicatePayToPublicKeyHashDefault(decodeAndHashHex(pubKey2)), backlink)
+	tx, _ := createSplit(t, fromID, targetUnits, remaining, backlink)
 	signer, _ := abcrypto.NewInMemorySecp256K1SignerFromKey(decodeHex(privKey1))
 	sigBytes, err := tx.PayloadBytes()
 	require.NoError(t, err)
@@ -297,4 +289,8 @@ func decodeAndHashHex(hex string) []byte {
 func decodeHex(hex string) []byte {
 	decoded, _ := hexutil.Decode(hex)
 	return decoded
+}
+
+func newBillID(unitPart byte) types.UnitID {
+	return NewBillID(nil, []byte{unitPart})
 }

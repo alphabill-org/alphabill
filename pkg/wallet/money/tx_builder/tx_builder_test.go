@@ -35,8 +35,11 @@ func TestSplitTransactionAmount(t *testing.T) {
 	amount := uint64(150)
 	timeout := uint64(100)
 	systemID := []byte{0, 0, 0, 0}
+	remainingValue := b.Value - amount
 
-	tx, err := NewSplitTx(amount, receiverPubKey, keys.AccountKey, systemID, b, timeout, nil)
+	tx, err := NewSplitTx([]*money.TargetUnit{
+		{OwnerCondition: script.PredicatePayToPublicKeyHashDefault(receiverPubKeyHash), Amount: amount},
+	}, remainingValue, keys.AccountKey, systemID, b, timeout, nil)
 	require.NoError(t, err)
 	require.NotNil(t, tx)
 	require.EqualValues(t, systemID, tx.SystemID())
@@ -47,8 +50,8 @@ func TestSplitTransactionAmount(t *testing.T) {
 	so := &moneytx.SplitAttributes{}
 	err = tx.UnmarshalAttributes(so)
 	require.NoError(t, err)
-	require.Equal(t, amount, so.Amount)
-	require.EqualValues(t, script.PredicatePayToPublicKeyHashDefault(receiverPubKeyHash), so.TargetBearer)
+	require.Equal(t, amount, so.TargetUnits[0].Amount)
+	require.EqualValues(t, script.PredicatePayToPublicKeyHashDefault(receiverPubKeyHash), so.TargetUnits[0].OwnerCondition)
 	require.EqualValues(t, 350, so.RemainingValue)
 	require.EqualValues(t, b.TxHash, so.Backlink)
 }
@@ -85,7 +88,7 @@ func TestCreateTransactions(t *testing.T) {
 				splitAttr := &moneytx.SplitAttributes{}
 				err = tx.UnmarshalAttributes(splitAttr)
 				require.NoError(t, err)
-				require.EqualValues(t, 2, splitAttr.Amount)
+				require.EqualValues(t, 2, splitAttr.TargetUnits[0].Amount)
 			},
 		},
 		{

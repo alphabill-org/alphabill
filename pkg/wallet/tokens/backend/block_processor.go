@@ -5,21 +5,22 @@ import (
 	"context"
 	"crypto"
 	"fmt"
+	"log/slog"
 
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/internal/txsystem/fc/transactions"
 	"github.com/alphabill-org/alphabill/internal/txsystem/tokens"
 	"github.com/alphabill-org/alphabill/internal/types"
+	"github.com/alphabill-org/alphabill/pkg/logger"
 	"github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/alphabill-org/alphabill/pkg/wallet/broker"
-	"github.com/alphabill-org/alphabill/pkg/wallet/log"
 )
 
 type blockProcessor struct {
 	store  Storage
 	txs    txsystem.TransactionSystem
 	notify func(bearerPredicate []byte, msg broker.Message)
-	log    log.Logger
+	log    *slog.Logger
 }
 
 func (p *blockProcessor) ProcessBlock(ctx context.Context, b *types.Block) error {
@@ -52,7 +53,7 @@ func (p *blockProcessor) processTx(tr *types.TransactionRecord, proof *wallet.Tx
 	id := tx.UnitID()
 	txProof := &wallet.Proof{TxRecord: tr, TxProof: proof}
 	txHash := tx.Hash(crypto.SHA256)
-	p.log.Debug(fmt.Sprintf("processTx: UnitID=%x type: %s", id, tx.PayloadType()))
+	p.log.Debug(fmt.Sprintf("process %s transaction", tx.PayloadType()), logger.UnitID(id))
 
 	// handle fee credit txs
 	switch tx.Payload.Type {
@@ -321,7 +322,7 @@ func (p *blockProcessor) processTx(tr *types.TransactionRecord, proof *wallet.Tx
 		token.TxHash = txHash
 		return p.saveToken(token, txProof)
 	default:
-		p.log.Error("received unknown token transaction type, skipped processing:", fmt.Sprintf("data type: %T", tx))
+		p.log.Error(fmt.Sprintf("received unknown token transaction type %q, skipped processing", tx.Payload.Type), logger.UnitID(id))
 		return nil
 	}
 }

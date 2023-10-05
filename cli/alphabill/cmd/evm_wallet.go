@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"math/big"
 
@@ -193,7 +194,10 @@ func execEvmCmdDeploy(cmd *cobra.Command, config *walletConfig) error {
 	}
 	result, err := w.SendEvmTx(cmd.Context(), accountNumber, attributes)
 	if err != nil {
-		return fmt.Errorf("excution error %w", err)
+		if errors.Is(err, evmclient.ErrNotFound) {
+			return fmt.Errorf("no evm fee credit for account %d, please add", accountNumber)
+		}
+		return fmt.Errorf("deploy failed, %w", err)
 	}
 	printResult(result)
 	return nil
@@ -233,7 +237,10 @@ func execEvmCmdExecute(cmd *cobra.Command, config *walletConfig) error {
 	}
 	result, err := w.SendEvmTx(cmd.Context(), accountNumber, attributes)
 	if err != nil {
-		return fmt.Errorf("excution error %w", err)
+		if errors.Is(err, evmclient.ErrNotFound) {
+			return fmt.Errorf("no evm fee credit for account %d, please add", accountNumber)
+		}
+		return fmt.Errorf("excution failed, %w", err)
 	}
 	printResult(result)
 	return nil
@@ -281,7 +288,7 @@ func execEvmCmdCall(cmd *cobra.Command, config *walletConfig) error {
 	}
 	result, err := w.EvmCall(cmd.Context(), accountNumber, attributes)
 	if err != nil {
-		return fmt.Errorf("excution error %w", err)
+		return fmt.Errorf("call failed, %w", err)
 	}
 	printResult(result)
 	return nil
@@ -299,7 +306,7 @@ func execEvmCmdBalance(cmd *cobra.Command, config *walletConfig) error {
 	defer w.Shutdown()
 	balance, err := w.GetBalance(cmd.Context(), accountNumber)
 	if err != nil {
-		return fmt.Errorf("balance error %w", err)
+		return fmt.Errorf("get balance failed, %w", err)
 	}
 	inAlpha := evmwallet.ConvertBalanceToAlpha(balance)
 	balanceStr := amountToString(inAlpha, 8)
@@ -314,7 +321,7 @@ func printResult(result *evmclient.Result) {
 		consoleWriter.Println(fmt.Sprintf("Evm transaction processing fee: %v", amountToString(result.ActualFee, 8)))
 		return
 	}
-	consoleWriter.Println(fmt.Sprintf("Evm transaction succeeded"))
+	consoleWriter.Println("Evm transaction succeeded")
 	consoleWriter.Println(fmt.Sprintf("Evm transaction processing fee: %v", amountToString(result.ActualFee, 8)))
 	noContract := common.Address{} // content if no contract is deployed
 	if result.Details.ContractAddr != noContract {

@@ -38,7 +38,8 @@ func checkFeeAccountBalance(state *state.State) txsystem.GenericTransactionValid
 			}
 
 			if err = script.RunScript(ctx.Tx.OwnerProof, u.Bearer(), payloadBytes); err != nil {
-				return fmt.Errorf("invalid owner proof: %w", err)
+				return fmt.Errorf("invalid owner proof: %w [txOwnerProof=0x%x unitOwnerCondition=0x%x sigData=0x%x]",
+					err, ctx.Tx.OwnerProof, u.Bearer(), payloadBytes)
 			}
 		}
 		return nil

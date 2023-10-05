@@ -899,3 +899,28 @@ func Test_restAPI_getClosedCredit(t *testing.T) {
 		require.Equal(t, closedFCTx, closedFCFromAPI)
 	})
 }
+
+func Test_restAPI_getInfo(t *testing.T) {
+	t.Parallel()
+
+	makeRequest := func(api *tokensRestAPI) *http.Response {
+		req := httptest.NewRequest("GET", "http://ab.com/api/v1/info", nil)
+		w := httptest.NewRecorder()
+		api.getInfo(w, req)
+		return w.Result()
+	}
+
+	t.Run("ok", func(t *testing.T) {
+		api := &tokensRestAPI{systemID: tokens.DefaultSystemIdentifier}
+		rsp := makeRequest(api)
+		require.Equal(t, http.StatusOK, rsp.StatusCode, "unexpected status")
+		defer rsp.Body.Close()
+
+		var res *sdk.InfoResponse
+		if err := json.NewDecoder(rsp.Body).Decode(&res); err != nil {
+			t.Fatalf("failed to decode response body: %v", err)
+		}
+		require.Equal(t, "00000002", res.SystemID)
+		require.Equal(t, "tokens backend", res.Name)
+	})
+}

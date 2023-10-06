@@ -666,7 +666,7 @@ func (x *ConsensusManager) processNewRoundEvent(ctx context.Context) {
 		logger.Warning("%v failed to send proposal message, message signing failed: %v", x.id.ShortString(), err)
 	}
 	// broadcast proposal message (also to self)
-	logger.Debug("%v broadcasting proposal msg to: %v", x.id.ShortString(), x.leaderSelector.GetNodes()[0].ShortString())
+	logger.Trace("%v broadcasting proposal msg", x.id.ShortString())
 	if err = x.net.Send(ctx, proposalMsg, x.leaderSelector.GetNodes()...); err != nil {
 		logger.Warning("%v failed to send proposal message, network error: %v", x.id.ShortString(), err)
 	}

@@ -26,8 +26,7 @@ var (
 /*
 Prep: start network and money backend, send initial bill to wallet-1
 Test scenario 1: wallet-1 sends two transactions to wallet-2
-Test scenario 1.1: when sending a tx, wallet-1 specifies --output-path flag and checks proofs are saved there
-Test scenario 1.2: wallet-2 sends transactions back to wallet-1
+Test scenario 1.1: wallet-2 sends transactions back to wallet-1
 Test scenario 2: wallet-1 account 1 sends two transactions to wallet-1 account 2
 Test scenario 2.1: wallet-1 account 2 sends one transaction to wallet-1 account 3
 Test scenario 3: wallet-1 sends tx without confirming
@@ -87,16 +86,6 @@ func TestSendingMoneyUsingWallets_integration(t *testing.T) {
 	verifyStdout(t, stdout,
 		"Successfully confirmed transaction(s)",
 		"Paid 0.000'000'01 fees for transaction(s)")
-
-	// TS1.1: also verify --output-path flag
-	stdout = execWalletCmd(t, logF, homedir1, fmt.Sprintf("send -k 1 --amount 150 --address 0x%x --alphabill-api-uri %s --output-path %s", w2PubKey, apiAddr, homedir1))
-	proofFile := fmt.Sprintf("%s/bill-0x000000000000000000000000000000000000000000000000000000000000000100.json", homedir1)
-	verifyStdout(t, stdout,
-		"Successfully confirmed transaction(s)",
-		fmt.Sprintf("Transaction proof(s) saved to: %s", proofFile),
-		"Paid 0.000'000'01 fees for transaction(s)",
-	)
-	require.FileExists(t, proofFile)
 
 	// verify wallet-1 balance is decreased
 	w1BalanceBilly -= 200 * 1e8

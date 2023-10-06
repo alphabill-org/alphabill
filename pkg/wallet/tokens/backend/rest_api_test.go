@@ -16,13 +16,13 @@ import (
 	"sync/atomic"
 	"testing"
 
+	"github.com/alphabill-org/alphabill/internal/predicates/templates"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/fxamacker/cbor/v2"
 	"github.com/gorilla/mux"
 	"github.com/stretchr/testify/require"
 
 	"github.com/alphabill-org/alphabill/internal/hash"
-	"github.com/alphabill-org/alphabill/internal/script"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	testtransaction "github.com/alphabill-org/alphabill/internal/testutils/transaction"
@@ -78,7 +78,7 @@ func Test_restAPI_postTransaction(t *testing.T) {
 	createNTFTypeTx.Payload.Type = tokens.PayloadTypeCreateNFTType
 	pb, _ := createNTFTypeTx.PayloadBytes()
 	sig, pk := testsig.SignBytes(t, pb)
-	createNTFTypeTx.OwnerProof = script.PredicateArgumentPayToPublicKeyHashDefault(sig, pk)
+	createNTFTypeTx.OwnerProof = templates.NewP2pkh256SignatureBytes(sig, pk)
 	createNTFTypeMsg, err := cbor.Marshal(&sdk.Transactions{Transactions: []*types.TransactionOrder{createNTFTypeTx}})
 	require.NoError(t, err)
 	require.NotEmpty(t, createNTFTypeMsg)
@@ -143,7 +143,7 @@ func Test_restAPI_postTransaction(t *testing.T) {
 	t.Run("one valid type-creation transaction without an owner is sent", func(t *testing.T) {
 		tx := randomTx(t, &tokens.CreateNonFungibleTokenTypeAttributes{Symbol: "test"})
 		tx.Payload.Type = tokens.PayloadTypeCreateNFTType
-		tx.OwnerProof = script.PredicateAlwaysTrue()
+		tx.OwnerProof = templates.AlwaysTrueBytes()
 
 		message, err := cbor.Marshal(&sdk.Transactions{Transactions: []*types.TransactionOrder{tx}})
 		require.NoError(t, err)
@@ -186,7 +186,7 @@ func Test_restAPI_postTransaction(t *testing.T) {
 		txBytes, err := txs.Transactions[0].PayloadBytes()
 		require.NoError(t, err)
 		sigData, pubKey := testsig.SignBytes(t, txBytes)
-		txs.Transactions[0].OwnerProof = script.PredicateArgumentPayToPublicKeyHashDefault(sigData, pubKey)
+		txs.Transactions[0].OwnerProof = templates.NewP2pkh256SignatureBytes(sigData, pubKey)
 
 		message, err := cbor.Marshal(txs)
 		require.NoError(t, err)
@@ -223,7 +223,7 @@ func Test_restAPI_postTransaction(t *testing.T) {
 		txBytes, err := txs.Transactions[0].PayloadBytes()
 		require.NoError(t, err)
 		sigData, pubKey := testsig.SignBytes(t, txBytes)
-		txs.Transactions[0].OwnerProof = script.PredicateArgumentPayToPublicKeyHashDefault(sigData, pubKey)
+		txs.Transactions[0].OwnerProof = templates.NewP2pkh256SignatureBytes(sigData, pubKey)
 
 		message, err := cbor.Marshal(txs)
 		require.NoError(t, err)
@@ -357,7 +357,7 @@ func Test_restAPI_listTokens(t *testing.T) {
 		}
 		ds := &mockStorage{
 			queryTokens: func(kind Kind, owner sdk.Predicate, startKey TokenID, count int) ([]*TokenUnit, TokenID, error) {
-				require.EqualValues(t, script.PredicatePayToPublicKeyHashDefault(hash.Sum256(ownerID)), owner, "unexpected owner key in the query")
+				require.EqualValues(t, templates.NewP2pkh256BytesFromKeyHash(hash.Sum256(ownerID)), owner, "unexpected owner key in the query")
 				return data, data[len(data)-1].ID, nil
 			},
 		}

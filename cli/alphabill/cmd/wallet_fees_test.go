@@ -7,11 +7,11 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/alphabill-org/alphabill/internal/predicates/templates"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/stretchr/testify/require"
 
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
-	"github.com/alphabill-org/alphabill/internal/script"
 	"github.com/alphabill-org/alphabill/internal/testutils/logger"
 	testpartition "github.com/alphabill-org/alphabill/internal/testutils/partition"
 	"github.com/alphabill-org/alphabill/internal/txsystem/money"
@@ -26,7 +26,7 @@ var defaultTokenSDR = &genesis.SystemDescriptionRecord{
 	T2Timeout:        defaultT2Timeout,
 	FeeCreditBill: &genesis.FeeCreditBill{
 		UnitId:         money.NewBillID(nil, []byte{3}),
-		OwnerPredicate: script.PredicateAlwaysTrue(),
+		OwnerPredicate: templates.AlwaysTrueBytes(),
 	},
 }
 
@@ -216,7 +216,7 @@ func setupMoneyInfraAndWallet(t *testing.T, otherPartitions []*testpartition.Nod
 	initialBill := &money.InitialBill{
 		ID:    defaultInitialBillID,
 		Value: 1e18,
-		Owner: script.PredicateAlwaysTrue(),
+		Owner: templates.AlwaysTrueBytes(),
 	}
 	moneyPartition := createMoneyPartition(t, initialBill, 1)
 	nodePartitions := []*testpartition.NodePartition{moneyPartition}
@@ -258,7 +258,7 @@ func startMoneyBackend(t *testing.T, moneyPart *testpartition.NodePartition, ini
 				InitialBill: backend.InitialBill{
 					Id:        initialBill.ID,
 					Value:     initialBill.Value,
-					Predicate: script.PredicateAlwaysTrue(),
+					Predicate: templates.AlwaysTrueBytes(),
 				},
 				SystemDescriptionRecords: []*genesis.SystemDescriptionRecord{defaultMoneySDR, defaultTokenSDR},
 				Logger:                   logger.New(t),

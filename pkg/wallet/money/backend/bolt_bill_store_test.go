@@ -10,7 +10,7 @@ import (
 
 	"github.com/alphabill-org/alphabill/internal/hash"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
-	"github.com/alphabill-org/alphabill/internal/script"
+	"github.com/alphabill-org/alphabill/internal/predicates/templates"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	testtransaction "github.com/alphabill-org/alphabill/internal/testutils/transaction"
 	"github.com/alphabill-org/alphabill/internal/txsystem/fc/testutils"
@@ -447,7 +447,7 @@ func createTestBillStore(t *testing.T) *boltBillStore {
 
 func getOwnerPredicate(pubkey string) []byte {
 	pubKey, _ := hexutil.Decode(pubkey)
-	return script.PredicatePayToPublicKeyHashDefault(hash.Sum256(pubKey))
+	return templates.NewP2pkh256BytesFromKeyHash(hash.Sum256(pubKey))
 }
 
 func newBillWithValueAndOwner(val byte, ownerPredicate []byte) *Bill {

@@ -4,12 +4,13 @@ import (
 	"bytes"
 	"fmt"
 
+	"github.com/alphabill-org/alphabill/internal/predicates"
 	"github.com/alphabill-org/alphabill/internal/state"
 	"github.com/alphabill-org/alphabill/internal/types"
 )
 
 // AddCredit adds a new credit record
-func AddCredit(id types.UnitID, owner state.Predicate, data *FeeCreditRecord) state.Action {
+func AddCredit(id types.UnitID, owner predicates.PredicateBytes, data *FeeCreditRecord) state.Action {
 	return state.AddUnit(id, owner, data)
 }
 

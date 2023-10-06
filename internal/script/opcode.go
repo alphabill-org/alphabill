@@ -1,4 +1,4 @@
-package script
+package _s
 
 import (
 	"bytes"

@@ -6,6 +6,7 @@ import (
 	"sort"
 	"testing"
 
+	"github.com/alphabill-org/alphabill/internal/predicates/templates"
 	testtransaction "github.com/alphabill-org/alphabill/internal/testutils/transaction"
 	"github.com/alphabill-org/alphabill/internal/txsystem/fc/transactions"
 	"github.com/ethereum/go-ethereum/common/hexutil"
@@ -14,7 +15,6 @@ import (
 
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/partition/event"
-	"github.com/alphabill-org/alphabill/internal/script"
 	"github.com/alphabill-org/alphabill/internal/state"
 	"github.com/alphabill-org/alphabill/internal/testutils/logger"
 	testpartition "github.com/alphabill-org/alphabill/internal/testutils/partition"
@@ -43,7 +43,7 @@ func TestPartition_Ok(t *testing.T) {
 	initialBill := &InitialBill{
 		ID:    []byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1},
 		Value: moneyInvariant,
-		Owner: script.PredicateAlwaysTrue(),
+		Owner: templates.AlwaysTrueBytes(),
 	}
 	var s *state.State
 	moneyPrt, err := testpartition.NewPartition(t, 3, func(tb map[string]abcrypto.Verifier) txsystem.TransactionSystem {
@@ -76,7 +76,7 @@ func TestPartition_Ok(t *testing.T) {
 			testfc.WithTargetRecordID(fcrID),
 		),
 		testtransaction.WithUnitId(initialBill.ID),
-		testtransaction.WithOwnerProof(script.PredicateArgumentEmpty()),
+		testtransaction.WithOwnerProof(nil),
 		testtransaction.WithPayloadType(transactions.PayloadTypeTransferFeeCredit),
 	)
 	require.NoError(t, moneyPrt.SubmitTx(transferFC))
@@ -91,10 +91,10 @@ func TestPartition_Ok(t *testing.T) {
 		testfc.NewAddFCAttr(t, abNet.RootPartition.Nodes[0].RootSigner,
 			testfc.WithTransferFCTx(transferFCRecord),
 			testfc.WithTransferFCProof(transferFCProof),
-			testfc.WithFCOwnerCondition(script.PredicateAlwaysTrue()),
+			testfc.WithFCOwnerCondition(templates.AlwaysTrueBytes()),
 		),
 		testtransaction.WithUnitId(fcrID),
-		testtransaction.WithOwnerProof(script.PredicateArgumentEmpty()),
+		testtransaction.WithOwnerProof(nil),
 		testtransaction.WithPayloadType(transactions.PayloadTypeAddFeeCredit),
 	)
 	require.NoError(t, moneyPrt.SubmitTx(addFC))
@@ -107,7 +107,7 @@ func TestPartition_Ok(t *testing.T) {
 	require.Equal(t, fcrAmount-transferFCRecord.ServerMetadata.ActualFee-addTxRecord.ServerMetadata.ActualFee, feeCredit.Data().(*unit.FeeCreditRecord).Balance)
 
 	// transfer initial bill to pubKey1
-	transferInitialBillTx, _ := createBillTransfer(t, initialBill.ID, total-fcrAmount, script.PredicatePayToPublicKeyHashDefault(decodeAndHashHex(pubKey1)), transferFC.Hash(crypto.SHA256))
+	transferInitialBillTx, _ := createBillTransfer(t, initialBill.ID, total-fcrAmount, templates.NewP2pkh256BytesFromKeyHash(decodeAndHashHex(pubKey1)), transferFC.Hash(crypto.SHA256))
 	require.NoError(t, moneyPrt.SubmitTx(transferInitialBillTx))
 	txRecord, _, err := testpartition.WaitTxProof(t, moneyPrt, 2, transferInitialBillTx)
 	require.NoError(t, err, "transfer initial bill failed")
@@ -118,7 +118,7 @@ func TestPartition_Ok(t *testing.T) {
 
 	// split initial bill from pubKey1 to pubKey2
 	amountPK2 := uint64(1000)
-	targetUnit := &TargetUnit{Amount: amountPK2, OwnerCondition: script.PredicatePayToPublicKeyHashDefault(decodeAndHashHex(pubKey2))}
+	targetUnit := &TargetUnit{Amount: amountPK2, OwnerCondition: templates.NewP2pkh256BytesFromKeyHash(decodeAndHashHex(pubKey2))}
 	remainingValue := total - fcrAmount - amountPK2
 	tx := createSplitTx(t, initialBill.ID, transferInitialBillTxRecord, []*TargetUnit{targetUnit}, remainingValue)
 	require.NoError(t, moneyPrt.SubmitTx(tx))
@@ -152,7 +152,7 @@ func TestPartition_SwapDCOk(t *testing.T) {
 		initialBill   = &InitialBill{
 			ID:    NewBillID(nil, []byte{1}),
 			Value: moneyInvariant,
-			Owner: script.PredicateAlwaysTrue(),
+			Owner: templates.AlwaysTrueBytes(),
 		}
 	)
 	total := moneyInvariant
@@ -185,7 +185,7 @@ func TestPartition_SwapDCOk(t *testing.T) {
 	require.NoError(t, err)
 
 	// transfer initial bill to pubKey1
-	transferInitialBillTx, _ := createBillTransfer(t, initialBill.ID, total-fcrAmount, script.PredicatePayToPublicKeyHashDefault(decodeAndHashHex(pubKey1)), transferFC.Hash(hashAlgorithm))
+	transferInitialBillTx, _ := createBillTransfer(t, initialBill.ID, total-fcrAmount, templates.NewP2pkh256BytesFromKeyHash(decodeAndHashHex(pubKey1)), transferFC.Hash(hashAlgorithm))
 	require.NoError(t, moneyPrt.SubmitTx(transferInitialBillTx))
 	// wait for transaction to be added to block
 	_, _, err = testpartition.WaitTxProof(t, moneyPrt, 2, transferInitialBillTx)
@@ -200,7 +200,7 @@ func TestPartition_SwapDCOk(t *testing.T) {
 
 	var targetUnits []*TargetUnit
 	for i := 0; i < nofDustToSwap; i++ {
-		targetUnits = append(targetUnits, &TargetUnit{Amount: amount, OwnerCondition: script.PredicatePayToPublicKeyHashDefault(decodeAndHashHex(pubKey2))})
+		targetUnits = append(targetUnits, &TargetUnit{Amount: amount, OwnerCondition: templates.NewP2pkh256BytesFromKeyHash(decodeAndHashHex(pubKey2))})
 		total -= amount
 		amount++
 	}
@@ -232,7 +232,7 @@ func TestPartition_SwapDCOk(t *testing.T) {
 
 	// create swap order
 	swapAttr := &SwapDCAttributes{
-		OwnerCondition:   script.PredicatePayToPublicKeyHashDefault(decodeAndHashHex(pubKey1)),
+		OwnerCondition:   templates.NewP2pkh256BytesFromKeyHash(decodeAndHashHex(pubKey1)),
 		DcTransfers:      dcRecords,
 		DcTransferProofs: dcRecordsProofs,
 		TargetValue:      sum,
@@ -253,8 +253,8 @@ func TestPartition_SwapDCOk(t *testing.T) {
 				FeeCreditRecordID: fcrID,
 			},
 		},
-		OwnerProof: script.PredicateArgumentEmpty(),
-		FeeProof:   script.PredicateArgumentEmpty(),
+		OwnerProof: nil,
+		FeeProof:   nil,
 	}
 
 	// #nosec G104
@@ -262,7 +262,7 @@ func TestPartition_SwapDCOk(t *testing.T) {
 	sigBytes, err := swapTx.PayloadBytes()
 	require.NoError(t, err)
 	sig, _ := signer.SignBytes(sigBytes)
-	swapTx.OwnerProof = script.PredicateArgumentPayToPublicKeyHashDefault(sig, decodeHex(pubKey1))
+	swapTx.OwnerProof = templates.NewP2pkh256SignatureBytes(sig, decodeHex(pubKey1))
 
 	require.NoError(t, moneyPrt.SubmitTx(swapTx))
 	_, _, err = testpartition.WaitTxProof(t, moneyPrt, testpartition.ANY_VALIDATOR, swapTx)
@@ -279,7 +279,7 @@ func createSplitTx(t *testing.T, fromID []byte, prevTx *types.TransactionRecord,
 	sigBytes, err := tx.PayloadBytes()
 	require.NoError(t, err)
 	sig, _ := signer.SignBytes(sigBytes)
-	tx.OwnerProof = script.PredicateArgumentPayToPublicKeyHashDefault(sig, decodeHex(pubKey1))
+	tx.OwnerProof = templates.NewP2pkh256SignatureBytes(sig, decodeHex(pubKey1))
 	return tx
 }
 
@@ -304,7 +304,7 @@ func createDCAndSwapTxs(
 		sigBytes, err := tx.PayloadBytes()
 		require.NoError(t, err)
 		sig, _ := signer.SignBytes(sigBytes)
-		tx.OwnerProof = script.PredicateArgumentPayToPublicKeyHashDefault(sig, decodeHex(pubKey2))
+		tx.OwnerProof = templates.NewP2pkh256SignatureBytes(sig, decodeHex(pubKey2))
 		dcTransfers[i] = tx
 	}
 

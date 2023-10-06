@@ -7,10 +7,10 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/alphabill-org/alphabill/internal/predicates/templates"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/stretchr/testify/require"
 
-	"github.com/alphabill-org/alphabill/internal/script"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/alphabill-org/alphabill/internal/testutils/logger"
 	testpartition "github.com/alphabill-org/alphabill/internal/testutils/partition"
@@ -42,8 +42,7 @@ func TestFungibleToken_Subtyping_Integration(t *testing.T) {
 	typeID12 := randomFungibleTokenTypeID(t)
 	typeID13 := randomFungibleTokenTypeID(t)
 	typeID14 := randomFungibleTokenTypeID(t)
-	//push bool false, equal; to satisfy: 5100
-	execTokensCmd(t, homedirW1, fmt.Sprintf("new-type fungible -r %s --symbol %s --type %s --subtype-clause 0x53510087", backendURL, symbol1, typeID11))
+	execTokensCmd(t, homedirW1, fmt.Sprintf("new-type fungible -r %s --symbol %s --type %s --subtype-clause 0x830001F6", backendURL, symbol1, typeID11))
 	require.Eventually(t, testpartition.BlockchainContains(tokensPartition, func(tx *types.TransactionOrder) bool {
 		return bytes.Equal(tx.UnitID(), typeID11)
 	}), test.WaitDuration, test.WaitTick)
@@ -54,19 +53,19 @@ func TestFungibleToken_Subtyping_Integration(t *testing.T) {
 	//--subtype-input without --parent-type also gives error
 	execTokensCmdWithError(t, homedirW1, fmt.Sprintf("new-type fungible -r %s --symbol %s --type %s --subtype-clause %s --subtype-input %s", backendURL, symbol1, typeID12, "ptpkh", "0x535100"), "missing [parent-type]")
 	//inheriting the first one and setting subtype clause to ptpkh
-	execTokensCmd(t, homedirW1, fmt.Sprintf("new-type fungible -r %s --symbol %s --type %s --subtype-clause %s --parent-type %s --subtype-input %s", backendURL, symbol1, typeID12, "ptpkh", typeID11, "0x535100"))
+	execTokensCmd(t, homedirW1, fmt.Sprintf("new-type fungible -r %s --symbol %s --type %s --subtype-clause %s --parent-type %s --subtype-input %s", backendURL, symbol1, typeID12, "ptpkh", typeID11, "0x"))
 	require.Eventually(t, testpartition.BlockchainContains(tokensPartition, func(tx *types.TransactionOrder) bool {
 		return bytes.Equal(tx.UnitID(), typeID12)
 	}), test.WaitDuration, test.WaitTick)
 	ensureTokenTypeIndexed(t, ctx, backendClient, w1key.PubKey, typeID12)
 	//third type needs to satisfy both parents, immediate parent with ptpkh, grandparent with 0x535100
-	execTokensCmd(t, homedirW1, fmt.Sprintf("new-type fungible -r %s --symbol %s --type %s --subtype-clause %s --parent-type %s --subtype-input %s", backendURL, symbol1, typeID13, "true", typeID12, "ptpkh,0x535100"))
+	execTokensCmd(t, homedirW1, fmt.Sprintf("new-type fungible -r %s --symbol %s --type %s --subtype-clause %s --parent-type %s --subtype-input %s", backendURL, symbol1, typeID13, "true", typeID12, "ptpkh,empty"))
 	require.Eventually(t, testpartition.BlockchainContains(tokensPartition, func(tx *types.TransactionOrder) bool {
 		return bytes.Equal(tx.UnitID(), typeID13)
 	}), test.WaitDuration, test.WaitTick)
 	ensureTokenTypeIndexed(t, ctx, backendClient, w1key.PubKey, typeID13)
 	//4th type
-	execTokensCmd(t, homedirW1, fmt.Sprintf("new-type fungible -r %s --symbol %s --type %s --subtype-clause %s --parent-type %s --subtype-input %s", backendURL, symbol1, typeID14, "true", typeID13, "empty,ptpkh,0x535100"))
+	execTokensCmd(t, homedirW1, fmt.Sprintf("new-type fungible -r %s --symbol %s --type %s --subtype-clause %s --parent-type %s --subtype-input %s", backendURL, symbol1, typeID14, "true", typeID13, "empty,ptpkh,0x"))
 	require.Eventually(t, testpartition.BlockchainContains(tokensPartition, func(tx *types.TransactionOrder) bool {
 		return bytes.Equal(tx.UnitID(), typeID14)
 	}), test.WaitDuration, test.WaitTick)
@@ -304,7 +303,7 @@ func NewAlphabillNetwork(t *testing.T) *AlphabillNetwork {
 	initialBill := &money.InitialBill{
 		ID:    defaultInitialBillID,
 		Value: 1e18,
-		Owner: script.PredicateAlwaysTrue(),
+		Owner: templates.AlwaysTrueBytes(),
 	}
 	moneyPartition := createMoneyPartition(t, initialBill, 1)
 	tokensPartition := createTokensPartition(t)

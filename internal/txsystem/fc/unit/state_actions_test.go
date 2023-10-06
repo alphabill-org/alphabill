@@ -3,6 +3,7 @@ package unit
 import (
 	"testing"
 
+	"github.com/alphabill-org/alphabill/internal/predicates"
 	"github.com/alphabill-org/alphabill/internal/state"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/stretchr/testify/require"
@@ -10,7 +11,7 @@ import (
 
 var (
 	id    = []byte{4}
-	owner = state.Predicate{1, 2, 3}
+	owner = predicates.PredicateBytes{1, 2, 3}
 )
 
 func TestAddCredit_OK(t *testing.T) {

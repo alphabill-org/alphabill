@@ -635,9 +635,12 @@ func Test_ConsensusManager_messages(t *testing.T) {
 	})
 
 	t.Run("IR change request forwarded by peer included in proposal", func(t *testing.T) {
-		cms, rootNet, rootG := createConsensusManagers(t, 1, []*genesis.PartitionRecord{partitionRecord})
+		cms, rootNet, rootG := createConsensusManagers(t, 2, []*genesis.PartitionRecord{partitionRecord})
 		cmLeader := cms[0]
-
+		allNodes := cmLeader.leaderSelector.GetNodes()
+		for _, v := range cms {
+			v.leaderSelector = constLeader{leader: cmLeader.id, nodes: allNodes} // use "const leader" to take leader selection out of test
+		}
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 		go func() { require.ErrorIs(t, cmLeader.Run(ctx), context.Canceled) }()
@@ -648,11 +651,8 @@ func Test_ConsensusManager_messages(t *testing.T) {
 			CertReason:       abtypes.Quorum,
 			Requests:         buildBlockCertificationRequest(t, rootG, partitionNodes),
 		}
-		cmBnet := rootNet.Connect(cmLeader.id)
+		cmBnet := rootNet.Connect(cms[1].id)
 		require.NoError(t, cmBnet.Send(ctx, irCReq, cmLeader.id))
-		// This is racy, sending IR change request to self and reading the receipt channel right after -
-		// wait IR request to message consumed by CM loop and then wait for proposal
-		require.Eventually(t, func() bool { return len(cmBnet.ReceivedChannel()) == 0 }, test.WaitDuration, test.WaitTick)
 		// IRCR must be included into broadcast proposal, either this or next round
 		sawIRCR := false
 		for cnt := 0; cnt < 2 && !sawIRCR; cnt++ {

@@ -689,10 +689,6 @@ same network with other peers in the mockNetwork.
 NB! not concurrency safe, register peers before concurrent action!
 */
 func (mnw *mockNetwork) Connect(node peer.ID) RootNet {
-	// if already exists, then do not overwrite
-	if ch, ok := mnw.cons[node]; ok {
-		return &mockNwConnection{nw: mnw, id: node, rcv: ch}
-	}
 	con := &mockNwConnection{nw: mnw, id: node, rcv: make(chan any)}
 	mnw.cons[node] = con.rcv
 	return con

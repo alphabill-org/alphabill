@@ -650,7 +650,8 @@ func Test_ConsensusManager_messages(t *testing.T) {
 		}
 		cmBnet := rootNet.Connect(cmLeader.id)
 		require.NoError(t, cmBnet.Send(ctx, irCReq, cmLeader.id))
-		// wait IR request to message consumed
+		// This is racy, sending IR change request to self and reading the receipt channel right after -
+		// wait IR request to message consumed by CM loop and then wait for proposal
 		require.Eventually(t, func() bool { return len(cmBnet.ReceivedChannel()) == 0 }, test.WaitDuration, test.WaitTick)
 		// IRCR must be included into broadcast proposal, either this or next round
 		sawIRCR := false

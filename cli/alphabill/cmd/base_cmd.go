@@ -2,15 +2,16 @@ package cmd
 
 import (
 	"context"
+	"errors"
 	"fmt"
-	"path/filepath"
+	"os"
 	"strings"
 
-	"github.com/alphabill-org/alphabill/internal/errors"
-	"github.com/alphabill-org/alphabill/pkg/logger"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
+
+	"github.com/alphabill-org/alphabill/pkg/logger"
 )
 
 type (
@@ -22,8 +23,8 @@ type (
 )
 
 // New creates a new Alphabill application
-func New() *alphabillApp {
-	baseCmd, baseConfig := newBaseCmd()
+func New(logF LoggerFactory) *alphabillApp {
+	baseCmd, baseConfig := newBaseCmd(logF)
 	return &alphabillApp{baseCmd, baseConfig, nil}
 }
 
@@ -53,8 +54,8 @@ func (a *alphabillApp) addAndExecuteCommand(ctx context.Context) error {
 	return a.baseCmd.ExecuteContext(ctx)
 }
 
-func newBaseCmd() (*cobra.Command, *baseConfiguration) {
-	config := &baseConfiguration{}
+func newBaseCmd(logF LoggerFactory) (*cobra.Command, *baseConfiguration) {
+	config := &baseConfiguration{loggerBuilder: logF}
 	// baseCmd represents the base command when called without any subcommands
 	var baseCmd = &cobra.Command{
 		Use:           "alphabill",
@@ -110,23 +111,17 @@ func initializeConfig(cmd *cobra.Command, config *baseConfiguration) error {
 
 	// Bind the current command's flags to viper
 	if err := bindFlags(cmd, v); err != nil {
-		return errors.Wrap(err, "bind flags failed")
+		return fmt.Errorf("binding flags: %w", err)
 	}
 
 	return nil
 }
 
 func initializeLogger(config *baseConfiguration) {
-	loggerConfigFile := config.LogCfgFile
-	if !filepath.IsAbs(loggerConfigFile) {
-		// Logger config file URL is using relative path
-		loggerConfigFile = filepath.Join(config.HomeDir, config.LogCfgFile)
-	}
-
-	if err := logger.UpdateGlobalConfigFromFile(loggerConfigFile); err != nil {
-		if errors.ErrorCausedBy(err, errors.ErrFileNotFound) {
+	if err := logger.UpdateGlobalConfigFromFile(config.LoggerCfgFilename()); err != nil {
+		if errors.Is(err, os.ErrNotExist) {
 			// In a common case when the config file is not found, the error message is made shorter. Not to spam the log.
-			log.Debug("The logger configuration file (%s) not found", loggerConfigFile)
+			log.Debug("The logger configuration file (%s) not found", config.LoggerCfgFilename())
 		} else {
 			log.Warning("Updating logger configuration failed. Error: %s", err.Error())
 		}
@@ -137,7 +132,7 @@ func initializeLogger(config *baseConfiguration) {
 
 // Bind each cobra flag to its associated viper configuration (config file and environment variable)
 func bindFlags(cmd *cobra.Command, v *viper.Viper) error {
-	var bindFlagErr error
+	var bindFlagErr []error
 	cmd.Flags().VisitAll(func(f *pflag.Flag) {
 		if f.Name == keyHome || f.Name == keyConfig {
 			// "home" and "config" are special configuration values, handled separately.
@@ -149,7 +144,7 @@ func bindFlags(cmd *cobra.Command, v *viper.Viper) error {
 		if strings.Contains(f.Name, "-") {
 			envVarSuffix := strings.ToUpper(strings.ReplaceAll(f.Name, "-", "_"))
 			if err := v.BindEnv(f.Name, fmt.Sprintf("%s_%s", envPrefix, envVarSuffix)); err != nil {
-				bindFlagErr = errors.Wrap(err, "could not bind env to cobra flag")
+				bindFlagErr = append(bindFlagErr, fmt.Errorf("binding env to flag %q: %w", f.Name, err))
 				return
 			}
 		}
@@ -158,10 +153,11 @@ func bindFlags(cmd *cobra.Command, v *viper.Viper) error {
 		if !f.Changed && v.IsSet(f.Name) {
 			val := v.Get(f.Name)
 			if err := cmd.Flags().Set(f.Name, fmt.Sprintf("%v", val)); err != nil {
-				bindFlagErr = errors.Wrap(err, "could not set value to cobra flag")
+				bindFlagErr = append(bindFlagErr, fmt.Errorf("seting flag %q value: %w", f.Name, err))
 				return
 			}
 		}
 	})
-	return bindFlagErr
+
+	return errors.Join(bindFlagErr...)
 }

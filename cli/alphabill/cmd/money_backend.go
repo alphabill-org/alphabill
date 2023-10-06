@@ -3,6 +3,7 @@ package cmd
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 
@@ -17,9 +18,10 @@ import (
 const (
 	moneyBackendHomeDir = "money-backend"
 
-	serverAddrCmdName  = "server-addr"
-	dbFileCmdName      = "db"
-	listBillsPageLimit = "list-bills-page-limit"
+	serverAddrCmdName       = "server-addr"
+	dbFileCmdName           = "db"
+	listBillsPageLimit      = "list-bills-page-limit"
+	systemIdentifierCmdName = "system-identifier"
 )
 
 type moneyBackendConfig struct {
@@ -33,6 +35,7 @@ type moneyBackendConfig struct {
 	InitialBillID      uint64
 	InitialBillValue   uint64
 	SDRFiles           []string // system description record files
+	SystemID           []byte   // hex encoded money system identifier
 }
 
 func (c *moneyBackendConfig) GetDbFile() (string, error) {
@@ -70,18 +73,7 @@ func newMoneyBackendCmd(baseConfig *baseConfiguration) *cobra.Command {
 		Use:   "money-backend",
 		Short: "Starts money backend service",
 		Long:  "Starts money backend service, indexes all transactions by owner predicates, starts http server",
-		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
-			// initialize config so that baseConfig.HomeDir gets configured
-			err := initializeConfig(cmd, baseConfig)
-			if err != nil {
-				return err
-			}
-			// init logger
-			return initWalletLogger(&walletConfig{LogLevel: config.LogLevel, LogFile: config.LogFile})
-		},
 	}
-	walletCmd.PersistentFlags().StringVar(&config.LogFile, logFileCmdName, "", "log file path (default output to stderr)")
-	walletCmd.PersistentFlags().StringVar(&config.LogLevel, logLevelCmdName, "INFO", "logging level (DEBUG, INFO, NOTICE, WARNING, ERROR)")
 	walletCmd.AddCommand(startMoneyBackendCmd(config))
 	return walletCmd
 }
@@ -90,7 +82,11 @@ func startMoneyBackendCmd(config *moneyBackendConfig) *cobra.Command {
 	cmd := &cobra.Command{
 		Use: "start",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return execMoneyBackendStartCmd(cmd.Context(), config)
+			logger, err := config.Base.Logger(cmd)
+			if err != nil {
+				return fmt.Errorf("creating logger: %w", err)
+			}
+			return execMoneyBackendStartCmd(cmd.Context(), config, logger)
 		},
 	}
 	cmd.Flags().StringVarP(&config.AlphabillUrl, alphabillNodeURLCmdName, "u", defaultAlphabillNodeURL, "alphabill node url")
@@ -99,11 +95,12 @@ func startMoneyBackendCmd(config *moneyBackendConfig) *cobra.Command {
 	cmd.Flags().IntVarP(&config.ListBillsPageLimit, listBillsPageLimit, "l", 100, "GET /list-bills request default/max limit size")
 	cmd.Flags().Uint64Var(&config.InitialBillValue, "initial-bill-value", 100000000, "initial bill value (needed for initial startup only)")
 	cmd.Flags().Uint64Var(&config.InitialBillID, "initial-bill-id", 1, "initial bill id hex string with 0x prefix (needed for initial startup only)")
-	cmd.Flags().StringSliceVarP(&config.SDRFiles, "system-description-record-files", "c", nil, "path to SDR files (one for each partition, including money partion itself; defaults to single money partition only SDR; needed for initial startup only)")
+	cmd.Flags().StringSliceVarP(&config.SDRFiles, "system-description-record-files", "c", nil, "path to SDR files (one for each partition, including money partition itself; defaults to single money partition only SDR; needed for initial startup only)")
+	cmd.Flags().BytesHexVar(&config.SystemID, systemIdentifierCmdName, money.DefaultSystemIdentifier, "system identifier in hex format")
 	return cmd
 }
 
-func execMoneyBackendStartCmd(ctx context.Context, config *moneyBackendConfig) error {
+func execMoneyBackendStartCmd(ctx context.Context, config *moneyBackendConfig, logger *slog.Logger) error {
 	dbFile, err := config.GetDbFile()
 	if err != nil {
 		return err
@@ -113,7 +110,7 @@ func execMoneyBackendStartCmd(ctx context.Context, config *moneyBackendConfig) e
 		return err
 	}
 	return backend.Run(ctx, &backend.Config{
-		ABMoneySystemIdentifier: money.DefaultSystemIdentifier,
+		ABMoneySystemIdentifier: config.SystemID,
 		AlphabillUrl:            config.AlphabillUrl,
 		ServerAddr:              config.ServerAddr,
 		DbFile:                  dbFile,
@@ -124,5 +121,6 @@ func execMoneyBackendStartCmd(ctx context.Context, config *moneyBackendConfig) e
 			Predicate: script.PredicateAlwaysTrue(),
 		},
 		SystemDescriptionRecords: sdrFiles,
+		Logger:                   logger,
 	})
 }

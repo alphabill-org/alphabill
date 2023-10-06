@@ -5,7 +5,6 @@ import (
 	"crypto"
 	"fmt"
 
-	"github.com/alphabill-org/alphabill/internal/errors"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/internal/script"
 	"github.com/alphabill-org/alphabill/internal/txsystem/money"
@@ -62,7 +61,7 @@ func newMoneyNodeCmd(baseConfig *baseConfiguration, nodeRunFunc moneyNodeRunnabl
 func runMoneyNode(ctx context.Context, cfg *moneyNodeConfiguration) error {
 	pg, err := loadPartitionGenesis(cfg.Node.Genesis)
 	if err != nil {
-		return errors.Wrapf(err, "failed to read genesis file %s", cfg.Node.Genesis)
+		return fmt.Errorf("loading partition genesis (file %s): %w", cfg.Node.Genesis, err)
 	}
 
 	params := &genesis.MoneyPartitionParams{}
@@ -82,7 +81,7 @@ func runMoneyNode(ctx context.Context, cfg *moneyNodeConfiguration) error {
 	}
 
 	txs, err := money.NewTxSystem(
-	        money.WithSystemIdentifier(pg.SystemDescriptionRecord.SystemIdentifier),
+		money.WithSystemIdentifier(pg.SystemDescriptionRecord.SystemIdentifier),
 		money.WithHashAlgorithm(crypto.SHA256),
 		money.WithInitialBill(ib),
 		money.WithSystemDescriptionRecords(params.SystemDescriptionRecords),
@@ -90,7 +89,7 @@ func runMoneyNode(ctx context.Context, cfg *moneyNodeConfiguration) error {
 		money.WithTrustBase(trustBase),
 	)
 	if err != nil {
-		return errors.Wrapf(err, "failed to start money transaction system")
+		return fmt.Errorf("creating money transaction system: %w", err)
 	}
 	return defaultNodeRunFunc(ctx, "money node", txs, cfg.Node, cfg.RPCServer, cfg.RESTServer)
 }

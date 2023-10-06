@@ -14,6 +14,7 @@ import (
 type (
 	infoResponse struct {
 		SystemID            string     `json:"system_id"` // hex encoded system identifier
+		Name                string     `json:"name"`      // one of [money node | tokens node | evm node]
 		Self                peerInfo   `json:"self"`      // information about this peer
 		BootstrapNodes      []peerInfo `json:"bootstrap_nodes"`
 		RootValidators      []peerInfo `json:"root_validators"`
@@ -28,16 +29,17 @@ type (
 	}
 )
 
-func InfoEndpoints(node partitionNode, self *network.Peer) RegistrarFunc {
+func InfoEndpoints(node partitionNode, name string, self *network.Peer) RegistrarFunc {
 	return func(r *mux.Router) {
-		r.HandleFunc("/info", infoHandler(node, self)).Methods(http.MethodGet, http.MethodOptions)
+		r.HandleFunc("/info", infoHandler(node, name, self)).Methods(http.MethodGet, http.MethodOptions)
 	}
 }
 
-func infoHandler(node partitionNode, self *network.Peer) http.HandlerFunc {
+func infoHandler(node partitionNode, name string, self *network.Peer) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		i := infoResponse{
 			SystemID: hex.EncodeToString(node.SystemIdentifier()),
+			Name:     name,
 			Self: peerInfo{
 				Identifier: self.ID().String(),
 				Addresses:  self.MultiAddresses(),

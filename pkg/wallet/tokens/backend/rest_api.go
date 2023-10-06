@@ -44,6 +44,7 @@ type tokensRestAPI struct {
 	ab        abClient
 	streamSSE func(ctx context.Context, owner broker.PubKey, w http.ResponseWriter) error
 	rw        sdk.ResponseWriter
+	systemID  []byte
 }
 
 const maxResponseItems = 100
@@ -72,6 +73,7 @@ func (api *tokensRestAPI) endpoints() http.Handler {
 	apiV1.HandleFunc("/units/{unitId}/transactions/{txHash}/proof", api.getTxProof).Methods("GET", "OPTIONS")
 	apiV1.HandleFunc("/fee-credit-bills/{unitId}", api.getFeeCreditBill).Methods("GET", "OPTIONS")
 	apiV1.HandleFunc("/closed-fee-credit/{unitId}", api.getClosedFeeCredit).Methods("GET", "OPTIONS")
+	apiV1.HandleFunc("/info", api.getInfo).Methods("GET", "OPTIONS")
 
 	apiV1.Handle("/swagger/swagger-initializer.js", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		initializer := "swagger/swagger-initializer-tokens.js"
@@ -333,6 +335,15 @@ func (api *tokensRestAPI) getClosedFeeCredit(w http.ResponseWriter, r *http.Requ
 		return
 	}
 	api.rw.WriteCborResponse(w, cfc)
+}
+
+func (api *tokensRestAPI) getInfo(w http.ResponseWriter, _ *http.Request) {
+	systemID := hex.EncodeToString(api.systemID)
+	res := sdk.InfoResponse{
+		SystemID: systemID,
+		Name:     "tokens backend",
+	}
+	api.rw.WriteResponse(w, res)
 }
 
 func (api *tokensRestAPI) saveTx(ctx context.Context, tx *types.TransactionOrder, owner []byte) error {

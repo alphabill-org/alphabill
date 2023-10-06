@@ -18,6 +18,7 @@ import (
 	"google.golang.org/grpc/health"
 	"google.golang.org/grpc/health/grpc_health_v1"
 
+	"github.com/alphabill-org/alphabill/internal/debug"
 	"github.com/alphabill-org/alphabill/internal/keyvaluedb"
 	"github.com/alphabill-org/alphabill/internal/keyvaluedb/boltdb"
 	"github.com/alphabill-org/alphabill/internal/keyvaluedb/memorydb"
@@ -59,6 +60,7 @@ func defaultNodeRunFunc(ctx context.Context, name string, txs txsystem.Transacti
 }
 
 func run(ctx context.Context, name string, self *network.Peer, node *partition.Node, rpcServerConf *grpcServerConfiguration, restServerConf *restServerConfiguration) error {
+	log.Info("starting %s: BuildInfo=%s", name, debug.ReadBuildInfo())
 	g, ctx := errgroup.WithContext(ctx)
 
 	g.Go(func() error { return node.Run(ctx) })
@@ -96,7 +98,7 @@ func run(ctx context.Context, name string, self *network.Peer, node *partition.N
 		if restServerConf.IsAddressEmpty() {
 			return nil // return nil in this case in order not to kill the group!
 		}
-		routers := []rpc.Registrar{rpc.NodeEndpoints(node), rpc.MetricsEndpoints(), rpc.InfoEndpoints(node, self)}
+		routers := []rpc.Registrar{rpc.NodeEndpoints(node), rpc.MetricsEndpoints(), rpc.InfoEndpoints(node, name, self)}
 		if restServerConf.router != nil {
 			routers = append(routers, restServerConf.router)
 		}
@@ -169,12 +171,11 @@ func loadNetworkConfiguration(ctx context.Context, keys *Keys, pg *genesis.Parti
 	if err != nil {
 		return nil, err
 	}
-	bootstrapPeers := []peer.AddrInfo{{ID: bootstrapNodeID, Addrs: []multiaddr.Multiaddr{bootstrapNodeAddress}}}
 
 	peerConfiguration := &network.PeerConfiguration{
 		Address:        cfg.Address,
 		KeyPair:        pair,
-		BootstrapPeers: bootstrapPeers,
+		BootstrapPeers: []peer.AddrInfo{{ID: bootstrapNodeID, Addrs: []multiaddr.Multiaddr{bootstrapNodeAddress}}},
 		Validators:     validatorIdentifiers,
 	}
 
@@ -234,9 +235,6 @@ func createNode(ctx context.Context, txs txsystem.TransactionSystem, cfg *startN
 		if err != nil {
 			return nil, nil, err
 		}
-	}
-	if err != nil {
-		return nil, nil, err
 	}
 	options := []partition.NodeOption{
 		partition.WithRootAddressAndIdentifier(rootAddress, rootID),
@@ -303,7 +301,7 @@ func addCommonNodeConfigurationFlags(nodeCmd *cobra.Command, config *startNodeCo
 	nodeCmd.Flags().StringVarP(&config.KeyFile, keyFileCmdFlag, "k", "", fmt.Sprintf("path to the key file (default: $AB_HOME/%s/keys.json)", partitionSuffix))
 	nodeCmd.Flags().StringVarP(&config.Genesis, "genesis", "g", "", fmt.Sprintf("path to the partition genesis file : $AB_HOME/%s/partition-genesis.json)", partitionSuffix))
 	nodeCmd.Flags().StringVarP(&config.DbFile, "db", "f", "", fmt.Sprintf("path to the database file (default: $AB_HOME/%s/%s)", partitionSuffix, BoltBlockStoreFileName))
-	nodeCmd.Flags().StringVarP(&config.TxIndexerDBFile, "tx-db", "", "", fmt.Sprintf("path to the transaction indexer database file"))
+	nodeCmd.Flags().StringVarP(&config.TxIndexerDBFile, "tx-db", "", "", "path to the transaction indexer database file")
 	nodeCmd.Flags().Uint64Var(&config.LedgerReplicationMaxBlocks, "ledger-replication-max-blocks", 1000, "maximum number of blocks to return in a single replication response")
 	nodeCmd.Flags().Uint32Var(&config.LedgerReplicationMaxTx, "ledger-replication-max-transactions", 10000, "maximum number of transactions to return in a single replication response")
 }

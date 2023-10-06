@@ -6,6 +6,8 @@ import (
 	"math"
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/script"
 	"github.com/alphabill-org/alphabill/internal/state"
@@ -15,7 +17,6 @@ import (
 	testtransaction "github.com/alphabill-org/alphabill/internal/testutils/transaction"
 	"github.com/alphabill-org/alphabill/internal/txsystem/fc/unit"
 	"github.com/alphabill-org/alphabill/internal/types"
-	"github.com/stretchr/testify/require"
 )
 
 const (
@@ -26,10 +27,8 @@ const (
 	validName       = "Long name for BETA"
 	validIconType   = "image/png"
 
-	existingTokenValue  = 1000
+	existingTokenValue = 1000
 )
-
-
 
 var (
 	existingTokenTypeUnitID  = NewFungibleTokenTypeID(nil, []byte{1})
@@ -380,7 +379,7 @@ func TestMintFungibleToken_NotOk(t *testing.T) {
 				Value:                            1000,
 				TokenCreationPredicateSignatures: [][]byte{script.PredicateAlwaysFalse()},
 			},
-			wantErrStr: "script execution result yielded false or non-clean stack",
+			wantErrStr: "script execution result yielded non-clean stack",
 		},
 		{
 			name: "invalid value - zero",
@@ -523,7 +522,7 @@ func TestTransferFungibleToken_NotOk(t *testing.T) {
 			name:       "invalid token invariant predicate argument",
 			tx:         createTransactionOrder(t, attr, PayloadTypeTransferFungibleToken, existingTokenUnitID),
 			attr:       attr,
-			wantErrStr: "script execution result yielded false or non-clean stack",
+			wantErrStr: "script execution result yielded non-clean stack",
 		},
 	}
 	for _, tt := range tests {
@@ -696,7 +695,7 @@ func TestSplitFungibleToken_NotOk(t *testing.T) {
 				Backlink:                     make([]byte, 32),
 				InvariantPredicateSignatures: [][]byte{script.PredicateAlwaysFalse()},
 			},
-			wantErrStr: "script execution result yielded false or non-clean stack",
+			wantErrStr: "script execution result yielded non-clean stack",
 		},
 	}
 
@@ -812,7 +811,7 @@ func TestBurnFungibleToken_NotOk(t *testing.T) {
 				Backlink:                     make([]byte, 32),
 				InvariantPredicateSignatures: [][]byte{script.PredicateAlwaysFalse()},
 			},
-			wantErrStr: "script execution result yielded false or non-clean stack",
+			wantErrStr: "script execution result yielded non-clean stack",
 		},
 		{
 			name: "invalid token type",

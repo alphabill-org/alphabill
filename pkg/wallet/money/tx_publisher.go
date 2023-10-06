@@ -4,20 +4,23 @@ import (
 	"context"
 	"crypto"
 	"fmt"
+	"log/slog"
 
 	"github.com/alphabill-org/alphabill/internal/types"
+	"github.com/alphabill-org/alphabill/pkg/logger"
 	"github.com/alphabill-org/alphabill/pkg/wallet"
-	wlog "github.com/alphabill-org/alphabill/pkg/wallet/log"
 	"github.com/alphabill-org/alphabill/pkg/wallet/txsubmitter"
 )
 
 type TxPublisher struct {
 	backend BackendAPI
+	log     *slog.Logger
 }
 
-func NewTxPublisher(backend BackendAPI) *TxPublisher {
+func NewTxPublisher(backend BackendAPI, log *slog.Logger) *TxPublisher {
 	return &TxPublisher{
 		backend: backend,
+		log:     log,
 	}
 }
 
@@ -28,8 +31,8 @@ func (w *TxPublisher) SendTx(ctx context.Context, tx *types.TransactionOrder, se
 		TxHash:      tx.Hash(crypto.SHA256),
 		Transaction: tx,
 	}
-	wlog.Info(fmt.Sprintf("Sending tx '%s' with hash: '%X'", tx.PayloadType(), tx.Hash(crypto.SHA256)))
-	txBatch := txSub.ToBatch(w.backend, senderPubKey)
+	w.log.InfoContext(ctx, fmt.Sprintf("Sending tx '%s' with hash: '%X'", tx.PayloadType(), tx.Hash(crypto.SHA256)), logger.UnitID(tx.UnitID()))
+	txBatch := txSub.ToBatch(w.backend, senderPubKey, w.log)
 	err := txBatch.SendTx(ctx, true)
 	if err != nil {
 		return nil, err

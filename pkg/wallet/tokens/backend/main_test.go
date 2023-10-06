@@ -6,11 +6,17 @@ import (
 	"crypto"
 	"errors"
 	"fmt"
+	"io"
+	"log/slog"
 	"net/http"
 	"path/filepath"
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/fxamacker/cbor/v2"
+	"github.com/stretchr/testify/require"
 
 	"github.com/alphabill-org/alphabill/internal/hash"
 	"github.com/alphabill-org/alphabill/internal/rpc/alphabill"
@@ -19,10 +25,6 @@ import (
 	"github.com/alphabill-org/alphabill/internal/txsystem/tokens"
 	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/pkg/wallet"
-	"github.com/alphabill-org/alphabill/pkg/wallet/log"
-	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/fxamacker/cbor/v2"
-	"github.com/stretchr/testify/require"
 )
 
 func Test_Run(t *testing.T) {
@@ -34,11 +36,9 @@ func Test_Run(t *testing.T) {
 		require.EqualError(t, err, `failed to get storage: neither db file name nor mock is assigned`)
 	})
 
-	loggerForTest := func(t *testing.T) (log.Logger, *bytes.Buffer) {
+	loggerForTest := func(t *testing.T) (*slog.Logger, *bytes.Buffer) {
 		buf := bytes.NewBuffer(nil)
-		l, err := log.New(log.DEBUG, buf)
-		require.NoError(t, err)
-		return l, buf
+		return slog.New(slog.NewTextHandler(buf, nil)), buf
 	}
 
 	t.Run("failure to get starting block number from storage", func(t *testing.T) {
@@ -134,9 +134,6 @@ func Test_Run(t *testing.T) {
 func Test_Run_API(t *testing.T) {
 	t.Parallel()
 
-	logger, err := log.New(log.DEBUG, nil)
-	require.NoError(t, err)
-
 	var currentRoundNumber atomic.Uint64
 	syncing := make(chan *types.TransactionOrder, 1)
 	boltStore, err := newBoltStore(filepath.Join(t.TempDir(), "tokens.db"))
@@ -153,7 +150,7 @@ func Test_Run_API(t *testing.T) {
 
 	// only AB backend is mocked, rest is "real"
 	cfg := &mockCfg{
-		log: logger,
+		log: slog.New(slog.NewTextHandler(io.Discard, nil)),
 		db:  boltStore,
 		abc: &mockABClient{
 			sendTransaction: func(ctx context.Context, tx *types.TransactionOrder) error {

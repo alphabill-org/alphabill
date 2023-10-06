@@ -42,7 +42,8 @@ func checkFeeCreditBalance(s *state.State, feeCalculator FeeCalculator) txsystem
 				return fmt.Errorf("failed to get payload bytes: %w", err)
 			}
 			if err := script.RunScript(feeProof, unit.Bearer(), sigBytes); err != nil {
-				return fmt.Errorf("invalid fee proof: %w", err)
+				return fmt.Errorf("invalid fee proof: %w [txFeeProof=0x%x unitOwnerCondition=0x%x sigData=0x%x]",
+					err, feeProof, unit.Bearer(), sigBytes)
 			}
 
 			// 8. the maximum permitted transaction cost does not exceed the fee credit balance

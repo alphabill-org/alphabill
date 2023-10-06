@@ -12,8 +12,16 @@ init:
   script:
     - go env
 
+vet:
+  stage: test
+  script:
+    - go vet ./...
+
 test:
   stage: test
+  needs:
+    # tests are expensive compared to vet so do not start tests unless vet job succeeded
+    - vet
   script:
     - gotestsum --junitfile report.xml --format standard-quiet -- ./... -coverpkg=./... -count=1 -coverprofile test-coverage.out
     - go tool cover -func test-coverage.out

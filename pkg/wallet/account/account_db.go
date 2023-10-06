@@ -10,10 +10,10 @@ import (
 	"strings"
 	"time"
 
+	bolt "go.etcd.io/bbolt"
+
 	"github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/util"
-	"github.com/alphabill-org/alphabill/pkg/wallet/log"
-	bolt "go.etcd.io/bbolt"
 )
 
 var (
@@ -35,8 +35,7 @@ const AccountFileName = "accounts.db"
 type Db interface {
 	Do() TxContext
 	WithTransaction(func(tx TxContext) error) error
-	Close()
-	DeleteDb()
+	Close() error
 }
 
 type TxContext interface {
@@ -330,29 +329,14 @@ func openDb(dbFilePath string, pw string, create bool) (*adb, error) {
 	return a, nil
 }
 
-func (a *adb) Close() {
+func (a *adb) Close() error {
 	if a.db == nil {
-		return
+		return nil
 	}
-	log.Debug("closing Account db")
-	err := a.db.Close()
-	if err != nil {
-		log.Warning("error closing db: ", err)
+	if err := a.db.Close(); err != nil {
+		return fmt.Errorf("closing db: %w", err)
 	}
-}
-
-func (a *adb) DeleteDb() {
-	if a.db == nil {
-		return
-	}
-	errClose := a.db.Close()
-	if errClose != nil {
-		log.Warning("error closing db: ", errClose)
-	}
-	errRemove := os.Remove(a.dbFilePath)
-	if errRemove != nil {
-		log.Warning("error removing db: ", errRemove)
-	}
+	return nil
 }
 
 func (a *adb) WithTransaction(fn func(txc TxContext) error) error {

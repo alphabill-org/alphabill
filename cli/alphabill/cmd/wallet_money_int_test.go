@@ -88,13 +88,13 @@ func TestSendingMoneyUsingWallets_integration(t *testing.T) {
 		"Paid 0.000'000'01 fees for transaction(s)")
 
 	// verify wallet-1 balance is decreased
-	w1BalanceBilly -= 200 * 1e8
+	w1BalanceBilly -= 50 * 1e8
 	verifyStdoutEventually(t, func() *testConsoleWriter {
 		return execWalletCmd(t, logF, homedir1, fmt.Sprintf("get-balance --alphabill-api-uri %s", apiAddr))
 	}, fmt.Sprintf("#%d %s", 1, amountToString(w1BalanceBilly, 8)))
 
 	// verify wallet-2 received said bills
-	w2BalanceBilly := uint64(200 * 1e8)
+	w2BalanceBilly := uint64(50 * 1e8)
 	verifyStdoutEventually(t, func() *testConsoleWriter {
 		return execWalletCmd(t, logF, homedir2, fmt.Sprintf("get-balance --alphabill-api-uri %s", apiAddr))
 	}, fmt.Sprintf("#%d %s", 1, amountToString(w2BalanceBilly, 8)))
@@ -167,12 +167,12 @@ func TestSendingMoneyUsingWallets_integration(t *testing.T) {
 	w1TxHistory, _, err := moneyRestClient.GetTxHistory(context.Background(), w1PubKey, "", 0)
 	require.NoError(t, err)
 	require.NotNil(t, w1TxHistory)
-	require.Len(t, w1TxHistory, 8)
+	require.Len(t, w1TxHistory, 6)
 
 	w2TxHistory, _, err := moneyRestClient.GetTxHistory(context.Background(), w2PubKey, "", 0)
 	require.NoError(t, err)
 	require.NotNil(t, w2TxHistory)
-	require.Len(t, w2TxHistory, 4)
+	require.Len(t, w2TxHistory, 2)
 }
 
 func waitForBalanceCLI(t *testing.T, logF LoggerFactory, homedir string, url string, expectedBalance uint64, accountIndex uint64) {

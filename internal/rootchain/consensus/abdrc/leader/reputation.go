@@ -95,6 +95,13 @@ func (rb *ReputationBased) GetLeaderForRound(round uint64) peer.ID {
 }
 
 /*
+GetNodes returns all currently active root nodes
+*/
+func (rb *ReputationBased) GetNodes() []peer.ID {
+	return rb.validators
+}
+
+/*
 Update triggers leader election for the next round.
 Returns error when election fails or QC and currentRound combination does not trigger election.
 "currentRound" - what PaceMaker considers to be the current round at the time QC is processed.

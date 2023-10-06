@@ -96,10 +96,6 @@ func (m *MockNet) Send(ctx context.Context, msg any, receivers ...peer.ID) error
 	return nil
 }
 
-func (m *MockNet) Broadcast(ctx context.Context, msg any) error {
-	return m.Send(ctx, msg, []peer.ID{"*"}...)
-}
-
 func (m *MockNet) SetErrorState(err error) {
 	m.err = err
 }

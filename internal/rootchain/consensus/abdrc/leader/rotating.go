@@ -33,4 +33,11 @@ func (r *RoundRobin) GetLeaderForRound(round uint64) peer.ID {
 	return r.validators[index]
 }
 
+/*
+GetNodes returns all currently active root nodes
+*/
+func (r *RoundRobin) GetNodes() []peer.ID {
+	return r.validators
+}
+
 func (r *RoundRobin) Update(qc *abtypes.QuorumCert, currentRound uint64) error { return nil }

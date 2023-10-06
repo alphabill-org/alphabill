@@ -558,7 +558,7 @@ func Test_ConsensusManager_onVoteMsg(t *testing.T) {
 	t.Run("not the leader of the (next) round", func(t *testing.T) {
 		const votedRound = 10
 		cms, _, _ := createConsensusManagers(t, 2, []*genesis.PartitionRecord{partitionRecord})
-		cms[0].leaderSelector = constLeader(cms[1].id) // make sure this CM won't be the leader
+		cms[0].leaderSelector = constLeader{leader: cms[1].id, nodes: cms[1].leaderSelector.GetNodes()} // make sure this CM won't be the leader
 		cms[0].pacemaker.Reset(votedRound - 1)
 		defer cms[0].pacemaker.Stop()
 
@@ -635,9 +635,12 @@ func Test_ConsensusManager_messages(t *testing.T) {
 	})
 
 	t.Run("IR change request forwarded by peer included in proposal", func(t *testing.T) {
-		cms, rootNet, rootG := createConsensusManagers(t, 1, []*genesis.PartitionRecord{partitionRecord})
+		cms, rootNet, rootG := createConsensusManagers(t, 2, []*genesis.PartitionRecord{partitionRecord})
 		cmLeader := cms[0]
-
+		allNodes := cmLeader.leaderSelector.GetNodes()
+		for _, v := range cms {
+			v.leaderSelector = constLeader{leader: cmLeader.id, nodes: allNodes} // use "const leader" to take leader selection out of test
+		}
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 		go func() { require.ErrorIs(t, cmLeader.Run(ctx), context.Canceled) }()
@@ -648,12 +651,9 @@ func Test_ConsensusManager_messages(t *testing.T) {
 			CertReason:       abtypes.Quorum,
 			Requests:         buildBlockCertificationRequest(t, rootG, partitionNodes),
 		}
-
-		cmBid, _, _, _ := generatePeerData(t)
-		cmBnet := rootNet.Connect(cmBid)
+		cmBnet := rootNet.Connect(cms[1].id)
 		require.NoError(t, cmBnet.Send(ctx, irCReq, cmLeader.id))
-
-		// IRCR must be included into broadcasted proposal, either this or next round
+		// IRCR must be included into broadcast proposal, either this or next round
 		sawIRCR := false
 		for cnt := 0; cnt < 2 && !sawIRCR; cnt++ {
 			select {

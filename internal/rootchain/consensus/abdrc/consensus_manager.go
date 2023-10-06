@@ -31,7 +31,6 @@ type (
 
 	RootNet interface {
 		Send(ctx context.Context, msg any, receivers ...peer.ID) error
-		Broadcast(ctx context.Context, msg any) error
 		ReceivedChannel() <-chan any
 	}
 
@@ -39,6 +38,8 @@ type (
 	Leader interface {
 		// GetLeaderForRound returns valid leader (node id) for round/view number
 		GetLeaderForRound(round uint64) peer.ID
+		// GetNodes - get all node id's currently active
+		GetNodes() []peer.ID
 		// Update - what PaceMaker considers to be the current round at the time QC is processed.
 		Update(qc *abtypes.QuorumCert, currentRound uint64) error
 	}
@@ -274,7 +275,7 @@ func (x *ConsensusManager) onLocalTimeout(ctx context.Context) {
 	// in the case root chain has not made any progress (less than quorum nodes online), broadcast the same vote again
 	// broadcast timeout vote
 	logger.Trace("%v round %v broadcasting timeout vote", x.id.ShortString(), x.pacemaker.GetCurrentRound())
-	if err := x.net.Broadcast(ctx, timeoutVoteMsg); err != nil {
+	if err := x.net.Send(ctx, timeoutVoteMsg, x.leaderSelector.GetNodes()...); err != nil {
 		logger.Warning("%v error on broadcasting timeout vote: %v", x.id.ShortString(), err)
 	}
 }
@@ -665,8 +666,8 @@ func (x *ConsensusManager) processNewRoundEvent(ctx context.Context) {
 		logger.Warning("%v failed to send proposal message, message signing failed: %v", x.id.ShortString(), err)
 	}
 	// broadcast proposal message (also to self)
-	logger.Trace("%v broadcasting proposal msg", x.id.ShortString())
-	if err = x.net.Broadcast(ctx, proposalMsg); err != nil {
+	logger.Debug("%v broadcasting proposal msg to: %v", x.id.ShortString(), x.leaderSelector.GetNodes()[0].ShortString())
+	if err = x.net.Send(ctx, proposalMsg, x.leaderSelector.GetNodes()...); err != nil {
 		logger.Warning("%v failed to send proposal message, network error: %v", x.id.ShortString(), err)
 	}
 }

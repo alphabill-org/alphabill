@@ -85,11 +85,6 @@ func (n *LibP2PNetwork) Send(ctx context.Context, msg any, receivers ...peer.ID)
 	return nil
 }
 
-func (n *LibP2PNetwork) Broadcast(ctx context.Context, msg any) error {
-	// use n.self.host.Peerstore().Peers()? current code used conf so...
-	return n.Send(ctx, msg, n.self.conf.Validators...)
-}
-
 func (n *LibP2PNetwork) send(ctx context.Context, protocol *sendProtocolData, msg any, receivers []peer.ID) error {
 	data, err := serializeMsg(msg)
 	if err != nil {

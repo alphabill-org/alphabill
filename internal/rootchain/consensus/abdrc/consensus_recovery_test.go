@@ -218,8 +218,9 @@ func Test_recoverState(t *testing.T) {
 
 		// tweak configurations - use "constant leader" to take leader selection out of test
 		cmLeader := cms[0]
+		allNodes := cmLeader.leaderSelector.GetNodes()
 		for _, v := range cms {
-			v.leaderSelector = constLeader(cmLeader.id)
+			v.leaderSelector = constLeader{leader: cmLeader.id, nodes: allNodes}
 		}
 		// launch the managers (except last one; we still have quorum)
 		ctx, cancel := context.WithCancel(context.Background())
@@ -278,8 +279,9 @@ func Test_recoverState(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 		cmLeader := cms[0]
+		allNodes := cmLeader.leaderSelector.GetNodes()
 		for _, v := range cms {
-			v.leaderSelector = constLeader(cmLeader.id) // to take leader selection out of test
+			v.leaderSelector = constLeader{leader: cmLeader.id, nodes: allNodes}
 			go func(cm *ConsensusManager) { require.ErrorIs(t, cm.Run(ctx), context.Canceled) }(v)
 			go func(cm *ConsensusManager) { consumeUC(ctx, cm) }(v)
 		}
@@ -312,8 +314,9 @@ func Test_recoverState(t *testing.T) {
 
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
+		allNodes := cms[0].leaderSelector.GetNodes()
 		for _, v := range cms {
-			v.leaderSelector = constLeader(cms[0].id) // to take leader selection out of test
+			v.leaderSelector = constLeader{leader: cms[0].id, nodes: allNodes} // to take leader selection out of test
 			go func(cm *ConsensusManager) { require.ErrorIs(t, cm.Run(ctx), context.Canceled) }(v)
 			go func(cm *ConsensusManager) { consumeUC(ctx, cm) }(v)
 		}
@@ -402,8 +405,9 @@ func Test_recoverState(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 		cmLeader := cms[0]
+		allNodes := cmLeader.leaderSelector.GetNodes()
 		for _, v := range cms {
-			v.leaderSelector = constLeader(cmLeader.id) // use "const leader" to take leader selection out of test
+			v.leaderSelector = constLeader{leader: cmLeader.id, nodes: allNodes} // use "const leader" to take leader selection out of test
 			go func(cm *ConsensusManager) { require.ErrorIs(t, cm.Run(ctx), context.Canceled) }(v)
 			go func(cm *ConsensusManager) { consumeUC(ctx, cm) }(v)
 		}
@@ -547,8 +551,9 @@ func Test_recoverState(t *testing.T) {
 
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
+		allNodes := cms[0].leaderSelector.GetNodes()
 		for _, v := range cms {
-			v.leaderSelector = constLeader(cms[1].id) // use "const leader" to take leader selection out of test
+			v.leaderSelector = constLeader{leader: cms[1].id, nodes: allNodes} // use "const leader" to take leader selection out of test
 			go func(cm *ConsensusManager) { require.ErrorIs(t, cm.Run(ctx), context.Canceled) }(v)
 		}
 		// what we expect to happen:
@@ -578,8 +583,8 @@ func createConsensusManagers(t *testing.T, count int, partitionRecs []*protocgen
 	signers := map[string]crypto.Signer{}
 	var rgr []*protocgenesis.RootGenesis
 	for i := 0; i < count; i++ {
-		nodeID, signer, _, pubKey := generatePeerData(t)
-		rootG, _, err := genesis.NewRootGenesis(nodeID.String(), signer, pubKey, partitionRecs, genesis.WithTotalNodes(uint32(count)), genesis.WithConsensusTimeout(2500))
+		nodeID, signer, _, pubkey := generatePeerData(t)
+		rootG, _, err := genesis.NewRootGenesis(nodeID.String(), signer, pubkey, partitionRecs, genesis.WithTotalNodes(uint32(count)), genesis.WithConsensusTimeout(2500))
 		require.NoError(t, err, "failed to create root genesis")
 		require.NotNil(t, rootG)
 		rgr = append(rgr, rootG)
@@ -684,6 +689,10 @@ same network with other peers in the mockNetwork.
 NB! not concurrency safe, register peers before concurrent action!
 */
 func (mnw *mockNetwork) Connect(node peer.ID) RootNet {
+	// if already exists, then do not overwrite
+	if ch, ok := mnw.cons[node]; ok {
+		return &mockNwConnection{nw: mnw, id: node, rcv: ch}
+	}
 	con := &mockNwConnection{nw: mnw, id: node, rcv: make(chan any)}
 	mnw.cons[node] = con.rcv
 	return con
@@ -729,16 +738,6 @@ func (mnw *mockNetwork) send(from, to peer.ID, msg any) error {
 	return nil
 }
 
-func (mnw *mockNetwork) broadcast(from peer.ID, msg any) error {
-	var errs []error
-	for id := range mnw.cons {
-		if err := mnw.send(from, id, msg); err != nil {
-			errs = append(errs, err)
-		}
-	}
-	return errors.Join(errs...)
-}
-
 type mockNwConnection struct {
 	nw  *mockNetwork
 	id  peer.ID
@@ -755,17 +754,18 @@ func (nc *mockNwConnection) Send(_ context.Context, msg any, receivers ...peer.I
 	return errors.Join(errs...)
 }
 
-func (nc *mockNwConnection) Broadcast(_ context.Context, msg any) error {
-	return nc.nw.broadcast(nc.id, msg)
-}
-
 func (nc *mockNwConnection) ReceivedChannel() <-chan any { return nc.rcv }
 
 /*
 constLeader is leader selection algorithm which always returns the same leader.
 */
-type constLeader peer.ID
+type constLeader struct {
+	leader peer.ID
+	nodes  []peer.ID
+}
 
-func (cl constLeader) GetLeaderForRound(round uint64) peer.ID { return peer.ID(cl) }
+func (cl constLeader) GetLeaderForRound(round uint64) peer.ID { return cl.leader }
+
+func (cl constLeader) GetNodes() []peer.ID { return cl.nodes }
 
 func (cl constLeader) Update(qc *types.QuorumCert, currentRound uint64) error { return nil }

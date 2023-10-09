@@ -68,8 +68,8 @@ func TestRunEvmNode(t *testing.T) {
 			require.ErrorIs(t, err, context.Canceled)
 			appStoppedWg.Done()
 		}()
+		t.Log("Started evm node")
 		// Create the gRPC client
-		log.Info("Started evm node")
 		var conn *grpc.ClientConn
 		// There is a race here between node start and rpc client, try multiple times and wait for connection
 		var conErr error

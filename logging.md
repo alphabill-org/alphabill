@@ -57,6 +57,7 @@ the attribute - use that rather than creating slog.Attr manually!
 | round | int | current round number (depends on the context whether it was a root chain round or validator round!) |
 | err | error | error which caused the log message to be created (log level doesn't have to be ERROR). |
 | unit_id | []byte | ID of the unit (bill, token, token type, ...) which caused the log record |
+| data | any | meant to attach some data struct to the message, ie tx |
 | module | string | reserved for future use |
 
 ## Output schema
@@ -70,11 +71,12 @@ which is
 [Elastic Common Schema](https://www.elastic.co/guide/en/ecs/current/ecs-field-reference.html)
 "friendly" format. Ie some of the well known attributes will be transformed as following
 
-| attribute | ECS |
-|---|---|
-| node_id | service.node.name |
-| source.* | log.origin.* |
-| err | error.message |
+| attribute | ECS | comment |
+|---|---|---|
+| node_id | service.node.name | |
+| source.* | log.origin.* | |
+| err | error.message | |
+| data | data.\<type name\>.* | the \<type name\> is the type name of the data or in case of tx the tx type name |
 
 ## Log levels
 

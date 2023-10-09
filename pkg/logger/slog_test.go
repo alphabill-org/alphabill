@@ -131,3 +131,49 @@ func Test_composeAttrFmt(t *testing.T) {
 	a = f(nil, slog.Int64("test", 0))
 	require.EqualValues(t, 16, a.Value.Int64())
 }
+
+func Test_dataName(t *testing.T) {
+	type myData struct {
+		v int
+	}
+	var clv customLogValuer = 4
+
+	var testCases = []struct {
+		value slog.Value
+		name  string
+	}{
+		{value: slog.BoolValue(true), name: "Bool"},
+		{value: slog.IntValue(32), name: "Int64"},
+		{value: slog.Int64Value(64), name: "Int64"},
+		{value: slog.Uint64Value(90), name: "Uint64"},
+		{value: slog.Float64Value(1.5), name: "Float64"},
+		{value: slog.StringValue("foobar"), name: "String"},
+		{value: slog.TimeValue(time.Now()), name: "Time"},
+		{value: slog.DurationValue(time.Second), name: "Duration"},
+		// slog correctly detects the type even when Any is used
+		{value: slog.AnyValue(555), name: "Int64"},
+		{value: slog.AnyValue("hi"), name: "String"},
+		// struct value and pointer should result in the same name
+		{value: slog.AnyValue(myData{42}), name: "logger_myData"},
+		{value: slog.AnyValue(&myData{42}), name: "logger_myData"},
+		// anonymous struct type will return its def as name
+		{value: slog.AnyValue(struct{ n int }{666}), name: "struct { n int }"},
+		// type which implements LogValuer
+		{value: slog.AnyValue(customLogValuer(2)), name: "logger_customLogValuer"},
+		{value: slog.AnyValue(&clv), name: "logger_customLogValuer"},
+		// GroupValue will probably cause problems in Elastic :)
+		{value: slog.GroupValue(slog.Any("key", "value")), name: "Group"},
+	}
+
+	for n, tc := range testCases {
+		if name := dataName(tc.value); tc.name != name {
+			t.Errorf("[%d] expected %q got %q for %#v", n, tc.name, name, tc.value.Any())
+		}
+	}
+}
+
+type customLogValuer int
+
+func (clv customLogValuer) LogValue() slog.Value {
+	return slog.IntValue(int(clv))
+}

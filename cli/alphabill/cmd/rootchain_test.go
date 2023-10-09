@@ -8,6 +8,8 @@ import (
 
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sync/errgroup"
+
+	"github.com/alphabill-org/alphabill/internal/testutils/logger"
 )
 
 func TestRootChainCanBeStarted(t *testing.T) {
@@ -15,10 +17,12 @@ func TestRootChainCanBeStarted(t *testing.T) {
 	dbDir := t.TempDir()
 	g, ctx := errgroup.WithContext(ctx)
 
-	g.Go(func() error { return defaultRootNodeRunFunc(ctx, validMonolithicRootValidatorConfig(dbDir)) })
+	g.Go(func() error {
+		return defaultRootNodeRunFunc(ctx, validMonolithicRootValidatorConfig(t, dbDir))
+	})
 
 	g.Go(func() error {
-		// give rootchain some time to start up (should try to sens message it to verify it is up!)
+		// give rootchain some time to start up (should try to send message to it to verify it is up!)
 		// and then cancel the ctx which should cause it to exit
 		time.Sleep(500 * time.Millisecond)
 		cancel()
@@ -30,7 +34,7 @@ func TestRootChainCanBeStarted(t *testing.T) {
 }
 
 func TestRootValidator_CannotBeStartedInvalidKeyFile(t *testing.T) {
-	conf := validMonolithicRootValidatorConfig("")
+	conf := validMonolithicRootValidatorConfig(t, "")
 	conf.KeyFile = "testdata/invalid-root-key.json"
 
 	err := defaultRootNodeRunFunc(context.Background(), conf)
@@ -38,7 +42,7 @@ func TestRootValidator_CannotBeStartedInvalidKeyFile(t *testing.T) {
 }
 
 func TestRootValidator_CannotBeStartedInvalidDBDir(t *testing.T) {
-	conf := validMonolithicRootValidatorConfig("/foobar/doesnotexist3454/")
+	conf := validMonolithicRootValidatorConfig(t, "/foobar/doesnotexist3454/")
 	err := defaultRootNodeRunFunc(context.Background(), conf)
 	require.ErrorContains(t, err, "root store init failed, open /foobar/doesnotexist3454/rootchain.db: no such file or directory")
 }
@@ -50,17 +54,17 @@ func TestRootValidator_StorageInitNoDBPath(t *testing.T) {
 }
 
 func TestRootValidator_DefaultDBPath(t *testing.T) {
-	conf := validMonolithicRootValidatorConfig("")
+	conf := validMonolithicRootValidatorConfig(t, "")
 	// if not set it will return a default path
 	require.Contains(t, conf.getStoragePath(), filepath.Join(conf.Base.HomeDir, "rootchain"))
 }
 
-func validMonolithicRootValidatorConfig(dbDir string) *rootNodeConfig {
+func validMonolithicRootValidatorConfig(t *testing.T, dbDir string) *rootNodeConfig {
 	conf := &rootNodeConfig{
 		Base: &baseConfiguration{
-			HomeDir:    alphabillHomeDir(),
-			CfgFile:    filepath.Join(alphabillHomeDir(), defaultConfigFile),
-			LogCfgFile: defaultLoggerConfigFile,
+			HomeDir: alphabillHomeDir(),
+			CfgFile: filepath.Join(alphabillHomeDir(), defaultConfigFile),
+			Logger:  logger.New(t),
 		},
 		KeyFile:           "testdata/root-key.json",
 		GenesisFile:       "testdata/expected/root-genesis.json",

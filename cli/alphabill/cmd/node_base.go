@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net"
 	"net/http"
 	"sort"
@@ -29,6 +30,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/rpc/alphabill"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/internal/util"
+	"github.com/alphabill-org/alphabill/pkg/logger"
 )
 
 const (
@@ -51,16 +53,16 @@ type startNodeConfiguration struct {
 	LedgerReplicationMaxTx     uint32
 }
 
-func defaultNodeRunFunc(ctx context.Context, name string, txs txsystem.TransactionSystem, nodeCfg *startNodeConfiguration, rpcServerConf *grpcServerConfiguration, restServerConf *restServerConfiguration) error {
-	self, node, err := createNode(ctx, txs, nodeCfg, nil)
+func defaultNodeRunFunc(ctx context.Context, name string, txs txsystem.TransactionSystem, nodeCfg *startNodeConfiguration, rpcServerConf *grpcServerConfiguration, restServerConf *restServerConfiguration, log *slog.Logger) error {
+	self, node, err := createNode(ctx, txs, nodeCfg, nil, log)
 	if err != nil {
-		return fmt.Errorf("failed to create node %q: %w", name, err)
+		return fmt.Errorf("creating %q node: %w", name, err)
 	}
-	return run(ctx, name, self, node, rpcServerConf, restServerConf)
+	return run(ctx, name, self, node, rpcServerConf, restServerConf, log.With(logger.NodeID(self.ID())))
 }
 
-func run(ctx context.Context, name string, self *network.Peer, node *partition.Node, rpcServerConf *grpcServerConfiguration, restServerConf *restServerConfiguration) error {
-	log.Info("starting %s: BuildInfo=%s", name, debug.ReadBuildInfo())
+func run(ctx context.Context, name string, self *network.Peer, node *partition.Node, rpcServerConf *grpcServerConfiguration, restServerConf *restServerConfiguration, log *slog.Logger) error {
+	log.InfoContext(ctx, fmt.Sprintf("starting %s: BuildInfo=%s", name, debug.ReadBuildInfo()))
 	g, ctx := errgroup.WithContext(ctx)
 
 	g.Go(func() error { return node.Run(ctx) })
@@ -82,7 +84,7 @@ func run(ctx context.Context, name string, self *network.Peer, node *partition.N
 			if err := grpcServer.Serve(listener); err != nil {
 				errch <- fmt.Errorf("%s gRPC server exited: %w", name, err)
 			}
-			log.Info("%s gRPC server exited", name)
+			log.InfoContext(ctx, fmt.Sprintf("%s gRPC server exited", name))
 		}()
 
 		select {
@@ -110,7 +112,7 @@ func run(ctx context.Context, name string, self *network.Peer, node *partition.N
 			if err := restServer.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 				errch <- fmt.Errorf("%s REST server exited: %w", name, err)
 			}
-			log.Info("%s REST server exited", name)
+			log.InfoContext(ctx, fmt.Sprintf("%s REST server exited", name))
 		}()
 
 		select {
@@ -138,7 +140,7 @@ func initRESTServer(conf *restServerConfiguration, routes ...rpc.Registrar) *htt
 	return rs
 }
 
-func loadNetworkConfiguration(ctx context.Context, keys *Keys, pg *genesis.PartitionGenesis, cfg *startNodeConfiguration) (*network.Peer, error) {
+func loadNetworkConfiguration(ctx context.Context, keys *Keys, pg *genesis.PartitionGenesis, cfg *startNodeConfiguration, log *slog.Logger) (*network.Peer, error) {
 	pair, err := keys.getEncryptionKeyPair()
 	if err != nil {
 		return nil, err
@@ -179,7 +181,7 @@ func loadNetworkConfiguration(ctx context.Context, keys *Keys, pg *genesis.Parti
 		Validators:     validatorIdentifiers,
 	}
 
-	p, err := network.NewPeer(ctx, peerConfiguration)
+	p, err := network.NewPeer(ctx, peerConfiguration, log)
 	if err != nil {
 		return nil, err
 	}
@@ -203,7 +205,7 @@ func initRPCServer(node *partition.Node, cfg *grpcServerConfiguration) (*grpc.Se
 	return grpcServer, nil
 }
 
-func createNode(ctx context.Context, txs txsystem.TransactionSystem, cfg *startNodeConfiguration, blockStore keyvaluedb.KeyValueDB) (*network.Peer, *partition.Node, error) {
+func createNode(ctx context.Context, txs txsystem.TransactionSystem, cfg *startNodeConfiguration, blockStore keyvaluedb.KeyValueDB, log *slog.Logger) (*network.Peer, *partition.Node, error) {
 	keys, err := LoadKeys(cfg.KeyFile, false, false)
 	if err != nil {
 		return nil, nil, err
@@ -213,10 +215,12 @@ func createNode(ctx context.Context, txs txsystem.TransactionSystem, cfg *startN
 		return nil, nil, err
 	}
 	// Load network configuration. In testnet, we assume that all validators know the address of all other validators.
-	p, err := loadNetworkConfiguration(ctx, keys, pg, cfg)
+	p, err := loadNetworkConfiguration(ctx, keys, pg, cfg, log)
 	if err != nil {
 		return nil, nil, err
 	}
+	log = log.With(logger.NodeID(p.ID()))
+
 	if len(pg.RootValidators) < 1 {
 		return nil, nil, errors.New("root validator info is missing")
 	}
@@ -226,7 +230,7 @@ func createNode(ctx context.Context, txs txsystem.TransactionSystem, cfg *startN
 	if err != nil {
 		return nil, nil, err
 	}
-	n, err := network.NewLibP2PValidatorNetwork(p, network.DefaultValidatorNetOptions)
+	n, err := network.NewLibP2PValidatorNetwork(p, network.DefaultValidatorNetOptions, log)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -256,6 +260,7 @@ func createNode(ctx context.Context, txs txsystem.TransactionSystem, cfg *startN
 		txs,
 		pg,
 		n,
+		log,
 		options...,
 	)
 	if err != nil {

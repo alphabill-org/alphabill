@@ -143,11 +143,10 @@ func TestBlockProposal_SignAndVerify(t *testing.T) {
 	signer, verifier := testsig.CreateSignerAndVerifier(t)
 	sdrHash := test.RandomBytes(32)
 	seal := &types.UnicitySeal{
-		RootInternalInfo:     make([]byte, 32),
 		RootChainRoundNumber: 1,
 		Timestamp:            10000,
-		Hash:                 make([]byte, 32),
-		Epoch:                0,
+		PreviousHash:         test.RandomBytes(32),
+		Hash:                 test.RandomBytes(32),
 		Signatures:           map[string][]byte{"1": test.RandomBytes(32)},
 	}
 	bp := &BlockProposal{
@@ -196,10 +195,9 @@ func TestBlockProposal_InvalidSignature(t *testing.T) {
 	sdrHash := test.RandomBytes(32)
 	seal := &types.UnicitySeal{
 		RootChainRoundNumber: 1,
-		RootInternalInfo:     test.RandomBytes(32),
+		PreviousHash:         test.RandomBytes(32),
 		Hash:                 test.RandomBytes(32),
 		Timestamp:            10000,
-		Epoch:                0,
 		Signatures:           map[string][]byte{"1": test.RandomBytes(32)},
 	}
 	bp := &BlockProposal{

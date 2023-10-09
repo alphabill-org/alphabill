@@ -36,7 +36,7 @@ func NewQuorumCertificateFromVote(voteInfo *RoundInfo, commitInfo *types.Unicity
 func NewQuorumCertificate(voteInfo *RoundInfo, commitHash []byte) *QuorumCert {
 	return &QuorumCert{
 		VoteInfo:         voteInfo,
-		LedgerCommitInfo: &types.UnicitySeal{RootInternalInfo: voteInfo.Hash(gocrypto.SHA256), Hash: commitHash},
+		LedgerCommitInfo: &types.UnicitySeal{PreviousHash: voteInfo.Hash(gocrypto.SHA256), Hash: commitHash},
 		Signatures:       map[string][]byte{},
 	}
 }
@@ -70,7 +70,7 @@ func (x *QuorumCert) IsValid() error {
 	// todo: should call x.LedgerCommitInfo.IsValid but that requires some refactoring
 	// not to require trustbase parameter?
 	// For root validator commit state id can be empty
-	if len(x.LedgerCommitInfo.RootInternalInfo) < 1 {
+	if len(x.LedgerCommitInfo.PreviousHash) < 1 {
 		return errInvalidRoundInfoHash
 	}
 
@@ -82,7 +82,7 @@ func (x *QuorumCert) Verify(quorum uint32, rootTrust map[string]crypto.Verifier)
 		return fmt.Errorf("invalid quorum certificate: %w", err)
 	}
 	// check vote info hash
-	if !bytes.Equal(x.VoteInfo.Hash(gocrypto.SHA256), x.LedgerCommitInfo.RootInternalInfo) {
+	if !bytes.Equal(x.VoteInfo.Hash(gocrypto.SHA256), x.LedgerCommitInfo.PreviousHash) {
 		return fmt.Errorf("vote info hash verification failed")
 	}
 	/* todo: call LedgerCommitInfo.Verify but first refactor it so that it takes quorum param?

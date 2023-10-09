@@ -77,11 +77,10 @@ func QcFromGenesisState(partitionRecords []*genesis.GenesisPartitionRecord) *abt
 				CurrentRootHash:   p.Certificate.UnicitySeal.Hash,
 			},
 			LedgerCommitInfo: &types.UnicitySeal{
-				RootInternalInfo:     p.Certificate.UnicitySeal.RootInternalInfo,
+				PreviousHash:         p.Certificate.UnicitySeal.PreviousHash,
 				RootChainRoundNumber: p.Certificate.UnicitySeal.RootChainRoundNumber,
 				Hash:                 p.Certificate.UnicitySeal.Hash,
 				Timestamp:            p.Certificate.UnicitySeal.Timestamp,
-				Epoch:                0,
 			},
 			Signatures: p.Certificate.UnicitySeal.Signatures,
 		}
@@ -256,7 +255,7 @@ func (x *ExecutedBlock) GenerateCertificates(commitQc *abtypes.QuorumCert) (map[
 		RootChainRoundNumber: commitQc.LedgerCommitInfo.RootChainRoundNumber,
 		Hash:                 commitQc.LedgerCommitInfo.Hash,
 		Timestamp:            commitQc.LedgerCommitInfo.Timestamp,
-		RootInternalInfo:     commitQc.LedgerCommitInfo.RootInternalInfo,
+		PreviousHash:         commitQc.LedgerCommitInfo.PreviousHash,
 		Signatures:           commitQc.Signatures,
 	}
 	ucs := map[protocol.SystemIdentifier]*types.UnicityCertificate{}

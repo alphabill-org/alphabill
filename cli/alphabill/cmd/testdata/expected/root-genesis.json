@@ -91,11 +91,10 @@
         "unicity_seal": {
           "root_chain_round_number": 1,
           "timestamp": 1681971084,
-          "root_internal_hash": "KtnZvtds5rQcG9xo1Wbvq0dRsjzbL7PPeOqtPhSjpIc=",
+          "previous_hash": "KtnZvtds5rQcG9xo1Wbvq0dRsjzbL7PPeOqtPhSjpIc=",
           "hash": "S1+FLQQjj3NCUMmKBWEc9KHT8GMvUno/dD/F4hcw5Pc=",
-          "root_epoch": 0,
           "signatures": {
-            "16Uiu2HAm87wYZyJtpPuPovXRDrMpK5tWTGyLz2GKkQL8sYHD9pmm": "AgFvJBJg2LTk7m3Ek/hwY4DNFIb6R8r9cm63/Y+vtV0EgTDerYHSSAcH6EUlzZ5n1Yxn5iblwXHF49e7MUFUcAA="
+            "16Uiu2HAm87wYZyJtpPuPovXRDrMpK5tWTGyLz2GKkQL8sYHD9pmm": "ZRar9YJ2PrmWmRF5iBF+Dr4tziGeV9Syb/NS/7AfT3xKvGHLhdCPFDi0j8EJ+6jTo7GjX1gPkv4ItaOBiVWxxwE="
           }
         }
       },

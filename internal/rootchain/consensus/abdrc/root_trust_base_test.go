@@ -188,7 +188,7 @@ func TestRootNodeTrustBase_ValidateQuorum(t *testing.T) {
 
 func TestRootNodeTrustBase_VerifyBytes(t *testing.T) {
 	signers, validators := generateSignersAndVerifiers(4)
-	commitInfo := &types.UnicitySeal{RootInternalInfo: []byte{0, 1, 2}, Hash: []byte{2, 3, 4}}
+	commitInfo := &types.UnicitySeal{PreviousHash: []byte{0, 1, 2}, Hash: []byte{2, 3, 4}}
 	bytes := commitInfo.Bytes()
 	signer := signers["0"]
 	sig, err := signer.SignBytes(bytes)
@@ -242,7 +242,7 @@ func TestRootNodeTrustBase_VerifySignature(t *testing.T) {
 		Payload:   &abtypes.Payload{},
 		Qc: &abtypes.QuorumCert{
 			VoteInfo:         roundInfo,
-			LedgerCommitInfo: &types.UnicitySeal{RootInternalInfo: roundInfo.Hash(gocrypto.SHA256)},
+			LedgerCommitInfo: &types.UnicitySeal{PreviousHash: roundInfo.Hash(gocrypto.SHA256)},
 			Signatures:       map[string][]byte{"0": {1, 2, 3}},
 		},
 	}

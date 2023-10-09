@@ -42,7 +42,7 @@ func TestQuorumCert_IsValid(t *testing.T) {
 
 	t.Run("ledger commit info is invalid", func(t *testing.T) {
 		qc := sb.QC(t, 12)
-		qc.LedgerCommitInfo.RootInternalInfo = nil
+		qc.LedgerCommitInfo.PreviousHash = nil
 		require.ErrorIs(t, qc.IsValid(), errInvalidRoundInfoHash)
 	})
 }
@@ -69,7 +69,7 @@ func TestQuorumCert_Verify(t *testing.T) {
 
 		// change stored hash
 		qc.VoteInfo.Timestamp -= 1 // restore original value
-		qc.LedgerCommitInfo.RootInternalInfo[0] = 0
+		qc.LedgerCommitInfo.PreviousHash[0] = 0
 		require.EqualError(t, qc.Verify(3, rootTrust), `vote info hash verification failed`)
 	})
 

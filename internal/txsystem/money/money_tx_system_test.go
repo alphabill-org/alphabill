@@ -311,6 +311,30 @@ func TestExecute_SwapOk(t *testing.T) {
 	require.Equal(t, initialDustCollectorMoneyAmount, dustCollectorBill.V) // dust collector money supply is the same after swap
 }
 
+func TestExecute_LockOk(t *testing.T) {
+	rmaTree, txSystem, _ := createStateAndTxSystem(t)
+	lockTx, _ := createLockTx(t, initialBill.ID, nil)
+
+	roundNumber := uint64(10)
+	err := txSystem.BeginBlock(roundNumber)
+	require.NoError(t, err)
+	sm, err := txSystem.Execute(lockTx)
+	require.NoError(t, err)
+	_, err = txSystem.EndBlock()
+	require.NoError(t, err)
+	require.NotNil(t, sm)
+	require.EqualValues(t, 1, sm.ActualFee)
+	require.Len(t, sm.TargetUnits, 1)
+	require.Equal(t, lockTx.UnitID(), sm.TargetUnits[0])
+	require.NoError(t, txSystem.Commit())
+
+	_, bd := getBill(t, rmaTree, initialBill.ID)
+	require.True(t, bd.Locked)                                      // bill is locked
+	require.EqualValues(t, roundNumber, bd.T)                       // round number updated
+	require.EqualValues(t, lockTx.Hash(crypto.SHA256), bd.Backlink) // backlink updated
+	require.EqualValues(t, 110, bd.SummaryValueInput())             // value not changed
+}
+
 func TestBillData_Value(t *testing.T) {
 	bd := &BillData{
 		V:        10,
@@ -670,6 +694,17 @@ func createBillTransfer(t *testing.T, fromID types.UnitID, value uint64, bearer 
 	return tx, bt
 }
 
+func createLockTx(t *testing.T, fromID types.UnitID, backlink []byte) (*types.TransactionOrder, *LockAttributes) {
+	tx := createTx(fromID, PayloadTypeLock)
+	lockTxAttr := &LockAttributes{
+		Backlink: backlink,
+	}
+	rawBytes, err := cbor.Marshal(lockTxAttr)
+	require.NoError(t, err)
+	tx.Payload.Attributes = rawBytes
+	return tx, lockTxAttr
+}
+
 func createDCTransferAndSwapTxs(
 	t *testing.T,
 	ids []types.UnitID, // bills to swap
@@ -764,7 +799,6 @@ func createTx(fromID types.UnitID, payloadType string) *types.TransactionOrder {
 				FeeCreditRecordID: fcrID,
 			},
 		},
-
 		OwnerProof: script.PredicateArgumentEmpty(),
 		FeeProof:   script.PredicateArgumentEmpty(),
 	}

@@ -30,7 +30,7 @@ func CalcVoteInfoHash(t *testing.T, algo gocrypto.Hash, voteInfo *abtypes.RoundI
 
 func NewDummyCommitInfo(algo gocrypto.Hash, voteInfo *abtypes.RoundInfo) *types.UnicitySeal {
 	hash := voteInfo.Hash(algo)
-	return &types.UnicitySeal{RootInternalInfo: hash, Hash: nil}
+	return &types.UnicitySeal{PreviousHash: hash, Hash: nil}
 }
 
 type RoundInfoOption func(info *abtypes.RoundInfo)

@@ -24,25 +24,23 @@ var (
 	errUnicitySealNoSignature    = errors.New("unicity seal is missing signature")
 )
 
-type (
-	SignatureMap map[string][]byte
-	UnicitySeal  struct {
-		_                    struct{}     `cbor:",toarray"`
-		RootChainRoundNumber uint64       `json:"root_chain_round_number,omitempty"`
-		Timestamp            uint64       `json:"timestamp,omitempty"`
-		RootInternalInfo     []byte       `json:"root_internal_hash,omitempty"`
-		Hash                 []byte       `json:"hash,omitempty"`
-		Epoch                uint64       `json:"root_epoch"`
-		Signatures           SignatureMap `json:"signatures,omitempty"`
-	}
-	// Signatures are serialized as alphabetically sorted CBOR array
-	signaturesCBOR []*signature
-	signature      struct {
-		_         struct{} `cbor:",toarray"`
-		NodeID    string   `json:"node_id,omitempty"`
-		Signature []byte   `json:"signature,omitempty"`
-	}
-)
+type SignatureMap map[string][]byte
+type UnicitySeal struct {
+	_                    struct{}     `cbor:",toarray"`
+	RootChainRoundNumber uint64       `json:"root_chain_round_number,omitempty"`
+	Timestamp            uint64       `json:"timestamp,omitempty"`
+	PreviousHash         []byte       `json:"previous_hash,omitempty"`
+	Hash                 []byte       `json:"hash,omitempty"`
+	Signatures           SignatureMap `json:"signatures,omitempty"`
+}
+
+// Signatures are serialized as alphabetically sorted CBOR array
+type signaturesCBOR []*signature
+type signature struct {
+	_         struct{} `cbor:",toarray"`
+	NodeID    string   `json:"node_id,omitempty"`
+	Signature []byte   `json:"signature,omitempty"`
+}
 
 func (s *SignatureMap) MarshalCBOR() ([]byte, error) {
 	// shallow copy
@@ -112,10 +110,9 @@ func (x *UnicitySeal) Sign(id string, signer crypto.Signer) error {
 
 func (x *UnicitySeal) Bytes() []byte {
 	var b bytes.Buffer
-	b.Write(x.RootInternalInfo)
 	b.Write(util.Uint64ToBytes(x.RootChainRoundNumber))
-	b.Write(util.Uint64ToBytes(x.Epoch))
 	b.Write(util.Uint64ToBytes(x.Timestamp))
+	b.Write(x.PreviousHash)
 	b.Write(x.Hash)
 	return b.Bytes()
 }
@@ -140,7 +137,7 @@ func (x *UnicitySeal) Verify(verifiers map[string]crypto.Verifier) error {
 		}
 		err := ver.VerifyBytes(sig, x.Bytes())
 		if err != nil {
-			return fmt.Errorf("signature verification error, %w", err)
+			return fmt.Errorf("invalid unicity seal signature, %w", err)
 		}
 	}
 	return nil

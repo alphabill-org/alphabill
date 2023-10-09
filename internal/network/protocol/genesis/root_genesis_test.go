@@ -150,11 +150,10 @@ func TestRootGenesis(t *testing.T) {
 	require.NoError(t, err)
 	rootID := "root"
 	unicitySeal := &types.UnicitySeal{
-		RootInternalInfo:     make([]byte, 32),
+		PreviousHash:         make([]byte, 32),
 		RootChainRoundNumber: 2,
 		Timestamp:            1000,
 		Hash:                 hash,
-		Epoch:                0,
 	}
 	unicitySeal.Sign(rootID, rSigner)
 	rg := &RootGenesis{

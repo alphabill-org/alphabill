@@ -255,14 +255,12 @@ func TestNewGenesis_Ok(t *testing.T) {
 
 	partition := createPartition(t, id, "1", partitionSigner)
 	require.NoError(t, err)
-
 	rootChainSigner, err := crypto.NewInMemorySecp256K1Signer()
 	require.NoError(t, err)
 
 	_, verifier := testsig.CreateSignerAndVerifier(t)
 	rootPubKeyBytes, err := verifier.MarshalPublicKey()
 	require.NoError(t, err)
-
 	rg, ps, err := NewRootGenesis("test", rootChainSigner, rootPubKeyBytes, []*genesis.PartitionRecord{partition})
 	require.NoError(t, err)
 	require.NotNil(t, rg)

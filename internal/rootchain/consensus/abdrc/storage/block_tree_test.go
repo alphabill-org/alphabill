@@ -57,7 +57,7 @@ var pg = []*genesis.GenesisPartitionRecord{
 				RootChainRoundNumber: roundInfo.RoundNumber,
 				Hash:                 roundInfo.CurrentRootHash,
 				Timestamp:            roundInfo.Timestamp,
-				RootInternalInfo:     roundInfo.Hash(gocrypto.SHA256),
+				PreviousHash:         roundInfo.Hash(gocrypto.SHA256),
 				Signatures:           map[string][]byte{},
 			},
 		},
@@ -74,7 +74,7 @@ var pg = []*genesis.GenesisPartitionRecord{
 				RootChainRoundNumber: roundInfo.RoundNumber,
 				Hash:                 []byte{0x0A, 0x51, 0x80, 0x59, 0x3D, 0x0C, 0xAB, 0x52, 0xA3, 0xAD, 0xFF, 0x2B, 0xDE, 0x8A, 0x11, 0xE3, 0x10, 0xED, 0xB6, 0xFD, 0xA3, 0x26, 0x0E, 0xBF, 0x45, 0x0B, 0x1D, 0x9B, 0xFB, 0xA9, 0x9B, 0x9A},
 				Timestamp:            roundInfo.Timestamp,
-				RootInternalInfo:     roundInfo.Hash(gocrypto.SHA256),
+				PreviousHash:         roundInfo.Hash(gocrypto.SHA256),
 				Signatures:           map[string][]byte{},
 			},
 		},
@@ -170,8 +170,8 @@ func TestNewBlockTreeFromDbChain3Blocks(t *testing.T) {
 	qcBlock2 := &abtypes.QuorumCert{
 		VoteInfo: voteInfoB2,
 		LedgerCommitInfo: &types.UnicitySeal{
-			RootInternalInfo: voteInfoB2.Hash(gocrypto.SHA256),
-			Hash:             gBlock.RootHash,
+			PreviousHash: voteInfoB2.Hash(gocrypto.SHA256),
+			Hash:         gBlock.RootHash,
 		},
 	}
 	// create a new block
@@ -285,8 +285,8 @@ func TestAddAndCommit(t *testing.T) {
 			ParentRoundNumber: 4,
 		},
 		LedgerCommitInfo: &types.UnicitySeal{
-			RootInternalInfo: []byte{1, 2, 3},
-			Hash:             zeroHash,
+			PreviousHash: []byte{1, 2, 3},
+			Hash:         zeroHash,
 		},
 	}
 	cBlock, err := bTree.Commit(commitQc)

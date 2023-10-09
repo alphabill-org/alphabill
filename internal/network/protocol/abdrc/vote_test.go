@@ -35,7 +35,7 @@ func TestVoteMsg_AddSignature(t *testing.T) {
 			name: "Sign ok",
 			fields: fields{
 				VoteInfo:         voteInfo,
-				LedgerCommitInfo: &types.UnicitySeal{RootInternalInfo: voteInfo.Hash(gocrypto.SHA256)},
+				LedgerCommitInfo: &types.UnicitySeal{PreviousHash: voteInfo.Hash(gocrypto.SHA256)},
 				HighQc:           &abtypes.QuorumCert{},
 				Author:           "test",
 			},
@@ -46,7 +46,7 @@ func TestVoteMsg_AddSignature(t *testing.T) {
 			name: "Vote info hash is nil",
 			fields: fields{
 				VoteInfo:         nil,
-				LedgerCommitInfo: &types.UnicitySeal{RootInternalInfo: nil, Hash: nil},
+				LedgerCommitInfo: &types.UnicitySeal{PreviousHash: nil, Hash: nil},
 				HighQc:           &abtypes.QuorumCert{},
 				Author:           "test",
 			},
@@ -57,7 +57,7 @@ func TestVoteMsg_AddSignature(t *testing.T) {
 			name: "Signer is nil",
 			fields: fields{
 				VoteInfo:         nil,
-				LedgerCommitInfo: &types.UnicitySeal{RootInternalInfo: nil, Hash: nil},
+				LedgerCommitInfo: &types.UnicitySeal{PreviousHash: nil, Hash: nil},
 				HighQc:           &abtypes.QuorumCert{},
 				Author:           "test",
 			},
@@ -105,7 +105,7 @@ func Test_VoteMsg_Verify(t *testing.T) {
 		vote := &VoteMsg{
 			VoteInfo: voteMsgInfo,
 			LedgerCommitInfo: &types.UnicitySeal{
-				RootInternalInfo: voteMsgInfo.Hash(gocrypto.SHA256),
+				PreviousHash: voteMsgInfo.Hash(gocrypto.SHA256),
 			},
 			HighQc: &abtypes.QuorumCert{
 				VoteInfo:         commitQcInfo,
@@ -143,7 +143,7 @@ func Test_VoteMsg_Verify(t *testing.T) {
 		require.ErrorContains(t, vi.Verify(3, rootTrust), `vote info hash does not match hash in commit info`)
 
 		vi.VoteInfo.Epoch -= 1
-		vi.LedgerCommitInfo.RootInternalInfo = nil
+		vi.LedgerCommitInfo.PreviousHash = nil
 		require.EqualError(t, vi.Verify(3, rootTrust), `vote info hash does not match hash in commit info`)
 	})
 

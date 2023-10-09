@@ -16,7 +16,7 @@ func TestUnicityCertificate_IsValid(t *testing.T) {
 	seal := &UnicitySeal{
 		RootChainRoundNumber: 1,
 		Timestamp:            util.MakeTimestamp(),
-		RootInternalInfo:     zeroHash,
+		PreviousHash:         zeroHash,
 		Hash:                 zeroHash,
 	}
 	err := seal.Sign("test", signer)

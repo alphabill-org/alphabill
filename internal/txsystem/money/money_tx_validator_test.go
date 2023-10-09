@@ -327,7 +327,7 @@ func TestSwap(t *testing.T) {
 		{
 			name: "InvalidDcProofInvalid",
 			ctx:  newSwapValidationContext(t, verifier, newInvalidDcProofsSwap(t)),
-			err:  "unicity seal validation failed, signature verification error",
+			err:  "invalid unicity seal signature",
 		},
 	}
 	for _, tt := range tests {

@@ -474,7 +474,7 @@ func Test_ConsensusManager_onVoteMsg(t *testing.T) {
 		voteMsg := &abdrc.VoteMsg{
 			VoteInfo: voteRoundInfo,
 			LedgerCommitInfo: &types.UnicitySeal{
-				RootInternalInfo: voteRoundInfo.Hash(gocrypto.SHA256),
+				PreviousHash: voteRoundInfo.Hash(gocrypto.SHA256),
 			},
 			HighQc: highQc,
 			Author: cms[0].id.String(),

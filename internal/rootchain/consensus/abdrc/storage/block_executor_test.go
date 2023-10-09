@@ -169,8 +169,8 @@ func TestExecutedBlock_GenerateCertificates(t *testing.T) {
 			CurrentRootHash:   make([]byte, gocrypto.SHA256.Size()),
 		},
 		LedgerCommitInfo: &types.UnicitySeal{
-			RootInternalInfo: []byte{0, 0, 0, 0},
-			Hash:             make([]byte, gocrypto.SHA256.Size()),
+			PreviousHash: []byte{0, 0, 0, 0},
+			Hash:         make([]byte, gocrypto.SHA256.Size()),
 		},
 	}
 	// root hash does not match
@@ -185,7 +185,7 @@ func TestExecutedBlock_GenerateCertificates(t *testing.T) {
 			CurrentRootHash:   make([]byte, gocrypto.SHA256.Size()),
 		},
 		LedgerCommitInfo: &types.UnicitySeal{
-			RootInternalInfo: []byte{0, 0, 0, 0},
+			PreviousHash: []byte{0, 0, 0, 0},
 			Hash: []byte{0xF2, 0xE8, 0xBC, 0xC5, 0x71, 0x0D, 0x40, 0xAB, 0x42, 0xD5, 0x70, 0x57, 0x6F, 0x56, 0xA2, 0xF2,
 				0x7E, 0xF6, 0x0F, 0xE9, 0x21, 0x25, 0x0A, 0x4B, 0x4C, 0xF5, 0xBC, 0xAC, 0xA3, 0x29, 0xBF, 0x32,
 			},

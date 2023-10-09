@@ -30,7 +30,6 @@ func TestMoneyBackendCLI(t *testing.T) {
 		Value: 1e18,
 		Owner: script.PredicateAlwaysTrue(),
 	}
-
 	moneyPartition := createMoneyPartition(t, initialBill, 1)
 	abNet := startAlphabill(t, []*testpartition.NodePartition{moneyPartition})
 	startPartitionRPCServers(t, moneyPartition)

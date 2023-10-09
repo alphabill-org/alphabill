@@ -24,7 +24,7 @@ func (x *VoteMsg) Sign(signer crypto.Signer) error {
 		return errSignerIsNil
 	}
 	// sanity check, make sure commit info round info hash is set
-	if len(x.LedgerCommitInfo.RootInternalInfo) < 1 {
+	if len(x.LedgerCommitInfo.PreviousHash) < 1 {
 		return fmt.Errorf("invalid round info hash")
 	}
 	signature, err := signer.SignBytes(x.LedgerCommitInfo.Bytes())
@@ -48,7 +48,7 @@ func (x *VoteMsg) Verify(quorum uint32, rootTrust map[string]crypto.Verifier) er
 	}
 	// Verify hash of vote info
 	hash := x.VoteInfo.Hash(gocrypto.SHA256)
-	if !bytes.Equal(hash, x.LedgerCommitInfo.RootInternalInfo) {
+	if !bytes.Equal(hash, x.LedgerCommitInfo.PreviousHash) {
 		return fmt.Errorf("vote info hash does not match hash in commit info")
 	}
 

@@ -73,22 +73,22 @@ func (cfg *LogConfiguration) Handler(out io.Writer) (slog.Handler, error) {
 		h = slog.NewJSONHandler(out, cfg.handlerOptions())
 	case fmtCONSOLE:
 		h = tint.NewHandler(out, &tint.Options{
-			Level:       cfg.logLevel(),
-			NoColor:     cfg.ConsoleSupportsColor == nil || !cfg.ConsoleSupportsColor(out),
-			TimeFormat:  cfg.TimeFormat,
-			AddSource:   true,
-			ReplaceAttr: formatPeerIDAttr(cfg.PeerIDFormat),
-		})
-	case fmtWALLET:
-		h = tint.NewHandler(out, &tint.Options{
 			Level:      cfg.logLevel(),
 			NoColor:    cfg.ConsoleSupportsColor == nil || !cfg.ConsoleSupportsColor(out),
 			TimeFormat: cfg.TimeFormat,
-			AddSource:  false,
+			AddSource:  true,
 			ReplaceAttr: composeAttrFmt(
-				formatTimeAttr("none"),
-				formatPeerIDAttr("short"),
+				formatPeerIDAttr(cfg.PeerIDFormat),
+				formatDataAttrAsJSON,
 			),
+		})
+	case fmtWALLET:
+		h = tint.NewHandler(out, &tint.Options{
+			Level:       cfg.logLevel(),
+			NoColor:     cfg.ConsoleSupportsColor == nil || !cfg.ConsoleSupportsColor(out),
+			TimeFormat:  cfg.TimeFormat,
+			AddSource:   false,
+			ReplaceAttr: formatAttrWallet,
 		})
 	default:
 		return nil, fmt.Errorf("unknown log format %q", cfg.Format)

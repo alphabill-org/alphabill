@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"os"
 	"strings"
 
@@ -69,7 +70,7 @@ func newBaseCmd(logF LoggerFactory) (*cobra.Command, *baseConfiguration) {
 			if err := initializeConfig(cmd, config); err != nil {
 				return fmt.Errorf("failed to initialize configuration: %w", err)
 			}
-			initializeLogger(config)
+			initializeLogger(config, config.Logger)
 			return nil
 		},
 	}
@@ -114,19 +115,27 @@ func initializeConfig(cmd *cobra.Command, config *baseConfiguration) error {
 		return fmt.Errorf("binding flags: %w", err)
 	}
 
+	if err := config.initLogger(cmd); err != nil {
+		return fmt.Errorf("initializing logger: %w", err)
+	}
+
 	return nil
 }
 
-func initializeLogger(config *baseConfiguration) {
+/*
+init old logger
+TODO: remove when migration to slog is complete
+*/
+func initializeLogger(config *baseConfiguration, log *slog.Logger) {
 	if err := logger.UpdateGlobalConfigFromFile(config.LoggerCfgFilename()); err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			// In a common case when the config file is not found, the error message is made shorter. Not to spam the log.
-			log.Debug("The logger configuration file (%s) not found", config.LoggerCfgFilename())
+			log.Debug(fmt.Sprintf("The logger configuration file (%s) not found", config.LoggerCfgFilename()))
 		} else {
-			log.Warning("Updating logger configuration failed. Error: %s", err.Error())
+			log.Warn(fmt.Sprintf("Updating logger configuration failed: %v", err))
 		}
 	} else {
-		log.Trace("Updating logger configuration succeeded.")
+		log.Debug("Updating logger configuration succeeded.")
 	}
 }
 

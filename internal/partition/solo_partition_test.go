@@ -4,11 +4,16 @@ import (
 	"context"
 	gocrypto "crypto"
 	"crypto/rand"
+	"log/slog"
 	"reflect"
 	"strings"
 	"sync"
 	"testing"
 	"time"
+
+	p2pcrypto "github.com/libp2p/go-libp2p/core/crypto"
+	"github.com/libp2p/go-libp2p/core/peer"
+	"github.com/stretchr/testify/require"
 
 	"github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/keyvaluedb"
@@ -22,15 +27,14 @@ import (
 	rootgenesis "github.com/alphabill-org/alphabill/internal/rootchain/genesis"
 	"github.com/alphabill-org/alphabill/internal/rootchain/unicitytree"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
+	testlogger "github.com/alphabill-org/alphabill/internal/testutils/logger"
 	testnetwork "github.com/alphabill-org/alphabill/internal/testutils/network"
 	testevent "github.com/alphabill-org/alphabill/internal/testutils/partition/event"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/internal/util"
-	p2pcrypto "github.com/libp2p/go-libp2p/core/crypto"
-	"github.com/libp2p/go-libp2p/core/peer"
-	"github.com/stretchr/testify/require"
+	"github.com/alphabill-org/alphabill/pkg/logger"
 )
 
 type AlwaysValidBlockProposalValidator struct{}
@@ -46,6 +50,7 @@ type SingleNodePartition struct {
 	rootSigner crypto.Signer
 	mockNet    *testnetwork.MockNet
 	eh         *testevent.TestEventHandler
+	log        *slog.Logger
 }
 
 type partitionStartupDependencies struct {
@@ -120,6 +125,7 @@ func SetupNewSingleNodePartition(t *testing.T, txSystem txsystem.TransactionSyst
 		rootSigner: rootSigner,
 		mockNet:    net,
 		eh:         &testevent.TestEventHandler{},
+		log:        testlogger.New(t).With(logger.NodeID(peer.ID())),
 	}
 	return partition
 }
@@ -151,6 +157,7 @@ func (sn *SingleNodePartition) newNode() error {
 		sn.nodeDeps.txSystem,
 		sn.nodeDeps.genesis,
 		sn.nodeDeps.net,
+		sn.log,
 		append([]NodeOption{
 			WithT1Timeout(100 * time.Minute),
 			WithLeaderSelector(&TestLeaderSelector{
@@ -239,7 +246,7 @@ func (sn *SingleNodePartition) GetLatestBlock(t *testing.T) *types.Block {
 	dbIt := sn.store.Last()
 	defer func() {
 		if err := dbIt.Close(); err != nil {
-			logger.Warning("Unexpected DB iterator error %v", err)
+			t.Errorf("Unexpected DB iterator error: %v", err)
 		}
 	}()
 	var bl types.Block
@@ -335,7 +342,7 @@ func createPeer(t *testing.T) *network.Peer {
 		Validators: []peer.ID{fakeValidatorID},
 		Address:    "/ip4/127.0.0.1/tcp/0",
 	}
-	newPeer, err := network.NewPeer(context.Background(), conf)
+	newPeer, err := network.NewPeer(context.Background(), conf, testlogger.New(t))
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, newPeer.Close()) })
 

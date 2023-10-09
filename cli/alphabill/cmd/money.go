@@ -8,7 +8,6 @@ import (
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/internal/script"
 	"github.com/alphabill-org/alphabill/internal/txsystem/money"
-	"github.com/alphabill-org/alphabill/pkg/logger"
 	"github.com/fxamacker/cbor/v2"
 	"github.com/spf13/cobra"
 )
@@ -25,11 +24,9 @@ type (
 	moneyNodeRunnable func(ctx context.Context, nodeConfig *moneyNodeConfiguration) error
 )
 
-var log = logger.CreateForPackage()
-
 // newMoneyNodeCmd creates a new cobra command for the shard component.
 //
-// nodeRunFunc - set the function to override the default behaviour. Meant for tests.
+// nodeRunFunc - set the function to override the default behavior. Meant for tests.
 func newMoneyNodeCmd(baseConfig *baseConfiguration, nodeRunFunc moneyNodeRunnable) *cobra.Command {
 	config := &moneyNodeConfiguration{
 		baseNodeConfiguration: baseNodeConfiguration{
@@ -91,5 +88,5 @@ func runMoneyNode(ctx context.Context, cfg *moneyNodeConfiguration) error {
 	if err != nil {
 		return fmt.Errorf("creating money transaction system: %w", err)
 	}
-	return defaultNodeRunFunc(ctx, "money node", txs, cfg.Node, cfg.RPCServer, cfg.RESTServer)
+	return defaultNodeRunFunc(ctx, "money node", txs, cfg.Node, cfg.RPCServer, cfg.RESTServer, cfg.Base.Logger)
 }

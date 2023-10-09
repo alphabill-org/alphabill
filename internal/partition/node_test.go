@@ -57,12 +57,7 @@ func TestNode_noRound_txAddedBackToBuffer(t *testing.T) {
 	go func() {
 		defer p.partition.txWaitGroup.Done()
 		// wait for cancel
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			}
-		}
+		<-ctx.Done()
 	}()
 	// send a tx to the execution channel
 	p.partition.txCh <- transfer

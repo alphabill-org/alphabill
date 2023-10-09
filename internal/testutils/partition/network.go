@@ -7,6 +7,7 @@ import (
 	"crypto/rand"
 	"errors"
 	"fmt"
+	"log/slog"
 	"path/filepath"
 	"reflect"
 	"sort"
@@ -24,10 +25,12 @@ import (
 	rootgenesis "github.com/alphabill-org/alphabill/internal/rootchain/genesis"
 	"github.com/alphabill-org/alphabill/internal/rootchain/partitions"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
+	testlogger "github.com/alphabill-org/alphabill/internal/testutils/logger"
 	"github.com/alphabill-org/alphabill/internal/testutils/net"
 	testevent "github.com/alphabill-org/alphabill/internal/testutils/partition/event"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/internal/types"
+	"github.com/alphabill-org/alphabill/pkg/logger"
 	libp2pcrypto "github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/multiformats/go-multiaddr"
@@ -47,6 +50,7 @@ type RootPartition struct {
 	rcGenesis *genesis.RootGenesis
 	TrustBase map[string]crypto.Verifier
 	Nodes     []*rootNode
+	log       *slog.Logger
 }
 
 type NodePartition struct {
@@ -56,6 +60,7 @@ type NodePartition struct {
 	ctx              context.Context
 	tb               map[string]crypto.Verifier
 	Nodes            []*partitionNode
+	log              *slog.Logger
 }
 
 type partitionNode struct {
@@ -179,12 +184,12 @@ func (r *RootPartition) start(ctx context.Context) error {
 	rootPeer, err := network.NewPeer(ctx, &network.PeerConfiguration{
 		Address: fmt.Sprintf("/ip4/127.0.0.1/tcp/%v", port),
 		KeyPair: r.Nodes[0].EncKeyPair, // connection encryption key. The ID of the node is derived from this keypair.
-	})
+	}, r.log)
 
 	if err != nil {
 		return fmt.Errorf("failed to create new peer node: %w", err)
 	}
-	rootNet, err := network.NewLibP2PRootChainNetwork(rootPeer, 100, 300*time.Millisecond)
+	rootNet, err := network.NewLibP2PRootChainNetwork(rootPeer, 100, 300*time.Millisecond, r.log.With(logger.NodeID(rootPeer.ID())))
 	if err != nil {
 		return fmt.Errorf("failed to init root and partition nodes network, %w", err)
 	}
@@ -226,9 +231,10 @@ func NewPartition(t *testing.T, nodeCount int, txSystemProvider func(trustBase m
 		systemId:     systemIdentifier,
 		txSystemFunc: txSystemProvider,
 		Nodes:        make([]*partitionNode, nodeCount),
+		log:          testlogger.New(t),
 	}
 	// create network nodePeers
-	nodePeers, err := createNetworkPeers(ctx, nodeCount)
+	nodePeers, err := createNetworkPeers(ctx, nodeCount, abPartition.log)
 	if err != nil {
 		return nil, err
 	}
@@ -310,7 +316,8 @@ func (n *NodePartition) start(t *testing.T, ctx context.Context, rootID peer.ID,
 }
 
 func (n *NodePartition) startNode(pn *partitionNode) error {
-	pnet, err := network.NewLibP2PValidatorNetwork(pn.nodePeer, network.DefaultValidatorNetOptions)
+	log := n.log.With(logger.NodeID(pn.nodePeer.ID()))
+	pnet, err := network.NewLibP2PValidatorNetwork(pn.nodePeer, network.DefaultValidatorNetOptions, log)
 	if err != nil {
 		return fmt.Errorf("failed to start the node, %w", err)
 	}
@@ -321,6 +328,7 @@ func (n *NodePartition) startNode(pn *partitionNode) error {
 		n.txSystemFunc(n.tb),
 		n.partitionGenesis,
 		pnet,
+		log,
 		pn.confOpts...,
 	)
 	if err != nil {
@@ -341,7 +349,7 @@ func (n *NodePartition) ResumeNode(nodeIdx int) error {
 	pn := n.Nodes[nodeIdx]
 	fmt.Printf("Resuming node #%d, id: %s\n", nodeIdx, pn.nodePeer.String())
 	// re-create Peer
-	newPeer, err := network.NewPeer(n.ctx, pn.nodePeer.Configuration())
+	newPeer, err := network.NewPeer(n.ctx, pn.nodePeer.Configuration(), n.log.With(logger.NodeID(pn.nodePeer.ID())))
 	if err != nil {
 		return fmt.Errorf("failed to resume node, %w", err)
 	}
@@ -395,6 +403,7 @@ func NewAlphabillPartition(nodePartitions []*NodePartition) (*AlphabillNetwork, 
 }
 
 func (a *AlphabillNetwork) Start(t *testing.T) error {
+	a.RootPartition.log = testlogger.New(t)
 	// create context
 	ctx, ctxCancel := context.WithCancel(context.Background())
 	if err := a.RootPartition.start(ctx); err != nil {
@@ -560,7 +569,7 @@ func createSigners(count int) ([]crypto.Signer, error) {
 	return signers, nil
 }
 
-func createNetworkPeers(ctx context.Context, count int) ([]*network.Peer, error) {
+func createNetworkPeers(ctx context.Context, count int, log *slog.Logger) ([]*network.Peer, error) {
 	var peers = make([]*network.Peer, count)
 	// generate connection encryption key pairs
 	keyPairs, err := generateKeyPairs(count)
@@ -586,7 +595,7 @@ func createNetworkPeers(ctx context.Context, count int) ([]*network.Peer, error)
 			Address:    "/ip4/127.0.0.1/tcp/0",
 			KeyPair:    keyPairs[i], // connection encryption key. The ID of the node is derived from this keypair.
 			Validators: validators,  // Persistent peers
-		})
+		}, log)
 
 		if err != nil {
 			return nil, err

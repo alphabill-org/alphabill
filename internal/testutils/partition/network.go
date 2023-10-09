@@ -23,6 +23,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/rootchain/consensus/monolithic"
 	rootgenesis "github.com/alphabill-org/alphabill/internal/rootchain/genesis"
 	"github.com/alphabill-org/alphabill/internal/rootchain/partitions"
+	test "github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/alphabill-org/alphabill/internal/testutils/net"
 	testevent "github.com/alphabill-org/alphabill/internal/testutils/partition/event"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
@@ -60,6 +61,7 @@ type NodePartition struct {
 type partitionNode struct {
 	*partition.Node
 	dbFile       string
+	idxFile      string
 	nodePeer     *network.Peer
 	signer       crypto.Signer
 	genesis      *genesis.PartitionNode
@@ -77,7 +79,13 @@ type rootNode struct {
 	genesis    *genesis.RootGenesis
 	id         peer.ID
 	addr       multiaddr.Multiaddr
+	cancel     context.CancelFunc
+	done       chan error
 }
+
+type ValidatorIndex int
+
+const ANY_VALIDATOR ValidatorIndex = -1
 
 // getGenesisFiles is a helper function to collect all node genesis files
 func getGenesisFiles(nodePartitions []*NodePartition) []*genesis.PartitionNode {
@@ -196,7 +204,10 @@ func (r *RootPartition) start(ctx context.Context) error {
 	r.Nodes[0].addr = rootPeer.MultiAddresses()[0]
 	r.Nodes[0].id = rootPeer.ID()
 	// start root node
-	go r.Nodes[0].Node.Run(ctx)
+	rctx, rootCancel := context.WithCancel(ctx)
+	r.Nodes[0].cancel = rootCancel
+	r.Nodes[0].done = make(chan error, 1)
+	go func(ec chan error) { ec <- r.Nodes[0].Run(rctx) }(r.Nodes[0].done)
 	return nil
 }
 
@@ -241,11 +252,13 @@ func NewPartition(t *testing.T, nodeCount int, txSystemProvider func(trustBase m
 		if err != nil {
 			return nil, fmt.Errorf("failed to create node genesis, %w", err)
 		}
+		tmpDir := t.TempDir()
 		abPartition.Nodes[i] = &partitionNode{
 			genesis:  nodeGenesis,
 			nodePeer: peer,
 			signer:   signer,
-			dbFile:   filepath.Join(t.TempDir(), "blocks.db"),
+			dbFile:   filepath.Join(tmpDir, "blocks.db"),
+			idxFile:  filepath.Join(tmpDir, "tx.db"),
 		}
 	}
 	return abPartition, nil
@@ -267,18 +280,30 @@ func (n *NodePartition) start(t *testing.T, ctx context.Context, rootID peer.ID,
 			return err
 		}
 		t.Cleanup(func() { require.NoError(t, blockStore.Close()) })
+		txIndexer, err := boltdb.New(nd.idxFile)
+		if err != nil {
+			return fmt.Errorf("unable to load tx indexer: %w", err)
+		}
+		t.Cleanup(func() { require.NoError(t, txIndexer.Close()) })
 		nd.confOpts = append(nd.confOpts, partition.WithRootAddressAndIdentifier(rootAddr, rootID),
 			partition.WithEventHandler(nd.EventHandler.HandleEvent, 100),
-			partition.WithBlockStore(blockStore))
+			partition.WithBlockStore(blockStore),
+			partition.WithTxIndexer(txIndexer),
+		)
 
 		if err = n.startNode(nd); err != nil {
 			return err
 		}
 	}
-
+	// make sure node network (to other nodes and root nodes) is initiated
 	for _, nd := range n.Nodes {
-		if err = assertConnections(nd.nodePeer, len(n.Nodes)); err != nil {
-			return err
+		if ok := eventually(func() bool {
+			if len(nd.nodePeer.Network().Peers()) >= len(n.Nodes) {
+				return true
+			}
+			return false
+		}, 2*time.Second, 100*time.Millisecond); !ok {
+			return fmt.Errorf("network not initialized")
 		}
 	}
 	return nil
@@ -324,8 +349,14 @@ func (n *NodePartition) ResumeNode(nodeIdx int) error {
 	if err = n.startNode(pn); err != nil {
 		return err
 	}
-	if err = assertConnections(pn.nodePeer, len(n.Nodes)); err != nil {
-		return err
+	// wait for all connections to be initiated in 2 seconds
+	if ok := eventually(func() bool {
+		if len(pn.nodePeer.Network().Peers()) >= len(n.Nodes) {
+			return true
+		}
+		return false
+	}, 2*time.Second, 100*time.Millisecond); !ok {
+		return fmt.Errorf("network not initialized")
 	}
 	return nil
 }
@@ -381,8 +412,25 @@ func (a *AlphabillNetwork) Start(t *testing.T) error {
 	return nil
 }
 
-func (a *AlphabillNetwork) Close() error {
+func (a *AlphabillNetwork) Close() (err error) {
 	a.ctxCancel()
+	// wait and check validator exit
+	for _, part := range a.NodePartitions {
+		// stop all nodes
+		for _, n := range part.Nodes {
+			nodeErr := <-n.done
+			if !errors.Is(nodeErr, context.Canceled) {
+				err = errors.Join(err, nodeErr)
+			}
+		}
+	}
+	// check root exit
+	for _, rnode := range a.RootPartition.Nodes {
+		rootErr := <-rnode.done
+		if !errors.Is(rootErr, context.Canceled) {
+			err = errors.Join(err, rootErr)
+		}
+	}
 	return nil
 }
 
@@ -434,6 +482,38 @@ func (n *NodePartition) GetTxProof(tx *types.TransactionOrder) (*types.Block, *t
 		}
 	}
 	return nil, nil, nil, fmt.Errorf("tx with id %x was not found", tx.UnitID())
+}
+
+// WaitTxProof - uses the new validator index and endpoint and returns both transaction record and proof
+// when tx has been executed and added to block
+// todo: remove index when state proofs become available and refactor tests that require it to use unit proofs instead
+func WaitTxProof(t *testing.T, part *NodePartition, idx ValidatorIndex, txOrder *types.TransactionOrder) (*types.TransactionRecord, *types.TxProof, error) {
+	t.Helper()
+	var (
+		txRecord *types.TransactionRecord
+		txProof  *types.TxProof
+	)
+	var nodes []*partitionNode
+	if idx == ANY_VALIDATOR {
+		nodes = part.Nodes
+	} else {
+		nodes = append(nodes, part.Nodes[idx])
+	}
+	if ok := eventually(func() bool {
+		for _, n := range nodes {
+			txRec, proof, err := n.GetTransactionRecord(context.Background(), txOrder.Hash(gocrypto.SHA256))
+			if err != nil || proof == nil {
+				continue
+			}
+			txRecord = txRec
+			txProof = proof
+			return true
+		}
+		return false
+	}, test.WaitDuration, test.WaitTick); ok {
+		return txRecord, txProof, nil
+	}
+	return nil, nil, fmt.Errorf("failed to confirm tx")
 }
 
 // BlockchainContainsTx checks if at least one partition node block contains the given transaction.
@@ -543,29 +623,25 @@ func generateKeyPairs(count int) ([]*network.PeerKeyPair, error) {
 	return keyPairs, nil
 }
 
-func assertConnections(p *network.Peer, count int) error {
+func eventually(condition func() bool, waitFor time.Duration, tick time.Duration) bool {
 	ch := make(chan bool, 1)
 
-	timer := time.NewTimer(2 * time.Second)
+	timer := time.NewTimer(waitFor)
 	defer timer.Stop()
 
-	ticker := time.NewTicker(100 * time.Millisecond)
+	ticker := time.NewTicker(tick)
 	defer ticker.Stop()
 
 	for tick := ticker.C; ; {
 		select {
 		case <-timer.C:
-			return errors.New("network not initialized")
+			return false
 		case <-tick:
 			tick = nil
-			go func() {
-				ch <- func() bool {
-					return len(p.Network().Peers()) >= count
-				}()
-			}()
+			go func() { ch <- condition() }()
 		case v := <-ch:
 			if v {
-				return nil
+				return true
 			}
 			tick = ticker.C
 		}

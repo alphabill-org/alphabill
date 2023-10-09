@@ -27,13 +27,11 @@ func CreateFeeCredit(t *testing.T, initialBillID, fcrID types.UnitID, fcrAmount 
 	)
 	moneyPartition, err := network.GetNodePartition([]byte{0, 0, 0, 0})
 	require.NoError(t, err)
-	err = moneyPartition.SubmitTx(transferFC)
-	require.NoError(t, err)
-	require.Eventually(t, testpartition.BlockchainContainsTx(moneyPartition, transferFC), test.WaitDuration, test.WaitTick)
+	require.NoError(t, moneyPartition.SubmitTx(transferFC))
 
+	transferFCRecord, transferFCProof, err := testpartition.WaitTxProof(t, moneyPartition, testpartition.ANY_VALIDATOR, transferFC)
+	require.NoError(t, err, "transfer fee credit tx failed")
 	// send addFC
-	_, transferFCProof, transferFCRecord, err := moneyPartition.GetTxProof(transferFC)
-	require.NoError(t, err)
 	addFC := NewAddFC(t, network.RootPartition.Nodes[0].RootSigner,
 		NewAddFCAttr(t, network.RootPartition.Nodes[0].RootSigner,
 			WithTransferFCTx(transferFCRecord),
@@ -44,8 +42,7 @@ func CreateFeeCredit(t *testing.T, initialBillID, fcrID types.UnitID, fcrAmount 
 		testtransaction.WithOwnerProof(script.PredicateArgumentEmpty()),
 		testtransaction.WithPayloadType(transactions.PayloadTypeAddFeeCredit),
 	)
-	err = moneyPartition.SubmitTx(addFC)
-	require.NoError(t, err)
+	require.NoError(t, moneyPartition.SubmitTx(addFC))
 	require.Eventually(t, testpartition.BlockchainContainsTx(moneyPartition, addFC), test.WaitDuration, test.WaitTick)
 	return transferFCRecord.TransactionOrder
 }

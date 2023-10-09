@@ -198,10 +198,10 @@ func (m *GenericTxSystem) Revert() {
 }
 
 func (m *GenericTxSystem) Commit() error {
-	m.logPruner.Remove(m.currentBlockNumber - 1)
 	err := m.state.Commit()
 	if err == nil {
 		m.roundCommitted = true
+		m.logPruner.Remove(m.currentBlockNumber - 1)
 	}
 	return err
 }

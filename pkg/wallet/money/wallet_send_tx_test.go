@@ -75,7 +75,7 @@ func TestWalletSendFunction_ClientError(t *testing.T) {
 
 	// test PostTransactions returns error
 	_, err := w.Send(context.Background(), SendCmd{Receivers: []ReceiverData{{PubKey: validPubKey, Amount: amount}}})
-	require.ErrorContains(t, err, "failed to send transactions: status 500 Internal Server Error")
+	require.ErrorContains(t, err, "failed to send transactions: backend responded 500 Internal Server Error: some error")
 }
 
 func TestWalletSendFunction_WaitForConfirmation(t *testing.T) {

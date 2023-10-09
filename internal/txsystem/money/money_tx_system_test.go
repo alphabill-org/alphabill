@@ -178,6 +178,9 @@ func TestExecute_Split2WayOk(t *testing.T) {
 	require.NotEqual(t, initBillData.V, initBillDataAfterUpdate.V)
 	require.Equal(t, remaining, initBillDataAfterUpdate.V)
 
+	// and bill was not locked
+	require.False(t, initBillDataAfterUpdate.Locked)
+
 	// total value was not changed
 	total, _, err := rmaTree.CalculateRoot()
 	require.NoError(t, err)
@@ -195,6 +198,7 @@ func TestExecute_Split2WayOk(t *testing.T) {
 	require.EqualValues(t, splitOk.Hash(crypto.SHA256), bd.Backlink)
 	require.Equal(t, state.Predicate(splitAttr.TargetUnits[0].OwnerCondition), newBill.Bearer())
 	require.Equal(t, roundNumber, bd.T)
+	require.False(t, bd.Locked)
 }
 
 func TestExecute_SplitNWayOk(t *testing.T) {

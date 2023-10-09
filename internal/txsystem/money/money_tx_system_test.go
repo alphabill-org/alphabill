@@ -327,12 +327,14 @@ func TestBillData_AddToHasher(t *testing.T) {
 		V:        10,
 		T:        50,
 		Backlink: []byte("backlink"),
+		Locked:   true,
 	}
 
 	hasher := crypto.SHA256.New()
 	hasher.Write(util.Uint64ToBytes(bd.V))
 	hasher.Write(util.Uint64ToBytes(bd.T))
 	hasher.Write(bd.Backlink)
+	hasher.Write([]byte{1})
 	expectedHash := hasher.Sum(nil)
 	hasher.Reset()
 	bd.Write(hasher)

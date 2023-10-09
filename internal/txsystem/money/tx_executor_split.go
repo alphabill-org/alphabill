@@ -78,6 +78,9 @@ func validateSplit(data state.UnitData, attr *SplitAttributes) error {
 	if !ok {
 		return errors.New("invalid data type, unit is not of BillData type")
 	}
+	if bd.Locked {
+		return ErrBillLocked
+	}
 	if !bytes.Equal(attr.Backlink, bd.Backlink) {
 		return fmt.Errorf("the transaction backlink 0x%x is not equal to unit backlink 0x%x", attr.Backlink, bd.Backlink)
 	}

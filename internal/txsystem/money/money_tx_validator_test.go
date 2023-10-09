@@ -34,6 +34,12 @@ func TestTransfer(t *testing.T) {
 			res:  nil,
 		},
 		{
+			name: "LockedBill",
+			bd:   &BillData{Locked: true, V: 100, Backlink: []byte{6}},
+			attr: &TransferAttributes{TargetValue: 100, Backlink: []byte{6}},
+			res:  ErrBillLocked,
+		},
+		{
 			name: "InvalidBalance",
 			bd:   newBillData(100, []byte{6}),
 			attr: &TransferAttributes{TargetValue: 101, Backlink: []byte{6}},
@@ -74,6 +80,16 @@ func TestTransferDC(t *testing.T) {
 				Backlink:     []byte{6},
 			},
 			res: nil,
+		},
+		{
+			name: "LockedBill",
+			bd:   &BillData{Locked: true, V: 100, Backlink: []byte{6}},
+			attr: &TransferDCAttributes{
+				TargetUnitID: test.RandomBytes(32),
+				Value:        101,
+				Backlink:     []byte{6},
+			},
+			res: ErrBillLocked,
 		},
 		{
 			name: "InvalidBalance",
@@ -137,6 +153,18 @@ func TestSplit(t *testing.T) {
 				RemainingValue: 80,
 				Backlink:       []byte{6},
 			},
+		},
+		{
+			name: "BillLocked",
+			bd:   &BillData{Locked: true, V: 100, Backlink: []byte{6}},
+			attr: &SplitAttributes{
+				TargetUnits: []*TargetUnit{
+					{Amount: 50, OwnerCondition: script.PredicateAlwaysTrue()},
+				},
+				RemainingValue: 50,
+				Backlink:       []byte{6},
+			},
+			err: "bill is already locked",
 		},
 		{
 			name: "Invalid backlink",
@@ -355,6 +383,12 @@ func TestTransferFC(t *testing.T) {
 			bd:      newBillData(101, backlink),
 			tx:      testfc.NewTransferFC(t, nil),
 			wantErr: nil,
+		},
+		{
+			name:    "LockedBill",
+			bd:      &BillData{Locked: true, V: 101, Backlink: backlink},
+			tx:      testfc.NewTransferFC(t, nil),
+			wantErr: ErrBillLocked,
 		},
 		{
 			name:    "BillData is nil",

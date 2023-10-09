@@ -55,6 +55,9 @@ func validateAnyTransfer(data state.UnitData, backlink []byte, targetValue uint6
 	if !ok {
 		return ErrInvalidDataType
 	}
+	if bd.Locked {
+		return ErrBillLocked
+	}
 	if !bytes.Equal(backlink, bd.Backlink) {
 		return ErrInvalidBacklink
 	}

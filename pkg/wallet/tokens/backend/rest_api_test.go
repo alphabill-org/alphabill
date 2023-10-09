@@ -140,6 +140,42 @@ func Test_restAPI_postTransaction(t *testing.T) {
 		require.EqualValues(t, 1, sendTxCalls, "unexpectedly sendTransaction was called %d times", sendTxCalls)
 	})
 
+	t.Run("one valid type-creation transaction without an owner is sent", func(t *testing.T) {
+		tx := randomTx(t, &tokens.CreateNonFungibleTokenTypeAttributes{Symbol: "test"})
+		tx.Payload.Type = tokens.PayloadTypeCreateNFTType
+		tx.OwnerProof = script.PredicateAlwaysTrue()
+
+		message, err := cbor.Marshal(&sdk.Transactions{Transactions: []*types.TransactionOrder{tx}})
+		require.NoError(t, err)
+
+		var saveTypeCalls, sendTxCalls int32
+		api := &tokensRestAPI{
+			ab: &mockABClient{
+				sendTransaction: func(ctx context.Context, t *types.TransactionOrder) error {
+					atomic.AddInt32(&sendTxCalls, 1)
+					return nil
+				},
+			},
+			db: &mockStorage{
+				saveTTypeCreator: func(id TokenTypeID, kind Kind, creator sdk.PubKey) error {
+					atomic.AddInt32(&saveTypeCalls, 1)
+					if !bytes.Equal(id, tx.UnitID()) {
+						t.Errorf("unexpected unit ID %x", id)
+					}
+					return nil
+				},
+			},
+		}
+
+		rsp := makeRequest(api, hexutil.Encode(pk), message)
+		if rsp.StatusCode != http.StatusAccepted {
+			b, err := httputil.DumpResponse(rsp, true)
+			t.Errorf("unexpected status: %s\n%s\n%v", rsp.Status, b, err)
+		}
+		require.EqualValues(t, 1, saveTypeCalls, "unexpectedly saveTTypeCreator was called %d times", saveTypeCalls)
+		require.EqualValues(t, 1, sendTxCalls, "unexpectedly sendTransaction was called %d times", sendTxCalls)
+	})
+
 	t.Run("valid non-type-creation request with ownership validation", func(t *testing.T) {
 		txs := &sdk.Transactions{Transactions: []*types.TransactionOrder{
 			testtransaction.NewTransactionOrder(t,

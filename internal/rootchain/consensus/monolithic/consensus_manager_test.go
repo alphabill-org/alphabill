@@ -186,7 +186,7 @@ func TestConsensusManager_PersistFails(t *testing.T) {
 	cert, err := cm.GetLatestUnicityCertificate(protocol.SystemIdentifier(partitionID))
 	require.NoError(t, err)
 	// simulate T3 timeout
-	cm.onT3Timeout()
+	cm.onT3Timeout(context.Background())
 	// due to DB persist error round is not incremented and will be repeated
 	require.Equal(t, uint64(1), cm.round)
 	certNow, err := cm.GetLatestUnicityCertificate(protocol.SystemIdentifier(partitionID))
@@ -194,7 +194,7 @@ func TestConsensusManager_PersistFails(t *testing.T) {
 
 	require.Equal(t, cert, certNow)
 	// simulate T3 timeout
-	cm.onT3Timeout()
+	cm.onT3Timeout(context.Background())
 	// same deal no progress
 	require.Equal(t, uint64(1), cm.round)
 	// set db to simulate error

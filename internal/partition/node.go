@@ -361,17 +361,8 @@ func (n *Node) loop(ctx context.Context) error {
 		case <-ctx.Done():
 			return ctx.Err()
 		case tx := <-n.txCh:
-			// round might not be active, but some transactions might still be in the channel
-			if n.txCancel == nil {
-				n.log.Warn("no active round, adding tx back to the buffer", logger.UnitID(tx.UnitID()))
-				if _, err := n.txBuffer.Add(tx); err != nil {
-					n.log.Warn("invalid transaction", logger.Error(err), logger.UnitID(tx.UnitID()))
-					n.sendEvent(event.Error, err)
-				}
-			} else {
-				if err := n.process(tx, n.getCurrentRound()); err != nil {
-					n.log.Warn("failed to process transaction", logger.Error(err), logger.UnitID(tx.UnitID()))
-				}
+			if err := n.process(tx, n.getCurrentRound()); err != nil {
+				n.log.Warn("failed to process transaction", logger.Error(err), logger.UnitID(tx.UnitID()))
 			}
 		case m, ok := <-n.network.ReceivedChannel():
 			if !ok {
@@ -1260,6 +1251,17 @@ func (n *Node) stopForwardingOrHandlingTransactions() {
 		n.txCancel = nil
 		txCancel()
 		n.txWaitGroup.Wait()
+		// clear the channel and add unprocessed transactions back to buffer
+		for {
+			select {
+			case tx := <-n.txCh:
+				n.log.Warn("Stop forward or handle tx, adding tx back to the buffer", logger.UnitID(tx.UnitID()))
+				// add can only fail if this is a duplicate
+				_, _ = n.txBuffer.Add(tx)
+			default:
+				return
+			}
+		}
 	}
 }
 

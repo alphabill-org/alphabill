@@ -260,7 +260,7 @@ func (api *tokensRestAPI) postTransactions(w http.ResponseWriter, r *http.Reques
 	}
 
 	if errs := api.saveTxs(r.Context(), txs.Transactions, owner); len(errs) > 0 {
-		w.WriteHeader(http.StatusInternalServerError)
+		w.WriteHeader(http.StatusAccepted)
 		api.rw.WriteResponse(w, errs)
 		return
 	}

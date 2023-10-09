@@ -3,11 +3,10 @@ package client
 import (
 	"bytes"
 	"context"
-	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
-	"net/http/httputil"
 	"net/url"
 	"strconv"
 	"strings"
@@ -21,7 +20,10 @@ import (
 	"github.com/alphabill-org/alphabill/pkg/wallet/money/backend"
 )
 
-const defaultPagingLimit = 100
+const (
+	defaultPagingLimit = 100
+	clientUserAgent    = "Money Wallet Backend API Client/0.1"
+)
 
 type (
 	MoneyBackendClient struct {
@@ -54,18 +56,13 @@ const (
 	TransactionsPath    = "api/v1/transactions"
 	InfoPath            = "api/v1/info"
 
-	defaultScheme   = "http://"
-	contentType     = "Content-Type"
-	applicationJson = "application/json"
-	applicationCbor = "application/cbor"
-
 	paramPubKey         = "pubkey"
 	paramIncludeDCBills = "includeDcBills"
 )
 
 func New(baseUrl string) (*MoneyBackendClient, error) {
 	if !strings.HasPrefix(baseUrl, "http://") && !strings.HasPrefix(baseUrl, "https://") {
-		baseUrl = defaultScheme + baseUrl
+		baseUrl = "http://" + baseUrl
 	}
 	u, err := url.Parse(baseUrl)
 	if err != nil {
@@ -92,29 +89,13 @@ func (c *MoneyBackendClient) GetBalance(ctx context.Context, pubKey []byte, incl
 	u := *c.balanceURL
 	sdk.SetQueryParam(&u, paramPubKey, hexutil.Encode(pubKey))
 	sdk.SetQueryParam(&u, paramIncludeDCBills, strconv.FormatBool(includeDCBills))
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
-	if err != nil {
-		return 0, fmt.Errorf("failed to build get balance request: %w", err)
-	}
-	req.Header.Set(contentType, applicationJson)
-	response, err := c.HttpClient.Do(req)
-	if err != nil {
-		return 0, fmt.Errorf("request GetBalance failed: %w", err)
-	}
-	if response.StatusCode != http.StatusOK {
-		return 0, fmt.Errorf("unexpected response status code: %d", response.StatusCode)
-	}
 
-	responseData, err := io.ReadAll(response.Body)
+	var res *backend.BalanceResponse
+	_, err := c.get(ctx, &u, &res, false)
 	if err != nil {
-		return 0, fmt.Errorf("failed to read GetBalance response: %w", err)
+		return 0, fmt.Errorf("get balance request failed: %w", err)
 	}
-	var responseObject backend.BalanceResponse
-	err = json.Unmarshal(responseData, &responseObject)
-	if err != nil {
-		return 0, fmt.Errorf("failed to unmarshall GetBalance response data: %w", err)
-	}
-	return responseObject.Balance, nil
+	return res.Balance, nil
 }
 
 func (c *MoneyBackendClient) ListBills(ctx context.Context, pubKey []byte, includeDCBills bool, offsetKey string, limit int) (*backend.ListBillsResponse, error) {
@@ -142,128 +123,45 @@ func (c *MoneyBackendClient) GetBills(ctx context.Context, pubKey []byte) ([]*sd
 }
 
 func (c *MoneyBackendClient) GetRoundNumber(ctx context.Context) (uint64, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.roundNumberURL.String(), nil)
+	var res *backend.RoundNumberResponse
+	_, err := c.get(ctx, c.roundNumberURL, &res, false)
 	if err != nil {
-		return 0, fmt.Errorf("failed to build GetRoundNumber request: %w", err)
+		return 0, fmt.Errorf("get round number request failed: %w", err)
 	}
-	req.Header.Set(contentType, applicationJson)
-	response, err := c.HttpClient.Do(req)
-	if err != nil {
-		return 0, fmt.Errorf("request GetRoundNumber failed: %w", err)
-	}
-	if response.StatusCode != http.StatusOK {
-		return 0, fmt.Errorf("unexpected response status code: %d", response.StatusCode)
-	}
-
-	responseData, err := io.ReadAll(response.Body)
-	if err != nil {
-		return 0, fmt.Errorf("failed to read GetRoundNumber response: %w", err)
-	}
-	var responseObject backend.RoundNumberResponse
-	err = json.Unmarshal(responseData, &responseObject)
-	if err != nil {
-		return 0, fmt.Errorf("failed to unmarshall GetRoundNumber response data: %w", err)
-	}
-	return responseObject.RoundNumber, nil
+	return res.RoundNumber, nil
 }
 
 func (c *MoneyBackendClient) GetFeeCreditBill(ctx context.Context, unitID types.UnitID) (*sdk.Bill, error) {
-	urlPath := c.feeCreditBillURL.JoinPath(hexutil.Encode(unitID)).String()
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, urlPath, nil)
+	var fcb *sdk.Bill
+	addr := c.feeCreditBillURL.JoinPath(hexutil.Encode(unitID))
+	_, err := c.get(ctx, addr, &fcb, false)
 	if err != nil {
-		return nil, fmt.Errorf("failed to build get fee credit request: %w", err)
-	}
-	req.Header.Set(contentType, applicationJson)
-
-	response, err := c.HttpClient.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("request get fee credit failed: %w", err)
-	}
-	if response.StatusCode != http.StatusOK {
-		if response.StatusCode == http.StatusNotFound {
+		if errors.Is(err, sdk.ErrNotFound) {
 			return nil, nil
 		}
-		responseStr, _ := httputil.DumpResponse(response, true)
-		return nil, fmt.Errorf("unexpected response: %s", responseStr)
+		return nil, fmt.Errorf("get fee credit bill request failed: %w", err)
 	}
-
-	responseData, err := io.ReadAll(response.Body)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read get credit bill response: %w", err)
-	}
-	var res sdk.Bill
-	err = json.Unmarshal(responseData, &res)
-	if err != nil {
-		return nil, fmt.Errorf("failed to unmarshall get fee credit bill response data: %w", err)
-	}
-	return &res, nil
+	return fcb, nil
 }
 
 func (c *MoneyBackendClient) GetLockedFeeCredit(ctx context.Context, systemID []byte, fcbID []byte) (*types.TransactionRecord, error) {
-	urlPath := c.lockedFeeCreditURL.
-		JoinPath(hexutil.Encode(systemID)).
-		JoinPath(hexutil.Encode(fcbID)).
-		String()
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, urlPath, nil)
-	if err != nil {
-		return nil, fmt.Errorf("failed to build get locked fee credit request: %w", err)
-	}
-	req.Header.Set(contentType, applicationCbor)
-
-	response, err := c.HttpClient.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("request get locked fee credit failed: %w", err)
-	}
-	if response.StatusCode != http.StatusOK {
-		if response.StatusCode == http.StatusNotFound {
-			return nil, nil
-		}
-		responseStr, _ := httputil.DumpResponse(response, true)
-		return nil, fmt.Errorf("unexpected response: %s", responseStr)
-	}
-
-	responseData, err := io.ReadAll(response.Body)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read get locked fee credit response: %w", err)
-	}
 	var res *types.TransactionRecord
-	err = cbor.Unmarshal(responseData, &res)
+	addr := c.lockedFeeCreditURL.
+		JoinPath(hexutil.Encode(systemID)).
+		JoinPath(hexutil.Encode(fcbID))
+	_, err := c.get(ctx, addr, &res, false)
 	if err != nil {
-		return nil, fmt.Errorf("failed to unmarshall get locked fee credit response data: %w", err)
+		return nil, fmt.Errorf("get locked fee credit request failed: %w", err)
 	}
 	return res, nil
 }
 
 func (c *MoneyBackendClient) GetClosedFeeCredit(ctx context.Context, fcbID []byte) (*types.TransactionRecord, error) {
-	urlPath := c.closedFeeCreditURL.
-		JoinPath(hexutil.Encode(fcbID)).
-		String()
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, urlPath, nil)
-	if err != nil {
-		return nil, fmt.Errorf("failed to build get closed fee credit request: %w", err)
-	}
-	req.Header.Set(contentType, applicationCbor)
-
-	response, err := c.HttpClient.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("request get closed fee credit failed: %w", err)
-	}
-	if response.StatusCode != http.StatusOK {
-		if response.StatusCode == http.StatusNotFound {
-			return nil, nil
-		}
-		responseStr, _ := httputil.DumpResponse(response, true)
-		return nil, fmt.Errorf("unexpected response: %s", responseStr)
-	}
-
-	responseData, err := io.ReadAll(response.Body)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read get closed fee credit response: %w", err)
-	}
 	var res *types.TransactionRecord
-	err = cbor.Unmarshal(responseData, &res)
+	addr := c.closedFeeCreditURL.JoinPath(hexutil.Encode(fcbID))
+	_, err := c.get(ctx, addr, &res, false)
 	if err != nil {
-		return nil, fmt.Errorf("failed to unmarshall get closed fee credit response data: %w", err)
+		return nil, fmt.Errorf("get closed fee credit request failed: %w", err)
 	}
 	return res, nil
 }
@@ -273,110 +171,54 @@ func (c *MoneyBackendClient) PostTransactions(ctx context.Context, pubKey sdk.Pu
 	if err != nil {
 		return fmt.Errorf("failed to encode transactions: %w", err)
 	}
-	urlPath := c.transactionsURL.JoinPath(hexutil.Encode(pubKey)).String()
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, urlPath, bytes.NewBuffer(b))
-	if err != nil {
-		return fmt.Errorf("failed to create send transactions request: %w", err)
+	addr := c.transactionsURL.JoinPath(hexutil.Encode(pubKey))
+	var rsp map[string]string
+	if err := c.post(ctx, addr, bytes.NewBuffer(b), &rsp); err != nil {
+		return fmt.Errorf("failed to send transactions: %w", err)
 	}
-	req.Header.Set(contentType, applicationCbor)
-	res, err := c.HttpClient.Do(req)
-	if err != nil {
-		return fmt.Errorf("failed to send transactions (technical error): %w", err)
-	}
-	defer res.Body.Close() // have to close request body in case of nil error
-
-	if res.StatusCode != http.StatusAccepted {
-		errorData, err := io.ReadAll(res.Body)
-		if err == nil {
-			return fmt.Errorf("failed to send transactions: status %s - %s", res.Status, string(errorData))
+	if len(rsp) > 0 {
+		msg := "failed to process some of the transactions:\n"
+		for k, v := range rsp {
+			msg += k + ": " + v + "\n"
 		}
-		return fmt.Errorf("failed to send transactions: status %s", res.Status)
+		return errors.New(strings.TrimSpace(msg))
 	}
 	return nil
 }
 
 // GetTxProof wrapper for GetProof method to satisfy txsubmitter interface, also verifies txHash
 func (c *MoneyBackendClient) GetTxProof(ctx context.Context, unitID types.UnitID, txHash sdk.TxHash) (*sdk.Proof, error) {
-	urlPath := c.unitsURL.JoinPath(hexutil.Encode(unitID), "transactions", hexutil.Encode(txHash), "proof").String()
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, urlPath, nil)
+	var res *sdk.Proof
+	addr := c.unitsURL.JoinPath(hexutil.Encode(unitID), "transactions", hexutil.Encode(txHash), "proof")
+	_, err := c.get(ctx, addr, &res, false)
 	if err != nil {
-		return nil, fmt.Errorf("failed to build get tx proof request: %w", err)
+		if errors.Is(err, sdk.ErrNotFound) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("get tx proof request failed: %w", err)
 	}
-	response, err := c.HttpClient.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("request GetTxProof failed: %w", err)
-	}
-	if response.StatusCode == http.StatusNotFound {
-		return nil, nil
-	}
-	if response.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("unexpected response status code: %d", response.StatusCode)
-	}
-	responseData, err := io.ReadAll(response.Body)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read GetTxProof response: %w", err)
-	}
-
-	var proof *sdk.Proof
-	err = cbor.Unmarshal(responseData, &proof)
-	if err != nil {
-		return nil, fmt.Errorf("failed to unmarshall GetTxProof response data: %w", err)
-	}
-	return proof, nil
+	return res, nil
 }
 
 func (c *MoneyBackendClient) GetTxHistory(ctx context.Context, pubKey sdk.PubKey, offset string, limit int) ([]*sdk.TxHistoryRecord, string, error) {
-	u := c.txHistoryURL.JoinPath(hexutil.Encode(pubKey))
-	sdk.SetPaginationParams(u, offset, limit)
+	var res []*sdk.TxHistoryRecord
+	addr := c.txHistoryURL.JoinPath(hexutil.Encode(pubKey))
+	sdk.SetPaginationParams(addr, offset, limit)
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
+	nextKey, err := c.get(ctx, addr, &res, false)
 	if err != nil {
-		return nil, "", fmt.Errorf("failed to build get tx proof request: %w", err)
+		return nil, "", fmt.Errorf("get tx history request failed: %w", err)
 	}
-	response, err := c.HttpClient.Do(req)
-	if err != nil {
-		return nil, "", fmt.Errorf("request GetTxProof failed: %w", err)
-	}
-	if response.StatusCode == http.StatusNotFound {
-		return nil, "", nil
-	}
-	if response.StatusCode != http.StatusOK {
-		return nil, "", fmt.Errorf("unexpected response status code: %d", response.StatusCode)
-	}
-	responseData, err := io.ReadAll(response.Body)
-	if err != nil {
-		return nil, "", fmt.Errorf("failed to read GetTxProof response: %w", err)
-	}
-	var result []*sdk.TxHistoryRecord
-	err = cbor.Unmarshal(responseData, &result)
-	if err != nil {
-		return nil, "", fmt.Errorf("failed to unmarshall GetTxProof response data: %w", err)
-	}
-
-	pm, err := sdk.ExtractOffsetMarker(response)
-	if err != nil {
-		return nil, "", fmt.Errorf("failed to extract position marker: %w", err)
-	}
-	return result, pm, nil
+	return res, nextKey, nil
 }
 
 func (c *MoneyBackendClient) GetInfo(ctx context.Context) (*sdk.InfoResponse, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.infoURL.String(), nil)
+	var res *sdk.InfoResponse
+	_, err := c.get(ctx, c.infoURL, &res, false)
 	if err != nil {
-		return nil, fmt.Errorf("failed to build get info request: %w", err)
+		return nil, fmt.Errorf("get info request failed: %w", err)
 	}
-	httpResponse, err := c.HttpClient.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("request GetInfo failed: %w", err)
-	}
-	if httpResponse.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("unexpected response status code for GetInfo request: %d", httpResponse.StatusCode)
-	}
-	var infoResponse *sdk.InfoResponse
-	if err := json.NewDecoder(httpResponse.Body).Decode(&infoResponse); err != nil {
-		return nil, fmt.Errorf("failed to parse GetInfo response: %w", err)
-	}
-	return infoResponse, nil
+	return res, nil
 }
 
 func (c *MoneyBackendClient) retrieveBills(ctx context.Context, pubKey []byte, includeDCBills bool, offsetKey string, limit int) (*backend.ListBillsResponse, string, error) {
@@ -384,30 +226,59 @@ func (c *MoneyBackendClient) retrieveBills(ctx context.Context, pubKey []byte, i
 	sdk.SetQueryParam(&u, paramPubKey, hexutil.Encode(pubKey))
 	sdk.SetQueryParam(&u, paramIncludeDCBills, strconv.FormatBool(includeDCBills))
 	sdk.SetPaginationParams(&u, offsetKey, limit)
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
+
+	var res *backend.ListBillsResponse
+	nextKey, err := c.get(ctx, &u, &res, false)
 	if err != nil {
-		return nil, "", fmt.Errorf("failed to build get bills request: %w", err)
+		return nil, "", fmt.Errorf("list bills request failed: %w", err)
 	}
-	req.Header.Set(contentType, applicationJson)
-	response, err := c.HttpClient.Do(req)
+	return res, nextKey, nil
+}
+
+/*
+get executes GET request to given "addr" and decodes response body into "data" (which has to be a pointer
+of the data type expected in the response).
+When "allowEmptyResponse" is false then response must have a non-empty body with CBOR content.
+
+It returns value of the offset parameter from the Link header (empty string when header is not
+present, ie missing header is not error).
+*/
+func (c *MoneyBackendClient) get(ctx context.Context, addr *url.URL, data any, allowEmptyResponse bool) (string, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, addr.String(), nil)
 	if err != nil {
-		return nil, "", fmt.Errorf("request ListBills failed: %w", err)
+		return "", fmt.Errorf("failed to build http request: %w", err)
 	}
-	if response.StatusCode != http.StatusOK {
-		return nil, "", fmt.Errorf("unexpected response status code: %d", response.StatusCode)
-	}
-	responseData, err := io.ReadAll(response.Body)
+	req.Header.Set(sdk.UserAgent, clientUserAgent)
+
+	rsp, err := c.HttpClient.Do(req)
 	if err != nil {
-		return nil, "", fmt.Errorf("failed to read ListBills response: %w", err)
+		return "", fmt.Errorf("request to backend failed: %w", err)
 	}
-	var responseObject *backend.ListBillsResponse
-	err = json.Unmarshal(responseData, &responseObject)
+	if err := sdk.DecodeResponse(rsp, http.StatusOK, data, allowEmptyResponse); err != nil {
+		return "", err
+	}
+
+	pm, err := sdk.ExtractOffsetMarker(rsp)
 	if err != nil {
-		return nil, "", fmt.Errorf("failed to unmarshal ListBills response data: %w", err)
+		return "", fmt.Errorf("failed to extract position marker: %w", err)
 	}
-	nextKey, err := sdk.ExtractOffsetMarker(response)
+	return pm, nil
+}
+
+func (c *MoneyBackendClient) post(ctx context.Context, u *url.URL, body io.Reader, rspData any) error {
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, u.String(), body)
 	if err != nil {
-		return nil, "", fmt.Errorf("failed to extract position marker: %w", err)
+		return fmt.Errorf("failed to build http request: %w", err)
 	}
-	return responseObject, nextKey, nil
+	req.Header.Set(sdk.UserAgent, clientUserAgent)
+	req.Header.Set(sdk.ContentType, sdk.ApplicationCbor)
+
+	rsp, err := c.HttpClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("request to backend failed: %w", err)
+	}
+	if err := sdk.DecodeResponse(rsp, http.StatusAccepted, rspData, true); err != nil {
+		return err
+	}
+	return nil
 }

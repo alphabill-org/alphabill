@@ -40,29 +40,33 @@ func TestNode_StartNewRoundCallsRInit(t *testing.T) {
 	require.Equal(t, uint64(1), s.BeginBlockCountDelta)
 }
 
+// TestNode_noRound_txAddedBackToBuffer - simulates the situation where node is leader
+// and stopForwardingOrHandlingTransactions() is called while there are transaction in
+// the execution channel. Make sure that the not executed tx's are added back to buffer after stop.
 func TestNode_noRound_txAddedBackToBuffer(t *testing.T) {
-	s := &testtxsystem.CounterTxSystem{}
-	p := RunSingleNodePartition(t, s)
+	// set-up simulation
+	txSystem := &testtxsystem.CounterTxSystem{}
+	p := SetupNewSingleNodePartition(t, txSystem)
 	transfer := testtransaction.NewTransactionOrder(t)
-	stateBefore, err := s.StateSummary()
-	if err != nil {
-		require.NoError(t, err)
-	}
+	require.NoError(t, p.newNode())
 	bufferBefore := p.partition.txBuffer.Count()
-	// make sure no round is active
-	p.partition.handleT1TimeoutEvent(context.Background())
-	// send tx to the channel
+	// simulate node is leader and start was called
+	ctx, txCancel := context.WithCancel(context.Background())
+	p.partition.txCancel = txCancel
+	p.partition.txWaitGroup.Add(1)
+	go func() {
+		defer p.partition.txWaitGroup.Done()
+		// wait for cancel
+		<-ctx.Done()
+	}()
+	// send a tx to the execution channel
 	p.partition.txCh <- transfer
+	// call stopForwardingOrHandlingTransactions -> any tx not executed is added back to buffer
+	p.partition.stopForwardingOrHandlingTransactions()
 	// tx is added back to the buffer
 	require.Eventually(t, func() bool {
 		return bufferBefore+1 == p.partition.txBuffer.Count()
 	}, test.WaitDuration, test.WaitTick)
-	// make sure tx system remains untouched
-	stateAfter, err := s.StateSummary()
-	if err != nil {
-		require.NoError(t, err)
-	}
-	require.Equal(t, stateBefore.Root(), stateAfter.Root())
 }
 
 func TestNode_NodeStartTest(t *testing.T) {

@@ -6,6 +6,9 @@ import (
 	"sort"
 	"testing"
 
+	"github.com/fxamacker/cbor/v2"
+	"github.com/stretchr/testify/require"
+
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/internal/script"
@@ -22,8 +25,6 @@ import (
 	"github.com/alphabill-org/alphabill/internal/txsystem/fc/unit"
 	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/internal/util"
-	"github.com/fxamacker/cbor/v2"
-	"github.com/stretchr/testify/require"
 )
 
 const initialDustCollectorMoneyAmount uint64 = 100
@@ -286,7 +287,13 @@ func TestExecute_SwapOk(t *testing.T) {
 	_, initBillData := getBill(t, rmaTree, initialBill.ID)
 	var remaining uint64 = 99
 	amount := initialBill.Value - remaining
-	splitOk, _ := createSplit(t, initialBill.ID, []*TargetUnit{{Amount: amount, OwnerCondition: script.PredicateAlwaysTrue()}}, remaining, initBillData.Backlink)
+	splitOk, _ := createSplit(t,
+		initialBill.ID,
+		[]*TargetUnit{
+			{Amount: amount, OwnerCondition: script.PredicateAlwaysTrue()},
+		},
+		remaining,
+		initBillData.Backlink)
 	roundNumber := uint64(10)
 
 	err := txSystem.BeginBlock(roundNumber)
@@ -299,6 +306,18 @@ func TestExecute_SwapOk(t *testing.T) {
 	splitBillID := NewBillID(nil, unitIDFromTransaction(splitOk, util.Uint32ToBytes(uint32(0))))
 	targetID := initialBill.ID
 	targetBacklink := splitOk.Hash(crypto.SHA256)
+
+	// execute lock transaction to verify swap unlocks locked unit
+	lockTx, _ := createLockTx(t, targetID, targetBacklink)
+	sm, err = txSystem.Execute(lockTx)
+	require.NoError(t, err)
+	require.NotNil(t, sm)
+
+	// verify bill got locked
+	_, billData := getBill(t, rmaTree, targetID)
+	require.True(t, billData.Locked)
+
+	targetBacklink = lockTx.Hash(crypto.SHA256)
 	dcTransfers, swapTx := createDCTransferAndSwapTxs(t, []types.UnitID{splitBillID}, targetID, targetBacklink, rmaTree, signer)
 	for _, dcTransfer := range dcTransfers {
 		sm, err = txSystem.Execute(dcTransfer.TransactionOrder)
@@ -308,11 +327,12 @@ func TestExecute_SwapOk(t *testing.T) {
 	sm, err = txSystem.Execute(swapTx)
 	require.NoError(t, err)
 	require.NotNil(t, sm)
-	_, billData := getBill(t, rmaTree, swapTx.UnitID())
+	_, billData = getBill(t, rmaTree, swapTx.UnitID())
 	require.Equal(t, initialBill.Value, billData.V) // initial bill value is the same after swap
 	require.Equal(t, swapTx.Hash(crypto.SHA256), billData.Backlink)
 	_, dustCollectorBill := getBill(t, rmaTree, dustCollectorMoneySupplyID)
 	require.Equal(t, initialDustCollectorMoneyAmount, dustCollectorBill.V) // dust collector money supply is the same after swap
+	require.False(t, billData.Locked)                                      // verify bill got unlocked
 }
 
 func TestExecute_LockOk(t *testing.T) {
@@ -558,7 +578,7 @@ func TestRegisterData_RevertTransDC(t *testing.T) {
 	require.NotEqualValues(t, dustCollectorPredicate, unit.Bearer())
 }
 
-// Test Transfer->Add->Close->Reclaim sequence OK
+// Test Transfer->Add->Lock->Close->Reclaim sequence OK
 func TestExecute_FeeCreditSequence_OK(t *testing.T) {
 	rmaTree, txSystem, signer := createStateAndTxSystem(t)
 	txFee := fc.FixedFee(1)()
@@ -616,13 +636,27 @@ func TestExecute_FeeCreditSequence_OK(t *testing.T) {
 	require.EqualValues(t, remainingValue, fcrUnitData.Balance)
 	require.Equal(t, txFee, sm.ActualFee)
 
+	// lock target unit
+	targetBacklink := transferFC.Hash(crypto.SHA256)
+	lockTx, _ := createLockTx(t, initialBillID, targetBacklink)
+	sm, err = txSystem.Execute(lockTx)
+	require.NoError(t, err)
+	require.NotNil(t, sm)
+
+	// verify target got locked
+	ib, err = rmaTree.GetUnit(initialBill.ID, false)
+	require.NoError(t, err)
+	bd, ok := ib.Data().(*BillData)
+	require.True(t, ok)
+	require.True(t, bd.Locked)
+
 	// send closeFC
-	transferFCHash := transferFC.Hash(crypto.SHA256)
+	targetBacklink = lockTx.Hash(crypto.SHA256)
 	closeFC := testfc.NewCloseFC(t,
 		testfc.NewCloseFCAttr(
 			testfc.WithCloseFCAmount(remainingValue),
 			testfc.WithCloseFCTargetUnitID(initialBillID),
-			testfc.WithCloseFCTargetUnitBacklink(transferFCHash),
+			testfc.WithCloseFCTargetUnitBacklink(targetBacklink),
 		),
 		testtransaction.WithUnitId(fcrUnitID),
 		testtransaction.WithOwnerProof(script.PredicateArgumentEmpty()),
@@ -648,7 +682,7 @@ func TestExecute_FeeCreditSequence_OK(t *testing.T) {
 		testfc.NewReclaimFCAttr(t, signer,
 			testfc.WithReclaimFCClosureTx(closeFCTransactionRecord),
 			testfc.WithReclaimFCClosureProof(closeFCProof),
-			testfc.WithReclaimFCBacklink(transferFCHash),
+			testfc.WithReclaimFCBacklink(targetBacklink),
 		),
 		testtransaction.WithUnitId(initialBillID),
 		testtransaction.WithOwnerProof(script.PredicateArgumentEmpty()),
@@ -663,6 +697,11 @@ func TestExecute_FeeCreditSequence_OK(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, ok)
 	require.EqualValues(t, initialBill.Value-4*txFee, ib.Data().SummaryValueInput())
+
+	// and initial bill got unlocked
+	bd, ok = ib.Data().(*BillData)
+	require.True(t, ok)
+	require.False(t, bd.Locked)
 }
 
 func unitIDFromTransaction(tx *types.TransactionOrder, extra ...[]byte) []byte {

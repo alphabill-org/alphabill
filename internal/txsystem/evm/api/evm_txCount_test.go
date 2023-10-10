@@ -10,6 +10,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/rpc"
 	abstate "github.com/alphabill-org/alphabill/internal/state"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
+	"github.com/alphabill-org/alphabill/internal/testutils/logger"
 	"github.com/alphabill-org/alphabill/internal/txsystem/evm/statedb"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/fxamacker/cbor/v2"
@@ -17,8 +18,9 @@ import (
 )
 
 func TestAPI_TransactionCount_OK(t *testing.T) {
+	log := logger.New(t)
 	tree := abstate.NewEmptyState()
-	stateDB := statedb.NewStateDB(tree)
+	stateDB := statedb.NewStateDB(tree, log)
 	address := common.BytesToAddress(test.RandomBytes(20))
 
 	stateDB.CreateAccount(address)
@@ -32,6 +34,7 @@ func TestAPI_TransactionCount_OK(t *testing.T) {
 		systemIdentifier: []byte{0, 0, 0, 1},
 		gasUnitPrice:     big.NewInt(10),
 		blockGasLimit:    10000,
+		log:              log,
 	}
 
 	req := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/v1/evm/transactionCount/%X", address.Bytes()), nil)

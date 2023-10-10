@@ -3,12 +3,15 @@ package rpc
 import (
 	"encoding/hex"
 	"encoding/json"
+	"log/slog"
 	"net/http"
+	"slices"
 
-	"github.com/alphabill-org/alphabill/internal/network"
 	"github.com/gorilla/mux"
 	"github.com/multiformats/go-multiaddr"
-	"golang.org/x/exp/slices"
+
+	"github.com/alphabill-org/alphabill/internal/network"
+	"github.com/alphabill-org/alphabill/pkg/logger"
 )
 
 type (
@@ -29,13 +32,13 @@ type (
 	}
 )
 
-func InfoEndpoints(node partitionNode, name string, self *network.Peer) RegistrarFunc {
+func InfoEndpoints(node partitionNode, name string, self *network.Peer, log *slog.Logger) RegistrarFunc {
 	return func(r *mux.Router) {
-		r.HandleFunc("/info", infoHandler(node, name, self)).Methods(http.MethodGet, http.MethodOptions)
+		r.HandleFunc("/info", infoHandler(node, name, self, log)).Methods(http.MethodGet, http.MethodOptions)
 	}
 }
 
-func infoHandler(node partitionNode, name string, self *network.Peer) http.HandlerFunc {
+func infoHandler(node partitionNode, name string, self *network.Peer, log *slog.Logger) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		i := infoResponse{
 			SystemID: hex.EncodeToString(node.SystemIdentifier()),
@@ -45,16 +48,15 @@ func infoHandler(node partitionNode, name string, self *network.Peer) http.Handl
 				Addresses:  self.MultiAddresses(),
 			},
 			BootstrapNodes:      getBootstrapNodes(self),
-			RootValidators:      getRootValidators(self),
+			RootValidators:      getRootValidators(self, log),
 			PartitionValidators: getPartitionValidators(self),
 			OpenConnections:     getOpenConnections(self),
 		}
 		w.Header().Set(headerContentType, applicationJson)
 		encoder := json.NewEncoder(w)
 		encoder.SetIndent("", "  ")
-		err := encoder.Encode(i)
-		if err != nil {
-			logger.Warning("Failed to write info message: %v", err)
+		if err := encoder.Encode(i); err != nil {
+			log.WarnContext(r.Context(), "failed to write info message", logger.Error(err))
 		}
 	}
 
@@ -85,14 +87,14 @@ func getOpenConnections(self *network.Peer) []peerInfo {
 	return peers
 }
 
-func getRootValidators(self *network.Peer) []peerInfo {
+func getRootValidators(self *network.Peer, log *slog.Logger) []peerInfo {
 	var peers []peerInfo
 	peerStore := self.Network().Peerstore()
 	ids := peerStore.Peers()
 	for _, id := range ids {
 		protocols, err := peerStore.SupportsProtocols(id, network.ProtocolBlockCertification)
 		if err != nil {
-			logger.Warning("Failed to query peer store: %v", err)
+			log.Warn("failed to query peer store", logger.Error(err))
 			continue
 		}
 		if slices.Contains(protocols, network.ProtocolBlockCertification) {

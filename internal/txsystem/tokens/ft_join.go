@@ -13,7 +13,6 @@ import (
 
 func handleJoinFungibleTokenTx(options *Options) txsystem.GenericExecuteFunc[JoinFungibleTokenAttributes] {
 	return func(tx *types.TransactionOrder, attr *JoinFungibleTokenAttributes, currentBlockNr uint64) (*types.ServerMetadata, error) {
-		logger.Debug("Processing Join Fungible Token tx: %v", tx)
 		sum, err := validateJoinFungibleToken(tx, attr, options)
 		if err != nil {
 			return nil, fmt.Errorf("invalid join fungible token tx: %w", err)

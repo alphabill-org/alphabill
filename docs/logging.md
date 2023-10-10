@@ -96,6 +96,13 @@ ie something like
 To disable color codes configure IDE so that it executes `go test` tool with
 env variable `AB_TEST_LOG_NO_COLORS` set to `true`.
 
+The default log level for test loggers is `debug`. Environment variable `AB_TEST_LOG_LEVEL`
+can be used to set the default log level for tests ie
+
+```bash
+AB_TEST_LOG_LEVEL=trace go test ./...
+```
+
 #### VSCode
 
 To disable logger emitting color codes in VSCode open `Settings` and search

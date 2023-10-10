@@ -12,7 +12,6 @@ import (
 
 func handleAddFeeCreditTx(f *FeeCredit) txsystem.GenericExecuteFunc[transactions.AddFeeCreditAttributes] {
 	return func(tx *types.TransactionOrder, attr *transactions.AddFeeCreditAttributes, currentBlockNumber uint64) (*types.ServerMetadata, error) {
-		f.logger.Debug("Processing addFC %v", tx)
 		unitID := tx.UnitID()
 
 		bd, _ := f.state.GetUnit(unitID, false)

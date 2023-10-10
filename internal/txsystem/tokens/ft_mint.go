@@ -14,7 +14,6 @@ import (
 
 func handleMintFungibleTokenTx(options *Options) txsystem.GenericExecuteFunc[MintFungibleTokenAttributes] {
 	return func(tx *types.TransactionOrder, attr *MintFungibleTokenAttributes, currentBlockNr uint64) (*types.ServerMetadata, error) {
-		logger.Debug("Processing Mint Fungible Token tx: %v", tx)
 		if err := validateMintFungibleToken(tx, attr, options.state, options.hashAlgorithm); err != nil {
 			return nil, fmt.Errorf("invalid mint fungible token tx: %w", err)
 		}

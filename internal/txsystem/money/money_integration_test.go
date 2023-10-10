@@ -14,6 +14,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/partition/event"
 	"github.com/alphabill-org/alphabill/internal/script"
 	"github.com/alphabill-org/alphabill/internal/state"
+	"github.com/alphabill-org/alphabill/internal/testutils/logger"
 	testpartition "github.com/alphabill-org/alphabill/internal/testutils/partition"
 	testevent "github.com/alphabill-org/alphabill/internal/testutils/partition/event"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
@@ -46,6 +47,7 @@ func TestPartition_Ok(t *testing.T) {
 	moneyPrt, err := testpartition.NewPartition(t, 3, func(tb map[string]abcrypto.Verifier) txsystem.TransactionSystem {
 		s = state.NewEmptyState()
 		system, err := NewTxSystem(
+			logger.New(t),
 			WithState(s),
 			WithSystemIdentifier(systemIdentifier),
 			WithHashAlgorithm(crypto.SHA256),
@@ -126,6 +128,7 @@ func TestPartition_SwapDCOk(t *testing.T) {
 		txsState = state.NewEmptyState()
 		// trustBase = tb
 		system, err := NewTxSystem(
+			logger.New(t),
 			WithSystemIdentifier(systemIdentifier),
 			WithHashAlgorithm(crypto.SHA256),
 			WithInitialBill(initialBill),

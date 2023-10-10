@@ -13,7 +13,6 @@ import (
 
 func handleBurnFungibleTokenTx(options *Options) txsystem.GenericExecuteFunc[BurnFungibleTokenAttributes] {
 	return func(tx *types.TransactionOrder, attr *BurnFungibleTokenAttributes, currentBlockNr uint64) (*types.ServerMetadata, error) {
-		logger.Debug("Processing Burn Fungible Token tx: %v", tx)
 		if err := validateBurnFungibleToken(tx, attr, options.state, options.hashAlgorithm); err != nil {
 			return nil, fmt.Errorf("invalid burn fungible token transaction: %w", err)
 		}

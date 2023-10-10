@@ -14,9 +14,9 @@ func (a *API) Balance(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	addr := vars["address"]
 	address := common.HexToAddress(addr)
-	db := statedb.NewStateDB(a.state.Clone())
+	db := statedb.NewStateDB(a.state.Clone(), a.log)
 	if !db.Exist(address) {
-		util.WriteCBORError(w, errors.New("address not found"), http.StatusNotFound)
+		util.WriteCBORError(w, errors.New("address not found"), http.StatusNotFound, a.log)
 		return
 	}
 	balance := db.GetBalance(address)
@@ -33,5 +33,5 @@ func (a *API) Balance(w http.ResponseWriter, r *http.Request) {
 	}{
 		Balance:  balance.String(),
 		Backlink: backlink,
-	}, http.StatusOK)
+	}, http.StatusOK, a.log)
 }

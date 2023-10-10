@@ -14,7 +14,6 @@ import (
 
 func handleUpdateNonFungibleTokenTx(options *Options) txsystem.GenericExecuteFunc[UpdateNonFungibleTokenAttributes] {
 	return func(tx *types.TransactionOrder, attr *UpdateNonFungibleTokenAttributes, currentBlockNr uint64) (*types.ServerMetadata, error) {
-		logger.Debug("Processing Update Non-Fungible Token tx: %v", tx)
 		if err := validateUpdateNonFungibleToken(tx, attr, options.state, options.hashAlgorithm); err != nil {
 			return nil, fmt.Errorf("invalid update non-fungible token tx: %w", err)
 		}

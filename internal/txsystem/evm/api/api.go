@@ -1,13 +1,14 @@
 package api
 
 import (
+	"log/slog"
 	"math/big"
 	"net/http"
 
-	"github.com/alphabill-org/alphabill/internal/types"
+	"github.com/gorilla/mux"
 
 	"github.com/alphabill-org/alphabill/internal/state"
-	"github.com/gorilla/mux"
+	"github.com/alphabill-org/alphabill/internal/types"
 )
 
 type API struct {
@@ -15,14 +16,16 @@ type API struct {
 	systemIdentifier types.SystemID
 	gasUnitPrice     *big.Int
 	blockGasLimit    uint64
+	log              *slog.Logger
 }
 
-func NewAPI(s *state.State, systemIdentifier types.SystemID, gasUnitPrice *big.Int, blockGasLimit uint64) *API {
+func NewAPI(s *state.State, systemIdentifier types.SystemID, gasUnitPrice *big.Int, blockGasLimit uint64, log *slog.Logger) *API {
 	return &API{
 		state:            s,
 		systemIdentifier: systemIdentifier,
 		gasUnitPrice:     gasUnitPrice,
 		blockGasLimit:    blockGasLimit,
+		log:              log,
 	}
 }
 

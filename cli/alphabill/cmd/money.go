@@ -8,6 +8,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/internal/script"
 	"github.com/alphabill-org/alphabill/internal/txsystem/money"
+	"github.com/alphabill-org/alphabill/pkg/logger"
 	"github.com/fxamacker/cbor/v2"
 	"github.com/spf13/cobra"
 )
@@ -62,8 +63,7 @@ func runMoneyNode(ctx context.Context, cfg *moneyNodeConfiguration) error {
 	}
 
 	params := &genesis.MoneyPartitionParams{}
-	err = cbor.Unmarshal(pg.Params, params)
-	if err != nil {
+	if err := cbor.Unmarshal(pg.Params, params); err != nil {
 		return fmt.Errorf("failed to unmarshal money partition params: %w", err)
 	}
 
@@ -77,7 +77,14 @@ func runMoneyNode(ctx context.Context, cfg *moneyNodeConfiguration) error {
 		return fmt.Errorf("failed to create trust base validator: %w", err)
 	}
 
+	peer, err := createNetworkPeer(ctx, cfg.Node, pg, cfg.Base.Logger)
+	if err != nil {
+		return fmt.Errorf("creating network peer: %w", err)
+	}
+	log := cfg.Base.Logger.With(logger.NodeID(peer.ID()))
+
 	txs, err := money.NewTxSystem(
+		log,
 		money.WithSystemIdentifier(pg.SystemDescriptionRecord.SystemIdentifier),
 		money.WithHashAlgorithm(crypto.SHA256),
 		money.WithInitialBill(ib),
@@ -88,5 +95,9 @@ func runMoneyNode(ctx context.Context, cfg *moneyNodeConfiguration) error {
 	if err != nil {
 		return fmt.Errorf("creating money transaction system: %w", err)
 	}
-	return defaultNodeRunFunc(ctx, "money node", txs, cfg.Node, cfg.RPCServer, cfg.RESTServer, cfg.Base.Logger)
+	node, err := createNode(ctx, peer, txs, cfg.Node, nil, log)
+	if err != nil {
+		return fmt.Errorf("creating node: %w", err)
+	}
+	return run(ctx, "money node", peer, node, cfg.RPCServer, cfg.RESTServer, log)
 }

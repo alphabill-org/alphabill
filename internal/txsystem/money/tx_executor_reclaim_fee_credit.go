@@ -24,7 +24,6 @@ func handleReclaimFeeCreditTx(s *state.State, hashAlgorithm crypto.Hash, trustBa
 	return func(tx *types.TransactionOrder, attr *transactions.ReclaimFeeCreditAttributes, currentBlockNumber uint64) (*types.ServerMetadata, error) {
 		unitID := tx.UnitID()
 		bd, _ := s.GetUnit(unitID, false)
-		log.Debug("Processing reclaimFC %v", tx)
 		if bd == nil {
 			return nil, errors.New("reclaimFC: unit not found")
 		}

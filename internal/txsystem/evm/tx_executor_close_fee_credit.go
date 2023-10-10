@@ -2,6 +2,7 @@ package evm
 
 import (
 	"fmt"
+	"log/slog"
 
 	"github.com/alphabill-org/alphabill/internal/script"
 	"github.com/alphabill-org/alphabill/internal/state"
@@ -13,10 +14,9 @@ import (
 	"github.com/alphabill-org/alphabill/internal/types"
 )
 
-func closeFeeCreditTx(tree *state.State, calcFee FeeCalculator, validator *fc.DefaultFeeCreditTxValidator) txsystem.GenericExecuteFunc[transactions.CloseFeeCreditAttributes] {
+func closeFeeCreditTx(tree *state.State, calcFee FeeCalculator, validator *fc.DefaultFeeCreditTxValidator, log *slog.Logger) txsystem.GenericExecuteFunc[transactions.CloseFeeCreditAttributes] {
 	return func(tx *types.TransactionOrder, attr *transactions.CloseFeeCreditAttributes, currentBlockNumber uint64) (*types.ServerMetadata, error) {
-		log.Debug("Processing closeFC %v", tx)
-		stateDB := statedb.NewStateDB(tree)
+		stateDB := statedb.NewStateDB(tree, log)
 		pubKey, err := script.ExtractPubKeyFromPredicateArgument(tx.OwnerProof)
 		if err != nil {
 			return nil, fmt.Errorf("failed to extract public key from fee credit owner proof")

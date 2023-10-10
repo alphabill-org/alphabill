@@ -85,6 +85,7 @@ func Test_blockProcessor_ProcessBlock(t *testing.T) {
 
 	t.Run("failure to process tx", func(t *testing.T) {
 		txs, err := tokens.NewTxSystem(
+			logger,
 			tokens.WithTrustBase(map[string]abcrypto.Verifier{"test": nil}),
 		)
 		require.NoError(t, err)
@@ -133,6 +134,7 @@ func Test_blockProcessor_processTx(t *testing.T) {
 
 	logger := logger.NOP()
 	txs, err := tokens.NewTxSystem(
+		logger,
 		tokens.WithTrustBase(map[string]abcrypto.Verifier{"test": nil}),
 	)
 	require.NoError(t, err)
@@ -482,10 +484,11 @@ func createBlockProcessor(t *testing.T) *blockProcessor {
 	db, err := newBoltStore(filepath.Join(t.TempDir(), "tokens.db"))
 	require.NoError(t, err)
 
-	txSystem, err := tokens.NewTxSystem(tokens.WithTrustBase(map[string]abcrypto.Verifier{"test": nil}))
+	log := logger.New(t)
+	txSystem, err := tokens.NewTxSystem(log, tokens.WithTrustBase(map[string]abcrypto.Verifier{"test": nil}))
 	require.NoError(t, err)
 
-	return &blockProcessor{log: logger.NOP(), txs: txSystem, store: db}
+	return &blockProcessor{log: log, txs: txSystem, store: db}
 }
 
 func getFeeCreditBillFunc(unitID types.UnitID) (*FeeCreditBill, error) {

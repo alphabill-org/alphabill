@@ -184,11 +184,11 @@ func (r *RootPartition) start(ctx context.Context) error {
 		Address: fmt.Sprintf("/ip4/127.0.0.1/tcp/%v", port),
 		KeyPair: r.Nodes[0].EncKeyPair, // connection encryption key. The ID of the node is derived from this keypair.
 	}, r.log)
-
 	if err != nil {
 		return fmt.Errorf("failed to create new peer node: %w", err)
 	}
-	rootNet, err := network.NewLibP2PRootChainNetwork(rootPeer, 100, 300*time.Millisecond, r.log.With(logger.NodeID(rootPeer.ID())))
+	log := r.log.With(logger.NodeID(rootPeer.ID()))
+	rootNet, err := network.NewLibP2PRootChainNetwork(rootPeer, 100, 300*time.Millisecond, log)
 	if err != nil {
 		return fmt.Errorf("failed to init root and partition nodes network, %w", err)
 	}
@@ -197,11 +197,11 @@ func (r *RootPartition) start(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("failed to create partition store form root genesis, %w", err)
 	}
-	cm, err := monolithic.NewMonolithicConsensusManager(rootPeer.ID().String(), r.rcGenesis, partitionStore, r.Nodes[0].RootSigner)
+	cm, err := monolithic.NewMonolithicConsensusManager(rootPeer.ID().String(), r.rcGenesis, partitionStore, r.Nodes[0].RootSigner, log)
 	if err != nil {
 		return fmt.Errorf("consensus manager initialization failed, %w", err)
 	}
-	r.Nodes[0].Node, err = rootchain.New(rootPeer, rootNet, partitionStore, cm)
+	r.Nodes[0].Node, err = rootchain.New(rootPeer, rootNet, partitionStore, cm, log)
 	if err != nil {
 		return fmt.Errorf("failed to create root node, %w", err)
 	}

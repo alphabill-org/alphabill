@@ -2,27 +2,27 @@ package util
 
 import (
 	"fmt"
+	"log/slog"
 	"net/http"
 
-	log "github.com/alphabill-org/alphabill/pkg/logger"
 	"github.com/fxamacker/cbor/v2"
+
+	"github.com/alphabill-org/alphabill/pkg/logger"
 )
 
-var logger = log.CreateForPackage()
-
 // WriteCBORResponse replies to the request with the given response and HTTP code.
-func WriteCBORResponse(w http.ResponseWriter, response any, statusCode int) {
+func WriteCBORResponse(w http.ResponseWriter, response any, statusCode int, log *slog.Logger) {
 	w.Header().Set("Content-Type", "application/cbor")
 	w.WriteHeader(statusCode)
 	if err := cbor.NewEncoder(w).Encode(response); err != nil {
-		logger.Warning("Failed to write CBOR response: %v", err)
+		log.Warn("failed to write CBOR response", logger.Error(err))
 	}
 }
 
 // WriteCBORError replies to the request with the specified error message and HTTP code.
 // It does not otherwise end the request; the caller should ensure no further
 // writes are done to w.
-func WriteCBORError(w http.ResponseWriter, e error, code int) {
+func WriteCBORError(w http.ResponseWriter, e error, code int, log *slog.Logger) {
 	w.Header().Set("Content-Type", "application/cbor")
 	w.WriteHeader(code)
 	if err := cbor.NewEncoder(w).Encode(struct {
@@ -31,6 +31,6 @@ func WriteCBORError(w http.ResponseWriter, e error, code int) {
 	}{
 		Err: fmt.Sprintf("%v", e),
 	}); err != nil {
-		logger.Warning("Failed to write CBOR error response: %v", err)
+		log.Warn("failed to write CBOR error response", logger.Error(err))
 	}
 }

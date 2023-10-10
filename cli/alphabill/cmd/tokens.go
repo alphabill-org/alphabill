@@ -9,6 +9,7 @@ import (
 
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/internal/txsystem/tokens"
+	"github.com/alphabill-org/alphabill/pkg/logger"
 )
 
 type (
@@ -56,7 +57,14 @@ func runTokensNode(ctx context.Context, cfg *tokensConfiguration) error {
 	if err != nil {
 		return fmt.Errorf("creating trustbase: %w", err)
 	}
+	peer, err := createNetworkPeer(ctx, cfg.Node, pg, cfg.Base.Logger)
+	if err != nil {
+		return fmt.Errorf("creating network peer: %w", err)
+	}
+	log := cfg.Base.Logger.With(logger.NodeID(peer.ID()))
+
 	txs, err := tokens.NewTxSystem(
+		log,
 		tokens.WithSystemIdentifier(pg.SystemDescriptionRecord.GetSystemIdentifier()),
 		tokens.WithHashAlgorithm(crypto.SHA256),
 		tokens.WithTrustBase(trustBase),
@@ -64,5 +72,9 @@ func runTokensNode(ctx context.Context, cfg *tokensConfiguration) error {
 	if err != nil {
 		return fmt.Errorf("creating tx system: %w", err)
 	}
-	return defaultNodeRunFunc(ctx, "tokens node", txs, cfg.Node, cfg.RPCServer, cfg.RESTServer, cfg.Base.Logger)
+	node, err := createNode(ctx, peer, txs, cfg.Node, nil, log)
+	if err != nil {
+		return fmt.Errorf("creating node: %w", err)
+	}
+	return run(ctx, "tokens node", peer, node, cfg.RPCServer, cfg.RESTServer, log)
 }

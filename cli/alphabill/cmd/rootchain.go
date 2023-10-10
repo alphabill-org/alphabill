@@ -139,6 +139,7 @@ func defaultRootNodeRunFunc(ctx context.Context, config *rootNodeConfig) error {
 		rootGenesis,
 		partitionCfg,
 		keys.SigningPrivateKey,
+		log,
 		consensus.WithStorage(store))
 	if err != nil {
 		return fmt.Errorf("failed initiate monolithic consensus manager: %w", err)
@@ -147,7 +148,8 @@ func defaultRootNodeRunFunc(ctx context.Context, config *rootNodeConfig) error {
 		prtHost,
 		partitionNet,
 		partitionCfg,
-		cm)
+		cm,
+		log)
 	if err != nil {
 		return fmt.Errorf("failed initiate root node: %w", err)
 	}

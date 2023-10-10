@@ -15,7 +15,6 @@ import (
 
 func handleSplitFungibleTokenTx(options *Options) txsystem.GenericExecuteFunc[SplitFungibleTokenAttributes] {
 	return func(tx *types.TransactionOrder, attr *SplitFungibleTokenAttributes, currentBlockNr uint64) (*types.ServerMetadata, error) {
-		logger.Debug("Processing Split Fungible Token tx: %v", tx)
 		if err := validateSplitFungibleToken(tx, attr, options.state, options.hashAlgorithm); err != nil {
 			return nil, fmt.Errorf("invalid split fungible token tx: %w", err)
 		}
@@ -27,7 +26,6 @@ func handleSplitFungibleTokenTx(options *Options) txsystem.GenericExecuteFunc[Sp
 		d := u.Data().(*fungibleTokenData)
 		// add new token unit
 		newTokenID := NewFungibleTokenID(unitID, HashForIDCalculation(tx, options.hashAlgorithm))
-		logger.Debug("Adding a fungible token with ID %v", newTokenID)
 
 		fee := options.feeCalculator()
 		txHash := tx.Hash(options.hashAlgorithm)

@@ -11,6 +11,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/script"
 	"github.com/alphabill-org/alphabill/internal/state"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
+	"github.com/alphabill-org/alphabill/internal/testutils/logger"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	testtransaction "github.com/alphabill-org/alphabill/internal/testutils/transaction"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
@@ -44,13 +45,13 @@ var (
 )
 
 func TestNewTokenTxSystem_NilSystemIdentifier(t *testing.T) {
-	txs, err := NewTxSystem(WithSystemIdentifier(nil))
+	txs, err := NewTxSystem(nil, WithSystemIdentifier(nil))
 	require.ErrorContains(t, err, ErrStrSystemIdentifierIsNil)
 	require.Nil(t, txs)
 }
 
 func TestNewTokenTxSystem_StateIsNil(t *testing.T) {
-	txs, err := NewTxSystem(WithState(nil))
+	txs, err := NewTxSystem(nil, WithState(nil))
 	require.ErrorContains(t, err, ErrStrStateIsNil)
 	require.Nil(t, txs)
 }
@@ -1283,6 +1284,7 @@ func newTokenTxSystem(t *testing.T) *txsystem.GenericTxSystem {
 	require.NoError(t, err)
 	require.NoError(t, s.Commit())
 	txs, err := NewTxSystem(
+		logger.New(t),
 		WithTrustBase(map[string]crypto.Verifier{"test": verifier}),
 		WithState(s),
 	)

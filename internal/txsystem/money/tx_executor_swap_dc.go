@@ -34,7 +34,6 @@ type (
 
 func handleSwapDCTx(s *state.State, systemID []byte, hashAlgorithm crypto.Hash, trustBase map[string]abcrypto.Verifier, feeCalc fc.FeeCalculator) txsystem.GenericExecuteFunc[SwapDCAttributes] {
 	return func(tx *types.TransactionOrder, attr *SwapDCAttributes, currentBlockNumber uint64) (*types.ServerMetadata, error) {
-		log.Debug("Processing swap %v, unitID='%s'", tx, tx.UnitID())
 		c := &swapValidationContext{
 			tx:            tx,
 			attr:          attr,

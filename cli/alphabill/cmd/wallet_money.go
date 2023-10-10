@@ -27,8 +27,6 @@ import (
 type walletConfig struct {
 	Base          *baseConfiguration
 	WalletHomeDir string
-	LogLevel      string
-	LogFile       string
 }
 
 const (
@@ -82,8 +80,6 @@ func newWalletCmd(baseConfig *baseConfiguration) *cobra.Command {
 	// add passwords flags for (encrypted)wallet
 	walletCmd.PersistentFlags().BoolP(passwordPromptCmdName, "p", false, passwordPromptUsage)
 	walletCmd.PersistentFlags().String(passwordArgCmdName, "", passwordArgUsage)
-	walletCmd.PersistentFlags().StringVar(&config.LogFile, flagNameLogOutputFile, "", "log file path (default output to stderr)")
-	walletCmd.PersistentFlags().StringVar(&config.LogLevel, flagNameLogLevel, "INFO", "logging level (DEBUG, INFO, NOTICE, WARNING, ERROR)")
 	walletCmd.PersistentFlags().StringVarP(&config.WalletHomeDir, walletLocationCmdName, "l", "", "wallet home directory (default $AB_HOME/wallet)")
 	return walletCmd
 }
@@ -187,12 +183,7 @@ func execSendCmd(ctx context.Context, cmd *cobra.Command, config *walletConfig) 
 	}
 	defer unitLocker.Close()
 
-	log, err := config.Base.Logger(cmd)
-	if err != nil {
-		return fmt.Errorf("creating logger: %w", err)
-	}
-
-	w, err := money.LoadExistingWallet(am, unitLocker, restClient, log)
+	w, err := money.LoadExistingWallet(am, unitLocker, restClient, config.Base.Logger)
 	if err != nil {
 		return err
 	}
@@ -310,12 +301,7 @@ func execGetBalanceCmd(cmd *cobra.Command, config *walletConfig) error {
 	}
 	defer unitLocker.Close()
 
-	log, err := config.Base.Logger(cmd)
-	if err != nil {
-		return fmt.Errorf("creating logger: %w", err)
-	}
-
-	w, err := money.LoadExistingWallet(am, unitLocker, restClient, log)
+	w, err := money.LoadExistingWallet(am, unitLocker, restClient, config.Base.Logger)
 	if err != nil {
 		return err
 	}
@@ -443,12 +429,7 @@ func execCollectDust(cmd *cobra.Command, config *walletConfig) error {
 	}
 	defer unitLocker.Close()
 
-	log, err := config.Base.Logger(cmd)
-	if err != nil {
-		return fmt.Errorf("creating logger: %w", err)
-	}
-
-	w, err := money.LoadExistingWallet(am, unitLocker, restClient, log)
+	w, err := money.LoadExistingWallet(am, unitLocker, restClient, config.Base.Logger)
 	if err != nil {
 		return err
 	}

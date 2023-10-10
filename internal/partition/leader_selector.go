@@ -53,7 +53,6 @@ func (l *DefaultLeaderSelector) SelfID() peer.ID {
 func (l *DefaultLeaderSelector) IsCurrentNodeLeader() bool {
 	l.mutex.Lock()
 	defer l.mutex.Unlock()
-	logger.Info("current leader: '%v', current node '%v'", l.leader, l.self.ID())
 	return l.leader == l.self.ID()
 }
 
@@ -68,7 +67,6 @@ func (l *DefaultLeaderSelector) UpdateLeader(uc *types.UnicityCertificate) {
 	l.mutex.Lock()
 	defer l.mutex.Unlock()
 	l.leader = l.LeaderFunc(uc)
-	logger.Debug("Leader set to '%v'", l.leader)
 }
 
 // LeaderFunc calculates new leader from Unicity Certificate
@@ -87,7 +85,6 @@ func (l *DefaultLeaderSelector) LeaderFunc(uc *types.UnicityCertificate) peer.ID
 	i.Mod(x, uint256.NewInt(peerCount))
 	index := i.Uint64()
 	if index > peerCount {
-		logger.Warning("Invalid leader index.")
 		return UnknownLeader
 	}
 	return l.self.Configuration().Validators[index]

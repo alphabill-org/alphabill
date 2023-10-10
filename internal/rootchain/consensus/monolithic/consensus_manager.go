@@ -125,7 +125,7 @@ func (x *ConsensusManager) loop(ctx context.Context) error {
 			}
 		// handle timeouts
 		case <-ticker.C:
-			x.onT3Timeout()
+			x.onT3Timeout(ctx)
 		}
 	}
 }
@@ -166,7 +166,7 @@ func (x *ConsensusManager) onIRChangeReq(req *consensus.IRChangeRequest) error {
 	return nil
 }
 
-func (x *ConsensusManager) onT3Timeout() {
+func (x *ConsensusManager) onT3Timeout(ctx context.Context) {
 	defer trackExecutionTime(time.Now(), "t3 timeout handling")
 	logger.Info("T3 timeout")
 	// increment
@@ -185,7 +185,12 @@ func (x *ConsensusManager) onT3Timeout() {
 	// Only deliver updated (new input or repeat) certificates
 	for id, cert := range certs {
 		logger.Debug("Round %d sending new UC for '%X'", newRound, id.Bytes())
-		x.certResultCh <- cert
+		select {
+		case x.certResultCh <- cert:
+		case <-ctx.Done():
+			logger.Debug("Ignore result, node is exiting")
+			return
+		}
 	}
 }
 

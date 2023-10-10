@@ -2,6 +2,7 @@ package network
 
 import (
 	"fmt"
+	"log/slog"
 	"time"
 
 	"github.com/alphabill-org/alphabill/internal/network/protocol/abdrc"
@@ -58,9 +59,13 @@ type ValidatorNetOptions struct {
 	HandshakeTimeout                 time.Duration
 }
 
-// NewLibP2PValidatorNetwork creates a new libp2p for a validator.
-func NewLibP2PValidatorNetwork(self *Peer, opts ValidatorNetOptions) (*LibP2PNetwork, error) {
-	n, err := newLibP2PNetwork(self, opts.ResponseChannelCapacity)
+/*
+NewLibP2PValidatorNetwork creates a new libp2p for a validator.
+
+Logger (log) is assumed to already have node_id attribute added, won't be added by NW component!
+*/
+func NewLibP2PValidatorNetwork(self *Peer, opts ValidatorNetOptions, log *slog.Logger) (*LibP2PNetwork, error) {
+	n, err := newLibP2PNetwork(self, opts.ResponseChannelCapacity, log)
 	if err != nil {
 		return nil, err
 	}
@@ -106,8 +111,11 @@ func NewLibP2PValidatorNetwork(self *Peer, opts ValidatorNetOptions) (*LibP2PNet
 	return n, nil
 }
 
-func NewLibP2PRootChainNetwork(self *Peer, capacity uint, sendCertificateTimeout time.Duration) (*LibP2PNetwork, error) {
-	n, err := newLibP2PNetwork(self, capacity)
+/*
+Logger (log) is assumed to already have node_id attribute added, won't be added by NW component!
+*/
+func NewLibP2PRootChainNetwork(self *Peer, capacity uint, sendCertificateTimeout time.Duration, log *slog.Logger) (*LibP2PNetwork, error) {
+	n, err := newLibP2PNetwork(self, capacity, log)
 	if err != nil {
 		return nil, err
 	}
@@ -136,8 +144,8 @@ func NewLibP2PRootChainNetwork(self *Peer, capacity uint, sendCertificateTimeout
 	return n, nil
 }
 
-func NewLibP2RootConsensusNetwork(self *Peer, capacity uint, sendTimeout time.Duration) (*LibP2PNetwork, error) {
-	n, err := newLibP2PNetwork(self, capacity)
+func NewLibP2RootConsensusNetwork(self *Peer, capacity uint, sendTimeout time.Duration, log *slog.Logger) (*LibP2PNetwork, error) {
+	n, err := newLibP2PNetwork(self, capacity, log)
 	if err != nil {
 		return nil, err
 	}

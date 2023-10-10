@@ -2,11 +2,13 @@ package cmd
 
 import (
 	"context"
-	gocrypto "crypto"
+	"crypto"
+	"fmt"
+
+	"github.com/spf13/cobra"
 
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/internal/txsystem/tokens"
-	"github.com/spf13/cobra"
 )
 
 type (
@@ -47,20 +49,20 @@ func newTokensNodeCmd(baseConfig *baseConfiguration) *cobra.Command {
 func runTokensNode(ctx context.Context, cfg *tokensConfiguration) error {
 	pg, err := loadPartitionGenesis(cfg.Node.Genesis)
 	if err != nil {
-		return err
+		return fmt.Errorf("loading partition genesis: %w", err)
 	}
 
 	trustBase, err := genesis.NewValidatorTrustBase(pg.RootValidators)
 	if err != nil {
-		return err
+		return fmt.Errorf("creating trustbase: %w", err)
 	}
 	txs, err := tokens.NewTxSystem(
 		tokens.WithSystemIdentifier(pg.SystemDescriptionRecord.GetSystemIdentifier()),
-		tokens.WithHashAlgorithm(gocrypto.SHA256),
+		tokens.WithHashAlgorithm(crypto.SHA256),
 		tokens.WithTrustBase(trustBase),
 	)
 	if err != nil {
-		return err
+		return fmt.Errorf("creating tx system: %w", err)
 	}
-	return defaultNodeRunFunc(ctx, "tokens node", txs, cfg.Node, cfg.RPCServer, cfg.RESTServer)
+	return defaultNodeRunFunc(ctx, "tokens node", txs, cfg.Node, cfg.RPCServer, cfg.RESTServer, cfg.Base.Logger)
 }

@@ -4,9 +4,14 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"log/slog"
 	"path/filepath"
 	"sort"
 	"time"
+
+	"github.com/libp2p/go-libp2p/core/crypto"
+	"github.com/libp2p/go-libp2p/core/peer"
+	"github.com/spf13/cobra"
 
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/keyvaluedb"
@@ -19,9 +24,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/rootchain/consensus/monolithic"
 	"github.com/alphabill-org/alphabill/internal/rootchain/partitions"
 	"github.com/alphabill-org/alphabill/internal/util"
-	"github.com/libp2p/go-libp2p/core/crypto"
-	"github.com/libp2p/go-libp2p/core/peer"
-	"github.com/spf13/cobra"
+	"github.com/alphabill-org/alphabill/pkg/logger"
 )
 
 const (
@@ -106,13 +109,14 @@ func defaultRootNodeRunFunc(ctx context.Context, config *rootNodeConfig) error {
 		return fmt.Errorf("root genesis verification failed, %w", err)
 	}
 	// Process partition node network
-	prtHost, err := createHost(ctx, config.PartitionListener, keys.EncryptionPrivateKey)
+	prtHost, err := createHost(ctx, config.PartitionListener, keys.EncryptionPrivateKey, config.Base.Logger)
 	if err != nil {
 		return fmt.Errorf("partition host error, %w", err)
 	}
-	partitionNet, err := network.NewLibP2PRootChainNetwork(prtHost, config.MaxRequests, defaultNetworkTimeout)
+	log := config.Base.Logger.With(logger.NodeID(prtHost.ID()))
+	partitionNet, err := network.NewLibP2PRootChainNetwork(prtHost, config.MaxRequests, defaultNetworkTimeout, log)
 	if err != nil {
-		return fmt.Errorf("partition network initlization failed, %w", err)
+		return fmt.Errorf("partition network initialization failed: %w", err)
 	}
 	ver, err := keys.SigningPrivateKey.Verifier()
 	if err != nil {
@@ -143,12 +147,12 @@ func defaultRootNodeRunFunc(ctx context.Context, config *rootNodeConfig) error {
 	} else {
 		// Initiate Root validator network
 		var rootHost *network.Peer
-		rootHost, err = loadRootNetworkConfiguration(ctx, keys, rootGenesis.Root.RootValidators, config)
+		rootHost, err = loadRootNetworkConfiguration(ctx, keys, rootGenesis.Root.RootValidators, config, log)
 		if err != nil {
 			return fmt.Errorf("failed to create root node host, %w", err)
 		}
 		var rootNet *network.LibP2PNetwork
-		rootNet, err = network.NewLibP2RootConsensusNetwork(rootHost, config.MaxRequests, defaultNetworkTimeout)
+		rootNet, err = network.NewLibP2RootConsensusNetwork(rootHost, config.MaxRequests, defaultNetworkTimeout, log)
 		if err != nil {
 			return fmt.Errorf("failed initiate root network, %w", err)
 		}
@@ -174,7 +178,7 @@ func defaultRootNodeRunFunc(ctx context.Context, config *rootNodeConfig) error {
 	return node.Run(ctx)
 }
 
-func loadRootNetworkConfiguration(ctx context.Context, keys *Keys, rootValidators []*genesis.PublicKeyInfo, cfg *rootNodeConfig) (*network.Peer, error) {
+func loadRootNetworkConfiguration(ctx context.Context, keys *Keys, rootValidators []*genesis.PublicKeyInfo, cfg *rootNodeConfig, log *slog.Logger) (*network.Peer, error) {
 	pair, err := keys.getEncryptionKeyPair()
 	if err != nil {
 		return nil, err
@@ -209,10 +213,10 @@ func loadRootNetworkConfiguration(ctx context.Context, keys *Keys, rootValidator
 		KeyPair:    pair,
 		Validators: persistentPeerIDs,
 	}
-	return network.NewPeer(ctx, conf)
+	return network.NewPeer(ctx, conf, log)
 }
 
-func createHost(ctx context.Context, address string, encPrivate crypto.PrivKey) (*network.Peer, error) {
+func createHost(ctx context.Context, address string, encPrivate crypto.PrivKey, log *slog.Logger) (*network.Peer, error) {
 	privateKeyBytes, err := encPrivate.Raw()
 	if err != nil {
 		return nil, err
@@ -229,7 +233,7 @@ func createHost(ctx context.Context, address string, encPrivate crypto.PrivKey) 
 		Address: address,
 		KeyPair: keyPair,
 	}
-	return network.NewPeer(ctx, conf)
+	return network.NewPeer(ctx, conf, log)
 }
 
 func verifyKeyPresentInGenesis(peer *network.Peer, rg *genesis.GenesisRootRecord, ver abcrypto.Verifier) error {

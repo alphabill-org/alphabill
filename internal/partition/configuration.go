@@ -234,8 +234,7 @@ func (c *configuration) genesisBlock() *types.Block {
 
 func (c *configuration) isGenesisValid(txs txsystem.TransactionSystem) error {
 	if err := c.genesis.IsValid(c.rootTrustBase, c.hashAlgorithm); err != nil {
-		logger.Warning("Invalid partition genesis file: %v", err)
-		return fmt.Errorf("invalid partition genesis file, %w", err)
+		return fmt.Errorf("invalid partition genesis file: %w", err)
 	}
 	state, err := txs.StateSummary()
 	if err != nil {
@@ -246,14 +245,10 @@ func (c *configuration) isGenesisValid(txs txsystem.TransactionSystem) error {
 	genesisCertificate := c.genesis.Certificate
 	genesisInputRecord := genesisCertificate.InputRecord
 	if !bytes.Equal(genesisInputRecord.Hash, txGenesisRoot) {
-		logger.Warning("tx system root hash does not equal to genesis file hash. "+
-			"genesis hash: %X, txSystem hash: %X", genesisInputRecord.Hash, txGenesisRoot)
 		return ErrInvalidRootHash
 	}
 
 	if !bytes.Equal(genesisInputRecord.SummaryValue, txSummaryValue) {
-		logger.Warning("tx system summary value does not equal to genesis file summary value. "+
-			"Genesis SummaryValue: %X, TxSystem SummaryValue: %X", genesisInputRecord.SummaryValue, txSummaryValue)
 		return ErrInvalidSummaryValue
 	}
 	return nil

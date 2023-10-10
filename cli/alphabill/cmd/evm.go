@@ -8,6 +8,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/internal/txsystem/evm"
 	"github.com/alphabill-org/alphabill/internal/txsystem/evm/api"
+	"github.com/alphabill-org/alphabill/pkg/logger"
 	"github.com/fxamacker/cbor/v2"
 	"github.com/spf13/cobra"
 )
@@ -88,9 +89,9 @@ func runEvmNode(ctx context.Context, cfg *evmConfiguration) error {
 		big.NewInt(0).SetUint64(params.BlockGasLimit),
 		params.GasUnitPrice,
 	)
-	self, node, err := createNode(ctx, txs, cfg.Node, blockStore)
+	self, node, err := createNode(ctx, txs, cfg.Node, blockStore, cfg.Base.Logger)
 	if err != nil {
 		return fmt.Errorf("failed to create node evm node: %w", err)
 	}
-	return run(ctx, "evm node", self, node, cfg.RPCServer, cfg.RESTServer)
+	return run(ctx, "evm node", self, node, cfg.RPCServer, cfg.RESTServer, cfg.Base.Logger.With(logger.NodeID(self.ID())))
 }

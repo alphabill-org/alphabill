@@ -28,8 +28,10 @@ import (
 	"github.com/alphabill-org/alphabill/internal/rootchain/partitions"
 	"github.com/alphabill-org/alphabill/internal/rootchain/testutils"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
+	testlogger "github.com/alphabill-org/alphabill/internal/testutils/logger"
 	testnetwork "github.com/alphabill-org/alphabill/internal/testutils/network"
 	"github.com/alphabill-org/alphabill/internal/types"
+	"github.com/alphabill-org/alphabill/pkg/logger"
 )
 
 var partitionID = types.SystemID{0, 0xFF, 0, 1}
@@ -64,7 +66,7 @@ func initConsensusManager(t *testing.T, net RootNet) (*ConsensusManager, *testut
 	require.NoError(t, err)
 	partitions, err := partitions.NewPartitionStoreFromGenesis(rootGenesis.Partitions)
 	require.NoError(t, err)
-	cm, err := NewDistributedAbConsensusManager(id, rootGenesis, partitions, net, rootNode.Signer)
+	cm, err := NewDistributedAbConsensusManager(id, rootGenesis, partitions, net, rootNode.Signer, testlogger.New(t).With(logger.NodeID(id)))
 	require.NoError(t, err)
 	return cm, rootNode, partitionNodes, rootGenesis
 }

@@ -2,12 +2,13 @@ package money
 
 import (
 	"fmt"
+	"log/slog"
 
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/internal/txsystem/fc"
 )
 
-func NewTxSystem(opts ...Option) (*txsystem.GenericTxSystem, error) {
+func NewTxSystem(log *slog.Logger, opts ...Option) (*txsystem.GenericTxSystem, error) {
 	options := DefaultOptions()
 	for _, option := range opts {
 		option(options)
@@ -29,6 +30,7 @@ func NewTxSystem(opts ...Option) (*txsystem.GenericTxSystem, error) {
 		return nil, fmt.Errorf("failed to load fee credit module: %w", err)
 	}
 	return txsystem.NewGenericTxSystem(
+		log,
 		[]txsystem.Module{money, feeCreditModule},
 		txsystem.WithEndBlockFunctions(money.EndBlockFuncs()...),
 		txsystem.WithBeginBlockFunctions(money.BeginBlockFuncs()...),

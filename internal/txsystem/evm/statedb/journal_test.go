@@ -5,6 +5,7 @@ import (
 
 	abstate "github.com/alphabill-org/alphabill/internal/state"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
+	"github.com/alphabill-org/alphabill/internal/testutils/logger"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/require"
 )
@@ -24,7 +25,7 @@ func Test_journal_append(t *testing.T) {
 
 func Test_journal_revert(t *testing.T) {
 	tree := abstate.NewEmptyState()
-	s := NewStateDB(tree)
+	s := NewStateDB(tree, logger.New(t))
 	s.journal.revert(s, 0)
 	s.journal.revert(s, 4)
 	require.Len(t, s.journal.getModifiedUnits(), 0)

@@ -3,13 +3,14 @@ package abdrc
 import (
 	"testing"
 
-	abtypes "github.com/alphabill-org/alphabill/internal/rootchain/consensus/abdrc/types"
-	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/stretchr/testify/require"
 
 	p "github.com/alphabill-org/alphabill/internal/network/protocol"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/certification"
 	"github.com/alphabill-org/alphabill/internal/rootchain/consensus/abdrc/storage"
+	abtypes "github.com/alphabill-org/alphabill/internal/rootchain/consensus/abdrc/types"
+	"github.com/alphabill-org/alphabill/internal/testutils/logger"
+	"github.com/alphabill-org/alphabill/internal/types"
 )
 
 type (
@@ -45,13 +46,13 @@ var inputRecord2 = &types.InputRecord{
 }
 
 func TestIrReqBuffer_AddNil(t *testing.T) {
-	reqBuffer := NewIrReqBuffer()
+	reqBuffer := NewIrReqBuffer(logger.New(t))
 	ver := NewAlwaysTrueIRReqVerifier()
 	require.ErrorContains(t, reqBuffer.Add(3, nil, ver), "ir change request is nil")
 }
 
 func TestIrReqBuffer_Add(t *testing.T) {
-	reqBuffer := NewIrReqBuffer()
+	reqBuffer := NewIrReqBuffer(logger.New(t))
 	ver := NewAlwaysTrueIRReqVerifier()
 	// add a request that reached consensus
 	req1 := &certification.BlockCertificationRequest{
@@ -83,12 +84,12 @@ func TestIrReqBuffer_Add(t *testing.T) {
 	IrChReqMsg.CertReason = abtypes.Quorum
 	IrChReqMsg.Requests[0].InputRecord = inputRecord2
 	require.ErrorContains(t, reqBuffer.Add(3, IrChReqMsg, ver),
-		"error equivocating request for partition 00000001")
+		"equivocating request for partition 00000001")
 	// try to change reason
 	IrChReqMsg.CertReason = abtypes.QuorumNotPossible
 	IrChReqMsg.Requests[0].InputRecord = inputRecord1
 	require.ErrorContains(t, reqBuffer.Add(3, IrChReqMsg, ver),
-		"error equivocating request for partition 00000001 reason has changed")
+		"equivocating request for partition 00000001, reason has changed")
 	// Generate proposal payload, one request in buffer
 	payload = reqBuffer.GeneratePayload(3, timeouts)
 	require.Len(t, payload.Requests, 1)
@@ -101,7 +102,7 @@ func TestIrReqBuffer_Add(t *testing.T) {
 }
 
 func TestIrReqBuffer_TimeoutReq(t *testing.T) {
-	reqBuffer := NewIrReqBuffer()
+	reqBuffer := NewIrReqBuffer(logger.New(t))
 	timeouts := []p.SystemIdentifier{p.SystemIdentifier(sysID1), p.SystemIdentifier(sysID2)}
 	payload := reqBuffer.GeneratePayload(3, timeouts)
 	require.Len(t, payload.Requests, 2)
@@ -115,7 +116,7 @@ func TestIrReqBuffer_TimeoutReq(t *testing.T) {
 }
 
 func TestIrReqBuffer_TimeoutAndNewReq(t *testing.T) {
-	reqBuffer := NewIrReqBuffer()
+	reqBuffer := NewIrReqBuffer(logger.New(t))
 	ver := NewAlwaysTrueIRReqVerifier()
 	// add a request that reached consensus
 	req1 := &certification.BlockCertificationRequest{

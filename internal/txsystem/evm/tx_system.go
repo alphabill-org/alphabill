@@ -4,6 +4,7 @@ import (
 	"crypto"
 	"errors"
 	"fmt"
+	"log/slog"
 
 	"github.com/alphabill-org/alphabill/internal/state"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
@@ -24,7 +25,7 @@ type TxSystem struct {
 	roundCommitted      bool
 }
 
-func NewEVMTxSystem(systemIdentifier []byte, opts ...Option) (*TxSystem, error) {
+func NewEVMTxSystem(systemIdentifier []byte, log *slog.Logger, opts ...Option) (*TxSystem, error) {
 	options := DefaultOptions()
 	for _, option := range opts {
 		option(options)
@@ -35,11 +36,11 @@ func NewEVMTxSystem(systemIdentifier []byte, opts ...Option) (*TxSystem, error) 
 	/*	if options.blockDB == nil {
 		return nil, errors.New("evm tx system init failed, block DB is nil")
 	}*/
-	evm, err := NewEVMModule(systemIdentifier, options)
+	evm, err := NewEVMModule(systemIdentifier, options, log)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load EVM module: %w", err)
 	}
-	fees, err := newFeeModule(systemIdentifier, options)
+	fees, err := newFeeModule(systemIdentifier, options, log)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load EVM fee module: %w", err)
 	}

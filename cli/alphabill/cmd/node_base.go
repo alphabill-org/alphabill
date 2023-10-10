@@ -30,7 +30,6 @@ import (
 	"github.com/alphabill-org/alphabill/internal/rpc/alphabill"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/internal/util"
-	"github.com/alphabill-org/alphabill/pkg/logger"
 )
 
 const (
@@ -51,14 +50,6 @@ type startNodeConfiguration struct {
 	TxIndexerDBFile            string
 	LedgerReplicationMaxBlocks uint64
 	LedgerReplicationMaxTx     uint32
-}
-
-func defaultNodeRunFunc(ctx context.Context, name string, txs txsystem.TransactionSystem, nodeCfg *startNodeConfiguration, rpcServerConf *grpcServerConfiguration, restServerConf *restServerConfiguration, log *slog.Logger) error {
-	self, node, err := createNode(ctx, txs, nodeCfg, nil, log)
-	if err != nil {
-		return fmt.Errorf("creating %q node: %w", name, err)
-	}
-	return run(ctx, name, self, node, rpcServerConf, restServerConf, log.With(logger.NodeID(self.ID())))
 }
 
 func run(ctx context.Context, name string, self *network.Peer, node *partition.Node, rpcServerConf *grpcServerConfiguration, restServerConf *restServerConfiguration, log *slog.Logger) error {
@@ -100,7 +91,7 @@ func run(ctx context.Context, name string, self *network.Peer, node *partition.N
 		if restServerConf.IsAddressEmpty() {
 			return nil // return nil in this case in order not to kill the group!
 		}
-		routers := []rpc.Registrar{rpc.NodeEndpoints(node), rpc.MetricsEndpoints(), rpc.InfoEndpoints(node, name, self)}
+		routers := []rpc.Registrar{rpc.NodeEndpoints(node, log), rpc.MetricsEndpoints(), rpc.InfoEndpoints(node, name, self, log)}
 		if restServerConf.router != nil {
 			routers = append(routers, restServerConf.router)
 		}
@@ -205,39 +196,46 @@ func initRPCServer(node *partition.Node, cfg *grpcServerConfiguration) (*grpc.Se
 	return grpcServer, nil
 }
 
-func createNode(ctx context.Context, txs txsystem.TransactionSystem, cfg *startNodeConfiguration, blockStore keyvaluedb.KeyValueDB, log *slog.Logger) (*network.Peer, *partition.Node, error) {
+func createNetworkPeer(ctx context.Context, cfg *startNodeConfiguration, pg *genesis.PartitionGenesis, log *slog.Logger) (*network.Peer, error) {
 	keys, err := LoadKeys(cfg.KeyFile, false, false)
 	if err != nil {
-		return nil, nil, err
-	}
-	pg, err := loadPartitionGenesis(cfg.Genesis)
-	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 	// Load network configuration. In testnet, we assume that all validators know the address of all other validators.
 	p, err := loadNetworkConfiguration(ctx, keys, pg, cfg, log)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
-	log = log.With(logger.NodeID(p.ID()))
+	return p, nil
+}
 
-	if len(pg.RootValidators) < 1 {
-		return nil, nil, errors.New("root validator info is missing")
+func createNode(ctx context.Context, peer *network.Peer, txs txsystem.TransactionSystem, cfg *startNodeConfiguration, blockStore keyvaluedb.KeyValueDB, log *slog.Logger) (*partition.Node, error) {
+	keys, err := LoadKeys(cfg.KeyFile, false, false)
+	if err != nil {
+		return nil, err
 	}
+	pg, err := loadPartitionGenesis(cfg.Genesis)
+	if err != nil {
+		return nil, err
+	}
+
 	// Assume monolithic root chain for now and only extract the id of the first root node
+	if len(pg.RootValidators) < 1 {
+		return nil, errors.New("root validator info is missing")
+	}
 	rootValidatorEncryptionKey := pg.RootValidators[0].EncryptionPublicKey
 	rootID, rootAddress, err := getRootValidatorIDAndMultiAddress(rootValidatorEncryptionKey, cfg.RootChainAddress)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
-	n, err := network.NewLibP2PValidatorNetwork(p, network.DefaultValidatorNetOptions, log)
+	n, err := network.NewLibP2PValidatorNetwork(peer, network.DefaultValidatorNetOptions, log)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 	if blockStore == nil {
 		blockStore, err = initNodeBlockStore(cfg.DbFile)
 		if err != nil {
-			return nil, nil, err
+			return nil, err
 		}
 	}
 	options := []partition.NodeOption{
@@ -249,13 +247,13 @@ func createNode(ctx context.Context, txs txsystem.TransactionSystem, cfg *startN
 	if cfg.TxIndexerDBFile != "" {
 		txIndexer, err := boltdb.New(cfg.TxIndexerDBFile)
 		if err != nil {
-			return nil, nil, fmt.Errorf("unable to load tx indexer: %w", err)
+			return nil, fmt.Errorf("unable to load tx indexer: %w", err)
 		}
 		options = append(options, partition.WithTxIndexer(txIndexer))
 	}
 
 	node, err := partition.New(
-		p,
+		peer,
 		keys.SigningPrivateKey,
 		txs,
 		pg,
@@ -264,9 +262,9 @@ func createNode(ctx context.Context, txs txsystem.TransactionSystem, cfg *startN
 		options...,
 	)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
-	return p, node, nil
+	return node, nil
 }
 
 func getRootValidatorIDAndMultiAddress(rootValidatorEncryptionKey []byte, addressStr string) (peer.ID, multiaddr.Multiaddr, error) {

@@ -22,6 +22,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/rpc/alphabill"
 	"github.com/alphabill-org/alphabill/internal/script"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
+	"github.com/alphabill-org/alphabill/internal/testutils/logger"
 	"github.com/alphabill-org/alphabill/internal/txsystem/tokens"
 	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/pkg/wallet"
@@ -31,7 +32,7 @@ func Test_Run(t *testing.T) {
 	t.Parallel()
 
 	t.Run("failure to get storage", func(t *testing.T) {
-		cfg := &mockCfg{} // no db cfg assigned, should cause error before subprocesses start
+		cfg := &mockCfg{log: logger.New(t)} // no db cfg assigned, should cause error before subprocesses start
 		err := Run(context.Background(), cfg)
 		require.EqualError(t, err, `failed to get storage: neither db file name nor mock is assigned`)
 	})
@@ -127,7 +128,8 @@ func Test_Run(t *testing.T) {
 			require.ErrorIs(t, err, context.Canceled)
 		}
 
-		require.Contains(t, logBuf.String(), `synchronizing blocks returned error: context canceled`)
+		require.Contains(t, logBuf.String(), `synchronizing blocks returned error`)
+		require.Contains(t, logBuf.String(), `err="context canceled"`)
 	})
 }
 

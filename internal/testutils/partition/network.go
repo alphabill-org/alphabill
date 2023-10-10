@@ -229,7 +229,8 @@ func (r *RootPartition) start(ctx context.Context) error {
 	}
 	// start root nodes
 	for i, rn := range r.Nodes {
-		rootNet, err := network.NewLibP2PRootChainNetwork(rootPeers[i], 100, 300*time.Millisecond, r.log)
+		log := r.log.With(logger.NodeID(rootPeers[i].ID()))
+		rootNet, err := network.NewLibP2PRootChainNetwork(rootPeers[i], 100, 300*time.Millisecond, log)
 		if err != nil {
 			return fmt.Errorf("failed to init root and partition nodes network, %w", err)
 		}
@@ -238,15 +239,15 @@ func (r *RootPartition) start(ctx context.Context) error {
 		if err != nil {
 			return fmt.Errorf("failed to create partition store form root genesis, %w", err)
 		}
-		rootConsensusNet, err := network.NewLibP2RootConsensusNetwork(rootPeers[i], 100, 300*time.Millisecond, r.log)
+		rootConsensusNet, err := network.NewLibP2RootConsensusNetwork(rootPeers[i], 100, 300*time.Millisecond, log)
 		if err != nil {
 			return fmt.Errorf("failed to init consensus network, %w", err)
 		}
-		cm, err := abdrc.NewDistributedAbConsensusManager(rootPeers[i].ID(), r.rcGenesis, partitionStore, rootConsensusNet, rn.RootSigner)
+		cm, err := abdrc.NewDistributedAbConsensusManager(rootPeers[i].ID(), r.rcGenesis, partitionStore, rootConsensusNet, rn.RootSigner, log)
 		if err != nil {
 			return fmt.Errorf("consensus manager initialization failed, %w", err)
 		}
-		rootchainNode, err := rootchain.New(rootPeers[i], rootNet, partitionStore, cm)
+		rootchainNode, err := rootchain.New(rootPeers[i], rootNet, partitionStore, cm, log)
 		if err != nil {
 			return fmt.Errorf("failed to create root node, %w", err)
 		}

@@ -21,7 +21,9 @@ import (
 	"github.com/alphabill-org/alphabill/internal/rootchain/consensus/abdrc/types"
 	"github.com/alphabill-org/alphabill/internal/rootchain/genesis"
 	"github.com/alphabill-org/alphabill/internal/rootchain/partitions"
+	testlogger "github.com/alphabill-org/alphabill/internal/testutils/logger"
 	abtypes "github.com/alphabill-org/alphabill/internal/types"
+	"github.com/alphabill-org/alphabill/pkg/logger"
 )
 
 func Test_ConsensusManager_sendRecoveryRequests(t *testing.T) {
@@ -580,6 +582,7 @@ func Test_recoverState(t *testing.T) {
 func createConsensusManagers(t *testing.T, count int, partitionRecs []*protocgenesis.PartitionRecord) ([]*ConsensusManager, *mockNetwork, *protocgenesis.RootGenesis) {
 	t.Helper()
 
+	log := testlogger.New(t)
 	signers := map[string]crypto.Signer{}
 	var rgr []*protocgenesis.RootGenesis
 	for i := 0; i < count; i++ {
@@ -604,7 +607,7 @@ func createConsensusManagers(t *testing.T, count int, partitionRecs []*protocgen
 		pStore, err := partitions.NewPartitionStoreFromGenesis(rootG.Partitions)
 		require.NoError(t, err)
 
-		cm, err := NewDistributedAbConsensusManager(nodeID, rootG, pStore, nw.Connect(nodeID), signers[v.NodeIdentifier])
+		cm, err := NewDistributedAbConsensusManager(nodeID, rootG, pStore, nw.Connect(nodeID), signers[v.NodeIdentifier], log.With(logger.NodeID(nodeID)))
 		require.NoError(t, err)
 		cms = append(cms, cm)
 	}

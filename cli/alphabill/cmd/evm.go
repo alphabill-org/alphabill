@@ -58,8 +58,7 @@ func runEvmNode(ctx context.Context, cfg *evmConfiguration) error {
 		return err
 	}
 	params := &genesis.EvmPartitionParams{}
-	err = cbor.Unmarshal(pg.Params, params)
-	if err != nil {
+	if err = cbor.Unmarshal(pg.Params, params); err != nil {
 		return fmt.Errorf("failed to unmarshal evm partition params: %w", err)
 	}
 	blockStore, err := initNodeBlockStore(cfg.Node.DbFile)
@@ -72,9 +71,16 @@ func runEvmNode(ctx context.Context, cfg *evmConfiguration) error {
 		return fmt.Errorf("failed to create trust base validator: %w", err)
 	}
 
+	peer, err := createNetworkPeer(ctx, cfg.Node, pg, cfg.Base.Logger)
+	if err != nil {
+		return fmt.Errorf("creating network peer: %w", err)
+	}
+	log := cfg.Base.Logger.With(logger.NodeID(peer.ID()))
+
 	systemIdentifier := pg.SystemDescriptionRecord.GetSystemIdentifier()
 	txs, err := evm.NewEVMTxSystem(
 		systemIdentifier,
+		log,
 		evm.WithBlockGasLimit(params.BlockGasLimit),
 		evm.WithGasPrice(params.GasUnitPrice),
 		evm.WithBlockDB(blockStore),
@@ -83,15 +89,16 @@ func runEvmNode(ctx context.Context, cfg *evmConfiguration) error {
 	if err != nil {
 		return fmt.Errorf("evm transaction system init failed: %w", err)
 	}
+	node, err := createNode(ctx, peer, txs, cfg.Node, blockStore, log)
+	if err != nil {
+		return fmt.Errorf("failed to create node evm node: %w", err)
+	}
 	cfg.RESTServer.router = api.NewAPI(
 		txs.GetState(),
 		systemIdentifier,
 		big.NewInt(0).SetUint64(params.BlockGasLimit),
 		params.GasUnitPrice,
+		log,
 	)
-	self, node, err := createNode(ctx, txs, cfg.Node, blockStore, cfg.Base.Logger)
-	if err != nil {
-		return fmt.Errorf("failed to create node evm node: %w", err)
-	}
-	return run(ctx, "evm node", self, node, cfg.RPCServer, cfg.RESTServer, cfg.Base.Logger.With(logger.NodeID(self.ID())))
+	return run(ctx, "evm node", peer, node, cfg.RPCServer, cfg.RESTServer, log)
 }

@@ -15,7 +15,6 @@ import (
 
 func handleCreateNoneFungibleTokenTx(options *Options) txsystem.GenericExecuteFunc[CreateNonFungibleTokenTypeAttributes] {
 	return func(tx *types.TransactionOrder, attr *CreateNonFungibleTokenTypeAttributes, currentBlockNumber uint64) (*types.ServerMetadata, error) {
-		logger.Debug("Processing Create Non-Fungible Token Type tx: %+v", tx)
 		if err := validate(tx, attr, options.state, options.hashAlgorithm); err != nil {
 			return nil, fmt.Errorf("invalid create non-fungible token tx: %w", err)
 		}

@@ -141,6 +141,5 @@ func (rs *requestBuffer) isConsensusReceived(tb partitions.PartitionTrustBase) (
 		return allReq, QuorumNotPossible
 	}
 	// consensus possible in the future
-	logger.Trace("Consensus possible in the future, hash count: %v, needed count: %v", reqCount, quorum)
 	return nil, QuorumInProgress
 }

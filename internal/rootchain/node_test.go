@@ -18,8 +18,10 @@ import (
 	"github.com/alphabill-org/alphabill/internal/rootchain/partitions"
 	"github.com/alphabill-org/alphabill/internal/rootchain/testutils"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
+	testlogger "github.com/alphabill-org/alphabill/internal/testutils/logger"
 	testnetwork "github.com/alphabill-org/alphabill/internal/testutils/network"
 	"github.com/alphabill-org/alphabill/internal/types"
+	"github.com/alphabill-org/alphabill/pkg/logger"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sync/errgroup"
 )
@@ -91,7 +93,7 @@ func initRootValidator(t *testing.T, net PartitionNet) (*Node, *testutils.TestNo
 	require.NoError(t, err)
 	cm, err := NewMockConsensus(rootGenesis, partitionStore)
 	require.NoError(t, err)
-	validator, err := New(node.Peer, net, partitionStore, cm)
+	validator, err := New(node.Peer, net, partitionStore, cm, testlogger.New(t).With(logger.NodeID(id)))
 	require.NoError(t, err)
 	require.NotNil(t, validator)
 	return validator, node, partitionNodes, rootGenesis
@@ -109,13 +111,16 @@ func TestRootValidatorTest_ConstructWithMonolithicManager(t *testing.T) {
 	mockNet := testnetwork.NewMockNetwork()
 	partitionStore, err := partitions.NewPartitionStoreFromGenesis(rootGenesis.Partitions)
 	require.NoError(t, err)
+	log := testlogger.New(t).With(logger.NodeID(id))
 	cm, err := monolithic.NewMonolithicConsensusManager(
 		node.Peer.ID().String(),
 		rootGenesis,
 		partitionStore,
-		node.Signer)
+		node.Signer,
+		log,
+	)
 	require.NoError(t, err)
-	validator, err := New(node.Peer, mockNet, partitionStore, cm)
+	validator, err := New(node.Peer, mockNet, partitionStore, cm, log)
 	require.NoError(t, err)
 	require.NotNil(t, validator)
 }
@@ -134,13 +139,15 @@ func TestRootValidatorTest_ConstructWithDistributedManager(t *testing.T) {
 	rootNetMock := testnetwork.NewMockNetwork()
 	partitionStore, err := partitions.NewPartitionStoreFromGenesis(rootGenesis.Partitions)
 	require.NoError(t, err)
+	log := testlogger.New(t).With(logger.NodeID(id))
 	cm, err := abdrc.NewDistributedAbConsensusManager(rootHost.Peer.ID(),
 		rootGenesis,
 		partitionStore,
 		rootNetMock,
-		rootHost.Signer)
+		rootHost.Signer,
+		log)
 	require.NoError(t, err)
-	validator, err := New(node.Peer, partitionNetMock, partitionStore, cm)
+	validator, err := New(node.Peer, partitionNetMock, partitionStore, cm, log)
 	require.NoError(t, err)
 	require.NotNil(t, validator)
 }

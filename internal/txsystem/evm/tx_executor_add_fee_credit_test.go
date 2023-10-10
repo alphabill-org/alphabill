@@ -12,6 +12,7 @@ import (
 
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/script"
+	"github.com/alphabill-org/alphabill/internal/testutils/logger"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	testtransaction "github.com/alphabill-org/alphabill/internal/testutils/transaction"
 	"github.com/alphabill-org/alphabill/internal/txsystem/fc"
@@ -229,7 +230,7 @@ func Test_addFeeCreditTxAndUpdate(t *testing.T) {
 	require.NotNil(t, metaData)
 	require.EqualValues(t, evmTestFeeCalculator(), metaData.ActualFee)
 	// validate stateDB
-	stateDB := statedb.NewStateDB(stateTree)
+	stateDB := statedb.NewStateDB(stateTree, logger.New(t))
 	addr, err := generateAddress(pubKeyBytes)
 	require.NoError(t, err)
 	balance := stateDB.GetBalance(addr)
@@ -279,7 +280,7 @@ func Test_addFeeCreditTxToExistingAccount(t *testing.T) {
 	require.NoError(t, err)
 	address, err := generateAddress(pubKeyBytes)
 	require.NoError(t, err)
-	stateDB := statedb.NewStateDB(stateTree)
+	stateDB := statedb.NewStateDB(stateTree, logger.New(t))
 	stateDB.CreateAccount(address)
 	stateDB.AddBalance(address, alphaToWei(100))
 	pubHash := hash.Sum256(pubKeyBytes)

@@ -143,6 +143,7 @@ func defaultRootNodeRunFunc(ctx context.Context, config *rootNodeConfig) error {
 			rootGenesis,
 			partitionCfg,
 			keys.SigningPrivateKey,
+			log,
 			consensus.WithStorage(store))
 	} else {
 		// Initiate Root validator network
@@ -162,6 +163,7 @@ func defaultRootNodeRunFunc(ctx context.Context, config *rootNodeConfig) error {
 			partitionCfg,
 			rootNet,
 			keys.SigningPrivateKey,
+			log,
 			consensus.WithStorage(store))
 	}
 	if err != nil {
@@ -171,7 +173,8 @@ func defaultRootNodeRunFunc(ctx context.Context, config *rootNodeConfig) error {
 		prtHost,
 		partitionNet,
 		partitionCfg,
-		cm)
+		cm,
+		log)
 	if err != nil {
 		return fmt.Errorf("failed initiate root node: %w", err)
 	}

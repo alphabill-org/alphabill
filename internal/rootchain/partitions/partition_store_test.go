@@ -3,14 +3,14 @@ package partitions
 import (
 	"testing"
 
-	p "github.com/alphabill-org/alphabill/internal/network/protocol"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
+	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/stretchr/testify/require"
 )
 
-var id1 = []byte{0, 0, 0, 1}
-var id2 = []byte{0, 0, 0, 2}
+var id1 = types.SystemID{0, 0, 0, 1}
+var id2 = types.SystemID{0, 0, 0, 2}
 
 func TestPartitionStore(t *testing.T) {
 	_, encPubKey := testsig.CreateSignerAndVerifier(t)
@@ -23,8 +23,8 @@ func TestPartitionStore(t *testing.T) {
 	type want struct {
 		size                     int
 		nodeCounts               []int
-		containsPartitions       []p.SystemIdentifier
-		doesNotContainPartitions []p.SystemIdentifier
+		containsPartitions       []types.SystemID32
+		doesNotContainPartitions []types.SystemID32
 	}
 	tests := []struct {
 		name string
@@ -73,8 +73,8 @@ func TestPartitionStore(t *testing.T) {
 			want: want{
 				size:                     2,
 				nodeCounts:               []int{0, 2},
-				containsPartitions:       []p.SystemIdentifier{p.SystemIdentifier(id1), p.SystemIdentifier(id2)},
-				doesNotContainPartitions: []p.SystemIdentifier{p.SystemIdentifier("1")},
+				containsPartitions:       []types.SystemID32{id1.ToSystemID32(), id2.ToSystemID32()},
+				doesNotContainPartitions: []types.SystemID32{0},
 			},
 		},
 	}
@@ -129,7 +129,7 @@ func TestPartitionStore_Info(t *testing.T) {
 	}
 	store, err := NewPartitionStoreFromGenesis(partitions)
 	require.NoError(t, err)
-	sysDesc, tb, err := store.GetInfo(p.SystemIdentifier(id1))
+	sysDesc, tb, err := store.GetInfo(id1.ToSystemID32())
 	require.NoError(t, err)
 	require.Equal(t, id1, sysDesc.SystemIdentifier)
 	require.Equal(t, uint32(2600), sysDesc.T2Timeout)

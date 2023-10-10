@@ -6,7 +6,6 @@ import (
 	"fmt"
 
 	"github.com/alphabill-org/alphabill/internal/crypto"
-	"github.com/alphabill-org/alphabill/internal/network/protocol"
 	"github.com/alphabill-org/alphabill/internal/types"
 )
 
@@ -54,6 +53,6 @@ func (x *GenesisPartitionRecord) IsValid(verifiers map[string]crypto.Verifier, h
 	return nil
 }
 
-func (x *GenesisPartitionRecord) GetSystemIdentifierString() protocol.SystemIdentifier {
-	return protocol.SystemIdentifier(x.SystemDescriptionRecord.SystemIdentifier)
+func (x *GenesisPartitionRecord) GetSystemIdentifier32() types.SystemID32 {
+	return x.SystemDescriptionRecord.SystemIdentifier.ToSystemID32()
 }

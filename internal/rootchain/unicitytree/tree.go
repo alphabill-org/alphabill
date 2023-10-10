@@ -15,7 +15,7 @@ var ErrInvalidSystemIdentifierLength = errors.New("invalid system identifier len
 
 type (
 	Data struct {
-		SystemIdentifier            []byte
+		SystemIdentifier            types.SystemID
 		InputRecord                 *types.InputRecord
 		SystemDescriptionRecordHash []byte
 	}
@@ -47,16 +47,16 @@ func (u *UnicityTree) GetRootHash() []byte {
 }
 
 // GetCertificate returns an unicity tree certificate for given system identifier.
-func (u *UnicityTree) GetCertificate(systemIdentifier []byte) (*types.UnicityTreeCertificate, error) {
-	if len(systemIdentifier) != systemIdentifierLength {
+func (u *UnicityTree) GetCertificate(sysID types.SystemID) (*types.UnicityTreeCertificate, error) {
+	if len(sysID) != systemIdentifierLength {
 		return nil, ErrInvalidSystemIdentifierLength
 	}
-	path, data, err := u.smt.GetAuthPath(systemIdentifier)
+	path, data, err := u.smt.GetAuthPath(sysID)
 	if err != nil {
 		return nil, err
 	}
 	if data == nil {
-		return nil, fmt.Errorf("certificate for system id %X not found", systemIdentifier)
+		return nil, fmt.Errorf("certificate for system id %X not found", sysID)
 	}
 	leafData, ok := data.(*Data)
 	if !ok {
@@ -65,14 +65,14 @@ func (u *UnicityTree) GetCertificate(systemIdentifier []byte) (*types.UnicityTre
 	dhash := leafData.SystemDescriptionRecordHash
 
 	return &types.UnicityTreeCertificate{
-		SystemIdentifier:      systemIdentifier,
+		SystemIdentifier:      sysID,
 		SystemDescriptionHash: dhash,
 		SiblingHashes:         path,
 	}, nil
 }
 
 // GetIR returns Input Record for system identifier.
-func (u *UnicityTree) GetIR(systemIdentifier []byte) (*types.InputRecord, error) {
+func (u *UnicityTree) GetIR(systemIdentifier types.SystemID) (*types.InputRecord, error) {
 	if len(systemIdentifier) != systemIdentifierLength {
 		return nil, ErrInvalidSystemIdentifierLength
 	}

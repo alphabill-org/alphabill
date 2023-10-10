@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/alphabill-org/alphabill/internal/crypto"
-	"github.com/alphabill-org/alphabill/internal/network/protocol"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/internal/rootchain/consensus"
 	"github.com/alphabill-org/alphabill/internal/rootchain/partitions"
@@ -25,8 +24,8 @@ type (
 		partitions   partitions.PartitionConfiguration
 		stateStore   *StateStore
 		round        uint64
-		ir           map[protocol.SystemIdentifier]*types.InputRecord
-		changes      map[protocol.SystemIdentifier]*types.InputRecord
+		ir           map[types.SystemID32]*types.InputRecord
+		changes      map[types.SystemID32]*types.InputRecord
 		signer       crypto.Signer // private key of the root chain
 		trustBase    map[string]crypto.Verifier
 	}
@@ -78,7 +77,7 @@ func NewMonolithicConsensusManager(selfStr string, rg *genesis.RootGenesis, part
 		stateStore:   storage,
 		round:        lastRound,
 		ir:           lastIR,
-		changes:      make(map[protocol.SystemIdentifier]*types.InputRecord),
+		changes:      make(map[types.SystemID32]*types.InputRecord),
 		signer:       signer,
 		trustBase:    map[string]crypto.Verifier{selfStr: verifier},
 	}
@@ -97,10 +96,10 @@ func (x *ConsensusManager) CertificationResult() <-chan *types.UnicityCertificat
 	return x.certResultCh
 }
 
-func (x *ConsensusManager) GetLatestUnicityCertificate(id protocol.SystemIdentifier) (*types.UnicityCertificate, error) {
+func (x *ConsensusManager) GetLatestUnicityCertificate(id types.SystemID32) (*types.UnicityCertificate, error) {
 	luc, err := x.stateStore.GetCertificate(id)
 	if err != nil {
-		return nil, fmt.Errorf("find certificate for system id %X failed, %w", id, err)
+		return nil, fmt.Errorf("find certificate for system id %08X failed, %w", id, err)
 	}
 	return luc, nil
 }
@@ -145,7 +144,7 @@ func (x *ConsensusManager) onIRChangeReq(req *consensus.IRChangeRequest) error {
 	case consensus.QuorumNotPossible:
 		luc, err := x.stateStore.GetCertificate(req.SystemIdentifier)
 		if err != nil {
-			return fmt.Errorf("ir change request ignored, read state for system id %X failed, %w", req.SystemIdentifier.Bytes(), err)
+			return fmt.Errorf("ir change request ignored, read state for system id %08X failed, %w", req.SystemIdentifier, err)
 		}
 		// repeat UC, ignore error here as we found the luc, and it cannot be nil
 		// in repeat UC just advance partition/shard round number
@@ -184,7 +183,7 @@ func (x *ConsensusManager) onT3Timeout(ctx context.Context) {
 	x.round = newRound
 	// Only deliver updated (new input or repeat) certificates
 	for id, cert := range certs {
-		logger.Debug("Round %d sending new UC for '%X'", newRound, id.Bytes())
+		logger.Debug("Round %d sending new UC for '%08X'", newRound, id)
 		select {
 		case x.certResultCh <- cert:
 		case <-ctx.Done():
@@ -205,13 +204,13 @@ func (x *ConsensusManager) checkT2Timeout(round uint64) error {
 			}
 			lastCert, err := x.stateStore.GetCertificate(id)
 			if err != nil {
-				logger.Warning("Unexpected error, read certificate for %X failed, %v", id.Bytes(), err)
+				logger.Warning("Unexpected error, read certificate for %08X failed, %v", id, err)
 				continue
 			}
 			if time.Duration(round-lastCert.UnicitySeal.RootChainRoundNumber)*x.params.BlockRateMs >
 				time.Duration(partInfo.T2Timeout)*time.Millisecond {
 				// timeout
-				logger.Info("Round %v, partition %X T2 timeout", round, id.Bytes())
+				logger.Info("Round %v, partition %08X T2 timeout", round, id)
 				repeatIR := lastCert.InputRecord.NewRepeatIR()
 				x.changes[id] = repeatIR
 			}
@@ -220,8 +219,8 @@ func (x *ConsensusManager) checkT2Timeout(round uint64) error {
 	return nil
 }
 
-func getMergeInputRecords(currentIR, changed map[protocol.SystemIdentifier]*types.InputRecord) map[protocol.SystemIdentifier]*types.InputRecord {
-	result := make(map[protocol.SystemIdentifier]*types.InputRecord)
+func getMergeInputRecords(currentIR, changed map[types.SystemID32]*types.InputRecord) map[types.SystemID32]*types.InputRecord {
+	result := make(map[types.SystemID32]*types.InputRecord)
 	for id, ir := range currentIR {
 		result[id] = ir
 	}
@@ -234,7 +233,7 @@ func getMergeInputRecords(currentIR, changed map[protocol.SystemIdentifier]*type
 }
 
 // generateUnicityCertificates generates certificates for all changed input records in round
-func (x *ConsensusManager) generateUnicityCertificates(round uint64) (map[protocol.SystemIdentifier]*types.UnicityCertificate, error) {
+func (x *ConsensusManager) generateUnicityCertificates(round uint64) (map[types.SystemID32]*types.UnicityCertificate, error) {
 	// if no new consensus or timeouts then skip the round
 	if len(x.changes) == 0 {
 		logger.Info("Round %v, no IR changes", round)
@@ -262,7 +261,7 @@ func (x *ConsensusManager) generateUnicityCertificates(round uint64) (map[protoc
 			SystemDescriptionRecordHash: sdrh,
 		})
 	}
-	certs := make(map[protocol.SystemIdentifier]*types.UnicityCertificate)
+	certs := make(map[types.SystemID32]*types.UnicityCertificate)
 	// create unicity tree
 	ut, err := unicitytree.New(x.params.HashAlgorithm.New(), utData)
 	if err != nil {
@@ -281,7 +280,7 @@ func (x *ConsensusManager) generateUnicityCertificates(round uint64) (map[protoc
 	for sysID, ir := range x.changes {
 		// get certificate for change
 		var utCert *types.UnicityTreeCertificate
-		utCert, err = ut.GetCertificate(sysID.Bytes())
+		utCert, err = ut.GetCertificate(sysID.ToSystemID())
 		if err != nil {
 			return nil, err
 		}
@@ -299,7 +298,7 @@ func (x *ConsensusManager) generateUnicityCertificates(round uint64) (map[protoc
 			// should never happen.
 			return nil, fmt.Errorf("error invalid generated unicity certificate: %w", err)
 		}
-		util.WriteTraceJsonLog(logger, fmt.Sprintf("NewStateStore unicity certificate for partition %X is", sysID.Bytes()), uc)
+		util.WriteTraceJsonLog(logger, fmt.Sprintf("NewStateStore unicity certificate for partition %08X is", sysID), uc)
 		certs[sysID] = uc
 	}
 	// persist new state
@@ -311,6 +310,6 @@ func (x *ConsensusManager) generateUnicityCertificates(round uint64) (map[protoc
 		x.ir[id] = ir
 	}
 	// clear changed and return new certificates
-	x.changes = make(map[protocol.SystemIdentifier]*types.InputRecord)
+	x.changes = make(map[types.SystemID32]*types.InputRecord)
 	return certs, nil
 }

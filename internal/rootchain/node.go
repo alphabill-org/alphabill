@@ -10,7 +10,6 @@ import (
 	"github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/debug"
 	"github.com/alphabill-org/alphabill/internal/network"
-	"github.com/alphabill-org/alphabill/internal/network/protocol"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/certification"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/handshake"
 	"github.com/alphabill-org/alphabill/internal/rootchain/consensus"
@@ -118,13 +117,13 @@ func (v *Node) onHandshake(ctx context.Context, req *handshake.Handshake) {
 		return
 	}
 	// process
-	sysID := protocol.SystemIdentifier(req.SystemIdentifier)
+	sysID := req.SystemIdentifier.ToSystemID32()
 	latestUnicityCertificate, err := v.consensusManager.GetLatestUnicityCertificate(sysID)
 	if err != nil {
-		logger.Warning("%v handshake error, partition %X certificate read failed, %v", v.peer.String(), sysID.Bytes(), err)
+		logger.Warning("%v handshake error, partition %08X certificate read failed, %v", v.peer.String(), sysID, err)
 		return
 	}
-	v.subscription.Subscribe(protocol.SystemIdentifier(req.SystemIdentifier), req.NodeIdentifier)
+	v.subscription.Subscribe(sysID, req.NodeIdentifier)
 	if err = v.sendResponse(ctx, req.NodeIdentifier, latestUnicityCertificate); err != nil {
 		logger.Warning("%v handshake error, failed to send response, %v", v.peer.String(), err)
 		return
@@ -138,7 +137,7 @@ func (v *Node) onBlockCertificationRequest(ctx context.Context, req *certificati
 		logger.Warning("%v invalid block certification request system id is nil, rejected", v.peer.String())
 		return
 	}
-	sysID := protocol.SystemIdentifier(req.SystemIdentifier)
+	sysID := req.SystemIdentifier.ToSystemID32()
 	_, pTrustBase, err := v.partitions.GetInfo(sysID)
 	if err != nil {
 		logger.Warning("%v block certification request from %X node %v rejected: %v",
@@ -184,8 +183,8 @@ func (v *Node) onBlockCertificationRequest(ctx context.Context, req *certificati
 	}
 	switch res {
 	case QuorumAchieved:
-		logger.Debug("%v partition %X reached consensus, new InputHash: %X",
-			v.peer.String(), sysID.Bytes(), proof[0].InputRecord.Hash)
+		logger.Debug("%v partition %08X reached consensus, new InputHash: %X",
+			v.peer.String(), sysID, proof[0].InputRecord.Hash)
 		select {
 		case v.consensusManager.RequestCertification() <- consensus.IRChangeRequest{
 			SystemIdentifier: sysID,
@@ -197,8 +196,8 @@ func (v *Node) onBlockCertificationRequest(ctx context.Context, req *certificati
 			return
 		}
 	case QuorumNotPossible:
-		logger.Debug("%v partition %X consensus not possible, repeat UC",
-			v.peer.String(), sysID.Bytes())
+		logger.Debug("%v partition %08X consensus not possible, repeat UC",
+			v.peer.String(), sysID)
 		// add all nodeRequest to prove that no consensus is possible
 		select {
 		case v.consensusManager.RequestCertification() <- consensus.IRChangeRequest{
@@ -211,8 +210,8 @@ func (v *Node) onBlockCertificationRequest(ctx context.Context, req *certificati
 			return
 		}
 	case QuorumInProgress:
-		logger.Debug("%v partition %X quorum not yet reached, but possible in the future",
-			v.peer.String(), sysID.Bytes())
+		logger.Debug("%v partition %08X quorum not yet reached, but possible in the future",
+			v.peer.String(), sysID)
 	}
 }
 
@@ -234,12 +233,12 @@ func (v *Node) handleConsensus(ctx context.Context) error {
 }
 
 func (v *Node) onCertificationResult(ctx context.Context, certificate *types.UnicityCertificate) {
-	sysID := protocol.SystemIdentifier(certificate.UnicityTreeCertificate.SystemIdentifier)
+	sysID := certificate.UnicityTreeCertificate.SystemIdentifier.ToSystemID32()
 	// remember to clear the incoming buffer to accept new nodeRequest
 	// NB! this will try and reset the store also in the case when system id is unknown, but this is fine
 	defer func() {
 		v.incomingRequests.Clear(sysID)
-		logger.Trace("Resetting request store for partition '%X'", sysID.Bytes())
+		logger.Trace("Resetting request store for partition '%X'", certificate.UnicityTreeCertificate.SystemIdentifier)
 	}()
 	subscribed := v.subscription.Get(sysID)
 	// send response to all registered nodes

@@ -2,6 +2,8 @@ package handshake
 
 import (
 	"errors"
+
+	"github.com/alphabill-org/alphabill/internal/types"
 )
 
 var (
@@ -12,7 +14,7 @@ var (
 
 type Handshake struct {
 	_                struct{} `cbor:",toarray"`
-	SystemIdentifier []byte
+	SystemIdentifier types.SystemID
 	NodeIdentifier   string
 }
 

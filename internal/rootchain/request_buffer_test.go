@@ -5,7 +5,6 @@ import (
 	"testing"
 
 	"github.com/alphabill-org/alphabill/internal/crypto"
-	"github.com/alphabill-org/alphabill/internal/network/protocol"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/certification"
 	"github.com/alphabill-org/alphabill/internal/rootchain/partitions"
 	"github.com/alphabill-org/alphabill/internal/types"
@@ -15,8 +14,8 @@ import (
 var IR1 = &types.InputRecord{Hash: []byte{1}}
 var IR2 = &types.InputRecord{Hash: []byte{2}}
 var IR3 = &types.InputRecord{Hash: []byte{3}}
-var SysID1 = []byte{0, 0, 0, 1}
-var SysID2 = []byte{0, 0, 0, 2}
+var SysID1 = types.SystemID{0, 0, 0, 1}
+var SysID2 = types.SystemID{0, 0, 0, 2}
 
 var req1 = &certification.BlockCertificationRequest{
 	InputRecord: IR1,
@@ -185,8 +184,8 @@ func TestCertRequestStore_isConsensusReceived_TwoNodes(t *testing.T) {
 	require.Equal(t, QuorumNotPossible, res)
 	require.NotNil(t, proof)
 	require.Len(t, proof, 2)
-	require.Equal(t, QuorumNotPossible, cs.IsConsensusReceived(protocol.SystemIdentifier(SysID1), trustBase))
-	cs.Clear(protocol.SystemIdentifier(SysID1))
+	require.Equal(t, QuorumNotPossible, cs.IsConsensusReceived(SysID1.ToSystemID32(), trustBase))
+	cs.Clear(SysID1.ToSystemID32())
 	// test all nodeRequest cleared
 	res, proof, err = cs.Add(&certification.BlockCertificationRequest{SystemIdentifier: SysID1, NodeIdentifier: "1", InputRecord: IR1}, trustBase)
 	require.NoError(t, err)
@@ -212,8 +211,8 @@ func TestCertRequestStore_isConsensusReceived_MultipleSystemId(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, QuorumInProgress, res)
 	require.Nil(t, proof)
-	require.Equal(t, QuorumInProgress, cs.IsConsensusReceived(protocol.SystemIdentifier(SysID1), trustBase))
-	require.Equal(t, QuorumInProgress, cs.IsConsensusReceived(protocol.SystemIdentifier(SysID2), trustBase))
+	require.Equal(t, QuorumInProgress, cs.IsConsensusReceived(SysID1.ToSystemID32(), trustBase))
+	require.Equal(t, QuorumInProgress, cs.IsConsensusReceived(SysID2.ToSystemID32(), trustBase))
 	// add more requests
 	res, proof, err = cs.Add(&certification.BlockCertificationRequest{SystemIdentifier: SysID1, NodeIdentifier: "2", InputRecord: IR1}, trustBase)
 	require.NoError(t, err)
@@ -226,20 +225,20 @@ func TestCertRequestStore_isConsensusReceived_MultipleSystemId(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, QuorumAchieved, res)
 	require.NotNil(t, proof)
-	require.Equal(t, QuorumAchieved, cs.IsConsensusReceived(protocol.SystemIdentifier(SysID1), trustBase))
-	require.Equal(t, QuorumAchieved, cs.IsConsensusReceived(protocol.SystemIdentifier(SysID2), trustBase))
+	require.Equal(t, QuorumAchieved, cs.IsConsensusReceived(SysID1.ToSystemID32(), trustBase))
+	require.Equal(t, QuorumAchieved, cs.IsConsensusReceived(SysID2.ToSystemID32(), trustBase))
 	require.Len(t, proof, 2)
 	require.Equal(t, IR2, proof[0].InputRecord)
 	require.Equal(t, IR2, proof[1].InputRecord)
 	// Reset resets both stores
 	cs.Reset()
 	// test all nodeRequest cleared
-	require.Empty(t, cs.get(protocol.SystemIdentifier(SysID1)).requests)
-	require.Empty(t, cs.get(protocol.SystemIdentifier(SysID1)).nodeRequest)
-	require.Empty(t, cs.get(protocol.SystemIdentifier(SysID2)).requests)
-	require.Empty(t, cs.get(protocol.SystemIdentifier(SysID2)).nodeRequest)
-	require.Equal(t, QuorumInProgress, cs.IsConsensusReceived(protocol.SystemIdentifier(SysID1), trustBase))
-	require.Equal(t, QuorumInProgress, cs.IsConsensusReceived(protocol.SystemIdentifier(SysID1), trustBase))
+	require.Empty(t, cs.get(SysID1.ToSystemID32()).requests)
+	require.Empty(t, cs.get(SysID1.ToSystemID32()).nodeRequest)
+	require.Empty(t, cs.get(SysID1.ToSystemID32()).requests)
+	require.Empty(t, cs.get(SysID1.ToSystemID32()).nodeRequest)
+	require.Equal(t, QuorumInProgress, cs.IsConsensusReceived(SysID1.ToSystemID32(), trustBase))
+	require.Equal(t, QuorumInProgress, cs.IsConsensusReceived(SysID1.ToSystemID32(), trustBase))
 }
 
 func TestCertRequestStore_clearOne(t *testing.T) {
@@ -262,24 +261,24 @@ func TestCertRequestStore_clearOne(t *testing.T) {
 	require.Equal(t, QuorumAchieved, res)
 	require.NotNil(t, proof)
 	// clear sys id 1
-	cs.Clear(protocol.SystemIdentifier(SysID1))
-	require.Empty(t, cs.get(protocol.SystemIdentifier(SysID1)).requests)
-	require.Empty(t, cs.get(protocol.SystemIdentifier(SysID1)).nodeRequest)
-	require.Equal(t, QuorumAchieved, cs.IsConsensusReceived(protocol.SystemIdentifier(SysID2), trustBase))
-	require.Equal(t, QuorumInProgress, cs.IsConsensusReceived(protocol.SystemIdentifier(SysID1), trustBase))
+	cs.Clear(SysID1.ToSystemID32())
+	require.Empty(t, cs.get(SysID1.ToSystemID32()).requests)
+	require.Empty(t, cs.get(SysID1.ToSystemID32()).nodeRequest)
+	require.Equal(t, QuorumAchieved, cs.IsConsensusReceived(SysID2.ToSystemID32(), trustBase))
+	require.Equal(t, QuorumInProgress, cs.IsConsensusReceived(SysID1.ToSystemID32(), trustBase))
 }
 
 func TestCertRequestStore_EmptyStore(t *testing.T) {
 	cs := NewCertificationRequestBuffer()
 	trustBase := partitions.NewPartitionTrustBase(map[string]crypto.Verifier{"1": nil, "2": nil})
-	require.Empty(t, cs.get(protocol.SystemIdentifier(SysID1)).requests)
-	require.Empty(t, cs.get(protocol.SystemIdentifier(SysID1)).nodeRequest)
-	require.Empty(t, cs.get(protocol.SystemIdentifier(SysID1)).requests)
-	require.Empty(t, cs.get(protocol.SystemIdentifier(SysID1)).nodeRequest)
+	require.Empty(t, cs.get(SysID1.ToSystemID32()).requests)
+	require.Empty(t, cs.get(SysID1.ToSystemID32()).nodeRequest)
+	require.Empty(t, cs.get(SysID1.ToSystemID32()).requests)
+	require.Empty(t, cs.get(SysID1.ToSystemID32()).nodeRequest)
 	// Reset resets both stores
 	require.NotPanics(t, func() { cs.Reset() })
-	require.NotPanics(t, func() { cs.Clear(protocol.SystemIdentifier(SysID1)) })
-	require.NotPanics(t, func() { cs.Clear(protocol.SystemIdentifier([]byte{1, 1, 1, 1, 1, 1})) })
-	require.Equal(t, QuorumInProgress, cs.IsConsensusReceived(protocol.SystemIdentifier(SysID1), trustBase))
-	require.Equal(t, QuorumInProgress, cs.IsConsensusReceived(protocol.SystemIdentifier(SysID2), trustBase))
+	require.NotPanics(t, func() { cs.Clear(SysID1.ToSystemID32()) })
+	require.NotPanics(t, func() { cs.Clear(types.SystemID{1, 1, 1, 1}.ToSystemID32()) })
+	require.Equal(t, QuorumInProgress, cs.IsConsensusReceived(SysID1.ToSystemID32(), trustBase))
+	require.Equal(t, QuorumInProgress, cs.IsConsensusReceived(SysID1.ToSystemID32(), trustBase))
 }

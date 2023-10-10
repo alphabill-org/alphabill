@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"hash"
 
+	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/internal/util"
 )
 
@@ -18,7 +19,7 @@ var (
 
 type SystemDescriptionRecord struct {
 	_                struct{}       `cbor:",toarray"`
-	SystemIdentifier []byte         `json:"system_identifier,omitempty"`
+	SystemIdentifier types.SystemID `json:"system_identifier,omitempty"`
 	T2Timeout        uint32         `json:"t2timeout,omitempty"`
 	FeeCreditBill    *FeeCreditBill `json:"fee_credit_bill,omitempty"`
 }
@@ -58,6 +59,6 @@ func (x *SystemDescriptionRecord) GetSystemIdentifierString() string {
 	return string(x.SystemIdentifier)
 }
 
-func (x *SystemDescriptionRecord) GetSystemIdentifier() []byte {
+func (x *SystemDescriptionRecord) GetSystemIdentifier() types.SystemID {
 	return x.SystemIdentifier
 }

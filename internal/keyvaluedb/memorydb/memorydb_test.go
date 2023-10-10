@@ -5,8 +5,6 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/alphabill-org/alphabill/internal/network/protocol"
-
 	"github.com/alphabill-org/alphabill/internal/types"
 
 	"github.com/alphabill-org/alphabill/internal/keyvaluedb"
@@ -17,9 +15,9 @@ const (
 	round uint64 = 1
 )
 
-var sysID = protocol.SystemIdentifier([]byte{0, 0, 0, 1})
-var unicityMap = map[protocol.SystemIdentifier]*types.UnicityCertificate{
-	sysID: {
+var sysID = types.SystemID{0, 0, 0, 1}
+var unicityMap = map[types.SystemID32]*types.UnicityCertificate{
+	sysID.ToSystemID32(): {
 		UnicityTreeCertificate: &types.UnicityTreeCertificate{
 			SystemIdentifier:      []byte(sysID),
 			SiblingHashes:         nil,
@@ -146,27 +144,27 @@ func TestMemDB_WriteReadComplexStruct(t *testing.T) {
 	require.True(t, isEmpty(t, db))
 	// write a complex struct
 	require.NoError(t, db.Write([]byte("certificates"), unicityMap))
-	ucs := make(map[protocol.SystemIdentifier]*types.UnicityCertificate)
+	ucs := make(map[types.SystemID32]*types.UnicityCertificate)
 	present, err := db.Read([]byte("certificates"), &ucs)
 	require.NoError(t, err)
 	require.True(t, present)
 	// check that initial state was saved as intended
 	require.Len(t, ucs, 1)
-	require.Contains(t, ucs, sysID)
-	uc, _ := ucs[sysID]
-	original, _ := unicityMap[sysID]
+	require.Contains(t, ucs, sysID.ToSystemID32())
+	uc, _ := ucs[sysID.ToSystemID32()]
+	original, _ := unicityMap[sysID.ToSystemID32()]
 	require.Equal(t, original, uc)
 	// update
 	uc.UnicitySeal.Hash = []byte{1}
-	newUC := map[protocol.SystemIdentifier]*types.UnicityCertificate{sysID: uc}
+	newUC := map[types.SystemID32]*types.UnicityCertificate{sysID.ToSystemID32(): uc}
 	err = db.Write([]byte("certificates"), newUC)
 	require.NoError(t, err)
 	present, err = db.Read([]byte("certificates"), &ucs)
 	require.NoError(t, err)
 	require.True(t, present)
 	require.Len(t, ucs, 1)
-	require.Contains(t, ucs, sysID)
-	uc, _ = ucs[sysID]
+	require.Contains(t, ucs, sysID.ToSystemID32())
+	uc, _ = ucs[sysID.ToSystemID32()]
 	require.Equal(t, []byte{1}, uc.UnicitySeal.Hash)
 }
 

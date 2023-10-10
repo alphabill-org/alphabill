@@ -5,9 +5,9 @@ import (
 	"errors"
 	"sync"
 
-	"github.com/alphabill-org/alphabill/internal/network/protocol"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/certification"
 	"github.com/alphabill-org/alphabill/internal/rootchain/partitions"
+	"github.com/alphabill-org/alphabill/internal/types"
 )
 
 type (
@@ -15,7 +15,7 @@ type (
 
 	CertRequestBuffer struct {
 		mu    sync.RWMutex
-		store map[protocol.SystemIdentifier]*requestBuffer
+		store map[types.SystemID32]*requestBuffer
 	}
 
 	// requestBuffer keeps track of received certification nodeRequest and counts state hashes.
@@ -35,7 +35,7 @@ const (
 // NewCertificationRequestBuffer create new certification nodeRequest buffer
 func NewCertificationRequestBuffer() *CertRequestBuffer {
 	return &CertRequestBuffer{
-		store: make(map[protocol.SystemIdentifier]*requestBuffer),
+		store: make(map[types.SystemID32]*requestBuffer),
 	}
 }
 
@@ -44,12 +44,12 @@ func NewCertificationRequestBuffer() *CertRequestBuffer {
 func (c *CertRequestBuffer) Add(request *certification.BlockCertificationRequest, tb partitions.PartitionTrustBase) (QuorumStatus, []*certification.BlockCertificationRequest, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	rs := c.get(protocol.SystemIdentifier(request.SystemIdentifier))
+	rs := c.get(request.SystemIdentifier.ToSystemID32())
 	return rs.add(request, tb)
 }
 
 // IsConsensusReceived has partition with id reached consensus
-func (c *CertRequestBuffer) IsConsensusReceived(id protocol.SystemIdentifier, tb partitions.PartitionTrustBase) QuorumStatus {
+func (c *CertRequestBuffer) IsConsensusReceived(id types.SystemID32, tb partitions.PartitionTrustBase) QuorumStatus {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	rs := c.get(id)
@@ -67,7 +67,7 @@ func (c *CertRequestBuffer) Reset() {
 }
 
 // Clear clears node request in one partition
-func (c *CertRequestBuffer) Clear(id protocol.SystemIdentifier) {
+func (c *CertRequestBuffer) Clear(id types.SystemID32) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	rs := c.get(id)
@@ -75,7 +75,7 @@ func (c *CertRequestBuffer) Clear(id protocol.SystemIdentifier) {
 }
 
 // get returns an existing store for system identifier or registers and returns a new one if none existed
-func (c *CertRequestBuffer) get(id protocol.SystemIdentifier) *requestBuffer {
+func (c *CertRequestBuffer) get(id types.SystemID32) *requestBuffer {
 	rs, f := c.store[id]
 	if !f {
 		rs = newRequestStore()

@@ -14,10 +14,10 @@ const (
 )
 
 func TestNewUnitID(t *testing.T) {
-	emptyUnitID     := make([]byte, unitIDLength)
-	randomUnitID    := test.RandomBytes(unitIDLength)
-	randomUnitPart  := test.RandomBytes(unitPartLength)
-	randomTypePart  := test.RandomBytes(typePartLength)
+	emptyUnitID := make([]byte, unitIDLength)
+	randomUnitID := test.RandomBytes(unitIDLength)
+	randomUnitPart := test.RandomBytes(unitPartLength)
+	randomTypePart := test.RandomBytes(typePartLength)
 	shardPartLength := 0
 
 	type args struct {
@@ -102,4 +102,52 @@ func copyAndAppend(slice []byte, elems ...byte) []byte {
 	copy(newSlice, slice)
 
 	return append(newSlice, elems...)
+}
+
+func TestSystemID_ToSystemID32(t *testing.T) {
+	tests := []struct {
+		name string
+		sid  SystemID
+		want SystemID32
+	}{
+		{
+			name: "ID 00000001",
+			sid:  SystemID{0, 0, 0, 1},
+			want: SystemID32(1),
+		},
+		{
+			name: "ID FF000001",
+			sid:  SystemID{0xFF, 0, 0, 1},
+			want: SystemID32(0xFF000001),
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equalf(t, tt.want, tt.sid.ToSystemID32(), "ToSystemID32()")
+		})
+	}
+}
+
+func TestSystemID32_ToSystemID(t *testing.T) {
+	tests := []struct {
+		name string
+		sid  SystemID32
+		want SystemID
+	}{
+		{
+			name: "ID 00000001",
+			sid:  SystemID32(1),
+			want: SystemID{0, 0, 0, 1},
+		},
+		{
+			name: "ID FF000001",
+			sid:  SystemID32(0xFF000001),
+			want: SystemID{0xFF, 0, 0, 1},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equalf(t, tt.want, tt.sid.ToSystemID(), "ToSystemID()")
+		})
+	}
 }

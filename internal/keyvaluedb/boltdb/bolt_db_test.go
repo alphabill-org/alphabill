@@ -1,32 +1,29 @@
 package boltdb
 
 import (
-	gocrypto "crypto"
 	"encoding/json"
 	"path/filepath"
 	"testing"
 
-	"github.com/alphabill-org/alphabill/internal/types"
-
 	"github.com/alphabill-org/alphabill/internal/keyvaluedb"
+	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/stretchr/testify/require"
 )
 
-const (
-	round uint64 = 1
-)
+type testStruct struct {
+	Name   string
+	Data   []byte
+	Params struct{ Value []byte }
+}
 
-var sysID = types.SystemID{0, 0, 0, 1}
-var unicityMap = map[types.SystemID32]*types.UnicityCertificate{
-	sysID.ToSystemID32(): {
-		UnicityTreeCertificate: &types.UnicityTreeCertificate{
-			SystemIdentifier:      sysID,
-			SiblingHashes:         nil,
-			SystemDescriptionHash: nil,
-		},
-		UnicitySeal: &types.UnicitySeal{
-			RootChainRoundNumber: round,
-			Hash:                 make([]byte, gocrypto.SHA256.Size()),
+var testDataStruct = map[uint32]*testStruct{
+	1: {
+		Name: "test",
+		Data: []byte{1, 2, 3},
+		Params: struct {
+			Value []byte
+		}{
+			Value: []byte{9, 1, 1},
 		},
 	},
 }
@@ -70,16 +67,16 @@ func TestBoltDB_InvalidPath(t *testing.T) {
 
 func TestBoltDB_TestEmptyValue(t *testing.T) {
 	db := initBoltDB(t)
-	var uc types.UnicityCertificate
-	found, err := db.Read([]byte("certificate"), &uc)
+	var data testStruct
+	found, err := db.Read([]byte("data"), &data)
 	require.NoError(t, err)
 	require.False(t, found)
-	require.NoError(t, db.Write([]byte("certificate"), &uc))
-	var back types.UnicityCertificate
-	found, err = db.Read([]byte("certificate"), &back)
+	require.NoError(t, db.Write([]byte("data"), &testDataStruct))
+	var back map[uint32]*testStruct
+	found, err = db.Read([]byte("data"), &back)
 	require.NoError(t, err)
 	require.True(t, found)
-	require.Equal(t, &uc, &back)
+	require.Equal(t, testDataStruct, back)
 }
 
 func TestBoltDB_TestInvalidReadWrite(t *testing.T) {
@@ -159,29 +156,29 @@ func TestBoltDB_WriteReadComplexStruct(t *testing.T) {
 	require.NotNil(t, db)
 	require.True(t, isEmpty(t, db))
 	// write a complex struct
-	require.NoError(t, db.Write([]byte("certificates"), unicityMap))
-	ucs := make(map[types.SystemID32]*types.UnicityCertificate)
-	present, err := db.Read([]byte("certificates"), &ucs)
+	require.NoError(t, db.Write([]byte("data"), testDataStruct))
+	readData := make(map[uint32]*testStruct)
+	present, err := db.Read([]byte("data"), &readData)
 	require.NoError(t, err)
 	require.True(t, present)
 	// check that initial state was saved as intended
-	require.Len(t, ucs, 1)
-	require.Contains(t, ucs, sysID.ToSystemID32())
-	uc, _ := ucs[sysID.ToSystemID32()]
-	original, _ := unicityMap[sysID.ToSystemID32()]
-	require.Equal(t, original, uc)
+	require.Len(t, testDataStruct, 1)
+	require.Contains(t, readData, uint32(1))
+	value, _ := readData[1]
+	original, _ := testDataStruct[1]
+	require.Equal(t, original, value)
 	// update
-	uc.UnicitySeal.Hash = []byte{1}
-	newUC := map[types.SystemID32]*types.UnicityCertificate{sysID.ToSystemID32(): uc}
-	err = db.Write([]byte("certificates"), newUC)
+	value.Data = []byte{1}
+	newData := map[uint32]*testStruct{1: value}
+	err = db.Write([]byte("data"), newData)
 	require.NoError(t, err)
-	present, err = db.Read([]byte("certificates"), &ucs)
+	present, err = db.Read([]byte("data"), &readData)
 	require.NoError(t, err)
 	require.True(t, present)
-	require.Len(t, ucs, 1)
-	require.Contains(t, ucs, sysID.ToSystemID32())
-	uc, _ = ucs[sysID.ToSystemID32()]
-	require.Equal(t, []byte{1}, uc.UnicitySeal.Hash)
+	require.Len(t, readData, 1)
+	require.Contains(t, readData, uint32(1))
+	value, _ = readData[1]
+	require.Equal(t, []byte{1}, value.Data)
 }
 
 func TestBoltDB_StartTxNil(t *testing.T) {

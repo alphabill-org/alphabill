@@ -21,10 +21,10 @@ func NOP() *slog.Logger {
 }
 
 /*
-New returns logger for test t on trace level.
+New returns logger for test t on debug level.
 */
 func New(t testing.TB) *slog.Logger {
-	return NewLvl(t, logger.LevelTrace)
+	return NewLvl(t, slog.LevelDebug)
 }
 
 /*
@@ -35,17 +35,13 @@ logger (they are correct for the t.Log, t.Error etc calls). Fix needs support fr
 testing lib (see https://github.com/golang/go/issues/59928).
 */
 func NewLvl(t testing.TB, level slog.Level) *slog.Logger {
-	h := slogt.Factory(func(w io.Writer) slog.Handler {
-		cfg := logger.LogConfiguration{
-			Level:        level.String(),
-			Format:       "console",
-			TimeFormat:   "15:04:05.0000",
-			PeerIDFormat: "short",
-			// slogt is logging into bytes.Buffer so can't use w to detect
-			// is the destination console or not (ie for color support).
-			// So by default use colors unless env var disables it.
-			ConsoleSupportsColor: func(w io.Writer) bool { return os.Getenv("AB_TEST_LOG_NO_COLORS") != "true" },
-		}
+	cfg := defaultLogCfg()
+	cfg.Level = level.String()
+	return newLogger(t, cfg)
+}
+
+func newLogger(t testing.TB, cfg logger.LogConfiguration) *slog.Logger {
+	opt := slogt.Factory(func(w io.Writer) slog.Handler {
 		h, err := cfg.Handler(w)
 		if err != nil {
 			t.Fatalf("creating handler for logger: %v", err)
@@ -53,7 +49,24 @@ func NewLvl(t testing.TB, level slog.Level) *slog.Logger {
 		}
 		return h
 	})
-	return slogt.New(t, h)
+	return slogt.New(t, opt)
+}
+
+func defaultLogCfg() logger.LogConfiguration {
+	lvl := os.Getenv("AB_TEST_LOG_LEVEL")
+	if lvl == "" {
+		lvl = slog.LevelDebug.String()
+	}
+	return logger.LogConfiguration{
+		Level:        lvl,
+		Format:       "console",
+		TimeFormat:   "15:04:05.0000",
+		PeerIDFormat: "short",
+		// slogt is logging into bytes.Buffer so can't use w to detect
+		// is the destination console or not (ie for color support).
+		// So by default use colors unless env var disables it.
+		ConsoleSupportsColor: func(w io.Writer) bool { return os.Getenv("AB_TEST_LOG_NO_COLORS") != "true" },
+	}
 }
 
 /*
@@ -62,7 +75,7 @@ LoggerBuilder returns "logger factory" for test t.
 Factory function returned by LoggerBuilder returns the same logger for all calls.
 */
 func LoggerBuilder(t testing.TB) func(*logger.LogConfiguration) (*slog.Logger, error) {
-	logr := New(t)
+	logr := newLogger(t, defaultLogCfg())
 	return func(*logger.LogConfiguration) (*slog.Logger, error) {
 		return logr, nil
 	}

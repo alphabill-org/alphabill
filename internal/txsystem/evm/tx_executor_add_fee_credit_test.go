@@ -257,9 +257,9 @@ func Test_addFeeCreditTxAndUpdate(t *testing.T) {
 				})),
 		signer, 7)
 	require.NoError(t, addFeeOrder.UnmarshalAttributes(attr))
-	metaData, err = addExecFn(addFeeOrder, attr, 5)
-	remainingCredit = new(big.Int).Add(remainingCredit, alphaToWei(10))
+	_, err = addExecFn(addFeeOrder, attr, 5)
 	require.NoError(t, err)
+	remainingCredit = new(big.Int).Add(remainingCredit, alphaToWei(10))
 	balance = stateDB.GetBalance(addr)
 	// balance is equal to remaining+10-"transfer fee 1" -"ass fee = 2" to wei
 	remainingCredit = new(big.Int).Sub(remainingCredit, alphaToWei(transferFcFee))

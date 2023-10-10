@@ -184,6 +184,7 @@ func TestEVMPartition_Revert_test(t *testing.T) {
 	// Round 2 again, but this time with empty block, state should not change from round 1
 	require.NoError(t, system.BeginBlock(2))
 	round2EndState, err = system.EndBlock()
+	require.NoError(t, err)
 	require.NotEqualValues(t, round2EndState.Root(), round1EndState.Root())
 }
 

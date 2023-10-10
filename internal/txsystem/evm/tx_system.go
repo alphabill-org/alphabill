@@ -10,6 +10,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/internal/util"
+	"github.com/alphabill-org/alphabill/pkg/logger"
 )
 
 type TxSystem struct {
@@ -23,6 +24,7 @@ type TxSystem struct {
 	beginBlockFunctions []func(blockNumber uint64) error
 	endBlockFunctions   []func(blockNumber uint64) error
 	roundCommitted      bool
+	log                 *slog.Logger
 }
 
 func NewEVMTxSystem(systemIdentifier []byte, log *slog.Logger, opts ...Option) (*TxSystem, error) {
@@ -53,6 +55,7 @@ func NewEVMTxSystem(systemIdentifier []byte, log *slog.Logger, opts ...Option) (
 		endBlockFunctions:   nil,
 		executors:           make(map[string]txsystem.TxExecutor),
 		genericTxValidators: []txsystem.GenericTransactionValidator{evm.GenericTransactionValidator(), fees.GenericTransactionValidator()},
+		log:                 log,
 	}
 	txs.beginBlockFunctions = append(txs.beginBlockFunctions, txs.pruneLogs)
 	executors := evm.TxExecutors()
@@ -151,6 +154,7 @@ func (m *TxSystem) Execute(tx *types.TransactionOrder) (sm *types.ServerMetadata
 		m.state.ReleaseToSavepoint(savepointID)
 	}()
 	// execute transaction
+	m.log.Debug(fmt.Sprintf("execute %s", tx.PayloadType()), logger.UnitID(tx.UnitID()), logger.Data(tx), logger.Round(m.currentBlockNumber))
 	sm, err = m.executors.Execute(tx, m.currentBlockNumber)
 	if err != nil {
 		return nil, err

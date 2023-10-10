@@ -22,7 +22,7 @@ func (h *Handshake) IsValid() error {
 	if h == nil {
 		return ErrHandshakeIsNil
 	}
-	if len(h.SystemIdentifier) != 4 {
+	if len(h.SystemIdentifier) != types.SystemIdentifierLength {
 		return ErrInvalidSystemIdentifier
 	}
 	if len(h.NodeIdentifier) == 0 {

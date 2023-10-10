@@ -7,6 +7,8 @@ import (
 	"github.com/alphabill-org/alphabill/internal/util"
 )
 
+const SystemIdentifierLength = 4
+
 type SystemID []byte
 type SystemID32 uint32
 type UnitID []byte

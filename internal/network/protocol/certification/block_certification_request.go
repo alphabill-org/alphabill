@@ -33,7 +33,7 @@ func (x *BlockCertificationRequest) IsValid(v crypto.Verifier) error {
 	if v == nil {
 		return errVerifierIsNil
 	}
-	if len(x.SystemIdentifier) != 4 {
+	if len(x.SystemIdentifier) != types.SystemIdentifierLength {
 		return errInvalidSystemIdentifierLength
 	}
 	if x.NodeIdentifier == "" {

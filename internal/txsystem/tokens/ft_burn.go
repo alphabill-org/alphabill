@@ -5,10 +5,11 @@ import (
 	"crypto"
 	"fmt"
 
+	"github.com/fxamacker/cbor/v2"
+
 	"github.com/alphabill-org/alphabill/internal/state"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/internal/types"
-	"github.com/fxamacker/cbor/v2"
 )
 
 func handleBurnFungibleTokenTx(options *Options) txsystem.GenericExecuteFunc[BurnFungibleTokenAttributes] {
@@ -80,7 +81,7 @@ func (b *BurnFungibleTokenAttributes) SigBytes() ([]byte, error) {
 	signatureAttr := &BurnFungibleTokenAttributes{
 		TypeID:                       b.TypeID,
 		Value:                        b.Value,
-		Nonce:                        b.Nonce,
+		TargetTokenBacklink:          b.TargetTokenBacklink,
 		Backlink:                     b.Backlink,
 		InvariantPredicateSignatures: nil,
 	}
@@ -103,12 +104,12 @@ func (b *BurnFungibleTokenAttributes) SetValue(value uint64) {
 	b.Value = value
 }
 
-func (b *BurnFungibleTokenAttributes) GetNonce() []byte {
-	return b.Nonce
+func (b *BurnFungibleTokenAttributes) GetTargetTokenBacklink() []byte {
+	return b.TargetTokenBacklink
 }
 
-func (b *BurnFungibleTokenAttributes) SetNonce(nonce []byte) {
-	b.Nonce = nonce
+func (b *BurnFungibleTokenAttributes) SetTargetTokenBacklink(nonce []byte) {
+	b.TargetTokenBacklink = nonce
 }
 
 func (b *BurnFungibleTokenAttributes) GetBacklink() []byte {

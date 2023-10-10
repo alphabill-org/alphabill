@@ -4,6 +4,8 @@ import (
 	gocrypto "crypto"
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/script"
 	"github.com/alphabill-org/alphabill/internal/state"
@@ -14,7 +16,6 @@ import (
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	fcunit "github.com/alphabill-org/alphabill/internal/txsystem/fc/unit"
 	"github.com/alphabill-org/alphabill/internal/types"
-	"github.com/stretchr/testify/require"
 )
 
 var feeCreditID = NewFeeCreditRecordID(nil, []byte{42})
@@ -287,7 +288,7 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 			&BurnFungibleTokenAttributes{
 				TypeID:                       fungibleTokenTypeID,
 				Value:                        splitValue1,
-				Nonce:                        transferGenTxHash,
+				TargetTokenBacklink:          transferGenTxHash,
 				Backlink:                     split1GenTxHash,
 				InvariantPredicateSignatures: [][]byte{script.PredicateArgumentEmpty()},
 			},
@@ -309,7 +310,7 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 			&BurnFungibleTokenAttributes{
 				TypeID:                       fungibleTokenTypeID,
 				Value:                        splitValue2,
-				Nonce:                        transferTxRecord.TransactionOrder.Hash(hashAlgorithm),
+				TargetTokenBacklink:          transferTxRecord.TransactionOrder.Hash(hashAlgorithm),
 				Backlink:                     splitGenTx2Hash,
 				InvariantPredicateSignatures: [][]byte{script.PredicateArgumentEmpty()},
 			},

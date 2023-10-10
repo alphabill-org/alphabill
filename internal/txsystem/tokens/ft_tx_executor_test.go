@@ -783,7 +783,7 @@ func TestBurnFungibleToken_NotOk(t *testing.T) {
 			attr: &BurnFungibleTokenAttributes{
 				TypeID:                       existingTokenTypeUnitID,
 				Value:                        existingTokenValue - 1,
-				Nonce:                        test.RandomBytes(32),
+				TargetTokenBacklink:          test.RandomBytes(32),
 				Backlink:                     make([]byte, 32),
 				InvariantPredicateSignatures: [][]byte{script.PredicateArgumentEmpty()},
 			},
@@ -795,7 +795,7 @@ func TestBurnFungibleToken_NotOk(t *testing.T) {
 			attr: &BurnFungibleTokenAttributes{
 				TypeID:                       existingTokenTypeUnitID,
 				Value:                        existingTokenValue,
-				Nonce:                        test.RandomBytes(32),
+				TargetTokenBacklink:          test.RandomBytes(32),
 				Backlink:                     test.RandomBytes(32),
 				InvariantPredicateSignatures: [][]byte{script.PredicateArgumentEmpty()},
 			},
@@ -807,7 +807,7 @@ func TestBurnFungibleToken_NotOk(t *testing.T) {
 			attr: &BurnFungibleTokenAttributes{
 				TypeID:                       existingTokenTypeUnitID,
 				Value:                        existingTokenValue,
-				Nonce:                        test.RandomBytes(32),
+				TargetTokenBacklink:          test.RandomBytes(32),
 				Backlink:                     make([]byte, 32),
 				InvariantPredicateSignatures: [][]byte{script.PredicateAlwaysFalse()},
 			},
@@ -822,7 +822,7 @@ func TestBurnFungibleToken_NotOk(t *testing.T) {
 					return r[:]
 				}(),
 				Value:                        existingTokenValue,
-				Nonce:                        test.RandomBytes(32),
+				TargetTokenBacklink:          test.RandomBytes(32),
 				Backlink:                     make([]byte, 32),
 				InvariantPredicateSignatures: [][]byte{script.PredicateAlwaysFalse()},
 			},
@@ -843,7 +843,7 @@ func TestBurnFungibleToken_Ok(t *testing.T) {
 	burnAttributes := &BurnFungibleTokenAttributes{
 		TypeID:                       existingTokenTypeUnitID,
 		Value:                        existingTokenValue,
-		Nonce:                        test.RandomBytes(32),
+		TargetTokenBacklink:          test.RandomBytes(32),
 		Backlink:                     make([]byte, 32),
 		InvariantPredicateSignatures: [][]byte{script.PredicateArgumentEmpty()},
 	}
@@ -867,21 +867,21 @@ func TestJoinFungibleToken_NotOk(t *testing.T) {
 	burnTxInvalidSource := createTxRecord(t, existingTokenUnitID, &BurnFungibleTokenAttributes{
 		TypeID:                       existingTokenTypeUnitID,
 		Value:                        existingTokenValue,
-		Nonce:                        test.RandomBytes(32),
+		TargetTokenBacklink:          test.RandomBytes(32),
 		Backlink:                     make([]byte, 32),
 		InvariantPredicateSignatures: [][]byte{script.PredicateArgumentEmpty()},
 	}, PayloadTypeBurnFungibleToken)
 	burnTx := createTxRecord(t, existingTokenUnitID, &BurnFungibleTokenAttributes{
 		TypeID:                       existingTokenTypeUnitID,
 		Value:                        existingTokenValue,
-		Nonce:                        make([]byte, 32),
+		TargetTokenBacklink:          make([]byte, 32),
 		Backlink:                     make([]byte, 32),
 		InvariantPredicateSignatures: [][]byte{script.PredicateArgumentEmpty()},
 	}, PayloadTypeBurnFungibleToken)
 	burnTx2 := createTxRecord(t, existingTokenUnitID2, &BurnFungibleTokenAttributes{
 		TypeID:                       existingTokenTypeUnitID2,
 		Value:                        existingTokenValue,
-		Nonce:                        test.RandomBytes(32),
+		TargetTokenBacklink:          test.RandomBytes(32),
 		Backlink:                     make([]byte, 32),
 		InvariantPredicateSignatures: [][]byte{script.PredicateArgumentEmpty()},
 	}, PayloadTypeBurnFungibleToken)
@@ -889,7 +889,7 @@ func TestJoinFungibleToken_NotOk(t *testing.T) {
 	burnTx3 := createTxRecord(t, maxUintValueTokenID, &BurnFungibleTokenAttributes{
 		TypeID:                       existingTokenTypeUnitID2,
 		Value:                        math.MaxUint64,
-		Nonce:                        make([]byte, 32),
+		TargetTokenBacklink:          make([]byte, 32),
 		Backlink:                     make([]byte, 32),
 		InvariantPredicateSignatures: [][]byte{script.PredicateArgumentEmpty()},
 	}, PayloadTypeBurnFungibleToken)

@@ -5,10 +5,11 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/fxamacker/cbor/v2"
+
 	"github.com/alphabill-org/alphabill/internal/state"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/internal/types"
-	"github.com/fxamacker/cbor/v2"
 )
 
 func handleJoinFungibleTokenTx(options *Options) txsystem.GenericExecuteFunc[JoinFungibleTokenAttributes] {
@@ -68,8 +69,8 @@ func validateJoinFungibleToken(tx *types.TransactionOrder, attr *JoinFungibleTok
 			return 0, fmt.Errorf("the type of the burned source token does not match the type of target token: expected %s, got %s", d.tokenType, btxAttr.TypeID)
 		}
 
-		if !bytes.Equal(btxAttr.Nonce, attr.Backlink) {
-			return 0, fmt.Errorf("the source tokens weren't burned to join them to the target token: source %X, target %X", btxAttr.Nonce, attr.Backlink)
+		if !bytes.Equal(btxAttr.TargetTokenBacklink, attr.Backlink) {
+			return 0, fmt.Errorf("the source tokens weren't burned to join them to the target token: source %X, target %X", btxAttr.TargetTokenBacklink, attr.Backlink)
 		}
 		proof := proofs[i]
 

@@ -1,25 +1,15 @@
 package cmd
 
 import (
-	"bytes"
 	"fmt"
-	"os"
-	"path/filepath"
 
-	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/spf13/cobra"
 
-	"github.com/alphabill-org/alphabill/internal/errors"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/alphabill-org/alphabill/pkg/wallet/money/backend"
 	"github.com/alphabill-org/alphabill/pkg/wallet/money/backend/client"
 	"github.com/alphabill-org/alphabill/pkg/wallet/unitlock"
-)
-
-const (
-	billIdCmdName     = "bill-id"
-	outputPathCmdName = "output-path"
 )
 
 type (
@@ -36,7 +26,6 @@ func newWalletBillsCmd(config *walletConfig) *cobra.Command {
 		Short: "cli for managing alphabill wallet bills and proofs",
 	}
 	cmd.AddCommand(listCmd(config))
-	cmd.AddCommand(exportCmd(config))
 	return cmd
 }
 
@@ -142,139 +131,4 @@ func getLockedReasonString(accountID []byte, unitLocker *unitlock.UnitLocker, bi
 		return fmt.Sprintf(" (%s)", lockedUnit.LockReason.String()), nil
 	}
 	return "", nil
-}
-
-func exportCmd(config *walletConfig) *cobra.Command {
-	cmd := &cobra.Command{
-		Use:   "export",
-		Short: "exports bills to json file",
-		RunE: func(cmd *cobra.Command, args []string) error {
-			return execExportCmd(cmd, config)
-		},
-		Hidden: true,
-	}
-	cmd.Flags().StringP(alphabillApiURLCmdName, "r", defaultAlphabillApiURL, "alphabill API uri to connect to")
-	cmd.Flags().Uint64P(keyCmdName, "k", 1, "specifies which account bills to export")
-	cmd.Flags().BoolP(showUnswappedCmdName, "s", false, "export includes unswapped dust bills")
-	cmd.Flags().BytesHexP(billIdCmdName, "b", nil, "bill ID in hex format (without 0x prefix)")
-	cmd.Flags().StringP(outputPathCmdName, "o", "", "output directory for bills, directory is created if it does not exist (default: CWD)")
-	return cmd
-}
-
-func execExportCmd(cmd *cobra.Command, config *walletConfig) error {
-	uri, err := cmd.Flags().GetString(alphabillApiURLCmdName)
-	if err != nil {
-		return err
-	}
-	restClient, err := client.New(uri)
-	if err != nil {
-		return err
-	}
-
-	accountNumber, err := cmd.Flags().GetUint64(keyCmdName)
-	if err != nil {
-		return err
-	}
-	showUnswapped, err := cmd.Flags().GetBool(showUnswappedCmdName)
-	if err != nil {
-		return err
-	}
-	billID, err := cmd.Flags().GetBytesHex(billIdCmdName)
-	if err != nil {
-		return err
-	}
-	outputPath, err := cmd.Flags().GetString(outputPathCmdName)
-	if err != nil {
-		return err
-	}
-	if outputPath == "" {
-		outputPath, err = os.Getwd()
-		if err != nil {
-			return err
-		}
-	}
-
-	am, err := loadExistingAccountManager(cmd, config.WalletHomeDir)
-	if err != nil {
-		return err
-	}
-	defer am.Close()
-	pk, err := am.GetPublicKey(accountNumber - 1)
-	if err != nil {
-		return err
-	}
-
-	// create directories if output path dir does not exist
-	err = os.MkdirAll(outputPath, 0700) // -rwx------
-	if err != nil {
-		return err
-	}
-
-	// export all bills if neither --bill-id or --bill-order-number are given
-	billsList, err := restClient.ListBills(cmd.Context(), pk, showUnswapped, "", 100)
-	if err != nil {
-		return err
-	}
-
-	var bills []*wallet.BillProof
-	for _, b := range billsList.Bills {
-		// export bill using --bill-id if present
-		if len(billID) > 0 && !bytes.Equal(billID, b.Id) {
-			continue
-		}
-		proof, err := restClient.GetTxProof(cmd.Context(), b.Id, b.TxHash)
-		if err != nil {
-			return err
-		}
-		if proof == nil {
-			return fmt.Errorf("proof not found for bill 0x%X", billID)
-		}
-		bills = append(bills, &wallet.BillProof{
-			Bill: &wallet.Bill{
-				Id:                   b.Id,
-				Value:                b.Value,
-				DCTargetUnitID:       b.DCTargetUnitID,
-				DCTargetUnitBacklink: b.DCTargetUnitBacklink,
-				TxHash:               b.TxHash},
-			TxProof: proof})
-	}
-
-	outputFile, err := writeProofsToFile(outputPath, bills...)
-	if err != nil {
-		return err
-	}
-	consoleWriter.Println("Exported bill(s) to: " + outputFile)
-	return nil
-}
-
-// writeProofsToFile writes bill(s) to given directory.
-// Creates outputDir if it does not already exist. Returns output file.
-func writeProofsToFile(outputDir string, proofs ...*wallet.BillProof) (string, error) {
-	outputFile, err := getOutputFile(outputDir, proofs)
-	if err != nil {
-		return "", err
-	}
-	err = os.MkdirAll(outputDir, 0700) // -rwx------
-	if err != nil {
-		return "", err
-	}
-	err = wallet.WriteBillsFile(outputFile, proofs)
-	if err != nil {
-		return "", err
-	}
-	return outputFile, nil
-}
-
-// getOutputFile returns filename either bill-<bill-id-hex>.json or bills.json
-func getOutputFile(outputDir string, bills []*wallet.BillProof) (string, error) {
-	switch len(bills) {
-	case 0:
-		return "", errors.New("no bills to export")
-	case 1:
-		billId := bills[0].GetID()
-		filename := "bill-" + hexutil.Encode(billId[:]) + ".json"
-		return filepath.Join(outputDir, filename), nil
-	default:
-		return filepath.Join(outputDir, "bills.json"), nil
-	}
 }

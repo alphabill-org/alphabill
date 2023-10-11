@@ -52,14 +52,14 @@ type startNodeConfiguration struct {
 }
 
 func defaultNodeRunFunc(ctx context.Context, name string, txs txsystem.TransactionSystem, nodeCfg *startNodeConfiguration, rpcServerConf *grpcServerConfiguration, restServerConf *restServerConfiguration) error {
-	self, node, err := createNode(ctx, txs, nodeCfg, nil)
+	node, err := createNode(ctx, txs, nodeCfg, nil)
 	if err != nil {
 		return fmt.Errorf("failed to create node %q: %w", name, err)
 	}
-	return run(ctx, name, self, node, rpcServerConf, restServerConf)
+	return run(ctx, name, node, rpcServerConf, restServerConf)
 }
 
-func run(ctx context.Context, name string, self *network.Peer, node *partition.Node, rpcServerConf *grpcServerConfiguration, restServerConf *restServerConfiguration) error {
+func run(ctx context.Context, name string, node *partition.Node, rpcServerConf *grpcServerConfiguration, restServerConf *restServerConfiguration) error {
 	log.Info("starting %s: BuildInfo=%s", name, debug.ReadBuildInfo())
 	g, ctx := errgroup.WithContext(ctx)
 
@@ -98,7 +98,11 @@ func run(ctx context.Context, name string, self *network.Peer, node *partition.N
 		if restServerConf.IsAddressEmpty() {
 			return nil // return nil in this case in order not to kill the group!
 		}
-		routers := []rpc.Registrar{rpc.NodeEndpoints(node), rpc.MetricsEndpoints(), rpc.InfoEndpoints(node, name, self)}
+		routers := []rpc.Registrar{
+			rpc.NodeEndpoints(node),
+			rpc.MetricsEndpoints(),
+			rpc.InfoEndpoints(node, name, node.GetPeer()),
+		}
 		if restServerConf.router != nil {
 			routers = append(routers, restServerConf.router)
 		}
@@ -138,7 +142,7 @@ func initRESTServer(conf *restServerConfiguration, routes ...rpc.Registrar) *htt
 	return rs
 }
 
-func loadNetworkConfiguration(ctx context.Context, keys *Keys, pg *genesis.PartitionGenesis, cfg *startNodeConfiguration) (*network.Peer, error) {
+func loadPeerConfiguration(ctx context.Context, keys *Keys, pg *genesis.PartitionGenesis, cfg *startNodeConfiguration) (*network.PeerConfiguration, error) {
 	pair, err := keys.getEncryptionKeyPair()
 	if err != nil {
 		return nil, err
@@ -172,18 +176,12 @@ func loadNetworkConfiguration(ctx context.Context, keys *Keys, pg *genesis.Parti
 		return nil, err
 	}
 
-	peerConfiguration := &network.PeerConfiguration{
-		Address:        cfg.Address,
-		KeyPair:        pair,
-		BootstrapPeers: []peer.AddrInfo{{ID: bootstrapNodeID, Addrs: []multiaddr.Multiaddr{bootstrapNodeAddress}}},
-		Validators:     validatorIdentifiers,
-	}
+	bootstrapPeers := []peer.AddrInfo{{
+		ID: bootstrapNodeID,
+		Addrs: []multiaddr.Multiaddr{bootstrapNodeAddress},
+	}}
 
-	p, err := network.NewPeer(ctx, peerConfiguration)
-	if err != nil {
-		return nil, err
-	}
-	return p, nil
+	return network.NewPeerConfiguration(cfg.Address, pair, bootstrapPeers, validatorIdentifiers)
 }
 
 func initRPCServer(node *partition.Node, cfg *grpcServerConfiguration) (*grpc.Server, error) {
@@ -203,37 +201,33 @@ func initRPCServer(node *partition.Node, cfg *grpcServerConfiguration) (*grpc.Se
 	return grpcServer, nil
 }
 
-func createNode(ctx context.Context, txs txsystem.TransactionSystem, cfg *startNodeConfiguration, blockStore keyvaluedb.KeyValueDB) (*network.Peer, *partition.Node, error) {
+func createNode(ctx context.Context, txs txsystem.TransactionSystem, cfg *startNodeConfiguration, blockStore keyvaluedb.KeyValueDB) (*partition.Node, error) {
 	keys, err := LoadKeys(cfg.KeyFile, false, false)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 	pg, err := loadPartitionGenesis(cfg.Genesis)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 	// Load network configuration. In testnet, we assume that all validators know the address of all other validators.
-	p, err := loadNetworkConfiguration(ctx, keys, pg, cfg)
+	peerConf, err := loadPeerConfiguration(ctx, keys, pg, cfg)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 	if len(pg.RootValidators) < 1 {
-		return nil, nil, errors.New("root validator info is missing")
+		return nil, errors.New("root validator info is missing")
 	}
 	// Assume monolithic root chain for now and only extract the id of the first root node
 	rootValidatorEncryptionKey := pg.RootValidators[0].EncryptionPublicKey
 	rootID, rootAddress, err := getRootValidatorIDAndMultiAddress(rootValidatorEncryptionKey, cfg.RootChainAddress)
 	if err != nil {
-		return nil, nil, err
-	}
-	n, err := network.NewLibP2PValidatorNetwork(p, network.DefaultValidatorNetOptions)
-	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 	if blockStore == nil {
 		blockStore, err = initNodeBlockStore(cfg.DbFile)
 		if err != nil {
-			return nil, nil, err
+			return nil, err
 		}
 	}
 	options := []partition.NodeOption{
@@ -245,23 +239,24 @@ func createNode(ctx context.Context, txs txsystem.TransactionSystem, cfg *startN
 	if cfg.TxIndexerDBFile != "" {
 		txIndexer, err := boltdb.New(cfg.TxIndexerDBFile)
 		if err != nil {
-			return nil, nil, fmt.Errorf("unable to load tx indexer: %w", err)
+			return nil, fmt.Errorf("unable to load tx indexer: %w", err)
 		}
 		options = append(options, partition.WithTxIndexer(txIndexer))
 	}
 
-	node, err := partition.New(
-		p,
+	node, err := partition.NewNode(
+		ctx,
+		peerConf,
 		keys.SigningPrivateKey,
 		txs,
 		pg,
-		n,
+		nil,
 		options...,
 	)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
-	return p, node, nil
+	return node, nil
 }
 
 func getRootValidatorIDAndMultiAddress(rootValidatorEncryptionKey []byte, addressStr string) (peer.ID, multiaddr.Multiaddr, error) {

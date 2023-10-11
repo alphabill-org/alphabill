@@ -60,7 +60,7 @@ type NodePartition struct {
 type partitionNode struct {
 	*partition.Node
 	dbFile       string
-	nodePeer     *network.Peer
+	peerConf     *network.PeerConfiguration
 	signer       crypto.Signer
 	genesis      *genesis.PartitionNode
 	EventHandler *testevent.TestEventHandler
@@ -168,11 +168,13 @@ func (r *RootPartition) start(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("get free port failed, %w", err)
 	}
-	rootPeer, err := network.NewPeer(ctx, &network.PeerConfiguration{
-		Address: fmt.Sprintf("/ip4/127.0.0.1/tcp/%v", port),
-		KeyPair: r.Nodes[0].EncKeyPair, // connection encryption key. The ID of the node is derived from this keypair.
-	})
-
+	peerConf, err := network.NewPeerConfiguration(
+		fmt.Sprintf("/ip4/127.0.0.1/tcp/%v", port),
+		r.Nodes[0].EncKeyPair, // connection encryption key. The ID of the node is derived from this keypair.
+		nil,
+		nil,
+	)
+	rootPeer, err := network.NewPeer(ctx, peerConf)
 	if err != nil {
 		return fmt.Errorf("failed to create new peer node: %w", err)
 	}
@@ -216,8 +218,8 @@ func NewPartition(t *testing.T, nodeCount int, txSystemProvider func(trustBase m
 		txSystemFunc: txSystemProvider,
 		Nodes:        make([]*partitionNode, nodeCount),
 	}
-	// create network nodePeers
-	nodePeers, err := createNetworkPeers(ctx, nodeCount)
+	// create peer configurations
+	peerConfs, err := createPeerConfs(ctx, nodeCount)
 	if err != nil {
 		return nil, err
 	}
@@ -227,14 +229,15 @@ func NewPartition(t *testing.T, nodeCount int, txSystemProvider func(trustBase m
 		return nil, err
 	}
 	for i := 0; i < nodeCount; i++ {
-		peer := nodePeers[i]
+		peerConf := peerConfs[i]
+
 		signer := signers[i]
 		// create partition genesis file
 		nodeGenesis, err := partition.NewNodeGenesis(
 			txSystemProvider(map[string]crypto.Verifier{"genesis": nil}),
-			partition.WithPeerID(peer.ID()),
+			partition.WithPeerID(peerConf.ID),
 			partition.WithSigningKey(signer),
-			partition.WithEncryptionPubKey(peer.Configuration().KeyPair.PublicKey),
+			partition.WithEncryptionPubKey(peerConf.KeyPair.PublicKey),
 			partition.WithSystemIdentifier(systemIdentifier),
 			partition.WithT2Timeout(2500),
 		)
@@ -243,7 +246,7 @@ func NewPartition(t *testing.T, nodeCount int, txSystemProvider func(trustBase m
 		}
 		abPartition.Nodes[i] = &partitionNode{
 			genesis:  nodeGenesis,
-			nodePeer: peer,
+			peerConf: peerConf,
 			signer:   signer,
 			dbFile:   filepath.Join(t.TempDir(), "blocks.db"),
 		}
@@ -271,31 +274,27 @@ func (n *NodePartition) start(t *testing.T, ctx context.Context, rootID peer.ID,
 			partition.WithEventHandler(nd.EventHandler.HandleEvent, 100),
 			partition.WithBlockStore(blockStore))
 
-		if err = n.startNode(nd); err != nil {
+		if err = n.startNode(ctx, nd); err != nil {
 			return err
 		}
 	}
 
 	for _, nd := range n.Nodes {
-		if err = assertConnections(nd.nodePeer, len(n.Nodes)); err != nil {
+		if err = assertConnections(nd.GetPeer(), len(n.Nodes)); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func (n *NodePartition) startNode(pn *partitionNode) error {
-	pnet, err := network.NewLibP2PValidatorNetwork(pn.nodePeer, network.DefaultValidatorNetOptions)
-	if err != nil {
-		return fmt.Errorf("failed to start the node, %w", err)
-	}
-
-	node, err := partition.New(
-		pn.nodePeer,
+func (n *NodePartition) startNode(ctx context.Context, pn *partitionNode) error {
+	node, err := partition.NewNode(
+		ctx,
+		pn.peerConf,
 		pn.signer,
 		n.txSystemFunc(n.tb),
 		n.partitionGenesis,
-		pnet,
+		nil,
 		pn.confOpts...,
 	)
 	if err != nil {
@@ -307,41 +306,6 @@ func (n *NodePartition) startNode(pn *partitionNode) error {
 	pn.done = make(chan error, 1)
 	go func(ec chan error) { ec <- node.Run(nctx) }(pn.done)
 	return nil
-}
-
-func (n *NodePartition) ResumeNode(nodeIdx int) error {
-	if len(n.Nodes) <= nodeIdx {
-		return fmt.Errorf("node index out of range")
-	}
-	pn := n.Nodes[nodeIdx]
-	fmt.Printf("Resuming node #%d, id: %s\n", nodeIdx, pn.nodePeer.String())
-	// re-create Peer
-	newPeer, err := network.NewPeer(n.ctx, pn.nodePeer.Configuration())
-	if err != nil {
-		return fmt.Errorf("failed to resume node, %w", err)
-	}
-	pn.nodePeer = newPeer
-	if err = n.startNode(pn); err != nil {
-		return err
-	}
-	if err = assertConnections(pn.nodePeer, len(n.Nodes)); err != nil {
-		return err
-	}
-	return nil
-}
-
-func (n *NodePartition) StopNode(nodeIdx int) error {
-	fmt.Printf("Stopping node #%d, id: %s\n", nodeIdx, n.Nodes[nodeIdx].nodePeer.String())
-	return n.Nodes[nodeIdx].Stop()
-}
-
-func (pn *partitionNode) Stop() error {
-	if err := pn.nodePeer.Close(); err != nil {
-		return err
-	}
-
-	pn.cancel()
-	return <-pn.done
 }
 
 func NewAlphabillPartition(nodePartitions []*NodePartition) (*AlphabillNetwork, error) {
@@ -480,8 +444,9 @@ func createSigners(count int) ([]crypto.Signer, error) {
 	return signers, nil
 }
 
-func createNetworkPeers(ctx context.Context, count int) ([]*network.Peer, error) {
-	var peers = make([]*network.Peer, count)
+func createPeerConfs(ctx context.Context, count int) ([]*network.PeerConfiguration, error) {
+	var peerConfs = make([]*network.PeerConfiguration, count)
+
 	// generate connection encryption key pairs
 	keyPairs, err := generateKeyPairs(count)
 	if err != nil {
@@ -491,30 +456,20 @@ func createNetworkPeers(ctx context.Context, count int) ([]*network.Peer, error)
 	var validators = make(peer.IDSlice, count)
 
 	for i := 0; i < count; i++ {
-		nodeID, err := network.NodeIDFromPublicKeyBytes(keyPairs[i].PublicKey)
+		peerConfs[i], err = network.NewPeerConfiguration(
+			"/ip4/127.0.0.1/tcp/0",
+			keyPairs[i], // connection encryption key. The ID of the node is derived from this keypair.
+			nil,
+			validators,  // Persistent peers
+		)
 		if err != nil {
 			return nil, err
 		}
-
-		validators[i] = nodeID
+		validators[i] = peerConfs[i].ID
 	}
 	sort.Sort(validators)
 
-	// init Nodes
-	for i := 0; i < count; i++ {
-		p, err := network.NewPeer(ctx, &network.PeerConfiguration{
-			Address:    "/ip4/127.0.0.1/tcp/0",
-			KeyPair:    keyPairs[i], // connection encryption key. The ID of the node is derived from this keypair.
-			Validators: validators,  // Persistent peers
-		})
-
-		if err != nil {
-			return nil, err
-		}
-		peers[i] = p
-	}
-
-	return peers, nil
+	return peerConfs, nil
 }
 
 func generateKeyPairs(count int) ([]*network.PeerKeyPair, error) {

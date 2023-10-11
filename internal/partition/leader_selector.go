@@ -2,10 +2,8 @@ package partition
 
 import (
 	"crypto"
-	"errors"
 	"sync"
 
-	"github.com/alphabill-org/alphabill/internal/network"
 	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/holiman/uint256"
 	"github.com/libp2p/go-libp2p/core/peer"
@@ -13,72 +11,57 @@ import (
 
 const (
 	UnknownLeader = ""
-
-	ErrStrSystemIdentifierIsNil = "system identifier is nil"
 )
 
 type (
 	LeaderSelector interface {
-		UpdateLeader(uc *types.UnicityCertificate)
-		LeaderFunc(uc *types.UnicityCertificate) peer.ID
-		IsCurrentNodeLeader() bool
-		GetLeaderID() peer.ID
-		SelfID() peer.ID
+		UpdateLeader(uc *types.UnicityCertificate, validators []peer.ID)
+		LeaderFunc(uc *types.UnicityCertificate, validators []peer.ID) peer.ID
+		IsLeader(peer peer.ID) bool
+		GetLeader() peer.ID
 	}
 
 	// DefaultLeaderSelector is used to select a leader from the validator pool.
 	DefaultLeaderSelector struct {
-		mutex            sync.Mutex
-		leader           peer.ID // current leader ID
-		systemIdentifier []byte
-		self             *network.Peer
+		mutex  sync.Mutex
+		leader peer.ID
 	}
 )
 
-func NewDefaultLeaderSelector(self *network.Peer, systemIdentifier []byte) (*DefaultLeaderSelector, error) {
-	if self == nil {
-		return nil, ErrPeerIsNil
-	}
-	if systemIdentifier == nil {
-		return nil, errors.New(ErrStrSystemIdentifierIsNil)
-	}
-	return &DefaultLeaderSelector{self: self, leader: UnknownLeader, systemIdentifier: systemIdentifier}, nil
+func NewDefaultLeaderSelector() *DefaultLeaderSelector {
+	return &DefaultLeaderSelector{leader: UnknownLeader}
 }
 
-func (l *DefaultLeaderSelector) SelfID() peer.ID {
-	return l.self.ID()
-}
-
-// IsCurrentNodeLeader returns true it current node is the leader and must propose the next block.
-func (l *DefaultLeaderSelector) IsCurrentNodeLeader() bool {
+// IsLeader returns true it the given peer is the leader and must propose the next block.
+func (l *DefaultLeaderSelector) IsLeader(peerID peer.ID) bool {
 	l.mutex.Lock()
 	defer l.mutex.Unlock()
-	logger.Info("current leader: '%v', current node '%v'", l.leader, l.self.ID())
-	return l.leader == l.self.ID()
+	logger.Info("current leader: '%v', current node '%v'", l.leader, peerID)
+	return l.leader == peerID
 }
 
-func (l *DefaultLeaderSelector) GetLeaderID() peer.ID {
+func (l *DefaultLeaderSelector) GetLeader() peer.ID {
 	l.mutex.Lock()
 	defer l.mutex.Unlock()
 	return l.leader
 }
 
-// UpdateLeader updates the next block proposer. If input is nil then leader is set to UnknownLeader.
-func (l *DefaultLeaderSelector) UpdateLeader(uc *types.UnicityCertificate) {
+// UpdateLeader updates the leader (next block proposer). If input is nil then leader is set to UnknownLeader.
+func (l *DefaultLeaderSelector) UpdateLeader(uc *types.UnicityCertificate, validators []peer.ID) {
 	l.mutex.Lock()
 	defer l.mutex.Unlock()
-	l.leader = l.LeaderFunc(uc)
+	l.leader = l.LeaderFunc(uc, validators)
 	logger.Debug("Leader set to '%v'", l.leader)
 }
 
-// LeaderFunc calculates new leader from Unicity Certificate
-// For details see Yellowpaper Algorithm 1 "State and Initialization" - "function leaderfunc(uc)" description
-func (l *DefaultLeaderSelector) LeaderFunc(uc *types.UnicityCertificate) peer.ID {
+// LeaderFunc calculates new leader from Unicity Certificate.
+// For details see Yellowpaper Algorithm 1 "State and Initialization" - "function leaderfunc(uc)" description.
+func (l *DefaultLeaderSelector) LeaderFunc(uc *types.UnicityCertificate, validators []peer.ID) peer.ID {
 	// We don't need the lock because we don't change the state of the struct.
 	if uc == nil {
 		return UnknownLeader
 	}
-	peerCount := uint64(len(l.self.Configuration().Validators))
+	peerCount := uint64(len(validators))
 	hasher := crypto.SHA256.New()
 	hasher.Write(uc.Bytes())
 	hash := hasher.Sum(nil)
@@ -90,5 +73,5 @@ func (l *DefaultLeaderSelector) LeaderFunc(uc *types.UnicityCertificate) peer.ID
 		logger.Warning("Invalid leader index.")
 		return UnknownLeader
 	}
-	return l.self.Configuration().Validators[index]
+	return validators[index]
 }

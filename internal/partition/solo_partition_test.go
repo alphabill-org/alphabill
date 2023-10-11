@@ -49,7 +49,7 @@ type SingleNodePartition struct {
 }
 
 type partitionStartupDependencies struct {
-	peer        *network.Peer
+	peerConf    *network.PeerConfiguration
 	txSystem    txsystem.TransactionSystem
 	nodeSigner  crypto.Signer
 	genesis     *genesis.PartitionGenesis
@@ -66,20 +66,16 @@ func (t *AlwaysValidBlockProposalValidator) Validate(*blockproposal.BlockProposa
 }
 
 func SetupNewSingleNodePartition(t *testing.T, txSystem txsystem.TransactionSystem, nodeOptions ...NodeOption) *SingleNodePartition {
-	peer := createPeer(t)
-	key, err := peer.PublicKey()
-	require.NoError(t, err)
-	pubKeyBytes, err := key.Raw()
-	require.NoError(t, err)
+	peerConf := createPeerConfiguration(t)
 
 	// node genesis
 	nodeSigner, _ := testsig.CreateSignerAndVerifier(t)
 	systemId := []byte{1, 1, 1, 1}
 	nodeGenesis, err := NewNodeGenesis(
 		txSystem,
-		WithPeerID(peer.ID()),
+		WithPeerID(peerConf.ID),
 		WithSigningKey(nodeSigner),
-		WithEncryptionPubKey(pubKeyBytes),
+		WithEncryptionPubKey(peerConf.KeyPair.PublicKey),
 		WithSystemIdentifier(systemId),
 		WithT2Timeout(2500),
 	)
@@ -105,7 +101,7 @@ func SetupNewSingleNodePartition(t *testing.T, txSystem txsystem.TransactionSyst
 
 	// allows restarting the node
 	deps := &partitionStartupDependencies{
-		peer:        peer,
+		peerConf:    peerConf,
 		txSystem:    txSystem,
 		nodeSigner:  nodeSigner,
 		genesis:     partitionGenesis[0],
@@ -145,8 +141,11 @@ func RunSingleNodePartition(t *testing.T, txSystem txsystem.TransactionSystem, n
 }
 
 func (sn *SingleNodePartition) newNode() error {
-	n, err := New(
-		sn.nodeDeps.peer,
+	nodeID := sn.nodeDeps.peerConf.ID
+
+	n, err := NewNode(
+		context.Background(),
+		sn.nodeDeps.peerConf,
 		sn.nodeDeps.nodeSigner,
 		sn.nodeDeps.txSystem,
 		sn.nodeDeps.genesis,
@@ -154,8 +153,8 @@ func (sn *SingleNodePartition) newNode() error {
 		append([]NodeOption{
 			WithT1Timeout(100 * time.Minute),
 			WithLeaderSelector(&TestLeaderSelector{
-				leader:      sn.nodeDeps.peer.ID(),
-				currentNode: sn.nodeDeps.peer.ID(),
+				leader:      nodeID,
+				currentNode: nodeID,
 			}),
 			WithTxValidator(&AlwaysValidTransactionValidator{}),
 			WithEventHandler(sn.eh.HandleEvent, 100),
@@ -183,7 +182,6 @@ func (sn *SingleNodePartition) SubmitTxFromRPC(tx *types.TransactionOrder) error
 
 func (sn *SingleNodePartition) SubmitUnicityCertificate(uc *types.UnicityCertificate) {
 	sn.mockNet.Receive(uc)
-
 }
 
 func (sn *SingleNodePartition) SubmitBlockProposal(prop *blockproposal.BlockProposal) {
@@ -289,18 +287,14 @@ type TestLeaderSelector struct {
 	mutex       sync.Mutex
 }
 
-func (l *TestLeaderSelector) SelfID() peer.ID {
+// IsLeader returns true it current node is the leader and must propose the next block.
+func (l *TestLeaderSelector) IsLeader(peerID peer.ID) bool {
 	l.mutex.Lock()
 	defer l.mutex.Unlock()
-	return l.currentNode
+	return l.leader == peerID
 }
 
-// IsCurrentNodeLeader returns true it current node is the leader and must propose the next block.
-func (l *TestLeaderSelector) IsCurrentNodeLeader() bool {
-	return l.leader == l.SelfID()
-}
-
-func (l *TestLeaderSelector) UpdateLeader(seal *types.UnicityCertificate) {
+func (l *TestLeaderSelector) UpdateLeader(seal *types.UnicityCertificate, validators []peer.ID) {
 	l.mutex.Lock()
 	defer l.mutex.Unlock()
 	if seal == nil {
@@ -310,36 +304,44 @@ func (l *TestLeaderSelector) UpdateLeader(seal *types.UnicityCertificate) {
 	l.leader = l.currentNode
 }
 
-func (l *TestLeaderSelector) GetLeaderID() peer.ID {
+func (l *TestLeaderSelector) GetLeader() peer.ID {
 	l.mutex.Lock()
 	defer l.mutex.Unlock()
 	return l.leader
 }
 
-func (l *TestLeaderSelector) LeaderFunc(seal *types.UnicityCertificate) peer.ID {
+func (l *TestLeaderSelector) LeaderFunc(seal *types.UnicityCertificate, validators []peer.ID) peer.ID {
 	if seal == nil {
 		return ""
 	}
 	return l.currentNode
 }
 
-func createPeer(t *testing.T) *network.Peer {
+func createPeerConfiguration(t *testing.T) *network.PeerConfiguration {
 	// fake validator, so that network 'send' requests don't fail
-	_, pubKey, err := p2pcrypto.GenerateSecp256k1Key(rand.Reader)
+	_, fakeValidatorPubKey, err := p2pcrypto.GenerateSecp256k1Key(rand.Reader)
 	require.NoError(t, err)
-	fakeValidatorID, err := peer.IDFromPublicKey(pubKey)
+	fakeValidatorID, err := peer.IDFromPublicKey(fakeValidatorPubKey)
 	require.NoError(t, err)
 
-	conf := &network.PeerConfiguration{
-		//KeyPair will be generated
-		Validators: []peer.ID{fakeValidatorID},
-		Address:    "/ip4/127.0.0.1/tcp/0",
-	}
-	newPeer, err := network.NewPeer(context.Background(), conf)
+	privKey, pubKey, err := p2pcrypto.GenerateSecp256k1Key(rand.Reader)
 	require.NoError(t, err)
-	t.Cleanup(func() { require.NoError(t, newPeer.Close()) })
 
-	return newPeer
+	privKeyBytes, err := privKey.Raw()
+	require.NoError(t, err)
+
+	pubKeyBytes, err := pubKey.Raw()
+	require.NoError(t, err)
+
+	peerConf, err := network.NewPeerConfiguration(
+		"/ip4/127.0.0.1/tcp/0",
+		&network.PeerKeyPair{PublicKey: pubKeyBytes, PrivateKey: privKeyBytes},
+		nil,
+		[]peer.ID{fakeValidatorID},
+	)
+	require.NoError(t, err)
+
+	return peerConf
 }
 
 func NextBlockReceived(t *testing.T, tp *SingleNodePartition, prevBlock *types.Block) func() bool {

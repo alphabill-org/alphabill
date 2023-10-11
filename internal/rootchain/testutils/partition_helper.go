@@ -20,12 +20,12 @@ import (
 type TestNode struct {
 	Signer   crypto.Signer
 	Verifier crypto.Verifier
-	Peer     *network.Peer
+	PeerConf *network.PeerConfiguration
 }
 
 func NewTestNode(t *testing.T) *TestNode {
 	t.Helper()
-	node := &TestNode{Peer: testpeer.CreatePeer(t)}
+	node := &TestNode{PeerConf: testpeer.CreatePeerConfiguration(t)}
 	node.Signer, node.Verifier = testsig.CreateSignerAndVerifier(t)
 	return node
 }
@@ -42,24 +42,21 @@ func CreatePartitionNodesAndPartitionRecord(t *testing.T, ir *types.InputRecord,
 	for i := 0; i < nrOfValidators; i++ {
 		partitionNode := NewTestNode(t)
 
-		encPubKey, err := partitionNode.Peer.PublicKey()
-		require.NoError(t, err)
-		rawEncPubKey, err := encPubKey.Raw()
-		require.NoError(t, err)
+		rawEncPubKey := partitionNode.PeerConf.KeyPair.PublicKey
 
 		rawSigningPubKey, err := partitionNode.Verifier.MarshalPublicKey()
 		require.NoError(t, err)
 
 		req := &certification.BlockCertificationRequest{
 			SystemIdentifier: systemID,
-			NodeIdentifier:   partitionNode.Peer.ID().String(),
+			NodeIdentifier:   partitionNode.PeerConf.ID.String(),
 			InputRecord:      ir,
 		}
 		err = req.Sign(partitionNode.Signer)
 		require.NoError(t, err)
 
 		record.Validators = append(record.Validators, &genesis.PartitionNode{
-			NodeIdentifier:            partitionNode.Peer.ID().String(),
+			NodeIdentifier:            partitionNode.PeerConf.ID.String(),
 			SigningPublicKey:          rawSigningPubKey,
 			EncryptionPublicKey:       rawEncPubKey,
 			BlockCertificationRequest: req,
@@ -74,7 +71,7 @@ func CreateBlockCertificationRequest(t *testing.T, ir *types.InputRecord, sysID 
 	t.Helper()
 	r1 := &certification.BlockCertificationRequest{
 		SystemIdentifier: sysID,
-		NodeIdentifier:   node.Peer.ID().String(),
+		NodeIdentifier:   node.PeerConf.ID.String(),
 		InputRecord:      ir,
 		RootRoundNumber:  1,
 	}

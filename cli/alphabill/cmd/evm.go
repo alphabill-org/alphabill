@@ -88,9 +88,9 @@ func runEvmNode(ctx context.Context, cfg *evmConfiguration) error {
 		big.NewInt(0).SetUint64(params.BlockGasLimit),
 		params.GasUnitPrice,
 	)
-	self, node, err := createNode(ctx, txs, cfg.Node, blockStore)
+	node, err := createNode(ctx, txs, cfg.Node, blockStore)
 	if err != nil {
 		return fmt.Errorf("failed to create node evm node: %w", err)
 	}
-	return run(ctx, "evm node", self, node, cfg.RPCServer, cfg.RESTServer)
+	return run(ctx, "evm node", node, cfg.RPCServer, cfg.RESTServer)
 }

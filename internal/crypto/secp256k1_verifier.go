@@ -4,16 +4,19 @@ import (
 	"crypto"
 	"crypto/ecdsa"
 	"crypto/elliptic"
+	"errors"
 	"fmt"
 
 	"github.com/alphabill-org/alphabill/internal/crypto/canonicalizer"
-
-	"github.com/alphabill-org/alphabill/internal/errors"
-	"github.com/alphabill-org/alphabill/internal/errors/errstr"
 	"github.com/alphabill-org/alphabill/internal/hash"
 
 	ethcrypto "github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/crypto/secp256k1"
+)
+
+var (
+	ErrInvalidArgument    = errors.New("invalid nil argument")
+	ErrVerificationFailed = errors.New("verification failed")
 )
 
 type (
@@ -28,7 +31,7 @@ const CompressedSecp256K1PublicKeySize = 33
 // NewVerifierSecp256k1 creates new verifier from an existing Secp256k1 compressed public key.
 func NewVerifierSecp256k1(compressedPubKey []byte) (Verifier, error) {
 	if len(compressedPubKey) != CompressedSecp256K1PublicKeySize {
-		return nil, fmt.Errorf("pubkey must be %d bytes long, but is %d, %w", CompressedSecp256K1PublicKeySize, len(compressedPubKey), errors.ErrInvalidArgument)
+		return nil, fmt.Errorf("pubkey must be %d bytes long, but is %d", CompressedSecp256K1PublicKeySize, len(compressedPubKey))
 	}
 	x, y := secp256k1.DecompressPubkey(compressedPubKey)
 	if x == nil && y == nil {
@@ -41,7 +44,7 @@ func NewVerifierSecp256k1(compressedPubKey []byte) (Verifier, error) {
 // VerifyBytes hashes the data with SHA256 and verifies it using the public key of the verifier.
 func (v *verifierSecp256k1) VerifyBytes(sig []byte, data []byte) error {
 	if v == nil || v.pubKey == nil || sig == nil || data == nil {
-		return errors.Wrap(errors.ErrInvalidArgument, errstr.NilArgument)
+		return ErrInvalidArgument
 	}
 	return v.VerifyHash(sig, hash.Sum256(data))
 }
@@ -49,26 +52,26 @@ func (v *verifierSecp256k1) VerifyBytes(sig []byte, data []byte) error {
 // VerifyHash verifies the hash against the signature, using the internal public key.
 func (v *verifierSecp256k1) VerifyHash(sig []byte, hash []byte) error {
 	if v == nil || v.pubKey == nil || sig == nil || hash == nil {
-		return errors.Wrap(errors.ErrInvalidArgument, errstr.NilArgument)
+		return ErrInvalidArgument
 	}
 	if len(sig) == ethcrypto.SignatureLength {
 		// If signature contains recovery ID, then remove it.
 		sig = sig[:len(sig)-1]
 	}
 	if len(sig) != ethcrypto.RecoveryIDOffset {
-		return errors.Wrapf(errors.ErrInvalidState, "signature length is %d b (expected %d b)", len(sig), ethcrypto.RecoveryIDOffset)
+		return fmt.Errorf("signature length is %d b (expected %d b)", len(sig), ethcrypto.RecoveryIDOffset)
 	}
 	if secp256k1.VerifySignature(v.pubKey, hash, sig) {
 		return nil
 	}
-	return errors.Wrap(errors.ErrVerificationFailed, "signature verify failed")
+	return ErrVerificationFailed
 }
 
 // VerifyObject verifies the signature of canonicalizable object with public key.
 func (v *verifierSecp256k1) VerifyObject(sig []byte, obj canonicalizer.Canonicalizer, opts ...canonicalizer.Option) error {
 	data, err := canonicalizer.Canonicalize(obj, opts...)
 	if err != nil {
-		return errors.Wrap(err, "could not canonicalize the object")
+		return fmt.Errorf("canonicalize the object failed: %w", err)
 	}
 	return v.VerifyBytes(sig, data)
 }
@@ -88,11 +91,11 @@ func (v *verifierSecp256k1) UnmarshalPubKey() (crypto.PublicKey, error) {
 
 func (v *verifierSecp256k1) unmarshalPubKey() (*ecdsa.PublicKey, error) {
 	if v == nil || v.pubKey == nil {
-		return nil, errors.Wrap(errors.ErrInvalidArgument, errstr.NilArgument)
+		return nil, ErrInvalidArgument
 	}
 	pubkey, err := ethcrypto.UnmarshalPubkey(v.pubKey)
 	if err != nil {
-		return nil, errors.Wrap(err, "could not convert public key bytes to ECDSA public key")
+		return nil, fmt.Errorf("convert public key bytes to ECDSA public key failed: %w", err)
 	}
 	return pubkey, nil
 }

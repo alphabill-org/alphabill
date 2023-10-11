@@ -309,6 +309,7 @@ func TestNewGenesisFromPartitionNodes_Ok(t *testing.T) {
 	partitionSigner, err := crypto.NewInMemorySecp256K1Signer()
 	require.NoError(t, err)
 	partitionSigner2, err := crypto.NewInMemorySecp256K1Signer()
+	require.NoError(t, err)
 
 	pn1 := createPartitionNode(t, id, "1", partitionSigner)
 	pn2 := createPartitionNode(t, id, "2", partitionSigner2)

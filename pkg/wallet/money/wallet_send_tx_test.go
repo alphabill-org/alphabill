@@ -472,9 +472,7 @@ func TestWalletSendFunction_NWaySplit(t *testing.T) {
 			}, nil
 		},
 		postTransactions: func(ctx context.Context, pubKey wallet.PubKey, txs *wallet.Transactions) error {
-			for _, tx := range txs.Transactions {
-				recordedTransactions = append(recordedTransactions, tx)
-			}
+			recordedTransactions = append(recordedTransactions, txs.Transactions...)
 			return nil
 		},
 	}

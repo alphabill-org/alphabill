@@ -6,7 +6,6 @@ import (
 	"testing"
 
 	"github.com/alphabill-org/alphabill/internal/keyvaluedb"
-	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/stretchr/testify/require"
 )
 
@@ -82,12 +81,12 @@ func TestBoltDB_TestEmptyValue(t *testing.T) {
 func TestBoltDB_TestInvalidReadWrite(t *testing.T) {
 	db := initBoltDB(t)
 	require.NotNil(t, db)
-	var uc *types.UnicityCertificate = nil
-	require.Error(t, db.Write([]byte("certificate"), uc))
+	var data *testStruct = nil
+	require.Error(t, db.Write([]byte("data"), data))
 	require.Error(t, db.Write([]byte(""), nil))
 	var value uint64 = 1
 	require.Error(t, db.Write(nil, value))
-	found, err := db.Read(nil, uc)
+	found, err := db.Read(nil, data)
 	require.Error(t, err)
 	require.False(t, found)
 	found, err = db.Read(nil, &value)

@@ -871,7 +871,7 @@ func TestJoinFungibleToken_NotOk(t *testing.T) {
 		Backlink:                     make([]byte, 32),
 		InvariantPredicateSignatures: [][]byte{script.PredicateArgumentEmpty()},
 	}, PayloadTypeBurnFungibleToken)
-	burnTx := createTxRecord(t, existingTokenUnitID, &BurnFungibleTokenAttributes{
+	burnTx1 := createTxRecord(t, existingTokenUnitID, &BurnFungibleTokenAttributes{
 		TypeID:                       existingTokenTypeUnitID,
 		Value:                        existingTokenValue,
 		TargetTokenBacklink:          make([]byte, 32),
@@ -896,6 +896,20 @@ func TestJoinFungibleToken_NotOk(t *testing.T) {
 	proofInvalidSource := testblock.CreateProof(t, burnTxInvalidSource, signer)
 	proofBurnTx2 := testblock.CreateProof(t, burnTx2, signer)
 	proofBurnTx3 := testblock.CreateProof(t, burnTx3, signer)
+
+	// create block with 3 burn txs
+	var burnTxs []*types.TransactionRecord
+	for i := uint8(3); i >= 1; i-- {
+		burnTx := createTxRecord(t, NewFungibleTokenID(nil, []byte{i}), &BurnFungibleTokenAttributes{
+			TypeID:                       existingTokenTypeUnitID,
+			Value:                        existingTokenValue,
+			TargetTokenBacklink:          make([]byte, 32),
+			Backlink:                     make([]byte, 32),
+			InvariantPredicateSignatures: [][]byte{script.PredicateArgumentEmpty()},
+		}, PayloadTypeBurnFungibleToken)
+		burnTxs = append(burnTxs, burnTx)
+	}
+	proofs := testblock.CreateProofs(t, burnTxs, signer, testblock.WithSystemIdentifier(DefaultSystemIdentifier))
 
 	tests := []struct {
 		name       string
@@ -927,6 +941,16 @@ func TestJoinFungibleToken_NotOk(t *testing.T) {
 			wantErrStr: "invalid backlink",
 		},
 		{
+			name: "token identifiers in wrong order",
+			tx: createTx(t, existingTokenUnitID, &JoinFungibleTokenAttributes{
+				BurnTransactions:             burnTxs,
+				Proofs:                       proofs,
+				Backlink:                     make([]byte, 32),
+				InvariantPredicateSignatures: [][]byte{script.PredicateAlwaysFalse()},
+			}, PayloadTypeJoinFungibleToken),
+			wantErrStr: "burn tx orders are not listed in strictly increasing order of token identifiers",
+		},
+		{
 			name: "source not burned",
 			tx: createTx(t, existingTokenUnitID, &JoinFungibleTokenAttributes{
 				BurnTransactions:             []*types.TransactionRecord{burnTxInvalidSource},
@@ -949,7 +973,7 @@ func TestJoinFungibleToken_NotOk(t *testing.T) {
 		{
 			name: "proof is not valid",
 			tx: createTx(t, existingTokenUnitID, &JoinFungibleTokenAttributes{
-				BurnTransactions:             []*types.TransactionRecord{burnTx},
+				BurnTransactions:             []*types.TransactionRecord{burnTx1},
 				Proofs:                       []*types.TxProof{proofBurnTx2},
 				Backlink:                     make([]byte, 32),
 				InvariantPredicateSignatures: [][]byte{script.PredicateAlwaysFalse()},

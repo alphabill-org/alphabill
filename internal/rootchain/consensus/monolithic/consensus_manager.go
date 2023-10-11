@@ -102,7 +102,7 @@ func (x *ConsensusManager) CertificationResult() <-chan *types.UnicityCertificat
 func (x *ConsensusManager) GetLatestUnicityCertificate(id types.SystemID32) (*types.UnicityCertificate, error) {
 	luc, err := x.stateStore.GetCertificate(id)
 	if err != nil {
-		return nil, fmt.Errorf("find certificate for system id %08X failed, %w", id, err)
+		return nil, fmt.Errorf("find certificate for system id %s failed, %w", id, err)
 	}
 	return luc, nil
 }
@@ -145,7 +145,7 @@ func (x *ConsensusManager) onIRChangeReq(req *consensus.IRChangeRequest) error {
 	case consensus.QuorumNotPossible:
 		luc, err := x.stateStore.GetCertificate(req.SystemIdentifier)
 		if err != nil {
-			return fmt.Errorf("ir change request ignored, read state for system id %08X failed, %w", req.SystemIdentifier, err)
+			return fmt.Errorf("ir change request ignored, read state for system id %s failed, %w", req.SystemIdentifier, err)
 		}
 		// repeat UC, ignore error here as we found the luc, and it cannot be nil
 		// in repeat UC just advance partition/shard round number
@@ -183,7 +183,7 @@ func (x *ConsensusManager) onT3Timeout(ctx context.Context) {
 	x.round = newRound
 	// Only deliver updated (new input or repeat) certificates
 	for id, cert := range certs {
-		x.log.DebugContext(ctx, fmt.Sprintf("sending new UC for '%08X'", id), logger.Round(newRound))
+		x.log.DebugContext(ctx, fmt.Sprintf("sending new UC for '%s'", id), logger.Round(newRound))
 		select {
 		case x.certResultCh <- cert:
 		case <-ctx.Done():
@@ -204,13 +204,13 @@ func (x *ConsensusManager) checkT2Timeout(round uint64) error {
 			}
 			lastCert, err := x.stateStore.GetCertificate(id)
 			if err != nil {
-				log.Warn(fmt.Sprintf("read certificate for %08X", id), logger.Error(err))
+				log.Warn(fmt.Sprintf("read certificate for %s", id), logger.Error(err))
 				continue
 			}
 			if time.Duration(round-lastCert.UnicitySeal.RootChainRoundNumber)*x.params.BlockRateMs >
 				time.Duration(partInfo.T2Timeout)*time.Millisecond {
 				// timeout
-				log.Info(fmt.Sprintf("partition %08X T2 timeout", id))
+				log.Info(fmt.Sprintf("partition %s T2 timeout", id))
 				repeatIR := lastCert.InputRecord.NewRepeatIR()
 				x.changes[id] = repeatIR
 			}
@@ -296,7 +296,7 @@ func (x *ConsensusManager) generateUnicityCertificates(round uint64) (map[types.
 			// should never happen.
 			return nil, fmt.Errorf("error invalid generated unicity certificate: %w", err)
 		}
-		x.log.LogAttrs(context.Background(), logger.LevelTrace, fmt.Sprintf("NewStateStore unicity certificate for partition %08X is", sysID), logger.Data(uc))
+		x.log.LogAttrs(context.Background(), logger.LevelTrace, fmt.Sprintf("NewStateStore unicity certificate for partition %s is", sysID), logger.Data(uc))
 		certs[sysID] = uc
 	}
 	// persist new state

@@ -67,3 +67,7 @@ func (sid SystemID) Id32() (SystemID32, error) {
 func (sid SystemID32) ToSystemID() SystemID {
 	return util.Uint32ToBytes(uint32(sid))
 }
+
+func (sid SystemID32) String() string {
+	return fmt.Sprintf("%08X", uint32(sid))
+}

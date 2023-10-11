@@ -174,3 +174,12 @@ func TestSystemID_Id32(t *testing.T) {
 		})
 	}
 }
+
+func TestSystemID32_String(t *testing.T) {
+	var id SystemID32 = 0x00000001
+	require.Equal(t, "00000001", id.String())
+	id = 0xFF000001
+	require.Equal(t, "FF000001", id.String())
+	id = 0
+	require.Equal(t, "00000000", id.String())
+}

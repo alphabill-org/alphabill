@@ -52,7 +52,7 @@ func (s *StateStore) save(newRound uint64, certificates map[types.SystemID32]*ty
 	for id, uc := range certificates {
 		key := certKey(id.ToSystemID())
 		if err = tx.Write(key, uc); err != nil {
-			return fmt.Errorf("root state failed to persist certificate for  %08X, %w", id, err)
+			return fmt.Errorf("root state failed to persist certificate for  %s, %w", id, err)
 		}
 	}
 	// persist state

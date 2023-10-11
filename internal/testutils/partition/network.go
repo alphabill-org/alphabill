@@ -414,7 +414,7 @@ func (a *AlphabillNetwork) Start(t *testing.T) error {
 		// create one event handler per partition
 		if err := part.start(t, ctx, a.RootPartition.Nodes[0].id, a.RootPartition.Nodes[0].addr); err != nil {
 			ctxCancel()
-			return fmt.Errorf("failed to start partition %08X, %w", id, err)
+			return fmt.Errorf("failed to start partition %s, %w", id, err)
 		}
 	}
 	a.ctxCancel = ctxCancel

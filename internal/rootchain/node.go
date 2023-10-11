@@ -126,7 +126,7 @@ func (v *Node) onHandshake(ctx context.Context, req *handshake.Handshake) error 
 	sysID, _ := req.SystemIdentifier.Id32()
 	latestUnicityCertificate, err := v.consensusManager.GetLatestUnicityCertificate(sysID)
 	if err != nil {
-		return fmt.Errorf("reading partition %08X certificate: %w", sysID, err)
+		return fmt.Errorf("reading partition %s certificate: %w", sysID, err)
 	}
 	v.subscription.Subscribe(sysID, req.NodeIdentifier)
 	if err = v.sendResponse(ctx, req.NodeIdentifier, latestUnicityCertificate); err != nil {
@@ -177,7 +177,7 @@ func (v *Node) onBlockCertificationRequest(ctx context.Context, req *certificati
 	}
 	switch res {
 	case QuorumAchieved:
-		v.log.DebugContext(ctx, fmt.Sprintf("partition %08X reached consensus, new InputHash: %X", sysID32, proof[0].InputRecord.Hash))
+		v.log.DebugContext(ctx, fmt.Sprintf("partition %s reached consensus, new InputHash: %X", sysID32, proof[0].InputRecord.Hash))
 		select {
 		case v.consensusManager.RequestCertification() <- consensus.IRChangeRequest{
 			SystemIdentifier: sysID32,
@@ -188,7 +188,7 @@ func (v *Node) onBlockCertificationRequest(ctx context.Context, req *certificati
 			return ctx.Err()
 		}
 	case QuorumNotPossible:
-		v.log.DebugContext(ctx, fmt.Sprintf("partition %08X consensus not possible, repeat UC", sysID32))
+		v.log.DebugContext(ctx, fmt.Sprintf("partition %s consensus not possible, repeat UC", sysID32))
 		// add all nodeRequest to prove that no consensus is possible
 		select {
 		case v.consensusManager.RequestCertification() <- consensus.IRChangeRequest{
@@ -200,7 +200,7 @@ func (v *Node) onBlockCertificationRequest(ctx context.Context, req *certificati
 			return ctx.Err()
 		}
 	case QuorumInProgress:
-		v.log.DebugContext(ctx, fmt.Sprintf("partition %08X quorum not yet reached, but possible in the future", sysID32))
+		v.log.DebugContext(ctx, fmt.Sprintf("partition %s quorum not yet reached, but possible in the future", sysID32))
 	}
 	return nil
 }
@@ -230,7 +230,7 @@ func (v *Node) onCertificationResult(ctx context.Context, certificate *types.Uni
 	// NB! this will try and reset the store also in the case when system id is unknown, but this is fine
 	defer func() {
 		v.incomingRequests.Clear(sysID)
-		v.log.LogAttrs(ctx, logger.LevelTrace, fmt.Sprintf("Resetting request store for partition '%08X'", sysID))
+		v.log.LogAttrs(ctx, logger.LevelTrace, fmt.Sprintf("Resetting request store for partition '%s'", sysID))
 	}()
 	subscribed := v.subscription.Get(sysID)
 	// send response to all registered nodes

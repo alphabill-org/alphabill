@@ -1,6 +1,8 @@
 package money
 
 import (
+	"fmt"
+
 	abHasher "github.com/alphabill-org/alphabill/internal/hash"
 	"github.com/alphabill-org/alphabill/internal/script"
 	"github.com/alphabill-org/alphabill/internal/state"
@@ -42,4 +44,41 @@ func (d *DustCollector) GetDustBills(blockNumber uint64) []types.UnitID {
 
 func (d *DustCollector) RemoveDustBills(blockNumber uint64) {
 	delete(d.dustCollectorBills, blockNumber)
+}
+
+func (d *DustCollector) consolidateDust(currentBlockNumber uint64) error {
+	dustBills := d.GetDustBills(currentBlockNumber)
+	var valueToTransfer uint64
+	for _, billID := range dustBills {
+		u, err := d.state.GetUnit(billID, false)
+		if err != nil {
+			return err
+		}
+		bd, ok := u.Data().(*BillData)
+		if !ok {
+			// it is safe to ignore the data because it is not a bill
+			continue
+		}
+		valueToTransfer += bd.V
+		err = d.state.Apply(state.DeleteUnit(billID))
+		if err != nil {
+			return err
+		}
+	}
+	if valueToTransfer > 0 {
+		err := d.state.Apply(state.UpdateUnitData(dustCollectorMoneySupplyID,
+			func(data state.UnitData) (state.UnitData, error) {
+				bd, ok := data.(*BillData)
+				if !ok {
+					return nil, fmt.Errorf("unit %v does not contain bill data", dustCollectorMoneySupplyID)
+				}
+				bd.V += valueToTransfer
+				return bd, nil
+			}))
+		if err != nil {
+			return err
+		}
+	}
+	d.RemoveDustBills(currentBlockNumber)
+	return nil
 }

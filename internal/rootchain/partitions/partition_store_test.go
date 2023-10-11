@@ -73,7 +73,7 @@ func TestPartitionStore(t *testing.T) {
 			want: want{
 				size:                     2,
 				nodeCounts:               []int{0, 2},
-				containsPartitions:       []types.SystemID32{id1.ToSystemID32(), id2.ToSystemID32()},
+				containsPartitions:       []types.SystemID32{types.SystemID32(1), types.SystemID32(2)},
 				doesNotContainPartitions: []types.SystemID32{0},
 			},
 		},
@@ -129,7 +129,9 @@ func TestPartitionStore_Info(t *testing.T) {
 	}
 	store, err := NewPartitionStoreFromGenesis(partitions)
 	require.NoError(t, err)
-	sysDesc, tb, err := store.GetInfo(id1.ToSystemID32())
+	id32, err := id1.Id32()
+	require.NoError(t, err)
+	sysDesc, tb, err := store.GetInfo(id32)
 	require.NoError(t, err)
 	require.Equal(t, id1, sysDesc.SystemIdentifier)
 	require.Equal(t, uint32(2600), sysDesc.T2Timeout)

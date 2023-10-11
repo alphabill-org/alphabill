@@ -61,7 +61,10 @@ func (v *TrustBase) Verify(nodeId string, req MsgVerification) error {
 func NewPartitionStoreFromGenesis(partitions []*genesis.GenesisPartitionRecord) (*PartitionStore, error) {
 	parts := make(map[types.SystemID32]*PartitionInfo)
 	for _, partition := range partitions {
-		identifier := types.SystemID(partition.SystemDescriptionRecord.SystemIdentifier)
+		id32, err := partition.SystemDescriptionRecord.SystemIdentifier.Id32()
+		if err != nil {
+			return nil, err
+		}
 		trustBase := make(map[string]crypto.Verifier)
 		for _, node := range partition.Nodes {
 			ver, err := crypto.NewVerifierSecp256k1(node.SigningPublicKey)
@@ -70,7 +73,7 @@ func NewPartitionStoreFromGenesis(partitions []*genesis.GenesisPartitionRecord) 
 			}
 			trustBase[node.NodeIdentifier] = ver
 		}
-		parts[identifier.ToSystemID32()] = &PartitionInfo{SystemDescription: partition.SystemDescriptionRecord,
+		parts[id32] = &PartitionInfo{SystemDescription: partition.SystemDescriptionRecord,
 			Verifier: NewPartitionTrustBase(trustBase)}
 	}
 	return &PartitionStore{partitions: parts}, nil

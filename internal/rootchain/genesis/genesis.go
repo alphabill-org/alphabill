@@ -135,7 +135,11 @@ func createUnicityCertificates(utData []*unicitytree.Data, hash gocrypto.Hash, s
 			},
 			UnicitySeal: seal,
 		}
-		certs[d.SystemIdentifier.ToSystemID32()] = uc
+		id32, err := d.SystemIdentifier.Id32()
+		if err != nil {
+			return nil, err
+		}
+		certs[id32] = uc
 	}
 	return certs, nil
 }
@@ -204,7 +208,9 @@ func NewRootGenesis(id string, s crypto.Signer, encPubKey []byte, partitions []*
 			return nil, nil, fmt.Errorf("invalid partition record: %w", err)
 		}
 		sdrh := partition.SystemDescriptionRecord.Hash(c.hashAlgorithm)
-		sdrhs[partition.SystemDescriptionRecord.SystemIdentifier.ToSystemID32()] = sdrh
+		// if partition is valid then conversion cannot fail
+		id32, _ := partition.SystemDescriptionRecord.SystemIdentifier.Id32()
+		sdrhs[id32] = sdrh
 		// if it is valid it must have at least one validator with a valid certification request
 		// if there is more, all input records are matching
 		ucData[i] = &unicitytree.Data{
@@ -253,7 +259,9 @@ func NewRootGenesis(id string, s crypto.Signer, encPubKey []byte, partitions []*
 	}
 	// generate genesis structs
 	for i, partition := range partitions {
-		certificate, f := certs[partition.SystemDescriptionRecord.SystemIdentifier.ToSystemID32()]
+		// if partition is valid then conversion cannot fail
+		id32, _ := partition.SystemDescriptionRecord.SystemIdentifier.Id32()
+		certificate, f := certs[id32]
 		if !f {
 			return nil, nil, err
 		}

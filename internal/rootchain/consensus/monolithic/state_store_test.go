@@ -64,7 +64,7 @@ func storeTest(t *testing.T, store *StateStore) {
 	require.Error(t, store.Init(nil))
 	// Update genesis state
 	require.NoError(t, store.Init(testGenesis))
-	lastCert, err := store.GetCertificate(sysID0.ToSystemID32())
+	lastCert, err := store.GetCertificate(types.SystemID32(0))
 	require.NoError(t, err)
 	require.Equal(t, mockUc, lastCert)
 	round, err = store.GetRound()
@@ -90,23 +90,23 @@ func storeTest(t *testing.T, store *StateStore) {
 			BlockHash:    []byte{3, 3, 3},
 		}}
 	update := map[types.SystemID32]*types.UnicityCertificate{
-		sysID0.ToSystemID32(): newUC,
+		types.SystemID32(0): newUC,
 	}
 	require.NoError(t, store.Update(3, update))
-	lastCert, err = store.GetCertificate(sysID0.ToSystemID32())
+	lastCert, err = store.GetCertificate(types.SystemID32(0))
 	require.NoError(t, err)
 	require.Equal(t, lastCert, newUC)
 	IRmap, err := store.GetLastCertifiedInputRecords()
 	require.NoError(t, err)
-	require.Contains(t, IRmap, sysID0.ToSystemID32())
-	ir := IRmap[sysID0.ToSystemID32()]
+	require.Contains(t, IRmap, types.SystemID32(0))
+	ir := IRmap[types.SystemID32(0)]
 	require.Equal(t, ir, mockUc.InputRecord)
 	// read non-existing system id
-	lastCert, err = store.GetCertificate(sysID2.ToSystemID32())
+	lastCert, err = store.GetCertificate(types.SystemID32(2))
 	require.ErrorContains(t, err, "id 00000002 not in DB")
 	require.Nil(t, lastCert)
 	// read sys id 1
-	lastCert, err = store.GetCertificate(sysID1.ToSystemID32())
+	lastCert, err = store.GetCertificate(types.SystemID32(1))
 	require.NoError(t, err)
 	require.Equal(t, lastCert, mockUc)
 }

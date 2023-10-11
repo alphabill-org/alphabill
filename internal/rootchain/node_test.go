@@ -43,8 +43,12 @@ type MockConsensusManager struct {
 
 func NewMockConsensus(rg *genesis.RootGenesis, partitionStore partitions.PartitionConfiguration) (*MockConsensusManager, error) {
 	var c = make(map[types.SystemID32]*types.UnicityCertificate)
-	for _, partition := range rg.Partitions {
-		c[partition.GetSystemIdentifier32()] = partition.Certificate
+	for i, partition := range rg.Partitions {
+		id32, err := partition.SystemDescriptionRecord.GetSystemIdentifier().Id32()
+		if err != nil {
+			return nil, fmt.Errorf("partitition %v, error: %w", i, err)
+		}
+		c[id32] = partition.Certificate
 	}
 
 	return &MockConsensusManager{
@@ -134,13 +138,13 @@ func TestRootValidatorTest_CertificationReqRejected(t *testing.T) {
 		RoundNumber:  2,
 	}
 	req := testutils.CreateBlockCertificationRequest(t, newIR, unknownID, partitionNodes[0])
-	rootValidator.onBlockCertificationRequest(context.Background(), req)
+	require.Error(t, rootValidator.onBlockCertificationRequest(context.Background(), req))
 	// unknown id, gets rejected
 	require.NotContains(t, rootValidator.incomingRequests.store, unknownID)
 	// unknown node gets rejected
 	unknownNode := testutils.NewTestNode(t)
 	req = testutils.CreateBlockCertificationRequest(t, newIR, partitionID, unknownNode)
-	rootValidator.onBlockCertificationRequest(context.Background(), req)
+	require.ErrorContains(t, rootValidator.onBlockCertificationRequest(context.Background(), req), "verification failed, unknown node id")
 	require.NotContains(t, rootValidator.incomingRequests.store, partitionID)
 	// signature does not verify
 	invalidNode := testutils.TestNode{
@@ -149,7 +153,7 @@ func TestRootValidatorTest_CertificationReqRejected(t *testing.T) {
 		Verifier: unknownNode.Verifier,
 	}
 	req = testutils.CreateBlockCertificationRequest(t, newIR, partitionID, &invalidNode)
-	rootValidator.onBlockCertificationRequest(context.Background(), req)
+	require.ErrorContains(t, rootValidator.onBlockCertificationRequest(context.Background(), req), "rejected: signature verification failed")
 	require.NotContains(t, rootValidator.incomingRequests.store, partitionID)
 }
 
@@ -164,9 +168,11 @@ func TestRootValidatorTest_CertificationReqEquivocatingReq(t *testing.T) {
 		RoundNumber:  2,
 	}
 	req := testutils.CreateBlockCertificationRequest(t, newIR, partitionID, partitionNodes[0])
-	rootValidator.onBlockCertificationRequest(context.Background(), req)
+	require.NoError(t, rootValidator.onBlockCertificationRequest(context.Background(), req))
 	// request is accepted
-	require.Contains(t, rootValidator.incomingRequests.store, partitionID.ToSystemID32())
+	id32, err := partitionID.Id32()
+	require.NoError(t, err)
+	require.Contains(t, rootValidator.incomingRequests.store, id32)
 	equivocatingIR := &types.InputRecord{
 		PreviousHash: rg.Partitions[0].Nodes[0].BlockCertificationRequest.InputRecord.Hash,
 		Hash:         test.RandomBytes(32),
@@ -175,8 +181,8 @@ func TestRootValidatorTest_CertificationReqEquivocatingReq(t *testing.T) {
 		RoundNumber:  2,
 	}
 	eqReq := testutils.CreateBlockCertificationRequest(t, equivocatingIR, partitionID, partitionNodes[0])
-	rootValidator.onBlockCertificationRequest(context.Background(), eqReq)
-	buffer, f := rootValidator.incomingRequests.store[partitionID.ToSystemID32()]
+	require.ErrorContains(t, rootValidator.onBlockCertificationRequest(context.Background(), eqReq), "request in this round already stored, rejected")
+	buffer, f := rootValidator.incomingRequests.store[id32]
 	require.True(t, f)
 	storedNodeReqHash, f := buffer.nodeRequest[partitionNodes[0].Peer.ID().String()]
 	require.True(t, f)
@@ -275,7 +281,9 @@ func TestRootValidatorTest_SimulateNetCommunicationHandshake(t *testing.T) {
 	// make sure certificate is sent in return
 	testutils.MockAwaitMessage[*types.UnicityCertificate](t, mockNet, network.ProtocolUnicityCertificates)
 	// make sure that the node is subscribed
-	subscribed := rootValidator.subscription.Get(partitionID.ToSystemID32())
+	id32, err := partitionID.Id32()
+	require.NoError(t, err)
+	subscribed := rootValidator.subscription.Get(id32)
 	require.Len(t, subscribed, 1)
 	require.Equal(t, partitionNodes[1].Peer.ID().String(), subscribed[0])
 	// set network in error state
@@ -299,11 +307,11 @@ func TestRootValidatorTest_SimulateNetCommunicationHandshake(t *testing.T) {
 	rootValidator.onCertificationResult(ctx, uc)
 	rootValidator.onCertificationResult(ctx, uc)
 	// two send errors, but node is still subscribed
-	subscribed = rootValidator.subscription.Get(partitionID.ToSystemID32())
+	subscribed = rootValidator.subscription.Get(id32)
 	require.Len(t, subscribed, 1)
 	rootValidator.onCertificationResult(ctx, uc)
 	// on third error subscription is cleared
-	subscribed = rootValidator.subscription.Get(partitionID.ToSystemID32())
+	subscribed = rootValidator.subscription.Get(id32)
 	require.Len(t, subscribed, 0)
 }
 
@@ -389,8 +397,10 @@ func TestRootValidatorTest_SimulateResponse(t *testing.T) {
 		UnicitySeal: &types.UnicitySeal{},
 	}
 	// simulate 2x subscriptions
-	rootValidator.subscription.Subscribe(rg.Partitions[0].SystemDescriptionRecord.SystemIdentifier.ToSystemID32(), rg.Partitions[0].Nodes[0].NodeIdentifier)
-	rootValidator.subscription.Subscribe(rg.Partitions[0].SystemDescriptionRecord.SystemIdentifier.ToSystemID32(), rg.Partitions[0].Nodes[1].NodeIdentifier)
+	id32, err := rg.Partitions[0].SystemDescriptionRecord.SystemIdentifier.Id32()
+	require.NoError(t, err)
+	rootValidator.subscription.Subscribe(id32, rg.Partitions[0].Nodes[0].NodeIdentifier)
+	rootValidator.subscription.Subscribe(id32, rg.Partitions[0].Nodes[1].NodeIdentifier)
 	// simulate response from consensus manager
 	rootValidator.onCertificationResult(ctx, uc)
 	// UC's are sent to all partition nodes

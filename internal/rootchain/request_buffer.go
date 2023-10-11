@@ -41,10 +41,10 @@ func NewCertificationRequestBuffer() *CertRequestBuffer {
 
 // Add request to certification store. Per node id first valid request is stored. Rest are either duplicate or
 // equivocating and in both cases error is returned. Clear or Reset in order to receive new nodeRequest
-func (c *CertRequestBuffer) Add(request *certification.BlockCertificationRequest, tb partitions.PartitionTrustBase) (QuorumStatus, []*certification.BlockCertificationRequest, error) {
+func (c *CertRequestBuffer) Add(id types.SystemID32, request *certification.BlockCertificationRequest, tb partitions.PartitionTrustBase) (QuorumStatus, []*certification.BlockCertificationRequest, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	rs := c.get(request.SystemIdentifier.ToSystemID32())
+	rs := c.get(id)
 	return rs.add(request, tb)
 }
 

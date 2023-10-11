@@ -122,7 +122,8 @@ func (v *Node) onHandshake(ctx context.Context, req *handshake.Handshake) error 
 		return fmt.Errorf("invalid handshake request: %w", err)
 	}
 	// process
-	sysID := req.SystemIdentifier.ToSystemID32()
+	// ignore error here, as validate already checks system identifier length, conversion cannot fail
+	sysID, _ := req.SystemIdentifier.Id32()
 	latestUnicityCertificate, err := v.consensusManager.GetLatestUnicityCertificate(sysID)
 	if err != nil {
 		return fmt.Errorf("reading partition %08X certificate: %w", sysID, err)
@@ -137,22 +138,22 @@ func (v *Node) onHandshake(ctx context.Context, req *handshake.Handshake) error 
 // onBlockCertificationRequest handles certification nodeRequest from partition nodes.
 // Partition nodes can only extend the stored/certified state
 func (v *Node) onBlockCertificationRequest(ctx context.Context, req *certification.BlockCertificationRequest) error {
-	if req.SystemIdentifier == nil {
-		return fmt.Errorf("invalid block certification request, system id is nil")
+	sysID32, err := req.SystemIdentifier.Id32()
+	if err != nil {
+		return fmt.Errorf("request contains invalid system identifier %X", req.SystemIdentifier)
 	}
-	sysID := req.SystemIdentifier.ToSystemID32()
-	_, pTrustBase, err := v.partitions.GetInfo(sysID)
+	_, pTrustBase, err := v.partitions.GetInfo(sysID32)
 	if err != nil {
 		return fmt.Errorf("reading partition info: %w", err)
 	}
 	if err = pTrustBase.Verify(req.NodeIdentifier, req); err != nil {
 		return fmt.Errorf("%X node %v rejected: %w", req.SystemIdentifier, req.NodeIdentifier, err)
 	}
-	latestUnicityCertificate, err := v.consensusManager.GetLatestUnicityCertificate(sysID)
+	latestUnicityCertificate, err := v.consensusManager.GetLatestUnicityCertificate(sysID32)
 	if err != nil {
 		return fmt.Errorf("reading last certified state: %w", err)
 	}
-	v.subscription.Subscribe(sysID, req.NodeIdentifier)
+	v.subscription.Subscribe(sysID32, req.NodeIdentifier)
 	err = consensus.CheckBlockCertificationRequest(req, latestUnicityCertificate)
 	if err != nil {
 		err = fmt.Errorf("invalid block certification request: %w", err)
@@ -162,24 +163,24 @@ func (v *Node) onBlockCertificationRequest(ctx context.Context, req *certificati
 		return err
 	}
 	// check if consensus is already achieved, then store, but it will not be used as proof
-	if res := v.incomingRequests.IsConsensusReceived(sysID, pTrustBase); res != QuorumInProgress {
+	if res := v.incomingRequests.IsConsensusReceived(sysID32, pTrustBase); res != QuorumInProgress {
 		// stale request buffer, but no need to add extra proof
-		if _, _, err = v.incomingRequests.Add(req, pTrustBase); err != nil {
+		if _, _, err = v.incomingRequests.Add(sysID32, req, pTrustBase); err != nil {
 			return fmt.Errorf("stale block certification request, could not be stored: %w", err)
 		}
 		return nil
 	}
 	// store new request and see if quorum is achieved
-	res, proof, err := v.incomingRequests.Add(req, pTrustBase)
+	res, proof, err := v.incomingRequests.Add(sysID32, req, pTrustBase)
 	if err != nil {
 		return fmt.Errorf("storing request: %w", err)
 	}
 	switch res {
 	case QuorumAchieved:
-		v.log.DebugContext(ctx, fmt.Sprintf("partition %08X reached consensus, new InputHash: %X", sysID, proof[0].InputRecord.Hash))
+		v.log.DebugContext(ctx, fmt.Sprintf("partition %08X reached consensus, new InputHash: %X", sysID32, proof[0].InputRecord.Hash))
 		select {
 		case v.consensusManager.RequestCertification() <- consensus.IRChangeRequest{
-			SystemIdentifier: sysID,
+			SystemIdentifier: sysID32,
 			Reason:           consensus.Quorum,
 			Requests:         proof,
 		}:
@@ -187,11 +188,11 @@ func (v *Node) onBlockCertificationRequest(ctx context.Context, req *certificati
 			return ctx.Err()
 		}
 	case QuorumNotPossible:
-		v.log.DebugContext(ctx, fmt.Sprintf("partition %08X consensus not possible, repeat UC", sysID))
+		v.log.DebugContext(ctx, fmt.Sprintf("partition %08X consensus not possible, repeat UC", sysID32))
 		// add all nodeRequest to prove that no consensus is possible
 		select {
 		case v.consensusManager.RequestCertification() <- consensus.IRChangeRequest{
-			SystemIdentifier: sysID,
+			SystemIdentifier: sysID32,
 			Reason:           consensus.QuorumNotPossible,
 			Requests:         proof,
 		}:
@@ -199,7 +200,7 @@ func (v *Node) onBlockCertificationRequest(ctx context.Context, req *certificati
 			return ctx.Err()
 		}
 	case QuorumInProgress:
-		v.log.DebugContext(ctx, fmt.Sprintf("partition %08X quorum not yet reached, but possible in the future", sysID))
+		v.log.DebugContext(ctx, fmt.Sprintf("partition %08X quorum not yet reached, but possible in the future", sysID32))
 	}
 	return nil
 }
@@ -220,7 +221,11 @@ func (v *Node) handleConsensus(ctx context.Context) error {
 }
 
 func (v *Node) onCertificationResult(ctx context.Context, certificate *types.UnicityCertificate) {
-	sysID := certificate.UnicityTreeCertificate.SystemIdentifier.ToSystemID32()
+	sysID, err := certificate.UnicityTreeCertificate.SystemIdentifier.Id32()
+	if err != nil {
+		v.log.WarnContext(ctx, "failed to send certification result", logger.Error(err))
+		return
+	}
 	// remember to clear the incoming buffer to accept new nodeRequest
 	// NB! this will try and reset the store also in the case when system id is unknown, but this is fine
 	defer func() {

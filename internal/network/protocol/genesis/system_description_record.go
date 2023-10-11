@@ -53,10 +53,6 @@ func (x *SystemDescriptionRecord) Hash(hashAlgorithm gocrypto.Hash) []byte {
 	return hasher.Sum(nil)
 }
 
-func (x *SystemDescriptionRecord) GetSystemIdentifierString() string {
-	return string(x.SystemIdentifier)
-}
-
 func (x *SystemDescriptionRecord) GetSystemIdentifier() types.SystemID {
 	return x.SystemIdentifier
 }

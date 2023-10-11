@@ -5,6 +5,7 @@ import (
 
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 const (
@@ -104,30 +105,6 @@ func copyAndAppend(slice []byte, elems ...byte) []byte {
 	return append(newSlice, elems...)
 }
 
-func TestSystemID_ToSystemID32(t *testing.T) {
-	tests := []struct {
-		name string
-		sid  SystemID
-		want SystemID32
-	}{
-		{
-			name: "ID 00000001",
-			sid:  SystemID{0, 0, 0, 1},
-			want: SystemID32(1),
-		},
-		{
-			name: "ID FF000001",
-			sid:  SystemID{0xFF, 0, 0, 1},
-			want: SystemID32(0xFF000001),
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			assert.Equalf(t, tt.want, tt.sid.ToSystemID32(), "ToSystemID32()")
-		})
-	}
-}
-
 func TestSystemID32_ToSystemID(t *testing.T) {
 	tests := []struct {
 		name string
@@ -148,6 +125,52 @@ func TestSystemID32_ToSystemID(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			assert.Equalf(t, tt.want, tt.sid.ToSystemID(), "ToSystemID()")
+		})
+	}
+}
+
+func TestSystemID_Id32(t *testing.T) {
+	tests := []struct {
+		name    string
+		sid     SystemID
+		want    SystemID32
+		wantErr error
+	}{
+		{
+			name:    "nil",
+			sid:     nil,
+			wantErr: ErrInvalidSystemIdentifier,
+		},
+		{
+			name:    "ID too big gets truncated FF00000101",
+			sid:     SystemID{0xFF, 0, 0, 1, 1},
+			wantErr: ErrInvalidSystemIdentifier,
+		},
+		{
+			name:    "ID less than 4 bytes FF00",
+			sid:     SystemID{0xFF, 0, 1},
+			wantErr: ErrInvalidSystemIdentifier,
+		},
+		{
+			name: "ID 00000001",
+			sid:  SystemID{0, 0, 0, 1},
+			want: SystemID32(1),
+		},
+		{
+			name: "ID FF000001",
+			sid:  SystemID{0xFF, 0, 0, 1},
+			want: SystemID32(0xFF000001),
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := tt.sid.Id32()
+			if tt.wantErr != nil {
+				require.ErrorIs(t, err, tt.wantErr)
+				require.EqualValues(t, 0, got)
+				return
+			}
+			assert.Equalf(t, tt.want, got, "Id32()")
 		})
 	}
 }

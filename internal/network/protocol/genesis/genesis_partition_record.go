@@ -52,7 +52,3 @@ func (x *GenesisPartitionRecord) IsValid(verifiers map[string]crypto.Verifier, h
 	}
 	return nil
 }
-
-func (x *GenesisPartitionRecord) GetSystemIdentifier32() types.SystemID32 {
-	return x.SystemDescriptionRecord.SystemIdentifier.ToSystemID32()
-}

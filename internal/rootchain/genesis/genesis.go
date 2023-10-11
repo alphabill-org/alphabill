@@ -18,11 +18,6 @@ var ErrEncryptionPubKeyIsNil = errors.New("encryption public key is nil")
 var ErrSignerIsNil = errors.New("signer is nil")
 
 type (
-	RootNodeInfo struct {
-		peerID    string
-		signer    crypto.Signer
-		encPubKey []byte
-	}
 	rootGenesisConf struct {
 		peerID                string
 		encryptionPubKeyBytes []byte
@@ -236,7 +231,7 @@ func NewRootGenesis(id string, s crypto.Signer, encPubKey []byte, partitions []*
 	for sysId, uc := range certs {
 		// check the certificate
 		// ignore error, we just put it there and if not, then verify will fail anyway
-		srdh, _ := sdrhs[sysId]
+		srdh := sdrhs[sysId]
 		if err = uc.IsValid(trustBase, c.hashAlgorithm, sysId.ToSystemID(), srdh); err != nil {
 			// should never happen.
 			return nil, nil, fmt.Errorf("error invalid generated unicity certificate: %w", err)
@@ -375,13 +370,13 @@ func MergeRootGenesisFiles(rootGenesis []*genesis.RootGenesis) (*genesis.RootGen
 		}
 		// Check consensus parameters are same by comparing serialized bytes
 		// Should probably write a compare method instead of comparing serialized struct
-		if bytes.Compare(consensusBytes, appendGen.Root.Consensus.Bytes()) != 0 {
+		if !bytes.Equal(consensusBytes, appendGen.Root.Consensus.Bytes()) {
 			return nil, nil, errors.New("not compatible root genesis files, consensus is different")
 		}
 		// append consensus signatures
 		for k, v := range appendGen.Root.Consensus.Signatures {
 			// skip, already present
-			if _, found := rg.Root.Consensus.Signatures[k]; found == true {
+			if _, found := rg.Root.Consensus.Signatures[k]; found {
 				continue
 			}
 			rg.Root.Consensus.Signatures[k] = v
@@ -389,7 +384,7 @@ func MergeRootGenesisFiles(rootGenesis []*genesis.RootGenesis) (*genesis.RootGen
 		// Take a naive approach for start: append first, validate later
 		// append root info
 		for _, v := range appendGen.Root.RootValidators {
-			if _, found := nodeIds[v.NodeIdentifier]; found == true {
+			if _, found := nodeIds[v.NodeIdentifier]; found {
 				continue
 			}
 			rg.Root.RootValidators = append(rg.Root.RootValidators, v)
@@ -403,7 +398,7 @@ func MergeRootGenesisFiles(rootGenesis []*genesis.RootGenesis) (*genesis.RootGen
 		for i, rgPart := range rg.Partitions {
 			rgPartSdh := rgPart.Certificate.UnicityTreeCertificate.SystemDescriptionHash
 			appendPart := appendGen.Partitions[i]
-			if bytes.Compare(rgPartSdh, appendPart.Certificate.UnicityTreeCertificate.SystemDescriptionHash) != 0 {
+			if !bytes.Equal(rgPartSdh, appendPart.Certificate.UnicityTreeCertificate.SystemDescriptionHash) {
 				return nil, nil, errors.New("not compatible genesis files, partitions are different")
 			}
 			// copy partition UC Seal signatures

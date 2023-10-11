@@ -96,6 +96,7 @@ func TestStatePruning_RevertPrune(t *testing.T) {
 	require.Equal(t, rootHash, rootHash2)
 	require.NoError(t, s.Commit())
 	_, rootHash3, err := s.CalculateRoot()
+	require.NoError(t, err)
 	require.Equal(t, rootHash, rootHash3)
 	unit2, err = s.GetUnit(unitID2, true)
 	require.NoError(t, err)

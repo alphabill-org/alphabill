@@ -4,7 +4,6 @@ import (
 	"crypto/ecdsa"
 	"crypto/rand"
 	"fmt"
-	"io"
 
 	"github.com/alphabill-org/alphabill/internal/crypto/canonicalizer"
 
@@ -20,7 +19,6 @@ type (
 	// InMemorySecp256K1Signer for using during development
 	InMemorySecp256K1Signer struct {
 		privKey []byte
-		rand    io.Reader
 	}
 )
 

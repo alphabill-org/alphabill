@@ -2,12 +2,13 @@ package abdrc
 
 import (
 	"fmt"
+	"log/slog"
 
 	"github.com/alphabill-org/alphabill/internal/network/protocol"
 	"github.com/alphabill-org/alphabill/internal/rootchain/consensus/abdrc/storage"
 	abtypes "github.com/alphabill-org/alphabill/internal/rootchain/consensus/abdrc/types"
 	"github.com/alphabill-org/alphabill/internal/types"
-	"github.com/alphabill-org/alphabill/internal/util"
+	"github.com/alphabill-org/alphabill/pkg/logger"
 )
 
 type (
@@ -24,12 +25,14 @@ type (
 	}
 	IrReqBuffer struct {
 		irChgReqBuffer map[protocol.SystemIdentifier]*irChange
+		log            *slog.Logger
 	}
 )
 
-func NewIrReqBuffer() *IrReqBuffer {
+func NewIrReqBuffer(log *slog.Logger) *IrReqBuffer {
 	return &IrReqBuffer{
 		irChgReqBuffer: make(map[protocol.SystemIdentifier]*irChange),
+		log:            log,
 	}
 }
 
@@ -53,17 +56,16 @@ func (x *IrReqBuffer) Add(round uint64, irChReq *abtypes.IRChangeReq, ver IRChan
 	newIrChReq := &irChange{InputRecord: irData.IR, Reason: irChReq.CertReason, Req: irChReq}
 	if irChangeReq, found := x.irChgReqBuffer[systemID]; found {
 		if irChangeReq.Reason != newIrChReq.Reason {
-			return fmt.Errorf("error equivocating request for partition %X reason has changed", systemID.Bytes())
+			return fmt.Errorf("equivocating request for partition %X, reason has changed", systemID.Bytes())
 		}
 		if irChangeReq.InputRecord.Equal(newIrChReq.InputRecord) {
 			// duplicate already stored
-			logger.Debug("Duplicate IR change request, ignored")
+			x.log.Debug("Duplicate IR change request, ignored", logger.Round(round))
 			return nil
 		}
 		// At this point it is not possible to cast blame, so just log and ignore
-		util.WriteDebugJsonLog(logger, fmt.Sprintf("Original request for partition %X req:", systemID.Bytes()), irChangeReq)
-		util.WriteDebugJsonLog(logger, fmt.Sprintf("Equivocating request for partition %X req:", systemID.Bytes()), newIrChReq.Req)
-		return fmt.Errorf("error equivocating request for partition %X", systemID.Bytes())
+		x.log.Debug(fmt.Sprintf("equivocating request for partition %X", systemID.Bytes()), logger.Round(round), logger.Data(newIrChReq.Req), logger.Data(irChangeReq))
+		return fmt.Errorf("equivocating request for partition %X", systemID.Bytes())
 	}
 	// Insert first valid request received and compare the others received against it
 	x.irChgReqBuffer[systemID] = newIrChReq
@@ -88,7 +90,7 @@ func (x *IrReqBuffer) GeneratePayload(round uint64, timeouts []protocol.SystemId
 		if x.IsChangeInBuffer(id) {
 			continue
 		}
-		logger.Debug("round %v request partition %X T2 timeout", round, id.Bytes())
+		x.log.Debug(fmt.Sprintf("partition %X request T2 timeout", id.Bytes()), logger.Round(round))
 		payload.Requests = append(payload.Requests, &abtypes.IRChangeReq{
 			SystemIdentifier: id.Bytes(),
 			CertReason:       abtypes.T2Timeout,

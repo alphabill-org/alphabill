@@ -36,7 +36,7 @@ type CallEVMResponse struct {
 func (a *API) CallEVM(w http.ResponseWriter, r *http.Request) {
 	request := &CallEVMRequest{}
 	if err := cbor.NewDecoder(r.Body).Decode(request); err != nil {
-		util.WriteCBORError(w, fmt.Errorf("unable to decode request body: %w", err), http.StatusBadRequest)
+		util.WriteCBORError(w, fmt.Errorf("unable to decode request body: %w", err), http.StatusBadRequest, a.log)
 		return
 	}
 
@@ -52,7 +52,7 @@ func (a *API) CallEVM(w http.ResponseWriter, r *http.Request) {
 	}
 	res, err := a.callContract(clonedState, attr)
 	if err != nil {
-		util.WriteCBORError(w, err, http.StatusBadRequest)
+		util.WriteCBORError(w, err, http.StatusBadRequest, a.log)
 		return
 	}
 	processingDetails := &evm.ProcessingDetails{
@@ -66,15 +66,15 @@ func (a *API) CallEVM(w http.ResponseWriter, r *http.Request) {
 		// Deriving the signer is expensive, only do if it's actually needed
 		processingDetails.ContractAddr = ethcrypto.CreateAddress(attr.FromAddr(), attr.Nonce)
 	}
-	stateDB := statedb.NewStateDB(clonedState)
+	stateDB := statedb.NewStateDB(clonedState, a.log)
 	processingDetails.Logs = stateDB.GetLogs()
 
-	util.WriteCBORResponse(w, &CallEVMResponse{ProcessingDetails: processingDetails}, http.StatusOK)
+	util.WriteCBORResponse(w, &CallEVMResponse{ProcessingDetails: processingDetails}, http.StatusOK, a.log)
 }
 
 func (a *API) callContract(clonedState *state.State, call *evm.TxAttributes) (*core.ExecutionResult, error) {
 	blockNumber := clonedState.CommittedTreeBlockNumber()
-	stateDB := statedb.NewStateDB(clonedState)
+	stateDB := statedb.NewStateDB(clonedState, a.log)
 	gp := new(core.GasPool).AddGas(math.MaxUint64)
 	// Ensure message is initialized properly.
 	if call.Gas == 0 {

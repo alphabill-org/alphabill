@@ -5,6 +5,7 @@ import (
 	"crypto"
 	"encoding/hex"
 	"fmt"
+	"log/slog"
 	"math/big"
 	"net/http"
 	"net/http/httptest"
@@ -12,21 +13,23 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/fxamacker/cbor/v2"
+	"github.com/stretchr/testify/require"
+
 	test "github.com/alphabill-org/alphabill/internal/testutils"
-	"github.com/alphabill-org/alphabill/internal/testutils/logger"
+	testlogger "github.com/alphabill-org/alphabill/internal/testutils/logger"
 	"github.com/alphabill-org/alphabill/internal/txsystem/evm"
 	"github.com/alphabill-org/alphabill/internal/txsystem/evm/api"
 	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/internal/util"
-	"github.com/fxamacker/cbor/v2"
-	"github.com/stretchr/testify/require"
+	"github.com/alphabill-org/alphabill/pkg/logger"
 )
 
 func Test_evmCmdDeploy_error_cases(t *testing.T) {
 	homedir := createNewTestWallet(t)
-	logF := logger.LoggerBuilder(t)
+	logF := testlogger.LoggerBuilder(t)
 	// balance is returned by EVM in wei 10^-18
-	mockServer, addr := mockClientCalls(&clientMockConf{balance: "15000000000000000000", backlink: make([]byte, 32)})
+	mockServer, addr := mockClientCalls(&clientMockConf{balance: "15000000000000000000", backlink: make([]byte, 32)}, logF)
 	defer mockServer.Close()
 	_, err := execCommand(logF, homedir, "evm deploy --alphabill-api-uri "+addr.Host)
 	require.ErrorContains(t, err, "required flag(s) \"data\", \"max-gas\" not set")
@@ -63,9 +66,10 @@ func Test_evmCmdDeploy_ok(t *testing.T) {
 			ProcessingDetails: detailBytes,
 		},
 	}
-	mockServer, addr := mockClientCalls(mockConf)
+	logF := testlogger.LoggerBuilder(t)
+	mockServer, addr := mockClientCalls(mockConf, logF)
 	defer mockServer.Close()
-	stdout, err := execCommand(logger.LoggerBuilder(t), homedir, "evm deploy --max-gas 10000 --data 9021ACFE0102 --alphabill-api-uri "+addr.Host)
+	stdout, err := execCommand(logF, homedir, "evm deploy --max-gas 10000 --data 9021ACFE0102 --alphabill-api-uri "+addr.Host)
 	require.NoError(t, err)
 	verifyStdout(t, stdout,
 		"Evm transaction failed: something went wrong",
@@ -89,9 +93,9 @@ func Test_evmCmdDeploy_ok(t *testing.T) {
 
 func Test_evmCmdExecute_error_cases(t *testing.T) {
 	homedir := createNewTestWallet(t)
-	logF := logger.LoggerBuilder(t)
+	logF := testlogger.LoggerBuilder(t)
 	// balance is returned by EVM in wei 10^-18
-	mockServer, addr := mockClientCalls(&clientMockConf{balance: "15000000000000000000", backlink: make([]byte, 32)})
+	mockServer, addr := mockClientCalls(&clientMockConf{balance: "15000000000000000000", backlink: make([]byte, 32)}, logF)
 	defer mockServer.Close()
 	_, err := execCommand(logF, homedir, "evm execute --alphabill-api-uri "+addr.Host)
 	require.ErrorContains(t, err, "required flag(s) \"address\", \"data\", \"max-gas\" not set")
@@ -124,9 +128,10 @@ func Test_evmCmdExecute_ok(t *testing.T) {
 			ProcessingDetails: detailBytes,
 		},
 	}
-	mockServer, addr := mockClientCalls(mockConf)
+	logF := testlogger.LoggerBuilder(t)
+	mockServer, addr := mockClientCalls(mockConf, logF)
 	defer mockServer.Close()
-	stdout, err := execCommand(logger.LoggerBuilder(t), homedir, "evm execute --address 3443919fcbc4476b4f332fd5df6a82fe88dbf521 --max-gas 10000 --data 9021ACFE --alphabill-api-uri "+addr.Host)
+	stdout, err := execCommand(logF, homedir, "evm execute --address 3443919fcbc4476b4f332fd5df6a82fe88dbf521 --max-gas 10000 --data 9021ACFE --alphabill-api-uri "+addr.Host)
 	require.NoError(t, err)
 	verifyStdout(t, stdout,
 		"Evm transaction succeeded",
@@ -154,9 +159,9 @@ func Test_evmCmdExecute_ok(t *testing.T) {
 
 func Test_evmCmdCall_error_cases(t *testing.T) {
 	homedir := createNewTestWallet(t)
-	logF := logger.LoggerBuilder(t)
+	logF := testlogger.LoggerBuilder(t)
 	// balance is returned by EVM in wei 10^-18
-	mockServer, addr := mockClientCalls(&clientMockConf{balance: "15000000000000000000", backlink: make([]byte, 32)})
+	mockServer, addr := mockClientCalls(&clientMockConf{balance: "15000000000000000000", backlink: make([]byte, 32)}, logF)
 	defer mockServer.Close()
 	_, err := execCommand(logF, homedir, "evm call --alphabill-api-uri "+addr.Host)
 	require.ErrorContains(t, err, "required flag(s) \"address\", \"data\" not set")
@@ -184,9 +189,10 @@ func Test_evmCmdCall_ok(t *testing.T) {
 			ProcessingDetails: evmDetails,
 		},
 	}
-	mockServer, addr := mockClientCalls(mockConf)
+	logF := testlogger.LoggerBuilder(t)
+	mockServer, addr := mockClientCalls(mockConf, logF)
 	defer mockServer.Close()
-	stdout, err := execCommand(logger.LoggerBuilder(t), homedir, "evm call --address 3443919fcbc4476b4f332fd5df6a82fe88dbf521 --max-gas 10000 --data 9021ACFE --alphabill-api-uri "+addr.Host)
+	stdout, err := execCommand(logF, homedir, "evm call --address 3443919fcbc4476b4f332fd5df6a82fe88dbf521 --max-gas 10000 --data 9021ACFE --alphabill-api-uri "+addr.Host)
 	require.NoError(t, err)
 	verifyStdout(t, stdout,
 		"Evm transaction succeeded",
@@ -219,9 +225,10 @@ func Test_evmCmdCall_ok_defaultGas(t *testing.T) {
 			ProcessingDetails: evmDetails,
 		},
 	}
-	mockServer, addr := mockClientCalls(mockConf)
+	logF := testlogger.LoggerBuilder(t)
+	mockServer, addr := mockClientCalls(mockConf, logF)
 	defer mockServer.Close()
-	stdout, err := execCommand(logger.LoggerBuilder(t), homedir, "evm call --address 3443919fcbc4476b4f332fd5df6a82fe88dbf521 --data 9021ACFE --alphabill-api-uri "+addr.Host)
+	stdout, err := execCommand(logF, homedir, "evm call --address 3443919fcbc4476b4f332fd5df6a82fe88dbf521 --data 9021ACFE --alphabill-api-uri "+addr.Host)
 	require.NoError(t, err)
 	verifyStdout(t, stdout,
 		"Evm transaction succeeded",
@@ -242,9 +249,9 @@ func Test_evmCmdCall_ok_defaultGas(t *testing.T) {
 
 func Test_evmCmdBalance(t *testing.T) {
 	homedir := createNewTestWallet(t)
-	logF := logger.LoggerBuilder(t)
+	logF := testlogger.LoggerBuilder(t)
 	// balance is returned by EVM in wei 10^-18
-	mockServer, addr := mockClientCalls(&clientMockConf{balance: "15000000000000000000", backlink: make([]byte, 32)})
+	mockServer, addr := mockClientCalls(&clientMockConf{balance: "15000000000000000000", backlink: make([]byte, 32)}, logF)
 	defer mockServer.Close()
 	stdout, _ := execCommand(logF, homedir, "evm balance --alphabill-api-uri "+addr.Host)
 	verifyStdout(t, stdout, "#1 15.000'000'00 (eth: 15.000'000'000'000'000'000)")
@@ -264,7 +271,11 @@ type clientMockConf struct {
 	callResp   *api.CallEVMResponse
 }
 
-func mockClientCalls(br *clientMockConf) (*httptest.Server, *url.URL) {
+func mockClientCalls(br *clientMockConf, logF func(*logger.LogConfiguration) (*slog.Logger, error)) (*httptest.Server, *url.URL) {
+	log, err := logF(&logger.LogConfiguration{})
+	if err != nil {
+		panic("logger builder returned error: " + err.Error())
+	}
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
 		case strings.Contains(r.URL.Path, "/api/v1/evm/balance/"):
@@ -275,37 +286,37 @@ func mockClientCalls(br *clientMockConf) (*httptest.Server, *url.URL) {
 			}{
 				Balance:  br.balance,
 				Backlink: br.backlink,
-			}, http.StatusOK)
+			}, http.StatusOK, log)
 		case strings.Contains(r.URL.Path, "/api/v1/evm/transactionCount/"):
 			util.WriteCBORResponse(w, &struct {
 				_     struct{} `cbor:",toarray"`
 				Nonce uint64
 			}{
 				Nonce: br.nonce,
-			}, http.StatusOK)
+			}, http.StatusOK, log)
 		case strings.Contains(r.URL.Path, "/api/v1/evm/call"):
 			br.callReq = &api.CallEVMRequest{}
 			if err := cbor.NewDecoder(r.Body).Decode(br.callReq); err != nil {
-				util.WriteCBORError(w, fmt.Errorf("unable to decode request body: %w", err), http.StatusBadRequest)
+				util.WriteCBORError(w, fmt.Errorf("unable to decode request body: %w", err), http.StatusBadRequest, log)
 				return
 			}
-			util.WriteCBORResponse(w, br.callResp, http.StatusOK)
+			util.WriteCBORResponse(w, br.callResp, http.StatusOK, log)
 		case strings.Contains(r.URL.Path, "/api/v1/rounds/latest"):
-			util.WriteCBORResponse(w, br.round, http.StatusOK)
+			util.WriteCBORResponse(w, br.round, http.StatusOK, log)
 		case strings.Contains(r.URL.Path, "/api/v1/transactions"):
 			if r.Method == "POST" {
 				buf := new(bytes.Buffer)
 				if _, err := buf.ReadFrom(r.Body); err != nil {
-					util.WriteCBORError(w, fmt.Errorf("reading request body failed: %w", err), http.StatusBadRequest)
+					util.WriteCBORError(w, fmt.Errorf("reading request body failed: %w", err), http.StatusBadRequest, log)
 					return
 				}
 				tx := &types.TransactionOrder{}
 				if err := cbor.Unmarshal(buf.Bytes(), tx); err != nil {
-					util.WriteCBORError(w, fmt.Errorf("unable to decode request body as transaction: %w", err), http.StatusBadRequest)
+					util.WriteCBORError(w, fmt.Errorf("unable to decode request body as transaction: %w", err), http.StatusBadRequest, log)
 					return
 				}
 				br.receivedTx = tx
-				util.WriteCBORResponse(w, tx.Hash(crypto.SHA256), http.StatusAccepted)
+				util.WriteCBORResponse(w, tx.Hash(crypto.SHA256), http.StatusAccepted, log)
 				return
 			}
 			// GET
@@ -319,7 +330,7 @@ func mockClientCalls(br *clientMockConf) (*httptest.Server, *url.URL) {
 					ServerMetadata:   br.serverMeta,
 				},
 				TxProof: &types.TxProof{},
-			}, http.StatusOK)
+			}, http.StatusOK, log)
 
 		default:
 			w.WriteHeader(http.StatusNotFound)

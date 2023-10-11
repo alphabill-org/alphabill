@@ -69,7 +69,7 @@ The location can be changed through `--logger-config` configuration key. If it's
 to `$AB_HOME`. Some logging related parameters can be set via command line parameters too - run `alphabill -h`
 for more.
 
-See [logging.md](./logging.md) for information about log schema.
+See [logging.md](./docs/logging.md) for information about log schema.
 
 # Set up autocompletion
 

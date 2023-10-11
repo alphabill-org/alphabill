@@ -20,7 +20,9 @@ import (
 	"github.com/alphabill-org/alphabill/internal/rootchain/partitions"
 	"github.com/alphabill-org/alphabill/internal/rootchain/testutils"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
+	testlogger "github.com/alphabill-org/alphabill/internal/testutils/logger"
 	"github.com/alphabill-org/alphabill/internal/types"
+	"github.com/alphabill-org/alphabill/pkg/logger"
 	"github.com/stretchr/testify/require"
 )
 
@@ -59,7 +61,7 @@ func initConsensusManager(t *testing.T, db keyvaluedb.KeyValueDB) (*ConsensusMan
 	require.NoError(t, err)
 	partitions, err := partitions.NewPartitionStoreFromGenesis(rootGenesis.Partitions)
 	require.NoError(t, err)
-	cm, err := NewMonolithicConsensusManager(rootNode.Peer.ID().String(), rootGenesis, partitions, rootNode.Signer, consensus.WithStorage(db))
+	cm, err := NewMonolithicConsensusManager(rootNode.Peer.ID().String(), rootGenesis, partitions, rootNode.Signer, testlogger.New(t).With(logger.NodeID(id)), consensus.WithStorage(db))
 	require.NoError(t, err)
 	return cm, rootNode, partitionNodes, rootGenesis
 }
@@ -103,6 +105,7 @@ func TestConsensusManager_checkT2Timeout(t *testing.T) {
 			protocol.SystemIdentifier(sysID2): {Hash: []byte{0, 1}, PreviousHash: []byte{0, 0}, BlockHash: []byte{1, 2}, SummaryValue: []byte{2, 3}},
 		},
 		changes: map[protocol.SystemIdentifier]*types.InputRecord{},
+		log:     testlogger.New(t),
 	}
 	require.NoError(t, manager.checkT2Timeout(5))
 	// if round is 900ms then timeout of 2500 is reached in 3 * 900ms rounds, which is 2700ms
@@ -218,6 +221,7 @@ func TestConsensusManager_PersistFails(t *testing.T) {
 func TestConsensusManager_PartitionTimeout(t *testing.T) {
 	dir := t.TempDir()
 	boltDb, err := boltdb.New(filepath.Join(dir, "bolt.db"))
+	require.NoError(t, err)
 	cm, rootNode, partitionNodes, rg := initConsensusManager(t, boltDb)
 	ctx, ctxCancel := context.WithCancel(context.Background())
 	defer ctxCancel()

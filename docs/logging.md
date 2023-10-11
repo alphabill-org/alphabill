@@ -52,7 +52,7 @@ the attribute - use that rather than creating slog.Attr manually!
 
 | name | type | comment |
 |---|---|---|
-| node_id | string | libp2p peer ID is used as node id -which node is logging. |
+| node_id | string | libp2p peer ID is used as node id - which node is logging. |
 | go_id | int | added by the AB logger handler if enabled |
 | round | int | current round number (depends on the context whether it was a root chain round or validator round!) |
 | err | error | error which caused the log message to be created (log level doesn't have to be ERROR). |
@@ -76,7 +76,7 @@ which is
 | node_id | service.node.name | |
 | source.* | log.origin.* | |
 | err | error.message | |
-| data | data.\<type name\>.* | the \<type name\> is the type name of the data or in case of tx the tx type name |
+| data | data.\<type name\>.* | the \<type name\> is the type name of the data |
 
 ## Log levels
 
@@ -96,6 +96,13 @@ ie something like
 To disable color codes configure IDE so that it executes `go test` tool with
 env variable `AB_TEST_LOG_NO_COLORS` set to `true`.
 
+The default log level for test loggers is `debug`. Environment variable `AB_TEST_LOG_LEVEL`
+can be used to set the default log level for tests ie
+
+```bash
+AB_TEST_LOG_LEVEL=trace go test ./...
+```
+
 #### VSCode
 
 To disable logger emitting color codes in VSCode open `Settings` and search
@@ -104,5 +111,5 @@ for `Go: Tools Env Vars`, open the settings json and add the env var there, ie
 ```json
 "go.toolsEnvVars": {
     "AB_TEST_LOG_NO_COLORS":"true"
-},
+}
 ```

@@ -7,10 +7,9 @@ import (
 	"github.com/alphabill-org/alphabill/internal/errors"
 	"github.com/alphabill-org/alphabill/internal/errors/errstr"
 	"github.com/alphabill-org/alphabill/internal/util"
-	"github.com/alphabill-org/alphabill/pkg/logger"
 )
 
-var log = logger.CreateForPackage()
+//var log = logger.CreateForPackage()
 
 type (
 	// Canonicalizer Interface for serializing data structures into deterministic hash-format.
@@ -100,7 +99,6 @@ func extractDataBytes(obj interface{}, opts serializeOptions) ([]byte, error) {
 	)
 	for i := 0; i < len(opts.template); i++ {
 		if opts.extras[i].exclude {
-			log.Debug("'%s' excluding field='%s' from serialization.", objValue.Type().Name(), opts.template[i].name)
 			continue
 		}
 

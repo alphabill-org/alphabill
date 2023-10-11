@@ -4,15 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log/slog"
-	"os"
 	"strings"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
-
-	"github.com/alphabill-org/alphabill/pkg/logger"
 )
 
 type (
@@ -70,7 +66,6 @@ func newBaseCmd(logF LoggerFactory) (*cobra.Command, *baseConfiguration) {
 			if err := initializeConfig(cmd, config); err != nil {
 				return fmt.Errorf("failed to initialize configuration: %w", err)
 			}
-			initializeLogger(config, config.Logger)
 			return nil
 		},
 	}
@@ -120,23 +115,6 @@ func initializeConfig(cmd *cobra.Command, config *baseConfiguration) error {
 	}
 
 	return nil
-}
-
-/*
-init old logger
-TODO: remove when migration to slog is complete
-*/
-func initializeLogger(config *baseConfiguration, log *slog.Logger) {
-	if err := logger.UpdateGlobalConfigFromFile(config.LoggerCfgFilename()); err != nil {
-		if errors.Is(err, os.ErrNotExist) {
-			// In a common case when the config file is not found, the error message is made shorter. Not to spam the log.
-			log.Debug(fmt.Sprintf("The logger configuration file (%s) not found", config.LoggerCfgFilename()))
-		} else {
-			log.Warn(fmt.Sprintf("Updating logger configuration failed: %v", err))
-		}
-	} else {
-		log.Debug("Updating logger configuration succeeded.")
-	}
 }
 
 // Bind each cobra flag to its associated viper configuration (config file and environment variable)

@@ -21,7 +21,9 @@ import (
 	"github.com/alphabill-org/alphabill/internal/rootchain/consensus/abdrc/types"
 	"github.com/alphabill-org/alphabill/internal/rootchain/genesis"
 	"github.com/alphabill-org/alphabill/internal/rootchain/partitions"
+	testlogger "github.com/alphabill-org/alphabill/internal/testutils/logger"
 	abtypes "github.com/alphabill-org/alphabill/internal/types"
+	"github.com/alphabill-org/alphabill/pkg/logger"
 )
 
 func Test_ConsensusManager_sendRecoveryRequests(t *testing.T) {
@@ -213,7 +215,9 @@ func Test_recoverState(t *testing.T) {
 		t.Parallel()
 		// test scenario requires to be able to have quorum while "stopping" exactly one manager
 		// for quorum we need ⅔+1 validators to be healthy thus with 4 nodes one can be unhealthy
-		cms, rootNet, rootG := createConsensusManagers(t, 4, partitionRecs)
+		var cmCount atomic.Int32
+		cmCount.Store(4)
+		cms, rootNet, rootG := createConsensusManagers(t, int(cmCount.Load()), partitionRecs)
 		require.EqualValues(t, rootG.Root.Consensus.QuorumThreshold, len(cms)-1, `there must be "quorum + 1" consensus managers`)
 
 		// tweak configurations - use "constant leader" to take leader selection out of test
@@ -224,9 +228,8 @@ func Test_recoverState(t *testing.T) {
 		}
 		// launch the managers (except last one; we still have quorum)
 		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
 		for _, v := range cms[:len(cms)-1] {
-			go func(cm *ConsensusManager) { require.ErrorIs(t, cm.Run(ctx), context.Canceled) }(v)
+			go func(cm *ConsensusManager) { require.ErrorIs(t, cm.Run(ctx), context.Canceled); cmCount.Add(-1) }(v)
 			go func(cm *ConsensusManager) { consumeUC(ctx, cm) }(v)
 		}
 		// wait few rounds so some history is created
@@ -235,7 +238,7 @@ func Test_recoverState(t *testing.T) {
 		// start the manager that was skipped in the beginning, it is behind other nodes but
 		// should receive (usually proposal) message which will trigger recovery
 		cmLate := cms[len(cms)-1]
-		go func() { require.ErrorIs(t, cmLate.Run(ctx), context.Canceled) }()
+		go func() { require.ErrorIs(t, cmLate.Run(ctx), context.Canceled); cmCount.Add(-1) }()
 		go consumeUC(ctx, cmLate)
 
 		// late starter should catch up with peer(s)
@@ -267,22 +270,24 @@ func Test_recoverState(t *testing.T) {
 		// already sent and for the last round we might not see all messages as test ends as soon as one the
 		// node we check reaches that round).
 		require.GreaterOrEqual(t, proposalCnt.Load(), int32(4*6), "didn't see expected number of proposals")
+		require.Eventually(t, func() bool { return cmCount.Load() == 0 }, 3*time.Second, 200*time.Millisecond, "waiting for the CMs to quit")
 	})
 
 	t.Run("peer drops out of network", func(t *testing.T) {
 		t.Parallel()
 		// test scenario requires to be able to have quorum while "stopping" exactly one manager
 		// for quorum we need ⅔+1 validators to be healthy thus with 4 nodes one can be unhealthy
-		cms, rootNet, rootG := createConsensusManagers(t, 4, partitionRecs)
+		var cmCount atomic.Int32
+		cmCount.Store(4)
+		cms, rootNet, rootG := createConsensusManagers(t, int(cmCount.Load()), partitionRecs)
 		require.EqualValues(t, rootG.Root.Consensus.QuorumThreshold, len(cms)-1, `there must be "quorum + 1" consensus managers`)
 
 		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
 		cmLeader := cms[0]
 		allNodes := cmLeader.leaderSelector.GetNodes()
 		for _, v := range cms {
 			v.leaderSelector = constLeader{leader: cmLeader.id, nodes: allNodes}
-			go func(cm *ConsensusManager) { require.ErrorIs(t, cm.Run(ctx), context.Canceled) }(v)
+			go func(cm *ConsensusManager) { require.ErrorIs(t, cm.Run(ctx), context.Canceled); cmCount.Add(-1) }(v)
 			go func(cm *ConsensusManager) { consumeUC(ctx, cm) }(v)
 		}
 		// wait few rounds so some history is created
@@ -303,21 +308,25 @@ func Test_recoverState(t *testing.T) {
 			func() bool {
 				return cmLeader.pacemaker.GetCurrentRound() >= destRound
 			}, 9*time.Second, 300*time.Millisecond, "waiting for round %d to be processed", destRound)
+		// kill CMs
+		cancel()
+		require.Eventually(t, func() bool { return cmCount.Load() == 0 }, 3*time.Second, 200*time.Millisecond, "waiting for the CMs to quit")
 	})
 
 	t.Run("less than quorum nodes are live for a period", func(t *testing.T) {
 		t.Parallel()
 		// test scenario requires to be able to have quorum while "stopping" exactly one manager
 		// for quorum we need ⅔+1 validators to be healthy thus with 4 nodes one can be unhealthy
-		cms, rootNet, rootG := createConsensusManagers(t, 4, partitionRecs)
+		var cmCount atomic.Int32
+		cmCount.Store(4)
+		cms, rootNet, rootG := createConsensusManagers(t, int(cmCount.Load()), partitionRecs)
 		require.EqualValues(t, rootG.Root.Consensus.QuorumThreshold, len(cms)-1, `there must be "quorum + 1" consensus managers`)
 
 		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
 		allNodes := cms[0].leaderSelector.GetNodes()
 		for _, v := range cms {
 			v.leaderSelector = constLeader{leader: cms[0].id, nodes: allNodes} // to take leader selection out of test
-			go func(cm *ConsensusManager) { require.ErrorIs(t, cm.Run(ctx), context.Canceled) }(v)
+			go func(cm *ConsensusManager) { require.ErrorIs(t, cm.Run(ctx), context.Canceled); cmCount.Add(-1) }(v)
 			go func(cm *ConsensusManager) { consumeUC(ctx, cm) }(v)
 		}
 		// wait few rounds so some history is created
@@ -353,6 +362,9 @@ func Test_recoverState(t *testing.T) {
 		// already sent and for the last round we might not see all messages as test ends as soon as one the
 		// node we check reaches that round).
 		require.GreaterOrEqual(t, proposalCnt.Load(), int32(4*6), "didn't see expected number of proposals")
+		// kill CMs
+		cancel()
+		require.Eventually(t, func() bool { return cmCount.Load() == 0 }, 3*time.Second, 200*time.Millisecond, "waiting for the CMs to quit")
 	})
 
 	t.Run("dead leader", func(t *testing.T) {
@@ -361,7 +373,9 @@ func Test_recoverState(t *testing.T) {
 		// round-robin leader selector where one node is not responsive.
 		// test scenario requires to be able to have quorum while "stopping" exactly one manager
 		// for quorum we need ⅔+1 validators to be healthy thus with 4 nodes one can be unhealthy
-		cms, rootNet, rootG := createConsensusManagers(t, 4, partitionRecs)
+		var cmCount atomic.Int32
+		cmCount.Store(4)
+		cms, rootNet, rootG := createConsensusManagers(t, int(cmCount.Load()), partitionRecs)
 		require.EqualValues(t, rootG.Root.Consensus.QuorumThreshold, len(cms)-1, `there must be "quorum + 1" consensus managers`)
 		deadID := cms[1].id
 		rootNet.SetFirewall(func(from, to peer.ID, msg any) bool {
@@ -378,10 +392,9 @@ func Test_recoverState(t *testing.T) {
 		require.NoError(t, err)
 
 		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
 		for _, v := range cms {
 			v.leaderSelector = ls
-			go func(cm *ConsensusManager) { require.ErrorIs(t, cm.Run(ctx), context.Canceled) }(v)
+			go func(cm *ConsensusManager) { require.ErrorIs(t, cm.Run(ctx), context.Canceled); cmCount.Add(-1) }(v)
 			go func(cm *ConsensusManager) { consumeUC(ctx, cm) }(v)
 		}
 
@@ -393,22 +406,26 @@ func Test_recoverState(t *testing.T) {
 		require.Eventually(t, func() bool {
 			return cmLive.pacemaker.GetCurrentRound() >= 8
 		}, 30*time.Second, 500*time.Millisecond, "waiting for rounds to be processed")
+		// kill CMs
+		cancel()
+		require.Eventually(t, func() bool { return cmCount.Load() == 0 }, 3*time.Second, 200*time.Millisecond, "waiting for the CMs to quit")
 	})
 
 	t.Run("recovery triggered by timeout", func(t *testing.T) {
 		t.Parallel()
 		// test scenario requires to be able to have quorum while "stopping" exactly one manager
 		// for quorum we need ⅔+1 validators to be healthy thus with 4 nodes one can be unhealthy
-		cms, rootNet, rootG := createConsensusManagers(t, 4, partitionRecs)
+		var cmCount atomic.Int32
+		cmCount.Store(4)
+		cms, rootNet, rootG := createConsensusManagers(t, int(cmCount.Load()), partitionRecs)
 		require.EqualValues(t, rootG.Root.Consensus.QuorumThreshold, len(cms)-1, `there must be "quorum + 1" consensus managers`)
 
 		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
 		cmLeader := cms[0]
 		allNodes := cmLeader.leaderSelector.GetNodes()
 		for _, v := range cms {
 			v.leaderSelector = constLeader{leader: cmLeader.id, nodes: allNodes} // use "const leader" to take leader selection out of test
-			go func(cm *ConsensusManager) { require.ErrorIs(t, cm.Run(ctx), context.Canceled) }(v)
+			go func(cm *ConsensusManager) { require.ErrorIs(t, cm.Run(ctx), context.Canceled); cmCount.Add(-1) }(v)
 			go func(cm *ConsensusManager) { consumeUC(ctx, cm) }(v)
 		}
 		// wait few rounds so some history is created
@@ -450,14 +467,18 @@ func Test_recoverState(t *testing.T) {
 		// we have 4 nodes and we expect at least 3 successful rounds (the network should see proposal messages).
 		// if we do not see these then the progress was probably made by timeouts and thus recovery wasn't success?
 		require.GreaterOrEqual(t, propCnt.Load(), int32(4*3), "didn't see expected number of proposals")
+		// kill CMs
+		cancel()
+		require.Eventually(t, func() bool { return cmCount.Load() == 0 }, 3*time.Second, 200*time.Millisecond, "waiting for the CMs to quit")
 	})
 
 	t.Run("recovery triggered by vote", func(t *testing.T) {
 		t.Parallel()
-
 		// test scenario requires to be able to have quorum while "stopping" exactly one manager
 		// for quorum we need ⅔+1 validators to be healthy thus with 4 nodes one can be unhealthy
-		cms, rootNet, rootG := createConsensusManagers(t, 4, partitionRecs)
+		var cmCount atomic.Int32
+		cmCount.Store(4)
+		cms, rootNet, rootG := createConsensusManagers(t, int(cmCount.Load()), partitionRecs)
 		require.EqualValues(t, rootG.Root.Consensus.QuorumThreshold, len(cms)-1, `there must be "quorum + 1" consensus managers`)
 		// round-robin leader in the order nodes are in the cms slice. system is starting
 		// with round 2 and leader will be: 2, 3, 0, 1, 2, 3, 0, 1,...
@@ -506,10 +527,9 @@ func Test_recoverState(t *testing.T) {
 		})
 
 		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
 		for _, v := range cms {
 			v.leaderSelector = rrLeader
-			go func(cm *ConsensusManager) { require.ErrorIs(t, cm.Run(ctx), context.Canceled) }(v)
+			go func(cm *ConsensusManager) { require.ErrorIs(t, cm.Run(ctx), context.Canceled); cmCount.Add(-1) }(v)
 			go func(cm *ConsensusManager) { consumeUC(ctx, cm) }(v)
 		}
 
@@ -517,6 +537,9 @@ func Test_recoverState(t *testing.T) {
 		// which we have blocked in the firewall after round 4 (thus no QC for R7 and no proposal for R8).
 		node_2 := cms[2]
 		require.Eventually(t, func() bool { return node_2.pacemaker.GetCurrentRound() >= 10 }, 15*time.Second, 100*time.Millisecond, "waiting for progress to be made")
+		// kill CMs
+		cancel()
+		require.Eventually(t, func() bool { return cmCount.Load() == 0 }, 3*time.Second, 200*time.Millisecond, "waiting for the CMs to quit")
 	})
 
 	roundOfMsg := func(msg any) uint64 {
@@ -535,7 +558,9 @@ func Test_recoverState(t *testing.T) {
 		t.Parallel()
 		// system must be able to recover when consecutive rounds time out and nodes are in different
 		// timeout rounds (ie node doesn't get quorum for latest round so stays in previous TO round)
-		cms, rootNet, rootG := createConsensusManagers(t, 3, partitionRecs)
+		var cmCount atomic.Int32
+		cmCount.Store(3)
+		cms, rootNet, rootG := createConsensusManagers(t, int(cmCount.Load()), partitionRecs)
 		require.EqualValues(t, rootG.Root.Consensus.QuorumThreshold, len(cms), `there must be exactly quorum consensus managers`)
 
 		// set filter so that one node (slowID) does not see any messages and only sends TO votes
@@ -550,11 +575,10 @@ func Test_recoverState(t *testing.T) {
 		})
 
 		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
 		allNodes := cms[0].leaderSelector.GetNodes()
 		for _, v := range cms {
 			v.leaderSelector = constLeader{leader: cms[1].id, nodes: allNodes} // use "const leader" to take leader selection out of test
-			go func(cm *ConsensusManager) { require.ErrorIs(t, cm.Run(ctx), context.Canceled) }(v)
+			go func(cm *ConsensusManager) { require.ErrorIs(t, cm.Run(ctx), context.Canceled); cmCount.Add(-1) }(v)
 		}
 		// what we expect to happen:
 		// round 1 is genesis, round 2 proposal is sent without votes after round matures.
@@ -574,12 +598,16 @@ func Test_recoverState(t *testing.T) {
 			return false
 		})
 		require.Eventually(t, func() bool { return cms[0].pacemaker.GetCurrentRound() >= 4 }, 2*cms[0].pacemaker.maxRoundLen, 100*time.Millisecond, "waiting for progress to be made")
+		// kill CMs
+		cancel()
+		require.Eventually(t, func() bool { return cmCount.Load() == 0 }, 3*time.Second, 200*time.Millisecond, "waiting for the CMs to quit")
 	})
 }
 
 func createConsensusManagers(t *testing.T, count int, partitionRecs []*protocgenesis.PartitionRecord) ([]*ConsensusManager, *mockNetwork, *protocgenesis.RootGenesis) {
 	t.Helper()
 
+	log := testlogger.New(t)
 	signers := map[string]crypto.Signer{}
 	var rgr []*protocgenesis.RootGenesis
 	for i := 0; i < count; i++ {
@@ -604,7 +632,7 @@ func createConsensusManagers(t *testing.T, count int, partitionRecs []*protocgen
 		pStore, err := partitions.NewPartitionStoreFromGenesis(rootG.Partitions)
 		require.NoError(t, err)
 
-		cm, err := NewDistributedAbConsensusManager(nodeID, rootG, pStore, nw.Connect(nodeID), signers[v.NodeIdentifier])
+		cm, err := NewDistributedAbConsensusManager(nodeID, rootG, pStore, nw.Connect(nodeID), signers[v.NodeIdentifier], log.With(logger.NodeID(nodeID)))
 		require.NoError(t, err)
 		cms = append(cms, cm)
 	}

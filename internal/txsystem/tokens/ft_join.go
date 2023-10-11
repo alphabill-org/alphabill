@@ -65,7 +65,7 @@ func validateJoinFungibleToken(tx *types.TransactionOrder, attr *JoinFungibleTok
 		if prevSum > sum { // overflow
 			return 0, errors.New("invalid sum of tokens: uint64 overflow")
 		}
-		if i > 0 && bytes.Compare(btx.TransactionOrder.UnitID(), transactions[i-1].TransactionOrder.UnitID()) != 1 {
+		if i > 0 && btx.TransactionOrder.UnitID().Compare(transactions[i-1].TransactionOrder.UnitID()) != 1 {
 			// burning transactions orders are listed in strictly increasing order of token identifiers
 			// this ensures that no source token can be included multiple times
 			return 0, errors.New("burn tx orders are not listed in strictly increasing order of token identifiers")
@@ -73,8 +73,11 @@ func validateJoinFungibleToken(tx *types.TransactionOrder, attr *JoinFungibleTok
 		if !bytes.Equal(btxAttr.TypeID, d.tokenType) {
 			return 0, fmt.Errorf("the type of the burned source token does not match the type of target token: expected %s, got %s", d.tokenType, btxAttr.TypeID)
 		}
+		if !bytes.Equal(btxAttr.TargetTokenID, tx.UnitID()) {
+			return 0, fmt.Errorf("burn tx target token id does not match with join transaction unit id: burnTx %X, joinTx %X", btxAttr.TargetTokenID, tx.UnitID())
+		}
 		if !bytes.Equal(btxAttr.TargetTokenBacklink, attr.Backlink) {
-			return 0, fmt.Errorf("the source tokens weren't burned to join them to the target token: source %X, target %X", btxAttr.TargetTokenBacklink, attr.Backlink)
+			return 0, fmt.Errorf("burn tx target token backlink does not match with join transaction backlink: burnTx %X, joinTx %X", btxAttr.TargetTokenBacklink, attr.Backlink)
 		}
 		if err = types.VerifyTxProof(proofs[i], btx, options.trustBase, options.hashAlgorithm); err != nil {
 			return 0, fmt.Errorf("proof is not valid: %w", err)

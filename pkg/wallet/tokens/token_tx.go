@@ -247,10 +247,11 @@ func newSplitTxAttrs(token *backend.TokenUnit, amount uint64, receiverPubKey []b
 	}
 }
 
-func newBurnTxAttrs(token *backend.TokenUnit, targetTokenBacklink []byte) *ttxs.BurnFungibleTokenAttributes {
+func newBurnTxAttrs(token *backend.TokenUnit, targetTokenBacklink wallet.TxHash, targetTokenID types.UnitID) *ttxs.BurnFungibleTokenAttributes {
 	return &ttxs.BurnFungibleTokenAttributes{
 		TypeID:                       token.TypeID,
 		Value:                        token.Amount,
+		TargetTokenID:                targetTokenID,
 		TargetTokenBacklink:          targetTokenBacklink,
 		Backlink:                     token.TxHash,
 		InvariantPredicateSignatures: nil,

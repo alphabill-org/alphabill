@@ -238,6 +238,9 @@ func (p *blockProcessor) processTx(tr *types.TransactionRecord, proof *wallet.Tx
 			if !bytes.Equal(burnedToken.Owner, joinedToken.Owner) {
 				return fmt.Errorf("expected burned token's bearer '%X', got %X", joinedToken.Owner, burnedToken.Owner)
 			}
+			if !bytes.Equal(joinedToken.ID, burnTxAttr.TargetTokenID) {
+				return fmt.Errorf("expected burned token's target id '%X', got %X", joinedToken.ID, burnTxAttr.TargetTokenID)
+			}
 			if !bytes.Equal(joinedToken.TxHash, burnTxAttr.TargetTokenBacklink) {
 				return fmt.Errorf("expected burned token's target backlink '%X', got %X", joinedToken.TxHash, burnTxAttr.TargetTokenBacklink)
 			}

@@ -81,6 +81,7 @@ func (b *BurnFungibleTokenAttributes) SigBytes() ([]byte, error) {
 	signatureAttr := &BurnFungibleTokenAttributes{
 		TypeID:                       b.TypeID,
 		Value:                        b.Value,
+		TargetTokenID:                b.TargetTokenID,
 		TargetTokenBacklink:          b.TargetTokenBacklink,
 		Backlink:                     b.Backlink,
 		InvariantPredicateSignatures: nil,
@@ -104,12 +105,20 @@ func (b *BurnFungibleTokenAttributes) SetValue(value uint64) {
 	b.Value = value
 }
 
+func (b *BurnFungibleTokenAttributes) GetTargetTokenID() []byte {
+	return b.TargetTokenID
+}
+
+func (b *BurnFungibleTokenAttributes) SetTargetTokenID(targetTokenID []byte) {
+	b.TargetTokenID = targetTokenID
+}
+
 func (b *BurnFungibleTokenAttributes) GetTargetTokenBacklink() []byte {
 	return b.TargetTokenBacklink
 }
 
-func (b *BurnFungibleTokenAttributes) SetTargetTokenBacklink(nonce []byte) {
-	b.TargetTokenBacklink = nonce
+func (b *BurnFungibleTokenAttributes) SetTargetTokenBacklink(targetTokenBacklink []byte) {
+	b.TargetTokenBacklink = targetTokenBacklink
 }
 
 func (b *BurnFungibleTokenAttributes) GetBacklink() []byte {

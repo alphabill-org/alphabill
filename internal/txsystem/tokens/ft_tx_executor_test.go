@@ -864,9 +864,18 @@ func TestJoinFungibleToken_NotOk(t *testing.T) {
 	opts := defaultOpts(t)
 	opts.trustBase = map[string]abcrypto.Verifier{"test": verifier}
 
-	burnTxInvalidSource := createTxRecord(t, existingTokenUnitID, &BurnFungibleTokenAttributes{
+	burnTxInvalidTargetTokenID := createTxRecord(t, existingTokenUnitID, &BurnFungibleTokenAttributes{
 		TypeID:                       existingTokenTypeUnitID,
 		Value:                        existingTokenValue,
+		TargetTokenID:                test.RandomBytes(32),
+		TargetTokenBacklink:          make([]byte, 32),
+		Backlink:                     make([]byte, 32),
+		InvariantPredicateSignatures: [][]byte{script.PredicateArgumentEmpty()},
+	}, PayloadTypeBurnFungibleToken)
+	burnTxInvalidTargetTokenBacklink := createTxRecord(t, existingTokenUnitID, &BurnFungibleTokenAttributes{
+		TypeID:                       existingTokenTypeUnitID,
+		Value:                        existingTokenValue,
+		TargetTokenID:                existingTokenUnitID,
 		TargetTokenBacklink:          test.RandomBytes(32),
 		Backlink:                     make([]byte, 32),
 		InvariantPredicateSignatures: [][]byte{script.PredicateArgumentEmpty()},
@@ -874,6 +883,7 @@ func TestJoinFungibleToken_NotOk(t *testing.T) {
 	burnTx1 := createTxRecord(t, existingTokenUnitID, &BurnFungibleTokenAttributes{
 		TypeID:                       existingTokenTypeUnitID,
 		Value:                        existingTokenValue,
+		TargetTokenID:                existingTokenUnitID,
 		TargetTokenBacklink:          make([]byte, 32),
 		Backlink:                     make([]byte, 32),
 		InvariantPredicateSignatures: [][]byte{script.PredicateArgumentEmpty()},
@@ -881,6 +891,7 @@ func TestJoinFungibleToken_NotOk(t *testing.T) {
 	burnTx2 := createTxRecord(t, existingTokenUnitID2, &BurnFungibleTokenAttributes{
 		TypeID:                       existingTokenTypeUnitID2,
 		Value:                        existingTokenValue,
+		TargetTokenID:                existingTokenUnitID2,
 		TargetTokenBacklink:          test.RandomBytes(32),
 		Backlink:                     make([]byte, 32),
 		InvariantPredicateSignatures: [][]byte{script.PredicateArgumentEmpty()},
@@ -889,11 +900,13 @@ func TestJoinFungibleToken_NotOk(t *testing.T) {
 	burnTx3 := createTxRecord(t, maxUintValueTokenID, &BurnFungibleTokenAttributes{
 		TypeID:                       existingTokenTypeUnitID2,
 		Value:                        math.MaxUint64,
+		TargetTokenID:                maxUintValueTokenID,
 		TargetTokenBacklink:          make([]byte, 32),
 		Backlink:                     make([]byte, 32),
 		InvariantPredicateSignatures: [][]byte{script.PredicateArgumentEmpty()},
 	}, PayloadTypeBurnFungibleToken)
-	proofInvalidSource := testblock.CreateProof(t, burnTxInvalidSource, signer)
+	proofInvalidTargetTokenID := testblock.CreateProof(t, burnTxInvalidTargetTokenID, signer)
+	proofInvalidTargetTokenBacklink := testblock.CreateProof(t, burnTxInvalidTargetTokenBacklink, signer)
 	proofBurnTx2 := testblock.CreateProof(t, burnTx2, signer)
 	proofBurnTx3 := testblock.CreateProof(t, burnTx3, signer)
 
@@ -903,6 +916,7 @@ func TestJoinFungibleToken_NotOk(t *testing.T) {
 		burnTx := createTxRecord(t, NewFungibleTokenID(nil, []byte{i}), &BurnFungibleTokenAttributes{
 			TypeID:                       existingTokenTypeUnitID,
 			Value:                        existingTokenValue,
+			TargetTokenID:                existingTokenUnitID,
 			TargetTokenBacklink:          make([]byte, 32),
 			Backlink:                     make([]byte, 32),
 			InvariantPredicateSignatures: [][]byte{script.PredicateArgumentEmpty()},
@@ -951,20 +965,30 @@ func TestJoinFungibleToken_NotOk(t *testing.T) {
 			wantErrStr: "burn tx orders are not listed in strictly increasing order of token identifiers",
 		},
 		{
-			name: "source not burned",
+			name: "source not burned - invalid target token id",
 			tx: createTx(t, existingTokenUnitID, &JoinFungibleTokenAttributes{
-				BurnTransactions:             []*types.TransactionRecord{burnTxInvalidSource},
-				Proofs:                       []*types.TxProof{proofInvalidSource},
+				BurnTransactions:             []*types.TransactionRecord{burnTxInvalidTargetTokenID},
+				Proofs:                       []*types.TxProof{proofInvalidTargetTokenID},
 				Backlink:                     make([]byte, 32),
 				InvariantPredicateSignatures: [][]byte{script.PredicateAlwaysFalse()},
 			}, PayloadTypeJoinFungibleToken),
-			wantErrStr: "the source tokens weren't burned to join them to the target token",
+			wantErrStr: "burn tx target token id does not match with join transaction unit id",
+		},
+		{
+			name: "source not burned - invalid target token backlink",
+			tx: createTx(t, existingTokenUnitID, &JoinFungibleTokenAttributes{
+				BurnTransactions:             []*types.TransactionRecord{burnTxInvalidTargetTokenBacklink},
+				Proofs:                       []*types.TxProof{proofInvalidTargetTokenBacklink},
+				Backlink:                     make([]byte, 32),
+				InvariantPredicateSignatures: [][]byte{script.PredicateAlwaysFalse()},
+			}, PayloadTypeJoinFungibleToken),
+			wantErrStr: "burn tx target token backlink does not match with join transaction backlink",
 		},
 		{
 			name: "invalid source token type",
 			tx: createTx(t, existingTokenUnitID, &JoinFungibleTokenAttributes{
 				BurnTransactions:             []*types.TransactionRecord{burnTx2},
-				Proofs:                       []*types.TxProof{proofInvalidSource},
+				Proofs:                       []*types.TxProof{proofInvalidTargetTokenID},
 				Backlink:                     make([]byte, 32),
 				InvariantPredicateSignatures: [][]byte{script.PredicateAlwaysFalse()},
 			}, PayloadTypeJoinFungibleToken),

@@ -77,7 +77,7 @@ func (w *Wallet) collectDust(ctx context.Context, acc *accountKey, typedTokens [
 			}
 		}
 
-		burnBatchAmount, burnFee, proofs, err := w.burnTokensForDC(ctx, acc.AccountKey, burnBatch, targetTokenBacklink, invariantPredicateArgs)
+		burnBatchAmount, burnFee, proofs, err := w.burnTokensForDC(ctx, acc.AccountKey, burnBatch, targetTokenBacklink, targetTokenID, invariantPredicateArgs)
 		if err != nil {
 			return nil, err
 		}
@@ -125,18 +125,17 @@ func (w *Wallet) joinTokenForDC(ctx context.Context, acc *account.AccountKey, bu
 	if err = sub.ToBatch(w.backend, acc.PubKey, w.log).SendTx(ctx, true); err != nil {
 		return nil, 0, err
 	}
-
 	return sub.Proof.TxRecord.TransactionOrder.Hash(crypto.SHA256), sub.Proof.TxRecord.ServerMetadata.ActualFee, nil
 }
 
-func (w *Wallet) burnTokensForDC(ctx context.Context, acc *account.AccountKey, tokensToBurn []*twb.TokenUnit, nonce sdk.TxHash, invariantPredicateArgs []*PredicateInput) (uint64, uint64, []*sdk.Proof, error) {
+func (w *Wallet) burnTokensForDC(ctx context.Context, acc *account.AccountKey, tokensToBurn []*twb.TokenUnit, targetTokenBacklink sdk.TxHash, targetTokenID types.UnitID, invariantPredicateArgs []*PredicateInput) (uint64, uint64, []*sdk.Proof, error) {
 	burnBatch := txsubmitter.NewBatch(acc.PubKey, w.backend, w.log)
 	rnFetcher := &cachingRoundNumberFetcher{delegate: w.GetRoundNumber}
 	burnBatchAmount := uint64(0)
 
 	for _, token := range tokensToBurn {
 		burnBatchAmount += token.Amount
-		attrs := newBurnTxAttrs(token, nonce)
+		attrs := newBurnTxAttrs(token, targetTokenBacklink, targetTokenID)
 		sub, err := w.prepareTxSubmission(ctx, tokens.PayloadTypeBurnFungibleToken, attrs, token.ID, acc, rnFetcher.getRoundNumber, func(tx *types.TransactionOrder) error {
 			signatures, err := preparePredicateSignatures(w.GetAccountManager(), invariantPredicateArgs, tx, attrs)
 			if err != nil {

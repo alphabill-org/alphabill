@@ -113,6 +113,7 @@ type (
 		_                            struct{}     `cbor:",toarray"`
 		TypeID                       types.UnitID // identifies the type of the token to burn;
 		Value                        uint64       // the value to burn
+		TargetTokenID                types.UnitID // the target token identifier in join step
 		TargetTokenBacklink          []byte       // the current state hash of the target token
 		Backlink                     []byte       // the backlink to the previous transaction with this token
 		InvariantPredicateSignatures [][]byte     // inputs to satisfy the token type invariant predicates down the inheritance chain

@@ -236,6 +236,9 @@ func addFees(ctx context.Context, accountNumber uint64, amountString string, c *
 		if errors.Is(err, fees.ErrMinimumFeeAmount) {
 			return fmt.Errorf("minimum fee credit amount to add is %s", amountToString(fees.MinimumFeeAmount, 8))
 		}
+		if errors.Is(err, fees.ErrInsufficientBalance) {
+			return fmt.Errorf("insufficient balance for transaction. Bills smaller than the minimum amount (%s) are not counted", amountToString(fees.MinimumFeeAmount, 8))
+		}
 		return err
 	}
 	consoleWriter.Println("Successfully created", amountString, "fee credits on", c.partitionType, "partition.")

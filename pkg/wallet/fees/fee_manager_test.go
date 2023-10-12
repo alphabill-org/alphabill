@@ -666,6 +666,41 @@ func TestAddWithInsufficientBalance(t *testing.T) {
 	require.ErrorIs(t, err, ErrInsufficientBalance)
 }
 
+func TestAddWithSufficientBalanceInSmallBills(t *testing.T) {
+	// create fee manager
+	am := newAccountManager(t)
+	moneyTxPublisher := &mockMoneyTxPublisher{}
+	moneyBackendClient := &mockMoneyClient{
+		fcb: &wallet.Bill{Value: 2, Id: []byte{111}},
+		bills: []*wallet.Bill{
+			{
+				Id:     []byte{1},
+				Value:  1,
+				TxHash: []byte{2},
+			},
+			{
+				Id:     []byte{2},
+				Value:  2,
+				TxHash: []byte{3},
+			},
+			{
+				Id:     []byte{3},
+				Value:  1,
+				TxHash: []byte{4},
+			},
+			{
+				Id:     []byte{4},
+				Value:  2,
+				TxHash: []byte{5},
+			},
+		}}
+	unitLocker := createUnitLocker(t)
+	feeManager := newMoneyPartitionFeeManager(am, unitLocker, moneyTxPublisher, moneyBackendClient, logger.New(t))
+
+	_, err := feeManager.AddFeeCredit(context.Background(), AddFeeCmd{Amount: 4})
+	require.ErrorIs(t, err, ErrInsufficientBalance)
+}
+
 func newMoneyPartitionFeeManager(am account.Manager, unitLocker UnitLocker, moneyTxPublisher TxPublisher, moneyBackendClient MoneyClient, log *slog.Logger) *FeeManager {
 	moneySystemID := []byte{0, 0, 0, 0}
 	return NewFeeManager(am, unitLocker, moneySystemID, moneyTxPublisher, moneyBackendClient, moneySystemID, moneyTxPublisher, moneyBackendClient, testFeeCreditRecordIDFromPublicKey, log)

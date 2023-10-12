@@ -68,7 +68,9 @@ func TestPartition_Ok(t *testing.T) {
 
 	// create fee credit for initial bill transfer
 	transferFC := testfc.CreateFeeCredit(t, initialBill.ID, fcrID, fcrAmount, abNet)
-
+	// before reading state make sure that node 2 has executed the transfer
+	_, _, err = testpartition.WaitTxProof(t, moneyPrt, 2, transferFC)
+	// node 2 has executed, verify that node state reflects the changes
 	feeCredit, err := s.GetUnit(fcrID, true)
 	require.NoError(t, err)
 	require.Equal(t, fcrAmount-2, feeCredit.Data().(*unit.FeeCreditRecord).Balance)

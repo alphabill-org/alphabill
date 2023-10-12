@@ -710,14 +710,14 @@ func Test_ConsensusManager_sendCertificates(t *testing.T) {
 	// generate UCs for given systems (with random data in QC)
 	makeUCs := func(sysID ...types.SystemID32) map[types.SystemID32]*types.UnicityCertificate {
 		rUC := make(map[types.SystemID32]*types.UnicityCertificate)
-		for _, id32 := range sysID {
+		for _, id := range sysID {
 			uc := &types.UnicityCertificate{
 				UnicityTreeCertificate: &types.UnicityTreeCertificate{
-					SystemIdentifier:      id32.ToSystemID(),
+					SystemIdentifier:      id.ToSystemID(),
 					SystemDescriptionHash: test.RandomBytes(32),
 				},
 			}
-			rUC[id32] = uc
+			rUC[id] = uc
 		}
 		return rUC
 	}

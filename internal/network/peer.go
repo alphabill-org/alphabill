@@ -4,10 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	mrand "math/rand"
-	"time"
 
-	"github.com/alphabill-org/alphabill/internal/metrics"
 	"github.com/libp2p/go-libp2p"
 	dht "github.com/libp2p/go-libp2p-kad-dht"
 	"github.com/libp2p/go-libp2p/core/crypto"
@@ -18,6 +17,9 @@ import (
 	libp2pprotocol "github.com/libp2p/go-libp2p/core/protocol"
 	"github.com/libp2p/go-libp2p/p2p/host/peerstore/pstoremem"
 	ma "github.com/multiformats/go-multiaddr"
+
+	"github.com/alphabill-org/alphabill/internal/metrics"
+	"github.com/alphabill-org/alphabill/pkg/logger"
 )
 
 const (
@@ -73,12 +75,12 @@ func (m *metricsNotifiee) Disconnected(network.Network, network.Conn) {
 // NewPeer constructs a new peer node with given configuration. If no peer key is provided, it generates a random
 // Secp256k1 key-pair and derives a new identity from it. If no transport and listen addresses are provided, the node
 // listens to the multiaddresses "/ip4/0.0.0.0/tcp/0".
-func NewPeer(ctx context.Context, conf *PeerConfiguration) (*Peer, error) {
+func NewPeer(ctx context.Context, conf *PeerConfiguration, log *slog.Logger) (*Peer, error) {
 	if conf == nil {
 		return nil, ErrPeerConfigurationIsNil
 	}
 	// keys
-	privateKey, _, err := readKeyPair(conf)
+	privateKey, _, err := readKeyPair(conf, log)
 	if err != nil {
 		return nil, err
 	}
@@ -109,16 +111,14 @@ func NewPeer(ctx context.Context, conf *PeerConfiguration) (*Peer, error) {
 
 	kademliaDHT, err := newDHT(ctx, h, conf.BootstrapPeers, dht.ModeServer)
 	if err != nil {
-		defer func() {
-			if e := h.Close(); e != nil {
-				logger.Error("Closing a libp2p host failed: %+v", err)
-			}
-		}()
+		if e := h.Close(); e != nil {
+			err = errors.Join(err, fmt.Errorf("closing libp2p host: %w", err))
+		}
 		return nil, err
 	}
+	log.DebugContext(ctx, fmt.Sprintf("addresses=%v; bootstrap peers=%v", h.Addrs(), conf.BootstrapPeers), logger.NodeID(h.ID()))
 
 	p := &Peer{host: h, conf: conf, dht: kademliaDHT, validators: conf.Validators}
-	logger.Debug("Host ID=%v, addresses=%v", h.ID(), h.Addrs())
 	return p, nil
 }
 
@@ -191,21 +191,15 @@ func (p *Peer) Configuration() *PeerConfiguration {
 
 // Close shuts down the libp2p host and related services.
 func (p *Peer) Close() error {
-	logger.Info("Closing peer")
 	var err error
 	if cerr := p.dht.Close(); cerr != nil {
-		err = fmt.Errorf("closing the DHT returned an error: %w", cerr)
+		err = fmt.Errorf("closing the DHT: %w", cerr)
 	}
 	// close libp2p host
 	if cerr := p.host.Close(); cerr != nil {
-		if err == nil {
-			return fmt.Errorf("closing the host returned error: %w", cerr)
-		} else {
-			return fmt.Errorf("closing the host returned error: %w; %s", cerr, err.Error())
-		}
-
+		err = errors.Join(err, fmt.Errorf("closing the host: %w", cerr))
 	}
-	return nil
+	return err
 }
 
 // GetRandomPeerID returns a random peer.ID from the peerstore.
@@ -219,7 +213,6 @@ func (p *Peer) GetRandomPeerID() peer.ID {
 		}
 	}
 
-	mrand.Seed(time.Now().UnixNano())
 	// #nosec G404
 	index := mrand.Intn(len(peers))
 	return peers[index]
@@ -262,15 +255,12 @@ func NodeIDFromPublicKeyBytes(pubKey []byte) (peer.ID, error) {
 }
 
 func newDHT(ctx context.Context, h host.Host, bootstrapPeers []peer.AddrInfo, opt dht.ModeOpt) (*dht.IpfsDHT, error) {
-	if len(bootstrapPeers) > 0 {
-		logger.Info("Bootstrap peers: %v", bootstrapPeers)
-	}
 	kdht, err := dht.New(ctx, h, dht.ProtocolPrefix(dhtProtocolPrefix), dht.BootstrapPeers(bootstrapPeers...), dht.Mode(opt))
 	if err != nil {
-		return nil, fmt.Errorf("DHT initialization failed: %w", err)
+		return nil, fmt.Errorf("creating DHT: %w", err)
 	}
 	if err = kdht.Bootstrap(ctx); err != nil {
-		return nil, fmt.Errorf("bootstrapping failed: %w", err)
+		return nil, fmt.Errorf("bootstrapping DHT: %w", err)
 	}
 	return kdht, nil
 }
@@ -283,7 +273,7 @@ func newPeerStore() (peerstore.Peerstore, error) {
 	return peerStore, nil
 }
 
-func readKeyPair(conf *PeerConfiguration) (privateKey crypto.PrivKey, publicKey crypto.PubKey, err error) {
+func readKeyPair(conf *PeerConfiguration, log *slog.Logger) (privateKey crypto.PrivKey, publicKey crypto.PubKey, err error) {
 	if conf.KeyPair == nil {
 		err = fmt.Errorf("missing peer key")
 		return
@@ -291,13 +281,11 @@ func readKeyPair(conf *PeerConfiguration) (privateKey crypto.PrivKey, publicKey 
 
 	privateKey, err = crypto.UnmarshalSecp256k1PrivateKey(conf.KeyPair.PrivateKey)
 	if err != nil {
-		err = fmt.Errorf("invalid private key, %w", err)
-		return
+		return nil, nil, fmt.Errorf("invalid private key: %w", err)
 	}
 	publicKey, err = crypto.UnmarshalSecp256k1PublicKey(conf.KeyPair.PublicKey)
 	if err != nil {
-		err = fmt.Errorf("invalid public key, %w", err)
-		return
+		return nil, nil, fmt.Errorf("invalid public key: %w", err)
 	}
-	return
+	return privateKey, publicKey, nil
 }

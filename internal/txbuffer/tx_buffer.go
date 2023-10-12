@@ -2,12 +2,15 @@ package txbuffer
 
 import (
 	"context"
-	gocrypto "crypto"
+	"crypto"
 	"errors"
+	"fmt"
+	"log/slog"
 	"sync"
 
 	"github.com/alphabill-org/alphabill/internal/metrics"
 	"github.com/alphabill-org/alphabill/internal/types"
+	"github.com/alphabill-org/alphabill/pkg/logger"
 )
 
 var (
@@ -27,7 +30,8 @@ type (
 		mutex          sync.Mutex
 		transactions   map[string]*types.TransactionOrder // map containing valid pending transactions.
 		transactionsCh chan *types.TransactionOrder
-		hashAlgorithm  gocrypto.Hash
+		hashAlgorithm  crypto.Hash
+		log            *slog.Logger
 	}
 
 	// TxHandler handles the transaction. Return value should indicate whether the tx was processed
@@ -38,7 +42,7 @@ type (
 
 // New creates a new instance of the TxBuffer. MaxSize specifies the total number of transactions the TxBuffer may
 // contain.
-func New(maxSize uint32, hashAlgorithm gocrypto.Hash) (*TxBuffer, error) {
+func New(maxSize uint32, hashAlgorithm crypto.Hash, log *slog.Logger) (*TxBuffer, error) {
 	if maxSize < 1 {
 		return nil, ErrInvalidMaxSize
 	}
@@ -46,6 +50,7 @@ func New(maxSize uint32, hashAlgorithm gocrypto.Hash) (*TxBuffer, error) {
 		hashAlgorithm:  hashAlgorithm,
 		transactions:   make(map[string]*types.TransactionOrder),
 		transactionsCh: make(chan *types.TransactionOrder, maxSize),
+		log:            log,
 	}, nil
 }
 
@@ -65,7 +70,7 @@ func (t *TxBuffer) Add(tx *types.TransactionOrder) ([]byte, error) {
 	}
 
 	txHash := tx.Hash(t.hashAlgorithm)
-	logger.Debug("Transaction hash is %X", txHash)
+	t.log.Debug(fmt.Sprintf("received %s transaction, hash %X", tx.PayloadType(), txHash), logger.UnitID(tx.UnitID()))
 	txId := string(txHash)
 
 	t.mutex.Lock()

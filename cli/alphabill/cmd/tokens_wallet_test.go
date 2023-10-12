@@ -469,6 +469,7 @@ func createTokensPartition(t *testing.T) *testpartition.NodePartition {
 	network, err := testpartition.NewPartition(t, 1,
 		func(tb map[string]abcrypto.Verifier) txsystem.TransactionSystem {
 			system, err := tokens.NewTxSystem(
+				logger.New(t),
 				tokens.WithState(tokensState),
 				tokens.WithTrustBase(tb),
 			)

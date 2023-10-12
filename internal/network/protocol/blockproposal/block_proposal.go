@@ -22,7 +22,7 @@ var (
 
 type BlockProposal struct {
 	_                  struct{} `cbor:",toarray"`
-	SystemIdentifier   []byte
+	SystemIdentifier   types.SystemID
 	NodeIdentifier     string
 	UnicityCertificate *types.UnicityCertificate
 	Transactions       []*types.TransactionRecord

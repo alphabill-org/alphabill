@@ -10,6 +10,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/txsystem/money"
 	"github.com/alphabill-org/alphabill/pkg/logger"
 	"github.com/fxamacker/cbor/v2"
+	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/spf13/cobra"
 )
 
@@ -25,11 +26,9 @@ type (
 	moneyNodeRunnable func(ctx context.Context, nodeConfig *moneyNodeConfiguration) error
 )
 
-var log = logger.CreateForPackage()
-
 // newMoneyNodeCmd creates a new cobra command for the shard component.
 //
-// nodeRunFunc - set the function to override the default behaviour. Meant for tests.
+// nodeRunFunc - set the function to override the default behavior. Meant for tests.
 func newMoneyNodeCmd(baseConfig *baseConfiguration, nodeRunFunc moneyNodeRunnable) *cobra.Command {
 	config := &moneyNodeConfiguration{
 		baseNodeConfiguration: baseNodeConfiguration{
@@ -65,8 +64,7 @@ func runMoneyNode(ctx context.Context, cfg *moneyNodeConfiguration) error {
 	}
 
 	params := &genesis.MoneyPartitionParams{}
-	err = cbor.Unmarshal(pg.Params, params)
-	if err != nil {
+	if err := cbor.Unmarshal(pg.Params, params); err != nil {
 		return fmt.Errorf("failed to unmarshal money partition params: %w", err)
 	}
 
@@ -80,7 +78,20 @@ func runMoneyNode(ctx context.Context, cfg *moneyNodeConfiguration) error {
 		return fmt.Errorf("failed to create trust base validator: %w", err)
 	}
 
+	keys, err := LoadKeys(cfg.Node.KeyFile, false, false)
+	if err != nil {
+		return fmt.Errorf("failed to load node keys: %w", err)
+	}
+
+	nodeID, err := peer.IDFromPublicKey(keys.EncryptionPrivateKey.GetPublic())
+	if err != nil {
+		return fmt.Errorf("failed to calculate nodeID: %w", err)
+	}
+
+	log := cfg.Base.Logger.With(logger.NodeID(nodeID))
+
 	txs, err := money.NewTxSystem(
+		log,
 		money.WithSystemIdentifier(pg.SystemDescriptionRecord.SystemIdentifier),
 		money.WithHashAlgorithm(crypto.SHA256),
 		money.WithInitialBill(ib),
@@ -91,5 +102,9 @@ func runMoneyNode(ctx context.Context, cfg *moneyNodeConfiguration) error {
 	if err != nil {
 		return fmt.Errorf("creating money transaction system: %w", err)
 	}
-	return defaultNodeRunFunc(ctx, "money node", txs, cfg.Node, cfg.RPCServer, cfg.RESTServer)
+	node, err := createNode(ctx, txs, cfg.Node, keys, nil, log)
+	if err != nil {
+		return fmt.Errorf("creating node: %w", err)
+	}
+	return run(ctx, "money node", node, cfg.RPCServer, cfg.RESTServer, log)
 }

@@ -2,15 +2,14 @@ package canonicalizer
 
 import (
 	"encoding/binary"
+	"errors"
+	"fmt"
 	"reflect"
 
-	"github.com/alphabill-org/alphabill/internal/errors"
-	"github.com/alphabill-org/alphabill/internal/errors/errstr"
 	"github.com/alphabill-org/alphabill/internal/util"
-	"github.com/alphabill-org/alphabill/pkg/logger"
 )
 
-var log = logger.CreateForPackage()
+var errObjectIsNil = errors.New("object is nil")
 
 type (
 	// Canonicalizer Interface for serializing data structures into deterministic hash-format.
@@ -50,14 +49,14 @@ type (
 //	 }
 func Canonicalize(obj interface{}, opts ...Option) ([]byte, error) {
 	if obj == nil {
-		return nil, errors.Wrap(errors.ErrInvalidArgument, errstr.NilArgument)
+		return nil, errObjectIsNil
 	}
 
 	// Extract field serialization templates
 	typeName := getTypeName(obj)
 	fieldOpts, registered := registry[typeName]
 	if !registered {
-		return nil, errors.Wrapf(errors.ErrInvalidHashField, "template is not registered for type: %s", typeName)
+		return nil, fmt.Errorf("template is not registered for type: %s", typeName)
 	}
 	options := serializeOptions{
 		template: fieldOpts,
@@ -77,10 +76,10 @@ func Canonicalize(obj interface{}, opts ...Option) ([]byte, error) {
 func OptionExcludeField(name string) Option {
 	return func(o *serializeOptions) error {
 		if o == nil {
-			return errors.Wrap(errors.ErrInvalidArgument, "missing options")
+			return fmt.Errorf("missing options")
 		}
 		if name == "" {
-			return errors.Wrap(errors.ErrInvalidArgument, "field name not specified")
+			return fmt.Errorf("field name not specified")
 		}
 
 		for i := 0; i < len(o.template); i++ {
@@ -89,7 +88,7 @@ func OptionExcludeField(name string) Option {
 				return nil
 			}
 		}
-		return errors.Wrapf(errors.ErrInvalidHashField, "exclude field='%s' not found", name)
+		return fmt.Errorf("exclude field='%s' not found", name)
 	}
 }
 
@@ -100,7 +99,6 @@ func extractDataBytes(obj interface{}, opts serializeOptions) ([]byte, error) {
 	)
 	for i := 0; i < len(opts.template); i++ {
 		if opts.extras[i].exclude {
-			log.Debug("'%s' excluding field='%s' from serialization.", objValue.Type().Name(), opts.template[i].name)
 			continue
 		}
 
@@ -127,7 +125,7 @@ func extractFieldDataBytes(fieldValue reflect.Value, opts fieldOptions) ([]byte,
 	case reflect.Ptr:
 		val, ok := fieldValue.Interface().(Canonicalizer)
 		if !ok {
-			return nil, errors.Wrapf(errors.ErrInvalidHashField, "field='%s' value does not implement Canonicalizer (type=%T)",
+			return nil, fmt.Errorf("field='%s' value does not implement Canonicalizer (type=%T)",
 				opts.name, fieldValue.Interface())
 		}
 		bin, err = val.Canonicalize()
@@ -140,7 +138,7 @@ func extractFieldDataBytes(fieldValue reflect.Value, opts fieldOptions) ([]byte,
 		vp.Elem().Set(fieldValue)
 		val, ok := vp.Interface().(Canonicalizer)
 		if !ok {
-			return nil, errors.Wrapf(errors.ErrInvalidHashField, "field='%s' value does not implement Canonicalizer (type=%T)",
+			return nil, fmt.Errorf("field='%s' value does not implement Canonicalizer (type=%T)",
 				opts.name, fieldValue.Interface())
 		}
 		bin, err = val.Canonicalize()
@@ -170,11 +168,10 @@ func extractFieldDataBytes(fieldValue reflect.Value, opts fieldOptions) ([]byte,
 		case 8:
 			bin = util.Uint64ToBytes(fieldValue.Uint())
 		default:
-			return nil, errors.Wrapf(errors.ErrInvalidHashField,
-				"field='%s' unsupported uint size: %d", opts.name, opts.elementSize)
+			return nil, fmt.Errorf("field='%s' unsupported uint size: %d", opts.name, opts.elementSize)
 		}
 	default:
-		return nil, errors.Wrapf(errors.ErrInvalidHashField, " field='%s' of type='%s' is unhandled kind: %s",
+		return nil, fmt.Errorf(" field='%s' of type='%s' is unhandled kind: %s",
 			opts.name, fieldValue.Type().Name(), fieldKind)
 	}
 	return bin, nil

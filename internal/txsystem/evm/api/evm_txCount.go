@@ -14,9 +14,9 @@ func (a *API) TransactionCount(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	adr := vars["address"]
 	address := common.HexToAddress(adr)
-	db := statedb.NewStateDB(a.state.Clone())
+	db := statedb.NewStateDB(a.state.Clone(), a.log)
 	if !db.Exist(address) {
-		util.WriteCBORError(w, errors.New("address not found"), http.StatusNotFound)
+		util.WriteCBORError(w, errors.New("address not found"), http.StatusNotFound, a.log)
 		return
 	}
 	util.WriteCBORResponse(w, &struct {
@@ -24,5 +24,5 @@ func (a *API) TransactionCount(w http.ResponseWriter, r *http.Request) {
 		Nonce uint64
 	}{
 		Nonce: db.GetNonce(address),
-	}, http.StatusOK)
+	}, http.StatusOK, a.log)
 }

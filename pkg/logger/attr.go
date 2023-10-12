@@ -1,9 +1,11 @@
 package logger
 
 import (
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"path/filepath"
+	"reflect"
 	"slices"
 	"strings"
 
@@ -24,6 +26,7 @@ const (
 	ErrorKey  = "err"
 	RoundKey  = "round"
 	UnitIDKey = "unit_id"
+	DataKey   = "data"
 )
 
 /*
@@ -52,6 +55,18 @@ Round records current round number.
 */
 func Round(round uint64) slog.Attr {
 	return slog.Uint64(RoundKey, round)
+}
+
+/*
+Data adds additional data field to the message.
+
+slog.GroupValue shouldn't be used as the data - in the ECS formatter all
+groups will end up under the same key possibly causing problems with index!
+
+Use of anonymous types is discouraged too.
+*/
+func Data(d any) slog.Attr {
+	return slog.Any(DataKey, d)
 }
 
 /*
@@ -141,6 +156,31 @@ func formatPeerIDAttr(format string) func(groups []string, a slog.Attr) slog.Att
 	}
 }
 
+func formatDataAttrAsJSON(groups []string, a slog.Attr) slog.Attr {
+	if a.Key == DataKey {
+		switch a.Value.Kind() {
+		case slog.KindAny:
+			if b, err := json.Marshal(a.Value.Any()); err == nil {
+				a.Value = slog.StringValue(string(b))
+			}
+		}
+	}
+	return a
+}
+
+/*
+formatAttrWallet strips everything except a minimal set of attributes so
+that the log output is minimal (hopefully better suitable for end users).
+*/
+func formatAttrWallet(groups []string, a slog.Attr) slog.Attr {
+	switch a.Key {
+	case slog.LevelKey, slog.MessageKey, ErrorKey:
+		return a
+	default:
+		return slog.Attr{}
+	}
+}
+
 /*
 formatAttrECS is a "poor man's ECS handler" ie it formats some well known
 attributes according to the ECS spec.
@@ -165,8 +205,35 @@ func formatAttrECS(groups []string, a slog.Attr) slog.Attr {
 		return slog.Group("service", slog.Group("node", slog.Any("name", a.Value)))
 	case ErrorKey:
 		return slog.Group("error", slog.Any("message", a.Value.Any()))
+	case DataKey:
+		// to keep Elastic happy we nest the actual value under it's type name, kind of namespacing it.
+		// as ie `data:"string value"` and `data: 42` would cause type conflict in Elastic index.
+		// different struct types might also have a field with the same name but different type!
+		return slog.Group(DataKey, slog.Any(dataName(a.Value), a.Value))
 	}
 	return a
+}
+
+/*
+dataName returns name of the data type of "v", suitable to act as a "namespace" for
+the value in ECS format. There is basically no restrictions for key names in JSON
+but this func attempts to do some sanitizing in order to make querying the resulting
+JSON a bit easier.
+*/
+func dataName(v slog.Value) string {
+	switch v.Kind() {
+	case slog.KindAny, slog.KindLogValuer:
+		a := v.Any()
+		// for anonymous type reflect.TypeOf(a).String() returns type def, ie
+		// struct { Str string; Int int }
+		// which is valid but not nice JSON key. For now we do not worry about
+		// that (just do not use anon types for data)!
+		rt := reflect.TypeOf(a)
+		// strip leading "*" of pointer types and replace "." with "_"
+		return strings.ReplaceAll(strings.TrimLeft(rt.String(), "*"), ".", "_")
+	default:
+		return v.Kind().String()
+	}
 }
 
 /*

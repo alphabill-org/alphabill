@@ -30,7 +30,7 @@ func NewTestNode(t *testing.T) *TestNode {
 	return node
 }
 
-func CreatePartitionNodesAndPartitionRecord(t *testing.T, ir *types.InputRecord, systemID []byte, nrOfValidators int) (partitionNodes []*TestNode, record *genesis.PartitionRecord) {
+func CreatePartitionNodesAndPartitionRecord(t *testing.T, ir *types.InputRecord, systemID types.SystemID, nrOfValidators int) (partitionNodes []*TestNode, record *genesis.PartitionRecord) {
 	t.Helper()
 	record = &genesis.PartitionRecord{
 		SystemDescriptionRecord: &genesis.SystemDescriptionRecord{
@@ -67,7 +67,7 @@ func CreatePartitionNodesAndPartitionRecord(t *testing.T, ir *types.InputRecord,
 	return partitionNodes, record
 }
 
-func CreateBlockCertificationRequest(t *testing.T, ir *types.InputRecord, sysID []byte, node *TestNode) *certification.BlockCertificationRequest {
+func CreateBlockCertificationRequest(t *testing.T, ir *types.InputRecord, sysID types.SystemID, node *TestNode) *certification.BlockCertificationRequest {
 	t.Helper()
 	r1 := &certification.BlockCertificationRequest{
 		SystemIdentifier: sysID,

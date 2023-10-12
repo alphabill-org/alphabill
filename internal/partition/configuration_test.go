@@ -10,6 +10,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/network"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 	rootgenesis "github.com/alphabill-org/alphabill/internal/rootchain/genesis"
+	"github.com/alphabill-org/alphabill/internal/testutils/logger"
 	testnetwork "github.com/alphabill-org/alphabill/internal/testutils/network"
 	test "github.com/alphabill-org/alphabill/internal/testutils/peer"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
@@ -61,7 +62,7 @@ func Test_loadAndValidateConfiguration_Nok(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			c, err := loadAndValidateConfiguration(tt.args.signer, tt.args.genesis, tt.args.txs, nil)
+			c, err := loadAndValidateConfiguration(tt.args.signer, tt.args.genesis, tt.args.txs, nil, logger.New(t))
 			require.ErrorIs(t, tt.wantErr, err)
 			require.Nil(t, c)
 		})
@@ -72,7 +73,7 @@ func TestLoadConfigurationWithDefaultValues_Ok(t *testing.T) {
 	peerConf := test.CreatePeerConfiguration(t)
 	signer, verifier := testsig.CreateSignerAndVerifier(t)
 	pg := createPartitionGenesis(t, signer, verifier, nil, peerConf)
-	conf, err := loadAndValidateConfiguration(signer, pg, &testtxsystem.CounterTxSystem{}, testnetwork.NewMockNetwork())
+	conf, err := loadAndValidateConfiguration(signer, pg, &testtxsystem.CounterTxSystem{}, testnetwork.NewMockNetwork(), logger.New(t))
 
 	require.NoError(t, err)
 	require.NotNil(t, conf)
@@ -99,6 +100,7 @@ func TestLoadConfigurationWithOptions_Ok(t *testing.T) {
 		pg,
 		&testtxsystem.CounterTxSystem{},
 		testnetwork.NewMockNetwork(),
+		logger.New(t),
 		WithTxValidator(&AlwaysValidTransactionValidator{}),
 		WithUnicityCertificateValidator(&AlwaysValidCertificateValidator{}),
 		WithBlockProposalValidator(&AlwaysValidBlockProposalValidator{}),
@@ -206,8 +208,7 @@ func TestGetPublicKey_Ok(t *testing.T) {
 	peerConf := test.CreatePeerConfiguration(t)
 	signer, verifier := testsig.CreateSignerAndVerifier(t)
 	pg := createPartitionGenesis(t, signer, verifier, nil, peerConf)
-
-	conf, err := loadAndValidateConfiguration(signer, pg, &testtxsystem.CounterTxSystem{}, testnetwork.NewMockNetwork())
+	conf, err := loadAndValidateConfiguration(signer, pg, &testtxsystem.CounterTxSystem{}, testnetwork.NewMockNetwork(), logger.New(t))
 	require.NoError(t, err)
 
 	v, err := conf.GetSigningPublicKey(peerConf.ID.String())
@@ -218,8 +219,9 @@ func TestGetPublicKey_Ok(t *testing.T) {
 func TestGetPublicKey_NotFound(t *testing.T) {
 	peerConf := test.CreatePeerConfiguration(t)
 	signer, verifier := testsig.CreateSignerAndVerifier(t)
+
 	pg := createPartitionGenesis(t, signer, verifier, nil, peerConf)
-	conf, err := loadAndValidateConfiguration(signer, pg, &testtxsystem.CounterTxSystem{}, testnetwork.NewMockNetwork())
+	conf, err := loadAndValidateConfiguration(signer, pg, &testtxsystem.CounterTxSystem{}, testnetwork.NewMockNetwork(), logger.New(t))
 	require.NoError(t, err)
 	_, err = conf.GetSigningPublicKey("1")
 	require.ErrorContains(t, err, "public key for id 1 not found")
@@ -228,8 +230,9 @@ func TestGetPublicKey_NotFound(t *testing.T) {
 func TestGetGenesisBlock(t *testing.T) {
 	peerConf := test.CreatePeerConfiguration(t)
 	signer, verifier := testsig.CreateSignerAndVerifier(t)
+
 	pg := createPartitionGenesis(t, signer, verifier, nil, peerConf)
-	conf, err := loadAndValidateConfiguration(signer, pg, &testtxsystem.CounterTxSystem{}, testnetwork.NewMockNetwork())
+	conf, err := loadAndValidateConfiguration(signer, pg, &testtxsystem.CounterTxSystem{}, testnetwork.NewMockNetwork(), logger.New(t))
 	require.NoError(t, err)
 	require.NotNil(t, conf.genesisBlock())
 }

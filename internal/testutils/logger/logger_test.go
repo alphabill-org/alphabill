@@ -75,6 +75,10 @@ func Test_loggers_json_output(t *testing.T) {
 		t.Errorf("failed to decode peer id: %v", err)
 	}
 
+	type foo struct {
+		V string
+	}
+
 	log.LogAttrs(context.Background(),
 		slog.LevelInfo,
 		"some information",
@@ -82,5 +86,6 @@ func Test_loggers_json_output(t *testing.T) {
 		logger.NodeID(nodeID),
 		logger.Round(208357),
 		logger.UnitID([]byte{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20}),
+		logger.Data(&foo{"bar"}),
 	)
 }

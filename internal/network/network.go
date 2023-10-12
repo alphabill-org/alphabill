@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"reflect"
 	"slices"
 	"time"
@@ -11,6 +12,8 @@ import (
 	libp2pNetwork "github.com/libp2p/go-libp2p/core/network"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/libp2p/go-libp2p/core/protocol"
+
+	"github.com/alphabill-org/alphabill/pkg/logger"
 )
 
 type (
@@ -42,6 +45,7 @@ type LibP2PNetwork struct {
 	self          *Peer
 	sendProtocols map[reflect.Type]*sendProtocolData
 	receivedMsgs  chan any // messages from LibP2PNetwork sent to this peer
+	log           *slog.Logger
 }
 
 /*
@@ -49,8 +53,10 @@ newLibP2PNetwork creates a new libp2p network without protocols (protocols need 
 registered separately to make the network actually useful).
 
 In case of slow consumer up to "capacity" messages are buffered, after that messages will be dropped.
+
+Logger (log) is assumed to already have node_id attribute added, won't be added by NW component!
 */
-func newLibP2PNetwork(self *Peer, capacity uint) (*LibP2PNetwork, error) {
+func newLibP2PNetwork(self *Peer, capacity uint, log *slog.Logger) (*LibP2PNetwork, error) {
 	if self == nil {
 		return nil, errors.New("peer is nil")
 	}
@@ -59,6 +65,7 @@ func newLibP2PNetwork(self *Peer, capacity uint) (*LibP2PNetwork, error) {
 		self:          self,
 		sendProtocols: make(map[reflect.Type]*sendProtocolData),
 		receivedMsgs:  make(chan any, capacity),
+		log:           log,
 	}
 	return n, nil
 }
@@ -104,8 +111,7 @@ func (n *LibP2PNetwork) send(ctx context.Context, protocol *sendProtocolData, ms
 			}
 
 			if err := n.sendMsg(ctx, data, protocol.protocolID, protocol.timeout, receiver); err != nil {
-				logger.Warning("Send error, message %v receiver: %v sender: %v, %v",
-					protocol.protocolID, receiver, n.self.ID(), err)
+				n.log.WarnContext(ctx, fmt.Sprintf("sending %s to %v", protocol.protocolID, receiver), logger.Error(err))
 			}
 		}
 	}()
@@ -143,13 +149,13 @@ func (n *LibP2PNetwork) streamHandlerForProtocol(protocolID string, ctor func() 
 	return func(s libp2pNetwork.Stream) {
 		defer func() {
 			if err := s.Close(); err != nil {
-				logger.Warning("closing p2p stream %q: %v", protocolID, err)
+				n.log.Warn(fmt.Sprintf("closing p2p stream %q", protocolID), logger.Error(err))
 			}
 		}()
 
 		msg := ctor()
 		if err := deserializeMsg(s, msg); err != nil {
-			logger.Warning("reading %q message: %v", protocolID, err)
+			n.log.Warn(fmt.Sprintf("reading %q message", protocolID), logger.Error(err))
 			return
 		}
 		n.receivedMsg(s.Conn().RemotePeer(), protocolID, msg)
@@ -160,7 +166,7 @@ func (n *LibP2PNetwork) receivedMsg(from peer.ID, protocolID string, msg any) {
 	select {
 	case n.receivedMsgs <- msg:
 	default:
-		logger.Warning("dropping %s message from %s because of slow consumer", protocolID, from)
+		n.log.Warn(fmt.Sprintf("dropping %s message from %s because of slow consumer", protocolID, from))
 	}
 }
 

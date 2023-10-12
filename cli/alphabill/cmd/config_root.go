@@ -25,7 +25,7 @@ type (
 		LogCfgFile string
 		Metrics    bool
 
-		logger        *slog.Logger
+		Logger        *slog.Logger
 		loggerBuilder LoggerFactory
 	}
 )
@@ -63,7 +63,7 @@ func (r *baseConfiguration) addConfigurationFlags(cmd *cobra.Command) {
 	// do not set default values for these flags as then we can easily determine whether to load the value from cfg file or not
 	cmd.PersistentFlags().String(flagNameLogOutputFile, "", "log file path or one of the special values: stdout, stderr, discard")
 	cmd.PersistentFlags().String(flagNameLogLevel, "", "logging level, one of: DEBUG, INFO, WARN, ERROR")
-	cmd.PersistentFlags().String(flagNameLogFormat, "", "log format, one of: text, json, console, kibana")
+	cmd.PersistentFlags().String(flagNameLogFormat, "", "log format, one of: text, json, console, ecs")
 }
 
 func (r *baseConfiguration) initConfigFileLocation() {
@@ -112,9 +112,13 @@ func (r *baseConfiguration) defaultRootGenesisDir() string {
 	return filepath.Join(r.HomeDir, defaultRootChainDir)
 }
 
-func (r *baseConfiguration) Logger(cmd *cobra.Command) (*slog.Logger, error) {
-	if r.logger != nil {
-		return r.logger, nil
+/*
+initLogger initializes the Logger field so that from that point on it
+contains valid logger. This method should be called only once.
+*/
+func (r *baseConfiguration) initLogger(cmd *cobra.Command) error {
+	if r.Logger != nil {
+		return fmt.Errorf("logger is already initialized")
 	}
 
 	cfg := &logger.LogConfiguration{}
@@ -123,11 +127,11 @@ func (r *baseConfiguration) Logger(cmd *cobra.Command) (*slog.Logger, error) {
 	if f, err := os.Open(loggerCfgFile); err != nil {
 		defaultLoggerCfg := filepath.Join(r.HomeDir, defaultLoggerConfigFile)
 		if !(errors.Is(err, os.ErrNotExist) && loggerCfgFile == defaultLoggerCfg) {
-			return nil, fmt.Errorf("opening logger configuration file: %w", err)
+			return fmt.Errorf("opening logger configuration file: %w", err)
 		}
 	} else {
 		if err := yaml.NewDecoder(f).Decode(cfg); err != nil {
-			return nil, fmt.Errorf("decoding logger configuration (%s): %w", loggerCfgFile, err)
+			return fmt.Errorf("decoding logger configuration (%s): %w", loggerCfgFile, err)
 		}
 	}
 
@@ -144,13 +148,13 @@ func (r *baseConfiguration) Logger(cmd *cobra.Command) (*slog.Logger, error) {
 	// flags override values loaded from cfg file.
 	// NB! these flags mustn't have default values in Cobra cmd definition!
 	if err := getFlagValueIfSet(flagNameLogLevel, &cfg.Level); err != nil {
-		return nil, err
+		return err
 	}
 	if err := getFlagValueIfSet(flagNameLogFormat, &cfg.Format); err != nil {
-		return nil, err
+		return err
 	}
 	if err := getFlagValueIfSet(flagNameLogOutputFile, &cfg.OutputPath); err != nil {
-		return nil, err
+		return err
 	}
 
 	// if it is a wallet cmd and logging on console then use "wallet formatting"
@@ -160,10 +164,10 @@ func (r *baseConfiguration) Logger(cmd *cobra.Command) (*slog.Logger, error) {
 	}
 
 	var err error
-	if r.logger, err = r.loggerBuilder(cfg); err != nil {
-		return nil, fmt.Errorf("building logger: %w", err)
+	if r.Logger, err = r.loggerBuilder(cfg); err != nil {
+		return fmt.Errorf("building logger: %w", err)
 	}
-	return r.logger, nil
+	return nil
 }
 
 func forceWalletLogFormat(cmd *cobra.Command, outFilename string) bool {
@@ -199,7 +203,7 @@ func envKey(key string) string {
 func alphabillHomeDir() string {
 	dir, err := os.UserHomeDir()
 	if err != nil {
-		panic("default user home dir not defined")
+		panic("default user home dir not defined: " + err.Error())
 	}
 	return filepath.Join(dir, defaultAlphabillDir)
 }

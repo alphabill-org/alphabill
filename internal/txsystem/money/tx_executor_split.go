@@ -24,7 +24,6 @@ func HashForIDCalculation(idBytes []byte, attr []byte, timeout uint64, idx uint3
 
 func handleSplitTx(s *state.State, hashAlgorithm crypto.Hash, feeCalc fc.FeeCalculator) txsystem.GenericExecuteFunc[SplitAttributes] {
 	return func(tx *types.TransactionOrder, attr *SplitAttributes, currentBlockNumber uint64) (*types.ServerMetadata, error) {
-		log.Debug("Processing split %v", tx)
 		if err := validateSplitTx(tx, attr, s); err != nil {
 			return nil, fmt.Errorf("invalid split transaction: %w", err)
 		}

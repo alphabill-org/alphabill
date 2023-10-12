@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/alphabill-org/alphabill/internal/network/protocol"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/certification"
 	"github.com/alphabill-org/alphabill/internal/types"
 )
@@ -19,7 +18,7 @@ const (
 
 type (
 	IRChangeRequest struct {
-		SystemIdentifier protocol.SystemIdentifier
+		SystemIdentifier types.SystemID32
 		Reason           CertReqReason
 		Requests         []*certification.BlockCertificationRequest
 	}

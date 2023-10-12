@@ -3,7 +3,6 @@ package cmd
 import (
 	"context"
 	"fmt"
-	"log/slog"
 	"os"
 	"path/filepath"
 
@@ -82,11 +81,7 @@ func startMoneyBackendCmd(config *moneyBackendConfig) *cobra.Command {
 	cmd := &cobra.Command{
 		Use: "start",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			logger, err := config.Base.Logger(cmd)
-			if err != nil {
-				return fmt.Errorf("creating logger: %w", err)
-			}
-			return execMoneyBackendStartCmd(cmd.Context(), config, logger)
+			return execMoneyBackendStartCmd(cmd.Context(), config)
 		},
 	}
 	cmd.Flags().StringVarP(&config.AlphabillUrl, alphabillNodeURLCmdName, "u", defaultAlphabillNodeURL, "alphabill node url")
@@ -100,7 +95,7 @@ func startMoneyBackendCmd(config *moneyBackendConfig) *cobra.Command {
 	return cmd
 }
 
-func execMoneyBackendStartCmd(ctx context.Context, config *moneyBackendConfig, logger *slog.Logger) error {
+func execMoneyBackendStartCmd(ctx context.Context, config *moneyBackendConfig) error {
 	dbFile, err := config.GetDbFile()
 	if err != nil {
 		return err
@@ -121,6 +116,6 @@ func execMoneyBackendStartCmd(ctx context.Context, config *moneyBackendConfig, l
 			Predicate: script.PredicateAlwaysTrue(),
 		},
 		SystemDescriptionRecords: sdrFiles,
-		Logger:                   logger,
+		Logger:                   config.Base.Logger,
 	})
 }

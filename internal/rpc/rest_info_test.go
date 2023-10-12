@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/alphabill-org/alphabill/internal/testutils/logger"
 	"github.com/alphabill-org/alphabill/internal/testutils/peer"
 	"github.com/stretchr/testify/require"
 )
@@ -19,7 +20,7 @@ func TestRESTServer_RequestInfo(t *testing.T) {
 	req.Header.Set("Content-Type", "application/json")
 	recorder := httptest.NewRecorder()
 
-	NewRESTServer("", 10, InfoEndpoints(&MockNode{}, "mock node", peer)).Handler.ServeHTTP(recorder, req)
+	NewRESTServer("", 10, InfoEndpoints(&MockNode{}, "mock node", peer, logger.New(t))).Handler.ServeHTTP(recorder, req)
 	response := &infoResponse{}
 	require.NoError(t, json.NewDecoder(recorder.Body).Decode(response))
 	require.Equal(t, "00010000", response.SystemID)

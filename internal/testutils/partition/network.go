@@ -7,6 +7,7 @@ import (
 	"crypto/rand"
 	"errors"
 	"fmt"
+	"log/slog"
 	"path/filepath"
 	"reflect"
 	"sort"
@@ -16,17 +17,19 @@ import (
 	"github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/keyvaluedb/boltdb"
 	"github.com/alphabill-org/alphabill/internal/network"
-	p "github.com/alphabill-org/alphabill/internal/network/protocol"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/internal/partition"
 	"github.com/alphabill-org/alphabill/internal/rootchain"
 	"github.com/alphabill-org/alphabill/internal/rootchain/consensus/monolithic"
 	rootgenesis "github.com/alphabill-org/alphabill/internal/rootchain/genesis"
 	"github.com/alphabill-org/alphabill/internal/rootchain/partitions"
+	test "github.com/alphabill-org/alphabill/internal/testutils"
+	testlogger "github.com/alphabill-org/alphabill/internal/testutils/logger"
 	"github.com/alphabill-org/alphabill/internal/testutils/net"
 	testevent "github.com/alphabill-org/alphabill/internal/testutils/partition/event"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/internal/types"
+	"github.com/alphabill-org/alphabill/pkg/logger"
 	libp2pcrypto "github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/multiformats/go-multiaddr"
@@ -37,7 +40,7 @@ const rootValidatorNodes = 1
 
 // AlphabillNetwork for integration tests
 type AlphabillNetwork struct {
-	NodePartitions map[p.SystemIdentifier]*NodePartition
+	NodePartitions map[types.SystemID32]*NodePartition
 	RootPartition  *RootPartition
 	ctxCancel      context.CancelFunc
 }
@@ -46,20 +49,23 @@ type RootPartition struct {
 	rcGenesis *genesis.RootGenesis
 	TrustBase map[string]crypto.Verifier
 	Nodes     []*rootNode
+	log       *slog.Logger
 }
 
 type NodePartition struct {
-	systemId         []byte
+	systemId         types.SystemID
 	partitionGenesis *genesis.PartitionGenesis
 	txSystemFunc     func(trustBase map[string]crypto.Verifier) txsystem.TransactionSystem
 	ctx              context.Context
 	tb               map[string]crypto.Verifier
 	Nodes            []*partitionNode
+	log              *slog.Logger
 }
 
 type partitionNode struct {
 	*partition.Node
 	dbFile       string
+	idxFile      string
 	peerConf     *network.PeerConfiguration
 	signer       crypto.Signer
 	genesis      *genesis.PartitionNode
@@ -77,7 +83,13 @@ type rootNode struct {
 	genesis    *genesis.RootGenesis
 	id         peer.ID
 	addr       multiaddr.Multiaddr
+	cancel     context.CancelFunc
+	done       chan error
 }
+
+type ValidatorIndex int
+
+const ANY_VALIDATOR ValidatorIndex = -1
 
 // getGenesisFiles is a helper function to collect all node genesis files
 func getGenesisFiles(nodePartitions []*NodePartition) []*genesis.PartitionNode {
@@ -168,17 +180,13 @@ func (r *RootPartition) start(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("get free port failed, %w", err)
 	}
-	peerConf, err := network.NewPeerConfiguration(
-		fmt.Sprintf("/ip4/127.0.0.1/tcp/%v", port),
-		r.Nodes[0].EncKeyPair, // connection encryption key. The ID of the node is derived from this keypair.
-		nil,
-		nil,
-	)
-	rootPeer, err := network.NewPeer(ctx, peerConf)
+	peerConf, err := network.NewPeerConfiguration(fmt.Sprintf("/ip4/127.0.0.1/tcp/%v", port), r.Nodes[0].EncKeyPair, nil, nil)
+	rootPeer, err := network.NewPeer(ctx, peerConf, r.log)
 	if err != nil {
 		return fmt.Errorf("failed to create new peer node: %w", err)
 	}
-	rootNet, err := network.NewLibP2PRootChainNetwork(rootPeer, 100, 300*time.Millisecond)
+	log := r.log.With(logger.NodeID(rootPeer.ID()))
+	rootNet, err := network.NewLibP2PRootChainNetwork(rootPeer, 100, 300*time.Millisecond, log)
 	if err != nil {
 		return fmt.Errorf("failed to init root and partition nodes network, %w", err)
 	}
@@ -187,18 +195,21 @@ func (r *RootPartition) start(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("failed to create partition store form root genesis, %w", err)
 	}
-	cm, err := monolithic.NewMonolithicConsensusManager(rootPeer.ID().String(), r.rcGenesis, partitionStore, r.Nodes[0].RootSigner)
+	cm, err := monolithic.NewMonolithicConsensusManager(rootPeer.ID().String(), r.rcGenesis, partitionStore, r.Nodes[0].RootSigner, log)
 	if err != nil {
 		return fmt.Errorf("consensus manager initialization failed, %w", err)
 	}
-	r.Nodes[0].Node, err = rootchain.New(rootPeer, rootNet, partitionStore, cm)
+	r.Nodes[0].Node, err = rootchain.New(rootPeer, rootNet, partitionStore, cm, log)
 	if err != nil {
 		return fmt.Errorf("failed to create root node, %w", err)
 	}
 	r.Nodes[0].addr = rootPeer.MultiAddresses()[0]
 	r.Nodes[0].id = rootPeer.ID()
 	// start root node
-	go r.Nodes[0].Node.Run(ctx)
+	rctx, rootCancel := context.WithCancel(ctx)
+	r.Nodes[0].cancel = rootCancel
+	r.Nodes[0].done = make(chan error, 1)
+	go func(ec chan error) { ec <- r.Nodes[0].Run(rctx) }(r.Nodes[0].done)
 	return nil
 }
 
@@ -217,9 +228,10 @@ func NewPartition(t *testing.T, nodeCount int, txSystemProvider func(trustBase m
 		systemId:     systemIdentifier,
 		txSystemFunc: txSystemProvider,
 		Nodes:        make([]*partitionNode, nodeCount),
+		log:          testlogger.New(t),
 	}
 	// create peer configurations
-	peerConfs, err := createPeerConfs(ctx, nodeCount)
+	peerConfs, err := createPeerConfs(ctx, nodeCount, abPartition.log)
 	if err != nil {
 		return nil, err
 	}
@@ -244,11 +256,13 @@ func NewPartition(t *testing.T, nodeCount int, txSystemProvider func(trustBase m
 		if err != nil {
 			return nil, fmt.Errorf("failed to create node genesis, %w", err)
 		}
+		tmpDir := t.TempDir()
 		abPartition.Nodes[i] = &partitionNode{
 			genesis:  nodeGenesis,
 			peerConf: peerConf,
 			signer:   signer,
-			dbFile:   filepath.Join(t.TempDir(), "blocks.db"),
+			dbFile:   filepath.Join(tmpDir, "blocks.db"),
+			idxFile:  filepath.Join(tmpDir, "tx.db"),
 		}
 	}
 	return abPartition, nil
@@ -270,24 +284,34 @@ func (n *NodePartition) start(t *testing.T, ctx context.Context, rootID peer.ID,
 			return err
 		}
 		t.Cleanup(func() { require.NoError(t, blockStore.Close()) })
+		txIndexer, err := boltdb.New(nd.idxFile)
+		if err != nil {
+			return fmt.Errorf("unable to load tx indexer: %w", err)
+		}
+		t.Cleanup(func() { require.NoError(t, txIndexer.Close()) })
 		nd.confOpts = append(nd.confOpts, partition.WithRootAddressAndIdentifier(rootAddr, rootID),
 			partition.WithEventHandler(nd.EventHandler.HandleEvent, 100),
-			partition.WithBlockStore(blockStore))
+			partition.WithBlockStore(blockStore),
+			partition.WithTxIndexer(txIndexer),
+		)
 
 		if err = n.startNode(ctx, nd); err != nil {
 			return err
 		}
 	}
-
+	// make sure node network (to other nodes and root nodes) is initiated
 	for _, nd := range n.Nodes {
-		if err = assertConnections(nd.GetPeer(), len(n.Nodes)); err != nil {
-			return err
+		if ok := eventually(
+			func() bool { return len(nd.GetPeer().Network().Peers()) >= len(n.Nodes) },
+			2*time.Second, 100*time.Millisecond); !ok {
+			return fmt.Errorf("network not initialized")
 		}
 	}
 	return nil
 }
 
 func (n *NodePartition) startNode(ctx context.Context, pn *partitionNode) error {
+	log := n.log.With(logger.NodeID(pn.peerConf.ID))
 	node, err := partition.NewNode(
 		ctx,
 		pn.peerConf,
@@ -295,6 +319,7 @@ func (n *NodePartition) startNode(ctx context.Context, pn *partitionNode) error 
 		n.txSystemFunc(n.tb),
 		n.partitionGenesis,
 		nil,
+		log,
 		pn.confOpts...,
 	)
 	if err != nil {
@@ -317,9 +342,10 @@ func NewAlphabillPartition(nodePartitions []*NodePartition) (*AlphabillNetwork, 
 	if err != nil {
 		return nil, err
 	}
-	nodeParts := make(map[p.SystemIdentifier]*NodePartition)
+	nodeParts := make(map[types.SystemID32]*NodePartition)
 	for _, part := range nodePartitions {
-		nodeParts[p.SystemIdentifier(part.systemId)] = part
+		id32, _ := part.systemId.Id32()
+		nodeParts[id32] = part
 	}
 	return &AlphabillNetwork{
 		RootPartition:  rootPartition,
@@ -328,6 +354,7 @@ func NewAlphabillPartition(nodePartitions []*NodePartition) (*AlphabillNetwork, 
 }
 
 func (a *AlphabillNetwork) Start(t *testing.T) error {
+	a.RootPartition.log = testlogger.New(t)
 	// create context
 	ctx, ctxCancel := context.WithCancel(context.Background())
 	if err := a.RootPartition.start(ctx); err != nil {
@@ -338,20 +365,38 @@ func (a *AlphabillNetwork) Start(t *testing.T) error {
 		// create one event handler per partition
 		if err := part.start(t, ctx, a.RootPartition.Nodes[0].id, a.RootPartition.Nodes[0].addr); err != nil {
 			ctxCancel()
-			return fmt.Errorf("failed to start partition %X, %w", id.Bytes(), err)
+			return fmt.Errorf("failed to start partition %s, %w", id, err)
 		}
 	}
 	a.ctxCancel = ctxCancel
 	return nil
 }
 
-func (a *AlphabillNetwork) Close() error {
+func (a *AlphabillNetwork) Close() (err error) {
 	a.ctxCancel()
+	// wait and check validator exit
+	for _, part := range a.NodePartitions {
+		// stop all nodes
+		for _, n := range part.Nodes {
+			nodeErr := <-n.done
+			if !errors.Is(nodeErr, context.Canceled) {
+				err = errors.Join(err, nodeErr)
+			}
+		}
+	}
+	// check root exit
+	for _, rnode := range a.RootPartition.Nodes {
+		rootErr := <-rnode.done
+		if !errors.Is(rootErr, context.Canceled) {
+			err = errors.Join(err, rootErr)
+		}
+	}
 	return nil
 }
 
-func (a *AlphabillNetwork) GetNodePartition(sysID []byte) (*NodePartition, error) {
-	part, f := a.NodePartitions[p.SystemIdentifier(sysID)]
+func (a *AlphabillNetwork) GetNodePartition(sysID types.SystemID) (*NodePartition, error) {
+	id32, _ := sysID.Id32()
+	part, f := a.NodePartitions[id32]
 	if !f {
 		return nil, fmt.Errorf("unknown partition %X", sysID)
 	}
@@ -400,6 +445,38 @@ func (n *NodePartition) GetTxProof(tx *types.TransactionOrder) (*types.Block, *t
 	return nil, nil, nil, fmt.Errorf("tx with id %x was not found", tx.UnitID())
 }
 
+// WaitTxProof - uses the new validator index and endpoint and returns both transaction record and proof
+// when tx has been executed and added to block
+// todo: remove index when state proofs become available and refactor tests that require it to use unit proofs instead
+func WaitTxProof(t *testing.T, part *NodePartition, idx ValidatorIndex, txOrder *types.TransactionOrder) (*types.TransactionRecord, *types.TxProof, error) {
+	t.Helper()
+	var (
+		txRecord *types.TransactionRecord
+		txProof  *types.TxProof
+	)
+	var nodes []*partitionNode
+	if idx == ANY_VALIDATOR {
+		nodes = part.Nodes
+	} else {
+		nodes = append(nodes, part.Nodes[idx])
+	}
+	if ok := eventually(func() bool {
+		for _, n := range nodes {
+			txRec, proof, err := n.GetTransactionRecord(context.Background(), txOrder.Hash(gocrypto.SHA256))
+			if err != nil || proof == nil {
+				continue
+			}
+			txRecord = txRec
+			txProof = proof
+			return true
+		}
+		return false
+	}, test.WaitDuration, test.WaitTick); ok {
+		return txRecord, txProof, nil
+	}
+	return nil, nil, fmt.Errorf("failed to confirm tx")
+}
+
 // BlockchainContainsTx checks if at least one partition node block contains the given transaction.
 func BlockchainContainsTx(part *NodePartition, tx *types.TransactionOrder) func() bool {
 	return BlockchainContains(part, func(actualTx *types.TransactionOrder) bool {
@@ -444,7 +521,7 @@ func createSigners(count int) ([]crypto.Signer, error) {
 	return signers, nil
 }
 
-func createPeerConfs(ctx context.Context, count int) ([]*network.PeerConfiguration, error) {
+func createPeerConfs(ctx context.Context, count int, log *slog.Logger) ([]*network.PeerConfiguration, error) {
 	var peerConfs = make([]*network.PeerConfiguration, count)
 
 	// generate connection encryption key pairs
@@ -498,29 +575,25 @@ func generateKeyPairs(count int) ([]*network.PeerKeyPair, error) {
 	return keyPairs, nil
 }
 
-func assertConnections(p *network.Peer, count int) error {
+func eventually(condition func() bool, waitFor time.Duration, tick time.Duration) bool {
 	ch := make(chan bool, 1)
 
-	timer := time.NewTimer(2 * time.Second)
+	timer := time.NewTimer(waitFor)
 	defer timer.Stop()
 
-	ticker := time.NewTicker(100 * time.Millisecond)
+	ticker := time.NewTicker(tick)
 	defer ticker.Stop()
 
 	for tick := ticker.C; ; {
 		select {
 		case <-timer.C:
-			return errors.New("network not initialized")
+			return false
 		case <-tick:
 			tick = nil
-			go func() {
-				ch <- func() bool {
-					return len(p.Network().Peers()) >= count
-				}()
-			}()
+			go func() { ch <- condition() }()
 		case v := <-ch:
 			if v {
-				return nil
+				return true
 			}
 			tick = ticker.C
 		}

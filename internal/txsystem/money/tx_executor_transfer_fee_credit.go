@@ -28,7 +28,6 @@ var (
 
 func handleTransferFeeCreditTx(s *state.State, hashAlgorithm crypto.Hash, feeCreditTxRecorder *feeCreditTxRecorder, feeCalc fc.FeeCalculator) txsystem.GenericExecuteFunc[transactions.TransferFeeCreditAttributes] {
 	return func(tx *types.TransactionOrder, attr *transactions.TransferFeeCreditAttributes, currentBlockNumber uint64) (*types.ServerMetadata, error) {
-		log.Debug("Processing transferFC %v", tx)
 		unitID := tx.UnitID()
 		unit, _ := s.GetUnit(unitID, false)
 		if unit == nil {

@@ -79,10 +79,6 @@ func addFeeCreditCmdExec(cmd *cobra.Command, walletConfig *walletConfig, cliConf
 	if err != nil {
 		return err
 	}
-	log, err := walletConfig.Base.Logger(cmd)
-	if err != nil {
-		return err
-	}
 
 	am, err := loadExistingAccountManager(cmd, walletConfig.WalletHomeDir)
 	if err != nil {
@@ -96,7 +92,7 @@ func addFeeCreditCmdExec(cmd *cobra.Command, walletConfig *walletConfig, cliConf
 	}
 	defer unitLocker.Close()
 
-	fm, err := getFeeCreditManager(cmd.Context(), cliConfig, am, unitLocker, moneyBackendURL, log)
+	fm, err := getFeeCreditManager(cmd.Context(), cliConfig, am, unitLocker, moneyBackendURL, walletConfig.Base.Logger)
 	if err != nil {
 		return err
 	}
@@ -126,10 +122,6 @@ func listFeesCmdExec(cmd *cobra.Command, walletConfig *walletConfig, cliConfig *
 	if err != nil {
 		return err
 	}
-	log, err := walletConfig.Base.Logger(cmd)
-	if err != nil {
-		return err
-	}
 
 	am, err := loadExistingAccountManager(cmd, walletConfig.WalletHomeDir)
 	if err != nil {
@@ -143,7 +135,7 @@ func listFeesCmdExec(cmd *cobra.Command, walletConfig *walletConfig, cliConfig *
 	}
 	defer unitLocker.Close()
 
-	fm, err := getFeeCreditManager(cmd.Context(), cliConfig, am, unitLocker, moneyBackendURL, log)
+	fm, err := getFeeCreditManager(cmd.Context(), cliConfig, am, unitLocker, moneyBackendURL, walletConfig.Base.Logger)
 	if err != nil {
 		return err
 	}
@@ -173,10 +165,6 @@ func reclaimFeeCreditCmdExec(cmd *cobra.Command, walletConfig *walletConfig, cli
 	if err != nil {
 		return err
 	}
-	log, err := walletConfig.Base.Logger(cmd)
-	if err != nil {
-		return err
-	}
 
 	am, err := loadExistingAccountManager(cmd, walletConfig.WalletHomeDir)
 	if err != nil {
@@ -190,7 +178,7 @@ func reclaimFeeCreditCmdExec(cmd *cobra.Command, walletConfig *walletConfig, cli
 	}
 	defer unitLocker.Close()
 
-	fm, err := getFeeCreditManager(cmd.Context(), cliConfig, am, unitLocker, moneyBackendURL, log)
+	fm, err := getFeeCreditManager(cmd.Context(), cliConfig, am, unitLocker, moneyBackendURL, walletConfig.Base.Logger)
 	if err != nil {
 		return err
 	}

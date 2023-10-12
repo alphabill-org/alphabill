@@ -27,7 +27,6 @@ import (
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	testfc "github.com/alphabill-org/alphabill/internal/txsystem/fc/testutils"
 	"github.com/alphabill-org/alphabill/internal/txsystem/money"
-	moneytx "github.com/alphabill-org/alphabill/internal/txsystem/money"
 	moneytestutils "github.com/alphabill-org/alphabill/internal/txsystem/money/testutils"
 	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/pkg/wallet/account"
@@ -46,7 +45,7 @@ var (
 func TestCollectDustTimeoutReached(t *testing.T) {
 	log := logger.New(t)
 	// start server
-	initialBill := &moneytx.InitialBill{
+	initialBill := &money.InitialBill{
 		ID:    money.NewBillID(nil, []byte{1}),
 		Value: 10000 * 1e8,
 		Owner: script.PredicateAlwaysTrue(),
@@ -66,7 +65,7 @@ func TestCollectDustTimeoutReached(t *testing.T) {
 	go func() {
 		err := backend.Run(ctx,
 			&backend.Config{
-				ABMoneySystemIdentifier: moneytx.DefaultSystemIdentifier,
+				ABMoneySystemIdentifier: money.DefaultSystemIdentifier,
 				AlphabillUrl:            addr,
 				ServerAddr:              restAddr,
 				DbFile:                  filepath.Join(t.TempDir(), backend.BoltBillStoreFileName),
@@ -161,7 +160,7 @@ wallet account 2 and 3 should have only single bill
 func TestCollectDustInMultiAccountWallet(t *testing.T) {
 	log := logger.New(t)
 	// start network
-	initialBill := &moneytx.InitialBill{
+	initialBill := &money.InitialBill{
 		ID:    money.NewBillID(nil, []byte{1}),
 		Value: 10000 * 1e8,
 		Owner: script.PredicateAlwaysTrue(),
@@ -276,8 +275,8 @@ func TestCollectDustInMultiAccountWallet(t *testing.T) {
 func TestCollectDustInMultiAccountWalletWithKeyFlag(t *testing.T) {
 	log := logger.New(t)
 	// start network
-	initialBill := &moneytx.InitialBill{
-		ID:    moneytx.NewBillID(nil, []byte{1}),
+	initialBill := &money.InitialBill{
+		ID:    money.NewBillID(nil, []byte{1}),
 		Value: 10000 * 1e8,
 		Owner: script.PredicateAlwaysTrue(),
 	}
@@ -384,14 +383,14 @@ func TestCollectDustInMultiAccountWalletWithKeyFlag(t *testing.T) {
 	account3Key, _ := am.GetAccountKey(2)
 	swapTxCount := 0
 	testpartition.BlockchainContains(moneyPart, func(txo *types.TransactionOrder) bool {
-		if txo.PayloadType() != moneytx.PayloadTypeSwapDC {
+		if txo.PayloadType() != money.PayloadTypeSwapDC {
 			return false
 		}
 
 		require.Equal(t, 0, swapTxCount)
 		swapTxCount++
 
-		attrs := &moneytx.SwapDCAttributes{}
+		attrs := &money.SwapDCAttributes{}
 		err = txo.UnmarshalAttributes(attrs)
 		require.NoError(t, err)
 		require.EqualValues(t, script.PredicatePayToPublicKeyHashDefault(account3Key.PubKeyHash.Sha256), attrs.OwnerCondition)
@@ -411,14 +410,15 @@ func sendTo(t *testing.T, w *Wallet, receivers []ReceiverData, fromAccount uint6
 	require.NotNil(t, proof)
 }
 
-func startMoneyOnlyAlphabillPartition(t *testing.T, initialBill *moneytx.InitialBill) *testpartition.AlphabillNetwork {
+func startMoneyOnlyAlphabillPartition(t *testing.T, initialBill *money.InitialBill) *testpartition.AlphabillNetwork {
 	mPart, err := testpartition.NewPartition(t, 1, func(tb map[string]abcrypto.Verifier) txsystem.TransactionSystem {
-		system, err := moneytx.NewTxSystem(
-			moneytx.WithSystemIdentifier(moneytx.DefaultSystemIdentifier),
-			moneytx.WithInitialBill(initialBill),
-			moneytx.WithSystemDescriptionRecords(createSDRs()),
-			moneytx.WithDCMoneyAmount(10000*1e8),
-			moneytx.WithTrustBase(tb),
+		system, err := money.NewTxSystem(
+			logger.New(t),
+			money.WithSystemIdentifier(money.DefaultSystemIdentifier),
+			money.WithInitialBill(initialBill),
+			money.WithSystemDescriptionRecords(createSDRs()),
+			money.WithDCMoneyAmount(10000*1e8),
+			money.WithTrustBase(tb),
 		)
 		require.NoError(t, err)
 		return system

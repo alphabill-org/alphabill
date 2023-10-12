@@ -8,7 +8,6 @@ import (
 	"path/filepath"
 
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
-	"github.com/alphabill-org/alphabill/internal/errors"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/internal/partition"
 	"github.com/alphabill-org/alphabill/internal/script"
@@ -81,14 +80,14 @@ func abMoneyGenesisRunFun(_ context.Context, config *moneyGenesisConfig) error {
 
 	nodeGenesisFile := config.getNodeGenesisFileLocation(moneyPartitionHomePath)
 	if util.FileExists(nodeGenesisFile) {
-		return errors.Errorf("node genesis %s exists", nodeGenesisFile)
+		return fmt.Errorf("node genesis %s exists", nodeGenesisFile)
 	} else if err := os.MkdirAll(filepath.Dir(nodeGenesisFile), 0700); err != nil {
 		return err
 	}
 
 	keys, err := LoadKeys(config.Keys.GetKeyFileLocation(), config.Keys.GenerateKeys, config.Keys.ForceGeneration)
 	if err != nil {
-		return errors.Wrapf(err, "failed to load keys %v", config.Keys.GetKeyFileLocation())
+		return fmt.Errorf("failed to load keys %v: %w", config.Keys.GetKeyFileLocation(), err)
 	}
 	peerID, err := peer.IDFromPublicKey(keys.EncryptionPrivateKey.GetPublic())
 	if err != nil {
@@ -110,6 +109,7 @@ func abMoneyGenesisRunFun(_ context.Context, config *moneyGenesisConfig) error {
 		return err
 	}
 	txSystem, err := money.NewTxSystem(
+		config.Base.Logger,
 		money.WithSystemIdentifier(config.SystemIdentifier),
 		money.WithHashAlgorithm(crypto.SHA256),
 		money.WithInitialBill(ib),

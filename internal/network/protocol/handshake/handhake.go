@@ -2,6 +2,8 @@ package handshake
 
 import (
 	"errors"
+
+	"github.com/alphabill-org/alphabill/internal/types"
 )
 
 var (
@@ -12,7 +14,7 @@ var (
 
 type Handshake struct {
 	_                struct{} `cbor:",toarray"`
-	SystemIdentifier []byte
+	SystemIdentifier types.SystemID
 	NodeIdentifier   string
 }
 
@@ -20,7 +22,7 @@ func (h *Handshake) IsValid() error {
 	if h == nil {
 		return ErrHandshakeIsNil
 	}
-	if len(h.SystemIdentifier) != 4 {
+	if len(h.SystemIdentifier) != types.SystemIdentifierLength {
 		return ErrInvalidSystemIdentifier
 	}
 	if len(h.NodeIdentifier) == 0 {

@@ -81,11 +81,7 @@ func Test_get(t *testing.T) {
 		}
 
 		var data int
-		pos, err := cli.get(
-			context.Background(),
-			&url.URL{Scheme: "http", Host: "localhost:8000", Path: "api/v1/path", RawQuery: "queryParam=foo"},
-			&data,
-			true)
+		pos, err := cli.get(context.Background(), &url.URL{Scheme: "http", Host: "localhost:8000", Path: "api/v1/path", RawQuery: "queryParam=foo"}, &data, true)
 		require.NoError(t, err)
 		require.Empty(t, pos)
 		require.Empty(t, data)
@@ -140,7 +136,7 @@ func Test_get(t *testing.T) {
 		cli := createClient(t, http.StatusBadRequest, `{"message":"not good"}`)
 		var data int
 		pos, err := cli.get(context.Background(), &url.URL{Scheme: "http", Host: "localhost"}, &data, true)
-		require.ErrorIs(t, err, ErrInvalidRequest)
+		require.ErrorIs(t, err, sdk.ErrInvalidRequest)
 		require.EqualError(t, err, `backend responded 400 Bad Request: not good: invalid request`)
 		require.Empty(t, pos)
 		require.Empty(t, data)
@@ -150,7 +146,7 @@ func Test_get(t *testing.T) {
 		cli := createClient(t, http.StatusInternalServerError, `{"message":"not good"}`)
 		var data int
 		pos, err := cli.get(context.Background(), &url.URL{Scheme: "http", Host: "localhost"}, &data, true)
-		require.NotErrorIs(t, err, ErrInvalidRequest, "server side error shouldn't be reported as invalid request error")
+		require.NotErrorIs(t, err, sdk.ErrInvalidRequest, "server side error shouldn't be reported as invalid request error")
 		require.EqualError(t, err, `backend responded 500 Internal Server Error: not good`)
 		require.Empty(t, pos)
 		require.Empty(t, data)
@@ -355,7 +351,7 @@ func Test_GetToken(t *testing.T) {
 		cli := createClient(t, nil)
 		data, err := cli.GetToken(context.Background(), test.RandomBytes(32))
 		require.EqualError(t, err, `get token request failed: no token with this id: not found`)
-		require.ErrorIs(t, err, ErrNotFound)
+		require.ErrorIs(t, err, sdk.ErrNotFound)
 		require.Empty(t, data)
 	})
 
@@ -557,7 +553,7 @@ func Test_GetTypeHierarchy(t *testing.T) {
 		cli := createClient(t, nil)
 		data, err := cli.GetTypeHierarchy(context.Background(), typeID)
 		require.EqualError(t, err, `get token type hierarchy request failed: no type with this id: not found`)
-		require.ErrorIs(t, err, ErrNotFound)
+		require.ErrorIs(t, err, sdk.ErrNotFound)
 		require.Empty(t, data)
 	})
 
@@ -718,7 +714,7 @@ func Test_PostTransactions(t *testing.T) {
 
 		err := cli.PostTransactions(context.Background(), ownerID, &sdk.Transactions{})
 		require.EqualError(t, err, `failed to send transactions: backend responded 400 Bad Request: something is wrong: invalid request`)
-		require.ErrorIs(t, err, ErrInvalidRequest)
+		require.ErrorIs(t, err, sdk.ErrInvalidRequest)
 	})
 
 	t.Run("processing tx failed", func(t *testing.T) {

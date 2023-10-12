@@ -51,16 +51,11 @@ func execTokensBackendStartCmd(ctx context.Context, cmd *cobra.Command, config *
 	if err != nil {
 		return fmt.Errorf("failed to get path for database: %w", err)
 	}
-
-	logger, err := config.Logger(cmd)
-	if err != nil {
-		return fmt.Errorf("getting logger: %w", err)
-	}
 	systemID, err := cmd.Flags().GetBytesHex(systemIdentifierCmdName)
 	if err != nil {
 		return fmt.Errorf("failed to read %s flag value: %w", systemIdentifierCmdName, err)
 	}
-	return backend.Run(ctx, backend.NewConfig(srvAddr, abURL, dbFile, logger, systemID))
+	return backend.Run(ctx, backend.NewConfig(srvAddr, abURL, dbFile, config.Logger, systemID))
 }
 
 /*

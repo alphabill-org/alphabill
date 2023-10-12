@@ -14,7 +14,6 @@ import (
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	testtransaction "github.com/alphabill-org/alphabill/internal/testutils/transaction"
 	"github.com/alphabill-org/alphabill/internal/txsystem/money"
-	billtx "github.com/alphabill-org/alphabill/internal/txsystem/money"
 	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/alphabill-org/alphabill/pkg/wallet"
@@ -30,7 +29,7 @@ func TestDC_OK(t *testing.T) {
 	targetBill := bills[2]
 	backendMockWrapper := newBackendAPIMock(t, bills)
 	unitLocker := unitlock.NewInMemoryUnitLocker()
-	w := NewDustCollector(billtx.DefaultSystemIdentifier, 10, backendMockWrapper.backendMock, unitLocker, logger.New(t))
+	w := NewDustCollector(money.DefaultSystemIdentifier, 10, backendMockWrapper.backendMock, unitLocker, logger.New(t))
 
 	// when dc runs
 	dcResult, err := w.CollectDust(context.Background(), backendMockWrapper.accountKey)
@@ -38,7 +37,7 @@ func TestDC_OK(t *testing.T) {
 	require.NotNil(t, dcResult.SwapProof)
 
 	// then swap contains two dc txs
-	attr := &billtx.SwapDCAttributes{}
+	attr := &money.SwapDCAttributes{}
 	txo := dcResult.SwapProof.TxRecord.TransactionOrder
 	err = txo.UnmarshalAttributes(&attr)
 	require.NoError(t, err)
@@ -58,7 +57,7 @@ func TestDCWontRunForSingleBill(t *testing.T) {
 	bills := []*wallet.Bill{createBill(1)}
 	backendMockWrapper := newBackendAPIMock(t, bills)
 	unitLocker := unitlock.NewInMemoryUnitLocker()
-	w := NewDustCollector(billtx.DefaultSystemIdentifier, 10, backendMockWrapper.backendMock, unitLocker, logger.New(t))
+	w := NewDustCollector(money.DefaultSystemIdentifier, 10, backendMockWrapper.backendMock, unitLocker, logger.New(t))
 
 	// when dc runs
 	dcResult, err := w.CollectDust(context.Background(), backendMockWrapper.accountKey)
@@ -83,7 +82,7 @@ func TestAllBillsAreSwapped_WhenWalletBillCountEqualToMaxBillCount(t *testing.T)
 	targetBill := bills[maxBillsPerDC-1]
 	backendMockWrapper := newBackendAPIMock(t, bills)
 	unitLocker := unitlock.NewInMemoryUnitLocker()
-	w := NewDustCollector(billtx.DefaultSystemIdentifier, maxBillsPerDC, backendMockWrapper.backendMock, unitLocker, logger.New(t))
+	w := NewDustCollector(money.DefaultSystemIdentifier, maxBillsPerDC, backendMockWrapper.backendMock, unitLocker, logger.New(t))
 
 	// when dc runs
 	dcResult, err := w.CollectDust(context.Background(), backendMockWrapper.accountKey)
@@ -94,7 +93,7 @@ func TestAllBillsAreSwapped_WhenWalletBillCountEqualToMaxBillCount(t *testing.T)
 	require.EqualValues(t, targetBill.GetID(), dcResult.SwapProof.TxRecord.TransactionOrder.UnitID())
 
 	// and swap contains correct dc transfers
-	swapAttr := &billtx.SwapDCAttributes{}
+	swapAttr := &money.SwapDCAttributes{}
 	swapTxo := dcResult.SwapProof.TxRecord.TransactionOrder
 	err = swapTxo.UnmarshalAttributes(swapAttr)
 	require.NoError(t, err)
@@ -121,7 +120,7 @@ func TestOnlyFirstNBillsAreSwapped_WhenBillCountOverLimit(t *testing.T) {
 	backendMockWrapper := newBackendAPIMock(t, bills)
 
 	unitLocker := unitlock.NewInMemoryUnitLocker()
-	w := NewDustCollector(billtx.DefaultSystemIdentifier, maxBillsPerDC, backendMockWrapper.backendMock, unitLocker, logger.New(t))
+	w := NewDustCollector(money.DefaultSystemIdentifier, maxBillsPerDC, backendMockWrapper.backendMock, unitLocker, logger.New(t))
 
 	// when dc runs
 	dcResult, err := w.CollectDust(context.Background(), backendMockWrapper.accountKey)
@@ -130,7 +129,7 @@ func TestOnlyFirstNBillsAreSwapped_WhenBillCountOverLimit(t *testing.T) {
 
 	// then swap contains correct dc transfers
 	swapTxo := dcResult.SwapProof.TxRecord.TransactionOrder
-	swapAttr := &billtx.SwapDCAttributes{}
+	swapAttr := &money.SwapDCAttributes{}
 	err = swapTxo.UnmarshalAttributes(swapAttr)
 	require.EqualValues(t, targetBill.GetID(), swapTxo.UnitID())
 	require.NoError(t, err)
@@ -161,7 +160,7 @@ func TestExistingDC_OK(t *testing.T) {
 	}
 	backendMockWrapper := newBackendAPIMock(t, bills, withProofs(proofs))
 	unitLocker := unitlock.NewInMemoryUnitLocker()
-	w := NewDustCollector(billtx.DefaultSystemIdentifier, 10, backendMockWrapper.backendMock, unitLocker, logger.New(t))
+	w := NewDustCollector(money.DefaultSystemIdentifier, 10, backendMockWrapper.backendMock, unitLocker, logger.New(t))
 
 	// when locked unit exists in wallet
 	err := unitLocker.LockUnit(unitlock.NewLockedUnit(
@@ -178,7 +177,7 @@ func TestExistingDC_OK(t *testing.T) {
 	require.NotNil(t, dcResult.SwapProof)
 
 	// existing dc bills should be swapped into the locked bill
-	attr := &billtx.SwapDCAttributes{}
+	attr := &money.SwapDCAttributes{}
 	txo := dcResult.SwapProof.TxRecord.TransactionOrder
 	err = txo.UnmarshalAttributes(attr)
 	require.NoError(t, err)
@@ -204,7 +203,7 @@ func TestExistingDC_UnconfirmedDCTxs_NewSwapIsSent(t *testing.T) {
 	targetBill := bills[2]
 	backendMockWrapper := newBackendAPIMock(t, bills)
 	unitLocker := unitlock.NewInMemoryUnitLocker()
-	w := NewDustCollector(billtx.DefaultSystemIdentifier, 10, backendMockWrapper.backendMock, unitLocker, logger.New(t))
+	w := NewDustCollector(money.DefaultSystemIdentifier, 10, backendMockWrapper.backendMock, unitLocker, logger.New(t))
 
 	// when locked unit exists in wallet
 	err := unitLocker.LockUnit(unitlock.NewLockedUnit(
@@ -221,7 +220,7 @@ func TestExistingDC_UnconfirmedDCTxs_NewSwapIsSent(t *testing.T) {
 	require.NotNil(t, dcResult.SwapProof)
 
 	// then new swap should be sent
-	attr := &billtx.SwapDCAttributes{}
+	attr := &money.SwapDCAttributes{}
 	txo := dcResult.SwapProof.TxRecord.TransactionOrder
 	err = txo.UnmarshalAttributes(attr)
 	require.NoError(t, err)
@@ -244,7 +243,7 @@ func TestExistingDC_TargetUnitSwapIsConfirmed_ProofIsReturned(t *testing.T) {
 	proofs := []*wallet.Proof{createProofWithSwapTx(t, targetBill)}
 	backendMockWrapper := newBackendAPIMock(t, bills, withProofs(proofs))
 	unitLocker := unitlock.NewInMemoryUnitLocker()
-	w := NewDustCollector(billtx.DefaultSystemIdentifier, 10, backendMockWrapper.backendMock, unitLocker, logger.New(t))
+	w := NewDustCollector(money.DefaultSystemIdentifier, 10, backendMockWrapper.backendMock, unitLocker, logger.New(t))
 
 	err := unitLocker.LockUnit(unitlock.NewLockedUnit(
 		backendMockWrapper.accountKey.PubKey,
@@ -286,7 +285,7 @@ func TestExistingDC_TargetUnitIsInvalid_NewSwapIsSent(t *testing.T) {
 	}
 	backendMockWrapper := newBackendAPIMock(t, bills, withProofs(proofs))
 	unitLocker := unitlock.NewInMemoryUnitLocker()
-	w := NewDustCollector(billtx.DefaultSystemIdentifier, 10, backendMockWrapper.backendMock, unitLocker, logger.New(t))
+	w := NewDustCollector(money.DefaultSystemIdentifier, 10, backendMockWrapper.backendMock, unitLocker, logger.New(t))
 
 	// lock target bill, but change tx hash so that locked unit is considered invalid
 	err := unitLocker.LockUnit(unitlock.NewLockedUnit(
@@ -303,7 +302,7 @@ func TestExistingDC_TargetUnitIsInvalid_NewSwapIsSent(t *testing.T) {
 	require.NotNil(t, dcResult.SwapProof)
 
 	// then new swap should be sent using only the normal bill
-	attr := &billtx.SwapDCAttributes{}
+	attr := &money.SwapDCAttributes{}
 	txo := dcResult.SwapProof.TxRecord.TransactionOrder
 	err = txo.UnmarshalAttributes(attr)
 	require.NoError(t, err)
@@ -327,7 +326,7 @@ func TestExistingDC_DCOnSecondAccountDoesNotClearFirstAccountUnitLock(t *testing
 	backendMockWrapper := newBackendAPIMock(t, bills)
 	unitLocker := unitlock.NewInMemoryUnitLocker()
 
-	w := NewDustCollector(billtx.DefaultSystemIdentifier, maxBillsForDustCollection, backendMockWrapper.backendMock, unitLocker, logger.New(t))
+	w := NewDustCollector(money.DefaultSystemIdentifier, maxBillsForDustCollection, backendMockWrapper.backendMock, unitLocker, logger.New(t))
 
 	// lock random bill before swap
 	lockedUnit := unitlock.NewLockedUnit([]byte{200}, []byte{1}, []byte{2}, unitlock.LockReasonCollectDust)
@@ -461,8 +460,8 @@ func createProofWithDCTx(t *testing.T, b *wallet.Bill, targetBill *wallet.Bill, 
 func createProofWithSwapTx(t *testing.T, b *wallet.Bill) *wallet.Proof {
 	txo := testtransaction.NewTransactionOrder(t,
 		testtransaction.WithUnitId(b.GetID()),
-		testtransaction.WithPayloadType(billtx.PayloadTypeSwapDC),
-		testtransaction.WithAttributes(billtx.SwapDCAttributes{}),
+		testtransaction.WithPayloadType(money.PayloadTypeSwapDC),
+		testtransaction.WithAttributes(money.SwapDCAttributes{}),
 	)
 	return createProofForTx(txo)
 }

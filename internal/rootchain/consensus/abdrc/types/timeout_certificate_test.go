@@ -168,7 +168,7 @@ func TestTimeoutCert_Verify(t *testing.T) {
 			break
 		}
 		err := tc.Verify(3, trustBase)
-		require.ErrorContains(t, err, `timeout certificate signature verification failed: signature verify failed`)
+		require.ErrorContains(t, err, `timeout certificate signature verification failed: verification failed`)
 	})
 
 	t.Run("unknown signer", func(t *testing.T) {
@@ -302,7 +302,7 @@ func Test_Timeout_Verify(t *testing.T) {
 		tc := sb.TimeoutCert(t)
 		timeout := sb.Timeout(t, tc)
 		tc.Timeout.Epoch += 1 // epoch is part of signature so changing it should make it invalid
-		require.ErrorContains(t, timeout.Verify(3, rootTrust), `invalid last TC: timeout certificate signature verification failed: signature verify failed`)
+		require.ErrorContains(t, timeout.Verify(3, rootTrust), `invalid last TC: timeout certificate signature verification failed: verification failed`)
 	})
 }
 

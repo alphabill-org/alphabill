@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/alphabill-org/alphabill/internal/network/protocol"
 	"github.com/alphabill-org/alphabill/internal/rootchain/consensus"
 	"github.com/alphabill-org/alphabill/internal/rootchain/consensus/abdrc/storage"
 	abtypes "github.com/alphabill-org/alphabill/internal/rootchain/consensus/abdrc/types"
@@ -15,8 +14,8 @@ import (
 
 type (
 	State interface {
-		GetCertificates() map[protocol.SystemIdentifier]*types.UnicityCertificate
-		IsChangeInProgress(id protocol.SystemIdentifier) bool
+		GetCertificates() map[types.SystemID32]*types.UnicityCertificate
+		IsChangeInProgress(id types.SystemID32) bool
 	}
 
 	IRChangeReqVerifier struct {
@@ -59,16 +58,16 @@ func (x *IRChangeReqVerifier) VerifyIRChangeReq(round uint64, irChReq *abtypes.I
 	}
 	// Certify input, everything needs to be verified again as if received from partition node, since we cannot trust the leader is honest
 	// Remember all partitions that have changes in the current proposal and apply changes
-	sysID := protocol.SystemIdentifier(irChReq.SystemIdentifier)
+	sysID := irChReq.SystemIdentifier
 	// verify that there are no pending changes in the pipeline for any of the updated partitions
 	if x.state.IsChangeInProgress(sysID) {
-		return nil, fmt.Errorf("add state failed: partition %X has pending changes in pipeline", sysID.Bytes())
+		return nil, fmt.Errorf("add state failed: partition %s has pending changes in pipeline", sysID)
 	}
 	ucs := x.state.GetCertificates()
 	// verify certification Request
 	luc, found := ucs[sysID]
 	if !found {
-		return nil, fmt.Errorf("ir change request verification error, partition %X last certificate not found", sysID)
+		return nil, fmt.Errorf("ir change request verification error, partition %s last certificate not found", sysID)
 	}
 	if round < luc.UnicitySeal.RootChainRoundNumber {
 		return nil, fmt.Errorf("error, current round %v is in the past, luc round %v", round, luc.UnicitySeal.RootChainRoundNumber)
@@ -77,12 +76,12 @@ func (x *IRChangeReqVerifier) VerifyIRChangeReq(round uint64, irChReq *abtypes.I
 	// Find if the SystemIdentifier is known by partition store
 	sysDesRecord, tb, err := x.partitions.GetInfo(sysID)
 	if err != nil {
-		return nil, fmt.Errorf("invalid payload: unknown partition %X", sysID.Bytes())
+		return nil, fmt.Errorf("invalid payload: unknown partition %s", sysID)
 	}
 	// verify request
 	inputRecord, err := irChReq.Verify(tb, luc, round, t2TimeoutToRootRounds(sysDesRecord.T2Timeout, x.params.BlockRateMs/2))
 	if err != nil {
-		return nil, fmt.Errorf("invalid payload: partition %X certification request verifiaction failed %w", sysID.Bytes(), err)
+		return nil, fmt.Errorf("invalid payload: partition %s certification request verifiaction failed %w", sysID, err)
 	}
 	return &storage.InputData{SysID: irChReq.SystemIdentifier, IR: inputRecord, Sdrh: sysDesRecord.Hash(x.params.HashAlgorithm)}, nil
 }
@@ -104,9 +103,9 @@ func NewLucBasedT2TimeoutGenerator(c *consensus.Parameters, pInfo partitions.Par
 	}, nil
 }
 
-func (x *PartitionTimeoutGenerator) GetT2Timeouts(currentRound uint64) ([]protocol.SystemIdentifier, error) {
+func (x *PartitionTimeoutGenerator) GetT2Timeouts(currentRound uint64) ([]types.SystemID32, error) {
 	ucs := x.state.GetCertificates()
-	timeoutIds := make([]protocol.SystemIdentifier, 0, len(ucs))
+	timeoutIds := make([]types.SystemID32, 0, len(ucs))
 	var err error
 	for id, cert := range ucs {
 		if x.state.IsChangeInProgress(id) {

@@ -13,7 +13,6 @@ import (
 	"github.com/alphabill-org/alphabill/internal/script"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/alphabill-org/alphabill/internal/testutils/logger"
-	"github.com/alphabill-org/alphabill/internal/txsystem/tokens"
 	ttxs "github.com/alphabill-org/alphabill/internal/txsystem/tokens"
 	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/internal/util"
@@ -190,6 +189,7 @@ func Test_ListTokenTypes(t *testing.T) {
 	require.NoError(t, err)
 
 	types, err = tw.ListTokenTypes(context.Background(), 2, backend.Any)
+	require.NoError(t, err)
 	require.Len(t, types, 0)
 }
 
@@ -279,7 +279,7 @@ func TestNewTypes(t *testing.T) {
 	tw := initTestWallet(t, be)
 
 	t.Run("fungible type", func(t *testing.T) {
-		typeId := tokens.NewFungibleTokenTypeID(nil, test.RandomBytes(32))
+		typeId := ttxs.NewFungibleTokenTypeID(nil, test.RandomBytes(32))
 		a := CreateFungibleTokenTypeAttributes{
 			Symbol:                   "AB",
 			Name:                     "Long name for AB",
@@ -325,16 +325,16 @@ func TestNewTypes(t *testing.T) {
 		require.ErrorContains(t, err, "invalid token type ID: expected hex length is 66 characters (33 bytes)")
 
 		//check typeId unit type validation
-		_, err = tw.NewFungibleType(context.Background(), 1, a, make([]byte, tokens.UnitIDLength), nil)
+		_, err = tw.NewFungibleType(context.Background(), 1, a, make([]byte, ttxs.UnitIDLength), nil)
 		require.ErrorContains(t, err, "invalid token type ID: expected unit type is 0x20")
 
 		//check typeId generation if typeId parameter is nil
 		result, _ = tw.NewFungibleType(context.Background(), 1, a, nil, nil)
-		require.True(t, result.TokenTypeID.HasType(tokens.FungibleTokenTypeUnitType))
+		require.True(t, result.TokenTypeID.HasType(ttxs.FungibleTokenTypeUnitType))
 	})
 
 	t.Run("non-fungible type", func(t *testing.T) {
-		typeId := tokens.NewNonFungibleTokenTypeID(nil, test.RandomBytes(32))
+		typeId := ttxs.NewNonFungibleTokenTypeID(nil, test.RandomBytes(32))
 		a := CreateNonFungibleTokenTypeAttributes{
 			Symbol:                   "ABNFT",
 			Name:                     "Long name for ABNFT",
@@ -362,12 +362,12 @@ func TestNewTypes(t *testing.T) {
 		require.ErrorContains(t, err, "invalid token type ID: expected hex length is 66 characters (33 bytes)")
 
 		//check typeId unit type validation
-		_, err = tw.NewNonFungibleType(context.Background(), 1, a, make([]byte, tokens.UnitIDLength), nil)
+		_, err = tw.NewNonFungibleType(context.Background(), 1, a, make([]byte, ttxs.UnitIDLength), nil)
 		require.ErrorContains(t, err, "invalid token type ID: expected unit type is 0x22")
 
 		//check typeId generation if typeId parameter is nil
 		result, _ = tw.NewNonFungibleType(context.Background(), 1, a, nil, nil)
-		require.True(t, result.TokenTypeID.HasType(tokens.NonFungibleTokenTypeUnitType))
+		require.True(t, result.TokenTypeID.HasType(ttxs.NonFungibleTokenTypeUnitType))
 	})
 }
 

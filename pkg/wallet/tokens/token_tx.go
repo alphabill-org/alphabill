@@ -9,14 +9,12 @@ import (
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/hash"
 	"github.com/alphabill-org/alphabill/internal/script"
-	"github.com/alphabill-org/alphabill/internal/txsystem/tokens"
 	ttxs "github.com/alphabill-org/alphabill/internal/txsystem/tokens"
 	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/alphabill-org/alphabill/pkg/wallet/account"
 	"github.com/alphabill-org/alphabill/pkg/wallet/money/tx_builder"
 	"github.com/alphabill-org/alphabill/pkg/wallet/tokens/backend"
-	twb "github.com/alphabill-org/alphabill/pkg/wallet/tokens/backend"
 	"github.com/alphabill-org/alphabill/pkg/wallet/txsubmitter"
 	"github.com/fxamacker/cbor/v2"
 )
@@ -133,7 +131,7 @@ func (w *Wallet) prepareTxSubmission(ctx context.Context, payloadType string, at
 	if err != nil {
 		return nil, err
 	}
-	tx := createTx(w.systemID, payloadType, unitId, roundNumber+txTimeoutRoundCount, tokens.NewFeeCreditRecordID(nil, ac.PubKeyHash.Sha256))
+	tx := createTx(w.systemID, payloadType, unitId, roundNumber+txTimeoutRoundCount, ttxs.NewFeeCreditRecordID(nil, ac.PubKeyHash.Sha256))
 	if txps != nil {
 		// set fields before tx is signed
 		err = txps(tx)
@@ -288,7 +286,7 @@ func (w *Wallet) doSendMultiple(ctx context.Context, amount uint64, tokens []*ba
 	return &SubmissionResult{FeeSum: feeSum}, err
 }
 
-func (w *Wallet) prepareSplitOrTransferTx(ctx context.Context, acc *account.AccountKey, amount uint64, token *twb.TokenUnit, receiverPubKey []byte, invariantPredicateArgs []*PredicateInput, rn roundNumberFetcher) (*txsubmitter.TxSubmission, error) {
+func (w *Wallet) prepareSplitOrTransferTx(ctx context.Context, acc *account.AccountKey, amount uint64, token *backend.TokenUnit, receiverPubKey []byte, invariantPredicateArgs []*PredicateInput, rn roundNumberFetcher) (*txsubmitter.TxSubmission, error) {
 	var attrs AttrWithInvariantPredicateInputs
 	var payloadType string
 	if amount >= token.Amount {

@@ -6,7 +6,6 @@ import (
 	"testing"
 
 	"github.com/alphabill-org/alphabill/internal/keyvaluedb/memorydb"
-	"github.com/alphabill-org/alphabill/internal/network/protocol"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 	abtypes "github.com/alphabill-org/alphabill/internal/rootchain/consensus/abdrc/types"
 	"github.com/alphabill-org/alphabill/internal/types"
@@ -26,13 +25,12 @@ func NewAlwaysOkBlockVerifier(bStore *BlockStore) *MockAlwaysOkBlockVerifier {
 func (m *MockAlwaysOkBlockVerifier) VerifyIRChangeReq(_ uint64, irChReq *abtypes.IRChangeReq) (*InputData, error) {
 	// Certify input, everything needs to be verified again as if received from partition node, since we cannot trust the leader is honest
 	// Remember all partitions that have changes in the current proposal and apply changes
-	id := protocol.SystemIdentifier(irChReq.SystemIdentifier)
 	// verify that there are no pending changes in the pipeline for any of the updated partitions
 	ucs := m.blockStore.GetCertificates()
 	// verify certification Request
-	luc, found := ucs[id]
+	luc, found := ucs[irChReq.SystemIdentifier]
 	if !found {
-		return nil, fmt.Errorf("invalid payload: partition %X state is missing", id.Bytes())
+		return nil, fmt.Errorf("invalid payload: partition %s state is missing", irChReq.SystemIdentifier)
 	}
 	switch irChReq.CertReason {
 	case abtypes.Quorum:
@@ -56,7 +54,7 @@ func TestNewBlockStoreFromGenesis(t *testing.T) {
 	bStore := initBlockStoreFromGenesis(t)
 	hQc := bStore.GetHighQc()
 	require.Equal(t, uint64(1), hQc.VoteInfo.RoundNumber)
-	require.False(t, bStore.IsChangeInProgress(protocol.SystemIdentifier(sysID1)))
+	require.False(t, bStore.IsChangeInProgress(sysID1))
 	rh, err := bStore.GetBlockRootHash(1)
 	require.NoError(t, err)
 	require.Len(t, rh, 32)

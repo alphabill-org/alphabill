@@ -65,7 +65,7 @@ func (x *RootGenesis) IsValid() error {
 	alg := gocrypto.Hash(x.Root.Consensus.HashAlgorithm)
 	trustBase, err := NewValidatorTrustBase(x.Root.RootValidators)
 	if err != nil {
-		return fmt.Errorf("failed to create trust base from root validators: %w", err)
+		return fmt.Errorf("creating validator trustbase: %w", err)
 	}
 	for _, p := range x.Partitions {
 		if err = p.IsValid(trustBase, alg); err != nil {

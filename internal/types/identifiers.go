@@ -2,13 +2,19 @@ package types
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 
 	"github.com/alphabill-org/alphabill/internal/util"
 )
 
+var ErrInvalidSystemIdentifier = errors.New("error invalid system identifier")
+
+const SystemIdentifierLength = 4
+
 type SystemID []byte
-type UnitID   []byte
+type SystemID32 uint32
+type UnitID []byte
 
 // NewUnitID creates a new UnitID consisting of a shardPart, unitPart and typePart.
 func NewUnitID(unitIDLength int, shardPart []byte, unitPart []byte, typePart []byte) UnitID {
@@ -49,4 +55,19 @@ func (uid UnitID) Eq(id UnitID) bool {
 
 func (uid UnitID) HasType(typePart []byte) bool {
 	return bytes.HasSuffix(uid, typePart)
+}
+
+func (sid SystemID) Id32() (SystemID32, error) {
+	if len(sid) != SystemIdentifierLength {
+		return 0, ErrInvalidSystemIdentifier
+	}
+	return SystemID32(util.BytesToUint32(sid)), nil
+}
+
+func (sid SystemID32) ToSystemID() SystemID {
+	return util.Uint32ToBytes(uint32(sid))
+}
+
+func (sid SystemID32) String() string {
+	return fmt.Sprintf("%08X", uint32(sid))
 }

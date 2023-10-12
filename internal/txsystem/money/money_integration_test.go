@@ -89,7 +89,7 @@ func TestPartition_Ok(t *testing.T) {
 	remainingValue := total - fcrAmount - amountPK2
 	tx := createSplitTx(t, initialBill.ID, transferInitialBillTxRecord, []*TargetUnit{targetUnit}, remainingValue)
 	require.NoError(t, moneyPrt.SubmitTx(tx))
-	txRecord, _, err = testpartition.WaitTxProof(t, moneyPrt, 2, tx)
+	_, _, err = testpartition.WaitTxProof(t, moneyPrt, 2, tx)
 	require.NoError(t, err, "money split tx failed")
 	feeCredit, err = s.GetUnit(fcrID, true)
 	require.NoError(t, err)

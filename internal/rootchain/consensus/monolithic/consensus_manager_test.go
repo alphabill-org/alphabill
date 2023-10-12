@@ -12,7 +12,6 @@ import (
 	"github.com/alphabill-org/alphabill/internal/keyvaluedb"
 	"github.com/alphabill-org/alphabill/internal/keyvaluedb/boltdb"
 	"github.com/alphabill-org/alphabill/internal/keyvaluedb/memorydb"
-	"github.com/alphabill-org/alphabill/internal/network/protocol"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/certification"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/internal/rootchain/consensus"
@@ -75,16 +74,16 @@ func TestConsensusManager_checkT2Timeout(t *testing.T) {
 	require.NoError(t, err)
 	store := NewStateStore(memorydb.New())
 	// store mock state
-	certs := map[protocol.SystemIdentifier]*types.UnicityCertificate{
-		protocol.SystemIdentifier(sysID0): {
+	certs := map[types.SystemID32]*types.UnicityCertificate{
+		types.SystemID32(0): {
 			InputRecord:            &types.InputRecord{Hash: []byte{1, 1}, PreviousHash: []byte{1, 1}, BlockHash: []byte{2, 3}, SummaryValue: []byte{3, 4}},
 			UnicityTreeCertificate: &types.UnicityTreeCertificate{},
 			UnicitySeal:            &types.UnicitySeal{RootChainRoundNumber: 3}}, // no timeout (5 - 3) * 900 = 1800 ms
-		protocol.SystemIdentifier(sysID1): {
+		types.SystemID32(1): {
 			InputRecord:            &types.InputRecord{Hash: []byte{1, 2}, PreviousHash: []byte{1, 1}, BlockHash: []byte{2, 3}, SummaryValue: []byte{3, 4}},
 			UnicityTreeCertificate: &types.UnicityTreeCertificate{},
 			UnicitySeal:            &types.UnicitySeal{RootChainRoundNumber: 2}}, // timeout (5 - 2) * 900 = 2700 ms
-		protocol.SystemIdentifier(sysID2): {
+		types.SystemID32(2): {
 			InputRecord:            &types.InputRecord{Hash: []byte{1, 3}, PreviousHash: []byte{1, 1}, BlockHash: []byte{2, 3}, SummaryValue: []byte{3, 4}},
 			UnicityTreeCertificate: &types.UnicityTreeCertificate{},
 			UnicitySeal:            &types.UnicitySeal{RootChainRoundNumber: 4}}, // no timeout
@@ -99,18 +98,20 @@ func TestConsensusManager_checkT2Timeout(t *testing.T) {
 		},
 		partitions: partitions,
 		stateStore: store,
-		ir: map[protocol.SystemIdentifier]*types.InputRecord{
-			protocol.SystemIdentifier(sysID0): {Hash: []byte{0, 1}, PreviousHash: []byte{0, 0}, BlockHash: []byte{1, 2}, SummaryValue: []byte{2, 3}},
-			protocol.SystemIdentifier(sysID1): {Hash: []byte{0, 1}, PreviousHash: []byte{0, 0}, BlockHash: []byte{1, 2}, SummaryValue: []byte{2, 3}},
-			protocol.SystemIdentifier(sysID2): {Hash: []byte{0, 1}, PreviousHash: []byte{0, 0}, BlockHash: []byte{1, 2}, SummaryValue: []byte{2, 3}},
+		ir: map[types.SystemID32]*types.InputRecord{
+			types.SystemID32(0): {Hash: []byte{0, 1}, PreviousHash: []byte{0, 0}, BlockHash: []byte{1, 2}, SummaryValue: []byte{2, 3}},
+			types.SystemID32(1): {Hash: []byte{0, 1}, PreviousHash: []byte{0, 0}, BlockHash: []byte{1, 2}, SummaryValue: []byte{2, 3}},
+			types.SystemID32(2): {Hash: []byte{0, 1}, PreviousHash: []byte{0, 0}, BlockHash: []byte{1, 2}, SummaryValue: []byte{2, 3}},
 		},
-		changes: map[protocol.SystemIdentifier]*types.InputRecord{},
+		changes: map[types.SystemID32]*types.InputRecord{},
 		log:     testlogger.New(t),
 	}
 	require.NoError(t, manager.checkT2Timeout(5))
 	// if round is 900ms then timeout of 2500 is reached in 3 * 900ms rounds, which is 2700ms
 	require.Equal(t, 1, len(manager.changes))
-	require.Contains(t, manager.changes, protocol.SystemIdentifier(sysID1))
+	sysID32, err := sysID1.Id32()
+	require.NoError(t, err)
+	require.Contains(t, manager.changes, sysID32)
 }
 
 func TestConsensusManager_NormalOperation(t *testing.T) {
@@ -135,8 +136,10 @@ func TestConsensusManager_NormalOperation(t *testing.T) {
 	}
 	requests[0] = testutils.CreateBlockCertificationRequest(t, newIR, partitionID, partitionNodes[0])
 	requests[1] = testutils.CreateBlockCertificationRequest(t, newIR, partitionID, partitionNodes[1])
+	partID32, err := partitionID.Id32()
+	require.NoError(t, err)
 	req := consensus.IRChangeRequest{
-		SystemIdentifier: partitionID,
+		SystemIdentifier: partID32,
 		Reason:           consensus.Quorum,
 		Requests:         requests}
 	// submit IR change request from partition with quorum
@@ -150,12 +153,14 @@ func TestConsensusManager_NormalOperation(t *testing.T) {
 	trustBase := map[string]crypto.Verifier{rootNode.Peer.ID().String(): rootNode.Verifier}
 	sdrh := rg.Partitions[0].GetSystemDescriptionRecord().Hash(gocrypto.SHA256)
 	require.NoError(t, result.IsValid(trustBase, gocrypto.SHA256, partitionID, sdrh))
-	cert, err := cm.GetLatestUnicityCertificate(partitionID)
+	id, err := partitionID.Id32()
+	require.NoError(t, err)
+	cert, err := cm.GetLatestUnicityCertificate(id)
 	require.NoError(t, err)
 	require.Equal(t, cert, result)
 
 	// ask for non-existing cert
-	cert, err = cm.GetLatestUnicityCertificate([]byte{0, 0, 0, 10})
+	cert, err = cm.GetLatestUnicityCertificate(types.SystemID32(10))
 	require.ErrorContains(t, err, "find certificate for system id 0000000A failed, id 0000000A not in DB")
 	require.Nil(t, cert)
 }
@@ -177,8 +182,10 @@ func TestConsensusManager_PersistFails(t *testing.T) {
 	}
 	requests[0] = testutils.CreateBlockCertificationRequest(t, newIR, partitionID, partitionNodes[0])
 	requests[1] = testutils.CreateBlockCertificationRequest(t, newIR, partitionID, partitionNodes[1])
+	partID32, err := partitionID.Id32()
+	require.NoError(t, err)
 	req := &consensus.IRChangeRequest{
-		SystemIdentifier: partitionID,
+		SystemIdentifier: partID32,
 		Reason:           consensus.Quorum,
 		Requests:         requests}
 	// set db to simulate error
@@ -186,13 +193,13 @@ func TestConsensusManager_PersistFails(t *testing.T) {
 	// submit IR change request from partition with quorum
 	require.NoError(t, cm.onIRChangeReq(req))
 	require.Equal(t, uint64(1), cm.round)
-	cert, err := cm.GetLatestUnicityCertificate(partitionID)
+	cert, err := cm.GetLatestUnicityCertificate(partID32)
 	require.NoError(t, err)
 	// simulate T3 timeout
 	cm.onT3Timeout(context.Background())
 	// due to DB persist error round is not incremented and will be repeated
 	require.Equal(t, uint64(1), cm.round)
-	certNow, err := cm.GetLatestUnicityCertificate(partitionID)
+	certNow, err := cm.GetLatestUnicityCertificate(partID32)
 	require.NoError(t, err)
 
 	require.Equal(t, cert, certNow)
@@ -229,7 +236,9 @@ func TestConsensusManager_PartitionTimeout(t *testing.T) {
 
 	// make sure that 3 partition nodes where generated, needed for the next steps
 	require.Len(t, partitionNodes, 3)
-	cert, err := cm.GetLatestUnicityCertificate(partitionID)
+	partID32, err := partitionID.Id32()
+	require.NoError(t, err)
+	cert, err := cm.GetLatestUnicityCertificate(partID32)
 	require.NoError(t, err)
 	require.NotNil(t, cert)
 	require.Equal(t, cert.InputRecord.Bytes(), partitionInputRecord.Bytes())

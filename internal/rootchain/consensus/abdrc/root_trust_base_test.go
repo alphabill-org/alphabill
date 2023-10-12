@@ -199,7 +199,7 @@ func TestRootNodeTrustBase_VerifyBytes(t *testing.T) {
 	require.ErrorContains(t, verifier.VerifyBytes(bytes, sig, "N"), "no public key exist for node id")
 	// modify bytes, so signature becomes invalid
 	bytes = append(bytes, 1)
-	require.ErrorContains(t, verifier.VerifyBytes(bytes, sig, "0"), "signature verify failed")
+	require.ErrorContains(t, verifier.VerifyBytes(bytes, sig, "0"), "verification failed")
 }
 
 func TestRootNodeTrustBase_VerifyQuorumSignatures(t *testing.T) {

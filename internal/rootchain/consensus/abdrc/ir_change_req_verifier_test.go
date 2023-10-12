@@ -5,7 +5,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/alphabill-org/alphabill/internal/network/protocol"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/internal/rootchain/consensus"
 	"github.com/alphabill-org/alphabill/internal/rootchain/consensus/abdrc/storage"
@@ -18,13 +17,13 @@ import (
 
 type (
 	MockState struct {
-		inProgress []protocol.SystemIdentifier
+		inProgress []types.SystemID32
 	}
 )
 
-func (s *MockState) GetCertificates() map[protocol.SystemIdentifier]*types.UnicityCertificate {
-	return map[protocol.SystemIdentifier]*types.UnicityCertificate{
-		protocol.SystemIdentifier(sysID1): {
+func (s *MockState) GetCertificates() map[types.SystemID32]*types.UnicityCertificate {
+	return map[types.SystemID32]*types.UnicityCertificate{
+		types.SystemID32(1): {
 			InputRecord:            &types.InputRecord{},
 			UnicityTreeCertificate: &types.UnicityTreeCertificate{},
 			UnicitySeal: &types.UnicitySeal{
@@ -34,7 +33,7 @@ func (s *MockState) GetCertificates() map[protocol.SystemIdentifier]*types.Unici
 	}
 }
 
-func (s *MockState) IsChangeInProgress(id protocol.SystemIdentifier) bool {
+func (s *MockState) IsChangeInProgress(id types.SystemID32) bool {
 	for _, sysId := range s.inProgress {
 		if sysId == id {
 			return true
@@ -83,7 +82,7 @@ func TestIRChangeReqVerifier_VerifyIRChangeReq(t *testing.T) {
 			fields: fields{
 				c:        &consensus.Parameters{BlockRateMs: 500 * time.Millisecond},
 				pInfo:    conf,
-				sMonitor: &MockState{inProgress: []protocol.SystemIdentifier{protocol.SystemIdentifier(sysID1)}}},
+				sMonitor: &MockState{inProgress: []types.SystemID32{sysID1}}},
 			args: args{round: 1, irChReq: &abtypes.IRChangeReq{
 				SystemIdentifier: sysID1,
 			}},
@@ -250,7 +249,7 @@ func TestPartitionTimeoutGenerator_GetT2Timeouts(t *testing.T) {
 	genesisPartitions := []*genesis.GenesisPartitionRecord{
 		{
 			SystemDescriptionRecord: &genesis.SystemDescriptionRecord{
-				SystemIdentifier: sysID1,
+				SystemIdentifier: sysID1.ToSystemID(),
 				T2Timeout:        2500,
 			},
 			Nodes: []*genesis.PartitionNode{
@@ -264,28 +263,28 @@ func TestPartitionTimeoutGenerator_GetT2Timeouts(t *testing.T) {
 		name   string
 		fields fields
 		args   args
-		want   []protocol.SystemIdentifier
+		want   []types.SystemID32
 	}{
 		{
 			name:   "no timeout",
 			fields: fields{c: &consensus.Parameters{BlockRateMs: 500 * time.Millisecond}, pInfo: conf, sMonitor: &MockState{}},
 			args:   args{currentRound: 11}, // last certified round is 1 then 11 - 1 = 10 we have not heard from partition in 10 rounds ~ at minimum 2500 ms not yet timeout
-			want:   []protocol.SystemIdentifier{},
+			want:   []types.SystemID32{},
 		},
 		{
 			name:   "timeout - 6 round since last UC",
 			fields: fields{c: &consensus.Parameters{BlockRateMs: 500 * time.Millisecond}, pInfo: conf, sMonitor: &MockState{}},
 			args:   args{currentRound: 12}, // last certified round is 1 then 12 - 1 = 11 we have not heard from partition in 12 rounds ~ at minimum 2750 ms not yet timeout
-			want:   []protocol.SystemIdentifier{protocol.SystemIdentifier(sysID1)},
+			want:   []types.SystemID32{sysID1},
 		},
 		{
 			name: "no timeout - 6 round since last UC, change already in progress",
 			fields: fields{
 				c:        &consensus.Parameters{BlockRateMs: 500 * time.Millisecond},
 				pInfo:    conf,
-				sMonitor: &MockState{inProgress: []protocol.SystemIdentifier{protocol.SystemIdentifier(sysID1)}}},
+				sMonitor: &MockState{inProgress: []types.SystemID32{sysID1}}},
 			args: args{currentRound: 7},
-			want: []protocol.SystemIdentifier{},
+			want: []types.SystemID32{},
 		},
 	}
 	for _, tt := range tests {
@@ -295,7 +294,7 @@ func TestPartitionTimeoutGenerator_GetT2Timeouts(t *testing.T) {
 				state:      tt.fields.sMonitor,
 				partitions: tt.fields.pInfo,
 			}
-			var tmos []protocol.SystemIdentifier
+			var tmos []types.SystemID32
 			tmos, err = x.GetT2Timeouts(tt.args.currentRound)
 			require.NoError(t, err)
 			require.Equal(t, tt.want, tmos)

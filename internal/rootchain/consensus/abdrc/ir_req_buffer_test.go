@@ -5,7 +5,6 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	p "github.com/alphabill-org/alphabill/internal/network/protocol"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/certification"
 	"github.com/alphabill-org/alphabill/internal/rootchain/consensus/abdrc/storage"
 	abtypes "github.com/alphabill-org/alphabill/internal/rootchain/consensus/abdrc/types"
@@ -26,8 +25,8 @@ func (x *mockIRVerifier) VerifyIRChangeReq(_ uint64, irChReq *abtypes.IRChangeRe
 	return &storage.InputData{SysID: irChReq.SystemIdentifier, IR: irChReq.Requests[0].InputRecord, Sdrh: []byte{0, 0, 0, 0, 1}}, nil
 }
 
-var sysID1 = []byte{0, 0, 0, 1}
-var sysID2 = []byte{0, 0, 0, 2}
+var sysID1 = types.SystemID32(1)
+var sysID2 = types.SystemID32(2)
 var inputRecord1 = &types.InputRecord{
 	PreviousHash:    []byte{1, 1, 1},
 	Hash:            []byte{2, 2, 2},
@@ -56,7 +55,7 @@ func TestIrReqBuffer_Add(t *testing.T) {
 	ver := NewAlwaysTrueIRReqVerifier()
 	// add a request that reached consensus
 	req1 := &certification.BlockCertificationRequest{
-		SystemIdentifier: sysID1,
+		SystemIdentifier: sysID1.ToSystemID(),
 		NodeIdentifier:   "1",
 		InputRecord:      inputRecord1,
 	}
@@ -65,15 +64,15 @@ func TestIrReqBuffer_Add(t *testing.T) {
 		CertReason:       abtypes.Quorum,
 		Requests:         []*certification.BlockCertificationRequest{req1},
 	}
-	timeouts := make([]p.SystemIdentifier, 0, 2)
+	timeouts := make([]types.SystemID32, 0, 2)
 	// no requests, generate payload
 	payload := reqBuffer.GeneratePayload(3, timeouts)
 	require.Empty(t, payload.Requests)
-	require.False(t, reqBuffer.IsChangeInBuffer(p.SystemIdentifier(sysID1)))
+	require.False(t, reqBuffer.IsChangeInBuffer(sysID1))
 	// add request
 	require.NoError(t, reqBuffer.Add(3, IrChReqMsg, ver))
 	// sysID1 change is in buffer
-	require.True(t, reqBuffer.IsChangeInBuffer(p.SystemIdentifier(sysID1)))
+	require.True(t, reqBuffer.IsChangeInBuffer(sysID1))
 	// try to add the same again, considered duplicate no error
 	require.NoError(t, reqBuffer.Add(3, IrChReqMsg, ver))
 	// change reason and try to add, must be rejected as equivocating, we already have a valid request
@@ -96,14 +95,14 @@ func TestIrReqBuffer_Add(t *testing.T) {
 	// generate payload again, but now it is empty
 	payloadNowEmpty := reqBuffer.GeneratePayload(4, timeouts)
 	require.Empty(t, payloadNowEmpty.Requests)
-	require.False(t, reqBuffer.IsChangeInBuffer(p.SystemIdentifier(sysID1)))
+	require.False(t, reqBuffer.IsChangeInBuffer(sysID1))
 	// finally verify that we got the original message back
 	require.Equal(t, IrChReqMsg, payload.Requests[0])
 }
 
 func TestIrReqBuffer_TimeoutReq(t *testing.T) {
 	reqBuffer := NewIrReqBuffer(logger.New(t))
-	timeouts := []p.SystemIdentifier{p.SystemIdentifier(sysID1), p.SystemIdentifier(sysID2)}
+	timeouts := []types.SystemID32{sysID1, sysID2}
 	payload := reqBuffer.GeneratePayload(3, timeouts)
 	require.Len(t, payload.Requests, 2)
 	// if both then prefer to make progress over timeout
@@ -120,7 +119,7 @@ func TestIrReqBuffer_TimeoutAndNewReq(t *testing.T) {
 	ver := NewAlwaysTrueIRReqVerifier()
 	// add a request that reached consensus
 	req1 := &certification.BlockCertificationRequest{
-		SystemIdentifier: sysID1,
+		SystemIdentifier: sysID1.ToSystemID(),
 		NodeIdentifier:   "1",
 		InputRecord:      inputRecord1,
 	}
@@ -129,7 +128,7 @@ func TestIrReqBuffer_TimeoutAndNewReq(t *testing.T) {
 		CertReason:       abtypes.Quorum,
 		Requests:         []*certification.BlockCertificationRequest{req1},
 	}
-	timeouts := []p.SystemIdentifier{p.SystemIdentifier(sysID1)}
+	timeouts := []types.SystemID32{sysID1}
 	require.NoError(t, reqBuffer.Add(3, IrChReqMsg, ver))
 	payload := reqBuffer.GeneratePayload(3, timeouts)
 	require.Len(t, payload.Requests, 1)

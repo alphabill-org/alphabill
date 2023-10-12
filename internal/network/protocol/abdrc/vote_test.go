@@ -174,9 +174,9 @@ func Test_VoteMsg_Verify(t *testing.T) {
 	t.Run("invalid signature", func(t *testing.T) {
 		vi := validVoteMsg(t)
 		vi.Signature[0] = 0
-		require.ErrorContains(t, vi.Verify(3, rootTrust), `signature verification failed: signature verify failed`)
+		require.ErrorContains(t, vi.Verify(3, rootTrust), `signature verification failed: verification failed`)
 
 		vi.Signature = nil
-		require.ErrorContains(t, vi.Verify(3, rootTrust), `signature verification failed: nil argument`)
+		require.ErrorContains(t, vi.Verify(3, rootTrust), `signature verification failed: invalid nil argument`)
 	})
 }

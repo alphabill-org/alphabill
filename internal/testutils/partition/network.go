@@ -17,7 +17,6 @@ import (
 	"github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/keyvaluedb/boltdb"
 	"github.com/alphabill-org/alphabill/internal/network"
-	p "github.com/alphabill-org/alphabill/internal/network/protocol"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/internal/partition"
 	"github.com/alphabill-org/alphabill/internal/rootchain"
@@ -41,7 +40,7 @@ const rootValidatorNodes = 3
 
 // AlphabillNetwork for integration tests
 type AlphabillNetwork struct {
-	NodePartitions map[p.SystemIdentifier]*NodePartition
+	NodePartitions map[types.SystemID32]*NodePartition
 	RootPartition  *RootPartition
 	ctxCancel      context.CancelFunc
 }
@@ -54,7 +53,7 @@ type RootPartition struct {
 }
 
 type NodePartition struct {
-	systemId         []byte
+	systemId         types.SystemID
 	partitionGenesis *genesis.PartitionGenesis
 	txSystemFunc     func(trustBase map[string]crypto.Verifier) txsystem.TransactionSystem
 	ctx              context.Context
@@ -351,12 +350,9 @@ func (n *NodePartition) start(t *testing.T, ctx context.Context, rootID peer.ID,
 	}
 	// make sure node network (to other nodes and root nodes) is initiated
 	for _, nd := range n.Nodes {
-		if ok := eventually(func() bool {
-			if len(nd.nodePeer.Network().Peers()) >= len(n.Nodes) {
-				return true
-			}
-			return false
-		}, 2*time.Second, 100*time.Millisecond); !ok {
+		if ok := eventually(
+			func() bool { return len(nd.nodePeer.Network().Peers()) >= len(n.Nodes) },
+			2*time.Second, 100*time.Millisecond); !ok {
 			return fmt.Errorf("network not initialized")
 		}
 	}
@@ -406,12 +402,9 @@ func (n *NodePartition) ResumeNode(nodeIdx int) error {
 		return err
 	}
 	// wait for all connections to be initiated in 2 seconds
-	if ok := eventually(func() bool {
-		if len(pn.nodePeer.Network().Peers()) >= len(n.Nodes) {
-			return true
-		}
-		return false
-	}, 2*time.Second, 100*time.Millisecond); !ok {
+	if ok := eventually(
+		func() bool { return len(pn.nodePeer.Network().Peers()) >= len(n.Nodes) },
+		2*time.Second, 100*time.Millisecond); !ok {
 		return fmt.Errorf("network not initialized")
 	}
 	return nil
@@ -431,9 +424,10 @@ func NewAlphabillPartition(nodePartitions []*NodePartition) (*AlphabillNetwork, 
 	if err != nil {
 		return nil, err
 	}
-	nodeParts := make(map[p.SystemIdentifier]*NodePartition)
+	nodeParts := make(map[types.SystemID32]*NodePartition)
 	for _, part := range nodePartitions {
-		nodeParts[p.SystemIdentifier(part.systemId)] = part
+		id32, _ := part.systemId.Id32()
+		nodeParts[id32] = part
 	}
 	return &AlphabillNetwork{
 		RootPartition:  rootPartition,
@@ -453,7 +447,7 @@ func (a *AlphabillNetwork) Start(t *testing.T) error {
 		// create one event handler per partition
 		if err := part.start(t, ctx, a.RootPartition.Nodes[0].id, a.RootPartition.Nodes[0].addr); err != nil {
 			ctxCancel()
-			return fmt.Errorf("failed to start partition %X, %w", id.Bytes(), err)
+			return fmt.Errorf("failed to start partition %s, %w", id, err)
 		}
 	}
 	a.ctxCancel = ctxCancel
@@ -482,8 +476,9 @@ func (a *AlphabillNetwork) Close() (err error) {
 	return nil
 }
 
-func (a *AlphabillNetwork) GetNodePartition(sysID []byte) (*NodePartition, error) {
-	part, f := a.NodePartitions[p.SystemIdentifier(sysID)]
+func (a *AlphabillNetwork) GetNodePartition(sysID types.SystemID) (*NodePartition, error) {
+	id32, _ := sysID.Id32()
+	part, f := a.NodePartitions[id32]
 	if !f {
 		return nil, fmt.Errorf("unknown partition %X", sysID)
 	}

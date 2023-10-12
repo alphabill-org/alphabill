@@ -260,17 +260,13 @@ In case of some other response status body is expected to contain error response
 */
 func decodeResponse(rsp *http.Response, successStatus int, data any, allowEmptyResponse bool) error {
 	defer func() { _ = rsp.Body.Close() }()
-	type Decoder interface {
-		Decode(val interface{}) error
-	}
 
 	if rsp.StatusCode == successStatus {
-		dec := cbor.NewDecoder(rsp.Body)
 		// no response data expected
 		if data == nil {
 			return nil
 		}
-		err := dec.Decode(data)
+		err := cbor.NewDecoder(rsp.Body).Decode(data)
 		if err != nil && (!errors.Is(err, io.EOF) || !allowEmptyResponse) {
 			return fmt.Errorf("failed to decode response body: %w", err)
 		}
@@ -278,14 +274,13 @@ func decodeResponse(rsp *http.Response, successStatus int, data any, allowEmptyR
 	}
 	switch {
 	case rsp.StatusCode == http.StatusNotFound:
-		return errors.Join(ErrNotFound)
+		return ErrNotFound
 	default:
 		errInfo := &struct {
 			_   struct{} `cbor:",toarray"`
 			Err string
 		}{}
-		dec := cbor.NewDecoder(rsp.Body)
-		if err := dec.Decode(errInfo); err != nil {
+		if err := cbor.NewDecoder(rsp.Body).Decode(errInfo); err != nil {
 			return fmt.Errorf("%s", rsp.Status)
 		}
 		return fmt.Errorf("%s, %s", rsp.Status, errInfo.Err)

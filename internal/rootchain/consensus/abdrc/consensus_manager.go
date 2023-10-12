@@ -12,7 +12,6 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"github.com/alphabill-org/alphabill/internal/crypto"
-	p "github.com/alphabill-org/alphabill/internal/network/protocol"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/abdrc"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/internal/rootchain/consensus"
@@ -53,7 +52,7 @@ type (
 		certResultCh chan *types.UnicityCertificate
 		// internal buffer for "certification request" response to allow CM to
 		// continue without waiting validator to consume the response
-		ucSink         chan map[p.SystemIdentifier]*types.UnicityCertificate
+		ucSink         chan map[types.SystemID32]*types.UnicityCertificate
 		params         *consensus.Parameters
 		id             peer.ID
 		net            RootNet
@@ -122,7 +121,7 @@ func NewDistributedAbConsensusManager(nodeID peer.ID, rg *genesis.RootGenesis,
 	consensusManager := &ConsensusManager{
 		certReqCh:      make(chan consensus.IRChangeRequest),
 		certResultCh:   make(chan *types.UnicityCertificate),
-		ucSink:         make(chan map[p.SystemIdentifier]*types.UnicityCertificate, 1),
+		ucSink:         make(chan map[types.SystemID32]*types.UnicityCertificate, 1),
 		params:         cParams,
 		id:             nodeID,
 		net:            net,
@@ -173,11 +172,11 @@ func (x *ConsensusManager) CertificationResult() <-chan *types.UnicityCertificat
 	return x.certResultCh
 }
 
-func (x *ConsensusManager) GetLatestUnicityCertificate(id types.SystemID) (*types.UnicityCertificate, error) {
+func (x *ConsensusManager) GetLatestUnicityCertificate(id types.SystemID32) (*types.UnicityCertificate, error) {
 	ucs := x.blockStore.GetCertificates()
-	luc, f := ucs[p.SystemIdentifier(id)]
+	luc, f := ucs[id]
 	if !f {
-		return nil, fmt.Errorf("no certificate found for system id %X", id)
+		return nil, fmt.Errorf("no certificate found for system id %s", id)
 	}
 	return luc, nil
 }
@@ -561,7 +560,7 @@ func (x *ConsensusManager) sendCertificates(ctx context.Context) error {
 	// pending certificates, to be consumed by the validator.
 	// access to it is "serialized" ie we either update it with
 	// new certs sent by CM or we feed it's content to validator
-	certs := make(map[p.SystemIdentifier]*types.UnicityCertificate)
+	certs := make(map[types.SystemID32]*types.UnicityCertificate)
 
 	feedValidator := func(ctx context.Context) chan struct{} {
 		stopped := make(chan struct{})

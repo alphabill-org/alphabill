@@ -2,11 +2,11 @@ package cmd
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
-	"github.com/alphabill-org/alphabill/internal/errors"
 	"github.com/alphabill-org/alphabill/internal/partition"
 	"github.com/alphabill-org/alphabill/internal/txsystem/tokens"
 	"github.com/alphabill-org/alphabill/internal/util"
@@ -55,14 +55,14 @@ func utGenesisRunFun(_ context.Context, config *userTokenPartitionGenesisConfig)
 
 	nodeGenesisFile := config.getNodeGenesisFileLocation(utHomePath)
 	if util.FileExists(nodeGenesisFile) {
-		return errors.Errorf("node genesis %s exists", nodeGenesisFile)
+		return fmt.Errorf("node genesis %s exists", nodeGenesisFile)
 	} else if err := os.MkdirAll(filepath.Dir(nodeGenesisFile), 0700); err != nil {
 		return err
 	}
 
 	keys, err := LoadKeys(config.Keys.GetKeyFileLocation(), config.Keys.GenerateKeys, config.Keys.ForceGeneration)
 	if err != nil {
-		return errors.Wrapf(err, "failed to load keys %v", config.Keys.GetKeyFileLocation())
+		return fmt.Errorf("failed to load keys %v: %w", config.Keys.GetKeyFileLocation(), err)
 	}
 
 	txSystem, err := tokens.NewTxSystem(

@@ -48,7 +48,7 @@ func generateBlockData(round uint64, req ...*abtypes.IRChangeReq) *abtypes.Block
 }
 
 func TestNewExecutedBlockFromGenesis(t *testing.T) {
-	_, partitionRecord := testutils.CreatePartitionNodesAndPartitionRecord(t, genesisInputRecord, partitionID1.ToSystemID(), 3)
+	_, partitionRecord := testutils.CreatePartitionNodesAndPartitionRecord(t, genesisInputRecord, partitionID1, 3)
 	rootNode := testutils.NewTestNode(t)
 	verifier := rootNode.Verifier
 	rootPubKeyBytes, err := verifier.MarshalPublicKey()
@@ -76,7 +76,7 @@ func TestNewExecutedBlockFromGenesis(t *testing.T) {
 }
 
 func TestExecutedBlock(t *testing.T) {
-	_, partitionRecord := testutils.CreatePartitionNodesAndPartitionRecord(t, genesisInputRecord, partitionID1.ToSystemID(), 3)
+	_, partitionRecord := testutils.CreatePartitionNodesAndPartitionRecord(t, genesisInputRecord, partitionID1, 3)
 	rootNode := testutils.NewTestNode(t)
 	verifier := rootNode.Verifier
 	rootPubKeyBytes, err := verifier.MarshalPublicKey()

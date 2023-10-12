@@ -55,7 +55,7 @@ func readResult(ch <-chan *types.UnicityCertificate, timeout time.Duration) (*ty
 }
 
 func initConsensusManager(t *testing.T, net RootNet) (*ConsensusManager, *testutils.TestNode, []*testutils.TestNode, *genesis.RootGenesis) {
-	partitionNodes, partitionRecord := testutils.CreatePartitionNodesAndPartitionRecord(t, partitionInputRecord, partitionID.ToSystemID(), 3)
+	partitionNodes, partitionRecord := testutils.CreatePartitionNodesAndPartitionRecord(t, partitionInputRecord, partitionID, 3)
 	rootNode := testutils.NewTestNode(t)
 	verifier := rootNode.Verifier
 	rootPubKeyBytes, err := verifier.MarshalPublicKey()
@@ -81,7 +81,7 @@ func buildBlockCertificationRequest(t *testing.T, rg *genesis.RootGenesis, parti
 	}
 	requests := make([]*certification.BlockCertificationRequest, len(partitionNodes))
 	for i, n := range partitionNodes {
-		requests[i] = testutils.CreateBlockCertificationRequest(t, newIR, partitionID.ToSystemID(), n)
+		requests[i] = testutils.CreateBlockCertificationRequest(t, newIR, partitionID, n)
 	}
 	return requests
 }
@@ -453,7 +453,7 @@ func Test_ConsensusManager_onVoteMsg(t *testing.T) {
 	t.Parallel()
 
 	// partition data used/shared by tests
-	_, partitionRecord := testutils.CreatePartitionNodesAndPartitionRecord(t, partitionInputRecord, partitionID.ToSystemID(), 2)
+	_, partitionRecord := testutils.CreatePartitionNodesAndPartitionRecord(t, partitionInputRecord, partitionID, 2)
 
 	makeVoteMsg := func(t *testing.T, cms []*ConsensusManager, round uint64) *abdrc.VoteMsg {
 		t.Helper()
@@ -590,7 +590,7 @@ func Test_ConsensusManager_messages(t *testing.T) {
 	t.Parallel()
 
 	// partition data used/shared by tests
-	partitionNodes, partitionRecord := testutils.CreatePartitionNodesAndPartitionRecord(t, partitionInputRecord, partitionID.ToSystemID(), 2)
+	partitionNodes, partitionRecord := testutils.CreatePartitionNodesAndPartitionRecord(t, partitionInputRecord, partitionID, 2)
 
 	t.Run("IR change request from partition included in proposal", func(t *testing.T) {
 		cms, rootNet, rootG := createConsensusManagers(t, 1, []*genesis.PartitionRecord{partitionRecord})
@@ -705,7 +705,7 @@ func Test_ConsensusManager_messages(t *testing.T) {
 func Test_ConsensusManager_sendCertificates(t *testing.T) {
 	t.Parallel()
 
-	_, partitionRecord := testutils.CreatePartitionNodesAndPartitionRecord(t, partitionInputRecord, partitionID.ToSystemID(), 2)
+	_, partitionRecord := testutils.CreatePartitionNodesAndPartitionRecord(t, partitionInputRecord, partitionID, 2)
 
 	// generate UCs for given systems (with random data in QC)
 	makeUCs := func(sysID ...types.SystemID32) map[types.SystemID32]*types.UnicityCertificate {

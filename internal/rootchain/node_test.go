@@ -25,8 +25,8 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
-var partitionID = types.SystemID([]byte{0, 0xFF, 0, 1})
-var unknownID = types.SystemID{0, 0, 0, 0}
+var partitionID types.SystemID32 = 0x00FF0001
+var unknownID = types.SystemID32(0)
 var partitionInputRecord = &types.InputRecord{
 	PreviousHash: make([]byte, 32),
 	Hash:         []byte{0, 0, 0, 1},
@@ -45,11 +45,11 @@ type MockConsensusManager struct {
 func NewMockConsensus(rg *genesis.RootGenesis, partitionStore partitions.PartitionConfiguration) (*MockConsensusManager, error) {
 	var c = make(map[types.SystemID32]*types.UnicityCertificate)
 	for i, partition := range rg.Partitions {
-		id32, err := partition.SystemDescriptionRecord.GetSystemIdentifier().Id32()
+		sysID, err := partition.SystemDescriptionRecord.GetSystemIdentifier().Id32()
 		if err != nil {
 			return nil, fmt.Errorf("partitition %v, error: %w", i, err)
 		}
-		c[id32] = partition.Certificate
+		c[sysID] = partition.Certificate
 	}
 
 	return &MockConsensusManager{
@@ -198,9 +198,7 @@ func TestRootValidatorTest_CertificationReqEquivocatingReq(t *testing.T) {
 	req := testutils.CreateBlockCertificationRequest(t, newIR, partitionID, partitionNodes[0])
 	require.NoError(t, rootValidator.onBlockCertificationRequest(context.Background(), req))
 	// request is accepted
-	id32, err := partitionID.Id32()
-	require.NoError(t, err)
-	require.Contains(t, rootValidator.incomingRequests.store, id32)
+	require.Contains(t, rootValidator.incomingRequests.store, partitionID)
 	equivocatingIR := &types.InputRecord{
 		PreviousHash: rg.Partitions[0].Nodes[0].BlockCertificationRequest.InputRecord.Hash,
 		Hash:         test.RandomBytes(32),
@@ -210,7 +208,7 @@ func TestRootValidatorTest_CertificationReqEquivocatingReq(t *testing.T) {
 	}
 	eqReq := testutils.CreateBlockCertificationRequest(t, equivocatingIR, partitionID, partitionNodes[0])
 	require.ErrorContains(t, rootValidator.onBlockCertificationRequest(context.Background(), eqReq), "request in this round already stored, rejected")
-	buffer, f := rootValidator.incomingRequests.store[id32]
+	buffer, f := rootValidator.incomingRequests.store[partitionID]
 	require.True(t, f)
 	storedNodeReqHash, f := buffer.nodeRequest[partitionNodes[0].Peer.ID().String()]
 	require.True(t, f)
@@ -302,16 +300,14 @@ func TestRootValidatorTest_SimulateNetCommunicationHandshake(t *testing.T) {
 	require.NotEmpty(t, node.Peer.ID().String())
 	// create
 	h := &handshake.Handshake{
-		SystemIdentifier: partitionID,
+		SystemIdentifier: partitionID.ToSystemID(),
 		NodeIdentifier:   partitionNodes[1].Peer.ID().String(),
 	}
 	testutils.MockValidatorNetReceives(t, mockNet, partitionNodes[0].Peer.ID(), network.ProtocolHandshake, h)
 	// make sure certificate is sent in return
 	testutils.MockAwaitMessage[*types.UnicityCertificate](t, mockNet, network.ProtocolUnicityCertificates)
 	// make sure that the node is subscribed
-	id32, err := partitionID.Id32()
-	require.NoError(t, err)
-	subscribed := rootValidator.subscription.Get(id32)
+	subscribed := rootValidator.subscription.Get(partitionID)
 	require.Len(t, subscribed, 1)
 	require.Equal(t, partitionNodes[1].Peer.ID().String(), subscribed[0])
 	// set network in error state
@@ -328,18 +324,18 @@ func TestRootValidatorTest_SimulateNetCommunicationHandshake(t *testing.T) {
 	uc := &types.UnicityCertificate{
 		InputRecord: newIR,
 		UnicityTreeCertificate: &types.UnicityTreeCertificate{
-			SystemIdentifier: partitionID,
+			SystemIdentifier: partitionID.ToSystemID(),
 		},
 		UnicitySeal: &types.UnicitySeal{},
 	}
 	rootValidator.onCertificationResult(ctx, uc)
 	rootValidator.onCertificationResult(ctx, uc)
 	// two send errors, but node is still subscribed
-	subscribed = rootValidator.subscription.Get(id32)
+	subscribed = rootValidator.subscription.Get(partitionID)
 	require.Len(t, subscribed, 1)
 	rootValidator.onCertificationResult(ctx, uc)
 	// on third error subscription is cleared
-	subscribed = rootValidator.subscription.Get(id32)
+	subscribed = rootValidator.subscription.Get(partitionID)
 	require.Len(t, subscribed, 0)
 }
 
@@ -420,7 +416,7 @@ func TestRootValidatorTest_SimulateResponse(t *testing.T) {
 	uc := &types.UnicityCertificate{
 		InputRecord: newIR,
 		UnicityTreeCertificate: &types.UnicityTreeCertificate{
-			SystemIdentifier: partitionID,
+			SystemIdentifier: partitionID.ToSystemID(),
 		},
 		UnicitySeal: &types.UnicitySeal{},
 	}
@@ -435,7 +431,7 @@ func TestRootValidatorTest_SimulateResponse(t *testing.T) {
 	certs := testutils.MockNetAwaitMultiple[*types.UnicityCertificate](t, mockNet, network.ProtocolUnicityCertificates, 2)
 	require.Len(t, certs, 2)
 	for _, cert := range certs {
-		require.Equal(t, partitionID, cert.UnicityTreeCertificate.SystemIdentifier)
+		require.Equal(t, partitionID.ToSystemID(), cert.UnicityTreeCertificate.SystemIdentifier)
 		require.Equal(t, newIR, cert.InputRecord)
 	}
 }
@@ -457,7 +453,7 @@ func TestRootValidator_ResultUnknown(t *testing.T) {
 	uc := &types.UnicityCertificate{
 		InputRecord: newIR,
 		UnicityTreeCertificate: &types.UnicityTreeCertificate{
-			SystemIdentifier: unknownID,
+			SystemIdentifier: unknownID.ToSystemID(),
 		},
 		UnicitySeal: &types.UnicitySeal{},
 	}

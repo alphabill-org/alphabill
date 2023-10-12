@@ -103,6 +103,11 @@ func TestFungibleTokenDC(t *testing.T) {
 					if bytes.Equal(pubKey1, pubKey) {
 						require.Equal(t, uint64(300), tok.Amount)
 					}
+					for i := 1; i < len(attrs.BurnTransactions); i++ {
+						prevID := attrs.BurnTransactions[i-1].TransactionOrder.UnitID()
+						currID := attrs.BurnTransactions[i].TransactionOrder.UnitID()
+						require.Equal(t, 1, currID.Compare(prevID), "invalid burn txs order in join tx")
+					}
 				default:
 					return errors.New("unexpected tx")
 				}

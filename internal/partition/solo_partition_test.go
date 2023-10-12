@@ -102,9 +102,9 @@ func SetupNewSingleNodePartition(t *testing.T, txSystem txsystem.TransactionSyst
 	// root state
 	var certs = make(map[types.SystemID32]*types.UnicityCertificate)
 	for _, partition := range rootGenesis.Partitions {
-		id32, err := partition.GetSystemDescriptionRecord().GetSystemIdentifier().Id32()
+		sysID, err := partition.GetSystemDescriptionRecord().GetSystemIdentifier().Id32()
 		require.NoError(t, err)
-		certs[id32] = partition.Certificate
+		certs[sysID] = partition.Certificate
 	}
 
 	net := testnetwork.NewMockNetwork()
@@ -265,16 +265,16 @@ func (sn *SingleNodePartition) CreateBlock(t *testing.T) {
 func (sn *SingleNodePartition) IssueBlockUC(t *testing.T) *types.UnicityCertificate {
 	req := sn.mockNet.SentMessages(network.ProtocolBlockCertification)[0].Message.(*certification.BlockCertificationRequest)
 	sn.mockNet.ResetSentMessages(network.ProtocolBlockCertification)
-	id32, err := req.SystemIdentifier.Id32()
+	sysID, err := req.SystemIdentifier.Id32()
 	require.NoError(t, err)
-	luc, found := sn.certs[id32]
+	luc, found := sn.certs[sysID]
 	require.True(t, found)
 	require.NoError(t, consensus.CheckBlockCertificationRequest(req, luc))
 	uc, err := sn.CreateUnicityCertificate(req.InputRecord, sn.rootRound+1)
 	require.NoError(t, err)
 	// update state
 	sn.rootRound = uc.UnicitySeal.RootChainRoundNumber
-	sn.certs[id32] = uc
+	sn.certs[sysID] = uc
 	return uc
 }
 

@@ -21,8 +21,6 @@ func TestNewSubscriptionsEmpty(t *testing.T) {
 func TestNewSubscriptions(t *testing.T) {
 	subscriptions := NewSubscriptions()
 	require.NotNil(t, subscriptions)
-	var sysID1 types.SystemID32 = 1
-	var sysID2 types.SystemID32 = 2
 	subscriptions.Subscribe(sysID1, "1")
 	subscriptions.Subscribe(sysID1, "2")
 	subscriptions.Subscribe(sysID2, "1")
@@ -41,7 +39,6 @@ func TestNewSubscriptions(t *testing.T) {
 func TestExpiredSubscriptions(t *testing.T) {
 	subscriptions := NewSubscriptions()
 	require.NotNil(t, subscriptions)
-	var sysID1 types.SystemID32 = 1
 	subscriptions.Subscribe(sysID1, "1")
 	subscriptions.Subscribe(sysID1, "2")
 	// subscription is removed on errorCount number of send errors
@@ -55,7 +52,6 @@ func TestExpiredSubscriptions(t *testing.T) {
 func TestSubscriptionRefresh(t *testing.T) {
 	subscriptions := NewSubscriptions()
 	require.NotNil(t, subscriptions)
-	var sysID1 types.SystemID32 = 1
 	subscriptions.Subscribe(sysID1, "1")
 	subscriptions.Subscribe(sysID1, "2")
 	// subscription is removed on errorCount number of send errors

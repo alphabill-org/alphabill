@@ -9,8 +9,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-var id1 = types.SystemID{0, 0, 0, 1}
-var id2 = types.SystemID{0, 0, 0, 2}
+var id1 = types.SystemID32(1)
+var id2 = types.SystemID32(2)
 
 func TestPartitionStore(t *testing.T) {
 	_, encPubKey := testsig.CreateSignerAndVerifier(t)
@@ -54,14 +54,14 @@ func TestPartitionStore(t *testing.T) {
 			args: args{partitions: []*genesis.GenesisPartitionRecord{
 				{
 					SystemDescriptionRecord: &genesis.SystemDescriptionRecord{
-						SystemIdentifier: id1,
+						SystemIdentifier: id1.ToSystemID(),
 						T2Timeout:        2500,
 					},
 					Nodes: nil,
 				},
 				{
 					SystemDescriptionRecord: &genesis.SystemDescriptionRecord{
-						SystemIdentifier: id2,
+						SystemIdentifier: id2.ToSystemID(),
 						T2Timeout:        2500,
 					},
 					Nodes: []*genesis.PartitionNode{
@@ -107,7 +107,7 @@ func TestPartitionStore_Info(t *testing.T) {
 	partitions := []*genesis.GenesisPartitionRecord{
 		{
 			SystemDescriptionRecord: &genesis.SystemDescriptionRecord{
-				SystemIdentifier: id1,
+				SystemIdentifier: id1.ToSystemID(),
 				T2Timeout:        2600,
 			},
 			Nodes: []*genesis.PartitionNode{
@@ -118,7 +118,7 @@ func TestPartitionStore_Info(t *testing.T) {
 		},
 		{
 			SystemDescriptionRecord: &genesis.SystemDescriptionRecord{
-				SystemIdentifier: id2,
+				SystemIdentifier: id2.ToSystemID(),
 				T2Timeout:        2500,
 			},
 			Nodes: []*genesis.PartitionNode{
@@ -129,11 +129,10 @@ func TestPartitionStore_Info(t *testing.T) {
 	}
 	store, err := NewPartitionStoreFromGenesis(partitions)
 	require.NoError(t, err)
-	id32, err := id1.Id32()
 	require.NoError(t, err)
-	sysDesc, tb, err := store.GetInfo(id32)
+	sysDesc, tb, err := store.GetInfo(id1)
 	require.NoError(t, err)
-	require.Equal(t, id1, sysDesc.SystemIdentifier)
+	require.Equal(t, id1.ToSystemID(), sysDesc.SystemIdentifier)
 	require.Equal(t, uint32(2600), sysDesc.T2Timeout)
 	require.Equal(t, 3, int(tb.GetTotalNodes()))
 	require.Equal(t, uint64(2), tb.GetQuorum())

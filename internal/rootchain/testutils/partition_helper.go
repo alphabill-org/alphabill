@@ -30,11 +30,11 @@ func NewTestNode(t *testing.T) *TestNode {
 	return node
 }
 
-func CreatePartitionNodesAndPartitionRecord(t *testing.T, ir *types.InputRecord, systemID types.SystemID, nrOfValidators int) (partitionNodes []*TestNode, record *genesis.PartitionRecord) {
+func CreatePartitionNodesAndPartitionRecord(t *testing.T, ir *types.InputRecord, systemID types.SystemID32, nrOfValidators int) (partitionNodes []*TestNode, record *genesis.PartitionRecord) {
 	t.Helper()
 	record = &genesis.PartitionRecord{
 		SystemDescriptionRecord: &genesis.SystemDescriptionRecord{
-			SystemIdentifier: systemID,
+			SystemIdentifier: systemID.ToSystemID(),
 			T2Timeout:        2500,
 		},
 		Validators: []*genesis.PartitionNode{},
@@ -51,7 +51,7 @@ func CreatePartitionNodesAndPartitionRecord(t *testing.T, ir *types.InputRecord,
 		require.NoError(t, err)
 
 		req := &certification.BlockCertificationRequest{
-			SystemIdentifier: systemID,
+			SystemIdentifier: systemID.ToSystemID(),
 			NodeIdentifier:   partitionNode.Peer.ID().String(),
 			InputRecord:      ir,
 		}
@@ -70,10 +70,10 @@ func CreatePartitionNodesAndPartitionRecord(t *testing.T, ir *types.InputRecord,
 	return partitionNodes, record
 }
 
-func CreateBlockCertificationRequest(t *testing.T, ir *types.InputRecord, sysID types.SystemID, node *TestNode) *certification.BlockCertificationRequest {
+func CreateBlockCertificationRequest(t *testing.T, ir *types.InputRecord, sysID types.SystemID32, node *TestNode) *certification.BlockCertificationRequest {
 	t.Helper()
 	r1 := &certification.BlockCertificationRequest{
-		SystemIdentifier: sysID,
+		SystemIdentifier: sysID.ToSystemID(),
 		NodeIdentifier:   node.Peer.ID().String(),
 		InputRecord:      ir,
 		RootRoundNumber:  1,

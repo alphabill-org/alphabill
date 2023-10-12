@@ -22,7 +22,7 @@ var mockUc = &types.UnicityCertificate{
 		SummaryValue: []byte{0, 0, 0, 0},
 	},
 	UnicityTreeCertificate: &types.UnicityTreeCertificate{
-		SystemIdentifier:      sysID0,
+		SystemIdentifier:      sysID0.ToSystemID(),
 		SiblingHashes:         nil,
 		SystemDescriptionHash: nil,
 	},
@@ -38,7 +38,7 @@ var testGenesis = &genesis.RootGenesis{
 			Nodes:       nil,
 			Certificate: mockUc,
 			SystemDescriptionRecord: &genesis.SystemDescriptionRecord{
-				SystemIdentifier: sysID0,
+				SystemIdentifier: sysID0.ToSystemID(),
 				T2Timeout:        2500,
 			},
 		},
@@ -46,7 +46,7 @@ var testGenesis = &genesis.RootGenesis{
 			Nodes:       nil,
 			Certificate: mockUc,
 			SystemDescriptionRecord: &genesis.SystemDescriptionRecord{
-				SystemIdentifier: sysID1,
+				SystemIdentifier: sysID1.ToSystemID(),
 				T2Timeout:        2500,
 			},
 		},

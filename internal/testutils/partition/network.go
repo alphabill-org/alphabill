@@ -387,8 +387,8 @@ func NewAlphabillPartition(nodePartitions []*NodePartition) (*AlphabillNetwork, 
 	}
 	nodeParts := make(map[types.SystemID32]*NodePartition)
 	for _, part := range nodePartitions {
-		id32, _ := part.systemId.Id32()
-		nodeParts[id32] = part
+		sysID, _ := part.systemId.Id32()
+		nodeParts[sysID] = part
 	}
 	return &AlphabillNetwork{
 		RootPartition:  rootPartition,
@@ -438,8 +438,8 @@ func (a *AlphabillNetwork) Close() (err error) {
 }
 
 func (a *AlphabillNetwork) GetNodePartition(sysID types.SystemID) (*NodePartition, error) {
-	id32, _ := sysID.Id32()
-	part, f := a.NodePartitions[id32]
+	id, _ := sysID.Id32()
+	part, f := a.NodePartitions[id]
 	if !f {
 		return nil, fmt.Errorf("unknown partition %X", sysID)
 	}

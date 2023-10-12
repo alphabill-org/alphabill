@@ -65,11 +65,11 @@ func (s *StateStore) Init(rg *genesis.RootGenesis) error {
 		return fmt.Errorf("store init failed, root genesis is nil")
 	}
 	for _, partition := range rg.Partitions {
-		id32, err := partition.SystemDescriptionRecord.SystemIdentifier.Id32()
+		sysID, err := partition.SystemDescriptionRecord.SystemIdentifier.Id32()
 		if err != nil {
 			return err
 		}
-		certs[id32] = partition.Certificate
+		certs[sysID] = partition.Certificate
 	}
 	return s.save(rg.GetRoundNumber(), certs)
 }
@@ -97,11 +97,13 @@ func (s *StateStore) GetLastCertifiedInputRecords() (ir map[types.SystemID32]*ty
 		if err = it.Value(&cert); err != nil {
 			return nil, fmt.Errorf("read certificate %v failed, %w", it.Key(), err)
 		}
-		var id32 types.SystemID32
 		// conversion to Id32 can only fail if system identifier length is not valid, this should never happen
-		if id32, err = cert.UnicityTreeCertificate.SystemIdentifier.Id32(); err == nil {
-			ir[id32] = cert.InputRecord
+		sysID, idErr := cert.UnicityTreeCertificate.SystemIdentifier.Id32()
+		if idErr != nil {
+			err = errors.Join(err, idErr)
+			continue
 		}
+		ir[sysID] = cert.InputRecord
 	}
 	return ir, err
 }

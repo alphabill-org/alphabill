@@ -158,9 +158,9 @@ func (x *ConsensusManager) onIRChangeReq(req *consensus.IRChangeRequest) error {
 	// ignore duplicate request, first come, first served
 	// should probably be more vocal if this not a binary duplicate
 	if found {
-		return fmt.Errorf("partition %X, pending request exists, ignoring new", req.SystemIdentifier)
+		return fmt.Errorf("partition %s, pending request exists, ignoring new", req.SystemIdentifier)
 	}
-	x.log.Debug(fmt.Sprintf("partition %X, IR change request received", req.SystemIdentifier))
+	x.log.Debug(fmt.Sprintf("partition %s, IR change request received", req.SystemIdentifier))
 	x.changes[req.SystemIdentifier] = newInputRecord
 	return nil
 }
@@ -227,7 +227,7 @@ func getMergeInputRecords(currentIR, changed map[types.SystemID32]*types.InputRe
 	for id, ch := range changed {
 		result[id] = ch
 		// trace level log for more details
-		log.LogAttrs(context.Background(), logger.LevelTrace, fmt.Sprintf("Partition %X IR", id), logger.Data(ch))
+		log.LogAttrs(context.Background(), logger.LevelTrace, fmt.Sprintf("Partition %s IR", id), logger.Data(ch))
 	}
 	return result
 }

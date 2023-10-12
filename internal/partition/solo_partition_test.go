@@ -122,7 +122,7 @@ func SetupNewSingleNodePartition(t *testing.T, txSystem txsystem.TransactionSyst
 		rootSigner: rootSigner,
 		mockNet:    net,
 		eh:         &testevent.TestEventHandler{},
-		log:        testlogger.New(t).With(logger.NodeID(peer.ID())),
+		log:        testlogger.New(t).With(logger.NodeID(peerConf.ID)),
 	}
 	return partition
 }

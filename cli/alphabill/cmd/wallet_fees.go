@@ -232,6 +232,9 @@ func addFees(ctx context.Context, accountNumber uint64, amountString string, c *
 		if errors.Is(err, fees.ErrMinimumFeeAmount) {
 			return fmt.Errorf("minimum fee credit amount to add is %s", amountToString(fees.MinimumFeeAmount, 8))
 		}
+		if errors.Is(err, fees.ErrLockedBillWrongPartition) {
+			return fmt.Errorf("wallet contains locked bill for different partition, run the command for the correct partition: %w", err)
+		}
 		return err
 	}
 	consoleWriter.Println("Successfully created", amountString, "fee credits on", c.partitionType, "partition.")
@@ -251,6 +254,9 @@ func reclaimFees(ctx context.Context, accountNumber uint64, c *cliConf, w FeeCre
 	if err != nil {
 		if errors.Is(err, fees.ErrMinimumFeeAmount) {
 			return fmt.Errorf("insufficient fee credit balance. Minimum amount is %s", amountToString(fees.MinimumFeeAmount, 8))
+		}
+		if errors.Is(err, fees.ErrLockedBillWrongPartition) {
+			return fmt.Errorf("wallet contains locked bill for different partition, run the command for the correct partition: %w", err)
 		}
 		return err
 	}

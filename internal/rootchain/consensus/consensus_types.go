@@ -19,7 +19,7 @@ type (
 		// CertificationResult read the channel to receive certification results
 		CertificationResult() <-chan *types.UnicityCertificate
 		// GetLatestUnicityCertificate get the latest certification for partition (maybe should/can be removed)
-		GetLatestUnicityCertificate(id types.SystemID) (*types.UnicityCertificate, error)
+		GetLatestUnicityCertificate(id types.SystemID32) (*types.UnicityCertificate, error)
 		// Run consensus algorithm
 		Run(ctx context.Context) error
 	}

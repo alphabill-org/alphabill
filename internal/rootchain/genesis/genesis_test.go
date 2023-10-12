@@ -29,7 +29,7 @@ func getPublicKeyAndVerifier(signer crypto.Signer) ([]byte, crypto.Verifier, err
 	return pubKey, verifier, nil
 }
 
-func createPartition(t *testing.T, systemIdentifier []byte, nodeID string, partitionSigner crypto.Signer) *genesis.PartitionRecord {
+func createPartition(t *testing.T, systemIdentifier types.SystemID, nodeID string, partitionSigner crypto.Signer) *genesis.PartitionRecord {
 	t.Helper()
 	req := createInputRequest(t, systemIdentifier, nodeID, partitionSigner)
 	pubKey, _, err := getPublicKeyAndVerifier(partitionSigner)
@@ -49,7 +49,7 @@ func createPartition(t *testing.T, systemIdentifier []byte, nodeID string, parti
 	}
 }
 
-func createPartitionNode(t *testing.T, systemIdentifier []byte, nodeID string, partitionSigner crypto.Signer) *genesis.PartitionNode {
+func createPartitionNode(t *testing.T, systemIdentifier types.SystemID, nodeID string, partitionSigner crypto.Signer) *genesis.PartitionNode {
 	t.Helper()
 	req := createInputRequest(t, systemIdentifier, nodeID, partitionSigner)
 	pubKey, _, err := getPublicKeyAndVerifier(partitionSigner)
@@ -64,7 +64,7 @@ func createPartitionNode(t *testing.T, systemIdentifier []byte, nodeID string, p
 	}
 }
 
-func createInputRequest(t *testing.T, systemIdentifier []byte, nodeID string, partitionSigner crypto.Signer) *certification.BlockCertificationRequest {
+func createInputRequest(t *testing.T, systemIdentifier types.SystemID, nodeID string, partitionSigner crypto.Signer) *certification.BlockCertificationRequest {
 	t.Helper()
 	req := &certification.BlockCertificationRequest{
 		SystemIdentifier: systemIdentifier,

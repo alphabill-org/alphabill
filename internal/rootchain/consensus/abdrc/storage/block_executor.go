@@ -5,7 +5,6 @@ import (
 	gocrypto "crypto"
 	"fmt"
 
-	"github.com/alphabill-org/alphabill/internal/network/protocol"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/abdrc"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 	abtypes "github.com/alphabill-org/alphabill/internal/rootchain/consensus/abdrc/types"
@@ -15,13 +14,13 @@ import (
 
 type (
 	InputData struct {
-		SysID []byte             `json:"systemIdentifier"`
+		SysID types.SystemID32   `json:"systemIdentifier"`
 		IR    *types.InputRecord `json:"ir"`
 		Sdrh  []byte             `json:"sdrh"` // System Description Record Hash
 	}
 
 	InputRecords []*InputData
-	SysIDList    [][]byte
+	SysIDList    []types.SystemID32
 
 	ExecutedBlock struct {
 		BlockData *abtypes.BlockData  `json:"block"`         // proposed block
@@ -40,7 +39,7 @@ type (
 
 func (data InputRecords) Update(newInputData *InputData) error {
 	for i, d := range data {
-		if bytes.Equal(d.SysID, newInputData.SysID) {
+		if d.SysID == newInputData.SysID {
 			data[i] = newInputData
 			return nil
 		}
@@ -48,18 +47,18 @@ func (data InputRecords) Update(newInputData *InputData) error {
 	return fmt.Errorf("input record with system id %X was not found", newInputData.SysID)
 }
 
-func (data InputRecords) Find(sysID []byte) *InputData {
+func (data InputRecords) Find(sysID types.SystemID32) *InputData {
 	for _, d := range data {
-		if bytes.Equal(d.SysID, sysID) {
+		if d.SysID == sysID {
 			return d
 		}
 	}
 	return nil
 }
 
-func (data SysIDList) Contains(sysID []byte) bool {
+func (data SysIDList) Contains(sysID types.SystemID32) bool {
 	for _, d := range data {
-		if bytes.Equal(d, sysID) {
+		if d == sysID {
 			return true
 		}
 	}
@@ -91,8 +90,9 @@ func QcFromGenesisState(partitionRecords []*genesis.GenesisPartitionRecord) *abt
 func NewExecutedBlockFromGenesis(hash gocrypto.Hash, pg []*genesis.GenesisPartitionRecord) *ExecutedBlock {
 	data := make([]*InputData, len(pg))
 	for i, partition := range pg {
+		id, _ := partition.SystemDescriptionRecord.SystemIdentifier.Id32()
 		data[i] = &InputData{
-			SysID: partition.SystemDescriptionRecord.SystemIdentifier,
+			SysID: id,
 			IR:    partition.Certificate.InputRecord,
 			Sdrh:  partition.Certificate.UnicityTreeCertificate.SystemDescriptionHash,
 		}
@@ -109,7 +109,7 @@ func NewExecutedBlockFromGenesis(hash gocrypto.Hash, pg []*genesis.GenesisPartit
 			Qc:        nil,
 		},
 		CurrentIR: data,
-		Changed:   make([][]byte, 0),
+		Changed:   make([]types.SystemID32, 0),
 		HashAlgo:  hash,
 		RootHash:  qc.LedgerCommitInfo.Hash,
 		Qc:        qc, // qc to itself
@@ -118,9 +118,9 @@ func NewExecutedBlockFromGenesis(hash gocrypto.Hash, pg []*genesis.GenesisPartit
 }
 
 func NewExecutedBlockFromRecovery(hash gocrypto.Hash, recoverBlock *abdrc.RecoveryBlock, verifier IRChangeReqVerifier) (*ExecutedBlock, error) {
-	var changes [][]byte
+	var changes SysIDList
 	if recoverBlock.Block.Payload != nil {
-		changes = make([][]byte, 0, len(recoverBlock.Block.Payload.Requests))
+		changes = make([]types.SystemID32, 0, len(recoverBlock.Block.Payload.Requests))
 		// verify requests for IR change and proof of consensus
 		for _, irChReq := range recoverBlock.Block.Payload.Requests {
 			_, err := verifier.VerifyIRChangeReq(recoverBlock.Block.GetRound(), irChReq)
@@ -145,7 +145,7 @@ func NewExecutedBlockFromRecovery(hash gocrypto.Hash, recoverBlock *abdrc.Recove
 		// if it is valid it must have at least one validator with a valid certification request
 		// if there is more, all input records are matching
 		utData = append(utData, &unicitytree.Data{
-			SystemIdentifier:            data.SysID,
+			SystemIdentifier:            data.SysID.ToSystemID(),
 			InputRecord:                 data.IR,
 			SystemDescriptionRecordHash: data.Sdrh,
 		})
@@ -179,7 +179,7 @@ func NewExecutedBlockFromRecovery(hash gocrypto.Hash, recoverBlock *abdrc.Recove
 
 func NewExecutedBlock(hash gocrypto.Hash, newBlock *abtypes.BlockData, parent *ExecutedBlock, verifier IRChangeReqVerifier) (*ExecutedBlock, error) {
 	changed := make(InputRecords, 0, len(newBlock.Payload.Requests))
-	changes := make([][]byte, 0, len(newBlock.Payload.Requests))
+	changes := make([]types.SystemID32, 0, len(newBlock.Payload.Requests))
 	// verify requests for IR change and proof of consensus
 	for _, irChReq := range newBlock.Payload.Requests {
 		irData, err := verifier.VerifyIRChangeReq(newBlock.GetRound(), irChReq)
@@ -203,7 +203,7 @@ func NewExecutedBlock(hash gocrypto.Hash, newBlock *abtypes.BlockData, parent *E
 		// if it is valid it must have at least one validator with a valid certification request
 		// if there is more, all input records are matching
 		utData = append(utData, &unicitytree.Data{
-			SystemIdentifier:            data.SysID,
+			SystemIdentifier:            data.SysID.ToSystemID(),
 			InputRecord:                 data.IR,
 			SystemDescriptionRecordHash: data.Sdrh,
 		})
@@ -227,7 +227,7 @@ func (x *ExecutedBlock) generateUnicityTree() (*unicitytree.UnicityTree, error) 
 		// if it is valid it must have at least one validator with a valid certification request
 		// if there is more, all input records are matching
 		utData = append(utData, &unicitytree.Data{
-			SystemIdentifier:            data.SysID,
+			SystemIdentifier:            data.SysID.ToSystemID(),
 			InputRecord:                 data.IR,
 			SystemDescriptionRecordHash: data.Sdrh,
 		})
@@ -235,7 +235,7 @@ func (x *ExecutedBlock) generateUnicityTree() (*unicitytree.UnicityTree, error) 
 	return unicitytree.New(x.HashAlgo.New(), utData)
 }
 
-func (x *ExecutedBlock) GenerateCertificates(commitQc *abtypes.QuorumCert) (map[protocol.SystemIdentifier]*types.UnicityCertificate, error) {
+func (x *ExecutedBlock) GenerateCertificates(commitQc *abtypes.QuorumCert) (map[types.SystemID32]*types.UnicityCertificate, error) {
 	ut, err := x.generateUnicityTree()
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate unicity tree: %w", err)
@@ -258,10 +258,10 @@ func (x *ExecutedBlock) GenerateCertificates(commitQc *abtypes.QuorumCert) (map[
 		PreviousHash:         commitQc.LedgerCommitInfo.PreviousHash,
 		Signatures:           commitQc.Signatures,
 	}
-	ucs := map[protocol.SystemIdentifier]*types.UnicityCertificate{}
+	ucs := map[types.SystemID32]*types.UnicityCertificate{}
 	// copy parent certificates and extract changed certificates from this round
 	for _, sysID := range x.Changed {
-		utCert, err := ut.GetCertificate(sysID)
+		utCert, err := ut.GetCertificate(sysID.ToSystemID())
 		if err != nil {
 			// this should never happen. if it does then exit with panic because we cannot generate
 			// unicity tree certificates.
@@ -280,7 +280,7 @@ func (x *ExecutedBlock) GenerateCertificates(commitQc *abtypes.QuorumCert) (map[
 			},
 			UnicitySeal: uSeal,
 		}
-		ucs[protocol.SystemIdentifier(sysID)] = certificate
+		ucs[sysID] = certificate
 	}
 	x.CommitQc = commitQc
 	return ucs, nil

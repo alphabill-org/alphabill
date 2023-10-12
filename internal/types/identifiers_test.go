@@ -5,6 +5,7 @@ import (
 
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 const (
@@ -14,10 +15,10 @@ const (
 )
 
 func TestNewUnitID(t *testing.T) {
-	emptyUnitID     := make([]byte, unitIDLength)
-	randomUnitID    := test.RandomBytes(unitIDLength)
-	randomUnitPart  := test.RandomBytes(unitPartLength)
-	randomTypePart  := test.RandomBytes(typePartLength)
+	emptyUnitID := make([]byte, unitIDLength)
+	randomUnitID := test.RandomBytes(unitIDLength)
+	randomUnitPart := test.RandomBytes(unitPartLength)
+	randomTypePart := test.RandomBytes(typePartLength)
 	shardPartLength := 0
 
 	type args struct {
@@ -102,4 +103,83 @@ func copyAndAppend(slice []byte, elems ...byte) []byte {
 	copy(newSlice, slice)
 
 	return append(newSlice, elems...)
+}
+
+func TestSystemID32_ToSystemID(t *testing.T) {
+	tests := []struct {
+		name string
+		sid  SystemID32
+		want SystemID
+	}{
+		{
+			name: "ID 00000001",
+			sid:  SystemID32(1),
+			want: SystemID{0, 0, 0, 1},
+		},
+		{
+			name: "ID FF000001",
+			sid:  SystemID32(0xFF000001),
+			want: SystemID{0xFF, 0, 0, 1},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equalf(t, tt.want, tt.sid.ToSystemID(), "ToSystemID()")
+		})
+	}
+}
+
+func TestSystemID_Id32(t *testing.T) {
+	tests := []struct {
+		name    string
+		sid     SystemID
+		want    SystemID32
+		wantErr error
+	}{
+		{
+			name:    "nil",
+			sid:     nil,
+			wantErr: ErrInvalidSystemIdentifier,
+		},
+		{
+			name:    "ID too big gets truncated FF00000101",
+			sid:     SystemID{0xFF, 0, 0, 1, 1},
+			wantErr: ErrInvalidSystemIdentifier,
+		},
+		{
+			name:    "ID less than 4 bytes FF00",
+			sid:     SystemID{0xFF, 0, 1},
+			wantErr: ErrInvalidSystemIdentifier,
+		},
+		{
+			name: "ID 00000001",
+			sid:  SystemID{0, 0, 0, 1},
+			want: SystemID32(1),
+		},
+		{
+			name: "ID FF000001",
+			sid:  SystemID{0xFF, 0, 0, 1},
+			want: SystemID32(0xFF000001),
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := tt.sid.Id32()
+			if tt.wantErr != nil {
+				require.ErrorIs(t, err, tt.wantErr)
+				require.EqualValues(t, 0, got)
+				return
+			}
+			assert.Equalf(t, tt.want, got, "Id32()")
+		})
+	}
+}
+
+func TestSystemID32_String(t *testing.T) {
+	var id SystemID32 = 0x00000001
+	require.Equal(t, "00000001", id.String())
+	id = 0xFF000001
+	require.Equal(t, "FF000001", id.String())
+	id = 0
+	require.Equal(t, "00000000", id.String())
 }

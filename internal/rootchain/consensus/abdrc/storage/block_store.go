@@ -9,7 +9,6 @@ import (
 	"sync"
 
 	"github.com/alphabill-org/alphabill/internal/keyvaluedb"
-	"github.com/alphabill-org/alphabill/internal/network/protocol"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/abdrc"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 	abtypes "github.com/alphabill-org/alphabill/internal/rootchain/consensus/abdrc/types"
@@ -21,15 +20,15 @@ type (
 		hash         gocrypto.Hash // hash algorithm
 		blockTree    *BlockTree
 		storage      keyvaluedb.KeyValueDB
-		certificates map[protocol.SystemIdentifier]*types.UnicityCertificate // cashed
+		certificates map[types.SystemID32]*types.UnicityCertificate // cashed
 		lock         sync.RWMutex
 	}
 )
 
-func UnicityCertificatesFromGenesis(pg []*genesis.GenesisPartitionRecord) map[protocol.SystemIdentifier]*types.UnicityCertificate {
-	var certs = make(map[protocol.SystemIdentifier]*types.UnicityCertificate)
+func UnicityCertificatesFromGenesis(pg []*genesis.GenesisPartitionRecord) map[types.SystemID32]*types.UnicityCertificate {
+	var certs = make(map[types.SystemID32]*types.UnicityCertificate)
 	for _, partition := range pg {
-		identifier := partition.GetSystemIdentifierString()
+		identifier, _ := partition.GetSystemDescriptionRecord().GetSystemIdentifier().Id32()
 		certs[identifier] = partition.Certificate
 	}
 	return certs
@@ -40,7 +39,7 @@ func storeGenesisInit(hash gocrypto.Hash, pg []*genesis.GenesisPartitionRecord, 
 	genesisBlock := NewExecutedBlockFromGenesis(hash, pg)
 	ucs := UnicityCertificatesFromGenesis(pg)
 	for id, cert := range ucs {
-		if err := db.Write(certKey(id.Bytes()), cert); err != nil {
+		if err := db.Write(certKey(id.ToSystemID()), cert); err != nil {
 			return fmt.Errorf("certificate %X write failed, %w", id, err)
 		}
 	}
@@ -50,18 +49,18 @@ func storeGenesisInit(hash gocrypto.Hash, pg []*genesis.GenesisPartitionRecord, 
 	return nil
 }
 
-func readCertificates(db keyvaluedb.KeyValueDB) (ucs map[protocol.SystemIdentifier]*types.UnicityCertificate, err error) {
+func readCertificates(db keyvaluedb.KeyValueDB) (ucs map[types.SystemID32]*types.UnicityCertificate, err error) {
 	// read certificates from storage
 	itr := db.Find([]byte(certPrefix))
 	defer func() { err = errors.Join(err, itr.Close()) }()
-	ucs = make(map[protocol.SystemIdentifier]*types.UnicityCertificate)
+	ucs = make(map[types.SystemID32]*types.UnicityCertificate)
 	for ; itr.Valid() && strings.HasPrefix(string(itr.Key()), certPrefix); itr.Next() {
 		var uc types.UnicityCertificate
 		if err = itr.Value(&uc); err != nil {
 			return nil, fmt.Errorf("certificate read error, %w", err)
 		}
-		id := uc.UnicityTreeCertificate.SystemIdentifier
-		ucs[protocol.SystemIdentifier(id)] = &uc
+		id, _ := uc.UnicityTreeCertificate.SystemIdentifier.Id32()
+		ucs[id] = &uc
 	}
 	return ucs, err
 }
@@ -113,11 +112,11 @@ func (x *BlockStore) ProcessTc(tc *abtypes.TimeoutCert) error {
 	return nil
 }
 
-func (x *BlockStore) IsChangeInProgress(sysId protocol.SystemIdentifier) bool {
+func (x *BlockStore) IsChangeInProgress(sysId types.SystemID32) bool {
 	blocks := x.blockTree.GetAllUncommittedNodes()
 	// go through the block we have and make sure that there is no change in progress for this system id
 	for _, b := range blocks {
-		if b.Changed.Contains(sysId.Bytes()) {
+		if b.Changed.Contains(sysId) {
 			return true
 		}
 	}
@@ -132,7 +131,7 @@ func (x *BlockStore) GetBlockRootHash(round uint64) ([]byte, error) {
 	return b.RootHash, nil
 }
 
-func (x *BlockStore) ProcessQc(qc *abtypes.QuorumCert) (map[protocol.SystemIdentifier]*types.UnicityCertificate, error) {
+func (x *BlockStore) ProcessQc(qc *abtypes.QuorumCert) (map[types.SystemID32]*types.UnicityCertificate, error) {
 	if qc == nil {
 		return nil, fmt.Errorf("qc is nil")
 	}
@@ -204,12 +203,12 @@ func (x *BlockStore) GetHighQc() *abtypes.QuorumCert {
 	return x.blockTree.HighQc()
 }
 
-func (x *BlockStore) updateCertificateCache(certs map[protocol.SystemIdentifier]*types.UnicityCertificate) error {
+func (x *BlockStore) updateCertificateCache(certs map[types.SystemID32]*types.UnicityCertificate) error {
 	x.lock.Lock()
 	defer x.lock.Unlock()
 	for id, uc := range certs {
 		// persist changes
-		if err := x.storage.Write(certKey(id.Bytes()), uc); err != nil {
+		if err := x.storage.Write(certKey(id.ToSystemID()), uc); err != nil {
 			// non-functional requirements? what should the root node do if it fails to persist state?
 			// todo: AB-795 persistent storage failure?
 			return fmt.Errorf("failed to write certificate into storage: %w", err)
@@ -220,17 +219,17 @@ func (x *BlockStore) updateCertificateCache(certs map[protocol.SystemIdentifier]
 	return nil
 }
 
-func (x *BlockStore) GetCertificate(id types.SystemID) (*types.UnicityCertificate, error) {
+func (x *BlockStore) GetCertificate(id types.SystemID32) (*types.UnicityCertificate, error) {
 	x.lock.RLock()
 	defer x.lock.RUnlock()
-	uc, f := x.certificates[protocol.SystemIdentifier(id)]
+	uc, f := x.certificates[id]
 	if !f {
 		return nil, fmt.Errorf("no certificate found for system id %X", id)
 	}
 	return uc, nil
 }
 
-func (x *BlockStore) GetCertificates() map[protocol.SystemIdentifier]*types.UnicityCertificate {
+func (x *BlockStore) GetCertificates() map[types.SystemID32]*types.UnicityCertificate {
 	x.lock.RLock()
 	defer x.lock.RUnlock()
 	return x.certificates
@@ -241,9 +240,9 @@ func (x *BlockStore) GetRoot() *ExecutedBlock {
 }
 
 func (x *BlockStore) UpdateCertificates(cert []*types.UnicityCertificate) error {
-	newerCerts := make(map[protocol.SystemIdentifier]*types.UnicityCertificate)
+	newerCerts := make(map[types.SystemID32]*types.UnicityCertificate)
 	for _, c := range cert {
-		id := protocol.SystemIdentifier(c.UnicityTreeCertificate.SystemIdentifier)
+		id, _ := c.UnicityTreeCertificate.SystemIdentifier.Id32()
 		cachedCert, found := x.certificates[id]
 		if !found || cachedCert.UnicitySeal.RootChainRoundNumber < c.UnicitySeal.RootChainRoundNumber {
 			newerCerts[id] = c

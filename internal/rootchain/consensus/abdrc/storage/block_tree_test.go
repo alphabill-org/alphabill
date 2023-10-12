@@ -12,8 +12,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-var sysID1 = []byte{0, 0, 0, 1}
-var sysID2 = []byte{0, 0, 0, 2}
+var sysID1 = types.SystemID32(1)
+var sysID2 = types.SystemID32(2)
 
 var zeroHash = make([]byte, gocrypto.SHA256.Size())
 
@@ -25,7 +25,7 @@ var inputRecord1 = &types.InputRecord{
 	RoundNumber:  1,
 }
 var sdr1 = &genesis.SystemDescriptionRecord{
-	SystemIdentifier: sysID1,
+	SystemIdentifier: sysID1.ToSystemID(),
 	T2Timeout:        2500,
 }
 var inputRecord2 = &types.InputRecord{
@@ -36,7 +36,7 @@ var inputRecord2 = &types.InputRecord{
 	RoundNumber:  1,
 }
 var sdr2 = &genesis.SystemDescriptionRecord{
-	SystemIdentifier: sysID2,
+	SystemIdentifier: sysID2.ToSystemID(),
 	T2Timeout:        2500,
 }
 
@@ -50,7 +50,7 @@ var pg = []*genesis.GenesisPartitionRecord{
 		Certificate: &types.UnicityCertificate{
 			InputRecord: inputRecord1,
 			UnicityTreeCertificate: &types.UnicityTreeCertificate{
-				SystemIdentifier:      sysID1,
+				SystemIdentifier:      sysID1.ToSystemID(),
 				SystemDescriptionHash: sdr1.Hash(gocrypto.SHA256),
 			},
 			UnicitySeal: &types.UnicitySeal{
@@ -67,7 +67,7 @@ var pg = []*genesis.GenesisPartitionRecord{
 		Certificate: &types.UnicityCertificate{
 			InputRecord: inputRecord2,
 			UnicityTreeCertificate: &types.UnicityTreeCertificate{
-				SystemIdentifier:      sysID2,
+				SystemIdentifier:      sysID2.ToSystemID(),
 				SystemDescriptionHash: sdr2.Hash(gocrypto.SHA256),
 			},
 			UnicitySeal: &types.UnicitySeal{
@@ -139,7 +139,7 @@ func TestNewBlockTreeFromDb(t *testing.T) {
 			Qc:        gBlock.Qc,
 		},
 		CurrentIR: gBlock.CurrentIR,
-		Changed:   make([][]byte, 0),
+		Changed:   make([]types.SystemID32, 0),
 		HashAlgo:  gocrypto.SHA256,
 		RootHash:  gBlock.Qc.LedgerCommitInfo.Hash,
 		Qc:        nil, // qc to genesis
@@ -185,7 +185,7 @@ func TestNewBlockTreeFromDbChain3Blocks(t *testing.T) {
 			Qc:        gBlock.Qc,
 		},
 		CurrentIR: gBlock.CurrentIR,
-		Changed:   make([][]byte, 0),
+		Changed:   make([]types.SystemID32, 0),
 		HashAlgo:  gocrypto.SHA256,
 		RootHash:  gBlock.Qc.LedgerCommitInfo.Hash,
 		Qc:        qcBlock2,
@@ -201,7 +201,7 @@ func TestNewBlockTreeFromDbChain3Blocks(t *testing.T) {
 			Qc:        qcBlock2,
 		},
 		CurrentIR: gBlock.CurrentIR,
-		Changed:   make([][]byte, 0),
+		Changed:   make([]types.SystemID32, 0),
 		HashAlgo:  gocrypto.SHA256,
 		RootHash:  gBlock.Qc.LedgerCommitInfo.Hash,
 	}

@@ -18,7 +18,7 @@ const (
 
 type (
 	IRChangeRequest struct {
-		SystemIdentifier types.SystemID
+		SystemIdentifier types.SystemID32
 		Reason           CertReqReason
 		Requests         []*certification.BlockCertificationRequest
 	}

@@ -9,7 +9,6 @@ import (
 	"github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/keyvaluedb/memorydb"
 	"github.com/alphabill-org/alphabill/internal/network"
-	"github.com/alphabill-org/alphabill/internal/network/protocol"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/blockproposal"
 	"github.com/alphabill-org/alphabill/internal/partition/event"
 	pgenesis "github.com/alphabill-org/alphabill/internal/partition/genesis"
@@ -258,7 +257,8 @@ func TestNode_HandleOlderUnicityCertificate(t *testing.T) {
 
 func TestNode_StartNodeBehindRootchain_OK(t *testing.T) {
 	tp := RunSingleNodePartition(t, &testtxsystem.CounterTxSystem{})
-	systemId := protocol.SystemIdentifier(tp.nodeConf.GetSystemIdentifier())
+	systemId, err := types.SystemID(tp.nodeConf.GetSystemIdentifier()).Id32()
+	require.NoError(t, err)
 	luc, found := tp.certs[systemId]
 	require.True(t, found)
 	// Mock and skip some root rounds

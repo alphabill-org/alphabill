@@ -13,8 +13,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-var sysId1 = []byte{0, 0, 0, 1}
-var sysId2 = []byte{0, 0, 0, 2}
+var sysId1 = types.SystemID32(1)
+var sysId2 = types.SystemID32(2)
 var prevHash = []byte{0, 0, 0}
 var inputRecord1 = &types.InputRecord{
 	PreviousHash: prevHash,
@@ -34,7 +34,7 @@ var inputRecord2 = &types.InputRecord{
 func TestIRChangeReqMsg_IsValid(t *testing.T) {
 
 	type fields struct {
-		SystemIdentifier []byte
+		SystemIdentifier types.SystemID32
 		CertReason       IRChangeReason
 		Requests         []*certification.BlockCertificationRequest
 	}
@@ -45,31 +45,9 @@ func TestIRChangeReqMsg_IsValid(t *testing.T) {
 		serialized []byte
 	}{
 		{
-			name: "IR change req. invalid system id",
-			fields: fields{
-				SystemIdentifier: []byte{0, 0, 1},
-				CertReason:       T2Timeout,
-				Requests: []*certification.BlockCertificationRequest{
-					{
-						SystemIdentifier: []byte{0, 0, 0, 1},
-						NodeIdentifier:   "1",
-						InputRecord: &types.InputRecord{
-							PreviousHash: []byte{0, 1},
-							Hash:         []byte{2, 3},
-							BlockHash:    []byte{4, 5},
-							SummaryValue: []byte{6, 7},
-							RoundNumber:  1,
-						},
-						Signature: []byte{0, 1},
-					},
-				},
-			},
-			wantErr: true,
-		},
-		{
 			name: "IR change req. invalid cert reason",
 			fields: fields{
-				SystemIdentifier: []byte{0, 0, 0, 1},
+				SystemIdentifier: types.SystemID32(1),
 				CertReason:       -2,
 				Requests: []*certification.BlockCertificationRequest{
 					{
@@ -91,7 +69,7 @@ func TestIRChangeReqMsg_IsValid(t *testing.T) {
 		{
 			name: "IR change req. invalid cert reason",
 			fields: fields{
-				SystemIdentifier: []byte{0, 0, 0, 1},
+				SystemIdentifier: types.SystemID32(1),
 				CertReason:       10,
 				Requests: []*certification.BlockCertificationRequest{
 					{
@@ -127,7 +105,7 @@ func TestIRChangeReqMsg_IsValid(t *testing.T) {
 
 func TestIRChangeReqMsg_AddToHasher(t *testing.T) {
 	type fields struct {
-		SystemIdentifier []byte
+		SystemIdentifier types.SystemID32
 		CertReason       IRChangeReason
 		Requests         []*certification.BlockCertificationRequest
 	}
@@ -156,7 +134,7 @@ func TestIRChangeReqMsg_AddToHasher(t *testing.T) {
 		{
 			name: "Bytes result",
 			fields: fields{
-				SystemIdentifier: []byte{0, 0, 0, 1},
+				SystemIdentifier: types.SystemID32(1),
 				CertReason:       QuorumNotPossible,
 				Requests: []*certification.BlockCertificationRequest{
 					{
@@ -193,7 +171,7 @@ func TestIRChangeReqMsg_AddToHasher(t *testing.T) {
 
 func TestIRChangeReqMsg_GeneralReq(t *testing.T) {
 	type fields struct {
-		SystemIdentifier []byte
+		SystemIdentifier types.SystemID32
 		CertReason       IRChangeReason
 		Requests         []*certification.BlockCertificationRequest
 	}
@@ -207,27 +185,27 @@ func TestIRChangeReqMsg_GeneralReq(t *testing.T) {
 	trustBase := &partitions.TrustBase{
 		PartitionTrustBase: map[string]crypto.Verifier{"1": v1, "2": v2}}
 	reqS1 := &certification.BlockCertificationRequest{
-		SystemIdentifier: sysId1,
+		SystemIdentifier: sysId1.ToSystemID(),
 		NodeIdentifier:   "1",
 		InputRecord:      inputRecord1,
 	}
 	require.NoError(t, reqS1.Sign(s1))
 	reqS2 := &certification.BlockCertificationRequest{
-		SystemIdentifier: sysId1,
+		SystemIdentifier: sysId1.ToSystemID(),
 		NodeIdentifier:   "2",
 		InputRecord:      inputRecord1,
 	}
 	require.NoError(t, reqS2.Sign(s2))
 
 	invalidReq := &certification.BlockCertificationRequest{
-		SystemIdentifier: sysId1,
+		SystemIdentifier: sysId1.ToSystemID(),
 		NodeIdentifier:   "1",
 		InputRecord:      inputRecord1,
 		Signature:        []byte{0, 19, 12},
 	}
 
 	reqS1InvalidSysId := &certification.BlockCertificationRequest{
-		SystemIdentifier: sysId2,
+		SystemIdentifier: sysId2.ToSystemID(),
 		NodeIdentifier:   "1",
 		InputRecord:      inputRecord1,
 	}
@@ -239,21 +217,6 @@ func TestIRChangeReqMsg_GeneralReq(t *testing.T) {
 		args       args
 		wantErrStr string
 	}{
-		{
-			name: "Not valid system id",
-			fields: fields{
-				SystemIdentifier: []byte{0, 0, 1},
-				CertReason:       T2Timeout,
-				Requests:         nil,
-			},
-			args: args{
-				tb: trustBase,
-				luc: &types.UnicityCertificate{
-					InputRecord: &types.InputRecord{Hash: prevHash},
-				},
-			},
-			wantErrStr: "ir change request validation failed, invalid system identifier [0 0 1]",
-		},
 		{
 			name: "System id in request and proof do not match",
 			fields: fields{
@@ -374,7 +337,7 @@ func TestIRChangeReqMsg_GeneralReq(t *testing.T) {
 
 func TestIRChangeReqMsg_VerifyTimeoutReq(t *testing.T) {
 	type fields struct {
-		SystemIdentifier []byte
+		SystemIdentifier types.SystemID32
 		CertReason       IRChangeReason
 		Requests         []*certification.BlockCertificationRequest
 	}
@@ -386,7 +349,7 @@ func TestIRChangeReqMsg_VerifyTimeoutReq(t *testing.T) {
 	}
 	s1, v1 := testsig.CreateSignerAndVerifier(t)
 	reqS1 := &certification.BlockCertificationRequest{
-		SystemIdentifier: sysId1,
+		SystemIdentifier: sysId1.ToSystemID(),
 		NodeIdentifier:   "1",
 		InputRecord:      inputRecord1,
 	}
@@ -483,7 +446,7 @@ func TestIRChangeReqMsg_VerifyTimeoutReq(t *testing.T) {
 
 func TestIRChangeReqMsg_VerifyQuorum(t *testing.T) {
 	type fields struct {
-		SystemIdentifier []byte
+		SystemIdentifier types.SystemID32
 		CertReason       IRChangeReason
 		Requests         []*certification.BlockCertificationRequest
 	}
@@ -496,19 +459,19 @@ func TestIRChangeReqMsg_VerifyQuorum(t *testing.T) {
 	s3, v3 := testsig.CreateSignerAndVerifier(t)
 
 	reqS1 := &certification.BlockCertificationRequest{
-		SystemIdentifier: sysId1,
+		SystemIdentifier: sysId1.ToSystemID(),
 		NodeIdentifier:   "1",
 		InputRecord:      inputRecord1,
 	}
 	require.NoError(t, reqS1.Sign(s1))
 	reqS2 := &certification.BlockCertificationRequest{
-		SystemIdentifier: sysId1,
+		SystemIdentifier: sysId1.ToSystemID(),
 		NodeIdentifier:   "2",
 		InputRecord:      inputRecord1,
 	}
 	require.NoError(t, reqS2.Sign(s2))
 	reqS3NotMatchingIR := &certification.BlockCertificationRequest{
-		SystemIdentifier: sysId1,
+		SystemIdentifier: sysId1.ToSystemID(),
 		NodeIdentifier:   "3",
 		InputRecord:      inputRecord2,
 	}
@@ -609,7 +572,7 @@ func TestIRChangeReqMsg_VerifyQuorum(t *testing.T) {
 
 func TestIRChangeReqMsg_VerifyQuorumNotPossible(t *testing.T) {
 	type fields struct {
-		SystemIdentifier []byte
+		SystemIdentifier types.SystemID32
 		CertReason       IRChangeReason
 		Requests         []*certification.BlockCertificationRequest
 	}
@@ -621,7 +584,7 @@ func TestIRChangeReqMsg_VerifyQuorumNotPossible(t *testing.T) {
 	s2, v2 := testsig.CreateSignerAndVerifier(t)
 
 	reqS1 := &certification.BlockCertificationRequest{
-		SystemIdentifier: sysId1,
+		SystemIdentifier: sysId1.ToSystemID(),
 		NodeIdentifier:   "1",
 		InputRecord:      inputRecord1,
 	}

@@ -18,7 +18,6 @@ import (
 	"github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/keyvaluedb"
 	"github.com/alphabill-org/alphabill/internal/network"
-	"github.com/alphabill-org/alphabill/internal/network/protocol"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/blockproposal"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/certification"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
@@ -46,7 +45,7 @@ type SingleNodePartition struct {
 	partition  *Node
 	nodeDeps   *partitionStartupDependencies
 	rootRound  uint64
-	certs      map[protocol.SystemIdentifier]*types.UnicityCertificate
+	certs      map[types.SystemID32]*types.UnicityCertificate
 	rootSigner crypto.Signer
 	mockNet    *testnetwork.MockNet
 	eh         *testevent.TestEventHandler
@@ -101,9 +100,11 @@ func SetupNewSingleNodePartition(t *testing.T, txSystem txsystem.TransactionSyst
 	require.NoError(t, err)
 
 	// root state
-	var certs = make(map[protocol.SystemIdentifier]*types.UnicityCertificate)
+	var certs = make(map[types.SystemID32]*types.UnicityCertificate)
 	for _, partition := range rootGenesis.Partitions {
-		certs[partition.GetSystemIdentifierString()] = partition.Certificate
+		id32, err := partition.GetSystemDescriptionRecord().GetSystemIdentifier().Id32()
+		require.NoError(t, err)
+		certs[id32] = partition.Certificate
 	}
 
 	net := testnetwork.NewMockNetwork()
@@ -264,15 +265,16 @@ func (sn *SingleNodePartition) CreateBlock(t *testing.T) {
 func (sn *SingleNodePartition) IssueBlockUC(t *testing.T) *types.UnicityCertificate {
 	req := sn.mockNet.SentMessages(network.ProtocolBlockCertification)[0].Message.(*certification.BlockCertificationRequest)
 	sn.mockNet.ResetSentMessages(network.ProtocolBlockCertification)
-	luc, found := sn.certs[protocol.SystemIdentifier(req.SystemIdentifier)]
-	require.True(t, found)
-	err := consensus.CheckBlockCertificationRequest(req, luc)
+	id32, err := req.SystemIdentifier.Id32()
 	require.NoError(t, err)
+	luc, found := sn.certs[id32]
+	require.True(t, found)
+	require.NoError(t, consensus.CheckBlockCertificationRequest(req, luc))
 	uc, err := sn.CreateUnicityCertificate(req.InputRecord, sn.rootRound+1)
 	require.NoError(t, err)
 	// update state
 	sn.rootRound = uc.UnicitySeal.RootChainRoundNumber
-	sn.certs[protocol.SystemIdentifier(req.SystemIdentifier)] = uc
+	sn.certs[id32] = uc
 	return uc
 }
 

@@ -20,7 +20,7 @@ var inputRecord = &types.InputRecord{
 func TestNewUnicityTree(t *testing.T) {
 	unicityTree, err := New(sha256.New(), []*Data{
 		{
-			SystemIdentifier:            []byte{0, 0, 0, 1},
+			SystemIdentifier:            types.SystemID{0, 0, 0, 1},
 			InputRecord:                 inputRecord,
 			SystemDescriptionRecordHash: []byte{1, 2, 3, 4},
 		},
@@ -30,7 +30,7 @@ func TestNewUnicityTree(t *testing.T) {
 }
 
 func TestGetCertificate_Ok(t *testing.T) {
-	key := types.SystemID([]byte{0x00, 0x00, 0x00, 0x01})
+	key := types.SystemID([]byte{0, 0, 0, 1})
 	data := []*Data{
 		{
 			SystemIdentifier:            key,
@@ -44,7 +44,7 @@ func TestGetCertificate_Ok(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, cert)
 	require.Equal(t, key, cert.SystemIdentifier)
-	require.Equal(t, systemIdentifierLength*8, len(cert.SiblingHashes))
+	require.Equal(t, types.SystemIdentifierLength*8, len(cert.SiblingHashes))
 
 	hasher := crypto.SHA256.New()
 	data[0].AddToHasher(hasher)
@@ -61,13 +61,13 @@ func TestGetCertificate_Ok(t *testing.T) {
 func TestGetCertificate_InvalidKey(t *testing.T) {
 	unicityTree, err := New(sha256.New(), []*Data{
 		{
-			SystemIdentifier:            []byte{1, 2, 3, 1},
+			SystemIdentifier:            types.SystemID{1, 2, 3, 1},
 			InputRecord:                 inputRecord,
 			SystemDescriptionRecordHash: []byte{1, 2, 3, 4},
 		},
 	})
 	require.NoError(t, err)
-	cert, err := unicityTree.GetCertificate([]byte{0x00, 0x00})
+	cert, err := unicityTree.GetCertificate(types.SystemID{1, 2})
 
 	require.Nil(t, cert)
 	require.ErrorIs(t, err, ErrInvalidSystemIdentifierLength)
@@ -82,10 +82,10 @@ func TestGetCertificate_KeyNotFound(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	cert, err := unicityTree.GetCertificate([]byte{0, 0, 0, 0})
+	cert, err := unicityTree.GetCertificate(types.SystemID{0, 0, 0, 0})
 	require.Nil(t, cert)
 	require.ErrorContains(t, err, "certificate for system id 00000000 not found")
-	ir, err := unicityTree.GetIR([]byte{0, 0, 0, 0})
+	ir, err := unicityTree.GetIR(types.SystemID{0, 0, 0, 0})
 	require.ErrorContains(t, err, "ir for system id 00000000 not found")
 	require.Nil(t, ir)
 }

@@ -18,8 +18,8 @@ type (
 	}
 )
 
-var partitionID1 = []byte{0, 0, 0, 1}
-var partitionID2 = []byte{0, 0, 0, 2}
+var partitionID1 = types.SystemID32(1)
+var partitionID2 = types.SystemID32(2)
 var genesisInputRecord = &types.InputRecord{
 	PreviousHash: make([]byte, 32),
 	Hash:         []byte{1, 1, 1, 1},
@@ -48,7 +48,7 @@ func generateBlockData(round uint64, req ...*abtypes.IRChangeReq) *abtypes.Block
 }
 
 func TestNewExecutedBlockFromGenesis(t *testing.T) {
-	_, partitionRecord := testutils.CreatePartitionNodesAndPartitionRecord(t, genesisInputRecord, partitionID1, 3)
+	_, partitionRecord := testutils.CreatePartitionNodesAndPartitionRecord(t, genesisInputRecord, partitionID1.ToSystemID(), 3)
 	rootNode := testutils.NewTestNode(t)
 	verifier := rootNode.Verifier
 	rootPubKeyBytes, err := verifier.MarshalPublicKey()
@@ -61,7 +61,7 @@ func TestNewExecutedBlockFromGenesis(t *testing.T) {
 	b := NewExecutedBlockFromGenesis(hash, rootGenesis.Partitions)
 	require.Equal(t, b.HashAlgo, gocrypto.SHA256)
 	data := b.CurrentIR.Find(partitionID1)
-	require.Equal(t, rootGenesis.Partitions[0].SystemDescriptionRecord.SystemIdentifier, data.SysID)
+	require.Equal(t, rootGenesis.Partitions[0].SystemDescriptionRecord.SystemIdentifier, data.SysID.ToSystemID())
 	require.Equal(t, rootGenesis.Partitions[0].Certificate.InputRecord, data.IR)
 	require.Equal(t, rootGenesis.Partitions[0].Certificate.UnicityTreeCertificate.SystemDescriptionHash, data.Sdrh)
 	require.Empty(t, b.Changed)
@@ -76,7 +76,7 @@ func TestNewExecutedBlockFromGenesis(t *testing.T) {
 }
 
 func TestExecutedBlock(t *testing.T) {
-	_, partitionRecord := testutils.CreatePartitionNodesAndPartitionRecord(t, genesisInputRecord, partitionID1, 3)
+	_, partitionRecord := testutils.CreatePartitionNodesAndPartitionRecord(t, genesisInputRecord, partitionID1.ToSystemID(), 3)
 	rootNode := testutils.NewTestNode(t)
 	verifier := rootNode.Verifier
 	rootPubKeyBytes, err := verifier.MarshalPublicKey()
@@ -88,7 +88,7 @@ func TestExecutedBlock(t *testing.T) {
 	// partitions, err := partition_store.NewPartitionStoreFromGenesis(rootGenesis.Partitions)
 	parent := NewExecutedBlockFromGenesis(hash, rootGenesis.Partitions)
 	certReq := &certification.BlockCertificationRequest{
-		SystemIdentifier: partitionID1,
+		SystemIdentifier: partitionID1.ToSystemID(),
 		NodeIdentifier:   "1",
 		InputRecord: &types.InputRecord{
 			PreviousHash:    []byte{1, 1, 1, 1},
@@ -155,7 +155,7 @@ func TestExecutedBlock_GenerateCertificates(t *testing.T) {
 				Sdrh: []byte{4, 5, 6, 7},
 			},
 		},
-		Changed:  [][]byte{partitionID1, partitionID2},
+		Changed:  []types.SystemID32{partitionID1, partitionID2},
 		HashAlgo: gocrypto.SHA256,
 		RootHash: []byte{0xF2, 0xE8, 0xBC, 0xC5, 0x71, 0x0D, 0x40, 0xAB, 0x42, 0xD5, 0x70, 0x57, 0x6F, 0x56, 0xA2, 0xF2,
 			0x7E, 0xF6, 0x0F, 0xE9, 0x21, 0x25, 0x0A, 0x4B, 0x4C, 0xF5, 0xBC, 0xAC, 0xA3, 0x29, 0xBF, 0x32},

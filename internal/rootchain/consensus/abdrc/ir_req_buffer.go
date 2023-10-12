@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"log/slog"
 
-	"github.com/alphabill-org/alphabill/internal/network/protocol"
 	"github.com/alphabill-org/alphabill/internal/rootchain/consensus/abdrc/storage"
 	abtypes "github.com/alphabill-org/alphabill/internal/rootchain/consensus/abdrc/types"
 	"github.com/alphabill-org/alphabill/internal/types"
@@ -16,7 +15,7 @@ type (
 		VerifyIRChangeReq(round uint64, irChReq *abtypes.IRChangeReq) (*storage.InputData, error)
 	}
 	PartitionTimeout interface {
-		GetT2Timeouts(currenRound uint64) ([]protocol.SystemIdentifier, error)
+		GetT2Timeouts(currenRound uint64) ([]types.SystemID32, error)
 	}
 	irChange struct {
 		InputRecord *types.InputRecord
@@ -24,14 +23,14 @@ type (
 		Req         *abtypes.IRChangeReq
 	}
 	IrReqBuffer struct {
-		irChgReqBuffer map[protocol.SystemIdentifier]*irChange
+		irChgReqBuffer map[types.SystemID32]*irChange
 		log            *slog.Logger
 	}
 )
 
 func NewIrReqBuffer(log *slog.Logger) *IrReqBuffer {
 	return &IrReqBuffer{
-		irChgReqBuffer: make(map[protocol.SystemIdentifier]*irChange),
+		irChgReqBuffer: make(map[types.SystemID32]*irChange),
 		log:            log,
 	}
 }
@@ -50,13 +49,13 @@ func (x *IrReqBuffer) Add(round uint64, irChReq *abtypes.IRChangeReq, ver IRChan
 	if err != nil {
 		return fmt.Errorf("ir change request verification failed, %w", err)
 	}
-	systemID := protocol.SystemIdentifier(irChReq.SystemIdentifier)
+	systemID := irChReq.SystemIdentifier
 	// verify and extract proposed IR, NB! in this case we set the age to 0 as
 	// currently no request can be received to request timeout
 	newIrChReq := &irChange{InputRecord: irData.IR, Reason: irChReq.CertReason, Req: irChReq}
 	if irChangeReq, found := x.irChgReqBuffer[systemID]; found {
 		if irChangeReq.Reason != newIrChReq.Reason {
-			return fmt.Errorf("equivocating request for partition %X, reason has changed", systemID.Bytes())
+			return fmt.Errorf("equivocating request for partition %s, reason has changed", systemID)
 		}
 		if irChangeReq.InputRecord.Equal(newIrChReq.InputRecord) {
 			// duplicate already stored
@@ -64,8 +63,8 @@ func (x *IrReqBuffer) Add(round uint64, irChReq *abtypes.IRChangeReq, ver IRChan
 			return nil
 		}
 		// At this point it is not possible to cast blame, so just log and ignore
-		x.log.Debug(fmt.Sprintf("equivocating request for partition %X", systemID.Bytes()), logger.Round(round), logger.Data(newIrChReq.Req), logger.Data(irChangeReq))
-		return fmt.Errorf("equivocating request for partition %X", systemID.Bytes())
+		x.log.Debug(fmt.Sprintf("equivocating request for partition %s", systemID), logger.Round(round), logger.Data(newIrChReq.Req), logger.Data(irChangeReq))
+		return fmt.Errorf("equivocating request for partition %s", systemID)
 	}
 	// Insert first valid request received and compare the others received against it
 	x.irChgReqBuffer[systemID] = newIrChReq
@@ -74,13 +73,13 @@ func (x *IrReqBuffer) Add(round uint64, irChReq *abtypes.IRChangeReq, ver IRChan
 
 // IsChangeInBuffer returns true if there is a request for IR change from the partition
 // in the buffer
-func (x *IrReqBuffer) IsChangeInBuffer(id protocol.SystemIdentifier) bool {
+func (x *IrReqBuffer) IsChangeInBuffer(id types.SystemID32) bool {
 	_, found := x.irChgReqBuffer[id]
 	return found
 }
 
 // GeneratePayload generates new proposal payload from buffered IR change requests.
-func (x *IrReqBuffer) GeneratePayload(round uint64, timeouts []protocol.SystemIdentifier) *abtypes.Payload {
+func (x *IrReqBuffer) GeneratePayload(round uint64, timeouts []types.SystemID32) *abtypes.Payload {
 	payload := &abtypes.Payload{
 		Requests: make([]*abtypes.IRChangeReq, 0, len(x.irChgReqBuffer)+len(timeouts)),
 	}
@@ -90,9 +89,9 @@ func (x *IrReqBuffer) GeneratePayload(round uint64, timeouts []protocol.SystemId
 		if x.IsChangeInBuffer(id) {
 			continue
 		}
-		x.log.Debug(fmt.Sprintf("partition %X request T2 timeout", id.Bytes()), logger.Round(round))
+		x.log.Debug(fmt.Sprintf("partition %s request T2 timeout", id), logger.Round(round))
 		payload.Requests = append(payload.Requests, &abtypes.IRChangeReq{
-			SystemIdentifier: id.Bytes(),
+			SystemIdentifier: id,
 			CertReason:       abtypes.T2Timeout,
 		})
 	}
@@ -100,6 +99,6 @@ func (x *IrReqBuffer) GeneratePayload(round uint64, timeouts []protocol.SystemId
 		payload.Requests = append(payload.Requests, req.Req)
 	}
 	// clear the buffer once payload is done
-	x.irChgReqBuffer = make(map[protocol.SystemIdentifier]*irChange)
+	x.irChgReqBuffer = make(map[types.SystemID32]*irChange)
 	return payload
 }

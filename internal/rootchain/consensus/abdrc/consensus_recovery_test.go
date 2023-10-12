@@ -208,7 +208,7 @@ func Test_recoverState(t *testing.T) {
 	}
 
 	partitionRecs := []*protocgenesis.PartitionRecord{
-		createPartitionRecord(t, partitionID, partitionInputRecord, 2),
+		createPartitionRecord(t, partitionID.ToSystemID(), partitionInputRecord, 2),
 	}
 
 	t.Run("late joiner catches up", func(t *testing.T) {

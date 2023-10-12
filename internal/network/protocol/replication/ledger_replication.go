@@ -26,7 +26,7 @@ var (
 type (
 	LedgerReplicationRequest struct {
 		_                struct{} `cbor:",toarray"`
-		SystemIdentifier []byte
+		SystemIdentifier types.SystemID
 		NodeIdentifier   string
 		BeginBlockNumber uint64
 		EndBlockNumber   uint64
@@ -73,7 +73,7 @@ func (r *LedgerReplicationRequest) IsValid() error {
 	if r == nil {
 		return ErrLedgerReplicationReqIsNil
 	}
-	if len(r.SystemIdentifier) != 4 {
+	if len(r.SystemIdentifier) != types.SystemIdentifierLength {
 		return ErrInvalidSystemIdentifier
 	}
 	if r.NodeIdentifier == "" {

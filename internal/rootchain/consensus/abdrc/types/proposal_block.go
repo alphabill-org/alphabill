@@ -7,6 +7,7 @@ import (
 	"hash"
 
 	"github.com/alphabill-org/alphabill/internal/crypto"
+	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/internal/util"
 )
 
@@ -43,20 +44,20 @@ func (x *Payload) AddToHasher(hasher hash.Hash) {
 
 func (x *Payload) IsValid() error {
 	// there can only be one request per system identifier in a block
-	sysIdSet := map[string]struct{}{}
+	sysIdSet := map[types.SystemID32]struct{}{}
 
 	for _, req := range x.Requests {
 		if err := req.IsValid(); err != nil {
-			return fmt.Errorf("invalid IR change request for %X: %w", req.SystemIdentifier, err)
+			return fmt.Errorf("invalid IR change request for %s: %w", req.SystemIdentifier, err)
 		}
 		// Timeout requests do not contain proof
 		if req.CertReason == T2Timeout && len(req.Requests) > 0 {
-			return fmt.Errorf("partition %X timeout proof contains requests", req.SystemIdentifier)
+			return fmt.Errorf("partition %s timeout proof contains requests", req.SystemIdentifier)
 		}
-		if _, found := sysIdSet[string(req.SystemIdentifier)]; found {
-			return fmt.Errorf("duplicate requests for partition %X", req.SystemIdentifier)
+		if _, found := sysIdSet[req.SystemIdentifier]; found {
+			return fmt.Errorf("duplicate requests for partition %s", req.SystemIdentifier)
 		}
-		sysIdSet[string(req.SystemIdentifier)] = struct{}{}
+		sysIdSet[req.SystemIdentifier] = struct{}{}
 	}
 	return nil
 }

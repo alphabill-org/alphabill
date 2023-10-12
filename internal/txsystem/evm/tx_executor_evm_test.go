@@ -112,8 +112,7 @@ func initStateDBWithAccountAndSC(t *testing.T, accounts []*testAccount) *statedb
 func Test_validate(t *testing.T) {
 	fromAddr := common.BytesToAddress(test.RandomBytes(20))
 	type args struct {
-		stateDB *statedb.StateDB
-		attr    *TxAttributes
+		attr *TxAttributes
 	}
 	tests := []struct {
 		name       string
@@ -179,7 +178,6 @@ func Test_execute(t *testing.T) {
 		currentBlockNumber uint64
 		stateDB            *statedb.StateDB
 		attr               *TxAttributes
-		systemIdentifier   []byte
 		gp                 *core.GasPool
 	}
 	tests := []struct {
@@ -522,6 +520,7 @@ func Test_ReplayCall(t *testing.T) {
 	gasPool := new(core.GasPool).AddGas(DefaultBlockGasLimit)
 	scAddr := evmcrypto.CreateAddress(common.BytesToAddress(fromAddr.Bytes()), 0)
 	cABI, err := abi.JSON(bytes.NewBuffer([]byte(counterABI)))
+	require.NoError(t, err)
 	inc := cABI.Methods["increment"]
 	callContract := &TxAttributes{
 		From:  fromAddr.Bytes(),

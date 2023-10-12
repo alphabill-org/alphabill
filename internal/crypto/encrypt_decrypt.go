@@ -6,10 +6,10 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"strings"
 
-	"github.com/alphabill-org/alphabill/internal/errors"
 	"golang.org/x/crypto/pbkdf2"
 )
 

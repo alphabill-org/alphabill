@@ -52,6 +52,7 @@ func TestGetCertificate_Ok(t *testing.T) {
 	hasher.Reset()
 
 	root, err := smt.CalculatePathRoot(cert.SiblingHashes, dataHash, key, crypto.SHA256)
+	require.NoError(t, err)
 	require.Equal(t, unicityTree.GetRootHash(), root)
 	ir, err := unicityTree.GetIR(key)
 	require.NoError(t, err)

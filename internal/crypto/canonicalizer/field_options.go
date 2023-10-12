@@ -1,11 +1,10 @@
 package canonicalizer
 
 import (
+	"fmt"
 	"reflect"
 	"strconv"
 	"strings"
-
-	"github.com/alphabill-org/alphabill/internal/errors"
 )
 
 type (
@@ -43,7 +42,7 @@ func fieldOptionsOf(o interface{}) ([]fieldOptions, error) {
 		)
 		hsh, exist := fieldTag.Lookup(hshTag)
 		if !exist {
-			return nil, errors.Wrapf(errors.ErrInvalidHashField, "%s.%s tag='%s' is not defined", ofType.Name(), fieldName, hshTag)
+			return nil, fmt.Errorf("%s.%s tag='%s' is not defined", ofType.Name(), fieldName, hshTag)
 		}
 
 		fieldOpts := fieldOptions{
@@ -59,7 +58,7 @@ func fieldOptionsOf(o interface{}) ([]fieldOptions, error) {
 			switch hshTagOption(paramSplit[0]) {
 			case hshTagOptionIndex:
 				if len(paramSplit) != 2 {
-					return nil, errors.Wrapf(errors.ErrInvalidHashField, "%s.%s tag 'seq' parameter invalid: %v", ofType.Name(), fieldName, paramSplit)
+					return nil, fmt.Errorf("%s.%s tag 'seq' parameter invalid: %v", ofType.Name(), fieldName, paramSplit)
 				}
 				val, err := strconv.ParseInt(paramSplit[1], 10, 8)
 				if err != nil {
@@ -67,13 +66,13 @@ func fieldOptionsOf(o interface{}) ([]fieldOptions, error) {
 				}
 				idx := int8(val)
 				if _, used := indices[idx]; used {
-					return nil, errors.Wrapf(errors.ErrInvalidHashField, "duplicate index='%d' on field='%s'", idx, fieldOpts.name)
+					return nil, fmt.Errorf("duplicate index='%d' on field='%s'", idx, fieldOpts.name)
 				}
 				indices[idx] = true
 				fieldOpts.index = idx
 			case hshTagOptionSize:
 				if len(paramSplit) != 2 {
-					return nil, errors.Wrapf(errors.ErrInvalidHashField, "%s.%s tag 'seq' parameter invalid: %v", ofType.Name(), fieldName, paramSplit)
+					return nil, fmt.Errorf("%s.%s tag 'seq' parameter invalid: %v", ofType.Name(), fieldName, paramSplit)
 				}
 				val, err := strconv.Atoi(paramSplit[1])
 				if err != nil {
@@ -81,7 +80,7 @@ func fieldOptionsOf(o interface{}) ([]fieldOptions, error) {
 				}
 				fieldOpts.elementSize = int8(val)
 			default:
-				return nil, errors.Wrapf(errors.ErrInvalidHashField, "%s.%s unknown tag option: %v", ofType.Name(), fieldName, paramSplit)
+				return nil, fmt.Errorf("%s.%s unknown tag option: %v", ofType.Name(), fieldName, paramSplit)
 			}
 		}
 		structOpts = append(structOpts, fieldOpts)

@@ -19,27 +19,13 @@ import (
 	"github.com/fxamacker/cbor/v2"
 )
 
-type (
-	StateTransition struct {
-		gp         *core.GasPool
-		msg        *TxAttributes
-		gas        uint64
-		gasPrice   *big.Int
-		initialGas uint64
-		value      *big.Int
-		data       []byte
-		state      vm.StateDB
-		evm        *vm.EVM
-	}
-
-	ProcessingDetails struct {
-		_            struct{} `cbor:",toarray"`
-		ErrorDetails string
-		ReturnData   []byte
-		ContractAddr common.Address
-		Logs         []*statedb.LogEntry
-	}
-)
+type ProcessingDetails struct {
+	_            struct{} `cbor:",toarray"`
+	ErrorDetails string
+	ReturnData   []byte
+	ContractAddr common.Address
+	Logs         []*statedb.LogEntry
+}
 
 func errorToStr(err error) string {
 	if err != nil {

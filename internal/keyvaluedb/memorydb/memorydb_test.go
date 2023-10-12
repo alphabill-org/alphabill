@@ -147,8 +147,8 @@ func TestMemDB_WriteReadComplexStruct(t *testing.T) {
 	// check that initial state was saved as intended
 	require.Len(t, testDataStruct, 1)
 	require.Contains(t, readData, uint32(1))
-	value, _ := readData[1]
-	original, _ := testDataStruct[1]
+	value := readData[1]
+	original := testDataStruct[1]
 	require.Equal(t, original, value)
 	// update
 	value.Data = []byte{1}
@@ -160,7 +160,7 @@ func TestMemDB_WriteReadComplexStruct(t *testing.T) {
 	require.True(t, present)
 	require.Len(t, readData, 1)
 	require.Contains(t, readData, uint32(1))
-	value, _ = readData[1]
+	value = readData[1]
 	require.Equal(t, []byte{1}, value.Data)
 }
 

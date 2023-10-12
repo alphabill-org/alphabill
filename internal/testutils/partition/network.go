@@ -350,12 +350,9 @@ func (n *NodePartition) start(t *testing.T, ctx context.Context, rootID peer.ID,
 	}
 	// make sure node network (to other nodes and root nodes) is initiated
 	for _, nd := range n.Nodes {
-		if ok := eventually(func() bool {
-			if len(nd.nodePeer.Network().Peers()) >= len(n.Nodes) {
-				return true
-			}
-			return false
-		}, 2*time.Second, 100*time.Millisecond); !ok {
+		if ok := eventually(
+			func() bool { return len(nd.nodePeer.Network().Peers()) >= len(n.Nodes) },
+			2*time.Second, 100*time.Millisecond); !ok {
 			return fmt.Errorf("network not initialized")
 		}
 	}
@@ -405,12 +402,9 @@ func (n *NodePartition) ResumeNode(nodeIdx int) error {
 		return err
 	}
 	// wait for all connections to be initiated in 2 seconds
-	if ok := eventually(func() bool {
-		if len(pn.nodePeer.Network().Peers()) >= len(n.Nodes) {
-			return true
-		}
-		return false
-	}, 2*time.Second, 100*time.Millisecond); !ok {
+	if ok := eventually(
+		func() bool { return len(pn.nodePeer.Network().Peers()) >= len(n.Nodes) },
+		2*time.Second, 100*time.Millisecond); !ok {
 		return fmt.Errorf("network not initialized")
 	}
 	return nil

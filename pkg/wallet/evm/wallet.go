@@ -126,6 +126,9 @@ func (w *Wallet) EvmCall(ctx context.Context, accNr uint64, attrs *evmclient.Cal
 		return nil, fmt.Errorf("account key read failed: %w", err)
 	}
 	from, err := generateAddress(acc.PubKey)
+	if err != nil {
+		return nil, fmt.Errorf("generating address: %w", err)
+	}
 	attrs.From = from.Bytes()
 	details, err := w.restCli.Call(ctx, attrs)
 	if err != nil {
@@ -147,6 +150,9 @@ func (w *Wallet) GetBalance(ctx context.Context, accNr uint64) (*big.Int, error)
 		return nil, fmt.Errorf("account key read failed: %w", err)
 	}
 	from, err := generateAddress(acc.PubKey)
+	if err != nil {
+		return nil, fmt.Errorf("generating address: %w", err)
+	}
 	balanceStr, _, err := w.restCli.GetBalance(ctx, from.Bytes())
 	balance, ok := new(big.Int).SetString(balanceStr, 10)
 	if !ok {

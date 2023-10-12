@@ -483,8 +483,8 @@ func TestCreateAndVerifyStateProofs_CreateUnits(t *testing.T) {
 }
 
 func TestCreateAndVerifyStateProofs_UpdateUnits(t *testing.T) {
-	s, stateRootHash, summaryValue := prepareState(t)
-	stateRootHash, summaryValue = updateUnits(t, s, summaryValue, stateRootHash)
+	s, _, _ := prepareState(t)
+	stateRootHash, summaryValue := updateUnits(t, s)
 	require.Equal(t, uint64(5510), summaryValue)
 
 	for _, id := range unitIdentifiers {
@@ -505,16 +505,16 @@ func TestCreateAndVerifyStateProofs_UpdateUnits(t *testing.T) {
 }
 
 func TestCreateAndVerifyStateProofs_UpdateAndPruneUnits(t *testing.T) {
-	s, stateRootHash, summaryValue := prepareState(t)
-	stateRootHash, summaryValue = updateUnits(t, s, summaryValue, stateRootHash)
+	s, _, _ := prepareState(t)
+	_, summaryValue := updateUnits(t, s)
 	require.Equal(t, uint64(5510), summaryValue)
 	for _, id := range unitIdentifiers {
 		require.NoError(t, s.PruneLog(id))
 	}
-	summaryValue, stateRootHash, err := s.CalculateRoot()
+	_, _, err := s.CalculateRoot()
 	require.NoError(t, err)
 	require.NoError(t, s.Commit())
-	stateRootHash, summaryValue = updateUnits(t, s, summaryValue, stateRootHash)
+	stateRootHash, summaryValue := updateUnits(t, s)
 	require.Equal(t, uint64(55100), summaryValue)
 
 	for _, id := range unitIdentifiers {
@@ -574,7 +574,7 @@ func prepareState(t *testing.T) (*State, []byte, uint64) {
 	return s, rootHash, sum
 }
 
-func updateUnits(t *testing.T, s *State, summaryValue uint64, stateRootHash []byte) ([]byte, uint64) {
+func updateUnits(t *testing.T, s *State) ([]byte, uint64) {
 	require.NoError(t, s.Apply(
 		UpdateUnitData([]byte{0, 0, 0, 6}, multiply(10)),
 		UpdateUnitData([]byte{0, 0, 0, 1}, multiply(10)),

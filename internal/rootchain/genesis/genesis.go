@@ -240,7 +240,7 @@ func NewRootGenesis(id string, s crypto.Signer, encPubKey []byte, partitions []*
 	for sysId, uc := range certs {
 		// check the certificate
 		// ignore error, we just put it there and if not, then verify will fail anyway
-		srdh, _ := sdrhs[sysId]
+		srdh := sdrhs[sysId]
 		if err = uc.IsValid(trustBase, c.hashAlgorithm, sysId.ToSystemID(), srdh); err != nil {
 			// should never happen.
 			return nil, nil, fmt.Errorf("error generated invalid unicity certificate: %w", err)

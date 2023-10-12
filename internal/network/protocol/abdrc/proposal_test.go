@@ -221,7 +221,7 @@ func TestProposalMsg_Verify(t *testing.T) {
 	t.Run("invalid signature", func(t *testing.T) {
 		prop := validProposal(t)
 		prop.Block.Timestamp = 0x11111111 // changing block after signing makes signature invalid
-		require.ErrorContains(t, prop.Verify(3, rootTrust), `invalid signature: signature verify failed`)
+		require.ErrorContains(t, prop.Verify(3, rootTrust), `invalid signature: verification failed`)
 
 		prop.Signature = []byte{0, 1, 2, 3, 4}
 		require.ErrorContains(t, prop.Verify(3, rootTrust), `invalid signature: signature length is 5 b (expected 64 b)`)

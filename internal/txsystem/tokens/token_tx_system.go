@@ -1,10 +1,10 @@
 package tokens
 
 import (
+	"errors"
 	"fmt"
 	"log/slog"
 
-	"github.com/alphabill-org/alphabill/internal/errors"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/internal/txsystem/fc"
 )

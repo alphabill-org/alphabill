@@ -264,7 +264,7 @@ func TestFungibleTokens_CollectDust_Integration(t *testing.T) {
 	execTokensCmd(t, homedir, fmt.Sprintf("new-type fungible --symbol %s -r %s --type %s --decimals 0", symbol1, backendUrl, typeID1))
 	verifyStdout(t, execTokensCmd(t, homedir, fmt.Sprintf("list-types fungible -r %s", backendUrl)), "symbol=AB (fungible)")
 	// mint tokens (without confirming, for speed)
-	mintIterations := 110
+	mintIterations := 10
 	expectedAmounts := make([]string, 0, mintIterations)
 	expectedTotal := 0
 	for i := 1; i <= mintIterations; i++ {

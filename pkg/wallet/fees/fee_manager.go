@@ -798,7 +798,7 @@ func (w *FeeManager) getLockedBillsByReason(lockedBills []*unitlock.LockedUnit, 
 func (w *FeeManager) getBalanceOfUnlockedBillsForFeeCredit(accountID []byte, bills []*wallet.Bill) (uint64, error) {
 	balance := uint64(0)
 	for _, b := range bills {
-		if b.Value > MinimumFeeAmount {
+		if b.Value >= MinimumFeeAmount {
 			unit, err := w.unitLocker.GetUnit(accountID, b.GetID())
 			if err != nil {
 				return 0, err

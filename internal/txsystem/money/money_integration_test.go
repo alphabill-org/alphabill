@@ -6,6 +6,8 @@ import (
 	"sort"
 	"testing"
 
+	testtransaction "github.com/alphabill-org/alphabill/internal/testutils/transaction"
+	"github.com/alphabill-org/alphabill/internal/txsystem/fc/transactions"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/fxamacker/cbor/v2"
 	"github.com/stretchr/testify/require"
@@ -67,11 +69,42 @@ func TestPartition_Ok(t *testing.T) {
 	t.Cleanup(func() { require.NoError(t, abNet.Close()) })
 
 	// create fee credit for initial bill transfer
-	transferFC := testfc.CreateFeeCredit(t, initialBill.ID, fcrID, fcrAmount, abNet)
-
+	transferFC := testfc.NewTransferFC(t,
+		testfc.NewTransferFCAttr(
+			testfc.WithBacklink(nil),
+			testfc.WithAmount(fcrAmount),
+			testfc.WithTargetRecordID(fcrID),
+		),
+		testtransaction.WithUnitId(initialBill.ID),
+		testtransaction.WithOwnerProof(script.PredicateArgumentEmpty()),
+		testtransaction.WithPayloadType(transactions.PayloadTypeTransferFeeCredit),
+	)
+	require.NoError(t, moneyPrt.SubmitTx(transferFC))
+	transferFCRecord, transferFCProof, err := testpartition.WaitTxProof(t, moneyPrt, 2, transferFC)
+	require.NoError(t, err, "transfer fee credit tx failed")
+	// check that frcAmount is credited from initial bill
+	bill, err := s.GetUnit(initialBill.ID, true)
+	require.NoError(t, err)
+	require.Equal(t, moneyInvariant-fcrAmount, bill.Data().(*BillData).V)
+	// send addFC
+	addFC := testfc.NewAddFC(t, abNet.RootPartition.Nodes[0].RootSigner,
+		testfc.NewAddFCAttr(t, abNet.RootPartition.Nodes[0].RootSigner,
+			testfc.WithTransferFCTx(transferFCRecord),
+			testfc.WithTransferFCProof(transferFCProof),
+			testfc.WithFCOwnerCondition(script.PredicateAlwaysTrue()),
+		),
+		testtransaction.WithUnitId(fcrID),
+		testtransaction.WithOwnerProof(script.PredicateArgumentEmpty()),
+		testtransaction.WithPayloadType(transactions.PayloadTypeAddFeeCredit),
+	)
+	require.NoError(t, moneyPrt.SubmitTx(addFC))
+	// before reading state make sure that node 2 has executed the transfer
+	addTxRecord, _, err := testpartition.WaitTxProof(t, moneyPrt, 2, addFC)
+	require.NoError(t, err, "add fee credit tx failed")
+	// verify that frc bill is created and its balance is equal to frcAmount - "transfer tx cost" - "add tx cost"
 	feeCredit, err := s.GetUnit(fcrID, true)
 	require.NoError(t, err)
-	require.Equal(t, fcrAmount-2, feeCredit.Data().(*unit.FeeCreditRecord).Balance)
+	require.Equal(t, fcrAmount-transferFCRecord.ServerMetadata.ActualFee-addTxRecord.ServerMetadata.ActualFee, feeCredit.Data().(*unit.FeeCreditRecord).Balance)
 
 	// transfer initial bill to pubKey1
 	transferInitialBillTx, _ := createBillTransfer(t, initialBill.ID, total-fcrAmount, script.PredicatePayToPublicKeyHashDefault(decodeAndHashHex(pubKey1)), transferFC.Hash(crypto.SHA256))

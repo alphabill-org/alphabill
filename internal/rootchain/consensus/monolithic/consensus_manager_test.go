@@ -25,10 +25,10 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-var sysID0 = types.SystemID([]byte{0, 0, 0, 0})
-var sysID1 = types.SystemID([]byte{0, 0, 0, 1})
-var sysID2 = types.SystemID([]byte{0, 0, 0, 2})
-var partitionID = types.SystemID([]byte{0, 0xFF, 0, 1})
+var sysID0 = types.SystemID32(0)
+var sysID1 = types.SystemID32(1)
+var sysID2 = types.SystemID32(2)
+var partitionID types.SystemID32 = 0x00FF0001
 var partitionInputRecord = &types.InputRecord{
 	PreviousHash: make([]byte, 32),
 	Hash:         []byte{0, 0, 0, 1},
@@ -67,9 +67,9 @@ func initConsensusManager(t *testing.T, db keyvaluedb.KeyValueDB) (*ConsensusMan
 
 func TestConsensusManager_checkT2Timeout(t *testing.T) {
 	partitions, err := partitions.NewPartitionStoreFromGenesis([]*genesis.GenesisPartitionRecord{
-		{SystemDescriptionRecord: &genesis.SystemDescriptionRecord{SystemIdentifier: sysID0, T2Timeout: 2500}},
-		{SystemDescriptionRecord: &genesis.SystemDescriptionRecord{SystemIdentifier: sysID1, T2Timeout: 2500}},
-		{SystemDescriptionRecord: &genesis.SystemDescriptionRecord{SystemIdentifier: sysID2, T2Timeout: 2500}},
+		{SystemDescriptionRecord: &genesis.SystemDescriptionRecord{SystemIdentifier: sysID0.ToSystemID(), T2Timeout: 2500}},
+		{SystemDescriptionRecord: &genesis.SystemDescriptionRecord{SystemIdentifier: sysID1.ToSystemID(), T2Timeout: 2500}},
+		{SystemDescriptionRecord: &genesis.SystemDescriptionRecord{SystemIdentifier: sysID2.ToSystemID(), T2Timeout: 2500}},
 	})
 	require.NoError(t, err)
 	store := NewStateStore(memorydb.New())
@@ -109,9 +109,8 @@ func TestConsensusManager_checkT2Timeout(t *testing.T) {
 	require.NoError(t, manager.checkT2Timeout(5))
 	// if round is 900ms then timeout of 2500 is reached in 3 * 900ms rounds, which is 2700ms
 	require.Equal(t, 1, len(manager.changes))
-	sysID32, err := sysID1.Id32()
 	require.NoError(t, err)
-	require.Contains(t, manager.changes, sysID32)
+	require.Contains(t, manager.changes, sysID1)
 }
 
 func TestConsensusManager_NormalOperation(t *testing.T) {
@@ -136,10 +135,8 @@ func TestConsensusManager_NormalOperation(t *testing.T) {
 	}
 	requests[0] = testutils.CreateBlockCertificationRequest(t, newIR, partitionID, partitionNodes[0])
 	requests[1] = testutils.CreateBlockCertificationRequest(t, newIR, partitionID, partitionNodes[1])
-	partID32, err := partitionID.Id32()
-	require.NoError(t, err)
 	req := consensus.IRChangeRequest{
-		SystemIdentifier: partID32,
+		SystemIdentifier: partitionID,
 		Reason:           consensus.Quorum,
 		Requests:         requests}
 	// submit IR change request from partition with quorum
@@ -152,10 +149,8 @@ func TestConsensusManager_NormalOperation(t *testing.T) {
 	require.NotNil(t, result.UnicitySeal.Hash)
 	trustBase := map[string]crypto.Verifier{rootNode.PeerConf.ID.String(): rootNode.Verifier}
 	sdrh := rg.Partitions[0].GetSystemDescriptionRecord().Hash(gocrypto.SHA256)
-	require.NoError(t, result.IsValid(trustBase, gocrypto.SHA256, partitionID, sdrh))
-	id, err := partitionID.Id32()
-	require.NoError(t, err)
-	cert, err := cm.GetLatestUnicityCertificate(id)
+	require.NoError(t, result.IsValid(trustBase, gocrypto.SHA256, partitionID.ToSystemID(), sdrh))
+	cert, err := cm.GetLatestUnicityCertificate(partitionID)
 	require.NoError(t, err)
 	require.Equal(t, cert, result)
 
@@ -182,10 +177,8 @@ func TestConsensusManager_PersistFails(t *testing.T) {
 	}
 	requests[0] = testutils.CreateBlockCertificationRequest(t, newIR, partitionID, partitionNodes[0])
 	requests[1] = testutils.CreateBlockCertificationRequest(t, newIR, partitionID, partitionNodes[1])
-	partID32, err := partitionID.Id32()
-	require.NoError(t, err)
 	req := &consensus.IRChangeRequest{
-		SystemIdentifier: partID32,
+		SystemIdentifier: partitionID,
 		Reason:           consensus.Quorum,
 		Requests:         requests}
 	// set db to simulate error
@@ -193,13 +186,13 @@ func TestConsensusManager_PersistFails(t *testing.T) {
 	// submit IR change request from partition with quorum
 	require.NoError(t, cm.onIRChangeReq(req))
 	require.Equal(t, uint64(1), cm.round)
-	cert, err := cm.GetLatestUnicityCertificate(partID32)
+	cert, err := cm.GetLatestUnicityCertificate(partitionID)
 	require.NoError(t, err)
 	// simulate T3 timeout
 	cm.onT3Timeout(context.Background())
 	// due to DB persist error round is not incremented and will be repeated
 	require.Equal(t, uint64(1), cm.round)
-	certNow, err := cm.GetLatestUnicityCertificate(partID32)
+	certNow, err := cm.GetLatestUnicityCertificate(partitionID)
 	require.NoError(t, err)
 
 	require.Equal(t, cert, certNow)
@@ -222,7 +215,7 @@ func TestConsensusManager_PersistFails(t *testing.T) {
 	require.NotNil(t, result.UnicitySeal.Hash)
 	trustBase := map[string]crypto.Verifier{rootNode.PeerConf.ID.String(): rootNode.Verifier}
 	sdrh := rg.Partitions[0].GetSystemDescriptionRecord().Hash(gocrypto.SHA256)
-	require.NoError(t, result.IsValid(trustBase, gocrypto.SHA256, partitionID, sdrh))
+	require.NoError(t, result.IsValid(trustBase, gocrypto.SHA256, partitionID.ToSystemID(), sdrh))
 }
 
 // this will run long, cut timeouts or find a way to manipulate timeouts
@@ -237,9 +230,7 @@ func TestConsensusManager_PartitionTimeout(t *testing.T) {
 
 	// make sure that 3 partition nodes where generated, needed for the next steps
 	require.Len(t, partitionNodes, 3)
-	partID32, err := partitionID.Id32()
-	require.NoError(t, err)
-	cert, err := cm.GetLatestUnicityCertificate(partID32)
+	cert, err := cm.GetLatestUnicityCertificate(partitionID)
 	require.NoError(t, err)
 	require.NotNil(t, cert)
 	require.Equal(t, cert.InputRecord.Bytes(), partitionInputRecord.Bytes())
@@ -252,5 +243,5 @@ func TestConsensusManager_PartitionTimeout(t *testing.T) {
 	require.GreaterOrEqual(t, result.UnicitySeal.RootChainRoundNumber, cert.UnicitySeal.RootChainRoundNumber)
 	trustBase := map[string]crypto.Verifier{rootNode.PeerConf.ID.String(): rootNode.Verifier}
 	sdrh := rg.Partitions[0].GetSystemDescriptionRecord().Hash(gocrypto.SHA256)
-	require.NoError(t, result.IsValid(trustBase, gocrypto.SHA256, partitionID, sdrh))
+	require.NoError(t, result.IsValid(trustBase, gocrypto.SHA256, partitionID.ToSystemID(), sdrh))
 }

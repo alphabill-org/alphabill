@@ -718,7 +718,8 @@ Token](#join-fungible-tokens) transaction.
 /burnFTokenAttributes/ [
     /TypeID/                       h'',
     /Value/                        999,
-    /TargetUnitBacklink/           h'',
+    /TargetTokenID/                h'',
+    /TargetTokenBacklink/          h'',
     /Backlink/                     h'',
     /InvariantPredicateSignatures/ [h'']
 ]
@@ -726,12 +727,14 @@ Token](#join-fungible-tokens) transaction.
 
 1. *TypeID* (byte string) is the type of the token.
 2. *Value* (unsigned integer) is the value of the token.
-3. *TargetUnitBacklink* (byte string) is the backlink to the previous
+3. *TargetTokenID* (byte string) is the token id of the target token 
+   that this burn is to be [joined into](#join-fungible-tokens).
+4. *TargetTokenBacklink* (byte string) is the backlink to the previous
    transaction with the fungible token that this burn is to be [joined
    into](#join-fungible-tokens).
-4. *Backlink* (byte string) is the backlink to the previous
+5. *Backlink* (byte string) is the backlink to the previous
    transaction with the token.
-5. *InvariantPredicateSignatures* (array of byte strings) is an array
+6. *InvariantPredicateSignatures* (array of byte strings) is an array
    of inputs to satisfy the token type invariant predicates down the
    inheritance chain.
 
@@ -744,19 +747,22 @@ tokens](#burn-fungible-token) into a target token of the same type.
 *TransactionOrder*.*Payload*.*Attributes* contains:
 ```
 /joinFTokenAttributes/ [
-    /Burns/                        [/omitted/],
-    /BurnProofs/                   [/omitted/],
+    /BurnTransactions/             [/omitted/],
+    /BurnTransactionProofs/        [/omitted/],
     /Backlink/                     h'',
     /InvariantPredicateSignatures/ [h'']
 ]
 ```
 
-1. *Burns* (array) is an array of [Burn Fungible
+1. *BurnTransactions* (array) is an array of [Burn Fungible
    Token](#burn-fungible-token) transaction records.
-2. *BurnProofs* (array) is an array of [Burn Fungible
+   The transactions must be listed in strictly increasing
+   order of token identifiers to ensure that no source token can be
+   included multiple times.
+2. *BurnTransactionProofs* (array) is an array of [Burn Fungible
    Token](#burn-fungible-token) transaction proofs. The order of this
-   array must match the order of *Burns* array, so that a transaction
-   and its corresponding proof have the same index.
+   array must match the order of *BurnTransactions* array, so that a 
+   transaction and its corresponding proof have the same index.
 3. *Backlink* (byte string) is the backlink to the previous
    transaction with the target token.
 4. *InvariantPredicateSignatures* (array of byte strings) is an array

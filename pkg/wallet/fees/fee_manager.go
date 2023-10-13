@@ -206,7 +206,7 @@ func (w *FeeManager) AddFeeCredit(ctx context.Context, cmd AddFeeCmd) (*AddFeeCm
 			return nil, errors.New("wallet does not contain any bills")
 		}
 
-		balance, err := w.getBalanceOfUnlockedBills(accountKey.PubKey, bills)
+		balance, err := w.getBalanceOfUnlockedBillsForFeeCredit(accountKey.PubKey, bills)
 		if err != nil {
 			return nil, err
 		}
@@ -795,15 +795,17 @@ func (w *FeeManager) getLockedBillsByReason(lockedBills []*unitlock.LockedUnit, 
 	return filteredLockedBills
 }
 
-func (w *FeeManager) getBalanceOfUnlockedBills(accountID []byte, bills []*wallet.Bill) (uint64, error) {
+func (w *FeeManager) getBalanceOfUnlockedBillsForFeeCredit(accountID []byte, bills []*wallet.Bill) (uint64, error) {
 	balance := uint64(0)
 	for _, b := range bills {
-		unit, err := w.unitLocker.GetUnit(accountID, b.GetID())
-		if err != nil {
-			return 0, err
-		}
-		if unit == nil {
-			balance += b.Value
+		if b.Value >= MinimumFeeAmount {
+			unit, err := w.unitLocker.GetUnit(accountID, b.GetID())
+			if err != nil {
+				return 0, err
+			}
+			if unit == nil {
+				balance += b.Value
+			}
 		}
 	}
 	return balance, nil

@@ -257,8 +257,6 @@ func TestNewGenesis_Ok(t *testing.T) {
 	require.NoError(t, err)
 	rootChainSigner, err := crypto.NewInMemorySecp256K1Signer()
 	require.NoError(t, err)
-	//rootChainVerifier, err := rootChainSigner.Verifier()
-	require.NoError(t, err)
 
 	_, verifier := testsig.CreateSignerAndVerifier(t)
 	rootPubKeyBytes, err := verifier.MarshalPublicKey()
@@ -294,7 +292,6 @@ func TestNewGenesis_ConsensusNotPossible(t *testing.T) {
 	}
 	partition.Validators = append(partition.Validators, pr)
 
-	require.NoError(t, err)
 	rootChainSigner, err := crypto.NewInMemorySecp256K1Signer()
 	require.NoError(t, err)
 	_, encPubKey := testsig.CreateSignerAndVerifier(t)

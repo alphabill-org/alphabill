@@ -2,7 +2,10 @@ package tokens
 
 import (
 	gocrypto "crypto"
+	"sort"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 
 	"github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/script"
@@ -14,7 +17,6 @@ import (
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	fcunit "github.com/alphabill-org/alphabill/internal/txsystem/fc/unit"
 	"github.com/alphabill-org/alphabill/internal/types"
-	"github.com/stretchr/testify/require"
 )
 
 var feeCreditID = NewFeeCreditRecordID(nil, []byte{42})
@@ -287,7 +289,8 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 			&BurnFungibleTokenAttributes{
 				TypeID:                       fungibleTokenTypeID,
 				Value:                        splitValue1,
-				Nonce:                        transferGenTxHash,
+				TargetTokenID:                fungibleTokenID1,
+				TargetTokenBacklink:          transferGenTxHash,
 				Backlink:                     split1GenTxHash,
 				InvariantPredicateSignatures: [][]byte{script.PredicateArgumentEmpty()},
 			},
@@ -309,7 +312,8 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 			&BurnFungibleTokenAttributes{
 				TypeID:                       fungibleTokenTypeID,
 				Value:                        splitValue2,
-				Nonce:                        transferTxRecord.TransactionOrder.Hash(hashAlgorithm),
+				TargetTokenID:                fungibleTokenID1,
+				TargetTokenBacklink:          transferTxRecord.TransactionOrder.Hash(hashAlgorithm),
 				Backlink:                     splitGenTx2Hash,
 				InvariantPredicateSignatures: [][]byte{script.PredicateArgumentEmpty()},
 			},
@@ -322,6 +326,25 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 	require.NoError(t, err, "token burn 2 tx failed")
 	require.NoError(t, types.VerifyTxProof(burn2TxProof, burn2TxRecord, trustBase, hashAlgorithm))
 
+	// group txs with proofs, and sort by unit id
+	type txWithProof struct {
+		burnTx      *types.TransactionRecord
+		burnTxProof *types.TxProof
+	}
+	txsWithProofs := []*txWithProof{
+		{burnTx: burnTxRecord, burnTxProof: burnTxProof},
+		{burnTx: burn2TxRecord, burnTxProof: burn2TxProof},
+	}
+	sort.Slice(txsWithProofs, func(i, j int) bool {
+		return txsWithProofs[i].burnTx.TransactionOrder.UnitID().Compare(txsWithProofs[j].burnTx.TransactionOrder.UnitID()) < 0
+	})
+	var burnTxs []*types.TransactionRecord
+	var burnTxProofs []*types.TxProof
+	for _, txWithProof := range txsWithProofs {
+		burnTxs = append(burnTxs, txWithProof.burnTx)
+		burnTxProofs = append(burnTxProofs, txWithProof.burnTxProof)
+	}
+
 	// join token
 	joinTx := testtransaction.NewTransactionOrder(t,
 		testtransaction.WithSystemID(DefaultSystemIdentifier),
@@ -330,8 +353,8 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 		testtransaction.WithPayloadType(PayloadTypeJoinFungibleToken),
 		testtransaction.WithAttributes(
 			&JoinFungibleTokenAttributes{
-				BurnTransactions:             []*types.TransactionRecord{burnTxRecord, burn2TxRecord},
-				Proofs:                       []*types.TxProof{burnTxProof, burn2TxProof},
+				BurnTransactions:             burnTxs,
+				Proofs:                       burnTxProofs,
 				Backlink:                     transferTxRecord.TransactionOrder.Hash(hashAlgorithm),
 				InvariantPredicateSignatures: [][]byte{script.PredicateArgumentEmpty()},
 			},

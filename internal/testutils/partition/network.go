@@ -181,6 +181,10 @@ func (r *RootPartition) start(ctx context.Context) error {
 		return fmt.Errorf("get free port failed, %w", err)
 	}
 	peerConf, err := network.NewPeerConfiguration(fmt.Sprintf("/ip4/127.0.0.1/tcp/%v", port), r.Nodes[0].EncKeyPair, nil, nil)
+	if err != nil {
+		return fmt.Errorf("failed to create peer configuration: %w", err)
+	}
+
 	rootPeer, err := network.NewPeer(ctx, peerConf, r.log)
 	if err != nil {
 		return fmt.Errorf("failed to create new peer node: %w", err)

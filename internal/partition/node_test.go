@@ -512,7 +512,11 @@ func TestBlockProposal_InvalidBlockProposal(t *testing.T) {
 	val, err := NewDefaultBlockProposalValidator(tp.nodeConf.genesis.SystemDescriptionRecord, rootTrust, gocrypto.SHA256)
 	require.NoError(t, err)
 	tp.partition.blockProposalValidator = val
-	tp.SubmitBlockProposal(&blockproposal.BlockProposal{NodeIdentifier: tp.nodeDeps.peer.ID().String(), UnicityCertificate: block.UnicityCertificate})
+
+	tp.SubmitBlockProposal(&blockproposal.BlockProposal{
+		NodeIdentifier: tp.nodeDeps.peerConf.ID.String(),
+		UnicityCertificate: block.UnicityCertificate,
+	})
 
 	ContainsError(t, tp, "invalid system identifier")
 }
@@ -526,7 +530,11 @@ func TestBlockProposal_HandleOldBlockProposal(t *testing.T) {
 	tp.CreateBlock(t)
 	require.Eventually(t, NextBlockReceived(t, tp, block), test.WaitDuration, test.WaitTick)
 
-	tp.SubmitBlockProposal(&blockproposal.BlockProposal{NodeIdentifier: tp.nodeDeps.peer.ID().String(), SystemIdentifier: tp.nodeConf.GetSystemIdentifier(), UnicityCertificate: block.UnicityCertificate})
+	tp.SubmitBlockProposal(&blockproposal.BlockProposal{
+		NodeIdentifier: tp.nodeDeps.peerConf.ID.String(),
+		SystemIdentifier: tp.nodeConf.GetSystemIdentifier(),
+		UnicityCertificate: block.UnicityCertificate,
+	})
 
 	ContainsError(t, tp, "outdated block proposal for round 1, LUC round 2")
 }
@@ -543,9 +551,10 @@ func TestBlockProposal_ExpectedLeaderInvalid(t *testing.T) {
 		leader:      "12",
 		currentNode: "12",
 	}
+
 	bp := &blockproposal.BlockProposal{
 		SystemIdentifier:   uc.UnicityTreeCertificate.SystemIdentifier,
-		NodeIdentifier:     tp.nodeDeps.peer.ID().String(),
+		NodeIdentifier:     tp.nodeDeps.peerConf.ID.String(),
 		UnicityCertificate: uc,
 		Transactions:       []*types.TransactionRecord{},
 	}
@@ -564,9 +573,10 @@ func TestBlockProposal_Ok(t *testing.T) {
 		block.UnicityCertificate.UnicitySeal.RootChainRoundNumber,
 	)
 	require.NoError(t, err)
+
 	bp := &blockproposal.BlockProposal{
 		SystemIdentifier:   uc.UnicityTreeCertificate.SystemIdentifier,
-		NodeIdentifier:     tp.nodeDeps.peer.ID().String(),
+		NodeIdentifier:     tp.nodeDeps.peerConf.ID.String(),
 		UnicityCertificate: uc,
 		Transactions:       []*types.TransactionRecord{},
 	}
@@ -585,9 +595,10 @@ func TestBlockProposal_TxSystemStateIsDifferent_sameUC(t *testing.T) {
 		block.UnicityCertificate.UnicitySeal.RootChainRoundNumber,
 	)
 	require.NoError(t, err)
+
 	bp := &blockproposal.BlockProposal{
 		SystemIdentifier:   uc.UnicityTreeCertificate.SystemIdentifier,
-		NodeIdentifier:     tp.nodeDeps.peer.ID().String(),
+		NodeIdentifier:     tp.nodeDeps.peerConf.ID.String(),
 		UnicityCertificate: uc,
 		Transactions:       []*types.TransactionRecord{},
 	}
@@ -615,9 +626,10 @@ func TestBlockProposal_TxSystemStateIsDifferent_newUC(t *testing.T) {
 		block.UnicityCertificate.UnicitySeal.RootChainRoundNumber+1,
 	)
 	require.NoError(t, err)
+
 	bp := &blockproposal.BlockProposal{
 		SystemIdentifier:   uc.UnicityTreeCertificate.SystemIdentifier,
-		NodeIdentifier:     tp.nodeDeps.peer.ID().String(),
+		NodeIdentifier:     tp.nodeDeps.peerConf.ID.String(),
 		UnicityCertificate: uc,
 		Transactions:       []*types.TransactionRecord{},
 	}

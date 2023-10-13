@@ -55,12 +55,12 @@ func initConsensusManager(t *testing.T, db keyvaluedb.KeyValueDB) (*ConsensusMan
 	verifier := rootNode.Verifier
 	rootPubKeyBytes, err := verifier.MarshalPublicKey()
 	require.NoError(t, err)
-	id := rootNode.Peer.ID()
+	id := rootNode.PeerConf.ID
 	rootGenesis, _, err := rootgenesis.NewRootGenesis(id.String(), rootNode.Signer, rootPubKeyBytes, []*genesis.PartitionRecord{partitionRecord})
 	require.NoError(t, err)
 	partitions, err := partitions.NewPartitionStoreFromGenesis(rootGenesis.Partitions)
 	require.NoError(t, err)
-	cm, err := NewMonolithicConsensusManager(rootNode.Peer.ID().String(), rootGenesis, partitions, rootNode.Signer, testlogger.New(t).With(logger.NodeID(id)), consensus.WithStorage(db))
+	cm, err := NewMonolithicConsensusManager(rootNode.PeerConf.ID.String(), rootGenesis, partitions, rootNode.Signer, testlogger.New(t).With(logger.NodeID(id)), consensus.WithStorage(db))
 	require.NoError(t, err)
 	return cm, rootNode, partitionNodes, rootGenesis
 }
@@ -147,7 +147,7 @@ func TestConsensusManager_NormalOperation(t *testing.T) {
 	require.Equal(t, partitionInputRecord.Hash, result.InputRecord.PreviousHash)
 	require.Equal(t, uint64(2), result.UnicitySeal.RootChainRoundNumber)
 	require.NotNil(t, result.UnicitySeal.Hash)
-	trustBase := map[string]crypto.Verifier{rootNode.Peer.ID().String(): rootNode.Verifier}
+	trustBase := map[string]crypto.Verifier{rootNode.PeerConf.ID.String(): rootNode.Verifier}
 	sdrh := rg.Partitions[0].GetSystemDescriptionRecord().Hash(gocrypto.SHA256)
 	require.NoError(t, result.IsValid(trustBase, gocrypto.SHA256, partitionID.ToSystemID(), sdrh))
 	cert, err := cm.GetLatestUnicityCertificate(partitionID)
@@ -213,7 +213,7 @@ func TestConsensusManager_PersistFails(t *testing.T) {
 	require.Equal(t, partitionInputRecord.Hash, result.InputRecord.PreviousHash)
 	require.Equal(t, uint64(2), result.UnicitySeal.RootChainRoundNumber)
 	require.NotNil(t, result.UnicitySeal.Hash)
-	trustBase := map[string]crypto.Verifier{rootNode.Peer.ID().String(): rootNode.Verifier}
+	trustBase := map[string]crypto.Verifier{rootNode.PeerConf.ID.String(): rootNode.Verifier}
 	sdrh := rg.Partitions[0].GetSystemDescriptionRecord().Hash(gocrypto.SHA256)
 	require.NoError(t, result.IsValid(trustBase, gocrypto.SHA256, partitionID.ToSystemID(), sdrh))
 }
@@ -241,7 +241,7 @@ func TestConsensusManager_PartitionTimeout(t *testing.T) {
 	require.NotNil(t, result.UnicitySeal.Hash)
 	// ensure repeat UC is created in a different rc round
 	require.GreaterOrEqual(t, result.UnicitySeal.RootChainRoundNumber, cert.UnicitySeal.RootChainRoundNumber)
-	trustBase := map[string]crypto.Verifier{rootNode.Peer.ID().String(): rootNode.Verifier}
+	trustBase := map[string]crypto.Verifier{rootNode.PeerConf.ID.String(): rootNode.Verifier}
 	sdrh := rg.Partitions[0].GetSystemDescriptionRecord().Hash(gocrypto.SHA256)
 	require.NoError(t, result.IsValid(trustBase, gocrypto.SHA256, partitionID.ToSystemID(), sdrh))
 }

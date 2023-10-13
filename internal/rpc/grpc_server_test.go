@@ -8,6 +8,7 @@ import (
 	"net"
 	"testing"
 
+	"github.com/alphabill-org/alphabill/internal/network"
 	"github.com/alphabill-org/alphabill/internal/rpc/alphabill"
 	"github.com/alphabill-org/alphabill/internal/script"
 	"github.com/alphabill-org/alphabill/internal/txsystem/money"
@@ -66,6 +67,10 @@ func (mn *MockNode) GetLatestRoundNumber() (uint64, error) {
 
 func (mn *MockNode) SystemIdentifier() []byte {
 	return []byte{0, 1, 0, 0}
+}
+
+func (mn *MockNode) GetPeer() *network.Peer {
+	return nil
 }
 
 func TestNewRpcServer_PartitionNodeMissing(t *testing.T) {

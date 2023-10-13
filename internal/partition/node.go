@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/libp2p/go-libp2p/core/peer"
+	"github.com/libp2p/go-libp2p/core/peerstore"
 	"golang.org/x/sync/errgroup"
 
 	"github.com/alphabill-org/alphabill/internal/crypto"
@@ -88,6 +89,7 @@ type (
 		blockStore                  keyvaluedb.KeyValueDB
 		txIndexer                   keyvaluedb.KeyValueDB
 		txBuffer                    *txbuffer.TxBuffer
+		peer                        *network.Peer
 		network                     Net
 		txCancel                    context.CancelFunc
 		txWaitGroup                 *sync.WaitGroup
@@ -113,10 +115,10 @@ type (
 	status int
 )
 
-// New creates a new instance of the partition node. All parameters expect the nodeOptions are required. Functions
+// NewNode creates a new instance of the partition node. All parameters expect the nodeOptions are required. Functions
 // implementing the NodeOption interface can be used to override default configuration values:
 //
-//	  n, err := New(
+//	  n, err := NewNode(
 //	 	peer,
 //			signer,
 //			txSystem,
@@ -133,8 +135,9 @@ type (
 // The following restrictions apply to the inputs:
 //   - the network peer and signer must use the same keys that were used to generate node genesis file;
 //   - the state of the transaction system must be equal to the state that was used to generate genesis file.
-func New(
-	peer *network.Peer, // P2P peer for the node
+func NewNode(
+	ctx context.Context,
+	peerConf *network.PeerConfiguration,
 	signer crypto.Signer, // used to sign block proposals and block certification requests
 	txSystem txsystem.TransactionSystem, // used transaction system
 	genesis *genesis.PartitionGenesis, // partition genesis file, created by root chain.
@@ -143,7 +146,7 @@ func New(
 	nodeOptions ...NodeOption, // additional optional configuration parameters
 ) (*Node, error) {
 	// load and validate node configuration
-	conf, err := loadAndValidateConfiguration(peer, signer, genesis, txSystem, net, log, nodeOptions...)
+	conf, err := loadAndValidateConfiguration(signer, genesis, txSystem, net, log, nodeOptions...)
 	if err != nil {
 		return nil, fmt.Errorf("invalid node configuration: %w", err)
 	}
@@ -173,9 +176,14 @@ func New(
 		n.eventCh = make(chan event.Event, conf.eventChCapacity)
 	}
 
-	if err = initState(n); err != nil {
-		return nil, fmt.Errorf("node init failed: %w", err)
+	if err = n.initState(); err != nil {
+		return nil, fmt.Errorf("node state initialization failed: %w", err)
 	}
+
+	if err = n.initNetwork(ctx, peerConf); err != nil {
+		return nil, fmt.Errorf("node network initialization failed: %w", err)
+	}
+
 	return n, nil
 }
 
@@ -201,24 +209,13 @@ func (n *Node) Run(ctx context.Context) error {
 	return g.Wait()
 }
 
-func (n *Node) getCurrentRound() uint64 {
-	return n.luc.Load().GetRoundNumber() + 1
+func (n *Node) GetPeer() *network.Peer {
+	return n.peer
 }
 
-func (n *Node) sendHandshake(ctx context.Context) {
-	n.log.DebugContext(ctx, "Sending handshake to root chain")
-	if err := n.network.Send(ctx,
-		handshake.Handshake{
-			SystemIdentifier: n.configuration.GetSystemIdentifier(),
-			NodeIdentifier:   n.leaderSelector.SelfID().String(),
-		},
-		n.configuration.rootChainID); err != nil {
-		n.log.ErrorContext(ctx, "error sending handshake", logger.Error(err))
-	}
-}
-
-func initState(n *Node) (err error) {
+func (n *Node) initState() (err error) {
 	defer trackExecutionTime(time.Now(), "Restore node state", n.log)
+
 	// get genesis block from the genesis
 	genesisBlock := n.configuration.genesisBlock()
 	empty, err := keyvaluedb.IsEmpty(n.blockStore)
@@ -270,7 +267,47 @@ func initState(n *Node) (err error) {
 	n.luc.Store(prevBlock.UnicityCertificate)
 	n.lastStoredBlock = prevBlock
 	n.restoreBlockProposal(prevBlock)
+
 	return err
+}
+
+func (n *Node) initNetwork(ctx context.Context, peerConf *network.PeerConfiguration) (err error) {
+	n.peer, err = network.NewPeer(ctx, peerConf, n.log)
+	if err != nil {
+		return err
+	}
+
+	if n.configuration.rootChainAddress != nil {
+		// add rootchain address to the peer store. this enables us to send receivedMessages to the rootchain.
+		n.peer.Network().Peerstore().AddAddr(n.configuration.rootChainID, n.configuration.rootChainAddress, peerstore.PermanentAddrTTL)
+	}
+
+	if n.network != nil {
+		return nil
+	}
+
+	n.network, err = network.NewLibP2PValidatorNetwork(n.peer, network.DefaultValidatorNetOptions, n.log)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (n *Node) getCurrentRound() uint64 {
+	return n.luc.Load().GetRoundNumber() + 1
+}
+
+func (n *Node) sendHandshake(ctx context.Context) {
+	n.log.DebugContext(ctx, "Sending handshake to root chain")
+	if err := n.network.Send(ctx,
+		handshake.Handshake{
+			SystemIdentifier: n.configuration.GetSystemIdentifier(),
+			NodeIdentifier:   n.peer.ID().String(),
+		},
+		n.configuration.rootChainID); err != nil {
+		n.log.ErrorContext(ctx, "error sending handshake", logger.Error(err))
+	}
 }
 
 func verifyTxSystemState(state txsystem.State, sumOfEarnedFees uint64, ucIR *types.InputRecord) error {
@@ -441,8 +478,8 @@ func (n *Node) handleOrForwardTransaction(ctx context.Context, tx *types.Transac
 		n.log.WarnContext(ctx, "invalid transaction", logger.Error(err), logger.UnitID(tx.UnitID()))
 		return true
 	}
-	leader := n.leaderSelector.GetLeaderID()
-	if leader == n.leaderSelector.SelfID() {
+	leader := n.leaderSelector.GetLeader()
+	if leader == n.peer.ID() {
 		n.txCh <- tx
 		return true
 	}
@@ -523,7 +560,7 @@ func (n *Node) handleBlockProposal(ctx context.Context, prop *blockproposal.Bloc
 	if uc.GetRoundNumber() < lucRoundNumber {
 		return fmt.Errorf("outdated block proposal for round %v, LUC round %v", uc.GetRoundNumber(), lucRoundNumber)
 	}
-	expectedLeader := n.leaderSelector.LeaderFunc(uc)
+	expectedLeader := n.leaderSelector.LeaderFunc(uc, n.peer.Validators())
 	if expectedLeader == UnknownLeader || prop.NodeIdentifier != expectedLeader.String() {
 		return fmt.Errorf("invalid node identifier. leader from UC: %v, request leader: %v", expectedLeader, prop.NodeIdentifier)
 	}
@@ -590,8 +627,8 @@ func (n *Node) startNewRound(ctx context.Context, uc *types.UnicityCertificate) 
 	if err := n.blockStore.Delete(util.Uint32ToBytes(proposalKey)); err != nil {
 		n.log.DebugContext(ctx, "DB proposal delete failed", logger.Error(err))
 	}
-	n.leaderSelector.UpdateLeader(uc)
-	if n.leaderSelector.IsCurrentNodeLeader() {
+	n.leaderSelector.UpdateLeader(uc, n.peer.Validators())
+	if n.leaderSelector.IsLeader(n.peer.ID()) {
 		// followers will start the block once proposal is received
 		if err := n.transactionSystem.BeginBlock(newRoundNr); err != nil {
 			return fmt.Errorf("starting new block for round %d: %w", newRoundNr, err)
@@ -808,7 +845,7 @@ func (n *Node) finalizeBlock(b *types.Block) error {
 func (n *Node) handleT1TimeoutEvent(ctx context.Context) {
 	n.stopForwardingOrHandlingTransactions()
 	defer func() {
-		n.leaderSelector.UpdateLeader(nil)
+		n.leaderSelector.UpdateLeader(nil, n.peer.Validators())
 	}()
 	if n.status.Load() == recovering {
 		n.log.InfoContext(ctx, "T1 timeout: node is recovering")
@@ -816,7 +853,7 @@ func (n *Node) handleT1TimeoutEvent(ctx context.Context) {
 	}
 	n.log.InfoContext(ctx, "Handling T1 timeout")
 	// if node is not leader, then do not do anything
-	if !n.leaderSelector.IsCurrentNodeLeader() {
+	if !n.leaderSelector.IsLeader(n.peer.ID()) {
 		n.log.DebugContext(ctx, "Current node is not the leader.")
 		return
 	}
@@ -825,7 +862,7 @@ func (n *Node) handleT1TimeoutEvent(ctx context.Context) {
 		n.log.WarnContext(ctx, "Failed to send BlockProposal", logger.Error(err))
 		return
 	}
-	if err := n.sendCertificationRequest(ctx, n.leaderSelector.SelfID().String()); err != nil {
+	if err := n.sendCertificationRequest(ctx, n.peer.ID().String()); err != nil {
 		n.log.WarnContext(ctx, "Failed to send certification request", logger.Error(err))
 	}
 }
@@ -1030,11 +1067,11 @@ func (n *Node) handleLedgerReplicationResponse(ctx context.Context, lr *replicat
 func (n *Node) sendLedgerReplicationRequest(ctx context.Context, startingBlockNr uint64) {
 	req := &replication.LedgerReplicationRequest{
 		SystemIdentifier: n.configuration.GetSystemIdentifier(),
-		NodeIdentifier:   n.leaderSelector.SelfID().String(),
+		NodeIdentifier:   n.peer.ID().String(),
 		BeginBlockNumber: startingBlockNr,
 	}
 	n.log.Log(ctx, logger.LevelTrace, "sending ledger replication request", logger.Data(req))
-	peers := n.configuration.peer.Validators()
+	peers := n.peer.Validators()
 	if len(peers) == 0 {
 		n.log.WarnContext(ctx, "Error sending ledger replication request, no peers")
 		return
@@ -1042,7 +1079,7 @@ func (n *Node) sendLedgerReplicationRequest(ctx context.Context, startingBlockNr
 
 	// send Ledger Replication request to a first alive randomly chosen node
 	for _, p := range util.ShuffleSliceCopy(peers) {
-		if n.leaderSelector.SelfID() == p {
+		if n.peer.ID() == p {
 			continue
 		}
 		n.log.DebugContext(ctx, fmt.Sprintf("Sending ledger replication request to %v", p))
@@ -1063,7 +1100,7 @@ func (n *Node) sendLedgerReplicationRequest(ctx context.Context, startingBlockNr
 func (n *Node) sendBlockProposal(ctx context.Context) error {
 	defer trackExecutionTime(time.Now(), "Sending BlockProposal", n.log)
 	systemIdentifier := n.configuration.GetSystemIdentifier()
-	nodeId := n.leaderSelector.SelfID()
+	nodeId := n.peer.ID()
 	prop := &blockproposal.BlockProposal{
 		SystemIdentifier:   systemIdentifier,
 		NodeIdentifier:     nodeId.String(),
@@ -1074,7 +1111,7 @@ func (n *Node) sendBlockProposal(ctx context.Context) error {
 	if err := prop.Sign(n.configuration.hashAlgorithm, n.configuration.signer); err != nil {
 		return fmt.Errorf("block proposal sign failed, %w", err)
 	}
-	return n.network.Send(ctx, prop, n.configuration.peer.FilterValidators(nodeId)...)
+	return n.network.Send(ctx, prop, n.peer.FilterValidators(nodeId)...)
 }
 
 func (n *Node) persistBlockProposal(pr *pendingBlockProposal) error {
@@ -1087,7 +1124,7 @@ func (n *Node) persistBlockProposal(pr *pendingBlockProposal) error {
 func (n *Node) sendCertificationRequest(ctx context.Context, blockAuthor string) error {
 	defer trackExecutionTime(time.Now(), "Sending CertificationRequest", n.log)
 	systemIdentifier := n.configuration.GetSystemIdentifier()
-	nodeId := n.leaderSelector.SelfID()
+	nodeId := n.peer.ID()
 	luc := n.luc.Load()
 	prevStateHash := luc.InputRecord.Hash
 	state, err := n.transactionSystem.EndBlock()
@@ -1267,7 +1304,7 @@ func (n *Node) stopForwardingOrHandlingTransactions() {
 
 func (n *Node) startHandleOrForwardTransactions(ctx context.Context) {
 	n.stopForwardingOrHandlingTransactions()
-	if n.leaderSelector.GetLeaderID() == UnknownLeader {
+	if n.leaderSelector.GetLeader() == UnknownLeader {
 		return
 	}
 

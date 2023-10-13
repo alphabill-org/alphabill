@@ -18,6 +18,7 @@ import (
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	testlogger "github.com/alphabill-org/alphabill/internal/testutils/logger"
 	testnetwork "github.com/alphabill-org/alphabill/internal/testutils/network"
+	"github.com/alphabill-org/alphabill/internal/testutils/peer"
 	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/pkg/logger"
 	"github.com/stretchr/testify/require"
@@ -88,14 +89,16 @@ func initRootValidator(t *testing.T, net PartitionNet) (*Node, *testutils.TestNo
 	verifier := node.Verifier
 	rootPubKeyBytes, err := verifier.MarshalPublicKey()
 	require.NoError(t, err)
-	id := node.Peer.ID()
+	id := node.PeerConf.ID
 	rootGenesis, _, err := rootgenesis.NewRootGenesis(id.String(), node.Signer, rootPubKeyBytes, []*genesis.PartitionRecord{partitionRecord})
 	require.NoError(t, err)
 	partitionStore, err := partitions.NewPartitionStoreFromGenesis(rootGenesis.Partitions)
 	require.NoError(t, err)
 	cm, err := NewMockConsensus(rootGenesis, partitionStore)
 	require.NoError(t, err)
-	validator, err := New(node.Peer, net, partitionStore, cm, testlogger.New(t).With(logger.NodeID(id)))
+
+	p := peer.CreatePeer(t, node.PeerConf)
+	validator, err := New(p, net, partitionStore, cm, testlogger.New(t).With(logger.NodeID(id)))
 	require.NoError(t, err)
 	require.NotNil(t, validator)
 	return validator, node, partitionNodes, rootGenesis
@@ -107,7 +110,7 @@ func TestRootValidatorTest_ConstructWithMonolithicManager(t *testing.T) {
 	verifier := node.Verifier
 	rootPubKeyBytes, err := verifier.MarshalPublicKey()
 	require.NoError(t, err)
-	id := node.Peer.ID()
+	id := node.PeerConf.ID
 	rootGenesis, _, err := rootgenesis.NewRootGenesis(id.String(), node.Signer, rootPubKeyBytes, []*genesis.PartitionRecord{partitionRecord})
 	require.NoError(t, err)
 	mockNet := testnetwork.NewMockNetwork()
@@ -115,14 +118,16 @@ func TestRootValidatorTest_ConstructWithMonolithicManager(t *testing.T) {
 	require.NoError(t, err)
 	log := testlogger.New(t).With(logger.NodeID(id))
 	cm, err := monolithic.NewMonolithicConsensusManager(
-		node.Peer.ID().String(),
+		node.PeerConf.ID.String(),
 		rootGenesis,
 		partitionStore,
 		node.Signer,
 		log,
 	)
 	require.NoError(t, err)
-	validator, err := New(node.Peer, mockNet, partitionStore, cm, log)
+
+	p := peer.CreatePeer(t, node.PeerConf)
+	validator, err := New(p, mockNet, partitionStore, cm, log)
 	require.NoError(t, err)
 	require.NotNil(t, validator)
 }
@@ -148,7 +153,7 @@ func TestRootValidatorTest_CertificationReqRejected(t *testing.T) {
 	require.NotContains(t, rootValidator.incomingRequests.store, partitionID)
 	// signature does not verify
 	invalidNode := testutils.TestNode{
-		Peer:     partitionNodes[0].Peer,
+		PeerConf: partitionNodes[0].PeerConf,
 		Signer:   unknownNode.Signer,
 		Verifier: unknownNode.Verifier,
 	}
@@ -182,7 +187,7 @@ func TestRootValidatorTest_CertificationReqEquivocatingReq(t *testing.T) {
 	require.ErrorContains(t, rootValidator.onBlockCertificationRequest(context.Background(), eqReq), "request in this round already stored, rejected")
 	buffer, f := rootValidator.incomingRequests.store[partitionID]
 	require.True(t, f)
-	storedNodeReqHash, f := buffer.nodeRequest[partitionNodes[0].Peer.ID().String()]
+	storedNodeReqHash, f := buffer.nodeRequest[partitionNodes[0].PeerConf.ID.String()]
 	require.True(t, f)
 	require.EqualValues(t, sha256.Sum256(req.InputRecord.Bytes()), storedNodeReqHash)
 	require.Len(t, buffer.requests, 1)
@@ -200,7 +205,7 @@ func TestRootValidatorTest_SimulateNetCommunication(t *testing.T) {
 
 	require.Len(t, partitionNodes, 3)
 	require.NotNil(t, rg)
-	require.NotEmpty(t, node.Peer.ID().String())
+	require.NotEmpty(t, node.PeerConf.ID.String())
 	// create certification request
 	newIR := &types.InputRecord{
 		PreviousHash: rg.Partitions[0].Nodes[0].BlockCertificationRequest.InputRecord.Hash,
@@ -210,10 +215,10 @@ func TestRootValidatorTest_SimulateNetCommunication(t *testing.T) {
 		RoundNumber:  2,
 	}
 	req := testutils.CreateBlockCertificationRequest(t, newIR, partitionID, partitionNodes[0])
-	testutils.MockValidatorNetReceives(t, mockNet, partitionNodes[0].Peer.ID(), network.ProtocolBlockCertification, req)
+	testutils.MockValidatorNetReceives(t, mockNet, partitionNodes[0].PeerConf.ID, network.ProtocolBlockCertification, req)
 	// send second
 	req = testutils.CreateBlockCertificationRequest(t, newIR, partitionID, partitionNodes[1])
-	testutils.MockValidatorNetReceives(t, mockNet, partitionNodes[1].Peer.ID(), network.ProtocolBlockCertification, req)
+	testutils.MockValidatorNetReceives(t, mockNet, partitionNodes[1].PeerConf.ID, network.ProtocolBlockCertification, req)
 	// since consensus is simple majority, then consensus is now achieved and message should be forwarded
 	require.Eventually(t, func() bool { return len(rootValidator.consensusManager.RequestCertification()) == 1 }, 1*time.Second, 10*time.Millisecond)
 }
@@ -227,7 +232,7 @@ func TestRootValidatorTest_SimulateNetCommunicationNoQuorum(t *testing.T) {
 
 	require.Len(t, partitionNodes, 3)
 	require.NotNil(t, rg)
-	require.NotEmpty(t, node.Peer.ID().String())
+	require.NotEmpty(t, node.PeerConf.ID.String())
 	// create certification request
 	newIR1 := &types.InputRecord{
 		PreviousHash: rg.Partitions[0].Nodes[0].BlockCertificationRequest.InputRecord.Hash,
@@ -237,7 +242,7 @@ func TestRootValidatorTest_SimulateNetCommunicationNoQuorum(t *testing.T) {
 		RoundNumber:  2,
 	}
 	req1 := testutils.CreateBlockCertificationRequest(t, newIR1, partitionID, partitionNodes[0])
-	testutils.MockValidatorNetReceives(t, mockNet, partitionNodes[0].Peer.ID(), network.ProtocolBlockCertification, req1)
+	testutils.MockValidatorNetReceives(t, mockNet, partitionNodes[0].PeerConf.ID, network.ProtocolBlockCertification, req1)
 	newIR2 := &types.InputRecord{
 		PreviousHash: rg.Partitions[0].Nodes[0].BlockCertificationRequest.InputRecord.Hash,
 		Hash:         test.RandomBytes(32),
@@ -246,7 +251,7 @@ func TestRootValidatorTest_SimulateNetCommunicationNoQuorum(t *testing.T) {
 		RoundNumber:  2,
 	}
 	req2 := testutils.CreateBlockCertificationRequest(t, newIR2, partitionID, partitionNodes[1])
-	testutils.MockValidatorNetReceives(t, mockNet, partitionNodes[1].Peer.ID(), network.ProtocolBlockCertification, req2)
+	testutils.MockValidatorNetReceives(t, mockNet, partitionNodes[1].PeerConf.ID, network.ProtocolBlockCertification, req2)
 	newIR3 := &types.InputRecord{
 		PreviousHash: rg.Partitions[0].Nodes[0].BlockCertificationRequest.InputRecord.Hash,
 		Hash:         test.RandomBytes(32),
@@ -255,7 +260,7 @@ func TestRootValidatorTest_SimulateNetCommunicationNoQuorum(t *testing.T) {
 		RoundNumber:  2,
 	}
 	req3 := testutils.CreateBlockCertificationRequest(t, newIR3, partitionID, partitionNodes[2])
-	testutils.MockValidatorNetReceives(t, mockNet, partitionNodes[2].Peer.ID(), network.ProtocolBlockCertification, req3)
+	testutils.MockValidatorNetReceives(t, mockNet, partitionNodes[2].PeerConf.ID, network.ProtocolBlockCertification, req3)
 	// no consensus can be achieved all reported different hashes
 	require.Eventually(t, func() bool { return len(rootValidator.consensusManager.RequestCertification()) == 1 }, 1*time.Second, 10*time.Millisecond)
 }
@@ -269,19 +274,19 @@ func TestRootValidatorTest_SimulateNetCommunicationHandshake(t *testing.T) {
 
 	require.Len(t, partitionNodes, 3)
 	require.NotNil(t, rg)
-	require.NotEmpty(t, node.Peer.ID().String())
+	require.NotEmpty(t, node.PeerConf.ID.String())
 	// create
 	h := &handshake.Handshake{
 		SystemIdentifier: partitionID.ToSystemID(),
-		NodeIdentifier:   partitionNodes[1].Peer.ID().String(),
+		NodeIdentifier:   partitionNodes[1].PeerConf.ID.String(),
 	}
-	testutils.MockValidatorNetReceives(t, mockNet, partitionNodes[0].Peer.ID(), network.ProtocolHandshake, h)
+	testutils.MockValidatorNetReceives(t, mockNet, partitionNodes[0].PeerConf.ID, network.ProtocolHandshake, h)
 	// make sure certificate is sent in return
 	testutils.MockAwaitMessage[*types.UnicityCertificate](t, mockNet, network.ProtocolUnicityCertificates)
 	// make sure that the node is subscribed
 	subscribed := rootValidator.subscription.Get(partitionID)
 	require.Len(t, subscribed, 1)
-	require.Equal(t, partitionNodes[1].Peer.ID().String(), subscribed[0])
+	require.Equal(t, partitionNodes[1].PeerConf.ID.String(), subscribed[0])
 	// set network in error state
 	mockNet.SetErrorState(fmt.Errorf("failed to dial"))
 	// simulate root response, which will fail to send due to network error
@@ -321,7 +326,7 @@ func TestRootValidatorTest_SimulateNetCommunicationInvalidReqRoundNumber(t *test
 	require.NotNil(t, rootValidator)
 	require.Len(t, partitionNodes, 3)
 	require.NotNil(t, rg)
-	require.NotEmpty(t, node.Peer.ID().String())
+	require.NotEmpty(t, node.PeerConf.ID.String())
 	// create certification request
 	newHash := test.RandomBytes(32)
 	blockHash := test.RandomBytes(32)
@@ -333,7 +338,7 @@ func TestRootValidatorTest_SimulateNetCommunicationInvalidReqRoundNumber(t *test
 		RoundNumber:  1,
 	}
 	req := testutils.CreateBlockCertificationRequest(t, newIR, partitionID, partitionNodes[0])
-	testutils.MockValidatorNetReceives(t, mockNet, partitionNodes[0].Peer.ID(), network.ProtocolBlockCertification, req)
+	testutils.MockValidatorNetReceives(t, mockNet, partitionNodes[0].PeerConf.ID, network.ProtocolBlockCertification, req)
 	// expect repeat UC to be sent
 	repeatCert := testutils.MockAwaitMessage[*types.UnicityCertificate](t, mockNet, network.ProtocolUnicityCertificates)
 	require.Equal(t, rg.Partitions[0].Certificate, repeatCert)
@@ -349,7 +354,7 @@ func TestRootValidatorTest_SimulateNetCommunicationInvalidHash(t *testing.T) {
 	require.NotNil(t, rootValidator)
 	require.Len(t, partitionNodes, 3)
 	require.NotNil(t, rg)
-	require.NotEmpty(t, node.Peer.ID().String())
+	require.NotEmpty(t, node.PeerConf.ID.String())
 	// create certification request
 	newHash := test.RandomBytes(32)
 	blockHash := test.RandomBytes(32)
@@ -361,7 +366,7 @@ func TestRootValidatorTest_SimulateNetCommunicationInvalidHash(t *testing.T) {
 		RoundNumber:  2,
 	}
 	req := testutils.CreateBlockCertificationRequest(t, newIR, partitionID, partitionNodes[0])
-	testutils.MockValidatorNetReceives(t, mockNet, partitionNodes[0].Peer.ID(), network.ProtocolBlockCertification, req)
+	testutils.MockValidatorNetReceives(t, mockNet, partitionNodes[0].PeerConf.ID, network.ProtocolBlockCertification, req)
 	// expect repeat UC to be sent
 	repeatCert := testutils.MockAwaitMessage[*types.UnicityCertificate](t, mockNet, network.ProtocolUnicityCertificates)
 	require.Equal(t, rg.Partitions[0].Certificate, repeatCert)
@@ -376,7 +381,7 @@ func TestRootValidatorTest_SimulateResponse(t *testing.T) {
 
 	require.Len(t, partitionNodes, 3)
 	require.NotNil(t, rg)
-	require.NotEmpty(t, node.Peer.ID().String())
+	require.NotEmpty(t, node.PeerConf.ID.String())
 	// create certification request
 	newIR := &types.InputRecord{
 		PreviousHash: rg.Partitions[0].Nodes[0].BlockCertificationRequest.InputRecord.Hash,
@@ -458,10 +463,10 @@ func TestRootValidator_ExitWhenPendingCertRequestAndCMClosed(t *testing.T) {
 		RoundNumber:  2,
 	}
 	req := testutils.CreateBlockCertificationRequest(t, newIR, partitionID, partitionNodes[0])
-	testutils.MockValidatorNetReceives(t, mockNet, partitionNodes[0].Peer.ID(), network.ProtocolBlockCertification, req)
+	testutils.MockValidatorNetReceives(t, mockNet, partitionNodes[0].PeerConf.ID, network.ProtocolBlockCertification, req)
 	// send second
 	req = testutils.CreateBlockCertificationRequest(t, newIR, partitionID, partitionNodes[1])
-	testutils.MockValidatorNetReceives(t, mockNet, partitionNodes[1].Peer.ID(), network.ProtocolBlockCertification, req)
+	testutils.MockValidatorNetReceives(t, mockNet, partitionNodes[1].PeerConf.ID, network.ProtocolBlockCertification, req)
 	// consensus is achieved and request will sent to CM, but CM is not running
 	// node should still exit normally even if CM loop is not running and reading the channel
 }

@@ -23,7 +23,7 @@ type EstimateGasResponse struct {
 func (a *API) EstimateGas(w http.ResponseWriter, r *http.Request) {
 	request := &CallEVMRequest{}
 	if err := cbor.NewDecoder(r.Body).Decode(request); err != nil {
-		util.WriteCBORError(w, fmt.Errorf("unable to decode request body: %w", err), http.StatusBadRequest)
+		util.WriteCBORError(w, fmt.Errorf("unable to decode request body: %w", err), http.StatusBadRequest, a.log)
 		return
 	}
 	callAttr := &evm.TxAttributes{
@@ -71,7 +71,7 @@ func (a *API) EstimateGas(w http.ResponseWriter, r *http.Request) {
 		// call or transaction will never be accepted no matter how much gas it is
 		// assigned. Return the error directly, don't struggle any more
 		if err != nil {
-			util.WriteCBORError(w, err, http.StatusBadRequest)
+			util.WriteCBORError(w, err, http.StatusBadRequest, a.log)
 			return
 		}
 		if failed {
@@ -84,24 +84,24 @@ func (a *API) EstimateGas(w http.ResponseWriter, r *http.Request) {
 	if hi == cap {
 		failed, result, err := executable(hi)
 		if err != nil {
-			util.WriteCBORError(w, err, http.StatusBadRequest)
+			util.WriteCBORError(w, err, http.StatusBadRequest, a.log)
 			return
 		}
 		if failed {
 			if result != nil && result.Err != vm.ErrOutOfGas {
 				if len(result.Revert()) > 0 {
-					util.WriteCBORError(w, newRevertError(result), http.StatusBadRequest)
+					util.WriteCBORError(w, newRevertError(result), http.StatusBadRequest, a.log)
 					return
 				}
-				util.WriteCBORError(w, result.Err, http.StatusBadRequest)
+				util.WriteCBORError(w, result.Err, http.StatusBadRequest, a.log)
 				return
 			}
 			// Otherwise, the specified gas cap is too low
-			util.WriteCBORError(w, fmt.Errorf("gas required exceeds allowance (%d)", cap), http.StatusBadRequest)
+			util.WriteCBORError(w, fmt.Errorf("gas required exceeds allowance (%d)", cap), http.StatusBadRequest, a.log)
 			return
 		}
 	}
-	util.WriteCBORResponse(w, &EstimateGasResponse{GasUsed: hi}, http.StatusOK)
+	util.WriteCBORResponse(w, &EstimateGasResponse{GasUsed: hi}, http.StatusOK, a.log)
 }
 
 func newRevertError(result *core.ExecutionResult) error {

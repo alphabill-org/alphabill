@@ -10,6 +10,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/rpc"
 	abstate "github.com/alphabill-org/alphabill/internal/state"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
+	"github.com/alphabill-org/alphabill/internal/testutils/logger"
 	"github.com/alphabill-org/alphabill/internal/txsystem/evm"
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
@@ -24,6 +25,7 @@ func TestAPI_EstimateGas_Deploy_OK(t *testing.T) {
 		systemIdentifier: []byte{0, 0, 0, 3},
 		gasUnitPrice:     big.NewInt(evm.DefaultGasPrice),
 		blockGasLimit:    100000000000,
+		log:              logger.New(t),
 	}
 	call := &CallEVMRequest{
 		From:  test.RandomBytes(20),
@@ -54,6 +56,7 @@ func TestAPI_EstimateGas_Call_OK(t *testing.T) {
 		systemIdentifier: []byte{0, 0, 0, 1},
 		gasUnitPrice:     big.NewInt(1),
 		blockGasLimit:    100000000000,
+		log:              logger.New(t),
 	}
 	cABI, err := abi.JSON(bytes.NewBuffer([]byte(counterABI)))
 	require.NoError(t, err)
@@ -100,6 +103,7 @@ func TestAPI_EstimateGas_ErrorNotEnoughGas(t *testing.T) {
 		systemIdentifier: []byte{0, 0, 0, 1},
 		gasUnitPrice:     big.NewInt(1),
 		blockGasLimit:    evm.DefaultBlockGasLimit,
+		log:              logger.New(t),
 	}
 	cABI, err := abi.JSON(bytes.NewBuffer([]byte(counterABI)))
 	require.NoError(t, err)
@@ -133,6 +137,7 @@ func TestAPI_EstimateGas_ErrorInvalidSCParameter(t *testing.T) {
 		systemIdentifier: []byte{0, 0, 0, 1},
 		gasUnitPrice:     big.NewInt(1),
 		blockGasLimit:    evm.DefaultBlockGasLimit,
+		log:              logger.New(t),
 	}
 	call := &CallEVMRequest{
 		From:  address.Bytes(),
@@ -163,6 +168,7 @@ func TestAPI_EstimateGas_InvalidRequest(t *testing.T) {
 		systemIdentifier: []byte{0, 0, 0, 1},
 		gasUnitPrice:     big.NewInt(1),
 		blockGasLimit:    100000000000,
+		log:              logger.New(t),
 	}
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/evm/estimateGas", bytes.NewReader([]byte{32}))
 	recorder := httptest.NewRecorder()

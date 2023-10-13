@@ -158,10 +158,16 @@ func TestNode_HandleUnicityCertificate_RevertAndStartRecovery_withPendingProposa
 func TestNode_HandleUnicityCertificate_RevertAndStartRecovery_withPendingProposal_sameIR_butDifferentBlocks(t *testing.T) {
 	store := memorydb.New()
 	ctx, cancel := context.WithCancel(context.Background())
-	t.Cleanup(cancel)
 	tp := SetupNewSingleNodePartition(t, &testtxsystem.CounterTxSystem{}, WithBlockStore(store))
-	StartSingleNodePartition(ctx, t, tp)
-
+	done := StartSingleNodePartition(ctx, t, tp)
+	t.Cleanup(func() {
+		cancel()
+		select {
+		case <-done:
+		case <-time.After(3 * time.Second):
+			t.Fatal("partition node didn't shut down within timeout")
+		}
+	})
 	tp.partition.startNewRound(context.Background(), tp.partition.luc.Load())
 	require.NoError(t, tp.SubmitTxFromRPC(testtransaction.NewTransactionOrder(t)))
 	require.Eventually(t, func() bool {
@@ -205,10 +211,16 @@ func TestNode_HandleUnicityCertificate_RevertAndStartRecovery_withPendingProposa
 func TestNode_HandleUnicityCertificate_RevertAndStartRecovery_noPendingProposal_sameIR_butDifferentBlocks(t *testing.T) {
 	store := memorydb.New()
 	ctx, cancel := context.WithCancel(context.Background())
-	t.Cleanup(cancel)
 	tp := SetupNewSingleNodePartition(t, &testtxsystem.CounterTxSystem{}, WithBlockStore(store))
-	StartSingleNodePartition(ctx, t, tp)
-
+	done := StartSingleNodePartition(ctx, t, tp)
+	t.Cleanup(func() {
+		cancel()
+		select {
+		case <-done:
+		case <-time.After(3 * time.Second):
+			t.Fatal("partition node didn't shut down within timeout")
+		}
+	})
 	tp.partition.startNewRound(context.Background(), tp.partition.luc.Load())
 
 	// create new block
@@ -240,10 +252,16 @@ func TestNode_HandleUnicityCertificate_RevertAndStartRecovery_noPendingProposal_
 func TestNode_HandleUnicityCertificate_RevertAndStartRecovery_missedPendingProposal_sameIR_butDifferentBlocks(t *testing.T) {
 	store := memorydb.New()
 	ctx, cancel := context.WithCancel(context.Background())
-	t.Cleanup(cancel)
 	tp := SetupNewSingleNodePartition(t, &testtxsystem.CounterTxSystem{}, WithBlockStore(store))
-	StartSingleNodePartition(ctx, t, tp)
-
+	done := StartSingleNodePartition(ctx, t, tp)
+	t.Cleanup(func() {
+		cancel()
+		select {
+		case <-done:
+		case <-time.After(3 * time.Second):
+			t.Fatal("partition node didn't shut down within timeout")
+		}
+	})
 	tp.partition.startNewRound(context.Background(), tp.partition.luc.Load())
 
 	// create new block
@@ -641,9 +659,15 @@ func TestNode_RecoverReceivesInvalidBlock(t *testing.T) {
 func TestNode_RecoverReceivesInvalidBlockNoBlockProposerId(t *testing.T) {
 	tp := SetupNewSingleNodePartition(t, &testtxsystem.CounterTxSystem{})
 	ctx, cancel := context.WithCancel(context.Background())
-	t.Cleanup(cancel)
-	StartSingleNodePartition(ctx, t, tp)
-
+	done := StartSingleNodePartition(ctx, t, tp)
+	t.Cleanup(func() {
+		cancel()
+		select {
+		case <-done:
+		case <-time.After(3 * time.Second):
+			t.Fatal("partition node didn't shut down within timeout")
+		}
+	})
 	genesisBlock := tp.GetLatestBlock(t)
 	system := &testtxsystem.CounterTxSystem{}
 	newBlock2 := createNewBlockOutsideNode(t, tp, system, genesisBlock, testtransaction.NewTransactionRecord(t))
@@ -704,9 +728,15 @@ func TestNode_RecoverySimulateStorageFailsOnRecovery(t *testing.T) {
 		UnicityCertificate: tp.nodeDeps.genesis.Certificate,
 	}
 	ctx, cancel := context.WithCancel(context.Background())
-	t.Cleanup(cancel)
-	StartSingleNodePartition(ctx, t, tp)
-
+	done := StartSingleNodePartition(ctx, t, tp)
+	t.Cleanup(func() {
+		cancel()
+		select {
+		case <-done:
+		case <-time.After(3 * time.Second):
+			t.Fatal("partition node didn't shut down within timeout")
+		}
+	})
 	newBlock2 := createNewBlockOutsideNode(t, tp, system, genesisBlock, testtransaction.NewTransactionRecord(t))
 	newBlock3 := createNewBlockOutsideNode(t, tp, system, newBlock2, testtransaction.NewTransactionRecord(t))
 	newBlock4 := createNewBlockOutsideNode(t, tp, system, newBlock3, testtransaction.NewTransactionRecord(t))
@@ -778,8 +808,15 @@ func TestNode_RecoverySimulateStorageFailsDuringBlockFinalizationOnUC(t *testing
 		UnicityCertificate: tp.nodeDeps.genesis.Certificate,
 	}
 	ctx, cancel := context.WithCancel(context.Background())
-	t.Cleanup(cancel)
-	StartSingleNodePartition(ctx, t, tp)
+	done := StartSingleNodePartition(ctx, t, tp)
+	t.Cleanup(func() {
+		cancel()
+		select {
+		case <-done:
+		case <-time.After(3 * time.Second):
+			t.Fatal("partition node didn't shut down within timeout")
+		}
+	})
 	// node sends a handshake to root and subscribes to UC messages
 	require.Eventually(t, RequestReceived(tp, network.ProtocolHandshake), 200*time.Millisecond, test.WaitTick)
 	tp.mockNet.ResetSentMessages(network.ProtocolHandshake)
@@ -851,8 +888,15 @@ func TestNode_CertificationRequestNotSentWhenProposalStoreFails(t *testing.T) {
 		UnicityCertificate: tp.nodeDeps.genesis.Certificate,
 	}
 	ctx, cancel := context.WithCancel(context.Background())
-	t.Cleanup(cancel)
-	StartSingleNodePartition(ctx, t, tp)
+	done := StartSingleNodePartition(ctx, t, tp)
+	t.Cleanup(func() {
+		cancel()
+		select {
+		case <-done:
+		case <-time.After(3 * time.Second):
+			t.Fatal("partition node didn't shut down within timeout")
+		}
+	})
 	// node sends a handshake to root and subscribes to UC messages
 	require.Eventually(t, RequestReceived(tp, network.ProtocolHandshake), 200*time.Millisecond, test.WaitTick)
 	tp.mockNet.ResetSentMessages(network.ProtocolHandshake)

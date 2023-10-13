@@ -140,10 +140,17 @@ func StartSingleNodePartition(ctx context.Context, t *testing.T, p *SingleNodePa
 
 func RunSingleNodePartition(t *testing.T, txSystem txsystem.TransactionSystem, nodeOptions ...NodeOption) *SingleNodePartition {
 	ctx, cancel := context.WithCancel(context.Background())
-	t.Cleanup(cancel)
 
 	partition := SetupNewSingleNodePartition(t, txSystem, nodeOptions...)
-	StartSingleNodePartition(ctx, t, partition)
+	done := StartSingleNodePartition(ctx, t, partition)
+	t.Cleanup(func() {
+		cancel()
+		select {
+		case <-done:
+		case <-time.After(3 * time.Second):
+			t.Fatal("partition node didn't shut down within timeout")
+		}
+	})
 	return partition
 }
 

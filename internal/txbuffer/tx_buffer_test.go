@@ -2,16 +2,18 @@ package txbuffer
 
 import (
 	"context"
-	gocrypto "crypto"
+	"crypto"
 	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/require"
+
 	test "github.com/alphabill-org/alphabill/internal/testutils"
+	"github.com/alphabill-org/alphabill/internal/testutils/logger"
 	testtransaction "github.com/alphabill-org/alphabill/internal/testutils/transaction"
 	"github.com/alphabill-org/alphabill/internal/types"
-	"github.com/stretchr/testify/require"
 )
 
 const (
@@ -21,11 +23,11 @@ const (
 )
 
 func TestNewTxBuffer_InvalidMaxSize(t *testing.T) {
-	_, err := New(zero, gocrypto.SHA256)
+	_, err := New(zero, crypto.SHA256, logger.New(t))
 	require.ErrorIs(t, err, ErrInvalidMaxSize)
 }
 func TestNewTxBuffer_Ok(t *testing.T) {
-	buffer, err := New(testBufferSize, gocrypto.SHA256)
+	buffer, err := New(testBufferSize, crypto.SHA256, logger.New(t))
 	require.NotNil(t, buffer)
 	defer buffer.Close()
 	require.NoError(t, err)
@@ -34,7 +36,7 @@ func TestNewTxBuffer_Ok(t *testing.T) {
 }
 
 func TestAddTx_TxIsNil(t *testing.T) {
-	buffer, err := New(testBufferSize, gocrypto.SHA256)
+	buffer, err := New(testBufferSize, crypto.SHA256, logger.New(t))
 	require.NoError(t, err)
 	defer buffer.Close()
 	_, err = buffer.Add(nil)
@@ -42,7 +44,7 @@ func TestAddTx_TxIsNil(t *testing.T) {
 }
 
 func TestAddTx_TxIsAlreadyInTxBuffer(t *testing.T) {
-	buffer, err := New(testBufferSize, gocrypto.SHA256)
+	buffer, err := New(testBufferSize, crypto.SHA256, logger.New(t))
 	require.NoError(t, err)
 	defer buffer.Close()
 
@@ -57,7 +59,7 @@ func TestAddTx_TxIsAlreadyInTxBuffer(t *testing.T) {
 }
 
 func TestAddTx_TxBufferFull(t *testing.T) {
-	buffer, err := New(testBufferSize, gocrypto.SHA256)
+	buffer, err := New(testBufferSize, crypto.SHA256, logger.New(t))
 	require.NoError(t, err)
 	defer buffer.Close()
 
@@ -73,7 +75,7 @@ func TestAddTx_TxBufferFull(t *testing.T) {
 }
 
 func TestAddTx_Ok(t *testing.T) {
-	buffer, err := New(testBufferSize, gocrypto.SHA256)
+	buffer, err := New(testBufferSize, crypto.SHA256, logger.New(t))
 	require.NoError(t, err)
 	defer buffer.Close()
 	_, err = buffer.Add(testtransaction.NewTransactionOrder(t))
@@ -83,7 +85,7 @@ func TestAddTx_Ok(t *testing.T) {
 }
 
 func TestCount_Ok(t *testing.T) {
-	buffer, err := New(testBufferSize, gocrypto.SHA256)
+	buffer, err := New(testBufferSize, crypto.SHA256, logger.New(t))
 	require.NoError(t, err)
 	defer buffer.Close()
 	for i := uint32(0); i < testBufferSize; i++ {
@@ -95,7 +97,7 @@ func TestCount_Ok(t *testing.T) {
 }
 
 func TestRemove_NotFound(t *testing.T) {
-	buffer, err := New(testBufferSize, gocrypto.SHA256)
+	buffer, err := New(testBufferSize, crypto.SHA256, logger.New(t))
 	require.NoError(t, err)
 	defer buffer.Close()
 	tx := testtransaction.NewTransactionOrder(t)
@@ -106,7 +108,7 @@ func TestRemove_NotFound(t *testing.T) {
 }
 
 func TestRemove_Ok(t *testing.T) {
-	buffer, err := New(testBufferSize, gocrypto.SHA256)
+	buffer, err := New(testBufferSize, crypto.SHA256, logger.New(t))
 	require.NoError(t, err)
 	defer buffer.Close()
 
@@ -114,7 +116,7 @@ func TestRemove_Ok(t *testing.T) {
 	_, err = buffer.Add(tx)
 	require.NoError(t, err)
 
-	hash := tx.Hash(gocrypto.SHA256)
+	hash := tx.Hash(crypto.SHA256)
 	buffer.removeFromIndex(string(hash))
 	// the tx is removed from the index map but is still in chan!
 	require.EqualValues(t, 1, len(buffer.transactionsCh))
@@ -122,7 +124,7 @@ func TestRemove_Ok(t *testing.T) {
 }
 
 func TestProcess_ProcessAllTransactions(t *testing.T) {
-	buffer, err := New(testBufferSize, gocrypto.SHA256)
+	buffer, err := New(testBufferSize, crypto.SHA256, logger.New(t))
 	require.NoError(t, err)
 	defer buffer.Close()
 
@@ -152,7 +154,7 @@ func TestProcess_ProcessAllTransactions(t *testing.T) {
 }
 
 func TestProcess_CloseQuitsProcess(t *testing.T) {
-	buffer, err := New(testBufferSize, gocrypto.SHA256)
+	buffer, err := New(testBufferSize, crypto.SHA256, logger.New(t))
 	require.NoError(t, err)
 
 	var c uint32
@@ -175,7 +177,7 @@ func TestProcess_CloseQuitsProcess(t *testing.T) {
 }
 
 func TestProcess_CancelProcess(t *testing.T) {
-	buffer, err := New(testBufferSize, gocrypto.SHA256)
+	buffer, err := New(testBufferSize, crypto.SHA256, logger.New(t))
 	require.NoError(t, err)
 	defer buffer.Close()
 

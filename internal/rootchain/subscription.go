@@ -3,23 +3,23 @@ package rootchain
 import (
 	"sync"
 
-	p "github.com/alphabill-org/alphabill/internal/network/protocol"
+	"github.com/alphabill-org/alphabill/internal/types"
 )
 
 const defaultSubscriptionErrorCount = 3
 
 type Subscriptions struct {
 	mu   sync.RWMutex
-	subs map[p.SystemIdentifier]map[string]int
+	subs map[types.SystemID32]map[string]int
 }
 
 func NewSubscriptions() *Subscriptions {
 	return &Subscriptions{
-		subs: map[p.SystemIdentifier]map[string]int{},
+		subs: map[types.SystemID32]map[string]int{},
 	}
 }
 
-func (s *Subscriptions) Subscribe(id p.SystemIdentifier, nodeId string) {
+func (s *Subscriptions) Subscribe(id types.SystemID32, nodeId string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	_, found := s.subs[id]
@@ -29,7 +29,7 @@ func (s *Subscriptions) Subscribe(id p.SystemIdentifier, nodeId string) {
 	s.subs[id][nodeId] = defaultSubscriptionErrorCount
 }
 
-func (s *Subscriptions) SubscriberError(id p.SystemIdentifier, nodeId string) {
+func (s *Subscriptions) SubscriberError(id types.SystemID32, nodeId string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	subs, found := s.subs[id]
@@ -42,7 +42,7 @@ func (s *Subscriptions) SubscriberError(id p.SystemIdentifier, nodeId string) {
 	}
 }
 
-func (s *Subscriptions) Get(id p.SystemIdentifier) []string {
+func (s *Subscriptions) Get(id types.SystemID32) []string {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	subs := s.subs[id]

@@ -5,23 +5,22 @@ import (
 	gocrypto "crypto"
 	"testing"
 
-	"github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/stretchr/testify/require"
 
 	"github.com/alphabill-org/alphabill/internal/hash"
 	"github.com/alphabill-org/alphabill/internal/script"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
+	"github.com/alphabill-org/alphabill/internal/testutils/logger"
 	testtransaction "github.com/alphabill-org/alphabill/internal/testutils/transaction"
 	moneytx "github.com/alphabill-org/alphabill/internal/txsystem/money"
 	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/pkg/client/clientmock"
-	wlog "github.com/alphabill-org/alphabill/pkg/wallet/log"
+	"github.com/alphabill-org/alphabill/pkg/wallet"
 )
 
 func TestWalletBackend_BillsCanBeIndexedByPredicates(t *testing.T) {
 	// create wallet backend with mock abclient
-	_ = wlog.InitStdoutLogger(wlog.DEBUG)
 	billId1 := newBillID(1)
 	billId2 := newBillID(2)
 	pubkey1, _ := hexutil.Decode("0x03c30573dc0c7fd43fcb801289a6a96cb78c27f4ba398b89da91ece23e9a99aca3")
@@ -76,7 +75,7 @@ func TestWalletBackend_BillsCanBeIndexedByPredicates(t *testing.T) {
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	t.Cleanup(cancelFunc)
 	go func() {
-		bp, err := NewBlockProcessor(storage, moneySystemID)
+		bp, err := NewBlockProcessor(storage, moneySystemID, logger.New(t))
 		require.NoError(t, err)
 		err = runBlockSync(ctx, abclient.GetBlocks, getBlockNumber, 100, bp.ProcessBlock)
 		require.ErrorIs(t, err, context.Canceled)

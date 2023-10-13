@@ -1,12 +1,12 @@
-// seperate package so that we could have access to state package
 package script
 
 import (
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/alphabill-org/alphabill/internal/hash"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
-	"github.com/stretchr/testify/require"
 )
 
 func TestAlwaysTrueScript_Ok(t *testing.T) {

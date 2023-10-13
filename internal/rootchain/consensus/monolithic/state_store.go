@@ -7,7 +7,6 @@ import (
 	"sync"
 
 	"github.com/alphabill-org/alphabill/internal/keyvaluedb"
-	"github.com/alphabill-org/alphabill/internal/network/protocol"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/internal/types"
 )
@@ -38,7 +37,7 @@ func (s *StateStore) IsEmpty() (bool, error) {
 	return keyvaluedb.IsEmpty(s.db)
 }
 
-func (s *StateStore) save(newRound uint64, certificates map[protocol.SystemIdentifier]*types.UnicityCertificate) error {
+func (s *StateStore) save(newRound uint64, certificates map[types.SystemID32]*types.UnicityCertificate) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	tx, err := s.db.StartTx()
@@ -51,9 +50,9 @@ func (s *StateStore) save(newRound uint64, certificates map[protocol.SystemIdent
 	}
 	// update certificates
 	for id, uc := range certificates {
-		key := certKey(id.Bytes())
+		key := certKey(id.ToSystemID())
 		if err = tx.Write(key, uc); err != nil {
-			return fmt.Errorf("root state failed to persist certificate for  %X, %w", id.Bytes(), err)
+			return fmt.Errorf("root state failed to persist certificate for  %s, %w", id, err)
 		}
 	}
 	// persist state
@@ -61,18 +60,21 @@ func (s *StateStore) save(newRound uint64, certificates map[protocol.SystemIdent
 }
 
 func (s *StateStore) Init(rg *genesis.RootGenesis) error {
-	var certs = make(map[protocol.SystemIdentifier]*types.UnicityCertificate)
+	var certs = make(map[types.SystemID32]*types.UnicityCertificate)
 	if rg == nil {
 		return fmt.Errorf("store init failed, root genesis is nil")
 	}
 	for _, partition := range rg.Partitions {
-		identifier := partition.GetSystemIdentifierString()
-		certs[identifier] = partition.Certificate
+		sysID, err := partition.SystemDescriptionRecord.SystemIdentifier.Id32()
+		if err != nil {
+			return err
+		}
+		certs[sysID] = partition.Certificate
 	}
 	return s.save(rg.GetRoundNumber(), certs)
 }
 
-func (s *StateStore) Update(newRound uint64, certificates map[protocol.SystemIdentifier]*types.UnicityCertificate) error {
+func (s *StateStore) Update(newRound uint64, certificates map[types.SystemID32]*types.UnicityCertificate) error {
 	// sanity check
 	round, err := s.GetRound()
 	if err != nil {
@@ -84,10 +86,10 @@ func (s *StateStore) Update(newRound uint64, certificates map[protocol.SystemIde
 	return s.save(newRound, certificates)
 }
 
-func (s *StateStore) GetLastCertifiedInputRecords() (ir map[protocol.SystemIdentifier]*types.InputRecord, err error) {
+func (s *StateStore) GetLastCertifiedInputRecords() (ir map[types.SystemID32]*types.InputRecord, err error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	ir = make(map[protocol.SystemIdentifier]*types.InputRecord)
+	ir = make(map[types.SystemID32]*types.InputRecord)
 	it := s.db.Find([]byte(certPrefix))
 	defer func() { err = errors.Join(err, it.Close()) }()
 	for ; it.Valid() && strings.HasPrefix(string(it.Key()), certPrefix); it.Next() {
@@ -95,22 +97,29 @@ func (s *StateStore) GetLastCertifiedInputRecords() (ir map[protocol.SystemIdent
 		if err = it.Value(&cert); err != nil {
 			return nil, fmt.Errorf("read certificate %v failed, %w", it.Key(), err)
 		}
-		ir[protocol.SystemIdentifier(cert.UnicityTreeCertificate.SystemIdentifier)] = cert.InputRecord
+		// conversion to Id32 can only fail if system identifier length is not valid, this should never happen
+		sysID, idErr := cert.UnicityTreeCertificate.SystemIdentifier.Id32()
+		if idErr != nil {
+			err = errors.Join(err, idErr)
+			continue
+		}
+		ir[sysID] = cert.InputRecord
 	}
 	return ir, err
 }
 
-func (s *StateStore) GetCertificate(id protocol.SystemIdentifier) (*types.UnicityCertificate, error) {
+func (s *StateStore) GetCertificate(id types.SystemID32) (*types.UnicityCertificate, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	var cert types.UnicityCertificate
-	cKey := certKey(id.Bytes())
+	sysID := id.ToSystemID()
+	cKey := certKey(sysID)
 	found, err := s.db.Read(cKey, &cert)
 	if !found {
-		return nil, fmt.Errorf("id %X not in DB", id.Bytes())
+		return nil, fmt.Errorf("id %X not in DB", sysID)
 	}
 	if err != nil {
-		return nil, fmt.Errorf("certificate id %X read failed, %w", id.Bytes(), err)
+		return nil, fmt.Errorf("certificate id %X read failed, %w", sysID, err)
 	}
 	return &cert, nil
 }

@@ -15,6 +15,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/alphabill-org/alphabill/internal/hash"
+	"github.com/alphabill-org/alphabill/internal/testutils/logger"
 	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/pkg/client/clientmock"
 	"github.com/alphabill-org/alphabill/pkg/wallet"
@@ -57,7 +58,7 @@ func CreateTestWalletWithManagerAndUnitLocker(t *testing.T, backend BackendAPI, 
 	err := CreateNewWallet(am, "")
 	require.NoError(t, err)
 
-	w, err := LoadExistingWallet(am, unitLocker, backend)
+	w, err := LoadExistingWallet(am, unitLocker, backend, logger.New(t))
 	require.NoError(t, err)
 
 	mockClient := clientmock.NewMockAlphabillClient(clientmock.WithMaxBlockNumber(0), clientmock.WithBlocks(map[uint64]*types.Block{}))
@@ -86,7 +87,7 @@ func CreateTestWalletFromSeed(t *testing.T, br *backendMockReturnConf) (*Wallet,
 	unitLocker, err := unitlock.NewUnitLocker(dir)
 	require.NoError(t, err)
 
-	w, err := LoadExistingWallet(am, unitLocker, restClient)
+	w, err := LoadExistingWallet(am, unitLocker, restClient, logger.New(t))
 	require.NoError(t, err)
 	return w, mockClient
 }
@@ -190,14 +191,13 @@ func createBillListResponse(bills []*wallet.Bill) *backend.ListBillsResponse {
 }
 
 type backendAPIMock struct {
-	getBalance           func(pubKey []byte, includeDCBills bool) (uint64, error)
-	listBills            func(pubKey []byte, includeDCBills bool) (*backend.ListBillsResponse, error)
-	getBills             func(pubKey []byte) ([]*wallet.Bill, error)
-	getRoundNumber       func() (uint64, error)
-	getTxProof           func(ctx context.Context, unitID types.UnitID, txHash wallet.TxHash) (*wallet.Proof, error)
-	getFeeCreditBill     func(ctx context.Context, unitID []byte) (*wallet.Bill, error)
-	postTransactions     func(ctx context.Context, pubKey wallet.PubKey, txs *wallet.Transactions) error
-	newFeeCreditRecordID func(shardPart, unitPart []byte) types.UnitID
+	getBalance       func(pubKey []byte, includeDCBills bool) (uint64, error)
+	listBills        func(pubKey []byte, includeDCBills bool) (*backend.ListBillsResponse, error)
+	getBills         func(pubKey []byte) ([]*wallet.Bill, error)
+	getRoundNumber   func() (uint64, error)
+	getTxProof       func(ctx context.Context, unitID types.UnitID, txHash wallet.TxHash) (*wallet.Proof, error)
+	getFeeCreditBill func(ctx context.Context, unitID []byte) (*wallet.Bill, error)
+	postTransactions func(ctx context.Context, pubKey wallet.PubKey, txs *wallet.Transactions) error
 }
 
 func (b *backendAPIMock) GetBills(ctx context.Context, pubKey []byte) ([]*wallet.Bill, error) {

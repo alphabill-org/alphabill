@@ -55,11 +55,6 @@ type tokensDb struct {
 	dbFilePath string
 }
 
-type tokensDbTx struct {
-	db *tokensDb
-	tx *bolt.Tx
-}
-
 func openTokensDb(dbFilePath string) (*tokensDb, error) {
 	db, err := bolt.Open(dbFilePath, 0600, nil) // -rw-------
 	if err != nil {

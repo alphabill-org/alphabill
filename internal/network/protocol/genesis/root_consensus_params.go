@@ -71,8 +71,7 @@ func (x *ConsensusParams) IsValid() error {
 		return fmt.Errorf("quorum threshold set higher %v than number of validators in root chain %v",
 			x.QuorumThreshold, x.TotalRootValidators)
 	}
-	hashAlgo := gocrypto.Hash(x.HashAlgorithm)
-	if hashAlgo.Available() == false {
+	if hashAlgo := gocrypto.Hash(x.HashAlgorithm); !hashAlgo.Available() {
 		return ErrUnknownHashAlgorithm
 	}
 	return nil

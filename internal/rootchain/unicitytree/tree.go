@@ -9,13 +9,11 @@ import (
 	"github.com/alphabill-org/alphabill/internal/types"
 )
 
-const systemIdentifierLength = 4
-
 var ErrInvalidSystemIdentifierLength = errors.New("invalid system identifier length")
 
 type (
 	Data struct {
-		SystemIdentifier            []byte
+		SystemIdentifier            types.SystemID
 		InputRecord                 *types.InputRecord
 		SystemDescriptionRecordHash []byte
 	}
@@ -32,7 +30,7 @@ func New(hasher hash.Hash, d []*Data) (*UnicityTree, error) {
 	for i, id := range d {
 		data[i] = id
 	}
-	s, err := smt.New(hasher, systemIdentifierLength, data)
+	s, err := smt.New(hasher, types.SystemIdentifierLength, data)
 	if err != nil {
 		return nil, err
 	}
@@ -47,16 +45,16 @@ func (u *UnicityTree) GetRootHash() []byte {
 }
 
 // GetCertificate returns an unicity tree certificate for given system identifier.
-func (u *UnicityTree) GetCertificate(systemIdentifier []byte) (*types.UnicityTreeCertificate, error) {
-	if len(systemIdentifier) != systemIdentifierLength {
+func (u *UnicityTree) GetCertificate(sysID types.SystemID) (*types.UnicityTreeCertificate, error) {
+	if len(sysID) != types.SystemIdentifierLength {
 		return nil, ErrInvalidSystemIdentifierLength
 	}
-	path, data, err := u.smt.GetAuthPath(systemIdentifier)
+	path, data, err := u.smt.GetAuthPath(sysID)
 	if err != nil {
 		return nil, err
 	}
 	if data == nil {
-		return nil, fmt.Errorf("certificate for system id %X not found", systemIdentifier)
+		return nil, fmt.Errorf("certificate for system id %X not found", sysID)
 	}
 	leafData, ok := data.(*Data)
 	if !ok {
@@ -65,15 +63,15 @@ func (u *UnicityTree) GetCertificate(systemIdentifier []byte) (*types.UnicityTre
 	dhash := leafData.SystemDescriptionRecordHash
 
 	return &types.UnicityTreeCertificate{
-		SystemIdentifier:      systemIdentifier,
+		SystemIdentifier:      sysID,
 		SystemDescriptionHash: dhash,
 		SiblingHashes:         path,
 	}, nil
 }
 
 // GetIR returns Input Record for system identifier.
-func (u *UnicityTree) GetIR(systemIdentifier []byte) (*types.InputRecord, error) {
-	if len(systemIdentifier) != systemIdentifierLength {
+func (u *UnicityTree) GetIR(systemIdentifier types.SystemID) (*types.InputRecord, error) {
+	if len(systemIdentifier) != types.SystemIdentifierLength {
 		return nil, ErrInvalidSystemIdentifierLength
 	}
 	_, data, err := u.smt.GetAuthPath(systemIdentifier)

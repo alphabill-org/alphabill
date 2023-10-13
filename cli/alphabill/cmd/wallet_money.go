@@ -2,14 +2,10 @@ package cmd
 
 import (
 	"context"
-	"crypto"
 	"errors"
 	"fmt"
-	"io"
-	"os"
 	"path/filepath"
 	"strconv"
-	"strings"
 	"syscall"
 
 	"github.com/ethereum/go-ethereum/common/hexutil"
@@ -17,11 +13,8 @@ import (
 	"github.com/tyler-smith/go-bip39"
 	"golang.org/x/term"
 
-	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
 	moneytx "github.com/alphabill-org/alphabill/internal/txsystem/money"
-	"github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/alphabill-org/alphabill/pkg/wallet/account"
-	wlog "github.com/alphabill-org/alphabill/pkg/wallet/log"
 	"github.com/alphabill-org/alphabill/pkg/wallet/money"
 	moneyclient "github.com/alphabill-org/alphabill/pkg/wallet/money/backend/client"
 	"github.com/alphabill-org/alphabill/pkg/wallet/unitlock"
@@ -30,8 +23,6 @@ import (
 type walletConfig struct {
 	Base          *baseConfiguration
 	WalletHomeDir string
-	LogLevel      string
-	LogFile       string
 }
 
 const (
@@ -47,8 +38,6 @@ const (
 	amountCmdName           = "amount"
 	passwordPromptCmdName   = "password"
 	passwordArgCmdName      = "pn"
-	logFileCmdName          = "log-file"
-	logLevelCmdName         = "log-level"
 	walletLocationCmdName   = "wallet-location"
 	keyCmdName              = "key"
 	waitForConfCmdName      = "wait-for-confirmation"
@@ -65,15 +54,13 @@ func newWalletCmd(baseConfig *baseConfiguration) *cobra.Command {
 		Short: "cli for managing alphabill wallet",
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 			// initialize config so that baseConfig.HomeDir gets configured
-			err := initializeConfig(cmd, baseConfig)
-			if err != nil {
-				return err
+			if err := initializeConfig(cmd, baseConfig); err != nil {
+				return fmt.Errorf("initializing base configuration: %w", err)
 			}
-			err = initWalletConfig(cmd, config)
-			if err != nil {
-				return err
+			if err := initWalletConfig(cmd, config); err != nil {
+				return fmt.Errorf("initializing wallet configuration: %w", err)
 			}
-			return initWalletLogger(config)
+			return nil
 		},
 	}
 	walletCmd.AddCommand(newWalletBillsCmd(config))
@@ -89,8 +76,6 @@ func newWalletCmd(baseConfig *baseConfiguration) *cobra.Command {
 	// add passwords flags for (encrypted)wallet
 	walletCmd.PersistentFlags().BoolP(passwordPromptCmdName, "p", false, passwordPromptUsage)
 	walletCmd.PersistentFlags().String(passwordArgCmdName, "", passwordArgUsage)
-	walletCmd.PersistentFlags().StringVar(&config.LogFile, logFileCmdName, "", "log file path (default output to stderr)")
-	walletCmd.PersistentFlags().StringVar(&config.LogLevel, logLevelCmdName, "INFO", "logging level (DEBUG, INFO, NOTICE, WARNING, ERROR)")
 	walletCmd.PersistentFlags().StringVarP(&config.WalletHomeDir, walletLocationCmdName, "l", "", "wallet home directory (default $AB_HOME/wallet)")
 	return walletCmd
 }
@@ -154,13 +139,15 @@ func sendCmd(config *walletConfig) *cobra.Command {
 			return execSendCmd(cmd.Context(), cmd, config)
 		},
 	}
-	cmd.Flags().StringP(addressCmdName, "a", "", "compressed secp256k1 public key of the receiver in hexadecimal format, must start with 0x and be 68 characters in length")
-	cmd.Flags().StringP(amountCmdName, "v", "", "the amount to send to the receiver")
+	cmd.Flags().StringSliceP(addressCmdName, "a", nil, "compressed secp256k1 public key(s) of "+
+		"the receiver(s) in hexadecimal format, must start with 0x and be 68 characters in length, must match with "+
+		"amounts")
+	cmd.Flags().StringSliceP(amountCmdName, "v", nil, "the amount(s) to send to the "+
+		"receiver(s), must match with addresses")
 	cmd.Flags().StringP(alphabillApiURLCmdName, "r", defaultAlphabillApiURL, "alphabill API uri to connect to")
 	cmd.Flags().Uint64P(keyCmdName, "k", 1, "which key to use for sending the transaction")
 	// use string instead of boolean as boolean requires equals sign between name and value e.g. w=[true|false]
 	cmd.Flags().StringP(waitForConfCmdName, "w", "true", "waits for transaction confirmation on the blockchain, otherwise just broadcasts the transaction")
-	cmd.Flags().StringP(outputPathCmdName, "o", "", "saves transaction proof(s) to given directory")
 	err := cmd.MarkFlagRequired(addressCmdName)
 	if err != nil {
 		return nil
@@ -191,41 +178,18 @@ func execSendCmd(ctx context.Context, cmd *cobra.Command, config *walletConfig) 
 	}
 	defer unitLocker.Close()
 
-	w, err := money.LoadExistingWallet(am, unitLocker, restClient)
+	w, err := money.LoadExistingWallet(am, unitLocker, restClient, config.Base.Logger)
 	if err != nil {
 		return err
 	}
 	defer w.Close()
 
-	receiverPubKeyHex, err := cmd.Flags().GetString(addressCmdName)
-	if err != nil {
-		return err
-	}
-	receiverPubKey, ok := pubKeyHexToBytes(receiverPubKeyHex)
-	if !ok {
-		return errors.New("address in not in valid format")
-	}
-	if len(receiverPubKey) != abcrypto.CompressedSecp256K1PublicKeySize {
-		return money.ErrInvalidPubKey
-	}
-
-	amountStr, err := cmd.Flags().GetString(amountCmdName)
-	if err != nil {
-		return err
-	}
-	amount, err := stringToAmount(amountStr, 8)
-	if err != nil {
-		return err
-	}
-	if amount == 0 {
-		return fmt.Errorf("invalid parameter \"%s\" for \"--amount\":0 is not valid amount", amountStr)
-	}
 	accountNumber, err := cmd.Flags().GetUint64(keyCmdName)
 	if err != nil {
 		return err
 	}
 	if accountNumber == 0 {
-		return fmt.Errorf("invalid parameter for \"--key\":0 is not a valid account key")
+		return fmt.Errorf("invalid parameter for flag %q: 0 is not a valid account key", keyCmdName)
 	}
 	waitForConfStr, err := cmd.Flags().GetString(waitForConfCmdName)
 	if err != nil {
@@ -235,41 +199,24 @@ func execSendCmd(ctx context.Context, cmd *cobra.Command, config *walletConfig) 
 	if err != nil {
 		return err
 	}
-	outputPath, err := cmd.Flags().GetString(outputPathCmdName)
+	receiverPubKeys, err := cmd.Flags().GetStringSlice(addressCmdName)
 	if err != nil {
 		return err
 	}
-	if outputPath != "" {
-		if !waitForConf {
-			return fmt.Errorf("cannot set %s to false and when %s is provided", waitForConfCmdName, outputPathCmdName)
-		}
-		if !strings.HasPrefix(outputPath, string(os.PathSeparator)) {
-			cwd, err := os.Getwd()
-			if err != nil {
-				return err
-			}
-			outputPath = filepath.Join(cwd, outputPath)
-		}
+	receiverAmounts, err := cmd.Flags().GetStringSlice(amountCmdName)
+	if err != nil {
+		return err
 	}
-
-	proofs, err := w.Send(ctx, money.SendCmd{ReceiverPubKey: receiverPubKey, Amount: amount, WaitForConfirmation: waitForConf, AccountIndex: accountNumber - 1})
+	receivers, err := groupPubKeysAndAmounts(receiverPubKeys, receiverAmounts)
+	if err != nil {
+		return err
+	}
+	proofs, err := w.Send(ctx, money.SendCmd{Receivers: receivers, WaitForConfirmation: waitForConf, AccountIndex: accountNumber - 1})
 	if err != nil {
 		return err
 	}
 	if waitForConf {
 		consoleWriter.Println("Successfully confirmed transaction(s)")
-		if outputPath != "" {
-			// convert wallet.Proofs to wallet.Bills, TODO: alternatively remove bill export as it's deprecated functionality
-			var outputBills []*wallet.BillProof
-			for _, b := range proofs {
-				outputBills = append(outputBills, &wallet.BillProof{Bill: &wallet.Bill{Id: b.TxRecord.TransactionOrder.UnitID(), TxHash: b.TxRecord.TransactionOrder.Hash(crypto.SHA256)}, TxProof: b})
-			}
-			outputFile, err := writeProofsToFile(outputPath, outputBills...)
-			if err != nil {
-				return err
-			}
-			consoleWriter.Println("Transaction proof(s) saved to: " + outputFile)
-		}
 
 		var feeSum uint64
 		for _, proof := range proofs {
@@ -321,7 +268,7 @@ func execGetBalanceCmd(cmd *cobra.Command, config *walletConfig) error {
 	}
 	defer unitLocker.Close()
 
-	w, err := money.LoadExistingWallet(am, unitLocker, restClient)
+	w, err := money.LoadExistingWallet(am, unitLocker, restClient, config.Base.Logger)
 	if err != nil {
 		return err
 	}
@@ -449,7 +396,7 @@ func execCollectDust(cmd *cobra.Command, config *walletConfig) error {
 	}
 	defer unitLocker.Close()
 
-	w, err := money.LoadExistingWallet(am, unitLocker, restClient)
+	w, err := money.LoadExistingWallet(am, unitLocker, restClient, config.Base.Logger)
 	if err != nil {
 		return err
 	}
@@ -535,31 +482,6 @@ func initWalletConfig(cmd *cobra.Command, config *walletConfig) error {
 	return nil
 }
 
-func initWalletLogger(config *walletConfig) error {
-	var logWriter io.Writer
-	if config.LogFile != "" {
-		// ensure intermediate directories exist
-		err := os.MkdirAll(filepath.Dir(config.LogFile), 0700)
-		if err != nil {
-			return err
-		}
-		logFile, err := os.OpenFile(config.LogFile, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0600) // -rw-------
-		if err != nil {
-			return err
-		}
-		logWriter = logFile
-	} else {
-		logWriter = os.Stderr
-	}
-	logLevel := wlog.Levels[config.LogLevel]
-	walletLogger, err := wlog.New(logLevel, logWriter)
-	if err != nil {
-		return err
-	}
-	wlog.SetLogger(walletLogger)
-	return nil
-}
-
 func createPassphrase(cmd *cobra.Command) (string, error) {
 	passwordFromArg, err := cmd.Flags().GetString(passwordArgCmdName)
 	if err != nil {
@@ -626,4 +548,26 @@ func pubKeyHexToBytes(s string) ([]byte, bool) {
 		return nil, false
 	}
 	return pubKeyBytes, true
+}
+
+func groupPubKeysAndAmounts(pubKeys []string, amounts []string) ([]money.ReceiverData, error) {
+	if len(pubKeys) != len(amounts) {
+		return nil, fmt.Errorf("must specify the same amount of addresses and amounts")
+	}
+	var receivers []money.ReceiverData
+	for i := 0; i < len(pubKeys); i++ {
+		amount, err := stringToAmount(amounts[i], 8)
+		if err != nil {
+			return nil, fmt.Errorf("invalid amount: %w", err)
+		}
+		pubKeyBytes, err := hexutil.Decode(pubKeys[i])
+		if err != nil {
+			return nil, fmt.Errorf("invalid address format: %s", pubKeys[i])
+		}
+		receivers = append(receivers, money.ReceiverData{
+			Amount: amount,
+			PubKey: pubKeyBytes,
+		})
+	}
+	return receivers, nil
 }

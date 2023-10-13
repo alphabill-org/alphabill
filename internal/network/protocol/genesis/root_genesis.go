@@ -63,6 +63,9 @@ func (x *RootGenesis) IsValid() error {
 		return fmt.Errorf("root genesis duplicate partition record error: %w", err)
 	}
 	trustBase, err := NewValidatorTrustBase(x.Root.RootValidators)
+	if err != nil {
+		return fmt.Errorf("creating validator trustbase: %w", err)
+	}
 	for _, p := range x.Partitions {
 		if err = p.IsValid(trustBase, alg); err != nil {
 			return err

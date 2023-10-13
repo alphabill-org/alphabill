@@ -40,7 +40,8 @@ func verifyPredicates(predicates []state.Predicate, signatures [][]byte, sigData
 		for i := 0; i < len(predicates); i++ {
 			err := script.RunScript(signatures[i], predicates[i], sigData)
 			if err != nil {
-				return err
+				return fmt.Errorf("invalid predicate: %w [signature=0x%x predicate=0x%x sigData=0x%x]",
+					err, signatures[i], predicates[i], sigData)
 			}
 		}
 	}

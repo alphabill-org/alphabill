@@ -11,7 +11,6 @@ import (
 
 func handleCloseFeeCreditTx(f *FeeCredit) txsystem.GenericExecuteFunc[transactions.CloseFeeCreditAttributes] {
 	return func(tx *types.TransactionOrder, attr *transactions.CloseFeeCreditAttributes, currentBlockNumber uint64) (*types.ServerMetadata, error) {
-		f.logger.Debug("Processing closeFC %v", tx)
 		bd, _ := f.state.GetUnit(tx.UnitID(), false)
 		if err := f.txValidator.ValidateCloseFC(&CloseFCValidationContext{Tx: tx, Unit: bd}); err != nil {
 			return nil, fmt.Errorf("closeFC: tx validation failed: %w", err)

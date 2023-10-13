@@ -24,17 +24,16 @@ import (
 	"github.com/alphabill-org/alphabill/internal/script"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	testhttp "github.com/alphabill-org/alphabill/internal/testutils/http"
+	"github.com/alphabill-org/alphabill/internal/testutils/logger"
 	"github.com/alphabill-org/alphabill/internal/testutils/net"
 	testtransaction "github.com/alphabill-org/alphabill/internal/testutils/transaction"
 	"github.com/alphabill-org/alphabill/internal/txsystem/fc/testutils"
 	"github.com/alphabill-org/alphabill/internal/txsystem/money"
 	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/internal/util"
-	"github.com/alphabill-org/alphabill/pkg/client"
 	"github.com/alphabill-org/alphabill/pkg/client/clientmock"
 	sdk "github.com/alphabill-org/alphabill/pkg/wallet"
 )
-
 
 const (
 	pubkeyHex = "0x000000000000000000000000000000000000000000000000000000000000000000"
@@ -608,6 +607,18 @@ func TestGetClosedFeeCreditRequest(t *testing.T) {
 	require.Equal(t, http.StatusBadRequest, httpRes.StatusCode)
 }
 
+func TestInfoRequest_Ok(t *testing.T) {
+	service := newWalletBackend(t)
+	port, _ := startServer(t, service)
+
+	var res *sdk.InfoResponse
+	httpRes, err := testhttp.DoGetJson(fmt.Sprintf("http://localhost:%d/api/v1/info", port), &res)
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, httpRes.StatusCode)
+	require.Equal(t, "00000000", res.SystemID)
+	require.Equal(t, "money backend", res.Name)
+}
+
 func verifyLinkHeader(t *testing.T, httpRes *http.Response, nextKey []byte) {
 	var linkHdrMatcher = regexp.MustCompile("<(.*)>")
 	match := linkHdrMatcher.FindStringSubmatch(httpRes.Header.Get(sdk.HeaderLink))
@@ -636,7 +647,7 @@ type (
 
 func newWalletBackend(t *testing.T, options ...option) *WalletBackend {
 	storage := createTestBillStore(t)
-	service := &WalletBackend{store: storage, genericWallet: sdk.New().SetABClient(&clientmock.MockAlphabillClient{}).Build()}
+	service := &WalletBackend{store: storage, abc: &clientmock.MockAlphabillClient{}}
 	for _, o := range options {
 		err := o(service)
 		require.NoError(t, err)
@@ -677,9 +688,9 @@ func withBillProofs(bills ...*billProof) option {
 	}
 }
 
-func withABClient(client client.ABClient) option {
+func withABClient(client ABClient) option {
 	return func(s *WalletBackend) error {
-		s.genericWallet.AlphabillClient = client
+		s.abc = client
 		return nil
 	}
 }
@@ -715,24 +726,24 @@ func withClosedFeeCredit(fcbID []byte, txr *types.TransactionRecord) option {
 }
 
 func startServer(t *testing.T, service WalletBackendService) (port int, api *moneyRestAPI) {
-	var err error
-	port, err = net.GetFreePort()
+	port, err := net.GetFreePort()
 	require.NoError(t, err)
 
 	ctx, cancel := context.WithCancel(context.Background())
 
 	go func() {
-		api = &moneyRestAPI{Service: service, ListBillsPageLimit: 100, rw: &sdk.ResponseWriter{}}
-		server := http.Server{
-			Addr:              fmt.Sprintf("localhost:%d", port),
-			Handler:           api.Router(),
-			ReadTimeout:       3 * time.Second,
-			ReadHeaderTimeout: time.Second,
-			WriteTimeout:      5 * time.Second,
-			IdleTimeout:       30 * time.Second,
-		}
-
-		err := httpsrv.Run(ctx, server, httpsrv.ShutdownTimeout(5*time.Second))
+		api = &moneyRestAPI{Service: service, ListBillsPageLimit: 100, rw: &sdk.ResponseWriter{}, log: logger.New(t), SystemID: moneySystemID}
+		err := httpsrv.Run(ctx,
+			http.Server{
+				Addr:              fmt.Sprintf("localhost:%d", port),
+				Handler:           api.Router(),
+				ReadTimeout:       3 * time.Second,
+				ReadHeaderTimeout: time.Second,
+				WriteTimeout:      5 * time.Second,
+				IdleTimeout:       30 * time.Second,
+			},
+			httpsrv.ShutdownTimeout(5*time.Second),
+		)
 		require.ErrorIs(t, err, context.Canceled)
 	}()
 	// stop the server

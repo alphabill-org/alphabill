@@ -10,7 +10,6 @@ import (
 	"github.com/spf13/cobra"
 
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
-	"github.com/alphabill-org/alphabill/internal/errors"
 	"github.com/alphabill-org/alphabill/internal/network"
 	"github.com/alphabill-org/alphabill/internal/util"
 )
@@ -104,7 +103,7 @@ func LoadKeys(file string, generateNewIfNotExist bool, overwrite bool) (*Keys, e
 	}
 
 	if !util.FileExists(file) {
-		return nil, errors.Errorf("keys file %s not found", file)
+		return nil, fmt.Errorf("keys file %s not found", file)
 	}
 
 	kf, err := util.ReadJsonFile(file, &keyFile{})
@@ -112,19 +111,19 @@ func LoadKeys(file string, generateNewIfNotExist bool, overwrite bool) (*Keys, e
 		return nil, err
 	}
 	if kf.SigningPrivateKey.Algorithm != secp256k1 {
-		return nil, errors.Errorf("signing key algorithm %v is not supported", kf.SigningPrivateKey.Algorithm)
+		return nil, fmt.Errorf("signing key algorithm %v is not supported", kf.SigningPrivateKey.Algorithm)
 	}
 	if kf.EncryptionPrivateKey.Algorithm != secp256k1 {
-		return nil, errors.Errorf("encryption key algorithm %v is not supported", kf.EncryptionPrivateKey.Algorithm)
+		return nil, fmt.Errorf("encryption key algorithm %v is not supported", kf.EncryptionPrivateKey.Algorithm)
 	}
 
 	signingKey, err := abcrypto.NewInMemorySecp256K1SignerFromKey(kf.SigningPrivateKey.PrivateKey)
 	if err != nil {
-		return nil, errors.Wrap(err, "invalid signing key")
+		return nil, fmt.Errorf("invalid signing key: %w", err)
 	}
 	encryptionKey, err := crypto.UnmarshalSecp256k1PrivateKey(kf.EncryptionPrivateKey.PrivateKey)
 	if err != nil {
-		return nil, errors.Wrap(err, "invalid encryption key")
+		return nil, fmt.Errorf("invalid encryption key: %w", err)
 	}
 
 	return &Keys{

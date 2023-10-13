@@ -2,16 +2,15 @@ package cmd
 
 import (
 	"context"
+	"encoding/hex"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/url"
 	"strings"
 
-	"github.com/alphabill-org/alphabill/internal/txsystem/evm"
 	"github.com/spf13/cobra"
 
-	"github.com/alphabill-org/alphabill/internal/txsystem/money"
-	"github.com/alphabill-org/alphabill/internal/txsystem/tokens"
 	"github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/alphabill-org/alphabill/pkg/wallet/account"
 	evmwallet "github.com/alphabill-org/alphabill/pkg/wallet/evm"
@@ -54,12 +53,12 @@ func newWalletFeesCmd(config *walletConfig) *cobra.Command {
 	return cmd
 }
 
-func addFeeCreditCmd(config *walletConfig, c *cliConf) *cobra.Command {
+func addFeeCreditCmd(walletConfig *walletConfig, cliConfig *cliConf) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "add",
 		Short: "adds fee credit to the wallet",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return addFeeCreditCmdExec(cmd, config, c)
+			return addFeeCreditCmdExec(cmd, walletConfig, cliConfig)
 		},
 	}
 	cmd.Flags().Uint64P(keyCmdName, "k", 1, "specifies to which account to add the fee credit")
@@ -67,7 +66,7 @@ func addFeeCreditCmd(config *walletConfig, c *cliConf) *cobra.Command {
 	return cmd
 }
 
-func addFeeCreditCmdExec(cmd *cobra.Command, config *walletConfig, c *cliConf) error {
+func addFeeCreditCmdExec(cmd *cobra.Command, walletConfig *walletConfig, cliConfig *cliConf) error {
 	moneyBackendURL, err := cmd.Flags().GetString(alphabillApiURLCmdName)
 	if err != nil {
 		return err
@@ -80,40 +79,41 @@ func addFeeCreditCmdExec(cmd *cobra.Command, config *walletConfig, c *cliConf) e
 	if err != nil {
 		return err
 	}
-	am, err := loadExistingAccountManager(cmd, config.WalletHomeDir)
+
+	am, err := loadExistingAccountManager(cmd, walletConfig.WalletHomeDir)
 	if err != nil {
 		return err
 	}
 	defer am.Close()
 
-	unitLocker, err := unitlock.NewUnitLocker(config.WalletHomeDir)
+	unitLocker, err := unitlock.NewUnitLocker(walletConfig.WalletHomeDir)
 	if err != nil {
 		return err
 	}
 	defer unitLocker.Close()
 
-	fm, err := getFeeCreditManager(c, am, unitLocker, moneyBackendURL, config.WalletHomeDir)
+	fm, err := getFeeCreditManager(cmd.Context(), cliConfig, am, unitLocker, moneyBackendURL, walletConfig.Base.Logger)
 	if err != nil {
 		return err
 	}
 	defer fm.Close()
 
-	return addFees(cmd.Context(), accountNumber, amountString, c, fm)
+	return addFees(cmd.Context(), accountNumber, amountString, cliConfig, fm)
 }
 
-func listFeesCmd(config *walletConfig, c *cliConf) *cobra.Command {
+func listFeesCmd(walletConfig *walletConfig, cliConfig *cliConf) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "list",
 		Short: "lists fee credit of the wallet",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return listFeesCmdExec(cmd, config, c)
+			return listFeesCmdExec(cmd, walletConfig, cliConfig)
 		},
 	}
 	cmd.Flags().Uint64P(keyCmdName, "k", 0, "specifies which account fee bills to list (default: all accounts)")
 	return cmd
 }
 
-func listFeesCmdExec(cmd *cobra.Command, config *walletConfig, c *cliConf) error {
+func listFeesCmdExec(cmd *cobra.Command, walletConfig *walletConfig, cliConfig *cliConf) error {
 	accountNumber, err := cmd.Flags().GetUint64(keyCmdName)
 	if err != nil {
 		return err
@@ -122,40 +122,41 @@ func listFeesCmdExec(cmd *cobra.Command, config *walletConfig, c *cliConf) error
 	if err != nil {
 		return err
 	}
-	am, err := loadExistingAccountManager(cmd, config.WalletHomeDir)
+
+	am, err := loadExistingAccountManager(cmd, walletConfig.WalletHomeDir)
 	if err != nil {
 		return err
 	}
 	defer am.Close()
 
-	unitLocker, err := unitlock.NewUnitLocker(config.WalletHomeDir)
+	unitLocker, err := unitlock.NewUnitLocker(walletConfig.WalletHomeDir)
 	if err != nil {
 		return err
 	}
 	defer unitLocker.Close()
 
-	fm, err := getFeeCreditManager(c, am, unitLocker, moneyBackendURL, config.WalletHomeDir)
+	fm, err := getFeeCreditManager(cmd.Context(), cliConfig, am, unitLocker, moneyBackendURL, walletConfig.Base.Logger)
 	if err != nil {
 		return err
 	}
 	defer fm.Close()
 
-	return listFees(cmd.Context(), accountNumber, am, c, fm)
+	return listFees(cmd.Context(), accountNumber, am, cliConfig, fm)
 }
 
-func reclaimFeeCreditCmd(config *walletConfig, c *cliConf) *cobra.Command {
+func reclaimFeeCreditCmd(walletConfig *walletConfig, cliConfig *cliConf) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "reclaim",
 		Short: "reclaims fee credit of the wallet",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return reclaimFeeCreditCmdExec(cmd, config, c)
+			return reclaimFeeCreditCmdExec(cmd, walletConfig, cliConfig)
 		},
 	}
 	cmd.Flags().Uint64P(keyCmdName, "k", 1, "specifies to which account to reclaim the fee credit")
 	return cmd
 }
 
-func reclaimFeeCreditCmdExec(cmd *cobra.Command, config *walletConfig, c *cliConf) error {
+func reclaimFeeCreditCmdExec(cmd *cobra.Command, walletConfig *walletConfig, cliConfig *cliConf) error {
 	moneyBackendURL, err := cmd.Flags().GetString(alphabillApiURLCmdName)
 	if err != nil {
 		return err
@@ -164,25 +165,26 @@ func reclaimFeeCreditCmdExec(cmd *cobra.Command, config *walletConfig, c *cliCon
 	if err != nil {
 		return err
 	}
-	am, err := loadExistingAccountManager(cmd, config.WalletHomeDir)
+
+	am, err := loadExistingAccountManager(cmd, walletConfig.WalletHomeDir)
 	if err != nil {
 		return err
 	}
 	defer am.Close()
 
-	unitLocker, err := unitlock.NewUnitLocker(config.WalletHomeDir)
+	unitLocker, err := unitlock.NewUnitLocker(walletConfig.WalletHomeDir)
 	if err != nil {
 		return err
 	}
 	defer unitLocker.Close()
 
-	fm, err := getFeeCreditManager(c, am, unitLocker, moneyBackendURL, config.WalletHomeDir)
+	fm, err := getFeeCreditManager(cmd.Context(), cliConfig, am, unitLocker, moneyBackendURL, walletConfig.Base.Logger)
 	if err != nil {
 		return err
 	}
 	defer fm.Close()
 
-	return reclaimFees(cmd.Context(), accountNumber, c, fm)
+	return reclaimFees(cmd.Context(), accountNumber, cliConfig, fm)
 }
 
 type FeeCreditManager interface {
@@ -226,7 +228,7 @@ func addFees(ctx context.Context, accountNumber uint64, amountString string, c *
 	if err != nil {
 		return err
 	}
-	proofs, err := w.AddFeeCredit(ctx, fees.AddFeeCmd{
+	addFeeCmdResponse, err := w.AddFeeCredit(ctx, fees.AddFeeCmd{
 		Amount:       amount,
 		AccountIndex: accountNumber - 1,
 	})
@@ -234,15 +236,26 @@ func addFees(ctx context.Context, accountNumber uint64, amountString string, c *
 		if errors.Is(err, fees.ErrMinimumFeeAmount) {
 			return fmt.Errorf("minimum fee credit amount to add is %s", amountToString(fees.MinimumFeeAmount, 8))
 		}
+		if errors.Is(err, fees.ErrInsufficientBalance) {
+			return fmt.Errorf("insufficient balance for transaction. Bills smaller than the minimum amount (%s) are not counted", amountToString(fees.MinimumFeeAmount, 8))
+		}
 		return err
 	}
 	consoleWriter.Println("Successfully created", amountString, "fee credits on", c.partitionType, "partition.")
-	if proofs.TransferFC != nil {
-		consoleWriter.Println("Paid", amountToString(proofs.TransferFC.TxRecord.ServerMetadata.ActualFee, 8), "fee for transferFC transaction.")
+	if len(addFeeCmdResponse.TransferFC) > 0 {
+		var feeSum uint64
+		for _, proof := range addFeeCmdResponse.TransferFC {
+			feeSum += proof.TxRecord.ServerMetadata.GetActualFee()
+		}
+		consoleWriter.Println("Paid", amountToString(feeSum, 8), "fee for transferFC transaction.")
 	} else {
 		consoleWriter.Println("Used previously locked unit to create fee credit.")
 	}
-	consoleWriter.Println("Paid", amountToString(proofs.AddFC.TxRecord.ServerMetadata.ActualFee, 8), "fee for addFC transaction.")
+	var feeSum uint64
+	for _, proof := range addFeeCmdResponse.AddFC {
+		feeSum += proof.TxRecord.ServerMetadata.GetActualFee()
+	}
+	consoleWriter.Println("Paid", amountToString(feeSum, 8), "fee for addFC transaction.")
 	return nil
 }
 
@@ -297,13 +310,24 @@ func (c *cliConf) getPartitionBackendURL() string {
 
 // Creates a fees.FeeManager that needs to be closed with the Close() method.
 // Does not close the account.Manager passed as an argument.
-func getFeeCreditManager(c *cliConf, am account.Manager, unitLocker *unitlock.UnitLocker, moneyBackendURL, walletHomeDir string) (FeeCreditManager, error) {
-	moneySystemID := money.DefaultSystemIdentifier
+func getFeeCreditManager(ctx context.Context, c *cliConf, am account.Manager, unitLocker *unitlock.UnitLocker, moneyBackendURL string, log *slog.Logger) (FeeCreditManager, error) {
 	moneyBackendClient, err := moneyclient.New(moneyBackendURL)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to create money backend client: %w", err)
 	}
-	moneyTxPublisher := moneywallet.NewTxPublisher(moneyBackendClient)
+	moneySystemInfo, err := moneyBackendClient.GetInfo(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch money system info: %w", err)
+	}
+	moneyTypeVar := moneyType
+	if !strings.HasPrefix(moneySystemInfo.Name, moneyTypeVar.String()) {
+		return nil, fmt.Errorf("invalid money backend name: %s", moneySystemInfo.Name)
+	}
+	moneySystemID, err := hex.DecodeString(moneySystemInfo.SystemID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to decode money system identifier hex: %w", err)
+	}
+	moneyTxPublisher := moneywallet.NewTxPublisher(moneyBackendClient, log)
 
 	switch c.partitionType {
 	case moneyType:
@@ -317,24 +341,38 @@ func getFeeCreditManager(c *cliConf, am account.Manager, unitLocker *unitlock.Un
 			moneyTxPublisher,
 			moneyBackendClient,
 			moneywallet.FeeCreditRecordIDFormPublicKey,
+			log,
 		), nil
 	case tokensType:
 		backendURL, err := c.parsePartitionBackendURL()
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("failed to parse partition backend url: %w", err)
 		}
 		tokenBackendClient := tokensclient.New(*backendURL)
-		tokenTxPublisher := tokenswallet.NewTxPublisher(tokenBackendClient)
+		tokenTxPublisher := tokenswallet.NewTxPublisher(tokenBackendClient, log)
+		tokenInfo, err := tokenBackendClient.GetInfo(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("failed to fetch tokens system info: %w", err)
+		}
+		tokenTypeVar := tokensType
+		if !strings.HasPrefix(tokenInfo.Name, tokenTypeVar.String()) {
+			return nil, fmt.Errorf("invalid tokens backend name: %s", tokenInfo.Name)
+		}
+		tokenSystemID, err := hex.DecodeString(tokenInfo.SystemID)
+		if err != nil {
+			return nil, fmt.Errorf("failed to decode tokens system identifier hex: %w", err)
+		}
 		return fees.NewFeeManager(
 			am,
 			unitLocker,
 			moneySystemID,
 			moneyTxPublisher,
 			moneyBackendClient,
-			tokens.DefaultSystemIdentifier,
+			tokenSystemID,
 			tokenTxPublisher,
 			tokenBackendClient,
 			tokenswallet.FeeCreditRecordIDFromPublicKey,
+			log,
 		), nil
 	case evmType:
 		evmNodeURL, err := c.parsePartitionBackendURL()
@@ -343,18 +381,31 @@ func getFeeCreditManager(c *cliConf, am account.Manager, unitLocker *unitlock.Un
 		}
 		evmClient := evmclient.New(*evmNodeURL)
 		evmTxPublisher := evmwallet.NewTxPublisher(evmClient)
+		evmInfo, err := evmClient.GetInfo(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("failed to fetch evm system info: %w", err)
+		}
+		evmTypeVar := evmType
+		if !strings.HasPrefix(evmInfo.Name, evmTypeVar.String()) {
+			return nil, fmt.Errorf("invalid evm partition name: %s", evmInfo.Name)
+		}
+		evmSystemID, err := hex.DecodeString(evmInfo.SystemID)
+		if err != nil {
+			return nil, fmt.Errorf("failed to decode evm system identifier hex: %w", err)
+		}
 		return fees.NewFeeManager(
 			am,
 			unitLocker,
 			moneySystemID,
 			moneyTxPublisher,
 			moneyBackendClient,
-			evm.DefaultEvmTxSystemIdentifier,
+			evmSystemID,
 			evmTxPublisher,
 			evmClient,
 			evmwallet.FeeCreditRecordIDFromPublicKey,
+			log,
 		), nil
 	default:
-		panic("invalid \"partition\" flag value: " + c.partitionType)
+		panic(`invalid "partition" flag value: ` + c.partitionType)
 	}
 }

@@ -5,15 +5,15 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/fxamacker/cbor/v2"
+
 	"github.com/alphabill-org/alphabill/internal/state"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/internal/types"
-	"github.com/fxamacker/cbor/v2"
 )
 
 func handleJoinFungibleTokenTx(options *Options) txsystem.GenericExecuteFunc[JoinFungibleTokenAttributes] {
 	return func(tx *types.TransactionOrder, attr *JoinFungibleTokenAttributes, currentBlockNr uint64) (*types.ServerMetadata, error) {
-		logger.Debug("Processing Join Fungible Token tx: %v", tx)
 		sum, err := validateJoinFungibleToken(tx, attr, options)
 		if err != nil {
 			return nil, fmt.Errorf("invalid join fungible token tx: %w", err)
@@ -65,16 +65,21 @@ func validateJoinFungibleToken(tx *types.TransactionOrder, attr *JoinFungibleTok
 		if prevSum > sum { // overflow
 			return 0, errors.New("invalid sum of tokens: uint64 overflow")
 		}
+		if i > 0 && btx.TransactionOrder.UnitID().Compare(transactions[i-1].TransactionOrder.UnitID()) != 1 {
+			// burning transactions orders are listed in strictly increasing order of token identifiers
+			// this ensures that no source token can be included multiple times
+			return 0, errors.New("burn tx orders are not listed in strictly increasing order of token identifiers")
+		}
 		if !bytes.Equal(btxAttr.TypeID, d.tokenType) {
 			return 0, fmt.Errorf("the type of the burned source token does not match the type of target token: expected %s, got %s", d.tokenType, btxAttr.TypeID)
 		}
-
-		if !bytes.Equal(btxAttr.Nonce, attr.Backlink) {
-			return 0, fmt.Errorf("the source tokens weren't burned to join them to the target token: source %X, target %X", btxAttr.Nonce, attr.Backlink)
+		if !bytes.Equal(btxAttr.TargetTokenID, tx.UnitID()) {
+			return 0, fmt.Errorf("burn tx target token id does not match with join transaction unit id: burnTx %X, joinTx %X", btxAttr.TargetTokenID, tx.UnitID())
 		}
-		proof := proofs[i]
-
-		if err = types.VerifyTxProof(proof, btx, options.trustBase, options.hashAlgorithm); err != nil {
+		if !bytes.Equal(btxAttr.TargetTokenBacklink, attr.Backlink) {
+			return 0, fmt.Errorf("burn tx target token backlink does not match with join transaction backlink: burnTx %X, joinTx %X", btxAttr.TargetTokenBacklink, attr.Backlink)
+		}
+		if err = types.VerifyTxProof(proofs[i], btx, options.trustBase, options.hashAlgorithm); err != nil {
 			return 0, fmt.Errorf("proof is not valid: %w", err)
 		}
 	}

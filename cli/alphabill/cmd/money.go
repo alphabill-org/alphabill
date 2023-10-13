@@ -5,7 +5,6 @@ import (
 	"crypto"
 	"fmt"
 
-	"github.com/alphabill-org/alphabill/internal/errors"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/internal/script"
 	"github.com/alphabill-org/alphabill/internal/txsystem/money"
@@ -26,11 +25,9 @@ type (
 	moneyNodeRunnable func(ctx context.Context, nodeConfig *moneyNodeConfiguration) error
 )
 
-var log = logger.CreateForPackage()
-
 // newMoneyNodeCmd creates a new cobra command for the shard component.
 //
-// nodeRunFunc - set the function to override the default behaviour. Meant for tests.
+// nodeRunFunc - set the function to override the default behavior. Meant for tests.
 func newMoneyNodeCmd(baseConfig *baseConfiguration, nodeRunFunc moneyNodeRunnable) *cobra.Command {
 	config := &moneyNodeConfiguration{
 		baseNodeConfiguration: baseNodeConfiguration{
@@ -62,12 +59,11 @@ func newMoneyNodeCmd(baseConfig *baseConfiguration, nodeRunFunc moneyNodeRunnabl
 func runMoneyNode(ctx context.Context, cfg *moneyNodeConfiguration) error {
 	pg, err := loadPartitionGenesis(cfg.Node.Genesis)
 	if err != nil {
-		return errors.Wrapf(err, "failed to read genesis file %s", cfg.Node.Genesis)
+		return fmt.Errorf("loading partition genesis (file %s): %w", cfg.Node.Genesis, err)
 	}
 
 	params := &genesis.MoneyPartitionParams{}
-	err = cbor.Unmarshal(pg.Params, params)
-	if err != nil {
+	if err := cbor.Unmarshal(pg.Params, params); err != nil {
 		return fmt.Errorf("failed to unmarshal money partition params: %w", err)
 	}
 
@@ -81,8 +77,15 @@ func runMoneyNode(ctx context.Context, cfg *moneyNodeConfiguration) error {
 		return fmt.Errorf("failed to create trust base validator: %w", err)
 	}
 
+	peer, err := createNetworkPeer(ctx, cfg.Node, pg, cfg.Base.Logger)
+	if err != nil {
+		return fmt.Errorf("creating network peer: %w", err)
+	}
+	log := cfg.Base.Logger.With(logger.NodeID(peer.ID()))
+
 	txs, err := money.NewTxSystem(
-	        money.WithSystemIdentifier(pg.SystemDescriptionRecord.SystemIdentifier),
+		log,
+		money.WithSystemIdentifier(pg.SystemDescriptionRecord.SystemIdentifier),
 		money.WithHashAlgorithm(crypto.SHA256),
 		money.WithInitialBill(ib),
 		money.WithSystemDescriptionRecords(params.SystemDescriptionRecords),
@@ -90,7 +93,11 @@ func runMoneyNode(ctx context.Context, cfg *moneyNodeConfiguration) error {
 		money.WithTrustBase(trustBase),
 	)
 	if err != nil {
-		return errors.Wrapf(err, "failed to start money transaction system")
+		return fmt.Errorf("creating money transaction system: %w", err)
 	}
-	return defaultNodeRunFunc(ctx, "money node", txs, cfg.Node, cfg.RPCServer, cfg.RESTServer)
+	node, err := createNode(ctx, peer, txs, cfg.Node, nil, log)
+	if err != nil {
+		return fmt.Errorf("creating node: %w", err)
+	}
+	return run(ctx, "money node", peer, node, cfg.RPCServer, cfg.RESTServer, log)
 }

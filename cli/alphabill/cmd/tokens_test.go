@@ -19,6 +19,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/rpc/alphabill"
 	"github.com/alphabill-org/alphabill/internal/script"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
+	"github.com/alphabill-org/alphabill/internal/testutils/logger"
 	"github.com/alphabill-org/alphabill/internal/testutils/net"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	testtime "github.com/alphabill-org/alphabill/internal/testutils/time"
@@ -39,8 +40,9 @@ func TestRunTokensNode(t *testing.T) {
 			ctxCancel()
 			appStoppedWg.Wait()
 		}()
+		logF := logger.LoggerBuilder(t)
 		// generate node genesis
-		cmd := New()
+		cmd := New(logF)
 		args := "tokens-genesis --home " + homeDir + " -o " + nodeGenesisFileLocation + " -g -k " + keysFileLocation
 		cmd.baseCmd.SetArgs(strings.Split(args, " "))
 		err := cmd.addAndExecuteCommand(context.Background())
@@ -66,7 +68,7 @@ func TestRunTokensNode(t *testing.T) {
 		// start the node in background
 		appStoppedWg.Add(1)
 		go func() {
-			cmd = New()
+			cmd = New(logF)
 			args = "tokens --home " + homeDir + " -g " + partitionGenesisFileLocation + " -k " + keysFileLocation + " --server-address " + listenAddr
 			cmd.baseCmd.SetArgs(strings.Split(args, " "))
 

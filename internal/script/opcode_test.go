@@ -3,8 +3,9 @@ package script
 import (
 	"testing"
 
-	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	"github.com/stretchr/testify/require"
+
+	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 )
 
 var hashData = []byte{0x01}
@@ -28,57 +29,61 @@ func TestOpDup(t *testing.T) {
 
 	// test OP_DUP on empty stack
 	err := op.exec(c, nil)
-	require.Equal(t, errPeekEmptyStack, err)
+	require.ErrorContains(t, err, "cannot peek into empty stack")
 	require.True(t, s.isEmpty())
 
-	// test OP_DUP on non empty stack
+	// test OP_DUP on non-empty stack
 	s.push([]byte{0x01})
 	err = op.exec(c, nil)
 	require.NoError(t, err)
 	require.EqualValues(t, s.size(), 2)
 	p1, err := s.pop()
+	require.NoError(t, err)
 	p2, err := s.pop()
+	require.NoError(t, err)
 	require.EqualValues(t, p1, p2)
 	require.True(t, s.isEmpty())
 }
 
 func TestOpHash(t *testing.T) {
-	op, c, s := createContext(OpHash)
-
 	tests := []struct {
+		name         string
 		stackData    []byte
 		opData       []byte
 		expectedHash []byte
-		expectedErr  error
+		expectedErr  string
 	}{
-		{stackData: hashData, opData: []byte{HashAlgSha256}, expectedHash: expectedSha256Hash},
-		{stackData: hashData, opData: []byte{HashAlgSha512}, expectedHash: expectedSha512Hash},
-		{stackData: hashData, opData: []byte{0xff}, expectedErr: errInvalidHashAlgo},
-		{stackData: hashData, opData: []byte{}, expectedErr: errInvalidOpcodeData},
-		{stackData: hashData, opData: []byte{0x01, 0x02}, expectedErr: errInvalidOpcodeData},
-		{stackData: nil, opData: []byte{HashAlgSha256}, expectedErr: errPopEmptyStack},
+		{name: "sha256 ok", stackData: hashData, opData: []byte{HashAlgSha256}, expectedHash: expectedSha256Hash},
+		{name: "sha512 ok", stackData: hashData, opData: []byte{HashAlgSha512}, expectedHash: expectedSha512Hash},
+		{name: "invalid hash algo", stackData: hashData, opData: []byte{0xff}, expectedErr: "OpHash invalid hash algorithm: 0xff"},
+		{name: "opcode data empty", stackData: hashData, opData: []byte{}, expectedErr: "OpHash invalid data: 0x"},
+		{name: "opcode data too large", stackData: hashData, opData: []byte{0x01, 0x02}, expectedErr: "OpHash invalid data: 0x0102"},
+		{name: "empty stack", stackData: nil, opData: []byte{HashAlgSha256}, expectedErr: "OpHash failed to pop stack"},
 	}
 
 	for _, tc := range tests {
-		// op_hash expects some data on stack
-		if tc.stackData != nil {
-			s.push(hashData)
-		}
+		t.Run(tc.name, func(t *testing.T) {
+			op, c, s := createContext(OpHash)
 
-		// hash top of the stack
-		err := op.exec(c, tc.opData)
-		require.Equal(t, tc.expectedErr, err)
-		if tc.expectedErr != nil {
-			require.True(t, s.isEmpty())
-		}
+			// op_hash expects some data on stack
+			if tc.stackData != nil {
+				s.push(hashData)
+			}
 
-		// verify correct hash
-		if tc.expectedHash != nil {
-			actualHash, err := s.pop()
-			require.NoError(t, err)
-			require.True(t, s.isEmpty())
-			require.Equal(t, tc.expectedHash, actualHash)
-		}
+			// hash top of the stack
+			err := op.exec(c, tc.opData)
+			if tc.expectedErr != "" {
+				require.ErrorContains(t, err, tc.expectedErr)
+			}
+
+			// verify correct hash
+			if tc.expectedHash != nil {
+				actualHash, err := s.pop()
+				require.NoError(t, err)
+				require.True(t, s.isEmpty())
+				require.Equal(t, tc.expectedHash, actualHash)
+			}
+		})
 	}
 }
 
@@ -158,13 +163,13 @@ func TestOpEqual(t *testing.T) {
 
 	// test OP_EQUAL on empty stack
 	err := op.exec(c, nil)
-	require.Equal(t, errPopEmptyStack, err)
+	require.ErrorContains(t, err, "OpEqual failed to pop first stack element")
 	require.True(t, s.isEmpty())
 
 	// test OP_EQUAL on partial stack
 	s.push([]byte{0x01})
 	err = op.exec(c, nil)
-	require.Equal(t, errPopEmptyStack, err)
+	require.ErrorContains(t, err, "OpEqual failed to pop second stack element")
 	require.True(t, s.isEmpty())
 
 	// test OP_EQUAL TRUE
@@ -172,7 +177,7 @@ func TestOpEqual(t *testing.T) {
 	s.push([]byte{0x01})
 	err = op.exec(c, nil)
 	require.NoError(t, err)
-	require.EqualValues(t, 1, s.size())
+	require.Equal(t, 1, s.size())
 	result, err := s.popBool()
 	require.NoError(t, err)
 	require.True(t, result)
@@ -183,7 +188,7 @@ func TestOpEqual(t *testing.T) {
 	s.push([]byte{0x02})
 	err = op.exec(c, nil)
 	require.NoError(t, err)
-	require.EqualValues(t, 1, s.size())
+	require.Equal(t, 1, s.size())
 	result, err = s.popBool()
 	require.NoError(t, err)
 	require.False(t, result)
@@ -202,12 +207,30 @@ func TestOpVerify(t *testing.T) {
 
 func TestOpPushBool(t *testing.T) {
 	op, c, s := createContext(OpPushBool)
+
+	// exec OP_PUSH_BOOL <TRUE>
 	err := op.exec(c, []byte{BoolTrue})
 	require.NoError(t, err)
 	val, err := s.popBool()
-	require.True(t, val)
 	require.NoError(t, err)
+	require.True(t, val)
 	require.True(t, s.isEmpty())
+
+	// exec OP_PUSH_BOOL <FALSE>
+	err = op.exec(c, []byte{BoolFalse})
+	require.NoError(t, err)
+	val, err = s.popBool()
+	require.NoError(t, err)
+	require.False(t, val)
+	require.True(t, s.isEmpty())
+
+	// exec OP_PUSH_BOOL <invalid byte>
+	err = op.exec(c, []byte{0x02})
+	require.ErrorContains(t, err, "OpPushBool invalid data")
+
+	// exec OP_PUSH_BOOL <TRUE> <FALSE>
+	err = op.exec(c, []byte{BoolTrue, BoolFalse})
+	require.ErrorContains(t, err, "OpPushBool invalid data")
 }
 
 func createContext(opCode byte) (opCode, *scriptContext, *stack) {
@@ -216,6 +239,5 @@ func createContext(opCode byte) (opCode, *scriptContext, *stack) {
 		stack:   &stack{},
 		sigData: []byte{},
 	}
-	s := c.stack
-	return op, c, s
+	return op, c, c.stack
 }

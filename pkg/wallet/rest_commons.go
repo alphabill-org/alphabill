@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"path"
@@ -19,11 +20,20 @@ const (
 	ContentType     = "Content-Type"
 	ApplicationJson = "application/json"
 	ApplicationCbor = "application/cbor"
+	UserAgent       = "User-Agent"
 
 	QueryParamOffsetKey   = "offsetKey"
 	QueryParamLimit       = "limit"
 	HeaderLink            = "Link"
 	HeaderLinkValueFormat = `<%s>; rel="next"`
+)
+
+var (
+	// ErrInvalidRequest is returned when backend responded with 4nn status code, use errors.Is to check for it.
+	ErrInvalidRequest = errors.New("invalid request")
+
+	// ErrNotFound is returned when backend responded with 404 status code, use errors.Is to check for it.
+	ErrNotFound = errors.New("not found")
 )
 
 type (
@@ -34,7 +44,13 @@ type (
 	}
 
 	ResponseWriter struct {
-		LogErr func(a ...any)
+		LogErr func(err error)
+	}
+
+	// InfoResponse should be compatible with Node /info request
+	InfoResponse struct {
+		SystemID string `json:"system_id"` // hex encoded system identifier (without 0x prefix)
+		Name     string `json:"name"`      // one of [money backend | tokens backend]
 	}
 )
 
@@ -188,7 +204,7 @@ func SetPaginationParams(u *url.URL, offset string, limit int) {
 var linkHdrMatcher = regexp.MustCompile(`<(.*)>; rel="next"`)
 
 func ExtractOffsetMarker(rsp *http.Response) (string, error) {
-	lh := rsp.Header.Get("Link")
+	lh := rsp.Header.Get(HeaderLink)
 	if lh == "" {
 		return "", nil
 	}
@@ -209,4 +225,41 @@ func SetQueryParam(u *url.URL, key, val string) {
 	q := u.Query()
 	q.Add(key, val)
 	u.RawQuery = q.Encode()
+}
+
+// DecodeResponse when "rsp" StatusCode is equal to "successStatus" response body is decoded into "data".
+// In case of some other response status body is expected to contain error response json struct.
+func DecodeResponse(rsp *http.Response, successStatus int, data any, allowEmptyResponse bool) error {
+	defer rsp.Body.Close()
+	type Decoder interface {
+		Decode(val interface{}) error
+	}
+	var dec Decoder
+	contentType := rsp.Header.Get(ContentType)
+	if contentType == ApplicationCbor {
+		dec = cbor.NewDecoder(rsp.Body)
+	} else {
+		dec = json.NewDecoder(rsp.Body)
+	}
+	if rsp.StatusCode == successStatus {
+		err := dec.Decode(data)
+		if err != nil && (!errors.Is(err, io.EOF) || !allowEmptyResponse) {
+			return fmt.Errorf("failed to decode response body: %w", err)
+		}
+		return nil
+	}
+
+	var errResponse ErrorResponse
+	if err := json.NewDecoder(rsp.Body).Decode(&errResponse); err != nil {
+		return fmt.Errorf("failed to decode error from the response body (%s): %w", rsp.Status, err)
+	}
+
+	msg := fmt.Sprintf("backend responded %s: %s", rsp.Status, errResponse.Message)
+	switch {
+	case rsp.StatusCode == http.StatusNotFound:
+		return fmt.Errorf("%s: %w", errResponse.Message, ErrNotFound)
+	case 400 <= rsp.StatusCode && rsp.StatusCode < 500:
+		return fmt.Errorf("%s: %w", msg, ErrInvalidRequest)
+	}
+	return errors.New(msg)
 }

@@ -9,6 +9,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/script"
 	"github.com/alphabill-org/alphabill/internal/state"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
+	"github.com/alphabill-org/alphabill/internal/testutils/logger"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	testtransaction "github.com/alphabill-org/alphabill/internal/testutils/transaction"
 	"github.com/alphabill-org/alphabill/internal/txsystem/evm/statedb"
@@ -82,7 +83,8 @@ func Test_closeFeeCreditTxExecFn(t *testing.T) {
 	closeExecFn := closeFeeCreditTx(
 		stateTree,
 		evmTestFeeCalculator,
-		fc.NewDefaultFeeCreditTxValidator([]byte{0, 0, 0, 0}, DefaultEvmTxSystemIdentifier, crypto.SHA256, tb, nil))
+		fc.NewDefaultFeeCreditTxValidator([]byte{0, 0, 0, 0}, DefaultEvmTxSystemIdentifier, crypto.SHA256, tb, nil),
+		logger.New(t))
 
 	tests := []struct {
 		name       string
@@ -134,7 +136,8 @@ func Test_closeFeeCreditTx(t *testing.T) {
 	require.NoError(t, err)
 	privKeyHash := hashOfPrivateKey(t, signer)
 	backlink := addFeeCredit(t, stateTree, signer, 100)
-	stateDB := statedb.NewStateDB(stateTree)
+	log := logger.New(t)
+	stateDB := statedb.NewStateDB(stateTree, log)
 	addr, err := generateAddress(pubKeyBytes)
 	require.NoError(t, err)
 	balance := stateDB.GetBalance(addr)
@@ -143,7 +146,8 @@ func Test_closeFeeCreditTx(t *testing.T) {
 	closeExecFn := closeFeeCreditTx(
 		stateTree,
 		evmTestFeeCalculator,
-		fc.NewDefaultFeeCreditTxValidator([]byte{0, 0, 0, 0}, DefaultEvmTxSystemIdentifier, crypto.SHA256, tb, nil))
+		fc.NewDefaultFeeCreditTxValidator([]byte{0, 0, 0, 0}, DefaultEvmTxSystemIdentifier, crypto.SHA256, tb, nil),
+		log)
 	// create close order
 	closeOrder := newCloseFCTx(t, test.RandomBytes(32), testfc.NewCloseFCAttr(
 		testfc.WithCloseFCAmount(balanceAlpha),

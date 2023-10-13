@@ -81,8 +81,8 @@ func TestTxHistoryWithPaging(t *testing.T) {
 		} else {
 			require.Equal(t, r.URL.Query().Get(sdk.QueryParamOffsetKey), offset)
 			require.Equal(t, r.URL.Query().Get(sdk.QueryParamLimit), strconv.Itoa(limit))
-			w.WriteHeader(http.StatusOK)
 			w.Header().Set(sdk.ContentType, sdk.ApplicationCbor)
+			w.WriteHeader(http.StatusOK)
 			res := []*sdk.TxHistoryRecord{
 				{
 					TxHash: test.RandomBytes(32),
@@ -125,6 +125,26 @@ func TestGetTxProof(t *testing.T) {
 
 	require.NoError(t, err)
 	require.NotNil(t, proofResponse)
+}
+
+func TestGetTxProof_404_UrlOK(t *testing.T) {
+	mockAddr := mockNotFoundErrorResponse(t, "no proof found for tx")
+	restClient, err := New(mockAddr.Host)
+	require.NoError(t, err)
+
+	res, err := restClient.GetTxProof(context.Background(), []byte{0x00}, []byte{0x01})
+	require.NoError(t, err)
+	require.Nil(t, res)
+}
+
+func TestGetTxProof_404_UrlNOK(t *testing.T) {
+	mockAddr := mockNotFoundResponse(t)
+	restClient, err := New(mockAddr.Host)
+	require.NoError(t, err)
+
+	res, err := restClient.GetTxProof(context.Background(), []byte{0x00}, []byte{0x01})
+	require.ErrorContains(t, err, "failed to decode error from the response body")
+	require.Nil(t, res)
 }
 
 func TestBlockHeight(t *testing.T) {
@@ -181,6 +201,26 @@ func TestGetFeeCreditBill(t *testing.T) {
 	require.EqualValues(t, expectedBillID, response.Id)
 }
 
+func TestGetFeeCreditBill_404_UrlOK(t *testing.T) {
+	mockAddr := mockNotFoundErrorResponse(t, "fee credit bill does not exist")
+	restClient, err := New(mockAddr.Host)
+	require.NoError(t, err)
+
+	res, err := restClient.GetFeeCreditBill(context.Background(), []byte{})
+	require.NoError(t, err)
+	require.Nil(t, res)
+}
+
+func TestGetFeeCreditBill_404_UrlNOK(t *testing.T) {
+	mockAddr := mockNotFoundResponse(t)
+	restClient, err := New(mockAddr.Host)
+	require.NoError(t, err)
+
+	res, err := restClient.GetFeeCreditBill(context.Background(), []byte{})
+	require.ErrorContains(t, err, "failed to decode error from the response body")
+	require.Nil(t, res)
+}
+
 func TestPostTransactions(t *testing.T) {
 	mockServer, mockAddress := mockPostTransactionsCall(t, http.StatusAccepted, "")
 	defer mockServer.Close()
@@ -201,7 +241,7 @@ func TestPostTransactions(t *testing.T) {
 
 func TestPostTransactionsError(t *testing.T) {
 	errMsg := `{"00000000c4f0a6c28423da2fbe739a0a46ae437ce670eb6ba5fcc3524568d9a1":"transaction has timed out: transaction timeout round is 1905, current round is 1906"}`
-	mockServer, mockAddress := mockPostTransactionsCall(t, http.StatusInternalServerError, errMsg)
+	mockServer, mockAddress := mockPostTransactionsCall(t, http.StatusAccepted, errMsg)
 	defer mockServer.Close()
 
 	pubKey, err := hexutil.Decode(pubKeyHex)
@@ -215,7 +255,22 @@ func TestPostTransactionsError(t *testing.T) {
 		testtransaction.NewTransactionOrder(t),
 	}}
 	err = restClient.PostTransactions(context.Background(), pubKey, txs)
-	require.ErrorContains(t, err, "failed to send transactions: status 500 Internal Server Error - "+errMsg)
+	require.ErrorContains(t, err, "failed to process some of the transactions:\n"+
+		"00000000c4f0a6c28423da2fbe739a0a46ae437ce670eb6ba5fcc3524568d9a1: transaction has timed out: transaction timeout round is 1905, current round is 1906")
+}
+
+func TestGetInfo(t *testing.T) {
+	mockServer, mockAddress := mockGetInfoRequest(t)
+	defer mockServer.Close()
+
+	restClient, err := New(mockAddress.Host)
+	require.NoError(t, err)
+
+	infoResponse, err := restClient.GetInfo(context.Background())
+	require.NoError(t, err)
+	require.NotNil(t, infoResponse)
+	require.Equal(t, "00000000", infoResponse.SystemID)
+	require.Equal(t, "money backend", infoResponse.Name)
 }
 
 func mockGetBalanceCall(t *testing.T) (*httptest.Server, *url.URL) {
@@ -268,6 +323,7 @@ func mockGetTxProofCall(t *testing.T) (*httptest.Server, *url.URL) {
 		if !strings.HasPrefix(r.URL.Path, "/api/v1/units/") {
 			t.Errorf("Expected to request '%v', got: %s", UnitsPath, r.URL.Path)
 		}
+		w.Header().Set(sdk.ContentType, sdk.ApplicationCbor)
 		w.WriteHeader(http.StatusOK)
 		proof := &sdk.Proof{TxRecord: nil, TxProof: nil}
 		data, _ := cbor.Marshal(proof)
@@ -304,13 +360,54 @@ func mockGetFeeCreditBillCall(t *testing.T) *url.URL {
 	return serverURL
 }
 
+func mockNotFoundErrorResponse(t *testing.T, message string) *url.URL {
+	res := &sdk.ErrorResponse{
+		Message: message,
+	}
+	resJson, err := json.Marshal(res)
+	require.NoError(t, err)
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNotFound)
+		w.Write(resJson)
+	}))
+	t.Cleanup(server.Close)
+	serverURL, err := url.Parse(server.URL)
+	require.NoError(t, err)
+	return serverURL
+}
+
+func mockNotFoundResponse(t *testing.T) *url.URL {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	t.Cleanup(server.Close)
+	serverURL, err := url.Parse(server.URL)
+	require.NoError(t, err)
+	return serverURL
+}
+
 func mockPostTransactionsCall(t *testing.T, statusCode int, responseBody string) (*httptest.Server, *url.URL) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != ("/" + TransactionsPath + "/" + pubKeyHex) {
 			t.Errorf("Expected to request '%v', got: %s", TransactionsPath, r.URL.Path)
 		}
+		w.Header().Set(sdk.ContentType, sdk.ApplicationJson)
 		w.WriteHeader(statusCode)
 		w.Write([]byte(responseBody))
+	}))
+
+	serverAddress, _ := url.Parse(server.URL)
+	return server, serverAddress
+}
+
+func mockGetInfoRequest(t *testing.T) (*httptest.Server, *url.URL) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != ("/" + InfoPath) {
+			t.Errorf("Expected to request '%v', got: %s", InfoPath, r.URL.Path)
+		}
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{"system_id": "00000000", "name": "money backend"}`))
 	}))
 
 	serverAddress, _ := url.Parse(server.URL)

@@ -3,6 +3,7 @@ package money
 import (
 	"bytes"
 	"crypto"
+	"errors"
 	"fmt"
 
 	"github.com/alphabill-org/alphabill/internal/state"
@@ -11,9 +12,13 @@ import (
 	"github.com/alphabill-org/alphabill/internal/types"
 )
 
+var (
+	ErrInvalidDataType  = errors.New("invalid data type")
+	ErrInvalidBillValue = errors.New("transaction value must be equal to bill value")
+)
+
 func handleTransferTx(s *state.State, hashAlgorithm crypto.Hash, feeCalc fc.FeeCalculator) txsystem.GenericExecuteFunc[TransferAttributes] {
 	return func(tx *types.TransactionOrder, attr *TransferAttributes, currentBlockNumber uint64) (*types.ServerMetadata, error) {
-		log.Debug("Processing transfer %v", tx)
 		if err := validateTransferTx(tx, attr, s); err != nil {
 			return nil, fmt.Errorf("invalid transfer tx: %w", err)
 		}

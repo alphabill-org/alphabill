@@ -8,6 +8,7 @@ import (
 
 	"github.com/alphabill-org/alphabill/internal/state"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
+	"github.com/alphabill-org/alphabill/internal/testutils/logger"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/stretchr/testify/require"
@@ -39,7 +40,7 @@ func TestStateDB_CreateAccount(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s := NewStateDB(tt.tree)
+			s := NewStateDB(tt.tree, logger.New(t))
 
 			s.CreateAccount(tt.address)
 			require.NoError(t, s.errDB)
@@ -87,7 +88,7 @@ func TestStateDB_SubBalance(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s := NewStateDB(tt.tree)
+			s := NewStateDB(tt.tree, logger.New(t))
 
 			s.SubBalance(tt.address, tt.subAmount)
 			require.NoError(t, s.errDB)
@@ -128,7 +129,7 @@ func TestStateDB_AddBalance(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s := NewStateDB(tt.tree)
+			s := NewStateDB(tt.tree, logger.New(t))
 
 			s.AddBalance(tt.address, tt.addAmount)
 			require.NoError(t, s.errDB)
@@ -178,7 +179,7 @@ func TestStateDB_Nonce(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s := NewStateDB(tt.tree)
+			s := NewStateDB(tt.tree, logger.New(t))
 
 			if tt.op != nil {
 				tt.op(s)
@@ -226,7 +227,7 @@ func TestStateDB_Code(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s := NewStateDB(tt.initialState)
+			s := NewStateDB(tt.initialState, logger.New(t))
 			if tt.op != nil {
 				tt.op(s)
 			}
@@ -248,7 +249,7 @@ func TestStateDB_ContractStorage(t *testing.T) {
 	value2 := common.BigToHash(big.NewInt(4))
 
 	s := initState(t)
-	db := NewStateDB(s)
+	db := NewStateDB(s, logger.New(t))
 	db.SetState(initialAccountAddress, key1, value1)
 	db.SetState(initialAccountAddress, key2, value2)
 
@@ -272,7 +273,7 @@ func TestStateDB_ContractStorage(t *testing.T) {
 
 func TestStateDB_AddLog(t *testing.T) {
 	s := initState(t)
-	db := NewStateDB(s)
+	db := NewStateDB(s, logger.New(t))
 	l := &types.Log{
 		Address: common.BytesToAddress(test.RandomBytes(20)),
 		Topics:  []common.Hash{common.BytesToHash(test.RandomBytes(32))},
@@ -293,7 +294,7 @@ func TestStateDB_AddLog(t *testing.T) {
 }
 
 func TestStateDB_SelfDestruct(t *testing.T) {
-	db := NewStateDB(initState(t))
+	db := NewStateDB(initState(t), logger.New(t))
 
 	db.SelfDestruct(common.BytesToAddress(test.RandomBytes(20)))
 	require.False(t, db.HasSelfDestructed(initialAccountAddress))
@@ -312,7 +313,7 @@ func TestStateDB_SelfDestruct(t *testing.T) {
 }
 
 func TestStateDB_TransientStorage(t *testing.T) {
-	db := NewStateDB(initState(t))
+	db := NewStateDB(initState(t), logger.New(t))
 	addr := common.BytesToAddress(test.RandomBytes(20))
 	var key, val common.Hash
 	key.SetBytes([]byte{1, 2, 3})
@@ -323,7 +324,7 @@ func TestStateDB_TransientStorage(t *testing.T) {
 }
 
 func TestStateDB_RefundAndRevert(t *testing.T) {
-	db := NewStateDB(initState(t))
+	db := NewStateDB(initState(t), logger.New(t))
 	db.AddRefund(10)
 	snapID1 := db.Snapshot()
 	db.SubRefund(5)
@@ -334,7 +335,7 @@ func TestStateDB_RefundAndRevert(t *testing.T) {
 }
 
 func TestStateDB_SelfDestruct6780(t *testing.T) {
-	db := NewStateDB(initState(t))
+	db := NewStateDB(initState(t), logger.New(t))
 	db.Selfdestruct6780(initialAccountAddress)
 	require.True(t, db.Exist(initialAccountAddress))
 	require.False(t, db.HasSelfDestructed(initialAccountAddress))
@@ -351,7 +352,7 @@ func TestStateDB_SelfDestruct6780(t *testing.T) {
 }
 
 func TestStateDB_RevertSnapshot(t *testing.T) {
-	s := NewStateDB(initState(t))
+	s := NewStateDB(initState(t), logger.New(t))
 	snapID := s.Snapshot()
 	s.SetNonce(initialAccountAddress, 1)
 	s.AddBalance(initialAccountAddress, big.NewInt(100))
@@ -372,7 +373,7 @@ func TestStateDB_RevertSnapshot(t *testing.T) {
 }
 
 func TestStateDB_RevertSnapshot2(t *testing.T) {
-	s := NewStateDB(initState(t))
+	s := NewStateDB(initState(t), logger.New(t))
 	snapID := s.Snapshot()
 	s.SetNonce(initialAccountAddress, 1)
 	s.AddBalance(initialAccountAddress, big.NewInt(100))
@@ -399,7 +400,7 @@ func TestStateDB_RevertSnapshot2(t *testing.T) {
 
 func TestStateDB_GetUpdatedUnits(t *testing.T) {
 	s := state.NewEmptyState()
-	db := NewStateDB(s)
+	db := NewStateDB(s, logger.New(t))
 	require.NoError(t, db.Finalize())
 	units := db.GetUpdatedUnits()
 	require.Empty(t, units)
@@ -427,7 +428,7 @@ func TestStateDB_GetUpdatedUnits(t *testing.T) {
 
 func TestStateDB_RollbackMultipleSnapshots(t *testing.T) {
 	s := state.NewEmptyState()
-	db := NewStateDB(s)
+	db := NewStateDB(s, logger.New(t))
 	// snapshot 1, empty DB, no units
 	snapID1 := db.Snapshot()
 	require.EqualValues(t, 1, snapID1)
@@ -476,7 +477,7 @@ func TestStateDB_RollbackMultipleSnapshots(t *testing.T) {
 
 func initState(t *testing.T) *state.State {
 	s := state.NewEmptyState()
-	db := NewStateDB(s)
+	db := NewStateDB(s, logger.New(t))
 	db.CreateAccount(initialAccountAddress)
 	db.AddBalance(initialAccountAddress, big.NewInt(200))
 	require.NoError(t, s.PruneLog(initialAccountAddress.Bytes()))

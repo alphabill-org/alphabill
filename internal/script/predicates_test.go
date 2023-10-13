@@ -58,7 +58,7 @@ func TestExtractPubKeyFromPredicateArgument(t *testing.T) {
 		{
 			name:       "argument incorrect signature length",
 			args:       args{predicate: PredicateArgumentPayToPublicKeyHashDefault(make([]byte, 32), make([]byte, 44, 0xff))},
-			wantErrStr: ErrUnknownOpCode.Error(),
+			wantErrStr: "unknown opcode",
 		},
 		{
 			name: "argument pay to public key hash",

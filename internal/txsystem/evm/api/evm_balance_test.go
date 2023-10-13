@@ -10,6 +10,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/rpc"
 	abstate "github.com/alphabill-org/alphabill/internal/state"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
+	"github.com/alphabill-org/alphabill/internal/testutils/logger"
 	"github.com/alphabill-org/alphabill/internal/txsystem/evm/statedb"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/fxamacker/cbor/v2"
@@ -18,7 +19,7 @@ import (
 
 func TestAPI_Balance_OK(t *testing.T) {
 	tree := abstate.NewEmptyState()
-	stateDB := statedb.NewStateDB(tree)
+	stateDB := statedb.NewStateDB(tree, logger.New(t))
 	address := common.BytesToAddress(test.RandomBytes(20))
 
 	stateDB.CreateAccount(address)
@@ -52,7 +53,7 @@ func TestAPI_Balance_OK(t *testing.T) {
 
 func TestAPI_BalanceWithBacklink(t *testing.T) {
 	tree := abstate.NewEmptyState()
-	stateDB := statedb.NewStateDB(tree)
+	stateDB := statedb.NewStateDB(tree, logger.New(t))
 	address := common.BytesToAddress(test.RandomBytes(20))
 
 	stateDB.CreateAccount(address)

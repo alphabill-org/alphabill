@@ -15,7 +15,6 @@ import (
 
 func handleCreateFungibleTokenTypeTx(options *Options) txsystem.GenericExecuteFunc[CreateFungibleTokenTypeAttributes] {
 	return func(tx *types.TransactionOrder, attr *CreateFungibleTokenTypeAttributes, currentBlockNr uint64) (*types.ServerMetadata, error) {
-		logger.Debug("Processing Create Fungible Token Type tx: %v", tx)
 		if err := validateCreateFungibleTokenType(tx, attr, options.state, options.hashAlgorithm); err != nil {
 			return nil, fmt.Errorf("invalid create fungible token type tx: %w", err)
 		}

@@ -312,7 +312,7 @@ func getFeeCreditManager(ctx context.Context, c *cliConf, am account.Manager, un
 	}
 	moneyTypeVar := moneyType
 	if !strings.HasPrefix(moneySystemInfo.Name, moneyTypeVar.String()) {
-		return nil, fmt.Errorf("invalid money backend name: %s", moneySystemInfo.Name)
+		return nil, errors.New("invalid wallet backend API URL provided for money partition")
 	}
 	moneySystemID, err := hex.DecodeString(moneySystemInfo.SystemID)
 	if err != nil {
@@ -346,7 +346,7 @@ func getFeeCreditManager(ctx context.Context, c *cliConf, am account.Manager, un
 		}
 		tokenTypeVar := tokensType
 		if !strings.HasPrefix(tokenInfo.Name, tokenTypeVar.String()) {
-			return nil, fmt.Errorf("invalid tokens backend name: %s", tokenInfo.Name)
+			return nil, errors.New("invalid wallet backend API URL provided for tokens partition")
 		}
 		tokenSystemID, err := hex.DecodeString(tokenInfo.SystemID)
 		if err != nil {
@@ -376,7 +376,7 @@ func getFeeCreditManager(ctx context.Context, c *cliConf, am account.Manager, un
 		}
 		evmTypeVar := evmType
 		if !strings.HasPrefix(evmInfo.Name, evmTypeVar.String()) {
-			return nil, fmt.Errorf("invalid evm partition name: %s", evmInfo.Name)
+			return nil, errors.New("invalid validator node URL provided for evm partition")
 		}
 		evmSystemID, err := hex.DecodeString(evmInfo.SystemID)
 		if err != nil {

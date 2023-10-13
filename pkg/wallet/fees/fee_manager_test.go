@@ -160,7 +160,7 @@ func TestAddFeeCredit_WalletContainsLockedBillForDustCollection(t *testing.T) {
 		},
 	}}
 	unitLocker := createUnitLocker(t)
-	feeManager := newMoneyPartitionFeeManager(am, unitLocker, moneyTxPublisher, moneyBackendClient)
+	feeManager := newMoneyPartitionFeeManager(am, unitLocker, moneyTxPublisher, moneyBackendClient, logger.New(t))
 
 	// lock the first bill with reason LockReasonCollectDust
 	publicKey, err := am.GetPublicKey(0)
@@ -172,9 +172,9 @@ func TestAddFeeCredit_WalletContainsLockedBillForDustCollection(t *testing.T) {
 	proofs, err := feeManager.AddFeeCredit(context.Background(), AddFeeCmd{Amount: 100000000})
 	require.NoError(t, err)
 	require.NotNil(t, proofs)
-	require.NotNil(t, proofs.TransferFC)
-	require.NotNil(t, proofs.AddFC)
-	require.EqualValues(t, []byte{2}, proofs.TransferFC.TxRecord.TransactionOrder.UnitID())
+	require.Len(t, proofs.TransferFC, 1)
+	require.Len(t, proofs.AddFC, 1)
+	require.EqualValues(t, []byte{2}, proofs.TransferFC[0].TxRecord.TransactionOrder.UnitID())
 
 	// and the first bill remains locked
 	lockedDCBillAfter, err := unitLocker.GetUnit(publicKey, []byte{1})
@@ -450,7 +450,7 @@ func TestAddFeeCreditForMoneyPartition_LockedBillExistsForTokensPartition(t *tes
 		},
 	}
 	unitLocker := createUnitLocker(t)
-	feeManager := newMoneyPartitionFeeManager(am, unitLocker, moneyTxPublisher, moneyBackendClient)
+	feeManager := newMoneyPartitionFeeManager(am, unitLocker, moneyTxPublisher, moneyBackendClient, logger.New(t))
 
 	// lock unit for tokens partition
 	lockedUnit := unitlock.NewLockedUnit(
@@ -734,7 +734,7 @@ func TestReclaimFeeCreditForMoneyPartition_LockedBillExistsForTokensPartition(t 
 	moneyTxPublisher := &mockMoneyTxPublisher{}
 	moneyBackendClient := &mockMoneyClient{}
 	unitLocker := createUnitLocker(t)
-	feeManager := newMoneyPartitionFeeManager(am, unitLocker, moneyTxPublisher, moneyBackendClient)
+	feeManager := newMoneyPartitionFeeManager(am, unitLocker, moneyTxPublisher, moneyBackendClient, logger.New(t))
 
 	// lock unit for tokens partition
 	lockedUnit := unitlock.NewLockedUnit(
@@ -782,7 +782,7 @@ func TestReclaimFeeCredit_WalletContainsLockedBillForDustCollection(t *testing.T
 			},
 		}}
 	unitLocker := createUnitLocker(t)
-	feeManager := newMoneyPartitionFeeManager(am, unitLocker, moneyTxPublisher, moneyBackendClient)
+	feeManager := newMoneyPartitionFeeManager(am, unitLocker, moneyTxPublisher, moneyBackendClient, logger.New(t))
 
 	// lock the first bill with reason LockReasonCollectDust
 	publicKey, err := am.GetPublicKey(0)

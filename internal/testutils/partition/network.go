@@ -235,7 +235,7 @@ func NewPartition(t *testing.T, nodeCount int, txSystemProvider func(trustBase m
 		log:          testlogger.New(t),
 	}
 	// create peer configurations
-	peerConfs, err := createPeerConfs(ctx, nodeCount, abPartition.log)
+	peerConfs, err := createPeerConfs(ctx, nodeCount)
 	if err != nil {
 		return nil, err
 	}
@@ -525,7 +525,7 @@ func createSigners(count int) ([]crypto.Signer, error) {
 	return signers, nil
 }
 
-func createPeerConfs(ctx context.Context, count int, log *slog.Logger) ([]*network.PeerConfiguration, error) {
+func createPeerConfs(ctx context.Context, count int) ([]*network.PeerConfiguration, error) {
 	var peerConfs = make([]*network.PeerConfiguration, count)
 
 	// generate connection encryption key pairs

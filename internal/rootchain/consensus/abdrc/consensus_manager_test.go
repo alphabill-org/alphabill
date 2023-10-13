@@ -176,12 +176,16 @@ func TestIRChangeRequestFromRootValidator_RootTimeout(t *testing.T) {
 	go func() { require.ErrorIs(t, cm.Run(ctx), context.Canceled) }()
 
 	// simulate IR change request message
-	irChReq := &abtypes.IRChangeReq{
-		SystemIdentifier: partitionID,
-		CertReason:       abtypes.Quorum,
-		Requests:         buildBlockCertificationRequest(t, rg, partitionNodes[0:2]),
+	irChReqMsg := &abdrc.IrChangeReqMsg{
+		Author: rootNode.Peer.ID().String(),
+		IrChangeReq: &abtypes.IRChangeReq{
+			SystemIdentifier: partitionID,
+			CertReason:       abtypes.Quorum,
+			Requests:         buildBlockCertificationRequest(t, rg, partitionNodes[0:2]),
+		},
 	}
-	testutils.MockValidatorNetReceives(t, mockNet, rootNode.Peer.ID(), network.ProtocolRootIrChangeReq, irChReq)
+	require.NoError(t, irChReqMsg.Sign(rootNode.Signer))
+	testutils.MockValidatorNetReceives(t, mockNet, rootNode.Peer.ID(), network.ProtocolRootIrChangeReq, irChReqMsg)
 	// As the node is the leader, next round will trigger a proposal
 	lastProposalMsg = testutils.MockAwaitMessage[*abdrc.ProposalMsg](t, mockNet, network.ProtocolRootProposal)
 	require.Equal(t, partitionID, lastProposalMsg.Block.Payload.Requests[0].SystemIdentifier)
@@ -318,12 +322,16 @@ func TestIRChangeRequestFromRootValidator(t *testing.T) {
 	go func() { require.ErrorIs(t, cm.Run(ctx), context.Canceled) }()
 
 	// simulate IR change request message
-	irChReq := &abtypes.IRChangeReq{
-		SystemIdentifier: partitionID,
-		CertReason:       abtypes.Quorum,
-		Requests:         buildBlockCertificationRequest(t, rg, partitionNodes[0:2]),
+	irChReqMsg := &abdrc.IrChangeReqMsg{
+		Author: rootNode.Peer.ID().String(),
+		IrChangeReq: &abtypes.IRChangeReq{
+			SystemIdentifier: partitionID,
+			CertReason:       abtypes.Quorum,
+			Requests:         buildBlockCertificationRequest(t, rg, partitionNodes[0:2]),
+		},
 	}
-	testutils.MockValidatorNetReceives(t, mockNet, rootNode.Peer.ID(), network.ProtocolRootIrChangeReq, irChReq)
+	require.NoError(t, irChReqMsg.Sign(rootNode.Signer))
+	testutils.MockValidatorNetReceives(t, mockNet, rootNode.Peer.ID(), network.ProtocolRootIrChangeReq, irChReqMsg)
 	// As the node is the leader, next round will trigger a proposal
 	lastProposalMsg = testutils.MockAwaitMessage[*abdrc.ProposalMsg](t, mockNet, network.ProtocolRootProposal)
 	require.Equal(t, partitionID, lastProposalMsg.Block.Payload.Requests[0].SystemIdentifier)
@@ -634,7 +642,6 @@ func Test_ConsensusManager_messages(t *testing.T) {
 			require.ElementsMatch(t, irCReq.Requests, prop.Block.Payload.Requests[0].Requests)
 		}
 	})
-
 	t.Run("IR change request forwarded by peer included in proposal", func(t *testing.T) {
 		cms, rootNet, rootG := createConsensusManagers(t, 2, []*genesis.PartitionRecord{partitionRecord})
 		cmLeader := cms[0]
@@ -647,13 +654,19 @@ func Test_ConsensusManager_messages(t *testing.T) {
 		go func() { require.ErrorIs(t, cmLeader.Run(ctx), context.Canceled) }()
 
 		// simulate "other root node" forwarding IRCR to leader
-		irCReq := &abtypes.IRChangeReq{
-			SystemIdentifier: partitionID,
-			CertReason:       abtypes.Quorum,
-			Requests:         buildBlockCertificationRequest(t, rootG, partitionNodes),
+		otherNode := cms[1]
+		// simulate IR change request message
+		irChReqMsg := &abdrc.IrChangeReqMsg{
+			Author: otherNode.id.String(),
+			IrChangeReq: &abtypes.IRChangeReq{
+				SystemIdentifier: partitionID,
+				CertReason:       abtypes.Quorum,
+				Requests:         buildBlockCertificationRequest(t, rootG, partitionNodes[0:2]),
+			},
 		}
+		require.NoError(t, otherNode.safety.Sign(irChReqMsg))
 		cmBnet := rootNet.Connect(cms[1].id)
-		require.NoError(t, cmBnet.Send(ctx, irCReq, cmLeader.id))
+		require.NoError(t, cmBnet.Send(ctx, irChReqMsg, cmLeader.id))
 		// IRCR must be included into broadcast proposal, either this or next round
 		sawIRCR := false
 		for cnt := 0; cnt < 2 && !sawIRCR; cnt++ {
@@ -666,15 +679,14 @@ func Test_ConsensusManager_messages(t *testing.T) {
 				require.NotNil(t, prop.Block)
 				require.NotNil(t, prop.Block.Payload)
 				if len(prop.Block.Payload.Requests) == 1 {
-					require.EqualValues(t, irCReq.SystemIdentifier, prop.Block.Payload.Requests[0].SystemIdentifier)
-					require.ElementsMatch(t, irCReq.Requests, prop.Block.Payload.Requests[0].Requests)
+					require.EqualValues(t, irChReqMsg.IrChangeReq.SystemIdentifier, prop.Block.Payload.Requests[0].SystemIdentifier)
+					require.ElementsMatch(t, irChReqMsg.IrChangeReq.Requests, prop.Block.Payload.Requests[0].Requests)
 					sawIRCR = true
 				}
 			}
 		}
 		require.True(t, sawIRCR, "expected to see the IRCR in one of the next two proposals")
 	})
-
 	t.Run("state request triggers response", func(t *testing.T) {
 		cms, _, _ := createConsensusManagers(t, 2, []*genesis.PartitionRecord{partitionRecord})
 		cmA, cmB := cms[0], cms[1]

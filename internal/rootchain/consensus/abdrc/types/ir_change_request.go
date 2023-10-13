@@ -42,7 +42,7 @@ func getMaxHashCount(hashCnt map[string]uint64) uint64 {
 func (x *IRChangeReq) IsValid() error {
 	// ignore other values for now, just make sure it is not negative
 	if x.CertReason < 0 || x.CertReason > T2Timeout {
-		return fmt.Errorf("unknown reason %v", x.CertReason)
+		return fmt.Errorf("unknown reason %d", x.CertReason)
 	}
 	return nil
 }
@@ -148,4 +148,20 @@ func (x *IRChangeReq) AddToHasher(hasher hash.Hash) {
 	for _, req := range x.Requests {
 		hasher.Write(req.Bytes())
 	}
+}
+
+func (r IRChangeReason) String() string {
+	switch r {
+	case Quorum:
+		return "quorum"
+	case QuorumNotPossible:
+		return "no-quorum"
+	case T2Timeout:
+		return "timeout"
+	}
+	return "unknown"
+}
+
+func (x *IRChangeReq) String() string {
+	return fmt.Sprintf("SysID: %s, reason: %s", x.SystemIdentifier, x.CertReason)
 }

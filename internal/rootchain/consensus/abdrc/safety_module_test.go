@@ -298,18 +298,18 @@ func TestSafetyModule_SignProposal(t *testing.T) {
 		LastRoundTc: nil,
 	}
 	// invalid block missing payload and QC
-	require.ErrorContains(t, s.SignProposal(proposal), "missing payload")
+	require.ErrorContains(t, s.Sign(proposal), "missing payload")
 	// add empty payload
 	proposal.Block.Payload = &abtypes.Payload{Requests: nil}
 	// still missing QC
-	require.ErrorContains(t, s.SignProposal(proposal), "missing quorum certificate")
+	require.ErrorContains(t, s.Sign(proposal), "missing quorum certificate")
 	// create dummy QC
 	voteInfo := NewDummyVoteInfo(3, []byte{0, 1, 2, 3})
 	qc := abtypes.NewQuorumCertificate(voteInfo, nil)
 	// add some dummy signatures
 	qc.Signatures = map[string][]byte{"1": {1, 2}, "2": {1, 2}, "3": {1, 2}}
 	proposal.Block.Qc = qc
-	require.NoError(t, s.SignProposal(proposal))
+	require.NoError(t, s.Sign(proposal))
 	require.Greater(t, len(proposal.Signature), 1)
 }
 

@@ -126,3 +126,21 @@ func (x *BlockData) GetParentRound() uint64 {
 	}
 	return 0
 }
+
+func (x *BlockData) String() string {
+	if x != nil {
+		return x.Payload.String()
+	}
+	return "payload empty"
+}
+
+func (x *Payload) String() string {
+	if x != nil {
+		payload := "payload: "
+		for i, req := range x.Requests {
+			payload += fmt.Sprintf("%v: %s ", i, req)
+		}
+		return payload
+	}
+	return "payload empty"
+}

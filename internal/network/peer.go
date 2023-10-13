@@ -275,8 +275,7 @@ func newPeerStore() (peerstore.Peerstore, error) {
 
 func readKeyPair(conf *PeerConfiguration, log *slog.Logger) (privateKey crypto.PrivKey, publicKey crypto.PubKey, err error) {
 	if conf.KeyPair == nil {
-		err = fmt.Errorf("missing peer key")
-		return
+		return nil, nil, fmt.Errorf("missing peer key")
 	}
 
 	privateKey, err = crypto.UnmarshalSecp256k1PrivateKey(conf.KeyPair.PrivateKey)

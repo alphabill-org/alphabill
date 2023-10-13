@@ -124,8 +124,15 @@ func TestNode_NodeStartWithRecoverStateFromDB(t *testing.T) {
 	require.NoError(t, db.Write(util.Uint32ToBytes(proposalKey), proposal))
 	// start node with db filled
 	ctx, cancel := context.WithCancel(context.Background())
-	t.Cleanup(cancel)
-	StartSingleNodePartition(ctx, t, tp)
+	done := StartSingleNodePartition(ctx, t, tp)
+	t.Cleanup(func() {
+		cancel()
+		select {
+		case <-done:
+		case <-time.After(3 * time.Second):
+			t.Fatal("partition node didn't shut down within timeout")
+		}
+	})
 	// Ask Node for latest block
 	b := tp.GetLatestBlock(t)
 	require.Equal(t, uint64(3), b.GetRoundNumber())

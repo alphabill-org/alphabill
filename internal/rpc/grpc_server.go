@@ -5,7 +5,6 @@ import (
 	"fmt"
 
 	"github.com/alphabill-org/alphabill/internal/metrics"
-	"github.com/alphabill-org/alphabill/internal/network"
 	"github.com/alphabill-org/alphabill/internal/rpc/alphabill"
 	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/internal/util"
@@ -29,7 +28,6 @@ type (
 		GetLatestBlock() (*types.Block, error)
 		GetTransactionRecord(ctx context.Context, hash []byte) (*types.TransactionRecord, *types.TxProof, error)
 		GetLatestRoundNumber() (uint64, error)
-		GetPeer() *network.Peer
 		SystemIdentifier() []byte
 	}
 )

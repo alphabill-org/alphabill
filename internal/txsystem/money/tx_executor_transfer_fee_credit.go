@@ -83,7 +83,7 @@ func validateTransferFC(tx *types.TransactionOrder, attr *transactions.TransferF
 	if len(attr.TargetRecordID) == 0 {
 		return ErrTargetRecordIDEmpty
 	}
-	if bd.Locked {
+	if bd.IsLocked() {
 		return ErrBillLocked
 	}
 	if attr.EarliestAdditionTime > attr.LatestAdditionTime {

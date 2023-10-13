@@ -35,7 +35,7 @@ func TestTransfer(t *testing.T) {
 		},
 		{
 			name: "LockedBill",
-			bd:   &BillData{Locked: true, V: 100, Backlink: []byte{6}},
+			bd:   &BillData{Locked: 1, V: 100, Backlink: []byte{6}},
 			attr: &TransferAttributes{TargetValue: 100, Backlink: []byte{6}},
 			res:  ErrBillLocked,
 		},
@@ -83,7 +83,7 @@ func TestTransferDC(t *testing.T) {
 		},
 		{
 			name: "LockedBill",
-			bd:   &BillData{Locked: true, V: 100, Backlink: []byte{6}},
+			bd:   &BillData{Locked: 1, V: 100, Backlink: []byte{6}},
 			attr: &TransferDCAttributes{
 				TargetUnitID: test.RandomBytes(32),
 				Value:        101,
@@ -156,7 +156,7 @@ func TestSplit(t *testing.T) {
 		},
 		{
 			name: "BillLocked",
-			bd:   &BillData{Locked: true, V: 100, Backlink: []byte{6}},
+			bd:   &BillData{Locked: 1, V: 100, Backlink: []byte{6}},
 			attr: &SplitAttributes{
 				TargetUnits: []*TargetUnit{
 					{Amount: 50, OwnerCondition: script.PredicateAlwaysTrue()},
@@ -386,7 +386,7 @@ func TestTransferFC(t *testing.T) {
 		},
 		{
 			name:    "LockedBill",
-			bd:      &BillData{Locked: true, V: 101, Backlink: backlink},
+			bd:      &BillData{Locked: 1, V: 101, Backlink: backlink},
 			tx:      testfc.NewTransferFC(t, nil),
 			wantErr: ErrBillLocked,
 		},
@@ -600,12 +600,12 @@ func TestLockTx(t *testing.T) {
 	}{
 		{
 			name: "Ok",
-			bd:   &BillData{Backlink: []byte{5}, Locked: false},
-			attr: &LockAttributes{Backlink: []byte{5}},
+			bd:   &BillData{Backlink: []byte{5}, Locked: 0},
+			attr: &LockAttributes{Backlink: []byte{5}, LockStatus: 1},
 		},
 		{
 			name: "attr is nil",
-			bd:   &BillData{Backlink: []byte{5}, Locked: false},
+			bd:   &BillData{Backlink: []byte{5}},
 			attr: nil,
 			res:  ErrTxAttrNil,
 		},
@@ -617,14 +617,20 @@ func TestLockTx(t *testing.T) {
 		},
 		{
 			name: "bill is already locked",
-			bd:   &BillData{Backlink: []byte{5}, Locked: true},
+			bd:   &BillData{Backlink: []byte{5}, Locked: 1},
 			attr: &LockAttributes{Backlink: []byte{5}},
 			res:  ErrBillLocked,
 		},
 		{
+			name: "zero lock value",
+			bd:   &BillData{Backlink: []byte{5}, Locked: 0},
+			attr: &LockAttributes{Backlink: []byte{5}, LockStatus: 0},
+			res:  ErrInvalidLockStatus,
+		},
+		{
 			name: "invalid backlink",
-			bd:   &BillData{Backlink: []byte{5}, Locked: false},
-			attr: &LockAttributes{Backlink: []byte{6}},
+			bd:   &BillData{Backlink: []byte{5}, Locked: 0},
+			attr: &LockAttributes{Backlink: []byte{6}, LockStatus: 1},
 			res:  ErrInvalidBacklink,
 		},
 	}

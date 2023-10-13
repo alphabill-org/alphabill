@@ -180,7 +180,7 @@ func TestExecute_Split2WayOk(t *testing.T) {
 	require.Equal(t, remaining, initBillDataAfterUpdate.V)
 
 	// and bill was not locked
-	require.False(t, initBillDataAfterUpdate.Locked)
+	require.EqualValues(t, 0, initBillDataAfterUpdate.Locked)
 
 	// total value was not changed
 	total, _, err := rmaTree.CalculateRoot()
@@ -199,7 +199,7 @@ func TestExecute_Split2WayOk(t *testing.T) {
 	require.EqualValues(t, splitOk.Hash(crypto.SHA256), bd.Backlink)
 	require.Equal(t, state.Predicate(splitAttr.TargetUnits[0].OwnerCondition), newBill.Bearer())
 	require.Equal(t, roundNumber, bd.T)
-	require.False(t, bd.Locked)
+	require.EqualValues(t, 0, bd.Locked)
 }
 
 func TestExecute_SplitNWayOk(t *testing.T) {
@@ -315,7 +315,7 @@ func TestExecute_SwapOk(t *testing.T) {
 
 	// verify bill got locked
 	_, billData := getBill(t, rmaTree, targetID)
-	require.True(t, billData.Locked)
+	require.EqualValues(t, 1, billData.Locked)
 
 	targetBacklink = lockTx.Hash(crypto.SHA256)
 	dcTransfers, swapTx := createDCTransferAndSwapTxs(t, []types.UnitID{splitBillID}, targetID, targetBacklink, rmaTree, signer)
@@ -332,7 +332,7 @@ func TestExecute_SwapOk(t *testing.T) {
 	require.Equal(t, swapTx.Hash(crypto.SHA256), billData.Backlink)
 	_, dustCollectorBill := getBill(t, rmaTree, dustCollectorMoneySupplyID)
 	require.Equal(t, initialDustCollectorMoneyAmount, dustCollectorBill.V) // dust collector money supply is the same after swap
-	require.False(t, billData.Locked)                                      // verify bill got unlocked
+	require.EqualValues(t, 0, billData.Locked)                             // verify bill got unlocked
 }
 
 func TestExecute_LockOk(t *testing.T) {
@@ -353,7 +353,7 @@ func TestExecute_LockOk(t *testing.T) {
 	require.NoError(t, txSystem.Commit())
 
 	_, bd := getBill(t, rmaTree, initialBill.ID)
-	require.True(t, bd.Locked)                                      // bill is locked
+	require.EqualValues(t, 1, bd.Locked)                            // bill is locked
 	require.EqualValues(t, roundNumber, bd.T)                       // round number updated
 	require.EqualValues(t, lockTx.Hash(crypto.SHA256), bd.Backlink) // backlink updated
 	require.EqualValues(t, 110, bd.SummaryValueInput())             // value not changed
@@ -375,14 +375,14 @@ func TestBillData_AddToHasher(t *testing.T) {
 		V:        10,
 		T:        50,
 		Backlink: []byte("backlink"),
-		Locked:   true,
+		Locked:   1,
 	}
 
 	hasher := crypto.SHA256.New()
 	hasher.Write(util.Uint64ToBytes(bd.V))
 	hasher.Write(util.Uint64ToBytes(bd.T))
 	hasher.Write(bd.Backlink)
-	hasher.Write([]byte{1})
+	hasher.Write(util.Uint64ToBytes(bd.Locked))
 	expectedHash := hasher.Sum(nil)
 	hasher.Reset()
 	bd.Write(hasher)
@@ -648,7 +648,7 @@ func TestExecute_FeeCreditSequence_OK(t *testing.T) {
 	require.NoError(t, err)
 	bd, ok := ib.Data().(*BillData)
 	require.True(t, ok)
-	require.True(t, bd.Locked)
+	require.EqualValues(t, 1, bd.Locked)
 
 	// send closeFC
 	targetBacklink = lockTx.Hash(crypto.SHA256)
@@ -701,7 +701,7 @@ func TestExecute_FeeCreditSequence_OK(t *testing.T) {
 	// and initial bill got unlocked
 	bd, ok = ib.Data().(*BillData)
 	require.True(t, ok)
-	require.False(t, bd.Locked)
+	require.EqualValues(t, 0, bd.Locked)
 }
 
 func unitIDFromTransaction(tx *types.TransactionOrder, extra ...[]byte) []byte {
@@ -740,7 +740,8 @@ func createBillTransfer(t *testing.T, fromID types.UnitID, value uint64, bearer 
 func createLockTx(t *testing.T, fromID types.UnitID, backlink []byte) (*types.TransactionOrder, *LockAttributes) {
 	tx := createTx(fromID, PayloadTypeLock)
 	lockTxAttr := &LockAttributes{
-		Backlink: backlink,
+		LockStatus: 1,
+		Backlink:   backlink,
 	}
 	rawBytes, err := cbor.Marshal(lockTxAttr)
 	require.NoError(t, err)

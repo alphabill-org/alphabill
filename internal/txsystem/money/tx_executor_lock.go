@@ -12,6 +12,8 @@ import (
 	"github.com/alphabill-org/alphabill/internal/types"
 )
 
+var ErrInvalidLockStatus = errors.New("invalid lock status: expected non-zero value, got zero value")
+
 func handleLockTx(s *state.State, hashAlgorithm crypto.Hash, feeCalc fc.FeeCalculator) txsystem.GenericExecuteFunc[LockAttributes] {
 	return func(tx *types.TransactionOrder, attr *LockAttributes, currentBlockNumber uint64) (*types.ServerMetadata, error) {
 		unitID := tx.UnitID()
@@ -32,7 +34,7 @@ func handleLockTx(s *state.State, hashAlgorithm crypto.Hash, feeCalc fc.FeeCalcu
 			if !ok {
 				return nil, fmt.Errorf("unit %v does not contain bill data", unitID)
 			}
-			newBillData.Locked = true
+			newBillData.Locked = attr.LockStatus
 			newBillData.T = currentBlockNumber
 			newBillData.Backlink = tx.Hash(hashAlgorithm)
 			return newBillData, nil
@@ -51,8 +53,11 @@ func validateLockTx(attr *LockAttributes, bd *BillData) error {
 	if bd == nil {
 		return ErrBillNil
 	}
-	if bd.Locked {
+	if bd.IsLocked() {
 		return ErrBillLocked
+	}
+	if attr.LockStatus == 0 {
+		return ErrInvalidLockStatus
 	}
 	if !bytes.Equal(attr.Backlink, bd.Backlink) {
 		return ErrInvalidBacklink

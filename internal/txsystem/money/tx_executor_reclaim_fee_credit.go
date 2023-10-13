@@ -55,7 +55,7 @@ func handleReclaimFeeCreditTx(s *state.State, hashAlgorithm crypto.Hash, trustBa
 			newBillData.V += v
 			newBillData.T = currentBlockNumber
 			newBillData.Backlink = tx.Hash(hashAlgorithm)
-			newBillData.Locked = false
+			newBillData.Locked = 0
 			return newBillData, nil
 		}
 		updateAction := state.UpdateUnitData(unitID, updateFunc)

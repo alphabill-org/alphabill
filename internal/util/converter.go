@@ -39,10 +39,3 @@ func BytesToUint256(b []byte) *uint256.Int {
 func Uint64ToBytes32(n uint64) []byte {
 	return Uint256ToBytes(uint256.NewInt(n))
 }
-
-func BoolToBytes(b bool) []byte {
-	if b {
-		return []byte{1}
-	}
-	return []byte{0}
-}

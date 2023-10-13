@@ -78,7 +78,7 @@ func validateSplit(data state.UnitData, attr *SplitAttributes) error {
 	if !ok {
 		return errors.New("invalid data type, unit is not of BillData type")
 	}
-	if bd.Locked {
+	if bd.IsLocked() {
 		return ErrBillLocked
 	}
 	if !bytes.Equal(attr.Backlink, bd.Backlink) {

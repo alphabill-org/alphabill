@@ -50,7 +50,8 @@ type (
 	}
 
 	LockAttributes struct {
-		_        struct{} `cbor:",toarray"`
-		Backlink []byte
+		_          struct{} `cbor:",toarray"`
+		LockStatus uint64   // status of the lock, non-zero value means locked
+		Backlink   []byte
 	}
 )

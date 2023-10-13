@@ -3,7 +3,6 @@ package partition
 import (
 	"bytes"
 	"context"
-	gocrypto "crypto"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -332,7 +331,8 @@ func (n *Node) applyBlockTransactions(round uint64, txs []*types.TransactionReco
 	for _, tx := range txs {
 		sm, err := n.validateAndExecuteTx(tx.TransactionOrder, round)
 		if err != nil {
-			return nil, 0, fmt.Errorf("tx '%v' execution error, %w", tx, err)
+			n.log.Warn("processing transaction", logger.Error(err), logger.UnitID(tx.TransactionOrder.UnitID()))
+			return nil, 0, fmt.Errorf("processing transaction '%v': %w", tx.TransactionOrder.UnitID(), err)
 		}
 		sumOfEarnedFees += sm.ActualFee
 	}
@@ -483,10 +483,12 @@ func (n *Node) handleOrForwardTransaction(ctx context.Context, tx *types.Transac
 		n.txCh <- tx
 		return true
 	}
-	n.log.DebugContext(ctx, fmt.Sprintf("forwarding tx %X to %v", tx.Hash(gocrypto.SHA256), leader))
-	err := n.network.Send(ctx, tx, leader)
-	// TODO unreported error?
-	return err == nil
+	n.log.DebugContext(ctx, fmt.Sprintf("forwarding tx %X to %v", tx.Hash(n.configuration.hashAlgorithm), leader), logger.UnitID(tx.UnitID()))
+	if err := n.network.Send(ctx, tx, leader); err != nil {
+		n.log.WarnContext(ctx, "failed to forward tx", logger.Error(err), logger.UnitID(tx.UnitID()))
+		return false
+	}
+	return true
 }
 
 func (n *Node) process(tx *types.TransactionOrder, round uint64) error {
@@ -494,7 +496,7 @@ func (n *Node) process(tx *types.TransactionOrder, round uint64) error {
 	sm, err := n.validateAndExecuteTx(tx, round)
 	if err != nil {
 		n.sendEvent(event.TransactionFailed, tx)
-		return fmt.Errorf("tx '%X' execution failed, %w", tx.Hash(n.configuration.hashAlgorithm), err)
+		return fmt.Errorf("executing transaction %X: %w", tx.Hash(n.configuration.hashAlgorithm), err)
 	}
 	n.proposedTransactions = append(n.proposedTransactions, &types.TransactionRecord{TransactionOrder: tx, ServerMetadata: sm})
 	n.sumOfEarnedFees += sm.GetActualFee()
@@ -510,13 +512,11 @@ func (n *Node) validateAndExecuteTx(tx *types.TransactionOrder, round uint64) (s
 		}
 	}()
 	if err = n.txValidator.Validate(tx, round); err != nil {
-		n.log.Warn("invalid transaction", logger.Error(err), logger.UnitID(tx.UnitID()))
-		return nil, fmt.Errorf("invalid, %w", err)
+		return nil, fmt.Errorf("invalid transaction: %w", err)
 	}
 	sm, err = n.transactionSystem.Execute(tx)
 	if err != nil {
-		n.log.Warn("TxSystem was unable to process transaction", logger.Error(err), logger.UnitID(tx.UnitID()))
-		return nil, fmt.Errorf("execute error, %w", err)
+		return nil, fmt.Errorf("executing transaction in tx system: %w", err)
 	}
 	return sm, nil
 }
@@ -587,7 +587,7 @@ func (n *Node) handleBlockProposal(ctx context.Context, prop *blockproposal.Bloc
 	}
 	for _, tx := range prop.Transactions {
 		if err = n.process(tx.TransactionOrder, n.getCurrentRound()); err != nil {
-			return fmt.Errorf("transaction error %w", err)
+			return fmt.Errorf("processing transaction %X: %w", tx.Hash(n.configuration.hashAlgorithm), err)
 		}
 	}
 	if err = n.sendCertificationRequest(ctx, prop.NodeIdentifier); err != nil {

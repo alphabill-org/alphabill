@@ -357,6 +357,7 @@ func TestWalletSendFunction_LockedBillIsNotUsed(t *testing.T) {
 		pubKey,
 		unitID,
 		[]byte{1},
+		money.DefaultSystemIdentifier,
 		unitlock.LockReasonCollectDust,
 	))
 	require.NoError(t, err)

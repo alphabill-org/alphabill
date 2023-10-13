@@ -7,6 +7,9 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/fxamacker/cbor/v2"
+	"github.com/stretchr/testify/require"
+
 	"github.com/alphabill-org/alphabill/internal/hash"
 	"github.com/alphabill-org/alphabill/internal/script"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
@@ -16,8 +19,6 @@ import (
 	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/pkg/wallet/money/backend/client"
 	"github.com/alphabill-org/alphabill/pkg/wallet/unitlock"
-	"github.com/fxamacker/cbor/v2"
-	"github.com/stretchr/testify/require"
 )
 
 func TestWalletBillsListCmd_EmptyWallet(t *testing.T) {
@@ -223,7 +224,7 @@ func TestWalletBillsListCmd_ShowLockedBills(t *testing.T) {
 	defer unitLocker.Close()
 
 	// lock unit
-	err = unitLocker.LockUnit(unitlock.NewLockedUnit(pubKey, unitID, []byte{1}, unitlock.LockReasonAddFees))
+	err = unitLocker.LockUnit(unitlock.NewLockedUnit(pubKey, unitID, []byte{1}, money.DefaultSystemIdentifier, unitlock.LockReasonAddFees))
 	require.NoError(t, err)
 	err = unitLocker.Close()
 	require.NoError(t, err)

@@ -256,7 +256,7 @@ func (w *DustCollector) submitDCBatch(ctx context.Context, k *account.AccountKey
 	for _, sub := range dcBatch.Submissions() {
 		lockedUnitTxs = append(lockedUnitTxs, unitlock.NewTransaction(sub.Transaction))
 	}
-	lockedTargetUnit := unitlock.NewLockedUnit(k.PubKey, targetBill.Id, targetBill.TxHash, unitlock.LockReasonCollectDust, lockedUnitTxs...)
+	lockedTargetUnit := unitlock.NewLockedUnit(k.PubKey, targetBill.Id, targetBill.TxHash, w.systemID, unitlock.LockReasonCollectDust, lockedUnitTxs...)
 	err = w.unitLocker.LockUnit(lockedTargetUnit)
 	if err != nil {
 		return nil, fmt.Errorf("failed to lock unit for dc batch: %w", err)

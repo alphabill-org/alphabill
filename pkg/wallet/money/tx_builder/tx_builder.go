@@ -4,10 +4,10 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"slices"
 	"sort"
 
 	"github.com/fxamacker/cbor/v2"
-	"golang.org/x/exp/slices"
 
 	"github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/hash"
@@ -21,6 +21,9 @@ import (
 
 const MaxFee = uint64(1)
 
+// CreateTransactions creates 1 to N P2PKH transactions from given bills until target amount is reached.
+// If there exists a bill with value equal to the given amount then transfer transaction is created using that bill,
+// otherwise bills are selected in the given order.
 func CreateTransactions(pubKey []byte, amount uint64, systemID []byte, bills []*wallet.Bill, k *account.AccountKey, timeout uint64, fcrID []byte) ([]*types.TransactionOrder, error) {
 	billIndex := slices.IndexFunc(bills, func(b *wallet.Bill) bool { return b.Value == amount })
 	if billIndex >= 0 {
@@ -47,13 +50,19 @@ func CreateTransactions(pubKey []byte, amount uint64, systemID []byte, bills []*
 	return nil, fmt.Errorf("insufficient balance for transaction, trying to send %d have %d", amount, accumulatedSum)
 }
 
+// CreateTransaction creates a P2PKH transfer or split transaction using the given bill.
 func CreateTransaction(receiverPubKey []byte, k *account.AccountKey, amount uint64, systemID []byte, b *wallet.Bill, timeout uint64, fcrID []byte) (*types.TransactionOrder, error) {
 	if b.Value <= amount {
 		return NewTransferTx(receiverPubKey, k, systemID, b, timeout, fcrID)
 	}
-	return NewSplitTx(amount, receiverPubKey, k, systemID, b, timeout, fcrID)
+	targetUnits := []*money.TargetUnit{
+		{Amount: amount, OwnerCondition: script.PredicatePayToPublicKeyHashDefault(hash.Sum256(receiverPubKey))},
+	}
+	remainingValue := b.Value - amount
+	return NewSplitTx(targetUnits, remainingValue, k, systemID, b, timeout, fcrID)
 }
 
+// NewTransferTx creates a P2PKH transfer transaction.
 func NewTransferTx(receiverPubKey []byte, k *account.AccountKey, systemID []byte, bill *wallet.Bill, timeout uint64, fcrID []byte) (*types.TransactionOrder, error) {
 	attr := &money.TransferAttributes{
 		NewBearer:   script.PredicatePayToPublicKeyHashDefault(hash.Sum256(receiverPubKey)),
@@ -67,11 +76,11 @@ func NewTransferTx(receiverPubKey []byte, k *account.AccountKey, systemID []byte
 	return signPayload(txPayload, k)
 }
 
-func NewSplitTx(amount uint64, pubKey []byte, k *account.AccountKey, systemID []byte, bill *wallet.Bill, timeout uint64, fcrID []byte) (*types.TransactionOrder, error) {
+// NewSplitTx creates a P2PKH split transaction.
+func NewSplitTx(targetUnits []*money.TargetUnit, remainingValue uint64, k *account.AccountKey, systemID []byte, bill *wallet.Bill, timeout uint64, fcrID []byte) (*types.TransactionOrder, error) {
 	attr := &money.SplitAttributes{
-		Amount:         amount,
-		TargetBearer:   script.PredicatePayToPublicKeyHashDefault(hash.Sum256(pubKey)),
-		RemainingValue: bill.Value - amount,
+		TargetUnits:    targetUnits,
+		RemainingValue: remainingValue,
 		Backlink:       bill.TxHash,
 	}
 	txPayload, err := newTxPayload(systemID, money.PayloadTypeSplit, bill.GetID(), timeout, fcrID, attr)

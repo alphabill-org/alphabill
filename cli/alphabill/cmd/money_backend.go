@@ -72,18 +72,7 @@ func newMoneyBackendCmd(baseConfig *baseConfiguration) *cobra.Command {
 		Use:   "money-backend",
 		Short: "Starts money backend service",
 		Long:  "Starts money backend service, indexes all transactions by owner predicates, starts http server",
-		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
-			// initialize config so that baseConfig.HomeDir gets configured
-			err := initializeConfig(cmd, baseConfig)
-			if err != nil {
-				return err
-			}
-			// init logger
-			return initWalletLogger(&walletConfig{LogLevel: config.LogLevel, LogFile: config.LogFile})
-		},
 	}
-	walletCmd.PersistentFlags().StringVar(&config.LogFile, logFileCmdName, "", "log file path (default output to stderr)")
-	walletCmd.PersistentFlags().StringVar(&config.LogLevel, logLevelCmdName, "INFO", "logging level (DEBUG, INFO, NOTICE, WARNING, ERROR)")
 	walletCmd.AddCommand(startMoneyBackendCmd(config))
 	return walletCmd
 }
@@ -127,5 +116,6 @@ func execMoneyBackendStartCmd(ctx context.Context, config *moneyBackendConfig) e
 			Predicate: script.PredicateAlwaysTrue(),
 		},
 		SystemDescriptionRecords: sdrFiles,
+		Logger:                   config.Base.Logger,
 	})
 }

@@ -13,7 +13,7 @@ import (
 
 func main() {
 	ctx := quitSignalContext()
-	err := cmd.New().Execute(ctx)
+	err := cmd.New(cmd.LoggerBuilder).Execute(ctx)
 	if err != nil && !cancelledByQuitSignal(ctx) {
 		fmt.Fprintln(os.Stderr, "Error:", err)
 		os.Exit(1)

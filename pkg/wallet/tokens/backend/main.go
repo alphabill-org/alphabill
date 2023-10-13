@@ -3,6 +3,7 @@ package backend
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"math/rand"
 	"net"
 	"net/http"
@@ -17,10 +18,10 @@ import (
 	"github.com/alphabill-org/alphabill/internal/txsystem/tokens"
 	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/pkg/client"
+	"github.com/alphabill-org/alphabill/pkg/logger"
 	sdk "github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/alphabill-org/alphabill/pkg/wallet/blocksync"
 	"github.com/alphabill-org/alphabill/pkg/wallet/broker"
-	"github.com/alphabill-org/alphabill/pkg/wallet/log"
 )
 
 type Configuration interface {
@@ -29,7 +30,7 @@ type Configuration interface {
 	BatchSize() int
 	HttpServer(http.Handler) http.Server
 	Listener() net.Listener
-	Logger() log.Logger
+	Logger() *slog.Logger
 	SystemID() []byte
 	APIAddr() string
 }
@@ -71,9 +72,7 @@ Run blocks until ctx is cancelled or some unrecoverable error happens, it
 always returns non-nil error.
 */
 func Run(ctx context.Context, cfg Configuration) error {
-	if cfg.Logger() != nil {
-		cfg.Logger().Info("starting tokens backend: BuildInfo=", debug.ReadBuildInfo())
-	}
+	cfg.Logger().Info(fmt.Sprintf("starting tokens backend: BuildInfo=%s", debug.ReadBuildInfo()))
 	db, err := cfg.Storage()
 	if err != nil {
 		return fmt.Errorf("failed to get storage: %w", err)
@@ -81,6 +80,7 @@ func Run(ctx context.Context, cfg Configuration) error {
 	defer db.Close()
 
 	txs, err := tokens.NewTxSystem(
+		cfg.Logger(),
 		tokens.WithTrustBase(map[string]crypto.Verifier{"test": nil}),
 		tokens.WithSystemIdentifier(cfg.SystemID()),
 	)
@@ -93,15 +93,15 @@ func Run(ctx context.Context, cfg Configuration) error {
 	abc := cfg.Client()
 
 	g.Go(func() error {
-		logger := cfg.Logger()
-		bp := &blockProcessor{store: db, txs: txs, notify: msgBroker.Notify, log: logger}
+		log := cfg.Logger()
+		bp := &blockProcessor{store: db, txs: txs, notify: msgBroker.Notify, log: log}
 		// we act as if all errors returned by block sync are recoverable ie we
 		// just retry in a loop until ctx is cancelled
 		for {
-			logger.Debug("starting block sync")
+			log.Debug("starting block sync")
 			err := runBlockSync(ctx, abc.GetBlocks, db.GetBlockNumber, cfg.BatchSize(), bp.ProcessBlock)
 			if err != nil {
-				logger.Error("synchronizing blocks returned error: ", err)
+				log.Error("synchronizing blocks returned error", logger.Error(err))
 			}
 			select {
 			case <-ctx.Done():
@@ -112,12 +112,12 @@ func Run(ctx context.Context, cfg Configuration) error {
 	})
 
 	g.Go(func() error {
-		cfg.Logger().Info("tokens backend REST server starting on ", cfg.APIAddr())
+		cfg.Logger().Info(fmt.Sprintf("tokens backend REST server starting on %s", cfg.APIAddr()))
 		api := &tokensRestAPI{
 			db:        db,
 			ab:        abc,
 			streamSSE: msgBroker.StreamSSE,
-			rw:        sdk.ResponseWriter{LogErr: cfg.Logger().Error},
+			rw:        sdk.ResponseWriter{LogErr: func(err error) { cfg.Logger().Error("REST API error", logger.Error(err)) }},
 			systemID:  cfg.SystemID(),
 		}
 		return httpsrv.Run(ctx, cfg.HttpServer(api.endpoints()), httpsrv.Listener(cfg.Listener()), httpsrv.ShutdownTimeout(5*time.Second))
@@ -140,7 +140,7 @@ type cfg struct {
 	abc      client.AlphabillClientConfig
 	boltDB   string
 	apiAddr  string
-	log      log.Logger
+	log      *slog.Logger
 	systemID []byte
 }
 
@@ -151,7 +151,7 @@ NewConfig returns Configuration suitable for using as Run parameter.
   - boltDB: filename (with full path) of the bolt db to use as storage;
   - logger: logger implementation.
 */
-func NewConfig(apiAddr, abURL, boltDB string, logger log.Logger, systemID []byte) Configuration {
+func NewConfig(apiAddr, abURL, boltDB string, logger *slog.Logger, systemID []byte) Configuration {
 	return &cfg{
 		abc:      client.AlphabillClientConfig{Uri: abURL},
 		boltDB:   boltDB,
@@ -161,10 +161,10 @@ func NewConfig(apiAddr, abURL, boltDB string, logger log.Logger, systemID []byte
 	}
 }
 
-func (c *cfg) Client() ABClient          { return client.New(c.abc) }
+func (c *cfg) Client() ABClient          { return client.New(c.abc, c.log) }
 func (c *cfg) Storage() (Storage, error) { return newBoltStore(c.boltDB) }
 func (c *cfg) BatchSize() int            { return 100 }
-func (c *cfg) Logger() log.Logger        { return c.log }
+func (c *cfg) Logger() *slog.Logger      { return c.log }
 func (c *cfg) Listener() net.Listener    { return nil } // we do set Addr in HttpServer
 func (c *cfg) SystemID() []byte          { return c.systemID }
 func (c *cfg) APIAddr() string           { return c.apiAddr }

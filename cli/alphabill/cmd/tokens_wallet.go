@@ -954,7 +954,7 @@ func initTokensWallet(cmd *cobra.Command, config *walletConfig) (*wallet.Wallet,
 	if err != nil {
 		return nil, err
 	}
-	tw, err := wallet.New(tokens.DefaultSystemIdentifier, uri, am, confirmTx, nil)
+	tw, err := wallet.New(tokens.DefaultSystemIdentifier, uri, am, confirmTx, nil, config.Base.Logger)
 	if err != nil {
 		return nil, err
 	}

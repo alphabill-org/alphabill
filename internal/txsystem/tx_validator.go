@@ -46,7 +46,8 @@ func ValidateGenericTransaction(ctx *TxValidationContext) error {
 		}
 
 		if err = script.RunScript(ctx.Tx.OwnerProof, ctx.Unit.Bearer(), payloadBytes); err != nil {
-			return fmt.Errorf("invalid owner proof: %w", err)
+			return fmt.Errorf("invalid owner proof: %w [txOwnerProof=0x%x unitOwnerCondition=0x%x sigData=0x%x]",
+				err, ctx.Tx.OwnerProof, ctx.Unit.Bearer(), payloadBytes)
 		}
 	}
 	return nil

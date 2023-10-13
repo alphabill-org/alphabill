@@ -1,9 +1,10 @@
 package tokens
 
 import (
+	"errors"
 	"fmt"
+	"log/slog"
 
-	"github.com/alphabill-org/alphabill/internal/errors"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/internal/txsystem/fc"
 )
@@ -29,7 +30,7 @@ const (
 	ErrStrInvalidIconDataLength = "icon data length exceeds the allowed maximum of 64 KiB"
 )
 
-func NewTxSystem(opts ...Option) (*txsystem.GenericTxSystem, error) {
+func NewTxSystem(log *slog.Logger, opts ...Option) (*txsystem.GenericTxSystem, error) {
 	options, err := defaultOptions()
 	if err != nil {
 		return nil, err
@@ -64,6 +65,7 @@ func NewTxSystem(opts ...Option) (*txsystem.GenericTxSystem, error) {
 		return nil, fmt.Errorf("failed to load fee credit module: %w", err)
 	}
 	return txsystem.NewGenericTxSystem(
+		log,
 		[]txsystem.Module{nft, fungible, feeCreditModule},
 		txsystem.WithSystemIdentifier(options.systemIdentifier),
 		txsystem.WithHashAlgorithm(options.hashAlgorithm),

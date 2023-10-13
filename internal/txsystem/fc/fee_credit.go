@@ -9,7 +9,6 @@ import (
 	"github.com/alphabill-org/alphabill/internal/state"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/internal/txsystem/fc/transactions"
-	"github.com/alphabill-org/alphabill/pkg/logger"
 )
 
 var _ txsystem.Module = &FeeCredit{}
@@ -30,7 +29,6 @@ type (
 		state                   *state.State
 		hashAlgorithm           crypto.Hash
 		trustBase               map[string]abcrypto.Verifier
-		logger                  logger.Logger
 		txValidator             *DefaultFeeCreditTxValidator
 		feeCalculator           FeeCalculator
 		feeCreditRecordUnitType []byte
@@ -48,7 +46,6 @@ func FixedFee(fee uint64) FeeCalculator {
 func NewFeeCreditModule(opts ...Option) (*FeeCredit, error) {
 	m := &FeeCredit{
 		hashAlgorithm: crypto.SHA256,
-		logger:        logger.CreateForPackage(),
 		feeCalculator: FixedFee(1),
 	}
 	for _, o := range opts {

@@ -71,11 +71,9 @@ func (c *grpcServerConfiguration) GrpcKeepAliveServerParameters() grpckeepalive.
 	p := grpckeepalive.ServerParameters{}
 	if c.MaxConnectionAgeMs != 0 {
 		p.MaxConnectionAge = time.Duration(c.MaxConnectionAgeMs) * time.Millisecond
-		log.Debug("Server grpc client connection max connection age: %dms", c.MaxConnectionAgeMs)
 	}
 	if c.MaxConnectionAgeGraceMs != 0 {
 		p.MaxConnectionAgeGrace = time.Duration(c.MaxConnectionAgeGraceMs) * time.Millisecond
-		log.Debug("Server grpc client connection max connection age grace: %dms", c.MaxConnectionAgeGraceMs)
 	}
 	return p
 }

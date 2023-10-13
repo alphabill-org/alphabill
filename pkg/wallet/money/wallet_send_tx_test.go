@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/alphabill-org/alphabill/internal/hash"
+	"github.com/alphabill-org/alphabill/internal/script"
 	"github.com/alphabill-org/alphabill/internal/txsystem/money"
 	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/pkg/wallet"
@@ -17,7 +18,7 @@ import (
 	"github.com/alphabill-org/alphabill/pkg/wallet/unitlock"
 )
 
-func TestWalletSendFunction(t *testing.T) {
+func TestWalletSendFunction_Ok(t *testing.T) {
 	w, _ := CreateTestWallet(t, withBackendMock(t, &backendMockReturnConf{
 		balance:   70,
 		billId:    money.NewBillID(nil, []byte{0}),
@@ -31,7 +32,7 @@ func TestWalletSendFunction(t *testing.T) {
 	ctx := context.Background()
 
 	// test ok response
-	_, err := w.Send(ctx, SendCmd{ReceiverPubKey: validPubKey, Amount: amount})
+	_, err := w.Send(ctx, SendCmd{Receivers: []ReceiverData{{PubKey: validPubKey, Amount: amount}}})
 	require.NoError(t, err)
 }
 
@@ -42,8 +43,9 @@ func TestWalletSendFunction_InvalidPubKey(t *testing.T) {
 	ctx := context.Background()
 
 	// test ErrInvalidPubKey
-	_, err := w.Send(ctx, SendCmd{ReceiverPubKey: invalidPubKey, Amount: amount})
-	require.ErrorIs(t, err, ErrInvalidPubKey)
+	_, err := w.Send(ctx, SendCmd{Receivers: []ReceiverData{{PubKey: invalidPubKey, Amount: amount}}})
+	require.ErrorContains(t, err, "invalid public key: public key must be in compressed secp256k1 format: got 32 "+
+		"bytes, expected 33 bytes for public key 0x0000000000000000000000000000000000000000000000000000000000000000")
 }
 
 func TestWalletSendFunction_InsufficientBalance(t *testing.T) {
@@ -53,8 +55,8 @@ func TestWalletSendFunction_InsufficientBalance(t *testing.T) {
 	ctx := context.Background()
 
 	// test ErrInsufficientBalance
-	_, err := w.Send(ctx, SendCmd{ReceiverPubKey: validPubKey, Amount: amount})
-	require.ErrorIs(t, err, ErrInsufficientBalance)
+	_, err := w.Send(ctx, SendCmd{Receivers: []ReceiverData{{PubKey: validPubKey, Amount: amount}}})
+	require.ErrorContains(t, err, "insufficient balance for transaction")
 }
 
 func TestWalletSendFunction_ClientError(t *testing.T) {
@@ -72,7 +74,7 @@ func TestWalletSendFunction_ClientError(t *testing.T) {
 	amount := uint64(50)
 
 	// test PostTransactions returns error
-	_, err := w.Send(context.Background(), SendCmd{ReceiverPubKey: validPubKey, Amount: amount})
+	_, err := w.Send(context.Background(), SendCmd{Receivers: []ReceiverData{{PubKey: validPubKey, Amount: amount}}})
 	require.ErrorContains(t, err, "failed to send transactions: backend responded 500 Internal Server Error: some error")
 }
 
@@ -112,16 +114,17 @@ func TestWalletSendFunction_WaitForConfirmation(t *testing.T) {
 			}, nil
 		},
 		postTransactions: func(ctx context.Context, pubKey wallet.PubKey, txs *wallet.Transactions) error {
-			for _, tx := range txs.Transactions {
-				recordedTransactions = append(recordedTransactions, tx)
-			}
+			recordedTransactions = append(recordedTransactions, txs.Transactions...)
 			return nil
 		},
 	}
 	w, _ = CreateTestWallet(t, backendMock)
 
 	// test send successfully waits for confirmation
-	_, err := w.Send(context.Background(), SendCmd{ReceiverPubKey: pubKey, Amount: b.Value, WaitForConfirmation: true, AccountIndex: 0})
+	_, err := w.Send(context.Background(), SendCmd{
+		Receivers:           []ReceiverData{{PubKey: pubKey, Amount: b.Value}},
+		WaitForConfirmation: true,
+	})
 	require.NoError(t, err)
 	balance, _ := w.GetBalance(context.Background(), GetBalanceCmd{})
 	require.EqualValues(t, 100, balance)
@@ -157,7 +160,7 @@ func TestWalletSendFunction_WaitForMultipleTxConfirmations(t *testing.T) {
 			var bill *wallet.Bill
 			for _, tx := range recordedTransactions {
 				if bytes.Equal(unitID, tx.UnitID()) {
-					bill, _ = bills[string(unitID)]
+					bill = bills[string(unitID)]
 					if bill != nil {
 						bill.TxHash = tx.Hash(crypto.SHA256)
 					}
@@ -174,16 +177,17 @@ func TestWalletSendFunction_WaitForMultipleTxConfirmations(t *testing.T) {
 			return &wallet.Bill{Id: []byte{}, Value: 100 * 1e8}, nil
 		},
 		postTransactions: func(ctx context.Context, pubKey wallet.PubKey, txs *wallet.Transactions) error {
-			for _, tx := range txs.Transactions {
-				recordedTransactions = append(recordedTransactions, tx)
-			}
+			recordedTransactions = append(recordedTransactions, txs.Transactions...)
 			return nil
 		},
 	}
 	w, _ = CreateTestWallet(t, backendMock)
 
 	// test send successfully waits for confirmation
-	_, err := w.Send(context.Background(), SendCmd{ReceiverPubKey: pubKey, Amount: b1.Value + b2.Value, WaitForConfirmation: true})
+	_, err := w.Send(context.Background(), SendCmd{
+		Receivers:           []ReceiverData{{PubKey: pubKey, Amount: b1.Value + b2.Value}},
+		WaitForConfirmation: true,
+	})
 	require.NoError(t, err)
 }
 
@@ -219,7 +223,7 @@ func TestWalletSendFunction_WaitForMultipleTxConfirmationsInDifferentBlocks(t *t
 			var bill *wallet.Bill
 			for _, tx := range recordedTransactions {
 				if bytes.Equal(unitID, tx.UnitID()) {
-					bill, _ = bills[string(unitID)]
+					bill = bills[string(unitID)]
 					if bill != nil {
 						bill.TxHash = tx.Hash(crypto.SHA256)
 					}
@@ -240,16 +244,17 @@ func TestWalletSendFunction_WaitForMultipleTxConfirmationsInDifferentBlocks(t *t
 			}, nil
 		},
 		postTransactions: func(ctx context.Context, pubKey wallet.PubKey, txs *wallet.Transactions) error {
-			for _, tx := range txs.Transactions {
-				recordedTransactions = append(recordedTransactions, tx)
-			}
+			recordedTransactions = append(recordedTransactions, txs.Transactions...)
 			return nil
 		},
 	}
 	w, _ = CreateTestWallet(t, backendMock)
 
 	// test send successfully waits for confirmation
-	_, err := w.Send(context.Background(), SendCmd{ReceiverPubKey: pubKey, Amount: b1.Value + b2.Value, WaitForConfirmation: true})
+	_, err := w.Send(context.Background(), SendCmd{
+		Receivers:           []ReceiverData{{PubKey: pubKey, Amount: b1.Value + b2.Value}},
+		WaitForConfirmation: true,
+	})
 	require.NoError(t, err)
 }
 
@@ -281,15 +286,16 @@ func TestWalletSendFunction_ErrTxFailedToConfirm(t *testing.T) {
 			return nil, nil
 		},
 		postTransactions: func(ctx context.Context, pubKey wallet.PubKey, txs *wallet.Transactions) error {
-			for _, tx := range txs.Transactions {
-				recordedTransactions = append(recordedTransactions, tx)
-			}
+			recordedTransactions = append(recordedTransactions, txs.Transactions...)
 			return nil
 		},
 	}
 	w, _ := CreateTestWallet(t, backendMock)
 
-	_, err := w.Send(context.Background(), SendCmd{ReceiverPubKey: pubKey, Amount: b.Value, WaitForConfirmation: true})
+	_, err := w.Send(context.Background(), SendCmd{
+		Receivers:           []ReceiverData{{PubKey: pubKey, Amount: b.Value}},
+		WaitForConfirmation: true,
+	})
 	require.ErrorContains(t, err, "confirmation timeout")
 }
 
@@ -322,16 +328,16 @@ func TestWholeBalanceIsSentUsingBillTransferOrder(t *testing.T) {
 			return nil, nil
 		},
 		postTransactions: func(ctx context.Context, pubKey wallet.PubKey, txs *wallet.Transactions) error {
-			for _, tx := range txs.Transactions {
-				recordedTransactions = append(recordedTransactions, tx)
-			}
+			recordedTransactions = append(recordedTransactions, txs.Transactions...)
 			return nil
 		},
 	}
 	w, _ := CreateTestWallet(t, backendMock)
 
 	// when whole balance is spent
-	_, err := w.Send(context.Background(), SendCmd{ReceiverPubKey: pubKey, Amount: 100})
+	_, err := w.Send(context.Background(), SendCmd{
+		Receivers: []ReceiverData{{PubKey: pubKey, Amount: 100}},
+	})
 	require.NoError(t, err)
 
 	// then bill transfer order should be sent
@@ -350,7 +356,6 @@ func TestWalletSendFunction_LockedBillIsNotUsed(t *testing.T) {
 	}))
 	pubKey, err := w.am.GetPublicKey(0)
 	require.NoError(t, err)
-	ctx := context.Background()
 
 	// lock the only bill in wallet
 	err = w.unitLocker.LockUnit(unitlock.NewLockedUnit(
@@ -363,7 +368,9 @@ func TestWalletSendFunction_LockedBillIsNotUsed(t *testing.T) {
 	require.NoError(t, err)
 
 	// test send returns error
-	_, err = w.Send(ctx, SendCmd{ReceiverPubKey: pubKey, Amount: 50})
+	_, err = w.Send(context.Background(), SendCmd{
+		Receivers: []ReceiverData{{PubKey: pubKey, Amount: 50}},
+	})
 	require.ErrorContains(t, err, "insufficient balance for transaction")
 }
 
@@ -408,22 +415,96 @@ func TestWalletSendFunction_BillWithExactAmount(t *testing.T) {
 			}, nil
 		},
 		postTransactions: func(ctx context.Context, pubKey wallet.PubKey, txs *wallet.Transactions) error {
-			for _, tx := range txs.Transactions {
-				recordedTransactions = append(recordedTransactions, tx)
-			}
+			recordedTransactions = append(recordedTransactions, txs.Transactions...)
 			return nil
 		},
 	}
 	w, _ = CreateTestWallet(t, backendMock)
 
 	// run send command with amount equal to one of the bills
-	_, err := w.Send(context.Background(), SendCmd{ReceiverPubKey: pubKey, Amount: bills[1].Value, WaitForConfirmation: true, AccountIndex: 0})
+	_, err := w.Send(context.Background(), SendCmd{
+		Receivers:           []ReceiverData{{PubKey: pubKey, Amount: bills[1].Value}},
+		WaitForConfirmation: true,
+	})
 
 	// verify that the send command creates a single transfer for the bill with the exact value requested
 	require.NoError(t, err)
 	require.Len(t, recordedTransactions, 1)
 	require.Equal(t, money.PayloadTypeTransfer, recordedTransactions[0].PayloadType())
 	require.EqualValues(t, bills[1].Id, recordedTransactions[0].Payload.UnitID)
+}
+
+func TestWalletSendFunction_NWaySplit(t *testing.T) {
+	// create test wallet with a single bill
+	pubKey := make([]byte, 33)
+	bills := []*wallet.Bill{{
+		Id:     []byte{0},
+		Value:  100,
+		TxHash: hash.Sum256([]byte{0x01}),
+	}}
+
+	var w *Wallet
+	var recordedTransactions []*types.TransactionOrder
+	backendMock := &backendAPIMock{
+		getBalance: func(pubKey []byte, includeDCBills bool) (uint64, error) {
+			return 100, nil
+		},
+		getRoundNumber: func() (uint64, error) {
+			return 0, nil
+		},
+		listBills: func(pubKey []byte, includeDCBills bool) (*backend.ListBillsResponse, error) {
+			return createBillListResponse(bills), nil
+		},
+		getBills: func(pubKey []byte) ([]*wallet.Bill, error) {
+			var res []*wallet.Bill
+			for _, b := range bills {
+				res = append(res, &wallet.Bill{Id: b.GetID(), Value: b.Value, TxHash: b.TxHash})
+			}
+			return res, nil
+		},
+		getTxProof: func(ctx context.Context, unitID types.UnitID, txHash wallet.TxHash) (*wallet.Proof, error) {
+			return &wallet.Proof{}, nil
+		},
+		getFeeCreditBill: func(ctx context.Context, unitID []byte) (*wallet.Bill, error) {
+			ac, _ := w.am.GetAccountKey(0)
+			return &wallet.Bill{
+				Id:    money.NewFeeCreditRecordID(nil, ac.PubKeyHash.Sha256),
+				Value: 100 * 1e8,
+			}, nil
+		},
+		postTransactions: func(ctx context.Context, pubKey wallet.PubKey, txs *wallet.Transactions) error {
+			recordedTransactions = append(recordedTransactions, txs.Transactions...)
+			return nil
+		},
+	}
+	w, _ = CreateTestWallet(t, backendMock)
+
+	// execute send command to multiple receivers
+	_, err := w.Send(context.Background(), SendCmd{
+		Receivers: []ReceiverData{
+			{PubKey: pubKey, Amount: 5},
+			{PubKey: pubKey, Amount: 5},
+			{PubKey: pubKey, Amount: 5},
+			{PubKey: pubKey, Amount: 5},
+			{PubKey: pubKey, Amount: 5},
+		},
+		WaitForConfirmation: true,
+	})
+
+	// verify that the send command creates N-way split tx
+	require.NoError(t, err)
+	require.Len(t, recordedTransactions, 1)
+	recordedTx := recordedTransactions[0]
+	require.Equal(t, money.PayloadTypeSplit, recordedTx.PayloadType())
+	require.EqualValues(t, bills[0].Id, recordedTx.Payload.UnitID)
+	attr := &money.SplitAttributes{}
+	err = recordedTx.UnmarshalAttributes(attr)
+	require.NoError(t, err)
+	require.Len(t, attr.TargetUnits, 5)
+	for _, unit := range attr.TargetUnits {
+		require.EqualValues(t, 5, unit.Amount)
+		require.EqualValues(t, script.PredicatePayToPublicKeyHashDefault(hash.Sum256(pubKey)), unit.OwnerCondition)
+	}
 }
 
 func parseBillTransferTx(t *testing.T, tx *types.TransactionOrder) *money.TransferAttributes {

@@ -5,19 +5,18 @@ import (
 	gocrypto "crypto"
 	"errors"
 	"fmt"
+	"log/slog"
 	"time"
 
 	"github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/keyvaluedb"
 	"github.com/alphabill-org/alphabill/internal/keyvaluedb/memorydb"
-	"github.com/alphabill-org/alphabill/internal/network"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/internal/partition/event"
 	"github.com/alphabill-org/alphabill/internal/txbuffer"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/libp2p/go-libp2p/core/peer"
-	"github.com/libp2p/go-libp2p/core/peerstore"
 	"github.com/multiformats/go-multiaddr"
 )
 
@@ -29,11 +28,11 @@ const (
 )
 
 var (
-	ErrTxSystemIsNil       = errors.New("transaction system is nil")
-	ErrPeerIsNil           = errors.New("peer is nil")
-	ErrGenesisIsNil        = errors.New("genesis is nil")
-	ErrInvalidRootHash     = errors.New("tx system root hash does not equal to genesis file hash")
-	ErrInvalidSummaryValue = errors.New("tx system summary value does not equal to genesis file summary value")
+	ErrTxSystemIsNil          = errors.New("transaction system is nil")
+	ErrPeerConfigurationIsNil = errors.New("peer configuration is nil")
+	ErrGenesisIsNil           = errors.New("genesis is nil")
+	ErrInvalidRootHash        = errors.New("tx system root hash does not equal to genesis file hash")
+	ErrInvalidSummaryValue    = errors.New("tx system summary value does not equal to genesis file summary value")
 )
 
 type (
@@ -47,7 +46,6 @@ type (
 		txBuffer                    *txbuffer.TxBuffer
 		t1Timeout                   time.Duration // T1 timeout of the node. Time to wait before node creates a new block proposal.
 		hashAlgorithm               gocrypto.Hash // make hash algorithm configurable in the future. currently it is using SHA-256.
-		peer                        *network.Peer
 		signer                      crypto.Signer
 		genesis                     *genesis.PartitionGenesis
 		rootTrustBase               map[string]crypto.Verifier
@@ -129,10 +127,7 @@ func WithTxValidator(txValidator TxValidator) NodeOption {
 	}
 }
 
-func loadAndValidateConfiguration(peer *network.Peer, signer crypto.Signer, genesis *genesis.PartitionGenesis, txs txsystem.TransactionSystem, net Net, nodeOptions ...NodeOption) (*configuration, error) {
-	if peer == nil {
-		return nil, ErrPeerIsNil
-	}
+func loadAndValidateConfiguration(signer crypto.Signer, genesis *genesis.PartitionGenesis, txs txsystem.TransactionSystem, net Net, log *slog.Logger, nodeOptions ...NodeOption) (*configuration, error) {
 	if signer == nil {
 		return nil, ErrSignerIsNil
 	}
@@ -142,11 +137,7 @@ func loadAndValidateConfiguration(peer *network.Peer, signer crypto.Signer, gene
 	if txs == nil {
 		return nil, ErrTxSystemIsNil
 	}
-	if net == nil {
-		return nil, errors.New("network is nil")
-	}
 	c := &configuration{
-		peer:          peer,
 		signer:        signer,
 		genesis:       genesis,
 		hashAlgorithm: gocrypto.SHA256,
@@ -155,7 +146,7 @@ func loadAndValidateConfiguration(peer *network.Peer, signer crypto.Signer, gene
 		option(c)
 	}
 	// init default for those not specified by the user
-	if err := c.initMissingDefaults(peer); err != nil {
+	if err := c.initMissingDefaults(log); err != nil {
 		return nil, fmt.Errorf("failed to initiate default parameters, %w", err)
 	}
 	if err := c.isGenesisValid(txs); err != nil {
@@ -165,7 +156,7 @@ func loadAndValidateConfiguration(peer *network.Peer, signer crypto.Signer, gene
 }
 
 // initMissingDefaults loads missing default configuration.
-func (c *configuration) initMissingDefaults(peer *network.Peer) error {
+func (c *configuration) initMissingDefaults(log *slog.Logger) error {
 	if c.t1Timeout == 0 {
 		c.t1Timeout = DefaultT1Timeout
 	}
@@ -174,16 +165,13 @@ func (c *configuration) initMissingDefaults(peer *network.Peer) error {
 	}
 
 	var err error
-	c.txBuffer, err = txbuffer.New(DefaultTxBufferSize, c.hashAlgorithm)
+	c.txBuffer, err = txbuffer.New(DefaultTxBufferSize, c.hashAlgorithm, log)
 	if err != nil {
 		return fmt.Errorf("tx buffer init error, %w", err)
 	}
 
 	if c.leaderSelector == nil {
-		c.leaderSelector, err = NewDefaultLeaderSelector(peer, c.GetSystemIdentifier())
-		if err != nil {
-			return fmt.Errorf("leader election init error, %w", err)
-		}
+		c.leaderSelector = NewDefaultLeaderSelector()
 	}
 	c.rootTrustBase, err = genesis.NewValidatorTrustBase(c.genesis.RootValidators)
 	if err != nil {
@@ -208,10 +196,6 @@ func (c *configuration) initMissingDefaults(peer *network.Peer) error {
 			return err
 		}
 	}
-	if c.rootChainAddress != nil {
-		// add rootchain address to the peer store. this enables us to send receivedMessages to the rootchain.
-		c.peer.Network().Peerstore().AddAddr(c.rootChainID, c.rootChainAddress, peerstore.PermanentAddrTTL)
-	}
 	if c.replicationConfig.maxBlocks == 0 {
 		c.replicationConfig.maxBlocks = DefaultReplicationMaxBlocks
 	}
@@ -234,8 +218,7 @@ func (c *configuration) genesisBlock() *types.Block {
 
 func (c *configuration) isGenesisValid(txs txsystem.TransactionSystem) error {
 	if err := c.genesis.IsValid(c.rootTrustBase, c.hashAlgorithm); err != nil {
-		logger.Warning("Invalid partition genesis file: %v", err)
-		return fmt.Errorf("invalid partition genesis file, %w", err)
+		return fmt.Errorf("invalid partition genesis file: %w", err)
 	}
 	state, err := txs.StateSummary()
 	if err != nil {
@@ -246,14 +229,10 @@ func (c *configuration) isGenesisValid(txs txsystem.TransactionSystem) error {
 	genesisCertificate := c.genesis.Certificate
 	genesisInputRecord := genesisCertificate.InputRecord
 	if !bytes.Equal(genesisInputRecord.Hash, txGenesisRoot) {
-		logger.Warning("tx system root hash does not equal to genesis file hash. "+
-			"genesis hash: %X, txSystem hash: %X", genesisInputRecord.Hash, txGenesisRoot)
 		return ErrInvalidRootHash
 	}
 
 	if !bytes.Equal(genesisInputRecord.SummaryValue, txSummaryValue) {
-		logger.Warning("tx system summary value does not equal to genesis file summary value. "+
-			"Genesis SummaryValue: %X, TxSystem SummaryValue: %X", genesisInputRecord.SummaryValue, txSummaryValue)
 		return ErrInvalidSummaryValue
 	}
 	return nil

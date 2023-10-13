@@ -1,7 +1,9 @@
 package evm
 
 import (
+	"context"
 	"fmt"
+	"log/slog"
 	"math/big"
 
 	"github.com/alphabill-org/alphabill/internal/keyvaluedb"
@@ -9,6 +11,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/txsystem/evm/statedb"
 	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/internal/util"
+	"github.com/alphabill-org/alphabill/pkg/logger"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/vm"
@@ -16,27 +19,13 @@ import (
 	"github.com/fxamacker/cbor/v2"
 )
 
-type (
-	StateTransition struct {
-		gp         *core.GasPool
-		msg        *TxAttributes
-		gas        uint64
-		gasPrice   *big.Int
-		initialGas uint64
-		value      *big.Int
-		data       []byte
-		state      vm.StateDB
-		evm        *vm.EVM
-	}
-
-	ProcessingDetails struct {
-		_            struct{} `cbor:",toarray"`
-		ErrorDetails string
-		ReturnData   []byte
-		ContractAddr common.Address
-		Logs         []*statedb.LogEntry
-	}
-)
+type ProcessingDetails struct {
+	_            struct{} `cbor:",toarray"`
+	ErrorDetails string
+	ReturnData   []byte
+	ContractAddr common.Address
+	Logs         []*statedb.LogEntry
+}
 
 func errorToStr(err error) string {
 	if err != nil {
@@ -48,10 +37,10 @@ func (d *ProcessingDetails) Bytes() ([]byte, error) {
 	return cbor.Marshal(d)
 }
 
-func handleEVMTx(systemIdentifier []byte, opts *Options, blockGas *core.GasPool, blockDB keyvaluedb.KeyValueDB) txsystem.GenericExecuteFunc[TxAttributes] {
+func handleEVMTx(systemIdentifier []byte, opts *Options, blockGas *core.GasPool, blockDB keyvaluedb.KeyValueDB, log *slog.Logger) txsystem.GenericExecuteFunc[TxAttributes] {
 	return func(tx *types.TransactionOrder, attr *TxAttributes, currentBlockNumber uint64) (sm *types.ServerMetadata, err error) {
 		from := common.BytesToAddress(attr.From)
-		stateDB := statedb.NewStateDB(opts.state)
+		stateDB := statedb.NewStateDB(opts.state, log)
 		if !stateDB.Exist(from) {
 			return nil, fmt.Errorf(" address %v does not exist", from)
 		}
@@ -60,7 +49,7 @@ func handleEVMTx(systemIdentifier []byte, opts *Options, blockGas *core.GasPool,
 				err = stateDB.Finalize()
 			}
 		}()
-		return Execute(currentBlockNumber, stateDB, blockDB, attr, systemIdentifier, blockGas, opts.gasUnitPrice, false)
+		return Execute(currentBlockNumber, stateDB, blockDB, attr, systemIdentifier, blockGas, opts.gasUnitPrice, false, log)
 	}
 }
 
@@ -69,7 +58,7 @@ func calcGasPrice(gas uint64, gasPrice *big.Int) *big.Int {
 	return cost.Mul(cost, gasPrice)
 }
 
-func Execute(currentBlockNumber uint64, stateDB *statedb.StateDB, blockDB keyvaluedb.KeyValueDB, attr *TxAttributes, systemIdentifier []byte, gp *core.GasPool, gasUnitPrice *big.Int, fake bool) (*types.ServerMetadata, error) {
+func Execute(currentBlockNumber uint64, stateDB *statedb.StateDB, blockDB keyvaluedb.KeyValueDB, attr *TxAttributes, systemIdentifier []byte, gp *core.GasPool, gasUnitPrice *big.Int, fake bool, log *slog.Logger) (*types.ServerMetadata, error) {
 	if err := validate(attr); err != nil {
 		return nil, err
 	}
@@ -117,7 +106,7 @@ func Execute(currentBlockNumber uint64, stateDB *statedb.StateDB, blockDB keyval
 	// Todo: AB-1208 Create a proper solution and implement ApplyMessage in this project
 	stateDB.AddBalance(msg.From, remainderWei)
 
-	log.Trace("total gas: %v gas units, price in alpha %v", execResult.UsedGas, fee)
+	log.LogAttrs(context.Background(), logger.LevelTrace, fmt.Sprintf("total gas: %v gas units, price in alpha %v", execResult.UsedGas, fee), logger.Round(currentBlockNumber))
 	return &types.ServerMetadata{ActualFee: fee.Uint64(), TargetUnits: stateDB.GetUpdatedUnits(), SuccessIndicator: success, ProcessingDetails: detailBytes}, nil
 }
 

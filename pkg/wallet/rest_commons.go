@@ -44,7 +44,7 @@ type (
 	}
 
 	ResponseWriter struct {
-		LogErr func(a ...any)
+		LogErr func(err error)
 	}
 
 	// InfoResponse should be compatible with Node /info request

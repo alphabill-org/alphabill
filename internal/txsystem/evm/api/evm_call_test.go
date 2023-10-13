@@ -12,6 +12,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/rpc"
 	abstate "github.com/alphabill-org/alphabill/internal/state"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
+	"github.com/alphabill-org/alphabill/internal/testutils/logger"
 	"github.com/alphabill-org/alphabill/internal/txsystem/evm"
 	"github.com/alphabill-org/alphabill/internal/txsystem/evm/statedb"
 	"github.com/ethereum/go-ethereum/accounts/abi"
@@ -34,6 +35,7 @@ func TestAPI_CallEVM_CleanState_OK(t *testing.T) {
 		systemIdentifier: []byte{0, 0, 0, 3},
 		gasUnitPrice:     big.NewInt(evm.DefaultGasPrice),
 		blockGasLimit:    evm.DefaultBlockGasLimit,
+		log:              logger.New(t),
 	}
 	call := &CallEVMRequest{
 		From: test.RandomBytes(20),
@@ -59,6 +61,7 @@ func TestAPI_CallEVM_CleanState_OK(t *testing.T) {
 }
 
 func TestAPI_CallEVM_OK(t *testing.T) {
+	log := logger.New(t)
 	tree := abstate.NewEmptyState()
 	address, contractAddr := initState(t, tree)
 
@@ -67,6 +70,7 @@ func TestAPI_CallEVM_OK(t *testing.T) {
 		systemIdentifier: []byte{0, 0, 0, 1},
 		gasUnitPrice:     big.NewInt(1),
 		blockGasLimit:    evm.DefaultBlockGasLimit,
+		log:              log,
 	}
 	cABI, err := abi.JSON(bytes.NewBuffer([]byte(counterABI)))
 	require.NoError(t, err)
@@ -78,6 +82,7 @@ func TestAPI_CallEVM_OK(t *testing.T) {
 		Gas:   29000,
 	}
 	callReq, err := cbor.Marshal(call)
+	require.NoError(t, err)
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/evm/call", bytes.NewReader(callReq))
 	recorder := httptest.NewRecorder()
 
@@ -98,7 +103,7 @@ func TestAPI_CallEVM_OK(t *testing.T) {
 	}
 	gasPool := new(core.GasPool).AddGas(math.MaxUint64)
 	gasPrice := big.NewInt(evm.DefaultGasPrice)
-	_, err = evm.Execute(1, statedb.NewStateDB(tree), memorydb.New(), callContract, systemIdentifier, gasPool, gasPrice, false)
+	_, err = evm.Execute(1, statedb.NewStateDB(tree, log), memorydb.New(), callContract, systemIdentifier, gasPool, gasPrice, false, log)
 	require.NoError(t, err)
 
 	_, _, err = tree.CalculateRoot()
@@ -124,6 +129,7 @@ func TestAPI_CallEVM_ToFieldMissing(t *testing.T) {
 		systemIdentifier: []byte{0, 0, 0, 1},
 		gasUnitPrice:     big.NewInt(evm.DefaultGasPrice),
 		blockGasLimit:    evm.DefaultBlockGasLimit,
+		log:              logger.New(t),
 	}
 	cABI, err := abi.JSON(bytes.NewBuffer([]byte(counterABI)))
 	require.NoError(t, err)
@@ -133,6 +139,7 @@ func TestAPI_CallEVM_ToFieldMissing(t *testing.T) {
 		Data: cABI.Methods["get"].ID,
 	}
 	callReq, err := cbor.Marshal(call)
+	require.NoError(t, err)
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/evm/call", bytes.NewReader(callReq))
 	recorder := httptest.NewRecorder()
 
@@ -171,7 +178,8 @@ func TestAPI_CallEVM_InvalidRequest(t *testing.T) {
 }
 
 func initState(t *testing.T, tree *abstate.State) (common.Address, common.Address) {
-	stateDB := statedb.NewStateDB(tree)
+	log := logger.New(t)
+	stateDB := statedb.NewStateDB(tree, log)
 	address := common.BytesToAddress(test.RandomBytes(20))
 
 	stateDB.CreateAccount(address)
@@ -187,7 +195,7 @@ func initState(t *testing.T, tree *abstate.State) (common.Address, common.Addres
 	}
 	gasPool := new(core.GasPool).AddGas(math.MaxUint64)
 	gasPrice := big.NewInt(evm.DefaultGasPrice)
-	sm, err := evm.Execute(1, stateDB, memorydb.New(), evmAttr, systemIdentifier, gasPool, gasPrice, false)
+	sm, err := evm.Execute(1, stateDB, memorydb.New(), evmAttr, systemIdentifier, gasPool, gasPrice, false, log)
 	details := &evm.ProcessingDetails{}
 	require.NoError(t, sm.UnmarshalDetails(details))
 	require.NoError(t, err)

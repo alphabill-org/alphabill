@@ -149,16 +149,9 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	protoTransferTx := &alphabill.Transaction{Order: txBytes}
-
-	// get round number for timeout
-	res, err = txClient.GetRoundNumber(ctx, &emptypb.Empty{})
-	if err != nil {
-		log.Fatal(err)
-	}
-	absoluteTimeout = res.RoundNumber + *timeout
 
 	// send transfer tx
+	protoTransferTx := &alphabill.Transaction{Order: txBytes}
 	if _, err := txClient.ProcessTransaction(ctx, protoTransferTx); err != nil {
 		log.Fatal(err)
 	}

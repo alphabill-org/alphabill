@@ -3,6 +3,7 @@ package txsystem
 import (
 	"crypto"
 	"fmt"
+	"log/slog"
 	"reflect"
 
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
@@ -11,6 +12,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/txsystem/fc/unit"
 	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/internal/util"
+	"github.com/alphabill-org/alphabill/pkg/logger"
 )
 
 var _ TransactionSystem = (*GenericTxSystem)(nil)
@@ -34,9 +36,10 @@ type GenericTxSystem struct {
 	beginBlockFunctions []func(blockNumber uint64) error
 	endBlockFunctions   []func(blockNumber uint64) error
 	roundCommitted      bool
+	log                 *slog.Logger
 }
 
-func NewGenericTxSystem(modules []Module, opts ...Option) (*GenericTxSystem, error) {
+func NewGenericTxSystem(log *slog.Logger, modules []Module, opts ...Option) (*GenericTxSystem, error) {
 	options := DefaultOptions()
 	for _, option := range opts {
 		option(options)
@@ -50,6 +53,7 @@ func NewGenericTxSystem(modules []Module, opts ...Option) (*GenericTxSystem, err
 		endBlockFunctions:   options.endBlockFunctions,
 		executors:           make(map[string]TxExecutor),
 		genericTxValidators: []GenericTransactionValidator{},
+		log:                 log,
 	}
 	txs.beginBlockFunctions = append(txs.beginBlockFunctions, txs.pruneLogs)
 	for _, module := range modules {
@@ -172,6 +176,7 @@ func (m *GenericTxSystem) Execute(tx *types.TransactionOrder) (sm *types.ServerM
 		m.state.ReleaseToSavepoint(savepointID)
 	}()
 	// execute transaction
+	m.log.Debug(fmt.Sprintf("execute %s", tx.PayloadType()), logger.UnitID(tx.UnitID()), logger.Data(tx), logger.Round(m.currentBlockNumber))
 	sm, err = m.executors.Execute(tx, m.currentBlockNumber)
 	if err != nil {
 		return nil, err

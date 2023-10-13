@@ -6,20 +6,20 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"strconv"
 	"time"
 
-	"golang.org/x/sync/errgroup"
-
 	"github.com/fxamacker/cbor/v2"
 	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
+	"golang.org/x/sync/errgroup"
 
 	"github.com/alphabill-org/alphabill/internal/txsystem/money"
 	"github.com/alphabill-org/alphabill/internal/types"
+	"github.com/alphabill-org/alphabill/pkg/logger"
 	sdk "github.com/alphabill-org/alphabill/pkg/wallet"
-	"github.com/alphabill-org/alphabill/pkg/wallet/log"
 )
 
 const (
@@ -32,6 +32,7 @@ type (
 		Service            WalletBackendService
 		ListBillsPageLimit int
 		rw                 *sdk.ResponseWriter
+		log                *slog.Logger
 		SystemID           []byte
 	}
 
@@ -168,7 +169,7 @@ func (api *moneyRestAPI) txHistoryFunc(w http.ResponseWriter, r *http.Request) {
 	}
 	recs, nextKey, err := api.Service.GetTxHistoryRecords(senderPubkey.Hash(), startKey, limit)
 	if err != nil {
-		log.Error("error on GET /tx-history: ", err)
+		api.log.LogAttrs(r.Context(), slog.LevelError, "error on GET /tx-history", logger.Error(err))
 		api.rw.WriteErrorResponse(w, fmt.Errorf("unable to fetch tx history records: %w", err))
 		return
 	}
@@ -269,28 +270,10 @@ func (api *moneyRestAPI) getTxProof(w http.ResponseWriter, r *http.Request) {
 	api.rw.WriteCborResponse(w, proof)
 }
 
-// getBill returns "normal" or "fee credit" bill for given id,
-// this is necessary to facilitate client side tx confirmation,
-// alternatively we could refactor how tx proofs are stored (separately from bills),
-// in that case we could fetch proofs directly and this hack would not be necessary
-func (api *moneyRestAPI) getBill(billID []byte) (*Bill, error) {
-	bill, err := api.Service.GetBill(billID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to fetch bill: %w", err)
-	}
-	if bill == nil {
-		bill, err = api.Service.GetFeeCreditBill(billID)
-		if err != nil {
-			return nil, fmt.Errorf("failed to fetch fee credit bill: %w", err)
-		}
-	}
-	return bill, err
-}
-
 func (api *moneyRestAPI) blockHeightFunc(w http.ResponseWriter, r *http.Request) {
 	lastRoundNumber, err := api.Service.GetRoundNumber(r.Context())
 	if err != nil {
-		log.Error("GET /round-number error fetching round number", err)
+		api.log.LogAttrs(r.Context(), slog.LevelError, "GET /round-number error fetching round number", logger.Error(err))
 		w.WriteHeader(http.StatusInternalServerError)
 	} else {
 		api.rw.WriteResponse(w, &RoundNumberResponse{RoundNumber: lastRoundNumber})
@@ -301,7 +284,7 @@ func (api *moneyRestAPI) getFeeCreditBillFunc(w http.ResponseWriter, r *http.Req
 	vars := mux.Vars(r)
 	billID, err := sdk.ParseHex[types.UnitID](vars["billId"], true)
 	if err != nil {
-		log.Debug("error parsing GET /fee-credit-bills request: ", err)
+		api.log.LogAttrs(r.Context(), slog.LevelDebug, "error parsing GET /fee-credit-bills request", logger.Error(err))
 		if errors.Is(err, errInvalidBillIDLength) {
 			api.rw.ErrorResponse(w, http.StatusBadRequest, err)
 		} else {
@@ -315,7 +298,7 @@ func (api *moneyRestAPI) getFeeCreditBillFunc(w http.ResponseWriter, r *http.Req
 	}
 	fcb, err := api.Service.GetFeeCreditBill(billID)
 	if err != nil {
-		log.Error("error on GET /fee-credit-bill: ", err)
+		api.log.LogAttrs(r.Context(), slog.LevelError, "error on GET /fee-credit-bill", logger.Error(err))
 		api.rw.WriteErrorResponse(w, err)
 		return
 	}
@@ -330,7 +313,7 @@ func (api *moneyRestAPI) postTransactions(w http.ResponseWriter, r *http.Request
 	defer r.Body.Close()
 	buf, err := io.ReadAll(r.Body)
 	if err != nil {
-		log.Debug("error parsing GET /transactions request: ", err)
+		api.log.LogAttrs(r.Context(), slog.LevelDebug, "error parsing GET /transactions request", logger.Error(err))
 		api.rw.WriteErrorResponse(w, fmt.Errorf("failed to read request body: %w", err))
 		return
 	}
@@ -356,14 +339,14 @@ func (api *moneyRestAPI) postTransactions(w http.ResponseWriter, r *http.Request
 	api.Service.HandleTransactionsSubmission(egp, senderPubkey, txs.Transactions)
 
 	if errs := api.Service.SendTransactions(r.Context(), txs.Transactions); len(errs) > 0 {
-		log.Debug("error on POST /transactions: ", errs)
-		w.WriteHeader(http.StatusAccepted)
+		api.log.LogAttrs(r.Context(), slog.LevelDebug, "error on POST /transactions", logger.Error(err))
+		w.WriteHeader(http.StatusInternalServerError)
 		api.rw.WriteResponse(w, errs)
 		return
 	}
 
 	if err = egp.Wait(); err != nil {
-		log.Debug("failed to store tx metadata: ", err)
+		api.log.LogAttrs(r.Context(), slog.LevelDebug, "failed to store tx metadata", logger.Error(err))
 		api.rw.WriteErrorResponse(w, fmt.Errorf("failed to store tx metadata: %w", err))
 		return
 	}
@@ -374,19 +357,19 @@ func (api *moneyRestAPI) getLockedFeeCreditFunc(w http.ResponseWriter, r *http.R
 	vars := mux.Vars(r)
 	systemID, err := sdk.ParseHex[types.SystemID](vars["systemId"], true)
 	if err != nil {
-		log.Debug("error parsing GET /locked-fee-credit request systemId param: ", err)
+		api.log.LogAttrs(r.Context(), slog.LevelDebug, "error parsing GET /locked-fee-credit request systemId param", logger.Error(err))
 		api.rw.InvalidParamResponse(w, "systemId", err)
 		return
 	}
 	fcbID, err := sdk.ParseHex[types.UnitID](vars["billId"], true)
 	if err != nil {
-		log.Debug("error parsing GET /fee-credit-bills request billId param: ", err)
+		api.log.LogAttrs(r.Context(), slog.LevelDebug, "error parsing GET /fee-credit-bills request billId param", logger.Error(err))
 		api.rw.InvalidParamResponse(w, "billId", err)
 		return
 	}
 	lfc, err := api.Service.GetLockedFeeCredit(systemID, fcbID)
 	if err != nil {
-		log.Error("error on GET /locked-fee-credit: ", err)
+		api.log.LogAttrs(r.Context(), slog.LevelError, "error on GET /locked-fee-credit", logger.Error(err))
 		api.rw.WriteErrorResponse(w, err)
 		return
 	}
@@ -401,13 +384,13 @@ func (api *moneyRestAPI) getClosedFeeCreditFunc(w http.ResponseWriter, r *http.R
 	vars := mux.Vars(r)
 	fcbID, err := sdk.ParseHex[types.UnitID](vars["billId"], true)
 	if err != nil {
-		log.Debug("error parsing GET /closed-fee-credit request billId param: ", err)
+		api.log.LogAttrs(r.Context(), slog.LevelDebug, "parsing GET /closed-fee-credit request billId param", logger.Error(err))
 		api.rw.InvalidParamResponse(w, "billId", err)
 		return
 	}
 	cfc, err := api.Service.GetClosedFeeCredit(fcbID)
 	if err != nil {
-		log.Error("error on GET /closed-fee-credit: ", err)
+		api.log.LogAttrs(r.Context(), slog.LevelError, "error on GET /closed-fee-credit", logger.Error(err))
 		api.rw.WriteErrorResponse(w, err)
 		return
 	}

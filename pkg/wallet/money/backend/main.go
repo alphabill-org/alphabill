@@ -5,6 +5,7 @@ import (
 	"crypto"
 	"encoding/hex"
 	"fmt"
+	"log/slog"
 	"math/rand"
 	"net/http"
 	"sync"
@@ -20,10 +21,10 @@ import (
 	"github.com/alphabill-org/alphabill/internal/txsystem/money"
 	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/pkg/client"
+	"github.com/alphabill-org/alphabill/pkg/logger"
 	sdk "github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/alphabill-org/alphabill/pkg/wallet/account"
 	"github.com/alphabill-org/alphabill/pkg/wallet/blocksync"
-	wlog "github.com/alphabill-org/alphabill/pkg/wallet/log"
 )
 
 type (
@@ -40,9 +41,14 @@ type (
 		GetTxHistoryRecords(hash sdk.PubKeyHash, dbStartKey []byte, count int) ([]*sdk.TxHistoryRecord, []byte, error)
 	}
 
+	ABClient interface {
+		SendTransaction(ctx context.Context, tx *types.TransactionOrder) error
+		GetRoundNumber(ctx context.Context) (uint64, error)
+	}
+
 	WalletBackend struct {
-		store         BillStore
-		genericWallet *sdk.Wallet
+		store BillStore
+		abc   ABClient
 	}
 
 	Bills struct {
@@ -110,6 +116,7 @@ type (
 		ListBillsPageLimit       int
 		InitialBill              InitialBill
 		SystemDescriptionRecords []*genesis.SystemDescriptionRecord
+		Logger                   *slog.Logger
 	}
 
 	InitialBill struct {
@@ -120,7 +127,9 @@ type (
 )
 
 func Run(ctx context.Context, config *Config) error {
-	wlog.Info("starting money backend: BuildInfo=", debug.ReadBuildInfo())
+	if config.Logger != nil {
+		config.Logger.Info(fmt.Sprintf("starting money backend: BuildInfo=%s", debug.ReadBuildInfo()))
+	}
 	store, err := newBoltBillStore(config.DbFile)
 	if err != nil {
 		return fmt.Errorf("failed to get storage: %w", err)
@@ -166,35 +175,40 @@ func Run(ctx context.Context, config *Config) error {
 		return err
 	}
 
-	abc := client.New(client.AlphabillClientConfig{Uri: config.AlphabillUrl})
+	abc := client.New(client.AlphabillClientConfig{Uri: config.AlphabillUrl}, config.Logger)
+	defer func() {
+		if err := abc.Close(); err != nil {
+			config.Logger.Warn("closing AB client", logger.Error(err))
+		}
+	}()
 
 	g, ctx := errgroup.WithContext(ctx)
 
 	g.Go(func() error {
-		wlog.Info("money backend REST server starting on ", config.ServerAddr)
-		walletBackend := &WalletBackend{store: store, genericWallet: sdk.New().SetABClient(abc).Build()}
-		defer walletBackend.genericWallet.Shutdown()
+		config.Logger.Info(fmt.Sprintf("money backend REST server starting on %s", config.ServerAddr))
 
 		handler := &moneyRestAPI{
-			Service:            walletBackend,
+			Service:            &WalletBackend{store: store, abc: abc},
 			ListBillsPageLimit: config.ListBillsPageLimit,
 			SystemID:           config.ABMoneySystemIdentifier,
-			rw:                 &sdk.ResponseWriter{LogErr: wlog.Error},
-		}
-		server := http.Server{
-			Addr:              config.ServerAddr,
-			Handler:           handler.Router(),
-			ReadTimeout:       3 * time.Second,
-			ReadHeaderTimeout: time.Second,
-			WriteTimeout:      5 * time.Second,
-			IdleTimeout:       30 * time.Second,
+			rw:                 &sdk.ResponseWriter{LogErr: func(err error) { config.Logger.Error(err.Error()) }},
 		}
 
-		return httpsrv.Run(ctx, server, httpsrv.ShutdownTimeout(5*time.Second))
+		return httpsrv.Run(ctx,
+			http.Server{
+				Addr:              config.ServerAddr,
+				Handler:           handler.Router(),
+				ReadTimeout:       3 * time.Second,
+				ReadHeaderTimeout: time.Second,
+				WriteTimeout:      5 * time.Second,
+				IdleTimeout:       30 * time.Second,
+			},
+			httpsrv.ShutdownTimeout(5*time.Second),
+		)
 	})
 
 	g.Go(func() error {
-		blockProcessor, err := NewBlockProcessor(store, config.ABMoneySystemIdentifier)
+		blockProcessor, err := NewBlockProcessor(store, config.ABMoneySystemIdentifier, config.Logger)
 		if err != nil {
 			return fmt.Errorf("failed to create block processor: %w", err)
 		}
@@ -202,10 +216,10 @@ func Run(ctx context.Context, config *Config) error {
 		// we act as if all errors returned by block sync are recoverable ie we
 		// just retry in a loop until ctx is cancelled
 		for {
-			wlog.Debug("starting block sync")
+			config.Logger.DebugContext(ctx, "starting block sync")
 			err := runBlockSync(ctx, abc.GetBlocks, getBlockNumber, 100, blockProcessor.ProcessBlock)
 			if err != nil {
-				wlog.Error("synchronizing blocks returned error: ", err)
+				config.Logger.Error("synchronizing blocks returned error", logger.Error(err))
 			}
 			select {
 			case <-ctx.Done():
@@ -280,7 +294,7 @@ func (w *WalletBackend) GetClosedFeeCredit(fcbID []byte) (*types.TransactionReco
 
 // GetRoundNumber returns latest round number.
 func (w *WalletBackend) GetRoundNumber(ctx context.Context) (uint64, error) {
-	return w.genericWallet.GetRoundNumber(ctx)
+	return w.abc.GetRoundNumber(ctx)
 }
 
 // TODO: Share functionaly with tokens partiton
@@ -297,7 +311,7 @@ func (w *WalletBackend) SendTransactions(ctx context.Context, txs []*types.Trans
 		}
 		go func(tx *types.TransactionOrder) {
 			defer sem.Release(1)
-			if err := w.genericWallet.SendTransaction(ctx, tx, nil); err != nil {
+			if err := w.abc.SendTransaction(ctx, tx); err != nil {
 				m.Lock()
 				errs[hex.EncodeToString(tx.UnitID())] =
 					fmt.Errorf("failed to forward tx: %w", err).Error()
@@ -326,7 +340,7 @@ func (w *WalletBackend) HandleTransactionsSubmission(egp *errgroup.Group, sender
 
 func (w *WalletBackend) storeIncomingTransactions(sender sdk.PubKey, txs []*types.TransactionOrder) error {
 	for _, tx := range txs {
-		var newOwner sdk.Predicate
+		var newOwners []sdk.Predicate
 		switch tx.PayloadType() {
 		case money.PayloadTypeTransfer:
 			attrs := &money.TransferAttributes{}
@@ -334,28 +348,30 @@ func (w *WalletBackend) storeIncomingTransactions(sender sdk.PubKey, txs []*type
 			if err != nil {
 				return err
 			}
-			newOwner = attrs.NewBearer
+			newOwners = append(newOwners, attrs.NewBearer)
 		case money.PayloadTypeSplit:
 			attrs := &money.SplitAttributes{}
 			err := tx.UnmarshalAttributes(attrs)
 			if err != nil {
 				return err
 			}
-			newOwner = attrs.TargetBearer
-		default:
-			continue
+			for _, targetUnit := range attrs.TargetUnits {
+				newOwners = append(newOwners, targetUnit.OwnerCondition)
+			}
 		}
 
-		rec := &sdk.TxHistoryRecord{
-			UnitID:       tx.UnitID(),
-			TxHash:       tx.Hash(crypto.SHA256),
-			Timeout:      tx.Timeout(),
-			State:        sdk.UNCONFIRMED,
-			Kind:         sdk.OUTGOING,
-			CounterParty: extractOwnerHashFromP2pkh(newOwner),
-		}
-		if err := w.store.Do().StoreTxHistoryRecord(sender.Hash(), rec); err != nil {
-			return fmt.Errorf("failed to store tx history record: %w", err)
+		for _, newOwner := range newOwners {
+			rec := &sdk.TxHistoryRecord{
+				UnitID:       tx.UnitID(),
+				TxHash:       tx.Hash(crypto.SHA256),
+				Timeout:      tx.Timeout(),
+				State:        sdk.UNCONFIRMED,
+				Kind:         sdk.OUTGOING,
+				CounterParty: extractOwnerHashFromP2pkh(newOwner),
+			}
+			if err := w.store.Do().StoreTxHistoryRecord(sender.Hash(), rec); err != nil {
+				return fmt.Errorf("failed to store tx history record: %w", err)
+			}
 		}
 	}
 	return nil
@@ -401,13 +417,6 @@ func (b *Bill) ToGenericBills() *sdk.Bills {
 			b.ToGenericBill(),
 		},
 	}
-}
-
-func (b *Bill) getTxHash() []byte {
-	if b != nil {
-		return b.TxHash
-	}
-	return nil
 }
 
 func (b *Bill) getValue() uint64 {

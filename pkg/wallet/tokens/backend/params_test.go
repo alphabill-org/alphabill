@@ -1,7 +1,7 @@
 package backend
 
 import (
-	"math/rand"
+	"crypto/rand"
 	"testing"
 
 	"github.com/alphabill-org/alphabill/internal/types"

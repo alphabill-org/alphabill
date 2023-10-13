@@ -11,6 +11,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/script"
 	"github.com/alphabill-org/alphabill/internal/state"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
+	"github.com/alphabill-org/alphabill/internal/testutils/logger"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	testtransaction "github.com/alphabill-org/alphabill/internal/testutils/transaction"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
@@ -44,13 +45,13 @@ var (
 )
 
 func TestNewTokenTxSystem_NilSystemIdentifier(t *testing.T) {
-	txs, err := NewTxSystem(WithSystemIdentifier(nil))
+	txs, err := NewTxSystem(nil, WithSystemIdentifier(nil))
 	require.ErrorContains(t, err, ErrStrSystemIdentifierIsNil)
 	require.Nil(t, txs)
 }
 
 func TestNewTokenTxSystem_StateIsNil(t *testing.T) {
-	txs, err := NewTxSystem(WithState(nil))
+	txs, err := NewTxSystem(nil, WithState(nil))
 	require.ErrorContains(t, err, ErrStrStateIsNil)
 	require.Nil(t, txs)
 }
@@ -897,7 +898,7 @@ func TestTransferNFT_InvalidPredicateFormat(t *testing.T) {
 		testtransaction.WithFeeProof(script.PredicateArgumentEmpty()),
 	)
 	_, err := txs.Execute(tx)
-	require.ErrorContains(t, err, "invalid script format")
+	require.ErrorContains(t, err, "invalid script format: predicate argument is invalid: predicate does not start with StartByte")
 }
 
 func TestTransferNFT_InvalidSignature(t *testing.T) {
@@ -922,7 +923,7 @@ func TestTransferNFT_InvalidSignature(t *testing.T) {
 		testtransaction.WithFeeProof(script.PredicateArgumentEmpty()),
 	)
 	_, err := txs.Execute(tx)
-	require.ErrorContains(t, err, "script execution result yielded false or non-clean stack")
+	require.ErrorContains(t, err, "script execution result yielded non-clean stack")
 }
 
 func TestTransferNFT_Ok(t *testing.T) {
@@ -1009,7 +1010,7 @@ func TestTransferNFT_BurnedBearerMustFail(t *testing.T) {
 		testtransaction.WithFeeProof(script.PredicateArgumentEmpty()),
 	)
 	_, err = txs.Execute(tx)
-	require.ErrorIs(t, err, script.ErrScriptResultFalse)
+	require.ErrorContains(t, err, "script execution result yielded false")
 }
 
 func TestUpdateNFT_DataLengthIsInvalid(t *testing.T) {
@@ -1147,7 +1148,7 @@ func TestUpdateNFT_InvalidSignature(t *testing.T) {
 		testtransaction.WithFeeProof(script.PredicateArgumentEmpty()),
 	)
 	_, err := txs.Execute(tx)
-	require.ErrorContains(t, err, "script execution result yielded false or non-clean stack")
+	require.ErrorContains(t, err, "script execution result yielded non-clean stack")
 }
 
 func TestUpdateNFT_Ok(t *testing.T) {
@@ -1283,6 +1284,7 @@ func newTokenTxSystem(t *testing.T) *txsystem.GenericTxSystem {
 	require.NoError(t, err)
 	require.NoError(t, s.Commit())
 	txs, err := NewTxSystem(
+		logger.New(t),
 		WithTrustBase(map[string]crypto.Verifier{"test": verifier}),
 		WithState(s),
 	)

@@ -10,6 +10,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/hash"
 	"github.com/alphabill-org/alphabill/internal/script"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
+	"github.com/alphabill-org/alphabill/internal/testutils/logger"
 	testserver "github.com/alphabill-org/alphabill/internal/testutils/server"
 	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/stretchr/testify/require"
@@ -23,7 +24,7 @@ func TestRaceConditions(t *testing.T) {
 	t.Cleanup(server.GracefulStop)
 
 	// create ab client
-	abclient := New(AlphabillClientConfig{Uri: addr.String()})
+	abclient := New(AlphabillClientConfig{Uri: addr.String()}, logger.New(t))
 	t.Cleanup(func() { _ = abclient.Close() })
 
 	// do async operations on abclient
@@ -155,7 +156,7 @@ func startServerAndCreateClient(t *testing.T) (*testserver.TestAlphabillServiceS
 	t.Cleanup(server.GracefulStop)
 
 	// create ab client
-	abclient := New(AlphabillClientConfig{Uri: addr.String()})
+	abclient := New(AlphabillClientConfig{Uri: addr.String()}, logger.New(t))
 	t.Cleanup(func() { _ = abclient.Close() })
 	return serviceServer, abclient
 }

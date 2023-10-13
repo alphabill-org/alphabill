@@ -4,11 +4,13 @@ import (
 	"crypto"
 	"errors"
 	"fmt"
+	"log/slog"
 
 	"github.com/alphabill-org/alphabill/internal/state"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/internal/util"
+	"github.com/alphabill-org/alphabill/pkg/logger"
 )
 
 type TxSystem struct {
@@ -22,9 +24,10 @@ type TxSystem struct {
 	beginBlockFunctions []func(blockNumber uint64) error
 	endBlockFunctions   []func(blockNumber uint64) error
 	roundCommitted      bool
+	log                 *slog.Logger
 }
 
-func NewEVMTxSystem(systemIdentifier []byte, opts ...Option) (*TxSystem, error) {
+func NewEVMTxSystem(systemIdentifier []byte, log *slog.Logger, opts ...Option) (*TxSystem, error) {
 	options := DefaultOptions()
 	for _, option := range opts {
 		option(options)
@@ -35,11 +38,11 @@ func NewEVMTxSystem(systemIdentifier []byte, opts ...Option) (*TxSystem, error) 
 	/*	if options.blockDB == nil {
 		return nil, errors.New("evm tx system init failed, block DB is nil")
 	}*/
-	evm, err := NewEVMModule(systemIdentifier, options)
+	evm, err := NewEVMModule(systemIdentifier, options, log)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load EVM module: %w", err)
 	}
-	fees, err := newFeeModule(systemIdentifier, options)
+	fees, err := newFeeModule(systemIdentifier, options, log)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load EVM fee module: %w", err)
 	}
@@ -52,6 +55,7 @@ func NewEVMTxSystem(systemIdentifier []byte, opts ...Option) (*TxSystem, error) 
 		endBlockFunctions:   nil,
 		executors:           make(map[string]txsystem.TxExecutor),
 		genericTxValidators: []txsystem.GenericTransactionValidator{evm.GenericTransactionValidator(), fees.GenericTransactionValidator()},
+		log:                 log,
 	}
 	txs.beginBlockFunctions = append(txs.beginBlockFunctions, txs.pruneLogs)
 	executors := evm.TxExecutors()
@@ -150,6 +154,7 @@ func (m *TxSystem) Execute(tx *types.TransactionOrder) (sm *types.ServerMetadata
 		m.state.ReleaseToSavepoint(savepointID)
 	}()
 	// execute transaction
+	m.log.Debug(fmt.Sprintf("execute %s", tx.PayloadType()), logger.UnitID(tx.UnitID()), logger.Data(tx), logger.Round(m.currentBlockNumber))
 	sm, err = m.executors.Execute(tx, m.currentBlockNumber)
 	if err != nil {
 		return nil, err

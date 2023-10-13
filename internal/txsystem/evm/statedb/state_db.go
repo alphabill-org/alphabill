@@ -2,8 +2,10 @@ package statedb
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"math/big"
 	"sort"
 
@@ -21,7 +23,6 @@ import (
 )
 
 var _ vm.StateDB = (*StateDB)(nil)
-var log = logger.CreateForPackage()
 
 type (
 	// transientStorage is a representation of EIP-1153 "Transient Storage".
@@ -47,6 +48,7 @@ type (
 		journal   *journal
 		revisions []revision
 		created   map[common.Address]struct{}
+		log       *slog.Logger
 	}
 
 	LogEntry struct {
@@ -79,13 +81,14 @@ func (t transientStorage) Get(addr common.Address, key common.Hash) common.Hash 
 	return val[key]
 }
 
-func NewStateDB(tree *state.State) *StateDB {
+func NewStateDB(tree *state.State, log *slog.Logger) *StateDB {
 	return &StateDB{
 		tree:             tree,
 		accessList:       newAccessList(),
 		journal:          newJournal(),
 		created:          map[common.Address]struct{}{},
 		transientStorage: newTransientStorage(),
+		log:              log,
 	}
 }
 
@@ -97,7 +100,7 @@ func (s *StateDB) CreateAccount(address common.Address) {
 		// It should be enough to keep the balance and set nonce to 0
 		return
 	}
-	log.Trace("Adding an account: %v", address)
+	s.log.LogAttrs(context.Background(), logger.LevelTrace, fmt.Sprintf("Adding an account: %v", address))
 	s.errDB = s.tree.Apply(state.AddUnit(
 		unitID,
 		script.PredicateAlwaysFalse(),
@@ -118,7 +121,7 @@ func (s *StateDB) SubBalance(address common.Address, amount *big.Int) {
 	if stateObject == nil {
 		return
 	}
-	log.Trace("SubBalance: account %v, initial balance %v, amount to subtract %v", address, stateObject.Account.Balance, amount)
+	s.log.LogAttrs(context.Background(), logger.LevelTrace, fmt.Sprintf("SubBalance: account %v, initial balance %v, amount to subtract %v", address, stateObject.Account.Balance, amount))
 	s.errDB = s.executeUpdate(unitID, func(so *StateObject) state.UnitData {
 		newBalance := new(big.Int).Sub(so.Account.Balance, amount)
 		so.Account.Balance = newBalance
@@ -135,7 +138,7 @@ func (s *StateDB) AddBalance(address common.Address, amount *big.Int) {
 	if stateObject == nil {
 		return
 	}
-	log.Trace("AddBalance: account %v, initial balance %v, amount to add %v", address, stateObject.Account.Balance, amount)
+	s.log.LogAttrs(context.Background(), logger.LevelTrace, fmt.Sprintf("AddBalance: account %v, initial balance %v, amount to add %v", address, stateObject.Account.Balance, amount))
 	s.errDB = s.executeUpdate(unitID, func(so *StateObject) state.UnitData {
 		newBalance := new(big.Int).Add(so.Account.Balance, amount)
 		so.Account.Balance = newBalance
@@ -167,7 +170,7 @@ func (s *StateDB) SetNonce(address common.Address, nonce uint64) {
 	if stateObject == nil {
 		return
 	}
-	log.Trace("Setting a new nonce %v for an account: %v", nonce, address)
+	s.log.LogAttrs(context.Background(), logger.LevelTrace, fmt.Sprintf("Setting a new nonce %v for an account: %v", nonce, address))
 	s.errDB = s.executeUpdate(unitID, func(so *StateObject) state.UnitData {
 		so.Account.Nonce = nonce
 		return so
@@ -198,7 +201,7 @@ func (s *StateDB) SetCode(address common.Address, code []byte) {
 	if stateObject == nil {
 		return
 	}
-	log.Trace("Setting code %X for an account: %v", code, address)
+	s.log.LogAttrs(context.Background(), logger.LevelTrace, fmt.Sprintf("Setting code %X for an account: %v", code, address))
 	s.errDB = s.executeUpdate(unitID, func(so *StateObject) state.UnitData {
 		so.Account.Code = code
 		so.Account.CodeHash = crypto.Keccak256Hash(code).Bytes()
@@ -254,7 +257,7 @@ func (s *StateDB) SetState(address common.Address, key common.Hash, value common
 	if stateObject == nil {
 		return
 	}
-	log.Trace("Setting a state (key=%v, value=%v) for an account: %v", key, value, address)
+	s.log.LogAttrs(context.Background(), logger.LevelTrace, fmt.Sprintf("Setting a state (key=%v, value=%v) for an account: %v", key, value, address))
 	s.errDB = s.executeUpdate(unitID, func(so *StateObject) state.UnitData {
 		so.Storage[key] = value
 		return so
@@ -466,7 +469,7 @@ func (s *StateDB) SetAlphaBillData(address common.Address, fee *AlphaBillLink) {
 	if stateObject == nil {
 		return
 	}
-	log.Trace("Setting fee credit data for an account: %v", address)
+	s.log.LogAttrs(context.Background(), logger.LevelTrace, fmt.Sprintf("Setting fee credit data for an account: %v", address))
 	s.errDB = s.executeUpdate(unitID, func(so *StateObject) state.UnitData {
 		so.AlphaBill = fee
 		return so

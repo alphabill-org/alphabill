@@ -29,10 +29,15 @@ type (
 
 	SplitAttributes struct {
 		_              struct{} `cbor:",toarray"`
-		Amount         uint64
-		TargetBearer   []byte
+		TargetUnits    []*TargetUnit
 		RemainingValue uint64
 		Backlink       []byte
+	}
+
+	TargetUnit struct {
+		_              struct{} `cbor:",toarray"`
+		Amount         uint64
+		OwnerCondition []byte
 	}
 
 	SwapDCAttributes struct {

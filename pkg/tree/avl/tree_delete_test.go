@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"math/rand"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/require"
 )
@@ -695,7 +694,6 @@ func TestDelete_Ok(t *testing.T) {
 }
 
 func TestDelete_RandomTree_RandomDeletes(t *testing.T) {
-	rand.Seed(time.Now().UTC().UnixNano())
 	for i := 0; i < 3; i++ {
 		numberOfKeys := randInt(111, 333)
 		t.Run(fmt.Sprintf("random deletes.tree size %d", numberOfKeys),
@@ -729,7 +727,6 @@ func RandomTree(t *testing.T, numberOfKeys int) {
 }
 
 func randInt(min int, max int) int {
-	rand.Seed(time.Now().UTC().UnixNano())
 	return min + rand.Intn(max-min)
 }
 

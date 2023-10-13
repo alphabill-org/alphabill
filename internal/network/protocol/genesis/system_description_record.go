@@ -6,10 +6,9 @@ import (
 	"fmt"
 	"hash"
 
+	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/internal/util"
 )
-
-const systemIdentifierLength = 4
 
 var (
 	ErrSystemDescriptionIsNil = errors.New("system description record is nil")
@@ -18,7 +17,7 @@ var (
 
 type SystemDescriptionRecord struct {
 	_                struct{}       `cbor:",toarray"`
-	SystemIdentifier []byte         `json:"system_identifier,omitempty"`
+	SystemIdentifier types.SystemID `json:"system_identifier,omitempty"`
 	T2Timeout        uint32         `json:"t2timeout,omitempty"`
 	FeeCreditBill    *FeeCreditBill `json:"fee_credit_bill,omitempty"`
 }
@@ -34,8 +33,8 @@ func (x *SystemDescriptionRecord) IsValid() error {
 		return ErrSystemDescriptionIsNil
 	}
 
-	if len(x.SystemIdentifier) != systemIdentifierLength {
-		return fmt.Errorf("invalid system identifier length: expected %v, got %v", systemIdentifierLength, len(x.SystemIdentifier))
+	if len(x.SystemIdentifier) != types.SystemIdentifierLength {
+		return fmt.Errorf("invalid system identifier length: expected %v, got %v", types.SystemIdentifierLength, len(x.SystemIdentifier))
 	}
 	if x.T2Timeout == 0 {
 		return ErrT2TimeoutIsNil
@@ -54,10 +53,6 @@ func (x *SystemDescriptionRecord) Hash(hashAlgorithm gocrypto.Hash) []byte {
 	return hasher.Sum(nil)
 }
 
-func (x *SystemDescriptionRecord) GetSystemIdentifierString() string {
-	return string(x.SystemIdentifier)
-}
-
-func (x *SystemDescriptionRecord) GetSystemIdentifier() []byte {
+func (x *SystemDescriptionRecord) GetSystemIdentifier() types.SystemID {
 	return x.SystemIdentifier
 }

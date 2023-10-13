@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+
+	"github.com/alphabill-org/alphabill/internal/types"
 )
 
 var (
@@ -60,12 +62,8 @@ func (x *PartitionRecord) IsValid() error {
 	return nil
 }
 
-func (x *PartitionRecord) GetSystemIdentifier() []byte {
+func (x *PartitionRecord) GetSystemIdentifier() types.SystemID {
 	return x.SystemDescriptionRecord.SystemIdentifier
-}
-
-func (x *PartitionRecord) GetSystemIdentifierString() string {
-	return x.SystemDescriptionRecord.GetSystemIdentifierString()
 }
 
 func (x *PartitionRecord) GetPartitionNode(id string) *PartitionNode {

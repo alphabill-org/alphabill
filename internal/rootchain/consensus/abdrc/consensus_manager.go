@@ -298,7 +298,6 @@ func (x *ConsensusManager) onPartitionIRChangeReq(ctx context.Context, req *cons
 	default:
 		return fmt.Errorf("unexpected IR change request reason: %v", req.Reason)
 	}
-	//currentLeader := x.leaderSelector.GetLeaderForRound(x.pacemaker.GetCurrentRound())
 	nextLeader := x.leaderSelector.GetLeaderForRound(x.pacemaker.GetCurrentRound() + 1)
 	if nextLeader == x.id {
 		x.log.LogAttrs(ctx, slog.LevelDebug, fmt.Sprintf("node is leader or next leader, add to buffer"))

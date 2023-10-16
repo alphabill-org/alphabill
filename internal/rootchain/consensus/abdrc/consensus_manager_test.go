@@ -642,6 +642,43 @@ func Test_ConsensusManager_messages(t *testing.T) {
 			require.ElementsMatch(t, irCReq.Requests, prop.Block.Payload.Requests[0].Requests)
 		}
 	})
+	t.Run("IR change request from partition forwarded to leader", func(t *testing.T) {
+		cms, rootNet, rootG := createConsensusManagers(t, 2, []*genesis.PartitionRecord{partitionRecord})
+		cmLeader := cms[0]
+		nonLeaderNode := cms[1]
+
+		for _, v := range cms {
+			v.leaderSelector = constLeader{leader: cmLeader.id, nodes: cmLeader.leaderSelector.GetNodes()} // use "const leader" to take leader selection out of test
+		}
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		go func() { require.ErrorIs(t, nonLeaderNode.Run(ctx), context.Canceled) }()
+
+		// simulate root validator node sending IRCR to consensus manager
+		irCReq := consensus.IRChangeRequest{
+			SystemIdentifier: partitionID,
+			Reason:           consensus.Quorum,
+			Requests:         buildBlockCertificationRequest(t, rootG, partitionNodes),
+		}
+		// simulate partition request in non-leader node
+		select {
+		case <-time.After(nonLeaderNode.pacemaker.minRoundLen):
+			t.Fatal("CM doesn't consume IR change request")
+		case nonLeaderNode.RequestCertification() <- irCReq:
+		}
+		// Read messages sent to the leader, as the node is not a leader it must forward the request to the leader
+		cmBnet := rootNet.Connect(cms[0].id)
+		select {
+		case <-time.After(cms[0].pacemaker.maxRoundLen):
+			t.Fatal("haven't got the proposal before timeout")
+		case msg := <-cmBnet.ReceivedChannel():
+			irMsg := msg.(*abdrc.IrChangeReqMsg)
+			require.NotNil(t, irMsg)
+			require.Equal(t, irMsg.Author, nonLeaderNode.id.String())
+			require.EqualValues(t, irCReq.SystemIdentifier, irMsg.IrChangeReq.SystemIdentifier)
+			require.ElementsMatch(t, irCReq.Requests, irMsg.IrChangeReq.Requests)
+		}
+	})
 	t.Run("IR change request forwarded by peer included in proposal", func(t *testing.T) {
 		cms, rootNet, rootG := createConsensusManagers(t, 2, []*genesis.PartitionRecord{partitionRecord})
 		cmLeader := cms[0]
@@ -686,6 +723,46 @@ func Test_ConsensusManager_messages(t *testing.T) {
 			}
 		}
 		require.True(t, sawIRCR, "expected to see the IRCR in one of the next two proposals")
+	})
+	t.Run("IR change request arrives late and is forwarded to the next leader", func(t *testing.T) {
+		cms, rootNet, rootG := createConsensusManagers(t, 2, []*genesis.PartitionRecord{partitionRecord})
+		cmLeader := cms[0]
+		nonLeaderNode := cms[1]
+
+		for _, v := range cms {
+			v.leaderSelector = constLeader{leader: cmLeader.id, nodes: cmLeader.leaderSelector.GetNodes()} // use "const leader" to take leader selection out of test
+		}
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		go func() { require.ErrorIs(t, nonLeaderNode.Run(ctx), context.Canceled) }()
+
+		// simulate leader forwarding IRCR to non-leader
+		// not a real life situation, but it will test the logic for IR Change request messages
+		irChReqMsg := &abdrc.IrChangeReqMsg{
+			Author: cmLeader.id.String(),
+			IrChangeReq: &abtypes.IRChangeReq{
+				SystemIdentifier: partitionID,
+				CertReason:       abtypes.Quorum,
+				Requests:         buildBlockCertificationRequest(t, rootG, partitionNodes[0:2]),
+			},
+		}
+		require.NoError(t, cmLeader.safety.Sign(irChReqMsg))
+		cmBnet := rootNet.Connect(cms[0].id)
+		require.NoError(t, cmBnet.Send(ctx, irChReqMsg, nonLeaderNode.id))
+		// non-leader is not the next leader and thus will forward the request back to the leader node
+		sawIRCR := false
+		select {
+		case <-time.After(cmLeader.pacemaker.maxRoundLen):
+			t.Fatal("haven't got the proposal before timeout")
+		case msg := <-cmBnet.ReceivedChannel():
+			irMsg := msg.(*abdrc.IrChangeReqMsg)
+			require.NotNil(t, irMsg)
+			require.Equal(t, irMsg.Author, cmLeader.id.String())
+			require.EqualValues(t, irChReqMsg.IrChangeReq.SystemIdentifier, irMsg.IrChangeReq.SystemIdentifier)
+			require.ElementsMatch(t, irChReqMsg.IrChangeReq.Requests, irMsg.IrChangeReq.Requests)
+			sawIRCR = true
+		}
+		require.True(t, sawIRCR, "expected to see the IRCR forwarded to leader")
 	})
 	t.Run("state request triggers response", func(t *testing.T) {
 		cms, _, _ := createConsensusManagers(t, 2, []*genesis.PartitionRecord{partitionRecord})

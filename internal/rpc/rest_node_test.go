@@ -51,7 +51,11 @@ func createTxOrder(t *testing.T) *types.TransactionOrder {
 }
 
 func TestNewRESTServer_InvalidTx(t *testing.T) {
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/transactions", bytes.NewReader(test.RandomBytes(1)))
+	// CBOR decoder is returns ok status if byte is 0xF6 (null) or 0xF7 (undefined),
+	// in both cases all Tx fields are still nil, but this is not checked in mock, hence the telegram gets accepted
+	// Do not use random bytes, use something that will always fail.
+	// In real situation the Tx validator would reject just 1 byte Tx anyway, here it is important to just simulate an error
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/transactions", bytes.NewReader([]byte{0x00}))
 	recorder := httptest.NewRecorder()
 
 	NewRESTServer("", MaxBodySize, NodeEndpoints(&MockNode{}, logger.New(t))).Handler.ServeHTTP(recorder, req)

@@ -2,25 +2,26 @@ package backend
 
 import (
 	"context"
-	gocrypto "crypto"
+	"crypto"
 	"testing"
+	"time"
 
 	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/fxamacker/cbor/v2"
 	"github.com/stretchr/testify/require"
 
 	"github.com/alphabill-org/alphabill/internal/hash"
+	"github.com/alphabill-org/alphabill/internal/rpc/alphabill"
 	"github.com/alphabill-org/alphabill/internal/script"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/alphabill-org/alphabill/internal/testutils/logger"
 	testtransaction "github.com/alphabill-org/alphabill/internal/testutils/transaction"
 	moneytx "github.com/alphabill-org/alphabill/internal/txsystem/money"
 	"github.com/alphabill-org/alphabill/internal/types"
-	"github.com/alphabill-org/alphabill/pkg/client/clientmock"
 	"github.com/alphabill-org/alphabill/pkg/wallet"
 )
 
 func TestWalletBackend_BillsCanBeIndexedByPredicates(t *testing.T) {
-	// create wallet backend with mock abclient
 	billId1 := newBillID(1)
 	billId2 := newBillID(2)
 	pubkey1, _ := hexutil.Decode("0x03c30573dc0c7fd43fcb801289a6a96cb78c27f4ba398b89da91ece23e9a99aca3")
@@ -30,40 +31,6 @@ func TestWalletBackend_BillsCanBeIndexedByPredicates(t *testing.T) {
 	fcbID := newFeeCreditRecordID(101)
 	fcb := &Bill{Id: fcbID, Value: 100}
 
-	abclient := clientmock.NewMockAlphabillClient(
-		clientmock.WithMaxBlockNumber(1),
-		clientmock.WithBlocks(map[uint64]*types.Block{
-			1: {
-				UnicityCertificate: &types.UnicityCertificate{InputRecord: &types.InputRecord{RoundNumber: 1}},
-				Transactions: []*types.TransactionRecord{{
-					TransactionOrder: &types.TransactionOrder{
-						Payload: &types.Payload{
-							SystemID:       moneySystemID,
-							Type:           moneytx.PayloadTypeTransfer,
-							UnitID:         billId1,
-							Attributes:     transferTxAttr(hash.Sum256(pubkey1)),
-							ClientMetadata: &types.ClientMetadata{FeeCreditRecordID: fcbID},
-						},
-					},
-					ServerMetadata: &types.ServerMetadata{ActualFee: 1},
-				}},
-			},
-			2: {
-				UnicityCertificate: &types.UnicityCertificate{InputRecord: &types.InputRecord{RoundNumber: 2}},
-				Transactions: []*types.TransactionRecord{{
-					TransactionOrder: &types.TransactionOrder{
-						Payload: &types.Payload{
-							SystemID:       moneySystemID,
-							Type:           moneytx.PayloadTypeTransfer,
-							UnitID:         billId2,
-							Attributes:     transferTxAttr(hash.Sum256(pubkey2)),
-							ClientMetadata: &types.ClientMetadata{FeeCreditRecordID: fcbID},
-						},
-					},
-					ServerMetadata: &types.ServerMetadata{ActualFee: 1},
-				}},
-			},
-		}))
 	storage := createTestBillStore(t)
 
 	err := storage.Do().SetFeeCreditBill(fcb, nil)
@@ -71,16 +38,62 @@ func TestWalletBackend_BillsCanBeIndexedByPredicates(t *testing.T) {
 
 	getBlockNumber := func() (uint64, error) { return storage.Do().GetBlockNumber() }
 
+	blockSource := make(chan *types.Block)
+	makeBlockAvailable := func(block *types.Block) {
+		select {
+		case blockSource <- block:
+		case <-time.After(1500 * time.Millisecond):
+			t.Error("block hasn't been consumed within timeout")
+		}
+	}
+
+	blockLoader := func(ctx context.Context, blockNumber, batchSize uint64) (*alphabill.GetBlocksResponse, error) {
+		var blocks [][]byte
+		select {
+		case b := <-blockSource:
+			b.UnicityCertificate.InputRecord.RoundNumber = blockNumber
+			blockBytes, err := cbor.Marshal(b)
+			if err != nil {
+				return nil, err
+			}
+			blocks = [][]byte{blockBytes}
+		default:
+			// to signal that block is not available yet return previous BN as Max*
+			blockNumber--
+		}
+		return &alphabill.GetBlocksResponse{
+			MaxBlockNumber:      blockNumber,
+			MaxRoundNumber:      blockNumber,
+			Blocks:              blocks,
+			BatchMaxBlockNumber: blockNumber,
+		}, nil
+	}
+
 	// start wallet backend
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	t.Cleanup(cancelFunc)
 	go func() {
 		bp, err := NewBlockProcessor(storage, moneySystemID, logger.New(t))
 		require.NoError(t, err)
-		err = runBlockSync(ctx, abclient.GetBlocks, getBlockNumber, 100, bp.ProcessBlock)
+		err = runBlockSync(ctx, blockLoader, getBlockNumber, 100, bp.ProcessBlock)
 		require.ErrorIs(t, err, context.Canceled)
 	}()
 
+	makeBlockAvailable(&types.Block{
+		UnicityCertificate: &types.UnicityCertificate{InputRecord: &types.InputRecord{RoundNumber: 1}},
+		Transactions: []*types.TransactionRecord{{
+			TransactionOrder: &types.TransactionOrder{
+				Payload: &types.Payload{
+					SystemID:       moneySystemID,
+					Type:           moneytx.PayloadTypeTransfer,
+					UnitID:         billId1,
+					Attributes:     transferTxAttr(hash.Sum256(pubkey1)),
+					ClientMetadata: &types.ClientMetadata{FeeCreditRecordID: fcbID},
+				},
+			},
+			ServerMetadata: &types.ServerMetadata{ActualFee: 1},
+		}},
+	})
 	// verify first unit is indexed
 	require.Eventually(t, func() bool {
 		bills, nextKey, err := storage.Do().GetBills(bearer1, true, nil, 100)
@@ -90,7 +103,21 @@ func TestWalletBackend_BillsCanBeIndexedByPredicates(t *testing.T) {
 	}, test.WaitDuration, test.WaitTick)
 
 	// serve block with transaction to new pubkey
-	abclient.SetMaxBlockNumber(2)
+	makeBlockAvailable(&types.Block{
+		UnicityCertificate: &types.UnicityCertificate{InputRecord: &types.InputRecord{RoundNumber: 2}},
+		Transactions: []*types.TransactionRecord{{
+			TransactionOrder: &types.TransactionOrder{
+				Payload: &types.Payload{
+					SystemID:       moneySystemID,
+					Type:           moneytx.PayloadTypeTransfer,
+					UnitID:         billId2,
+					Attributes:     transferTxAttr(hash.Sum256(pubkey2)),
+					ClientMetadata: &types.ClientMetadata{FeeCreditRecordID: fcbID},
+				},
+			},
+			ServerMetadata: &types.ServerMetadata{ActualFee: 1},
+		}},
+	})
 
 	// verify new bill is indexed by pubkey
 	require.Eventually(t, func() bool {
@@ -109,7 +136,7 @@ func TestGetBills_OK(t *testing.T) {
 		TargetValue: txValue,
 		NewBearer:   bearer,
 	}))
-	txHash := tx.Hash(gocrypto.SHA256)
+	txHash := tx.Hash(crypto.SHA256)
 
 	store := createTestBillStore(t)
 

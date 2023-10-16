@@ -14,10 +14,8 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/alphabill-org/alphabill/internal/hash"
 	"github.com/alphabill-org/alphabill/internal/testutils/logger"
 	"github.com/alphabill-org/alphabill/internal/types"
-	"github.com/alphabill-org/alphabill/pkg/client/clientmock"
 	"github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/alphabill-org/alphabill/pkg/wallet/account"
 	"github.com/alphabill-org/alphabill/pkg/wallet/money/backend"
@@ -43,7 +41,7 @@ type (
 	}
 )
 
-func CreateTestWallet(t *testing.T, backend BackendAPI) (*Wallet, *clientmock.MockAlphabillClient) {
+func CreateTestWallet(t *testing.T, backend BackendAPI) *Wallet {
 	dir := t.TempDir()
 	am, err := account.NewManager(dir, "", true)
 	require.NoError(t, err)
@@ -54,15 +52,14 @@ func CreateTestWallet(t *testing.T, backend BackendAPI) (*Wallet, *clientmock.Mo
 	return CreateTestWalletWithManagerAndUnitLocker(t, backend, am, unitLocker)
 }
 
-func CreateTestWalletWithManagerAndUnitLocker(t *testing.T, backend BackendAPI, am account.Manager, unitLocker *unitlock.UnitLocker) (*Wallet, *clientmock.MockAlphabillClient) {
+func CreateTestWalletWithManagerAndUnitLocker(t *testing.T, backend BackendAPI, am account.Manager, unitLocker *unitlock.UnitLocker) *Wallet {
 	err := CreateNewWallet(am, "")
 	require.NoError(t, err)
 
 	w, err := LoadExistingWallet(am, unitLocker, backend, logger.New(t))
 	require.NoError(t, err)
 
-	mockClient := clientmock.NewMockAlphabillClient(clientmock.WithMaxBlockNumber(0), clientmock.WithBlocks(map[uint64]*types.Block{}))
-	return w, mockClient
+	return w
 }
 
 func withBackendMock(t *testing.T, br *backendMockReturnConf) BackendAPI {
@@ -72,14 +69,13 @@ func withBackendMock(t *testing.T, br *backendMockReturnConf) BackendAPI {
 	return restClient
 }
 
-func CreateTestWalletFromSeed(t *testing.T, br *backendMockReturnConf) (*Wallet, *clientmock.MockAlphabillClient) {
+func CreateTestWalletFromSeed(t *testing.T, br *backendMockReturnConf) *Wallet {
 	dir := t.TempDir()
 	am, err := account.NewManager(dir, "", true)
 	require.NoError(t, err)
 	err = CreateNewWallet(am, testMnemonic)
 	require.NoError(t, err)
 
-	mockClient := &clientmock.MockAlphabillClient{}
 	_, serverAddr := mockBackendCalls(br)
 	restClient, err := beclient.New(serverAddr.Host)
 	require.NoError(t, err)
@@ -89,7 +85,7 @@ func CreateTestWalletFromSeed(t *testing.T, br *backendMockReturnConf) (*Wallet,
 
 	w, err := LoadExistingWallet(am, unitLocker, restClient, logger.New(t))
 	require.NoError(t, err)
-	return w, mockClient
+	return w
 }
 
 func mockBackendCalls(br *backendMockReturnConf) (*httptest.Server, *url.URL) {
@@ -145,9 +141,11 @@ func toBase64(bytes []byte) string {
 }
 
 func createBlockProofResponseForDustTransfer(t *testing.T, b *wallet.Bill, targetBill *wallet.Bill, timeout uint64, k *account.AccountKey) *wallet.Proof {
-	w, mockClient := CreateTestWallet(t, nil)
+	w := CreateTestWallet(t, nil)
 	if k == nil {
-		k, _ = w.am.GetAccountKey(0)
+		var err error
+		k, err = w.am.GetAccountKey(0)
+		require.NoError(t, err)
 	}
 	if targetBill == nil {
 		targetBill = &wallet.Bill{Id: []byte{0}, TxHash: []byte{}}
@@ -156,14 +154,6 @@ func createBlockProofResponseForDustTransfer(t *testing.T, b *wallet.Bill, targe
 	require.NoError(t, err)
 
 	txRecord := &types.TransactionRecord{TransactionOrder: dcTx}
-	mockClient.SetBlock(&types.Block{
-		Header: &types.Header{
-			SystemID:          w.SystemID(),
-			PreviousBlockHash: hash.Sum256([]byte{}),
-		},
-		Transactions:       []*types.TransactionRecord{txRecord},
-		UnicityCertificate: &types.UnicityCertificate{InputRecord: &types.InputRecord{RoundNumber: timeout}},
-	})
 	txProof := &wallet.Proof{
 		TxRecord: txRecord,
 		TxProof: &types.TxProof{

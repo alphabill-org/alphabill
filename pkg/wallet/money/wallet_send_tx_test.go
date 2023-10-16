@@ -19,7 +19,7 @@ import (
 )
 
 func TestWalletSendFunction_Ok(t *testing.T) {
-	w, _ := CreateTestWallet(t, withBackendMock(t, &backendMockReturnConf{
+	w := CreateTestWallet(t, withBackendMock(t, &backendMockReturnConf{
 		balance:   70,
 		billId:    money.NewBillID(nil, []byte{0}),
 		billValue: 50,
@@ -37,7 +37,7 @@ func TestWalletSendFunction_Ok(t *testing.T) {
 }
 
 func TestWalletSendFunction_InvalidPubKey(t *testing.T) {
-	w, _ := CreateTestWallet(t, withBackendMock(t, &backendMockReturnConf{}))
+	w := CreateTestWallet(t, withBackendMock(t, &backendMockReturnConf{}))
 	invalidPubKey := make([]byte, 32)
 	amount := uint64(50)
 	ctx := context.Background()
@@ -49,7 +49,7 @@ func TestWalletSendFunction_InvalidPubKey(t *testing.T) {
 }
 
 func TestWalletSendFunction_InsufficientBalance(t *testing.T) {
-	w, _ := CreateTestWallet(t, withBackendMock(t, &backendMockReturnConf{balance: 10}))
+	w := CreateTestWallet(t, withBackendMock(t, &backendMockReturnConf{balance: 10}))
 	validPubKey := make([]byte, 33)
 	amount := uint64(50)
 	ctx := context.Background()
@@ -60,7 +60,7 @@ func TestWalletSendFunction_InsufficientBalance(t *testing.T) {
 }
 
 func TestWalletSendFunction_ClientError(t *testing.T) {
-	w, _ := CreateTestWallet(t, withBackendMock(t, &backendMockReturnConf{
+	w := CreateTestWallet(t, withBackendMock(t, &backendMockReturnConf{
 		balance:   70,
 		billId:    money.NewBillID(nil, []byte{0}),
 		billValue: 50,
@@ -118,7 +118,7 @@ func TestWalletSendFunction_WaitForConfirmation(t *testing.T) {
 			return nil
 		},
 	}
-	w, _ = CreateTestWallet(t, backendMock)
+	w = CreateTestWallet(t, backendMock)
 
 	// test send successfully waits for confirmation
 	_, err := w.Send(context.Background(), SendCmd{
@@ -138,7 +138,7 @@ func TestWalletSendFunction_WaitForMultipleTxConfirmations(t *testing.T) {
 		string(b1.Id): b1,
 		string(b2.Id): b2,
 	}
-	var w *Wallet
+
 	var recordedTransactions []*types.TransactionOrder
 	backendMock := &backendAPIMock{
 		getBalance: func(pubKey []byte, includeDCBills bool) (uint64, error) {
@@ -181,7 +181,7 @@ func TestWalletSendFunction_WaitForMultipleTxConfirmations(t *testing.T) {
 			return nil
 		},
 	}
-	w, _ = CreateTestWallet(t, backendMock)
+	w := CreateTestWallet(t, backendMock)
 
 	// test send successfully waits for confirmation
 	_, err := w.Send(context.Background(), SendCmd{
@@ -248,7 +248,7 @@ func TestWalletSendFunction_WaitForMultipleTxConfirmationsInDifferentBlocks(t *t
 			return nil
 		},
 	}
-	w, _ = CreateTestWallet(t, backendMock)
+	w = CreateTestWallet(t, backendMock)
 
 	// test send successfully waits for confirmation
 	_, err := w.Send(context.Background(), SendCmd{
@@ -290,7 +290,7 @@ func TestWalletSendFunction_ErrTxFailedToConfirm(t *testing.T) {
 			return nil
 		},
 	}
-	w, _ := CreateTestWallet(t, backendMock)
+	w := CreateTestWallet(t, backendMock)
 
 	_, err := w.Send(context.Background(), SendCmd{
 		Receivers:           []ReceiverData{{PubKey: pubKey, Amount: b.Value}},
@@ -332,7 +332,7 @@ func TestWholeBalanceIsSentUsingBillTransferOrder(t *testing.T) {
 			return nil
 		},
 	}
-	w, _ := CreateTestWallet(t, backendMock)
+	w := CreateTestWallet(t, backendMock)
 
 	// when whole balance is spent
 	_, err := w.Send(context.Background(), SendCmd{
@@ -348,7 +348,7 @@ func TestWholeBalanceIsSentUsingBillTransferOrder(t *testing.T) {
 
 func TestWalletSendFunction_LockedBillIsNotUsed(t *testing.T) {
 	unitID := money.NewBillID(nil, []byte{123})
-	w, _ := CreateTestWallet(t, withBackendMock(t, &backendMockReturnConf{
+	w := CreateTestWallet(t, withBackendMock(t, &backendMockReturnConf{
 		balance:       70,
 		billId:        unitID,
 		billValue:     50,
@@ -419,7 +419,7 @@ func TestWalletSendFunction_BillWithExactAmount(t *testing.T) {
 			return nil
 		},
 	}
-	w, _ = CreateTestWallet(t, backendMock)
+	w = CreateTestWallet(t, backendMock)
 
 	// run send command with amount equal to one of the bills
 	_, err := w.Send(context.Background(), SendCmd{
@@ -477,7 +477,7 @@ func TestWalletSendFunction_NWaySplit(t *testing.T) {
 			return nil
 		},
 	}
-	w, _ = CreateTestWallet(t, backendMock)
+	w = CreateTestWallet(t, backendMock)
 
 	// execute send command to multiple receivers
 	_, err := w.Send(context.Background(), SendCmd{

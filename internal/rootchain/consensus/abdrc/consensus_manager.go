@@ -307,11 +307,10 @@ func (x *ConsensusManager) onIRChange(ctx context.Context, irChangeMsg *abtypes.
 	if err := irChangeMsg.IsValid(); err != nil {
 		return fmt.Errorf("invalid IR change request: %w", err)
 	}
-	currentLeader := x.leaderSelector.GetLeaderForRound(x.pacemaker.GetCurrentRound())
 	nextLeader := x.leaderSelector.GetLeaderForRound(x.pacemaker.GetCurrentRound() + 1)
 	// todo: if in recovery then forward to next?
-	// if the node is leader or will be the next leader then buffer the request to be included in the block proposal
-	if currentLeader == x.id || nextLeader == x.id {
+	// if the node will be the next leader then buffer the request to be included in the block proposal
+	if nextLeader == x.id {
 		if err := x.irReqBuffer.Add(x.pacemaker.GetCurrentRound(), irChangeMsg, x.irReqVerifier); err != nil {
 			return fmt.Errorf("failed to add IR change request into buffer: %w", err)
 		}

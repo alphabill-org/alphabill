@@ -66,7 +66,7 @@ func TestPartition_Ok(t *testing.T) {
 	abNet, err := testpartition.NewAlphabillPartition([]*testpartition.NodePartition{moneyPrt})
 	require.NoError(t, err)
 	require.NoError(t, abNet.Start(t))
-	t.Cleanup(func() { require.NoError(t, abNet.Close()) })
+	defer abNet.WaitClose(t)
 
 	// create fee credit for initial bill transfer
 	transferFC := testfc.NewTransferFC(t,
@@ -178,7 +178,7 @@ func TestPartition_SwapDCOk(t *testing.T) {
 	abNet, err := testpartition.NewAlphabillPartition([]*testpartition.NodePartition{moneyPrt})
 	require.NoError(t, err)
 	require.NoError(t, abNet.Start(t))
-	t.Cleanup(func() { require.NoError(t, abNet.Close()) })
+	defer abNet.WaitClose(t)
 
 	// create fee credit for initial bill transfer
 	transferFC := testfc.CreateFeeCredit(t, initialBill.ID, fcrID, fcrAmount, abNet)

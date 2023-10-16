@@ -36,7 +36,7 @@ func TestInitPartitionAndCreateNFTType_Ok(t *testing.T) {
 	abNet, err := testpartition.NewAlphabillPartition([]*testpartition.NodePartition{tokenPrt})
 	require.NoError(t, err)
 	require.NoError(t, abNet.Start(t))
-	t.Cleanup(func() { require.NoError(t, abNet.Close()) })
+	defer abNet.WaitClose(t)
 
 	tx := testtransaction.NewTransactionOrder(t,
 		testtransaction.WithPayloadType(PayloadTypeCreateNFTType),
@@ -90,7 +90,8 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 	abNet, err := testpartition.NewAlphabillPartition([]*testpartition.NodePartition{tokenPrt})
 	require.NoError(t, err)
 	require.NoError(t, abNet.Start(t))
-	t.Cleanup(func() { require.NoError(t, abNet.Close()) })
+	defer abNet.WaitClose(t)
+
 	state0 := states[0]
 
 	// create fungible token type

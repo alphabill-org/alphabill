@@ -646,6 +646,55 @@ func TestLockTx(t *testing.T) {
 	}
 }
 
+func TestUnlockTx(t *testing.T) {
+	tests := []struct {
+		name string
+		bd   *BillData
+		attr *UnlockAttributes
+		res  error
+	}{
+		{
+			name: "Ok",
+			bd:   &BillData{Backlink: []byte{5}, Locked: 1},
+			attr: &UnlockAttributes{Backlink: []byte{5}},
+		},
+		{
+			name: "attr is nil",
+			bd:   &BillData{Backlink: []byte{5}, Locked: 1},
+			attr: nil,
+			res:  ErrTxAttrNil,
+		},
+		{
+			name: "bill data is nil",
+			bd:   nil,
+			attr: &UnlockAttributes{Backlink: []byte{5}},
+			res:  ErrBillNil,
+		},
+		{
+			name: "bill is already unlocked",
+			bd:   &BillData{Backlink: []byte{5}, Locked: 0},
+			attr: &UnlockAttributes{Backlink: []byte{5}},
+			res:  ErrBillUnlocked,
+		},
+		{
+			name: "invalid backlink",
+			bd:   &BillData{Backlink: []byte{5}, Locked: 1},
+			attr: &UnlockAttributes{Backlink: []byte{6}},
+			res:  ErrInvalidBacklink,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := validateUnlockTx(tt.attr, tt.bd)
+			if tt.res == nil {
+				require.NoError(t, err)
+			} else {
+				require.ErrorIs(t, err, tt.res)
+			}
+		})
+	}
+}
+
 func newInvalidTargetValueSwap(t *testing.T) *types.TransactionOrder {
 	transferId := newBillID(1)
 	swapId := newBillID(255)

@@ -335,7 +335,7 @@ func TestExecute_SwapOk(t *testing.T) {
 	require.EqualValues(t, 0, billData.Locked)                             // verify bill got unlocked
 }
 
-func TestExecute_LockOk(t *testing.T) {
+func TestExecute_LockAndUnlockOk(t *testing.T) {
 	rmaTree, txSystem, _ := createStateAndTxSystem(t)
 	lockTx, _ := createLockTx(t, initialBill.ID, nil)
 
@@ -357,6 +357,26 @@ func TestExecute_LockOk(t *testing.T) {
 	require.EqualValues(t, roundNumber, bd.T)                       // round number updated
 	require.EqualValues(t, lockTx.Hash(crypto.SHA256), bd.Backlink) // backlink updated
 	require.EqualValues(t, 110, bd.SummaryValueInput())             // value not changed
+
+	unlockTx, _ := createUnlockTx(t, initialBill.ID, lockTx.Hash(crypto.SHA256))
+	roundNumber += 1
+	err = txSystem.BeginBlock(roundNumber)
+	require.NoError(t, err)
+	sm, err = txSystem.Execute(unlockTx)
+	require.NoError(t, err)
+	_, err = txSystem.EndBlock()
+	require.NoError(t, err)
+	require.NotNil(t, sm)
+	require.EqualValues(t, 1, sm.ActualFee)
+	require.Len(t, sm.TargetUnits, 1)
+	require.Equal(t, unlockTx.UnitID(), sm.TargetUnits[0])
+	require.NoError(t, txSystem.Commit())
+
+	_, bd = getBill(t, rmaTree, initialBill.ID)
+	require.EqualValues(t, 0, bd.Locked)                              // bill is unlocked
+	require.EqualValues(t, roundNumber, bd.T)                         // round number updated
+	require.EqualValues(t, 110, bd.SummaryValueInput())               // value not changed
+	require.EqualValues(t, unlockTx.Hash(crypto.SHA256), bd.Backlink) // backlink updated
 }
 
 func TestBillData_Value(t *testing.T) {
@@ -747,6 +767,17 @@ func createLockTx(t *testing.T, fromID types.UnitID, backlink []byte) (*types.Tr
 	require.NoError(t, err)
 	tx.Payload.Attributes = rawBytes
 	return tx, lockTxAttr
+}
+
+func createUnlockTx(t *testing.T, fromID types.UnitID, backlink []byte) (*types.TransactionOrder, *UnlockAttributes) {
+	tx := createTx(fromID, PayloadTypeUnlock)
+	unlockTxAttr := &UnlockAttributes{
+		Backlink: backlink,
+	}
+	rawBytes, err := cbor.Marshal(unlockTxAttr)
+	require.NoError(t, err)
+	tx.Payload.Attributes = rawBytes
+	return tx, unlockTxAttr
 }
 
 func createDCTransferAndSwapTxs(

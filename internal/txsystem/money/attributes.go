@@ -10,6 +10,7 @@ const (
 	PayloadTypeTransDC  = "transDC"
 	PayloadTypeSwapDC   = "swapDC"
 	PayloadTypeLock     = "lock"
+	PayloadTypeUnlock   = "unlock"
 )
 
 type (
@@ -53,5 +54,10 @@ type (
 		_          struct{} `cbor:",toarray"`
 		LockStatus uint64   // status of the lock, non-zero value means locked
 		Backlink   []byte
+	}
+
+	UnlockAttributes struct {
+		_        struct{} `cbor:",toarray"`
+		Backlink []byte
 	}
 )

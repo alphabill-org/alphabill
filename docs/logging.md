@@ -56,7 +56,7 @@ the attribute - use that rather than creating slog.Attr manually!
 | go_id | int | added by the AB logger handler if enabled |
 | round | int | current round number (depends on the context whether it was a root chain round or validator round!) |
 | err | error | error which caused the log message to be created (log level doesn't have to be ERROR). |
-| unit_id | []byte | ID of the unit (bill, token, token type, ...) which caused the log record |
+| unit_id | []byte | hex encoded ID of the unit (bill, token, token type, ...) which caused the log record |
 | data | any | meant to attach some data struct to the message, ie tx |
 | module | string | reserved for future use |
 
@@ -73,9 +73,10 @@ which is
 
 | attribute | ECS | comment |
 |---|---|---|
-| node_id | service.node.name | |
-| source.* | log.origin.* | |
+| msg | message | |
 | err | error.message | |
+| node_id | service.node.name | the `peerIdFormat` configuration is not respected by ECS, it always logs full ID. |
+| source.* | log.origin.* | |
 | data | data.\<type name\>.* | the \<type name\> is the type name of the data |
 
 ## Log levels
@@ -102,6 +103,8 @@ can be used to set the default log level for tests ie
 ```bash
 AB_TEST_LOG_LEVEL=trace go test ./...
 ```
+The `-run` flag and/or specific package name (instead of `./...`) can be used to debug
+specific test / package.
 
 #### VSCode
 

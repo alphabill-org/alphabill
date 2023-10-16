@@ -21,6 +21,11 @@ import (
 	"github.com/alphabill-org/alphabill/pkg/wallet/unitlock"
 )
 
+var (
+	moneySystemID  = []byte{0, 0, 0, 0}
+	tokensSystemID = []byte{0, 0, 0, 2}
+)
+
 /*
 Wallet has single bill with value 1.00000002
 Add fee credit with value 1.00000001
@@ -126,12 +131,55 @@ func TestAddFeeCredit_WalletContainsLockedBillForReclaim(t *testing.T) {
 	feeManager := newMoneyPartitionFeeManager(am, unitLocker, moneyTxPublisher, moneyBackendClient, logger.New(t))
 
 	// lock bill with LockReasonReclaimFees
-	err = unitLocker.LockUnit(unitlock.NewLockedUnit(accountKey.PubKey, []byte{1}, []byte{200}, unitlock.LockReasonReclaimFees))
+	err = unitLocker.LockUnit(unitlock.NewLockedUnit(accountKey.PubKey, []byte{1}, []byte{200}, moneySystemID, unitlock.LockReasonReclaimFees))
 	require.NoError(t, err)
 
 	// verify error is returned
 	_, err = feeManager.AddFeeCredit(context.Background(), AddFeeCmd{Amount: 100000000})
 	require.ErrorContains(t, err, "wallet contains unreclaimed fee credit, run the reclaim command before adding fee credit")
+}
+
+/*
+Wallet has two bills: one locked for dust collection and one normal not locked bill.
+Adding fee credit should use the unlocked bill not change the locked bill.
+*/
+func TestAddFeeCredit_WalletContainsLockedBillForDustCollection(t *testing.T) {
+	// create fee manager
+	am := newAccountManager(t)
+	moneyTxPublisher := &mockMoneyTxPublisher{}
+	moneyBackendClient := &mockMoneyClient{bills: []*wallet.Bill{
+		{
+			Id:     []byte{1},
+			Value:  100000001,
+			TxHash: []byte{1},
+		},
+		{
+			Id:     []byte{2},
+			Value:  100000002,
+			TxHash: []byte{2},
+		},
+	}}
+	unitLocker := createUnitLocker(t)
+	feeManager := newMoneyPartitionFeeManager(am, unitLocker, moneyTxPublisher, moneyBackendClient, logger.New(t))
+
+	// lock the first bill with reason LockReasonCollectDust
+	publicKey, err := am.GetPublicKey(0)
+	require.NoError(t, err)
+	lockedDCBill := unitlock.NewLockedUnit(publicKey, []byte{1}, []byte{1}, moneySystemID, unitlock.LockReasonCollectDust)
+	require.NoError(t, unitLocker.LockUnit(lockedDCBill))
+
+	// verify that the second bill can be added to fee credit
+	proofs, err := feeManager.AddFeeCredit(context.Background(), AddFeeCmd{Amount: 100000000})
+	require.NoError(t, err)
+	require.NotNil(t, proofs)
+	require.Len(t, proofs.TransferFC, 1)
+	require.Len(t, proofs.AddFC, 1)
+	require.EqualValues(t, []byte{2}, proofs.TransferFC[0].TxRecord.TransactionOrder.UnitID())
+
+	// and the first bill remains locked
+	lockedDCBillAfter, err := unitLocker.GetUnit(publicKey, []byte{1})
+	require.NoError(t, err)
+	require.Equal(t, lockedDCBill, lockedDCBillAfter)
 }
 
 /*
@@ -159,6 +207,7 @@ func TestAddFeeCredit_LockedBillForTransferFC(t *testing.T) {
 		accountKey.PubKey,
 		transferFCRecord.TransactionOrder.UnitID(),
 		lockedUnitTxHash,
+		moneySystemID,
 		unitlock.LockReasonAddFees,
 		unitlock.NewTransaction(transferFCRecord.TransactionOrder),
 	)
@@ -281,6 +330,7 @@ func TestAddFeeCredit_LockedBillForAddFC(t *testing.T) {
 		accountKey.PubKey,
 		addFCRecord.TransactionOrder.UnitID(),
 		lockedUnitTxHash,
+		moneySystemID,
 		unitlock.LockReasonAddFees,
 		unitlock.NewTransaction(addFCRecord.TransactionOrder),
 	)
@@ -378,6 +428,53 @@ func TestAddFeeCredit_LockedBillForAddFC(t *testing.T) {
 	})
 }
 
+func TestAddFeeCreditForMoneyPartition_LockedBillExistsForTokensPartition(t *testing.T) {
+	// create fee manager for money partition
+	am := newAccountManager(t)
+	accountKey, err := am.GetAccountKey(0)
+	require.NoError(t, err)
+	moneyTxPublisher := &mockMoneyTxPublisher{}
+	moneyBackendClient := &mockMoneyClient{
+		fcb: &wallet.Bill{Value: 100, Id: []byte{111}},
+		bills: []*wallet.Bill{
+			{
+				Id:     []byte{1}, // locked for tokens fee credit
+				Value:  100000002,
+				TxHash: []byte{2},
+			},
+			{
+				Id:     []byte{2}, // not locked
+				Value:  100000002,
+				TxHash: []byte{3},
+			},
+		},
+	}
+	unitLocker := createUnitLocker(t)
+	feeManager := newMoneyPartitionFeeManager(am, unitLocker, moneyTxPublisher, moneyBackendClient, logger.New(t))
+
+	// lock unit for tokens partition
+	lockedUnit := unitlock.NewLockedUnit(
+		accountKey.PubKey,
+		[]byte{1},
+		[]byte{100},
+		tokensSystemID,
+		unitlock.LockReasonAddFees,
+	)
+	require.NoError(t, unitLocker.LockUnit(lockedUnit))
+
+	// when attempting to add fees for money partition
+	res, err := feeManager.AddFeeCredit(context.Background(), AddFeeCmd{Amount: 50})
+
+	// then error must be returned
+	require.ErrorIs(t, err, ErrLockedBillWrongPartition)
+	require.Nil(t, res)
+
+	// and bill must remain locked
+	lockedUnitAfter, err := unitLocker.GetUnit(lockedUnit.AccountID, lockedUnit.UnitID)
+	require.NoError(t, err)
+	require.NotNil(t, lockedUnitAfter)
+}
+
 /*
 Wallet contains locked bill for closeFC and the tx is either:
 1. confirmed => send reclaimFC using the confirmed closeFC
@@ -404,6 +501,7 @@ func TestReclaimFeeCredit_LockedBillForCloseFC(t *testing.T) {
 		accountKey.PubKey,
 		closeFCRecord.TransactionOrder.UnitID(),
 		lockedUnitTxHash,
+		moneySystemID,
 		unitlock.LockReasonReclaimFees,
 		unitlock.NewTransaction(closeFCRecord.TransactionOrder),
 	)
@@ -530,6 +628,7 @@ func TestReclaimFeeCredit_LockedBillForReclaimFC(t *testing.T) {
 		accountKey.PubKey,
 		reclaimFCRecord.TransactionOrder.UnitID(),
 		lockedUnitTxHash,
+		moneySystemID,
 		unitlock.LockReasonReclaimFees,
 		unitlock.NewTransaction(reclaimFCOrder),
 	)
@@ -627,6 +726,87 @@ func TestReclaimFeeCredit_LockedBillForReclaimFC(t *testing.T) {
 	})
 }
 
+func TestReclaimFeeCreditForMoneyPartition_LockedBillExistsForTokensPartition(t *testing.T) {
+	// create fee manager for money partition
+	am := newAccountManager(t)
+	accountKey, err := am.GetAccountKey(0)
+	require.NoError(t, err)
+	moneyTxPublisher := &mockMoneyTxPublisher{}
+	moneyBackendClient := &mockMoneyClient{}
+	unitLocker := createUnitLocker(t)
+	feeManager := newMoneyPartitionFeeManager(am, unitLocker, moneyTxPublisher, moneyBackendClient, logger.New(t))
+
+	// lock unit for tokens partition
+	lockedUnit := unitlock.NewLockedUnit(
+		accountKey.PubKey,
+		[]byte{1},
+		[]byte{100},
+		tokensSystemID,
+		unitlock.LockReasonReclaimFees,
+	)
+	require.NoError(t, unitLocker.LockUnit(lockedUnit))
+
+	// when attempting to reclaim fees for money partition
+	res, err := feeManager.ReclaimFeeCredit(context.Background(), ReclaimFeeCmd{})
+
+	// then error must be returned
+	require.ErrorIs(t, err, ErrLockedBillWrongPartition)
+	require.Nil(t, res)
+
+	// and bill must remain locked
+	lockedUnitAfter, err := unitLocker.GetUnit(lockedUnit.AccountID, lockedUnit.UnitID)
+	require.NoError(t, err)
+	require.NotNil(t, lockedUnitAfter)
+}
+
+/*
+Wallet has three bills: one locked for dust collection, one normal not locked bill and fee credit bill.
+Reclaiming fee credit should target the unlocked bill not change the locked bill.
+*/
+func TestReclaimFeeCredit_WalletContainsLockedBillForDustCollection(t *testing.T) {
+	// create fee manager
+	am := newAccountManager(t)
+	moneyTxPublisher := &mockMoneyTxPublisher{}
+	moneyBackendClient := &mockMoneyClient{
+		fcb: &wallet.Bill{Value: 100, Id: []byte{111}},
+		bills: []*wallet.Bill{
+			{
+				Id:     []byte{1},
+				Value:  100000001,
+				TxHash: []byte{1},
+			},
+			{
+				Id:     []byte{2},
+				Value:  100000002,
+				TxHash: []byte{2},
+			},
+		}}
+	unitLocker := createUnitLocker(t)
+	feeManager := newMoneyPartitionFeeManager(am, unitLocker, moneyTxPublisher, moneyBackendClient, logger.New(t))
+
+	// lock the first bill with reason LockReasonCollectDust
+	publicKey, err := am.GetPublicKey(0)
+	require.NoError(t, err)
+	lockedDCBill := unitlock.NewLockedUnit(publicKey, []byte{1}, []byte{1}, moneySystemID, unitlock.LockReasonCollectDust)
+	require.NoError(t, unitLocker.LockUnit(lockedDCBill))
+
+	// verify that the second bill can be added to fee credit
+	proofs, err := feeManager.ReclaimFeeCredit(context.Background(), ReclaimFeeCmd{})
+	require.NoError(t, err)
+	require.NotNil(t, proofs)
+	require.NotNil(t, proofs.CloseFC)
+	require.NotNil(t, proofs.ReclaimFC)
+
+	var attr *transactions.CloseFeeCreditAttributes
+	require.NoError(t, proofs.CloseFC.TxRecord.TransactionOrder.UnmarshalAttributes(&attr))
+	require.Equal(t, []byte{2}, attr.TargetUnitID)
+
+	// and the first bill remains locked
+	lockedDCBillAfter, err := unitLocker.GetUnit(publicKey, []byte{1})
+	require.NoError(t, err)
+	require.Equal(t, lockedDCBill, lockedDCBillAfter)
+}
+
 func TestAddAndReclaimWithInsufficientCredit(t *testing.T) {
 	// create fee manager
 	am := newAccountManager(t)
@@ -702,7 +882,6 @@ func TestAddWithSufficientBalanceInSmallBills(t *testing.T) {
 }
 
 func newMoneyPartitionFeeManager(am account.Manager, unitLocker UnitLocker, moneyTxPublisher TxPublisher, moneyBackendClient MoneyClient, log *slog.Logger) *FeeManager {
-	moneySystemID := []byte{0, 0, 0, 0}
 	return NewFeeManager(am, unitLocker, moneySystemID, moneyTxPublisher, moneyBackendClient, moneySystemID, moneyTxPublisher, moneyBackendClient, testFeeCreditRecordIDFromPublicKey, log)
 }
 

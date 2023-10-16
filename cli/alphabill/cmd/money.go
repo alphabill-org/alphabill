@@ -10,6 +10,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/txsystem/money"
 	"github.com/alphabill-org/alphabill/pkg/logger"
 	"github.com/fxamacker/cbor/v2"
+	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/spf13/cobra"
 )
 
@@ -77,11 +78,17 @@ func runMoneyNode(ctx context.Context, cfg *moneyNodeConfiguration) error {
 		return fmt.Errorf("failed to create trust base validator: %w", err)
 	}
 
-	peer, err := createNetworkPeer(ctx, cfg.Node, pg, cfg.Base.Logger)
+	keys, err := LoadKeys(cfg.Node.KeyFile, false, false)
 	if err != nil {
-		return fmt.Errorf("creating network peer: %w", err)
+		return fmt.Errorf("failed to load node keys: %w", err)
 	}
-	log := cfg.Base.Logger.With(logger.NodeID(peer.ID()))
+
+	nodeID, err := peer.IDFromPublicKey(keys.EncryptionPrivateKey.GetPublic())
+	if err != nil {
+		return fmt.Errorf("failed to calculate nodeID: %w", err)
+	}
+
+	log := cfg.Base.Logger.With(logger.NodeID(nodeID))
 
 	txs, err := money.NewTxSystem(
 		log,
@@ -95,9 +102,9 @@ func runMoneyNode(ctx context.Context, cfg *moneyNodeConfiguration) error {
 	if err != nil {
 		return fmt.Errorf("creating money transaction system: %w", err)
 	}
-	node, err := createNode(ctx, peer, txs, cfg.Node, nil, log)
+	node, err := createNode(ctx, txs, cfg.Node, keys, nil, log)
 	if err != nil {
 		return fmt.Errorf("creating node: %w", err)
 	}
-	return run(ctx, "money node", peer, node, cfg.RPCServer, cfg.RESTServer, log)
+	return run(ctx, "money node", node, cfg.RPCServer, cfg.RESTServer, log)
 }

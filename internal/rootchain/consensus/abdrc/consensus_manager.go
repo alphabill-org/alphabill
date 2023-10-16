@@ -325,12 +325,13 @@ func (x *ConsensusManager) onPartitionIRChangeReq(ctx context.Context, req *cons
 // onIRChangeMsg handles IR change request messages from other root nodes
 func (x *ConsensusManager) onIRChangeMsg(ctx context.Context, irChangeMsg *abdrc.IrChangeReqMsg) error {
 	if err := irChangeMsg.Verify(x.trustBase.GetVerifiers()); err != nil {
-		return fmt.Errorf("invalid IR change request message: %w", err)
+		return fmt.Errorf("invalid IR change request message from node %s: %w", irChangeMsg.Author, err)
 	}
 	x.log.DebugContext(ctx, fmt.Sprintf("IR change request from node %s",
 		irChangeMsg.Author), logger.Round(x.pacemaker.GetCurrentRound()))
-	//currentLeader := x.leaderSelector.GetLeaderForRound(x.pacemaker.GetCurrentRound())
 	nextLeader := x.leaderSelector.GetLeaderForRound(x.pacemaker.GetCurrentRound() + 1)
+	// if the node will be the next leader then buffer the request to be included in the block proposal
+	// todo: if in recovery then forward to next?
 	if nextLeader == x.id {
 		if err := x.irReqBuffer.Add(x.pacemaker.GetCurrentRound(), irChangeMsg.IrChangeReq, x.irReqVerifier); err != nil {
 			return fmt.Errorf("failed to add IR change request into buffer: %w", err)

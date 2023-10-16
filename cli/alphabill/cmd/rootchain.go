@@ -232,11 +232,12 @@ func createHost(ctx context.Context, address string, encPrivate crypto.PrivKey, 
 		PublicKey:  publicKeyBytes,
 		PrivateKey: privateKeyBytes,
 	}
-	conf := &network.PeerConfiguration{
-		Address: address,
-		KeyPair: keyPair,
+	peerConf, err := network.NewPeerConfiguration(address, keyPair, nil, nil)
+	if err != nil {
+		return nil, err
 	}
-	return network.NewPeer(ctx, conf, log)
+
+	return network.NewPeer(ctx, peerConf, log)
 }
 
 func verifyKeyPresentInGenesis(peer *network.Peer, rg *genesis.GenesisRootRecord, ver abcrypto.Verifier) error {

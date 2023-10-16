@@ -239,6 +239,9 @@ func addFees(ctx context.Context, accountNumber uint64, amountString string, c *
 		if errors.Is(err, fees.ErrInsufficientBalance) {
 			return fmt.Errorf("insufficient balance for transaction. Bills smaller than the minimum amount (%s) are not counted", amountToString(fees.MinimumFeeAmount, 8))
 		}
+		if errors.Is(err, fees.ErrLockedBillWrongPartition) {
+			return fmt.Errorf("wallet contains locked bill for different partition, run the command for the correct partition: %w", err)
+		}
 		return err
 	}
 	consoleWriter.Println("Successfully created", amountString, "fee credits on", c.partitionType, "partition.")
@@ -266,6 +269,9 @@ func reclaimFees(ctx context.Context, accountNumber uint64, c *cliConf, w FeeCre
 	if err != nil {
 		if errors.Is(err, fees.ErrMinimumFeeAmount) {
 			return fmt.Errorf("insufficient fee credit balance. Minimum amount is %s", amountToString(fees.MinimumFeeAmount, 8))
+		}
+		if errors.Is(err, fees.ErrLockedBillWrongPartition) {
+			return fmt.Errorf("wallet contains locked bill for different partition, run the command for the correct partition: %w", err)
 		}
 		return err
 	}
@@ -321,7 +327,7 @@ func getFeeCreditManager(ctx context.Context, c *cliConf, am account.Manager, un
 	}
 	moneyTypeVar := moneyType
 	if !strings.HasPrefix(moneySystemInfo.Name, moneyTypeVar.String()) {
-		return nil, fmt.Errorf("invalid money backend name: %s", moneySystemInfo.Name)
+		return nil, errors.New("invalid wallet backend API URL provided for money partition")
 	}
 	moneySystemID, err := hex.DecodeString(moneySystemInfo.SystemID)
 	if err != nil {
@@ -356,7 +362,7 @@ func getFeeCreditManager(ctx context.Context, c *cliConf, am account.Manager, un
 		}
 		tokenTypeVar := tokensType
 		if !strings.HasPrefix(tokenInfo.Name, tokenTypeVar.String()) {
-			return nil, fmt.Errorf("invalid tokens backend name: %s", tokenInfo.Name)
+			return nil, errors.New("invalid wallet backend API URL provided for tokens partition")
 		}
 		tokenSystemID, err := hex.DecodeString(tokenInfo.SystemID)
 		if err != nil {
@@ -387,7 +393,7 @@ func getFeeCreditManager(ctx context.Context, c *cliConf, am account.Manager, un
 		}
 		evmTypeVar := evmType
 		if !strings.HasPrefix(evmInfo.Name, evmTypeVar.String()) {
-			return nil, fmt.Errorf("invalid evm partition name: %s", evmInfo.Name)
+			return nil, errors.New("invalid validator node URL provided for evm partition")
 		}
 		evmSystemID, err := hex.DecodeString(evmInfo.SystemID)
 		if err != nil {

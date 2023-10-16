@@ -24,8 +24,9 @@ const (
 )
 
 var (
-	ErrMinimumFeeAmount    = errors.New("insufficient fee amount")
-	ErrInsufficientBalance = errors.New("insufficient balance for transaction")
+	ErrMinimumFeeAmount         = errors.New("insufficient fee amount")
+	ErrInsufficientBalance      = errors.New("insufficient balance for transaction")
+	ErrLockedBillWrongPartition = errors.New("locked bill for wrong partition")
 )
 
 type (
@@ -165,6 +166,9 @@ func (w *FeeManager) AddFeeCredit(ctx context.Context, cmd AddFeeCmd) (*AddFeeCm
 	if len(lockedReclaimUnits) > 0 {
 		return nil, errors.New("wallet contains unreclaimed fee credit, run the reclaim command before adding fee credit")
 	}
+	if err := w.verifyLockedBillsTargetPartition(lockedBills, unitlock.LockReasonAddFees); err != nil {
+		return nil, err
+	}
 
 	// fetch round numbers for timeouts
 	moneyRoundNumber, err := w.moneyBackendClient.GetRoundNumber(ctx)
@@ -249,6 +253,9 @@ func (w *FeeManager) ReclaimFeeCredit(ctx context.Context, cmd ReclaimFeeCmd) (*
 	lockedAddBills := w.getLockedBillsByReason(lockedBills, unitlock.LockReasonAddFees)
 	if len(lockedAddBills) > 0 {
 		return nil, errors.New("wallet contains unadded fee credit, run the add command before reclaiming fee credit")
+	}
+	if err := w.verifyLockedBillsTargetPartition(lockedBills, unitlock.LockReasonReclaimFees); err != nil {
+		return nil, err
 	}
 
 	bills, err := w.getSortedBills(ctx, accountKey)
@@ -364,6 +371,7 @@ func (w *FeeManager) sendTransferFC(ctx context.Context, amount uint64, accountK
 		accountKey.PubKey,
 		targetBill.Id,
 		targetBill.TxHash,
+		w.userPartitionSystemID,
 		unitlock.LockReasonAddFees,
 		unitlock.NewTransaction(tx)),
 	)
@@ -402,6 +410,7 @@ func (w *FeeManager) sendCloseFC(ctx context.Context, bills []*wallet.Bill, acco
 		accountKey.PubKey,
 		targetBill.Id,
 		targetBill.TxHash,
+		w.userPartitionSystemID,
 		unitlock.LockReasonReclaimFees,
 		unitlock.NewTransaction(tx),
 	))
@@ -780,6 +789,16 @@ func (w *FeeManager) getFirstLockedBillByReason(lockedBills []*unitlock.LockedUn
 	for _, lockedBill := range lockedBills {
 		if lockedBill.LockReason == reason {
 			return lockedBill
+		}
+	}
+	return nil
+}
+
+func (w *FeeManager) verifyLockedBillsTargetPartition(lockedBills []*unitlock.LockedUnit, reason unitlock.LockReason) error {
+	for _, lockedBill := range lockedBills {
+		if lockedBill.LockReason == reason && !bytes.Equal(lockedBill.SystemID, w.userPartitionSystemID) {
+			return fmt.Errorf("%w: lockedBillSystemID=%X, providedSystemID=%X",
+				ErrLockedBillWrongPartition, lockedBill.SystemID, w.userPartitionSystemID)
 		}
 	}
 	return nil

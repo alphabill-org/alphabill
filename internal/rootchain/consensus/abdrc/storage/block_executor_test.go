@@ -53,7 +53,7 @@ func TestNewExecutedBlockFromGenesis(t *testing.T) {
 	verifier := rootNode.Verifier
 	rootPubKeyBytes, err := verifier.MarshalPublicKey()
 	require.NoError(t, err)
-	id := rootNode.Peer.ID()
+	id := rootNode.PeerConf.ID
 	rootGenesis, _, err := rootgenesis.NewRootGenesis(id.String(), rootNode.Signer, rootPubKeyBytes, []*genesis.PartitionRecord{partitionRecord})
 	require.NoError(t, err)
 	hash := gocrypto.Hash(rootGenesis.Root.Consensus.HashAlgorithm)
@@ -81,7 +81,7 @@ func TestExecutedBlock(t *testing.T) {
 	verifier := rootNode.Verifier
 	rootPubKeyBytes, err := verifier.MarshalPublicKey()
 	require.NoError(t, err)
-	id := rootNode.Peer.ID()
+	id := rootNode.PeerConf.ID
 	rootGenesis, _, err := rootgenesis.NewRootGenesis(id.String(), rootNode.Signer, rootPubKeyBytes, []*genesis.PartitionRecord{partitionRecord})
 	require.NoError(t, err)
 	hash := gocrypto.Hash(rootGenesis.Root.Consensus.HashAlgorithm)

@@ -2,7 +2,6 @@ package network
 
 import (
 	"context"
-	"crypto/rand"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -35,9 +34,9 @@ var (
 )
 
 type (
-
 	// PeerConfiguration includes single peer configuration values.
 	PeerConfiguration struct {
+		ID             peer.ID         // peer identifier derived from the KeyPair.PublicKey.
 		Address        string          // address to listen for incoming connections. Uses libp2p multiaddress format.
 		KeyPair        *PeerKeyPair    // keypair for the peer.
 		BootstrapPeers []peer.AddrInfo // a list of seed peers to connect to.
@@ -81,7 +80,7 @@ func NewPeer(ctx context.Context, conf *PeerConfiguration, log *slog.Logger) (*P
 		return nil, ErrPeerConfigurationIsNil
 	}
 	// keys
-	privateKey, _, err := readOrGenerateKeyPair(conf, log)
+	privateKey, _, err := readKeyPair(conf, log)
 	if err != nil {
 		return nil, err
 	}
@@ -219,6 +218,30 @@ func (p *Peer) GetRandomPeerID() peer.ID {
 	return peers[index]
 }
 
+func NewPeerConfiguration(
+	addr string,
+	keyPair *PeerKeyPair,
+	bootstrapPeers []peer.AddrInfo,
+	validators []peer.ID) (*PeerConfiguration, error) {
+
+	if keyPair == nil {
+		return nil, fmt.Errorf("missing key pair")
+	}
+
+	peerID, err := NodeIDFromPublicKeyBytes(keyPair.PublicKey)
+	if err != nil {
+		return nil, fmt.Errorf("invalid key pair: %w", err)
+	}
+
+	return &PeerConfiguration{
+		ID: peerID,
+		Address: addr,
+		KeyPair: keyPair,
+		BootstrapPeers: bootstrapPeers,
+		Validators: validators,
+	}, nil
+}
+
 func NodeIDFromPublicKeyBytes(pubKey []byte) (peer.ID, error) {
 	pub, err := crypto.UnmarshalSecp256k1PublicKey(pubKey)
 	if err != nil {
@@ -250,10 +273,9 @@ func newPeerStore() (peerstore.Peerstore, error) {
 	return peerStore, nil
 }
 
-func readOrGenerateKeyPair(conf *PeerConfiguration, log *slog.Logger) (privateKey crypto.PrivKey, publicKey crypto.PubKey, err error) {
+func readKeyPair(conf *PeerConfiguration, log *slog.Logger) (privateKey crypto.PrivKey, publicKey crypto.PubKey, err error) {
 	if conf.KeyPair == nil {
-		log.Warn("peer has no key configured, generating a new random key")
-		return crypto.GenerateSecp256k1Key(rand.Reader)
+		return nil, nil, fmt.Errorf("missing peer key")
 	}
 
 	privateKey, err = crypto.UnmarshalSecp256k1PrivateKey(conf.KeyPair.PrivateKey)

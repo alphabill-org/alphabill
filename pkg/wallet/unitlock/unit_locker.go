@@ -29,6 +29,7 @@ type (
 		AccountID    []byte         `json:"accountId"`    // account id of the unit e.g. a public key
 		UnitID       []byte         `json:"unitId"`       // id of the locked unit
 		TxHash       []byte         `json:"txHash"`       // state hash of the locked unit
+		SystemID     []byte         `json:"systemId"`     // target system id of the locked unit
 		LockReason   LockReason     `json:"lockReason"`   // reason for locking the bill
 		Transactions []*Transaction `json:"transactions"` // transactions that must be confirmed/failed in order to unlock the bill
 	}
@@ -55,11 +56,12 @@ func NewUnitLocker(dir string) (*UnitLocker, error) {
 	return &UnitLocker{db: store}, nil
 }
 
-func NewLockedUnit(accountID, unitID, txHash []byte, lockReason LockReason, transactions ...*Transaction) *LockedUnit {
+func NewLockedUnit(accountID, unitID, txHash, systemID []byte, lockReason LockReason, transactions ...*Transaction) *LockedUnit {
 	return &LockedUnit{
 		AccountID:    accountID,
 		UnitID:       unitID,
 		TxHash:       txHash,
+		SystemID:     systemID,
 		LockReason:   lockReason,
 		Transactions: transactions,
 	}
@@ -157,6 +159,9 @@ func (l *LockedUnit) isValid() error {
 	}
 	if l.UnitID == nil {
 		return errors.New("unit id is nil")
+	}
+	if l.SystemID == nil {
+		return errors.New("system id is nil")
 	}
 	if l.TxHash == nil {
 		return errors.New("tx hash is nil")

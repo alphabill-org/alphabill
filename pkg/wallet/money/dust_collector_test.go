@@ -167,6 +167,7 @@ func TestExistingDC_OK(t *testing.T) {
 		backendMockWrapper.accountKey.PubKey,
 		targetBill.GetID(),
 		targetBill.GetTxHash(),
+		money.DefaultSystemIdentifier,
 		unitlock.LockReasonCollectDust,
 	))
 	require.NoError(t, err)
@@ -210,6 +211,7 @@ func TestExistingDC_UnconfirmedDCTxs_NewSwapIsSent(t *testing.T) {
 		backendMockWrapper.accountKey.PubKey,
 		targetBill.GetID(),
 		targetBill.GetTxHash(),
+		money.DefaultSystemIdentifier,
 		unitlock.LockReasonCollectDust,
 	))
 	require.NoError(t, err)
@@ -249,6 +251,7 @@ func TestExistingDC_TargetUnitSwapIsConfirmed_ProofIsReturned(t *testing.T) {
 		backendMockWrapper.accountKey.PubKey,
 		targetBill.GetID(),
 		targetBill.GetTxHash(),
+		money.DefaultSystemIdentifier,
 		unitlock.LockReasonCollectDust,
 		unitlock.NewTransaction(proofs[0].TxRecord.TransactionOrder),
 	))
@@ -292,6 +295,7 @@ func TestExistingDC_TargetUnitIsInvalid_NewSwapIsSent(t *testing.T) {
 		backendMockWrapper.accountKey.PubKey,
 		targetBill.GetID(),
 		hash.Sum256(targetBill.GetTxHash()),
+		money.DefaultSystemIdentifier,
 		unitlock.LockReasonCollectDust,
 	))
 	require.NoError(t, err)
@@ -329,7 +333,7 @@ func TestExistingDC_DCOnSecondAccountDoesNotClearFirstAccountUnitLock(t *testing
 	w := NewDustCollector(money.DefaultSystemIdentifier, maxBillsForDustCollection, backendMockWrapper.backendMock, unitLocker, logger.New(t))
 
 	// lock random bill before swap
-	lockedUnit := unitlock.NewLockedUnit([]byte{200}, []byte{1}, []byte{2}, unitlock.LockReasonCollectDust)
+	lockedUnit := unitlock.NewLockedUnit([]byte{200}, []byte{1}, []byte{2}, money.DefaultSystemIdentifier, unitlock.LockReasonCollectDust)
 	err := unitLocker.LockUnit(lockedUnit)
 	require.NoError(t, err)
 

@@ -38,14 +38,14 @@ func TestExistingWalletCanBeLoaded(t *testing.T) {
 }
 
 func TestWallet_GetPublicKey(t *testing.T) {
-	w, _ := CreateTestWalletFromSeed(t, nil)
+	w := CreateTestWalletFromSeed(t, nil)
 	pubKey, err := w.am.GetPublicKey(0)
 	require.NoError(t, err)
 	require.EqualValues(t, "0x"+testPubKey0Hex, hexutil.Encode(pubKey))
 }
 
 func TestWallet_GetPublicKeys(t *testing.T) {
-	w, _ := CreateTestWalletFromSeed(t, nil)
+	w := CreateTestWalletFromSeed(t, nil)
 	_, _, _ = w.am.AddAccount()
 
 	pubKeys, err := w.am.GetPublicKeys()
@@ -56,7 +56,7 @@ func TestWallet_GetPublicKeys(t *testing.T) {
 }
 
 func TestWallet_AddKey(t *testing.T) {
-	w, _ := CreateTestWalletFromSeed(t, nil)
+	w := CreateTestWalletFromSeed(t, nil)
 
 	accIdx, accPubKey, err := w.am.AddAccount()
 	require.NoError(t, err)
@@ -74,14 +74,14 @@ func TestWallet_AddKey(t *testing.T) {
 }
 
 func TestWallet_GetBalance(t *testing.T) {
-	w, _ := CreateTestWalletFromSeed(t, &backendMockReturnConf{balance: 10})
+	w := CreateTestWalletFromSeed(t, &backendMockReturnConf{balance: 10})
 	balance, err := w.GetBalance(context.Background(), GetBalanceCmd{})
 	require.NoError(t, err)
 	require.EqualValues(t, 10, balance)
 }
 
 func TestWallet_GetBalances(t *testing.T) {
-	w, _ := CreateTestWalletFromSeed(t, &backendMockReturnConf{balance: 10})
+	w := CreateTestWalletFromSeed(t, &backendMockReturnConf{balance: 10})
 	_, _, err := w.am.AddAccount()
 	require.NoError(t, err)
 

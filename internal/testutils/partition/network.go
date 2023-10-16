@@ -439,7 +439,27 @@ func (a *AlphabillNetwork) Close() (err error) {
 			err = errors.Join(err, rootErr)
 		}
 	}
-	return nil
+	return err
+}
+
+/*
+WaitClose closes the AB network and waits for all the nodes to stop.
+It fails the test "t" if nodes do not stop/exit within timeout.
+*/
+func (a *AlphabillNetwork) WaitClose(t *testing.T) {
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		if err := a.Close(); err != nil {
+			t.Errorf("stopping AB network: %v", err)
+		}
+	}()
+
+	select {
+	case <-done:
+	case <-time.After(3000 * time.Millisecond):
+		t.Error("AB network didn't stop within timeout")
+	}
 }
 
 func (a *AlphabillNetwork) GetNodePartition(sysID types.SystemID) (*NodePartition, error) {

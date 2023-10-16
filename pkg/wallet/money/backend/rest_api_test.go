@@ -31,7 +31,6 @@ import (
 	"github.com/alphabill-org/alphabill/internal/txsystem/money"
 	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/internal/util"
-	"github.com/alphabill-org/alphabill/pkg/client/clientmock"
 	sdk "github.com/alphabill-org/alphabill/pkg/wallet"
 )
 
@@ -418,9 +417,9 @@ func TestProofRequest_ProofDoesNotExist(t *testing.T) {
 
 func TestBlockHeightRequest_Ok(t *testing.T) {
 	roundNumber := uint64(150)
-	alphabillClient := clientmock.NewMockAlphabillClient(
-		clientmock.WithMaxRoundNumber(roundNumber),
-	)
+	alphabillClient := &mockABClient{
+		getRoundNumber: func(ctx context.Context) (uint64, error) { return roundNumber, nil },
+	}
 	service := newWalletBackend(t, withABClient(alphabillClient))
 	port, _ := startServer(t, service)
 
@@ -647,7 +646,11 @@ type (
 
 func newWalletBackend(t *testing.T, options ...option) *WalletBackend {
 	storage := createTestBillStore(t)
-	service := &WalletBackend{store: storage, abc: &clientmock.MockAlphabillClient{}}
+	mabc := &mockABClient{
+		getRoundNumber:  func(ctx context.Context) (uint64, error) { return 0, nil },
+		sendTransaction: func(ctx context.Context, tx *types.TransactionOrder) error { return nil },
+	}
+	service := &WalletBackend{store: storage, abc: mabc}
 	for _, o := range options {
 		err := o(service)
 		require.NoError(t, err)
@@ -766,4 +769,16 @@ func startServer(t *testing.T, service WalletBackendService) (port int, api *mon
 			t.Fatalf("http server didn't become available within timeout")
 		}
 	}
+}
+
+type mockABClient struct {
+	sendTransaction func(ctx context.Context, tx *types.TransactionOrder) error
+	getRoundNumber  func(ctx context.Context) (uint64, error)
+}
+
+func (mc *mockABClient) SendTransaction(ctx context.Context, tx *types.TransactionOrder) error {
+	return mc.sendTransaction(ctx, tx)
+}
+func (mc *mockABClient) GetRoundNumber(ctx context.Context) (uint64, error) {
+	return mc.getRoundNumber(ctx)
 }

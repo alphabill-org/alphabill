@@ -57,6 +57,10 @@ func (c *AlphabillClient) SendTransaction(ctx context.Context, tx *types.Transac
 	if err := c.connect(); err != nil {
 		return err
 	}
+
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
 	_, err = c.client.ProcessTransaction(ctx, protoTx)
 	return err
 }
@@ -89,6 +93,9 @@ func (c *AlphabillClient) GetBlock(ctx context.Context, blockNumber uint64) ([]b
 		return nil, err
 	}
 
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
 	res, err := c.client.GetBlock(ctx, &alphabill.GetBlockRequest{BlockNo: blockNumber})
 	if err != nil {
 		return nil, err
@@ -110,6 +117,9 @@ func (c *AlphabillClient) GetBlocks(ctx context.Context, blockNumber uint64, blo
 		return nil, err
 	}
 
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
 	res, err = c.client.GetBlocks(ctx, &alphabill.GetBlocksRequest{BlockNumber: blockNumber, BlockCount: blockCount})
 	if err != nil {
 		return nil, err
@@ -123,6 +133,9 @@ func (c *AlphabillClient) GetRoundNumber(ctx context.Context) (uint64, error) {
 	if err := c.connect(); err != nil {
 		return 0, err
 	}
+
+	c.mu.RLock()
+	defer c.mu.RUnlock()
 
 	res, err := c.client.GetRoundNumber(ctx, &emptypb.Empty{})
 	if err != nil {

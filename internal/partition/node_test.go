@@ -547,17 +547,17 @@ func TestBlockProposal_HandleOldBlockProposal(t *testing.T) {
 }
 
 func TestBlockProposal_ExpectedLeaderInvalid(t *testing.T) {
-	tp := RunSingleNodePartition(t, &testtxsystem.CounterTxSystem{})
+	tp := RunSingleNodePartition(t, &testtxsystem.CounterTxSystem{},
+		WithLeaderSelector(&TestLeaderSelector{
+			leader:      "12",
+			currentNode: "12",
+		}))
 	block := tp.GetLatestBlock(t)
 	uc, err := tp.CreateUnicityCertificate(
 		block.UnicityCertificate.InputRecord,
 		block.UnicityCertificate.UnicitySeal.RootChainRoundNumber+1,
 	)
 	require.NoError(t, err)
-	tp.partition.leaderSelector = &TestLeaderSelector{
-		leader:      "12",
-		currentNode: "12",
-	}
 
 	bp := &blockproposal.BlockProposal{
 		SystemIdentifier:   uc.UnicityTreeCertificate.SystemIdentifier,

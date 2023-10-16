@@ -23,10 +23,8 @@ func TestNewNetwork_Ok(t *testing.T) {
 	abNetwork, err := NewAlphabillPartition([]*NodePartition{counterPartition})
 	require.NoError(t, err)
 	require.NoError(t, abNetwork.Start(t))
-	defer func() {
-		err = abNetwork.Close()
-		require.NoError(t, err)
-	}()
+	defer abNetwork.WaitClose(t)
+
 	require.Len(t, abNetwork.RootPartition.Nodes, 1)
 	require.Len(t, abNetwork.NodePartitions, 1)
 	cPart, err := abNetwork.GetNodePartition(systemIdentifier)
@@ -38,6 +36,7 @@ func TestNewNetwork_Ok(t *testing.T) {
 	require.Eventually(t, BlockchainContainsTx(cPart, tx), test.WaitDuration, test.WaitTick)
 
 	tx = testtransaction.NewTransactionOrder(t, testtransaction.WithSystemID(systemIdentifier))
-	err = cPart.BroadcastTx(tx)
+	require.NoError(t, cPart.BroadcastTx(tx))
+
 	require.Eventually(t, BlockchainContainsTx(cPart, tx), test.WaitDuration, test.WaitTick)
 }

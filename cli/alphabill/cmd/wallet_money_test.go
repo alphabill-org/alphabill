@@ -221,10 +221,8 @@ func startAlphabill(t *testing.T, partitions []*testpartition.NodePartition) *te
 	abNetwork, err := testpartition.NewAlphabillPartition(partitions)
 	require.NoError(t, err)
 	require.NoError(t, abNetwork.Start(t))
+	t.Cleanup(func() { abNetwork.WaitClose(t) })
 
-	t.Cleanup(func() {
-		require.NoError(t, abNetwork.Close())
-	})
 	return abNetwork
 }
 

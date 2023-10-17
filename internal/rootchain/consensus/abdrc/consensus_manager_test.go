@@ -6,6 +6,7 @@ import (
 	gocrypto "crypto"
 	"crypto/rand"
 	"fmt"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -116,6 +117,24 @@ func Test_ConsensusManager_onPartitionIRChangeReq(t *testing.T) {
 	require.NoError(t, cm.onPartitionIRChangeReq(context.Background(), req))
 	// since there is only one root node, it is the next leader, the request will be buffered
 	require.True(t, cm.irReqBuffer.IsChangeInBuffer(partitionID))
+}
+
+func Test_ConsensusManager_onIRChangeMsg_ErrInvalidSignature(t *testing.T) {
+	mockNet := testnetwork.NewRootMockNetwork()
+	cm, _, partitionNodes, rg := initConsensusManager(t, mockNet)
+
+	req := &abdrc.IrChangeReqMsg{
+		Author: cm.id.String(),
+		IrChangeReq: &abtypes.IRChangeReq{
+			SystemIdentifier: partitionID,
+			CertReason:       abtypes.Quorum,
+			Requests:         buildBlockCertificationRequest(t, rg, partitionNodes),
+		},
+		Signature: []byte{1, 2, 3, 4},
+	}
+	// verify that error is printed and author ID is also present
+	require.ErrorContains(t, cm.onIRChangeMsg(context.Background(), req),
+		fmt.Sprintf("invalid IR change request message from node %s: signature verification failed", cm.id.String()))
 }
 
 func TestIRChangeRequestFromRootValidator_RootTimeoutOnFirstRound(t *testing.T) {
@@ -613,8 +632,17 @@ func Test_ConsensusManager_messages(t *testing.T) {
 		})
 
 		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
-		go func() { require.ErrorIs(t, cms[0].Run(ctx), context.Canceled) }()
+		done := make(chan struct{})
+		go func() { defer close(done); require.ErrorIs(t, cms[0].Run(ctx), context.Canceled) }()
+		defer func() {
+			cancel()
+			// and wait for cm to exit
+			select {
+			case <-time.After(1000 * time.Millisecond):
+				t.Fatal("consensus manager did not exit in time")
+			case <-done:
+			}
+		}()
 
 		// simulate root validator node sending IRCR to consensus manager
 		irCReq := consensus.IRChangeRequest{
@@ -651,8 +679,17 @@ func Test_ConsensusManager_messages(t *testing.T) {
 			v.leaderSelector = constLeader{leader: cmLeader.id, nodes: cmLeader.leaderSelector.GetNodes()} // use "const leader" to take leader selection out of test
 		}
 		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
-		go func() { require.ErrorIs(t, nonLeaderNode.Run(ctx), context.Canceled) }()
+		done := make(chan struct{})
+		go func() { defer close(done); require.ErrorIs(t, nonLeaderNode.Run(ctx), context.Canceled) }()
+		defer func() {
+			cancel()
+			// and wait for cm to exit
+			select {
+			case <-time.After(1000 * time.Millisecond):
+				t.Fatal("consensus manager did not exit in time")
+			case <-done:
+			}
+		}()
 
 		// simulate root validator node sending IRCR to consensus manager
 		irCReq := consensus.IRChangeRequest{
@@ -666,11 +703,12 @@ func Test_ConsensusManager_messages(t *testing.T) {
 			t.Fatal("CM doesn't consume IR change request")
 		case nonLeaderNode.RequestCertification() <- irCReq:
 		}
-		// Read messages sent to the leader, as the node is not a leader it must forward the request to the leader
-		cmBnet := rootNet.Connect(cms[0].id)
+		// Read messages sent to the leader, as the node that received the IR change request
+		// is not a leader it must forward the request to the leader
+		cmBnet := rootNet.Connect(cmLeader.id)
 		select {
-		case <-time.After(cms[0].pacemaker.maxRoundLen):
-			t.Fatal("haven't got the proposal before timeout")
+		case <-time.After(cmLeader.pacemaker.maxRoundLen):
+			t.Fatal("haven't got the IR Change message before timeout")
 		case msg := <-cmBnet.ReceivedChannel():
 			irMsg := msg.(*abdrc.IrChangeReqMsg)
 			require.NotNil(t, irMsg)
@@ -687,9 +725,17 @@ func Test_ConsensusManager_messages(t *testing.T) {
 			v.leaderSelector = constLeader{leader: cmLeader.id, nodes: allNodes} // use "const leader" to take leader selection out of test
 		}
 		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
-		go func() { require.ErrorIs(t, cmLeader.Run(ctx), context.Canceled) }()
-
+		done := make(chan struct{})
+		go func() { defer close(done); require.ErrorIs(t, cmLeader.Run(ctx), context.Canceled) }()
+		defer func() {
+			cancel()
+			// and wait for cm to exit
+			select {
+			case <-time.After(1000 * time.Millisecond):
+				t.Fatal("consensus manager did not exit in time")
+			case <-done:
+			}
+		}()
 		// simulate "other root node" forwarding IRCR to leader
 		otherNode := cms[1]
 		// simulate IR change request message
@@ -733,9 +779,17 @@ func Test_ConsensusManager_messages(t *testing.T) {
 			v.leaderSelector = constLeader{leader: cmLeader.id, nodes: cmLeader.leaderSelector.GetNodes()} // use "const leader" to take leader selection out of test
 		}
 		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
-		go func() { require.ErrorIs(t, nonLeaderNode.Run(ctx), context.Canceled) }()
-
+		done := make(chan struct{})
+		go func() { defer close(done); require.ErrorIs(t, nonLeaderNode.Run(ctx), context.Canceled) }()
+		defer func() {
+			cancel()
+			// and wait for cm to exit
+			select {
+			case <-time.After(1000 * time.Millisecond):
+				t.Fatal("consensus manager did not exit in time")
+			case <-done:
+			}
+		}()
 		// simulate leader forwarding IRCR to non-leader
 		// not a real life situation, but it will test the logic for IR Change request messages
 		irChReqMsg := &abdrc.IrChangeReqMsg{
@@ -770,9 +824,17 @@ func Test_ConsensusManager_messages(t *testing.T) {
 
 		// only launch cmA, we manage cmB "manually"
 		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
-		go func() { require.ErrorIs(t, cmA.Run(ctx), context.Canceled) }()
-
+		done := make(chan struct{})
+		go func() { defer close(done); require.ErrorIs(t, cmA.Run(ctx), context.Canceled) }()
+		defer func() {
+			cancel()
+			// and wait for cm to exit
+			select {
+			case <-time.After(1000 * time.Millisecond):
+				t.Fatal("consensus manager did not exit in time")
+			case <-done:
+			}
+		}()
 		// cmB sends state request to cmA
 		msg := &abdrc.GetStateMsg{NodeId: cmB.id.String()}
 		require.NoError(t, cmB.net.Send(ctx, msg, cmA.id))
@@ -1075,12 +1137,21 @@ func Test_rootNetworkRunning(t *testing.T) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
+	wg := sync.WaitGroup{}
+	wg.Add(len(cms))
+	done := make(chan struct{})
 	start := time.Now()
-	for _, v := range cms {
-		go func(cm *ConsensusManager) { require.ErrorIs(t, cm.Run(ctx), context.Canceled) }(v)
-		go func(cm *ConsensusManager) { consumeUC(ctx, cm) }(v)
-	}
-
+	go func() {
+		for _, v := range cms {
+			go func(cm *ConsensusManager) {
+				defer wg.Done()
+				require.ErrorIs(t, cm.Run(ctx), context.Canceled)
+			}(v)
+			go func(cm *ConsensusManager) { consumeUC(ctx, cm) }(v)
+		}
+		wg.Wait()
+		close(done)
+	}()
 	cm := cms[0]
 	// assume rounds are successful and each round takes between minRoundLen and roundTimeout on average
 	maxTestDuration := destRound * (cm.pacemaker.minRoundLen + (cm.pacemaker.maxRoundLen-cm.pacemaker.minRoundLen)/2)
@@ -1103,4 +1174,10 @@ func Test_rootNetworkRunning(t *testing.T) {
 	// potentially flaky as there is delay between starting CMs and starting the clock!
 	require.GreaterOrEqual(t, avgRoundLen, cm.pacemaker.minRoundLen, "minimum round duration for %d rounds", completeRounds)
 	require.GreaterOrEqual(t, cm.pacemaker.maxRoundLen, avgRoundLen, "maximum round duration for %d rounds", completeRounds)
+	// wait for cm routine to exit, otherwise logger may be destructed before last usage
+	select {
+	case <-time.After(1000 * time.Millisecond):
+		t.Fatal("consensus managers did not exit in time")
+	case <-done:
+	}
 }

@@ -89,7 +89,3 @@ func (x *ProposalMsg) Sign(signer crypto.Signer) error {
 	x.Signature = signature
 	return nil
 }
-
-func (x *ProposalMsg) String() string {
-	return x.Block.String()
-}

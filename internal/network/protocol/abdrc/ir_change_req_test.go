@@ -132,7 +132,7 @@ func TestIrChangeReqMsg_Sign_Errors(t *testing.T) {
 				},
 			},
 			args:    args{signer: s},
-			wantErr: "ir change request msg not valid, invalid reason, timeout can only be proposed by leader",
+			wantErr: "ir change request msg not valid: invalid reason, timeout can only be proposed by leader",
 		},
 	}
 	for _, tt := range tests {
@@ -174,7 +174,7 @@ func TestIrChangeReqMsg_Verify(t *testing.T) {
 				},
 			},
 			args:    args{rootTrust: tb},
-			wantErr: "ir change request msg not valid, invalid reason, timeout can only be proposed by leader",
+			wantErr: "ir change request msg not valid: invalid reason, timeout can only be proposed by leader",
 		},
 		{
 			name: "author not found",
@@ -186,7 +186,7 @@ func TestIrChangeReqMsg_Verify(t *testing.T) {
 				},
 			},
 			args:    args{rootTrust: tb},
-			wantErr: "author \"bar\" is not in the trustbase",
+			wantErr: `author "bar" is not in the trustbase`,
 		},
 		{
 			name: "verify error",

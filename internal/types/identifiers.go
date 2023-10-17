@@ -29,7 +29,7 @@ func NewUnitID(unitIDLength int, shardPart []byte, unitPart []byte, typePart []b
 
 	// Copy unitPart, leaving zero bytes in the beginning in case
 	// unitPart is shorter than unitPartLength.
-	unitPartStart := util.Max(0, unitPartLength-len(unitPart))
+	unitPartStart := max(0, unitPartLength-len(unitPart))
 	copy(unitID[unitPartStart:], unitPart)
 
 	// Copy typePart

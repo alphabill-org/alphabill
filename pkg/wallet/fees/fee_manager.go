@@ -10,7 +10,6 @@ import (
 
 	"github.com/alphabill-org/alphabill/internal/txsystem/fc/transactions"
 	"github.com/alphabill-org/alphabill/internal/types"
-	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/alphabill-org/alphabill/pkg/wallet/account"
 	txbuilder "github.com/alphabill-org/alphabill/pkg/wallet/money/tx_builder"
@@ -351,7 +350,7 @@ func (w *FeeManager) sendTransferFC(ctx context.Context, amount uint64, accountK
 	w.log.InfoContext(ctx, "sending transfer fee credit transaction")
 	targetRecordID := w.userPartFcrIDFn(nil, accountKey.PubKey)
 	tx, err := txbuilder.NewTransferFCTx(
-		util.Min(amount, targetBill.Value),
+		min(amount, targetBill.Value),
 		targetRecordID,
 		fcb.GetLastAddFCTxHash(),
 		accountKey,

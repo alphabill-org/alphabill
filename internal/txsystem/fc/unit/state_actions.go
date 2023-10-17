@@ -6,7 +6,6 @@ import (
 
 	"github.com/alphabill-org/alphabill/internal/state"
 	"github.com/alphabill-org/alphabill/internal/types"
-	"github.com/alphabill-org/alphabill/internal/util"
 )
 
 // AddCredit adds a new credit record
@@ -29,7 +28,7 @@ func IncrCredit(id types.UnitID, value uint64, timeout uint64, transactionRecord
 		return &FeeCreditRecord{
 			Balance: fcr.Balance + value,
 			Hash:    bytes.Clone(transactionRecordHash), //
-			Timeout: util.Max(fcr.Timeout, timeout),
+			Timeout: max(fcr.Timeout, timeout),
 		}, nil
 	}
 	return state.UpdateUnitData(id, updateDataFunc)

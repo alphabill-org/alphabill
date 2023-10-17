@@ -7,7 +7,6 @@ import (
 	"github.com/alphabill-org/alphabill/internal/metrics"
 	"github.com/alphabill-org/alphabill/internal/rpc/alphabill"
 	"github.com/alphabill-org/alphabill/internal/types"
-	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/fxamacker/cbor/v2"
 	"google.golang.org/protobuf/types/known/emptypb"
 )
@@ -99,8 +98,8 @@ func (r *grpcServer) GetBlocks(ctx context.Context, req *alphabill.GetBlocksRequ
 		return nil, err
 	}
 
-	maxBlockCount := util.Min(req.BlockCount, r.maxGetBlocksBatchSize)
-	batchMaxBlockNumber := util.Min(req.BlockNumber+maxBlockCount-1, latestRn)
+	maxBlockCount := min(req.BlockCount, r.maxGetBlocksBatchSize)
+	batchMaxBlockNumber := min(req.BlockNumber+maxBlockCount-1, latestRn)
 	batchSize := uint64(0)
 	if batchMaxBlockNumber >= req.BlockNumber {
 		batchSize = batchMaxBlockNumber - req.BlockNumber + 1

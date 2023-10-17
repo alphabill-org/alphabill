@@ -338,7 +338,8 @@ func (x *ConsensusManager) onIRChangeMsg(ctx context.Context, irChangeMsg *abdrc
 		return nil
 	}
 	// todo: AB-549 add max hop count or some sort of TTL?
-	// either this is a completely lost message or because of race we just proposed, try to forward again to the next leader
+	// either this is a completely lost message or because of race we just proposed, forward the original
+	// message again to next leader
 	x.log.WarnContext(ctx, "Node is not the leader in the next round, forwarding again", logger.Round(x.pacemaker.GetCurrentRound()))
 	if err := x.net.Send(ctx, irChangeMsg, nextLeader); err != nil {
 		return fmt.Errorf("failed to forward IR change message to the next leader: %w", err)

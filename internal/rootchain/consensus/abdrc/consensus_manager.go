@@ -300,7 +300,7 @@ func (x *ConsensusManager) onPartitionIRChangeReq(ctx context.Context, req *cons
 	}
 	nextLeader := x.leaderSelector.GetLeaderForRound(x.pacemaker.GetCurrentRound() + 1)
 	if nextLeader == x.id {
-		x.log.LogAttrs(ctx, slog.LevelDebug, fmt.Sprintf("node is leader or next leader, add to buffer"))
+		x.log.LogAttrs(ctx, slog.LevelDebug, fmt.Sprintf("node is the next leader, add to buffer"))
 		if err := x.irReqBuffer.Add(x.pacemaker.GetCurrentRound(), irReq, x.irReqVerifier); err != nil {
 			return fmt.Errorf("failed to add IR change request into buffer: %w", err)
 		}
@@ -323,6 +323,7 @@ func (x *ConsensusManager) onPartitionIRChangeReq(ctx context.Context, req *cons
 
 // onIRChangeMsg handles IR change request messages from other root nodes
 func (x *ConsensusManager) onIRChangeMsg(ctx context.Context, irChangeMsg *abdrc.IrChangeReqMsg) error {
+	x.log.DebugContext(ctx, "IR change request from root node", logger.Round(x.pacemaker.GetCurrentRound()))
 	if err := irChangeMsg.Verify(x.trustBase.GetVerifiers()); err != nil {
 		return fmt.Errorf("invalid IR change request message from node %s: %w", irChangeMsg.Author, err)
 	}
@@ -332,6 +333,7 @@ func (x *ConsensusManager) onIRChangeMsg(ctx context.Context, irChangeMsg *abdrc
 	// if the node will be the next leader then buffer the request to be included in the block proposal
 	// todo: if in recovery then forward to next?
 	if nextLeader == x.id {
+		x.log.LogAttrs(ctx, slog.LevelDebug, fmt.Sprintf("node is the next leader, add to buffer"))
 		if err := x.irReqBuffer.Add(x.pacemaker.GetCurrentRound(), irChangeMsg.IrChangeReq, x.irReqVerifier); err != nil {
 			return fmt.Errorf("failed to add IR change request into buffer: %w", err)
 		}
@@ -340,7 +342,7 @@ func (x *ConsensusManager) onIRChangeMsg(ctx context.Context, irChangeMsg *abdrc
 	// todo: AB-549 add max hop count or some sort of TTL?
 	// either this is a completely lost message or because of race we just proposed, forward the original
 	// message again to next leader
-	x.log.WarnContext(ctx, "Node is not the leader in the next round, forwarding again", logger.Round(x.pacemaker.GetCurrentRound()))
+	x.log.WarnContext(ctx, "node is not the leader in the next round, forwarding again", logger.Round(x.pacemaker.GetCurrentRound()))
 	if err := x.net.Send(ctx, irChangeMsg, nextLeader); err != nil {
 		return fmt.Errorf("failed to forward IR change message to the next leader: %w", err)
 	}

@@ -12,7 +12,6 @@ import (
 
 	"github.com/alphabill-org/alphabill/internal/txsystem/money"
 	"github.com/alphabill-org/alphabill/internal/types"
-	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/alphabill-org/alphabill/pkg/logger"
 	"github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/alphabill-org/alphabill/pkg/wallet/account"
@@ -163,7 +162,7 @@ func (w *DustCollector) runDustCollection(ctx context.Context, accountKey *accou
 	})
 	// use the largest bill as target
 	targetBill := bills[len(bills)-1]
-	billCountToSwap := util.Min(w.maxBillsPerDC, len(bills)-1)
+	billCountToSwap := min(w.maxBillsPerDC, len(bills)-1)
 	return w.submitDCBatch(ctx, accountKey, targetBill, bills[:billCountToSwap])
 }
 

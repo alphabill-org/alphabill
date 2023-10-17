@@ -15,7 +15,6 @@ import (
 	"github.com/alphabill-org/alphabill/internal/testutils/logger"
 	ttxs "github.com/alphabill-org/alphabill/internal/txsystem/tokens"
 	"github.com/alphabill-org/alphabill/internal/types"
-	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/alphabill-org/alphabill/pkg/wallet/account"
 	"github.com/alphabill-org/alphabill/pkg/wallet/tokens/backend"
@@ -949,7 +948,7 @@ func getSubarray[T interface{}](array []T, offsetKey string) ([]T, string, error
 			return nil, "", err
 		}
 	}
-	subarray := array[offset:util.Min(offset+defaultLimit, len(array))]
+	subarray := array[offset:min(offset+defaultLimit, len(array))]
 	offset += defaultLimit
 	if offset >= len(array) {
 		offsetKey = ""

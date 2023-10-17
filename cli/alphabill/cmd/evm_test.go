@@ -72,8 +72,6 @@ func TestRunEvmNode(t *testing.T) {
 			appStoppedWg.Done()
 		}()
 		t.Log("Started evm node")
-		// give it some time to start-up
-		time.Sleep(300 * time.Millisecond)
 		// create rest client
 		addr, err := url.Parse("http://" + listenAddr)
 		require.NoError(t, err)

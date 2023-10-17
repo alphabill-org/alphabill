@@ -37,11 +37,11 @@ func (x *IrChangeReqMsg) Sign(signer crypto.Signer) error {
 		return errSignerIsNil
 	}
 	if err := x.IsValid(); err != nil {
-		return fmt.Errorf("ir change request msg not valid, %w", err)
+		return fmt.Errorf("ir change request msg not valid: %w", err)
 	}
 	signature, err := signer.SignBytes(x.bytes())
 	if err != nil {
-		return fmt.Errorf("failed to sign vote: %w", err)
+		return fmt.Errorf("failed to sign ir change request: %w", err)
 	}
 	x.Signature = signature
 	return nil
@@ -49,7 +49,7 @@ func (x *IrChangeReqMsg) Sign(signer crypto.Signer) error {
 
 func (x *IrChangeReqMsg) Verify(rootTrust map[string]crypto.Verifier) error {
 	if err := x.IsValid(); err != nil {
-		return fmt.Errorf("ir change request msg not valid, %w", err)
+		return fmt.Errorf("ir change request msg not valid: %w", err)
 	}
 	v, f := rootTrust[x.Author]
 	if !f {

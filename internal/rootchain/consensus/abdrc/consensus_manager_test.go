@@ -615,7 +615,15 @@ func Test_ConsensusManager_handleRootNetMsg(t *testing.T) {
 
 func Test_ConsensusManager_messages(t *testing.T) {
 	t.Parallel()
-
+	waitExit := func(ctxCancel context.CancelFunc, doneCh chan struct{}) {
+		ctxCancel()
+		// and wait for cm to exit
+		select {
+		case <-time.After(1000 * time.Millisecond):
+			t.Fatal("consensus manager did not exit in time")
+		case <-doneCh:
+		}
+	}
 	// partition data used/shared by tests
 	partitionNodes, partitionRecord := testutils.CreatePartitionNodesAndPartitionRecord(t, partitionInputRecord, partitionID, 2)
 
@@ -634,15 +642,7 @@ func Test_ConsensusManager_messages(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		done := make(chan struct{})
 		go func() { defer close(done); require.ErrorIs(t, cms[0].Run(ctx), context.Canceled) }()
-		defer func() {
-			cancel()
-			// and wait for cm to exit
-			select {
-			case <-time.After(1000 * time.Millisecond):
-				t.Fatal("consensus manager did not exit in time")
-			case <-done:
-			}
-		}()
+		defer waitExit(cancel, done)
 
 		// simulate root validator node sending IRCR to consensus manager
 		irCReq := consensus.IRChangeRequest{
@@ -681,16 +681,11 @@ func Test_ConsensusManager_messages(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		done := make(chan struct{})
 		go func() { defer close(done); require.ErrorIs(t, nonLeaderNode.Run(ctx), context.Canceled) }()
-		defer func() {
-			cancel()
-			// and wait for cm to exit
-			select {
-			case <-time.After(1000 * time.Millisecond):
-				t.Fatal("consensus manager did not exit in time")
-			case <-done:
-			}
-		}()
+		defer waitExit(cancel, done)
 
+		// Read messages sent to the leader, as the node that received the IR change request
+		// is not a leader it must forward the request to the leader
+		cmBnet := rootNet.Connect(cmLeader.id)
 		// simulate root validator node sending IRCR to consensus manager
 		irCReq := consensus.IRChangeRequest{
 			SystemIdentifier: partitionID,
@@ -703,9 +698,6 @@ func Test_ConsensusManager_messages(t *testing.T) {
 			t.Fatal("CM doesn't consume IR change request")
 		case nonLeaderNode.RequestCertification() <- irCReq:
 		}
-		// Read messages sent to the leader, as the node that received the IR change request
-		// is not a leader it must forward the request to the leader
-		cmBnet := rootNet.Connect(cmLeader.id)
 		select {
 		case <-time.After(cmLeader.pacemaker.maxRoundLen):
 			t.Fatal("haven't got the IR Change message before timeout")
@@ -720,6 +712,7 @@ func Test_ConsensusManager_messages(t *testing.T) {
 	t.Run("IR change request forwarded by peer included in proposal", func(t *testing.T) {
 		cms, rootNet, rootG := createConsensusManagers(t, 2, []*genesis.PartitionRecord{partitionRecord})
 		cmLeader := cms[0]
+		otherNode := cms[1]
 		allNodes := cmLeader.leaderSelector.GetNodes()
 		for _, v := range cms {
 			v.leaderSelector = constLeader{leader: cmLeader.id, nodes: allNodes} // use "const leader" to take leader selection out of test
@@ -727,18 +720,9 @@ func Test_ConsensusManager_messages(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		done := make(chan struct{})
 		go func() { defer close(done); require.ErrorIs(t, cmLeader.Run(ctx), context.Canceled) }()
-		defer func() {
-			cancel()
-			// and wait for cm to exit
-			select {
-			case <-time.After(1000 * time.Millisecond):
-				t.Fatal("consensus manager did not exit in time")
-			case <-done:
-			}
-		}()
-		// simulate "other root node" forwarding IRCR to leader
-		otherNode := cms[1]
-		// simulate IR change request message
+		defer waitExit(cancel, done)
+
+		// simulate IR change request message, "other root node" forwarding IRCR to leader
 		irChReqMsg := &abdrc.IrChangeReqMsg{
 			Author: otherNode.id.String(),
 			IrChangeReq: &abtypes.IRChangeReq{
@@ -781,15 +765,8 @@ func Test_ConsensusManager_messages(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		done := make(chan struct{})
 		go func() { defer close(done); require.ErrorIs(t, nonLeaderNode.Run(ctx), context.Canceled) }()
-		defer func() {
-			cancel()
-			// and wait for cm to exit
-			select {
-			case <-time.After(1000 * time.Millisecond):
-				t.Fatal("consensus manager did not exit in time")
-			case <-done:
-			}
-		}()
+		defer waitExit(cancel, done)
+
 		// simulate leader forwarding IRCR to non-leader
 		// not a real life situation, but it will test the logic for IR Change request messages
 		irChReqMsg := &abdrc.IrChangeReqMsg{
@@ -801,7 +778,7 @@ func Test_ConsensusManager_messages(t *testing.T) {
 			},
 		}
 		require.NoError(t, cmLeader.safety.Sign(irChReqMsg))
-		cmBnet := rootNet.Connect(cms[0].id)
+		cmBnet := rootNet.Connect(cmLeader.id)
 		require.NoError(t, cmBnet.Send(ctx, irChReqMsg, nonLeaderNode.id))
 		// non-leader is not the next leader and thus will forward the request back to the leader node
 		sawIRCR := false
@@ -826,15 +803,8 @@ func Test_ConsensusManager_messages(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		done := make(chan struct{})
 		go func() { defer close(done); require.ErrorIs(t, cmA.Run(ctx), context.Canceled) }()
-		defer func() {
-			cancel()
-			// and wait for cm to exit
-			select {
-			case <-time.After(1000 * time.Millisecond):
-				t.Fatal("consensus manager did not exit in time")
-			case <-done:
-			}
-		}()
+		defer waitExit(cancel, done)
+
 		// cmB sends state request to cmA
 		msg := &abdrc.GetStateMsg{NodeId: cmB.id.String()}
 		require.NoError(t, cmB.net.Send(ctx, msg, cmA.id))

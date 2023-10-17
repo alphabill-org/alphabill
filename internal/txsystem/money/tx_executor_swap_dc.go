@@ -73,6 +73,7 @@ func handleSwapDCTx(s *state.State, systemID []byte, hashAlgorithm crypto.Hash, 
 				bd.V += attr.TargetValue
 				bd.T = currentBlockNumber
 				bd.Backlink = h
+				bd.Locked = 0
 				return bd, nil
 			})
 		if err := s.Apply(updateDCMoneySupplyFn, updateTargetUnitFn); err != nil {

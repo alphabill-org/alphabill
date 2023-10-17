@@ -210,7 +210,7 @@ func TestIrChangeReqMsg_Verify(t *testing.T) {
 				Signature:   tt.fields.Signature,
 			}
 			err := x.Verify(tt.args.rootTrust)
-			if len(tt.wantErr) > 0 {
+			if tt.wantErr != "" {
 				require.ErrorContains(t, err, tt.wantErr)
 			} else {
 				require.NoError(t, err)

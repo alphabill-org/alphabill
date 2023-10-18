@@ -1116,11 +1116,11 @@ func Test_rootNetworkRunning(t *testing.T) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	wg := sync.WaitGroup{}
-	wg.Add(len(cms))
 	done := make(chan struct{})
 	start := time.Now()
 	go func() {
+		wg := sync.WaitGroup{}
+		wg.Add(len(cms))
 		for _, v := range cms {
 			go func(cm *ConsensusManager) {
 				defer wg.Done()

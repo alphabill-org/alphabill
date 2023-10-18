@@ -9,6 +9,8 @@ const (
 	PayloadTypeSplit    = "split"
 	PayloadTypeTransDC  = "transDC"
 	PayloadTypeSwapDC   = "swapDC"
+	PayloadTypeLock     = "lock"
+	PayloadTypeUnlock   = "unlock"
 )
 
 type (
@@ -46,5 +48,16 @@ type (
 		DcTransfers      []*types.TransactionRecord
 		DcTransferProofs []*types.TxProof
 		TargetValue      uint64 // value added to target bill
+	}
+
+	LockAttributes struct {
+		_          struct{} `cbor:",toarray"`
+		LockStatus uint64   // status of the lock, non-zero value means locked
+		Backlink   []byte
+	}
+
+	UnlockAttributes struct {
+		_        struct{} `cbor:",toarray"`
+		Backlink []byte
 	}
 )

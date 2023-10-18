@@ -34,6 +34,12 @@ func TestTransfer(t *testing.T) {
 			res:  nil,
 		},
 		{
+			name: "LockedBill",
+			bd:   &BillData{Locked: 1, V: 100, Backlink: []byte{6}},
+			attr: &TransferAttributes{TargetValue: 100, Backlink: []byte{6}},
+			res:  ErrBillLocked,
+		},
+		{
 			name: "InvalidBalance",
 			bd:   newBillData(100, []byte{6}),
 			attr: &TransferAttributes{TargetValue: 101, Backlink: []byte{6}},
@@ -74,6 +80,16 @@ func TestTransferDC(t *testing.T) {
 				Backlink:     []byte{6},
 			},
 			res: nil,
+		},
+		{
+			name: "LockedBill",
+			bd:   &BillData{Locked: 1, V: 100, Backlink: []byte{6}},
+			attr: &TransferDCAttributes{
+				TargetUnitID: test.RandomBytes(32),
+				Value:        101,
+				Backlink:     []byte{6},
+			},
+			res: ErrBillLocked,
 		},
 		{
 			name: "InvalidBalance",
@@ -137,6 +153,18 @@ func TestSplit(t *testing.T) {
 				RemainingValue: 80,
 				Backlink:       []byte{6},
 			},
+		},
+		{
+			name: "BillLocked",
+			bd:   &BillData{Locked: 1, V: 100, Backlink: []byte{6}},
+			attr: &SplitAttributes{
+				TargetUnits: []*TargetUnit{
+					{Amount: 50, OwnerCondition: script.PredicateAlwaysTrue()},
+				},
+				RemainingValue: 50,
+				Backlink:       []byte{6},
+			},
+			err: "bill is already locked",
 		},
 		{
 			name: "Invalid backlink",
@@ -357,6 +385,12 @@ func TestTransferFC(t *testing.T) {
 			wantErr: nil,
 		},
 		{
+			name:    "LockedBill",
+			bd:      &BillData{Locked: 1, V: 101, Backlink: backlink},
+			tx:      testfc.NewTransferFC(t, nil),
+			wantErr: ErrBillLocked,
+		},
+		{
 			name:    "BillData is nil",
 			bd:      nil,
 			tx:      testfc.NewTransferFC(t, nil),
@@ -552,6 +586,110 @@ func TestReclaimFC(t *testing.T) {
 			}
 			if tt.wantErrMsg != "" {
 				require.ErrorContains(t, err, tt.wantErrMsg)
+			}
+		})
+	}
+}
+
+func TestLockTx(t *testing.T) {
+	tests := []struct {
+		name string
+		bd   *BillData
+		attr *LockAttributes
+		res  error
+	}{
+		{
+			name: "Ok",
+			bd:   &BillData{Backlink: []byte{5}, Locked: 0},
+			attr: &LockAttributes{Backlink: []byte{5}, LockStatus: 1},
+		},
+		{
+			name: "attr is nil",
+			bd:   &BillData{Backlink: []byte{5}},
+			attr: nil,
+			res:  ErrTxAttrNil,
+		},
+		{
+			name: "bill data is nil",
+			bd:   nil,
+			attr: &LockAttributes{Backlink: []byte{5}},
+			res:  ErrBillNil,
+		},
+		{
+			name: "bill is already locked",
+			bd:   &BillData{Backlink: []byte{5}, Locked: 1},
+			attr: &LockAttributes{Backlink: []byte{5}},
+			res:  ErrBillLocked,
+		},
+		{
+			name: "zero lock value",
+			bd:   &BillData{Backlink: []byte{5}, Locked: 0},
+			attr: &LockAttributes{Backlink: []byte{5}, LockStatus: 0},
+			res:  ErrInvalidLockStatus,
+		},
+		{
+			name: "invalid backlink",
+			bd:   &BillData{Backlink: []byte{5}, Locked: 0},
+			attr: &LockAttributes{Backlink: []byte{6}, LockStatus: 1},
+			res:  ErrInvalidBacklink,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := validateLockTx(tt.attr, tt.bd)
+			if tt.res == nil {
+				require.NoError(t, err)
+			} else {
+				require.ErrorIs(t, err, tt.res)
+			}
+		})
+	}
+}
+
+func TestUnlockTx(t *testing.T) {
+	tests := []struct {
+		name string
+		bd   *BillData
+		attr *UnlockAttributes
+		res  error
+	}{
+		{
+			name: "Ok",
+			bd:   &BillData{Backlink: []byte{5}, Locked: 1},
+			attr: &UnlockAttributes{Backlink: []byte{5}},
+		},
+		{
+			name: "attr is nil",
+			bd:   &BillData{Backlink: []byte{5}, Locked: 1},
+			attr: nil,
+			res:  ErrTxAttrNil,
+		},
+		{
+			name: "bill data is nil",
+			bd:   nil,
+			attr: &UnlockAttributes{Backlink: []byte{5}},
+			res:  ErrBillNil,
+		},
+		{
+			name: "bill is already unlocked",
+			bd:   &BillData{Backlink: []byte{5}, Locked: 0},
+			attr: &UnlockAttributes{Backlink: []byte{5}},
+			res:  ErrBillUnlocked,
+		},
+		{
+			name: "invalid backlink",
+			bd:   &BillData{Backlink: []byte{5}, Locked: 1},
+			attr: &UnlockAttributes{Backlink: []byte{6}},
+			res:  ErrInvalidBacklink,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := validateUnlockTx(tt.attr, tt.bd)
+			if tt.res == nil {
+				require.NoError(t, err)
+			} else {
+				require.ErrorIs(t, err, tt.res)
 			}
 		})
 	}

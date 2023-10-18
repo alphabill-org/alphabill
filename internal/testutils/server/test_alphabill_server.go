@@ -9,7 +9,6 @@ import (
 
 	"github.com/alphabill-org/alphabill/internal/rpc/alphabill"
 	"github.com/alphabill-org/alphabill/internal/types"
-	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/fxamacker/cbor/v2"
 	"google.golang.org/grpc"
 	"google.golang.org/protobuf/types/known/emptypb"
@@ -69,7 +68,7 @@ func (s *TestAlphabillServiceServer) GetBlocks(_ context.Context, req *alphabill
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	blocks := make([][]byte, 0, req.BlockCount)
-	maxBlockNumber := util.Min(s.maxBlockHeight, req.BlockNumber+req.BlockCount-1)
+	maxBlockNumber := min(s.maxBlockHeight, req.BlockNumber+req.BlockCount-1)
 	for i := req.BlockNumber; i <= maxBlockNumber; i++ {
 		blockFunc, f := s.blocks[i]
 		if !f {

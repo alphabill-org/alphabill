@@ -6,7 +6,6 @@ import (
 
 	"github.com/alphabill-org/alphabill/internal/state"
 	"github.com/alphabill-org/alphabill/internal/types"
-	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/ethereum/go-ethereum/common"
 )
 
@@ -39,7 +38,7 @@ func UpdateEthAccountAddCredit(id types.UnitID, value *big.Int, timeout uint64, 
 		stateObj.Account.Balance = newBalance
 		stateObj.AlphaBill = &AlphaBillLink{
 			TxHash:  transactionRecordHash,
-			Timeout: util.Max(stateObj.AlphaBill.GetTimeout(), timeout),
+			Timeout: max(stateObj.AlphaBill.GetTimeout(), timeout),
 		}
 		return stateObj, nil
 	}

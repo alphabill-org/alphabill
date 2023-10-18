@@ -4,7 +4,10 @@ import (
 	"fmt"
 
 	"github.com/alphabill-org/alphabill/internal/txsystem"
+	"github.com/alphabill-org/alphabill/internal/txsystem/evm/contracts"
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core"
+	"github.com/ethereum/go-ethereum/core/vm"
 )
 
 var _ txsystem.Module = (*Module)(nil)
@@ -21,6 +24,7 @@ func NewEVMModule(systemIdentifier []byte, opts *Options) (*Module, error) {
 	if opts.gasUnitPrice == nil {
 		return nil, fmt.Errorf("evm init failed, gas price is nil")
 	}
+	registerPrecompiledContracts(opts)
 	return &Module{
 		systemIdentifier: systemIdentifier,
 		options:          opts,
@@ -47,4 +51,11 @@ func (m *Module) StartBlockFunc(blockGasLimit uint64) []func(blockNr uint64) err
 			return nil
 		},
 	}
+}
+
+func registerPrecompiledContracts(opts *Options) {
+	vm.RegisterCallerAwarePrecompiledContract(
+		contracts.NewAlphabillLibContract(opts.trustBase, opts.hashAlgorithm),
+		common.BytesToAddress([]byte{42}),
+	)
 }

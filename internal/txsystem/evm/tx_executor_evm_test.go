@@ -2,10 +2,15 @@ package evm
 
 import (
 	"bytes"
+	gocrypto "crypto"
 	"fmt"
 	"math"
 	"math/big"
 	"testing"
+
+	"github.com/alphabill-org/alphabill/internal/crypto"
+
+	"github.com/alphabill-org/alphabill/internal/txsystem/evm/contracts"
 
 	"github.com/alphabill-org/alphabill/internal/keyvaluedb/memorydb"
 	abstate "github.com/alphabill-org/alphabill/internal/state"
@@ -595,6 +600,29 @@ func Test_PreviousBlockHashFunction(t *testing.T) {
 	require.NoError(t, cbor.Unmarshal(res.ProcessingDetails, &details))
 	// expect 0H to be returned
 	require.EqualValues(t, make([]byte, 32), details.ReturnData)
+}
+
+func Test_CallAlphabillPrecompiledContract_OK(t *testing.T) {
+	vm.RegisterCallerAwarePrecompiledContract(contracts.NewAlphabillLibContract(map[string]crypto.Verifier{}, gocrypto.SHA256), common.BytesToAddress([]byte{42}))
+	fromAddr := common.BytesToAddress(test.RandomBytes(20))
+	gasPrice := big.NewInt(DefaultGasPrice)
+	stateDB := initStateDBWithAccountAndSC(t, []*testAccount{{Addr: fromAddr, Balance: 53000 * DefaultGasPrice, Code: counterContractCode}})
+	gasPool := new(core.GasPool).AddGas(DefaultBlockGasLimit)
+	scAddr := common.BytesToAddress([]byte{42})
+	alphabillLibABI, err := abi.JSON(bytes.NewBuffer([]byte(contracts.AlphabillLibABI)))
+	require.NoError(t, err)
+	data, err := alphabillLibABI.Pack("verifyTxRecordProof", []byte{0, 1}, []byte{0, 2})
+	require.NoError(t, err)
+	callContract := &TxAttributes{
+		From:  fromAddr.Bytes(),
+		To:    scAddr.Bytes(),
+		Data:  data,
+		Gas:   53000,
+		Value: big.NewInt(0),
+		Nonce: 1,
+	}
+	_, err = Execute(2, stateDB, memorydb.New(), callContract, systemIdentifier, gasPool, gasPrice, false)
+	require.NoError(t, err)
 }
 
 func Test_errorToStr(t *testing.T) {

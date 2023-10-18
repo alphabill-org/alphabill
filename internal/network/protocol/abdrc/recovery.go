@@ -3,8 +3,7 @@ package abdrc
 import (
 	"crypto"
 	"fmt"
-
-	"golang.org/x/exp/slices"
+	"slices"
 
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
 	abdrc "github.com/alphabill-org/alphabill/internal/rootchain/consensus/abdrc/types"

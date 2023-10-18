@@ -61,7 +61,7 @@ func NewBlockTreeFromRecovery(cBlock *ExecutedBlock, nodes []*ExecutedBlock, bDB
 	for _, next := range nodes {
 		// if parent round does not exist then reject, parent must be recovered
 		parent, found := treeNodes[next.GetParentRound()]
-		if found == false {
+		if !found {
 			return nil, fmt.Errorf("error cannot add block for round %v, parent block %v not found", next.GetRound(),
 				next.BlockData.Qc.VoteInfo.RoundNumber)
 		}
@@ -113,7 +113,7 @@ func NewBlockTree(bDB keyvaluedb.KeyValueDB) (bTree *BlockTree, err error) {
 		}
 		// if parent round does not exist then reject, parent must be recovered
 		parent, found := treeNodes[block.GetParentRound()]
-		if found == false {
+		if !found {
 			return nil, fmt.Errorf("error cannot add block for round %v, parent block %v not found", block.GetRound(),
 				block.GetParentRound())
 		}
@@ -161,12 +161,12 @@ func (bt *BlockTree) HighQc() *abdrc.QuorumCert {
 func (bt *BlockTree) Add(block *ExecutedBlock) error {
 	// every round can exist only once
 	// reject a block if this round has already been added
-	if _, found := bt.roundToNode[block.GetRound()]; found == true {
+	if _, found := bt.roundToNode[block.GetRound()]; found {
 		return fmt.Errorf("error block for round %v already exists", block.BlockData.Round)
 	}
 	// if parent round does not exist then reject, parent must be recovered
 	parent, found := bt.roundToNode[block.GetParentRound()]
-	if found == false {
+	if !found {
 		return fmt.Errorf("error cannot add block for round %v, parent block %v not found", block.GetRound(),
 			block.GetParentRound())
 	}
@@ -187,7 +187,7 @@ func (bt *BlockTree) RemoveLeaf(round uint64) error {
 		return fmt.Errorf("error root cannot be removed")
 	}
 	n, found := bt.roundToNode[round]
-	if found == false {
+	if !found {
 		// this is ok if we do not have the node, on TC remove might be triggered twice
 		return nil
 	}
@@ -195,7 +195,7 @@ func (bt *BlockTree) RemoveLeaf(round uint64) error {
 		return fmt.Errorf("error round %v is not child node", round)
 	}
 	parent, found := bt.roundToNode[n.data.GetParentRound()]
-	if found == false {
+	if !found {
 		return fmt.Errorf("error parent block %v not found", n.data.GetParentRound())
 	}
 	delete(bt.roundToNode, round)
@@ -213,7 +213,7 @@ func (bt *BlockTree) Root() *ExecutedBlock {
 // the root node is previous node then the list is empty
 func (bt *BlockTree) FindPathToRoot(round uint64) []*ExecutedBlock {
 	n, f := bt.roundToNode[round]
-	if f == false {
+	if !f {
 		return nil
 	}
 	// if the node is root
@@ -223,7 +223,7 @@ func (bt *BlockTree) FindPathToRoot(round uint64) []*ExecutedBlock {
 	// find path
 	path := make([]*ExecutedBlock, 0, 2)
 	for {
-		if parent, found := bt.roundToNode[n.data.GetParentRound()]; found == true {
+		if parent, found := bt.roundToNode[n.data.GetParentRound()]; found {
 			path = append(path, n.data)
 			// if parent is root then break out of loop
 			if parent == bt.root {
@@ -267,7 +267,7 @@ func (bt *BlockTree) findBlocksToPrune(newRootRound uint64) ([]uint64, error) {
 		}
 		treeNode = treeNode.child
 	}
-	if newRootFound == false {
+	if !newRootFound {
 		return nil, fmt.Errorf("error, new root round %v not found", newRootRound)
 	}
 	return blocksToPrune, nil
@@ -286,7 +286,7 @@ func (bt *BlockTree) Commit(commitQc *abdrc.QuorumCert) (*ExecutedBlock, error) 
 	// Add qc to pending state (needed for recovery)
 	commitRound := commitQc.GetParentRound()
 	commitNode, found := bt.roundToNode[commitRound]
-	if found == false {
+	if !found {
 		return nil, fmt.Errorf("commit of round %v failed, block not found", commitRound)
 	}
 	// Find if there are uncommitted nodes between new root and previous root
@@ -299,11 +299,11 @@ func (bt *BlockTree) Commit(commitQc *abdrc.QuorumCert) (*ExecutedBlock, error) 
 	// prune the chain, the committed block becomes new root of the chain
 	blocksToPrune, err := bt.findBlocksToPrune(commitRound)
 	if err != nil {
-		return nil, fmt.Errorf("failed to commit block %v, error %w", commitRound, err)
+		return nil, fmt.Errorf("failed to commit block %d: %w", commitRound, err)
 	}
 	dbTx, err := bt.blocksDB.StartTx()
 	if err != nil {
-		return nil, fmt.Errorf("cannot persist block data, %w", err)
+		return nil, fmt.Errorf("cannot persist block data: %w", err)
 	}
 	// delete blocks til new root and set establish new root
 	for _, round := range blocksToPrune {
@@ -313,7 +313,7 @@ func (bt *BlockTree) Commit(commitQc *abdrc.QuorumCert) (*ExecutedBlock, error) 
 	// update the new root with commit QC info
 	if err = dbTx.Write(blockKey(commitRound), commitNode.data); err != nil {
 		_ = dbTx.Rollback()
-		return nil, fmt.Errorf("commit of round %v failed, persist changes failed, %w", commitRound, err)
+		return nil, fmt.Errorf("committing round %d, persist changes failed: %w", commitRound, err)
 	}
 	// commit changes
 	if err = dbTx.Commit(); err != nil {

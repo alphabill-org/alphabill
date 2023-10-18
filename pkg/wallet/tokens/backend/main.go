@@ -92,7 +92,7 @@ func Run(ctx context.Context, cfg Configuration) error {
 	msgBroker := broker.NewBroker(ctx.Done())
 	abc, err := cfg.Client()
 	if err != nil {
-		return fmt.Errorf("failed to create Alphabill client")
+		return fmt.Errorf("failed to create Alphabill client: %w", err)
 	}
 
 	g.Go(func() error {

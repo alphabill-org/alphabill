@@ -25,7 +25,7 @@ import (
 )
 
 type Configuration interface {
-	Client() ABClient
+	Client() (ABClient, error)
 	Storage() (Storage, error)
 	BatchSize() int
 	HttpServer(http.Handler) http.Server
@@ -90,7 +90,10 @@ func Run(ctx context.Context, cfg Configuration) error {
 
 	g, ctx := errgroup.WithContext(ctx)
 	msgBroker := broker.NewBroker(ctx.Done())
-	abc := cfg.Client()
+	abc, err := cfg.Client()
+	if err != nil {
+		return fmt.Errorf("failed to create Alphabill client")
+	}
 
 	g.Go(func() error {
 		log := cfg.Logger()
@@ -161,7 +164,7 @@ func NewConfig(apiAddr, abURL, boltDB string, logger *slog.Logger, systemID []by
 	}
 }
 
-func (c *cfg) Client() ABClient          { return client.New(c.abc, c.log) }
+func (c *cfg) Client() (ABClient, error) { return client.New(c.abc, c.log) }
 func (c *cfg) Storage() (Storage, error) { return newBoltStore(c.boltDB) }
 func (c *cfg) BatchSize() int            { return 100 }
 func (c *cfg) Logger() *slog.Logger      { return c.log }

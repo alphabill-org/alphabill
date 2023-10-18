@@ -24,7 +24,8 @@ func TestRaceConditions(t *testing.T) {
 	t.Cleanup(server.GracefulStop)
 
 	// create ab client
-	abclient := New(AlphabillClientConfig{Uri: addr.String()}, logger.New(t))
+	abclient, err := New(AlphabillClientConfig{Uri: addr.String()}, logger.New(t))
+	require.NoError(t, err)
 	t.Cleanup(func() { _ = abclient.Close() })
 
 	// do async operations on abclient
@@ -156,7 +157,8 @@ func startServerAndCreateClient(t *testing.T) (*testserver.TestAlphabillServiceS
 	t.Cleanup(server.GracefulStop)
 
 	// create ab client
-	abclient := New(AlphabillClientConfig{Uri: addr.String()}, logger.New(t))
+	abclient, err := New(AlphabillClientConfig{Uri: addr.String()}, logger.New(t))
+	require.NoError(t, err)
 	t.Cleanup(func() { _ = abclient.Close() })
 	return serviceServer, abclient
 }

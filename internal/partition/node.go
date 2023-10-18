@@ -10,6 +10,8 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/alphabill-org/alphabill/internal/state"
+
 	"github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/keyvaluedb"
 	"github.com/alphabill-org/alphabill/internal/metrics"
@@ -436,7 +438,10 @@ func (n *Node) eventHandlerLoop(ctx context.Context) error {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
-		case e := <-n.eventCh:
+		case e, ok := <-n.eventCh:
+			if !ok {
+				return nil
+			}
 			n.eventHandler(&e)
 		}
 	}
@@ -792,7 +797,13 @@ func (n *Node) finalizeBlock(b *types.Block) error {
 	// NB! only cache and commit if persist is successful
 	n.lastStoredBlock = b
 	validTransactionsCounter.Inc(int64(len(b.Transactions)))
-	n.sendEvent(event.BlockFinalized, b)
+	n.sendEvent(event.BlockFinalized, &struct {
+		Block *types.Block
+		State *state.State
+	}{
+		Block: b,
+		State: n.transactionSystem.StateStorage().Clone(),
+	})
 	return nil
 }
 

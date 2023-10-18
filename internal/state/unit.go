@@ -27,8 +27,8 @@ type (
 		Copy() UnitData
 	}
 
-	// log contains a state changes of the unit during the transaction execution.
-	log struct {
+	// Log contains a state changes of the unit during the transaction execution.
+	Log struct {
 		txRecordHash       []byte // the hash of the transaction record that brought the unit to the state described by given log entry.
 		unitLedgerHeadHash []byte // the new head hash of the unit ledger
 		newBearer          Predicate
@@ -36,7 +36,7 @@ type (
 	}
 
 	// logs contains a state changes of the unit during the current round.
-	logs []*log
+	logs []*Log
 
 	Predicate []byte
 )
@@ -74,19 +74,23 @@ func (u *Unit) Data() UnitData {
 	return copyData(u.data)
 }
 
+func (u *Unit) Logs() []*Log {
+	return u.logs
+}
+
 func copyLogs(entries logs) logs {
-	logsCopy := make([]*log, len(entries))
+	logsCopy := make([]*Log, len(entries))
 	for i, e := range entries {
 		logsCopy[i] = e.Clone()
 	}
 	return logsCopy
 }
 
-func (l *log) Clone() *log {
+func (l *Log) Clone() *Log {
 	if l == nil {
 		return nil
 	}
-	return &log{
+	return &Log{
 		txRecordHash:       bytes.Clone(l.txRecordHash),
 		unitLedgerHeadHash: bytes.Clone(l.unitLedgerHeadHash),
 		newBearer:          bytes.Clone(l.newBearer),
@@ -94,7 +98,7 @@ func (l *log) Clone() *log {
 	}
 }
 
-func (l *log) Hash(algorithm crypto.Hash) []byte {
+func (l *Log) Hash(algorithm crypto.Hash) []byte {
 	hasher := algorithm.New()
 	hasher.Write(l.newBearer)
 	if l.newUnitData != nil {

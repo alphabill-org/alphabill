@@ -7,6 +7,9 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/alphabill-org/alphabill/internal/keyvaluedb"
+	"github.com/alphabill-org/alphabill/internal/state"
+
 	"github.com/alphabill-org/alphabill/internal/metrics"
 	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/internal/util"
@@ -18,6 +21,7 @@ const (
 	pathTransactions         = "/transactions"
 	pathGetTransactionRecord = "/transactions/{txOrderHash}"
 	pathLatestRoundNumber    = "/rounds/latest"
+	pathUnits                = "/units/{unitID}"
 )
 
 var (
@@ -25,7 +29,7 @@ var (
 	receivedInvalidTransactionsRESTMeter = metrics.GetOrRegisterCounter("transactions/rest/invalid")
 )
 
-func NodeEndpoints(node partitionNode) RegistrarFunc {
+func NodeEndpoints(node partitionNode, state *state.State, unitProofDB keyvaluedb.KeyValueDB) RegistrarFunc {
 	return func(r *mux.Router) {
 
 		// submit transaction
@@ -35,7 +39,12 @@ func NodeEndpoints(node partitionNode) RegistrarFunc {
 		r.HandleFunc(pathGetTransactionRecord, getTransactionRecord(node)).Methods(http.MethodGet, http.MethodOptions)
 
 		// get latest round number
-		r.HandleFunc(pathLatestRoundNumber, getLatestRoundNumber(node))
+		r.HandleFunc(pathLatestRoundNumber, getLatestRoundNumber(node)).Methods(http.MethodGet, http.MethodOptions)
+
+		// get unit data and proof
+		r.HandleFunc(pathUnits, getUnit(state, unitProofDB)).
+			Methods(http.MethodGet, http.MethodOptions).
+			Queries("txOrderHash", "{txOrderHash}", "fields", "{fields}")
 	}
 }
 

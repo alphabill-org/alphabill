@@ -9,6 +9,8 @@ import (
 	"net/http"
 	"sort"
 
+	"github.com/alphabill-org/alphabill/internal/state"
+
 	"github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/multiformats/go-multiaddr"
@@ -50,8 +52,16 @@ type startNodeConfiguration struct {
 	LedgerReplicationMaxTx     uint32
 }
 
-func defaultNodeRunFunc(ctx context.Context, name string, txs txsystem.TransactionSystem, nodeCfg *startNodeConfiguration, rpcServerConf *grpcServerConfiguration, restServerConf *restServerConfiguration) error {
-	self, node, err := createNode(ctx, txs, nodeCfg)
+func defaultNodeRunFunc(ctx context.Context, name string, txs txsystem.TransactionSystem, nodeCfg *startNodeConfiguration, rpcServerConf *grpcServerConfiguration, restServerConf *restServerConfiguration) (err error) {
+	var indexerDB keyvaluedb.KeyValueDB
+	if nodeCfg.TxIndexerDBFile != "" {
+		indexerDB, err = boltdb.New(nodeCfg.TxIndexerDBFile)
+		if err != nil {
+			return fmt.Errorf("unable to load indexer database: %w", err)
+		}
+	}
+
+	self, node, err := createNode(ctx, txs, nodeCfg, indexerDB)
 	if err != nil {
 		return fmt.Errorf("failed to create node %q: %w", name, err)
 	}
@@ -93,7 +103,8 @@ func defaultNodeRunFunc(ctx context.Context, name string, txs txsystem.Transacti
 		if restServerConf.IsAddressEmpty() {
 			return nil // return nil in this case in order not to kill the group!
 		}
-		routers := []rpc.Registrar{rpc.NodeEndpoints(node), rpc.MetricsEndpoints(), rpc.InfoEndpoints(node, self)}
+		// TODO
+		routers := []rpc.Registrar{rpc.NodeEndpoints(node, txs.StateStorage(), indexerDB), rpc.MetricsEndpoints(), rpc.InfoEndpoints(node, self)}
 		if restServerConf.router != nil {
 			routers = append(routers, restServerConf.router)
 		}
@@ -199,7 +210,7 @@ func initRPCServer(node *partition.Node, cfg *grpcServerConfiguration) (*grpc.Se
 	return grpcServer, nil
 }
 
-func createNode(ctx context.Context, txs txsystem.TransactionSystem, cfg *startNodeConfiguration) (*network.Peer, *partition.Node, error) {
+func createNode(ctx context.Context, txs txsystem.TransactionSystem, cfg *startNodeConfiguration, indexerDB keyvaluedb.KeyValueDB) (*network.Peer, *partition.Node, error) {
 	keys, err := LoadKeys(cfg.KeyFile, false, false)
 	if err != nil {
 		return nil, nil, err
@@ -236,12 +247,10 @@ func createNode(ctx context.Context, txs txsystem.TransactionSystem, cfg *startN
 		partition.WithReplicationParams(cfg.LedgerReplicationMaxBlocks, cfg.LedgerReplicationMaxTx),
 	}
 
-	if cfg.TxIndexerDBFile != "" {
-		txIndexer, err := boltdb.New(cfg.TxIndexerDBFile)
-		if err != nil {
-			return nil, nil, fmt.Errorf("unable to load tx indexer: %w", err)
-		}
-		options = append(options, partition.WithTxIndexer(txIndexer))
+	if indexerDB != nil {
+		// TODO history size!
+		proofIndexer := state.NewProofIndexer(indexerDB, 20)
+		options = append(options, partition.WithTxIndexer(indexerDB), partition.WithEventHandler(proofIndexer.Handle, 20))
 	}
 
 	node, err := partition.New(

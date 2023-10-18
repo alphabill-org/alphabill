@@ -87,7 +87,11 @@ func (s *State) GetUnit(id types.UnitID, committed bool) (*Unit, error) {
 	if committed {
 		return s.committedTree.Get(id)
 	}
-	return s.latestSavepoint().Get(id)
+	u, err := s.latestSavepoint().Get(id)
+	if err != nil {
+		return nil, err
+	}
+	return u.Clone(), nil
 }
 
 func (s *State) AddUnitLog(id types.UnitID, transactionRecordHash []byte) (int, error) {
@@ -100,7 +104,7 @@ func (s *State) AddUnitLog(id types.UnitID, transactionRecordHash []byte) (int, 
 	}
 	unit := u.Clone()
 	logsCount := len(unit.logs)
-	l := &log{
+	l := &Log{
 		txRecordHash: transactionRecordHash,
 		newBearer:    bytes.Clone(unit.bearer),
 		newUnitData:  copyData(unit.data),
@@ -222,7 +226,7 @@ func (s *State) PruneLog(id types.UnitID) error {
 	}
 	latestLog := u.logs[logSize-1]
 	unit := u.Clone()
-	unit.logs = []*log{{
+	unit.logs = []*Log{{
 		txRecordHash:       nil,
 		unitLedgerHeadHash: bytes.Clone(latestLog.unitLedgerHeadHash),
 		newBearer:          bytes.Clone(unit.Bearer()),
@@ -263,6 +267,8 @@ func (s *State) CreateUnitStateProof(id types.UnitID, logIndex int, uc *types.Un
 	if unit.data != nil {
 		summaryValueInput = unit.data.SummaryValueInput()
 	}
+
+	// TODO verify proof before returning
 	return &UnitStateProof{
 		unitID:             id,
 		previousStateHash:  unitLedgerHeadHash,

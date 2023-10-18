@@ -11,6 +11,9 @@ import (
 	"sort"
 	"time"
 
+	"github.com/alphabill-org/alphabill/internal/keyvaluedb/memorydb"
+	"github.com/alphabill-org/alphabill/internal/state"
+
 	"github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/network"
 	p "github.com/alphabill-org/alphabill/internal/network/protocol"
@@ -232,6 +235,7 @@ func NewPartition(nodeCount int, txSystemProvider func(trustBase map[string]cryp
 		peer := nodePeers[i]
 		signer := signers[i]
 		// create partition genesis file
+
 		nodeGenesis, err := partition.NewNodeGenesis(
 			txSystemProvider(map[string]crypto.Verifier{"genesis": nil}),
 			partition.WithPeerID(peer.ID()),
@@ -265,6 +269,7 @@ func (n *NodePartition) start(ctx context.Context, rootID peer.ID, rootAddr mult
 			return err
 		}
 		nd.EventHandler = &testevent.TestEventHandler{}
+		indexer := state.NewProofIndexer(memorydb.New(), 10)
 		node, err := partition.New(
 			nd.nodePeer,
 			nd.signer,
@@ -273,6 +278,7 @@ func (n *NodePartition) start(ctx context.Context, rootID peer.ID, rootAddr mult
 			pn,
 			partition.WithRootAddressAndIdentifier(rootAddr, rootID),
 			partition.WithEventHandler(nd.EventHandler.HandleEvent, 100),
+			partition.WithEventHandler(indexer.Handle, 10),
 		)
 		if err != nil {
 			return fmt.Errorf("failed to start partition, %w", err)

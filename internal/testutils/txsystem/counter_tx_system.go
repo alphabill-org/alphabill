@@ -3,6 +3,8 @@ package testtxsystem
 import (
 	"encoding/binary"
 
+	"github.com/alphabill-org/alphabill/internal/state"
+
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/internal/util"
@@ -46,6 +48,10 @@ func (s *Summary) Root() []byte {
 func (s *Summary) Summary() []byte {
 	logger.Debug("CounterTxSystem: Summary(): %X", s.summary)
 	return s.summary
+}
+
+func (m *CounterTxSystem) StateStorage() *state.State {
+	return state.NewEmptyState()
 }
 
 func (m *CounterTxSystem) StateSummary() (txsystem.State, error) {

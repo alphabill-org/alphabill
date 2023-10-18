@@ -9,9 +9,9 @@ import (
 	"github.com/alphabill-org/alphabill/internal/script"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	testpartition "github.com/alphabill-org/alphabill/internal/testutils/partition"
+	testfc "github.com/alphabill-org/alphabill/internal/txsystem/fc/testutils"
 	moneytx "github.com/alphabill-org/alphabill/internal/txsystem/money"
 	moneytestutils "github.com/alphabill-org/alphabill/internal/txsystem/money/testutils"
-	testfc "github.com/alphabill-org/alphabill/internal/txsystem/fc/testutils"
 
 	sdk "github.com/alphabill-org/alphabill/pkg/wallet"
 	wlog "github.com/alphabill-org/alphabill/pkg/wallet/log"
@@ -23,7 +23,7 @@ var (
 	fcrID     = moneytx.NewFeeCreditRecordID(nil, []byte{1})
 	fcrAmount = uint64(1e8)
 )
- 
+
 /*
 Prep: start network and money backend, send initial bill to wallet-1
 Test scenario 1: wallet-1 sends two transactions to wallet-2

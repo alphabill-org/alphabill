@@ -178,6 +178,10 @@ func (m *GenericTxSystem) Execute(tx *types.TransactionOrder) (sm *types.ServerM
 	return sm, err
 }
 
+func (m *GenericTxSystem) StateStorage() *state.State {
+	return m.state
+}
+
 func (m *GenericTxSystem) EndBlock() (State, error) {
 	for _, function := range m.endBlockFunctions {
 		if err := function(m.currentBlockNumber); err != nil {

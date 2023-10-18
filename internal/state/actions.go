@@ -43,7 +43,7 @@ func AddUnit(id types.UnitID, bearer Predicate, data UnitData) Action {
 		hasher.Write(util.Uint64ToBytes(0))
 		subTreeSummaryHash := hasher.Sum(nil)
 		u := &Unit{
-			logs:                []*log{},
+			logs:                []*Log{},
 			bearer:              b,
 			data:                d,
 			subTreeSummaryValue: unitDataSummaryValue,

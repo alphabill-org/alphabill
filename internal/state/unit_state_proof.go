@@ -13,6 +13,7 @@ import (
 )
 
 type (
+	// TODO cbor
 	UnitStateProof struct {
 		unitID             types.UnitID
 		previousStateHash  []byte

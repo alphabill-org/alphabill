@@ -3,6 +3,8 @@ package txsystem
 import (
 	"errors"
 
+	"github.com/alphabill-org/alphabill/internal/state"
+
 	"github.com/alphabill-org/alphabill/internal/types"
 )
 
@@ -38,6 +40,8 @@ type (
 		// the transaction system must commit all the changes made during the BeginBlock,
 		// EndBlock, and Execute method calls.
 		Commit() error
+
+		StateStorage() *state.State
 	}
 
 	// State represents the root hash and summary value of the transaction system.

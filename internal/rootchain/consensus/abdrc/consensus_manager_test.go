@@ -615,7 +615,9 @@ func Test_ConsensusManager_handleRootNetMsg(t *testing.T) {
 
 func Test_ConsensusManager_messages(t *testing.T) {
 	t.Parallel()
-	waitExit := func(ctxCancel context.CancelFunc, doneCh chan struct{}) {
+
+	waitExit := func(t *testing.T, ctxCancel context.CancelFunc, doneCh chan struct{}) {
+		t.Helper()
 		ctxCancel()
 		// and wait for cm to exit
 		select {
@@ -624,6 +626,7 @@ func Test_ConsensusManager_messages(t *testing.T) {
 		case <-doneCh:
 		}
 	}
+
 	// partition data used/shared by tests
 	partitionNodes, partitionRecord := testutils.CreatePartitionNodesAndPartitionRecord(t, partitionInputRecord, partitionID, 2)
 
@@ -642,7 +645,7 @@ func Test_ConsensusManager_messages(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		done := make(chan struct{})
 		go func() { defer close(done); require.ErrorIs(t, cms[0].Run(ctx), context.Canceled) }()
-		defer waitExit(cancel, done)
+		defer waitExit(t, cancel, done)
 
 		// simulate root validator node sending IRCR to consensus manager
 		irCReq := consensus.IRChangeRequest{
@@ -670,6 +673,7 @@ func Test_ConsensusManager_messages(t *testing.T) {
 			require.ElementsMatch(t, irCReq.Requests, prop.Block.Payload.Requests[0].Requests)
 		}
 	})
+
 	t.Run("IR change request from partition forwarded to leader", func(t *testing.T) {
 		cms, rootNet, rootG := createConsensusManagers(t, 2, []*genesis.PartitionRecord{partitionRecord})
 		cmLeader := cms[0]
@@ -688,7 +692,7 @@ func Test_ConsensusManager_messages(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		done := make(chan struct{})
 		go func() { defer close(done); require.ErrorIs(t, nonLeaderNode.Run(ctx), context.Canceled) }()
-		defer waitExit(cancel, done)
+		defer waitExit(t, cancel, done)
 
 		// simulate root validator node sending IRCR to consensus manager
 		irCReq := consensus.IRChangeRequest{
@@ -712,6 +716,7 @@ func Test_ConsensusManager_messages(t *testing.T) {
 			require.ElementsMatch(t, irCReq.Requests, irMsg.IrChangeReq.Requests)
 		}
 	})
+
 	t.Run("IR change request forwarded by peer included in proposal", func(t *testing.T) {
 		cms, rootNet, rootG := createConsensusManagers(t, 2, []*genesis.PartitionRecord{partitionRecord})
 		cmLeader := cms[0]
@@ -723,7 +728,7 @@ func Test_ConsensusManager_messages(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		done := make(chan struct{})
 		go func() { defer close(done); require.ErrorIs(t, cmLeader.Run(ctx), context.Canceled) }()
-		defer waitExit(cancel, done)
+		defer waitExit(t, cancel, done)
 
 		// simulate IR change request message, "other root node" forwarding IRCR to leader
 		irChReqMsg := &abdrc.IrChangeReqMsg{
@@ -757,6 +762,7 @@ func Test_ConsensusManager_messages(t *testing.T) {
 		}
 		require.True(t, sawIRCR, "expected to see the IRCR in one of the next two proposals")
 	})
+
 	t.Run("IR change request arrives late and is forwarded to the next leader", func(t *testing.T) {
 		cms, rootNet, rootG := createConsensusManagers(t, 2, []*genesis.PartitionRecord{partitionRecord})
 		cmLeader := cms[0]
@@ -775,7 +781,7 @@ func Test_ConsensusManager_messages(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		done := make(chan struct{})
 		go func() { defer close(done); require.ErrorIs(t, nonLeaderNode.Run(ctx), context.Canceled) }()
-		defer waitExit(cancel, done)
+		defer waitExit(t, cancel, done)
 
 		// simulate leader forwarding IRCR to non-leader
 		// not a real life situation, but it will test the logic for IR Change request messages
@@ -804,6 +810,7 @@ func Test_ConsensusManager_messages(t *testing.T) {
 		}
 		require.True(t, sawIRCR, "expected to see the IRCR forwarded to leader")
 	})
+
 	t.Run("state request triggers response", func(t *testing.T) {
 		cms, _, _ := createConsensusManagers(t, 2, []*genesis.PartitionRecord{partitionRecord})
 		cmA, cmB := cms[0], cms[1]
@@ -812,7 +819,7 @@ func Test_ConsensusManager_messages(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		done := make(chan struct{})
 		go func() { defer close(done); require.ErrorIs(t, cmA.Run(ctx), context.Canceled) }()
-		defer waitExit(cancel, done)
+		defer waitExit(t, cancel, done)
 
 		// cmB sends state request to cmA
 		msg := &abdrc.GetStateMsg{NodeId: cmB.id.String()}

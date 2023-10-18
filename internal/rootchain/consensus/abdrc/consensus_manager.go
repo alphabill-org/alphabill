@@ -601,7 +601,7 @@ func (x *ConsensusManager) sendCertificates(ctx context.Context) error {
 		return stopped
 	}
 
-	stopFeed := func() {}
+	stopFeed := func() { /* init to NOP */ }
 	for {
 		select {
 		case nm := <-x.ucSink:

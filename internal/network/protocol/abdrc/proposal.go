@@ -7,7 +7,6 @@ import (
 
 	"github.com/alphabill-org/alphabill/internal/crypto"
 	abdrc "github.com/alphabill-org/alphabill/internal/rootchain/consensus/abdrc/types"
-	"github.com/alphabill-org/alphabill/internal/util"
 )
 
 var (
@@ -36,7 +35,7 @@ func (x *ProposalMsg) IsValid() error {
 		return fmt.Errorf("invalid block: %w", err)
 	}
 	// proposal round must follow last round Qc or Tc
-	highestCertifiedRound := util.Max(x.Block.Qc.VoteInfo.RoundNumber, x.getLastTcRound())
+	highestCertifiedRound := max(x.Block.Qc.VoteInfo.RoundNumber, x.getLastTcRound())
 	if x.Block.Round-1 != highestCertifiedRound {
 		return fmt.Errorf("proposed block round %d does not follow attached quorum certificate round %d", x.Block.Round, highestCertifiedRound)
 	}

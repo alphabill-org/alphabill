@@ -6,9 +6,9 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"slices"
 
 	"github.com/libp2p/go-libp2p/core/peer"
-	"golang.org/x/exp/slices"
 	"golang.org/x/sync/errgroup"
 
 	"github.com/alphabill-org/alphabill/internal/crypto"
@@ -300,7 +300,7 @@ func (x *ConsensusManager) onPartitionIRChangeReq(ctx context.Context, req *cons
 	}
 	nextLeader := x.leaderSelector.GetLeaderForRound(x.pacemaker.GetCurrentRound() + 1)
 	if nextLeader == x.id {
-		x.log.LogAttrs(ctx, slog.LevelDebug, fmt.Sprintf("node is the next leader, add to buffer"))
+		x.log.LogAttrs(ctx, slog.LevelDebug, "node is the next leader, add to buffer")
 		if err := x.irReqBuffer.Add(x.pacemaker.GetCurrentRound(), irReq, x.irReqVerifier); err != nil {
 			return fmt.Errorf("failed to add IR change request into buffer: %w", err)
 		}
@@ -333,7 +333,7 @@ func (x *ConsensusManager) onIRChangeMsg(ctx context.Context, irChangeMsg *abdrc
 	// if the node will be the next leader then buffer the request to be included in the block proposal
 	// todo: if in recovery then forward to next?
 	if nextLeader == x.id {
-		x.log.LogAttrs(ctx, slog.LevelDebug, fmt.Sprintf("node is the next leader, add to buffer"))
+		x.log.LogAttrs(ctx, slog.LevelDebug, "node is the next leader, add to buffer")
 		if err := x.irReqBuffer.Add(x.pacemaker.GetCurrentRound(), irChangeMsg.IrChangeReq, x.irReqVerifier); err != nil {
 			return fmt.Errorf("failed to add IR change request into buffer: %w", err)
 		}

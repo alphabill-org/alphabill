@@ -215,7 +215,7 @@ func (r *RootPartition) start(ctx context.Context) error {
 	}
 	for i := 1; i < len(peerIDs); i++ {
 		bootStrap := []peer.AddrInfo{{ID: rootPeers[0].ID(), Addrs: rootPeers[0].MultiAddresses()}}
-		peerConf, err = network.NewPeerConfiguration(fmt.Sprintf("/ip4/127.0.0.1/tcp/0"), r.Nodes[i].EncKeyPair, bootStrap, peerIDs)
+		peerConf, err = network.NewPeerConfiguration("/ip4/127.0.0.1/tcp/0", r.Nodes[i].EncKeyPair, bootStrap, peerIDs)
 		if err != nil {
 			return fmt.Errorf("failed to create peer configuration: %w", err)
 		}

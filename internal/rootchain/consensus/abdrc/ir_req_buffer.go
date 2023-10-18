@@ -99,6 +99,6 @@ func (x *IrReqBuffer) GeneratePayload(round uint64, timeouts []types.SystemID32)
 		payload.Requests = append(payload.Requests, req.Req)
 	}
 	// clear the buffer once payload is done
-	x.irChgReqBuffer = make(map[types.SystemID32]*irChange)
+	clear(x.irChgReqBuffer)
 	return payload
 }

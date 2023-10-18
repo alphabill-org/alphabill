@@ -111,7 +111,7 @@ func (v *VoteRegister) InsertTimeoutVote(timeout *abdrc.TimeoutMsg, quorumInfo Q
 }
 
 func (v *VoteRegister) Reset() {
-	v.hashToSignatures = make(map[string]*ConsensusWithSignatures)
+	clear(v.hashToSignatures)
+	clear(v.authorToVote)
 	v.timeoutCert = nil
-	v.authorToVote = make(map[string][]byte)
 }

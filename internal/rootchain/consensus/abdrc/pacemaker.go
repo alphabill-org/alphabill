@@ -59,7 +59,7 @@ func NewPacemaker(minRoundLen, maxRoundLen time.Duration) *Pacemaker {
 		pendingVotes:   NewVoteRegister(),
 		statusChan:     make(chan paceMakerStatus, 1),
 		ticker:         time.NewTicker(maxRoundLen),
-		stopRoundClock: func() {},
+		stopRoundClock: func() { /* init as NOP */ },
 	}
 	pm.ticker.Stop()
 	return pm

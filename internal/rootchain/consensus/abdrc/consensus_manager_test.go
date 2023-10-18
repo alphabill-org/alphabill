@@ -674,7 +674,14 @@ func Test_ConsensusManager_messages(t *testing.T) {
 		cms, rootNet, rootG := createConsensusManagers(t, 2, []*genesis.PartitionRecord{partitionRecord})
 		cmLeader := cms[0]
 		nonLeaderNode := cms[1]
-
+		// eavesdrop the network and copy IR change messages
+		irCh := make(chan *abdrc.IrChangeReqMsg, 1)
+		rootNet.SetFirewall(func(from, to peer.ID, msg any) bool {
+			if msg, ok := msg.(*abdrc.IrChangeReqMsg); ok && from == nonLeaderNode.id && to == cmLeader.id {
+				irCh <- msg
+			}
+			return false
+		})
 		for _, v := range cms {
 			v.leaderSelector = constLeader{leader: cmLeader.id, nodes: cmLeader.leaderSelector.GetNodes()} // use "const leader" to take leader selection out of test
 		}
@@ -683,9 +690,6 @@ func Test_ConsensusManager_messages(t *testing.T) {
 		go func() { defer close(done); require.ErrorIs(t, nonLeaderNode.Run(ctx), context.Canceled) }()
 		defer waitExit(cancel, done)
 
-		// Read messages sent to the leader, as the node that received the IR change request
-		// is not a leader it must forward the request to the leader
-		cmBnet := rootNet.Connect(cmLeader.id)
 		// simulate root validator node sending IRCR to consensus manager
 		irCReq := consensus.IRChangeRequest{
 			SystemIdentifier: partitionID,
@@ -701,8 +705,7 @@ func Test_ConsensusManager_messages(t *testing.T) {
 		select {
 		case <-time.After(cmLeader.pacemaker.maxRoundLen):
 			t.Fatal("haven't got the IR Change message before timeout")
-		case msg := <-cmBnet.ReceivedChannel():
-			irMsg := msg.(*abdrc.IrChangeReqMsg)
+		case irMsg := <-irCh:
 			require.NotNil(t, irMsg)
 			require.Equal(t, irMsg.Author, nonLeaderNode.id.String())
 			require.EqualValues(t, irCReq.SystemIdentifier, irMsg.IrChangeReq.SystemIdentifier)
@@ -762,6 +765,13 @@ func Test_ConsensusManager_messages(t *testing.T) {
 		for _, v := range cms {
 			v.leaderSelector = constLeader{leader: cmLeader.id, nodes: cmLeader.leaderSelector.GetNodes()} // use "const leader" to take leader selection out of test
 		}
+		irCh := make(chan *abdrc.IrChangeReqMsg, 1)
+		rootNet.SetFirewall(func(from, to peer.ID, msg any) bool {
+			if msg, ok := msg.(*abdrc.IrChangeReqMsg); ok && from == nonLeaderNode.id && to == cmLeader.id {
+				irCh <- msg
+			}
+			return false
+		})
 		ctx, cancel := context.WithCancel(context.Background())
 		done := make(chan struct{})
 		go func() { defer close(done); require.ErrorIs(t, nonLeaderNode.Run(ctx), context.Canceled) }()
@@ -785,8 +795,7 @@ func Test_ConsensusManager_messages(t *testing.T) {
 		select {
 		case <-time.After(cmLeader.pacemaker.maxRoundLen):
 			t.Fatal("haven't got the proposal before timeout")
-		case msg := <-cmBnet.ReceivedChannel():
-			irMsg := msg.(*abdrc.IrChangeReqMsg)
+		case irMsg := <-irCh:
 			require.NotNil(t, irMsg)
 			require.Equal(t, irMsg.Author, cmLeader.id.String())
 			require.EqualValues(t, irChReqMsg.IrChangeReq.SystemIdentifier, irMsg.IrChangeReq.SystemIdentifier)

@@ -66,8 +66,10 @@ func NewFeeCreditModule(opts ...Option) (*FeeCredit, error) {
 
 func (f *FeeCredit) TxExecutors() map[string]txsystem.TxExecutor {
 	return map[string]txsystem.TxExecutor{
-		transactions.PayloadTypeAddFeeCredit:   handleAddFeeCreditTx(f),
-		transactions.PayloadTypeCloseFeeCredit: handleCloseFeeCreditTx(f),
+		transactions.PayloadTypeAddFeeCredit:    handleAddFeeCreditTx(f),
+		transactions.PayloadTypeCloseFeeCredit:  handleCloseFeeCreditTx(f),
+		transactions.PayloadTypeLockFeeCredit:   handleLockFeeCreditTx(f),
+		transactions.PayloadTypeUnlockFeeCredit: handleUnlockFeeCreditTx(f),
 	}
 }
 

@@ -27,8 +27,9 @@ func IncrCredit(id types.UnitID, value uint64, timeout uint64, transactionRecord
 		}
 		return &FeeCreditRecord{
 			Balance: fcr.Balance + value,
-			Hash:    bytes.Clone(transactionRecordHash), //
+			Hash:    bytes.Clone(transactionRecordHash),
 			Timeout: max(fcr.Timeout, timeout),
+			Locked:  0,
 		}, nil
 	}
 	return state.UpdateUnitData(id, updateDataFunc)
@@ -41,11 +42,12 @@ func DecrCredit(id types.UnitID, value uint64) state.Action {
 		if !ok {
 			return nil, fmt.Errorf("unit %v does not contain fee credit record", id)
 		}
-		// note that hash and timeout remain unchanged in this operation
+		// note that only balance field changes in this operation
 		return &FeeCreditRecord{
 			Balance: fcr.Balance - value,
 			Hash:    fcr.Hash,
 			Timeout: fcr.Timeout,
+			Locked:  fcr.Locked,
 		}, nil
 	}
 	return state.UpdateUnitData(id, updateDataFunc)

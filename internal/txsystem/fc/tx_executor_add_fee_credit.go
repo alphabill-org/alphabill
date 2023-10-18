@@ -41,6 +41,7 @@ func handleAddFeeCreditTx(f *FeeCredit) txsystem.GenericExecuteFunc[transactions
 				Balance: v,
 				Hash:    txHash,
 				Timeout: transferFc.LatestAdditionTime + 1,
+				Locked:  0,
 			}
 			updateFunc = fcunit.AddCredit(unitID, attr.FeeCreditOwnerCondition, fcr)
 		} else {

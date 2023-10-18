@@ -402,6 +402,276 @@ func TestCloseFC(t *testing.T) {
 	}
 }
 
+func TestLockFC(t *testing.T) {
+	_, verifier := testsig.CreateSignerAndVerifier(t)
+	verifiers := map[string]abcrypto.Verifier{"test": verifier}
+	validator := NewDefaultFeeCreditTxValidator(moneySystemID, systemID, crypto.SHA256, verifiers, feeCreditRecordUnitType)
+
+	tests := []struct {
+		name string
+		ctx  *LockFCValidationContext
+		err  string
+	}{
+		{
+			name: "Ok",
+			ctx: newLockFCValidationContext(
+				state.NewUnit(nil, &unit.FeeCreditRecord{Balance: 50, Hash: []byte{4}}),
+				testfc.NewLockFC(t, nil),
+			),
+		},
+		{
+			name: "unit is nil",
+			ctx: newLockFCValidationContext(
+				nil,
+				testfc.NewLockFC(t, nil),
+			),
+			err: "unit is nil",
+		},
+		{
+			name: "tx is nil",
+			ctx: newLockFCValidationContext(
+				state.NewUnit(nil, &unit.FeeCreditRecord{Balance: 50, Hash: []byte{4}}),
+				nil,
+			),
+			err: "tx is nil",
+		},
+		{
+			name: "attr is nil",
+			ctx: &LockFCValidationContext{
+				Tx:   testfc.NewLockFC(t, nil),
+				Attr: nil,
+				Unit: state.NewUnit(nil, &unit.FeeCreditRecord{Balance: 50, Hash: []byte{4}}),
+			},
+			err: "tx attributes is nil",
+		},
+		{
+			name: "unit id type part is not fee credit record",
+			ctx: newLockFCValidationContext(
+				state.NewUnit(nil, &unit.FeeCreditRecord{Balance: 50, Hash: []byte{4}}),
+				testfc.NewLockFC(t, testfc.NewLockFCAttr(), testtransaction.WithUnitId(
+					types.NewUnitID(33, nil, []byte{1}, []byte{0xfe})),
+				),
+			),
+			err: "invalid unit identifier: type is not fee credit record",
+		},
+		{
+			name: "invalid unit data type",
+			ctx: newLockFCValidationContext(
+				state.NewUnit(nil, &testData{}),
+				testfc.NewLockFC(t, nil),
+			),
+			err: "invalid unit type: unit is not fee credit record",
+		},
+		{
+			name: "FCR is already locked",
+			ctx: newLockFCValidationContext(
+				state.NewUnit(nil, &unit.FeeCreditRecord{Balance: 50, Hash: []byte{4}, Locked: 1}),
+				testfc.NewLockFC(t, nil),
+			),
+			err: "fee credit record is already locked",
+		},
+		{
+			name: "lock status is zero",
+			ctx: newLockFCValidationContext(
+				state.NewUnit(nil, &unit.FeeCreditRecord{Balance: 50, Hash: []byte{4}, Locked: 0}),
+				testfc.NewLockFC(t, testfc.NewLockFCAttr(testfc.WithLockStatus(0))),
+			),
+			err: "lock status must be non-zero value",
+		},
+		{
+			name: "invalid backlink",
+			ctx: newLockFCValidationContext(
+				state.NewUnit(nil, &unit.FeeCreditRecord{Balance: 50, Hash: []byte{4}}),
+				testfc.NewLockFC(t, testfc.NewLockFCAttr(testfc.WithLockFCBacklink([]byte{3}))),
+			),
+			err: "the transaction backlink does not match with unit transaction hash",
+		},
+		{
+			name: "max fee exceeds balance",
+			ctx: newLockFCValidationContext(
+				state.NewUnit(nil, &unit.FeeCreditRecord{Balance: 50, Hash: []byte{4}}),
+				testfc.NewLockFC(t, nil,
+					testtransaction.WithClientMetadata(&types.ClientMetadata{MaxTransactionFee: 51}),
+				),
+			),
+			err: "max fee cannot exceed fee credit record balance",
+		},
+		{
+			name: "FeeCreditRecordID is not nil",
+			ctx: newLockFCValidationContext(
+				state.NewUnit(nil, &unit.FeeCreditRecord{Balance: 50, Hash: []byte{4}}),
+				testfc.NewLockFC(t, nil,
+					testtransaction.WithClientMetadata(&types.ClientMetadata{FeeCreditRecordID: recordID}),
+				),
+			),
+			err: "fee tx cannot contain fee credit reference",
+		},
+		{
+			name: "fee proof is not nil",
+			ctx: newLockFCValidationContext(
+				state.NewUnit(nil, &unit.FeeCreditRecord{Balance: 50, Hash: []byte{4}}),
+				testfc.NewLockFC(t, nil,
+					testtransaction.WithFeeProof(feeProof),
+				),
+			),
+			err: "fee tx cannot contain fee authorization proof",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := validator.ValidateLockFC(tt.ctx)
+			if tt.err != "" {
+				require.ErrorContains(t, err, tt.err)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
+}
+
+func TestUnlockFC(t *testing.T) {
+	_, verifier := testsig.CreateSignerAndVerifier(t)
+	verifiers := map[string]abcrypto.Verifier{"test": verifier}
+	validator := NewDefaultFeeCreditTxValidator(moneySystemID, systemID, crypto.SHA256, verifiers, feeCreditRecordUnitType)
+
+	tests := []struct {
+		name string
+		ctx  *UnlockFCValidationContext
+		err  string
+	}{
+		{
+			name: "Ok",
+			ctx: newUnlockFCValidationContext(
+				state.NewUnit(nil, &unit.FeeCreditRecord{Balance: 50, Hash: []byte{4}, Locked: 1}),
+				testfc.NewUnlockFC(t, nil),
+			),
+		},
+		{
+			name: "unit is nil",
+			ctx: newUnlockFCValidationContext(
+				nil,
+				testfc.NewUnlockFC(t, nil),
+			),
+			err: "unit is nil",
+		},
+		{
+			name: "tx is nil",
+			ctx: newUnlockFCValidationContext(
+				state.NewUnit(nil, &unit.FeeCreditRecord{Balance: 50, Hash: []byte{4}}),
+				nil,
+			),
+			err: "tx is nil",
+		},
+		{
+			name: "attr is nil",
+			ctx: &UnlockFCValidationContext{
+				Tx:   testfc.NewUnlockFC(t, nil),
+				Attr: nil,
+				Unit: state.NewUnit(nil, &unit.FeeCreditRecord{Balance: 50, Hash: []byte{4}}),
+			},
+			err: "tx attributes is nil",
+		},
+		{
+			name: "unit id type part is not fee credit record",
+			ctx: newUnlockFCValidationContext(
+				state.NewUnit(nil, &unit.FeeCreditRecord{Balance: 50, Hash: []byte{4}}),
+				testfc.NewUnlockFC(t, testfc.NewUnlockFCAttr(), testtransaction.WithUnitId(
+					types.NewUnitID(33, nil, []byte{1}, []byte{0xfe})),
+				),
+			),
+			err: "invalid unit identifier: type is not fee credit record",
+		},
+		{
+			name: "invalid unit data type",
+			ctx: newUnlockFCValidationContext(
+				state.NewUnit(nil, &testData{}),
+				testfc.NewUnlockFC(t, nil),
+			),
+			err: "invalid unit type: unit is not fee credit record",
+		},
+		{
+			name: "FCR is already unlocked",
+			ctx: newUnlockFCValidationContext(
+				state.NewUnit(nil, &unit.FeeCreditRecord{Balance: 50, Hash: []byte{4}, Locked: 0}),
+				testfc.NewUnlockFC(t, nil),
+			),
+			err: "fee credit record is already unlock",
+		},
+		{
+			name: "invalid backlink",
+			ctx: newUnlockFCValidationContext(
+				state.NewUnit(nil, &unit.FeeCreditRecord{Balance: 50, Hash: []byte{4}, Locked: 1}),
+				testfc.NewUnlockFC(t, testfc.NewUnlockFCAttr(testfc.WithUnlockFCBacklink([]byte{3}))),
+			),
+			err: "the transaction backlink does not match with unit transaction hash",
+		},
+		{
+			name: "max fee exceeds balance",
+			ctx: newUnlockFCValidationContext(
+				state.NewUnit(nil, &unit.FeeCreditRecord{Balance: 50, Hash: []byte{4}, Locked: 1}),
+				testfc.NewUnlockFC(t, nil,
+					testtransaction.WithClientMetadata(&types.ClientMetadata{MaxTransactionFee: 51}),
+				),
+			),
+			err: "max fee cannot exceed fee credit record balance",
+		},
+		{
+			name: "FeeCreditRecordID is not nil",
+			ctx: newUnlockFCValidationContext(
+				state.NewUnit(nil, &unit.FeeCreditRecord{Balance: 50, Hash: []byte{4}, Locked: 1}),
+				testfc.NewUnlockFC(t, nil,
+					testtransaction.WithClientMetadata(&types.ClientMetadata{FeeCreditRecordID: recordID}),
+				),
+			),
+			err: "fee tx cannot contain fee credit reference",
+		},
+		{
+			name: "fee proof is not nil",
+			ctx: newUnlockFCValidationContext(
+				state.NewUnit(nil, &unit.FeeCreditRecord{Balance: 50, Hash: []byte{4}, Locked: 1}),
+				testfc.NewUnlockFC(t, nil,
+					testtransaction.WithFeeProof(feeProof),
+				),
+			),
+			err: "fee tx cannot contain fee authorization proof",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := validator.ValidateUnlockFC(tt.ctx)
+			if tt.err != "" {
+				require.ErrorContains(t, err, tt.err)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
+}
+
+func newLockFCValidationContext(unit *state.Unit, tx *types.TransactionOrder) *LockFCValidationContext {
+	var attr *transactions.LockFeeCreditAttributes
+	if tx != nil {
+		_ = tx.Payload.UnmarshalAttributes(&attr)
+	}
+	return &LockFCValidationContext{
+		Tx:   tx,
+		Attr: attr,
+		Unit: unit,
+	}
+}
+
+func newUnlockFCValidationContext(unit *state.Unit, tx *types.TransactionOrder) *UnlockFCValidationContext {
+	var attr *transactions.UnlockFeeCreditAttributes
+	if tx != nil {
+		_ = tx.Payload.UnmarshalAttributes(&attr)
+	}
+	return &UnlockFCValidationContext{
+		Tx:   tx,
+		Attr: attr,
+		Unit: unit,
+	}
+}
+
 func newInvalidProof(t *testing.T, signer abcrypto.Signer) *types.TxProof {
 	addFC := testfc.NewAddFC(t, signer, nil)
 	attr := &transactions.AddFeeCreditAttributes{}

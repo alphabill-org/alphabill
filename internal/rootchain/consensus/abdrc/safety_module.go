@@ -9,7 +9,6 @@ import (
 	"github.com/alphabill-org/alphabill/internal/network/protocol/abdrc"
 	abtypes "github.com/alphabill-org/alphabill/internal/rootchain/consensus/abdrc/types"
 	"github.com/alphabill-org/alphabill/internal/types"
-	"github.com/alphabill-org/alphabill/internal/util"
 )
 
 const (
@@ -173,11 +172,11 @@ func (s *SafetyModule) Sign(msg Signer) error {
 }
 
 func (s *SafetyModule) increaseHighestVoteRound(round uint64) {
-	s.SetHighestVotedRound(util.Max(s.GetHighestVotedRound(), round))
+	s.SetHighestVotedRound(max(s.GetHighestVotedRound(), round))
 }
 
 func (s *SafetyModule) updateHighestQcRound(qcRound uint64) {
-	s.SetHighestQcRound(util.Max(s.GetHighestQcRound(), qcRound))
+	s.SetHighestQcRound(max(s.GetHighestQcRound(), qcRound))
 }
 
 func (s *SafetyModule) isSafeToTimeout(round, qcRound uint64, lastRoundTC *abtypes.TimeoutCert) error {
@@ -186,7 +185,7 @@ func (s *SafetyModule) isSafeToTimeout(round, qcRound uint64, lastRoundTC *abtyp
 		return fmt.Errorf("qc round %v is smaller than highest qc round %v seen", qcRound, s.GetHighestQcRound())
 	}
 	highestVotedRound := s.GetHighestVotedRound() - 1
-	if round <= util.Max(highestVotedRound, qcRound) {
+	if round <= max(highestVotedRound, qcRound) {
 		// don’t time out in a past round
 		return fmt.Errorf("timeout round %v is in the past, highest voted round %v, hqc round %v",
 			round, highestVotedRound, qcRound)

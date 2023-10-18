@@ -10,7 +10,6 @@ import (
 	"github.com/alphabill-org/alphabill/internal/network/protocol/certification"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/handshake"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/replication"
-	abtypes "github.com/alphabill-org/alphabill/internal/rootchain/consensus/abdrc/types"
 	"github.com/alphabill-org/alphabill/internal/types"
 )
 
@@ -150,7 +149,7 @@ func NewLibP2RootConsensusNetwork(self *Peer, capacity uint, sendTimeout time.Du
 		return nil, err
 	}
 	sendProtocolDescriptions := []sendProtocolDescription{
-		{protocolID: ProtocolRootIrChangeReq, timeout: sendTimeout, msgType: abtypes.IRChangeReq{}},
+		{protocolID: ProtocolRootIrChangeReq, timeout: sendTimeout, msgType: abdrc.IrChangeReqMsg{}},
 		{protocolID: ProtocolRootProposal, timeout: sendTimeout, msgType: abdrc.ProposalMsg{}},
 		{protocolID: ProtocolRootVote, timeout: sendTimeout, msgType: abdrc.VoteMsg{}},
 		{protocolID: ProtocolRootTimeout, timeout: sendTimeout, msgType: abdrc.TimeoutMsg{}},
@@ -163,7 +162,7 @@ func NewLibP2RootConsensusNetwork(self *Peer, capacity uint, sendTimeout time.Du
 	receiveProtocolDescriptions := []receiveProtocolDescription{
 		{
 			protocolID: ProtocolRootIrChangeReq,
-			typeFn:     func() any { return &abtypes.IRChangeReq{} },
+			typeFn:     func() any { return &abdrc.IrChangeReqMsg{} },
 		},
 		{
 			protocolID: ProtocolRootProposal,

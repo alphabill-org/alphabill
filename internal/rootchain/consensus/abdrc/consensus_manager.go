@@ -240,8 +240,8 @@ validators to appropriate message handler.
 */
 func (x *ConsensusManager) handleRootNetMsg(ctx context.Context, msg any) error {
 	switch mt := msg.(type) {
-	case *abtypes.IRChangeReq:
-		return x.onIRChange(ctx, mt)
+	case *abdrc.IrChangeReqMsg:
+		return x.onIRChangeMsg(ctx, mt)
 	case *abdrc.ProposalMsg:
 		return x.onProposalMsg(ctx, mt)
 	case *abdrc.VoteMsg:
@@ -298,27 +298,51 @@ func (x *ConsensusManager) onPartitionIRChangeReq(ctx context.Context, req *cons
 	default:
 		return fmt.Errorf("unexpected IR change request reason: %v", req.Reason)
 	}
-
-	return x.onIRChange(ctx, irReq)
+	nextLeader := x.leaderSelector.GetLeaderForRound(x.pacemaker.GetCurrentRound() + 1)
+	if nextLeader == x.id {
+		x.log.LogAttrs(ctx, slog.LevelDebug, fmt.Sprintf("node is the next leader, add to buffer"))
+		if err := x.irReqBuffer.Add(x.pacemaker.GetCurrentRound(), irReq, x.irReqVerifier); err != nil {
+			return fmt.Errorf("failed to add IR change request into buffer: %w", err)
+		}
+		return nil
+	}
+	// forward to leader
+	irMsg := &abdrc.IrChangeReqMsg{
+		Author:      x.id.String(),
+		IrChangeReq: irReq,
+	}
+	if err := x.safety.Sign(irMsg); err != nil {
+		return fmt.Errorf("failed to sign ir change request message, %w", err)
+	}
+	x.log.LogAttrs(ctx, slog.LevelDebug, fmt.Sprintf("forward ir change request to %s", nextLeader.ShortString()))
+	if err := x.net.Send(ctx, irMsg, nextLeader); err != nil {
+		return fmt.Errorf("failed to send ir change request message, %w", err)
+	}
+	return nil
 }
 
-// onIRChange handles IR change request
-func (x *ConsensusManager) onIRChange(ctx context.Context, irChangeMsg *abtypes.IRChangeReq) error {
-	if err := irChangeMsg.IsValid(); err != nil {
-		return fmt.Errorf("invalid IR change request: %w", err)
+// onIRChangeMsg handles IR change request messages from other root nodes
+func (x *ConsensusManager) onIRChangeMsg(ctx context.Context, irChangeMsg *abdrc.IrChangeReqMsg) error {
+	x.log.DebugContext(ctx, "IR change request from root node", logger.Round(x.pacemaker.GetCurrentRound()))
+	if err := irChangeMsg.Verify(x.trustBase.GetVerifiers()); err != nil {
+		return fmt.Errorf("invalid IR change request message from node %s: %w", irChangeMsg.Author, err)
 	}
+	x.log.DebugContext(ctx, fmt.Sprintf("IR change request from node %s",
+		irChangeMsg.Author), logger.Round(x.pacemaker.GetCurrentRound()))
 	nextLeader := x.leaderSelector.GetLeaderForRound(x.pacemaker.GetCurrentRound() + 1)
-	// todo: if in recovery then forward to next?
 	// if the node will be the next leader then buffer the request to be included in the block proposal
+	// todo: if in recovery then forward to next?
 	if nextLeader == x.id {
-		if err := x.irReqBuffer.Add(x.pacemaker.GetCurrentRound(), irChangeMsg, x.irReqVerifier); err != nil {
+		x.log.LogAttrs(ctx, slog.LevelDebug, fmt.Sprintf("node is the next leader, add to buffer"))
+		if err := x.irReqBuffer.Add(x.pacemaker.GetCurrentRound(), irChangeMsg.IrChangeReq, x.irReqVerifier); err != nil {
 			return fmt.Errorf("failed to add IR change request into buffer: %w", err)
 		}
 		return nil
 	}
 	// todo: AB-549 add max hop count or some sort of TTL?
-	// either this is a completely lost message or because of race we just proposed, try to forward again to the next leader
-	x.log.WarnContext(ctx, "not the leader in the next round, forwarding IR change req", logger.Round(x.pacemaker.GetCurrentRound()))
+	// either this is a completely lost message or because of race we just proposed, forward the original
+	// message again to next leader
+	x.log.WarnContext(ctx, "node is not the leader in the next round, forwarding again", logger.Round(x.pacemaker.GetCurrentRound()))
 	if err := x.net.Send(ctx, irChangeMsg, nextLeader); err != nil {
 		return fmt.Errorf("failed to forward IR change message to the next leader: %w", err)
 	}
@@ -655,7 +679,7 @@ func (x *ConsensusManager) processNewRoundEvent(ctx context.Context) {
 		LastRoundTc: x.pacemaker.LastRoundTC(),
 	}
 	// safety makes simple sanity checks and signs if everything is ok
-	if err := x.safety.SignProposal(proposalMsg); err != nil {
+	if err = x.safety.Sign(proposalMsg); err != nil {
 		x.log.WarnContext(ctx, "failed to send proposal message, message signing failed", logger.Error(err), logger.Round(round))
 	}
 	// broadcast proposal message (also to self)

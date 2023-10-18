@@ -27,6 +27,9 @@ type (
 		verifier crypto.Verifier
 		storage  keyvaluedb.KeyValueDB
 	}
+	Signer interface {
+		Sign(s crypto.Signer) error
+	}
 )
 
 func isConsecutive(blockRound, round uint64) bool {
@@ -165,8 +168,8 @@ func (s *SafetyModule) SignTimeout(tmoVote *abdrc.TimeoutMsg, lastRoundTC *abtyp
 	return tmoVote.Sign(s.signer)
 }
 
-func (s *SafetyModule) SignProposal(proposalMsg *abdrc.ProposalMsg) error {
-	return proposalMsg.Sign(s.signer)
+func (s *SafetyModule) Sign(msg Signer) error {
+	return msg.Sign(s.signer)
 }
 
 func (s *SafetyModule) increaseHighestVoteRound(round uint64) {

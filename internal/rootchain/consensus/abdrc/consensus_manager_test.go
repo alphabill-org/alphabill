@@ -6,6 +6,7 @@ import (
 	gocrypto "crypto"
 	"crypto/rand"
 	"fmt"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -118,6 +119,24 @@ func Test_ConsensusManager_onPartitionIRChangeReq(t *testing.T) {
 	require.True(t, cm.irReqBuffer.IsChangeInBuffer(partitionID))
 }
 
+func Test_ConsensusManager_onIRChangeMsg_ErrInvalidSignature(t *testing.T) {
+	mockNet := testnetwork.NewRootMockNetwork()
+	cm, _, partitionNodes, rg := initConsensusManager(t, mockNet)
+
+	req := &abdrc.IrChangeReqMsg{
+		Author: cm.id.String(),
+		IrChangeReq: &abtypes.IRChangeReq{
+			SystemIdentifier: partitionID,
+			CertReason:       abtypes.Quorum,
+			Requests:         buildBlockCertificationRequest(t, rg, partitionNodes),
+		},
+		Signature: []byte{1, 2, 3, 4},
+	}
+	// verify that error is printed and author ID is also present
+	require.ErrorContains(t, cm.onIRChangeMsg(context.Background(), req),
+		fmt.Sprintf("invalid IR change request message from node %s: signature verification failed", cm.id.String()))
+}
+
 func TestIRChangeRequestFromRootValidator_RootTimeoutOnFirstRound(t *testing.T) {
 	var lastProposalMsg *abdrc.ProposalMsg = nil
 	var lastVoteMsg *abdrc.VoteMsg = nil
@@ -176,12 +195,16 @@ func TestIRChangeRequestFromRootValidator_RootTimeout(t *testing.T) {
 	go func() { require.ErrorIs(t, cm.Run(ctx), context.Canceled) }()
 
 	// simulate IR change request message
-	irChReq := &abtypes.IRChangeReq{
-		SystemIdentifier: partitionID,
-		CertReason:       abtypes.Quorum,
-		Requests:         buildBlockCertificationRequest(t, rg, partitionNodes[0:2]),
+	irChReqMsg := &abdrc.IrChangeReqMsg{
+		Author: rootNode.PeerConf.ID.String(),
+		IrChangeReq: &abtypes.IRChangeReq{
+			SystemIdentifier: partitionID,
+			CertReason:       abtypes.Quorum,
+			Requests:         buildBlockCertificationRequest(t, rg, partitionNodes[0:2]),
+		},
 	}
-	testutils.MockValidatorNetReceives(t, mockNet, rootNode.PeerConf.ID, network.ProtocolRootIrChangeReq, irChReq)
+	require.NoError(t, irChReqMsg.Sign(rootNode.Signer))
+	testutils.MockValidatorNetReceives(t, mockNet, rootNode.PeerConf.ID, network.ProtocolRootIrChangeReq, irChReqMsg)
 	// As the node is the leader, next round will trigger a proposal
 	lastProposalMsg = testutils.MockAwaitMessage[*abdrc.ProposalMsg](t, mockNet, network.ProtocolRootProposal)
 	require.Equal(t, partitionID, lastProposalMsg.Block.Payload.Requests[0].SystemIdentifier)
@@ -318,12 +341,16 @@ func TestIRChangeRequestFromRootValidator(t *testing.T) {
 	go func() { require.ErrorIs(t, cm.Run(ctx), context.Canceled) }()
 
 	// simulate IR change request message
-	irChReq := &abtypes.IRChangeReq{
-		SystemIdentifier: partitionID,
-		CertReason:       abtypes.Quorum,
-		Requests:         buildBlockCertificationRequest(t, rg, partitionNodes[0:2]),
+	irChReqMsg := &abdrc.IrChangeReqMsg{
+		Author: rootNode.PeerConf.ID.String(),
+		IrChangeReq: &abtypes.IRChangeReq{
+			SystemIdentifier: partitionID,
+			CertReason:       abtypes.Quorum,
+			Requests:         buildBlockCertificationRequest(t, rg, partitionNodes[0:2]),
+		},
 	}
-	testutils.MockValidatorNetReceives(t, mockNet, rootNode.PeerConf.ID, network.ProtocolRootIrChangeReq, irChReq)
+	require.NoError(t, irChReqMsg.Sign(rootNode.Signer))
+	testutils.MockValidatorNetReceives(t, mockNet, rootNode.PeerConf.ID, network.ProtocolRootIrChangeReq, irChReqMsg)
 	// As the node is the leader, next round will trigger a proposal
 	lastProposalMsg = testutils.MockAwaitMessage[*abdrc.ProposalMsg](t, mockNet, network.ProtocolRootProposal)
 	require.Equal(t, partitionID, lastProposalMsg.Block.Payload.Requests[0].SystemIdentifier)
@@ -588,7 +615,15 @@ func Test_ConsensusManager_handleRootNetMsg(t *testing.T) {
 
 func Test_ConsensusManager_messages(t *testing.T) {
 	t.Parallel()
-
+	waitExit := func(ctxCancel context.CancelFunc, doneCh chan struct{}) {
+		ctxCancel()
+		// and wait for cm to exit
+		select {
+		case <-time.After(1000 * time.Millisecond):
+			t.Fatal("consensus manager did not exit in time")
+		case <-doneCh:
+		}
+	}
 	// partition data used/shared by tests
 	partitionNodes, partitionRecord := testutils.CreatePartitionNodesAndPartitionRecord(t, partitionInputRecord, partitionID, 2)
 
@@ -605,8 +640,9 @@ func Test_ConsensusManager_messages(t *testing.T) {
 		})
 
 		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
-		go func() { require.ErrorIs(t, cms[0].Run(ctx), context.Canceled) }()
+		done := make(chan struct{})
+		go func() { defer close(done); require.ErrorIs(t, cms[0].Run(ctx), context.Canceled) }()
+		defer waitExit(cancel, done)
 
 		// simulate root validator node sending IRCR to consensus manager
 		irCReq := consensus.IRChangeRequest{
@@ -634,26 +670,73 @@ func Test_ConsensusManager_messages(t *testing.T) {
 			require.ElementsMatch(t, irCReq.Requests, prop.Block.Payload.Requests[0].Requests)
 		}
 	})
+	t.Run("IR change request from partition forwarded to leader", func(t *testing.T) {
+		cms, rootNet, rootG := createConsensusManagers(t, 2, []*genesis.PartitionRecord{partitionRecord})
+		cmLeader := cms[0]
+		nonLeaderNode := cms[1]
+		// eavesdrop the network and copy IR change messages
+		irCh := make(chan *abdrc.IrChangeReqMsg, 1)
+		rootNet.SetFirewall(func(from, to peer.ID, msg any) bool {
+			if msg, ok := msg.(*abdrc.IrChangeReqMsg); ok && from == nonLeaderNode.id && to == cmLeader.id {
+				irCh <- msg
+			}
+			return false
+		})
+		for _, v := range cms {
+			v.leaderSelector = constLeader{leader: cmLeader.id, nodes: cmLeader.leaderSelector.GetNodes()} // use "const leader" to take leader selection out of test
+		}
+		ctx, cancel := context.WithCancel(context.Background())
+		done := make(chan struct{})
+		go func() { defer close(done); require.ErrorIs(t, nonLeaderNode.Run(ctx), context.Canceled) }()
+		defer waitExit(cancel, done)
 
+		// simulate root validator node sending IRCR to consensus manager
+		irCReq := consensus.IRChangeRequest{
+			SystemIdentifier: partitionID,
+			Reason:           consensus.Quorum,
+			Requests:         buildBlockCertificationRequest(t, rootG, partitionNodes),
+		}
+		// simulate partition request in non-leader node
+		select {
+		case <-time.After(nonLeaderNode.pacemaker.minRoundLen):
+			t.Fatal("CM doesn't consume IR change request")
+		case nonLeaderNode.RequestCertification() <- irCReq:
+		}
+		select {
+		case <-time.After(cmLeader.pacemaker.maxRoundLen):
+			t.Fatal("haven't got the IR Change message before timeout")
+		case irMsg := <-irCh:
+			require.NotNil(t, irMsg)
+			require.Equal(t, irMsg.Author, nonLeaderNode.id.String())
+			require.EqualValues(t, irCReq.SystemIdentifier, irMsg.IrChangeReq.SystemIdentifier)
+			require.ElementsMatch(t, irCReq.Requests, irMsg.IrChangeReq.Requests)
+		}
+	})
 	t.Run("IR change request forwarded by peer included in proposal", func(t *testing.T) {
 		cms, rootNet, rootG := createConsensusManagers(t, 2, []*genesis.PartitionRecord{partitionRecord})
 		cmLeader := cms[0]
+		otherNode := cms[1]
 		allNodes := cmLeader.leaderSelector.GetNodes()
 		for _, v := range cms {
 			v.leaderSelector = constLeader{leader: cmLeader.id, nodes: allNodes} // use "const leader" to take leader selection out of test
 		}
 		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
-		go func() { require.ErrorIs(t, cmLeader.Run(ctx), context.Canceled) }()
+		done := make(chan struct{})
+		go func() { defer close(done); require.ErrorIs(t, cmLeader.Run(ctx), context.Canceled) }()
+		defer waitExit(cancel, done)
 
-		// simulate "other root node" forwarding IRCR to leader
-		irCReq := &abtypes.IRChangeReq{
-			SystemIdentifier: partitionID,
-			CertReason:       abtypes.Quorum,
-			Requests:         buildBlockCertificationRequest(t, rootG, partitionNodes),
+		// simulate IR change request message, "other root node" forwarding IRCR to leader
+		irChReqMsg := &abdrc.IrChangeReqMsg{
+			Author: otherNode.id.String(),
+			IrChangeReq: &abtypes.IRChangeReq{
+				SystemIdentifier: partitionID,
+				CertReason:       abtypes.Quorum,
+				Requests:         buildBlockCertificationRequest(t, rootG, partitionNodes[0:2]),
+			},
 		}
+		require.NoError(t, otherNode.safety.Sign(irChReqMsg))
 		cmBnet := rootNet.Connect(cms[1].id)
-		require.NoError(t, cmBnet.Send(ctx, irCReq, cmLeader.id))
+		require.NoError(t, cmBnet.Send(ctx, irChReqMsg, cmLeader.id))
 		// IRCR must be included into broadcast proposal, either this or next round
 		sawIRCR := false
 		for cnt := 0; cnt < 2 && !sawIRCR; cnt++ {
@@ -666,23 +749,70 @@ func Test_ConsensusManager_messages(t *testing.T) {
 				require.NotNil(t, prop.Block)
 				require.NotNil(t, prop.Block.Payload)
 				if len(prop.Block.Payload.Requests) == 1 {
-					require.EqualValues(t, irCReq.SystemIdentifier, prop.Block.Payload.Requests[0].SystemIdentifier)
-					require.ElementsMatch(t, irCReq.Requests, prop.Block.Payload.Requests[0].Requests)
+					require.EqualValues(t, irChReqMsg.IrChangeReq.SystemIdentifier, prop.Block.Payload.Requests[0].SystemIdentifier)
+					require.ElementsMatch(t, irChReqMsg.IrChangeReq.Requests, prop.Block.Payload.Requests[0].Requests)
 					sawIRCR = true
 				}
 			}
 		}
 		require.True(t, sawIRCR, "expected to see the IRCR in one of the next two proposals")
 	})
+	t.Run("IR change request arrives late and is forwarded to the next leader", func(t *testing.T) {
+		cms, rootNet, rootG := createConsensusManagers(t, 2, []*genesis.PartitionRecord{partitionRecord})
+		cmLeader := cms[0]
+		nonLeaderNode := cms[1]
 
+		for _, v := range cms {
+			v.leaderSelector = constLeader{leader: cmLeader.id, nodes: cmLeader.leaderSelector.GetNodes()} // use "const leader" to take leader selection out of test
+		}
+		irCh := make(chan *abdrc.IrChangeReqMsg, 1)
+		rootNet.SetFirewall(func(from, to peer.ID, msg any) bool {
+			if msg, ok := msg.(*abdrc.IrChangeReqMsg); ok && from == nonLeaderNode.id && to == cmLeader.id {
+				irCh <- msg
+			}
+			return false
+		})
+		ctx, cancel := context.WithCancel(context.Background())
+		done := make(chan struct{})
+		go func() { defer close(done); require.ErrorIs(t, nonLeaderNode.Run(ctx), context.Canceled) }()
+		defer waitExit(cancel, done)
+
+		// simulate leader forwarding IRCR to non-leader
+		// not a real life situation, but it will test the logic for IR Change request messages
+		irChReqMsg := &abdrc.IrChangeReqMsg{
+			Author: cmLeader.id.String(),
+			IrChangeReq: &abtypes.IRChangeReq{
+				SystemIdentifier: partitionID,
+				CertReason:       abtypes.Quorum,
+				Requests:         buildBlockCertificationRequest(t, rootG, partitionNodes[0:2]),
+			},
+		}
+		require.NoError(t, cmLeader.safety.Sign(irChReqMsg))
+		cmBnet := rootNet.Connect(cmLeader.id)
+		require.NoError(t, cmBnet.Send(ctx, irChReqMsg, nonLeaderNode.id))
+		// non-leader is not the next leader and thus will forward the request back to the leader node
+		sawIRCR := false
+		select {
+		case <-time.After(cmLeader.pacemaker.maxRoundLen):
+			t.Fatal("haven't got the proposal before timeout")
+		case irMsg := <-irCh:
+			require.NotNil(t, irMsg)
+			require.Equal(t, irMsg.Author, cmLeader.id.String())
+			require.EqualValues(t, irChReqMsg.IrChangeReq.SystemIdentifier, irMsg.IrChangeReq.SystemIdentifier)
+			require.ElementsMatch(t, irChReqMsg.IrChangeReq.Requests, irMsg.IrChangeReq.Requests)
+			sawIRCR = true
+		}
+		require.True(t, sawIRCR, "expected to see the IRCR forwarded to leader")
+	})
 	t.Run("state request triggers response", func(t *testing.T) {
 		cms, _, _ := createConsensusManagers(t, 2, []*genesis.PartitionRecord{partitionRecord})
 		cmA, cmB := cms[0], cms[1]
 
 		// only launch cmA, we manage cmB "manually"
 		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
-		go func() { require.ErrorIs(t, cmA.Run(ctx), context.Canceled) }()
+		done := make(chan struct{})
+		go func() { defer close(done); require.ErrorIs(t, cmA.Run(ctx), context.Canceled) }()
+		defer waitExit(cancel, done)
 
 		// cmB sends state request to cmA
 		msg := &abdrc.GetStateMsg{NodeId: cmB.id.String()}
@@ -986,12 +1116,21 @@ func Test_rootNetworkRunning(t *testing.T) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
+	done := make(chan struct{})
 	start := time.Now()
-	for _, v := range cms {
-		go func(cm *ConsensusManager) { require.ErrorIs(t, cm.Run(ctx), context.Canceled) }(v)
-		go func(cm *ConsensusManager) { consumeUC(ctx, cm) }(v)
-	}
-
+	go func() {
+		wg := sync.WaitGroup{}
+		wg.Add(len(cms))
+		for _, v := range cms {
+			go func(cm *ConsensusManager) {
+				defer wg.Done()
+				require.ErrorIs(t, cm.Run(ctx), context.Canceled)
+			}(v)
+			go func(cm *ConsensusManager) { consumeUC(ctx, cm) }(v)
+		}
+		wg.Wait()
+		close(done)
+	}()
 	cm := cms[0]
 	// assume rounds are successful and each round takes between minRoundLen and roundTimeout on average
 	maxTestDuration := destRound * (cm.pacemaker.minRoundLen + (cm.pacemaker.maxRoundLen-cm.pacemaker.minRoundLen)/2)
@@ -1014,4 +1153,10 @@ func Test_rootNetworkRunning(t *testing.T) {
 	// potentially flaky as there is delay between starting CMs and starting the clock!
 	require.GreaterOrEqual(t, avgRoundLen, cm.pacemaker.minRoundLen, "minimum round duration for %d rounds", completeRounds)
 	require.GreaterOrEqual(t, cm.pacemaker.maxRoundLen, avgRoundLen, "maximum round duration for %d rounds", completeRounds)
+	// wait for cm routine to exit, otherwise logger may be destructed before last usage
+	select {
+	case <-time.After(1000 * time.Millisecond):
+		t.Fatal("consensus managers did not exit in time")
+	case <-done:
+	}
 }

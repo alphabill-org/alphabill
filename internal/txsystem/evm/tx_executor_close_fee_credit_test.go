@@ -82,6 +82,7 @@ func Test_closeFeeCreditTxExecFn(t *testing.T) {
 	backlink := addFeeCredit(t, stateTree, signer, 100)
 	closeExecFn := closeFeeCreditTx(
 		stateTree,
+		crypto.SHA256,
 		evmTestFeeCalculator,
 		fc.NewDefaultFeeCreditTxValidator([]byte{0, 0, 0, 0}, DefaultEvmTxSystemIdentifier, crypto.SHA256, tb, nil),
 		logger.New(t))
@@ -145,6 +146,7 @@ func Test_closeFeeCreditTx(t *testing.T) {
 	// close fee credit
 	closeExecFn := closeFeeCreditTx(
 		stateTree,
+		crypto.SHA256,
 		evmTestFeeCalculator,
 		fc.NewDefaultFeeCreditTxValidator([]byte{0, 0, 0, 0}, DefaultEvmTxSystemIdentifier, crypto.SHA256, tb, nil),
 		log)
@@ -163,4 +165,7 @@ func Test_closeFeeCreditTx(t *testing.T) {
 	// verify balance
 	balance = stateDB.GetBalance(addr)
 	require.EqualValues(t, 0, balance.Uint64())
+	// verify backlink
+	alphaBillData := stateDB.GetAlphaBillData(addr)
+	require.Equal(t, closeOrder.Hash(crypto.SHA256), alphaBillData.TxHash)
 }

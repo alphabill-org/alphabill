@@ -7,7 +7,6 @@ import (
 	"log/slog"
 	"math"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/fxamacker/cbor/v2"
@@ -35,14 +34,17 @@ type AlphabillClient struct {
 	connection *grpc.ClientConn
 	client     alphabill.AlphabillServiceClient
 	log        *slog.Logger
-
-	// mu mutex guarding mutable fields (connection and client)
-	mu sync.RWMutex
 }
 
 // New creates instance of AlphabillClient
-func New(config AlphabillClientConfig, log *slog.Logger) *AlphabillClient {
-	return &AlphabillClient{config: config, log: log}
+func New(config AlphabillClientConfig, log *slog.Logger) (*AlphabillClient, error) {
+	abClient := &AlphabillClient{config: config, log: log}
+
+	if err := abClient.connect(); err != nil {
+		return nil, err
+	}
+
+	return abClient, nil
 }
 
 func (c *AlphabillClient) SendTransaction(ctx context.Context, tx *types.TransactionOrder) error {
@@ -54,9 +56,6 @@ func (c *AlphabillClient) SendTransaction(ctx context.Context, tx *types.Transac
 	}
 	protoTx := &alphabill.Transaction{Order: txBytes}
 
-	if err := c.connect(); err != nil {
-		return err
-	}
 	_, err = c.client.ProcessTransaction(ctx, protoTx)
 	return err
 }
@@ -85,10 +84,6 @@ func (c *AlphabillClient) SendTransactionWithRetry(ctx context.Context, tx *type
 func (c *AlphabillClient) GetBlock(ctx context.Context, blockNumber uint64) ([]byte, error) {
 	defer trackExecutionTime(time.Now(), fmt.Sprintf("downloading block %d", blockNumber), c.log)
 
-	if err := c.connect(); err != nil {
-		return nil, err
-	}
-
 	res, err := c.client.GetBlock(ctx, &alphabill.GetBlockRequest{BlockNo: blockNumber})
 	if err != nil {
 		return nil, err
@@ -106,10 +101,6 @@ func (c *AlphabillClient) GetBlocks(ctx context.Context, blockNumber uint64, blo
 		}
 	}(time.Now())
 
-	if err := c.connect(); err != nil {
-		return nil, err
-	}
-
 	res, err = c.client.GetBlocks(ctx, &alphabill.GetBlocksRequest{BlockNumber: blockNumber, BlockCount: blockCount})
 	if err != nil {
 		return nil, err
@@ -120,10 +111,6 @@ func (c *AlphabillClient) GetBlocks(ctx context.Context, blockNumber uint64, blo
 func (c *AlphabillClient) GetRoundNumber(ctx context.Context) (uint64, error) {
 	defer trackExecutionTime(time.Now(), "fetching round number", c.log)
 
-	if err := c.connect(); err != nil {
-		return 0, err
-	}
-
 	res, err := c.client.GetRoundNumber(ctx, &emptypb.Empty{})
 	if err != nil {
 		return 0, err
@@ -132,15 +119,8 @@ func (c *AlphabillClient) GetRoundNumber(ctx context.Context) (uint64, error) {
 }
 
 func (c *AlphabillClient) Close() error {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	if c.connection != nil {
-		con := c.connection
-		c.connection = nil
-		c.client = nil
-		if err := con.Close(); err != nil {
-			return fmt.Errorf("error shutting down alphabill client: %w", err)
-		}
+	if err := c.connection.Close(); err != nil {
+		return fmt.Errorf("error shutting down alphabill client: %w", err)
 	}
 	return nil
 }
@@ -149,12 +129,6 @@ func (c *AlphabillClient) Close() error {
 // connect can be called any number of times, it does nothing if connection is already established and not shut down.
 // Shutdown can be used to shut down the client and terminate the connection.
 func (c *AlphabillClient) connect() error {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	if c.connection != nil {
-		return nil
-	}
-
 	callOpts := []grpc.CallOption{grpc.MaxCallSendMsgSize(1024 * 1024 * 4), grpc.MaxCallRecvMsgSize(math.MaxInt32)}
 	if c.config.WaitForReady {
 		callOpts = append(callOpts, grpc.WaitForReady(c.config.WaitForReady))

@@ -36,10 +36,10 @@ func TestAddFC_AddNewFeeCredit(t *testing.T) {
 	require.NoError(t, err)
 	fcr, ok := u.Data().(*unit.FeeCreditRecord)
 	require.True(t, ok)
-	require.EqualValues(t, 49, fcr.Balance)                  // transferFC.amount (50) - transferFC.fee (0) - addFC.fee (1)
-	require.EqualValues(t, tx.Hash(crypto.SHA256), fcr.Hash) // hash is set to txhash
-	require.EqualValues(t, 11, fcr.Timeout)                  // transferFC.latestAdditionTime + 1
-	require.EqualValues(t, 0, fcr.Locked)                    // new unit is created in unlocked status
+	require.EqualValues(t, 49, fcr.Balance)                      // transferFC.amount (50) - transferFC.fee (0) - addFC.fee (1)
+	require.EqualValues(t, tx.Hash(crypto.SHA256), fcr.Backlink) // backlink is set to txhash
+	require.EqualValues(t, 11, fcr.Timeout)                      // transferFC.latestAdditionTime + 1
+	require.EqualValues(t, 0, fcr.Locked)                        // new unit is created in unlocked status
 
 }
 
@@ -58,7 +58,7 @@ func TestAddFC_UpdateExistingFeeCreditRecord(t *testing.T) {
 
 	attr := testfc.NewAddFCAttr(t, signer)
 	tx := testfc.NewAddFC(t, signer, attr)
-	existingFCR := &unit.FeeCreditRecord{Balance: 10, Hash: nil, Locked: 1}
+	existingFCR := &unit.FeeCreditRecord{Balance: 10, Backlink: nil, Locked: 1}
 	require.NoError(t, s.Apply(state.AddUnit(tx.UnitID(), nil, existingFCR)))
 
 	sm, err := execFn(tx, attr, 10)
@@ -69,8 +69,8 @@ func TestAddFC_UpdateExistingFeeCreditRecord(t *testing.T) {
 	require.NoError(t, err)
 	fcr, ok := u.Data().(*unit.FeeCreditRecord)
 	require.True(t, ok)
-	require.EqualValues(t, 59, fcr.Balance)                  // existing (10) + transferFC.amount (50) - transferFC.fee (0) - addFC.fee (1)
-	require.EqualValues(t, tx.Hash(crypto.SHA256), fcr.Hash) // hash is set to txhash
-	require.EqualValues(t, 11, fcr.Timeout)                  // transferFC.latestAdditionTime + 1
-	require.EqualValues(t, 0, fcr.Locked)                    // unit is unlocked
+	require.EqualValues(t, 59, fcr.Balance)                      // existing (10) + transferFC.amount (50) - transferFC.fee (0) - addFC.fee (1)
+	require.EqualValues(t, tx.Hash(crypto.SHA256), fcr.Backlink) // backlink is set to txhash
+	require.EqualValues(t, 11, fcr.Timeout)                      // transferFC.latestAdditionTime + 1
+	require.EqualValues(t, 0, fcr.Locked)                        // unit is unlocked
 }

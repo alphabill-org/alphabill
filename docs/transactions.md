@@ -366,8 +366,9 @@ unlocks the target bill.
 1. *LockStatus* (uint64) is the new lock status. Must be non-zero value.
 2. *Backlink* (byte string) is the last hash of 
    [Lock Fee Credit](#lock-fee-credit), 
-   [Unlock Fee Credit](#unlock-fee-credit) or
-   [Add Fee Credit](#add-fee-credit)
+   [Unlock Fee Credit](#unlock-fee-credit),
+   [Add Fee Credit](#add-fee-credit) or
+   [Close Fee Credit](#close-fee-credit)
    transaction with the bill.
 
 ##### Unlock Fee Credit
@@ -389,8 +390,9 @@ as the fee credit record is automatically unlocked on
 
 1. *Backlink* (byte string) is the last hash of
    [Lock Fee Credit](#lock-fee-credit),
-   [Unlock Fee Credit](#unlock-fee-credit) or
-   [Add Fee Credit](#add-fee-credit)
+   [Unlock Fee Credit](#unlock-fee-credit),
+   [Add Fee Credit](#add-fee-credit) or
+   [Close Fee Credit](#close-fee-credit) 
    transaction with the fee credit record.
 
 ##### Transfer to Fee Credit
@@ -444,10 +446,9 @@ Fee Credit](#add-fee-credit) transaction.
    the corresponding [Add Fee Credit](#add-fee-credit) transaction can
    be executed in the target partition (usually current round number +
    some timeout).
-6. *TargetUnitBacklink* (byte string) is the hash of the last [Add Fee
-   Credit](#add-fee-credit) transaction executed for the
-   *TargetUnitID* in the target partition, or `null` if it does not
-   exist yet.
+6. *TargetUnitBacklink* (byte string) is the hash of the last fee credit 
+   transaction (addFC, closeFC, lockFC, unlockFC) executed for the
+   *TargetUnitID* in the target partition, or `null` if it does not exist yet.
 7. *Backlink* (byte string) is the backlink to the previous
    transaction with the bill.
 

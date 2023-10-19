@@ -219,8 +219,8 @@ func TestBlockProcessor_EachTxTypeCanBeProcessed(t *testing.T) {
 	require.NoError(t, err)
 	require.EqualValues(t, 0, fcb.Value)
 
-	// verify FCB LastAddFCTxHash is not changed
-	require.Equal(t, lastAddFCTxHash, fcb.LastAddFCTxHash)
+	// verify FCB LastAddFCTxHash is updated
+	require.Equal(t, closeFC.Hash(gocrypto.SHA256), fcb.LastAddFCTxHash)
 
 	// verify reclaimed fee credits (194) were added to specified unit (tx4 value=100) minus 2x txfee (2)
 	unit, err := store.Do().GetBill(tx4.TransactionOrder.UnitID())

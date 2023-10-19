@@ -38,10 +38,10 @@ func handleAddFeeCreditTx(f *FeeCredit) txsystem.GenericExecuteFunc[transactions
 		if bd == nil {
 			// add credit
 			fcr := &fcunit.FeeCreditRecord{
-				Balance: v,
-				Hash:    txHash,
-				Timeout: transferFc.LatestAdditionTime + 1,
-				Locked:  0,
+				Balance:  v,
+				Backlink: txHash,
+				Timeout:  transferFc.LatestAdditionTime + 1,
+				Locked:   0,
 			}
 			updateFunc = fcunit.AddCredit(unitID, attr.FeeCreditOwnerCondition, fcr)
 		} else {

@@ -50,12 +50,12 @@ type (
 	LockFeeCreditAttributes struct {
 		_          struct{} `cbor:",toarray"`
 		LockStatus uint64   // status of the lock, non-zero value means locked
-		Backlink   []byte   // hash of last "addFC", "lockFC" or "unlockFC" transaction
+		Backlink   []byte   // hash of last "addFC", "closeFC", "lockFC" or "unlockFC" transaction
 	}
 
 	UnlockFeeCreditAttributes struct {
 		_        struct{} `cbor:",toarray"`
-		Backlink []byte   // hash of last "addFC", "lockFC" or "unlockFC" transaction
+		Backlink []byte   // hash of last "addFC", "closeFC", "lockFC" or "unlockFC" transaction
 	}
 )
 

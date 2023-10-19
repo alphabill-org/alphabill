@@ -31,7 +31,7 @@ func handleLockFeeCreditTx(f *FeeCredit) txsystem.GenericExecuteFunc[transaction
 					return nil, fmt.Errorf("unit %v does not contain fee credit record", unitID)
 				}
 				fcr.Balance -= fee
-				fcr.Hash = txHash
+				fcr.Backlink = txHash
 				fcr.Locked = attr.LockStatus
 				return fcr, nil
 			})

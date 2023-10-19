@@ -11,10 +11,10 @@ import (
 
 func TestFCR_HashIsCalculatedCorrectly(t *testing.T) {
 	fcr := &FeeCreditRecord{
-		Balance: 1,
-		Hash:    test.RandomBytes(32),
-		Timeout: 2,
-		Locked:  3,
+		Balance:  1,
+		Backlink: test.RandomBytes(32),
+		Timeout:  2,
+		Locked:   3,
 	}
 	// calculate actual hash
 	hasher := crypto.SHA256.New()
@@ -24,7 +24,7 @@ func TestFCR_HashIsCalculatedCorrectly(t *testing.T) {
 	// calculate expected hash
 	hasher.Reset()
 	hasher.Write(util.Uint64ToBytes(fcr.Balance))
-	hasher.Write(fcr.Hash)
+	hasher.Write(fcr.Backlink)
 	hasher.Write(util.Uint64ToBytes(fcr.Timeout))
 	hasher.Write(util.Uint64ToBytes(fcr.Locked))
 	expectedHash := hasher.Sum(nil)
@@ -34,9 +34,9 @@ func TestFCR_HashIsCalculatedCorrectly(t *testing.T) {
 
 func TestFCR_SummaryValueIsZero(t *testing.T) {
 	fcr := &FeeCreditRecord{
-		Balance: 1,
-		Hash:    test.RandomBytes(32),
-		Timeout: 2,
+		Balance:  1,
+		Backlink: test.RandomBytes(32),
+		Timeout:  2,
 	}
 	require.Equal(t, uint64(0), fcr.SummaryValueInput())
 }

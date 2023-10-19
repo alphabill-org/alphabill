@@ -1321,9 +1321,9 @@ func newTokenTxSystem(t *testing.T) *txsystem.GenericTxSystem {
 	_, verifier := testsig.CreateSignerAndVerifier(t)
 	s := state.NewEmptyState()
 	require.NoError(t, s.Apply(state.AddUnit(feeCreditID, script.PredicateAlwaysTrue(), &unit.FeeCreditRecord{
-		Balance: 100,
-		Hash:    make([]byte, 32),
-		Timeout: 1000,
+		Balance:  100,
+		Backlink: make([]byte, 32),
+		Timeout:  1000,
 	})))
 	_, _, err := s.CalculateRoot()
 	require.NoError(t, err)

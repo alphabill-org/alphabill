@@ -134,8 +134,8 @@ func (v *DefaultFeeCreditTxValidator) ValidateAddFeeCredit(ctx *AddFCValidationC
 	}
 
 	// 7. (S.N[P.ι] = ⊥ ∧ P.A.P.A.η = ⊥) ∨ (S.N[P.ι] != ⊥ ∧ P.A.P.A.η = S.N[P.ι].λ) – bill transfer order contains correct target unit backlink
-	if !bytes.Equal(transferTxAttr.TargetUnitBacklink, fcr.GetHash()) {
-		return fmt.Errorf("invalid transferFC target unit backlink: transferFC.targetUnitBacklink=%X unit.backlink=%X", transferTxAttr.TargetUnitBacklink, fcr.GetHash())
+	if !bytes.Equal(transferTxAttr.TargetUnitBacklink, fcr.GetBacklink()) {
+		return fmt.Errorf("invalid transferFC target unit backlink: transferFC.targetUnitBacklink=%X unit.backlink=%X", transferTxAttr.TargetUnitBacklink, fcr.GetBacklink())
 	}
 
 	// 8. P.A.P.A.tb ≤ t ≤ P.A.P.A.te, where t is the number of the current block being composed – bill transfer is valid to be used in this block
@@ -252,9 +252,9 @@ func (v *DefaultFeeCreditTxValidator) ValidateUnlockFC(ctx *UnlockFCValidationCo
 
 func (v *DefaultFeeCreditTxValidator) validateLockTxs(tx *types.TransactionOrder, fcr *unit.FeeCreditRecord, txBacklink []byte) error {
 	// the transaction follows the previous valid transaction with the record
-	if !bytes.Equal(txBacklink, fcr.GetHash()) {
-		return fmt.Errorf("the transaction backlink does not match with unit transaction hash: "+
-			"got %x expected %x", txBacklink, fcr.GetHash())
+	if !bytes.Equal(txBacklink, fcr.GetBacklink()) {
+		return fmt.Errorf("the transaction backlink does not match with fee credit record backlink: "+
+			"got %x expected %x", txBacklink, fcr.GetBacklink())
 	}
 
 	// the transaction fees can’t exceed the fee credit record balance

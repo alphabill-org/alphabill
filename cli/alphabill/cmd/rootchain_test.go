@@ -2,10 +2,20 @@ package cmd
 
 import (
 	"context"
+	"fmt"
 	"path/filepath"
+	"strings"
+	"sync"
 	"testing"
 	"time"
 
+	"github.com/alphabill-org/alphabill/internal/network"
+	"github.com/alphabill-org/alphabill/internal/network/protocol/handshake"
+	test "github.com/alphabill-org/alphabill/internal/testutils"
+	"github.com/alphabill-org/alphabill/internal/testutils/net"
+	testtime "github.com/alphabill-org/alphabill/internal/testutils/time"
+	"github.com/alphabill-org/alphabill/internal/txsystem/money"
+	"github.com/libp2p/go-libp2p/core/peerstore"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sync/errgroup"
 
@@ -38,7 +48,7 @@ func TestRootValidator_CannotBeStartedInvalidKeyFile(t *testing.T) {
 	conf.KeyFile = "testdata/invalid-root-key.json"
 
 	err := defaultRootNodeRunFunc(context.Background(), conf)
-	require.ErrorContains(t, err, "error root node key not found in genesis file")
+	require.ErrorContains(t, err, "root genesis file does not match keys file: signing key not found in genesis file")
 }
 
 func TestRootValidator_CannotBeStartedInvalidDBDir(t *testing.T) {
@@ -74,4 +84,247 @@ func validMonolithicRootValidatorConfig(t *testing.T, dbDir string) *rootNodeCon
 		StoragePath:       dbDir,
 	}
 	return conf
+}
+
+func Test_rootNodeConfig_getBootStrapNodes(t *testing.T) {
+	t.Run("ok: nil", func(t *testing.T) {
+		cfg := &rootNodeConfig{}
+		bootNodes, err := cfg.getBootStrapNodes()
+		require.NoError(t, err)
+		require.NotNil(t, bootNodes)
+		require.Empty(t, bootNodes)
+	})
+	t.Run("err: invalid parameter", func(t *testing.T) {
+		cfg := &rootNodeConfig{
+			BootStrapAddresses: "blah",
+		}
+		bootNodes, err := cfg.getBootStrapNodes()
+		require.ErrorContains(t, err, "invalid bootstrap node parameter: blah")
+		require.Nil(t, bootNodes)
+	})
+	t.Run("err: invalid node description", func(t *testing.T) {
+		cfg := &rootNodeConfig{
+			BootStrapAddresses: "blah@someip@someif",
+		}
+		bootNodes, err := cfg.getBootStrapNodes()
+		require.ErrorContains(t, err, "invalid bootstrap node parameter: blah@someip@someif")
+		require.Nil(t, bootNodes)
+	})
+	t.Run("err: invalid node id", func(t *testing.T) {
+		cfg := &rootNodeConfig{
+			BootStrapAddresses: "blah@someip",
+		}
+		bootNodes, err := cfg.getBootStrapNodes()
+		require.ErrorContains(t, err, "invalid bootstrap node id: blah")
+		require.Nil(t, bootNodes)
+	})
+	t.Run("err: invalid address", func(t *testing.T) {
+		cfg := &rootNodeConfig{
+			BootStrapAddresses: "16Uiu2HAmLEmba2HMEEMe4NYsKnqKToAgi1FueNJaDiAnLeJpKktz@someip",
+		}
+		bootNodes, err := cfg.getBootStrapNodes()
+		require.ErrorContains(t, err, "invalid bootstrap node address: someip")
+		require.Nil(t, bootNodes)
+	})
+	t.Run("ok", func(t *testing.T) {
+		cfg := &rootNodeConfig{
+			BootStrapAddresses: "16Uiu2HAmLEmba2HMEEMe4NYsKnqKToAgi1FueNJaDiAnLeJpKktz@/ip4/127.0.0.1/tcp/1366",
+		}
+		bootNodes, err := cfg.getBootStrapNodes()
+		require.NoError(t, err)
+		require.Len(t, bootNodes, 1)
+		require.Equal(t, bootNodes[0].ID.String(), "16Uiu2HAmLEmba2HMEEMe4NYsKnqKToAgi1FueNJaDiAnLeJpKktz")
+		require.Len(t, bootNodes[0].Addrs, 1)
+		require.Equal(t, bootNodes[0].Addrs[0].String(), "/ip4/127.0.0.1/tcp/1366")
+	})
+}
+
+func Test_rootNodeConfig_defaultPath(t *testing.T) {
+	t.Run("default keyfile path", func(t *testing.T) {
+		cfg := &rootNodeConfig{
+			Base: &baseConfiguration{HomeDir: alphabillHomeDir()},
+		}
+		require.Equal(t, filepath.Join(alphabillHomeDir(), defaultRootChainDir, defaultKeysFileName), cfg.getKeyFilePath())
+	})
+	t.Run("default genesis path", func(t *testing.T) {
+		cfg := &rootNodeConfig{
+			Base: &baseConfiguration{HomeDir: alphabillHomeDir()},
+		}
+		require.Equal(t, filepath.Join(alphabillHomeDir(), defaultRootChainDir, rootGenesisFileName), cfg.getGenesisFilePath())
+	})
+}
+
+func Test_StartMonolithicNode(t *testing.T) {
+	homeDir := t.TempDir()
+	nodeGenesisFileLocation := filepath.Join(homeDir, moneyGenesisDir, moneyGenesisFileName)
+	nodeKeysFileLocation := filepath.Join(homeDir, moneyGenesisDir, defaultKeysFileName)
+	genesisFileDir := filepath.Join(homeDir, defaultRootChainDir)
+	ctx, ctxCancel := context.WithCancel(context.Background())
+	logF := logger.LoggerBuilder(t)
+	// prepare
+	// generate money node genesis
+	cmd := New(logF)
+	args := "money-genesis --home " + homeDir + " -o " + nodeGenesisFileLocation + " -g -k " + nodeKeysFileLocation
+	cmd.baseCmd.SetArgs(strings.Split(args, " "))
+	err := cmd.addAndExecuteCommand(context.Background())
+	require.NoError(t, err)
+	// create root node genesis with root node
+	cmd = New(logF)
+	args = "root-genesis new --home " + homeDir +
+		" -o " + genesisFileDir +
+		" --partition-node-genesis-file=" + nodeGenesisFileLocation +
+		" -g"
+	cmd.baseCmd.SetArgs(strings.Split(args, " "))
+	err = cmd.addAndExecuteCommand(context.Background())
+	require.NoError(t, err)
+
+	partListenddr := fmt.Sprintf("/ip4/127.0.0.1/tcp/%d", net.GetFreeRandomPort(t))
+	cmListenAddr := fmt.Sprintf("/ip4/127.0.0.1/tcp/%d", net.GetFreeRandomPort(t))
+	testtime.MustRunInTime(t, 500*time.Second, func() {
+		appStoppedWg := sync.WaitGroup{}
+		rootKeyPath := filepath.Join(homeDir, defaultRootChainDir, defaultKeysFileName)
+		// start the node in background
+		appStoppedWg.Add(1)
+		go func() {
+			// start root node
+			cmd = New(logF)
+			dbLocation := filepath.Join(homeDir, defaultRootChainDir)
+			genesisPath := filepath.Join(homeDir, defaultRootChainDir, rootGenesisFileName)
+			args = "root --home " + homeDir + " --db " + dbLocation + " --genesis-file " + genesisPath + " -k " + rootKeyPath + " --partition-listener " + partListenddr + " --root-listener " + cmListenAddr
+			cmd.baseCmd.SetArgs(strings.Split(args, " "))
+			err = cmd.addAndExecuteCommand(ctx)
+			require.ErrorIs(t, err, context.Canceled)
+			appStoppedWg.Done()
+		}()
+		// simulate money partition node sending handshake
+		log := logger.New(t)
+		cfg := &startNodeConfiguration{
+			Address:          "/ip4/127.0.0.1/tcp/26652",
+			RootChainAddress: cmListenAddr,
+		}
+		keys, err := LoadKeys(nodeKeysFileLocation, false, false)
+		require.NoError(t, err)
+		partitionGenesis := filepath.Join(homeDir, defaultRootChainDir, "partition-genesis-0.json")
+		pg, err := loadPartitionGenesis(partitionGenesis)
+		require.NoError(t, err)
+		moneyPeerCfg, err := loadPeerConfiguration(ctx, keys, pg, cfg, log)
+		moneyPeer, err := network.NewPeer(ctx, moneyPeerCfg, log)
+		require.NoError(t, err)
+		n, err := network.NewLibP2PValidatorNetwork(moneyPeer, network.DefaultValidatorNetOptions, log)
+		require.NoError(t, err)
+		rootValidatorEncryptionKey := pg.RootValidators[0].EncryptionPublicKey
+		rootID, rootAddress, err := getRootValidatorIDAndMultiAddress(rootValidatorEncryptionKey, partListenddr)
+		require.NoError(t, err)
+		moneyPeer.Network().Peerstore().AddAddr(rootID, rootAddress, peerstore.PermanentAddrTTL)
+		require.Eventually(t, func() bool {
+			// it is enough that send is success
+			err := n.Send(ctx, handshake.Handshake{
+				SystemIdentifier: money.DefaultSystemIdentifier,
+				NodeIdentifier:   moneyPeer.ID().String(),
+			}, rootID)
+			return err == nil
+		}, 2*time.Second, test.WaitTick)
+		// Close the app
+		ctxCancel()
+		// Wait for test asserts to be completed
+		appStoppedWg.Wait()
+	})
+}
+
+func Test_Start_2_DRCNodes(t *testing.T) {
+	homeDir := t.TempDir()
+	nodeGenesisFileLocation := filepath.Join(homeDir, moneyGenesisDir, moneyGenesisFileName)
+	nodeKeysFileLocation := filepath.Join(homeDir, moneyGenesisDir, defaultKeysFileName)
+	ctx, ctxCancel := context.WithCancel(context.Background())
+	// prepare genesis files
+	// generate money node genesis
+	logF := logger.LoggerBuilder(t)
+	cmd := New(logF)
+	args := "money-genesis --home " + homeDir + " -o " + nodeGenesisFileLocation + " -g -k " + nodeKeysFileLocation
+	cmd.baseCmd.SetArgs(strings.Split(args, " "))
+	err := cmd.addAndExecuteCommand(context.Background())
+	require.NoError(t, err)
+	// create root node genesis with root node 1
+	genesisFileDirN1 := filepath.Join(homeDir, defaultRootChainDir+"1")
+	cmd = New(logF)
+	args = "root-genesis new --home " + homeDir +
+		" -o " + genesisFileDirN1 +
+		" --total-nodes=2" +
+		" --partition-node-genesis-file=" + nodeGenesisFileLocation +
+		" -g"
+	cmd.baseCmd.SetArgs(strings.Split(args, " "))
+	err = cmd.addAndExecuteCommand(context.Background())
+	require.NoError(t, err)
+	// create root node genesis with root node 2
+	genesisFileDirN2 := filepath.Join(homeDir, defaultRootChainDir+"2")
+	cmd = New(logF)
+	args = "root-genesis new --home " + homeDir +
+		" -o " + genesisFileDirN2 +
+		" --total-nodes=2" +
+		" --partition-node-genesis-file=" + nodeGenesisFileLocation +
+		" -g"
+	cmd.baseCmd.SetArgs(strings.Split(args, " "))
+	err = cmd.addAndExecuteCommand(context.Background())
+	require.NoError(t, err)
+	// combine root genesis files
+	cmd = New(logF)
+	args = "root-genesis combine --home " + homeDir +
+		" -o " + homeDir +
+		" --root-genesis=" + filepath.Join(genesisFileDirN1, rootGenesisFileName) +
+		" --root-genesis=" + filepath.Join(genesisFileDirN2, rootGenesisFileName)
+	cmd.baseCmd.SetArgs(strings.Split(args, " "))
+	err = cmd.addAndExecuteCommand(context.Background())
+	require.NoError(t, err)
+	// start a root node and if it receives handshake, then it must be up and running
+	testtime.MustRunInTime(t, 5*time.Second, func() {
+		appStoppedWg := sync.WaitGroup{}
+		partListenddr := fmt.Sprintf("/ip4/127.0.0.1/tcp/%d", net.GetFreeRandomPort(t))
+		cmListenAddr := fmt.Sprintf("/ip4/127.0.0.1/tcp/%d", net.GetFreeRandomPort(t))
+		// start the node in background
+		appStoppedWg.Add(1)
+		go func() {
+			// start root node
+			cmd = New(logF)
+			dbLocation := filepath.Join(homeDir, defaultRootChainDir+"1")
+			genesisPath := filepath.Join(homeDir, rootGenesisFileName)
+			keyPath := filepath.Join(homeDir, defaultRootChainDir+"1", defaultKeysFileName)
+			args = "root --home " + homeDir + " --db " + dbLocation + " --genesis-file " + genesisPath + " -k " + keyPath + " --partition-listener " + partListenddr + " --root-listener " + cmListenAddr
+			cmd.baseCmd.SetArgs(strings.Split(args, " "))
+			err = cmd.addAndExecuteCommand(ctx)
+			require.ErrorIs(t, err, context.Canceled)
+			appStoppedWg.Done()
+		}()
+		// simulate money partition node sending handshake
+		log := logger.New(t)
+		cfg := &startNodeConfiguration{
+			Address:          "/ip4/127.0.0.1/tcp/26652",
+			RootChainAddress: cmListenAddr,
+		}
+		keys, err := LoadKeys(nodeKeysFileLocation, false, false)
+		require.NoError(t, err)
+		partitionGenesis := filepath.Join(homeDir, defaultRootChainDir+"1", "partition-genesis-0.json")
+		pg, err := loadPartitionGenesis(partitionGenesis)
+		require.NoError(t, err)
+		moneyPeerCfg, err := loadPeerConfiguration(ctx, keys, pg, cfg, log)
+		moneyPeer, err := network.NewPeer(ctx, moneyPeerCfg, log)
+		require.NoError(t, err)
+		n, err := network.NewLibP2PValidatorNetwork(moneyPeer, network.DefaultValidatorNetOptions, log)
+		require.NoError(t, err)
+		rootValidatorEncryptionKey := pg.RootValidators[0].EncryptionPublicKey
+		rootID, rootAddress, err := getRootValidatorIDAndMultiAddress(rootValidatorEncryptionKey, partListenddr)
+		require.NoError(t, err)
+		moneyPeer.Network().Peerstore().AddAddr(rootID, rootAddress, peerstore.PermanentAddrTTL)
+		require.Eventually(t, func() bool {
+			// it is enough that send is success
+			err := n.Send(ctx, handshake.Handshake{
+				SystemIdentifier: money.DefaultSystemIdentifier,
+				NodeIdentifier:   moneyPeer.ID().String(),
+			}, rootID)
+			return err == nil
+		}, 2*time.Second, test.WaitTick)
+		// Close the app
+		ctxCancel()
+		// Wait for test asserts to be completed
+		appStoppedWg.Wait()
+	})
 }

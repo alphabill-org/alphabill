@@ -11,6 +11,10 @@ import (
 	"github.com/spf13/cobra"
 )
 
+const (
+	rootGenesisCmdName = "root-genesis"
+)
+
 type combineGenesisConfig struct {
 	Base *baseConfiguration
 
@@ -50,8 +54,8 @@ func combineRootGenesisCmd(config *rootGenesisConfig) *cobra.Command {
 		},
 	}
 	cmd.Flags().StringVarP(&combineCfg.OutputDir, "output-dir", "o", "", "path to output directory (default: $AB_HOME/rootchain)")
-	cmd.Flags().StringSliceVarP(&combineCfg.RootGenesisFiles, rootGenesisFileName, "r", []string{}, "path to root node genesis files")
-	if err := cmd.MarkFlagRequired(rootGenesisFileName); err != nil {
+	cmd.Flags().StringSliceVar(&combineCfg.RootGenesisFiles, rootGenesisCmdName, []string{}, "path to root node genesis files")
+	if err := cmd.MarkFlagRequired(rootGenesisCmdName); err != nil {
 		return nil
 	}
 	return cmd
@@ -111,8 +115,8 @@ func signRootGenesisCmd(config *rootGenesisConfig) *cobra.Command {
 	}
 	config.Keys.addCmdFlags(cmd)
 	cmd.Flags().StringVarP(&signCfg.OutputDir, "output-dir", "o", "", "path to output directory (default: $AB_HOME/rootchain)")
-	cmd.Flags().StringVarP(&signCfg.RootGenesisFile, rootGenesisFileName, "r", "", "path to root node genesis file")
-	if err := cmd.MarkFlagRequired(rootGenesisFileName); err != nil {
+	cmd.Flags().StringVar(&signCfg.RootGenesisFile, rootGenesisCmdName, "", "path to root node genesis file")
+	if err := cmd.MarkFlagRequired(rootGenesisCmdName); err != nil {
 		return nil
 	}
 	return cmd

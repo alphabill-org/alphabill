@@ -72,7 +72,7 @@ func newGenesisCmd(config *rootGenesisConfig) *cobra.Command {
 	if err := cmd.MarkFlagRequired(partitionRecordFile); err != nil {
 		return nil
 	}
-	cmd.Flags().StringVarP(&config.OutputDir, "output-dir", "o", "", "path to output directory (default: $AB_HOME/rootchain)")
+	cmd.Flags().StringVarP(&config.OutputDir, "output", "o", "", "path to the output genesis file (default: $AB_HOME/rootchain/root-genesis.json)")
 	// Consensus params
 	cmd.Flags().Uint32Var(&config.TotalNodes, "total-nodes", 1, "total number of root nodes")
 	cmd.Flags().Uint32Var(&config.BlockRateMs, "block-rate", genesis.DefaultBlockRateMs, "Unicity Certificate rate")
@@ -88,12 +88,12 @@ func (c *rootGenesisConfig) getOutputDir() string {
 	var outputDir string
 	if c.OutputDir != "" {
 		outputDir = c.OutputDir
+		// if key file path not set, then set it to the output path
+		if c.Keys.KeyFilePath == "" {
+			c.Keys.KeyFilePath = filepath.Join(c.OutputDir, defaultKeysFileName)
+		}
 	} else {
 		outputDir = c.Base.defaultRootGenesisDir()
-	}
-	// -rwx------
-	if err := os.MkdirAll(outputDir, 0700); err != nil {
-		panic(err)
 	}
 	return outputDir
 }
@@ -108,7 +108,11 @@ func (c *rootGenesisConfig) getQuorumThreshold() uint32 {
 
 func rootGenesisRunFunc(config *rootGenesisConfig) error {
 	// ensure output dir is present before keys generation
-	_ = config.getOutputDir()
+	dir := config.getOutputDir()
+	// create directory -rwx------
+	if err := os.MkdirAll(dir, 0700); err != nil {
+		return fmt.Errorf("genesis file directory create failed: %w", err)
+	}
 	// load or generate keys
 	keys, err := LoadKeys(config.Keys.GetKeyFileLocation(), config.Keys.GenerateKeys, config.Keys.ForceGeneration)
 	if err != nil {

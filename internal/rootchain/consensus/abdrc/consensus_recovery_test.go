@@ -40,7 +40,7 @@ func Test_ConsensusManager_sendRecoveryRequests(t *testing.T) {
 	})
 
 	t.Run("already in recovery status", func(t *testing.T) {
-		cm := &ConsensusManager{recovery: &recoveryInfo{toRound: 42}}
+		cm := &ConsensusManager{recovery: &recoveryInfo{toRound: 42, sent: time.Now()}}
 
 		toMsg := &abdrc.TimeoutMsg{
 			Author: "16Uiu2HAm2qoNCweXVbxXPHAQxdJnEXEYYQ1bRfBwEi6nUhZMhWxD",
@@ -66,10 +66,69 @@ func Test_ConsensusManager_sendRecoveryRequests(t *testing.T) {
 		require.EqualError(t, err, `already in recovery to round 42, ignoring request to recover to round 42`)
 	})
 
+	t.Run("previous request has timed out, repeat", func(t *testing.T) {
+		// scenario: already in recovery but haven't got the status response or
+		// failed to recover from it so the status request should be sent again
+		nodeID, _, _, _ := generatePeerData(t)
+		authID, _, _, _ := generatePeerData(t)
+		toMsg := &abdrc.TimeoutMsg{
+			Author: authID.String(),
+			Timeout: &types.Timeout{
+				HighQc: &types.QuorumCert{
+					// add node itself into signatures too - shouldn't happen in real life that
+					// node sends recovery request to itself but we just need valid ID here...
+					Signatures: map[string][]byte{
+						authID.String(): {4, 3, 2, 1},
+						nodeID.String(): {5, 6, 7, 8},
+					},
+					VoteInfo: &types.RoundInfo{RoundNumber: 66}},
+			},
+		}
+
+		nw := newMockNetwork(t)
+		cm := &ConsensusManager{
+			id:  nodeID,
+			net: nw.Connect(nodeID),
+			// init the sent time so is is older than limit
+			recovery: &recoveryInfo{toRound: toMsg.Timeout.GetHqcRound(), sent: time.Now().Add(-statusReqShelfLife)},
+		}
+
+		// call Connect to "register" the ID with mock network...
+		require.NotNil(t, nw.Connect(authID))
+		//...but use firewall to check that all expected messages are sent
+		// we have two signatures in QC, status request should be sent to both
+		var sawM sync.Mutex
+		sawMsg := map[peer.ID]struct{}{}
+		nw.SetFirewall(func(from, to peer.ID, msg any) bool {
+			if _, ok := msg.(*abdrc.GetStateMsg); !ok || from != nodeID {
+				return false
+			}
+
+			sawM.Lock()
+			defer sawM.Unlock()
+
+			if _, ok := sawMsg[to]; ok {
+				t.Errorf("request is already sent to %s", to)
+			} else {
+				sawMsg[to] = struct{}{}
+			}
+			return false
+		})
+		// trigger recovery request
+		require.NoError(t, cm.sendRecoveryRequests(context.Background(), toMsg))
+		require.Eventually(t,
+			func() bool {
+				sawM.Lock()
+				defer sawM.Unlock()
+				return len(sawMsg) == 2
+			},
+			2*time.Second, 200*time.Millisecond)
+	})
+
 	t.Run("state request is sent to the author", func(t *testing.T) {
 		nodeID, _, _, _ := generatePeerData(t)
 		authID, _, _, _ := generatePeerData(t)
-		nw := newMockNetwork()
+		nw := newMockNetwork(t)
 		cm := &ConsensusManager{id: nodeID, net: nw.Connect(nodeID)}
 
 		// single signature by the author so only that node should receive the request
@@ -185,6 +244,10 @@ func Test_msgToRecoveryInfo(t *testing.T) {
 			t.Run(tc.name, func(t *testing.T) {
 				info, sig, err := msgToRecoveryInfo(tc.input)
 				require.NoError(t, err)
+				// check that the info created by func has sent time assigned
+				// but then zero it so that the equality check would not fail
+				require.False(t, info.sent.IsZero())
+				info.sent = time.Time{}
 				require.Equal(t, tc.info, info)
 				require.Equal(t, tc.signatures, sig)
 			})
@@ -624,7 +687,7 @@ func createConsensusManagers(t *testing.T, count int, partitionRecs []*protocgen
 	require.NotNil(t, partG)
 	require.NotNil(t, rootG)
 
-	nw := newMockNetwork()
+	nw := newMockNetwork(t)
 	cms := make([]*ConsensusManager, 0, len(rootG.Root.RootValidators))
 	for _, v := range rootG.Root.RootValidators {
 		nodeID, err := peer.Decode(v.NodeIdentifier)
@@ -687,101 +750,6 @@ func generatePeerData(t *testing.T) (peer.ID, crypto.Signer, crypto.Verifier, []
 
 	return nodeID, signer, verifier, pubKey
 }
-
-func newMockNetwork() *mockNetwork {
-	mnw := &mockNetwork{
-		cons:   make(map[peer.ID]chan any),
-		sendTO: 70 * time.Millisecond,
-	}
-	mnw.firewall.Store(fwFunc(nil))
-	return mnw
-}
-
-type fwFunc func(from, to peer.ID, msg any) bool
-
-type mockNetwork struct {
-	cons   map[peer.ID]chan any
-	sendTO time.Duration // timeout for send operation
-
-	// firewall stores func (of type fwFunc) which returns "true" when the message
-	// should be blocked and "false" when msg should pass through FW
-	firewall atomic.Value
-
-	m    sync.Mutex
-	errs []error
-}
-
-/*
-Connect creates mocked RootNet for given peer, the peer is "connected" to the
-same network with other peers in the mockNetwork.
-NB! not concurrency safe, register peers before concurrent action!
-*/
-func (mnw *mockNetwork) Connect(node peer.ID) RootNet {
-	if con, exists := mnw.cons[node]; exists {
-		return &mockNwConnection{nw: mnw, id: node, rcv: con}
-	}
-	con := &mockNwConnection{nw: mnw, id: node, rcv: make(chan any)}
-	mnw.cons[node] = con.rcv
-	return con
-}
-
-/*
-SetFirewall replaces current FW func.
-
-When the func returns "true" the message will be blocked, when "false" the msg is passed on.
-Use "nil" to disable FW (ie all messages will be passed on without filter).
-Message blocked by FW just disappears, no error is returned to the sender.
-*/
-func (mnw *mockNetwork) SetFirewall(fw fwFunc) {
-	mnw.firewall.Store(fw)
-}
-
-func (mnw *mockNetwork) logError(err error) {
-	mnw.m.Lock()
-	defer mnw.m.Unlock()
-	mnw.errs = append(mnw.errs, err)
-}
-
-func (mnw *mockNetwork) send(from, to peer.ID, msg any) error {
-	con, ok := mnw.cons[to]
-	if !ok {
-		return fmt.Errorf("unknown receiver %s for message %#v sent by %s", to, msg, from)
-	}
-
-	if fw := mnw.firewall.Load().(fwFunc); fw != nil {
-		if fw(from, to, msg) {
-			return nil
-		}
-	}
-
-	go func() {
-		select {
-		case <-time.After(mnw.sendTO):
-			mnw.logError(fmt.Errorf("send operation timed out %s -> %s : %#v", from, to, msg))
-		case con <- msg:
-		}
-	}()
-
-	return nil
-}
-
-type mockNwConnection struct {
-	nw  *mockNetwork
-	id  peer.ID
-	rcv chan any
-}
-
-func (nc *mockNwConnection) Send(_ context.Context, msg any, receivers ...peer.ID) error {
-	var errs []error
-	for _, id := range receivers {
-		if err := nc.nw.send(nc.id, id, msg); err != nil {
-			errs = append(errs, err)
-		}
-	}
-	return errors.Join(errs...)
-}
-
-func (nc *mockNwConnection) ReceivedChannel() <-chan any { return nc.rcv }
 
 /*
 constLeader is leader selection algorithm which always returns the same leader.

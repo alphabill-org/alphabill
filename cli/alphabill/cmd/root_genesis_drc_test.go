@@ -52,7 +52,7 @@ func TestDistributedGenesisFiles_DifferentRootConsensus(t *testing.T) {
 		" --root-genesis=testdata/root3-genesis.json" +
 		" --root-genesis=testdata/root4-genesis.json"
 	cmd.baseCmd.SetArgs(strings.Split(args, " "))
-	require.Error(t, cmd.addAndExecuteCommand(context.Background()))
+	require.ErrorContains(t, cmd.addAndExecuteCommand(context.Background()), "root genesis merge failed, not compatible root genesis files, consensus is different")
 }
 
 func TestDistributedGenesisFiles_DuplicateRootNode(t *testing.T) {
@@ -73,4 +73,5 @@ func TestDistributedGenesisFiles_DuplicateRootNode(t *testing.T) {
 	require.NoError(t, err)
 	// duplicate is ignored
 	require.Len(t, rootGenesis.Root.RootValidators, 3)
+	require.ErrorContains(t, rootGenesis.Verify(), "root genesis record error: registered root nodes do not match consensus total root nodes")
 }

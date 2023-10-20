@@ -8,7 +8,9 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/internal/testutils/logger"
+	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/stretchr/testify/require"
 )
 
@@ -21,10 +23,10 @@ func TestGenerateDistributedGenesisFiles(t *testing.T) {
 	cmd := New(logF)
 	args := "root-genesis combine --home " + homeDir +
 		" -o " + outputDir +
-		" --root-genesis-file=testdata/root1-genesis.json" +
-		" --root-genesis-file=testdata/root2-genesis.json" +
-		" --root-genesis-file=testdata/root3-genesis.json" +
-		" --root-genesis-file=testdata/root4-genesis.json"
+		" --root-genesis=testdata/root1-genesis.json" +
+		" --root-genesis=testdata/root2-genesis.json" +
+		" --root-genesis=testdata/root3-genesis.json" +
+		" --root-genesis=testdata/root4-genesis.json"
 	cmd.baseCmd.SetArgs(strings.Split(args, " "))
 	require.NoError(t, cmd.addAndExecuteCommand(context.Background()))
 
@@ -45,10 +47,10 @@ func TestDistributedGenesisFiles_DifferentRootConsensus(t *testing.T) {
 	cmd := New(logF)
 	args := "root-genesis combine --home " + homeDir +
 		" -o " + outputDir +
-		" --root-genesis-file=testdata/expected/root-genesis.json" +
-		" --root-genesis-file=testdata/root2-genesis.json" +
-		" --root-genesis-file=testdata/root3-genesis.json" +
-		" --root-genesis-file=testdata/root4-genesis.json"
+		" --root-genesis=testdata/expected/root-genesis.json" +
+		" --root-genesis=testdata/root2-genesis.json" +
+		" --root-genesis=testdata/root3-genesis.json" +
+		" --root-genesis=testdata/root4-genesis.json"
 	cmd.baseCmd.SetArgs(strings.Split(args, " "))
 	require.Error(t, cmd.addAndExecuteCommand(context.Background()))
 }
@@ -61,11 +63,14 @@ func TestDistributedGenesisFiles_DuplicateRootNode(t *testing.T) {
 	cmd := New(logF)
 	args := "root-genesis combine --home " + homeDir +
 		" -o " + outputDir +
-		" --root-genesis-file=testdata/root1-genesis.json" +
-		" --root-genesis-file=testdata/root2-genesis.json" +
-		" --root-genesis-file=testdata/root3-genesis.json" +
-		" --root-genesis-file=testdata/root2-genesis.json"
+		" --root-genesis=testdata/root1-genesis.json" +
+		" --root-genesis=testdata/root2-genesis.json" +
+		" --root-genesis=testdata/root3-genesis.json" +
+		" --root-genesis=testdata/root2-genesis.json"
 	cmd.baseCmd.SetArgs(strings.Split(args, " "))
-	require.Error(t, cmd.addAndExecuteCommand(context.Background()))
-	// however it does not verify, since genesis not signed by all validators
+	require.NoError(t, cmd.addAndExecuteCommand(context.Background()))
+	rootGenesis, err := util.ReadJsonFile(filepath.Join(outputDir, rootGenesisFileName), &genesis.RootGenesis{})
+	require.NoError(t, err)
+	// duplicate is ignored
+	require.Len(t, rootGenesis.Root.RootValidators, 3)
 }

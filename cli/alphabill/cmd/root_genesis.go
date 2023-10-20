@@ -27,7 +27,7 @@ type rootGenesisConfig struct {
 	Keys *keysConfig
 
 	// path to output directory where genesis files will be created (default current directory)
-	Output             string
+	OutputDir          string
 	ForceKeyGeneration bool
 	// Consensus params
 	// Total number of root nodes
@@ -72,7 +72,7 @@ func newGenesisCmd(config *rootGenesisConfig) *cobra.Command {
 	if err := cmd.MarkFlagRequired(partitionRecordFile); err != nil {
 		return nil
 	}
-	cmd.Flags().StringVarP(&config.Output, "output", "o", "", "path to the output genesis file (default: $AB_HOME/rootchain/root-genesis.json)")
+	cmd.Flags().StringVarP(&config.OutputDir, "output", "o", "", "path to the output genesis file (default: $AB_HOME/rootchain/root-genesis.json)")
 	// Consensus params
 	cmd.Flags().Uint32Var(&config.TotalNodes, "total-nodes", 1, "total number of root nodes")
 	cmd.Flags().Uint32Var(&config.BlockRateMs, "block-rate", genesis.DefaultBlockRateMs, "Unicity Certificate rate")
@@ -86,11 +86,11 @@ func newGenesisCmd(config *rootGenesisConfig) *cobra.Command {
 // Must be called after base command PersistentPreRunE function has been called, so that $AB_HOME is initialized.
 func (c *rootGenesisConfig) getOutputDir() string {
 	var outputDir string
-	if c.Output != "" {
-		outputDir = c.Output
+	if c.OutputDir != "" {
+		outputDir = c.OutputDir
 		// if key file path not set, then set it to the output path
 		if c.Keys.KeyFilePath == "" {
-			c.Keys.KeyFilePath = filepath.Join(c.Output, defaultKeysFileName)
+			c.Keys.KeyFilePath = filepath.Join(c.OutputDir, defaultKeysFileName)
 		}
 	} else {
 		outputDir = c.Base.defaultRootGenesisDir()

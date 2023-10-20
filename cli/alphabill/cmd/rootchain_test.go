@@ -153,7 +153,6 @@ func Test_StartMonolithicNode(t *testing.T) {
 	homeDir := t.TempDir()
 	nodeGenesisFileLocation := filepath.Join(homeDir, moneyGenesisDir, moneyGenesisFileName)
 	nodeKeysFileLocation := filepath.Join(homeDir, moneyGenesisDir, defaultKeysFileName)
-	//keysFileLocation := filepath.Join(homeDir, defaultRootChainDir, defaultKeysFileName)
 	genesisFileDir := filepath.Join(homeDir, defaultRootChainDir)
 	testtime.MustRunInTime(t, 5*time.Second, func() {
 		logF := logger.LoggerBuilder(t)

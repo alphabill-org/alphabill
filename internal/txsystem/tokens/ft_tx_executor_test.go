@@ -269,7 +269,7 @@ func TestCreateFungibleTokenType_CreateTokenTypeChain_InvalidCreationPredicateSi
 		Symbol:                   validSymbol,
 		ParentTypeID:             nil,
 		DecimalPlaces:            6,
-		SubTypeCreationPredicate: templates.AlwaysTrueBytes(),
+		SubTypeCreationPredicate: templates.NewP2pkh256BytesFromKeyHash(make([]byte, 32)),
 		TokenCreationPredicate:   templates.AlwaysFalseBytes(),
 		InvariantPredicate:       templates.NewP2pkh256BytesFromKeyHash(make([]byte, 32)),
 	}
@@ -365,22 +365,22 @@ func TestMintFungibleToken_NotOk(t *testing.T) {
 			},
 			wantErrStr: fmt.Sprintf("item %s does not exist", missingTypeID),
 		},
-		{
-			name: "invalid token creation predicate argument",
-			tx: &types.TransactionOrder{
-				Payload: &types.Payload{
-					Type:   PayloadTypeMintFungibleToken,
-					UnitID: validUnitID,
-				},
-			},
-			attr: &MintFungibleTokenAttributes{
-				Bearer:                           templates.AlwaysTrueBytes(),
-				TypeID:                           existingTokenTypeUnitID,
-				Value:                            1000,
-				TokenCreationPredicateSignatures: [][]byte{templates.AlwaysFalseBytes()},
-			},
-			wantErrStr: "invalid predicate",
-		},
+		//{ // 'Always True' ignores the signature bytes
+		//	name: "invalid token creation predicate argument",
+		//	tx: &types.TransactionOrder{
+		//		Payload: &types.Payload{
+		//			Type:   PayloadTypeMintFungibleToken,
+		//			UnitID: validUnitID,
+		//		},
+		//	},
+		//	attr: &MintFungibleTokenAttributes{
+		//		Bearer:                           templates.AlwaysTrueBytes(),
+		//		TypeID:                           existingTokenTypeUnitID,
+		//		Value:                            1000,
+		//		TokenCreationPredicateSignatures: [][]byte{templates.AlwaysFalseBytes()},
+		//	},
+		//	wantErrStr: "invalid predicate",
+		//},
 		{
 			name: "invalid value - zero",
 			tx: &types.TransactionOrder{
@@ -436,14 +436,6 @@ func TestMintFungibleToken_Ok(t *testing.T) {
 }
 
 func TestTransferFungibleToken_NotOk(t *testing.T) {
-	attr := &TransferFungibleTokenAttributes{
-		TypeID:                       existingTokenTypeUnitID,
-		NewBearer:                    templates.AlwaysTrueBytes(),
-		Value:                        existingTokenValue,
-		Nonce:                        test.RandomBytes(32),
-		Backlink:                     make([]byte, 32),
-		InvariantPredicateSignatures: [][]byte{templates.AlwaysFalseBytes()},
-	}
 	tests := []struct {
 		name       string
 		tx         *types.TransactionOrder
@@ -518,12 +510,19 @@ func TestTransferFungibleToken_NotOk(t *testing.T) {
 			},
 			wantErrStr: "invalid type identifier",
 		},
-		{
-			name:       "invalid token invariant predicate argument",
-			tx:         createTransactionOrder(t, attr, PayloadTypeTransferFungibleToken, existingTokenUnitID),
-			attr:       attr,
-			wantErrStr: "invalid predicate",
-		},
+		//{ // 'Always True' ignores the signature bytes
+		//	name: "invalid token invariant predicate argument",
+		//	tx:   createTransactionOrder(t, &TransferFungibleTokenAttributes{}, PayloadTypeTransferFungibleToken, existingTokenUnitID),
+		//	attr: &TransferFungibleTokenAttributes{
+		//		TypeID:                       existingTokenTypeUnitID,
+		//		NewBearer:                    templates.AlwaysTrueBytes(),
+		//		Value:                        existingTokenValue,
+		//		Nonce:                        test.RandomBytes(32),
+		//		Backlink:                     make([]byte, 32),
+		//		InvariantPredicateSignatures: [][]byte{templates.AlwaysFalseBytes()},
+		//	},
+		//	wantErrStr: "invalid predicate",
+		//},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -683,20 +682,20 @@ func TestSplitFungibleToken_NotOk(t *testing.T) {
 			},
 			wantErrStr: "invalid type identifier",
 		},
-		{
-			name: "invalid token invariant predicate argument",
-			tx:   createTransactionOrder(t, nil, PayloadTypeSplitFungibleToken, existingTokenUnitID),
-			attr: &SplitFungibleTokenAttributes{
-				TypeID:                       existingTokenTypeUnitID,
-				NewBearer:                    templates.AlwaysTrueBytes(),
-				TargetValue:                  existingTokenValue - 1,
-				RemainingValue:               1,
-				Nonce:                        test.RandomBytes(32),
-				Backlink:                     make([]byte, 32),
-				InvariantPredicateSignatures: [][]byte{templates.AlwaysFalseBytes()},
-			},
-			wantErrStr: "invalid predicate",
-		},
+		//{ // 'Always True' ignores the signature bytes
+		//	name: "invalid token invariant predicate argument",
+		//	tx:   createTransactionOrder(t, nil, PayloadTypeSplitFungibleToken, existingTokenUnitID),
+		//	attr: &SplitFungibleTokenAttributes{
+		//		TypeID:                       existingTokenTypeUnitID,
+		//		NewBearer:                    templates.AlwaysTrueBytes(),
+		//		TargetValue:                  existingTokenValue - 1,
+		//		RemainingValue:               1,
+		//		Nonce:                        test.RandomBytes(32),
+		//		Backlink:                     make([]byte, 32),
+		//		InvariantPredicateSignatures: [][]byte{templates.AlwaysFalseBytes()},
+		//	},
+		//	wantErrStr: "invalid predicate",
+		//},
 	}
 
 	for _, tt := range tests {
@@ -801,18 +800,18 @@ func TestBurnFungibleToken_NotOk(t *testing.T) {
 			},
 			wantErrStr: "invalid backlink",
 		},
-		{
-			name: "invalid token invariant predicate argument",
-			tx:   createTransactionOrder(t, nil, PayloadTypeBurnFungibleToken, existingTokenUnitID),
-			attr: &BurnFungibleTokenAttributes{
-				TypeID:                       existingTokenTypeUnitID,
-				Value:                        existingTokenValue,
-				TargetTokenBacklink:          test.RandomBytes(32),
-				Backlink:                     make([]byte, 32),
-				InvariantPredicateSignatures: [][]byte{templates.AlwaysFalseBytes()},
-			},
-			wantErrStr: "invalid predicate",
-		},
+		//{ // 'Always True' ignores the signature bytes
+		//	name: "invalid token invariant predicate argument",
+		//	tx:   createTransactionOrder(t, nil, PayloadTypeBurnFungibleToken, existingTokenUnitID),
+		//	attr: &BurnFungibleTokenAttributes{
+		//		TypeID:                       existingTokenTypeUnitID,
+		//		Value:                        existingTokenValue,
+		//		TargetTokenBacklink:          test.RandomBytes(32),
+		//		Backlink:                     make([]byte, 32),
+		//		InvariantPredicateSignatures: [][]byte{templates.AlwaysFalseBytes()},
+		//	},
+		//	wantErrStr: "invalid predicate",
+		//},
 		{
 			name: "invalid token type",
 			tx:   createTransactionOrder(t, nil, PayloadTypeBurnFungibleToken, existingTokenUnitID),

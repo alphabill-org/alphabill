@@ -881,7 +881,7 @@ func TestTransferNFT_InvalidPredicateFormat(t *testing.T) {
 	txs := newTokenTxSystem(t)
 	txr := createNFTTypeAndMintToken(t, txs, nftTypeID2, unitID)
 
-	// transfer NFT
+	// transfer NFT from 'always true' to 'p2pkh'
 	tx := testtransaction.NewTransactionOrder(
 		t,
 		testtransaction.WithPayloadType(PayloadTypeTransferNFT),
@@ -889,7 +889,7 @@ func TestTransferNFT_InvalidPredicateFormat(t *testing.T) {
 		testtransaction.WithSystemID(DefaultSystemIdentifier),
 		testtransaction.WithAttributes(&TransferNonFungibleTokenAttributes{
 			NFTTypeID:                    nftTypeID2,
-			NewBearer:                    templates.AlwaysTrueBytes(),
+			NewBearer:                    test.RandomBytes(32), // invalid bearer
 			Nonce:                        test.RandomBytes(32),
 			Backlink:                     txr.Hash(gocrypto.SHA256),
 			InvariantPredicateSignatures: [][]byte{{0, 0, 0, 1}},
@@ -898,14 +898,32 @@ func TestTransferNFT_InvalidPredicateFormat(t *testing.T) {
 		testtransaction.WithFeeProof(nil),
 	)
 	_, err := txs.Execute(tx)
-	require.ErrorContains(t, err, "always true predicate requires signature to be empty")
+	require.NoError(t, err)
+
+	tx = testtransaction.NewTransactionOrder(
+		t,
+		testtransaction.WithPayloadType(PayloadTypeTransferNFT),
+		testtransaction.WithUnitId(unitID),
+		testtransaction.WithSystemID(DefaultSystemIdentifier),
+		testtransaction.WithAttributes(&TransferNonFungibleTokenAttributes{
+			NFTTypeID:                    nftTypeID2,
+			NewBearer:                    templates.NewP2pkh256BytesFromKeyHash(test.RandomBytes(32)),
+			Nonce:                        test.RandomBytes(32),
+			Backlink:                     tx.Hash(gocrypto.SHA256),
+			InvariantPredicateSignatures: [][]byte{{0, 0, 0, 1}},
+		}),
+		testtransaction.WithClientMetadata(createClientMetadata()),
+		testtransaction.WithFeeProof(nil),
+	)
+	_, err = txs.Execute(tx)
+	require.ErrorContains(t, err, "invalid predicate: failed to decode predicate")
 }
 
 func TestTransferNFT_InvalidSignature(t *testing.T) {
 	txs := newTokenTxSystem(t)
 	txr := createNFTTypeAndMintToken(t, txs, nftTypeID2, unitID)
 
-	// transfer NFT
+	// transfer NFT from 'always true' to p2pkh
 	tx := testtransaction.NewTransactionOrder(
 		t,
 		testtransaction.WithPayloadType(PayloadTypeTransferNFT),
@@ -914,7 +932,7 @@ func TestTransferNFT_InvalidSignature(t *testing.T) {
 		testtransaction.WithOwnerProof(nil),
 		testtransaction.WithAttributes(&TransferNonFungibleTokenAttributes{
 			NFTTypeID:                    nftTypeID2,
-			NewBearer:                    templates.AlwaysTrueBytes(),
+			NewBearer:                    templates.NewP2pkh256BytesFromKeyHash(test.RandomBytes(32)),
 			Nonce:                        test.RandomBytes(32),
 			Backlink:                     txr.Hash(gocrypto.SHA256),
 			InvariantPredicateSignatures: [][]byte{templates.AlwaysFalseBytes()},
@@ -923,6 +941,27 @@ func TestTransferNFT_InvalidSignature(t *testing.T) {
 		testtransaction.WithFeeProof(nil),
 	)
 	_, err := txs.Execute(tx)
+
+	// transfer with invalid signature
+	tx = testtransaction.NewTransactionOrder(
+		t,
+		testtransaction.WithPayloadType(PayloadTypeTransferNFT),
+		testtransaction.WithUnitId(unitID),
+		testtransaction.WithSystemID(DefaultSystemIdentifier),
+		testtransaction.WithOwnerProof(nil),
+		testtransaction.WithAttributes(&TransferNonFungibleTokenAttributes{
+			NFTTypeID:                    nftTypeID2,
+			NewBearer:                    templates.NewP2pkh256BytesFromKeyHash(test.RandomBytes(32)),
+			Nonce:                        test.RandomBytes(32),
+			Backlink:                     tx.Hash(gocrypto.SHA256),
+			InvariantPredicateSignatures: [][]byte{templates.AlwaysFalseBytes()},
+		}),
+		testtransaction.WithClientMetadata(createClientMetadata()),
+		testtransaction.WithFeeProof(nil),
+		testtransaction.WithOwnerProof(test.RandomBytes(2)), // invalid signature
+	)
+	_, err = txs.Execute(tx)
+
 	require.ErrorContains(t, err, "invalid predicate")
 }
 

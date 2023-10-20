@@ -55,10 +55,13 @@ func (t *AlwaysTrue) ID() uint64 {
 	return AlwaysTrueID
 }
 
-func (t *AlwaysTrue) Execute(_, sig, _ []byte) error {
-	if len(sig) != 0 {
-		return errors.New("always true predicate requires signature to be empty")
-	}
+func (t *AlwaysTrue) Execute(_, _, _ []byte) error {
+	// Dilemma: ignore signature or not
+	// Ignoring it fixes an issue when a Fee Credit has 'always true' as bearer and transaction is sent with p2pkh owner proof,
+	// since FeeProof is nil in that case, owner_proof value is taken, but it fails to satisfy this predicate as it requires the proof to be 'nil'.
+	//if len(sig) != 0 {
+	//	return errors.New("always true predicate requires signature to be empty")
+	//}
 	return nil
 }
 

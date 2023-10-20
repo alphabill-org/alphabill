@@ -1,31 +1,33 @@
 package cmd
 
 import (
+	"context"
 	"os"
 	"path"
+	"path/filepath"
+	"strings"
 	"testing"
 
+	"github.com/alphabill-org/alphabill/internal/testutils/logger"
 	"github.com/stretchr/testify/require"
 )
 
 // Happy path
 func TestGenerateDistributedGenesisFiles(t *testing.T) {
-	outputDir := setupTestDir(t, "genesis")
-	conf := &combineGenesisConfig{
-		Base: &baseConfiguration{
-			HomeDir:    alphabillHomeDir(),
-			CfgFile:    path.Join(alphabillHomeDir(), defaultConfigFile),
-			LogCfgFile: defaultLoggerConfigFile,
-		},
-		OutputDir: outputDir,
-		RootGenesisFiles: []string{
-			"testdata/root1-genesis.json",
-			"testdata/root2-genesis.json",
-			"testdata/root3-genesis.json",
-			"testdata/root4-genesis.json"},
-	}
-	err := combineRootGenesisRunFunc(conf)
-	require.NoError(t, err)
+	homeDir := t.TempDir()
+	logF := logger.LoggerBuilder(t)
+	// create root node genesis with root node 1
+	outputDir := filepath.Join(homeDir, defaultRootChainDir)
+	cmd := New(logF)
+	args := "root-genesis combine --home " + homeDir +
+		" -o " + outputDir +
+		" --root-genesis-file=testdata/root1-genesis.json" +
+		" --root-genesis-file=testdata/root2-genesis.json" +
+		" --root-genesis-file=testdata/root3-genesis.json" +
+		" --root-genesis-file=testdata/root4-genesis.json"
+	cmd.baseCmd.SetArgs(strings.Split(args, " "))
+	require.NoError(t, cmd.addAndExecuteCommand(context.Background()))
+
 	expectedRGFile, _ := os.ReadFile("testdata/expected/distributed-root-genesis.json")
 	actualRGFile, _ := os.ReadFile(path.Join(outputDir, "root-genesis.json"))
 	require.EqualValues(t, expectedRGFile, actualRGFile)
@@ -36,40 +38,34 @@ func TestGenerateDistributedGenesisFiles(t *testing.T) {
 }
 
 func TestDistributedGenesisFiles_DifferentRootConsensus(t *testing.T) {
-	outputDir := setupTestDir(t, "genesis")
-	conf := &combineGenesisConfig{
-		Base: &baseConfiguration{
-			HomeDir:    alphabillHomeDir(),
-			CfgFile:    path.Join(alphabillHomeDir(), defaultConfigFile),
-			LogCfgFile: defaultLoggerConfigFile,
-		},
-		OutputDir: outputDir,
-		RootGenesisFiles: []string{
-			"testdata/expected/root-genesis.json", // This is a monolithic root node genesis file
-			"testdata/root2-genesis.json",
-			"testdata/root3-genesis.json",
-			"testdata/root4-genesis.json"},
-	}
-	err := combineRootGenesisRunFunc(conf)
-	require.Error(t, err)
+	homeDir := t.TempDir()
+	logF := logger.LoggerBuilder(t)
+	// create root node genesis with root node 1
+	outputDir := filepath.Join(homeDir, defaultRootChainDir)
+	cmd := New(logF)
+	args := "root-genesis combine --home " + homeDir +
+		" -o " + outputDir +
+		" --root-genesis-file=testdata/expected/root-genesis.json" +
+		" --root-genesis-file=testdata/root2-genesis.json" +
+		" --root-genesis-file=testdata/root3-genesis.json" +
+		" --root-genesis-file=testdata/root4-genesis.json"
+	cmd.baseCmd.SetArgs(strings.Split(args, " "))
+	require.Error(t, cmd.addAndExecuteCommand(context.Background()))
 }
 
 func TestDistributedGenesisFiles_DuplicateRootNode(t *testing.T) {
-	outputDir := setupTestDir(t, "genesis")
-	conf := &combineGenesisConfig{
-		Base: &baseConfiguration{
-			HomeDir:    alphabillHomeDir(),
-			CfgFile:    path.Join(alphabillHomeDir(), defaultConfigFile),
-			LogCfgFile: defaultLoggerConfigFile,
-		},
-		OutputDir: outputDir,
-		RootGenesisFiles: []string{
-			"testdata/root1-genesis.json",
-			"testdata/root2-genesis.json",
-			"testdata/root3-genesis.json",
-			"testdata/root2-genesis.json"}, // duplicate node, is ignored
-	}
-	err := combineRootGenesisRunFunc(conf)
-	require.NoError(t, err)
+	homeDir := t.TempDir()
+	logF := logger.LoggerBuilder(t)
+	// create root node genesis with root node 1
+	outputDir := filepath.Join(homeDir, defaultRootChainDir)
+	cmd := New(logF)
+	args := "root-genesis combine --home " + homeDir +
+		" -o " + outputDir +
+		" --root-genesis-file=testdata/root1-genesis.json" +
+		" --root-genesis-file=testdata/root2-genesis.json" +
+		" --root-genesis-file=testdata/root3-genesis.json" +
+		" --root-genesis-file=testdata/root2-genesis.json"
+	cmd.baseCmd.SetArgs(strings.Split(args, " "))
+	require.Error(t, cmd.addAndExecuteCommand(context.Background()))
 	// however it does not verify, since genesis not signed by all validators
 }

@@ -1,4 +1,4 @@
-all: tools generate test build build_scripts gosec
+all: clean tools generate test build build_scripts gosec
 
 clean:
 	rm -rf build/

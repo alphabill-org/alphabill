@@ -22,7 +22,7 @@ const alphabillDir = "ab"
 const moneyGenesisDir = "money"
 
 func TestMoneyGenesis_KeyFileNotFound(t *testing.T) {
-	homeDir := setupTestDir(t, alphabillDir)
+	homeDir := t.TempDir()
 	cmd := New(logger.LoggerBuilder(t))
 	args := "money-genesis --home " + homeDir
 	cmd.baseCmd.SetArgs(strings.Split(args, " "))

@@ -908,7 +908,7 @@ func createTx(fromID types.UnitID, payloadType string) *types.TransactionOrder {
 			},
 		},
 		OwnerProof: nil,
-		FeeProof:   nil,
+		FeeProof:   templates.AlwaysTrueArgBytes(),
 	}
 	return tx
 }

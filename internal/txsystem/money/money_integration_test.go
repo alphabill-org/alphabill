@@ -254,7 +254,7 @@ func TestPartition_SwapDCOk(t *testing.T) {
 			},
 		},
 		OwnerProof: nil,
-		FeeProof:   nil,
+		FeeProof:   templates.AlwaysTrueArgBytes(),
 	}
 
 	// #nosec G104

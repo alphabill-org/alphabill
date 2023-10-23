@@ -44,6 +44,8 @@ type (
 var (
 	alwaysTrueBytes  []byte
 	alwaysFalseBytes []byte
+
+	cborNull = []byte{0xf6}
 )
 
 func init() {
@@ -55,14 +57,12 @@ func (t *AlwaysTrue) ID() uint64 {
 	return AlwaysTrueID
 }
 
-func (t *AlwaysTrue) Execute(_, _, _ []byte) error {
-	// Dilemma: ignore signature or not
-	// Ignoring it fixes an issue when a Fee Credit has 'always true' as bearer and transaction is sent with p2pkh owner proof,
-	// since FeeProof is nil in that case, owner_proof value is taken, but it fails to satisfy this predicate as it requires the proof to be 'nil'.
-	//if len(sig) != 0 {
-	//	return errors.New("always true predicate requires signature to be empty")
-	//}
-	return nil
+func (t *AlwaysTrue) Execute(_, sig, _ []byte) error {
+	if len(sig) == 0 || (bytes.Equal(sig, cborNull)) {
+		return nil
+	}
+
+	return fmt.Errorf("always true predicate requires signature to be empty, got: '%X'", sig)
 }
 
 func (t *AlwaysFalse) ID() uint64 {
@@ -70,6 +70,7 @@ func (t *AlwaysFalse) ID() uint64 {
 }
 
 func (t *AlwaysFalse) Execute(_, _, _ []byte) error {
+	// we can ignore the signature here because the tx will never be accepted into the block
 	return errors.New("always false")
 }
 
@@ -113,6 +114,10 @@ func (t *P2pkh256) Execute(predicate, sig, sigData []byte) error {
 
 func AlwaysFalseBytes() predicates.PredicateBytes {
 	return alwaysFalseBytes // 0x830000F6
+}
+
+func AlwaysTrueArgBytes() []byte {
+	return cborNull
 }
 
 func AlwaysTrueBytes() predicates.PredicateBytes {

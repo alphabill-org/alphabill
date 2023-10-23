@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log/slog"
 	"slices"
+	"time"
 
 	"github.com/libp2p/go-libp2p/core/peer"
 	"golang.org/x/sync/errgroup"
@@ -24,10 +25,14 @@ import (
 	"github.com/alphabill-org/alphabill/pkg/logger"
 )
 
+// how long to wait before repeating status request
+const statusReqShelfLife = 800 * time.Millisecond
+
 type (
 	recoveryInfo struct {
 		toRound    uint64
 		triggerMsg any
+		sent       time.Time // when the status request was created/sent
 	}
 
 	RootNet interface {
@@ -173,12 +178,7 @@ func (x *ConsensusManager) CertificationResult() <-chan *types.UnicityCertificat
 }
 
 func (x *ConsensusManager) GetLatestUnicityCertificate(id types.SystemID32) (*types.UnicityCertificate, error) {
-	ucs := x.blockStore.GetCertificates()
-	luc, f := ucs[id]
-	if !f {
-		return nil, fmt.Errorf("no certificate found for system id %s", id)
-	}
-	return luc, nil
+	return x.blockStore.GetCertificate(id)
 }
 
 func (x *ConsensusManager) Run(ctx context.Context) error {
@@ -770,13 +770,14 @@ func (x *ConsensusManager) sendRecoveryRequests(ctx context.Context, triggerMsg 
 	if err != nil {
 		return fmt.Errorf("failed to extract recovery info: %w", err)
 	}
-	if x.recovery != nil && x.recovery.toRound >= info.toRound {
+	if x.recovery != nil && x.recovery.toRound >= info.toRound && time.Since(x.recovery.sent) < statusReqShelfLife {
 		return fmt.Errorf("already in recovery to round %d, ignoring request to recover to round %d", x.recovery.toRound, info.toRound)
 	}
 
-	// set recovery status - when send fails we won't check did we fail to send to just one peer or to
-	// all of them... if we completely failed to send we'll (re)enter to recovery status with higher
-	// destination round when receiving proposal or vote for the next round...
+	// set recovery status - when send fails we won't check did we fail to send to just one peer or
+	// to all of them... if we completely failed to send (or recovery just fails) we'll (re)enter to
+	// recovery status with higher destination round (when receiving proposal or vote for the next
+	// round) or after current request "times out"...
 	x.recovery = info
 
 	if err = x.net.Send(ctx, &abdrc.GetStateMsg{NodeId: x.id.String()},
@@ -787,7 +788,7 @@ func (x *ConsensusManager) sendRecoveryRequests(ctx context.Context, triggerMsg 
 }
 
 func msgToRecoveryInfo(msg any) (info *recoveryInfo, signatures map[string][]byte, err error) {
-	info = &recoveryInfo{triggerMsg: msg}
+	info = &recoveryInfo{triggerMsg: msg, sent: time.Now()}
 
 	switch mt := msg.(type) {
 	case *abdrc.ProposalMsg:
@@ -838,5 +839,5 @@ func (ri *recoveryInfo) String() string {
 	if ri == nil {
 		return "<nil>"
 	}
-	return fmt.Sprintf("toRound: %d trigger %T", ri.toRound, ri.triggerMsg)
+	return fmt.Sprintf("toRound: %d trigger %T @ %s", ri.toRound, ri.triggerMsg, ri.sent)
 }

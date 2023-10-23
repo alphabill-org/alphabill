@@ -5,6 +5,7 @@ import (
 	gocrypto "crypto"
 	"errors"
 	"fmt"
+	"maps"
 	"strings"
 	"sync"
 
@@ -224,7 +225,7 @@ func (x *BlockStore) GetCertificate(id types.SystemID32) (*types.UnicityCertific
 	defer x.lock.RUnlock()
 	uc, f := x.certificates[id]
 	if !f {
-		return nil, fmt.Errorf("no certificate found for system id %X", id)
+		return nil, fmt.Errorf("no certificate found for system id %s", id)
 	}
 	return uc, nil
 }
@@ -232,7 +233,7 @@ func (x *BlockStore) GetCertificate(id types.SystemID32) (*types.UnicityCertific
 func (x *BlockStore) GetCertificates() map[types.SystemID32]*types.UnicityCertificate {
 	x.lock.RLock()
 	defer x.lock.RUnlock()
-	return x.certificates
+	return maps.Clone(x.certificates)
 }
 
 func (x *BlockStore) GetRoot() *ExecutedBlock {

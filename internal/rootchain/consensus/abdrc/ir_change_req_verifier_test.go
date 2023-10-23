@@ -1,6 +1,7 @@
 package abdrc
 
 import (
+	"fmt"
 	"reflect"
 	"testing"
 	"time"
@@ -31,6 +32,14 @@ func (s *MockState) GetCertificates() map[types.SystemID32]*types.UnicityCertifi
 			},
 		},
 	}
+}
+
+func (s *MockState) GetCertificate(id types.SystemID32) (*types.UnicityCertificate, error) {
+	cm := s.GetCertificates()
+	if uc, ok := cm[id]; ok {
+		return uc, nil
+	}
+	return nil, fmt.Errorf("no UC for partition %s", id)
 }
 
 func (s *MockState) IsChangeInProgress(id types.SystemID32) bool {

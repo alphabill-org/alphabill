@@ -29,7 +29,7 @@ func handleBurnFungibleTokenTx(options *Options) txsystem.GenericExecuteFunc[Bur
 }
 
 func validateBurnFungibleToken(tx *types.TransactionOrder, attr *BurnFungibleTokenAttributes, s *state.State, hashAlgorithm crypto.Hash) error {
-	bearer, d, err := getFungibleTokenData(tx.UnitID(), s, hashAlgorithm)
+	bearer, d, err := getFungibleTokenData(tx.UnitID(), s)
 	if err != nil {
 		return err
 	}

@@ -42,7 +42,7 @@ func handleTransferFungibleTokenTx(options *Options) txsystem.GenericExecuteFunc
 }
 
 func validateTransferFungibleToken(tx *types.TransactionOrder, attr *TransferFungibleTokenAttributes, s *state.State, hashAlgorithm crypto.Hash) error {
-	bearer, d, err := getFungibleTokenData(tx.UnitID(), s, hashAlgorithm)
+	bearer, d, err := getFungibleTokenData(tx.UnitID(), s)
 	if err != nil {
 		return err
 	}
@@ -75,7 +75,7 @@ func validateTransferFungibleToken(tx *types.TransactionOrder, attr *TransferFun
 	return verifyOwnership(bearer, predicates, &transferFungibleTokenOwnershipProver{tx: tx, attr: attr})
 }
 
-func getFungibleTokenData(unitID types.UnitID, s *state.State, hashAlgorithm crypto.Hash) (state.Predicate, *fungibleTokenData, error) {
+func getFungibleTokenData(unitID types.UnitID, s *state.State) (state.Predicate, *fungibleTokenData, error) {
 	if !unitID.HasType(FungibleTokenUnitType) {
 		return nil, nil, fmt.Errorf(ErrStrInvalidUnitID)
 	}

@@ -40,6 +40,7 @@ type nonFungibleTokenData struct {
 	dataUpdatePredicate []byte // the data update predicate;
 	t                   uint64 // the round number of the last transaction with this token;
 	backlink            []byte // the hash of the last transaction order for this token
+	locked              uint64 // locked status of the bill, non-zero value means locked
 }
 
 type fungibleTokenData struct {
@@ -47,6 +48,7 @@ type fungibleTokenData struct {
 	value     uint64       // the value of the token;
 	t         uint64       // the round number of the last transaction with this token;
 	backlink  []byte       // the hash of the last transaction order for this token
+	locked    uint64       // locked status of the bill, non-zero value means locked
 }
 
 func newFungibleTokenTypeData(attr *CreateFungibleTokenTypeAttributes) state.UnitData {
@@ -135,6 +137,7 @@ func (n *nonFungibleTokenData) Write(hasher hash.Hash) {
 	hasher.Write(n.dataUpdatePredicate)
 	hasher.Write(util.Uint64ToBytes(n.t))
 	hasher.Write(n.backlink)
+	hasher.Write(util.Uint64ToBytes(n.locked))
 }
 
 func (n *nonFungibleTokenData) SummaryValueInput() uint64 {
@@ -153,6 +156,7 @@ func (n *nonFungibleTokenData) Copy() state.UnitData {
 		dataUpdatePredicate: bytes.Clone(n.dataUpdatePredicate),
 		t:                   n.t,
 		backlink:            bytes.Clone(n.backlink),
+		locked:              n.locked,
 	}
 }
 
@@ -192,6 +196,7 @@ func (f *fungibleTokenData) Write(hasher hash.Hash) {
 	hasher.Write(util.Uint64ToBytes(f.value))
 	hasher.Write(util.Uint64ToBytes(f.t))
 	hasher.Write(f.backlink)
+	hasher.Write(util.Uint64ToBytes(f.locked))
 }
 
 func (f *fungibleTokenData) SummaryValueInput() uint64 {
@@ -207,13 +212,14 @@ func (f *fungibleTokenData) Copy() state.UnitData {
 		value:     f.value,
 		t:         f.t,
 		backlink:  bytes.Clone(f.backlink),
+		locked:    f.locked,
 	}
 }
 
-func (f *Icon) AddToHasher(hasher hash.Hash) {
-	if f == nil {
+func (i *Icon) AddToHasher(hasher hash.Hash) {
+	if i == nil {
 		return
 	}
-	hasher.Write([]byte(f.Type))
-	hasher.Write(f.Data)
+	hasher.Write([]byte(i.Type))
+	hasher.Write(i.Data)
 }

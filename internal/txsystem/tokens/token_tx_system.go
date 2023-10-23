@@ -31,10 +31,7 @@ const (
 )
 
 func NewTxSystem(log *slog.Logger, opts ...Option) (*txsystem.GenericTxSystem, error) {
-	options, err := defaultOptions()
-	if err != nil {
-		return nil, err
-	}
+	options := defaultOptions()
 	for _, opt := range opts {
 		opt(options)
 	}

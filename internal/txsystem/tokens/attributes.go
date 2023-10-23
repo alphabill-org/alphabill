@@ -12,12 +12,16 @@ const (
 	PayloadTypeMintNFT                 = "createNToken"
 	PayloadTypeTransferNFT             = "transNToken"
 	PayloadTypeUpdateNFT               = "updateNToken"
+	PayloadTypeLockNFT                 = "lockNToken"
+	PayloadTypeUnlockNFT               = "unlockNToken"
 	PayloadTypeCreateFungibleTokenType = "createFType"
 	PayloadTypeMintFungibleToken       = "createFToken"
 	PayloadTypeTransferFungibleToken   = "transFToken"
 	PayloadTypeSplitFungibleToken      = "splitFToken"
 	PayloadTypeBurnFungibleToken       = "burnFToken"
 	PayloadTypeJoinFungibleToken       = "joinFToken"
+	PayloadTypeLockFungibleToken       = "lockFToken"
+	PayloadTypeUnlockFungibleToken     = "unlockFToken"
 )
 
 type (
@@ -59,6 +63,19 @@ type (
 		Data                 []byte   // the new data to replace the data currently associated with the token
 		Backlink             []byte   // the backlink to the previous transaction with the token
 		DataUpdateSignatures [][]byte // inputs to satisfy the token data update predicates down the inheritance chain
+	}
+
+	LockNonFungibleTokenAttributes struct {
+		_                            struct{} `cbor:",toarray"`
+		LockStatus                   uint64   // status of the lock, non-zero value means locked
+		Backlink                     []byte   // the backlink to the previous transaction with this token
+		InvariantPredicateSignatures [][]byte // inputs to satisfy the token type invariant predicates down the inheritance chain
+	}
+
+	UnlockNonFungibleTokenAttributes struct {
+		_                            struct{} `cbor:",toarray"`
+		Backlink                     []byte   // the backlink to the previous transaction with this token
+		InvariantPredicateSignatures [][]byte // inputs to satisfy the token type invariant predicates down the inheritance chain
 	}
 
 	CreateFungibleTokenTypeAttributes struct {
@@ -125,6 +142,19 @@ type (
 		Proofs                       []*types.TxProof           // block proofs for burn transactions
 		Backlink                     []byte                     // the backlink to the previous transaction with this token
 		InvariantPredicateSignatures [][]byte                   // inputs to satisfy the token type invariant predicates down the inheritance chain
+	}
+
+	LockFungibleTokenAttributes struct {
+		_                            struct{} `cbor:",toarray"`
+		LockStatus                   uint64   // status of the lock, non-zero value means locked
+		Backlink                     []byte   // the backlink to the previous transaction with this token
+		InvariantPredicateSignatures [][]byte // inputs to satisfy the token type invariant predicates down the inheritance chain
+	}
+
+	UnlockFungibleTokenAttributes struct {
+		_                            struct{} `cbor:",toarray"`
+		Backlink                     []byte   // the backlink to the previous transaction with this token
+		InvariantPredicateSignatures [][]byte // inputs to satisfy the token type invariant predicates down the inheritance chain
 	}
 )
 

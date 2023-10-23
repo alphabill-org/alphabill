@@ -1150,22 +1150,47 @@ func TestUpdateNFT_InvalidBacklink(t *testing.T) {
 
 func TestUpdateNFT_InvalidSignature(t *testing.T) {
 	txs := newTokenTxSystem(t)
-	txr := createNFTTypeAndMintToken(t, txs, nftTypeID2, unitID)
+	tx := createNFTTypeAndMintToken(t, txs, nftTypeID2, nil)
 
-	tx := testtransaction.NewTransactionOrder(
+	// mint NFT
+	tx = testtransaction.NewTransactionOrder(
+		t,
+		testtransaction.WithPayloadType(PayloadTypeMintNFT),
+		testtransaction.WithUnitId(unitID),
+		testtransaction.WithSystemID(DefaultSystemIdentifier),
+		testtransaction.WithAttributes(&MintNonFungibleTokenAttributes{
+			Bearer:                           templates.AlwaysTrueBytes(),
+			NFTTypeID:                        nftTypeID2,
+			Name:                             nftName,
+			URI:                              validNFTURI,
+			Data:                             []byte{10},
+			DataUpdatePredicate:              templates.NewP2pkh256BytesFromKeyHash(test.RandomBytes(32)),
+			TokenCreationPredicateSignatures: [][]byte{nil},
+		}),
+		testtransaction.WithClientMetadata(&types.ClientMetadata{
+			Timeout:           1000,
+			MaxTransactionFee: 10,
+			FeeCreditRecordID: feeCreditID,
+		}),
+		testtransaction.WithFeeProof(nil),
+	)
+	_, err := txs.Execute(tx)
+	require.NoError(t, err)
+
+	tx = testtransaction.NewTransactionOrder(
 		t,
 		testtransaction.WithPayloadType(PayloadTypeUpdateNFT),
 		testtransaction.WithUnitId(unitID),
 		testtransaction.WithSystemID(DefaultSystemIdentifier),
 		testtransaction.WithAttributes(&UpdateNonFungibleTokenAttributes{
 			Data:                 test.RandomBytes(10),
-			Backlink:             txr.Hash(gocrypto.SHA256),
+			Backlink:             tx.Hash(gocrypto.SHA256),
 			DataUpdateSignatures: [][]byte{templates.AlwaysTrueBytes(), templates.AlwaysFalseBytes()},
 		}),
 		testtransaction.WithClientMetadata(createClientMetadata()),
 		testtransaction.WithFeeProof(nil),
 	)
-	_, err := txs.Execute(tx)
+	_, err = txs.Execute(tx)
 	require.ErrorContains(t, err, "invalid predicate")
 }
 
@@ -1274,30 +1299,32 @@ func createNFTTypeAndMintToken(t *testing.T, txs *txsystem.GenericTxSystem, nftT
 	_, err := txs.Execute(tx)
 	require.NoError(t, err)
 
-	// mint NFT
-	tx = testtransaction.NewTransactionOrder(
-		t,
-		testtransaction.WithPayloadType(PayloadTypeMintNFT),
-		testtransaction.WithUnitId(nftID),
-		testtransaction.WithSystemID(DefaultSystemIdentifier),
-		testtransaction.WithAttributes(&MintNonFungibleTokenAttributes{
-			Bearer:                           templates.AlwaysTrueBytes(),
-			NFTTypeID:                        nftTypeID,
-			Name:                             nftName,
-			URI:                              validNFTURI,
-			Data:                             []byte{10},
-			DataUpdatePredicate:              templates.AlwaysTrueBytes(),
-			TokenCreationPredicateSignatures: [][]byte{nil},
-		}),
-		testtransaction.WithClientMetadata(&types.ClientMetadata{
-			Timeout:           1000,
-			MaxTransactionFee: 10,
-			FeeCreditRecordID: feeCreditID,
-		}),
-		testtransaction.WithFeeProof(nil),
-	)
-	_, err = txs.Execute(tx)
-	require.NoError(t, err)
+	if nftID != nil {
+		// mint NFT
+		tx = testtransaction.NewTransactionOrder(
+			t,
+			testtransaction.WithPayloadType(PayloadTypeMintNFT),
+			testtransaction.WithUnitId(nftID),
+			testtransaction.WithSystemID(DefaultSystemIdentifier),
+			testtransaction.WithAttributes(&MintNonFungibleTokenAttributes{
+				Bearer:                           templates.AlwaysTrueBytes(),
+				NFTTypeID:                        nftTypeID,
+				Name:                             nftName,
+				URI:                              validNFTURI,
+				Data:                             []byte{10},
+				DataUpdatePredicate:              templates.AlwaysTrueBytes(),
+				TokenCreationPredicateSignatures: [][]byte{nil},
+			}),
+			testtransaction.WithClientMetadata(&types.ClientMetadata{
+				Timeout:           1000,
+				MaxTransactionFee: 10,
+				FeeCreditRecordID: feeCreditID,
+			}),
+			testtransaction.WithFeeProof(nil),
+		)
+		_, err = txs.Execute(tx)
+		require.NoError(t, err)
+	}
 	return tx
 }
 

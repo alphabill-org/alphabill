@@ -773,6 +773,7 @@ func Test_ConsensusManager_messages(t *testing.T) {
 		cms, rootNet, rootG := createConsensusManagers(t, 2, []*genesis.PartitionRecord{partitionRecord})
 		cmLeader := cms[0]
 		nonLeaderNode := cms[1]
+		nonLeaderNode.leaderSelector = constLeader{leader: cmLeader.id, nodes: cmLeader.leaderSelector.GetNodes()}
 
 		irCh := make(chan *abdrc.IrChangeReqMsg, 1)
 		rootNet.SetFirewall(func(from, to peer.ID, msg any) bool {
@@ -783,21 +784,9 @@ func Test_ConsensusManager_messages(t *testing.T) {
 		})
 
 		ctx, cancel := context.WithCancel(context.Background())
-		var wg sync.WaitGroup
-		wg.Add(len(cms))
-		for _, v := range cms {
-			v.leaderSelector = constLeader{leader: cmLeader.id, nodes: cmLeader.leaderSelector.GetNodes()} // use "const leader" to take leader selection out of test
-			go func(cm *ConsensusManager) {
-				defer wg.Done()
-				require.ErrorIs(t, nonLeaderNode.Run(ctx), context.Canceled)
-			}(v)
-		}
-
 		done := make(chan struct{})
-		go func() {
-			wg.Wait()
-			close(done)
-		}()
+		go func() { defer close(done); require.ErrorIs(t, nonLeaderNode.Run(ctx), context.Canceled) }()
+		defer waitExit(t, cancel, done)
 
 		// send IRCR to non-leader, simulating message arriving late, leader has changed
 		irChReqMsg := &abdrc.IrChangeReqMsg{
@@ -820,14 +809,6 @@ func Test_ConsensusManager_messages(t *testing.T) {
 			require.Equal(t, irMsg.Author, cmLeader.id.String())
 			require.EqualValues(t, irChReqMsg.IrChangeReq.SystemIdentifier, irMsg.IrChangeReq.SystemIdentifier)
 			require.ElementsMatch(t, irChReqMsg.IrChangeReq.Requests, irMsg.IrChangeReq.Requests)
-		}
-
-		// stop CMs
-		cancel()
-		select {
-		case <-done:
-		case <-time.After(1000 * time.Millisecond):
-			t.Error("CMs didn't exit within timeout")
 		}
 	})
 

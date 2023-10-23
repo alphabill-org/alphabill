@@ -3,6 +3,7 @@ package cmd
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 	rootgenesis "github.com/alphabill-org/alphabill/internal/rootchain/genesis"
@@ -53,7 +54,7 @@ func combineRootGenesisCmd(config *rootGenesisConfig) *cobra.Command {
 			return combineRootGenesisRunFunc(combineCfg)
 		},
 	}
-	cmd.Flags().StringVarP(&combineCfg.OutputDir, "output-dir", "o", "", "path to output directory (default: $AB_HOME/rootchain)")
+	cmd.Flags().StringVarP(&combineCfg.OutputDir, "output", "o", "", "path to output directory (default: $AB_HOME/rootchain)")
 	cmd.Flags().StringSliceVar(&combineCfg.RootGenesisFiles, rootGenesisCmdName, []string{}, "path to root node genesis files")
 	if err := cmd.MarkFlagRequired(rootGenesisCmdName); err != nil {
 		return nil
@@ -105,7 +106,7 @@ func loadRootGenesisFiles(paths []string) ([]*genesis.RootGenesis, error) {
 
 // combineRootGenesisCmd creates a new cobra command for the root-genesis component.
 func signRootGenesisCmd(config *rootGenesisConfig) *cobra.Command {
-	signCfg := &signGenesisConfig{Base: config.Base, Keys: NewKeysConf(config.Base, defaultRootChainDir)}
+	signCfg := &signGenesisConfig{Base: config.Base, Keys: config.Keys}
 	var cmd = &cobra.Command{
 		Use:   "sign",
 		Short: "Sign root chain genesis file",
@@ -114,7 +115,7 @@ func signRootGenesisCmd(config *rootGenesisConfig) *cobra.Command {
 		},
 	}
 	config.Keys.addCmdFlags(cmd)
-	cmd.Flags().StringVarP(&signCfg.OutputDir, "output-dir", "o", "", "path to output directory (default: $AB_HOME/rootchain)")
+	cmd.Flags().StringVarP(&signCfg.OutputDir, "output", "o", "", "path to output directory (default: $AB_HOME/rootchain)")
 	cmd.Flags().StringVar(&signCfg.RootGenesisFile, rootGenesisCmdName, "", "path to root node genesis file")
 	if err := cmd.MarkFlagRequired(rootGenesisCmdName); err != nil {
 		return nil
@@ -128,6 +129,10 @@ func signRootGenesisRunFunc(config *signGenesisConfig) error {
 	// cmd override2
 	if config.OutputDir != "" {
 		outputDir = config.OutputDir
+		// if instructed to generate keys and key path not set, then set to outputpath
+		if config.Keys.GenerateKeys && config.Keys.KeyFilePath == "" {
+			config.Keys.KeyFilePath = filepath.Join(outputDir, defaultKeysFileName)
+		}
 	}
 	if err := createOutputDir(outputDir); err != nil {
 		return fmt.Errorf("sign faild %w", err)

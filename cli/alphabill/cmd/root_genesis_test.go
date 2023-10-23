@@ -70,3 +70,27 @@ func TestGenerateGenesisFiles_InvalidPartitionSignature(t *testing.T) {
 	err := cmd.addAndExecuteCommand(context.Background())
 	require.ErrorContains(t, err, "signature verification failed")
 }
+
+func TestGenerateGenesisFiles_ErrOnlyGenerateKeyFile(t *testing.T) {
+	homeDir := t.TempDir()
+	logF := logger.LoggerBuilder(t)
+	// create root node genesis with root node 1
+	genesisFileDir := filepath.Join(homeDir, defaultRootChainDir)
+	cmd := New(logF)
+	args := "root-genesis new --home " + homeDir +
+		" -o " + genesisFileDir + " -g"
+	cmd.baseCmd.SetArgs(strings.Split(args, " "))
+	require.ErrorContains(t, cmd.addAndExecuteCommand(context.Background()), `required flag(s) "partition-node-genesis-file"`)
+}
+
+func TestGenerateGenesisFiles_ErrNoNodeGenesisFilesNorGenerateKeys(t *testing.T) {
+	homeDir := t.TempDir()
+	logF := logger.LoggerBuilder(t)
+	// create root node genesis with root node 1
+	genesisFileDir := filepath.Join(homeDir, defaultRootChainDir)
+	cmd := New(logF)
+	args := "root-genesis new --home " + homeDir +
+		" -o " + genesisFileDir
+	cmd.baseCmd.SetArgs(strings.Split(args, " "))
+	require.ErrorContains(t, cmd.addAndExecuteCommand(context.Background()), `required flag(s) "partition-node-genesis-file"`)
+}

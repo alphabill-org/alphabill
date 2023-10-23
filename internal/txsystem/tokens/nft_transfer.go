@@ -53,6 +53,9 @@ func validateTransferNonFungibleToken(tx *types.TransactionOrder, attr *Transfer
 	if !ok {
 		return fmt.Errorf("validate nft transfer: unit %v is not a non-fungible token type", unitID)
 	}
+	if data.locked != 0 {
+		return errors.New("token is locked")
+	}
 	if !bytes.Equal(data.backlink, attr.Backlink) {
 		return errors.New("validate nft transfer: invalid backlink")
 	}

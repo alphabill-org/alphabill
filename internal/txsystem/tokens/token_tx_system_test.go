@@ -1014,6 +1014,59 @@ func TestTransferNFT_BurnedBearerMustFail(t *testing.T) {
 	require.ErrorContains(t, err, "script execution result yielded false")
 }
 
+func TestTransferNFT_LockedToken(t *testing.T) {
+	txs := newTokenTxSystem(t)
+	mintTx := createNFTTypeAndMintToken(t, txs, nftTypeID2, unitID)
+
+	// lock token
+	lockTx := testtransaction.NewTransactionOrder(
+		t,
+		testtransaction.WithPayloadType(PayloadTypeLockNFT),
+		testtransaction.WithUnitId(unitID),
+		testtransaction.WithSystemID(DefaultSystemIdentifier),
+		testtransaction.WithAttributes(&LockNonFungibleTokenAttributes{
+			LockStatus:                   1,
+			Backlink:                     mintTx.Hash(gocrypto.SHA256),
+			InvariantPredicateSignatures: [][]byte{script.PredicateArgumentEmpty()},
+		}),
+		testtransaction.WithClientMetadata(&types.ClientMetadata{
+			Timeout:           1000,
+			MaxTransactionFee: 10,
+			FeeCreditRecordID: feeCreditID,
+		}),
+		testtransaction.WithOwnerProof(script.PredicateArgumentEmpty()),
+	)
+	_, err := txs.Execute(lockTx)
+	require.NoError(t, err)
+
+	// verify unit was locked
+	u, err := txs.GetState().GetUnit(unitID, false)
+	require.NoError(t, err)
+	tokenData := u.Data().(*nonFungibleTokenData)
+	require.EqualValues(t, 1, tokenData.locked)
+
+	// update nft
+	tx := testtransaction.NewTransactionOrder(
+		t,
+		testtransaction.WithPayloadType(PayloadTypeTransferNFT),
+		testtransaction.WithUnitId(unitID),
+		testtransaction.WithSystemID(DefaultSystemIdentifier),
+		testtransaction.WithAttributes(&TransferNonFungibleTokenAttributes{
+			NFTTypeID:                    nftTypeID2,
+			NewBearer:                    script.PredicateAlwaysTrue(),
+			Nonce:                        test.RandomBytes(32),
+			Backlink:                     lockTx.Hash(gocrypto.SHA256),
+			InvariantPredicateSignatures: [][]byte{script.PredicateArgumentEmpty()},
+		}),
+		testtransaction.WithClientMetadata(createClientMetadata()),
+		testtransaction.WithFeeProof(script.PredicateArgumentEmpty()),
+	)
+	_, err = txs.Execute(tx)
+
+	// verify token was locked
+	require.ErrorContains(t, err, "token is locked")
+}
+
 func TestUpdateNFT_DataLengthIsInvalid(t *testing.T) {
 	txs := newTokenTxSystem(t)
 	createNFTTypeAndMintToken(t, txs, nftTypeID2, unitID)
@@ -1088,6 +1141,56 @@ func TestUpdateNFT_UnitIsNotNFT(t *testing.T) {
 	)
 	_, err = txs.Execute(tx)
 	require.ErrorContains(t, err, "invalid unit ID")
+}
+
+func TestUpdateNFT_LockedToken(t *testing.T) {
+	txs := newTokenTxSystem(t)
+	mintTx := createNFTTypeAndMintToken(t, txs, nftTypeID2, unitID)
+
+	// lock token
+	lockTx := testtransaction.NewTransactionOrder(
+		t,
+		testtransaction.WithPayloadType(PayloadTypeLockNFT),
+		testtransaction.WithUnitId(unitID),
+		testtransaction.WithSystemID(DefaultSystemIdentifier),
+		testtransaction.WithAttributes(&LockNonFungibleTokenAttributes{
+			LockStatus:                   1,
+			Backlink:                     mintTx.Hash(gocrypto.SHA256),
+			InvariantPredicateSignatures: [][]byte{script.PredicateArgumentEmpty()},
+		}),
+		testtransaction.WithClientMetadata(&types.ClientMetadata{
+			Timeout:           1000,
+			MaxTransactionFee: 10,
+			FeeCreditRecordID: feeCreditID,
+		}),
+		testtransaction.WithOwnerProof(script.PredicateArgumentEmpty()),
+	)
+	_, err := txs.Execute(lockTx)
+	require.NoError(t, err)
+
+	// verify unit was locked
+	u, err := txs.GetState().GetUnit(unitID, false)
+	require.NoError(t, err)
+	tokenData := u.Data().(*nonFungibleTokenData)
+	require.EqualValues(t, 1, tokenData.locked)
+
+	// update nft
+	tx := testtransaction.NewTransactionOrder(
+		t,
+		testtransaction.WithPayloadType(PayloadTypeUpdateNFT),
+		testtransaction.WithUnitId(unitID),
+		testtransaction.WithSystemID(DefaultSystemIdentifier),
+		testtransaction.WithAttributes(&UpdateNonFungibleTokenAttributes{
+			Data:     test.RandomBytes(10),
+			Backlink: []byte{1},
+		}),
+		testtransaction.WithClientMetadata(createClientMetadata()),
+		testtransaction.WithFeeProof(script.PredicateArgumentEmpty()),
+	)
+	_, err = txs.Execute(tx)
+
+	// verify token was locked
+	require.ErrorContains(t, err, "token is locked")
 }
 
 func TestUpdateNFT_InvalidBacklink(t *testing.T) {

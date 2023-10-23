@@ -35,6 +35,7 @@ func handleJoinFungibleTokenTx(options *Options) txsystem.GenericExecuteFunc[Joi
 						value:     sum,
 						t:         currentBlockNr,
 						backlink:  h,
+						locked:    0,
 					}, nil
 				})); err != nil {
 			return nil, err

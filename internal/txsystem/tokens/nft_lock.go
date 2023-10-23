@@ -15,7 +15,7 @@ import (
 func handleLockNonFungibleTokenTx(options *Options) txsystem.GenericExecuteFunc[LockNonFungibleTokenAttributes] {
 	return func(tx *types.TransactionOrder, attr *LockNonFungibleTokenAttributes, roundNumber uint64) (*types.ServerMetadata, error) {
 		if err := validateLockNonFungibleTokenTx(tx, attr, options); err != nil {
-			return nil, fmt.Errorf("invalid lock fungible token tx: %w", err)
+			return nil, fmt.Errorf("invalid lock non-fungible token tx: %w", err)
 		}
 		// update lock status, round number and backlink
 		updateFn := state.UpdateUnitData(tx.UnitID(),

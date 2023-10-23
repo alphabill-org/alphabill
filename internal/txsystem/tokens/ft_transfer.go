@@ -46,6 +46,11 @@ func validateTransferFungibleToken(tx *types.TransactionOrder, attr *TransferFun
 	if err != nil {
 		return err
 	}
+
+	if d.locked != 0 {
+		return fmt.Errorf("token is locked")
+	}
+
 	if d.value != attr.Value {
 		return fmt.Errorf("invalid token value: expected %v, got %v", d.value, attr.Value)
 	}

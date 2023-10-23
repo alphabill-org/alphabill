@@ -117,7 +117,7 @@ func TestLockNFT_NotOk(t *testing.T) {
 		},
 		{
 			name: "token is already locked",
-			tx: createTx(t, existingTokenUnitID3, &LockFungibleTokenAttributes{
+			tx: createTx(t, existingLockedTokenUnitID, &LockFungibleTokenAttributes{
 				LockStatus:                   1,
 				Backlink:                     test.RandomBytes(32),
 				InvariantPredicateSignatures: [][]byte{script.PredicateArgumentEmpty()},

@@ -31,12 +31,12 @@ const (
 )
 
 var (
-	existingTokenTypeUnitID  = NewFungibleTokenTypeID(nil, []byte{1})
-	existingTokenTypeUnitID2 = NewFungibleTokenTypeID(nil, []byte{1, 0, 0, 1})
-	existingTokenUnitID      = NewFungibleTokenID(nil, []byte{0x02})
-	existingTokenUnitID2     = NewFungibleTokenID(nil, []byte{0xaa})
-	existingTokenUnitID3     = NewFungibleTokenID(nil, []byte{0xbb})
-	validUnitID              = NewFungibleTokenID(nil, []byte{100})
+	existingTokenTypeUnitID   = NewFungibleTokenTypeID(nil, []byte{1})
+	existingTokenTypeUnitID2  = NewFungibleTokenTypeID(nil, []byte{1, 0, 0, 1})
+	existingTokenUnitID       = NewFungibleTokenID(nil, []byte{0x02})
+	existingTokenUnitID2      = NewFungibleTokenID(nil, []byte{0xaa})
+	existingLockedTokenUnitID = NewFungibleTokenID(nil, []byte{0xbb})
+	validUnitID               = NewFungibleTokenID(nil, []byte{100})
 )
 
 func TestCreateFungibleTokenType_NotOk(t *testing.T) {
@@ -470,6 +470,18 @@ func TestTransferFungibleToken_NotOk(t *testing.T) {
 			wantErrStr: fmt.Sprintf("unit %s does not exist", NewFungibleTokenID(nil, []byte{42})),
 		},
 		{
+			name: "token locked",
+			tx:   createTransactionOrder(t, &TransferFungibleTokenAttributes{}, PayloadTypeTransferFungibleToken, existingLockedTokenUnitID),
+			attr: &TransferFungibleTokenAttributes{
+				NewBearer:                    script.PredicateAlwaysTrue(),
+				Value:                        existingTokenValue,
+				Nonce:                        test.RandomBytes(32),
+				Backlink:                     make([]byte, 32),
+				InvariantPredicateSignatures: [][]byte{script.PredicateArgumentEmpty()},
+			},
+			wantErrStr: "token is locked",
+		},
+		{
 			name: "invalid value",
 			tx:   createTransactionOrder(t, &TransferFungibleTokenAttributes{}, PayloadTypeTransferFungibleToken, existingTokenUnitID),
 			attr: &TransferFungibleTokenAttributes{
@@ -588,6 +600,19 @@ func TestSplitFungibleToken_NotOk(t *testing.T) {
 			tx:         createTransactionOrder(t, nil, PayloadTypeSplitFungibleToken, NewFungibleTokenID(nil, []byte{42})),
 			attr:       &SplitFungibleTokenAttributes{},
 			wantErrStr: fmt.Sprintf("unit %s does not exist", NewFungibleTokenID(nil, []byte{42})),
+		},
+		{
+			name: "token locked",
+			tx:   createTransactionOrder(t, nil, PayloadTypeSplitFungibleToken, existingLockedTokenUnitID),
+			attr: &SplitFungibleTokenAttributes{
+				NewBearer:                    script.PredicateAlwaysTrue(),
+				TargetValue:                  existingTokenValue,
+				RemainingValue:               1,
+				Nonce:                        test.RandomBytes(32),
+				Backlink:                     make([]byte, 32),
+				InvariantPredicateSignatures: [][]byte{script.PredicateArgumentEmpty()},
+			},
+			wantErrStr: "token is locked",
 		},
 		{
 			name: "invalid target value - exceeds the max value",
@@ -779,6 +804,18 @@ func TestBurnFungibleToken_NotOk(t *testing.T) {
 			wantErrStr: fmt.Sprintf("unit %s does not exist", NewFungibleTokenID(nil, []byte{42})),
 		},
 		{
+			name: "token locked",
+			tx:   createTransactionOrder(t, nil, PayloadTypeBurnFungibleToken, existingLockedTokenUnitID),
+			attr: &BurnFungibleTokenAttributes{
+				TypeID:                       existingTokenTypeUnitID,
+				Value:                        existingTokenValue,
+				TargetTokenBacklink:          test.RandomBytes(32),
+				Backlink:                     make([]byte, 32),
+				InvariantPredicateSignatures: [][]byte{script.PredicateArgumentEmpty()},
+			},
+			wantErrStr: "token is locked",
+		},
+		{
 			name: "invalid value",
 			tx:   createTransactionOrder(t, nil, PayloadTypeBurnFungibleToken, existingTokenUnitID),
 			attr: &BurnFungibleTokenAttributes{
@@ -858,6 +895,43 @@ func TestBurnFungibleToken_Ok(t *testing.T) {
 	u, err := opts.state.GetUnit(uID, false)
 	require.Nil(t, u)
 	require.ErrorContains(t, err, fmt.Sprintf("item %s does not exist", uID))
+}
+
+func TestJoinFungibleToken_Ok(t *testing.T) {
+	signer, verifier := testsig.CreateSignerAndVerifier(t)
+	opts := defaultOpts(t)
+	opts.trustBase = map[string]abcrypto.Verifier{"test": verifier}
+
+	burnAttributes := &BurnFungibleTokenAttributes{
+		TypeID:                       existingTokenTypeUnitID,
+		Value:                        existingTokenValue,
+		TargetTokenID:                existingLockedTokenUnitID,
+		TargetTokenBacklink:          make([]byte, 32),
+		Backlink:                     make([]byte, 32),
+		InvariantPredicateSignatures: [][]byte{script.PredicateArgumentEmpty()},
+	}
+	burnTx := createTxRecord(t, existingTokenUnitID, burnAttributes, PayloadTypeBurnFungibleToken)
+	roundNumber := uint64(10)
+	sm, err := handleBurnFungibleTokenTx(opts)(burnTx.TransactionOrder, burnAttributes, roundNumber)
+	require.NoError(t, err)
+	require.NotNil(t, sm)
+
+	burnTxProof := testblock.CreateProof(t, burnTx, signer, testblock.WithSystemIdentifier(DefaultSystemIdentifier))
+	joinAttr := &JoinFungibleTokenAttributes{
+		BurnTransactions:             []*types.TransactionRecord{burnTx},
+		Proofs:                       []*types.TxProof{burnTxProof},
+		Backlink:                     make([]byte, 32),
+		InvariantPredicateSignatures: [][]byte{script.PredicateArgumentEmpty()},
+	}
+	joinTx := createTx(t, existingLockedTokenUnitID, burnAttributes, PayloadTypeBurnFungibleToken)
+	sm, err = handleJoinFungibleTokenTx(opts)(joinTx, joinAttr, roundNumber)
+	require.NoError(t, err)
+	require.NotNil(t, sm)
+
+	// verify locked target unit was unlocked
+	u, err := opts.state.GetUnit(existingLockedTokenUnitID, false)
+	require.NoError(t, err)
+	require.EqualValues(t, 0, u.Data().(*fungibleTokenData).locked)
 }
 
 func TestJoinFungibleToken_NotOk(t *testing.T) {
@@ -1087,7 +1161,7 @@ func TestLockFungibleToken_NotOk(t *testing.T) {
 		},
 		{
 			name: "token is already locked",
-			tx: createTx(t, existingTokenUnitID3, &LockFungibleTokenAttributes{
+			tx: createTx(t, existingLockedTokenUnitID, &LockFungibleTokenAttributes{
 				LockStatus:                   1,
 				Backlink:                     test.RandomBytes(32),
 				InvariantPredicateSignatures: [][]byte{script.PredicateArgumentEmpty()},
@@ -1140,12 +1214,12 @@ func TestUnlockFungibleToken_Ok(t *testing.T) {
 		Backlink:                     make([]byte, 32),
 		InvariantPredicateSignatures: [][]byte{script.PredicateArgumentEmpty()},
 	}
-	tx := createTransactionOrder(t, attr, PayloadTypeUnlockFungibleToken, existingTokenUnitID3)
+	tx := createTransactionOrder(t, attr, PayloadTypeUnlockFungibleToken, existingLockedTokenUnitID)
 	roundNo := uint64(10)
 	sm, err := handleUnlockFungibleTokenTx(opts)(tx, attr, roundNo)
 	require.NoError(t, err)
 	require.NotNil(t, sm)
-	u, err := opts.state.GetUnit(existingTokenUnitID3, false)
+	u, err := opts.state.GetUnit(existingLockedTokenUnitID, false)
 	require.NoError(t, err)
 	require.NotNil(t, u)
 	require.IsType(t, &fungibleTokenData{}, u.Data())
@@ -1200,7 +1274,7 @@ func TestUnlockFungibleToken_NotOk(t *testing.T) {
 		},
 		{
 			name: "invalid backlink",
-			tx: createTx(t, existingTokenUnitID3, &UnlockFungibleTokenAttributes{
+			tx: createTx(t, existingLockedTokenUnitID, &UnlockFungibleTokenAttributes{
 				Backlink:                     test.RandomBytes(32),
 				InvariantPredicateSignatures: [][]byte{script.PredicateArgumentEmpty()},
 			}, PayloadTypeUnlockFungibleToken),
@@ -1208,7 +1282,7 @@ func TestUnlockFungibleToken_NotOk(t *testing.T) {
 		},
 		{
 			name: "invalid token invariant predicate argument",
-			tx: createTx(t, existingTokenUnitID3, &UnlockFungibleTokenAttributes{
+			tx: createTx(t, existingLockedTokenUnitID, &UnlockFungibleTokenAttributes{
 				Backlink:                     make([]byte, 32),
 				InvariantPredicateSignatures: [][]byte{script.PredicateAlwaysFalse()},
 			}, PayloadTypeUnlockFungibleToken),
@@ -1271,7 +1345,7 @@ func initState(t *testing.T) *state.State {
 		backlink:  make([]byte, 32),
 	}))
 	require.NoError(t, err)
-	err = s.Apply(state.AddUnit(existingTokenUnitID3, script.PredicateAlwaysTrue(), &fungibleTokenData{
+	err = s.Apply(state.AddUnit(existingLockedTokenUnitID, script.PredicateAlwaysTrue(), &fungibleTokenData{
 		tokenType: existingTokenTypeUnitID,
 		value:     existingTokenValue,
 		t:         0,

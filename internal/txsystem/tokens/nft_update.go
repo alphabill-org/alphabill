@@ -55,6 +55,9 @@ func validateUpdateNonFungibleToken(tx *types.TransactionOrder, attr *UpdateNonF
 	if !ok {
 		return fmt.Errorf("unit %v is not a non-fungible token type", unitID)
 	}
+	if data.locked != 0 {
+		return errors.New("token is locked")
+	}
 	if !bytes.Equal(data.backlink, attr.Backlink) {
 		return errors.New("invalid backlink")
 	}

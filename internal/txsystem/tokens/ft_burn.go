@@ -3,6 +3,7 @@ package tokens
 import (
 	"bytes"
 	"crypto"
+	"errors"
 	"fmt"
 
 	"github.com/fxamacker/cbor/v2"
@@ -32,6 +33,9 @@ func validateBurnFungibleToken(tx *types.TransactionOrder, attr *BurnFungibleTok
 	bearer, d, err := getFungibleTokenData(tx.UnitID(), s)
 	if err != nil {
 		return err
+	}
+	if d.locked != 0 {
+		return errors.New("token is locked")
 	}
 	if !bytes.Equal(d.tokenType, attr.TypeID) {
 		return fmt.Errorf("type of token to burn does not matches the actual type of the token: expected %s, got %s", d.tokenType, attr.TypeID)

@@ -26,11 +26,9 @@ func (m *MockAlwaysOkBlockVerifier) VerifyIRChangeReq(_ uint64, irChReq *abtypes
 	// Certify input, everything needs to be verified again as if received from partition node, since we cannot trust the leader is honest
 	// Remember all partitions that have changes in the current proposal and apply changes
 	// verify that there are no pending changes in the pipeline for any of the updated partitions
-	ucs := m.blockStore.GetCertificates()
-	// verify certification Request
-	luc, found := ucs[irChReq.SystemIdentifier]
-	if !found {
-		return nil, fmt.Errorf("invalid payload: partition %s state is missing", irChReq.SystemIdentifier)
+	luc, err := m.blockStore.GetCertificate(irChReq.SystemIdentifier)
+	if err != nil {
+		return nil, fmt.Errorf("invalid payload: partition %s state is missing: %w", irChReq.SystemIdentifier, err)
 	}
 	switch irChReq.CertReason {
 	case abtypes.Quorum:

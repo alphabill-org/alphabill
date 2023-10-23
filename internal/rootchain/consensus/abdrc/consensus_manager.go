@@ -178,12 +178,7 @@ func (x *ConsensusManager) CertificationResult() <-chan *types.UnicityCertificat
 }
 
 func (x *ConsensusManager) GetLatestUnicityCertificate(id types.SystemID32) (*types.UnicityCertificate, error) {
-	ucs := x.blockStore.GetCertificates()
-	luc, f := ucs[id]
-	if !f {
-		return nil, fmt.Errorf("no certificate found for system id %s", id)
-	}
-	return luc, nil
+	return x.blockStore.GetCertificate(id)
 }
 
 func (x *ConsensusManager) Run(ctx context.Context) error {

@@ -14,6 +14,7 @@ import (
 
 type (
 	State interface {
+		GetCertificate(id types.SystemID32) (*types.UnicityCertificate, error)
 		GetCertificates() map[types.SystemID32]*types.UnicityCertificate
 		IsChangeInProgress(id types.SystemID32) bool
 	}
@@ -63,14 +64,13 @@ func (x *IRChangeReqVerifier) VerifyIRChangeReq(round uint64, irChReq *abtypes.I
 	if x.state.IsChangeInProgress(sysID) {
 		return nil, fmt.Errorf("add state failed: partition %s has pending changes in pipeline", sysID)
 	}
-	ucs := x.state.GetCertificates()
 	// verify certification Request
-	luc, found := ucs[sysID]
-	if !found {
-		return nil, fmt.Errorf("ir change request verification error, partition %s last certificate not found", sysID)
+	luc, err := x.state.GetCertificate(sysID)
+	if err != nil {
+		return nil, fmt.Errorf("reading partition certificate: %w", err)
 	}
 	if round < luc.UnicitySeal.RootChainRoundNumber {
-		return nil, fmt.Errorf("error, current round %v is in the past, luc round %v", round, luc.UnicitySeal.RootChainRoundNumber)
+		return nil, fmt.Errorf("current round %v is in the past, LUC round %v", round, luc.UnicitySeal.RootChainRoundNumber)
 	}
 
 	// Find if the SystemIdentifier is known by partition store
@@ -81,7 +81,7 @@ func (x *IRChangeReqVerifier) VerifyIRChangeReq(round uint64, irChReq *abtypes.I
 	// verify request
 	inputRecord, err := irChReq.Verify(tb, luc, round, t2TimeoutToRootRounds(sysDesRecord.T2Timeout, x.params.BlockRateMs/2))
 	if err != nil {
-		return nil, fmt.Errorf("invalid payload: partition %s certification request verifiaction failed %w", sysID, err)
+		return nil, fmt.Errorf("certification request verifiaction failed: %w", err)
 	}
 	return &storage.InputData{SysID: irChReq.SystemIdentifier, IR: inputRecord, Sdrh: sysDesRecord.Hash(x.params.HashAlgorithm)}, nil
 }

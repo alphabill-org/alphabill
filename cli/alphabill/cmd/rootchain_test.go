@@ -12,50 +12,13 @@ import (
 	"github.com/alphabill-org/alphabill/internal/network"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/handshake"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
+	"github.com/alphabill-org/alphabill/internal/testutils/logger"
 	"github.com/alphabill-org/alphabill/internal/testutils/net"
 	testtime "github.com/alphabill-org/alphabill/internal/testutils/time"
 	"github.com/alphabill-org/alphabill/internal/txsystem/money"
 	"github.com/libp2p/go-libp2p/core/peerstore"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/sync/errgroup"
-
-	"github.com/alphabill-org/alphabill/internal/testutils/logger"
 )
-
-func TestRootChainCanBeStarted(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	dbDir := t.TempDir()
-	g, ctx := errgroup.WithContext(ctx)
-
-	g.Go(func() error {
-		return defaultRootNodeRunFunc(ctx, validMonolithicRootValidatorConfig(t, dbDir))
-	})
-
-	g.Go(func() error {
-		// give rootchain some time to start up (should try to send message to it to verify it is up!)
-		// and then cancel the ctx which should cause it to exit
-		time.Sleep(500 * time.Millisecond)
-		cancel()
-		return nil
-	})
-
-	err := g.Wait()
-	require.ErrorIs(t, err, context.Canceled)
-}
-
-func TestRootValidator_CannotBeStartedInvalidKeyFile(t *testing.T) {
-	conf := validMonolithicRootValidatorConfig(t, "")
-	conf.KeyFile = "testdata/invalid-root-key.json"
-
-	err := defaultRootNodeRunFunc(context.Background(), conf)
-	require.ErrorContains(t, err, "root genesis file does not match keys file: signing key not found in genesis file")
-}
-
-func TestRootValidator_CannotBeStartedInvalidDBDir(t *testing.T) {
-	conf := validMonolithicRootValidatorConfig(t, "/foobar/doesnotexist3454/")
-	err := defaultRootNodeRunFunc(context.Background(), conf)
-	require.ErrorContains(t, err, "root store init failed, open /foobar/doesnotexist3454/rootchain.db: no such file or directory")
-}
 
 func TestRootValidator_StorageInitNoDBPath(t *testing.T) {
 	db, err := initRootStore("")
@@ -64,26 +27,42 @@ func TestRootValidator_StorageInitNoDBPath(t *testing.T) {
 }
 
 func TestRootValidator_DefaultDBPath(t *testing.T) {
-	conf := validMonolithicRootValidatorConfig(t, "")
+	homeDir := t.TempDir()
+	conf := &rootNodeConfig{
+		Base: &baseConfiguration{
+			HomeDir: homeDir,
+			CfgFile: filepath.Join(homeDir, defaultConfigFile),
+			Logger:  logger.New(t),
+		},
+		StoragePath: "",
+	}
 	// if not set it will return a default path
 	require.Contains(t, conf.getStoragePath(), filepath.Join(conf.Base.HomeDir, "rootchain"))
 }
 
-func validMonolithicRootValidatorConfig(t *testing.T, dbDir string) *rootNodeConfig {
-	conf := &rootNodeConfig{
-		Base: &baseConfiguration{
-			HomeDir: alphabillHomeDir(),
-			CfgFile: filepath.Join(alphabillHomeDir(), defaultConfigFile),
-			Logger:  logger.New(t),
-		},
-		KeyFile:           "testdata/root-key.json",
-		GenesisFile:       "testdata/expected/root-genesis.json",
-		RootListener:      "/ip4/127.0.0.1/tcp/0",
-		PartitionListener: "/ip4/127.0.0.1/tcp/0",
-		MaxRequests:       1000,
-		StoragePath:       dbDir,
-	}
-	return conf
+func generateMonolithicSetup(t *testing.T, homeDir string) (string, string) {
+	t.Helper()
+	nodeGenesisFileLocation := filepath.Join(homeDir, moneyGenesisDir, moneyGenesisFileName)
+	nodeKeysFileLocation := filepath.Join(homeDir, moneyGenesisDir, defaultKeysFileName)
+	rootDir := filepath.Join(homeDir, defaultRootChainDir)
+	logF := logger.LoggerBuilder(t)
+	// prepare
+	// generate money node genesis
+	cmd := New(logF)
+	args := "money-genesis --home " + homeDir + " -o " + nodeGenesisFileLocation + " -g -k " + nodeKeysFileLocation
+	cmd.baseCmd.SetArgs(strings.Split(args, " "))
+	err := cmd.addAndExecuteCommand(context.Background())
+	require.NoError(t, err)
+	// create root node genesis with root node
+	cmd = New(logF)
+	args = "root-genesis new --home " + homeDir +
+		" -o " + rootDir +
+		" --partition-node-genesis-file=" + nodeGenesisFileLocation +
+		" -g"
+	cmd.baseCmd.SetArgs(strings.Split(args, " "))
+	err = cmd.addAndExecuteCommand(context.Background())
+	require.NoError(t, err)
+	return rootDir, filepath.Join(homeDir, moneyGenesisDir)
 }
 
 func Test_rootNodeConfig_getBootStrapNodes(t *testing.T) {
@@ -156,43 +135,24 @@ func Test_rootNodeConfig_defaultPath(t *testing.T) {
 
 func Test_StartMonolithicNode(t *testing.T) {
 	homeDir := t.TempDir()
-	nodeGenesisFileLocation := filepath.Join(homeDir, moneyGenesisDir, moneyGenesisFileName)
-	nodeKeysFileLocation := filepath.Join(homeDir, moneyGenesisDir, defaultKeysFileName)
-	genesisFileDir := filepath.Join(homeDir, defaultRootChainDir)
+	rootDir, nodeDir := generateMonolithicSetup(t, homeDir)
 	ctx, ctxCancel := context.WithCancel(context.Background())
-	logF := logger.LoggerBuilder(t)
-	// prepare
-	// generate money node genesis
-	cmd := New(logF)
-	args := "money-genesis --home " + homeDir + " -o " + nodeGenesisFileLocation + " -g -k " + nodeKeysFileLocation
-	cmd.baseCmd.SetArgs(strings.Split(args, " "))
-	err := cmd.addAndExecuteCommand(context.Background())
-	require.NoError(t, err)
-	// create root node genesis with root node
-	cmd = New(logF)
-	args = "root-genesis new --home " + homeDir +
-		" -o " + genesisFileDir +
-		" --partition-node-genesis-file=" + nodeGenesisFileLocation +
-		" -g"
-	cmd.baseCmd.SetArgs(strings.Split(args, " "))
-	err = cmd.addAndExecuteCommand(context.Background())
-	require.NoError(t, err)
-
-	partListenddr := fmt.Sprintf("/ip4/127.0.0.1/tcp/%d", net.GetFreeRandomPort(t))
-	cmListenAddr := fmt.Sprintf("/ip4/127.0.0.1/tcp/%d", net.GetFreeRandomPort(t))
 	testtime.MustRunInTime(t, 500*time.Second, func() {
+		partListenddr := fmt.Sprintf("/ip4/127.0.0.1/tcp/%d", net.GetFreeRandomPort(t))
+		cmListenAddr := fmt.Sprintf("/ip4/127.0.0.1/tcp/%d", net.GetFreeRandomPort(t))
 		appStoppedWg := sync.WaitGroup{}
-		rootKeyPath := filepath.Join(homeDir, defaultRootChainDir, defaultKeysFileName)
 		// start the node in background
 		appStoppedWg.Add(1)
 		go func() {
 			// start root node
-			cmd = New(logF)
-			dbLocation := filepath.Join(homeDir, defaultRootChainDir)
-			genesisPath := filepath.Join(homeDir, defaultRootChainDir, rootGenesisFileName)
-			args = "root --home " + homeDir + " --db " + dbLocation + " --genesis-file " + genesisPath + " -k " + rootKeyPath + " --partition-listener " + partListenddr + " --root-listener " + cmListenAddr
+			logF := logger.LoggerBuilder(t)
+			cmd := New(logF)
+			dbLocation := filepath.Join(rootDir)
+			rootKeyPath := filepath.Join(rootDir, defaultKeysFileName)
+			rootGenesis := filepath.Join(rootDir, rootGenesisFileName)
+			args := "root --home " + homeDir + " --db=" + dbLocation + " --genesis-file " + rootGenesis + " -k " + rootKeyPath + " --partition-listener " + partListenddr + " --root-listener " + cmListenAddr
 			cmd.baseCmd.SetArgs(strings.Split(args, " "))
-			err = cmd.addAndExecuteCommand(ctx)
+			err := cmd.addAndExecuteCommand(ctx)
 			require.ErrorIs(t, err, context.Canceled)
 			appStoppedWg.Done()
 		}()
@@ -202,7 +162,7 @@ func Test_StartMonolithicNode(t *testing.T) {
 			Address:          "/ip4/127.0.0.1/tcp/26652",
 			RootChainAddress: cmListenAddr,
 		}
-		keys, err := LoadKeys(nodeKeysFileLocation, false, false)
+		keys, err := LoadKeys(filepath.Join(nodeDir, defaultKeysFileName), false, false)
 		require.NoError(t, err)
 		partitionGenesis := filepath.Join(homeDir, defaultRootChainDir, "partition-genesis-0.json")
 		pg, err := loadPartitionGenesis(partitionGenesis)
@@ -229,6 +189,38 @@ func Test_StartMonolithicNode(t *testing.T) {
 		// Wait for test asserts to be completed
 		appStoppedWg.Wait()
 	})
+}
+
+func TestRootValidator_CannotBeStartedInvalidKeyFile(t *testing.T) {
+	homeDir := t.TempDir()
+	rootDir, _ := generateMonolithicSetup(t, homeDir)
+	logF := logger.LoggerBuilder(t)
+	cmd := New(logF)
+	dbLocation := filepath.Join(homeDir, defaultRootChainDir)
+	rootGenesis := filepath.Join(rootDir, rootGenesisFileName)
+	// generate random key file
+	randomKeys := filepath.Join(homeDir, "RandomKey", defaultKeysFileName)
+	_, err := LoadKeys(randomKeys, true, true)
+	require.NoError(t, err)
+
+	args := "root --home " + homeDir + " --db " + dbLocation + " --genesis-file " + rootGenesis + " -k " + randomKeys
+	cmd.baseCmd.SetArgs(strings.Split(args, " "))
+	ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond*100)
+	defer cancel()
+	require.ErrorContains(t, cmd.addAndExecuteCommand(ctx), "root genesis file does not match keys file: node id/encode key not found in genesis")
+}
+
+func TestRootValidator_CannotBeStartedInvalidDBDir(t *testing.T) {
+	homeDir := t.TempDir()
+	rootDir, _ := generateMonolithicSetup(t, homeDir)
+	logF := logger.LoggerBuilder(t)
+	cmd := New(logF)
+	rootGenesis := filepath.Join(rootDir, rootGenesisFileName)
+	args := "root --home " + homeDir + " --db=/foobar/doesnotexist3454/" + " --genesis-file " + rootGenesis
+	cmd.baseCmd.SetArgs(strings.Split(args, " "))
+	ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond*100)
+	defer cancel()
+	require.ErrorContains(t, cmd.addAndExecuteCommand(ctx), "root store init failed, open /foobar/doesnotexist3454/rootchain.db: no such file or directory")
 }
 
 func Test_Start_2_DRCNodes(t *testing.T) {

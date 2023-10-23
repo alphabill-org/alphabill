@@ -16,9 +16,9 @@ var (
 func TestAddCredit_OK(t *testing.T) {
 	hash := test.RandomBytes(32)
 	fcr := &FeeCreditRecord{
-		Balance: 1,
-		Hash:    hash,
-		Timeout: 2,
+		Balance:  1,
+		Backlink: hash,
+		Timeout:  2,
 	}
 	tr := state.NewEmptyState()
 
@@ -30,15 +30,15 @@ func TestAddCredit_OK(t *testing.T) {
 	unit, err := tr.GetUnit(id, false)
 	require.NoError(t, err)
 	require.Equal(t, owner, unit.Bearer())
-	require.Equal(t, hash, unit.Data().(*FeeCreditRecord).Hash)
+	require.Equal(t, hash, unit.Data().(*FeeCreditRecord).Backlink)
 	require.Equal(t, fcr, unit.Data())
 }
 
 func TestDelCredit_OK(t *testing.T) {
 	fcr := &FeeCreditRecord{
-		Balance: 1,
-		Hash:    test.RandomBytes(32),
-		Timeout: 2,
+		Balance:  1,
+		Backlink: test.RandomBytes(32),
+		Timeout:  2,
 	}
 	tr := state.NewEmptyState()
 
@@ -58,9 +58,9 @@ func TestDelCredit_OK(t *testing.T) {
 func TestIncrCredit_OK(t *testing.T) {
 	h := test.RandomBytes(32)
 	fcr := &FeeCreditRecord{
-		Balance: 1,
-		Hash:    test.RandomBytes(32),
-		Timeout: 2,
+		Balance:  1,
+		Backlink: test.RandomBytes(32),
+		Timeout:  2,
 	}
 	tr := state.NewEmptyState()
 
@@ -78,15 +78,15 @@ func TestIncrCredit_OK(t *testing.T) {
 	unitFCR := unit.Data().(*FeeCreditRecord)
 	require.EqualValues(t, 100, unitFCR.Balance)
 	require.EqualValues(t, 200, unitFCR.Timeout)
-	require.Equal(t, h, unitFCR.Hash)
+	require.Equal(t, h, unitFCR.Backlink)
 	require.Equal(t, owner, unit.Bearer())
 }
 
 func TestDecrCredit_OK(t *testing.T) {
 	fcr := &FeeCreditRecord{
-		Balance: 1,
-		Hash:    test.RandomBytes(32),
-		Timeout: 2,
+		Balance:  1,
+		Backlink: test.RandomBytes(32),
+		Timeout:  2,
 	}
 	tr := state.NewEmptyState()
 
@@ -106,5 +106,5 @@ func TestDecrCredit_OK(t *testing.T) {
 
 	// and timeout and hash are not changed
 	require.Equal(t, fcr.Timeout, unitFCR.Timeout)
-	require.Equal(t, fcr.Hash, unitFCR.Hash)
+	require.Equal(t, fcr.Backlink, unitFCR.Backlink)
 }

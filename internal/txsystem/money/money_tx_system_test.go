@@ -724,6 +724,44 @@ func TestExecute_FeeCreditSequence_OK(t *testing.T) {
 	require.EqualValues(t, 0, bd.Locked)
 }
 
+// Test LockFC -> UnlockFC
+func TestExecute_AddFeeCreditWithLocking_OK(t *testing.T) {
+	rmaTree, txSystem, _ := createStateAndTxSystem(t)
+	err := txSystem.BeginBlock(1)
+	require.NoError(t, err)
+
+	// lock fee credit record
+	lockFCAttr := testfc.NewLockFCAttr(testfc.WithLockFCBacklink(nil))
+	lockFC := testfc.NewLockFC(t, lockFCAttr,
+		testtransaction.WithUnitId(fcrID),
+		testtransaction.WithOwnerProof(script.PredicateArgumentEmpty()),
+	)
+	sm, err := txSystem.Execute(lockFC)
+	require.NoError(t, err)
+	require.NotNil(t, sm)
+
+	// verify unit was locked
+	u, err := rmaTree.GetUnit(fcrID, false)
+	require.NoError(t, err)
+	fcr, ok := u.Data().(*unit.FeeCreditRecord)
+	require.True(t, ok)
+	require.True(t, fcr.IsLocked())
+
+	// unlock fee credit record
+	unlockFCAttr := testfc.NewUnlockFCAttr(testfc.WithUnlockFCBacklink(lockFC.Hash(crypto.SHA256)))
+	unlockFC := testfc.NewUnlockFC(t, unlockFCAttr, testtransaction.WithUnitId(fcrID))
+	sm, err = txSystem.Execute(unlockFC)
+	require.NoError(t, err)
+	require.NotNil(t, sm)
+
+	// verify unit was unlocked
+	fcrUnit, err := rmaTree.GetUnit(fcrID, false)
+	require.NoError(t, err)
+	fcr, ok = fcrUnit.Data().(*unit.FeeCreditRecord)
+	require.True(t, ok)
+	require.False(t, fcr.IsLocked())
+}
+
 func unitIDFromTransaction(tx *types.TransactionOrder, extra ...[]byte) []byte {
 	hasher := crypto.SHA256.New()
 	hasher.Write(tx.UnitID())

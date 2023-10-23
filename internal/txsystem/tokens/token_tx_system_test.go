@@ -15,6 +15,7 @@ import (
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	testtransaction "github.com/alphabill-org/alphabill/internal/testutils/transaction"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
+	testfc "github.com/alphabill-org/alphabill/internal/txsystem/fc/testutils"
 	"github.com/alphabill-org/alphabill/internal/txsystem/fc/unit"
 	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/stretchr/testify/require"
@@ -1186,6 +1187,50 @@ func TestUpdateNFT_Ok(t *testing.T) {
 	require.Equal(t, script.PredicateAlwaysTrue(), []byte(u.Bearer()))
 }
 
+// Test LockFC -> UnlockFC
+func TestExecute_LockFeeCreditTxs_OK(t *testing.T) {
+	txs := newTokenTxSystem(t)
+	s := txs.GetState()
+
+	err := txs.BeginBlock(1)
+	require.NoError(t, err)
+
+	// lock fee credit record
+	lockFCAttr := testfc.NewLockFCAttr(testfc.WithLockFCBacklink(make([]byte, 32)))
+	lockFC := testfc.NewLockFC(t, lockFCAttr,
+		testtransaction.WithUnitId(feeCreditID),
+		testtransaction.WithOwnerProof(script.PredicateArgumentEmpty()),
+		testtransaction.WithSystemID(DefaultSystemIdentifier),
+	)
+	sm, err := txs.Execute(lockFC)
+	require.NoError(t, err)
+	require.NotNil(t, sm)
+
+	// verify unit was locked
+	u, err := s.GetUnit(feeCreditID, false)
+	require.NoError(t, err)
+	fcr, ok := u.Data().(*unit.FeeCreditRecord)
+	require.True(t, ok)
+	require.True(t, fcr.IsLocked())
+
+	// unlock fee credit record
+	unlockFCAttr := testfc.NewUnlockFCAttr(testfc.WithUnlockFCBacklink(lockFC.Hash(gocrypto.SHA256)))
+	unlockFC := testfc.NewUnlockFC(t, unlockFCAttr,
+		testtransaction.WithUnitId(feeCreditID),
+		testtransaction.WithSystemID(DefaultSystemIdentifier),
+	)
+	sm, err = txs.Execute(unlockFC)
+	require.NoError(t, err)
+	require.NotNil(t, sm)
+
+	// verify unit was unlocked
+	fcrUnit, err := s.GetUnit(feeCreditID, false)
+	require.NoError(t, err)
+	fcr, ok = fcrUnit.Data().(*unit.FeeCreditRecord)
+	require.True(t, ok)
+	require.False(t, fcr.IsLocked())
+}
+
 func createNFTTypeAndMintToken(t *testing.T, txs *txsystem.GenericTxSystem, nftTypeID types.UnitID, nftID types.UnitID) *types.TransactionOrder {
 	// create NFT type
 	tx := testtransaction.NewTransactionOrder(
@@ -1276,9 +1321,9 @@ func newTokenTxSystem(t *testing.T) *txsystem.GenericTxSystem {
 	_, verifier := testsig.CreateSignerAndVerifier(t)
 	s := state.NewEmptyState()
 	require.NoError(t, s.Apply(state.AddUnit(feeCreditID, script.PredicateAlwaysTrue(), &unit.FeeCreditRecord{
-		Balance: 100,
-		Hash:    make([]byte, 32),
-		Timeout: 1000,
+		Balance:  100,
+		Backlink: make([]byte, 32),
+		Timeout:  1000,
 	})))
 	_, _, err := s.CalculateRoot()
 	require.NoError(t, err)

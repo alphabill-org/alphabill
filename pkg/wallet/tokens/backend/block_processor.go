@@ -93,7 +93,7 @@ func (p *blockProcessor) processTx(tr *types.TransactionRecord, proof *wallet.Tx
 			Id:              id,
 			Value:           fcb.GetValue() - closeFeeCreditAttributes.Amount,
 			TxHash:          txHash,
-			LastAddFCTxHash: fcb.GetLastAddFCTxHash(),
+			LastAddFCTxHash: txHash,
 		}, txProof)
 	default:
 		// decrement fee credit bill value if tx is not fee credit tx i.e. a normal tx

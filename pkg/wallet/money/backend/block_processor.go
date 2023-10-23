@@ -280,7 +280,7 @@ func (p *BlockProcessor) processTx(txr *types.TransactionRecord, b *types.Block,
 			Id:              txo.UnitID(),
 			TxHash:          txHash,
 			Value:           fcb.getValue() - attr.Amount,
-			LastAddFCTxHash: fcb.getLastAddFCTxHash(),
+			LastAddFCTxHash: txHash,
 		}, proof)
 	case transactions.PayloadTypeReclaimFeeCredit:
 		bill, err := dbTx.GetBill(txo.UnitID())

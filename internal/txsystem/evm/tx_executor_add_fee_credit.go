@@ -44,9 +44,9 @@ func addFeeCreditTx(s *state.State, hashAlgorithm crypto.Hash, calcFee FeeCalcul
 		if u != nil && u.Data().(*statedb.StateObject).AlphaBill != nil {
 			stateObj := u.Data().(*statedb.StateObject)
 			data := &unit.FeeCreditRecord{
-				Balance: weiToAlpha(stateObj.Account.Balance),
-				Hash:    stateObj.AlphaBill.TxHash,
-				Timeout: stateObj.AlphaBill.Timeout,
+				Balance:  weiToAlpha(stateObj.Account.Balance),
+				Backlink: stateObj.AlphaBill.TxHash,
+				Timeout:  stateObj.AlphaBill.Timeout,
 			}
 			feeCreditRecordUnit = state.NewUnit(
 				u.Bearer(),

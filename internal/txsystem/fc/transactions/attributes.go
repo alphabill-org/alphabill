@@ -9,6 +9,8 @@ const (
 	PayloadTypeCloseFeeCredit    = "closeFC"
 	PayloadTypeReclaimFeeCredit  = "reclFC"
 	PayloadTypeTransferFeeCredit = "transFC"
+	PayloadTypeLockFeeCredit     = "lockFC"
+	PayloadTypeUnlockFeeCredit   = "unlockFC"
 )
 
 type (
@@ -44,6 +46,17 @@ type (
 		CloseFeeCreditProof    *types.TxProof           // transaction proof of "close fee credit" transaction
 		Backlink               []byte                   // hash of this unit's previous transaction
 	}
+
+	LockFeeCreditAttributes struct {
+		_          struct{} `cbor:",toarray"`
+		LockStatus uint64   // status of the lock, non-zero value means locked
+		Backlink   []byte   // hash of last "addFC", "closeFC", "lockFC" or "unlockFC" transaction
+	}
+
+	UnlockFeeCreditAttributes struct {
+		_        struct{} `cbor:",toarray"`
+		Backlink []byte   // hash of last "addFC", "closeFC", "lockFC" or "unlockFC" transaction
+	}
 )
 
 func IsFeeCreditTx(tx *types.TransactionOrder) bool {
@@ -51,5 +64,7 @@ func IsFeeCreditTx(tx *types.TransactionOrder) bool {
 	return typeUrl == PayloadTypeTransferFeeCredit ||
 		typeUrl == PayloadTypeAddFeeCredit ||
 		typeUrl == PayloadTypeCloseFeeCredit ||
-		typeUrl == PayloadTypeReclaimFeeCredit
+		typeUrl == PayloadTypeReclaimFeeCredit ||
+		typeUrl == PayloadTypeLockFeeCredit ||
+		typeUrl == PayloadTypeUnlockFeeCredit
 }

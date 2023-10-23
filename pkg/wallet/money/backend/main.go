@@ -175,7 +175,10 @@ func Run(ctx context.Context, config *Config) error {
 		return err
 	}
 
-	abc := client.New(client.AlphabillClientConfig{Uri: config.AlphabillUrl}, config.Logger)
+	abc, err := client.New(client.AlphabillClientConfig{Uri: config.AlphabillUrl}, config.Logger)
+	if err != nil {
+		return err
+	}
 	defer func() {
 		if err := abc.Close(); err != nil {
 			config.Logger.Warn("closing AB client", logger.Error(err))

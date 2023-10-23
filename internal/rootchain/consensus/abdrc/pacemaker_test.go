@@ -442,7 +442,9 @@ func TestPacemaker_startNewRound(t *testing.T) {
 		done := make(chan struct{})
 		go func() {
 			defer close(done)
-			stopCounting := time.After(TOcycles*roundTO + 100*time.Millisecond)
+			// timers are not exact and there is also some overhead in PM
+			// so allow extra 50ms per timeout cycle
+			stopCounting := time.After(TOcycles*roundTO + (TOcycles * 50 * time.Millisecond))
 			for {
 				select {
 				case <-stopCounting:
@@ -466,7 +468,7 @@ func TestPacemaker_startNewRound(t *testing.T) {
 		case <-done:
 		}
 
-		require.Zero(t, otherCnt, `number of "other" events`)
+		require.Zero(t, otherCnt, `expected the number of "other" events to be zero`)
 		require.EqualValues(t, 1, matureCnt, "number of %s events", pmsRoundMatured)
 		require.EqualValues(t, TOcycles, timeoutCnt, "number of %s events", pmsRoundTimeout)
 	})

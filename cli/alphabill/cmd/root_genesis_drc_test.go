@@ -79,7 +79,7 @@ func TestDistributedGenesisFiles_DifferentRootConsensus(t *testing.T) {
 	differentGenesisFiles := createRootGenesisFiles(t, homeDir2, consensusParams{totalNodes: 2, threshold: 2})
 	outputDir := filepath.Join(homeDir, "result")
 	cmd := New(logF)
-	genesisArg := fmt.Sprintf("%s,%s,%s,%s", differentGenesisFiles[0], genesisFiles[1], genesisFiles[2], genesisFiles[2])
+	genesisArg := fmt.Sprintf("%s,%s,%s,%s", differentGenesisFiles[0], genesisFiles[1], genesisFiles[2], genesisFiles[3])
 	args := "root-genesis combine --home " + homeDir +
 		" -o " + outputDir +
 		" --root-genesis=" + genesisArg

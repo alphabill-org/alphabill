@@ -124,6 +124,14 @@ func TestNewBlockTree(t *testing.T) {
 	require.Equal(t, b.CommitQc, bTree.HighQc())
 }
 
+/*func TestNewBlockTreeFromDbFile(t *testing.T) {
+	db, err := boltdb.New("/home/kristjan/Work/alphabill2/testab/rootchain1/rootchain/rootchain.db")
+	require.NoError(t, err)
+	bTree, err := NewBlockTree(db)
+	require.NoError(t, err)
+	require.NotNil(t, bTree)
+}*/
+
 func TestNewBlockTreeFromDb(t *testing.T) {
 	db := memorydb.New()
 	gBlock := NewExecutedBlockFromGenesis(gocrypto.SHA256, pg)

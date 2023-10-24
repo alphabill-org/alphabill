@@ -118,6 +118,7 @@ function start_root_nodes() {
     ((rPort=rPort+1))
     ((pPort=pPort+1))
     ((i=i+1))
+    sleep 0.200
   done
   echo "started $(($i-1)) root nodes"
 }

@@ -17,8 +17,6 @@ func NewNonFungibleTokensModule(options *Options) (*NonFungibleTokensModule, err
 			PayloadTypeMintNFT:       handleMintNonFungibleTokenTx(options),
 			PayloadTypeTransferNFT:   handleTransferNonFungibleTokenTx(options),
 			PayloadTypeUpdateNFT:     handleUpdateNonFungibleTokenTx(options),
-			PayloadTypeLockNFT:       handleLockNonFungibleTokenTx(options),
-			PayloadTypeUnlockNFT:     handleUnlockNonFungibleTokenTx(options),
 		},
 	}, nil
 }

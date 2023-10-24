@@ -160,6 +160,14 @@ func (n *nonFungibleTokenData) Copy() state.UnitData {
 	}
 }
 
+func (n *nonFungibleTokenData) Backlink() []byte {
+	return n.backlink
+}
+
+func (n *nonFungibleTokenData) Locked() uint64 {
+	return n.locked
+}
+
 func (f *fungibleTokenTypeData) Write(hasher hash.Hash) {
 	hasher.Write([]byte(f.symbol))
 	hasher.Write([]byte(f.name))
@@ -214,6 +222,14 @@ func (f *fungibleTokenData) Copy() state.UnitData {
 		backlink:  bytes.Clone(f.backlink),
 		locked:    f.locked,
 	}
+}
+
+func (f *fungibleTokenData) Backlink() []byte {
+	return f.backlink
+}
+
+func (f *fungibleTokenData) Locked() uint64 {
+	return f.locked
 }
 
 func (i *Icon) AddToHasher(hasher hash.Hash) {

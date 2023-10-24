@@ -1021,10 +1021,10 @@ func TestTransferNFT_LockedToken(t *testing.T) {
 	// lock token
 	lockTx := testtransaction.NewTransactionOrder(
 		t,
-		testtransaction.WithPayloadType(PayloadTypeLockNFT),
+		testtransaction.WithPayloadType(PayloadTypeLockToken),
 		testtransaction.WithUnitId(unitID),
 		testtransaction.WithSystemID(DefaultSystemIdentifier),
-		testtransaction.WithAttributes(&LockNonFungibleTokenAttributes{
+		testtransaction.WithAttributes(&LockTokenAttributes{
 			LockStatus:                   1,
 			Backlink:                     mintTx.Hash(gocrypto.SHA256),
 			InvariantPredicateSignatures: [][]byte{script.PredicateArgumentEmpty()},
@@ -1150,10 +1150,10 @@ func TestUpdateNFT_LockedToken(t *testing.T) {
 	// lock token
 	lockTx := testtransaction.NewTransactionOrder(
 		t,
-		testtransaction.WithPayloadType(PayloadTypeLockNFT),
+		testtransaction.WithPayloadType(PayloadTypeLockToken),
 		testtransaction.WithUnitId(unitID),
 		testtransaction.WithSystemID(DefaultSystemIdentifier),
-		testtransaction.WithAttributes(&LockNonFungibleTokenAttributes{
+		testtransaction.WithAttributes(&LockTokenAttributes{
 			LockStatus:                   1,
 			Backlink:                     mintTx.Hash(gocrypto.SHA256),
 			InvariantPredicateSignatures: [][]byte{script.PredicateArgumentEmpty()},

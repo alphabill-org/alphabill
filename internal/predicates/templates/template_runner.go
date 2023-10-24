@@ -8,9 +8,15 @@ import (
 
 const TemplateStartByte = 0x00
 
+type (
+	TemplateRunner struct {
+		templates map[uint64]PredicateTemplate
+	}
+)
+
+var runner = newTemplateRunner()
+
 func init() {
-	fmt.Println("Templates init") // TODO: remove
-	runner := newTemplateRunner()
 	runner.addTemplate(&AlwaysTrue{})
 	runner.addTemplate(&AlwaysFalse{})
 	runner.addTemplate(&P2pkh256{})
@@ -18,13 +24,10 @@ func init() {
 	predicates.RegisterDefaultRunner(runner)
 }
 
-type (
-	TemplateRunner struct {
-		templates map[uint64]PredicateTemplate
-	}
-)
-
 func (t *TemplateRunner) Execute(p *predicates.Predicate, sig []byte, sigData []byte) error {
+	if p == nil {
+		return fmt.Errorf("predicate is nil")
+	}
 	if p.Tag != TemplateStartByte {
 		return fmt.Errorf("invalid predicate tag: %d", p.Tag)
 	}

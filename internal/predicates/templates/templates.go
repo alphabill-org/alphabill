@@ -104,10 +104,10 @@ func (t *P2pkh256) Execute(predicate, sig, sigData []byte) error {
 
 	verifier, err := crypto.NewVerifierSecp256k1(p2pkh256Signature.PubKey)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to create verifier: %w", err)
 	}
 	if err = verifier.VerifyBytes(p2pkh256Signature.Sig, sigData); err != nil {
-		return err
+		return fmt.Errorf("failed to verify signature: %w", err)
 	}
 	return nil
 }

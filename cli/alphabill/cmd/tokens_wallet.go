@@ -93,11 +93,10 @@ func addCommonTypeFlags(cmd *cobra.Command) *cobra.Command {
 	cmd.Flags().String(cmdFlagSymbol, "", "symbol (short name) of the token type (mandatory)")
 	cmd.Flags().String(cmdFlagName, "", "full name of the token type (optional)")
 	cmd.Flags().String(cmdFlagIconFile, "", "icon file name for the token type (optional)")
-
-	err := cmd.MarkFlagRequired(cmdFlagSymbol)
-	if err != nil {
-		return nil
+	if err := cmd.MarkFlagRequired(cmdFlagSymbol); err != nil {
+		panic(err)
 	}
+
 	cmd.Flags().BytesHex(cmdFlagParentType, nil, "unit identifier of a parent type in hexadecimal format")
 	cmd.Flags().StringSlice(cmdFlagSybTypeClauseInput, nil, "input to satisfy the parent type creation clause (mandatory with --parent-type)")
 	cmd.MarkFlagsRequiredTogether(cmdFlagParentType, cmdFlagSybTypeClauseInput)
@@ -692,10 +691,10 @@ func tokenCmdUpdateNFTData(config *walletConfig) *cobra.Command {
 		},
 	}
 	cmd.Flags().BytesHex(cmdFlagTokenId, nil, "token identifier (hex)")
-	err := cmd.MarkFlagRequired(cmdFlagTokenId)
-	if err != nil {
+	if err := cmd.MarkFlagRequired(cmdFlagTokenId); err != nil {
 		panic(err)
 	}
+
 	cmd.Flags().BytesHex(cmdFlagTokenData, nil, "custom data (hex)")
 	cmd.Flags().String(cmdFlagTokenDataFile, "", "data file (max 64Kb) path")
 	cmd.MarkFlagsMutuallyExclusive(cmdFlagTokenData, cmdFlagTokenDataFile)

@@ -59,6 +59,12 @@ func TestNewBlockStoreFromGenesis(t *testing.T) {
 	_, err = bStore.GetBlockRootHash(2)
 	require.ErrorContains(t, err, "block for round 2 not found")
 	require.Len(t, bStore.GetCertificates(), 2)
+	uc, err := bStore.GetCertificate(sysID1)
+	require.NoError(t, err)
+	require.Equal(t, sysID1.ToSystemID(), uc.UnicityTreeCertificate.SystemIdentifier)
+	uc, err = bStore.GetCertificate(types.SystemID32(100))
+	require.Error(t, err)
+	require.Nil(t, uc)
 }
 
 func TestHandleTcError(t *testing.T) {
@@ -136,6 +142,10 @@ func TestBlockStoreAdd(t *testing.T) {
 	ucs, err = bStore.ProcessQc(qc)
 	require.NoError(t, err)
 	require.Empty(t, ucs)
+	b, err := bStore.Block(genesis.RootRound + 1)
+	require.NoError(t, err)
+	require.EqualValues(t, genesis.RootRound+1, b.Round)
+	require.NotNil(t, b.Qc)
 	// add block 3
 	rh, err = bStore.Add(block, mockBlockVer)
 	require.NoError(t, err)
@@ -171,4 +181,8 @@ func TestBlockStoreAdd(t *testing.T) {
 	require.Equal(t, uint64(2), rBlock.BlockData.Round)
 	hQc := bStore.GetHighQc()
 	require.Equal(t, uint64(3), hQc.VoteInfo.RoundNumber)
+	// try to read a non-existing block
+	b, err = bStore.Block(100)
+	require.ErrorContains(t, err, "block for round 100 not found")
+	require.Nil(t, b)
 }

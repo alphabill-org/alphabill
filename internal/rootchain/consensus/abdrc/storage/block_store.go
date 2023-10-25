@@ -142,7 +142,7 @@ func (x *BlockStore) ProcessQc(qc *abtypes.QuorumCert) (map[types.SystemID32]*ty
 		return nil, nil
 	}
 	// add Qc to block tree
-	err := x.blockTree.InsertQc(qc, x.storage)
+	err := x.blockTree.InsertQc(qc)
 	if err != nil {
 		return nil, fmt.Errorf("failed to insert QC into block tree: %w", err)
 	}

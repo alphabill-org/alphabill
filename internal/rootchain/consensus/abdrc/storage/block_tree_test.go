@@ -101,6 +101,59 @@ func mockExecutedBlock(round, qcRound, qcParentRound uint64) *ExecutedBlock {
 	}
 }
 
+// createTestBlockTree creates the following tree
+/*
+   ╭--> B6--> B7--> B8
+  B5--> B9--> B10
+         ╰--> B11--> B12
+*/
+func createTestBlockTree(t *testing.T) *BlockTree {
+	treeNodes := make(map[uint64]*node)
+	db := memorydb.New()
+	rootNode := &node{data: &ExecutedBlock{BlockData: &abtypes.BlockData{Author: "B5", Round: 5}}}
+	b6 := newNode(&ExecutedBlock{BlockData: &abtypes.BlockData{Author: "B6", Round: 6, Qc: &abtypes.QuorumCert{VoteInfo: &abtypes.RoundInfo{RoundNumber: 5}}}})
+	b7 := newNode(&ExecutedBlock{BlockData: &abtypes.BlockData{Author: "B7", Round: 7, Qc: &abtypes.QuorumCert{VoteInfo: &abtypes.RoundInfo{RoundNumber: 6}}}})
+	b8 := newNode(&ExecutedBlock{BlockData: &abtypes.BlockData{Author: "B8", Round: 8, Qc: &abtypes.QuorumCert{VoteInfo: &abtypes.RoundInfo{RoundNumber: 7}}}})
+	b9 := newNode(&ExecutedBlock{BlockData: &abtypes.BlockData{Author: "B9", Round: 9, Qc: &abtypes.QuorumCert{VoteInfo: &abtypes.RoundInfo{RoundNumber: 5}}}})
+	b10 := newNode(&ExecutedBlock{BlockData: &abtypes.BlockData{Author: "B10", Round: 10, Qc: &abtypes.QuorumCert{VoteInfo: &abtypes.RoundInfo{RoundNumber: 9}}}})
+	b11 := newNode(&ExecutedBlock{BlockData: &abtypes.BlockData{Author: "B11", Round: 11, Qc: &abtypes.QuorumCert{VoteInfo: &abtypes.RoundInfo{RoundNumber: 9}}}})
+	b12 := newNode(&ExecutedBlock{BlockData: &abtypes.BlockData{Author: "B12", Round: 12, Qc: &abtypes.QuorumCert{VoteInfo: &abtypes.RoundInfo{RoundNumber: 11}}}})
+	// init tree structure
+	// root has two children B6 and B9
+	rootNode.addChild(b6)
+	rootNode.addChild(b9)
+	// B6--> B7
+	b6.addChild(b7)
+	// B7--> B8
+	b7.addChild(b8)
+	// b9 has two children B10 and B11
+	b9.addChild(b10)
+	b9.addChild(b11)
+	// B11--> B12
+	b11.addChild(b12)
+	treeNodes[5] = rootNode
+	require.NoError(t, db.Write(blockKey(5), rootNode.data))
+	treeNodes[6] = b6
+	require.NoError(t, db.Write(blockKey(6), b6.data))
+	treeNodes[7] = b7
+	require.NoError(t, db.Write(blockKey(7), b7.data))
+	treeNodes[8] = b8
+	require.NoError(t, db.Write(blockKey(8), b8.data))
+	treeNodes[9] = b9
+	require.NoError(t, db.Write(blockKey(9), b9.data))
+	treeNodes[10] = b10
+	require.NoError(t, db.Write(blockKey(10), b10.data))
+	treeNodes[11] = b11
+	require.NoError(t, db.Write(blockKey(11), b11.data))
+	treeNodes[12] = b12
+	require.NoError(t, db.Write(blockKey(12), b12.data))
+	return &BlockTree{
+		root:        rootNode,
+		roundToNode: treeNodes,
+		blocksDB:    db,
+	}
+}
+
 func initFromGenesis(t *testing.T) *BlockTree {
 	t.Helper()
 	gBlock := NewExecutedBlockFromGenesis(gocrypto.SHA256, pg)
@@ -109,6 +162,116 @@ func initFromGenesis(t *testing.T) *BlockTree {
 	btree, err := NewBlockTree(db)
 	require.NoError(t, err)
 	return btree
+}
+
+func TestBlockTree_RemoveLeaf(t *testing.T) {
+	tree := createTestBlockTree(t)
+	// remove leaf that has children
+	require.ErrorContains(t, tree.RemoveLeaf(9), "error round 9 is not child node")
+	require.ErrorContains(t, tree.RemoveLeaf(5), "error root cannot be removed")
+	require.ErrorContains(t, tree.RemoveLeaf(11), "error round 11 is not child node")
+	require.NoError(t, tree.RemoveLeaf(8))
+	b, err := tree.FindBlock(8)
+	require.ErrorContains(t, err, "block for round 8 not found")
+	require.Nil(t, b)
+	b, err = tree.FindBlock(7)
+	require.NoError(t, err)
+	require.NotNil(t, b)
+	require.Equal(t, "B7", b.BlockData.Author)
+	// make sure node 7 child "8" was removed
+	n, found := tree.roundToNode[7]
+	require.True(t, found)
+	require.Empty(t, n.child)
+}
+
+func TestBlockTree_FindPathToRoot(t *testing.T) {
+	tree := createTestBlockTree(t)
+	// test tree root is set to B5
+	blocks := tree.FindPathToRoot(8)
+	require.Len(t, blocks, 3)
+	// B8-->B7-->B6-->root (not included)
+	require.Equal(t, "B8", blocks[0].BlockData.Author)
+	require.Equal(t, "B7", blocks[1].BlockData.Author)
+	require.Equal(t, "B6", blocks[2].BlockData.Author)
+	blocks = tree.FindPathToRoot(10)
+	// B10-->B9-->root (not included)
+	require.Len(t, blocks, 2)
+	require.Equal(t, "B10", blocks[0].BlockData.Author)
+	require.Equal(t, "B9", blocks[1].BlockData.Author)
+	blocks = tree.FindPathToRoot(12)
+	// B12-->B11-->B9-->root (not included)
+	require.Len(t, blocks, 3)
+	require.Equal(t, "B12", blocks[0].BlockData.Author)
+	require.Equal(t, "B11", blocks[1].BlockData.Author)
+	require.Equal(t, "B9", blocks[2].BlockData.Author)
+}
+
+func TestBlockTree_GetAllUncommittedNodes(t *testing.T) {
+	tree := createTestBlockTree(t)
+	// tree has 8 nodes, only root is not committed
+	require.Len(t, tree.roundToNode, 8)
+	blocks := tree.GetAllUncommittedNodes()
+	require.Len(t, blocks, 7)
+	require.NoError(t, tree.RemoveLeaf(8))
+	require.NoError(t, tree.RemoveLeaf(7))
+	blocks = tree.GetAllUncommittedNodes()
+	require.Len(t, blocks, 5)
+}
+
+func TestBlockTree_pruning(t *testing.T) {
+	t.Run("prune from round 7", func(t *testing.T) {
+		tree := createTestBlockTree(t)
+		/*
+		   ╭--> B6--> B7--> B8
+		  B5--> B9--> B10
+		         ╰--> B11--> B12
+		*/
+		// find blocks to prune if new committed root is B7
+		rounds, err := tree.findBlocksToPrune(7)
+		require.NoError(t, err)
+		// only B7-->B8 shall remain, hence 6 will be removed
+		require.Len(t, rounds, 6)
+		require.ElementsMatch(t, rounds, []uint64{5, 6, 9, 10, 11, 12})
+		require.NotContains(t, rounds, uint64(7))
+		require.NotContains(t, rounds, uint64(8))
+	})
+	t.Run("prune from round 12", func(t *testing.T) {
+		tree := createTestBlockTree(t)
+		// find blocks to prune if new committed root is B12
+		rounds, err := tree.findBlocksToPrune(12)
+		require.NoError(t, err)
+		// only B12 shall remain, hence 7 will be removed
+		require.Len(t, rounds, 7)
+		require.ElementsMatch(t, rounds, []uint64{5, 6, 7, 8, 9, 10, 11})
+		require.NotContains(t, rounds, uint64(12))
+	})
+	t.Run("prune from round 9", func(t *testing.T) {
+		tree := createTestBlockTree(t)
+		// find blocks to prune if new committed root is B9
+		rounds, err := tree.findBlocksToPrune(9)
+		require.NoError(t, err)
+		// B9-->10 and B9-->B11-->12 shall remain, hence 4 will be removed
+		require.Len(t, rounds, 4)
+		require.ElementsMatch(t, rounds, []uint64{5, 6, 7, 8})
+		require.NotContains(t, rounds, uint64(9))
+		require.NotContains(t, rounds, uint64(10))
+		require.NotContains(t, rounds, uint64(11))
+		require.NotContains(t, rounds, uint64(12))
+	})
+	t.Run("err - new root not found", func(t *testing.T) {
+		tree := createTestBlockTree(t)
+		// new root cannot be found
+		rounds, err := tree.findBlocksToPrune(15)
+		require.ErrorContains(t, err, "new root round 15 not found")
+		require.Nil(t, rounds)
+	})
+	t.Run("no changes, old is also new root", func(t *testing.T) {
+		tree := createTestBlockTree(t)
+		// nothing gets pruned if new root is old root
+		rounds, err := tree.findBlocksToPrune(5)
+		require.NoError(t, err)
+		require.Empty(t, rounds)
+	})
 }
 
 func TestNewBlockTree(t *testing.T) {
@@ -123,14 +286,6 @@ func TestNewBlockTree(t *testing.T) {
 	require.Len(t, bTree.GetAllUncommittedNodes(), 0)
 	require.Equal(t, b.CommitQc, bTree.HighQc())
 }
-
-/*func TestNewBlockTreeFromDbFile(t *testing.T) {
-	db, err := boltdb.New("/home/kristjan/Work/alphabill2/testab/rootchain1/rootchain/rootchain.db")
-	require.NoError(t, err)
-	bTree, err := NewBlockTree(db)
-	require.NoError(t, err)
-	require.NotNil(t, bTree)
-}*/
 
 func TestNewBlockTreeFromDb(t *testing.T) {
 	db := memorydb.New()

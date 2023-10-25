@@ -6,8 +6,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/alphabill-org/alphabill/internal/script"
-	"github.com/alphabill-org/alphabill/internal/state"
+	"github.com/alphabill-org/alphabill/internal/predicates"
+	"github.com/alphabill-org/alphabill/internal/predicates/templates"
 	"github.com/alphabill-org/alphabill/internal/txsystem/tokens"
 	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/pkg/wallet"
@@ -30,7 +30,7 @@ const (
 type (
 	PredicateInput struct {
 		// first priority
-		Argument state.Predicate
+		Argument predicates.PredicateBytes
 		// if Argument empty, check AccountNumber
 		AccountNumber uint64
 	}
@@ -105,7 +105,7 @@ func ParsePredicates(arguments []string, keyNr uint64, am account.Manager) ([]*P
 // ptpkh (provided key #) or ptpkh:n (n > 0) produce an argument with the signed transaction by the given key
 func parsePredicate(argument string, keyNr uint64, am account.Manager) (*PredicateInput, error) {
 	if len(argument) == 0 || argument == predicateEmpty || argument == predicateTrue || argument == predicateFalse {
-		return &PredicateInput{Argument: script.PredicateArgumentEmpty()}, nil
+		return &PredicateInput{Argument: nil}, nil
 	}
 	var err error
 	if strings.HasPrefix(argument, predicatePtpkh) {
@@ -135,9 +135,6 @@ func parsePredicate(argument string, keyNr uint64, am account.Manager) (*Predica
 		if err != nil {
 			return nil, err
 		}
-		if len(decoded) == 0 {
-			decoded = script.PredicateArgumentEmpty()
-		}
 		return &PredicateInput{Argument: decoded}, nil
 	}
 	return nil, fmt.Errorf("invalid creation input: '%s'", argument)
@@ -145,10 +142,10 @@ func parsePredicate(argument string, keyNr uint64, am account.Manager) (*Predica
 
 func ParsePredicateClause(clause string, keyNr uint64, am account.Manager) ([]byte, error) {
 	if len(clause) == 0 || clause == predicateTrue {
-		return script.PredicateAlwaysTrue(), nil
+		return templates.AlwaysTrueBytes(), nil
 	}
 	if clause == predicateFalse {
-		return script.PredicateAlwaysFalse(), nil
+		return templates.AlwaysFalseBytes(), nil
 	}
 
 	var err error
@@ -163,7 +160,7 @@ func ParsePredicateClause(clause string, keyNr uint64, am account.Manager) ([]by
 				if err != nil {
 					return nil, err
 				}
-				return script.PredicatePayToPublicKeyHashDefault(keyHash), nil
+				return templates.NewP2pkh256BytesFromKeyHash(keyHash), nil
 			} else {
 				keyNr, err = strconv.ParseUint(keyStr, 10, 64)
 				if err != nil {
@@ -178,7 +175,7 @@ func ParsePredicateClause(clause string, keyNr uint64, am account.Manager) ([]by
 		if err != nil {
 			return nil, err
 		}
-		return script.PredicatePayToPublicKeyHashDefault(accountKey.PubKeyHash.Sha256), nil
+		return templates.NewP2pkh256BytesFromKeyHash(accountKey.PubKeyHash.Sha256), nil
 
 	}
 	if strings.HasPrefix(clause, hexPrefix) {
@@ -234,11 +231,14 @@ func (a *MintNonFungibleTokenAttributes) toCBOR() *tokens.MintNonFungibleTokenAt
 
 func DecodeHexOrEmpty(input string) ([]byte, error) {
 	if len(input) == 0 || input == predicateEmpty {
-		return []byte{}, nil
+		return nil, nil
 	}
 	decoded, err := hex.DecodeString(strings.TrimPrefix(strings.ToLower(input), hexPrefix))
 	if err != nil {
 		return nil, err
+	}
+	if len(decoded) == 0 {
+		return nil, nil
 	}
 	return decoded, nil
 }

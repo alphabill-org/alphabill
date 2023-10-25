@@ -19,8 +19,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/alphabill-org/alphabill/internal/hash"
+	"github.com/alphabill-org/alphabill/internal/predicates/templates"
 	"github.com/alphabill-org/alphabill/internal/rpc/alphabill"
-	"github.com/alphabill-org/alphabill/internal/script"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/alphabill-org/alphabill/internal/testutils/logger"
 	"github.com/alphabill-org/alphabill/internal/txsystem/tokens"
@@ -273,7 +273,7 @@ func Test_Run_API(t *testing.T) {
 	pubKeyHex := hexutil.Encode(ownerID)
 	tx := randomTx(t,
 		&tokens.MintNonFungibleTokenAttributes{
-			Bearer:    script.PredicatePayToPublicKeyHashDefault(hash.Sum256(ownerID)),
+			Bearer:    templates.NewP2pkh256BytesFromKeyHash(hash.Sum256(ownerID)),
 			NFTTypeID: createNTFTypeTx.Payload.UnitID,
 		})
 	tx.Payload.Type = tokens.PayloadTypeMintNFT

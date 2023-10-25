@@ -8,7 +8,6 @@ import (
 	"sort"
 	"strconv"
 
-	"github.com/alphabill-org/alphabill/internal/script"
 	"github.com/alphabill-org/alphabill/internal/txsystem/tokens"
 	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/alphabill-org/alphabill/pkg/wallet/account"
@@ -967,7 +966,7 @@ func readParentTypeInfo(cmd *cobra.Command, keyNr uint64, am account.Manager) (b
 	}
 
 	if len(parentType) == 0 {
-		return nil, []*wallet.PredicateInput{{Argument: script.PredicateArgumentEmpty()}}, nil
+		return nil, []*wallet.PredicateInput{{Argument: nil}}, nil
 	}
 
 	creationInputs, err := readPredicateInput(cmd, cmdFlagSybTypeClauseInput, keyNr, am)
@@ -984,7 +983,7 @@ func readPredicateInput(cmd *cobra.Command, flag string, keyNr uint64, am accoun
 		return nil, err
 	}
 	if len(creationInputStrs) == 0 {
-		return []*wallet.PredicateInput{{Argument: script.PredicateArgumentEmpty()}}, nil
+		return []*wallet.PredicateInput{{Argument: nil}}, nil
 	}
 	creationInputs, err := wallet.ParsePredicates(creationInputStrs, keyNr, am)
 	if err != nil {

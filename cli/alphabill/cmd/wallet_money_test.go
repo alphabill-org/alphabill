@@ -19,7 +19,7 @@ import (
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/internal/partition"
-	"github.com/alphabill-org/alphabill/internal/script"
+	"github.com/alphabill-org/alphabill/internal/predicates/templates"
 	"github.com/alphabill-org/alphabill/internal/testutils/logger"
 	testpartition "github.com/alphabill-org/alphabill/internal/testutils/partition"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
@@ -203,7 +203,7 @@ func createMoneyPartition(t *testing.T, initialBill *money.InitialBill, nodeCoun
 					T2Timeout:        defaultT2Timeout,
 					FeeCreditBill: &genesis.FeeCreditBill{
 						UnitId:         money.NewBillID(nil, []byte{2}),
-						OwnerPredicate: script.PredicateAlwaysTrue(),
+						OwnerPredicate: templates.AlwaysTrueBytes(),
 					},
 				},
 			}),

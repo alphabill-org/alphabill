@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"hash"
 
+	"github.com/alphabill-org/alphabill/internal/predicates"
 	"github.com/alphabill-org/alphabill/internal/state"
 	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/internal/util"
@@ -43,5 +44,5 @@ func (b *BillData) IsLocked() bool {
 type InitialBill struct {
 	ID    types.UnitID
 	Value uint64
-	Owner state.Predicate
+	Owner predicates.PredicateBytes
 }

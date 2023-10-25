@@ -8,9 +8,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/alphabill-org/alphabill/internal/predicates/templates"
 	"github.com/stretchr/testify/require"
 
-	"github.com/alphabill-org/alphabill/internal/script"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	testtransaction "github.com/alphabill-org/alphabill/internal/testutils/transaction"
 	"github.com/alphabill-org/alphabill/internal/txsystem/fc/testutils"
@@ -132,8 +132,8 @@ func testSaveToken(t *testing.T, db *storage) {
 	require.ErrorIs(t, err, sdk.ErrRecordNotFound)
 	require.Nil(t, tokenFromDB)
 
-	owner := script.PredicatePayToPublicKeyHashDefault(test.RandomBytes(32))
-	token := randomToken(owner, Fungible)
+	owner := templates.NewP2pkh256BytesFromKeyHash(test.RandomBytes(32))
+	token := randomToken(sdk.Predicate(owner), Fungible)
 	proof := &sdk.Proof{}
 
 	require.NoError(t, db.SaveToken(token, proof))
@@ -143,8 +143,8 @@ func testSaveToken(t *testing.T, db *storage) {
 	require.Equal(t, token, tokenFromDB)
 
 	// change ownership
-	owner2 := script.PredicatePayToPublicKeyHashDefault(test.RandomBytes(32))
-	token.Owner = owner2
+	owner2 := templates.NewP2pkh256BytesFromKeyHash(test.RandomBytes(32))
+	token.Owner = sdk.Predicate(owner2)
 	err = db.SaveToken(token, proof)
 	require.NoError(t, err)
 
@@ -165,8 +165,8 @@ func testRemoveToken(t *testing.T, db *storage) {
 	err = db.RemoveToken(test.RandomBytes(32))
 	require.ErrorIs(t, err, sdk.ErrRecordNotFound)
 
-	owner := script.PredicatePayToPublicKeyHashDefault(test.RandomBytes(32))
-	token := randomToken(owner, Fungible)
+	owner := templates.NewP2pkh256BytesFromKeyHash(test.RandomBytes(32))
+	token := randomToken(sdk.Predicate(owner), Fungible)
 	require.NoError(t, db.SaveToken(token, &sdk.Proof{}))
 
 	tokenFromDB, err := db.GetToken(token.ID)
@@ -360,8 +360,8 @@ func Test_storage_QueryTokens(t *testing.T) {
 	db := initTestStorage(t)
 
 	proof := &sdk.Proof{}
-	ownerA := script.PredicatePayToPublicKeyHashDefault(test.RandomBytes(32))
-	ownerB := script.PredicatePayToPublicKeyHashDefault(test.RandomBytes(32))
+	ownerA := sdk.Predicate(templates.NewP2pkh256BytesFromKeyHash(test.RandomBytes(32)))
+	ownerB := sdk.Predicate(templates.NewP2pkh256BytesFromKeyHash(test.RandomBytes(32)))
 
 	// empty db, expect nothing to be found
 	data, next, err := db.QueryTokens(Any, ownerA, nil, 10)

@@ -1046,14 +1046,14 @@ func TestTransferNFT_LockedToken(t *testing.T) {
 		testtransaction.WithAttributes(&LockTokenAttributes{
 			LockStatus:                   1,
 			Backlink:                     mintTx.Hash(gocrypto.SHA256),
-			InvariantPredicateSignatures: [][]byte{script.PredicateArgumentEmpty()},
+			InvariantPredicateSignatures: [][]byte{nil},
 		}),
 		testtransaction.WithClientMetadata(&types.ClientMetadata{
 			Timeout:           1000,
 			MaxTransactionFee: 10,
 			FeeCreditRecordID: feeCreditID,
 		}),
-		testtransaction.WithOwnerProof(script.PredicateArgumentEmpty()),
+		testtransaction.WithOwnerProof(nil),
 	)
 	_, err := txs.Execute(lockTx)
 	require.NoError(t, err)
@@ -1072,13 +1072,13 @@ func TestTransferNFT_LockedToken(t *testing.T) {
 		testtransaction.WithSystemID(DefaultSystemIdentifier),
 		testtransaction.WithAttributes(&TransferNonFungibleTokenAttributes{
 			NFTTypeID:                    nftTypeID2,
-			NewBearer:                    script.PredicateAlwaysTrue(),
+			NewBearer:                    templates.AlwaysTrueBytes(),
 			Nonce:                        test.RandomBytes(32),
 			Backlink:                     lockTx.Hash(gocrypto.SHA256),
-			InvariantPredicateSignatures: [][]byte{script.PredicateArgumentEmpty()},
+			InvariantPredicateSignatures: [][]byte{nil},
 		}),
 		testtransaction.WithClientMetadata(createClientMetadata()),
-		testtransaction.WithFeeProof(script.PredicateArgumentEmpty()),
+		testtransaction.WithFeeProof(nil),
 	)
 	_, err = txs.Execute(tx)
 
@@ -1175,14 +1175,14 @@ func TestUpdateNFT_LockedToken(t *testing.T) {
 		testtransaction.WithAttributes(&LockTokenAttributes{
 			LockStatus:                   1,
 			Backlink:                     mintTx.Hash(gocrypto.SHA256),
-			InvariantPredicateSignatures: [][]byte{script.PredicateArgumentEmpty()},
+			InvariantPredicateSignatures: [][]byte{nil},
 		}),
 		testtransaction.WithClientMetadata(&types.ClientMetadata{
 			Timeout:           1000,
 			MaxTransactionFee: 10,
 			FeeCreditRecordID: feeCreditID,
 		}),
-		testtransaction.WithOwnerProof(script.PredicateArgumentEmpty()),
+		testtransaction.WithOwnerProof(nil),
 	)
 	_, err := txs.Execute(lockTx)
 	require.NoError(t, err)
@@ -1204,7 +1204,7 @@ func TestUpdateNFT_LockedToken(t *testing.T) {
 			Backlink: []byte{1},
 		}),
 		testtransaction.WithClientMetadata(createClientMetadata()),
-		testtransaction.WithFeeProof(script.PredicateArgumentEmpty()),
+		testtransaction.WithFeeProof(nil),
 	)
 	_, err = txs.Execute(tx)
 

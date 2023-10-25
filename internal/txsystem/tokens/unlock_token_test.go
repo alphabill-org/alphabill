@@ -5,10 +5,10 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/alphabill-org/alphabill/internal/predicates/templates"
 	"github.com/stretchr/testify/require"
 
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
-	"github.com/alphabill-org/alphabill/internal/script"
 	"github.com/alphabill-org/alphabill/internal/state"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
@@ -21,7 +21,7 @@ func TestUnlockFT_Ok(t *testing.T) {
 	// create unlock tx
 	unlockAttr := &UnlockTokenAttributes{
 		Backlink:                     make([]byte, 32),
-		InvariantPredicateSignatures: [][]byte{script.PredicateArgumentEmpty()},
+		InvariantPredicateSignatures: [][]byte{templates.AlwaysTrueArgBytes()},
 	}
 	unlockTx := createTransactionOrder(t, unlockAttr, PayloadTypeUnlockToken, existingLockedTokenUnitID)
 	roundNo := uint64(11)
@@ -73,7 +73,7 @@ func TestUnlockFT_NotOk(t *testing.T) {
 			name: "token is already unlocked",
 			tx: createTx(t, existingTokenUnitID, &UnlockTokenAttributes{
 				Backlink:                     test.RandomBytes(32),
-				InvariantPredicateSignatures: [][]byte{script.PredicateArgumentEmpty()},
+				InvariantPredicateSignatures: [][]byte{},
 			}, PayloadTypeUnlockToken),
 			wantErrStr: "token is already unlocked",
 		},
@@ -81,7 +81,7 @@ func TestUnlockFT_NotOk(t *testing.T) {
 			name: "invalid backlink",
 			tx: createTx(t, existingLockedTokenUnitID, &UnlockTokenAttributes{
 				Backlink:                     test.RandomBytes(32),
-				InvariantPredicateSignatures: [][]byte{script.PredicateArgumentEmpty()},
+				InvariantPredicateSignatures: [][]byte{},
 			}, PayloadTypeUnlockToken),
 			wantErrStr: "the transaction backlink is not equal to the token backlink",
 		},
@@ -89,9 +89,9 @@ func TestUnlockFT_NotOk(t *testing.T) {
 			name: "invalid token invariant predicate argument",
 			tx: createTx(t, existingLockedTokenUnitID, &UnlockTokenAttributes{
 				Backlink:                     make([]byte, 32),
-				InvariantPredicateSignatures: [][]byte{script.PredicateAlwaysFalse()},
+				InvariantPredicateSignatures: [][]byte{templates.AlwaysFalseBytes()},
 			}, PayloadTypeUnlockToken),
-			wantErrStr: "script execution result yielded non-clean stack",
+			wantErrStr: "invalid predicate",
 		},
 	}
 	for _, tt := range tests {
@@ -112,7 +112,7 @@ func TestUnlockNFT_Ok(t *testing.T) {
 	// create unlock tx
 	unlockAttr := &UnlockTokenAttributes{
 		Backlink:                     make([]byte, 32),
-		InvariantPredicateSignatures: [][]byte{script.PredicateArgumentEmpty()},
+		InvariantPredicateSignatures: [][]byte{templates.AlwaysTrueArgBytes()},
 	}
 	unlockTx := createTransactionOrder(t, unlockAttr, PayloadTypeUnlockToken, existingLockedNFTUnitID)
 	roundNo := uint64(11)
@@ -136,28 +136,28 @@ func TestUnlockNFT_NotOk(t *testing.T) {
 	_, verifier := testsig.CreateSignerAndVerifier(t)
 	opts := defaultOpts(t)
 	opts.trustBase = map[string]abcrypto.Verifier{"test": verifier}
-	err := opts.state.Apply(state.AddUnit(existingNFTTypeUnitID, script.PredicateAlwaysTrue(), &nonFungibleTokenTypeData{
+	err := opts.state.Apply(state.AddUnit(existingNFTTypeUnitID, templates.AlwaysTrueBytes(), &nonFungibleTokenTypeData{
 		symbol:                   "ALPHA",
 		name:                     "A long name for ALPHA",
 		icon:                     &Icon{Type: validIconType, Data: test.RandomBytes(10)},
-		subTypeCreationPredicate: script.PredicateAlwaysTrue(),
-		tokenCreationPredicate:   script.PredicateAlwaysTrue(),
-		invariantPredicate:       script.PredicateAlwaysTrue(),
-		dataUpdatePredicate:      script.PredicateAlwaysTrue(),
+		subTypeCreationPredicate: templates.AlwaysTrueBytes(),
+		tokenCreationPredicate:   templates.AlwaysTrueBytes(),
+		invariantPredicate:       templates.AlwaysTrueBytes(),
+		dataUpdatePredicate:      templates.AlwaysTrueBytes(),
 	}))
 	require.NoError(t, err)
-	err = opts.state.Apply(state.AddUnit(existingNFTUnitID, script.PredicateAlwaysTrue(), &nonFungibleTokenData{
+	err = opts.state.Apply(state.AddUnit(existingNFTUnitID, templates.AlwaysTrueBytes(), &nonFungibleTokenData{
 		nftType:             existingNFTTypeUnitID,
 		name:                "ALPHA",
 		backlink:            make([]byte, 32),
-		dataUpdatePredicate: script.PredicateAlwaysTrue(),
+		dataUpdatePredicate: templates.AlwaysTrueBytes(),
 	}))
 	require.NoError(t, err)
-	err = opts.state.Apply(state.AddUnit(existingLockedNFTUnitID, script.PredicateAlwaysTrue(), &nonFungibleTokenData{
+	err = opts.state.Apply(state.AddUnit(existingLockedNFTUnitID, templates.AlwaysTrueBytes(), &nonFungibleTokenData{
 		nftType:             existingNFTTypeUnitID,
 		name:                "ALPHA",
 		backlink:            make([]byte, 32),
-		dataUpdatePredicate: script.PredicateAlwaysTrue(),
+		dataUpdatePredicate: templates.AlwaysTrueBytes(),
 		locked:              1,
 	}))
 	require.NoError(t, err)
@@ -190,7 +190,7 @@ func TestUnlockNFT_NotOk(t *testing.T) {
 			name: "token is already unlocked",
 			tx: createTx(t, existingNFTUnitID, &UnlockTokenAttributes{
 				Backlink:                     make([]byte, 32),
-				InvariantPredicateSignatures: [][]byte{script.PredicateArgumentEmpty()},
+				InvariantPredicateSignatures: [][]byte{},
 			}, PayloadTypeUnlockToken),
 			wantErrStr: "token is already unlocked",
 		},
@@ -198,7 +198,7 @@ func TestUnlockNFT_NotOk(t *testing.T) {
 			name: "invalid backlink",
 			tx: createTx(t, existingLockedNFTUnitID, &UnlockTokenAttributes{
 				Backlink:                     test.RandomBytes(32),
-				InvariantPredicateSignatures: [][]byte{script.PredicateArgumentEmpty()},
+				InvariantPredicateSignatures: [][]byte{},
 			}, PayloadTypeUnlockToken),
 			wantErrStr: "the transaction backlink is not equal to the token backlink",
 		},
@@ -206,9 +206,9 @@ func TestUnlockNFT_NotOk(t *testing.T) {
 			name: "invalid token invariant predicate argument",
 			tx: createTx(t, existingLockedNFTUnitID, &UnlockTokenAttributes{
 				Backlink:                     make([]byte, 32),
-				InvariantPredicateSignatures: [][]byte{script.PredicateAlwaysFalse()},
+				InvariantPredicateSignatures: [][]byte{templates.AlwaysFalseBytes()},
 			}, PayloadTypeUnlockToken),
-			wantErrStr: "script execution result yielded non-clean stack",
+			wantErrStr: "invalid predicate",
 		},
 	}
 	for _, tt := range tests {

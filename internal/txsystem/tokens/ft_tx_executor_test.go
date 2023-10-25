@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
+	"github.com/alphabill-org/alphabill/internal/predicates/templates"
 	"github.com/alphabill-org/alphabill/internal/state"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	testblock "github.com/alphabill-org/alphabill/internal/testutils/block"
@@ -906,7 +907,7 @@ func TestJoinFungibleToken_Ok(t *testing.T) {
 		TargetTokenID:                existingLockedTokenUnitID,
 		TargetTokenBacklink:          make([]byte, 32),
 		Backlink:                     make([]byte, 32),
-		InvariantPredicateSignatures: [][]byte{},
+		InvariantPredicateSignatures: [][]byte{templates.AlwaysTrueArgBytes()},
 	}
 	burnTx := createTxRecord(t, existingTokenUnitID, burnAttributes, PayloadTypeBurnFungibleToken)
 	roundNumber := uint64(10)
@@ -919,7 +920,7 @@ func TestJoinFungibleToken_Ok(t *testing.T) {
 		BurnTransactions:             []*types.TransactionRecord{burnTx},
 		Proofs:                       []*types.TxProof{burnTxProof},
 		Backlink:                     make([]byte, 32),
-		InvariantPredicateSignatures: [][]byte{templates.AlwaysTrueBytes()},
+		InvariantPredicateSignatures: [][]byte{templates.AlwaysTrueArgBytes()},
 	}
 	joinTx := createTx(t, existingLockedTokenUnitID, burnAttributes, PayloadTypeBurnFungibleToken)
 	sm, err = handleJoinFungibleTokenTx(opts)(joinTx, joinAttr, roundNumber)

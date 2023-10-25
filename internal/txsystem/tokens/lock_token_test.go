@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
-	"github.com/alphabill-org/alphabill/internal/script"
+	"github.com/alphabill-org/alphabill/internal/predicates/templates"
 	"github.com/alphabill-org/alphabill/internal/state"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
@@ -27,7 +27,7 @@ func TestLockFT_Ok(t *testing.T) {
 	attr := &LockTokenAttributes{
 		LockStatus:                   1,
 		Backlink:                     make([]byte, 32),
-		InvariantPredicateSignatures: [][]byte{script.PredicateArgumentEmpty()},
+		InvariantPredicateSignatures: [][]byte{templates.AlwaysTrueArgBytes()},
 	}
 	tx := createTransactionOrder(t, attr, PayloadTypeLockToken, existingTokenUnitID)
 	var roundNo uint64 = 10
@@ -42,7 +42,7 @@ func TestLockFT_Ok(t *testing.T) {
 
 	// verify lock status, backlink and round number is updated
 	// verify value and type id is not updated
-	require.Equal(t, script.PredicateAlwaysTrue(), []byte(u.Bearer()))
+	require.Equal(t, templates.AlwaysTrueBytes(), u.Bearer())
 	require.Equal(t, existingTokenTypeUnitID, d.tokenType)
 	require.Equal(t, uint64(existingTokenValue), d.value)
 	require.Equal(t, roundNo, d.t)
@@ -84,7 +84,7 @@ func TestLockFT_NotOk(t *testing.T) {
 			tx: createTx(t, existingLockedTokenUnitID, &LockTokenAttributes{
 				LockStatus:                   1,
 				Backlink:                     test.RandomBytes(32),
-				InvariantPredicateSignatures: [][]byte{script.PredicateArgumentEmpty()},
+				InvariantPredicateSignatures: [][]byte{templates.AlwaysTrueArgBytes()},
 			}, PayloadTypeLockToken),
 			wantErrStr: "token is already locked",
 		},
@@ -93,7 +93,7 @@ func TestLockFT_NotOk(t *testing.T) {
 			tx: createTx(t, existingTokenUnitID, &LockTokenAttributes{
 				LockStatus:                   0,
 				Backlink:                     test.RandomBytes(32),
-				InvariantPredicateSignatures: [][]byte{script.PredicateArgumentEmpty()},
+				InvariantPredicateSignatures: [][]byte{templates.AlwaysTrueArgBytes()},
 			}, PayloadTypeLockToken),
 			wantErrStr: "lock status cannot be zero-value",
 		},
@@ -102,7 +102,7 @@ func TestLockFT_NotOk(t *testing.T) {
 			tx: createTx(t, existingTokenUnitID, &LockTokenAttributes{
 				LockStatus:                   1,
 				Backlink:                     test.RandomBytes(32),
-				InvariantPredicateSignatures: [][]byte{script.PredicateArgumentEmpty()},
+				InvariantPredicateSignatures: [][]byte{templates.AlwaysTrueArgBytes()},
 			}, PayloadTypeLockToken),
 			wantErrStr: "the transaction backlink is not equal to the token backlink",
 		},
@@ -111,9 +111,9 @@ func TestLockFT_NotOk(t *testing.T) {
 			tx: createTx(t, existingTokenUnitID, &LockTokenAttributes{
 				LockStatus:                   1,
 				Backlink:                     make([]byte, 32),
-				InvariantPredicateSignatures: [][]byte{script.PredicateAlwaysFalse()},
+				InvariantPredicateSignatures: [][]byte{templates.AlwaysFalseBytes()},
 			}, PayloadTypeLockToken),
-			wantErrStr: "script execution result yielded non-clean stack",
+			wantErrStr: "invalid predicate",
 		},
 	}
 	for _, tt := range tests {
@@ -133,7 +133,7 @@ func TestLockNFT_Ok(t *testing.T) {
 	attr := &LockTokenAttributes{
 		LockStatus:                   1,
 		Backlink:                     make([]byte, 32),
-		InvariantPredicateSignatures: [][]byte{script.PredicateArgumentEmpty()},
+		InvariantPredicateSignatures: [][]byte{templates.AlwaysTrueArgBytes()},
 	}
 	tx := createTransactionOrder(t, attr, PayloadTypeLockToken, existingNFTUnitID)
 	var roundNo uint64 = 10
@@ -147,7 +147,7 @@ func TestLockNFT_Ok(t *testing.T) {
 	d := u.Data().(*nonFungibleTokenData)
 
 	// verify lock status, backlink and round number is updated
-	require.Equal(t, script.PredicateAlwaysTrue(), []byte(u.Bearer()))
+	require.Equal(t, templates.AlwaysTrueBytes(), u.Bearer())
 	require.Equal(t, roundNo, d.t)
 	require.Equal(t, tx.Hash(gocrypto.SHA256), d.backlink)
 	require.Equal(t, attr.LockStatus, d.locked)
@@ -187,7 +187,7 @@ func TestLockNFT_NotOk(t *testing.T) {
 			tx: createTx(t, existingLockedNFTUnitID, &LockTokenAttributes{
 				LockStatus:                   1,
 				Backlink:                     test.RandomBytes(32),
-				InvariantPredicateSignatures: [][]byte{script.PredicateArgumentEmpty()},
+				InvariantPredicateSignatures: [][]byte{templates.AlwaysTrueArgBytes()},
 			}, PayloadTypeLockToken),
 			wantErrStr: "token is already locked",
 		},
@@ -196,7 +196,7 @@ func TestLockNFT_NotOk(t *testing.T) {
 			tx: createTx(t, existingNFTUnitID, &LockTokenAttributes{
 				LockStatus:                   0,
 				Backlink:                     test.RandomBytes(32),
-				InvariantPredicateSignatures: [][]byte{script.PredicateArgumentEmpty()},
+				InvariantPredicateSignatures: [][]byte{templates.AlwaysTrueArgBytes()},
 			}, PayloadTypeLockToken),
 			wantErrStr: "lock status cannot be zero-value",
 		},
@@ -205,7 +205,7 @@ func TestLockNFT_NotOk(t *testing.T) {
 			tx: createTx(t, existingNFTUnitID, &LockTokenAttributes{
 				LockStatus:                   1,
 				Backlink:                     test.RandomBytes(32),
-				InvariantPredicateSignatures: [][]byte{script.PredicateArgumentEmpty()},
+				InvariantPredicateSignatures: [][]byte{templates.AlwaysTrueArgBytes()},
 			}, PayloadTypeLockToken),
 			wantErrStr: "the transaction backlink is not equal to the token backlink",
 		},
@@ -214,9 +214,9 @@ func TestLockNFT_NotOk(t *testing.T) {
 			tx: createTx(t, existingNFTUnitID, &LockTokenAttributes{
 				LockStatus:                   1,
 				Backlink:                     make([]byte, 32),
-				InvariantPredicateSignatures: [][]byte{script.PredicateAlwaysFalse()},
+				InvariantPredicateSignatures: [][]byte{templates.AlwaysFalseBytes()},
 			}, PayloadTypeLockToken),
-			wantErrStr: "script execution result yielded non-clean stack",
+			wantErrStr: "invalid predicate",
 		},
 	}
 	for _, tt := range tests {
@@ -241,19 +241,19 @@ func defaultLockOpts(t *testing.T) *Options {
 func initStateForLockTxTests(t *testing.T) *state.State {
 	s := state.NewEmptyState()
 
-	err := s.Apply(state.AddUnit(existingTokenTypeUnitID, script.PredicateAlwaysTrue(), &fungibleTokenTypeData{
+	err := s.Apply(state.AddUnit(existingTokenTypeUnitID, templates.AlwaysTrueBytes(), &fungibleTokenTypeData{
 		symbol:                   "ALPHA",
 		name:                     "A long name for ALPHA",
 		icon:                     &Icon{Type: validIconType, Data: test.RandomBytes(10)},
 		parentTypeId:             nil,
 		decimalPlaces:            5,
-		subTypeCreationPredicate: script.PredicateAlwaysTrue(),
-		tokenCreationPredicate:   script.PredicateAlwaysTrue(),
-		invariantPredicate:       script.PredicateAlwaysTrue(),
+		subTypeCreationPredicate: templates.AlwaysTrueBytes(),
+		tokenCreationPredicate:   templates.AlwaysTrueBytes(),
+		invariantPredicate:       templates.AlwaysTrueBytes(),
 	}))
 	require.NoError(t, err)
 
-	err = s.Apply(state.AddUnit(existingTokenUnitID, script.PredicateAlwaysTrue(), &fungibleTokenData{
+	err = s.Apply(state.AddUnit(existingTokenUnitID, templates.AlwaysTrueBytes(), &fungibleTokenData{
 		tokenType: existingTokenTypeUnitID,
 		value:     existingTokenValue,
 		t:         0,
@@ -261,7 +261,7 @@ func initStateForLockTxTests(t *testing.T) *state.State {
 	}))
 	require.NoError(t, err)
 
-	err = s.Apply(state.AddUnit(existingLockedTokenUnitID, script.PredicateAlwaysTrue(), &fungibleTokenData{
+	err = s.Apply(state.AddUnit(existingLockedTokenUnitID, templates.AlwaysTrueBytes(), &fungibleTokenData{
 		tokenType: existingTokenTypeUnitID,
 		value:     existingTokenValue,
 		t:         0,
@@ -270,35 +270,35 @@ func initStateForLockTxTests(t *testing.T) *state.State {
 	}))
 	require.NoError(t, err)
 
-	err = s.Apply(state.AddUnit(existingNFTTypeUnitID, script.PredicateAlwaysTrue(), &nonFungibleTokenTypeData{
+	err = s.Apply(state.AddUnit(existingNFTTypeUnitID, templates.AlwaysTrueBytes(), &nonFungibleTokenTypeData{
 		symbol:                   "ALPHA",
 		name:                     "A long name for ALPHA",
 		icon:                     &Icon{Type: validIconType, Data: test.RandomBytes(10)},
-		subTypeCreationPredicate: script.PredicateAlwaysTrue(),
-		tokenCreationPredicate:   script.PredicateAlwaysTrue(),
-		invariantPredicate:       script.PredicateAlwaysTrue(),
-		dataUpdatePredicate:      script.PredicateAlwaysTrue(),
+		subTypeCreationPredicate: templates.AlwaysTrueBytes(),
+		tokenCreationPredicate:   templates.AlwaysTrueBytes(),
+		invariantPredicate:       templates.AlwaysTrueBytes(),
+		dataUpdatePredicate:      templates.AlwaysTrueBytes(),
 	}))
 	require.NoError(t, err)
 
-	err = s.Apply(state.AddUnit(existingNFTUnitID, script.PredicateAlwaysTrue(), &nonFungibleTokenData{
+	err = s.Apply(state.AddUnit(existingNFTUnitID, templates.AlwaysTrueBytes(), &nonFungibleTokenData{
 		nftType:             existingNFTTypeUnitID,
 		name:                "ALPHA",
 		backlink:            make([]byte, 32),
-		dataUpdatePredicate: script.PredicateAlwaysTrue(),
+		dataUpdatePredicate: templates.AlwaysTrueBytes(),
 	}))
 	require.NoError(t, err)
 
-	err = s.Apply(state.AddUnit(existingLockedNFTUnitID, script.PredicateAlwaysTrue(), &nonFungibleTokenData{
+	err = s.Apply(state.AddUnit(existingLockedNFTUnitID, templates.AlwaysTrueBytes(), &nonFungibleTokenData{
 		nftType:             existingNFTTypeUnitID,
 		name:                "ALPHA",
 		backlink:            make([]byte, 32),
-		dataUpdatePredicate: script.PredicateAlwaysTrue(),
+		dataUpdatePredicate: templates.AlwaysTrueBytes(),
 		locked:              1,
 	}))
 	require.NoError(t, err)
 
-	err = s.Apply(state.AddUnit(feeCreditID, script.PredicateAlwaysTrue(), &unit.FeeCreditRecord{
+	err = s.Apply(state.AddUnit(feeCreditID, templates.AlwaysTrueBytes(), &unit.FeeCreditRecord{
 		Balance:  100,
 		Backlink: make([]byte, 32),
 		Timeout:  100,

@@ -101,31 +101,42 @@ func (t *TxSubmissionBatch) confirmUnitsTx(ctx context.Context) error {
 		if err != nil {
 			return err
 		}
-		if roundNr >= t.maxTimeout {
-			t.log.InfoContext(ctx, fmt.Sprintf("Tx confirmation timeout is reached, block (#%v)", roundNr))
-			for _, sub := range t.submissions {
-				if !sub.Confirmed() {
-					t.log.InfoContext(ctx, fmt.Sprintf("Tx not confirmed for UnitID=%s, hash=%X", sub.UnitID, sub.TxHash))
-				}
-			}
-			return errors.New("confirmation timeout")
-		}
 		unconfirmed := false
 		for _, sub := range t.submissions {
-			if sub.Confirmed() || roundNr >= sub.Transaction.Timeout() {
+			if sub.Confirmed() {
 				continue
 			}
-			proof, err := t.backend.GetTxProof(ctx, sub.UnitID, sub.TxHash)
-			if err != nil {
-				return err
+
+			// Tx can be included in block sub.Transaction().Timeout()-1 at latest.
+			// But let's wait until node is at round sub.Transaction().Timeout()+1
+			// to give backend more time to fetch and process the block. A more reliable
+			// solution would be to use the latest round number that backend has processed,
+			// instead of the latest round number from node.
+			if roundNr <= sub.Transaction.Timeout() {
+				proof, err := t.backend.GetTxProof(ctx, sub.UnitID, sub.TxHash)
+				if err != nil {
+					return err
+				}
+				if proof != nil {
+					t.log.DebugContext(ctx, fmt.Sprintf("UnitID=%s is confirmed", sub.UnitID))
+					sub.Proof = proof
+				}
 			}
-			if proof != nil {
-				t.log.DebugContext(ctx, fmt.Sprintf("UnitID=%s is confirmed", sub.UnitID))
-				sub.Proof = proof
-			}
+
 			unconfirmed = unconfirmed || !sub.Confirmed()
 		}
 		if unconfirmed {
+			// If this was the last attempt to get proofs, log the ones that timed out.
+			if roundNr > t.maxTimeout {
+				t.log.InfoContext(ctx, fmt.Sprintf("Tx confirmation timeout is reached, block (#%v)", roundNr))
+				for _, sub := range t.submissions {
+					if !sub.Confirmed() {
+						t.log.InfoContext(ctx, fmt.Sprintf("Tx not confirmed for UnitID=%s, hash=%X", sub.UnitID, sub.TxHash))
+					}
+				}
+				return errors.New("confirmation timeout")
+			}
+
 			time.Sleep(500 * time.Millisecond)
 		} else {
 			t.log.InfoContext(ctx, "All transactions confirmed")

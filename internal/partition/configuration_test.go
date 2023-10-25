@@ -25,7 +25,6 @@ func Test_loadAndValidateConfiguration_Nok(t *testing.T) {
 	peerConf := test.CreatePeerConfiguration(t)
 	signer, verifier := testsig.CreateSignerAndVerifier(t)
 	type args struct {
-		peer    *network.Peer
 		signer  crypto.Signer
 		genesis *genesis.PartitionGenesis
 		txs     txsystem.TransactionSystem

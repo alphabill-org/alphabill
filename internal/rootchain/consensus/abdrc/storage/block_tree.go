@@ -130,7 +130,7 @@ func NewBlockTree(bDB keyvaluedb.KeyValueDB) (bTree *BlockTree, err error) {
 	}, nil
 }
 
-func (bt *BlockTree) InsertQc(qc *abdrc.QuorumCert, bockDB keyvaluedb.KeyValueDB) error {
+func (bt *BlockTree) InsertQc(qc *abdrc.QuorumCert) error {
 	// find block, if it does not exist, return error we need to recover missing info
 	b, err := bt.FindBlock(qc.GetRound())
 	if err != nil {
@@ -141,7 +141,7 @@ func (bt *BlockTree) InsertQc(qc *abdrc.QuorumCert, bockDB keyvaluedb.KeyValueDB
 	}
 	b.Qc = qc
 	// persist changes
-	if err = bockDB.Write(blockKey(b.GetRound()), b); err != nil {
+	if err = bt.blocksDB.Write(blockKey(b.GetRound()), b); err != nil {
 		return fmt.Errorf("failed to persist block for round %v, %w", b.BlockData.Round, err)
 	}
 	bt.highQc = qc

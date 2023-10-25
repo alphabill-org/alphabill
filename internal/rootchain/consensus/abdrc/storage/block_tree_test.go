@@ -182,6 +182,8 @@ func TestBlockTree_RemoveLeaf(t *testing.T) {
 	n, found := tree.roundToNode[7]
 	require.True(t, found)
 	require.Empty(t, n.child)
+	// not and error if leaf does not exist, consider removed
+	require.NoError(t, tree.RemoveLeaf(2))
 }
 
 func TestBlockTree_FindPathToRoot(t *testing.T) {
@@ -204,6 +206,8 @@ func TestBlockTree_FindPathToRoot(t *testing.T) {
 	require.Equal(t, "B12", blocks[0].BlockData.Author)
 	require.Equal(t, "B11", blocks[1].BlockData.Author)
 	require.Equal(t, "B9", blocks[2].BlockData.Author)
+	// node not found
+	require.Nil(t, tree.FindPathToRoot(2))
 }
 
 func TestBlockTree_GetAllUncommittedNodes(t *testing.T) {
@@ -272,6 +276,16 @@ func TestBlockTree_pruning(t *testing.T) {
 		require.NoError(t, err)
 		require.Empty(t, rounds)
 	})
+}
+
+func TestBlockTree_InsertQc(t *testing.T) {
+	tree := createTestBlockTree(t)
+	require.ErrorContains(t, tree.InsertQc(&abtypes.QuorumCert{VoteInfo: &abtypes.RoundInfo{RoundNumber: 2, CurrentRootHash: zeroHash}}), "block tree add qc failed, block for round 2 not found")
+	require.ErrorContains(t, tree.InsertQc(&abtypes.QuorumCert{VoteInfo: &abtypes.RoundInfo{RoundNumber: 12, CurrentRootHash: zeroHash}}), "block tree add qc failed, qc state hash is different from local computed state hash")
+	b, err := tree.FindBlock(12)
+	require.NoError(t, err)
+	b.RootHash = []byte{1, 2, 3}
+	require.NoError(t, tree.InsertQc(&abtypes.QuorumCert{VoteInfo: &abtypes.RoundInfo{RoundNumber: 12, CurrentRootHash: []byte{1, 2, 3}}}))
 }
 
 func TestNewBlockTree(t *testing.T) {
@@ -372,6 +386,64 @@ func TestNewBlockTreeFromDbChain3Blocks(t *testing.T) {
 	require.NoError(t, db.Write(blockKey(block3.BlockData.Round), block3))
 
 	bTree, err := NewBlockTree(db)
+	require.NoError(t, err)
+	require.NotNil(t, bTree)
+	require.Len(t, bTree.roundToNode, 3)
+	hQc := bTree.HighQc()
+	require.NotNil(t, hQc)
+	require.Equal(t, uint64(2), hQc.VoteInfo.RoundNumber)
+}
+
+func TestNewBlockTreeFromRecovery(t *testing.T) {
+	db := memorydb.New()
+	gBlock := NewExecutedBlockFromGenesis(gocrypto.SHA256, pg)
+	require.NoError(t, db.Write(blockKey(genesis.RootRound), gBlock))
+	// create blocks 2 and 3
+	voteInfoB2 := &abtypes.RoundInfo{
+		RoundNumber:       2,
+		Timestamp:         util.MakeTimestamp(),
+		ParentRoundNumber: 1,
+		CurrentRootHash:   gBlock.RootHash,
+	}
+	qcBlock2 := &abtypes.QuorumCert{
+		VoteInfo: voteInfoB2,
+		LedgerCommitInfo: &types.UnicitySeal{
+			PreviousHash: voteInfoB2.Hash(gocrypto.SHA256),
+			Hash:         gBlock.RootHash,
+		},
+	}
+	// create a new block
+	block2 := &ExecutedBlock{
+		BlockData: &abtypes.BlockData{
+			Author:    "test",
+			Round:     genesis.RootRound + 1,
+			Epoch:     0,
+			Timestamp: util.MakeTimestamp(),
+			Payload:   &abtypes.Payload{},
+			Qc:        gBlock.Qc,
+		},
+		CurrentIR: gBlock.CurrentIR,
+		Changed:   make([]types.SystemID32, 0),
+		HashAlgo:  gocrypto.SHA256,
+		RootHash:  gBlock.Qc.LedgerCommitInfo.Hash,
+		Qc:        qcBlock2,
+		CommitQc:  qcBlock2,
+	}
+	block3 := &ExecutedBlock{
+		BlockData: &abtypes.BlockData{
+			Author:    "test",
+			Round:     genesis.RootRound + 2,
+			Epoch:     0,
+			Timestamp: util.MakeTimestamp() + 1000,
+			Payload:   &abtypes.Payload{},
+			Qc:        qcBlock2,
+		},
+		CurrentIR: gBlock.CurrentIR,
+		Changed:   make([]types.SystemID32, 0),
+		HashAlgo:  gocrypto.SHA256,
+		RootHash:  gBlock.Qc.LedgerCommitInfo.Hash,
+	}
+	bTree, err := NewBlockTreeFromRecovery(gBlock, []*ExecutedBlock{block2, block3}, db)
 	require.NoError(t, err)
 	require.NotNil(t, bTree)
 	require.Len(t, bTree.roundToNode, 3)

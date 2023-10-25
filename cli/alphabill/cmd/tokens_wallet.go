@@ -88,6 +88,13 @@ func addCommonAccountFlags(cmd *cobra.Command) *cobra.Command {
 	return cmd
 }
 
+func addDataFlags(cmd *cobra.Command) {
+	altMsg := ". Alternatively flag %q can be used to add data."
+	cmd.Flags().BytesHex(cmdFlagTokenData, nil, "custom data (hex)"+fmt.Sprintf(altMsg, cmdFlagTokenDataFile))
+	cmd.Flags().String(cmdFlagTokenDataFile, "", "data file (max 64Kb) path"+fmt.Sprintf(altMsg, cmdFlagTokenData))
+	cmd.MarkFlagsMutuallyExclusive(cmdFlagTokenData, cmdFlagTokenDataFile)
+}
+
 func addCommonTypeFlags(cmd *cobra.Command) *cobra.Command {
 	cmd.Flags().String(cmdFlagSymbol, "", "symbol (short name) of the token type (mandatory)")
 	cmd.Flags().String(cmdFlagName, "", "full name of the token type (optional)")
@@ -375,6 +382,7 @@ func tokenCmdNewTokenNonFungible(config *walletConfig) *cobra.Command {
 			return execTokenCmdNewTokenNonFungible(cmd, config)
 		},
 	}
+	addDataFlags(cmd)
 	cmd.Flags().String(cmdFlagBearerClause, predicatePtpkh, "predicate that defines the ownership of this non-fungible token, values <true|false|ptpkh>")
 	cmd.Flags().BytesHex(cmdFlagType, nil, "type unit identifier (hex)")
 	err := cmd.MarkFlagRequired(cmdFlagType)
@@ -383,9 +391,6 @@ func tokenCmdNewTokenNonFungible(config *walletConfig) *cobra.Command {
 	}
 	cmd.Flags().String(cmdFlagName, "", "name of the token (optional)")
 	cmd.Flags().String(cmdFlagTokenURI, "", "URI to associated resource, ie. jpg file on IPFS")
-	cmd.Flags().BytesHex(cmdFlagTokenData, nil, "custom data (hex)")
-	cmd.Flags().String(cmdFlagTokenDataFile, "", "data file (max 64Kb) path")
-	cmd.MarkFlagsMutuallyExclusive(cmdFlagTokenData, cmdFlagTokenDataFile)
 	cmd.Flags().String(cmdFlagTokenDataUpdateClause, predicateTrue, "data update predicate, values <true|false|ptpkh>")
 	cmd.Flags().StringSlice(cmdFlagMintClauseInput, []string{predicatePtpkh}, "input to satisfy the type's minting clause")
 	cmd.Flags().BytesHex(cmdFlagTokenId, nil, "unit identifier of token (hex)")
@@ -694,9 +699,7 @@ func tokenCmdUpdateNFTData(config *walletConfig) *cobra.Command {
 		panic(err)
 	}
 
-	cmd.Flags().BytesHex(cmdFlagTokenData, nil, "custom data (hex)")
-	cmd.Flags().String(cmdFlagTokenDataFile, "", "data file (max 64Kb) path")
-	cmd.MarkFlagsMutuallyExclusive(cmdFlagTokenData, cmdFlagTokenDataFile)
+	addDataFlags(cmd)
 	cmd.Flags().StringSlice(cmdFlagTokenDataUpdateClauseInput, []string{predicateTrue, predicateTrue}, "input to satisfy the data-update clauses")
 	return addCommonAccountFlags(cmd)
 }

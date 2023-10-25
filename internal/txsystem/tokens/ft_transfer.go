@@ -6,12 +6,13 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/fxamacker/cbor/v2"
+
 	"github.com/alphabill-org/alphabill/internal/predicates"
 	"github.com/alphabill-org/alphabill/internal/state"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/pkg/tree/avl"
-	"github.com/fxamacker/cbor/v2"
 )
 
 func handleTransferFungibleTokenTx(options *Options) txsystem.GenericExecuteFunc[TransferFungibleTokenAttributes] {
@@ -43,10 +44,15 @@ func handleTransferFungibleTokenTx(options *Options) txsystem.GenericExecuteFunc
 }
 
 func validateTransferFungibleToken(tx *types.TransactionOrder, attr *TransferFungibleTokenAttributes, s *state.State, hashAlgorithm crypto.Hash) error {
-	bearer, d, err := getFungibleTokenData(tx.UnitID(), s, hashAlgorithm)
+	bearer, d, err := getFungibleTokenData(tx.UnitID(), s)
 	if err != nil {
 		return err
 	}
+
+	if d.locked != 0 {
+		return fmt.Errorf("token is locked")
+	}
+
 	if d.value != attr.Value {
 		return fmt.Errorf("invalid token value: expected %v, got %v", d.value, attr.Value)
 	}
@@ -76,7 +82,7 @@ func validateTransferFungibleToken(tx *types.TransactionOrder, attr *TransferFun
 	return verifyOwnership(bearer, predicates, &transferFungibleTokenOwnershipProver{tx: tx, attr: attr})
 }
 
-func getFungibleTokenData(unitID types.UnitID, s *state.State, hashAlgorithm crypto.Hash) (predicates.PredicateBytes, *fungibleTokenData, error) {
+func getFungibleTokenData(unitID types.UnitID, s *state.State) (predicates.PredicateBytes, *fungibleTokenData, error) {
 	if !unitID.HasType(FungibleTokenUnitType) {
 		return nil, nil, fmt.Errorf(ErrStrInvalidUnitID)
 	}

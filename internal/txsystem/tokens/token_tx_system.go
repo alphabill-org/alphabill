@@ -31,10 +31,7 @@ const (
 )
 
 func NewTxSystem(log *slog.Logger, opts ...Option) (*txsystem.GenericTxSystem, error) {
-	options, err := defaultOptions()
-	if err != nil {
-		return nil, err
-	}
+	options := defaultOptions()
 	for _, opt := range opts {
 		opt(options)
 	}
@@ -52,6 +49,10 @@ func NewTxSystem(log *slog.Logger, opts ...Option) (*txsystem.GenericTxSystem, e
 	if err != nil {
 		return nil, fmt.Errorf("failed to load fungible tokens module: %w", err)
 	}
+	lockTokens, err := NewLockTokensModule(options)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load lock tokens module: %w", err)
+	}
 	feeCreditModule, err := fc.NewFeeCreditModule(
 		fc.WithState(options.state),
 		fc.WithHashAlgorithm(options.hashAlgorithm),
@@ -66,7 +67,7 @@ func NewTxSystem(log *slog.Logger, opts ...Option) (*txsystem.GenericTxSystem, e
 	}
 	return txsystem.NewGenericTxSystem(
 		log,
-		[]txsystem.Module{nft, fungible, feeCreditModule},
+		[]txsystem.Module{nft, fungible, lockTokens, feeCreditModule},
 		txsystem.WithSystemIdentifier(options.systemIdentifier),
 		txsystem.WithHashAlgorithm(options.hashAlgorithm),
 		txsystem.WithState(options.state),

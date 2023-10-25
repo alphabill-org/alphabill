@@ -6,10 +6,10 @@ import (
 	"math"
 	"testing"
 
-	"github.com/alphabill-org/alphabill/internal/predicates/templates"
 	"github.com/stretchr/testify/require"
 
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
+	"github.com/alphabill-org/alphabill/internal/predicates/templates"
 	"github.com/alphabill-org/alphabill/internal/state"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	testblock "github.com/alphabill-org/alphabill/internal/testutils/block"
@@ -31,11 +31,12 @@ const (
 )
 
 var (
-	existingTokenTypeUnitID  = NewFungibleTokenTypeID(nil, []byte{1})
-	existingTokenTypeUnitID2 = NewFungibleTokenTypeID(nil, []byte{1, 0, 0, 1})
-	existingTokenUnitID      = NewFungibleTokenID(nil, []byte{0x02})
-	existingTokenUnitID2     = NewFungibleTokenID(nil, []byte{0xaa})
-	validUnitID              = NewFungibleTokenID(nil, []byte{100})
+	existingTokenTypeUnitID   = NewFungibleTokenTypeID(nil, []byte{1})
+	existingTokenTypeUnitID2  = NewFungibleTokenTypeID(nil, []byte{1, 0, 0, 1})
+	existingTokenUnitID       = NewFungibleTokenID(nil, []byte{0x02})
+	existingTokenUnitID2      = NewFungibleTokenID(nil, []byte{0xaa})
+	existingLockedTokenUnitID = NewFungibleTokenID(nil, []byte{0xbb})
+	validUnitID               = NewFungibleTokenID(nil, []byte{100})
 )
 
 func TestCreateFungibleTokenType_NotOk(t *testing.T) {
@@ -461,6 +462,18 @@ func TestTransferFungibleToken_NotOk(t *testing.T) {
 			wantErrStr: fmt.Sprintf("unit %s does not exist", NewFungibleTokenID(nil, []byte{42})),
 		},
 		{
+			name: "token locked",
+			tx:   createTransactionOrder(t, &TransferFungibleTokenAttributes{}, PayloadTypeTransferFungibleToken, existingLockedTokenUnitID),
+			attr: &TransferFungibleTokenAttributes{
+				NewBearer:                    templates.AlwaysTrueBytes(),
+				Value:                        existingTokenValue,
+				Nonce:                        test.RandomBytes(32),
+				Backlink:                     make([]byte, 32),
+				InvariantPredicateSignatures: [][]byte{nil},
+			},
+			wantErrStr: "token is locked",
+		},
+		{
 			name: "invalid value",
 			tx:   createTransactionOrder(t, &TransferFungibleTokenAttributes{}, PayloadTypeTransferFungibleToken, existingTokenUnitID),
 			attr: &TransferFungibleTokenAttributes{
@@ -586,6 +599,19 @@ func TestSplitFungibleToken_NotOk(t *testing.T) {
 			tx:         createTransactionOrder(t, nil, PayloadTypeSplitFungibleToken, NewFungibleTokenID(nil, []byte{42})),
 			attr:       &SplitFungibleTokenAttributes{},
 			wantErrStr: fmt.Sprintf("unit %s does not exist", NewFungibleTokenID(nil, []byte{42})),
+		},
+		{
+			name: "token locked",
+			tx:   createTransactionOrder(t, nil, PayloadTypeSplitFungibleToken, existingLockedTokenUnitID),
+			attr: &SplitFungibleTokenAttributes{
+				NewBearer:                    templates.AlwaysTrueBytes(),
+				TargetValue:                  existingTokenValue,
+				RemainingValue:               1,
+				Nonce:                        test.RandomBytes(32),
+				Backlink:                     make([]byte, 32),
+				InvariantPredicateSignatures: [][]byte{nil},
+			},
+			wantErrStr: "token is locked",
 		},
 		{
 			name: "invalid target value - exceeds the max value",
@@ -777,6 +803,18 @@ func TestBurnFungibleToken_NotOk(t *testing.T) {
 			wantErrStr: fmt.Sprintf("unit %s does not exist", NewFungibleTokenID(nil, []byte{42})),
 		},
 		{
+			name: "token locked",
+			tx:   createTransactionOrder(t, nil, PayloadTypeBurnFungibleToken, existingLockedTokenUnitID),
+			attr: &BurnFungibleTokenAttributes{
+				TypeID:                       existingTokenTypeUnitID,
+				Value:                        existingTokenValue,
+				TargetTokenBacklink:          test.RandomBytes(32),
+				Backlink:                     make([]byte, 32),
+				InvariantPredicateSignatures: [][]byte{nil},
+			},
+			wantErrStr: "token is locked",
+		},
+		{
 			name: "invalid value",
 			tx:   createTransactionOrder(t, nil, PayloadTypeBurnFungibleToken, existingTokenUnitID),
 			attr: &BurnFungibleTokenAttributes{
@@ -856,6 +894,43 @@ func TestBurnFungibleToken_Ok(t *testing.T) {
 	u, err := opts.state.GetUnit(uID, false)
 	require.Nil(t, u)
 	require.ErrorContains(t, err, fmt.Sprintf("item %s does not exist", uID))
+}
+
+func TestJoinFungibleToken_Ok(t *testing.T) {
+	signer, verifier := testsig.CreateSignerAndVerifier(t)
+	opts := defaultOpts(t)
+	opts.trustBase = map[string]abcrypto.Verifier{"test": verifier}
+
+	burnAttributes := &BurnFungibleTokenAttributes{
+		TypeID:                       existingTokenTypeUnitID,
+		Value:                        existingTokenValue,
+		TargetTokenID:                existingLockedTokenUnitID,
+		TargetTokenBacklink:          make([]byte, 32),
+		Backlink:                     make([]byte, 32),
+		InvariantPredicateSignatures: [][]byte{templates.AlwaysTrueArgBytes()},
+	}
+	burnTx := createTxRecord(t, existingTokenUnitID, burnAttributes, PayloadTypeBurnFungibleToken)
+	roundNumber := uint64(10)
+	sm, err := handleBurnFungibleTokenTx(opts)(burnTx.TransactionOrder, burnAttributes, roundNumber)
+	require.NoError(t, err)
+	require.NotNil(t, sm)
+
+	burnTxProof := testblock.CreateProof(t, burnTx, signer, testblock.WithSystemIdentifier(DefaultSystemIdentifier))
+	joinAttr := &JoinFungibleTokenAttributes{
+		BurnTransactions:             []*types.TransactionRecord{burnTx},
+		Proofs:                       []*types.TxProof{burnTxProof},
+		Backlink:                     make([]byte, 32),
+		InvariantPredicateSignatures: [][]byte{templates.AlwaysTrueArgBytes()},
+	}
+	joinTx := createTx(t, existingLockedTokenUnitID, burnAttributes, PayloadTypeBurnFungibleToken)
+	sm, err = handleJoinFungibleTokenTx(opts)(joinTx, joinAttr, roundNumber)
+	require.NoError(t, err)
+	require.NotNil(t, sm)
+
+	// verify locked target unit was unlocked
+	u, err := opts.state.GetUnit(existingLockedTokenUnitID, false)
+	require.NoError(t, err)
+	require.EqualValues(t, 0, u.Data().(*fungibleTokenData).locked)
 }
 
 func TestJoinFungibleToken_NotOk(t *testing.T) {
@@ -1027,9 +1102,8 @@ func TestJoinFungibleToken_NotOk(t *testing.T) {
 }
 
 func defaultOpts(t *testing.T) *Options {
-	o, err := defaultOptions()
+	o := defaultOptions()
 	o.state = initState(t)
-	require.NoError(t, err)
 	return o
 }
 
@@ -1069,6 +1143,14 @@ func initState(t *testing.T) *state.State {
 		value:     existingTokenValue,
 		t:         0,
 		backlink:  make([]byte, 32),
+	}))
+	require.NoError(t, err)
+	err = s.Apply(state.AddUnit(existingLockedTokenUnitID, templates.AlwaysTrueBytes(), &fungibleTokenData{
+		tokenType: existingTokenTypeUnitID,
+		value:     existingTokenValue,
+		t:         0,
+		backlink:  make([]byte, 32),
+		locked:    1,
 	}))
 	require.NoError(t, err)
 	err = s.Apply(state.AddUnit(feeCreditID, templates.AlwaysTrueBytes(), &unit.FeeCreditRecord{

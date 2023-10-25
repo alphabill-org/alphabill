@@ -77,7 +77,7 @@ func Test_deserializeMsg(t *testing.T) {
 	t.Run("data stream is shorter than expected", func(t *testing.T) {
 		var dest testMsg
 		err := deserializeMsg(bytes.NewReader(cborData[:len(cborData)-1]), &dest)
-		require.EqualError(t, err, `decoding message data: EOF`)
+		require.EqualError(t, err, `decoding message data: unexpected EOF`)
 	})
 
 	t.Run("extra data in the data stream", func(t *testing.T) {
@@ -92,7 +92,7 @@ func Test_deserializeMsg(t *testing.T) {
 		data[0]--
 		var dest testMsg
 		err := deserializeMsg(bytes.NewReader(data), &dest)
-		require.EqualError(t, err, `decoding message data: EOF`)
+		require.EqualError(t, err, `decoding message data: unexpected EOF`)
 	})
 
 	t.Run("length byte +1", func(t *testing.T) {

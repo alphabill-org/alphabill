@@ -12,12 +12,12 @@ import (
 	"time"
 
 	"github.com/ainvaltin/httpsrv"
+	"github.com/alphabill-org/alphabill/internal/predicates/templates"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/sync/semaphore"
 
 	"github.com/alphabill-org/alphabill/internal/debug"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
-	"github.com/alphabill-org/alphabill/internal/script"
 	"github.com/alphabill-org/alphabill/internal/txsystem/money"
 	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/pkg/client"
@@ -105,7 +105,6 @@ type (
 
 	p2pkhOwnerPredicates struct {
 		sha256 []byte
-		sha512 []byte
 	}
 
 	Config struct {
@@ -254,7 +253,7 @@ func (w *WalletBackend) GetBills(pubkey []byte, includeDCBills bool, offsetKey [
 	ownerPredicates := newOwnerPredicates(keyHashes)
 	nextKey := offsetKey
 	bills := make([]*Bill, 0, limit)
-	for _, predicate := range [][]byte{ownerPredicates.sha256, ownerPredicates.sha512} {
+	for _, predicate := range [][]byte{ownerPredicates.sha256} {
 		remainingLimit := limit - len(bills)
 		batch, batchNextKey, err := w.store.Do().GetBills(predicate, includeDCBills, nextKey, remainingLimit)
 		if err != nil {
@@ -382,25 +381,13 @@ func (w *WalletBackend) storeIncomingTransactions(sender sdk.PubKey, txs []*type
 
 // extractOwnerFromP2pkh extracts owner from p2pkh predicate.
 func extractOwnerHashFromP2pkh(bearer sdk.Predicate) sdk.PubKeyHash {
-	// p2pkh owner predicate must be 10 + (32 or 64) (SHA256 or SHA512) bytes long
-	if len(bearer) != 42 && len(bearer) != 74 {
-		return nil
-	}
-	// 6th byte is HashAlgo 0x01 or 0x02 for SHA256 and SHA512 respectively
-	hashAlgo := bearer[5]
-	if hashAlgo == script.HashAlgSha256 {
-		return sdk.PubKeyHash(bearer[6:38])
-	} else if hashAlgo == script.HashAlgSha512 {
-		return sdk.PubKeyHash(bearer[6:70])
-	}
-	return nil
+	pkh, _ := templates.ExtractPubKeyHash(bearer)
+	return pkh
 }
 
 func extractOwnerKeyFromProof(signature sdk.Predicate) sdk.PubKey {
-	if len(signature) == 103 && signature[68] == script.OpPushPubKey && signature[69] == script.SigSchemeSecp256k1 {
-		return sdk.PubKey(signature[70:])
-	}
-	return nil
+	pk, _ := templates.ExtractPubKey(signature)
+	return pk
 }
 
 func (b *Bill) ToGenericBill() *sdk.Bill {
@@ -444,8 +431,5 @@ func (b *Bill) IsDCBill() bool {
 }
 
 func newOwnerPredicates(hashes *account.KeyHashes) *p2pkhOwnerPredicates {
-	return &p2pkhOwnerPredicates{
-		sha256: script.PredicatePayToPublicKeyHash(script.HashAlgSha256, hashes.Sha256, script.SigSchemeSecp256k1),
-		sha512: script.PredicatePayToPublicKeyHash(script.HashAlgSha512, hashes.Sha512, script.SigSchemeSecp256k1),
-	}
+	return &p2pkhOwnerPredicates{sha256: templates.NewP2pkh256BytesFromKeyHash(hashes.Sha256)}
 }

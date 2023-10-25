@@ -7,11 +7,10 @@ import (
 	"slices"
 	"sort"
 
+	"github.com/alphabill-org/alphabill/internal/predicates/templates"
 	"github.com/fxamacker/cbor/v2"
 
 	"github.com/alphabill-org/alphabill/internal/crypto"
-	"github.com/alphabill-org/alphabill/internal/hash"
-	"github.com/alphabill-org/alphabill/internal/script"
 	"github.com/alphabill-org/alphabill/internal/txsystem/fc/transactions"
 	"github.com/alphabill-org/alphabill/internal/txsystem/money"
 	"github.com/alphabill-org/alphabill/internal/types"
@@ -56,7 +55,7 @@ func CreateTransaction(receiverPubKey []byte, k *account.AccountKey, amount uint
 		return NewTransferTx(receiverPubKey, k, systemID, b, timeout, fcrID)
 	}
 	targetUnits := []*money.TargetUnit{
-		{Amount: amount, OwnerCondition: script.PredicatePayToPublicKeyHashDefault(hash.Sum256(receiverPubKey))},
+		{Amount: amount, OwnerCondition: templates.NewP2pkh256BytesFromKey(receiverPubKey)},
 	}
 	remainingValue := b.Value - amount
 	return NewSplitTx(targetUnits, remainingValue, k, systemID, b, timeout, fcrID)
@@ -65,7 +64,7 @@ func CreateTransaction(receiverPubKey []byte, k *account.AccountKey, amount uint
 // NewTransferTx creates a P2PKH transfer transaction.
 func NewTransferTx(receiverPubKey []byte, k *account.AccountKey, systemID []byte, bill *wallet.Bill, timeout uint64, fcrID []byte) (*types.TransactionOrder, error) {
 	attr := &money.TransferAttributes{
-		NewBearer:   script.PredicatePayToPublicKeyHashDefault(hash.Sum256(receiverPubKey)),
+		NewBearer:   templates.NewP2pkh256BytesFromKey(receiverPubKey),
 		TargetValue: bill.Value,
 		Backlink:    bill.TxHash,
 	}
@@ -125,7 +124,7 @@ func NewSwapTx(k *account.AccountKey, systemID []byte, dcProofs []*wallet.Proof,
 		billValueSum += attr.Value
 	}
 	attr := &money.SwapDCAttributes{
-		OwnerCondition:   script.PredicatePayToPublicKeyHashDefault(k.PubKeyHash.Sha256),
+		OwnerCondition:   templates.NewP2pkh256BytesFromKeyHash(k.PubKeyHash.Sha256),
 		DcTransfers:      dustTransferRecords,
 		DcTransferProofs: dustTransferProofs,
 		TargetValue:      billValueSum,
@@ -160,7 +159,7 @@ func NewTransferFCTx(amount uint64, targetRecordID []byte, targetUnitBacklink []
 
 func NewAddFCTx(unitID []byte, fcProof *wallet.Proof, ac *account.AccountKey, systemID []byte, timeout uint64) (*types.TransactionOrder, error) {
 	attr := &transactions.AddFeeCreditAttributes{
-		FeeCreditOwnerCondition: script.PredicatePayToPublicKeyHashDefault(ac.PubKeyHash.Sha256),
+		FeeCreditOwnerCondition: templates.NewP2pkh256BytesFromKeyHash(ac.PubKeyHash.Sha256),
 		FeeCreditTransfer:       fcProof.TxRecord,
 		FeeCreditTransferProof:  fcProof.TxProof,
 	}
@@ -230,6 +229,6 @@ func signPayload(payload *types.Payload, ac *account.AccountKey) (*types.Transac
 	}
 	return &types.TransactionOrder{
 		Payload:    payload,
-		OwnerProof: script.PredicateArgumentPayToPublicKeyHashDefault(sig, ac.PubKey),
+		OwnerProof: templates.NewP2pkh256SignatureBytes(sig, ac.PubKey),
 	}, nil
 }

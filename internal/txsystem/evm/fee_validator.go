@@ -3,7 +3,7 @@ package evm
 import (
 	"fmt"
 
-	"github.com/alphabill-org/alphabill/internal/script"
+	"github.com/alphabill-org/alphabill/internal/predicates"
 	"github.com/alphabill-org/alphabill/internal/state"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/internal/txsystem/fc/transactions"
@@ -37,7 +37,7 @@ func checkFeeAccountBalance(state *state.State) txsystem.GenericTransactionValid
 				return fmt.Errorf("failed to marshal payload bytes: %w", err)
 			}
 
-			if err = script.RunScript(ctx.Tx.OwnerProof, u.Bearer(), payloadBytes); err != nil {
+			if err = predicates.RunPredicate(u.Bearer(), ctx.Tx.OwnerProof, payloadBytes); err != nil {
 				return fmt.Errorf("invalid owner proof: %w [txOwnerProof=0x%x unitOwnerCondition=0x%x sigData=0x%x]",
 					err, ctx.Tx.OwnerProof, u.Bearer(), payloadBytes)
 			}

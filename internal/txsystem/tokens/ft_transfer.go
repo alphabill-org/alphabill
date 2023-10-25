@@ -6,11 +6,13 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/fxamacker/cbor/v2"
+
+	"github.com/alphabill-org/alphabill/internal/predicates"
 	"github.com/alphabill-org/alphabill/internal/state"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/pkg/tree/avl"
-	"github.com/fxamacker/cbor/v2"
 )
 
 func handleTransferFungibleTokenTx(options *Options) txsystem.GenericExecuteFunc[TransferFungibleTokenAttributes] {
@@ -80,7 +82,7 @@ func validateTransferFungibleToken(tx *types.TransactionOrder, attr *TransferFun
 	return verifyOwnership(bearer, predicates, &transferFungibleTokenOwnershipProver{tx: tx, attr: attr})
 }
 
-func getFungibleTokenData(unitID types.UnitID, s *state.State) (state.Predicate, *fungibleTokenData, error) {
+func getFungibleTokenData(unitID types.UnitID, s *state.State) (predicates.PredicateBytes, *fungibleTokenData, error) {
 	if !unitID.HasType(FungibleTokenUnitType) {
 		return nil, nil, fmt.Errorf(ErrStrInvalidUnitID)
 	}

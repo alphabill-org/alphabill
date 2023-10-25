@@ -10,7 +10,7 @@ import (
 
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/hash"
-	"github.com/alphabill-org/alphabill/internal/script"
+	"github.com/alphabill-org/alphabill/internal/predicates/templates"
 	"github.com/alphabill-org/alphabill/internal/txsystem/money"
 	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/pkg/wallet"
@@ -199,7 +199,7 @@ func (w *Wallet) Send(ctx context.Context, cmd SendCmd) ([]*wallet.Proof, error)
 		for _, r := range cmd.Receivers {
 			targetUnits = append(targetUnits, &money.TargetUnit{
 				Amount:         r.Amount,
-				OwnerCondition: script.PredicatePayToPublicKeyHashDefault(hash.Sum256(r.PubKey)),
+				OwnerCondition: templates.NewP2pkh256BytesFromKeyHash(hash.Sum256(r.PubKey)),
 			})
 		}
 		remainingValue := largestBill.Value - totalAmount

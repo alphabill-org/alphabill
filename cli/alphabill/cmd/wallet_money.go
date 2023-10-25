@@ -148,13 +148,11 @@ func sendCmd(config *walletConfig) *cobra.Command {
 	cmd.Flags().Uint64P(keyCmdName, "k", 1, "which key to use for sending the transaction")
 	// use string instead of boolean as boolean requires equals sign between name and value e.g. w=[true|false]
 	cmd.Flags().StringP(waitForConfCmdName, "w", "true", "waits for transaction confirmation on the blockchain, otherwise just broadcasts the transaction")
-	err := cmd.MarkFlagRequired(addressCmdName)
-	if err != nil {
-		return nil
+	if err := cmd.MarkFlagRequired(addressCmdName); err != nil {
+		panic(err)
 	}
-	err = cmd.MarkFlagRequired(amountCmdName)
-	if err != nil {
-		return nil
+	if err := cmd.MarkFlagRequired(amountCmdName); err != nil {
+		panic(err)
 	}
 	return cmd
 }

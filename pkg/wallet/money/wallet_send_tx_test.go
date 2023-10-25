@@ -10,7 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/alphabill-org/alphabill/internal/hash"
-	"github.com/alphabill-org/alphabill/internal/script"
+	"github.com/alphabill-org/alphabill/internal/predicates/templates"
 	"github.com/alphabill-org/alphabill/internal/txsystem/money"
 	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/pkg/wallet"
@@ -503,7 +503,7 @@ func TestWalletSendFunction_NWaySplit(t *testing.T) {
 	require.Len(t, attr.TargetUnits, 5)
 	for _, unit := range attr.TargetUnits {
 		require.EqualValues(t, 5, unit.Amount)
-		require.EqualValues(t, script.PredicatePayToPublicKeyHashDefault(hash.Sum256(pubKey)), unit.OwnerCondition)
+		require.EqualValues(t, templates.NewP2pkh256BytesFromKeyHash(hash.Sum256(pubKey)), unit.OwnerCondition)
 	}
 }
 

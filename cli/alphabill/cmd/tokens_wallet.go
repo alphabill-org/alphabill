@@ -8,7 +8,6 @@ import (
 	"sort"
 	"strconv"
 
-	"github.com/alphabill-org/alphabill/internal/script"
 	"github.com/alphabill-org/alphabill/internal/txsystem/tokens"
 	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/alphabill-org/alphabill/pkg/wallet/account"
@@ -93,11 +92,10 @@ func addCommonTypeFlags(cmd *cobra.Command) *cobra.Command {
 	cmd.Flags().String(cmdFlagSymbol, "", "symbol (short name) of the token type (mandatory)")
 	cmd.Flags().String(cmdFlagName, "", "full name of the token type (optional)")
 	cmd.Flags().String(cmdFlagIconFile, "", "icon file name for the token type (optional)")
-
-	err := cmd.MarkFlagRequired(cmdFlagSymbol)
-	if err != nil {
-		return nil
+	if err := cmd.MarkFlagRequired(cmdFlagSymbol); err != nil {
+		panic(err)
 	}
+
 	cmd.Flags().BytesHex(cmdFlagParentType, nil, "unit identifier of a parent type in hexadecimal format")
 	cmd.Flags().StringSlice(cmdFlagSybTypeClauseInput, nil, "input to satisfy the parent type creation clause (mandatory with --parent-type)")
 	cmd.MarkFlagsRequiredTogether(cmdFlagParentType, cmdFlagSybTypeClauseInput)
@@ -692,10 +690,10 @@ func tokenCmdUpdateNFTData(config *walletConfig) *cobra.Command {
 		},
 	}
 	cmd.Flags().BytesHex(cmdFlagTokenId, nil, "token identifier (hex)")
-	err := cmd.MarkFlagRequired(cmdFlagTokenId)
-	if err != nil {
+	if err := cmd.MarkFlagRequired(cmdFlagTokenId); err != nil {
 		panic(err)
 	}
+
 	cmd.Flags().BytesHex(cmdFlagTokenData, nil, "custom data (hex)")
 	cmd.Flags().String(cmdFlagTokenDataFile, "", "data file (max 64Kb) path")
 	cmd.MarkFlagsMutuallyExclusive(cmdFlagTokenData, cmdFlagTokenDataFile)
@@ -968,7 +966,7 @@ func readParentTypeInfo(cmd *cobra.Command, keyNr uint64, am account.Manager) (b
 	}
 
 	if len(parentType) == 0 {
-		return nil, []*wallet.PredicateInput{{Argument: script.PredicateArgumentEmpty()}}, nil
+		return nil, []*wallet.PredicateInput{{Argument: nil}}, nil
 	}
 
 	creationInputs, err := readPredicateInput(cmd, cmdFlagSybTypeClauseInput, keyNr, am)
@@ -985,7 +983,7 @@ func readPredicateInput(cmd *cobra.Command, flag string, keyNr uint64, am accoun
 		return nil, err
 	}
 	if len(creationInputStrs) == 0 {
-		return []*wallet.PredicateInput{{Argument: script.PredicateArgumentEmpty()}}, nil
+		return []*wallet.PredicateInput{{Argument: nil}}, nil
 	}
 	creationInputs, err := wallet.ParsePredicates(creationInputStrs, keyNr, am)
 	if err != nil {

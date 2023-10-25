@@ -18,8 +18,7 @@ func newNodeIdentifierCmd() *cobra.Command {
 		},
 	}
 	cmd.Flags().StringVarP(&file, keyFileCmdFlag, "k", "", "path to the key file")
-	err := cmd.MarkFlagRequired(keyFileCmdFlag)
-	if err != nil {
+	if err := cmd.MarkFlagRequired(keyFileCmdFlag); err != nil {
 		panic(err)
 	}
 	return cmd

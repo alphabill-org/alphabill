@@ -12,9 +12,9 @@ import (
 	"time"
 
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
+	"github.com/alphabill-org/alphabill/internal/predicates/templates"
 	rootgenesis "github.com/alphabill-org/alphabill/internal/rootchain/genesis"
 	"github.com/alphabill-org/alphabill/internal/rpc/alphabill"
-	"github.com/alphabill-org/alphabill/internal/script"
 	"github.com/alphabill-org/alphabill/internal/testutils/logger"
 	"github.com/alphabill-org/alphabill/internal/testutils/net"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
@@ -361,7 +361,7 @@ func TestRunMoneyNode_Ok(t *testing.T) {
 func makeSuccessfulPayment(t *testing.T, ctx context.Context, txClient alphabill.AlphabillServiceClient) {
 	initialBillID := defaultInitialBillID
 	attr := &money.TransferAttributes{
-		NewBearer:   script.PredicateAlwaysTrue(),
+		NewBearer:   templates.AlwaysTrueBytes(),
 		TargetValue: defaultInitialBillValue,
 	}
 	attrBytes, _ := cbor.Marshal(attr)
@@ -373,7 +373,7 @@ func makeSuccessfulPayment(t *testing.T, ctx context.Context, txClient alphabill
 			SystemID:       []byte{0, 0, 0, 0},
 			Attributes:     attrBytes,
 		},
-		OwnerProof: script.PredicateArgumentEmpty(),
+		OwnerProof: nil,
 	}
 	txBytes, _ := cbor.Marshal(tx)
 	protoTx := &alphabill.Transaction{Order: txBytes}
@@ -384,7 +384,7 @@ func makeSuccessfulPayment(t *testing.T, ctx context.Context, txClient alphabill
 func makeFailingPayment(t *testing.T, ctx context.Context, txClient alphabill.AlphabillServiceClient) {
 	wrongBillID := money.NewBillID(nil, []byte{6})
 	attr := &money.TransferAttributes{
-		NewBearer:   script.PredicateAlwaysTrue(),
+		NewBearer:   templates.AlwaysTrueBytes(),
 		TargetValue: defaultInitialBillValue,
 	}
 	attrBytes, _ := cbor.Marshal(attr)
@@ -396,7 +396,7 @@ func makeFailingPayment(t *testing.T, ctx context.Context, txClient alphabill.Al
 			SystemID:       []byte{0},
 			Attributes:     attrBytes,
 		},
-		OwnerProof: script.PredicateArgumentEmpty(),
+		OwnerProof: nil,
 	}
 	txBytes, _ := cbor.Marshal(tx)
 	protoTx := &alphabill.Transaction{Order: txBytes}

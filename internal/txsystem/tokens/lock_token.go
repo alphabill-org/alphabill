@@ -35,7 +35,7 @@ func updateLockTokenData(data state.UnitData, tx *types.TransactionOrder, attr *
 	} else if tx.UnitID().HasType(NonFungibleTokenUnitType) {
 		return updateLockNonFungibleTokenData(data, tx, attr, roundNumber, options)
 	} else {
-		return nil, errors.New(ErrStrInvalidUnitID)
+		return nil, fmt.Errorf("unit id '%s' is not of fungible nor non-fungible token type", tx.UnitID())
 	}
 }
 
@@ -86,7 +86,7 @@ func validateLockTokenTx(tx *types.TransactionOrder, attr *LockTokenAttributes, 
 	} else if tx.UnitID().HasType(NonFungibleTokenUnitType) {
 		return validateNonFungibleLockToken(tx, attr, options, u)
 	} else {
-		return errors.New(ErrStrInvalidUnitID)
+		return fmt.Errorf("unit id '%s' is not of fungible nor non-fungible token type", tx.UnitID())
 	}
 }
 
@@ -109,7 +109,7 @@ func validateFungibleLockToken(tx *types.TransactionOrder, attr *LockTokenAttrib
 	if err != nil {
 		return fmt.Errorf("failed to load token type predicate chain: %w", err)
 	}
-	return validateLockToken(u, tx, attr, predicates, d)
+	return validateTokenLock(u, tx, attr, predicates, d)
 }
 
 func validateNonFungibleLockToken(tx *types.TransactionOrder, attr *LockTokenAttributes, options *Options, u *state.Unit) error {
@@ -131,7 +131,7 @@ func validateNonFungibleLockToken(tx *types.TransactionOrder, attr *LockTokenAtt
 	if err != nil {
 		return fmt.Errorf("failed to load token type predicate chain: %w", err)
 	}
-	return validateLockToken(u, tx, attr, predicates, d)
+	return validateTokenLock(u, tx, attr, predicates, d)
 }
 
 type lockTokenOwnershipProver struct {
@@ -166,7 +166,7 @@ type tokenData interface {
 	Locked() uint64
 }
 
-func validateLockToken(u *state.Unit, tx *types.TransactionOrder, attr *LockTokenAttributes, predicates []state.Predicate, d tokenData) error {
+func validateTokenLock(u *state.Unit, tx *types.TransactionOrder, attr *LockTokenAttributes, predicates []state.Predicate, d tokenData) error {
 	// token is not locked
 	if d.Locked() != 0 {
 		return errors.New("token is already locked")

@@ -36,7 +36,7 @@ func updateUnlockTokenData(data state.UnitData, tx *types.TransactionOrder, roun
 	} else if tx.UnitID().HasType(NonFungibleTokenUnitType) {
 		return updateUnlockNonFungibleTokenData(data, tx, roundNumber, options)
 	} else {
-		return nil, errors.New(ErrStrInvalidUnitID)
+		return nil, fmt.Errorf("unit id '%s' is not of fungible nor non-fungible token type", tx.UnitID())
 	}
 }
 
@@ -86,7 +86,7 @@ func validateUnlockTokenTx(tx *types.TransactionOrder, attr *UnlockTokenAttribut
 	} else if tx.UnitID().HasType(NonFungibleTokenUnitType) {
 		return validateUnlockNonFungibleToken(tx, attr, options, u)
 	} else {
-		return errors.New(ErrStrInvalidUnitID)
+		return fmt.Errorf("unit id '%s' is not of fungible nor non-fungible token type", tx.UnitID())
 	}
 }
 

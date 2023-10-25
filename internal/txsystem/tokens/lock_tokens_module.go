@@ -4,7 +4,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 )
 
-var _ txsystem.Module = &LockTokensModule{}
+var _ txsystem.Module = (*LockTokensModule)(nil)
 
 type LockTokensModule struct {
 	txExecutors map[string]txsystem.TxExecutor

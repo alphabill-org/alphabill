@@ -471,8 +471,9 @@ func Test_blockProcessor_ProcessFeeCreditTxs(t *testing.T) {
 	require.NoError(t, err)
 	require.EqualValues(t, closeFC.UnitID(), fcb.Id)
 	require.EqualValues(t, 39, fcb.GetValue())
-	require.Equal(t, closeFC.Hash(crypto.SHA256), fcb.TxHash)
-	require.Equal(t, expectedAddFCHash, fcb.LastAddFCTxHash)
+	closeFCHash := closeFC.Hash(crypto.SHA256)
+	require.Equal(t, closeFCHash, fcb.TxHash)
+	require.Equal(t, closeFCHash, fcb.LastAddFCTxHash)
 
 	// and closeFC tx is recorded
 	actualCloseFCTxRecord, err := bp.store.GetClosedFeeCredit(fcb.Id)

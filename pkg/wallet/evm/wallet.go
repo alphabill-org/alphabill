@@ -8,7 +8,7 @@ import (
 	"strings"
 
 	"github.com/alphabill-org/alphabill/internal/crypto"
-	"github.com/alphabill-org/alphabill/internal/script"
+	"github.com/alphabill-org/alphabill/internal/predicates/templates"
 	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/pkg/wallet/account"
 	evmclient "github.com/alphabill-org/alphabill/pkg/wallet/evm/client"
@@ -192,6 +192,6 @@ func signPayload(payload *types.Payload, ac *account.AccountKey) (*types.Transac
 	}
 	return &types.TransactionOrder{
 		Payload:    payload,
-		OwnerProof: script.PredicateArgumentPayToPublicKeyHashDefault(sig, ac.PubKey),
+		OwnerProof: templates.NewP2pkh256SignatureBytes(sig, ac.PubKey),
 	}, nil
 }

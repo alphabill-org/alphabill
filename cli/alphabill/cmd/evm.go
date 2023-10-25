@@ -48,7 +48,7 @@ func newEvmNodeCmd(baseConfig *baseConfiguration) *cobra.Command {
 	config.RESTServer.addConfigurationFlags(nodeCmd)
 	// mark the --tb-tx flag as mandatory for EVM nodes
 	if err := nodeCmd.MarkFlagRequired("tx-db"); err != nil {
-		return nil
+		panic(err)
 	}
 	return nodeCmd
 }

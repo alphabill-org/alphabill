@@ -81,9 +81,7 @@ func newGenesisCmd(config *rootGenesisConfig) *cobra.Command {
 	cmd.Flags().Uint32Var(&config.QuorumThreshold, quorumThresholdCmdFlag, 0, "define higher quorum threshold instead of calculated default")
 	cmd.Flags().MarkHidden(quorumThresholdCmdFlag)
 	cmd.Flags().StringVar(&config.HashAlgorithm, "hash-algorithm", "SHA-256", "Hash algorithm to be used")
-
-	err := cmd.MarkFlagRequired(partitionRecordFile)
-	if err != nil {
+	if err := cmd.MarkFlagRequired(partitionRecordFile); err != nil {
 		panic(err)
 	}
 	return cmd

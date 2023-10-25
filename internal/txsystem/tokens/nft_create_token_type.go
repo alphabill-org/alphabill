@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/alphabill-org/alphabill/internal/script"
+	"github.com/alphabill-org/alphabill/internal/predicates/templates"
 	"github.com/alphabill-org/alphabill/internal/state"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/internal/types"
@@ -23,7 +23,7 @@ func handleCreateNoneFungibleTokenTx(options *Options) txsystem.GenericExecuteFu
 		// update state
 		unitID := tx.UnitID()
 		if err := options.state.Apply(
-			state.AddUnit(unitID, script.PredicateAlwaysTrue(), newNonFungibleTokenTypeData(attr)),
+			state.AddUnit(unitID, templates.AlwaysTrueBytes(), newNonFungibleTokenTypeData(attr)),
 		); err != nil {
 			return nil, err
 		}

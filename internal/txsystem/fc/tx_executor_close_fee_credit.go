@@ -3,6 +3,7 @@ package fc
 import (
 	"fmt"
 
+	"github.com/alphabill-org/alphabill/internal/state"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/internal/txsystem/fc/transactions"
 	"github.com/alphabill-org/alphabill/internal/txsystem/fc/unit"
@@ -15,11 +16,19 @@ func handleCloseFeeCreditTx(f *FeeCredit) txsystem.GenericExecuteFunc[transactio
 		if err := f.txValidator.ValidateCloseFC(&CloseFCValidationContext{Tx: tx, Unit: bd}); err != nil {
 			return nil, fmt.Errorf("closeFC: tx validation failed: %w", err)
 		}
-		// decrement credit
-		if err := f.state.Apply(unit.DecrCredit(tx.UnitID(), attr.Amount)); err != nil {
+		decrCreditFn := unit.DecrCredit(tx.UnitID(), attr.Amount)
+		updateDataFn := state.UpdateUnitData(tx.UnitID(),
+			func(data state.UnitData) (state.UnitData, error) {
+				fcr, ok := data.(*unit.FeeCreditRecord)
+				if !ok {
+					return nil, fmt.Errorf("unit %v does not contain fee credit record", tx.UnitID())
+				}
+				fcr.Backlink = tx.Hash(f.hashAlgorithm)
+				return fcr, nil
+			})
+		if err := f.state.Apply(decrCreditFn, updateDataFn); err != nil {
 			return nil, fmt.Errorf("closeFC: state update failed: %w", err)
 		}
-		// calculate actual tx fee cost
 		return &types.ServerMetadata{ActualFee: f.feeCalculator(), TargetUnits: []types.UnitID{tx.UnitID()}, SuccessIndicator: types.TxStatusSuccessful}, nil
 	}
 }

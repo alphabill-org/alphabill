@@ -21,7 +21,7 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/stretchr/testify/require"
 
-	"github.com/alphabill-org/alphabill/internal/script"
+	"github.com/alphabill-org/alphabill/internal/predicates/templates"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	testhttp "github.com/alphabill-org/alphabill/internal/testutils/http"
 	"github.com/alphabill-org/alphabill/internal/testutils/logger"
@@ -159,7 +159,7 @@ func Test_txHistory(t *testing.T) {
 
 	pubkey := sdk.PubKey(test.RandomBytes(33))
 	pubkey2 := sdk.PubKey(test.RandomBytes(33))
-	bearerPredicate := script.PredicatePayToPublicKeyHashDefault(pubkey2.Hash())
+	bearerPredicate := templates.NewP2pkh256BytesFromKeyHash(pubkey2.Hash())
 	attrs := &money.TransferAttributes{NewBearer: bearerPredicate}
 	b, err := cbor.Marshal(sdk.Transactions{Transactions: []*types.TransactionOrder{
 		testtransaction.NewTransactionOrder(t, testtransaction.WithPayloadType(money.PayloadTypeTransfer), testtransaction.WithAttributes(attrs))},

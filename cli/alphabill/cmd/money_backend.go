@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
-	"github.com/alphabill-org/alphabill/internal/script"
+	"github.com/alphabill-org/alphabill/internal/predicates/templates"
 	"github.com/alphabill-org/alphabill/internal/txsystem/money"
 	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/alphabill-org/alphabill/pkg/wallet/money/backend"
@@ -113,7 +113,7 @@ func execMoneyBackendStartCmd(ctx context.Context, config *moneyBackendConfig) e
 		InitialBill: backend.InitialBill{
 			Id:        money.NewBillID(nil, util.Uint64ToBytes(config.InitialBillID)),
 			Value:     config.InitialBillValue,
-			Predicate: script.PredicateAlwaysTrue(),
+			Predicate: templates.AlwaysTrueBytes(),
 		},
 		SystemDescriptionRecords: sdrFiles,
 		Logger:                   config.Base.Logger,

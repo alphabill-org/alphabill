@@ -4,7 +4,7 @@ import (
 	"crypto"
 	"fmt"
 
-	"github.com/alphabill-org/alphabill/internal/script"
+	"github.com/alphabill-org/alphabill/internal/predicates/templates"
 	"github.com/alphabill-org/alphabill/internal/state"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/internal/txsystem/evm/statedb"
@@ -27,7 +27,7 @@ func getTransferPayloadAttributes(transfer *types.TransactionRecord) (*transacti
 
 func addFeeCreditTx(s *state.State, hashAlgorithm crypto.Hash, calcFee FeeCalculator, validator *fc.DefaultFeeCreditTxValidator) txsystem.GenericExecuteFunc[transactions.AddFeeCreditAttributes] {
 	return func(tx *types.TransactionOrder, attr *transactions.AddFeeCreditAttributes, currentBlockNumber uint64) (*types.ServerMetadata, error) {
-		pubKey, err := script.ExtractPubKeyFromPredicateArgument(tx.OwnerProof)
+		pubKey, err := templates.ExtractPubKey(tx.OwnerProof)
 		if err != nil {
 			return nil, fmt.Errorf("failed to extract public key from fee credit owner proof")
 		}
@@ -44,9 +44,9 @@ func addFeeCreditTx(s *state.State, hashAlgorithm crypto.Hash, calcFee FeeCalcul
 		if u != nil && u.Data().(*statedb.StateObject).AlphaBill != nil {
 			stateObj := u.Data().(*statedb.StateObject)
 			data := &unit.FeeCreditRecord{
-				Balance: weiToAlpha(stateObj.Account.Balance),
-				Hash:    stateObj.AlphaBill.TxHash,
-				Timeout: stateObj.AlphaBill.Timeout,
+				Balance:  weiToAlpha(stateObj.Account.Balance),
+				Backlink: stateObj.AlphaBill.TxHash,
+				Timeout:  stateObj.AlphaBill.Timeout,
 			}
 			feeCreditRecordUnit = state.NewUnit(
 				u.Bearer(),

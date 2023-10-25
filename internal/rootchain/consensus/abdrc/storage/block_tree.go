@@ -185,7 +185,7 @@ func (bt *BlockTree) RemoveLeaf(round uint64) error {
 		return nil
 	}
 	if len(n.child) > 0 {
-		return fmt.Errorf("error round %v is not child node", round)
+		return fmt.Errorf("error round %v is not leaf node", round)
 	}
 	parent, found := bt.roundToNode[n.data.GetParentRound()]
 	if !found {

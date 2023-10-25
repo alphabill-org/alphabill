@@ -167,9 +167,9 @@ func initFromGenesis(t *testing.T) *BlockTree {
 func TestBlockTree_RemoveLeaf(t *testing.T) {
 	tree := createTestBlockTree(t)
 	// remove leaf that has children
-	require.ErrorContains(t, tree.RemoveLeaf(9), "error round 9 is not child node")
+	require.ErrorContains(t, tree.RemoveLeaf(9), "error round 9 is not leaf node")
 	require.ErrorContains(t, tree.RemoveLeaf(5), "error root cannot be removed")
-	require.ErrorContains(t, tree.RemoveLeaf(11), "error round 11 is not child node")
+	require.ErrorContains(t, tree.RemoveLeaf(11), "error round 11 is not leaf node")
 	require.NoError(t, tree.RemoveLeaf(8))
 	b, err := tree.FindBlock(8)
 	require.ErrorContains(t, err, "block for round 8 not found")

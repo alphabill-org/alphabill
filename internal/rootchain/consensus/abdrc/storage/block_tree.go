@@ -12,10 +12,10 @@ import (
 )
 
 type (
-	// tree node creates a chain of consecutive blocks
+	// tree node creates a tree of consecutive blocks
 	node struct {
 		data  *ExecutedBlock
-		child []*node // add by view number
+		child []*node // child nodes
 	}
 
 	BlockTree struct {

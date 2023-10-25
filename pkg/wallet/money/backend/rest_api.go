@@ -339,7 +339,10 @@ func (api *moneyRestAPI) postTransactions(w http.ResponseWriter, r *http.Request
 	api.Service.HandleTransactionsSubmission(egp, senderPubkey, txs.Transactions)
 
 	if errs := api.Service.SendTransactions(r.Context(), txs.Transactions); len(errs) > 0 {
-		api.log.LogAttrs(r.Context(), slog.LevelDebug, "error on POST /transactions", logger.Error(err))
+		for k, v := range errs {
+			err = fmt.Errorf("%s: %s", k, v)
+			api.log.LogAttrs(r.Context(), slog.LevelDebug, "error on POST /transactions", logger.Error(err))
+		}
 		w.WriteHeader(http.StatusInternalServerError)
 		api.rw.WriteResponse(w, errs)
 		return

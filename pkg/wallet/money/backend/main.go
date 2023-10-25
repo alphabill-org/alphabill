@@ -195,15 +195,16 @@ func Run(ctx context.Context, config *Config) error {
 			ListBillsPageLimit: config.ListBillsPageLimit,
 			SystemID:           config.ABMoneySystemIdentifier,
 			rw:                 &sdk.ResponseWriter{LogErr: func(err error) { config.Logger.Error(err.Error()) }},
+			log:                config.Logger,
 		}
 
 		return httpsrv.Run(ctx,
 			http.Server{
 				Addr:              config.ServerAddr,
 				Handler:           handler.Router(),
-				ReadTimeout:       3 * time.Second,
+				ReadTimeout:       5 * time.Second,
 				ReadHeaderTimeout: time.Second,
-				WriteTimeout:      5 * time.Second,
+				WriteTimeout:      10 * time.Second,
 				IdleTimeout:       30 * time.Second,
 			},
 			httpsrv.ShutdownTimeout(5*time.Second),

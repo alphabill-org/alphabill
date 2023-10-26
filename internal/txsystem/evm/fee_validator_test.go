@@ -3,9 +3,9 @@ package evm
 import (
 	"testing"
 
-	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
-	testfc "github.com/alphabill-org/alphabill/internal/txsystem/fc/testutils"
-	"github.com/alphabill-org/alphabill/internal/types"
+	testsig "github.com/alphabill-org/alphabill/validator/internal/testutils/sig"
+	testfc "github.com/alphabill-org/alphabill/validator/internal/txsystem/fc/testutils"
+	"github.com/alphabill-org/alphabill/validator/internal/types"
 )
 
 /*

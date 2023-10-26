@@ -5,9 +5,9 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	testtransaction "github.com/alphabill-org/alphabill/internal/testutils/transaction"
-	"github.com/alphabill-org/alphabill/internal/txsystem/fc/transactions"
-	"github.com/alphabill-org/alphabill/internal/types"
+	testtransaction "github.com/alphabill-org/alphabill/validator/internal/testutils/transaction"
+	"github.com/alphabill-org/alphabill/validator/internal/txsystem/fc/transactions"
+	"github.com/alphabill-org/alphabill/validator/internal/types"
 )
 
 type LockFeeCreditOption func(Attributes *transactions.LockFeeCreditAttributes)

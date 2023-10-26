@@ -6,13 +6,13 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/alphabill-org/alphabill/internal/predicates"
-	"github.com/alphabill-org/alphabill/internal/predicates/templates"
-	"github.com/alphabill-org/alphabill/internal/txsystem/tokens"
-	"github.com/alphabill-org/alphabill/internal/types"
-	"github.com/alphabill-org/alphabill/pkg/wallet"
-	"github.com/alphabill-org/alphabill/pkg/wallet/account"
-	twb "github.com/alphabill-org/alphabill/pkg/wallet/tokens/backend"
+	"github.com/alphabill-org/alphabill/validator/internal/predicates"
+	"github.com/alphabill-org/alphabill/validator/internal/predicates/templates"
+	"github.com/alphabill-org/alphabill/validator/internal/txsystem/tokens"
+	"github.com/alphabill-org/alphabill/validator/internal/types"
+	"github.com/alphabill-org/alphabill/validator/pkg/wallet"
+	"github.com/alphabill-org/alphabill/validator/pkg/wallet/account"
+	twb "github.com/alphabill-org/alphabill/validator/pkg/wallet/tokens/backend"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 )
 

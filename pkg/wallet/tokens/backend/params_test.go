@@ -4,8 +4,8 @@ import (
 	"crypto/rand"
 	"testing"
 
-	"github.com/alphabill-org/alphabill/internal/types"
-	sdk "github.com/alphabill-org/alphabill/pkg/wallet"
+	"github.com/alphabill-org/alphabill/validator/internal/types"
+	sdk "github.com/alphabill-org/alphabill/validator/pkg/wallet"
 	"github.com/stretchr/testify/require"
 )
 

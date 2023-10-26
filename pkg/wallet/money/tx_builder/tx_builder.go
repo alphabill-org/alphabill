@@ -7,15 +7,15 @@ import (
 	"slices"
 	"sort"
 
-	"github.com/alphabill-org/alphabill/internal/predicates/templates"
+	"github.com/alphabill-org/alphabill/validator/internal/predicates/templates"
 	"github.com/fxamacker/cbor/v2"
 
-	"github.com/alphabill-org/alphabill/internal/crypto"
-	"github.com/alphabill-org/alphabill/internal/txsystem/fc/transactions"
-	"github.com/alphabill-org/alphabill/internal/txsystem/money"
-	"github.com/alphabill-org/alphabill/internal/types"
-	"github.com/alphabill-org/alphabill/pkg/wallet"
-	"github.com/alphabill-org/alphabill/pkg/wallet/account"
+	"github.com/alphabill-org/alphabill/validator/internal/crypto"
+	"github.com/alphabill-org/alphabill/validator/internal/txsystem/fc/transactions"
+	"github.com/alphabill-org/alphabill/validator/internal/txsystem/money"
+	"github.com/alphabill-org/alphabill/validator/internal/types"
+	"github.com/alphabill-org/alphabill/validator/pkg/wallet"
+	"github.com/alphabill-org/alphabill/validator/pkg/wallet/account"
 )
 
 const MaxFee = uint64(1)

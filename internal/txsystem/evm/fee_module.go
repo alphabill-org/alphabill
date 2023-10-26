@@ -8,12 +8,12 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 
-	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
-	"github.com/alphabill-org/alphabill/internal/state"
-	"github.com/alphabill-org/alphabill/internal/txsystem"
-	"github.com/alphabill-org/alphabill/internal/txsystem/evm/statedb"
-	"github.com/alphabill-org/alphabill/internal/txsystem/fc"
-	"github.com/alphabill-org/alphabill/internal/txsystem/fc/transactions"
+	abcrypto "github.com/alphabill-org/alphabill/validator/internal/crypto"
+	"github.com/alphabill-org/alphabill/validator/internal/state"
+	"github.com/alphabill-org/alphabill/validator/internal/txsystem"
+	"github.com/alphabill-org/alphabill/validator/internal/txsystem/evm/statedb"
+	"github.com/alphabill-org/alphabill/validator/internal/txsystem/fc"
+	"github.com/alphabill-org/alphabill/validator/internal/txsystem/fc/transactions"
 )
 
 var _ txsystem.Module = (*FeeAccount)(nil)

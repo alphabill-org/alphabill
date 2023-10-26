@@ -21,17 +21,17 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/stretchr/testify/require"
 
-	"github.com/alphabill-org/alphabill/internal/predicates/templates"
-	test "github.com/alphabill-org/alphabill/internal/testutils"
-	testhttp "github.com/alphabill-org/alphabill/internal/testutils/http"
-	"github.com/alphabill-org/alphabill/internal/testutils/logger"
-	"github.com/alphabill-org/alphabill/internal/testutils/net"
-	testtransaction "github.com/alphabill-org/alphabill/internal/testutils/transaction"
-	"github.com/alphabill-org/alphabill/internal/txsystem/fc/testutils"
-	"github.com/alphabill-org/alphabill/internal/txsystem/money"
-	"github.com/alphabill-org/alphabill/internal/types"
-	"github.com/alphabill-org/alphabill/internal/util"
-	sdk "github.com/alphabill-org/alphabill/pkg/wallet"
+	"github.com/alphabill-org/alphabill/validator/internal/predicates/templates"
+	test "github.com/alphabill-org/alphabill/validator/internal/testutils"
+	testhttp "github.com/alphabill-org/alphabill/validator/internal/testutils/http"
+	"github.com/alphabill-org/alphabill/validator/internal/testutils/logger"
+	"github.com/alphabill-org/alphabill/validator/internal/testutils/net"
+	testtransaction "github.com/alphabill-org/alphabill/validator/internal/testutils/transaction"
+	"github.com/alphabill-org/alphabill/validator/internal/txsystem/fc/testutils"
+	"github.com/alphabill-org/alphabill/validator/internal/txsystem/money"
+	"github.com/alphabill-org/alphabill/validator/internal/types"
+	"github.com/alphabill-org/alphabill/validator/internal/util"
+	sdk "github.com/alphabill-org/alphabill/validator/pkg/wallet"
 )
 
 const (

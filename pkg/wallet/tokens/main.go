@@ -12,15 +12,15 @@ import (
 
 	"github.com/fxamacker/cbor/v2"
 
-	"github.com/alphabill-org/alphabill/internal/txsystem/tokens"
-	"github.com/alphabill-org/alphabill/internal/types"
-	"github.com/alphabill-org/alphabill/internal/util"
-	"github.com/alphabill-org/alphabill/pkg/wallet"
-	"github.com/alphabill-org/alphabill/pkg/wallet/account"
-	"github.com/alphabill-org/alphabill/pkg/wallet/fees"
-	"github.com/alphabill-org/alphabill/pkg/wallet/money/tx_builder"
-	"github.com/alphabill-org/alphabill/pkg/wallet/tokens/backend"
-	"github.com/alphabill-org/alphabill/pkg/wallet/tokens/client"
+	"github.com/alphabill-org/alphabill/validator/internal/txsystem/tokens"
+	"github.com/alphabill-org/alphabill/validator/internal/types"
+	"github.com/alphabill-org/alphabill/validator/internal/util"
+	"github.com/alphabill-org/alphabill/validator/pkg/wallet"
+	"github.com/alphabill-org/alphabill/validator/pkg/wallet/account"
+	"github.com/alphabill-org/alphabill/validator/pkg/wallet/fees"
+	"github.com/alphabill-org/alphabill/validator/pkg/wallet/money/tx_builder"
+	"github.com/alphabill-org/alphabill/validator/pkg/wallet/tokens/backend"
+	"github.com/alphabill-org/alphabill/validator/pkg/wallet/tokens/client"
 )
 
 const (

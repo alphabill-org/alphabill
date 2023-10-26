@@ -18,8 +18,8 @@ import (
 	"github.com/libp2p/go-libp2p/p2p/host/peerstore/pstoremem"
 	ma "github.com/multiformats/go-multiaddr"
 
-	"github.com/alphabill-org/alphabill/internal/metrics"
-	"github.com/alphabill-org/alphabill/pkg/logger"
+	"github.com/alphabill-org/alphabill/validator/internal/metrics"
+	"github.com/alphabill-org/alphabill/validator/pkg/logger"
 )
 
 const (

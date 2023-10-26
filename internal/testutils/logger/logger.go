@@ -9,7 +9,7 @@ import (
 
 	"github.com/neilotoole/slogt"
 
-	"github.com/alphabill-org/alphabill/pkg/logger"
+	"github.com/alphabill-org/alphabill/validator/pkg/logger"
 )
 
 /*

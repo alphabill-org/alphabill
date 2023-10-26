@@ -4,10 +4,10 @@ import (
 	"crypto"
 	"testing"
 
-	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
-	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
-	testcertificates "github.com/alphabill-org/alphabill/internal/testutils/certificates"
-	"github.com/alphabill-org/alphabill/internal/types"
+	abcrypto "github.com/alphabill-org/alphabill/validator/internal/crypto"
+	"github.com/alphabill-org/alphabill/validator/internal/network/protocol/genesis"
+	testcertificates "github.com/alphabill-org/alphabill/validator/internal/testutils/certificates"
+	"github.com/alphabill-org/alphabill/validator/internal/types"
 	"github.com/stretchr/testify/require"
 )
 

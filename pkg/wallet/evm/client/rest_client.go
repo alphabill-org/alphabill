@@ -13,8 +13,8 @@ import (
 	"net/url"
 	"time"
 
-	"github.com/alphabill-org/alphabill/internal/types"
-	sdk "github.com/alphabill-org/alphabill/pkg/wallet"
+	"github.com/alphabill-org/alphabill/validator/internal/types"
+	sdk "github.com/alphabill-org/alphabill/validator/pkg/wallet"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/fxamacker/cbor/v2"
 	"github.com/shopspring/decimal"

@@ -9,14 +9,14 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
-	test "github.com/alphabill-org/alphabill/internal/testutils"
-	"github.com/alphabill-org/alphabill/internal/testutils/logger"
-	testfc "github.com/alphabill-org/alphabill/internal/txsystem/fc/testutils"
-	"github.com/alphabill-org/alphabill/internal/txsystem/tokens"
-	"github.com/alphabill-org/alphabill/internal/types"
-	"github.com/alphabill-org/alphabill/pkg/wallet"
-	"github.com/alphabill-org/alphabill/pkg/wallet/broker"
+	abcrypto "github.com/alphabill-org/alphabill/validator/internal/crypto"
+	test "github.com/alphabill-org/alphabill/validator/internal/testutils"
+	"github.com/alphabill-org/alphabill/validator/internal/testutils/logger"
+	testfc "github.com/alphabill-org/alphabill/validator/internal/txsystem/fc/testutils"
+	"github.com/alphabill-org/alphabill/validator/internal/txsystem/tokens"
+	"github.com/alphabill-org/alphabill/validator/internal/types"
+	"github.com/alphabill-org/alphabill/validator/pkg/wallet"
+	"github.com/alphabill-org/alphabill/validator/pkg/wallet/broker"
 )
 
 func Test_blockProcessor_ProcessBlock(t *testing.T) {

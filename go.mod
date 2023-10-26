@@ -1,4 +1,4 @@
-module github.com/alphabill-org/alphabill
+module github.com/alphabill-org/alphabill/validator
 
 go 1.21
 

@@ -7,11 +7,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/alphabill-org/alphabill/internal/hash"
-	test "github.com/alphabill-org/alphabill/internal/testutils"
-	"github.com/alphabill-org/alphabill/internal/testutils/logger"
-	testserver "github.com/alphabill-org/alphabill/internal/testutils/server"
-	"github.com/alphabill-org/alphabill/internal/types"
+	"github.com/alphabill-org/alphabill/validator/internal/hash"
+	test "github.com/alphabill-org/alphabill/validator/internal/testutils"
+	"github.com/alphabill-org/alphabill/validator/internal/testutils/logger"
+	testserver "github.com/alphabill-org/alphabill/validator/internal/testutils/server"
+	"github.com/alphabill-org/alphabill/validator/internal/types"
 	"github.com/stretchr/testify/require"
 )
 

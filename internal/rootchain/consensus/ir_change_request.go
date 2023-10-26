@@ -5,8 +5,8 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/alphabill-org/alphabill/internal/network/protocol/certification"
-	"github.com/alphabill-org/alphabill/internal/types"
+	"github.com/alphabill-org/alphabill/validator/internal/network/protocol/certification"
+	"github.com/alphabill-org/alphabill/validator/internal/types"
 )
 
 type CertReqReason uint8

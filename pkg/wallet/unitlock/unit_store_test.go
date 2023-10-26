@@ -6,8 +6,8 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/alphabill-org/alphabill/internal/txsystem/money"
-	"github.com/alphabill-org/alphabill/internal/types"
+	"github.com/alphabill-org/alphabill/validator/internal/txsystem/money"
+	"github.com/alphabill-org/alphabill/validator/internal/types"
 )
 
 const unitStoreFileName = "locked-units.db"

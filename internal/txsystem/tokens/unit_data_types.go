@@ -5,9 +5,9 @@ import (
 	"hash"
 	"strings"
 
-	"github.com/alphabill-org/alphabill/internal/state"
-	"github.com/alphabill-org/alphabill/internal/types"
-	"github.com/alphabill-org/alphabill/internal/util"
+	"github.com/alphabill-org/alphabill/validator/internal/state"
+	"github.com/alphabill-org/alphabill/validator/internal/types"
+	"github.com/alphabill-org/alphabill/validator/internal/util"
 )
 
 type nonFungibleTokenTypeData struct {

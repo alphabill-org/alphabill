@@ -7,8 +7,8 @@ import (
 
 	"github.com/gorilla/mux"
 
-	"github.com/alphabill-org/alphabill/internal/state"
-	"github.com/alphabill-org/alphabill/internal/types"
+	"github.com/alphabill-org/alphabill/validator/internal/state"
+	"github.com/alphabill-org/alphabill/validator/internal/types"
 )
 
 type API struct {

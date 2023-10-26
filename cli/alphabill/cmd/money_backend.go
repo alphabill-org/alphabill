@@ -6,11 +6,11 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
-	"github.com/alphabill-org/alphabill/internal/predicates/templates"
-	"github.com/alphabill-org/alphabill/internal/txsystem/money"
-	"github.com/alphabill-org/alphabill/internal/util"
-	"github.com/alphabill-org/alphabill/pkg/wallet/money/backend"
+	"github.com/alphabill-org/alphabill/validator/internal/network/protocol/genesis"
+	"github.com/alphabill-org/alphabill/validator/internal/predicates/templates"
+	"github.com/alphabill-org/alphabill/validator/internal/txsystem/money"
+	"github.com/alphabill-org/alphabill/validator/internal/util"
+	"github.com/alphabill-org/alphabill/validator/pkg/wallet/money/backend"
 	"github.com/spf13/cobra"
 )
 

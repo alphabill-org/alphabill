@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/alphabill-org/alphabill/internal/util"
+	"github.com/alphabill-org/alphabill/validator/internal/util"
 )
 
 var ErrInvalidSystemIdentifier = errors.New("error invalid system identifier")

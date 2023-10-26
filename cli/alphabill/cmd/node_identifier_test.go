@@ -9,7 +9,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/alphabill-org/alphabill/internal/testutils/logger"
+	"github.com/alphabill-org/alphabill/validator/internal/testutils/logger"
 )
 
 func TestIdentifier_KeysNotFound(t *testing.T) {

@@ -11,16 +11,16 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/alphabill-org/alphabill/pkg/wallet"
-	"github.com/alphabill-org/alphabill/pkg/wallet/account"
-	evmwallet "github.com/alphabill-org/alphabill/pkg/wallet/evm"
-	evmclient "github.com/alphabill-org/alphabill/pkg/wallet/evm/client"
-	"github.com/alphabill-org/alphabill/pkg/wallet/fees"
-	moneywallet "github.com/alphabill-org/alphabill/pkg/wallet/money"
-	moneyclient "github.com/alphabill-org/alphabill/pkg/wallet/money/backend/client"
-	tokenswallet "github.com/alphabill-org/alphabill/pkg/wallet/tokens"
-	tokensclient "github.com/alphabill-org/alphabill/pkg/wallet/tokens/client"
-	"github.com/alphabill-org/alphabill/pkg/wallet/unitlock"
+	"github.com/alphabill-org/alphabill/validator/pkg/wallet"
+	"github.com/alphabill-org/alphabill/validator/pkg/wallet/account"
+	evmwallet "github.com/alphabill-org/alphabill/validator/pkg/wallet/evm"
+	evmclient "github.com/alphabill-org/alphabill/validator/pkg/wallet/evm/client"
+	"github.com/alphabill-org/alphabill/validator/pkg/wallet/fees"
+	moneywallet "github.com/alphabill-org/alphabill/validator/pkg/wallet/money"
+	moneyclient "github.com/alphabill-org/alphabill/validator/pkg/wallet/money/backend/client"
+	tokenswallet "github.com/alphabill-org/alphabill/validator/pkg/wallet/tokens"
+	tokensclient "github.com/alphabill-org/alphabill/validator/pkg/wallet/tokens/client"
+	"github.com/alphabill-org/alphabill/validator/pkg/wallet/unitlock"
 )
 
 const (

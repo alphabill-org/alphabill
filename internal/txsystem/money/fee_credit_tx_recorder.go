@@ -3,10 +3,10 @@ package money
 import (
 	"fmt"
 
-	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
-	"github.com/alphabill-org/alphabill/internal/state"
-	"github.com/alphabill-org/alphabill/internal/txsystem/fc/transactions"
-	"github.com/alphabill-org/alphabill/internal/types"
+	"github.com/alphabill-org/alphabill/validator/internal/network/protocol/genesis"
+	"github.com/alphabill-org/alphabill/validator/internal/state"
+	"github.com/alphabill-org/alphabill/validator/internal/txsystem/fc/transactions"
+	"github.com/alphabill-org/alphabill/validator/internal/types"
 )
 
 // feeCreditTxRecorder container struct for recording fee credit transactions

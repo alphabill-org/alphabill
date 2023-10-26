@@ -19,17 +19,17 @@ import (
 	"google.golang.org/grpc/health"
 	"google.golang.org/grpc/health/grpc_health_v1"
 
-	"github.com/alphabill-org/alphabill/internal/debug"
-	"github.com/alphabill-org/alphabill/internal/keyvaluedb"
-	"github.com/alphabill-org/alphabill/internal/keyvaluedb/boltdb"
-	"github.com/alphabill-org/alphabill/internal/keyvaluedb/memorydb"
-	"github.com/alphabill-org/alphabill/internal/network"
-	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
-	"github.com/alphabill-org/alphabill/internal/partition"
-	"github.com/alphabill-org/alphabill/internal/rpc"
-	"github.com/alphabill-org/alphabill/internal/rpc/alphabill"
-	"github.com/alphabill-org/alphabill/internal/txsystem"
-	"github.com/alphabill-org/alphabill/internal/util"
+	"github.com/alphabill-org/alphabill/validator/internal/debug"
+	"github.com/alphabill-org/alphabill/validator/internal/keyvaluedb"
+	"github.com/alphabill-org/alphabill/validator/internal/keyvaluedb/boltdb"
+	"github.com/alphabill-org/alphabill/validator/internal/keyvaluedb/memorydb"
+	"github.com/alphabill-org/alphabill/validator/internal/network"
+	"github.com/alphabill-org/alphabill/validator/internal/network/protocol/genesis"
+	"github.com/alphabill-org/alphabill/validator/internal/partition"
+	"github.com/alphabill-org/alphabill/validator/internal/rpc"
+	"github.com/alphabill-org/alphabill/validator/internal/rpc/alphabill"
+	"github.com/alphabill-org/alphabill/validator/internal/txsystem"
+	"github.com/alphabill-org/alphabill/validator/internal/util"
 )
 
 const (

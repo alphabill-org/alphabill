@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/alphabill-org/alphabill/internal/keyvaluedb"
+	"github.com/alphabill-org/alphabill/validator/internal/keyvaluedb"
 	"github.com/stretchr/testify/require"
 )
 

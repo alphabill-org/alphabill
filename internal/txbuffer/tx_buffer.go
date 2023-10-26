@@ -8,9 +8,9 @@ import (
 	"log/slog"
 	"sync"
 
-	"github.com/alphabill-org/alphabill/internal/metrics"
-	"github.com/alphabill-org/alphabill/internal/types"
-	"github.com/alphabill-org/alphabill/pkg/logger"
+	"github.com/alphabill-org/alphabill/validator/internal/metrics"
+	"github.com/alphabill-org/alphabill/validator/internal/types"
+	"github.com/alphabill-org/alphabill/validator/pkg/logger"
 )
 
 var (

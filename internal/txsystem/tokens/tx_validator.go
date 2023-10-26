@@ -3,7 +3,7 @@ package tokens
 import (
 	"bytes"
 
-	"github.com/alphabill-org/alphabill/internal/txsystem"
+	"github.com/alphabill-org/alphabill/validator/internal/txsystem"
 )
 
 func ValidateGenericTransaction(ctx *txsystem.TxValidationContext) error {

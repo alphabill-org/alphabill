@@ -9,7 +9,7 @@ import (
 
 	"github.com/libp2p/go-libp2p/core/peer"
 
-	"github.com/alphabill-org/alphabill/pkg/logger"
+	"github.com/alphabill-org/alphabill/validator/pkg/logger"
 )
 
 func Test_logger_for_tests(t *testing.T) {

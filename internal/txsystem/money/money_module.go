@@ -6,13 +6,13 @@ import (
 	"errors"
 	"fmt"
 
-	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
-	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
-	"github.com/alphabill-org/alphabill/internal/state"
-	"github.com/alphabill-org/alphabill/internal/txsystem"
-	"github.com/alphabill-org/alphabill/internal/txsystem/fc"
-	"github.com/alphabill-org/alphabill/internal/txsystem/fc/transactions"
-	"github.com/alphabill-org/alphabill/internal/types"
+	abcrypto "github.com/alphabill-org/alphabill/validator/internal/crypto"
+	"github.com/alphabill-org/alphabill/validator/internal/network/protocol/genesis"
+	"github.com/alphabill-org/alphabill/validator/internal/state"
+	"github.com/alphabill-org/alphabill/validator/internal/txsystem"
+	"github.com/alphabill-org/alphabill/validator/internal/txsystem/fc"
+	"github.com/alphabill-org/alphabill/validator/internal/txsystem/fc/transactions"
+	"github.com/alphabill-org/alphabill/validator/internal/types"
 )
 
 var _ txsystem.Module = (*Module)(nil)

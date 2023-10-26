@@ -5,10 +5,10 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/alphabill-org/alphabill/internal/keyvaluedb/boltdb"
-	"github.com/alphabill-org/alphabill/internal/keyvaluedb/memorydb"
-	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
-	"github.com/alphabill-org/alphabill/internal/types"
+	"github.com/alphabill-org/alphabill/validator/internal/keyvaluedb/boltdb"
+	"github.com/alphabill-org/alphabill/validator/internal/keyvaluedb/memorydb"
+	"github.com/alphabill-org/alphabill/validator/internal/network/protocol/genesis"
+	"github.com/alphabill-org/alphabill/validator/internal/types"
 	"github.com/stretchr/testify/require"
 )
 

@@ -8,16 +8,16 @@ import (
 	"github.com/stretchr/testify/require"
 	bolt "go.etcd.io/bbolt"
 
-	"github.com/alphabill-org/alphabill/internal/hash"
-	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
-	"github.com/alphabill-org/alphabill/internal/predicates/templates"
-	test "github.com/alphabill-org/alphabill/internal/testutils"
-	testtransaction "github.com/alphabill-org/alphabill/internal/testutils/transaction"
-	"github.com/alphabill-org/alphabill/internal/txsystem/fc/testutils"
-	"github.com/alphabill-org/alphabill/internal/txsystem/money"
-	"github.com/alphabill-org/alphabill/internal/types"
-	"github.com/alphabill-org/alphabill/internal/util"
-	sdk "github.com/alphabill-org/alphabill/pkg/wallet"
+	"github.com/alphabill-org/alphabill/validator/internal/hash"
+	"github.com/alphabill-org/alphabill/validator/internal/network/protocol/genesis"
+	"github.com/alphabill-org/alphabill/validator/internal/predicates/templates"
+	test "github.com/alphabill-org/alphabill/validator/internal/testutils"
+	testtransaction "github.com/alphabill-org/alphabill/validator/internal/testutils/transaction"
+	"github.com/alphabill-org/alphabill/validator/internal/txsystem/fc/testutils"
+	"github.com/alphabill-org/alphabill/validator/internal/txsystem/money"
+	"github.com/alphabill-org/alphabill/validator/internal/types"
+	"github.com/alphabill-org/alphabill/validator/internal/util"
+	sdk "github.com/alphabill-org/alphabill/validator/pkg/wallet"
 )
 
 func TestBillStore_CanBeCreated(t *testing.T) {

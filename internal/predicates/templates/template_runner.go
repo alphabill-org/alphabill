@@ -3,7 +3,7 @@ package templates
 import (
 	"fmt"
 
-	"github.com/alphabill-org/alphabill/internal/predicates"
+	"github.com/alphabill-org/alphabill/validator/internal/predicates"
 )
 
 const TemplateStartByte = 0x00

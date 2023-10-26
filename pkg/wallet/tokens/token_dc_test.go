@@ -10,12 +10,12 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	test "github.com/alphabill-org/alphabill/internal/testutils"
-	ttxs "github.com/alphabill-org/alphabill/internal/txsystem/tokens"
-	"github.com/alphabill-org/alphabill/internal/types"
-	sdk "github.com/alphabill-org/alphabill/pkg/wallet"
-	"github.com/alphabill-org/alphabill/pkg/wallet/money/tx_builder"
-	twb "github.com/alphabill-org/alphabill/pkg/wallet/tokens/backend"
+	test "github.com/alphabill-org/alphabill/validator/internal/testutils"
+	ttxs "github.com/alphabill-org/alphabill/validator/internal/txsystem/tokens"
+	"github.com/alphabill-org/alphabill/validator/internal/types"
+	sdk "github.com/alphabill-org/alphabill/validator/pkg/wallet"
+	"github.com/alphabill-org/alphabill/validator/pkg/wallet/money/tx_builder"
+	twb "github.com/alphabill-org/alphabill/validator/pkg/wallet/tokens/backend"
 )
 
 func TestFungibleTokenDC(t *testing.T) {

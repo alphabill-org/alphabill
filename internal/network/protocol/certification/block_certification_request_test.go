@@ -3,8 +3,8 @@ package certification
 import (
 	"testing"
 
-	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
-	"github.com/alphabill-org/alphabill/internal/types"
+	testsig "github.com/alphabill-org/alphabill/validator/internal/testutils/sig"
+	"github.com/alphabill-org/alphabill/validator/internal/types"
 	"github.com/stretchr/testify/require"
 )
 

@@ -3,7 +3,7 @@ package rpc
 import (
 	"net/http"
 
-	"github.com/alphabill-org/alphabill/internal/metrics"
+	"github.com/alphabill-org/alphabill/validator/internal/metrics"
 	"github.com/gorilla/mux"
 )
 

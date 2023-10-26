@@ -4,9 +4,9 @@ import (
 	"context"
 	"testing"
 
-	testtransaction "github.com/alphabill-org/alphabill/internal/testutils/transaction"
-	"github.com/alphabill-org/alphabill/internal/types"
-	"github.com/alphabill-org/alphabill/pkg/wallet"
+	testtransaction "github.com/alphabill-org/alphabill/validator/internal/testutils/transaction"
+	"github.com/alphabill-org/alphabill/validator/internal/types"
+	"github.com/alphabill-org/alphabill/validator/pkg/wallet"
 	"github.com/stretchr/testify/require"
 )
 

@@ -8,19 +8,19 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/alphabill-org/alphabill/internal/predicates/templates"
+	"github.com/alphabill-org/alphabill/validator/internal/predicates/templates"
 	"github.com/stretchr/testify/require"
 
-	test "github.com/alphabill-org/alphabill/internal/testutils"
-	testhttp "github.com/alphabill-org/alphabill/internal/testutils/http"
-	"github.com/alphabill-org/alphabill/internal/testutils/logger"
-	"github.com/alphabill-org/alphabill/internal/testutils/net"
-	testpartition "github.com/alphabill-org/alphabill/internal/testutils/partition"
-	moneytx "github.com/alphabill-org/alphabill/internal/txsystem/money"
-	"github.com/alphabill-org/alphabill/internal/types"
-	"github.com/alphabill-org/alphabill/internal/util"
-	"github.com/alphabill-org/alphabill/pkg/wallet"
-	"github.com/alphabill-org/alphabill/pkg/wallet/money/backend"
+	test "github.com/alphabill-org/alphabill/validator/internal/testutils"
+	testhttp "github.com/alphabill-org/alphabill/validator/internal/testutils/http"
+	"github.com/alphabill-org/alphabill/validator/internal/testutils/logger"
+	"github.com/alphabill-org/alphabill/validator/internal/testutils/net"
+	testpartition "github.com/alphabill-org/alphabill/validator/internal/testutils/partition"
+	moneytx "github.com/alphabill-org/alphabill/validator/internal/txsystem/money"
+	"github.com/alphabill-org/alphabill/validator/internal/types"
+	"github.com/alphabill-org/alphabill/validator/internal/util"
+	"github.com/alphabill-org/alphabill/validator/pkg/wallet"
+	"github.com/alphabill-org/alphabill/validator/pkg/wallet/money/backend"
 )
 
 func TestMoneyBackendCLI(t *testing.T) {

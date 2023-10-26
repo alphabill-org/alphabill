@@ -7,10 +7,10 @@ import (
 	"fmt"
 	"sync"
 
-	hasherUtil "github.com/alphabill-org/alphabill/internal/hash"
-	"github.com/alphabill-org/alphabill/internal/mt"
-	"github.com/alphabill-org/alphabill/internal/types"
-	"github.com/alphabill-org/alphabill/pkg/tree/avl"
+	hasherUtil "github.com/alphabill-org/alphabill/validator/internal/hash"
+	"github.com/alphabill-org/alphabill/validator/internal/mt"
+	"github.com/alphabill-org/alphabill/validator/internal/types"
+	"github.com/alphabill-org/alphabill/validator/pkg/tree/avl"
 )
 
 type (

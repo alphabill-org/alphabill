@@ -7,8 +7,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/alphabill-org/alphabill/internal/testutils/logger"
-	"github.com/alphabill-org/alphabill/internal/testutils/peer"
+	"github.com/alphabill-org/alphabill/validator/internal/testutils/logger"
+	"github.com/alphabill-org/alphabill/validator/internal/testutils/peer"
 	"github.com/stretchr/testify/require"
 )
 

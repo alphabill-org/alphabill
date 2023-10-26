@@ -5,14 +5,14 @@ import (
 	"hash"
 	"testing"
 
-	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
-	"github.com/alphabill-org/alphabill/internal/state"
-	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
-	testtransaction "github.com/alphabill-org/alphabill/internal/testutils/transaction"
-	testfc "github.com/alphabill-org/alphabill/internal/txsystem/fc/testutils"
-	"github.com/alphabill-org/alphabill/internal/txsystem/fc/transactions"
-	"github.com/alphabill-org/alphabill/internal/txsystem/fc/unit"
-	"github.com/alphabill-org/alphabill/internal/types"
+	abcrypto "github.com/alphabill-org/alphabill/validator/internal/crypto"
+	"github.com/alphabill-org/alphabill/validator/internal/state"
+	testsig "github.com/alphabill-org/alphabill/validator/internal/testutils/sig"
+	testtransaction "github.com/alphabill-org/alphabill/validator/internal/testutils/transaction"
+	testfc "github.com/alphabill-org/alphabill/validator/internal/txsystem/fc/testutils"
+	"github.com/alphabill-org/alphabill/validator/internal/txsystem/fc/transactions"
+	"github.com/alphabill-org/alphabill/validator/internal/txsystem/fc/unit"
+	"github.com/alphabill-org/alphabill/validator/internal/types"
 	"github.com/stretchr/testify/require"
 )
 

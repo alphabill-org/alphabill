@@ -10,7 +10,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/alphabill-org/alphabill/internal/testutils/logger"
+	"github.com/alphabill-org/alphabill/validator/internal/testutils/logger"
 )
 
 func TestGenerateGenesisFiles(t *testing.T) {

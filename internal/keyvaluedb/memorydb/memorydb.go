@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/alphabill-org/alphabill/internal/keyvaluedb"
+	"github.com/alphabill-org/alphabill/validator/internal/keyvaluedb"
 )
 
 type (

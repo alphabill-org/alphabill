@@ -12,16 +12,16 @@ import (
 	"github.com/ainvaltin/httpsrv"
 	"golang.org/x/sync/errgroup"
 
-	"github.com/alphabill-org/alphabill/internal/crypto"
-	"github.com/alphabill-org/alphabill/internal/debug"
-	"github.com/alphabill-org/alphabill/internal/rpc/alphabill"
-	"github.com/alphabill-org/alphabill/internal/txsystem/tokens"
-	"github.com/alphabill-org/alphabill/internal/types"
-	"github.com/alphabill-org/alphabill/pkg/client"
-	"github.com/alphabill-org/alphabill/pkg/logger"
-	sdk "github.com/alphabill-org/alphabill/pkg/wallet"
-	"github.com/alphabill-org/alphabill/pkg/wallet/blocksync"
-	"github.com/alphabill-org/alphabill/pkg/wallet/broker"
+	"github.com/alphabill-org/alphabill/validator/internal/crypto"
+	"github.com/alphabill-org/alphabill/validator/internal/debug"
+	"github.com/alphabill-org/alphabill/validator/internal/rpc/alphabill"
+	"github.com/alphabill-org/alphabill/validator/internal/txsystem/tokens"
+	"github.com/alphabill-org/alphabill/validator/internal/types"
+	"github.com/alphabill-org/alphabill/validator/pkg/client"
+	"github.com/alphabill-org/alphabill/validator/pkg/logger"
+	sdk "github.com/alphabill-org/alphabill/validator/pkg/wallet"
+	"github.com/alphabill-org/alphabill/validator/pkg/wallet/blocksync"
+	"github.com/alphabill-org/alphabill/validator/pkg/wallet/broker"
 )
 
 type Configuration interface {

@@ -7,9 +7,9 @@ import (
 
 	"github.com/fxamacker/cbor/v2"
 
-	"github.com/alphabill-org/alphabill/internal/state"
-	"github.com/alphabill-org/alphabill/internal/txsystem"
-	"github.com/alphabill-org/alphabill/internal/types"
+	"github.com/alphabill-org/alphabill/validator/internal/state"
+	"github.com/alphabill-org/alphabill/validator/internal/txsystem"
+	"github.com/alphabill-org/alphabill/validator/internal/types"
 )
 
 func handleJoinFungibleTokenTx(options *Options) txsystem.GenericExecuteFunc[JoinFungibleTokenAttributes] {

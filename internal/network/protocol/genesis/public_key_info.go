@@ -4,7 +4,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/alphabill-org/alphabill/internal/crypto"
+	"github.com/alphabill-org/alphabill/validator/internal/crypto"
 )
 
 var (

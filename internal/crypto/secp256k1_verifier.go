@@ -7,8 +7,8 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/alphabill-org/alphabill/internal/crypto/canonicalizer"
-	"github.com/alphabill-org/alphabill/internal/hash"
+	"github.com/alphabill-org/alphabill/validator/internal/crypto/canonicalizer"
+	"github.com/alphabill-org/alphabill/validator/internal/hash"
 
 	ethcrypto "github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/crypto/secp256k1"

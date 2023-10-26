@@ -6,12 +6,12 @@ import (
 	"fmt"
 	"log/slog"
 
-	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
-	"github.com/alphabill-org/alphabill/internal/txsystem/fc/transactions"
-	moneytx "github.com/alphabill-org/alphabill/internal/txsystem/money"
-	"github.com/alphabill-org/alphabill/internal/types"
-	"github.com/alphabill-org/alphabill/pkg/logger"
-	sdk "github.com/alphabill-org/alphabill/pkg/wallet"
+	"github.com/alphabill-org/alphabill/validator/internal/network/protocol/genesis"
+	"github.com/alphabill-org/alphabill/validator/internal/txsystem/fc/transactions"
+	moneytx "github.com/alphabill-org/alphabill/validator/internal/txsystem/money"
+	"github.com/alphabill-org/alphabill/validator/internal/types"
+	"github.com/alphabill-org/alphabill/validator/pkg/logger"
+	sdk "github.com/alphabill-org/alphabill/validator/pkg/wallet"
 )
 
 const (

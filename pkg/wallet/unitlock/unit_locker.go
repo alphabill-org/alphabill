@@ -5,7 +5,7 @@ import (
 	"errors"
 	"path/filepath"
 
-	"github.com/alphabill-org/alphabill/internal/types"
+	"github.com/alphabill-org/alphabill/validator/internal/types"
 )
 
 const (

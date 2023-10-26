@@ -10,8 +10,8 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/multiformats/go-multiaddr"
 
-	"github.com/alphabill-org/alphabill/internal/network"
-	"github.com/alphabill-org/alphabill/pkg/logger"
+	"github.com/alphabill-org/alphabill/validator/internal/network"
+	"github.com/alphabill-org/alphabill/validator/pkg/logger"
 )
 
 type (

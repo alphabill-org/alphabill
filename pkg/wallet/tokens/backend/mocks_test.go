@@ -17,11 +17,11 @@ import (
 	"github.com/fxamacker/cbor/v2"
 	"github.com/stretchr/testify/require"
 
-	"github.com/alphabill-org/alphabill/internal/rpc/alphabill"
-	test "github.com/alphabill-org/alphabill/internal/testutils"
-	"github.com/alphabill-org/alphabill/internal/txsystem/tokens"
-	"github.com/alphabill-org/alphabill/internal/types"
-	sdk "github.com/alphabill-org/alphabill/pkg/wallet"
+	"github.com/alphabill-org/alphabill/validator/internal/rpc/alphabill"
+	test "github.com/alphabill-org/alphabill/validator/internal/testutils"
+	"github.com/alphabill-org/alphabill/validator/internal/txsystem/tokens"
+	"github.com/alphabill-org/alphabill/validator/internal/types"
+	sdk "github.com/alphabill-org/alphabill/validator/pkg/wallet"
 )
 
 func decodeResponse(t *testing.T, rsp *http.Response, code int, data any) error {

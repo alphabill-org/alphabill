@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/alphabill-org/alphabill/internal/keyvaluedb"
+	"github.com/alphabill-org/alphabill/validator/internal/keyvaluedb"
 	bolt "go.etcd.io/bbolt"
 )
 

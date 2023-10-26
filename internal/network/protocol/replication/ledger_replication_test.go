@@ -3,7 +3,7 @@ package replication
 import (
 	"testing"
 
-	"github.com/alphabill-org/alphabill/internal/types"
+	"github.com/alphabill-org/alphabill/validator/internal/types"
 	"github.com/stretchr/testify/require"
 )
 

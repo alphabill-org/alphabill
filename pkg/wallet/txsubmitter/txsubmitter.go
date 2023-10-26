@@ -7,8 +7,8 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/alphabill-org/alphabill/internal/types"
-	"github.com/alphabill-org/alphabill/pkg/wallet"
+	"github.com/alphabill-org/alphabill/validator/internal/types"
+	"github.com/alphabill-org/alphabill/validator/pkg/wallet"
 )
 
 type (

@@ -14,7 +14,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	test "github.com/alphabill-org/alphabill/internal/testutils"
+	test "github.com/alphabill-org/alphabill/validator/internal/testutils"
 )
 
 func Test_broker_subscribe(t *testing.T) {

@@ -9,7 +9,7 @@ import (
 	"github.com/libp2p/go-libp2p/core/peerstore"
 	"github.com/stretchr/testify/require"
 
-	"github.com/alphabill-org/alphabill/internal/testutils/logger"
+	"github.com/alphabill-org/alphabill/validator/internal/testutils/logger"
 )
 
 func TestNewValidatorLibP2PNetwork_Ok(t *testing.T) {

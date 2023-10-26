@@ -9,10 +9,10 @@ import (
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/stretchr/testify/require"
 
-	"github.com/alphabill-org/alphabill/internal/testutils/logger"
-	"github.com/alphabill-org/alphabill/pkg/wallet/account"
-	beclient "github.com/alphabill-org/alphabill/pkg/wallet/money/backend/client"
-	"github.com/alphabill-org/alphabill/pkg/wallet/unitlock"
+	"github.com/alphabill-org/alphabill/validator/internal/testutils/logger"
+	"github.com/alphabill-org/alphabill/validator/pkg/wallet/account"
+	beclient "github.com/alphabill-org/alphabill/validator/pkg/wallet/money/backend/client"
+	"github.com/alphabill-org/alphabill/validator/pkg/wallet/unitlock"
 )
 
 const (

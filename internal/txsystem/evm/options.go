@@ -4,10 +4,10 @@ import (
 	gocrypto "crypto"
 	"math/big"
 
-	"github.com/alphabill-org/alphabill/internal/keyvaluedb"
-	"github.com/alphabill-org/alphabill/internal/state"
+	"github.com/alphabill-org/alphabill/validator/internal/keyvaluedb"
+	"github.com/alphabill-org/alphabill/validator/internal/state"
 
-	"github.com/alphabill-org/alphabill/internal/crypto"
+	"github.com/alphabill-org/alphabill/validator/internal/crypto"
 )
 
 const DefaultBlockGasLimit = 15000000

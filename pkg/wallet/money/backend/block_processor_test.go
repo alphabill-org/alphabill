@@ -9,17 +9,17 @@ import (
 	"github.com/fxamacker/cbor/v2"
 	"github.com/stretchr/testify/require"
 
-	"github.com/alphabill-org/alphabill/internal/crypto"
-	"github.com/alphabill-org/alphabill/internal/hash"
-	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
-	"github.com/alphabill-org/alphabill/internal/predicates/templates"
-	"github.com/alphabill-org/alphabill/internal/testutils/logger"
-	testtransaction "github.com/alphabill-org/alphabill/internal/testutils/transaction"
-	testfc "github.com/alphabill-org/alphabill/internal/txsystem/fc/testutils"
-	"github.com/alphabill-org/alphabill/internal/txsystem/money"
-	"github.com/alphabill-org/alphabill/internal/txsystem/tokens"
-	"github.com/alphabill-org/alphabill/internal/types"
-	sdk "github.com/alphabill-org/alphabill/pkg/wallet"
+	"github.com/alphabill-org/alphabill/validator/internal/crypto"
+	"github.com/alphabill-org/alphabill/validator/internal/hash"
+	"github.com/alphabill-org/alphabill/validator/internal/network/protocol/genesis"
+	"github.com/alphabill-org/alphabill/validator/internal/predicates/templates"
+	"github.com/alphabill-org/alphabill/validator/internal/testutils/logger"
+	testtransaction "github.com/alphabill-org/alphabill/validator/internal/testutils/transaction"
+	testfc "github.com/alphabill-org/alphabill/validator/internal/txsystem/fc/testutils"
+	"github.com/alphabill-org/alphabill/validator/internal/txsystem/money"
+	"github.com/alphabill-org/alphabill/validator/internal/txsystem/tokens"
+	"github.com/alphabill-org/alphabill/validator/internal/types"
+	sdk "github.com/alphabill-org/alphabill/validator/pkg/wallet"
 )
 
 var moneySystemID = money.DefaultSystemIdentifier

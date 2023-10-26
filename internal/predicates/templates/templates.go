@@ -5,9 +5,9 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/alphabill-org/alphabill/internal/crypto"
-	"github.com/alphabill-org/alphabill/internal/hash"
-	"github.com/alphabill-org/alphabill/internal/predicates"
+	"github.com/alphabill-org/alphabill/validator/internal/crypto"
+	"github.com/alphabill-org/alphabill/validator/internal/hash"
+	"github.com/alphabill-org/alphabill/validator/internal/predicates"
 	"github.com/fxamacker/cbor/v2"
 )
 

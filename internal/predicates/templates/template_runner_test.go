@@ -3,7 +3,7 @@ package templates
 import (
 	"testing"
 
-	"github.com/alphabill-org/alphabill/internal/predicates"
+	"github.com/alphabill-org/alphabill/validator/internal/predicates"
 	"github.com/stretchr/testify/require"
 )
 

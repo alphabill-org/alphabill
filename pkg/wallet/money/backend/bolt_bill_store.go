@@ -10,10 +10,10 @@ import (
 	"github.com/fxamacker/cbor/v2"
 	bolt "go.etcd.io/bbolt"
 
-	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
-	"github.com/alphabill-org/alphabill/internal/types"
-	"github.com/alphabill-org/alphabill/internal/util"
-	sdk "github.com/alphabill-org/alphabill/pkg/wallet"
+	"github.com/alphabill-org/alphabill/validator/internal/network/protocol/genesis"
+	"github.com/alphabill-org/alphabill/validator/internal/types"
+	"github.com/alphabill-org/alphabill/validator/internal/util"
+	sdk "github.com/alphabill-org/alphabill/validator/pkg/wallet"
 )
 
 const BoltBillStoreFileName = "bills.db"

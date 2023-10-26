@@ -7,8 +7,8 @@ import (
 	"math/rand"
 	"time"
 
-	"github.com/alphabill-org/alphabill/internal/rpc/alphabill"
-	"github.com/alphabill-org/alphabill/internal/types"
+	"github.com/alphabill-org/alphabill/validator/internal/rpc/alphabill"
+	"github.com/alphabill-org/alphabill/validator/internal/types"
 	"github.com/fxamacker/cbor/v2"
 	"golang.org/x/sync/errgroup"
 )

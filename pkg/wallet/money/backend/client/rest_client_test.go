@@ -11,11 +11,11 @@ import (
 	"strings"
 	"testing"
 
-	testtransaction "github.com/alphabill-org/alphabill/internal/testutils/transaction"
-	"github.com/alphabill-org/alphabill/internal/types"
+	testtransaction "github.com/alphabill-org/alphabill/validator/internal/testutils/transaction"
+	"github.com/alphabill-org/alphabill/validator/internal/types"
 
-	test "github.com/alphabill-org/alphabill/internal/testutils"
-	sdk "github.com/alphabill-org/alphabill/pkg/wallet"
+	test "github.com/alphabill-org/alphabill/validator/internal/testutils"
+	sdk "github.com/alphabill-org/alphabill/validator/pkg/wallet"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/fxamacker/cbor/v2"
 	"github.com/stretchr/testify/require"

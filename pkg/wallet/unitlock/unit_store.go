@@ -10,7 +10,7 @@ import (
 
 	bolt "go.etcd.io/bbolt"
 
-	sdk "github.com/alphabill-org/alphabill/pkg/wallet"
+	sdk "github.com/alphabill-org/alphabill/validator/pkg/wallet"
 )
 
 var (

@@ -3,9 +3,9 @@ package genesis
 import (
 	"testing"
 
-	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
+	testsig "github.com/alphabill-org/alphabill/validator/internal/testutils/sig"
 
-	"github.com/alphabill-org/alphabill/internal/crypto"
+	"github.com/alphabill-org/alphabill/validator/internal/crypto"
 
 	"github.com/stretchr/testify/require"
 )

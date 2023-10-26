@@ -6,10 +6,10 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/alphabill-org/alphabill/internal/state"
-	"github.com/alphabill-org/alphabill/internal/txsystem"
-	"github.com/alphabill-org/alphabill/internal/txsystem/fc"
-	"github.com/alphabill-org/alphabill/internal/types"
+	"github.com/alphabill-org/alphabill/validator/internal/state"
+	"github.com/alphabill-org/alphabill/validator/internal/txsystem"
+	"github.com/alphabill-org/alphabill/validator/internal/txsystem/fc"
+	"github.com/alphabill-org/alphabill/validator/internal/types"
 )
 
 var ErrInvalidLockStatus = errors.New("invalid lock status: expected non-zero value, got zero value")

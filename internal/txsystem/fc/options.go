@@ -3,8 +3,8 @@ package fc
 import (
 	"crypto"
 
-	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
-	"github.com/alphabill-org/alphabill/internal/state"
+	abcrypto "github.com/alphabill-org/alphabill/validator/internal/crypto"
+	"github.com/alphabill-org/alphabill/validator/internal/state"
 )
 
 type Option func(f *FeeCredit)

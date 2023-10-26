@@ -1,7 +1,7 @@
 package tokens
 
 import (
-	"github.com/alphabill-org/alphabill/internal/txsystem"
+	"github.com/alphabill-org/alphabill/validator/internal/txsystem"
 )
 
 var _ txsystem.Module = (*LockTokensModule)(nil)

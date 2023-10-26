@@ -3,9 +3,9 @@ package crypto
 import (
 	"testing"
 
-	test "github.com/alphabill-org/alphabill/internal/testutils"
+	test "github.com/alphabill-org/alphabill/validator/internal/testutils"
 
-	"github.com/alphabill-org/alphabill/internal/crypto/canonicalizer"
+	"github.com/alphabill-org/alphabill/validator/internal/crypto/canonicalizer"
 
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"

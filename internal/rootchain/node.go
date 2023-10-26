@@ -9,15 +9,15 @@ import (
 	"github.com/libp2p/go-libp2p/core/peer"
 	"golang.org/x/sync/errgroup"
 
-	"github.com/alphabill-org/alphabill/internal/crypto"
-	"github.com/alphabill-org/alphabill/internal/debug"
-	"github.com/alphabill-org/alphabill/internal/network"
-	"github.com/alphabill-org/alphabill/internal/network/protocol/certification"
-	"github.com/alphabill-org/alphabill/internal/network/protocol/handshake"
-	"github.com/alphabill-org/alphabill/internal/rootchain/consensus"
-	"github.com/alphabill-org/alphabill/internal/rootchain/partitions"
-	"github.com/alphabill-org/alphabill/internal/types"
-	"github.com/alphabill-org/alphabill/pkg/logger"
+	"github.com/alphabill-org/alphabill/validator/internal/crypto"
+	"github.com/alphabill-org/alphabill/validator/internal/debug"
+	"github.com/alphabill-org/alphabill/validator/internal/network"
+	"github.com/alphabill-org/alphabill/validator/internal/network/protocol/certification"
+	"github.com/alphabill-org/alphabill/validator/internal/network/protocol/handshake"
+	"github.com/alphabill-org/alphabill/validator/internal/rootchain/consensus"
+	"github.com/alphabill-org/alphabill/validator/internal/rootchain/partitions"
+	"github.com/alphabill-org/alphabill/validator/internal/types"
+	"github.com/alphabill-org/alphabill/validator/pkg/logger"
 )
 
 type (

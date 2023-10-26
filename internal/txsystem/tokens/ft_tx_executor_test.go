@@ -8,15 +8,15 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
-	"github.com/alphabill-org/alphabill/internal/predicates/templates"
-	"github.com/alphabill-org/alphabill/internal/state"
-	test "github.com/alphabill-org/alphabill/internal/testutils"
-	testblock "github.com/alphabill-org/alphabill/internal/testutils/block"
-	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
-	testtransaction "github.com/alphabill-org/alphabill/internal/testutils/transaction"
-	"github.com/alphabill-org/alphabill/internal/txsystem/fc/unit"
-	"github.com/alphabill-org/alphabill/internal/types"
+	abcrypto "github.com/alphabill-org/alphabill/validator/internal/crypto"
+	"github.com/alphabill-org/alphabill/validator/internal/predicates/templates"
+	"github.com/alphabill-org/alphabill/validator/internal/state"
+	test "github.com/alphabill-org/alphabill/validator/internal/testutils"
+	testblock "github.com/alphabill-org/alphabill/validator/internal/testutils/block"
+	testsig "github.com/alphabill-org/alphabill/validator/internal/testutils/sig"
+	testtransaction "github.com/alphabill-org/alphabill/validator/internal/testutils/transaction"
+	"github.com/alphabill-org/alphabill/validator/internal/txsystem/fc/unit"
+	"github.com/alphabill-org/alphabill/validator/internal/types"
 )
 
 const (

@@ -9,13 +9,13 @@ import (
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/stretchr/testify/require"
 
-	"github.com/alphabill-org/alphabill/internal/predicates/templates"
-	test "github.com/alphabill-org/alphabill/internal/testutils"
-	"github.com/alphabill-org/alphabill/internal/testutils/logger"
-	testpartition "github.com/alphabill-org/alphabill/internal/testutils/partition"
-	testfc "github.com/alphabill-org/alphabill/internal/txsystem/fc/testutils"
-	moneytx "github.com/alphabill-org/alphabill/internal/txsystem/money"
-	moneytestutils "github.com/alphabill-org/alphabill/internal/txsystem/money/testutils"
+	"github.com/alphabill-org/alphabill/validator/internal/predicates/templates"
+	test "github.com/alphabill-org/alphabill/validator/internal/testutils"
+	"github.com/alphabill-org/alphabill/validator/internal/testutils/logger"
+	testpartition "github.com/alphabill-org/alphabill/validator/internal/testutils/partition"
+	testfc "github.com/alphabill-org/alphabill/validator/internal/txsystem/fc/testutils"
+	moneytx "github.com/alphabill-org/alphabill/validator/internal/txsystem/money"
+	moneytestutils "github.com/alphabill-org/alphabill/validator/internal/txsystem/money/testutils"
 )
 
 var (

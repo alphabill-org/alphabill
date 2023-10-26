@@ -8,14 +8,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/alphabill-org/alphabill/internal/predicates/templates"
+	"github.com/alphabill-org/alphabill/validator/internal/predicates/templates"
 	"github.com/stretchr/testify/require"
 
-	test "github.com/alphabill-org/alphabill/internal/testutils"
-	testtransaction "github.com/alphabill-org/alphabill/internal/testutils/transaction"
-	"github.com/alphabill-org/alphabill/internal/txsystem/fc/testutils"
-	"github.com/alphabill-org/alphabill/internal/types"
-	sdk "github.com/alphabill-org/alphabill/pkg/wallet"
+	test "github.com/alphabill-org/alphabill/validator/internal/testutils"
+	testtransaction "github.com/alphabill-org/alphabill/validator/internal/testutils/transaction"
+	"github.com/alphabill-org/alphabill/validator/internal/txsystem/fc/testutils"
+	"github.com/alphabill-org/alphabill/validator/internal/types"
+	sdk "github.com/alphabill-org/alphabill/validator/pkg/wallet"
 )
 
 func Test_storage(t *testing.T) {

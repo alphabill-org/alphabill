@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/alphabill-org/alphabill/internal/rpc/alphabill"
-	"github.com/alphabill-org/alphabill/internal/types"
+	"github.com/alphabill-org/alphabill/validator/internal/rpc/alphabill"
+	"github.com/alphabill-org/alphabill/validator/internal/types"
 	"github.com/fxamacker/cbor/v2"
 )
 

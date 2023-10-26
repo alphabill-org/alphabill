@@ -5,14 +5,14 @@ import (
 	"fmt"
 	"log/slog"
 
-	"github.com/alphabill-org/alphabill/internal/predicates/templates"
-	"github.com/alphabill-org/alphabill/internal/state"
-	"github.com/alphabill-org/alphabill/internal/txsystem"
-	"github.com/alphabill-org/alphabill/internal/txsystem/evm/statedb"
-	"github.com/alphabill-org/alphabill/internal/txsystem/fc"
-	"github.com/alphabill-org/alphabill/internal/txsystem/fc/transactions"
-	"github.com/alphabill-org/alphabill/internal/txsystem/fc/unit"
-	"github.com/alphabill-org/alphabill/internal/types"
+	"github.com/alphabill-org/alphabill/validator/internal/predicates/templates"
+	"github.com/alphabill-org/alphabill/validator/internal/state"
+	"github.com/alphabill-org/alphabill/validator/internal/txsystem"
+	"github.com/alphabill-org/alphabill/validator/internal/txsystem/evm/statedb"
+	"github.com/alphabill-org/alphabill/validator/internal/txsystem/fc"
+	"github.com/alphabill-org/alphabill/validator/internal/txsystem/fc/transactions"
+	"github.com/alphabill-org/alphabill/validator/internal/txsystem/fc/unit"
+	"github.com/alphabill-org/alphabill/validator/internal/types"
 )
 
 func closeFeeCreditTx(tree *state.State, hashAlgorithm crypto.Hash, calcFee FeeCalculator, validator *fc.DefaultFeeCreditTxValidator, log *slog.Logger) txsystem.GenericExecuteFunc[transactions.CloseFeeCreditAttributes] {

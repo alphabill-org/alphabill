@@ -3,9 +3,9 @@ package tokens
 import (
 	"testing"
 
-	"github.com/alphabill-org/alphabill/internal/predicates"
-	"github.com/alphabill-org/alphabill/internal/predicates/templates"
-	"github.com/alphabill-org/alphabill/pkg/wallet/account"
+	"github.com/alphabill-org/alphabill/validator/internal/predicates"
+	"github.com/alphabill-org/alphabill/validator/internal/predicates/templates"
+	"github.com/alphabill-org/alphabill/validator/pkg/wallet/account"
 	"github.com/stretchr/testify/require"
 )
 

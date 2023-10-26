@@ -3,9 +3,9 @@ package templates
 import (
 	"testing"
 
-	"github.com/alphabill-org/alphabill/internal/hash"
-	test "github.com/alphabill-org/alphabill/internal/testutils"
-	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
+	"github.com/alphabill-org/alphabill/validator/internal/hash"
+	test "github.com/alphabill-org/alphabill/validator/internal/testutils"
+	testsig "github.com/alphabill-org/alphabill/validator/internal/testutils/sig"
 	"github.com/fxamacker/cbor/v2"
 	"github.com/stretchr/testify/require"
 )

@@ -3,7 +3,7 @@ package txsystem
 import (
 	"crypto"
 
-	"github.com/alphabill-org/alphabill/internal/state"
+	"github.com/alphabill-org/alphabill/validator/internal/state"
 )
 
 type Options struct {

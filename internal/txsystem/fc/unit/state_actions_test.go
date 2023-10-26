@@ -3,9 +3,9 @@ package unit
 import (
 	"testing"
 
-	"github.com/alphabill-org/alphabill/internal/predicates"
-	"github.com/alphabill-org/alphabill/internal/state"
-	test "github.com/alphabill-org/alphabill/internal/testutils"
+	"github.com/alphabill-org/alphabill/validator/internal/predicates"
+	"github.com/alphabill-org/alphabill/validator/internal/state"
+	test "github.com/alphabill-org/alphabill/validator/internal/testutils"
 	"github.com/stretchr/testify/require"
 )
 

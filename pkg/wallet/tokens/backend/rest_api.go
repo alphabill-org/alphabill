@@ -10,16 +10,16 @@ import (
 	"sync"
 	"time"
 
-	"github.com/alphabill-org/alphabill/internal/predicates/templates"
+	"github.com/alphabill-org/alphabill/validator/internal/predicates/templates"
 	"github.com/fxamacker/cbor/v2"
 	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
 	"golang.org/x/sync/semaphore"
 
-	"github.com/alphabill-org/alphabill/internal/txsystem/tokens"
-	"github.com/alphabill-org/alphabill/internal/types"
-	sdk "github.com/alphabill-org/alphabill/pkg/wallet"
-	"github.com/alphabill-org/alphabill/pkg/wallet/broker"
+	"github.com/alphabill-org/alphabill/validator/internal/txsystem/tokens"
+	"github.com/alphabill-org/alphabill/validator/internal/types"
+	sdk "github.com/alphabill-org/alphabill/validator/pkg/wallet"
+	"github.com/alphabill-org/alphabill/validator/pkg/wallet/broker"
 )
 
 type dataSource interface {

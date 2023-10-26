@@ -3,10 +3,10 @@ package state
 import (
 	"crypto"
 
-	"github.com/alphabill-org/alphabill/internal/mt"
-	"github.com/alphabill-org/alphabill/internal/types"
-	"github.com/alphabill-org/alphabill/internal/util"
-	"github.com/alphabill-org/alphabill/pkg/tree/avl"
+	"github.com/alphabill-org/alphabill/validator/internal/mt"
+	"github.com/alphabill-org/alphabill/validator/internal/types"
+	"github.com/alphabill-org/alphabill/validator/internal/util"
+	"github.com/alphabill-org/alphabill/validator/pkg/tree/avl"
 )
 
 // stateHasher calculates the root hash of the state tree (see "Invariants of the State Tree" chapter from the

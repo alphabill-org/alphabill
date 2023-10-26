@@ -3,8 +3,8 @@ package testtransaction
 import (
 	"testing"
 
-	test "github.com/alphabill-org/alphabill/internal/testutils"
-	"github.com/alphabill-org/alphabill/internal/types"
+	test "github.com/alphabill-org/alphabill/validator/internal/testutils"
+	"github.com/alphabill-org/alphabill/validator/internal/types"
 	"github.com/fxamacker/cbor/v2"
 	"github.com/stretchr/testify/require"
 )

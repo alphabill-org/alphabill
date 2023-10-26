@@ -6,8 +6,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/alphabill-org/alphabill/internal/rpc"
-	"github.com/alphabill-org/alphabill/internal/txsystem/evm"
+	"github.com/alphabill-org/alphabill/validator/internal/rpc"
+	"github.com/alphabill-org/alphabill/validator/internal/txsystem/evm"
 	"github.com/fxamacker/cbor/v2"
 	"github.com/stretchr/testify/require"
 )

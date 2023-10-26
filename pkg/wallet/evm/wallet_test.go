@@ -6,12 +6,12 @@ import (
 	"math/big"
 	"testing"
 
-	test "github.com/alphabill-org/alphabill/internal/testutils"
-	"github.com/alphabill-org/alphabill/internal/txsystem/evm"
-	"github.com/alphabill-org/alphabill/internal/types"
-	"github.com/alphabill-org/alphabill/pkg/wallet"
-	"github.com/alphabill-org/alphabill/pkg/wallet/account"
-	evmclient "github.com/alphabill-org/alphabill/pkg/wallet/evm/client"
+	test "github.com/alphabill-org/alphabill/validator/internal/testutils"
+	"github.com/alphabill-org/alphabill/validator/internal/txsystem/evm"
+	"github.com/alphabill-org/alphabill/validator/internal/types"
+	"github.com/alphabill-org/alphabill/validator/pkg/wallet"
+	"github.com/alphabill-org/alphabill/validator/pkg/wallet/account"
+	evmclient "github.com/alphabill-org/alphabill/validator/pkg/wallet/evm/client"
 	"github.com/fxamacker/cbor/v2"
 	"github.com/stretchr/testify/require"
 )

@@ -4,8 +4,8 @@ import (
 	"crypto"
 	"testing"
 
-	test "github.com/alphabill-org/alphabill/internal/testutils"
-	"github.com/alphabill-org/alphabill/internal/util"
+	test "github.com/alphabill-org/alphabill/validator/internal/testutils"
+	"github.com/alphabill-org/alphabill/validator/internal/util"
 	"github.com/stretchr/testify/require"
 )
 

@@ -4,10 +4,10 @@ import (
 	gocrypto "crypto"
 	"testing"
 
-	"github.com/alphabill-org/alphabill/internal/crypto"
-	test "github.com/alphabill-org/alphabill/internal/testutils"
-	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
-	"github.com/alphabill-org/alphabill/internal/types"
+	"github.com/alphabill-org/alphabill/validator/internal/crypto"
+	test "github.com/alphabill-org/alphabill/validator/internal/testutils"
+	testsig "github.com/alphabill-org/alphabill/validator/internal/testutils/sig"
+	"github.com/alphabill-org/alphabill/validator/internal/types"
 	"github.com/stretchr/testify/require"
 )
 

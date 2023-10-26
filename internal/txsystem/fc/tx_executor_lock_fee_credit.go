@@ -3,11 +3,11 @@ package fc
 import (
 	"fmt"
 
-	"github.com/alphabill-org/alphabill/internal/state"
-	"github.com/alphabill-org/alphabill/internal/txsystem"
-	"github.com/alphabill-org/alphabill/internal/txsystem/fc/transactions"
-	fcunit "github.com/alphabill-org/alphabill/internal/txsystem/fc/unit"
-	"github.com/alphabill-org/alphabill/internal/types"
+	"github.com/alphabill-org/alphabill/validator/internal/state"
+	"github.com/alphabill-org/alphabill/validator/internal/txsystem"
+	"github.com/alphabill-org/alphabill/validator/internal/txsystem/fc/transactions"
+	fcunit "github.com/alphabill-org/alphabill/validator/internal/txsystem/fc/unit"
+	"github.com/alphabill-org/alphabill/validator/internal/types"
 )
 
 func handleLockFeeCreditTx(f *FeeCredit) txsystem.GenericExecuteFunc[transactions.LockFeeCreditAttributes] {

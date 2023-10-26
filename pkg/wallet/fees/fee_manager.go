@@ -8,12 +8,12 @@ import (
 	"log/slog"
 	"sort"
 
-	"github.com/alphabill-org/alphabill/internal/txsystem/fc/transactions"
-	"github.com/alphabill-org/alphabill/internal/types"
-	"github.com/alphabill-org/alphabill/pkg/wallet"
-	"github.com/alphabill-org/alphabill/pkg/wallet/account"
-	txbuilder "github.com/alphabill-org/alphabill/pkg/wallet/money/tx_builder"
-	"github.com/alphabill-org/alphabill/pkg/wallet/unitlock"
+	"github.com/alphabill-org/alphabill/validator/internal/txsystem/fc/transactions"
+	"github.com/alphabill-org/alphabill/validator/internal/types"
+	"github.com/alphabill-org/alphabill/validator/pkg/wallet"
+	"github.com/alphabill-org/alphabill/validator/pkg/wallet/account"
+	txbuilder "github.com/alphabill-org/alphabill/validator/pkg/wallet/money/tx_builder"
+	"github.com/alphabill-org/alphabill/validator/pkg/wallet/unitlock"
 )
 
 const (

@@ -16,13 +16,13 @@ import (
 	"github.com/fxamacker/cbor/v2"
 	"github.com/stretchr/testify/require"
 
-	test "github.com/alphabill-org/alphabill/internal/testutils"
-	testlogger "github.com/alphabill-org/alphabill/internal/testutils/logger"
-	"github.com/alphabill-org/alphabill/internal/txsystem/evm"
-	"github.com/alphabill-org/alphabill/internal/txsystem/evm/api"
-	"github.com/alphabill-org/alphabill/internal/types"
-	"github.com/alphabill-org/alphabill/internal/util"
-	"github.com/alphabill-org/alphabill/pkg/logger"
+	test "github.com/alphabill-org/alphabill/validator/internal/testutils"
+	testlogger "github.com/alphabill-org/alphabill/validator/internal/testutils/logger"
+	"github.com/alphabill-org/alphabill/validator/internal/txsystem/evm"
+	"github.com/alphabill-org/alphabill/validator/internal/txsystem/evm/api"
+	"github.com/alphabill-org/alphabill/validator/internal/types"
+	"github.com/alphabill-org/alphabill/validator/internal/util"
+	"github.com/alphabill-org/alphabill/validator/pkg/logger"
 )
 
 func Test_evmCmdDeploy_error_cases(t *testing.T) {

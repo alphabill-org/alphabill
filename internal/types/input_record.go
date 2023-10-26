@@ -5,7 +5,7 @@ import (
 	"errors"
 	"hash"
 
-	"github.com/alphabill-org/alphabill/internal/util"
+	"github.com/alphabill-org/alphabill/validator/internal/util"
 )
 
 var (

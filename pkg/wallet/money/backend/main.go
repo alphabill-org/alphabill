@@ -12,19 +12,19 @@ import (
 	"time"
 
 	"github.com/ainvaltin/httpsrv"
-	"github.com/alphabill-org/alphabill/internal/predicates/templates"
+	"github.com/alphabill-org/alphabill/validator/internal/predicates/templates"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/sync/semaphore"
 
-	"github.com/alphabill-org/alphabill/internal/debug"
-	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
-	"github.com/alphabill-org/alphabill/internal/txsystem/money"
-	"github.com/alphabill-org/alphabill/internal/types"
-	"github.com/alphabill-org/alphabill/pkg/client"
-	"github.com/alphabill-org/alphabill/pkg/logger"
-	sdk "github.com/alphabill-org/alphabill/pkg/wallet"
-	"github.com/alphabill-org/alphabill/pkg/wallet/account"
-	"github.com/alphabill-org/alphabill/pkg/wallet/blocksync"
+	"github.com/alphabill-org/alphabill/validator/internal/debug"
+	"github.com/alphabill-org/alphabill/validator/internal/network/protocol/genesis"
+	"github.com/alphabill-org/alphabill/validator/internal/txsystem/money"
+	"github.com/alphabill-org/alphabill/validator/internal/types"
+	"github.com/alphabill-org/alphabill/validator/pkg/client"
+	"github.com/alphabill-org/alphabill/validator/pkg/logger"
+	sdk "github.com/alphabill-org/alphabill/validator/pkg/wallet"
+	"github.com/alphabill-org/alphabill/validator/pkg/wallet/account"
+	"github.com/alphabill-org/alphabill/validator/pkg/wallet/blocksync"
 )
 
 type (

@@ -6,19 +6,19 @@ import (
 	"testing"
 	"time"
 
-	"github.com/alphabill-org/alphabill/internal/predicates/templates"
+	"github.com/alphabill-org/alphabill/validator/internal/predicates/templates"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/fxamacker/cbor/v2"
 	"github.com/stretchr/testify/require"
 
-	"github.com/alphabill-org/alphabill/internal/hash"
-	"github.com/alphabill-org/alphabill/internal/rpc/alphabill"
-	test "github.com/alphabill-org/alphabill/internal/testutils"
-	"github.com/alphabill-org/alphabill/internal/testutils/logger"
-	testtransaction "github.com/alphabill-org/alphabill/internal/testutils/transaction"
-	moneytx "github.com/alphabill-org/alphabill/internal/txsystem/money"
-	"github.com/alphabill-org/alphabill/internal/types"
-	"github.com/alphabill-org/alphabill/pkg/wallet"
+	"github.com/alphabill-org/alphabill/validator/internal/hash"
+	"github.com/alphabill-org/alphabill/validator/internal/rpc/alphabill"
+	test "github.com/alphabill-org/alphabill/validator/internal/testutils"
+	"github.com/alphabill-org/alphabill/validator/internal/testutils/logger"
+	testtransaction "github.com/alphabill-org/alphabill/validator/internal/testutils/transaction"
+	moneytx "github.com/alphabill-org/alphabill/validator/internal/txsystem/money"
+	"github.com/alphabill-org/alphabill/validator/internal/types"
+	"github.com/alphabill-org/alphabill/validator/pkg/wallet"
 )
 
 func TestWalletBackend_BillsCanBeIndexedByPredicates(t *testing.T) {

@@ -3,7 +3,7 @@ package testsig
 import (
 	"testing"
 
-	"github.com/alphabill-org/alphabill/internal/crypto"
+	"github.com/alphabill-org/alphabill/validator/internal/crypto"
 	"github.com/stretchr/testify/require"
 )
 

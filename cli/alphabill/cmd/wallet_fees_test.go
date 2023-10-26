@@ -7,18 +7,18 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/alphabill-org/alphabill/internal/predicates/templates"
+	"github.com/alphabill-org/alphabill/validator/internal/predicates/templates"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/stretchr/testify/require"
 
-	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
-	"github.com/alphabill-org/alphabill/internal/testutils/logger"
-	testpartition "github.com/alphabill-org/alphabill/internal/testutils/partition"
-	"github.com/alphabill-org/alphabill/internal/txsystem/money"
-	"github.com/alphabill-org/alphabill/internal/txsystem/tokens"
-	"github.com/alphabill-org/alphabill/pkg/wallet/fees"
-	"github.com/alphabill-org/alphabill/pkg/wallet/money/backend"
-	moneyclient "github.com/alphabill-org/alphabill/pkg/wallet/money/backend/client"
+	"github.com/alphabill-org/alphabill/validator/internal/network/protocol/genesis"
+	"github.com/alphabill-org/alphabill/validator/internal/testutils/logger"
+	testpartition "github.com/alphabill-org/alphabill/validator/internal/testutils/partition"
+	"github.com/alphabill-org/alphabill/validator/internal/txsystem/money"
+	"github.com/alphabill-org/alphabill/validator/internal/txsystem/tokens"
+	"github.com/alphabill-org/alphabill/validator/pkg/wallet/fees"
+	"github.com/alphabill-org/alphabill/validator/pkg/wallet/money/backend"
+	moneyclient "github.com/alphabill-org/alphabill/validator/pkg/wallet/money/backend/client"
 )
 
 var defaultTokenSDR = &genesis.SystemDescriptionRecord{

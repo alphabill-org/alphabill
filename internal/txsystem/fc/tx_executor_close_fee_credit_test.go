@@ -6,11 +6,11 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
-	"github.com/alphabill-org/alphabill/internal/state"
-	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
-	testfc "github.com/alphabill-org/alphabill/internal/txsystem/fc/testutils"
-	"github.com/alphabill-org/alphabill/internal/txsystem/fc/unit"
+	abcrypto "github.com/alphabill-org/alphabill/validator/internal/crypto"
+	"github.com/alphabill-org/alphabill/validator/internal/state"
+	testsig "github.com/alphabill-org/alphabill/validator/internal/testutils/sig"
+	testfc "github.com/alphabill-org/alphabill/validator/internal/txsystem/fc/testutils"
+	"github.com/alphabill-org/alphabill/validator/internal/txsystem/fc/unit"
 )
 
 func TestCloseFC_CannotCloseLockedCredit(t *testing.T) {

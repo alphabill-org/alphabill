@@ -4,10 +4,10 @@ import (
 	"bytes"
 	"testing"
 
-	"github.com/alphabill-org/alphabill/internal/crypto"
-	"github.com/alphabill-org/alphabill/internal/network/protocol/certification"
-	"github.com/alphabill-org/alphabill/internal/rootchain/partitions"
-	"github.com/alphabill-org/alphabill/internal/types"
+	"github.com/alphabill-org/alphabill/validator/internal/crypto"
+	"github.com/alphabill-org/alphabill/validator/internal/network/protocol/certification"
+	"github.com/alphabill-org/alphabill/validator/internal/rootchain/partitions"
+	"github.com/alphabill-org/alphabill/validator/internal/types"
 	"github.com/stretchr/testify/require"
 )
 

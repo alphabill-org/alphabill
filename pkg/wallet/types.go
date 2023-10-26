@@ -1,8 +1,8 @@
 package wallet
 
 import (
-	"github.com/alphabill-org/alphabill/internal/hash"
-	"github.com/alphabill-org/alphabill/internal/types"
+	"github.com/alphabill-org/alphabill/validator/internal/hash"
+	"github.com/alphabill-org/alphabill/validator/internal/types"
 )
 
 type TxHash []byte

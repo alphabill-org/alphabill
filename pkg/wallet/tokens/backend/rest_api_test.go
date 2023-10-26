@@ -16,19 +16,19 @@ import (
 	"sync/atomic"
 	"testing"
 
-	"github.com/alphabill-org/alphabill/internal/predicates/templates"
+	"github.com/alphabill-org/alphabill/validator/internal/predicates/templates"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/fxamacker/cbor/v2"
 	"github.com/gorilla/mux"
 	"github.com/stretchr/testify/require"
 
-	"github.com/alphabill-org/alphabill/internal/hash"
-	test "github.com/alphabill-org/alphabill/internal/testutils"
-	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
-	testtransaction "github.com/alphabill-org/alphabill/internal/testutils/transaction"
-	"github.com/alphabill-org/alphabill/internal/txsystem/tokens"
-	"github.com/alphabill-org/alphabill/internal/types"
-	sdk "github.com/alphabill-org/alphabill/pkg/wallet"
+	"github.com/alphabill-org/alphabill/validator/internal/hash"
+	test "github.com/alphabill-org/alphabill/validator/internal/testutils"
+	testsig "github.com/alphabill-org/alphabill/validator/internal/testutils/sig"
+	testtransaction "github.com/alphabill-org/alphabill/validator/internal/testutils/transaction"
+	"github.com/alphabill-org/alphabill/validator/internal/txsystem/tokens"
+	"github.com/alphabill-org/alphabill/validator/internal/types"
+	sdk "github.com/alphabill-org/alphabill/validator/pkg/wallet"
 )
 
 func Test_restAPI_endpoints(t *testing.T) {

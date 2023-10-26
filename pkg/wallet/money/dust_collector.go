@@ -10,14 +10,14 @@ import (
 	"sort"
 	"time"
 
-	"github.com/alphabill-org/alphabill/internal/txsystem/money"
-	"github.com/alphabill-org/alphabill/internal/types"
-	"github.com/alphabill-org/alphabill/pkg/logger"
-	"github.com/alphabill-org/alphabill/pkg/wallet"
-	"github.com/alphabill-org/alphabill/pkg/wallet/account"
-	"github.com/alphabill-org/alphabill/pkg/wallet/money/tx_builder"
-	"github.com/alphabill-org/alphabill/pkg/wallet/txsubmitter"
-	"github.com/alphabill-org/alphabill/pkg/wallet/unitlock"
+	"github.com/alphabill-org/alphabill/validator/internal/txsystem/money"
+	"github.com/alphabill-org/alphabill/validator/internal/types"
+	"github.com/alphabill-org/alphabill/validator/pkg/logger"
+	"github.com/alphabill-org/alphabill/validator/pkg/wallet"
+	"github.com/alphabill-org/alphabill/validator/pkg/wallet/account"
+	"github.com/alphabill-org/alphabill/validator/pkg/wallet/money/tx_builder"
+	"github.com/alphabill-org/alphabill/validator/pkg/wallet/txsubmitter"
+	"github.com/alphabill-org/alphabill/validator/pkg/wallet/unitlock"
 )
 
 type (

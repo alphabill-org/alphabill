@@ -7,11 +7,11 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/alphabill-org/alphabill/internal/crypto"
-	"github.com/alphabill-org/alphabill/internal/predicates/templates"
-	"github.com/alphabill-org/alphabill/internal/types"
-	"github.com/alphabill-org/alphabill/pkg/wallet/account"
-	evmclient "github.com/alphabill-org/alphabill/pkg/wallet/evm/client"
+	"github.com/alphabill-org/alphabill/validator/internal/crypto"
+	"github.com/alphabill-org/alphabill/validator/internal/predicates/templates"
+	"github.com/alphabill-org/alphabill/validator/internal/types"
+	"github.com/alphabill-org/alphabill/validator/pkg/wallet/account"
+	evmclient "github.com/alphabill-org/alphabill/validator/pkg/wallet/evm/client"
 	"github.com/fxamacker/cbor/v2"
 )
 

@@ -7,18 +7,18 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/alphabill-org/alphabill/internal/predicates/templates"
+	"github.com/alphabill-org/alphabill/validator/internal/predicates/templates"
 	"github.com/fxamacker/cbor/v2"
 	"github.com/stretchr/testify/require"
 
-	"github.com/alphabill-org/alphabill/internal/hash"
-	"github.com/alphabill-org/alphabill/internal/testutils/logger"
-	testpartition "github.com/alphabill-org/alphabill/internal/testutils/partition"
-	"github.com/alphabill-org/alphabill/internal/txsystem/fc/transactions"
-	"github.com/alphabill-org/alphabill/internal/txsystem/money"
-	"github.com/alphabill-org/alphabill/internal/types"
-	"github.com/alphabill-org/alphabill/pkg/wallet/money/backend/client"
-	"github.com/alphabill-org/alphabill/pkg/wallet/unitlock"
+	"github.com/alphabill-org/alphabill/validator/internal/hash"
+	"github.com/alphabill-org/alphabill/validator/internal/testutils/logger"
+	testpartition "github.com/alphabill-org/alphabill/validator/internal/testutils/partition"
+	"github.com/alphabill-org/alphabill/validator/internal/txsystem/fc/transactions"
+	"github.com/alphabill-org/alphabill/validator/internal/txsystem/money"
+	"github.com/alphabill-org/alphabill/validator/internal/types"
+	"github.com/alphabill-org/alphabill/validator/pkg/wallet/money/backend/client"
+	"github.com/alphabill-org/alphabill/validator/pkg/wallet/unitlock"
 )
 
 func TestWalletBillsListCmd_EmptyWallet(t *testing.T) {

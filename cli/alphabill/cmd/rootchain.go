@@ -11,17 +11,17 @@ import (
 	"github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/spf13/cobra"
 
-	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
-	"github.com/alphabill-org/alphabill/internal/keyvaluedb"
-	"github.com/alphabill-org/alphabill/internal/keyvaluedb/boltdb"
-	"github.com/alphabill-org/alphabill/internal/network"
-	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
-	"github.com/alphabill-org/alphabill/internal/rootchain"
-	"github.com/alphabill-org/alphabill/internal/rootchain/consensus"
-	"github.com/alphabill-org/alphabill/internal/rootchain/consensus/monolithic"
-	"github.com/alphabill-org/alphabill/internal/rootchain/partitions"
-	"github.com/alphabill-org/alphabill/internal/util"
-	"github.com/alphabill-org/alphabill/pkg/logger"
+	abcrypto "github.com/alphabill-org/alphabill/validator/internal/crypto"
+	"github.com/alphabill-org/alphabill/validator/internal/keyvaluedb"
+	"github.com/alphabill-org/alphabill/validator/internal/keyvaluedb/boltdb"
+	"github.com/alphabill-org/alphabill/validator/internal/network"
+	"github.com/alphabill-org/alphabill/validator/internal/network/protocol/genesis"
+	"github.com/alphabill-org/alphabill/validator/internal/rootchain"
+	"github.com/alphabill-org/alphabill/validator/internal/rootchain/consensus"
+	"github.com/alphabill-org/alphabill/validator/internal/rootchain/consensus/monolithic"
+	"github.com/alphabill-org/alphabill/validator/internal/rootchain/partitions"
+	"github.com/alphabill-org/alphabill/validator/internal/util"
+	"github.com/alphabill-org/alphabill/validator/pkg/logger"
 )
 
 const (

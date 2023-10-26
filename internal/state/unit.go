@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"hash"
 
-	"github.com/alphabill-org/alphabill/internal/predicates"
+	"github.com/alphabill-org/alphabill/validator/internal/predicates"
 )
 
 type (

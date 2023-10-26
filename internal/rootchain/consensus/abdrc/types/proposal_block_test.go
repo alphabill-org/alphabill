@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"testing"
 
+	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/stretchr/testify/require"
 
 	"github.com/alphabill-org/alphabill/internal/types"
@@ -214,4 +215,41 @@ func TestBlockData_GetParentRound(t *testing.T) {
 	require.Equal(t, uint64(0), x.GetParentRound())
 	x = &BlockData{Qc: &QuorumCert{VoteInfo: NewDummyVoteInfo(1)}}
 	require.Equal(t, uint64(1), x.GetParentRound())
+}
+
+func TestBlockData_String(t *testing.T) {
+	t.Run("nil", func(t *testing.T) {
+		x := &BlockData{
+			Author:    "test",
+			Round:     6,
+			Epoch:     0,
+			Timestamp: util.GenesisTime,
+			Payload:   nil,
+		}
+		require.Equal(t, "(empty)", x.String())
+	})
+	t.Run("empty", func(t *testing.T) {
+		x := &BlockData{
+			Author:    "test",
+			Round:     6,
+			Epoch:     0,
+			Timestamp: util.GenesisTime,
+			Payload:   &Payload{},
+		}
+		require.Equal(t, "(empty)", x.String())
+	})
+	t.Run("multiple", func(t *testing.T) {
+		x := &BlockData{
+			Author:    "test",
+			Round:     6,
+			Epoch:     0,
+			Timestamp: util.GenesisTime,
+			Payload: &Payload{Requests: []*IRChangeReq{
+				{SystemIdentifier: types.SystemID32(0), CertReason: Quorum},
+				{SystemIdentifier: types.SystemID32(1), CertReason: T2Timeout},
+				{SystemIdentifier: types.SystemID32(0xFF000002), CertReason: QuorumNotPossible},
+			}},
+		}
+		require.Equal(t, "(00000000->quorum, 00000001->timeout, FF000002->no-quorum)", x.String())
+	})
 }

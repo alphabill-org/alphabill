@@ -655,3 +655,21 @@ func TestIRChangeReqMsg_VerifyQuorumNotPossible(t *testing.T) {
 		})
 	}
 }
+
+func TestIRChangeReason_String(t *testing.T) {
+	r := Quorum
+	require.Equal(t, "quorum", r.String())
+	require.Equal(t, "timeout", T2Timeout.String())
+	require.Equal(t, "no-quorum", QuorumNotPossible.String())
+	require.Equal(t, "unknown", IRChangeReason(10).String())
+}
+
+func TestIRChangeReq_String(t *testing.T) {
+	t.Run("stringer", func(t *testing.T) {
+		x := &IRChangeReq{
+			SystemIdentifier: sysId2,
+			CertReason:       T2Timeout,
+		}
+		require.Equal(t, "00000002->timeout", x.String())
+	})
+}

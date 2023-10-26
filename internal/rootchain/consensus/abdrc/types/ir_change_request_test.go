@@ -48,7 +48,7 @@ func TestIRChangeReqMsg_IsValid(t *testing.T) {
 			name: "IR change req. invalid cert reason",
 			fields: fields{
 				SystemIdentifier: types.SystemID32(1),
-				CertReason:       -2,
+				CertReason:       20,
 				Requests: []*certification.BlockCertificationRequest{
 					{
 						SystemIdentifier: []byte{0, 0, 0, 2},
@@ -654,4 +654,20 @@ func TestIRChangeReqMsg_VerifyQuorumNotPossible(t *testing.T) {
 			require.Nil(t, ir)
 		})
 	}
+}
+
+func TestIRChangeReason_String(t *testing.T) {
+	r := Quorum
+	require.Equal(t, "quorum", r.String())
+	require.Equal(t, "timeout", T2Timeout.String())
+	require.Equal(t, "no-quorum", QuorumNotPossible.String())
+	require.Equal(t, "unknown IR change reason 10", IRChangeReason(10).String())
+}
+
+func TestIRChangeReq_String(t *testing.T) {
+	x := &IRChangeReq{
+		SystemIdentifier: sysId2,
+		CertReason:       T2Timeout,
+	}
+	require.Equal(t, "00000002->timeout", x.String())
 }

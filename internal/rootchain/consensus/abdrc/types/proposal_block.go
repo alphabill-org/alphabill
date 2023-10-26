@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"hash"
+	"strings"
 
 	"github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/types"
@@ -125,4 +126,16 @@ func (x *BlockData) GetParentRound() uint64 {
 		return x.Qc.GetRound()
 	}
 	return 0
+}
+
+// Summary - stringer returns a payload summary
+func (x *BlockData) String() string {
+	if x.Payload == nil || len(x.Payload.Requests) == 0 {
+		return fmt.Sprintf("round: %v, time: %v, payload: empty", x.Round, x.Timestamp)
+	}
+	var changed []string
+	for _, req := range x.Payload.Requests {
+		changed = append(changed, fmt.Sprintf("%s", req))
+	}
+	return fmt.Sprintf("round: %v, time: %v, payload: %s", x.Round, x.Timestamp, strings.Join(changed, ", "))
 }

@@ -38,13 +38,13 @@ func TestRootValidator_CannotBeStartedInvalidKeyFile(t *testing.T) {
 	conf.KeyFile = "testdata/invalid-root-key.json"
 
 	err := defaultRootNodeRunFunc(context.Background(), conf)
-	require.ErrorContains(t, err, "error root node key not found in genesis file")
+	require.ErrorContains(t, err, "root node key not found in genesis: invalid root node sign key")
 }
 
 func TestRootValidator_CannotBeStartedInvalidDBDir(t *testing.T) {
 	conf := validMonolithicRootValidatorConfig(t, "/foobar/doesnotexist3454/")
 	err := defaultRootNodeRunFunc(context.Background(), conf)
-	require.ErrorContains(t, err, "root store init failed, open /foobar/doesnotexist3454/rootchain.db: no such file or directory")
+	require.EqualError(t, err, "root store init failed: open /foobar/doesnotexist3454/rootchain.db: no such file or directory")
 }
 
 func TestRootValidator_StorageInitNoDBPath(t *testing.T) {

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -88,6 +89,7 @@ type (
 		txIndexer                   keyvaluedb.KeyValueDB
 		txBuffer                    *txbuffer.TxBuffer
 		stopTxProcessor             atomic.Value
+		t1event                     chan struct{}
 		peer                        *network.Peer
 		network                     Net
 		eventCh                     chan event.Event
@@ -144,6 +146,7 @@ func NewNode(
 		blockStore:                  conf.blockStore,
 		txIndexer:                   conf.txIndexer,
 		txBuffer:                    conf.txBuffer,
+		t1event:                     make(chan struct{}), // do not buffer!
 		eventHandler:                conf.eventHandler,
 		network:                     net,
 		lastLedgerReqTime:           time.Time{},
@@ -391,11 +394,11 @@ func (n *Node) loop(ctx context.Context) error {
 					n.sendEvent(event.Error, err)
 				}
 			case *types.UnicityCertificate:
-				lastUCReceived = time.Now()
 				if err := n.handleUnicityCertificate(ctx, mt); err != nil {
 					n.log.Warn("Unicity Certificate processing failed", logger.Error(err))
 					n.sendEvent(event.Error, err)
 				}
+				lastUCReceived = time.Now()
 				n.sendEvent(event.UnicityCertificateHandled, mt)
 			case *blockproposal.BlockProposal:
 				if err := n.handleBlockProposal(ctx, mt); err != nil {
@@ -413,6 +416,8 @@ func (n *Node) loop(ctx context.Context) error {
 			default:
 				n.log.Warn(fmt.Sprintf("unknown message: %T", mt))
 			}
+		case <-n.t1event:
+			n.handleT1TimeoutEvent(ctx)
 		case <-ticker.C:
 			n.handleMonitoring(ctx, lastUCReceived)
 		}
@@ -1250,23 +1255,30 @@ func (n *Node) startHandleOrForwardTransactions(ctx context.Context) {
 		return
 	}
 
-	stopped := make(chan struct{})
 	txCtx, txCancel := context.WithCancel(ctx)
+	var wg sync.WaitGroup
+	wg.Add(2)
 
 	n.stopTxProcessor.Store(func() {
 		txCancel()
-		<-stopped
+		wg.Wait()
 	})
 
 	go func() {
-		defer close(stopped)
+		defer wg.Done()
 		n.txBuffer.Process(txCtx, processTx)
 	}()
 
 	go func() {
+		defer wg.Done()
 		select {
 		case <-time.After(n.configuration.t1Timeout):
-			n.handleT1TimeoutEvent(ctx)
+			// Rather than call handleT1TimeoutEvent directly send signal to main
+			// loop - helps to avoid concurrency issues with (repeat) UC handling.
+			select {
+			case n.t1event <- struct{}{}:
+			case <-txCtx.Done():
+			}
 		case <-txCtx.Done():
 		}
 	}()

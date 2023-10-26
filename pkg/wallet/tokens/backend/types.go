@@ -54,7 +54,7 @@ type (
 
 	TokenID     = types.UnitID
 	TokenTypeID = types.UnitID
-	Kind          byte
+	Kind        byte
 
 	FeeCreditBill struct {
 		Id              []byte `json:"id"`

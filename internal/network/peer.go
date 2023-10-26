@@ -234,11 +234,11 @@ func NewPeerConfiguration(
 	}
 
 	return &PeerConfiguration{
-		ID: peerID,
-		Address: addr,
-		KeyPair: keyPair,
+		ID:             peerID,
+		Address:        addr,
+		KeyPair:        keyPair,
 		BootstrapPeers: bootstrapPeers,
-		Validators: validators,
+		Validators:     validators,
 	}, nil
 }
 

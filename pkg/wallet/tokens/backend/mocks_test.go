@@ -115,7 +115,7 @@ type mockCfg struct {
 	systemID []byte
 }
 
-func (c *mockCfg) BatchSize() int   { return 50 }
+func (c *mockCfg) BatchSize() int            { return 50 }
 func (c *mockCfg) Client() (ABClient, error) { return c.abc, nil }
 
 func (c *mockCfg) Logger() *slog.Logger { return c.log }

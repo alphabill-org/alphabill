@@ -187,8 +187,8 @@ func Test_Run(t *testing.T) {
 			if blockNumber == 7 {
 				// We have generated 6 blocks, act like there's no more
 				return &alphabill.GetBlocksResponse{
-					MaxBlockNumber: blockNumber - 1,
-					MaxRoundNumber: blockNumber - 1,
+					MaxBlockNumber:      blockNumber - 1,
+					MaxRoundNumber:      blockNumber - 1,
 					BatchMaxBlockNumber: blockNumber - 1,
 				}, nil
 			}

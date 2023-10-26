@@ -8,9 +8,9 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/alphabill-org/alphabill/internal/predicates/templates"
 	"github.com/stretchr/testify/require"
 
-	"github.com/alphabill-org/alphabill/internal/script"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	testhttp "github.com/alphabill-org/alphabill/internal/testutils/http"
 	"github.com/alphabill-org/alphabill/internal/testutils/logger"
@@ -28,7 +28,7 @@ func TestMoneyBackendCLI(t *testing.T) {
 	initialBill := &moneytx.InitialBill{
 		ID:    defaultInitialBillID,
 		Value: 1e18,
-		Owner: script.PredicateAlwaysTrue(),
+		Owner: templates.AlwaysTrueBytes(),
 	}
 	moneyPartition := createMoneyPartition(t, initialBill, 1)
 	abNet := startAlphabill(t, []*testpartition.NodePartition{moneyPartition})

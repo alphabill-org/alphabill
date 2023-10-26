@@ -70,9 +70,9 @@ func newGenesisCmd(config *rootGenesisConfig) *cobra.Command {
 	config.Keys.addCmdFlags(cmd)
 	cmd.Flags().StringSliceVarP(&config.PartitionNodeGenesisFiles, partitionRecordFile, "p", []string{}, "path to partition node genesis files")
 	if err := cmd.MarkFlagRequired(partitionRecordFile); err != nil {
-		return nil
+		panic(err)
 	}
-	cmd.Flags().StringVarP(&config.OutputDir, "output", "o", "", "path to the output genesis file (default: $AB_HOME/rootchain/root-genesis.json)")
+	cmd.Flags().StringVarP(&config.OutputDir, "output-dir", "o", "", "path to output directory (default: $AB_HOME/rootchain)")
 	// Consensus params
 	cmd.Flags().Uint32Var(&config.TotalNodes, "total-nodes", 1, "total number of root nodes")
 	cmd.Flags().Uint32Var(&config.BlockRateMs, "block-rate", genesis.DefaultBlockRateMs, "Unicity Certificate rate")

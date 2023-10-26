@@ -35,6 +35,7 @@ func handleJoinFungibleTokenTx(options *Options) txsystem.GenericExecuteFunc[Joi
 						value:     sum,
 						t:         currentBlockNr,
 						backlink:  h,
+						locked:    0,
 					}, nil
 				})); err != nil {
 			return nil, err
@@ -44,7 +45,7 @@ func handleJoinFungibleTokenTx(options *Options) txsystem.GenericExecuteFunc[Joi
 }
 
 func validateJoinFungibleToken(tx *types.TransactionOrder, attr *JoinFungibleTokenAttributes, options *Options) (uint64, error) {
-	bearer, d, err := getFungibleTokenData(tx.UnitID(), options.state, options.hashAlgorithm)
+	bearer, d, err := getFungibleTokenData(tx.UnitID(), options.state)
 	if err != nil {
 		return 0, err
 	}

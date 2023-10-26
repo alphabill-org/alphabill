@@ -53,10 +53,10 @@ func evmCmdDeploy(config *walletConfig) *cobra.Command {
 	// max-gas
 	cmd.Flags().Uint64(maxGasCmdName, 0, "maximum amount of gas user is willing to spend")
 	if err := cmd.MarkFlagRequired(dataCmdName); err != nil {
-		return nil
+		panic(err)
 	}
 	if err := cmd.MarkFlagRequired(maxGasCmdName); err != nil {
-		return nil
+		panic(err)
 	}
 	return cmd
 }
@@ -80,13 +80,13 @@ func evmCmdExecute(config *walletConfig) *cobra.Command {
 	// max amount of gas user is willing to spend
 	cmd.Flags().Uint64(maxGasCmdName, 0, "maximum amount of gas user is willing to spend")
 	if err := cmd.MarkFlagRequired(addressCmdName); err != nil {
-		return nil
+		panic(err)
 	}
 	if err := cmd.MarkFlagRequired(dataCmdName); err != nil {
-		return nil
+		panic(err)
 	}
 	if err := cmd.MarkFlagRequired(maxGasCmdName); err != nil {
-		return nil
+		panic(err)
 	}
 	return cmd
 }
@@ -113,10 +113,10 @@ func evmCmdCall(config *walletConfig) *cobra.Command {
 	cmd.Flags().Uint64(valueCmdName, 0, "(optional) value to transfer")
 	_ = cmd.Flags().MarkHidden(valueCmdName)
 	if err := cmd.MarkFlagRequired(addressCmdName); err != nil {
-		return nil
+		panic(err)
 	}
 	if err := cmd.MarkFlagRequired(dataCmdName); err != nil {
-		return nil
+		panic(err)
 	}
 	return cmd
 }

@@ -7,7 +7,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/alphabill-org/alphabill/internal/hash"
-	"github.com/alphabill-org/alphabill/internal/script"
+	"github.com/alphabill-org/alphabill/internal/predicates/templates"
 	"github.com/alphabill-org/alphabill/internal/txsystem/money"
 	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/internal/util"
@@ -37,7 +37,7 @@ func TestSplitTransactionAmount(t *testing.T) {
 	remainingValue := b.Value - amount
 
 	tx, err := NewSplitTx([]*money.TargetUnit{
-		{OwnerCondition: script.PredicatePayToPublicKeyHashDefault(receiverPubKeyHash), Amount: amount},
+		{OwnerCondition: templates.NewP2pkh256BytesFromKeyHash(receiverPubKeyHash), Amount: amount},
 	}, remainingValue, keys.AccountKey, systemID, b, timeout, nil)
 	require.NoError(t, err)
 	require.NotNil(t, tx)
@@ -50,7 +50,7 @@ func TestSplitTransactionAmount(t *testing.T) {
 	err = tx.UnmarshalAttributes(so)
 	require.NoError(t, err)
 	require.Equal(t, amount, so.TargetUnits[0].Amount)
-	require.EqualValues(t, script.PredicatePayToPublicKeyHashDefault(receiverPubKeyHash), so.TargetUnits[0].OwnerCondition)
+	require.EqualValues(t, templates.NewP2pkh256BytesFromKeyHash(receiverPubKeyHash), so.TargetUnits[0].OwnerCondition)
 	require.EqualValues(t, 350, so.RemainingValue)
 	require.EqualValues(t, b.TxHash, so.Backlink)
 }

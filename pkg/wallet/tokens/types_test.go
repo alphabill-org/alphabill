@@ -3,8 +3,8 @@ package tokens
 import (
 	"testing"
 
-	"github.com/alphabill-org/alphabill/internal/script"
-	"github.com/alphabill-org/alphabill/internal/state"
+	"github.com/alphabill-org/alphabill/internal/predicates"
+	"github.com/alphabill-org/alphabill/internal/predicates/templates"
 	"github.com/alphabill-org/alphabill/pkg/wallet/account"
 	"github.com/stretchr/testify/require"
 )
@@ -14,29 +14,29 @@ func TestParsePredicateArgument(t *testing.T) {
 	tests := []struct {
 		input string
 		// expectations:
-		result    state.Predicate
+		result    predicates.PredicateBytes
 		accNumber uint64
 		err       string
 	}{
 		{
 			input:  "",
-			result: script.PredicateArgumentEmpty(),
+			result: nil,
 		},
 		{
 			input:  "empty",
-			result: script.PredicateArgumentEmpty(),
+			result: nil,
 		},
 		{
 			input:  "true",
-			result: script.PredicateArgumentEmpty(),
+			result: nil,
 		},
 		{
 			input:  "false",
-			result: script.PredicateArgumentEmpty(),
+			result: nil,
 		},
 		{
 			input:  "0x",
-			result: script.PredicateArgumentEmpty(),
+			result: nil,
 		},
 		{
 			input:  "0x5301",
@@ -69,7 +69,7 @@ func TestParsePredicateArgument(t *testing.T) {
 				if tt.accNumber > 0 {
 					require.Equal(t, tt.accNumber, argument.AccountNumber)
 				} else {
-					require.Equal(t, tt.result, argument.Argument)
+					require.EqualValues(t, tt.result, argument.Argument)
 				}
 			}
 		})
@@ -89,7 +89,7 @@ func TestParsePredicateClause(t *testing.T) {
 	}{
 		{
 			clause:    "",
-			predicate: script.PredicateAlwaysTrue(),
+			predicate: templates.AlwaysTrueBytes(),
 		}, {
 			clause: "foo",
 			err:    "invalid predicate clause",
@@ -100,11 +100,11 @@ func TestParsePredicateClause(t *testing.T) {
 		},
 		{
 			clause:    "true",
-			predicate: script.PredicateAlwaysTrue(),
+			predicate: templates.AlwaysTrueBytes(),
 		},
 		{
 			clause:    "false",
-			predicate: script.PredicateAlwaysFalse(),
+			predicate: templates.AlwaysFalseBytes(),
 		},
 		{
 			clause: "ptpkh:",
@@ -119,7 +119,7 @@ func TestParsePredicateClause(t *testing.T) {
 			clause:        "ptpkh",
 			accNumber:     2,
 			expectedIndex: uint64(1),
-			predicate:     script.PredicatePayToPublicKeyHashDefault(mock.keyHash),
+			predicate:     templates.NewP2pkh256BytesFromKeyHash(mock.keyHash),
 		},
 		{
 			clause: "ptpkh:0",
@@ -128,11 +128,11 @@ func TestParsePredicateClause(t *testing.T) {
 		{
 			clause:        "ptpkh:2",
 			expectedIndex: uint64(1),
-			predicate:     script.PredicatePayToPublicKeyHashDefault(mock.keyHash),
+			predicate:     templates.NewP2pkh256BytesFromKeyHash(mock.keyHash),
 		},
 		{
 			clause:    "ptpkh:0x0102",
-			predicate: script.PredicatePayToPublicKeyHashDefault(mock.keyHash),
+			predicate: templates.NewP2pkh256BytesFromKeyHash(mock.keyHash),
 		},
 		{
 			clause: "ptpkh:0X",
@@ -156,7 +156,6 @@ func TestParsePredicateClause(t *testing.T) {
 }
 
 func TestDecodeHexOrEmpty(t *testing.T) {
-	empty := []byte{}
 	tests := []struct {
 		input  string
 		result []byte
@@ -164,15 +163,15 @@ func TestDecodeHexOrEmpty(t *testing.T) {
 	}{
 		{
 			input:  "",
-			result: empty,
+			result: nil,
 		},
 		{
 			input:  "empty",
-			result: empty,
+			result: nil,
 		},
 		{
 			input:  "0x",
-			result: empty,
+			result: nil,
 		},
 		{
 			input: "0x534",

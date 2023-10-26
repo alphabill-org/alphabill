@@ -6,11 +6,11 @@ import (
 	"fmt"
 	"sort"
 
+	"github.com/alphabill-org/alphabill/internal/predicates/templates"
 	"github.com/fxamacker/cbor/v2"
 
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/hash"
-	"github.com/alphabill-org/alphabill/internal/script"
 	ttxs "github.com/alphabill-org/alphabill/internal/txsystem/tokens"
 	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/pkg/wallet"
@@ -75,9 +75,7 @@ func (w *Wallet) newType(ctx context.Context, accNr uint64, payloadType string, 
 func preparePredicateSignatures(am account.Manager, args []*PredicateInput, tx *types.TransactionOrder, attrs types.SigBytesProvider) ([][]byte, error) {
 	signatures := make([][]byte, 0, len(args))
 	for _, input := range args {
-		if len(input.Argument) > 0 {
-			signatures = append(signatures, input.Argument)
-		} else if input.AccountNumber > 0 {
+		if input.AccountNumber > 0 {
 			ac, err := am.GetAccountKey(input.AccountNumber - 1)
 			if err != nil {
 				return nil, err
@@ -88,7 +86,7 @@ func preparePredicateSignatures(am account.Manager, args []*PredicateInput, tx *
 			}
 			signatures = append(signatures, sig)
 		} else {
-			return nil, fmt.Errorf("invalid account for creation input: %v", input.AccountNumber)
+			signatures = append(signatures, input.Argument)
 		}
 	}
 	return signatures, nil
@@ -164,7 +162,7 @@ func (w *Wallet) prepareTxSubmission(ctx context.Context, payloadType string, at
 
 func signTx(tx *types.TransactionOrder, attrs types.SigBytesProvider, ac *account.AccountKey) (wallet.Predicate, error) {
 	if ac == nil {
-		return script.PredicateArgumentEmpty(), nil
+		return nil, nil
 	}
 	signer, err := abcrypto.NewInMemorySecp256K1SignerFromKey(ac.PrivKey)
 	if err != nil {
@@ -178,12 +176,12 @@ func signTx(tx *types.TransactionOrder, attrs types.SigBytesProvider, ac *accoun
 	if err != nil {
 		return nil, err
 	}
-	return script.PredicateArgumentPayToPublicKeyHashDefault(sig, ac.PubKey), nil
+	return templates.NewP2pkh256SignatureBytes(sig, ac.PubKey), nil
 }
 
 func makeTxFeeProof(tx *types.TransactionOrder, ac *account.AccountKey) (wallet.Predicate, error) {
 	if ac == nil {
-		return script.PredicateArgumentEmpty(), nil
+		return nil, nil
 	}
 	signer, err := abcrypto.NewInMemorySecp256K1SignerFromKey(ac.PrivKey)
 	if err != nil {
@@ -197,7 +195,7 @@ func makeTxFeeProof(tx *types.TransactionOrder, ac *account.AccountKey) (wallet.
 	if err != nil {
 		return nil, err
 	}
-	return script.PredicateArgumentPayToPublicKeyHashDefault(sig, ac.PubKey), nil
+	return templates.NewP2pkh256SignatureBytes(sig, ac.PubKey), nil
 }
 
 func newFungibleTransferTxAttrs(token *backend.TokenUnit, receiverPubKey []byte) *ttxs.TransferFungibleTokenAttributes {
@@ -220,10 +218,13 @@ func newNonFungibleTransferTxAttrs(token *backend.TokenUnit, receiverPubKey []by
 }
 
 func bearerPredicateFromHash(receiverPubKeyHash []byte) wallet.Predicate {
+	var bytes []byte
 	if receiverPubKeyHash != nil {
-		return script.PredicatePayToPublicKeyHashDefault(receiverPubKeyHash)
+		bytes = templates.NewP2pkh256BytesFromKeyHash(receiverPubKeyHash)
+	} else {
+		bytes = templates.AlwaysTrueBytes()
 	}
-	return script.PredicateAlwaysTrue()
+	return bytes
 }
 
 func BearerPredicateFromPubKey(receiverPubKey wallet.PubKey) wallet.Predicate {
@@ -241,7 +242,7 @@ func newSplitTxAttrs(token *backend.TokenUnit, amount uint64, receiverPubKey []b
 		TargetValue:                  amount,
 		RemainingValue:               token.Amount - amount,
 		Backlink:                     token.TxHash,
-		InvariantPredicateSignatures: [][]byte{script.PredicateArgumentEmpty()},
+		InvariantPredicateSignatures: [][]byte{nil},
 	}
 }
 

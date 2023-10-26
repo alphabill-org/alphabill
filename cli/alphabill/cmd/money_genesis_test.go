@@ -10,7 +10,7 @@ import (
 	"testing"
 
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
-	"github.com/alphabill-org/alphabill/internal/script"
+	"github.com/alphabill-org/alphabill/internal/predicates/templates"
 	"github.com/alphabill-org/alphabill/internal/testutils/logger"
 	"github.com/alphabill-org/alphabill/internal/txsystem/money"
 	"github.com/alphabill-org/alphabill/internal/util"
@@ -157,7 +157,7 @@ func TestMoneyGenesis_ParamsCanBeChanged(t *testing.T) {
 		T2Timeout:        10000,
 		FeeCreditBill: &genesis.FeeCreditBill{
 			UnitId:         money.NewBillID(nil, []byte{2}),
-			OwnerPredicate: script.PredicateAlwaysFalse(),
+			OwnerPredicate: templates.AlwaysFalseBytes(),
 		},
 	}
 	sdrFile, err := createSDRFile(homeDir, sdr)

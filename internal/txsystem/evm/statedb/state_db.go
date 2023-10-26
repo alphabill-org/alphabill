@@ -9,7 +9,7 @@ import (
 	"math/big"
 	"sort"
 
-	"github.com/alphabill-org/alphabill/internal/script"
+	"github.com/alphabill-org/alphabill/internal/predicates/templates"
 	"github.com/alphabill-org/alphabill/internal/state"
 	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/pkg/logger"
@@ -103,7 +103,7 @@ func (s *StateDB) CreateAccount(address common.Address) {
 	s.log.LogAttrs(context.Background(), logger.LevelTrace, fmt.Sprintf("Adding an account: %v", address))
 	s.errDB = s.tree.Apply(state.AddUnit(
 		unitID,
-		script.PredicateAlwaysFalse(),
+		templates.AlwaysFalseBytes(),
 		&StateObject{Address: address, Account: &Account{Nonce: 0, Balance: big.NewInt(0), CodeHash: emptyCodeHash}, Storage: map[common.Hash]common.Hash{}},
 	))
 	if s.errDB == nil {

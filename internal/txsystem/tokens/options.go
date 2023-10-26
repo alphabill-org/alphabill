@@ -24,7 +24,7 @@ type (
 	Option func(*Options)
 )
 
-func defaultOptions() (*Options, error) {
+func defaultOptions() *Options {
 	return &Options{
 		systemIdentifier:        DefaultSystemIdentifier,
 		moneyTXSystemIdentifier: money.DefaultSystemIdentifier,
@@ -32,7 +32,7 @@ func defaultOptions() (*Options, error) {
 		state:                   state.NewEmptyState(),
 		feeCalculator:           fc.FixedFee(1),
 		trustBase:               map[string]crypto.Verifier{},
-	}, nil
+	}
 }
 
 func WithState(s *state.State) Option {

@@ -11,7 +11,8 @@ import (
 
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
-	"github.com/alphabill-org/alphabill/internal/script"
+	"github.com/alphabill-org/alphabill/internal/predicates"
+	"github.com/alphabill-org/alphabill/internal/predicates/templates"
 	"github.com/alphabill-org/alphabill/internal/state"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	testblock "github.com/alphabill-org/alphabill/internal/testutils/block"
@@ -33,7 +34,7 @@ var (
 	initialBill = &InitialBill{
 		ID:    NewBillID(nil, test.RandomBytes(UnitPartLength)),
 		Value: 110,
-		Owner: script.PredicateAlwaysTrue(),
+		Owner: templates.AlwaysTrueBytes(),
 	}
 	fcrID         = NewFeeCreditRecordID(nil, []byte{88})
 	fcrAmount     = uint64(1e8)
@@ -72,7 +73,7 @@ func TestNewMoneyTxSystem(t *testing.T) {
 	require.NotNil(t, d)
 
 	require.Equal(t, dcMoneyAmount, d.Data().SummaryValueInput())
-	require.Equal(t, state.Predicate(dustCollectorPredicate), d.Bearer())
+	require.Equal(t, predicates.PredicateBytes(dustCollectorPredicate), d.Bearer())
 }
 
 func TestNewMoneyTxSystem_InitialBillIsNil(t *testing.T) {
@@ -136,7 +137,7 @@ func TestExecute_TransferOk(t *testing.T) {
 	rmaTree, txSystem, _ := createStateAndTxSystem(t)
 	_, data := getBill(t, rmaTree, initialBill.ID)
 
-	transferOk, _ := createBillTransfer(t, initialBill.ID, initialBill.Value, script.PredicateAlwaysFalse(), nil)
+	transferOk, _ := createBillTransfer(t, initialBill.ID, initialBill.Value, templates.AlwaysFalseBytes(), nil)
 	roundNumber := uint64(10)
 	err := txSystem.BeginBlock(roundNumber)
 	require.NoError(t, err)
@@ -162,7 +163,7 @@ func TestExecute_Split2WayOk(t *testing.T) {
 	initBill, initBillData := getBill(t, rmaTree, initialBill.ID)
 	var remaining uint64 = 10
 	amount := initialBill.Value - remaining
-	splitOk, splitAttr := createSplit(t, initialBill.ID, []*TargetUnit{{Amount: amount, OwnerCondition: script.PredicateAlwaysTrue()}}, remaining, initBillData.Backlink)
+	splitOk, splitAttr := createSplit(t, initialBill.ID, []*TargetUnit{{Amount: amount, OwnerCondition: templates.AlwaysTrueBytes()}}, remaining, initBillData.Backlink)
 	roundNumber := uint64(1)
 	err = txSystem.BeginBlock(roundNumber)
 	require.NoError(t, err)
@@ -197,7 +198,7 @@ func TestExecute_Split2WayOk(t *testing.T) {
 	require.NotNil(t, bd)
 	require.Equal(t, amount, bd.V)
 	require.EqualValues(t, splitOk.Hash(crypto.SHA256), bd.Backlink)
-	require.Equal(t, state.Predicate(splitAttr.TargetUnits[0].OwnerCondition), newBill.Bearer())
+	require.Equal(t, predicates.PredicateBytes(splitAttr.TargetUnits[0].OwnerCondition), newBill.Bearer())
 	require.Equal(t, roundNumber, bd.T)
 	require.EqualValues(t, 0, bd.Locked)
 }
@@ -212,7 +213,7 @@ func TestExecute_SplitNWayOk(t *testing.T) {
 
 	var targetUnits []*TargetUnit
 	for i := 0; i < 10; i++ {
-		targetUnits = append(targetUnits, &TargetUnit{Amount: amount, OwnerCondition: script.PredicateAlwaysTrue()})
+		targetUnits = append(targetUnits, &TargetUnit{Amount: amount, OwnerCondition: templates.AlwaysTrueBytes()})
 		remaining -= amount
 	}
 	splitOk, splitAttr := createSplit(t, initialBill.ID, targetUnits, remaining, initBillData.Backlink)
@@ -248,7 +249,7 @@ func TestExecute_SplitNWayOk(t *testing.T) {
 		require.NotNil(t, bd)
 		require.Equal(t, amount, bd.V)
 		require.EqualValues(t, splitOk.Hash(crypto.SHA256), bd.Backlink)
-		require.Equal(t, state.Predicate(splitAttr.TargetUnits[0].OwnerCondition), newBill.Bearer())
+		require.Equal(t, predicates.PredicateBytes(splitAttr.TargetUnits[0].OwnerCondition), newBill.Bearer())
 		require.Equal(t, roundNumber, bd.T)
 	}
 }
@@ -258,7 +259,7 @@ func TestExecuteTransferDC_OK(t *testing.T) {
 	_, initBillData := getBill(t, rmaTree, initialBill.ID)
 	var remaining uint64 = 10
 	amount := initialBill.Value - remaining
-	splitOk, _ := createSplit(t, initialBill.ID, []*TargetUnit{{Amount: amount, OwnerCondition: script.PredicateAlwaysTrue()}}, remaining, initBillData.Backlink)
+	splitOk, _ := createSplit(t, initialBill.ID, []*TargetUnit{{Amount: amount, OwnerCondition: templates.AlwaysTrueBytes()}}, remaining, initBillData.Backlink)
 	roundNumber := uint64(10)
 	err := txSystem.BeginBlock(roundNumber)
 	require.NoError(t, err)
@@ -276,7 +277,7 @@ func TestExecuteTransferDC_OK(t *testing.T) {
 	require.NotNil(t, sm)
 
 	transferDCBill, transferDCBillData := getBill(t, rmaTree, billID)
-	require.NotEqual(t, dustCollectorPredicate, transferDCBill.Bearer())
+	require.EqualValues(t, dustCollectorPredicate, transferDCBill.Bearer())
 	require.EqualValues(t, 0, transferDCBillData.SummaryValueInput()) // dust transfer sets bill value to 0
 	require.Equal(t, roundNumber, transferDCBillData.T)
 	require.EqualValues(t, transferDCOk.Hash(crypto.SHA256), transferDCBillData.Backlink)
@@ -287,13 +288,7 @@ func TestExecute_SwapOk(t *testing.T) {
 	_, initBillData := getBill(t, rmaTree, initialBill.ID)
 	var remaining uint64 = 99
 	amount := initialBill.Value - remaining
-	splitOk, _ := createSplit(t,
-		initialBill.ID,
-		[]*TargetUnit{
-			{Amount: amount, OwnerCondition: script.PredicateAlwaysTrue()},
-		},
-		remaining,
-		initBillData.Backlink)
+	splitOk, _ := createSplit(t, initialBill.ID, []*TargetUnit{{Amount: amount, OwnerCondition: templates.AlwaysTrueBytes()}}, remaining, initBillData.Backlink)
 	roundNumber := uint64(10)
 
 	err := txSystem.BeginBlock(roundNumber)
@@ -419,7 +414,7 @@ func TestEndBlock_DustBillsAreRemoved(t *testing.T) {
 	backlink := initBillData.Backlink
 	for i := 0; i < 10; i++ {
 		remaining--
-		splitOk, _ := createSplit(t, initialBill.ID, []*TargetUnit{{Amount: 1, OwnerCondition: script.PredicateAlwaysTrue()}}, remaining, backlink)
+		splitOk, _ := createSplit(t, initialBill.ID, []*TargetUnit{{Amount: 1, OwnerCondition: templates.AlwaysTrueBytes()}}, remaining, backlink)
 		roundNumber := uint64(10)
 		err := txSystem.BeginBlock(roundNumber)
 		require.NoError(t, err)
@@ -488,7 +483,7 @@ func TestEndBlock_FeesConsolidation(t *testing.T) {
 			testfc.WithBacklink(nil),
 		),
 		testtransaction.WithUnitId(initialBill.ID),
-		testtransaction.WithOwnerProof(script.PredicateArgumentEmpty()),
+		testtransaction.WithOwnerProof(nil),
 	)
 
 	_, err = txSystem.Execute(transferFC)
@@ -530,7 +525,7 @@ func TestEndBlock_FeesConsolidation(t *testing.T) {
 		),
 		testtransaction.WithUnitId(initialBill.ID),
 		testtransaction.WithPayloadType(transactions.PayloadTypeReclaimFeeCredit),
-		testtransaction.WithOwnerProof(script.PredicateArgumentEmpty()),
+		testtransaction.WithOwnerProof(nil),
 	)
 	_, err = txSystem.Execute(reclaimFC)
 	require.NoError(t, err)
@@ -553,7 +548,7 @@ func TestRegisterData_RevertSplit(t *testing.T) {
 
 	var remaining uint64 = 10
 	amount := initialBill.Value - remaining
-	splitOk, _ := createSplit(t, initialBill.ID, []*TargetUnit{{Amount: amount, OwnerCondition: script.PredicateAlwaysTrue()}}, remaining, initBillData.Backlink)
+	splitOk, _ := createSplit(t, initialBill.ID, []*TargetUnit{{Amount: amount, OwnerCondition: templates.AlwaysTrueBytes()}}, remaining, initBillData.Backlink)
 	require.NoError(t, err)
 	roundNumber := uint64(10)
 	err = txSystem.BeginBlock(roundNumber)
@@ -617,7 +612,7 @@ func TestExecute_FeeCreditSequence_OK(t *testing.T) {
 			testfc.WithTargetRecordID(fcrUnitID),
 		),
 		testtransaction.WithUnitId(initialBillID),
-		testtransaction.WithOwnerProof(script.PredicateArgumentEmpty()),
+		testtransaction.WithOwnerProof(nil),
 	)
 	sm, err := txSystem.Execute(transferFC)
 	require.NoError(t, err)
@@ -639,7 +634,7 @@ func TestExecute_FeeCreditSequence_OK(t *testing.T) {
 		testfc.NewAddFCAttr(t, signer,
 			testfc.WithTransferFCTx(transferFCTransactionRecord),
 			testfc.WithTransferFCProof(transferFCProof),
-			testfc.WithFCOwnerCondition(script.PredicateAlwaysTrue()),
+			testfc.WithFCOwnerCondition(templates.AlwaysTrueBytes()),
 		),
 		testtransaction.WithUnitId(fcrUnitID),
 	)
@@ -679,7 +674,7 @@ func TestExecute_FeeCreditSequence_OK(t *testing.T) {
 			testfc.WithCloseFCTargetUnitBacklink(targetBacklink),
 		),
 		testtransaction.WithUnitId(fcrUnitID),
-		testtransaction.WithOwnerProof(script.PredicateArgumentEmpty()),
+		testtransaction.WithOwnerProof(nil),
 	)
 	sm, err = txSystem.Execute(closeFC)
 	require.NoError(t, err)
@@ -705,7 +700,7 @@ func TestExecute_FeeCreditSequence_OK(t *testing.T) {
 			testfc.WithReclaimFCBacklink(targetBacklink),
 		),
 		testtransaction.WithUnitId(initialBillID),
-		testtransaction.WithOwnerProof(script.PredicateArgumentEmpty()),
+		testtransaction.WithOwnerProof(nil),
 		testtransaction.WithPayloadType(transactions.PayloadTypeReclaimFeeCredit),
 	)
 	sm, err = txSystem.Execute(reclaimFC)
@@ -734,7 +729,7 @@ func TestExecute_AddFeeCreditWithLocking_OK(t *testing.T) {
 	lockFCAttr := testfc.NewLockFCAttr(testfc.WithLockFCBacklink(nil))
 	lockFC := testfc.NewLockFC(t, lockFCAttr,
 		testtransaction.WithUnitId(fcrID),
-		testtransaction.WithOwnerProof(script.PredicateArgumentEmpty()),
+		testtransaction.WithOwnerProof(nil),
 	)
 	sm, err := txSystem.Execute(lockFC)
 	require.NoError(t, err)
@@ -857,11 +852,11 @@ func createDCTransferAndSwapTxs(
 				FeeCreditRecordID: fcrID,
 			},
 		},
-		OwnerProof: script.PredicateArgumentEmpty(),
+		OwnerProof: nil,
 	}
 
 	bt := &SwapDCAttributes{
-		OwnerCondition:   script.PredicateAlwaysTrue(),
+		OwnerCondition:   templates.AlwaysTrueBytes(),
 		DcTransfers:      dcTransfers,
 		DcTransferProofs: proofs,
 		TargetValue:      targetValue,
@@ -912,8 +907,8 @@ func createTx(fromID types.UnitID, payloadType string) *types.TransactionOrder {
 				FeeCreditRecordID: fcrID,
 			},
 		},
-		OwnerProof: script.PredicateArgumentEmpty(),
-		FeeProof:   script.PredicateArgumentEmpty(),
+		OwnerProof: nil,
+		FeeProof:   templates.AlwaysTrueArgBytes(),
 	}
 	return tx
 }
@@ -944,7 +939,7 @@ func createStateAndTxSystem(t *testing.T) (*state.State, *txsystem.GenericTxSyst
 		Balance: 100,
 		Timeout: 100,
 	}
-	err = s.Apply(unit.AddCredit(fcrID, script.PredicateAlwaysTrue(), fcrData))
+	err = s.Apply(unit.AddCredit(fcrID, templates.AlwaysTrueBytes(), fcrData))
 	require.NoError(t, err)
 	_, err = mss.EndBlock()
 	require.NoError(t, err)
@@ -960,7 +955,7 @@ func createSDRs(fcbID types.UnitID) []*genesis.SystemDescriptionRecord {
 		T2Timeout:        2500,
 		FeeCreditBill: &genesis.FeeCreditBill{
 			UnitId:         fcbID,
-			OwnerPredicate: script.PredicateAlwaysTrue(),
+			OwnerPredicate: templates.AlwaysTrueBytes(),
 		},
 	}}
 }

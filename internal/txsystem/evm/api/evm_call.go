@@ -6,7 +6,7 @@ import (
 	"net/http"
 
 	"github.com/alphabill-org/alphabill/internal/keyvaluedb/memorydb"
-	"github.com/alphabill-org/alphabill/internal/script"
+	"github.com/alphabill-org/alphabill/internal/predicates/templates"
 	"github.com/alphabill-org/alphabill/internal/state"
 	"github.com/alphabill-org/alphabill/internal/txsystem/evm"
 	"github.com/alphabill-org/alphabill/internal/txsystem/evm/statedb"
@@ -87,7 +87,7 @@ func (a *API) callContract(clonedState *state.State, call *evm.TxAttributes) (*c
 	u, _ := clonedState.GetUnit(call.From, false)
 	var err error
 	if u == nil {
-		err = clonedState.Apply(statedb.CreateAccountAndAddCredit(call.FromAddr(), script.PredicateAlwaysFalse(), math.MaxBig256, 0, nil))
+		err = clonedState.Apply(statedb.CreateAccountAndAddCredit(call.FromAddr(), templates.AlwaysFalseBytes(), math.MaxBig256, 0, nil))
 	} else {
 		err = clonedState.Apply(statedb.SetBalance(call.From, math.MaxBig256))
 	}

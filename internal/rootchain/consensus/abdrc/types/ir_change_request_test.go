@@ -665,11 +665,9 @@ func TestIRChangeReason_String(t *testing.T) {
 }
 
 func TestIRChangeReq_String(t *testing.T) {
-	t.Run("stringer", func(t *testing.T) {
-		x := &IRChangeReq{
-			SystemIdentifier: sysId2,
-			CertReason:       T2Timeout,
-		}
-		require.Equal(t, "00000002->timeout", x.String())
-	})
+	x := &IRChangeReq{
+		SystemIdentifier: sysId2,
+		CertReason:       T2Timeout,
+	}
+	require.Equal(t, "00000002->timeout", x.String())
 }

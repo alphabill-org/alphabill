@@ -62,6 +62,7 @@ type (
 		DCTargetUnitID       []byte `json:"dcTargetUnitId,omitempty"`
 		DCTargetUnitBacklink []byte `json:"dcTargetUnitBacklink,omitempty"`
 		OwnerPredicate       []byte `json:"ownerPredicate"`
+		Locked               uint64 `json:"locked"`
 
 		// fcb specific fields
 		// LastAddFCTxHash last add fee credit tx hash
@@ -397,6 +398,7 @@ func (b *Bill) ToGenericBill() *sdk.Bill {
 		TxHash:               b.TxHash,
 		DCTargetUnitID:       b.DCTargetUnitID,
 		DCTargetUnitBacklink: b.DCTargetUnitBacklink,
+		Locked:               b.Locked,
 		LastAddFCTxHash:      b.LastAddFCTxHash,
 	}
 }

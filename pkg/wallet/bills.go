@@ -17,6 +17,7 @@ type (
 		TxHash               []byte `json:"txHash,omitempty"`
 		DCTargetUnitID       []byte `json:"targetUnitId,omitempty"`
 		DCTargetUnitBacklink []byte `json:"targetUnitBacklink,omitempty"`
+		Locked               uint64 `json:"locked,omitempty"`
 
 		// fcb specific fields
 		// LastAddFCTxHash last add fee credit tx hash

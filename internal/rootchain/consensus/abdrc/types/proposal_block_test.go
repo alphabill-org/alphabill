@@ -226,7 +226,7 @@ func TestBlockData_String(t *testing.T) {
 			Timestamp: util.GenesisTime,
 			Payload:   nil,
 		}
-		require.Equal(t, "(empty)", x.String())
+		require.Equal(t, "round 6, time 1681971084, payload(empty)", x.String())
 	})
 	t.Run("empty", func(t *testing.T) {
 		x := &BlockData{
@@ -236,7 +236,7 @@ func TestBlockData_String(t *testing.T) {
 			Timestamp: util.GenesisTime,
 			Payload:   &Payload{},
 		}
-		require.Equal(t, "(empty)", x.String())
+		require.Equal(t, "round 6, time 1681971084, payload(empty)", x.String())
 	})
 	t.Run("multiple", func(t *testing.T) {
 		x := &BlockData{
@@ -250,6 +250,6 @@ func TestBlockData_String(t *testing.T) {
 				{SystemIdentifier: types.SystemID32(0xFF000002), CertReason: QuorumNotPossible},
 			}},
 		}
-		require.Equal(t, "(00000000->quorum, 00000001->timeout, FF000002->no-quorum)", x.String())
+		require.Equal(t, "round 6, time 1681971084, payload(00000000->quorum, 00000001->timeout, FF000002->no-quorum)", x.String())
 	})
 }

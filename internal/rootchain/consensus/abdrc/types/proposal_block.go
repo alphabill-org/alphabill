@@ -128,14 +128,14 @@ func (x *BlockData) GetParentRound() uint64 {
 	return 0
 }
 
-// String - stringer returns a payload summary
+// Summary - stringer returns a payload summary
 func (x *BlockData) String() string {
 	if x.Payload == nil || len(x.Payload.Requests) == 0 {
-		return "(empty)"
+		return fmt.Sprintf("round %v, time %v, payload(empty)", x.Round, x.Timestamp)
 	}
 	var changed []string
 	for _, req := range x.Payload.Requests {
 		changed = append(changed, fmt.Sprintf("%s", req))
 	}
-	return fmt.Sprintf("(%s)", strings.Join(changed, ", "))
+	return fmt.Sprintf("round %v, time %v, payload(%s)", x.Round, x.Timestamp, strings.Join(changed, ", "))
 }

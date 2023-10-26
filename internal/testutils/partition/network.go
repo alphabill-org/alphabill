@@ -528,9 +528,10 @@ func WaitTxProof(t *testing.T, part *NodePartition, idx ValidatorIndex, txOrder 
 	} else {
 		nodes = append(nodes, part.Nodes[idx])
 	}
+	txHash := txOrder.Hash(gocrypto.SHA256)
 	if ok := eventually(func() bool {
 		for _, n := range nodes {
-			txRec, proof, err := n.GetTransactionRecord(context.Background(), txOrder.Hash(gocrypto.SHA256))
+			txRec, proof, err := n.GetTransactionRecord(context.Background(), txHash)
 			if err != nil || proof == nil {
 				continue
 			}

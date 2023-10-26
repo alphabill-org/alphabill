@@ -11,8 +11,8 @@ import (
 	"time"
 
 	"github.com/alphabill-org/alphabill/internal/hash"
+	"github.com/alphabill-org/alphabill/internal/predicates/templates"
 	"github.com/alphabill-org/alphabill/internal/rpc/alphabill"
-	"github.com/alphabill-org/alphabill/internal/script"
 	"github.com/alphabill-org/alphabill/internal/txsystem/fc/transactions"
 	"github.com/alphabill-org/alphabill/internal/txsystem/money"
 	"github.com/alphabill-org/alphabill/internal/types"
@@ -115,7 +115,7 @@ func main() {
 	}
 
 	// create addFC
-	addFC, err := createAddFC(fcrID, script.PredicateAlwaysTrue(), transferFCProof.TxRecord, transferFCProof.TxProof, absoluteTimeout, feeAmount)
+	addFC, err := createAddFC(fcrID, templates.AlwaysTrueBytes(), transferFCProof.TxRecord, transferFCProof.TxProof, absoluteTimeout, feeAmount)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -179,7 +179,7 @@ func createTransferFC(feeAmount uint64, unitID []byte, targetUnitID []byte, t1, 
 			Attributes:     attr,
 			ClientMetadata: &types.ClientMetadata{Timeout: t2, MaxTransactionFee: 1},
 		},
-		OwnerProof: script.PredicateArgumentEmpty(),
+		OwnerProof: nil,
 	}
 	return tx, nil
 }
@@ -203,14 +203,14 @@ func createAddFC(unitID []byte, ownerCondition []byte, transferFC *types.Transac
 			Attributes:     attr,
 			ClientMetadata: &types.ClientMetadata{Timeout: timeout, MaxTransactionFee: maxFee},
 		},
-		OwnerProof: script.PredicateArgumentEmpty(),
+		OwnerProof: nil,
 	}, nil
 }
 
 func createTransferTx(pubKey []byte, unitID []byte, billValue uint64, fcrID []byte, timeout uint64, backlink []byte) (*types.TransactionOrder, error) {
 	attr, err := cbor.Marshal(
 		&money.TransferAttributes{
-			NewBearer:   script.PredicatePayToPublicKeyHashDefault(hash.Sum256(pubKey)),
+			NewBearer:   templates.NewP2pkh256BytesFromKeyHash(hash.Sum256(pubKey)),
 			TargetValue: billValue,
 			Backlink:    backlink,
 		},
@@ -230,7 +230,7 @@ func createTransferTx(pubKey []byte, unitID []byte, billValue uint64, fcrID []by
 				FeeCreditRecordID: fcrID,
 			},
 		},
-		OwnerProof: script.PredicateArgumentEmpty(),
+		OwnerProof: nil,
 	}, nil
 }
 

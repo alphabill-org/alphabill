@@ -10,7 +10,7 @@ import (
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/internal/partition"
-	"github.com/alphabill-org/alphabill/internal/script"
+	"github.com/alphabill-org/alphabill/internal/predicates/templates"
 	"github.com/alphabill-org/alphabill/internal/txsystem/money"
 	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/fxamacker/cbor/v2"
@@ -31,7 +31,7 @@ var defaultMoneySDR = &genesis.SystemDescriptionRecord{
 	T2Timeout:        defaultT2Timeout,
 	FeeCreditBill: &genesis.FeeCreditBill{
 		UnitId:         money.NewBillID(nil, []byte{2}),
-		OwnerPredicate: script.PredicateAlwaysTrue(),
+		OwnerPredicate: templates.AlwaysTrueBytes(),
 	},
 }
 
@@ -101,7 +101,7 @@ func abMoneyGenesisRunFun(_ context.Context, config *moneyGenesisConfig) error {
 	ib := &money.InitialBill{
 		ID:    defaultInitialBillID,
 		Value: config.InitialBillValue,
-		Owner: script.PredicateAlwaysTrue(),
+		Owner: templates.AlwaysTrueBytes(),
 	}
 
 	sdrs, err := config.getSDRFiles()

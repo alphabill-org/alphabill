@@ -34,7 +34,6 @@ import (
 
 const (
 	BoltBlockStoreFileName = "blocks.db"
-	TxIndexerStoreFileName = "tx_indexer.db"
 )
 
 type baseNodeConfiguration struct {
@@ -136,7 +135,7 @@ func initRESTServer(conf *restServerConfiguration, routes ...rpc.Registrar) *htt
 	return rs
 }
 
-func loadPeerConfiguration(ctx context.Context, keys *Keys, pg *genesis.PartitionGenesis, cfg *startNodeConfiguration, log *slog.Logger) (*network.PeerConfiguration, error) {
+func loadPeerConfiguration(keys *Keys, pg *genesis.PartitionGenesis, cfg *startNodeConfiguration) (*network.PeerConfiguration, error) {
 	pair, err := keys.getEncryptionKeyPair()
 	if err != nil {
 		return nil, err
@@ -171,7 +170,7 @@ func loadPeerConfiguration(ctx context.Context, keys *Keys, pg *genesis.Partitio
 	}
 
 	bootstrapPeers := []peer.AddrInfo{{
-		ID: bootstrapNodeID,
+		ID:    bootstrapNodeID,
 		Addrs: []multiaddr.Multiaddr{bootstrapNodeAddress},
 	}}
 
@@ -201,7 +200,7 @@ func createNode(ctx context.Context, txs txsystem.TransactionSystem, cfg *startN
 		return nil, err
 	}
 	// Load network configuration. In testnet, we assume that all validators know the address of all other validators.
-	peerConf, err := loadPeerConfiguration(ctx, keys, pg, cfg, log)
+	peerConf, err := loadPeerConfiguration(keys, pg, cfg)
 	if err != nil {
 		return nil, err
 	}

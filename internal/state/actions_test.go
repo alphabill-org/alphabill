@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	hasherUtil "github.com/alphabill-org/alphabill/internal/hash"
-	"github.com/alphabill-org/alphabill/internal/script"
+	"github.com/alphabill-org/alphabill/internal/predicates/templates"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/internal/util"
@@ -38,7 +38,7 @@ func TestAdd(t *testing.T) {
 			name: "unit ID exists",
 			args: args{
 				id:     []byte{1, 1, 1, 1},
-				bearer: script.PredicateAlwaysTrue(),
+				bearer: templates.AlwaysTrueBytes(),
 				data: &TestData{
 					Value: 100,
 				},
@@ -50,14 +50,14 @@ func TestAdd(t *testing.T) {
 			name: "ok",
 			args: args{
 				id:     []byte{1},
-				bearer: script.PredicateAlwaysTrue(),
+				bearer: templates.AlwaysTrueBytes(),
 				data:   &TestData{Value: 123},
 			},
 			initialState: newEmptyState(t),
 			expectedUnit: &Unit{
 				logs:                nil,
 				logRoot:             nil,
-				bearer:              script.PredicateAlwaysTrue(),
+				bearer:              templates.AlwaysTrueBytes(),
 				data:                &TestData{Value: 123},
 				subTreeSummaryValue: 123,
 				subTreeSummaryHash: hasherUtil.Sum(crypto.SHA256,
@@ -130,7 +130,7 @@ func TestUpdate(t *testing.T) {
 			expectedUnit: &Unit{
 				logs:                nil,
 				logRoot:             nil,
-				bearer:              script.PredicateAlwaysTrue(),
+				bearer:              templates.AlwaysTrueBytes(),
 				data:                &TestData{Value: 200},
 				subTreeSummaryValue: 10,
 			},
@@ -260,7 +260,7 @@ func newStateWithUnits(t *testing.T) *State {
 		s.Apply(
 			AddUnit(
 				[]byte{1, 1, 1, 1},
-				script.PredicateAlwaysTrue(),
+				templates.AlwaysTrueBytes(),
 				&TestData{Value: 10},
 			),
 		),

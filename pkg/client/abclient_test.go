@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/alphabill-org/alphabill/internal/hash"
-	"github.com/alphabill-org/alphabill/internal/script"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/alphabill-org/alphabill/internal/testutils/logger"
 	testserver "github.com/alphabill-org/alphabill/internal/testutils/server"
@@ -146,7 +145,7 @@ func createRandomTx() *types.TransactionOrder {
 			UnitID:         hash.Sum256([]byte{0x00}),
 			ClientMetadata: &types.ClientMetadata{Timeout: 1000},
 		},
-		OwnerProof: script.PredicateArgumentEmpty(),
+		OwnerProof: nil,
 	}
 }
 

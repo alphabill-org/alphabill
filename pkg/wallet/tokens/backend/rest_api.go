@@ -10,13 +10,12 @@ import (
 	"sync"
 	"time"
 
+	"github.com/alphabill-org/alphabill/internal/predicates/templates"
 	"github.com/fxamacker/cbor/v2"
 	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
 	"golang.org/x/sync/semaphore"
 
-	"github.com/alphabill-org/alphabill/internal/hash"
-	"github.com/alphabill-org/alphabill/internal/script"
 	"github.com/alphabill-org/alphabill/internal/txsystem/tokens"
 	"github.com/alphabill-org/alphabill/internal/types"
 	sdk "github.com/alphabill-org/alphabill/pkg/wallet"
@@ -128,8 +127,8 @@ func (api *tokensRestAPI) listTokens(w http.ResponseWriter, r *http.Request) {
 
 	data, next, err := api.db.QueryTokens(
 		kind,
-		script.PredicatePayToPublicKeyHashDefault(hash.Sum256(owner)),
-		TokenID(startKey),
+		sdk.Predicate(templates.NewP2pkh256BytesFromKey(owner)),
+		startKey,
 		limit)
 	if err != nil {
 		api.rw.WriteErrorResponse(w, err)
@@ -259,7 +258,7 @@ func (api *tokensRestAPI) postTransactions(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	for _, tx := range txs.Transactions {
-		pubKey, err := script.ExtractPubKeyFromPredicateArgument(tx.OwnerProof)
+		pubKey, err := templates.ExtractPubKey(tx.OwnerProof)
 		// if owner proof does not contain a pubKey (for txs in which ownership is not defined, like token type creation), ownership validation is skipped
 		if err == nil && pubKey != nil && !bytes.Equal(owner, pubKey) {
 			api.rw.ErrorResponse(w, http.StatusBadRequest, fmt.Errorf("transaction with unitID %v in request body does not match provided pubKey parameter", tx.Payload.UnitID))

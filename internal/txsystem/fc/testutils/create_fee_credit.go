@@ -3,7 +3,7 @@ package testutils
 import (
 	"testing"
 
-	"github.com/alphabill-org/alphabill/internal/script"
+	"github.com/alphabill-org/alphabill/internal/predicates/templates"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	testpartition "github.com/alphabill-org/alphabill/internal/testutils/partition"
 	testtransaction "github.com/alphabill-org/alphabill/internal/testutils/transaction"
@@ -22,7 +22,7 @@ func CreateFeeCredit(t *testing.T, initialBillID, fcrID types.UnitID, fcrAmount 
 			WithTargetRecordID(fcrID),
 		),
 		testtransaction.WithUnitId(initialBillID),
-		testtransaction.WithOwnerProof(script.PredicateArgumentEmpty()),
+		testtransaction.WithOwnerProof(nil),
 		testtransaction.WithPayloadType(transactions.PayloadTypeTransferFeeCredit),
 	)
 	moneyPartition, err := network.GetNodePartition([]byte{0, 0, 0, 0})
@@ -36,10 +36,10 @@ func CreateFeeCredit(t *testing.T, initialBillID, fcrID types.UnitID, fcrAmount 
 		NewAddFCAttr(t, network.RootPartition.Nodes[0].RootSigner,
 			WithTransferFCTx(transferFCRecord),
 			WithTransferFCProof(transferFCProof),
-			WithFCOwnerCondition(script.PredicateAlwaysTrue()),
+			WithFCOwnerCondition(templates.AlwaysTrueBytes()),
 		),
 		testtransaction.WithUnitId(fcrID),
-		testtransaction.WithOwnerProof(script.PredicateArgumentEmpty()),
+		testtransaction.WithOwnerProof(nil),
 		testtransaction.WithPayloadType(transactions.PayloadTypeAddFeeCredit),
 	)
 	require.NoError(t, moneyPartition.SubmitTx(addFC))

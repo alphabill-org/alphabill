@@ -5,7 +5,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/alphabill-org/alphabill/internal/script"
+	"github.com/alphabill-org/alphabill/internal/predicates/templates"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/require"
@@ -76,11 +76,11 @@ func Test_getAddressFromPredicateArg(t *testing.T) {
 		{
 			name:       "error - nil",
 			args:       args{predArg: nil},
-			wantErrStr: "predicate argument is nil",
+			wantErrStr: "empty predicate signature",
 		},
 		{
 			name: "ok",
-			args: args{predArg: script.PredicateArgumentPayToPublicKeyHashDefault(test.RandomBytes(65), pubKey[:])},
+			args: args{predArg: templates.NewP2pkh256SignatureBytes(test.RandomBytes(65), pubKey[:])},
 			want: common.HexToAddress("0x276B52B4808893d1e2Affd5310898818E8e7699d"),
 		},
 	}

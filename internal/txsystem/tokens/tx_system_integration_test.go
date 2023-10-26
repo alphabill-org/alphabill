@@ -5,10 +5,10 @@ import (
 	"sort"
 	"testing"
 
+	"github.com/alphabill-org/alphabill/internal/predicates/templates"
 	"github.com/stretchr/testify/require"
 
 	"github.com/alphabill-org/alphabill/internal/crypto"
-	"github.com/alphabill-org/alphabill/internal/script"
 	"github.com/alphabill-org/alphabill/internal/state"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/alphabill-org/alphabill/internal/testutils/logger"
@@ -42,20 +42,20 @@ func TestInitPartitionAndCreateNFTType_Ok(t *testing.T) {
 		testtransaction.WithPayloadType(PayloadTypeCreateNFTType),
 		testtransaction.WithSystemID(DefaultSystemIdentifier),
 		testtransaction.WithUnitId(NewNonFungibleTokenTypeID(nil, []byte{1})),
-		testtransaction.WithOwnerProof(script.PredicateArgumentEmpty()),
+		testtransaction.WithOwnerProof(nil),
 		testtransaction.WithAttributes(
 			&CreateNonFungibleTokenTypeAttributes{
 				Symbol:                   "Test",
 				Name:                     "Long name for Test",
 				Icon:                     &Icon{Type: validIconType, Data: []byte{3, 2, 1}},
 				ParentTypeID:             nil,
-				SubTypeCreationPredicate: script.PredicateAlwaysTrue(),
-				TokenCreationPredicate:   script.PredicateAlwaysTrue(),
-				InvariantPredicate:       script.PredicateAlwaysTrue(),
-				DataUpdatePredicate:      script.PredicateAlwaysTrue(),
+				SubTypeCreationPredicate: templates.AlwaysTrueBytes(),
+				TokenCreationPredicate:   templates.AlwaysTrueBytes(),
+				InvariantPredicate:       templates.AlwaysTrueBytes(),
+				DataUpdatePredicate:      templates.AlwaysTrueBytes(),
 			},
 		),
-		testtransaction.WithFeeProof(script.PredicateArgumentEmpty()),
+		testtransaction.WithFeeProof(nil),
 		testtransaction.WithClientMetadata(createClientMetadata()),
 	)
 	require.NoError(t, tokenPrt.BroadcastTx(tx))
@@ -105,23 +105,23 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 				Name:                     "Long name for ALPHA",
 				Icon:                     &Icon{Type: validIconType, Data: []byte{1, 2, 3}},
 				ParentTypeID:             nil,
-				SubTypeCreationPredicate: script.PredicateAlwaysTrue(),
-				TokenCreationPredicate:   script.PredicateAlwaysTrue(),
-				InvariantPredicate:       script.PredicateAlwaysTrue(),
+				SubTypeCreationPredicate: templates.AlwaysTrueBytes(),
+				TokenCreationPredicate:   templates.AlwaysTrueBytes(),
+				InvariantPredicate:       templates.AlwaysTrueBytes(),
 			},
 		),
-		testtransaction.WithFeeProof(script.PredicateArgumentEmpty()),
+		testtransaction.WithFeeProof(nil),
 		testtransaction.WithClientMetadata(createClientMetadata()),
 	)
 	require.NoError(t, tokenPrt.BroadcastTx(createTypeTx))
 	txRecord, txProof, err := testpartition.WaitTxProof(t, tokenPrt, testpartition.ANY_VALIDATOR, createTypeTx)
 	require.NoError(t, err, "token create type tx failed")
 	RequireFungibleTokenTypeState(t, state0, fungibleTokenTypeUnitData{
-		tokenCreationPredicate:   script.PredicateAlwaysTrue(),
-		subTypeCreationPredicate: script.PredicateAlwaysTrue(),
-		invariantPredicate:       script.PredicateAlwaysTrue(),
+		tokenCreationPredicate:   templates.AlwaysTrueBytes(),
+		subTypeCreationPredicate: templates.AlwaysTrueBytes(),
+		invariantPredicate:       templates.AlwaysTrueBytes(),
 		unitID:                   fungibleTokenTypeID,
-		bearer:                   script.PredicateAlwaysTrue(),
+		bearer:                   templates.AlwaysTrueBytes(),
 		symbol:                   "ALPHA",
 		name:                     "Long name for ALPHA",
 		icon:                     &Icon{Type: validIconType, Data: []byte{1, 2, 3}},
@@ -137,13 +137,13 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 		testtransaction.WithPayloadType(PayloadTypeMintFungibleToken),
 		testtransaction.WithAttributes(
 			&MintFungibleTokenAttributes{
-				Bearer:                           script.PredicateAlwaysTrue(),
+				Bearer:                           templates.AlwaysTrueBytes(),
 				TypeID:                           fungibleTokenTypeID,
 				Value:                            totalValue,
-				TokenCreationPredicateSignatures: [][]byte{script.PredicateArgumentEmpty()},
+				TokenCreationPredicateSignatures: [][]byte{nil},
 			},
 		),
-		testtransaction.WithFeeProof(script.PredicateArgumentEmpty()),
+		testtransaction.WithFeeProof(nil),
 		testtransaction.WithClientMetadata(createClientMetadata()),
 	)
 	require.NoError(t, tokenPrt.BroadcastTx(mintTx))
@@ -155,7 +155,7 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 		unitID:     fungibleTokenID1,
 		typeUnitID: fungibleTokenTypeID,
 		backlink:   txHash,
-		bearer:     script.PredicateAlwaysTrue(),
+		bearer:     templates.AlwaysTrueBytes(),
 		tokenValue: totalValue,
 	})
 	require.NoError(t, types.VerifyTxProof(minTxProof, mintTxRecord, trustBase, hashAlgorithm))
@@ -164,20 +164,20 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 	splitTx1 := testtransaction.NewTransactionOrder(t,
 		testtransaction.WithSystemID(DefaultSystemIdentifier),
 		testtransaction.WithUnitId(fungibleTokenID1),
-		testtransaction.WithOwnerProof(script.PredicateArgumentEmpty()),
+		testtransaction.WithOwnerProof(nil),
 		testtransaction.WithPayloadType(PayloadTypeSplitFungibleToken),
 		testtransaction.WithAttributes(
 			&SplitFungibleTokenAttributes{
 				TypeID:                       fungibleTokenTypeID,
-				NewBearer:                    script.PredicateAlwaysTrue(),
+				NewBearer:                    templates.AlwaysTrueBytes(),
 				TargetValue:                  splitValue1,
 				RemainingValue:               totalValue - splitValue1,
 				Nonce:                        test.RandomBytes(32),
 				Backlink:                     txHash,
-				InvariantPredicateSignatures: [][]byte{script.PredicateArgumentEmpty()},
+				InvariantPredicateSignatures: [][]byte{nil},
 			},
 		),
-		testtransaction.WithFeeProof(script.PredicateArgumentEmpty()),
+		testtransaction.WithFeeProof(nil),
 		testtransaction.WithClientMetadata(createClientMetadata()),
 	)
 	require.NoError(t, tokenPrt.BroadcastTx(splitTx1))
@@ -190,7 +190,7 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 		unitID:     fungibleTokenID1,
 		typeUnitID: fungibleTokenTypeID,
 		backlink:   split1GenTxHash,
-		bearer:     script.PredicateAlwaysTrue(),
+		bearer:     templates.AlwaysTrueBytes(),
 		tokenValue: totalValue - splitValue1,
 	})
 	require.NoError(t, types.VerifyTxProof(split1TxProof, split1TxRecord, trustBase, hashAlgorithm))
@@ -200,27 +200,27 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 		unitID:     sUnitID1,
 		typeUnitID: fungibleTokenTypeID,
 		backlink:   split1GenTxHash,
-		bearer:     script.PredicateAlwaysTrue(),
+		bearer:     templates.AlwaysTrueBytes(),
 		tokenValue: splitValue1,
 	})
 
 	splitTx2 := testtransaction.NewTransactionOrder(t,
 		testtransaction.WithSystemID(DefaultSystemIdentifier),
 		testtransaction.WithUnitId(fungibleTokenID1),
-		testtransaction.WithOwnerProof(script.PredicateArgumentEmpty()),
+		testtransaction.WithOwnerProof(nil),
 		testtransaction.WithPayloadType(PayloadTypeSplitFungibleToken),
 		testtransaction.WithAttributes(
 			&SplitFungibleTokenAttributes{
 				TypeID:                       fungibleTokenTypeID,
-				NewBearer:                    script.PredicateAlwaysTrue(),
+				NewBearer:                    templates.AlwaysTrueBytes(),
 				TargetValue:                  splitValue2,
 				RemainingValue:               totalValue - (splitValue1 + splitValue2),
 				Nonce:                        nil,
 				Backlink:                     split1TxRecord.TransactionOrder.Hash(hashAlgorithm),
-				InvariantPredicateSignatures: [][]byte{script.PredicateArgumentEmpty()},
+				InvariantPredicateSignatures: [][]byte{nil},
 			},
 		),
-		testtransaction.WithFeeProof(script.PredicateArgumentEmpty()),
+		testtransaction.WithFeeProof(nil),
 		testtransaction.WithClientMetadata(createClientMetadata()),
 	)
 	require.NoError(t, tokenPrt.BroadcastTx(splitTx2))
@@ -233,7 +233,7 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 		unitID:     fungibleTokenID1,
 		typeUnitID: fungibleTokenTypeID,
 		backlink:   splitGenTx2Hash,
-		bearer:     script.PredicateAlwaysTrue(),
+		bearer:     templates.AlwaysTrueBytes(),
 		tokenValue: totalValue - splitValue1 - splitValue2,
 	})
 
@@ -242,7 +242,7 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 		unitID:     sUnitID2,
 		typeUnitID: fungibleTokenTypeID,
 		backlink:   splitGenTx2Hash,
-		bearer:     script.PredicateAlwaysTrue(),
+		bearer:     templates.AlwaysTrueBytes(),
 		tokenValue: splitValue2,
 	})
 
@@ -250,19 +250,19 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 	transferTx := testtransaction.NewTransactionOrder(t,
 		testtransaction.WithSystemID(DefaultSystemIdentifier),
 		testtransaction.WithUnitId(fungibleTokenID1),
-		testtransaction.WithOwnerProof(script.PredicateArgumentEmpty()),
+		testtransaction.WithOwnerProof(nil),
 		testtransaction.WithPayloadType(PayloadTypeTransferFungibleToken),
 		testtransaction.WithAttributes(
 			&TransferFungibleTokenAttributes{
 				TypeID:                       fungibleTokenTypeID,
-				NewBearer:                    script.PredicateAlwaysTrue(),
+				NewBearer:                    templates.AlwaysTrueBytes(),
 				Value:                        totalValue - splitValue1 - splitValue2,
 				Nonce:                        nil,
 				Backlink:                     splitGenTx2Hash,
-				InvariantPredicateSignatures: [][]byte{script.PredicateArgumentEmpty()},
+				InvariantPredicateSignatures: [][]byte{nil},
 			},
 		),
-		testtransaction.WithFeeProof(script.PredicateArgumentEmpty()),
+		testtransaction.WithFeeProof(nil),
 		testtransaction.WithClientMetadata(createClientMetadata()),
 	)
 	require.NoError(t, tokenPrt.BroadcastTx(transferTx))
@@ -276,7 +276,7 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 		unitID:     fungibleTokenID1,
 		typeUnitID: fungibleTokenTypeID,
 		backlink:   transferGenTxHash,
-		bearer:     script.PredicateAlwaysTrue(),
+		bearer:     templates.AlwaysTrueBytes(),
 		tokenValue: totalValue - splitValue1 - splitValue2,
 	})
 
@@ -284,7 +284,7 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 	burnTx := testtransaction.NewTransactionOrder(t,
 		testtransaction.WithUnitId(sUnitID1),
 		testtransaction.WithSystemID(DefaultSystemIdentifier),
-		testtransaction.WithOwnerProof(script.PredicateArgumentEmpty()),
+		testtransaction.WithOwnerProof(nil),
 		testtransaction.WithPayloadType(PayloadTypeBurnFungibleToken),
 		testtransaction.WithAttributes(
 			&BurnFungibleTokenAttributes{
@@ -293,10 +293,10 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 				TargetTokenID:                fungibleTokenID1,
 				TargetTokenBacklink:          transferGenTxHash,
 				Backlink:                     split1GenTxHash,
-				InvariantPredicateSignatures: [][]byte{script.PredicateArgumentEmpty()},
+				InvariantPredicateSignatures: [][]byte{nil},
 			},
 		),
-		testtransaction.WithFeeProof(script.PredicateArgumentEmpty()),
+		testtransaction.WithFeeProof(nil),
 		testtransaction.WithClientMetadata(createClientMetadata()),
 	)
 	require.NoError(t, tokenPrt.BroadcastTx(burnTx))
@@ -307,7 +307,7 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 	burnTx2 := testtransaction.NewTransactionOrder(t,
 		testtransaction.WithUnitId(sUnitID2),
 		testtransaction.WithSystemID(DefaultSystemIdentifier),
-		testtransaction.WithOwnerProof(script.PredicateArgumentEmpty()),
+		testtransaction.WithOwnerProof(nil),
 		testtransaction.WithPayloadType(PayloadTypeBurnFungibleToken),
 		testtransaction.WithAttributes(
 			&BurnFungibleTokenAttributes{
@@ -316,10 +316,10 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 				TargetTokenID:                fungibleTokenID1,
 				TargetTokenBacklink:          transferTxRecord.TransactionOrder.Hash(hashAlgorithm),
 				Backlink:                     splitGenTx2Hash,
-				InvariantPredicateSignatures: [][]byte{script.PredicateArgumentEmpty()},
+				InvariantPredicateSignatures: [][]byte{nil},
 			},
 		),
-		testtransaction.WithFeeProof(script.PredicateArgumentEmpty()),
+		testtransaction.WithFeeProof(nil),
 		testtransaction.WithClientMetadata(createClientMetadata()),
 	)
 	require.NoError(t, tokenPrt.BroadcastTx(burnTx2))
@@ -350,17 +350,17 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 	joinTx := testtransaction.NewTransactionOrder(t,
 		testtransaction.WithSystemID(DefaultSystemIdentifier),
 		testtransaction.WithUnitId(fungibleTokenID1),
-		testtransaction.WithOwnerProof(script.PredicateArgumentEmpty()),
+		testtransaction.WithOwnerProof(nil),
 		testtransaction.WithPayloadType(PayloadTypeJoinFungibleToken),
 		testtransaction.WithAttributes(
 			&JoinFungibleTokenAttributes{
 				BurnTransactions:             burnTxs,
 				Proofs:                       burnTxProofs,
 				Backlink:                     transferTxRecord.TransactionOrder.Hash(hashAlgorithm),
-				InvariantPredicateSignatures: [][]byte{script.PredicateArgumentEmpty()},
+				InvariantPredicateSignatures: [][]byte{nil},
 			},
 		),
-		testtransaction.WithFeeProof(script.PredicateArgumentEmpty()),
+		testtransaction.WithFeeProof(nil),
 		testtransaction.WithClientMetadata(createClientMetadata()),
 	)
 	require.NoError(t, tokenPrt.BroadcastTx(joinTx))
@@ -380,7 +380,7 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 		unitID:     fungibleTokenID1,
 		typeUnitID: fungibleTokenTypeID,
 		backlink:   joinTXRHash,
-		bearer:     script.PredicateAlwaysTrue(),
+		bearer:     templates.AlwaysTrueBytes(),
 		tokenValue: totalValue,
 	})
 
@@ -437,7 +437,7 @@ func RequireFungibleTokenState(t *testing.T, s *state.State, e fungibleTokenUnit
 func newStateWithFeeCredit(t *testing.T, feeCreditID types.UnitID) *state.State {
 	s := state.NewEmptyState()
 	require.NoError(t, s.Apply(
-		fcunit.AddCredit(feeCreditID, script.PredicateAlwaysTrue(), &fcunit.FeeCreditRecord{
+		fcunit.AddCredit(feeCreditID, templates.AlwaysTrueBytes(), &fcunit.FeeCreditRecord{
 			Balance:  100,
 			Backlink: make([]byte, 32),
 			Timeout:  1000,

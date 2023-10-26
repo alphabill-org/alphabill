@@ -4,7 +4,7 @@ import (
 	"math/big"
 	"testing"
 
-	"github.com/alphabill-org/alphabill/internal/script"
+	"github.com/alphabill-org/alphabill/internal/predicates/templates"
 	"github.com/alphabill-org/alphabill/internal/state"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/alphabill-org/alphabill/internal/testutils/logger"
@@ -18,14 +18,14 @@ func TestCreateAccountAndAddCredit(t *testing.T) {
 	balance := big.NewInt(123)
 	txHash := test.RandomBytes(32)
 	// add credit unit to state tree
-	err := tr.Apply(CreateAccountAndAddCredit(address, script.PredicateAlwaysFalse(), balance, 3, txHash))
+	err := tr.Apply(CreateAccountAndAddCredit(address, templates.AlwaysFalseBytes(), balance, 3, txHash))
 	require.NoError(t, err)
 	// verify result
 	unitID := address.Bytes()
 	u, err := tr.GetUnit(unitID, false)
 	require.NoError(t, err)
 	require.NotNil(t, u)
-	require.EqualValues(t, script.PredicateAlwaysFalse(), u.Bearer())
+	require.EqualValues(t, templates.AlwaysFalseBytes(), u.Bearer())
 	stateDB := NewStateDB(tr, logger.New(t))
 	require.Equal(t, balance, stateDB.GetBalance(address))
 	abLink := stateDB.GetAlphaBillData(address)
@@ -39,7 +39,7 @@ func TestUpdateEthAccountAddCredit(t *testing.T) {
 	balance := big.NewInt(100)
 	txHash := test.RandomBytes(32)
 	// add credit unit to state tree
-	err := tr.Apply(CreateAccountAndAddCredit(address, script.PredicateAlwaysFalse(), balance, 3, txHash))
+	err := tr.Apply(CreateAccountAndAddCredit(address, templates.AlwaysFalseBytes(), balance, 3, txHash))
 	require.NoError(t, err)
 	// update
 	unitID := address.Bytes()
@@ -59,7 +59,7 @@ func TestSetAccountBalance(t *testing.T) {
 	balance := big.NewInt(100)
 	txHash := test.RandomBytes(32)
 	// add credit unit to state tree
-	err := tr.Apply(CreateAccountAndAddCredit(address, script.PredicateAlwaysFalse(), balance, 3, txHash))
+	err := tr.Apply(CreateAccountAndAddCredit(address, templates.AlwaysFalseBytes(), balance, 3, txHash))
 	require.NoError(t, err)
 	// update
 	unitID := address.Bytes()

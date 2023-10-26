@@ -7,11 +7,11 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/alphabill-org/alphabill/internal/predicates/templates"
 	"github.com/fxamacker/cbor/v2"
 	"github.com/stretchr/testify/require"
 
 	"github.com/alphabill-org/alphabill/internal/hash"
-	"github.com/alphabill-org/alphabill/internal/script"
 	"github.com/alphabill-org/alphabill/internal/testutils/logger"
 	testpartition "github.com/alphabill-org/alphabill/internal/testutils/partition"
 	"github.com/alphabill-org/alphabill/internal/txsystem/fc/transactions"
@@ -182,7 +182,7 @@ func spendInitialBillWithFeeCredits(t *testing.T, abNet *testpartition.Alphabill
 	require.NoError(t, types.VerifyTxProof(transferFCProof, transferFCRecord, abNet.RootPartition.TrustBase, crypto.SHA256))
 
 	// create addFC
-	addFC, err := createAddFC(fcrID, script.PredicateAlwaysTrue(), transferFCRecord, transferFCProof, absoluteTimeout, feeAmount)
+	addFC, err := createAddFC(fcrID, templates.AlwaysTrueBytes(), transferFCRecord, transferFCProof, absoluteTimeout, feeAmount)
 	require.NoError(t, err)
 
 	// send addFC
@@ -204,7 +204,7 @@ func spendInitialBillWithFeeCredits(t *testing.T, abNet *testpartition.Alphabill
 
 func createTransferTx(pubKey []byte, billID []byte, billValue uint64, fcrID []byte, timeout uint64, backlink []byte) (*types.TransactionOrder, error) {
 	attr := &money.TransferAttributes{
-		NewBearer:   script.PredicatePayToPublicKeyHashDefault(hash.Sum256(pubKey)),
+		NewBearer:   templates.NewP2pkh256BytesFromKeyHash(hash.Sum256(pubKey)),
 		TargetValue: billValue,
 		Backlink:    backlink,
 	}
@@ -224,7 +224,7 @@ func createTransferTx(pubKey []byte, billID []byte, billValue uint64, fcrID []by
 				FeeCreditRecordID: fcrID,
 			},
 		},
-		OwnerProof: script.PredicateArgumentEmpty(),
+		OwnerProof: nil,
 	}
 	return tx, nil
 }
@@ -252,7 +252,7 @@ func createTransferFC(feeAmount uint64, unitID []byte, targetUnitID []byte, t1, 
 				MaxTransactionFee: 1,
 			},
 		},
-		OwnerProof: script.PredicateArgumentEmpty(),
+		OwnerProof: nil,
 	}
 	return tx, nil
 }
@@ -278,7 +278,7 @@ func createAddFC(unitID []byte, ownerCondition []byte, transferFC *types.Transac
 				MaxTransactionFee: maxFee,
 			},
 		},
-		OwnerProof: script.PredicateArgumentEmpty(),
+		OwnerProof: nil,
 	}
 	return tx, nil
 }

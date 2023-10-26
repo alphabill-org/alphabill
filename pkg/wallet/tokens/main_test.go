@@ -10,7 +10,7 @@ import (
 	"testing"
 
 	"github.com/alphabill-org/alphabill/internal/hash"
-	"github.com/alphabill-org/alphabill/internal/script"
+	"github.com/alphabill-org/alphabill/internal/predicates/templates"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/alphabill-org/alphabill/internal/testutils/logger"
 	ttxs "github.com/alphabill-org/alphabill/internal/txsystem/tokens"
@@ -285,9 +285,9 @@ func TestNewTypes(t *testing.T) {
 			Icon:                     &Icon{Type: "image/png", Data: []byte{1}},
 			DecimalPlaces:            0,
 			ParentTypeId:             nil,
-			SubTypeCreationPredicate: script.PredicateAlwaysFalse(),
-			TokenCreationPredicate:   script.PredicateAlwaysTrue(),
-			InvariantPredicate:       script.PredicateAlwaysTrue(),
+			SubTypeCreationPredicate: wallet.Predicate(templates.AlwaysFalseBytes()),
+			TokenCreationPredicate:   wallet.Predicate(templates.AlwaysTrueBytes()),
+			InvariantPredicate:       wallet.Predicate(templates.AlwaysTrueBytes()),
 		}
 		result, err := tw.NewFungibleType(context.Background(), 1, a, typeId, nil)
 		require.NoError(t, err)
@@ -311,9 +311,9 @@ func TestNewTypes(t *testing.T) {
 			Name:                     "Long name for AB",
 			DecimalPlaces:            2,
 			ParentTypeId:             typeId,
-			SubTypeCreationPredicate: script.PredicateAlwaysFalse(),
-			TokenCreationPredicate:   script.PredicateAlwaysTrue(),
-			InvariantPredicate:       script.PredicateAlwaysTrue(),
+			SubTypeCreationPredicate: wallet.Predicate(templates.AlwaysFalseBytes()),
+			TokenCreationPredicate:   wallet.Predicate(templates.AlwaysTrueBytes()),
+			InvariantPredicate:       wallet.Predicate(templates.AlwaysTrueBytes()),
 		}
 		//check decimal places are validated against the parent type
 		_, err = tw.NewFungibleType(context.Background(), 1, b, nil, nil)
@@ -339,9 +339,9 @@ func TestNewTypes(t *testing.T) {
 			Name:                     "Long name for ABNFT",
 			Icon:                     &Icon{Type: "image/svg", Data: []byte{2}},
 			ParentTypeId:             nil,
-			SubTypeCreationPredicate: script.PredicateAlwaysFalse(),
-			TokenCreationPredicate:   script.PredicateAlwaysTrue(),
-			InvariantPredicate:       script.PredicateAlwaysTrue(),
+			SubTypeCreationPredicate: wallet.Predicate(templates.AlwaysFalseBytes()),
+			TokenCreationPredicate:   wallet.Predicate(templates.AlwaysTrueBytes()),
+			InvariantPredicate:       wallet.Predicate(templates.AlwaysTrueBytes()),
 		}
 		result, err := tw.NewNonFungibleType(context.Background(), 1, a, typeId, nil)
 		require.NoError(t, err)
@@ -423,7 +423,7 @@ func TestMintFungibleToken(t *testing.T) {
 			require.Len(t, tx.UnitID(), 33)
 			require.EqualValues(t, typeId, newToken.TypeID)
 			require.Equal(t, amount, newToken.Value)
-			require.Equal(t, script.PredicatePayToPublicKeyHashDefault(key.PubKeyHash.Sha256), newToken.Bearer)
+			require.EqualValues(t, templates.NewP2pkh256BytesFromKeyHash(key.PubKeyHash.Sha256), newToken.Bearer)
 		})
 	}
 }
@@ -664,7 +664,7 @@ func TestMintNFT(t *testing.T) {
 			validateOwner: func(t *testing.T, accNr uint64, tok *ttxs.MintNonFungibleTokenAttributes) {
 				key, err := tw.am.GetAccountKey(accNr - 1)
 				require.NoError(t, err)
-				require.Equal(t, script.PredicatePayToPublicKeyHashDefault(key.PubKeyHash.Sha256), tok.Bearer)
+				require.EqualValues(t, templates.NewP2pkh256BytesFromKeyHash(key.PubKeyHash.Sha256), tok.Bearer)
 			},
 		},
 		{
@@ -674,7 +674,7 @@ func TestMintNFT(t *testing.T) {
 			validateOwner: func(t *testing.T, accNr uint64, tok *ttxs.MintNonFungibleTokenAttributes) {
 				key, err := tw.am.GetAccountKey(accNr - 1)
 				require.NoError(t, err)
-				require.Equal(t, script.PredicatePayToPublicKeyHashDefault(key.PubKeyHash.Sha256), tok.Bearer)
+				require.EqualValues(t, templates.NewP2pkh256BytesFromKeyHash(key.PubKeyHash.Sha256), tok.Bearer)
 			},
 		},
 		{
@@ -683,7 +683,7 @@ func TestMintNFT(t *testing.T) {
 			validateOwner: func(t *testing.T, accNr uint64, tok *ttxs.MintNonFungibleTokenAttributes) {
 				key, err := tw.am.GetAccountKey(accNr - 1)
 				require.NoError(t, err)
-				require.Equal(t, script.PredicatePayToPublicKeyHashDefault(key.PubKeyHash.Sha256), tok.Bearer)
+				require.EqualValues(t, templates.NewP2pkh256BytesFromKeyHash(key.PubKeyHash.Sha256), tok.Bearer)
 			},
 		},
 	}
@@ -698,7 +698,7 @@ func TestMintNFT(t *testing.T) {
 				NftType:             typeId,
 				Uri:                 "https://alphabill.org",
 				Data:                nil,
-				DataUpdatePredicate: script.PredicateAlwaysTrue(),
+				DataUpdatePredicate: wallet.Predicate(templates.AlwaysTrueBytes()),
 			}
 			result, err := tw.NewNFT(context.Background(), tt.accNr, a, tt.tokenID, nil)
 			require.NoError(t, err)
@@ -760,7 +760,7 @@ func TestTransferNFT(t *testing.T) {
 			token: &backend.TokenUnit{ID: test.RandomBytes(32), Kind: backend.NonFungible, Symbol: "AB", TypeID: test.RandomBytes(32)},
 			key:   nil,
 			validateOwner: func(t *testing.T, accNr uint64, key wallet.PubKey, tok *ttxs.TransferNonFungibleTokenAttributes) {
-				require.Equal(t, script.PredicateAlwaysTrue(), tok.NewBearer)
+				require.EqualValues(t, templates.AlwaysTrueBytes(), tok.NewBearer)
 			},
 		},
 		{
@@ -768,7 +768,7 @@ func TestTransferNFT(t *testing.T) {
 			token: &backend.TokenUnit{ID: test.RandomBytes(32), Kind: backend.NonFungible, Symbol: "AB", TypeID: test.RandomBytes(32)},
 			key:   first(hexutil.Decode("0x0290a43bc454babf1ea8b0b76fcbb01a8f27a989047cf6d6d76397cc4756321e64")),
 			validateOwner: func(t *testing.T, accNr uint64, key wallet.PubKey, tok *ttxs.TransferNonFungibleTokenAttributes) {
-				require.Equal(t, script.PredicatePayToPublicKeyHashDefault(hash.Sum256(key)), tok.NewBearer)
+				require.EqualValues(t, templates.NewP2pkh256BytesFromKeyHash(hash.Sum256(key)), tok.NewBearer)
 			},
 		},
 	}
@@ -827,7 +827,7 @@ func TestUpdateNFTData(t *testing.T) {
 
 	// test data, backlink and predicate inputs are submitted correctly
 	data := test.RandomBytes(64)
-	result, err := tw.UpdateNFTData(context.Background(), 1, tok.ID, data, []*PredicateInput{{Argument: script.PredicateArgumentEmpty()}})
+	result, err := tw.UpdateNFTData(context.Background(), 1, tok.ID, data, []*PredicateInput{{Argument: nil}})
 	require.NoError(t, err)
 	require.NotNil(t, result)
 	tx, found := recTxs[string(tok.ID)]
@@ -836,11 +836,11 @@ func TestUpdateNFTData(t *testing.T) {
 	dataUpdate := parseNFTDataUpdate(t, tx)
 	require.Equal(t, data, dataUpdate.Data)
 	require.EqualValues(t, tok.TxHash, dataUpdate.Backlink)
-	require.Equal(t, [][]byte{{script.StartByte}}, dataUpdate.DataUpdateSignatures)
+	require.Equal(t, [][]byte{nil}, dataUpdate.DataUpdateSignatures)
 
 	// test that wallet not only sends the tx, but also reads it correctly
 	data2 := test.RandomBytes(64)
-	result, err = tw.UpdateNFTData(context.Background(), 1, tok.ID, data2, []*PredicateInput{{Argument: script.PredicateArgumentEmpty()}, {AccountNumber: 1}})
+	result, err = tw.UpdateNFTData(context.Background(), 1, tok.ID, data2, []*PredicateInput{{Argument: nil}, {AccountNumber: 1}})
 	require.NoError(t, err)
 	require.NotNil(t, result)
 	tx, found = recTxs[string(tok.ID)]
@@ -849,7 +849,7 @@ func TestUpdateNFTData(t *testing.T) {
 	require.NotEqual(t, data, dataUpdate.Data)
 	require.Equal(t, data2, dataUpdate.Data)
 	require.Len(t, dataUpdate.DataUpdateSignatures, 2)
-	require.Equal(t, []byte{script.StartByte}, dataUpdate.DataUpdateSignatures[0])
+	require.Equal(t, []byte(nil), dataUpdate.DataUpdateSignatures[0])
 	require.Len(t, dataUpdate.DataUpdateSignatures[1], 103)
 }
 

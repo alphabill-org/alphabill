@@ -9,8 +9,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/alphabill-org/alphabill/internal/hash"
-	"github.com/alphabill-org/alphabill/internal/script"
+	"github.com/alphabill-org/alphabill/internal/predicates/templates"
 )
 
 type Message interface {
@@ -169,7 +168,7 @@ func (b *MessageBroker) StreamSSE(ctx context.Context, owner PubKey, w http.Resp
 type PubKey []byte
 
 func (pk PubKey) p2pkh() []byte {
-	return script.PredicatePayToPublicKeyHashDefault(hash.Sum256(pk))
+	return templates.NewP2pkh256BytesFromKey(pk)
 }
 
 func (pk PubKey) asMapKey() string {

@@ -7,11 +7,11 @@ import (
 	"testing"
 
 	"github.com/alphabill-org/alphabill/internal/hash"
+	"github.com/alphabill-org/alphabill/internal/predicates/templates"
 	"github.com/alphabill-org/alphabill/internal/state"
 	"github.com/alphabill-org/alphabill/internal/txsystem/evm/statedb"
 
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
-	"github.com/alphabill-org/alphabill/internal/script"
 	"github.com/alphabill-org/alphabill/internal/testutils/logger"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	testtransaction "github.com/alphabill-org/alphabill/internal/testutils/transaction"
@@ -59,7 +59,7 @@ func newAddFCTx(t *testing.T, unitID []byte, attr *transactions.AddFeeCreditAttr
 	require.NoError(t, err)
 	return &types.TransactionOrder{
 		Payload:    payload,
-		OwnerProof: script.PredicateArgumentPayToPublicKeyHashDefault(sig, pubKeyBytes),
+		OwnerProof: templates.NewP2pkh256SignatureBytes(sig, pubKeyBytes),
 	}
 }
 
@@ -106,7 +106,7 @@ func Test_addFeeCreditTx(t *testing.T) {
 				testfc.NewAddFCAttr(t, signer, testfc.WithTransferFCTx(
 					&types.TransactionRecord{
 						TransactionOrder: testfc.NewTransferFC(t, testfc.NewTransferFCAttr(testfc.WithAmount(100), testfc.WithTargetRecordID(privKeyHash), testfc.WithTargetSystemID(DefaultEvmTxSystemIdentifier)),
-							testtransaction.WithSystemID([]byte{0, 0, 0, 0}), testtransaction.WithOwnerProof(script.PredicatePayToPublicKeyHashDefault(pubHash[:]))),
+							testtransaction.WithSystemID([]byte{0, 0, 0, 0}), testtransaction.WithOwnerProof(templates.NewP2pkh256BytesFromKeyHash(pubHash[:]))),
 						ServerMetadata: nil,
 					})),
 				signer,
@@ -122,7 +122,7 @@ func Test_addFeeCreditTx(t *testing.T) {
 				testfc.NewAddFCAttr(t, signer, testfc.WithTransferFCTx(
 					&types.TransactionRecord{
 						TransactionOrder: testfc.NewTransferFC(t, testfc.NewTransferFCAttr(testfc.WithAmount(100), testfc.WithTargetRecordID(privKeyHash), testfc.WithTargetSystemID(DefaultEvmTxSystemIdentifier)),
-							testtransaction.WithSystemID([]byte{0, 0, 0, 0}), testtransaction.WithOwnerProof(script.PredicatePayToPublicKeyHashDefault(pubHash[:]))),
+							testtransaction.WithSystemID([]byte{0, 0, 0, 0}), testtransaction.WithOwnerProof(templates.NewP2pkh256BytesFromKeyHash(pubHash[:]))),
 						ServerMetadata: &types.ServerMetadata{ActualFee: 1},
 					})),
 				signer,
@@ -215,11 +215,11 @@ func Test_addFeeCreditTxAndUpdate(t *testing.T) {
 	addFeeOrder := newAddFCTx(t,
 		privKeyHash,
 		testfc.NewAddFCAttr(t, signer,
-			testfc.WithFCOwnerCondition(script.PredicatePayToPublicKeyHashDefault(pubHash)),
+			testfc.WithFCOwnerCondition(templates.NewP2pkh256BytesFromKeyHash(pubHash)),
 			testfc.WithTransferFCTx(
 				&types.TransactionRecord{
 					TransactionOrder: testfc.NewTransferFC(t, testfc.NewTransferFCAttr(testfc.WithAmount(100), testfc.WithTargetRecordID(privKeyHash), testfc.WithTargetSystemID(DefaultEvmTxSystemIdentifier)),
-						testtransaction.WithSystemID([]byte{0, 0, 0, 0}), testtransaction.WithOwnerProof(script.PredicatePayToPublicKeyHashDefault(pubHash))),
+						testtransaction.WithSystemID([]byte{0, 0, 0, 0}), testtransaction.WithOwnerProof(templates.NewP2pkh256BytesFromKeyHash(pubHash))),
 					ServerMetadata: &types.ServerMetadata{ActualFee: transferFcFee},
 				})),
 		signer, 7)
@@ -241,18 +241,18 @@ func Test_addFeeCreditTxAndUpdate(t *testing.T) {
 	// check owner condition set
 	u, err := stateTree.GetUnit(addr.Bytes(), false)
 	require.NoError(t, err)
-	require.EqualValues(t, script.PredicatePayToPublicKeyHashDefault(pubHash), u.Bearer())
+	require.EqualValues(t, templates.NewP2pkh256BytesFromKeyHash(pubHash), u.Bearer())
 
 	abData := stateDB.GetAlphaBillData(addr)
 	// add more funds
 	addFeeOrder = newAddFCTx(t,
 		privKeyHash,
 		testfc.NewAddFCAttr(t, signer,
-			testfc.WithFCOwnerCondition(script.PredicatePayToPublicKeyHashDefault(pubHash)),
+			testfc.WithFCOwnerCondition(templates.NewP2pkh256BytesFromKeyHash(pubHash)),
 			testfc.WithTransferFCTx(
 				&types.TransactionRecord{
 					TransactionOrder: testfc.NewTransferFC(t, testfc.NewTransferFCAttr(testfc.WithAmount(10), testfc.WithTargetRecordID(privKeyHash), testfc.WithTargetSystemID(DefaultEvmTxSystemIdentifier), testfc.WithTargetUnitBacklink(abData.TxHash)),
-						testtransaction.WithSystemID([]byte{0, 0, 0, 0}), testtransaction.WithOwnerProof(script.PredicatePayToPublicKeyHashDefault(pubHash))),
+						testtransaction.WithSystemID([]byte{0, 0, 0, 0}), testtransaction.WithOwnerProof(templates.NewP2pkh256BytesFromKeyHash(pubHash))),
 					ServerMetadata: &types.ServerMetadata{ActualFee: transferFcFee},
 				})),
 		signer, 7)
@@ -268,7 +268,7 @@ func Test_addFeeCreditTxAndUpdate(t *testing.T) {
 	// check owner condition
 	u, err = stateTree.GetUnit(addr.Bytes(), false)
 	require.NoError(t, err)
-	require.EqualValues(t, script.PredicatePayToPublicKeyHashDefault(pubHash), u.Bearer())
+	require.EqualValues(t, templates.NewP2pkh256BytesFromKeyHash(pubHash), u.Bearer())
 }
 
 func Test_addFeeCreditTxToExistingAccount(t *testing.T) {
@@ -293,11 +293,11 @@ func Test_addFeeCreditTxToExistingAccount(t *testing.T) {
 	addFeeOrder := newAddFCTx(t,
 		privKeyHash,
 		testfc.NewAddFCAttr(t, signer,
-			testfc.WithFCOwnerCondition(script.PredicatePayToPublicKeyHashDefault(pubHash)),
+			testfc.WithFCOwnerCondition(templates.NewP2pkh256BytesFromKeyHash(pubHash)),
 			testfc.WithTransferFCTx(
 				&types.TransactionRecord{
 					TransactionOrder: testfc.NewTransferFC(t, testfc.NewTransferFCAttr(testfc.WithAmount(100), testfc.WithTargetRecordID(privKeyHash), testfc.WithTargetSystemID(DefaultEvmTxSystemIdentifier)),
-						testtransaction.WithSystemID([]byte{0, 0, 0, 0}), testtransaction.WithOwnerProof(script.PredicatePayToPublicKeyHashDefault(pubHash))),
+						testtransaction.WithSystemID([]byte{0, 0, 0, 0}), testtransaction.WithOwnerProof(templates.NewP2pkh256BytesFromKeyHash(pubHash))),
 					ServerMetadata: &types.ServerMetadata{ActualFee: transferFcFee},
 				})),
 		signer, 7)
@@ -316,5 +316,5 @@ func Test_addFeeCreditTxToExistingAccount(t *testing.T) {
 	// check owner condition as well
 	u, err := stateTree.GetUnit(address.Bytes(), false)
 	require.NoError(t, err)
-	require.EqualValues(t, script.PredicatePayToPublicKeyHashDefault(pubHash), u.Bearer())
+	require.EqualValues(t, templates.NewP2pkh256BytesFromKeyHash(pubHash), u.Bearer())
 }

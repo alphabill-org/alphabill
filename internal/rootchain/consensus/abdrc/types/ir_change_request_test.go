@@ -661,7 +661,7 @@ func TestIRChangeReason_String(t *testing.T) {
 	require.Equal(t, "quorum", r.String())
 	require.Equal(t, "timeout", T2Timeout.String())
 	require.Equal(t, "no-quorum", QuorumNotPossible.String())
-	require.Equal(t, "unknown", IRChangeReason(10).String())
+	require.Equal(t, "unknown IR change reason 10", IRChangeReason(10).String())
 }
 
 func TestIRChangeReq_String(t *testing.T) {

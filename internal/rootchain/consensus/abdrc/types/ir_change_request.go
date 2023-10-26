@@ -38,7 +38,7 @@ func (r IRChangeReason) String() string {
 	case T2Timeout:
 		return "timeout"
 	}
-	return "unknown"
+	return fmt.Sprintf("unknown IR change reason %d", int(r))
 }
 
 func getMaxHashCount(hashCnt map[string]uint64) uint64 {

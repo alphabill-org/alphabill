@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"math/big"
 
-	"github.com/alphabill-org/alphabill/validator/internal/txsystem/evm"
+	"github.com/alphabill-org/alphabill/txsystem/evm"
 	evmwallet "github.com/alphabill-org/alphabill/validator/pkg/wallet/evm"
 	evmclient "github.com/alphabill-org/alphabill/validator/pkg/wallet/evm/client"
 	"github.com/ethereum/go-ethereum/common"

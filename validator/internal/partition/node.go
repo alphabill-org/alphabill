@@ -10,6 +10,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/alphabill-org/alphabill/txsystem"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/libp2p/go-libp2p/core/peerstore"
 	"golang.org/x/sync/errgroup"
@@ -26,7 +27,6 @@ import (
 	"github.com/alphabill-org/alphabill/validator/internal/partition/event"
 	pgenesis "github.com/alphabill-org/alphabill/validator/internal/partition/genesis"
 	"github.com/alphabill-org/alphabill/validator/internal/txbuffer"
-	"github.com/alphabill-org/alphabill/validator/internal/txsystem"
 	"github.com/alphabill-org/alphabill/validator/internal/types"
 	"github.com/alphabill-org/alphabill/validator/internal/util"
 	"github.com/alphabill-org/alphabill/validator/pkg/logger"

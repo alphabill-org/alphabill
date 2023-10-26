@@ -14,12 +14,12 @@ import (
 	"testing"
 	"time"
 
+	tokens2 "github.com/alphabill-org/alphabill/txsystem/tokens"
 	"github.com/fxamacker/cbor/v2"
 	"github.com/stretchr/testify/require"
 
 	"github.com/alphabill-org/alphabill/validator/internal/rpc/alphabill"
 	test "github.com/alphabill-org/alphabill/validator/internal/testutils"
-	"github.com/alphabill-org/alphabill/validator/internal/txsystem/tokens"
 	"github.com/alphabill-org/alphabill/validator/internal/types"
 	sdk "github.com/alphabill-org/alphabill/validator/pkg/wallet"
 )
@@ -69,10 +69,10 @@ func randomTx(t *testing.T, attr interface{}) *types.TransactionOrder {
 
 	tx := &types.TransactionOrder{
 		Payload: &types.Payload{
-			SystemID:       tokens.DefaultSystemIdentifier,
+			SystemID:       tokens2.DefaultSystemIdentifier,
 			UnitID:         test.RandomBytes(33),
 			Attributes:     attrBytes,
-			ClientMetadata: &types.ClientMetadata{Timeout: 10, FeeCreditRecordID: tokens.NewFeeCreditRecordID(nil, []byte{1})},
+			ClientMetadata: &types.ClientMetadata{Timeout: 10, FeeCreditRecordID: tokens2.NewFeeCreditRecordID(nil, []byte{1})},
 		},
 		OwnerProof: test.RandomBytes(3),
 	}
@@ -134,7 +134,7 @@ func (c *mockCfg) SystemID() []byte {
 	if c.systemID != nil {
 		return c.systemID
 	}
-	return tokens.DefaultSystemIdentifier
+	return tokens2.DefaultSystemIdentifier
 }
 
 func (c *mockCfg) HttpServer(endpoints http.Handler) http.Server {

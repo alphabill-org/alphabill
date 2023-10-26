@@ -10,12 +10,12 @@ import (
 	"time"
 
 	"github.com/ainvaltin/httpsrv"
+	tokens2 "github.com/alphabill-org/alphabill/txsystem/tokens"
 	"golang.org/x/sync/errgroup"
 
 	"github.com/alphabill-org/alphabill/validator/internal/crypto"
 	"github.com/alphabill-org/alphabill/validator/internal/debug"
 	"github.com/alphabill-org/alphabill/validator/internal/rpc/alphabill"
-	"github.com/alphabill-org/alphabill/validator/internal/txsystem/tokens"
 	"github.com/alphabill-org/alphabill/validator/internal/types"
 	"github.com/alphabill-org/alphabill/validator/pkg/client"
 	"github.com/alphabill-org/alphabill/validator/pkg/logger"
@@ -79,10 +79,10 @@ func Run(ctx context.Context, cfg Configuration) error {
 	}
 	defer db.Close()
 
-	txs, err := tokens.NewTxSystem(
+	txs, err := tokens2.NewTxSystem(
 		cfg.Logger(),
-		tokens.WithTrustBase(map[string]crypto.Verifier{"test": nil}),
-		tokens.WithSystemIdentifier(cfg.SystemID()),
+		tokens2.WithTrustBase(map[string]crypto.Verifier{"test": nil}),
+		tokens2.WithSystemIdentifier(cfg.SystemID()),
 	)
 	if err != nil {
 		return fmt.Errorf("failed to create token tx system: %w", err)

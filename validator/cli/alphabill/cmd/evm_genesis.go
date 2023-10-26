@@ -7,9 +7,9 @@ import (
 	"os"
 	"path/filepath"
 
+	evm2 "github.com/alphabill-org/alphabill/txsystem/evm"
 	"github.com/alphabill-org/alphabill/validator/internal/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/validator/internal/partition"
-	"github.com/alphabill-org/alphabill/validator/internal/txsystem/evm"
 	"github.com/alphabill-org/alphabill/validator/internal/util"
 	"github.com/fxamacker/cbor/v2"
 	"github.com/libp2p/go-libp2p/core/peer"
@@ -42,11 +42,11 @@ func newEvmGenesisCmd(baseConfig *baseConfiguration) *cobra.Command {
 		},
 	}
 
-	cmd.Flags().BytesHexVarP(&config.SystemIdentifier, "system-identifier", "s", evm.DefaultEvmTxSystemIdentifier, "system identifier in HEX format")
+	cmd.Flags().BytesHexVarP(&config.SystemIdentifier, "system-identifier", "s", evm2.DefaultEvmTxSystemIdentifier, "system identifier in HEX format")
 	cmd.Flags().StringVarP(&config.Output, "output", "o", "", "path to the output genesis file (default: $AB_HOME/evm/node-genesis.json)")
 	cmd.Flags().Uint32Var(&config.T2Timeout, "t2-timeout", defaultT2Timeout, "time interval for how long root chain waits before re-issuing unicity certificate, in milliseconds")
-	cmd.Flags().Uint64Var(&config.BlockGasLimit, "gas-limit", evm.DefaultBlockGasLimit, "max units of gas processed in each block")
-	cmd.Flags().Uint64Var(&config.GasUnitPrice, "gas-price", evm.DefaultGasPrice, "gas unit price in wei")
+	cmd.Flags().Uint64Var(&config.BlockGasLimit, "gas-limit", evm2.DefaultBlockGasLimit, "max units of gas processed in each block")
+	cmd.Flags().Uint64Var(&config.GasUnitPrice, "gas-price", evm2.DefaultGasPrice, "gas unit price in wei")
 	config.Keys.addCmdFlags(cmd)
 	return cmd
 }
@@ -88,7 +88,7 @@ func evmGenesisRunFun(_ context.Context, config *evmGenesisConfig) error {
 		return fmt.Errorf("load keys %v failed: %w", config.Keys.GetKeyFileLocation(), err)
 	}
 
-	txSystem, err := evm.NewEVMTxSystem(config.SystemIdentifier, config.Base.Logger)
+	txSystem, err := evm2.NewEVMTxSystem(config.SystemIdentifier, config.Base.Logger)
 	if err != nil {
 		return err
 	}

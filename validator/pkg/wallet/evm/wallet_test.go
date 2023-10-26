@@ -6,8 +6,8 @@ import (
 	"math/big"
 	"testing"
 
+	"github.com/alphabill-org/alphabill/txsystem/evm"
 	test "github.com/alphabill-org/alphabill/validator/internal/testutils"
-	"github.com/alphabill-org/alphabill/validator/internal/txsystem/evm"
 	"github.com/alphabill-org/alphabill/validator/internal/types"
 	"github.com/alphabill-org/alphabill/validator/pkg/wallet"
 	"github.com/alphabill-org/alphabill/validator/pkg/wallet/account"

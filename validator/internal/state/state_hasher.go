@@ -3,7 +3,7 @@ package state
 import (
 	"crypto"
 
-	"github.com/alphabill-org/alphabill/validator/internal/mt"
+	"github.com/alphabill-org/alphabill/common/mt"
 	"github.com/alphabill-org/alphabill/validator/internal/types"
 	"github.com/alphabill-org/alphabill/validator/internal/util"
 	"github.com/alphabill-org/alphabill/validator/pkg/tree/avl"

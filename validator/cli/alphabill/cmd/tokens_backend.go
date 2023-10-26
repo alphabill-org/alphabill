@@ -6,9 +6,9 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/alphabill-org/alphabill/txsystem/tokens"
 	"github.com/spf13/cobra"
 
-	"github.com/alphabill-org/alphabill/validator/internal/txsystem/tokens"
 	"github.com/alphabill-org/alphabill/validator/pkg/wallet/tokens/backend"
 )
 

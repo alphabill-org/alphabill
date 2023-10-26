@@ -10,11 +10,11 @@ import (
 	"log"
 	"time"
 
+	"github.com/alphabill-org/alphabill/txsystem/fc/transactions"
+	money2 "github.com/alphabill-org/alphabill/txsystem/money"
 	"github.com/alphabill-org/alphabill/validator/internal/hash"
 	"github.com/alphabill-org/alphabill/validator/internal/predicates/templates"
 	"github.com/alphabill-org/alphabill/validator/internal/rpc/alphabill"
-	"github.com/alphabill-org/alphabill/validator/internal/txsystem/fc/transactions"
-	"github.com/alphabill-org/alphabill/validator/internal/txsystem/money"
 	"github.com/alphabill-org/alphabill/validator/internal/types"
 	"github.com/alphabill-org/alphabill/validator/internal/util"
 	"github.com/alphabill-org/alphabill/validator/pkg/wallet"
@@ -61,7 +61,7 @@ func main() {
 		log.Fatal(err)
 	}
 
-	billID := money.NewBillID(nil, util.Uint64ToBytes(*billIdUint))
+	billID := money2.NewBillID(nil, util.Uint64ToBytes(*billIdUint))
 
 	ctx := context.Background()
 	conn, err := grpc.DialContext(ctx, *uri, grpc.WithTransportCredentials(insecure.NewCredentials()))
@@ -86,7 +86,7 @@ func main() {
 	// Make the initial fcrID different from the default
 	// sha256(pubKey), so that wallet can later create it's own
 	// fcrID for the same account with a different owner condition
-	fcrID := money.NewFeeCreditRecordID(billID, hash.Sum256(hash.Sum256(pubKey)))
+	fcrID := money2.NewFeeCreditRecordID(billID, hash.Sum256(hash.Sum256(pubKey)))
 
 	// create transferFC
 	transferFC, err := createTransferFC(feeAmount+txFee, billID, fcrID, res.RoundNumber, absoluteTimeout)
@@ -209,7 +209,7 @@ func createAddFC(unitID []byte, ownerCondition []byte, transferFC *types.Transac
 
 func createTransferTx(pubKey []byte, unitID []byte, billValue uint64, fcrID []byte, timeout uint64, backlink []byte) (*types.TransactionOrder, error) {
 	attr, err := cbor.Marshal(
-		&money.TransferAttributes{
+		&money2.TransferAttributes{
 			NewBearer:   templates.NewP2pkh256BytesFromKeyHash(hash.Sum256(pubKey)),
 			TargetValue: billValue,
 			Backlink:    backlink,
@@ -221,7 +221,7 @@ func createTransferTx(pubKey []byte, unitID []byte, billValue uint64, fcrID []by
 	return &types.TransactionOrder{
 		Payload: &types.Payload{
 			SystemID:   []byte{0, 0, 0, 0},
-			Type:       money.PayloadTypeTransfer,
+			Type:       money2.PayloadTypeTransfer,
 			UnitID:     unitID,
 			Attributes: attr,
 			ClientMetadata: &types.ClientMetadata{

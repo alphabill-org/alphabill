@@ -7,13 +7,13 @@ import (
 	"os"
 	"testing"
 
+	"github.com/alphabill-org/alphabill/txsystem/money"
+	tokens2 "github.com/alphabill-org/alphabill/txsystem/tokens"
 	"github.com/alphabill-org/alphabill/validator/internal/partition/event"
 	test "github.com/alphabill-org/alphabill/validator/internal/testutils"
 	"github.com/alphabill-org/alphabill/validator/internal/testutils/logger"
 	testpartition "github.com/alphabill-org/alphabill/validator/internal/testutils/partition"
 	testevent "github.com/alphabill-org/alphabill/validator/internal/testutils/partition/event"
-	"github.com/alphabill-org/alphabill/validator/internal/txsystem/money"
-	"github.com/alphabill-org/alphabill/validator/internal/txsystem/tokens"
 	"github.com/alphabill-org/alphabill/validator/internal/types"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/stretchr/testify/require"
@@ -25,7 +25,7 @@ func TestNFTs_Integration(t *testing.T) {
 	_, err := network.abNetwork.GetNodePartition(money.DefaultSystemIdentifier)
 	require.NoError(t, err)
 	moneyBackendURL := network.moneyBackendURL
-	tokenPartition, err := network.abNetwork.GetNodePartition(tokens.DefaultSystemIdentifier)
+	tokenPartition, err := network.abNetwork.GetNodePartition(tokens2.DefaultSystemIdentifier)
 	require.NoError(t, err)
 	homedirW1 := network.walletHomedir
 	//w1key := network.walletKey1
@@ -61,13 +61,13 @@ func TestNFTs_Integration(t *testing.T) {
 	// mint NFT
 	execTokensCmd(t, homedirW1, fmt.Sprintf("new non-fungible -k 2 -r %s --type %s --token-identifier %s", backendURL, typeID, nftID))
 	require.Eventually(t, testpartition.BlockchainContains(tokenPartition, func(tx *types.TransactionOrder) bool {
-		return tx.PayloadType() == tokens.PayloadTypeMintNFT && bytes.Equal(tx.UnitID(), nftID)
+		return tx.PayloadType() == tokens2.PayloadTypeMintNFT && bytes.Equal(tx.UnitID(), nftID)
 	}), test.WaitDuration, test.WaitTick)
 	ensureTokenIndexed(t, ctx, backendClient, w1key2.PubKey, nftID)
 	// transfer NFT
 	execTokensCmd(t, homedirW1, fmt.Sprintf("send non-fungible -k 2 -r %s --token-identifier %s --address 0x%X", backendURL, nftID, w2key.PubKey))
 	require.Eventually(t, testpartition.BlockchainContains(tokenPartition, func(tx *types.TransactionOrder) bool {
-		return tx.PayloadType() == tokens.PayloadTypeTransferNFT && bytes.Equal(tx.UnitID(), nftID)
+		return tx.PayloadType() == tokens2.PayloadTypeTransferNFT && bytes.Equal(tx.UnitID(), nftID)
 	}), test.WaitDuration, test.WaitTick)
 	ensureTokenIndexed(t, ctx, backendClient, w2key.PubKey, nftID)
 	verifyStdout(t, execTokensCmd(t, homedirW2, fmt.Sprintf("list non-fungible -r %s", backendURL)), fmt.Sprintf("ID='%s'", nftID))
@@ -98,7 +98,7 @@ func TestNFTs_Integration(t *testing.T) {
 
 func TestNFTDataUpdateCmd_Integration(t *testing.T) {
 	network := NewAlphabillNetwork(t)
-	tokenPartition, err := network.abNetwork.GetNodePartition(tokens.DefaultSystemIdentifier)
+	tokenPartition, err := network.abNetwork.GetNodePartition(tokens2.DefaultSystemIdentifier)
 	require.NoError(t, err)
 	homedir := network.walletHomedir
 	w1key := network.walletKey1
@@ -123,8 +123,8 @@ func TestNFTDataUpdateCmd_Integration(t *testing.T) {
 	require.NoError(t, err)
 	execTokensCmd(t, homedir, fmt.Sprintf("new non-fungible -r %s --type %s --token-identifier %s --data-file %s", backendURL, typeID, nftID, tmpfile.Name()))
 	require.Eventually(t, testpartition.BlockchainContains(tokenPartition, func(tx *types.TransactionOrder) bool {
-		if tx.PayloadType() == tokens.PayloadTypeMintNFT && bytes.Equal(tx.UnitID(), nftID) {
-			mintNonFungibleAttr := &tokens.MintNonFungibleTokenAttributes{}
+		if tx.PayloadType() == tokens2.PayloadTypeMintNFT && bytes.Equal(tx.UnitID(), nftID) {
+			mintNonFungibleAttr := &tokens2.MintNonFungibleTokenAttributes{}
 			require.NoError(t, tx.UnmarshalAttributes(mintNonFungibleAttr))
 			require.Equal(t, data, mintNonFungibleAttr.Data)
 			return true
@@ -147,8 +147,8 @@ func TestNFTDataUpdateCmd_Integration(t *testing.T) {
 	// update data, assumes default [--data-update-input true,true]
 	execTokensCmd(t, homedir, fmt.Sprintf("update -r %s --token-identifier %s --data-file %s", backendURL, nftID, tmpfile.Name()))
 	require.Eventually(t, testpartition.BlockchainContains(tokenPartition, func(tx *types.TransactionOrder) bool {
-		if tx.PayloadType() == tokens.PayloadTypeUpdateNFT && bytes.Equal(tx.UnitID(), nftID) {
-			dataUpdateAttrs := &tokens.UpdateNonFungibleTokenAttributes{}
+		if tx.PayloadType() == tokens2.PayloadTypeUpdateNFT && bytes.Equal(tx.UnitID(), nftID) {
+			dataUpdateAttrs := &tokens2.UpdateNonFungibleTokenAttributes{}
 			require.NoError(t, tx.UnmarshalAttributes(dataUpdateAttrs))
 			require.Equal(t, data2, dataUpdateAttrs.Data)
 			return true
@@ -172,7 +172,7 @@ func TestNFTDataUpdateCmd_Integration(t *testing.T) {
 
 func TestNFT_InvariantPredicate_Integration(t *testing.T) {
 	network := NewAlphabillNetwork(t)
-	tokenPartition, err := network.abNetwork.GetNodePartition(tokens.DefaultSystemIdentifier)
+	tokenPartition, err := network.abNetwork.GetNodePartition(tokens2.DefaultSystemIdentifier)
 	require.NoError(t, err)
 	homedirW1 := network.walletHomedir
 	w1key := network.walletKey1

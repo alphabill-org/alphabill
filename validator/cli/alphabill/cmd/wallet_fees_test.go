@@ -7,6 +7,8 @@ import (
 	"strings"
 	"testing"
 
+	money2 "github.com/alphabill-org/alphabill/txsystem/money"
+	"github.com/alphabill-org/alphabill/txsystem/tokens"
 	"github.com/alphabill-org/alphabill/validator/internal/predicates/templates"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/stretchr/testify/require"
@@ -14,8 +16,6 @@ import (
 	"github.com/alphabill-org/alphabill/validator/internal/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/validator/internal/testutils/logger"
 	testpartition "github.com/alphabill-org/alphabill/validator/internal/testutils/partition"
-	"github.com/alphabill-org/alphabill/validator/internal/txsystem/money"
-	"github.com/alphabill-org/alphabill/validator/internal/txsystem/tokens"
 	"github.com/alphabill-org/alphabill/validator/pkg/wallet/fees"
 	"github.com/alphabill-org/alphabill/validator/pkg/wallet/money/backend"
 	moneyclient "github.com/alphabill-org/alphabill/validator/pkg/wallet/money/backend/client"
@@ -25,7 +25,7 @@ var defaultTokenSDR = &genesis.SystemDescriptionRecord{
 	SystemIdentifier: tokens.DefaultSystemIdentifier,
 	T2Timeout:        defaultT2Timeout,
 	FeeCreditBill: &genesis.FeeCreditBill{
-		UnitId:         money.NewBillID(nil, []byte{3}),
+		UnitId:         money2.NewBillID(nil, []byte{3}),
 		OwnerPredicate: templates.AlwaysTrueBytes(),
 	},
 }
@@ -213,7 +213,7 @@ func execFeesCommand(logF LoggerFactory, homeDir, command string) (*testConsoleW
 // setupMoneyInfraAndWallet starts money partition and wallet backend and sends initial bill to wallet.
 // Returns wallet homedir and reference to money partition object.
 func setupMoneyInfraAndWallet(t *testing.T, otherPartitions []*testpartition.NodePartition, logF LoggerFactory) (string, *testpartition.AlphabillNetwork) {
-	initialBill := &money.InitialBill{
+	initialBill := &money2.InitialBill{
 		ID:    defaultInitialBillID,
 		Value: 1e18,
 		Owner: templates.AlwaysTrueBytes(),
@@ -244,13 +244,13 @@ func setupMoneyInfraAndWallet(t *testing.T, otherPartitions []*testpartition.Nod
 	return homedir, abNet
 }
 
-func startMoneyBackend(t *testing.T, moneyPart *testpartition.NodePartition, initialBill *money.InitialBill) (string, *moneyclient.MoneyBackendClient) {
+func startMoneyBackend(t *testing.T, moneyPart *testpartition.NodePartition, initialBill *money2.InitialBill) (string, *moneyclient.MoneyBackendClient) {
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	t.Cleanup(cancelFunc)
 	go func() {
 		err := backend.Run(ctx,
 			&backend.Config{
-				ABMoneySystemIdentifier: money.DefaultSystemIdentifier,
+				ABMoneySystemIdentifier: money2.DefaultSystemIdentifier,
 				AlphabillUrl:            moneyPart.Nodes[0].AddrGRPC,
 				ServerAddr:              defaultAlphabillApiURL, // TODO move to random port
 				DbFile:                  filepath.Join(t.TempDir(), backend.BoltBillStoreFileName),

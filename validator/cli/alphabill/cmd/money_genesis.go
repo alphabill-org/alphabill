@@ -7,11 +7,11 @@ import (
 	"os"
 	"path/filepath"
 
+	money2 "github.com/alphabill-org/alphabill/txsystem/money"
 	abcrypto "github.com/alphabill-org/alphabill/validator/internal/crypto"
 	"github.com/alphabill-org/alphabill/validator/internal/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/validator/internal/partition"
 	"github.com/alphabill-org/alphabill/validator/internal/predicates/templates"
-	"github.com/alphabill-org/alphabill/validator/internal/txsystem/money"
 	"github.com/alphabill-org/alphabill/validator/internal/util"
 	"github.com/fxamacker/cbor/v2"
 	"github.com/libp2p/go-libp2p/core/peer"
@@ -27,15 +27,15 @@ const (
 )
 
 var defaultMoneySDR = &genesis.SystemDescriptionRecord{
-	SystemIdentifier: money.DefaultSystemIdentifier,
+	SystemIdentifier: money2.DefaultSystemIdentifier,
 	T2Timeout:        defaultT2Timeout,
 	FeeCreditBill: &genesis.FeeCreditBill{
-		UnitId:         money.NewBillID(nil, []byte{2}),
+		UnitId:         money2.NewBillID(nil, []byte{2}),
 		OwnerPredicate: templates.AlwaysTrueBytes(),
 	},
 }
 
-var defaultInitialBillID = money.NewBillID(nil, []byte{1})
+var defaultInitialBillID = money2.NewBillID(nil, []byte{1})
 
 type moneyGenesisConfig struct {
 	Base               *baseConfiguration
@@ -59,7 +59,7 @@ func newMoneyGenesisCmd(baseConfig *baseConfiguration) *cobra.Command {
 		},
 	}
 
-	cmd.Flags().BytesHexVarP(&config.SystemIdentifier, "system-identifier", "s", money.DefaultSystemIdentifier, "system identifier in HEX format")
+	cmd.Flags().BytesHexVarP(&config.SystemIdentifier, "system-identifier", "s", money2.DefaultSystemIdentifier, "system identifier in HEX format")
 	config.Keys.addCmdFlags(cmd)
 	cmd.Flags().StringVarP(&config.Output, "output", "o", "", "path to the output genesis file (default: $AB_HOME/money/node-genesis.json)")
 	cmd.Flags().Uint64Var(&config.InitialBillValue, "initial-bill-value", defaultInitialBillValue, "the initial bill value")
@@ -98,7 +98,7 @@ func abMoneyGenesisRunFun(_ context.Context, config *moneyGenesisConfig) error {
 		return err
 	}
 
-	ib := &money.InitialBill{
+	ib := &money2.InitialBill{
 		ID:    defaultInitialBillID,
 		Value: config.InitialBillValue,
 		Owner: templates.AlwaysTrueBytes(),
@@ -108,14 +108,14 @@ func abMoneyGenesisRunFun(_ context.Context, config *moneyGenesisConfig) error {
 	if err != nil {
 		return err
 	}
-	txSystem, err := money.NewTxSystem(
+	txSystem, err := money2.NewTxSystem(
 		config.Base.Logger,
-		money.WithSystemIdentifier(config.SystemIdentifier),
-		money.WithHashAlgorithm(crypto.SHA256),
-		money.WithInitialBill(ib),
-		money.WithSystemDescriptionRecords(sdrs),
-		money.WithDCMoneyAmount(config.DCMoneySupplyValue),
-		money.WithTrustBase(map[string]abcrypto.Verifier{"genesis": nil}),
+		money2.WithSystemIdentifier(config.SystemIdentifier),
+		money2.WithHashAlgorithm(crypto.SHA256),
+		money2.WithInitialBill(ib),
+		money2.WithSystemDescriptionRecords(sdrs),
+		money2.WithDCMoneyAmount(config.DCMoneySupplyValue),
+		money2.WithTrustBase(map[string]abcrypto.Verifier{"genesis": nil}),
 	)
 	if err != nil {
 		return fmt.Errorf("failed to create money transaction system: %w", err)

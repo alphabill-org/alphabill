@@ -4,9 +4,9 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/alphabill-org/alphabill/txsystem/money"
 	"github.com/stretchr/testify/require"
 
-	"github.com/alphabill-org/alphabill/validator/internal/txsystem/money"
 	"github.com/alphabill-org/alphabill/validator/internal/types"
 )
 

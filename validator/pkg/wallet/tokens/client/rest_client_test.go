@@ -11,10 +11,10 @@ import (
 	"path"
 	"testing"
 
+	"github.com/alphabill-org/alphabill/txsystem/fc/testutils"
+	"github.com/alphabill-org/alphabill/txsystem/money"
+	tokens2 "github.com/alphabill-org/alphabill/txsystem/tokens"
 	test "github.com/alphabill-org/alphabill/validator/internal/testutils"
-	"github.com/alphabill-org/alphabill/validator/internal/txsystem/fc/testutils"
-	"github.com/alphabill-org/alphabill/validator/internal/txsystem/money"
-	"github.com/alphabill-org/alphabill/validator/internal/txsystem/tokens"
 	"github.com/alphabill-org/alphabill/validator/internal/types"
 	sdk "github.com/alphabill-org/alphabill/validator/pkg/wallet"
 	"github.com/alphabill-org/alphabill/validator/pkg/wallet/tokens/backend"
@@ -691,7 +691,7 @@ func Test_PostTransactions(t *testing.T) {
 			}},
 		}
 
-		data := &sdk.Transactions{Transactions: []*types.TransactionOrder{randomTx(t, &tokens.CreateNonFungibleTokenTypeAttributes{Symbol: "test"})}}
+		data := &sdk.Transactions{Transactions: []*types.TransactionOrder{randomTx(t, &tokens2.CreateNonFungibleTokenTypeAttributes{Symbol: "test"})}}
 		err := cli.PostTransactions(context.Background(), ownerID, data)
 		require.NoError(t, err)
 		require.Equal(t, data, &receivedData)
@@ -858,7 +858,7 @@ func randomTx(t *testing.T, attr interface{}) *types.TransactionOrder {
 	require.NoError(t, err, "failed to marshal tx attributes: %v", err)
 	tx := &types.TransactionOrder{
 		Payload: &types.Payload{
-			SystemID:       tokens.DefaultSystemIdentifier,
+			SystemID:       tokens2.DefaultSystemIdentifier,
 			Attributes:     bytes,
 			UnitID:         test.RandomBytes(32),
 			ClientMetadata: &types.ClientMetadata{Timeout: 10},

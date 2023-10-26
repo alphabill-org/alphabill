@@ -6,9 +6,9 @@ import (
 	"os"
 	"path/filepath"
 
+	tokens2 "github.com/alphabill-org/alphabill/txsystem/tokens"
 	abcrypto "github.com/alphabill-org/alphabill/validator/internal/crypto"
 	"github.com/alphabill-org/alphabill/validator/internal/partition"
-	"github.com/alphabill-org/alphabill/validator/internal/txsystem/tokens"
 	"github.com/alphabill-org/alphabill/validator/internal/util"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/spf13/cobra"
@@ -37,7 +37,7 @@ func newUserTokenGenesisCmd(baseConfig *baseConfiguration) *cobra.Command {
 		},
 	}
 
-	cmd.Flags().BytesHexVarP(&config.SystemIdentifier, "system-identifier", "s", tokens.DefaultSystemIdentifier, "system identifier in HEX format")
+	cmd.Flags().BytesHexVarP(&config.SystemIdentifier, "system-identifier", "s", tokens2.DefaultSystemIdentifier, "system identifier in HEX format")
 	cmd.Flags().StringVarP(&config.Output, "output", "o", "", "path to the output genesis file (default: $AB_HOME/tokens/node-genesis.json)")
 	cmd.Flags().Uint32Var(&config.T2Timeout, "t2-timeout", defaultT2Timeout, "time interval for how long root chain waits before re-issuing unicity certificate, in milliseconds")
 	config.Keys.addCmdFlags(cmd)
@@ -65,10 +65,10 @@ func utGenesisRunFun(_ context.Context, config *userTokenPartitionGenesisConfig)
 		return fmt.Errorf("failed to load keys %v: %w", config.Keys.GetKeyFileLocation(), err)
 	}
 
-	txSystem, err := tokens.NewTxSystem(
+	txSystem, err := tokens2.NewTxSystem(
 		config.Base.Logger,
-		tokens.WithSystemIdentifier(config.SystemIdentifier),
-		tokens.WithTrustBase(map[string]abcrypto.Verifier{"genesis": nil}),
+		tokens2.WithSystemIdentifier(config.SystemIdentifier),
+		tokens2.WithTrustBase(map[string]abcrypto.Verifier{"genesis": nil}),
 	)
 	if err != nil {
 		return err

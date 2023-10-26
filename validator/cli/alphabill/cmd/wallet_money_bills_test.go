@@ -7,6 +7,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/alphabill-org/alphabill/txsystem/fc/transactions"
+	money2 "github.com/alphabill-org/alphabill/txsystem/money"
 	"github.com/alphabill-org/alphabill/validator/internal/predicates/templates"
 	"github.com/fxamacker/cbor/v2"
 	"github.com/stretchr/testify/require"
@@ -14,8 +16,6 @@ import (
 	"github.com/alphabill-org/alphabill/validator/internal/hash"
 	"github.com/alphabill-org/alphabill/validator/internal/testutils/logger"
 	testpartition "github.com/alphabill-org/alphabill/validator/internal/testutils/partition"
-	"github.com/alphabill-org/alphabill/validator/internal/txsystem/fc/transactions"
-	"github.com/alphabill-org/alphabill/validator/internal/txsystem/money"
 	"github.com/alphabill-org/alphabill/validator/internal/types"
 	"github.com/alphabill-org/alphabill/validator/pkg/wallet/money/backend/client"
 	"github.com/alphabill-org/alphabill/validator/pkg/wallet/unitlock"
@@ -32,7 +32,7 @@ func TestWalletBillsListCmd_EmptyWallet(t *testing.T) {
 
 func TestWalletBillsListCmd_Single(t *testing.T) {
 	homedir := createNewTestWallet(t)
-	mockServer, addr := mockBackendCalls(&backendMockReturnConf{billID: money.NewBillID(nil, []byte{1}), billValue: 1e8})
+	mockServer, addr := mockBackendCalls(&backendMockReturnConf{billID: money2.NewBillID(nil, []byte{1}), billValue: 1e8})
 	defer mockServer.Close()
 
 	// verify bill in list command
@@ -46,7 +46,7 @@ func TestWalletBillsListCmd_Multiple(t *testing.T) {
 
 	billsList := ""
 	for i := 1; i <= 4; i++ {
-		billsList = billsList + fmt.Sprintf(`{"id":"%s","value":"%d","txHash":"MHgwMzgwMDNlMjE4ZWVhMzYwY2JmNTgwZWJiOTBjYzhjOGNhZjBjY2VmNGJmNjYwZWE5YWI0ZmMwNmI1YzM2N2IwMzg=","isDCBill":false},`, toBase64(money.NewBillID(nil, []byte{byte(i)})), i)
+		billsList = billsList + fmt.Sprintf(`{"id":"%s","value":"%d","txHash":"MHgwMzgwMDNlMjE4ZWVhMzYwY2JmNTgwZWJiOTBjYzhjOGNhZjBjY2VmNGJmNjYwZWE5YWI0ZmMwNmI1YzM2N2IwMzg=","isDCBill":false},`, toBase64(money2.NewBillID(nil, []byte{byte(i)})), i)
 	}
 	mockServer, addr := mockBackendCalls(&backendMockReturnConf{customBillList: fmt.Sprintf(`{"bills": [%s]}`, strings.TrimSuffix(billsList, ","))})
 	defer mockServer.Close()
@@ -65,7 +65,7 @@ func TestWalletBillsListCmd_Multiple(t *testing.T) {
 func TestWalletBillsListCmd_ExtraAccount(t *testing.T) {
 	homedir := createNewTestWallet(t)
 	logF := logger.LoggerBuilder(t)
-	mockServer, addr := mockBackendCalls(&backendMockReturnConf{billID: money.NewBillID(nil, []byte{1}), billValue: 1})
+	mockServer, addr := mockBackendCalls(&backendMockReturnConf{billID: money2.NewBillID(nil, []byte{1}), billValue: 1})
 	defer mockServer.Close()
 
 	// add new key
@@ -91,7 +91,7 @@ func TestWalletBillsListCmd_ExtraAccountTotal(t *testing.T) {
 	pubKey2 := strings.Split(stdout.lines[0], " ")[3]
 
 	mockServer, addr := mockBackendCalls(&backendMockReturnConf{
-		billID:         money.NewBillID(nil, []byte{1}),
+		billID:         money2.NewBillID(nil, []byte{1}),
 		billValue:      1e9,
 		customFullPath: "/" + client.ListBillsPath + "?includeDcBills=false&limit=100&pubkey=" + pubKey2,
 		customResponse: `{"bills": []}`})
@@ -141,7 +141,7 @@ func TestWalletBillsListCmd_ShowLockedBills(t *testing.T) {
 	require.NoError(t, err)
 	am.Close()
 
-	unitID := money.NewBillID(nil, []byte{1})
+	unitID := money2.NewBillID(nil, []byte{1})
 	mockServer, addr := mockBackendCalls(&backendMockReturnConf{billID: unitID, billValue: 1e8})
 	defer mockServer.Close()
 
@@ -151,7 +151,7 @@ func TestWalletBillsListCmd_ShowLockedBills(t *testing.T) {
 	defer unitLocker.Close()
 
 	// lock unit
-	err = unitLocker.LockUnit(unitlock.NewLockedUnit(pubKey, unitID, []byte{1}, money.DefaultSystemIdentifier, unitlock.LockReasonAddFees))
+	err = unitLocker.LockUnit(unitlock.NewLockedUnit(pubKey, unitID, []byte{1}, money2.DefaultSystemIdentifier, unitlock.LockReasonAddFees))
 	require.NoError(t, err)
 	err = unitLocker.Close()
 	require.NoError(t, err)
@@ -162,12 +162,12 @@ func TestWalletBillsListCmd_ShowLockedBills(t *testing.T) {
 	verifyStdout(t, stdout, "#1 0x000000000000000000000000000000000000000000000000000000000000000100 1.000'000'00 (locked for adding fees)")
 }
 
-func spendInitialBillWithFeeCredits(t *testing.T, abNet *testpartition.AlphabillNetwork, initialBill *money.InitialBill, pk []byte) uint64 {
+func spendInitialBillWithFeeCredits(t *testing.T, abNet *testpartition.AlphabillNetwork, initialBill *money2.InitialBill, pk []byte) uint64 {
 	absoluteTimeout := uint64(10000)
 	txFee := uint64(1)
 	feeAmount := uint64(2)
 	unitID := initialBill.ID
-	moneyPart, err := abNet.GetNodePartition(money.DefaultSystemIdentifier)
+	moneyPart, err := abNet.GetNodePartition(money2.DefaultSystemIdentifier)
 	require.NoError(t, err)
 
 	// create transferFC
@@ -203,7 +203,7 @@ func spendInitialBillWithFeeCredits(t *testing.T, abNet *testpartition.Alphabill
 }
 
 func createTransferTx(pubKey []byte, billID []byte, billValue uint64, fcrID []byte, timeout uint64, backlink []byte) (*types.TransactionOrder, error) {
-	attr := &money.TransferAttributes{
+	attr := &money2.TransferAttributes{
 		NewBearer:   templates.NewP2pkh256BytesFromKeyHash(hash.Sum256(pubKey)),
 		TargetValue: billValue,
 		Backlink:    backlink,
@@ -215,7 +215,7 @@ func createTransferTx(pubKey []byte, billID []byte, billValue uint64, fcrID []by
 	tx := &types.TransactionOrder{
 		Payload: &types.Payload{
 			UnitID:     billID,
-			Type:       money.PayloadTypeTransfer,
+			Type:       money2.PayloadTypeTransfer,
 			SystemID:   []byte{0, 0, 0, 0},
 			Attributes: attrBytes,
 			ClientMetadata: &types.ClientMetadata{

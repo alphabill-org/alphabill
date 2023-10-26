@@ -10,6 +10,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/alphabill-org/alphabill/txsystem"
+	money2 "github.com/alphabill-org/alphabill/txsystem/money"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 
@@ -24,10 +26,6 @@ import (
 	"github.com/alphabill-org/alphabill/validator/internal/testutils/logger"
 	testpartition "github.com/alphabill-org/alphabill/validator/internal/testutils/partition"
 	testserver "github.com/alphabill-org/alphabill/validator/internal/testutils/server"
-	"github.com/alphabill-org/alphabill/validator/internal/txsystem"
-	testfc "github.com/alphabill-org/alphabill/validator/internal/txsystem/fc/testutils"
-	"github.com/alphabill-org/alphabill/validator/internal/txsystem/money"
-	moneytestutils "github.com/alphabill-org/alphabill/validator/internal/txsystem/money/testutils"
 	"github.com/alphabill-org/alphabill/validator/internal/types"
 	"github.com/alphabill-org/alphabill/validator/pkg/wallet/account"
 	"github.com/alphabill-org/alphabill/validator/pkg/wallet/fees"
@@ -38,20 +36,20 @@ import (
 )
 
 var (
-	fcrID     = money.NewFeeCreditRecordID(nil, []byte{1})
+	fcrID     = money2.NewFeeCreditRecordID(nil, []byte{1})
 	fcrAmount = uint64(1e8)
 )
 
 func TestCollectDustTimeoutReached(t *testing.T) {
 	log := logger.New(t)
 	// start server
-	initialBill := &money.InitialBill{
-		ID:    money.NewBillID(nil, []byte{1}),
+	initialBill := &money2.InitialBill{
+		ID:    money2.NewBillID(nil, []byte{1}),
 		Value: 10000 * 1e8,
 		Owner: templates.AlwaysTrueBytes(),
 	}
 	abNet := startMoneyOnlyAlphabillPartition(t, initialBill)
-	moneyPart, err := abNet.GetNodePartition(money.DefaultSystemIdentifier)
+	moneyPart, err := abNet.GetNodePartition(money2.DefaultSystemIdentifier)
 	require.NoError(t, err)
 	addr := startRPCServer(t, moneyPart)
 	serverService := testserver.NewTestAlphabillServiceServer()
@@ -65,7 +63,7 @@ func TestCollectDustTimeoutReached(t *testing.T) {
 	go func() {
 		err := backend.Run(ctx,
 			&backend.Config{
-				ABMoneySystemIdentifier: money.DefaultSystemIdentifier,
+				ABMoneySystemIdentifier: money2.DefaultSystemIdentifier,
 				AlphabillUrl:            addr,
 				ServerAddr:              restAddr,
 				DbFile:                  filepath.Join(t.TempDir(), backend.BoltBillStoreFileName),
@@ -99,11 +97,11 @@ func TestCollectDustTimeoutReached(t *testing.T) {
 	require.NoError(t, err)
 
 	// create fee credit for initial bill transfer
-	transferFC := testfc.CreateFeeCredit(t, initialBill.ID, fcrID, fcrAmount, abNet)
+	transferFC := testutils.CreateFeeCredit(t, initialBill.ID, fcrID, fcrAmount, abNet)
 	initialBillBacklink := transferFC.Hash(crypto.SHA256)
 	initialBillValue := initialBill.Value - fcrAmount
 
-	transferInitialBillTx, err := moneytestutils.CreateInitialBillTransferTx(pubKeys[0], initialBill.ID, fcrID, initialBillValue, 10000, initialBillBacklink)
+	transferInitialBillTx, err := testutils.CreateInitialBillTransferTx(pubKeys[0], initialBill.ID, fcrID, initialBillValue, 10000, initialBillBacklink)
 	require.NoError(t, err)
 	batch := txsubmitter.NewBatch(pubKeys[0], w.backend, log)
 	batch.Add(&txsubmitter.TxSubmission{
@@ -160,13 +158,13 @@ wallet account 2 and 3 should have only single bill
 func TestCollectDustInMultiAccountWallet(t *testing.T) {
 	log := logger.New(t)
 	// start network
-	initialBill := &money.InitialBill{
-		ID:    money.NewBillID(nil, []byte{1}),
+	initialBill := &money2.InitialBill{
+		ID:    money2.NewBillID(nil, []byte{1}),
 		Value: 10000 * 1e8,
 		Owner: templates.AlwaysTrueBytes(),
 	}
 	network := startMoneyOnlyAlphabillPartition(t, initialBill)
-	moneyPart, err := network.GetNodePartition(money.DefaultSystemIdentifier)
+	moneyPart, err := network.GetNodePartition(money2.DefaultSystemIdentifier)
 	require.NoError(t, err)
 	addr := startRPCServer(t, moneyPart)
 
@@ -177,7 +175,7 @@ func TestCollectDustInMultiAccountWallet(t *testing.T) {
 	go func() {
 		err := backend.Run(ctx,
 			&backend.Config{
-				ABMoneySystemIdentifier: money.DefaultSystemIdentifier,
+				ABMoneySystemIdentifier: money2.DefaultSystemIdentifier,
 				AlphabillUrl:            addr,
 				ServerAddr:              restAddr,
 				DbFile:                  filepath.Join(t.TempDir(), backend.BoltBillStoreFileName),
@@ -215,12 +213,12 @@ func TestCollectDustInMultiAccountWallet(t *testing.T) {
 	require.NoError(t, err)
 
 	// create fee credit for initial bill transfer
-	transferFC := testfc.CreateFeeCredit(t, initialBill.ID, fcrID, fcrAmount, network)
+	transferFC := testutils.CreateFeeCredit(t, initialBill.ID, fcrID, fcrAmount, network)
 	initialBillBacklink := transferFC.Hash(crypto.SHA256)
 	initialBillValue := initialBill.Value - fcrAmount
 
 	// transfer initial bill to wallet 1
-	transferInitialBillTx, err := moneytestutils.CreateInitialBillTransferTx(pubKeys[0], initialBill.ID, fcrID, initialBillValue, 10000, initialBillBacklink)
+	transferInitialBillTx, err := testutils.CreateInitialBillTransferTx(pubKeys[0], initialBill.ID, fcrID, initialBillValue, 10000, initialBillBacklink)
 	require.NoError(t, err)
 	batch := txsubmitter.NewBatch(pubKeys[0], w.backend, log)
 	batch.Add(&txsubmitter.TxSubmission{
@@ -275,13 +273,13 @@ func TestCollectDustInMultiAccountWallet(t *testing.T) {
 func TestCollectDustInMultiAccountWalletWithKeyFlag(t *testing.T) {
 	log := logger.New(t)
 	// start network
-	initialBill := &money.InitialBill{
-		ID:    money.NewBillID(nil, []byte{1}),
+	initialBill := &money2.InitialBill{
+		ID:    money2.NewBillID(nil, []byte{1}),
 		Value: 10000 * 1e8,
 		Owner: templates.AlwaysTrueBytes(),
 	}
 	network := startMoneyOnlyAlphabillPartition(t, initialBill)
-	moneyPart, err := network.GetNodePartition(money.DefaultSystemIdentifier)
+	moneyPart, err := network.GetNodePartition(money2.DefaultSystemIdentifier)
 	require.NoError(t, err)
 	addr := startRPCServer(t, moneyPart)
 
@@ -292,7 +290,7 @@ func TestCollectDustInMultiAccountWalletWithKeyFlag(t *testing.T) {
 	go func() {
 		err := backend.Run(ctx,
 			&backend.Config{
-				ABMoneySystemIdentifier: money.DefaultSystemIdentifier,
+				ABMoneySystemIdentifier: money2.DefaultSystemIdentifier,
 				AlphabillUrl:            addr,
 				ServerAddr:              restAddr,
 				DbFile:                  filepath.Join(t.TempDir(), backend.BoltBillStoreFileName),
@@ -331,11 +329,11 @@ func TestCollectDustInMultiAccountWalletWithKeyFlag(t *testing.T) {
 	require.NoError(t, err)
 
 	// create fee credit for initial bill transfer
-	transferFC := testfc.CreateFeeCredit(t, initialBill.ID, fcrID, fcrAmount, network)
+	transferFC := testutils.CreateFeeCredit(t, initialBill.ID, fcrID, fcrAmount, network)
 	initialBillBacklink := transferFC.Hash(crypto.SHA256)
 	initialBillValue := initialBill.Value - fcrAmount
 
-	transferInitialBillTx, err := moneytestutils.CreateInitialBillTransferTx(pubKeys[0], initialBill.ID, fcrID, initialBillValue, 10000, initialBillBacklink)
+	transferInitialBillTx, err := testutils.CreateInitialBillTransferTx(pubKeys[0], initialBill.ID, fcrID, initialBillValue, 10000, initialBillBacklink)
 	require.NoError(t, err)
 	batch := txsubmitter.NewBatch(pubKeys[0], w.backend, log)
 	batch.Add(&txsubmitter.TxSubmission{
@@ -383,14 +381,14 @@ func TestCollectDustInMultiAccountWalletWithKeyFlag(t *testing.T) {
 	account3Key, _ := am.GetAccountKey(2)
 	swapTxCount := 0
 	testpartition.BlockchainContains(moneyPart, func(txo *types.TransactionOrder) bool {
-		if txo.PayloadType() != money.PayloadTypeSwapDC {
+		if txo.PayloadType() != money2.PayloadTypeSwapDC {
 			return false
 		}
 
 		require.Equal(t, 0, swapTxCount)
 		swapTxCount++
 
-		attrs := &money.SwapDCAttributes{}
+		attrs := &money2.SwapDCAttributes{}
 		err = txo.UnmarshalAttributes(attrs)
 		require.NoError(t, err)
 		require.EqualValues(t, templates.NewP2pkh256BytesFromKeyHash(account3Key.PubKeyHash.Sha256), attrs.OwnerCondition)
@@ -410,19 +408,19 @@ func sendTo(t *testing.T, w *Wallet, receivers []ReceiverData, fromAccount uint6
 	require.NotNil(t, proof)
 }
 
-func startMoneyOnlyAlphabillPartition(t *testing.T, initialBill *money.InitialBill) *testpartition.AlphabillNetwork {
+func startMoneyOnlyAlphabillPartition(t *testing.T, initialBill *money2.InitialBill) *testpartition.AlphabillNetwork {
 	mPart, err := testpartition.NewPartition(t, 1, func(tb map[string]abcrypto.Verifier) txsystem.TransactionSystem {
-		system, err := money.NewTxSystem(
+		system, err := money2.NewTxSystem(
 			logger.New(t),
-			money.WithSystemIdentifier(money.DefaultSystemIdentifier),
-			money.WithInitialBill(initialBill),
-			money.WithSystemDescriptionRecords(createSDRs()),
-			money.WithDCMoneyAmount(10000*1e8),
-			money.WithTrustBase(tb),
+			money2.WithSystemIdentifier(money2.DefaultSystemIdentifier),
+			money2.WithInitialBill(initialBill),
+			money2.WithSystemDescriptionRecords(createSDRs()),
+			money2.WithDCMoneyAmount(10000*1e8),
+			money2.WithTrustBase(tb),
 		)
 		require.NoError(t, err)
 		return system
-	}, money.DefaultSystemIdentifier)
+	}, money2.DefaultSystemIdentifier)
 	require.NoError(t, err)
 	abNet, err := testpartition.NewAlphabillPartition([]*testpartition.NodePartition{mPart})
 	require.NoError(t, err)
@@ -463,10 +461,10 @@ func initRPCServer(node *partition.Node) (*grpc.Server, error) {
 
 func createSDRs() []*genesis.SystemDescriptionRecord {
 	return []*genesis.SystemDescriptionRecord{{
-		SystemIdentifier: money.DefaultSystemIdentifier,
+		SystemIdentifier: money2.DefaultSystemIdentifier,
 		T2Timeout:        2500,
 		FeeCreditBill: &genesis.FeeCreditBill{
-			UnitId:         money.NewBillID(nil, []byte{2}),
+			UnitId:         money2.NewBillID(nil, []byte{2}),
 			OwnerPredicate: templates.AlwaysTrueBytes(),
 		},
 	}}

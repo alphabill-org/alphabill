@@ -7,11 +7,11 @@ import (
 	"errors"
 	"testing"
 
+	money2 "github.com/alphabill-org/alphabill/txsystem/money"
 	"github.com/stretchr/testify/require"
 
 	"github.com/alphabill-org/alphabill/validator/internal/hash"
 	"github.com/alphabill-org/alphabill/validator/internal/predicates/templates"
-	"github.com/alphabill-org/alphabill/validator/internal/txsystem/money"
 	"github.com/alphabill-org/alphabill/validator/internal/types"
 	"github.com/alphabill-org/alphabill/validator/pkg/wallet"
 	"github.com/alphabill-org/alphabill/validator/pkg/wallet/money/backend"
@@ -21,7 +21,7 @@ import (
 func TestWalletSendFunction_Ok(t *testing.T) {
 	w := CreateTestWallet(t, withBackendMock(t, &backendMockReturnConf{
 		balance:   70,
-		billId:    money.NewBillID(nil, []byte{0}),
+		billId:    money2.NewBillID(nil, []byte{0}),
 		billValue: 50,
 		feeCreditBill: &wallet.Bill{
 			Id:    []byte{},
@@ -62,7 +62,7 @@ func TestWalletSendFunction_InsufficientBalance(t *testing.T) {
 func TestWalletSendFunction_ClientError(t *testing.T) {
 	w := CreateTestWallet(t, withBackendMock(t, &backendMockReturnConf{
 		balance:   70,
-		billId:    money.NewBillID(nil, []byte{0}),
+		billId:    money2.NewBillID(nil, []byte{0}),
 		billValue: 50,
 		feeCreditBill: &wallet.Bill{
 			Id:    []byte{},
@@ -109,7 +109,7 @@ func TestWalletSendFunction_WaitForConfirmation(t *testing.T) {
 		getFeeCreditBill: func(ctx context.Context, unitID []byte) (*wallet.Bill, error) {
 			ac, _ := w.am.GetAccountKey(0)
 			return &wallet.Bill{
-				Id:    money.NewFeeCreditRecordID(nil, ac.PubKeyHash.Sha256),
+				Id:    money2.NewFeeCreditRecordID(nil, ac.PubKeyHash.Sha256),
 				Value: 100 * 1e8,
 			}, nil
 		},
@@ -239,7 +239,7 @@ func TestWalletSendFunction_WaitForMultipleTxConfirmationsInDifferentBlocks(t *t
 		getFeeCreditBill: func(ctx context.Context, unitID []byte) (*wallet.Bill, error) {
 			ac, _ := w.am.GetAccountKey(0)
 			return &wallet.Bill{
-				Id:    money.NewFeeCreditRecordID(nil, ac.PubKeyHash.Sha256),
+				Id:    money2.NewFeeCreditRecordID(nil, ac.PubKeyHash.Sha256),
 				Value: 100 * 1e8,
 			}, nil
 		},
@@ -347,7 +347,7 @@ func TestWholeBalanceIsSentUsingBillTransferOrder(t *testing.T) {
 }
 
 func TestWalletSendFunction_LockedBillIsNotUsed(t *testing.T) {
-	unitID := money.NewBillID(nil, []byte{123})
+	unitID := money2.NewBillID(nil, []byte{123})
 	w := CreateTestWallet(t, withBackendMock(t, &backendMockReturnConf{
 		balance:       70,
 		billId:        unitID,
@@ -362,7 +362,7 @@ func TestWalletSendFunction_LockedBillIsNotUsed(t *testing.T) {
 		pubKey,
 		unitID,
 		[]byte{1},
-		money.DefaultSystemIdentifier,
+		money2.DefaultSystemIdentifier,
 		unitlock.LockReasonCollectDust,
 	))
 	require.NoError(t, err)
@@ -410,7 +410,7 @@ func TestWalletSendFunction_BillWithExactAmount(t *testing.T) {
 		getFeeCreditBill: func(ctx context.Context, unitID []byte) (*wallet.Bill, error) {
 			ac, _ := w.am.GetAccountKey(0)
 			return &wallet.Bill{
-				Id:    money.NewFeeCreditRecordID(nil, ac.PubKeyHash.Sha256),
+				Id:    money2.NewFeeCreditRecordID(nil, ac.PubKeyHash.Sha256),
 				Value: 100 * 1e8,
 			}, nil
 		},
@@ -430,7 +430,7 @@ func TestWalletSendFunction_BillWithExactAmount(t *testing.T) {
 	// verify that the send command creates a single transfer for the bill with the exact value requested
 	require.NoError(t, err)
 	require.Len(t, recordedTransactions, 1)
-	require.Equal(t, money.PayloadTypeTransfer, recordedTransactions[0].PayloadType())
+	require.Equal(t, money2.PayloadTypeTransfer, recordedTransactions[0].PayloadType())
 	require.EqualValues(t, bills[1].Id, recordedTransactions[0].Payload.UnitID)
 }
 
@@ -468,7 +468,7 @@ func TestWalletSendFunction_NWaySplit(t *testing.T) {
 		getFeeCreditBill: func(ctx context.Context, unitID []byte) (*wallet.Bill, error) {
 			ac, _ := w.am.GetAccountKey(0)
 			return &wallet.Bill{
-				Id:    money.NewFeeCreditRecordID(nil, ac.PubKeyHash.Sha256),
+				Id:    money2.NewFeeCreditRecordID(nil, ac.PubKeyHash.Sha256),
 				Value: 100 * 1e8,
 			}, nil
 		},
@@ -495,9 +495,9 @@ func TestWalletSendFunction_NWaySplit(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, recordedTransactions, 1)
 	recordedTx := recordedTransactions[0]
-	require.Equal(t, money.PayloadTypeSplit, recordedTx.PayloadType())
+	require.Equal(t, money2.PayloadTypeSplit, recordedTx.PayloadType())
 	require.EqualValues(t, bills[0].Id, recordedTx.Payload.UnitID)
-	attr := &money.SplitAttributes{}
+	attr := &money2.SplitAttributes{}
 	err = recordedTx.UnmarshalAttributes(attr)
 	require.NoError(t, err)
 	require.Len(t, attr.TargetUnits, 5)
@@ -507,8 +507,8 @@ func TestWalletSendFunction_NWaySplit(t *testing.T) {
 	}
 }
 
-func parseBillTransferTx(t *testing.T, tx *types.TransactionOrder) *money.TransferAttributes {
-	transferTx := &money.TransferAttributes{}
+func parseBillTransferTx(t *testing.T, tx *types.TransactionOrder) *money2.TransferAttributes {
+	transferTx := &money2.TransferAttributes{}
 	err := tx.UnmarshalAttributes(transferTx)
 	require.NoError(t, err)
 	return transferTx

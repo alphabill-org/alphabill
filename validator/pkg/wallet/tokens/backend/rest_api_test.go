@@ -16,6 +16,7 @@ import (
 	"sync/atomic"
 	"testing"
 
+	tokens2 "github.com/alphabill-org/alphabill/txsystem/tokens"
 	"github.com/alphabill-org/alphabill/validator/internal/predicates/templates"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/fxamacker/cbor/v2"
@@ -26,7 +27,6 @@ import (
 	test "github.com/alphabill-org/alphabill/validator/internal/testutils"
 	testsig "github.com/alphabill-org/alphabill/validator/internal/testutils/sig"
 	testtransaction "github.com/alphabill-org/alphabill/validator/internal/testutils/transaction"
-	"github.com/alphabill-org/alphabill/validator/internal/txsystem/tokens"
 	"github.com/alphabill-org/alphabill/validator/internal/types"
 	sdk "github.com/alphabill-org/alphabill/validator/pkg/wallet"
 )
@@ -74,8 +74,8 @@ func Test_restAPI_postTransaction(t *testing.T) {
 	ownerIDstr := hexutil.Encode(ownerID)
 
 	// valid request body with single create-nft-type tx
-	createNTFTypeTx := randomTx(t, &tokens.CreateNonFungibleTokenTypeAttributes{Symbol: "test"})
-	createNTFTypeTx.Payload.Type = tokens.PayloadTypeCreateNFTType
+	createNTFTypeTx := randomTx(t, &tokens2.CreateNonFungibleTokenTypeAttributes{Symbol: "test"})
+	createNTFTypeTx.Payload.Type = tokens2.PayloadTypeCreateNFTType
 	pb, _ := createNTFTypeTx.PayloadBytes()
 	sig, pk := testsig.SignBytes(t, pb)
 	createNTFTypeTx.OwnerProof = templates.NewP2pkh256SignatureBytes(sig, pk)
@@ -141,8 +141,8 @@ func Test_restAPI_postTransaction(t *testing.T) {
 	})
 
 	t.Run("one valid type-creation transaction without an owner is sent", func(t *testing.T) {
-		tx := randomTx(t, &tokens.CreateNonFungibleTokenTypeAttributes{Symbol: "test"})
-		tx.Payload.Type = tokens.PayloadTypeCreateNFTType
+		tx := randomTx(t, &tokens2.CreateNonFungibleTokenTypeAttributes{Symbol: "test"})
+		tx.Payload.Type = tokens2.PayloadTypeCreateNFTType
 		tx.OwnerProof = templates.AlwaysTrueBytes()
 
 		message, err := cbor.Marshal(&sdk.Transactions{Transactions: []*types.TransactionOrder{tx}})
@@ -218,7 +218,7 @@ func Test_restAPI_postTransaction(t *testing.T) {
 
 	t.Run("invalid transaction owner", func(t *testing.T) {
 		txs := &sdk.Transactions{Transactions: []*types.TransactionOrder{
-			randomTx(t, &tokens.MintFungibleTokenAttributes{Value: 42}),
+			randomTx(t, &tokens2.MintFungibleTokenAttributes{Value: 42}),
 		}}
 		txBytes, err := txs.Transactions[0].PayloadBytes()
 		require.NoError(t, err)
@@ -947,7 +947,7 @@ func Test_restAPI_getInfo(t *testing.T) {
 	}
 
 	t.Run("ok", func(t *testing.T) {
-		api := &tokensRestAPI{systemID: tokens.DefaultSystemIdentifier}
+		api := &tokensRestAPI{systemID: tokens2.DefaultSystemIdentifier}
 		rsp := makeRequest(api)
 		require.Equal(t, http.StatusOK, rsp.StatusCode, "unexpected status")
 		defer rsp.Body.Close()

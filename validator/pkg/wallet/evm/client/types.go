@@ -3,7 +3,7 @@ package client
 import (
 	"math/big"
 
-	"github.com/alphabill-org/alphabill/validator/internal/txsystem/evm/statedb"
+	"github.com/alphabill-org/alphabill/txsystem/evm/statedb"
 	"github.com/ethereum/go-ethereum/common"
 )
 

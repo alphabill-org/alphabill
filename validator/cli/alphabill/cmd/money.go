@@ -5,9 +5,9 @@ import (
 	"crypto"
 	"fmt"
 
+	money2 "github.com/alphabill-org/alphabill/txsystem/money"
 	"github.com/alphabill-org/alphabill/validator/internal/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/validator/internal/predicates/templates"
-	"github.com/alphabill-org/alphabill/validator/internal/txsystem/money"
 	"github.com/alphabill-org/alphabill/validator/pkg/logger"
 	"github.com/fxamacker/cbor/v2"
 	"github.com/libp2p/go-libp2p/core/peer"
@@ -68,7 +68,7 @@ func runMoneyNode(ctx context.Context, cfg *moneyNodeConfiguration) error {
 		return fmt.Errorf("failed to unmarshal money partition params: %w", err)
 	}
 
-	ib := &money.InitialBill{
+	ib := &money2.InitialBill{
 		ID:    defaultInitialBillID,
 		Value: params.InitialBillValue,
 		Owner: templates.AlwaysTrueBytes(),
@@ -90,14 +90,14 @@ func runMoneyNode(ctx context.Context, cfg *moneyNodeConfiguration) error {
 
 	log := cfg.Base.Logger.With(logger.NodeID(nodeID))
 
-	txs, err := money.NewTxSystem(
+	txs, err := money2.NewTxSystem(
 		log,
-		money.WithSystemIdentifier(pg.SystemDescriptionRecord.SystemIdentifier),
-		money.WithHashAlgorithm(crypto.SHA256),
-		money.WithInitialBill(ib),
-		money.WithSystemDescriptionRecords(params.SystemDescriptionRecords),
-		money.WithDCMoneyAmount(params.DcMoneySupplyValue),
-		money.WithTrustBase(trustBase),
+		money2.WithSystemIdentifier(pg.SystemDescriptionRecord.SystemIdentifier),
+		money2.WithHashAlgorithm(crypto.SHA256),
+		money2.WithInitialBill(ib),
+		money2.WithSystemDescriptionRecords(params.SystemDescriptionRecords),
+		money2.WithDCMoneyAmount(params.DcMoneySupplyValue),
+		money2.WithTrustBase(trustBase),
 	)
 	if err != nil {
 		return fmt.Errorf("creating money transaction system: %w", err)

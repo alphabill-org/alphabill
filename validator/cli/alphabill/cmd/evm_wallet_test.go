@@ -13,13 +13,13 @@ import (
 	"strings"
 	"testing"
 
+	evm2 "github.com/alphabill-org/alphabill/txsystem/evm"
+	"github.com/alphabill-org/alphabill/txsystem/evm/api"
 	"github.com/fxamacker/cbor/v2"
 	"github.com/stretchr/testify/require"
 
 	test "github.com/alphabill-org/alphabill/validator/internal/testutils"
 	testlogger "github.com/alphabill-org/alphabill/validator/internal/testutils/logger"
-	"github.com/alphabill-org/alphabill/validator/internal/txsystem/evm"
-	"github.com/alphabill-org/alphabill/validator/internal/txsystem/evm/api"
 	"github.com/alphabill-org/alphabill/validator/internal/types"
 	"github.com/alphabill-org/alphabill/validator/internal/util"
 	"github.com/alphabill-org/alphabill/validator/pkg/logger"
@@ -49,7 +49,7 @@ func Test_evmCmdDeploy_error_cases(t *testing.T) {
 
 func Test_evmCmdDeploy_ok(t *testing.T) {
 	homedir := createNewTestWallet(t)
-	evmDetails := evm.ProcessingDetails{
+	evmDetails := evm2.ProcessingDetails{
 		ErrorDetails: "something went wrong",
 	}
 	detailBytes, err := cbor.Marshal(evmDetails)
@@ -76,7 +76,7 @@ func Test_evmCmdDeploy_ok(t *testing.T) {
 		"Evm transaction processing fee: 0.000'210'00")
 	// verify tx order
 	require.Equal(t, "evm", mockConf.receivedTx.PayloadType())
-	evmAttributes := &evm.TxAttributes{}
+	evmAttributes := &evm2.TxAttributes{}
 	require.NoError(t, mockConf.receivedTx.UnmarshalAttributes(evmAttributes))
 	// verify attributes set by cli cmd
 	data, err := hex.DecodeString("9021ACFE0102")
@@ -111,7 +111,7 @@ func Test_evmCmdExecute_error_cases(t *testing.T) {
 
 func Test_evmCmdExecute_ok(t *testing.T) {
 	homedir := createNewTestWallet(t)
-	evmDetails := evm.ProcessingDetails{
+	evmDetails := evm2.ProcessingDetails{
 		ReturnData: []byte{0xDE, 0xAD, 0x00, 0xBE, 0xEF},
 	}
 	detailBytes, err := cbor.Marshal(evmDetails)
@@ -139,7 +139,7 @@ func Test_evmCmdExecute_ok(t *testing.T) {
 		"Evm execution returned: DEAD00BEEF")
 	// verify tx order
 	require.Equal(t, "evm", mockConf.receivedTx.PayloadType())
-	evmAttributes := &evm.TxAttributes{}
+	evmAttributes := &evm2.TxAttributes{}
 	require.NoError(t, mockConf.receivedTx.UnmarshalAttributes(evmAttributes))
 	// verify attributes set by cli cmd
 	require.NoError(t, err)
@@ -177,7 +177,7 @@ func Test_evmCmdCall_error_cases(t *testing.T) {
 
 func Test_evmCmdCall_ok(t *testing.T) {
 	homedir := createNewTestWallet(t)
-	evmDetails := &evm.ProcessingDetails{
+	evmDetails := &evm2.ProcessingDetails{
 		ReturnData: []byte{0xDE, 0xAD, 0x00, 0xBE, 0xEF},
 	}
 	mockConf := &clientMockConf{
@@ -213,7 +213,7 @@ func Test_evmCmdCall_ok(t *testing.T) {
 
 func Test_evmCmdCall_ok_defaultGas(t *testing.T) {
 	homedir := createNewTestWallet(t)
-	evmDetails := &evm.ProcessingDetails{
+	evmDetails := &evm2.ProcessingDetails{
 		ReturnData: []byte{0xDE, 0xAD, 0x00, 0xBE, 0xEF},
 	}
 	mockConf := &clientMockConf{

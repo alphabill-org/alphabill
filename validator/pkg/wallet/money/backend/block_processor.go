@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"log/slog"
 
+	"github.com/alphabill-org/alphabill/txsystem/fc/transactions"
+	"github.com/alphabill-org/alphabill/txsystem/money"
 	"github.com/alphabill-org/alphabill/validator/internal/network/protocol/genesis"
-	"github.com/alphabill-org/alphabill/validator/internal/txsystem/fc/transactions"
-	moneytx "github.com/alphabill-org/alphabill/validator/internal/txsystem/money"
 	"github.com/alphabill-org/alphabill/validator/internal/types"
 	"github.com/alphabill-org/alphabill/validator/pkg/logger"
 	sdk "github.com/alphabill-org/alphabill/validator/pkg/wallet"
@@ -73,11 +73,11 @@ func (p *BlockProcessor) processTx(txr *types.TransactionRecord, b *types.Block,
 	log.Info(fmt.Sprintf("processing %q order", txo.PayloadType()), logger.UnitID(txo.UnitID()))
 
 	switch txo.PayloadType() {
-	case moneytx.PayloadTypeTransfer:
+	case money.PayloadTypeTransfer:
 		if err = p.updateFCB(dbTx, txr); err != nil {
 			return err
 		}
-		attr := &moneytx.TransferAttributes{}
+		attr := &money.TransferAttributes{}
 		if err = txo.UnmarshalAttributes(attr); err != nil {
 			return err
 		}
@@ -92,12 +92,12 @@ func (p *BlockProcessor) processTx(txr *types.TransactionRecord, b *types.Block,
 		if err = saveTx(dbTx, attr.NewBearer, txo, txHash); err != nil {
 			return err
 		}
-	case moneytx.PayloadTypeTransDC:
+	case money.PayloadTypeTransDC:
 		err := p.updateFCB(dbTx, txr)
 		if err != nil {
 			return err
 		}
-		attr := &moneytx.TransferDCAttributes{}
+		attr := &money.TransferDCAttributes{}
 		err = txo.UnmarshalAttributes(attr)
 		if err != nil {
 			return err
@@ -124,12 +124,12 @@ func (p *BlockProcessor) processTx(txr *types.TransactionRecord, b *types.Block,
 		//if err != nil {
 		//	return err
 		//}
-	case moneytx.PayloadTypeSplit:
+	case money.PayloadTypeSplit:
 		err := p.updateFCB(dbTx, txr)
 		if err != nil {
 			return err
 		}
-		attr := &moneytx.SplitAttributes{}
+		attr := &money.SplitAttributes{}
 		err = txo.UnmarshalAttributes(attr)
 		if err != nil {
 			return err
@@ -156,7 +156,7 @@ func (p *BlockProcessor) processTx(txr *types.TransactionRecord, b *types.Block,
 
 		// new bills
 		for i, targetUnit := range attr.TargetUnits {
-			newID := moneytx.NewBillID(txo.UnitID(), moneytx.HashForIDCalculation(txo.UnitID(), txo.Payload.Attributes, txo.Timeout(), uint32(i), crypto.SHA256))
+			newID := money.NewBillID(txo.UnitID(), money.HashForIDCalculation(txo.UnitID(), txo.Payload.Attributes, txo.Timeout(), uint32(i), crypto.SHA256))
 			log.Info(fmt.Sprintf("new UnitID=%x for split order", newID), logger.UnitID(txo.UnitID()))
 			err = dbTx.SetBill(&Bill{
 				Id:             newID,
@@ -171,12 +171,12 @@ func (p *BlockProcessor) processTx(txr *types.TransactionRecord, b *types.Block,
 				return fmt.Errorf("failed to store tx history record: %w", err)
 			}
 		}
-	case moneytx.PayloadTypeSwapDC:
+	case money.PayloadTypeSwapDC:
 		err := p.updateFCB(dbTx, txr)
 		if err != nil {
 			return err
 		}
-		attr := &moneytx.SwapDCAttributes{}
+		attr := &money.SwapDCAttributes{}
 		err = txo.UnmarshalAttributes(attr)
 		if err != nil {
 			return err

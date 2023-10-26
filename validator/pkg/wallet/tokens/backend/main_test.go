@@ -14,6 +14,7 @@ import (
 	"testing"
 	"time"
 
+	tokens2 "github.com/alphabill-org/alphabill/txsystem/tokens"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/fxamacker/cbor/v2"
 	"github.com/stretchr/testify/require"
@@ -23,7 +24,6 @@ import (
 	"github.com/alphabill-org/alphabill/validator/internal/rpc/alphabill"
 	test "github.com/alphabill-org/alphabill/validator/internal/testutils"
 	"github.com/alphabill-org/alphabill/validator/internal/testutils/logger"
-	"github.com/alphabill-org/alphabill/validator/internal/txsystem/tokens"
 	"github.com/alphabill-org/alphabill/validator/internal/types"
 	"github.com/alphabill-org/alphabill/validator/pkg/wallet"
 )
@@ -143,7 +143,7 @@ func Test_Run_API(t *testing.T) {
 
 	// add fee credit for user
 	err = boltStore.SetFeeCreditBill(&FeeCreditBill{
-		Id:              tokens.NewFeeCreditRecordID(nil, []byte{1}),
+		Id:              tokens2.NewFeeCreditRecordID(nil, []byte{1}),
 		Value:           10000000,
 		TxHash:          []byte{1},
 		LastAddFCTxHash: []byte{2},
@@ -227,8 +227,8 @@ func Test_Run_API(t *testing.T) {
 	require.EqualValues(t, 0, rn.RoundNumber, "expected that system starts with round-number 0")
 
 	// trigger block sync from (mocked) AB with an CreateNonFungibleTokenType tx
-	createNTFTypeTx := randomTx(t, &tokens.CreateNonFungibleTokenTypeAttributes{Symbol: "test"})
-	createNTFTypeTx.Payload.Type = tokens.PayloadTypeCreateNFTType
+	createNTFTypeTx := randomTx(t, &tokens2.CreateNonFungibleTokenTypeAttributes{Symbol: "test"})
+	createNTFTypeTx.Payload.Type = tokens2.PayloadTypeCreateNFTType
 	select {
 	case syncing <- createNTFTypeTx:
 	case <-time.After(2 * time.Second):
@@ -237,7 +237,7 @@ func Test_Run_API(t *testing.T) {
 
 	// syncing with mocked AB backend should have us now on round-number 1
 	waitForRoundNumberToBeStored(1, 1500*time.Millisecond)
-	attrs := &tokens.CreateNonFungibleTokenTypeAttributes{}
+	attrs := &tokens2.CreateNonFungibleTokenTypeAttributes{}
 	require.NoError(t, createNTFTypeTx.UnmarshalAttributes(attrs))
 	// we synced NTF token type from backend, check that it is returned:
 	// first convert the txsystem.Transaction to the type we have in indexing backend...
@@ -272,11 +272,11 @@ func Test_Run_API(t *testing.T) {
 	ownerID := test.RandomBytes(33)
 	pubKeyHex := hexutil.Encode(ownerID)
 	tx := randomTx(t,
-		&tokens.MintNonFungibleTokenAttributes{
+		&tokens2.MintNonFungibleTokenAttributes{
 			Bearer:    templates.NewP2pkh256BytesFromKeyHash(hash.Sum256(ownerID)),
 			NFTTypeID: createNTFTypeTx.Payload.UnitID,
 		})
-	tx.Payload.Type = tokens.PayloadTypeMintNFT
+	tx.Payload.Type = tokens2.PayloadTypeMintNFT
 	message, err := cbor.Marshal(&wallet.Transactions{Transactions: []*types.TransactionOrder{tx}})
 	require.NoError(t, err)
 	require.NotEmpty(t, message)

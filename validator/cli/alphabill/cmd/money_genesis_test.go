@@ -9,10 +9,10 @@ import (
 	"strings"
 	"testing"
 
+	money2 "github.com/alphabill-org/alphabill/txsystem/money"
 	"github.com/alphabill-org/alphabill/validator/internal/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/validator/internal/predicates/templates"
 	"github.com/alphabill-org/alphabill/validator/internal/testutils/logger"
-	"github.com/alphabill-org/alphabill/validator/internal/txsystem/money"
 	"github.com/alphabill-org/alphabill/validator/internal/util"
 	"github.com/fxamacker/cbor/v2"
 	"github.com/stretchr/testify/require"
@@ -153,10 +153,10 @@ func TestMoneyGenesis_DefaultParamsExist(t *testing.T) {
 func TestMoneyGenesis_ParamsCanBeChanged(t *testing.T) {
 	homeDir := setupTestHomeDir(t, alphabillDir)
 	sdr := &genesis.SystemDescriptionRecord{
-		SystemIdentifier: money.DefaultSystemIdentifier,
+		SystemIdentifier: money2.DefaultSystemIdentifier,
 		T2Timeout:        10000,
 		FeeCreditBill: &genesis.FeeCreditBill{
-			UnitId:         money.NewBillID(nil, []byte{2}),
+			UnitId:         money2.NewBillID(nil, []byte{2}),
 			OwnerPredicate: templates.AlwaysFalseBytes(),
 		},
 	}

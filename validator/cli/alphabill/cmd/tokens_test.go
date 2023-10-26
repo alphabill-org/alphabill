@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	tokens2 "github.com/alphabill-org/alphabill/txsystem/tokens"
 	"github.com/fxamacker/cbor/v2"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
@@ -23,7 +24,6 @@ import (
 	"github.com/alphabill-org/alphabill/validator/internal/testutils/net"
 	testsig "github.com/alphabill-org/alphabill/validator/internal/testutils/sig"
 	testtime "github.com/alphabill-org/alphabill/validator/internal/testutils/time"
-	"github.com/alphabill-org/alphabill/validator/internal/txsystem/tokens"
 	"github.com/alphabill-org/alphabill/validator/internal/types"
 	"github.com/alphabill-org/alphabill/validator/internal/util"
 )
@@ -85,8 +85,8 @@ func TestRunTokensNode(t *testing.T) {
 
 		// Test
 		// green path
-		id := tokens.NewNonFungibleTokenTypeID(nil, test.RandomBytes(32))
-		attr := &tokens.CreateNonFungibleTokenTypeAttributes{
+		id := tokens2.NewNonFungibleTokenTypeID(nil, test.RandomBytes(32))
+		attr := &tokens2.CreateNonFungibleTokenTypeAttributes{
 			Symbol:                   "Test",
 			ParentTypeID:             []byte{0},
 			SubTypeCreationPredicate: templates.AlwaysTrueBytes(),
@@ -97,8 +97,8 @@ func TestRunTokensNode(t *testing.T) {
 		attrBytes, _ := cbor.Marshal(attr)
 		tx := &types.TransactionOrder{
 			Payload: &types.Payload{
-				SystemID:       tokens.DefaultSystemIdentifier,
-				Type:           tokens.PayloadTypeCreateNFTType,
+				SystemID:       tokens2.DefaultSystemIdentifier,
+				Type:           tokens2.PayloadTypeCreateNFTType,
 				UnitID:         id[:],
 				Attributes:     attrBytes,
 				ClientMetadata: &types.ClientMetadata{Timeout: 10},

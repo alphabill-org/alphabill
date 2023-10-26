@@ -16,6 +16,8 @@ import (
 	"time"
 
 	"github.com/ainvaltin/httpsrv"
+	testutils2 "github.com/alphabill-org/alphabill/txsystem/fc/testutils"
+	money2 "github.com/alphabill-org/alphabill/txsystem/money"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/fxamacker/cbor/v2"
 	"github.com/gorilla/mux"
@@ -27,8 +29,6 @@ import (
 	"github.com/alphabill-org/alphabill/validator/internal/testutils/logger"
 	"github.com/alphabill-org/alphabill/validator/internal/testutils/net"
 	testtransaction "github.com/alphabill-org/alphabill/validator/internal/testutils/transaction"
-	"github.com/alphabill-org/alphabill/validator/internal/txsystem/fc/testutils"
-	"github.com/alphabill-org/alphabill/validator/internal/txsystem/money"
 	"github.com/alphabill-org/alphabill/validator/internal/types"
 	"github.com/alphabill-org/alphabill/validator/internal/util"
 	sdk "github.com/alphabill-org/alphabill/validator/pkg/wallet"
@@ -39,8 +39,8 @@ const (
 )
 
 var (
-	billID            = money.NewBillID(nil, []byte{1})
-	feeCreditRecordID = money.NewFeeCreditRecordID(nil, []byte{1})
+	billID            = money2.NewBillID(nil, []byte{1})
+	feeCreditRecordID = money2.NewFeeCreditRecordID(nil, []byte{1})
 )
 
 func TestListBillsRequest_Ok(t *testing.T) {
@@ -160,9 +160,9 @@ func Test_txHistory(t *testing.T) {
 	pubkey := sdk.PubKey(test.RandomBytes(33))
 	pubkey2 := sdk.PubKey(test.RandomBytes(33))
 	bearerPredicate := templates.NewP2pkh256BytesFromKeyHash(pubkey2.Hash())
-	attrs := &money.TransferAttributes{NewBearer: bearerPredicate}
+	attrs := &money2.TransferAttributes{NewBearer: bearerPredicate}
 	b, err := cbor.Marshal(sdk.Transactions{Transactions: []*types.TransactionOrder{
-		testtransaction.NewTransactionOrder(t, testtransaction.WithPayloadType(money.PayloadTypeTransfer), testtransaction.WithAttributes(attrs))},
+		testtransaction.NewTransactionOrder(t, testtransaction.WithPayloadType(money2.PayloadTypeTransfer), testtransaction.WithAttributes(attrs))},
 	})
 	require.NoError(t, err)
 	resp := makePostTxRequest(pubkey, b)
@@ -352,7 +352,7 @@ func TestProofRequest_Ok(t *testing.T) {
 	tr := testtransaction.NewTransactionRecord(t)
 	txHash := tr.TransactionOrder.Hash(crypto.SHA256)
 	b := &Bill{
-		Id:             money.NewBillID(nil, []byte{1}),
+		Id:             money2.NewBillID(nil, []byte{1}),
 		Value:          1,
 		TxHash:         txHash,
 		OwnerPredicate: getOwnerPredicate(pubkeyHex),
@@ -539,11 +539,11 @@ func TestPostTransactionsRequest_Ok(t *testing.T) {
 
 func TestGetLockedFeeCreditRequest(t *testing.T) {
 	transferFC := &types.TransactionRecord{
-		TransactionOrder: testutils.NewTransferFC(t, nil),
+		TransactionOrder: testutils2.NewTransferFC(t, nil),
 		ServerMetadata:   &types.ServerMetadata{ActualFee: 1},
 	}
 	systemID := []byte{0, 0, 0, 0}
-	targetUnitID := money.NewFeeCreditRecordID(nil, []byte{1})
+	targetUnitID := money2.NewFeeCreditRecordID(nil, []byte{1})
 	walletBackend := newWalletBackend(t, withLockedFeeCredit(systemID, targetUnitID, transferFC))
 	port, _ := startServer(t, walletBackend)
 
@@ -561,7 +561,7 @@ func TestGetLockedFeeCreditRequest(t *testing.T) {
 
 	// verify missing unitID returns 404
 	response = &types.TransactionRecord{}
-	httpRes, err = testhttp.DoGetJson(fmt.Sprintf("http://localhost:%d/api/v1/locked-fee-credit/0x%X/0x%s", port, systemID, money.NewFeeCreditRecordID(nil, []byte{2})), response)
+	httpRes, err = testhttp.DoGetJson(fmt.Sprintf("http://localhost:%d/api/v1/locked-fee-credit/0x%X/0x%s", port, systemID, money2.NewFeeCreditRecordID(nil, []byte{2})), response)
 	require.NoError(t, err)
 	require.Equal(t, http.StatusNotFound, httpRes.StatusCode)
 
@@ -580,10 +580,10 @@ func TestGetLockedFeeCreditRequest(t *testing.T) {
 
 func TestGetClosedFeeCreditRequest(t *testing.T) {
 	closeFC := &types.TransactionRecord{
-		TransactionOrder: testutils.NewCloseFC(t, nil),
+		TransactionOrder: testutils2.NewCloseFC(t, nil),
 		ServerMetadata:   &types.ServerMetadata{ActualFee: 1},
 	}
-	fcbID := money.NewFeeCreditRecordID(nil, []byte{1})
+	fcbID := money2.NewFeeCreditRecordID(nil, []byte{1})
 	walletBackend := newWalletBackend(t, withClosedFeeCredit(fcbID, closeFC))
 	port, _ := startServer(t, walletBackend)
 

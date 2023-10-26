@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/alphabill-org/alphabill/txsystem/evm"
 	"github.com/alphabill-org/alphabill/validator/internal/network/protocol/genesis"
 	rootgenesis "github.com/alphabill-org/alphabill/validator/internal/rootchain/genesis"
 	test "github.com/alphabill-org/alphabill/validator/internal/testutils"
@@ -18,7 +19,6 @@ import (
 	"github.com/alphabill-org/alphabill/validator/internal/testutils/net"
 	testsig "github.com/alphabill-org/alphabill/validator/internal/testutils/sig"
 	testtime "github.com/alphabill-org/alphabill/validator/internal/testutils/time"
-	"github.com/alphabill-org/alphabill/validator/internal/txsystem/evm"
 	"github.com/alphabill-org/alphabill/validator/internal/util"
 	"github.com/alphabill-org/alphabill/validator/pkg/wallet"
 	evmclient "github.com/alphabill-org/alphabill/validator/pkg/wallet/evm/client"

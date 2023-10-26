@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"testing"
 
+	money2 "github.com/alphabill-org/alphabill/txsystem/money"
+	tokens2 "github.com/alphabill-org/alphabill/txsystem/tokens"
 	"github.com/alphabill-org/alphabill/validator/internal/predicates/templates"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/stretchr/testify/require"
@@ -14,8 +16,6 @@ import (
 	test "github.com/alphabill-org/alphabill/validator/internal/testutils"
 	"github.com/alphabill-org/alphabill/validator/internal/testutils/logger"
 	testpartition "github.com/alphabill-org/alphabill/validator/internal/testutils/partition"
-	"github.com/alphabill-org/alphabill/validator/internal/txsystem/money"
-	"github.com/alphabill-org/alphabill/validator/internal/txsystem/tokens"
 	"github.com/alphabill-org/alphabill/validator/internal/types"
 	"github.com/alphabill-org/alphabill/validator/pkg/wallet/account"
 	"github.com/alphabill-org/alphabill/validator/pkg/wallet/fees"
@@ -28,7 +28,7 @@ import (
 
 func TestFungibleToken_Subtyping_Integration(t *testing.T) {
 	network := NewAlphabillNetwork(t)
-	tokensPartition, err := network.abNetwork.GetNodePartition(tokens.DefaultSystemIdentifier)
+	tokensPartition, err := network.abNetwork.GetNodePartition(tokens2.DefaultSystemIdentifier)
 	require.NoError(t, err)
 	homedirW1 := network.walletHomedir
 	w1key := network.walletKey1
@@ -74,7 +74,7 @@ func TestFungibleToken_Subtyping_Integration(t *testing.T) {
 
 func TestFungibleToken_InvariantPredicate_Integration(t *testing.T) {
 	network := NewAlphabillNetwork(t)
-	tokensPartition, err := network.abNetwork.GetNodePartition(tokens.DefaultSystemIdentifier)
+	tokensPartition, err := network.abNetwork.GetNodePartition(tokens2.DefaultSystemIdentifier)
 	require.NoError(t, err)
 	homedirW1 := network.walletHomedir
 	w1key := network.walletKey1
@@ -115,10 +115,10 @@ func TestFungibleTokens_Sending_Integration(t *testing.T) {
 	logF := logger.LoggerBuilder(t)
 
 	network := NewAlphabillNetwork(t)
-	_, err := network.abNetwork.GetNodePartition(money.DefaultSystemIdentifier)
+	_, err := network.abNetwork.GetNodePartition(money2.DefaultSystemIdentifier)
 	require.NoError(t, err)
 	moneyBackendURL := network.moneyBackendURL
-	tokensPartition, err := network.abNetwork.GetNodePartition(tokens.DefaultSystemIdentifier)
+	tokensPartition, err := network.abNetwork.GetNodePartition(tokens2.DefaultSystemIdentifier)
 	require.NoError(t, err)
 	homedirW1 := network.walletHomedir
 	w1key := network.walletKey1
@@ -138,8 +138,8 @@ func TestFungibleTokens_Sending_Integration(t *testing.T) {
 	// mint tokens
 	crit := func(amount uint64) func(tx *types.TransactionOrder) bool {
 		return func(tx *types.TransactionOrder) bool {
-			if tx.PayloadType() == tokens.PayloadTypeMintFungibleToken {
-				attrs := &tokens.MintFungibleTokenAttributes{}
+			if tx.PayloadType() == tokens2.PayloadTypeMintFungibleToken {
+				attrs := &tokens2.MintFungibleTokenAttributes{}
 				require.NoError(t, tx.UnmarshalAttributes(attrs))
 				return attrs.Value == amount
 			}
@@ -187,8 +187,8 @@ func TestWalletCreateFungibleTokenTypeAndTokenAndSendCmd_IntegrationTest(t *test
 	// mint tokens
 	crit := func(amount uint64) func(tx *types.TransactionOrder) bool {
 		return func(tx *types.TransactionOrder) bool {
-			if tx.PayloadType() == tokens.PayloadTypeMintFungibleToken {
-				attrs := &tokens.MintFungibleTokenAttributes{}
+			if tx.PayloadType() == tokens2.PayloadTypeMintFungibleToken {
+				attrs := &tokens2.MintFungibleTokenAttributes{}
 				require.NoError(t, tx.UnmarshalAttributes(attrs))
 				return attrs.Value == amount
 			}
@@ -197,7 +197,7 @@ func TestWalletCreateFungibleTokenTypeAndTokenAndSendCmd_IntegrationTest(t *test
 	}
 
 	network := NewAlphabillNetwork(t)
-	tokensPart, err := network.abNetwork.GetNodePartition(tokens.DefaultSystemIdentifier)
+	tokensPart, err := network.abNetwork.GetNodePartition(tokens2.DefaultSystemIdentifier)
 	require.NoError(t, err)
 	homedir := network.walletHomedir
 	w1key := network.walletKey1
@@ -209,14 +209,14 @@ func TestWalletCreateFungibleTokenTypeAndTokenAndSendCmd_IntegrationTest(t *test
 	w2key, err := w2.GetAccountManager().GetAccountKey(0)
 	require.NoError(t, err)
 	w2.Shutdown()
-	typeID := tokens.NewFungibleTokenTypeID(nil, []byte{0x10})
+	typeID := tokens2.NewFungibleTokenTypeID(nil, []byte{0x10})
 	symbol := "AB"
 	name := "Long name for AB"
 	// create type
 	execTokensCmd(t, homedir, fmt.Sprintf("new-type fungible  --symbol %s --name %s -r %s --type %s --decimals %v", symbol, name, backendUrl, typeID, decimals))
 	ensureTokenTypeIndexed(t, ctx, tokenBackendClient, w1key.PubKey, typeID)
 	// non-existing id
-	nonExistingTypeId := tokens.NewFungibleTokenID(nil, []byte{0x11})
+	nonExistingTypeId := tokens2.NewFungibleTokenID(nil, []byte{0x11})
 	// verify error
 	execTokensCmdWithError(t, homedir, fmt.Sprintf("new fungible  -r %s --type %s --amount 3", backendUrl, nonExistingTypeId), fmt.Sprintf("failed to load type with id %s", nonExistingTypeId))
 	// new token creation fails
@@ -300,7 +300,7 @@ type AlphabillNetwork struct {
 // creates fee credit on money wallet and token wallet
 func NewAlphabillNetwork(t *testing.T) *AlphabillNetwork {
 	log := logger.New(t)
-	initialBill := &money.InitialBill{
+	initialBill := &money2.InitialBill{
 		ID:    defaultInitialBillID,
 		Value: 1e18,
 		Owner: templates.AlwaysTrueBytes(),
@@ -329,10 +329,10 @@ func NewAlphabillNetwork(t *testing.T) *AlphabillNetwork {
 	defer moneyWallet.Close()
 
 	tokenTxPublisher := tokenswallet.NewTxPublisher(tokenBackendClient, log)
-	tokenFeeManager := fees.NewFeeManager(am, unitLocker, money.DefaultSystemIdentifier, moneyWallet, moneyBackendClient, tokens.DefaultSystemIdentifier, tokenTxPublisher, tokenBackendClient, tokenswallet.FeeCreditRecordIDFromPublicKey, log)
+	tokenFeeManager := fees.NewFeeManager(am, unitLocker, money2.DefaultSystemIdentifier, moneyWallet, moneyBackendClient, tokens2.DefaultSystemIdentifier, tokenTxPublisher, tokenBackendClient, tokenswallet.FeeCreditRecordIDFromPublicKey, log)
 	defer tokenFeeManager.Close()
 
-	w1, err := tokenswallet.New(tokens.DefaultSystemIdentifier, tokenBackendURL, am, true, tokenFeeManager, log)
+	w1, err := tokenswallet.New(tokens2.DefaultSystemIdentifier, tokenBackendURL, am, true, tokenFeeManager, log)
 	require.NoError(t, err)
 	require.NotNil(t, w1)
 	defer w1.Shutdown()

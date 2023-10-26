@@ -8,12 +8,12 @@ import (
 	"strconv"
 	"syscall"
 
+	moneytx "github.com/alphabill-org/alphabill/txsystem/money"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/spf13/cobra"
 	"github.com/tyler-smith/go-bip39"
 	"golang.org/x/term"
 
-	moneytx "github.com/alphabill-org/alphabill/validator/internal/txsystem/money"
 	"github.com/alphabill-org/alphabill/validator/pkg/wallet/account"
 	"github.com/alphabill-org/alphabill/validator/pkg/wallet/money"
 	moneyclient "github.com/alphabill-org/alphabill/validator/pkg/wallet/money/backend/client"

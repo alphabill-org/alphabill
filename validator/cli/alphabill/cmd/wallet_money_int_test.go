@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/alphabill-org/alphabill/txsystem/money"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/stretchr/testify/require"
 
@@ -13,13 +14,10 @@ import (
 	test "github.com/alphabill-org/alphabill/validator/internal/testutils"
 	"github.com/alphabill-org/alphabill/validator/internal/testutils/logger"
 	testpartition "github.com/alphabill-org/alphabill/validator/internal/testutils/partition"
-	testfc "github.com/alphabill-org/alphabill/validator/internal/txsystem/fc/testutils"
-	moneytx "github.com/alphabill-org/alphabill/validator/internal/txsystem/money"
-	moneytestutils "github.com/alphabill-org/alphabill/validator/internal/txsystem/money/testutils"
 )
 
 var (
-	fcrID     = moneytx.NewFeeCreditRecordID(nil, []byte{1})
+	fcrID     = money.NewFeeCreditRecordID(nil, []byte{1})
 	fcrAmount = uint64(1e8)
 )
 
@@ -32,7 +30,7 @@ Test scenario 2.1: wallet-1 account 2 sends one transaction to wallet-1 account 
 Test scenario 3: wallet-1 sends tx without confirming
 */
 func TestSendingMoneyUsingWallets_integration(t *testing.T) {
-	initialBill := &moneytx.InitialBill{
+	initialBill := &money.InitialBill{
 		ID:    defaultInitialBillID,
 		Value: 1e18,
 		Owner: templates.AlwaysTrueBytes(),
@@ -55,12 +53,12 @@ func TestSendingMoneyUsingWallets_integration(t *testing.T) {
 	am2.Close()
 
 	// create fee credit for initial bill transfer
-	transferFC := testfc.CreateFeeCredit(t, initialBill.ID, fcrID, fcrAmount, network)
+	transferFC := testutils.CreateFeeCredit(t, initialBill.ID, fcrID, fcrAmount, network)
 	initialBillBacklink := transferFC.Hash(crypto.SHA256)
 	w1BalanceBilly := initialBill.Value - fcrAmount
 
 	// transfer initial bill to wallet 1
-	transferInitialBillTx, err := moneytestutils.CreateInitialBillTransferTx(w1PubKey, initialBill.ID, fcrID, w1BalanceBilly, 10000, initialBillBacklink)
+	transferInitialBillTx, err := testutils.CreateInitialBillTransferTx(w1PubKey, initialBill.ID, fcrID, w1BalanceBilly, 10000, initialBillBacklink)
 	require.NoError(t, err)
 	require.NoError(t, moneyPartition.SubmitTx(transferInitialBillTx))
 	require.Eventually(t, testpartition.BlockchainContainsTx(moneyPartition, transferInitialBillTx), test.WaitDuration, test.WaitTick)

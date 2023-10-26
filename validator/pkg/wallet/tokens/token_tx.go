@@ -6,12 +6,12 @@ import (
 	"fmt"
 	"sort"
 
+	"github.com/alphabill-org/alphabill/txsystem/tokens"
 	"github.com/alphabill-org/alphabill/validator/internal/predicates/templates"
 	"github.com/fxamacker/cbor/v2"
 
 	abcrypto "github.com/alphabill-org/alphabill/validator/internal/crypto"
 	"github.com/alphabill-org/alphabill/validator/internal/hash"
-	ttxs "github.com/alphabill-org/alphabill/validator/internal/txsystem/tokens"
 	"github.com/alphabill-org/alphabill/validator/internal/types"
 	"github.com/alphabill-org/alphabill/validator/pkg/wallet"
 	"github.com/alphabill-org/alphabill/validator/pkg/wallet/account"
@@ -130,7 +130,7 @@ func (w *Wallet) prepareTxSubmission(ctx context.Context, payloadType string, at
 	if err != nil {
 		return nil, err
 	}
-	tx := createTx(w.systemID, payloadType, unitId, roundNumber+txTimeoutRoundCount, ttxs.NewFeeCreditRecordID(nil, ac.PubKeyHash.Sha256))
+	tx := createTx(w.systemID, payloadType, unitId, roundNumber+txTimeoutRoundCount, tokens.NewFeeCreditRecordID(nil, ac.PubKeyHash.Sha256))
 	if txps != nil {
 		// set fields before tx is signed
 		err = txps(tx)
@@ -198,8 +198,8 @@ func makeTxFeeProof(tx *types.TransactionOrder, ac *account.AccountKey) (wallet.
 	return templates.NewP2pkh256SignatureBytes(sig, ac.PubKey), nil
 }
 
-func newFungibleTransferTxAttrs(token *backend.TokenUnit, receiverPubKey []byte) *ttxs.TransferFungibleTokenAttributes {
-	return &ttxs.TransferFungibleTokenAttributes{
+func newFungibleTransferTxAttrs(token *backend.TokenUnit, receiverPubKey []byte) *tokens.TransferFungibleTokenAttributes {
+	return &tokens.TransferFungibleTokenAttributes{
 		TypeID:                       token.TypeID,
 		NewBearer:                    BearerPredicateFromPubKey(receiverPubKey),
 		Value:                        token.Amount,
@@ -208,8 +208,8 @@ func newFungibleTransferTxAttrs(token *backend.TokenUnit, receiverPubKey []byte)
 	}
 }
 
-func newNonFungibleTransferTxAttrs(token *backend.TokenUnit, receiverPubKey []byte) *ttxs.TransferNonFungibleTokenAttributes {
-	return &ttxs.TransferNonFungibleTokenAttributes{
+func newNonFungibleTransferTxAttrs(token *backend.TokenUnit, receiverPubKey []byte) *tokens.TransferNonFungibleTokenAttributes {
+	return &tokens.TransferNonFungibleTokenAttributes{
 		NFTTypeID:                    token.TypeID,
 		NewBearer:                    BearerPredicateFromPubKey(receiverPubKey),
 		Backlink:                     token.TxHash,
@@ -235,8 +235,8 @@ func BearerPredicateFromPubKey(receiverPubKey wallet.PubKey) wallet.Predicate {
 	return bearerPredicateFromHash(h)
 }
 
-func newSplitTxAttrs(token *backend.TokenUnit, amount uint64, receiverPubKey []byte) *ttxs.SplitFungibleTokenAttributes {
-	return &ttxs.SplitFungibleTokenAttributes{
+func newSplitTxAttrs(token *backend.TokenUnit, amount uint64, receiverPubKey []byte) *tokens.SplitFungibleTokenAttributes {
+	return &tokens.SplitFungibleTokenAttributes{
 		TypeID:                       token.TypeID,
 		NewBearer:                    BearerPredicateFromPubKey(receiverPubKey),
 		TargetValue:                  amount,
@@ -246,8 +246,8 @@ func newSplitTxAttrs(token *backend.TokenUnit, amount uint64, receiverPubKey []b
 	}
 }
 
-func newBurnTxAttrs(token *backend.TokenUnit, targetTokenBacklink wallet.TxHash, targetTokenID types.UnitID) *ttxs.BurnFungibleTokenAttributes {
-	return &ttxs.BurnFungibleTokenAttributes{
+func newBurnTxAttrs(token *backend.TokenUnit, targetTokenBacklink wallet.TxHash, targetTokenID types.UnitID) *tokens.BurnFungibleTokenAttributes {
+	return &tokens.BurnFungibleTokenAttributes{
 		TypeID:                       token.TypeID,
 		Value:                        token.Amount,
 		TargetTokenID:                targetTokenID,
@@ -294,10 +294,10 @@ func (w *Wallet) prepareSplitOrTransferTx(ctx context.Context, acc *account.Acco
 	var payloadType string
 	if amount >= token.Amount {
 		attrs = newFungibleTransferTxAttrs(token, receiverPubKey)
-		payloadType = ttxs.PayloadTypeTransferFungibleToken
+		payloadType = tokens.PayloadTypeTransferFungibleToken
 	} else {
 		attrs = newSplitTxAttrs(token, amount, receiverPubKey)
-		payloadType = ttxs.PayloadTypeSplitFungibleToken
+		payloadType = tokens.PayloadTypeSplitFungibleToken
 	}
 	sub, err := w.prepareTxSubmission(ctx, payloadType, attrs, token.ID, acc, rn, func(tx *types.TransactionOrder) error {
 		signatures, err := preparePredicateSignatures(w.am, invariantPredicateArgs, tx, attrs)

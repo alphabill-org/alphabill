@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/alphabill-org/alphabill/txsystem"
 	p2pcrypto "github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/stretchr/testify/require"
@@ -30,7 +31,6 @@ import (
 	testnetwork "github.com/alphabill-org/alphabill/validator/internal/testutils/network"
 	testevent "github.com/alphabill-org/alphabill/validator/internal/testutils/partition/event"
 	testsig "github.com/alphabill-org/alphabill/validator/internal/testutils/sig"
-	"github.com/alphabill-org/alphabill/validator/internal/txsystem"
 	"github.com/alphabill-org/alphabill/validator/internal/types"
 	"github.com/alphabill-org/alphabill/validator/internal/util"
 	"github.com/alphabill-org/alphabill/validator/pkg/logger"

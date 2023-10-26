@@ -11,14 +11,14 @@ import (
 	"testing"
 	"time"
 
+	"github.com/alphabill-org/alphabill/txsystem"
+	tokens2 "github.com/alphabill-org/alphabill/txsystem/tokens"
 	abcrypto "github.com/alphabill-org/alphabill/validator/internal/crypto"
 	"github.com/alphabill-org/alphabill/validator/internal/state"
 	test "github.com/alphabill-org/alphabill/validator/internal/testutils"
 	"github.com/alphabill-org/alphabill/validator/internal/testutils/logger"
 	"github.com/alphabill-org/alphabill/validator/internal/testutils/net"
 	testpartition "github.com/alphabill-org/alphabill/validator/internal/testutils/partition"
-	"github.com/alphabill-org/alphabill/validator/internal/txsystem"
-	"github.com/alphabill-org/alphabill/validator/internal/txsystem/tokens"
 	"github.com/alphabill-org/alphabill/validator/internal/types"
 	"github.com/alphabill-org/alphabill/validator/pkg/wallet/account"
 	"github.com/alphabill-org/alphabill/validator/pkg/wallet/fees"
@@ -468,14 +468,14 @@ func createTokensPartition(t *testing.T) *testpartition.NodePartition {
 	tokensState := state.NewEmptyState()
 	network, err := testpartition.NewPartition(t, 1,
 		func(tb map[string]abcrypto.Verifier) txsystem.TransactionSystem {
-			system, err := tokens.NewTxSystem(
+			system, err := tokens2.NewTxSystem(
 				logger.New(t),
-				tokens.WithState(tokensState),
-				tokens.WithTrustBase(tb),
+				tokens2.WithState(tokensState),
+				tokens2.WithTrustBase(tb),
 			)
 			require.NoError(t, err)
 			return system
-		}, tokens.DefaultSystemIdentifier,
+		}, tokens2.DefaultSystemIdentifier,
 	)
 	require.NoError(t, err)
 
@@ -496,7 +496,7 @@ func startTokensBackend(t *testing.T, nodeAddr string) (srvUri string, restApi *
 	t.Cleanup(cancel)
 
 	go func() {
-		cfg := backend.NewConfig(host, nodeAddr, filepath.Join(t.TempDir(), "backend.db"), logger.New(t), tokens.DefaultSystemIdentifier)
+		cfg := backend.NewConfig(host, nodeAddr, filepath.Join(t.TempDir(), "backend.db"), logger.New(t), tokens2.DefaultSystemIdentifier)
 		require.ErrorIs(t, backend.Run(ctx, cfg), context.Canceled)
 	}()
 
@@ -519,7 +519,7 @@ func createNewTokenWalletWithFeeManager(t *testing.T, addr string, feeManager *f
 	require.NoError(t, err)
 	require.NoError(t, am.CreateKeys(""))
 
-	w, err := tw.New(tokens.DefaultSystemIdentifier, addr, am, false, feeManager, logger.New(t))
+	w, err := tw.New(tokens2.DefaultSystemIdentifier, addr, am, false, feeManager, logger.New(t))
 	require.NoError(t, err)
 	require.NotNil(t, w)
 
@@ -550,19 +550,19 @@ func doExecTokensCmd(t *testing.T, homedir string, command string) (*testConsole
 }
 
 func randomFungibleTokenTypeID(t *testing.T) types.UnitID {
-	unitID, err := tokens.NewRandomFungibleTokenTypeID(nil)
+	unitID, err := tokens2.NewRandomFungibleTokenTypeID(nil)
 	require.NoError(t, err)
 	return unitID
 }
 
 func randomNonFungibleTokenTypeID(t *testing.T) types.UnitID {
-	unitID, err := tokens.NewRandomNonFungibleTokenTypeID(nil)
+	unitID, err := tokens2.NewRandomNonFungibleTokenTypeID(nil)
 	require.NoError(t, err)
 	return unitID
 }
 
 func randomNonFungibleTokenID(t *testing.T) types.UnitID {
-	unitID, err := tokens.NewRandomNonFungibleTokenID(nil)
+	unitID, err := tokens2.NewRandomNonFungibleTokenID(nil)
 	require.NoError(t, err)
 	return unitID
 }

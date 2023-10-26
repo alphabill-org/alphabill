@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	moneytx "github.com/alphabill-org/alphabill/txsystem/money"
 	"github.com/alphabill-org/alphabill/validator/internal/predicates/templates"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/fxamacker/cbor/v2"
@@ -16,7 +17,6 @@ import (
 	test "github.com/alphabill-org/alphabill/validator/internal/testutils"
 	"github.com/alphabill-org/alphabill/validator/internal/testutils/logger"
 	testtransaction "github.com/alphabill-org/alphabill/validator/internal/testutils/transaction"
-	moneytx "github.com/alphabill-org/alphabill/validator/internal/txsystem/money"
 	"github.com/alphabill-org/alphabill/validator/internal/types"
 	"github.com/alphabill-org/alphabill/validator/pkg/wallet"
 )
@@ -85,7 +85,7 @@ func TestWalletBackend_BillsCanBeIndexedByPredicates(t *testing.T) {
 			TransactionOrder: &types.TransactionOrder{
 				Payload: &types.Payload{
 					SystemID:       moneySystemID,
-					Type:           moneytx.PayloadTypeTransfer,
+					Type:           money.PayloadTypeTransfer,
 					UnitID:         billId1,
 					Attributes:     transferTxAttr(hash.Sum256(pubkey1)),
 					ClientMetadata: &types.ClientMetadata{FeeCreditRecordID: fcbID},
@@ -109,7 +109,7 @@ func TestWalletBackend_BillsCanBeIndexedByPredicates(t *testing.T) {
 			TransactionOrder: &types.TransactionOrder{
 				Payload: &types.Payload{
 					SystemID:       moneySystemID,
-					Type:           moneytx.PayloadTypeTransfer,
+					Type:           money.PayloadTypeTransfer,
 					UnitID:         billId2,
 					Attributes:     transferTxAttr(hash.Sum256(pubkey2)),
 					ClientMetadata: &types.ClientMetadata{FeeCreditRecordID: fcbID},
@@ -132,7 +132,7 @@ func TestGetBills_OK(t *testing.T) {
 	txValue := uint64(100)
 	pubkey := make([]byte, 32)
 	bearer := templates.NewP2pkh256BytesFromKeyHash(hash.Sum256(pubkey))
-	tx := testtransaction.NewTransactionOrder(t, testtransaction.WithAttributes(&moneytx.TransferAttributes{
+	tx := testtransaction.NewTransactionOrder(t, testtransaction.WithAttributes(&money.TransferAttributes{
 		TargetValue: txValue,
 		NewBearer:   bearer,
 	}))

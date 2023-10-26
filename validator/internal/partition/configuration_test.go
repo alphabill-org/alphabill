@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/alphabill-org/alphabill/txsystem"
 	"github.com/alphabill-org/alphabill/validator/internal/crypto"
 	"github.com/alphabill-org/alphabill/validator/internal/keyvaluedb/memorydb"
 	"github.com/alphabill-org/alphabill/validator/internal/network"
@@ -15,7 +16,6 @@ import (
 	test "github.com/alphabill-org/alphabill/validator/internal/testutils/peer"
 	testsig "github.com/alphabill-org/alphabill/validator/internal/testutils/sig"
 	testtxsystem "github.com/alphabill-org/alphabill/validator/internal/testutils/txsystem"
-	"github.com/alphabill-org/alphabill/validator/internal/txsystem"
 	"github.com/stretchr/testify/require"
 )
 

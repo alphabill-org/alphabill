@@ -5,6 +5,9 @@ import (
 	gocrypto "crypto"
 	"testing"
 
+	"github.com/alphabill-org/alphabill/txsystem/fc/testutils"
+	money2 "github.com/alphabill-org/alphabill/txsystem/money"
+	"github.com/alphabill-org/alphabill/txsystem/tokens"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/fxamacker/cbor/v2"
 	"github.com/stretchr/testify/require"
@@ -15,14 +18,11 @@ import (
 	"github.com/alphabill-org/alphabill/validator/internal/predicates/templates"
 	"github.com/alphabill-org/alphabill/validator/internal/testutils/logger"
 	testtransaction "github.com/alphabill-org/alphabill/validator/internal/testutils/transaction"
-	testfc "github.com/alphabill-org/alphabill/validator/internal/txsystem/fc/testutils"
-	"github.com/alphabill-org/alphabill/validator/internal/txsystem/money"
-	"github.com/alphabill-org/alphabill/validator/internal/txsystem/tokens"
 	"github.com/alphabill-org/alphabill/validator/internal/types"
 	sdk "github.com/alphabill-org/alphabill/validator/pkg/wallet"
 )
 
-var moneySystemID = money.DefaultSystemIdentifier
+var moneySystemID = money2.DefaultSystemIdentifier
 var tokenSystemID = tokens.DefaultSystemIdentifier
 
 func TestBlockProcessor_EachTxTypeCanBeProcessed(t *testing.T) {
@@ -36,7 +36,7 @@ func TestBlockProcessor_EachTxTypeCanBeProcessed(t *testing.T) {
 		TransactionOrder: &types.TransactionOrder{
 			Payload: &types.Payload{
 				SystemID:       moneySystemID,
-				Type:           money.PayloadTypeTransfer,
+				Type:           money2.PayloadTypeTransfer,
 				UnitID:         newBillID(1),
 				Attributes:     transferTxAttr(pubKeyHash),
 				ClientMetadata: &types.ClientMetadata{FeeCreditRecordID: fcbID},
@@ -48,7 +48,7 @@ func TestBlockProcessor_EachTxTypeCanBeProcessed(t *testing.T) {
 		TransactionOrder: &types.TransactionOrder{
 			Payload: &types.Payload{
 				SystemID:       moneySystemID,
-				Type:           money.PayloadTypeTransDC,
+				Type:           money2.PayloadTypeTransDC,
 				UnitID:         newBillID(2),
 				Attributes:     dustTxAttr(),
 				ClientMetadata: &types.ClientMetadata{FeeCreditRecordID: fcbID},
@@ -60,10 +60,10 @@ func TestBlockProcessor_EachTxTypeCanBeProcessed(t *testing.T) {
 		TransactionOrder: &types.TransactionOrder{
 			Payload: &types.Payload{
 				SystemID: moneySystemID,
-				Type:     money.PayloadTypeSplit,
+				Type:     money2.PayloadTypeSplit,
 				UnitID:   newBillID(3),
 				Attributes: splitTxAttr(1,
-					&money.TargetUnit{Amount: 1, OwnerCondition: templates.NewP2pkh256BytesFromKeyHash(pubKeyHash)},
+					&money2.TargetUnit{Amount: 1, OwnerCondition: templates.NewP2pkh256BytesFromKeyHash(pubKeyHash)},
 				),
 				ClientMetadata: &types.ClientMetadata{FeeCreditRecordID: fcbID},
 			},
@@ -74,7 +74,7 @@ func TestBlockProcessor_EachTxTypeCanBeProcessed(t *testing.T) {
 		TransactionOrder: &types.TransactionOrder{
 			Payload: &types.Payload{
 				SystemID:       moneySystemID,
-				Type:           money.PayloadTypeSwapDC,
+				Type:           money2.PayloadTypeSwapDC,
 				UnitID:         newBillID(4),
 				Attributes:     swapTxAttr(pubKeyHash),
 				ClientMetadata: &types.ClientMetadata{FeeCreditRecordID: fcbID},
@@ -102,7 +102,7 @@ func TestBlockProcessor_EachTxTypeCanBeProcessed(t *testing.T) {
 			SystemIdentifier: moneySystemID,
 			T2Timeout:        2500,
 			FeeCreditBill: &genesis.FeeCreditBill{
-				UnitId:         money.NewBillID(nil, []byte{2}),
+				UnitId:         money2.NewBillID(nil, []byte{2}),
 				OwnerPredicate: templates.AlwaysTrueBytes(),
 			},
 		},
@@ -137,11 +137,11 @@ func TestBlockProcessor_EachTxTypeCanBeProcessed(t *testing.T) {
 	require.EqualValues(t, 96, fcb.Value)
 
 	// process transferFC + addFC
-	transferFCAttr := testfc.NewTransferFCAttr(
-		testfc.WithTargetRecordID(fcbID),
-		testfc.WithAmount(100), // tx1 unit value
+	transferFCAttr := testutils.NewTransferFCAttr(
+		testutils.WithTargetRecordID(fcbID),
+		testutils.WithAmount(100), // tx1 unit value
 	)
-	transferFC := testfc.NewTransferFC(t, transferFCAttr,
+	transferFC := testutils.NewTransferFC(t, transferFCAttr,
 		testtransaction.WithSystemID(moneySystemID),
 		testtransaction.WithUnitId(tx1.TransactionOrder.UnitID()),
 	)
@@ -150,10 +150,10 @@ func TestBlockProcessor_EachTxTypeCanBeProcessed(t *testing.T) {
 		ServerMetadata:   &types.ServerMetadata{ActualFee: 1},
 	}
 
-	addFCAttr := testfc.NewAddFCAttr(t, signer,
-		testfc.WithTransferFCTx(transferFCRecord),
+	addFCAttr := testutils.NewAddFCAttr(t, signer,
+		testutils.WithTransferFCTx(transferFCRecord),
 	)
-	addFC := testfc.NewAddFC(t, signer, addFCAttr,
+	addFC := testutils.NewAddFC(t, signer, addFCAttr,
 		testtransaction.WithSystemID(moneySystemID),
 		testtransaction.WithUnitId(fcbID),
 	)
@@ -185,20 +185,20 @@ func TestBlockProcessor_EachTxTypeCanBeProcessed(t *testing.T) {
 	require.Nil(t, unit1)
 
 	// process closeFC + reclaimFC (reclaim all credits to bill no 4)
-	closeFCAttr := testfc.NewCloseFCAttr(
-		testfc.WithCloseFCAmount(194),
-		testfc.WithCloseFCTargetUnitID(tx4.TransactionOrder.UnitID()),
+	closeFCAttr := testutils.NewCloseFCAttr(
+		testutils.WithCloseFCAmount(194),
+		testutils.WithCloseFCTargetUnitID(tx4.TransactionOrder.UnitID()),
 	)
-	closeFC := testfc.NewCloseFC(t, closeFCAttr,
+	closeFC := testutils.NewCloseFC(t, closeFCAttr,
 		testtransaction.WithSystemID(moneySystemID),
 		testtransaction.WithUnitId(fcbID),
 	)
 	closeFCRecord := &types.TransactionRecord{TransactionOrder: closeFC, ServerMetadata: &types.ServerMetadata{ActualFee: 1}}
 
-	reclaimFCAttr := testfc.NewReclaimFCAttr(t, signer,
-		testfc.WithReclaimFCClosureTx(closeFCRecord),
+	reclaimFCAttr := testutils.NewReclaimFCAttr(t, signer,
+		testutils.WithReclaimFCClosureTx(closeFCRecord),
 	)
-	reclaimFC := testfc.NewReclaimFC(t, signer, reclaimFCAttr,
+	reclaimFC := testutils.NewReclaimFC(t, signer, reclaimFCAttr,
 		testtransaction.WithSystemID(moneySystemID),
 		testtransaction.WithUnitId(tx4.TransactionOrder.UnitID()),
 	)
@@ -261,7 +261,7 @@ func TestBlockProcessor_TransferAndReclaimFeeCycle_TargetMoneyPartition(t *testi
 	}, nil)
 	require.NoError(t, err)
 
-	moneyPartitionFeeBillID := money.NewBillID(nil, []byte{2})
+	moneyPartitionFeeBillID := money2.NewBillID(nil, []byte{2})
 	err = store.Do().SetSystemDescriptionRecords([]*genesis.SystemDescriptionRecord{
 		{
 			SystemIdentifier: moneySystemID,
@@ -285,12 +285,12 @@ func TestBlockProcessor_TransferAndReclaimFeeCycle_TargetMoneyPartition(t *testi
 	require.NoError(t, err)
 
 	// process transferFC of 50 billy from userBillID
-	transferFCAttr := testfc.NewTransferFCAttr(
-		testfc.WithTargetRecordID(fcbID),
-		testfc.WithTargetSystemID(moneySystemID),
-		testfc.WithAmount(50),
+	transferFCAttr := testutils.NewTransferFCAttr(
+		testutils.WithTargetRecordID(fcbID),
+		testutils.WithTargetSystemID(moneySystemID),
+		testutils.WithAmount(50),
 	)
-	transferFC := testfc.NewTransferFC(t, transferFCAttr,
+	transferFC := testutils.NewTransferFC(t, transferFCAttr,
 		testtransaction.WithUnitId(userBillID),
 		testtransaction.WithSystemID(moneySystemID),
 	)
@@ -313,8 +313,8 @@ func TestBlockProcessor_TransferAndReclaimFeeCycle_TargetMoneyPartition(t *testi
 	require.EqualValues(t, 50, userBill.Value)
 
 	// process addFC
-	addFCOrder := testfc.NewAddFC(t, signer,
-		testfc.NewAddFCAttr(t, signer, testfc.WithTransferFCTx(transferFCRecord)),
+	addFCOrder := testutils.NewAddFC(t, signer,
+		testutils.NewAddFCAttr(t, signer, testutils.WithTransferFCTx(transferFCRecord)),
 		testtransaction.WithUnitId(fcbID),
 		testtransaction.WithSystemID(moneySystemID),
 	)
@@ -342,11 +342,11 @@ func TestBlockProcessor_TransferAndReclaimFeeCycle_TargetMoneyPartition(t *testi
 	require.EqualValues(t, 48, fcb.Value)
 
 	// process closeFC
-	closeFCAttr := testfc.NewCloseFCAttr(
-		testfc.WithCloseFCAmount(48),
-		testfc.WithCloseFCTargetUnitID(transferFC.UnitID()),
+	closeFCAttr := testutils.NewCloseFCAttr(
+		testutils.WithCloseFCAmount(48),
+		testutils.WithCloseFCTargetUnitID(transferFC.UnitID()),
 	)
-	closeFC := testfc.NewCloseFC(t, closeFCAttr,
+	closeFC := testutils.NewCloseFC(t, closeFCAttr,
 		testtransaction.WithSystemID(moneySystemID),
 		testtransaction.WithUnitId(fcbID),
 	)
@@ -374,10 +374,10 @@ func TestBlockProcessor_TransferAndReclaimFeeCycle_TargetMoneyPartition(t *testi
 	require.EqualValues(t, 0, fcb.Value)
 
 	// process reclaimFC
-	reclaimFCAttr := testfc.NewReclaimFCAttr(t, signer,
-		testfc.WithReclaimFCClosureTx(closeFCRecord),
+	reclaimFCAttr := testutils.NewReclaimFCAttr(t, signer,
+		testutils.WithReclaimFCClosureTx(closeFCRecord),
 	)
-	reclaimFC := testfc.NewReclaimFC(t, signer, reclaimFCAttr,
+	reclaimFC := testutils.NewReclaimFC(t, signer, reclaimFCAttr,
 		testtransaction.WithSystemID(moneySystemID),
 		testtransaction.WithUnitId(transferFC.UnitID()),
 	)
@@ -427,8 +427,8 @@ func TestBlockProcessor_TransferAndReclaimFeeCycle_TargetTokenPartition(t *testi
 	}, nil)
 	require.NoError(t, err)
 
-	moneyPartitionFeeBillID := money.NewBillID(nil, []byte{2})
-	tokenPartitionFeeBillID := money.NewBillID(nil, []byte{3})
+	moneyPartitionFeeBillID := money2.NewBillID(nil, []byte{2})
+	tokenPartitionFeeBillID := money2.NewBillID(nil, []byte{3})
 	err = store.Do().SetSystemDescriptionRecords([]*genesis.SystemDescriptionRecord{
 		{
 			SystemIdentifier: moneySystemID,
@@ -466,12 +466,12 @@ func TestBlockProcessor_TransferAndReclaimFeeCycle_TargetTokenPartition(t *testi
 	require.NoError(t, err)
 
 	// process transferFC of 20 billy from userBillID
-	transferFCAttr := testfc.NewTransferFCAttr(
-		testfc.WithTargetRecordID(fcbID),
-		testfc.WithTargetSystemID(tokenSystemID),
-		testfc.WithAmount(20),
+	transferFCAttr := testutils.NewTransferFCAttr(
+		testutils.WithTargetRecordID(fcbID),
+		testutils.WithTargetSystemID(tokenSystemID),
+		testutils.WithAmount(20),
 	)
-	transferFC := testfc.NewTransferFC(t, transferFCAttr,
+	transferFC := testutils.NewTransferFC(t, transferFCAttr,
 		testtransaction.WithUnitId(userBillID),
 		testtransaction.WithSystemID(tokenSystemID),
 	)
@@ -499,8 +499,8 @@ func TestBlockProcessor_TransferAndReclaimFeeCycle_TargetTokenPartition(t *testi
 	require.EqualValues(t, 80, userBill.Value)
 
 	// process addFC
-	addFCOrder := testfc.NewAddFC(t, signer,
-		testfc.NewAddFCAttr(t, signer, testfc.WithTransferFCTx(transferFCRecord)),
+	addFCOrder := testutils.NewAddFC(t, signer,
+		testutils.NewAddFCAttr(t, signer, testutils.WithTransferFCTx(transferFCRecord)),
 		testtransaction.WithUnitId(fcbID),
 		testtransaction.WithSystemID(tokenSystemID),
 	)
@@ -533,11 +533,11 @@ func TestBlockProcessor_TransferAndReclaimFeeCycle_TargetTokenPartition(t *testi
 	require.EqualValues(t, 18, fcb.Value)
 
 	// process closeFC
-	closeFCAttr := testfc.NewCloseFCAttr(
-		testfc.WithCloseFCAmount(18),
-		testfc.WithCloseFCTargetUnitID(transferFC.UnitID()),
+	closeFCAttr := testutils.NewCloseFCAttr(
+		testutils.WithCloseFCAmount(18),
+		testutils.WithCloseFCTargetUnitID(transferFC.UnitID()),
 	)
-	closeFC := testfc.NewCloseFC(t, closeFCAttr,
+	closeFC := testutils.NewCloseFC(t, closeFCAttr,
 		testtransaction.WithSystemID(tokenSystemID),
 		testtransaction.WithUnitId(fcbID),
 	)
@@ -570,10 +570,10 @@ func TestBlockProcessor_TransferAndReclaimFeeCycle_TargetTokenPartition(t *testi
 	require.EqualValues(t, 0, fcb.Value)
 
 	// process reclaimFC
-	reclaimFCAttr := testfc.NewReclaimFCAttr(t, signer,
-		testfc.WithReclaimFCClosureTx(closeFCRecord),
+	reclaimFCAttr := testutils.NewReclaimFCAttr(t, signer,
+		testutils.WithReclaimFCClosureTx(closeFCRecord),
 	)
-	reclaimFC := testfc.NewReclaimFC(t, signer, reclaimFCAttr,
+	reclaimFC := testutils.NewReclaimFC(t, signer, reclaimFCAttr,
 		testtransaction.WithSystemID(moneySystemID),
 		testtransaction.WithUnitId(transferFC.UnitID()),
 	)
@@ -621,7 +621,7 @@ func TestBlockProcessor_LockedAndClosedFeeCredit_CanBeSaved(t *testing.T) {
 	}, nil)
 	require.NoError(t, err)
 
-	moneyPartitionFeeBillID := money.NewBillID(nil, []byte{2})
+	moneyPartitionFeeBillID := money2.NewBillID(nil, []byte{2})
 	err = store.Do().SetSystemDescriptionRecords([]*genesis.SystemDescriptionRecord{
 		{
 			SystemIdentifier: moneySystemID,
@@ -645,11 +645,11 @@ func TestBlockProcessor_LockedAndClosedFeeCredit_CanBeSaved(t *testing.T) {
 	require.NoError(t, err)
 
 	// when transferFC is processed
-	transferFCAttr := testfc.NewTransferFCAttr(
-		testfc.WithTargetRecordID(fcbID),
-		testfc.WithTargetSystemID(moneySystemID),
+	transferFCAttr := testutils.NewTransferFCAttr(
+		testutils.WithTargetRecordID(fcbID),
+		testutils.WithTargetSystemID(moneySystemID),
 	)
-	transferFC := testfc.NewTransferFC(t, transferFCAttr,
+	transferFC := testutils.NewTransferFC(t, transferFCAttr,
 		testtransaction.WithUnitId(userBillID),
 		testtransaction.WithSystemID(moneySystemID),
 	)
@@ -667,10 +667,10 @@ func TestBlockProcessor_LockedAndClosedFeeCredit_CanBeSaved(t *testing.T) {
 	require.Equal(t, transferFCRecord, lockedFeeCredit)
 
 	// when closeFC is processed
-	closeFCAttr := testfc.NewCloseFCAttr(
-		testfc.WithCloseFCTargetUnitID(transferFC.UnitID()),
+	closeFCAttr := testutils.NewCloseFCAttr(
+		testutils.WithCloseFCTargetUnitID(transferFC.UnitID()),
 	)
-	closeFC := testfc.NewCloseFC(t, closeFCAttr,
+	closeFC := testutils.NewCloseFC(t, closeFCAttr,
 		testtransaction.WithSystemID(moneySystemID),
 		testtransaction.WithUnitId(fcbID),
 	)
@@ -693,12 +693,12 @@ func TestBlockProcessor_NWaySplit(t *testing.T) {
 	fcbID := newFeeCreditRecordID(101)
 	fcb := &Bill{Id: fcbID, Value: 100}
 
-	var targetUnits []*money.TargetUnit
+	var targetUnits []*money2.TargetUnit
 	for i := 1; i <= 5; i++ {
 		pubKeyBytes := []byte{byte(i)}
 		pubKeyHash := hash.Sum256(pubKeyBytes)
 		ownerCondition := templates.NewP2pkh256BytesFromKeyHash(pubKeyHash)
-		targetUnits = append(targetUnits, &money.TargetUnit{
+		targetUnits = append(targetUnits, &money2.TargetUnit{
 			Amount:         uint64(i),
 			OwnerCondition: ownerCondition,
 		})
@@ -707,7 +707,7 @@ func TestBlockProcessor_NWaySplit(t *testing.T) {
 		TransactionOrder: &types.TransactionOrder{
 			Payload: &types.Payload{
 				SystemID:       moneySystemID,
-				Type:           money.PayloadTypeSplit,
+				Type:           money2.PayloadTypeSplit,
 				UnitID:         newBillID(3),
 				Attributes:     splitTxAttr(1, targetUnits...),
 				ClientMetadata: &types.ClientMetadata{FeeCreditRecordID: fcbID},
@@ -731,7 +731,7 @@ func TestBlockProcessor_NWaySplit(t *testing.T) {
 			SystemIdentifier: moneySystemID,
 			T2Timeout:        2500,
 			FeeCreditBill: &genesis.FeeCreditBill{
-				UnitId:         money.NewBillID(nil, []byte{2}),
+				UnitId:         money2.NewBillID(nil, []byte{2}),
 				OwnerPredicate: templates.AlwaysTrueBytes(),
 			},
 		},
@@ -768,15 +768,15 @@ func verifyProof(t *testing.T, b *Bill, txProof *sdk.Proof) {
 }
 
 func newBillID(unitPart byte) []byte {
-	return money.NewBillID(nil, []byte{unitPart})
+	return money2.NewBillID(nil, []byte{unitPart})
 }
 
 func newFeeCreditRecordID(unitPart byte) []byte {
-	return money.NewFeeCreditRecordID(nil, []byte{unitPart})
+	return money2.NewFeeCreditRecordID(nil, []byte{unitPart})
 }
 
 func transferTxAttr(pubKeyHash []byte) []byte {
-	attr := &money.TransferAttributes{
+	attr := &money2.TransferAttributes{
 		TargetValue: 100,
 		NewBearer:   templates.NewP2pkh256BytesFromKeyHash(pubKeyHash),
 		Backlink:    hash.Sum256([]byte{}),
@@ -786,7 +786,7 @@ func transferTxAttr(pubKeyHash []byte) []byte {
 }
 
 func dustTxAttr() []byte {
-	attr := &money.TransferDCAttributes{
+	attr := &money2.TransferDCAttributes{
 		Value:              100,
 		Backlink:           hash.Sum256([]byte{}),
 		TargetUnitID:       []byte{0},
@@ -796,8 +796,8 @@ func dustTxAttr() []byte {
 	return attrBytes
 }
 
-func splitTxAttr(remainingValue uint64, targetUnits ...*money.TargetUnit) []byte {
-	attr := &money.SplitAttributes{
+func splitTxAttr(remainingValue uint64, targetUnits ...*money2.TargetUnit) []byte {
+	attr := &money2.SplitAttributes{
 		TargetUnits:    targetUnits,
 		RemainingValue: remainingValue,
 		Backlink:       hash.Sum256([]byte{}),
@@ -807,7 +807,7 @@ func splitTxAttr(remainingValue uint64, targetUnits ...*money.TargetUnit) []byte
 }
 
 func swapTxAttr(pubKeyHash []byte) []byte {
-	attr := &money.SwapDCAttributes{
+	attr := &money2.SwapDCAttributes{
 		OwnerCondition:   templates.NewP2pkh256BytesFromKeyHash(pubKeyHash),
 		DcTransfers:      []*types.TransactionRecord{},
 		DcTransferProofs: []*types.TxProof{},

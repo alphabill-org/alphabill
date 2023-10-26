@@ -4,12 +4,12 @@ import (
 	gocrypto "crypto"
 	"testing"
 
+	"github.com/alphabill-org/alphabill/txsystem"
 	"github.com/alphabill-org/alphabill/validator/internal/crypto"
 	"github.com/alphabill-org/alphabill/validator/internal/hash"
 	"github.com/alphabill-org/alphabill/validator/internal/network/protocol/genesis"
 	testsig "github.com/alphabill-org/alphabill/validator/internal/testutils/sig"
 	testtxsystem "github.com/alphabill-org/alphabill/validator/internal/testutils/txsystem"
-	"github.com/alphabill-org/alphabill/validator/internal/txsystem"
 	"github.com/alphabill-org/alphabill/validator/internal/types"
 	"github.com/btcsuite/btcd/btcutil/base58"
 	"github.com/libp2p/go-libp2p/core/peer"

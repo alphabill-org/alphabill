@@ -7,8 +7,8 @@ import (
 	"fmt"
 	"sync"
 
+	"github.com/alphabill-org/alphabill/common/mt"
 	hasherUtil "github.com/alphabill-org/alphabill/validator/internal/hash"
-	"github.com/alphabill-org/alphabill/validator/internal/mt"
 	"github.com/alphabill-org/alphabill/validator/internal/types"
 	"github.com/alphabill-org/alphabill/validator/pkg/tree/avl"
 )

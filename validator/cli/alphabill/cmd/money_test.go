@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	money2 "github.com/alphabill-org/alphabill/txsystem/money"
 	"github.com/alphabill-org/alphabill/validator/internal/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/validator/internal/predicates/templates"
 	rootgenesis "github.com/alphabill-org/alphabill/validator/internal/rootchain/genesis"
@@ -19,7 +20,6 @@ import (
 	"github.com/alphabill-org/alphabill/validator/internal/testutils/net"
 	testsig "github.com/alphabill-org/alphabill/validator/internal/testutils/sig"
 	test "github.com/alphabill-org/alphabill/validator/internal/testutils/time"
-	"github.com/alphabill-org/alphabill/validator/internal/txsystem/money"
 	"github.com/alphabill-org/alphabill/validator/internal/types"
 	"github.com/alphabill-org/alphabill/validator/internal/util"
 	"github.com/fxamacker/cbor/v2"
@@ -360,14 +360,14 @@ func TestRunMoneyNode_Ok(t *testing.T) {
 
 func makeSuccessfulPayment(t *testing.T, ctx context.Context, txClient alphabill.AlphabillServiceClient) {
 	initialBillID := defaultInitialBillID
-	attr := &money.TransferAttributes{
+	attr := &money2.TransferAttributes{
 		NewBearer:   templates.AlwaysTrueBytes(),
 		TargetValue: defaultInitialBillValue,
 	}
 	attrBytes, _ := cbor.Marshal(attr)
 	tx := &types.TransactionOrder{
 		Payload: &types.Payload{
-			Type:           money.PayloadTypeTransfer,
+			Type:           money2.PayloadTypeTransfer,
 			UnitID:         initialBillID[:],
 			ClientMetadata: &types.ClientMetadata{Timeout: 10},
 			SystemID:       []byte{0, 0, 0, 0},
@@ -382,15 +382,15 @@ func makeSuccessfulPayment(t *testing.T, ctx context.Context, txClient alphabill
 }
 
 func makeFailingPayment(t *testing.T, ctx context.Context, txClient alphabill.AlphabillServiceClient) {
-	wrongBillID := money.NewBillID(nil, []byte{6})
-	attr := &money.TransferAttributes{
+	wrongBillID := money2.NewBillID(nil, []byte{6})
+	attr := &money2.TransferAttributes{
 		NewBearer:   templates.AlwaysTrueBytes(),
 		TargetValue: defaultInitialBillValue,
 	}
 	attrBytes, _ := cbor.Marshal(attr)
 	tx := &types.TransactionOrder{
 		Payload: &types.Payload{
-			Type:           money.PayloadTypeTransfer,
+			Type:           money2.PayloadTypeTransfer,
 			UnitID:         wrongBillID,
 			ClientMetadata: &types.ClientMetadata{Timeout: 10},
 			SystemID:       []byte{0},

@@ -14,6 +14,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/alphabill-org/alphabill/txsystem"
 	"github.com/alphabill-org/alphabill/validator/internal/crypto"
 	"github.com/alphabill-org/alphabill/validator/internal/keyvaluedb/boltdb"
 	"github.com/alphabill-org/alphabill/validator/internal/network"
@@ -27,7 +28,6 @@ import (
 	testlogger "github.com/alphabill-org/alphabill/validator/internal/testutils/logger"
 	"github.com/alphabill-org/alphabill/validator/internal/testutils/net"
 	testevent "github.com/alphabill-org/alphabill/validator/internal/testutils/partition/event"
-	"github.com/alphabill-org/alphabill/validator/internal/txsystem"
 	"github.com/alphabill-org/alphabill/validator/internal/types"
 	"github.com/alphabill-org/alphabill/validator/pkg/logger"
 	libp2pcrypto "github.com/libp2p/go-libp2p/core/crypto"

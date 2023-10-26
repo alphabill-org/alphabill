@@ -11,12 +11,12 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/alphabill-org/alphabill/txsystem/money"
 	"github.com/fxamacker/cbor/v2"
 	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
 	"golang.org/x/sync/errgroup"
 
-	"github.com/alphabill-org/alphabill/validator/internal/txsystem/money"
 	"github.com/alphabill-org/alphabill/validator/internal/types"
 	"github.com/alphabill-org/alphabill/validator/pkg/logger"
 	sdk "github.com/alphabill-org/alphabill/validator/pkg/wallet"

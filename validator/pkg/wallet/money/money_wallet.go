@@ -8,10 +8,10 @@ import (
 	"log/slog"
 	"sort"
 
+	money2 "github.com/alphabill-org/alphabill/txsystem/money"
 	abcrypto "github.com/alphabill-org/alphabill/validator/internal/crypto"
 	"github.com/alphabill-org/alphabill/validator/internal/hash"
 	"github.com/alphabill-org/alphabill/validator/internal/predicates/templates"
-	"github.com/alphabill-org/alphabill/validator/internal/txsystem/money"
 	"github.com/alphabill-org/alphabill/validator/internal/types"
 	"github.com/alphabill-org/alphabill/validator/pkg/wallet"
 	"github.com/alphabill-org/alphabill/validator/pkg/wallet/account"
@@ -74,7 +74,7 @@ func CreateNewWallet(am account.Manager, mnemonic string) error {
 }
 
 func LoadExistingWallet(am account.Manager, unitLocker UnitLocker, backend BackendAPI, log *slog.Logger) (*Wallet, error) {
-	moneySystemID := money.DefaultSystemIdentifier
+	moneySystemID := money2.DefaultSystemIdentifier
 	moneyTxPublisher := NewTxPublisher(backend, log)
 	feeManager := fees.NewFeeManager(am, unitLocker, moneySystemID, moneyTxPublisher, backend, moneySystemID, moneyTxPublisher, backend, FeeCreditRecordIDFormPublicKey, log)
 	dustCollector := NewDustCollector(moneySystemID, maxBillsForDustCollection, backend, unitLocker, log)
@@ -96,7 +96,7 @@ func (w *Wallet) GetAccountManager() account.Manager {
 func (w *Wallet) SystemID() []byte {
 	// TODO: return the default "AlphaBill Money System ID" for now
 	// but this should come from config (base wallet? AB client?)
-	return money.DefaultSystemIdentifier
+	return money2.DefaultSystemIdentifier
 }
 
 // Close terminates connection to alphabill node, closes account manager and cancels any background goroutines.
@@ -195,9 +195,9 @@ func (w *Wallet) Send(ctx context.Context, cmd SendCmd) ([]*wallet.Proof, error)
 				"%d Tema value bill", totalAmount+1, largestBill.Value) // +1 because 0 remaining value is not allowed
 		}
 		// convert send cmd targets to transaction units
-		var targetUnits []*money.TargetUnit
+		var targetUnits []*money2.TargetUnit
 		for _, r := range cmd.Receivers {
-			targetUnits = append(targetUnits, &money.TargetUnit{
+			targetUnits = append(targetUnits, &money2.TargetUnit{
 				Amount:         r.Amount,
 				OwnerCondition: templates.NewP2pkh256BytesFromKeyHash(hash.Sum256(r.PubKey)),
 			})
@@ -266,7 +266,7 @@ func (w *Wallet) GetFeeCredit(ctx context.Context, cmd fees.GetFeeCreditCmd) (*w
 	if err != nil {
 		return nil, err
 	}
-	return w.GetFeeCreditBill(ctx, money.NewFeeCreditRecordID(nil, accountKey.PubKeyHash.Sha256))
+	return w.GetFeeCreditBill(ctx, money2.NewFeeCreditRecordID(nil, accountKey.PubKeyHash.Sha256))
 }
 
 // GetFeeCreditBill returns fee credit bill for given unitID

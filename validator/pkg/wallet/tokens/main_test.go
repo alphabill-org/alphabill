@@ -9,11 +9,11 @@ import (
 	"strconv"
 	"testing"
 
+	"github.com/alphabill-org/alphabill/txsystem/tokens"
 	"github.com/alphabill-org/alphabill/validator/internal/hash"
 	"github.com/alphabill-org/alphabill/validator/internal/predicates/templates"
 	test "github.com/alphabill-org/alphabill/validator/internal/testutils"
 	"github.com/alphabill-org/alphabill/validator/internal/testutils/logger"
-	ttxs "github.com/alphabill-org/alphabill/validator/internal/txsystem/tokens"
 	"github.com/alphabill-org/alphabill/validator/internal/types"
 	"github.com/alphabill-org/alphabill/validator/pkg/wallet"
 	"github.com/alphabill-org/alphabill/validator/pkg/wallet/account"
@@ -34,7 +34,7 @@ func Test_Load(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	w, err := New(ttxs.DefaultSystemIdentifier, srv.URL, nil, false, nil, logger.New(t))
+	w, err := New(tokens.DefaultSystemIdentifier, srv.URL, nil, false, nil, logger.New(t))
 	require.NoError(t, err)
 
 	rn, err := w.GetRoundNumber(context.Background())
@@ -242,15 +242,15 @@ func TestNewTypes(t *testing.T) {
 			tx, found := recTxs[string(id)]
 			if found {
 				tokenType := &backend.TokenUnitType{ID: tx.UnitID()}
-				if tx.PayloadType() == ttxs.PayloadTypeCreateFungibleTokenType {
+				if tx.PayloadType() == tokens.PayloadTypeCreateFungibleTokenType {
 					tokenType.Kind = backend.Fungible
-					attrs := &ttxs.CreateFungibleTokenTypeAttributes{}
+					attrs := &tokens.CreateFungibleTokenTypeAttributes{}
 					require.NoError(t, tx.UnmarshalAttributes(attrs))
 					tokenType.ParentTypeID = attrs.ParentTypeID
 					tokenType.DecimalPlaces = attrs.DecimalPlaces
 				} else {
 					tokenType.Kind = backend.NonFungible
-					attrs := &ttxs.CreateNonFungibleTokenTypeAttributes{}
+					attrs := &tokens.CreateNonFungibleTokenTypeAttributes{}
 					require.NoError(t, tx.UnmarshalAttributes(attrs))
 					tokenType.ParentTypeID = attrs.ParentTypeID
 				}
@@ -278,7 +278,7 @@ func TestNewTypes(t *testing.T) {
 	tw := initTestWallet(t, be)
 
 	t.Run("fungible type", func(t *testing.T) {
-		typeId := ttxs.NewFungibleTokenTypeID(nil, test.RandomBytes(32))
+		typeId := tokens.NewFungibleTokenTypeID(nil, test.RandomBytes(32))
 		a := CreateFungibleTokenTypeAttributes{
 			Symbol:                   "AB",
 			Name:                     "Long name for AB",
@@ -295,7 +295,7 @@ func TestNewTypes(t *testing.T) {
 		require.EqualValues(t, typeId, result.TokenTypeID)
 		tx, found := recTxs[string(typeId)]
 		require.True(t, found)
-		newFungibleTx := &ttxs.CreateFungibleTokenTypeAttributes{}
+		newFungibleTx := &tokens.CreateFungibleTokenTypeAttributes{}
 		require.NoError(t, tx.UnmarshalAttributes(newFungibleTx))
 		require.Equal(t, typeId, tx.UnitID())
 		require.Equal(t, a.Symbol, newFungibleTx.Symbol)
@@ -324,16 +324,16 @@ func TestNewTypes(t *testing.T) {
 		require.ErrorContains(t, err, "invalid token type ID: expected hex length is 66 characters (33 bytes)")
 
 		//check typeId unit type validation
-		_, err = tw.NewFungibleType(context.Background(), 1, a, make([]byte, ttxs.UnitIDLength), nil)
+		_, err = tw.NewFungibleType(context.Background(), 1, a, make([]byte, tokens.UnitIDLength), nil)
 		require.ErrorContains(t, err, "invalid token type ID: expected unit type is 0x20")
 
 		//check typeId generation if typeId parameter is nil
 		result, _ = tw.NewFungibleType(context.Background(), 1, a, nil, nil)
-		require.True(t, result.TokenTypeID.HasType(ttxs.FungibleTokenTypeUnitType))
+		require.True(t, result.TokenTypeID.HasType(tokens.FungibleTokenTypeUnitType))
 	})
 
 	t.Run("non-fungible type", func(t *testing.T) {
-		typeId := ttxs.NewNonFungibleTokenTypeID(nil, test.RandomBytes(32))
+		typeId := tokens.NewNonFungibleTokenTypeID(nil, test.RandomBytes(32))
 		a := CreateNonFungibleTokenTypeAttributes{
 			Symbol:                   "ABNFT",
 			Name:                     "Long name for ABNFT",
@@ -349,7 +349,7 @@ func TestNewTypes(t *testing.T) {
 		require.EqualValues(t, typeId, result.TokenTypeID)
 		tx, found := recTxs[string(typeId)]
 		require.True(t, found)
-		newNFTTx := &ttxs.CreateNonFungibleTokenTypeAttributes{}
+		newNFTTx := &tokens.CreateNonFungibleTokenTypeAttributes{}
 		require.NoError(t, tx.UnmarshalAttributes(newNFTTx))
 		require.Equal(t, typeId, tx.UnitID())
 		require.Equal(t, a.Symbol, newNFTTx.Symbol)
@@ -361,12 +361,12 @@ func TestNewTypes(t *testing.T) {
 		require.ErrorContains(t, err, "invalid token type ID: expected hex length is 66 characters (33 bytes)")
 
 		//check typeId unit type validation
-		_, err = tw.NewNonFungibleType(context.Background(), 1, a, make([]byte, ttxs.UnitIDLength), nil)
+		_, err = tw.NewNonFungibleType(context.Background(), 1, a, make([]byte, tokens.UnitIDLength), nil)
 		require.ErrorContains(t, err, "invalid token type ID: expected unit type is 0x22")
 
 		//check typeId generation if typeId parameter is nil
 		result, _ = tw.NewNonFungibleType(context.Background(), 1, a, nil, nil)
-		require.True(t, result.TokenTypeID.HasType(ttxs.NonFungibleTokenTypeUnitType))
+		require.True(t, result.TokenTypeID.HasType(tokens.NonFungibleTokenTypeUnitType))
 	})
 }
 
@@ -415,7 +415,7 @@ func TestMintFungibleToken(t *testing.T) {
 			result, err := tw.NewFungibleToken(context.Background(), tt.accNr, typeId, amount, bearerPredicateFromHash(key.PubKeyHash.Sha256), nil)
 			require.NoError(t, err)
 			tx := recTxs[len(recTxs)-1]
-			newToken := &ttxs.MintFungibleTokenAttributes{}
+			newToken := &tokens.MintFungibleTokenAttributes{}
 			require.NotNil(t, result)
 			require.EqualValues(t, tx.UnitID(), result.TokenID)
 			require.NoError(t, tx.UnmarshalAttributes(newToken))
@@ -476,7 +476,7 @@ func TestSendFungible(t *testing.T) {
 			verifyTransactions: func(t *testing.T) {
 				require.Equal(t, 1, len(recTxs))
 				tx := recTxs[0]
-				newTransfer := &ttxs.TransferFungibleTokenAttributes{}
+				newTransfer := &tokens.TransferFungibleTokenAttributes{}
 				require.NoError(t, tx.UnmarshalAttributes(newTransfer))
 				require.Equal(t, uint64(3), newTransfer.Value)
 			},
@@ -488,7 +488,7 @@ func TestSendFungible(t *testing.T) {
 			verifyTransactions: func(t *testing.T) {
 				require.Equal(t, 1, len(recTxs))
 				tx := recTxs[0]
-				newSplit := &ttxs.SplitFungibleTokenAttributes{}
+				newSplit := &tokens.SplitFungibleTokenAttributes{}
 				require.NoError(t, tx.UnmarshalAttributes(newSplit))
 				require.Equal(t, uint64(4), newSplit.TargetValue)
 			},
@@ -501,12 +501,12 @@ func TestSendFungible(t *testing.T) {
 				var total = uint64(0)
 				for _, tx := range recTxs {
 					switch tx.PayloadType() {
-					case ttxs.PayloadTypeTransferFungibleToken:
-						attrs := &ttxs.TransferFungibleTokenAttributes{}
+					case tokens.PayloadTypeTransferFungibleToken:
+						attrs := &tokens.TransferFungibleTokenAttributes{}
 						require.NoError(t, tx.UnmarshalAttributes(attrs))
 						total += attrs.GetValue()
-					case ttxs.PayloadTypeSplitFungibleToken:
-						attrs := &ttxs.SplitFungibleTokenAttributes{}
+					case tokens.PayloadTypeSplitFungibleToken:
+						attrs := &tokens.SplitFungibleTokenAttributes{}
 						require.NoError(t, tx.UnmarshalAttributes(attrs))
 						total += attrs.GetTargetValue()
 					default:
@@ -535,7 +535,7 @@ func TestSendFungible(t *testing.T) {
 			verifyTransactions: func(t *testing.T) {
 				require.Equal(t, 1, len(recTxs))
 				tx := recTxs[0]
-				newTransfer := &ttxs.TransferFungibleTokenAttributes{}
+				newTransfer := &tokens.TransferFungibleTokenAttributes{}
 				require.NoError(t, tx.UnmarshalAttributes(newTransfer))
 				require.Equal(t, uint64(1), newTransfer.Value)
 			},
@@ -547,7 +547,7 @@ func TestSendFungible(t *testing.T) {
 			verifyTransactions: func(t *testing.T) {
 				require.Equal(t, 1, len(recTxs))
 				tx := recTxs[0]
-				newTransfer := &ttxs.TransferFungibleTokenAttributes{}
+				newTransfer := &tokens.TransferFungibleTokenAttributes{}
 				require.NoError(t, tx.UnmarshalAttributes(newTransfer))
 				require.Equal(t, uint64(math.MaxUint64), newTransfer.Value)
 			},
@@ -559,7 +559,7 @@ func TestSendFungible(t *testing.T) {
 			verifyTransactions: func(t *testing.T) {
 				require.Equal(t, 1, len(recTxs))
 				tx := recTxs[0]
-				newSplit := &ttxs.SplitFungibleTokenAttributes{}
+				newSplit := &tokens.SplitFungibleTokenAttributes{}
 				require.NoError(t, tx.UnmarshalAttributes(newSplit))
 				require.Equal(t, uint64(2), newSplit.TargetValue)
 				require.Equal(t, uint64(math.MaxUint64-2), newSplit.RemainingValue)
@@ -656,12 +656,12 @@ func TestMintNFT(t *testing.T) {
 		name          string
 		accNr         uint64
 		tokenID       backend.TokenID
-		validateOwner func(t *testing.T, accNr uint64, tok *ttxs.MintNonFungibleTokenAttributes)
+		validateOwner func(t *testing.T, accNr uint64, tok *tokens.MintNonFungibleTokenAttributes)
 	}{
 		{
 			name:  "pub key bearer predicate, account 1",
 			accNr: uint64(1),
-			validateOwner: func(t *testing.T, accNr uint64, tok *ttxs.MintNonFungibleTokenAttributes) {
+			validateOwner: func(t *testing.T, accNr uint64, tok *tokens.MintNonFungibleTokenAttributes) {
 				key, err := tw.am.GetAccountKey(accNr - 1)
 				require.NoError(t, err)
 				require.EqualValues(t, templates.NewP2pkh256BytesFromKeyHash(key.PubKeyHash.Sha256), tok.Bearer)
@@ -671,7 +671,7 @@ func TestMintNFT(t *testing.T) {
 			name:    "pub key bearer predicate, account 1, predefined token ID",
 			accNr:   uint64(1),
 			tokenID: test.RandomBytes(33),
-			validateOwner: func(t *testing.T, accNr uint64, tok *ttxs.MintNonFungibleTokenAttributes) {
+			validateOwner: func(t *testing.T, accNr uint64, tok *tokens.MintNonFungibleTokenAttributes) {
 				key, err := tw.am.GetAccountKey(accNr - 1)
 				require.NoError(t, err)
 				require.EqualValues(t, templates.NewP2pkh256BytesFromKeyHash(key.PubKeyHash.Sha256), tok.Bearer)
@@ -680,7 +680,7 @@ func TestMintNFT(t *testing.T) {
 		{
 			name:  "pub key bearer predicate, account 2",
 			accNr: uint64(2),
-			validateOwner: func(t *testing.T, accNr uint64, tok *ttxs.MintNonFungibleTokenAttributes) {
+			validateOwner: func(t *testing.T, accNr uint64, tok *tokens.MintNonFungibleTokenAttributes) {
 				key, err := tw.am.GetAccountKey(accNr - 1)
 				require.NoError(t, err)
 				require.EqualValues(t, templates.NewP2pkh256BytesFromKeyHash(key.PubKeyHash.Sha256), tok.Bearer)
@@ -703,7 +703,7 @@ func TestMintNFT(t *testing.T) {
 			result, err := tw.NewNFT(context.Background(), tt.accNr, a, tt.tokenID, nil)
 			require.NoError(t, err)
 			tx := recTxs[len(recTxs)-1]
-			newToken := &ttxs.MintNonFungibleTokenAttributes{}
+			newToken := &tokens.MintNonFungibleTokenAttributes{}
 			require.NotNil(t, result)
 			require.EqualValues(t, tx.UnitID(), result.TokenID)
 			require.NoError(t, tx.UnmarshalAttributes(newToken))
@@ -753,13 +753,13 @@ func TestTransferNFT(t *testing.T) {
 		name          string
 		token         *backend.TokenUnit
 		key           wallet.PubKey
-		validateOwner func(t *testing.T, accNr uint64, key wallet.PubKey, tok *ttxs.TransferNonFungibleTokenAttributes)
+		validateOwner func(t *testing.T, accNr uint64, key wallet.PubKey, tok *tokens.TransferNonFungibleTokenAttributes)
 	}{
 		{
 			name:  "to 'always true' predicate",
 			token: &backend.TokenUnit{ID: test.RandomBytes(32), Kind: backend.NonFungible, Symbol: "AB", TypeID: test.RandomBytes(32)},
 			key:   nil,
-			validateOwner: func(t *testing.T, accNr uint64, key wallet.PubKey, tok *ttxs.TransferNonFungibleTokenAttributes) {
+			validateOwner: func(t *testing.T, accNr uint64, key wallet.PubKey, tok *tokens.TransferNonFungibleTokenAttributes) {
 				require.EqualValues(t, templates.AlwaysTrueBytes(), tok.NewBearer)
 			},
 		},
@@ -767,7 +767,7 @@ func TestTransferNFT(t *testing.T) {
 			name:  "to public key hash predicate",
 			token: &backend.TokenUnit{ID: test.RandomBytes(32), Kind: backend.NonFungible, Symbol: "AB", TypeID: test.RandomBytes(32)},
 			key:   first(hexutil.Decode("0x0290a43bc454babf1ea8b0b76fcbb01a8f27a989047cf6d6d76397cc4756321e64")),
-			validateOwner: func(t *testing.T, accNr uint64, key wallet.PubKey, tok *ttxs.TransferNonFungibleTokenAttributes) {
+			validateOwner: func(t *testing.T, accNr uint64, key wallet.PubKey, tok *tokens.TransferNonFungibleTokenAttributes) {
 				require.EqualValues(t, templates.NewP2pkh256BytesFromKeyHash(hash.Sum256(key)), tok.NewBearer)
 			},
 		},
@@ -781,7 +781,7 @@ func TestTransferNFT(t *testing.T) {
 			tx, found := recTxs[string(tt.token.ID)]
 			require.True(t, found)
 			require.EqualValues(t, tt.token.ID, tx.UnitID())
-			newTransfer := &ttxs.TransferNonFungibleTokenAttributes{}
+			newTransfer := &tokens.TransferNonFungibleTokenAttributes{}
 			require.NoError(t, tx.UnmarshalAttributes(newTransfer))
 			tt.validateOwner(t, 1, tt.key, newTransfer)
 		})
@@ -815,9 +815,9 @@ func TestUpdateNFTData(t *testing.T) {
 	}
 	tw := initTestWallet(t, be)
 
-	parseNFTDataUpdate := func(t *testing.T, tx *types.TransactionOrder) *ttxs.UpdateNonFungibleTokenAttributes {
+	parseNFTDataUpdate := func(t *testing.T, tx *types.TransactionOrder) *tokens.UpdateNonFungibleTokenAttributes {
 		t.Helper()
-		newTransfer := &ttxs.UpdateNonFungibleTokenAttributes{}
+		newTransfer := &tokens.UpdateNonFungibleTokenAttributes{}
 		require.NoError(t, tx.UnmarshalAttributes(newTransfer))
 		return newTransfer
 	}

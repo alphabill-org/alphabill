@@ -7,9 +7,9 @@ import (
 	"fmt"
 	"log/slog"
 
-	"github.com/alphabill-org/alphabill/validator/internal/txsystem"
-	"github.com/alphabill-org/alphabill/validator/internal/txsystem/fc/transactions"
-	"github.com/alphabill-org/alphabill/validator/internal/txsystem/tokens"
+	"github.com/alphabill-org/alphabill/txsystem"
+	"github.com/alphabill-org/alphabill/txsystem/fc/transactions"
+	tokens2 "github.com/alphabill-org/alphabill/txsystem/tokens"
 	"github.com/alphabill-org/alphabill/validator/internal/types"
 	"github.com/alphabill-org/alphabill/validator/pkg/logger"
 	"github.com/alphabill-org/alphabill/validator/pkg/wallet"
@@ -104,8 +104,8 @@ func (p *blockProcessor) processTx(tr *types.TransactionRecord, proof *wallet.Tx
 
 	// handle UT transactions
 	switch tx.Payload.Type {
-	case tokens.PayloadTypeCreateFungibleTokenType:
-		attrs := &tokens.CreateFungibleTokenTypeAttributes{}
+	case tokens2.PayloadTypeCreateFungibleTokenType:
+		attrs := &tokens2.CreateFungibleTokenTypeAttributes{}
 		if err = tx.UnmarshalAttributes(attrs); err != nil {
 			return err
 		}
@@ -122,8 +122,8 @@ func (p *blockProcessor) processTx(tr *types.TransactionRecord, proof *wallet.Tx
 			InvariantPredicate:       attrs.InvariantPredicate,
 			TxHash:                   txHash,
 		}, txProof)
-	case tokens.PayloadTypeMintFungibleToken:
-		attrs := &tokens.MintFungibleTokenAttributes{}
+	case tokens2.PayloadTypeMintFungibleToken:
+		attrs := &tokens2.MintFungibleTokenAttributes{}
 		if err = tx.UnmarshalAttributes(attrs); err != nil {
 			return err
 		}
@@ -144,8 +144,8 @@ func (p *blockProcessor) processTx(tr *types.TransactionRecord, proof *wallet.Tx
 				Owner:    attrs.Bearer,
 			},
 			txProof)
-	case tokens.PayloadTypeTransferFungibleToken:
-		attrs := &tokens.TransferFungibleTokenAttributes{}
+	case tokens2.PayloadTypeTransferFungibleToken:
+		attrs := &tokens2.TransferFungibleTokenAttributes{}
 		if err = tx.UnmarshalAttributes(attrs); err != nil {
 			return err
 		}
@@ -156,8 +156,8 @@ func (p *blockProcessor) processTx(tr *types.TransactionRecord, proof *wallet.Tx
 		token.TxHash = txHash
 		token.Owner = attrs.NewBearer
 		return p.saveToken(token, txProof)
-	case tokens.PayloadTypeSplitFungibleToken:
-		attrs := &tokens.SplitFungibleTokenAttributes{}
+	case tokens2.PayloadTypeSplitFungibleToken:
+		attrs := &tokens2.SplitFungibleTokenAttributes{}
 		if err = tx.UnmarshalAttributes(attrs); err != nil {
 			return err
 		}
@@ -182,7 +182,7 @@ func (p *blockProcessor) processTx(tr *types.TransactionRecord, proof *wallet.Tx
 
 		// save new token created by the split
 		newToken := &TokenUnit{
-			ID:       tokens.NewFungibleTokenID(id, tokens.HashForIDCalculation(tx, crypto.SHA256)),
+			ID:       tokens2.NewFungibleTokenID(id, tokens2.HashForIDCalculation(tx, crypto.SHA256)),
 			Symbol:   token.Symbol,
 			TypeID:   token.TypeID,
 			TypeName: token.TypeName,
@@ -193,8 +193,8 @@ func (p *blockProcessor) processTx(tr *types.TransactionRecord, proof *wallet.Tx
 			Owner:    attrs.NewBearer,
 		}
 		return p.saveToken(newToken, txProof)
-	case tokens.PayloadTypeBurnFungibleToken:
-		attrs := &tokens.BurnFungibleTokenAttributes{}
+	case tokens2.PayloadTypeBurnFungibleToken:
+		attrs := &tokens2.BurnFungibleTokenAttributes{}
 		if err = tx.UnmarshalAttributes(attrs); err != nil {
 			return err
 		}
@@ -208,8 +208,8 @@ func (p *blockProcessor) processTx(tr *types.TransactionRecord, proof *wallet.Tx
 		token.TxHash = txHash
 		token.Burned = true
 		return p.saveToken(token, txProof)
-	case tokens.PayloadTypeJoinFungibleToken:
-		attrs := &tokens.JoinFungibleTokenAttributes{}
+	case tokens2.PayloadTypeJoinFungibleToken:
+		attrs := &tokens2.JoinFungibleTokenAttributes{}
 		if err = tx.UnmarshalAttributes(attrs); err != nil {
 			return err
 		}
@@ -223,7 +223,7 @@ func (p *blockProcessor) processTx(tr *types.TransactionRecord, proof *wallet.Tx
 		burnedTokensToRemove := make([]TokenID, 0, len(attrs.BurnTransactions))
 		var burnedValue uint64
 		for _, burnTx := range attrs.BurnTransactions {
-			burnTxAttr := &tokens.BurnFungibleTokenAttributes{}
+			burnTxAttr := &tokens2.BurnFungibleTokenAttributes{}
 			if err = burnTx.TransactionOrder.UnmarshalAttributes(burnTxAttr); err != nil {
 				return err
 			}
@@ -258,8 +258,8 @@ func (p *blockProcessor) processTx(tr *types.TransactionRecord, proof *wallet.Tx
 			}
 		}
 		return nil
-	case tokens.PayloadTypeCreateNFTType:
-		attrs := &tokens.CreateNonFungibleTokenTypeAttributes{}
+	case tokens2.PayloadTypeCreateNFTType:
+		attrs := &tokens2.CreateNonFungibleTokenTypeAttributes{}
 		if err = tx.UnmarshalAttributes(attrs); err != nil {
 			return err
 		}
@@ -276,8 +276,8 @@ func (p *blockProcessor) processTx(tr *types.TransactionRecord, proof *wallet.Tx
 			NftDataUpdatePredicate:   attrs.DataUpdatePredicate,
 			TxHash:                   txHash,
 		}, txProof)
-	case tokens.PayloadTypeMintNFT:
-		attrs := &tokens.MintNonFungibleTokenAttributes{}
+	case tokens2.PayloadTypeMintNFT:
+		attrs := &tokens2.MintNonFungibleTokenAttributes{}
 		if err = tx.UnmarshalAttributes(attrs); err != nil {
 			return err
 		}
@@ -300,8 +300,8 @@ func (p *blockProcessor) processTx(tr *types.TransactionRecord, proof *wallet.Tx
 			Owner:                  attrs.Bearer,
 		}
 		return p.saveToken(newToken, txProof)
-	case tokens.PayloadTypeTransferNFT:
-		attrs := &tokens.TransferNonFungibleTokenAttributes{}
+	case tokens2.PayloadTypeTransferNFT:
+		attrs := &tokens2.TransferNonFungibleTokenAttributes{}
 		if err = tx.UnmarshalAttributes(attrs); err != nil {
 			return err
 		}
@@ -312,8 +312,8 @@ func (p *blockProcessor) processTx(tr *types.TransactionRecord, proof *wallet.Tx
 		token.Owner = attrs.NewBearer
 		token.TxHash = txHash
 		return p.saveToken(token, txProof)
-	case tokens.PayloadTypeUpdateNFT:
-		attrs := &tokens.UpdateNonFungibleTokenAttributes{}
+	case tokens2.PayloadTypeUpdateNFT:
+		attrs := &tokens2.UpdateNonFungibleTokenAttributes{}
 		if err = tx.UnmarshalAttributes(attrs); err != nil {
 			return err
 		}

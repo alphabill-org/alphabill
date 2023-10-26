@@ -3,12 +3,12 @@ package tx_builder
 import (
 	"testing"
 
+	money2 "github.com/alphabill-org/alphabill/txsystem/money"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/stretchr/testify/require"
 
 	"github.com/alphabill-org/alphabill/validator/internal/hash"
 	"github.com/alphabill-org/alphabill/validator/internal/predicates/templates"
-	"github.com/alphabill-org/alphabill/validator/internal/txsystem/money"
 	"github.com/alphabill-org/alphabill/validator/internal/types"
 	"github.com/alphabill-org/alphabill/validator/internal/util"
 	"github.com/alphabill-org/alphabill/validator/pkg/wallet"
@@ -25,7 +25,7 @@ var (
 func TestSplitTransactionAmount(t *testing.T) {
 	receiverPubKeyHash := hash.Sum256(receiverPubKey)
 	keys, _ := account.NewKeys(testMnemonic)
-	billID := money.NewBillID(nil, nil)
+	billID := money2.NewBillID(nil, nil)
 	b := &wallet.Bill{
 		Id:     billID,
 		Value:  500,
@@ -36,7 +36,7 @@ func TestSplitTransactionAmount(t *testing.T) {
 	systemID := []byte{0, 0, 0, 0}
 	remainingValue := b.Value - amount
 
-	tx, err := NewSplitTx([]*money.TargetUnit{
+	tx, err := NewSplitTx([]*money2.TargetUnit{
 		{OwnerCondition: templates.NewP2pkh256BytesFromKeyHash(receiverPubKeyHash), Amount: amount},
 	}, remainingValue, keys.AccountKey, systemID, b, timeout, nil)
 	require.NoError(t, err)
@@ -46,7 +46,7 @@ func TestSplitTransactionAmount(t *testing.T) {
 	require.EqualValues(t, timeout, tx.Timeout())
 	require.NotNil(t, tx.OwnerProof)
 
-	so := &money.SplitAttributes{}
+	so := &money2.SplitAttributes{}
 	err = tx.UnmarshalAttributes(so)
 	require.NoError(t, err)
 	require.Equal(t, amount, so.TargetUnits[0].Amount)
@@ -74,8 +74,8 @@ func TestCreateTransactions(t *testing.T) {
 
 				// verify first tx is transfer order of bill no1
 				tx := txs[0]
-				require.Equal(t, money.PayloadTypeTransfer, tx.PayloadType())
-				transferAttr := &money.TransferAttributes{}
+				require.Equal(t, money2.PayloadTypeTransfer, tx.PayloadType())
+				transferAttr := &money2.TransferAttributes{}
 				err := tx.UnmarshalAttributes(transferAttr)
 				require.NoError(t, err)
 				require.EqualValues(t, 5, transferAttr.TargetValue)
@@ -83,8 +83,8 @@ func TestCreateTransactions(t *testing.T) {
 
 				// verify second tx is split order of bill no2
 				tx = txs[1]
-				require.Equal(t, money.PayloadTypeSplit, tx.PayloadType())
-				splitAttr := &money.SplitAttributes{}
+				require.Equal(t, money2.PayloadTypeSplit, tx.PayloadType())
+				splitAttr := &money2.SplitAttributes{}
 				err = tx.UnmarshalAttributes(splitAttr)
 				require.NoError(t, err)
 				require.EqualValues(t, 2, splitAttr.TargetUnits[0].Amount)
@@ -109,8 +109,8 @@ func TestCreateTransactions(t *testing.T) {
 
 				// verify both bills are transfer orders
 				for _, tx := range txs {
-					require.Equal(t, money.PayloadTypeTransfer, tx.PayloadType())
-					transferAttr := &money.TransferAttributes{}
+					require.Equal(t, money2.PayloadTypeTransfer, tx.PayloadType())
+					transferAttr := &money2.TransferAttributes{}
 					err := tx.UnmarshalAttributes(transferAttr)
 					require.NoError(t, err)
 					require.EqualValues(t, 5, transferAttr.TargetValue)
@@ -126,8 +126,8 @@ func TestCreateTransactions(t *testing.T) {
 				require.Len(t, txs, 1)
 
 				// verify transfer tx
-				require.Equal(t, money.PayloadTypeTransfer, txs[0].PayloadType())
-				transferAttr := &money.TransferAttributes{}
+				require.Equal(t, money2.PayloadTypeTransfer, txs[0].PayloadType())
+				transferAttr := &money2.TransferAttributes{}
 				err := txs[0].UnmarshalAttributes(transferAttr)
 				require.NoError(t, err)
 				require.EqualValues(t, 5, transferAttr.TargetValue)

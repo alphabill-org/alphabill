@@ -13,6 +13,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/alphabill-org/alphabill/txsystem"
+	money2 "github.com/alphabill-org/alphabill/txsystem/money"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/stretchr/testify/require"
 
@@ -22,8 +24,6 @@ import (
 	"github.com/alphabill-org/alphabill/validator/internal/predicates/templates"
 	"github.com/alphabill-org/alphabill/validator/internal/testutils/logger"
 	testpartition "github.com/alphabill-org/alphabill/validator/internal/testutils/partition"
-	"github.com/alphabill-org/alphabill/validator/internal/txsystem"
-	"github.com/alphabill-org/alphabill/validator/internal/txsystem/money"
 	"github.com/alphabill-org/alphabill/validator/internal/types"
 	"github.com/alphabill-org/alphabill/validator/internal/util"
 	"github.com/alphabill-org/alphabill/validator/pkg/wallet/account"
@@ -190,29 +190,29 @@ func TestSendingFailsWithInsufficientBalance(t *testing.T) {
 	require.ErrorContains(t, err, "insufficient balance for transaction")
 }
 
-func createMoneyPartition(t *testing.T, initialBill *money.InitialBill, nodeCount int) *testpartition.NodePartition {
+func createMoneyPartition(t *testing.T, initialBill *money2.InitialBill, nodeCount int) *testpartition.NodePartition {
 	moneyPart, err := testpartition.NewPartition(t, nodeCount, func(tb map[string]abcrypto.Verifier) txsystem.TransactionSystem {
-		system, err := money.NewTxSystem(
+		system, err := money2.NewTxSystem(
 			logger.New(t),
-			money.WithSystemIdentifier(money.DefaultSystemIdentifier),
-			money.WithHashAlgorithm(crypto.SHA256),
-			money.WithInitialBill(initialBill),
-			money.WithSystemDescriptionRecords([]*genesis.SystemDescriptionRecord{
+			money2.WithSystemIdentifier(money2.DefaultSystemIdentifier),
+			money2.WithHashAlgorithm(crypto.SHA256),
+			money2.WithInitialBill(initialBill),
+			money2.WithSystemDescriptionRecords([]*genesis.SystemDescriptionRecord{
 				{
-					SystemIdentifier: money.DefaultSystemIdentifier,
+					SystemIdentifier: money2.DefaultSystemIdentifier,
 					T2Timeout:        defaultT2Timeout,
 					FeeCreditBill: &genesis.FeeCreditBill{
-						UnitId:         money.NewBillID(nil, []byte{2}),
+						UnitId:         money2.NewBillID(nil, []byte{2}),
 						OwnerPredicate: templates.AlwaysTrueBytes(),
 					},
 				},
 			}),
-			money.WithDCMoneyAmount(10000),
-			money.WithTrustBase(tb),
+			money2.WithDCMoneyAmount(10000),
+			money2.WithTrustBase(tb),
 		)
 		require.NoError(t, err)
 		return system
-	}, money.DefaultSystemIdentifier)
+	}, money2.DefaultSystemIdentifier)
 	require.NoError(t, err)
 	return moneyPart
 }

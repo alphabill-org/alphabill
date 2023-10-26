@@ -8,10 +8,10 @@ import (
 	"math"
 	"testing"
 
+	ttxs "github.com/alphabill-org/alphabill/txsystem/tokens"
 	"github.com/stretchr/testify/require"
 
 	test "github.com/alphabill-org/alphabill/validator/internal/testutils"
-	ttxs "github.com/alphabill-org/alphabill/validator/internal/txsystem/tokens"
 	"github.com/alphabill-org/alphabill/validator/internal/types"
 	sdk "github.com/alphabill-org/alphabill/validator/pkg/wallet"
 	"github.com/alphabill-org/alphabill/validator/pkg/wallet/money/tx_builder"
@@ -90,14 +90,14 @@ func TestFungibleTokenDC(t *testing.T) {
 				unitID := tx.UnitID()
 				recordedTx[string(unitID)] = tx
 				switch tx.PayloadType() {
-				case ttxs.PayloadTypeBurnFungibleToken:
+				case tokens.PayloadTypeBurnFungibleToken:
 					tok := findToken(pubKey, unitID)
 					tok.Burned = true
 					burnedValues[string(pubKey)] += tok.Amount
 					removeToken(pubKey, unitID)
-				case ttxs.PayloadTypeJoinFungibleToken:
+				case tokens.PayloadTypeJoinFungibleToken:
 					tok := findToken(pubKey, unitID)
-					attrs := &ttxs.JoinFungibleTokenAttributes{}
+					attrs := &tokens.JoinFungibleTokenAttributes{}
 					require.NoError(t, tx.UnmarshalAttributes(attrs))
 					tok.Amount += burnedValues[string(pubKey)]
 					if bytes.Equal(pubKey1, pubKey) {

@@ -5,11 +5,11 @@ import (
 	"crypto"
 	"fmt"
 
+	tokens2 "github.com/alphabill-org/alphabill/txsystem/tokens"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/spf13/cobra"
 
 	"github.com/alphabill-org/alphabill/validator/internal/network/protocol/genesis"
-	"github.com/alphabill-org/alphabill/validator/internal/txsystem/tokens"
 	"github.com/alphabill-org/alphabill/validator/pkg/logger"
 )
 
@@ -71,11 +71,11 @@ func runTokensNode(ctx context.Context, cfg *tokensConfiguration) error {
 
 	log := cfg.Base.Logger.With(logger.NodeID(nodeID))
 
-	txs, err := tokens.NewTxSystem(
+	txs, err := tokens2.NewTxSystem(
 		log,
-		tokens.WithSystemIdentifier(pg.SystemDescriptionRecord.GetSystemIdentifier()),
-		tokens.WithHashAlgorithm(crypto.SHA256),
-		tokens.WithTrustBase(trustBase),
+		tokens2.WithSystemIdentifier(pg.SystemDescriptionRecord.GetSystemIdentifier()),
+		tokens2.WithHashAlgorithm(crypto.SHA256),
+		tokens2.WithTrustBase(trustBase),
 	)
 	if err != nil {
 		return fmt.Errorf("creating tx system: %w", err)

@@ -6,15 +6,15 @@ import (
 	"path/filepath"
 	"testing"
 
+	testutils2 "github.com/alphabill-org/alphabill/txsystem/fc/testutils"
+	"github.com/alphabill-org/alphabill/txsystem/fc/transactions"
+	"github.com/alphabill-org/alphabill/txsystem/money"
 	"github.com/stretchr/testify/require"
 
 	abcrypto "github.com/alphabill-org/alphabill/validator/internal/crypto"
 	"github.com/alphabill-org/alphabill/validator/internal/hash"
 	"github.com/alphabill-org/alphabill/validator/internal/testutils/logger"
 	testtransaction "github.com/alphabill-org/alphabill/validator/internal/testutils/transaction"
-	"github.com/alphabill-org/alphabill/validator/internal/txsystem/fc/testutils"
-	"github.com/alphabill-org/alphabill/validator/internal/txsystem/fc/transactions"
-	"github.com/alphabill-org/alphabill/validator/internal/txsystem/money"
 	"github.com/alphabill-org/alphabill/validator/internal/types"
 	"github.com/alphabill-org/alphabill/validator/pkg/wallet"
 	"github.com/alphabill-org/alphabill/validator/pkg/wallet/account"
@@ -198,7 +198,7 @@ func TestAddFeeCredit_LockedBillForTransferFC(t *testing.T) {
 	unitLocker := createUnitLocker(t)
 
 	transferFCRecord := &types.TransactionRecord{
-		TransactionOrder: testutils.NewTransferFC(t, nil),
+		TransactionOrder: testutils2.NewTransferFC(t, nil),
 		ServerMetadata:   &types.ServerMetadata{ActualFee: 1},
 	}
 	transferFCProof := &wallet.Proof{TxRecord: transferFCRecord, TxProof: &types.TxProof{}}
@@ -320,7 +320,7 @@ func TestAddFeeCredit_LockedBillForAddFC(t *testing.T) {
 	signer, _ := abcrypto.NewInMemorySecp256K1Signer()
 
 	addFCRecord := &types.TransactionRecord{
-		TransactionOrder: testutils.NewAddFC(t, signer, nil,
+		TransactionOrder: testutils2.NewAddFC(t, signer, nil,
 			testtransaction.WithClientMetadata(&types.ClientMetadata{Timeout: 5, MaxTransactionFee: 2})),
 		ServerMetadata: &types.ServerMetadata{ActualFee: 1},
 	}
@@ -492,7 +492,7 @@ func TestReclaimFeeCredit_LockedBillForCloseFC(t *testing.T) {
 	feeManager := newMoneyPartitionFeeManager(am, unitLocker, moneyTxPublisher, moneyBackendClient, logger.New(t))
 
 	closeFCRecord := &types.TransactionRecord{
-		TransactionOrder: testutils.NewCloseFC(t, nil),
+		TransactionOrder: testutils2.NewCloseFC(t, nil),
 		ServerMetadata:   &types.ServerMetadata{ActualFee: 1},
 	}
 	closeFCProof := &wallet.Proof{TxRecord: closeFCRecord, TxProof: &types.TxProof{}}
@@ -617,7 +617,7 @@ func TestReclaimFeeCredit_LockedBillForReclaimFC(t *testing.T) {
 	feeManager := newMoneyPartitionFeeManager(am, unitLocker, moneyTxPublisher, moneyBackendClient, logger.New(t))
 	signer, _ := abcrypto.NewInMemorySecp256K1Signer()
 
-	reclaimFCOrder := testutils.NewReclaimFC(t, signer, nil)
+	reclaimFCOrder := testutils2.NewReclaimFC(t, signer, nil)
 	reclaimFCRecord := &types.TransactionRecord{
 		TransactionOrder: reclaimFCOrder,
 		ServerMetadata:   &types.ServerMetadata{ActualFee: 1},

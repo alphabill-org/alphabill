@@ -7,12 +7,12 @@ import (
 	"slices"
 	"sort"
 
+	"github.com/alphabill-org/alphabill/txsystem/fc/transactions"
+	money2 "github.com/alphabill-org/alphabill/txsystem/money"
 	"github.com/alphabill-org/alphabill/validator/internal/predicates/templates"
 	"github.com/fxamacker/cbor/v2"
 
 	"github.com/alphabill-org/alphabill/validator/internal/crypto"
-	"github.com/alphabill-org/alphabill/validator/internal/txsystem/fc/transactions"
-	"github.com/alphabill-org/alphabill/validator/internal/txsystem/money"
 	"github.com/alphabill-org/alphabill/validator/internal/types"
 	"github.com/alphabill-org/alphabill/validator/pkg/wallet"
 	"github.com/alphabill-org/alphabill/validator/pkg/wallet/account"
@@ -54,7 +54,7 @@ func CreateTransaction(receiverPubKey []byte, k *account.AccountKey, amount uint
 	if b.Value <= amount {
 		return NewTransferTx(receiverPubKey, k, systemID, b, timeout, fcrID)
 	}
-	targetUnits := []*money.TargetUnit{
+	targetUnits := []*money2.TargetUnit{
 		{Amount: amount, OwnerCondition: templates.NewP2pkh256BytesFromKey(receiverPubKey)},
 	}
 	remainingValue := b.Value - amount
@@ -63,12 +63,12 @@ func CreateTransaction(receiverPubKey []byte, k *account.AccountKey, amount uint
 
 // NewTransferTx creates a P2PKH transfer transaction.
 func NewTransferTx(receiverPubKey []byte, k *account.AccountKey, systemID []byte, bill *wallet.Bill, timeout uint64, fcrID []byte) (*types.TransactionOrder, error) {
-	attr := &money.TransferAttributes{
+	attr := &money2.TransferAttributes{
 		NewBearer:   templates.NewP2pkh256BytesFromKey(receiverPubKey),
 		TargetValue: bill.Value,
 		Backlink:    bill.TxHash,
 	}
-	txPayload, err := newTxPayload(systemID, money.PayloadTypeTransfer, bill.GetID(), timeout, fcrID, attr)
+	txPayload, err := newTxPayload(systemID, money2.PayloadTypeTransfer, bill.GetID(), timeout, fcrID, attr)
 	if err != nil {
 		return nil, err
 	}
@@ -76,13 +76,13 @@ func NewTransferTx(receiverPubKey []byte, k *account.AccountKey, systemID []byte
 }
 
 // NewSplitTx creates a P2PKH split transaction.
-func NewSplitTx(targetUnits []*money.TargetUnit, remainingValue uint64, k *account.AccountKey, systemID []byte, bill *wallet.Bill, timeout uint64, fcrID []byte) (*types.TransactionOrder, error) {
-	attr := &money.SplitAttributes{
+func NewSplitTx(targetUnits []*money2.TargetUnit, remainingValue uint64, k *account.AccountKey, systemID []byte, bill *wallet.Bill, timeout uint64, fcrID []byte) (*types.TransactionOrder, error) {
+	attr := &money2.SplitAttributes{
 		TargetUnits:    targetUnits,
 		RemainingValue: remainingValue,
 		Backlink:       bill.TxHash,
 	}
-	txPayload, err := newTxPayload(systemID, money.PayloadTypeSplit, bill.GetID(), timeout, fcrID, attr)
+	txPayload, err := newTxPayload(systemID, money2.PayloadTypeSplit, bill.GetID(), timeout, fcrID, attr)
 	if err != nil {
 		return nil, err
 	}
@@ -90,13 +90,13 @@ func NewSplitTx(targetUnits []*money.TargetUnit, remainingValue uint64, k *accou
 }
 
 func NewDustTx(ac *account.AccountKey, systemID []byte, bill *wallet.Bill, targetBill *wallet.Bill, timeout uint64) (*types.TransactionOrder, error) {
-	attr := &money.TransferDCAttributes{
+	attr := &money2.TransferDCAttributes{
 		TargetUnitID:       targetBill.Id,
 		Value:              bill.Value,
 		TargetUnitBacklink: targetBill.TxHash,
 		Backlink:           bill.TxHash,
 	}
-	txPayload, err := newTxPayload(systemID, money.PayloadTypeTransDC, bill.GetID(), timeout, money.NewFeeCreditRecordID(nil, ac.PubKeyHash.Sha256), attr)
+	txPayload, err := newTxPayload(systemID, money2.PayloadTypeTransDC, bill.GetID(), timeout, money2.NewFeeCreditRecordID(nil, ac.PubKeyHash.Sha256), attr)
 	if err != nil {
 		return nil, err
 	}
@@ -117,19 +117,19 @@ func NewSwapTx(k *account.AccountKey, systemID []byte, dcProofs []*wallet.Proof,
 	for _, p := range dcProofs {
 		dustTransferRecords = append(dustTransferRecords, p.TxRecord)
 		dustTransferProofs = append(dustTransferProofs, p.TxProof)
-		var attr *money.TransferDCAttributes
+		var attr *money2.TransferDCAttributes
 		if err := p.TxRecord.TransactionOrder.UnmarshalAttributes(&attr); err != nil {
 			return nil, fmt.Errorf("failed to unmarshal dust transfer tx: %w", err)
 		}
 		billValueSum += attr.Value
 	}
-	attr := &money.SwapDCAttributes{
+	attr := &money2.SwapDCAttributes{
 		OwnerCondition:   templates.NewP2pkh256BytesFromKeyHash(k.PubKeyHash.Sha256),
 		DcTransfers:      dustTransferRecords,
 		DcTransferProofs: dustTransferProofs,
 		TargetValue:      billValueSum,
 	}
-	swapTx, err := newTxPayload(systemID, money.PayloadTypeSwapDC, targetUnitID, timeout, money.NewFeeCreditRecordID(nil, k.PubKeyHash.Sha256), attr)
+	swapTx, err := newTxPayload(systemID, money2.PayloadTypeSwapDC, targetUnitID, timeout, money2.NewFeeCreditRecordID(nil, k.PubKeyHash.Sha256), attr)
 	if err != nil {
 		return nil, fmt.Errorf("failed to build swap transaction: %w", err)
 	}

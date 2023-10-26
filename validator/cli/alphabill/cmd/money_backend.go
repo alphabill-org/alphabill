@@ -6,9 +6,9 @@ import (
 	"os"
 	"path/filepath"
 
+	money2 "github.com/alphabill-org/alphabill/txsystem/money"
 	"github.com/alphabill-org/alphabill/validator/internal/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/validator/internal/predicates/templates"
-	"github.com/alphabill-org/alphabill/validator/internal/txsystem/money"
 	"github.com/alphabill-org/alphabill/validator/internal/util"
 	"github.com/alphabill-org/alphabill/validator/pkg/wallet/money/backend"
 	"github.com/spf13/cobra"
@@ -91,7 +91,7 @@ func startMoneyBackendCmd(config *moneyBackendConfig) *cobra.Command {
 	cmd.Flags().Uint64Var(&config.InitialBillValue, "initial-bill-value", 100000000, "initial bill value (needed for initial startup only)")
 	cmd.Flags().Uint64Var(&config.InitialBillID, "initial-bill-id", 1, "initial bill id hex string with 0x prefix (needed for initial startup only)")
 	cmd.Flags().StringSliceVarP(&config.SDRFiles, "system-description-record-files", "c", nil, "path to SDR files (one for each partition, including money partition itself; defaults to single money partition only SDR; needed for initial startup only)")
-	cmd.Flags().BytesHexVar(&config.SystemID, systemIdentifierCmdName, money.DefaultSystemIdentifier, "system identifier in hex format")
+	cmd.Flags().BytesHexVar(&config.SystemID, systemIdentifierCmdName, money2.DefaultSystemIdentifier, "system identifier in hex format")
 	return cmd
 }
 
@@ -111,7 +111,7 @@ func execMoneyBackendStartCmd(ctx context.Context, config *moneyBackendConfig) e
 		DbFile:                  dbFile,
 		ListBillsPageLimit:      config.ListBillsPageLimit,
 		InitialBill: backend.InitialBill{
-			Id:        money.NewBillID(nil, util.Uint64ToBytes(config.InitialBillID)),
+			Id:        money2.NewBillID(nil, util.Uint64ToBytes(config.InitialBillID)),
 			Value:     config.InitialBillValue,
 			Predicate: templates.AlwaysTrueBytes(),
 		},

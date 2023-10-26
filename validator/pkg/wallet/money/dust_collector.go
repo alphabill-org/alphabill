@@ -10,7 +10,7 @@ import (
 	"sort"
 	"time"
 
-	"github.com/alphabill-org/alphabill/validator/internal/txsystem/money"
+	money2 "github.com/alphabill-org/alphabill/txsystem/money"
 	"github.com/alphabill-org/alphabill/validator/internal/types"
 	"github.com/alphabill-org/alphabill/validator/pkg/logger"
 	"github.com/alphabill-org/alphabill/validator/pkg/wallet"
@@ -80,7 +80,7 @@ func (w *DustCollector) runExistingDustCollection(ctx context.Context, accountKe
 
 	// verify locked unit not confirmed i.e. swap not already completed
 	for _, tx := range lockedTargetBill.Transactions {
-		if tx.TxOrder.PayloadType() == money.PayloadTypeSwapDC {
+		if tx.TxOrder.PayloadType() == money2.PayloadTypeSwapDC {
 			swapProof, err := w.backend.GetTxProof(ctx, tx.TxOrder.UnitID(), tx.TxHash)
 			if err != nil {
 				return nil, fmt.Errorf("failed to fetch proof: %w", err)
@@ -229,7 +229,7 @@ func (w *DustCollector) submitDCBatch(ctx context.Context, k *account.AccountKey
 	if err != nil {
 		return nil, err
 	}
-	fcb, err := w.backend.GetFeeCreditBill(ctx, money.NewFeeCreditRecordID(nil, k.PubKeyHash.Sha256))
+	fcb, err := w.backend.GetFeeCreditBill(ctx, money2.NewFeeCreditRecordID(nil, k.PubKeyHash.Sha256))
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch fee credit bill: %w", err)
 	}

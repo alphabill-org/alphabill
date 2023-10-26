@@ -7,13 +7,13 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/alphabill-org/alphabill/txsystem/fc/testutils"
+	tokens2 "github.com/alphabill-org/alphabill/txsystem/tokens"
 	"github.com/stretchr/testify/require"
 
 	abcrypto "github.com/alphabill-org/alphabill/validator/internal/crypto"
 	test "github.com/alphabill-org/alphabill/validator/internal/testutils"
 	"github.com/alphabill-org/alphabill/validator/internal/testutils/logger"
-	testfc "github.com/alphabill-org/alphabill/validator/internal/txsystem/fc/testutils"
-	"github.com/alphabill-org/alphabill/validator/internal/txsystem/tokens"
 	"github.com/alphabill-org/alphabill/validator/internal/types"
 	"github.com/alphabill-org/alphabill/validator/pkg/wallet"
 	"github.com/alphabill-org/alphabill/validator/pkg/wallet/broker"
@@ -84,14 +84,14 @@ func Test_blockProcessor_ProcessBlock(t *testing.T) {
 	})
 
 	t.Run("failure to process tx", func(t *testing.T) {
-		txs, err := tokens.NewTxSystem(
+		txs, err := tokens2.NewTxSystem(
 			logger,
-			tokens.WithTrustBase(map[string]abcrypto.Verifier{"test": nil}),
+			tokens2.WithTrustBase(map[string]abcrypto.Verifier{"test": nil}),
 		)
 		require.NoError(t, err)
 
-		createNTFTypeTx := randomTx(t, &tokens.CreateNonFungibleTokenTypeAttributes{Symbol: "test"})
-		createNTFTypeTx.Payload.Type = tokens.PayloadTypeCreateNFTType
+		createNTFTypeTx := randomTx(t, &tokens2.CreateNonFungibleTokenTypeAttributes{Symbol: "test"})
+		createNTFTypeTx.Payload.Type = tokens2.PayloadTypeCreateNFTType
 		expErr := fmt.Errorf("can't store tx")
 		bp := &blockProcessor{
 			log: logger,
@@ -133,21 +133,21 @@ func Test_blockProcessor_processTx(t *testing.T) {
 	t.Parallel()
 
 	logger := logger.NOP()
-	txs, err := tokens.NewTxSystem(
+	txs, err := tokens2.NewTxSystem(
 		logger,
-		tokens.WithTrustBase(map[string]abcrypto.Verifier{"test": nil}),
+		tokens2.WithTrustBase(map[string]abcrypto.Verifier{"test": nil}),
 	)
 	require.NoError(t, err)
 	require.NotNil(t, txs)
 
 	t.Run("token type transactions", func(t *testing.T) {
-		icon := &tokens.Icon{Type: "image/svg+xml; encoding=gzip", Data: []byte{1, 2, 3}}
+		icon := &tokens2.Icon{Type: "image/svg+xml; encoding=gzip", Data: []byte{1, 2, 3}}
 		cases := []struct {
 			txAttr interface{}
 			kind   Kind
 		}{
-			{txAttr: &tokens.CreateNonFungibleTokenTypeAttributes{Symbol: "test", Name: "long name of test", Icon: icon}, kind: NonFungible},
-			{txAttr: &tokens.CreateFungibleTokenTypeAttributes{Symbol: "test", Name: "long name of test", Icon: icon}, kind: Fungible},
+			{txAttr: &tokens2.CreateNonFungibleTokenTypeAttributes{Symbol: "test", Name: "long name of test", Icon: icon}, kind: NonFungible},
+			{txAttr: &tokens2.CreateFungibleTokenTypeAttributes{Symbol: "test", Name: "long name of test", Icon: icon}, kind: Fungible},
 		}
 
 		for n, tc := range cases {
@@ -180,7 +180,7 @@ func Test_blockProcessor_processTx(t *testing.T) {
 	})
 
 	t.Run("MintFungibleToken", func(t *testing.T) {
-		txAttr := &tokens.MintFungibleTokenAttributes{
+		txAttr := &tokens2.MintFungibleTokenAttributes{
 			Value:  42,
 			TypeID: test.RandomBytes(4),
 			Bearer: test.RandomBytes(4),
@@ -220,7 +220,7 @@ func Test_blockProcessor_processTx(t *testing.T) {
 	})
 
 	t.Run("MintNonFungibleToken", func(t *testing.T) {
-		txAttr := &tokens.MintNonFungibleTokenAttributes{
+		txAttr := &tokens2.MintNonFungibleTokenAttributes{
 			NFTTypeID: test.RandomBytes(4),
 			Bearer:    test.RandomBytes(4),
 		}
@@ -258,7 +258,7 @@ func Test_blockProcessor_processTx(t *testing.T) {
 	})
 
 	t.Run("TransferFungibleToken", func(t *testing.T) {
-		txAttr := &tokens.TransferFungibleTokenAttributes{
+		txAttr := &tokens2.TransferFungibleTokenAttributes{
 			Value:     50,
 			TypeID:    test.RandomBytes(4),
 			NewBearer: test.RandomBytes(4),
@@ -297,7 +297,7 @@ func Test_blockProcessor_processTx(t *testing.T) {
 	})
 
 	t.Run("TransferNonFungibleToken", func(t *testing.T) {
-		txAttr := &tokens.TransferNonFungibleTokenAttributes{
+		txAttr := &tokens2.TransferNonFungibleTokenAttributes{
 			NFTTypeID: test.RandomBytes(4),
 			NewBearer: test.RandomBytes(4),
 		}
@@ -334,7 +334,7 @@ func Test_blockProcessor_processTx(t *testing.T) {
 	})
 
 	t.Run("SplitFungibleToken", func(t *testing.T) {
-		txAttr := &tokens.SplitFungibleTokenAttributes{
+		txAttr := &tokens2.SplitFungibleTokenAttributes{
 			TargetValue:    42,
 			RemainingValue: 8,
 			TypeID:         test.RandomBytes(4),
@@ -343,7 +343,7 @@ func Test_blockProcessor_processTx(t *testing.T) {
 		owner := test.RandomBytes(4) // owner of the original token
 		saveTokenCalls, notifyCalls := 0, 0
 		tx := randomTx(t, txAttr)
-		tx.Payload.Type = tokens.PayloadTypeSplitFungibleToken
+		tx.Payload.Type = tokens2.PayloadTypeSplitFungibleToken
 		bp := &blockProcessor{
 			log: logger,
 			txs: txs,
@@ -392,11 +392,11 @@ func Test_blockProcessor_processTx(t *testing.T) {
 	t.Run("UpdateNonFungibleToken", func(t *testing.T) {
 		notifyCalls := 0
 		bearer := test.RandomBytes(4)
-		txAttr := &tokens.UpdateNonFungibleTokenAttributes{
+		txAttr := &tokens2.UpdateNonFungibleTokenAttributes{
 			Data: test.RandomBytes(4),
 		}
 		tx := randomTx(t, txAttr)
-		tx.Payload.Type = tokens.PayloadTypeUpdateNFT
+		tx.Payload.Type = tokens2.PayloadTypeUpdateNFT
 		bp := &blockProcessor{
 			log: logger,
 			txs: txs,
@@ -437,7 +437,7 @@ func Test_blockProcessor_ProcessFeeCreditTxs(t *testing.T) {
 	require.NoError(t, err)
 
 	// when addFC tx is processed
-	addFC := testfc.NewAddFC(t, signer, nil)
+	addFC := testutils.NewAddFC(t, signer, nil)
 	b := &types.Block{
 		UnicityCertificate: &types.UnicityCertificate{InputRecord: &types.InputRecord{RoundNumber: 4}},
 		Transactions:       []*types.TransactionRecord{{TransactionOrder: addFC, ServerMetadata: &types.ServerMetadata{ActualFee: 1}}},
@@ -455,8 +455,8 @@ func Test_blockProcessor_ProcessFeeCreditTxs(t *testing.T) {
 	require.Equal(t, expectedAddFCHash, fcb.LastAddFCTxHash)
 
 	// when closeFC tx is processed
-	closeFC := testfc.NewCloseFC(t,
-		testfc.NewCloseFCAttr(testfc.WithCloseFCAmount(10)),
+	closeFC := testutils.NewCloseFC(t,
+		testutils.NewCloseFCAttr(testutils.WithCloseFCAmount(10)),
 	)
 	closeFCTxRecord := &types.TransactionRecord{TransactionOrder: closeFC, ServerMetadata: &types.ServerMetadata{ActualFee: 1}}
 	b = &types.Block{
@@ -486,7 +486,7 @@ func createBlockProcessor(t *testing.T) *blockProcessor {
 	require.NoError(t, err)
 
 	log := logger.New(t)
-	txSystem, err := tokens.NewTxSystem(log, tokens.WithTrustBase(map[string]abcrypto.Verifier{"test": nil}))
+	txSystem, err := tokens2.NewTxSystem(log, tokens2.WithTrustBase(map[string]abcrypto.Verifier{"test": nil}))
 	require.NoError(t, err)
 
 	return &blockProcessor{log: log, txs: txSystem, store: db}
@@ -503,7 +503,7 @@ func getFeeCreditBillFunc(unitID types.UnitID) (*FeeCreditBill, error) {
 
 func verifySetFeeCreditBill(t *testing.T, fcb *FeeCreditBill) error {
 	// verify fee credit bill value is reduced by 1 on every tx
-	require.EqualValues(t, tokens.NewFeeCreditRecordID(nil, []byte{1}), fcb.Id)
+	require.EqualValues(t, tokens2.NewFeeCreditRecordID(nil, []byte{1}), fcb.Id)
 	require.EqualValues(t, 49, fcb.Value)
 	return nil
 }

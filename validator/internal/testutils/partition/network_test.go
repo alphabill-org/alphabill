@@ -3,11 +3,11 @@ package testpartition
 import (
 	"testing"
 
+	"github.com/alphabill-org/alphabill/txsystem"
 	"github.com/alphabill-org/alphabill/validator/internal/crypto"
 	test "github.com/alphabill-org/alphabill/validator/internal/testutils"
 	testtransaction "github.com/alphabill-org/alphabill/validator/internal/testutils/transaction"
 	testtxsystem "github.com/alphabill-org/alphabill/validator/internal/testutils/txsystem"
-	"github.com/alphabill-org/alphabill/validator/internal/txsystem"
 	"github.com/stretchr/testify/require"
 )
 

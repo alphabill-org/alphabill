@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"math/big"
 
+	evm2 "github.com/alphabill-org/alphabill/txsystem/evm"
+	"github.com/alphabill-org/alphabill/txsystem/evm/api"
 	"github.com/alphabill-org/alphabill/validator/internal/network/protocol/genesis"
-	"github.com/alphabill-org/alphabill/validator/internal/txsystem/evm"
-	"github.com/alphabill-org/alphabill/validator/internal/txsystem/evm/api"
 	"github.com/alphabill-org/alphabill/validator/pkg/logger"
 	"github.com/fxamacker/cbor/v2"
 	"github.com/libp2p/go-libp2p/core/peer"
@@ -85,13 +85,13 @@ func runEvmNode(ctx context.Context, cfg *evmConfiguration) error {
 	log := cfg.Base.Logger.With(logger.NodeID(nodeID))
 
 	systemIdentifier := pg.SystemDescriptionRecord.GetSystemIdentifier()
-	txs, err := evm.NewEVMTxSystem(
+	txs, err := evm2.NewEVMTxSystem(
 		systemIdentifier,
 		log,
-		evm.WithBlockGasLimit(params.BlockGasLimit),
-		evm.WithGasPrice(params.GasUnitPrice),
-		evm.WithBlockDB(blockStore),
-		evm.WithTrustBase(trustBase),
+		evm2.WithBlockGasLimit(params.BlockGasLimit),
+		evm2.WithGasPrice(params.GasUnitPrice),
+		evm2.WithBlockDB(blockStore),
+		evm2.WithTrustBase(trustBase),
 	)
 	if err != nil {
 		return fmt.Errorf("evm transaction system init failed: %w", err)

@@ -48,7 +48,7 @@ func TestIRChangeReqMsg_IsValid(t *testing.T) {
 			name: "IR change req. invalid cert reason",
 			fields: fields{
 				SystemIdentifier: types.SystemID32(1),
-				CertReason:       -2,
+				CertReason:       20,
 				Requests: []*certification.BlockCertificationRequest{
 					{
 						SystemIdentifier: []byte{0, 0, 0, 2},

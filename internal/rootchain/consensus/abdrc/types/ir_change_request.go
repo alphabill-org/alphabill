@@ -19,7 +19,7 @@ const (
 	T2Timeout
 )
 
-type IRChangeReason int
+type IRChangeReason uint8
 
 type IRChangeReq struct {
 	_                struct{}         `cbor:",toarray"`
@@ -53,7 +53,7 @@ func getMaxHashCount(hashCnt map[string]uint64) uint64 {
 
 func (x *IRChangeReq) IsValid() error {
 	// ignore other values for now, just make sure it is not negative
-	if x.CertReason < 0 || x.CertReason > T2Timeout {
+	if x.CertReason > T2Timeout {
 		return fmt.Errorf("unknown reason %d", x.CertReason)
 	}
 	return nil

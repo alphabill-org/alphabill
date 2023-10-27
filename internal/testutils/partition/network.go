@@ -227,8 +227,13 @@ func (r *RootPartition) start(ctx context.Context) error {
 	}
 	// start root nodes
 	for i, rn := range r.Nodes {
-		log := r.log.With(logger.NodeID(rootPeers[i].ID()))
-		rootNet, err := network.NewLibP2PRootChainNetwork(rootPeers[i], 100, 300*time.Millisecond, log)
+		rootPeer := rootPeers[i]
+		log := r.log.With(logger.NodeID(rootPeer.ID()))
+		// this is a unit test set-up pre-populate store with addresses, create separate test for node discovery
+		for _, rn := range r.Nodes {
+			rootPeer.Network().Peerstore().AddAddr(rn.id, rn.addr, peerstore.PermanentAddrTTL)
+		}
+		rootNet, err := network.NewLibP2PRootChainNetwork(rootPeer, 100, 300*time.Millisecond, log)
 		if err != nil {
 			return fmt.Errorf("failed to init root and partition nodes network, %w", err)
 		}
@@ -237,25 +242,21 @@ func (r *RootPartition) start(ctx context.Context) error {
 		if err != nil {
 			return fmt.Errorf("failed to create partition store form root genesis, %w", err)
 		}
-		rootConsensusNet, err := network.NewLibP2RootConsensusNetwork(rootPeers[i], 100, 300*time.Millisecond, log)
+		rootConsensusNet, err := network.NewLibP2RootConsensusNetwork(rootPeer, 100, 300*time.Millisecond, log)
 		if err != nil {
 			return fmt.Errorf("failed to init consensus network, %w", err)
 		}
-		// this is a unit test set-up pre-populate store with addresses, create separate test for node discovery
-		for _, rn := range r.Nodes {
-			rootPeers[i].Network().Peerstore().AddAddr(rn.id, rn.addr, peerstore.PermanentAddrTTL)
-		}
-		cm, err := abdrc.NewDistributedAbConsensusManager(rootPeers[i].ID(), r.rcGenesis, partitionStore, rootConsensusNet, rn.RootSigner, log)
+		cm, err := abdrc.NewDistributedAbConsensusManager(rootPeer.ID(), r.rcGenesis, partitionStore, rootConsensusNet, rn.RootSigner, log)
 		if err != nil {
 			return fmt.Errorf("consensus manager initialization failed, %w", err)
 		}
-		rootchainNode, err := rootchain.New(rootPeers[i], rootNet, partitionStore, cm, log)
+		rootchainNode, err := rootchain.New(rootPeer, rootNet, partitionStore, cm, log)
 		if err != nil {
 			return fmt.Errorf("failed to create root node, %w", err)
 		}
 		rn.Node = rootchainNode
 		rn.addr = rootPeers[i].MultiAddresses()[0]
-		rn.id = rootPeers[i].ID()
+		rn.id = rootPeer.ID()
 		// start root node
 		nctx, ncfn := context.WithCancel(ctx)
 		rn.cancel = ncfn

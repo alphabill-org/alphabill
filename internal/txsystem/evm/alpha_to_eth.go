@@ -6,7 +6,7 @@ import (
 	"math/big"
 
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
-	"github.com/alphabill-org/alphabill/internal/script"
+	"github.com/alphabill-org/alphabill/internal/predicates/templates"
 	"github.com/ethereum/go-ethereum/common"
 	ethcrypto "github.com/ethereum/go-ethereum/crypto"
 )
@@ -30,7 +30,7 @@ func generateAddress(pubKeyBytes []byte) (common.Address, error) {
 }
 
 func getAddressFromPredicateArg(predArg []byte) (common.Address, error) {
-	pubKey, err := script.ExtractPubKeyFromPredicateArgument(predArg)
+	pubKey, err := templates.ExtractPubKey(predArg)
 	if err != nil {
 		return common.Address{}, fmt.Errorf("failed to extract public key from fee credit owner proof, %w", err)
 	}

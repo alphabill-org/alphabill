@@ -15,9 +15,9 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
+	"github.com/alphabill-org/alphabill/internal/predicates/templates"
 	rootgenesis "github.com/alphabill-org/alphabill/internal/rootchain/genesis"
 	"github.com/alphabill-org/alphabill/internal/rpc/alphabill"
-	"github.com/alphabill-org/alphabill/internal/script"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/alphabill-org/alphabill/internal/testutils/logger"
 	"github.com/alphabill-org/alphabill/internal/testutils/net"
@@ -89,10 +89,10 @@ func TestRunTokensNode(t *testing.T) {
 		attr := &tokens.CreateNonFungibleTokenTypeAttributes{
 			Symbol:                   "Test",
 			ParentTypeID:             []byte{0},
-			SubTypeCreationPredicate: script.PredicateAlwaysTrue(),
-			TokenCreationPredicate:   script.PredicateAlwaysTrue(),
-			InvariantPredicate:       script.PredicateAlwaysTrue(),
-			DataUpdatePredicate:      script.PredicateAlwaysTrue(),
+			SubTypeCreationPredicate: templates.AlwaysTrueBytes(),
+			TokenCreationPredicate:   templates.AlwaysTrueBytes(),
+			InvariantPredicate:       templates.AlwaysTrueBytes(),
+			DataUpdatePredicate:      templates.AlwaysTrueBytes(),
 		}
 		attrBytes, _ := cbor.Marshal(attr)
 		tx := &types.TransactionOrder{

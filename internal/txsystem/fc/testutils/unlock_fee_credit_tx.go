@@ -5,7 +5,6 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/alphabill-org/alphabill/internal/script"
 	testtransaction "github.com/alphabill-org/alphabill/internal/testutils/transaction"
 	"github.com/alphabill-org/alphabill/internal/txsystem/fc/transactions"
 	"github.com/alphabill-org/alphabill/internal/types"
@@ -25,7 +24,7 @@ func NewUnlockFC(t *testing.T, attr *transactions.UnlockFeeCreditAttributes, opt
 			Timeout:           timeout,
 			MaxTransactionFee: maxFee,
 		}),
-		testtransaction.WithOwnerProof(script.PredicateArgumentEmpty()),
+		testtransaction.WithOwnerProof(nil),
 	)
 	for _, opt := range opts {
 		require.NoError(t, opt(tx))

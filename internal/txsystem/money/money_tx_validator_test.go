@@ -6,10 +6,10 @@ import (
 	"math"
 	"testing"
 
+	"github.com/alphabill-org/alphabill/internal/predicates/templates"
 	"github.com/stretchr/testify/require"
 
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
-	"github.com/alphabill-org/alphabill/internal/script"
 	"github.com/alphabill-org/alphabill/internal/state"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	testblock "github.com/alphabill-org/alphabill/internal/testutils/block"
@@ -136,7 +136,7 @@ func TestSplit(t *testing.T) {
 			bd:   newBillData(100, []byte{6}),
 			attr: &SplitAttributes{
 				TargetUnits: []*TargetUnit{
-					{Amount: 50, OwnerCondition: script.PredicateAlwaysTrue()},
+					{Amount: 50, OwnerCondition: templates.AlwaysTrueBytes()},
 				},
 				RemainingValue: 50,
 				Backlink:       []byte{6},
@@ -147,8 +147,8 @@ func TestSplit(t *testing.T) {
 			bd:   newBillData(100, []byte{6}),
 			attr: &SplitAttributes{
 				TargetUnits: []*TargetUnit{
-					{Amount: 10, OwnerCondition: script.PredicateAlwaysTrue()},
-					{Amount: 10, OwnerCondition: script.PredicateAlwaysTrue()},
+					{Amount: 10, OwnerCondition: templates.AlwaysTrueBytes()},
+					{Amount: 10, OwnerCondition: templates.AlwaysTrueBytes()},
 				},
 				RemainingValue: 80,
 				Backlink:       []byte{6},
@@ -159,7 +159,7 @@ func TestSplit(t *testing.T) {
 			bd:   &BillData{Locked: 1, V: 100, Backlink: []byte{6}},
 			attr: &SplitAttributes{
 				TargetUnits: []*TargetUnit{
-					{Amount: 50, OwnerCondition: script.PredicateAlwaysTrue()},
+					{Amount: 50, OwnerCondition: templates.AlwaysTrueBytes()},
 				},
 				RemainingValue: 50,
 				Backlink:       []byte{6},
@@ -171,7 +171,7 @@ func TestSplit(t *testing.T) {
 			bd:   newBillData(100, []byte{6}),
 			attr: &SplitAttributes{
 				TargetUnits: []*TargetUnit{
-					{Amount: 50, OwnerCondition: script.PredicateAlwaysTrue()},
+					{Amount: 50, OwnerCondition: templates.AlwaysTrueBytes()},
 				},
 				RemainingValue: 50,
 				Backlink:       []byte{5},
@@ -203,7 +203,7 @@ func TestSplit(t *testing.T) {
 			bd:   newBillData(100, []byte{6}),
 			attr: &SplitAttributes{
 				TargetUnits: []*TargetUnit{
-					{Amount: 0, OwnerCondition: script.PredicateAlwaysTrue()},
+					{Amount: 0, OwnerCondition: templates.AlwaysTrueBytes()},
 				},
 				RemainingValue: 100,
 				Backlink:       []byte{6},
@@ -227,8 +227,8 @@ func TestSplit(t *testing.T) {
 			bd:   newBillData(100, []byte{6}),
 			attr: &SplitAttributes{
 				TargetUnits: []*TargetUnit{
-					{Amount: math.MaxUint64, OwnerCondition: script.PredicateAlwaysTrue()},
-					{Amount: 1, OwnerCondition: script.PredicateAlwaysTrue()},
+					{Amount: math.MaxUint64, OwnerCondition: templates.AlwaysTrueBytes()},
+					{Amount: 1, OwnerCondition: templates.AlwaysTrueBytes()},
 				},
 				RemainingValue: 100,
 				Backlink:       []byte{6},
@@ -240,7 +240,7 @@ func TestSplit(t *testing.T) {
 			bd:   newBillData(100, []byte{6}),
 			attr: &SplitAttributes{
 				TargetUnits: []*TargetUnit{
-					{Amount: 50, OwnerCondition: script.PredicateAlwaysTrue()},
+					{Amount: 50, OwnerCondition: templates.AlwaysTrueBytes()},
 				},
 				RemainingValue: 0,
 				Backlink:       []byte{6},
@@ -252,8 +252,8 @@ func TestSplit(t *testing.T) {
 			bd:   newBillData(100, []byte{6}),
 			attr: &SplitAttributes{
 				TargetUnits: []*TargetUnit{
-					{Amount: 10, OwnerCondition: script.PredicateAlwaysTrue()},
-					{Amount: 10, OwnerCondition: script.PredicateAlwaysTrue()},
+					{Amount: 10, OwnerCondition: templates.AlwaysTrueBytes()},
+					{Amount: 10, OwnerCondition: templates.AlwaysTrueBytes()},
 				},
 				RemainingValue: 79,
 				Backlink:       []byte{6},
@@ -265,8 +265,8 @@ func TestSplit(t *testing.T) {
 			bd:   newBillData(100, []byte{6}),
 			attr: &SplitAttributes{
 				TargetUnits: []*TargetUnit{
-					{Amount: 10, OwnerCondition: script.PredicateAlwaysTrue()},
-					{Amount: 10, OwnerCondition: script.PredicateAlwaysTrue()},
+					{Amount: 10, OwnerCondition: templates.AlwaysTrueBytes()},
+					{Amount: 10, OwnerCondition: templates.AlwaysTrueBytes()},
 				},
 				RemainingValue: 81,
 				Backlink:       []byte{6},
@@ -710,7 +710,7 @@ func newInvalidTargetValueSwap(t *testing.T) *types.TransactionOrder {
 		testtransaction.WithPayloadType(PayloadTypeSwapDC),
 		testtransaction.WithUnitId(swapId),
 		testtransaction.WithAttributes(&SwapDCAttributes{
-			OwnerCondition:   script.PredicateAlwaysTrue(),
+			OwnerCondition:   templates.AlwaysTrueBytes(),
 			DcTransfers:      []*types.TransactionRecord{transferDCRecord},
 			DcTransferProofs: []*types.TxProof{nil},
 			TargetValue:      100,
@@ -720,7 +720,7 @@ func newInvalidTargetValueSwap(t *testing.T) *types.TransactionOrder {
 			MaxTransactionFee: 10,
 			FeeCreditRecordID: []byte{0},
 		}),
-		testtransaction.WithOwnerProof(script.PredicateArgumentEmpty()),
+		testtransaction.WithOwnerProof(nil),
 	)
 }
 
@@ -739,7 +739,7 @@ func newInvalidTargetUnitIDSwap(t *testing.T, signer abcrypto.Signer) *types.Tra
 		testtransaction.WithPayloadType(PayloadTypeSwapDC),
 		testtransaction.WithUnitId(swapId),
 		testtransaction.WithAttributes(&SwapDCAttributes{
-			OwnerCondition:   script.PredicateAlwaysTrue(),
+			OwnerCondition:   templates.AlwaysTrueBytes(),
 			DcTransfers:      []*types.TransactionRecord{transferDCRecord},
 			DcTransferProofs: []*types.TxProof{testblock.CreateProof(t, transferDCRecord, signer)},
 			TargetValue:      100,
@@ -749,7 +749,7 @@ func newInvalidTargetUnitIDSwap(t *testing.T, signer abcrypto.Signer) *types.Tra
 			MaxTransactionFee: 10,
 			FeeCreditRecordID: []byte{0},
 		}),
-		testtransaction.WithOwnerProof(script.PredicateArgumentEmpty()),
+		testtransaction.WithOwnerProof(nil),
 	)
 }
 
@@ -787,7 +787,7 @@ func newDescBillOrderSwap(t *testing.T, signer abcrypto.Signer) *types.Transacti
 		testtransaction.WithPayloadType(PayloadTypeSwapDC),
 		testtransaction.WithUnitId(swapId),
 		testtransaction.WithAttributes(&SwapDCAttributes{
-			OwnerCondition:   script.PredicateAlwaysTrue(),
+			OwnerCondition:   templates.AlwaysTrueBytes(),
 			DcTransfers:      dcTransfers,
 			DcTransferProofs: proofs,
 			TargetValue:      200,
@@ -797,7 +797,7 @@ func newDescBillOrderSwap(t *testing.T, signer abcrypto.Signer) *types.Transacti
 			MaxTransactionFee: 10,
 			FeeCreditRecordID: []byte{0},
 		}),
-		testtransaction.WithOwnerProof(script.PredicateArgumentEmpty()),
+		testtransaction.WithOwnerProof(nil),
 	)
 }
 
@@ -823,7 +823,7 @@ func newEqualBillIdsSwap(t *testing.T, signer abcrypto.Signer) *types.Transactio
 		testtransaction.WithPayloadType(PayloadTypeSwapDC),
 		testtransaction.WithUnitId(swapId),
 		testtransaction.WithAttributes(&SwapDCAttributes{
-			OwnerCondition:   script.PredicateAlwaysTrue(),
+			OwnerCondition:   templates.AlwaysTrueBytes(),
 			DcTransfers:      dcTransfers,
 			DcTransferProofs: proofs,
 			TargetValue:      200,
@@ -833,7 +833,7 @@ func newEqualBillIdsSwap(t *testing.T, signer abcrypto.Signer) *types.Transactio
 			MaxTransactionFee: 10,
 			FeeCreditRecordID: []byte{0},
 		}),
-		testtransaction.WithOwnerProof(script.PredicateArgumentEmpty()),
+		testtransaction.WithOwnerProof(nil),
 	)
 }
 
@@ -875,7 +875,7 @@ func newDcProofsNilSwap(t *testing.T) *types.TransactionOrder {
 		testtransaction.WithPayloadType(PayloadTypeSwapDC),
 		testtransaction.WithUnitId(swapId),
 		testtransaction.WithAttributes(&SwapDCAttributes{
-			OwnerCondition:   script.PredicateAlwaysTrue(),
+			OwnerCondition:   templates.AlwaysTrueBytes(),
 			DcTransfers:      []*types.TransactionRecord{transferDCRecord},
 			DcTransferProofs: nil,
 			TargetValue:      100,
@@ -885,7 +885,7 @@ func newDcProofsNilSwap(t *testing.T) *types.TransactionOrder {
 			MaxTransactionFee: 10,
 			FeeCreditRecordID: []byte{0},
 		}),
-		testtransaction.WithOwnerProof(script.PredicateArgumentEmpty()),
+		testtransaction.WithOwnerProof(nil),
 	)
 }
 
@@ -903,7 +903,7 @@ func newEmptyDcProofsSwap(t *testing.T) *types.TransactionOrder {
 		testtransaction.WithPayloadType(PayloadTypeSwapDC),
 		testtransaction.WithUnitId(swapId),
 		testtransaction.WithAttributes(&SwapDCAttributes{
-			OwnerCondition:   script.PredicateAlwaysTrue(),
+			OwnerCondition:   templates.AlwaysTrueBytes(),
 			DcTransfers:      []*types.TransactionRecord{transferDCRecord},
 			DcTransferProofs: []*types.TxProof{{BlockHeaderHash: []byte{0}}},
 			TargetValue:      100,
@@ -913,7 +913,7 @@ func newEmptyDcProofsSwap(t *testing.T) *types.TransactionOrder {
 			MaxTransactionFee: 10,
 			FeeCreditRecordID: []byte{0},
 		}),
-		testtransaction.WithOwnerProof(script.PredicateArgumentEmpty()),
+		testtransaction.WithOwnerProof(nil),
 	)
 }
 
@@ -944,7 +944,7 @@ func createSwapDCTransactionOrder(t *testing.T, signer abcrypto.Signer, swapId [
 		testtransaction.WithPayloadType(PayloadTypeSwapDC),
 		testtransaction.WithUnitId(swapId),
 		testtransaction.WithAttributes(&SwapDCAttributes{
-			OwnerCondition:   script.PredicateAlwaysTrue(),
+			OwnerCondition:   templates.AlwaysTrueBytes(),
 			DcTransfers:      transferDCRecords,
 			DcTransferProofs: proofs,
 			TargetValue:      100,
@@ -954,7 +954,7 @@ func createSwapDCTransactionOrder(t *testing.T, signer abcrypto.Signer, swapId [
 			MaxTransactionFee: 10,
 			FeeCreditRecordID: []byte{0},
 		}),
-		testtransaction.WithOwnerProof(script.PredicateArgumentEmpty()),
+		testtransaction.WithOwnerProof(nil),
 	)
 }
 

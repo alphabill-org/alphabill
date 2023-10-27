@@ -4,7 +4,7 @@ import (
 	"hash"
 	"testing"
 
-	"github.com/alphabill-org/alphabill/internal/script"
+	"github.com/alphabill-org/alphabill/internal/predicates/templates"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/alphabill-org/alphabill/internal/types"
 	"github.com/alphabill-org/alphabill/internal/util"
@@ -125,9 +125,9 @@ func (p *pruneUnitData) Copy() UnitData {
 func createStateWithUnits(t *testing.T) (*State, []byte) {
 	s := NewEmptyState()
 	require.NoError(t, s.Apply(
-		AddUnit(unitID1, script.PredicateAlwaysTrue(), &pruneUnitData{i: 1}),
-		AddUnit(unitID2, script.PredicateAlwaysTrue(), &pruneUnitData{i: 2}),
-		AddUnit(unitID3, script.PredicateAlwaysTrue(), &pruneUnitData{i: 3}),
+		AddUnit(unitID1, templates.AlwaysTrueBytes(), &pruneUnitData{i: 1}),
+		AddUnit(unitID2, templates.AlwaysTrueBytes(), &pruneUnitData{i: 2}),
+		AddUnit(unitID3, templates.AlwaysTrueBytes(), &pruneUnitData{i: 3}),
 	))
 
 	for _, id := range units {

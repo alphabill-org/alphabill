@@ -9,7 +9,7 @@ import (
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/stretchr/testify/require"
 
-	"github.com/alphabill-org/alphabill/internal/script"
+	"github.com/alphabill-org/alphabill/internal/predicates/templates"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/alphabill-org/alphabill/internal/testutils/logger"
 	testpartition "github.com/alphabill-org/alphabill/internal/testutils/partition"
@@ -35,7 +35,7 @@ func TestSendingMoneyUsingWallets_integration(t *testing.T) {
 	initialBill := &moneytx.InitialBill{
 		ID:    defaultInitialBillID,
 		Value: 1e18,
-		Owner: script.PredicateAlwaysTrue(),
+		Owner: templates.AlwaysTrueBytes(),
 	}
 	moneyPartition := createMoneyPartition(t, initialBill, 1)
 	logF := logger.LoggerBuilder(t)

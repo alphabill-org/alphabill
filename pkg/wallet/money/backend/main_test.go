@@ -6,13 +6,13 @@ import (
 	"testing"
 	"time"
 
+	"github.com/alphabill-org/alphabill/internal/predicates/templates"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/fxamacker/cbor/v2"
 	"github.com/stretchr/testify/require"
 
 	"github.com/alphabill-org/alphabill/internal/hash"
 	"github.com/alphabill-org/alphabill/internal/rpc/alphabill"
-	"github.com/alphabill-org/alphabill/internal/script"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/alphabill-org/alphabill/internal/testutils/logger"
 	testtransaction "github.com/alphabill-org/alphabill/internal/testutils/transaction"
@@ -26,8 +26,8 @@ func TestWalletBackend_BillsCanBeIndexedByPredicates(t *testing.T) {
 	billId2 := newBillID(2)
 	pubkey1, _ := hexutil.Decode("0x03c30573dc0c7fd43fcb801289a6a96cb78c27f4ba398b89da91ece23e9a99aca3")
 	pubkey2, _ := hexutil.Decode("0x02c30573dc0c7fd43fcb801289a6a96cb78c27f4ba398b89da91ece23e9a99aca3")
-	bearer1 := script.PredicatePayToPublicKeyHashDefault(hash.Sum256(pubkey1))
-	bearer2 := script.PredicatePayToPublicKeyHashDefault(hash.Sum256(pubkey2))
+	bearer1 := templates.NewP2pkh256BytesFromKeyHash(hash.Sum256(pubkey1))
+	bearer2 := templates.NewP2pkh256BytesFromKeyHash(hash.Sum256(pubkey2))
 	fcbID := newFeeCreditRecordID(101)
 	fcb := &Bill{Id: fcbID, Value: 100}
 
@@ -131,7 +131,7 @@ func TestWalletBackend_BillsCanBeIndexedByPredicates(t *testing.T) {
 func TestGetBills_OK(t *testing.T) {
 	txValue := uint64(100)
 	pubkey := make([]byte, 32)
-	bearer := script.PredicatePayToPublicKeyHashDefault(hash.Sum256(pubkey))
+	bearer := templates.NewP2pkh256BytesFromKeyHash(hash.Sum256(pubkey))
 	tx := testtransaction.NewTransactionOrder(t, testtransaction.WithAttributes(&moneytx.TransferAttributes{
 		TargetValue: txValue,
 		NewBearer:   bearer,
@@ -167,62 +167,29 @@ func TestGetBills_OK(t *testing.T) {
 	require.Nil(t, nextKey)
 }
 
-func TestGetBills_SHA512_OK(t *testing.T) {
-	pubkey := test.RandomBytes(32)
-	bearer := script.PredicatePayToPublicKeyHash(script.HashAlgSha512, hash.Sum512(pubkey), script.SigSchemeSecp256k1)
-	store := createTestBillStore(t)
-
-	// add sha512 owner condition bill to service
-	service := &WalletBackend{store: store}
-	b := &Bill{
-		Id:             []byte{1},
-		Value:          100,
-		OwnerPredicate: bearer,
-	}
-	err := store.Do().SetBill(b, nil)
-	require.NoError(t, err)
-
-	// verify bill can be queried by pubkey
-	bills, nextKey, err := service.GetBills(pubkey, true, nil, 100)
-	require.NoError(t, err)
-	require.Len(t, bills, 1)
-	require.Equal(t, b, bills[0])
-	require.Nil(t, nextKey)
-}
-
 func TestGetBills_Paging(t *testing.T) {
 	pubkey := test.RandomBytes(32)
-	bearerSHA256 := script.PredicatePayToPublicKeyHashDefault(hash.Sum256(pubkey))
-	bearerSHA512 := script.PredicatePayToPublicKeyHash(script.HashAlgSha512, hash.Sum512(pubkey), script.SigSchemeSecp256k1)
+	bearerSHA256 := templates.NewP2pkh256BytesFromKeyHash(hash.Sum256(pubkey))
 	store := createTestBillStore(t)
 	service := &WalletBackend{store: store}
 
-	// add 10 sha256 bills
+	// add sha256 bills
+	var billsCount = 20
 	var billsSHA256 []*Bill
-	for i := byte(0); i < 10; i++ {
-		b := newBillWithValueAndOwner(i, bearerSHA256)
+	for i := 0; i < billsCount; i++ {
+		b := newBillWithValueAndOwner(byte(i), bearerSHA256)
 		billsSHA256 = append(billsSHA256, b)
-		err := store.Do().SetBill(b, nil)
-		require.NoError(t, err)
-	}
-
-	// add 10 sha512 bills
-	var billsSHA512 []*Bill
-	for i := byte(10); i < 20; i++ {
-		b := newBillWithValueAndOwner(i, bearerSHA512)
-		billsSHA512 = append(billsSHA512, b)
 		err := store.Do().SetBill(b, nil)
 		require.NoError(t, err)
 	}
 
 	var allBills []*Bill
 	allBills = append(allBills, billsSHA256...)
-	allBills = append(allBills, billsSHA512...)
 
 	// verify all bills can be queried by pubkey
 	bills, nextKey, err := service.GetBills(pubkey, true, nil, 100)
 	require.NoError(t, err)
-	require.Len(t, bills, 20)
+	require.Len(t, bills, billsCount)
 	require.Equal(t, allBills, bills)
 	require.Nil(t, nextKey)
 
@@ -233,20 +200,21 @@ func TestGetBills_Paging(t *testing.T) {
 	require.Equal(t, billsSHA256[:5], bills)
 	require.Equal(t, billsSHA256[5].Id, nextKey)
 
-	// verify sha256 bills equal to limit; return next sha512 key
+	// verify sha256 bills equal to limit; return next key
 	bills, nextKey, err = service.GetBills(pubkey, true, nil, 10)
 	require.NoError(t, err)
 	require.Len(t, bills, 10)
-	require.Equal(t, billsSHA256, bills)
-	require.Equal(t, billsSHA512[0].Id, nextKey)
+	require.Equal(t, billsSHA256[0:10], bills)
+	require.NotEmptyf(t, nextKey, "nextKey should not be empty")
+	require.Equal(t, allBills[10].Id, nextKey)
 
-	// verify limit exceeds sha256 bills; return all sha256 bills and some sha512 bills
-	bills, nextKey, err = service.GetBills(pubkey, true, nil, 15)
+	// verify limit exceeds sha256 bills; return all sha256 bills
+	bills, nextKey, err = service.GetBills(pubkey, true, nil, 25)
 	require.NoError(t, err)
-	require.Len(t, bills, 15)
+	require.Len(t, bills, billsCount)
 	require.Equal(t, allBills[0:10], bills[0:10])
 	require.Equal(t, allBills[10:15], bills[10:15])
-	require.Equal(t, allBills[15].Id, nextKey)
+	require.Nil(t, nextKey)
 
 	// verify limit equals exact bill count; return all bills and nextKey is nil
 	bills, nextKey, err = service.GetBills(pubkey, true, nil, 20)
@@ -260,17 +228,7 @@ func TestGetBills_Paging(t *testing.T) {
 func Test_extractOwnerFromProof(t *testing.T) {
 	sig := test.RandomBytes(65)
 	pubkey := test.RandomBytes(33)
-	predicate := script.PredicateArgumentPayToPublicKeyHashDefault(sig, pubkey)
+	predicate := templates.NewP2pkh256SignatureBytes(sig, pubkey)
 	owner := extractOwnerKeyFromProof(predicate)
 	require.EqualValues(t, pubkey, owner)
-	k1 := "0x535401099C0E835B9C9B62CA5E321E796D445DDBD80626BA600EBBCF3C647D7FBD2FFE2758ACC7476B38783365B7274A385EFC7CFFC3EB63A696928EBDBD4D5516078F00550103D8242EE6544CC1F98EA8B8E572D089A95917800A37E3207A725DECDAD6002E52"
-	k2 := "0x535401090300B7CDC7F75A9E51998EA5C52A7014979BAD2205C8DD0552BF16C4F273E0723CD87CD6C4C8AEF33E7B659EE8FD897D6E8A1CEB89E8E4C2C94ACEB2FEF7CF00550102E2CF1D2C5E0CD7EFD27DBA8B21225E6866B185E97E8A415ACC6FC9CB57743B3A"
-	k1bytes, err := hexutil.Decode(k1)
-	require.NoError(t, err)
-	k2bytes, err := hexutil.Decode(k2)
-	require.NoError(t, err)
-	owner1 := extractOwnerKeyFromProof(k1bytes)
-	require.NotNil(t, owner1)
-	owner2 := extractOwnerKeyFromProof(k2bytes)
-	require.NotNil(t, owner2)
 }

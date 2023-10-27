@@ -18,6 +18,8 @@ const (
 	PayloadTypeSplitFungibleToken      = "splitFToken"
 	PayloadTypeBurnFungibleToken       = "burnFToken"
 	PayloadTypeJoinFungibleToken       = "joinFToken"
+	PayloadTypeLockToken               = "lockToken"
+	PayloadTypeUnlockToken             = "unlockToken"
 )
 
 type (
@@ -125,6 +127,19 @@ type (
 		Proofs                       []*types.TxProof           // block proofs for burn transactions
 		Backlink                     []byte                     // the backlink to the previous transaction with this token
 		InvariantPredicateSignatures [][]byte                   // inputs to satisfy the token type invariant predicates down the inheritance chain
+	}
+
+	LockTokenAttributes struct {
+		_                            struct{} `cbor:",toarray"`
+		LockStatus                   uint64   // status of the lock, non-zero value means locked
+		Backlink                     []byte   // the backlink to the previous transaction with this token
+		InvariantPredicateSignatures [][]byte // inputs to satisfy the token type invariant predicates down the inheritance chain
+	}
+
+	UnlockTokenAttributes struct {
+		_                            struct{} `cbor:",toarray"`
+		Backlink                     []byte   // the backlink to the previous transaction with this token
+		InvariantPredicateSignatures [][]byte // inputs to satisfy the token type invariant predicates down the inheritance chain
 	}
 )
 

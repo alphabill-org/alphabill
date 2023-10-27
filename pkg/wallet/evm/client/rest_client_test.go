@@ -467,6 +467,53 @@ func TestEvmClient_PostTransaction(t *testing.T) {
 	})
 }
 
+func TestEvmClient_GetGasPrice(t *testing.T) {
+	t.Parallel()
+
+	t.Run("valid response", func(t *testing.T) {
+		cli := &EvmClient{
+			addr: url.URL{Scheme: "http", Host: "localhost"},
+			hc: &http.Client{Transport: &mockRoundTripper{
+				do: func(r *http.Request) (*http.Response, error) {
+					if r.URL.String() != "http://localhost/api/v1/evm/gasPrice" {
+						t.Errorf("unexpected request URL: %s", r.URL.String())
+					}
+					if ua := r.Header.Get(userAgentHeader); ua != clientUserAgent {
+						t.Errorf("expected User-Agent header %q, got %q", clientUserAgent, ua)
+					}
+					w := httptest.NewRecorder()
+					response := struct {
+						_        struct{} `cbor:",toarray"`
+						GasPrice string
+					}{
+						GasPrice: "13000000",
+					}
+					writeCBORResponse(t, w, response, http.StatusOK)
+					return w.Result(), nil
+				},
+			}},
+		}
+		price, err := cli.GetGasPrice(context.Background())
+		require.NoError(t, err)
+		require.EqualValues(t, "13000000", price)
+	})
+	t.Run("not found", func(t *testing.T) {
+		cli := &EvmClient{
+			addr: url.URL{Scheme: "http", Host: "localhost"},
+			hc: &http.Client{Transport: &mockRoundTripper{
+				do: func(r *http.Request) (*http.Response, error) {
+					w := httptest.NewRecorder()
+					writeCBORError(t, w, errors.New("address not found"), http.StatusNotFound)
+					return w.Result(), nil
+				},
+			}},
+		}
+		price, err := cli.GetGasPrice(context.Background())
+		require.ErrorIs(t, err, ErrNotFound)
+		require.EqualValues(t, "", price)
+	})
+}
+
 type mockRoundTripper struct {
 	do func(*http.Request) (*http.Response, error)
 }

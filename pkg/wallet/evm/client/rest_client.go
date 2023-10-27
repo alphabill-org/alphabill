@@ -209,6 +209,20 @@ func (e *EvmClient) Call(ctx context.Context, callAttr *CallAttributes) (*Proces
 	return callEVMResponse.Details, nil
 }
 
+// GetGasPrice returns gas price
+func (e *EvmClient) GetGasPrice(ctx context.Context) (string, error) {
+	resp := &struct {
+		_        struct{} `cbor:",toarray"`
+		GasPrice string
+	}{}
+	addr := e.getURL(apiPathPrefix, evmApiSubPrefix, "gasPrice")
+	err := e.get(ctx, addr, &resp, false)
+	if err != nil {
+		return "", err
+	}
+	return resp.GasPrice, nil
+}
+
 func (e *EvmClient) getURL(pathElements ...string) *url.URL {
 	return sdk.GetURL(e.addr, pathElements...)
 }

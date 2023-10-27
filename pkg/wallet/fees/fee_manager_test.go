@@ -925,14 +925,6 @@ func (m *mockMoneyClient) GetFeeCreditBill(ctx context.Context, unitID types.Uni
 	return m.fcb, nil
 }
 
-func (m *mockMoneyClient) GetLockedFeeCredit(ctx context.Context, unitID []byte, fcbID []byte) (*types.TransactionRecord, error) {
-	return nil, nil
-}
-
-func (m *mockMoneyClient) GetClosedFeeCredit(ctx context.Context, fcbID []byte) (*types.TransactionRecord, error) {
-	return nil, nil
-}
-
 func (m *mockMoneyClient) GetTxProof(ctx context.Context, unitID types.UnitID, txHash wallet.TxHash) (*wallet.Proof, error) {
 	return m.proofs[string(unitID)], nil
 }

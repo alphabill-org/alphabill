@@ -472,11 +472,6 @@ func Test_blockProcessor_ProcessFeeCreditTxs(t *testing.T) {
 	require.EqualValues(t, 39, fcb.GetValue())
 	closeFCHash := closeFC.Hash(crypto.SHA256)
 	require.Equal(t, closeFCHash, fcb.TxHash)
-
-	// and closeFC tx is recorded
-	actualCloseFCTxRecord, err := bp.store.GetClosedFeeCredit(fcb.Id)
-	require.NoError(t, err)
-	require.Equal(t, closeFCTxRecord, actualCloseFCTxRecord)
 }
 
 func createBlockProcessor(t *testing.T) *blockProcessor {

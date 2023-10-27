@@ -42,7 +42,6 @@ type (
 
 	MoneyClient interface {
 		GetBills(ctx context.Context, pubKey []byte) ([]*wallet.Bill, error)
-		GetLockedFeeCredit(ctx context.Context, systemID []byte, fcbID []byte) (*types.TransactionRecord, error)
 		PartitionDataProvider
 	}
 	// GenerateFcrIDFromPublicKey function to generate fee credit UnitID from shard number nad public key

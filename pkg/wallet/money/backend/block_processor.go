@@ -273,10 +273,6 @@ func (p *BlockProcessor) processTx(txr *types.TransactionRecord, b *types.Block,
 		if err != nil {
 			return fmt.Errorf("failed to add tx fees to money fee bill: %w", err)
 		}
-		err = p.addLockedFeeCredit(dbTx, attr.TargetSystemIdentifier, attr.TargetRecordID, txr)
-		if err != nil {
-			return fmt.Errorf("failed to add locked fee credit: %w", err)
-		}
 		return nil
 	case transactions.PayloadTypeAddFeeCredit:
 		fcb, err := dbTx.GetFeeCreditBill(txo.UnitID())
@@ -305,10 +301,6 @@ func (p *BlockProcessor) processTx(txr *types.TransactionRecord, b *types.Block,
 		}
 		attr := &transactions.CloseFeeCreditAttributes{}
 		err = txo.UnmarshalAttributes(attr)
-		if err != nil {
-			return err
-		}
-		err = p.addClosedFeeCredit(dbTx, txo.UnitID(), txr)
 		if err != nil {
 			return err
 		}
@@ -468,12 +460,4 @@ func (p *BlockProcessor) updateFCB(dbTx BillStoreTx, txr *types.TransactionRecor
 	}
 	fcb.Value -= txr.ServerMetadata.ActualFee
 	return dbTx.SetFeeCreditBill(fcb, nil)
-}
-
-func (p *BlockProcessor) addLockedFeeCredit(dbTx BillStoreTx, systemID, targetRecordID []byte, txr *types.TransactionRecord) error {
-	return dbTx.SetLockedFeeCredit(systemID, targetRecordID, txr)
-}
-
-func (p *BlockProcessor) addClosedFeeCredit(dbTx BillStoreTx, targetRecordID []byte, txr *types.TransactionRecord) error {
-	return dbTx.SetClosedFeeCredit(targetRecordID, txr)
 }

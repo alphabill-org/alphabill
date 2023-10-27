@@ -8,7 +8,7 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/alphabill-org/alphabill/validator/cli/alphabill/cmd"
+	"github.com/alphabill-org/alphabill/cli/alphabill/cmd"
 )
 
 func main() {

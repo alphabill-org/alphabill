@@ -3,7 +3,7 @@ package api
 import (
 	"net/http"
 
-	"github.com/alphabill-org/alphabill/validator/internal/util"
+	"github.com/alphabill-org/alphabill/common/util"
 )
 
 // GasPrice - returns static gas unit price. When gas price becomes dynamic

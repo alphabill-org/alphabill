@@ -10,10 +10,10 @@ import (
 	"strings"
 	"time"
 
+	util2 "github.com/alphabill-org/alphabill/common/util"
 	bolt "go.etcd.io/bbolt"
 
 	"github.com/alphabill-org/alphabill/validator/internal/crypto"
-	"github.com/alphabill-org/alphabill/validator/internal/util"
 )
 
 var (
@@ -77,7 +77,7 @@ func (a *adbtx) AddAccount(accountIndex uint64, key *AccountKey) error {
 		if err != nil {
 			return err
 		}
-		accBucket, err := tx.Bucket(accountsBucket).CreateBucketIfNotExists(util.Uint64ToBytes(accountIndex))
+		accBucket, err := tx.Bucket(accountsBucket).CreateBucketIfNotExists(util2.Uint64ToBytes(accountIndex))
 		if err != nil {
 			return err
 		}
@@ -88,7 +88,7 @@ func (a *adbtx) AddAccount(accountIndex uint64, key *AccountKey) error {
 func (a *adbtx) GetAccountKey(accountIndex uint64) (*AccountKey, error) {
 	var key *AccountKey
 	err := a.withTx(a.tx, func(tx *bolt.Tx) error {
-		bkt, err := getAccountBucket(tx, util.Uint64ToBytes(accountIndex))
+		bkt, err := getAccountBucket(tx, util2.Uint64ToBytes(accountIndex))
 		if err != nil {
 			return err
 		}
@@ -130,7 +130,7 @@ func (a *adbtx) GetAccountKeys() ([]*AccountKey, error) {
 			if err != nil {
 				return err
 			}
-			accountIndexUint64 := util.BytesToUint64(accountIndex)
+			accountIndexUint64 := util2.BytesToUint64(accountIndex)
 			keys[accountIndexUint64] = accountKeyRes
 			return nil
 		})
@@ -174,7 +174,7 @@ func (a *adbtx) GetMasterKey() (string, error) {
 
 func (a *adbtx) SetMaxAccountIndex(accountIndex uint64) error {
 	return a.withTx(a.tx, func(tx *bolt.Tx) error {
-		return tx.Bucket(accountsBucket).Put(maxAccountIndexKeyName, util.Uint64ToBytes(accountIndex))
+		return tx.Bucket(accountsBucket).Put(maxAccountIndexKeyName, util2.Uint64ToBytes(accountIndex))
 	}, true)
 }
 
@@ -182,7 +182,7 @@ func (a *adbtx) GetMaxAccountIndex() (uint64, error) {
 	var res uint64
 	err := a.withTx(a.tx, func(tx *bolt.Tx) error {
 		accountIndex := tx.Bucket(accountsBucket).Get(maxAccountIndexKeyName)
-		res = util.BytesToUint64(accountIndex)
+		res = util2.BytesToUint64(accountIndex)
 		return nil
 	}, false)
 	if err != nil {
@@ -302,7 +302,7 @@ func (a *adbtx) decryptValue(val []byte) ([]byte, error) {
 }
 
 func openDb(dbFilePath string, pw string, create bool) (*adb, error) {
-	exists := util.FileExists(dbFilePath)
+	exists := util2.FileExists(dbFilePath)
 	if create && exists {
 		return nil, fmt.Errorf("cannot create account db, file (%s) already exists", dbFilePath)
 	} else if !create && !exists {

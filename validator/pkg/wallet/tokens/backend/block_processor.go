@@ -7,10 +7,10 @@ import (
 	"fmt"
 	"log/slog"
 
+	"github.com/alphabill-org/alphabill/api/types"
 	"github.com/alphabill-org/alphabill/txsystem"
 	"github.com/alphabill-org/alphabill/txsystem/fc/transactions"
 	tokens2 "github.com/alphabill-org/alphabill/txsystem/tokens"
-	"github.com/alphabill-org/alphabill/validator/internal/types"
 	"github.com/alphabill-org/alphabill/validator/pkg/logger"
 	"github.com/alphabill-org/alphabill/validator/pkg/wallet"
 	"github.com/alphabill-org/alphabill/validator/pkg/wallet/broker"

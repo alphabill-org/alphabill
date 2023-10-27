@@ -5,6 +5,7 @@ import (
 	"math/big"
 	"testing"
 
+	"github.com/alphabill-org/alphabill/api/types"
 	"github.com/alphabill-org/alphabill/txsystem"
 	"github.com/alphabill-org/alphabill/validator/internal/crypto"
 	"github.com/alphabill-org/alphabill/validator/internal/hash"
@@ -12,7 +13,6 @@ import (
 	test "github.com/alphabill-org/alphabill/validator/internal/testutils"
 	"github.com/alphabill-org/alphabill/validator/internal/testutils/logger"
 	testpartition "github.com/alphabill-org/alphabill/validator/internal/testutils/partition"
-	"github.com/alphabill-org/alphabill/validator/internal/types"
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 	evmcrypto "github.com/ethereum/go-ethereum/crypto"

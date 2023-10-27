@@ -14,8 +14,8 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/protobuf/types/known/emptypb"
 
+	"github.com/alphabill-org/alphabill/api/types"
 	"github.com/alphabill-org/alphabill/validator/internal/rpc/alphabill"
-	"github.com/alphabill-org/alphabill/validator/internal/types"
 )
 
 const (

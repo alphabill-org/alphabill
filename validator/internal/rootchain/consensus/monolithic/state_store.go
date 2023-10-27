@@ -6,9 +6,9 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/alphabill-org/alphabill/api/types"
 	"github.com/alphabill-org/alphabill/validator/internal/keyvaluedb"
 	"github.com/alphabill-org/alphabill/validator/internal/network/protocol/genesis"
-	"github.com/alphabill-org/alphabill/validator/internal/types"
 )
 
 const (

@@ -8,17 +8,16 @@ import (
 	"strings"
 	"testing"
 
-	moneytx "github.com/alphabill-org/alphabill/txsystem/money"
+	"github.com/alphabill-org/alphabill/common/util"
 	"github.com/alphabill-org/alphabill/validator/internal/predicates/templates"
 	"github.com/stretchr/testify/require"
 
+	"github.com/alphabill-org/alphabill/api/types"
 	test "github.com/alphabill-org/alphabill/validator/internal/testutils"
 	testhttp "github.com/alphabill-org/alphabill/validator/internal/testutils/http"
 	"github.com/alphabill-org/alphabill/validator/internal/testutils/logger"
 	"github.com/alphabill-org/alphabill/validator/internal/testutils/net"
 	testpartition "github.com/alphabill-org/alphabill/validator/internal/testutils/partition"
-	"github.com/alphabill-org/alphabill/validator/internal/types"
-	"github.com/alphabill-org/alphabill/validator/internal/util"
 	"github.com/alphabill-org/alphabill/validator/pkg/wallet"
 	"github.com/alphabill-org/alphabill/validator/pkg/wallet/money/backend"
 )

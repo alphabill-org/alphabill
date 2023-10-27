@@ -10,11 +10,13 @@ import (
 	"sync/atomic"
 	"time"
 
+	util2 "github.com/alphabill-org/alphabill/common/util"
 	"github.com/alphabill-org/alphabill/txsystem"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/libp2p/go-libp2p/core/peerstore"
 	"golang.org/x/sync/errgroup"
 
+	"github.com/alphabill-org/alphabill/api/types"
 	"github.com/alphabill-org/alphabill/validator/internal/crypto"
 	"github.com/alphabill-org/alphabill/validator/internal/keyvaluedb"
 	"github.com/alphabill-org/alphabill/validator/internal/metrics"
@@ -27,8 +29,6 @@ import (
 	"github.com/alphabill-org/alphabill/validator/internal/partition/event"
 	pgenesis "github.com/alphabill-org/alphabill/validator/internal/partition/genesis"
 	"github.com/alphabill-org/alphabill/validator/internal/txbuffer"
-	"github.com/alphabill-org/alphabill/validator/internal/types"
-	"github.com/alphabill-org/alphabill/validator/internal/util"
 	"github.com/alphabill-org/alphabill/validator/pkg/logger"
 )
 
@@ -207,7 +207,7 @@ func (n *Node) initState() (err error) {
 	}
 	if empty {
 		n.log.Info("State initialized from genesis")
-		if err = n.blockStore.Write(util.Uint64ToBytes(pgenesis.PartitionRoundNumber), genesisBlock); err != nil {
+		if err = n.blockStore.Write(util2.Uint64ToBytes(pgenesis.PartitionRoundNumber), genesisBlock); err != nil {
 			return fmt.Errorf("init failed to persist genesis block, %w", err)
 		}
 		// set luc to last known uc
@@ -218,11 +218,11 @@ func (n *Node) initState() (err error) {
 	// restore state from db
 	prevBlock := genesisBlock
 	// get next block from genesis block
-	dbIt := n.blockStore.Find(util.Uint64ToBytes(pgenesis.PartitionRoundNumber + 1))
+	dbIt := n.blockStore.Find(util2.Uint64ToBytes(pgenesis.PartitionRoundNumber + 1))
 	defer func() { err = errors.Join(err, dbIt.Close()) }()
 	for ; dbIt.Valid(); dbIt.Next() {
 		var bl types.Block
-		roundNo := util.BytesToUint64(dbIt.Key())
+		roundNo := util2.BytesToUint64(dbIt.Key())
 		if err = dbIt.Value(&bl); err != nil {
 			return fmt.Errorf("failed to read block %v from db, %w", roundNo, err)
 		}
@@ -329,7 +329,7 @@ func (n *Node) applyBlockTransactions(round uint64, txs []*types.TransactionReco
 
 func (n *Node) restoreBlockProposal(prevBlock *types.Block) {
 	pr := &pendingBlockProposal{}
-	found, err := n.blockStore.Read(util.Uint32ToBytes(proposalKey), pr)
+	found, err := n.blockStore.Read(util2.Uint32ToBytes(proposalKey), pr)
 	if err != nil {
 		n.log.Error("Error fetching block proposal", logger.Error(err))
 		return
@@ -585,7 +585,7 @@ func (n *Node) startNewRound(ctx context.Context, uc *types.UnicityCertificate) 
 	n.resetProposal()
 	n.sumOfEarnedFees = 0
 	// not a fatal issue, but log anyway
-	if err := n.blockStore.Delete(util.Uint32ToBytes(proposalKey)); err != nil {
+	if err := n.blockStore.Delete(util2.Uint32ToBytes(proposalKey)); err != nil {
 		n.log.DebugContext(ctx, "DB proposal delete failed", logger.Error(err))
 	}
 	n.leaderSelector.UpdateLeader(uc, n.peer.Validators())
@@ -776,7 +776,7 @@ func (n *Node) proposalHash(prop *pendingBlockProposal, uc *types.UnicityCertifi
 func (n *Node) finalizeBlock(b *types.Block) error {
 	blockNumber := b.GetRoundNumber()
 	defer trackExecutionTime(time.Now(), fmt.Sprintf("Block %v finalization", blockNumber), n.log)
-	roundNoInBytes := util.Uint64ToBytes(blockNumber)
+	roundNoInBytes := util2.Uint64ToBytes(blockNumber)
 	// persist the block _before_ committing to tx system
 	// if write fails but the round is committed in tx system, there's no way back,
 	// but if commit fails, we just remove the block from the store
@@ -889,7 +889,7 @@ func (n *Node) handleLedgerReplicationRequest(ctx context.Context, lr *replicati
 		blocks := make([]*types.Block, 0)
 		countTx := uint32(0)
 		blockCnt := uint64(0)
-		dbIt := n.blockStore.Find(util.Uint64ToBytes(startBlock))
+		dbIt := n.blockStore.Find(util2.Uint64ToBytes(startBlock))
 		defer func() {
 			if err := dbIt.Close(); err != nil {
 				n.log.WarnContext(ctx, "closing DB iterator", logger.Error(err))
@@ -898,7 +898,7 @@ func (n *Node) handleLedgerReplicationRequest(ctx context.Context, lr *replicati
 		var lastFetchedBlock *types.Block
 		for ; dbIt.Valid(); dbIt.Next() {
 			var bl types.Block
-			roundNo := util.BytesToUint64(dbIt.Key())
+			roundNo := util2.BytesToUint64(dbIt.Key())
 			if err := dbIt.Value(&bl); err != nil {
 				n.log.WarnContext(ctx, fmt.Sprintf("Ledger replication reply incomplete, failed to read block %d", roundNo), logger.Error(err))
 				break
@@ -1039,7 +1039,7 @@ func (n *Node) sendLedgerReplicationRequest(ctx context.Context, startingBlockNr
 	}
 
 	// send Ledger Replication request to a first alive randomly chosen node
-	for _, p := range util.ShuffleSliceCopy(peers) {
+	for _, p := range util2.ShuffleSliceCopy(peers) {
 		if n.peer.ID() == p {
 			continue
 		}
@@ -1076,7 +1076,7 @@ func (n *Node) sendBlockProposal(ctx context.Context) error {
 }
 
 func (n *Node) persistBlockProposal(pr *pendingBlockProposal) error {
-	if err := n.blockStore.Write(util.Uint32ToBytes(proposalKey), pr); err != nil {
+	if err := n.blockStore.Write(util2.Uint32ToBytes(proposalKey), pr); err != nil {
 		return fmt.Errorf("persist error, %w", err)
 	}
 	return nil
@@ -1165,7 +1165,7 @@ func (n *Node) GetBlock(_ context.Context, blockNr uint64) (*types.Block, error)
 		return nil, fmt.Errorf("block number 0 does not exist")
 	}
 	var bl types.Block
-	found, err := n.blockStore.Read(util.Uint64ToBytes(blockNr), &bl)
+	found, err := n.blockStore.Read(util2.Uint64ToBytes(blockNr), &bl)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read block from round %v from db, %w", blockNr, err)
 	}
@@ -1189,7 +1189,7 @@ func (n *Node) GetLatestBlock() (_ *types.Block, err error) {
 	defer func() { err = errors.Join(err, dbIt.Close()) }()
 	var bl types.Block
 	if err := dbIt.Value(&bl); err != nil {
-		roundNo := util.BytesToUint64(dbIt.Key())
+		roundNo := util2.BytesToUint64(dbIt.Key())
 		return nil, fmt.Errorf("failed to read block %d from db: %w", roundNo, err)
 	}
 	return &bl, nil
@@ -1210,7 +1210,7 @@ func (n *Node) GetTransactionRecord(ctx context.Context, hash []byte) (*types.Tr
 	if !f {
 		return nil, nil, nil
 	}
-	b, err := n.GetBlock(ctx, util.BytesToUint64(index.RoundNumber))
+	b, err := n.GetBlock(ctx, util2.BytesToUint64(index.RoundNumber))
 	if err != nil {
 		return nil, nil, fmt.Errorf("unable to load block: %w", err)
 	}

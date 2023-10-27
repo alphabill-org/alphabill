@@ -10,11 +10,11 @@ import (
 	"net/url"
 	"strings"
 
+	util2 "github.com/alphabill-org/alphabill/common/util"
 	tokens2 "github.com/alphabill-org/alphabill/txsystem/tokens"
 	"github.com/fxamacker/cbor/v2"
 
-	"github.com/alphabill-org/alphabill/validator/internal/types"
-	"github.com/alphabill-org/alphabill/validator/internal/util"
+	"github.com/alphabill-org/alphabill/api/types"
 	"github.com/alphabill-org/alphabill/validator/pkg/wallet"
 	"github.com/alphabill-org/alphabill/validator/pkg/wallet/account"
 	"github.com/alphabill-org/alphabill/validator/pkg/wallet/fees"
@@ -197,7 +197,7 @@ func (w *Wallet) NewNFT(ctx context.Context, accNr uint64, attrs MintNonFungible
 	if len(attrs.Uri) > uriMaxSize {
 		return nil, errInvalidURILength
 	}
-	if attrs.Uri != "" && !util.IsValidURI(attrs.Uri) {
+	if attrs.Uri != "" && !util2.IsValidURI(attrs.Uri) {
 		return nil, fmt.Errorf("URI '%s' is invalid", attrs.Uri)
 	}
 	if len(attrs.Data) > dataMaxSize {
@@ -407,7 +407,7 @@ func (w *Wallet) SendFungible(ctx context.Context, accountNumber uint64, typeId 
 		if typeId.Eq(token.TypeID) {
 			matchingTokens = append(matchingTokens, token)
 			var overflow bool
-			totalBalance, overflow, _ = util.AddUint64(totalBalance, token.Amount)
+			totalBalance, overflow, _ = util2.AddUint64(totalBalance, token.Amount)
 			if overflow {
 				// capping the total balance to maxUint64 should be enough to perform the transfer
 				totalBalance = math.MaxUint64

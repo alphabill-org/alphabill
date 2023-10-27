@@ -15,6 +15,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 
+	"github.com/alphabill-org/alphabill/api/types"
 	abcrypto "github.com/alphabill-org/alphabill/validator/internal/crypto"
 	"github.com/alphabill-org/alphabill/validator/internal/hash"
 	"github.com/alphabill-org/alphabill/validator/internal/network/protocol/genesis"
@@ -26,7 +27,6 @@ import (
 	"github.com/alphabill-org/alphabill/validator/internal/testutils/logger"
 	testpartition "github.com/alphabill-org/alphabill/validator/internal/testutils/partition"
 	testserver "github.com/alphabill-org/alphabill/validator/internal/testutils/server"
-	"github.com/alphabill-org/alphabill/validator/internal/types"
 	"github.com/alphabill-org/alphabill/validator/pkg/wallet/account"
 	"github.com/alphabill-org/alphabill/validator/pkg/wallet/fees"
 	"github.com/alphabill-org/alphabill/validator/pkg/wallet/money/backend"

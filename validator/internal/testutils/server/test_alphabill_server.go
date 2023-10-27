@@ -7,8 +7,8 @@ import (
 	"net"
 	"sync"
 
+	"github.com/alphabill-org/alphabill/api/types"
 	"github.com/alphabill-org/alphabill/validator/internal/rpc/alphabill"
-	"github.com/alphabill-org/alphabill/validator/internal/types"
 	"github.com/fxamacker/cbor/v2"
 	"google.golang.org/grpc"
 	"google.golang.org/protobuf/types/known/emptypb"

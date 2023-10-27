@@ -3,9 +3,9 @@ package consensus
 import (
 	"testing"
 
+	"github.com/alphabill-org/alphabill/api/types"
 	"github.com/alphabill-org/alphabill/validator/internal/network/protocol/certification"
 	test "github.com/alphabill-org/alphabill/validator/internal/testutils"
-	"github.com/alphabill-org/alphabill/validator/internal/types"
 )
 
 func TestCheckBlockCertificationRequest(t *testing.T) {

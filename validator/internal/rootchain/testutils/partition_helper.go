@@ -4,6 +4,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/alphabill-org/alphabill/api/types"
 	"github.com/alphabill-org/alphabill/validator/internal/crypto"
 	"github.com/alphabill-org/alphabill/validator/internal/network"
 	"github.com/alphabill-org/alphabill/validator/internal/network/protocol/certification"
@@ -12,7 +13,6 @@ import (
 	testnetwork "github.com/alphabill-org/alphabill/validator/internal/testutils/network"
 	testpeer "github.com/alphabill-org/alphabill/validator/internal/testutils/peer"
 	testsig "github.com/alphabill-org/alphabill/validator/internal/testutils/sig"
-	"github.com/alphabill-org/alphabill/validator/internal/types"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/stretchr/testify/require"
 )

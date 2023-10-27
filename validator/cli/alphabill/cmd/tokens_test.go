@@ -9,12 +9,14 @@ import (
 	"testing"
 	"time"
 
+	"github.com/alphabill-org/alphabill/common/util"
 	tokens2 "github.com/alphabill-org/alphabill/txsystem/tokens"
 	"github.com/fxamacker/cbor/v2"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 
+	"github.com/alphabill-org/alphabill/api/types"
 	"github.com/alphabill-org/alphabill/validator/internal/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/validator/internal/predicates/templates"
 	rootgenesis "github.com/alphabill-org/alphabill/validator/internal/rootchain/genesis"
@@ -24,8 +26,6 @@ import (
 	"github.com/alphabill-org/alphabill/validator/internal/testutils/net"
 	testsig "github.com/alphabill-org/alphabill/validator/internal/testutils/sig"
 	testtime "github.com/alphabill-org/alphabill/validator/internal/testutils/time"
-	"github.com/alphabill-org/alphabill/validator/internal/types"
-	"github.com/alphabill-org/alphabill/validator/internal/util"
 )
 
 func TestRunTokensNode(t *testing.T) {

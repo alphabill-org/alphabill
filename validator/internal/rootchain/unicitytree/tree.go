@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"hash"
 
+	"github.com/alphabill-org/alphabill/api/types"
 	"github.com/alphabill-org/alphabill/validator/internal/smt"
-	"github.com/alphabill-org/alphabill/validator/internal/types"
 )
 
 var ErrInvalidSystemIdentifierLength = errors.New("invalid system identifier length")

@@ -6,10 +6,10 @@ import (
 	"fmt"
 	"log/slog"
 
+	"github.com/alphabill-org/alphabill/api/types"
 	"github.com/alphabill-org/alphabill/txsystem/fc/transactions"
 	"github.com/alphabill-org/alphabill/txsystem/money"
 	"github.com/alphabill-org/alphabill/validator/internal/network/protocol/genesis"
-	"github.com/alphabill-org/alphabill/validator/internal/types"
 	"github.com/alphabill-org/alphabill/validator/pkg/logger"
 	sdk "github.com/alphabill-org/alphabill/validator/pkg/wallet"
 )

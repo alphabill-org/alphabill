@@ -4,8 +4,8 @@ import (
 	"errors"
 	"net/http"
 
+	"github.com/alphabill-org/alphabill/common/util"
 	"github.com/alphabill-org/alphabill/txsystem/evm/statedb"
-	"github.com/alphabill-org/alphabill/validator/internal/util"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/gorilla/mux"
 )

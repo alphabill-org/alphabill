@@ -5,12 +5,12 @@ import (
 	"math/big"
 	"net/http"
 
+	"github.com/alphabill-org/alphabill/common/util"
 	"github.com/alphabill-org/alphabill/txsystem/evm"
 	"github.com/alphabill-org/alphabill/txsystem/evm/statedb"
 	"github.com/alphabill-org/alphabill/validator/internal/keyvaluedb/memorydb"
 	"github.com/alphabill-org/alphabill/validator/internal/predicates/templates"
 	"github.com/alphabill-org/alphabill/validator/internal/state"
-	"github.com/alphabill-org/alphabill/validator/internal/util"
 	"github.com/ethereum/go-ethereum/common/math"
 	"github.com/ethereum/go-ethereum/core"
 	ethtypes "github.com/ethereum/go-ethereum/core/types"

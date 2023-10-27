@@ -5,10 +5,10 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/alphabill-org/alphabill/common/util"
 	"github.com/stretchr/testify/require"
 
 	testsig "github.com/alphabill-org/alphabill/validator/internal/testutils/sig"
-	"github.com/alphabill-org/alphabill/validator/internal/util"
 )
 
 const keysDir = "keys"

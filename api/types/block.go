@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/alphabill-org/alphabill/validator/internal/mt"
+	"github.com/alphabill-org/alphabill/common/mt"
 )
 
 var (

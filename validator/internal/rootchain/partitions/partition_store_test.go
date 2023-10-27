@@ -3,9 +3,9 @@ package partitions
 import (
 	"testing"
 
+	"github.com/alphabill-org/alphabill/api/types"
 	"github.com/alphabill-org/alphabill/validator/internal/network/protocol/genesis"
 	testsig "github.com/alphabill-org/alphabill/validator/internal/testutils/sig"
-	"github.com/alphabill-org/alphabill/validator/internal/types"
 	"github.com/stretchr/testify/require"
 )
 

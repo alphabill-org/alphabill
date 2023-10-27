@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/alphabill-org/alphabill/api/types"
 	"github.com/alphabill-org/alphabill/validator/internal/crypto"
 	"github.com/alphabill-org/alphabill/validator/internal/keyvaluedb"
 	"github.com/alphabill-org/alphabill/validator/internal/keyvaluedb/boltdb"
@@ -20,7 +21,6 @@ import (
 	"github.com/alphabill-org/alphabill/validator/internal/rootchain/testutils"
 	test "github.com/alphabill-org/alphabill/validator/internal/testutils"
 	testlogger "github.com/alphabill-org/alphabill/validator/internal/testutils/logger"
-	"github.com/alphabill-org/alphabill/validator/internal/types"
 	"github.com/alphabill-org/alphabill/validator/pkg/logger"
 	"github.com/stretchr/testify/require"
 )

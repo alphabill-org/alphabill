@@ -8,8 +8,8 @@ import (
 	"log/slog"
 	"sync"
 
+	"github.com/alphabill-org/alphabill/api/types"
 	"github.com/alphabill-org/alphabill/validator/internal/metrics"
-	"github.com/alphabill-org/alphabill/validator/internal/types"
 	"github.com/alphabill-org/alphabill/validator/pkg/logger"
 )
 

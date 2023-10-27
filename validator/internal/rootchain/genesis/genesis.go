@@ -7,11 +7,11 @@ import (
 	"fmt"
 	"sort"
 
+	"github.com/alphabill-org/alphabill/api/types"
+	util2 "github.com/alphabill-org/alphabill/common/util"
 	"github.com/alphabill-org/alphabill/validator/internal/crypto"
 	"github.com/alphabill-org/alphabill/validator/internal/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/validator/internal/rootchain/unicitytree"
-	"github.com/alphabill-org/alphabill/validator/internal/types"
-	"github.com/alphabill-org/alphabill/validator/internal/util"
 )
 
 var ErrEncryptionPubKeyIsNil = errors.New("encryption public key is nil")
@@ -218,7 +218,7 @@ func NewRootGenesis(id string, s crypto.Signer, encPubKey []byte, partitions []*
 	sealFn := func(rootHash []byte) (*types.UnicitySeal, error) {
 		uSeal := &types.UnicitySeal{
 			RootChainRoundNumber: genesis.RootRound,
-			Timestamp:            util.GenesisTime,
+			Timestamp:            util2.GenesisTime,
 			Hash:                 rootHash,
 		}
 		return uSeal, uSeal.Sign(c.peerID, c.signer)
@@ -278,7 +278,7 @@ func NewRootGenesis(id string, s crypto.Signer, encPubKey []byte, partitions []*
 	// sort genesis partition by system id
 	sort.Slice(genesisPartitions, func(i, j int) bool {
 
-		return util.BytesToUint32(genesisPartitions[i].SystemDescriptionRecord.SystemIdentifier) < util.BytesToUint32(genesisPartitions[j].SystemDescriptionRecord.SystemIdentifier)
+		return util2.BytesToUint32(genesisPartitions[i].SystemDescriptionRecord.SystemIdentifier) < util2.BytesToUint32(genesisPartitions[j].SystemDescriptionRecord.SystemIdentifier)
 	})
 	// Sign the consensus and append signature
 	consensusParams := &genesis.ConsensusParams{

@@ -13,6 +13,8 @@ import (
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/stretchr/testify/require"
 
+	"github.com/alphabill-org/alphabill/api/types"
+	"github.com/alphabill-org/alphabill/common/util"
 	"github.com/alphabill-org/alphabill/txsystem/fc"
 	testfc "github.com/alphabill-org/alphabill/txsystem/fc/testutils"
 	"github.com/alphabill-org/alphabill/txsystem/fc/unit"
@@ -22,8 +24,6 @@ import (
 	"github.com/alphabill-org/alphabill/validator/internal/testutils/logger"
 	testpartition "github.com/alphabill-org/alphabill/validator/internal/testutils/partition"
 	testevent "github.com/alphabill-org/alphabill/validator/internal/testutils/partition/event"
-	"github.com/alphabill-org/alphabill/validator/internal/types"
-	"github.com/alphabill-org/alphabill/validator/internal/util"
 )
 
 var (

@@ -13,15 +13,15 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/alphabill-org/alphabill/common/util"
 	evm2 "github.com/alphabill-org/alphabill/txsystem/evm"
 	"github.com/alphabill-org/alphabill/txsystem/evm/api"
 	"github.com/fxamacker/cbor/v2"
 	"github.com/stretchr/testify/require"
 
+	"github.com/alphabill-org/alphabill/api/types"
 	test "github.com/alphabill-org/alphabill/validator/internal/testutils"
 	testlogger "github.com/alphabill-org/alphabill/validator/internal/testutils/logger"
-	"github.com/alphabill-org/alphabill/validator/internal/types"
-	"github.com/alphabill-org/alphabill/validator/internal/util"
 	"github.com/alphabill-org/alphabill/validator/pkg/logger"
 )
 

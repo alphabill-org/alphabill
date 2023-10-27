@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"sort"
 
+	"github.com/alphabill-org/alphabill/common/util"
 	"github.com/alphabill-org/alphabill/txsystem"
 	"github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/core/peer"
@@ -29,7 +30,6 @@ import (
 	"github.com/alphabill-org/alphabill/validator/internal/partition"
 	"github.com/alphabill-org/alphabill/validator/internal/rpc"
 	"github.com/alphabill-org/alphabill/validator/internal/rpc/alphabill"
-	"github.com/alphabill-org/alphabill/validator/internal/util"
 )
 
 const (

@@ -3,7 +3,7 @@ package txsystem
 import (
 	"errors"
 
-	"github.com/alphabill-org/alphabill/validator/internal/types"
+	"github.com/alphabill-org/alphabill/api/types"
 )
 
 var ErrStateContainsUncommittedChanges = errors.New("state contains uncommitted changes")

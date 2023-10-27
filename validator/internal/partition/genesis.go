@@ -4,12 +4,12 @@ import (
 	gocrypto "crypto"
 	"errors"
 
+	"github.com/alphabill-org/alphabill/api/types"
 	"github.com/alphabill-org/alphabill/txsystem"
 	"github.com/alphabill-org/alphabill/validator/internal/crypto"
 	"github.com/alphabill-org/alphabill/validator/internal/network/protocol/certification"
 	"github.com/alphabill-org/alphabill/validator/internal/network/protocol/genesis"
 	pg "github.com/alphabill-org/alphabill/validator/internal/partition/genesis"
-	"github.com/alphabill-org/alphabill/validator/internal/types"
 	"github.com/libp2p/go-libp2p/core/peer"
 )
 

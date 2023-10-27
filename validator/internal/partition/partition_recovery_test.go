@@ -8,6 +8,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/alphabill-org/alphabill/api/types"
+	"github.com/alphabill-org/alphabill/common/util"
 	"github.com/alphabill-org/alphabill/validator/internal/keyvaluedb/memorydb"
 	"github.com/alphabill-org/alphabill/validator/internal/network"
 	"github.com/alphabill-org/alphabill/validator/internal/network/protocol/replication"
@@ -16,8 +18,6 @@ import (
 	testevent "github.com/alphabill-org/alphabill/validator/internal/testutils/partition/event"
 	testtransaction "github.com/alphabill-org/alphabill/validator/internal/testutils/transaction"
 	testtxsystem "github.com/alphabill-org/alphabill/validator/internal/testutils/txsystem"
-	"github.com/alphabill-org/alphabill/validator/internal/types"
-	"github.com/alphabill-org/alphabill/validator/internal/util"
 	"github.com/fxamacker/cbor/v2"
 	"github.com/stretchr/testify/require"
 )

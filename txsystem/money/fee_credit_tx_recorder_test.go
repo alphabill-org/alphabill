@@ -3,10 +3,10 @@ package money
 import (
 	"testing"
 
+	"github.com/alphabill-org/alphabill/api/types"
 	testfc "github.com/alphabill-org/alphabill/txsystem/fc/testutils"
 	abcrypto "github.com/alphabill-org/alphabill/validator/internal/crypto"
 	testtransaction "github.com/alphabill-org/alphabill/validator/internal/testutils/transaction"
-	"github.com/alphabill-org/alphabill/validator/internal/types"
 	"github.com/stretchr/testify/require"
 )
 

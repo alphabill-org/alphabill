@@ -3,14 +3,14 @@ package tx_builder
 import (
 	"testing"
 
+	"github.com/alphabill-org/alphabill/common/util"
 	money2 "github.com/alphabill-org/alphabill/txsystem/money"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/stretchr/testify/require"
 
+	"github.com/alphabill-org/alphabill/api/types"
 	"github.com/alphabill-org/alphabill/validator/internal/hash"
 	"github.com/alphabill-org/alphabill/validator/internal/predicates/templates"
-	"github.com/alphabill-org/alphabill/validator/internal/types"
-	"github.com/alphabill-org/alphabill/validator/internal/util"
 	"github.com/alphabill-org/alphabill/validator/pkg/wallet"
 	"github.com/alphabill-org/alphabill/validator/pkg/wallet/account"
 )

@@ -6,9 +6,9 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/alphabill-org/alphabill/api/types"
+	"github.com/alphabill-org/alphabill/common/util"
 	"github.com/alphabill-org/alphabill/validator/internal/predicates"
-	"github.com/alphabill-org/alphabill/validator/internal/types"
-	"github.com/alphabill-org/alphabill/validator/internal/util"
 )
 
 type (

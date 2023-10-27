@@ -7,6 +7,7 @@ import (
 	"os"
 	"testing"
 
+	"github.com/alphabill-org/alphabill/api/types"
 	"github.com/alphabill-org/alphabill/txsystem/money"
 	tokens2 "github.com/alphabill-org/alphabill/txsystem/tokens"
 	"github.com/alphabill-org/alphabill/validator/internal/partition/event"
@@ -14,7 +15,6 @@ import (
 	"github.com/alphabill-org/alphabill/validator/internal/testutils/logger"
 	testpartition "github.com/alphabill-org/alphabill/validator/internal/testutils/partition"
 	testevent "github.com/alphabill-org/alphabill/validator/internal/testutils/partition/event"
-	"github.com/alphabill-org/alphabill/validator/internal/types"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/stretchr/testify/require"
 )

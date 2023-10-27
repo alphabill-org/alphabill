@@ -4,6 +4,7 @@ import (
 	"crypto"
 	"fmt"
 
+	"github.com/alphabill-org/alphabill/api/types"
 	"github.com/alphabill-org/alphabill/txsystem"
 	"github.com/alphabill-org/alphabill/txsystem/evm/statedb"
 	"github.com/alphabill-org/alphabill/txsystem/fc"
@@ -11,7 +12,6 @@ import (
 	"github.com/alphabill-org/alphabill/txsystem/fc/unit"
 	"github.com/alphabill-org/alphabill/validator/internal/predicates/templates"
 	"github.com/alphabill-org/alphabill/validator/internal/state"
-	"github.com/alphabill-org/alphabill/validator/internal/types"
 )
 
 func getTransferPayloadAttributes(transfer *types.TransactionRecord) (*transactions.TransferFeeCreditAttributes, error) {

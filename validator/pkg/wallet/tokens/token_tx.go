@@ -10,9 +10,9 @@ import (
 	"github.com/alphabill-org/alphabill/validator/internal/predicates/templates"
 	"github.com/fxamacker/cbor/v2"
 
+	"github.com/alphabill-org/alphabill/api/types"
 	abcrypto "github.com/alphabill-org/alphabill/validator/internal/crypto"
 	"github.com/alphabill-org/alphabill/validator/internal/hash"
-	"github.com/alphabill-org/alphabill/validator/internal/types"
 	"github.com/alphabill-org/alphabill/validator/pkg/wallet"
 	"github.com/alphabill-org/alphabill/validator/pkg/wallet/account"
 	"github.com/alphabill-org/alphabill/validator/pkg/wallet/money/tx_builder"

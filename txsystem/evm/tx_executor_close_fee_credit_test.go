@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"testing"
 
+	"github.com/alphabill-org/alphabill/api/types"
 	"github.com/alphabill-org/alphabill/txsystem/evm/statedb"
 	"github.com/alphabill-org/alphabill/txsystem/fc"
 	testfc "github.com/alphabill-org/alphabill/txsystem/fc/testutils"
@@ -16,7 +17,6 @@ import (
 	"github.com/alphabill-org/alphabill/validator/internal/testutils/logger"
 	testsig "github.com/alphabill-org/alphabill/validator/internal/testutils/sig"
 	testtransaction "github.com/alphabill-org/alphabill/validator/internal/testutils/transaction"
-	"github.com/alphabill-org/alphabill/validator/internal/types"
 	"github.com/stretchr/testify/require"
 )
 

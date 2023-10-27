@@ -3,11 +3,11 @@ package fc
 import (
 	"fmt"
 
+	"github.com/alphabill-org/alphabill/api/types"
 	"github.com/alphabill-org/alphabill/txsystem"
 	"github.com/alphabill-org/alphabill/txsystem/fc/transactions"
 	fcunit "github.com/alphabill-org/alphabill/txsystem/fc/unit"
 	"github.com/alphabill-org/alphabill/validator/internal/state"
-	"github.com/alphabill-org/alphabill/validator/internal/types"
 )
 
 func handleAddFeeCreditTx(f *FeeCredit) txsystem.GenericExecuteFunc[transactions.AddFeeCreditAttributes] {

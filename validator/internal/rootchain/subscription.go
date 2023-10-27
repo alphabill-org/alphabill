@@ -3,7 +3,7 @@ package rootchain
 import (
 	"sync"
 
-	"github.com/alphabill-org/alphabill/validator/internal/types"
+	"github.com/alphabill-org/alphabill/api/types"
 )
 
 const defaultSubscriptionErrorCount = 3

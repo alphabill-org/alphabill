@@ -9,6 +9,8 @@ import (
 	txsystem2 "github.com/alphabill-org/alphabill/txsystem"
 	"github.com/stretchr/testify/require"
 
+	"github.com/alphabill-org/alphabill/api/types"
+	"github.com/alphabill-org/alphabill/common/util"
 	"github.com/alphabill-org/alphabill/txsystem/fc"
 	testfc "github.com/alphabill-org/alphabill/txsystem/fc/testutils"
 	"github.com/alphabill-org/alphabill/txsystem/fc/transactions"
@@ -23,8 +25,6 @@ import (
 	"github.com/alphabill-org/alphabill/validator/internal/testutils/logger"
 	testsig "github.com/alphabill-org/alphabill/validator/internal/testutils/sig"
 	testtransaction "github.com/alphabill-org/alphabill/validator/internal/testutils/transaction"
-	"github.com/alphabill-org/alphabill/validator/internal/types"
-	"github.com/alphabill-org/alphabill/validator/internal/util"
 )
 
 const initialDustCollectorMoneyAmount uint64 = 100

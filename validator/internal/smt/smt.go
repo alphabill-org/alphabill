@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"hash"
 
-	"github.com/alphabill-org/alphabill/validator/internal/util"
+	"github.com/alphabill-org/alphabill/common/util"
 )
 
 var ErrInvalidKeyLength = errors.New("invalid key length")

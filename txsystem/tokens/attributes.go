@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"strings"
 
-	"github.com/alphabill-org/alphabill/validator/internal/types"
+	"github.com/alphabill-org/alphabill/api/types"
 )
 
 const (

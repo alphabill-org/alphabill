@@ -11,8 +11,8 @@ import (
 	ttxs "github.com/alphabill-org/alphabill/txsystem/tokens"
 	"github.com/stretchr/testify/require"
 
+	"github.com/alphabill-org/alphabill/api/types"
 	test "github.com/alphabill-org/alphabill/validator/internal/testutils"
-	"github.com/alphabill-org/alphabill/validator/internal/types"
 	sdk "github.com/alphabill-org/alphabill/validator/pkg/wallet"
 	"github.com/alphabill-org/alphabill/validator/pkg/wallet/money/tx_builder"
 	twb "github.com/alphabill-org/alphabill/validator/pkg/wallet/tokens/backend"

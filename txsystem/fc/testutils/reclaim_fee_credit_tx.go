@@ -3,11 +3,11 @@ package testutils
 import (
 	"testing"
 
+	"github.com/alphabill-org/alphabill/api/types"
 	"github.com/alphabill-org/alphabill/txsystem/fc/transactions"
 	abcrypto "github.com/alphabill-org/alphabill/validator/internal/crypto"
 	testblock "github.com/alphabill-org/alphabill/validator/internal/testutils/block"
 	testtransaction "github.com/alphabill-org/alphabill/validator/internal/testutils/transaction"
-	"github.com/alphabill-org/alphabill/validator/internal/types"
 	"github.com/stretchr/testify/require"
 )
 

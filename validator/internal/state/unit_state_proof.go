@@ -6,10 +6,10 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/alphabill-org/alphabill/api/types"
 	"github.com/alphabill-org/alphabill/common/mt"
+	"github.com/alphabill-org/alphabill/common/util"
 	hasherUtil "github.com/alphabill-org/alphabill/validator/internal/hash"
-	"github.com/alphabill-org/alphabill/validator/internal/types"
-	"github.com/alphabill-org/alphabill/validator/internal/util"
 )
 
 type (

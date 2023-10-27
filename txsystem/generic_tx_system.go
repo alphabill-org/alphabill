@@ -6,12 +6,12 @@ import (
 	"log/slog"
 	"reflect"
 
+	"github.com/alphabill-org/alphabill/api/types"
+	"github.com/alphabill-org/alphabill/common/util"
 	"github.com/alphabill-org/alphabill/txsystem/fc/transactions"
 	"github.com/alphabill-org/alphabill/txsystem/fc/unit"
 	"github.com/alphabill-org/alphabill/validator/internal/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/validator/internal/state"
-	"github.com/alphabill-org/alphabill/validator/internal/types"
-	"github.com/alphabill-org/alphabill/validator/internal/util"
 	"github.com/alphabill-org/alphabill/validator/pkg/logger"
 )
 

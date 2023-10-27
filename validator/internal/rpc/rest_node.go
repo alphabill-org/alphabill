@@ -8,9 +8,9 @@ import (
 	"log/slog"
 	"net/http"
 
+	"github.com/alphabill-org/alphabill/api/types"
+	"github.com/alphabill-org/alphabill/common/util"
 	"github.com/alphabill-org/alphabill/validator/internal/metrics"
-	"github.com/alphabill-org/alphabill/validator/internal/types"
-	"github.com/alphabill-org/alphabill/validator/internal/util"
 	"github.com/fxamacker/cbor/v2"
 	"github.com/gorilla/mux"
 )

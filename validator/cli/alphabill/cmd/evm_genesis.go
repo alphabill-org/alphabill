@@ -7,10 +7,10 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/alphabill-org/alphabill/common/util"
 	evm2 "github.com/alphabill-org/alphabill/txsystem/evm"
 	"github.com/alphabill-org/alphabill/validator/internal/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/validator/internal/partition"
-	"github.com/alphabill-org/alphabill/validator/internal/util"
 	"github.com/fxamacker/cbor/v2"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/spf13/cobra"

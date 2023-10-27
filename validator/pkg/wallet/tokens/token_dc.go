@@ -6,11 +6,11 @@ import (
 	"fmt"
 	"sort"
 
+	"github.com/alphabill-org/alphabill/common/util"
 	"github.com/alphabill-org/alphabill/txsystem/tokens"
 	"github.com/fxamacker/cbor/v2"
 
-	"github.com/alphabill-org/alphabill/validator/internal/types"
-	"github.com/alphabill-org/alphabill/validator/internal/util"
+	"github.com/alphabill-org/alphabill/api/types"
 	sdk "github.com/alphabill-org/alphabill/validator/pkg/wallet"
 	"github.com/alphabill-org/alphabill/validator/pkg/wallet/account"
 	twb "github.com/alphabill-org/alphabill/validator/pkg/wallet/tokens/backend"

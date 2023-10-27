@@ -13,7 +13,7 @@ import (
 	"net/url"
 	"time"
 
-	"github.com/alphabill-org/alphabill/validator/internal/types"
+	"github.com/alphabill-org/alphabill/api/types"
 	sdk "github.com/alphabill-org/alphabill/validator/pkg/wallet"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/fxamacker/cbor/v2"

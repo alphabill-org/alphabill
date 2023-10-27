@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/alphabill-org/alphabill/common/util"
 	"github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/spf13/cobra"
 
@@ -20,7 +21,6 @@ import (
 	"github.com/alphabill-org/alphabill/validator/internal/rootchain/consensus"
 	"github.com/alphabill-org/alphabill/validator/internal/rootchain/consensus/monolithic"
 	"github.com/alphabill-org/alphabill/validator/internal/rootchain/partitions"
-	"github.com/alphabill-org/alphabill/validator/internal/util"
 	"github.com/alphabill-org/alphabill/validator/pkg/logger"
 )
 

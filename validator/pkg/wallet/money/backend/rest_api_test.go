@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/ainvaltin/httpsrv"
+	"github.com/alphabill-org/alphabill/common/util"
 	testutils2 "github.com/alphabill-org/alphabill/txsystem/fc/testutils"
 	money2 "github.com/alphabill-org/alphabill/txsystem/money"
 	"github.com/ethereum/go-ethereum/common/hexutil"
@@ -23,14 +24,13 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/stretchr/testify/require"
 
+	"github.com/alphabill-org/alphabill/api/types"
 	"github.com/alphabill-org/alphabill/validator/internal/predicates/templates"
 	test "github.com/alphabill-org/alphabill/validator/internal/testutils"
 	testhttp "github.com/alphabill-org/alphabill/validator/internal/testutils/http"
 	"github.com/alphabill-org/alphabill/validator/internal/testutils/logger"
 	"github.com/alphabill-org/alphabill/validator/internal/testutils/net"
 	testtransaction "github.com/alphabill-org/alphabill/validator/internal/testutils/transaction"
-	"github.com/alphabill-org/alphabill/validator/internal/types"
-	"github.com/alphabill-org/alphabill/validator/internal/util"
 	sdk "github.com/alphabill-org/alphabill/validator/pkg/wallet"
 )
 

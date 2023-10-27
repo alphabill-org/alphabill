@@ -5,9 +5,9 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/alphabill-org/alphabill/api/types"
 	"github.com/alphabill-org/alphabill/txsystem/fc/transactions"
 	testtransaction "github.com/alphabill-org/alphabill/validator/internal/testutils/transaction"
-	"github.com/alphabill-org/alphabill/validator/internal/types"
 )
 
 type UnlockFeeCreditOption func(Attributes *transactions.UnlockFeeCreditAttributes)

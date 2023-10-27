@@ -6,6 +6,7 @@ import (
 	"hash"
 	"testing"
 
+	"github.com/alphabill-org/alphabill/api/types"
 	"github.com/alphabill-org/alphabill/txsystem"
 	testfc "github.com/alphabill-org/alphabill/txsystem/fc/testutils"
 	"github.com/alphabill-org/alphabill/txsystem/fc/unit"
@@ -17,7 +18,6 @@ import (
 	"github.com/alphabill-org/alphabill/validator/internal/testutils/logger"
 	testsig "github.com/alphabill-org/alphabill/validator/internal/testutils/sig"
 	testtransaction "github.com/alphabill-org/alphabill/validator/internal/testutils/transaction"
-	"github.com/alphabill-org/alphabill/validator/internal/types"
 	"github.com/stretchr/testify/require"
 )
 

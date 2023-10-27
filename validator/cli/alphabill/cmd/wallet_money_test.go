@@ -13,19 +13,19 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/alphabill-org/alphabill/common/util"
 	"github.com/alphabill-org/alphabill/txsystem"
 	money2 "github.com/alphabill-org/alphabill/txsystem/money"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/stretchr/testify/require"
 
+	"github.com/alphabill-org/alphabill/api/types"
 	abcrypto "github.com/alphabill-org/alphabill/validator/internal/crypto"
 	"github.com/alphabill-org/alphabill/validator/internal/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/validator/internal/partition"
 	"github.com/alphabill-org/alphabill/validator/internal/predicates/templates"
 	"github.com/alphabill-org/alphabill/validator/internal/testutils/logger"
 	testpartition "github.com/alphabill-org/alphabill/validator/internal/testutils/partition"
-	"github.com/alphabill-org/alphabill/validator/internal/types"
-	"github.com/alphabill-org/alphabill/validator/internal/util"
 	"github.com/alphabill-org/alphabill/validator/pkg/wallet/account"
 	"github.com/alphabill-org/alphabill/validator/pkg/wallet/money/backend/client"
 )

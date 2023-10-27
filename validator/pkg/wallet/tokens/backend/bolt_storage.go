@@ -7,11 +7,11 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/alphabill-org/alphabill/common/util"
 	"github.com/fxamacker/cbor/v2"
 	bolt "go.etcd.io/bbolt"
 
-	"github.com/alphabill-org/alphabill/validator/internal/types"
-	"github.com/alphabill-org/alphabill/validator/internal/util"
+	"github.com/alphabill-org/alphabill/api/types"
 	sdk "github.com/alphabill-org/alphabill/validator/pkg/wallet"
 )
 

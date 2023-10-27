@@ -5,11 +5,11 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/alphabill-org/alphabill/api/types"
 	"github.com/alphabill-org/alphabill/validator/internal/network/protocol/blockproposal"
 	"github.com/alphabill-org/alphabill/validator/internal/network/protocol/certification"
 	"github.com/alphabill-org/alphabill/validator/internal/network/protocol/handshake"
 	"github.com/alphabill-org/alphabill/validator/internal/network/protocol/replication"
-	"github.com/alphabill-org/alphabill/validator/internal/types"
 )
 
 const (

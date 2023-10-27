@@ -6,10 +6,10 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/alphabill-org/alphabill/common/util"
 	tokens2 "github.com/alphabill-org/alphabill/txsystem/tokens"
 	abcrypto "github.com/alphabill-org/alphabill/validator/internal/crypto"
 	"github.com/alphabill-org/alphabill/validator/internal/partition"
-	"github.com/alphabill-org/alphabill/validator/internal/util"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/spf13/cobra"
 )

@@ -12,9 +12,9 @@ import (
 	"github.com/alphabill-org/alphabill/validator/internal/predicates/templates"
 	"github.com/stretchr/testify/require"
 
+	"github.com/alphabill-org/alphabill/api/types"
 	test "github.com/alphabill-org/alphabill/validator/internal/testutils"
 	testtransaction "github.com/alphabill-org/alphabill/validator/internal/testutils/transaction"
-	"github.com/alphabill-org/alphabill/validator/internal/types"
 	sdk "github.com/alphabill-org/alphabill/validator/pkg/wallet"
 )
 

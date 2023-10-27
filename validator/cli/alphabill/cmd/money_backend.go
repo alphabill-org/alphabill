@@ -6,10 +6,10 @@ import (
 	"os"
 	"path/filepath"
 
+	util2 "github.com/alphabill-org/alphabill/common/util"
 	money2 "github.com/alphabill-org/alphabill/txsystem/money"
 	"github.com/alphabill-org/alphabill/validator/internal/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/validator/internal/predicates/templates"
-	"github.com/alphabill-org/alphabill/validator/internal/util"
 	"github.com/alphabill-org/alphabill/validator/pkg/wallet/money/backend"
 	"github.com/spf13/cobra"
 )
@@ -55,7 +55,7 @@ func (c *moneyBackendConfig) getSDRFiles() ([]*genesis.SystemDescriptionRecord, 
 		sdrs = append(sdrs, defaultMoneySDR)
 	} else {
 		for _, sdrFile := range c.SDRFiles {
-			sdr, err := util.ReadJsonFile(sdrFile, &genesis.SystemDescriptionRecord{})
+			sdr, err := util2.ReadJsonFile(sdrFile, &genesis.SystemDescriptionRecord{})
 			if err != nil {
 				return nil, err
 			}
@@ -111,7 +111,7 @@ func execMoneyBackendStartCmd(ctx context.Context, config *moneyBackendConfig) e
 		DbFile:                  dbFile,
 		ListBillsPageLimit:      config.ListBillsPageLimit,
 		InitialBill: backend.InitialBill{
-			Id:        money2.NewBillID(nil, util.Uint64ToBytes(config.InitialBillID)),
+			Id:        money2.NewBillID(nil, util2.Uint64ToBytes(config.InitialBillID)),
 			Value:     config.InitialBillValue,
 			Predicate: templates.AlwaysTrueBytes(),
 		},

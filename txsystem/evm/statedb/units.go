@@ -6,8 +6,8 @@ import (
 	"math/big"
 	"sort"
 
+	"github.com/alphabill-org/alphabill/common/util"
 	abstate "github.com/alphabill-org/alphabill/validator/internal/state"
-	"github.com/alphabill-org/alphabill/validator/internal/util"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/crypto"

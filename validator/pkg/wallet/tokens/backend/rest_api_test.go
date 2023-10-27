@@ -23,11 +23,11 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/stretchr/testify/require"
 
+	"github.com/alphabill-org/alphabill/api/types"
 	"github.com/alphabill-org/alphabill/validator/internal/hash"
 	test "github.com/alphabill-org/alphabill/validator/internal/testutils"
 	testsig "github.com/alphabill-org/alphabill/validator/internal/testutils/sig"
 	testtransaction "github.com/alphabill-org/alphabill/validator/internal/testutils/transaction"
-	"github.com/alphabill-org/alphabill/validator/internal/types"
 	sdk "github.com/alphabill-org/alphabill/validator/pkg/wallet"
 )
 

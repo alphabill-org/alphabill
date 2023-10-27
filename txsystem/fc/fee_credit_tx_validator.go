@@ -6,11 +6,11 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/alphabill-org/alphabill/api/types"
 	"github.com/alphabill-org/alphabill/txsystem/fc/transactions"
 	"github.com/alphabill-org/alphabill/txsystem/fc/unit"
 	abcrypto "github.com/alphabill-org/alphabill/validator/internal/crypto"
 	"github.com/alphabill-org/alphabill/validator/internal/state"
-	"github.com/alphabill-org/alphabill/validator/internal/types"
 )
 
 type (

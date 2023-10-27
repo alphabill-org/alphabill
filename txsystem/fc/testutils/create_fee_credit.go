@@ -3,12 +3,12 @@ package testutils
 import (
 	"testing"
 
+	"github.com/alphabill-org/alphabill/api/types"
 	"github.com/alphabill-org/alphabill/txsystem/fc/transactions"
 	"github.com/alphabill-org/alphabill/validator/internal/predicates/templates"
 	test "github.com/alphabill-org/alphabill/validator/internal/testutils"
 	testpartition "github.com/alphabill-org/alphabill/validator/internal/testutils/partition"
 	testtransaction "github.com/alphabill-org/alphabill/validator/internal/testutils/transaction"
-	"github.com/alphabill-org/alphabill/validator/internal/types"
 	"github.com/stretchr/testify/require"
 )
 

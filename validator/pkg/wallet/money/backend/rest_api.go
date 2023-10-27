@@ -17,7 +17,7 @@ import (
 	"github.com/gorilla/mux"
 	"golang.org/x/sync/errgroup"
 
-	"github.com/alphabill-org/alphabill/validator/internal/types"
+	"github.com/alphabill-org/alphabill/api/types"
 	"github.com/alphabill-org/alphabill/validator/pkg/logger"
 	sdk "github.com/alphabill-org/alphabill/validator/pkg/wallet"
 )

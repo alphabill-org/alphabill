@@ -8,11 +8,11 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/alphabill-org/alphabill/common/util"
 	"github.com/stretchr/testify/require"
 
 	"github.com/alphabill-org/alphabill/validator/internal/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/validator/internal/testutils/logger"
-	"github.com/alphabill-org/alphabill/validator/internal/util"
 )
 
 const (

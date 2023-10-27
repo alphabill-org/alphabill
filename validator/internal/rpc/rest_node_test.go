@@ -11,10 +11,10 @@ import (
 	"github.com/fxamacker/cbor/v2"
 	"github.com/stretchr/testify/require"
 
+	"github.com/alphabill-org/alphabill/api/types"
 	test "github.com/alphabill-org/alphabill/validator/internal/testutils"
 	"github.com/alphabill-org/alphabill/validator/internal/testutils/logger"
 	testtransaction "github.com/alphabill-org/alphabill/validator/internal/testutils/transaction"
-	"github.com/alphabill-org/alphabill/validator/internal/types"
 )
 
 func TestRestServer_SubmitTransaction(t *testing.T) {

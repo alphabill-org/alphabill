@@ -4,8 +4,8 @@ import (
 	"crypto/ecdsa"
 	"fmt"
 
+	"github.com/alphabill-org/alphabill/api/types"
 	abcrypto "github.com/alphabill-org/alphabill/validator/internal/crypto"
-	"github.com/alphabill-org/alphabill/validator/internal/types"
 	"github.com/ethereum/go-ethereum/common"
 	ethcrypto "github.com/ethereum/go-ethereum/crypto"
 )

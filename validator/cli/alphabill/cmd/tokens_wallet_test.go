@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/alphabill-org/alphabill/api/types"
 	"github.com/alphabill-org/alphabill/txsystem"
 	tokens2 "github.com/alphabill-org/alphabill/txsystem/tokens"
 	abcrypto "github.com/alphabill-org/alphabill/validator/internal/crypto"
@@ -19,7 +20,6 @@ import (
 	"github.com/alphabill-org/alphabill/validator/internal/testutils/logger"
 	"github.com/alphabill-org/alphabill/validator/internal/testutils/net"
 	testpartition "github.com/alphabill-org/alphabill/validator/internal/testutils/partition"
-	"github.com/alphabill-org/alphabill/validator/internal/types"
 	"github.com/alphabill-org/alphabill/validator/pkg/wallet/account"
 	"github.com/alphabill-org/alphabill/validator/pkg/wallet/fees"
 	tw "github.com/alphabill-org/alphabill/validator/pkg/wallet/tokens"

@@ -5,10 +5,10 @@ import (
 	"hash"
 	"testing"
 
+	"github.com/alphabill-org/alphabill/api/types"
+	"github.com/alphabill-org/alphabill/common/util"
 	"github.com/alphabill-org/alphabill/validator/internal/predicates/templates"
 	test "github.com/alphabill-org/alphabill/validator/internal/testutils"
-	"github.com/alphabill-org/alphabill/validator/internal/types"
-	"github.com/alphabill-org/alphabill/validator/internal/util"
 	"github.com/stretchr/testify/require"
 )
 

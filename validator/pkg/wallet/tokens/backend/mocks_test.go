@@ -18,9 +18,9 @@ import (
 	"github.com/fxamacker/cbor/v2"
 	"github.com/stretchr/testify/require"
 
+	"github.com/alphabill-org/alphabill/api/types"
 	"github.com/alphabill-org/alphabill/validator/internal/rpc/alphabill"
 	test "github.com/alphabill-org/alphabill/validator/internal/testutils"
-	"github.com/alphabill-org/alphabill/validator/internal/types"
 	sdk "github.com/alphabill-org/alphabill/validator/pkg/wallet"
 )
 

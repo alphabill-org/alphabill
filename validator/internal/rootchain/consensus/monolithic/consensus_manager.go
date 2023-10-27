@@ -6,13 +6,13 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/alphabill-org/alphabill/api/types"
+	"github.com/alphabill-org/alphabill/common/util"
 	"github.com/alphabill-org/alphabill/validator/internal/crypto"
 	"github.com/alphabill-org/alphabill/validator/internal/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/validator/internal/rootchain/consensus"
 	"github.com/alphabill-org/alphabill/validator/internal/rootchain/partitions"
 	"github.com/alphabill-org/alphabill/validator/internal/rootchain/unicitytree"
-	"github.com/alphabill-org/alphabill/validator/internal/types"
-	"github.com/alphabill-org/alphabill/validator/internal/util"
 	"github.com/alphabill-org/alphabill/validator/pkg/logger"
 )
 

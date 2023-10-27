@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/alphabill-org/alphabill/api/types"
 	"github.com/alphabill-org/alphabill/txsystem"
 	"github.com/alphabill-org/alphabill/validator/internal/crypto"
 	"github.com/alphabill-org/alphabill/validator/internal/keyvaluedb"
@@ -15,7 +16,6 @@ import (
 	"github.com/alphabill-org/alphabill/validator/internal/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/validator/internal/partition/event"
 	"github.com/alphabill-org/alphabill/validator/internal/txbuffer"
-	"github.com/alphabill-org/alphabill/validator/internal/types"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/multiformats/go-multiaddr"
 )

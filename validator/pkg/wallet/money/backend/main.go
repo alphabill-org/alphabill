@@ -17,9 +17,9 @@ import (
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/sync/semaphore"
 
+	"github.com/alphabill-org/alphabill/api/types"
 	"github.com/alphabill-org/alphabill/validator/internal/debug"
 	"github.com/alphabill-org/alphabill/validator/internal/network/protocol/genesis"
-	"github.com/alphabill-org/alphabill/validator/internal/types"
 	"github.com/alphabill-org/alphabill/validator/pkg/client"
 	"github.com/alphabill-org/alphabill/validator/pkg/logger"
 	sdk "github.com/alphabill-org/alphabill/validator/pkg/wallet"

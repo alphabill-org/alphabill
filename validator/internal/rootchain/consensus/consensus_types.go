@@ -5,10 +5,10 @@ import (
 	gocrypto "crypto"
 	"time"
 
+	"github.com/alphabill-org/alphabill/api/types"
 	"github.com/alphabill-org/alphabill/validator/internal/keyvaluedb"
 	"github.com/alphabill-org/alphabill/validator/internal/keyvaluedb/memorydb"
 	"github.com/alphabill-org/alphabill/validator/internal/network/protocol/genesis"
-	"github.com/alphabill-org/alphabill/validator/internal/types"
 )
 
 type (

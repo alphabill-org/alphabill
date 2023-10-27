@@ -31,10 +31,6 @@ schemas:
       targetUnitBacklink:
         type: string
         example: 'A19cILOb/nbHFGk62RSQ4UDINC15QcsThq2sKFpvFgA='
-      lastAddFcTxHash:
-        type: string
-        description: Hash of the last Add Fee Credit transaction
-        example: 'i8aOD56GOwyAwzakOfdtEqbWq/Z8dZsfAfxjznCOX/Y='
   UnitIDParam:
     type: string
     description: |-

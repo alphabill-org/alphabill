@@ -56,14 +56,13 @@ type (
 	}
 
 	Bill struct {
-		Id                      []byte `json:"id"`
-		Value                   uint64 `json:"value"`
-		TxHash                  []byte `json:"txHash"`
-		DCTargetUnitID          []byte `json:"dcTargetUnitId,omitempty"`
-		DCTargetUnitBacklink    []byte `json:"dcTargetUnitBacklink,omitempty"`
-		OwnerPredicate          []byte `json:"ownerPredicate"`
-		Locked                  uint64 `json:"locked"`
-		FeeCreditRecordBacklink []byte `json:"feeCreditRecordBacklink,omitempty"` // hash of last "addFC", "closeFC", "lockFC" or "unlockFC" transaction
+		Id                   []byte `json:"id"`
+		Value                uint64 `json:"value"`
+		TxHash               []byte `json:"txHash"`
+		DCTargetUnitID       []byte `json:"dcTargetUnitId,omitempty"`
+		DCTargetUnitBacklink []byte `json:"dcTargetUnitBacklink,omitempty"`
+		OwnerPredicate       []byte `json:"ownerPredicate"`
+		Locked               uint64 `json:"locked"`
 	}
 
 	Pubkey struct {
@@ -390,13 +389,12 @@ func extractOwnerKeyFromProof(signature sdk.Predicate) sdk.PubKey {
 
 func (b *Bill) ToGenericBill() *sdk.Bill {
 	return &sdk.Bill{
-		Id:                      b.Id,
-		Value:                   b.Value,
-		TxHash:                  b.TxHash,
-		DCTargetUnitID:          b.DCTargetUnitID,
-		DCTargetUnitBacklink:    b.DCTargetUnitBacklink,
-		Locked:                  b.Locked,
-		FeeCreditRecordBacklink: b.FeeCreditRecordBacklink,
+		Id:                   b.Id,
+		Value:                b.Value,
+		TxHash:               b.TxHash,
+		DCTargetUnitID:       b.DCTargetUnitID,
+		DCTargetUnitBacklink: b.DCTargetUnitBacklink,
+		Locked:               b.Locked,
 	}
 }
 

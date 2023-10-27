@@ -294,10 +294,9 @@ func (p *BlockProcessor) processTx(txr *types.TransactionRecord, b *types.Block,
 			return err
 		}
 		return dbTx.SetFeeCreditBill(&Bill{
-			Id:                      txo.UnitID(),
-			Value:                   fcb.getValue() + transferFCAttr.Amount - addFCAttr.FeeCreditTransfer.ServerMetadata.ActualFee - txr.ServerMetadata.ActualFee,
-			TxHash:                  txHash,
-			FeeCreditRecordBacklink: txHash,
+			Id:     txo.UnitID(),
+			Value:  fcb.getValue() + transferFCAttr.Amount - addFCAttr.FeeCreditTransfer.ServerMetadata.ActualFee - txr.ServerMetadata.ActualFee,
+			TxHash: txHash,
 		}, proof)
 	case transactions.PayloadTypeCloseFeeCredit:
 		fcb, err := dbTx.GetFeeCreditBill(txo.UnitID())
@@ -314,10 +313,9 @@ func (p *BlockProcessor) processTx(txr *types.TransactionRecord, b *types.Block,
 			return err
 		}
 		return dbTx.SetFeeCreditBill(&Bill{
-			Id:                      txo.UnitID(),
-			TxHash:                  txHash,
-			Value:                   fcb.getValue() - attr.Amount,
-			FeeCreditRecordBacklink: txHash,
+			Id:     txo.UnitID(),
+			TxHash: txHash,
+			Value:  fcb.getValue() - attr.Amount,
 		}, proof)
 	case transactions.PayloadTypeReclaimFeeCredit:
 		bill, err := dbTx.GetBill(txo.UnitID())
@@ -374,7 +372,6 @@ func (p *BlockProcessor) processTx(txr *types.TransactionRecord, b *types.Block,
 		fcb.Locked = attr.LockStatus
 		fcb.Value -= txr.ServerMetadata.ActualFee
 		fcb.TxHash = txHash
-		fcb.FeeCreditRecordBacklink = txHash
 		return dbTx.SetFeeCreditBill(fcb, proof)
 	case transactions.PayloadTypeUnlockFeeCredit:
 		fcb, err := dbTx.GetFeeCreditBill(txo.UnitID())
@@ -390,7 +387,6 @@ func (p *BlockProcessor) processTx(txr *types.TransactionRecord, b *types.Block,
 		fcb.Locked = 0
 		fcb.Value -= txr.ServerMetadata.ActualFee
 		fcb.TxHash = txHash
-		fcb.FeeCreditRecordBacklink = txHash
 		return dbTx.SetFeeCreditBill(fcb, proof)
 	default:
 		log.Warn(fmt.Sprintf("no handler for transaction type %q, skipping processing", txo.PayloadType()), logger.UnitID(txo.UnitID()))

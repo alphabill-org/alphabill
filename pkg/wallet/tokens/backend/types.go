@@ -132,9 +132,8 @@ func (f *FeeCreditBill) ToGenericBill() *wallet.Bill {
 		return nil
 	}
 	return &wallet.Bill{
-		Id:                      f.Id,
-		Value:                   f.Value,
-		TxHash:                  f.TxHash,
-		FeeCreditRecordBacklink: f.TxHash,
+		Id:     f.Id,
+		Value:  f.Value,
+		TxHash: f.TxHash,
 	}
 }

@@ -169,12 +169,11 @@ func createBillListResponse(bills []*wallet.Bill) *backend.ListBillsResponse {
 	billVMs := make([]*wallet.Bill, len(bills))
 	for i, b := range bills {
 		billVMs[i] = &wallet.Bill{
-			Id:                      b.GetID(),
-			Value:                   b.Value,
-			TxHash:                  b.TxHash,
-			DCTargetUnitID:          b.DCTargetUnitID,
-			DCTargetUnitBacklink:    b.DCTargetUnitBacklink,
-			FeeCreditRecordBacklink: b.FeeCreditRecordBacklink,
+			Id:                   b.GetID(),
+			Value:                b.Value,
+			TxHash:               b.TxHash,
+			DCTargetUnitID:       b.DCTargetUnitID,
+			DCTargetUnitBacklink: b.DCTargetUnitBacklink,
 		}
 	}
 	return &backend.ListBillsResponse{Bills: billVMs}

@@ -12,13 +12,12 @@ type (
 	}
 
 	Bill struct {
-		Id                      []byte `json:"id,omitempty"`
-		Value                   uint64 `json:"value,omitempty,string"`
-		TxHash                  []byte `json:"txHash,omitempty"`
-		DCTargetUnitID          []byte `json:"targetUnitId,omitempty"`
-		DCTargetUnitBacklink    []byte `json:"targetUnitBacklink,omitempty"`
-		Locked                  uint64 `json:"locked,omitempty"`
-		FeeCreditRecordBacklink []byte `json:"feeCreditRecordBacklink,omitempty"` // hash of last "addFC", "closeFC", "lockFC" or "unlockFC" transaction
+		Id                   []byte `json:"id,omitempty"`
+		Value                uint64 `json:"value,omitempty,string"`
+		TxHash               []byte `json:"txHash,omitempty"`
+		DCTargetUnitID       []byte `json:"targetUnitId,omitempty"`
+		DCTargetUnitBacklink []byte `json:"targetUnitBacklink,omitempty"`
+		Locked               uint64 `json:"locked,omitempty"`
 	}
 )
 
@@ -50,13 +49,6 @@ func (x *Bill) GetValue() uint64 {
 func (x *Bill) GetTxHash() []byte {
 	if x != nil {
 		return x.TxHash
-	}
-	return nil
-}
-
-func (x *Bill) GetFeeCreditRecordBacklink() []byte {
-	if x != nil {
-		return x.FeeCreditRecordBacklink
 	}
 	return nil
 }

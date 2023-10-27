@@ -88,12 +88,10 @@ type (
 		blockStore                  keyvaluedb.KeyValueDB
 		txIndexer                   keyvaluedb.KeyValueDB
 		txBuffer                    *txbuffer.TxBuffer
+		stopTxProcessor             atomic.Value
+		t1event                     chan struct{}
 		peer                        *network.Peer
 		network                     Net
-		txCancel                    context.CancelFunc
-		txWaitGroup                 *sync.WaitGroup
-		txCh                        chan *types.TransactionOrder
-		timeoutCh                   chan struct{}
 		eventCh                     chan event.Event
 		lastLedgerReqTime           time.Time
 		eventHandler                event.Handler
@@ -114,26 +112,14 @@ type (
 	status int
 )
 
-// NewNode creates a new instance of the partition node. All parameters expect the nodeOptions are required. Functions
-// implementing the NodeOption interface can be used to override default configuration values:
-//
-//	  n, err := NewNode(
-//	 	peer,
-//			signer,
-//			txSystem,
-//			genesis,
-//			net,
-//			WithTxValidator(myTxValidator)),
-//			WithUnicityCertificateValidator(ucValidator),
-//			WithBlockProposalValidator(blockProposalValidator),
-//			WithLeaderSelector(leaderSelector),
-//			WithBlockStore(blockStore),
-//			WithT1Timeout(250*time.Millisecond),
-//	  )
-//
-// The following restrictions apply to the inputs:
-//   - the network peer and signer must use the same keys that were used to generate node genesis file;
-//   - the state of the transaction system must be equal to the state that was used to generate genesis file.
+/*
+NewNode creates a new instance of the partition node. All parameters expect the nodeOptions are required.
+Functions implementing the NodeOption interface can be used to override default configuration values.
+
+The following restrictions apply to the inputs:
+  - the network peer and signer must use the same keys that were used to generate node genesis file;
+  - the state of the transaction system must be equal to the state that was used to generate genesis file.
+*/
 func NewNode(
 	ctx context.Context,
 	peerConf *network.PeerConfiguration,
@@ -160,15 +146,13 @@ func NewNode(
 		blockStore:                  conf.blockStore,
 		txIndexer:                   conf.txIndexer,
 		txBuffer:                    conf.txBuffer,
+		t1event:                     make(chan struct{}), // do not buffer!
 		eventHandler:                conf.eventHandler,
 		network:                     net,
-		txWaitGroup:                 &sync.WaitGroup{},
 		lastLedgerReqTime:           time.Time{},
-		txCh:                        make(chan *types.TransactionOrder, conf.txBuffer.Capacity()),
-		timeoutCh:                   make(chan struct{}, 1),
 		log:                         log,
 	}
-
+	n.stopTxProcessor.Store(func() { /* init to NOP */ })
 	n.status.Store(initializing)
 
 	if n.eventHandler != nil {
@@ -391,16 +375,12 @@ func (n *Node) restoreBlockProposal(prevBlock *types.Block) {
 func (n *Node) loop(ctx context.Context) error {
 	ticker := time.NewTicker(time.Second)
 	defer ticker.Stop()
-	var lastRootMsgTime time.Time
+	var lastUCReceived time.Time
 
 	for {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
-		case tx := <-n.txCh:
-			if err := n.process(tx, n.getCurrentRound()); err != nil {
-				n.log.Warn("failed to process transaction", logger.Error(err), logger.UnitID(tx.UnitID()))
-			}
 		case m, ok := <-n.network.ReceivedChannel():
 			if !ok {
 				return errors.New("network received channel is closed")
@@ -414,11 +394,11 @@ func (n *Node) loop(ctx context.Context) error {
 					n.sendEvent(event.Error, err)
 				}
 			case *types.UnicityCertificate:
-				lastRootMsgTime = time.Now()
 				if err := n.handleUnicityCertificate(ctx, mt); err != nil {
 					n.log.Warn("Unicity Certificate processing failed", logger.Error(err))
 					n.sendEvent(event.Error, err)
 				}
+				lastUCReceived = time.Now()
 				n.sendEvent(event.UnicityCertificateHandled, mt)
 			case *blockproposal.BlockProposal:
 				if err := n.handleBlockProposal(ctx, mt); err != nil {
@@ -436,10 +416,10 @@ func (n *Node) loop(ctx context.Context) error {
 			default:
 				n.log.Warn(fmt.Sprintf("unknown message: %T", mt))
 			}
-		case <-n.timeoutCh:
+		case <-n.t1event:
 			n.handleT1TimeoutEvent(ctx)
 		case <-ticker.C:
-			n.handleMonitoring(ctx, lastRootMsgTime)
+			n.handleMonitoring(ctx, lastUCReceived)
 		}
 	}
 }
@@ -470,25 +450,6 @@ func (n *Node) handleTxMessage(tx *types.TransactionOrder) error {
 		return fmt.Errorf("failed to add transaction into buffer: %w", err)
 	}
 	return nil
-}
-
-func (n *Node) handleOrForwardTransaction(ctx context.Context, tx *types.TransactionOrder) bool {
-	rn := n.getCurrentRound()
-	if err := n.txValidator.Validate(tx, rn); err != nil {
-		n.log.WarnContext(ctx, "invalid transaction", logger.Error(err), logger.UnitID(tx.UnitID()))
-		return true
-	}
-	leader := n.leaderSelector.GetLeader()
-	if leader == n.peer.ID() {
-		n.txCh <- tx
-		return true
-	}
-	n.log.DebugContext(ctx, fmt.Sprintf("forwarding tx %X to %v", tx.Hash(n.configuration.hashAlgorithm), leader), logger.UnitID(tx.UnitID()))
-	if err := n.network.Send(ctx, tx, leader); err != nil {
-		n.log.WarnContext(ctx, "failed to forward tx", logger.Error(err), logger.UnitID(tx.UnitID()))
-		return false
-	}
-	return true
 }
 
 func (n *Node) process(tx *types.TransactionOrder, round uint64) error {
@@ -869,9 +830,9 @@ func (n *Node) handleT1TimeoutEvent(ctx context.Context) {
 
 // handleMonitoring - monitors root communication, if for no UC is
 // received for a long time then try and request one from root
-func (n *Node) handleMonitoring(ctx context.Context, lastRootMsgTime time.Time) {
+func (n *Node) handleMonitoring(ctx context.Context, lastUCReceived time.Time) {
 	// check if we have not heard from root validator for a long time
-	if time.Since(lastRootMsgTime) > 2*n.configuration.GetT2Timeout() {
+	if time.Since(lastUCReceived) > 2*n.configuration.GetT2Timeout() {
 		// subscribe again
 		n.sendHandshake(ctx)
 	}
@@ -890,7 +851,7 @@ func (n *Node) sendLedgerReplicationResponse(ctx context.Context, msg *replicati
 	}
 
 	if err = n.network.Send(ctx, msg, recoveringNodeID); err != nil {
-		return fmt.Errorf("sending replication response %s: %w", msg.Pretty(), err)
+		return fmt.Errorf("sending replication response: %w", err)
 	}
 	n.sendEvent(event.ReplicationResponseSent, msg)
 	return nil
@@ -1283,47 +1244,68 @@ func (n *Node) SystemIdentifier() []byte {
 }
 
 func (n *Node) stopForwardingOrHandlingTransactions() {
-	if n.txCancel != nil {
-		txCancel := n.txCancel
-		n.txCancel = nil
-		txCancel()
-		n.txWaitGroup.Wait()
-		// clear the channel and add unprocessed transactions back to buffer
-		for {
-			select {
-			case tx := <-n.txCh:
-				n.log.Warn("Stop forward or handle tx, adding tx back to the buffer", logger.UnitID(tx.UnitID()))
-				// add can only fail if this is a duplicate
-				_, _ = n.txBuffer.Add(tx)
-			default:
-				return
-			}
-		}
-	}
+	n.stopTxProcessor.Load().(func())()
 }
 
 func (n *Node) startHandleOrForwardTransactions(ctx context.Context) {
 	n.stopForwardingOrHandlingTransactions()
-	if n.leaderSelector.GetLeader() == UnknownLeader {
+
+	processTx := n.txProcessorForRound(n.getCurrentRound(), n.leaderSelector.GetLeader())
+	if processTx == nil {
 		return
 	}
 
 	txCtx, txCancel := context.WithCancel(ctx)
-	n.txCancel = txCancel
+	var wg sync.WaitGroup
+	wg.Add(2)
 
-	n.txWaitGroup.Add(1)
+	n.stopTxProcessor.Store(func() {
+		txCancel()
+		wg.Wait()
+	})
+
 	go func() {
-		defer n.txWaitGroup.Done()
-		n.txBuffer.Process(txCtx, n.handleOrForwardTransaction)
+		defer wg.Done()
+		n.txBuffer.Process(txCtx, processTx)
 	}()
 
 	go func() {
+		defer wg.Done()
 		select {
 		case <-time.After(n.configuration.t1Timeout):
-			n.timeoutCh <- struct{}{}
+			// Rather than call handleT1TimeoutEvent directly send signal to main
+			// loop - helps to avoid concurrency issues with (repeat) UC handling.
+			select {
+			case n.t1event <- struct{}{}:
+			case <-txCtx.Done():
+			}
 		case <-txCtx.Done():
 		}
 	}()
+}
+
+func (n *Node) txProcessorForRound(round uint64, leader peer.ID) txbuffer.TxHandler {
+	log := n.log.With(logger.Round(round))
+
+	switch leader {
+	case UnknownLeader:
+		log.Warn("unknown round leader")
+		return nil
+	case n.peer.ID():
+		return func(ctx context.Context, tx *types.TransactionOrder) {
+			if err := n.process(tx, round); err != nil {
+				log.WarnContext(ctx, "processing transaction", logger.Error(err), logger.UnitID(tx.UnitID()))
+			}
+		}
+	default:
+		return func(ctx context.Context, tx *types.TransactionOrder) {
+			msg := fmt.Sprintf("forward tx %X to %v", tx.Hash(n.configuration.hashAlgorithm), leader)
+			log.DebugContext(ctx, msg, logger.UnitID(tx.UnitID()))
+			if err := n.network.Send(ctx, tx, leader); err != nil {
+				log.WarnContext(ctx, "failed to "+msg, logger.Error(err), logger.UnitID(tx.UnitID()))
+			}
+		}
+	}
 }
 
 func (n *Node) hashProposedBlock(prevBlockHash []byte, author string) ([]byte, error) {

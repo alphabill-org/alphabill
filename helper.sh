@@ -163,7 +163,11 @@ local restPort=0
   i=1
   for keyf in $key_files
   do
+<<<<<<< HEAD
     build/alphabill "$1" --home ${home}$i -f ${home}$i/"$1"/blocks.db --tx-db ${home}$i/"$1"/tx.db -k $keyf -r "/ip4/127.0.0.1/tcp/26662" -a "/ip4/127.0.0.1/tcp/$aPort" --server-address "localhost:$grpcPort" --rest-server-address "localhost:$restPort" -g $genesis_file  >> ${home}$i/"$1"/"$1".log  2>&1 &
+=======
+    build/alphabill "$1" --home ${home}$i -f ${home}$i/"$1"/blocks.db --tx-db ${home}$i/"$1"/tx.db -k $keyf -r "/ip4/127.0.0.1/tcp/26662" -a "/ip4/127.0.0.1/tcp/$aPort" --server-address "localhost:$grpcPort" --rest-server-address "localhost:$restPort" -g $genesis_file &>> ${home}$i/"$1"/"$1".log &
+>>>>>>> main
     ((i=i+1))
     ((aPort=aPort+1))
     ((grpcPort=grpcPort+1))

@@ -29,6 +29,8 @@ func bigIntFromString(t *testing.T, value string) *big.Int {
 
 type evmClientMock struct {
 	SimulateErr error
+	noFcb       bool
+	gasPrice    string
 }
 
 func newClientMock() *evmClientMock {
@@ -92,6 +94,29 @@ func (e *evmClientMock) GetBalance(ctx context.Context, ethAddr []byte) (string,
 		return "", nil, e.SimulateErr
 	}
 	return "100000", test.RandomBytes(32), nil
+}
+
+func (e *evmClientMock) GetFeeCreditBill(ctx context.Context, unitID types.UnitID) (*wallet.Bill, error) {
+	if e.SimulateErr != nil {
+		return nil, e.SimulateErr
+	}
+	if e.noFcb {
+		return nil, nil
+	}
+	return &wallet.Bill{
+		Id:    unitID,
+		Value: 100 * 1e8,
+	}, nil
+}
+
+func (e *evmClientMock) GetGasPrice(ctx context.Context) (string, error) {
+	if e.SimulateErr != nil {
+		return "", e.SimulateErr
+	}
+	if e.gasPrice != "" {
+		return e.gasPrice, nil
+	}
+	return "100", nil
 }
 
 func createTestWallet(t *testing.T) (*Wallet, *evmClientMock) {
@@ -201,9 +226,9 @@ func TestWallet_EvmCall(t *testing.T) {
 	require.ErrorContains(t, err, "invalid account number: 0")
 	require.Nil(t, res)
 	// simulate error from client
-	clientMock.SimulateErr = fmt.Errorf("somehing bad happened")
+	clientMock.SimulateErr = fmt.Errorf("something bad happened")
 	res, err = w.EvmCall(ctx, 1, attrs)
-	require.ErrorContains(t, err, "somehing bad happened")
+	require.ErrorContains(t, err, "something bad happened")
 	require.Nil(t, res)
 }
 
@@ -225,9 +250,9 @@ func TestWallet_GetBalance(t *testing.T) {
 	require.ErrorContains(t, err, "invalid account number: 0")
 	require.Nil(t, res)
 	// simulate error from client
-	clientMock.SimulateErr = fmt.Errorf("somehing bad happened")
+	clientMock.SimulateErr = fmt.Errorf("something bad happened")
 	res, err = w.GetBalance(ctx, 1)
-	require.ErrorContains(t, err, "somehing bad happened")
+	require.ErrorContains(t, err, "something bad happened")
 	require.Nil(t, res)
 }
 
@@ -253,5 +278,18 @@ func TestWallet_SendEvmTx(t *testing.T) {
 	clientMock.SimulateErr = fmt.Errorf("something bad happened")
 	res, err = w.SendEvmTx(ctx, 1, attrs)
 	require.ErrorContains(t, err, "something bad happened")
+	require.Nil(t, res)
+	// simulate no fee credit
+	clientMock.SimulateErr = nil
+	clientMock.noFcb = true
+	res, err = w.SendEvmTx(ctx, 1, attrs)
+	require.ErrorContains(t, err, "no fee credit in evm wallet")
+	require.Nil(t, res)
+	// simulate insufficient fee credit
+	clientMock.noFcb = false
+	clientMock.gasPrice = "100000000000"
+	attrs.Gas = 1
+	res, err = w.SendEvmTx(ctx, 1, attrs)
+	require.ErrorContains(t, err, "insufficient fee credit balance for transaction")
 	require.Nil(t, res)
 }

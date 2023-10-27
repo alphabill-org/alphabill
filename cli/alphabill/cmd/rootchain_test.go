@@ -207,7 +207,7 @@ func TestRootValidator_CannotBeStartedInvalidKeyFile(t *testing.T) {
 	cmd.baseCmd.SetArgs(strings.Split(args, " "))
 	ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond*100)
 	defer cancel()
-	require.ErrorContains(t, cmd.addAndExecuteCommand(ctx), "root genesis file does not match keys file: node id/encode key not found in genesis")
+	require.ErrorContains(t, cmd.addAndExecuteCommand(ctx), "root node key not found in genesis: node id/encode key not found in genesis")
 }
 
 func TestRootValidator_CannotBeStartedInvalidDBDir(t *testing.T) {
@@ -220,7 +220,7 @@ func TestRootValidator_CannotBeStartedInvalidDBDir(t *testing.T) {
 	cmd.baseCmd.SetArgs(strings.Split(args, " "))
 	ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond*100)
 	defer cancel()
-	require.ErrorContains(t, cmd.addAndExecuteCommand(ctx), "root store init failed, open /foobar/doesnotexist3454/rootchain.db: no such file or directory")
+	require.ErrorContains(t, cmd.addAndExecuteCommand(ctx), "root store init failed: open /foobar/doesnotexist3454/rootchain.db: no such file or directory")
 }
 
 func Test_Start_2_DRCNodes(t *testing.T) {

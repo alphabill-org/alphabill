@@ -28,42 +28,37 @@ type (
 	// TxBuffer is an in-memory data structure containing the set of unconfirmed transactions.
 	TxBuffer struct {
 		mutex          sync.Mutex
-		transactions   map[string]*types.TransactionOrder // map containing valid pending transactions.
+		transactions   map[string]struct{} // index of pending transactions
 		transactionsCh chan *types.TransactionOrder
 		hashAlgorithm  crypto.Hash
 		log            *slog.Logger
 	}
 
-	// TxHandler handles the transaction. Return value should indicate whether the tx was processed
-	// successfully (and thus removed from buffer) but currently this value is ignored - after callback
-	// returns the tx is always removed from internal buffer.
-	TxHandler func(ctx context.Context, tx *types.TransactionOrder) bool
+	// TxHandler processes an transaction.
+	TxHandler func(ctx context.Context, tx *types.TransactionOrder)
 )
 
-// New creates a new instance of the TxBuffer. MaxSize specifies the total number of transactions the TxBuffer may
-// contain.
+/*
+New creates a new instance of the TxBuffer.
+MaxSize specifies the total number of transactions the TxBuffer may contain.
+*/
 func New(maxSize uint32, hashAlgorithm crypto.Hash, log *slog.Logger) (*TxBuffer, error) {
 	if maxSize < 1 {
 		return nil, ErrInvalidMaxSize
 	}
 	return &TxBuffer{
 		hashAlgorithm:  hashAlgorithm,
-		transactions:   make(map[string]*types.TransactionOrder),
+		transactions:   make(map[string]struct{}),
 		transactionsCh: make(chan *types.TransactionOrder, maxSize),
 		log:            log,
 	}, nil
 }
 
-func (t *TxBuffer) Close() {
-	close(t.transactionsCh)
-}
-
-func (t *TxBuffer) Capacity() uint32 {
-	return uint32(cap(t.transactionsCh))
-}
-
-// Add adds the given transaction to the transaction buffer. Returns an error if the transaction isn't valid, is
-// already present in the TxBuffer, or TxBuffer is full.
+/*
+Add adds the given transaction into the transaction buffer.
+Returns an error if the transaction isn't valid, is already present in the TxBuffer,
+or TxBuffer is full.
+*/
 func (t *TxBuffer) Add(tx *types.TransactionOrder) ([]byte, error) {
 	if tx == nil {
 		return nil, ErrTxIsNil
@@ -84,7 +79,7 @@ func (t *TxBuffer) Add(tx *types.TransactionOrder) ([]byte, error) {
 	select {
 	case t.transactionsCh <- tx:
 		transactionsCounter.Inc(1)
-		t.transactions[txId] = tx
+		t.transactions[txId] = struct{}{}
 	default:
 		transactionsRejectedCounter.Inc(1)
 		return nil, ErrTxBufferFull
@@ -94,27 +89,26 @@ func (t *TxBuffer) Add(tx *types.TransactionOrder) ([]byte, error) {
 }
 
 /*
-Process calls the "process" callback for a transaction. Return value of the callback should indicate
-whether the tx was processed successfully or not but currently this value is ignored - after callback
-returns the tx is always removed from internal buffer.
+Process calls the "process" callback for each transaction in the buffer until
+ctx is cancelled.
+After callback returns the tx is always removed from internal buffer (ie the
+callback can't add the tx back to buffer, it would be rejected as duplicate).
 */
 func (t *TxBuffer) Process(ctx context.Context, process TxHandler) {
 	for {
 		select {
 		case <-ctx.Done():
 			return
-		case tx, ok := <-t.transactionsCh:
-			if !ok {
-				return
-			}
+		case tx := <-t.transactionsCh:
 			process(ctx, tx)
 			t.removeFromIndex(string(tx.Hash(t.hashAlgorithm)))
 		}
 	}
 }
 
-// removeFromIndex deletes the transaction with given id from the index (note that
-// tx still might be in the channel!)
+/*
+removeFromIndex deletes the transaction with given id from the index.
+*/
 func (t *TxBuffer) removeFromIndex(id string) {
 	t.mutex.Lock()
 	defer t.mutex.Unlock()
@@ -123,11 +117,4 @@ func (t *TxBuffer) removeFromIndex(id string) {
 		delete(t.transactions, id)
 		transactionsCounter.Dec(1)
 	}
-}
-
-// Count returns the total number of transactions in the TxBuffer.
-func (t *TxBuffer) Count() uint32 {
-	t.mutex.Lock()
-	defer t.mutex.Unlock()
-	return uint32(len(t.transactionsCh))
 }

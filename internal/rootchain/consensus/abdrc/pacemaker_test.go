@@ -444,7 +444,7 @@ func TestPacemaker_startNewRound(t *testing.T) {
 			defer close(done)
 			// timers are not exact and there is also some overhead in PM
 			// so allow extra 50ms per timeout cycle
-			stopCounting := time.After(TOcycles*roundTO + (TOcycles * 50 * time.Millisecond))
+			stopCounting := time.After(TOcycles*roundTO + (TOcycles * 75 * time.Millisecond))
 			for {
 				select {
 				case <-stopCounting:

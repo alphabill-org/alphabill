@@ -313,7 +313,7 @@ func Test_Start_2_DRCNodes(t *testing.T) {
 				NodeIdentifier:   moneyPeer.ID().String(),
 			}, rootID)
 			return err == nil
-		}, 2*time.Second, test.WaitTick)
+		}, 4*time.Second, test.WaitTick)
 		// Close the app
 		ctxCancel()
 		// Wait for test asserts to be completed

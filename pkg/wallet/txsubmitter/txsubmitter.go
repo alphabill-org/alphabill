@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/alphabill-org/alphabill/internal/types"
+	"github.com/alphabill-org/alphabill/pkg/logger"
 	"github.com/alphabill-org/alphabill/pkg/wallet"
 )
 
@@ -128,10 +129,10 @@ func (t *TxSubmissionBatch) confirmUnitsTx(ctx context.Context) error {
 		if unconfirmed {
 			// If this was the last attempt to get proofs, log the ones that timed out.
 			if roundNr > t.maxTimeout {
-				t.log.InfoContext(ctx, fmt.Sprintf("Tx confirmation timeout is reached, block (#%v)", roundNr))
+				t.log.InfoContext(ctx, "Tx confirmation timeout is reached", logger.Round(roundNr))
 				for _, sub := range t.submissions {
 					if !sub.Confirmed() {
-						t.log.InfoContext(ctx, fmt.Sprintf("Tx not confirmed for UnitID=%s, hash=%X", sub.UnitID, sub.TxHash))
+						t.log.InfoContext(ctx, fmt.Sprintf("Tx not confirmed for hash=%X", sub.TxHash), logger.UnitID(sub.UnitID))
 					}
 				}
 				return errors.New("confirmation timeout")

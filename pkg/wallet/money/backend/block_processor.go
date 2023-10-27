@@ -356,6 +356,42 @@ func (p *BlockProcessor) processTx(txr *types.TransactionRecord, b *types.Block,
 		}
 		// 3. add reclaimFC tx fee to money partition fee bill
 		return p.addTxFeeToMoneyFeeBill(dbTx, txr, proof)
+	case transactions.PayloadTypeLockFeeCredit:
+		fcb, err := dbTx.GetFeeCreditBill(txo.UnitID())
+		if err != nil {
+			return fmt.Errorf("failed to load fee credit bill: %w", err)
+		}
+		if fcb == nil {
+			return fmt.Errorf("fee credit bill not found: %X", txo.Payload.ClientMetadata.FeeCreditRecordID)
+		}
+		if fcb.Value < txr.ServerMetadata.ActualFee {
+			return fmt.Errorf("fee credit bill value cannot go negative; value=%d fee=%d", fcb.Value, txr.ServerMetadata.ActualFee)
+		}
+		attr := &transactions.LockFeeCreditAttributes{}
+		if err := txo.UnmarshalAttributes(attr); err != nil {
+			return fmt.Errorf("failed to unmarshal lockFC attributes: %w", err)
+		}
+		fcb.Locked = attr.LockStatus
+		fcb.Value -= txr.ServerMetadata.ActualFee
+		fcb.TxHash = txHash
+		fcb.FeeCreditRecordBacklink = txHash
+		return dbTx.SetFeeCreditBill(fcb, proof)
+	case transactions.PayloadTypeUnlockFeeCredit:
+		fcb, err := dbTx.GetFeeCreditBill(txo.UnitID())
+		if err != nil {
+			return fmt.Errorf("failed to load fee credit bill: %w", err)
+		}
+		if fcb == nil {
+			return fmt.Errorf("fee credit bill not found: %X", txo.Payload.ClientMetadata.FeeCreditRecordID)
+		}
+		if fcb.Value < txr.ServerMetadata.ActualFee {
+			return fmt.Errorf("fee credit bill value cannot go negative; value=%d fee=%d", fcb.Value, txr.ServerMetadata.ActualFee)
+		}
+		fcb.Locked = 0
+		fcb.Value -= txr.ServerMetadata.ActualFee
+		fcb.TxHash = txHash
+		fcb.FeeCreditRecordBacklink = txHash
+		return dbTx.SetFeeCreditBill(fcb, proof)
 	default:
 		log.Warn(fmt.Sprintf("no handler for transaction type %q, skipping processing", txo.PayloadType()), logger.UnitID(txo.UnitID()))
 	}

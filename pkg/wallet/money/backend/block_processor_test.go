@@ -5,6 +5,7 @@ import (
 	gocrypto "crypto"
 	"testing"
 
+	"github.com/alphabill-org/alphabill/internal/txsystem/fc/transactions"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/fxamacker/cbor/v2"
 	"github.com/stretchr/testify/require"
@@ -821,7 +822,7 @@ func TestLockTx_Ok(t *testing.T) {
 	require.EqualValues(t, 99, fcb.Value)
 }
 
-func TestUnlockTx_NotOk(t *testing.T) {
+func TestUnlockTx_Ok(t *testing.T) {
 	store := createTestBillStore(t)
 	blockProcessor, err := NewBlockProcessor(store, moneySystemID, logger.New(t))
 	require.NoError(t, err)
@@ -994,6 +995,110 @@ func TestReclaimUnlocksBill(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, bill)
 	require.EqualValues(t, 0, bill.Locked)
+}
+
+func TestLockFC_Ok(t *testing.T) {
+	store := createTestBillStore(t)
+
+	// store existing fee credit bill for lockFC tx
+	unitID := newBillID(3)
+	err := store.Do().SetFeeCreditBill(&Bill{Id: unitID, Value: 100}, nil)
+	require.NoError(t, err)
+
+	// store system description records
+	err = store.Do().SetSystemDescriptionRecords([]*genesis.SystemDescriptionRecord{
+		{
+			SystemIdentifier: moneySystemID,
+			T2Timeout:        2500,
+			FeeCreditBill: &genesis.FeeCreditBill{
+				UnitId:         money.NewBillID(nil, []byte{2}),
+				OwnerPredicate: templates.AlwaysTrueBytes(),
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	// create block processor
+	blockProcessor, err := NewBlockProcessor(store, moneySystemID, logger.New(t))
+	require.NoError(t, err)
+
+	// create lockFC tx
+	tx := &types.TransactionRecord{
+		TransactionOrder: &types.TransactionOrder{
+			Payload: &types.Payload{
+				SystemID:   moneySystemID,
+				Type:       transactions.PayloadTypeLockFeeCredit,
+				UnitID:     unitID,
+				Attributes: marshalCbor(&transactions.LockFeeCreditAttributes{LockStatus: 1}),
+			},
+		},
+		ServerMetadata: &types.ServerMetadata{ActualFee: 1},
+	}
+
+	// create block with lockFC tx
+	b := &types.Block{
+		Header:             &types.Header{SystemID: moneySystemID},
+		Transactions:       []*types.TransactionRecord{tx},
+		UnicityCertificate: &types.UnicityCertificate{InputRecord: &types.InputRecord{RoundNumber: 1}},
+	}
+
+	// process lockFC tx
+	err = blockProcessor.ProcessBlock(context.Background(), b)
+	require.NoError(t, err)
+
+	// verify fee credit bill was locked
+	fcb, err := store.Do().GetFeeCreditBill(unitID)
+	require.NoError(t, err)
+	require.NotNil(t, fcb)
+	require.EqualValues(t, 1, fcb.Locked)
+	require.EqualValues(t, tx.TransactionOrder.Hash(gocrypto.SHA256), fcb.TxHash)
+	require.EqualValues(t, tx.TransactionOrder.Hash(gocrypto.SHA256), fcb.FeeCreditRecordBacklink)
+}
+
+func TestUnlockFC_Ok(t *testing.T) {
+	store := createTestBillStore(t)
+
+	// store existing locked fee credit bill for unlockFC tx
+	unitID := newBillID(3)
+	err := store.Do().SetFeeCreditBill(&Bill{Id: unitID, Locked: 1, Value: 100}, nil)
+	require.NoError(t, err)
+
+	// create unlockFC tx
+	tx := &types.TransactionRecord{
+		TransactionOrder: &types.TransactionOrder{
+			Payload: &types.Payload{
+				SystemID:   moneySystemID,
+				Type:       transactions.PayloadTypeUnlockFeeCredit,
+				UnitID:     unitID,
+				Attributes: marshalCbor(&transactions.UnlockFeeCreditAttributes{}),
+			},
+		},
+		ServerMetadata: &types.ServerMetadata{ActualFee: 1},
+	}
+
+	// create block with unlockFC tx
+	b := &types.Block{
+		Header:             &types.Header{SystemID: moneySystemID},
+		Transactions:       []*types.TransactionRecord{tx},
+		UnicityCertificate: &types.UnicityCertificate{InputRecord: &types.InputRecord{RoundNumber: 1}},
+	}
+
+	// create block processor
+	blockProcessor, err := NewBlockProcessor(store, moneySystemID, logger.New(t))
+	require.NoError(t, err)
+
+	// process block
+	err = blockProcessor.ProcessBlock(context.Background(), b)
+	require.NoError(t, err)
+
+	// verify fee credit bill was unlocked
+	fcb, err := store.Do().GetFeeCreditBill(unitID)
+	require.NoError(t, err)
+	require.NotNil(t, fcb)
+	require.EqualValues(t, 0, fcb.Locked)
+	require.EqualValues(t, 99, fcb.Value)
+	require.EqualValues(t, tx.TransactionOrder.Hash(gocrypto.SHA256), fcb.TxHash)
+	require.EqualValues(t, tx.TransactionOrder.Hash(gocrypto.SHA256), fcb.FeeCreditRecordBacklink)
 }
 
 func verifyProof(t *testing.T, b *Bill, txProof *sdk.Proof) {

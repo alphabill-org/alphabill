@@ -352,7 +352,7 @@ func (w *FeeManager) sendTransferFC(ctx context.Context, amount uint64, accountK
 	tx, err := txbuilder.NewTransferFCTx(
 		min(amount, targetBill.Value),
 		targetRecordID,
-		fcb.GetLastAddFCTxHash(),
+		fcb.GetFeeCreditRecordBacklink(),
 		accountKey,
 		w.moneySystemID,
 		w.userPartitionSystemID,

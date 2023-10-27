@@ -12,16 +12,13 @@ type (
 	}
 
 	Bill struct {
-		Id                   []byte `json:"id,omitempty"`
-		Value                uint64 `json:"value,omitempty,string"`
-		TxHash               []byte `json:"txHash,omitempty"`
-		DCTargetUnitID       []byte `json:"targetUnitId,omitempty"`
-		DCTargetUnitBacklink []byte `json:"targetUnitBacklink,omitempty"`
-		Locked               uint64 `json:"locked,omitempty"`
-
-		// fcb specific fields
-		// LastAddFCTxHash last add fee credit tx hash
-		LastAddFCTxHash []byte `json:"lastAddFcTxHash,omitempty"`
+		Id                      []byte `json:"id,omitempty"`
+		Value                   uint64 `json:"value,omitempty,string"`
+		TxHash                  []byte `json:"txHash,omitempty"`
+		DCTargetUnitID          []byte `json:"targetUnitId,omitempty"`
+		DCTargetUnitBacklink    []byte `json:"targetUnitBacklink,omitempty"`
+		Locked                  uint64 `json:"locked,omitempty"`
+		FeeCreditRecordBacklink []byte `json:"feeCreditRecordBacklink,omitempty"` // hash of last "addFC", "closeFC", "lockFC" or "unlockFC" transaction
 	}
 )
 
@@ -57,9 +54,9 @@ func (x *Bill) GetTxHash() []byte {
 	return nil
 }
 
-func (x *Bill) GetLastAddFCTxHash() []byte {
+func (x *Bill) GetFeeCreditRecordBacklink() []byte {
 	if x != nil {
-		return x.LastAddFCTxHash
+		return x.FeeCreditRecordBacklink
 	}
 	return nil
 }

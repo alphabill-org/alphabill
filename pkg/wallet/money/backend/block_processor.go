@@ -294,10 +294,10 @@ func (p *BlockProcessor) processTx(txr *types.TransactionRecord, b *types.Block,
 			return err
 		}
 		return dbTx.SetFeeCreditBill(&Bill{
-			Id:              txo.UnitID(),
-			Value:           fcb.getValue() + transferFCAttr.Amount - addFCAttr.FeeCreditTransfer.ServerMetadata.ActualFee - txr.ServerMetadata.ActualFee,
-			TxHash:          txHash,
-			LastAddFCTxHash: txHash,
+			Id:                      txo.UnitID(),
+			Value:                   fcb.getValue() + transferFCAttr.Amount - addFCAttr.FeeCreditTransfer.ServerMetadata.ActualFee - txr.ServerMetadata.ActualFee,
+			TxHash:                  txHash,
+			FeeCreditRecordBacklink: txHash,
 		}, proof)
 	case transactions.PayloadTypeCloseFeeCredit:
 		fcb, err := dbTx.GetFeeCreditBill(txo.UnitID())
@@ -314,10 +314,10 @@ func (p *BlockProcessor) processTx(txr *types.TransactionRecord, b *types.Block,
 			return err
 		}
 		return dbTx.SetFeeCreditBill(&Bill{
-			Id:              txo.UnitID(),
-			TxHash:          txHash,
-			Value:           fcb.getValue() - attr.Amount,
-			LastAddFCTxHash: txHash,
+			Id:                      txo.UnitID(),
+			TxHash:                  txHash,
+			Value:                   fcb.getValue() - attr.Amount,
+			FeeCreditRecordBacklink: txHash,
 		}, proof)
 	case transactions.PayloadTypeReclaimFeeCredit:
 		bill, err := dbTx.GetBill(txo.UnitID())

@@ -174,10 +174,10 @@ func TestBlockProcessor_EachTxTypeCanBeProcessed(t *testing.T) {
 	require.NoError(t, err)
 	require.EqualValues(t, 194, fcb.Value)
 
-	// verify FCB LastAddFCTxHash equals to TxHash
+	// verify FCB FeeCreditRecordBacklink equals to TxHash
 	lastAddFCTxHash := addFC.Hash(gocrypto.SHA256)
 	require.Equal(t, lastAddFCTxHash, fcb.TxHash)
-	require.Equal(t, lastAddFCTxHash, fcb.LastAddFCTxHash)
+	require.Equal(t, lastAddFCTxHash, fcb.FeeCreditRecordBacklink)
 
 	// verify tx1 unit is deleted (whole bill transferred to fee credit)
 	unit1, err := store.Do().GetBill(tx1.TransactionOrder.UnitID())
@@ -219,8 +219,8 @@ func TestBlockProcessor_EachTxTypeCanBeProcessed(t *testing.T) {
 	require.NoError(t, err)
 	require.EqualValues(t, 0, fcb.Value)
 
-	// verify FCB LastAddFCTxHash is updated
-	require.Equal(t, closeFC.Hash(gocrypto.SHA256), fcb.LastAddFCTxHash)
+	// verify FCB FeeCreditRecordBacklink is updated
+	require.Equal(t, closeFC.Hash(gocrypto.SHA256), fcb.FeeCreditRecordBacklink)
 
 	// verify reclaimed fee credits (194) were added to specified unit (tx4 value=100) minus 2x txfee (2)
 	unit, err := store.Do().GetBill(tx4.TransactionOrder.UnitID())

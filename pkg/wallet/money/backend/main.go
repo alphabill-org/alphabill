@@ -56,17 +56,14 @@ type (
 	}
 
 	Bill struct {
-		Id                   []byte `json:"id"`
-		Value                uint64 `json:"value"`
-		TxHash               []byte `json:"txHash"`
-		DCTargetUnitID       []byte `json:"dcTargetUnitId,omitempty"`
-		DCTargetUnitBacklink []byte `json:"dcTargetUnitBacklink,omitempty"`
-		OwnerPredicate       []byte `json:"ownerPredicate"`
-		Locked               uint64 `json:"locked"`
-
-		// fcb specific fields
-		// LastAddFCTxHash last add fee credit tx hash
-		LastAddFCTxHash []byte `json:"lastAddFcTxHash,omitempty"`
+		Id                      []byte `json:"id"`
+		Value                   uint64 `json:"value"`
+		TxHash                  []byte `json:"txHash"`
+		DCTargetUnitID          []byte `json:"dcTargetUnitId,omitempty"`
+		DCTargetUnitBacklink    []byte `json:"dcTargetUnitBacklink,omitempty"`
+		OwnerPredicate          []byte `json:"ownerPredicate"`
+		Locked                  uint64 `json:"locked"`
+		FeeCreditRecordBacklink []byte `json:"feeCreditRecordBacklink,omitempty"` // hash of last "addFC", "closeFC", "lockFC" or "unlockFC" transaction
 	}
 
 	Pubkey struct {
@@ -393,13 +390,13 @@ func extractOwnerKeyFromProof(signature sdk.Predicate) sdk.PubKey {
 
 func (b *Bill) ToGenericBill() *sdk.Bill {
 	return &sdk.Bill{
-		Id:                   b.Id,
-		Value:                b.Value,
-		TxHash:               b.TxHash,
-		DCTargetUnitID:       b.DCTargetUnitID,
-		DCTargetUnitBacklink: b.DCTargetUnitBacklink,
-		Locked:               b.Locked,
-		LastAddFCTxHash:      b.LastAddFCTxHash,
+		Id:                      b.Id,
+		Value:                   b.Value,
+		TxHash:                  b.TxHash,
+		DCTargetUnitID:          b.DCTargetUnitID,
+		DCTargetUnitBacklink:    b.DCTargetUnitBacklink,
+		Locked:                  b.Locked,
+		FeeCreditRecordBacklink: b.FeeCreditRecordBacklink,
 	}
 }
 
@@ -416,13 +413,6 @@ func (b *Bill) getValue() uint64 {
 		return b.Value
 	}
 	return 0
-}
-
-func (b *Bill) getLastAddFCTxHash() []byte {
-	if b != nil {
-		return b.LastAddFCTxHash
-	}
-	return nil
 }
 
 func (b *Bill) IsDCBill() bool {

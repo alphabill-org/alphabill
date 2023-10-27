@@ -190,7 +190,7 @@ func TestSendingFailsWithInsufficientBalance(t *testing.T) {
 	require.ErrorContains(t, err, "insufficient balance for transaction")
 }
 
-func createMoneyPartition(t *testing.T, initialBill *money.InitialBill, nodeCount int) *testpartition.NodePartition {
+func createMoneyPartition(t *testing.T, initialBill *money.InitialBill, nodeCount uint8) *testpartition.NodePartition {
 	moneyPart, err := testpartition.NewPartition(t, nodeCount, func(tb map[string]abcrypto.Verifier) txsystem.TransactionSystem {
 		system, err := money.NewTxSystem(
 			logger.New(t),

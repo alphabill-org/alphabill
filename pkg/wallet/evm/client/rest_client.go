@@ -218,7 +218,7 @@ func (e *EvmClient) GetGasPrice(ctx context.Context) (string, error) {
 	addr := e.getURL(apiPathPrefix, evmApiSubPrefix, "gasPrice")
 	err := e.get(ctx, addr, &resp, false)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("gas price request failed: %w", err)
 	}
 	return resp.GasPrice, nil
 }

@@ -14,10 +14,10 @@ import (
 	testfc "github.com/alphabill-org/alphabill/txsystem/fc/testutils"
 	"github.com/alphabill-org/alphabill/txsystem/fc/transactions"
 	"github.com/alphabill-org/alphabill/txsystem/state"
-	test "github.com/alphabill-org/alphabill/validator/internal/testutils"
-	testblock "github.com/alphabill-org/alphabill/validator/internal/testutils/block"
-	testsig "github.com/alphabill-org/alphabill/validator/internal/testutils/sig"
-	testtransaction "github.com/alphabill-org/alphabill/validator/internal/testutils/transaction"
+	test "github.com/alphabill-org/alphabill/validator/pkg/testutils"
+	testblock "github.com/alphabill-org/alphabill/validator/pkg/testutils/block"
+	testsig "github.com/alphabill-org/alphabill/validator/pkg/testutils/sig"
+	testtransaction "github.com/alphabill-org/alphabill/validator/pkg/testutils/transaction"
 )
 
 func TestTransfer(t *testing.T) {

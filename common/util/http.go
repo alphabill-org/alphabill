@@ -7,7 +7,7 @@ import (
 
 	"github.com/fxamacker/cbor/v2"
 
-	"github.com/alphabill-org/alphabill/validator/pkg/logger"
+	"github.com/alphabill-org/alphabill/common/logger"
 )
 
 // WriteCBORResponse replies to the request with the given response and HTTP code.

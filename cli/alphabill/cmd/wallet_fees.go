@@ -11,16 +11,16 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/alphabill-org/alphabill/validator/pkg/wallet"
-	"github.com/alphabill-org/alphabill/validator/pkg/wallet/account"
-	evmwallet "github.com/alphabill-org/alphabill/validator/pkg/wallet/evm"
-	evmclient "github.com/alphabill-org/alphabill/validator/pkg/wallet/evm/client"
-	"github.com/alphabill-org/alphabill/validator/pkg/wallet/fees"
-	moneywallet "github.com/alphabill-org/alphabill/validator/pkg/wallet/money"
-	moneyclient "github.com/alphabill-org/alphabill/validator/pkg/wallet/money/backend/client"
-	tokenswallet "github.com/alphabill-org/alphabill/validator/pkg/wallet/tokens"
-	tokensclient "github.com/alphabill-org/alphabill/validator/pkg/wallet/tokens/client"
-	"github.com/alphabill-org/alphabill/validator/pkg/wallet/unitlock"
+	"github.com/alphabill-org/alphabill/client/wallet"
+	"github.com/alphabill-org/alphabill/client/wallet/account"
+	evmwallet "github.com/alphabill-org/alphabill/client/wallet/evm"
+	evmclient "github.com/alphabill-org/alphabill/client/wallet/evm/client"
+	"github.com/alphabill-org/alphabill/client/wallet/fees"
+	moneywallet "github.com/alphabill-org/alphabill/client/wallet/money"
+	moneyclient "github.com/alphabill-org/alphabill/client/wallet/money/backend/client"
+	tokenswallet "github.com/alphabill-org/alphabill/client/wallet/tokens"
+	tokensclient "github.com/alphabill-org/alphabill/client/wallet/tokens/client"
+	"github.com/alphabill-org/alphabill/client/wallet/unitlock"
 )
 
 const (
@@ -319,7 +319,7 @@ func (c *cliConf) getPartitionBackendURL() string {
 func getFeeCreditManager(ctx context.Context, c *cliConf, am account.Manager, unitLocker *unitlock.UnitLocker, moneyBackendURL string, log *slog.Logger) (FeeCreditManager, error) {
 	moneyBackendClient, err := moneyclient.New(moneyBackendURL)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create money backend client: %w", err)
+		return nil, fmt.Errorf("failed to create money backend abclient: %w", err)
 	}
 	moneySystemInfo, err := moneyBackendClient.GetInfo(ctx)
 	if err != nil {

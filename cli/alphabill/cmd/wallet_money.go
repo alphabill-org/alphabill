@@ -14,10 +14,10 @@ import (
 	"github.com/tyler-smith/go-bip39"
 	"golang.org/x/term"
 
-	"github.com/alphabill-org/alphabill/validator/pkg/wallet/account"
-	"github.com/alphabill-org/alphabill/validator/pkg/wallet/money"
-	moneyclient "github.com/alphabill-org/alphabill/validator/pkg/wallet/money/backend/client"
-	"github.com/alphabill-org/alphabill/validator/pkg/wallet/unitlock"
+	"github.com/alphabill-org/alphabill/client/wallet/account"
+	"github.com/alphabill-org/alphabill/client/wallet/money"
+	moneyclient "github.com/alphabill-org/alphabill/client/wallet/money/backend/client"
+	"github.com/alphabill-org/alphabill/client/wallet/unitlock"
 )
 
 type walletConfig struct {

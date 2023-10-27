@@ -2,6 +2,9 @@ module github.com/alphabill-org/alphabill/validator
 
 go 1.21
 
+//replace github.com/alphabill-org/alphabill/api => ../api
+//require github.com/alphabill-org/alphabill/api f85cc7eada46bcf7291fad907b53f168509792ab
+
 replace (
 	github.com/apache/thrift v0.13.0 => github.com/apache/thrift v0.16.0
 	github.com/microcosm-cc/bluemonday v1.0.1 => github.com/microcosm-cc/bluemonday v1.0.18

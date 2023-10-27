@@ -9,7 +9,7 @@ import (
 	"github.com/alphabill-org/alphabill/api/predicates/templates"
 	"github.com/alphabill-org/alphabill/txsystem"
 	"github.com/alphabill-org/alphabill/txsystem/fc/transactions"
-	testtransaction "github.com/alphabill-org/alphabill/validator/internal/testutils/transaction"
+	testtransaction "github.com/alphabill-org/alphabill/validator/pkg/testutils/transaction"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/stretchr/testify/require"
 
@@ -20,10 +20,10 @@ import (
 	testfc "github.com/alphabill-org/alphabill/txsystem/fc/testutils"
 	"github.com/alphabill-org/alphabill/txsystem/fc/unit"
 	"github.com/alphabill-org/alphabill/txsystem/state"
-	"github.com/alphabill-org/alphabill/validator/internal/partition/event"
-	"github.com/alphabill-org/alphabill/validator/internal/testutils/logger"
-	testpartition "github.com/alphabill-org/alphabill/validator/internal/testutils/partition"
-	testevent "github.com/alphabill-org/alphabill/validator/internal/testutils/partition/event"
+	"github.com/alphabill-org/alphabill/validator/pkg/partition/event"
+	"github.com/alphabill-org/alphabill/validator/pkg/testutils/logger"
+	testpartition "github.com/alphabill-org/alphabill/validator/pkg/testutils/partition"
+	testevent "github.com/alphabill-org/alphabill/validator/pkg/testutils/partition/event"
 )
 
 var (

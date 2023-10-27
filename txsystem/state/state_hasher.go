@@ -5,8 +5,8 @@ import (
 
 	"github.com/alphabill-org/alphabill/api/types"
 	"github.com/alphabill-org/alphabill/common/mt"
+	"github.com/alphabill-org/alphabill/common/tree/avl"
 	"github.com/alphabill-org/alphabill/common/util"
-	"github.com/alphabill-org/alphabill/validator/pkg/tree/avl"
 )
 
 // stateHasher calculates the root hash of the state tree (see "Invariants of the State Tree" chapter from the

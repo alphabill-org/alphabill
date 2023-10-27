@@ -11,8 +11,8 @@ import (
 	"github.com/alphabill-org/alphabill/txsystem/fc/transactions"
 	"github.com/alphabill-org/alphabill/txsystem/fc/unit"
 	"github.com/alphabill-org/alphabill/txsystem/state"
-	testsig "github.com/alphabill-org/alphabill/validator/internal/testutils/sig"
-	testtransaction "github.com/alphabill-org/alphabill/validator/internal/testutils/transaction"
+	testsig "github.com/alphabill-org/alphabill/validator/pkg/testutils/sig"
+	testtransaction "github.com/alphabill-org/alphabill/validator/pkg/testutils/transaction"
 	"github.com/stretchr/testify/require"
 )
 

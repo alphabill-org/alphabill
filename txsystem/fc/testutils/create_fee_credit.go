@@ -6,9 +6,9 @@ import (
 	"github.com/alphabill-org/alphabill/api/predicates/templates"
 	"github.com/alphabill-org/alphabill/api/types"
 	"github.com/alphabill-org/alphabill/txsystem/fc/transactions"
-	test "github.com/alphabill-org/alphabill/validator/internal/testutils"
-	testpartition "github.com/alphabill-org/alphabill/validator/internal/testutils/partition"
-	testtransaction "github.com/alphabill-org/alphabill/validator/internal/testutils/transaction"
+	test "github.com/alphabill-org/alphabill/validator/pkg/testutils"
+	testpartition "github.com/alphabill-org/alphabill/validator/pkg/testutils/partition"
+	testtransaction "github.com/alphabill-org/alphabill/validator/pkg/testutils/transaction"
 	"github.com/stretchr/testify/require"
 )
 

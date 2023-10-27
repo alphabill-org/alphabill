@@ -6,14 +6,16 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/alphabill-org/alphabill/txsystem/fc/testutils"
 	"github.com/alphabill-org/alphabill/txsystem/money"
+	mtu "github.com/alphabill-org/alphabill/txsystem/money/testutils"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/stretchr/testify/require"
 
 	"github.com/alphabill-org/alphabill/api/predicates/templates"
-	test "github.com/alphabill-org/alphabill/validator/internal/testutils"
-	"github.com/alphabill-org/alphabill/validator/internal/testutils/logger"
-	testpartition "github.com/alphabill-org/alphabill/validator/internal/testutils/partition"
+	test "github.com/alphabill-org/alphabill/validator/pkg/testutils"
+	"github.com/alphabill-org/alphabill/validator/pkg/testutils/logger"
+	testpartition "github.com/alphabill-org/alphabill/validator/pkg/testutils/partition"
 )
 
 var (
@@ -58,7 +60,7 @@ func TestSendingMoneyUsingWallets_integration(t *testing.T) {
 	w1BalanceBilly := initialBill.Value - fcrAmount
 
 	// transfer initial bill to wallet 1
-	transferInitialBillTx, err := testutils.CreateInitialBillTransferTx(w1PubKey, initialBill.ID, fcrID, w1BalanceBilly, 10000, initialBillBacklink)
+	transferInitialBillTx, err := mtu.CreateInitialBillTransferTx(w1PubKey, initialBill.ID, fcrID, w1BalanceBilly, 10000, initialBillBacklink)
 	require.NoError(t, err)
 	require.NoError(t, moneyPartition.SubmitTx(transferInitialBillTx))
 	require.Eventually(t, testpartition.BlockchainContainsTx(moneyPartition, transferInitialBillTx), test.WaitDuration, test.WaitTick)

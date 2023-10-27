@@ -5,11 +5,11 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/alphabill-org/alphabill/validator/internal/network/protocol/genesis"
-	"github.com/alphabill-org/alphabill/validator/pkg/wallet"
-	"github.com/alphabill-org/alphabill/validator/pkg/wallet/money/backend"
-	"github.com/alphabill-org/alphabill/validator/pkg/wallet/money/backend/client"
-	"github.com/alphabill-org/alphabill/validator/pkg/wallet/unitlock"
+	"github.com/alphabill-org/alphabill/client/wallet"
+	"github.com/alphabill-org/alphabill/client/wallet/money/backend"
+	"github.com/alphabill-org/alphabill/client/wallet/money/backend/client"
+	"github.com/alphabill-org/alphabill/client/wallet/unitlock"
+	"github.com/alphabill-org/alphabill/validator/pkg/network/protocol/genesis"
 )
 
 type (

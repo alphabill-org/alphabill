@@ -11,9 +11,9 @@ import (
 
 	"github.com/alphabill-org/alphabill/api/predicates/templates"
 	"github.com/alphabill-org/alphabill/api/types"
+	"github.com/alphabill-org/alphabill/common/logger"
+	"github.com/alphabill-org/alphabill/common/tree/avl"
 	"github.com/alphabill-org/alphabill/txsystem/state"
-	"github.com/alphabill-org/alphabill/validator/pkg/logger"
-	"github.com/alphabill-org/alphabill/validator/pkg/tree/avl"
 	"github.com/ethereum/go-ethereum/common"
 	ethstate "github.com/ethereum/go-ethereum/core/state"
 	ethtypes "github.com/ethereum/go-ethereum/core/types"

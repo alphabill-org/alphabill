@@ -5,10 +5,10 @@ import (
 	"fmt"
 	"math/big"
 
+	"github.com/alphabill-org/alphabill/common/logger"
 	evm2 "github.com/alphabill-org/alphabill/txsystem/evm"
 	"github.com/alphabill-org/alphabill/txsystem/evm/api"
-	"github.com/alphabill-org/alphabill/validator/pkg/logger"
-	"github.com/alphabill-org/alphabill/validator/protocol/genesis"
+	"github.com/alphabill-org/alphabill/validator/pkg/network/protocol/genesis"
 	"github.com/fxamacker/cbor/v2"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/spf13/cobra"

@@ -11,8 +11,8 @@ import (
 	"github.com/alphabill-org/alphabill/api/types"
 	abcrypto "github.com/alphabill-org/alphabill/common/crypto"
 	"github.com/alphabill-org/alphabill/txsystem/state"
-	test "github.com/alphabill-org/alphabill/validator/internal/testutils"
-	testsig "github.com/alphabill-org/alphabill/validator/internal/testutils/sig"
+	test "github.com/alphabill-org/alphabill/validator/pkg/testutils"
+	testsig "github.com/alphabill-org/alphabill/validator/pkg/testutils/sig"
 )
 
 func TestUnlockFT_Ok(t *testing.T) {

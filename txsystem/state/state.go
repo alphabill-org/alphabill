@@ -10,7 +10,7 @@ import (
 	"github.com/alphabill-org/alphabill/api/types"
 	hasherUtil "github.com/alphabill-org/alphabill/common/hash"
 	"github.com/alphabill-org/alphabill/common/mt"
-	"github.com/alphabill-org/alphabill/validator/pkg/tree/avl"
+	"github.com/alphabill-org/alphabill/common/tree/avl"
 )
 
 type (

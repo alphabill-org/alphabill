@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"github.com/alphabill-org/alphabill/api/predicates/templates"
-	test "github.com/alphabill-org/alphabill/validator/internal/testutils"
+	test "github.com/alphabill-org/alphabill/validator/pkg/testutils"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/require"
 )

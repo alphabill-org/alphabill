@@ -10,7 +10,7 @@ import (
 	testfc "github.com/alphabill-org/alphabill/txsystem/fc/testutils"
 	"github.com/alphabill-org/alphabill/txsystem/fc/unit"
 	"github.com/alphabill-org/alphabill/txsystem/state"
-	testsig "github.com/alphabill-org/alphabill/validator/internal/testutils/sig"
+	testsig "github.com/alphabill-org/alphabill/validator/pkg/testutils/sig"
 )
 
 func TestCloseFC_CannotCloseLockedCredit(t *testing.T) {

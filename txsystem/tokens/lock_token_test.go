@@ -12,8 +12,8 @@ import (
 	abcrypto "github.com/alphabill-org/alphabill/common/crypto"
 	"github.com/alphabill-org/alphabill/txsystem/fc/unit"
 	"github.com/alphabill-org/alphabill/txsystem/state"
-	test "github.com/alphabill-org/alphabill/validator/internal/testutils"
-	testsig "github.com/alphabill-org/alphabill/validator/internal/testutils/sig"
+	test "github.com/alphabill-org/alphabill/validator/pkg/testutils"
+	testsig "github.com/alphabill-org/alphabill/validator/pkg/testutils/sig"
 )
 
 var (

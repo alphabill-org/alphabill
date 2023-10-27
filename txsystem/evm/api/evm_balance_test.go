@@ -9,9 +9,9 @@ import (
 
 	"github.com/alphabill-org/alphabill/txsystem/evm/statedb"
 	abstate "github.com/alphabill-org/alphabill/txsystem/state"
-	"github.com/alphabill-org/alphabill/validator/internal/rpc"
-	test "github.com/alphabill-org/alphabill/validator/internal/testutils"
-	"github.com/alphabill-org/alphabill/validator/internal/testutils/logger"
+	"github.com/alphabill-org/alphabill/validator/pkg/rpc"
+	test "github.com/alphabill-org/alphabill/validator/pkg/testutils"
+	"github.com/alphabill-org/alphabill/validator/pkg/testutils/logger"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/require"
 )

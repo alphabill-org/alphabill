@@ -20,9 +20,9 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/alphabill-org/alphabill/api/types"
-	test "github.com/alphabill-org/alphabill/validator/internal/testutils"
-	testlogger "github.com/alphabill-org/alphabill/validator/internal/testutils/logger"
-	"github.com/alphabill-org/alphabill/validator/pkg/logger"
+	"github.com/alphabill-org/alphabill/common/logger"
+	test "github.com/alphabill-org/alphabill/validator/pkg/testutils"
+	testlogger "github.com/alphabill-org/alphabill/validator/pkg/testutils/logger"
 )
 
 func Test_evmCmdDeploy_error_cases(t *testing.T) {

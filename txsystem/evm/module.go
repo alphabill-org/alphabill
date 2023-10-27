@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"log/slog"
 
+	"github.com/alphabill-org/alphabill/common/logger"
 	txsystem2 "github.com/alphabill-org/alphabill/txsystem"
-	"github.com/alphabill-org/alphabill/validator/pkg/logger"
 	"github.com/ethereum/go-ethereum/core"
 )
 

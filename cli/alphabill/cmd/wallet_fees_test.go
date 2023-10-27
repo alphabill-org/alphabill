@@ -13,12 +13,12 @@ import (
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/stretchr/testify/require"
 
-	"github.com/alphabill-org/alphabill/validator/internal/network/protocol/genesis"
-	"github.com/alphabill-org/alphabill/validator/internal/testutils/logger"
-	testpartition "github.com/alphabill-org/alphabill/validator/internal/testutils/partition"
-	"github.com/alphabill-org/alphabill/validator/pkg/wallet/fees"
-	"github.com/alphabill-org/alphabill/validator/pkg/wallet/money/backend"
-	moneyclient "github.com/alphabill-org/alphabill/validator/pkg/wallet/money/backend/client"
+	"github.com/alphabill-org/alphabill/client/wallet/fees"
+	"github.com/alphabill-org/alphabill/client/wallet/money/backend"
+	moneyclient "github.com/alphabill-org/alphabill/client/wallet/money/backend/client"
+	"github.com/alphabill-org/alphabill/validator/pkg/network/protocol/genesis"
+	"github.com/alphabill-org/alphabill/validator/pkg/testutils/logger"
+	testpartition "github.com/alphabill-org/alphabill/validator/pkg/testutils/partition"
 )
 
 var defaultTokenSDR = &genesis.SystemDescriptionRecord{

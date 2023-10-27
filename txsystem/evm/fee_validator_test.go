@@ -5,7 +5,7 @@ import (
 
 	"github.com/alphabill-org/alphabill/api/types"
 	testfc "github.com/alphabill-org/alphabill/txsystem/fc/testutils"
-	testsig "github.com/alphabill-org/alphabill/validator/internal/testutils/sig"
+	testsig "github.com/alphabill-org/alphabill/validator/pkg/testutils/sig"
 )
 
 /*

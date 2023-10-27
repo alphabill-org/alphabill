@@ -8,7 +8,7 @@ import (
 	"github.com/alphabill-org/alphabill/common/util"
 	"github.com/stretchr/testify/require"
 
-	testsig "github.com/alphabill-org/alphabill/validator/internal/testutils/sig"
+	testsig "github.com/alphabill-org/alphabill/validator/pkg/testutils/sig"
 )
 
 const keysDir = "keys"

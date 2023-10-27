@@ -8,11 +8,11 @@ import (
 	"sort"
 	"strconv"
 
+	"github.com/alphabill-org/alphabill/client/wallet/account"
+	wallet "github.com/alphabill-org/alphabill/client/wallet/tokens"
+	"github.com/alphabill-org/alphabill/client/wallet/tokens/backend"
 	"github.com/alphabill-org/alphabill/common/util"
 	"github.com/alphabill-org/alphabill/txsystem/tokens"
-	"github.com/alphabill-org/alphabill/validator/pkg/wallet/account"
-	wallet "github.com/alphabill-org/alphabill/validator/pkg/wallet/tokens"
-	"github.com/alphabill-org/alphabill/validator/pkg/wallet/tokens/backend"
 	"github.com/spf13/cobra"
 )
 

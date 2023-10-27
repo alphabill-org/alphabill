@@ -7,7 +7,7 @@ import (
 
 	"github.com/alphabill-org/alphabill/api/types"
 	"github.com/alphabill-org/alphabill/txsystem/fc/transactions"
-	testtransaction "github.com/alphabill-org/alphabill/validator/internal/testutils/transaction"
+	testtransaction "github.com/alphabill-org/alphabill/validator/pkg/testutils/transaction"
 )
 
 type UnlockFeeCreditOption func(Attributes *transactions.UnlockFeeCreditAttributes)

@@ -284,7 +284,7 @@ func (c *AddFCValidationContext) isValid() error {
 		return errors.New("tx payload is nil")
 	}
 	if c.Tx.Payload.ClientMetadata == nil {
-		return errors.New("tx client metadata is nil")
+		return errors.New("tx abclient metadata is nil")
 	}
 	return nil
 }
@@ -303,7 +303,7 @@ func (c *CloseFCValidationContext) isValid() error {
 		return errors.New("tx payload is nil")
 	}
 	if c.Tx.Payload.ClientMetadata == nil {
-		return errors.New("tx client metadata is nil")
+		return errors.New("tx abclient metadata is nil")
 	}
 	return nil
 }

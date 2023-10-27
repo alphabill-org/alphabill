@@ -14,11 +14,11 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/alphabill-org/alphabill/api/types"
+	"github.com/alphabill-org/alphabill/client/wallet/money/backend/client"
+	"github.com/alphabill-org/alphabill/client/wallet/unitlock"
 	"github.com/alphabill-org/alphabill/common/hash"
-	"github.com/alphabill-org/alphabill/validator/internal/testutils/logger"
-	testpartition "github.com/alphabill-org/alphabill/validator/internal/testutils/partition"
-	"github.com/alphabill-org/alphabill/validator/pkg/wallet/money/backend/client"
-	"github.com/alphabill-org/alphabill/validator/pkg/wallet/unitlock"
+	"github.com/alphabill-org/alphabill/validator/pkg/testutils/logger"
+	testpartition "github.com/alphabill-org/alphabill/validator/pkg/testutils/partition"
 )
 
 func TestWalletBillsListCmd_EmptyWallet(t *testing.T) {

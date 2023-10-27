@@ -13,13 +13,13 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/alphabill-org/alphabill/api/types"
-	test "github.com/alphabill-org/alphabill/validator/internal/testutils"
-	testhttp "github.com/alphabill-org/alphabill/validator/internal/testutils/http"
-	"github.com/alphabill-org/alphabill/validator/internal/testutils/logger"
-	"github.com/alphabill-org/alphabill/validator/internal/testutils/net"
-	testpartition "github.com/alphabill-org/alphabill/validator/internal/testutils/partition"
-	"github.com/alphabill-org/alphabill/validator/pkg/wallet"
-	"github.com/alphabill-org/alphabill/validator/pkg/wallet/money/backend"
+	"github.com/alphabill-org/alphabill/client/wallet"
+	"github.com/alphabill-org/alphabill/client/wallet/money/backend"
+	test "github.com/alphabill-org/alphabill/validator/pkg/testutils"
+	testhttp "github.com/alphabill-org/alphabill/validator/pkg/testutils/http"
+	"github.com/alphabill-org/alphabill/validator/pkg/testutils/logger"
+	"github.com/alphabill-org/alphabill/validator/pkg/testutils/net"
+	testpartition "github.com/alphabill-org/alphabill/validator/pkg/testutils/partition"
 )
 
 func TestMoneyBackendCLI(t *testing.T) {

@@ -7,8 +7,8 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 
 	"github.com/alphabill-org/alphabill/txsystem/state"
-	test "github.com/alphabill-org/alphabill/validator/internal/testutils"
-	"github.com/alphabill-org/alphabill/validator/internal/testutils/logger"
+	test "github.com/alphabill-org/alphabill/validator/pkg/testutils"
+	"github.com/alphabill-org/alphabill/validator/pkg/testutils/logger"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/stretchr/testify/require"

@@ -18,14 +18,14 @@ import (
 
 	"github.com/alphabill-org/alphabill/api/predicates/templates"
 	"github.com/alphabill-org/alphabill/api/types"
-	"github.com/alphabill-org/alphabill/validator/internal/network/protocol/genesis"
-	rootgenesis "github.com/alphabill-org/alphabill/validator/internal/rootchain/genesis"
-	"github.com/alphabill-org/alphabill/validator/internal/rpc/alphabill"
-	test "github.com/alphabill-org/alphabill/validator/internal/testutils"
-	"github.com/alphabill-org/alphabill/validator/internal/testutils/logger"
-	"github.com/alphabill-org/alphabill/validator/internal/testutils/net"
-	testsig "github.com/alphabill-org/alphabill/validator/internal/testutils/sig"
-	testtime "github.com/alphabill-org/alphabill/validator/internal/testutils/time"
+	"github.com/alphabill-org/alphabill/validator/pkg/network/protocol/genesis"
+	rootgenesis "github.com/alphabill-org/alphabill/validator/pkg/rootchain/genesis"
+	"github.com/alphabill-org/alphabill/validator/pkg/rpc/alphabill"
+	test "github.com/alphabill-org/alphabill/validator/pkg/testutils"
+	"github.com/alphabill-org/alphabill/validator/pkg/testutils/logger"
+	"github.com/alphabill-org/alphabill/validator/pkg/testutils/net"
+	testsig "github.com/alphabill-org/alphabill/validator/pkg/testutils/sig"
+	testtime "github.com/alphabill-org/alphabill/validator/pkg/testutils/time"
 )
 
 func TestRunTokensNode(t *testing.T) {
@@ -77,7 +77,7 @@ func TestRunTokensNode(t *testing.T) {
 			appStoppedWg.Done()
 		}()
 
-		// Create the gRPC client
+		// Create the gRPC abclient
 		conn, err := grpc.DialContext(ctx, listenAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
 		require.NoError(t, err)
 		defer conn.Close()

@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"math/big"
 
+	evmwallet "github.com/alphabill-org/alphabill/client/wallet/evm"
+	evmclient "github.com/alphabill-org/alphabill/client/wallet/evm/client"
 	"github.com/alphabill-org/alphabill/txsystem/evm"
-	evmwallet "github.com/alphabill-org/alphabill/validator/pkg/wallet/evm"
-	evmclient "github.com/alphabill-org/alphabill/validator/pkg/wallet/evm/client"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/spf13/cobra"
 )

@@ -13,10 +13,10 @@ import (
 	"github.com/alphabill-org/alphabill/common/crypto"
 	fcunit "github.com/alphabill-org/alphabill/txsystem/fc/unit"
 	"github.com/alphabill-org/alphabill/txsystem/state"
-	test "github.com/alphabill-org/alphabill/validator/internal/testutils"
-	"github.com/alphabill-org/alphabill/validator/internal/testutils/logger"
-	testpartition "github.com/alphabill-org/alphabill/validator/internal/testutils/partition"
-	testtransaction "github.com/alphabill-org/alphabill/validator/internal/testutils/transaction"
+	test "github.com/alphabill-org/alphabill/validator/pkg/testutils"
+	"github.com/alphabill-org/alphabill/validator/pkg/testutils/logger"
+	testpartition "github.com/alphabill-org/alphabill/validator/pkg/testutils/partition"
+	testtransaction "github.com/alphabill-org/alphabill/validator/pkg/testutils/transaction"
 )
 
 var feeCreditID = NewFeeCreditRecordID(nil, []byte{42})

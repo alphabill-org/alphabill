@@ -13,10 +13,10 @@ import (
 	abcrypto "github.com/alphabill-org/alphabill/common/crypto"
 	"github.com/alphabill-org/alphabill/txsystem/fc/unit"
 	"github.com/alphabill-org/alphabill/txsystem/state"
-	test "github.com/alphabill-org/alphabill/validator/internal/testutils"
-	testblock "github.com/alphabill-org/alphabill/validator/internal/testutils/block"
-	testsig "github.com/alphabill-org/alphabill/validator/internal/testutils/sig"
-	testtransaction "github.com/alphabill-org/alphabill/validator/internal/testutils/transaction"
+	test "github.com/alphabill-org/alphabill/validator/pkg/testutils"
+	testblock "github.com/alphabill-org/alphabill/validator/pkg/testutils/block"
+	testsig "github.com/alphabill-org/alphabill/validator/pkg/testutils/sig"
+	testtransaction "github.com/alphabill-org/alphabill/validator/pkg/testutils/transaction"
 )
 
 const (

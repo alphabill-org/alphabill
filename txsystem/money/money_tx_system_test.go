@@ -19,12 +19,12 @@ import (
 	"github.com/alphabill-org/alphabill/txsystem/fc/transactions"
 	"github.com/alphabill-org/alphabill/txsystem/fc/unit"
 	"github.com/alphabill-org/alphabill/txsystem/state"
-	"github.com/alphabill-org/alphabill/validator/internal/network/protocol/genesis"
-	test "github.com/alphabill-org/alphabill/validator/internal/testutils"
-	testblock "github.com/alphabill-org/alphabill/validator/internal/testutils/block"
-	"github.com/alphabill-org/alphabill/validator/internal/testutils/logger"
-	testsig "github.com/alphabill-org/alphabill/validator/internal/testutils/sig"
-	testtransaction "github.com/alphabill-org/alphabill/validator/internal/testutils/transaction"
+	"github.com/alphabill-org/alphabill/validator/pkg/network/protocol/genesis"
+	test "github.com/alphabill-org/alphabill/validator/pkg/testutils"
+	testblock "github.com/alphabill-org/alphabill/validator/pkg/testutils/block"
+	"github.com/alphabill-org/alphabill/validator/pkg/testutils/logger"
+	testsig "github.com/alphabill-org/alphabill/validator/pkg/testutils/sig"
+	testtransaction "github.com/alphabill-org/alphabill/validator/pkg/testutils/transaction"
 )
 
 const initialDustCollectorMoneyAmount uint64 = 100

@@ -14,16 +14,16 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/alphabill-org/alphabill/api/types"
-	test "github.com/alphabill-org/alphabill/validator/internal/testutils"
-	"github.com/alphabill-org/alphabill/validator/internal/testutils/logger"
-	testpartition "github.com/alphabill-org/alphabill/validator/internal/testutils/partition"
-	"github.com/alphabill-org/alphabill/validator/pkg/wallet/account"
-	"github.com/alphabill-org/alphabill/validator/pkg/wallet/fees"
-	moneywallet "github.com/alphabill-org/alphabill/validator/pkg/wallet/money"
-	moneyclient "github.com/alphabill-org/alphabill/validator/pkg/wallet/money/backend/client"
-	tokenswallet "github.com/alphabill-org/alphabill/validator/pkg/wallet/tokens"
-	"github.com/alphabill-org/alphabill/validator/pkg/wallet/tokens/client"
-	"github.com/alphabill-org/alphabill/validator/pkg/wallet/unitlock"
+	"github.com/alphabill-org/alphabill/client/wallet/account"
+	"github.com/alphabill-org/alphabill/client/wallet/fees"
+	moneywallet "github.com/alphabill-org/alphabill/client/wallet/money"
+	moneyclient "github.com/alphabill-org/alphabill/client/wallet/money/backend/client"
+	tokenswallet "github.com/alphabill-org/alphabill/client/wallet/tokens"
+	"github.com/alphabill-org/alphabill/client/wallet/tokens/client"
+	"github.com/alphabill-org/alphabill/client/wallet/unitlock"
+	test "github.com/alphabill-org/alphabill/validator/pkg/testutils"
+	"github.com/alphabill-org/alphabill/validator/pkg/testutils/logger"
+	testpartition "github.com/alphabill-org/alphabill/validator/pkg/testutils/partition"
 )
 
 func TestFungibleToken_Subtyping_Integration(t *testing.T) {

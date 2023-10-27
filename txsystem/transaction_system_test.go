@@ -3,7 +3,7 @@ package txsystem
 import (
 	"testing"
 
-	test "github.com/alphabill-org/alphabill/validator/internal/testutils"
+	test "github.com/alphabill-org/alphabill/validator/pkg/testutils"
 	"github.com/stretchr/testify/require"
 )
 

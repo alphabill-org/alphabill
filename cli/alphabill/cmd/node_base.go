@@ -8,7 +8,6 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
-	"runtime/debug"
 	"sort"
 
 	"github.com/alphabill-org/alphabill/common/util"
@@ -22,15 +21,15 @@ import (
 	"google.golang.org/grpc/health"
 	"google.golang.org/grpc/health/grpc_health_v1"
 
+	"github.com/alphabill-org/alphabill/common/debug"
 	"github.com/alphabill-org/alphabill/common/keyvaluedb"
 	"github.com/alphabill-org/alphabill/common/keyvaluedb/boltdb"
 	"github.com/alphabill-org/alphabill/common/keyvaluedb/memorydb"
-	"github.com/alphabill-org/alphabill/validator/internal/debug"
-	"github.com/alphabill-org/alphabill/validator/internal/network"
-	"github.com/alphabill-org/alphabill/validator/internal/partition"
-	"github.com/alphabill-org/alphabill/validator/internal/rpc"
-	"github.com/alphabill-org/alphabill/validator/internal/rpc/alphabill"
-	"github.com/alphabill-org/alphabill/validator/protocol/genesis"
+	"github.com/alphabill-org/alphabill/validator/pkg/network"
+	"github.com/alphabill-org/alphabill/validator/pkg/network/protocol/genesis"
+	"github.com/alphabill-org/alphabill/validator/pkg/partition"
+	"github.com/alphabill-org/alphabill/validator/pkg/rpc"
+	"github.com/alphabill-org/alphabill/validator/pkg/rpc/alphabill"
 )
 
 const (

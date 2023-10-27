@@ -7,7 +7,7 @@ import (
 
 	"github.com/alphabill-org/alphabill/common/crypto"
 	"github.com/alphabill-org/alphabill/common/util"
-	testsig "github.com/alphabill-org/alphabill/validator/internal/testutils/sig"
+	testsig "github.com/alphabill-org/alphabill/validator/pkg/testutils/sig"
 	"github.com/stretchr/testify/require"
 )
 

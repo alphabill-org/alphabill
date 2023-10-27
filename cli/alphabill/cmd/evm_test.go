@@ -11,17 +11,17 @@ import (
 	"testing"
 	"time"
 
+	"github.com/alphabill-org/alphabill/client/wallet"
+	evmclient "github.com/alphabill-org/alphabill/client/wallet/evm/client"
 	"github.com/alphabill-org/alphabill/common/util"
 	"github.com/alphabill-org/alphabill/txsystem/evm"
-	"github.com/alphabill-org/alphabill/validator/internal/network/protocol/genesis"
-	rootgenesis "github.com/alphabill-org/alphabill/validator/internal/rootchain/genesis"
-	test "github.com/alphabill-org/alphabill/validator/internal/testutils"
-	"github.com/alphabill-org/alphabill/validator/internal/testutils/logger"
-	"github.com/alphabill-org/alphabill/validator/internal/testutils/net"
-	testsig "github.com/alphabill-org/alphabill/validator/internal/testutils/sig"
-	testtime "github.com/alphabill-org/alphabill/validator/internal/testutils/time"
-	"github.com/alphabill-org/alphabill/validator/pkg/wallet"
-	evmclient "github.com/alphabill-org/alphabill/validator/pkg/wallet/evm/client"
+	"github.com/alphabill-org/alphabill/validator/pkg/network/protocol/genesis"
+	rootgenesis "github.com/alphabill-org/alphabill/validator/pkg/rootchain/genesis"
+	test "github.com/alphabill-org/alphabill/validator/pkg/testutils"
+	"github.com/alphabill-org/alphabill/validator/pkg/testutils/logger"
+	"github.com/alphabill-org/alphabill/validator/pkg/testutils/net"
+	testsig "github.com/alphabill-org/alphabill/validator/pkg/testutils/sig"
+	testtime "github.com/alphabill-org/alphabill/validator/pkg/testutils/time"
 	"github.com/stretchr/testify/require"
 )
 
@@ -72,7 +72,7 @@ func TestRunEvmNode(t *testing.T) {
 			appStoppedWg.Done()
 		}()
 		t.Log("Started evm node")
-		// create rest client
+		// create rest abclient
 		addr, err := url.Parse("http://" + listenAddr)
 		require.NoError(t, err)
 		restClient := evmclient.New(*addr)

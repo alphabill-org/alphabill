@@ -14,10 +14,10 @@ import (
 	testfc "github.com/alphabill-org/alphabill/txsystem/fc/testutils"
 	"github.com/alphabill-org/alphabill/txsystem/fc/unit"
 	"github.com/alphabill-org/alphabill/txsystem/state"
-	test "github.com/alphabill-org/alphabill/validator/internal/testutils"
-	"github.com/alphabill-org/alphabill/validator/internal/testutils/logger"
-	testsig "github.com/alphabill-org/alphabill/validator/internal/testutils/sig"
-	testtransaction "github.com/alphabill-org/alphabill/validator/internal/testutils/transaction"
+	test "github.com/alphabill-org/alphabill/validator/pkg/testutils"
+	"github.com/alphabill-org/alphabill/validator/pkg/testutils/logger"
+	testsig "github.com/alphabill-org/alphabill/validator/pkg/testutils/sig"
+	testtransaction "github.com/alphabill-org/alphabill/validator/pkg/testutils/transaction"
 	"github.com/stretchr/testify/require"
 )
 

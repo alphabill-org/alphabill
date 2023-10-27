@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	"github.com/alphabill-org/alphabill/txsystem/evm"
-	"github.com/alphabill-org/alphabill/validator/internal/rpc"
+	"github.com/alphabill-org/alphabill/validator/pkg/rpc"
 	"github.com/stretchr/testify/require"
 )
 

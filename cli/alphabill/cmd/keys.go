@@ -11,7 +11,7 @@ import (
 	"github.com/spf13/cobra"
 
 	abcrypto "github.com/alphabill-org/alphabill/common/crypto"
-	"github.com/alphabill-org/alphabill/validator/internal/network"
+	"github.com/alphabill-org/alphabill/validator/pkg/network"
 )
 
 const (

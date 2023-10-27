@@ -19,15 +19,15 @@ import (
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/stretchr/testify/require"
 
+	"github.com/alphabill-org/alphabill/api/genesis"
 	"github.com/alphabill-org/alphabill/api/predicates/templates"
 	"github.com/alphabill-org/alphabill/api/types"
+	"github.com/alphabill-org/alphabill/client/wallet/account"
+	"github.com/alphabill-org/alphabill/client/wallet/money/backend/client"
 	abcrypto "github.com/alphabill-org/alphabill/common/crypto"
-	"github.com/alphabill-org/alphabill/validator/internal/network/protocol/genesis"
-	"github.com/alphabill-org/alphabill/validator/internal/partition"
-	"github.com/alphabill-org/alphabill/validator/internal/testutils/logger"
-	testpartition "github.com/alphabill-org/alphabill/validator/internal/testutils/partition"
-	"github.com/alphabill-org/alphabill/validator/pkg/wallet/account"
-	"github.com/alphabill-org/alphabill/validator/pkg/wallet/money/backend/client"
+	"github.com/alphabill-org/alphabill/validator/pkg/partition"
+	"github.com/alphabill-org/alphabill/validator/pkg/testutils/logger"
+	testpartition "github.com/alphabill-org/alphabill/validator/pkg/testutils/partition"
 )
 
 const walletBaseDir = "wallet"

@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"github.com/alphabill-org/alphabill/common/util"
-	test "github.com/alphabill-org/alphabill/validator/internal/testutils"
+	test "github.com/alphabill-org/alphabill/validator/pkg/testutils"
 	"github.com/stretchr/testify/require"
 )
 

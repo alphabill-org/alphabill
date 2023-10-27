@@ -15,13 +15,13 @@ import (
 	abcrypto "github.com/alphabill-org/alphabill/common/crypto"
 	"github.com/alphabill-org/alphabill/common/keyvaluedb"
 	"github.com/alphabill-org/alphabill/common/keyvaluedb/boltdb"
-	"github.com/alphabill-org/alphabill/validator/internal/network"
-	"github.com/alphabill-org/alphabill/validator/internal/network/protocol/genesis"
-	"github.com/alphabill-org/alphabill/validator/internal/rootchain"
-	"github.com/alphabill-org/alphabill/validator/internal/rootchain/consensus"
-	"github.com/alphabill-org/alphabill/validator/internal/rootchain/consensus/monolithic"
-	"github.com/alphabill-org/alphabill/validator/internal/rootchain/partitions"
-	"github.com/alphabill-org/alphabill/validator/pkg/logger"
+	"github.com/alphabill-org/alphabill/common/logger"
+	"github.com/alphabill-org/alphabill/validator/pkg/network"
+	"github.com/alphabill-org/alphabill/validator/pkg/network/protocol/genesis"
+	"github.com/alphabill-org/alphabill/validator/pkg/rootchain"
+	"github.com/alphabill-org/alphabill/validator/pkg/rootchain/consensus"
+	"github.com/alphabill-org/alphabill/validator/pkg/rootchain/consensus/monolithic"
+	"github.com/alphabill-org/alphabill/validator/pkg/rootchain/partitions"
 )
 
 const (

@@ -12,12 +12,12 @@ import (
 
 	"github.com/alphabill-org/alphabill/api/predicates/templates"
 	"github.com/alphabill-org/alphabill/api/types"
+	"github.com/alphabill-org/alphabill/client/wallet"
 	"github.com/alphabill-org/alphabill/common/hash"
 	"github.com/alphabill-org/alphabill/common/util"
 	"github.com/alphabill-org/alphabill/txsystem/fc/transactions"
 	money2 "github.com/alphabill-org/alphabill/txsystem/money"
-	"github.com/alphabill-org/alphabill/validator/internal/rpc/alphabill"
-	"github.com/alphabill-org/alphabill/validator/pkg/wallet"
+	alphabill2 "github.com/alphabill-org/alphabill/validator/pkg/rpc/alphabill"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/fxamacker/cbor/v2"
 	"google.golang.org/grpc"
@@ -74,7 +74,7 @@ func main() {
 			log.Fatal(err)
 		}
 	}()
-	txClient := alphabill.NewAlphabillServiceClient(conn)
+	txClient := alphabill2.NewAlphabillServiceClient(conn)
 	res, err := txClient.GetRoundNumber(ctx, &emptypb.Empty{})
 	if err != nil {
 		log.Fatal(err)
@@ -97,7 +97,7 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	protoTransferFC := &alphabill.Transaction{Order: transferFCBytes}
+	protoTransferFC := &alphabill2.Transaction{Order: transferFCBytes}
 
 	// send transferFC
 	_, err = txClient.ProcessTransaction(ctx, protoTransferFC)
@@ -123,7 +123,7 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	protoAddFC := &alphabill.Transaction{Order: addFCBytes}
+	protoAddFC := &alphabill2.Transaction{Order: addFCBytes}
 
 	// send addFC
 	_, err = txClient.ProcessTransaction(ctx, protoAddFC)
@@ -151,7 +151,7 @@ func main() {
 	}
 
 	// send transfer tx
-	protoTransferTx := &alphabill.Transaction{Order: txBytes}
+	protoTransferTx := &alphabill2.Transaction{Order: txBytes}
 	if _, err := txClient.ProcessTransaction(ctx, protoTransferTx); err != nil {
 		log.Fatal(err)
 	}
@@ -234,9 +234,9 @@ func createTransferTx(pubKey []byte, unitID []byte, billValue uint64, fcrID []by
 	}, nil
 }
 
-func waitForConfirmation(ctx context.Context, abClient alphabill.AlphabillServiceClient, pendingTx *types.TransactionOrder, latestRoundNumber, timeout uint64) (*wallet.Proof, error) {
+func waitForConfirmation(ctx context.Context, abClient alphabill2.AlphabillServiceClient, pendingTx *types.TransactionOrder, latestRoundNumber, timeout uint64) (*wallet.Proof, error) {
 	for latestRoundNumber <= timeout {
-		res, err := abClient.GetBlock(ctx, &alphabill.GetBlockRequest{BlockNo: latestRoundNumber})
+		res, err := abClient.GetBlock(ctx, &alphabill2.GetBlockRequest{BlockNo: latestRoundNumber})
 		if err != nil {
 			return nil, err
 		}

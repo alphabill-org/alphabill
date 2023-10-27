@@ -5,7 +5,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/alphabill-org/alphabill/validator/internal/rpc"
+	"github.com/alphabill-org/alphabill/validator/pkg/rpc"
 	"github.com/spf13/cobra"
 )
 

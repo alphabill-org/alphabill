@@ -15,13 +15,13 @@ import (
 	"github.com/alphabill-org/alphabill/api/types"
 	"github.com/alphabill-org/alphabill/common/util"
 	money2 "github.com/alphabill-org/alphabill/txsystem/money"
-	"github.com/alphabill-org/alphabill/validator/internal/network/protocol/genesis"
-	rootgenesis "github.com/alphabill-org/alphabill/validator/internal/rootchain/genesis"
-	"github.com/alphabill-org/alphabill/validator/internal/rpc/alphabill"
-	"github.com/alphabill-org/alphabill/validator/internal/testutils/logger"
-	"github.com/alphabill-org/alphabill/validator/internal/testutils/net"
-	testsig "github.com/alphabill-org/alphabill/validator/internal/testutils/sig"
-	test "github.com/alphabill-org/alphabill/validator/internal/testutils/time"
+	"github.com/alphabill-org/alphabill/validator/pkg/network/protocol/genesis"
+	rootgenesis "github.com/alphabill-org/alphabill/validator/pkg/rootchain/genesis"
+	"github.com/alphabill-org/alphabill/validator/pkg/rpc/alphabill"
+	"github.com/alphabill-org/alphabill/validator/pkg/testutils/logger"
+	"github.com/alphabill-org/alphabill/validator/pkg/testutils/net"
+	testsig "github.com/alphabill-org/alphabill/validator/pkg/testutils/sig"
+	test "github.com/alphabill-org/alphabill/validator/pkg/testutils/time"
 	"github.com/fxamacker/cbor/v2"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
@@ -341,7 +341,7 @@ func TestRunMoneyNode_Ok(t *testing.T) {
 		}()
 
 		t.Log("Started money node and dialing...")
-		// Create the gRPC client
+		// Create the gRPC abclient
 		conn, err := grpc.DialContext(ctx, moneyNodeAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
 		require.NoError(t, err)
 		defer conn.Close()

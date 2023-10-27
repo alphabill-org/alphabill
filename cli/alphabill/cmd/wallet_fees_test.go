@@ -7,9 +7,9 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/alphabill-org/alphabill/api/predicates/templates"
 	money2 "github.com/alphabill-org/alphabill/txsystem/money"
 	"github.com/alphabill-org/alphabill/txsystem/tokens"
-	"github.com/alphabill-org/alphabill/validator/internal/predicates/templates"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/stretchr/testify/require"
 

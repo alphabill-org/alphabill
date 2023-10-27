@@ -7,11 +7,11 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/alphabill-org/alphabill/api/predicates/templates"
 	"github.com/alphabill-org/alphabill/api/types"
+	abcrypto "github.com/alphabill-org/alphabill/common/crypto"
 	"github.com/alphabill-org/alphabill/txsystem/fc/unit"
-	abcrypto "github.com/alphabill-org/alphabill/validator/internal/crypto"
-	"github.com/alphabill-org/alphabill/validator/internal/predicates/templates"
-	"github.com/alphabill-org/alphabill/validator/internal/state"
+	"github.com/alphabill-org/alphabill/txsystem/state"
 	test "github.com/alphabill-org/alphabill/validator/internal/testutils"
 	testsig "github.com/alphabill-org/alphabill/validator/internal/testutils/sig"
 )

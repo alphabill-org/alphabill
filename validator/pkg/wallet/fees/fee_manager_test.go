@@ -6,14 +6,14 @@ import (
 	"path/filepath"
 	"testing"
 
+	abcrypto "github.com/alphabill-org/alphabill/common/crypto"
+	"github.com/alphabill-org/alphabill/common/hash"
 	testutils2 "github.com/alphabill-org/alphabill/txsystem/fc/testutils"
 	"github.com/alphabill-org/alphabill/txsystem/fc/transactions"
 	"github.com/alphabill-org/alphabill/txsystem/money"
 	"github.com/stretchr/testify/require"
 
 	"github.com/alphabill-org/alphabill/api/types"
-	abcrypto "github.com/alphabill-org/alphabill/validator/internal/crypto"
-	"github.com/alphabill-org/alphabill/validator/internal/hash"
 	"github.com/alphabill-org/alphabill/validator/internal/testutils/logger"
 	testtransaction "github.com/alphabill-org/alphabill/validator/internal/testutils/transaction"
 	"github.com/alphabill-org/alphabill/validator/pkg/wallet"

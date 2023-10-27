@@ -6,14 +6,14 @@ import (
 	"math"
 	"testing"
 
-	"github.com/alphabill-org/alphabill/validator/internal/predicates/templates"
+	"github.com/alphabill-org/alphabill/api/predicates/templates"
 	"github.com/stretchr/testify/require"
 
 	"github.com/alphabill-org/alphabill/api/types"
+	abcrypto "github.com/alphabill-org/alphabill/common/crypto"
 	testfc "github.com/alphabill-org/alphabill/txsystem/fc/testutils"
 	"github.com/alphabill-org/alphabill/txsystem/fc/transactions"
-	abcrypto "github.com/alphabill-org/alphabill/validator/internal/crypto"
-	"github.com/alphabill-org/alphabill/validator/internal/state"
+	"github.com/alphabill-org/alphabill/txsystem/state"
 	test "github.com/alphabill-org/alphabill/validator/internal/testutils"
 	testblock "github.com/alphabill-org/alphabill/validator/internal/testutils/block"
 	testsig "github.com/alphabill-org/alphabill/validator/internal/testutils/sig"

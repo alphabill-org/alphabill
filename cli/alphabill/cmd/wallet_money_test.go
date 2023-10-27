@@ -19,11 +19,11 @@ import (
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/stretchr/testify/require"
 
+	"github.com/alphabill-org/alphabill/api/predicates/templates"
 	"github.com/alphabill-org/alphabill/api/types"
-	abcrypto "github.com/alphabill-org/alphabill/validator/internal/crypto"
+	abcrypto "github.com/alphabill-org/alphabill/common/crypto"
 	"github.com/alphabill-org/alphabill/validator/internal/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/validator/internal/partition"
-	"github.com/alphabill-org/alphabill/validator/internal/predicates/templates"
 	"github.com/alphabill-org/alphabill/validator/internal/testutils/logger"
 	testpartition "github.com/alphabill-org/alphabill/validator/internal/testutils/partition"
 	"github.com/alphabill-org/alphabill/validator/pkg/wallet/account"

@@ -8,10 +8,10 @@ import (
 	"testing"
 
 	"github.com/alphabill-org/alphabill/api/types"
+	"github.com/alphabill-org/alphabill/common/keyvaluedb/memorydb"
 	"github.com/alphabill-org/alphabill/common/util"
 	"github.com/alphabill-org/alphabill/txsystem/evm/statedb"
-	"github.com/alphabill-org/alphabill/validator/internal/keyvaluedb/memorydb"
-	abstate "github.com/alphabill-org/alphabill/validator/internal/state"
+	abstate "github.com/alphabill-org/alphabill/txsystem/state"
 	test "github.com/alphabill-org/alphabill/validator/internal/testutils"
 	"github.com/alphabill-org/alphabill/validator/internal/testutils/logger"
 	"github.com/ethereum/go-ethereum/accounts/abi"

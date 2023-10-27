@@ -5,7 +5,7 @@ import (
 	"hash"
 
 	"github.com/alphabill-org/alphabill/common/util"
-	"github.com/alphabill-org/alphabill/validator/internal/state"
+	"github.com/alphabill-org/alphabill/txsystem/state"
 )
 
 // FeeCreditRecord state tree unit data of fee credit records.

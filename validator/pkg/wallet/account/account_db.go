@@ -10,10 +10,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/alphabill-org/alphabill/common/crypto"
 	util2 "github.com/alphabill-org/alphabill/common/util"
 	bolt "go.etcd.io/bbolt"
-
-	"github.com/alphabill-org/alphabill/validator/internal/crypto"
 )
 
 var (

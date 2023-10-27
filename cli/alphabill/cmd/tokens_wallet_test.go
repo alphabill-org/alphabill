@@ -12,10 +12,10 @@ import (
 	"time"
 
 	"github.com/alphabill-org/alphabill/api/types"
+	abcrypto "github.com/alphabill-org/alphabill/common/crypto"
 	"github.com/alphabill-org/alphabill/txsystem"
+	"github.com/alphabill-org/alphabill/txsystem/state"
 	tokens2 "github.com/alphabill-org/alphabill/txsystem/tokens"
-	abcrypto "github.com/alphabill-org/alphabill/validator/internal/crypto"
-	"github.com/alphabill-org/alphabill/validator/internal/state"
 	test "github.com/alphabill-org/alphabill/validator/internal/testutils"
 	"github.com/alphabill-org/alphabill/validator/internal/testutils/logger"
 	"github.com/alphabill-org/alphabill/validator/internal/testutils/net"

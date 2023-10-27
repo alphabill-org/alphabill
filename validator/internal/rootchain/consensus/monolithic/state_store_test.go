@@ -6,8 +6,8 @@ import (
 	"testing"
 
 	"github.com/alphabill-org/alphabill/api/types"
-	"github.com/alphabill-org/alphabill/validator/internal/keyvaluedb/boltdb"
-	"github.com/alphabill-org/alphabill/validator/internal/keyvaluedb/memorydb"
+	"github.com/alphabill-org/alphabill/common/keyvaluedb/boltdb"
+	"github.com/alphabill-org/alphabill/common/keyvaluedb/memorydb"
 	"github.com/alphabill-org/alphabill/validator/internal/network/protocol/genesis"
 	"github.com/stretchr/testify/require"
 )

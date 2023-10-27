@@ -9,10 +9,10 @@ import (
 	"strconv"
 	"testing"
 
+	"github.com/alphabill-org/alphabill/api/predicates/templates"
 	"github.com/alphabill-org/alphabill/api/types"
+	"github.com/alphabill-org/alphabill/common/hash"
 	"github.com/alphabill-org/alphabill/txsystem/tokens"
-	"github.com/alphabill-org/alphabill/validator/internal/hash"
-	"github.com/alphabill-org/alphabill/validator/internal/predicates/templates"
 	test "github.com/alphabill-org/alphabill/validator/internal/testutils"
 	"github.com/alphabill-org/alphabill/validator/internal/testutils/logger"
 	"github.com/alphabill-org/alphabill/validator/pkg/wallet"

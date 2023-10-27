@@ -9,9 +9,9 @@ import (
 	"math/big"
 	"sort"
 
+	"github.com/alphabill-org/alphabill/api/predicates/templates"
 	"github.com/alphabill-org/alphabill/api/types"
-	"github.com/alphabill-org/alphabill/validator/internal/predicates/templates"
-	"github.com/alphabill-org/alphabill/validator/internal/state"
+	"github.com/alphabill-org/alphabill/txsystem/state"
 	"github.com/alphabill-org/alphabill/validator/pkg/logger"
 	"github.com/alphabill-org/alphabill/validator/pkg/tree/avl"
 	"github.com/ethereum/go-ethereum/common"

@@ -7,10 +7,10 @@ import (
 	"math/big"
 
 	"github.com/alphabill-org/alphabill/api/types"
+	"github.com/alphabill-org/alphabill/common/keyvaluedb"
 	"github.com/alphabill-org/alphabill/common/util"
 	"github.com/alphabill-org/alphabill/txsystem"
 	"github.com/alphabill-org/alphabill/txsystem/evm/statedb"
-	"github.com/alphabill-org/alphabill/validator/internal/keyvaluedb"
 	"github.com/alphabill-org/alphabill/validator/pkg/logger"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core"

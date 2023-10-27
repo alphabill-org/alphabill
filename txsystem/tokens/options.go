@@ -3,10 +3,10 @@ package tokens
 import (
 	gocrypto "crypto"
 
+	"github.com/alphabill-org/alphabill/common/crypto"
 	"github.com/alphabill-org/alphabill/txsystem/fc"
 	"github.com/alphabill-org/alphabill/txsystem/money"
-	"github.com/alphabill-org/alphabill/validator/internal/crypto"
-	"github.com/alphabill-org/alphabill/validator/internal/state"
+	"github.com/alphabill-org/alphabill/txsystem/state"
 )
 
 var DefaultSystemIdentifier = []byte{0, 0, 0, 2}

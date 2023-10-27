@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"github.com/alphabill-org/alphabill/api/types"
-	abcrypto "github.com/alphabill-org/alphabill/validator/internal/crypto"
+	abcrypto "github.com/alphabill-org/alphabill/common/crypto"
 	"github.com/alphabill-org/alphabill/validator/internal/network/protocol/genesis"
 	testcertificates "github.com/alphabill-org/alphabill/validator/internal/testutils/certificates"
 	"github.com/stretchr/testify/require"

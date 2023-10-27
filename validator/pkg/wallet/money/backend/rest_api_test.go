@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/ainvaltin/httpsrv"
+	"github.com/alphabill-org/alphabill/api/predicates/templates"
 	"github.com/alphabill-org/alphabill/common/util"
 	testutils2 "github.com/alphabill-org/alphabill/txsystem/fc/testutils"
 	money2 "github.com/alphabill-org/alphabill/txsystem/money"
@@ -25,7 +26,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/alphabill-org/alphabill/api/types"
-	"github.com/alphabill-org/alphabill/validator/internal/predicates/templates"
 	test "github.com/alphabill-org/alphabill/validator/internal/testutils"
 	testhttp "github.com/alphabill-org/alphabill/validator/internal/testutils/http"
 	"github.com/alphabill-org/alphabill/validator/internal/testutils/logger"

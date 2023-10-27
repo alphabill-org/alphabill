@@ -3,12 +3,12 @@ package testsig
 import (
 	"testing"
 
-	"github.com/alphabill-org/alphabill/validator/internal/crypto"
+	crypto2 "github.com/alphabill-org/alphabill/common/crypto"
 	"github.com/stretchr/testify/require"
 )
 
 func SignBytes(t *testing.T, sigData []byte) ([]byte, []byte) {
-	signer, err := crypto.NewInMemorySecp256K1Signer()
+	signer, err := crypto2.NewInMemorySecp256K1Signer()
 	require.NoError(t, err)
 
 	sig, err := signer.SignBytes(sigData)
@@ -23,9 +23,9 @@ func SignBytes(t *testing.T, sigData []byte) ([]byte, []byte) {
 	return sig, pubKey
 }
 
-func CreateSignerAndVerifier(t *testing.T) (crypto.Signer, crypto.Verifier) {
+func CreateSignerAndVerifier(t *testing.T) (crypto2.Signer, crypto2.Verifier) {
 	t.Helper()
-	signer, err := crypto.NewInMemorySecp256K1Signer()
+	signer, err := crypto2.NewInMemorySecp256K1Signer()
 	require.NoError(t, err)
 
 	verifier, err := signer.Verifier()

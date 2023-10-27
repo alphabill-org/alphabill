@@ -8,10 +8,10 @@ import (
 	"net"
 	"testing"
 
+	"github.com/alphabill-org/alphabill/api/predicates/templates"
 	"github.com/alphabill-org/alphabill/api/types"
 	"github.com/alphabill-org/alphabill/txsystem/money"
 	"github.com/alphabill-org/alphabill/validator/internal/network"
-	"github.com/alphabill-org/alphabill/validator/internal/predicates/templates"
 	"github.com/alphabill-org/alphabill/validator/internal/rpc/alphabill"
 	"github.com/fxamacker/cbor/v2"
 	"github.com/stretchr/testify/assert"

@@ -12,8 +12,8 @@ import (
 	"time"
 
 	"github.com/ainvaltin/httpsrv"
+	"github.com/alphabill-org/alphabill/api/predicates/templates"
 	"github.com/alphabill-org/alphabill/txsystem/money"
-	"github.com/alphabill-org/alphabill/validator/internal/predicates/templates"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/sync/semaphore"
 

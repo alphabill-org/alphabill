@@ -8,8 +8,8 @@ import (
 	"sort"
 
 	"github.com/alphabill-org/alphabill/api/types"
+	"github.com/alphabill-org/alphabill/common/crypto"
 	util2 "github.com/alphabill-org/alphabill/common/util"
-	"github.com/alphabill-org/alphabill/validator/internal/crypto"
 	"github.com/alphabill-org/alphabill/validator/internal/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/validator/internal/rootchain/unicitytree"
 )

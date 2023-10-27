@@ -8,8 +8,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/alphabill-org/alphabill/api/predicates/templates"
 	"github.com/alphabill-org/alphabill/common/util"
-	"github.com/alphabill-org/alphabill/validator/internal/predicates/templates"
 	"github.com/stretchr/testify/require"
 
 	"github.com/alphabill-org/alphabill/api/types"

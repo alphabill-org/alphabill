@@ -9,7 +9,7 @@ import (
 	"github.com/alphabill-org/alphabill/api/types"
 	"github.com/alphabill-org/alphabill/common/util"
 	txsystem2 "github.com/alphabill-org/alphabill/txsystem"
-	"github.com/alphabill-org/alphabill/validator/internal/state"
+	"github.com/alphabill-org/alphabill/txsystem/state"
 	"github.com/alphabill-org/alphabill/validator/pkg/logger"
 )
 

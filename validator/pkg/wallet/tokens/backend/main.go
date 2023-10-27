@@ -10,11 +10,11 @@ import (
 	"time"
 
 	"github.com/ainvaltin/httpsrv"
+	"github.com/alphabill-org/alphabill/common/crypto"
 	tokens2 "github.com/alphabill-org/alphabill/txsystem/tokens"
 	"golang.org/x/sync/errgroup"
 
 	"github.com/alphabill-org/alphabill/api/types"
-	"github.com/alphabill-org/alphabill/validator/internal/crypto"
 	"github.com/alphabill-org/alphabill/validator/internal/debug"
 	"github.com/alphabill-org/alphabill/validator/internal/rpc/alphabill"
 	"github.com/alphabill-org/alphabill/validator/pkg/client"

@@ -15,9 +15,9 @@ import (
 	"time"
 
 	"github.com/alphabill-org/alphabill/api/types"
+	crypto2 "github.com/alphabill-org/alphabill/common/crypto"
+	"github.com/alphabill-org/alphabill/common/keyvaluedb/boltdb"
 	"github.com/alphabill-org/alphabill/txsystem"
-	"github.com/alphabill-org/alphabill/validator/internal/crypto"
-	"github.com/alphabill-org/alphabill/validator/internal/keyvaluedb/boltdb"
 	"github.com/alphabill-org/alphabill/validator/internal/network"
 	"github.com/alphabill-org/alphabill/validator/internal/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/validator/internal/partition"
@@ -47,7 +47,7 @@ type AlphabillNetwork struct {
 
 type RootPartition struct {
 	rcGenesis *genesis.RootGenesis
-	TrustBase map[string]crypto.Verifier
+	TrustBase map[string]crypto2.Verifier
 	Nodes     []*rootNode
 	log       *slog.Logger
 }
@@ -55,9 +55,9 @@ type RootPartition struct {
 type NodePartition struct {
 	systemId         types.SystemID
 	partitionGenesis *genesis.PartitionGenesis
-	txSystemFunc     func(trustBase map[string]crypto.Verifier) txsystem.TransactionSystem
+	txSystemFunc     func(trustBase map[string]crypto2.Verifier) txsystem.TransactionSystem
 	ctx              context.Context
-	tb               map[string]crypto.Verifier
+	tb               map[string]crypto2.Verifier
 	Nodes            []*partitionNode
 	log              *slog.Logger
 }
@@ -67,7 +67,7 @@ type partitionNode struct {
 	dbFile       string
 	idxFile      string
 	peerConf     *network.PeerConfiguration
-	signer       crypto.Signer
+	signer       crypto2.Signer
 	genesis      *genesis.PartitionNode
 	EventHandler *testevent.TestEventHandler
 	confOpts     []partition.NodeOption
@@ -79,7 +79,7 @@ type partitionNode struct {
 type rootNode struct {
 	*rootchain.Node
 	EncKeyPair *network.PeerKeyPair
-	RootSigner crypto.Signer
+	RootSigner crypto2.Signer
 	genesis    *genesis.RootGenesis
 	id         peer.ID
 	addr       multiaddr.Multiaddr
@@ -112,7 +112,7 @@ func newRootPartition(nodePartitions []*NodePartition) (*RootPartition, error) {
 	if err != nil {
 		return nil, fmt.Errorf("create signer failed, %w", err)
 	}
-	trustBase := make(map[string]crypto.Verifier)
+	trustBase := make(map[string]crypto2.Verifier)
 	rootNodes := make([]*rootNode, rootValidatorNodes)
 	rootGenesisFiles := make([]*genesis.RootGenesis, rootValidatorNodes)
 	for i := 0; i < rootValidatorNodes; i++ {
@@ -217,7 +217,7 @@ func (r *RootPartition) start(ctx context.Context) error {
 	return nil
 }
 
-func NewPartition(t *testing.T, nodeCount int, txSystemProvider func(trustBase map[string]crypto.Verifier) txsystem.TransactionSystem, systemIdentifier []byte) (abPartition *NodePartition, err error) {
+func NewPartition(t *testing.T, nodeCount int, txSystemProvider func(trustBase map[string]crypto2.Verifier) txsystem.TransactionSystem, systemIdentifier []byte) (abPartition *NodePartition, err error) {
 	ctx, ctxCancel := context.WithCancel(context.Background())
 	defer func() {
 		if err != nil {
@@ -250,7 +250,7 @@ func NewPartition(t *testing.T, nodeCount int, txSystemProvider func(trustBase m
 		signer := signers[i]
 		// create partition genesis file
 		nodeGenesis, err := partition.NewNodeGenesis(
-			txSystemProvider(map[string]crypto.Verifier{"genesis": nil}),
+			txSystemProvider(map[string]crypto2.Verifier{"genesis": nil}),
 			partition.WithPeerID(peerConf.ID),
 			partition.WithSigningKey(signer),
 			partition.WithEncryptionPubKey(peerConf.KeyPair.PublicKey),
@@ -534,10 +534,10 @@ func BlockchainContains(part *NodePartition, criteria func(tx *types.Transaction
 	}
 }
 
-func createSigners(count int) ([]crypto.Signer, error) {
-	var signers = make([]crypto.Signer, count)
+func createSigners(count int) ([]crypto2.Signer, error) {
+	var signers = make([]crypto2.Signer, count)
 	for i := 0; i < count; i++ {
-		s, err := crypto.NewInMemorySecp256K1Signer()
+		s, err := crypto2.NewInMemorySecp256K1Signer()
 		if err != nil {
 			return nil, err
 		}

@@ -7,7 +7,7 @@ import (
 	"fmt"
 
 	"github.com/alphabill-org/alphabill/api/types"
-	"github.com/alphabill-org/alphabill/validator/internal/crypto"
+	"github.com/alphabill-org/alphabill/common/crypto"
 	"github.com/fxamacker/cbor/v2"
 )
 

@@ -5,14 +5,14 @@ import (
 	"fmt"
 	"log/slog"
 
+	"github.com/alphabill-org/alphabill/api/predicates/templates"
 	"github.com/alphabill-org/alphabill/api/types"
 	"github.com/alphabill-org/alphabill/txsystem"
 	"github.com/alphabill-org/alphabill/txsystem/evm/statedb"
 	"github.com/alphabill-org/alphabill/txsystem/fc"
 	"github.com/alphabill-org/alphabill/txsystem/fc/transactions"
 	"github.com/alphabill-org/alphabill/txsystem/fc/unit"
-	"github.com/alphabill-org/alphabill/validator/internal/predicates/templates"
-	"github.com/alphabill-org/alphabill/validator/internal/state"
+	"github.com/alphabill-org/alphabill/txsystem/state"
 )
 
 func closeFeeCreditTx(tree *state.State, hashAlgorithm crypto.Hash, calcFee FeeCalculator, validator *fc.DefaultFeeCreditTxValidator, log *slog.Logger) txsystem.GenericExecuteFunc[transactions.CloseFeeCreditAttributes] {

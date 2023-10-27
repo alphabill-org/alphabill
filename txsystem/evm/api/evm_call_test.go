@@ -8,11 +8,11 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/alphabill-org/alphabill/common/keyvaluedb/memorydb"
 	"github.com/alphabill-org/alphabill/txsystem/evm"
 	"github.com/alphabill-org/alphabill/txsystem/evm/statedb"
-	"github.com/alphabill-org/alphabill/validator/internal/keyvaluedb/memorydb"
+	abstate "github.com/alphabill-org/alphabill/txsystem/state"
 	"github.com/alphabill-org/alphabill/validator/internal/rpc"
-	abstate "github.com/alphabill-org/alphabill/validator/internal/state"
 	test "github.com/alphabill-org/alphabill/validator/internal/testutils"
 	"github.com/alphabill-org/alphabill/validator/internal/testutils/logger"
 	"github.com/ethereum/go-ethereum/accounts/abi"

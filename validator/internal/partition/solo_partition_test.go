@@ -11,6 +11,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/alphabill-org/alphabill/common/crypto"
+	"github.com/alphabill-org/alphabill/common/keyvaluedb"
 	"github.com/alphabill-org/alphabill/common/util"
 	"github.com/alphabill-org/alphabill/txsystem"
 	p2pcrypto "github.com/libp2p/go-libp2p/core/crypto"
@@ -18,8 +20,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/alphabill-org/alphabill/api/types"
-	"github.com/alphabill-org/alphabill/validator/internal/crypto"
-	"github.com/alphabill-org/alphabill/validator/internal/keyvaluedb"
 	"github.com/alphabill-org/alphabill/validator/internal/network"
 	"github.com/alphabill-org/alphabill/validator/internal/network/protocol/blockproposal"
 	"github.com/alphabill-org/alphabill/validator/internal/network/protocol/certification"

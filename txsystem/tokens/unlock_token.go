@@ -5,10 +5,10 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/alphabill-org/alphabill/api/predicates"
 	"github.com/alphabill-org/alphabill/api/types"
 	"github.com/alphabill-org/alphabill/txsystem"
-	"github.com/alphabill-org/alphabill/validator/internal/predicates"
-	"github.com/alphabill-org/alphabill/validator/internal/state"
+	"github.com/alphabill-org/alphabill/txsystem/state"
 	"github.com/alphabill-org/alphabill/validator/pkg/tree/avl"
 )
 

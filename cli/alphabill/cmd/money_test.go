@@ -11,11 +11,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/alphabill-org/alphabill/api/predicates/templates"
 	"github.com/alphabill-org/alphabill/api/types"
 	"github.com/alphabill-org/alphabill/common/util"
 	money2 "github.com/alphabill-org/alphabill/txsystem/money"
 	"github.com/alphabill-org/alphabill/validator/internal/network/protocol/genesis"
-	"github.com/alphabill-org/alphabill/validator/internal/predicates/templates"
 	rootgenesis "github.com/alphabill-org/alphabill/validator/internal/rootchain/genesis"
 	"github.com/alphabill-org/alphabill/validator/internal/rpc/alphabill"
 	"github.com/alphabill-org/alphabill/validator/internal/testutils/logger"

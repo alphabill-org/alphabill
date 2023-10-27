@@ -7,14 +7,14 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/alphabill-org/alphabill/api/predicates/templates"
 	"github.com/alphabill-org/alphabill/txsystem/fc/transactions"
 	money2 "github.com/alphabill-org/alphabill/txsystem/money"
-	"github.com/alphabill-org/alphabill/validator/internal/predicates/templates"
 	"github.com/fxamacker/cbor/v2"
 	"github.com/stretchr/testify/require"
 
 	"github.com/alphabill-org/alphabill/api/types"
-	"github.com/alphabill-org/alphabill/validator/internal/hash"
+	"github.com/alphabill-org/alphabill/common/hash"
 	"github.com/alphabill-org/alphabill/validator/internal/testutils/logger"
 	testpartition "github.com/alphabill-org/alphabill/validator/internal/testutils/partition"
 	"github.com/alphabill-org/alphabill/validator/pkg/wallet/money/backend/client"

@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"github.com/alphabill-org/alphabill/api/types"
-	"github.com/alphabill-org/alphabill/validator/internal/crypto"
+	crypto2 "github.com/alphabill-org/alphabill/common/crypto"
 	"github.com/alphabill-org/alphabill/validator/internal/network/protocol/certification"
 	"github.com/alphabill-org/alphabill/validator/internal/network/protocol/genesis"
 	pg "github.com/alphabill-org/alphabill/validator/internal/partition/genesis"
@@ -14,7 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func getPublicKeyAndVerifier(signer crypto.Signer) ([]byte, crypto.Verifier, error) {
+func getPublicKeyAndVerifier(signer crypto2.Signer) ([]byte, crypto2.Verifier, error) {
 	if signer == nil {
 		return nil, nil, ErrSignerIsNil
 	}
@@ -29,7 +29,7 @@ func getPublicKeyAndVerifier(signer crypto.Signer) ([]byte, crypto.Verifier, err
 	return pubKey, verifier, nil
 }
 
-func createPartition(t *testing.T, systemIdentifier types.SystemID, nodeID string, partitionSigner crypto.Signer) *genesis.PartitionRecord {
+func createPartition(t *testing.T, systemIdentifier types.SystemID, nodeID string, partitionSigner crypto2.Signer) *genesis.PartitionRecord {
 	t.Helper()
 	req := createInputRequest(t, systemIdentifier, nodeID, partitionSigner)
 	pubKey, _, err := getPublicKeyAndVerifier(partitionSigner)
@@ -49,7 +49,7 @@ func createPartition(t *testing.T, systemIdentifier types.SystemID, nodeID strin
 	}
 }
 
-func createPartitionNode(t *testing.T, systemIdentifier types.SystemID, nodeID string, partitionSigner crypto.Signer) *genesis.PartitionNode {
+func createPartitionNode(t *testing.T, systemIdentifier types.SystemID, nodeID string, partitionSigner crypto2.Signer) *genesis.PartitionNode {
 	t.Helper()
 	req := createInputRequest(t, systemIdentifier, nodeID, partitionSigner)
 	pubKey, _, err := getPublicKeyAndVerifier(partitionSigner)
@@ -64,7 +64,7 @@ func createPartitionNode(t *testing.T, systemIdentifier types.SystemID, nodeID s
 	}
 }
 
-func createInputRequest(t *testing.T, systemIdentifier types.SystemID, nodeID string, partitionSigner crypto.Signer) *certification.BlockCertificationRequest {
+func createInputRequest(t *testing.T, systemIdentifier types.SystemID, nodeID string, partitionSigner crypto2.Signer) *certification.BlockCertificationRequest {
 	t.Helper()
 	req := &certification.BlockCertificationRequest{
 		SystemIdentifier: systemIdentifier,
@@ -90,7 +90,7 @@ func Test_rootGenesisConf_isValid(t *testing.T) {
 	type fields struct {
 		peerID                string
 		encryptionPubKeyBytes []byte
-		signer                crypto.Signer
+		signer                crypto2.Signer
 		totalValidators       uint32
 		blockRateMs           uint32
 		consensusTimeoutMs    uint32
@@ -250,12 +250,12 @@ func Test_rootGenesisConf_isValid(t *testing.T) {
 
 func TestNewGenesis_Ok(t *testing.T) {
 	id := []byte{0, 0, 0, 1}
-	partitionSigner, err := crypto.NewInMemorySecp256K1Signer()
+	partitionSigner, err := crypto2.NewInMemorySecp256K1Signer()
 	require.NoError(t, err)
 
 	partition := createPartition(t, id, "1", partitionSigner)
 	require.NoError(t, err)
-	rootChainSigner, err := crypto.NewInMemorySecp256K1Signer()
+	rootChainSigner, err := crypto2.NewInMemorySecp256K1Signer()
 	require.NoError(t, err)
 
 	_, verifier := testsig.CreateSignerAndVerifier(t)
@@ -271,9 +271,9 @@ func TestNewGenesis_Ok(t *testing.T) {
 
 func TestNewGenesis_ConsensusNotPossible(t *testing.T) {
 	id := []byte{0, 0, 0, 1}
-	partitionSigner, err := crypto.NewInMemorySecp256K1Signer()
+	partitionSigner, err := crypto2.NewInMemorySecp256K1Signer()
 	require.NoError(t, err)
-	partitionSigner2, err := crypto.NewInMemorySecp256K1Signer()
+	partitionSigner2, err := crypto2.NewInMemorySecp256K1Signer()
 	require.NoError(t, err)
 
 	partition := createPartition(t, id, "1", partitionSigner)
@@ -292,7 +292,7 @@ func TestNewGenesis_ConsensusNotPossible(t *testing.T) {
 	}
 	partition.Validators = append(partition.Validators, pr)
 
-	rootChainSigner, err := crypto.NewInMemorySecp256K1Signer()
+	rootChainSigner, err := crypto2.NewInMemorySecp256K1Signer()
 	require.NoError(t, err)
 	_, encPubKey := testsig.CreateSignerAndVerifier(t)
 	rootPubKeyBytes, err := encPubKey.MarshalPublicKey()
@@ -303,14 +303,14 @@ func TestNewGenesis_ConsensusNotPossible(t *testing.T) {
 
 func TestNewGenesisFromPartitionNodes_Ok(t *testing.T) {
 	id := []byte{0, 0, 0, 1}
-	partitionSigner, err := crypto.NewInMemorySecp256K1Signer()
+	partitionSigner, err := crypto2.NewInMemorySecp256K1Signer()
 	require.NoError(t, err)
-	partitionSigner2, err := crypto.NewInMemorySecp256K1Signer()
+	partitionSigner2, err := crypto2.NewInMemorySecp256K1Signer()
 	require.NoError(t, err)
 
 	pn1 := createPartitionNode(t, id, "1", partitionSigner)
 	pn2 := createPartitionNode(t, id, "2", partitionSigner2)
-	rootChainSigner, err := crypto.NewInMemorySecp256K1Signer()
+	rootChainSigner, err := crypto2.NewInMemorySecp256K1Signer()
 	require.NoError(t, err)
 	rootChainVerifier, err := rootChainSigner.Verifier()
 	require.NoError(t, err)
@@ -337,10 +337,10 @@ func TestNewGenesisForMultiplePartitions_Ok(t *testing.T) {
 	pn1 := createPartitionNode(t, systemIdentifier1, "1", partitionSigner)
 	pn2 := createPartitionNode(t, systemIdentifier2, "2", partitionSigner2)
 	pn3 := createPartitionNode(t, systemIdentifier3, "3", partitionSigner3)
-	rootChainSigner, err := crypto.NewInMemorySecp256K1Signer()
+	rootChainSigner, err := crypto2.NewInMemorySecp256K1Signer()
 	require.NoError(t, err)
 	rootChainVerifier, err := rootChainSigner.Verifier()
-	rootTrust := map[string]crypto.Verifier{"test": rootChainVerifier}
+	rootTrust := map[string]crypto2.Verifier{"test": rootChainVerifier}
 	require.NoError(t, err)
 	rootPubKeyBytes, err := rootChainVerifier.MarshalPublicKey()
 	require.NoError(t, err)
@@ -358,12 +358,12 @@ func TestNewGenesisForMultiplePartitions_Ok(t *testing.T) {
 
 func TestNewGenesis_AddSignature(t *testing.T) {
 	id := []byte{0, 0, 0, 1}
-	partitionSigner, err := crypto.NewInMemorySecp256K1Signer()
+	partitionSigner, err := crypto2.NewInMemorySecp256K1Signer()
 	require.NoError(t, err)
 
 	partition := createPartition(t, id, "1", partitionSigner)
 	require.NoError(t, err)
-	rootChainSigner, err := crypto.NewInMemorySecp256K1Signer()
+	rootChainSigner, err := crypto2.NewInMemorySecp256K1Signer()
 	require.NoError(t, err)
 	require.NoError(t, err)
 
@@ -391,7 +391,7 @@ func TestNewGenesis_AddSignature(t *testing.T) {
 	require.ErrorContains(t, err, "genesis is already signed by node id test1")
 	require.Nil(t, rg2)
 
-	rootChainSigner2, err := crypto.NewInMemorySecp256K1Signer()
+	rootChainSigner2, err := crypto2.NewInMemorySecp256K1Signer()
 	require.NoError(t, err)
 	_, verifier2 := testsig.CreateSignerAndVerifier(t)
 	rootPubKeyBytes2, err := verifier2.MarshalPublicKey()
@@ -407,7 +407,7 @@ func TestNewGenesis_AddSignature(t *testing.T) {
 	// signed by total number of root validators
 	require.NoError(t, rg.Verify())
 	// Test not possible to add another signature - total nodes is 3
-	rootChainSigner3, err := crypto.NewInMemorySecp256K1Signer()
+	rootChainSigner3, err := crypto2.NewInMemorySecp256K1Signer()
 	require.NoError(t, err)
 	_, verifier3 := testsig.CreateSignerAndVerifier(t)
 	rootPubKeyBytes3, err := verifier3.MarshalPublicKey()
@@ -419,12 +419,12 @@ func TestNewGenesis_AddSignature(t *testing.T) {
 
 func TestNewGenesis_MergeGenesisFiles(t *testing.T) {
 	id := []byte{0, 0, 0, 1}
-	partitionSigner, err := crypto.NewInMemorySecp256K1Signer()
+	partitionSigner, err := crypto2.NewInMemorySecp256K1Signer()
 	require.NoError(t, err)
 	partition := createPartition(t, id, "1", partitionSigner)
 	require.NoError(t, err)
 	const totalRootNodes = 2
-	s1, err := crypto.NewInMemorySecp256K1Signer()
+	s1, err := crypto2.NewInMemorySecp256K1Signer()
 	require.NoError(t, err)
 	_, v1 := testsig.CreateSignerAndVerifier(t)
 	rootPubKeyBytes, err := v1.MarshalPublicKey()
@@ -440,7 +440,7 @@ func TestNewGenesis_MergeGenesisFiles(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, rg1.IsValid())
 	// generate genesis 2
-	s2, err := crypto.NewInMemorySecp256K1Signer()
+	s2, err := crypto2.NewInMemorySecp256K1Signer()
 	require.NoError(t, err)
 	_, v2 := testsig.CreateSignerAndVerifier(t)
 	rootPubKeyBytes2, err := v2.MarshalPublicKey()

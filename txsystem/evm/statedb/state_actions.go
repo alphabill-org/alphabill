@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"math/big"
 
+	"github.com/alphabill-org/alphabill/api/predicates"
 	"github.com/alphabill-org/alphabill/api/types"
-	"github.com/alphabill-org/alphabill/validator/internal/predicates"
-	"github.com/alphabill-org/alphabill/validator/internal/state"
+	"github.com/alphabill-org/alphabill/txsystem/state"
 	"github.com/ethereum/go-ethereum/common"
 )
 

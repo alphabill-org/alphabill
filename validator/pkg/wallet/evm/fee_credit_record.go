@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	"github.com/alphabill-org/alphabill/api/types"
-	abcrypto "github.com/alphabill-org/alphabill/validator/internal/crypto"
+	abcrypto "github.com/alphabill-org/alphabill/common/crypto"
 	"github.com/ethereum/go-ethereum/common"
 	ethcrypto "github.com/ethereum/go-ethereum/crypto"
 )

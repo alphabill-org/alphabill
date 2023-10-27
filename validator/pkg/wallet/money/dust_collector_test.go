@@ -5,13 +5,13 @@ import (
 	"context"
 	"testing"
 
+	"github.com/alphabill-org/alphabill/common/crypto"
+	"github.com/alphabill-org/alphabill/common/hash"
 	"github.com/alphabill-org/alphabill/common/util"
 	money2 "github.com/alphabill-org/alphabill/txsystem/money"
 	"github.com/stretchr/testify/require"
 
 	"github.com/alphabill-org/alphabill/api/types"
-	"github.com/alphabill-org/alphabill/validator/internal/crypto"
-	"github.com/alphabill-org/alphabill/validator/internal/hash"
 	testblock "github.com/alphabill-org/alphabill/validator/internal/testutils/block"
 	"github.com/alphabill-org/alphabill/validator/internal/testutils/logger"
 	testsig "github.com/alphabill-org/alphabill/validator/internal/testutils/sig"

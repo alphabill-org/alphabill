@@ -1,10 +1,10 @@
 package testutils
 
 import (
+	"github.com/alphabill-org/alphabill/api/predicates/templates"
 	"github.com/alphabill-org/alphabill/api/types"
+	"github.com/alphabill-org/alphabill/common/hash"
 	moneytx "github.com/alphabill-org/alphabill/txsystem/money"
-	"github.com/alphabill-org/alphabill/validator/internal/hash"
-	"github.com/alphabill-org/alphabill/validator/internal/predicates/templates"
 )
 
 func CreateInitialBillTransferTx(pubKey []byte, billID, fcrID types.UnitID, billValue uint64, timeout uint64, backlink []byte) (*types.TransactionOrder, error) {

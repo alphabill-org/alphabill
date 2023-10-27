@@ -10,7 +10,7 @@ import (
 	"github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/spf13/cobra"
 
-	abcrypto "github.com/alphabill-org/alphabill/validator/internal/crypto"
+	abcrypto "github.com/alphabill-org/alphabill/common/crypto"
 	"github.com/alphabill-org/alphabill/validator/internal/network"
 )
 

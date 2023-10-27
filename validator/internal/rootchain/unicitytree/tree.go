@@ -6,7 +6,7 @@ import (
 	"hash"
 
 	"github.com/alphabill-org/alphabill/api/types"
-	"github.com/alphabill-org/alphabill/validator/internal/smt"
+	"github.com/alphabill-org/alphabill/common/smt"
 )
 
 var ErrInvalidSystemIdentifierLength = errors.New("invalid system identifier length")

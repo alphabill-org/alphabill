@@ -4,11 +4,11 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/alphabill-org/alphabill/api/predicates"
 	"github.com/alphabill-org/alphabill/txsystem"
 	"github.com/alphabill-org/alphabill/txsystem/fc/transactions"
 	fcunit "github.com/alphabill-org/alphabill/txsystem/fc/unit"
-	"github.com/alphabill-org/alphabill/validator/internal/predicates"
-	"github.com/alphabill-org/alphabill/validator/internal/state"
+	"github.com/alphabill-org/alphabill/txsystem/state"
 )
 
 func checkFeeCreditBalance(s *state.State, feeCalculator FeeCalculator) txsystem.GenericTransactionValidator {

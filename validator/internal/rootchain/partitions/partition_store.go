@@ -5,7 +5,7 @@ import (
 	"sync"
 
 	"github.com/alphabill-org/alphabill/api/types"
-	"github.com/alphabill-org/alphabill/validator/internal/crypto"
+	crypto2 "github.com/alphabill-org/alphabill/common/crypto"
 	"github.com/alphabill-org/alphabill/validator/internal/network/protocol/genesis"
 )
 
@@ -18,7 +18,7 @@ type (
 	}
 
 	TrustBase struct {
-		PartitionTrustBase map[string]crypto.Verifier
+		PartitionTrustBase map[string]crypto2.Verifier
 	}
 
 	// PartitionStore stores partition related information. key of the map is system identifier.
@@ -28,11 +28,11 @@ type (
 	}
 
 	MsgVerification interface {
-		IsValid(v crypto.Verifier) error
+		IsValid(v crypto2.Verifier) error
 	}
 )
 
-func NewPartitionTrustBase(tb map[string]crypto.Verifier) PartitionTrustBase {
+func NewPartitionTrustBase(tb map[string]crypto2.Verifier) PartitionTrustBase {
 	return &TrustBase{PartitionTrustBase: tb}
 }
 
@@ -65,9 +65,9 @@ func NewPartitionStoreFromGenesis(partitions []*genesis.GenesisPartitionRecord) 
 		if err != nil {
 			return nil, err
 		}
-		trustBase := make(map[string]crypto.Verifier)
+		trustBase := make(map[string]crypto2.Verifier)
 		for _, node := range partition.Nodes {
-			ver, err := crypto.NewVerifierSecp256k1(node.SigningPublicKey)
+			ver, err := crypto2.NewVerifierSecp256k1(node.SigningPublicKey)
 			if err != nil {
 				return nil, err
 			}

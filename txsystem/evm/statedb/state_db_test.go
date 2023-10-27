@@ -6,7 +6,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/core/types"
 
-	"github.com/alphabill-org/alphabill/validator/internal/state"
+	"github.com/alphabill-org/alphabill/txsystem/state"
 	test "github.com/alphabill-org/alphabill/validator/internal/testutils"
 	"github.com/alphabill-org/alphabill/validator/internal/testutils/logger"
 	"github.com/ethereum/go-ethereum/common"

@@ -10,8 +10,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/alphabill-org/alphabill/api/predicates/templates"
 	"github.com/alphabill-org/alphabill/txsystem/tokens"
-	"github.com/alphabill-org/alphabill/validator/internal/predicates/templates"
 	"github.com/fxamacker/cbor/v2"
 	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"

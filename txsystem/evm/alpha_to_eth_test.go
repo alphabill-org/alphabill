@@ -5,7 +5,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/alphabill-org/alphabill/validator/internal/predicates/templates"
+	"github.com/alphabill-org/alphabill/api/predicates/templates"
 	test "github.com/alphabill-org/alphabill/validator/internal/testutils"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/require"

@@ -6,10 +6,10 @@ import (
 	"testing"
 
 	"github.com/alphabill-org/alphabill/api/types"
+	"github.com/alphabill-org/alphabill/common/crypto"
+	"github.com/alphabill-org/alphabill/common/hash"
+	"github.com/alphabill-org/alphabill/common/keyvaluedb/memorydb"
 	"github.com/alphabill-org/alphabill/txsystem"
-	"github.com/alphabill-org/alphabill/validator/internal/crypto"
-	"github.com/alphabill-org/alphabill/validator/internal/hash"
-	"github.com/alphabill-org/alphabill/validator/internal/keyvaluedb/memorydb"
 	test "github.com/alphabill-org/alphabill/validator/internal/testutils"
 	"github.com/alphabill-org/alphabill/validator/internal/testutils/logger"
 	testpartition "github.com/alphabill-org/alphabill/validator/internal/testutils/partition"

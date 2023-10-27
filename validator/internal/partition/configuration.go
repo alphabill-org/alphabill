@@ -9,10 +9,10 @@ import (
 	"time"
 
 	"github.com/alphabill-org/alphabill/api/types"
+	crypto2 "github.com/alphabill-org/alphabill/common/crypto"
+	"github.com/alphabill-org/alphabill/common/keyvaluedb"
+	"github.com/alphabill-org/alphabill/common/keyvaluedb/memorydb"
 	"github.com/alphabill-org/alphabill/txsystem"
-	"github.com/alphabill-org/alphabill/validator/internal/crypto"
-	"github.com/alphabill-org/alphabill/validator/internal/keyvaluedb"
-	"github.com/alphabill-org/alphabill/validator/internal/keyvaluedb/memorydb"
 	"github.com/alphabill-org/alphabill/validator/internal/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/validator/internal/partition/event"
 	"github.com/alphabill-org/alphabill/validator/internal/txbuffer"
@@ -46,9 +46,9 @@ type (
 		txBuffer                    *txbuffer.TxBuffer
 		t1Timeout                   time.Duration // T1 timeout of the node. Time to wait before node creates a new block proposal.
 		hashAlgorithm               gocrypto.Hash // make hash algorithm configurable in the future. currently it is using SHA-256.
-		signer                      crypto.Signer
+		signer                      crypto2.Signer
 		genesis                     *genesis.PartitionGenesis
-		rootTrustBase               map[string]crypto.Verifier
+		rootTrustBase               map[string]crypto2.Verifier
 		rootChainAddress            multiaddr.Multiaddr
 		rootChainID                 peer.ID
 		eventHandler                event.Handler
@@ -127,7 +127,7 @@ func WithTxValidator(txValidator TxValidator) NodeOption {
 	}
 }
 
-func loadAndValidateConfiguration(signer crypto.Signer, genesis *genesis.PartitionGenesis, txs txsystem.TransactionSystem, net Net, log *slog.Logger, nodeOptions ...NodeOption) (*configuration, error) {
+func loadAndValidateConfiguration(signer crypto2.Signer, genesis *genesis.PartitionGenesis, txs txsystem.TransactionSystem, net Net, log *slog.Logger, nodeOptions ...NodeOption) (*configuration, error) {
 	if signer == nil {
 		return nil, ErrSignerIsNil
 	}
@@ -246,10 +246,10 @@ func (c *configuration) GetT2Timeout() time.Duration {
 	return time.Duration(c.genesis.SystemDescriptionRecord.T2Timeout) * time.Millisecond
 }
 
-func (c *configuration) GetSigningPublicKey(nodeIdentifier string) (crypto.Verifier, error) {
+func (c *configuration) GetSigningPublicKey(nodeIdentifier string) (crypto2.Verifier, error) {
 	for _, key := range c.genesis.Keys {
 		if key.NodeIdentifier == nodeIdentifier {
-			return crypto.NewVerifierSecp256k1(key.SigningPublicKey)
+			return crypto2.NewVerifierSecp256k1(key.SigningPublicKey)
 		}
 	}
 	return nil, fmt.Errorf("signing public key for id %v not found", nodeIdentifier)

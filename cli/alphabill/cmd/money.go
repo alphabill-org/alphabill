@@ -5,9 +5,9 @@ import (
 	"crypto"
 	"fmt"
 
+	"github.com/alphabill-org/alphabill/api/predicates/templates"
 	money2 "github.com/alphabill-org/alphabill/txsystem/money"
 	"github.com/alphabill-org/alphabill/validator/internal/network/protocol/genesis"
-	"github.com/alphabill-org/alphabill/validator/internal/predicates/templates"
 	"github.com/alphabill-org/alphabill/validator/pkg/logger"
 	"github.com/fxamacker/cbor/v2"
 	"github.com/libp2p/go-libp2p/core/peer"

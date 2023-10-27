@@ -7,12 +7,12 @@ import (
 	"path/filepath"
 	"testing"
 
+	crypto2 "github.com/alphabill-org/alphabill/common/crypto"
 	"github.com/alphabill-org/alphabill/txsystem/fc/testutils"
 	tokens2 "github.com/alphabill-org/alphabill/txsystem/tokens"
 	"github.com/stretchr/testify/require"
 
 	"github.com/alphabill-org/alphabill/api/types"
-	abcrypto "github.com/alphabill-org/alphabill/validator/internal/crypto"
 	test "github.com/alphabill-org/alphabill/validator/internal/testutils"
 	"github.com/alphabill-org/alphabill/validator/internal/testutils/logger"
 	"github.com/alphabill-org/alphabill/validator/pkg/wallet"
@@ -86,7 +86,7 @@ func Test_blockProcessor_ProcessBlock(t *testing.T) {
 	t.Run("failure to process tx", func(t *testing.T) {
 		txs, err := tokens2.NewTxSystem(
 			logger,
-			tokens2.WithTrustBase(map[string]abcrypto.Verifier{"test": nil}),
+			tokens2.WithTrustBase(map[string]crypto2.Verifier{"test": nil}),
 		)
 		require.NoError(t, err)
 
@@ -135,7 +135,7 @@ func Test_blockProcessor_processTx(t *testing.T) {
 	logger := logger.NOP()
 	txs, err := tokens2.NewTxSystem(
 		logger,
-		tokens2.WithTrustBase(map[string]abcrypto.Verifier{"test": nil}),
+		tokens2.WithTrustBase(map[string]crypto2.Verifier{"test": nil}),
 	)
 	require.NoError(t, err)
 	require.NotNil(t, txs)
@@ -433,7 +433,7 @@ func Test_blockProcessor_processTx(t *testing.T) {
 func Test_blockProcessor_ProcessFeeCreditTxs(t *testing.T) {
 	bp := createBlockProcessor(t)
 
-	signer, err := abcrypto.NewInMemorySecp256K1Signer()
+	signer, err := crypto2.NewInMemorySecp256K1Signer()
 	require.NoError(t, err)
 
 	// when addFC tx is processed
@@ -486,7 +486,7 @@ func createBlockProcessor(t *testing.T) *blockProcessor {
 	require.NoError(t, err)
 
 	log := logger.New(t)
-	txSystem, err := tokens2.NewTxSystem(log, tokens2.WithTrustBase(map[string]abcrypto.Verifier{"test": nil}))
+	txSystem, err := tokens2.NewTxSystem(log, tokens2.WithTrustBase(map[string]crypto2.Verifier{"test": nil}))
 	require.NoError(t, err)
 
 	return &blockProcessor{log: log, txs: txSystem, store: db}

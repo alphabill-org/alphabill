@@ -5,8 +5,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/alphabill-org/alphabill/common/crypto"
 	"github.com/alphabill-org/alphabill/common/util"
-	"github.com/alphabill-org/alphabill/validator/internal/crypto"
 	testsig "github.com/alphabill-org/alphabill/validator/internal/testutils/sig"
 	"github.com/stretchr/testify/require"
 )

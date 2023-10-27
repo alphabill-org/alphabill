@@ -3,10 +3,10 @@ package money
 import (
 	"fmt"
 
+	"github.com/alphabill-org/alphabill/api/predicates/templates"
 	"github.com/alphabill-org/alphabill/api/types"
-	abHasher "github.com/alphabill-org/alphabill/validator/internal/hash"
-	"github.com/alphabill-org/alphabill/validator/internal/predicates/templates"
-	"github.com/alphabill-org/alphabill/validator/internal/state"
+	abHasher "github.com/alphabill-org/alphabill/common/hash"
+	"github.com/alphabill-org/alphabill/txsystem/state"
 )
 
 const defaultDustBillDeletionTimeout uint64 = 65536

@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"hash"
 
-	"github.com/alphabill-org/alphabill/validator/internal/crypto"
+	"github.com/alphabill-org/alphabill/common/crypto"
 )
 
 var ErrUnicityCertificateIsNil = errors.New("unicity certificate is nil")

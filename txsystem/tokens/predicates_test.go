@@ -3,8 +3,8 @@ package tokens
 import (
 	"testing"
 
-	"github.com/alphabill-org/alphabill/validator/internal/predicates"
-	"github.com/alphabill-org/alphabill/validator/internal/predicates/templates"
+	"github.com/alphabill-org/alphabill/api/predicates"
+	"github.com/alphabill-org/alphabill/api/predicates/templates"
 	"github.com/stretchr/testify/require"
 )
 

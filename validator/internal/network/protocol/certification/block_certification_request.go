@@ -6,8 +6,8 @@ import (
 	"fmt"
 
 	"github.com/alphabill-org/alphabill/api/types"
+	"github.com/alphabill-org/alphabill/common/crypto"
 	"github.com/alphabill-org/alphabill/common/util"
-	"github.com/alphabill-org/alphabill/validator/internal/crypto"
 )
 
 var (

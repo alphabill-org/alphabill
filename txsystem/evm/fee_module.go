@@ -9,11 +9,11 @@ import (
 	txsystem2 "github.com/alphabill-org/alphabill/txsystem"
 	"github.com/ethereum/go-ethereum/common"
 
+	abcrypto "github.com/alphabill-org/alphabill/common/crypto"
 	"github.com/alphabill-org/alphabill/txsystem/evm/statedb"
 	"github.com/alphabill-org/alphabill/txsystem/fc"
 	"github.com/alphabill-org/alphabill/txsystem/fc/transactions"
-	abcrypto "github.com/alphabill-org/alphabill/validator/internal/crypto"
-	"github.com/alphabill-org/alphabill/validator/internal/state"
+	"github.com/alphabill-org/alphabill/txsystem/state"
 )
 
 var _ txsystem2.Module = (*FeeAccount)(nil)

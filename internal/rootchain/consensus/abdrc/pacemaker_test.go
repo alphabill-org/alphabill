@@ -524,10 +524,9 @@ func TestPacemaker_setState(t *testing.T) {
 		defer pacemaker.Stop()
 
 		// "force" status but do not write into event chan (ie event is already consumed)
-		pacemaker.status.Store(uint32(pmsRoundTimeout))
-
-		pacemaker.setState(pmsRoundTimeout, roundTO)
 		start := time.Now()
+		pacemaker.status.Store(uint32(pmsRoundTimeout))
+		pacemaker.setState(pmsRoundTimeout, roundTO)
 		require.EqualValues(t, pmsRoundTimeout, pacemaker.status.Load())
 		select {
 		case e := <-pacemaker.StatusEvents():
@@ -554,11 +553,11 @@ func TestPacemaker_setState(t *testing.T) {
 		defer pacemaker.Stop()
 
 		// set current status something other than pmsRoundTimeout
+		start := time.Now()
 		pacemaker.status.Store(uint32(pmsRoundMatured))
 		pacemaker.statusChan <- pmsRoundMatured
 
 		pacemaker.setState(pmsRoundTimeout, roundTO)
-		start := time.Now()
 		require.EqualValues(t, pmsRoundTimeout, pacemaker.status.Load())
 		select {
 		case e := <-pacemaker.StatusEvents():

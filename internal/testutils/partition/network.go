@@ -32,6 +32,7 @@ import (
 	"github.com/alphabill-org/alphabill/pkg/logger"
 	libp2pcrypto "github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/core/peer"
+	"github.com/libp2p/go-libp2p/core/peerstore"
 	"github.com/multiformats/go-multiaddr"
 	"github.com/stretchr/testify/require"
 )
@@ -239,6 +240,10 @@ func (r *RootPartition) start(ctx context.Context) error {
 		rootConsensusNet, err := network.NewLibP2RootConsensusNetwork(rootPeers[i], 100, 300*time.Millisecond, log)
 		if err != nil {
 			return fmt.Errorf("failed to init consensus network, %w", err)
+		}
+		// this is a unit test set-up pre-populate store with addresses, create separate test for node discovery
+		for _, rn := range r.Nodes {
+			rootPeers[i].Network().Peerstore().AddAddr(rn.id, rn.addr, peerstore.PermanentAddrTTL)
 		}
 		cm, err := abdrc.NewDistributedAbConsensusManager(rootPeers[i].ID(), r.rcGenesis, partitionStore, rootConsensusNet, rn.RootSigner, log)
 		if err != nil {

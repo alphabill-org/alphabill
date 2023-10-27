@@ -19,7 +19,7 @@ const (
 	T2Timeout
 )
 
-type IRChangeReason int
+type IRChangeReason uint8
 
 type IRChangeReq struct {
 	_                struct{}         `cbor:",toarray"`
@@ -27,6 +27,18 @@ type IRChangeReq struct {
 	CertReason       IRChangeReason   `json:"cert_reason,omitempty"`
 	// IR change (quorum or no quorum possible of block certification requests)
 	Requests []*certification.BlockCertificationRequest `json:"requests,omitempty"`
+}
+
+func (r IRChangeReason) String() string {
+	switch r {
+	case Quorum:
+		return "quorum"
+	case QuorumNotPossible:
+		return "no-quorum"
+	case T2Timeout:
+		return "timeout"
+	}
+	return fmt.Sprintf("unknown IR change reason %d", int(r))
 }
 
 func getMaxHashCount(hashCnt map[string]uint64) uint64 {
@@ -41,8 +53,8 @@ func getMaxHashCount(hashCnt map[string]uint64) uint64 {
 
 func (x *IRChangeReq) IsValid() error {
 	// ignore other values for now, just make sure it is not negative
-	if x.CertReason < 0 || x.CertReason > T2Timeout {
-		return fmt.Errorf("unknown reason %v", x.CertReason)
+	if x.CertReason > T2Timeout {
+		return fmt.Errorf("unknown reason %d", x.CertReason)
 	}
 	return nil
 }
@@ -148,4 +160,8 @@ func (x *IRChangeReq) AddToHasher(hasher hash.Hash) {
 	for _, req := range x.Requests {
 		hasher.Write(req.Bytes())
 	}
+}
+
+func (x *IRChangeReq) String() string {
+	return fmt.Sprintf("%s->%s", x.SystemIdentifier, x.CertReason)
 }

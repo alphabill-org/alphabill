@@ -118,7 +118,7 @@ func (t *TxSubmissionBatch) confirmUnitsTx(ctx context.Context) error {
 					return err
 				}
 				if proof != nil {
-					t.log.DebugContext(ctx, fmt.Sprintf("UnitID=%s is confirmed", sub.UnitID))
+					t.log.DebugContext(ctx, "Unit is confirmed", logger.UnitID(sub.UnitID))
 					sub.Proof = proof
 				}
 			}

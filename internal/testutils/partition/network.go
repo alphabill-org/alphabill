@@ -125,7 +125,7 @@ func newRootPartition(nofRootNodes uint8, nodePartitions []*NodePartition) (*Roo
 	trustBase := make(map[string]crypto.Verifier)
 	rootNodes := make([]*rootNode, nofRootNodes)
 	rootGenesisFiles := make([]*genesis.RootGenesis, nofRootNodes)
-	for i := uint8(0); i < nofRootNodes; i++ {
+	for i := 0; i < int(nofRootNodes); i++ {
 		encPubKey, err := libp2pcrypto.UnmarshalSecp256k1PublicKey(encKeyPairs[i].PublicKey)
 		if err != nil {
 			return nil, err
@@ -286,7 +286,7 @@ func NewPartition(t *testing.T, nodeCount uint8, txSystemProvider func(trustBase
 	if err != nil {
 		return nil, err
 	}
-	for i := uint8(0); i < nodeCount; i++ {
+	for i := 0; i < int(nodeCount); i++ {
 		peerConf := peerConfs[i]
 
 		signer := signers[i]
@@ -598,7 +598,7 @@ func BlockchainContains(part *NodePartition, criteria func(tx *types.Transaction
 
 func createSigners(count uint8) ([]crypto.Signer, error) {
 	var signers = make([]crypto.Signer, count)
-	for i := uint8(0); i < count; i++ {
+	for i := 0; i < int(count); i++ {
 		s, err := crypto.NewInMemorySecp256K1Signer()
 		if err != nil {
 			return nil, err
@@ -619,7 +619,7 @@ func createPeerConfs(count uint8) ([]*network.PeerConfiguration, error) {
 
 	var validators = make(peer.IDSlice, count)
 
-	for i := uint8(0); i < count; i++ {
+	for i := 0; i < int(count); i++ {
 		peerConfs[i], err = network.NewPeerConfiguration(
 			"/ip4/127.0.0.1/tcp/0",
 			keyPairs[i], // connection encryption key. The ID of the node is derived from this keypair.
@@ -638,7 +638,7 @@ func createPeerConfs(count uint8) ([]*network.PeerConfiguration, error) {
 
 func generateKeyPairs(count uint8) ([]*network.PeerKeyPair, error) {
 	var keyPairs = make([]*network.PeerKeyPair, count)
-	for i := uint8(0); i < count; i++ {
+	for i := 0; i < int(count); i++ {
 		privateKey, publicKey, err := libp2pcrypto.GenerateSecp256k1Key(rand.Reader)
 		if err != nil {
 			return nil, fmt.Errorf("failed to generate key pair %d/%d: %w", i, count, err)

@@ -55,7 +55,7 @@ func createUnicitySeal(rootHash []byte, roundNumber uint64, previousRoundRootHas
 	return &types.UnicitySeal{
 		RootChainRoundNumber: roundNumber,
 		Timestamp:            util.MakeTimestamp(),
-		PreviousHash:         make([]byte, 32),
+		PreviousHash:         previousRoundRootHash,
 		Hash:                 rootHash,
 	}
 }

@@ -4,9 +4,9 @@ import (
 	"crypto"
 	"testing"
 
+	"github.com/alphabill-org/alphabill/api/genesis"
 	"github.com/alphabill-org/alphabill/api/types"
 	abcrypto "github.com/alphabill-org/alphabill/common/crypto"
-	"github.com/alphabill-org/alphabill/validator/pkg/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/validator/pkg/testutils/certificates"
 	"github.com/stretchr/testify/require"
 )

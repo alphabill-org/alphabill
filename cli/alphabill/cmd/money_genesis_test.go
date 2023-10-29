@@ -9,10 +9,11 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/alphabill-org/alphabill/api/genesis"
 	"github.com/alphabill-org/alphabill/api/predicates/templates"
 	"github.com/alphabill-org/alphabill/common/util"
 	money2 "github.com/alphabill-org/alphabill/txsystem/money"
-	"github.com/alphabill-org/alphabill/validator/pkg/network/protocol/genesis"
+	pg "github.com/alphabill-org/alphabill/validator/pkg/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/validator/pkg/testutils/logger"
 	"github.com/fxamacker/cbor/v2"
 	"github.com/stretchr/testify/require"
@@ -50,7 +51,7 @@ func TestMoneyGenesis_DefaultNodeGenesisExists(t *testing.T) {
 	require.NoError(t, err)
 
 	nodeGenesisFile := filepath.Join(homeDir, moneyGenesisDir, moneyGenesisFileName)
-	err = util.WriteJsonFile(nodeGenesisFile, &genesis.PartitionNode{NodeIdentifier: "1"})
+	err = util.WriteJsonFile(nodeGenesisFile, &pg.PartitionNode{NodeIdentifier: "1"})
 	require.NoError(t, err)
 
 	cmd := New(logger.LoggerBuilder(t))
@@ -122,7 +123,7 @@ func TestMoneyGenesis_WithSystemIdentifier(t *testing.T) {
 	require.FileExists(t, kf)
 	require.FileExists(t, nodeGenesisFile)
 
-	pn, err := util.ReadJsonFile(nodeGenesisFile, &genesis.PartitionNode{})
+	pn, err := util.ReadJsonFile(nodeGenesisFile, &pg.PartitionNode{})
 	require.NoError(t, err)
 	require.EqualValues(t, []byte{1, 1, 1, 1}, pn.BlockCertificationRequest.SystemIdentifier)
 }
@@ -136,12 +137,12 @@ func TestMoneyGenesis_DefaultParamsExist(t *testing.T) {
 	require.NoError(t, err)
 
 	gf := filepath.Join(homeDir, moneyGenesisDir, moneyGenesisFileName)
-	pg, err := util.ReadJsonFile(gf, &genesis.PartitionGenesis{})
+	pgen, err := util.ReadJsonFile(gf, &pg.PartitionGenesis{})
 	require.NoError(t, err)
-	require.NotNil(t, pg)
+	require.NotNil(t, pgen)
 
-	params := &genesis.MoneyPartitionParams{}
-	err = cbor.Unmarshal(pg.Params, params)
+	params := &pg.MoneyPartitionParams{}
+	err = cbor.Unmarshal(pgen.Params, params)
 	require.NoError(t, err)
 
 	require.EqualValues(t, defaultInitialBillValue, params.InitialBillValue)
@@ -170,12 +171,12 @@ func TestMoneyGenesis_ParamsCanBeChanged(t *testing.T) {
 	require.NoError(t, err)
 
 	gf := filepath.Join(homeDir, moneyGenesisDir, moneyGenesisFileName)
-	pg, err := util.ReadJsonFile(gf, &genesis.PartitionGenesis{})
+	pgen, err := util.ReadJsonFile(gf, &pg.PartitionGenesis{})
 	require.NoError(t, err)
-	require.NotNil(t, pg)
+	require.NotNil(t, pgen)
 
-	params := &genesis.MoneyPartitionParams{}
-	err = cbor.Unmarshal(pg.Params, params)
+	params := &pg.MoneyPartitionParams{}
+	err = cbor.Unmarshal(pgen.Params, params)
 	require.NoError(t, err)
 
 	require.EqualValues(t, 1, params.InitialBillValue)

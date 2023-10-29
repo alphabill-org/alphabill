@@ -15,6 +15,7 @@ import (
 	"github.com/alphabill-org/alphabill/api/types"
 	"github.com/alphabill-org/alphabill/client/wallet"
 	"github.com/alphabill-org/alphabill/client/wallet/money/backend"
+	"github.com/alphabill-org/alphabill/txsystem/money"
 	test "github.com/alphabill-org/alphabill/validator/pkg/testutils"
 	testhttp "github.com/alphabill-org/alphabill/validator/pkg/testutils/http"
 	"github.com/alphabill-org/alphabill/validator/pkg/testutils/logger"

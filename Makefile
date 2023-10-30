@@ -9,7 +9,8 @@ generate:
 	go generate proto/generate.go
 
 test:
-	go test ./... -coverpkg=./... -count=1 -coverprofile test-coverage.out
+	find . -name go.mod -execdir go test ./... -coverpkg=./... -count=1 -coverprofile test-coverage.out \; | grep -zqv FAIL
+	#go test ./... -coverpkg=./... -count=1 -coverprofile test-coverage.out
 
 build:
     # cd to directory where main.go exits, hack fix for go bug to embed version control data

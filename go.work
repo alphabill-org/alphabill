@@ -1,0 +1,10 @@
+go 1.21.2
+
+use (
+	common
+	api
+	txsystem
+	validator
+	cli
+	client
+)

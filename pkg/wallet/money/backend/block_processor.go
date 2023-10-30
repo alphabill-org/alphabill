@@ -231,10 +231,6 @@ func (p *BlockProcessor) processTx(txr *types.TransactionRecord, b *types.Block,
 		if bill == nil {
 			return fmt.Errorf("unit not found for unlock tx (unitID=%s)", txo.UnitID())
 		}
-		attr := &moneytx.UnlockAttributes{}
-		if err := txo.UnmarshalAttributes(attr); err != nil {
-			return err
-		}
 		bill.Locked = 0
 		bill.TxHash = txHash
 		return dbTx.SetBill(bill, proof)
@@ -352,17 +348,18 @@ func (p *BlockProcessor) processTx(txr *types.TransactionRecord, b *types.Block,
 			return fmt.Errorf("failed to load fee credit bill: %w", err)
 		}
 		if fcb == nil {
-			return fmt.Errorf("fee credit bill not found: %X", txo.Payload.ClientMetadata.FeeCreditRecordID)
+			return fmt.Errorf("fee credit bill not found: %X", txo.UnitID())
 		}
-		if fcb.Value < txr.ServerMetadata.ActualFee {
-			return fmt.Errorf("fee credit bill value cannot go negative; value=%d fee=%d", fcb.Value, txr.ServerMetadata.ActualFee)
+		actualFee := txr.GetActualFee()
+		if fcb.Value < actualFee {
+			return fmt.Errorf("fee credit bill value cannot go negative; value=%d fee=%d", fcb.Value, actualFee)
 		}
 		attr := &transactions.LockFeeCreditAttributes{}
 		if err := txo.UnmarshalAttributes(attr); err != nil {
 			return fmt.Errorf("failed to unmarshal lockFC attributes: %w", err)
 		}
 		fcb.Locked = attr.LockStatus
-		fcb.Value -= txr.ServerMetadata.ActualFee
+		fcb.Value -= actualFee
 		fcb.TxHash = txHash
 		return dbTx.SetFeeCreditBill(fcb, proof)
 	case transactions.PayloadTypeUnlockFeeCredit:
@@ -371,13 +368,14 @@ func (p *BlockProcessor) processTx(txr *types.TransactionRecord, b *types.Block,
 			return fmt.Errorf("failed to load fee credit bill: %w", err)
 		}
 		if fcb == nil {
-			return fmt.Errorf("fee credit bill not found: %X", txo.Payload.ClientMetadata.FeeCreditRecordID)
+			return fmt.Errorf("fee credit bill not found: %X", txo.UnitID())
 		}
-		if fcb.Value < txr.ServerMetadata.ActualFee {
-			return fmt.Errorf("fee credit bill value cannot go negative; value=%d fee=%d", fcb.Value, txr.ServerMetadata.ActualFee)
+		actualFee := txr.GetActualFee()
+		if fcb.Value < actualFee {
+			return fmt.Errorf("fee credit bill value cannot go negative; value=%d fee=%d", fcb.Value, actualFee)
 		}
 		fcb.Locked = 0
-		fcb.Value -= txr.ServerMetadata.ActualFee
+		fcb.Value -= actualFee
 		fcb.TxHash = txHash
 		return dbTx.SetFeeCreditBill(fcb, proof)
 	default:
@@ -448,16 +446,17 @@ func (p *BlockProcessor) addTxFeeToMoneyFeeBill(dbTx BillStoreTx, tx *types.Tran
 
 func (p *BlockProcessor) updateFCB(dbTx BillStoreTx, txr *types.TransactionRecord) error {
 	txo := txr.TransactionOrder
-	fcb, err := dbTx.GetFeeCreditBill(txo.Payload.ClientMetadata.FeeCreditRecordID)
+	fcb, err := dbTx.GetFeeCreditBill(txo.GetClientFeeCreditRecordID())
 	if err != nil {
 		return err
 	}
 	if fcb == nil {
-		return fmt.Errorf("fee credit bill not found: %X", txo.Payload.ClientMetadata.FeeCreditRecordID)
+		return fmt.Errorf("fee credit bill not found: %X", txo.GetClientFeeCreditRecordID())
 	}
-	if fcb.Value < txr.ServerMetadata.ActualFee {
-		return fmt.Errorf("fee credit bill value cannot go negative; value=%d fee=%d", fcb.Value, txr.ServerMetadata.ActualFee)
+	actualFee := txr.GetActualFee()
+	if fcb.Value < actualFee {
+		return fmt.Errorf("fee credit bill value cannot go negative; value=%d fee=%d", fcb.Value, actualFee)
 	}
-	fcb.Value -= txr.ServerMetadata.ActualFee
+	fcb.Value -= actualFee
 	return dbTx.SetFeeCreditBill(fcb, nil)
 }
